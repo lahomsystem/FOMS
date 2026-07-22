@@ -1,4 +1,4 @@
-{% macro render_queue_card_v2(order, can_edit=false, task_action=None, badge_modifier=None, badge_text=None, task_actions=None, edit_return_to=None, detail_return_to=None, edit_label='ERP 편집', show_last_call=false, detail_slot=None, aux_slot=None, footer_extra_slot=None) -%}
+{% macro render_queue_card_v2(order, can_edit=false, task_action=None, badge_modifier=None, badge_text=None, task_actions=None, edit_return_to=None, detail_return_to=None, edit_label='ERP 편집', show_last_call=false, detail_slot=None, aux_slot=None, footer_extra_slot=None, suppress_drawing_role_meta=false) -%}
   {% set primary_alerts = [] %}
   {% if order.alerts.urgent %}
     {% set _ = primary_alerts.append({'label': '긴급', 'class': 'foms-badge--alert'}) %}
@@ -80,13 +80,16 @@
       {% set preview_items = order.attachment_preview_items or [] %}
       {% set preview_urls = order.attachment_preview_urls or order.attachment_previews or [] %}
       {% set attach_aria_prefix = '도면' if order.drawing_preview_only|default(false) else '첨부' %}
+      {# Visible chrome = 3 thumbs; remaining stay in DOM (no thumb src) for GlobalImageViewer. #}
+      {% set _visible_thumbs = 3 %}
       <div
         class="queue-card__attachments foms-queue-card-v2__attachments"
         aria-label="{{ attach_aria_prefix }} {{ order.attachments_count }}건"
         data-foms-erp-attachment-preview-gallery
         data-foms-erp-attachment-preview-readonly="true">
         {% if preview_items %}
-          {% for item in preview_items[:3] %}
+          {% for item in preview_items %}
+            {% if loop.index0 < _visible_thumbs %}
             <img
               class="queue-card__attach-thumb foms-queue-card-v2__attach-thumb"
               src="{{ item.thumb }}"
@@ -96,12 +99,22 @@
               data-foms-erp-attachment-view-url="{{ item.view }}"
               data-foms-erp-attachment-download-url="{{ item.download|default(item.view) }}"
               data-foms-erp-attachment-label="{{ item.label|default('첨부') }}">
+            {% else %}
+            <span
+              class="queue-card__attach-thumb queue-card__attach-thumb--gallery-only foms-queue-card-v2__attach-thumb foms-queue-card-v2__attach-thumb--gallery-only"
+              aria-hidden="true"
+              data-foms-erp-attachment-view-url="{{ item.view }}"
+              data-foms-erp-attachment-download-url="{{ item.download|default(item.view) }}"
+              data-foms-erp-attachment-label="{{ item.label|default('첨부') }}"></span>
+            {% endif %}
           {% endfor %}
-          {% if order.attachments_count > preview_items|length %}
-            <span class="queue-card__attach-more foms-queue-card-v2__attach-more">+{{ order.attachments_count - preview_items|length }}</span>
+          {% set _more_n = [order.attachments_count, preview_items|length]|max - _visible_thumbs %}
+          {% if _more_n > 0 %}
+            <span class="queue-card__attach-more foms-queue-card-v2__attach-more" role="button" tabindex="0" data-foms-erp-attachment-preview-more="+{{ _more_n }}">+{{ _more_n }}</span>
           {% endif %}
         {% elif preview_urls %}
-          {% for url in preview_urls[:3] %}
+          {% for url in preview_urls %}
+            {% if loop.index0 < _visible_thumbs %}
             <img
               class="queue-card__attach-thumb foms-queue-card-v2__attach-thumb"
               src="{{ url }}"
@@ -111,17 +124,26 @@
               data-foms-erp-attachment-view-url="{{ url }}"
               data-foms-erp-attachment-download-url="{{ url }}"
               data-foms-erp-attachment-label="첨부">
+            {% else %}
+            <span
+              class="queue-card__attach-thumb queue-card__attach-thumb--gallery-only foms-queue-card-v2__attach-thumb foms-queue-card-v2__attach-thumb--gallery-only"
+              aria-hidden="true"
+              data-foms-erp-attachment-view-url="{{ url }}"
+              data-foms-erp-attachment-download-url="{{ url }}"
+              data-foms-erp-attachment-label="첨부"></span>
+            {% endif %}
           {% endfor %}
-          {% if order.attachments_count > preview_urls|length %}
-            <span class="queue-card__attach-more foms-queue-card-v2__attach-more">+{{ order.attachments_count - preview_urls|length }}</span>
+          {% set _more_n = [order.attachments_count, preview_urls|length]|max - _visible_thumbs %}
+          {% if _more_n > 0 %}
+            <span class="queue-card__attach-more foms-queue-card-v2__attach-more" role="button" tabindex="0" data-foms-erp-attachment-preview-more="+{{ _more_n }}">+{{ _more_n }}</span>
           {% endif %}
         {% else %}
-          {% set _thumb_n = [order.attachments_count, 3]|min %}
+          {% set _thumb_n = [order.attachments_count, _visible_thumbs]|min %}
           {% for _ in range(_thumb_n) %}
             <span class="queue-card__attach-thumb foms-queue-card-v2__attach-thumb"></span>
           {% endfor %}
-          {% if order.attachments_count > 3 %}
-            <span class="queue-card__attach-more foms-queue-card-v2__attach-more">+{{ order.attachments_count - 3 }}</span>
+          {% if order.attachments_count > _visible_thumbs %}
+            <span class="queue-card__attach-more foms-queue-card-v2__attach-more">+{{ order.attachments_count - _visible_thumbs }}</span>
           {% endif %}
         {% endif %}
       </div>
@@ -147,7 +169,7 @@
         </div>
       {% endif %}
       {% set role_assignees = order.role_assignees or {} %}
-      {% if order.stage_code == 'DRAWING' or order.stage in ['도면', 'DRAWING'] %}
+      {% if (order.stage_code == 'DRAWING' or order.stage in ['도면', 'DRAWING']) and not suppress_drawing_role_meta %}
         <div>
           <dt>실측 담당</dt>
           <dd data-queue-card-field="measurement-assignee">{{ role_assignees.get('measurement_assignee') or order.manager_name or '-' }}</dd>

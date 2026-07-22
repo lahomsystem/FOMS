@@ -38,7 +38,9 @@ _MEASUREMENT_CATEGORIES = frozenset({"measurement", "measure_photo", "photo"})
 _ATTACHMENT_CATEGORIES = _DRAWING_CATEGORIES | _MEASUREMENT_CATEGORIES | frozenset(
     {"construction"}
 )
-_MAX_PREVIEW_COUNT = 4
+# Soft cap for lightbox gallery hydration (card chrome still shows 3+N via template).
+# Was 4 — left siblings beyond cap unreachable in GlobalImageViewer.
+_MAX_PREVIEW_COUNT = 50
 
 
 def _preview_categories(*, drawing_only: bool) -> frozenset[str]:

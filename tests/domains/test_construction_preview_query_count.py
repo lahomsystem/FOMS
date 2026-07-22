@@ -202,7 +202,7 @@ def test_construction_preview_batch_matches_per_row_on_tie(app):
         )
         items_per_row = _collect_preview_items(row, db_session, drawing_only=False)
         assert items_batch == items_per_row
-        assert len(items_batch) == 4  # _MAX_PREVIEW_COUNT
+        assert len(items_batch) == 5  # soft-cap 50; all 5 tie-seeded images hydrate
 
 
 def test_construction_preview_drawing_only_count_matches(app):
