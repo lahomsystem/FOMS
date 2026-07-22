@@ -244,14 +244,17 @@ def update_order_field_response(
 
         is_erp_order = is_erp_order_record(order)
         if field == "status" and is_erp_order:
+            from foms.services.orders.status_constants import is_logistics_board_status
             from foms.services.orders.stage_override import (
                 OVERRIDE_BLOCK_MESSAGE,
                 current_stage_for_order,
                 requires_privileged_override,
             )
 
-            if requires_privileged_override(current_stage_for_order(order), value):
-                return jsonify({"success": False, "message": OVERRIDE_BLOCK_MESSAGE}), 403
+            # 물류 보드 목표 상태(설치예정·완료·AS 등)는 stage-override 가드 제외.
+            if not is_logistics_board_status(value):
+                if requires_privileged_override(current_stage_for_order(order), value):
+                    return jsonify({"success": False, "message": OVERRIDE_BLOCK_MESSAGE}), 403
 
         structured_data: dict[str, Any] = {}
         structured_changed = False
@@ -279,10 +282,16 @@ def update_order_field_response(
             setattr(order, field, value)
 
         if field == "status" and is_erp_order and isinstance(structured_data, dict):
-            workflow = ensure_path(structured_data, "workflow")
-            workflow["stage"] = value
-            workflow["stage_updated_at"] = now_utc_naive().isoformat()
-            structured_changed = True
+            from foms.services.orders.status_constants import (
+                should_sync_workflow_stage_on_status,
+            )
+
+            # SCHEDULED 등 물류 중간상태는 workflow.stage를 오염시키지 않는다.
+            if should_sync_workflow_stage_on_status(value):
+                workflow = ensure_path(structured_data, "workflow")
+                workflow["stage"] = value
+                workflow["stage_updated_at"] = now_utc_naive().isoformat()
+                structured_changed = True
 
         if field == "as_completed_date":
             shipment = ensure_path(structured_data, "shipment")
