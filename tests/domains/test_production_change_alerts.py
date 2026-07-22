@@ -86,6 +86,21 @@ def _make_user(username: str, *, team: str = "PRODUCTION") -> User:
     return u
 
 
+# --- 시계 규약: OrderEvent.created_at UTC-naive 기본값 --------------------------
+
+
+def test_order_event_created_at_default_is_utc_naive(app):
+    from foms.services.datetime_kst import now_utc_naive
+
+    order = _make_order()
+    ev = OrderEvent(order_id=order.id, event_type="PRODUCTION_CHANGE_ACK", payload={})
+    db_session.add(ev)
+    db_session.commit()
+    # 기본값 now_utc_naive 로 통일. 서버 로컬(dev=KST) 기록이면 ~9h(32400s) 어긋난다.
+    assert ev.created_at is not None
+    assert abs((ev.created_at - now_utc_naive()).total_seconds()) < 120
+
+
 # --- 변경 윈도 계산 (개인별) -------------------------------------------------
 
 

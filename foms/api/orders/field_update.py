@@ -4,6 +4,7 @@ from __future__ import annotations
 
 import copy
 import datetime
+from foms.services.datetime_kst import now_utc_naive
 from typing import Any, Callable
 
 from flask import current_app, jsonify, request, session
@@ -280,7 +281,7 @@ def update_order_field_response(
         if field == "status" and is_erp_order and isinstance(structured_data, dict):
             workflow = ensure_path(structured_data, "workflow")
             workflow["stage"] = value
-            workflow["stage_updated_at"] = datetime.datetime.now().isoformat()
+            workflow["stage_updated_at"] = now_utc_naive().isoformat()
             structured_changed = True
 
         if field == "as_completed_date":
@@ -290,7 +291,7 @@ def update_order_field_response(
                 if is_erp_order:
                     workflow = ensure_path(structured_data, "workflow")
                     workflow["stage"] = "AS_COMPLETED"
-                    workflow["stage_updated_at"] = datetime.datetime.now().isoformat()
+                    workflow["stage_updated_at"] = now_utc_naive().isoformat()
                     structured_changed = True
                 if shipment.get("as_pending"):
                     shipment["as_pending"] = False
@@ -300,7 +301,7 @@ def update_order_field_response(
                 if is_erp_order:
                     workflow = ensure_path(structured_data, "workflow")
                     workflow["stage"] = "AS_RECEIVED"
-                    workflow["stage_updated_at"] = datetime.datetime.now().isoformat()
+                    workflow["stage_updated_at"] = now_utc_naive().isoformat()
                     structured_changed = True
 
         if is_erp_order or field in (

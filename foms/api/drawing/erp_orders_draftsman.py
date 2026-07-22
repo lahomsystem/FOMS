@@ -357,7 +357,7 @@ def api_order_confirm_drawing_receipt(order_id):
         wf: dict = s_data.get('workflow') or {}
         old_stage = wf.get('stage', 'DRAWING')
         wf['stage'] = next_stage
-        wf['stage_updated_at'] = datetime.now().isoformat()
+        wf['stage_updated_at'] = now_utc_naive().isoformat()
         wf['stage_updated_by'] = current_user.name
 
         hist: list = wf.get('history') or []

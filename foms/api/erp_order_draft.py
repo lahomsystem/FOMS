@@ -4,6 +4,7 @@ from __future__ import annotations
 
 import copy
 import datetime
+from foms.services.datetime_kst import now_utc_naive
 import re
 from typing import Any
 
@@ -136,7 +137,7 @@ def _draft_payload_to_structured(data: dict[str, Any]) -> dict[str, Any]:
         "items": items,
         "workflow": {
             "stage": initial_stage,
-            "stage_updated_at": datetime.datetime.now().isoformat(),
+            "stage_updated_at": now_utc_naive().isoformat(),
         },
         "schedule": {},
         "meta": {"wizard_v1": True},
