@@ -69,11 +69,12 @@
         {% if _orderer %}
           {% if '라홈' in _orderer %}
           <span class="foms-queue-card-v2__orderer" title="발주사 라홈">
-            <img src="{{ url_for('static', filename='images/lahom-logo.png') }}" alt="라홈" class="foms-queue-card-v2__orderer-logo foms-queue-card-v2__orderer-logo--lahom" loading="lazy" decoding="async">
+            {# width/height = 표시 크기(18px 높이·종횡비). CSS 캐시 미스여도 545×253 원본으로 안 커짐. #}
+            <img src="{{ url_for('static', filename='images/lahom-logo.png') }}" alt="라홈" class="foms-queue-card-v2__orderer-logo foms-queue-card-v2__orderer-logo--lahom" width="39" height="18" loading="lazy" decoding="async">
           </span>
           {% elif '하우드' in _orderer %}
           <span class="foms-queue-card-v2__orderer" title="발주사 하우드">
-            <img src="{{ url_for('static', filename='images/haud-logo.png') }}" alt="하우드" class="foms-queue-card-v2__orderer-logo foms-queue-card-v2__orderer-logo--haud" loading="lazy" decoding="async">
+            <img src="{{ url_for('static', filename='images/haud-logo.png') }}" alt="하우드" class="foms-queue-card-v2__orderer-logo foms-queue-card-v2__orderer-logo--haud" width="67" height="18" loading="lazy" decoding="async">
           </span>
           {% else %}
           <span class="foms-queue-card-v2__orderer foms-queue-card-v2__orderer--text" title="발주사">{{ _orderer }}</span>

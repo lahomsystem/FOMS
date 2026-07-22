@@ -78,7 +78,7 @@ def test_p2_mobile_queue_attachment_preview_bundle() -> None:
     assert "_visible_thumbs = 5" in card
     assert "preview_items[:3]" not in card
     assert "data-foms-erp-attachment-preview-more" in card
-    assert "foms-queue-card-v2.css?v=20260722a" in (
+    assert "foms-queue-card-v2.css?v=20260722c" in (
         ROOT / "static/css/foundation/foms-mobile-surfaces.css"
     ).read_text(encoding="utf-8")
     assert "attach-thumb--gallery-only" in (
