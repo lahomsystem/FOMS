@@ -91,6 +91,13 @@
       <option value="1">1공장</option>
       <option value="2">2공장</option>
     </select>
+    {# 변경 모아보기 토글 — data-changed="1" 카드만 필터(묘비는 항상 표시). changed_count>0 이면
+       주의 강조(has-changes). 배선은 tablet-domain-sheets.js(is-on 클래스 토글 + 재필터). #}
+    <button type="button" data-tablet-prod-changed aria-pressed="false"
+            class="tablet-prod-changed{% if (changed_count | default(0, true)) > 0 %} has-changes{% endif %}">
+      <i class="fas fa-triangle-exclamation" aria-hidden="true"></i>
+      <span>변경 {{ changed_count | default(0, true) }}</span>
+    </button>
     <button type="button" data-tablet-prod-reset>초기화</button>
   </div>
 
@@ -102,15 +109,57 @@
       <span class="foms-kanban-col__count" aria-label="{{ col.rows|length }}건">{{ col.rows|length }}</span>
     </header>
     <div class="foms-kanban-col__body">
+      {# ── 묘비 카드: 이 버킷에서 취소(soft delete)된 주문. 각 열 최상단, 빨강 톤 명시 라벨.
+         삭제 주문이라 시트(404)를 열지 않음 → data-order-id·data-foms-sheet-url 미부여(카드 탭 무동작).
+         [확인] 버튼(data-order-id + change-ack)만 ack API 호출. HMI 무채 규율의 승인된 예외(변경 주의). #}
+      {% set _tombs = (tombstones | default([], true)) | selectattr('bucket', 'equalto', col.bucket) | list %}
+      {% for t in _tombs %}
+      <article class="foms-kanban-card foms-kanban-card--tomb" data-tomb="1">
+        <div class="foms-kanban-card__alert foms-kanban-card__alert--tomb">
+          <div class="foms-kanban-card__alert-row foms-kanban-card__alert-row--tomb">
+            <i class="fas fa-ban" aria-hidden="true"></i>
+            <span class="foms-kanban-card__alert-label">취소됨</span>
+            {% if t.deleted_md %}<span class="foms-kanban-card__alert-detail">· {{ t.deleted_md }}</span>{% endif %}
+          </div>
+        </div>
+        <div class="foms-kanban-card__top">
+          <span class="foms-kanban-card__customer">{{ t.customer_name }}</span>
+        </div>
+        {% if t.product_label %}
+        <div class="foms-kanban-card__product">{{ t.product_label }}</div>
+        {% endif %}
+        <div class="foms-kanban-card__foot">
+          <button type="button" class="foms-kanban-ack-btn" data-order-id="{{ t.id }}" data-kanban-action="change-ack">
+            <i class="fas fa-check" aria-hidden="true"></i> 확인
+          </button>
+        </div>
+      </article>
+      {% endfor %}
       {% for o in col.rows %}
       {% set _flags = (o.structured_data.get('flags') if o.structured_data else none) or {} %}
       {% set _prod = (o.structured_data.get('production') if o.structured_data else none) or {} %}
       {% set _hold = (_prod.get('hold') if _prod else none) or {} %}
-      <article class="foms-kanban-card{% if _hold.get('active') %} is-held{% endif %}" data-order-id="{{ o.id }}"
+      {% set _alerts = o.change_alerts | default([], true) %}
+      {% set _has_changes = o.has_changes | default(false, true) %}
+      <article class="foms-kanban-card{% if _hold.get('active') %} is-held{% endif %}{% if _has_changes %} is-changed{% endif %}" data-order-id="{{ o.id }}"
         data-foms-sheet-url="{{ url_for('erp_production_page.erp_production_tablet_sheet', order_id=o.id) }}"
         data-factory2="{{ 1 if _flags.get('factory2') else 0 }}"
+        data-changed="{{ 1 if _has_changes else 0 }}"
         role="button" tabindex="0"
         aria-label="{{ o.customer_name }} 주문 상세 열기">
+        {# ── 변경 스트립: 생산 진입 후 감지된 시공일/도면 변경(kind별 파랑/주황). HMI 무채
+           규율의 승인된 예외(변경=주의). 좌측 보더+옅은 틴트로 카드 전체를 삼키지 않음. #}
+        {% if _alerts %}
+        <div class="foms-kanban-card__alert" role="status">
+          {% for a in _alerts %}
+          <div class="foms-kanban-card__alert-row foms-kanban-card__alert-row--{{ a.kind }}">
+            <i class="fas {{ 'fa-calendar-day' if a.kind == 'construction_date' else ('fa-pen-ruler' if a.kind == 'drawing' else 'fa-circle-info') }}" aria-hidden="true"></i>
+            <span class="foms-kanban-card__alert-label">{{ a.label }}</span>
+            {% if a.detail %}<span class="foms-kanban-card__alert-detail">{{ a.detail }}</span>{% endif %}
+          </div>
+          {% endfor %}
+        </div>
+        {% endif %}
         <div class="foms-kanban-card__top">
           <span class="foms-kanban-card__customer">{{ o.customer_name }}</span>
           <span class="foms-kanban-card__top-right">
@@ -125,6 +174,12 @@
             {% if _flags.get('factory2') %}
             <span class="foms-kanban-card__factory" title="라홈시스템(2공장) 발주">
               <i class="fas fa-industry" aria-hidden="true"></i> 2공장
+            </span>
+            {% endif %}
+            {% if o.is_regional | default(false, true) %}
+            {# 지방 주문 — __factory 칩과 같은 문법의 그린 변형(라우팅 정보). #}
+            <span class="foms-kanban-card__regional" title="지방 주문">
+              <i class="fas fa-location-dot" aria-hidden="true"></i> 지방
             </span>
             {% endif %}
           </span>
@@ -159,13 +214,20 @@
         <div class="foms-kanban-card__foot">
           {% set _dday = o.construction_dday %}
           {% if _dday is not none %}
-          {# D-day 부호 표기는 한 번만 만들어 칩 본문과 title(스크린리더용 완전 문장)에 재사용. #}
+          {# D-day 부호 표기는 한 번만 만들어 칩 본문과 title(스크린리더용 완전 문장)에 재사용.
+             --sched: 카드 내 제2 시각 앵커로 격상(날짜·D-day 확대·700). is-overdue/is-imminent 규율 유지. #}
           {% set _dday_text = 'D+' ~ (-_dday) if _dday < 0 else ('D-DAY' if _dday == 0 else 'D-' ~ _dday) %}
-          <span class="foms-kanban-chip{% if _dday < 0 %} is-overdue{% elif _dday <= 2 %} is-imminent{% endif %}"
+          <span class="foms-kanban-chip foms-kanban-chip--sched{% if _dday < 0 %} is-overdue{% elif _dday <= 2 %} is-imminent{% endif %}"
                 title="시공 예정일{% if o.construction_md %} {{ o.construction_md }}{% endif %} · {{ _dday_text }}">
             <span class="foms-kanban-chip__label">시공</span>
             {% if o.construction_md %}<span class="foms-kanban-chip__date">{{ o.construction_md }}</span>{% endif %}
             <span class="foms-kanban-chip__dday">{{ _dday_text }}</span>
+          </span>
+          {% else %}
+          {# 무일정 카드: 미정 구분(현재는 미표시). 무채 칩으로 명시. #}
+          <span class="foms-kanban-chip foms-kanban-chip--no-date" title="시공 예정일 미정">
+            <span class="foms-kanban-chip__label">시공</span>
+            <span class="foms-kanban-chip__date">미정</span>
           </span>
           {% endif %}
           {% if col.move == 'start' %}
@@ -184,7 +246,7 @@
         </div>
       </article>
       {% endfor %}
-      {% if not col.rows %}
+      {% if not col.rows and not _tombs %}
       <p class="foms-kanban-col__empty">해당 없음</p>
       {% endif %}
     </div>
