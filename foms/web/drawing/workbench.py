@@ -43,6 +43,7 @@ from foms.services.common.dashboard_cache import (
     get_or_compute_dashboard_slice,
 )
 from foms.services.drawing_workbench_read_model import (
+    DRAWING_WORKBENCH_SEED_CAP,
     fetch_drawing_seed_order_ids,
     hydrate_drawing_orders_by_ids,
 )
@@ -263,6 +264,8 @@ def erp_drawing_workbench_dashboard():
     # 태블릿 도면 작업실 필터(추가, 부재 시 무영향): D-3 이내(시공 임박)만 / 전달 대기(마법사 저장분)만.
     dday3_only = (request.args.get('dday3') or '').strip() == '1'
     pending_only = (request.args.get('pending') or '').strip() == '1'
+    # 컨펌 포함 토글: 기본 목록은 노이즈 방지로 컨펌(수령확정) 주문 제외. =1 일 때만 추가.
+    include_confirmed = (request.args.get('include_confirmed') or '').strip() == '1'
     assignee_filter_raw = (request.args.get('assignee') or '').strip()
     assignee_filter = assignee_filter_raw.lower()
     sort_by = (request.args.get('sort') or '').strip().lower()
@@ -303,6 +306,18 @@ def erp_drawing_workbench_dashboard():
     order_ids = [int(x) for x in (_seed_blob.get("order_ids") or [])]
     orders = hydrate_drawing_orders_by_ids(orders_query, order_ids)
 
+    # 컨펌 포함: 기본 seed 캐시는 불변(바이트 동일). include_confirmed=1 일 때만 CONFIRM
+    # 단계 주문을 추가 조회해 뒤에 덧붙인다(중복 제거, 아래 필터가 CONFIRMED만 통과시킴).
+    if include_confirmed:
+        _seen_ids = {o.id for o in orders}
+        _confirmed_orders = (
+            orders_query.filter(Order.erp_stage_code.in_(['CONFIRM', '고객컨펌']))
+            .order_by(Order.created_at.desc())
+            .limit(DRAWING_WORKBENCH_SEED_CAP)
+            .all()
+        )
+        orders = orders + [o for o in _confirmed_orders if o.id not in _seen_ids]
+
     # 검색 카드 딥링크(?focus_order=)는 seed 캡·필터와 무관하게 해당 주문이 착지해야 한다.
     # orders/construction/measurement 대시보드와 동일한 deep-link SSOT.
     focus_order_id = request.args.get('focus_order', type=int)
@@ -329,7 +344,8 @@ def erp_drawing_workbench_dashboard():
         drawing_status = (drawing_obj.get('status') or sd.get('drawing_status') or 'PENDING').upper()
         is_drawing_stage = (stage_code == 'DRAWING')
         is_active_revision = (drawing_status == 'RETURNED')
-        if not (is_drawing_stage or is_active_revision):
+        is_confirmed_included = include_confirmed and drawing_status == 'CONFIRMED'
+        if not (is_drawing_stage or is_active_revision or is_confirmed_included):
             continue
 
         customer_name = (((sd.get('parties') or {}).get('customer') or {}).get('name')) or '-'
@@ -454,6 +470,7 @@ def erp_drawing_workbench_dashboard():
             'product_summary': product_summary,
             'manager_name': manager_name,
             'assignee_text': assignee_text,
+            'no_assignee': not has_assignee,
             'measurement_assignee_text': measurement_assignee_text,
             'drawing_status': drawing_status,
             'drawing_status_label': _drawing_status_label(drawing_status),

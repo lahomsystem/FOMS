@@ -305,6 +305,14 @@ def api_order_confirm_drawing_receipt(order_id):
         if not current_user:
             return jsonify({'success': False, 'message': '사용자를 찾을 수 없습니다.'}), 401
 
+        # 상태 정합성 가드: 전달된 도면(확정 대기)에서만 수령 확정 가능.
+        # 권한 우회(ADMIN/오버라이드) 대상 아님 — 상태 가드는 전원 적용.
+        if s_data.get('drawing_status') != 'TRANSFERRED':
+            return jsonify({
+                'success': False,
+                'message': '전달된 도면(확정 대기 상태)에서만 수령 확정할 수 있습니다.'
+            }), 400
+
         can_confirm_receipt = can_modify_domain(
             current_user, order, 'SALES_DOMAIN', emergency_override, override_reason
         )

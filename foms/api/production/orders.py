@@ -211,7 +211,7 @@ def api_production_complete(order_id):
 
 @erp_orders_production_bp.route("/<int:order_id>/production/change-ack", methods=["POST"])
 @login_required
-@erp_edit_required
+@_production_steps_edit_required
 def api_production_change_ack(order_id: int):
     """생산 변경 확인(ack). 카드/시트 변경 스트립·묘비 [확인] 버튼이 호출한다.
 
@@ -219,6 +219,10 @@ def api_production_change_ack(order_id: int):
     이 ack 시각이 변경 감지 윈도를 리셋하므로 이후 대시보드 재조회 시 해당 주문의
     변경 스트립이 사라진다. **삭제(취소)된 주문에도 허용**한다 — 묘비 카드 확인용이라
     ``active_filter`` 대신 존재 여부만 확인한다.
+
+    권한: 생산 공정 스텝과 동일 게이트(ADMIN 또는 CS/SALES/**PRODUCTION** 팀). ack 는
+    "생산 인원 개인별" 설계라 생산팀 계정이 반드시 눌러야 하므로 erp_edit(ADMIN/CS/SALES
+    전용)이 아닌 스텝 게이트를 재사용한다.
 
     :param order_id: 대상 주문 id.
     :return: ``{success, data:{order_id}}`` 또는 오류 JSON.

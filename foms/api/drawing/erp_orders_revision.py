@@ -1,6 +1,6 @@
 """
 ERP 주문 도면 수정 요청/체크 API. (Phase 4-5d, 4-5h)
-erp.py에서 분리: request-revision, request-revision-check, drawing/request-revision, drawing/complete-revision.
+erp.py에서 분리: request-revision, request-revision-check, cancel-revision-request, ack-order-change.
 """
 import copy
 import datetime
@@ -337,6 +337,29 @@ def api_order_cancel_revision_request(order_id):
                 f"(참고파일 {deleted_count}개 삭제)"
             )
         ))
+
+        # 수정요청취소 알림 → 도면팀. 실패해도 취소는 진행(로그만).
+        cancel_notif = None
+        try:
+            _cust = (((s_data.get('parties') or {}).get('customer') or {}).get('name') or '').strip()
+            _msg = f"주문 #{order_id}" + (f" ({_cust})" if _cust else "") + " 도면 수정요청이 취소되었습니다."
+            cancel_notif = Notification(
+                order_id=order_id,
+                notification_type='DRAWING_REVISION_CANCELLED',
+                target_team='DRAWING',
+                title='도면 수정요청 취소',
+                message=_msg,
+                created_by_user_id=session.get('user_id'),
+                created_by_name=current_user.name,
+                is_read=False,
+            )
+            db.add(cancel_notif)
+            db.flush()
+            fan_out_new_notification(db, cancel_notif, actor_user_id=session.get('user_id'))
+        except Exception as _notif_err:
+            cancel_notif = None
+            logger.warning("cancel-revision notification build failed: %s", _notif_err, exc_info=True)
+
         db.commit()
 
         # 도메인-스코프: stage 무변경(drawing_status 복원만) → 도면·주문 목록만 무효화.
@@ -347,6 +370,23 @@ def api_order_cancel_revision_request(order_id):
         )
 
         invalidate_dashboard_families(DASHBOARD_FAMILY_DRAWING, DASHBOARD_FAMILY_ORDERS)
+
+        # 커밋 후: push/badge/realtime(수정요청 알림 finalize 미러). 실패해도 취소 결과 불침해.
+        if cancel_notif is not None:
+            try:
+                from foms.services.notifications.push_sender import enqueue_push_for_notification
+                enqueue_push_for_notification(cancel_notif.id, db=db)
+                _rids = resolve_notification_recipient_user_ids(
+                    db, target_team='DRAWING', target_manager_name=None, include_admin=True,
+                )
+                invalidate_badge_cache_for_user_ids(_rids)
+                emit_erp_notification_to_users(_rids, {
+                    'notification_id': cancel_notif.id, 'order_id': order_id,
+                    'notification_type': 'DRAWING_REVISION_CANCELLED',
+                    'title': cancel_notif.title, 'message': cancel_notif.message,
+                })
+            except Exception as _fin_err:
+                logger.warning("cancel-revision notification finalize failed: %s", _fin_err, exc_info=True)
 
         status_label = '확정 완료' if restore_status == 'CONFIRMED' else '확정 대기'
         return jsonify({
@@ -450,135 +490,6 @@ def api_order_request_revision_check(order_id):
         if db is not None:
             db.rollback()
         logger.exception("Request Revision Check Error: %s", e)
-        return jsonify({'success': False, 'message': str(e)}), 500
-
-
-@erp_orders_revision_bp.route('/<int:order_id>/drawing/request-revision', methods=['POST'])
-@login_required
-@erp_edit_required
-def api_drawing_request_revision(order_id):
-    """도면 수정 요청 (고객 컨펌 또는 생산 단계에서) - Blueprint V3: blueprint.revisions 구조"""
-    db = get_db()
-    try:
-        order = db.get(Order, order_id)
-        if not order or order.status == "DELETED" or order.deleted_at is not None:
-            return jsonify({'success': False, 'message': '주문을 찾을 수 없습니다.'}), 404
-
-        data = request.get_json() or {}
-        feedback = data.get('feedback', '')
-        requested_by = data.get('requested_by', 'customer')
-
-        user_id = session.get('user_id')
-        user = get_user_by_id(user_id)
-
-        sd = _ensure_dict(order.structured_data)
-        blueprint = sd.get('blueprint') or {}
-        revisions = blueprint.get('revisions') or []
-
-        revision_entry = {
-            'id': len(revisions) + 1,
-            'requested_at': datetime.datetime.now().isoformat(),
-            'requested_by': requested_by,
-            'requester_name': user.name if user else 'Unknown',
-            'feedback': feedback,
-            'status': 'PENDING',
-            'revised_at': None,
-            'revised_by': None
-        }
-        revisions.append(revision_entry)
-        blueprint['revisions'] = revisions
-        blueprint['revision_count'] = len(revisions)
-        blueprint['has_pending_revision'] = True
-        sd['blueprint'] = blueprint
-
-        wf = sd.get('workflow') or {}
-        hist = wf.get('history') or []
-        requester_labels = {'customer': '고객', 'production': '생산팀'}
-        hist.append({
-            'stage': wf.get('stage', 'CONFIRM'),
-            'updated_at': datetime.datetime.now().isoformat(),
-            'updated_by': user.name if user else 'Unknown',
-            'note': f'도면 수정 요청 ({requester_labels.get(requested_by, requested_by)}): {feedback}'
-        })
-        wf['history'] = hist
-        sd['workflow'] = wf
-
-        order.structured_data = copy.deepcopy(sd)
-        flag_modified(order, "structured_data")
-
-        db.add(SecurityLog(user_id=user_id, message=f"주문 #{order_id} 도면 수정 요청: {feedback[:50]}..."))
-        db.commit()
-
-        return jsonify({
-            'success': True,
-            'message': '도면 수정 요청이 등록되었습니다. 도면팀에서 확인 후 수정됩니다.',
-            'revision_id': revision_entry['id']
-        })
-    except Exception as e:
-        db.rollback()
-        return jsonify({'success': False, 'message': str(e)}), 500
-
-
-@erp_orders_revision_bp.route('/<int:order_id>/drawing/complete-revision', methods=['POST'])
-@login_required
-@erp_edit_required
-def api_drawing_complete_revision(order_id):
-    """도면 수정 완료 (도면팀에서 수정 후)"""
-    db = get_db()
-    try:
-        order = db.get(Order, order_id)
-        if not order or order.status == "DELETED" or order.deleted_at is not None:
-            return jsonify({'success': False, 'message': '주문을 찾을 수 없습니다.'}), 404
-
-        data = request.get_json() or {}
-        revision_id = data.get('revision_id')
-        revision_note = data.get('note', '')
-
-        user_id = session.get('user_id')
-        user = get_user_by_id(user_id)
-
-        sd = _ensure_dict(order.structured_data)
-        blueprint = sd.get('blueprint') or {}
-        revisions = blueprint.get('revisions') or []
-
-        for rev in revisions:
-            if isinstance(rev, dict) and (rev.get('id') == revision_id or revision_id is None):
-                if rev.get('status') == 'PENDING':
-                    rev['status'] = 'COMPLETED'
-                    rev['revised_at'] = datetime.datetime.now().isoformat()
-                    rev['revised_by'] = user.name if user else 'Unknown'
-                    rev['revision_note'] = revision_note
-                    break
-
-        pending_count = sum(1 for r in revisions if isinstance(r, dict) and r.get('status') == 'PENDING')
-        blueprint['has_pending_revision'] = pending_count > 0
-        blueprint['revisions'] = revisions
-        sd['blueprint'] = blueprint
-
-        wf = sd.get('workflow') or {}
-        hist = wf.get('history') or []
-        hist.append({
-            'stage': wf.get('stage', 'DRAWING'),
-            'updated_at': datetime.datetime.now().isoformat(),
-            'updated_by': user.name if user else 'Unknown',
-            'note': f'도면 수정 완료: {revision_note}'
-        })
-        wf['history'] = hist
-        sd['workflow'] = wf
-
-        order.structured_data = copy.deepcopy(sd)
-        flag_modified(order, "structured_data")
-
-        db.add(SecurityLog(user_id=user_id, message=f"주문 #{order_id} 도면 수정 완료"))
-        db.commit()
-
-        return jsonify({
-            'success': True,
-            'message': '도면 수정이 완료되었습니다.',
-            'pending_revisions': pending_count
-        })
-    except Exception as e:
-        db.rollback()
         return jsonify({'success': False, 'message': str(e)}), 500
 
 
