@@ -13,12 +13,14 @@
 
 시간 비교 규약(중요):
     라이브 카드 변경 감지(윈도 vs 도면/시공일 이벤트)는 naive-to-naive 시계 비교다.
-    ``OrderEvent.created_at``·``Order.created_at``·``erp_stage_updated_at`` 은 모두 DB
-    naive datetime(서버 로컬 wall-clock)이고, ``drawing_transfer_history`` 의
-    ``at``/``transferred_at`` 은 ``now_utc_naive()`` 로 기록된 naive 문자열이다. 운영(UTC
-    서버)에서는 둘 다 UTC naive 라 직접 비교가 정확하다(tz-aware 변환·혼입 금지).
+    ``OrderEvent.created_at``(기본값 ``now_utc_naive``)·``erp_stage_updated_at``
+    (``workflow.stage_updated_at = now_utc_naive().isoformat()`` 에서 파생)·
+    ``drawing_transfer_history`` 의 ``at``/``transferred_at``(``now_utc_naive``)은 **전부
+    UTC-naive 로 통일**되어 dev·운영 모두 직접 비교가 정확하다(tz-aware 변환·혼입 금지).
+    단 dev DB 의 **기존** 행은 옛 서버-로컬(KST) 기록이라 과도기 혼재(신규 행만 UTC);
+    운영은 기존·신규 모두 UTC 라 무영향.
 
-    단, **묘비 ack 판정은 시계 비교를 쓰지 않는다.** ``deleted_at`` 은 ``now_kst()`` KST
+    또한 **묘비 ack 판정은 시계 비교를 쓰지 않는다.** ``deleted_at`` 은 ``now_kst()`` KST
     wall-clock 이고 ``created_at`` 은 서버 로컬(운영=UTC)이라 삭제 직후 최대 9h 동안 ack가
     "과거"로 보이는 skew가 있다. 그래서 ack API가 payload에 ``deleted_at`` 마커를 심고,
     묘비는 그 마커 문자열 동등성으로만 확인 여부를 판정한다.

@@ -17,7 +17,7 @@ from foms.services.orders.stage_override import (
 )
 from foms.services.erp_order_flags import is_erp_order_record
 from db import get_db
-from foms.services.datetime_kst import now_kst
+from foms.services.datetime_kst import now_kst, now_utc_naive
 from foms.services.erp_display import get_today_kst
 from foms.services.erp_sync_columns import sync_erp_flat_columns
 from models import Order, OrderEvent
@@ -44,7 +44,7 @@ def _sync_erp_stage(order: Order, new_status: str, user_id: Any, db: Any, *, bul
     if new_status in STATUS:
         workflow = dict(workflow)
         workflow["stage"] = new_status
-        workflow["stage_updated_at"] = datetime.datetime.now().isoformat()
+        workflow["stage_updated_at"] = now_utc_naive().isoformat()
         structured_data["workflow"] = workflow
         setattr(order, "structured_data", structured_data)
         flag_modified(order, "structured_data")

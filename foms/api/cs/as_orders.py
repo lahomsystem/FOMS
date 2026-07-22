@@ -4,6 +4,7 @@ erp.py에서 분리: as/start, as/complete, as/schedule.
 """
 import copy
 import datetime
+from foms.services.datetime_kst import now_utc_naive
 import logging
 
 from flask import Blueprint, jsonify, request, session
@@ -108,7 +109,7 @@ def api_as_start(order_id):
         sd["as_info"] = as_info
 
         wf["stage"] = "AS"
-        wf["stage_updated_at"] = datetime.datetime.now().isoformat()
+        wf["stage_updated_at"] = now_utc_naive().isoformat()
         wf["stage_updated_by"] = user.name if user else "Unknown"
 
         hist = wf.get("history") or []
@@ -195,7 +196,7 @@ def api_as_complete(order_id):
         sd["as_info"] = as_info
 
         wf["stage"] = "CS"
-        wf["stage_updated_at"] = datetime.datetime.now().isoformat()
+        wf["stage_updated_at"] = now_utc_naive().isoformat()
         wf["stage_updated_by"] = user.name if user else "Unknown"
 
         hist = wf.get("history") or []
@@ -281,7 +282,7 @@ def api_as_register(order_id):
             shipment["construction_workers"] = [construction_worker_name]
         wf = sd.get("workflow") or {}
         wf["stage"] = "AS_RECEIVED"
-        wf["stage_updated_at"] = datetime.datetime.now().isoformat()
+        wf["stage_updated_at"] = now_utc_naive().isoformat()
         wf["stage_updated_by"] = user.name if user else "Unknown"
         sd["workflow"] = wf
 

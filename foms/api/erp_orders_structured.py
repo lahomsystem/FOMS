@@ -31,7 +31,7 @@ from foms.services.erp_policy import (
     check_quest_approvals_complete,
     create_quest_from_template,
 )
-from foms.services.datetime_kst import get_today_kst, now_kst
+from foms.services.datetime_kst import get_today_kst, now_kst, now_utc_naive
 from foms.services.erp_order_flags import is_erp_draft_structured_data, is_erp_order_draft
 from foms.services.erp_sync_columns import sync_erp_flat_columns
 from foms.services.orders.erp_automation import apply_auto_tasks
@@ -340,7 +340,7 @@ def _handle_stage_transition(
         stage_label = STAGE_LABELS.get(old_stage, old_stage) if old_stage else '알 수 없음'
         missing_team_labels = [TEAM_LABELS.get(t, t) for t in missing_teams]
         logger.warning("[%s] Quest 승인 미완료 팀: %s", stage_label, ', '.join(missing_team_labels))
-    (structured_data.get('workflow') or {})['stage_updated_at'] = datetime.datetime.now().isoformat()
+    (structured_data.get('workflow') or {})['stage_updated_at'] = now_utc_naive().isoformat()
     db.add(OrderEvent(
         order_id=order.id,
         event_type='STAGE_CHANGED',

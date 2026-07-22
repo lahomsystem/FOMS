@@ -5,6 +5,7 @@ erp.py에서 분리: production/start, production/complete, production/steps.
 
 import copy
 import datetime
+from foms.services.datetime_kst import now_utc_naive
 from functools import wraps
 from typing import Any, Callable
 
@@ -112,7 +113,7 @@ def api_production_start(order_id):
         sd = _ensure_dict(order.structured_data)
         wf = sd.get("workflow") or {}
         wf["stage"] = "PRODUCTION"
-        wf["stage_updated_at"] = datetime.datetime.now().isoformat()
+        wf["stage_updated_at"] = now_utc_naive().isoformat()
         wf["stage_updated_by"] = user.name if user else "Unknown"
 
         hist = wf.get("history") or []
@@ -157,7 +158,7 @@ def api_production_complete(order_id):
         sd = _ensure_dict(order.structured_data)
         wf = sd.get("workflow") or {}
         wf["stage"] = "CONSTRUCTION"
-        wf["stage_updated_at"] = datetime.datetime.now().isoformat()
+        wf["stage_updated_at"] = now_utc_naive().isoformat()
         wf["stage_updated_by"] = user.name if user else "Unknown"
 
         hist = wf.get("history") or []

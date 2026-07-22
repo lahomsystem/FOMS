@@ -5,6 +5,7 @@ erp.py에서 분리: construction/start, construction/complete, construction/fai
 
 import copy
 import datetime
+from foms.services.datetime_kst import now_utc_naive
 
 from flask import Blueprint, jsonify, request, session
 from sqlalchemy.orm.attributes import flag_modified
@@ -110,7 +111,7 @@ def api_construction_complete(order_id):
         sd = _ensure_dict(order.structured_data)
         wf = sd.get("workflow") or {}
         wf["stage"] = "COMPLETED"
-        wf["stage_updated_at"] = datetime.datetime.now().isoformat()
+        wf["stage_updated_at"] = now_utc_naive().isoformat()
         wf["stage_updated_by"] = user.name if user else "Unknown"
         wf["completion_note"] = completion_note
 
@@ -306,7 +307,7 @@ def api_construction_fail(order_id):
         new_stage = reason_stage_map.get(reason, "CONSTRUCTION")
 
         wf["stage"] = new_stage
-        wf["stage_updated_at"] = datetime.datetime.now().isoformat()
+        wf["stage_updated_at"] = now_utc_naive().isoformat()
         wf["stage_updated_by"] = user.name if user else "Unknown"
         wf["rework_reason"] = reason
 
