@@ -74,6 +74,15 @@ def test_p2_mobile_queue_attachment_preview_bundle() -> None:
     assert "attachment-preview-zoom.js" in bundle
     assert "foms_mobile_queue_attachment_preview_bundle.html" in p2
     assert "data-foms-erp-attachment-preview-gallery" in card
+    assert "attach-thumb--gallery-only" in card
+    assert "preview_items[:3]" not in card
+    assert "data-foms-erp-attachment-preview-more" in card
+    assert "foms-queue-card-v2.css?v=20260722a" in (
+        ROOT / "static/css/foundation/foms-mobile-surfaces.css"
+    ).read_text(encoding="utf-8")
+    assert "attach-thumb--gallery-only" in (
+        ROOT / "static/css/components/foms-queue-card-v2.css"
+    ).read_text(encoding="utf-8")
     assert "data-foms-lightbox-gallery" not in card
 
 
@@ -85,6 +94,8 @@ def test_mobile_queue_attachment_preview_open_is_shell_swap_idempotent() -> None
     guard = "window.__FOMS_ERP_ATTACHMENT_PREVIEW_OPEN_BOUND"
 
     assert guard in js
+    assert "data-foms-erp-attachment-preview-more" in js
+    assert "openGalleryAt" in js
     assert js.index(guard) < js.index('document.body.addEventListener("htmx:afterSwap"')
     assert js.index(guard) < js.index('document.addEventListener("foms:main-content-swapped"')
 

@@ -69,7 +69,9 @@ _MOBILE_ATTACHMENT_CATEGORY_ORDER: tuple[tuple[str, str], ...] = (
 )
 
 _IMAGE_SUFFIXES = (".jpg", ".jpeg", ".png", ".webp", ".gif", ".bmp")
-_MAX_QUEUE_PREVIEW_COUNT = 3
+# Soft cap: gallery must hydrate all previewable images (card chrome still shows 3+N).
+# Align with detail `_batch_mobile_attachment_items` default (50).
+_MAX_QUEUE_PREVIEW_COUNT = 50
 
 
 

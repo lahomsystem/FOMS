@@ -363,6 +363,7 @@
 
 .erp-shipment-mobile-v2 .queue-card__attachments,
 .erp-shipment-mobile-v2 .foms-queue-card-v2__attachments {
+  position: relative;
   display: flex;
   align-items: center;
   gap: var(--foms-space-2, 8px);
@@ -377,11 +378,33 @@
   flex-shrink: 0;
 }
 
+.erp-shipment-mobile-v2 .queue-card__attach-thumb--gallery-only,
+.erp-shipment-mobile-v2 .foms-queue-card-v2__attach-thumb--gallery-only {
+  position: absolute;
+  width: 1px;
+  height: 1px;
+  padding: 0;
+  margin: -1px;
+  overflow: hidden;
+  clip: rect(0, 0, 0, 0);
+  white-space: nowrap;
+  border: 0;
+  pointer-events: none;
+}
+
 .erp-shipment-mobile-v2 .queue-card__attach-more,
 .erp-shipment-mobile-v2 .foms-queue-card-v2__attach-more {
   color: var(--foms-text-tertiary, #64748b);
   font-size: var(--foms-font-size-xs, 12px);
   font-variant-numeric: tabular-nums;
+}
+
+.erp-shipment-mobile-v2 .queue-card__attach-more[data-foms-erp-attachment-preview-more],
+.erp-shipment-mobile-v2 .foms-queue-card-v2__attach-more[data-foms-erp-attachment-preview-more] {
+  cursor: pointer;
+  min-height: var(--foms-touch-target-min, 44px);
+  display: inline-flex;
+  align-items: center;
 }
 
 /* 카드 통합(2026-07-15): 상세 dl은 이제 v2 카드 "안"에서 meta 아래로 병합된다.
