@@ -604,6 +604,14 @@
     box-shadow: 0 0 0 3px var(--foms-kanban-pulse-halo), var(--foms-shadow-sm);
     animation: foms-kanban-change-pulse 900ms ease-out 3;
   }
+  /* R6 확인됨 변경 카드 상설 테두리 — 이력 보유하나 미확인 아님(is-changed 아님). 원거리
+     식별용 2px info 파랑 정적 보더 + 아주 옅은 halo(무펄스·무애니메이션). 조용한 칩과 동일 톤.
+     위계: 주황 3px+펄스=미확인 잔존 / 파랑 2px 정적=확인됨. data 속성 기반이라 ack 후 in-place
+     전환(data-change-history=1 세팅)에도 자동 적용. */
+  body.erp-mobile-v2-layout .foms-kanban-card[data-change-history="1"]:not(.is-changed) {
+    border: 2px solid var(--foms-color-info-600);
+    box-shadow: 0 0 0 2px var(--erp-info-light), var(--foms-shadow-sm);
+  }
 
   /* 묘비(취소) 카드 — 빨강 톤, 취소선 대신 명시 라벨. 시트 미연결(카드 탭 무동작). 변경 카드 동급 강조. */
   body.erp-mobile-v2-layout .foms-kanban-card--tomb {
