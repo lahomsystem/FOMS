@@ -145,13 +145,13 @@
       });
   }
 
-  // ---- 변경 브리핑 모달 (R3) -------------------------------------------------
-  // 대시보드 진입 시 changed_count>0 이면 서버가 #foms-prod-change-modal 을 렌더한다.
-  // 자동 표시(fingerprint 미스 시), [전체 확인]=목록 전 order 배치 ack→reload, [닫기]/Esc/딤=
-  // fingerprint sessionStorage 저장(같은 변경셋 재표시 억제 — 보드는 제작 시작/완료마다 reload).
-  var MODAL_SS_KEY = "foms:prod-change-modal:dismissed";
+  // ---- 변경 브리핑 모달 (R4) -------------------------------------------------
+  // 대시보드 진입 시 changed_count>0 이면 서버가 #foms-prod-change-modal 을 렌더한다. 각 행의
+  // [확인] 버튼이 기존 change-ack 를 단건 호출하고, 성공 시 리로드 없이 해당 행·카드 강조·카운트를
+  // in-place 정리한다. 닫기/Esc/딤 = 이번 화면에서만 닫힘(영구 억제 없음 — 다음 로드/스왑 시
+  // 미확인 변경 있으면 무조건 재표시).
 
-  // 단건 ack 요청(배치용) — 성공 여부 bool 로만 resolve(reject 없음 → Promise.all 안전).
+  // 단건 ack 요청 — 성공 여부 bool 로만 resolve(reject 없음).
   function ackOrderRequest(orderId) {
     return fetch("/api/orders/" + encodeURIComponent(orderId) + "/production/change-ack", {
       method: "POST",
@@ -173,80 +173,106 @@
   }
 
   function openChangeModal(modal) {
-    if (!modal || modal.classList.contains("is-open")) return; // 중복 오픈(reload/스왑) 방지.
+    if (!modal || modal.classList.contains("is-open")) return; // 중복 오픈(스왑) 방지.
     modal.removeAttribute("hidden");
     modal.classList.add("is-open");
-    var confirmBtn = modal.querySelector("[data-prod-change-ackall]");
-    if (confirmBtn) {
+    var firstBtn = modal.querySelector("[data-prod-change-row-ack]") ||
+      modal.querySelector("[data-prod-change-close]");
+    if (firstBtn) {
       try {
-        confirmBtn.focus();
+        firstBtn.focus();
       } catch (e) {
         /* focus 실패 무해 */
       }
     }
   }
 
-  // 닫기(ack 없이) — fingerprint 저장으로 같은 변경셋 재표시 억제.
+  // 닫기(ack 없이) — 이번 화면에서만. 영구 억제 없음(fingerprint 제거): 다음 로드/스왑 시 재표시.
   function closeChangeModal(modal) {
     if (!modal) return;
     modal.classList.remove("is-open");
     modal.setAttribute("hidden", "");
-    var fp = modal.getAttribute("data-fingerprint") || "";
-    if (fp) {
-      try {
-        window.sessionStorage.setItem(MODAL_SS_KEY, fp);
-      } catch (e) {
-        /* sessionStorage 불가(사생활 모드 등) — 억제 없이 매번 표시(안전 폴백) */
-      }
-    }
   }
 
-  // 자동 표시 판정 — 코호트+모달 존재+fingerprint 미스일 때만 연다. 스왑/초기 로드 공용.
+  // 자동 표시 — 코호트+모달 존재면 무조건 연다(미확인 변경 잔존 = changed_count>0 = 서버가 렌더).
   function maybeShowChangeModal() {
     if (!cohortActive()) return;
-    var modal = document.getElementById("foms-prod-change-modal");
-    if (!modal) return; // changed_count==0 → 미렌더.
-    var fp = modal.getAttribute("data-fingerprint") || "";
-    var dismissed = "";
-    try {
-      dismissed = window.sessionStorage.getItem(MODAL_SS_KEY) || "";
-    } catch (e) {
-      dismissed = "";
-    }
-    if (fp && dismissed === fp) return; // 같은 변경셋 이미 닫음.
-    openChangeModal(modal);
+    openChangeModal(document.getElementById("foms-prod-change-modal"));
   }
 
-  // [전체 확인] — 목록의 모든 order(묘비 포함)를 배치 ack. 전부 성공 시 reload(스트립·묘비·
-  // 칩·모달 일괄 해제) + sessionStorage 정리. 일부 실패 시 alert + 모달 유지.
-  function ackAllChanges(modal) {
-    if (!modal) return;
-    var ids = [];
-    var rows = modal.querySelectorAll("[data-order-id]");
-    Array.prototype.forEach.call(rows, function (el) {
-      var id = el.getAttribute("data-order-id");
-      if (id && ids.indexOf(id) === -1) ids.push(id);
-    });
-    if (!ids.length) {
-      closeChangeModal(modal);
+  // "변경 N" 필터 칩 카운트 = 변경 카드(data-changed=1) + 묘비 카드 수로 재계산. 0 이면 has-changes 해제.
+  function refreshChangedCount() {
+    var n =
+      document.querySelectorAll('.foms-kanban-card[data-changed="1"]').length +
+      document.querySelectorAll(".foms-kanban-card--tomb").length;
+    var btn = document.querySelector("button[data-tablet-prod-changed]");
+    if (btn) {
+      var span = btn.querySelector("span");
+      if (span) span.textContent = "변경 " + n;
+      if (n > 0) btn.classList.add("has-changes");
+      else btn.classList.remove("has-changes");
+    }
+    return n;
+  }
+
+  // 보드 in-place 정리: 카드 변경이면 스트립·is-changed·강조 제거, 묘비면 묘비 카드 제거.
+  // 묘비 카드는 article 에 data-order-id 가 없고(시트 오픈 방지) ack 버튼에만 있으므로 그 경유로 찾는다.
+  function cleanupBoardForOrder(orderId, isTomb) {
+    if (isTomb) {
+      var tombBtn = document.querySelector(
+        '.foms-kanban-card--tomb .foms-kanban-ack-btn[data-order-id="' + orderId + '"]'
+      );
+      var tombCard = tombBtn ? tombBtn.closest(".foms-kanban-card--tomb") : null;
+      if (tombCard) tombCard.remove();
       return;
     }
-    var btn = modal.querySelector("[data-prod-change-ackall]");
-    if (btn) btn.disabled = true;
-    Promise.all(ids.map(ackOrderRequest)).then(function (results) {
-      var allOK = results.every(function (ok) {
-        return ok;
-      });
-      if (allOK) {
-        try {
-          window.sessionStorage.removeItem(MODAL_SS_KEY);
-        } catch (e) {
-          /* 무해 */
+    var card = document.querySelector(
+      '.foms-kanban-card[data-order-id="' + orderId + '"]'
+    );
+    if (!card) return;
+    var strip = card.querySelector(".foms-kanban-card__alert");
+    if (strip) strip.remove();
+    card.classList.remove("is-changed");
+    card.setAttribute("data-changed", "0");
+  }
+
+  function showRowError(row) {
+    if (!row) return;
+    var err = row.querySelector(".foms-prod-change-modal__row-error");
+    if (!err) {
+      err = document.createElement("span");
+      err.className = "foms-prod-change-modal__row-error";
+      var body = row.querySelector(".foms-prod-change-modal__item-body") || row;
+      body.appendChild(err);
+    }
+    err.textContent = "확인 실패 — 다시 시도";
+  }
+
+  // 행별 [확인] — 단건 ack. 성공: 리로드 없이 (a)모달 행 제거 (b)카드 강조/묘비 제거 (c)카운트 감소
+  // (d)마지막 행이면 모달 닫기. 실패: 행에 오류 표시+버튼 재활성. 연타 방지(진행 중 disabled).
+  function ackModalRow(btn) {
+    if (!btn || btn.disabled) return;
+    var orderId = btn.getAttribute("data-order-id");
+    if (!orderId) return;
+    var row = btn.closest(".foms-prod-change-modal__item");
+    var isTomb = !!(row && row.classList.contains("foms-prod-change-modal__item--tomb"));
+    btn.disabled = true;
+    ackOrderRequest(orderId).then(function (ok) {
+      if (!ok) {
+        btn.disabled = false;
+        showRowError(row);
+        return;
+      }
+      cleanupBoardForOrder(orderId, isTomb);
+      if (row) row.remove();
+      refreshChangedCount();
+      applyProdFilter(); // 변경만/KPI 필터 활성 시 보드 정합 유지.
+      var modal = document.getElementById("foms-prod-change-modal");
+      if (modal) {
+        var list = modal.querySelector(".foms-prod-change-modal__list");
+        if (list && !list.querySelector(".foms-prod-change-modal__item")) {
+          closeChangeModal(modal);
         }
-        window.location.reload();
-      } else {
-        if (btn) btn.disabled = false;
-        window.alert("일부 변경 확인에 실패했습니다. 다시 시도해 주세요.");
       }
     });
   }
@@ -437,11 +463,11 @@
       return;
     }
 
-    // 변경 브리핑 모달: [전체 확인] / [닫기] / 딤 클릭.
-    var ackAllBtn = target.closest("[data-prod-change-ackall]");
-    if (ackAllBtn) {
+    // 변경 브리핑 모달: 행별 [확인] / [닫기] / 딤 클릭.
+    var rowAckBtn = target.closest("[data-prod-change-row-ack]");
+    if (rowAckBtn) {
       ev.preventDefault();
-      ackAllChanges(document.getElementById("foms-prod-change-modal"));
+      ackModalRow(rowAckBtn);
       return;
     }
     var closeModalBtn = target.closest("[data-prod-change-close]");
@@ -520,7 +546,7 @@
   // 위 click 위임이 실제 토글을 처리하므로 여기선 click 합성만.
   document.addEventListener("keydown", function (ev) {
     if (!cohortActive()) return;
-    // Esc = 변경 모달 닫기(닫기 버튼과 동일 — fingerprint 저장).
+    // Esc = 변경 모달 닫기(닫기 버튼과 동일 — 이번 화면만, 다음 로드 시 재표시).
     if (ev.key === "Escape" || ev.key === "Esc") {
       var openModal = document.querySelector("#foms-prod-change-modal.is-open");
       if (openModal) {

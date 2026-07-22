@@ -176,7 +176,7 @@ def erp_production_dashboard():
     # 변경 감지(시공일 변경·도면 재전달/수정요청): 배치 1쿼리(N+1 금지). 지방 뱃지는 이미
     # 로드된 page_rows 의 flat 컬럼에서 파생.
     _orders_by_id = {o.id: o for o in page_rows}
-    _alerts_by_id = collect_production_change_alerts(db, page_rows)
+    _alerts_by_id = collect_production_change_alerts(db, page_rows, user.id if user else None)
     for _r in enriched:
         items = _queue_preview_items.get(_r["id"], [])
         _r["attachment_preview_items"] = items
@@ -372,6 +372,7 @@ def erp_production_tablet_sheet(order_id: int):
     )
     if order is None:
         abort(404)
+    user = getattr(g, 'current_user', None)
     sd = _ensure_dict(order.structured_data)
     items = sd.get('items')
     if not isinstance(items, list):
@@ -391,7 +392,7 @@ def erp_production_tablet_sheet(order_id: int):
         'hold_active': bool(_hold.get('active')),
         'hold_reason': (_hold.get('reason') or '').strip() if isinstance(_hold.get('reason'), str) else '',
     }
-    _sheet_alerts = collect_production_change_alerts(db, [order]).get(order.id, [])
+    _sheet_alerts = collect_production_change_alerts(db, [order], user.id if user else None).get(order.id, [])
     sheet['change_alerts'] = _sheet_alerts
     sheet['has_changes'] = bool(_sheet_alerts)
     return render_template('production/partials/tablet_sheet.html', order=sheet)

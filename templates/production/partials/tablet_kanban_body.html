@@ -261,60 +261,59 @@
   {% endfor %}
   </section>
 
-  {# ── 변경 브리핑 모달 (R3): 진입 시 changed_count>0 이면 자동 표시(배선·억제는
-     tablet-domain-sheets.js). 데이터원 = 카드와 동일(orders.change_alerts/has_changes +
-     tombstones). 백엔드 무변경 — 기존 change-ack 배치 재사용. fingerprint(변경 order id 정렬 +
-     alert 총수 + 묘비 id 정렬)로 reload 후 재표시 억제(sessionStorage). HMI: 무채 바탕, kind색은
-     행 좌보더로만, to_md 는 기존 빨강 규칙(.foms-kanban-card__alert-to) 재사용. #}
+  {# ── 변경 브리핑 모달 (R4): 진입 시 changed_count>0 이면 자동 표시(배선은 tablet-domain-sheets.js).
+     데이터원 = 카드와 동일(orders.change_alerts/has_changes + tombstones). 백엔드 무변경 — 각 행
+     [확인] 버튼이 기존 change-ack 를 단건 호출한다. 닫기/Esc/딤은 이번 화면에서만 닫힘 —
+     영구 억제(fingerprint) 없음: 다음 로드/스왑 시 미확인 변경 있으면 무조건 재표시(의도된 마찰).
+     HMI: 무채 바탕, kind색은 행 좌보더로만, to_md 는 기존 빨강 규칙(.foms-kanban-card__alert-to) 재사용. #}
   {% if (changed_count | default(0, true)) > 0 %}
-  {% set _mch = orders | selectattr('has_changes') | list %}
-  {% set _mch_ids = _mch | map(attribute='id') | list | sort %}
-  {% set _mch_alert_total = (_mch | map(attribute='change_alerts') | map('length') | sum) %}
-  {% set _mtombs = tombstones | default([], true) %}
-  {% set _mtomb_ids = _mtombs | map(attribute='id') | list | sort %}
-  {% set _mfp = 'c:' ~ (_mch_ids | join(',')) ~ '|a:' ~ _mch_alert_total ~ '|t:' ~ (_mtomb_ids | join(',')) %}
   <div id="foms-prod-change-modal" class="foms-prod-change-modal" data-prod-change-dim
-       data-fingerprint="{{ _mfp }}" role="dialog" aria-modal="true" aria-label="생산 변경 브리핑" hidden>
+       role="dialog" aria-modal="true" aria-label="생산 변경 브리핑" hidden>
     <div class="foms-prod-change-modal__dialog">
       <div class="foms-prod-change-modal__head">
         <h2 class="foms-prod-change-modal__title">변경 브리핑</h2>
         <span class="foms-prod-change-modal__count">{{ changed_count | default(0, true) }}건</span>
       </div>
       <ul class="foms-prod-change-modal__list">
-        {% for o in _mch %}
+        {% for o in orders | selectattr('has_changes') | list %}
         <li class="foms-prod-change-modal__item" data-order-id="{{ o.id }}">
-          <div class="foms-prod-change-modal__item-head">
-            <span class="foms-prod-change-modal__item-customer">{{ o.customer_name }}</span>
-            <span class="foms-prod-change-modal__item-id">#{{ o.id }}</span>
+          <div class="foms-prod-change-modal__item-body">
+            <div class="foms-prod-change-modal__item-head">
+              <span class="foms-prod-change-modal__item-customer">{{ o.customer_name }}</span>
+              <span class="foms-prod-change-modal__item-id">#{{ o.id }}</span>
+            </div>
+            {% for a in (o.change_alerts | default([], true)) %}
+            <div class="foms-prod-change-modal__alert foms-prod-change-modal__alert--{{ a.kind }}">
+              <span class="foms-prod-change-modal__alert-label">{{ a.label }}</span>
+              {% if a.kind == 'construction_date' and a.to_md %}
+              <span class="foms-prod-change-modal__alert-detail">{{ a.from_md | default('미정', true) }} → <span class="foms-kanban-card__alert-to">{{ a.to_md }}</span></span>
+              {% elif a.detail %}<span class="foms-prod-change-modal__alert-detail">{{ a.detail }}</span>{% endif %}
+            </div>
+            {% endfor %}
           </div>
-          {% for a in (o.change_alerts | default([], true)) %}
-          <div class="foms-prod-change-modal__alert foms-prod-change-modal__alert--{{ a.kind }}">
-            <span class="foms-prod-change-modal__alert-label">{{ a.label }}</span>
-            {% if a.kind == 'construction_date' and a.to_md %}
-            <span class="foms-prod-change-modal__alert-detail">{{ a.from_md | default('미정', true) }} → <span class="foms-kanban-card__alert-to">{{ a.to_md }}</span></span>
-            {% elif a.detail %}<span class="foms-prod-change-modal__alert-detail">{{ a.detail }}</span>{% endif %}
-          </div>
-          {% endfor %}
+          <button type="button" class="foms-prod-change-modal__row-ack" data-prod-change-row-ack data-order-id="{{ o.id }}">확인</button>
         </li>
         {% endfor %}
-        {% for t in _mtombs %}
+        {% for t in tombstones | default([], true) %}
         <li class="foms-prod-change-modal__item foms-prod-change-modal__item--tomb" data-order-id="{{ t.id }}">
-          <div class="foms-prod-change-modal__item-head">
-            <span class="foms-prod-change-modal__item-customer">{{ t.customer_name }}</span>
-            <span class="foms-prod-change-modal__item-id">#{{ t.id }}</span>
+          <div class="foms-prod-change-modal__item-body">
+            <div class="foms-prod-change-modal__item-head">
+              <span class="foms-prod-change-modal__item-customer">{{ t.customer_name }}</span>
+              <span class="foms-prod-change-modal__item-id">#{{ t.id }}</span>
+            </div>
+            <div class="foms-prod-change-modal__alert foms-prod-change-modal__alert--tomb">
+              <span class="foms-prod-change-modal__alert-label">취소됨{% if t.deleted_md %} · {{ t.deleted_md }}{% endif %}</span>
+            </div>
           </div>
-          <div class="foms-prod-change-modal__alert foms-prod-change-modal__alert--tomb">
-            <span class="foms-prod-change-modal__alert-label">취소됨{% if t.deleted_md %} · {{ t.deleted_md }}{% endif %}</span>
-          </div>
+          <button type="button" class="foms-prod-change-modal__row-ack" data-prod-change-row-ack data-order-id="{{ t.id }}">확인</button>
         </li>
         {% endfor %}
       </ul>
       <div class="foms-prod-change-modal__foot">
         <button type="button" class="foms-prod-change-modal__btn foms-prod-change-modal__btn--close" data-prod-change-close>닫기</button>
-        <button type="button" class="foms-prod-change-modal__btn foms-prod-change-modal__btn--pri" data-prod-change-ackall>전체 확인</button>
       </div>
     </div>
   </div>
   {% endif %}
 </div>
-<script src="{{ url_for('static', filename='js/foms/tablet-domain-sheets.js') }}?v=20260722b" defer></script>
+<script src="{{ url_for('static', filename='js/foms/tablet-domain-sheets.js') }}?v=20260722c" defer></script>
