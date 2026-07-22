@@ -100,8 +100,8 @@
       {% set preview_items = order.attachment_preview_items or [] %}
       {% set preview_urls = order.attachment_preview_urls or order.attachment_previews or [] %}
       {% set attach_aria_prefix = '도면' if order.drawing_preview_only|default(false) else '첨부' %}
-      {# Visible chrome = 3 thumbs; remaining stay in DOM (no thumb src) for GlobalImageViewer. #}
-      {% set _visible_thumbs = 3 %}
+      {# Visible chrome = 5 thumbs; remaining stay in DOM (no thumb src) for GlobalImageViewer. #}
+      {% set _visible_thumbs = 5 %}
       <div
         class="queue-card__attachments foms-queue-card-v2__attachments"
         aria-label="{{ attach_aria_prefix }} {{ order.attachments_count }}건"
@@ -128,7 +128,10 @@
               data-foms-erp-attachment-label="{{ item.label|default('첨부') }}"></span>
             {% endif %}
           {% endfor %}
-          {% set _more_n = [order.attachments_count, preview_items|length]|max - _visible_thumbs %}
+          {% set _more_n = preview_items|length - _visible_thumbs %}
+          {% if not order.drawing_preview_only|default(false) and order.attachments_count > preview_items|length %}
+            {% set _more_n = order.attachments_count - _visible_thumbs %}
+          {% endif %}
           {% if _more_n > 0 %}
             <span class="queue-card__attach-more foms-queue-card-v2__attach-more" role="button" tabindex="0" data-foms-erp-attachment-preview-more="+{{ _more_n }}">+{{ _more_n }}</span>
           {% endif %}
@@ -153,7 +156,10 @@
               data-foms-erp-attachment-label="첨부"></span>
             {% endif %}
           {% endfor %}
-          {% set _more_n = [order.attachments_count, preview_urls|length]|max - _visible_thumbs %}
+          {% set _more_n = preview_urls|length - _visible_thumbs %}
+          {% if not order.drawing_preview_only|default(false) and order.attachments_count > preview_urls|length %}
+            {% set _more_n = order.attachments_count - _visible_thumbs %}
+          {% endif %}
           {% if _more_n > 0 %}
             <span class="queue-card__attach-more foms-queue-card-v2__attach-more" role="button" tabindex="0" data-foms-erp-attachment-preview-more="+{{ _more_n }}">+{{ _more_n }}</span>
           {% endif %}

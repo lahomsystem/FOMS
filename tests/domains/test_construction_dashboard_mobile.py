@@ -201,6 +201,11 @@ def test_construction_dashboard_mobile_wiring_contract():
     assert "data-foms-erp-attachment-view-url" in macro_src
     assert "data-foms-lightbox-gallery" not in macro_src
     assert "attachment_preview_items" in macro_src
+    assert "_visible_thumbs = 5" in macro_src
+    # 시공 대시보드는 역할 무관 도면 전용 미리보기.
+    dash_src = (root / "foms/web/construction/dashboard.py").read_text(encoding="utf-8")
+    assert "drawing_only=True" in dash_src
+    assert "drawing_only=bool(is_construction)" not in dash_src
     # PC workflow baseline: 시공완료는 사진 재업로드와 AS 액션이 병존한다.
     assert 'data-action="reuploadConstructionPhotos"' in pc_grid
     assert 'data-action="openAsAcceptModal"' in pc_grid

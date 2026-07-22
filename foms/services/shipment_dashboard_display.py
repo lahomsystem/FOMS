@@ -125,7 +125,7 @@ def build_shipment_mobile_queue_rows(
     """
     mobile_queue_rows: list[dict[str, Any]] = []
     if mobile_v2_active:
-        batch_ctx = build_mobile_queue_batch_context(db, rows)
+        batch_ctx = build_mobile_queue_batch_context(db, rows, drawing_preview_only=True)
         for order in rows:
             row = build_mobile_queue_order_row(db, order, current_user, batch_ctx=batch_ctx)
             sd = order.structured_data if isinstance(order.structured_data, dict) else {}

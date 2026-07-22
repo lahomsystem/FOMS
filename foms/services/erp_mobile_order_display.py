@@ -69,9 +69,10 @@ _MOBILE_ATTACHMENT_CATEGORY_ORDER: tuple[tuple[str, str], ...] = (
 )
 
 _IMAGE_SUFFIXES = (".jpg", ".jpeg", ".png", ".webp", ".gif", ".bmp")
-# Soft cap: gallery must hydrate all previewable images (card chrome still shows 3+N).
+# Soft cap: gallery must hydrate all previewable images (card chrome still shows 5+N).
 # Align with detail `_batch_mobile_attachment_items` default (50).
 _MAX_QUEUE_PREVIEW_COUNT = 50
+_QUEUE_DRAWING_CATEGORIES = frozenset({"drawing"})
 
 
 
@@ -171,24 +172,37 @@ def batch_resolve_queue_attachment_preview_items(
     order_ids: list[int],
     *,
     limit_per_order: int = _MAX_QUEUE_PREVIEW_COUNT,
+    categories: frozenset[str] | None = None,
 ) -> dict[int, list[dict[str, str]]]:
-    """Batch-resolve thumb + full-view preview items for mobile v2 queue cards."""
+    """Batch-resolve thumb + full-view preview items for mobile v2 queue cards.
+
+    Args:
+        categories: When set, only include attachments whose category is in the set
+            (e.g. ``frozenset({\"drawing\"})`` for 시공/출고 도면 전용 미리보기).
+    """
     if not order_ids:
         return {}
     try:
         from models import OrderAttachment
+        from sqlalchemy import func
 
-        rows = (
-            db.query(OrderAttachment)
-            .filter(OrderAttachment.order_id.in_(order_ids))
-            .order_by(OrderAttachment.order_id.asc(), OrderAttachment.created_at.desc())
-            .all()
-        )
+        q = db.query(OrderAttachment).filter(OrderAttachment.order_id.in_(order_ids))
+        if categories is not None:
+            q = q.filter(
+                func.lower(OrderAttachment.category).in_(sorted(categories))
+            )
+        rows = q.order_by(
+            OrderAttachment.order_id.asc(), OrderAttachment.created_at.desc()
+        ).all()
     except Exception:
         return {}
 
     out: dict[int, list[dict[str, str]]] = {oid: [] for oid in order_ids}
     for att in rows:
+        if categories is not None:
+            cat = (getattr(att, "category", None) or "").strip().lower()
+            if cat not in categories:
+                continue
         oid = int(att.order_id)
         bucket = out.get(oid)
         if bucket is None or len(bucket) >= limit_per_order:
@@ -607,10 +621,17 @@ class MobileQueueBatchContext:
     timeline_by_order: dict[int, list[dict[str, Any]]] = field(default_factory=dict)
     user_map: dict[int, str] = field(default_factory=dict)
     manager_phone_map: dict[str, str] = field(default_factory=dict)
+    drawing_preview_only: bool = False
 
 
-def _batch_attachment_counts(db, order_ids: list[int]) -> dict[int, int]:
-    """주문별 첨부 총 개수(1회 GROUP BY) — _attachment_count의 배치판."""
+def _batch_attachment_counts(
+    db, order_ids: list[int], *, categories: frozenset[str] | None = None
+) -> dict[int, int]:
+    """주문별 첨부 총 개수(1회 GROUP BY) — _attachment_count의 배치판.
+
+    Args:
+        categories: When set, count only attachments in those categories.
+    """
     counts: dict[int, int] = {}
     if not order_ids:
         return counts
@@ -618,12 +639,12 @@ def _batch_attachment_counts(db, order_ids: list[int]) -> dict[int, int]:
         from models import OrderAttachment
         from sqlalchemy import func
 
-        rows = (
-            db.query(OrderAttachment.order_id, func.count(OrderAttachment.id))
-            .filter(OrderAttachment.order_id.in_(order_ids))
-            .group_by(OrderAttachment.order_id)
-            .all()
+        q = db.query(OrderAttachment.order_id, func.count(OrderAttachment.id)).filter(
+            OrderAttachment.order_id.in_(order_ids)
         )
+        if categories is not None:
+            q = q.filter(func.lower(OrderAttachment.category).in_(sorted(categories)))
+        rows = q.group_by(OrderAttachment.order_id).all()
     except Exception:
         return counts
     for oid, cnt in rows:
@@ -688,21 +709,33 @@ def _batch_mobile_timeline_events(
     return out
 
 
-def build_mobile_queue_batch_context(db, orders: list[Any]) -> MobileQueueBatchContext:
+def build_mobile_queue_batch_context(
+    db, orders: list[Any], *, drawing_preview_only: bool = False
+) -> MobileQueueBatchContext:
     """모바일 v2 큐 주문 목록의 첨부/미리보기/타임라인/담당자명을 일괄 사전조회한다.
 
     주문 수 N과 무관하게 고정 수의 쿼리만 발생시켜 build_mobile_queue_order_row의
     주문별 N+1을 제거한다(각 주문 결과는 per-row 경로와 동일).
+
+    Args:
+        drawing_preview_only: When True, queue-card preview/count use drawing category only
+            (시공·출고 대시보드). Detail attachment grids still load all categories.
     """
     order_ids = [o.id for o in orders]
     sds = [_ensure_dict(getattr(o, "structured_data", None)) for o in orders]
+    preview_categories = _QUEUE_DRAWING_CATEGORIES if drawing_preview_only else None
     return MobileQueueBatchContext(
-        attachment_counts=_batch_attachment_counts(db, order_ids),
+        attachment_counts=_batch_attachment_counts(
+            db, order_ids, categories=preview_categories
+        ),
         attachments_by_order=_batch_mobile_attachment_items(db, order_ids, limit_per_order=50),
-        preview_items_by_order=batch_resolve_queue_attachment_preview_items(db, order_ids),
+        preview_items_by_order=batch_resolve_queue_attachment_preview_items(
+            db, order_ids, categories=preview_categories
+        ),
         timeline_by_order=_batch_mobile_timeline_events(db, order_ids),
         user_map=load_assignee_user_map_batch(db, sds),
         manager_phone_map=build_measurement_manager_phone_map(),
+        drawing_preview_only=drawing_preview_only,
     )
 
 
@@ -796,4 +829,7 @@ def build_mobile_queue_order_row(db, order, current_user=None, *, batch_ctx=None
         "structured_data": sd,
         "role_assignees": resolve_order_role_assignees(sd, order=order, user_map=user_map),
         "current_quest": current_quest_payload,
+        "drawing_preview_only": bool(
+            batch_ctx is not None and batch_ctx.drawing_preview_only
+        ),
     }

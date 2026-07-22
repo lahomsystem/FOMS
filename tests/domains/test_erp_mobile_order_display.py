@@ -42,6 +42,43 @@ def test_batch_resolve_queue_attachment_preview_items_splits_thumb_and_view() ->
     assert urls[42] == ["/view/orders/1/photo.jpg"]
 
 
+def test_batch_resolve_queue_attachment_preview_items_drawing_categories_only() -> None:
+    """categories=drawing 이면 measurement 첨부 제외."""
+    draw = SimpleNamespace(
+        order_id=7,
+        filename="draw.png",
+        file_type="image",
+        category="drawing",
+        storage_key="orders/7/draw.png",
+        thumbnail_key="orders/7/thumb_draw.png",
+        created_at=None,
+    )
+    measure = SimpleNamespace(
+        order_id=7,
+        filename="photo.jpg",
+        file_type="image",
+        category="measurement",
+        storage_key="orders/7/photo.jpg",
+        thumbnail_key="orders/7/thumb_photo.jpg",
+        created_at=None,
+    )
+    mock_db = MagicMock()
+    filtered = mock_db.query.return_value.filter.return_value
+    filtered.filter.return_value.order_by.return_value.all.return_value = [draw, measure]
+    filtered.order_by.return_value.all.return_value = [draw, measure]
+
+    with patch.object(display, "build_file_view_url", side_effect=lambda k: f"/view/{k}"):
+        with patch.object(display, "build_file_download_url", return_value="/dl/x"):
+            items_by_order = display.batch_resolve_queue_attachment_preview_items(
+                mock_db, [7], categories=display._QUEUE_DRAWING_CATEGORIES
+            )
+
+    items = items_by_order[7]
+    assert len(items) == 1
+    assert items[0]["label"] == "draw.png"
+    assert items[0]["view"] == "/view/orders/7/draw.png"
+
+
 def test_attachment_urls_split_thumb_and_full_view() -> None:
     att = SimpleNamespace(
         storage_key="orders/1/photo.jpg",
