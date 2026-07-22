@@ -260,6 +260,9 @@ def update_order_field_response(
             old_sd_snapshot = copy.deepcopy(structured_data)
 
         old_value = getattr(order, field, None)
+        prod_notif = None
+        prod_notif_created = False
+        _prod_cons_change: tuple[Any, Any] | None = None
         if field == "as_visit_date":
             pass
         elif field in (
@@ -353,6 +356,7 @@ def update_order_field_response(
                         payload={"from": old_cons, "to": value},
                         created_by_user_id=getattr(user, "id", None),
                     ))
+                    _prod_cons_change = (old_cons, value)
             elif field == "as_visit_date":
                 schedule = ensure_path(structured_data, "schedule")
                 as_visit = ensure_path(schedule, "as_visit")
@@ -401,6 +405,27 @@ def update_order_field_response(
                         "drawing order-change alert failed on field_update",
                         exc_info=True,
                     )
+            if _prod_cons_change is not None:
+                try:
+                    from foms.services.notifications.production_change import (
+                        apply_production_change_alert,
+                    )
+                    from foms.services.production_change_alerts import _date_to_md
+
+                    _pc_from, _pc_to = _prod_cons_change
+                    prod_notif, prod_notif_created = apply_production_change_alert(
+                        db,
+                        order,
+                        "construction_date",
+                        f"{_date_to_md(_pc_from)} → {_date_to_md(_pc_to)}",
+                        actor_user_id=getattr(user, "id", None),
+                        actor_name=getattr(user, "name", None) or session.get("username") or "SYSTEM",
+                    )
+                except Exception:
+                    current_app.logger.warning(
+                        "production change alert failed on field_update",
+                        exc_info=True,
+                    )
             setattr(order, "structured_data", structured_data)
             flag_modified(order, "structured_data")
             sync_erp_flat_columns(order, structured_data)
@@ -434,6 +459,18 @@ def update_order_field_response(
             except Exception:
                 current_app.logger.warning(
                     "drawing order-change finalize failed on field_update",
+                    exc_info=True,
+                )
+            try:
+                from foms.services.notifications.production_change import (
+                    finalize_production_change_alert,
+                )
+                finalize_production_change_alert(
+                    db, prod_notif, created_new=prod_notif_created
+                )
+            except Exception:
+                current_app.logger.warning(
+                    "production change finalize failed on field_update",
                     exc_info=True,
                 )
 

@@ -217,12 +217,18 @@
     var searchLower = search.toLowerCase();
     var changedEl = document.querySelector("button[data-tablet-prod-changed]");
     var changedOnly = !!(changedEl && changedEl.classList.contains("is-on"));
+    // KPI 탭(상호 배타, 하나만 is-on): line=제작중 열(열 레벨) / load=dday 0 / delayed=dday<0(카드 레벨).
+    var kpiEl = document.querySelector("[data-tablet-prod-kpi].is-on");
+    var kpi = kpiEl ? kpiEl.getAttribute("data-tablet-prod-kpi") : "";
 
     var cols = document.querySelectorAll(".foms-kanban-col[data-kanban-bucket]");
     Array.prototype.forEach.call(cols, function (col) {
       var bucket = col.getAttribute("data-kanban-bucket");
       // 상태 필터: 미선택('')이면 전부 표시, 선택 시 해당 버킷 열만 표시.
-      var colVisible = status === "" || bucket === status;
+      // KPI line = 제작중 열만(status predicate 재사용, 교집합).
+      var colVisible =
+        (status === "" || bucket === status) &&
+        (kpi !== "line" || bucket === "제작중");
       col.style.display = colVisible ? "" : "none";
       if (!colVisible) return; // 숨긴 열의 카드는 재평가 불필요(열이 다시 보일 때 재계산).
 
@@ -250,7 +256,20 @@
         // 변경 모아보기: 토글 ON 이면 data-changed="1" 카드만.
         var changedOK = !changedOnly || card.getAttribute("data-changed") === "1";
 
-        card.style.display = searchOK && factoryOK && changedOK ? "" : "none";
+        // KPI 카드 레벨 조건: load=D-DAY(dday 0), delayed=지연(dday<0). line 은 열 레벨에서 처리.
+        var kpiOK = true;
+        if (kpi === "load" || kpi === "delayed") {
+          var dday = card.getAttribute("data-dday");
+          if (dday === "" || dday === null) {
+            kpiOK = false; // 무일정 카드는 시공일 기반 KPI 필터에서 제외.
+          } else if (kpi === "load") {
+            kpiOK = dday === "0";
+          } else {
+            kpiOK = parseInt(dday, 10) < 0;
+          }
+        }
+
+        card.style.display = searchOK && factoryOK && changedOK && kpiOK ? "" : "none";
       });
     });
   }
@@ -267,7 +286,17 @@
       changedEl.classList.remove("is-on");
       changedEl.setAttribute("aria-pressed", "false");
     }
+    clearKpiTabs();
     applyProdFilter();
+  }
+
+  // KPI 탭 전체 해제(상호 배타 헬퍼 — 토글 시·리셋 시 공용).
+  function clearKpiTabs() {
+    var els = document.querySelectorAll("[data-tablet-prod-kpi]");
+    Array.prototype.forEach.call(els, function (el) {
+      el.classList.remove("is-on");
+      el.setAttribute("aria-pressed", "false");
+    });
   }
 
   // ---- 단일 document 'click' 위임 --------------------------------------------
@@ -299,6 +328,20 @@
     if (ackBtn) {
       ev.preventDefault();
       changeAck(ackBtn.getAttribute("data-order-id"));
+      return;
+    }
+
+    // KPI 타일 탭 필터 — 상호 배타(하나만 is-on), 재탭=해제.
+    var kpiTile = target.closest("[data-tablet-prod-kpi]");
+    if (kpiTile) {
+      ev.preventDefault();
+      var wasOn = kpiTile.classList.contains("is-on");
+      clearKpiTabs();
+      if (!wasOn) {
+        kpiTile.classList.add("is-on");
+        kpiTile.setAttribute("aria-pressed", "true");
+      }
+      applyProdFilter();
       return;
     }
 
@@ -345,4 +388,18 @@
   }
   document.addEventListener("input", onFilterEvent);
   document.addEventListener("change", onFilterEvent);
+
+  // KPI 타일(role="button" div)은 네이티브 버튼이 아니라 Enter/Space 활성화를 배선한다(a11y).
+  // 위 click 위임이 실제 토글을 처리하므로 여기선 click 합성만.
+  document.addEventListener("keydown", function (ev) {
+    if (!cohortActive()) return;
+    if (ev.key !== "Enter" && ev.key !== " " && ev.key !== "Spacebar") return;
+    var target = ev.target;
+    if (!target || !target.closest) return;
+    var kpiTile = target.closest("[data-tablet-prod-kpi]");
+    if (kpiTile) {
+      ev.preventDefault();
+      kpiTile.click();
+    }
+  });
 })();

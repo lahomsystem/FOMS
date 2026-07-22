@@ -37,7 +37,9 @@
       <li class="foms-prod-sheet__change foms-prod-sheet__change--{{ a.kind }}">
         <i class="fas {{ 'fa-calendar-day' if a.kind == 'construction_date' else ('fa-pen-ruler' if a.kind == 'drawing' else 'fa-circle-info') }}" aria-hidden="true"></i>
         <span class="foms-prod-sheet__change-label">{{ a.label }}</span>
-        {% if a.detail %}<span class="foms-prod-sheet__change-detail">{{ a.detail }}</span>{% endif %}
+        {% if a.kind == 'construction_date' and a.to_md %}
+        <span class="foms-prod-sheet__change-detail">{{ a.from_md | default('미정', true) }} → <span class="foms-prod-sheet__change-to">{{ a.to_md }}</span></span>
+        {% elif a.detail %}<span class="foms-prod-sheet__change-detail">{{ a.detail }}</span>{% endif %}
       </li>
       {% endfor %}
     </ul>

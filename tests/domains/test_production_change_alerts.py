@@ -108,6 +108,21 @@ def test_construction_change_after_window_detected(app):
     assert alerts[0]["detail"] == "7/20 → 7/28"
 
 
+def test_construction_change_alert_has_from_md_to_md(app):
+    order = _make_order(stage_updated_at=_T0)
+    _add_event(
+        order.id,
+        "CONSTRUCTION_DATE_CHANGED",
+        {"from": "2026-07-06", "to": "2026-07-04"},
+        _T0 + datetime.timedelta(days=3),
+    )
+    alert = collect_production_change_alerts(db_session, [order])[order.id][0]
+    # B2: 빨간 일자 렌더용 구조화 키(detail 은 하위호환 유지).
+    assert alert["from_md"] == "7/6"
+    assert alert["to_md"] == "7/4"
+    assert alert["detail"] == "7/6 → 7/4"
+
+
 def test_construction_change_before_window_ignored(app):
     order = _make_order(stage_updated_at=_T0 + datetime.timedelta(days=10))
     _add_event(
