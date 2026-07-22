@@ -382,6 +382,13 @@ def test_kanban_css_is_landscape_only_no_portrait_token() -> None:
     assert "orientation: portrait" not in css
 
 
+def test_kanban_css_confirmed_change_has_persistent_border() -> None:
+    """R6: 확인됨 변경 카드(data-change-history=1, is-changed 아님)에 상설 정적 테두리 —
+    원거리 식별용. 미확인(.is-changed 주황 펄스)과 위계 구분."""
+    css = _norm(_read(KANBAN_CSS))
+    assert '.foms-kanban-card[data-change-history="1"]:not(.is-changed)' in css
+
+
 # =====================================================================
 # W12 — 태블릿 실측 특수형 split view 계약
 # (docs/plans/2026-07-11-tablet-t2-dashboards-spec.md, 실행 단위 W12)
@@ -634,7 +641,7 @@ def test_w16_layout_head_loads_bundle_for_v2_and_v3_cohort() -> None:
     layout_head = _read("templates/partials/shared/layout_head.html")
     idx = layout_head.find("foms-tablet-bundle.css")
     assert idx != -1, "layout_head 에 태블릿 번들 <link> 부재"
-    assert "foms-tablet-bundle.css') }}?v=20260722f" in layout_head
+    assert "foms-tablet-bundle.css') }}?v=20260722g" in layout_head
     # Anchor on the nearest preceding `{% if %}` (the bundle gate) rather than a fixed
     # char window — the gate string grows over time (2026-07-12: +/wdcalculator arm).
     gate_start = layout_head.rfind("{% if", 0, idx)
