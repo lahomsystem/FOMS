@@ -138,11 +138,15 @@ def _build_alerts_for_order(
         if window_start is not None and e.created_at <= window_start:
             continue
         payload = e.payload if isinstance(e.payload, dict) else {}
+        _from_md = _date_to_md(payload.get("from"))
+        _to_md = _date_to_md(payload.get("to"))
         alerts.append(
             {
                 "kind": "construction_date",
                 "label": "시공일 변경",
-                "detail": f"{_date_to_md(payload.get('from'))} → {_date_to_md(payload.get('to'))}",
+                "detail": f"{_from_md} → {_to_md}",
+                "from_md": _from_md,
+                "to_md": _to_md,
             }
         )
 

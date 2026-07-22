@@ -198,6 +198,19 @@
   body.erp-mobile-v2-layout .tablet-prod-board .erp-pro-alert--danger {
     border-left: 1px solid var(--foms-border-default);
   }
+  /* F3: KPI 타일 탭 필터 어포던스 — .tablet-prod-board 스코프 추가 셀렉터만(erp-pro-alert
+     공용 문법 무터치). 인터랙티브 타일만 pointer, is-on = 브랜드 인셋 아웃라인(활성 필터). */
+  body.erp-mobile-v2-layout .tablet-prod-board .erp-pro-alert[data-tablet-prod-kpi] {
+    cursor: pointer;
+  }
+  body.erp-mobile-v2-layout .tablet-prod-board .erp-pro-alert[data-tablet-prod-kpi].is-on {
+    border-color: var(--foms-interactive-primary);
+    box-shadow: inset 0 0 0 2px var(--foms-interactive-primary);
+  }
+  body.erp-mobile-v2-layout .tablet-prod-board .erp-pro-alert[data-tablet-prod-kpi]:focus-visible {
+    outline: none;
+    box-shadow: var(--foms-shadow-focus-ring);
+  }
 
   /* --- 클라이언트 필터 바 --- */
   body.erp-mobile-v2-layout .tablet-prod-filter {
@@ -576,6 +589,11 @@
     font-variant-numeric: tabular-nums;
     word-break: break-word;
   }
+  /* F1: 시공일 변경 신값(to_md)만 danger 빨강 + 800(가장 강한 강조). from_md 는 상속(약). */
+  body.erp-mobile-v2-layout .foms-kanban-card__alert-to {
+    color: var(--foms-color-danger-600);
+    font-weight: 800;
+  }
   /* 변경 카드 = 엠버 아웃라인(레이아웃 무이동 box-shadow 링). is-held 인셋 바와 공존. */
   body.erp-mobile-v2-layout .foms-kanban-card.is-changed {
     border-color: var(--foms-color-warning-500);
@@ -931,6 +949,11 @@
   font-weight: var(--foms-font-weight-semibold);
   font-variant-numeric: tabular-nums;
   word-break: break-word;
+}
+/* F1: 시공일 변경 신값(to_md)만 danger 빨강 + 800(카드 스트립과 동형). */
+.foms-prod-sheet__change-to {
+  color: var(--foms-color-danger-600);
+  font-weight: 800;
 }
 .foms-prod-sheet__change-ack {
   appearance: none;

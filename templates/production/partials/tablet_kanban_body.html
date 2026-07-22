@@ -46,22 +46,25 @@
     </div>
   </div>
   {# ── 상단 KPI 타일 4종 (W11 erp-pro-alert 그래머 재사용) ── #}
+  {# KPI 타일 3종 = 탭 필터(상호 배타 토글, 재탭 해제). erp-pro-alert 공용 문법 무터치 —
+     data-* + role/tabindex/aria-pressed 만 부착, 어포던스는 .tablet-prod-board 스코프 CSS.
+     line=제작중 열 / load=시공 D-DAY(dday 0) / delayed=지연(dday 음수). 이번 주 자수는 비인터랙티브. #}
   <div class="erp-pro-alerts" aria-label="생산 요약">
-    <div class="erp-pro-alert">
+    <div class="erp-pro-alert" data-tablet-prod-kpi="line" role="button" tabindex="0" aria-pressed="false">
       <div class="erp-pro-alert__icon"><i class="fas fa-industry" aria-hidden="true"></i></div>
       <div class="erp-pro-alert__content">
         <span class="erp-pro-alert__label">오늘 라인</span>
         <span class="erp-pro-alert__value">{{ _kpi.get('today_line', 0) }}</span>
       </div>
     </div>
-    <div class="erp-pro-alert">
+    <div class="erp-pro-alert" data-tablet-prod-kpi="load" role="button" tabindex="0" aria-pressed="false">
       <div class="erp-pro-alert__icon"><i class="fas fa-truck-ramp-box" aria-hidden="true"></i></div>
       <div class="erp-pro-alert__content">
         <span class="erp-pro-alert__label">오늘 상차</span>
         <span class="erp-pro-alert__value">{{ _kpi.get('today_load', 0) }}</span>
       </div>
     </div>
-    <div class="erp-pro-alert erp-pro-alert--danger">
+    <div class="erp-pro-alert erp-pro-alert--danger" data-tablet-prod-kpi="delayed" role="button" tabindex="0" aria-pressed="false">
       <div class="erp-pro-alert__icon"><i class="fas fa-triangle-exclamation" aria-hidden="true"></i></div>
       <div class="erp-pro-alert__content">
         <span class="erp-pro-alert__label">지연</span>
@@ -145,6 +148,7 @@
         data-foms-sheet-url="{{ url_for('erp_production_page.erp_production_tablet_sheet', order_id=o.id) }}"
         data-factory2="{{ 1 if _flags.get('factory2') else 0 }}"
         data-changed="{{ 1 if _has_changes else 0 }}"
+        data-dday="{{ o.construction_dday if o.construction_dday is not none else '' }}"
         role="button" tabindex="0"
         aria-label="{{ o.customer_name }} 주문 상세 열기">
         {# ── 변경 스트립: 생산 진입 후 감지된 시공일/도면 변경(kind별 파랑/주황). HMI 무채
@@ -155,7 +159,10 @@
           <div class="foms-kanban-card__alert-row foms-kanban-card__alert-row--{{ a.kind }}">
             <i class="fas {{ 'fa-calendar-day' if a.kind == 'construction_date' else ('fa-pen-ruler' if a.kind == 'drawing' else 'fa-circle-info') }}" aria-hidden="true"></i>
             <span class="foms-kanban-card__alert-label">{{ a.label }}</span>
-            {% if a.detail %}<span class="foms-kanban-card__alert-detail">{{ a.detail }}</span>{% endif %}
+            {% if a.kind == 'construction_date' and a.to_md %}
+            {# 시공일 변경: 신(to_md)만 danger 빨강 강조. from_md 미공급 시 '미정'. #}
+            <span class="foms-kanban-card__alert-detail">{{ a.from_md | default('미정', true) }} → <span class="foms-kanban-card__alert-to">{{ a.to_md }}</span></span>
+            {% elif a.detail %}<span class="foms-kanban-card__alert-detail">{{ a.detail }}</span>{% endif %}
           </div>
           {% endfor %}
         </div>
@@ -254,4 +261,4 @@
   {% endfor %}
   </section>
 </div>
-<script src="{{ url_for('static', filename='js/foms/tablet-domain-sheets.js') }}?v=20260713b" defer></script>
+<script src="{{ url_for('static', filename='js/foms/tablet-domain-sheets.js') }}?v=20260722a" defer></script>

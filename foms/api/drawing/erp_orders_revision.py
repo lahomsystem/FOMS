@@ -139,6 +139,16 @@ def api_order_request_revision(order_id):
         db.flush()
         # 같은 트랜잭션에서 수신자 state + 'created' 이벤트 생성(상태 없는 고아 알림 방지).
         fan_out_new_notification(db, new_notification, actor_user_id=session.get('user_id'))
+        prod_notif = None
+        prod_notif_created = False
+        try:
+            from foms.services.notifications.production_change import apply_production_change_alert
+            prod_notif, prod_notif_created = apply_production_change_alert(
+                db, order, "drawing", "도면 수정요청",
+                actor_user_id=session.get('user_id'), actor_name=current_user.name,
+            )
+        except Exception as e:
+            logger.warning("production change alert (revision) failed: %s", e, exc_info=True)
         db.add(SecurityLog(user_id=session.get('user_id'), message=f"주문 #{order_id} 도면 수정 요청"))
         db.commit()
 
@@ -163,6 +173,12 @@ def api_order_request_revision(order_id):
                 'message': new_notification.message,
             },
         )
+
+        try:
+            from foms.services.notifications.production_change import finalize_production_change_alert
+            finalize_production_change_alert(db, prod_notif, created_new=prod_notif_created)
+        except Exception as e:
+            logger.warning("production change finalize (revision) failed: %s", e, exc_info=True)
 
         return jsonify({'success': True, 'message': '도면 수정 요청이 전송되었습니다.'})
     except Exception as e:

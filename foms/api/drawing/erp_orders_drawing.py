@@ -247,6 +247,16 @@ def perform_drawing_transfer(
     db.flush()
     # 같은 트랜잭션에서 수신자 state + 'created' 이벤트 생성(상태 없는 고아 알림 방지).
     fan_out_new_notification(db, new_notification, actor_user_id=user_id)
+    prod_notif = None
+    prod_notif_created = False
+    try:
+        from foms.services.notifications.production_change import apply_production_change_alert
+        prod_notif, prod_notif_created = apply_production_change_alert(
+            db, order, "drawing", "도면 재전달",
+            actor_user_id=user_id, actor_name=user_name,
+        )
+    except Exception as e:
+        logger.warning("production change alert (transfer) failed: %s", e, exc_info=True)
     db.add(SecurityLog(user_id=user_id, message=f"주문 #{order_id} 도면 전달 완료: {note}"))
     db.commit()
     # 도메인-스코프: 도면 전달 완료는 workflow.stage를 바꾸지 않고 drawing_status만
@@ -281,6 +291,12 @@ def perform_drawing_transfer(
             'message': new_notification.message,
         },
     )
+
+    try:
+        from foms.services.notifications.production_change import finalize_production_change_alert
+        finalize_production_change_alert(db, prod_notif, created_new=prod_notif_created)
+    except Exception as e:
+        logger.warning("production change finalize (transfer) failed: %s", e, exc_info=True)
 
     target_info = "라홈팀" if target_team == 'CS' else (
         "하우드팀" if target_team == 'HAUDD' else (
