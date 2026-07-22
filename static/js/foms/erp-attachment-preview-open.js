@@ -133,15 +133,46 @@
     });
   }
 
+  function galleryFilesFromNodes(nodes) {
+    return nodes
+      .map(function (n) {
+        return {
+          view_url: n.getAttribute("data-foms-erp-attachment-view-url") || "",
+          download_url: n.getAttribute("data-foms-erp-attachment-download-url") || "",
+          filename: n.getAttribute("data-foms-erp-attachment-label") || "이미지",
+        };
+      })
+      .filter(function (f) {
+        return !!f.view_url;
+      });
+  }
+
+  function openGalleryAt(nodes, startIndex) {
+    if (!window.GlobalImageViewer || !window.GlobalImageViewer.open) return false;
+    var files = galleryFilesFromNodes(nodes);
+    if (files.length < 1) return false;
+    var idx = typeof startIndex === "number" && startIndex >= 0 ? startIndex : 0;
+    if (idx >= files.length) idx = 0;
+    window.GlobalImageViewer.open(files, idx);
+    return true;
+  }
+
   function bindGallery(galleryEl) {
     var readOnly = galleryEl.getAttribute("data-foms-erp-attachment-preview-readonly") === "true";
     // Capture the whole gallery so a click can open a navigable (ChannelTalk-style) viewer.
+    // Includes visually-hidden `--gallery-only` nodes (4th+) so swipe/arrows cover all.
     var nodes = Array.prototype.slice.call(
       galleryEl.querySelectorAll("[data-foms-erp-attachment-view-url]")
     );
+    var files = galleryFilesFromNodes(nodes);
     nodes.forEach(function (node) {
       if (node.dataset.fomsErpAttachmentPreviewBound === "1") return;
       node.dataset.fomsErpAttachmentPreviewBound = "1";
+      var galleryOnly =
+        node.classList.contains("queue-card__attach-thumb--gallery-only") ||
+        node.classList.contains("foms-queue-card-v2__attach-thumb--gallery-only");
+      // Gallery-only markers stay in DOM for file list; no focus/click (chrome uses +N).
+      if (galleryOnly) return;
       node.style.cursor = "pointer";
       node.setAttribute("role", "button");
       node.setAttribute("tabindex", "0");
@@ -155,26 +186,12 @@
         ev.stopPropagation();
         // Multi-image read-only gallery → GlobalImageViewer (PC arrows / mobile swipe),
         // so clicking one image lets you flip to its siblings.
-        if (readOnly && window.GlobalImageViewer && window.GlobalImageViewer.open) {
-          var files = nodes
-            .map(function (n) {
-              return {
-                view_url: n.getAttribute("data-foms-erp-attachment-view-url") || "",
-                download_url: n.getAttribute("data-foms-erp-attachment-download-url") || "",
-                filename: n.getAttribute("data-foms-erp-attachment-label") || "이미지",
-              };
-            })
-            .filter(function (f) {
-              return !!f.view_url;
-            });
-          if (files.length > 1) {
-            var clickedUrl = node.getAttribute("data-foms-erp-attachment-view-url") || "";
-            var startIndex = files.findIndex(function (f) {
-              return f.view_url === clickedUrl;
-            });
-            window.GlobalImageViewer.open(files, startIndex >= 0 ? startIndex : 0);
-            return;
-          }
+        if (readOnly && files.length > 1) {
+          var clickedUrl = node.getAttribute("data-foms-erp-attachment-view-url") || "";
+          var startIndex = files.findIndex(function (f) {
+            return f.view_url === clickedUrl;
+          });
+          if (openGalleryAt(nodes, startIndex >= 0 ? startIndex : 0)) return;
         }
         openErpAttachmentPreview({
           viewUrl: node.getAttribute("data-foms-erp-attachment-view-url") || "",
@@ -184,6 +201,34 @@
         });
       });
     });
+
+    // "+N" chip → open gallery starting at first overflow thumb (index 3).
+    var moreEl = galleryEl.querySelector("[data-foms-erp-attachment-preview-more]");
+    if (moreEl && moreEl.dataset.fomsErpAttachmentPreviewBound !== "1") {
+      moreEl.dataset.fomsErpAttachmentPreviewBound = "1";
+      function openFromMore(ev) {
+        ev.preventDefault();
+        ev.stopPropagation();
+        var visible = 0;
+        for (var i = 0; i < nodes.length; i++) {
+          if (
+            nodes[i].classList.contains("queue-card__attach-thumb--gallery-only") ||
+            nodes[i].classList.contains("foms-queue-card-v2__attach-thumb--gallery-only")
+          ) {
+            break;
+          }
+          visible += 1;
+        }
+        if (!openGalleryAt(nodes, visible > 0 ? visible : 0) && nodes[0]) {
+          nodes[0].click();
+        }
+      }
+      moreEl.addEventListener("click", openFromMore);
+      moreEl.addEventListener("keydown", function (ev) {
+        if (ev.key !== "Enter" && ev.key !== " ") return;
+        openFromMore(ev);
+      });
+    }
   }
 
   function mountAll(root) {
