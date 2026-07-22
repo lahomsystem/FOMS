@@ -67,7 +67,7 @@ def _assert_shared_form_script_contract(body: str) -> None:
     )
     assert "html2canvas.min.js" not in body
     assert "js/orders/erp-channel-push-confirm.js?v=20260703a" in body
-    assert "js/orders/erp-order-shared.js?v=20260722b" in body
+    assert "js/orders/erp-order-shared.js?v=20260722c" in body
     assert "js/orders/erp-stage-override.js?v=20260716b" in body
     assert "erp_stage_override_modal.html" not in body  # include renders modal markup, not path
     assert 'id="erpStageOverrideModal"' in body
@@ -387,6 +387,47 @@ def test_estimate_preview_js_is_canonical_only() -> None:
     assert "dataset.factory2Src" in text
     assert "erp-est-stamp--factory2" in text
     assert "window.erpApplyEstimateFactory2Variant" in text
+
+
+def test_as_modal_exposes_regional_shipping_date_field_contract() -> None:
+    """AS 모달(데스크톱+모바일)은 지방주문 상차일 필드를 기본 숨김으로 제공한다."""
+    root = Path(__file__).resolve().parents[2]
+    pc_tab = (root / "templates/orders/partials/erp_order_tab.html").read_text(encoding="utf-8")
+    mobile_tab = (
+        root / "templates/orders/partials/erp_order_tab_mobile.html"
+    ).read_text(encoding="utf-8")
+
+    for tab in (pc_tab, mobile_tab):
+        assert 'id="as-receive-shipping-wrap"' in tab
+        # 기본 숨김(지방주문일 때만 JS가 d-none 해제).
+        wrap_idx = tab.index('id="as-receive-shipping-wrap"')
+        wrap_open = tab.rfind("<div", 0, wrap_idx)
+        assert "d-none" in tab[wrap_open:wrap_idx]
+        assert 'id="as-receive-shipping-date"' in tab
+        assert 'type="date"' in tab[tab.index('id="as-receive-shipping-date"') - 40 : tab.index('id="as-receive-shipping-date"') + 10]
+        assert "상차 예정 알림" in tab
+
+
+def test_as_modal_shipping_date_js_wiring_contract() -> None:
+    """erp-order-shared.js는 상차일을 로드·오픈·제출 3지점에서 지방주문 조건으로 배선한다."""
+    root = Path(__file__).resolve().parents[2]
+    text = (root / "static/js/orders/erp-order-shared.js").read_text(encoding="utf-8")
+
+    # (1) 로드: GET 응답의 flat 컬럼을 전역에 보관.
+    assert "window.__erpShippingScheduledDate = data.shipping_scheduled_date || '';" in text
+
+    # (2) 오픈: 지방주문일 때만 필드 노출 + prefill(오픈마다 재평가).
+    assert "const shipWrapEl = document.getElementById('as-receive-shipping-wrap');" in text
+    assert "const shipDateEl = document.getElementById('as-receive-shipping-date');" in text
+    assert "document.getElementById('erp-regional-order')?.checked === true" in text
+    assert "shipWrapEl.classList.toggle('d-none', !isRegionalNow);" in text
+    assert "shipDateEl.value = isRegionalNow ? (window.__erpShippingScheduledDate || '') : '';" in text
+
+    # (3) 제출: 지방주문 + 값이 있을 때만 payload 포함 + 성공 후 전역 갱신.
+    assert "const regPayload = { as_content: content };" in text
+    assert "regPayload.shipping_scheduled_date = shipDateVal;" in text
+    assert "body: JSON.stringify(regPayload)" in text
+    assert "window.__erpShippingScheduledDate = shipDateVal;" in text
 
 
 def test_shared_erp_order_js_has_no_beta_runtime_mirror() -> None:

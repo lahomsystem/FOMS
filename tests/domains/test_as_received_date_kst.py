@@ -273,3 +273,135 @@ def test_bulk_update_order_status_uses_kst_received_date(client, monkeypatch):
     saved_order = db_session.get(Order, order_id)
     assert saved_order is not None
     assert saved_order.as_received_date == "2026-04-08"
+
+
+def test_as_register_persists_optional_shipping_scheduled_date(client, monkeypatch):
+    """지방주문 AS 재상차: 모달이 상차일을 보내면 컬럼에 저장하고 응답에 에코한다."""
+    _login_as_admin(client, username="as-register-shipping-admin")
+    order = _create_order(
+        status="AS",
+        structured_data={"workflow": {"stage": "AS"}, "shipment": {}},
+    )
+    order.is_regional = True
+    db_session.commit()
+    order_id = order.id
+
+    as_orders = importlib.import_module("foms.api.cs.as_orders")
+    monkeypatch.setattr(as_orders, "get_today_kst", lambda: date(2026, 4, 8))
+
+    response = client.post(
+        f"/api/orders/{order_id}/as/register",
+        json={"as_content": "재상차 필요", "shipping_scheduled_date": "2026-05-01"},
+    )
+
+    assert response.status_code == 200
+    data = response.get_json()
+    assert data["success"] is True
+    assert data["shipping_scheduled_date"] == "2026-05-01"
+
+    db_session.expire_all()
+    saved_order = db_session.get(Order, order_id)
+    assert saved_order is not None
+    assert saved_order.status == "AS_RECEIVED"
+    assert saved_order.shipping_scheduled_date == "2026-05-01"
+
+
+def test_as_register_rejects_invalid_shipping_scheduled_date(client, monkeypatch):
+    """상차일 형식 오류는 409로 거부하고 상태/상차일을 변경하지 않는다."""
+    _login_as_admin(client, username="as-register-shipping-invalid-admin")
+    order = _create_order(
+        status="AS",
+        structured_data={"workflow": {"stage": "AS"}, "shipment": {}},
+    )
+    order.is_regional = True
+    db_session.commit()
+    order_id = order.id
+
+    as_orders = importlib.import_module("foms.api.cs.as_orders")
+    monkeypatch.setattr(as_orders, "get_today_kst", lambda: date(2026, 4, 8))
+
+    response = client.post(
+        f"/api/orders/{order_id}/as/register",
+        json={"as_content": "재상차 필요", "shipping_scheduled_date": "2026/05/01"},
+    )
+
+    assert response.status_code == 409
+    data = response.get_json()
+    assert data["success"] is False
+    assert "상차일" in data["message"]
+
+    db_session.expire_all()
+    saved_order = db_session.get(Order, order_id)
+    assert saved_order is not None
+    assert saved_order.status == "AS"
+    assert not saved_order.shipping_scheduled_date
+
+
+def test_as_register_preserves_existing_shipping_scheduled_date_when_omitted(client, monkeypatch):
+    """상차일 미제공 시 기존 컬럼값을 덮어쓰지 않는다."""
+    _login_as_admin(client, username="as-register-shipping-omit-admin")
+    order = _create_order(
+        status="AS",
+        structured_data={"workflow": {"stage": "AS"}, "shipment": {}},
+    )
+    order.is_regional = True
+    order.shipping_scheduled_date = "2026-06-10"
+    db_session.commit()
+    order_id = order.id
+
+    as_orders = importlib.import_module("foms.api.cs.as_orders")
+    monkeypatch.setattr(as_orders, "get_today_kst", lambda: date(2026, 4, 8))
+
+    response = client.post(
+        f"/api/orders/{order_id}/as/register",
+        json={"as_content": "상차일 없이 접수"},
+    )
+
+    assert response.status_code == 200
+    data = response.get_json()
+    assert data["success"] is True
+    assert data["shipping_scheduled_date"] == "2026-06-10"
+
+    db_session.expire_all()
+    saved_order = db_session.get(Order, order_id)
+    assert saved_order is not None
+    assert saved_order.shipping_scheduled_date == "2026-06-10"
+
+
+def test_get_structured_returns_shipping_scheduled_date(client):
+    """GET /structured 응답에 상차일(flat 컬럼)이 포함되어 모달 prefill이 가능하다."""
+    _login_as_admin(client, username="structured-get-shipping-admin")
+    order = _create_order(
+        status="PRODUCTION",
+        structured_data={"workflow": {"stage": "PRODUCTION"}, "shipment": {}},
+    )
+    order.is_regional = True
+    order.shipping_scheduled_date = "2026-07-15"
+    db_session.commit()
+    order_id = order.id
+
+    response = client.get(f"/api/orders/{order_id}/structured")
+
+    assert response.status_code == 200
+    data = response.get_json()
+    assert data["success"] is True
+    assert data["is_regional"] is True
+    assert data["shipping_scheduled_date"] == "2026-07-15"
+
+
+def test_erp_order_bootstrap_includes_shipping_scheduled_date(client):
+    """편집 페이지 인라인 bootstrap도 GET /structured 와 동일하게 상차일을 포함한다."""
+    from foms.web.orders.edit import _build_erp_order_bootstrap
+
+    order = _create_order(
+        status="PRODUCTION",
+        structured_data={"workflow": {"stage": "PRODUCTION"}, "shipment": {}},
+    )
+    order.is_regional = True
+    order.shipping_scheduled_date = "2026-07-20"
+    db_session.commit()
+
+    payload = _build_erp_order_bootstrap(order)
+    assert payload["success"] is True
+    assert payload["shipping_scheduled_date"] == "2026-07-20"
+    assert payload["is_regional"] is True

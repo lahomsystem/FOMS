@@ -543,6 +543,8 @@ def api_get_order_structured(order_id):
             'is_self_measurement': getattr(order, 'is_self_measurement', False),
             'is_regional': getattr(order, 'is_regional', False),
             'construction_type': getattr(order, 'construction_type', None) or '',
+            # 지방주문 AS 재상차 모달 prefill용(flat 컬럼, structured_data에는 없음).
+            'shipping_scheduled_date': getattr(order, 'shipping_scheduled_date', None) or '',
         })
     except Exception as e:
         logger.exception("[ERP_ORDER] structured GET 오류: %s", e)

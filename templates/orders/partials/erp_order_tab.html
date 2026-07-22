@@ -525,6 +525,11 @@ ERP Order Tab Pane (shared between add_order and edit_order)
                     <textarea id="as-receive-content" class="form-control" rows="5"
                         placeholder="예: 슬라이딩 붙박이장 가운데 문이 내려앉음(안닫힘)&#10;금일 오후 4시반~6시반까지 통화 어려우심"></textarea>
                 </div>
+                <div class="mb-3 d-none" id="as-receive-shipping-wrap">
+                    <label class="form-label fw-bold" for="as-receive-shipping-date">상차일 (지방주문)</label>
+                    <input type="date" id="as-receive-shipping-date" class="form-control">
+                    <div class="small text-muted mt-1">지방주문은 상차일 입력 시 지방 대시보드 "상차 예정 알림"으로 자동 등록됩니다. (선택)</div>
+                </div>
                 <div class="mb-3">
                     <label class="form-label fw-bold">사진/동영상 첨부</label>
                     <div class="foms-photo-capture" data-foms-photo-capture data-target-input="as-receive-files">

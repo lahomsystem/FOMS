@@ -259,6 +259,16 @@ def api_as_register(order_id):
         as_content = sanitize_as_content_html(data.get("as_content"))
         source_screen = str(data.get("source_screen") or "").strip()
 
+        # 지방주문 AS 재상차용 상차일(optional). 값이 있으면 YYYY-MM-DD 검증 후 컬럼에 저장.
+        # 지방주문 + 미래 상차일이면 지방 대시보드가 자동으로 "상차 예정 알림"으로 승격한다
+        # (foms/web/measurement/dashboard.py shipping_alerts 버킷 + AS 뱃지).
+        raw_shipping_scheduled_date = str(data.get("shipping_scheduled_date") or "").strip()
+        if raw_shipping_scheduled_date:
+            try:
+                datetime.datetime.strptime(raw_shipping_scheduled_date, "%Y-%m-%d")
+            except ValueError:
+                raise ValueError("상차일 형식이 올바르지 않습니다. (YYYY-MM-DD)")
+
         today = get_today_kst().strftime("%Y-%m-%d")
         user_id = session.get("user_id")
         user = get_user_by_id(user_id)
@@ -277,6 +287,9 @@ def api_as_register(order_id):
 
         order.as_received_date = today
         order.status = "AS_RECEIVED"
+        # 상차일이 제공되면(지방주문 AS 재상차) 컬럼에 반영. 빈 값/미제공이면 기존값 보존.
+        if raw_shipping_scheduled_date:
+            order.shipping_scheduled_date = raw_shipping_scheduled_date
 
         # /add draft 주문은 structured PUT 없이 AS 모달만 완료하는 경우가 많다.
         # draft meta가 남으면 Order.active_filter()에서 제외되어 AS 탭에 보이지 않는다.
@@ -297,6 +310,7 @@ def api_as_register(order_id):
             "message": "AS 접수가 등록되었습니다.",
             "as_received_date": today,
             "new_status": "AS_RECEIVED",
+            "shipping_scheduled_date": getattr(order, "shipping_scheduled_date", None) or "",
             "construction_workers": shipment.get("construction_workers") or [],
             "draft_cleared": draft_cleared,
         })
