@@ -1,22 +1,28 @@
 /**
- * WDCalculator 태블릿 가로 표피(JS) — 2026-07-13.
+ * WDCalculator 태블릿 가로 융합 셸(JS) — 2026-07-15 (목업 frame11 구현).
  *
- * 목적(2): 태블릿 가로(coarse landscape ≥992)에서
- *   (1) 좌측 "저장된 견적" 패널을 기본 접힘(48px 세로 레일 토글)으로 두어 "견적 정보 입력"
- *       폼이 잔여 폭 전부를 쓰게 한다. 레일 탭 → 오버레이 펼침(재탭·백드롭 탭 = 접힘),
- *       상태는 localStorage 에 기억.
- *   (2) 하단에 고정 최종견적 바(.wdc-tablet-actionbar)를 두어 결과 카드의 최종가(#finalPrice)
- *       와 주 액션(견적 계산/추가)을 상시 노출한다(목업 frame11 "최종 견적은 하단 고정 바").
+ * 목업 frame11 을 코호트(coarse landscape ≥992, 비임베디드)에서 재현한다. PC 구조·id·계산엔진
+ * DOM 은 일절 건드리지 않고, 기존 노드를 **재부모화(DOM move)**·미러링해 프레임을 구성한다
+ * (재부모화는 리스너·id·value 를 보존 → WDCalculator "DOM·이벤트 유지" 계약 내):
  *
- * 계약 무변경: 계산 엔진·DOM id·기존 이벤트 리스너를 일절 건드리지 않는다. 오직
- * `.wdcalculator-shell` 에 클래스(wdc-tablet-skin / wdc-saved-open)를 토글하고, 레일
- * 토글 버튼·백드롭·하단 바 요소만 주입한다(표피 전용). 하단 바는 계산엔진 노드를 이동/복제
- * 하지 않고 값(#finalPrice)·주 액션(calculateBtn/addEstimateBtn)만 MIRROR(관찰+클릭 위임)
- * 한다. 실제 레이아웃 전환·바 스타일은 tablet-skin.css 소관.
+ *   (1) 슬림 pcbar (main-scroll 상단 sticky): "WD 계산기" 타이틀 + 기존 #customerName 그룹을
+ *       **이동**(계산 JS 는 getElementById 로만 참조 → 위치 무관) + "고객 견적 검색"(저장 견적
+ *       오버레이 토글). PC 헤더("가구 견적 계산기")는 코호트에서 은닉(CSS).
+ *   (2) 우측 320px "진행 견적" 패널(shell 내 absolute, 상시 노출): "총 견적" hl-tile(#totalAllFinalPrice
+ *       **미러**) + 진행 중인 견적 카드(#estimatesListContainer 를 **이동** — 수정/이름/삭제는
+ *       document 위임 이벤트라 이동해도 보존) + foot(새 견적=resetEstimateBtn·전체 저장=saveEstimateBtn
+ *       **미러 클릭**). 견적 결과 breakdown 카드는 유지(엔진이 동적 주입하는 #backToOrderBtn 복귀
+ *       내비 보존 — 은닉하면 회귀). 총 견적·최종가는 hl-tile·하단 바로 병행 미러.
+ *   (3) 하단 고정 최종견적 바: #finalPrice 값 + 주 액션(견적 계산/추가) 미러(관찰+클릭 위임).
+ *
+ * 저장 견적 좌측 레일 접힘 로직은 코호트에서 은퇴 — 저장 사이드바는 오프캔버스로 숨고, pcbar
+ * "고객 견적 검색"(재탭·백드롭 탭 = 닫기)으로 기존 오버레이(wdc-saved-open)를 재사용해 연다.
+ * 상태는 localStorage 에 기억. rail 요소/CSS 는 하위호환·계약 문자열 보존을 위해 남기되 코호트
+ * 레이아웃에서는 표시하지 않는다.
  *
  * 게이트: (min-width:992px) and (orientation:landscape) and (pointer:coarse) 且 비임베디드.
- * PC(fine hover)·모바일(≤991.98)·임베디드(erp-wdc-split.css 가 자체 오버레이 소유)는
- * matchMedia 로 배타 분리 — 게이트를 벗어나면 주입 클래스를 전부 제거해 무회귀.
+ * PC(fine hover)·모바일(≤991.98)·임베디드(erp-wdc-split.css 가 자체 오버레이 소유)는 matchMedia 로
+ * 배타 분리 — 게이트를 벗어나면 이동한 노드를 **원위치로 복원**하고 주입 클래스를 전부 제거해 무회귀.
  *
  * 성능 가드 G4: 전역/문서 리스너는 singleton 가드로 1회만 바인딩(fragment 재실행 무해).
  */
@@ -46,8 +52,12 @@
         container.classList.contains('wdcalculator-container--embedded')) {
       return;
     }
+    var mainScroll = shell.querySelector('.wdcalculator-main-scroll');
 
-    // --- 레일 토글 버튼 주입(사이드바 첫 자식). 접힘 시 노출되는 세로 탭. ---
+    // ============================================================
+    // 저장 견적 레일(은퇴): 요소/CSS 는 하위호환·계약 문자열 보존을 위해 남기되, 코호트
+    // 레이아웃에서는 CSS 로 숨긴다. 오버레이 토글 트리거는 pcbar "고객 견적 검색"이 담당.
+    // ============================================================
     var rail = document.createElement('button');
     rail.type = 'button';
     rail.className = 'wdc-saved-rail';
@@ -58,17 +68,66 @@
       '<span class="wdc-saved-rail-label">저장된 견적</span>';
     sidebar.insertBefore(rail, sidebar.firstChild);
 
-    // --- 백드롭 주입(펼침 시 바깥 탭 = 접힘). ---
+    // --- 백드롭 주입(저장 견적 오버레이 펼침 시 바깥 탭 = 닫힘). ---
     var backdrop = document.createElement('div');
     backdrop.className = 'wdc-saved-backdrop';
     backdrop.hidden = true;
     shell.appendChild(backdrop);
 
     // ============================================================
-    // 하단 고정 최종견적 바(coarse-landscape 전용). 계산엔진 DOM 은 이동/복제하지 않고
-    // #finalPrice 값과 주 액션(견적 계산/추가)만 MIRROR 한다(모바일 sticky mirror 패턴 재사용).
-    // 실제 계산·CRUD 는 host 버튼 위임(.click()). 노출/은닉은 enableSkin/disableSkin 이
-    // .wdc-actionbar-active 로 게이트(폰 wd-fab 와 MQ 배타 → 상호 배제).
+    // (1) 슬림 pcbar — main-scroll 상단 sticky. 타이틀 + 고객명 슬롯 + 고객 견적 검색.
+    // ============================================================
+    var pcbar = document.createElement('div');
+    pcbar.className = 'wdc-tablet-pcbar';
+    pcbar.innerHTML =
+      '<span class="wdc-tablet-pcbar__title">WD 계산기</span>' +
+      '<div class="wdc-tablet-pcbar__cust" data-wdc-cust-slot></div>' +
+      '<div class="wdc-tablet-pcbar__grow"></div>' +
+      '<button type="button" class="wdc-tablet-pcbar__search btn btn-outline-secondary" aria-expanded="false">' +
+        '<i class="fas fa-search" aria-hidden="true"></i> <span>고객 견적 검색</span>' +
+      '</button>';
+    if (mainScroll) { mainScroll.insertBefore(pcbar, mainScroll.firstChild); }
+    var custSlot = pcbar.querySelector('[data-wdc-cust-slot]');
+    var pcbarSearchBtn = pcbar.querySelector('.wdc-tablet-pcbar__search');
+
+    // 고객명 그룹(.mb-3 = label + #customerName) 이동 북키핑(원위치 복원용).
+    var custInputEl = document.getElementById('customerName');
+    var custGroup = custInputEl ? custInputEl.closest('.mb-3') : null;
+    var custGroupHome = custGroup ? custGroup.parentNode : null;
+    var custGroupNext = custGroup ? custGroup.nextSibling : null;
+
+    // ============================================================
+    // (2) 우측 "진행 견적" 패널 — shell 내 absolute, 상시 노출.
+    // ============================================================
+    var panel = document.createElement('aside');
+    panel.className = 'wdc-tablet-rightpanel';
+    panel.setAttribute('aria-label', '진행 견적');
+    panel.innerHTML =
+      '<div class="wdc-trp__head"><h4>진행 견적</h4></div>' +
+      '<div class="wdc-trp__tile"><b>총 견적</b><span data-wdc-trp-total>0원</span></div>' +
+      '<div class="wdc-trp__body" data-wdc-progress-slot></div>' +
+      '<div class="wdc-trp__foot">' +
+        '<button type="button" class="wdc-trp__new btn btn-light" data-wdc-trp-new>' +
+          '<i class="fas fa-undo" aria-hidden="true"></i> 새 견적</button>' +
+        '<button type="button" class="wdc-trp__save btn btn-primary" data-wdc-trp-save>' +
+          '<i class="fas fa-save" aria-hidden="true"></i> 전체 저장</button>' +
+      '</div>';
+    shell.appendChild(panel);
+    var progressSlot = panel.querySelector('[data-wdc-progress-slot]');
+    var trpTotalEl = panel.querySelector('[data-wdc-trp-total]');
+    var trpNewBtn = panel.querySelector('[data-wdc-trp-new]');
+    var trpSaveBtn = panel.querySelector('[data-wdc-trp-save]');
+
+    // 진행 중인 견적 카드(#estimatesListContainer 의 부모 .card) 이동 북키핑.
+    var estContainer = document.getElementById('estimatesListContainer');
+    var progressCard = estContainer ? estContainer.closest('.card') : null;
+    var progressHome = progressCard ? progressCard.parentNode : null;
+    var progressNext = progressCard ? progressCard.nextSibling : null;
+
+    // ============================================================
+    // (3) 하단 고정 최종견적 바. #finalPrice 값 + 주 액션(견적 계산/추가) 미러(관찰+클릭 위임).
+    // 계산엔진 노드를 이동/복제하지 않고 값·액션만 미러 — enableSkin/disableSkin 이
+    // .wdc-actionbar-active 로 노출/은닉(폰 wd-fab 와 MQ 배타).
     // ============================================================
     var actionBar = document.createElement('div');
     actionBar.className = 'wdc-tablet-actionbar';
@@ -117,6 +176,35 @@
       if (target) { target.click(); }
     });
 
+    // ============================================================
+    // 우측 패널 "총 견적" hl-tile 미러(#totalAllFinalPrice) + foot 버튼 활성 상태 동기화.
+    // #totalAllFinalPrice 는 renderEstimatesList 가 매번 재생성 → 안정 노드(estContainer)를
+    // 관찰해 재렌더마다 값을 읽어 반영(재계산 없음, 순수 미러).
+    // ============================================================
+    function syncProgressPanel() {
+      var el = document.getElementById('totalAllFinalPrice');
+      var v = el ? (el.textContent || '0원').trim() : '0원';
+      if (trpTotalEl && trpTotalEl.textContent !== v) { trpTotalEl.textContent = v; }
+      // 전체 저장: 엔진이 견적 0건이면 saveEstimateBtn 을 display:none 으로 감춤 → 그 의도를 반영.
+      if (trpSaveBtn) {
+        var sb = document.getElementById('saveEstimateBtn');
+        trpSaveBtn.disabled = !(sb && sb.style.display !== 'none');
+      }
+      // 새 견적: resetEstimateBtn 은 견적이 있을 때만 존재(엔진이 동적 생성/제거).
+      if (trpNewBtn) {
+        trpNewBtn.disabled = !document.getElementById('resetEstimateBtn');
+      }
+    }
+
+    trpNewBtn.addEventListener('click', function () {
+      var b = document.getElementById('resetEstimateBtn');
+      if (b) { b.click(); }
+    });
+    trpSaveBtn.addEventListener('click', function () {
+      var b = document.getElementById('saveEstimateBtn');
+      if (b && b.style.display !== 'none') { b.click(); }
+    });
+
     if (window.MutationObserver) {
       if (finalPriceEl) {
         new MutationObserver(syncBarFinal).observe(finalPriceEl, {
@@ -135,6 +223,12 @@
           attributes: true, attributeFilter: ['style'],
         });
       }
+      // 진행 중인 견적 리스트 재렌더 → hl-tile 총 견적 + foot 활성 상태 미러.
+      if (estContainer) {
+        new MutationObserver(syncProgressPanel).observe(estContainer, {
+          childList: true, characterData: true, subtree: true,
+        });
+      }
     }
 
     function showActionBar() {
@@ -146,38 +240,77 @@
       actionBar.classList.remove('wdc-actionbar-active');
     }
 
+    // ============================================================
+    // dock / undock — 게이트 진입 시 노드를 프레임으로 이동, 이탈 시 원위치 복원.
+    // ============================================================
+    function dockFrame() {
+      if (custGroup && custSlot && custGroup.parentNode !== custSlot) {
+        custSlot.appendChild(custGroup);
+      }
+      if (progressCard && progressSlot && progressCard.parentNode !== progressSlot) {
+        progressSlot.appendChild(progressCard);
+      }
+      syncProgressPanel();
+    }
+    function undockFrame() {
+      if (custGroup && custGroupHome && custGroup.parentNode !== custGroupHome) {
+        if (custGroupNext && custGroupNext.parentNode === custGroupHome) {
+          custGroupHome.insertBefore(custGroup, custGroupNext);
+        } else {
+          custGroupHome.appendChild(custGroup);
+        }
+      }
+      if (progressCard && progressHome && progressCard.parentNode !== progressHome) {
+        if (progressNext && progressNext.parentNode === progressHome) {
+          progressHome.insertBefore(progressCard, progressNext);
+        } else {
+          progressHome.appendChild(progressCard);
+        }
+      }
+    }
+
+    // ============================================================
+    // 저장 견적 오버레이 open/close (pcbar "고객 견적 검색"·rail·백드롭 공용).
+    // ============================================================
     function isOpen() { return shell.classList.contains('wdc-saved-open'); }
 
     function setOpen(open) {
       shell.classList.toggle('wdc-saved-open', open);
       backdrop.hidden = !open;
       rail.setAttribute('aria-expanded', open ? 'true' : 'false');
-      rail.setAttribute('aria-label', open ? '저장된 견적 닫기' : '저장된 견적 열기');
+      if (pcbarSearchBtn) { pcbarSearchBtn.setAttribute('aria-expanded', open ? 'true' : 'false'); }
       try { localStorage.setItem(STORAGE_KEY, open ? '1' : '0'); } catch (e) { /* private mode */ }
-    }
-
-    function prefersOpen() {
-      try { return localStorage.getItem(STORAGE_KEY) === '1'; } catch (e) { return false; }
     }
 
     function enableSkin() {
       shell.classList.add('wdc-tablet-skin');
-      setOpen(prefersOpen());   // 기본 접힘(저장값 없으면 collapsed)
+      dockFrame();              // 고객명 그룹 → pcbar, 진행 중인 견적 카드 → 우측 패널
+      setOpen(false);           // frame11: 저장 사이드바 기본 숨김, "고객 견적 검색"으로 오픈
       showActionBar();          // 하단 고정 최종견적 바 노출 + 값/액션 재동기화
+      if (window.requestWdCalculatorLayoutSync) { window.requestWdCalculatorLayoutSync(); }
     }
 
     function disableSkin() {
-      // 게이트 이탈(PC/모바일/세로) — 주입 클래스 전부 제거해 원래 그리드 복원.
+      // 게이트 이탈(PC/모바일/세로) — 이동 노드 원위치 복원 + 주입 클래스 전부 제거.
       shell.classList.remove('wdc-tablet-skin', 'wdc-saved-open');
+      undockFrame();
       backdrop.hidden = true;
       rail.setAttribute('aria-expanded', 'false');
-      hideActionBar();          // 게이트 이탈 시 바 은닉(PC/폰/세로 무영향)
+      if (pcbarSearchBtn) { pcbarSearchBtn.setAttribute('aria-expanded', 'false'); }
+      hideActionBar();
+      if (window.requestWdCalculatorLayoutSync) { window.requestWdCalculatorLayoutSync(); }
     }
 
     rail.addEventListener('click', function () {
       if (!shell.classList.contains('wdc-tablet-skin')) { return; }
       setOpen(!isOpen());
     });
+    if (pcbarSearchBtn) {
+      pcbarSearchBtn.addEventListener('click', function () {
+        if (!shell.classList.contains('wdc-tablet-skin')) { return; }
+        setOpen(!isOpen());
+      });
+    }
     backdrop.addEventListener('click', function () { setOpen(false); });
 
     var mql = window.matchMedia(GATE);
