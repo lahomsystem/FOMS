@@ -341,25 +341,9 @@
   margin-right: 0.35rem;
 }
 
-.erp-shipment-mobile-v2 .foms-queue-card-v2__orderer {
-  display: inline-flex;
-  align-items: center;
-  vertical-align: middle;
-  margin-left: 0.25rem;
-}
-
-.erp-shipment-mobile-v2 .foms-queue-card-v2__orderer-logo {
-  height: 18px;
-  width: auto;
-  max-width: 72px;
-  object-fit: contain;
-}
-
-.erp-shipment-mobile-v2 .foms-queue-card-v2__orderer--text {
-  color: var(--foms-text-link, #0b57d0);
-  font-size: var(--foms-font-size-sm, 14px);
-  font-weight: 700;
-}
+/* 발주사 로고 크기 SSOT = foms-queue-card-v2.css (.foms-queue-card-v2__orderer*).
+   출고 전용 중복 규칙 금지 — surfaces @import 캐시 스테일과 이중 정의 드리프트가
+   "리프레시 후 로고 거대화" 재발 원인이었다. */
 
 .erp-shipment-mobile-v2 .queue-card__meta dt,
 .erp-shipment-mobile-v2 .foms-queue-card-v2__meta dt {

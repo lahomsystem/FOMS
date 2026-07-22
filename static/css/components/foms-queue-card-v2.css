@@ -1,5 +1,32 @@
 /* P1 mockup — queue card list (mobile-home-dashboard.html) */
 
+/* 발주사 로고(lahom 545×253 / haud 277×75): 원본 PNG가 커서 CSS 미적용·캐시 미스 시
+   카드 타이틀이 붕괴한다. 모바일 @media 밖 SSOT + img width/height 속성과 이중 방어. */
+.foms-queue-card-v2__orderer {
+  display: inline-flex;
+  align-items: center;
+  vertical-align: middle;
+  margin-left: 0.25rem;
+  flex: 0 0 auto;
+  max-height: 18px;
+}
+
+.foms-queue-card-v2__orderer-logo {
+  display: block;
+  height: 18px;
+  width: auto;
+  max-height: 18px;
+  max-width: 72px;
+  object-fit: contain;
+}
+
+.foms-queue-card-v2__orderer--text {
+  color: var(--foms-text-link, #0b57d0);
+  font-size: var(--foms-font-size-sm, 14px);
+  font-weight: 700;
+  line-height: 1;
+}
+
 /* 코호트 게이트(SSOT = foms-shell.css:11): 폰 ≤991.98 OR ≥992 세로 coarse 태블릿(iPad
    세로 1024) = 모바일 셸. 순수 폭(max-width:991.98)만 쓰면 desktop-shell 은 shell.css:11
    3-조건으로 태블릿 세로에서 숨는데 이 큐 카드 그리드는 미표시 → 리스트만 blank(부분-blank).
