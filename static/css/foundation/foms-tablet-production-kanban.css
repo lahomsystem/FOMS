@@ -704,6 +704,162 @@
     background: var(--foms-color-warning-600);
     color: var(--foms-text-inverse);
   }
+
+  /* ════════════════════════════════════════════════════════════════════════
+     R3 변경 브리핑 모달 — 딤 오버레이 + 중앙 다이얼로그. 무채 바탕, 변경 kind색은
+     행 좌보더로만(HMI). [전체 확인]=브랜드 솔리드. 터치 타겟 ≥48px. 리스트 max-height 60vh.
+     .tablet-prod-board(비코호트 display:none) 내부라 코호트에서만 렌더/표시.
+     ════════════════════════════════════════════════════════════════════════ */
+  body.erp-mobile-v2-layout .foms-prod-change-modal {
+    position: fixed;
+    inset: 0;
+    z-index: var(--foms-z-modal, 1050);
+    display: none;
+    align-items: center;
+    justify-content: center;
+    padding: var(--foms-space-4);
+    background: rgba(15, 23, 42, 0.55);
+  }
+  body.erp-mobile-v2-layout .foms-prod-change-modal.is-open {
+    display: flex;
+  }
+  body.erp-mobile-v2-layout .foms-prod-change-modal__dialog {
+    display: flex;
+    flex-direction: column;
+    width: 100%;
+    max-width: 560px;
+    max-height: 80vh;
+    background: var(--foms-surface-base);
+    border: 1px solid var(--foms-border-subtle);
+    border-radius: var(--foms-radius-xl);
+    box-shadow: var(--foms-shadow-lg, 0 12px 40px rgba(0, 0, 0, 0.25));
+    overflow: hidden;
+  }
+  body.erp-mobile-v2-layout .foms-prod-change-modal__head {
+    display: flex;
+    align-items: baseline;
+    justify-content: space-between;
+    gap: var(--foms-space-3);
+    padding: var(--foms-space-4);
+    border-bottom: 1px solid var(--foms-border-subtle);
+  }
+  body.erp-mobile-v2-layout .foms-prod-change-modal__title {
+    margin: 0;
+    font-size: var(--foms-font-size-xl);
+    font-weight: var(--foms-font-weight-bold);
+    color: var(--foms-text-primary);
+  }
+  body.erp-mobile-v2-layout .foms-prod-change-modal__count {
+    font-size: var(--foms-font-size-sm);
+    font-weight: var(--foms-font-weight-bold);
+    color: var(--foms-text-tertiary);
+    font-variant-numeric: tabular-nums;
+  }
+  body.erp-mobile-v2-layout .foms-prod-change-modal__list {
+    list-style: none;
+    margin: 0;
+    padding: var(--foms-space-3) var(--foms-space-4);
+    display: flex;
+    flex-direction: column;
+    gap: var(--foms-space-3);
+    max-height: 60vh;
+    overflow-y: auto;
+    -webkit-overflow-scrolling: touch;
+  }
+  body.erp-mobile-v2-layout .foms-prod-change-modal__item {
+    display: flex;
+    flex-direction: column;
+    gap: var(--foms-space-1);
+    padding: var(--foms-space-2) var(--foms-space-3);
+    border: 1px solid var(--foms-border-subtle);
+    border-radius: var(--foms-radius-md);
+    background: var(--foms-surface-muted);
+  }
+  body.erp-mobile-v2-layout .foms-prod-change-modal__item-head {
+    display: flex;
+    align-items: baseline;
+    justify-content: space-between;
+    gap: var(--foms-space-2);
+  }
+  body.erp-mobile-v2-layout .foms-prod-change-modal__item-customer {
+    font-size: var(--foms-font-size-base);
+    font-weight: var(--foms-font-weight-bold);
+    color: var(--foms-text-primary);
+    word-break: break-word;
+  }
+  body.erp-mobile-v2-layout .foms-prod-change-modal__item-id {
+    font-size: var(--foms-font-size-sm);
+    font-weight: var(--foms-font-weight-bold);
+    color: var(--foms-text-tertiary);
+    white-space: nowrap;
+  }
+  /* 변경 행 = kind색 좌보더로만(무채 바탕). construction=파랑 / drawing=주황 / 취소=빨강. */
+  body.erp-mobile-v2-layout .foms-prod-change-modal__alert {
+    display: flex;
+    align-items: center;
+    flex-wrap: wrap;
+    gap: var(--foms-space-2);
+    padding: var(--foms-space-1) var(--foms-space-2);
+    border-left: 3px solid var(--foms-text-tertiary);
+    border-radius: var(--foms-radius-sm);
+    background: var(--foms-surface-base);
+    font-size: var(--foms-font-size-sm);
+    font-weight: var(--foms-font-weight-bold);
+  }
+  body.erp-mobile-v2-layout .foms-prod-change-modal__alert--construction_date {
+    border-left-color: var(--foms-color-info-600);
+  }
+  body.erp-mobile-v2-layout .foms-prod-change-modal__alert--drawing {
+    border-left-color: var(--foms-color-warning-600);
+  }
+  body.erp-mobile-v2-layout .foms-prod-change-modal__alert--tomb {
+    border-left-color: var(--foms-color-danger-600);
+    color: var(--foms-color-danger-600);
+  }
+  body.erp-mobile-v2-layout .foms-prod-change-modal__alert-detail {
+    color: var(--foms-text-secondary);
+    font-weight: var(--foms-font-weight-semibold);
+    font-variant-numeric: tabular-nums;
+    word-break: break-word;
+  }
+  body.erp-mobile-v2-layout .foms-prod-change-modal__foot {
+    display: flex;
+    gap: var(--foms-space-2);
+    padding: var(--foms-space-4);
+    border-top: 1px solid var(--foms-border-subtle);
+  }
+  body.erp-mobile-v2-layout .foms-prod-change-modal__btn {
+    appearance: none;
+    min-height: var(--foms-touch-target-min);
+    padding: 0 var(--foms-space-4);
+    border: 1px solid transparent;
+    border-radius: var(--foms-radius-md);
+    font-size: var(--foms-font-size-base);
+    font-weight: var(--foms-font-weight-bold);
+    cursor: pointer;
+  }
+  body.erp-mobile-v2-layout .foms-prod-change-modal__btn--close {
+    flex: 1;
+    background: var(--foms-surface-muted);
+    color: var(--foms-text-secondary);
+    border-color: var(--foms-border-subtle);
+  }
+  body.erp-mobile-v2-layout .foms-prod-change-modal__btn--pri {
+    flex: 2;
+    background: var(--foms-interactive-primary);
+    color: var(--foms-text-inverse);
+  }
+  body.erp-mobile-v2-layout .foms-prod-change-modal__btn--pri:hover {
+    background: var(--foms-interactive-primary-hover);
+  }
+  body.erp-mobile-v2-layout .foms-prod-change-modal__btn--pri[disabled] {
+    opacity: 0.6;
+    cursor: progress;
+  }
+  body.erp-mobile-v2-layout .foms-prod-change-modal__btn:focus-visible {
+    outline: none;
+    box-shadow: var(--foms-shadow-focus-ring);
+  }
 }
 
 @media (prefers-reduced-motion: reduce) {
