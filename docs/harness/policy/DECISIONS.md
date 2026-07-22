@@ -6,6 +6,12 @@
 
 ---
 
+### [2026-07-22] production promote baseline 완전성 (cherry patch-id)
+- **키워드**: harness, production, promote, cherry-pick, completeness, patch-id, baseline
+- **결정**: 세션 소유권 격리와 별층으로 production 승격 전 `promote_completeness` 사전검사 필수. 알고리즘 = 승격 SHA 파일 교집합 × `git log base..sha -- files` × `git cherry +`만 missing(`-`=이미 동등, ancestry-only false positive 제거). runner `promote_own_to_production.py`는 incomplete 기본 차단·`--allow-incomplete`만 우회·`gh pr --base production`(직접 `HEAD:production` 금지)·충돌 시 exit 3·자동 해결 금지. guard_policy 자동 차단은 후속.
+- **이유**: 2026-07-22 승격에서 세션 isolation은 정상 동작했으나 deploy tip 부모(미승격 PC 미러 등) 때문에 cherry-pick 충돌. 소유≠baseline 완전.
+- **영향**: `tools/harness/promote_completeness.py`, `promote_own_to_production.py`, `tests/harness/test_promote_*`, `AGENTS.md`/`CLAUDE.md`, `docs/specs/2026-07-22-promote-completeness-design.md`.
+
 ### [2026-07-16] deploy push 세션 격리 (ledger + ask + own-only WT)
 - **키워드**: harness, deploy, push, session-isolation, worktree, ledger, multi-agent
 - **결정**: 공유 워킹트리에서 `git push … deploy` 시 `origin/deploy..HEAD`를 세션 레저와 대조한다. 타 세션/미확인 커밋이면 **ask**(deny 아님). 승인 이원화: 전체 포함 / 자기 몫만(`push_own_session_commits.py` = `c:/tmp` 임시 worktree + cherry-pick). 상시 창별 worktree 강제는 하지 않음(Phase 1 선택). production/force 기존 가드 우선.

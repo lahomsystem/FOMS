@@ -120,6 +120,10 @@
 **Phase 2 — DB/포트 격리**  
 마이그레이션 병렬이 실제 아플 때만 스키마 접두 또는 컨테이너.
 
+**후속(2026-07-22) — production promote baseline 완전성**  
+소유권 격리(A)와 별층: `promote_completeness.py`(파일 교집합 × `git cherry +`) + `promote_own_to_production.py`.  
+정본: `docs/specs/2026-07-22-promote-completeness-design.md`.
+
 ## 3. Steps — 구현 순서 (고수준)
 
 구현 세부 태스크는 brainstorming 승인 후 `writing-plans`로 `docs/plans/`에 분해한다. 고수준만:
