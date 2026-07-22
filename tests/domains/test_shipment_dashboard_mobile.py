@@ -47,6 +47,10 @@ def test_shipment_mobile_controls_template_contract() -> None:
     assert "shipment_mobile_queue.html" in main
     assert "shipment_mobile_controls.html" in main
     assert "foms-shipment-mobile.css" in dash
+    shipment_display = (ROOT / "foms/services/shipment_dashboard_display.py").read_text(
+        encoding="utf-8"
+    )
+    assert "drawing_preview_only=True" in shipment_display
     queue = (ROOT / "templates/shipment/partials/shipment_mobile_queue.html").read_text(
         encoding="utf-8"
     )
