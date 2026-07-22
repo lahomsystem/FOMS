@@ -76,6 +76,30 @@ def test_deposit_coin_badge_partial_wires_dashboard_surfaces() -> None:
     assert "pay-coin-gray.png" in badge
 
 
+def test_erp_dashboard_grid_shows_lahom_system_badge_from_factory2() -> None:
+    """ERP 주문 그리드 고객 셀은 실측과 동일 flags.factory2 → 라홈시스템 뱃지."""
+    from pathlib import Path
+
+    root = Path(__file__).resolve().parents[2]
+    grid = (root / "templates/orders/partials/dashboard_grid.html").read_text(
+        encoding="utf-8"
+    )
+    meas = (root / "templates/measurement/partials/dashboard_main.html").read_text(
+        encoding="utf-8"
+    )
+    assert "flags') or {}).get('factory2')" in meas
+    assert "flags') or {}).get('factory2')" in grid
+    assert 'fa-industry"></i> 라홈시스템' in meas
+    assert 'fa-industry"></i> 라홈시스템' in grid
+    customer_cell = grid.index('data-col-key="customer" data-label="고객"')
+    factory_idx = grid.index("is_factory2", customer_cell)
+    regional_idx = grid.index("o.is_regional", factory_idx)
+    assert factory_idx < regional_idx
+    assert factory_idx < grid.index("</td>", customer_cell)
+    assert 'class="badge bg-success text-white align-self-start mt-1" title="지방주문"' in grid
+    assert 'class="badge bg-warning text-dark align-self-start mt-1" title="라홈시스템"' in grid
+
+
 def test_item_spec_w300_value_sums_spec_rows() -> None:
     item = {
         "spec_rows": [
