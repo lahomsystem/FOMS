@@ -58,10 +58,9 @@
   var ACTIONS_SELECTOR = "[data-foms-tablet-measure-actions]";
   var SAVE_BTN_SELECTOR = "[data-foms-tablet-measure-save]";
   var COMPLETE_BTN_SELECTOR = "[data-foms-tablet-measure-complete]";
-  // 목업 frame13 크롬(상단 바 탭·계산기 토글 / 하단 채널톡·임시저장) — 폼 공개 API 로 위임.
+  // 목업 frame13 크롬(상단 바 탭 / 하단 채널톡·임시저장) — 폼 공개 API 로 위임.
   var TABS_NAV_SELECTOR = "[data-foms-tmf-tabs]";
   var TAB_SELECTOR = "[data-foms-tmf-tab]";
-  var CALC_TOGGLE_SELECTOR = "[data-foms-tmf-calc-toggle]";
   var CHANNEL_SELECTOR = "[data-foms-tmf-channel]";
   var DRAFT_SELECTOR = "[data-foms-tmf-draft]";
 
@@ -128,7 +127,7 @@
     }
   }
 
-  // [실측 완료] → 전용 폼 모듈이 2-tap 확인 후 workflow.stage=DRAWING 으로 저장(서버가 단계 전환 처리).
+  // [실측 완료] → 전용 폼 모듈이 2-tap 확인 후 저장 → MEASURE 퀘스트 승인 API 호출(서버가 단계 전환).
   function triggerComplete() {
     if (window.FomsTabletMeasureForm && typeof window.FomsTabletMeasureForm.requestComplete === "function") {
       window.FomsTabletMeasureForm.requestComplete();
@@ -154,10 +153,6 @@
   function triggerTab(tab) {
     var fn = formApi("switchTab");
     if (fn) fn(tab);
-  }
-  function triggerCalcToggle() {
-    var fn = formApi("toggleCalc");
-    if (fn) fn();
   }
 
   function markActive(card) {
@@ -278,18 +273,12 @@
       return;
     }
 
-    // 상단/하단 크롬(주입 영역 밖) — [탭][계산기 토글][저장][실측 완료][임시 저장][채널톡].
+    // 상단/하단 크롬(주입 영역 밖) — [탭][저장][실측 완료][임시 저장][채널톡].
     // 컨텍스트 바 전화/내비는 네이티브 <a> 라 여기서 가로채지 않는다(tel:/새 탭 정상 동작).
     var tabBtn = target.closest(TAB_SELECTOR);
     if (tabBtn && tabBtn.closest(DETAIL_SELECTOR)) {
       ev.preventDefault();
       triggerTab(tabBtn.getAttribute("data-foms-tmf-tab"));
-      return;
-    }
-    var calcToggleBtn = target.closest(CALC_TOGGLE_SELECTOR);
-    if (calcToggleBtn && calcToggleBtn.closest(DETAIL_SELECTOR)) {
-      ev.preventDefault();
-      triggerCalcToggle();
       return;
     }
     var saveBtn = target.closest(SAVE_BTN_SELECTOR);

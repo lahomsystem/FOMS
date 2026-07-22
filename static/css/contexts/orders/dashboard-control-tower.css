@@ -6,7 +6,7 @@
 .foms-tower { align-content: start; }
 
 /* 모바일 폭 계약 — shipment/measurement mobile-v2 와 동일 (grid min-width:auto 수축) */
-@media (max-width: 991.98px) {
+@media (max-width: 991.98px), ((min-width: 992px) and (pointer: coarse) and (orientation: portrait)) {
   body.erp-mobile-v2-layout .foms-shell-body.foms-tower {
     width: 100%;
     max-width: 100%;

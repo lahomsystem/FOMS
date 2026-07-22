@@ -93,6 +93,14 @@ def test_num_column_right_aligned_tabular_nums() -> None:
     assert "font-variant-numeric: tabular-nums;" in css
 
 
+def test_construction_date_stack_styles() -> None:
+    """시공일 열 = 날짜+시간 스택 스타일(7열 없이 현장 스캔)."""
+    css = _norm(_read(COLUMNS_CSS))
+    assert "#foms-tablet-ship-grid .foms-tablet-shipgrid__when" in css
+    assert "#foms-tablet-ship-grid .foms-tablet-shipgrid__date" in css
+    assert "#foms-tablet-ship-grid .foms-tablet-shipgrid__clock" in css
+
+
 def test_group_header_team_pastel_tint() -> None:
     """[은퇴 이관] 팀 파스텔을 데이터 행이 아니라 그룹 헤더 틴트로 착색한다
     (data-team-color-index + SSOT 팔레트 첫·끝 값)."""
@@ -124,10 +132,14 @@ def test_clean_grid_density_targets_40_and_56() -> None:
 
 
 def test_clean_grid_columns_order() -> None:
-    """클린 그리드 헤더 = 목업 06 컬럼셋(시간·고객·발주사·제품·자수·도면담당)."""
+    """클린 그리드 헤더 = 시공일(날짜+시간 스택)·고객·발주사·제품·자수·도면담당."""
     html = _read(TABLET_GRID)
-    for label in ("시간", "고객", "발주사", "제품", "자수", "도면담당"):
+    for label in ("시공일", "고객", "발주사", "제품", "자수", "도면담당"):
         assert f">{label}<" in html, f"헤더 라벨 누락: {label}"
+    assert "foms-tablet-shipgrid__when" in html
+    assert "foms-tablet-shipgrid__date" in html
+    assert "foms-tablet-shipgrid__clock" in html
+    assert "시간<" not in html  # 구 '시간' 헤더 회귀 차단
 
 
 def test_clean_grid_row_sheet_tap_wiring() -> None:

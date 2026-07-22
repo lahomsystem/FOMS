@@ -84,20 +84,36 @@ def test_notification_panel_partial_structure() -> None:
     assert "<script" not in panel
 
 
-def test_app_shell_wires_panel_and_deferred_script() -> None:
-    """foms_app_shell 이 알림 시트 include + defer 스크립트를 로드한다."""
+def test_app_shell_defers_notification_center_to_layout() -> None:
+    """알림 센터는 layout_scripts 승격 — shell 은 중복 include/스크립트 없음."""
     shell = (ROOT / "templates/partials/shared/foms_app_shell.html").read_text(
         encoding="utf-8"
     )
-    assert "erp_mobile_notification_panel.html" in shell
-    assert "js/foms/mobile-notification.js" in shell
-    # 신규 <script> 는 defer (render-block 금지 / perf guard G1).
-    for line in shell.splitlines():
+    layout = (ROOT / "templates/partials/shared/layout_scripts.html").read_text(
+        encoding="utf-8"
+    )
+    assert "erp_mobile_notification_panel.html" not in shell
+    assert "js/foms/mobile-notification.js" not in shell
+    assert "erp_mobile_notification_panel.html" in layout
+    assert "js/foms/mobile-notification.js" in layout
+    for line in layout.splitlines():
         if "mobile-notification.js" in line:
             assert "defer" in line, line
             break
     else:  # pragma: no cover
-        pytest.fail("mobile-notification.js script tag missing")
+        pytest.fail("mobile-notification.js script tag missing in layout_scripts")
+
+
+def test_layout_nav_bell_opens_shared_notification_sheet() -> None:
+    """PC topnav 벨은 단일 센터 훅(data-foms-notif-open)을 쓴다."""
+    nav = (ROOT / "templates/partials/shared/layout_nav.html").read_text(
+        encoding="utf-8"
+    )
+    assert "data-foms-notif-open" in nav
+    assert 'aria-controls="erp-mobile-notification-sheet"' in nav
+    assert "data-foms-notif-badge" in nav
+    assert "global-notification-panel" not in nav
+    assert "toggleGlobalNotificationPanel()" not in nav
 
 
 def test_notification_js_is_fragment_replay_safe_and_shares_badge() -> None:

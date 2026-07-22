@@ -1745,7 +1745,18 @@ document.addEventListener('DOMContentLoaded', function() {
                 if (this.value !== originalValue) {
                     const field = this.dataset.field;
                     const newValue = this.value;
-                    
+                    const orderId = this.dataset.orderId;
+
+                    if (field === 'status' && window.FOMS_STAGE_OVERRIDE &&
+                        window.FOMS_STAGE_OVERRIDE.interceptStatusChange(
+                            orderId, originalValue, newValue, function (ok) {
+                                if (ok) location.reload();
+                                else input.value = originalValue;
+                            }
+                        )) {
+                        return;
+                    }
+
                     // 상태 변경인 경우 자동 refresh 적용
                     if (field === 'status' && (originalValue === 'SCHEDULED' || newValue === 'COMPLETED')) {
                         updateOrderFieldWithRefresh(this);
@@ -2303,5 +2314,8 @@ function toggleCompletedConstructionType(type) {
 {% endblock %}
 
 {% block scripts %}
+{% include "orders/partials/erp_stage_override_modal.html" %}
+<script>window.MY_ROLE = {{ (current_user.role if current_user is defined and current_user else '')|tojson }};</script>
+<script src="{{ url_for('static', filename='js/orders/erp-stage-override.js') }}?v=20260716b" defer></script>
 <script src="{{ url_for('static', filename='js/measurement/regional-shipping-export.js') }}?v=20260714a" defer></script>
 {% endblock %}

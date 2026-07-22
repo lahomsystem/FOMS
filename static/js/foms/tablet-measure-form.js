@@ -7,8 +7,9 @@
  *   - 쓰기: PUT  /api/orders/<id>/structured           (전사 공용 구조화 저장 = PC "저장"과 동일 경로)
  *   - 사진: GET  /api/orders/<id>/attachments?category=measurement (실측 사진 갤러리)
  *   - 첨부: POST /api/orders/<id>/attachments           (카메라/갤러리 업로드, 멀티파트)
- *   - 견적: GET  /api/orders/<id>/estimate-preview      (견적서 탭 렌더 데이터)
- *   - 계산기: iframe /wdcalculator?embedded=1&order_id=&customer_name=  (PC split 과 동일 임베드)
+ *   - 견적: iframe /edit/<id>?open=erp-estimate&embedded=1  (PC 견적서 탭 그대로)
+ *   - 계산기: iframe /wdcalculator?embedded=1&order_id=&customer_name=  ([계산기] 탭 전면 임베드)
+ *   - 완료: POST /api/orders/<id>/quest/approve  (MEASURE 퀘스트 승인 = 단계 전환 SSOT)
  *   - 채널톡: POST /api/channel/push-manual             (변환 텍스트 → 채널톡 수동 푸쉬; measurement/drawing)
  *
  * 실측자 IA(렌더 순서): ① 현장 컨텍스트(고객·연락처·주소·특이배지) ② 실측 기록(항목 칩·제품명·
@@ -36,7 +37,7 @@
  *
  * 재실행 안전(perf G4): window.__FOMS_TABLET_MEASURE_FORM_BOUND 싱글턴 가드 + 위임 이벤트(1회 바인딩).
  * 이 모듈은 스스로 활성화하지 않는다 — 코호트 게이트를 통과한 tablet-measurement.js 가
- * load()/requestSave()/requestComplete()/requestDraft()/requestChannelPush()/switchTab()/toggleCalc()
+ * load()/requestSave()/requestComplete()/requestDraft()/requestChannelPush()/switchTab()
  * 로 구동한다(중복 게이트 정의 금지). PC 번들(window.erp*)에는 의존하지 않는다(이 페이지 미로드).
  */
 (function () {
@@ -49,9 +50,15 @@
   var DETAIL_SELECTOR = ".foms-tablet-measure-detail";
   var INJECT_SELECTOR = "[data-foms-tablet-measure-detail]";
   var STATUS_SELECTOR = "[data-foms-tablet-measure-status]";
-  // 실측 완료 → 도면 단계(목업 "실측 완료 → 도면 전달"; PC 단계 select 의 "D. 도면" = DRAWING).
-  // 서버 _handle_stage_transition 이 workflow.stage 변경을 감지해 order.status/OrderEvent/Quest 를 처리한다.
-  var NEXT_STAGE_ON_COMPLETE = "DRAWING";
+  // 도면 단계 이후(=도면팀이 이미 착수) 스테이지 — 실측 수정 시 자동통지 안내 배너 게이트(T3).
+  var POST_DRAWING_STAGES = [
+    "DRAWING",
+    "CONFIRM",
+    "PRODUCTION",
+    "CONSTRUCTION",
+    "CS",
+    "COMPLETED",
+  ];
 
   // PC erp_order_tab.html SSOT 그대로의 select 옵션 목록(하드코딩 금지 원칙 하 마크업 계약 미러).
   var WORKFLOW_STAGE_OPTIONS = [
@@ -94,6 +101,19 @@
 
   // 활성 주문 1건의 편집 상태. 카드 전환 시 통째로 교체된다.
   var state = null;
+  // 실측 완료(저장→퀘스트 승인) 진행 중 플래그 — 중복 클릭 차단(state 교체와 무관하게 유지).
+  var completeBusy = false;
+
+  function setCompleteBusy(busy) {
+    completeBusy = !!busy;
+    var btn = chromeQuery("[data-foms-tablet-measure-complete]");
+    if (btn) btn.disabled = completeBusy;
+  }
+
+  function setCompleteVisible(on) {
+    var btn = chromeQuery("[data-foms-tablet-measure-complete]");
+    if (btn) btn.hidden = !on;
+  }
 
   function structuredUrl(id) {
     return "/api/orders/" + encodeURIComponent(id) + "/structured";
@@ -104,8 +124,12 @@
   function attachmentsUploadUrl(id) {
     return "/api/orders/" + encodeURIComponent(id) + "/attachments";
   }
-  function estimatePreviewUrl(id) {
-    return "/api/orders/" + encodeURIComponent(id) + "/estimate-preview";
+  function estimateIframeSrc(id) {
+    return (
+      "/edit/" +
+      encodeURIComponent(id) +
+      "?open=erp-estimate&embedded=1&return_to=erp_measurement_dashboard"
+    );
   }
   function calcIframeSrc(id, name) {
     return (
@@ -350,7 +374,7 @@
     if (num) num.textContent = state ? "#" + state.orderId : "";
   }
 
-  // 탭 버튼/계산기 토글 활성 상태 동기화(크롬은 __scroll 밖 형제라 재렌더에도 생존).
+  // 탭 버튼 + 완료 버튼 노출 동기화(크롬은 __scroll 밖 형제라 재렌더에도 생존).
   function syncTabButtons() {
     if (!state) return;
     var tabs = detailEl() ? detailEl().querySelectorAll("[data-foms-tmf-tab]") : [];
@@ -359,12 +383,8 @@
       b.classList.toggle("is-active", on);
       b.setAttribute("aria-selected", on ? "true" : "false");
     });
-    var toggle = chromeQuery("[data-foms-tmf-calc-toggle]");
-    if (toggle) {
-      toggle.hidden = state.activeTab !== "order";
-      toggle.setAttribute("aria-pressed", state.calcOpen ? "true" : "false");
-      toggle.classList.toggle("is-active", !!state.calcOpen);
-    }
+    // "실측 완료 → 도면 전달"은 실측 단계 주문에서만 노출(라벨-동작 일치).
+    setCompleteVisible(isMeasureStage());
   }
 
   // ── 구조화 접근자(방어적) ───────────────────────────────────────────
@@ -428,6 +448,15 @@
   function workflowStage() {
     var w = state.structured.workflow;
     return w && typeof w === "object" ? w.stage || "" : "";
+  }
+  // 도면 단계 이후(도면팀이 이미 작업 중) 여부 — 실측 폼 상단 자동통지 안내 배너 게이트.
+  function isPostDrawingStage() {
+    return POST_DRAWING_STAGES.indexOf(String(workflowStage()).toUpperCase()) !== -1;
+  }
+  // 좌측 큐에는 실측 외 단계 주문도 섞인다. quest/approve 는 "현재 단계" 퀘스트를 승인하므로
+  // 비-MEASURE 주문에서 누르면 라벨("도면 전달")과 다른 단계로 전진한다 → 완료 버튼 게이트.
+  function isMeasureStage() {
+    return String(workflowStage()).toUpperCase() === "MEASURE";
   }
   function constructionWorkersText() {
     var sh = state.structured.shipment;
@@ -1113,7 +1142,9 @@
       "</div>" +
       '<textarea class="foms-tmf__textarea foms-tmf__convo-text" data-tmf-conversion rows="6" readonly ' +
       'placeholder="[변환 텍스트 생성]을 누르면 현재 원장 내용이 채널톡용 텍스트로 만들어집니다.">' +
-      escapeHtml(buildConversionText()) +
+      // 렌더 시점 자동 생성 금지 — 사용자가 [변환 텍스트 생성]을 눌러야만 채워진다.
+      // 이미 생성한 텍스트는 탭 왕복(재렌더)에도 유지되도록 state.convText 에서 복원한다.
+      escapeHtml((state && state.convText) || "") +
       "</textarea>" +
       "</section>"
     );
@@ -1144,14 +1175,6 @@
       renderAmountsCard() +
       renderConversionCard() +
       "</div>";
-    var calcAside = state.calcOpen
-      ? '<aside class="foms-tmf__calcpane" data-tmf-calcpane>' +
-        '<div class="foms-tmf__calcpane-head"><span>계산기 같이 보기</span><span class="foms-tmf__calcpane-tag">WDC</span></div>' +
-        '<iframe class="foms-tmf__calcframe" src="' +
-        escapeHtml(calcIframeSrc(state.orderId, partyValue("customer", "name") || (state.ctx && state.ctx.customerName))) +
-        '" title="WD 계산기" loading="lazy"></iframe>' +
-        "</aside>"
-      : "";
     inj.innerHTML =
       '<div class="foms-tmf" data-foms-tmf data-order-id="' +
       escapeHtml(state.orderId) +
@@ -1160,11 +1183,13 @@
       "<span>다른 곳에서 이 주문이 수정되었습니다. 최신 내용을 불러오세요.</span>" +
       '<button type="button" class="foms-btn foms-btn--sm foms-btn--secondary" data-tmf-refresh>새로고침</button>' +
       "</div>" +
-      '<div class="foms-tmf__ordergrid' +
-      (state.calcOpen ? " is-split" : "") +
-      '">' +
+      // 도면 단계 이후 수정 안내 — 서버가 PUT /structured 에서 도면팀 알림 + 이력을 자동 기록한다
+      // (apply_drawing_order_change_alert). 조건 불충족이면 [hidden](기존 배너 관례).
+      '<div class="foms-tmf__banner foms-tmf__banner--notify" data-tmf-drawing-notice' +
+      (isPostDrawingStage() ? "" : " hidden") +
+      '><span>도면 진행 중 — 여기서 수정하면 도면팀에 변경 내용이 자동 통지됩니다.</span></div>' +
+      '<div class="foms-tmf__ordergrid">' +
       formCol +
-      calcAside +
       "</div></div>";
     renderPhotos();
   }
@@ -1178,99 +1203,19 @@
       "</div>";
   }
 
-  function estimateFallback() {
-    var editHref = state.ctx && state.ctx.editUrl ? escapeHtml(state.ctx.editUrl) : "";
-    return (
-      '<div class="foms-tmf" data-foms-tmf><div class="foms-tmf__notice">' +
-      "<p>견적서 데이터를 불러오지 못했습니다.</p>" +
-      (editHref
-        ? '<a class="foms-btn foms-btn--secondary" href="' + editHref + '">PC 견적서에서 열기</a>'
-        : "") +
-      "</div></div>"
-    );
-  }
-
-  function renderEstimateView(data) {
-    var editHref = state.ctx && state.ctx.editUrl ? escapeHtml(state.ctx.editUrl) : "";
-    var items = Array.isArray(data.items) ? data.items : [];
-    var rowsHtml = items.length
-      ? items
-          .map(function (it) {
-            var name = escapeHtml(it.product_name || "-");
-            var spec = escapeHtml(it.spec || "");
-            var qty = it.quantity != null ? it.quantity : 1;
-            var amount = formatWon(coerceAmount(it.amount));
-            return (
-              '<tr><td class="foms-tmf__est-name">' +
-              name +
-              (spec ? '<span class="foms-tmf__est-spec">' + spec + "</span>" : "") +
-              "</td><td class=\"foms-tmf__est-qty\">" +
-              escapeHtml(qty) +
-              '</td><td class="foms-tmf__est-amt">' +
-              amount +
-              "</td></tr>"
-            );
-          })
-          .join("")
-      : '<tr><td colspan="3" class="foms-tmf__empty-note">견적 항목이 없습니다.</td></tr>';
-    var shipping = coerceAmount(data.shipping_price != null ? data.shipping_price : data.total_amount);
-    var deposit = coerceAmount(data.deposit_amount);
-    var balance = coerceAmount(data.balance_amount != null ? data.balance_amount : data.final_amount);
-    return (
-      '<div class="foms-tmf" data-foms-tmf>' +
-      '<section class="foms-tmf__section">' +
-      '<div class="foms-tmf__est-hero"><b>총 견적</b><span>' +
-      formatWon(shipping) +
-      "</span></div>" +
-      '<table class="foms-tmf__est-table"><thead><tr><th>품목</th><th>수량</th><th class="foms-tmf__est-amt">금액</th></tr></thead>' +
-      "<tbody>" +
-      rowsHtml +
-      "</tbody></table>" +
-      "</section>" +
-      '<section class="foms-tmf__section">' +
-      '<h5 class="foms-tmf__title">금액 요약</h5>' +
-      '<div class="foms-tmf__kvgrid">' +
-      '<div class="foms-tmf__kv"><b>출고가</b><span>' +
-      formatWon(shipping) +
-      "</span></div>" +
-      '<div class="foms-tmf__kv"><b>예약금</b><span>' +
-      formatWon(deposit) +
-      "</span></div>" +
-      '<div class="foms-tmf__kv foms-tmf__kv--accent"><b>잔금</b><span>' +
-      formatWon(balance) +
-      "</span></div></div>" +
-      (editHref
-        ? '<a class="foms-tmf__photo-add foms-btn foms-btn--secondary foms-btn--sm" href="' +
-          editHref +
-          '"><i class="fas fa-file-invoice" aria-hidden="true"></i><span>PC 견적서(문서·인쇄) 열기</span></a>'
-        : "") +
-      "</section></div>"
-    );
-  }
-
   function renderEstimateTab(inj) {
+    var orderId = state && state.orderId;
+    if (!orderId) {
+      inj.innerHTML =
+        '<div class="foms-tmf" data-foms-tmf><div class="foms-tmf__notice"><p>주문을 선택하세요.</p></div></div>';
+      return;
+    }
     inj.innerHTML =
-      '<div class="foms-tmf" data-foms-tmf><div class="foms-tmf__loading">견적서 불러오는 중…</div></div>';
-    var orderId = state.orderId;
-    fetch(estimatePreviewUrl(orderId), { credentials: "same-origin" })
-      .then(function (res) {
-        return res.json();
-      })
-      .then(function (res) {
-        if (!state || state.orderId !== orderId || state.activeTab !== "estimate") return;
-        var inj2 = injectEl();
-        if (!inj2) return;
-        if (!res || !res.success || !res.data) {
-          inj2.innerHTML = estimateFallback();
-          return;
-        }
-        inj2.innerHTML = renderEstimateView(res.data);
-      })
-      .catch(function () {
-        if (!state || state.orderId !== orderId || state.activeTab !== "estimate") return;
-        var inj3 = injectEl();
-        if (inj3) inj3.innerHTML = estimateFallback();
-      });
+      '<div class="foms-tmf foms-tmf--fullpane" data-foms-tmf>' +
+      '<iframe class="foms-tmf__calcframe foms-tmf__calcframe--full foms-tmf__estframe" src="' +
+      escapeHtml(estimateIframeSrc(orderId)) +
+      '" title="견적서" loading="lazy"></iframe>' +
+      "</div>";
   }
 
   function renderActiveTab() {
@@ -1557,51 +1502,37 @@
     setStatus("충돌 — 저장 중단", "conflict");
   }
 
+  // 저장 성공 여부로 resolve 되는 Promise 를 반환한다(실측 완료가 "저장 성공 후에만 승인 호출"
+  // 을 체이닝하는 데 사용 — 실패 시 승인 금지).
   function saveNow(opts) {
     opts = opts || {};
-    if (!state || !isEditable()) return;
+    if (!state || !isEditable()) return Promise.resolve(false);
     var explicit = !!opts.explicit;
-    var isComplete = !!opts.complete;
     var isDraft = !!opts.draft;
 
     // 지방 ON + 구분 미선택 → 명시 저장/실측완료 차단(서버 쌍 400 방지, PC 미러).
-    if ((explicit || isComplete) && state.top.is_regional && !normalizedConstructionType()) {
+    if (explicit && state.top.is_regional && !normalizedConstructionType()) {
       setStatus("지방주문 구분(하우드/협력사)을 선택해주세요.", "error");
       var ctypeSel = formEl() ? formEl().querySelector('[data-tmf-field="construction_type"]') : null;
       if (ctypeSel && typeof ctypeSel.focus === "function") ctypeSel.focus();
-      return;
+      return Promise.resolve(false);
     }
 
     if (state.saving) {
       state.pendingSave = true;
-      return;
+      return Promise.resolve(false);
     }
     window.clearTimeout(state.saveTimer);
     var orderId = state.orderId;
-
-    // 실측 완료: workflow.stage=DRAWING 을 이 PUT 에만 실어 서버가 단계 전환하게 한다.
-    var stageApplied = false;
-    var prevStage;
-    if (isComplete) {
-      var wf = ensureWorkflow();
-      prevStage = wf.stage;
-      wf.stage = NEXT_STAGE_ON_COMPLETE;
-      stageApplied = true;
-    }
-    function revertStage() {
-      if (stageApplied && state && state.structured && state.structured.workflow) {
-        state.structured.workflow.stage = prevStage;
-      }
-    }
+    var saved = false;
 
     state.saving = true;
     setStatus(isDraft ? "임시 저장 중…" : "저장 중…", "saving");
 
     var pre = explicit ? checkConflict(orderId) : Promise.resolve(false);
-    pre
+    return pre
       .then(function (conflict) {
         if (conflict) {
-          revertStage();
           state.saving = false;
           showConflictBanner();
           return null;
@@ -1612,19 +1543,17 @@
         if (result == null) return;
         if (!state || state.orderId !== orderId) return;
         if (result.data && result.data.success) {
+          saved = true;
           state.dirty = false;
-          setStatus(isComplete ? "도면 전달 완료" : isDraft ? "임시 저장됨" : "저장됨", "saved");
+          setStatus(isDraft ? "임시 저장됨" : "저장됨", "saved");
           showAutosaveBadge((isDraft || !explicit ? "자동저장됨" : "저장됨") + " · 방금");
-          if (isComplete) onCompleteSaved();
           refreshBaseline(orderId);
         } else {
-          revertStage();
           var msg = (result.data && result.data.message) || "저장 실패";
           setStatus(msg, "error");
         }
       })
       .catch(function () {
-        revertStage();
         setStatus("네트워크 오류 — 저장 실패", "error");
       })
       .then(function () {
@@ -1635,12 +1564,48 @@
             saveNow({ explicit: false });
           }
         }
+        return saved;
       });
   }
 
-  function onCompleteSaved() {
+  function markCardCompleted() {
     var card = document.querySelector(".foms-tablet-measure-card.is-active");
     if (card) card.classList.add("is-completed");
+  }
+
+  // 실측 완료 = MEASURE 퀘스트 승인(POST /quest/approve) 단일 경로. 서버가 승인자·시각 기록 →
+  // workflow.stage MEASURE→DRAWING 전환 → order.status 동기화 → DRAWING 퀘스트 생성까지 처리한다.
+  // (클라이언트가 stage 를 직접 세팅하던 반쪽 전환 폐기 — 단계 전환 SSOT 는 서버 quest 로직 하나.)
+  function approveMeasureQuest(orderId) {
+    setStatus("도면 전달 중…", "saving");
+    // MEASURE 는 approval_mode="assignee" → 팀 지정 없는 빈 body.
+    return fetch("/api/orders/" + encodeURIComponent(orderId) + "/quest/approve", {
+      method: "POST",
+      credentials: "same-origin",
+      headers: { "Content-Type": "application/json" },
+      body: "{}",
+    })
+      .then(function (res) {
+        return res.json().then(function (data) {
+          return { ok: res.ok, data: data || {} };
+        });
+      })
+      .then(function (result) {
+        if (!result.ok || !result.data.success) {
+          // 저장은 이미 성공했으므로 롤백하지 않는다(입력 데이터 보존 우선).
+          setStatus(result.data.message || result.data.error || "도면 전달 실패", "error");
+          return;
+        }
+        markCardCompleted();
+        if (!state || state.orderId !== orderId) return;
+        // 새 단계(DRAWING) 를 폼 전체에 반영 — 기존 리프레시 수단(load) 재사용.
+        return load(orderId, state.ctx).then(function () {
+          setStatus("실측 완료 — 도면 단계로 전달됨", "saved");
+        });
+      })
+      .catch(function () {
+        setStatus("네트워크 오류 — 도면 전달 실패(입력 내용은 저장됨)", "error");
+      });
   }
 
   function flushPending() {
@@ -1890,7 +1855,9 @@
   function refreshConversionText() {
     var form = formEl();
     var ta = form ? form.querySelector("[data-tmf-conversion]") : null;
-    if (ta) ta.value = buildConversionText();
+    var text = buildConversionText();
+    if (state) state.convText = text; // 재렌더에도 미리보기 유지(=생성한 결과 보존).
+    if (ta) ta.value = text;
     return ta;
   }
 
@@ -1980,6 +1947,7 @@
   }
 
   // ── 공개 API(tablet-measurement.js 가 구동) ────────────────────────
+  // 렌더 완료 시 resolve 되는 Promise 를 반환한다(실측 완료 후 새 단계 반영 체이닝에 사용).
   function load(orderId, ctx) {
     // 이전 주문의 미저장 편집을 새 주문 로드 전에 flush(카드 전환 시 유실 방지).
     flushPending();
@@ -1990,8 +1958,10 @@
     }
     setStatus("", "");
     hideAutosaveBadge();
+    // 새 주문의 단계가 확정될 때까지 완료 버튼 숨김(이전 주문 게이트 상태 잔류 방지).
+    setCompleteVisible(false);
 
-    fetch(structuredUrl(orderId), { credentials: "same-origin" })
+    return fetch(structuredUrl(orderId), { credentials: "same-origin" })
       .then(function (res) {
         return res.json();
       })
@@ -2049,7 +2019,7 @@
           ordererDirect: !(ordererName === "" || ordererName === "라홈" || ordererName === "하우드"),
           activeItem: 0,
           activeTab: "order",
-          calcOpen: false,
+          convText: "", // 변환 텍스트 미리보기 — [변환 텍스트 생성] 클릭 전까지 빈 값.
           photos: [],
           saving: false,
           pendingSave: false,
@@ -2076,14 +2046,28 @@
     saveNow({ explicit: false, draft: true });
   }
 
+  // 저장(명시) → 성공 시에만 퀘스트 승인. 진행 중에는 버튼을 비활성화해 중복 클릭을 막는다.
   function requestComplete() {
-    if (!state) return;
+    if (!state || completeBusy) return;
     if (!isEditable()) {
       setStatus("이 주문은 실측 폼으로 완료할 수 없습니다.", "error");
       return;
     }
+    // 버튼은 비-MEASURE 에서 숨겨지지만, 위임 클릭·API 직접 호출 대비 방어 가드.
+    if (!isMeasureStage()) {
+      setStatus("실측 단계 주문만 도면으로 전달할 수 있습니다.", "error");
+      return;
+    }
     if (!window.confirm("실측을 완료하고 도면 단계로 전달하시겠습니까?")) return;
-    saveNow({ explicit: true, complete: true });
+    var orderId = state.orderId;
+    setCompleteBusy(true);
+    saveNow({ explicit: true })
+      .then(function (ok) {
+        return ok ? approveMeasureQuest(orderId) : null;
+      })
+      .then(function () {
+        setCompleteBusy(false);
+      });
   }
 
   function requestChannelPush() {
@@ -2098,13 +2082,6 @@
     renderActiveTab();
   }
 
-  function toggleCalc() {
-    if (!state) return;
-    state.calcOpen = !state.calcOpen;
-    if (state.activeTab !== "order") state.activeTab = "order";
-    renderActiveTab();
-  }
-
   window.FomsTabletMeasureForm = {
     load: load,
     requestSave: requestSave,
@@ -2112,7 +2089,6 @@
     requestComplete: requestComplete,
     requestChannelPush: requestChannelPush,
     switchTab: switchTab,
-    toggleCalc: toggleCalc,
   };
 
   // ── 위임 이벤트(싱글턴 가드 하 1회 바인딩) ─────────────────────────

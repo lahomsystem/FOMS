@@ -57,6 +57,15 @@ self.addEventListener("fetch", function (event) {
 
   if (req.method !== "GET") return;
 
+  // 교차 출처(cross-origin)는 SW 가 절대 가로채지 않는다. 근본 이유: no-cors 교차 출처
+  // 응답은 opaque(status 0)라 staticNetwork 가 이를 transient 서버 오류로 분류해
+  // 400ms+800ms backoff 재시도를 돌고(=요청당 +1.2초), response.ok 가 false 라
+  // cache.put 도 못 해 영구히 캐시되지 않는다. 카카오 지도 타일(mts.daumcdn.net/**.png)이
+  // 정확히 이 경로에 걸려 타일 1장당 37ms → 1243ms(33배)가 됐고, 확대·축소마다 전량
+  // 재발생해 "지도가 계속 재로딩"으로 보였다(로컬 실측 2026-07-21, SW on/off A/B).
+  // 교차 출처 자산은 브라우저 HTTP 캐시가 이미 처리한다(카카오 타일 max-age=21600).
+  if (url.origin !== self.location.origin) return;
+
   if (isFileDeliveryRequest(url)) {
     return;
   }
@@ -91,17 +100,67 @@ function isFileDeliveryRequest(url) {
   return url.searchParams.has("X-Amz-Signature") || url.searchParams.has("Signature");
 }
 
+// 정적 자산 네트워크 취득(캐시 미스/만료 시 공용). 두 종류의 transient 실패를 흡수한다:
+//  (A) fetch reject: 한국↔싱가포르 tail 구간의 TCP reset/혼잡 → 첫 fetch 가 reject.
+//  (B) HTTP 에러 resolve: fetch 가 5xx/opaque 응답으로 **resolve** 하는 경우. Railway
+//      롤링 재배포 중 502/503 이 정확히 이 경로다. 이때 .catch(reject 전용)를 안 타므로
+//      기존 코드는 그 에러 응답을 그대로 반환 → render-blocking CSS 가 통째로 죽었다
+//      (무스타일 렌더). (A)만 막던 종전 재시도의 잔존 구멍이었다.
+// 근본 수정: (A)reject 와 (B)5xx/opaque 를 동일 취급 — 캐시 폴백이 있으면 즉시 폴백,
+// 없으면 짧은 backoff 로 유한 재시도(400/800ms)하고 성공 시 캐시에 저장한다.
+// 재시도를 소진해도 폴백이 없으면:
+//   · (B) 마지막 응답(5xx 등)을 그대로 반환 — 4xx/최종 5xx 는 정직한 서버 상태라
+//     브라우저에 전달한다(throw 아님).
+//   · (A) 반환할 응답이 없으므로 정직하게 reject 를 전파(브라우저 기본 에러 처리).
+// 4xx 는 정직한 응답이므로 재시도 없이 그대로 전달한다. 어떤 경로도 undefined 로 resolve
+// 하지 않는다. 유한 재시도라 respondWith 무한 미해결(G3 무한 스피너)과는 무관하다.
+var STATIC_NETWORK_RETRIES = 2; // 첫 시도 후 최대 2회 추가 재시도
+var STATIC_RETRY_BACKOFF_MS = 400; // 재시도 간 backoff(선형 증가: 400ms, 800ms)
+
+function staticNetwork(request, cache, cached) {
+  var attempt = 0;
+  // reject / 5xx·opaque 를 유한 재시도로 흡수하는 공용 폴백 경로.
+  // cached 있으면 즉시 폴백. 재시도 소진 시 lastResponse(5xx 응답)면 그대로 반환,
+  // 없으면(reject) rejectErr 전파 — 절대 undefined 로 resolve 하지 않는다.
+  function retryOr(lastResponse, rejectErr) {
+    if (cached) return cached;
+    if (attempt < STATIC_NETWORK_RETRIES) {
+      attempt += 1;
+      return new Promise(function (resolve) {
+        setTimeout(resolve, STATIC_RETRY_BACKOFF_MS * attempt);
+      }).then(attemptFetch);
+    }
+    if (lastResponse) return lastResponse; // 4xx/최종 5xx: 정직한 서버 상태 그대로 전달.
+    throw rejectErr || new TypeError("[foms-sw] static fetch failed");
+  }
+  function attemptFetch() {
+    return fetch(request)
+      .then(function (response) {
+        // 성공(ok): 캐시에 저장하고 반환(기존 동작 보존).
+        if (response && response.ok) {
+          cache.put(request, response.clone());
+          return response;
+        }
+        // HTTP 에러 게이트: 5xx/opaque(status 0 또는 type 'error')는 transient 로
+        // 보고 reject 와 동일 취급(폴백/재시도). 4xx 는 정직한 응답이라 그대로 전달.
+        var status = response ? response.status : 0;
+        var isTransientServerErr =
+          status >= 500 || status === 0 || (response && response.type === "error");
+        if (isTransientServerErr) return retryOr(response, null);
+        return response; // 4xx: 재시도 없이 그대로
+      })
+      .catch(function (err) {
+        // fetch reject(오프라인/TCP reset/혼잡): 폴백/유한 재시도(기존 동작 보존).
+        return retryOr(null, err);
+      });
+  }
+  return attemptFetch();
+}
+
 function staleWhileRevalidate(request, cacheName) {
   return caches.open(cacheName).then(function (cache) {
     return cache.match(request).then(function (cached) {
-      var network = fetch(request)
-        .then(function (response) {
-          if (response && response.ok) cache.put(request, response.clone());
-          return response;
-        })
-        .catch(function () {
-          return cached;
-        });
+      var network = staticNetwork(request, cache, cached);
       return cached || network;
     });
   });
@@ -129,15 +188,10 @@ function staticCacheFirst(request, cacheName) {
       if (cached && _cacheAgeMs(cached) < STATIC_REVALIDATE_TTL_MS) {
         return cached;
       }
-      // 캐시가 없거나 오래됨 → 캐시본 즉시 응답 + 백그라운드 재검증(stale-while-revalidate).
-      var network = fetch(request)
-        .then(function (response) {
-          if (response && response.ok) cache.put(request, response.clone());
-          return response;
-        })
-        .catch(function () {
-          return cached;
-        });
+      // 캐시본이 있으면(오래됨) 즉시 응답 + 백그라운드 재검증(stale-while-revalidate).
+      // 캐시가 없으면(첫 로드/배포 직후 미스) staticNetwork 가 유한 재시도로 취득한다 —
+      // transient reject 를 undefined 로 삼켜 무스타일 렌더를 유발하던 경로를 봉합한다.
+      var network = staticNetwork(request, cache, cached);
       return cached || network;
     });
   });

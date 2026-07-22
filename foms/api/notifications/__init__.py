@@ -141,7 +141,7 @@ def _resolve_notification_deep_link(notification, order_structured_data):
     n_type = str(getattr(notification, "notification_type", "") or "").upper()
     oid = getattr(notification, "order_id", None)
 
-    if n_type not in ("DRAWING_TRANSFERRED", "DRAWING_REVISION") or not oid:
+    if n_type not in ("DRAWING_TRANSFERRED", "DRAWING_REVISION", "ERP_ORDER_CHANGED") or not oid:
         return {
             "deep_tab": None,
             "deep_event_id": None,
@@ -149,8 +149,15 @@ def _resolve_notification_deep_link(notification, order_structured_data):
             "deep_link_url": None,
         }
 
-    target_action = "TRANSFER" if n_type == "DRAWING_TRANSFERRED" else "REQUEST_REVISION"
-    target_tab = "timeline" if n_type == "DRAWING_TRANSFERRED" else "requests"
+    if n_type == "ERP_ORDER_CHANGED":
+        target_action = "ERP_ORDER_CHANGED"
+        target_tab = "timeline"
+    elif n_type == "DRAWING_TRANSFERRED":
+        target_action = "TRANSFER"
+        target_tab = "timeline"
+    else:
+        target_action = "REQUEST_REVISION"
+        target_tab = "requests"
     history = list(((order_structured_data or {}).get("drawing_transfer_history", []) or []))
     if not history:
         return {
@@ -603,8 +610,10 @@ def api_users_list_for_mention():
 def api_order_urgent_targets(order_id):
     """주문 문맥형 긴급 호출 후보 목록.
 
-    호출자는 주문 관련자이거나 ADMIN/MANAGER 여야 한다(아니면 403). 후보는 주문
-    관련자 + ADMIN/MANAGER(활성만), 자기 자신·inactive 제외, dedupe.
+    호출자는 주문 관련자이거나 ADMIN/MANAGER 여야 한다(아니면 403 — sender 게이트).
+    후보는 활성 사용자 전원(자기 자신·inactive 제외)이며, 팀 드롭다운 UI 가 등록 인원을
+    팀별로 묶어 노출한다. 정렬은 팀 표시순(auth TEAMS SSOT)→이름순이고, 각 항목에
+    team_label(팀 라벨, 팀 미등록/미상=기타)을 포함한다.
     """
     try:
         db = get_db()
@@ -620,15 +629,24 @@ def api_order_urgent_targets(order_id):
         if not _user_can_access_order_urgent(user, order):
             return jsonify({"success": False, "message": "권한이 없습니다."}), 403
 
-        # 활성 사용자 1회 조회 후 파이썬 판정(N+1 없음). 후보는 활성 사용자로 한정되며
+        # 팀 표시순·라벨은 auth 사용자관리와 동일한 TEAMS SSOT 를 따른다.
+        # (지연 import 로 auth↔notifications 순환 의존 회피)
+        from foms.web.auth import TEAMS
+
+        # 활성 사용자 1회 조회(N+1 없음), 자기 자신만 제외하고 등록 인원 전체를 후보로 연다.
         # 운영 규모상 상한 500 으로 bound(users/list 와 동일 상한).
         active_users = db.query(User).filter(User.is_active == True).limit(500).all()  # perf-ok: bounded active-user candidate scan
-        targets = []
-        for u in active_users:
-            if u.id == user_id:
-                continue
-            if _user_can_access_order_urgent(u, order):
-                targets.append(_urgent_target_payload(u))
+        targets = [
+            {**_urgent_target_payload(u), "team_label": TEAMS.get(u.team) or "기타"}
+            for u in active_users
+            if u.id != user_id
+        ]
+        # 팀 미등록/미상(=기타)은 TEAMS 뒤로, 같은 팀은 이름순. JS 는 이 순서대로 그룹핑한다.
+        team_index = {code: idx for idx, code in enumerate(TEAMS)}
+        targets.sort(key=lambda t: (
+            team_index.get(t["team"], len(team_index)),
+            str(t["name"] or ""),
+        ))
 
         return jsonify({"success": True, "targets": targets})
     except Exception as e:
@@ -756,7 +774,8 @@ def api_order_urgent_mention(order_id):
     """주문 상세에서 특정 동료를 긴급 호출(멘션).
 
     Body: { target_user_id: int, message: str (선택, 최대 500자) }
-    호출자·대상 모두 주문 관련자이거나 ADMIN/MANAGER 여야 한다.
+    호출자는 주문 관련자이거나 ADMIN/MANAGER 여야 한다(sender 게이트). 대상은 활성
+    사용자면 누구나 가능 — 대상 목록(urgent-targets)이 등록 인원 전체를 여는 것과 계약 일치.
     """
     db = None
     try:
@@ -790,9 +809,8 @@ def api_order_urgent_mention(order_id):
         if not target_user or not target_user.is_active:
             return jsonify({"success": False, "message": "대상 사용자를 찾을 수 없습니다."}), 404
 
-        if not _user_can_access_order_urgent(target_user, order):
-            return jsonify({"success": False, "message": "이 주문과 관련 없는 대상입니다."}), 400
-
+        # 대상 게이트 없음: 등록 인원 전체를 호출 대상으로 열어둔다(urgent-targets 계약과 일치).
+        # sender 게이트(위)와 자기 자신·비활성 차단만 유지한다.
         msg = (data.get("message") or "").strip()
         if len(msg) > 500:
             return jsonify({"success": False, "message": "메시지는 500자 이내여야 합니다."}), 400

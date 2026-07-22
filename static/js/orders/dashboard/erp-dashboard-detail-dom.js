@@ -380,6 +380,9 @@
                   } else {
                     mainBtn = '<button class="btn btn-primary" onclick="openTransferDrawingModal(' + orderId + ', true)"><i class="fas fa-paper-plane"></' + 'i> 수정본 전달 (재전송)</' + 'button><div class="text-danger small mt-1"><i class="fas fa-exclamation-triangle"></' + 'i> 수정 요청 사항을 확인 후 다시 전달해주세요.</div>';
                   }
+                } else if (canEdit && (isAdmin || ((isSalesTeam || isManager) && !isDrawingTeam))) {
+                  // 수정요청을 낸 영업측: 요청 철회(전달취소의 대칭축) 가능.
+                  mainBtn = '<button class="btn btn-outline-warning" onclick="cancelDrawingRevisionRequest(' + orderId + ')"><i class="fas fa-rotate-left"></' + 'i> 수정요청 취소</' + 'button><div class="text-muted small mt-1"><i class="fas fa-info-circle"></' + 'i> 요청 시 첨부한 참고 파일이 삭제되고 <span class="text-danger fw-bold">도면 전달 상태로 복귀</span>합니다.</div>';
                 } else {
                   mainBtn = '<button class="btn btn-secondary" disabled>수정 작업 대기중</button>';
                 }
@@ -997,7 +1000,7 @@
               updateSelectedCount();
             });
 
-            applyBtn.addEventListener('click', function () {
+              applyBtn.addEventListener('click', function () {
               const status = (selectEl.value || '').trim();
               if (!status) {
                 alert('변경할 상태를 선택하세요.');
@@ -1014,9 +1017,12 @@
                 headers: { 'Content-Type': 'application/json', 'X-Requested-With': 'XMLHttpRequest' },
                 body: JSON.stringify({ order_ids: orderIds, status: status })
               })
-                .then(r => r.json())
-                .then(data => {
+                .then(r => r.json().then(data => ({ ok: r.ok, status: r.status, data })))
+                .then(({ data }) => {
                   if (data.success) {
+                    if (data.blocked_override_required && data.blocked_override_required.length) {
+                      alert((data.message || '') + '\n차단 ID: ' + data.blocked_override_required.join(', '));
+                    }
                     window.location.reload();
                   } else {
                     alert(data.message || '상태 변경에 실패했습니다.');

@@ -115,7 +115,7 @@ def test_mobile_surfaces_parent_cachebuster_bumped() -> None:
     the prior baseline (T0 교훈: 자식 범프=부모 내용 변경=부모도 범프).
     W9=ae → W11=af → W12=ag → W14=ah."""
     layout_head = _read("templates/partials/shared/layout_head.html")
-    assert "foms-mobile-surfaces.css') }}?v=20260715b" in layout_head
+    assert "foms-mobile-surfaces.css') }}?v=20260716b" in layout_head
     assert "foms-mobile-surfaces.css') }}?v=20260711ag" not in layout_head
 
 
@@ -634,7 +634,7 @@ def test_w16_layout_head_loads_bundle_for_v2_and_v3_cohort() -> None:
     layout_head = _read("templates/partials/shared/layout_head.html")
     idx = layout_head.find("foms-tablet-bundle.css")
     assert idx != -1, "layout_head 에 태블릿 번들 <link> 부재"
-    assert "foms-tablet-bundle.css') }}?v=20260715a" in layout_head
+    assert "foms-tablet-bundle.css') }}?v=20260720b" in layout_head
     # Anchor on the nearest preceding `{% if %}` (the bundle gate) rather than a fixed
     # char window — the gate string grows over time (2026-07-12: +/wdcalculator arm).
     gate_start = layout_head.rfind("{% if", 0, idx)
@@ -988,8 +988,8 @@ def test_calc_skin_wired_in_calculator_template_with_cachebuster() -> None:
     """calculator.html 이 기존 <link> 패턴대로 스킨을 로드하고 ?v=20260713f 캐시버스터를 가진다.
     (2026-07-13 접힘 스킨 수리로 a→e, 하단 고정 최종견적 바 추가로 e→f, 하단바 가격 정렬 정합으로 f→o 범프.)"""
     html = _read(CALC_TEMPLATE)
-    m = re.search(r"tablet-skin\.css'\s*\)\s*}}\?v=20260715a", html)
-    assert m is not None, "calculator.html 에 tablet-skin.css ?v=20260715a <link> 부재"
+    m = re.search(r"tablet-skin\.css'\s*\)\s*}}\?v=20260716g", html)
+    assert m is not None, "calculator.html 에 tablet-skin.css ?v=20260716g <link> 부재"
 
 
 # =====================================================================
@@ -1196,3 +1196,49 @@ def test_tqgrid_side_sheet_delegation_and_autoselect_prefers_clean_grid() -> Non
     ), "autoSelectFirstRow 가 클린 그리드를 우선 조회하지 않음"
     # 회귀 금지: PC 그리드 소스 보존.
     assert "#erp-grid tr.erp-main-row[data-order-id]" in js
+
+
+# =====================================================================
+# 태블릿 실측 견적서 탭 = PC edit iframe (open=erp-estimate&embedded=1)
+# + 실측/시공 landscape 하단 여백 축소(과예약 rem 제거)
+# =====================================================================
+
+
+def test_tablet_measure_form_estimate_tab_embeds_pc_edit_iframe() -> None:
+    """견적서 탭은 요약 스텁이 아니라 PC /edit?open=erp-estimate&embedded=1 iframe."""
+    js = _read(MEASURE_FORM_JS)
+    assert "open=erp-estimate" in js
+    assert "embedded=1" in js
+    assert "renderEstimateTab" in js
+    assert 'title="견적서"' in js or "title='견적서'" in js
+    # 스텁 요약 UI 폐기 — PC 문서 프리뷰로 대체.
+    assert "PC 견적서(문서·인쇄) 열기" not in js
+    assert "foms-tmf__est-hero" not in js
+
+
+def test_tablet_measure_viewport_offset_is_tight() -> None:
+    """실측 split 셸: landscape 크롬 숨김 후 과예약(9rem) 금지 — 최대 4rem 이하."""
+    import re
+
+    css = _norm(_read(MEASURE_CSS))
+    assert "calc(100dvh - 9rem)" not in css
+    m = re.search(
+        r"\.foms-tablet-measure-split\s*\{[^}]*min-height:\s*calc\(100dvh - (\d+)rem\)",
+        css,
+    )
+    assert m, "실측 split min-height viewport calc 부재"
+    assert int(m.group(1)) <= 4, f"실측 split offset 과다: {m.group(1)}rem"
+
+
+def test_tablet_construction_viewport_offset_is_tight() -> None:
+    """시공 workmode 셸: landscape 크롬 숨김 후 과예약(12rem) 금지 — 최대 4rem 이하."""
+    import re
+
+    css = _norm(_read(CONSTRUCTION_CSS))
+    assert "calc(100dvh - 12rem)" not in css
+    m = re.search(
+        r"\.foms-construction-workmode\s*\{[^}]*min-height:\s*calc\(100dvh - (\d+)rem\)",
+        css,
+    )
+    assert m, "시공 workmode min-height viewport calc 부재"
+    assert int(m.group(1)) <= 4, f"시공 workmode offset 과다: {m.group(1)}rem"

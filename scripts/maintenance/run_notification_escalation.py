@@ -28,7 +28,10 @@ sys.path.append(
 
 from app import app  # noqa: E402
 from db import get_db  # noqa: E402
-from foms.services.notifications.escalation import escalate_overdue_urgent  # noqa: E402
+from foms.services.notifications.escalation import (  # noqa: E402
+    escalate_overdue_urgent,
+    finalize_escalation_delivery,
+)
 
 
 def _parse_args() -> argparse.Namespace:
@@ -55,14 +58,23 @@ def _parse_args() -> argparse.Namespace:
 
 
 def _sweep_once(dry_run: bool) -> dict:
-    """단일 스윕 실행 후 결과 dict 반환 (호출측이 app_context 보유)."""
+    """단일 스윕 실행 후 결과 dict 반환 (호출측이 app_context 보유).
+
+    commit 이후에만 finalize(badge/realtime/push). dry-run 은 롤백만 하고 배달 생략.
+    """
     db = get_db()
     try:
         result = escalate_overdue_urgent(db)
         if dry_run:
             db.rollback()
-        else:
-            db.commit()
+            result["delivery"] = {"pushed": 0, "realtime_sent": 0, "recipients": 0}
+            return result
+        db.commit()
+        result["delivery"] = finalize_escalation_delivery(
+            db,
+            created_notification_ids=result.get("created_notification_ids"),
+            recipient_user_ids=result.get("recipient_user_ids"),
+        )
         return result
     except Exception:
         db.rollback()

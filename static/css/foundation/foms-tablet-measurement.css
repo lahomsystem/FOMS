@@ -36,8 +36,8 @@
     flex-direction: row;
     gap: var(--foms-space-3, 0.75rem);
     align-items: stretch;
-    min-height: calc(100dvh - 9rem);
-    max-height: calc(100dvh - 9rem);
+    min-height: calc(100dvh - 2rem);
+    max-height: calc(100dvh - 2rem);
     padding: var(--foms-space-3, 0.75rem);
     box-sizing: border-box;
   }
@@ -353,6 +353,14 @@
     padding: var(--foms-space-4, 1rem);
   }
 
+  /* 계산기/견적 iframe 전면: 스크롤은 iframe 내부 — 호스트 패딩·이중 스크롤 제거. */
+  body.erp-mobile-v2-layout .erp-measurement-dashboard .foms-tablet-measure-detail__scroll:has(.foms-tmf--fullpane) {
+    display: flex;
+    flex-direction: column;
+    overflow: hidden;
+    padding: 0;
+  }
+
   body.erp-mobile-v2-layout .erp-measurement-dashboard .foms-tablet-measure-detail__empty {
     display: flex;
     align-items: center;
@@ -386,6 +394,11 @@
     gap: var(--foms-space-2, 0.5rem);
     font-size: var(--foms-font-size-base, 1rem);
     font-weight: var(--foms-font-weight-semibold, 600);
+  }
+
+  /* .foms-btn 이 display:inline-flex 라 [hidden] 이 무력화된다 — 명시 숨김(완료 버튼 단계 게이트). */
+  body.erp-mobile-v2-layout .erp-measurement-dashboard .foms-tablet-measure-actions__btn[hidden] {
+    display: none;
   }
 
   body.erp-mobile-v2-layout .erp-measurement-dashboard .foms-tablet-measure-actions__btn.is-saved {
@@ -437,6 +450,13 @@
 
   body.erp-mobile-v2-layout .erp-measurement-dashboard .foms-tmf__banner[hidden] {
     display: none;
+  }
+
+  /* 도면 단계 이후 수정 안내(자동 통지) — 충돌 경고(warning)와 구분되는 정보 톤. */
+  body.erp-mobile-v2-layout .erp-measurement-dashboard .foms-tmf__banner--notify {
+    border-color: var(--foms-color-info-500, #3b82f6);
+    background: var(--foms-color-info-50, #eff6ff);
+    color: var(--foms-color-info-600, #2563eb);
   }
 
   /* 섹션 카드. */
@@ -718,30 +738,6 @@
     justify-content: flex-end;
     row-gap: var(--foms-space-1, 0.25rem);
   }
-  body.erp-mobile-v2-layout .erp-measurement-dashboard .foms-tmf-topbar__toggle[aria-pressed="true"],
-  body.erp-mobile-v2-layout .erp-measurement-dashboard .foms-tmf-topbar__toggle.is-active {
-    background: var(--foms-color-brand-50, #f3f4ff);
-    border-color: var(--foms-interactive-primary, #5a67d8);
-    color: var(--foms-interactive-primary, #5a67d8);
-  }
-  body.erp-mobile-v2-layout .erp-measurement-dashboard .foms-tmf-topbar__toggle[hidden] {
-    display: none;
-  }
-  body.erp-mobile-v2-layout .erp-measurement-dashboard .foms-tmf-topbar__kbd {
-    gap: 4px;
-  }
-  body.erp-mobile-v2-layout .erp-measurement-dashboard .foms-tmf-kbd {
-    font-family: var(--foms-font-family-mono, ui-monospace, Consolas, monospace);
-    font-size: var(--foms-font-size-xs, 0.75rem);
-    font-weight: var(--foms-font-weight-semibold, 600);
-    line-height: 1;
-    padding: 2px 6px;
-    border: 1px solid var(--foms-border-subtle, #dde1e6);
-    border-bottom-width: 2px;
-    border-radius: var(--foms-radius-sm, 5px);
-    background: var(--foms-surface-raised, #f7f8fa);
-    color: var(--foms-text-secondary);
-  }
 
   /* 외부 탭(주문/계산기/견적서) — 고정(스크롤 밖), 세그먼트 스타일. */
   body.erp-mobile-v2-layout .erp-measurement-dashboard .foms-tmf-tabs {
@@ -775,72 +771,40 @@
     top: 1px;
   }
 
-  /* 주문 탭 레이아웃: 기본 1열, 계산기 토글 시 폼 + 계산기 2열(목업 60/40). */
+  /* 주문 탭 레이아웃: 1열(계산기는 [계산기] 탭 전면 임베드가 담당). */
   body.erp-mobile-v2-layout .erp-measurement-dashboard .foms-tmf__ordergrid {
     display: flex;
     flex-direction: column;
     gap: var(--foms-space-4, 1rem);
-  }
-  body.erp-mobile-v2-layout .erp-measurement-dashboard .foms-tmf__ordergrid.is-split {
-    flex-direction: row;
-    align-items: flex-start;
   }
   body.erp-mobile-v2-layout .erp-measurement-dashboard .foms-tmf__ordercol {
     display: flex;
     flex-direction: column;
     gap: var(--foms-space-4, 1rem);
     min-width: 0;
-    flex: 1 1 60%;
+    flex: 1 1 auto;
   }
 
-  /* 계산기 split pane(주문 탭 토글) — 기존 #erpWdcSplitPane 임베드(iframe)를 태블릿 split 에. */
-  body.erp-mobile-v2-layout .erp-measurement-dashboard .foms-tmf__calcpane {
-    flex: 0 0 40%;
-    min-width: 0;
-    align-self: stretch;
-    position: sticky;
-    top: 0;
-    display: flex;
-    flex-direction: column;
-    border: 1px solid var(--foms-border-subtle, #dde1e6);
-    border-radius: var(--foms-radius-lg, 12px);
-    overflow: hidden;
-    background: var(--foms-surface-base, #fff);
-    height: calc(100dvh - 22rem);
-    min-height: 460px;
-  }
-  body.erp-mobile-v2-layout .erp-measurement-dashboard .foms-tmf__calcpane-head {
-    flex-shrink: 0;
-    display: flex;
-    align-items: center;
-    justify-content: space-between;
-    padding: var(--foms-space-3, 0.75rem) var(--foms-space-4, 1rem);
-    border-bottom: 1px solid var(--foms-border-subtle, #dde1e6);
-    font-size: var(--foms-font-size-base, 1rem);
-    font-weight: var(--foms-font-weight-bold, 700);
-    color: var(--foms-text-primary);
-  }
-  body.erp-mobile-v2-layout .erp-measurement-dashboard .foms-tmf__calcpane-tag {
-    font-size: var(--foms-font-size-xs, 0.75rem);
-    font-weight: var(--foms-font-weight-semibold, 600);
-    color: var(--foms-text-tertiary);
-  }
   body.erp-mobile-v2-layout .erp-measurement-dashboard .foms-tmf__calcframe {
     flex: 1 1 auto;
     width: 100%;
     border: 0;
     display: block;
   }
-  body.erp-mobile-v2-layout .erp-measurement-dashboard .foms-tmf--fullpane {
-    height: 100%;
-  }
   body.erp-mobile-v2-layout .erp-measurement-dashboard .foms-tmf__calcframe--full {
     width: 100%;
-    height: calc(100dvh - 20rem);
-    min-height: 480px;
+    height: 100%;
+    min-height: 320px;
+    flex: 1 1 auto;
     border: 0;
     border-radius: var(--foms-radius-lg, 12px);
     display: block;
+  }
+  body.erp-mobile-v2-layout .erp-measurement-dashboard .foms-tmf--fullpane {
+    display: flex;
+    flex-direction: column;
+    height: 100%;
+    min-height: 0;
   }
 
   /* 구조화 폼 필드 그리드(목업 formgrid, 2열). */
@@ -1195,11 +1159,8 @@
     background: var(--foms-surface-raised, #f7f8fa);
   }
 
-  /* 태블릿 폭이 좁을 때(≤1200px) 계산기 split 비율을 살짝 넓혀 계산기 가독성 확보. */
+  /* 태블릿 폭이 좁을 때(≤1200px) 필드 그리드 열 수 유지. */
   @media (max-width: 1200px) {
-    body.erp-mobile-v2-layout .erp-measurement-dashboard .foms-tmf__calcpane {
-      flex-basis: 44%;
-    }
     body.erp-mobile-v2-layout .erp-measurement-dashboard .foms-tmf__formgrid,
     body.erp-mobile-v2-layout .erp-measurement-dashboard .foms-tmf__kvgrid {
       grid-template-columns: 1fr 1fr;

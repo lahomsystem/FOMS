@@ -10,15 +10,20 @@
 """
 from __future__ import annotations
 
+import datetime
+import logging
 import math
 from typing import Any
 
 from sqlalchemy import or_
+from sqlalchemy.exc import SQLAlchemyError
 
 from models import Order, OrderScheduleDate
 from foms.services.common.address_converter import FOMSAddressConverter
 from foms.services.erp_permissions import build_mine_sql_filter
 from foms.services.measurement_dates import extract_all_measurement_dates
+
+logger = logging.getLogger(__name__)
 
 # 인라인 페이로드 최소 필드(전송 절제): 스트립 렌더(헤드/풋 캡션·순번·현재 판정)와
 # route-eta 요청(id)에 필요한 것만 남긴다. phone/manager_name/status/geo_status 제외.
@@ -149,11 +154,37 @@ def _point_from_order(
     }
 
 
-def _build_route_points(orders: list[Order]) -> list[dict[str, Any]]:
+def _store_geocode_coords(o: Order, lat: float, lng: float) -> bool:
+    """지오코딩 성공 좌표를 주문에 1회 기록. 이미 좌표가 있으면 건드리지 않는다.
+
+    Args:
+        o: 대상 주문.
+        lat: 지오코딩 성공 위도.
+        lng: 지오코딩 성공 경도.
+
+    Returns:
+        실제로 기록했으면 True.
+    """
+    if o.lat is not None and o.lng is not None:
+        return False
+    o.lat = float(lat)
+    o.lng = float(lng)
+    o.geocode_status = "success"
+    o.geocoded_at = datetime.datetime.now()
+    return True
+
+
+def _build_route_points(orders: list[Order], db=None) -> list[dict[str, Any]]:
     """주문 → 좌표 points 변환 (API용: 좌표 없으면 즉시 지오코딩 시도).
+
+    지오코딩에 성공한 좌표는 `db`가 주어졌을 때 주문에 1회 저장한다. 다음 방문부터는
+    저장 좌표 fast path(`build_inline_route_strip_payload`)가 바로 렌더한다.
+    실패 상태(`geocode_status='failed'`)는 기록하지 않는다 — 실패 판정은 RQ 태스크
+    `geocode_order_address` 소관이며, 일시 네트워크 오류로 정상 주소를 오염시킬 수 있다.
 
     Args:
         orders: `_query_route_orders` 결과.
+        db: SQLAlchemy 세션. None 이면 좌표를 저장하지 않는다.
 
     Returns:
         {id, customer_name, phone, address, measurement_time, manager_name,
@@ -161,12 +192,22 @@ def _build_route_points(orders: list[Order]) -> list[dict[str, Any]]:
     """
     converter = FOMSAddressConverter()
     points: list[dict[str, Any]] = []
+    stored = 0
     for o in orders:
         address_to_use = _route_order_display_fields(o)["address"]
         lat, lng, status = converter.convert_address(address_to_use)
         if lat is None or lng is None:
             continue
         points.append(_point_from_order(o, lat=lat, lng=lng, geo_status=status))
+        if db is not None and _store_geocode_coords(o, lat, lng):
+            stored += 1
+
+    if db is not None and stored:
+        try:
+            db.commit()
+        except SQLAlchemyError:
+            logger.exception("route 지오코딩 좌표 저장 실패 (응답은 계속 진행)")
+            db.rollback()
     return points
 
 
@@ -241,7 +282,7 @@ def build_measurement_route_payload(
     """
     limit = max(1, min(int(limit), 30))
     orders = _query_route_orders(db, date_filter, manager_filter, limit, current_user, mine_active)
-    points = _build_route_points(orders)
+    points = _build_route_points(orders, db)
     if len(points) <= 1:
         return {
             "date": date_filter,

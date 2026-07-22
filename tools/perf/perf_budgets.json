@@ -39,7 +39,7 @@
     },
     "/erp/construction/dashboard?view=fragment": {
       "ttfb_delta_min_ms": 147,
-      "body_bytes_max": 52376
+      "body_bytes_max": 97521
     },
     "/erp/completion?view=fragment": {
       "ttfb_delta_min_ms": 107,

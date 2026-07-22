@@ -4,7 +4,10 @@ from __future__ import annotations
 
 from db import db_session
 from foms.services.common.address_converter import FOMSAddressConverter
-from foms.services.measurement_route import build_inline_route_strip_payload
+from foms.services.measurement_route import (
+    build_inline_route_strip_payload,
+    build_measurement_route_payload,
+)
 from models import Order, OrderScheduleDate
 
 MEASURE_DATE = "2026-07-20"
@@ -84,3 +87,47 @@ def test_inline_route_strip_empty_for_missing_coords_without_geocoding(app, monk
 
     assert payload == {"route": []}
     assert calls["n"] == 0
+
+
+def test_route_payload_persists_geocoded_coords(app, monkeypatch):
+    """API route 계보는 지오코딩 성공 좌표를 주문에 저장한다(다음 방문 fast path)."""
+    with app.app_context():
+        monkeypatch.setattr(
+            FOMSAddressConverter,
+            "convert_address",
+            lambda self, address: (37.111, 127.222, "success"),
+        )
+        o1 = _make_measurement_order(20, lat=None, lng=None)
+        o2 = _make_measurement_order(21, lat=None, lng=None)
+        ids = (o1.id, o2.id)
+
+        payload = build_measurement_route_payload(db_session, date_filter=MEASURE_DATE)
+        assert payload["total_points"] == 2
+
+        db_session.expire_all()
+        saved = db_session.query(Order).filter(Order.id.in_(ids)).all()
+        assert len(saved) == 2
+        for order in saved:
+            assert (order.lat, order.lng) == (37.111, 127.222)
+            assert order.geocode_status == "success"
+            assert order.geocoded_at is not None
+
+
+def test_route_payload_keeps_existing_coords(app, monkeypatch):
+    """이미 좌표가 있는 주문은 변환기가 다른 좌표를 줘도 덮어쓰지 않는다(멱등)."""
+    with app.app_context():
+        monkeypatch.setattr(
+            FOMSAddressConverter,
+            "convert_address",
+            lambda self, address: (35.999, 128.999, "success"),
+        )
+        o1 = _make_measurement_order(30, lat=37.501, lng=127.031)
+        o2 = _make_measurement_order(31, lat=37.521, lng=127.041)
+        ids = (o1.id, o2.id)
+
+        build_measurement_route_payload(db_session, date_filter=MEASURE_DATE)
+
+        db_session.expire_all()
+        saved = {o.id: o for o in db_session.query(Order).filter(Order.id.in_(ids)).all()}
+        assert (saved[ids[0]].lat, saved[ids[0]].lng) == (37.501, 127.031)
+        assert (saved[ids[1]].lat, saved[ids[1]].lng) == (37.521, 127.041)

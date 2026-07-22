@@ -193,9 +193,6 @@
                     </div>
 
                     <div class="mt-4">
-                        <button type="button" class="btn btn-success w-100" id="calculateBtn">
-                            <i class="fas fa-calculator"></i> 견적 계산
-                        </button>
                                 <button type="button" class="btn btn-primary w-100 mt-2" id="addEstimateBtn" style="display: block;">
                                     <i class="fas fa-plus"></i> 견적 추가
                                 </button>
@@ -241,7 +238,7 @@
                 <div class="card-body">
                     <div class="mb-3">
                         <label for="globalCouponValue" class="form-label">할인 금액 (원)</label>
-                        <input type="number" class="form-control" id="globalCouponValue" min="0" step="1" value="11000" placeholder="할인 금액을 입력하세요">
+                        <input type="text" inputmode="numeric" class="form-control" id="globalCouponValue" value="11,000" placeholder="할인 금액을 입력하세요">
                         <small class="form-text text-muted">
                             <i class="fas fa-info-circle"></i> 최종 견적에 적용될 고정 할인 금액입니다.
                         </small>
@@ -263,7 +260,7 @@
                 <div class="card-body">
                     <div class="mb-3">
                         <label for="shippingCost" class="form-label">배송비 (원)</label>
-                        <input type="number" class="form-control" id="shippingCost" min="0" step="1" value="0" placeholder="배송비를 입력하세요">
+                        <input type="text" inputmode="numeric" class="form-control" id="shippingCost" value="0" placeholder="배송비를 입력하세요">
                         <small class="form-text text-muted">
                             <i class="fas fa-info-circle"></i> 지방시공, 자가실측 또는 특정 지역의 경우 배송비를 입력하세요.
                         </small>

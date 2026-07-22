@@ -114,6 +114,7 @@
         <div class="foms-drawing-gallery-card__meta">
           <div class="foms-drawing-gallery-card__top">
             {% if r.drawing_status == 'RETURNED' %}<span class="foms-drawing-gallery-chip is-urgent">수정 요청</span>{% endif %}
+            {% if r.order_change_pending %}<span class="foms-drawing-gallery-chip is-order-change">주문변경</span>{% endif %}
             {% if r.construction_days is not none %}
               {% if r.construction_days == 0 %}{% set _dday = 'D-DAY' %}
               {% elif r.construction_days > 0 %}{% set _dday = 'D-' ~ r.construction_days %}

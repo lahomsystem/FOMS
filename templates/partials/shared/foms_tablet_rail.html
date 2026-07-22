@@ -12,7 +12,7 @@
 
    하단(spacer 후): 알림 버튼 + 아바타. 신규 스크립트/엔드포인트 없이 기존 훅만 재사용한다.
    - 알림: 기존 모바일 셸 벨과 동일한 위임 훅(data-foms-notif-open)을 재사용 →
-     mobile-notification.js(v2 셸이 이미 로드)가 알림 시트를 연다. 미읽음 배지는
+     mobile-notification.js(layout_scripts 로드)가 알림 시트를 연다. 미읽음 배지는
      data-foms-notif-badge 로, 전역 SSOT(window.FOMSNotificationBadge)의 공유 폴 카운트를
      mobile-notification.js 가 모든 벨 배지에 렌더한다(rail 은 추가 폴/스크립트 없음).
    - 아바타: 이니셜 표시 + 클릭 = 기존 프로필 페이지(auth.profile) 이동(실존 동작만 배선). #}

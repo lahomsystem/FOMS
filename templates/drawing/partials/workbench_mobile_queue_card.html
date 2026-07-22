@@ -52,6 +52,7 @@
         {% if r.target_no %}<span class="foms-drawing-queue-card__chip">대상 {{ r.target_no }}번</span>{% endif %}
         <span class="foms-drawing-queue-card__chip">도면 {{ r.file_count }}장</span>
         {% if r.unread_count > 0 %}<span class="foms-drawing-queue-card__chip is-alert">미확인 {{ r.unread_count }}</span>{% endif %}
+        {% if r.order_change_pending %}<span class="foms-drawing-queue-card__chip is-order-change">주문변경</span>{% endif %}
         {% if r.sla_level == '지연' %}<span class="foms-drawing-queue-card__chip is-alert">지연</span>
         {% elif r.sla_level == '오늘 마감' %}<span class="foms-drawing-queue-card__chip is-warn">오늘 마감</span>{% endif %}
         {% if r.my_todo %}<span class="foms-drawing-queue-card__chip is-mine">내 할 일</span>{% endif %}

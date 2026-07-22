@@ -280,9 +280,53 @@ def _u_id_by_username(username):
     return row[0] if row else None
 
 
+def test_urgent_targets_includes_unrelated_active_user(client, db):
+    """대상 목록은 주문 관련성과 무관하게 활성 사용자 전원을 연다(팀 드롭다운 UI 대응)."""
+    order = _mk_order(manager_name="담당자")
+    caller = _mk_user("ut_incl_caller", "담당자", role="VIEWER")  # 이름 매칭 → 관련자(sender 통과)
+    outsider = _mk_user("ut_incl_out", "무관동료", role="STAFF", team="PRODUCTION")
+
+    _login(client, caller)
+    resp = client.get(f"/erp/api/orders/{order.id}/urgent-targets")
+    assert resp.status_code == 200
+    data = resp.get_json()
+    labels = {t["id"]: t.get("team_label") for t in data["targets"]}
+    assert outsider.id in labels          # 주문과 무관해도 후보에 포함
+    assert labels[outsider.id] == "생산팀"  # 팀 라벨은 TEAMS SSOT 반영
+
+
+def test_urgent_targets_unknown_team_labeled_gita(client, db):
+    """팀 미등록/미상 사용자는 '기타' 라벨로 노출(조용한 누락 금지)."""
+    order = _mk_order(manager_name="담당자")
+    caller = _mk_user("ut_gita_caller", "담당자", role="ADMIN")
+    noteam = _mk_user("ut_gita_noteam", "무팀원", role="VIEWER", team=None)
+
+    _login(client, caller)
+    resp = client.get(f"/erp/api/orders/{order.id}/urgent-targets")
+    assert resp.status_code == 200
+    data = resp.get_json()
+    labels = {t["id"]: t.get("team_label") for t in data["targets"]}
+    assert labels.get(noteam.id) == "기타"
+
+
 # ---------------------------------------------------------------------------
 # urgent-mention 강화
 # ---------------------------------------------------------------------------
+
+
+def test_urgent_mention_unrelated_target_succeeds(client, db):
+    """대상 게이트 개방: 주문과 무관한 활성 사용자도 멘션 가능(대상 목록과 계약 일치)."""
+    order = _mk_order(manager_name="담당자")
+    caller = _mk_user("um_open_caller", "관리자", role="ADMIN")  # sender 게이트 통과
+    outsider = _mk_user("um_open_out", "무관동료", role="VIEWER")
+
+    _login(client, caller)
+    resp = client.post(
+        f"/erp/api/orders/{order.id}/urgent-mention",
+        json={"target_user_id": outsider.id, "message": "확인 부탁"},
+        headers=WRITE_HEADERS,
+    )
+    assert resp.status_code == 200
 
 def test_urgent_mention_unauthorized_caller_403(client, db):
     order = _mk_order(manager_name="담당자")

@@ -29,45 +29,22 @@
                     </button>
                 </div>
                 {% endif %}
-                <!-- Global Notification Button -->
+                <!-- Global Notification Button — 단일 센터(모바일 시트 SSOT) 오픈 -->
                 <div class="position-relative">
                     <button class="btn btn-link p-0 text-dark border-0 position-relative" id="global-notification-btn"
-                        title="알림" onclick="toggleGlobalNotificationPanel()" aria-label="알림 패널 열기"
-                        aria-controls="global-notification-panel" aria-expanded="false">
+                        type="button"
+                        data-foms-notif-open
+                        title="알림" aria-label="알림"
+                        aria-controls="erp-mobile-notification-sheet" aria-expanded="false"
+                        aria-haspopup="dialog">
                         <i class="fas fa-bell fa-2x" id="global-notification-icon" style="color: #495057;"></i>
                         <span class="position-absolute top-0 start-100 translate-middle badge rounded-pill bg-danger"
-                            id="global-notification-badge" style="display: none; font-size: 0.65rem;">
+                            id="global-notification-badge" data-foms-notif-badge hidden
+                            style="display: none; font-size: 0.65rem;">
                             0
                             <span class="visually-hidden">unread messages</span>
                         </span>
                     </button>
-                    <!-- Notification Panel -->
-                    <div class="dropdown-menu dropdown-menu-end p-0 shadow-lg border-0 global-notification-panel"
-                        id="global-notification-panel" role="region" aria-label="전역 알림"
-                        style="display: none;">
-                        <div
-                            class="p-3 border-bottom d-flex justify-content-between align-items-center bg-white sticky-top">
-                            <h6 class="mb-0 fw-bold"><i class="fas fa-bell text-warning me-2"></i>알림</h6>
-                            <div class="d-flex gap-1">
-                                <button class="btn btn-sm btn-light text-secondary"
-                                    onclick="markAllGlobalNotificationsRead()" style="font-size: 0.8rem;">
-                                    <i class="fas fa-check-double me-1"></i>모두 읽음
-                                </button>
-                                <button class="btn btn-sm btn-outline-danger" onclick="deleteAllGlobalNotifications()"
-                                    style="font-size: 0.8rem;">
-                                    <i class="fas fa-trash-alt me-1"></i>전체 삭제
-                                </button>
-                            </div>
-                        </div>
-                        <div id="global-notification-list" class="list-group list-group-flush" aria-live="polite"
-                            aria-atomic="false">
-                            <!-- JS will populate this -->
-                            <div class="text-center p-5 text-muted">
-                                <i class="far fa-bell fa-3x mb-3 text-light"></i><br>
-                                로딩 중...
-                            </div>
-                        </div>
-                    </div>
                 </div>
 
                 <div class="dropdown">

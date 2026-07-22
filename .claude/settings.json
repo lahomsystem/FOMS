@@ -21,7 +21,7 @@
         "hooks": [
           {
             "type": "command",
-            "command": "python .claude/hooks/session_start.py"
+            "command": "python \"${CLAUDE_PROJECT_DIR}/.claude/hooks/session_start.py\""
           }
         ]
       }
@@ -32,7 +32,7 @@
         "hooks": [
           {
             "type": "command",
-            "command": "python .claude/hooks/pre_compact.py"
+            "command": "python \"${CLAUDE_PROJECT_DIR}/.claude/hooks/pre_compact.py\""
           }
         ]
       }
@@ -43,7 +43,7 @@
         "hooks": [
           {
             "type": "command",
-            "command": "python .claude/hooks/guard_shell.py"
+            "command": "python \"${CLAUDE_PROJECT_DIR}/.claude/hooks/guard_shell.py\""
           }
         ]
       }
@@ -54,7 +54,7 @@
         "hooks": [
           {
             "type": "command",
-            "command": "python .claude/hooks/track_edits.py"
+            "command": "python \"${CLAUDE_PROJECT_DIR}/.claude/hooks/track_edits.py\""
           }
         ]
       },
@@ -63,7 +63,11 @@
         "hooks": [
           {
             "type": "command",
-            "command": "python .claude/hooks/post_push_watch.py"
+            "command": "python \"${CLAUDE_PROJECT_DIR}/.claude/hooks/record_commit_ledger.py\""
+          },
+          {
+            "type": "command",
+            "command": "python \"${CLAUDE_PROJECT_DIR}/.claude/hooks/post_push_watch.py\""
           }
         ]
       }
@@ -74,11 +78,11 @@
         "hooks": [
           {
             "type": "command",
-            "command": "python .claude/hooks/session_stop.py"
+            "command": "python \"${CLAUDE_PROJECT_DIR}/.claude/hooks/session_stop.py\""
           },
           {
             "type": "command",
-            "command": "python .claude/hooks/quality_check.py"
+            "command": "python \"${CLAUDE_PROJECT_DIR}/.claude/hooks/quality_check.py\""
           }
         ]
       }

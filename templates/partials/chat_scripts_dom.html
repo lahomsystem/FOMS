@@ -149,12 +149,22 @@
     // 주문 위젯 위임 (Phase 2.2.1: change, focusout, click)
     const orderWidgetEl = document.getElementById('chat-order-widget-container');
     if (orderWidgetEl) {
+        orderWidgetEl.addEventListener('focusin', function(e) {
+            const el = e.target;
+            if (el.classList.contains('status-dropdown') && el.getAttribute('data-field') === 'status') {
+                el.setAttribute('data-prev-status', el.value || '');
+            }
+        });
         orderWidgetEl.addEventListener('change', function(e) {
             const el = e.target;
             const orderId = parseInt(el.getAttribute('data-order-id'), 10);
             if (isNaN(orderId)) return;
             if (el.classList.contains('status-dropdown') && el.getAttribute('data-field') === 'status') {
-                if (typeof updateOrderStatus === 'function') updateOrderStatus(orderId, el.value);
+                var prev = el.getAttribute('data-prev-status') || '';
+                if (typeof updateOrderStatus === 'function') {
+                    if (prev) el.setAttribute('data-prev-status', prev);
+                    updateOrderStatus(orderId, el.value);
+                }
                 if (typeof applyStatusColor === 'function') applyStatusColor(el);
             } else if (el.getAttribute('data-field') === 'scheduled_date') {
                 if (typeof updateOrderField === 'function') updateOrderField(orderId, 'scheduled_date', el.value);

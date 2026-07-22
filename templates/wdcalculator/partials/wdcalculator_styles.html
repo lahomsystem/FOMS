@@ -412,19 +412,30 @@
 }
 #baseComponentsContainer .base-component-row .form-control-sm,
 #baseComponentsContainer .base-component-row .form-select-sm,
+#baseComponentsContainer .base-component-row .base-mode-select,
 #baseComponentsContainer .base-component-row .btn,
-#baseComponentsContainer .base-component-row .btn-group,
 #baseComponentsContainer .base-component-row .input-group,
 #baseComponentsContainer .base-component-row .input-group > * {
   margin-bottom: 0 !important;
 }
-#baseComponentsContainer .base-component-row .btn-group {
-  height: var(--base-row-control-h);
+#baseComponentsContainer .base-component-row .base-mode-col {
+  min-width: 7.5rem;
+  flex: 0 0 auto;
 }
-#baseComponentsContainer .base-component-row .btn-group .btn {
-  height: 100%;
-  padding: 0.25rem 0.5rem;
-  line-height: 1.2;
+/* 방식 select: 제품 select와 동일 박스 — 고정 height+padding으로 글자 세로 잘림 방지 */
+#baseComponentsContainer .base-component-row .base-mode-select {
+  color: #212529 !important;
+  background-color: #fff !important;
+  font-size: 0.9375rem !important;
+  line-height: 1.45 !important;
+  height: 38px !important;
+  min-height: 38px !important;
+  padding: 0.4rem 2rem 0.4rem 0.5rem !important;
+  vertical-align: middle;
+  box-sizing: border-box;
+  overflow: visible;
+  text-overflow: clip;
+  white-space: nowrap;
 }
 #baseComponentsContainer .base-component-row .base-remove-btn {
   min-width: 38px;

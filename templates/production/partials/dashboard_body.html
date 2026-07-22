@@ -13,11 +13,13 @@
       <span>생산 대시보드</span>
     </h1>
     <div class="erp-pro-header__actions">
-      <!-- 알림 버튼 -->
-      <button class="erp-pro-btn erp-pro-btn--icon" id="notification-btn" title="알림"
-        onclick="toggleNotificationPanel()">
+      <!-- 알림 — 단일 센터(erp-mobile-notification-sheet) -->
+      <button class="erp-pro-btn erp-pro-btn--icon" id="notification-btn" type="button"
+        data-foms-notif-open
+        title="알림" aria-label="알림"
+        aria-controls="erp-mobile-notification-sheet" aria-expanded="false" aria-haspopup="dialog">
         <i class="fas fa-bell"></i>
-        <span class="notification-badge" id="notification-badge" style="display: none;">0</span>
+        <span class="notification-badge" id="notification-badge" data-foms-notif-badge hidden style="display: none;">0</span>
       </button>
       <a class="erp-pro-btn erp-pro-btn--primary" href="{{ url_for('order_pages.add_order', open='erp-order') }}">
         <i class="fas fa-plus"></i>

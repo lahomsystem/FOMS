@@ -136,8 +136,10 @@
 /* ---------- 동선 색 팔레트 (SSOT: SVG 노드·카카오 핀·연결선 공용) ----------
    순번별 8색 순환(.foms-route-c0~c7, JS가 i%8로 부여) — 흰 글자 AA(≥4.5:1) 검증 톤.
    상태 의미는 색이 아닌 형태로 유지: 현재=링+확대, 완료=✓ 글리프+채도 낮춤.
-   JS는 --foms-route-line(카카오 폴리라인)만 읽고 나머지 색은 전부 CSS 소유. */
-.foms-route-strip { --foms-route-line: #6366f1; }
+   JS는 --foms-route-line(카카오 폴리라인)만 읽고 나머지 색은 전부 CSS 소유.
+   이 파일은 동선 카드(실측 대시보드)와 map_view 카카오 지도가 공유하는 팔레트 SSOT —
+   --foms-route-line 은 두 표면이 모두 읽도록 :root 스코프. */
+:root { --foms-route-line: #6366f1; }
 .foms-route-c0 { --foms-route-stop: #2563eb; }
 .foms-route-c1 { --foms-route-stop: #c2410c; }
 .foms-route-c2 { --foms-route-stop: #7c3aed; }

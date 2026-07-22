@@ -2,6 +2,7 @@
 
 from __future__ import annotations
 
+import copy
 import datetime
 from typing import Any, Callable
 
@@ -241,10 +242,22 @@ def update_order_field_response(
             value = normalized_construction_type or None
 
         is_erp_order = is_erp_order_record(order)
+        if field == "status" and is_erp_order:
+            from foms.services.orders.stage_override import (
+                OVERRIDE_BLOCK_MESSAGE,
+                current_stage_for_order,
+                requires_privileged_override,
+            )
+
+            if requires_privileged_override(current_stage_for_order(order), value):
+                return jsonify({"success": False, "message": OVERRIDE_BLOCK_MESSAGE}), 403
+
         structured_data: dict[str, Any] = {}
         structured_changed = False
+        old_sd_snapshot: dict[str, Any] = {}
         if field == "as_completed_date" or is_erp_order or field in STRUCTURED_SYNC_FIELDS:
             structured_data = _load_order_structured_data_for_update(order)
+            old_sd_snapshot = copy.deepcopy(structured_data)
 
         old_value = getattr(order, field, None)
         if field == "as_visit_date":
@@ -260,6 +273,12 @@ def update_order_field_response(
             pass
         else:
             setattr(order, field, value)
+
+        if field == "status" and is_erp_order and isinstance(structured_data, dict):
+            workflow = ensure_path(structured_data, "workflow")
+            workflow["stage"] = value
+            workflow["stage_updated_at"] = datetime.datetime.now().isoformat()
+            structured_changed = True
 
         if field == "as_completed_date":
             shipment = ensure_path(structured_data, "shipment")
@@ -342,9 +361,40 @@ def update_order_field_response(
                 structured_changed = True
 
         if structured_changed:
+            drawing_notif = None
+            drawing_notif_created = False
+            if field in ("measurement_date", "scheduled_date", "construction_type") or field == "address":
+                try:
+                    from foms.services.notifications.drawing_order_change import (
+                        apply_drawing_order_change_alert,
+                    )
+                    drawing_notif, drawing_notif_created = apply_drawing_order_change_alert(
+                        db,
+                        order,
+                        old_sd_snapshot,
+                        structured_data,
+                        actor_user_id=getattr(user, "id", None),
+                        actor_name=getattr(user, "name", None) or session.get("username") or "SYSTEM",
+                        old_notes=getattr(order, "notes", None),
+                        new_notes=getattr(order, "notes", None),
+                        old_is_regional=getattr(order, "is_regional", None),
+                        new_is_regional=getattr(order, "is_regional", None),
+                        old_construction_type=(
+                            old_value if field == "construction_type" else getattr(order, "construction_type", None)
+                        ),
+                        new_construction_type=getattr(order, "construction_type", None),
+                    )
+                except Exception:
+                    current_app.logger.warning(
+                        "drawing order-change alert failed on field_update",
+                        exc_info=True,
+                    )
             setattr(order, "structured_data", structured_data)
             flag_modified(order, "structured_data")
             sync_erp_flat_columns(order, structured_data)
+        else:
+            drawing_notif = None
+            drawing_notif_created = False
 
         if field == "status":
             log_access(
@@ -360,6 +410,20 @@ def update_order_field_response(
             )
 
         db.commit()
+
+        if structured_changed:
+            try:
+                from foms.services.notifications.drawing_order_change import (
+                    finalize_drawing_order_change_alert,
+                )
+                finalize_drawing_order_change_alert(
+                    db, drawing_notif, created_new=drawing_notif_created
+                )
+            except Exception:
+                current_app.logger.warning(
+                    "drawing order-change finalize failed on field_update",
+                    exc_info=True,
+                )
 
         inv_fields = {
             "as_visit_date",

@@ -51,20 +51,32 @@ def _assert_shared_form_script_contract(body: str) -> None:
     payment_urls_idx = body.index("window.__ERP_PAYMENT_ICON_URLS")
     channel_push_confirm_idx = body.index("js/orders/erp-channel-push-confirm.js")
     erp_order_shared_idx = body.index("js/orders/erp-order-shared.js")
+    stage_override_idx = body.index("js/orders/erp-stage-override.js")
     estimate_preview_idx = body.index("js/orders/estimate-preview.js")
     estimate_columns_idx = body.index("js/orders/estimate-table-columns.js")
     column_resizer_idx = body.index("js/runtime/column-resizer.js")
 
-    assert payment_urls_idx < channel_push_confirm_idx < erp_order_shared_idx < column_resizer_idx < estimate_preview_idx < estimate_columns_idx
+    assert (
+        payment_urls_idx
+        < channel_push_confirm_idx
+        < erp_order_shared_idx
+        < stage_override_idx
+        < column_resizer_idx
+        < estimate_preview_idx
+        < estimate_columns_idx
+    )
     assert "html2canvas.min.js" not in body
     assert "js/orders/erp-channel-push-confirm.js?v=20260703a" in body
     assert "js/orders/erp-order-shared.js?v=20260722b" in body
+    assert "js/orders/erp-stage-override.js?v=20260716b" in body
+    assert "erp_stage_override_modal.html" not in body  # include renders modal markup, not path
+    assert 'id="erpStageOverrideModal"' in body
     assert "css/orders/erp-channel-push.css?v=20260701a" in body
     assert "css/orders/erp-items-master-detail.css?v=20260701f" in body
     assert "js/orders/erp-items-master-detail.js?v=20260630c" in body
     assert "erp-items-master-detail-shell" in body
     assert 'id="erp-md-rail-list"' in body
-    assert "js/orders/estimate-preview.js?v=20260703b" in body
+    assert "js/orders/estimate-preview.js?v=20260720b" in body
 
     estimate_preview_js = (
         Path(__file__).resolve().parents[2]
@@ -144,14 +156,36 @@ def test_add_order_page_uses_canonical_open_erp_order_deep_link_only(erp_editor_
 
 
 def test_edit_order_page_uses_canonical_open_erp_order_deep_link_only(erp_editor_client) -> None:
-    """Edit surface keeps only the canonical ?open=erp-order branch."""
+    """Edit surface honors ?open=erp-order (and erp-estimate) deep links; legacy erp-beta gone."""
     order = _create_erp_order()
     response = erp_editor_client.get(f"/edit/{order.id}?open=erp-order")
     assert response.status_code == 200
     body = response.get_data(as_text=True)
-    assert "openTarget !== 'erp-order'" in body
+    assert "erp-order" in body
     assert "bootstrap.Tab.getOrCreateInstance(btn).show()" in body
     assert "erp-beta" not in body
+
+
+def test_edit_order_supports_open_erp_estimate_and_embedded_chrome(erp_editor_client) -> None:
+    """태블릿 견적 iframe: ?open=erp-estimate 탭 딥링크 + embedded=1 크롬 은닉 클래스."""
+    order = _create_erp_order()
+    response = erp_editor_client.get(
+        f"/edit/{order.id}?open=erp-estimate&embedded=1"
+    )
+    assert response.status_code == 200
+    body = response.get_data(as_text=True)
+    assert "erp-estimate" in body
+    assert 'id="erp-estimate-tab"' in body
+    assert "foms-edit-embedded" in body
+    assert "openTarget === 'erp-estimate'" in body or "openTarget == 'erp-estimate'" in body
+
+
+def test_estimate_preview_forces_pc_view_when_embedded() -> None:
+    """태블릿 iframe(embedded=1)에서는 패널 폭과 무관하게 PC 견적 뷰 강제."""
+    text = Path("static/js/orders/estimate-preview.js").read_text(encoding="utf-8")
+    assert "_isEmbeddedEstimate" in text
+    assert "foms-edit-embedded" in text
+    assert "embedded') === '1'" in text or 'embedded") === "1"' in text
 
 
 def test_erp_order_edit_renders_pc_wdc_split_contract(erp_editor_client) -> None:
@@ -185,7 +219,7 @@ def test_wdcalculator_embedded_mode_renders_pc_split_contract(erp_editor_client)
     assert "css/orders/erp-wdc-split.css" in body
     assert "js/wdcalculator/embedded-shell.js" in body
     assert "js/wdcalculator/mobile-enhance.js" not in body
-    assert "js/wdcalculator/estimate-lifecycle.js?v=20260624c" in body
+    assert "js/wdcalculator/estimate-lifecycle.js?v=20260716d" in body
     assert "주문으로 돌아가기" not in body
 
 
@@ -426,7 +460,10 @@ def test_shared_erp_order_js_preserves_drawing_operational_state() -> None:
     workflow_block = collect_block[workflow_start:workflow_end]
     assert "prevSd.workflow" in workflow_block
     assert "JSON.parse(JSON.stringify(prevWorkflow))" in workflow_block
-    assert "workflow.stage = getVal('erp-workflow-stage');" in workflow_block
+    assert "getVal('erp-workflow-stage')" in workflow_block
+    assert "formRank >= 0 && prevRank >= 0" in workflow_block
+    assert "formRank === prevRank + 1" in workflow_block
+    assert "workflow.stage = prevStage;" in workflow_block
 
 
 def test_structured_put_preserves_estimate_preview_state() -> None:
@@ -998,8 +1035,8 @@ def test_mobile_attachment_preview_uses_viewport_sized_modal() -> None:
     ) in css_text
     assert ".erp-order-mobile-form .erp-attachment-preview-actions .btn" not in css_text
     assert "max-width: min(92vw, 36rem)" not in css_text
-    assert "../components/foms-form-field.css?v=20260630e" in mobile_bundle
-    assert "foms-mobile-surfaces.css') }}?v=20260715b" in layout_head
+    assert "../components/foms-form-field.css?v=20260716a" in mobile_bundle
+    assert "foms-mobile-surfaces.css') }}?v=20260716b" in layout_head
 
 
 def test_mobile_erp_autosize_textarea_overrides_80px_floor() -> None:
