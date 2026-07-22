@@ -115,7 +115,7 @@ def test_mobile_surfaces_parent_cachebuster_bumped() -> None:
     the prior baseline (T0 교훈: 자식 범프=부모 내용 변경=부모도 범프).
     W9=ae → W11=af → W12=ag → W14=ah."""
     layout_head = _read("templates/partials/shared/layout_head.html")
-    assert "foms-mobile-surfaces.css') }}?v=20260722a" in layout_head
+    assert "foms-mobile-surfaces.css') }}?v=20260722c" in layout_head
     assert "foms-mobile-surfaces.css') }}?v=20260711ag" not in layout_head
 
 

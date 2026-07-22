@@ -81,6 +81,16 @@ def test_shipment_mobile_controls_template_contract() -> None:
     assert "<dt>도면</dt>" in queue
     assert "<dt>시공</dt>" in queue
     assert "PEOPLE_FIELDS" in queue
+    assert "foms-queue-card-v2__orderer-logo" in card_v2
+    assert 'width="39"' in card_v2
+    assert 'width="67"' in card_v2
+    assert 'height="18"' in card_v2
+    assert ".foms-queue-card-v2__orderer-logo {" in (
+        ROOT / "static/css/components/foms-queue-card-v2.css"
+    ).read_text(encoding="utf-8")
+    assert "max-height: 18px" in (
+        ROOT / "static/css/components/foms-queue-card-v2.css"
+    ).read_text(encoding="utf-8")
     for field in ("site_extra", "construction_time", "construction_date", "drawing_managers", "construction_workers", "vehicle", "trip"):
         assert field in queue
     assert "시공일" in queue
@@ -243,6 +253,8 @@ def test_shipment_mobile_drawing_stage_does_not_duplicate_drawing_assignee(
     assert 'data-queue-card-field="product"' in body
     assert "붙박이장" in body
     assert "lahom-logo.png" in body
+    assert 'width="39"' in body
+    assert 'height="18"' in body
     assert 'data-shipment-mobile-detail-field="sales_manager"' in body
     assert 'data-shipment-mobile-detail-field="drawing_managers"' in body
     assert 'data-shipment-mobile-detail-field="construction_workers"' in body
