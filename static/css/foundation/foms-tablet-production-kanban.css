@@ -663,6 +663,20 @@
     font-weight: var(--foms-font-weight-bold);
     white-space: nowrap;
   }
+  /* R5 확인 후 상설 "변경됨" 조용한 칩 — 미확인(스트립·펄스) 아닌 이력 카드. 차분한 info 톤,
+     무펄스·무스트립(뱃지열 소자). __factory 칩과 같은 문법의 info 변형. */
+  body.erp-mobile-v2-layout .foms-kanban-card__changed-quiet {
+    flex: 0 0 auto;
+    display: inline-flex;
+    align-items: center;
+    padding: 2px var(--foms-space-2);
+    border-radius: var(--foms-radius-full);
+    background: var(--erp-info-light);
+    color: var(--foms-color-info-600);
+    font-size: var(--foms-font-size-xs);
+    font-weight: var(--foms-font-weight-bold);
+    white-space: nowrap;
+  }
 
   /* 시공일 칩 격상(--sched): 카드 내 제2 시각 앵커. 날짜·D-day ≥1.25× 확대·700.
      상태색(is-imminent/is-overdue)은 기존 칩 규율 그대로 상속(색 미변경). */
@@ -1126,6 +1140,11 @@
   border: 1px solid var(--foms-color-warning-500);
   border-radius: var(--foms-radius-lg);
   background: var(--erp-warning-light);
+}
+/* R5 확인됨(이력) 변형 — 차분한 무채 톤(경고 앰버 대신 중립 보더/바탕). 확인 버튼 없음. */
+.foms-prod-sheet__changes--history {
+  border-color: var(--foms-border-subtle);
+  background: var(--foms-surface-muted);
 }
 .foms-prod-sheet__change-list {
   list-style: none;

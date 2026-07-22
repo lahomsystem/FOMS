@@ -30,7 +30,7 @@ SHIPMENT_DASHBOARD_SCRIPTS = "templates/shipment/partials/dashboard_scripts.html
 CORE_MEDIA_QUERY = (
     "(min-width: 992px) and (orientation: landscape) and (pointer: coarse)"
 )
-SCRIPT_CACHEBUSTER = "?v=20260722c"
+SCRIPT_CACHEBUSTER = "?v=20260722d"
 
 
 def _read(rel: str) -> str:
@@ -167,3 +167,32 @@ def test_domain_sheets_js_wires_change_modal_per_row() -> None:
     # R4 제거 계약: 영구 억제(sessionStorage)·배치(Promise.all) 없음.
     assert "sessionStorage" not in js
     assert "Promise.all" not in js
+
+
+# --- (6) 확인 후 상설 "변경됨" 조용한 배지 (R5) ------------------------------
+
+PROD_SHEET = "templates/production/partials/tablet_sheet.html"
+
+
+def test_kanban_body_quiet_changed_badge_and_history_attr() -> None:
+    """확인 후 상설 조용한 칩 + data-change-history 속성 (미확인 아님 + 이력일 때)."""
+    body = _read(KANBAN_BODY)
+    assert "foms-kanban-card__changed-quiet" in body
+    assert "data-change-history=" in body
+    assert "not _has_changes and _has_change_history" in body
+
+
+def test_prod_sheet_confirmed_history_section() -> None:
+    """시트: 확인됨(이력만) 시 변경 이력 섹션(확인 버튼 없음, 차분한 변형) — order.change_history 소비."""
+    sheet = _read(PROD_SHEET)
+    assert "foms-prod-sheet__changes--history" in sheet
+    assert "change_history" in sheet
+
+
+def test_domain_sheets_js_quiet_transition_and_filter_or() -> None:
+    """ack 후 조용한 상태 전환(펄스 제거 + data-change-history=1 + 조용한 칩 주입) +
+    변경 필터 OR(미확인 data-changed 또는 확인된 이력 data-change-history)."""
+    js = _read(DOMAIN_SHEETS_JS)
+    assert "injectQuietBadge" in js
+    assert 'setAttribute("data-change-history", "1")' in js  # 조용한 상태 전환
+    assert 'getAttribute("data-change-history") === "1"' in js  # 필터 OR 조건

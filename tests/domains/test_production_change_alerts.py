@@ -117,10 +117,15 @@ def test_window_start_falls_back_to_stage_updated_at(app):
 # --- 시공일 변경 감지 -------------------------------------------------------
 
 
+def _cc(order, user_id) -> dict:
+    """collect 반환에서 단일 주문의 {'alerts','history'} dict 추출."""
+    return collect_production_change_alerts(db_session, [order], user_id)[order.id]
+
+
 def test_construction_change_after_window_detected(app):
     order = _make_order(stage_updated_at=_T0)
     _add_event(order.id, "CONSTRUCTION_DATE_CHANGED", {"from": "2026-07-20", "to": "2026-07-28"}, _T0 + datetime.timedelta(days=3))
-    alerts = collect_production_change_alerts(db_session, [order], _UID)[order.id]
+    alerts = _cc(order, _UID)["alerts"]
     assert len(alerts) == 1
     assert alerts[0]["kind"] == "construction_date"
     assert alerts[0]["label"] == "시공일 변경"
@@ -130,43 +135,57 @@ def test_construction_change_after_window_detected(app):
 def test_construction_change_alert_has_from_md_to_md(app):
     order = _make_order(stage_updated_at=_T0)
     _add_event(order.id, "CONSTRUCTION_DATE_CHANGED", {"from": "2026-07-06", "to": "2026-07-04"}, _T0 + datetime.timedelta(days=3))
-    alert = collect_production_change_alerts(db_session, [order], _UID)[order.id][0]
+    alert = _cc(order, _UID)["alerts"][0]
     # B2: 빨간 일자 렌더용 구조화 키(detail 은 하위호환 유지).
     assert alert["from_md"] == "7/6"
     assert alert["to_md"] == "7/4"
     assert alert["detail"] == "7/6 → 7/4"
 
 
+def test_no_ack_alerts_equals_history(app):
+    order = _make_order(stage_updated_at=_T0)
+    _add_event(order.id, "CONSTRUCTION_DATE_CHANGED", {"from": "2026-07-20", "to": "2026-07-28"}, _T0 + datetime.timedelta(days=3))
+    cc = _cc(order, _UID)  # 개인 ack 없음 → alerts == history
+    assert len(cc["alerts"]) == 1
+    assert cc["alerts"] == cc["history"]
+
+
 def test_construction_change_before_window_ignored(app):
     order = _make_order(stage_updated_at=_T0 + datetime.timedelta(days=10))
     _add_event(order.id, "CONSTRUCTION_DATE_CHANGED", {"from": "2026-07-20", "to": "2026-07-28"}, _T0)
-    assert collect_production_change_alerts(db_session, [order], _UID)[order.id] == []
+    cc = _cc(order, _UID)  # entry 이전이라 이력에도 안 남는다.
+    assert cc["alerts"] == []
+    assert cc["history"] == []
 
 
-def test_my_ack_resets_my_window(app):
+def test_my_ack_hides_alert_but_keeps_history(app):
     me = _make_user("reset_me")
     order = _make_order(stage_updated_at=_T0)
     _add_event(order.id, "CONSTRUCTION_DATE_CHANGED", {"from": "2026-07-20", "to": "2026-07-28"}, _T0 + datetime.timedelta(days=2))
     _add_event(order.id, "PRODUCTION_CHANGE_ACK", {"source": "tablet_kanban"}, _T0 + datetime.timedelta(days=4), created_by_user_id=me.id)
-    # 내 ack 이후엔 이전 변경 해제.
-    assert collect_production_change_alerts(db_session, [order], me.id)[order.id] == []
-    # 내 ack 이후 새 변경은 다시 감지.
+    # (a) 내 ack 이후: 미확인 alert 는 사라지되, 상설 이력엔 detail 유지.
+    cc = _cc(order, me.id)
+    assert cc["alerts"] == []
+    assert len(cc["history"]) == 1
+    assert cc["history"][0]["detail"] == "7/20 → 7/28"
+    # 내 ack 이후 새 변경은 다시 alert + 이력 양쪽.
     _add_event(order.id, "CONSTRUCTION_DATE_CHANGED", {"from": "2026-07-28", "to": "2026-08-02"}, _T0 + datetime.timedelta(days=6))
-    alerts = collect_production_change_alerts(db_session, [order], me.id)[order.id]
-    assert len(alerts) == 1
-    assert alerts[0]["detail"] == "7/28 → 8/2"
+    cc = _cc(order, me.id)
+    assert [a["detail"] for a in cc["alerts"]] == ["7/28 → 8/2"]
+    assert len(cc["history"]) == 2
 
 
-def test_other_users_ack_does_not_clear_my_alert(app):
+def test_other_users_ack_personalizes_alerts_not_history(app):
     me = _make_user("clr_me")
     other = _make_user("clr_other")
     order = _make_order(stage_updated_at=_T0)
     _add_event(order.id, "CONSTRUCTION_DATE_CHANGED", {"from": "2026-07-20", "to": "2026-07-28"}, _T0 + datetime.timedelta(days=2))
-    # 동료가 확인 → 내 화면엔 여전히 변경 표시.
+    # 동료가 확인 → 동료만 조용, 나는 여전히 시끄러움. 이력은 둘 다 상설로 남음.
     _add_event(order.id, "PRODUCTION_CHANGE_ACK", {"source": "tablet_kanban"}, _T0 + datetime.timedelta(days=4), created_by_user_id=other.id)
-    assert len(collect_production_change_alerts(db_session, [order], me.id)[order.id]) == 1
-    # 확인한 동료 화면엔 사라짐.
-    assert collect_production_change_alerts(db_session, [order], other.id)[order.id] == []
+    mine = _cc(order, me.id)
+    theirs = _cc(order, other.id)
+    assert len(mine["alerts"]) == 1 and len(mine["history"]) == 1     # 나: 시끄러움
+    assert theirs["alerts"] == [] and len(theirs["history"]) == 1     # 동료: 조용, 이력은 유지
 
 
 # --- 도면 이력 감지 ---------------------------------------------------------
@@ -181,7 +200,7 @@ def test_drawing_transfer_and_revision_detected(app):
         ],
     }
     order = _make_order(sd=sd, stage_updated_at=_T0)
-    alerts = collect_production_change_alerts(db_session, [order], _UID)[order.id]
+    alerts = _cc(order, _UID)["alerts"]
     labels = {a["label"] for a in alerts}
     assert labels == {"도면 재전달", "도면 수정요청"}
     assert all(a["kind"] == "drawing" for a in alerts)
@@ -195,7 +214,7 @@ def test_drawing_before_window_ignored(app):
         ],
     }
     order = _make_order(sd=sd, stage_updated_at=_T0)
-    assert collect_production_change_alerts(db_session, [order], _UID)[order.id] == []
+    assert _cc(order, _UID)["alerts"] == []
 
 
 # --- 묘비 ------------------------------------------------------------------

@@ -4,9 +4,12 @@
 영향을 주는 변경(시공일 변경·도면 재전달/수정요청)을 감지해 카드/시트에 노출한다. 취소
 (soft delete)된 주문은 최근 14일간 묘비 카드로 잔류시킨다.
 
-확인(ack) 모델은 **사용자 개인별**이다: ``PRODUCTION_CHANGE_ACK`` 이벤트의
-``created_by_user_id`` 로 누가 확인했는지 구분해, 내가 확인해야 내 화면에서만 변경/묘비가
-사라진다(생산 인원 각각 확인 — 미확인자는 계속 표기). 팀 단위 리셋이 아니다.
+확인(ack) 모델은 **사용자 개인별 + 2단계**다:
+    - ``alerts`` (미확인, 시끄러운 표시): 본인 ``PRODUCTION_CHANGE_ACK`` 이후로만 사라진다.
+      ``created_by_user_id`` 로 누가 확인했는지 구분(생산 인원 각각 — 미확인자는 계속 표기).
+    - ``history`` (상설 이력, 조용한 표시): 생산 진입(entry) 이후 전체 변경. 확인해도 남고
+      주문이 생산 보드를 떠날 때까지(단계 밖으로 전이 시 entry 윈도 갱신) 유지된다.
+묘비는 예외 — 확인 시 소멸(개인별 마커 방식, 아래).
 
 시간 비교 규약(중요):
     라이브 카드 변경 감지(윈도 vs 도면/시공일 이벤트)는 naive-to-naive 시계 비교다.
@@ -133,37 +136,53 @@ def compute_window_start(
     return getattr(order, "created_at", None)
 
 
-def _build_alerts_for_order(
+def _build_change_lists(
     events: list[OrderEvent],
     sd: dict[str, Any],
-    window_start: datetime.datetime | None,
-) -> list[dict[str, str]]:
-    """단일 주문의 변경 alert 목록(윈도 이후만)."""
+    entry_window: datetime.datetime | None,
+    ack_window: datetime.datetime | None,
+) -> tuple[list[dict[str, str]], list[dict[str, str]]]:
+    """단일 주문의 변경을 한 번만 파싱해 두 윈도로 분류한다.
+
+    - ``history``: ``entry_window``(생산 진입) 이후 전체 변경(ack 무관, 상설 이력).
+    - ``alerts``: ``ack_window``(본인 확인) 이후 미확인 변경. ``ack_window >= entry_window``
+      이므로 alerts ⊆ history. 같은 dict 를 두 리스트에 공유한다(읽기 전용).
+
+    Returns:
+        ``(alerts, history)``.
+    """
     alerts: list[dict[str, str]] = []
+    history: list[dict[str, str]] = []
+
+    def _classify(ts: datetime.datetime, item: dict[str, str]) -> None:
+        if entry_window is not None and ts <= entry_window:
+            return
+        history.append(item)
+        if ack_window is not None and ts <= ack_window:
+            return
+        alerts.append(item)
+
     for e in events:
         if e.event_type != "CONSTRUCTION_DATE_CHANGED" or e.created_at is None:
-            continue
-        if window_start is not None and e.created_at <= window_start:
             continue
         payload = e.payload if isinstance(e.payload, dict) else {}
         _from_md = _date_to_md(payload.get("from"))
         _to_md = _date_to_md(payload.get("to"))
-        alerts.append(
+        _classify(
+            e.created_at,
             {
                 "kind": "construction_date",
                 "label": "시공일 변경",
                 "detail": f"{_from_md} → {_to_md}",
                 "from_md": _from_md,
                 "to_md": _to_md,
-            }
+            },
         )
 
-    history = sd.get("drawing_transfer_history")
-    for entry in history if isinstance(history, list) else []:
+    dth = sd.get("drawing_transfer_history")
+    for entry in dth if isinstance(dth, list) else []:
         ts = _parse_drawing_entry_time(entry)
         if ts is None:
-            continue
-        if window_start is not None and ts <= window_start:
             continue
         action = str((entry.get("action") or "")).strip().upper()
         if action == "TRANSFER":
@@ -173,34 +192,37 @@ def _build_alerts_for_order(
         else:
             continue
         note = entry.get("note")
-        alerts.append(
+        _classify(
+            ts,
             {
                 "kind": "drawing",
                 "label": label,
                 "detail": note.strip() if isinstance(note, str) and note.strip() else "",
-            }
+            },
         )
-    return alerts
+    return alerts, history
 
 
 def collect_production_change_alerts(
     db: Any, orders: list[Order], user_id: int | None
-) -> dict[int, list[dict[str, str]]]:
-    """페이지 주문들에 대해 ``order_id -> 변경 alert 목록`` 을 배치 계산한다(개인별).
+) -> dict[int, dict[str, list[dict[str, str]]]]:
+    """페이지 주문들의 변경을 2윈도로 배치 계산한다(개인별).
 
     ``OrderEvent`` 는 ``order_id.in_(ids)`` 단일 쿼리로 로드하고(N+1 금지), 도면 이력은
-    이미 로드된 ``structured_data`` 에서 파생한다. 감지 윈도는 ``user_id`` 본인의 ack 로만
-    리셋된다. alert 없는 주문은 빈 리스트가 된다.
+    이미 로드된 ``structured_data`` 에서 파생한다. 주문별로 변경을 한 번만 파싱해:
+
+    - ``alerts``: 본인 ack 이후 미확인 변경(시끄러운 상태 — 현행 의미).
+    - ``history``: 생산 진입 이후 전체 변경(ack 무관, 확인 후에도 남는 상설 이력).
 
     Args:
         db: 활성 DB 세션.
         orders: 대상 주문 ORM 리스트(``id``·``structured_data`` 로드 상태여야 함).
-        user_id: 현재 사용자 id(개인별 ack 판정). None 이면 개인 ack 없음(모든 변경 표시).
+        user_id: 현재 사용자 id(개인별 ack 판정). None 이면 개인 ack 없음(alerts==history).
 
     Returns:
-        ``{order_id: [{'kind','label','detail'}, ...]}``.
+        ``{order_id: {'alerts': [...], 'history': [...]}}``.
     """
-    result: dict[int, list[dict[str, str]]] = {}
+    result: dict[int, dict[str, list[dict[str, str]]]] = {}
     ids = [o.id for o in orders if getattr(o, "id", None) is not None]
     if not ids:
         return result
@@ -221,9 +243,12 @@ def collect_production_change_alerts(
         if getattr(o, "id", None) is None:
             continue
         events = events_by_order.get(o.id, [])
-        window_start = compute_window_start(o, events, user_id)
+        # entry 윈도(생산 진입, ack 무관) vs ack 윈도(본인 확인). 후자는 전자 이상.
+        entry_window = compute_window_start(o, events, None)
+        ack_window = compute_window_start(o, events, user_id)
         sd = _ensure_dict(getattr(o, "structured_data", None))
-        result[o.id] = _build_alerts_for_order(events, sd, window_start)
+        alerts, history = _build_change_lists(events, sd, entry_window, ack_window)
+        result[o.id] = {"alerts": alerts, "history": history}
     return result
 
 
