@@ -533,6 +533,159 @@
     outline: none;
     box-shadow: var(--foms-shadow-focus-ring);
   }
+
+  /* ════════════════════════════════════════════════════════════════════════
+     W17 변경 가시성: 변경 스트립 · 묘비 카드 · 지방 뱃지 · 시공일 격상 · 변경 필터.
+     HMI 무채 규율의 승인된 예외(변경=주의 상태). 스트립/시트는 좌측 보더+옅은 틴트로
+     카드 전체를 삼키지 않고, construction_date=파랑 / drawing=주황 / 취소=빨강으로 구분한다.
+     기존 is-overdue/is-imminent 유채 규율은 그대로 보존. grid-auto-rows:max-content
+     (efd93877 겹침 수정)에 영향 없는 카드 내부 소자만 추가한다.
+     ════════════════════════════════════════════════════════════════════════ */
+
+  /* 카드 최상단 변경 스트립 — kind별 아이콘/색 1줄. 좌측 3px 보더 + 옅은 틴트. */
+  body.erp-mobile-v2-layout .foms-kanban-card__alert {
+    display: flex;
+    flex-direction: column;
+    gap: var(--foms-space-1);
+  }
+  body.erp-mobile-v2-layout .foms-kanban-card__alert-row {
+    display: flex;
+    align-items: center;
+    gap: var(--foms-space-2);
+    padding: var(--foms-space-1) var(--foms-space-2);
+    border-left: 3px solid var(--foms-text-tertiary);
+    border-radius: var(--foms-radius-sm);
+    background: var(--foms-surface-muted);
+    font-size: var(--foms-font-size-sm);
+    font-weight: var(--foms-font-weight-bold);
+    line-height: var(--foms-line-height-tight);
+  }
+  body.erp-mobile-v2-layout .foms-kanban-card__alert-row--construction_date {
+    border-left-color: var(--foms-color-info-600);
+    background: var(--erp-info-light);
+    color: var(--foms-color-info-600);
+  }
+  body.erp-mobile-v2-layout .foms-kanban-card__alert-row--drawing {
+    border-left-color: var(--foms-color-warning-600);
+    background: var(--erp-warning-light);
+    color: var(--foms-color-warning-700);
+  }
+  body.erp-mobile-v2-layout .foms-kanban-card__alert-detail {
+    color: inherit;
+    font-weight: var(--foms-font-weight-semibold);
+    font-variant-numeric: tabular-nums;
+    word-break: break-word;
+  }
+  /* 변경 카드 = 엠버 아웃라인(레이아웃 무이동 box-shadow 링). is-held 인셋 바와 공존. */
+  body.erp-mobile-v2-layout .foms-kanban-card.is-changed {
+    border-color: var(--foms-color-warning-500);
+    box-shadow: 0 0 0 1px var(--foms-color-warning-500), var(--foms-shadow-sm);
+  }
+
+  /* 묘비(취소) 카드 — 빨강 톤, 취소선 대신 명시 라벨. 시트 미연결(카드 탭 무동작). */
+  body.erp-mobile-v2-layout .foms-kanban-card--tomb {
+    cursor: default;
+    border-color: var(--foms-color-danger-500);
+    box-shadow: 0 0 0 1px var(--foms-color-danger-500), var(--foms-shadow-sm);
+  }
+  body.erp-mobile-v2-layout .foms-kanban-card__alert-row--tomb {
+    border-left-color: var(--foms-color-danger-600);
+    background: var(--erp-danger-light);
+    color: var(--foms-color-danger-600);
+    font-size: var(--foms-font-size-base);
+  }
+  body.erp-mobile-v2-layout .foms-kanban-card--tomb .foms-kanban-card__customer {
+    color: var(--foms-text-secondary);
+  }
+  /* 묘비 [확인] 버튼 — 큰 터치 타깃(≥48px), 아웃라인 danger. */
+  body.erp-mobile-v2-layout .foms-kanban-ack-btn {
+    appearance: none;
+    flex-shrink: 0;
+    display: inline-flex;
+    align-items: center;
+    justify-content: center;
+    gap: var(--foms-space-2);
+    min-height: var(--foms-touch-target-min);
+    padding: 0 var(--foms-space-4);
+    border: 1px solid var(--foms-color-danger-500);
+    border-radius: var(--foms-radius-md);
+    background: var(--foms-surface-base);
+    color: var(--foms-color-danger-600);
+    font-size: var(--foms-font-size-base);
+    font-weight: var(--foms-font-weight-bold);
+    cursor: pointer;
+  }
+  body.erp-mobile-v2-layout .foms-kanban-ack-btn:hover {
+    background: var(--erp-danger-light);
+  }
+  body.erp-mobile-v2-layout .foms-kanban-ack-btn:focus-visible {
+    outline: none;
+    box-shadow: var(--foms-shadow-focus-ring);
+  }
+
+  /* 지방 뱃지 — __factory 칩과 같은 문법의 그린 변형(라우팅 정보). */
+  body.erp-mobile-v2-layout .foms-kanban-card__regional {
+    flex: 0 0 auto;
+    display: inline-flex;
+    align-items: center;
+    gap: 4px;
+    padding: 2px var(--foms-space-2);
+    border-radius: var(--foms-radius-full);
+    background: var(--erp-success-light);
+    color: var(--foms-color-success-600);
+    font-size: var(--foms-font-size-xs);
+    font-weight: var(--foms-font-weight-bold);
+    white-space: nowrap;
+  }
+
+  /* 시공일 칩 격상(--sched): 카드 내 제2 시각 앵커. 날짜·D-day ≥1.25× 확대·700.
+     상태색(is-imminent/is-overdue)은 기존 칩 규율 그대로 상속(색 미변경). */
+  body.erp-mobile-v2-layout .foms-kanban-chip--sched {
+    min-height: 34px;
+    padding: 0 var(--foms-space-4);
+  }
+  body.erp-mobile-v2-layout .foms-kanban-chip--sched .foms-kanban-chip__date,
+  body.erp-mobile-v2-layout .foms-kanban-chip--sched .foms-kanban-chip__dday {
+    font-size: var(--foms-font-size-lg);
+    font-weight: var(--foms-font-weight-bold);
+  }
+  /* 무일정 카드 "시공 · 미정" — 무채 파선 칩(미정 구분 명시). */
+  body.erp-mobile-v2-layout .foms-kanban-chip--no-date {
+    background: transparent;
+    border: 1px dashed var(--foms-border-default);
+    color: var(--foms-text-tertiary);
+  }
+  body.erp-mobile-v2-layout .foms-kanban-chip--no-date .foms-kanban-chip__date {
+    color: var(--foms-text-tertiary);
+    font-weight: var(--foms-font-weight-semibold);
+  }
+
+  /* 변경 모아보기 토글 — count>0=주의 강조(has-changes), 필터 ON=solid(is-on). */
+  body.erp-mobile-v2-layout .tablet-prod-filter [data-tablet-prod-changed] {
+    display: inline-flex;
+    align-items: center;
+    gap: var(--foms-space-2);
+    min-height: var(--foms-touch-target-min);
+    padding: 0 var(--foms-space-3);
+    border: 1px solid var(--foms-border-subtle);
+    border-radius: var(--foms-radius-md);
+    background: var(--foms-surface-base);
+    color: var(--foms-text-secondary);
+    font-size: var(--foms-font-size-base);
+    font-weight: var(--foms-font-weight-bold);
+    cursor: pointer;
+    white-space: nowrap;
+  }
+  body.erp-mobile-v2-layout .tablet-prod-filter [data-tablet-prod-changed].has-changes {
+    border-color: var(--foms-color-warning-500);
+    background: var(--erp-warning-light);
+    color: var(--foms-color-warning-700);
+  }
+  body.erp-mobile-v2-layout .tablet-prod-filter [data-tablet-prod-changed].is-on {
+    border-color: var(--foms-color-warning-600);
+    background: var(--foms-color-warning-600);
+    color: var(--foms-text-inverse);
+  }
 }
 
 @media (prefers-reduced-motion: reduce) {
@@ -733,4 +886,65 @@
 }
 .foms-prod-sheet__btn--pri:hover {
   background: var(--foms-interactive-primary-hover);
+}
+
+/* ── 시트 변경 알림 섹션(has_changes) + [변경 확인] — 카드 스트립과 동일 kind 색 문법.
+   HMI 무채 규율의 승인된 예외(변경=주의). 시트는 코호트에서만 렌더되므로 MQ 게이트 불필요. */
+.foms-prod-sheet__changes {
+  display: flex;
+  flex-direction: column;
+  gap: var(--foms-space-2);
+  padding: var(--foms-space-3) var(--foms-space-4);
+  border: 1px solid var(--foms-color-warning-500);
+  border-radius: var(--foms-radius-lg);
+  background: var(--erp-warning-light);
+}
+.foms-prod-sheet__change-list {
+  list-style: none;
+  margin: 0;
+  padding: 0;
+  display: flex;
+  flex-direction: column;
+  gap: var(--foms-space-2);
+}
+.foms-prod-sheet__change {
+  display: flex;
+  align-items: center;
+  gap: var(--foms-space-2);
+  padding: var(--foms-space-2) var(--foms-space-3);
+  border-left: 3px solid var(--foms-text-tertiary);
+  border-radius: var(--foms-radius-sm);
+  background: var(--foms-surface-base);
+  font-size: var(--foms-font-size-base);
+  font-weight: var(--foms-font-weight-bold);
+}
+.foms-prod-sheet__change--construction_date {
+  border-left-color: var(--foms-color-info-600);
+  color: var(--foms-color-info-600);
+}
+.foms-prod-sheet__change--drawing {
+  border-left-color: var(--foms-color-warning-600);
+  color: var(--foms-color-warning-700);
+}
+.foms-prod-sheet__change-detail {
+  color: inherit;
+  font-weight: var(--foms-font-weight-semibold);
+  font-variant-numeric: tabular-nums;
+  word-break: break-word;
+}
+.foms-prod-sheet__change-ack {
+  appearance: none;
+  align-self: flex-start;
+  min-height: var(--foms-touch-target-min);
+  padding: 0 var(--foms-space-4);
+  border: 1px solid var(--foms-color-warning-600);
+  border-radius: var(--foms-radius-md);
+  background: var(--foms-color-warning-600);
+  color: var(--foms-text-inverse);
+  font-size: var(--foms-font-size-base);
+  font-weight: var(--foms-font-weight-bold);
+  cursor: pointer;
+}
+.foms-prod-sheet__change-ack:hover {
+  background: var(--foms-color-warning-700);
 }

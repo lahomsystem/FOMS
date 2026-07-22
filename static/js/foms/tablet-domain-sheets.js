@@ -116,6 +116,35 @@
       });
   }
 
+  // 변경 확인(ack) — 묘비 카드/시트의 [변경 확인] 버튼. 생산 진입 후 감지된 변경/취소를
+  // 팀 확인으로 해제한다. 성공 시 새로고침으로 read-model(카드 스트립/묘비/카운트)을 재조회.
+  // 삭제 주문(묘비)에도 허용되는 전용 엔드포인트. 에러 키 = error(생산 API 패턴).
+  function changeAck(orderId) {
+    if (!orderId) return;
+    fetch("/api/orders/" + encodeURIComponent(orderId) + "/production/change-ack", {
+      method: "POST",
+      credentials: "same-origin",
+      headers: { "Content-Type": "application/json" },
+      body: "{}",
+    })
+      .then(function (res) {
+        return res.json().catch(function () {
+          return { success: false, error: "서버 응답 형식 오류" };
+        });
+      })
+      .then(function (data) {
+        if (data && data.success) {
+          window.location.reload();
+        } else {
+          window.alert("오류: " + ((data && (data.error || data.message)) || "처리 실패"));
+        }
+      })
+      .catch(function (err) {
+        console.error("[foms-domain-sheets] 변경 확인 실패:", err);
+        window.alert("처리 중 오류가 발생했습니다.");
+      });
+  }
+
   // 출고 배정 — 시공팀/시공시간/현장 메모를 기존 출고 update 엔드포인트로 저장.
   // 입력은 시트 본문(.foms-tablet-sheet__body) 범위에서 조회, 없으면 document 폴백.
   function shipmentAssign(orderId) {
@@ -186,6 +215,8 @@
     var status = statusEl ? statusEl.value : "";
     var factory = factoryEl ? factoryEl.value : "";
     var searchLower = search.toLowerCase();
+    var changedEl = document.querySelector("button[data-tablet-prod-changed]");
+    var changedOnly = !!(changedEl && changedEl.classList.contains("is-on"));
 
     var cols = document.querySelectorAll(".foms-kanban-col[data-kanban-bucket]");
     Array.prototype.forEach.call(cols, function (col) {
@@ -197,6 +228,11 @@
 
       var cards = col.querySelectorAll(".foms-kanban-card");
       Array.prototype.forEach.call(cards, function (card) {
+        // 묘비(취소) 카드는 모든 클라 필터에서 항상 표시(취소 알림은 필터로 숨기지 않는다).
+        if (card.getAttribute("data-tomb") === "1") {
+          card.style.display = "";
+          return;
+        }
         var searchOK =
           search === "" ||
           card.textContent.toLowerCase().indexOf(searchLower) !== -1;
@@ -211,7 +247,10 @@
           factoryOK = factory === "2" ? isFactory2 : !isFactory2;
         }
 
-        card.style.display = searchOK && factoryOK ? "" : "none";
+        // 변경 모아보기: 토글 ON 이면 data-changed="1" 카드만.
+        var changedOK = !changedOnly || card.getAttribute("data-changed") === "1";
+
+        card.style.display = searchOK && factoryOK && changedOK ? "" : "none";
       });
     });
   }
@@ -223,6 +262,11 @@
     if (searchEl) searchEl.value = "";
     if (statusEl) statusEl.value = "";
     if (factoryEl) factoryEl.value = "";
+    var changedEl = document.querySelector("button[data-tablet-prod-changed]");
+    if (changedEl) {
+      changedEl.classList.remove("is-on");
+      changedEl.setAttribute("aria-pressed", "false");
+    }
     applyProdFilter();
   }
 
@@ -237,6 +281,24 @@
     if (resetBtn) {
       ev.preventDefault();
       resetProdFilter();
+      return;
+    }
+
+    // 변경 모아보기 토글 — is-on 클래스/aria-pressed 토글 후 재필터.
+    var changedBtn = target.closest("button[data-tablet-prod-changed]");
+    if (changedBtn) {
+      ev.preventDefault();
+      var on = changedBtn.classList.toggle("is-on");
+      changedBtn.setAttribute("aria-pressed", on ? "true" : "false");
+      applyProdFilter();
+      return;
+    }
+
+    // 변경 확인(ack) 버튼 — 묘비 카드 + 시트 공용(data-kanban-action="change-ack").
+    var ackBtn = target.closest("[data-kanban-action='change-ack']");
+    if (ackBtn) {
+      ev.preventDefault();
+      changeAck(ackBtn.getAttribute("data-order-id"));
       return;
     }
 

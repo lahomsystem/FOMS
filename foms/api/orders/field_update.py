@@ -21,7 +21,7 @@ from foms.services.erp_permissions import can_edit_erp
 from foms.services.erp_display import _normalize_date_to_yyyymmdd
 from foms.services.erp_sync_columns import sync_erp_flat_columns
 from foms.services.orders.construction_type import normalize_regional_construction_type
-from models import Order
+from models import Order, OrderEvent
 
 ORDER_UPDATE_ALLOWED_FIELDS = [
     "manager_name",
@@ -339,8 +339,20 @@ def update_order_field_response(
             elif field == "scheduled_date":
                 schedule = ensure_path(structured_data, "schedule")
                 construction = ensure_path(schedule, "construction")
+                old_cons = (
+                    (old_sd_snapshot.get("schedule") or {}).get("construction") or {}
+                ).get("date")
                 construction["date"] = value
                 structured_changed = True
+                # 근본수정: 빠른수정 경로도 구조화 PUT(erp_orders_structured.py)과 동일하게
+                # 시공일 변경 이벤트를 남긴다(생산 칸반 변경 감지 SSOT). payload 형태 동일.
+                if old_cons != value:
+                    db.add(OrderEvent(
+                        order_id=order.id,
+                        event_type="CONSTRUCTION_DATE_CHANGED",
+                        payload={"from": old_cons, "to": value},
+                        created_by_user_id=getattr(user, "id", None),
+                    ))
             elif field == "as_visit_date":
                 schedule = ensure_path(structured_data, "schedule")
                 as_visit = ensure_path(schedule, "as_visit")
