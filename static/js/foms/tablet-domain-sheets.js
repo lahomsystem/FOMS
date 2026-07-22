@@ -215,7 +215,20 @@
     return n;
   }
 
-  // 보드 in-place 정리: 카드 변경이면 스트립·is-changed·강조 제거, 묘비면 묘비 카드 제거.
+  // 뱃지열에 조용한 "변경됨" 칩 주입(중복 가드). 확인 후 상설 표시(이력 보유 신호).
+  function injectQuietBadge(card) {
+    var cluster = card.querySelector(".foms-kanban-card__top-right");
+    if (!cluster) return;
+    if (cluster.querySelector(".foms-kanban-card__changed-quiet")) return; // 중복 주입 방지.
+    var badge = document.createElement("span");
+    badge.className = "foms-kanban-card__changed-quiet";
+    badge.setAttribute("title", "변경 이력 있음(확인됨)");
+    badge.textContent = "변경됨";
+    cluster.appendChild(badge);
+  }
+
+  // 보드 in-place 정리: 카드 변경이면 시끄러운 상태(스트립·is-changed·펄스)를 조용한 상태로
+  // 전환(data-changed=0·data-change-history=1·조용한 칩 주입). 묘비면 묘비 카드 제거(현행 유지).
   // 묘비 카드는 article 에 data-order-id 가 없고(시트 오픈 방지) ack 버튼에만 있으므로 그 경유로 찾는다.
   function cleanupBoardForOrder(orderId, isTomb) {
     if (isTomb) {
@@ -232,8 +245,10 @@
     if (!card) return;
     var strip = card.querySelector(".foms-kanban-card__alert");
     if (strip) strip.remove();
-    card.classList.remove("is-changed");
+    card.classList.remove("is-changed"); // 3px 보더·펄스 제거.
     card.setAttribute("data-changed", "0");
+    card.setAttribute("data-change-history", "1"); // 이력 보유로 전환.
+    injectQuietBadge(card);
   }
 
   function showRowError(row) {
@@ -385,8 +400,12 @@
           factoryOK = factory === "2" ? isFactory2 : !isFactory2;
         }
 
-        // 변경 모아보기: 토글 ON 이면 data-changed="1" 카드만.
-        var changedOK = !changedOnly || card.getAttribute("data-changed") === "1";
+        // 변경 모아보기(반장 리뷰): 토글 ON 이면 미확인(data-changed=1) 또는 확인된 이력
+        // (data-change-history=1) 카드 표시.
+        var changedOK =
+          !changedOnly ||
+          card.getAttribute("data-changed") === "1" ||
+          card.getAttribute("data-change-history") === "1";
 
         // KPI 카드 레벨 조건: load=D-DAY(dday 0), delayed=지연(dday<0). line 은 열 레벨에서 처리.
         var kpiOK = true;

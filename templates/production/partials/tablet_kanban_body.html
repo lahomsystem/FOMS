@@ -144,10 +144,12 @@
       {% set _hold = (_prod.get('hold') if _prod else none) or {} %}
       {% set _alerts = o.change_alerts | default([], true) %}
       {% set _has_changes = o.has_changes | default(false, true) %}
+      {% set _has_change_history = o.has_change_history | default(false, true) %}
       <article class="foms-kanban-card{% if _hold.get('active') %} is-held{% endif %}{% if _has_changes %} is-changed{% endif %}" data-order-id="{{ o.id }}"
         data-foms-sheet-url="{{ url_for('erp_production_page.erp_production_tablet_sheet', order_id=o.id) }}"
         data-factory2="{{ 1 if _flags.get('factory2') else 0 }}"
         data-changed="{{ 1 if _has_changes else 0 }}"
+        data-change-history="{{ 1 if _has_change_history else 0 }}"
         data-dday="{{ o.construction_dday if o.construction_dday is not none else '' }}"
         role="button" tabindex="0"
         aria-label="{{ o.customer_name }} 주문 상세 열기">
@@ -188,6 +190,10 @@
             <span class="foms-kanban-card__regional" title="지방 주문">
               <i class="fas fa-location-dot" aria-hidden="true"></i> 지방
             </span>
+            {% endif %}
+            {% if not _has_changes and _has_change_history %}
+            {# 확인 후 상설 배지 — 미확인(스트립·펄스) 아니고 이력만 있을 때. 차분한 info 톤. #}
+            <span class="foms-kanban-card__changed-quiet" title="변경 이력 있음(확인됨)">변경됨</span>
             {% endif %}
           </span>
         </div>
@@ -316,4 +322,4 @@
   </div>
   {% endif %}
 </div>
-<script src="{{ url_for('static', filename='js/foms/tablet-domain-sheets.js') }}?v=20260722c" defer></script>
+<script src="{{ url_for('static', filename='js/foms/tablet-domain-sheets.js') }}?v=20260722d" defer></script>

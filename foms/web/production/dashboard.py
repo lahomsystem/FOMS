@@ -189,8 +189,11 @@ def erp_production_dashboard():
             _card_items if isinstance(_card_items, list) else []
         )
         _r["is_regional"] = bool(getattr(_orders_by_id.get(_r["id"]), "is_regional", False))
-        _r["change_alerts"] = _alerts_by_id.get(_r["id"], [])
-        _r["has_changes"] = bool(_r["change_alerts"])
+        _rc = _alerts_by_id.get(_r["id"]) or {"alerts": [], "history": []}
+        _r["change_alerts"] = _rc["alerts"]        # 미확인(시끄러운 스트립)
+        _r["has_changes"] = bool(_rc["alerts"])
+        _r["change_history"] = _rc["history"]      # 진입 이후 전체(확인 후에도 남는 상설 이력)
+        _r["has_change_history"] = bool(_rc["history"])
     # 취소 묘비(최근 14일, 생산 파이프라인, 미확인)와 변경 카운트(변경 행 수 + 묘비 수).
     tombstones = collect_production_tombstones(db, user, erp_mine_only)
     changed_count = sum(1 for _r in enriched if _r.get("has_changes")) + len(tombstones)
@@ -392,7 +395,9 @@ def erp_production_tablet_sheet(order_id: int):
         'hold_active': bool(_hold.get('active')),
         'hold_reason': (_hold.get('reason') or '').strip() if isinstance(_hold.get('reason'), str) else '',
     }
-    _sheet_alerts = collect_production_change_alerts(db, [order], user.id if user else None).get(order.id, [])
-    sheet['change_alerts'] = _sheet_alerts
-    sheet['has_changes'] = bool(_sheet_alerts)
+    _sc = collect_production_change_alerts(db, [order], user.id if user else None).get(order.id) or {"alerts": [], "history": []}
+    sheet['change_alerts'] = _sc['alerts']
+    sheet['has_changes'] = bool(_sc['alerts'])
+    sheet['change_history'] = _sc['history']
+    sheet['has_change_history'] = bool(_sc['history'])
     return render_template('production/partials/tablet_sheet.html', order=sheet)
