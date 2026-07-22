@@ -78,7 +78,6 @@ def erp_construction_dashboard():
     f_stage = _cf.stage
     f_q = _cf.q
     focus_order_id = _cf.focus_order_id
-    is_construction = _cf.is_construction
     mine_only = _cf.mine_only
 
     query = db.query(Order).filter(Order.dashboard_active_filter(days=60), Order.is_erp_order.is_(True))
@@ -204,7 +203,7 @@ def erp_construction_dashboard():
         enriched,
         db,
         mobile_v2_active=mobile_v2_active,
-        drawing_only=bool(is_construction),
+        drawing_only=True,
     )
     attach_order_detail_payloads(db, enriched)
 
