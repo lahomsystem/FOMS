@@ -250,7 +250,12 @@
                                         <select class="form-select form-select-sm inline-edit status-dropdown" 
                                                 data-order-id="{{ order.id }}"
                                                 data-field="status">
-                                            {% for status_code, status_name in STATUS.items() %}
+                                            {% if order.status and order.status not in LOGISTICS_BOARD_STATUS %}
+                                                <option value="{{ order.status }}" selected>
+                                                    {{ STATUS.get(order.status, order.status) }}
+                                                </option>
+                                            {% endif %}
+                                            {% for status_code, status_name in LOGISTICS_BOARD_STATUS.items() %}
                                                 <option value="{{ status_code }}" {% if order.status == status_code %}selected{% endif %}>
                                                     {{ status_name }}
                                                 </option>
@@ -423,7 +428,12 @@
                                         <select class="form-select form-select-sm inline-edit status-dropdown" 
                                                 data-order-id="{{ order.id }}"
                                                 data-field="status">
-                                            {% for status_code, status_name in STATUS.items() %}
+                                            {% if order.status and order.status not in LOGISTICS_BOARD_STATUS %}
+                                                <option value="{{ order.status }}" selected>
+                                                    {{ STATUS.get(order.status, order.status) }}
+                                                </option>
+                                            {% endif %}
+                                            {% for status_code, status_name in LOGISTICS_BOARD_STATUS.items() %}
                                                 <option value="{{ status_code }}" {% if order.status == status_code %}selected{% endif %}>
                                                     {{ status_name }}
                                                 </option>
@@ -596,7 +606,12 @@
                                         <select class="form-select form-select-sm inline-edit status-dropdown" 
                                                 data-order-id="{{ order.id }}"
                                                 data-field="status">
-                                            {% for status_code, status_name in STATUS.items() %}
+                                            {% if order.status and order.status not in LOGISTICS_BOARD_STATUS %}
+                                                <option value="{{ order.status }}" selected>
+                                                    {{ STATUS.get(order.status, order.status) }}
+                                                </option>
+                                            {% endif %}
+                                            {% for status_code, status_name in LOGISTICS_BOARD_STATUS.items() %}
                                                 <option value="{{ status_code }}" {% if order.status == status_code %}selected{% endif %}>
                                                     {{ status_name }}
                                                 </option>
@@ -724,7 +739,12 @@
                                         <select class="form-select form-select-sm inline-edit status-dropdown" 
                                                 data-order-id="{{ order.id }}"
                                                 data-field="status">
-                                            {% for status_code, status_name in STATUS.items() %}
+                                            {% if order.status and order.status not in LOGISTICS_BOARD_STATUS %}
+                                                <option value="{{ order.status }}" selected>
+                                                    {{ STATUS.get(order.status, order.status) }}
+                                                </option>
+                                            {% endif %}
+                                            {% for status_code, status_name in LOGISTICS_BOARD_STATUS.items() %}
                                                 <option value="{{ status_code }}" {% if order.status == status_code %}selected{% endif %}>
                                                     {{ status_name }}
                                                 </option>
@@ -1142,22 +1162,35 @@ document.addEventListener('DOMContentLoaded', function() {
             }
         });
         
-        // select 요소인 경우 change 이벤트도 처리
+        // select: 물류 보드 confirm 후 저장
         if (input.tagName.toLowerCase() === 'select') {
             input.addEventListener('change', function() {
-                if (this.value !== originalValue) {
-                    updateOrderFieldInline(this);
+                if (this.value === originalValue) return;
+                const field = this.dataset.field;
+                if (field === 'status') {
+                    const label = ((this.options[this.selectedIndex] && this.options[this.selectedIndex].text) || this.value).trim();
+                    if (!window.confirm('상태를 "' + label + '"(으)로 변경할까요?')) {
+                        this.value = originalValue;
+                        return;
+                    }
+                    const revertTo = originalValue;
+                    originalValue = this.value; // blur 이중제출 방지
+                    updateOrderFieldInline(this, revertTo);
+                    return;
                 }
+                originalValue = this.value; // blur 이중제출 방지
+                updateOrderFieldInline(this);
             });
         }
     });
 });
 
 // 인라인 편집 필드 업데이트 함수
-function updateOrderFieldInline(input) {
+function updateOrderFieldInline(input, revertValue) {
     const orderId = input.dataset.orderId;
     const field = input.dataset.field;
     const value = input.value.trim();
+    const previous = (typeof revertValue === 'string') ? revertValue : null;
 
     // 시각적 피드백
     input.style.backgroundColor = '#fff3cd';
@@ -1173,43 +1206,31 @@ function updateOrderFieldInline(input) {
             new_value: value
         })
     })
-    .then(response => response.json())
-    .then(data => {
+    .then(response => response.json().then(data => ({ ok: response.ok, data: data })))
+    .then(function (res) {
+        var data = res.data || {};
         if (data.success) {
             input.style.backgroundColor = '#d4edda';
-            
-            // 상태를 AS 접수로 변경하면 AS 카테고리(섹션)로 이동되도록 처리
-            if (field === 'status' && value === 'AS_RECEIVED') {
-                try { location.hash = '#as-section'; } catch (e) {}
-                setTimeout(() => location.reload(), 150);
+            if (field === 'status' && (value === 'AS_RECEIVED' || value === 'AS_COMPLETED' || value === 'COMPLETED' || value === 'SCHEDULED')) {
+                if (value === 'AS_RECEIVED') { try { location.hash = '#as-section'; } catch (e) {} }
+                else if (value === 'AS_COMPLETED' || value === 'COMPLETED') { try { location.hash = '#completed-orders-title'; } catch (e) {} }
+                setTimeout(function () { location.reload(); }, 150);
                 return;
             }
-
-            // 상태를 AS 완료로 변경하면 "완료된 자가실측" 섹션으로 이동되도록 처리
-            if (field === 'status' && value === 'AS_COMPLETED') {
-                try { location.hash = '#completed-orders-title'; } catch (e) {}
-                setTimeout(() => location.reload(), 150);
-                return;
-            }
-
-            setTimeout(() => {
-                input.style.backgroundColor = '';
-            }, 2000);
+            setTimeout(function () { input.style.backgroundColor = ''; }, 2000);
         } else {
             input.style.backgroundColor = '#f8d7da';
-            
-            setTimeout(() => {
-                input.style.backgroundColor = '';
-            }, 2000);
+            window.alert(data.message || data.error || '상태 변경에 실패했습니다.');
+            if (previous !== null) input.value = previous;
+            setTimeout(function () { input.style.backgroundColor = ''; }, 2000);
         }
     })
-    .catch(error => {
+    .catch(function (error) {
         console.error('Error:', error);
         input.style.backgroundColor = '#f8d7da';
-        
-        setTimeout(() => {
-            input.style.backgroundColor = '';
-        }, 2000);
+        window.alert('서버 통신 중 오류가 발생했습니다.');
+        if (previous !== null) input.value = previous;
+        setTimeout(function () { input.style.backgroundColor = ''; }, 2000);
     });
 }
 
