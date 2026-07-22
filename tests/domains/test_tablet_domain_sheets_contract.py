@@ -30,7 +30,7 @@ SHIPMENT_DASHBOARD_SCRIPTS = "templates/shipment/partials/dashboard_scripts.html
 CORE_MEDIA_QUERY = (
     "(min-width: 992px) and (orientation: landscape) and (pointer: coarse)"
 )
-SCRIPT_CACHEBUSTER = "?v=20260722a"
+SCRIPT_CACHEBUSTER = "?v=20260722b"
 
 
 def _read(rel: str) -> str:
@@ -132,3 +132,34 @@ def test_domain_sheet_routes_registered(app) -> None:
     assert "erp_shipment_page.erp_shipment_tablet_sheet" in endpoints, (
         "출고 태블릿 시트 라우트 미등록"
     )
+
+
+# --- (5) 변경 브리핑 모달 (R3) -----------------------------------------------
+
+
+def test_kanban_body_change_modal_markup_gated_and_a11y() -> None:
+    """변경 브리핑 모달은 changed_count>0 일 때만 렌더 + dialog a11y + 버튼/딤 data 속성 +
+    서버 렌더 fingerprint(재표시 억제 키)."""
+    body = _read(KANBAN_BODY)
+    assert "{% if (changed_count | default(0, true)) > 0 %}" in body
+    assert 'id="foms-prod-change-modal"' in body
+    assert 'role="dialog"' in body
+    assert 'aria-modal="true"' in body
+    assert "data-fingerprint=" in body
+    for attr in (
+        "data-prod-change-ackall",
+        "data-prod-change-close",
+        "data-prod-change-dim",
+    ):
+        assert attr in body, f"모달 버튼/딤 attr 부재: {attr}"
+
+
+def test_domain_sheets_js_wires_change_modal() -> None:
+    """모달 열기/닫기/전체확인(배치)/fingerprint 억제 + fragment 스왑 재도착 배선 +
+    기존 change-ack endpoint 재사용(신규 API 없음)."""
+    js = _read(DOMAIN_SHEETS_JS)
+    assert "foms-prod-change-modal" in js
+    assert "foms:erp-shell-fragment-swapped" in js  # 스왑 도착 시 재표시(once-only)
+    assert "Promise.all" in js  # [전체 확인] = 목록 전 order 배치 ack
+    assert "sessionStorage" in js  # fingerprint 재표시 억제
+    assert "/production/change-ack" in js  # 백엔드 무변경 — 기존 endpoint 재사용

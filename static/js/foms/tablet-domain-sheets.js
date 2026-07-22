@@ -145,6 +145,112 @@
       });
   }
 
+  // ---- 변경 브리핑 모달 (R3) -------------------------------------------------
+  // 대시보드 진입 시 changed_count>0 이면 서버가 #foms-prod-change-modal 을 렌더한다.
+  // 자동 표시(fingerprint 미스 시), [전체 확인]=목록 전 order 배치 ack→reload, [닫기]/Esc/딤=
+  // fingerprint sessionStorage 저장(같은 변경셋 재표시 억제 — 보드는 제작 시작/완료마다 reload).
+  var MODAL_SS_KEY = "foms:prod-change-modal:dismissed";
+
+  // 단건 ack 요청(배치용) — 성공 여부 bool 로만 resolve(reject 없음 → Promise.all 안전).
+  function ackOrderRequest(orderId) {
+    return fetch("/api/orders/" + encodeURIComponent(orderId) + "/production/change-ack", {
+      method: "POST",
+      credentials: "same-origin",
+      headers: { "Content-Type": "application/json" },
+      body: "{}",
+    })
+      .then(function (res) {
+        return res.json().catch(function () {
+          return { success: false };
+        });
+      })
+      .then(function (data) {
+        return !!(data && data.success);
+      })
+      .catch(function () {
+        return false;
+      });
+  }
+
+  function openChangeModal(modal) {
+    if (!modal || modal.classList.contains("is-open")) return; // 중복 오픈(reload/스왑) 방지.
+    modal.removeAttribute("hidden");
+    modal.classList.add("is-open");
+    var confirmBtn = modal.querySelector("[data-prod-change-ackall]");
+    if (confirmBtn) {
+      try {
+        confirmBtn.focus();
+      } catch (e) {
+        /* focus 실패 무해 */
+      }
+    }
+  }
+
+  // 닫기(ack 없이) — fingerprint 저장으로 같은 변경셋 재표시 억제.
+  function closeChangeModal(modal) {
+    if (!modal) return;
+    modal.classList.remove("is-open");
+    modal.setAttribute("hidden", "");
+    var fp = modal.getAttribute("data-fingerprint") || "";
+    if (fp) {
+      try {
+        window.sessionStorage.setItem(MODAL_SS_KEY, fp);
+      } catch (e) {
+        /* sessionStorage 불가(사생활 모드 등) — 억제 없이 매번 표시(안전 폴백) */
+      }
+    }
+  }
+
+  // 자동 표시 판정 — 코호트+모달 존재+fingerprint 미스일 때만 연다. 스왑/초기 로드 공용.
+  function maybeShowChangeModal() {
+    if (!cohortActive()) return;
+    var modal = document.getElementById("foms-prod-change-modal");
+    if (!modal) return; // changed_count==0 → 미렌더.
+    var fp = modal.getAttribute("data-fingerprint") || "";
+    var dismissed = "";
+    try {
+      dismissed = window.sessionStorage.getItem(MODAL_SS_KEY) || "";
+    } catch (e) {
+      dismissed = "";
+    }
+    if (fp && dismissed === fp) return; // 같은 변경셋 이미 닫음.
+    openChangeModal(modal);
+  }
+
+  // [전체 확인] — 목록의 모든 order(묘비 포함)를 배치 ack. 전부 성공 시 reload(스트립·묘비·
+  // 칩·모달 일괄 해제) + sessionStorage 정리. 일부 실패 시 alert + 모달 유지.
+  function ackAllChanges(modal) {
+    if (!modal) return;
+    var ids = [];
+    var rows = modal.querySelectorAll("[data-order-id]");
+    Array.prototype.forEach.call(rows, function (el) {
+      var id = el.getAttribute("data-order-id");
+      if (id && ids.indexOf(id) === -1) ids.push(id);
+    });
+    if (!ids.length) {
+      closeChangeModal(modal);
+      return;
+    }
+    var btn = modal.querySelector("[data-prod-change-ackall]");
+    if (btn) btn.disabled = true;
+    Promise.all(ids.map(ackOrderRequest)).then(function (results) {
+      var allOK = results.every(function (ok) {
+        return ok;
+      });
+      if (allOK) {
+        try {
+          window.sessionStorage.removeItem(MODAL_SS_KEY);
+        } catch (e) {
+          /* 무해 */
+        }
+        window.location.reload();
+      } else {
+        if (btn) btn.disabled = false;
+        window.alert("일부 변경 확인에 실패했습니다. 다시 시도해 주세요.");
+      }
+    });
+  }
+
   // 출고 배정 — 시공팀/시공시간/현장 메모를 기존 출고 update 엔드포인트로 저장.
   // 입력은 시트 본문(.foms-tablet-sheet__body) 범위에서 조회, 없으면 document 폴백.
   function shipmentAssign(orderId) {
@@ -331,6 +437,27 @@
       return;
     }
 
+    // 변경 브리핑 모달: [전체 확인] / [닫기] / 딤 클릭.
+    var ackAllBtn = target.closest("[data-prod-change-ackall]");
+    if (ackAllBtn) {
+      ev.preventDefault();
+      ackAllChanges(document.getElementById("foms-prod-change-modal"));
+      return;
+    }
+    var closeModalBtn = target.closest("[data-prod-change-close]");
+    if (closeModalBtn) {
+      ev.preventDefault();
+      closeChangeModal(document.getElementById("foms-prod-change-modal"));
+      return;
+    }
+    // 딤(오버레이) 직접 클릭만 닫기(다이얼로그 내부 클릭 제외 = target === 딤).
+    var dim = target.closest("[data-prod-change-dim]");
+    if (dim && target === dim) {
+      ev.preventDefault();
+      closeChangeModal(dim);
+      return;
+    }
+
     // KPI 타일 탭 필터 — 상호 배타(하나만 is-on), 재탭=해제.
     var kpiTile = target.closest("[data-tablet-prod-kpi]");
     if (kpiTile) {
@@ -393,6 +520,15 @@
   // 위 click 위임이 실제 토글을 처리하므로 여기선 click 합성만.
   document.addEventListener("keydown", function (ev) {
     if (!cohortActive()) return;
+    // Esc = 변경 모달 닫기(닫기 버튼과 동일 — fingerprint 저장).
+    if (ev.key === "Escape" || ev.key === "Esc") {
+      var openModal = document.querySelector("#foms-prod-change-modal.is-open");
+      if (openModal) {
+        ev.preventDefault();
+        closeChangeModal(openModal);
+      }
+      return;
+    }
     if (ev.key !== "Enter" && ev.key !== " " && ev.key !== "Spacebar") return;
     var target = ev.target;
     if (!target || !target.closest) return;
@@ -402,4 +538,11 @@
       kpiTile.click();
     }
   });
+
+  // ---- 변경 모달 자동 표시: 초기 로드 + erp-shell fragment 스왑 도착 (R3) ------
+  // 정본 패턴(tablet-measurement.js): 싱글턴 IIFE 안에서 스왑 이벤트를 once-only 로 바인딩하고,
+  // 핸들러 안에서 매 시점 요소를 새로 조회한다(per-swap 재바인딩 금지). openChangeModal 은
+  // is-open 중복 가드가 있어 재진입 안전.
+  maybeShowChangeModal();
+  document.addEventListener("foms:erp-shell-fragment-swapped", maybeShowChangeModal);
 })();
