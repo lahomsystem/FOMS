@@ -26,6 +26,49 @@ STATUS = {
     'DELETED': '삭제됨'
 }
 
+# 자가실측·지방 대시보드(물류 콘솔) 드롭다운 SSOT.
+# 메인 파이프라인(접수~CS)은 ERP 폼 전용 — 보드에 노출하지 않음.
+LOGISTICS_BOARD_STATUS = {
+    'MEASURED': '실측완료',
+    'REGIONAL_MEASURED': '지방실측',
+    'SCHEDULED': '설치예정',
+    'SHIPPED_PENDING': '상차예정',
+    'COMPLETED': '완료',
+    'AS_RECEIVED': 'AS접수',
+    'AS_COMPLETED': 'AS완료',
+    'AS': 'AS처리',
+    'ON_HOLD': '보류',
+    'DELETED': '삭제됨',
+}
+
+LOGISTICS_BOARD_CODES = frozenset(LOGISTICS_BOARD_STATUS)
+
+# 물류 중간 상태: order.status만 바꾸고 workflow.stage는 보존(공정 오염 방지).
+LOGISTICS_STATUS_PRESERVE_WORKFLOW_STAGE = frozenset(
+    {
+        'MEASURED',
+        'REGIONAL_MEASURED',
+        'SCHEDULED',
+        'SHIPPED_PENDING',
+        'ON_HOLD',
+    }
+)
+
+
+def is_logistics_board_status(code: object) -> bool:
+    """물류 보드 상태 코드 여부."""
+    return str(code or '').strip() in LOGISTICS_BOARD_CODES
+
+
+def should_sync_workflow_stage_on_status(code: object) -> bool:
+    """field_update status 변경 시 workflow.stage 동기화 여부."""
+    text = str(code or '').strip()
+    if not text:
+        return False
+    if text in LOGISTICS_STATUS_PRESERVE_WORKFLOW_STAGE:
+        return False
+    return True
+
 # 수납장 상태 매핑
 CABINET_STATUS = {
     'RECEIVED': '접수',

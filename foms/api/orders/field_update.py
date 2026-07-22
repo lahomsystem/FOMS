@@ -4,6 +4,7 @@ from __future__ import annotations
 
 import copy
 import datetime
+from foms.services.datetime_kst import now_utc_naive
 from typing import Any, Callable
 
 from flask import current_app, jsonify, request, session
@@ -21,7 +22,7 @@ from foms.services.erp_permissions import can_edit_erp
 from foms.services.erp_display import _normalize_date_to_yyyymmdd
 from foms.services.erp_sync_columns import sync_erp_flat_columns
 from foms.services.orders.construction_type import normalize_regional_construction_type
-from models import Order
+from models import Order, OrderEvent
 
 ORDER_UPDATE_ALLOWED_FIELDS = [
     "manager_name",
@@ -243,14 +244,17 @@ def update_order_field_response(
 
         is_erp_order = is_erp_order_record(order)
         if field == "status" and is_erp_order:
+            from foms.services.orders.status_constants import is_logistics_board_status
             from foms.services.orders.stage_override import (
                 OVERRIDE_BLOCK_MESSAGE,
                 current_stage_for_order,
                 requires_privileged_override,
             )
 
-            if requires_privileged_override(current_stage_for_order(order), value):
-                return jsonify({"success": False, "message": OVERRIDE_BLOCK_MESSAGE}), 403
+            # 물류 보드 목표 상태(설치예정·완료·AS 등)는 stage-override 가드 제외.
+            if not is_logistics_board_status(value):
+                if requires_privileged_override(current_stage_for_order(order), value):
+                    return jsonify({"success": False, "message": OVERRIDE_BLOCK_MESSAGE}), 403
 
         structured_data: dict[str, Any] = {}
         structured_changed = False
@@ -260,6 +264,9 @@ def update_order_field_response(
             old_sd_snapshot = copy.deepcopy(structured_data)
 
         old_value = getattr(order, field, None)
+        prod_notif = None
+        prod_notif_created = False
+        _prod_cons_change: tuple[Any, Any] | None = None
         if field == "as_visit_date":
             pass
         elif field in (
@@ -275,10 +282,16 @@ def update_order_field_response(
             setattr(order, field, value)
 
         if field == "status" and is_erp_order and isinstance(structured_data, dict):
-            workflow = ensure_path(structured_data, "workflow")
-            workflow["stage"] = value
-            workflow["stage_updated_at"] = datetime.datetime.now().isoformat()
-            structured_changed = True
+            from foms.services.orders.status_constants import (
+                should_sync_workflow_stage_on_status,
+            )
+
+            # SCHEDULED 등 물류 중간상태는 workflow.stage를 오염시키지 않는다.
+            if should_sync_workflow_stage_on_status(value):
+                workflow = ensure_path(structured_data, "workflow")
+                workflow["stage"] = value
+                workflow["stage_updated_at"] = now_utc_naive().isoformat()
+                structured_changed = True
 
         if field == "as_completed_date":
             shipment = ensure_path(structured_data, "shipment")
@@ -287,7 +300,7 @@ def update_order_field_response(
                 if is_erp_order:
                     workflow = ensure_path(structured_data, "workflow")
                     workflow["stage"] = "AS_COMPLETED"
-                    workflow["stage_updated_at"] = datetime.datetime.now().isoformat()
+                    workflow["stage_updated_at"] = now_utc_naive().isoformat()
                     structured_changed = True
                 if shipment.get("as_pending"):
                     shipment["as_pending"] = False
@@ -297,7 +310,7 @@ def update_order_field_response(
                 if is_erp_order:
                     workflow = ensure_path(structured_data, "workflow")
                     workflow["stage"] = "AS_RECEIVED"
-                    workflow["stage_updated_at"] = datetime.datetime.now().isoformat()
+                    workflow["stage_updated_at"] = now_utc_naive().isoformat()
                     structured_changed = True
 
         if is_erp_order or field in (
@@ -339,8 +352,21 @@ def update_order_field_response(
             elif field == "scheduled_date":
                 schedule = ensure_path(structured_data, "schedule")
                 construction = ensure_path(schedule, "construction")
+                old_cons = (
+                    (old_sd_snapshot.get("schedule") or {}).get("construction") or {}
+                ).get("date")
                 construction["date"] = value
                 structured_changed = True
+                # 근본수정: 빠른수정 경로도 구조화 PUT(erp_orders_structured.py)과 동일하게
+                # 시공일 변경 이벤트를 남긴다(생산 칸반 변경 감지 SSOT). payload 형태 동일.
+                if old_cons != value:
+                    db.add(OrderEvent(
+                        order_id=order.id,
+                        event_type="CONSTRUCTION_DATE_CHANGED",
+                        payload={"from": old_cons, "to": value},
+                        created_by_user_id=getattr(user, "id", None),
+                    ))
+                    _prod_cons_change = (old_cons, value)
             elif field == "as_visit_date":
                 schedule = ensure_path(structured_data, "schedule")
                 as_visit = ensure_path(schedule, "as_visit")
@@ -389,6 +415,27 @@ def update_order_field_response(
                         "drawing order-change alert failed on field_update",
                         exc_info=True,
                     )
+            if _prod_cons_change is not None:
+                try:
+                    from foms.services.notifications.production_change import (
+                        apply_production_change_alert,
+                    )
+                    from foms.services.production_change_alerts import _date_to_md
+
+                    _pc_from, _pc_to = _prod_cons_change
+                    prod_notif, prod_notif_created = apply_production_change_alert(
+                        db,
+                        order,
+                        "construction_date",
+                        f"{_date_to_md(_pc_from)} → {_date_to_md(_pc_to)}",
+                        actor_user_id=getattr(user, "id", None),
+                        actor_name=getattr(user, "name", None) or session.get("username") or "SYSTEM",
+                    )
+                except Exception:
+                    current_app.logger.warning(
+                        "production change alert failed on field_update",
+                        exc_info=True,
+                    )
             setattr(order, "structured_data", structured_data)
             flag_modified(order, "structured_data")
             sync_erp_flat_columns(order, structured_data)
@@ -422,6 +469,18 @@ def update_order_field_response(
             except Exception:
                 current_app.logger.warning(
                     "drawing order-change finalize failed on field_update",
+                    exc_info=True,
+                )
+            try:
+                from foms.services.notifications.production_change import (
+                    finalize_production_change_alert,
+                )
+                finalize_production_change_alert(
+                    db, prod_notif, created_new=prod_notif_created
+                )
+            except Exception:
+                current_app.logger.warning(
+                    "production change finalize failed on field_update",
                     exc_info=True,
                 )
 

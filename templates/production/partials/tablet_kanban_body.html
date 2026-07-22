@@ -46,22 +46,25 @@
     </div>
   </div>
   {# ── 상단 KPI 타일 4종 (W11 erp-pro-alert 그래머 재사용) ── #}
+  {# KPI 타일 3종 = 탭 필터(상호 배타 토글, 재탭 해제). erp-pro-alert 공용 문법 무터치 —
+     data-* + role/tabindex/aria-pressed 만 부착, 어포던스는 .tablet-prod-board 스코프 CSS.
+     line=제작중 열 / load=시공 D-DAY(dday 0) / delayed=지연(dday 음수). 이번 주 자수는 비인터랙티브. #}
   <div class="erp-pro-alerts" aria-label="생산 요약">
-    <div class="erp-pro-alert">
+    <div class="erp-pro-alert" data-tablet-prod-kpi="line" role="button" tabindex="0" aria-pressed="false">
       <div class="erp-pro-alert__icon"><i class="fas fa-industry" aria-hidden="true"></i></div>
       <div class="erp-pro-alert__content">
         <span class="erp-pro-alert__label">오늘 라인</span>
         <span class="erp-pro-alert__value">{{ _kpi.get('today_line', 0) }}</span>
       </div>
     </div>
-    <div class="erp-pro-alert">
+    <div class="erp-pro-alert" data-tablet-prod-kpi="load" role="button" tabindex="0" aria-pressed="false">
       <div class="erp-pro-alert__icon"><i class="fas fa-truck-ramp-box" aria-hidden="true"></i></div>
       <div class="erp-pro-alert__content">
         <span class="erp-pro-alert__label">오늘 상차</span>
         <span class="erp-pro-alert__value">{{ _kpi.get('today_load', 0) }}</span>
       </div>
     </div>
-    <div class="erp-pro-alert erp-pro-alert--danger">
+    <div class="erp-pro-alert erp-pro-alert--danger" data-tablet-prod-kpi="delayed" role="button" tabindex="0" aria-pressed="false">
       <div class="erp-pro-alert__icon"><i class="fas fa-triangle-exclamation" aria-hidden="true"></i></div>
       <div class="erp-pro-alert__content">
         <span class="erp-pro-alert__label">지연</span>
@@ -91,6 +94,13 @@
       <option value="1">1공장</option>
       <option value="2">2공장</option>
     </select>
+    {# 변경 모아보기 토글 — data-changed="1" 카드만 필터(묘비는 항상 표시). changed_count>0 이면
+       주의 강조(has-changes). 배선은 tablet-domain-sheets.js(is-on 클래스 토글 + 재필터). #}
+    <button type="button" data-tablet-prod-changed aria-pressed="false"
+            class="tablet-prod-changed{% if (changed_count | default(0, true)) > 0 %} has-changes{% endif %}">
+      <i class="fas fa-triangle-exclamation" aria-hidden="true"></i>
+      <span>변경 {{ changed_count | default(0, true) }}</span>
+    </button>
     <button type="button" data-tablet-prod-reset>초기화</button>
   </div>
 
@@ -102,15 +112,63 @@
       <span class="foms-kanban-col__count" aria-label="{{ col.rows|length }}건">{{ col.rows|length }}</span>
     </header>
     <div class="foms-kanban-col__body">
+      {# ── 묘비 카드: 이 버킷에서 취소(soft delete)된 주문. 각 열 최상단, 빨강 톤 명시 라벨.
+         삭제 주문이라 시트(404)를 열지 않음 → data-order-id·data-foms-sheet-url 미부여(카드 탭 무동작).
+         [확인] 버튼(data-order-id + change-ack)만 ack API 호출. HMI 무채 규율의 승인된 예외(변경 주의). #}
+      {% set _tombs = (tombstones | default([], true)) | selectattr('bucket', 'equalto', col.bucket) | list %}
+      {% for t in _tombs %}
+      <article class="foms-kanban-card foms-kanban-card--tomb" data-tomb="1">
+        <div class="foms-kanban-card__alert foms-kanban-card__alert--tomb">
+          <div class="foms-kanban-card__alert-row foms-kanban-card__alert-row--tomb">
+            <i class="fas fa-ban" aria-hidden="true"></i>
+            <span class="foms-kanban-card__alert-label">취소됨</span>
+            {% if t.deleted_md %}<span class="foms-kanban-card__alert-detail">· {{ t.deleted_md }}</span>{% endif %}
+          </div>
+        </div>
+        <div class="foms-kanban-card__top">
+          <span class="foms-kanban-card__customer">{{ t.customer_name }}</span>
+        </div>
+        {% if t.product_label %}
+        <div class="foms-kanban-card__product">{{ t.product_label }}</div>
+        {% endif %}
+        <div class="foms-kanban-card__foot">
+          <button type="button" class="foms-kanban-ack-btn" data-order-id="{{ t.id }}" data-kanban-action="change-ack">
+            <i class="fas fa-check" aria-hidden="true"></i> 확인
+          </button>
+        </div>
+      </article>
+      {% endfor %}
       {% for o in col.rows %}
       {% set _flags = (o.structured_data.get('flags') if o.structured_data else none) or {} %}
       {% set _prod = (o.structured_data.get('production') if o.structured_data else none) or {} %}
       {% set _hold = (_prod.get('hold') if _prod else none) or {} %}
-      <article class="foms-kanban-card{% if _hold.get('active') %} is-held{% endif %}" data-order-id="{{ o.id }}"
+      {% set _alerts = o.change_alerts | default([], true) %}
+      {% set _has_changes = o.has_changes | default(false, true) %}
+      {% set _has_change_history = o.has_change_history | default(false, true) %}
+      <article class="foms-kanban-card{% if _hold.get('active') %} is-held{% endif %}{% if _has_changes %} is-changed{% endif %}" data-order-id="{{ o.id }}"
         data-foms-sheet-url="{{ url_for('erp_production_page.erp_production_tablet_sheet', order_id=o.id) }}"
         data-factory2="{{ 1 if _flags.get('factory2') else 0 }}"
+        data-changed="{{ 1 if _has_changes else 0 }}"
+        data-change-history="{{ 1 if _has_change_history else 0 }}"
+        data-dday="{{ o.construction_dday if o.construction_dday is not none else '' }}"
         role="button" tabindex="0"
         aria-label="{{ o.customer_name }} 주문 상세 열기">
+        {# ── 변경 스트립: 생산 진입 후 감지된 시공일/도면 변경(kind별 파랑/주황). HMI 무채
+           규율의 승인된 예외(변경=주의). 좌측 보더+옅은 틴트로 카드 전체를 삼키지 않음. #}
+        {% if _alerts %}
+        <div class="foms-kanban-card__alert" role="status">
+          {% for a in _alerts %}
+          <div class="foms-kanban-card__alert-row foms-kanban-card__alert-row--{{ a.kind }}">
+            <i class="fas {{ 'fa-calendar-day' if a.kind == 'construction_date' else ('fa-pen-ruler' if a.kind == 'drawing' else 'fa-circle-info') }}" aria-hidden="true"></i>
+            <span class="foms-kanban-card__alert-label">{{ a.label }}</span>
+            {% if a.kind == 'construction_date' and a.to_md %}
+            {# 시공일 변경: 신(to_md)만 danger 빨강 강조. from_md 미공급 시 '미정'. #}
+            <span class="foms-kanban-card__alert-detail">{{ a.from_md | default('미정', true) }} → <span class="foms-kanban-card__alert-to">{{ a.to_md }}</span></span>
+            {% elif a.detail %}<span class="foms-kanban-card__alert-detail">{{ a.detail }}</span>{% endif %}
+          </div>
+          {% endfor %}
+        </div>
+        {% endif %}
         <div class="foms-kanban-card__top">
           <span class="foms-kanban-card__customer">{{ o.customer_name }}</span>
           <span class="foms-kanban-card__top-right">
@@ -126,6 +184,16 @@
             <span class="foms-kanban-card__factory" title="라홈시스템(2공장) 발주">
               <i class="fas fa-industry" aria-hidden="true"></i> 2공장
             </span>
+            {% endif %}
+            {% if o.is_regional | default(false, true) %}
+            {# 지방 주문 — __factory 칩과 같은 문법의 그린 변형(라우팅 정보). #}
+            <span class="foms-kanban-card__regional" title="지방 주문">
+              <i class="fas fa-location-dot" aria-hidden="true"></i> 지방
+            </span>
+            {% endif %}
+            {% if not _has_changes and _has_change_history %}
+            {# 확인 후 상설 배지 — 미확인(스트립·펄스) 아니고 이력만 있을 때. 차분한 info 톤. #}
+            <span class="foms-kanban-card__changed-quiet" title="변경 이력 있음(확인됨)">변경됨</span>
             {% endif %}
           </span>
         </div>
@@ -159,13 +227,20 @@
         <div class="foms-kanban-card__foot">
           {% set _dday = o.construction_dday %}
           {% if _dday is not none %}
-          {# D-day 부호 표기는 한 번만 만들어 칩 본문과 title(스크린리더용 완전 문장)에 재사용. #}
+          {# D-day 부호 표기는 한 번만 만들어 칩 본문과 title(스크린리더용 완전 문장)에 재사용.
+             --sched: 카드 내 제2 시각 앵커로 격상(날짜·D-day 확대·700). is-overdue/is-imminent 규율 유지. #}
           {% set _dday_text = 'D+' ~ (-_dday) if _dday < 0 else ('D-DAY' if _dday == 0 else 'D-' ~ _dday) %}
-          <span class="foms-kanban-chip{% if _dday < 0 %} is-overdue{% elif _dday <= 2 %} is-imminent{% endif %}"
+          <span class="foms-kanban-chip foms-kanban-chip--sched{% if _dday < 0 %} is-overdue{% elif _dday <= 2 %} is-imminent{% endif %}"
                 title="시공 예정일{% if o.construction_md %} {{ o.construction_md }}{% endif %} · {{ _dday_text }}">
             <span class="foms-kanban-chip__label">시공</span>
             {% if o.construction_md %}<span class="foms-kanban-chip__date">{{ o.construction_md }}</span>{% endif %}
             <span class="foms-kanban-chip__dday">{{ _dday_text }}</span>
+          </span>
+          {% else %}
+          {# 무일정 카드: 미정 구분(현재는 미표시). 무채 칩으로 명시. #}
+          <span class="foms-kanban-chip foms-kanban-chip--no-date" title="시공 예정일 미정">
+            <span class="foms-kanban-chip__label">시공</span>
+            <span class="foms-kanban-chip__date">미정</span>
           </span>
           {% endif %}
           {% if col.move == 'start' %}
@@ -184,12 +259,67 @@
         </div>
       </article>
       {% endfor %}
-      {% if not col.rows %}
+      {% if not col.rows and not _tombs %}
       <p class="foms-kanban-col__empty">해당 없음</p>
       {% endif %}
     </div>
   </div>
   {% endfor %}
   </section>
+
+  {# ── 변경 브리핑 모달 (R4): 진입 시 changed_count>0 이면 자동 표시(배선은 tablet-domain-sheets.js).
+     데이터원 = 카드와 동일(orders.change_alerts/has_changes + tombstones). 백엔드 무변경 — 각 행
+     [확인] 버튼이 기존 change-ack 를 단건 호출한다. 닫기/Esc/딤은 이번 화면에서만 닫힘 —
+     영구 억제(fingerprint) 없음: 다음 로드/스왑 시 미확인 변경 있으면 무조건 재표시(의도된 마찰).
+     HMI: 무채 바탕, kind색은 행 좌보더로만, to_md 는 기존 빨강 규칙(.foms-kanban-card__alert-to) 재사용. #}
+  {% if (changed_count | default(0, true)) > 0 %}
+  <div id="foms-prod-change-modal" class="foms-prod-change-modal" data-prod-change-dim
+       role="dialog" aria-modal="true" aria-label="생산 변경 브리핑" hidden>
+    <div class="foms-prod-change-modal__dialog">
+      <div class="foms-prod-change-modal__head">
+        <h2 class="foms-prod-change-modal__title">변경 브리핑</h2>
+        <span class="foms-prod-change-modal__count">{{ changed_count | default(0, true) }}건</span>
+      </div>
+      <ul class="foms-prod-change-modal__list">
+        {% for o in orders | selectattr('has_changes') | list %}
+        <li class="foms-prod-change-modal__item" data-order-id="{{ o.id }}">
+          <div class="foms-prod-change-modal__item-body">
+            <div class="foms-prod-change-modal__item-head">
+              <span class="foms-prod-change-modal__item-customer">{{ o.customer_name }}</span>
+              <span class="foms-prod-change-modal__item-id">#{{ o.id }}</span>
+            </div>
+            {% for a in (o.change_alerts | default([], true)) %}
+            <div class="foms-prod-change-modal__alert foms-prod-change-modal__alert--{{ a.kind }}">
+              <span class="foms-prod-change-modal__alert-label">{{ a.label }}</span>
+              {% if a.kind == 'construction_date' and a.to_md %}
+              <span class="foms-prod-change-modal__alert-detail">{{ a.from_md | default('미정', true) }} → <span class="foms-kanban-card__alert-to">{{ a.to_md }}</span></span>
+              {% elif a.detail %}<span class="foms-prod-change-modal__alert-detail">{{ a.detail }}</span>{% endif %}
+            </div>
+            {% endfor %}
+          </div>
+          <button type="button" class="foms-prod-change-modal__row-ack" data-prod-change-row-ack data-order-id="{{ o.id }}">확인</button>
+        </li>
+        {% endfor %}
+        {% for t in tombstones | default([], true) %}
+        <li class="foms-prod-change-modal__item foms-prod-change-modal__item--tomb" data-order-id="{{ t.id }}">
+          <div class="foms-prod-change-modal__item-body">
+            <div class="foms-prod-change-modal__item-head">
+              <span class="foms-prod-change-modal__item-customer">{{ t.customer_name }}</span>
+              <span class="foms-prod-change-modal__item-id">#{{ t.id }}</span>
+            </div>
+            <div class="foms-prod-change-modal__alert foms-prod-change-modal__alert--tomb">
+              <span class="foms-prod-change-modal__alert-label">취소됨{% if t.deleted_md %} · {{ t.deleted_md }}{% endif %}</span>
+            </div>
+          </div>
+          <button type="button" class="foms-prod-change-modal__row-ack" data-prod-change-row-ack data-order-id="{{ t.id }}">확인</button>
+        </li>
+        {% endfor %}
+      </ul>
+      <div class="foms-prod-change-modal__foot">
+        <button type="button" class="foms-prod-change-modal__btn foms-prod-change-modal__btn--close" data-prod-change-close>닫기</button>
+      </div>
+    </div>
+  </div>
+  {% endif %}
 </div>
-<script src="{{ url_for('static', filename='js/foms/tablet-domain-sheets.js') }}?v=20260713b" defer></script>
+<script src="{{ url_for('static', filename='js/foms/tablet-domain-sheets.js') }}?v=20260722d" defer></script>

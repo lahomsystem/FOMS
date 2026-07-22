@@ -31,7 +31,7 @@ from foms.services.erp_policy import (
     check_quest_approvals_complete,
     create_quest_from_template,
 )
-from foms.services.datetime_kst import get_today_kst, now_kst
+from foms.services.datetime_kst import get_today_kst, now_kst, now_utc_naive
 from foms.services.erp_order_flags import is_erp_draft_structured_data, is_erp_order_draft
 from foms.services.erp_sync_columns import sync_erp_flat_columns
 from foms.services.orders.erp_automation import apply_auto_tasks
@@ -41,6 +41,10 @@ from foms.services.jobs.queue import enqueue_geocode_order_address
 from foms.services.notifications.drawing_order_change import (
     apply_drawing_order_change_alert,
     finalize_drawing_order_change_alert,
+)
+from foms.services.notifications.production_change import (
+    apply_production_change_alert,
+    finalize_production_change_alert,
 )
 from foms.services.order_geocode import reset_order_geocode_on_address_change
 from foms.services.feature_flags import env_bool
@@ -336,7 +340,7 @@ def _handle_stage_transition(
         stage_label = STAGE_LABELS.get(old_stage, old_stage) if old_stage else '알 수 없음'
         missing_team_labels = [TEAM_LABELS.get(t, t) for t in missing_teams]
         logger.warning("[%s] Quest 승인 미완료 팀: %s", stage_label, ', '.join(missing_team_labels))
-    (structured_data.get('workflow') or {})['stage_updated_at'] = datetime.datetime.now().isoformat()
+    (structured_data.get('workflow') or {})['stage_updated_at'] = now_utc_naive().isoformat()
     db.add(OrderEvent(
         order_id=order.id,
         event_type='STAGE_CHANGED',
@@ -462,6 +466,39 @@ def _emit_drawing_order_change_if_needed(
         )
     except Exception as e:
         logger.warning("[ERP_ORDER] drawing order-change alert failed: %s", e, exc_info=True)
+        return None, False
+
+
+def _emit_production_change_if_needed(
+    db: Session,
+    order: Order,
+    old_sd: dict,
+    new_sd: dict,
+) -> Tuple[Any, bool]:
+    """시공일 변경 시 생산팀 알림 반영(생산 파이프라인 게이트는 서비스가 판정).
+
+    실패해도 저장은 계속한다(로그만).
+    """
+    try:
+        old_c = (old_sd or {}).get("schedule") or {}
+        new_c = (new_sd or {}).get("schedule") or {}
+        old_date = ((old_c.get("construction") or {}) if isinstance(old_c, dict) else {}).get("date")
+        new_date = ((new_c.get("construction") or {}) if isinstance(new_c, dict) else {}).get("date")
+        if old_date == new_date:
+            return None, False
+        from foms.services.production_change_alerts import _date_to_md
+
+        actor_id, actor_name = _actor_name(db)
+        return apply_production_change_alert(
+            db,
+            order,
+            "construction_date",
+            f"{_date_to_md(old_date)} → {_date_to_md(new_date)}",
+            actor_user_id=actor_id,
+            actor_name=actor_name,
+        )
+    except Exception as e:
+        logger.warning("[ERP_ORDER] production change alert failed: %s", e, exc_info=True)
         return None, False
 
 
@@ -650,6 +687,9 @@ def api_patch_order_structured_fields(order_id: int):
             old_construction_type=old_construction_type,
             new_construction_type=getattr(order, 'construction_type', None),
         )
+        prod_notif, prod_notif_created = _emit_production_change_if_needed(
+            db, order, old_sd, structured_data
+        )
         order.structured_data = copy.deepcopy(structured_data)
         flag_modified(order, 'structured_data')
         sync_erp_flat_columns(order, structured_data)
@@ -661,6 +701,10 @@ def api_patch_order_structured_fields(order_id: int):
         from foms.services.common.dashboard_cache import invalidate_all_dashboard_slice_caches
         invalidate_all_dashboard_slice_caches()
         finalize_drawing_order_change_alert(db, drawing_notif, created_new=drawing_notif_created)
+        try:
+            finalize_production_change_alert(db, prod_notif, created_new=prod_notif_created)
+        except Exception as e:
+            logger.warning("[ERP_ORDER] production change finalize failed: %s", e, exc_info=True)
 
         return jsonify({
             'success': True,
@@ -715,6 +759,8 @@ def api_put_order_structured(order_id):
         old_construction_type = getattr(order, 'construction_type', None)
         drawing_notif = None
         drawing_notif_created = False
+        prod_notif = None
+        prod_notif_created = False
 
         # 모든 structured PUT은 실제 저장/승격 경로다. draft row도 여기서만 실제 주문으로 확정된다.
         if structured_data is not None:
@@ -804,6 +850,9 @@ def api_put_order_structured(order_id):
                 old_construction_type=old_construction_type,
                 new_construction_type=getattr(order, 'construction_type', None),
             )
+            prod_notif, prod_notif_created = _emit_production_change_if_needed(
+                db, order, old_sd, structured_data
+            )
 
             order.structured_data = copy.deepcopy(structured_data)
             flag_modified(order, 'structured_data')
@@ -831,6 +880,10 @@ def api_put_order_structured(order_id):
 
         invalidate_all_dashboard_slice_caches()
         finalize_drawing_order_change_alert(db, drawing_notif, created_new=drawing_notif_created)
+        try:
+            finalize_production_change_alert(db, prod_notif, created_new=prod_notif_created)
+        except Exception as e:
+            logger.warning("[ERP_ORDER] production change finalize failed: %s", e, exc_info=True)
         commit_time = (time.perf_counter() - start_time) * 1000
         logger.info(f"save latency - main_commit: {commit_time:.1f}ms")
 

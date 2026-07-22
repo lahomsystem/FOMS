@@ -47,6 +47,10 @@ from foms.services.production_dashboard_display import (
     build_production_enriched_rows,
     build_production_process_steps,
 )
+from foms.services.production_change_alerts import (
+    collect_production_change_alerts,
+    collect_production_tombstones,
+)
 from foms.services.erp_permissions import (
     can_edit_erp,
     is_order_related_to_user,
@@ -114,7 +118,12 @@ def erp_production_dashboard():
     step_stats = _summary_blob["step_stats"]
     kpis = _summary_blob["kpis"]
     total_orders = int(_summary_blob["total_orders"])
-    _q = _q.order_by(Order.created_at.desc())
+    # 시공일 빠른 순 정렬(YYYY-MM-DD String(10) 사전순=시간순, index 있음). 미정(NULL)은
+    # 뒤로, 동률/미정은 created_at 최신 순. PC 리스트에도 동일 적용(의도됨).
+    _q = _q.order_by(
+        Order.erp_construction_date.asc().nulls_last(),
+        Order.created_at.desc(),
+    )
 
     page, total_pages, page_rows = paginate_production_rows(
         _q, _pf.page, total_orders
@@ -164,6 +173,10 @@ def erp_production_dashboard():
     _queue_preview_items = batch_resolve_queue_attachment_preview_items(
         db, [r["id"] for r in enriched]
     )
+    # 변경 감지(시공일 변경·도면 재전달/수정요청): 배치 1쿼리(N+1 금지). 지방 뱃지는 이미
+    # 로드된 page_rows 의 flat 컬럼에서 파생.
+    _orders_by_id = {o.id: o for o in page_rows}
+    _alerts_by_id = collect_production_change_alerts(db, page_rows, user.id if user else None)
     for _r in enriched:
         items = _queue_preview_items.get(_r["id"], [])
         _r["attachment_preview_items"] = items
@@ -175,6 +188,15 @@ def erp_production_dashboard():
         _r["units_display"] = _prod_sheet_total_units(
             _card_items if isinstance(_card_items, list) else []
         )
+        _r["is_regional"] = bool(getattr(_orders_by_id.get(_r["id"]), "is_regional", False))
+        _rc = _alerts_by_id.get(_r["id"]) or {"alerts": [], "history": []}
+        _r["change_alerts"] = _rc["alerts"]        # 미확인(시끄러운 스트립)
+        _r["has_changes"] = bool(_rc["alerts"])
+        _r["change_history"] = _rc["history"]      # 진입 이후 전체(확인 후에도 남는 상설 이력)
+        _r["has_change_history"] = bool(_rc["history"])
+    # 취소 묘비(최근 14일, 생산 파이프라인, 미확인)와 변경 카운트(변경 행 수 + 묘비 수).
+    tombstones = collect_production_tombstones(db, user, erp_mine_only)
+    changed_count = sum(1 for _r in enriched if _r.get("has_changes")) + len(tombstones)
     process_steps = build_production_process_steps(step_stats)
     # 태블릿 칸반 상단 KPI 4종: 칸반이 소비하는 동일 `enriched` 행에서만 파생(신규 쿼리 없음).
     tablet_prod_kpis = _compute_tablet_prod_kpis(enriched)
@@ -205,6 +227,8 @@ def erp_production_dashboard():
             total_pages=total_pages,
             total_orders=total_orders,
             tablet_prod_kpis=tablet_prod_kpis,
+            tombstones=tombstones,
+            changed_count=changed_count,
         )
     )
     apply_ept_b7_render_headers(
@@ -351,6 +375,7 @@ def erp_production_tablet_sheet(order_id: int):
     )
     if order is None:
         abort(404)
+    user = getattr(g, 'current_user', None)
     sd = _ensure_dict(order.structured_data)
     items = sd.get('items')
     if not isinstance(items, list):
@@ -370,4 +395,9 @@ def erp_production_tablet_sheet(order_id: int):
         'hold_active': bool(_hold.get('active')),
         'hold_reason': (_hold.get('reason') or '').strip() if isinstance(_hold.get('reason'), str) else '',
     }
+    _sc = collect_production_change_alerts(db, [order], user.id if user else None).get(order.id) or {"alerts": [], "history": []}
+    sheet['change_alerts'] = _sc['alerts']
+    sheet['has_changes'] = bool(_sc['alerts'])
+    sheet['change_history'] = _sc['history']
+    sheet['has_change_history'] = bool(_sc['history'])
     return render_template('production/partials/tablet_sheet.html', order=sheet)

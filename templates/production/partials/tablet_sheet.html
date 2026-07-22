@@ -26,6 +26,47 @@
   <div class="foms-prod-sheet__hold-reason" data-tablet-sheet-hold-reason-view>보류 사유: {{ order.hold_reason }}</div>
   {% endif %}
 
+  {# ── 변경 알림: 생산 진입 후 감지된 시공일/도면 변경 목록 + [변경 확인](ack API → reload).
+     계약: order.has_changes / order.change_alerts(list[{kind,label,detail}]). 백엔드 미도착 안전 접근. #}
+  {% set _alerts = order.change_alerts | default([], true) if order else [] %}
+  {% if (order.has_changes | default(false, true)) and _alerts %}
+  <section class="foms-prod-sheet__changes" aria-label="변경 알림">
+    <div class="foms-prod-sheet__card-title">변경 알림</div>
+    <ul class="foms-prod-sheet__change-list">
+      {% for a in _alerts %}
+      <li class="foms-prod-sheet__change foms-prod-sheet__change--{{ a.kind }}">
+        <i class="fas {{ 'fa-calendar-day' if a.kind == 'construction_date' else ('fa-pen-ruler' if a.kind == 'drawing' else 'fa-circle-info') }}" aria-hidden="true"></i>
+        <span class="foms-prod-sheet__change-label">{{ a.label }}</span>
+        {% if a.kind == 'construction_date' and a.to_md %}
+        <span class="foms-prod-sheet__change-detail">{{ a.from_md | default('미정', true) }} → <span class="foms-prod-sheet__change-to">{{ a.to_md }}</span></span>
+        {% elif a.detail %}<span class="foms-prod-sheet__change-detail">{{ a.detail }}</span>{% endif %}
+      </li>
+      {% endfor %}
+    </ul>
+    <button type="button" class="foms-prod-sheet__change-ack" data-kanban-action="change-ack" data-order-id="{{ order.id }}">변경 확인</button>
+  </section>
+  {% endif %}
+
+  {# ── 변경 이력 (확인됨): 미확인 아님 + 이력 있음. 동일 목록, 확인 버튼 없음, 차분한 톤.
+     계약: order.has_change_history / order.change_history(동일 구조). 백엔드 미도착 안전 접근. #}
+  {% set _hist = order.change_history | default([], true) if order else [] %}
+  {% if not (order.has_changes | default(false, true)) and (order.has_change_history | default(false, true)) and _hist %}
+  <section class="foms-prod-sheet__changes foms-prod-sheet__changes--history" aria-label="변경 이력 (확인됨)">
+    <div class="foms-prod-sheet__card-title">변경 이력 (확인됨)</div>
+    <ul class="foms-prod-sheet__change-list">
+      {% for a in _hist %}
+      <li class="foms-prod-sheet__change foms-prod-sheet__change--{{ a.kind }}">
+        <i class="fas {{ 'fa-calendar-day' if a.kind == 'construction_date' else ('fa-pen-ruler' if a.kind == 'drawing' else 'fa-circle-info') }}" aria-hidden="true"></i>
+        <span class="foms-prod-sheet__change-label">{{ a.label }}</span>
+        {% if a.kind == 'construction_date' and a.to_md %}
+        <span class="foms-prod-sheet__change-detail">{{ a.from_md | default('미정', true) }} → <span class="foms-prod-sheet__change-to">{{ a.to_md }}</span></span>
+        {% elif a.detail %}<span class="foms-prod-sheet__change-detail">{{ a.detail }}</span>{% endif %}
+      </li>
+      {% endfor %}
+    </ul>
+  </section>
+  {% endif %}
+
   {# ── hl-tile: 총 자수 (W/300) ── #}
   <div class="foms-prod-sheet__hl">
     <span class="foms-prod-sheet__hl-label">총 자수 <span class="foms-prod-sheet__hl-sub">(W/300)</span></span>

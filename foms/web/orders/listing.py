@@ -19,7 +19,7 @@ from foms.services.orders.status_constants import STATUS
 from foms.services.order_display_utils import format_options_for_display, _ensure_dict
 from foms.services.jobs.queue import enqueue_geocode_order_address
 from foms.services.erp_display import erp_deposit_amount_from_structured
-from foms.services.datetime_kst import get_today_kst, now_kst
+from foms.services.datetime_kst import get_today_kst, now_kst, now_utc_naive
 from foms.services.erp_sync_columns import sync_erp_flat_columns
 from foms.services.request_utils import (
     get_preserved_filter_args,
@@ -297,7 +297,7 @@ def add_order():
 
                 structured_data.setdefault('workflow', {})
                 structured_data['workflow']['stage'] = stage or 'RECEIVED'
-                structured_data['workflow']['stage_updated_at'] = datetime.datetime.now().isoformat()
+                structured_data['workflow']['stage_updated_at'] = now_utc_naive().isoformat()
                 structured_data.setdefault('assignments', {})
                 if owner_team:
                     structured_data['assignments']['owner_team'] = owner_team

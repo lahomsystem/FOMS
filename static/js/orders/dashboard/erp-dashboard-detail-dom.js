@@ -512,6 +512,31 @@
                 </div>
               </div>
             </div>`;
+            } else if (stage === 'CONFIRM' && (sd.drawing_status || '') === 'CONFIRMED') {
+              // 컨펌 후 수정요청 진입로 — 축약 블록: "도면 완료" 라벨 + [수정 요청](영업측만, TRANSFERRED
+              // 분기와 동일 조건 canEdit && (sales/manager/admin)). 도면팀측 버튼은 렌더 안 함.
+              const canEdit = typeof CAN_EDIT_ERP !== 'undefined' && CAN_EDIT_ERP;
+              const isSalesTeam = (MY_TEAM === 'SALES');
+              const isManager = (manager === MY_NAME);
+              const isAdmin = (MY_ROLE === 'ADMIN');
+              const reviseBtn = (canEdit && (isSalesTeam || isManager || isAdmin))
+                ? '<button class="btn btn-warning" onclick="openRevisionRequestModal(' + orderId + ')"><i class="fas fa-undo"></' + 'i> 수정 요청</' + 'button>'
+                : '';
+              actionHtml = `
+            <div class="col-12">
+              <div class="card bg-light border-success">
+                <div class="card-body">
+                  <div class="d-flex justify-content-between align-items-center flex-wrap gap-2">
+                    <h5 class="card-title fw-bold text-success mb-0">
+                      <i class="fas fa-drafting-compass"></i> 도면 완료
+                      <span class="badge bg-success ms-2">도면 완료</span>
+                    </h5>
+                    ${reviseBtn}
+                  </div>
+                  ${reviseBtn ? '<div class="text-muted small mt-2"><i class="fas fa-info-circle"></' + 'i> 수정 요청 시 도면 전달 상태로 복귀하고 도면팀에 알림이 전달됩니다.</div>' : ''}
+                </div>
+              </div>
+            </div>`;
             }
 
             container.innerHTML = `

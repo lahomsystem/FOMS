@@ -247,6 +247,16 @@ def perform_drawing_transfer(
     db.flush()
     # 같은 트랜잭션에서 수신자 state + 'created' 이벤트 생성(상태 없는 고아 알림 방지).
     fan_out_new_notification(db, new_notification, actor_user_id=user_id)
+    prod_notif = None
+    prod_notif_created = False
+    try:
+        from foms.services.notifications.production_change import apply_production_change_alert
+        prod_notif, prod_notif_created = apply_production_change_alert(
+            db, order, "drawing", "도면 재전달",
+            actor_user_id=user_id, actor_name=user_name,
+        )
+    except Exception as e:
+        logger.warning("production change alert (transfer) failed: %s", e, exc_info=True)
     db.add(SecurityLog(user_id=user_id, message=f"주문 #{order_id} 도면 전달 완료: {note}"))
     db.commit()
     # 도메인-스코프: 도면 전달 완료는 workflow.stage를 바꾸지 않고 drawing_status만
@@ -281,6 +291,12 @@ def perform_drawing_transfer(
             'message': new_notification.message,
         },
     )
+
+    try:
+        from foms.services.notifications.production_change import finalize_production_change_alert
+        finalize_production_change_alert(db, prod_notif, created_new=prod_notif_created)
+    except Exception as e:
+        logger.warning("production change finalize (transfer) failed: %s", e, exc_info=True)
 
     target_info = "라홈팀" if target_team == 'CS' else (
         "하우드팀" if target_team == 'HAUDD' else (
@@ -502,6 +518,40 @@ def api_order_cancel_transfer(order_id):
                 f"히스토리 정리: {'Y' if removed_transfer else 'N'})"
             )
         ))
+
+        # 전달취소 알림 → 영업(전달 알림과 동일 매니저 라우팅). 실패해도 취소는 진행(로그만).
+        cancel_notif = None
+        cancel_target_team = None
+        cancel_target_manager = None
+        try:
+            _mgr = (((s_data.get('parties') or {}).get('manager') or {}).get('name') or '').strip()
+            _cust = (((s_data.get('parties') or {}).get('customer') or {}).get('name') or '').strip()
+            if '라홈' in _mgr:
+                cancel_target_team = 'CS'
+            elif '하우드' in _mgr:
+                cancel_target_team = 'HAUDD'
+            else:
+                cancel_target_team = 'SALES'
+                cancel_target_manager = _mgr or None
+            _msg = f"주문 #{order_id}" + (f" ({_cust})" if _cust else "") + " 도면 전달이 취소되었습니다."
+            cancel_notif = Notification(
+                order_id=order_id,
+                notification_type='DRAWING_TRANSFER_CANCELLED',
+                target_team=cancel_target_team,
+                target_manager_name=cancel_target_manager,
+                title='도면 전달 취소',
+                message=_msg,
+                created_by_user_id=session.get('user_id'),
+                created_by_name=current_user.name,
+                is_read=False,
+            )
+            db.add(cancel_notif)
+            db.flush()
+            fan_out_new_notification(db, cancel_notif, actor_user_id=session.get('user_id'))
+        except Exception as _notif_err:
+            cancel_notif = None
+            logger.warning("cancel-transfer notification build failed: %s", _notif_err, exc_info=True)
+
         db.commit()
         # 도메인-스코프: 도면 전달 취소도 stage 무변경(drawing_status 복원만)
         # → 도면·주문 목록만 무효화.
@@ -512,6 +562,24 @@ def api_order_cancel_transfer(order_id):
         )
 
         invalidate_dashboard_families(DASHBOARD_FAMILY_DRAWING, DASHBOARD_FAMILY_ORDERS)
+
+        # 커밋 후: push/badge/realtime(전달 알림 finalize 미러). 실패해도 취소 결과 불침해.
+        if cancel_notif is not None:
+            try:
+                from foms.services.notifications.push_sender import enqueue_push_for_notification
+                enqueue_push_for_notification(cancel_notif.id, db=db)
+                _rids = resolve_notification_recipient_user_ids(
+                    db, target_team=cancel_target_team,
+                    target_manager_name=cancel_target_manager, include_admin=True,
+                )
+                invalidate_badge_cache_for_user_ids(_rids)
+                emit_erp_notification_to_users(_rids, {
+                    'notification_id': cancel_notif.id, 'order_id': order_id,
+                    'notification_type': 'DRAWING_TRANSFER_CANCELLED',
+                    'title': cancel_notif.title, 'message': cancel_notif.message,
+                })
+            except Exception as _fin_err:
+                logger.warning("cancel-transfer notification finalize failed: %s", _fin_err, exc_info=True)
 
         status_label = '수정 요청 상태' if restore_status == 'RETURNED' else '작업중 상태'
         return jsonify({

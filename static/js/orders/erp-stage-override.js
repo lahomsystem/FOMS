@@ -46,7 +46,26 @@
     return 'same';
   }
 
+  var LOGISTICS_CODES = {
+    MEASURED: 1,
+    REGIONAL_MEASURED: 1,
+    SCHEDULED: 1,
+    SHIPPED_PENDING: 1,
+    COMPLETED: 1,
+    AS_RECEIVED: 1,
+    AS_COMPLETED: 1,
+    AS: 1,
+    ON_HOLD: 1,
+    DELETED: 1
+  };
+
+  function isLogisticsCode(code) {
+    return !!LOGISTICS_CODES[String(code || '').trim()];
+  }
+
   function needsOverride(from, to) {
+    // 물류↔물류만 보드 confirm 경로. 메인→COMPLETED 등 ERP 폼 스킵은 계속 override.
+    if (isLogisticsCode(from) && isLogisticsCode(to)) return false;
     var mode = classifyMove(from, to);
     return mode === 'regress' || mode === 'skip' || mode === 'jump';
   }

@@ -378,7 +378,12 @@
                                         <select class="form-select form-select-sm inline-edit status-dropdown" 
                                                 data-order-id="{{ order.id }}"
                                                 data-field="status">
-                                            {% for status_code, status_name in STATUS.items() %}
+                                            {% if order.status and order.status not in LOGISTICS_BOARD_STATUS %}
+                                                <option value="{{ order.status }}" selected>
+                                                    {{ STATUS.get(order.status, order.status) }}
+                                                </option>
+                                            {% endif %}
+                                            {% for status_code, status_name in LOGISTICS_BOARD_STATUS.items() %}
                                                 <option value="{{ status_code }}" {% if order.status == status_code %}selected{% endif %}>
                                                     {{ status_name }}
                                                 </option>
@@ -587,7 +592,12 @@
                                                 <select class="form-select form-select-sm inline-edit status-dropdown" 
                                                         data-order-id="{{ order.id }}"
                                                         data-field="status">
-                                                    {% for status_code, status_name in STATUS.items() %}
+                                                    {% if order.status and order.status not in LOGISTICS_BOARD_STATUS %}
+                                                <option value="{{ order.status }}" selected>
+                                                    {{ STATUS.get(order.status, order.status) }}
+                                                </option>
+                                            {% endif %}
+                                            {% for status_code, status_name in LOGISTICS_BOARD_STATUS.items() %}
                                                         <option value="{{ status_code }}" {% if order.status == status_code %}selected{% endif %}>
                                                             {{ status_name }}
                                                         </option>
@@ -779,7 +789,12 @@
                                                 <select class="form-select form-select-sm inline-edit status-dropdown" 
                                                         data-order-id="{{ order.id }}"
                                                         data-field="status">
-                                                    {% for status_code, status_name in STATUS.items() %}
+                                                    {% if order.status and order.status not in LOGISTICS_BOARD_STATUS %}
+                                                <option value="{{ order.status }}" selected>
+                                                    {{ STATUS.get(order.status, order.status) }}
+                                                </option>
+                                            {% endif %}
+                                            {% for status_code, status_name in LOGISTICS_BOARD_STATUS.items() %}
                                                         <option value="{{ status_code }}" {% if order.status == status_code %}selected{% endif %}>
                                                             {{ status_name }}
                                                         </option>
@@ -860,8 +875,8 @@
                                             </td>
                                             <td>
                                                 <input type="date" class="form-control form-control-sm inline-edit" 
-                                                       data-order-id="{{ order.id }}" data-field="completion_date" 
-                                                       value="{{ order.completion_date or '' }}">
+                                                       data-order-id="{{ order.id }}" data-field="scheduled_date" 
+                                                       value="{{ order.scheduled_date or '' }}">
                                             </td>
                                             <td>
                                                 <input type="date" class="form-control form-control-sm inline-edit" 
@@ -945,7 +960,12 @@
                                                 <select class="form-select form-select-sm inline-edit" 
                                                         data-order-id="{{ order.id }}"
                                                         data-field="status">
-                                                    {% for status_key, status_name in STATUS.items() %}
+                                                    {% if order.status and order.status not in LOGISTICS_BOARD_STATUS %}
+                                                        <option value="{{ order.status }}" selected>
+                                                            {{ STATUS.get(order.status, order.status) }}
+                                                        </option>
+                                                    {% endif %}
+                                                    {% for status_key, status_name in LOGISTICS_BOARD_STATUS.items() %}
                                                         {% if status_key not in ['DELETED'] %}
                                                         <option value="{{ status_key }}" {% if order.status == status_key %}selected{% endif %}>
                                                             {{ status_name }}
@@ -1055,8 +1075,8 @@
                                                 <input type="date" 
                                                        class="form-control form-control-sm inline-edit" 
                                                        data-order-id="{{ order.id }}"
-                                                       data-field="completion_date"
-                                                       value="{{ order.completion_date or '' }}">
+                                                       data-field="scheduled_date"
+                                                       value="{{ order.scheduled_date or '' }}">
                                             </td>
                                             <td style="width: 90px;">
                                                 <input type="date" 
@@ -1142,7 +1162,12 @@
                                             <td>
                                                 <select class="form-select form-select-sm inline-edit"
                                                         data-order-id="{{ order.id }}" data-field="status">
-                                                    {% for code, name in STATUS.items() %}
+                                                    {% if order.status and order.status not in LOGISTICS_BOARD_STATUS %}
+                                                        <option value="{{ order.status }}" selected>
+                                                            {{ STATUS.get(order.status, order.status) }}
+                                                        </option>
+                                                    {% endif %}
+                                                    {% for code, name in LOGISTICS_BOARD_STATUS.items() %}
                                                         <option value="{{ code }}" {% if order.status == code %}selected{% endif %}>{{ name }}</option>
                                                     {% endfor %}
                                                 </select>
@@ -1332,7 +1357,12 @@
                                                 <select class="form-select form-select-sm inline-edit status-dropdown" 
                                                         data-order-id="{{ order.id }}"
                                                         data-field="status">
-                                                    {% for status_code, status_name in STATUS.items() %}
+                                                    {% if order.status and order.status not in LOGISTICS_BOARD_STATUS %}
+                                                <option value="{{ order.status }}" selected>
+                                                    {{ STATUS.get(order.status, order.status) }}
+                                                </option>
+                                            {% endif %}
+                                            {% for status_code, status_name in LOGISTICS_BOARD_STATUS.items() %}
                                                         <option value="{{ status_code }}" {% if order.status == status_code %}selected{% endif %}>
                                                             {{ status_name }}
                                                         </option>
@@ -1739,41 +1769,38 @@ document.addEventListener('DOMContentLoaded', function() {
             }
         });
         
-        // select 요소인 경우 change 이벤트도 처리
+        // select: 물류 보드 confirm 후 저장 (stage-override 의식 없음)
         if (input.tagName.toLowerCase() === 'select') {
             input.addEventListener('change', function() {
-                if (this.value !== originalValue) {
-                    const field = this.dataset.field;
-                    const newValue = this.value;
-                    const orderId = this.dataset.orderId;
+                if (this.value === originalValue) return;
+                const field = this.dataset.field;
+                const newValue = this.value;
 
-                    if (field === 'status' && window.FOMS_STAGE_OVERRIDE &&
-                        window.FOMS_STAGE_OVERRIDE.interceptStatusChange(
-                            orderId, originalValue, newValue, function (ok) {
-                                if (ok) location.reload();
-                                else input.value = originalValue;
-                            }
-                        )) {
+                if (field === 'status') {
+                    const label = ((this.options[this.selectedIndex] && this.options[this.selectedIndex].text) || newValue).trim();
+                    if (!window.confirm('상태를 "' + label + '"(으)로 변경할까요?')) {
+                        this.value = originalValue;
                         return;
                     }
-
-                    // 상태 변경인 경우 자동 refresh 적용
-                    if (field === 'status' && (originalValue === 'SCHEDULED' || newValue === 'COMPLETED')) {
-                        updateOrderFieldWithRefresh(this);
-                    } else {
-                        updateOrderFieldInline(this);
-                    }
+                    const revertTo = originalValue;
+                    originalValue = this.value; // blur 이중제출 방지
+                    updateOrderFieldWithRefresh(this, revertTo);
+                    return;
                 }
+
+                originalValue = this.value; // blur 이중제출 방지
+                updateOrderFieldInline(this);
             });
         }
     });
 });
 
 // 인라인 편집 필드 업데이트 함수
-function updateOrderFieldWithRefresh(input) {
+function updateOrderFieldWithRefresh(input, revertValue) {
     const orderId = input.dataset.orderId;
     const field = input.dataset.field;
     const value = input.value.trim();
+    const previous = (typeof revertValue === 'string') ? revertValue : null;
 
     // 시각적 피드백
     input.style.backgroundColor = '#fff3cd';
@@ -1799,8 +1826,10 @@ function updateOrderFieldWithRefresh(input) {
             }, 500);
         } else {
             input.style.backgroundColor = '#f8d7da';
-            showToast(`오류: ${data.message}`, 'error');
-            
+            const msg = data.message || data.error || '상태 변경에 실패했습니다.';
+            showToast(`오류: ${msg}`, 'error');
+            window.alert(msg);
+            if (previous !== null) input.value = previous;
             setTimeout(() => {
                 input.style.backgroundColor = '';
             }, 2000);
@@ -1810,7 +1839,8 @@ function updateOrderFieldWithRefresh(input) {
         console.error('Error:', error);
         input.style.backgroundColor = '#f8d7da';
         showToast('서버 통신 중 오류가 발생했습니다.', 'error');
-        
+        window.alert('서버 통신 중 오류가 발생했습니다.');
+        if (previous !== null) input.value = previous;
         setTimeout(() => {
             input.style.backgroundColor = '';
         }, 2000);
@@ -2316,6 +2346,6 @@ function toggleCompletedConstructionType(type) {
 {% block scripts %}
 {% include "orders/partials/erp_stage_override_modal.html" %}
 <script>window.MY_ROLE = {{ (current_user.role if current_user is defined and current_user else '')|tojson }};</script>
-<script src="{{ url_for('static', filename='js/orders/erp-stage-override.js') }}?v=20260716b" defer></script>
+<script src="{{ url_for('static', filename='js/orders/erp-stage-override.js') }}?v=20260723b" defer></script>
 <script src="{{ url_for('static', filename='js/measurement/regional-shipping-export.js') }}?v=20260714a" defer></script>
 {% endblock %}

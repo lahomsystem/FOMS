@@ -10,6 +10,7 @@ from 이 AS/레거시면 → 메인으로의 jump 는 운영 복구용으로 허
 from __future__ import annotations
 
 import datetime
+from foms.services.datetime_kst import now_utc_naive
 from typing import Any, Optional
 
 from sqlalchemy.orm.attributes import flag_modified
@@ -178,7 +179,7 @@ def apply_stage_override(
         wf_raw = sd.get("workflow")
         workflow = dict(wf_raw) if isinstance(wf_raw, dict) else {}
         workflow["stage"] = to_code
-        workflow["stage_updated_at"] = datetime.datetime.now().isoformat()
+        workflow["stage_updated_at"] = now_utc_naive().isoformat()
         sd["workflow"] = workflow
         order.structured_data = sd
         flag_modified(order, "structured_data")

@@ -6,7 +6,7 @@ from sqlalchemy.dialects.postgresql import JSONB
 # JSON Type Compatibility Layer
 JSONColumn = JSON().with_variant(JSONB, 'postgresql')
 from db import Base
-from foms.services.datetime_kst import format_datetime_kst
+from foms.services.datetime_kst import format_datetime_kst, now_utc_naive
 
 class Order(Base):
     __tablename__ = 'orders'
@@ -261,7 +261,9 @@ class OrderEvent(Base):
     event_type = Column(String(50), nullable=False, index=True)  # e.g. STAGE_CHANGED, URGENT_SET
     payload = Column(JSONColumn, nullable=True)
     created_by_user_id = Column(Integer, ForeignKey('users.id'), nullable=True)
-    created_at = Column(DateTime, default=datetime.datetime.now, nullable=False, index=True)
+    # naive DB timestamp = UTC 규약(datetime_kst): created_at 를 UTC-naive 로 통일해
+    # 변경감지 윈도(도면 이력 now_utc_naive 와 naive 비교)를 dev/운영 모두 정합시킨다.
+    created_at = Column(DateTime, default=now_utc_naive, nullable=False, index=True)
 
     order = relationship('Order', foreign_keys=[order_id])
     created_by = relationship('User', foreign_keys=[created_by_user_id])

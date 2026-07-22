@@ -1,6 +1,7 @@
 """휴지통/삭제 관련 Blueprint: delete_order, trash, restore, permanent_delete."""
 
 import copy
+import logging
 
 from flask import Blueprint, flash, make_response, redirect, render_template, request, session, url_for
 from sqlalchemy import String, text
@@ -17,6 +18,8 @@ from foms.services.gnav_contract import gnav_orders_layout_parent, wants_gnav_fr
 from models import Order
 
 order_trash_bp = Blueprint("order_trash", __name__, url_prefix="")
+
+logger = logging.getLogger(__name__)
 
 
 def _build_erp_order_options_summary(structured_data):
@@ -152,10 +155,27 @@ def delete_order(order_id):
         order.original_status = original_status
         order.deleted_at = now_kst().strftime("%Y-%m-%d %H:%M:%S")
         customer_name_for_log = order.customer_name
-        db.commit()
 
         user_for_log = get_user_by_id(session.get("user_id"))
         user_name_for_log = user_for_log.name if user_for_log else "Unknown user"
+        prod_notif = None
+        prod_notif_created = False
+        try:
+            from foms.services.notifications.production_change import apply_production_change_alert
+            prod_notif, prod_notif_created = apply_production_change_alert(
+                db, order, "cancelled", "",
+                actor_user_id=session.get("user_id"), actor_name=user_name_for_log,
+            )
+        except Exception as exc_notif:
+            logger.warning("production change alert (delete) failed: %s", exc_notif, exc_info=True)
+
+        db.commit()
+
+        try:
+            from foms.services.notifications.production_change import finalize_production_change_alert
+            finalize_production_change_alert(db, prod_notif, created_new=prod_notif_created)
+        except Exception as exc_notif:
+            logger.warning("production change finalize (delete) failed: %s", exc_notif, exc_info=True)
         log_access(
             f"주문 #{order_id} ({customer_name_for_log}) 삭제 - 담당자: {user_name_for_log}",
             session.get("user_id"),

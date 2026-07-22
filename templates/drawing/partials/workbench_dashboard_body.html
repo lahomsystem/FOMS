@@ -124,6 +124,11 @@
             <input class="form-check-input auto-submit-checkbox" type="checkbox" name="due_today" value="1" {% if filters.get('due_today') == '1' %}checked{% endif %}>
             <span class="small ms-1">오늘 마감</span>
           </label>
+          <label class="form-check form-switch mb-0">
+            {# 컨펌 포함: include_confirmed=1 쿼리 왕복(기존 auto-submit 토글 문법 재사용). 백엔드가 CONFIRM 단계 주문을 목록에 포함. #}
+            <input class="form-check-input auto-submit-checkbox" type="checkbox" name="include_confirmed" value="1" {% if filters.get('include_confirmed') == '1' %}checked{% endif %}>
+            <span class="small ms-1">컨펌 포함</span>
+          </label>
         </div>
         <div class="erp-pro-filter-actions">
           <button class="erp-pro-btn erp-pro-btn--primary" type="submit">
@@ -215,6 +220,11 @@
                 {% if r.order_change_pending %}
                 <span class="badge dw-order-change-badge mt-1" title="ERP 주문 내용이 변경되었습니다">
                   <i class="fas fa-exclamation-triangle"></i> 주문변경
+                </span>
+                {% endif %}
+                {% if r.no_assignee|default(false) %}
+                <span class="badge dw-order-unassigned-badge mt-1" title="도면 담당자가 지정되지 않았습니다">
+                  <i class="fas fa-user-slash"></i> 담당 미지정
                 </span>
                 {% endif %}
               </td>

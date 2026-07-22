@@ -29,7 +29,7 @@ from foms.services.erp_display import (
 from foms.services.erp_shipment_settings import load_erp_shipment_settings
 from foms.services.measurement_manager_colors import build_measurement_manager_color_map
 from foms.services.measurement_dates import extract_all_measurement_dates
-from foms.services.orders.status_constants import STATUS
+from foms.services.orders.status_constants import LOGISTICS_BOARD_STATUS, STATUS
 from foms.services.common.dashboard_cache import (
     TTL_PANEL_ROWS,
     TTL_PAYLOAD_ASSEMBLY,
@@ -616,6 +616,7 @@ def regional_dashboard():
         shipping_alerts=shipping_alerts,
         shipping_completed_orders=shipping_completed_orders,
         STATUS=STATUS,
+        LOGISTICS_BOARD_STATUS=LOGISTICS_BOARD_STATUS,
         search_query=search_query,
         today=today.strftime("%Y-%m-%d"),
         tomorrow=(today + timedelta(days=1)).strftime("%Y-%m-%d"),
@@ -853,4 +854,5 @@ def self_measurement_dashboard():
         completed_orders=completed_orders,
         search_query=search_query,
         STATUS=STATUS,
+        LOGISTICS_BOARD_STATUS=LOGISTICS_BOARD_STATUS,
     )

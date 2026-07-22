@@ -30,7 +30,7 @@ SHIPMENT_DASHBOARD_SCRIPTS = "templates/shipment/partials/dashboard_scripts.html
 CORE_MEDIA_QUERY = (
     "(min-width: 992px) and (orientation: landscape) and (pointer: coarse)"
 )
-SCRIPT_CACHEBUSTER = "?v=20260713b"
+SCRIPT_CACHEBUSTER = "?v=20260722d"
 
 
 def _read(rel: str) -> str:
@@ -132,3 +132,67 @@ def test_domain_sheet_routes_registered(app) -> None:
     assert "erp_shipment_page.erp_shipment_tablet_sheet" in endpoints, (
         "출고 태블릿 시트 라우트 미등록"
     )
+
+
+# --- (5) 변경 브리핑 모달 (R4: 건별 확인·영구 억제 제거) ----------------------
+
+
+def test_kanban_body_change_modal_markup_gated_and_a11y() -> None:
+    """변경 브리핑 모달은 changed_count>0 일 때만 렌더 + dialog a11y + 행별 [확인]/닫기/딤 data
+    속성. R4: [전체 확인]·fingerprint 제거(영구 억제 없음)."""
+    body = _read(KANBAN_BODY)
+    assert "{% if (changed_count | default(0, true)) > 0 %}" in body
+    assert 'id="foms-prod-change-modal"' in body
+    assert 'role="dialog"' in body
+    assert 'aria-modal="true"' in body
+    for attr in (
+        "data-prod-change-row-ack",  # 행별 [확인]
+        "data-prod-change-close",
+        "data-prod-change-dim",
+    ):
+        assert attr in body, f"모달 버튼/딤 attr 부재: {attr}"
+    # R4 제거 계약: 전체확인 버튼·fingerprint 억제 없음.
+    assert "data-prod-change-ackall" not in body
+    assert "data-fingerprint" not in body
+
+
+def test_domain_sheets_js_wires_change_modal_per_row() -> None:
+    """모달 열기/닫기/행별 ack(리로드 없이 DOM 정리) + fragment 스왑 재도착 배선 + 기존
+    change-ack endpoint 재사용. R4: fingerprint(sessionStorage)·전체확인(Promise.all) 제거."""
+    js = _read(DOMAIN_SHEETS_JS)
+    assert "foms-prod-change-modal" in js
+    assert "foms:erp-shell-fragment-swapped" in js  # 스왑 도착 시 재표시(once-only)
+    assert "data-prod-change-row-ack" in js  # 행별 [확인] 위임
+    assert "/production/change-ack" in js  # 백엔드 무변경 — 기존 endpoint 재사용
+    # R4 제거 계약: 영구 억제(sessionStorage)·배치(Promise.all) 없음.
+    assert "sessionStorage" not in js
+    assert "Promise.all" not in js
+
+
+# --- (6) 확인 후 상설 "변경됨" 조용한 배지 (R5) ------------------------------
+
+PROD_SHEET = "templates/production/partials/tablet_sheet.html"
+
+
+def test_kanban_body_quiet_changed_badge_and_history_attr() -> None:
+    """확인 후 상설 조용한 칩 + data-change-history 속성 (미확인 아님 + 이력일 때)."""
+    body = _read(KANBAN_BODY)
+    assert "foms-kanban-card__changed-quiet" in body
+    assert "data-change-history=" in body
+    assert "not _has_changes and _has_change_history" in body
+
+
+def test_prod_sheet_confirmed_history_section() -> None:
+    """시트: 확인됨(이력만) 시 변경 이력 섹션(확인 버튼 없음, 차분한 변형) — order.change_history 소비."""
+    sheet = _read(PROD_SHEET)
+    assert "foms-prod-sheet__changes--history" in sheet
+    assert "change_history" in sheet
+
+
+def test_domain_sheets_js_quiet_transition_and_filter_or() -> None:
+    """ack 후 조용한 상태 전환(펄스 제거 + data-change-history=1 + 조용한 칩 주입) +
+    변경 필터 OR(미확인 data-changed 또는 확인된 이력 data-change-history)."""
+    js = _read(DOMAIN_SHEETS_JS)
+    assert "injectQuietBadge" in js
+    assert 'setAttribute("data-change-history", "1")' in js  # 조용한 상태 전환
+    assert 'getAttribute("data-change-history") === "1"' in js  # 필터 OR 조건

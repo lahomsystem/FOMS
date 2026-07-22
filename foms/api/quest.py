@@ -4,6 +4,7 @@ GET/POST /api/orders/<id>/quest, POST /approve, PUT /status
 """
 
 import datetime
+from foms.services.datetime_kst import now_utc_naive
 from flask import Blueprint, request, jsonify, session
 from sqlalchemy.orm.attributes import flag_modified
 
@@ -393,7 +394,7 @@ def api_order_quest_approve(order_id):
                     workflow = sd.get("workflow") or {}
                     old_stage = workflow.get("stage")
                     workflow["stage"] = next_stage_code
-                    workflow["stage_updated_at"] = now.isoformat()
+                    workflow["stage_updated_at"] = now_utc_naive().isoformat()
                     sd["workflow"] = workflow
 
                     # [GDM] Order.status 동기화

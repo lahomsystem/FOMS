@@ -5,6 +5,7 @@ erp.py에서 분리: production/start, production/complete, production/steps.
 
 import copy
 import datetime
+from foms.services.datetime_kst import now_utc_naive
 from functools import wraps
 from typing import Any, Callable
 
@@ -112,7 +113,7 @@ def api_production_start(order_id):
         sd = _ensure_dict(order.structured_data)
         wf = sd.get("workflow") or {}
         wf["stage"] = "PRODUCTION"
-        wf["stage_updated_at"] = datetime.datetime.now().isoformat()
+        wf["stage_updated_at"] = now_utc_naive().isoformat()
         wf["stage_updated_by"] = user.name if user else "Unknown"
 
         hist = wf.get("history") or []
@@ -157,7 +158,7 @@ def api_production_complete(order_id):
         sd = _ensure_dict(order.structured_data)
         wf = sd.get("workflow") or {}
         wf["stage"] = "CONSTRUCTION"
-        wf["stage_updated_at"] = datetime.datetime.now().isoformat()
+        wf["stage_updated_at"] = now_utc_naive().isoformat()
         wf["stage_updated_by"] = user.name if user else "Unknown"
 
         hist = wf.get("history") or []
@@ -204,6 +205,50 @@ def api_production_complete(order_id):
                 "new_status": "CONSTRUCTION",
             }
         )
+    except Exception as exc:
+        db.rollback()
+        return jsonify({"success": False, "message": str(exc)}), 500
+
+
+@erp_orders_production_bp.route("/<int:order_id>/production/change-ack", methods=["POST"])
+@login_required
+@_production_steps_edit_required
+def api_production_change_ack(order_id: int):
+    """생산 변경 확인(ack). 카드/시트 변경 스트립·묘비 [확인] 버튼이 호출한다.
+
+    ``PRODUCTION_CHANGE_ACK`` OrderEvent 를 1건 기록만 한다(structured_data·상태 불변).
+    이 ack 시각이 변경 감지 윈도를 리셋하므로 이후 대시보드 재조회 시 해당 주문의
+    변경 스트립이 사라진다. **삭제(취소)된 주문에도 허용**한다 — 묘비 카드 확인용이라
+    ``active_filter`` 대신 존재 여부만 확인한다.
+
+    권한: 생산 공정 스텝과 동일 게이트(ADMIN 또는 CS/SALES/**PRODUCTION** 팀). ack 는
+    "생산 인원 개인별" 설계라 생산팀 계정이 반드시 눌러야 하므로 erp_edit(ADMIN/CS/SALES
+    전용)이 아닌 스텝 게이트를 재사용한다.
+
+    :param order_id: 대상 주문 id.
+    :return: ``{success, data:{order_id}}`` 또는 오류 JSON.
+    """
+    db = get_db()
+    try:
+        order = db.get(Order, order_id)
+        if order is None:
+            return jsonify({"success": False, "message": "주문을 찾을 수 없습니다."}), 404
+
+        payload = {"source": "tablet_kanban"}
+        if order.deleted_at is not None:
+            # 묘비 확인: 이 삭제 시점을 마커로 고정한다(시계 비교 없이 동등성으로 판정).
+            # 복구 후 재삭제되면 deleted_at 값이 달라져 묘비가 다시 나타난다(의도된 동작).
+            payload["deleted_at"] = str(order.deleted_at)
+        db.add(
+            OrderEvent(
+                order_id=order_id,
+                event_type="PRODUCTION_CHANGE_ACK",
+                payload=payload,
+                created_by_user_id=session.get("user_id"),
+            )
+        )
+        db.commit()
+        return jsonify({"success": True, "data": {"order_id": order_id}})
     except Exception as exc:
         db.rollback()
         return jsonify({"success": False, "message": str(exc)}), 500

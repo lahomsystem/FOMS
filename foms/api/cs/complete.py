@@ -4,6 +4,7 @@ erp.py에서 분리: cs/complete.
 """
 import copy
 import datetime
+from foms.services.datetime_kst import now_utc_naive
 
 from flask import Blueprint, jsonify, session
 from sqlalchemy.orm.attributes import flag_modified
@@ -43,7 +44,7 @@ def api_cs_complete(order_id):
         wf = sd.get("workflow") or {}
 
         wf["stage"] = "COMPLETED"
-        wf["stage_updated_at"] = datetime.datetime.now().isoformat()
+        wf["stage_updated_at"] = now_utc_naive().isoformat()
         wf["stage_updated_by"] = user.name if user else "Unknown"
 
         hist = wf.get("history") or []
