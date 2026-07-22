@@ -387,3 +387,21 @@ def test_get_structured_returns_shipping_scheduled_date(client):
     assert data["success"] is True
     assert data["is_regional"] is True
     assert data["shipping_scheduled_date"] == "2026-07-15"
+
+
+def test_erp_order_bootstrap_includes_shipping_scheduled_date(client):
+    """편집 페이지 인라인 bootstrap도 GET /structured 와 동일하게 상차일을 포함한다."""
+    from foms.web.orders.edit import _build_erp_order_bootstrap
+
+    order = _create_order(
+        status="PRODUCTION",
+        structured_data={"workflow": {"stage": "PRODUCTION"}, "shipment": {}},
+    )
+    order.is_regional = True
+    order.shipping_scheduled_date = "2026-07-20"
+    db_session.commit()
+
+    payload = _build_erp_order_bootstrap(order)
+    assert payload["success"] is True
+    assert payload["shipping_scheduled_date"] == "2026-07-20"
+    assert payload["is_regional"] is True
