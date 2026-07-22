@@ -24,7 +24,8 @@
   function proxyLegacyAction(action) {
     const target = {
       confirm: 'btn-confirm-receipt',
-      cancel: 'btn-cancel-transfer'
+      cancel: 'btn-cancel-transfer',
+      'cancel-revision': 'btn-cancel-revision'
     }[action];
     if (!target) return;
     document.getElementById(target)?.click();

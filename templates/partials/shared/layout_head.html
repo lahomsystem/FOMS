@@ -59,6 +59,39 @@
       }
     })();
     </script>
+    {# SW 밖 최후 방어(pre-paint 인라인 부트, 테마·shell-mode 부트와 동일 지위 — src 아님이라
+       G1 렌더차단 스크립트 가드와 무관). render-blocking CSS <link> 로드 실패를 1회 자동
+       재시도한다. 근거: 최초 무스타일 렌더가 SW 수정 2회(53f10872 v9 캐시 purge,
+       437263e3 staticNetwork reject 재시도) 후에도 실기기 재발. 잔존 구멍 =
+       (1) sw.js staticNetwork 가 5xx 응답을 그대로 반환(Railway 롤링 재배포 502/503; sw.js
+           HTTP 에러 게이트로도 봉합했으나 이 부트는 SW 기전과 무관한 이중 방어),
+       (2) 구 SW 잔존 창(특히 iOS)엔 새 sw.js 가 활성화 전까지 무력 — SW 밖 방어선 부재.
+       document 레벨 error 캡처(link 의 error 는 버블 안 됨 → capture:true)로 실패한
+       stylesheet 를 원 위치 뒤에 &cssretry=1 붙여 재삽입(캐스케이드 순서 보존, 무한루프 차단).
+       v2/v3/PC 전 코호트 공통(게이트 없음 — CSS 실패는 어디서든 재앙). #}
+    <script>
+    (function () {
+      if (window.__fomsCssRetryBootBound) return;
+      window.__fomsCssRetryBootBound = true;
+      document.addEventListener('error', function (e) {
+        var el = e.target;
+        if (!el || el.tagName !== 'LINK') return;
+        if (el.rel !== 'stylesheet') return;
+        var href = el.getAttribute('href');
+        if (!href || href.indexOf('cssretry=1') !== -1) return; // 이미 재시도본 → 무한루프 금지
+        var retry = document.createElement('link');
+        retry.rel = 'stylesheet';
+        if (el.crossOrigin) retry.crossOrigin = el.crossOrigin;
+        retry.href = href + (href.indexOf('?') === -1 ? '?' : '&') + 'cssretry=1';
+        // 원 link 바로 뒤(원 위치)에 삽입해 캐스케이드 순서를 보존한다.
+        if (el.parentNode) {
+          el.parentNode.insertBefore(retry, el.nextSibling);
+        } else {
+          document.head.appendChild(retry);
+        }
+      }, true);
+    })();
+    </script>
     <title>하우드 ERP</title>
     <link rel="icon" type="image/svg+xml" href="{{ url_for('static', filename='favicon.svg', v='20260611d') }}">
     <link rel="icon" type="image/png" href="{{ url_for('favicon', v='20260611d') }}">
@@ -75,6 +108,14 @@
     <link rel="preconnect" href="https://cdn.jsdelivr.net" crossorigin>
     <link rel="preconnect" href="https://cdnjs.cloudflare.com" crossorigin>
     <link rel="preconnect" href="https://cdn.socket.io" crossorigin>
+    {% if kakao_js_key is defined and kakao_js_key %}
+    <!-- 지도 origin preconnect: Kakao SDK 가 lazy 주입이라 DNS+TLS 가 늦게 시작된다.
+         핸드셰이크를 head 시점에 선점해 지도 첫 타일까지의 직렬 구간을 줄인다.
+         지도를 쓰는 뷰(kakao_js_key 전달)에서만 나가야 무관 페이지의 소켓 낭비가 없다. -->
+    <link rel="preconnect" href="https://dapi.kakao.com" crossorigin>
+    <link rel="preconnect" href="https://mts.daumcdn.net" crossorigin>
+    <link rel="preconnect" href="https://t1.daumcdn.net" crossorigin>
+    {% endif %}
     <!-- Bootstrap CSS -->
     <link href="https://cdn.jsdelivr.net/npm/bootstrap@5.3.0-alpha1/dist/css/bootstrap.min.css" rel="stylesheet">
     <!-- Font Awesome -->
@@ -85,7 +126,7 @@
     <link rel="stylesheet" href="{{ url_for('static', filename='css/foundation/foms-tokens.css') }}?v=20260626a">
     <link rel="stylesheet" href="{{ url_for('static', filename='css/components/foms-theme-toggle.css') }}?v=20260626a">
     <!-- ERP Pro Dashboard Styles (Modern SaaS Design System) -->
-    <link rel="stylesheet" href="{{ url_for('static', filename='css/foundation/erp-pro.css') }}?v=20260713a">
+    <link rel="stylesheet" href="{{ url_for('static', filename='css/foundation/erp-pro.css') }}?v=20260715a">
     {# Order edit (/edit/<id>) joins the erp-mobile-v2 shell cohort (see orders/layout.html),
        so it must load the same mobile shell CSS bundle that styles the foms header + surfaces. #}
     {% if shell_variant == 'v2' and (request.path.startswith('/erp') or request.endpoint == 'order_edit.edit_order') %}
@@ -114,14 +155,14 @@
       }
     </style>
     <link rel="stylesheet" href="https://cdn.jsdelivr.net/gh/orioncactus/pretendard@v1.3.9/dist/web/variable/pretendardvariable-dynamic-subset.min.css" crossorigin="anonymous">
-    <link rel="stylesheet" href="{{ url_for('static', filename='css/foundation/foms-mobile-surfaces.css') }}?v=20260715b">
+    <link rel="stylesheet" href="{{ url_for('static', filename='css/foundation/foms-mobile-surfaces.css') }}?v=20260716b">
     {% endif %}
     {# 태블릿 T2 융합 레이어는 셸 변형과 직교 — v2·v3 공통으로 로드(2026-07-12 v3 미로드 실사고 봉합).
        surfaces 와 별도 <link>·surfaces 직후 위치라 v2 캐스케이드 순변화 0.
        /wdcalculator 추가(2026-07-12 목업 v5 정합): 전역 레일 CSS(foms-tablet-rail.css)가
        계산기 페이지에서도 로드되도록 게이트에 포함한다. #}
     {% if erp_mobile_v2_enabled and (request.path.startswith('/erp') or request.endpoint == 'order_edit.edit_order' or request.path.startswith('/wdcalculator')) %}
-    <link rel="stylesheet" href="{{ url_for('static', filename='css/foundation/foms-tablet-bundle.css') }}?v=20260715a">
+    <link rel="stylesheet" href="{{ url_for('static', filename='css/foundation/foms-tablet-bundle.css') }}?v=20260720b">
     {% endif %}
     {# 모바일 v2 서피스 광폭(≥992) 숨김 — 셸-독립 정본(v2∪v3 공통, 2026-07-13 v3 누출 봉합).
        v3 은 원 소유 hide 규칙이 담긴 foms-shell.css(shell_variant=='v2' 게이트 @import)를 미로드하므로,
@@ -148,7 +189,7 @@
     {% endif %}
     <link rel="stylesheet" href="{{ url_for('static', filename='css/foms/photo-capture.css') }}?v=20260529a">
     <link rel="stylesheet" href="{{ url_for('static', filename='css/components/foms-sticky-action-bar.css') }}?v=20260614a">
-    <link rel="stylesheet" href="{{ url_for('static', filename='css/components/foms-mobile-select.css') }}?v=20260607a">
+    <link rel="stylesheet" href="{{ url_for('static', filename='css/components/foms-mobile-select.css') }}?v=20260716a">
     <!-- Flatpickr (다중 실측일/시공일 선택) -->
     <link rel="stylesheet" href="https://cdn.jsdelivr.net/npm/flatpickr/dist/flatpickr.min.css">
     <link rel="stylesheet" href="{{ url_for('static', filename='css/components/foms-flatpickr-theme.css') }}?v=20260626a">
@@ -768,11 +809,11 @@
                         loadNotificationBadge(force);
                     }
                 }
+                if (window.FOMSNotificationCenter && typeof window.FOMSNotificationCenter.refreshIfOpen === 'function') {
+                    window.FOMSNotificationCenter.refreshIfOpen();
+                }
                 const panel = document.getElementById('global-notification-panel');
                 const isPanelVisible = panel && panel.style.display === 'block';
-                if (isPanelVisible && typeof loadGlobalNotifications === 'function') {
-                    loadGlobalNotifications();
-                }
                 if (isPanelVisible && typeof loadNotifications === 'function') {
                     loadNotifications();
                 }

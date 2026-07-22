@@ -497,7 +497,7 @@ class Notification(Base):
     
     # 알림 유형
     notification_type = Column(String(50), nullable=False, index=True)
-    # DRAWING_TRANSFERRED / DRAWING_REVISION / STAGE_CHANGED
+    # DRAWING_TRANSFERRED / DRAWING_REVISION / ERP_ORDER_CHANGED / STAGE_CHANGED
     # QUEST_ASSIGNED / AS_REQUIRED
     # ANNOUNCEMENT / URGENT_ANNOUNCEMENT / URGENT_MENTION
     

@@ -1,0 +1,42 @@
+/**
+ * WD Calculator line-row primitive (container queries).
+ * Shared tokens + narrow-stack rules for engine .base-component-row.
+ * Tablet mirror (.wdc2-brow) is separate — do not couple 5-col contract here.
+ * Spec: docs/plans/2026-07-16-wdcalculator-wd-line-cq_SPEC.md
+ */
+:root {
+  --wd-line-input-h: 38px;
+  --wd-line-touch-h: 44px;
+  --wd-line-gap: 8px;
+  --wd-line-narrow: 520px;
+}
+
+#baseComponentsContainer .base-component-row {
+  container-type: inline-size;
+  container-name: wd-line;
+}
+
+#baseComponentsContainer .base-component-row {
+  --base-row-control-h: var(--wd-line-input-h);
+}
+
+/* Narrow card/pane: stack primary zones full-width (viewport-agnostic). */
+@container wd-line (max-width: 520px) {
+  #baseComponentsContainer .base-component-row .card-body > .row > .base-mode-col,
+  #baseComponentsContainer .base-component-row .card-body > .row > .base-details-area,
+  #baseComponentsContainer .base-component-row .card-body > .row > .base-width-col,
+  #baseComponentsContainer .base-component-row .card-body > .row > .col-6.col-md-1 {
+    flex: 0 0 100% !important;
+    width: 100% !important;
+    max-width: 100% !important;
+  }
+
+  #baseComponentsContainer .base-component-row .base-mode-select,
+  #baseComponentsContainer .base-component-row .base-product-select,
+  #baseComponentsContainer .base-component-row .base-manual-name,
+  #baseComponentsContainer .base-component-row .base-width-input {
+    width: 100%;
+    min-height: var(--wd-line-touch-h);
+    box-sizing: border-box;
+  }
+}

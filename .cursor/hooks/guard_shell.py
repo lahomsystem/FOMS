@@ -128,15 +128,29 @@ def main() -> None:
     maybe_log_payload("beforeShellExecution", payload, project_root)
 
     raw_cmd = _extract_command(payload)
+    session_id = find_key_recursive(
+        payload,
+        ["conversation_id", "conversationId", "session_id", "sessionId", "id"],
+        default="unknown",
+    )
 
     try:
         classify_command = _load_classifier(project_root)
-        decision, label = classify_command(raw_cmd) if raw_cmd else ("allow", "")
-    except Exception as exc:  # noqa: BLE001 - 정책 로드/판정 실패 시 fail-open
-        hook_runtime_log(
-            f"guard_policy 판정 실패 fail-open: {exc}", project_root=project_root, tag="guard_shell"
+        decision, label = (
+            classify_command(raw_cmd, project_root=project_root, session_id=session_id)
+            if raw_cmd
+            else ("allow", "")
         )
-        decision, label = "allow", ""
+    except Exception as exc:  # noqa: BLE001 - 정책 로드/판정 실패
+        hook_runtime_log(
+            f"guard_policy 판정 실패: {exc}", project_root=project_root, tag="guard_shell"
+        )
+        # deploy push 는 묵시 allow 금지 → ask 격상
+        lowered = (raw_cmd or "").lower()
+        if "git push" in lowered and "deploy" in lowered:
+            decision, label = "ask", f"deploy 푸시 판정 실패({type(exc).__name__})"
+        else:
+            decision, label = "allow", ""
 
     if decision != "allow":
         _log_command(project_root, decision, label, _display_command(raw_cmd))
@@ -157,13 +171,23 @@ def main() -> None:
         return
 
     if decision == "ask":
+        agent_msg = "주의가 필요한 명령입니다. 실행 의도를 재확인하세요."
+        if "deploy" in (label or "").lower() or "타 세션" in (label or ""):
+            agent_msg = (
+                "deploy 푸시에 타 세션/미확인 커밋이 포함될 수 있습니다. "
+                "사용자에게 선택지를 확인하세요: "
+                "(1) 전체 포함 승인 — 공유 트리에서 기존 push 진행 / "
+                "(2) 자기 몫만 — "
+                "`python tools/harness/push_own_session_commits.py` 로 임시 worktree cherry-pick 후 push. "
+                f"사유: {label}"
+            )
         sys.stdout.write(
             json.dumps(
                 {
                     "continue": True,
                     "permission": "ask",
                     "userMessage": f"[WARNING] {label}: {log_cmd[:100]}",
-                    "agentMessage": "주의가 필요한 명령입니다. 실행 의도를 재확인하세요.",
+                    "agentMessage": agent_msg,
                 }
             )
         )

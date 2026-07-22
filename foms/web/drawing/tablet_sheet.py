@@ -118,9 +118,16 @@ def erp_drawing_workbench_tablet_sheet(order_id: int) -> Any:
         'logo': (defaults.get('logo') or '').upper() or '-',
     }
 
+    # 전달 버튼은 도면팀+관리자 전용 — is_drawing_workbench_participant(워크벤치 접근 참여자 판정,
+    # 배정된 비도면팀 직원도 True인 더 넓은 개념)와 별개 축. 팀 조건을 추가로 AND.
+    is_transfer_authorized_team = bool(
+        current_user
+        and (current_user.role == 'ADMIN' or (getattr(current_user, 'team', None) or '').strip() == 'DRAWING')
+    )
     can_transfer = bool(
         current_user
-        and (current_user.role == 'ADMIN' or is_drawing_workbench_participant(current_user, order))
+        and is_drawing_workbench_participant(current_user, order)
+        and is_transfer_authorized_team
     )
 
     return render_template(

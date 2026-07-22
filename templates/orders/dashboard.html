@@ -10,6 +10,8 @@
 {% endblock %}
 
 {% block scripts %}
+{% include "orders/partials/erp_stage_override_modal.html" %}
 <script defer src="{{ url_for('static', filename='js/orders/foms-call-log.js') }}?v=20260712b"></script>
 <script defer src="{{ url_for('static', filename='js/orders/foms-call-filter.js') }}?v=20260714a"></script>
+<script defer src="{{ url_for('static', filename='js/orders/erp-stage-override.js') }}?v=20260716b"></script>
 {% endblock %}

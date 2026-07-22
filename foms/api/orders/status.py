@@ -10,6 +10,11 @@ from sqlalchemy.orm.attributes import flag_modified
 
 from foms.web.auth import log_access
 from foms.services.orders.status_constants import BULK_ACTION_STATUS, STATUS
+from foms.services.orders.stage_override import (
+    OVERRIDE_BLOCK_MESSAGE,
+    current_stage_for_order,
+    requires_privileged_override,
+)
 from foms.services.erp_order_flags import is_erp_order_record
 from db import get_db
 from foms.services.datetime_kst import now_kst
@@ -80,6 +85,10 @@ def update_order_status_response(
             return jsonify({"success": False, "message": "주문을 찾을 수 없습니다."}), 404
 
         old_status = getattr(order, "status", None) or ""
+        from_stage = current_stage_for_order(order)
+        if is_erp_order_record(order) and requires_privileged_override(from_stage, new_status):
+            return jsonify({"success": False, "message": OVERRIDE_BLOCK_MESSAGE}), 403
+
         user_id = session.get("user_id")
         order.status = new_status
         if new_status == "AS_RECEIVED" and not getattr(order, "as_received_date", None):
@@ -133,6 +142,7 @@ def bulk_update_order_status_response(
         db = get_db()
         user_id = session.get("user_id")
         updated = 0
+        blocked_override_required: list[int] = []
         deleted_at_str = now_kst().strftime("%Y-%m-%d %H:%M:%S")
 
         valid_ids = []
@@ -159,6 +169,11 @@ def bulk_update_order_status_response(
                 updated += 1
                 continue
 
+            from_stage = current_stage_for_order(order)
+            if is_erp_order_record(order) and requires_privileged_override(from_stage, new_status):
+                blocked_override_required.append(int(order.id))
+                continue
+
             setattr(order, "status", new_status)
             if new_status == "AS_RECEIVED" and not getattr(order, "as_received_date", None):
                 setattr(order, "as_received_date", get_today_kst_func().strftime("%Y-%m-%d"))
@@ -177,14 +192,27 @@ def bulk_update_order_status_response(
             updated += 1
 
         db.commit()
-        return jsonify(
-            {
-                "success": True,
-                "updated": updated,
-                "new_status": new_status,
-                "status_display": STATUS.get(new_status, new_status),
-            }
-        )
+        success = updated > 0 or not blocked_override_required
+        message = None
+        if blocked_override_required and updated == 0:
+            success = False
+            message = OVERRIDE_BLOCK_MESSAGE
+        elif blocked_override_required:
+            message = (
+                f"{len(blocked_override_required)}건은 역행/건너뛰기로 차단됨. "
+                "「단계 강제 변경」을 사용하세요."
+            )
+        payload: dict[str, Any] = {
+            "success": success,
+            "updated": updated,
+            "new_status": new_status,
+            "status_display": STATUS.get(new_status, new_status),
+            "blocked_override_required": blocked_override_required,
+        }
+        if message:
+            payload["message"] = message
+        status_code = 200 if success else 403
+        return jsonify(payload), status_code
     except Exception as exc:
         db = get_db()
         if db:

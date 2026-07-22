@@ -27,6 +27,25 @@ from hook_log_utils import (  # noqa: E402  # type: ignore[import-not-found]
 )
 
 
+def find_key_recursive(
+    data: object, target_keys: list[str], default: str | None = "unknown"
+) -> str | None:
+    """중첩 dict/list에서 target_keys 중 하나라도 있으면 해당 값을 반환."""
+    if isinstance(data, dict):
+        for key, value in data.items():
+            if key in target_keys and value:
+                return str(value)
+            found = find_key_recursive(value, target_keys, default=None)
+            if found is not None:
+                return found
+    elif isinstance(data, list):
+        for item in data:
+            found = find_key_recursive(item, target_keys, default=None)
+            if found is not None:
+                return found
+    return default
+
+
 def read_stdin_json() -> dict:
     """stdin에서 Claude Code hook payload(JSON, UTF-8)를 읽어 dict로 반환.
 

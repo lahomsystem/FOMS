@@ -5,9 +5,10 @@
    열 재정렬·input→plain 변환이 불가하므로, 목업 06 정합 클린 그리드를 템플릿 레벨로 신설한다
    (frame01 tablet_workqueue_grid.html 과 동일 전략).
 
-   목업 컬럼(좌→우): 시간 · 고객 · 발주사 · 제품 · 자수(우측정렬) · 도면담당. 모든 셀 plain
-   (input/button 없음 — PC 인라인 편집기는 PC 전용, 태블릿 편집은 행 탭 → 배정 시트). 행은
-   시공팀별로 묶고 팀 전환 시 그룹 헤더 행(tr.foms-tablet-shipgrid__grp)을 1행 삽입한다:
+   목업 컬럼(좌→우): 시공일(날짜+시간 스택) · 고객 · 발주사 · 제품 · 자수(우측정렬) · 도면담당.
+   모든 셀 plain (input/button 없음 — PC 인라인 편집기는 PC 전용, 태블릿 편집은 행 탭 → 배정
+   시트). 첫 열은 7열 압박 없이 시공일+시공시간을 한 셀에 스택(현장 스캔용). 행은 시공팀별로
+   묶고 팀 전환 시 그룹 헤더 행(tr.foms-tablet-shipgrid__grp)을 1행 삽입한다:
    좌 "시공 N팀 · 합계자수" / 우 "잔여 X"(미배정 그룹: 우측 "배정 필요" danger).
 
    데이터: PC 테이블과 동일한 rows(신규 쿼리 0)를 재소비한다. 팀 합계·잔여는 서버가 준비한
@@ -41,7 +42,7 @@
   <table id="foms-tablet-ship-grid" class="foms-tablet-shipgrid">
     <thead>
       <tr>
-        <th scope="col">시간</th>
+        <th scope="col">시공일</th>
         <th scope="col">고객</th>
         <th scope="col">발주사</th>
         <th scope="col">제품</th>
@@ -55,7 +56,18 @@
       {% for r in rows %}
       {%- set sd = r.structured_data or {} %}
       {%- set shipment = sd.get('shipment') or {} %}
+      {%- set _is_as = r.status in ('AS', 'AS_RECEIVED', 'AS_COMPLETED') %}
       {%- set construction_time = shipment.get('construction_time') or '' %}
+      {#- 시공일 = mobile shipment_meta.primary_date 와 동일 규칙(추가 쿼리 0).
+          AS: as_visit만(원 시공일 폴백 금지). 일반: schedule.construction → scheduled_date. -#}
+      {%- set _sched = sd.get('schedule') or {} %}
+      {%- if _is_as -%}
+        {%- set construction_date = ((_sched.get('as_visit') or {}).get('date') or '')|string|trim -%}
+      {%- else -%}
+        {%- set construction_date = (
+              (_sched.get('construction') or {}).get('date') or r.scheduled_date or ''
+            )|string|trim -%}
+      {%- endif -%}
       {# 도면담당(빈 값 제거, legacy drawing_manager 폴백). #}
       {%- set _dm = namespace(values=[]) %}
       {%- for dm in (shipment.get('drawing_managers') or []) %}{% if dm|string|trim %}{% set _dm.values = _dm.values + [dm|string|trim] %}{% endif %}{% endfor %}
@@ -70,7 +82,6 @@
       {%- set erp_items = sd.get('items') or [] %}
       {%- set _u = namespace(v=0.0) %}
       {%- for it in erp_items %}{% set _iv = it|item_spec_w300 %}{% if _iv %}{% set _u.v = _u.v + _iv %}{% endif %}{% endfor %}
-      {%- set _is_as = r.status in ('AS', 'AS_RECEIVED', 'AS_COMPLETED') %}
       {# 시공팀 그룹 헤더(목업 06 .grp) — 팀 전환 시 1행 삽입. 키 = "<AS여부>|<팀 소문자>". #}
       {%- set _as_int = 1 if _is_as else 0 %}
       {%- set _gcomposite = _as_int ~ '|' ~ (worker_key|lower) %}
@@ -86,7 +97,18 @@
       {% endif %}
       <tr class="erp-main-row foms-tablet-shipgrid__row" data-order-id="{{ r.id }}"
         data-foms-sheet-url="{{ url_for('erp_shipment_page.erp_shipment_tablet_sheet', order_id=r.id) }}">
-        <td class="foms-tablet-shipgrid__time">{{ construction_time or '-' }}</td>
+        <td class="foms-tablet-shipgrid__time">
+          {%- if construction_date or construction_time -%}
+          <span class="foms-tablet-shipgrid__when">
+            {%- if construction_date -%}
+            <span class="foms-tablet-shipgrid__date tnum">{% if construction_date|length >= 10 %}{{ construction_date[5:7]|int }}/{{ construction_date[8:10]|int }}{% else %}{{ construction_date }}{% endif %}</span>
+            {%- endif -%}
+            {%- if construction_time -%}
+            <span class="foms-tablet-shipgrid__clock">{{ construction_time }}</span>
+            {%- endif -%}
+          </span>
+          {%- else -%}-{%- endif -%}
+        </td>
         <td class="foms-tablet-shipgrid__customer">{{ r.customer_name or '-' }}</td>
         <td>{{ r.orderer_name or '-' }}</td>
         <td class="foms-tablet-shipgrid__product">

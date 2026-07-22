@@ -20,6 +20,23 @@
       <p>주문 담당 {{ manager_name }} · 도면 담당 {{ assignee_text }}</p>
     </section>
 
+    {% if order_change_pending %}
+    <div class="foms-drawing-handoff__notice dw-order-change-banner" id="dwOrderChangeBanner"
+      role="status"
+      data-order-id="{{ order.id }}"
+      data-ack-url="/api/orders/{{ order.id }}/drawing/ack-order-change">
+      <i class="fas fa-exclamation-triangle" aria-hidden="true"></i>
+      <div>
+        <strong>주문 내용 변경</strong>
+        <span>{% if latest_order_change_note %}{{ latest_order_change_note }}{% else %}도면 반영이 필요할 수 있습니다.{% endif %}</span>
+        <div class="foms-drawing-handoff__order-change-actions">
+          <button type="button" class="foms-btn foms-btn--sm foms-btn--secondary" data-dw-order-change-focus>타임라인</button>
+          <button type="button" class="foms-btn foms-btn--sm foms-btn--primary" data-dw-order-change-ack>확인함</button>
+        </div>
+      </div>
+    </div>
+    {% endif %}
+
     {% if mobile_handoff_invalid_drawing_key %}
     <div class="foms-drawing-handoff__notice" role="status">
       <i class="fas fa-circle-info" aria-hidden="true"></i>
@@ -147,7 +164,16 @@
         <div class="foms-drawing-thread__who">{{ event.by_text }}</div>
         <div class="foms-drawing-thread__bubble">
           <span class="foms-drawing-thread__tag">{{ event.tag }}{% if event.target_text %} · {{ event.target_text }}{% endif %}</span>
-          {% if event.note %}<p>{{ event.note }}</p>{% endif %}
+          {% if event.action == 'ERP_ORDER_CHANGED' and event.changes %}
+          <ul class="foms-drawing-thread__changes">
+            {% for c in event.changes %}
+            <li>
+              <strong>{{ c.label or c.path }}</strong>
+              <s>{{ c.from }}</s> → <b>{{ c.to }}</b>
+            </li>
+            {% endfor %}
+          </ul>
+          {% elif event.note %}<p>{{ event.note }}</p>{% endif %}
           {% if event.files %}<small>첨부 {{ event.files|length }}건</small>{% endif %}
         </div>
         <time>{{ event.at_text }}</time>
@@ -176,6 +202,11 @@
     <button class="foms-drawing-action-bar__btn" type="button" data-bs-toggle="modal" data-bs-target="#dwRevisionModal"
       data-drawing-handoff-action="revision" data-drawing-key="{{ mobile_handoff_selected_file.key if mobile_handoff_selected_file else '' }}">
       <i class="fas fa-undo"></i><span>수정요청</span>
+    </button>
+    {% endif %}
+    {% if can_cancel_revision_request and drawing_status == 'RETURNED' %}
+    <button class="foms-drawing-action-bar__btn" type="button" data-drawing-handoff-action="cancel-revision">
+      <i class="fas fa-rotate-left"></i><span>수정요청 취소</span>
     </button>
     {% endif %}
     {% if can_confirm_receipt %}

@@ -1,0 +1,441 @@
+<title>WD 계산기 — 태블릿 v2 재설계 목업</title>
+<style>
+  :root{
+    --page-bg:#F2F0EB; --page-ink:#1C1E22; --page-muted:#737A85; --page-card:#FFFFFF; --page-line:#E3E1DA;
+  }
+  @media (prefers-color-scheme: dark){
+    :root{ --page-bg:#191A1C; --page-ink:#E8E7E3; --page-muted:#9BA0A8; --page-card:#232427; --page-line:#37383C; }
+  }
+  :root[data-theme="dark"]{ --page-bg:#191A1C; --page-ink:#E8E7E3; --page-muted:#9BA0A8; --page-card:#232427; --page-line:#37383C; }
+  :root[data-theme="light"]{ --page-bg:#F2F0EB; --page-ink:#1C1E22; --page-muted:#737A85; --page-card:#FFFFFF; --page-line:#E3E1DA; }
+
+  *{box-sizing:border-box}
+  body{background:var(--page-bg);color:var(--page-ink);font-family:'Pretendard Variable',Pretendard,-apple-system,BlinkMacSystemFont,'Malgun Gothic','Apple SD Gothic Neo',sans-serif;margin:0;padding:40px 24px 80px;line-height:1.6}
+  .doc{max-width:1280px;margin:0 auto}
+  .doc h1{font-size:26px;letter-spacing:-0.02em;margin:0 0 4px}
+  .doc .sub{color:var(--page-muted);font-size:14px;margin:0 0 36px}
+  .doc h2{font-size:16px;letter-spacing:-0.01em;margin:52px 0 6px}
+  .doc .note{color:var(--page-muted);font-size:13px;max-width:70ch;margin:0 0 16px}
+  .doc .note b{color:var(--page-ink);font-weight:600}
+  .frame-scroll{overflow-x:auto;border:1px solid var(--page-line);border-radius:14px;background:var(--page-card)}
+  .frame-pad{padding:20px;width:fit-content}
+
+  /* ============ 목업 프레임 공통 (라이트 고정 — 제품 화면) ============ */
+  .tab{width:1180px;height:820px;background:#EDEBE4;border:1px solid #DDDACF;border-radius:18px;overflow:hidden;display:flex;position:relative;color:#1C1E22;font-size:14px;line-height:1.45}
+  .tab *{box-sizing:border-box}
+  .tab .num, .tab input{font-variant-numeric:tabular-nums}
+
+  /* FOMS 좌측 레일(기존 전역 레일 — 참고용 표현) */
+  .rail{width:72px;background:#FFFFFF;border-right:1px solid #E6E4DE;display:flex;flex-direction:column;align-items:center;padding:14px 0;gap:6px;flex:none}
+  .rail .logo{width:36px;height:36px;border-radius:10px;background:#1C1E22;color:#fff;display:flex;align-items:center;justify-content:center;font-weight:800;font-size:15px;margin-bottom:10px}
+  .rail .it{width:52px;height:44px;border-radius:10px;display:flex;flex-direction:column;align-items:center;justify-content:center;color:#8A8F98;font-size:10px;gap:2px}
+  .rail .it svg{width:17px;height:17px;stroke:currentColor;fill:none;stroke-width:2;stroke-linecap:round;stroke-linejoin:round}
+  .rail .it.on{background:#EAF5EF;color:#0F7B52;font-weight:700}
+
+  /* ============ 워크시트(중앙) ============ */
+  .work{flex:1;display:flex;flex-direction:column;min-width:0}
+  .topbar{height:60px;background:#FFFFFF;border-bottom:1px solid #E6E4DE;display:flex;align-items:center;gap:14px;padding:0 18px;flex:none}
+  .topbar .title{font-weight:800;font-size:15px;letter-spacing:-0.01em;flex:none}
+  .cust{flex:1;display:flex;align-items:baseline;gap:10px;min-width:0;border-bottom:2px solid #1C1E22;padding:5px 2px;max-width:420px}
+  .cust .lbl{font-size:11px;color:#8A8F98;font-weight:700;letter-spacing:0.06em;flex:none}
+  .cust .val{font-size:19px;font-weight:800;letter-spacing:-0.01em;white-space:nowrap}
+  .tb-btn{height:40px;border:1px solid #D9D6CE;background:#FFFFFF;border-radius:9px;padding:0 14px;display:flex;align-items:center;gap:7px;font-size:13px;font-weight:600;color:#3A3E45}
+  .tb-btn svg{width:15px;height:15px;stroke:currentColor;fill:none;stroke-width:2;stroke-linecap:round;stroke-linejoin:round}
+
+  .sheet{flex:1;overflow-y:auto;padding:12px 18px 8px}
+  .sec{background:#FFFFFF;border:1px solid #E6E4DE;border-radius:12px;margin-bottom:10px;overflow:hidden}
+  .sec-hd{display:flex;align-items:center;gap:10px;padding:10px 16px 0}
+  .sec-hd .t{font-size:13px;font-weight:800;letter-spacing:-0.01em}
+  .sec-hd .c{font-size:11px;color:#8A8F98;font-weight:600}
+  .sec-hd .sp{flex:1}
+
+  /* 열 그리드: 모드칩 64 | 상세 1fr | W 128 | 단가 156 | ✕ 40 */
+  .cols{display:grid;grid-template-columns:64px 1fr 128px 156px 40px;gap:0 12px;align-items:center;padding:0 16px}
+  .colhead{padding:7px 16px 2px;color:#9AA0A9;font-size:10.5px;font-weight:700;letter-spacing:0.07em}
+  .colhead .r{text-align:right}
+  .row-wrap{border-top:1px solid #F0EEE8;padding:7px 0}
+  .brow{min-height:52px}
+  .modechip{height:32px;border-radius:8px;border:1px solid #E0DDD5;background:#FAF9F6;display:flex;align-items:center;justify-content:center;gap:5px;font-size:11px;font-weight:700;color:#6E7480}
+  .modechip .n{font-size:12px;color:#1C1E22}
+  .modechip.direct{background:#FFF8EC;border-color:#EAD9B8;color:#8A6A1F}
+  .prodbtn{height:44px;border:1px solid #D9D6CE;border-radius:10px;background:#FFFFFF;display:flex;align-items:center;padding:0 14px;gap:10px;min-width:0}
+  .prodbtn .nm{font-size:15.5px;font-weight:700;letter-spacing:-0.01em;white-space:nowrap;overflow:hidden;text-overflow:ellipsis}
+  .prodbtn .car{margin-left:auto;color:#B4B0A6;flex:none;font-size:11px}
+  .win{height:44px;border:1.5px solid #D9D6CE;border-radius:10px;background:#FFFFFF;display:flex;align-items:center;justify-content:flex-end;padding:0 12px;font-size:18px;font-weight:800}
+  .win.focus{border-color:#1C1E22;box-shadow:0 0 0 3px rgba(28,30,34,0.07)}
+  .price{height:44px;background:#EFF7F2;border-radius:10px;display:flex;align-items:center;justify-content:flex-end;padding:0 12px}
+  .price .v{font-size:16.5px;font-weight:800;color:#0B5C3E;letter-spacing:-0.01em}
+  .del{width:36px;height:36px;border-radius:8px;border:none;background:transparent;color:#C6C2B8;display:flex;align-items:center;justify-content:center;font-size:17px}
+
+  /* MINE(직접) 행 — 제품명 전폭, 방식·단가는 서브행으로 분리 */
+  .dname{height:44px;border:1.5px solid #D9D6CE;border-radius:10px;background:#fff;display:flex;align-items:center;padding:0 13px;min-width:0}
+  .dname .v{font-size:15px;font-weight:700;letter-spacing:-0.01em;white-space:nowrap;overflow:hidden;text-overflow:ellipsis}
+  .ddrop{border:1px solid #D9D6CE;border-radius:8px;background:#FAF9F6;display:flex;align-items:center;gap:7px;padding:0 12px;font-size:12.5px;font-weight:800;color:#3A3E45;flex:none}
+  .ddrop .car{color:#B4B0A6;font-size:10px}
+  .ddrop.sm{height:36px}
+  .dinput{border:1.5px solid #D9D6CE;border-radius:8px;background:#fff;display:flex;align-items:center;justify-content:flex-end;padding:0 11px;flex:none}
+  .dinput.sm{height:36px;width:110px}
+  .dinput .v{font-size:14px;font-weight:800}
+  .subhint{font-size:10.5px;color:#9AA0A9;font-weight:600}
+
+  /* 행별 직접입력(구 추가금) 서브행 */
+  .subfee{grid-column:2 / 6;display:flex;align-items:center;gap:8px;margin-top:7px}
+  .subfee .tie{width:14px;height:20px;border-left:1.5px solid #DDDACF;border-bottom:1.5px solid #DDDACF;border-bottom-left-radius:8px;margin:-8px 0 8px 8px;flex:none}
+  .subfee .nm{height:36px;flex:1;border:1px solid #E6E4DE;border-radius:8px;background:#FAF9F6;display:flex;align-items:center;padding:0 11px;font-size:13px;font-weight:600;color:#3A3E45}
+  .subfee .amt{height:36px;width:130px;border:1px solid #E6E4DE;border-radius:8px;background:#FFFFFF;display:flex;align-items:center;justify-content:flex-end;padding:0 11px;font-size:13.5px;font-weight:700}
+  .subfee .x{color:#C6C2B8;font-size:14px;padding:0 4px}
+  .addfee{grid-column:2 / 6;margin-top:6px}
+  .addfee button{border:none;background:none;color:#8A8F98;font-size:11.5px;font-weight:700;padding:1px 0;display:flex;align-items:center;gap:5px}
+
+  .addrow{display:flex;gap:8px;padding:8px 16px 11px;border-top:1px solid #F0EEE8}
+  .addrow .a{height:38px;border:1.5px dashed #CFCCC2;border-radius:10px;background:#FCFBF9;color:#54595F;font-size:12.5px;font-weight:700;display:flex;align-items:center;justify-content:center;gap:7px;flex:1}
+  .addrow .a.sub{flex:0 0 176px;color:#8A6A1F;border-color:#E4D6B4;background:#FFFDF6}
+
+  /* 추가 옵션 행: 배지 64 | 옵션 1fr | 금액 156 | ✕ 40 */
+  .ocols{display:grid;grid-template-columns:64px 1fr 156px 40px;gap:0 12px;align-items:center;padding:0 16px}
+  .obadge{height:32px;border-radius:8px;background:#F2F6FB;border:1px solid #D8E2EE;color:#3A6291;display:flex;align-items:center;justify-content:center;font-size:11px;font-weight:800}
+  .obadge.mine{background:#FFF8EC;border-color:#EAD9B8;color:#8A6A1F}
+  .optbtn{height:44px;border:1px solid #D9D6CE;border-radius:10px;background:#fff;display:flex;align-items:center;gap:9px;padding:0 14px;min-width:0}
+  .optbtn .cat{font-size:11.5px;color:#8A8F98;font-weight:700;flex:none}
+  .optbtn .nm{font-size:14.5px;font-weight:700;white-space:nowrap;overflow:hidden;text-overflow:ellipsis}
+  .optbtn .car{margin-left:auto;color:#B4B0A6;font-size:11px}
+  .oamt{height:44px;border:1.5px solid #D9D6CE;border-radius:10px;background:#fff;display:flex;align-items:center;justify-content:flex-end;padding:0 12px;font-size:16px;font-weight:800}
+
+  /* 비고 행: 배지 64 | 내용 1fr | ✕ 40 (정식 섹션) */
+  .ncols{display:grid;grid-template-columns:64px 1fr 40px;gap:0 12px;align-items:center;padding:0 16px}
+
+  /* 조정 스트립: 할인 · 배송 — 컴팩트 */
+  .strip{display:flex;gap:10px;align-items:stretch;margin-bottom:10px}
+  .pill{background:#FFFFFF;border:1px solid #E6E4DE;border-radius:12px;padding:9px 14px;display:flex;align-items:center;gap:10px}
+  .pill .l{font-size:11px;font-weight:800;color:#8A8F98;letter-spacing:0.04em;flex:none}
+  .pill .in{height:36px;width:104px;border:1.5px solid #D9D6CE;border-radius:8px;background:#fff;display:flex;align-items:center;justify-content:flex-end;padding:0 10px;font-size:15px;font-weight:800}
+  .pill .sign{font-size:14px;font-weight:800;color:#C2453B}
+  .pill .sign.plus{color:#3A6291}
+  .chk{display:flex;align-items:center;gap:6px;font-size:12px;color:#54595F;font-weight:600}
+  .chk .bx{width:19px;height:19px;border-radius:5px;background:#1C1E22;color:#fff;display:flex;align-items:center;justify-content:center;font-size:11px}
+
+  /* 하단 액션바 */
+  .abar{height:64px;background:#FFFFFF;border-top:1px solid #E6E4DE;display:flex;align-items:center;gap:12px;padding:0 18px;flex:none}
+  .abar .tl{font-size:11px;font-weight:800;color:#8A8F98;letter-spacing:0.05em}
+  .abar .tv{font-size:25px;font-weight:900;letter-spacing:-0.02em;color:#0B5C3E}
+  .abar .tv small{font-size:14px;font-weight:700;color:#5E8A75}
+  .abar .live{font-size:10.5px;color:#9AA0A9;margin-left:8px;align-self:flex-end;padding-bottom:5px}
+  .abar .sp{flex:1}
+  .ab-calc{height:46px;border-radius:10px;border:1.5px solid #0F7B52;background:#fff;color:#0F7B52;font-size:14px;font-weight:800;padding:0 22px}
+  .ab-add{height:46px;border-radius:10px;border:none;background:#0F7B52;color:#fff;font-size:14px;font-weight:800;padding:0 22px;display:flex;align-items:center;gap:8px}
+
+  /* ============ 우측 진행 견적 패널 ============ */
+  .qpanel{width:312px;flex:none;background:#F7F6F2;border-left:1px solid #E6E4DE;display:flex;flex-direction:column}
+  .qp-cur{background:#FFFFFF;border-bottom:1px solid #E6E4DE;padding:13px 16px 11px}
+  .qp-cur .hd{display:flex;align-items:center;gap:8px;margin-bottom:8px}
+  .qp-cur .hd b{font-size:12.5px;font-weight:800}
+  .qp-cur .hd .live-dot{width:7px;height:7px;border-radius:50%;background:#0F7B52}
+  .bl{display:flex;justify-content:space-between;font-size:12.5px;color:#54595F;padding:3px 0}
+  .bl b{font-weight:700;color:#1C1E22}
+  .bl.minus b{color:#C2453B}
+  .bl .mut{color:#9AA0A9;font-size:11px}
+  .bl.total{border-top:1px solid #EFEDE7;margin-top:6px;padding-top:8px;font-size:13px}
+  .bl.total b{font-size:19px;font-weight:900;color:#0B5C3E;letter-spacing:-0.01em}
+  .qp-list{flex:1;overflow-y:auto;padding:11px 14px}
+  .qp-list .lh{display:flex;align-items:center;gap:8px;margin-bottom:8px}
+  .qp-list .lh b{font-size:12.5px;font-weight:800}
+  .qp-list .lh .cnt{font-size:11px;color:#8A8F98;font-weight:700}
+  .qp-list .lh .sp{flex:1}
+  .togg{display:flex;align-items:center;gap:5px;font-size:10.5px;color:#8A8F98;font-weight:700}
+  .togg .sw{width:28px;height:16px;border-radius:8px;background:#0F7B52;position:relative}
+  .togg .sw::after{content:'';position:absolute;right:2px;top:2px;width:12px;height:12px;border-radius:50%;background:#fff}
+  .qcard{background:#FFFFFF;border:1px solid #E6E4DE;border-radius:11px;padding:10px 13px;margin-bottom:8px}
+  .qcard .r1{display:flex;align-items:baseline;gap:8px}
+  .qcard .r1 .no{font-size:11px;font-weight:800;color:#8A8F98}
+  .qcard .r1 .amt{margin-left:auto;font-size:15.5px;font-weight:800;letter-spacing:-0.01em}
+  .qcard .ln{font-size:11.5px;color:#6E7480;margin-top:4px;line-height:1.5}
+  .qcard .ln .u{color:#9AA0A9}
+  .qcard .acts{display:flex;gap:6px;margin-top:8px}
+  .qcard .acts button{height:30px;border-radius:8px;border:1px solid #E0DDD5;background:#FAF9F6;font-size:11.5px;font-weight:700;color:#54595F;padding:0 12px;display:flex;align-items:center;gap:5px}
+  .qcard .acts .danger{color:#C2453B}
+  .qp-foot{background:#FFFFFF;border-top:1px solid #E6E4DE;padding:12px 16px 13px}
+  .qp-foot .sum{display:flex;justify-content:space-between;align-items:baseline;margin-bottom:10px}
+  .qp-foot .sum .l{font-size:11.5px;font-weight:800;color:#8A8F98;letter-spacing:0.04em}
+  .qp-foot .sum .v{font-size:21px;font-weight:900;letter-spacing:-0.02em}
+  .qp-foot .btns{display:flex;gap:8px}
+  .qp-foot .btns .ghost{flex:1;height:44px;border-radius:10px;border:1.5px solid #D9D6CE;background:#fff;font-size:13px;font-weight:800;color:#54595F}
+  .qp-foot .btns .solid{flex:1.4;height:44px;border-radius:10px;border:none;background:#1C1E22;color:#fff;font-size:13px;font-weight:800;display:flex;align-items:center;justify-content:center;gap:7px}
+
+  /* ============ Frame 2: 제품 시트 ============ */
+  .dim{position:absolute;inset:0;background:rgba(24,25,28,0.34)}
+  .psheet{position:absolute;left:72px;right:0;bottom:0;background:#FFFFFF;border-radius:20px 20px 0 0;box-shadow:0 -8px 40px rgba(0,0,0,0.14);padding:0 0 14px}
+  .psheet .grab{width:44px;height:5px;border-radius:3px;background:#DDDACF;margin:10px auto 4px}
+  .psheet .hd{display:flex;align-items:center;padding:8px 22px 12px;border-bottom:1px solid #F0EEE8}
+  .psheet .hd b{font-size:16px;font-weight:800}
+  .psheet .hd .ctx{font-size:12px;color:#8A8F98;margin-left:10px;font-weight:600}
+  .psheet .hd .close{margin-left:auto;width:38px;height:38px;border-radius:9px;background:#FAF9F6;border:1px solid #E6E4DE;display:flex;align-items:center;justify-content:center;color:#54595F}
+  .pgrid{display:grid;grid-template-columns:repeat(3,1fr);gap:9px;padding:14px 22px 6px;max-height:430px;overflow-y:auto}
+  .pitem{height:64px;border:1.5px solid #E6E4DE;border-radius:11px;background:#fff;display:flex;flex-direction:column;justify-content:center;padding:0 15px;gap:2px}
+  .pitem .nm{font-size:14.5px;font-weight:800;letter-spacing:-0.01em}
+  .pitem .pm{font-size:11.5px;color:#8A8F98;font-weight:600}
+  .pitem.on{border-color:#0F7B52;background:#EFF7F2;box-shadow:0 0 0 3px rgba(15,123,82,0.10)}
+  .pitem.on .pm{color:#0B5C3E}
+
+  /* ============ Frame 3: 저장 견적 오버레이 ============ */
+  .sov{position:absolute;top:0;right:0;bottom:0;width:392px;background:#FFFFFF;border-left:1px solid #E6E4DE;box-shadow:-14px 0 44px rgba(0,0,0,0.12);display:flex;flex-direction:column}
+  .sov .hd{display:flex;align-items:center;gap:10px;padding:16px 18px 12px}
+  .sov .hd b{font-size:16px;font-weight:800}
+  .sov .hd .close{margin-left:auto;width:38px;height:38px;border-radius:9px;background:#FAF9F6;border:1px solid #E6E4DE;display:flex;align-items:center;justify-content:center;color:#54595F}
+  .sov .search{margin:0 18px 12px;height:46px;border:1.5px solid #D9D6CE;border-radius:10px;display:flex;align-items:center;gap:9px;padding:0 13px;color:#9AA0A9;font-size:14px}
+  .sov .search b{color:#1C1E22;font-weight:700}
+  .sov .list{flex:1;overflow-y:auto;padding:0 14px 14px}
+  .scard{border:1px solid #E6E4DE;border-radius:11px;padding:12px 14px;margin-bottom:8px;background:#fff}
+  .scard .r1{display:flex;align-items:baseline;gap:9px}
+  .scard .r1 .nm{font-size:14.5px;font-weight:800}
+  .scard .r1 .dt{font-size:11px;color:#9AA0A9;font-weight:600}
+  .scard .r1 .amt{margin-left:auto;font-size:14.5px;font-weight:800}
+  .scard .r2{display:flex;align-items:center;gap:8px;margin-top:5px;font-size:11.5px;color:#8A8F98}
+  .scard .r2 .load{margin-left:auto;height:32px;border-radius:8px;border:1px solid #0F7B52;color:#0F7B52;background:#fff;font-size:11.5px;font-weight:800;padding:0 13px;display:flex;align-items:center}
+
+  .cap{display:flex;gap:14px;flex-wrap:wrap;margin-top:14px}
+  .cap .k{font-size:12px;color:var(--page-muted)}
+  .cap .k b{color:var(--page-ink);font-weight:700}
+</style>
+
+<div class="doc">
+  <h1>WD 계산기 — 태블릿 가로 v2 재설계</h1>
+  <p class="sub">PC 기능 전량 이식 · 상담 persona 최적화 · 한 화면 완결 — 2026-07-16 v2 (피드백 6건 반영: 단가 라벨·×구간 삭제, MINE 제품명, 30cm/1m 드롭다운, 직접입력 리네임, 비고 승격)</p>
+
+  <h2>Frame 1 — 메인: 견적 워크시트 + 라이브 견적 패널</h2>
+  <p class="note">
+    상담원의 시선 흐름 = <b>왼쪽에서 입력, 오른쪽에서 읽기</b>. 좌측 워크시트에 입력 전부(구성·옵션·비고·조정), 우측 패널에 계산 결과 전부(현재 견적 브레이크다운 → 진행 견적 스택 → 전체 합계)를 상주.
+    <b>D/H 열 제거</b>, 단가 셀은 금액만(×구간 메타 삭제). 2행 = <b>MINE 행</b>(구 직접): 메인 행은 <b>제품명이 전폭 사용</b>, 방식 드롭다운(30cm▾)+단가 입력은 <b>작은 서브행으로 분리</b> — 제품명 잘림 없음, 입력한 제품명이 견적서에 그대로 표기.
+    1행 하단 = <b>행별 직접입력</b>(구 추가금): 이름+금액 서브행, 견적서엔 입력한 이름만 표기("추가금" 접미사 삭제). <b>비고는 정식 섹션으로 승격</b>, 조정 스트립엔 할인·배송만.
+    <b>[견적 계산] 버튼 삭제(PC·모바일·태블릿 공통)</b> — 계산은 모든 입력 경로에서 이미 자동, 액션바는 [진행 견적에 추가] 하나로 단순화.
+  </p>
+  <div class="frame-scroll"><div class="frame-pad">
+  <div class="tab">
+    <div class="rail">
+      <div class="logo">F</div>
+      <div class="it"><svg viewBox="0 0 24 24"><rect x="3" y="3" width="7" height="7"/><rect x="14" y="3" width="7" height="7"/><rect x="3" y="14" width="7" height="7"/><rect x="14" y="14" width="7" height="7"/></svg>대시보드</div>
+      <div class="it"><svg viewBox="0 0 24 24"><path d="M3 21L21 3M9 3h12v12"/></svg>실측</div>
+      <div class="it"><svg viewBox="0 0 24 24"><path d="M12 19l7-7-4-4-7 7v4h4z"/></svg>도면</div>
+      <div class="it"><svg viewBox="0 0 24 24"><path d="M2 20h20M4 20V8l8-5 8 5v12"/></svg>생산</div>
+      <div class="it"><svg viewBox="0 0 24 24"><rect x="1" y="7" width="14" height="10"/><path d="M15 11h4l3 3v3h-7z"/></svg>출고</div>
+      <div class="it"><svg viewBox="0 0 24 24"><path d="M14 7l-8 8M7 17l10-10"/></svg>시공</div>
+      <div class="it"><svg viewBox="0 0 24 24"><circle cx="12" cy="12" r="9"/><path d="M12 7v5l3 3"/></svg>이력</div>
+      <div class="it on"><svg viewBox="0 0 24 24"><rect x="4" y="2" width="16" height="20" rx="2"/><path d="M8 6h8M8 11h2M14 11h2M8 15h2M14 15h2M8 19h8"/></svg>계산기</div>
+    </div>
+
+    <div class="work">
+      <div class="topbar">
+        <div class="title">WD 계산기</div>
+        <div class="cust"><span class="lbl">고객명</span><span class="val">김서연</span></div>
+        <button class="tb-btn"><svg viewBox="0 0 24 24"><circle cx="11" cy="11" r="7"/><path d="M21 21l-4.3-4.3"/></svg>견적 검색</button>
+        <button class="tb-btn"><svg viewBox="0 0 24 24"><circle cx="12" cy="12" r="3"/><path d="M19.4 15a7.97 7.97 0 000-6M4.6 9a7.97 7.97 0 000 6M15 19.4a7.97 7.97 0 01-6 0M9 4.6a7.97 7.97 0 016 0"/></svg>제품 설정</button>
+      </div>
+
+      <div class="sheet">
+        <!-- 기본 구성 -->
+        <div class="sec">
+          <div class="sec-hd"><span class="t">기본 구성</span><span class="c">2행 · 필수</span><span class="sp"></span></div>
+          <div class="cols colhead"><div>모드</div><div>제품 구성</div><div class="r">W (mm)</div><div class="r">단가</div><div></div></div>
+
+          <div class="row-wrap"><div class="cols brow">
+            <div class="modechip"><span class="n">1</span>선택</div>
+            <div class="prodbtn"><span class="nm">무몰딩(푸쉬)</span><span class="car">▾</span></div>
+            <div class="win"><span>4,500</span></div>
+            <div class="price"><span class="v num">1,348,500</span></div>
+            <button class="del">✕</button>
+          </div>
+          <div class="cols"><div class="subfee">
+            <span class="tie"></span>
+            <div class="nm">윗장 선반</div>
+            <div class="amt num">45,000</div>
+            <span class="x">✕</span>
+          </div></div>
+          <div class="cols"><div class="addfee"><button>＋ 직접입력</button></div></div>
+          </div>
+
+          <div class="row-wrap"><div class="cols brow">
+            <div class="modechip direct"><span class="n">2</span>MINE</div>
+            <div class="dname"><span class="v">몰딩 도어(특주) 슬라이딩 3연동</span></div>
+            <div class="win focus"><span>1,800</span></div>
+            <div class="price"><span class="v num">552,000</span></div>
+            <button class="del">✕</button>
+          </div>
+          <div class="cols"><div class="subfee">
+            <span class="tie"></span>
+            <div class="ddrop sm">30cm <span class="car">▾</span></div>
+            <div class="dinput sm"><span class="v num">92,000</span></div>
+            <span class="subhint">단가 — 방식 × W로 자동 계산</span>
+          </div></div>
+          </div>
+
+          <div class="addrow">
+            <div class="a">＋ 구성 행 추가</div>
+            <div class="a sub">✎ MINE 행 추가</div>
+          </div>
+        </div>
+
+        <!-- 추가 옵션 -->
+        <div class="sec">
+          <div class="sec-hd"><span class="t">추가 옵션</span><span class="c">2건 · +253,000</span><span class="sp"></span></div>
+          <div class="row-wrap" style="border-top:none;margin-top:4px"><div class="ocols brow">
+            <div class="obadge">옵션</div>
+            <div class="optbtn"><span class="cat">서랍장 ›</span><span class="nm">3단 서랍장</span><span class="car">▾</span></div>
+            <div class="oamt num">165,000</div>
+            <button class="del">✕</button>
+          </div></div>
+          <div class="row-wrap"><div class="ocols brow">
+            <div class="obadge mine">MINE</div>
+            <div class="optbtn"><span class="nm">LED 조명바 (현장 타공)</span><span class="car">▾</span></div>
+            <div class="oamt num">88,000</div>
+            <button class="del">✕</button>
+          </div></div>
+          <div class="addrow"><div class="a">＋ 옵션 추가</div></div>
+        </div>
+
+        <!-- 비고 (정식 섹션) -->
+        <div class="sec">
+          <div class="sec-hd"><span class="t">비고</span><span class="c">2건 · 견적서 표기</span><span class="sp"></span></div>
+          <div class="row-wrap" style="border-top:none;margin-top:4px"><div class="ncols brow">
+            <div class="obadge">문구</div>
+            <div class="optbtn"><span class="nm">엘리베이터 사용 가능</span><span class="car">▾</span></div>
+            <button class="del">✕</button>
+          </div></div>
+          <div class="row-wrap"><div class="ncols brow">
+            <div class="obadge mine">MINE</div>
+            <div class="optbtn"><span class="nm">현관 폭 협소 — 반제품 반입 필요</span></div>
+            <button class="del">✕</button>
+          </div></div>
+          <div class="addrow"><div class="a">＋ 비고 추가</div></div>
+        </div>
+
+        <!-- 조정 스트립: 할인 · 배송 -->
+        <div class="strip">
+          <div class="pill"><span class="l">할인</span><span class="sign">−</span><div class="in num">11,000</div></div>
+          <div class="pill"><span class="l">배송비</span><span class="sign plus">＋</span><div class="in num">0</div><span class="chk"><span class="bx">✓</span>최종 포함</span></div>
+        </div>
+      </div>
+
+      <div class="abar">
+        <div>
+          <div class="tl">총견적</div>
+          <div style="display:flex;align-items:baseline"><span class="tv num">2,187,500<small> 원</small></span><span class="live">실시간 · 할인/배송 반영</span></div>
+        </div>
+        <div class="sp"></div>
+        <button class="ab-add">진행 견적에 추가 <span>→</span></button>
+      </div>
+    </div>
+
+    <!-- 우측 진행 견적 패널 -->
+    <div class="qpanel">
+      <div class="qp-cur">
+        <div class="hd"><span class="live-dot"></span><b>현재 견적</b></div>
+        <div class="bl"><span>기본 구성 2행</span><b class="num">1,945,500</b></div>
+        <div class="bl"><span>추가 옵션 2건</span><b class="num">+253,000</b></div>
+        <div class="bl minus"><span>할인</span><b class="num">−11,000</b></div>
+        <div class="bl"><span>배송비 <span class="mut">포함</span></span><b class="num">+0</b></div>
+        <div class="bl total"><span>총견적</span><b class="num">2,187,500원</b></div>
+      </div>
+      <div class="qp-list">
+        <div class="lh"><b>진행 견적</b><span class="cnt">2건</span><span class="sp"></span><span class="togg">단가<span class="sw"></span></span></div>
+        <div class="qcard">
+          <div class="r1"><span class="no">견적 1</span><span class="amt num">1,742,000원</span></div>
+          <div class="ln">무몰딩(푸쉬) W3600 <span class="u">· 89,900/30cm</span><br>윗장 선반 +45,000</div>
+          <div class="acts"><button>수정</button><button class="danger">삭제</button></div>
+        </div>
+        <div class="qcard">
+          <div class="r1"><span class="no">견적 2</span><span class="amt num">980,000원</span></div>
+          <div class="ln">몰딩 도어(특주) W2400 <span class="u">· 92,000/30cm</span></div>
+          <div class="acts"><button>수정</button><button class="danger">삭제</button></div>
+        </div>
+      </div>
+      <div class="qp-foot">
+        <div class="sum"><span class="l">전체 합계 · 2건</span><span class="v num">2,722,000원</span></div>
+        <div class="btns">
+          <button class="ghost">새 견적</button>
+          <button class="solid">전체 저장</button>
+        </div>
+      </div>
+    </div>
+  </div>
+  </div></div>
+  <div class="cap">
+    <span class="k"><b>입력칸</b> = 흰 배경 + 실선 테두리 / <b>계산값</b> = 그린 틴트(터치 불가) — 만질 수 있는 것과 시스템이 계산한 것의 시각 언어 분리</span>
+    <span class="k"><b>MINE 행</b>: 제품명이 견적서·진행 견적 카드에 그대로 표기 (견적 2 참조)</span>
+    <span class="k"><b>행별 직접입력</b>: 이름만 표기 — "추가금" 접미사 없음 (견적 1의 "윗장 선반 +45,000" 참조)</span>
+  </div>
+
+  <h2>Frame 2 — 제품 선택 시트 (구성 행의 "제품" 탭)</h2>
+  <p class="note">
+    태블릿에서 native select는 오조작 유발 → 하단 시트 3열 그리드. 각 항목에 <b>30cm 단가 병기</b>(상담 즉답용 — 행 표면에선 삭제됐지만 선택 시점엔 필요). 현재 선택은 그린 링.
+    옵션 선택 시트(카테고리 › 옵션)·비고 문구 시트·<b>MINE 행 30cm/1m 드롭다운</b>도 동일 문법의 경량 시트.
+  </p>
+  <div class="frame-scroll"><div class="frame-pad">
+  <div class="tab">
+    <div class="rail"><div class="logo">F</div></div>
+    <div class="work" style="filter:blur(1px)">
+      <div class="topbar"><div class="title">WD 계산기</div><div class="cust"><span class="lbl">고객명</span><span class="val">김서연</span></div></div>
+      <div class="sheet"></div>
+    </div>
+    <div class="qpanel" style="filter:blur(1px)"></div>
+    <div class="dim"></div>
+    <div class="psheet">
+      <div class="grab"></div>
+      <div class="hd"><b>제품 선택</b><span class="ctx">기본 구성 1행</span><button class="close">✕</button></div>
+      <div class="pgrid">
+        <div class="pitem on"><span class="nm">무몰딩(푸쉬)</span><span class="pm">89,900 / 30cm</span></div>
+        <div class="pitem"><span class="nm">무몰딩(오픈)</span><span class="pm">83,000 / 30cm</span></div>
+        <div class="pitem"><span class="nm">무몰딩(도어)</span><span class="pm">96,500 / 30cm</span></div>
+        <div class="pitem"><span class="nm">몰딩(푸쉬)</span><span class="pm">78,000 / 30cm</span></div>
+        <div class="pitem"><span class="nm">몰딩(오픈)</span><span class="pm">72,500 / 30cm</span></div>
+        <div class="pitem"><span class="nm">몰딩(도어)</span><span class="pm">85,000 / 30cm</span></div>
+        <div class="pitem"><span class="nm">드레스룸 오픈장</span><span class="pm">68,000 / 30cm</span></div>
+        <div class="pitem"><span class="nm">붙박이장(슬라이딩)</span><span class="pm">102,000 / 30cm</span></div>
+        <div class="pitem"><span class="nm">붙박이장(여닫이)</span><span class="pm">98,000 / 30cm</span></div>
+        <div class="pitem"><span class="nm">시스템 선반장</span><span class="pm">54,000 / 30cm</span></div>
+        <div class="pitem"><span class="nm">수납장(하부)</span><span class="pm">61,500 / 30cm</span></div>
+        <div class="pitem"><span class="nm">TV 장식장</span><span class="pm">74,000 / 30cm</span></div>
+      </div>
+    </div>
+  </div>
+  </div></div>
+
+  <h2>Frame 3 — 저장된 견적 검색 (상단 "견적 검색")</h2>
+  <p class="note">
+    PC의 상시 좌측 사이드바를 <b>호출형 오버레이</b>로 전환 — 검색은 세션 시작/종료에만 쓰는 기능이라 상주시키지 않고 입력 폭에 양보. 카드 = 고객명 · 날짜 · 견적 수 · 총액, [불러오기]로 워크시트에 로드. 기존 48px 접힘 레일은 폐지(진입점을 상단 버튼 하나로 통일).
+  </p>
+  <div class="frame-scroll"><div class="frame-pad">
+  <div class="tab">
+    <div class="rail"><div class="logo">F</div></div>
+    <div class="work" style="filter:blur(1px)">
+      <div class="topbar"><div class="title">WD 계산기</div><div class="cust"><span class="lbl">고객명</span><span class="val">김서연</span></div></div>
+      <div class="sheet"></div>
+    </div>
+    <div class="dim"></div>
+    <div class="sov">
+      <div class="hd"><b>저장된 견적</b><button class="close">✕</button></div>
+      <div class="search"><svg width="15" height="15" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><circle cx="11" cy="11" r="7"/><path d="M21 21l-4.3-4.3"/></svg><b>김</b>서연…</div>
+      <div class="list">
+        <div class="scard">
+          <div class="r1"><span class="nm">김서연</span><span class="dt">오늘 14:22</span><span class="amt num">2,722,000</span></div>
+          <div class="r2"><span>견적 2건 · 무몰딩(푸쉬) 외</span><button class="load">불러오기</button></div>
+        </div>
+        <div class="scard">
+          <div class="r1"><span class="nm">김서준</span><span class="dt">7/14</span><span class="amt num">1,905,000</span></div>
+          <div class="r2"><span>견적 1건 · 붙박이장(슬라이딩)</span><button class="load">불러오기</button></div>
+        </div>
+        <div class="scard">
+          <div class="r1"><span class="nm">김선영</span><span class="dt">7/11</span><span class="amt num">4,180,500</span></div>
+          <div class="r2"><span>견적 3건 · 드레스룸 오픈장 외</span><button class="load">불러오기</button></div>
+        </div>
+      </div>
+    </div>
+  </div>
+  </div></div>
+
+  <h2 style="margin-top:56px">설계 근거 요약</h2>
+  <p class="note" style="max-width:none">
+    <b>persona</b>: 상담팀 — 통화/대면 중 입력 90%가 제품 선택+W 타이핑. 시선 분산 상태에서도 총액·진행 견적이 항상 보여야 함.<br>
+    <b>중요도 위계</b>: W 입력(18px 볼드·128px)과 제품/제품명(1fr)이 가장 크고, 할인·배송(104px)은 하단 스트립으로 압축. 비고는 견적서 표기 항목이라 정식 섹션. D/H 열 제거(W 기준 가격), 단가 셀은 금액만.<br>
+    <b>PC 기능 100% 이식 + 엔진 확장 5점(PC·모바일·태블릿 공통)</b>: ① MINE(구 직접) 행 제품명 입력·견적서 표기 ② 30cm/1m 컴팩트 드롭다운(태블릿·모바일) ③ "직접"→"MINE", "추가금 추가"→"직접입력" 리네임 ④ 행별 직접입력 표기에서 "추가금" 접미사 삭제(입력한 이름만) ⑤ [견적 계산] 버튼 삭제(계산은 전 입력 경로 자동 — 죽은 버튼 정리).<br>
+    <b>구현 아키텍처</b>: 계산·저장 엔진 코어는 무접촉, 위 5점만 최소 확장. 태블릿 표면 = 신규 DOM + 은닉 엔진 위젯 양방향 미러(검증된 T16/T18 패턴). 총견적 실시간 = 자동 계산 결과 미러(표시 전용).
+  </p>
+</div>

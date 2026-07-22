@@ -99,3 +99,69 @@ var formatNumber =
         return Math.round(num).toLocaleString("ko-KR");
     };
 window.formatNumber = formatNumber;
+
+/**
+ * 금액 문자열 → 숫자 (콤마·통화기호 내성). parsePrice 의 얇은 별칭 — NaN → 0.
+ * W(mm) 입력에는 사용 금지: 콤마가 복합식 항 구분자(spec-width-eval `split(/[+,]/)`)로 예약됨.
+ */
+var wdcParseAmount =
+    window.wdcParseAmount ||
+    function wdcParseAmount(value) {
+        return parsePrice(value);
+    };
+window.wdcParseAmount = wdcParseAmount;
+
+/**
+ * 금액 input 천단위 콤마 재포맷. caret 은 "끝에서부터의 오프셋" 보존(간단·검증 용이).
+ * 빈값/'-'/비숫자 = formatPrice 가 strip — 크래시 없음. 값 불변이면 no-op(caret 미접촉).
+ */
+var wdcFormatAmountInput =
+    window.wdcFormatAmountInput ||
+    function wdcFormatAmountInput(inputEl) {
+        if (!inputEl) return;
+        var raw = String(inputEl.value == null ? "" : inputEl.value);
+        var formatted = formatPrice(raw);
+        if (formatted === raw) return;
+        var caret = inputEl.selectionStart == null ? raw.length : inputEl.selectionStart;
+        var fromEnd = raw.length - caret;
+        inputEl.value = formatted;
+        var pos = Math.max(0, formatted.length - fromEnd);
+        try {
+            inputEl.setSelectionRange(pos, pos);
+        } catch (e) {
+            /* 포커스 밖/미지원 타입 — caret 복원 실패는 무해 */
+        }
+    };
+window.wdcFormatAmountInput = wdcFormatAmountInput;
+
+/**
+ * 금액 입력 천단위 콤마 자동포맷 — 문서 위임 리스너 1개(G4 싱글톤 가드).
+ * 동적 생성 input(fee·옵션 행, 태블릿 v2 셀)도 위임이라 자동 커버.
+ * W(mm) 입력(.base-width-input, .wdc2-win)은 의도적으로 제외(복합식 구분자 충돌).
+ */
+var WDC_AMOUNT_INPUT_SELECTOR = [
+    ".base-manual-price30",
+    ".base-manual-price1m",
+    ".base-additional-fee-amount",
+    "#globalCouponValue",
+    "#shippingCost",
+    "[data-option-price]",
+    ".wdc2-dinput",
+    ".wdc2-oamt",
+    ".wdc2-subfee__amt",
+    ".wdc2-directcell__amt",
+    '.wdc2-psheet__in[inputmode="numeric"]',
+].join(",");
+window.WDC_AMOUNT_INPUT_SELECTOR = WDC_AMOUNT_INPUT_SELECTOR;
+
+if (!window.__WDC_AMOUNT_COMMA_BOUND &&
+    document.addEventListener && document.documentElement) {
+    window.__WDC_AMOUNT_COMMA_BOUND = true;
+    document.addEventListener("input", function (e) {
+        var t = e.target;
+        if (!t || typeof t.matches !== "function") return;
+        if (e.isComposing === true) return;   // IME 조합 중 미개입
+        if (!t.matches(WDC_AMOUNT_INPUT_SELECTOR)) return;
+        wdcFormatAmountInput(t);
+    });
+}

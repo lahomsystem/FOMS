@@ -40,7 +40,14 @@ _TRUTHY = frozenset({"1", "true", "yes", "on"})
 
 # 비긴급 알림 중 push 를 발송하는 P1 유형 기본 집합(env 로 override 가능).
 _DEFAULT_P1_TYPES = frozenset(
-    {"DRAWING_TRANSFERRED", "DRAWING_REVISION", "QUEST_ASSIGNED"}
+    {
+        "DRAWING_TRANSFERRED",
+        "DRAWING_REVISION",
+        "QUEST_ASSIGNED",
+        "ERP_ORDER_CHANGED",
+        # 에스컬레이션 row 는 is_urgent=False(재진입 방지)이므로 P1 로 OS push 허용.
+        "URGENT_ESCALATION",
+    }
 )
 
 # 이미 더 진행된 상태이면 last_delivery_status 를 push 결과로 덮어쓰지 않는다.
@@ -107,9 +114,16 @@ def _should_push(notif: Notification) -> bool:
 
 
 def _deep_link(notif: Notification) -> str:
-    """same-origin deep link. 주문 연동이면 주문 상세, 아니면 ERP 루트."""
+    """same-origin deep link. 도면 주문변경/수정요청은 워크벤치, 그 외 주문은 상세."""
     if notif.order_id:
-        return f"/erp/orders/{int(notif.order_id)}"
+        ntype = (notif.notification_type or "").strip().upper()
+        oid = int(notif.order_id)
+        if ntype == "ERP_ORDER_CHANGED":
+            return f"/erp/drawing-workbench/{oid}?tab=timeline"
+        if ntype in ("DRAWING_TRANSFERRED", "DRAWING_REVISION"):
+            tab = "timeline" if ntype == "DRAWING_TRANSFERRED" else "requests"
+            return f"/erp/drawing-workbench/{oid}?tab={tab}"
+        return f"/erp/orders/{oid}"
     return "/erp"
 
 
@@ -117,10 +131,14 @@ def _generic_title(urgent: bool, ntype: str) -> str:
     """유형별 일반 제목(민감정보 없음)."""
     if urgent:
         return "긴급 알림"
+    if ntype == "ERP_ORDER_CHANGED":
+        return "도면·주문 변경"
     if ntype in ("DRAWING_TRANSFERRED", "DRAWING_REVISION"):
         return "도면 알림"
     if ntype == "QUEST_ASSIGNED":
         return "업무 배정 알림"
+    if ntype == "URGENT_ESCALATION":
+        return "에스컬레이션"
     return "새 알림"
 
 
@@ -133,7 +151,11 @@ def _build_payload(notif: Notification) -> Dict[str, Any]:
         "body": (
             "긴급 확인이 필요한 알림이 있습니다."
             if urgent
-            else "확인이 필요한 새 알림이 있습니다."
+            else (
+                "미확인 긴급 알림이 에스컬레이션되었습니다."
+                if ntype == "URGENT_ESCALATION"
+                else "확인이 필요한 새 알림이 있습니다."
+            )
         ),
         "data": {"notification_id": int(notif.id), "deep_link": _deep_link(notif)},
     }

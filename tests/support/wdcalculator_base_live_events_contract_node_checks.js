@@ -9,6 +9,10 @@ const vm = require("vm");
 const repoRoot = path.join(__dirname, "..", "..");
 const helperPath = path.join(repoRoot, "static", "js", "wdcalculator", "primary-form.js");
 const helperSrc = fs.readFileSync(helperPath, "utf8");
+const sharedSrc = fs.readFileSync(
+    path.join(repoRoot, "static", "js", "wdcalculator", "shared.js"),
+    "utf8"
+);
 const templatePath = helperPath;
 const templateSrc = helperSrc;
 
@@ -291,10 +295,15 @@ function createBaseComponentRow(ids, opts = {}) {
     });
 
     const selectArea = row.appendChild(new El("div", { className: "base-select-area", ids }));
-    selectArea.style.display = mode === "manual" ? "none" : "";
+    selectArea.style.display = mode === "select" ? "" : "none";
 
     const manualArea = row.appendChild(new El("div", { className: "base-manual-area", ids }));
     manualArea.style.display = mode === "manual" ? "" : "none";
+
+    const widthCol = row.appendChild(new El("div", { className: "base-width-col", ids }));
+    widthCol.style.display = mode === "direct" ? "none" : "";
+
+    row.appendChild(new El("select", { className: "base-mode-select", value: mode, ids }));
 
     row.appendChild(
         new El("button", {
@@ -307,6 +316,13 @@ function createBaseComponentRow(ids, opts = {}) {
         new El("button", {
             className: `base-mode-btn ${mode === "manual" ? "btn-warning" : "btn-outline-warning"}`,
             dataset: { mode: "manual" },
+            ids,
+        })
+    );
+    row.appendChild(
+        new El("button", {
+            className: `base-mode-btn ${mode === "direct" ? "btn-secondary" : "btn-outline-secondary"}`,
+            dataset: { mode: "direct" },
             ids,
         })
     );
@@ -387,6 +403,7 @@ function buildSandbox(spec = {}) {
     vm.createContext(sandbox);
     vm.runInContext(
         [
+            sharedSrc,
             helperSrc,
             `
             WdCalculatorBaseComponentsUI.configure({
@@ -449,8 +466,25 @@ function scenarioModeToggleUpdatesAreasAndClasses() {
     assertEq(row.dataset.mode, "manual", "mode toggle updates row dataset");
     assertEq(row.querySelector(".base-select-area").style.display, "none", "mode toggle hides select area");
     assertEq(row.querySelector(".base-manual-area").style.display, "", "mode toggle shows manual area");
+    assertEq(row.querySelector(".base-mode-select").value, "manual", "mode toggle syncs base-mode-select");
     assertEq(manualBtn.classList.contains("btn-warning"), true, "mode toggle promotes manual button style");
     assertEq(env.calculateCalls.length, 1, "mode toggle recalculates once");
+}
+
+function scenarioModeSelectChangeUpdatesAreas() {
+    const env = buildSandbox({});
+    const row = env.baseComponentsContainer.querySelector(".base-component-row");
+    const modeSelect = row.querySelector(".base-mode-select");
+    const manualBtn = row.querySelectorAll(".base-mode-btn").find((btn) => btn.dataset.mode === "manual");
+
+    modeSelect.value = "manual";
+    env.baseComponentsContainer.dispatchEvent({ type: "change", target: modeSelect });
+
+    assertEq(row.dataset.mode, "manual", "mode select change updates row dataset");
+    assertEq(row.querySelector(".base-select-area").style.display, "none", "mode select hides select area");
+    assertEq(row.querySelector(".base-manual-area").style.display, "", "mode select shows manual area");
+    assertEq(manualBtn.classList.contains("btn-warning"), true, "mode select promotes manual hook button style");
+    assertEq(env.calculateCalls.length, 1, "mode select change recalculates once");
 }
 
 function scenarioRemoveButtonKeepsMinimumOneRow() {
@@ -486,7 +520,7 @@ function scenarioManualPrice30InputAutoSyncsPrice1() {
 
     assertEq(env.computeCalls.length, 1, "manual price30 input calls auto-price helper once");
     assertEq(env.computeCalls[0], 3300, "manual price30 input passes numeric value to helper");
-    assertEq(price1.value, "1100", "manual price30 input auto-syncs 1cm price");
+    assertEq(price1.value, "1,100", "manual price30 input auto-syncs 1cm price (T5 콤마 표시)");
     assertEq(env.calculateCalls.length, 1, "manual price30 input recalculates once");
 }
 
@@ -513,7 +547,7 @@ function scenarioPricingTypeChangeTogglesColumnsAndResyncsAutoPrice() {
     assertEq(col30.style.display, "", "pricing type 30cm restores 30cm column");
     assertEq(col1.style.display, "", "pricing type 30cm restores 1cm column");
     assertEq(col1m.style.display, "none", "pricing type 30cm hides 1m column");
-    assertEq(price1.value, "1200", "pricing type 30cm resyncs 1cm price from 30cm input");
+    assertEq(price1.value, "1,200", "pricing type 30cm resyncs 1cm price from 30cm input (T5 콤마 표시)");
     assertEq(env.calculateCalls.length, 2, "pricing type 30cm recalculates once");
 }
 
@@ -521,6 +555,7 @@ try {
     scenarioAddBaseComponentAddsRowAndRecalculates();
     scenarioAddAndRemoveFeeButtonsRecalculate();
     scenarioModeToggleUpdatesAreasAndClasses();
+    scenarioModeSelectChangeUpdatesAreas();
     scenarioRemoveButtonKeepsMinimumOneRow();
     scenarioManualPrice30InputAutoSyncsPrice1();
     scenarioPricingTypeChangeTogglesColumnsAndResyncsAutoPrice();

@@ -4,7 +4,7 @@
 .erp-mobile-seg-label { display: none; }
 .erp-desktop-seg-label { display: inline; }
 
-@media (max-width: 991.98px) {
+@media (max-width: 991.98px), ((min-width: 992px) and (pointer: coarse) and (orientation: portrait)) {
   body.erp-mobile-v2-layout .erp-mobile-seg-label { display: inline; }
   body.erp-mobile-v2-layout .erp-desktop-seg-label { display: none; }
 
@@ -307,7 +307,7 @@ body.erp-mobile-v2-layout .erp-order-mobile-form .erp-mobile-attachment-controls
 }
 
 /* Last section before sticky 저장/불러오기 bar: keep collapse toggle visible when body is folded. */
-@media (max-width: 991.98px) {
+@media (max-width: 991.98px), ((min-width: 992px) and (pointer: coarse) and (orientation: portrait)) {
   .erp-order-mobile-form .erp-mobile-pre-sticky-footer {
     margin-bottom: 4.75rem;
   }
@@ -828,7 +828,7 @@ body.erp-mobile-v2-layout .erp-order-mobile-form .erp-mobile-attachment-controls
   gap: var(--foms-space-2);
 }
 
-@media (max-width: 991.98px) {
+@media (max-width: 991.98px), ((min-width: 992px) and (pointer: coarse) and (orientation: portrait)) {
   /* foms-sticky-action-bar negative margin-bottom pulls over the last field; reset for ERP mobile footer. */
   .erp-order-mobile-form .erp-mobile-sticky-action-bar.foms-sticky-action-bar {
     margin-bottom: 0;
@@ -952,7 +952,7 @@ body.erp-mobile-v2-layout .erp-order-mobile-form .erp-mobile-attachment-controls
 }
 /* sticky가 동작하려면 조상 카드의 overflow:hidden을 풀어야 한다(안 그러면 sticky
    컨테이닝블록이 카드가 되어 문서 스크롤 시 함께 올라가 버림). 모바일에만 적용. */
-@media (max-width: 991.98px) {
+@media (max-width: 991.98px), ((min-width: 992px) and (pointer: coarse) and (orientation: portrait)) {
   body.erp-mobile-v2-layout .card[data-order-id],
   body.erp-mobile-v2-layout .erp-order-mobile-card { overflow: visible; }
 }
@@ -1039,7 +1039,7 @@ body.erp-mobile-v2-layout .erp-order-mobile-form .erp-mobile-attachment-controls
 
 /* ── 밀도(density) 압축: 실 사용자 스크롤 최소화. 입력 터치영역(44px)·가독성은 유지하고
    필드/섹션/제목 사이 세로 여백만 줄인다. 모바일(<992px) ERP 폼에만 적용. ── */
-@media (max-width: 991.98px) {
+@media (max-width: 991.98px), ((min-width: 992px) and (pointer: coarse) and (orientation: portrait)) {
   body.erp-mobile-v2-layout .erp-order-mobile-form .field { margin-bottom: var(--foms-space-2); }
   body.erp-mobile-v2-layout .erp-order-mobile-form .erp-form-section { padding: var(--foms-space-2) 0; }
   body.erp-mobile-v2-layout .erp-order-mobile-form .erp-form-section--primary { padding-top: var(--foms-space-3); }

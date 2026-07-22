@@ -54,10 +54,10 @@
     align-items: stretch;
     gap: var(--foms-space-4);
     /* 3패널 각자 내부 스크롤 — 페이지가 아니라 패널 내부에서 넘침 처리.
-       dvh = 툴바/액션바 보정(약 12rem). */
-    min-height: calc(100dvh - 12rem);
-    max-height: calc(100dvh - 12rem);
-    padding: var(--foms-space-3) var(--foms-space-4) var(--foms-space-6);
+       landscape 크롬 숨김 후 과예약 금지(레일·패딩만 ~2rem). */
+    min-height: calc(100dvh - 2rem);
+    max-height: calc(100dvh - 2rem);
+    padding: var(--foms-space-3) var(--foms-space-4) var(--foms-space-3);
   }
 
   /* --- 워크모드 위쪽 PC 잔존 상단(legacy header/subnav + 프로세스맵 밴드 + 파이프라인 +

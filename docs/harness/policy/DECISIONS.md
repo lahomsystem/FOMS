@@ -6,6 +6,24 @@
 
 ---
 
+### [2026-07-22] production promote baseline 완전성 (cherry patch-id)
+- **키워드**: harness, production, promote, cherry-pick, completeness, patch-id, baseline
+- **결정**: 세션 소유권 격리와 별층으로 production 승격 전 `promote_completeness` 사전검사 필수. 알고리즘 = 승격 SHA 파일 교집합 × `git log base..sha -- files` × `git cherry +`만 missing(`-`=이미 동등, ancestry-only false positive 제거). runner `promote_own_to_production.py`는 incomplete 기본 차단·`--allow-incomplete`만 우회·`gh pr --base production`(직접 `HEAD:production` 금지)·충돌 시 exit 3·자동 해결 금지. guard_policy 자동 차단은 후속.
+- **이유**: 2026-07-22 승격에서 세션 isolation은 정상 동작했으나 deploy tip 부모(미승격 PC 미러 등) 때문에 cherry-pick 충돌. 소유≠baseline 완전.
+- **영향**: `tools/harness/promote_completeness.py`, `promote_own_to_production.py`, `tests/harness/test_promote_*`, `AGENTS.md`/`CLAUDE.md`, `docs/specs/2026-07-22-promote-completeness-design.md`.
+
+### [2026-07-16] deploy push 세션 격리 (ledger + ask + own-only WT)
+- **키워드**: harness, deploy, push, session-isolation, worktree, ledger, multi-agent
+- **결정**: 공유 워킹트리에서 `git push … deploy` 시 `origin/deploy..HEAD`를 세션 레저와 대조한다. 타 세션/미확인 커밋이면 **ask**(deny 아님). 승인 이원화: 전체 포함 / 자기 몫만(`push_own_session_commits.py` = `c:/tmp` 임시 worktree + cherry-pick). 상시 창별 worktree 강제는 하지 않음(Phase 1 선택). production/force 기존 가드 우선.
+- **이유**: 2026-07-16 12:37 사고 — 알림 세션 push에 WD 계산기 커밋 동반. production cherry-pick 규칙만으로는 deploy 오염을 못 막음. 전창 worktree 강제는 OneDrive·공유 PG·머지 비용으로 FOMS에 비효율(찬성/반대/중립 토론 결론).
+- **영향**: `tools/harness/{session_commit_ledger,deploy_push_scope,push_own_session_commits,record_git_commit_ledger}.py`, `guard_policy.py`, Cursor/Claude guard·commit 훅, `AGENTS.md`/`CLAUDE.md`, `docs/specs/2026-07-16-deploy-push-session-isolation-design.md`. 검증: harness 관련 126 passed, `APP_OK`.
+
+### [2026-07-16] 훅 배선 P0 수리 + 검증 기반 스킬 생태계 개편 (SDD 채용)
+- **키워드**: harness, hooks, CLAUDE_PROJECT_DIR, deadlock, skills, superpowers, sdd, ponytail, ecc, taste, mcp, youtube
+- **결정**: (1) `.claude/settings.json` 훅 7개 command를 상대경로에서 `${CLAUDE_PROJECT_DIR}` 절대경로로 수리 — Bash `cd`로 루트 이탈 시 훅 로드 실패(exit 2)→전 Bash 차단 데드락이 실증된 P0 결함. (2) `quality_check.py` 현대화 — 자체 로거 제거→`hook_log` SSOT, 구식 `{"message"}`→`systemMessage`, EDIT_LOG 파싱 shared_utils 위임 (Stop `import app` 게이트 로직 불변). (3) 스킬 생태계 개편: superpowers·ponytail(기본 lite) 플러그인 설치, 전역 CLAUDE.md의 Advisor/Worker를 **SDD 통합 프로토콜**로 개정(파일 핸드오프·2판정 리뷰·모델 티어링·progress ledger 흡수), 프로젝트 `.claude/skills/`에 발췌 11종 이식(mattpocock 4: diagnosing-bugs·wayfinder·handoff·writing-great-skills / ECC 5: postgres-patterns·python-testing·database-migrations·error-handling·api-design / taste 2: redesign-existing-projects·minimalist-ui, FOMS 가드 주입). (4) `.mcp.json`에 youtube(uvx mcp-youtube-transcript, 무키) 추가, yt-dlp 설치. last30days는 훅 없이 전역 스킬만.
+- **이유**: 유튜브 추천 스킬 7종을 repo clone 후 소스 수준 검증 — "최신=우월" 가설은 부분만 성립. **기각**: ECC 통설치(278스킬 전량 노출 ~1만 토큰 상시 + JS편향 훅 29종이 기존 6훅과 충돌 + camelCase/immutability 규칙이 JSONB flag_modified 패턴과 충돌; continuous-learning v1은 로그만·v2 기본 OFF, AgentShield 미번들 — 과장 실증), taste v2/v1/soft(React/Tailwind 하드코딩 + 밀집 ERP를 명시적 OUT OF SCOPE — 디자인 QA·개선은 기존 gstack-design-review가 스택 불가지론·CSS-first·실브라우저 검증루프로 객관적 우월), mattpocock spec/tdd/implement류(RPI·SDD와 중복, /implement 인라인 구현은 격리 열등). **채택 근거**: SDD는 A/W와 동형이며 4규율이 정교, diagnosing-bugs tight-loop는 3자 비교 디버깅 방법론 최강, FOMS 하네스 코어(guard_policy·ci_watch·Stop 게이트)는 2026 모범 구현이라 보존.
+- **영향**: `.claude/settings.json`, `.claude/hooks/quality_check.py`, `.claude/skills/*`(11종 신규), `.mcp.json`, `CLAUDE.md`(MCP 문구·스킬 우선순위 절), `~/.claude/CLAUDE.md`(전역 SDD 개정), `~/.claude/settings.json`(플러그인 2종), `%APPDATA%/ponytail/config.json`, 메모리 2건. 검증: 데드락 시나리오 재현 통과, quality_check 게이트 시나리오 exit 계약 확인, APP_OK.
+
 ### [2026-07-09] 하네스 가드 우회 봉합 + ci_watch false-green 수정
 - **키워드**: harness, guard, bypass, tokenizer, ci_watch, false-green, post-push, adversarial-review
 - **결정**: 07-08 재설계 신규 코드에 대한 적대적 침투 리뷰에서 확정된 결함을 근본 수정. (G-1) `guard_policy`가 개행을 `;`와 동급 세그먼트 경계로 인식 — 다줄 명령 2번째 줄부터 위험 명령이 첫 명령 인자로 흡수되던 우회 봉합. (G-2) `KEY=VAL` prefix·`env/nohup/timeout/xargs` 래퍼·`bash/sh -c` 문자열·서브셸/명령치환 내부 git push를 재귀 전처리(`_unwrap_segment`, 깊이 상한 5)로 실명령 판정. (C-1) `ci_watch` 블로킹 모드가 폴링 상한 도달 시 미완 run을 ALL GREEN(exit 0)으로 오판하던 false-green을 `all_completed` 재확인 후 exit 4로 수정. `post_push_watch`의 부분문자열 push 오탐을 `find_push_segments` 토크나이저 재사용으로 교체. Cursor `_sanitize_command`의 개행 뭉갬도 보존으로 수정해 양 훅 경로 봉합.
@@ -90,9 +108,4 @@
 - **이유**: 현재 web/worker/alembic/test/harness가 root `app.py`, root `db.py`/`models.py`, `migrations/env.py`, `foms/services/jobs/tasks.py`의 repo-root depth contract, repo-root pytest/bootstrap에 강하게 결합돼 있다. 이 상태에서 `src` 이동이나 metadata만 추가하면 안정성보다 split-brain과 false-confidence 위험이 크다.
 - **영향**: `docs/specs/2026-04-07-repo-structure-governance_SPEC.md`, `docs/plans/2026-04-11-step8-*`, `docs/AI_STATUS.md`, `docs/ARCHIVE_INDEX.md`, future packaging ADR 및 boot/worker/alembic/test contract work
 
-### [2026-04-11] Harness asset taxonomy canonicalization
-- **키워드**: harness, docs-harness, taxonomy, context, bundle, runtime, logs
-- **결정**: 하네스 policy/generated/runtime/log 자산은 `docs/harness/{policy,bundles,runtime,logs}`에만 둔다. `docs/context`는 incident/RCA/reference 문서만 유지하고, 경로 전환은 hooks/scripts/CI/bundles/tests를 같은 실행 배치에서 함께 갱신한다.
-- **이유**: `docs/context` 한 축에 정책·생성물·런타임 상태·디버그 로그가 섞여 있으면 hook path, bundle output, CI drift, archive semantics가 함께 결합돼 split-brain과 복구 비용이 커진다.
-- **영향**: `tools/harness/*`, `.cursor/hooks/*`, `.claude/hooks/*`, `tests/harness/*`, `.github/workflows/harness-ci.yml`, `.gitignore`, `.gitattributes`, `docs/harness/*`, `docs/context/*`
 

@@ -1,8 +1,14 @@
-{# P2-01: HTMX swap target for tablet split-view order detail (new surface only) #}
-<div class="foms-order-detail-fragment" data-foms-order-fragment="{{ order.id }}">
-  {% include 'orders/partials/edit_order_body.html' %}
-</div>
-{% include 'orders/partials/erp_order_js.html' %}
-<script>
-  document.dispatchEvent(new CustomEvent('foms:main-content-swapped', { detail: { source: 'split-fragment' } }));
-</script>
+{# P2-01: HTMX swap target for tablet split-view order detail (new surface only).
+   Page-local CSS must ride with the fragment — split swap has no layout head. #}
+<link rel="stylesheet" href="{{ url_for('static', filename='css/orders/erp-wdc-split.css') }}?v=20260713a">
+{% if flag_inline %}
+<link rel="stylesheet" href="{{ url_for('static', filename='css/components/foms-product-item.css') }}?v=20260531a">
+<link rel="stylesheet" href="{{ url_for('static', filename='css/components/foms-inline-edit.css') }}?v=20260531a">
+{% endif %}
+<div class="foms-order-detail-fragment" data-foms-order-fragment="{{ order.id }}">
+  {% include 'orders/partials/edit_order_body.html' %}
+</div>
+{% include 'orders/partials/erp_order_js.html' %}
+<script>
+  document.dispatchEvent(new CustomEvent('foms:main-content-swapped', { detail: { source: 'split-fragment' } }));
+</script>

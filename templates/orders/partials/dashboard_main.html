@@ -1,4 +1,8 @@
 {% set filters = filters or {} %}
+{# Shell FOUC 가드: page-local CSS는 fragment(=본 파일)에도 동반.
+   erp-shell preloadFragmentStylesheets가 swap 전 head에 선로드. ?v= = dashboard.html styles. #}
+<link rel="stylesheet" href="{{ url_for('static', filename='css/components/foms-v2-cs-hero.css') }}?v=20260714a">
+<link rel="stylesheet" href="{{ url_for('static', filename='css/components/foms-call-log.css') }}?v=20260712b">
 {% set _fos_desktop_body %}
 <div class="container-fluid erp-dashboard erp-pro erp-mobile-shell erp-dashboard-orders"
   data-user-id="{{ current_user.id }}"
@@ -147,24 +151,7 @@
 
   <div id="erp-dashboard-config" data-team-labels="{{ team_labels|tojson|e }}" data-stage-labels="{{ stage_labels|tojson|e }}" data-use-direct-upload="{{ use_direct_upload|tojson|e }}" style="display:none" aria-hidden="true"></div>
   {# 대시보드 JS는 static/js/orders/erp-dashboard-entry.js 가 순차 로드 (인라인 스크립트 이중 실행 방지) #}
-
-      <!-- 알림 패널 -->
-      <div id="notification-panel" class="notification-panel" style="display: none;">
-        <div class="notification-panel__header">
-          <h4><i class="fas fa-bell"></i> 알림</h4>
-          <button class="notification-panel__close" onclick="toggleNotificationPanel()">
-            <i class="fas fa-times"></i>
-          </button>
-        </div>
-        <div class="notification-panel__actions">
-          <button class="btn btn-sm btn-outline-secondary" onclick="markAllNotificationsRead()">
-            <i class="fas fa-check-double"></i> 모두 읽음
-          </button>
-        </div>
-        <div class="notification-panel__list" id="notification-list">
-          <div class="notification-empty">알림이 없습니다.</div>
-        </div>
-      </div>
+  {# 알림 센터는 layout_scripts 단일 시트(erp-mobile-notification-sheet) — 로컬 panel 폐기 #}
 
       <link rel="stylesheet" href="{{ url_for('static', filename='css/contexts/orders/dashboard-gateway-notifications.css') }}">
     </div>

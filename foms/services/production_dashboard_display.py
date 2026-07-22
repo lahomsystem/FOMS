@@ -108,6 +108,18 @@ def _production_construction_dday(construction_date: Any) -> int | None:
     return (target - get_today_kst()).days
 
 
+def _production_construction_md(construction_date: Any) -> str | None:
+    """시공 예정일의 'M/D' 표시 문자열. 파싱 불가/미정이면 None."""
+    norm = _normalize_date_to_yyyymmdd(construction_date)
+    if not norm:
+        return None
+    try:
+        target = datetime.datetime.strptime(norm, '%Y-%m-%d').date()
+    except (TypeError, ValueError):
+        return None
+    return f'{target.month}/{target.day}'
+
+
 def _production_stage_label_from_stage(stage: str) -> str | None:
     if stage not in ['고객컨펌', '생산', '시공', 'CONFIRM', 'PRODUCTION', 'CONSTRUCTION']:
         return None
@@ -181,6 +193,7 @@ def _enrich_one_production_order(
         'v3_spec_display': _production_spec_display(_first_item),
         'v3_material': _production_material(_first_item),
         'construction_dday': _production_construction_dday(_construction_date),
+        'construction_md': _production_construction_md(_construction_date),
         'manager_name': (((sd.get('parties') or {}).get('manager') or {}).get('name')) or '-',
         'manager_phone': resolve_manager_phone_for_queue(
             sd.get('parties') or {}, order=o, manager_phone_map=manager_phone_map

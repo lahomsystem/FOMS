@@ -110,6 +110,15 @@
     window.__fomsSwRegistrationPromise = navigator.serviceWorker
       .register("/static/sw.js", { scope: "/" })
       .then(function (registration) {
+        // 구 SW 잔존 창 단축(iOS 완화): register() 는 기존 등록이 있으면 그대로 반환하므로
+        // update() 로 새 sw.js 바이트 검사를 명시 트리거해야 구 SW 가 브라우저 기본 갱신
+        // 주기까지 살아남는 창(무스타일 렌더 잔존 구멍 2)을 단축한다. best-effort —
+        // 실패해도 등록 자체는 유효하므로 삼킨다(등록 SSOT 는 그대로 register 1회 유지).
+        if (registration && typeof registration.update === "function") {
+          Promise.resolve(registration.update()).catch(function () {
+            /* 갱신 실패는 등록 유효성과 무관 — 무시 */
+          });
+        }
         return registration;
       })
       .catch(function (err) {

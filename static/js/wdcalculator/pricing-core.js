@@ -110,11 +110,13 @@
                                 widthMm: widthMm,
                                 additionalFees: additionalFees,
                                 manualPricing: { pricing_type: "1m", price_1m: price1m },
+                                manualName: comp.manualName || "",
                                 },
                                 comp
                             );
-                            detailLines.push("직접입력(1m) " + widthLabel(compData, formatNumber));
-                            displayParts.push("직접입력(1m) " + widthLabel(compData, formatNumber));
+                            var label1m = (comp.manualName && String(comp.manualName).trim()) || "직접입력(1m)";
+                            detailLines.push(label1m + " " + widthLabel(compData, formatNumber));
+                            displayParts.push(label1m + " " + widthLabel(compData, formatNumber));
                         }
                     } else {
                         var price30 = Number(comp.manualPricing && comp.manualPricing.price_30cm) || 0;
@@ -134,11 +136,13 @@
                                     price_30cm: price30,
                                     price_1cm: price1,
                                 },
+                                manualName: comp.manualName || "",
                                 },
                                 comp
                             );
-                            detailLines.push("직접입력(30cm) " + widthLabel(compData, formatNumber));
-                            displayParts.push("직접입력(30cm) " + widthLabel(compData, formatNumber));
+                            var label30 = (comp.manualName && String(comp.manualName).trim()) || "직접입력(30cm)";
+                            detailLines.push(label30 + " " + widthLabel(compData, formatNumber));
+                            displayParts.push(label30 + " " + widthLabel(compData, formatNumber));
                         }
                     }
                 } else {
@@ -186,6 +190,7 @@
                 );
                 if (comp.mode === "manual" && comp.manualPricing) {
                     compData.manualPricing = comp.manualPricing;
+                    compData.manualName = comp.manualName || "";
                 } else {
                     compData.productId = comp.productId || null;
                 }
@@ -194,8 +199,8 @@
                         var feeA = additionalFees[j];
                         var amtA = Number(feeA.amount) || 0;
                         if (amtA > 0) {
-                            var feeNameA = feeA.name ? feeA.name + " " : "";
-                            displayParts.push(feeNameA + "추가금 " + formatNumber(amtA) + "원");
+                            var feeLabelA = feeA.name ? feeA.name + " " : "추가금 ";
+                            displayParts.push(feeLabelA + formatNumber(amtA) + "원");
                         }
                     }
                 }
@@ -206,10 +211,10 @@
                 var amount = Number(fee.amount) || 0;
                 if (amount > 0) {
                     compPrice += amount;
-                    var feeName = fee.name ? fee.name + " " : "";
-                    detailLines.push("+ " + feeName + "추가금 " + formatNumber(amount) + "원");
+                    var feeLabel = fee.name ? fee.name + " " : "추가금 ";
+                    detailLines.push("+ " + feeLabel + formatNumber(amount) + "원");
                     if (widthMm > 0) {
-                        displayParts.push("+ " + feeName + "추가금 " + formatNumber(amount) + "원");
+                        displayParts.push("+ " + feeLabel + formatNumber(amount) + "원");
                     }
                 }
             }
@@ -885,7 +890,9 @@
 
             var couponValue = getCouponValue();
             var shippingCostInput = documentRef.getElementById("shippingCost");
-            var shippingCost = shippingCostInput ? parseFloat(shippingCostInput.value) || 0 : 0;
+            var shippingCost = shippingCostInput
+                ? parseFloat(String(shippingCostInput.value).replace(/,/g, "")) || 0
+                : 0;
             var shippingIncludedCheckbox = documentRef.getElementById("shippingIncluded");
             var shippingIncluded = shippingIncludedCheckbox ? shippingIncludedCheckbox.checked : true;
 

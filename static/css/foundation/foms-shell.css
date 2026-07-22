@@ -547,6 +547,78 @@
     text-align: center;
   }
 
+  /* 팀별 그룹 아코디언(details/summary) — 등록 인원 전체를 팀 헤더 아래로 접어 노출. */
+  body.erp-mobile-v2-layout .erp-mobile-urgent-sheet__team {
+    /* flex-shrink:0 필수 — 부모(__targets)가 column flex+overflow-y:auto인데
+       기본 flex-shrink:1이면 펼쳐진 그룹이 남은 공간에 맞춰 눌리고, 이 박스의
+       overflow:hidden이 눌려난 팀원을 조용히 잘라내 스크롤 자체가 안 걸림
+       (아래 팀원 선택 불가 실사고). 그룹은 항상 실제 콘텐츠 높이 그대로 유지. */
+    flex-shrink: 0;
+    border: 1px solid var(--foms-border-subtle);
+    border-radius: var(--foms-radius-md);
+    overflow: hidden;
+    background: var(--foms-surface-base);
+  }
+
+  body.erp-mobile-v2-layout .erp-mobile-urgent-sheet__team-summary {
+    display: flex;
+    align-items: center;
+    gap: var(--foms-space-2);
+    padding: var(--foms-space-3);
+    min-height: var(--foms-touch-target-min, 44px);
+    font-weight: var(--foms-font-weight-semibold);
+    font-size: var(--foms-font-size-sm);
+    color: var(--foms-text-primary);
+    cursor: pointer;
+    list-style: none;
+    -webkit-user-select: none;
+    user-select: none;
+  }
+
+  body.erp-mobile-v2-layout .erp-mobile-urgent-sheet__team-summary::-webkit-details-marker {
+    display: none;
+  }
+
+  body.erp-mobile-v2-layout .erp-mobile-urgent-sheet__team-name {
+    flex: 1 1 auto;
+  }
+
+  body.erp-mobile-v2-layout .erp-mobile-urgent-sheet__team-count {
+    flex: 0 0 auto;
+    min-width: 20px;
+    padding: 0 var(--foms-space-2);
+    border-radius: 999px;
+    background: var(--foms-surface-muted, #eef0f3);
+    color: var(--foms-text-secondary);
+    font-size: var(--foms-font-size-xs);
+    line-height: 1.6;
+    text-align: center;
+  }
+
+  /* CSS 로 그린 disclosure 화살표(폰트 의존 없음): 접힘=아래, 펼침=위. */
+  body.erp-mobile-v2-layout .erp-mobile-urgent-sheet__team-summary::after {
+    content: "";
+    flex: 0 0 auto;
+    width: 7px;
+    height: 7px;
+    margin-left: 2px;
+    border-right: 2px solid var(--foms-text-tertiary);
+    border-bottom: 2px solid var(--foms-text-tertiary);
+    transform: rotate(45deg);
+    transition: transform 0.15s ease;
+  }
+
+  body.erp-mobile-v2-layout .erp-mobile-urgent-sheet__team[open] .erp-mobile-urgent-sheet__team-summary::after {
+    transform: rotate(-135deg);
+  }
+
+  body.erp-mobile-v2-layout .erp-mobile-urgent-sheet__team-members {
+    display: flex;
+    flex-direction: column;
+    gap: var(--foms-space-2);
+    padding: 0 var(--foms-space-3) var(--foms-space-3);
+  }
+
   body.erp-mobile-v2-layout .foms-drawing-action-bar__btn--urgent {
     color: var(--foms-status-danger, #dc3545);
   }

@@ -1,0 +1,576 @@
+/*
+ * FOMS 실측 동선 지도(map_view) — 모바일/태블릿 세로 스킨.
+ *
+ * 목적(사용자 지시 3건):
+ *  1) 하단 주문 목록이 40% 고정이라 카드 1건도 안 보임 → 3-스냅 바텀시트로 승격
+ *  2) 마커 팝업이 PC 테이블 레이아웃이라 화면 초과 → 컴팩트 카드
+ *  3) 주문 상세가 40% 패널 안 50%(=실질 20%) → 풀시트 오버레이
+ *
+ * 게이트는 프로젝트 SSOT(static/css/foundation/foms-shell.css:11)와 바이트 동일:
+ *   (max-width: 991.98px), ((min-width: 992px) and (pointer: coarse) and (orientation: portrait))
+ * JS(map-mobile-sheet.js / map-view-kakao.js)의 matchMedia 문자열도 같은 바이트열.
+ *
+ * PC(≥992 landscape/fine)는 이 파일이 전혀 적용되지 않는다 → 기존 2-pane 무회귀.
+ * 스냅 전환은 transform 만 애니메이션(성능 가드: 레이아웃 리플로우 0).
+ */
+
+@media (max-width: 991.98px), ((min-width: 992px) and (pointer: coarse) and (orientation: portrait)) {
+
+  :root {
+    --fmm-ink: #1C1E22;
+    --fmm-muted: #6E7480;
+    --fmm-line: #E6E4DE;
+    --fmm-surface: #FFFFFF;
+    --fmm-canvas: #F4F3EF;
+    /* 액센트: 이 화면의 기존 브랜드색(#0d6efd — .order-id/.status-CONFIRM/bootstrap
+       .text-primary)을 SSOT로 승계. 별도 녹색을 도입하면 실측시간 값에 걸린
+       bootstrap `.text-primary{color:#0d6efd!important}` 와 2-액센트로 충돌한다. */
+    --fmm-accent: #0d6efd;
+    --fmm-danger: #C2453B;
+    --fmm-shadow: 0 -6px 24px rgba(20, 22, 26, .14);
+
+    --fmm-vh: 100vh;
+    --fmm-half: 52vh;
+    --fmm-gap: 56px;
+    --fmm-peek: 64px;
+    --fmm-sheet-h: calc(var(--fmm-vh) - var(--fmm-gap));
+  }
+
+  /* 모바일 브라우저 URL 바 신축 대응(지원 시 dvh) */
+  @supports (height: 100dvh) {
+    :root {
+      --fmm-vh: 100dvh;
+      --fmm-half: 52dvh;
+    }
+  }
+
+  /* ── 1. 주문 목록 = 3-스냅 바텀시트 ───────────────────────────────── */
+
+  /* 지도는 컨테이너 전체를 차지한다(시트가 fixed 로 그 위에 뜬다). */
+  .map-left {
+    flex: 1 1 auto;
+    height: 100%;
+    min-height: 0;
+  }
+
+  .map-right-panel {
+    position: fixed;
+    left: 0;
+    right: 0;
+    bottom: 0;
+    width: auto;
+    height: var(--fmm-sheet-h);
+    z-index: 120;
+    border: 0;
+    border-radius: 18px 18px 0 0;
+    background: var(--fmm-surface);
+    box-shadow: var(--fmm-shadow);
+    /* 기본 = half (JS 미실행/실패 시에도 목록이 읽히는 상태로 남는다) */
+    transform: translateY(calc(var(--fmm-sheet-h) - var(--fmm-half)));
+    transition: transform .28s cubic-bezier(.32, .72, 0, 1);
+    will-change: transform;
+  }
+
+  .map-right-panel.fmm-snap-full {
+    transform: translateY(0);
+  }
+
+  .map-right-panel.fmm-snap-half {
+    transform: translateY(calc(var(--fmm-sheet-h) - var(--fmm-half)));
+  }
+
+  .map-right-panel.fmm-snap-peek {
+    transform: translateY(calc(var(--fmm-sheet-h) - var(--fmm-peek)));
+  }
+
+  /* 드래그 중: 관성 없이 손가락을 따라간다(JS가 --fmm-drag-y 갱신) */
+  .map-right-panel.fmm-dragging {
+    transition: none;
+    transform: translateY(var(--fmm-drag-y, 0px));
+  }
+
+  /* 헤더 = 그랩 핸들 겸 스냅 토글 (peek→half→full→peek) */
+  .order-list-header {
+    position: relative;
+    flex: 0 0 auto;
+    min-height: var(--fmm-peek);
+    padding: 18px 16px 10px;
+    background: var(--fmm-surface);
+    border-bottom: 1px solid var(--fmm-line);
+    border-radius: 18px 18px 0 0;
+    font-size: 15px;
+    font-weight: 700;
+    color: var(--fmm-ink);
+    cursor: pointer;
+    user-select: none;
+    -webkit-user-select: none;
+    touch-action: none;
+  }
+
+  .order-list-header::before {
+    content: '';
+    position: absolute;
+    top: 7px;
+    left: 50%;
+    width: 36px;
+    height: 4px;
+    margin-left: -18px;
+    border-radius: 999px;
+    background: #D6D3CC;
+  }
+
+  /* 스냅 방향 셰브론(폰트 의존 없는 CSS 도형) */
+  .order-list-header::after {
+    content: '';
+    margin-left: auto;
+    width: 9px;
+    height: 9px;
+    border-right: 2px solid var(--fmm-muted);
+    border-bottom: 2px solid var(--fmm-muted);
+    transform: rotate(-135deg);
+    transition: transform .2s ease;
+  }
+
+  .map-right-panel.fmm-snap-full .order-list-header::after {
+    transform: rotate(45deg);
+  }
+
+  .order-list-header .badge {
+    font-variant-numeric: tabular-nums;
+  }
+
+  .order-list-content {
+    padding: 8px 10px calc(14px + env(safe-area-inset-bottom));
+    background: var(--fmm-canvas);
+    overscroll-behavior: contain;
+    -webkit-overflow-scrolling: touch;
+  }
+
+  /* half 스냅에서 스크롤 영역을 "화면에 보이는 만큼"으로 잘라준다.
+     시트 높이는 스냅과 무관하게 항상 sheet-h 이므로, 이 규칙이 없으면
+     화면 밖으로 밀린 카드가 컨테이너 안에서는 여백으로 취급돼
+     스크롤이 아예 생기지 않는다(half 에서 4번째 카드부터 접근 불가). */
+  .map-right-panel.fmm-snap-half .order-list-content {
+    max-height: calc(var(--fmm-half) - var(--fmm-peek));
+  }
+
+  /* ── 2. 리스트 카드 압축 (마크업 무변경 · CSS 재배치) ───────────────
+     .order-info 를 display:contents 로 풀어 6개 .order-info-row 를
+     .order-item 그리드에 직접 배치한다(3행 3열 → 카드 높이 ≤96px).
+       L1 #주문번호 · 배지 · 상태        | 담당자(+지정)
+       L2 고객명 | 제품 | 실측시간 pill
+       L3 주소(1줄 ellipsis + 수정)      | 연락처
+     6개 필드를 하나도 버리지 않으면서 4행(132px) → 3행으로 줄인 배치. */
+  .order-item {
+    display: grid;
+    grid-template-columns: minmax(0, 1fr) auto auto;
+    align-items: center;
+    column-gap: 8px;
+    row-gap: 2px;
+    padding: 7px 10px;
+    margin-bottom: 8px;
+    border: 1px solid var(--fmm-line);
+    border-radius: 12px;
+    box-shadow: none;
+    line-height: 1.35;
+    font-variant-numeric: tabular-nums;
+    transition: background-color .15s ease, border-color .15s ease;
+  }
+
+  .order-item:hover {
+    transform: none;
+    box-shadow: none;
+    background-color: #fff;
+    border-color: var(--fmm-line);
+  }
+
+  .order-item.selected {
+    background-color: rgba(13, 110, 253, .07);
+    border-color: rgba(13, 110, 253, .38);
+    border-width: 1px;
+    box-shadow: inset 3px 0 0 var(--fmm-accent);
+  }
+
+  /* L1 좌측(1~2열). 3열은 담당자 행이 같은 줄에 들어온다. */
+  .order-item-header {
+    grid-column: 1 / 3;
+    order: 0;
+    gap: 6px;
+    margin: 0;
+    padding: 0;
+    border-bottom: 0;
+    min-height: 20px;
+    justify-content: flex-start;
+  }
+
+  .order-id {
+    font-size: 13px;
+  }
+
+  .order-status {
+    font-size: 10.5px;
+    padding: 2px 7px;
+  }
+
+  .geocode-failed-badge,
+  .geocode-pending-badge {
+    font-size: 10px;
+    padding: 2px 6px;
+    margin-left: 0;
+  }
+
+  .order-info {
+    display: contents;
+  }
+
+  .order-info-row {
+    margin: 0;
+    gap: 4px;
+    min-width: 0;
+    align-items: center;
+  }
+
+  /* 라벨 텍스트는 전부 숨기고 값만 노출(공간 회수). 의미는 배치·아이콘이 담당. */
+  .order-info-label {
+    display: none;
+  }
+
+  .order-info-value {
+    flex: 1 1 auto;
+    min-width: 0;
+    font-size: 12px;
+    color: var(--fmm-muted);
+    overflow: hidden;
+    text-overflow: ellipsis;
+    white-space: nowrap;
+  }
+
+  /* L1 우측: 담당자(6) — 헤더와 같은 줄 3열 */
+  .order-info-row:nth-child(6) {
+    order: 1;
+    grid-column: 3;
+    justify-content: flex-end;
+  }
+
+  .order-info-row:nth-child(6) .order-info-value {
+    flex: 0 1 auto;
+    max-width: 5.5em;
+    text-align: right;
+  }
+
+  .order-info-row:nth-child(6) .order-info-value::before {
+    content: '\f007';
+    /* user */
+    font-family: 'Font Awesome 6 Free';
+    font-weight: 900;
+    margin-right: 4px;
+    opacity: .55;
+  }
+
+  /* 담당자 인라인 편집이 열리면 한 줄 전체를 차지해야 입력칸이 확보된다. */
+  .order-info-row:nth-child(6):has(.map-manager-edit) {
+    grid-column: 1 / -1;
+    justify-content: flex-start;
+  }
+
+  .order-info-row:nth-child(6):has(.map-manager-edit) .order-info-value::before {
+    content: none;
+  }
+
+  /* L2: 고객명(1) · 제품(5) · 실측시간(3) */
+  .order-info-row:nth-child(1) {
+    order: 2;
+    grid-column: 1;
+  }
+
+  .order-info-row:nth-child(1) .order-info-value {
+    font-size: 15px;
+    font-weight: 700;
+    color: var(--fmm-ink);
+  }
+
+  .order-info-row:nth-child(5) {
+    order: 3;
+    grid-column: 2;
+    max-width: 8.5em;
+  }
+
+  .order-info-row:nth-child(5) .order-info-value {
+    font-size: 11.5px;
+  }
+
+  .order-info-row:nth-child(3) {
+    order: 4;
+    grid-column: 3;
+  }
+
+  .order-info-row:nth-child(3) .order-info-value {
+    flex: 0 0 auto;
+    font-size: 12px;
+    padding: 2px 8px;
+    border-radius: 999px;
+    background: rgba(13, 110, 253, .09);
+  }
+
+  /* L3: 주소(4) 1줄 + 수정 버튼 | 연락처(2) */
+  .order-info-row:nth-child(4) {
+    order: 5;
+    grid-column: 1 / 3;
+  }
+
+  .order-info-row:nth-child(4) .order-info-value::before {
+    content: '\f3c5';
+    /* map-marker-alt */
+    font-family: 'Font Awesome 6 Free';
+    font-weight: 900;
+    margin-right: 4px;
+    opacity: .55;
+  }
+
+  /* L3 우측: 연락처(2) */
+  .order-info-row:nth-child(2) {
+    order: 6;
+    grid-column: 3;
+    justify-content: flex-end;
+  }
+
+  .order-info-row:nth-child(2) .order-info-value {
+    flex: 0 1 auto;
+    font-size: 11.5px;
+    text-align: right;
+  }
+
+  .order-info-row:nth-child(2) .order-info-value::before {
+    content: '\f095';
+    /* phone */
+    font-family: 'Font Awesome 6 Free';
+    font-weight: 900;
+    margin-right: 4px;
+    opacity: .55;
+  }
+
+  /* 아이콘 버튼: 시각 크기는 26px(카드 높이 예산) + 히트 영역만 44px 로 확장 */
+  .btn-edit-address,
+  .btn-map-assign-manager {
+    position: relative;
+    flex: 0 0 auto;
+    min-width: 26px;
+    min-height: 26px;
+    padding: 3px 7px;
+    font-size: 11.5px;
+    line-height: 1;
+  }
+
+  .btn-edit-address::after,
+  .btn-map-assign-manager::after {
+    content: '';
+    position: absolute;
+    top: 50%;
+    left: 50%;
+    width: 44px;
+    height: 44px;
+    transform: translate(-50%, -50%);
+  }
+
+  .empty-state {
+    padding: 2rem 1rem;
+  }
+
+  /* ── 3. 마커 팝업 컴팩트 카드 (map-view-kakao.js 모바일 분기) ───────── */
+  .foms-kmap-popup {
+    width: min(84vw, 300px);
+    border-radius: 14px;
+    font-size: 13px;
+  }
+
+  .foms-kmap-popup__head {
+    padding: 6px 6px 6px 12px;
+    background: var(--fmm-surface);
+    border-bottom: 1px solid var(--fmm-line);
+  }
+
+  .foms-kmap-popup__close {
+    min-width: 40px;
+    min-height: 40px;
+  }
+
+  .foms-kmap-popup__m-body {
+    padding: 10px 12px;
+  }
+
+  .foms-kmap-popup__m-name {
+    display: flex;
+    align-items: center;
+    gap: 6px;
+    min-width: 0;
+    font-size: 15px;
+    font-weight: 700;
+    color: var(--fmm-ink);
+  }
+
+  .foms-kmap-popup__m-chip {
+    flex: 0 0 auto;
+    padding: 2px 8px;
+    border-radius: 999px;
+    background: var(--fmm-canvas);
+    border: 1px solid var(--fmm-line);
+    font-size: 10.5px;
+    font-weight: 700;
+  }
+
+  .foms-kmap-popup__m-meta {
+    margin-top: 5px;
+    font-size: 12px;
+    color: var(--fmm-muted);
+    font-variant-numeric: tabular-nums;
+  }
+
+  .foms-kmap-popup__m-addr {
+    margin-top: 2px;
+    font-size: 12px;
+    color: var(--fmm-muted);
+    overflow: hidden;
+    text-overflow: ellipsis;
+    white-space: nowrap;
+  }
+
+  .foms-kmap-popup__actions {
+    padding: 10px 12px;
+    border-top: 1px solid var(--fmm-line);
+  }
+
+  .foms-kmap-popup__actions--m {
+    display: grid;
+    grid-template-columns: 1fr 1fr;
+    gap: 8px;
+    text-align: left;
+  }
+
+  .foms-kmap-popup__actions--m .btn {
+    min-height: 40px;
+    font-size: 13px;
+    white-space: nowrap;
+  }
+
+  .foms-kmap-popup__group-row {
+    min-height: 44px;
+  }
+
+  .foms-kmap-popup__group-row .btn {
+    min-height: 36px;
+    min-width: 52px;
+  }
+
+  /* ── 4. 주문 상세 = 풀시트 오버레이 ──────────────────────────────────
+     JS가 detail 패널을 body 직속으로 승격시킨다(시트의 transform 이
+     fixed 자식의 컨테이닝 블록이 되므로 시트 안에서는 fixed 가 불가). */
+  .fmm-detail-backdrop {
+    position: fixed;
+    inset: 0;
+    z-index: 1000;
+    background: rgba(15, 18, 22, .44);
+  }
+
+  .order-detail-panel.fmm-detail-sheet {
+    position: fixed;
+    top: 36px;
+    left: 0;
+    right: 0;
+    bottom: 0;
+    z-index: 1001;
+    margin: 0;
+    padding: 0;
+    max-height: none;
+    height: auto;
+    background: var(--fmm-surface);
+    border: 0;
+    border-radius: 18px 18px 0 0;
+    box-shadow: 0 -8px 30px rgba(20, 22, 26, .22);
+    overflow-y: auto;
+    overflow-x: hidden;
+    overscroll-behavior: contain;
+    -webkit-overflow-scrolling: touch;
+  }
+
+  .fmm-detail-sheet .order-detail-header {
+    position: sticky;
+    top: 0;
+    z-index: 2;
+    margin: 0;
+    padding: 12px 14px;
+    background: var(--fmm-surface);
+    border-bottom: 1px solid var(--fmm-line);
+    font-size: 15px;
+    color: var(--fmm-ink);
+  }
+
+  .fmm-detail-sheet .order-detail-header .btn {
+    min-width: 44px;
+    min-height: 44px;
+  }
+
+  .fmm-detail-sheet .order-detail-content {
+    padding: 12px 14px calc(24px + env(safe-area-inset-bottom));
+    font-size: 13.5px;
+  }
+
+  .fmm-detail-sheet .detail-section {
+    margin-bottom: 12px;
+    padding: 10px 12px;
+    border: 1px solid var(--fmm-line);
+    border-radius: 12px;
+    background: var(--fmm-surface);
+  }
+
+  .fmm-detail-sheet .detail-section-title {
+    margin-bottom: 4px;
+    padding-bottom: 6px;
+    font-size: 13px;
+  }
+
+  .fmm-detail-sheet .detail-row {
+    display: grid;
+    grid-template-columns: minmax(72px, 88px) 1fr;
+    gap: 8px;
+    padding: 7px 0;
+  }
+
+  .fmm-detail-sheet .detail-label {
+    min-width: 0;
+    font-size: 12px;
+    color: var(--fmm-muted);
+  }
+
+  .fmm-detail-sheet .detail-value {
+    text-align: left;
+    font-size: 13px;
+    word-break: break-word;
+    font-variant-numeric: tabular-nums;
+  }
+
+  /* 가로 스크롤은 표 안에서만 — 페이지 body 는 절대 가로로 흐르지 않는다. */
+  .fmm-detail-sheet .table-responsive {
+    overflow-x: auto;
+    -webkit-overflow-scrolling: touch;
+  }
+
+  .fmm-detail-sheet .table {
+    margin-bottom: 0;
+    font-size: 12px;
+    white-space: nowrap;
+  }
+
+  body.foms-map-detail-open {
+    overflow: hidden;
+  }
+
+  /* ── 6. 접근성/성능 가드 ─────────────────────────────────────────── */
+  @media (prefers-reduced-motion: reduce) {
+
+    .map-right-panel,
+    .order-list-header::after,
+    .order-item {
+      transition: none;
+    }
+  }
+}

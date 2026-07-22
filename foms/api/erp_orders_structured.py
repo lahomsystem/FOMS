@@ -7,7 +7,7 @@ import datetime
 import json
 import logging
 import time
-from typing import Any, Optional
+from typing import Any, Optional, Tuple
 
 from flask import Blueprint, request, jsonify, session
 
@@ -38,6 +38,10 @@ from foms.services.orders.erp_automation import apply_auto_tasks
 from foms.services.orders.order_text_parser import parse_order_text
 from foms.services.geocode_helpers import extract_address_from_structured_data
 from foms.services.jobs.queue import enqueue_geocode_order_address
+from foms.services.notifications.drawing_order_change import (
+    apply_drawing_order_change_alert,
+    finalize_drawing_order_change_alert,
+)
 from foms.services.order_geocode import reset_order_geocode_on_address_change
 from foms.services.feature_flags import env_bool
 from foms.services.erp_inline_patch import apply_field_patch, is_critical_field
@@ -223,6 +227,69 @@ def _merge_preserving_missing(old_value: Any, incoming_value: Any) -> Any:
     return merged
 
 
+# Form PUT 가 stale erp-workflow-stage 로 DRAWING→MEASURE 같은 역행을 쓰면
+# 도면 작업실 목록에서 사라지고 "실측으로 회귀"처럼 보인다. 의도적 롤백은
+# stage-override API 로만 허용하고, structured PUT 에서는 역행을 차단한다.
+from foms.services.orders.stage_override import stage_forward_rank as _stage_forward_rank
+
+
+def _guard_accidental_stage_regression(old_sd: dict, structured_data: dict) -> None:
+    """structured PUT 의 단계 역행·건너뛰기를 서버 단계로 복구.
+
+    인접 전진(+1)·동일만 허용. 그 외(역행/스킵)는 stage-override API 전용.
+    """
+    if not isinstance(old_sd, dict) or not isinstance(structured_data, dict):
+        return
+    old_wf = old_sd.get("workflow") if isinstance(old_sd.get("workflow"), dict) else {}
+    new_wf = structured_data.get("workflow") if isinstance(structured_data.get("workflow"), dict) else {}
+    old_stage = old_wf.get("stage")
+    new_stage = new_wf.get("stage")
+    if not old_stage:
+        return
+    if not new_stage:
+        wf = structured_data.setdefault("workflow", {})
+        if isinstance(wf, dict):
+            wf["stage"] = old_stage
+        else:
+            structured_data["workflow"] = {"stage": old_stage}
+        return
+    if old_stage == new_stage:
+        return
+    old_rank = _stage_forward_rank(old_stage)
+    new_rank = _stage_forward_rank(new_stage)
+    # 미지(AS* 등): 폼 값 유지. 알려진 단계끼리만 인접(+1) 허용.
+    if old_rank < 0 or new_rank < 0:
+        return
+    if new_rank == old_rank + 1:
+        return
+    wf = structured_data.setdefault("workflow", {})
+    if not isinstance(wf, dict):
+        structured_data["workflow"] = {"stage": old_stage}
+    else:
+        wf["stage"] = old_stage
+    logger.warning(
+        "[ERP_ORDER] blocked non-adjacent stage change %s -> %s (kept server stage)",
+        new_stage,
+        old_stage,
+    )
+
+
+def _force_preserve_drawing_transfer_history(old_sd: dict, structured_data: dict) -> None:
+    """drawing_transfer_history 는 누적 감사 로그 — 폼 stale 배열로 덮어쓰지 않음.
+
+    서버(old) 이력을 기본으로 두고, 클라이언트 이력이 더 길 때만(신규 append) 수용한다.
+    같은 길이 stale 스냅샷이 ack 플래그를 되돌리는 것을 막는다.
+    """
+    if not isinstance(old_sd, dict) or not isinstance(structured_data, dict):
+        return
+    old_hist = old_sd.get("drawing_transfer_history")
+    if not isinstance(old_hist, list) or not old_hist:
+        return
+    new_hist = structured_data.get("drawing_transfer_history")
+    if not isinstance(new_hist, list) or len(new_hist) <= len(old_hist):
+        structured_data["drawing_transfer_history"] = copy.deepcopy(old_hist)
+
+
 def _preserve_operational_structured_state(old_sd: dict, structured_data: dict) -> None:
     """Preserve non-form operational state during ERP order full-form saves."""
     if not isinstance(old_sd, dict) or not isinstance(structured_data, dict):
@@ -243,6 +310,9 @@ def _preserve_operational_structured_state(old_sd: dict, structured_data: dict) 
 
     if 'quests' not in structured_data and old_sd.get('quests') is not None:
         structured_data['quests'] = copy.deepcopy(old_sd.get('quests'))
+
+    _force_preserve_drawing_transfer_history(old_sd, structured_data)
+    _guard_accidental_stage_regression(old_sd, structured_data)
 
 
 def _handle_stage_transition(
@@ -348,6 +418,51 @@ def _apply_structured_side_effects(db: Session, order_id: int, structured_data: 
         apply_auto_tasks(db, order_id, structured_data)
     except Exception as e:
         logger.warning("[ERP_ORDER] auto-task apply: %s", e, exc_info=True)
+
+
+def _actor_name(db: Session) -> Tuple[Optional[int], str]:
+    """세션 사용자 id·표시명."""
+    user_id = session.get('user_id')
+    if not user_id:
+        return None, session.get('username') or 'SYSTEM'
+    user = db.query(User).filter(User.id == user_id).first()
+    name = (user.name if user and getattr(user, 'name', None) else None) or session.get('username') or 'SYSTEM'
+    return int(user_id), str(name)
+
+
+def _emit_drawing_order_change_if_needed(
+    db: Session,
+    order: Order,
+    old_sd: dict,
+    new_sd: dict,
+    *,
+    old_notes: Any,
+    new_notes: Any,
+    old_is_regional: Any,
+    new_is_regional: Any,
+    old_construction_type: Any,
+    new_construction_type: Any,
+) -> Tuple[Any, bool]:
+    """도면팀 ERP_ORDER_CHANGED 알림·history 반영. 실패해도 저장은 계속."""
+    try:
+        actor_id, actor_name = _actor_name(db)
+        return apply_drawing_order_change_alert(
+            db,
+            order,
+            old_sd,
+            new_sd,
+            actor_user_id=actor_id,
+            actor_name=actor_name,
+            old_notes=old_notes,
+            new_notes=new_notes,
+            old_is_regional=old_is_regional,
+            new_is_regional=new_is_regional,
+            old_construction_type=old_construction_type,
+            new_construction_type=new_construction_type,
+        )
+    except Exception as e:
+        logger.warning("[ERP_ORDER] drawing order-change alert failed: %s", e, exc_info=True)
+        return None, False
 
 
 def _finalize_draft_state(
@@ -501,6 +616,9 @@ def api_patch_order_structured_fields(order_id: int):
                     }), 409
 
         old_sd = order.structured_data if isinstance(order.structured_data, dict) else {}
+        old_notes = getattr(order, 'notes', None)
+        old_is_regional = getattr(order, 'is_regional', None)
+        old_construction_type = getattr(order, 'construction_type', None)
         structured_data = apply_field_patch(old_sd, field, value)
 
         if field == 'site.address_full':
@@ -518,6 +636,18 @@ def api_patch_order_structured_fields(order_id: int):
 
         now = datetime.datetime.now()
         _record_structured_events(db, order, old_sd, structured_data)
+        drawing_notif, drawing_notif_created = _emit_drawing_order_change_if_needed(
+            db,
+            order,
+            old_sd,
+            structured_data,
+            old_notes=old_notes,
+            new_notes=getattr(order, 'notes', None),
+            old_is_regional=old_is_regional,
+            new_is_regional=getattr(order, 'is_regional', None),
+            old_construction_type=old_construction_type,
+            new_construction_type=getattr(order, 'construction_type', None),
+        )
         order.structured_data = copy.deepcopy(structured_data)
         flag_modified(order, 'structured_data')
         sync_erp_flat_columns(order, structured_data)
@@ -528,6 +658,7 @@ def api_patch_order_structured_fields(order_id: int):
         # 포함해 탭 간 이동이 실제로 일어나므로 전체 무효화를 유지한다.
         from foms.services.common.dashboard_cache import invalidate_all_dashboard_slice_caches
         invalidate_all_dashboard_slice_caches()
+        finalize_drawing_order_change_alert(db, drawing_notif, created_new=drawing_notif_created)
 
         return jsonify({
             'success': True,
@@ -577,6 +708,11 @@ def api_put_order_structured(order_id):
 
         _sd_raw: Any = order.structured_data
         old_sd = _sd_raw if isinstance(_sd_raw, dict) else {}
+        old_notes = getattr(order, 'notes', None)
+        old_is_regional = getattr(order, 'is_regional', None)
+        old_construction_type = getattr(order, 'construction_type', None)
+        drawing_notif = None
+        drawing_notif_created = False
 
         # 모든 structured PUT은 실제 저장/승격 경로다. draft row도 여기서만 실제 주문으로 확정된다.
         if structured_data is not None:
@@ -654,6 +790,19 @@ def api_put_order_structured(order_id):
             
             draft_cleared = _finalize_draft_state(order, structured_data, now, old_sd)
 
+            drawing_notif, drawing_notif_created = _emit_drawing_order_change_if_needed(
+                db,
+                order,
+                old_sd,
+                structured_data,
+                old_notes=old_notes,
+                new_notes=getattr(order, 'notes', None),
+                old_is_regional=old_is_regional,
+                new_is_regional=getattr(order, 'is_regional', None),
+                old_construction_type=old_construction_type,
+                new_construction_type=getattr(order, 'construction_type', None),
+            )
+
             order.structured_data = copy.deepcopy(structured_data)
             flag_modified(order, 'structured_data')
             
@@ -679,6 +828,7 @@ def api_put_order_structured(order_id):
         from foms.services.common.dashboard_cache import invalidate_all_dashboard_slice_caches
 
         invalidate_all_dashboard_slice_caches()
+        finalize_drawing_order_change_alert(db, drawing_notif, created_new=drawing_notif_created)
         commit_time = (time.perf_counter() - start_time) * 1000
         logger.info(f"save latency - main_commit: {commit_time:.1f}ms")
 

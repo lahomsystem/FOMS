@@ -44,7 +44,7 @@ from foms.services.construction_read_model import (
     CONSTRUCTION_DASHBOARD_PAGE_SIZE,
     CONSTRUCTION_SEARCH_CAP,
     apply_construction_search_filter,
-    apply_construction_stage_sql_filter,
+    apply_construction_list_scope_filter,
     build_construction_process_steps,
     compute_construction_summary_blob,
     fetch_construction_attachment_counts,
@@ -107,8 +107,6 @@ def erp_construction_dashboard():
     step_stats = _summary_blob["step_stats"]
     kpis = _summary_blob["kpis"]
 
-    list_query = apply_construction_stage_sql_filter(query, f_stage)
-
     page = request.args.get("page", 1, type=int)
     per_page = CONSTRUCTION_DASHBOARD_PAGE_SIZE
     total_pages = 0
@@ -135,6 +133,8 @@ def erp_construction_dashboard():
         total_pages = 1
         page = 1
     elif f_q:
+        # 검색도 시공 단계로 선스코프(전 단계) 후 검색 — 페이지네이션이 시공 주문 위에서 동작.
+        list_query = apply_construction_list_scope_filter(query, f_stage)
         list_query = apply_construction_search_filter(list_query, f_q)
         page, total_pages, total_orders, orders = paginate_construction_orders(
             list_query,
@@ -143,6 +143,10 @@ def erp_construction_dashboard():
             total_cap=CONSTRUCTION_SEARCH_CAP,
         )
     else:
+        # 브라우즈 기본 뷰: 단계 미선택 시 전 시공 단계(대기+중+완료)로 SQL 선스코프 →
+        # 페이지네이션이 시공 주문 위에서 동작(전체 60일 활성 리스트 newest-N에 시공 주문이
+        # 없어 board가 0건 되던 회귀의 근본 차단). 단계 칩 선택 시 해당 단계로 좁혀진다.
+        list_query = apply_construction_list_scope_filter(query, f_stage)
         page, total_pages, total_orders, orders = paginate_construction_orders(
             list_query,
             page=page,

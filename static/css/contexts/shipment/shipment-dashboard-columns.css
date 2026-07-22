@@ -213,6 +213,29 @@ body.col-resizing-active {
   body.erp-mobile-v2-layout #foms-tablet-ship-grid .foms-tablet-shipgrid__customer {
     font-weight: var(--foms-font-weight-bold, 700);
   }
+  /* 시공일 열: 날짜(위)+시간(아래) 스택 — 7열 없이 현장 스캔 밀도 유지. */
+  body.erp-mobile-v2-layout #foms-tablet-ship-grid .foms-tablet-shipgrid__time {
+    vertical-align: middle;
+  }
+  body.erp-mobile-v2-layout #foms-tablet-ship-grid .foms-tablet-shipgrid__when {
+    display: flex;
+    flex-direction: column;
+    gap: 1px;
+    line-height: 1.2;
+    min-width: 0;
+  }
+  body.erp-mobile-v2-layout #foms-tablet-ship-grid .foms-tablet-shipgrid__date {
+    font-size: var(--foms-font-size-xs, 0.75rem);
+    font-weight: var(--foms-font-weight-bold, 700);
+    font-variant-numeric: tabular-nums;
+    color: var(--foms-text-primary, #1f2733);
+  }
+  body.erp-mobile-v2-layout #foms-tablet-ship-grid .foms-tablet-shipgrid__clock {
+    font-size: var(--foms-font-size-xs, 0.75rem);
+    font-weight: var(--foms-font-weight-semibold, 600);
+    font-variant-numeric: tabular-nums;
+    color: var(--foms-text-secondary, #4b5563);
+  }
   body.erp-mobile-v2-layout #foms-tablet-ship-grid .foms-tablet-shipgrid__line + .foms-tablet-shipgrid__line {
     margin-top: 2px;
   }

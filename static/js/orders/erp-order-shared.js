@@ -2090,7 +2090,30 @@ function erpCollectStructured() {
             } catch (e) {
                 workflow = Object.assign({}, prevWorkflow);
             }
-            workflow.stage = getVal('erp-workflow-stage');
+            // 폼 hidden stage 가 서버보다 뒤처진 값이면 역행(도면→실측) 사고. 앞선 단계 유지.
+            var formStage = getVal('erp-workflow-stage');
+            var prevStage = String(prevWorkflow.stage || '').trim();
+            var rank = {
+                RECEIVED: 0, '주문접수': 0,
+                MEASURE: 1, '실측': 1,
+                DRAWING: 2, '도면': 2,
+                CONFIRM: 3, '고객컨펌': 3,
+                PRODUCTION: 4, '생산': 4,
+                CONSTRUCTION: 5, '시공': 5,
+                CS: 6, COMPLETED: 7, '완료': 7
+            };
+            var formRank = Object.prototype.hasOwnProperty.call(rank, formStage) ? rank[formStage] : -1;
+            var prevRank = Object.prototype.hasOwnProperty.call(rank, prevStage) ? rank[prevStage] : -1;
+            // 알려진 단계끼리: 인접 전진(+1)만 허용. 역행·스킵은 서버 단계 유지(override API).
+            if (formRank >= 0 && prevRank >= 0) {
+                if (formRank === prevRank + 1 || formStage === prevStage) {
+                    workflow.stage = formStage || prevStage;
+                } else {
+                    workflow.stage = prevStage;
+                }
+            } else {
+                workflow.stage = formStage || prevStage;
+            }
             return workflow;
         })(),
         flags: {

@@ -20,6 +20,7 @@ _dir = os.path.dirname(os.path.abspath(__file__))
 if _dir not in sys.path:
     sys.path.insert(0, _dir)
 from shared_utils import (  # type: ignore[import-not-found]  # noqa: E402
+    find_key_recursive,
     get_project_root,
     harness_log_path,
     hook_log,
@@ -105,8 +106,16 @@ def main() -> None:
         if not command:
             return
 
-        classify_command = _load_classifier(get_project_root())
-        decision, label = classify_command(command)
+        project_root = get_project_root()
+        session_id = find_key_recursive(
+            payload,
+            ["session_id", "sessionId", "conversation_id", "conversationId", "id"],
+            default="unknown",
+        )
+        classify_command = _load_classifier(project_root)
+        decision, label = classify_command(
+            command, project_root=project_root, session_id=session_id
+        )
 
         if decision == "allow":
             return

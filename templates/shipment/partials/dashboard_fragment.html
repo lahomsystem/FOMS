@@ -1,2 +1,10 @@
+{# Shell FOUC 가드: page-local CSS는 fragment에도 동반(erp-shell preload).
+   게이트·?v= 는 shipment/dashboard.html head_extra+styles 와 동기. #}
+{% if shell_variant != 'v3' %}
+<link rel="stylesheet" href="{{ url_for('static', filename='css/components/foms-shipment-mobile.css') }}?v=20260721a">
+{% endif %}
+{% if erp_mobile_v2_enabled %}
+<link rel="stylesheet" href="{{ url_for('static', filename='css/components/foms-packing.css') }}?v=20260714a">
+{% endif %}
 {% include 'shipment/partials/dashboard_main.html' %}
 {% include 'shipment/partials/dashboard_scripts.html' %}

@@ -32,6 +32,10 @@ from foms.services.erp_display import (
     _normalize_date_to_yyyymmdd,
 )
 from foms.services.erp_product_items import build_product_items_for_order
+from foms.services.notifications.drawing_order_change import (
+    humanize_order_change_changes,
+    is_order_change_pending,
+)
 from foms.services.common.dashboard_cache import (
     KEY_VERSION,
     TTL_PANEL_ROWS,
@@ -212,16 +216,33 @@ def _build_handoff_thread(history: list[Mapping[str, Any]]) -> list[dict[str, An
         key=lambda item: _history_event_sort_key(item[1], item[0]),
         reverse=True,
     )
+    action_labels = {
+        'TRANSFER': '도면 전달',
+        'REQUEST_REVISION': '수정 요청',
+        'CANCEL_TRANSFER': '전달 취소',
+        'CONFIRM_RECEIPT': '수령 확정',
+        'ERP_ORDER_CHANGED': '주문 변경',
+    }
     for _, event in newest_first:
         action = (event.get('action') or '').upper()
         targets = _event_target_numbers(event)
         target_text = ', '.join(str(n) for n in targets)
+        if action == 'ERP_ORDER_CHANGED':
+            side = 'alert'
+        elif action in ('TRANSFER', 'CANCEL_TRANSFER'):
+            side = 'left'
+        else:
+            side = 'right'
+        changes = event.get('changes')
+        if action == 'ERP_ORDER_CHANGED' and changes:
+            changes = humanize_order_change_changes(changes)
         thread.append({
             **event,
-            'side': 'left' if action in ('TRANSFER', 'CANCEL_TRANSFER') else 'right',
-            'tag': event.get('action_label') or action or '-',
+            'side': side,
+            'tag': event.get('action_label') or action_labels.get(action) or action or '-',
             'target_text': f'{target_text}번 대상' if target_text else '',
             'files': list(event.get('files') or []) if isinstance(event.get('files'), list) else [],
+            'changes': changes if changes is not None else event.get('changes'),
         })
     return thread
 
@@ -406,11 +427,14 @@ def erp_drawing_workbench_dashboard():
         h_action_label = {
             'TRANSFER': '도면 전달', 'REQUEST_REVISION': '수정 요청',
             'CANCEL_TRANSFER': '전달 취소', 'CONFIRM_RECEIPT': '수령 확정',
+            'ERP_ORDER_CHANGED': '주문 변경',
         }.get(h_action, h_action or '-')
+        order_change_pending = is_order_change_pending(sd)
         sla_level = '지연' if alerts.get('drawing_overdue') else ('오늘 마감' if due_today else '정상')
         search_hay = ' '.join([
             str(o.id), str(customer_name), str(manager_name), str(assignee_text),
             str((last_event or {}).get('note') or ''),
+            '주문변경' if order_change_pending else '',
         ]).lower()
 
         construction_date = _resolve_construction_date_display(o, sd)
@@ -458,6 +482,7 @@ def erp_drawing_workbench_dashboard():
             'construction_days': alerts.get('construction_days'),
             'construction_d3': bool(alerts.get('construction_d3')),
             'unread_count': unchecked_requests,
+            'order_change_pending': order_change_pending,
             'my_todo': my_todo,
             'include_for_mine': include_for_mine,
             'search_hay': search_hay,
@@ -508,7 +533,12 @@ def erp_drawing_workbench_dashboard():
                 return s in ('WAITING', 'PENDING') if status_filter == 'WAITING' else s == status_filter
             rows = [r for r in rows if _match_status(r.get('drawing_status') or '')]
 
-    rows.sort(key=lambda r: (0 if r.get('my_todo') else 1, 0 if r.get('is_overdue') else 1, -int(r.get('id') or 0)))
+    rows.sort(key=lambda r: (
+        0 if r.get('order_change_pending') else 1,
+        0 if r.get('my_todo') else 1,
+        0 if r.get('is_overdue') else 1,
+        -int(r.get('id') or 0),
+    ))
 
     if sort_by:
         reverse = sort_by.startswith('-')
@@ -596,7 +626,13 @@ def erp_drawing_workbench_detail(order_id):
         history.append({
             **h,
             'event_key': event_key,
-            'action_label': {'TRANSFER': '도면 전달', 'REQUEST_REVISION': '수정 요청', 'CANCEL_TRANSFER': '전달 취소', 'CONFIRM_RECEIPT': '수령 확정'}.get(h_action, h_action or '-'),
+            'action_label': {
+                'TRANSFER': '도면 전달',
+                'REQUEST_REVISION': '수정 요청',
+                'CANCEL_TRANSFER': '전달 취소',
+                'CONFIRM_RECEIPT': '수령 확정',
+                'ERP_ORDER_CHANGED': '주문 변경',
+            }.get(h_action, h_action or '-'),
             'at_text': _history_event_at_text(h),
             'by_text': h.get('by_user_name') or '-',
             'target_no': h.get('target_drawing_number') or h.get('replace_target_number'),
@@ -643,7 +679,16 @@ def erp_drawing_workbench_detail(order_id):
     is_drawing_participant = bool(
         current_user and is_drawing_workbench_participant(current_user, order)
     )
-    can_transfer = bool(has_assignee and is_drawing_participant)
+    # 액션바 4버튼 상호배타 노출: 전달/전달취소=도면팀+관리자, 수정요청/수령확정=영업측+관리자(도면팀 제외).
+    # is_drawing_team(정확히 team=='DRAWING' 리터럴 비교)은 is_drawing_workbench_participant
+    # (워크벤치 접근 참여자 판정, 배정된 비도면팀 직원도 True인 더 넓은 개념)와 별개 축이다.
+    is_admin = bool(current_user and current_user.role == 'ADMIN')
+    is_drawing_team = bool(
+        current_user and (getattr(current_user, 'team', None) or '').strip() == 'DRAWING'
+    )
+    # 전달 버튼은 도면팀+관리자 전용. 배정 로직은 그대로 두고 팀 조건을 추가로 AND.
+    is_transfer_authorized_team = bool(is_admin or is_drawing_team)
+    can_transfer = bool(has_assignee and is_drawing_participant and is_transfer_authorized_team)
     transfer_gated_by_revision_checklist = bool(
         drawing_status == 'RETURNED'
         and has_pending_unchecked_drawing_revision_requests(s_data)
@@ -651,8 +696,14 @@ def erp_drawing_workbench_detail(order_id):
     can_open_transfer = bool(can_transfer and not transfer_gated_by_revision_checklist)
     can_toggle_revision_check = is_drawing_participant
     can_sales_domain = _can_modify_sales_domain(current_user, order, s_data, False, None)
-    can_request_revision = can_sales_domain
-    can_confirm_receipt = bool(can_sales_domain and drawing_status == 'TRANSFERRED')
+    # 수정요청/수령확정=영업측 전용(도면팀에는 안 보임). 관리자는 예외로 무조건 통과.
+    can_request_revision = bool(is_admin or (can_sales_domain and not is_drawing_team))
+    can_confirm_receipt = bool(
+        (is_admin or (can_sales_domain and not is_drawing_team))
+        and drawing_status == 'TRANSFERRED'
+    )
+    # 수정요청 취소=영업측 전용(전달취소의 대칭축). 상태 게이트(RETURNED)는 템플릿에서 처리.
+    can_cancel_revision_request = bool(is_admin or (can_sales_domain and not is_drawing_team))
     can_cancel_transfer = False
     if latest_transfer:
         if current_user is not None and current_user.role == 'ADMIN':
@@ -669,6 +720,9 @@ def erp_drawing_workbench_detail(order_id):
                 )
             except Exception:
                 pass
+    # 전달취소는 표시상 도면팀+관리자로 한정 — self-cancel 레거시 분기(by_user_id 일치)가
+    # 팀 무관하게 통과시키던 문제를 최종 게이트로 봉합(과거 데이터 호환은 위 분기가 유지).
+    can_cancel_transfer = bool(can_cancel_transfer and is_transfer_authorized_team)
 
     customer_name = (((s_data.get('parties') or {}).get('customer') or {}).get('name')) or '-'
     manager_name = (((s_data.get('parties') or {}).get('manager') or {}).get('name')) or (order.manager_name or '-') or '-'
@@ -721,6 +775,14 @@ def erp_drawing_workbench_detail(order_id):
     handoff_thread = _build_handoff_thread(history)
 
     product_items = build_product_items_for_order(db, order)
+    order_change_pending = is_order_change_pending(s_data)
+    latest_order_change_note = ''
+    order_change_events = [h for h in reversed(history) if h.get('action') == 'ERP_ORDER_CHANGED']
+    for h in order_change_events:
+        if isinstance(h, dict) and h.get('changes'):
+            h['changes'] = humanize_order_change_changes(h.get('changes'))
+        if not latest_order_change_note:
+            latest_order_change_note = str(h.get('note') or '').strip()
     # 도면 상세 전용: 공통 실측 이미지(항목에 매핑되지 않은 첨부) 수집
     common_measure_photos = []
     for att in db.query(OrderAttachment).filter(
@@ -763,6 +825,9 @@ def erp_drawing_workbench_detail(order_id):
         highlight_event_id=highlight_event_id,
         highlight_target_no=highlight_target_no,
         unread_count=unread_count,
+        order_change_pending=order_change_pending,
+        latest_order_change_note=latest_order_change_note,
+        order_change_events=order_change_events,
         checklist=checklist,
         mobile_handoff_view=handoff_view,
         mobile_handoff_files=handoff_files,
@@ -781,6 +846,7 @@ def erp_drawing_workbench_detail(order_id):
         can_toggle_revision_check=can_toggle_revision_check,
         can_request_revision=can_request_revision,
         can_confirm_receipt=can_confirm_receipt,
+        can_cancel_revision_request=can_cancel_revision_request,
         can_cancel_transfer=can_cancel_transfer,
         can_edit_erp=can_edit_erp(current_user),
         my_id=current_user.id if current_user else 0,

@@ -197,6 +197,24 @@ showErpToast('오류가 발생했습니다.', 'error');
 }
 }
 
+async function cancelDrawingRevisionRequest(orderId) {
+if (!confirm('수정 요청을 취소하시겠습니까?\n요청 시 첨부한 참고 파일이 함께 삭제되며, 도면 전달 상태로 복귀합니다.')) return;
+
+try {
+const res = await fetch(`/api/orders/${orderId}/cancel-revision-request`, { method: 'POST' });
+const data = await res.json();
+if (data.success) {
+showErpToast(data.message || '수정 요청이 취소되었습니다.', 'success');
+window.location.reload();
+} else {
+showErpToast('취소 실패: ' + data.message, 'error');
+}
+} catch (e) {
+console.error(e);
+showErpToast('오류가 발생했습니다.', 'error');
+}
+}
+
 var __currentRevisionOrderId = null;
 function openRevisionRequestModal(orderId) {
 __currentRevisionOrderId = orderId;

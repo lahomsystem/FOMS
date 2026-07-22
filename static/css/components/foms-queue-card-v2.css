@@ -1,6 +1,10 @@
 /* P1 mockup — queue card list (mobile-home-dashboard.html) */
 
-@media (max-width: 991.98px) {
+/* 코호트 게이트(SSOT = foms-shell.css:11): 폰 ≤991.98 OR ≥992 세로 coarse 태블릿(iPad
+   세로 1024) = 모바일 셸. 순수 폭(max-width:991.98)만 쓰면 desktop-shell 은 shell.css:11
+   3-조건으로 태블릿 세로에서 숨는데 이 큐 카드 그리드는 미표시 → 리스트만 blank(부분-blank).
+   foms-tablet-measurement.css 표(≥992 portrait coarse=mobile section show)와 정합. */
+@media (max-width: 991.98px), ((min-width: 992px) and (pointer: coarse) and (orientation: portrait)) {
   body.erp-mobile-v2-layout .foms-mobile-queue-list {
     display: grid;
     gap: var(--foms-space-4);

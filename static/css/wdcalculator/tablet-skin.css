@@ -1,361 +1,1117 @@
 /**
- * WDCalculator 태블릿 가로 융합 셸(skin) — 목업 frame11 구현 (2026-07-15).
+ * WDCalculator 태블릿 가로 v2 표면(CSS) — 목업 tablet-wdcalculator-v2.html Frame 1~3 정합.
  *
- * PC 구조·id·계산엔진 DOM 무변경. tablet-skin.js 가 코호트에서 기존 노드를 재부모화(이동)해
- * 프레임을 구성하고, 본 파일이 레이아웃·표피를 소유한다:
- *   - 슬림 pcbar(main-scroll 상단 sticky): 타이틀 + 이동한 #customerName + 고객 견적 검색.
- *   - 우측 320px "진행 견적" 패널(shell 내 absolute, 상시 노출): 총 견적 hl-tile + 이동한
- *     진행 중인 견적 카드 + foot(새 견적/전체 저장).
- *   - PC 헤더·견적 결과 breakdown 카드는 코호트에서 은닉(값은 하단 바·hl-tile 로 이관).
- *   - 하단 고정 최종견적 바(#finalPrice 미러).
+ * 발현 키: 게이트 미디어쿼리 `(min-width:992px) and (orientation:landscape) and (pointer:coarse)`
+ * 且 `body.wdc-tablet-v2`(JS 가 게이트 진입 시에만 부여) 이중 조건. PC(fine)·폰(≤991.98)·
+ * 임베디드(erp-wdc-split)·태블릿 세로에는 단 하나의 시각 규칙도 새지 않는다.
  *
- * 게이트: 대형 터치 태블릿 가로 (min-width:992 landscape coarse). PC(hover/fine)·모바일
- * (<=991.98px, mobile.css/builder.css 소유)과 미디어 배타 → 상호 무간섭. select 바텀시트
- * 피커(foms-mobile-select)는 공용 컴포넌트로 coarse 에서 이미 동작 → 무접촉.
- *
- * foms 토큰(foms-tokens.css)만 사용. `.wdcalculator-container`/`.wdc-tablet-skin` 스코프로
- * 페이지 격리. 인라인 스타일 금지(JS 가 옮기는 기존 노드의 인라인 !important 는 계약상 예외).
- * 저장 견적 좌측 레일은 은퇴(코호트 미표시) — 요소/규칙은 하위호환·계약 문자열 보존을 위해 유지.
+ * 파일 스코프에는 오직 주입 요소의 은닉 가드만 둔다(뷰포트 무관하게 JS 가 DOM 주입 — 코호트
+ * 밖 유령 노출 차단). 실제 스타일/노출은 게이트 블록 전담.
  */
 
-/* 파일 스코프 기본 은닉: tablet-skin.js 가 아래 요소들을 뷰포트 무관하게(비임베디드만 게이트)
-   주입하므로, 태블릿 가로 coarse 밖(PC·세로·폰)에서는 유령 요소가 새지 않도록 상시 숨김.
-   실제 노출은 @media 안의 코호트 규칙 전담. */
-.wdc-saved-rail { display: none; }
-.wdc-tablet-actionbar { display: none; }
-.wdc-tablet-pcbar { display: none; }
-.wdc-tablet-rightpanel { display: none; }
+/* 파일 스코프 은닉 가드(노출은 게이트 블록에서만). */
+.wdc2-topbar,
+.wdc2-sheet,
+.wdc2-abar,
+.wdc2-panel,
+.wdc2-saved-overlay,
+.wdc2-saved-backdrop,
+.wdc2-sheetpicker,
+.wdc2-sheetpicker-backdrop { display: none; }
+
+/* FOUC 선제 은닉: calculator.html 인라인 부트가 게이트 매치 시 html 에 부여 —
+   defer 스킨 빌드 전 PC 마크업 플래시 차단. fail-open: 스킨 JS 가 죽어도 3초 후
+   PC 화면 자동 복귀(0s 지속·3s 지연 forwards 애니메이션 — blank 사고 원천 차단). */
+html.wdc-tablet-pending .wdcalculator-container {
+  visibility: hidden;
+  animation: wdc2-failopen 0s 3s forwards;
+}
+@keyframes wdc2-failopen {
+  to { visibility: visible; }
+}
 
 @media (min-width: 992px) and (orientation: landscape) and (pointer: coarse) {
-  /* ====================================================================
-     A. 터치 사이징 — 주 입력 52px / 컴팩트 컨트롤 44px / 라벨 가독성.
-     ==================================================================== */
-  .wdcalculator-container .form-control,
-  .wdcalculator-container .form-select {
-    min-height: 52px;
-    font-size: max(16px, var(--foms-font-size-base, 1rem));
-  }
-  .wdcalculator-container .form-control-sm,
-  .wdcalculator-container .form-select-sm {
-    min-height: 44px;
-    font-size: max(16px, var(--foms-font-size-sm, 0.875rem));
-  }
-  .wdcalculator-container #baseComponentsContainer .base-component-row {
-    --base-row-control-h: 44px;
-  }
-  .wdcalculator-container .additional-option-item select.form-select-sm,
-  .wdcalculator-container .additional-option-item input.form-control-sm,
-  .wdcalculator-container .additional-option-item .option-name-input,
-  .wdcalculator-container .additional-option-item button.btn-sm {
-    height: 44px !important;
-    min-height: 44px !important;
-    max-height: 44px !important;
-  }
-  .wdcalculator-container .btn {
-    min-height: 44px;
-  }
-  .wdcalculator-container .form-label {
-    font-size: var(--foms-font-size-base, 1rem);
-    font-weight: var(--foms-font-weight-medium, 500);
-  }
-  .wdcalculator-container .base-component-row .form-label.small {
-    font-size: var(--foms-font-size-sm, 0.875rem);
-  }
-  .wdcalculator-container .card-header h5,
-  .wdcalculator-container .card-header h6 {
-    font-size: var(--foms-font-size-lg, 1.125rem);
-  }
-  .wdcalculator-container .saved-estimates-sidebar .list-group-item .btn,
-  .wdcalculator-container .saved-estimates-sidebar .saved-estimates-more-btn {
-    min-height: 44px;
+  body.wdc-tablet-v2 {
+    /* 스코프 색 토큰(:root 아님 — 코호트 밖 누출 방지). */
+    --wdc2-desk: #EDEBE4;
+    --wdc2-ink: #1C1E22;
+    --wdc2-line: #E6E4DE;
+    --wdc2-accent: #0F7B52;
+    --wdc2-accent-ink: #0B5C3E;
+    --wdc2-accent-tint: #EFF7F2;
+    --wdc2-mine-tint: #FFF8EC;
+    --wdc2-mine-ink: #8A6A1F;
+    --wdc2-danger: #C2453B;
+    /* 보조 토큰. */
+    --wdc2-surface: #FFFFFF;
+    --wdc2-subtle: #FAF9F6;
+    --wdc2-border-strong: #D9D6CE;
+    --wdc2-muted: #8A8F98;
+    --wdc2-sub: #6E7480;
+    --wdc2-panel-bg: #F7F6F2;
+    --wdc2-panel-w: 312px;
+    --wdc2-overlay-w: 392px;
   }
 
   /* ====================================================================
-     B. 융합 프레임 레이아웃(frame11). 셸은 이미 fixed-height + position:relative
-     (wdcalculator_styles.html @≥992). 우측 패널을 shell 내 absolute 로 도킹하고,
-     메인 컬럼은 잔여 폭을 사용. 전역 nav 는 normal-flow 라 shell 이 그 아래에 위치 →
-     absolute/sticky 만으로 nav-height 계산 없이 정합.
-     특이도: Bootstrap .col-lg-3(0,1,0) < 아래 셀렉터(≥0,3,0) 로 승리.
+     A. 융합 프레임 레이아웃. shell 은 이미 fixed-height flex(@≥992). 우측 패널을
+        shell 내 absolute 로 도킹, 저장 사이드바 컬럼은 은닉(카드 노드 이동).
      ==================================================================== */
-  .wdcalculator-container:not(.wdcalculator-container--embedded) .wdcalculator-shell.wdc-tablet-skin {
+  /* 페이지 배경 = 프레임보다 어두운 desk 톤(스테이지 프레임이 떠 보이는 단차). */
+  body.wdc-tablet-v2 { background: #E4E1D8; }
+
+  /* 스테이지 프레임(목업 .tab 정본): radius 18 + 1px #DDDACF + overflow hidden.
+     shell(row) 이 워크시트+패널+탑바+액션바 전부를 감싸므로 그대로 프레임 컨테이너.
+     overflow:hidden 은 wdcalculator_styles.html @≥992 에 기존재 — radius 클립 공유. */
+  body.wdc-tablet-v2 .wdcalculator-container:not(.wdcalculator-container--embedded) .wdcalculator-shell {
     position: relative;
-  }
-  .wdcalculator-container {
-    --wdc-rightpanel-w: 320px;
-  }
-
-  /* 저장 견적 사이드바: 접힘 = 오프캔버스 은닉(좌측 레일 접힘 은퇴). */
-  .wdcalculator-shell.wdc-tablet-skin .saved-estimates-sidebar {
-    flex: 0 0 0;
-    width: 0;
-    max-width: 0;
-    padding-left: 0;
-    padding-right: 0;
+    background: var(--wdc2-desk);
+    margin: 0 14px;
+    border: 1px solid #DDDACF;
+    border-radius: 18px;
     overflow: hidden;
   }
-  /* rail: 코호트 미표시(요소/규칙은 하위호환·계약 보존). */
-  .wdcalculator-shell.wdc-tablet-skin .wdc-saved-rail {
-    display: none;
-    position: sticky;
-    top: 20px;
-    align-items: center;
-    justify-content: center;
-    width: 44px;
-    min-height: 168px;
+  body.wdc-tablet-v2 .saved-estimates-sidebar { display: none; }
+  body.wdc-tablet-v2 .wdcalculator-main-column {
+    flex: 0 0 calc(100% - var(--wdc2-panel-w));
+    width: calc(100% - var(--wdc2-panel-w));
+    max-width: calc(100% - var(--wdc2-panel-w));
+    padding: 0;   /* bootstrap col gutter 제거 — 액션바가 프레임 모서리를 공유 */
   }
-  .wdc-saved-rail .fa-history { color: var(--foms-info, #0dcaf0); }
-  .wdc-saved-rail-label {
-    writing-mode: vertical-rl;
-    text-orientation: mixed;
-    font-size: var(--foms-font-size-sm, 0.875rem);
-    font-weight: var(--foms-font-weight-medium, 500);
+  body.wdc-tablet-v2 .wdcalculator-main-scroll {
+    background: var(--wdc2-desk);
+    padding: 0;   /* 액션바 in-flow 전환 — fixed 바 클리어런스(76px) 불필요 */
   }
-
-  /* 메인 컬럼: 잔여 폭(전체 − 우측 패널). */
-  .wdcalculator-shell.wdc-tablet-skin .wdcalculator-main-column {
-    flex: 0 0 calc(100% - var(--wdc-rightpanel-w));
-    width: calc(100% - var(--wdc-rightpanel-w));
-    max-width: calc(100% - var(--wdc-rightpanel-w));
+  /* PC 스캐폴딩 은닉: main-scroll 직속 자식 중 topbar·sheet 만 노출(나머지 = 은닉 엔진 카드). */
+  body.wdc-tablet-v2 .wdcalculator-main-scroll > :not(.wdc2-topbar):not(.wdc2-sheet) {
+    display: none !important;
   }
-
-  /* 저장 견적 오버레이(펼침): 사이드바가 메인 위로 절대배치 — "고객 견적 검색"이 토글. */
-  .wdcalculator-shell.wdc-tablet-skin.wdc-saved-open .saved-estimates-sidebar {
-    position: absolute;
-    top: 0;
-    left: 0;
-    z-index: 1050;
-    width: min(380px, 72vw);
-    max-width: min(380px, 72vw);
-    height: 100%;
-    padding-left: calc(var(--bs-gutter-x, 1.5rem) * 0.5);
-    padding-right: calc(var(--bs-gutter-x, 1.5rem) * 0.5);
-    overflow: hidden;
-  }
-
-  /* 백드롭(오버레이 펼침 시 바깥 영역 — 탭하면 닫힘). */
-  .wdc-saved-backdrop {
-    position: fixed;
-    inset: 0;
-    z-index: 1040;
-    background: rgba(0, 0, 0, 0.35);
-  }
-  .wdc-saved-backdrop[hidden] { display: none; }
-
-  /* PC 헤더("가구 견적 계산기" + 제품 설정)는 슬림 pcbar 로 대체 → 은닉. */
-  .wdcalculator-shell.wdc-tablet-skin .wdcalculator-main-scroll > .d-flex.justify-content-between.align-items-center.mb-4 {
-    display: none;
-  }
-
-  /* 견적 결과 breakdown 카드(col-lg-5)는 코호트에서도 유지한다: 라이브 분해값 + 엔진이 동적
-     주입하는 #backToOrderBtn(주문에서 진입 시 복귀 내비)이 그 안에 살아 있어, 은닉하면
-     복귀 동선을 끊는 회귀가 된다(증상 은닉 금지). 총 견적 → hl-tile, 최종가 → 하단 바 는
-     미러로 병행 노출한다. 엔진이 .header-primary 에 주입하는 "새 견적 작성" 버튼만 패널
-     foot(새 견적)로 이관·중복 제거 → 코호트 은닉(프록시 클릭으로 동작). */
-  .wdcalculator-shell.wdc-tablet-skin #resetEstimateBtn { display: none; }
 
   /* ====================================================================
-     C. 슬림 pcbar (main-scroll 상단 sticky).
+     B. 탑바.
      ==================================================================== */
-  .wdcalculator-shell.wdc-tablet-skin .wdc-tablet-pcbar {
+  body.wdc-tablet-v2 .wdc2-topbar {
     display: flex;
     align-items: center;
-    gap: var(--foms-space-3, 0.75rem);
+    gap: 14px;
     position: sticky;
     top: 0;
-    z-index: 20;
-    margin: 0 0 var(--foms-space-3, 0.75rem);
-    padding: var(--foms-space-2, 0.5rem) 0;
-    background: var(--foms-surface, #fff);
-    border-bottom: 1px solid var(--foms-border-color, #dee2e6);
+    z-index: 30;
+    height: 60px;
+    padding: 0 18px;
+    background: var(--wdc2-surface);
+    border-bottom: 1px solid var(--wdc2-line);
   }
-  .wdc-tablet-pcbar__title {
-    font-size: var(--foms-font-size-lg, 1.125rem);
-    font-weight: var(--foms-font-weight-bold, 700);
-    color: var(--foms-text-color, #212529);
+  body.wdc-tablet-v2 .wdc2-topbar__title {
+    flex: none;
+    font-size: 15px;
+    font-weight: 800;
+    letter-spacing: -0.01em;
+    color: var(--wdc2-ink);
     white-space: nowrap;
   }
-  .wdc-tablet-pcbar__grow { flex: 1 1 auto; }
-  .wdc-tablet-pcbar__cust {
+  body.wdc-tablet-v2 .wdc2-topbar__grow { flex: 1 1 auto; }
+  body.wdc-tablet-v2 .wdc2-topbar__cust {
     display: flex;
     align-items: center;
     min-width: 0;
+    max-width: 420px;
+    flex: 0 1 auto;
   }
-  .wdc-tablet-pcbar__cust .mb-3 {
+  body.wdc-tablet-v2 .wdc2-topbar__cust .mb-3 {
     margin: 0 !important;
-    width: min(280px, 34vw);
+    width: min(320px, 30vw);
   }
-  .wdc-tablet-pcbar__cust .form-label { display: none; }
-  .wdc-tablet-pcbar .form-control {
-    min-height: 44px;
+  body.wdc-tablet-v2 .wdc2-topbar__cust .form-label { display: none; }
+  body.wdc-tablet-v2 .wdc2-topbar__cust .form-control {
     height: 44px;
-    font-size: max(16px, var(--foms-font-size-base, 1rem));
-  }
-  .wdc-tablet-pcbar__search {
-    flex: 0 0 auto;
     min-height: 44px;
+    font-size: 16px;
+    font-weight: 700;
+    border: 0;
+    border-bottom: 2px solid var(--wdc2-ink);
+    border-radius: 0;
+    background: transparent;
+    padding: 0 2px;
+  }
+  body.wdc-tablet-v2 .wdc2-topbar__search {
+    flex: none;
+    height: 40px;
+    padding: 0 14px;
+    display: inline-flex;
+    align-items: center;
+    gap: 7px;
+    border: 1px solid var(--wdc2-border-strong);
+    border-radius: 9px;
+    background: var(--wdc2-surface);
+    color: #3A3E45;
+    font-size: 13px;
+    font-weight: 600;
+    white-space: nowrap;
+    cursor: pointer;
+  }
+  body.wdc-tablet-v2 .wdc2-topbar__settings .btn {
+    height: 40px;
+    min-height: 40px;
+    margin: 0 !important;
+    padding: 0 14px;
+    display: inline-flex;
+    align-items: center;
+    gap: 7px;
+    border: 1px solid var(--wdc2-border-strong);
+    border-radius: 9px;
+    background: var(--wdc2-surface);
+    color: #3A3E45;
+    font-size: 13px;
+    font-weight: 600;
     white-space: nowrap;
   }
 
   /* ====================================================================
-     D. 우측 "진행 견적" 패널 (shell 내 absolute, 상시 노출).
+     C. 시트(워크시트 본문).
      ==================================================================== */
-  .wdcalculator-shell.wdc-tablet-skin .wdc-tablet-rightpanel {
+  /* 워크시트: 좌우 18·상 12 패딩 + desk 톤 배경(카드가 떠 보이게 — 풀블리드 밴드 방지, 목업 .sheet/.tab). */
+  body.wdc-tablet-v2 .wdc2-sheet { display: block; padding: 12px 18px 8px; background: var(--wdc2-desk); }
+  body.wdc-tablet-v2 .wdc2-sec {
+    background: var(--wdc2-surface);
+    border: 1px solid var(--wdc2-line);
+    border-radius: 12px;
+    margin-bottom: 10px;
+    overflow: hidden;
+  }
+  body.wdc-tablet-v2 .wdc2-sec__hd {
+    display: flex;
+    align-items: center;
+    gap: 10px;
+    padding: 10px 16px 0;
+  }
+  body.wdc-tablet-v2 .wdc2-sec__t { font-size: 13px; font-weight: 800; letter-spacing: -0.01em; color: var(--wdc2-ink); }
+  body.wdc-tablet-v2 .wdc2-sec__c { font-size: 11px; color: var(--wdc2-muted); font-weight: 600; }
+
+  /* 열 헤더 + 행 그리드(기본 구성): 모드 108 | 상세 0.7fr | W(min180) 0.5fr | 단가 156 | ✕ 40.
+     모드 select 폭 확보·W 복합식 우선. 제품명 ellipsis 허용. */
+  body.wdc-tablet-v2 .wdc2-colhead--base,
+  body.wdc-tablet-v2 .wdc2-brow {
+    display: grid;
+    grid-template-columns: 108px minmax(0, 0.7fr) minmax(180px, 0.5fr) 156px 40px;
+    gap: 0 12px;
+    align-items: center;
+  }
+  body.wdc-tablet-v2 .wdc2-colhead {
+    padding: 7px 16px 2px;
+    color: #9AA0A9;
+    font-size: 10.5px;
+    font-weight: 700;
+    letter-spacing: 0.07em;
+  }
+  body.wdc-tablet-v2 .wdc2-colhead > span {
+    white-space: nowrap;
+    overflow: hidden;
+    text-overflow: ellipsis;
+  }
+  body.wdc-tablet-v2 .wdc2-colhead .r { text-align: right; }
+  body.wdc-tablet-v2 .wdc2-brow-wrap { border-top: 1px solid #F0EEE8; padding: 7px 16px; }
+  /* W textarea 가변 높이 → 상단 정렬(성장 시 다른 셀이 세로 중앙으로 떠오르지 않게). */
+  body.wdc-tablet-v2 .wdc2-brow { min-height: 52px; align-items: start; }
+
+  body.wdc-tablet-v2 .wdc2-modesel {
+    display: flex;
+    align-items: center;
+    gap: 4px;
+    height: 44px;
+    min-width: 0;
+  }
+  body.wdc-tablet-v2 .wdc2-modesel__n {
+    flex: none;
+    font-size: 12px;
+    font-weight: 800;
+    color: var(--wdc2-ink);
+  }
+  body.wdc-tablet-v2 .wdc2-modesel__select {
+    flex: 1 1 auto;
+    min-width: 0;
+    width: 100%;
+    height: 34px;
+    appearance: auto;
+    -webkit-appearance: menulist;
+    border: 1px solid #E0DDD5;
+    border-radius: 8px;
+    background: var(--wdc2-subtle);
+    padding: 0 6px;
+    font-size: 11.5px;
+    font-weight: 700;
+    color: var(--wdc2-sub);
+    cursor: pointer;
+  }
+  body.wdc-tablet-v2 .wdc2-modesel--mine .wdc2-modesel__select {
+    background: var(--wdc2-mine-tint);
+    border-color: #EAD9B8;
+    color: var(--wdc2-mine-ink);
+  }
+  body.wdc-tablet-v2 .wdc2-modesel--direct .wdc2-modesel__select {
+    background: #F2F6FB;
+    border-color: #D8E2EE;
+    color: #3A6291;
+  }
+
+  body.wdc-tablet-v2 .wdc2-prodbtn {
+    height: 44px;
+    border: 1px solid var(--wdc2-border-strong);
+    border-radius: 10px;
+    background: var(--wdc2-surface);
+    display: flex;
+    align-items: center;
+    gap: 10px;
+    padding: 0 14px;
+    min-width: 0;
+    cursor: pointer;
+  }
+  body.wdc-tablet-v2 .wdc2-prodbtn__nm {
+    font-size: 15.5px;
+    font-weight: 700;
+    letter-spacing: -0.01em;
+    white-space: nowrap;
+    overflow: hidden;
+    text-overflow: ellipsis;
+    color: var(--wdc2-ink);
+  }
+  body.wdc-tablet-v2 .wdc2-caret { margin-left: auto; color: #B4B0A6; flex: none; font-size: 11px; }
+
+  /* MINE 제품명 — 전폭 입력. */
+  body.wdc-tablet-v2 .wdc2-dname {
+    height: 44px;
+    width: 100%;
+    border: 1.5px solid var(--wdc2-border-strong);
+    border-radius: 10px;
+    background: var(--wdc2-surface);
+    padding: 0 13px;
+    font-size: 15px;
+    font-weight: 700;
+    letter-spacing: -0.01em;
+    color: var(--wdc2-ink);
+  }
+
+  /* W — 큰 볼드 우측 정렬. textarea auto-grow(복합식 줄바꿈, 결함1·3). */
+  body.wdc-tablet-v2 .wdc2-win {
+    min-height: 44px;
+    height: 44px;
+    width: 100%;
+    box-sizing: border-box;
+    border: 1.5px solid var(--wdc2-border-strong);
+    border-radius: 10px;
+    background: var(--wdc2-surface);
+    text-align: right;
+    padding: 9px 12px;
+    font-family: inherit;
+    font-size: 18px;
+    line-height: 24px;
+    font-weight: 800;
+    font-variant-numeric: tabular-nums;
+    color: var(--wdc2-ink);
+    resize: none;
+    overflow: hidden;
+    white-space: pre-wrap;
+    word-break: break-word;
+  }
+
+  /* 직접입력: 상세+W 2열 span — 내부 7:5(외부 그리드 0.7fr:0.5fr 와 동일 비율). */
+  body.wdc-tablet-v2 .wdc2-directcell--span {
+    grid-column: 2 / 4;
+    display: grid;
+    grid-template-columns: minmax(0, 7fr) minmax(0, 5fr);
+    gap: 12px;
+    min-width: 0;
+  }
+  body.wdc-tablet-v2 .wdc2-directcell--span .wdc2-directcell__nm,
+  body.wdc-tablet-v2 .wdc2-directcell--span .wdc2-directcell__amt {
+    width: 100%;
+    flex: none;
+    min-width: 0;
+  }
+  body.wdc-tablet-v2 .wdc2-directcell__empty {
+    grid-column: 1 / -1;
+    display: flex;
+    align-items: center;
+    height: 44px;
+    padding: 0 14px;
+    color: #C6C2B8;
+    font-size: 15px;
+    font-weight: 700;
+  }
+  body.wdc-tablet-v2 .wdc2-directcell__nm {
+    flex: 1 1 auto;
+    min-width: 0;
+    height: 44px;
+    border: 1.5px solid var(--wdc2-border-strong);
+    border-radius: 10px;
+    background: var(--wdc2-surface);
+    padding: 0 13px;
+    font-size: 14.5px;
+    font-weight: 700;
+    color: var(--wdc2-ink);
+  }
+  body.wdc-tablet-v2 .wdc2-directcell__amt {
+    flex: none;
+    width: 108px;
+    height: 44px;
+    border: 1.5px solid var(--wdc2-border-strong);
+    border-radius: 10px;
+    background: var(--wdc2-surface);
+    text-align: right;
+    padding: 0 12px;
+    font-size: 15px;
+    font-weight: 800;
+    font-variant-numeric: tabular-nums;
+    color: var(--wdc2-ink);
+  }
+  body.wdc-tablet-v2 .wdc2-win-empty {
+    display: flex;
+    align-items: center;
+    justify-content: flex-end;
+    height: 44px;
+    padding: 0 12px;
+    color: #C6C2B8;
+    font-size: 16px;
+    font-weight: 700;
+  }
+  /* 단가 — read-only 계산 미러(그린 틴트, 만질 수 없는 값). */
+  body.wdc-tablet-v2 .wdc2-price {
+    height: 44px;
+    background: var(--wdc2-accent-tint);
+    border-radius: 10px;
+    display: flex;
+    align-items: center;
+    justify-content: flex-end;
+    padding: 0 12px;
+  }
+  body.wdc-tablet-v2 .wdc2-price__v {
+    font-size: 16.5px;
+    font-weight: 800;
+    letter-spacing: -0.01em;
+    color: var(--wdc2-accent-ink);
+    font-variant-numeric: tabular-nums;
+  }
+
+  /* ✕ 삭제 셀(구성/옵션/비고 공용). */
+  body.wdc-tablet-v2 .wdc2-del {
+    width: 36px;
+    height: 36px;
+    border-radius: 8px;
+    border: none;
+    background: transparent;
+    color: #C6C2B8;
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    font-size: 17px;
+    cursor: pointer;
+    justify-self: center;
+  }
+  body.wdc-tablet-v2 .wdc2-del:hover { background: var(--wdc2-subtle); color: var(--wdc2-danger); }
+
+  /* 서브행(직접입력 / MINE 방식·단가). 상세 열~✕ 열 스팬. */
+  /* 서브행은 .wdc2-brow-wrap(블록) 직속이므로 상세 열(108px 모드 + 12px gap)만큼 들여쓴다. */
+  body.wdc-tablet-v2 .wdc2-subrow,
+  body.wdc-tablet-v2 .wdc2-msub {
+    position: static;
+    display: flex;
+    align-items: center;
+    gap: 8px;
+    margin-top: 8px;
+    margin-left: 120px;
+  }
+  body.wdc-tablet-v2 .wdc2-tie {
+    width: 14px;
+    height: 20px;
+    border-left: 1.5px solid #DDDACF;
+    border-bottom: 1.5px solid #DDDACF;
+    border-bottom-left-radius: 8px;
+    margin: -8px 0 8px 8px;
+    flex: none;
+  }
+  body.wdc-tablet-v2 .wdc2-subfee__nm {
+    height: 36px;
+    flex: 1;
+    border: 1px solid var(--wdc2-line);
+    border-radius: 8px;
+    background: var(--wdc2-subtle);
+    padding: 0 11px;
+    font-size: 13px;
+    font-weight: 600;
+    color: #3A3E45;
+  }
+  body.wdc-tablet-v2 .wdc2-subfee__amt {
+    height: 36px;
+    width: 130px;
+    flex: none;
+    border: 1px solid var(--wdc2-line);
+    border-radius: 8px;
+    background: var(--wdc2-surface);
+    text-align: right;
+    padding: 0 11px;
+    font-size: 13.5px;
+    font-weight: 700;
+    font-variant-numeric: tabular-nums;
+    color: var(--wdc2-ink);
+  }
+  body.wdc-tablet-v2 .wdc2-subfee__x {
+    flex: none;
+    border: none;
+    background: transparent;
+    color: #C6C2B8;
+    font-size: 14px;
+    padding: 0 4px;
+    cursor: pointer;
+  }
+  body.wdc-tablet-v2 .wdc2-ddrop {
+    height: 36px;
+    flex: none;
+    border: 1px solid var(--wdc2-border-strong);
+    border-radius: 8px;
+    background: var(--wdc2-subtle);
+    display: flex;
+    align-items: center;
+    gap: 7px;
+    padding: 0 12px;
+    font-size: 12.5px;
+    font-weight: 800;
+    color: #3A3E45;
+    cursor: pointer;
+  }
+  body.wdc-tablet-v2 .wdc2-ddrop .wdc2-caret { margin-left: 0; }
+  body.wdc-tablet-v2 .wdc2-dinput {
+    height: 36px;
+    width: 110px;
+    flex: none;
+    border: 1.5px solid var(--wdc2-border-strong);
+    border-radius: 8px;
+    background: var(--wdc2-surface);
+    text-align: right;
+    padding: 0 11px;
+    font-size: 14px;
+    font-weight: 800;
+    font-variant-numeric: tabular-nums;
+    color: var(--wdc2-ink);
+  }
+  body.wdc-tablet-v2 .wdc2-subhint { font-size: 10.5px; color: #9AA0A9; font-weight: 600; }
+
+  body.wdc-tablet-v2 .wdc2-addfee { margin-top: 6px; margin-left: 120px; }
+  body.wdc-tablet-v2 .wdc2-addfee__btn {
+    border: none;
+    background: none;
+    color: var(--wdc2-muted);
+    font-size: 11.5px;
+    font-weight: 700;
+    padding: 1px 0;
+    cursor: pointer;
+  }
+
+  /* 행 추가. */
+  body.wdc-tablet-v2 .wdc2-addrow {
+    display: flex;
+    gap: 8px;
+    padding: 8px 16px 11px;
+    border-top: 1px solid #F0EEE8;
+  }
+  body.wdc-tablet-v2 .wdc2-addrow__a {
+    height: 38px;
+    flex: 1;
+    border: 1.5px dashed #CFCCC2;
+    border-radius: 10px;
+    background: #FCFBF9;
+    color: #54595F;
+    font-size: 12.5px;
+    font-weight: 700;
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    gap: 7px;
+    cursor: pointer;
+  }
+  body.wdc-tablet-v2 .wdc2-addrow__a--mine {
+    flex: 0 0 176px;
+    color: var(--wdc2-mine-ink);
+    border-color: #E4D6B4;
+    background: #FFFDF6;
+  }
+
+  /* 추가 옵션 행: 배지 64 | 옵션 1fr | 금액 156 | ✕ 40. */
+  body.wdc-tablet-v2 .wdc2-orow {
+    display: grid;
+    grid-template-columns: 64px minmax(0, 1fr) 156px 40px;
+    gap: 0 12px;
+    align-items: center;
+    padding: 7px 16px;
+    border-top: 1px solid #F0EEE8;
+    min-height: 58px;
+  }
+  body.wdc-tablet-v2 .wdc2-sec--opt .wdc2-optgrid .wdc2-orow:first-child,
+  body.wdc-tablet-v2 .wdc2-sec--note .wdc2-notegrid .wdc2-nrow:first-child { border-top: none; }
+
+  /* 비고 행: 배지 64 | 내용 1fr | ✕ 40. */
+  body.wdc-tablet-v2 .wdc2-nrow {
+    display: grid;
+    grid-template-columns: 64px minmax(0, 1fr) 40px;
+    gap: 0 12px;
+    align-items: center;
+    padding: 7px 16px;
+    border-top: 1px solid #F0EEE8;
+    min-height: 58px;
+  }
+
+  body.wdc-tablet-v2 .wdc2-obadge {
+    height: 32px;
+    border-radius: 8px;
+    background: #F2F6FB;
+    border: 1px solid #D8E2EE;
+    color: #3A6291;
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    font-size: 11px;
+    font-weight: 800;
+    cursor: pointer;
+  }
+  body.wdc-tablet-v2 .wdc2-obadge--mine {
+    background: var(--wdc2-mine-tint);
+    border-color: #EAD9B8;
+    color: var(--wdc2-mine-ink);
+  }
+  body.wdc-tablet-v2 .wdc2-optbtn {
+    height: 44px;
+    border: 1px solid var(--wdc2-border-strong);
+    border-radius: 10px;
+    background: var(--wdc2-surface);
+    display: flex;
+    align-items: center;
+    gap: 9px;
+    padding: 0 14px;
+    min-width: 0;
+    cursor: pointer;
+  }
+  body.wdc-tablet-v2 .wdc2-optbtn__nm {
+    font-size: 14.5px;
+    font-weight: 700;
+    white-space: nowrap;
+    overflow: hidden;
+    text-overflow: ellipsis;
+    color: var(--wdc2-ink);
+  }
+  body.wdc-tablet-v2 .wdc2-optname {
+    height: 44px;
+    width: 100%;
+    border: 1.5px solid var(--wdc2-border-strong);
+    border-radius: 10px;
+    background: var(--wdc2-surface);
+    padding: 0 13px;
+    font-size: 14.5px;
+    font-weight: 700;
+    color: var(--wdc2-ink);
+  }
+  body.wdc-tablet-v2 .wdc2-oamt {
+    height: 44px;
+    width: 100%;
+    border: 1.5px solid var(--wdc2-border-strong);
+    border-radius: 10px;
+    background: var(--wdc2-surface);
+    text-align: right;
+    padding: 0 12px;
+    font-size: 16px;
+    font-weight: 800;
+    font-variant-numeric: tabular-nums;
+    color: var(--wdc2-ink);
+  }
+
+  /* 조정 스트립: 할인 · 배송. */
+  body.wdc-tablet-v2 .wdc2-strip {
+    display: flex;
+    gap: 10px;
+    align-items: stretch;
+    margin-bottom: 10px;
+  }
+  body.wdc-tablet-v2 .wdc2-pill {
+    background: var(--wdc2-surface);
+    border: 1px solid var(--wdc2-line);
+    border-radius: 12px;
+    padding: 9px 14px;
+    display: flex;
+    align-items: center;
+    gap: 10px;
+  }
+  body.wdc-tablet-v2 .wdc2-pill__l {
+    font-size: 11px;
+    font-weight: 800;
+    color: var(--wdc2-muted);
+    letter-spacing: 0.04em;
+    flex: none;
+  }
+  body.wdc-tablet-v2 .wdc2-pill__sign { font-size: 14px; font-weight: 800; color: var(--wdc2-danger); }
+  body.wdc-tablet-v2 .wdc2-pill__sign--plus { color: #3A6291; }
+  body.wdc-tablet-v2 .wdc2-pill__field .mb-3 { margin: 0 !important; }
+  /* 이동해 온 엔진 위젯의 라벨·안내문 은닉. !important 필수 — 배송비 체크 안내문이
+     .d-block(display:block !important) 이라 비중요 none 을 이긴다(태블릿만, PC 유지). */
+  body.wdc-tablet-v2 .wdc2-strip .form-label,
+  body.wdc-tablet-v2 .wdc2-strip .form-text { display: none !important; }
+  body.wdc-tablet-v2 .wdc2-pill__field .form-control {
+    height: 36px;
+    min-height: 36px;
+    width: 104px;
+    border: 1.5px solid var(--wdc2-border-strong);
+    border-radius: 8px;
+    text-align: right;
+    padding: 0 10px;
+    font-size: 15px;
+    font-weight: 800;
+    font-variant-numeric: tabular-nums;
+  }
+  body.wdc-tablet-v2 .wdc2-pill__chk { display: flex; align-items: center; }
+  body.wdc-tablet-v2 .wdc2-pill__chk .mb-3 { margin: 0 !important; }
+  body.wdc-tablet-v2 .wdc2-pill__chk .form-check { padding-left: 0; display: flex; align-items: center; gap: 6px; }
+  body.wdc-tablet-v2 .wdc2-pill__chk .form-check-input { margin: 0; width: 19px; height: 19px; }
+  body.wdc-tablet-v2 .wdc2-pill__chk .form-check-label {
+    font-size: 12px;
+    color: #54595F;
+    font-weight: 600;
+    white-space: nowrap;
+  }
+
+  /* ====================================================================
+     D. 하단 액션바 — main-column flex 하단 in-flow 도킹.
+        (구판 fixed left:0 은 좌측 전역 레일 72px 과 겹쳐 금액 앞자리가 가려짐 —
+         in-flow 는 #main-content 패딩·스테이지 프레임 안이라 구조적으로 겹침 불가.)
+     ==================================================================== */
+  body.wdc-tablet-v2 .wdc2-abar {
+    display: flex;
+    align-items: center;
+    gap: 12px;
+    flex: none;
+    height: 64px;
+    padding: 0 18px calc(0px + env(safe-area-inset-bottom, 0px));
+    background: var(--wdc2-surface);
+    border-top: 1px solid var(--wdc2-line);
+    box-shadow: 0 -2px 12px rgba(0, 0, 0, 0.06);
+  }
+  body.wdc-tablet-v2 .wdc2-abar__grow { flex: 1 1 auto; }
+  body.wdc-tablet-v2 .wdc2-abar__label { font-size: 11px; font-weight: 800; color: var(--wdc2-muted); letter-spacing: 0.05em; }
+  body.wdc-tablet-v2 .wdc2-abar__row { display: flex; align-items: baseline; gap: 8px; }
+  body.wdc-tablet-v2 .wdc2-abar__val {
+    font-size: 25px;
+    font-weight: 900;
+    letter-spacing: -0.02em;
+    color: var(--wdc2-accent-ink);
+    font-variant-numeric: tabular-nums;
+    white-space: nowrap;
+  }
+  body.wdc-tablet-v2 .wdc2-abar__live { font-size: 10.5px; color: #9AA0A9; }
+  body.wdc-tablet-v2 .wdc2-abar__add {
+    height: 46px;
+    border-radius: 10px;
+    border: none;
+    background: var(--wdc2-accent);
+    color: #fff;
+    font-size: 14px;
+    font-weight: 800;
+    padding: 0 22px;
+    display: flex;
+    align-items: center;
+    gap: 8px;
+    cursor: pointer;
+  }
+
+  /* ====================================================================
+     E. 우측 진행 견적 패널(shell 내 absolute, 상시).
+     ==================================================================== */
+  body.wdc-tablet-v2 .wdc2-panel {
     display: flex;
     flex-direction: column;
     position: absolute;
     top: 0;
     right: 0;
     bottom: 0;
-    width: var(--wdc-rightpanel-w);
+    width: var(--wdc2-panel-w);
     z-index: 1020;
-    background: var(--foms-surface, #fff);
-    border-left: 1px solid var(--foms-border-color, #dee2e6);
+    background: var(--wdc2-panel-bg);
+    border-left: 1px solid var(--wdc2-line);
   }
-  .wdc-trp__head {
-    flex: 0 0 auto;
+  body.wdc-tablet-v2 .wdc2-panel__cur {
+    flex: none;
+    background: var(--wdc2-surface);
+    border-bottom: 1px solid var(--wdc2-line);
+    padding: 13px 16px 11px;
+  }
+  body.wdc-tablet-v2 .wdc2-panel__curhd { display: flex; align-items: center; gap: 8px; margin-bottom: 8px; }
+  body.wdc-tablet-v2 .wdc2-panel__curhd b { font-size: 12.5px; font-weight: 800; color: var(--wdc2-ink); }
+  body.wdc-tablet-v2 .wdc2-dot { width: 7px; height: 7px; border-radius: 50%; background: var(--wdc2-accent); }
+  body.wdc-tablet-v2 .wdc2-bl {
     display: flex;
-    align-items: center;
-    padding: var(--foms-space-3, 0.75rem) var(--foms-space-4, 1rem);
-    border-bottom: 1px solid var(--foms-border-color, #dee2e6);
+    justify-content: space-between;
+    font-size: 12.5px;
+    color: #54595F;
+    padding: 3px 0;
   }
-  .wdc-trp__head h4 {
-    margin: 0;
-    font-size: var(--foms-font-size-lg, 1.125rem);
-    font-weight: var(--foms-font-weight-bold, 700);
-    color: var(--foms-text-color, #212529);
+  body.wdc-tablet-v2 .wdc2-bl b { font-weight: 700; color: var(--wdc2-ink); font-variant-numeric: tabular-nums; }
+  body.wdc-tablet-v2 .wdc2-bl--minus b { color: var(--wdc2-danger); }
+  body.wdc-tablet-v2 .wdc2-mut { color: #9AA0A9; font-size: 11px; }
+  body.wdc-tablet-v2 .wdc2-bl--total {
+    border-top: 1px solid #EFEDE7;
+    margin-top: 6px;
+    padding-top: 8px;
+    font-size: 13px;
   }
+  body.wdc-tablet-v2 .wdc2-bl--total b { font-size: 19px; font-weight: 900; color: var(--wdc2-accent-ink); letter-spacing: -0.01em; }
 
-  /* 총 견적 hl-tile (브랜드 톤, #totalAllFinalPrice 미러). */
-  .wdc-trp__tile {
-    flex: 0 0 auto;
+  body.wdc-tablet-v2 .wdc2-panel__list {
+    flex: 1 1 auto;
+    min-height: 0;
     display: flex;
     flex-direction: column;
-    gap: 2px;
-    margin: var(--foms-space-3, 0.75rem) var(--foms-space-4, 1rem) 0;
-    padding: var(--foms-space-3, 0.75rem) var(--foms-space-4, 1rem);
-    border-radius: var(--foms-radius-lg, 12px);
-    background: var(--foms-surface-accent, #f3f4ff);
-    border: 1px solid color-mix(in srgb, var(--foms-color-brand-500, #5a67d8) 25%, transparent);
+    padding: 11px 14px 0;
   }
-  .wdc-trp__tile b {
-    font-size: var(--foms-font-size-sm, 0.875rem);
-    font-weight: var(--foms-font-weight-bold, 700);
-    color: var(--foms-color-brand-600, #4a55b8);
-  }
-  .wdc-trp__tile span {
-    font-size: var(--foms-font-size-2xl, 1.5rem);
-    font-weight: var(--foms-font-weight-bold, 700);
-    color: var(--foms-color-brand-600, #4a55b8);
-    font-variant-numeric: tabular-nums;
-  }
-
-  /* 리스트 영역(진행 중인 견적 카드가 도킹되는 슬롯, 자체 스크롤). */
-  .wdc-trp__body {
+  body.wdc-tablet-v2 .wdc2-panel__lh { display: flex; align-items: center; gap: 8px; margin-bottom: 8px; }
+  body.wdc-tablet-v2 .wdc2-panel__lh b { font-size: 12.5px; font-weight: 800; color: var(--wdc2-ink); }
+  body.wdc-tablet-v2 .wdc2-panel__cnt { font-size: 11px; color: var(--wdc2-muted); font-weight: 700; }
+  body.wdc-tablet-v2 .wdc2-panel__grow { flex: 1 1 auto; }
+  body.wdc-tablet-v2 .wdc2-panel__toggle .wd-unit-price-toggle-wrap { gap: 5px !important; }
+  body.wdc-tablet-v2 .wdc2-panel__toggle .form-check-input { margin: 0; }
+  body.wdc-tablet-v2 .wdc2-panel__toggle label { font-size: 10.5px; color: var(--wdc2-muted); font-weight: 700; }
+  body.wdc-tablet-v2 .wdc2-panel__body {
     flex: 1 1 auto;
     min-height: 0;
     overflow-y: auto;
     overscroll-behavior: contain;
-    padding: var(--foms-space-3, 0.75rem) var(--foms-space-4, 1rem);
+    padding-bottom: 8px;
   }
-
-  /* 도킹된 진행 중인 견적 카드 재스킨: 컨테이너/헤더는 목업 톤으로, 내부 인라인 항목은 보존. */
-  .wdc-trp__body > .card {
-    border: 0;
-    box-shadow: none;
+  /* --- 진행 견적 = v2 컴팩트 카드로 교체(결함6). 엔진 렌더 컨테이너는 렌더·버튼 계약 보존 위해
+     은닉(스크레이프 소스). 카드 룩: 목업 Frame 1 qcard(r1 헤더/ln 본문/acts). 엔진 실 DOM 실사:
+     estimate-lifecycle.js renderEstimatesList(:871)·buildEstimateCardBodyHtml(:800) —
+     .estimate-display-name / .estimate-total-price / .estimate-detail-base/-options / .wd-estimate-unit-meta. --- */
+  body.wdc-tablet-v2 .wdc2-panel #estimatesListContainer { display: none !important; }
+  body.wdc-tablet-v2 .wdc2-qcards { display: flex; flex-direction: column; gap: 8px; }
+  body.wdc-tablet-v2 .wdc2-qcard {
+    background: var(--wdc2-surface);
+    border: 1px solid var(--wdc2-line);
+    border-radius: 11px;
+    padding: 10px 13px;
+  }
+  /* r1: [견적 N]----[금액]. 금액 flex:none — 절대 잘리지 않음(결함1: 좌측 레일/폭 부족과 무관). */
+  body.wdc-tablet-v2 .wdc2-qcard__r1 { display: flex; align-items: baseline; gap: 8px; }
+  body.wdc-tablet-v2 .wdc2-qcard__grow { flex: 1 1 auto; }
+  body.wdc-tablet-v2 .wdc2-qcard__no { flex: none; font-size: 11px; font-weight: 800; color: var(--wdc2-muted); white-space: nowrap; }
+  /* r2: 제품명/구성명 전폭 — 줄바꿈 허용, ellipsis 금지("무몰딩(푸…" 잘림 결함 제거). */
+  body.wdc-tablet-v2 .wdc2-qcard__r2 { display: flex; align-items: flex-start; gap: 4px; margin-top: 2px; }
+  body.wdc-tablet-v2 .wdc2-qcard__nm {
+    flex: 1 1 auto;
+    min-width: 0;
+    font-size: 12.5px;
+    font-weight: 700;
+    color: var(--wdc2-ink);
+    line-height: 1.45;
+    white-space: normal;
+    overflow-wrap: anywhere;
+    word-break: keep-all;
+  }
+  body.wdc-tablet-v2 .wdc2-qcard__pen {
+    flex: none;
+    border: none;
     background: transparent;
+    color: #B4B0A6;
+    font-size: 11px;
+    padding: 2px 5px;
+    cursor: pointer;
   }
-  .wdc-trp__body > .card > .card-header {
-    padding: 0 0 var(--foms-space-2, 0.5rem);
-    border: 0;
-    background: transparent;
-    display: flex;
-    justify-content: flex-end;
+  body.wdc-tablet-v2 .wdc2-qcard__amt {
+    flex: none;
+    margin-left: auto;
+    font-size: 15.5px;
+    font-weight: 800;
+    letter-spacing: -0.01em;
+    color: var(--wdc2-ink);
+    font-variant-numeric: tabular-nums;
+    white-space: nowrap;
   }
-  .wdc-trp__body > .card > .card-header h5 { display: none; }  /* 패널 head 와 중복 → 은닉 */
-  .wdc-trp__body > .card > .card-body { padding: 0; }
-  /* 인-리스트 "전체 견적 총 합계" 요약 카드는 hl-tile 로 대체 → 은닉. */
-  .wdc-trp__body #totalEstimatesSummary { display: none; }
-  /* 320px 폭: 견적 카드 세로 스택(부트스트랩 col 무력화). */
-  .wdc-trp__body .row.g-3 > [class*="col-"] {
-    flex: 0 0 100%;
-    max-width: 100%;
-    width: 100%;
+  /* 구성/옵션/비고 — 라인당 1줄, 클램프·ellipsis 없음(전부 표시, 스택 스크롤이 흡수). */
+  body.wdc-tablet-v2 .wdc2-qcard__ln {
+    font-size: 11.5px;
+    color: var(--wdc2-sub);
+    margin-top: 4px;
+    line-height: 1.5;
+    overflow-wrap: anywhere;
   }
-  .wdc-trp__body .card[data-estimate-id] {
-    margin-bottom: var(--foms-space-3, 0.75rem);
-    border: 1px solid var(--foms-border-color, #dee2e6);
-    border-radius: var(--foms-radius-lg, 12px);
+  body.wdc-tablet-v2 .wdc2-qcard__unit { font-size: 10.5px; color: var(--wdc2-muted); margin-top: 3px; line-height: 1.4; }
+  body.wdc-tablet-v2 .wdc2-qcard__opt {
+    font-size: 11px;
+    color: var(--wdc2-sub);
+    margin-top: 3px;
+    line-height: 1.45;
+    overflow-wrap: anywhere;
   }
+  body.wdc-tablet-v2 .wdc2-qcard__note {
+    font-size: 10.5px;
+    color: var(--wdc2-muted);
+    margin-top: 6px;
+    padding-top: 5px;
+    border-top: 1px dashed #E6E4DE;
+    line-height: 1.45;
+    overflow-wrap: anywhere;
+  }
+  /* 연속 비고 라인은 첫 라인만 구분선(: first-of-type 은 태그 기준이라 부정확 — 인접 무효화). */
+  body.wdc-tablet-v2 .wdc2-qcard__note + .wdc2-qcard__note {
+    margin-top: 2px;
+    padding-top: 0;
+    border-top: none;
+  }
+  body.wdc-tablet-v2 .wdc2-qcard__acts { display: flex; gap: 6px; margin-top: 8px; }
+  body.wdc-tablet-v2 .wdc2-qcard__act {
+    height: 30px;
+    border-radius: 8px;
+    border: 1px solid #E0DDD5;
+    background: var(--wdc2-subtle);
+    font-size: 11.5px;
+    font-weight: 700;
+    color: #54595F;
+    padding: 0 14px;
+    cursor: pointer;
+  }
+  body.wdc-tablet-v2 .wdc2-qcard__act--danger { color: var(--wdc2-danger); }
 
-  /* foot: 새 견적 / 전체 저장(기존 resetEstimateBtn·saveEstimateBtn 미러). */
-  .wdc-trp__foot {
-    flex: 0 0 auto;
-    display: flex;
-    gap: var(--foms-space-2, 0.5rem);
-    padding: var(--foms-space-3, 0.75rem) var(--foms-space-4, 1rem);
-    border-top: 1px solid var(--foms-border-color, #dee2e6);
+  body.wdc-tablet-v2 .wdc2-panel__foot {
+    flex: none;
+    background: var(--wdc2-surface);
+    border-top: 1px solid var(--wdc2-line);
+    padding: 12px 16px 13px;
   }
-  .wdc-trp__foot .btn {
+  body.wdc-tablet-v2 .wdc2-panel__sum {
+    display: flex;
+    justify-content: space-between;
+    align-items: baseline;
+    margin-bottom: 10px;
+  }
+  body.wdc-tablet-v2 .wdc2-panel__suml { font-size: 11.5px; font-weight: 800; color: var(--wdc2-muted); letter-spacing: 0.04em; }
+  body.wdc-tablet-v2 .wdc2-panel__sumv { font-size: 21px; font-weight: 900; letter-spacing: -0.02em; color: var(--wdc2-ink); font-variant-numeric: tabular-nums; }
+  body.wdc-tablet-v2 .wdc2-panel__btns { display: flex; gap: 8px; }
+  body.wdc-tablet-v2 .wdc2-panel__new {
     flex: 1 1 0;
-    min-height: 48px;
+    height: 44px;
+    border-radius: 10px;
+    border: 1.5px solid var(--wdc2-border-strong);
+    background: var(--wdc2-surface);
+    font-size: 13px;
+    font-weight: 800;
+    color: #54595F;
+    cursor: pointer;
   }
-  .wdc-trp__foot .wdc-trp__save { flex: 1.4 1 0; }
-  .wdc-trp__foot .btn:disabled { opacity: 0.5; }
+  body.wdc-tablet-v2 .wdc2-panel__save {
+    flex: 1.4 1 0;
+    height: 44px;
+    border-radius: 10px;
+    border: none;
+    background: var(--wdc2-ink);
+    color: #fff;
+    font-size: 13px;
+    font-weight: 800;
+    cursor: pointer;
+  }
+  body.wdc-tablet-v2 .wdc2-panel__new:disabled,
+  body.wdc-tablet-v2 .wdc2-panel__save:disabled { opacity: 0.45; }
 
   /* ====================================================================
-     E. 하단 고정 최종견적 바(coarse-landscape 전용). tablet-skin.js 가 body 에 주입한
-     .wdc-tablet-actionbar 에 게이트 진입 시 .wdc-actionbar-active 를 부여해 노출한다.
-     값(#finalPrice)·주 액션은 JS 가 미러 — 계산엔진 DOM 은 이동/복제하지 않는다.
-     우측 패널(320px) 을 침범하지 않도록 right 를 패널 폭만큼 확보. 폰(≤991.98)의 자체
-     하단 바(wd-fab)와는 MQ 배타 → 상호 배제.
+     F. 공용 바텀시트 피커.
      ==================================================================== */
-  /* 스크롤러 하단 여백 예약(마지막 카드가 고정 바에 가리지 않도록). 임베디드 제외. */
-  .wdcalculator-container:not(.wdcalculator-container--embedded) .wdcalculator-main-scroll {
-    padding-bottom: calc(72px + env(safe-area-inset-bottom, 0px) + 1rem);
-  }
-
-  .wdc-tablet-actionbar.wdc-actionbar-active {
-    display: flex;
+  body.wdc-tablet-v2 .wdc2-sheetpicker-backdrop {
+    display: block;
     position: fixed;
-    left: 0;
-    right: 320px;  /* = --wdc-rightpanel-w (우측 패널 폭과 동기 유지) */
+    inset: 0;
+    z-index: 2000;
+    background: rgba(24, 25, 28, 0.34);
+  }
+  body.wdc-tablet-v2 .wdc2-sheetpicker-backdrop[hidden] { display: none; }
+  body.wdc-tablet-v2 .wdc2-sheetpicker {
+    display: flex;
+    flex-direction: column;
+    position: fixed;
+    left: 50%;
     bottom: 0;
-    z-index: 1030;
+    transform: translateX(-50%);
+    width: min(720px, 96vw);
+    max-height: 72vh;
+    z-index: 2001;
+    background: var(--wdc2-surface);
+    border-radius: 20px 20px 0 0;
+    box-shadow: 0 -8px 40px rgba(0, 0, 0, 0.16);
+    padding-bottom: 14px;
+  }
+  body.wdc-tablet-v2 .wdc2-sheetpicker[hidden] { display: none; }
+  /* 좌측 전역 레일(72px) 공존 시 시트를 작업영역 중앙으로(레일 절반 36px 보정) —
+     레일 CSS 와 동일하게 :has 가용성 전제(@supports 게이트가 레일 노출 자체를 막음). */
+  body.wdc-tablet-v2:has(.foms-tablet-rail) .wdc2-sheetpicker {
+    left: calc(50% + 36px);
+  }
+  body.wdc-tablet-v2 .wdc2-sheetpicker__grip {
+    width: 44px;
+    height: 5px;
+    border-radius: 3px;
+    background: #DDDACF;
+    margin: 10px auto 4px;
+    flex: none;
+  }
+  body.wdc-tablet-v2 .wdc2-sheetpicker__hd {
+    display: flex;
     align-items: center;
     justify-content: space-between;
-    gap: 16px;
-    padding: 10px 20px calc(10px + env(safe-area-inset-bottom, 0px));
-    background: var(--foms-surface, #fff);
-    border-top: 1px solid var(--foms-border-color, #dee2e6);
-    box-shadow: 0 -2px 12px rgba(0, 0, 0, 0.08);
+    padding: 8px 22px 12px;
+    border-bottom: 1px solid #F0EEE8;
+    flex: none;
   }
-  .wdc-tab-ab__price {
+  body.wdc-tablet-v2 .wdc2-sheetpicker__title { font-size: 16px; font-weight: 800; color: var(--wdc2-ink); }
+  body.wdc-tablet-v2 .wdc2-sheetpicker__close {
+    width: 38px;
+    height: 38px;
+    border-radius: 9px;
+    background: var(--wdc2-subtle);
+    border: 1px solid var(--wdc2-line);
+    color: #54595F;
+    cursor: pointer;
+  }
+  body.wdc-tablet-v2 .wdc2-sheetpicker__body {
+    flex: 1 1 auto;
+    min-height: 0;
+    overflow-y: auto;
+    overscroll-behavior: contain;
+    display: grid;
+    grid-template-columns: repeat(3, 1fr);
+    gap: 9px;
+    padding: 14px 22px 6px;
+  }
+  body.wdc-tablet-v2 .wdc2-sheetpicker__opt {
+    min-height: 64px;
+    border: 1.5px solid var(--wdc2-line);
+    border-radius: 11px;
+    background: var(--wdc2-surface);
     display: flex;
-    flex-direction: row;
-    align-items: baseline;
-    gap: var(--foms-space-2, 0.5rem);
-    line-height: 1.2;
-    min-width: 0;
+    flex-direction: column;
+    justify-content: center;
+    align-items: flex-start;
+    padding: 0 15px;
+    gap: 2px;
+    text-align: left;
+    font-size: 14.5px;
+    font-weight: 800;
+    letter-spacing: -0.01em;
+    color: var(--wdc2-ink);
+    cursor: pointer;
   }
-  .wdc-tab-ab__label {
-    font-size: var(--foms-font-size-sm, 0.875rem);
-    color: var(--foms-text-secondary, #6c757d);
+  body.wdc-tablet-v2 .wdc2-sheetpicker__optnm { font-size: 14.5px; font-weight: 800; }
+  body.wdc-tablet-v2 .wdc2-sheetpicker__optmeta { font-size: 11.5px; color: var(--wdc2-muted); font-weight: 600; }
+  body.wdc-tablet-v2 .wdc2-sheetpicker__opt.is-selected {
+    border-color: var(--wdc2-accent);
+    background: var(--wdc2-accent-tint);
+    box-shadow: 0 0 0 3px rgba(15, 123, 82, 0.10);
   }
-  .wdc-tab-ab__val {
-    font-size: var(--foms-font-size-xl, 1.25rem);
-    font-weight: var(--foms-font-weight-bold, 700);
-    color: var(--foms-text-color, #212529);
-    white-space: nowrap;
-    overflow: hidden;
-    text-overflow: ellipsis;
+  body.wdc-tablet-v2 .wdc2-sheetpicker__opt.is-selected .wdc2-sheetpicker__optmeta { color: var(--wdc2-accent-ink); }
+
+  /* 제품 시트 3-세그(선택/CUSTOM/직접입력) — 결함5. product 모드에서만 body 를 block 으로 풀고
+     카탈로그는 nested grid, 직접입력은 폼. */
+  body.wdc-tablet-v2 .wdc2-sheetpicker--product .wdc2-sheetpicker__body { display: block; }
+  body.wdc-tablet-v2 .wdc2-psheet__tabs { display: flex; gap: 7px; margin-bottom: 14px; }
+  body.wdc-tablet-v2 .wdc2-psheet__tab {
+    flex: 1 1 0;
+    height: 42px;
+    border: 1.5px solid var(--wdc2-line);
+    border-radius: 10px;
+    background: var(--wdc2-surface);
+    font-size: 13.5px;
+    font-weight: 800;
+    color: var(--wdc2-sub);
+    cursor: pointer;
   }
-  .wdc-tab-ab__action {
-    flex: 0 0 auto;
-    min-height: 52px;
-    padding-left: 28px;
-    padding-right: 28px;
-    font-size: max(16px, var(--foms-font-size-base, 1rem));
-    font-weight: var(--foms-font-weight-semibold, 600);
-    white-space: nowrap;
+  body.wdc-tablet-v2 .wdc2-psheet__tab.is-active {
+    border-color: var(--wdc2-accent);
+    background: var(--wdc2-accent-tint);
+    color: var(--wdc2-accent-ink);
   }
+  body.wdc-tablet-v2 .wdc2-psheet__grid {
+    display: grid;
+    grid-template-columns: repeat(3, 1fr);
+    gap: 9px;
+  }
+  body.wdc-tablet-v2 .wdc2-psheet__grid[hidden],
+  body.wdc-tablet-v2 .wdc2-psheet__direct[hidden] { display: none; }
+  body.wdc-tablet-v2 .wdc2-psheet__direct { display: flex; flex-direction: column; gap: 10px; }
+  body.wdc-tablet-v2 .wdc2-psheet__in {
+    height: 48px;
+    border: 1.5px solid var(--wdc2-border-strong);
+    border-radius: 11px;
+    background: var(--wdc2-surface);
+    padding: 0 15px;
+    font-size: 15px;
+    font-weight: 700;
+    color: var(--wdc2-ink);
+  }
+  body.wdc-tablet-v2 .wdc2-psheet__addbtn {
+    height: 48px;
+    border: none;
+    border-radius: 11px;
+    background: var(--wdc2-accent);
+    color: #fff;
+    font-size: 14.5px;
+    font-weight: 800;
+    cursor: pointer;
+  }
+
+  /* ====================================================================
+     G. 저장 견적 오버레이(견적 검색) + 백드롭.
+     ==================================================================== */
+  body.wdc-tablet-v2 .wdc2-saved-overlay {
+    display: flex;
+    flex-direction: column;
+    position: absolute;
+    top: 0;
+    right: 0;
+    bottom: 0;
+    width: var(--wdc2-overlay-w);
+    max-width: 82vw;
+    z-index: 1050;
+    background: var(--wdc2-surface);
+    border-left: 1px solid var(--wdc2-line);
+    box-shadow: -14px 0 44px rgba(0, 0, 0, 0.12);
+    transform: translateX(100%);
+    transition: transform 0.22s ease;
+  }
+  body.wdc-tablet-v2 .wdcalculator-shell.wdc2-saved-open .wdc2-saved-overlay { transform: translateX(0); }
+  body.wdc-tablet-v2 .wdc2-saved-overlay__hd {
+    display: flex;
+    align-items: center;
+    gap: 10px;
+    padding: 16px 18px 12px;
+    flex: none;
+  }
+  body.wdc-tablet-v2 .wdc2-saved-overlay__hd b { font-size: 16px; font-weight: 800; color: var(--wdc2-ink); }
+  body.wdc-tablet-v2 .wdc2-saved-overlay__close {
+    margin-left: auto;
+    width: 38px;
+    height: 38px;
+    border-radius: 9px;
+    background: var(--wdc2-subtle);
+    border: 1px solid var(--wdc2-line);
+    color: #54595F;
+    cursor: pointer;
+  }
+  body.wdc-tablet-v2 .wdc2-saved-overlay__body { flex: 1 1 auto; min-height: 0; display: flex; padding: 0 14px 14px; }
+  body.wdc-tablet-v2 .wdc2-saved-overlay__body .saved-estimates-card {
+    flex: 1 1 auto;
+    height: 100%;
+    max-height: none !important;
+    border: 0;
+    box-shadow: none;
+  }
+  body.wdc-tablet-v2 .wdc2-saved-overlay__body .card-header { border: 0; padding-top: 0; }
+
+  body.wdc-tablet-v2 .wdc2-saved-backdrop {
+    display: block;
+    position: absolute;
+    inset: 0;
+    z-index: 1040;
+    background: rgba(24, 25, 28, 0.34);
+  }
+  body.wdc-tablet-v2 .wdc2-saved-backdrop[hidden] { display: none; }
 }

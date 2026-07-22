@@ -905,3 +905,62 @@ def test_direct_upload_batch_echoes_client_id_and_keeps_duplicate_filenames_dist
     assert sessions[1]["client_id"] == "local-b"
     assert "client_id" not in sessions[2]
     assert sessions[0]["key"] != sessions[1]["key"]
+
+
+def test_structured_put_blocks_accidental_stage_regression_drawing_to_measure(client, monkeypatch):
+    """stale form stage MEASURE must not overwrite server DRAWING (도면→실측 사고)."""
+    _login_as_admin(client, username="erp-stage-regress-guard")
+    original_sd = _structured_payload("서울 테헤란로 123")
+    original_sd["workflow"] = {"stage": "DRAWING", "stage_updated_at": "2026-07-15T10:00:00"}
+    original_sd["drawing"] = {"status": "IN_PROGRESS"}
+    original_sd["drawing_transfer_history"] = [
+        {"action": "ERP_ORDER_CHANGED", "note": "치수 변경", "at": "2026-07-15 10:01:00"}
+    ]
+    order = _create_order(structured_data=original_sd)
+    order.status = "DRAWING"
+    order.erp_stage_code = "DRAWING"
+    db_session.commit()
+    order_id = order.id
+
+    monkeypatch.setattr(erp_orders_structured, "_record_structured_events", lambda *a, **k: None)
+    monkeypatch.setattr(erp_orders_structured, "_apply_structured_side_effects", lambda *a, **k: None)
+    monkeypatch.setattr(erp_orders_structured, "_finalize_draft_state", lambda *a, **k: False)
+    monkeypatch.setattr(erp_orders_structured, "sync_erp_flat_columns", lambda *a, **k: None)
+    monkeypatch.setattr(erp_orders_structured, "enqueue_geocode_order_address", lambda *a, **k: None)
+    monkeypatch.setattr(erp_orders_structured, "_emit_drawing_order_change_if_needed", lambda *a, **k: (None, False))
+
+    form_sd = _structured_payload("서울 테헤란로 123")
+    form_sd["workflow"] = {"stage": "MEASURE"}
+    form_sd["items"] = [{"product_name": "붙박이장", "width": "1300"}]
+    form_sd["drawing_transfer_history"] = []  # stale empty — must not wipe
+
+    response = client.put(
+        f"/api/orders/{order_id}/structured",
+        json={"structured_data": form_sd, "structured_schema_version": 1},
+    )
+    assert response.status_code == 200
+
+    db_session.expire_all()
+    saved = db_session.get(Order, order_id)
+    saved_sd = saved.structured_data or {}
+    assert (saved_sd.get("workflow") or {}).get("stage") == "DRAWING"
+    hist = saved_sd.get("drawing_transfer_history") or []
+    assert len(hist) >= 1
+    assert hist[0].get("action") == "ERP_ORDER_CHANGED"
+
+
+def test_guard_accidental_stage_regression_unit():
+    from foms.api.erp_orders_structured import _guard_accidental_stage_regression
+
+    old = {"workflow": {"stage": "DRAWING"}}
+    new = {"workflow": {"stage": "MEASURE"}}
+    _guard_accidental_stage_regression(old, new)
+    assert new["workflow"]["stage"] == "DRAWING"
+
+    forward = {"workflow": {"stage": "CONFIRM"}}
+    _guard_accidental_stage_regression(old, forward)
+    assert forward["workflow"]["stage"] == "CONFIRM"
+
+    skip = {"workflow": {"stage": "PRODUCTION"}}
+    _guard_accidental_stage_regression({"workflow": {"stage": "MEASURE"}}, skip)
+    assert skip["workflow"]["stage"] == "MEASURE"

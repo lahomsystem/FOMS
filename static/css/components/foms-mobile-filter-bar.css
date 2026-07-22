@@ -3,7 +3,7 @@
    RCA(2026-06-11): shell-body 음수마진(-space-4)만으로는 container-fluid 거터·부모
    overflow-x:hidden(출고 2d39530e)에서 흰 밴드가 [16,398]처럼 클립됨 → 100vw breakout. */
 
-@media (max-width: 991.98px) {
+@media (max-width: 991.98px), ((min-width: 992px) and (pointer: coarse) and (orientation: portrait)) {
   body.erp-mobile-v2-layout .foms-shell-body .foms-mobile-filter-bar {
     display: grid;
     gap: var(--foms-space-2);
