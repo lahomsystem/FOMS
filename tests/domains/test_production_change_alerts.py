@@ -90,14 +90,16 @@ def _make_user(username: str, *, team: str = "PRODUCTION") -> User:
 
 
 def test_window_start_prefers_my_latest_ack(app):
+    me = _make_user("win_me")
+    other = _make_user("win_other")
     order = _make_order()
     _add_event(order.id, "STAGE_CHANGED", {"from": "MEASURE", "to": "PRODUCTION"}, _T0 + datetime.timedelta(days=1))
-    _add_event(order.id, "PRODUCTION_CHANGE_ACK", {"source": "tablet_kanban"}, _T0 + datetime.timedelta(days=5), created_by_user_id=_UID)
+    _add_event(order.id, "PRODUCTION_CHANGE_ACK", {"source": "tablet_kanban"}, _T0 + datetime.timedelta(days=5), created_by_user_id=me.id)
     events = db_session.query(OrderEvent).filter(OrderEvent.order_id == order.id).all()
     # 내 ack → 내 윈도는 ack 시각.
-    assert compute_window_start(order, events, _UID) == _T0 + datetime.timedelta(days=5)
+    assert compute_window_start(order, events, me.id) == _T0 + datetime.timedelta(days=5)
     # 남(다른 uid)에겐 그 ack 가 안 보여 → 생산 진입(STAGE_CHANGED)로 폴백.
-    assert compute_window_start(order, events, 999) == _T0 + datetime.timedelta(days=1)
+    assert compute_window_start(order, events, other.id) == _T0 + datetime.timedelta(days=1)
 
 
 def test_window_start_uses_production_entry_stage_change(app):
@@ -142,26 +144,29 @@ def test_construction_change_before_window_ignored(app):
 
 
 def test_my_ack_resets_my_window(app):
+    me = _make_user("reset_me")
     order = _make_order(stage_updated_at=_T0)
     _add_event(order.id, "CONSTRUCTION_DATE_CHANGED", {"from": "2026-07-20", "to": "2026-07-28"}, _T0 + datetime.timedelta(days=2))
-    _add_event(order.id, "PRODUCTION_CHANGE_ACK", {"source": "tablet_kanban"}, _T0 + datetime.timedelta(days=4), created_by_user_id=_UID)
+    _add_event(order.id, "PRODUCTION_CHANGE_ACK", {"source": "tablet_kanban"}, _T0 + datetime.timedelta(days=4), created_by_user_id=me.id)
     # 내 ack 이후엔 이전 변경 해제.
-    assert collect_production_change_alerts(db_session, [order], _UID)[order.id] == []
+    assert collect_production_change_alerts(db_session, [order], me.id)[order.id] == []
     # 내 ack 이후 새 변경은 다시 감지.
     _add_event(order.id, "CONSTRUCTION_DATE_CHANGED", {"from": "2026-07-28", "to": "2026-08-02"}, _T0 + datetime.timedelta(days=6))
-    alerts = collect_production_change_alerts(db_session, [order], _UID)[order.id]
+    alerts = collect_production_change_alerts(db_session, [order], me.id)[order.id]
     assert len(alerts) == 1
     assert alerts[0]["detail"] == "7/28 → 8/2"
 
 
 def test_other_users_ack_does_not_clear_my_alert(app):
+    me = _make_user("clr_me")
+    other = _make_user("clr_other")
     order = _make_order(stage_updated_at=_T0)
     _add_event(order.id, "CONSTRUCTION_DATE_CHANGED", {"from": "2026-07-20", "to": "2026-07-28"}, _T0 + datetime.timedelta(days=2))
-    # 동료(uid=999)가 확인 → 내(uid=_UID) 화면엔 여전히 변경 표시.
-    _add_event(order.id, "PRODUCTION_CHANGE_ACK", {"source": "tablet_kanban"}, _T0 + datetime.timedelta(days=4), created_by_user_id=999)
-    assert len(collect_production_change_alerts(db_session, [order], _UID)[order.id]) == 1
+    # 동료가 확인 → 내 화면엔 여전히 변경 표시.
+    _add_event(order.id, "PRODUCTION_CHANGE_ACK", {"source": "tablet_kanban"}, _T0 + datetime.timedelta(days=4), created_by_user_id=other.id)
+    assert len(collect_production_change_alerts(db_session, [order], me.id)[order.id]) == 1
     # 확인한 동료 화면엔 사라짐.
-    assert collect_production_change_alerts(db_session, [order], 999)[order.id] == []
+    assert collect_production_change_alerts(db_session, [order], other.id)[order.id] == []
 
 
 # --- 도면 이력 감지 ---------------------------------------------------------
