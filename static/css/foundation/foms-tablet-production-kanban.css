@@ -278,6 +278,11 @@
   }
   body.erp-mobile-v2-layout .foms-kanban-col__body {
     display: grid;
+    /* 단일열 카드 리스트: 컬럼 미정의 grid는 정의높이(max-height)+오버플로 시 default
+       grid-auto-rows:auto 가 카드 min-height(--foms-touch-target-min=48px)로 붕괴 →
+       카드가 48px로 눌리고 content 가 overflow:visible 로 아래 카드에 겹친다(카드 많은
+       열만 재현, 1건 열은 정상이라 오판 유도). rows 를 내용 높이로 고정해 붕괴 차단. */
+    grid-auto-rows: max-content;
     gap: var(--foms-space-3);
     padding: var(--foms-space-3);
     align-content: start;
