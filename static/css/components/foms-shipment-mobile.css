@@ -333,6 +333,34 @@
   min-width: 0;
 }
 
+.erp-shipment-mobile-v2 .foms-queue-card-v2__meta-full {
+  grid-column: 1 / -1;
+}
+
+.erp-shipment-mobile-v2 .foms-queue-card-v2__customer {
+  margin-right: 0.35rem;
+}
+
+.erp-shipment-mobile-v2 .foms-queue-card-v2__orderer {
+  display: inline-flex;
+  align-items: center;
+  vertical-align: middle;
+  margin-left: 0.25rem;
+}
+
+.erp-shipment-mobile-v2 .foms-queue-card-v2__orderer-logo {
+  height: 18px;
+  width: auto;
+  max-width: 72px;
+  object-fit: contain;
+}
+
+.erp-shipment-mobile-v2 .foms-queue-card-v2__orderer--text {
+  color: var(--foms-text-link, #0b57d0);
+  font-size: var(--foms-font-size-sm, 14px);
+  font-weight: 700;
+}
+
 .erp-shipment-mobile-v2 .queue-card__meta dt,
 .erp-shipment-mobile-v2 .foms-queue-card-v2__meta dt {
   margin: 0;
@@ -445,6 +473,11 @@
 .erp-shipment-mobile-card__temporal dd {
   font-variant-numeric: tabular-nums;
   letter-spacing: 0.01em;
+}
+
+/* 담당3(영업·도면·시공): 항상 노출 칸. */
+.erp-shipment-mobile-card__people dd {
+  min-height: 1.2em;
 }
 
 .erp-shipment-mobile-card__full {

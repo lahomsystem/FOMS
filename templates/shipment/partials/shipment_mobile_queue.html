@@ -14,15 +14,14 @@
       {% for o in mobile_queue_rows %}
         {% set meta = o.shipment_meta or {} %}
         {% set is_as = meta.is_as %}
-        {% set has_detail = meta.primary_date or meta.construction_time or meta.drawing_managers or meta.construction_workers or meta.vehicle or meta.trip or meta.site_extra or meta.spec_units or (meta.is_as and meta.as_content_text) %}
-        {#- 카드 통합(2026-07-15): 패킹/QR·출고 상세 dl·출고 정보 수정을 공용 v2 카드 "밖"에서
-            렌더하던 3블록을, 카드의 옵트인 슬롯(detail_slot/aux_slot/footer_extra_slot)으로
-            카드 "안"에 이식한다. 슬롯을 넘기지 않는 타 도메인은 렌더 결과 무변경.
-            시공일(2026-07-21): 출고 현장 페르소나는 칩 필터가 스크롤되면 날짜 앵커를 잃음 →
-            상세 첫 칸에 primary_date(읽기전용, shipment/update 화이트리스트 밖)를 고정. -#}
+        {% set sales_name = (o.manager_name or '')|trim %}
+        {% set drawing_text = (meta.drawing_managers or [])|join(', ') %}
+        {% set construction_text = (meta.construction_workers or [])|join(', ') %}
+        {% set has_logistics = meta.primary_date or meta.construction_time or meta.vehicle or meta.trip or meta.site_extra or meta.spec_units or (meta.is_as and meta.as_content_text) %}
+        {#- 출고 IA(2026-07-22): 고객(이름·발주사·주소·연락·제품) → 시공 → 배차 → 담당3(영업·도면·시공 항상)
+            → W/300 → 첨부 → 패킹. 공용 메타 실측/역할 억제. 담당3은 빈값이어도 '-'로 칸 유지. -#}
         {% set detail_slot %}
-          {% if has_detail or can_edit_shipment|default(false) %}
-          <dl class="erp-shipment-mobile-card__detail" data-shipment-mobile-detail {% if not has_detail %}hidden{% endif %}>
+          <dl class="erp-shipment-mobile-card__detail" data-shipment-mobile-detail>
             <div class="erp-shipment-mobile-card__temporal" data-shipment-mobile-detail-row="construction_date" {% if not meta.primary_date %}hidden{% endif %}>
               <dt>시공일</dt>
               <dd class="foms-tabular" data-shipment-mobile-detail-field="construction_date">{{ meta.primary_date }}</dd>
@@ -30,14 +29,6 @@
             <div data-shipment-mobile-detail-row="construction_time" {% if not meta.construction_time %}hidden{% endif %}>
               <dt>시공시간</dt>
               <dd data-shipment-mobile-detail-field="construction_time">{{ meta.construction_time }}</dd>
-            </div>
-            <div data-shipment-mobile-detail-row="drawing_managers" {% if not meta.drawing_managers %}hidden{% endif %}>
-              <dt>도면</dt>
-              <dd data-shipment-mobile-detail-field="drawing_managers">{{ meta.drawing_managers|join(', ') }}</dd>
-            </div>
-            <div data-shipment-mobile-detail-row="construction_workers" {% if not meta.construction_workers %}hidden{% endif %}>
-              <dt>시공자</dt>
-              <dd data-shipment-mobile-detail-field="construction_workers">{{ meta.construction_workers|join(', ') }}</dd>
             </div>
             <div data-shipment-mobile-detail-row="vehicle" {% if not meta.vehicle %}hidden{% endif %}>
               <dt>차량</dt>
@@ -50,6 +41,26 @@
             <div data-shipment-mobile-detail-row="site_extra" {% if not meta.site_extra %}hidden{% endif %}>
               <dt>현장추가</dt>
               <dd data-shipment-mobile-detail-field="site_extra">{{ (meta.site_extra or [])|join(', ') }}</dd>
+            </div>
+            <div class="erp-shipment-mobile-card__people" data-shipment-mobile-detail-row="sales_manager">
+              <dt>영업</dt>
+              <dd data-shipment-mobile-detail-field="sales_manager">
+                {% set _sales = sales_name if sales_name else '-' %}
+                {% set _mgr_phone = (o.manager_phone or '')|replace('-', '')|replace(' ', '') %}
+                {% if _sales != '-' and _mgr_phone and _mgr_phone != '-' %}
+                <a data-queue-card-call-link href="tel:{{ _mgr_phone }}">{{ _sales }}</a>
+                {% else %}
+                {{ _sales }}
+                {% endif %}
+              </dd>
+            </div>
+            <div class="erp-shipment-mobile-card__people" data-shipment-mobile-detail-row="drawing_managers">
+              <dt>도면</dt>
+              <dd data-shipment-mobile-detail-field="drawing_managers">{{ drawing_text if drawing_text else '-' }}</dd>
+            </div>
+            <div class="erp-shipment-mobile-card__people" data-shipment-mobile-detail-row="construction_workers">
+              <dt>시공</dt>
+              <dd data-shipment-mobile-detail-field="construction_workers">{{ construction_text if construction_text else '-' }}</dd>
             </div>
             {% if meta.spec_units %}
             <div>
@@ -64,7 +75,6 @@
             </div>
             {% endif %}
           </dl>
-          {% endif %}
         {% endset %}
         {% set aux_slot %}
           <div class="erp-shipment-mobile-card__packing">
@@ -95,8 +105,8 @@
             data-shipment-mobile-edit-trigger
             data-order-id="{{ o.id }}"
             data-construction-time="{{ meta.construction_time or '' }}"
-            data-drawing-managers="{{ (meta.drawing_managers or [])|join(', ') }}"
-            data-construction-workers="{{ (meta.construction_workers or [])|join(', ') }}"
+            data-drawing-managers="{{ drawing_text }}"
+            data-construction-workers="{{ construction_text }}"
             data-vehicle="{{ meta.vehicle or '' }}"
             data-trip="{{ meta.trip or '' }}"
             data-site-extra="{{ (meta.site_extra or [])|join('\n') }}">
@@ -114,8 +124,25 @@
           {% endif %}
           {% endif %}
         {% endset %}
-        <div class="erp-shipment-mobile-card{% if has_detail %} erp-shipment-mobile-card--with-detail{% endif %}{% if is_as %} erp-shipment-mobile-card--as{% endif %}">
-          {{ render_queue_card_v2(o, can_edit_shipment|default(false), None, '--drawing' if is_as else '--shipment', 'AS' if is_as else '출고', edit_return_to='erp_shipment_dashboard', detail_return_to='erp_shipment_dashboard', detail_slot=detail_slot, aux_slot=aux_slot, footer_extra_slot=footer_extra_slot) }}
+        <div class="erp-shipment-mobile-card erp-shipment-mobile-card--with-detail{% if is_as %} erp-shipment-mobile-card--as{% endif %}{% if has_logistics %} erp-shipment-mobile-card--has-logistics{% endif %}">
+          {{ render_queue_card_v2(
+            o,
+            can_edit_shipment|default(false),
+            None,
+            '--drawing' if is_as else '--shipment',
+            'AS' if is_as else '출고',
+            edit_return_to='erp_shipment_dashboard',
+            detail_return_to='erp_shipment_dashboard',
+            detail_slot=detail_slot,
+            aux_slot=aux_slot,
+            footer_extra_slot=footer_extra_slot,
+            suppress_drawing_role_meta=true,
+            suppress_schedule_meta=true,
+            suppress_role_meta=true,
+            show_orderer=true,
+            defer_product=true,
+            defer_attachments=true
+          ) }}
         </div>
       {% endfor %}
     </div>
@@ -208,13 +235,17 @@
       submitBtn.textContent = isLoading ? '저장 중...' : '저장';
     }
 
+    // peopleFields(담당3)는 빈값이어도 '-'로 칸을 유지한다(출고 IA: 항상 3칸).
+    var PEOPLE_FIELDS = { drawing_managers: true, construction_workers: true, sales_manager: true };
+
     function syncDetailField(card, field, value) {
       if (!card) return;
       var row = card.querySelector('[data-shipment-mobile-detail-row="' + field + '"]');
       var output = card.querySelector('[data-shipment-mobile-detail-field="' + field + '"]');
       var text = listText(value);
-      if (output) output.textContent = text;
-      if (row) row.hidden = !text;
+      var keepPeople = Boolean(PEOPLE_FIELDS[field]);
+      if (output) output.textContent = text || (keepPeople ? '-' : '');
+      if (row) row.hidden = keepPeople ? false : !text;
     }
 
     function syncShipmentMobileDetail(card, payload) {
@@ -226,16 +257,9 @@
       syncDetailField(card, 'vehicle', payload.vehicle);
       syncDetailField(card, 'trip', payload.trip);
       syncDetailField(card, 'site_extra', payload.site_extra);
-      var hasVisibleEditableDetail = Boolean(
-        payload.construction_time ||
-        payload.drawing_managers.length ||
-        payload.construction_workers.length ||
-        payload.vehicle ||
-        payload.trip ||
-        payload.site_extra.length
-      );
-      if (detail) detail.hidden = !hasVisibleEditableDetail && !detail.querySelector('div:not([hidden])');
-      card.classList.toggle('erp-shipment-mobile-card--with-detail', !!detail && !detail.hidden);
+      // 담당3이 항상 보이므로 detail 블록은 숨기지 않는다.
+      if (detail) detail.hidden = false;
+      card.classList.add('erp-shipment-mobile-card--with-detail');
     }
 
     // 트리거 클릭 → 시트 프리필 후 오픈. 시트/폼 DOM 은 swap 마다 교체되므로 클릭 시점에 조회.

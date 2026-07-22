@@ -50,12 +50,33 @@ def test_shipment_mobile_controls_template_contract() -> None:
     queue = (ROOT / "templates/shipment/partials/shipment_mobile_queue.html").read_text(
         encoding="utf-8"
     )
+    card_v2 = (ROOT / "templates/partials/shared/erp_mobile_queue_card_v2.html").read_text(
+        encoding="utf-8"
+    )
     pc = (ROOT / "templates/shipment/partials/dashboard_main.html").read_text(encoding="utf-8")
     assert "/api/erp/shipment/update/" in queue
     assert "data-shipment-mobile-edit-trigger" in queue
     assert "data-shipment-mobile-detail-field" in queue
     assert "syncShipmentMobileDetail" in queue
     assert "js-shipment-as-rec-cancel" in queue
+    # 출고 큐: 스케줄·역할 메타 억제 + 발주사·제품 defer + 담당3 SSOT.
+    assert "suppress_drawing_role_meta=true" in queue
+    assert "suppress_schedule_meta=true" in queue
+    assert "suppress_role_meta=true" in queue
+    assert "show_orderer=true" in queue
+    assert "defer_product=true" in queue
+    assert "defer_attachments=true" in queue
+    assert "suppress_drawing_role_meta=false" in card_v2
+    assert "suppress_schedule_meta=false" in card_v2
+    assert "suppress_role_meta=false" in card_v2
+    assert "and not suppress_drawing_role_meta" in card_v2
+    assert "and not suppress_schedule_meta" in card_v2
+    assert "if not suppress_role_meta" in card_v2
+    assert 'data-shipment-mobile-detail-field="sales_manager"' in queue
+    assert "<dt>영업</dt>" in queue
+    assert "<dt>도면</dt>" in queue
+    assert "<dt>시공</dt>" in queue
+    assert "PEOPLE_FIELDS" in queue
     for field in ("site_extra", "construction_time", "construction_date", "drawing_managers", "construction_workers", "vehicle", "trip"):
         assert field in queue
     assert "시공일" in queue
@@ -154,6 +175,82 @@ def test_shipment_dashboard_renders_mobile_v2_queue_card(client, monkeypatch) ->
     assert "시공1" in body
     assert "엘리베이터 사용" in body
     assert 'data-shipment-mobile-detail-field="site_extra"' in body
+
+
+def test_shipment_mobile_drawing_stage_does_not_duplicate_drawing_assignee(
+    client, monkeypatch
+) -> None:
+    """DRAWING stage여도 출고 큐는 담당3 SSOT만 — 메타 도면 담당·실측일 금지."""
+    monkeypatch.setenv("ERP_MOBILE_V2_ENABLED", "true")
+    user = _login_admin(client)
+    monkeypatch.setenv("FOMS_V3_SHELL_COHORT", str(user.id))
+
+    today = get_today_kst().strftime("%Y-%m-%d")
+    order = Order(
+        received_date=today,
+        customer_name="도면중복방지 고객",
+        phone="010-3000-4000",
+        address="서울시 출고구 중복로 2",
+        product="붙박이장",
+        status="DRAWING",
+        scheduled_date=today,
+        manager_name="영업담당",
+        is_erp_order=True,
+        structured_data={
+            "workflow": {"stage": "DRAWING"},
+            "parties": {
+                "customer": {"name": "도면중복방지 고객", "phone": "010-3000-4000"},
+                "manager": {"name": "영업담당"},
+                "orderer": {"name": "라홈"},
+            },
+            "site": {"address_full": "서울시 출고구 중복로 2"},
+            "schedule": {
+                "measurement": {"date": today},
+                "construction": {"date": today},
+            },
+            "items": [{"product_name": "붙박이장", "spec_width": "900"}],
+            "drawing_assignees": [{"name": "김한비"}],
+            "shipment": {
+                "drawing_managers": ["김한비"],
+                "construction_workers": ["시공갑"],
+                "construction_time": "오후 2:00",
+            },
+        },
+    )
+    db_session.add(order)
+    db_session.flush()
+    db_session.add(
+        OrderScheduleDate(
+            order_id=order.id,
+            kind="construction",
+            date=today,
+            source="shipment_mobile_drawing_dup_test",
+        )
+    )
+    db_session.commit()
+
+    response = client.get("/erp/shipment")
+    assert response.status_code == 200
+    body = response.get_data(as_text=True)
+
+    assert "도면중복방지 고객" in body
+    assert 'data-queue-card-field="address"' in body
+    assert 'data-queue-card-field="phone"' in body
+    assert 'data-queue-card-field="product"' in body
+    assert "붙박이장" in body
+    assert "lahom-logo.png" in body
+    assert 'data-shipment-mobile-detail-field="sales_manager"' in body
+    assert 'data-shipment-mobile-detail-field="drawing_managers"' in body
+    assert 'data-shipment-mobile-detail-field="construction_workers"' in body
+    assert "영업담당" in body
+    assert "김한비" in body
+    assert "시공갑" in body
+    assert 'data-queue-card-field="drawing-assignee"' not in body
+    assert "도면 담당" not in body
+    assert 'data-queue-card-field="manager"' not in body
+    # 공용 메타 스케줄(실측) 억제 — 네비 '실측' 링크와 구분하려면 dt만 검사.
+    assert "<dt>실측</dt>" not in body
+    assert "<dt>실측 담당</dt>" not in body
 
 
 def test_shipment_mobile_gate_follows_shell_matrix() -> None:
