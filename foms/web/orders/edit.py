@@ -419,6 +419,8 @@ def _build_erp_order_bootstrap(order, user=None):
         'is_self_measurement': getattr(order, 'is_self_measurement', False),
         'is_regional': getattr(order, 'is_regional', False),
         'construction_type': getattr(order, 'construction_type', None) or '',
+        # GET /structured 와 동일 shape — 지방주문 AS 재상차 모달 prefill용.
+        'shipping_scheduled_date': getattr(order, 'shipping_scheduled_date', None) or '',
     }
     if user is not None:
         try:
