@@ -175,19 +175,24 @@ def test_apply_creates_history_notification_and_pending(app, drawing_order):
 def test_debounce_merges_within_60s(app, drawing_order):
     with app.app_context():
         db = db_session()
+        # 실 User FK(Notification.created_by_user_id) — 하드코딩 7은 FK-ON 워커에서 red.
+        actor = User(username="debounce_actor", password="x", role="STAFF", name="A", is_active=True)
+        db.add(actor)
+        db.commit()
+        actor_id = actor.id
         order = db.get(Order, drawing_order.id)
         old = copy.deepcopy(order.structured_data)
         new = copy.deepcopy(old)
         new["schedule"]["construction"]["date"] = "2026-07-28"
         n1, c1 = apply_drawing_order_change_alert(
-            db, order, old, new, actor_user_id=7, actor_name="A"
+            db, order, old, new, actor_user_id=actor_id, actor_name="A"
         )
         assert c1 is True
         mid = copy.deepcopy(new)
         new2 = copy.deepcopy(new)
         new2["site"]["address_full"] = "부산"
         n2, c2 = apply_drawing_order_change_alert(
-            db, order, mid, new2, actor_user_id=7, actor_name="A"
+            db, order, mid, new2, actor_user_id=actor_id, actor_name="A"
         )
         assert c2 is False
         assert n2 is not None and n1 is not None and n2.id == n1.id

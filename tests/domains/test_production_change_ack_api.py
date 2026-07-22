@@ -1,6 +1,6 @@
 """생산 변경 확인 ack API + field_update 이벤트 + 시공일 정렬 계약.
 
-- POST /api/orders/<id>/production/change-ack: 정상 기록, 삭제 주문 허용, 권한(DRAWING 403).
+- POST /api/orders/<id>/production/change-ack: 정상 기록, 삭제 주문 허용, 권한(ADMIN/CS/SALES/PRODUCTION 200, DRAWING 403).
 - field_update scheduled_date: 값 변경 시 CONSTRUCTION_DATE_CHANGED OrderEvent 기록(근본수정).
 - 생산 대시보드 정렬: erp_construction_date asc nulls last, created_at desc.
 """
@@ -107,6 +107,25 @@ def test_change_ack_forbidden_for_drawing_team(client):
     resp = client.post(f"/api/orders/{order_id}/production/change-ack")
     assert resp.status_code == 403
     assert resp.get_json()["success"] is False
+
+
+def test_change_ack_allowed_for_production_team(client):
+    # 개인별 ack 설계 — 생산팀 계정이 자기 변경을 확인할 수 있어야 한다(구 버그: 403).
+    user = _make_user("ack_prod", role="STAFF", team="PRODUCTION")
+    _login(client, user)
+    order_id = _make_order().id
+    resp = client.post(f"/api/orders/{order_id}/production/change-ack")
+    assert resp.status_code == 200
+    assert resp.get_json()["success"] is True
+
+
+def test_change_ack_allowed_for_sales_team(client):
+    user = _make_user("ack_sales", role="STAFF", team="SALES")
+    _login(client, user)
+    order_id = _make_order().id
+    resp = client.post(f"/api/orders/{order_id}/production/change-ack")
+    assert resp.status_code == 200
+    assert resp.get_json()["success"] is True
 
 
 def test_change_ack_missing_order_404(client):
