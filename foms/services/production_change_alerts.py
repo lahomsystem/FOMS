@@ -1,9 +1,12 @@
 """생산 파이프라인 변경 감지·묘비 수집 (태블릿 칸반 변경 가시성).
 
 생산(제작대기/제작중/제작완료) 단계 주문 중 "생산 파이프라인 진입 이후"에 발생한, 일정에
-영향을 주는 변경(시공일 변경·도면 재전달/수정요청)을 감지해 카드/시트에 노출한다. 팀
-확인(ack)으로 감지 윈도를 리셋하고, 취소(soft delete)된 주문은 최근 14일간 묘비 카드로
-잔류시킨다.
+영향을 주는 변경(시공일 변경·도면 재전달/수정요청)을 감지해 카드/시트에 노출한다. 취소
+(soft delete)된 주문은 최근 14일간 묘비 카드로 잔류시킨다.
+
+확인(ack) 모델은 **사용자 개인별**이다: ``PRODUCTION_CHANGE_ACK`` 이벤트의
+``created_by_user_id`` 로 누가 확인했는지 구분해, 내가 확인해야 내 화면에서만 변경/묘비가
+사라진다(생산 인원 각각 확인 — 미확인자는 계속 표기). 팀 단위 리셋이 아니다.
 
 시간 비교 규약(중요):
     라이브 카드 변경 감지(윈도 vs 도면/시공일 이벤트)는 naive-to-naive 시계 비교다.
@@ -87,17 +90,19 @@ def _parse_drawing_entry_time(entry: dict[str, Any]) -> datetime.datetime | None
 
 
 def compute_window_start(
-    order: Order, events: list[OrderEvent]
+    order: Order, events: list[OrderEvent], user_id: int | None
 ) -> datetime.datetime | None:
-    """주문의 변경 감지 윈도 시작 시각(naive) 계산.
+    """주문의 변경 감지 윈도 시작 시각(naive) 계산(사용자 개인별).
 
-    우선순위: 최근 ``PRODUCTION_CHANGE_ACK`` → 최근 생산 진입 ``STAGE_CHANGED``
-    (payload.to ∈ PROD_STAGES 이고 from ∉ PROD_STAGES) → ``erp_stage_updated_at`` →
-    ``created_at``.
+    우선순위: ``user_id`` 본인이 낸 최근 ``PRODUCTION_CHANGE_ACK`` → 최근 생산 진입
+    ``STAGE_CHANGED`` (payload.to ∈ PROD_STAGES 이고 from ∉ PROD_STAGES) →
+    ``erp_stage_updated_at`` → ``created_at``. ``user_id`` 가 None 이면 개인 ack 가 없는
+    것으로 보고 폴백 체인만 사용한다(모든 변경 표시).
 
     Args:
         order: 대상 주문(ORM). ``erp_stage_updated_at``/``created_at`` 폴백에 사용.
         events: 해당 주문의 ``OrderEvent`` 리스트(정렬 무관).
+        user_id: 현재 사용자 id(개인별 ack 판정). None 이면 개인 ack 없음.
 
     Returns:
         윈도 시작 naive ``datetime`` 또는 폴백도 없으면 ``None``.
@@ -105,7 +110,10 @@ def compute_window_start(
     ack_times = [
         e.created_at
         for e in events
-        if e.event_type == "PRODUCTION_CHANGE_ACK" and e.created_at is not None
+        if e.event_type == "PRODUCTION_CHANGE_ACK"
+        and e.created_at is not None
+        and user_id is not None
+        and e.created_by_user_id == user_id
     ]
     if ack_times:
         return max(ack_times)
@@ -176,16 +184,18 @@ def _build_alerts_for_order(
 
 
 def collect_production_change_alerts(
-    db: Any, orders: list[Order]
+    db: Any, orders: list[Order], user_id: int | None
 ) -> dict[int, list[dict[str, str]]]:
-    """페이지 주문들에 대해 ``order_id -> 변경 alert 목록`` 을 배치 계산한다.
+    """페이지 주문들에 대해 ``order_id -> 변경 alert 목록`` 을 배치 계산한다(개인별).
 
     ``OrderEvent`` 는 ``order_id.in_(ids)`` 단일 쿼리로 로드하고(N+1 금지), 도면 이력은
-    이미 로드된 ``structured_data`` 에서 파생한다. alert 없는 주문은 빈 리스트가 된다.
+    이미 로드된 ``structured_data`` 에서 파생한다. 감지 윈도는 ``user_id`` 본인의 ack 로만
+    리셋된다. alert 없는 주문은 빈 리스트가 된다.
 
     Args:
         db: 활성 DB 세션.
         orders: 대상 주문 ORM 리스트(``id``·``structured_data`` 로드 상태여야 함).
+        user_id: 현재 사용자 id(개인별 ack 판정). None 이면 개인 ack 없음(모든 변경 표시).
 
     Returns:
         ``{order_id: [{'kind','label','detail'}, ...]}``.
@@ -211,7 +221,7 @@ def collect_production_change_alerts(
         if getattr(o, "id", None) is None:
             continue
         events = events_by_order.get(o.id, [])
-        window_start = compute_window_start(o, events)
+        window_start = compute_window_start(o, events, user_id)
         sd = _ensure_dict(getattr(o, "structured_data", None))
         result[o.id] = _build_alerts_for_order(events, sd, window_start)
     return result
@@ -223,13 +233,14 @@ def collect_production_tombstones(
     """최근 14일 내 취소(soft delete)된 생산 파이프라인 주문의 묘비 카드 목록.
 
     조건: ``status='DELETED'`` + ``deleted_at`` not null + ``is_erp_order`` +
-    ``erp_stage_code`` ∈ PROD_STAGES + ``deleted_at`` 이 최근 14일 이내. 단, 삭제 후
-    ``PRODUCTION_CHANGE_ACK`` 이 있으면(팀이 이미 확인) 제외한다. ``erp_mine_only`` 면
+    ``erp_stage_code`` ∈ PROD_STAGES + ``deleted_at`` 이 최근 14일 이내. 단, **본인
+    (``user.id``)**이 이 삭제 시점 마커(payload.deleted_at 동등)로 확인한 묘비는 제외한다
+    (개인별 — 남이 확인해도 내 화면엔 남는다). ``erp_mine_only`` 면
     ``is_order_related_to_user`` 로 내 주문만 남긴다.
 
     Args:
         db: 활성 DB 세션.
-        user: 현재 사용자(mine 필터·None 허용).
+        user: 현재 사용자(mine 필터·개인별 ack 판정·None 허용).
         erp_mine_only: 내 주문만 볼지 여부.
 
     Returns:
@@ -254,25 +265,28 @@ def collect_production_tombstones(
     if not candidates:
         return []
 
+    user_id = getattr(user, "id", None)
     ids = [o.id for o in candidates]
     ack_markers_by_order: dict[int, set[str]] = {}
-    ack_rows = (
-        db.query(OrderEvent)
-        .filter(
-            OrderEvent.order_id.in_(ids),
-            OrderEvent.event_type == "PRODUCTION_CHANGE_ACK",
+    if user_id is not None:
+        ack_rows = (
+            db.query(OrderEvent)
+            .filter(
+                OrderEvent.order_id.in_(ids),
+                OrderEvent.event_type == "PRODUCTION_CHANGE_ACK",
+                OrderEvent.created_by_user_id == user_id,
+            )
+            .all()
         )
-        .all()
-    )
-    for ev in ack_rows:
-        payload = ev.payload if isinstance(ev.payload, dict) else {}
-        marker = payload.get("deleted_at")
-        if isinstance(marker, str):
-            ack_markers_by_order.setdefault(ev.order_id, set()).add(marker)
+        for ev in ack_rows:
+            payload = ev.payload if isinstance(ev.payload, dict) else {}
+            marker = payload.get("deleted_at")
+            if isinstance(marker, str):
+                ack_markers_by_order.setdefault(ev.order_id, set()).add(marker)
 
     tombstones: list[dict[str, Any]] = []
     for o in candidates:
-        # 이 삭제 시점을 고정한 ack 마커가 있으면(=묘비 확인함) 제외. 시계 비교 없음.
+        # 본인이 이 삭제 시점을 확인한 마커가 있으면 제외(개인별, 시계 비교 없음).
         if str(o.deleted_at) in ack_markers_by_order.get(o.id, ()):
             continue
         sd = _ensure_dict(o.structured_data)

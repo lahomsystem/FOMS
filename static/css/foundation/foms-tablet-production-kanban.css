@@ -594,17 +594,25 @@
     color: var(--foms-color-danger-600);
     font-weight: 800;
   }
-  /* 변경 카드 = 엠버 아웃라인(레이아웃 무이동 box-shadow 링). is-held 인셋 바와 공존. */
+  /* R4 변경 카드 강조: 3px warning-600 보더 + 옅은 halo(box-shadow spread) + 로드 시 펄스 3회
+     후 정지(상시 애니메이션 금지 — iteration-count 3, forwards 없음 → 정지 후 resting halo 복귀).
+     펄스 색은 카드가 --foms-kanban-pulse-* 로 주입(묘비는 danger). is-held 인셋 바와 공존. */
   body.erp-mobile-v2-layout .foms-kanban-card.is-changed {
-    border-color: var(--foms-color-warning-500);
-    box-shadow: 0 0 0 1px var(--foms-color-warning-500), var(--foms-shadow-sm);
+    --foms-kanban-pulse-halo: var(--erp-warning-light);
+    --foms-kanban-pulse-strong: rgba(217, 119, 6, 0.32);
+    border: 3px solid var(--foms-color-warning-600);
+    box-shadow: 0 0 0 3px var(--foms-kanban-pulse-halo), var(--foms-shadow-sm);
+    animation: foms-kanban-change-pulse 900ms ease-out 3;
   }
 
-  /* 묘비(취소) 카드 — 빨강 톤, 취소선 대신 명시 라벨. 시트 미연결(카드 탭 무동작). */
+  /* 묘비(취소) 카드 — 빨강 톤, 취소선 대신 명시 라벨. 시트 미연결(카드 탭 무동작). 변경 카드 동급 강조. */
   body.erp-mobile-v2-layout .foms-kanban-card--tomb {
     cursor: default;
-    border-color: var(--foms-color-danger-500);
-    box-shadow: 0 0 0 1px var(--foms-color-danger-500), var(--foms-shadow-sm);
+    --foms-kanban-pulse-halo: var(--erp-danger-light);
+    --foms-kanban-pulse-strong: rgba(220, 38, 38, 0.32);
+    border: 3px solid var(--foms-color-danger-600);
+    box-shadow: 0 0 0 3px var(--foms-kanban-pulse-halo), var(--foms-shadow-sm);
+    animation: foms-kanban-change-pulse 900ms ease-out 3;
   }
   body.erp-mobile-v2-layout .foms-kanban-card__alert-row--tomb {
     border-left-color: var(--foms-color-danger-600);
@@ -766,14 +774,53 @@
     overflow-y: auto;
     -webkit-overflow-scrolling: touch;
   }
+  /* R4: 행 = 좌(내용) + 우([확인] 버튼). 내용은 세로 스택(__item-body). */
   body.erp-mobile-v2-layout .foms-prod-change-modal__item {
     display: flex;
-    flex-direction: column;
-    gap: var(--foms-space-1);
+    align-items: center;
+    gap: var(--foms-space-3);
     padding: var(--foms-space-2) var(--foms-space-3);
     border: 1px solid var(--foms-border-subtle);
     border-radius: var(--foms-radius-md);
     background: var(--foms-surface-muted);
+  }
+  body.erp-mobile-v2-layout .foms-prod-change-modal__item-body {
+    flex: 1 1 auto;
+    min-width: 0;
+    display: flex;
+    flex-direction: column;
+    gap: var(--foms-space-1);
+  }
+  /* R4: 행별 [확인] 버튼 — 브랜드 솔리드, 터치 타겟 ≥48px, 진행 중 disabled. */
+  body.erp-mobile-v2-layout .foms-prod-change-modal__row-ack {
+    appearance: none;
+    flex: 0 0 auto;
+    min-height: var(--foms-touch-target-min);
+    padding: 0 var(--foms-space-4);
+    border: 1px solid transparent;
+    border-radius: var(--foms-radius-md);
+    background: var(--foms-interactive-primary);
+    color: var(--foms-text-inverse);
+    font-size: var(--foms-font-size-base);
+    font-weight: var(--foms-font-weight-bold);
+    cursor: pointer;
+  }
+  body.erp-mobile-v2-layout .foms-prod-change-modal__row-ack:hover {
+    background: var(--foms-interactive-primary-hover);
+  }
+  body.erp-mobile-v2-layout .foms-prod-change-modal__row-ack[disabled] {
+    opacity: 0.6;
+    cursor: progress;
+  }
+  body.erp-mobile-v2-layout .foms-prod-change-modal__row-ack:focus-visible {
+    outline: none;
+    box-shadow: var(--foms-shadow-focus-ring);
+  }
+  /* 행 확인 실패 오류 문구. */
+  body.erp-mobile-v2-layout .foms-prod-change-modal__row-error {
+    color: var(--foms-color-danger-600);
+    font-size: var(--foms-font-size-sm);
+    font-weight: var(--foms-font-weight-semibold);
   }
   body.erp-mobile-v2-layout .foms-prod-change-modal__item-head {
     display: flex;
@@ -844,27 +891,34 @@
     color: var(--foms-text-secondary);
     border-color: var(--foms-border-subtle);
   }
-  body.erp-mobile-v2-layout .foms-prod-change-modal__btn--pri {
-    flex: 2;
-    background: var(--foms-interactive-primary);
-    color: var(--foms-text-inverse);
-  }
-  body.erp-mobile-v2-layout .foms-prod-change-modal__btn--pri:hover {
-    background: var(--foms-interactive-primary-hover);
-  }
-  body.erp-mobile-v2-layout .foms-prod-change-modal__btn--pri[disabled] {
-    opacity: 0.6;
-    cursor: progress;
-  }
   body.erp-mobile-v2-layout .foms-prod-change-modal__btn:focus-visible {
     outline: none;
     box-shadow: var(--foms-shadow-focus-ring);
   }
 }
 
+/* R4: 변경/묘비 카드 로드 시 halo 펄스(3회 후 정지). 색은 카드가 주입한 --foms-kanban-pulse-*.
+   resting = 3px halo(0%/100% keyframe 과 동일)라 정지 후 매끄럽게 복귀. */
+@keyframes foms-kanban-change-pulse {
+  0% {
+    box-shadow: 0 0 0 3px var(--foms-kanban-pulse-halo), var(--foms-shadow-sm);
+  }
+  50% {
+    box-shadow: 0 0 0 8px var(--foms-kanban-pulse-strong), var(--foms-shadow-sm);
+  }
+  100% {
+    box-shadow: 0 0 0 3px var(--foms-kanban-pulse-halo), var(--foms-shadow-sm);
+  }
+}
+
 @media (prefers-reduced-motion: reduce) {
   .foms-kanban-card {
     transition: none !important;
+  }
+  /* 펄스 생략(정적 3px 보더 + halo 는 유지). */
+  .foms-kanban-card.is-changed,
+  .foms-kanban-card--tomb {
+    animation: none !important;
   }
 }
 
