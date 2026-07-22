@@ -1846,6 +1846,8 @@ async function erpLoadStructured(bootstrapData, options) {
     if (selfMeasEl) selfMeasEl.checked = !!data.is_self_measurement;
     const regionalEl = document.getElementById('erp-regional-order');
     if (regionalEl) regionalEl.checked = !!data.is_regional;
+    // 지방주문 AS 재상차 모달 prefill용 flat 컬럼값 보관(structured_data에 없어 GET 응답에서 전달).
+    window.__erpShippingScheduledDate = data.shipping_scheduled_date || '';
     const regionalConstructionTypeEl = document.getElementById('erp-regional-construction-type');
     if (regionalConstructionTypeEl) {
         regionalConstructionTypeEl.value = data.construction_type || '';
@@ -2375,6 +2377,12 @@ async function erpSaveStructuredOnce(opts = {}) {
                 if (filesEl) filesEl.value = '';
                 window.__erpAsReceiveClipboardFiles = [];
                 if (previewEl) previewEl.innerHTML = '';
+                // 지방주문 AS 재상차: 상차일 필드는 지방주문일 때만 노출·prefill(오픈마다 재평가).
+                const shipWrapEl = document.getElementById('as-receive-shipping-wrap');
+                const shipDateEl = document.getElementById('as-receive-shipping-date');
+                const isRegionalNow = document.getElementById('erp-regional-order')?.checked === true;
+                if (shipWrapEl) shipWrapEl.classList.toggle('d-none', !isRegionalNow);
+                if (shipDateEl) shipDateEl.value = isRegionalNow ? (window.__erpShippingScheduledDate || '') : '';
                 bootstrap.Modal.getOrCreateInstance(modalEl).show();
             }
             erpSetStatus('AS 접수 내용을 입력해주세요.');
@@ -2764,15 +2772,27 @@ ${escapeHtml(sub)}</div>` : ''}`;
                 const origHtml = submitBtn.innerHTML;
                 submitBtn.innerHTML = '<span class="spinner-border spinner-border-sm me-1" role="status"></span> 처리 중...';
 
+                // 지방주문 + 상차일 입력 시 AS 등록 payload에 포함(정본 경로에서 원자적 저장).
+                const regPayload = { as_content: content };
+                const shipDateEl = document.getElementById('as-receive-shipping-date');
+                const isRegionalNow = document.getElementById('erp-regional-order')?.checked === true;
+                const shipDateVal = (shipDateEl?.value || '').trim();
+                if (isRegionalNow && shipDateVal) {
+                    regPayload.shipping_scheduled_date = shipDateVal;
+                }
+
                 try {
                     const regRes = await fetch(`/api/orders/${targetId}/as/register`, {
                         method: 'POST',
                         headers: { 'Content-Type': 'application/json' },
-                        body: JSON.stringify({ as_content: content })
+                        body: JSON.stringify(regPayload)
                     });
                     const regData = await regRes.json();
                     if (!regData.success) {
                         throw new Error(regData.message || 'AS 접수 등록 실패');
+                    }
+                    if (isRegionalNow && shipDateVal) {
+                        window.__erpShippingScheduledDate = shipDateVal;
                     }
 
                     const fallbackFiles = Array.isArray(window.__erpAsReceiveClipboardFiles)
