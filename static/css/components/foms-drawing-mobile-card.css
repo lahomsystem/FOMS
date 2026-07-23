@@ -339,13 +339,7 @@
   background: var(--foms-color-brand-100, #e0e7ff);
 }
 
-.foms-drawing-queue-card__actions .foms-drawing-queue-card__wizard {
-  border-color: color-mix(in srgb, var(--foms-color-brand-400, #818cf8) 40%, var(--foms-border-subtle, #dde1e6));
-  color: var(--foms-color-brand-700, #434190);
-}
-
-.foms-drawing-queue-card__actions:has(.foms-drawing-queue-card__erp-edit) .foms-btn,
-.foms-drawing-queue-card__actions:has(.foms-drawing-queue-card__wizard) .foms-btn {
+.foms-drawing-queue-card__actions:has(.foms-drawing-queue-card__erp-edit) .foms-btn {
   font-size: 0.78rem;
   padding-inline: 0.45rem;
 }
@@ -506,9 +500,4 @@
 [data-theme='dark'] .foms-drawing-queue-card__memo {
   background: rgba(245, 158, 11, 0.16);
   color: var(--foms-color-warning-300, #fcd34d);
-}
-
-[data-theme='dark'] .foms-drawing-queue-card__actions .foms-drawing-queue-card__wizard {
-  border-color: color-mix(in srgb, var(--foms-interactive-primary) 35%, transparent);
-  color: var(--foms-text-link);
 }
