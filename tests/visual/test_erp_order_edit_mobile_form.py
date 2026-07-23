@@ -309,15 +309,35 @@ def test_mobile_erp_secnav_scroll_margin_clears_sticky_chrome() -> None:
     assert "100svh - var(--erp-mobile-sec-scroll-margin)" in css
     assert "100dvh - var(--erp-mobile-sec-scroll-margin)" not in css
     # sticky 요소 overflow-x:auto 금지 — 가로 스크롤은 track으로 분리.
+    # 디테일 페이지는 sticky 대신 fixed(헤더와 동일) — 음수 top 마진 금지.
     mobile = (
         ROOT / "templates" / "orders" / "partials" / "erp_order_tab_mobile.html"
     ).read_text(encoding="utf-8")
+    assert 'class="erp-mobile-secnav-slot"' in mobile
     assert 'class="erp-mobile-secnav-track"' in mobile
     assert ".erp-mobile-secnav-track" in css
+    assert ".erp-mobile-secnav-slot" in css
+    detail_nav = (
+        "body.erp-mobile-v2-layout .foms-detail-page-wrap "
+        ".erp-order-mobile-form .erp-mobile-secnav"
+    )
+    assert detail_nav in css or (
+        ".foms-detail-page-wrap\n    .erp-order-mobile-form\n    .erp-mobile-secnav"
+        in css
+        or ".foms-detail-page-wrap .erp-order-mobile-form .erp-mobile-secnav" in css
+    )
+    # fixed chrome block must exist for detail wrap secnav
+    fixed_idx = css.index(
+        ".foms-detail-page-wrap .erp-order-mobile-form .erp-mobile-secnav"
+    )
+    fixed_block = css[fixed_idx : fixed_idx + 350]
+    assert "position: fixed" in fixed_block
     nav_idx = css.index(".erp-order-mobile-form .erp-mobile-secnav {")
     nav_block = css[nav_idx : nav_idx + 450]
     assert "overflow-x: auto" not in nav_block
     assert "overflow: visible" in nav_block
+    # sticky 음수 top 마진은 iOS 흔들림 원인 — 금지.
+    assert "margin: calc(-1 * var(--foms-space-2)) calc(-1 * var(--foms-space-2))" not in css
     assert "scrollIntoView({ behavior: 'smooth', block: 'start' })" in js
     assert "shown.bs.collapse" in js
     assert "expandThenScroll" in js
