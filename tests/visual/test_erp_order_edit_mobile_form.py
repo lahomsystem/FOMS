@@ -311,17 +311,29 @@ def test_mobile_erp_secnav_scroll_margin_clears_sticky_chrome() -> None:
     assert "100dvh - var(--erp-mobile-sec-scroll-margin)" not in css
     assert "var(--erp-mobile-sec-scroll-margin) + 4rem" in css
     pad_idx = css.index("var(--erp-mobile-sec-scroll-margin) + 4rem")
-    pad_window = css[pad_idx - 120 : pad_idx + 80]
-    assert "100svh" not in pad_window
-    assert "100dvh" not in pad_window
+    # calc 값만 검사 — 바로 위 주석에 "100svh 금지" 문구가 있어 window 오탐 난다.
+    pad_expr = css[pad_idx : pad_idx + 60]
+    assert "100svh" not in pad_expr
+    assert "100dvh" not in pad_expr
     # sticky + track; 디테일 fixed 금지(orderTabs 가림).
     mobile = (
         ROOT / "templates" / "orders" / "partials" / "erp_order_tab_mobile.html"
     ).read_text(encoding="utf-8")
     assert 'class="erp-mobile-secnav-slot"' in mobile
     assert 'class="erp-mobile-secnav-track"' in mobile
+    # Sticky parent trap: slot must wrap sections (not close immediately after </nav>).
+    between = re.search(
+        r'<nav class="erp-mobile-secnav"[^>]*>.*?</nav>\s*(.*?)\s*<section class="erp-form-section" id="erp-mobile-sec-customer"',
+        mobile,
+        re.S,
+    )
+    assert between is not None
+    assert between.group(1).strip() == "", (
+        "erp-mobile-secnav-slot closed before sections — sticky parent too short"
+    )
     assert ".erp-mobile-secnav-track" in css
     assert ".erp-mobile-secnav-slot" in css
+    assert "sticky 부모 높이" in css or "secnav+전 섹션" in css
     nav_idx = css.index(".erp-order-mobile-form .erp-mobile-secnav {")
     nav_end = css.index("}", nav_idx)
     nav_block = css[nav_idx : nav_end + 1]

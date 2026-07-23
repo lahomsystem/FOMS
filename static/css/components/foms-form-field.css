@@ -937,6 +937,8 @@ body.erp-mobile-v2-layout .erp-order-mobile-form .erp-mobile-attachment-controls
    셸 헤더 바로 아래 sticky. z는 헤더(--foms-z-sticky=1020) 바로 아래(1019).
    ※ sticky에 overflow-x:auto 금지 → 가로 스크롤은 .erp-mobile-secnav-track.
    ※ sticky 음수 top 마진 금지(iOS 흔들림).
+   ※ .erp-mobile-secnav-slot은 secnav+전 섹션을 감싸야 함. nav만 감싸면
+     sticky 부모 높이=칩행 → sticky가 부모 밖으로 못 나가 스크롤과 함께 사라짐.
    ※ 디테일에서 position:fixed 금지 — top:header만 쓰면 orderTabs(주문/계산기/견적)
      세그먼트를 덮어 가림. sticky는 문서 흐름상 탭 아래에 남아 초기 화면에서 탭 노출. */
 .erp-order-mobile-form .erp-mobile-secnav-slot {
