@@ -4,7 +4,7 @@
    해당 자식 편집 시 여기 ?v= 를 함께 올리면 새 URL=캐시 미스로 즉시 반영된다(신선도 계약). */
 @import url("../foundation/foms-shell.css?v=20260715a");
 @import url("../components/foms-buttons.css?v=20260703a");
-@import url("../components/foms-form-field.css?v=20260723f");
+@import url("../components/foms-form-field.css?v=20260723g");
 @import url("../components/foms-chip-strip.css?v=20260716a");
 @import url("../components/foms-mobile-filter-bar.css?v=20260716a");
 @import url("../components/foms-queue-card-v2.css?v=20260722c");

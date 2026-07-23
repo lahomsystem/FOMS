@@ -294,7 +294,7 @@ def test_edit_erp_order_ships_responsive_form_mounts_for_cohort(
 
 
 def test_mobile_erp_secnav_scroll_margin_clears_sticky_chrome() -> None:
-    """secnav scrollIntoView must clear sticky chrome + allow bottom-section undershoot."""
+    """secnav: sticky+track, scroll-margin, no full-vh pad, expandThenScroll."""
     css = (ROOT / "static" / "css" / "components" / "foms-form-field.css").read_text(
         encoding="utf-8"
     )
@@ -306,10 +306,15 @@ def test_mobile_erp_secnav_scroll_margin_clears_sticky_chrome() -> None:
         '.erp-order-mobile-form .erp-form-section[id^="erp-mobile-sec-"]' in css
     )
     assert "scroll-margin-top: var(--erp-mobile-sec-scroll-margin)" in css
-    assert "100svh - var(--erp-mobile-sec-scroll-margin)" in css
+    # 접수 무한 공백 방지: near-viewport(100svh/dvh) 패딩 금지.
+    assert "100svh - var(--erp-mobile-sec-scroll-margin)" not in css
     assert "100dvh - var(--erp-mobile-sec-scroll-margin)" not in css
-    # sticky 요소 overflow-x:auto 금지 — 가로 스크롤은 track으로 분리.
-    # 디테일 페이지는 sticky 대신 fixed(헤더와 동일) — 음수 top 마진 금지.
+    assert "var(--erp-mobile-sec-scroll-margin) + 4rem" in css
+    pad_idx = css.index("var(--erp-mobile-sec-scroll-margin) + 4rem")
+    pad_window = css[pad_idx - 120 : pad_idx + 80]
+    assert "100svh" not in pad_window
+    assert "100dvh" not in pad_window
+    # sticky + track; 디테일 fixed 금지(orderTabs 가림).
     mobile = (
         ROOT / "templates" / "orders" / "partials" / "erp_order_tab_mobile.html"
     ).read_text(encoding="utf-8")
@@ -317,25 +322,14 @@ def test_mobile_erp_secnav_scroll_margin_clears_sticky_chrome() -> None:
     assert 'class="erp-mobile-secnav-track"' in mobile
     assert ".erp-mobile-secnav-track" in css
     assert ".erp-mobile-secnav-slot" in css
-    detail_nav = (
-        "body.erp-mobile-v2-layout .foms-detail-page-wrap "
-        ".erp-order-mobile-form .erp-mobile-secnav"
-    )
-    assert detail_nav in css or (
-        ".foms-detail-page-wrap\n    .erp-order-mobile-form\n    .erp-mobile-secnav"
-        in css
-        or ".foms-detail-page-wrap .erp-order-mobile-form .erp-mobile-secnav" in css
-    )
-    # fixed chrome block must exist for detail wrap secnav
-    fixed_idx = css.index(
-        ".foms-detail-page-wrap .erp-order-mobile-form .erp-mobile-secnav"
-    )
-    fixed_block = css[fixed_idx : fixed_idx + 350]
-    assert "position: fixed" in fixed_block
     nav_idx = css.index(".erp-order-mobile-form .erp-mobile-secnav {")
-    nav_block = css[nav_idx : nav_idx + 450]
+    nav_end = css.index("}", nav_idx)
+    nav_block = css[nav_idx : nav_end + 1]
+    assert "position: sticky" in nav_block
+    assert "position: fixed" not in nav_block
     assert "overflow-x: auto" not in nav_block
     assert "overflow: visible" in nav_block
+    assert ".foms-detail-page-wrap .erp-order-mobile-form .erp-mobile-secnav" not in css
     # sticky 음수 top 마진은 iOS 흔들림 원인 — 금지.
     assert "margin: calc(-1 * var(--foms-space-2)) calc(-1 * var(--foms-space-2))" not in css
     assert "scrollIntoView({ behavior: 'smooth', block: 'start' })" in js

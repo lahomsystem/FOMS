@@ -2719,8 +2719,10 @@ ${escapeHtml(sub)}</div>` : ''}`;
         let scrollGen = 0;
 
         function scrollSecToView(target) {
-            // scroll-margin-top clears sticky header+secnav; form padding-bottom
-            // supplies room when later sections stay collapsed (max-scroll undershoot).
+            // scroll-margin-top clears sticky header+secnav.
+            // Mid-section undershoot: expandThenScroll grows height below target.
+            // Do NOT rely on near-viewport padding-bottom (causes infinite empty scroll
+            // after last section / 접수).
             target.scrollIntoView({ behavior: 'smooth', block: 'start' });
         }
 
