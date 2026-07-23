@@ -293,6 +293,24 @@ def test_edit_erp_order_ships_responsive_form_mounts_for_cohort(
     assert "erp-mobile-pre-sticky-footer" in mobile_form
 
 
+def test_mobile_erp_secnav_scroll_margin_clears_sticky_chrome() -> None:
+    """secnav scrollIntoView must clear sticky header+chip row via scroll-margin-top."""
+    css = (ROOT / "static" / "css" / "components" / "foms-form-field.css").read_text(
+        encoding="utf-8"
+    )
+    js = (ROOT / "static" / "js" / "orders" / "erp-order-shared.js").read_text(
+        encoding="utf-8"
+    )
+    assert "--erp-mobile-sec-scroll-margin" in css
+    assert (
+        '.erp-order-mobile-form .erp-form-section[id^="erp-mobile-sec-"]' in css
+    )
+    assert "scroll-margin-top: var(--erp-mobile-sec-scroll-margin)" in css
+    assert "scrollIntoView({ behavior: 'smooth', block: 'start' })" in js
+    assert "erpSecnavBound" in js
+    assert "initErpMobileSecNav" in js
+
+
 def test_mobile_erp_secnav_chip_order_and_targets() -> None:
     """secnav 칩 순서: 고객→일정→현장스펙→…, 모든 target id가 섹션에 존재."""
     mobile = (

@@ -2724,6 +2724,8 @@ ${escapeHtml(sub)}</div>` : ''}`;
             nav.querySelectorAll('.erp-mobile-secnav-chip').forEach((c) => c.classList.toggle('is-active', c === chip));
             const collapsedToggle = target.querySelector('.erp-mobile-collapse-toggle[aria-expanded="false"]');
             if (collapsedToggle) collapsedToggle.click();
+            // scroll-margin-top on .erp-form-section[id^=erp-mobile-sec-] clears sticky header+secnav.
+            // Expand grows downward; section top Y stays put — no post-collapse wait needed.
             target.scrollIntoView({ behavior: 'smooth', block: 'start' });
         });
     })();

@@ -975,6 +975,21 @@ body.erp-mobile-v2-layout .erp-order-mobile-form .erp-mobile-attachment-controls
   color: #fff;
 }
 
+/* scrollIntoView(block:start) must clear sticky header+secnav.
+   Stack mirrors .erp-mobile-secnav top; height = chip row padding+min-height. */
+.erp-order-mobile-form {
+  --erp-mobile-secnav-stack: calc(
+    var(--foms-shell-header-h, 48px) + var(--foms-safe-area-top, 0px)
+  );
+  --erp-mobile-secnav-h: calc((var(--foms-space-2) * 2) + 2.25rem);
+  --erp-mobile-sec-scroll-margin: calc(
+    var(--erp-mobile-secnav-stack) + var(--erp-mobile-secnav-h) + var(--foms-space-2)
+  );
+}
+.erp-order-mobile-form .erp-form-section[id^="erp-mobile-sec-"] {
+  scroll-margin-top: var(--erp-mobile-sec-scroll-margin);
+}
+
 /* ── 항목 추가 버튼: 항목 리스트 끝, 풀폭 ── */
 .erp-order-mobile-form .erp-mobile-add-item-btn {
   width: 100%;
