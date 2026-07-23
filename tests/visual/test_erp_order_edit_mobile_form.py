@@ -294,7 +294,7 @@ def test_edit_erp_order_ships_responsive_form_mounts_for_cohort(
 
 
 def test_mobile_erp_secnav_scroll_margin_clears_sticky_chrome() -> None:
-    """secnav scrollIntoView must clear sticky header+chip row via scroll-margin-top."""
+    """secnav scrollIntoView must clear sticky chrome + allow bottom-section undershoot."""
     css = (ROOT / "static" / "css" / "components" / "foms-form-field.css").read_text(
         encoding="utf-8"
     )
@@ -306,7 +306,12 @@ def test_mobile_erp_secnav_scroll_margin_clears_sticky_chrome() -> None:
         '.erp-order-mobile-form .erp-form-section[id^="erp-mobile-sec-"]' in css
     )
     assert "scroll-margin-top: var(--erp-mobile-sec-scroll-margin)" in css
+    # Collapsed trailing sections shorten the doc — pad enough to lift target under secnav.
+    assert "100dvh - var(--erp-mobile-sec-scroll-margin)" in css
     assert "scrollIntoView({ behavior: 'smooth', block: 'start' })" in js
+    assert "shown.bs.collapse" in js
+    assert "expandThenScroll" in js
+    assert "scrollGen" in js
     assert "erpSecnavBound" in js
     assert "initErpMobileSecNav" in js
 

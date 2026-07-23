@@ -2716,17 +2716,45 @@ ${escapeHtml(sub)}</div>` : ''}`;
         const nav = document.getElementById('erp-mobile-secnav');
         if (!nav || nav.dataset.erpSecnavBound === '1') return;
         nav.dataset.erpSecnavBound = '1';
+        let scrollGen = 0;
+
+        function scrollSecToView(target) {
+            // scroll-margin-top clears sticky header+secnav; form padding-bottom
+            // supplies room when later sections stay collapsed (max-scroll undershoot).
+            target.scrollIntoView({ behavior: 'smooth', block: 'start' });
+        }
+
+        function expandThenScroll(target, toggle, gen) {
+            const bodySel = toggle.getAttribute('data-bs-target');
+            const body = bodySel ? document.querySelector(bodySel) : null;
+            if (!body) {
+                toggle.click();
+                if (gen === scrollGen) scrollSecToView(target);
+                return;
+            }
+            let done = false;
+            const finish = () => {
+                if (done || gen !== scrollGen) return;
+                done = true;
+                body.removeEventListener('shown.bs.collapse', finish);
+                scrollSecToView(target);
+            };
+            // Expand first — height below target enables scroll-to-top; then scroll.
+            body.addEventListener('shown.bs.collapse', finish);
+            toggle.click();
+            window.setTimeout(finish, 450);
+        }
+
         nav.addEventListener('click', (e) => {
             const chip = e.target.closest('.erp-mobile-secnav-chip');
             if (!chip) return;
             const target = chip.dataset.erpSecnavTarget && document.getElementById(chip.dataset.erpSecnavTarget);
             if (!target) return;
             nav.querySelectorAll('.erp-mobile-secnav-chip').forEach((c) => c.classList.toggle('is-active', c === chip));
+            const gen = ++scrollGen;
             const collapsedToggle = target.querySelector('.erp-mobile-collapse-toggle[aria-expanded="false"]');
-            if (collapsedToggle) collapsedToggle.click();
-            // scroll-margin-top on .erp-form-section[id^=erp-mobile-sec-] clears sticky header+secnav.
-            // Expand grows downward; section top Y stays put — no post-collapse wait needed.
-            target.scrollIntoView({ behavior: 'smooth', block: 'start' });
+            if (collapsedToggle) expandThenScroll(target, collapsedToggle, gen);
+            else scrollSecToView(target);
         });
     })();
 
