@@ -307,7 +307,8 @@ def test_mobile_erp_secnav_scroll_margin_clears_sticky_chrome() -> None:
     )
     assert "scroll-margin-top: var(--erp-mobile-sec-scroll-margin)" in css
     # Collapsed trailing sections shorten the doc — pad enough to lift target under secnav.
-    assert "100dvh - var(--erp-mobile-sec-scroll-margin)" in css
+    assert "100svh - var(--erp-mobile-sec-scroll-margin)" in css
+    assert "100dvh - var(--erp-mobile-sec-scroll-margin)" not in css
     assert "scrollIntoView({ behavior: 'smooth', block: 'start' })" in js
     assert "shown.bs.collapse" in js
     assert "expandThenScroll" in js
