@@ -933,23 +933,18 @@ body.erp-mobile-v2-layout .erp-order-mobile-form .erp-mobile-attachment-controls
   }
 }
 
-/* ── 모바일 섹션 이동 칩 네비 (스크롤 길이 완화: 공간 지도 + 점프) ──
+/* ── 모바일 섹션 이동 칩 네비 ──
    셸 헤더 바로 아래 sticky. z는 헤더(--foms-z-sticky=1020) 바로 아래(1019).
    ※ sticky에 overflow-x:auto 금지 → 가로 스크롤은 .erp-mobile-secnav-track.
    ※ sticky 음수 top 마진 금지(iOS 흔들림).
-   ※ .erp-mobile-secnav-slot은 secnav+전 섹션을 감싸야 함. nav만 감싸면
-     sticky 부모 높이=칩행 → sticky가 부모 밖으로 못 나가 스크롤과 함께 사라짐.
    ※ 디테일에서 position:fixed 금지 — top:header만 쓰면 orderTabs(주문/계산기/견적)
      세그먼트를 덮어 가림. sticky는 문서 흐름상 탭 아래에 남아 초기 화면에서 탭 노출. */
-.erp-order-mobile-form .erp-mobile-secnav-slot {
-  margin-bottom: var(--foms-space-2);
-}
 .erp-order-mobile-form .erp-mobile-secnav {
   position: sticky;
   top: calc(var(--foms-shell-header-h, 48px) + var(--foms-safe-area-top, 0px));
   z-index: 1019;
   padding: var(--foms-space-2) 0;
-  margin: 0;
+  margin: 0 0 var(--foms-space-2);
   overflow: visible;
   background: var(--foms-surface-base);
   border-bottom: 1px solid var(--foms-border-subtle, #e5e7eb);
@@ -983,21 +978,6 @@ body.erp-mobile-v2-layout .erp-order-mobile-form .erp-mobile-attachment-controls
   background: var(--foms-interactive-primary, #2563eb);
   border-color: var(--foms-interactive-primary, #2563eb);
   color: #fff;
-}
-
-/* scrollIntoView(block:start) must clear sticky header+secnav.
-   Stack mirrors .erp-mobile-secnav top; height = chip row padding+min-height. */
-.erp-order-mobile-form {
-  --erp-mobile-secnav-stack: calc(
-    var(--foms-shell-header-h, 48px) + var(--foms-safe-area-top, 0px)
-  );
-  --erp-mobile-secnav-h: calc((var(--foms-space-2) * 2) + 2.25rem);
-  --erp-mobile-sec-scroll-margin: calc(
-    var(--erp-mobile-secnav-stack) + var(--erp-mobile-secnav-h) + var(--foms-space-2)
-  );
-}
-.erp-order-mobile-form .erp-form-section[id^="erp-mobile-sec-"] {
-  scroll-margin-top: var(--erp-mobile-sec-scroll-margin);
 }
 
 /* ── 항목 추가 버튼: 항목 리스트 끝, 풀폭 ── */
@@ -1219,18 +1199,17 @@ body.erp-mobile-v2-layout .erp-order-mobile-form .erp-mobile-attachment-controls
   body.erp-mobile-v2-layout .erp-order-mobile-form {
     background: var(--foms-surface-overlay, #eef2f7);
     padding: var(--foms-space-2);
-    /* 하단 여백:
-       (1) sticky 저장/PUSH 바 ≥6rem
-       (2) 중간 섹션 점프 시 소폭 버퍼(scroll-margin+4rem) — expandThenScroll
-           보조. ※ 100svh/dvh 급 패딩 금지(접수 공백 무한 스크롤). */
+    /* 기본은 sticky 저장/PUSH 바만. 마지막 섹션 이동에 필요한 만큼만 JS가
+       --erp-mobile-secnav-tail로 아래 공간을 추가한다. */
+    --erp-mobile-secnav-tail: 0px;
     padding-bottom: calc(
-      max(6rem, var(--erp-mobile-sec-scroll-margin) + 4rem)
+      6rem + var(--erp-mobile-secnav-tail)
       + env(safe-area-inset-bottom, 0px)
     );
   }
   /* sticky full-bleed: 가로만 음수 마진(음수 top 금지 — iOS 흔들림). */
   body.erp-mobile-v2-layout .erp-order-mobile-form .erp-mobile-secnav {
-    margin: 0 calc(-1 * var(--foms-space-2));
+    margin: 0 calc(-1 * var(--foms-space-2)) var(--foms-space-2);
     padding: var(--foms-space-2);
     background: var(--foms-surface-overlay, #eef2f7);
     border-bottom: 0;

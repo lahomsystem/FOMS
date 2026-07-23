@@ -293,47 +293,22 @@ def test_edit_erp_order_ships_responsive_form_mounts_for_cohort(
     assert "erp-mobile-pre-sticky-footer" in mobile_form
 
 
-def test_mobile_erp_secnav_scroll_margin_clears_sticky_chrome() -> None:
-    """secnav: sticky+track, scroll-margin, no full-vh pad, expandThenScroll."""
+def test_mobile_erp_secnav_has_single_scroll_owner() -> None:
+    """Secnav has no wrapper, timer, smooth-scroll, or permanent jump padding."""
     css = (ROOT / "static" / "css" / "components" / "foms-form-field.css").read_text(
         encoding="utf-8"
     )
     js = (ROOT / "static" / "js" / "orders" / "erp-order-shared.js").read_text(
         encoding="utf-8"
     )
-    assert "--erp-mobile-sec-scroll-margin" in css
-    assert (
-        '.erp-order-mobile-form .erp-form-section[id^="erp-mobile-sec-"]' in css
-    )
-    assert "scroll-margin-top: var(--erp-mobile-sec-scroll-margin)" in css
-    # 접수 무한 공백 방지: near-viewport(100svh/dvh) 패딩 금지.
-    assert "100svh - var(--erp-mobile-sec-scroll-margin)" not in css
-    assert "100dvh - var(--erp-mobile-sec-scroll-margin)" not in css
-    assert "var(--erp-mobile-sec-scroll-margin) + 4rem" in css
-    pad_idx = css.index("var(--erp-mobile-sec-scroll-margin) + 4rem")
-    # calc 값만 검사 — 바로 위 주석에 "100svh 금지" 문구가 있어 window 오탐 난다.
-    pad_expr = css[pad_idx : pad_idx + 60]
-    assert "100svh" not in pad_expr
-    assert "100dvh" not in pad_expr
-    # sticky + track; 디테일 fixed 금지(orderTabs 가림).
     mobile = (
         ROOT / "templates" / "orders" / "partials" / "erp_order_tab_mobile.html"
     ).read_text(encoding="utf-8")
-    assert 'class="erp-mobile-secnav-slot"' in mobile
     assert 'class="erp-mobile-secnav-track"' in mobile
-    # Sticky parent trap: slot must wrap sections (not close immediately after </nav>).
-    between = re.search(
-        r'<nav class="erp-mobile-secnav"[^>]*>.*?</nav>\s*(.*?)\s*<section class="erp-form-section" id="erp-mobile-sec-customer"',
-        mobile,
-        re.S,
-    )
-    assert between is not None
-    assert between.group(1).strip() == "", (
-        "erp-mobile-secnav-slot closed before sections — sticky parent too short"
-    )
+    assert "erp-mobile-secnav-slot" not in mobile
+    assert "--erp-mobile-secnav-tail" in css
+    assert "--erp-mobile-sec-scroll-margin" not in css
     assert ".erp-mobile-secnav-track" in css
-    assert ".erp-mobile-secnav-slot" in css
-    assert "sticky 부모 높이" in css or "secnav+전 섹션" in css
     nav_idx = css.index(".erp-order-mobile-form .erp-mobile-secnav {")
     nav_end = css.index("}", nav_idx)
     nav_block = css[nav_idx : nav_end + 1]
@@ -342,12 +317,12 @@ def test_mobile_erp_secnav_scroll_margin_clears_sticky_chrome() -> None:
     assert "overflow-x: auto" not in nav_block
     assert "overflow: visible" in nav_block
     assert ".foms-detail-page-wrap .erp-order-mobile-form .erp-mobile-secnav" not in css
-    # sticky 음수 top 마진은 iOS 흔들림 원인 — 금지.
-    assert "margin: calc(-1 * var(--foms-space-2)) calc(-1 * var(--foms-space-2))" not in css
-    assert "scrollIntoView({ behavior: 'smooth', block: 'start' })" in js
+    assert "scrollIntoView({ behavior: 'smooth', block: 'start' })" not in js
     assert "shown.bs.collapse" in js
     assert "expandThenScroll" in js
-    assert "scrollGen" in js
+    assert "window.setTimeout(finish, 450)" not in js
+    assert "window.getComputedStyle(nav).top" in js
+    assert "window.scrollTo({ top, behavior: 'auto' })" in js
     assert "erpSecnavBound" in js
     assert "initErpMobileSecNav" in js
 

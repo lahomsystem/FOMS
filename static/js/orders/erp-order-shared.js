@@ -2718,12 +2718,25 @@ ${escapeHtml(sub)}</div>` : ''}`;
         nav.dataset.erpSecnavBound = '1';
         let scrollGen = 0;
 
-        function scrollSecToView(target) {
-            // scroll-margin-top clears sticky header+secnav.
-            // Mid-section undershoot: expandThenScroll grows height below target.
-            // Do NOT rely on near-viewport padding-bottom (causes infinite empty scroll
-            // after last section / 접수).
-            target.scrollIntoView({ behavior: 'smooth', block: 'start' });
+        function scrollSecToView(target, gen) {
+            const form = target.closest('.erp-order-mobile-form');
+            const scroller = document.scrollingElement;
+            if (!form || !scroller) return;
+
+            form.style.removeProperty('--erp-mobile-secnav-tail');
+            requestAnimationFrame(() => {
+                if (gen !== scrollGen) return;
+                const stickyTop = Number.parseFloat(window.getComputedStyle(nav).top) || 0;
+                const viewportTargetTop = stickyTop + nav.getBoundingClientRect().height + 8;
+                const targetTop = window.scrollY + target.getBoundingClientRect().top;
+                const top = Math.max(0, targetTop - viewportTargetTop);
+                const tail = Math.max(0, top - (scroller.scrollHeight - window.innerHeight));
+                if (tail) form.style.setProperty('--erp-mobile-secnav-tail', `${Math.ceil(tail)}px`);
+
+                requestAnimationFrame(() => {
+                    if (gen === scrollGen) window.scrollTo({ top, behavior: 'auto' });
+                });
+            });
         }
 
         function expandThenScroll(target, toggle, gen) {
@@ -2731,20 +2744,14 @@ ${escapeHtml(sub)}</div>` : ''}`;
             const body = bodySel ? document.querySelector(bodySel) : null;
             if (!body) {
                 toggle.click();
-                if (gen === scrollGen) scrollSecToView(target);
+                if (gen === scrollGen) scrollSecToView(target, gen);
                 return;
             }
-            let done = false;
-            const finish = () => {
-                if (done || gen !== scrollGen) return;
-                done = true;
-                body.removeEventListener('shown.bs.collapse', finish);
-                scrollSecToView(target);
-            };
-            // Expand first — height below target enables scroll-to-top; then scroll.
-            body.addEventListener('shown.bs.collapse', finish);
+            // Expand first, then measure after Bootstrap finishes its height transition.
+            body.addEventListener('shown.bs.collapse', () => {
+                if (gen === scrollGen) scrollSecToView(target, gen);
+            }, { once: true });
             toggle.click();
-            window.setTimeout(finish, 450);
         }
 
         nav.addEventListener('click', (e) => {
@@ -2756,7 +2763,7 @@ ${escapeHtml(sub)}</div>` : ''}`;
             const gen = ++scrollGen;
             const collapsedToggle = target.querySelector('.erp-mobile-collapse-toggle[aria-expanded="false"]');
             if (collapsedToggle) expandThenScroll(target, collapsedToggle, gen);
-            else scrollSecToView(target);
+            else scrollSecToView(target, gen);
         });
     })();
 

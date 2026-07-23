@@ -49,20 +49,16 @@ ERP Order mobile-v2 tab pane.
 
             <div class="tab-content">
                 <div class="tab-pane fade show active" id="erp-form" role="tabpanel">
-                    {# slot = sticky containing block: MUST wrap secnav + all sections.
-                       If slot closes right after nav (height≈chip row), sticky cannot
-                       leave the parent and scrolls away with the page. #}
-                    <div class="erp-mobile-secnav-slot">
-                        <nav class="erp-mobile-secnav" id="erp-mobile-secnav" aria-label="섹션 이동">
-                            <div class="erp-mobile-secnav-track">
-                                <button type="button" class="erp-mobile-secnav-chip" data-erp-secnav-target="erp-mobile-sec-customer">고객</button>
-                                <button type="button" class="erp-mobile-secnav-chip" data-erp-secnav-target="erp-mobile-sec-schedule">일정</button>
-                                <button type="button" class="erp-mobile-secnav-chip is-active" data-erp-secnav-target="erp-mobile-sec-spec">현장 스펙</button>
-                                <button type="button" class="erp-mobile-secnav-chip" data-erp-secnav-target="erp-mobile-sec-photo">사진</button>
-                                <button type="button" class="erp-mobile-secnav-chip" data-erp-secnav-target="erp-mobile-sec-order">발주</button>
-                                <button type="button" class="erp-mobile-secnav-chip" data-erp-secnav-target="erp-mobile-sec-received">접수</button>
-                            </div>
-                        </nav>
+                    <nav class="erp-mobile-secnav" id="erp-mobile-secnav" aria-label="섹션 이동">
+                        <div class="erp-mobile-secnav-track">
+                            <button type="button" class="erp-mobile-secnav-chip" data-erp-secnav-target="erp-mobile-sec-customer">고객</button>
+                            <button type="button" class="erp-mobile-secnav-chip" data-erp-secnav-target="erp-mobile-sec-schedule">일정</button>
+                            <button type="button" class="erp-mobile-secnav-chip is-active" data-erp-secnav-target="erp-mobile-sec-spec">현장 스펙</button>
+                            <button type="button" class="erp-mobile-secnav-chip" data-erp-secnav-target="erp-mobile-sec-photo">사진</button>
+                            <button type="button" class="erp-mobile-secnav-chip" data-erp-secnav-target="erp-mobile-sec-order">발주</button>
+                            <button type="button" class="erp-mobile-secnav-chip" data-erp-secnav-target="erp-mobile-sec-received">접수</button>
+                        </div>
+                    </nav>
                     <section class="erp-form-section" id="erp-mobile-sec-customer" aria-label="고객 정보">
                         <h3 class="erp-form-section__title"><i class="fas fa-user erp-sec-ico" aria-hidden="true"></i>고객</h3>
                         <div class="field-grid-2">
@@ -435,7 +431,6 @@ ERP Order mobile-v2 tab pane.
                         </div>
                     </section>
 
-                    </div>{# /.erp-mobile-secnav-slot — sticky containing block ends after last section #}
                 </div>
 
             </div>
