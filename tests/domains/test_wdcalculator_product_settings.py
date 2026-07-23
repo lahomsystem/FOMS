@@ -1059,6 +1059,63 @@ def test_wdcalculator_search_and_delete_estimate_smoke(wdcalculator_settings_env
     assert all(estimate["id"] != saved_id for estimate in post_delete_payload["estimates"])
 
 
+def test_wdcalculator_search_estimates_multi_field_filter(wdcalculator_settings_env, login):
+    """Sidebar search must match amount (comma/digits), product name, and estimate id."""
+    client = login
+    # 운영 저장 shape 정합: top-level totalPrice + estimates[] (finalPrice 미저장)
+    estimate_data = {
+        "estimates": [
+            {
+                "displayName": "슬라이딩장",
+                "productName": "슬라이딩장",
+                "widthMm": 2400,
+                "totalPrice": 1417280,
+            }
+        ],
+        "totalBasePrice": 1417280,
+        "totalAdditionalPrice": 0,
+        "totalPrice": 1417280,
+        "coupon_discount": 0,
+        "shipping_cost": 0,
+        "shipping_included": True,
+        "notes": [],
+    }
+
+    save_response = client.post(
+        "/api/wdcalculator/save-estimate",
+        json={"customer_name": "금액검색고객", "estimate_data": estimate_data},
+    )
+    assert save_response.status_code == 200
+    saved_id = save_response.get_json()["estimate_id"]
+
+    def _assert_hit(query: str, *, param: str = "customer_name") -> None:
+        response = client.get(f"/api/wdcalculator/search-estimates?{param}={query}")
+        assert response.status_code == 200
+        payload = response.get_json()
+        assert payload["success"] is True
+        assert any(estimate["id"] == saved_id for estimate in payload["estimates"]), (
+            f"{param}={query}"
+        )
+
+    _assert_hit("금액검색")
+    _assert_hit("1,417,280")
+    _assert_hit("1417280")
+    _assert_hit("1417")  # 4자리+ 부분일치
+    _assert_hit("슬라이딩")
+    _assert_hit(str(saved_id))
+    _assert_hit("금액검색", param="q")  # alias
+
+    empty = client.get("/api/wdcalculator/search-estimates")
+    empty_payload = empty.get_json()
+    assert empty_payload["success"] is True
+    assert any(estimate["id"] == saved_id for estimate in empty_payload["estimates"])
+
+    miss = client.get("/api/wdcalculator/search-estimates?customer_name=존재하지않는견적XYZ")
+    miss_payload = miss.get_json()
+    assert miss_payload["success"] is True
+    assert all(estimate["id"] != saved_id for estimate in miss_payload["estimates"])
+
+
 def test_wdcalculator_search_orders_api_keeps_legacy_success_shape(
     wdcalculator_settings_env, login
 ):
