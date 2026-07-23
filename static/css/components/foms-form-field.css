@@ -935,20 +935,26 @@ body.erp-mobile-v2-layout .erp-order-mobile-form .erp-mobile-attachment-controls
 
 /* ── 모바일 섹션 이동 칩 네비 (스크롤 길이 완화: 공간 지도 + 점프) ──
    셸 헤더(높이 --foms-shell-header-h) 바로 아래 sticky 고정 → 스크롤 내려도
-   탭 이동 항상 가능. z는 헤더(1020) 바로 아래(1019). */
+   탭 이동 항상 가능. z는 헤더(1020) 바로 아래(1019).
+   ※ sticky 요소에 overflow-x:auto 금지 — iOS/모바일에서 sticky 레이어가
+     가로 스크롤 컨테이너와 합쳐져 세로 스크롤 시 지진처럼 흔들림.
+     가로 스크롤은 안쪽 .erp-mobile-secnav-track 으로 분리. */
 .erp-order-mobile-form .erp-mobile-secnav {
   position: sticky;
   top: calc(var(--foms-shell-header-h, 48px) + var(--foms-safe-area-top, 0px));
   z-index: 1019;
-  display: flex;
-  gap: var(--foms-space-2);
   padding: var(--foms-space-2) 0;
   margin-bottom: var(--foms-space-2);
+  overflow: visible;
+  background: var(--foms-surface-base);
+  border-bottom: 1px solid var(--foms-border-subtle, #e5e7eb);
+}
+.erp-order-mobile-form .erp-mobile-secnav-track {
+  display: flex;
+  gap: var(--foms-space-2);
   overflow-x: auto;
   -webkit-overflow-scrolling: touch;
   scrollbar-width: none;
-  background: var(--foms-surface-base);
-  border-bottom: 1px solid var(--foms-border-subtle, #e5e7eb);
 }
 /* sticky가 동작하려면 조상 카드의 overflow:hidden을 풀어야 한다(안 그러면 sticky
    컨테이닝블록이 카드가 되어 문서 스크롤 시 함께 올라가 버림). 모바일에만 적용. */
@@ -956,7 +962,7 @@ body.erp-mobile-v2-layout .erp-order-mobile-form .erp-mobile-attachment-controls
   body.erp-mobile-v2-layout .card[data-order-id],
   body.erp-mobile-v2-layout .erp-order-mobile-card { overflow: visible; }
 }
-.erp-order-mobile-form .erp-mobile-secnav::-webkit-scrollbar { display: none; }
+.erp-order-mobile-form .erp-mobile-secnav-track::-webkit-scrollbar { display: none; }
 .erp-order-mobile-form .erp-mobile-secnav-chip {
   flex: 0 0 auto;
   min-height: 2.25rem;

@@ -306,9 +306,18 @@ def test_mobile_erp_secnav_scroll_margin_clears_sticky_chrome() -> None:
         '.erp-order-mobile-form .erp-form-section[id^="erp-mobile-sec-"]' in css
     )
     assert "scroll-margin-top: var(--erp-mobile-sec-scroll-margin)" in css
-    # Collapsed trailing sections shorten the doc — pad enough to lift target under secnav.
     assert "100svh - var(--erp-mobile-sec-scroll-margin)" in css
     assert "100dvh - var(--erp-mobile-sec-scroll-margin)" not in css
+    # sticky 요소 overflow-x:auto 금지 — 가로 스크롤은 track으로 분리.
+    mobile = (
+        ROOT / "templates" / "orders" / "partials" / "erp_order_tab_mobile.html"
+    ).read_text(encoding="utf-8")
+    assert 'class="erp-mobile-secnav-track"' in mobile
+    assert ".erp-mobile-secnav-track" in css
+    nav_idx = css.index(".erp-order-mobile-form .erp-mobile-secnav {")
+    nav_block = css[nav_idx : nav_idx + 450]
+    assert "overflow-x: auto" not in nav_block
+    assert "overflow: visible" in nav_block
     assert "scrollIntoView({ behavior: 'smooth', block: 'start' })" in js
     assert "shown.bs.collapse" in js
     assert "expandThenScroll" in js

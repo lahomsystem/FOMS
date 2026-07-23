@@ -224,8 +224,8 @@ def test_form_field_css_chain_cache_busted_for_redesign() -> None:
     @import 버전(번들 내부)과 외곽 <link> 버전이 함께 신선해야 한다."""
     surfaces = _read(ROOT / "static/css/foundation/foms-mobile-surfaces.css")
     layout_head = _read(ROOT / "templates/partials/shared/layout_head.html")
-    assert "../components/foms-form-field.css?v=20260723d" in surfaces
-    assert "foms-mobile-surfaces.css') }}?v=20260723d" in layout_head
+    assert "../components/foms-form-field.css?v=20260723e" in surfaces
+    assert "foms-mobile-surfaces.css') }}?v=20260723e" in layout_head
 
 
 def test_spec_calc_self_heals_rows_created_before_module_load() -> None:
