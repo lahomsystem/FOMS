@@ -36,13 +36,12 @@
    ============================================================================ */
 
 /* R8: 확인됨 변경 카드/칩 파스텔 라벤더 — foms/erp 팔레트에 보라 계열 토큰 없음 → kanban 스코프
-   로컬 정의. border=파스텔 라벤더, tint=옅은 halo/칩 배경, text=칩 텍스트(AA 대비 통과:
-   #5b21b6 on #f0ebfa ≈ 8:1). 핑크(R7)는 지연 D-day 칩(파스텔 빨강)과 동일 스펙트럼이라 원거리
+   로컬 정의. border=파스텔 라벤더, tint=카드 배경/halo. 칩은 빨강 뱃지(danger-600+흰 글자)로
+   대비 담당 — 라벤더 위 라벤더 칩 매몰 방지. 핑크(R7)는 지연 D-day 칩(파스텔 빨강)과 동일 스펙트럼이라 원거리
    분간 불가 → 라벤더로 교체(빨강·엠버·파랑·그린 기존 신호와 무충돌). 미확인(danger 빨강)·묘비 무변경. */
 :root {
   --foms-kanban-lav-border: #d8ccf0;
   --foms-kanban-lav-tint: #f0ebfa;
-  --foms-kanban-lav-text: #5b21b6;
 }
 
 /* 기본(비코호트·PC·모바일): 칸반 은닉, legacy 큐 표시. */
@@ -610,6 +609,11 @@
   body.erp-mobile-v2-layout .foms-kanban-card.is-changed {
     --foms-kanban-pulse-halo: var(--erp-danger-light);
     --foms-kanban-pulse-strong: rgba(220, 38, 38, 0.32);
+    /* R9: 옅은 빨강 틴트 채우기(묘비 동급 danger-50 — 묘비는 스트립·[확인] 버튼으로 구분).
+       tint 위 tertiary 본문(#6b7380 ≈4.4:1 < AA)을 neutral-600 으로 한 단계 진하게(AA 확보,
+       칩·버튼 자체 배경 무변경). */
+    --foms-text-tertiary: var(--foms-color-neutral-600);
+    background: var(--foms-color-danger-50);
     border: 3px solid var(--foms-color-danger-600);
     box-shadow: 0 0 0 3px var(--foms-kanban-pulse-halo), var(--foms-shadow-sm);
     animation: foms-kanban-change-pulse 900ms ease-out 3;
@@ -619,6 +623,10 @@
      위계: danger 빨강 3px+펄스=미확인 잔존 / 파스텔 라벤더 2px 정적=확인됨. data 속성 기반이라
      ack 후 in-place 전환(data-change-history=1 세팅)에도 자동 적용. */
   body.erp-mobile-v2-layout .foms-kanban-card[data-change-history="1"]:not(.is-changed) {
+    /* R9: 라벤더 틴트 채우기(보더만으론 안 띔). tint 위 tertiary 본문(#6b7380 ≈4.1:1 < AA)을
+       neutral-600 으로 진하게(AA 확보). 칩·버튼 자체 배경 무변경. */
+    --foms-text-tertiary: var(--foms-color-neutral-600);
+    background: var(--foms-kanban-lav-tint);
     border: 2px solid var(--foms-kanban-lav-border);
     box-shadow: 0 0 0 2px var(--foms-kanban-lav-tint), var(--foms-shadow-sm);
   }
@@ -683,16 +691,17 @@
     font-weight: var(--foms-font-weight-bold);
     white-space: nowrap;
   }
-  /* R5/R8 확인 후 상설 "변경됨" 조용한 칩 — 미확인(스트립·펄스) 아닌 이력 카드. 차분한 파스텔
-     라벤더 톤(확인됨 보더와 동일 계열), 무펄스·무스트립(뱃지열 소자). __factory 칩과 같은 문법. */
+  /* R5/R9 확인 후 상설 "변경됨" 칩 — 미확인(스트립·펄스) 아닌 이력 카드. R9: 카드가 라벤더
+     틴트로 채워지면 라벤더 칩이 묻혀 → 솔리드 danger 빨강 + 흰 글자로 대비(라벤더는 카드 배경·
+     보더만 담당). weight 700 유지. 무펄스·무스트립(뱃지열 소자), __factory 칩과 같은 문법. */
   body.erp-mobile-v2-layout .foms-kanban-card__changed-quiet {
     flex: 0 0 auto;
     display: inline-flex;
     align-items: center;
     padding: 2px var(--foms-space-2);
     border-radius: var(--foms-radius-full);
-    background: var(--foms-kanban-lav-tint);
-    color: var(--foms-kanban-lav-text);
+    background: var(--foms-color-danger-600);
+    color: var(--foms-text-inverse);
     font-size: var(--foms-font-size-xs);
     font-weight: var(--foms-font-weight-bold);
     white-space: nowrap;
