@@ -35,13 +35,14 @@
    기본값은 legacy 표시 / 칸반 은닉이라 미배선·비코호트 경로는 항상 테이블 fallback.
    ============================================================================ */
 
-/* R7: 확인됨 변경 카드/칩 파스텔 핑크 — foms/erp 팔레트에 핑크 계열 토큰 없음 → kanban 스코프
-   로컬 정의. border=파스텔 핑크, tint=옅은 halo/칩 배경, text=칩 텍스트(AA 대비 통과:
-   #9d174d on #fce4ec ≈ 8:1). 미확인(danger 빨강)·묘비(danger)와 색으로 위계 분리. */
+/* R8: 확인됨 변경 카드/칩 파스텔 라벤더 — foms/erp 팔레트에 보라 계열 토큰 없음 → kanban 스코프
+   로컬 정의. border=파스텔 라벤더, tint=옅은 halo/칩 배경, text=칩 텍스트(AA 대비 통과:
+   #5b21b6 on #f0ebfa ≈ 8:1). 핑크(R7)는 지연 D-day 칩(파스텔 빨강)과 동일 스펙트럼이라 원거리
+   분간 불가 → 라벤더로 교체(빨강·엠버·파랑·그린 기존 신호와 무충돌). 미확인(danger 빨강)·묘비 무변경. */
 :root {
-  --foms-kanban-pink-border: #f8c8d4;
-  --foms-kanban-pink-tint: #fce4ec;
-  --foms-kanban-pink-text: #9d174d;
+  --foms-kanban-lav-border: #d8ccf0;
+  --foms-kanban-lav-tint: #f0ebfa;
+  --foms-kanban-lav-text: #5b21b6;
 }
 
 /* 기본(비코호트·PC·모바일): 칸반 은닉, legacy 큐 표시. */
@@ -613,13 +614,13 @@
     box-shadow: 0 0 0 3px var(--foms-kanban-pulse-halo), var(--foms-shadow-sm);
     animation: foms-kanban-change-pulse 900ms ease-out 3;
   }
-  /* R6/R7 확인됨 변경 카드 상설 테두리 — 이력 보유하나 미확인 아님(is-changed 아님). 원거리
-     식별용 2px 파스텔 핑크 정적 보더 + 아주 옅은 halo(무펄스·무애니메이션). 조용한 칩과 동일 톤.
-     위계: danger 빨강 3px+펄스=미확인 잔존 / 파스텔 핑크 2px 정적=확인됨. data 속성 기반이라
+  /* R6/R8 확인됨 변경 카드 상설 테두리 — 이력 보유하나 미확인 아님(is-changed 아님). 원거리
+     식별용 2px 파스텔 라벤더 정적 보더 + 아주 옅은 halo(무펄스·무애니메이션). 조용한 칩과 동일 톤.
+     위계: danger 빨강 3px+펄스=미확인 잔존 / 파스텔 라벤더 2px 정적=확인됨. data 속성 기반이라
      ack 후 in-place 전환(data-change-history=1 세팅)에도 자동 적용. */
   body.erp-mobile-v2-layout .foms-kanban-card[data-change-history="1"]:not(.is-changed) {
-    border: 2px solid var(--foms-kanban-pink-border);
-    box-shadow: 0 0 0 2px var(--foms-kanban-pink-tint), var(--foms-shadow-sm);
+    border: 2px solid var(--foms-kanban-lav-border);
+    box-shadow: 0 0 0 2px var(--foms-kanban-lav-tint), var(--foms-shadow-sm);
   }
 
   /* 묘비(취소) 카드 — danger 3px+펄스. R7: 미확인 변경(백색 카드+danger 보더)과 위계 충돌 방지 —
@@ -682,16 +683,16 @@
     font-weight: var(--foms-font-weight-bold);
     white-space: nowrap;
   }
-  /* R5/R7 확인 후 상설 "변경됨" 조용한 칩 — 미확인(스트립·펄스) 아닌 이력 카드. 차분한 파스텔
-     핑크 톤(확인됨 보더와 동일 계열), 무펄스·무스트립(뱃지열 소자). __factory 칩과 같은 문법. */
+  /* R5/R8 확인 후 상설 "변경됨" 조용한 칩 — 미확인(스트립·펄스) 아닌 이력 카드. 차분한 파스텔
+     라벤더 톤(확인됨 보더와 동일 계열), 무펄스·무스트립(뱃지열 소자). __factory 칩과 같은 문법. */
   body.erp-mobile-v2-layout .foms-kanban-card__changed-quiet {
     flex: 0 0 auto;
     display: inline-flex;
     align-items: center;
     padding: 2px var(--foms-space-2);
     border-radius: var(--foms-radius-full);
-    background: var(--foms-kanban-pink-tint);
-    color: var(--foms-kanban-pink-text);
+    background: var(--foms-kanban-lav-tint);
+    color: var(--foms-kanban-lav-text);
     font-size: var(--foms-font-size-xs);
     font-weight: var(--foms-font-weight-bold);
     white-space: nowrap;
