@@ -7,8 +7,9 @@ import copy
 import os
 import json
 import logging
+import re
 from flask import Blueprint, request, jsonify, render_template
-from sqlalchemy import or_
+from sqlalchemy import String, or_
 from sqlalchemy.exc import IntegrityError
 from db import get_db
 from models import Order
@@ -1009,15 +1010,82 @@ def api_wdcalculator_save_estimate():
         return jsonify({'success': False, 'message': '요청 처리 중 오류가 발생했습니다.'})
 
 
+def _estimate_search_digits(raw_query: str) -> str:
+    """금액 검색용 숫자만 추출 (쉼표·원·공백 제거).
+
+    Args:
+        raw_query: 사이드바/검색창 원문.
+
+    Returns:
+        숫자만 남긴 문자열. 없으면 빈 문자열.
+    """
+    return re.sub(r'[^\d]', '', raw_query or '')
+
+
+def _build_estimate_multi_field_filter(raw_query: str):
+    """저장된 견적 멀티필드 검색 술어 (고객명·id·금액·제품 요약).
+
+    wire 파라미터명은 하위호환을 위해 ``customer_name``을 유지하되,
+    의미는 사이드바에 보이는 여러 필드를 OR 매칭한다.
+    WDC estimates cold path(limit 50) — 인덱스 없는 JSON path ILIKE 허용.
+
+    Args:
+        raw_query: 검색어 (예: ``김철수``, ``1,417,280``, 제품명 조각).
+
+    Returns:
+        SQLAlchemy ``or_(...)`` 술어. 빈 쿼리면 ``None``.
+    """
+    q = (raw_query or '').strip()
+    if not q:
+        return None
+
+    pattern = f'%{q}%'
+    clauses = [
+        Estimate.customer_name.ilike(pattern),  # perf-ok: bounded wdc estimate search cold path
+        Estimate.id.cast(String).ilike(pattern),  # perf-ok: bounded wdc estimate search cold path
+        Estimate.estimate_data['estimates'].as_string().ilike(pattern),  # perf-ok: bounded wdc estimate search cold path
+        Estimate.estimate_data['items'].as_string().ilike(pattern),  # perf-ok: bounded wdc estimate search cold path
+    ]
+
+    # 금액: 사이드바는 top-level totalPrice 표시. 라인 금액은 estimates[] 안에 있음.
+    # 최소 4자리로 짧은 부분일치 노이즈를 줄인다 (예: 280 ∈ 1417280).
+    digits = _estimate_search_digits(q)
+    if len(digits) >= 4:
+        digit_pattern = f'%{digits}%'
+        exact_price_fields = (
+            Estimate.estimate_data['totalPrice'].as_string(),
+            Estimate.estimate_data['finalPrice'].as_string(),
+        )
+        blob_price_fields = (
+            Estimate.estimate_data['estimates'].as_string(),
+            Estimate.estimate_data['items'].as_string(),
+        )
+        for field in exact_price_fields:
+            clauses.append(field == digits)  # perf-ok: bounded wdc estimate search cold path
+            clauses.append(field.ilike(digit_pattern))  # perf-ok: bounded wdc estimate search cold path
+        for field in blob_price_fields:
+            clauses.append(field.ilike(digit_pattern))  # perf-ok: bounded wdc estimate search cold path
+
+    if q.isdigit():
+        try:
+            clauses.append(Estimate.id == int(q))
+        except ValueError:
+            pass
+
+    return or_(*clauses)
+
+
 @wdcalculator_bp.route('/api/wdcalculator/search-estimates', methods=['GET'])
 @login_required
 def api_wdcalculator_search_estimates():
     try:
-        customer_name = (request.args.get('customer_name') or '').strip()
+        # 하위호환: customer_name = 멀티필드 q (고객명·금액·제품·id)
+        search_q = (request.args.get('customer_name') or request.args.get('q') or '').strip()
         db = get_wdcalculator_db()
         query = db.query(Estimate)
-        if customer_name:
-            query = query.filter(Estimate.customer_name.ilike(f'%{customer_name}%'))  # perf-ok: bounded wdc estimate search cold path
+        predicate = _build_estimate_multi_field_filter(search_q)
+        if predicate is not None:
+            query = query.filter(predicate)
         estimates = query.order_by(Estimate.created_at.desc()).limit(50).all()
         return jsonify({'success': True, 'estimates': [e.to_dict() for e in estimates], 'count': len(estimates)})
     except Exception:
