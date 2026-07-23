@@ -6,6 +6,7 @@ erp.py에서 분리: /erp/production/dashboard
 from __future__ import annotations
 
 import datetime
+import logging
 import time
 from typing import Any
 
@@ -30,6 +31,7 @@ from foms.services.production_read_model import (
     fetch_production_attachment_counts,
     paginate_production_rows,
     PRODUCTION_DASHBOARD_PAGE_SIZE,
+    PRODUCTION_KANBAN_MAX_ROWS,
 )
 from foms.services.production_dashboard_display import (
     build_production_enriched_rows,
@@ -70,6 +72,8 @@ from foms.services.common.erp_shell_http import apply_erp_shell_fragment_headers
 erp_production_page_bp = Blueprint(
     'erp_production_page', __name__, url_prefix='/erp'
 )
+
+logger = logging.getLogger(__name__)
 
 
 TEAM_LABELS = {
@@ -125,11 +129,31 @@ def erp_production_dashboard():
         Order.created_at.desc(),
     )
 
-    page, total_pages, page_rows = paginate_production_rows(
-        _q, _pf.page, total_orders
-    )
+    # 태블릿 칸반은 페이지 윈도가 아니라 정렬된 전량(캡 PRODUCTION_KANBAN_MAX_ROWS)을 렌더한다.
+    # R1 시공일 정렬 도입 후 시공일 변경으로 rank>page_size 가 된 카드가 page1 윈도에서
+    # 사라지는 회귀(스테이징 실증)를 막는다. PC 리스트(orders)는 기존 페이지네이션 유지.
+    page = _pf.page or 1
+    if page < 1:
+        page = 1
+    per_page = PRODUCTION_DASHBOARD_PAGE_SIZE
+    total_pages = (total_orders + per_page - 1) // per_page
+    offset = (page - 1) * per_page
 
-    # 검색 카드 딥링크(?focus_order=)는 단계 버킷·페이지네이션과 무관하게 착지해야 한다.
+    kanban_rows = _q.limit(PRODUCTION_KANBAN_MAX_ROWS).all()
+    kanban_capped = total_orders > PRODUCTION_KANBAN_MAX_ROWS
+    if kanban_capped:
+        # silent 축소 금지 — 캡 발동을 로그로 남긴다.
+        logger.warning(
+            "[production] 칸반 캡 발동: total=%s > cap=%s — 정렬 상위 %s건만 렌더",
+            total_orders, PRODUCTION_KANBAN_MAX_ROWS, PRODUCTION_KANBAN_MAX_ROWS,
+        )
+        # 캡 밖 페이지도 정확히 착지해야 하므로 page rows 는 별도 조회(기존 방식).
+        _, _, page_rows = paginate_production_rows(_q, _pf.page, total_orders)
+    else:
+        # page rows 는 전량 셋의 슬라이스 — 이중 조회/이중 enrichment 회피.
+        page_rows = kanban_rows[offset:offset + per_page]
+
+    # 검색 카드 딥링크(?focus_order=)는 단계 버킷·페이지네이션과 무관하게 착지해야 한다(PC 리스트).
     # orders/construction/measurement 대시보드와 동일한 deep-link SSOT.
     focus_order_id = _pf.focus_order_id
     if focus_order_id and focus_order_id not in {o.id for o in page_rows}:
@@ -144,19 +168,22 @@ def erp_production_dashboard():
         ):
             page_rows = [focus_order] + page_rows
 
+    # 칸반(전량) ∪ page(캡 밖·비생산 focus 포함)을 한 번만 enrich·조회한다(N+1·이중 enrichment 금지).
+    _kanban_ids = {o.id for o in kanban_rows}
+    _all_rows = kanban_rows + [o for o in page_rows if o.id not in _kanban_ids]
+
     _att_fp = {
         "v": KEY_VERSION,
         "uid": user.id if user else None,
         "mine": bool(erp_mine_only),
         "stage": f_stage or "",
         "q": f_q or "",
-        "page": page,
-        "ids": sorted(o.id for o in page_rows),
+        "ids": sorted(o.id for o in _all_rows),
     }
     _att_key = build_dashboard_cache_key("production", "attachment_counts", _att_fp)
 
     def _compute_att() -> dict[str, int]:
-        raw = fetch_production_attachment_counts(db, page_rows)
+        raw = fetch_production_attachment_counts(db, _all_rows)
         return {str(k): int(v) for k, v in raw.items()}
 
     _att_blob = get_or_compute_dashboard_slice(
@@ -167,22 +194,13 @@ def erp_production_dashboard():
         slice_name="attachment_counts",
     )
     att_counts = {int(k): int(v) for k, v in (_att_blob or {}).items()}
-    enriched = build_production_enriched_rows(page_rows, att_counts)
-    # 모바일 v2 큐 카드 썸네일: 페이지 주문 첨부 미리보기 URL 일괄 해소
-    from foms.services.erp_mobile_order_display import batch_resolve_queue_attachment_preview_items
-    _queue_preview_items = batch_resolve_queue_attachment_preview_items(
-        db, [r["id"] for r in enriched]
-    )
-    # 변경 감지(시공일 변경·도면 재전달/수정요청): 배치 1쿼리(N+1 금지). 지방 뱃지는 이미
-    # 로드된 page_rows 의 flat 컬럼에서 파생.
-    _orders_by_id = {o.id: o for o in page_rows}
-    _alerts_by_id = collect_production_change_alerts(db, page_rows, user.id if user else None)
-    for _r in enriched:
-        items = _queue_preview_items.get(_r["id"], [])
-        _r["attachment_preview_items"] = items
-        _r["attachment_previews"] = [item["view"] for item in items if item.get("view")]
-        # 태블릿 칸반 카드 총 자수(W/300): 사이드 시트와 동일 SSOT(_prod_sheet_total_units)를
-        # 재사용 — 신규 쿼리 없이 이미 로드된 structured_data.items 에서만 파생(카드 표시용).
+
+    # 변경 감지·지방 뱃지·자수는 칸반이 소비하는 전량 셋 기준(모달·칩 카운트가 보드와 일치).
+    _enriched_all = build_production_enriched_rows(_all_rows, att_counts)
+    _orders_by_id = {o.id: o for o in _all_rows}
+    _alerts_by_id = collect_production_change_alerts(db, _all_rows, user.id if user else None)
+    for _r in _enriched_all:
+        # 태블릿 칸반 카드 총 자수(W/300): 사이드 시트와 동일 SSOT(_prod_sheet_total_units) 재사용.
         _card_sd = _r.get("structured_data") or {}
         _card_items = _card_sd.get("items")
         _r["units_display"] = _prod_sheet_total_units(
@@ -194,12 +212,28 @@ def erp_production_dashboard():
         _r["has_changes"] = bool(_rc["alerts"])
         _r["change_history"] = _rc["history"]      # 진입 이후 전체(확인 후에도 남는 상설 이력)
         _r["has_change_history"] = bool(_rc["history"])
-    # 취소 묘비(최근 14일, 생산 파이프라인, 미확인)와 변경 카운트(변경 행 수 + 묘비 수).
+    _by_eid = {_r["id"]: _r for _r in _enriched_all}
+
+    kanban_enriched = [_by_eid[o.id] for o in kanban_rows if o.id in _by_eid]
+    enriched = [_by_eid[o.id] for o in page_rows if o.id in _by_eid]  # PC 리스트(페이지 윈도)
+
+    # 첨부 preview 배치는 page rows(PC 리스트)에만 — 칸반 카드는 previews 미사용(attachments_count만),
+    # 전량(최대 300) preview 해소는 낭비.
+    from foms.services.erp_mobile_order_display import batch_resolve_queue_attachment_preview_items
+    _queue_preview_items = batch_resolve_queue_attachment_preview_items(
+        db, [r["id"] for r in enriched]
+    )
+    for _r in enriched:
+        items = _queue_preview_items.get(_r["id"], [])
+        _r["attachment_preview_items"] = items
+        _r["attachment_previews"] = [item["view"] for item in items if item.get("view")]
+
+    # 취소 묘비와 변경 카운트는 칸반(보드 전체) 기준 — 모달·칩 카운트가 보드와 일치.
     tombstones = collect_production_tombstones(db, user, erp_mine_only)
-    changed_count = sum(1 for _r in enriched if _r.get("has_changes")) + len(tombstones)
+    changed_count = sum(1 for _r in kanban_enriched if _r.get("has_changes")) + len(tombstones)
     process_steps = build_production_process_steps(step_stats)
-    # 태블릿 칸반 상단 KPI 4종: 칸반이 소비하는 동일 `enriched` 행에서만 파생(신규 쿼리 없음).
-    tablet_prod_kpis = _compute_tablet_prod_kpis(enriched)
+    # 태블릿 칸반 상단 KPI 4종: 칸반이 소비하는 전량 셋 기준(신규 쿼리 없음).
+    tablet_prod_kpis = _compute_tablet_prod_kpis(kanban_enriched)
     # detail_payload eager 조립 제거: 템플릿 preload가 lazy fetch(/api/orders/<id>/
     # detail-payload)로 전환되어 이 서버측 계산은 미사용이었다(매 요청 N행 낭비).
 
@@ -213,6 +247,8 @@ def erp_production_dashboard():
         render_template(
             template_name,
             orders=enriched,
+            kanban_orders=kanban_enriched,
+            kanban_capped=kanban_capped,
             kpis=kpis,
             process_steps=process_steps,
             step_stats=step_stats,

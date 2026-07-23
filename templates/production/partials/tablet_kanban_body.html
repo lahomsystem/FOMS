@@ -19,10 +19,13 @@
    HMI 색 규율: 카드/열 = 무채색. 시공 D-day 칩만 임박(D-2 이내)/지연 시 유채색.
    표시/은닉·배타는 foms-tablet-production-kanban.css 소유(코호트 게이트).
    ============================================================================ #}
+{# 칸반은 페이지 행(orders, PC 리스트 페이지네이션 대상)이 아니라 전량 셋(kanban_orders)을 소비한다.
+   백엔드 병렬 공급 — 미도착 시 orders 로 폴백(|default). 열 카운트·빈 열 판정도 이 데이터원을 따른다. #}
+{% set _korders = kanban_orders | default(orders, true) %}
 {% set _kanban_columns = [
-  {'bucket': '제작대기', 'rows': orders | selectattr('stage', 'equalto', '제작대기') | list, 'move': 'start', 'move_label': '제작 시작', 'move_icon': 'fa-play'},
-  {'bucket': '제작중', 'rows': orders | selectattr('stage', 'equalto', '제작중') | list, 'move': 'complete', 'move_label': '제작 완료', 'move_icon': 'fa-check'},
-  {'bucket': '제작완료', 'rows': orders | selectattr('stage', 'equalto', '제작완료') | list, 'move': none, 'move_label': none, 'move_icon': none}
+  {'bucket': '제작대기', 'rows': _korders | selectattr('stage', 'equalto', '제작대기') | list, 'move': 'start', 'move_label': '제작 시작', 'move_icon': 'fa-play'},
+  {'bucket': '제작중', 'rows': _korders | selectattr('stage', 'equalto', '제작중') | list, 'move': 'complete', 'move_label': '제작 완료', 'move_icon': 'fa-check'},
+  {'bucket': '제작완료', 'rows': _korders | selectattr('stage', 'equalto', '제작완료') | list, 'move': none, 'move_label': none, 'move_icon': none}
 ] %}
 {% set _kpi = tablet_prod_kpis or {} %}
 {# 보드 래퍼: KPI·필터·칸반을 동일 코호트 게이트로 원자적 노출(표시/은닉은
@@ -103,6 +106,14 @@
     </button>
     <button type="button" data-tablet-prod-reset>초기화</button>
   </div>
+
+  {# 표시 상한 공지 — 전량 셋이 상한(300건)을 넘으면 잘렸음을 무채 1줄로 알림(검색 유도). #}
+  {% if kanban_capped | default(false) %}
+  <p class="tablet-prod-cap-note" role="status">
+    <i class="fas fa-circle-info" aria-hidden="true"></i>
+    표시 상한(300건) 초과 — 검색으로 조회하세요
+  </p>
+  {% endif %}
 
   <section class="foms-kanban" aria-label="생산 칸반 보드">
   {% for col in _kanban_columns %}
@@ -281,7 +292,8 @@
         <span class="foms-prod-change-modal__count">{{ changed_count | default(0, true) }}건</span>
       </div>
       <ul class="foms-prod-change-modal__list">
-        {% for o in orders | selectattr('has_changes') | list %}
+        {# 모달 목록도 칸반과 동일 전량 셋(_korders) — 오프-페이지 변경 건 누락 방지, changed_count와 정합. #}
+        {% for o in _korders | selectattr('has_changes') | list %}
         <li class="foms-prod-change-modal__item" data-order-id="{{ o.id }}">
           <div class="foms-prod-change-modal__item-body">
             <div class="foms-prod-change-modal__item-head">

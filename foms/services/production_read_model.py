@@ -18,6 +18,9 @@ from models import Order
 from foms.services.erp_display import _ensure_dict, _erp_alerts, _erp_get_stage
 
 PRODUCTION_DASHBOARD_PAGE_SIZE = 50
+# 태블릿 칸반은 페이지 윈도가 아닌 정렬 전량을 렌더한다(시공일 변경 카드 소실 회귀 방지).
+# 이 캡을 넘으면 상위 N건만 렌더하고 kanban_capped 로 노출(silent 축소 금지).
+PRODUCTION_KANBAN_MAX_ROWS = 300
 
 
 def build_production_orders_query(

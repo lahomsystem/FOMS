@@ -250,6 +250,17 @@
     font-weight: var(--foms-font-weight-bold);
     cursor: pointer;
   }
+  /* 표시 상한 공지 — 무채 1줄(필터바 아래). 전량 셋이 300건 상한 초과 시 검색 유도. */
+  body.erp-mobile-v2-layout .tablet-prod-cap-note {
+    flex: none;
+    margin: 0;
+    display: flex;
+    align-items: center;
+    gap: var(--foms-space-2);
+    padding: 0 var(--foms-space-4) var(--foms-space-2);
+    color: var(--foms-text-tertiary);
+    font-size: var(--foms-font-size-sm);
+  }
   /* 칸반이 보드의 남는 세로 높이 전부를 차지(flex:1). align-items:stretch 로 3열을
      같은 높이로 늘려(가장 긴 열 기준) 각 열이 남는 높이를 채운다. */
   body.erp-mobile-v2-layout .foms-kanban {

@@ -196,3 +196,22 @@ def test_domain_sheets_js_quiet_transition_and_filter_or() -> None:
     assert "injectQuietBadge" in js
     assert 'setAttribute("data-change-history", "1")' in js  # 조용한 상태 전환
     assert 'getAttribute("data-change-history") === "1"' in js  # 필터 OR 조건
+
+
+# --- (7) 칸반 전량 셋 소비 + 표시 상한 공지 (회귀 수정) ------------------------
+
+
+def test_kanban_body_consumes_full_set_not_page_rows() -> None:
+    """칸반 열 그룹핑은 페이지 행(orders)이 아니라 전량 셋(kanban_orders)을 소비한다 —
+    미도착 시 orders 로 폴백(|default). selectattr 버킷 그룹핑은 그 데이터원을 따른다."""
+    body = _read(KANBAN_BODY)
+    assert "kanban_orders | default(orders, true)" in body
+    assert "_korders | selectattr('stage', 'equalto', '제작대기')" in body
+
+
+def test_kanban_body_cap_notice_gated() -> None:
+    """전량 셋이 표시 상한 초과(kanban_capped) 시 무채 1줄 공지(검색 유도)."""
+    body = _read(KANBAN_BODY)
+    assert "kanban_capped | default(false)" in body
+    assert "tablet-prod-cap-note" in body
+    assert "표시 상한" in body
