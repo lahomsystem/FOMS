@@ -2382,9 +2382,19 @@
       "write_guard": false,
       "postgres": false
     },
-    "commands": [],
-    "existing_regressions": [],
-    "created_tests": [],
+    "commands": [
+      "python -m pytest tests/domains/test_sw_pii_cache.py tests/domains/test_sw_push_contract.py -q"
+    ],
+    "existing_regressions": [
+      "tests/domains/test_sw_push_contract.py",
+      "tests/domains/test_erp_runtime_shell_js_contract.py"
+    ],
+    "created_tests": [
+      {
+        "path": "tests/domains/test_sw_pii_cache.py",
+        "owner_packet": "SW-01"
+      }
+    ],
     "browser_scenarios": [],
     "deploy_check_ids": [],
     "deployment_evidence_mode": "PROVIDER_BOOTSTRAP"

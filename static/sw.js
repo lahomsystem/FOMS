@@ -15,7 +15,16 @@
    구 foms-p2-* 정적 캐시(오염된 tablet-measurement.js?v=20260714a 포함)를 전량 purge 해
    다음 로드에서 최신본을 강제 미스→네트워크 취득하게 한다. 재발 방지는 "파일 내용 변경 시
    ?v 반드시 bump"(SW 신선도 계약) — 본 배포는 폼 전면 재작성으로 관련 ?v 가 함께 bump 된다. */
-var CACHE_VERSION = "foms-p2-v9";
+/* v10: SW-01 PII 캐시 봉쇄 + subject purge. (1) network-first API 응답은 서버가
+   Cache-Control:no-store 를 실었으면(고객명/전화/주소 등 PII) CacheStorage 에 저장하지
+   않는다(responseForbidsStore 게이트). (2) 로그인 사용자(subject) 변경/logout 시 페이지가
+   postMessage 로 통지하면 -api 캐시를 purge 해 공유 기기에서 이전 사용자 PII 잔존을 0 으로
+   만든다. (3) network-first 는 cold miss(캐시 없음)에서도 timeout 후 합성 offline 응답으로
+   반드시 settle 해 respondWith 무한 미해결(G3 무한 스피너)을 봉합한다. CACHE_VERSION bump 은
+   activate 시 구 foms-p2-v9-api(=이전 PII 스냅샷) 캐시를 전량 purge 한다. offline mutation
+   은 계속 OFF(쓰기 큐 미도입). rollback: CACHE_VERSION 을 "foms-p2-v9" 로 되돌리고 본 커밋
+   revert. */
+var CACHE_VERSION = "foms-p2-v10";
 var STATIC_CACHE = CACHE_VERSION + "-static";
 var API_CACHE = CACHE_VERSION + "-api";
 
@@ -202,23 +211,52 @@ function staticCacheFirst(request, cacheName) {
 // 다음 로드는 최신본을 받는다(신선도 유지). 0/음수면 타임아웃 비활성.
 var NETWORK_FIRST_TIMEOUT_MS = 3000;
 
+// PII 봉쇄 게이트: 서버가 Cache-Control:no-store 를 실은 응답(고객명/전화/주소 등 PII 를
+// 담는 API)은 CacheStorage 에 절대 저장하지 않는다. 표준 헤더라 no-store 를 다는 어떤
+// same-origin API 든 자동으로 커버된다(엔드포인트별 하드코딩 불필요). 응답이 없거나 헤더가
+// 없으면 보수적으로 '저장 금지'로 본다(fail-closed).
+function responseForbidsStore(response) {
+  if (!response) return true;
+  var cc = response.headers ? response.headers.get("cache-control") : null;
+  return !!cc && /no-store/i.test(cc);
+}
+
+// respondWith 가 절대 undefined/미해결로 남지 않도록 하는 최종 합성 응답. cold miss(캐시
+// 없음)에서 네트워크가 지연/행(hang)될 때 timeout 이 이 응답으로 settle 해 무한 스피너를
+// 원천 차단한다(G3). 503 이므로 캐시에 저장되지 않는다.
+function offlineFallbackResponse() {
+  return new Response(
+    JSON.stringify({ success: false, error: "offline", data: [] }),
+    { status: 503, headers: { "Content-Type": "application/json" } }
+  );
+}
+
+// network-first API 계약:
+//  · 성공(ok) 이고 저장 허용(no-store 아님)일 때만 CacheStorage 에 저장(PII 봉쇄).
+//  · 네트워크가 NETWORK_FIRST_TIMEOUT_MS 를 넘기면 캐시본으로 폴백. 캐시본이 없으면
+//    (cold miss) 합성 offline 응답으로 settle — respondWith 가 미해결로 남지 않는다
+//    (cold miss ≤ timeout, G3 무한 스피너 봉합). 구 코드는 timeout 이 `if(cached)` 일
+//    때만 settle 해 cold miss + 행 네트워크에서 respondWith 가 영원히 미해결이었다.
+//  · 어떤 경로도 undefined 로 resolve 하지 않는다.
 function networkFirstQueue(request) {
   var networkPromise = fetch(request)
     .then(function (response) {
-      if (response && response.ok) {
+      if (response && response.ok && !responseForbidsStore(response)) {
         return caches.open(API_CACHE).then(function (cache) {
           cache.put(request, response.clone());
           return response;
         });
       }
-      return response;
+      return response; // no-store 이거나 에러 응답: 저장하지 않고 그대로 전달.
     })
     .catch(function () {
-      return caches.match(request);
+      return caches.match(request); // 네트워크 실패: 캐시 폴백(없으면 undefined).
     });
 
   if (!(NETWORK_FIRST_TIMEOUT_MS > 0)) {
-    return networkPromise;
+    return networkPromise.then(function (resp) {
+      return resp || offlineFallbackResponse();
+    });
   }
 
   return new Promise(function (resolve) {
@@ -226,11 +264,12 @@ function networkFirstQueue(request) {
     function settle(resp) {
       if (settled) return;
       settled = true;
-      resolve(resp);
+      resolve(resp || offlineFallbackResponse());
     }
     var timer = setTimeout(function () {
+      // 캐시본 있으면 즉시 폴백; cold miss 면 settle(undefined)→합성 응답으로 마감.
       caches.match(request).then(function (cached) {
-        if (cached) settle(cached);
+        settle(cached);
       });
     }, NETWORK_FIRST_TIMEOUT_MS);
     networkPromise.then(function (resp) {
@@ -239,6 +278,46 @@ function networkFirstQueue(request) {
     });
   });
 }
+
+/* ===========================================================================
+ * Subject(로그인 사용자) 변경 시 API 캐시 purge — 공유 기기에서 이전 사용자의 캐시
+ * 데이터가 다음 사용자에게 노출되지 않게 한다. PII API 는 no-store 로 애초에 캐시되지
+ * 않지만(1차 방어), 이 purge 는 캐시명 잔존·향후 비-PII 캐시까지 훑어 지우는 2차 방어다.
+ * 페이지(sync.js)가 로드 시 현재 subject 를, 로그아웃 시 purge 를 postMessage 한다.
+ * =========================================================================== */
+var _currentSubject; // SW 수명 내 마지막으로 관측한 subject(재시작 시 undefined).
+
+function purgeApiCaches() {
+  return caches.keys().then(function (keys) {
+    return Promise.all(
+      keys
+        .filter(function (key) {
+          return /-api$/.test(key); // -api 로 끝나는 캐시만(정적 캐시는 보존).
+        })
+        .map(function (key) {
+          return caches.delete(key);
+        })
+    );
+  });
+}
+
+self.addEventListener("message", function (event) {
+  var data = (event && event.data) || {};
+  if (data.type === "foms-purge-api-cache") {
+    event.waitUntil(purgeApiCaches());
+    return;
+  }
+  if (data.type === "foms-subject") {
+    var subject = data.subject == null ? "" : String(data.subject);
+    // 첫 관측(SW 재시작 직후 _currentSubject === undefined)은 purge 하지 않는다
+    // (no-store 가 PII 를 이미 봉쇄). 관측된 subject 가 바뀌면(전환/재로그인/로그아웃)
+    // 이전 사용자 캐시를 purge 한다.
+    if (_currentSubject !== undefined && _currentSubject !== subject) {
+      event.waitUntil(purgeApiCaches());
+    }
+    _currentSubject = subject;
+  }
+});
 
 /* ===========================================================================
  * Web Push (Phase 3B) — push 수신 → 알림 표시, 클릭/닫힘 처리.

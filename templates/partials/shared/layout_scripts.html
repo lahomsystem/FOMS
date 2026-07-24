@@ -63,9 +63,13 @@
 <script src="{{ url_for('static', filename='js/foms/notification-write.js') }}?v=20260704a" defer></script>
 <script src="{{ url_for('static', filename='js/foms/visual-viewport.js') }}?v=20260529c" defer></script>
 <script src="{{ url_for('static', filename='js/foms/theme.js') }}?v=20260626d" defer></script>
+{# SW subject 통지용 구성: 현재 로그인 사용자 id 를 sync.js 가 읽어 SW 에 postMessage 한다
+   → SW 가 subject 변경(전환/재로그인/로그아웃) 시 API 캐시를 purge(공유 기기 PII 잔존 0).
+   비로그인=빈 값. #}
+<div id="foms-sw-config" data-foms-subject="{{ current_user.id if current_user else '' }}" hidden></div>
 {# SW 등록 SSOT(window.fomsRegisterServiceWorker) — a2hs-prompt / mobile-push 가 경유하므로
    그 스크립트들보다 먼저 전역 로드한다(defer 실행 순서로 helper 선정의 보장). #}
-<script src="{{ url_for('static', filename='js/foms/sync.js') }}?v=20260704b" defer></script>
+<script src="{{ url_for('static', filename='js/foms/sync.js') }}?v=20260724a" defer></script>
 {# 알림 센터 SSOT: PC topnav·모바일 셸·태블릿 레일 공통 시트 + defer JS (layout 1회 include). #}
 {% if current_user %}
 {% include 'partials/shared/erp_mobile_notification_panel.html' %}

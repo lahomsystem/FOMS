@@ -133,6 +133,28 @@
   if (window.__FOMS_SYNC_BOUND) return;
   window.__FOMS_SYNC_BOUND = true;
 
+  // Subject(로그인 사용자) 통지 — SW 가 subject 변경 시 API 캐시를 purge 한다(공유 기기에서
+  // 이전 사용자 PII 잔존 0). subject 는 layout 이 노출한 #foms-sw-config[data-foms-subject]
+  // 에서 읽는다. controller/구성 미노출 페이지에서는 no-op(구성 없으면 거짓 purge 방지 위해
+  // 전송 생략). 로그인→다른 사용자 로그인 전이는 subject 변화로 SW 가 감지한다.
+  function fomsPostSubjectToSw() {
+    if (!("serviceWorker" in navigator)) return;
+    var cfg = document.getElementById("foms-sw-config");
+    if (!cfg) return;
+    var controller = navigator.serviceWorker.controller;
+    if (!controller) return;
+    controller.postMessage({
+      type: "foms-subject",
+      subject: cfg.getAttribute("data-foms-subject") || "",
+    });
+  }
+
+  document.addEventListener("DOMContentLoaded", fomsPostSubjectToSw);
+  if ("serviceWorker" in navigator) {
+    // 새 SW 가 제어권을 잡는 순간(controller null→활성)에도 subject 를 재통지한다.
+    navigator.serviceWorker.addEventListener("controllerchange", fomsPostSubjectToSw);
+  }
+
   window.addEventListener("online", function () {
     flushQueue().then(function (count) {
       if (count && window.fomsShowToast) {
