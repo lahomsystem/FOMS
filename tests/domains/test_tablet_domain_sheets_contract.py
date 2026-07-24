@@ -30,7 +30,7 @@ SHIPMENT_DASHBOARD_SCRIPTS = "templates/shipment/partials/dashboard_scripts.html
 CORE_MEDIA_QUERY = (
     "(min-width: 992px) and (orientation: landscape) and (pointer: coarse)"
 )
-SCRIPT_CACHEBUSTER = "?v=20260724h"
+SCRIPT_CACHEBUSTER = "?v=20260724i"
 
 
 def _read(rel: str) -> str:
@@ -290,3 +290,28 @@ def test_domain_sheets_js_wires_filter_collapse_toggle() -> None:
     assert "data-tablet-prod-filter-toggle" in js  # 토글 위임 셀렉터
     assert "aria-expanded" in js  # 접이 상태 a11y 동기화
     assert "restoreFilterCollapse" in js  # 부트/스왑 복원
+
+
+# --- (10) F-2 라벨 인쇄 제거 + F-3 전체화면 토글 -------------------------------
+
+
+def test_kanban_body_has_fullscreen_toggle_and_exit_markup() -> None:
+    """F-3: 필터 바 전체화면 진입 버튼 + board 우상단 플로팅 복원 버튼(기본 hidden).
+    진입=fa-expand, 복원=fa-compress. 고유 클래스/data 속성으로 잠근다."""
+    body = _read(KANBAN_BODY)
+    assert "data-tablet-prod-fullscreen" in body  # 진입 토글 위임 속성
+    assert "data-tablet-prod-fullscreen-exit" in body  # 플로팅 복원 버튼(고유)
+    assert "tablet-prod-fullscreen-btn" in body  # 필터 바 진입 버튼 클래스(고유)
+    assert "fa-expand" in body
+    assert "fa-compress" in body
+
+
+def test_domain_sheets_js_wires_fullscreen_toggle() -> None:
+    """F-3: 전체화면 토글 배선 — localStorage 키 + 진입/복원 위임 셀렉터 + is-fullscreen 클래스
+    토글(board DOM 상태로 플립) + fragment 스왑 복원."""
+    js = _read(DOMAIN_SHEETS_JS)
+    assert "foms_tablet_prod_fullscreen" in js  # 상태 기억 키
+    assert "data-tablet-prod-fullscreen" in js  # 진입 위임 셀렉터
+    assert "data-tablet-prod-fullscreen-exit" in js  # 복원 위임 셀렉터
+    assert "is-fullscreen" in js  # board 클래스 토글
+    assert "restoreFullscreen" in js  # 부트/스왑 복원

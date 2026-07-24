@@ -32,12 +32,17 @@
    foms-tablet-production-kanban.css 소유 — 기본 none, 태블릿 가로 코호트에서만 block).
    모바일 v2 셸/PC 로의 누출을 이 한 게이트로 차단한다. #}
 <div class="tablet-prod-board">
-  {# ── 통합 상단 바(D-b): pcbar 타이틀·서브 + KPI 5타일 스트립 + 라벨 인쇄를 한 flex 행으로
-     통합해 고정 크롬 높이를 줄인다(233→~110px). 구성 = [타이틀블록][KPI grid flex:1][라벨 인쇄],
-     flex-wrap 폴백(극단 좁폭 안전 degrade). 기본 은닉(.tablet-prod-board 자체가 base display:none)
-     이며 코호트 가로에서만 노출. 카운트는 신규 쿼리 없이 기존 컨텍스트(total_orders /
-     tablet_prod_kpis.today_line) 재소비. 라벨 인쇄: 전역(다건) 라벨 라우트가 없어(주문별
-     /orders/<id>/label 만 존재) disabled 렌더. #}
+  {# F-3 전체화면 복원 — 전체화면 진입 시에만 표시(board.is-fullscreen 스코프 CSS). 기본 hidden.
+     board 우상단 고정, 무채 HMI 48px 터치타깃. 진입 토글과 동일 핸들러(현재 DOM 상태로 플립). #}
+  <button type="button" data-tablet-prod-fullscreen-exit class="tablet-prod-fullscreen-exit"
+          aria-label="전체화면 종료" hidden>
+    <i class="fas fa-compress" aria-hidden="true"></i>
+  </button>
+  {# ── 통합 상단 바(D-b): pcbar 타이틀·서브 + KPI 5타일 스트립을 한 flex 행으로 통합해 고정
+     크롬 높이를 줄인다. 구성 = [타이틀블록][KPI grid flex:1] 2요소(F-2: 미구현 인쇄 버튼 제거로
+     1줄 안정). flex-wrap 폴백(극단 좁폭 안전 degrade). 기본 은닉(.tablet-prod-board 자체가 base
+     display:none)이며 코호트 가로에서만 노출. 카운트는 신규 쿼리 없이 기존 컨텍스트
+     (total_orders / tablet_prod_kpis.today_line) 재소비. #}
   <div class="foms-prod-pcbar">
     <div class="foms-prod-pcbar__lead">
       <h2 class="foms-prod-pcbar__title">생산 보드</h2>
@@ -85,13 +90,6 @@
       </div>
     </div>
   </div>
-    {# 라벨 인쇄: 전역(다건) 라벨 라우트 미구현(주문별 /orders/<id>/label 만) → disabled. 좁을 땐 아이콘-only. #}
-    <div class="foms-prod-pcbar__actions">
-      <button type="button" class="foms-prod-pcbar__label" disabled
-              title="전역 라벨 인쇄 라우트 미구현 — 주문별 라벨(/orders/&lt;id&gt;/label)만 존재">
-        <i class="fas fa-tag" aria-hidden="true"></i><span>라벨 인쇄</span>
-      </button>
-    </div>
   </div>
 
   {# ── 클라이언트 필터 바(D-c): 검색 input 상시 노출 + [필터] 토글. 상태·공장·변경·초기화는
@@ -128,6 +126,12 @@
       </button>
       <button type="button" data-tablet-prod-reset>초기화</button>
     </div>
+    {# F-3 전체화면 진입 — 상단 크롬(통합 바+필터)을 접어 칸반을 최대화. 검색·[필터]와 같은 상시
+       노출 컨트롤(접이 영역 밖). 진입 시 이 바가 CSS 로 은닉되고 board 우상단 복원 버튼이 뜬다. #}
+    <button type="button" data-tablet-prod-fullscreen class="tablet-prod-fullscreen-btn" aria-pressed="false">
+      <i class="fas fa-expand" aria-hidden="true"></i>
+      <span>전체화면</span>
+    </button>
   </div>
 
   {# 표시 상한 공지 — 전량 셋이 상한(300건)을 넘으면 잘렸음을 무채 1줄로 알림(검색 유도). #}
@@ -401,4 +405,4 @@
   </div>
   {% endif %}
 </div>
-<script src="{{ url_for('static', filename='js/foms/tablet-domain-sheets.js') }}?v=20260724h" defer></script>
+<script src="{{ url_for('static', filename='js/foms/tablet-domain-sheets.js') }}?v=20260724i" defer></script>

@@ -1052,3 +1052,146 @@ def test_pc_grid_completed_rework_history_badge(app):
     )
     html = _render_grid(app, [row])
     assert "재제작 2회" in html
+
+
+# --- 제작 취소 깨끗한 되돌림 (F-1) --------------------------------------------
+
+
+def test_quest_state_true_when_production_history_present():
+    """F-1a: 제작대기 stage 라도 workflow.history 에 PRODUCTION 기록이 있으면
+    is_sales_approved=True (제작 이력 = 컨펌·제작된 건 → 재시작 허용, 승인 퀘스트 없어도)."""
+    from foms.services.production_dashboard_display import _production_quest_sales_state
+
+    sd = {
+        "workflow": {"history": [{"stage": "PRODUCTION"}, {"stage": "CONFIRM"}]},
+        "quests": [],  # 승인 퀘스트 없음 — 이력 없었다면 False 였을 상태.
+    }
+    approved, quest = _production_quest_sales_state(sd, "제작대기")
+    assert approved is True
+    assert quest is None
+
+
+def test_quest_state_true_with_legacy_korean_production_history():
+    """F-1a: 레거시 한글 stage('생산') 이력도 제작 이력으로 인정."""
+    from foms.services.production_dashboard_display import _production_quest_sales_state
+
+    sd = {"workflow": {"history": [{"stage": "생산"}]}, "quests": []}
+    approved, _ = _production_quest_sales_state(sd, "제작대기")
+    assert approved is True
+
+
+def test_quest_state_false_for_new_unapproved_without_production_history():
+    """F-1a: 신규 미승인 건(history 무 PRODUCTION)은 여전히 False(고객 컨펌 전 유지)."""
+    from foms.services.production_dashboard_display import _production_quest_sales_state
+
+    sd = {"workflow": {"history": [{"stage": "CONFIRM"}]}, "quests": []}
+    approved, _ = _production_quest_sales_state(sd, "제작대기")
+    assert approved is False
+
+
+def test_cancel_then_restart_available_via_production_history(client):
+    """F-1a+b 통합: 미승인 CONFIRM 건도 제작 시작(history PRODUCTION 기록) 후 취소하면,
+    제작대기 복귀에도 is_sales_approved=True (재시작 버튼) — '고객 컨펌 전' 미표시."""
+    from foms.services.production_dashboard_display import build_production_enriched_rows
+
+    _login(client, _make_user("guard_f1"))
+    order_id = _make_order("CONFIRM").id
+
+    # 제작 시작(history 에 PRODUCTION append) → 취소(제작대기 복귀)
+    assert client.post(f"/api/orders/{order_id}/production/start", json={}).status_code == 200
+    assert client.post(f"/api/orders/{order_id}/production/cancel", json={}).status_code == 200
+
+    db_session.expire_all()
+    saved = db_session.get(Order, order_id)
+    assert saved.erp_stage_code == "CONFIRM"  # 제작대기 복귀
+
+    rows = build_production_enriched_rows([saved], {})
+    assert len(rows) == 1
+    assert rows[0]["is_sales_approved"] is True  # 제작 이력 → 재시작 허용
+
+
+def test_cancel_clears_rework_active_preserves_count(client):
+    """F-1b: 제작 취소 시 rework active=False 정리(count·reason 보존)."""
+    _login(client, _make_user("guard_f2"))
+    order_id = _make_order("CONSTRUCTION").id
+
+    # rework 로 제작중(PRODUCTION) + rework active=True, count=1 상태 진입.
+    assert client.post(
+        f"/api/orders/{order_id}/production/rework", json={"reason": "치수"}
+    ).status_code == 200
+
+    resp = client.post(f"/api/orders/{order_id}/production/cancel", json={})
+    assert resp.status_code == 200
+
+    db_session.expire_all()
+    saved = db_session.get(Order, order_id)
+    assert saved.erp_stage_code == "CONFIRM"
+    rework = saved.structured_data["production"]["rework"]
+    assert rework["active"] is False   # 취소 시 해제
+    assert rework["count"] == 1        # count 보존
+    assert rework["reason"] == "치수"  # reason 보존
+
+    events = (
+        db_session.query(OrderEvent)
+        .filter(
+            OrderEvent.order_id == order_id,
+            OrderEvent.event_type == "PRODUCTION_CANCELLED",
+        )
+        .all()
+    )
+    assert events[-1].payload["rework_cleared"] is True
+
+
+def test_cancel_releases_hold_and_appends_history(client):
+    """F-1b: 제작 취소 시 active hold 해제 + hold_history 보존(released_by 기록)."""
+    user = _make_user("guard_f3")
+    user_name = user.name
+    _login(client, user)
+    order_id = _make_order_with_hold("PRODUCTION", reason="자재 지연").id
+
+    resp = client.post(f"/api/orders/{order_id}/production/cancel", json={})
+    assert resp.status_code == 200
+
+    db_session.expire_all()
+    saved = db_session.get(Order, order_id)
+    prod = saved.structured_data["production"]
+    assert prod["hold"]["active"] is False   # 해제
+    history = prod["hold_history"]
+    assert len(history) == 1
+    assert history[0]["reason"] == "자재 지연"
+    assert history[0]["released_at"]
+    assert history[0]["released_by"] == user_name
+
+    events = (
+        db_session.query(OrderEvent)
+        .filter(
+            OrderEvent.order_id == order_id,
+            OrderEvent.event_type == "PRODUCTION_CANCELLED",
+        )
+        .all()
+    )
+    assert events[-1].payload["hold_released"] is True
+
+
+def test_cancel_without_production_flags_is_harmless(client):
+    """F-1b: production 플래그 없는 일반 제작중 주문 취소 → 정리 스킵(무해), 정상 복귀."""
+    _login(client, _make_user("guard_f4"))
+    order_id = _make_order("PRODUCTION").id  # production dict 없음
+
+    resp = client.post(f"/api/orders/{order_id}/production/cancel", json={})
+    assert resp.status_code == 200
+
+    db_session.expire_all()
+    saved = db_session.get(Order, order_id)
+    assert saved.erp_stage_code == "CONFIRM"
+
+    events = (
+        db_session.query(OrderEvent)
+        .filter(
+            OrderEvent.order_id == order_id,
+            OrderEvent.event_type == "PRODUCTION_CANCELLED",
+        )
+        .all()
+    )
+    assert events[-1].payload["rework_cleared"] is False
+    assert events[-1].payload["hold_released"] is False

@@ -516,9 +516,15 @@ def api_production_cancel(order_id: int):
 
     제작중(생산/PRODUCTION) 상태의 주문을 제작대기(CONFIRM)로 되돌린다. 후진 전이이므로
     **보류 게이트를 적용하지 않는다** — 보류는 전진(시작·완료·수정 제작)만 막는 표시 전용
-    플래그이며, 되돌리기는 보류가 걸린 채로도 허용한다(보류 상태는 그대로 유지된다).
+    플래그이며, 되돌리기는 보류가 걸린 채로도 허용한다(단, 아래처럼 정리한다).
     가드는 404 → INVALID_STAGE(제작중이 아니면 409) 순서. start 패턴과 동일하게
     deepcopy + flag_modified + sync_erp_flat_columns + SecurityLog + OrderEvent 를 남긴다.
+
+    **깨끗한 되돌림(F-1)**: 취소는 진행 자체를 되돌리므로 진행 플래그를 정리한다(이력 보존).
+    ``sd['production']`` 이 dict 면 (1) ``rework`` dict 의 ``active`` 를 False 로(count·reason·at
+    보존), (2) ``hold`` 가 active 면 ``_append_hold_history`` 로 이력에 보존한 뒤 hold 초기화.
+    이렇게 하면 제작대기로 복귀한 카드/시트에 재제작·보류 배지가 잔존하지 않는다.
+    (완료 취소 ``uncomplete`` 는 제작중 복귀라 rework 를 **복원**하므로 여기와 반대다.)
 
     :param order_id: 대상 주문 id.
     :param reason: (body) 취소 사유(선택, trim). 빈 값 허용.
@@ -572,6 +578,21 @@ def api_production_cancel(order_id: int):
         wf["history"] = hist
         sd["workflow"] = wf
 
+        # 깨끗한 되돌림(F-1b): 진행 플래그(rework/hold active) 정리 — 이력은 보존.
+        production = sd.get("production")
+        rework_cleared = False
+        hold_released = False
+        if isinstance(production, dict):
+            rework = production.get("rework")
+            if isinstance(rework, dict):
+                rework_cleared = bool(rework.get("active"))
+                rework["active"] = False  # count·reason·at 보존
+            hold = production.get("hold")
+            if isinstance(hold, dict) and hold.get("active"):
+                _append_hold_history(production, user.name if user else None)
+                production["hold"] = {"active": False, "reason": "", "at": None, "by_name": None}
+                hold_released = True
+
         order.structured_data = copy.deepcopy(sd)
         flag_modified(order, "structured_data")
         order.status = "CONFIRM"
@@ -583,6 +604,8 @@ def api_production_cancel(order_id: int):
                 event_type="PRODUCTION_CANCELLED",
                 payload={
                     "reason": reason,
+                    "rework_cleared": rework_cleared,
+                    "hold_released": hold_released,
                     "domain": "PRODUCTION_DOMAIN",
                     "action": "PRODUCTION_CANCELLED",
                 },

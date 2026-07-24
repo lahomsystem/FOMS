@@ -157,9 +157,22 @@ def _production_stage_label_from_stage(stage: str) -> str | None:
 def _production_quest_sales_state(
     sd: dict[str, Any], stage_label: str
 ) -> tuple[bool | None, Any]:
-    """제작대기일 때 퀘스트·영업 승인 상태."""
+    """제작대기일 때 퀘스트·영업 승인 상태.
+
+    제작대기가 아니면 항상 승인(True) 취급한다. 제작대기라도 ``workflow.history`` 에
+    PRODUCTION('생산'/'PRODUCTION') 기록이 하나라도 있으면 이미 컨펌·제작된 건이므로
+    (제작 취소로 제작대기에 복귀했더라도) 재승인 없이 재시작을 허용한다(True 반환) —
+    소급 자동 커버(별도 마커 불필요). 그 외에는 기존 퀘스트/영업 승인 판정을 따른다.
+    """
     if stage_label != '제작대기':
         return True, None
+    # 제작 이력 판정: 이미 제작에 들어간 적이 있으면 취소 복귀라도 재시작 허용(True).
+    workflow = sd.get('workflow')
+    history = workflow.get('history') if isinstance(workflow, dict) else None
+    if isinstance(history, list):
+        for entry in history:
+            if isinstance(entry, dict) and entry.get('stage') in ('PRODUCTION', '생산'):
+                return True, None
     is_sales_approved = False
     quests = sd.get('quests') or []
     active_quest = next((q for q in quests if q.get('stage') in ('CONFIRM', '고객컨펌')), None)

@@ -139,6 +139,48 @@
 ### 3차 pytest 세트
 `python -m pytest tests/domains/test_production_transition_guard_api.py tests/domains/test_production_hold_api.py tests/domains/test_tablet_domain_sheets_contract.py tests/domains/test_tablet_t2_contract.py tests/domains/test_tablet_rail_contract.py tests/domains/test_production_kanban_full_window.py tests/domains/test_production_dashboard_mobile.py tests/domains/test_production_dashboard_query_count.py -q` 전부 통과 + import app APP_OK.
 
+## 4차 라운드 (2026-07-24 사용자 피드백: 제작취소 잔존·통합바 2줄·전체화면) — 진행 원장
+
+- [x] F-1 = 제작 취소 깨끗한 되돌림: cancel 시 rework/hold active 정리(이력 보존) + 제작 이력(workflow.history PRODUCTION) 있으면 재승인 없이 제작 시작 가능. 동작검증 8/8(제작 시작 버튼 유지·배지 정리·hold_history 보존)
+- [x] F-2 = 라벨 인쇄 버튼 제거 → 통합 바 [lead][KPI] 1줄, 크롬 kanban_top 177→117px
+- [x] F-3 = 전체화면 토글: 크롬 접어 칸반 최대(실측 캡 90), 플로팅 복원 버튼(exit hidden JS 제어), localStorage 기억. 실측 중 버그 2개 잡음(exit 안보임→못빠져나옴, 캡 60 과소 페이지스크롤)
+- [x] 통합 리뷰(스펙 3건 OK / Critical·Major 0, Minor 1 CSS 주석 240→265 정정) + 동작검증 루프(전체화면 실측·F-1 8/8) + 커밋/푸시
+
+### 4차 공통 컨텍스트
+
+- 커밋 61b14e30(3차)까지 배포됨. 캐시버스터 현재값: JS(tablet-domain-sheets.js)=20260724h, CSS 체인=20260724f(bundle @import→layout_head.html→계약 리터럴 t2:675·rail:162). 변경 시 다음 값으로.
+- **제작 취소 승인 판정 근본 원인**: `foms/services/production_dashboard_display.py` `_production_quest_sales_state`(L157-180)는 제작대기 stage에서만 quest 승인 판정, `_enrich_one_production_order` L220은 `is_sales_approved if stage_label=='제작대기' else True`. cancel(제작중→CONFIRM 복귀)은 quest 미변경이라 미승인 건은 "고객 컨펌 전" 재표시 + 재시작 버튼 소실. uncomplete(완료→제작중)는 제작중이라 무관.
+- cancel 엔드포인트: orders.py:511-603. `_append_hold_history`(orders.py:102) 재사용 가능.
+- 통합 상단 바: tablet_kanban_body.html L41-95(pcbar=[lead][KPI][actions]), 라벨 버튼 L88-94. CSS pcbar L94-146.
+- 전체화면 토글 상태 기억: tablet-density-toggle.js 패턴(localStorage+document위임+싱글턴+fragment-swap 복원). 필터 접기(foms_tablet_prod_filters_open)가 이미 tablet-domain-sheets.js에 있으니 동일 파일에 추가.
+
+### Phase F-1 — 제작 취소 깨끗한 되돌림 (서버)
+
+**F-1a** `foms/services/production_dashboard_display.py` `_production_quest_sales_state`:
+- 제작대기 판정 진입부에, **workflow.history에 PRODUCTION('생산'/'PRODUCTION') stage 기록이 있으면 `return True, None`**(제작 이력 = 이미 컨펌·제작된 건 → 취소 후 복귀라도 재시작 허용). 소급 자동 커버(마커 불필요). 그 다음 기존 quest 판정.
+
+**F-1b** `foms/api/production/orders.py` `api_production_cancel`:
+- CONFIRM 복귀 mutation에 진행 플래그 정리 추가(sd deepcopy 흐름 안): `production.rework.active=False`(count·reason·at 보존), `production.hold.active` truthy면 `_append_hold_history(production, user.name)` 후 hold 초기화({active:False,reason:"",at:None,by_name:None}). production dict 없으면 스킵. **uncomplete는 무변경**(제작중 복귀라 rework active 복원이 옳음).
+- OrderEvent payload에 정리 사실 반영(선택).
+
+**F-1c 테스트**: cancel 후 (1) is_sales_approved 판정 — history에 PRODUCTION 있으면 제작대기여도 True(제작 시작 버튼), (2) rework active False·count 보존, (3) hold active였으면 hold_history append+해제, (4) 신규 미승인 건(history 무 PRODUCTION)은 여전히 False.
+
+### Phase F-2 — 라벨 인쇄 제거 + F-3 전체화면 토글 (프론트)
+
+**F-2** tablet_kanban_body.html:
+- pcbar `__actions` div(라벨 인쇄 버튼) 제거. CSS `foms-prod-pcbar__actions`·`__label` 관련 규칙 정리(사용처 없으면 제거). 통합 바가 [lead][KPI] 2요소 → 1줄 안정.
+
+**F-3** 전체화면 토글:
+- 마크업(tablet_kanban_body.html): 통합 바(또는 필터 바)에 전체화면 토글 버튼 `data-tablet-prod-fullscreen`(fa-expand, "전체화면"). 전체화면 시 표시할 플로팅 복원 버튼 `data-tablet-prod-fullscreen-exit`(fa-compress, board 우상단, 기본 hidden).
+- CSS: `.tablet-prod-board.is-fullscreen`에서 `.foms-prod-pcbar`·`.tablet-prod-filter` display:none, `.foms-kanban` max-height 확대(크롬 없으니 `calc(100dvh - 약 40px)`), 플로팅 복원 버튼 표시(position 고정, 터치타깃 48px, 무채). 열 body 캡도 전체화면 시 `calc(100dvh - 약 60px)`로(복원 버튼 여백). 코호트 게이트 스코프.
+- JS(tablet-domain-sheets.js): 토글/복원 배선(localStorage `foms_tablet_prod_fullscreen`, is-fullscreen 클래스 토글, aria, fragment-swap 복원). 필터 접기 패턴 복제. 싱글턴 가드 기존 커버.
+- 캐시버스터: JS h→i, CSS f→g(변경 파일 따라). 계약 리터럴 동기.
+
+**F-2/F-3 테스트**: 라벨 버튼 마크업 부재, 전체화면 토글 마크업(data-* + 복원 버튼), JS 배선(localStorage 키·is-fullscreen), CSS(.is-fullscreen 크롬 숨김). 캐시버스터 리터럴.
+
+### 4차 완료 기준
+`python -m pytest tests/domains/test_production_transition_guard_api.py tests/domains/test_production_hold_api.py tests/domains/test_tablet_domain_sheets_contract.py tests/domains/test_tablet_t2_contract.py tests/domains/test_tablet_rail_contract.py tests/domains/test_production_kanban_full_window.py tests/domains/test_production_dashboard_mobile.py tests/domains/test_production_dashboard_query_count.py -q` 전부 통과 + import app APP_OK.
+
 ### 2차 완료 기준 (각 Phase 공통)
 `python -m pytest tests/domains/test_production_transition_guard_api.py tests/domains/test_production_hold_api.py tests/domains/test_tablet_domain_sheets_contract.py tests/domains/test_tablet_t2_contract.py tests/domains/test_tablet_rail_contract.py tests/domains/test_production_kanban_full_window.py tests/domains/test_production_dashboard_mobile.py -q` 전부 통과 + `import app` APP_OK.
 

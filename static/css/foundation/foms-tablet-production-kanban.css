@@ -70,7 +70,7 @@
   /* 보드는 완료 정산 그리드(foms-tablet-completion-grid.css:51-60)와 동일한 flex-column
      크롬/스크롤 분리 골격으로 전환한다: 크롬(pcbar·KPI·필터)은 flex:none, 칸반만 flex:1.
      완료 그리드처럼 보드 자체에는 명시 height 를 두지 않는다(임의 100dvh 가정 금지) —
-     열 내부 스크롤 캡(아래 __body 의 100dvh−240px)이 페이지 오버플로를 막는 SSOT. */
+     열 내부 스크롤 캡(아래 __body 의 100dvh−265px)이 페이지 오버플로를 막는 SSOT. */
   body.erp-mobile-v2-layout .tablet-prod-board {
     display: flex;
     flex-direction: column;
@@ -89,7 +89,7 @@
     display: none !important;
   }
 
-  /* --- 목업 frame05 pcbar: 생산 보드 · 전체N건·오늘라인M · 라벨 인쇄(우) ---
+  /* --- 목업 frame05 pcbar: 생산 보드 · 전체N건·오늘라인M (F-2 후 [lead][KPI] 2요소) ---
      .tablet-prod-board(base display:none) 내부라 PC/폰 자동 은닉. 코호트 가로에서만 flex. */
   body.erp-mobile-v2-layout .tablet-prod-board .foms-prod-pcbar {
     flex: none;
@@ -119,30 +119,6 @@
   body.erp-mobile-v2-layout .foms-prod-pcbar__sub {
     font-size: var(--foms-font-size-sm);
     color: var(--foms-text-tertiary);
-  }
-  body.erp-mobile-v2-layout .foms-prod-pcbar__actions {
-    display: flex;
-    align-items: center;
-    gap: var(--foms-space-2);
-  }
-  body.erp-mobile-v2-layout .foms-prod-pcbar__label {
-    display: inline-flex;
-    align-items: center;
-    gap: var(--foms-space-1);
-    min-height: var(--foms-touch-target-min);
-    padding: 0 var(--foms-space-4);
-    border: 1px solid var(--foms-border-subtle);
-    border-radius: var(--foms-radius-md);
-    background: var(--foms-surface-base);
-    color: var(--foms-text-primary);
-    font-size: var(--foms-font-size-sm);
-    font-weight: var(--foms-font-weight-semibold);
-    white-space: nowrap;
-    cursor: pointer;
-  }
-  body.erp-mobile-v2-layout .foms-prod-pcbar__label[disabled] {
-    opacity: 0.5;
-    cursor: not-allowed;
   }
 
   /* --- D-b 통합 상단 바 가운데 KPI 슬림 스트립: erp-pro-alert 그래머 재사용, 5타일 1행 인라인 --- */
@@ -310,6 +286,71 @@
     padding: 0 var(--foms-space-4) var(--foms-space-2);
     color: var(--foms-text-tertiary);
     font-size: var(--foms-font-size-sm);
+  }
+
+  /* ── F-3 전체화면 토글 ────────────────────────────────────────────────────
+     상단 크롬(통합 바 + 필터 바)을 접어 칸반을 뷰포트 전부로 확대. 진입 버튼은 필터 바의
+     상시 노출 컨트롤(검색·[필터] 옆), 복원 버튼은 board 우상단 플로팅(전체화면 시만). 상태는
+     board 의 .is-fullscreen 단일 클래스가 소유(JS 는 클래스만 토글, 표시/은닉은 전부 CSS).
+     코호트 게이트 유지(비코호트/PC/폰 무영향). ── */
+  body.erp-mobile-v2-layout .tablet-prod-fullscreen-btn {
+    display: inline-flex;
+    align-items: center;
+    gap: var(--foms-space-1);
+    min-height: var(--foms-touch-target-min);
+    padding: 0 var(--foms-space-3);
+    border: 1px solid var(--foms-border-subtle);
+    border-radius: var(--foms-radius-md);
+    background: var(--foms-surface-base);
+    color: var(--foms-text-primary);
+    font-size: var(--foms-font-size-base);
+    font-weight: var(--foms-font-weight-semibold);
+    white-space: nowrap;
+    cursor: pointer;
+  }
+  body.erp-mobile-v2-layout .tablet-prod-fullscreen-btn:focus-visible {
+    outline: none;
+    box-shadow: var(--foms-shadow-focus-ring);
+  }
+  /* 진입 시: 통합 바·필터 바 은닉 → 칸반이 세로 전부 차지(진입 버튼도 필터 바째 사라짐). */
+  body.erp-mobile-v2-layout .tablet-prod-board.is-fullscreen .foms-prod-pcbar,
+  body.erp-mobile-v2-layout .tablet-prod-board.is-fullscreen .tablet-prod-filter {
+    display: none;
+  }
+  /* 플로팅 복원 버튼 — 기본 은닉(hidden attr + base none). 전체화면 시만 board 우상단 표시.
+     HMI 무채, 48px 원형 터치타깃, position:fixed(크롬 없으니 뷰포트 우상단이 안전). */
+  body.erp-mobile-v2-layout .tablet-prod-fullscreen-exit {
+    display: none;
+  }
+  body.erp-mobile-v2-layout .tablet-prod-board.is-fullscreen .tablet-prod-fullscreen-exit {
+    position: fixed;
+    top: var(--foms-space-3);
+    right: var(--foms-space-3);
+    /* 열 헤더 sticky(--foms-z-sticky)보다 1 높게 — 동일 z-index 면 DOM 후순위 헤더가 덮어
+       복원 버튼이 우상단 코너에서 가려진다(모달 1050 밑은 유지). */
+    z-index: calc(var(--foms-z-sticky) + 1);
+    display: inline-flex;
+    align-items: center;
+    justify-content: center;
+    width: 48px;
+    height: 48px;
+    border: 1px solid var(--foms-border-subtle);
+    border-radius: var(--foms-radius-full);
+    background: var(--foms-surface-base);
+    color: var(--foms-text-secondary);
+    box-shadow: var(--foms-shadow-md, 0 4px 12px rgba(0, 0, 0, 0.18));
+    cursor: pointer;
+  }
+  body.erp-mobile-v2-layout .tablet-prod-board.is-fullscreen .tablet-prod-fullscreen-exit:focus-visible {
+    outline: none;
+    box-shadow: var(--foms-shadow-focus-ring);
+  }
+  /* 전체화면 시 열 body 캡 확대: 상단 크롬(265px 상수의 대부분)이 사라졌으므로 열 헤더 +
+     상하 패딩만 상쇄한다. 카드 15건 실측 확정값 = 90(board_bottom 이 뷰포트 안에 들고
+     페이지 스크롤 없음 — 60은 과소라 30px 넘쳤다). 일반 캡 calc(100dvh - 265px) 대비
+     회수분이 스크롤 영역이 된다. */
+  body.erp-mobile-v2-layout .tablet-prod-board.is-fullscreen .foms-kanban-col__body {
+    max-height: calc(100dvh - 90px);
   }
   /* 칸반이 보드의 남는 세로 높이 전부를 차지(flex:1). align-items:stretch 로 3열을
      같은 높이로 늘려(가장 긴 열 기준) 각 열이 남는 높이를 채운다. */

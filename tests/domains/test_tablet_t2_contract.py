@@ -422,6 +422,44 @@ def test_kanban_css_col_body_cap_lowered_for_chrome_shrink() -> None:
     assert "calc(100dvh - 240px)" not in css
 
 
+def test_kanban_body_has_no_label_print_button() -> None:
+    """F-2: 미구현 전역 라벨 인쇄 버튼(disabled) 제거 — pcbar actions/label 마크업 부재.
+    통합 바가 [lead][KPI] 2요소로 1줄 안정."""
+    body = _read(KANBAN_PARTIAL)
+    assert "foms-prod-pcbar__actions" not in body
+    assert "foms-prod-pcbar__label" not in body
+
+
+def test_kanban_css_has_no_label_print_rules() -> None:
+    """F-2: 사용처 없는 라벨 인쇄 CSS 규칙 정리 — pcbar__actions/__label 셀렉터 부재."""
+    css = _read(KANBAN_CSS)
+    assert "foms-prod-pcbar__actions" not in css
+    assert "foms-prod-pcbar__label" not in css
+
+
+def test_kanban_css_fullscreen_hides_chrome_and_expands_board() -> None:
+    """F-3: 전체화면(.tablet-prod-board.is-fullscreen)에서 통합 바·필터 바 은닉 + 플로팅 복원
+    버튼 표시 + 열 body 캡 확대(크롬 없으니 복원 버튼 여백만). 코호트 게이트 유지."""
+    css = _norm(_read(KANBAN_CSS))
+    assert CORE_MEDIA_QUERY in css
+    # 통합 바·필터 바 은닉.
+    assert (
+        "body.erp-mobile-v2-layout .tablet-prod-board.is-fullscreen .foms-prod-pcbar, "
+        "body.erp-mobile-v2-layout .tablet-prod-board.is-fullscreen .tablet-prod-filter "
+        "{ display: none" in css
+    )
+    # 플로팅 복원 버튼 전체화면 시 표시.
+    assert (
+        "body.erp-mobile-v2-layout .tablet-prod-board.is-fullscreen "
+        ".tablet-prod-fullscreen-exit {" in css
+    )
+    # 열 body 캡 확대(일반 265 → 크롬 사라져 열 헤더+패딩만 상쇄). 카드 15건 실측 확정 90.
+    assert (
+        "body.erp-mobile-v2-layout .tablet-prod-board.is-fullscreen .foms-kanban-col__body "
+        "{ max-height: calc(100dvh - 90px)" in css
+    )
+
+
 # =====================================================================
 # W12 — 태블릿 실측 특수형 split view 계약
 # (docs/plans/2026-07-11-tablet-t2-dashboards-spec.md, 실행 단위 W12)
@@ -674,7 +712,7 @@ def test_w16_layout_head_loads_bundle_for_v2_and_v3_cohort() -> None:
     layout_head = _read("templates/partials/shared/layout_head.html")
     idx = layout_head.find("foms-tablet-bundle.css")
     assert idx != -1, "layout_head 에 태블릿 번들 <link> 부재"
-    assert "foms-tablet-bundle.css') }}?v=20260724g" in layout_head
+    assert "foms-tablet-bundle.css') }}?v=20260724h" in layout_head
     # Anchor on the nearest preceding `{% if %}` (the bundle gate) rather than a fixed
     # char window — the gate string grows over time (2026-07-12: +/wdcalculator arm).
     gate_start = layout_head.rfind("{% if", 0, idx)

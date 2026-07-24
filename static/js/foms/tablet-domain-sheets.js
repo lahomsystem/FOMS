@@ -602,6 +602,49 @@
     syncFilterToggle(readFiltersOpen());
   }
 
+  // ---- F-3 전체화면 토글 -----------------------------------------------------
+  // 상단 크롬(통합 바 + 필터 바)을 접어 칸반을 최대화한다. 상태는 board 의 .is-fullscreen 단일
+  // 클래스가 소유하고(표시/은닉은 전부 CSS), JS 는 클래스 토글 + aria + 저장만 한다. 열림 상태만
+  // localStorage 에 기억한다(density-toggle·필터 접기 패턴 복제). document 위임이라 fragment
+  // 스왑 후에도 재바인딩 불필요, 스왑 시엔 저장값 재적용(restoreFullscreen)만 건다.
+  var FULLSCREEN_KEY = "foms_tablet_prod_fullscreen";
+
+  // 저장된 전체화면 상태("1")를 반환. 기본(미저장·저장 불가)은 비활성(false).
+  function readFullscreen() {
+    try {
+      return window.localStorage.getItem(FULLSCREEN_KEY) === "1";
+    } catch (e) {
+      return false;
+    }
+  }
+
+  // 전체화면 상태를 localStorage 에 저장. 사생활 모드 등 저장 불가 시 세션 표시만 유지(비치명적).
+  function writeFullscreen(on) {
+    try {
+      window.localStorage.setItem(FULLSCREEN_KEY, on ? "1" : "0");
+    } catch (e) {
+      /* 저장 불가 — 세션 표시만 유지(비치명적, 무음 삼킴 아님). */
+    }
+  }
+
+  // board.is-fullscreen 클래스 + 진입 버튼 aria-pressed + 복원 버튼 hidden 을 동기화. idempotent.
+  // 복원 버튼은 hidden 속성을 JS 로 직접 제어한다 — hidden 속성과 CSS display 혼용은 표시가
+  // 불안정하므로(전체화면인데 버튼이 안 떠 빠져나올 수 없는 버그), 표시/은닉을 hidden 속성
+  // 하나로 확정한다.
+  function syncFullscreen(on) {
+    var board = document.querySelector(".tablet-prod-board");
+    if (board) board.classList.toggle("is-fullscreen", on);
+    var toggle = document.querySelector("[data-tablet-prod-fullscreen]");
+    if (toggle) toggle.setAttribute("aria-pressed", on ? "true" : "false");
+    var exit = document.querySelector("[data-tablet-prod-fullscreen-exit]");
+    if (exit) exit.hidden = !on;
+  }
+
+  // 저장된 전체화면 상태로 복원(부트/스왑).
+  function restoreFullscreen() {
+    syncFullscreen(readFullscreen());
+  }
+
   // ---- 단일 document 'click' 위임 --------------------------------------------
   document.addEventListener("click", function (ev) {
     if (!cohortActive()) return;
@@ -618,6 +661,23 @@
       var willOpen = moreEl ? moreEl.hidden : !readFiltersOpen();
       writeFiltersOpen(willOpen);
       syncFilterToggle(willOpen);
+      return;
+    }
+
+    // F-3 전체화면 토글 — 진입(필터 바) / 복원(플로팅) 버튼 공용. 현재 상태는 저장값이 아니라
+    // 실제 DOM(board.is-fullscreen)에서 읽어 플립한다 — localStorage 불가 환경에서 read 가
+    // 굳어 "켜기만 되고 못 끄는" 버그 방지(필터 접기와 동일 교훈, 3차 B-2).
+    var fullscreenBtn = target.closest(
+      "[data-tablet-prod-fullscreen], [data-tablet-prod-fullscreen-exit]"
+    );
+    if (fullscreenBtn) {
+      ev.preventDefault();
+      var board = document.querySelector(".tablet-prod-board");
+      var willOn = board
+        ? !board.classList.contains("is-fullscreen")
+        : !readFullscreen();
+      writeFullscreen(willOn);
+      syncFullscreen(willOn);
       return;
     }
 
@@ -779,4 +839,8 @@
   // ---- D-c 필터 접이 상태 복원: 부트 + fragment 스왑(칸반 body 재삽입) 시 저장값 재적용 ----
   restoreFilterCollapse();
   document.addEventListener("foms:erp-shell-fragment-swapped", restoreFilterCollapse);
+
+  // ---- F-3 전체화면 상태 복원: 부트 + fragment 스왑 시 저장값 재적용 ----
+  restoreFullscreen();
+  document.addEventListener("foms:erp-shell-fragment-swapped", restoreFullscreen);
 })();
