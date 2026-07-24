@@ -1005,9 +1005,18 @@
       "write_guard": false,
       "postgres": false
     },
-    "commands": [],
-    "existing_regressions": [],
-    "created_tests": [],
+    "commands": [
+      "python -m pytest tests/domains/test_channel_auth.py -q"
+    ],
+    "existing_regressions": [
+      "tests/domains/test_channel_quick_actions.py"
+    ],
+    "created_tests": [
+      {
+        "path": "tests/domains/test_channel_auth.py",
+        "owner_packet": "CHANNEL-AUTH-01"
+      }
+    ],
     "browser_scenarios": [],
     "deploy_check_ids": [],
     "deployment_evidence_mode": "HEARTBEAT"

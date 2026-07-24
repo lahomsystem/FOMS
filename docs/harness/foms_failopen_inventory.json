@@ -5,13 +5,13 @@
   "overlap_api_error_01": "API-ERROR-01 owns response/stdout exposure (print_exc/str(e) -> log_handled_exception). This packet owns swallow classification. Sites that log via log_handled_exception are LOG_AND_CONTINUE here.",
   "marker_convention": "Silent-by-design catches carry an inline `# failopen: intentional: <reason>` (or `fail-closed`) marker; the scanner reads it as the justification. No bare allowlist, no lint-disable.",
   "baselines": {
-    "broad_total": 498,
+    "broad_total": 496,
     "unclassified": 0
   },
   "disposition_counts": {
     "FAIL_CLOSED": 19,
     "INTENTIONAL": 17,
-    "LOG_AND_CONTINUE": 462
+    "LOG_AND_CONTINUE": 460
   },
   "owner_counts": {
     "api": 226,
@@ -21,7 +21,7 @@
     "persistence": 3,
     "platform": 5,
     "runtime": 6,
-    "services": 99,
+    "services": 97,
     "storage": 28,
     "telemetry": 31,
     "web": 32
@@ -2886,7 +2886,7 @@
     },
     {
       "path": "foms/services/channel_identity.py",
-      "lineno": 37,
+      "lineno": 41,
       "handler_type": "broad_exception",
       "disposition": "LOG_AND_CONTINUE",
       "owner": "services",
@@ -2904,25 +2904,7 @@
     },
     {
       "path": "foms/services/channel_quick_actions.py",
-      "lineno": 68,
-      "handler_type": "broad_exception",
-      "disposition": "LOG_AND_CONTINUE",
-      "owner": "services",
-      "has_logging": true,
-      "justification": "logs via logger/log_handled_exception"
-    },
-    {
-      "path": "foms/services/channel_quick_actions.py",
       "lineno": 92,
-      "handler_type": "broad_exception",
-      "disposition": "LOG_AND_CONTINUE",
-      "owner": "services",
-      "has_logging": true,
-      "justification": "logs via logger/log_handled_exception"
-    },
-    {
-      "path": "foms/services/channel_quick_actions.py",
-      "lineno": 118,
       "handler_type": "broad_exception",
       "disposition": "LOG_AND_CONTINUE",
       "owner": "services",

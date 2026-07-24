@@ -284,6 +284,30 @@ def _int_or_none(value: Any) -> Optional[int]:
         return None
 
 
+def user_can_read_order(user: Any, order: Any = None) -> bool:
+    """일반 Order detail(``@login_required``)과 동일한 canonical read scope.
+
+    §2.1 line 144: 인증된 active FOMS 사용자는 team·assignment 와 무관하게 모든 Order 를
+    조회할 수 있다(VIEWER 포함, GET/HEAD 조회 허용). 이 함수는 그 read 판정의 단일
+    chokepoint 이며, manager-mapped Channel quick action 등 cookie-auth 밖 surface 도
+    PII 조회 **전에** 재사용한다(CHANNEL-AUTH-01).
+
+    Args:
+        user: 조회 주체. ``None``(미인증) 또는 비활성 계정은 거부한다.
+        order: 대상 Order. 현재 정책은 order-무관 전역 read 이므로 미사용이나, 향후
+            per-order read scope 확장 지점으로 시그니처에 유지한다.
+
+    Returns:
+        조회 허용이면 True. 미인증/비활성/role 부재는 False.
+    """
+    if user is None:
+        return False
+    if getattr(user, "is_active", None) is False:
+        return False
+    role = (getattr(user, "role", None) or "").strip().upper()
+    return bool(role)
+
+
 # --------------------------------------------------------------------------- #
 # route → policy_id manifest (URL-map inventory)
 # --------------------------------------------------------------------------- #
@@ -485,7 +509,7 @@ def _template_policy_can(policy_id: str) -> bool:
 
 __all__ = [
     "Policy", "Decision", "POLICY_REGISTRY", "ANCILLARY_ALLOWLIST",
-    "evaluate_policy", "normalize_team", "user_can",
+    "evaluate_policy", "normalize_team", "user_can", "user_can_read_order",
     "load_policy_manifest", "policy_id_for_endpoint",
     "enforce_order_mutation_policy", "register_order_mutation_policy",
 ]
