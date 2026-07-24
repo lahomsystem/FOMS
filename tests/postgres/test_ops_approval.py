@@ -541,13 +541,14 @@ def test_manifest_seed_integrity_and_bidirectional_green():
     m = load_operations_manifest()
     assert_seed_integrity(m)  # owner 표와 exact 일치
     # seed+append 규정(§2.1 line 209): 착수한 소비 packet 만 자기 owner operation 의 cli 를
-    # 채운다. CUTOVER-MODE-01 이 자기 3 operation 을 owner-only append 했고, 아직 착수하지
-    # 않은 다른 consumer operation 은 여전히 cli=null 이어야 한다.
+    # 채운다. 착수 완료 packet(CUTOVER-MODE-01, SESSION-SIGNING-STATE-00)은 자기 owner
+    # operation 을 owner-only append 했고, 아직 착수하지 않은 consumer 는 여전히 cli=null 이다.
     from foms.services.security.ops_approval_manifest import EXPECTED_OWNER_OPERATIONS
-    _landed = set(EXPECTED_OWNER_OPERATIONS["CUTOVER-MODE-01"])
+    _landed_packets = ("CUTOVER-MODE-01", "SESSION-SIGNING-STATE-00")
+    _landed = {op for p in _landed_packets for op in EXPECTED_OWNER_OPERATIONS[p]}
     for opid, meta in m["operations"].items():
         if opid in _landed:
-            assert meta["cli"] is not None, f"{opid} should be filled by CUTOVER-MODE-01"
+            assert meta["cli"] is not None, f"{opid} should be filled by a landed consumer"
         else:
             assert meta["cli"] is None, f"{opid} should still be cli=null (consumer not landed)"
     diff = manifest_vs_cli_bidirectional(m)

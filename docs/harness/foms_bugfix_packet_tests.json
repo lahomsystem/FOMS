@@ -633,9 +633,20 @@
       "write_guard": false,
       "postgres": true
     },
-    "commands": [],
+    "commands": [
+      "python -m pytest tests/domains/test_signing_key_format.py -q"
+    ],
     "existing_regressions": [],
-    "created_tests": [],
+    "created_tests": [
+      {
+        "path": "tests/postgres/test_signing_state_schema.py",
+        "owner_packet": "SESSION-SIGNING-STATE-00"
+      },
+      {
+        "path": "tests/domains/test_signing_key_format.py",
+        "owner_packet": "SESSION-SIGNING-STATE-00"
+      }
+    ],
     "browser_scenarios": [],
     "deploy_check_ids": [],
     "deployment_evidence_mode": "HEARTBEAT"

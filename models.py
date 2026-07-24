@@ -1635,3 +1635,111 @@ class SideEffectWorkerHeartbeat(Base):
     metadata_json = Column(JSONColumn, nullable=True)
     updated_at = Column(DateTime, nullable=False, default=now_utc_naive,
                         server_default=func.now())
+
+
+# --------------------------------------------------------------------------- #
+# SESSION-SIGNING-STATE-00: signing-key state machine + WAM entry nonces
+# (§2.1 line 225-227). Additive expand only — the existing runtime reads NEITHER
+# table nor the new env, so cookie/token semantics are unchanged. The runtime
+# provider/serializer switch and activation transitions are SESSION-SIGNING-
+# SECRET-01; this packet ships the schema, the singleton EMPTY seed, and the pure
+# key-format/inspect/prepare tooling only.
+# --------------------------------------------------------------------------- #
+SIGNING_STATE_MODES = (
+    'EMPTY', 'READY', 'ACTIVE', 'CURRENT_ONLY', 'ROTATION_READY', 'ROTATING',
+)
+SIGNING_MAINTENANCE_MODES = ('OFF', 'AUTH_ONLY')
+SIGNING_LEGACY_CUTOVER_MODES = ('BRIDGE', 'FORCE_REAUTH')
+
+
+class SecuritySigningState(Base):
+    """signing-key state machine 정본(singleton id=1, §2.1 line 227).
+
+    multi-replica 가 요청마다 이 한 행을 읽어 어떤 key 로 sign/verify 할지 판정하는
+    정본이다(process cache 금지). SESSION-SIGNING-STATE-00 은 ``mode=EMPTY`` 로 seed 만
+    하고 어떤 runtime 도 아직 이 행을 읽지 않는다. prepare CLI 는 deadline-null 전이만
+    수행하고(EMPTY→READY 등), active=pending·deadline 기록·READY→ACTIVE 같은 activation
+    은 SESSION-SIGNING-SECRET-01 몫이다. key ID 컬럼은 fingerprint 만 담으며 raw/subkey 는
+    절대 저장하지 않는다.
+    """
+
+    __tablename__ = 'security_signing_state'
+
+    id = Column(Integer, primary_key=True)  # singleton — 항상 1 (ck_signing_state_singleton).
+    mode = Column(String(20), nullable=False, server_default='EMPTY')
+    maintenance_mode = Column(String(20), nullable=False, server_default='OFF')
+    maintenance_started_at = Column(DateTime, nullable=True)
+    generation = Column(Integer, nullable=False, server_default=text('0'))
+    session_epoch = Column(Integer, nullable=False, server_default=text('0'))
+    wam_not_before = Column(DateTime, nullable=True)
+    # key-ID fingerprints only (never raw/subkey material).
+    active_key_id = Column(String(64), nullable=True)
+    previous_key_id = Column(String(64), nullable=True)
+    pending_key_id = Column(String(64), nullable=True)
+    previous_not_after = Column(DateTime, nullable=True)
+    legacy_cutover_mode = Column(String(20), nullable=True)  # BRIDGE|FORCE_REAUTH (null until prepared)
+    legacy_flask_not_after = Column(DateTime, nullable=True)
+    legacy_wam_not_after = Column(DateTime, nullable=True)
+    grace_seconds = Column(Integer, nullable=False, server_default=text('0'))
+    row_version = Column(Integer, nullable=False, server_default=text('1'))
+    # prepare-time evidence (deadline-null prepare records these; activation reads them).
+    prepared_consumer_sha = Column(String(64), nullable=True)
+    prepared_key_artifact_sha256 = Column(String(64), nullable=True)
+    prepared_rollout_artifact_sha256 = Column(String(64), nullable=True)
+    rescue_deployment_sha = Column(String(64), nullable=True)
+    prepared_at = Column(DateTime, nullable=True)
+    activated_at = Column(DateTime, nullable=True)
+    updated_at = Column(DateTime, nullable=False, default=now_utc_naive, server_default=func.now())
+    updated_by_admin_user_id = Column(Integer, ForeignKey('users.id'), nullable=True)
+
+    __table_args__ = (
+        # 단일 행 강제 — id 는 1 만 허용(singleton 정본).
+        CheckConstraint('id = 1', name='ck_signing_state_singleton'),
+        CheckConstraint(
+            "mode IN ('EMPTY','READY','ACTIVE','CURRENT_ONLY','ROTATION_READY','ROTATING')",
+            name='ck_signing_state_mode',
+        ),
+        CheckConstraint(
+            "maintenance_mode IN ('OFF','AUTH_ONLY')",
+            name='ck_signing_state_maintenance_mode',
+        ),
+        CheckConstraint(
+            "legacy_cutover_mode IS NULL OR legacy_cutover_mode IN ('BRIDGE','FORCE_REAUTH')",
+            name='ck_signing_state_legacy_cutover_mode',
+        ),
+    )
+
+
+class WamEntryNonce(Base):
+    """WAM entry-token one-time nonce 정본(§2.1 line 227/239).
+
+    ACTIVE runtime 에서 신규 entry issue 는 nonce 행을 insert 하고 exchange 는
+    ``UPDATE ... WHERE consumed_at IS NULL AND expires_at > clock_timestamp() RETURNING``
+    한 건만 성공시켜 replay 를 막는다(그 issue/exchange 는 SESSION-SIGNING-SECRET-01 몫).
+    SESSION-SIGNING-STATE-00 은 테이블만 만든다 — nonce_hash 는 raw nonce 의 해시이며 raw
+    는 저장하지 않는다.
+    """
+
+    __tablename__ = 'wam_entry_nonces'
+
+    nonce_hash = Column(String(64), primary_key=True)
+    subject_hash = Column(String(64), nullable=False)
+    expires_at = Column(DateTime, nullable=False)
+    consumed_at = Column(DateTime, nullable=True)
+    created_at = Column(DateTime, nullable=False, default=now_utc_naive, server_default=func.now())
+    # ponytail: exchange 는 nonce_hash(PK) 로 조회하므로 추가 인덱스 불필요. 만료 sweep
+    #           (expires_at 스캔)은 retention worker(SECRET-01/downstream)가 필요 시 인덱스 추가.
+
+
+# singleton EMPTY seed — id 만 INSERT 하고 mode/maintenance_mode/generation 등은
+# server_default(EMPTY/OFF/0)로 채운다. create_all(테스트/부트스트랩) 경로용이며 Alembic
+# 은 migration 에서 동일 seed 를 별도 수행한다(fence/principal trigger 와 같은 이중 SSOT).
+SECURITY_SIGNING_STATE_SEED_SQL = (
+    "INSERT INTO security_signing_state (id) VALUES (1)"
+)
+
+event.listen(
+    SecuritySigningState.__table__,
+    'after_create',
+    DDL(SECURITY_SIGNING_STATE_SEED_SQL),
+)
