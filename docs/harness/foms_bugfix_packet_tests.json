@@ -1574,9 +1574,16 @@
       "write_guard": false,
       "postgres": true
     },
-    "commands": [],
+    "commands": [
+      "python -m pytest tests/postgres/test_quest_backfill.py -q"
+    ],
     "existing_regressions": [],
-    "created_tests": [],
+    "created_tests": [
+      {
+        "path": "tests/postgres/test_quest_backfill.py",
+        "owner_packet": "QUEST-BACKFILL-00"
+      }
+    ],
     "browser_scenarios": [],
     "deploy_check_ids": [],
     "deployment_evidence_mode": "PROVIDER_BOOTSTRAP"
