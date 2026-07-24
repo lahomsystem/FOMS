@@ -1,6 +1,7 @@
 """Order attachment CRUD routes."""
 
 import os
+from foms.services.error_logging import log_handled_exception
 from concurrent.futures import ThreadPoolExecutor
 
 from flask import jsonify, request, session
@@ -79,10 +80,7 @@ def api_order_attachments_list(order_id):
         ]
         return jsonify({"success": True, "attachments": items})
     except Exception as e:
-        import traceback
-
-        print(f"주문 첨부 목록 오류: {e}")
-        print(traceback.format_exc())
+        log_handled_exception()
         return jsonify({"success": False, "message": str(e)}), 500
 
 
@@ -187,10 +185,7 @@ def api_order_attachments_upload(order_id):
             db.rollback()
         except Exception:
             pass
-        import traceback
-
-        print(f"주문 첨부 업로드 오류: {e}")
-        print(traceback.format_exc())
+        log_handled_exception()
         return jsonify({"success": False, "message": str(e)}), 500
 
 
@@ -249,10 +244,7 @@ def api_order_attachments_patch(order_id, attachment_id):
             db.rollback()
         except Exception:
             pass
-        import traceback
-
-        print(f"주문 첨부 수정 오류: {e}")
-        print(traceback.format_exc())
+        log_handled_exception()
         return jsonify({"success": False, "message": str(e)}), 500
 
 
@@ -315,10 +307,7 @@ def api_order_attachments_delete(order_id, attachment_id):
             db.rollback()
         except Exception:
             pass
-        import traceback
-
-        print(f"주문 첨부 삭제 오류: {e}")
-        print(traceback.format_exc())
+        log_handled_exception()
         return jsonify({"success": False, "message": str(e)}), 500
 
 

@@ -3,6 +3,7 @@
 """
 
 import copy
+from foms.services.error_logging import log_handled_exception
 from flask import Blueprint, request, jsonify, session
 from sqlalchemy.orm.attributes import flag_modified
 
@@ -96,9 +97,7 @@ def api_order_events(order_id):
             })
         return jsonify({'success': True, 'events': events})
     except Exception as e:
-        import traceback
-        print(f"주문 이벤트 조회 오류: {e}")
-        print(traceback.format_exc())
+        log_handled_exception()
         return jsonify({'success': False, 'message': str(e)}), 500
 
 
@@ -170,9 +169,7 @@ def api_order_change_events(order_id):
         })
 
     except Exception as e:
-        import traceback
-        print(f"변경 이벤트 조회 오류: {e}")
-        print(traceback.format_exc())
+        log_handled_exception()
         return jsonify({'success': False, 'message': str(e)}), 500
 
 
@@ -239,9 +236,7 @@ def api_my_change_events():
         return jsonify({'success': True, 'events': events, 'total': len(events)})
 
     except Exception as e:
-        import traceback
-        print(f"내 변경 이벤트 조회 오류: {e}")
-        print(traceback.format_exc())
+        log_handled_exception()
         return jsonify({'success': False, 'message': str(e)}), 500
 
 
@@ -400,7 +395,5 @@ def api_revert_change_event(order_id, event_id):
     except Exception as e:
         db = get_db()
         db.rollback()
-        import traceback
-        print(f"변경 되돌리기 오류: {e}")
-        print(traceback.format_exc())
+        log_handled_exception()
         return jsonify({'success': False, 'message': str(e)}), 500

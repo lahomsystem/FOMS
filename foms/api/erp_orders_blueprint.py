@@ -3,6 +3,7 @@
 """
 
 import logging
+from foms.services.error_logging import log_handled_exception
 import os
 
 from flask import Blueprint, request, jsonify
@@ -64,9 +65,7 @@ def api_upload_blueprint(order_id):
             'message': '도면이 업로드되었습니다.'
         })
     except Exception as e:
-        import traceback
-        print(f"도면 업로드 오류: {e}")
-        print(traceback.format_exc())
+        log_handled_exception()
         return jsonify({'success': False, 'message': str(e)}), 500
 
 
@@ -84,9 +83,7 @@ def api_get_blueprint(order_id):
             'url': order.blueprint_image_url if order.blueprint_image_url else None
         })
     except Exception as e:
-        import traceback
-        print(f"도면 조회 오류: {e}")
-        print(traceback.format_exc())
+        log_handled_exception()
         return jsonify({'success': False, 'message': str(e)}), 500
 
 
@@ -103,9 +100,7 @@ def api_delete_blueprint(order_id):
         db.commit()
         return jsonify({'success': True, 'message': '도면이 삭제되었습니다.'})
     except Exception as e:
-        import traceback
-        print(f"도면 삭제 오류: {e}")
-        print(traceback.format_exc())
+        log_handled_exception()
         return jsonify({'success': False, 'message': str(e)}), 500
 
 

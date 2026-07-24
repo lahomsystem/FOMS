@@ -1,6 +1,7 @@
 """Direct-upload endpoints for order attachments."""
 
 from flask import jsonify, request, session
+from foms.services.error_logging import log_handled_exception
 
 from foms.web.auth import get_user_by_id, login_required
 from foms.api.files.blueprint import (
@@ -75,10 +76,7 @@ def api_upload_session():
             }
         )
     except Exception as e:
-        import traceback
-
-        print(f"업로드 세션 오류: {e}")
-        print(traceback.format_exc())
+        log_handled_exception()
         return jsonify({"success": False, "message": str(e)}), 500
 
 
@@ -140,10 +138,7 @@ def api_upload_session_batch():
 
         return jsonify({"success": True, "sessions": sessions})
     except Exception as e:
-        import traceback
-
-        print(f"업로드 다중 세션 오류: {e}")
-        print(traceback.format_exc())
+        log_handled_exception()
         return jsonify({"success": False, "message": str(e)}), 500
 
 
@@ -242,10 +237,7 @@ def api_order_attachments_complete(order_id):
             db.rollback()
         except Exception:
             pass
-        import traceback
-
-        print(f"Direct upload 완료 오류: {e}")
-        print(traceback.format_exc())
+        log_handled_exception()
         return jsonify({"success": False, "message": str(e)}), 500
 
 

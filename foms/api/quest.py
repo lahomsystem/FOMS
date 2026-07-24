@@ -4,6 +4,7 @@ GET/POST /api/orders/<id>/quest, POST /approve, PUT /status
 """
 
 import datetime
+from foms.services.error_logging import log_handled_exception
 from foms.services.datetime_kst import now_utc_naive
 from flask import Blueprint, request, jsonify, session
 from sqlalchemy.orm.attributes import flag_modified
@@ -97,9 +98,7 @@ def api_order_quest_get(order_id):
             'stage_label': STAGE_LABELS.get(current_stage_code, current_stage_code),
         })
     except Exception as e:
-        import traceback
-        print(f"Quest 조회 오류: {e}")
-        print(traceback.format_exc())
+        log_handled_exception()
         return jsonify({'success': False, 'message': str(e)}), 500
 
 
@@ -162,9 +161,7 @@ def api_order_quest_create(order_id):
             db.rollback()
         except Exception:
             pass
-        import traceback
-        print(f"Quest 생성 오류: {e}")
-        print(traceback.format_exc())
+        log_handled_exception()
         return jsonify({'success': False, 'message': str(e)}), 500
 
 
@@ -454,9 +451,7 @@ def api_order_quest_approve(order_id):
             db.rollback()
         except Exception:
             pass
-        import traceback
-        print(f"Quest 승인 오류: {e}")
-        print(traceback.format_exc())
+        log_handled_exception()
         return jsonify({'success': False, 'message': str(e)}), 500
 
 
@@ -520,7 +515,5 @@ def api_order_quest_update_status(order_id):
             db.rollback()
         except Exception:
             pass
-        import traceback
-        print(f"Quest 상태 업데이트 오류: {e}")
-        print(traceback.format_exc())
+        log_handled_exception()
         return jsonify({'success': False, 'message': str(e)}), 500

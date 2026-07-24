@@ -3,6 +3,7 @@
 """
 
 import datetime
+from foms.services.error_logging import log_handled_exception
 from flask import Blueprint, request, jsonify
 
 from db import get_db
@@ -36,9 +37,7 @@ def api_order_tasks_list(order_id):
             })
         return jsonify({'success': True, 'tasks': tasks})
     except Exception as e:
-        import traceback
-        print(f"주문 Task 목록 오류: {e}")
-        print(traceback.format_exc())
+        log_handled_exception()
         return jsonify({'success': False, 'message': str(e)}), 500
 
 
@@ -75,9 +74,7 @@ def api_order_tasks_create(order_id):
             db.rollback()
         except Exception:
             pass
-        import traceback
-        print(f"주문 Task 생성 오류: {e}")
-        print(traceback.format_exc())
+        log_handled_exception()
         return jsonify({'success': False, 'message': str(e)}), 500
 
 
@@ -115,9 +112,7 @@ def api_order_tasks_update(order_id, task_id):
             db.rollback()
         except Exception:
             pass
-        import traceback
-        print(f"주문 Task 수정 오류: {e}")
-        print(traceback.format_exc())
+        log_handled_exception()
         return jsonify({'success': False, 'message': str(e)}), 500
 
 
@@ -140,7 +135,5 @@ def api_order_tasks_delete(order_id, task_id):
             db.rollback()
         except Exception:
             pass
-        import traceback
-        print(f"주문 Task 삭제 오류: {e}")
-        print(traceback.format_exc())
+        log_handled_exception()
         return jsonify({'success': False, 'message': str(e)}), 500

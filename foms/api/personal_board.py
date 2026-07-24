@@ -5,6 +5,7 @@ WR-P1 retires the `apps.api.personal_board` adapter shell so the Blueprint,
 decorator binding, and response helper all live on `foms.api.personal_board`.
 """
 import datetime
+from foms.services.error_logging import log_handled_exception
 
 from flask import Blueprint, jsonify, session
 from sqlalchemy import and_, func, or_
@@ -433,9 +434,7 @@ def personal_board_summary_response():
             }
         )
     except Exception as e:
-        import traceback
-
-        traceback.print_exc()
+        log_handled_exception()
         return jsonify({"success": False, "message": str(e)}), 500
 
 

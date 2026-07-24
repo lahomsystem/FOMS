@@ -1,5 +1,6 @@
 """채팅 SocketIO 이벤트 핸들러 등록."""
 import datetime
+from foms.services.error_logging import log_handled_exception
 from flask import session, request
 from flask_socketio import emit, join_room, leave_room
 from db import get_db
@@ -134,9 +135,7 @@ def register_chat_socketio_handlers(socketio):
             print(f"[SocketIO] 메시지 전송: 사용자 {user_id} -> 방 {room_id}")
         except Exception as e:
             db.rollback()
-            import traceback
-            print(f"메시지 전송 오류: {e}")
-            print(traceback.format_exc())
+            log_handled_exception()
             emit('error', {'message': f'메시지 전송 중 오류가 발생했습니다: {str(e)}'})
 
     @socketio.on('typing')
@@ -177,4 +176,3 @@ def register_chat_socketio_handlers(socketio):
                     }, room=str(room_id))
         except Exception as e:
             db.rollback()
-            print(f"읽음 표시 오류: {e}")

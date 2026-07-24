@@ -6,6 +6,7 @@ Phase 0B: 읽음/보관/확인의 SSOT 를 사용자별 `notification_user_state
 는 절대 공유 row 를 오염시키지 않는다. 모든 write 는 same-origin 헤더 guard 를 통과해야 한다.
 """
 import datetime as dt_mod
+from foms.services.error_logging import log_handled_exception
 import json
 import time
 from urllib.parse import quote
@@ -326,9 +327,7 @@ def api_notifications_list():
             "unread_count": int(unread_count),
         })
     except Exception as e:
-        import traceback
-        print(f"Notification List Error: {e}")
-        print(traceback.format_exc())
+        log_handled_exception()
         return jsonify({"success": False, "message": str(e)}), 500
 
 
@@ -757,8 +756,7 @@ def api_notifications_send():
             "realtime_sent": realtime_sent,
         })
     except Exception as e:
-        import traceback
-        traceback.print_exc()
+        log_handled_exception()
         if db is not None:
             try:
                 db.rollback()
@@ -868,8 +866,7 @@ def api_order_urgent_mention(order_id):
             "push_reason": push_result.get("reason"),
         })
     except Exception as e:
-        import traceback
-        traceback.print_exc()
+        log_handled_exception()
         if db is not None:
             try:
                 db.rollback()
