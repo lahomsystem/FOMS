@@ -202,7 +202,7 @@
       });
     });
 
-    # "+N" chip → open gallery starting at first overflow thumb (index == visible count).
+    // "+N" chip → open gallery starting at first overflow thumb (index == visible count).
     var moreEl = galleryEl.querySelector("[data-foms-erp-attachment-preview-more]");
     if (moreEl && moreEl.dataset.fomsErpAttachmentPreviewBound !== "1") {
       moreEl.dataset.fomsErpAttachmentPreviewBound = "1";
