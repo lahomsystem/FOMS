@@ -154,6 +154,28 @@ def init_realtime_bootstrap(
             rum_ingest_limit
         )(rum_ingest_view)
 
+    # WAM telemetry 수집(scoped) rate limit — token+order 및 canonical client
+    # (remote_addr, PROXY-01) 각 per-minute. 두 버킷 모두 신뢰 불가 XFF 로
+    # 우회할 수 없다(WAM-TELEMETRY-01).
+    wam_telemetry_limit = os.environ.get(
+        "CHANNEL_WAM_TELEMETRY_RATE_LIMIT",
+        "120 per minute",
+    )
+    wam_telemetry_view = app.view_functions.get("channel_wam_api.wam_telemetry")
+    if wam_telemetry_view is not None:
+        from foms.api.channel.channel_wam import (
+            wam_telemetry_ip_rate_key,
+            wam_telemetry_token_rate_key,
+        )
+
+        limited = limiter.limit(
+            wam_telemetry_limit, key_func=wam_telemetry_token_rate_key
+        )(wam_telemetry_view)
+        limited = limiter.limit(
+            wam_telemetry_limit, key_func=wam_telemetry_ip_rate_key
+        )(limited)
+        app.view_functions["channel_wam_api.wam_telemetry"] = limited
+
     socketio = None
     if socketio_available:
         try:
