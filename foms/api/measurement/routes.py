@@ -262,6 +262,11 @@ def api_erp_measurement_route():
     서버 인라인(data-route-inline)과 동일 계보의 points 를 반환한다.
     '내 주문' 필터는 대시보드 뷰(foms.web.measurement.dashboard)와 동일 predicate,
     기본값(파라미터/쿠키 미설정)은 기존 동작 유지 — 필터 미적용.
+
+    응답의 `route`는 예약 순서(측정 시각 오름차순) — 히어로/'다음 방문' SSOT.
+    `optimized_route`/`optimized_total_distance_km`는 최근접 이웃으로 재배열한
+    별도 동선(데스크톱 "경로 계획" 모달 전용, 근사 직선거리) — hero/next 판정에
+    쓰지 말 것(ROUTE-01).
     """
     db = get_db()
     date_filter = request.args.get('date') or measurement_api.get_today_kst().strftime('%Y-%m-%d')
