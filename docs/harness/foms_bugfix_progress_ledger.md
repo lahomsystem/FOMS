@@ -32,9 +32,10 @@
 ## Bootstrap chain (진행)
 - ✅ PROXY-01 — `<committed>`. rate_limit key-func raw XFF/X-Real-IP 파싱 제거→canonical remote_addr, hop `FOMS_TRUSTED_PROXY_HOPS` env. test 5(spoof red→green)·rate 23, APP_OK. Railway hop 실측 merge-gate.
 - ✅ SURFACE-GATE-01 — `7ac3ee94`. P1-27 인라인 predicate→SSOT GATE 일원화(1024 소실 해소)+erp-order-cohort.js(pristine reload/dirty 동결+배너/keyboard flip 0). test 10(red9→green)·회귀 374, APP_OK.
-- 🔵 REQUEST-LIMIT-01 — 서브에이전트 a3f10d8f(app_factory 500MiB→50MiB, FomsRequest, route body cap manifest). deps API-ERROR ✅.
-- ⬜ FAILOPEN-01(deps API-ERROR ✅·cross-cutting=단독 wave), PGTEST-00(로컬PG 부재→CI defer)
-- REQUEST-LIMIT 이후: PROXY✅+REQUEST-LIMIT→WRITE-GUARD-01→OPS-APPROVAL-00→CUTOVER-MODE-01·BACKFILL-ARTIFACT-00
+- ✅ REQUEST-LIMIT-01 — `<committed>`. MAX_CONTENT_LENGTH 500MiB→50MiB, FomsRequest(form memory 1MiB/parts 1000/tempfile unlink), route body-cap manifest(telemetry2K/login16K/normal1M/excel10M/legacy50M), pre-handler 413/415 JSON, presigned 제외. test 19·회귀 73, APP_OK.
+- 🔵 WRITE-GUARD-01 — 단독 wave(cross-cutting). deps PROXY✅+REQUEST-LIMIT✅. 기존 foms/services/request_write_guard.py 확장.
+- ⬜ FAILOPEN-01(deps API-ERROR ✅·cross-cutting=단독, WRITE-GUARD 뒤), PGTEST-00(CI defer)
+- WRITE-GUARD 이후: →OPS-APPROVAL-00→CUTOVER-MODE-01·BACKFILL-ARTIFACT-00→REV-00→AUTH-01…
 
 ## 알려진 loose end (retention spec 담당, 지금 미수정 — 도달불가 죽은코드)
 - foms/persistence/designer/repositories.py:339 함수지역 삭제모듈 import(도달불가), tools/designer/{generate_expected_json,run_calibration}.py dangling(오프라인).
