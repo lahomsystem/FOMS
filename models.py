@@ -337,6 +337,68 @@ class OrderItemIdentity(Base):
         }
 
 
+class ProductionRun(Base):
+    """생산 실행(production run)의 DB-global UUID run registry (PRODUCTION-BACKFILL-00, §5.2).
+
+    생산 공정은 오늘 주문마다 **단일 flat** ``structured_data['production']``(단일 steps
+    리스트·단일 defects 리스트·rework count)로만 기록돼, 재제작(rework)마다 새 실행이 열려도
+    이전 실행의 step/defect scope 경계가 남지 않는다. 이 registry 는 실행마다 **안정 UUID
+    run row** 를 발급해, step/defect scope 를 실행 단위로 귀속한다
+    (:func:`~foms.services.orders.state_axes.read_current_production_run` 의 canonical
+    target — ``production.runs[]`` + ``current_run_id`` — 과 shape 정합).
+
+    계약(§5.2 PRODUCTION-BACKFILL-00):
+
+    * **DB-global unique**: ``id`` 는 UUID PK(= ``run_id``)로 전 DB 유일하다.
+    * **order binding**: 모든 run 은 한 주문(``order_id`` FK)에 묶인다.
+    * **status**: ``IN_PROGRESS`` | ``COMPLETED`` | ``SUPERSEDED`` (§2.2 read-model target).
+    * **flat 보존**: run 의 ``steps``/``defects`` 는 flat ``structured_data['production']``
+      의 **복제 스냅샷**이다 — backfill 은 flat 을 삭제하지 않고 복제만 한다(전이 활성화는
+      하류 STATE-PROD-01 소관).
+
+    ``uq_production_run_current`` (partial unique)로 한 주문에 current run 은 최대 1개다 —
+    ``current_run_id`` 포인터의 DB 표현이자 중복 발급 방지·backfill 멱등 키다. 종결된
+    run(``is_current=False``, COMPLETED/SUPERSEDED)은 이력으로 남는다. DDL 은
+    migration(``production_backfill_00``)과 SSOT 를 공유한다(create_all 테스트 lane 동일 스키마).
+    """
+
+    __tablename__ = 'production_runs'
+
+    id = Column(UUIDColumn, primary_key=True, default=lambda: str(uuid.uuid4()))
+    order_id = Column(
+        Integer, ForeignKey('orders.id', ondelete='CASCADE'), nullable=False, index=True,
+    )
+    status = Column(String(20), nullable=False)  # IN_PROGRESS|COMPLETED|SUPERSEDED
+    # legacy 생산 시작 시각(provenance) — flat workflow.history 의 PRODUCTION 진입 시각.
+    started_at = Column(DateTime, nullable=True)
+    # 실행 단위 step/defect scope 스냅샷(flat production.steps/defects 의 복제 — flat 보존).
+    steps = Column(JSONColumn, nullable=True)
+    defects = Column(JSONColumn, nullable=True)
+    is_current = Column(Boolean, nullable=False, default=True, server_default='true')
+    created_at = Column(DateTime, nullable=False, default=now_utc_naive, server_default=func.now())
+
+    __table_args__ = (
+        # 한 주문의 current run 은 최대 1개(current_run_id 포인터 DB 표현·backfill 멱등).
+        # 종결된 run(is_current=False)은 여러 개 이력으로 남을 수 있다.
+        Index(
+            'uq_production_run_current', 'order_id',
+            unique=True, postgresql_where=text('is_current'),
+        ),
+    )
+
+    def to_dict(self):
+        return {
+            'id': self.id,
+            'order_id': self.order_id,
+            'status': self.status,
+            'started_at': format_datetime_kst(self.started_at) if self.started_at else None,
+            'steps': self.steps,
+            'defects': self.defects,
+            'is_current': self.is_current,
+            'created_at': format_datetime_kst(self.created_at),
+        }
+
+
 class OrderEvent(Base):
     """ERP 이벤트 스트림(단계 변경/일정 변경/긴급 발주/컨펌 등)"""
     __tablename__ = 'order_events'
