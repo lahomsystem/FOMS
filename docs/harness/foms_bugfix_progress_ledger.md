@@ -8,7 +8,8 @@
 
 ## Bootstrap 경계 (먼저)
 - ✅ BASE-00 — HEAD/test/symbol 인벤토리 (`foms_bugfix_base00_inventory.md`), drift 감사 완료
-- 🔵 PACKET-HARNESS-00 — core 산출물 4종 로컬 green (커밋 대기): `docs/harness/foms_bugfix_packet_tests.json`(124 packet SSOT), `docs/harness/foms_deploy_checks.json`(§8.2.1 CUTOVER_* 4종), `tools/tests/run_packet.ps1`, `tests/harness/test_bugfix_packet_manifest.py`(17 passed). APP_OK 회귀0·run_packet BASE-00 exit0·packet124/backfill18/rev99-111 검증.
+- ✅ PACKET-HARNESS-00 — `28264fff`+`8a1194fd`. manifest(124)·deploy_checks·run_packet.ps1·validation(17 passed). 오케스트레이터 독립검증: packet124=report/backfill18 exact/cycle0(topo)/rev99-111/edge 7종 §5일치. seed-empty 결함→anti-preseed 교정.
+  - **등록 규율**: 각 packet의 manifest append는 오케스트레이터가 직렬 수행(동시 편집 클로버 방지). 서브에이전트는 코드+테스트만.
   - **defer (deploy-time, 이번 packet 밖)**: completion/reissue/promotion evidence workflow(`reissue_packet_completion_evidence.yml` 등), Railway/GitHub collector, build-compat verifier(`verify_build_compatibility.py`)는 배포단계라 미구현 — manifest·runner·validation test만 착지. 각 packet은 자기 entry의 commands/created_tests/deploy_check_ids만 append.
 - ⬜ OPS-ROUTE-01 — /debug-db·public ops 봉쇄 (독립 즉시 봉쇄)
 - ⬜ API-ERROR-01 → REQUEST-LIMIT-01, FAILOPEN-01
@@ -17,8 +18,12 @@
 - ⬜ PGTEST-00 + WRITE-GUARD-01 → OPS-APPROVAL-00 → CUTOVER-MODE-01, BACKFILL-ARTIFACT-00
 
 ## 독립 즉시 봉쇄 (bootstrap과 병행 가능)
-- ✅ FE-SYNTAX — `81296da6` (P0-6 `#`→`//` 근본수정 + parser CI 신설, node PARSE_OK·pytest 2 passed). manifest created_tests 등록만 PACKET-HARNESS-00 착지 후.
-- ⬜ MIG-WEB-RETIRE-01, FE-XSS, STORED-XSS-01, DESIGNER-RETIRE-01, PUSH-01, SURFACE-GATE-01
+- ✅ FE-SYNTAX — `81296da6` (P0-6 `#`→`//` + parser CI, node PARSE_OK·pytest 2). manifest 등록 완료(`8a1194fd`).
+- ✅ FE-XSS — `582af3bc` (P0-5 measurement 검색어 `|safe`→`tojson` 3파일 + test_measurement_search_xss 3 passed, Flask tojson hostile 중화 검증). 등록 완료.
+- 🔵 DESIGNER-RETIRE-01 — 서브에이전트 a9683fd9(designer/*+services/designer+blueprints.py+nav 삭제, persistence 유지판정). investigation 완료.
+- 🔵 MIG-WEB-RETIRE-01 — 서브에이전트 ad26ba82(/admin/migration+run_web_migration+템플릿 삭제).
+- ⬜ STORED-XSS-01, PUSH-01, SURFACE-GATE-01, OPS-ROUTE-01
+- **SCALE-SKETCHUP-01**: DESIGNER-RETIRE-01로 sketchup 삭제→대상 소멸. auto-N/A(no-op close) 예정, DESIGNER 착지 후 report/manifest 반영.
 
 ## 완료 packet 로그
 - FE-SYNTAX `81296da6`: erp-attachment-preview-open.js:205 Python주석 제거, tests/domains/test_static_js_syntax.py(node --check 전 static/js). 등록 pending.
