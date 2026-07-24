@@ -2631,9 +2631,18 @@
       "write_guard": false,
       "postgres": false
     },
-    "commands": [],
-    "existing_regressions": [],
-    "created_tests": [],
+    "commands": [
+      "python -m pytest tests/domains/test_rum_ingest.py tests/domains/test_foms_rum_baseline.py -q"
+    ],
+    "existing_regressions": [
+      "tests/domains/test_foms_rum_baseline.py"
+    ],
+    "created_tests": [
+      {
+        "path": "tests/domains/test_rum_ingest.py",
+        "owner_packet": "RUM-INGEST-01"
+      }
+    ],
     "browser_scenarios": [],
     "deploy_check_ids": [],
     "deployment_evidence_mode": "PROVIDER_BOOTSTRAP"

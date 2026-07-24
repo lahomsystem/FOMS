@@ -141,6 +141,19 @@ def init_realtime_bootstrap(
             push_event_limit
         )(push_event_view)
 
+    # 익명 RUM 수집(무인증 POST) rate limit — canonical client(remote_addr, PROXY-01)
+    # 기준. 신뢰 불가 X-Forwarded-For 로 버킷을 우회할 수 없다(rate_limit_key 는
+    # 원시 XFF 를 읽지 않는다).
+    rum_ingest_limit = os.environ.get(
+        "FOMS_RUM_INGEST_RATE_LIMIT",
+        "120 per minute",
+    )
+    rum_ingest_view = app.view_functions.get("foms_rum.ingest_rum_event")
+    if rum_ingest_view is not None:
+        app.view_functions["foms_rum.ingest_rum_event"] = limiter.limit(
+            rum_ingest_limit
+        )(rum_ingest_view)
+
     socketio = None
     if socketio_available:
         try:
