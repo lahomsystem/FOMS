@@ -43,7 +43,8 @@
 - ✅ OPS-APPROVAL-00 — `670f372e`. security_principal_versions+trigger·ops_approval_requests·target_audits, approval UI(재인증)·consume(FOR UPDATE one-time·cross-DB RESERVED)·control-root·reconciler, operations manifest 35op/9owner cli=null seed. PG 30 passed·전체 2390·마이그레이션 up/down·FAILOPEN/write-guard gate, APP_OK.
 - ✅ SECRET-01 — `34c64503`. Kakao REST 키 env-only+require_kakao_rest_key() fail-fast, geocode_config/address/converter/SCheduler 리터럴 제거, JS키(공개)는 유지. FAILOPEN inventory 재생성(라인시프트). test 4·address 93·APP_OK·gate. **운영: Kakao 콘솔 외부 rotate 필수(git history 잔존).** → SECRET-02(다음).
 - ✅ REV-00 — `52ac2749`. orders.mutation_version + order_mutation_receipts/read_resources, execute_order_mutation helper(FOR UPDATE·If-Match·idempotency·read-receipt). PG 12·전체 2394·alembic 단일(ops_approval_00→rev_00). 실 route 적용은 하류.
-- 🔵 CUTOVER-MODE-01 — 단독(마이그레이션·대형). deps OPS-APPROVAL✅.
+- ✅ CUTOVER-MODE-01 — `9f135a3e`. feature_cutover_fences(15 seed)/markers(irreversible trigger), build_compatibility.json+verify, mode manifest 15-row, transactional helper, CLI 4종(OPS-APPROVAL 토큰), security/cutover nested. PG 47·전체 2394·alembic 단일(feature_cutover_00). **defer: runtime_replica_heartbeats(배포배선), manifest prerequisite/affected 빈seed(family packet 채움).**
+- 🔵 BACKFILL-ARTIFACT-00 — 단독(마이그레이션 가능·DPAPI). deps OPS-APPROVAL✅. 18 backfill packet 선행. head=feature_cutover_00.
 
 ## ⚠️ 진행 제약
 - **마이그레이션 추가 packet은 순차 필수**(병렬 시 둘 다 현재 head revise→alembic multi-head 충돌). 각 subagent에 "현재 head를 revise" 지시. 현 head=rev_00_order_mutation.
