@@ -399,6 +399,96 @@ class ProductionRun(Base):
         }
 
 
+class OrderASCycle(Base):
+    """AS(A/S) 실행 cycle 의 DB-global UUID registry (AS-BACKFILL-00, §5.2).
+
+    AS 는 오늘 주문마다 flat ``structured_data['as_info']`` 리스트(접수/방문일정/완료가 한
+    entry 에 뭉쳐 있고, 재접수마다 entry 가 append 됨)와 flat ``order.status``/
+    ``workflow.history`` 의 AS 전이로만 기록된다 — 실행별 cycle 경계·current cycle 포인터가
+    없다. 이 registry 는 AS 발생마다 **안정 UUID cycle row** 를 발급해, transition(시작)·
+    schedule(방문일)·completion(완료)·classification(사유/설명)을 cycle 단위로 귀속하고,
+    :data:`~foms.services.orders.state_axes.AS_VALUES`(``RECEIVED|IN_PROGRESS|COMPLETED``)
+    read-model 과 shape 를 정합시킨다(주문당 current cycle 0/1).
+
+    계약(§5.2 AS-BACKFILL-00):
+
+    * **DB-global unique**: ``id`` 는 UUID PK(= ``cycle_id``)로 전 DB 유일하다.
+    * **order binding**: 모든 cycle 은 한 주문(``order_id`` FK)에 묶인다.
+    * **status**: ``RECEIVED`` | ``IN_PROGRESS`` | ``COMPLETED`` (§2.2 AS axis read-model).
+    * **flat 보존**: cycle 컬럼은 flat ``as_info`` entry 의 **복제 스냅샷**이다 — backfill 은
+      flat 을 삭제/재작성하지 않고 복제만 한다. legacy stage rewrite·전이(create/complete)
+      활성화는 하류 STATE-AS-01 소관이므로 이 registry 는 runtime 의미 변경이 0 이다.
+    * ``legacy_as_id`` 는 발급 시점 ``as_info`` entry id(provenance·backfill 멱등 키)일 뿐
+      런타임 근거로 쓰지 않는다.
+
+    ``uq_order_as_cycle_current`` (partial unique)로 한 주문에 current cycle 은 최대 1개다 —
+    ``current_cycle_id`` 포인터의 DB 표현이자 "current cycle 0/1" 불변식의 강제다. 종결된
+    cycle(``is_current=False``, COMPLETED)은 이력으로 여러 개 남는다.
+    ``uq_order_as_cycle_legacy`` (partial unique)는 한 주문의 한 ``legacy_as_id`` 에 cycle 을
+    최대 1개로 강제해 backfill 을 멱등하게 만든다. DDL 은 migration(``as_backfill_00``)과 SSOT
+    를 공유한다(create_all 테스트 lane 동일 스키마).
+    """
+
+    __tablename__ = 'order_as_cycles'
+
+    id = Column(UUIDColumn, primary_key=True, default=lambda: str(uuid.uuid4()))
+    order_id = Column(
+        Integer, ForeignKey('orders.id', ondelete='CASCADE'), nullable=False, index=True,
+    )
+    status = Column(String(20), nullable=False)  # RECEIVED|IN_PROGRESS|COMPLETED
+    # 발급 시점 as_info entry id(provenance·backfill 멱등 키). 런타임 근거 아님.
+    legacy_as_id = Column(Integer, nullable=True)
+    # transition(시작): flat as_info entry 의 started_at/started_by 스냅샷.
+    started_at = Column(DateTime, nullable=True)
+    started_by = Column(String(120), nullable=True)
+    # classification: AS 사유/설명 스냅샷.
+    reason = Column(Text, nullable=True)
+    description = Column(Text, nullable=True)
+    # schedule: AS 방문일/시각 스냅샷(legacy 문자열 원문 보존 — 파싱 유실 방지).
+    visit_date = Column(String(32), nullable=True)
+    visit_time = Column(String(32), nullable=True)
+    # completion: 완료 시각/담당/메모 스냅샷.
+    completed_at = Column(DateTime, nullable=True)
+    completed_by = Column(String(120), nullable=True)
+    completion_note = Column(Text, nullable=True)
+    is_current = Column(Boolean, nullable=False, default=False, server_default='false')
+    created_at = Column(DateTime, nullable=False, default=now_utc_naive, server_default=func.now())
+
+    __table_args__ = (
+        # 한 주문의 current(열린) cycle 은 최대 1개("current cycle 0/1" 불변식의 DB 표현).
+        # 종결된 cycle(is_current=False)은 여러 개 이력으로 남을 수 있다.
+        Index(
+            'uq_order_as_cycle_current', 'order_id',
+            unique=True, postgresql_where=text('is_current'),
+        ),
+        # 한 주문의 한 legacy as_info entry 에 cycle 은 최대 1개(중복 발급 방지·backfill 멱등).
+        # legacy_as_id IS NULL(비-legacy)은 이 제약 밖(향후 STATE-AS-01 발급분).
+        Index(
+            'uq_order_as_cycle_legacy', 'order_id', 'legacy_as_id',
+            unique=True, postgresql_where=text('legacy_as_id IS NOT NULL'),
+        ),
+    )
+
+    def to_dict(self):
+        return {
+            'id': self.id,
+            'order_id': self.order_id,
+            'status': self.status,
+            'legacy_as_id': self.legacy_as_id,
+            'started_at': format_datetime_kst(self.started_at) if self.started_at else None,
+            'started_by': self.started_by,
+            'reason': self.reason,
+            'description': self.description,
+            'visit_date': self.visit_date,
+            'visit_time': self.visit_time,
+            'completed_at': format_datetime_kst(self.completed_at) if self.completed_at else None,
+            'completed_by': self.completed_by,
+            'completion_note': self.completion_note,
+            'is_current': self.is_current,
+            'created_at': format_datetime_kst(self.created_at),
+        }
+
+
 class OrderEvent(Base):
     """ERP 이벤트 스트림(단계 변경/일정 변경/긴급 발주/컨펌 등)"""
     __tablename__ = 'order_events'
