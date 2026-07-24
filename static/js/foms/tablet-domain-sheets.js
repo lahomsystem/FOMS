@@ -3,7 +3,7 @@
  *
  * 태블릿 가로(코호트)에서 우측 사이드 시트 본문에 로드되는 도메인 전용 액션 버튼과,
  * 생산 칸반 상단 필터 바를 처리한다. 신규 API 없이 기존 워크플로 엔드포인트를 재사용한다:
- *   - 생산 완료: POST /api/orders/<id>/production/complete   (에러 키 = message)
+ *   - 생산 시작/완료/수정 제작: POST /api/orders/<id>/production/start|complete|rework (에러 키 = message)
  *   - 출고 배정: POST /api/erp/shipment/update/<id>          (권한 실패 = 403)
  * 성공 시 시트를 닫고 새로고침으로 read-model 을 재조회한다(낙관 갱신은 비범위 — 간단·근본).
  *
@@ -51,32 +51,92 @@
     if (closeBtn) closeBtn.click();
   }
 
-  // 생산 완료 — 기존 생산 워크플로 엔드포인트 재사용. 에러는 message 키(error 아님).
-  function productionComplete(orderId) {
+  // HOLD_ACTIVE 재시도 confirm 문구(사유 있으면 병기).
+  function holdConfirmText(hold) {
+    var msg = "보류 중인 주문입니다";
+    if (hold && hold.reason) msg += " (사유: " + hold.reason + ")";
+    return msg + "\n보류를 해제하고 진행할까요?";
+  }
+
+  // 생산 전이(시작/완료) 공용 — confirm 게이트 후 POST. 서버가 stage 전제조건을 강제
+  // (409 INVALID_STAGE). 에러는 message 키(error 아님). 성공 시 시트 닫고 새로고침.
+  function productionTransition(orderId, path, confirmMsg) {
     if (!orderId) return;
-    fetch("/api/orders/" + encodeURIComponent(orderId) + "/production/complete", {
+    if (!window.confirm(confirmMsg)) return;
+    submitTransition(orderId, path, {});
+  }
+
+  // 전이 POST. 409 HOLD_ACTIVE(보류 중) 면 해제 confirm 후 {release_hold:true} 로 1회 재시도.
+  function submitTransition(orderId, path, body) {
+    fetch("/api/orders/" + encodeURIComponent(orderId) + path, {
       method: "POST",
       credentials: "same-origin",
       headers: { "Content-Type": "application/json" },
-      body: "{}",
+      body: JSON.stringify(body || {}),
     })
       .then(function (res) {
-        return res.json().catch(function () {
-          return { success: false, message: "서버 응답 형식 오류" };
-        });
+        var status = res.status;
+        return res
+          .json()
+          .catch(function () {
+            return { success: false, message: "서버 응답 형식 오류" };
+          })
+          .then(function (data) {
+            return { status: status, data: data || {} };
+          });
       })
-      .then(function (data) {
-        if (data && data.success) {
+      .then(function (result) {
+        var data = result.data;
+        if (result.status === 409 && data.code === "HOLD_ACTIVE" && !body.release_hold) {
+          if (window.confirm(holdConfirmText(data.hold))) {
+            // 재시도 시 기존 body(예: rework reason) 유지 + release_hold 부가.
+            var retry = {};
+            for (var k in body) if (body.hasOwnProperty(k)) retry[k] = body[k];
+            retry.release_hold = true;
+            submitTransition(orderId, path, retry);
+          }
+          return;
+        }
+        if (data.success) {
           closeSheet();
           window.location.reload();
         } else {
-          window.alert("오류: " + ((data && data.message) || "처리 실패"));
+          window.alert("오류: " + (data.message || "처리 실패"));
         }
       })
       .catch(function (err) {
-        console.error("[foms-domain-sheets] 생산 완료 실패:", err);
+        console.error("[foms-domain-sheets] 생산 전이 실패:", err);
         window.alert("처리 중 오류가 발생했습니다.");
       });
+  }
+
+  // 생산 시작 — 제작대기(고객컨펌) → 제작중 전이.
+  function productionStart(orderId) {
+    productionTransition(
+      orderId,
+      "/production/start",
+      "제작을 시작하시겠습니까? (상태가 제작중으로 변경됩니다)"
+    );
+  }
+
+  // 생산 완료 — 제작중 → 제작완료/시공대기 전이(기존 워크플로 엔드포인트 재사용).
+  function productionComplete(orderId) {
+    productionTransition(
+      orderId,
+      "/production/complete",
+      "제작을 완료하시겠습니까? (상태가 제작완료로 변경됩니다)"
+    );
+  }
+
+  // 수정 제작 — 제작완료 → 제작중 되돌림. confirm 후 사유 prompt(취소=중단, 빈 값=진행).
+  // HOLD_ACTIVE 재시도는 submitTransition 이 body(reason)를 유지한 채 처리한다.
+  function productionRework(orderId) {
+    if (!orderId) return;
+    if (!window.confirm("수정 제작으로 되돌리시겠습니까? (상태가 제작중으로 변경됩니다)")) return;
+    // prompt 취소(null) = 전이 중단. 빈 문자열 확인은 빈 사유로 진행.
+    var reason = window.prompt("수정 제작 사유를 입력하세요. (선택)");
+    if (reason === null) return;
+    submitTransition(orderId, "/production/rework", { reason: reason.trim() });
   }
 
   // 생산 보류 토글 — 표시 전용 플래그(워크플로 전이 없음). 버튼의 data-hold-active 로
@@ -528,9 +588,19 @@
       closeSheet();
       return;
     }
+    if (action === "production-start") {
+      ev.preventDefault();
+      productionStart(orderId);
+      return;
+    }
     if (action === "production-complete") {
       ev.preventDefault();
       productionComplete(orderId);
+      return;
+    }
+    if (action === "production-rework") {
+      ev.preventDefault();
+      productionRework(orderId);
       return;
     }
     if (action === "production-hold") {

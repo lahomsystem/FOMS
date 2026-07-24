@@ -4,23 +4,24 @@
 
 | 날짜 | 작업 | 수정 파일 | 커밋 |
 |------|------|-----------|------|
-| 2026-07-15 | Z3~Z8: 동선 0-사이즈 init 공백·순번 8색 팔레트, map_view 카카오 전환(마커·팝업·범례·폴백), 줌 그룹 접기/펼치기(folium 파리티), 마커 전멸 팬 보정(idle+bounds_changed 이중화, 컬링×중심고정줌이 원인), 주문간 경로 계산 부활(실도로 거리·시간·통행료), _debug QA 훅 | map-view-kakao.js(신규), map_view.html, foms-route-strip.js/css, erp_map.py, measurement/map.py | 4b27c142~60fd4213 |
-| 2026-07-15 | Z2: 동선 인라인 첫 페인트(route 빌더 SSOT 추출→data-route-inline, fetch 제거)·출고 푸터 일반 분리(본줄 3고정+워크플로 아랫줄, 10분기 바이트 패리티)·카카오 JS 키 교체(실지도 렌더 확인) | measurement_route.py(신규), routes.py, dashboard.py, mobile_list.html, foms-route-strip.js, erp_mobile_queue_card_v2.html, foms-shipment-mobile.css, layout_head+핀4 | 38ccf87d |
-| 2026-07-15 | 세션 자동 기록 | dashboard_scripts.html, measurement-entry.js, dashboard.html 외 2개 | 38ccf87d |
-| 2026-07-15 | 실기기 QA Z라운드: 동선 카드 카카오 실지도 전환(JS키 SSOT·SVG 폴백)+fragment 최초진입 로드체인 편입, 출고 카드 통합(패킹·QR·상세·수정버튼을 v2 카드 옵트인 슬롯으로)+수정시트 85vh | foms-route-strip.js/css, measurement-entry.js, geocode_config.py, erp_mobile_queue_card_v2.html(슬롯3), shipment_mobile_queue.html, foms-shipment-mobile.css, layout_head+핀5 | 6cf87088 |
-| 2026-07-14 | fragment 인라인 스크립트 잠복 결함 전량 수술(Y): 시공·생산·주문·이력 DOMContentLoaded 5블록+top-level 누적 6건 → per-swap/once-only 분리, orders dashboard_scripts 고아 체인 7파일 사문 제거(~2,900줄, 테스트는 라이브 트윈 재지정) | construction/production scripts.html, orders/index.html, history_dashboard_body.html, dashboard_scripts_* 삭제 7, 계약 테스트 5종 재지정 | 3a6b9624·a22d5805 |
-| 2026-07-14 | 실기기 QA 5결함(X1~X5): FOUC(fragment CSS 선로드)·실측 캡처 전삭제·히어로 1줄·동선 mine+지도 오버레이·출고 수정 버튼(DOMContentLoaded→위임) | erp-shell.js, layout_scripts.html, measurement(capture 삭제·mobile_list·routes·route-strip), map_generator.py+map.py+erp_map.py, shipment_mobile_queue.html | 9fad207e |
-| 2026-07-14 | 세션 자동 기록 | tablet-measure-form.js, pr_body_production.txt, perf-gate.yml 외 2개 | 9be7d305 |
-| 2026-07-14 | 세션 자동 기록 | perf-gate.yml, test_staging_perf_gate.py, staging_perf_gate.py 외 2개 | 93c10b1c |
-| 2026-07-14 | 세션 자동 기록 | test_erp_order_shared_form_scripts.py, erp_order_js.html, erp-order-shared.js 외 2개 | 89cf7b3d |
-| 2026-07-14 | 모바일 W1~W4 소탕(사용자 4분기 확정): 실측 빠른수정 삭제(캡처 유지)·도면 요약 카드(버전·전달·메모·마법사)·출고 차량/회차 신설·CS 부재중 클라 필터 + 카카오 실도로 ETA(route-eta) | measurement/mobile_list+mobile.js, drawing workbench.py+카드/홈, shipment settings.py+display, queue_card_v2, foms-call-filter.js(신규), foms-route-strip.js, measurement/routes.py | 3efa9f40·641b80d5·9b0afb73 |
-| 2026-07-14 | 세션 자동 기록 | test_tablet_t2_contract.py, layout_scripts.html, foms-tablet-measurement.css 외 2개 | f1d77e5f |
-| 2026-07-14 | 세션 자동 기록 | foms_namespace_surface_tests.py, test_erp_template_filters.py, dashboard_main.html 외 2개 | f1d77e5f |
-| 2026-07-14 | 세션 자동 기록 | perf_budgets.json, test_tablet_t2_contract.py, test_tablet_rail_contract.py 외 2개 | c572ba9b |
-| 2026-07-14 | 세션 자동 기록 | test_tablet_t2_contract.py, test_tablet_rail_contract.py, layout_head.html 외 2개 | df1fded8 |
-| 2026-07-13 | 세션 자동 기록 | tablet-side-sheet.js, foms-tablet-side-sheet.css, test_tablet_t2_contract.py 외 2개 | 46dc6180 |
-| 2026-07-13 | 세션 자동 기록 | dashboard_grid.html, dashboard_read_model.py, test_tablet_rail_contract.py 외 2개 | 46dc6180 |
-| 2026-07-13 | 세션 자동 기록 | calculator.html, tablet-skin.css, regional_dashboard.html 외 2개 | 56266eb3 |
-| 2026-07-13 | 태블릿 T7: PC 크롬 소거(대시보드 pcbar/5타일·시공·출고 컬럼)+계산기 접힘+마법사 나가기+보류/현금영수증 API+레일 벨/아바타+long-press 벌크 | tablet_dashboard_topbar, foms-tablet-*.css, tablet-bulk-select.js, production/orders.py, cs/dashboard.py 외 | c6a278f6·4e37eb66 |
-| 2026-07-13 | 태블릿 T6 목업 프레임 완전체 — 탭별 KPI·필터·전용 시트 6종(정산 발행·배정·관리·워크모드)·밀도 토글·CSV + 병치 대조 결함 4건 봉합 | tablet_*_sheet 라우트/템플릿 6종, tablet-side-sheet.js(URL 계약), tablet-density-toggle.js, foms-tablet-construction.css 외 | 9213f7aa~2ee1fa16 |
-| 2026-07-12 | 태블릿 T5: 탭별 목업 표면(도면 갤러리·완료 금액 그리드·AS 전후 대조·시트 파이프라인·계산기 표피) + JS 캐시체인·가드 자충돌·perf 캡 봉합 | tablet_gallery/completion_grid/as_compare body, foms-tablet-*.css, tablet-side-sheet.js, completion_dashboard.py, as_dashboard_display.py, perf_budgets.json | eb354b29~aa63d491 |
+| 2026-07-24 | 생산 보드 프로세스 가드 3종(전이 전제조건·보류 게이트·수정 제작 rework) — 스펙 docs/plans/2026-07-24-production-process-guards-plan.md, pytest 159 passed + Playwright 태블릿 28/28 PASS | production/orders.py, dashboard.py, tablet_sheet.html, tablet_kanban_body.html, tablet-production-kanban.js, tablet-domain-sheets.js 외 | (미커밋) |
+| 2026-07-23 | 세션 자동 기록 | erp-order-shared.js, test_erp_order_edit_mobile_form.py, test_p1_mockup_structure.py 외 2개 | a8e3b168 |
+| 2026-07-23 | 세션 자동 기록 | test_p1_mockup_structure.py, test_tablet_t2_contract.py, test_erp_spec_calc_followup.py 외 2개 | 3c328837 |
+| 2026-07-23 | 세션 자동 기록 | test_tablet_t2_contract.py, test_p1_mockup_structure.py, test_erp_spec_calc_followup.py 외 2개 | 31f05379 |
+| 2026-07-23 | 세션 자동 기록 | erp_order_tab_mobile.html, test_erp_order_edit_mobile_form.py, foms-form-field.css 외 2개 | 31f05379 |
+| 2026-07-23 | 세션 자동 기록 | test_erp_order_edit_mobile_form.py, test_erp_order_shared_form_scripts.py, test_erp_spec_calc_followup.py 외 2개 | 79c2d9a2 |
+| 2026-07-23 | 세션 자동 기록 | test_erp_order_edit_mobile_form.py, wizard_shell.html, foms-mobile-surfaces.css 외 2개 | 79c2d9a2 |
+| 2026-07-23 | 세션 자동 기록 | wizard_shell.html, layout_head.html, foms-mobile-surfaces.css 외 2개 | 9aad209a |
+| 2026-07-23 | 세션 자동 기록 | mobile.css, final-review.md, erp_order_js.html 외 2개 | 78872888 |
+| 2026-07-23 | 세션 자동 기록 | erp_order_js.html, wizard_shell.html, layout_head.html 외 2개 | 78872888 |
+| 2026-07-23 | 세션 자동 기록 | test_p1_mockup_structure.py, test_tablet_t2_contract.py, layout_head.html 외 2개 | bae12980 |
+| 2026-07-23 | 세션 자동 기록 | test_erp_spec_calc_followup.py, test_p1_mockup_structure.py, test_erp_order_shared_form_scripts.py 외 2개 | 08b7ad25 |
+| 2026-07-23 | 세션 자동 기록 | test_production_kanban_full_window.py, tablet_kanban_body.html, dashboard.py 외 2개 | 08b7ad25 |
+| 2026-07-23 | 세션 자동 기록 | test_wdcalculator_product_settings.py, wdcalculator_body.html, blueprint.py 외 2개 | 36f97651 |
+| 2026-07-23 | 세션 자동 기록 | test_regional_dashboard_buckets.py, regional_dashboard.html, _tmp_patch_logistics2.py 외 2개 | ab7886e0 |
+| 2026-07-23 | 세션 자동 기록 | regional_dashboard.html, test_regional_dashboard_buckets.py, _tmp_patch_logistics2.py 외 2개 | 473d96d0 |
+| 2026-07-23 | 세션 자동 기록 | _tmp_patch_logistics2.py, status_constants.py, test_production_change_alerts.py 외 2개 | 473d96d0 |
+| 2026-07-23 | 세션 자동 기록 | test_production_change_alerts.py, erp_order_draft.py, quest.py 외 2개 | 473d96d0 |
+| 2026-07-22 | 세션 자동 기록 | field_update.py, orders.py, as_orders.py 외 2개 | 2b049026 |
+| 2026-07-22 | 세션 자동 기록 | _tmp_order_link_xss.py, _tmp_xss_probe3.py, _tmp_xss_probe2.py 외 2개 | 2b049026 |
+| 2026-07-22 | 세션 자동 기록 | _tmp_xss_probe2.py, _tmp_xss_probe.py, _tmp_sw_audit.py 외 2개 | 2b049026 |

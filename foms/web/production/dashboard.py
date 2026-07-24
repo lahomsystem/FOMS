@@ -36,6 +36,8 @@ from foms.services.production_read_model import (
 from foms.services.production_dashboard_display import (
     build_production_enriched_rows,
     build_production_process_steps,
+    _production_quest_sales_state,
+    _production_stage_label_from_stage,
 )
 from foms.services.common.dashboard_cache import (
     KEY_VERSION,
@@ -420,6 +422,10 @@ def erp_production_tablet_sheet(order_id: int):
     notes_raw = sd.get('notes')
     _prod = sd.get('production') if isinstance(sd.get('production'), dict) else {}
     _hold = _prod.get('hold') if isinstance(_prod.get('hold'), dict) else {}
+    _rework = _prod.get('rework') if isinstance(_prod.get('rework'), dict) else {}
+    # 전이 버튼 조건 렌더용 stage/승인 상태(read-model 버킷 매핑·row 규약과 동일 헬퍼 재사용).
+    stage_label = _production_stage_label_from_stage(order.erp_stage_code) or '기타'
+    is_sales_approved = _production_quest_sales_state(sd, stage_label)[0]
     sheet = {
         'id': order.id,
         'customer_name': (((sd.get('parties') or {}).get('customer') or {}).get('name')) or '-',
@@ -430,6 +436,10 @@ def erp_production_tablet_sheet(order_id: int):
         'drawing_thumb': _prod_sheet_drawing_thumb(sd),
         'hold_active': bool(_hold.get('active')),
         'hold_reason': (_hold.get('reason') or '').strip() if isinstance(_hold.get('reason'), str) else '',
+        'rework_active': bool(_rework.get('active')),
+        'rework_reason': (_rework.get('reason') or '').strip() if isinstance(_rework.get('reason'), str) else '',
+        'stage': stage_label,
+        'is_sales_approved': bool(is_sales_approved),
     }
     _sc = collect_production_change_alerts(db, [order], user.id if user else None).get(order.id) or {"alerts": [], "history": []}
     sheet['change_alerts'] = _sc['alerts']

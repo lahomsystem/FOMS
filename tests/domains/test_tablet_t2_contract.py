@@ -320,11 +320,24 @@ def test_kanban_groups_read_model_bucket_via_row_stage() -> None:
 
 
 def test_kanban_move_buttons_reuse_existing_production_api() -> None:
-    """열 이동 = 신규 API 없이 기존 생산 워크플로 엔드포인트 재사용(production/orders.py)."""
+    """열 이동 = 신규 API 없이 기존 생산 워크플로 엔드포인트 재사용(production/orders.py).
+    P3: 제작완료 열 = 수정 제작(/production/rework) 되돌림 엔드포인트."""
     js = _read(KANBAN_JS)
     assert "/api/orders/" in js
     assert "/production/start" in js
     assert "/production/complete" in js
+    assert "/production/rework" in js
+
+
+def test_kanban_rework_badge_and_move_button_rendered() -> None:
+    """P3: 제작완료 열 = 수정 제작(rework) 이동 버튼 + active 카드 재제작 배지
+    (보류 배지와 동일 문법: fa-rotate-left '재제작' 칩)."""
+    body = _read(KANBAN_PARTIAL)
+    assert "'move': 'rework'" in body
+    assert 'data-kanban-action="rework"' in body
+    assert "foms-kanban-card__rework" in body
+    assert "fa-rotate-left" in body
+    assert "재제작" in body
 
 
 def test_kanban_js_has_idempotent_guard() -> None:
@@ -641,7 +654,7 @@ def test_w16_layout_head_loads_bundle_for_v2_and_v3_cohort() -> None:
     layout_head = _read("templates/partials/shared/layout_head.html")
     idx = layout_head.find("foms-tablet-bundle.css")
     assert idx != -1, "layout_head 에 태블릿 번들 <link> 부재"
-    assert "foms-tablet-bundle.css') }}?v=20260723d" in layout_head
+    assert "foms-tablet-bundle.css') }}?v=20260724a" in layout_head
     # Anchor on the nearest preceding `{% if %}` (the bundle gate) rather than a fixed
     # char window — the gate string grows over time (2026-07-12: +/wdcalculator arm).
     gate_start = layout_head.rfind("{% if", 0, idx)

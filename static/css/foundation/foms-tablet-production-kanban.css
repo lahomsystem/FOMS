@@ -395,6 +395,20 @@
     font-weight: var(--foms-font-weight-bold);
     white-space: nowrap;
   }
+  /* 재제작 배지 — HMI 색 예외(재작업 주의). 보류(앰버)·지연과 구분되는 정보 블루 톤. */
+  body.erp-mobile-v2-layout .foms-kanban-card__rework {
+    flex: 0 0 auto;
+    display: inline-flex;
+    align-items: center;
+    gap: 4px;
+    padding: 2px var(--foms-space-2);
+    border-radius: var(--foms-radius-full);
+    background: var(--foms-color-info-50, #eff6ff);
+    color: var(--foms-color-info-600, #2563eb);
+    font-size: var(--foms-font-size-xs);
+    font-weight: var(--foms-font-weight-bold);
+    white-space: nowrap;
+  }
   /* 보류 카드 좌측 앰버 액센트 바(카드 자체는 무채 유지). */
   body.erp-mobile-v2-layout .foms-kanban-card.is-held {
     box-shadow: inset 3px 0 0 0 var(--foms-status-warning-text, #d97706);
@@ -1160,6 +1174,24 @@
   margin-top: var(--foms-space-1);
   font-size: var(--foms-font-size-sm);
   color: var(--foms-status-warning-text, #92400e);
+}
+/* 시트 헤더 재제작 배지 + 사유 라인 — 보류(앰버)와 구분되는 정보 블루 톤(재작업 주의). */
+.foms-prod-sheet__rework-badge {
+  display: inline-flex;
+  align-items: center;
+  margin-left: var(--foms-space-2);
+  padding: 2px var(--foms-space-2);
+  border-radius: var(--foms-radius-full);
+  background: var(--foms-color-info-50, #eff6ff);
+  color: var(--foms-color-info-600, #2563eb);
+  font-size: var(--foms-font-size-sm);
+  font-weight: var(--foms-font-weight-bold);
+  vertical-align: middle;
+}
+.foms-prod-sheet__rework-reason {
+  margin-top: var(--foms-space-1);
+  font-size: var(--foms-font-size-sm);
+  color: var(--foms-color-info-600, #2563eb);
 }
 .foms-prod-sheet__btn--pri {
   flex: 2;

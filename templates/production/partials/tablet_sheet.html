@@ -19,11 +19,17 @@
       {% if order.hold_active %}
       <span class="foms-prod-sheet__hold-badge" data-tablet-sheet-hold-badge>보류</span>
       {% endif %}
+      {% if order.rework_active %}
+      <span class="foms-prod-sheet__rework-badge" data-tablet-sheet-rework-badge>재제작</span>
+      {% endif %}
     </div>
     <div class="foms-prod-sheet__count">#{{ order.id }} · 상차 {{ order.load_md }}</div>
   </div>
   {% if order.hold_active and order.hold_reason %}
   <div class="foms-prod-sheet__hold-reason" data-tablet-sheet-hold-reason-view>보류 사유: {{ order.hold_reason }}</div>
+  {% endif %}
+  {% if order.rework_active and order.rework_reason %}
+  <div class="foms-prod-sheet__rework-reason" data-tablet-sheet-rework-reason-view>재제작 사유: {{ order.rework_reason }}</div>
   {% endif %}
 
   {# ── 변경 알림: 생산 진입 후 감지된 시공일/도면 변경 목록 + [변경 확인](ack API → reload).
@@ -135,8 +141,20 @@
             data-tablet-sheet-action="production-hold"
             data-order-id="{{ order.id }}"
             data-hold-active="{{ 1 if order.hold_active else 0 }}">{{ '보류 해제' if order.hold_active else '보류' }}</button>
-    <button type="button" class="foms-prod-sheet__btn foms-prod-sheet__btn--pri"
-            data-tablet-sheet-action="production-complete" data-order-id="{{ order.id }}">생산 완료</button>
+    {% if order.stage == '제작대기' %}
+      {% if order.is_sales_approved %}
+      <button type="button" class="foms-prod-sheet__btn foms-prod-sheet__btn--pri"
+              data-tablet-sheet-action="production-start" data-order-id="{{ order.id }}">제작 시작</button>
+      {% else %}
+      <span class="foms-prod-sheet__muted" data-tablet-sheet-muted>고객 컨펌 전</span>
+      {% endif %}
+    {% elif order.stage == '제작중' %}
+      <button type="button" class="foms-prod-sheet__btn foms-prod-sheet__btn--pri"
+              data-tablet-sheet-action="production-complete" data-order-id="{{ order.id }}">생산 완료</button>
+    {% elif order.stage == '제작완료' %}
+      <button type="button" class="foms-prod-sheet__btn foms-prod-sheet__btn--pri"
+              data-tablet-sheet-action="production-rework" data-order-id="{{ order.id }}">수정 제작</button>
+    {% endif %}
   </div>
 </div>
 {# 도면 전달본 썸네일 → 기존 전역 이미지 뷰어 배선(신규 뷰어 없음). 표준 갤러리

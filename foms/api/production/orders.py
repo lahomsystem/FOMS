@@ -96,6 +96,73 @@ def _ensure_production_steps(sd: dict[str, Any]) -> list[dict[str, Any]]:
     return steps
 
 
+def _apply_production_hold_gate(
+    sd: dict[str, Any],
+    *,
+    release_hold: bool,
+    via: str,
+    order_id: int,
+    user_id: int | None,
+    db: Any,
+) -> tuple[Any, int] | None:
+    """생산 전이(start/complete/rework) 전 보류 게이트. 세 엔드포인트가 공유한다.
+
+    ``sd['production']['hold']['active']`` 가 truthy 면 주문이 보류 중이다:
+      - ``release_hold`` 가 True 가 아니면 409 HOLD_ACTIVE 응답 튜플을 반환한다
+        (호출부가 즉시 return — 전이 미진행, sd 불변).
+      - ``release_hold`` 가 True 면 같은 sd 안에서 hold 를 해제(active=False, hold API
+        해제 형과 동일)하고 ``PRODUCTION_HOLD_TOGGLED``(via) OrderEvent 를 큐잉한 뒤
+        None 을 반환한다(전이 진행).
+    보류가 없으면(또는 active 아님) 아무것도 하지 않고 None 을 반환한다 —
+    ``release_hold`` 가 True 여도 무해하며 정상 전이한다.
+
+    sd 는 호출부의 작업 dict(전이 흐름이 이후 ``copy.deepcopy(sd)`` 로 저장)이며,
+    여기서의 hold 갱신은 그 deepcopy 에 포함되어 함께 커밋된다.
+
+    :param sd: 수정 대상 structured_data(전이 흐름의 작업 dict).
+    :param release_hold: body ``release_hold`` 플래그(True 여야 해제).
+    :param via: 이벤트 payload ``via`` 값("release_on_start"|"release_on_complete"|"release_on_rework").
+    :param order_id: 대상 주문 id(OrderEvent 기록용).
+    :param user_id: 해제자 user id(OrderEvent created_by).
+    :param db: DB 세션(OrderEvent add).
+    :return: 409 응답 튜플(보류·미해제) 또는 None(전이 진행).
+    """
+    production = sd.get("production")
+    hold = production.get("hold") if isinstance(production, dict) else None
+    if not (isinstance(hold, dict) and hold.get("active")):
+        return None  # 보류 없음 → 정상 전이.
+
+    if not release_hold:
+        message = "보류 중인 주문입니다."
+        reason = hold.get("reason")
+        if reason:
+            message += f" (사유: {reason})"
+        return (
+            jsonify(
+                {"success": False, "code": "HOLD_ACTIVE", "message": message, "hold": hold}
+            ),
+            409,
+        )
+
+    # 해제 후 전이 — 같은 트랜잭션에서 hold 초기화 + 토글 이벤트 기록.
+    production["hold"] = {"active": False, "reason": "", "at": None, "by_name": None}
+    db.add(
+        OrderEvent(
+            order_id=order_id,
+            event_type="PRODUCTION_HOLD_TOGGLED",
+            payload={
+                "active": False,
+                "reason": "",
+                "via": via,
+                "domain": "PRODUCTION_DOMAIN",
+                "action": "PRODUCTION_HOLD_TOGGLED",
+            },
+            created_by_user_id=user_id,
+        )
+    )
+    return None
+
+
 @erp_orders_production_bp.route("/<int:order_id>/production/start", methods=["POST"])
 @login_required
 @erp_edit_required
@@ -107,10 +174,38 @@ def api_production_start(order_id):
         if not order or order.status == "DELETED" or order.deleted_at is not None:
             return jsonify({"success": False, "message": "주문을 찾을 수 없습니다."}), 404
 
+        # 전이 전제조건: 제작대기(고객컨펌/CONFIRM) 에서만 시작 허용. 레거시 한글 값 포함.
+        if order.erp_stage_code not in ("고객컨펌", "CONFIRM"):
+            return (
+                jsonify(
+                    {
+                        "success": False,
+                        "code": "INVALID_STAGE",
+                        "message": "제작대기 상태에서만 제작을 시작할 수 있습니다.",
+                    }
+                ),
+                409,
+            )
+
+        body = request.get_json(silent=True) or {}
+        release_hold = body.get("release_hold") is True
+
         user_id = session.get("user_id")
         user = get_user_by_id(user_id)
 
         sd = _ensure_dict(order.structured_data)
+
+        hold_gate = _apply_production_hold_gate(
+            sd,
+            release_hold=release_hold,
+            via="release_on_start",
+            order_id=order_id,
+            user_id=user_id,
+            db=db,
+        )
+        if hold_gate is not None:
+            return hold_gate
+
         wf = sd.get("workflow") or {}
         wf["stage"] = "PRODUCTION"
         wf["stage_updated_at"] = now_utc_naive().isoformat()
@@ -152,10 +247,44 @@ def api_production_complete(order_id):
         if not order or order.status == "DELETED" or order.deleted_at is not None:
             return jsonify({"success": False, "message": "주문을 찾을 수 없습니다."}), 404
 
+        # 전이 전제조건: 제작중(생산/PRODUCTION) 에서만 완료 허용. 레거시 한글 값 포함.
+        if order.erp_stage_code not in ("생산", "PRODUCTION"):
+            return (
+                jsonify(
+                    {
+                        "success": False,
+                        "code": "INVALID_STAGE",
+                        "message": "제작중 상태에서만 제작을 완료할 수 있습니다.",
+                    }
+                ),
+                409,
+            )
+
+        body = request.get_json(silent=True) or {}
+        release_hold = body.get("release_hold") is True
+
         user_id = session.get("user_id")
         user = get_user_by_id(user_id)
 
         sd = _ensure_dict(order.structured_data)
+
+        hold_gate = _apply_production_hold_gate(
+            sd,
+            release_hold=release_hold,
+            via="release_on_complete",
+            order_id=order_id,
+            user_id=user_id,
+            db=db,
+        )
+        if hold_gate is not None:
+            return hold_gate
+
+        # 재제작(rework) 완료 판정 — active 면 완료 시 해제(count·reason·at·by_name 보존)하고
+        # 이력 note·이벤트 payload 에 재제작임을 표기한다.
+        production = sd.get("production") if isinstance(sd.get("production"), dict) else None
+        rework = production.get("rework") if isinstance(production, dict) else None
+        is_rework_completion = bool(isinstance(rework, dict) and rework.get("active"))
+
         wf = sd.get("workflow") or {}
         wf["stage"] = "CONSTRUCTION"
         wf["stage_updated_at"] = now_utc_naive().isoformat()
@@ -167,11 +296,14 @@ def api_production_complete(order_id):
                 "stage": "CONSTRUCTION",
                 "updated_at": wf["stage_updated_at"],
                 "updated_by": wf["stage_updated_by"],
-                "note": "제작 완료 (시공/출고 대기)",
+                "note": "제작 완료 (재제작)" if is_rework_completion else "제작 완료 (시공/출고 대기)",
             }
         )
         wf["history"] = hist
         sd["workflow"] = wf
+
+        if is_rework_completion:
+            rework["active"] = False  # count·reason·at·by_name 은 보존, active 만 해제.
 
         order.structured_data = copy.deepcopy(sd)
         flag_modified(order, "structured_data")
@@ -188,6 +320,8 @@ def api_production_complete(order_id):
             "source_screen": "erp_production_dashboard",
             "reason": "제작 완료 (시공 대기)",
         }
+        if is_rework_completion:
+            event_payload["rework"] = True
         order_event = OrderEvent(
             order_id=order_id,
             event_type="PRODUCTION_COMPLETED",
@@ -204,6 +338,126 @@ def api_production_complete(order_id):
                 "message": "제작이 완료되었습니다. (시공 대기 상태로 변경)",
                 "new_status": "CONSTRUCTION",
             }
+        )
+    except Exception as exc:
+        db.rollback()
+        return jsonify({"success": False, "message": str(exc)}), 500
+
+
+@erp_orders_production_bp.route("/<int:order_id>/production/rework", methods=["POST"])
+@login_required
+@erp_edit_required
+def api_production_rework(order_id: int):
+    """수정 제작 시작 (제작완료 → PRODUCTION 되돌림).
+
+    제작완료(시공/CONSTRUCTION) 상태의 주문을 다시 제작중(PRODUCTION)으로 되돌린다.
+    재제작 회차(count)를 누적하고 ``sd['production']['rework']`` 에 활성 표식을 남긴다
+    (완료 시 ``api_production_complete`` 가 active=False 로 해제하며 count 는 보존).
+    가드는 start/complete 와 동일 순서: 404 → INVALID_STAGE(제작완료가 아니면 409) →
+    보류 게이트(HOLD_ACTIVE / release_hold, via="release_on_rework").
+
+    :param order_id: 대상 주문 id.
+    :param reason: (body) 수정 제작 사유(선택, trim). 빈 값 허용.
+    :param release_hold: (body) 보류 해제 후 진행 여부(선택, bool).
+    :return: ``{success, message, new_status}`` 또는 오류 JSON(에러 키 = message).
+    """
+    db = get_db()
+    try:
+        order = db.get(Order, order_id)
+        if not order or order.status == "DELETED" or order.deleted_at is not None:
+            return jsonify({"success": False, "message": "주문을 찾을 수 없습니다."}), 404
+
+        # 전이 전제조건: 제작완료(시공/CONSTRUCTION) 에서만 수정 제작 허용. 레거시 한글 값 포함.
+        if order.erp_stage_code not in ("시공", "CONSTRUCTION"):
+            return (
+                jsonify(
+                    {
+                        "success": False,
+                        "code": "INVALID_STAGE",
+                        "message": "제작완료 상태에서만 수정 제작을 시작할 수 있습니다.",
+                    }
+                ),
+                409,
+            )
+
+        body = request.get_json(silent=True) or {}
+        release_hold = body.get("release_hold") is True
+        reason_raw = body.get("reason")
+        reason = reason_raw.strip() if isinstance(reason_raw, str) else ""
+
+        user_id = session.get("user_id")
+        user = get_user_by_id(user_id)
+
+        sd = _ensure_dict(order.structured_data)
+
+        hold_gate = _apply_production_hold_gate(
+            sd,
+            release_hold=release_hold,
+            via="release_on_rework",
+            order_id=order_id,
+            user_id=user_id,
+            db=db,
+        )
+        if hold_gate is not None:
+            return hold_gate
+
+        wf = sd.get("workflow") or {}
+        wf["stage"] = "PRODUCTION"
+        wf["stage_updated_at"] = now_utc_naive().isoformat()
+        wf["stage_updated_by"] = user.name if user else "Unknown"
+
+        note = "수정 제작 시작"
+        if reason:
+            note += f" — {reason}"
+        hist = wf.get("history") or []
+        hist.append(
+            {
+                "stage": "PRODUCTION",
+                "updated_at": wf["stage_updated_at"],
+                "updated_by": wf["stage_updated_by"],
+                "note": note,
+            }
+        )
+        wf["history"] = hist
+        sd["workflow"] = wf
+
+        production = sd.get("production")
+        if not isinstance(production, dict):
+            production = {}
+            sd["production"] = production
+        prev_rework = production.get("rework")
+        prev_count = prev_rework.get("count") if isinstance(prev_rework, dict) else 0
+        count = (prev_count or 0) + 1
+        production["rework"] = {
+            "active": True,
+            "reason": reason,
+            "count": count,
+            "at": now_utc_naive().isoformat(),
+            "by_name": user.name if user else None,
+        }
+
+        order.structured_data = copy.deepcopy(sd)
+        flag_modified(order, "structured_data")
+        order.status = "PRODUCTION"
+        sync_erp_flat_columns(order, sd)
+
+        db.add(
+            OrderEvent(
+                order_id=order_id,
+                event_type="PRODUCTION_REWORK_STARTED",
+                payload={
+                    "reason": reason,
+                    "count": count,
+                    "domain": "PRODUCTION_DOMAIN",
+                    "action": "PRODUCTION_REWORK_STARTED",
+                },
+                created_by_user_id=user_id,
+            )
+        )
+        db.add(SecurityLog(user_id=user_id, message=f"주문 #{order_id} 수정 제작 시작 (PRODUCTION)"))
+        db.commit()
+        return jsonify(
+            {"success": True, "message": "수정 제작을 시작했습니다.", "new_status": "PRODUCTION"}
         )
     except Exception as exc:
         db.rollback()

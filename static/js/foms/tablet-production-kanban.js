@@ -5,6 +5,7 @@
  * 처리한다. 신규 API 없이 기존 생산 워크플로 엔드포인트를 재사용한다:
  *   POST /api/orders/<id>/production/start    (제작대기 → 제작중)
  *   POST /api/orders/<id>/production/complete (제작중 → 제작완료/시공대기)
+ *   POST /api/orders/<id>/production/rework   (제작완료 → 제작중, 사유 prompt·재제작 배지)
  * 성공 시 새로고침으로 read-model을 재조회한다(낙관 갱신은 비범위 — 간단·근본).
  *
  * 카드 본문 탭 → 상세는 tablet-side-sheet.js의 위임(위임 셀렉터에
@@ -54,28 +55,70 @@
       path: "/production/complete",
       confirm: "제작을 완료하시겠습니까? (상태가 제작완료로 변경됩니다)",
     },
+    rework: {
+      path: "/production/rework",
+      confirm: "수정 제작으로 되돌리시겠습니까? (상태가 제작중으로 변경됩니다)",
+      promptReason: true,
+      reasonPrompt: "수정 제작 사유를 입력하세요. (선택)",
+    },
   };
+
+  // HOLD_ACTIVE 재시도 confirm 문구(사유 있으면 병기).
+  function holdConfirmText(hold) {
+    var msg = "보류 중인 주문입니다";
+    if (hold && hold.reason) msg += " (사유: " + hold.reason + ")";
+    return msg + "\n보류를 해제하고 진행할까요?";
+  }
 
   function moveOrder(orderId, action) {
     var spec = ACTIONS[action];
     if (!orderId || !spec) return;
     if (!window.confirm(spec.confirm)) return;
+    var body = {};
+    if (spec.promptReason) {
+      // prompt 취소(null) = 전이 중단. 빈 문자열 확인은 빈 사유로 진행.
+      var reason = window.prompt(spec.reasonPrompt);
+      if (reason === null) return;
+      body.reason = reason.trim();
+    }
+    submitMove(orderId, spec, body);
+  }
 
+  // 전이 POST. 409 HOLD_ACTIVE(보류 중) 면 해제 confirm 후 {release_hold:true} 로 1회 재시도.
+  function submitMove(orderId, spec, body) {
     fetch("/api/orders/" + encodeURIComponent(orderId) + spec.path, {
       method: "POST",
       credentials: "same-origin",
       headers: { "Content-Type": "application/json" },
+      body: JSON.stringify(body || {}),
     })
       .then(function (res) {
-        return res.json().catch(function () {
-          return { success: false, message: "서버 응답 형식 오류" };
-        });
+        var status = res.status;
+        return res
+          .json()
+          .catch(function () {
+            return { success: false, message: "서버 응답 형식 오류" };
+          })
+          .then(function (data) {
+            return { status: status, data: data || {} };
+          });
       })
-      .then(function (data) {
-        if (data && data.success) {
+      .then(function (result) {
+        var data = result.data;
+        if (result.status === 409 && data.code === "HOLD_ACTIVE" && !body.release_hold) {
+          if (window.confirm(holdConfirmText(data.hold))) {
+            // 재시도 시 기존 body(예: rework reason) 유지 + release_hold 부가.
+            var retry = {};
+            for (var k in body) if (body.hasOwnProperty(k)) retry[k] = body[k];
+            retry.release_hold = true;
+            submitMove(orderId, spec, retry);
+          }
+          return;
+        }
+        if (data.success) {
           window.location.reload();
         } else {
-          window.alert("오류: " + ((data && data.message) || "처리에 실패했습니다."));
+          window.alert("오류: " + (data.message || "처리에 실패했습니다."));
         }
       })
       .catch(function (err) {

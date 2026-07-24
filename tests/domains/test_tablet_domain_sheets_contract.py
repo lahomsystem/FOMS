@@ -30,7 +30,7 @@ SHIPMENT_DASHBOARD_SCRIPTS = "templates/shipment/partials/dashboard_scripts.html
 CORE_MEDIA_QUERY = (
     "(min-width: 992px) and (orientation: landscape) and (pointer: coarse)"
 )
-SCRIPT_CACHEBUSTER = "?v=20260722d"
+SCRIPT_CACHEBUSTER = "?v=20260724c"
 
 
 def _read(rel: str) -> str:
@@ -64,6 +64,16 @@ def test_domain_sheets_js_reuses_existing_domain_endpoints() -> None:
     assert "/api/erp/shipment/update/" in js
     assert "credentials" in js  # same-origin 자격증명 전송
     assert ".foms-tablet-sheet__close" in js  # 표준 닫기 경로 재사용
+
+
+def test_domain_sheets_js_wires_production_start_with_confirm() -> None:
+    """제작 시작 액션 = 기존 /production/start 엔드포인트 재사용 + confirm 게이트.
+    생산 완료도 confirm 게이트를 가진다(오조작 방지)."""
+    js = _read(DOMAIN_SHEETS_JS)
+    assert "production-start" in js  # 시트 액션 위임 분기
+    assert "/production/start" in js  # 기존 엔드포인트 재사용
+    assert "제작을 시작하시겠습니까" in js  # 시작 confirm
+    assert "제작을 완료하시겠습니까" in js  # 완료 confirm
 
 
 def test_domain_sheets_js_has_production_kanban_filter() -> None:
