@@ -30,8 +30,11 @@
 - **교훈**: API-ERROR류 cross-cutting 스윕(print_exc 전파)은 파일겹침 필연 → 단독 wave. (이번엔 STORED-XSS와 events.py 안 겹쳐 무사, listing.py도 disjoint.)
 
 ## Bootstrap chain (진행)
-- ⬜ 다음: SURFACE-GATE-01(cohort CSS/JS+edit_order_body — 독립), PROXY-01(app_factory ProxyFix+rate_limit), PGTEST-00(test infra·로컬PG확인)
-- REQUEST-LIMIT-01(deps API-ERROR ✅)·FAILOPEN-01(deps API-ERROR ✅·cross-cutting=단독) → PROXY 이후 WRITE-GUARD-01→OPS-APPROVAL-00→CUTOVER-MODE-01·BACKFILL-ARTIFACT-00
+- ✅ PROXY-01 — `<committed>`. rate_limit key-func raw XFF/X-Real-IP 파싱 제거→canonical remote_addr, hop `FOMS_TRUSTED_PROXY_HOPS` env. test 5(spoof red→green)·rate 23, APP_OK. Railway hop 실측 merge-gate.
+- ✅ SURFACE-GATE-01 — `7ac3ee94`. P1-27 인라인 predicate→SSOT GATE 일원화(1024 소실 해소)+erp-order-cohort.js(pristine reload/dirty 동결+배너/keyboard flip 0). test 10(red9→green)·회귀 374, APP_OK.
+- 🔵 REQUEST-LIMIT-01 — 서브에이전트 a3f10d8f(app_factory 500MiB→50MiB, FomsRequest, route body cap manifest). deps API-ERROR ✅.
+- ⬜ FAILOPEN-01(deps API-ERROR ✅·cross-cutting=단독 wave), PGTEST-00(로컬PG 부재→CI defer)
+- REQUEST-LIMIT 이후: PROXY✅+REQUEST-LIMIT→WRITE-GUARD-01→OPS-APPROVAL-00→CUTOVER-MODE-01·BACKFILL-ARTIFACT-00
 
 ## 알려진 loose end (retention spec 담당, 지금 미수정 — 도달불가 죽은코드)
 - foms/persistence/designer/repositories.py:339 함수지역 삭제모듈 import(도달불가), tools/designer/{generate_expected_json,run_calibration}.py dangling(오프라인).
