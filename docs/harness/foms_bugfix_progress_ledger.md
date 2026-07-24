@@ -98,6 +98,13 @@
 - ✅ DELETE-RETENTION-01 — `818fc2ac`. soft-delete 영구삭제 DELETE_RETENTION_APPLY(OPS-APPROVAL seq≥1 게이트·one-time·hash/count/before snapshot 검증·dry-run·soft-delete만·승인 없이 0). 무마이그레이션. **failopen inventory 485→487(WAM channel_wam+CHANNEL-WEBHOOK channel_security catch). ⚠️커플링: WAM+CHANNEL-WEBHOOK+DELETE-RETENTION 승격 시 함께**.
 - head=channel_webhook_00. **59 packet 커밋 완료.**
 
+## ✅ 배치 6 완료 (4 packet·disjoint·회귀 2898 passed 0 failed)
+- ✅ TASK-BACKFILL-00 — `93d05e65`. OrderTask expand(task_uuid·version·provenance nullable additive·runtime 의미 0·version_id_col 배선=TASK-01)+audit/backfill(SAFE만 seed·ambiguous NULL quarantine·MEASURE→SALES·collisions 0·coverage 100%·creator 추정 0). 마이그레이션 task_backfill_00(down=channel_webhook_00·단일 head)·models.py 단독. **→ head=task_backfill_00.**
+- ✅ STATE-OVERLAY-01 — `6665a753`. api_production_hold→transition_order(HOLD_ORDER/RELEASE_HOLD)+_mirror_workflow_hold_to_production(전이기 dual-write·§350 후속 pointer)로 canonical hold·STATE-PROD 게이트/배지 무회귀. status→ON_HOLD canonical 투영(test_production_hold_api 강화·version/receipt/ORDER_HELD 단언 추가). 신규 SET_LOGISTICS_STATUS(SHIPMENT_EDIT). policy·write_guard manifest 분류(order_mutation_policy 코드 무편집·PRODUCTION_EDIT/SHIPMENT_EDIT 재사용). generic status=STATE-LEGACY 소관. test 12+hold 9. main axis 불변·무마이그레이션.
+- ✅ STARTUP-BACKFILL-01 — `a6a382c4`. erp flat 12컬럼 audit/backfill(전부 additive·기존 무변경·structured_data SSOT). runs.py wrap·SAFE만 재동기(payment_amount=수동)·batch500/DB checkpoint resume·encrypted artifact(DPAPI+AES-256-GCM·plaintext 0)·bare --apply 거부·startup fallback 미배선. 무마이그레이션. legacy fallback(app_init) 제거=STARTUP-PURE-01 소관. PG 18.
+- ✅ OFFLINE-01 — `3c03f3fe`. OFFLINE_LOCAL_RECOVERY_APPROVE(inventory/schema/order-ID hash 검증·OPS-APPROVAL seq≥1 one-time·dry-run·all-or-none·승인 없이 0)·SW-01 offline OFF 유지(자동 재생 금지). 무마이그레이션. **failopen inventory 487→488. ⚠️커플링: STATE-OVERLAY 등 catch-affecting과 함께**.
+- head=task_backfill_00. **63 packet 커밋 완료.**
+
 ## 🎯 다음 후보 (신규 unblock)
 - **STATE 패밀리**(STATE-CORE unblock): STATE-PROD-01·STATE-PROD-ACTIONS-01·STATE-DRAWING-01·STATE-AS-01·STATE-QUEST-01(+AUTH-QUEST-READ) — endpoint를 order_transition_service로 이관. 단 BACKFILL 선행(PRODUCTION-BACKFILL-00·QUEST-BACKFILL-00·AS-BACKFILL-00·DRAWING-REVISION-BACKFILL-00·CONSTRUCTION-BACKFILL-00) 확인.
 - **DELETE 패밀리**(DELETE-CORE unblock): DELETE-BULK-01·DELETE-TRASH-01·DELETE-RETENTION-01.
