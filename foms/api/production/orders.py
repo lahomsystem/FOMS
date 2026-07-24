@@ -7,11 +7,13 @@ import copy
 import datetime
 import hashlib
 import json
+import uuid
 from foms.services.datetime_kst import now_utc_naive
 from functools import wraps
 from typing import Any, Callable
 
 from flask import Blueprint, jsonify, request, session
+from sqlalchemy.exc import IntegrityError
 from sqlalchemy.orm.attributes import flag_modified
 
 from foms.web.auth import get_user_by_id, login_required
@@ -27,7 +29,12 @@ from foms.services.orders.order_transition_service import (
     TransitionError,
     transition_order,
 )
-from foms.services.orders.revision import RevisionError
+from foms.services.orders.revision import (
+    IDEMPOTENCY_REPLAY_WINDOW,
+    READ_RECEIPT_TTL,
+    RevisionError,
+    execute_order_mutation,
+)
 from foms.services.orders.state_axes import AXIS_MAIN
 from foms.services.orders.erp_policy_quests import check_quest_approvals_complete
 
@@ -185,6 +192,14 @@ def _apply_production_hold_gate(
 _POLICY_PRODUCTION_START = "STATE_PRODUCTION_START"
 _POLICY_PRODUCTION_COMPLETE = "STATE_PRODUCTION_COMPLETE"
 
+# --- STATE-PROD-ACTIONS-01: step/defect(version++ mutation)·ACK(Order 불변 receipt) ---
+# 아래는 REV-00 receipt idempotency scope 식별자(free-form string)일 뿐이다. AUTH 게이트는
+# order_mutation_policy PRODUCTION_EDIT 를 그대로 재사용하며(이 파일에서 재분류 없음), 여기
+# 문자열은 POLICY_REGISTRY 와 무관하다(transition 의 STATE_PRODUCTION_* 와 동일 관례).
+_POLICY_PRODUCTION_STEP = "PRODUCTION_STEP_CHECK"
+_POLICY_PRODUCTION_DEFECT = "PRODUCTION_DEFECT_REPORT"
+_POLICY_PRODUCTION_ACK = "PRODUCTION_CHANGE_ACK"
+
 for _command in (
     TransitionCommand(
         command_id="PRODUCTION_START", policy_id=_POLICY_PRODUCTION_START,
@@ -217,6 +232,45 @@ def _request_hash(body: dict[str, Any]) -> str:
     """요청 payload 의 sha256 hex(same-key/different-hash 감지용)."""
     canonical = json.dumps(body, sort_keys=True, ensure_ascii=False, default=str)
     return hashlib.sha256(canonical.encode("utf-8")).hexdigest()
+
+
+def _record_immutable_ack_receipt(
+    db: Any, actor_user_id: Any, order_id: int, idem_key: str,
+    body: dict[str, Any], response_body: dict[str, Any],
+) -> None:
+    """Order 불변 ack 의 idempotency receipt 1건을 기록한다(mutation_version bump 없음).
+
+    execute_order_mutation 은 version 을 무조건 bump 하므로 ack(Order 불변)에는 쓸 수 없다.
+    대신 REV-00 receipt 만 receipt-only 경로로 남겨 same-token 재요청을 replay(event 0)로
+    수렴시킨다. resulting_versions 는 빈 dict(변경 order 없음)로 둔다.
+
+    (actor, PRODUCTION_CHANGE_ACK, key) unique 제약이 same-token 동시 요청을 막는다 — 두
+    번째 insert 는 flush 에서 IntegrityError 를 던져 호출부가 rollback→replay 하게 한다.
+
+    :param db: business 트랜잭션 세션(호출부가 commit 소유).
+    :param actor_user_id: 요청 actor(receipt 소유자·idempotency scope).
+    :param order_id: 대상 주문 id(scope_hash 구성).
+    :param idem_key: idempotency key(≤64자, None 아님 — 호출부가 존재 확인 후 전달).
+    :param body: 요청 payload(request_hash 계산).
+    :param response_body: replay 시 돌려줄 저장 응답 body.
+    """
+    now = now_utc_naive()
+    db.add(
+        OrderMutationReceipt(
+            read_receipt_id=str(uuid.uuid4()),
+            actor_user_id=actor_user_id,
+            policy_id=_POLICY_PRODUCTION_ACK,
+            idempotency_key=idem_key,
+            scope_hash=_scope_hash("PRODUCTION_CHANGE_ACK", order_id),
+            request_hash=_request_hash(body),
+            response_status=200,
+            response_body=response_body,
+            resulting_versions={},  # Order 불변 — bump 없음.
+            read_expires_at=now + READ_RECEIPT_TTL,
+            expires_at=now + IDEMPOTENCY_REPLAY_WINDOW,
+        )
+    )
+    db.flush()
 
 
 def _idempotency_receipt_exists(db: Any, actor_user_id: Any, policy_id: str, idem_key: str | None) -> bool:
@@ -658,10 +712,14 @@ def api_production_rework(order_id: int):
 def api_production_change_ack(order_id: int):
     """생산 변경 확인(ack). 카드/시트 변경 스트립·묘비 [확인] 버튼이 호출한다.
 
-    ``PRODUCTION_CHANGE_ACK`` OrderEvent 를 1건 기록만 한다(structured_data·상태 불변).
-    이 ack 시각이 변경 감지 윈도를 리셋하므로 이후 대시보드 재조회 시 해당 주문의
-    변경 스트립이 사라진다. **삭제(취소)된 주문에도 허용**한다 — 묘비 카드 확인용이라
-    ``active_filter`` 대신 존재 여부만 확인한다.
+    **Order 불변**(structured_data·상태·mutation_version 무변경) — ``PRODUCTION_CHANGE_ACK``
+    OrderEvent 1건과 (idempotency key 가 있으면) REV-00 receipt 1건만 기록한다. 이 ack 시각이
+    변경 감지 윈도를 리셋하므로 이후 대시보드 재조회 시 해당 주문의 변경 스트립이 사라진다.
+    **삭제(취소)된 주문에도 허용**한다 — 묘비 카드 확인용이라 존재 여부만 확인한다.
+
+    **idempotent**: body/헤더 idempotency key 를 주면 same-token 재요청은 event/receipt 를
+    재기록하지 않고 저장 응답을 replay 한다(event 0). key 가 없으면 dedupe 하지 않는다(레거시
+    묘비 재확인·매 요청 기록 — 기존 동작 보존).
 
     권한: 생산 공정 스텝과 동일 게이트(ADMIN 또는 CS/SALES/**PRODUCTION** 팀). ack 는
     "생산 인원 개인별" 설계라 생산팀 계정이 반드시 눌러야 하므로 erp_edit(ADMIN/CS/SALES
@@ -676,6 +734,15 @@ def api_production_change_ack(order_id: int):
         if order is None:
             return jsonify({"success": False, "message": "주문을 찾을 수 없습니다."}), 404
 
+        body = request.get_json(silent=True) or {}
+        idem_key = _idempotency_key(body)
+        user_id = session.get("user_id")
+        response_body = {"success": True, "data": {"order_id": order_id}}
+
+        # idempotent: 같은 token 재요청은 event/receipt 재기록 없이 저장 응답을 replay 한다.
+        if _idempotency_receipt_exists(db, user_id, _POLICY_PRODUCTION_ACK, idem_key):
+            return jsonify(response_body)
+
         payload = {"source": "tablet_kanban"}
         if order.deleted_at is not None:
             # 묘비 확인: 이 삭제 시점을 마커로 고정한다(시계 비교 없이 동등성으로 판정).
@@ -686,11 +753,19 @@ def api_production_change_ack(order_id: int):
                 order_id=order_id,
                 event_type="PRODUCTION_CHANGE_ACK",
                 payload=payload,
-                created_by_user_id=session.get("user_id"),
+                created_by_user_id=user_id,
             )
         )
+
+        # Order 는 건드리지 않는다(version bump 없음) — receipt 만 same-token idempotency 를 건다.
+        if idem_key is not None:
+            try:
+                _record_immutable_ack_receipt(db, user_id, order_id, idem_key, body, response_body)
+            except IntegrityError:
+                db.rollback()  # 동시 same-token → event/receipt 0, replay 로 수렴.
+                return jsonify(response_body)
         db.commit()
-        return jsonify({"success": True, "data": {"order_id": order_id}})
+        return jsonify(response_body)
     except Exception as exc:
         db.rollback()
         return jsonify({"success": False, "message": str(exc)}), 500
@@ -738,10 +813,13 @@ def api_production_steps_get(order_id: int):
 @login_required
 @_production_steps_edit_required
 def api_production_steps(order_id: int):
-    """생산 공정 스텝 체크 토글. body {key, done(bool)}.
+    """생산 공정 스텝 체크 토글. body {key, done(bool)[, idempotency_key]}.
 
     최초 접근 시 기본 5단계(cut/edge/paint/assemble/inspect)를 생성한 뒤 해당 key의
-    done 상태를 반영한다(체크 시 at=UTC iso, by_name 기록). JSONB 는 deepcopy+flag_modified.
+    done 상태를 반영한다(체크 시 at=UTC iso, by_name 기록). 스텝 변경은
+    execute_order_mutation(REV-00) 경유로 Order.mutation_version++ 와 PRODUCTION_STEP_CHECKED
+    OrderEvent 를 한 트랜잭션에 원자 기록한다(JSONB 는 deepcopy+flag_modified). idempotency
+    key 를 주면 same-token 재요청은 replay(중복 bump/event 0)한다 — 없으면 dedupe 안 함.
     """
     db = get_db()
     try:
@@ -756,33 +834,55 @@ def api_production_steps(order_id: int):
             return jsonify({"success": False, "error": "주문을 찾을 수 없습니다."}), 404
 
         user = get_user_by_id(session.get("user_id"))
-        sd = copy.deepcopy(_ensure_dict(order.structured_data))
-        steps = _ensure_production_steps(sd)
-        target = next((s for s in steps if s.get("key") == key), None)
-        if target is None:  # 방어: 기본 5단계에는 항상 존재
-            return jsonify({"success": False, "error": "해당 공정을 찾을 수 없습니다."}), 400
+        user_id = session.get("user_id")
+        captured: dict[str, Any] = {}
 
-        now_iso = datetime.datetime.now(datetime.timezone.utc).isoformat()
-        target["done"] = done
-        target["at"] = now_iso if done else None
-        target["by_name"] = (user.name if user else None) if done else None
-
-        order.structured_data = sd
-        flag_modified(order, "structured_data")
-        db.add(
-            OrderEvent(
-                order_id=order_id,
-                event_type="PRODUCTION_STEP_CHECKED",
-                payload={
-                    "key": key,
-                    "done": done,
-                    "domain": "PRODUCTION_DOMAIN",
-                    "action": "PRODUCTION_STEP_CHECKED",
-                },
-                created_by_user_id=session.get("user_id"),
+        def _mutate(sess: Any, orders: list[Order]) -> dict[int, list[str]]:
+            o = orders[0]
+            sd = copy.deepcopy(_ensure_dict(o.structured_data))
+            steps = _ensure_production_steps(sd)
+            # key 는 _PRODUCTION_STEP_KEYS 로 검증됐고 _ensure_production_steps 가 5단계를
+            # 항상 보장하므로 target 은 반드시 존재한다.
+            target = next(s for s in steps if s.get("key") == key)
+            now_iso = datetime.datetime.now(datetime.timezone.utc).isoformat()
+            target["done"] = done
+            target["at"] = now_iso if done else None
+            target["by_name"] = (user.name if user else None) if done else None
+            o.structured_data = sd
+            flag_modified(o, "structured_data")
+            sess.add(
+                OrderEvent(
+                    order_id=o.id,
+                    event_type="PRODUCTION_STEP_CHECKED",
+                    payload={
+                        "key": key,
+                        "done": done,
+                        "domain": "PRODUCTION_DOMAIN",
+                        "action": "PRODUCTION_STEP_CHECKED",
+                    },
+                    created_by_user_id=user_id,
+                )
             )
-        )
+            captured["steps"] = steps
+            return {o.id: []}
+
+        try:
+            execute_order_mutation(
+                db,
+                actor_user_id=user_id,
+                policy_id=_POLICY_PRODUCTION_STEP,
+                order_ids=[order_id],
+                scope_hash=_scope_hash("PRODUCTION_STEP", order_id),
+                request_hash=_request_hash(payload),
+                mutation=_mutate,
+                idempotency_key=_idempotency_key(payload),
+            )
+        except RevisionError as exc:
+            db.rollback()
+            return jsonify({"success": False, "error": str(exc), "code": exc.error_code}), exc.status_code
+
         db.commit()
+        steps = captured["steps"]
         done_count = sum(1 for s in steps if s.get("done"))
         return jsonify(
             {"success": True, "data": {"steps": steps, "done_count": done_count, "total": len(steps)}}
@@ -800,8 +900,10 @@ def api_production_defect(order_id: int):
 
     reason 은 화이트리스트(_PRODUCTION_DEFECT_REASONS)로 검증한다. 통과 시
     sd['production']['defects'] 에 {reason, at(UTC iso), by_name} 를 append 하고
-    최근 _PRODUCTION_DEFECTS_CAP(20)건만 유지한다. OrderEvent 'PRODUCTION_DEFECT_REPORTED'
-    를 남기며 JSONB 는 deepcopy+flag_modified 규약을 따른다.
+    최근 _PRODUCTION_DEFECTS_CAP(20)건만 유지한다. defect 보고는 execute_order_mutation(REV-00)
+    경유로 Order.mutation_version++ 와 PRODUCTION_DEFECT_REPORTED OrderEvent 를 한 트랜잭션에
+    원자 기록한다(JSONB 는 deepcopy+flag_modified). idempotency key 를 주면 same-token 재요청은
+    replay(중복 bump/event 0)한다 — 없으면 dedupe 안 함.
 
     :param order_id: 대상 주문 id.
     :return: {success, data:{defects, latest, total}} 또는 오류 JSON.
@@ -818,39 +920,62 @@ def api_production_defect(order_id: int):
             return jsonify({"success": False, "error": "주문을 찾을 수 없습니다."}), 404
 
         user = get_user_by_id(session.get("user_id"))
-        sd = copy.deepcopy(_ensure_dict(order.structured_data))
-        production = sd.get("production")
-        if not isinstance(production, dict):
-            production = {}
-            sd["production"] = production
-        defects = production.get("defects")
-        if not isinstance(defects, list):
-            defects = []
+        user_id = session.get("user_id")
+        captured: dict[str, Any] = {}
 
-        now_iso = datetime.datetime.now(datetime.timezone.utc).isoformat()
-        entry = {"reason": reason, "at": now_iso, "by_name": (user.name if user else None)}
-        defects.append(entry)
-        if len(defects) > _PRODUCTION_DEFECTS_CAP:
-            defects = defects[-_PRODUCTION_DEFECTS_CAP:]
-        production["defects"] = defects
-
-        order.structured_data = sd
-        flag_modified(order, "structured_data")
-        db.add(
-            OrderEvent(
-                order_id=order_id,
-                event_type="PRODUCTION_DEFECT_REPORTED",
-                payload={
-                    "reason": reason,
-                    "domain": "PRODUCTION_DOMAIN",
-                    "action": "PRODUCTION_DEFECT_REPORTED",
-                },
-                created_by_user_id=session.get("user_id"),
+        def _mutate(sess: Any, orders: list[Order]) -> dict[int, list[str]]:
+            o = orders[0]
+            sd = copy.deepcopy(_ensure_dict(o.structured_data))
+            production = sd.get("production")
+            if not isinstance(production, dict):
+                production = {}
+                sd["production"] = production
+            defects = production.get("defects")
+            if not isinstance(defects, list):
+                defects = []
+            now_iso = datetime.datetime.now(datetime.timezone.utc).isoformat()
+            entry = {"reason": reason, "at": now_iso, "by_name": (user.name if user else None)}
+            defects.append(entry)
+            if len(defects) > _PRODUCTION_DEFECTS_CAP:
+                defects = defects[-_PRODUCTION_DEFECTS_CAP:]
+            production["defects"] = defects
+            o.structured_data = sd
+            flag_modified(o, "structured_data")
+            sess.add(
+                OrderEvent(
+                    order_id=o.id,
+                    event_type="PRODUCTION_DEFECT_REPORTED",
+                    payload={
+                        "reason": reason,
+                        "domain": "PRODUCTION_DOMAIN",
+                        "action": "PRODUCTION_DEFECT_REPORTED",
+                    },
+                    created_by_user_id=user_id,
+                )
             )
-        )
+            captured["defects"] = defects
+            captured["entry"] = entry
+            return {o.id: []}
+
+        try:
+            execute_order_mutation(
+                db,
+                actor_user_id=user_id,
+                policy_id=_POLICY_PRODUCTION_DEFECT,
+                order_ids=[order_id],
+                scope_hash=_scope_hash("PRODUCTION_DEFECT", order_id),
+                request_hash=_request_hash(payload),
+                mutation=_mutate,
+                idempotency_key=_idempotency_key(payload),
+            )
+        except RevisionError as exc:
+            db.rollback()
+            return jsonify({"success": False, "error": str(exc), "code": exc.error_code}), exc.status_code
+
         db.commit()
+        defects = captured["defects"]
         return jsonify(
-            {"success": True, "data": {"defects": defects, "latest": entry, "total": len(defects)}}
+            {"success": True, "data": {"defects": defects, "latest": captured["entry"], "total": len(defects)}}
         )
     except Exception as exc:
         db.rollback()
