@@ -73,23 +73,13 @@ def api_order_quest_get(order_id):
                     current_quest = q
                     break
 
-        # quest가 없으면 템플릿에서 생성하고 DB에 저장 (한글 단계명으로 생성)
+        # quest가 없으면 템플릿에서 표시용으로 합성만 한다 (비영속).
+        # GET은 순수 read — 저장/생성은 기존 mutation(POST/PUT) 경로에서만 수행한다.
         if not current_quest:
             quest_tpl = get_quest_template_for_stage(current_stage_code)
             if quest_tpl:
                 owner_person = session.get('username') or ''
                 current_quest = create_quest_from_template(current_stage_code, owner_person, sd)
-                if current_quest:
-                    if not sd.get("quests"):
-                        sd["quests"] = []
-                    sd["quests"].append(current_quest)
-                    order.structured_data = sd
-                    order.updated_at = datetime.datetime.now()
-                    db.commit()
-                    # Tier A(broad): quest 흐름은 stage 전환을 유발해 탭 간 이동이 일어남.
-                    from foms.services.common.dashboard_cache import invalidate_all_dashboard_slice_caches
-
-                    invalidate_all_dashboard_slice_caches()
 
         return jsonify({
             'success': True,
