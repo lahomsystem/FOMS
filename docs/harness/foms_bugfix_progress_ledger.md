@@ -105,6 +105,13 @@
 - ✅ OFFLINE-01 — `3c03f3fe`. OFFLINE_LOCAL_RECOVERY_APPROVE(inventory/schema/order-ID hash 검증·OPS-APPROVAL seq≥1 one-time·dry-run·all-or-none·승인 없이 0)·SW-01 offline OFF 유지(자동 재생 금지). 무마이그레이션. **failopen inventory 487→488. ⚠️커플링: STATE-OVERLAY 등 catch-affecting과 함께**.
 - head=task_backfill_00. **63 packet 커밋 완료.**
 
+## ✅ 배치 7 완료 (4 packet·disjoint·회귀 3003 passed 0 failed)
+- ✅ ERP-ESTIMATE-01 — `cab7eda7`. erp_estimates CRUD(create/update/draft-delete/issued-cancel) execute_order_mutation one-tx·parent scope(cross-order 거부)·CS/SALES/Admin·VIEWER 403·stale 409·issued hard-delete 금지. AUTH-01 정책 재사용(manifest 무편집)·무마이그레이션.
+- ✅ UPLOAD-01 — `528c7a2b`. 근본원인: folder `".." in` substring·complete `orders/{id}/ not in` substring 우회(`foo/orders/5/x`)·route 권한 무. 수정: upload_authz.py SSOT·posixpath.normpath norm==raw·head-anchored orders/{int}/{whitelist}·order segment 정확일치. VIEWER 403+purpose matrix(measurement=전STAFF·drawing=DRAWING/CS/SALES+MGR·construction/as=CS/SALES/CONSTRUCTION+MGR·VIEWER 전거부, drawing tightening 비파괴 검증). 신규 policy/route 0·manifest 무편집. red→green 22→49.
+- ✅ PACK-01 — `28d3a32e`. shipment/packing 제출 execute_order_mutation one-tx·submit 1=POST 1(더블탭 방지)·shell GET 0(erp-shell fixture 계약·erp-shell.js 무접근). AUTH-01 packing 정책 재사용·무마이그레이션·?v 20260725a.
+- ✅ ERR-UX-01 — `083db0b7`. foms-write.js 공용 parser(fomsMutationFetch·timeout AbortController 15s[무기한 무음실패 근본결함]·malformed/403/409/428·offline queue 잠복버그)·production-steps/tablet-kanban/foms-complete-gate 전환·visible/rollback/re-enable·reload 0·API/정책/상태 무변경·?v 20260725a. **failopen inventory 488→486. ⚠️커플링: ERP-ESTIMATE+UPLOAD+PACK(Python catch 시프트)와 함께**.
+- head=task_backfill_00(무마이그레이션 배치). **67 packet 커밋 완료.**
+
 ## 🎯 다음 후보 (신규 unblock)
 - **STATE 패밀리**(STATE-CORE unblock): STATE-PROD-01·STATE-PROD-ACTIONS-01·STATE-DRAWING-01·STATE-AS-01·STATE-QUEST-01(+AUTH-QUEST-READ) — endpoint를 order_transition_service로 이관. 단 BACKFILL 선행(PRODUCTION-BACKFILL-00·QUEST-BACKFILL-00·AS-BACKFILL-00·DRAWING-REVISION-BACKFILL-00·CONSTRUCTION-BACKFILL-00) 확인.
 - **DELETE 패밀리**(DELETE-CORE unblock): DELETE-BULK-01·DELETE-TRASH-01·DELETE-RETENTION-01.
