@@ -65,6 +65,14 @@
 - ✅ AUTH-QUEST-READ-01 — `d360a5a0`. quest GET의 read-writes-DB(lazy-create+sd append+commit+updated_at+cache 무효화) 제거→비영속 표시 합성, creation은 mutation path 유지(STATE-QUEST-01 이관). 반복 GET version/event/JSONB 0. failopen inventory 재생성(quest.py 라인시프트·496 불변). 무mig. domains green. **→ AUTH-QUEST-01 unblock.**
 - head=crew_00(CREW 마이그레이션). **37 packet 커밋 완료.**
 
+## ✅ 배치 2 완료 (5 packet·disjoint·회귀 2692 passed 0 failed)
+- ✅ ITEM-ID-00 — `f43b1518`. order_item_identities UUID registry(DB-global unique·item_index provenance·is_active tombstone·partial unique 슬롯당 활성1)+OrderAttachment/OrderScheduleDate.item_id nullable FK+audit(safe/ambiguous OUT_OF_RANGE·NEGATIVE_INDEX CSV)+backfill(lite·idempotent·resume·enforcement gate)+order_date_sync 연동. 마이그레이션 item_id_00(down=crew_00·단일 head). PG 13. **lite 패턴 승인**(runs.py 서명체인 과도, 형제 ASSIGNMENT/STATE-MODEL 선례). **→ head=item_id_00.**
+- ✅ CALL-LOG-01 — `085c4f20`. CALL_LOGGED command(execute_order_mutation one-tx·version/receipt/OrderEvent·sd.calls append 1·same-key idempotent·orthogonal 축 불변). **근본수정**: legacy @erp_edit_required(canonical ERP_EDIT와 모순·MANAGER 오403) 제거→handler evaluate_policy(ERP_EDIT) enforce(@login_required 유지). policy SSOT 무변경(ERP_EDIT 재사용). test 13. **failopen inventory 재생성 포함(ITEM-ID order_date_sync + call_log 라인시프트 둘 다). ⚠️inventory 커플링: ITEM-ID-00+CALL-LOG-01은 production 승격 시 함께**(inventory가 두 source 라인 참조).
+- ✅ STATE-AXES-REPAIR-00 — `6428aac4`. repair_order_state_axes.py(dry-run/apply/verify·audit safe bucket만·LEGACY_ALIAS·coverage 100%·manual CSV verifier). ambiguous 자동교정 0(§7.2)·endpoint 무변경. domains green. 무mig.
+- ✅ QUEST-BACKFILL-00 — `6a753d41`. audit_order_quests(stage별 current 단일성 위반·모호 approval 분류)+backfill(safe만·approval 보존·coverage 100%). lazy create 복구 없음·모호 자동선택 0. quest 전이는 STATE-QUEST-01. PG green. 무mig(JSONB).
+- ✅ HISTORY-01 — `c45315d9`. P1-16: 두 history mobile JS DOMContentLoaded-only→singleton guard+foms:erp-shell-fragment-swapped 리스너로 fragment swap 후 toggle/포커스 부활(G4 idempotent). ?v 범프 20260724a. shell 무변경. perf guard+p3 11 passed.
+- head=item_id_00. **43 packet 커밋 완료.**
+
 ## 🎯 다음 후보 (신규 unblock)
 - **STATE 패밀리**(STATE-CORE unblock): STATE-PROD-01·STATE-PROD-ACTIONS-01·STATE-DRAWING-01·STATE-AS-01·STATE-QUEST-01(+AUTH-QUEST-READ) — endpoint를 order_transition_service로 이관. 단 BACKFILL 선행(PRODUCTION-BACKFILL-00·QUEST-BACKFILL-00·AS-BACKFILL-00·DRAWING-REVISION-BACKFILL-00·CONSTRUCTION-BACKFILL-00) 확인.
 - **DELETE 패밀리**(DELETE-CORE unblock): DELETE-BULK-01·DELETE-TRASH-01·DELETE-RETENTION-01.
