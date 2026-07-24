@@ -40,8 +40,9 @@
 - 로컬 PostgreSQL 16.8 @localhost:5432 발견(dev DSN `postgresql://postgres:lahom@127.0.0.1:5432`, **커밋 파일엔 비번 금지 — env-driven**). test DB 생성/삭제 가능.
 - ✅ PGTEST-00 — `bb9ec61d`. tests/postgres/(conftest 안전가드 localhost+foms_test_*, create_all 42테이블, xdist 격리), run_postgres_concurrency.ps1, CI postgres:16, smoke+safety 19 passed(dev env), 잔여 DB 0, opt-in skip. → **postgres=true 63개 packet 로컬 검증 경로 열림.**
 - ✅ FAILOPEN-01 — `0a533f22`. broad catch 499 전수 AST 인벤토리(unclassified 0), LOG_AND_CONTINUE 463(로깅 28)/FAIL_CLOSED 19/INTENTIONAL 17, silent-pass 45 전량 해소. release gate static. test 10 + 전체 2390 passed 0 failed, APP_OK. API-ERROR 겹침 표기.
-- 🔵 OPS-APPROVAL-00 — 단독(foms/ 모델·API·CLI). deps PGTEST✅+WRITE-GUARD✅. 9 consumer 선행. PG 테스트=dev env.
-- **다음 (PG chain)**: OPS-APPROVAL-00 → CUTOVER-MODE-01 → BACKFILL-ARTIFACT-00 → REV-00 → AUTH-01 → STATE-CORE-00…
+- ✅ OPS-APPROVAL-00 — `670f372e`. security_principal_versions+trigger·ops_approval_requests·target_audits, approval UI(재인증)·consume(FOR UPDATE one-time·cross-DB RESERVED)·control-root·reconciler, operations manifest 35op/9owner cli=null seed. PG 30 passed·전체 2390·마이그레이션 up/down·FAILOPEN/write-guard gate, APP_OK.
+- 🔵 REV-00(deps PGTEST✅ — 상태코어 선행) ∥ SECRET-01(P0-2 Kakao 키, 무PG 독립)
+- **다음 (PG chain)**: CUTOVER-MODE-01(deps OPS-APPROVAL✅)·BACKFILL-ARTIFACT-00(deps OPS-APPROVAL✅) / REV-00→STATE-CORE-00·DATA-01·DELETE-CORE-00 / SECRET-02→SESSION-SIGNING chain→AUTH-01
 
 ## ✅ 부트스트랩 보안 경계 완성 (16 packet)
 BASE-00·PACKET-HARNESS-00 + OPS-ROUTE-01·API-ERROR-01·FAILOPEN-01·REQUEST-LIMIT-01·PROXY-01·WRITE-GUARD-01·PGTEST-00 + 봉쇄 FE-SYNTAX·FE-XSS·MIG-WEB-RETIRE-01·DESIGNER-RETIRE-01·STORED-XSS-01·PUSH-01·SURFACE-GATE-01. SCALE-SKETCHUP-01=N/A.
