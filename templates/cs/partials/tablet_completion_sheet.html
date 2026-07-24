@@ -36,7 +36,7 @@
       </p>
       {# 발행 버튼: 요청이 있고 아직 미발행이며 시공팀이 아닐 때만 노출. 배선은
          tablet-completion-sheet.js(document 위임) 소관 — 여기서는 data-* 만 렌더한다. #}
-      {% if cash_receipt and not cash_receipt_issued and not is_construction_team %}
+      {% if cash_receipt and not cash_receipt_issued and policy_can('FINANCE_MUTATION') %}
       <button type="button" class="foms-completion-sheet__cash-issue-btn"
               data-foms-cash-receipt-issue data-order-id="{{ order_id }}">현금영수증 발행</button>
       {% endif %}
@@ -69,8 +69,8 @@
     {% endif %}
   </section>
 
-  {% if is_construction_team %}
-  <p class="foms-completion-sheet__issue-blocked">시공팀은 비용 청구를 등록할 수 없습니다.</p>
+  {% if not policy_can('FINANCE_MUTATION') %}
+  <p class="foms-completion-sheet__issue-blocked">비용 청구 권한이 없습니다.</p>
   {% else %}
   <form class="foms-completion-sheet__section foms-completion-sheet__issue"
         data-foms-settlement-form

@@ -204,7 +204,7 @@ ERP Order mobile-v2 tab pane.
                             </div>
                             <div id="erp-deposit-section" class="erp-mobile-amount-row">
                                 <div class="erp-mobile-amount-label">
-                                    <button type="button" class="erp-payment-confirm-btn" onclick="window.erpTogglePayment(this, 'deposit')" data-payment-type="deposit" data-confirmed="0" title="미확인 - 클릭하여 확인 완료 처리" style="background: none; border: 0; padding: 0.1rem; cursor: pointer;">
+                                    <button type="button" class="erp-payment-confirm-btn" data-payment-type="deposit" data-confirmed="0"{% if policy_can('FINANCE_MUTATION') %} onclick="window.erpTogglePayment(this, 'deposit')" title="미확인 - 클릭하여 확인 완료 처리" style="background: none; border: 0; padding: 0.1rem; cursor: pointer;"{% else %} title="예약금 확인 상태(변경 권한 없음)" style="background: none; border: 0; padding: 0.1rem; cursor: default;" aria-disabled="true"{% endif %}>
                                         <img src="{{ url_for('static', filename='images/pay-coin-gray.png') }}" class="erp-custom-payment-icon erp-custom-payment-unconfirmed" alt="예약금">
                                     </button>
                                     <label for="erp-deposit-amount">예약금(선금)</label>
@@ -228,7 +228,7 @@ ERP Order mobile-v2 tab pane.
                             </div>
                             <div id="erp-remaining-section" class="erp-mobile-amount-row" style="display: none;">
                                 <div class="erp-mobile-amount-label">
-                                    <button type="button" class="erp-payment-confirm-btn" onclick="window.erpTogglePayment(this, 'balance')" data-payment-type="balance" data-confirmed="0" title="미확인 - 클릭하여 확인 완료 처리" style="background: none; border: 0; padding: 0.1rem; cursor: pointer;">
+                                    <button type="button" class="erp-payment-confirm-btn" data-payment-type="balance" data-confirmed="0"{% if policy_can('FINANCE_MUTATION') %} onclick="window.erpTogglePayment(this, 'balance')" title="미확인 - 클릭하여 확인 완료 처리" style="background: none; border: 0; padding: 0.1rem; cursor: pointer;"{% else %} title="잔금 확인 상태(변경 권한 없음)" style="background: none; border: 0; padding: 0.1rem; cursor: default;" aria-disabled="true"{% endif %}>
                                         <img src="{{ url_for('static', filename='images/pay-bill-gray.png') }}" class="erp-custom-payment-icon erp-custom-payment-unconfirmed" alt="잔금">
                                     </button>
                                     <span>잔금</span>

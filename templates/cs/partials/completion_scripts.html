@@ -71,9 +71,9 @@
       var orderIdHtml = hideOrderActions
         ? '<span class="fw-bold">#' + order.id + '</span>'
         : '<a href="' + escapeAttr(orderDetailHref) + '" class="fw-bold text-decoration-none" title="주문 상세">#' + order.id + '</a>';
-      var settlementBtnHtml = hideOrderActions
-        ? ''
-        : ' <button type="button" class="btn btn-sm btn-outline-warning" data-action="open-settlement-modal" data-order-id="' + order.id + '" title="비용 청구"><i class="fas fa-file-invoice-dollar"></i><span class="d-none d-md-inline ms-1">비용 청구</span></button>';
+      var settlementBtnHtml = canFinance
+        ? ' <button type="button" class="btn btn-sm btn-outline-warning" data-action="open-settlement-modal" data-order-id="' + order.id + '" title="비용 청구"><i class="fas fa-file-invoice-dollar"></i><span class="d-none d-md-inline ms-1">비용 청구</span></button>'
+        : '';
 
       var html = '<div class="erp-completion-row erp-completion-row--desktop" data-order-id="' + order.id + '">';
       html += '<div class="erp-completion-summary d-flex flex-wrap align-items-center gap-2">' + orderIdHtml;
@@ -123,10 +123,14 @@
       html += asContentHtml;
       html += noteHtml;
       html += failHistoryHtml;
-      if (!hideOrderActions) {
+      if (!hideOrderActions || canFinance) {
         html += '<div class="erp-completion-mobile-card__actions">';
-        html += '<a class="erp-completion-mobile-card__action" href="' + escapeAttr(orderDetailHref) + '"><i class="fas fa-up-right-from-square"></i><span>주문 상세</span></a>';
-        html += '<button type="button" class="erp-completion-mobile-card__action is-primary" data-action="open-settlement-modal" data-order-id="' + order.id + '"><i class="fas fa-file-invoice-dollar"></i><span>비용 청구</span></button>';
+        if (!hideOrderActions) {
+          html += '<a class="erp-completion-mobile-card__action" href="' + escapeAttr(orderDetailHref) + '"><i class="fas fa-up-right-from-square"></i><span>주문 상세</span></a>';
+        }
+        if (canFinance) {
+          html += '<button type="button" class="erp-completion-mobile-card__action is-primary" data-action="open-settlement-modal" data-order-id="' + order.id + '"><i class="fas fa-file-invoice-dollar"></i><span>비용 청구</span></button>';
+        }
         html += '</div>';
       }
       html += '</article>';
@@ -140,6 +144,9 @@
     var isMobileV2 = !!(rootEl && rootEl.dataset.erpMobileV2 === 'true');
     var isConstructionTeam = !!(rootEl && rootEl.dataset.isConstructionTeam === 'true');
     var hideOrderActions = isConstructionTeam;
+    // 금융 권한(FINANCE_MUTATION: ADMIN/MANAGER·STAFF+CS/SALES)만 비용 청구 control 노출.
+    // UI 은닉은 backend 가드(before_request)를 대체하지 않는다 — 무권한 클릭은 서버가 403.
+    var canFinance = !!(rootEl && rootEl.dataset.canFinance === 'true');
     var pageParams = new URLSearchParams(window.location.search);
     var apiParams = new URLSearchParams();
     var datasetSearchQ = rootEl ? String(rootEl.dataset.searchQ || '').trim() : '';

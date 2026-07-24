@@ -952,9 +952,18 @@
       "write_guard": true,
       "postgres": false
     },
-    "commands": [],
-    "existing_regressions": [],
-    "created_tests": [],
+    "commands": [
+      "python -m pytest tests/domains/test_auth_finance.py tests/domains/test_cash_receipt_issue_api.py -q"
+    ],
+    "existing_regressions": [
+      "tests/domains/test_cash_receipt_issue_api.py"
+    ],
+    "created_tests": [
+      {
+        "path": "tests/domains/test_auth_finance.py",
+        "owner_packet": "AUTH-FINANCE-01"
+      }
+    ],
     "browser_scenarios": [],
     "deploy_check_ids": [],
     "deployment_evidence_mode": "HEARTBEAT"
