@@ -211,7 +211,14 @@ class OrderScheduleDate(Base):
     kind = Column(String(50), nullable=False, index=True)      # e.g., 'measurement', 'construction', 'shipping'
     date = Column(String(20), nullable=False, index=True)      # e.g., '2026-03-09'
     source = Column(String(50), nullable=False)                # e.g., 'legacy_column', 'beta_schedule', 'beta_item'
-    item_index = Column(Integer, nullable=True)                # e.g., 0, 1 ... (for items array)
+    item_index = Column(Integer, nullable=True)                # e.g., 0, 1 ... (for items array, legacy provenance)
+    # ITEM-ID-00: 아이템-스코프 일정의 결합 SSOT = 안정 UUID(order_item_identities.id).
+    # date-sync(order_date_sync)가 rebuild 시 registry 에서 이 UUID 를 다시 채운다(위치
+    # 인덱스가 아니라 UUID 로 결합). expand 단계라 nullable.
+    item_id = Column(
+        UUIDColumn, ForeignKey('order_item_identities.id', ondelete='SET NULL'),
+        nullable=True, index=True,
+    )
 
     from sqlalchemy import Index
     __table_args__ = (
@@ -239,7 +246,14 @@ class OrderAttachment(Base):
     filename = Column(String(255), nullable=False)
     file_type = Column(String(50), nullable=False)  # image / video
     category = Column(String(50), nullable=False, default='measurement')  # measurement / drawing / construction / as
-    item_index = Column(Integer, nullable=True, default=None, index=True)  # 제품 항목 인덱스 (None=공통)
+    item_index = Column(Integer, nullable=True, default=None, index=True)  # 제품 항목 인덱스 (None=공통, legacy provenance)
+    # ITEM-ID-00: 아이템 결합 SSOT = 안정 UUID(order_item_identities.id). item_index 는
+    # legacy positional provenance 로만 남고, 결합/authz 판정은 이 UUID 를 쓴다. expand
+    # 단계라 nullable 이며, ambiguous 0건 backfill 완료 전에는 NOT NULL enforcement 를 걸지 않는다.
+    item_id = Column(
+        UUIDColumn, ForeignKey('order_item_identities.id', ondelete='SET NULL'),
+        nullable=True, index=True,
+    )
     file_size = Column(Integer, nullable=False, default=0)
 
     storage_key = Column(String(500), nullable=False)  # static/uploads 기준 key 또는 R2 key
@@ -263,6 +277,63 @@ class OrderAttachment(Base):
             'thumbnail_key': self.thumbnail_key,
             'created_at': format_datetime_kst(self.created_at),
             'user_id': self.user_id,
+        }
+
+
+class OrderItemIdentity(Base):
+    """주문 아이템의 DB-global UUID identity registry (ITEM-ID-00, §5.2).
+
+    주문 아이템은 오늘 ``structured_data['items']`` 배열의 **위치 인덱스**(``item_index``)
+    로만 식별된다 — 아이템 추가/삭제/재정렬에 인덱스가 밀리면 첨부(:class:`OrderAttachment`)
+    ·일정(:class:`OrderScheduleDate`) 결합이 조용히 깨진다. 이 registry 는 아이템마다
+    **안정 UUID identity row** 를 발급해, 첨부/일정이 위치 인덱스가 아니라 이 UUID
+    (``item_id``)를 가리키게 한다.
+
+    계약(§5.2 ITEM-ID-00):
+
+    * **DB-global unique**: ``id`` 는 UUID PK 로 전 DB 유일하다.
+    * **order binding**: 모든 identity 는 한 주문(``order_id`` FK)에 묶인다.
+    * **immutable / no-reuse**: 발급된 UUID 는 다른 아이템에 재발급되지 않는다. 아이템이
+      사라지면 hard delete 하지 않고 tombstone(``is_active=False`` + ``retired_at``)으로
+      은퇴시키며, 은퇴한 UUID 는 재활성화하지 않는다(같은 슬롯은 **새 UUID** 로 재발급).
+    * ``item_index`` 는 발급 시점 아이템 슬롯 좌표(provenance·backfill 멱등 키)일 뿐
+      **런타임 authorization/link 근거로 쓰지 않는다** — 첨부/일정 결합은 오직 UUID 다.
+
+    ``uq_order_item_identity_active`` (partial unique)로 한 주문의 한 슬롯에 활성 identity
+    는 최대 1개다 — 중복 발급을 막고 backfill 을 멱등하게 만든다. tombstone 뒤 같은 슬롯은
+    새 UUID 로 다시 발급할 수 있다. DDL 은 migration(``item_id_00``)과 SSOT 를 공유한다
+    (create_all 테스트 lane 동일 스키마).
+    """
+
+    __tablename__ = 'order_item_identities'
+
+    id = Column(UUIDColumn, primary_key=True, default=lambda: str(uuid.uuid4()))
+    order_id = Column(
+        Integer, ForeignKey('orders.id', ondelete='CASCADE'), nullable=False, index=True,
+    )
+    # 발급 시점 아이템 슬롯 좌표(provenance/backfill 멱등 키). 런타임 auth/link 근거 아님.
+    item_index = Column(Integer, nullable=False)
+    is_active = Column(Boolean, nullable=False, default=True, server_default='true')
+    created_at = Column(DateTime, nullable=False, default=now_utc_naive, server_default=func.now())
+    retired_at = Column(DateTime, nullable=True)
+
+    __table_args__ = (
+        # 한 주문의 한 아이템 슬롯에 활성 identity 는 최대 1개(중복 발급 방지·backfill 멱등).
+        # tombstone(is_active=False) 뒤 같은 슬롯은 새 UUID 로 재발급 가능.
+        Index(
+            'uq_order_item_identity_active', 'order_id', 'item_index',
+            unique=True, postgresql_where=text('is_active'),
+        ),
+    )
+
+    def to_dict(self):
+        return {
+            'id': self.id,
+            'order_id': self.order_id,
+            'item_index': self.item_index,
+            'is_active': self.is_active,
+            'created_at': format_datetime_kst(self.created_at),
+            'retired_at': format_datetime_kst(self.retired_at) if self.retired_at else None,
         }
 
 

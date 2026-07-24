@@ -566,9 +566,18 @@
       "write_guard": false,
       "postgres": true
     },
-    "commands": [],
-    "existing_regressions": [],
-    "created_tests": [],
+    "commands": [
+      "python -m pytest tests/postgres/test_item_id.py -q"
+    ],
+    "existing_regressions": [
+      "tests/domains/test_order_date_sync.py"
+    ],
+    "created_tests": [
+      {
+        "path": "tests/postgres/test_item_id.py",
+        "owner_packet": "ITEM-ID-00"
+      }
+    ],
     "browser_scenarios": [],
     "deploy_check_ids": [],
     "deployment_evidence_mode": "PROVIDER_BOOTSTRAP"
