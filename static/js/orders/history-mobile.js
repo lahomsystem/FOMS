@@ -1,4 +1,17 @@
+/**
+ * HISTORY-01: re-executes on every ERP shell fragment swap (`activateScripts`
+ * recreates the `<script src>` tag), but by then `document`'s DOMContentLoaded has
+ * already fired once — a `DOMContentLoaded`-only bind never re-runs on swap, so the
+ * toggle/focus-expand wiring silently stops working after the first navigation.
+ * `window.__HISTORY_ORDERS_BOUND` singleton guard (perf 가드 G4) + `foms:erp-shell-fragment-swapped`
+ * delegation (same event as the sibling inline chevron-toggle script in
+ * history_dashboard_body.html) keeps this to exactly one live bind that re-queries
+ * the fresh DOM each swap.
+ */
 (function () {
+  if (window.__HISTORY_ORDERS_BOUND) return;
+  window.__HISTORY_ORDERS_BOUND = true;
+
   function lazyLoadImages(root) {
     if (!root) return;
     root.querySelectorAll('img.lazy-detail-img[data-src]').forEach(function (img) {
@@ -17,7 +30,7 @@
     }
   }
 
-  document.addEventListener('DOMContentLoaded', function () {
+  function init() {
     var root = document.querySelector('.erp-history-mobile-shell[data-erp-mobile-v2="true"]');
     if (!root) return;
 
@@ -47,5 +60,12 @@
     window.setTimeout(function () {
       focusCard.scrollIntoView({ behavior: 'smooth', block: 'center' });
     }, 120);
-  });
+  }
+
+  if (document.readyState === 'loading') {
+    document.addEventListener('DOMContentLoaded', init);
+  } else {
+    init();
+  }
+  document.addEventListener('foms:erp-shell-fragment-swapped', init);
 })();

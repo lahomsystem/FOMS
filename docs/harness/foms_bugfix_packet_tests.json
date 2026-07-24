@@ -2329,8 +2329,13 @@
       "write_guard": false,
       "postgres": false
     },
-    "commands": [],
-    "existing_regressions": [],
+    "commands": [
+      "python -m pytest tests/performance/test_perf_regression_guard.py tests/domains/test_p3_gate.py -q"
+    ],
+    "existing_regressions": [
+      "tests/performance/test_perf_regression_guard.py",
+      "tests/domains/test_p3_gate.py"
+    ],
     "created_tests": [],
     "browser_scenarios": [],
     "deploy_check_ids": [],
