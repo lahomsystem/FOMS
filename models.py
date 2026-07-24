@@ -507,7 +507,16 @@ class OrderEvent(Base):
 
 
 class OrderTask(Base):
-    """팔로업/이슈 추적(Task)"""
+    """팔로업/이슈 추적(Task).
+
+    TASK-BACKFILL-00 (§5.2) expand: flat task 행에 **DB-global 안정 UUID identity**
+    (``task_uuid``)·**optimistic mutation version**(``version``)·**provenance**
+    (``provenance``, backfill 은 ``'LEGACY'``) 3개 컬럼을 additive(nullable)로 더한다.
+    backfill 은 audit 이 SAFE 로 분류한 task 에만 seed 하고(자동 매핑 0), orphan/status/
+    date/team/user/auto_key 이상이 있는 ambiguous task 는 NULL 로 남겨 quarantine 한다.
+    기존 컬럼은 무변경(expand 단계) — NOT NULL·auto_key collision unique enforcement 와
+    version_id_col 배선은 하류 TASK-01 소관이라 이 단계의 runtime 의미 변경은 0 이다.
+    """
     __tablename__ = 'order_tasks'
 
     id = Column(Integer, primary_key=True)
@@ -518,8 +527,21 @@ class OrderTask(Base):
     owner_user_id = Column(Integer, ForeignKey('users.id'), nullable=True)
     due_date = Column(String, nullable=True)  # YYYY-MM-DD
     meta = Column(JSONColumn, nullable=True)
+    # TASK-BACKFILL-00 expand(nullable): backfill 이 SAFE task 에만 채운다. ambiguous 는 NULL.
+    task_uuid = Column(UUIDColumn, nullable=True)          # DB-global 안정 identity(전 DB 유일)
+    version = Column(Integer, nullable=True)               # optimistic mutation version(SAFE=1 seed)
+    provenance = Column(String(20), nullable=True)         # 'LEGACY'(backfill 표식) — creator 추정 금지
     created_at = Column(DateTime, default=datetime.datetime.now, nullable=False)
     updated_at = Column(DateTime, default=datetime.datetime.now, nullable=False)
+
+    __table_args__ = (
+        # 발급된 task_uuid 는 전 DB 유일(partial — 아직 미발급/ambiguous NULL 행은 제외).
+        # auto_key collision unique(active) 는 ambiguous 0 확인 후 하류 enforcement 마이그레이션.
+        Index(
+            'uq_order_task_uuid', 'task_uuid',
+            unique=True, postgresql_where=text('task_uuid IS NOT NULL'),
+        ),
+    )
 
     order = relationship('Order', foreign_keys=[order_id])
     owner_user = relationship('User', foreign_keys=[owner_user_id])
