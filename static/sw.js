@@ -269,6 +269,23 @@ self.addEventListener("push", function (event) {
     }
   }
 
+  // 발신 계약(push_sender._build_payload): notification_id/deep_link 는 payload.data.*
+  // 에 nested 로 실린다. nested 를 우선 읽고, 없으면 구(top-level) 발신본과의 호환을 위해
+  // top-level 로 fallback 한다(계약 정본=nested, top-level=legacy fallback).
+  var pushData = (payload && typeof payload.data === "object" && payload.data) || {};
+  var notificationId =
+    pushData.notification_id != null
+      ? pushData.notification_id
+      : payload.notification_id != null
+      ? payload.notification_id
+      : null;
+  var deepLink =
+    pushData.deep_link ||
+    pushData.deep_link_url ||
+    payload.deep_link ||
+    payload.deep_link_url ||
+    null;
+
   var title = payload.title || "FOMS 알림";
   var options = {
     body: payload.body || "",
@@ -280,8 +297,8 @@ self.addEventListener("push", function (event) {
     // vibrate 는 best-effort(미지원 브라우저는 무시).
     vibrate: payload.vibrate || [80, 40, 80],
     data: {
-      notification_id: payload.notification_id != null ? payload.notification_id : null,
-      deep_link: payload.deep_link || payload.deep_link_url || null
+      notification_id: notificationId,
+      deep_link: deepLink
     }
   };
 
