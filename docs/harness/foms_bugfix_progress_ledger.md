@@ -22,11 +22,14 @@
 - ✅ FE-XSS — `582af3bc` (P0-5 measurement 검색어 `|safe`→`tojson` 3파일 + test_measurement_search_xss 3 passed, Flask tojson hostile 중화 검증). 등록 완료.
 - ✅ DESIGNER-RETIRE-01 — `75b00b65`. designer 3레이어+web/designer+templates+static+nav+blueprints 삭제(133파일), 죽은 테스트 43개+qa_deploy_test 제거. persistence/designer 유지(env.py·conftest ORM 매핑). test_designer_retired 13 passed, drawing/workbench 303·namespace 179 passed, APP_OK. tools/tests taxonomy allowlist 동반 수정(내 PACKET-HARNESS-00 회귀).
 - ✅ MIG-WEB-RETIRE-01 — `7fa43775`. /admin/migration+run_web_migration+템플릿 삭제. test 4 passed, admin 회귀 green, APP_OK.
-- ⬜ STORED-XSS-01, PUSH-01, SURFACE-GATE-01
-- **SCALE-SKETCHUP-01 = N/A(auto no-op close)**: DESIGNER-RETIRE-01로 sketchup parse 대상 소멸. §5상 optional·no-op close 그룹이라 그래프 재구성 불필요, 미구현 종료.
+- ✅ PUSH-01 — `5dd0343d`. sw.js nested data.* 우선+top-level fallback+same-origin sanitize. test 5(node VM)·push/notif 146 passed, node --check OK, APP_OK.
+- ✅ OPS-ROUTE-01 — `be6a5a51`. P0-18 /debug-db 삭제(404)·channel health 인증게이트(무인증 coarse+no-store, ADMIN detail private)·healthz status만. test 9(red7→green9)·channel/health 25·namespace 179, APP_OK. bearer/Railway ops-service 배포단계 분리.
+- ⬜ STORED-XSS-01, SURFACE-GATE-01
+- **SCALE-SKETCHUP-01 = N/A(auto no-op close)**: DESIGNER-RETIRE-01로 sketchup parse 대상 소멸.
 
-## Bootstrap 다음 wave (독립, off BASE-00)
-- ⬜ OPS-ROUTE-01(debug.py+blueprints+ops surface), API-ERROR-01, PROXY-01(app_factory 경합→API-ERROR와 순차), PGTEST-00(test infra)
+## Bootstrap chain (독립, off BASE-00 — 다음 wave)
+- ⬜ API-ERROR-01(app_factory 500핸들러+redaction), PROXY-01(app_factory ProxyFix+rate_limit — API-ERROR와 app_factory 경합→순차), PGTEST-00(test infra, 로컬 PG 필요 여부 확인)
+- 이후: FAILOPEN-01·REQUEST-LIMIT-01→WRITE-GUARD-01→OPS-APPROVAL-00→CUTOVER-MODE-01·BACKFILL-ARTIFACT-00
 
 ## 알려진 loose end (retention spec 담당, 지금 미수정 — 도달불가 죽은코드)
 - foms/persistence/designer/repositories.py:339 함수지역 삭제모듈 import(도달불가), tools/designer/{generate_expected_json,run_calibration}.py dangling(오프라인).
