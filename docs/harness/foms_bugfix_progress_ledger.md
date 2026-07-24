@@ -36,11 +36,12 @@
 - ✅ WRITE-GUARD-01 — `dd2118ed`. 공용 CSRF(itsdangerous 세션바인딩)+Origin before_request 가드, manifest 149route(143+6exempt) url_map 전수, client layout_head 단일 choke(fetch/XHR/form/beacon), logout/switch POST전용. WRITE_GUARD_ENABLED=not TESTING. test 12 + **tests/domains 전체 2380 passed 0 failed**, APP_OK. holidays_kr_*.json gitignore.
 - 🔵 FAILOPEN-01 — 단독 wave(cross-cutting, 무PG). deps API-ERROR ✅.
 
-## ⚠️ PostgreSQL 갈림길
-- 로컬 DATABASE_URL 없음(SQLite). **postgres=true packet 63개**(OPS-APPROVAL-00·CUTOVER-MODE-01·REV-00·STATE-*·DELETE-* 등)는 PG 없이 로컬 green 불가.
-- OPS-APPROVAL-00 deps=PGTEST-00(PG lane)+WRITE-GUARD✅. PGTEST-00이 PG 필요 → 로컬 PG 셋업 여부가 대량 packet 진행 관건.
-- 옵션: (a) 로컬 PostgreSQL 셋업(foms_test_*)→PGTEST-00·PG packet 로컬검증 가능, (b) 무PG packet 먼저 소진 후 PG chain은 CI/PG환경.
-- 무PG로 진행 가능한 잔여: FAILOPEN-01, FE 계열 잔여, 일부 UI/XSS, MIG류.
+## ✅ PostgreSQL lane 확보 (갈림길 해소)
+- 로컬 PostgreSQL 16.8 @localhost:5432 발견(dev DSN `postgresql://postgres:lahom@127.0.0.1:5432`, **커밋 파일엔 비번 금지 — env-driven**). test DB 생성/삭제 가능.
+- ✅ PGTEST-00 — `bb9ec61d`. tests/postgres/(conftest 안전가드 localhost+foms_test_*, create_all 42테이블, xdist 격리), run_postgres_concurrency.ps1, CI postgres:16, smoke+safety 19 passed(dev env), 잔여 DB 0, opt-in skip. → **postgres=true 63개 packet 로컬 검증 경로 열림.**
+- 🔵 FAILOPEN-01 — 서브에이전트 a9a26193(foms/ broad/silent catch 분류). deps API-ERROR ✅.
+- **다음 (PG chain 진입)**: OPS-APPROVAL-00(deps PGTEST✅+WRITE-GUARD✅) → CUTOVER-MODE-01 → BACKFILL-ARTIFACT-00 → REV-00 → AUTH-01 → STATE-CORE-00…
+- 하류 PG packet은 `pg_engine`(다중 커밋 세션)으로 SKIP LOCKED/FOR UPDATE 실경합 검증. 로컬 검증 시 FOMS_TEST_DATABASE_URL env 주입.
 
 ## 알려진 loose end (retention spec 담당, 지금 미수정 — 도달불가 죽은코드)
 - foms/persistence/designer/repositories.py:339 함수지역 삭제모듈 import(도달불가), tools/designer/{generate_expected_json,run_calibration}.py dangling(오프라인).
