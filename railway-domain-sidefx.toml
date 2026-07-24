@@ -1,0 +1,12 @@
+# domain side-effect outbox worker 전용 Railway Config (SIDEFX-WORKER-01)
+# 별도 service 로 등록: Railway 대시보드 > 새 service > Settings >
+#   Config Path: railway-domain-sidefx.toml
+# web/worker(rq)/cron service 와 분리한다 — 이 delivery/expiry/retention loop 는
+# 자체 프로세스로 돌고 SIDEFX-00 outbox 만 소비한다(§8.2 line 1548).
+# service/env provisioning·등록은 오케스트레이터 몫. delivery handler 배포 전에는
+# delivery 가 NoHandler 로 재시도/DEAD 되므로 관련 mode 를 ENFORCED/TICKET 으로 올리지 않는다.
+[build]
+builder = "nixpacks"
+
+[deploy]
+startCommand = "python tools/ops/run_domain_side_effect_outbox.py --loop --interval 5 --expiry-scan-interval 300 --retention-scan-interval 86400"

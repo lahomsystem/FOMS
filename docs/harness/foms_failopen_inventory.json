@@ -5,13 +5,13 @@
   "overlap_api_error_01": "API-ERROR-01 owns response/stdout exposure (print_exc/str(e) -> log_handled_exception). This packet owns swallow classification. Sites that log via log_handled_exception are LOG_AND_CONTINUE here.",
   "marker_convention": "Silent-by-design catches carry an inline `# failopen: intentional: <reason>` (or `fail-closed`) marker; the scanner reads it as the justification. No bare allowlist, no lint-disable.",
   "baselines": {
-    "broad_total": 499,
+    "broad_total": 500,
     "unclassified": 0
   },
   "disposition_counts": {
     "FAIL_CLOSED": 19,
     "INTENTIONAL": 17,
-    "LOG_AND_CONTINUE": 463
+    "LOG_AND_CONTINUE": 464
   },
   "owner_counts": {
     "api": 226,
@@ -22,7 +22,7 @@
     "persistence": 3,
     "platform": 5,
     "runtime": 6,
-    "services": 98,
+    "services": 99,
     "storage": 28,
     "telemetry": 31,
     "web": 32
@@ -4049,6 +4049,15 @@
     {
       "path": "foms/services/shipment_read_model.py",
       "lineno": 62,
+      "handler_type": "broad_exception",
+      "disposition": "LOG_AND_CONTINUE",
+      "owner": "services",
+      "has_logging": true,
+      "justification": "logs via logger/log_handled_exception"
+    },
+    {
+      "path": "foms/services/sidefx_worker.py",
+      "lineno": 298,
       "handler_type": "broad_exception",
       "disposition": "LOG_AND_CONTINUE",
       "owner": "services",
