@@ -8,10 +8,17 @@
    목업 시트 대조 = 카드 내 전/후 포토 그리드). 임의 창작 없음.
 
    frame08 크롬(코호트 전용):
-     - pcbar(제목 · 미완료 N건 · 밀도[뷰]토글 · AS 접수 CTA) + chip 서브탭(영업/배송·미완료·완료).
-       둘 다 .foms-as-compare(grid) 의 grid-column:1/-1 자식 → 별도 base-hide 불필요
-       (부모 base-hide 를 그대로 상속, 코호트에서만 표시). PC 서브탭/필터/pill/헤더 은닉은
-       foms-tablet-as-compare.css 코호트 규칙 소유.
+     - pcbar(제목 · 미완료 N건 · 검색 · 밀도[뷰]토글 · AS 접수 CTA) + chip 서브탭
+       (영업/배송·미완료·완료). 카드 스크롤 중에도 상시 노출되도록 둘 다 `.foms-as-compare-head`
+       래퍼(카드 section `#foms-as-compare-surface` 의 형제, grid 밖)로 옮겨 sticky(top:0)
+       처리한다 — grid item 은 자기 grid area 에 갇혀 sticky 가 불가하므로 구조 전환이 필수였다.
+       래퍼 자체가 자체 base-hide(display:none)를 소유하고 코호트 @media 에서만 표시된다
+       (기존 grid 부모 상속 패턴 폐기). PC 서브탭/필터/pill/헤더 은닉은 foms-tablet-as-compare.css
+       코호트 규칙 소유.
+     - 검색: PC 필터폼(.erp-as-desktop-filters)이 코호트에서 완전 은닉되므로, pcbar 안에
+       순수 GET 폼(`.foms-as-compare-search`, name="q")을 별도 신설한다. tab/sort_dir/bucket/
+       status/mine 은 hidden input 으로 보존해 검색 후에도 현재 탭/정렬/필터 컨텍스트가 유지된다
+       (신규 라우트·JS 없음 — erp_as_page.erp_as_dashboard 가 기존 q 체인 그대로 처리).
      - 카드 방문 블록: 방문일(재조정 date input)+D-day + 시각·시공팀·원 주문 링크(목업 방문 정보).
      - 카드 foot: 주변 일정 · 사진 관리 · 일정 변경 · AS 완료 · 주문 편집.
        일정 변경/AS 완료 배선 = tablet-as-compare.js(as_dashboard_body 에서 defer 로드).
@@ -31,13 +38,30 @@
    [data-foms-lightbox-src] 를 자동 마운트(coarse=모바일 뷰어로 위임). 신규 뷰어 없음.
    인라인 스타일 금지, 인라인 스크립트 금지(계약 테스트 잠금).
    ============================================================================ #}
-<section class="foms-as-compare" id="foms-as-compare-surface" aria-label="AS 전/후 대조">
-  {# --- pcbar (grid-column:1/-1): 제목 · 미완료 N건 · 밀도(뷰) 토글 · AS 접수 --- #}
+<div class="foms-as-compare-head" id="foms-as-compare-head">
+  {# --- pcbar: 제목 · 미완료 N건 · 검색 · 밀도(뷰) 토글 · AS 접수 --- #}
   <div class="foms-as-compare-pcbar">
     <div class="foms-as-compare-pcbar__head">
       <span class="foms-as-compare-pcbar__title">AS 대시보드</span>
       <span class="foms-as-compare-pcbar__sub">미완료 {{ as_tab_counts.incomplete|default(0) }}건</span>
     </div>
+    {# 검색: PC 필터폼이 코호트에서 은닉되므로 신설. 순수 GET, 현재 탭/정렬/버킷/상태/mine
+       컨텍스트는 hidden input 으로 보존(erp_as_page.erp_as_dashboard 기존 q 체인 그대로 소비). #}
+    <form class="foms-as-compare-search" method="get" action="{{ url_for('erp_as_page.erp_as_dashboard') }}" role="search">
+      <input type="hidden" name="tab" value="{{ as_tab or 'incomplete' }}">
+      <input type="hidden" name="sort_dir" value="{{ sort_dir or 'desc' }}">
+      {% if as_bucket %}<input type="hidden" name="bucket" value="{{ as_bucket }}">{% endif %}
+      {% if status_filter %}<input type="hidden" name="status" value="{{ status_filter }}">{% endif %}
+      {% if erp_mine_only %}<input type="hidden" name="mine" value="1">{% endif %}
+      <i class="fas fa-search foms-as-compare-search__icon" aria-hidden="true"></i>
+      <input type="search" class="foms-as-compare-search__input" name="q" value="{{ search_q or '' }}"
+        placeholder="고객·연락처·주소·내용 검색" aria-label="AS 검색" enterkeyhint="search" autocomplete="off">
+      {% if search_q %}
+      <a class="foms-as-compare-search__clear"
+        href="{{ url_for('erp_as_page.erp_as_dashboard', tab=as_tab or 'incomplete', bucket=as_bucket or none, status=status_filter or '', sort_dir=sort_dir, mine='1' if erp_mine_only else '') }}"
+        aria-label="검색어 지우기"><i class="fas fa-times" aria-hidden="true"></i></a>
+      {% endif %}
+    </form>
     <div class="foms-as-compare-pcbar__tools">
       {# 공용 밀도 토글(40/48/56) — 카드 밀도(썸네일·패딩) 3단. 대상 = 이 대조 표면. #}
       {% set foms_density_target = '#foms-as-compare-surface' %}
@@ -49,7 +73,7 @@
     </div>
   </div>
 
-  {# --- chip 서브탭 (grid-column:1/-1): 영업/배송 · 미완료 · 완료 (PC nav-tabs 대체) --- #}
+  {# --- chip 서브탭: 영업/배송 · 미완료 · 완료 (PC nav-tabs 대체) --- #}
   <nav class="foms-as-compare-subtabs" aria-label="AS 분류">
     <a class="foms-as-compare-subtab{% if as_tab == 'sales_delivery' %} is-active{% endif %}"
       href="{{ url_for('erp_as_page.erp_as_dashboard', tab='sales_delivery', status=status_filter or '', q=search_q or '', sort_dir=sort_dir, mine='1' if erp_mine_only else '') }}"
@@ -70,7 +94,8 @@
       <span class="foms-as-compare-subtab__count">{{ as_tab_counts.completed }}</span>
     </a>
   </nav>
-
+</div>
+<section class="foms-as-compare" id="foms-as-compare-surface" aria-label="AS 전/후 대조">
   {% if rows %}
     {% for r in rows %}
     <article class="foms-as-compare-card{% if r.as_pending %} is-pending{% endif %}" data-order-id="{{ r.id }}">
