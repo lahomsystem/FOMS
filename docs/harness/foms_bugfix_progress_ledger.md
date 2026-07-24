@@ -42,7 +42,12 @@
 - ✅ FAILOPEN-01 — `0a533f22`. broad catch 499 전수 AST 인벤토리(unclassified 0), LOG_AND_CONTINUE 463(로깅 28)/FAIL_CLOSED 19/INTENTIONAL 17, silent-pass 45 전량 해소. release gate static. test 10 + 전체 2390 passed 0 failed, APP_OK. API-ERROR 겹침 표기.
 - ✅ OPS-APPROVAL-00 — `670f372e`. security_principal_versions+trigger·ops_approval_requests·target_audits, approval UI(재인증)·consume(FOR UPDATE one-time·cross-DB RESERVED)·control-root·reconciler, operations manifest 35op/9owner cli=null seed. PG 30 passed·전체 2390·마이그레이션 up/down·FAILOPEN/write-guard gate, APP_OK.
 - ✅ SECRET-01 — `34c64503`. Kakao REST 키 env-only+require_kakao_rest_key() fail-fast, geocode_config/address/converter/SCheduler 리터럴 제거, JS키(공개)는 유지. FAILOPEN inventory 재생성(라인시프트). test 4·address 93·APP_OK·gate. **운영: Kakao 콘솔 외부 rotate 필수(git history 잔존).** → SECRET-02(다음).
-- 🔵 REV-00(deps PGTEST✅ — 상태코어 선행). 서브에이전트 a4793fd3.
+- ✅ REV-00 — `52ac2749`. orders.mutation_version + order_mutation_receipts/read_resources, execute_order_mutation helper(FOR UPDATE·If-Match·idempotency·read-receipt). PG 12·전체 2394·alembic 단일(ops_approval_00→rev_00). 실 route 적용은 하류.
+- 🔵 CUTOVER-MODE-01 — 단독(마이그레이션·대형). deps OPS-APPROVAL✅.
+
+## ⚠️ 진행 제약
+- **마이그레이션 추가 packet은 순차 필수**(병렬 시 둘 다 현재 head revise→alembic multi-head 충돌). 각 subagent에 "현재 head를 revise" 지시. 현 head=rev_00_order_mutation.
+- **SECRET-02 재스코프 필요**: §5.2가 삭제된 tests/qa_deploy_test.py 참조 + P0-22 fallback secret(app_factory:182·channel_security:34)은 SESSION-SIGNING-SECRET-01 소관과 겹침. 착수 전 경계 정리.
 - **다음 (PG chain)**: CUTOVER-MODE-01(deps OPS-APPROVAL✅)·BACKFILL-ARTIFACT-00(deps OPS-APPROVAL✅) / REV-00→STATE-CORE-00·DATA-01·DELETE-CORE-00 / SECRET-02→SESSION-SIGNING chain→AUTH-01
 
 ## ✅ 부트스트랩 보안 경계 완성 (16 packet)
