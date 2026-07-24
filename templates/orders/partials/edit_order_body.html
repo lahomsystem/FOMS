@@ -564,13 +564,21 @@
                     </div>
                     <script>
                     (function () {
+                        // Cohort surface gate — byte-identical to the CSS SSOT
+                        // (foms-detail-hero.css / foms-form-field.css / foms-shell.css)
+                        // and to erp-order-cohort.js. CSS styles the mobile shell on
+                        // <=991.98px OR a coarse-pointer physical-portrait tablet; this
+                        // JS MUST use the same gate or a surface is styled-but-removed
+                        // (P1-27: 1024 coarse portrait dropped the mobile form).
+                        var GATE = '(max-width: 991.98px), ((min-width: 992px) and (pointer: coarse) and (orientation: portrait))';
                         var legacy = document.getElementById('erp-order-form-legacy');
                         var mobile = document.getElementById('erp-order-form-mobile');
                         if (!legacy || !mobile) return;
-                        var useMobile = window.matchMedia('(max-width: 991.98px)').matches;
-                        (useMobile ? legacy : mobile).remove();
+                        // Duplicate ERP ids across both surfaces → keep exactly one.
+                        (window.matchMedia(GATE).matches ? legacy : mobile).remove();
                     })();
                     </script>
+                    <script src="{{ url_for('static', filename='js/orders/erp-order-cohort.js') }}?v=20260724a" defer></script>
                     {% include 'partials/shared/foms_attachment_preview_modal.html' %}
                     {% else %}
                     {% include "orders/partials/erp_order_tab.html" %}
