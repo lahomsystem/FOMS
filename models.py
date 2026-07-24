@@ -1,8 +1,9 @@
 import datetime
 import uuid
 from sqlalchemy import (
-    Column, Integer, String, Text, Boolean, DateTime, Float, ForeignKey, func,
-    JSON, UniqueConstraint, Index, CheckConstraint, DDL, event, text,
+    Column, Integer, BigInteger, String, Text, Boolean, DateTime, Float,
+    ForeignKey, func, JSON, UniqueConstraint, Index, CheckConstraint, DDL,
+    event, text,
 )
 from sqlalchemy.orm import relationship
 from sqlalchemy.dialects.postgresql import JSONB, UUID as PG_UUID
@@ -1489,3 +1490,148 @@ event.listen(
     'before_drop',
     DDL(MAINTENANCE_BACKFILL_APPROVAL_APPEND_ONLY_DROP_SQL).execute_if(dialect='postgresql'),
 )
+
+
+# --------------------------------------------------------------------------- #
+# SIDEFX-00: typed-domain side-effect outbox (SSOT §2.2.1 line 385 / §2.3 line 391)
+# --------------------------------------------------------------------------- #
+# domain side-effect(notification·cache·geocode·storage-delete·provider call)를
+# business tx 와 원자적으로 기록하는 typed outbox. 실 producer(도메인 write)·consumer
+# (worker delivery/expiry/retention)는 하류(SIDEFX-WORKER-01·CHANNEL·URGENT 등) 몫이다 —
+# SIDEFX-00 은 스키마+repository+계약 테스트만 소유한다.
+#
+# source_domain 은 정확히 자기 FK 컬럼 하나만 non-null 이어야 한다(one-of matrix,
+# ck_dseo_source_one_of). 부모 테이블이 이미 존재하는 3 도메인만 실 FK 로 orphan 을
+# 거부하고(order_events·notification_events·chat_attachments), 나머지 4 도메인
+# (address_learning·wizard_pending·upload_ticket·upload_draft)은 소유 packet 이 자기
+# business table 과 FK 를 additive migration 으로 등록한다(ORDER-IMPORT-01 이 8번째
+# ORDER_IMPORT_ARTIFACT 를 그렇게 추가하는 선례와 동일). SIDEFX-00 은 그 business
+# table 들을 선행 생성하지 않는다.
+DOMAIN_SIDE_EFFECT_FK_BY_DOMAIN = {
+    'ORDER_EVENT': 'order_event_id',
+    'NOTIFICATION_EVENT': 'notification_event_id',
+    'ADDRESS_LEARNING': 'address_learning_request_id',
+    'WIZARD_PENDING': 'wizard_pending_id',
+    'UPLOAD_TICKET': 'upload_ticket_id',
+    'UPLOAD_DRAFT': 'upload_draft_id',
+    'CHAT_ATTACHMENT': 'chat_attachment_id',
+}
+DOMAIN_SIDE_EFFECT_STATUSES = ('PENDING', 'PROCESSING', 'DONE', 'DEAD')
+
+
+def _domain_side_effect_one_of_sql() -> str:
+    """source_domain 별 exact one-of FK 매트릭스를 SQL boolean 식으로 생성한다.
+
+    각 도메인 절은 (source_domain=D AND 자기 FK IS NOT NULL AND 나머지 FK 전부 IS NULL)
+    이고 전체는 OR 이다 → 정확히 하나의 FK 만 non-null 이며 그것이 domain 과 일치할 때만
+    참. mismatch(다른 FK)·다중 non-null·전부 NULL 은 모두 거짓 → CHECK 위반. migration
+    과 ORM 이 이 문자열을 공유해 drift 를 막는다.
+    """
+    cols = list(DOMAIN_SIDE_EFFECT_FK_BY_DOMAIN.values())
+    clauses = []
+    for domain, own in DOMAIN_SIDE_EFFECT_FK_BY_DOMAIN.items():
+        parts = ["source_domain = '%s'" % domain, "%s IS NOT NULL" % own]
+        parts += ["%s IS NULL" % c for c in cols if c != own]
+        clauses.append("(" + " AND ".join(parts) + ")")
+    return " OR ".join(clauses)
+
+
+DOMAIN_SIDE_EFFECT_ONE_OF_CHECK_SQL = _domain_side_effect_one_of_sql()
+
+
+class DomainSideEffectOutbox(Base):
+    """typed-domain side-effect outbox 행(SIDEFX-00).
+
+    business transaction 안에서 INSERT 되어 side effect 를 durable 하게 예약한다. 하류
+    worker 가 ``FOR UPDATE SKIP LOCKED`` + lease(획득/만료 reclaim)로 소비하고 최대 재시도
+    후 DEAD 로 보낸다(worker 는 SIDEFX-WORKER-01 몫). 여기서는 스키마만 정의한다.
+    """
+
+    __tablename__ = 'domain_side_effect_outbox'
+
+    id = Column(Integer, primary_key=True)
+    source_domain = Column(String(40), nullable=False)
+
+    # per-domain source FK — 정확히 하나만 non-null(ck_dseo_source_one_of).
+    order_event_id = Column(
+        Integer, ForeignKey('order_events.id', ondelete='CASCADE'), nullable=True)
+    notification_event_id = Column(
+        Integer, ForeignKey('notification_events.id', ondelete='CASCADE'), nullable=True)
+    # 아래 4 도메인은 부모 테이블 미존재 → 소유 packet 이 FK 를 additive 로 추가(현재는
+    # plain integer, one-of CHECK 로 domain 일치만 강제; orphan 거부는 FK 추가 후).
+    address_learning_request_id = Column(Integer, nullable=True)
+    wizard_pending_id = Column(Integer, nullable=True)
+    upload_ticket_id = Column(Integer, nullable=True)
+    upload_draft_id = Column(Integer, nullable=True)
+    chat_attachment_id = Column(
+        Integer, ForeignKey('chat_attachments.id', ondelete='CASCADE'), nullable=True)
+
+    effect_type = Column(String(40), nullable=False)
+    payload = Column(JSONColumn, nullable=False)
+    schema_version = Column(Integer, nullable=False, server_default=text('1'))
+    source_generation = Column(BigInteger, nullable=True)
+    # provider 로 보낼 idempotency key(consumer 측). dedupe_key 는 producer 측 중복 행 차단.
+    provider_idempotency_key = Column(String(200), nullable=True)
+    dedupe_key = Column(String(200), nullable=True)
+
+    status = Column(String(20), nullable=False, server_default='PENDING')
+    attempts = Column(Integer, nullable=False, server_default=text('0'))
+    last_error = Column(Text, nullable=True)
+
+    lease_owner_hash = Column(String(64), nullable=True)
+    lease_token = Column(UUIDColumn, nullable=True)
+    lease_expires_at = Column(DateTime, nullable=True)
+
+    available_at = Column(DateTime, nullable=False, default=now_utc_naive,
+                          server_default=func.now())
+    created_at = Column(DateTime, nullable=False, default=now_utc_naive,
+                        server_default=func.now())
+    completed_at = Column(DateTime, nullable=True)
+    dead_at = Column(DateTime, nullable=True)
+
+    __table_args__ = (
+        CheckConstraint(
+            "source_domain IN ("
+            + ", ".join("'%s'" % d for d in DOMAIN_SIDE_EFFECT_FK_BY_DOMAIN)
+            + ")",
+            name='ck_dseo_source_domain',
+        ),
+        CheckConstraint(
+            "status IN ('PENDING','PROCESSING','DONE','DEAD')",
+            name='ck_dseo_status',
+        ),
+        # exact source-domain/FK one-of matrix (mismatch/다중/전무 거부).
+        CheckConstraint(DOMAIN_SIDE_EFFECT_ONE_OF_CHECK_SQL, name='ck_dseo_source_one_of'),
+        # dedupe: 같은 effect 의 중복 outbox 행 차단(SSOT unique(effect_type,dedupe_key)).
+        # dedupe_key NULL 행은 collapse 하지 않도록 partial.
+        Index('uq_dseo_effect_dedupe', 'effect_type', 'dedupe_key',
+              unique=True, postgresql_where=text('dedupe_key IS NOT NULL')),
+        # queue pickup: PENDING 을 available_at 순으로.
+        Index('ix_dseo_queue', 'status', 'available_at'),
+        # lease reclaim: 만료 lease(PROCESSING) 회수.
+        Index('ix_dseo_lease_expiry', 'lease_expires_at',
+              postgresql_where=text("status = 'PROCESSING'")),
+        # retention: DONE completed_at>30d / DEAD dead_at>180d 조회.
+        Index('ix_dseo_done_retention', 'completed_at',
+              postgresql_where=text("status = 'DONE'")),
+        Index('ix_dseo_dead_retention', 'dead_at',
+              postgresql_where=text("status = 'DEAD'")),
+    )
+
+
+class SideEffectWorkerHeartbeat(Base):
+    """side-effect worker readiness 정본(SIDEFX-00 은 테이블만).
+
+    worker(SIDEFX-WORKER-01)가 loop 종류별로 upsert 한다. readiness gate 는 heartbeat
+    신선도(<30s)와 lag(delivery<60s·expiry scan<360s·retention<90000s)를 이 행에서 읽는다.
+    """
+
+    __tablename__ = 'side_effect_worker_heartbeats'
+
+    worker_kind = Column(String(40), primary_key=True)  # DELIVERY|EXPIRY_SCAN|RETENTION
+    last_heartbeat_at = Column(DateTime, nullable=False, default=now_utc_naive,
+                               server_default=func.now())
+    oldest_lag_seconds = Column(Integer, nullable=True)
+    metadata_json = Column(JSONColumn, nullable=True)
+    updated_at = Column(DateTime, nullable=False, default=now_utc_naive,
+                        server_default=func.now())
