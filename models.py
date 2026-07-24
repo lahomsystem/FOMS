@@ -2066,3 +2066,106 @@ class OrderInstallationAssignment(Base):
             postgresql_where=text("status = 'ACTIVE'"),
         ),
     )
+
+
+# ============================================================================
+# CHANNEL-WEBHOOK-AUTH-01 — Webhook acceptance 정본(receipt/conflict/intent/job)
+# ============================================================================
+#
+# SSOT: docs/plans/2026-07-22-foms-full-system-bug-audit-report.md §5.2
+#   (CHANNEL-WEBHOOK-AUTH-01 — receipt/conflict/intent/job migration, versioned
+#    AES-GCM envelope, stable hash/JCS, log redaction).
+#
+# ChannelTalk Webhook 수신은 provider token 검증 뒤 **acceptance transaction** 으로만
+# 2xx 를 낸다: JCS canonical hash → 30d dedup window → versioned AES-256-GCM envelope →
+# receipt/intent/job 를 **한 트랜잭션**에 커밋(transactional outbox). durable job row 가
+# 커밋된 뒤에만 2xx 이므로 부분 수용이 없다(DB/job insert 실패 → 롤백 → non-2xx). 실제
+# Order mutation 은 downstream worker 소관이라 이 테이블들은 Order 를 건드리지 않는다.
+# raw payload 는 평문 저장/로깅하지 않고 envelope(암호문)로만 남긴다.
+
+
+class ChannelWebhookReceipt(Base):
+    """Webhook acceptance ledger — accepted_at + JCS hash + 암호화 envelope.
+
+    30d dedup window 의 기준 row. ``content_hash`` 는 payload 의 JCS canonical sha256
+    이고, ``envelope`` 은 raw payload 를 AES-256-GCM 으로 암호화한 versioned 봉투(평문
+    미저장)다. 30일이 지나면 같은 hash 라도 새 acceptance 로 취급하므로 hash 를 전역
+    unique 로 두지 않고 (content_hash, accepted_at) 인덱스로 window 조회한다.
+    """
+
+    __tablename__ = 'channel_webhook_receipts'
+
+    id = Column(UUIDColumn, primary_key=True, default=lambda: str(uuid.uuid4()))
+    source = Column(String(40), nullable=False)
+    content_hash = Column(String(64), nullable=False, index=True)
+    accepted_at = Column(DateTime, nullable=False)
+    dedup_expires_at = Column(DateTime, nullable=False)
+    # versioned AES-256-GCM envelope(version/alg/nonce/aad_sha256/ciphertext) — 평문 0.
+    envelope = Column(JSONColumn, nullable=False)
+    created_at = Column(DateTime, nullable=False, server_default=func.now())
+
+    __table_args__ = (
+        Index('ix_channel_webhook_receipt_hash_time', 'content_hash', 'accepted_at'),
+    )
+
+
+class ChannelWebhookConflict(Base):
+    """중복 재전송(soak) 관측 기록 — masked only(hash/receipt 참조만, payload 0).
+
+    30d window 안에서 같은 ``content_hash`` 가 다시 오면 새 receipt 를 만들지 않고 이
+    row 만 append 한다(실 Order/downstream 재실행 없음).
+    """
+
+    __tablename__ = 'channel_webhook_conflicts'
+
+    id = Column(Integer, primary_key=True)
+    receipt_id = Column(
+        UUIDColumn, ForeignKey('channel_webhook_receipts.id', ondelete='CASCADE'),
+        nullable=False, index=True,
+    )
+    content_hash = Column(String(64), nullable=False, index=True)
+    source = Column(String(40), nullable=False)
+    observed_at = Column(DateTime, nullable=False)
+    created_at = Column(DateTime, nullable=False, server_default=func.now())
+
+
+class ChannelWebhookIntent(Base):
+    """수용된 webhook 의 intent marker(receipt 당 1개). 상세 파싱/실행은 downstream."""
+
+    __tablename__ = 'channel_webhook_intents'
+
+    id = Column(UUIDColumn, primary_key=True, default=lambda: str(uuid.uuid4()))
+    receipt_id = Column(
+        UUIDColumn, ForeignKey('channel_webhook_receipts.id', ondelete='CASCADE'),
+        nullable=False, unique=True,
+    )
+    intent_type = Column(String(80), nullable=False)
+    created_at = Column(DateTime, nullable=False)
+
+
+class ChannelWebhookJob(Base):
+    """durable ID-job(transactional outbox) — receipt 와 같은 tx 에서 생성.
+
+    이 row 가 커밋된 뒤에만 webhook 이 2xx 를 낸다. downstream RQ dispatch 는 best-effort
+    이며 실패해도 row 는 ``pending`` 으로 남아 재구동 가능하다(2xx 취소 아님). ``legacy_log_id``
+    는 기존 ``channel_inbound_event_logs`` 파이프라인과의 연결 고리다.
+    """
+
+    __tablename__ = 'channel_webhook_jobs'
+
+    id = Column(UUIDColumn, primary_key=True, default=lambda: str(uuid.uuid4()))
+    receipt_id = Column(
+        UUIDColumn, ForeignKey('channel_webhook_receipts.id', ondelete='CASCADE'),
+        nullable=False, index=True,
+    )
+    status = Column(String(20), nullable=False, server_default='pending')
+    legacy_log_id = Column(Integer, nullable=True)
+    created_at = Column(DateTime, nullable=False)
+    updated_at = Column(DateTime, nullable=False)
+
+    __table_args__ = (
+        CheckConstraint(
+            "status IN ('pending','enqueued','failed')",
+            name='ck_channel_webhook_job_status',
+        ),
+    )
