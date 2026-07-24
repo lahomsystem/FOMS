@@ -214,23 +214,23 @@
     },
     "SIGNING_COMPROMISE_ACTIVATE": {
       "owner_packet": "SESSION-SIGNING-SECRET-01",
-      "cli": null,
-      "scope_schema": null,
-      "artifact_source": null,
-      "expected_version_source": null,
-      "expected_generation_source": null,
+      "cli": "tools/ops/activate_compromised_signing_key_rotation.py",
+      "scope_schema": "{schema_version,operation_id,packet_id=SESSION-SIGNING-SECRET-01,target_ids_or_family=SESSION_SIGNING_STATE,phase=compromise_activate,artifact_sha256=<active+NEXT rescue all-serving rollout artifact sha256>,expected_version=<security_signing_state.row_version>,expected_generation=<security_signing_state.generation>}",
+      "artifact_source": "active+NEXT rescue all-serving rollout artifact sha256 (quiescence artifact also verified)",
+      "expected_version_source": "security_signing_state.row_version (singleton id=1)",
+      "expected_generation_source": "security_signing_state.generation (singleton id=1)",
       "db_mode": "SAME",
-      "consume_strategy": null
+      "consume_strategy": "consume_same_db; target_mutation sets active=fresh NEXT, previous/pending null, old/legacy deadlines=DB now, session_epoch+1, wam_not_before=now, mode->CURRENT_ONLY (maintenance kept) in the approval tx; approver copied"
     },
     "SIGNING_CUTOVER_ACTIVATE": {
       "owner_packet": "SESSION-SIGNING-SECRET-01",
-      "cli": null,
-      "scope_schema": null,
-      "artifact_source": null,
-      "expected_version_source": null,
-      "expected_generation_source": null,
+      "cli": "tools/ops/activate_signing_key_cutover.py",
+      "scope_schema": "{schema_version,operation_id,packet_id=SESSION-SIGNING-SECRET-01,target_ids_or_family=SESSION_SIGNING_STATE,phase=cutover_activate,artifact_sha256=<READY all-serving rollout artifact sha256>,expected_version=<security_signing_state.row_version>,expected_generation=<security_signing_state.generation>}",
+      "artifact_source": "READY all-serving rollout artifact (check_signing_consumer_rollout output) sha256",
+      "expected_version_source": "security_signing_state.row_version (singleton id=1)",
+      "expected_generation_source": "security_signing_state.generation (singleton id=1)",
       "db_mode": "SAME",
-      "consume_strategy": null
+      "consume_strategy": "consume_same_db; target_mutation READY->ACTIVE (active=pending, legacy deadlines=now+grace for BRIDGE; now+epoch+1+wam_not_before for FORCE_REAUTH) in the approval tx; approver copied"
     },
     "SIGNING_CUTOVER_PREPARE": {
       "owner_packet": "SESSION-SIGNING-STATE-00",
@@ -244,33 +244,33 @@
     },
     "SIGNING_FORCE_ENTER": {
       "owner_packet": "SESSION-SIGNING-SECRET-01",
-      "cli": null,
-      "scope_schema": null,
-      "artifact_source": null,
-      "expected_version_source": null,
-      "expected_generation_source": null,
+      "cli": "tools/ops/enter_signing_force_maintenance.py",
+      "scope_schema": "{schema_version,operation_id,packet_id=SESSION-SIGNING-SECRET-01,target_ids_or_family=SESSION_SIGNING_STATE,phase=force_enter,artifact_sha256=<FORCE_PREPARED rescue all-serving rollout artifact sha256>,expected_version=<security_signing_state.row_version>,expected_generation=<security_signing_state.generation>}",
+      "artifact_source": "FORCE_PREPARED rescue all-serving rollout artifact sha256",
+      "expected_version_source": "security_signing_state.row_version (singleton id=1)",
+      "expected_generation_source": "security_signing_state.generation (singleton id=1)",
       "db_mode": "SAME",
-      "consume_strategy": null
+      "consume_strategy": "consume_same_db; target_mutation maintenance_mode OFF->AUTH_ONLY (maintenance_started_at=now, rescue_deployment_sha recorded) in the approval tx; approver copied"
     },
     "SIGNING_FORCE_EXIT": {
       "owner_packet": "SESSION-SIGNING-SECRET-01",
-      "cli": null,
-      "scope_schema": null,
-      "artifact_source": null,
-      "expected_version_source": null,
-      "expected_generation_source": null,
+      "cli": "tools/ops/exit_signing_force_maintenance.py",
+      "scope_schema": "{schema_version,operation_id,packet_id=SESSION-SIGNING-SECRET-01,target_ids_or_family=SESSION_SIGNING_STATE,phase=force_exit,artifact_sha256=<private current-key smoke artifact sha256>,expected_version=<security_signing_state.row_version>,expected_generation=<security_signing_state.generation>}",
+      "artifact_source": "private current-key cookie/WAM smoke artifact sha256 (green required before OFF)",
+      "expected_version_source": "security_signing_state.row_version (singleton id=1)",
+      "expected_generation_source": "security_signing_state.generation (singleton id=1)",
       "db_mode": "SAME",
-      "consume_strategy": null
+      "consume_strategy": "consume_same_db; target_mutation maintenance_mode AUTH_ONLY->OFF (maintenance_started_at cleared) in the approval tx; approver copied"
     },
     "SIGNING_LEGACY_FINALIZE": {
       "owner_packet": "SESSION-SIGNING-SECRET-01",
-      "cli": null,
-      "scope_schema": null,
-      "artifact_source": null,
-      "expected_version_source": null,
-      "expected_generation_source": null,
+      "cli": "tools/ops/finalize_signing_legacy_cutover.py",
+      "scope_schema": "{schema_version,operation_id,packet_id=SESSION-SIGNING-SECRET-01,target_ids_or_family=SESSION_SIGNING_STATE,phase=legacy_finalize,artifact_sha256=<current-only all-serving rollout artifact sha256>,expected_version=<security_signing_state.row_version>,expected_generation=<security_signing_state.generation>}",
+      "artifact_source": "current-only all-serving rollout artifact sha256 (legacy env removed)",
+      "expected_version_source": "security_signing_state.row_version (singleton id=1)",
+      "expected_generation_source": "security_signing_state.generation (singleton id=1)",
       "db_mode": "SAME",
-      "consume_strategy": null
+      "consume_strategy": "consume_same_db; target_mutation ACTIVE->CURRENT_ONLY after both legacy deadlines pass (legacy deadlines/cutover_mode nulled) in the approval tx; approver copied"
     },
     "SIGNING_RECOVERY_PREPARE": {
       "owner_packet": "SESSION-SIGNING-STATE-00",
@@ -284,33 +284,33 @@
     },
     "SIGNING_RESCUE_ROLLFORWARD": {
       "owner_packet": "SESSION-SIGNING-SECRET-01",
-      "cli": null,
-      "scope_schema": null,
-      "artifact_source": null,
-      "expected_version_source": null,
-      "expected_generation_source": null,
+      "cli": "tools/ops/rescue_signing_rollforward.py",
+      "scope_schema": "{schema_version,operation_id,packet_id=SESSION-SIGNING-SECRET-01,target_ids_or_family=SESSION_SIGNING_STATE,phase=rescue_rollforward,artifact_sha256=<ACTIVE_RESCUE all-serving rollout artifact sha256>,expected_version=<security_signing_state.row_version>,expected_generation=<security_signing_state.generation>}",
+      "artifact_source": "ACTIVE_RESCUE all-serving rollout artifact sha256 (rescue deployment artifact also recorded)",
+      "expected_version_source": "security_signing_state.row_version (singleton id=1)",
+      "expected_generation_source": "security_signing_state.generation (singleton id=1)",
       "db_mode": "SAME",
-      "consume_strategy": null
+      "consume_strategy": "consume_same_db; target_mutation records rescue_deployment_sha + prepared_rollout_artifact_sha256 (roll-forward only, mode unchanged, no legacy/old rollback) in the approval tx; approver copied"
     },
     "SIGNING_ROTATION_ACTIVATE": {
       "owner_packet": "SESSION-SIGNING-SECRET-01",
-      "cli": null,
-      "scope_schema": null,
-      "artifact_source": null,
-      "expected_version_source": null,
-      "expected_generation_source": null,
+      "cli": "tools/ops/activate_signing_key_rotation.py",
+      "scope_schema": "{schema_version,operation_id,packet_id=SESSION-SIGNING-SECRET-01,target_ids_or_family=SESSION_SIGNING_STATE,phase=rotation_activate,artifact_sha256=<ROTATION_READY all-serving rollout artifact sha256>,expected_version=<security_signing_state.row_version>,expected_generation=<security_signing_state.generation>}",
+      "artifact_source": "ROTATION_READY all-serving rollout artifact sha256",
+      "expected_version_source": "security_signing_state.row_version (singleton id=1)",
+      "expected_generation_source": "security_signing_state.generation (singleton id=1)",
       "db_mode": "SAME",
-      "consume_strategy": null
+      "consume_strategy": "consume_same_db; target_mutation ROTATION_READY->ROTATING (previous=old active, active=new pending, pending null, previous deadline=now+grace) in the approval tx; approver copied"
     },
     "SIGNING_ROTATION_FINALIZE": {
       "owner_packet": "SESSION-SIGNING-SECRET-01",
-      "cli": null,
-      "scope_schema": null,
-      "artifact_source": null,
-      "expected_version_source": null,
-      "expected_generation_source": null,
+      "cli": "tools/ops/finalize_signing_key_rotation.py",
+      "scope_schema": "{schema_version,operation_id,packet_id=SESSION-SIGNING-SECRET-01,target_ids_or_family=SESSION_SIGNING_STATE,phase=rotation_finalize,artifact_sha256=<current-only all-serving rollout artifact sha256>,expected_version=<security_signing_state.row_version>,expected_generation=<security_signing_state.generation>}",
+      "artifact_source": "current-only (PREVIOUS removed) all-serving rollout artifact sha256",
+      "expected_version_source": "security_signing_state.row_version (singleton id=1)",
+      "expected_generation_source": "security_signing_state.generation (singleton id=1)",
       "db_mode": "SAME",
-      "consume_strategy": null
+      "consume_strategy": "consume_same_db; target_mutation ROTATING->CURRENT_ONLY after previous deadline passes (previous slot cleared) in the approval tx; approver copied"
     },
     "SIGNING_ROTATION_PREPARE": {
       "owner_packet": "SESSION-SIGNING-STATE-00",

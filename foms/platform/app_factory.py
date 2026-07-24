@@ -24,6 +24,10 @@ from .request_limits import FomsRequest, GLOBAL_BODY_CAP, register_request_limit
 from foms.services.context_processors import register_context_processors
 from foms.services.rate_limit import init_limiter
 from foms.services.request_write_guard import register_write_guard
+from foms.services.security.signing.signing_keys import (
+    install_rotating_session_interface,
+    resolve_legacy_secret,
+)
 
 
 @dataclass(frozen=True)
@@ -175,17 +179,15 @@ def build_app(*, socketio_available: bool) -> AppFactoryResult:
     # 버전된(?v=) css/js는 매 네비게이션 재검증(304) 대신 단기 캐시 → 정적 요청 폭주 완화.
     app.wsgi_app = _versioned_static_cache_middleware(app.wsgi_app)
 
-    app.secret_key = os.environ.get("SECRET_KEY")
-    if not app.secret_key:
-        if is_production:
-            raise ValueError("SECRET_KEY environment variable must be set in production!")
-        app.secret_key = "dev-secret-key-CHANGE-IN-PRODUCTION"
-        print(
-            "[WARN] Using development secret key. Set SECRET_KEY environment variable for production!"
-        )
+    # P0-22: deployed(Railway/production) 에서 SECRET_KEY 가 absent/known-default/short 이면
+    # 하드코딩 fallback 없이 기동을 막는다. 비-deployed dev 만 dev key 를 허용한다.
+    is_railway = bool(os.environ.get("RAILWAY_ENVIRONMENT"))
+    app.secret_key = resolve_legacy_secret(deployed=(is_production or is_railway))
+    # SESSION-SIGNING-SECRET-01: 상태기계 기반 rotating session interface 배선. runtime 이
+    # 아직 미engaged(FOMS_SIGNING_KEY_CURRENT 부재)이면 legacy raw-key 로 byte-identical 동작.
+    install_rotating_session_interface(app)
 
     app.config["SESSION_COOKIE_NAME"] = "session_staging"
-    is_railway = bool(os.environ.get("RAILWAY_ENVIRONMENT"))
     if is_production or is_railway:
         app.config["SESSION_COOKIE_SECURE"] = True
         app.config["SESSION_COOKIE_SAMESITE"] = "Lax"

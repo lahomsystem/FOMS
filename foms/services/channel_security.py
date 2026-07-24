@@ -8,12 +8,21 @@ import logging
 import os
 import time
 import uuid
+from datetime import timedelta
 from functools import wraps
-from threading import Lock
 from typing import Any
 
 from flask import jsonify, request
 from itsdangerous import BadSignature, SignatureExpired, URLSafeTimedSerializer
+from sqlalchemy import text
+from sqlalchemy.exc import SQLAlchemyError
+
+from foms.services.datetime_kst import now_utc_naive
+from foms.services.security.signing.signing_keys import (
+    resolve_legacy_secret,
+    resolve_secret_key_list,
+    wam_not_before,
+)
 
 __all__ = [
     "verify_channel_signature",
@@ -31,55 +40,90 @@ __all__ = [
 logger = logging.getLogger(__name__)
 
 CHANNEL_SIGNING_KEY = os.environ.get("CHANNEL_SIGNING_KEY", "")
-SECRET_KEY = os.environ.get("SECRET_KEY", "dev-foms-secret-key-123")
 WAM_DEFAULT_SCOPES = ("page", "attachments")
 WAM_DEFAULT_ALLOWED_SECTIONS = ("customer", "site", "schedule", "people", "items", "attachments")
 
-wam_serializer = URLSafeTimedSerializer(SECRET_KEY, salt="wam-launch-token")
-wam_entry_serializer = URLSafeTimedSerializer(SECRET_KEY, salt="wam-entry-token")
-wam_shortlink_serializer = URLSafeTimedSerializer(SECRET_KEY, salt="wam-short-link")
-wam_session_serializer = URLSafeTimedSerializer(SECRET_KEY, salt="wam-session-token")
-_used_entry_nonces: dict[str, float] = {}
-_used_entry_nonces_lock = Lock()
+# WAM 토큰 종류 → itsdangerous salt(= HKDF subkey label). 서명 key 는 상태기계에서 파생한다
+# (SESSION-SIGNING-SECRET-01). legacy(미engaged/EMPTY/READY)는 legacy raw secret 로 byte-identical.
+_WAM_LABELS = {
+    "launch": "wam-launch-token",
+    "entry": "wam-entry-token",
+    "shortlink": "wam-short-link",
+    "session": "wam-session-token",
+}
+# entry-token 의 iat 만료 여유(단일사용 nonce row TTL 계산용 최소값).
+_ENTRY_NONCE_MIN_TTL = 30
 
 
-def _get_nonce_store():
-    redis_url = os.environ.get("REDIS_URL")
-    if not redis_url:
-        return None
+def _wam_serializer(kind: str) -> URLSafeTimedSerializer:
+    """WAM 토큰 종류별 state-aware 직렬화기(요청마다 상태기계에서 서명 key 파생, process cache 0).
+
+    :param kind: ``launch``/``entry``/``shortlink``/``session``.
+    :returns: 현재 서명 상태에 맞는 :class:`URLSafeTimedSerializer`.
+    """
+    label = _WAM_LABELS[kind]
+    keys = resolve_secret_key_list("wam", label, legacy_secret=resolve_legacy_secret())
+    return URLSafeTimedSerializer(keys, salt=label)
+
+
+def claim_wam_entry_nonce(
+    engine: Any, *, nonce_hash: str, subject_hash: str, ttl_seconds: int, now: Any = None,
+) -> bool:
+    """WAM entry nonce 를 PostgreSQL 단일사용(single-use)으로 원자 소비한다(P1-33).
+
+    ``wam_entry_nonces`` 에 대한 한 statement 원자 claim: 최초 사용은 INSERT(consumed 표시)로
+    성공하고, 재사용/replay 는 conflict 후 ``consumed_at IS NULL`` 조건 미충족으로 0 행 →
+    거부한다. 동시 2 요청은 PK conflict 로 직렬화돼 정확히 1건만 성공한다(RETURNING). Redis/
+    process-local fallback 을 두지 않으며, DB 미가용은 **fail-closed**(거부)다.
+
+    :param engine: claim 을 커밋할 SQLAlchemy Engine(운영은 앱 엔진, 테스트는 pg_engine).
+    :param nonce_hash: raw nonce 의 sha256 hex(raw 는 저장하지 않는다).
+    :param subject_hash: 주체(manager/order) fingerprint hex.
+    :param ttl_seconds: nonce row expires_at 여유 초.
+    :param now: 기준 시각(테스트 주입용). 기본 :func:`now_utc_naive`.
+    :returns: 이번 호출이 nonce 를 최초로 소비했으면 True, 재사용/만료/DB오류면 False.
+    """
+    now = now or now_utc_naive()
+    exp = now + timedelta(seconds=max(int(ttl_seconds or _ENTRY_NONCE_MIN_TTL), 1))
+    # 스키마리스 테스트 DB 대비 존재 시 no-op(운영은 STATE-00 마이그레이션이 이미 생성). 마이그레이션 아님.
+    from models import WamEntryNonce
 
     try:
-        from redis import Redis
+        WamEntryNonce.__table__.create(bind=engine, checkfirst=True)
+        stmt = text(
+            "INSERT INTO wam_entry_nonces "
+            "(nonce_hash, subject_hash, expires_at, consumed_at, created_at) "
+            "VALUES (:h, :subj, :exp, :now, :now) "
+            "ON CONFLICT (nonce_hash) DO UPDATE SET consumed_at = :now "
+            "WHERE wam_entry_nonces.consumed_at IS NULL "
+            "AND wam_entry_nonces.expires_at > :now "
+            "RETURNING nonce_hash"
+        )
+        with engine.begin() as conn:
+            row = conn.execute(
+                stmt, {"h": nonce_hash, "subj": subject_hash, "exp": exp, "now": now}
+            ).fetchone()
+    except SQLAlchemyError:
+        logger.warning(
+            "[ChannelSecurity] WAM entry nonce DB claim failed; rejecting (fail-closed).",
+            exc_info=True,
+        )
+        return False
+    return row is not None
 
-        return Redis.from_url(redis_url)
-    except Exception as exc:
-        logger.warning("[ChannelSecurity] Failed to initialize nonce store: %s", exc, exc_info=True)
-        return None
 
-
-def _consume_entry_nonce(nonce: str | None, ttl_seconds: int) -> bool:
+def _consume_entry_nonce(nonce: str | None, ttl_seconds: int, subject_hash: str = "") -> bool:
+    """entry nonce 를 앱 DB 엔진으로 단일사용 소비한다(:func:`claim_wam_entry_nonce` 래퍼)."""
     if not nonce:
         return False
+    from db import engine
 
-    ttl_seconds = max(int(ttl_seconds or 30), 1)
-    store = _get_nonce_store()
-    if store is not None:
-        try:
-            return bool(store.set(f"wam:entry-nonce:{nonce}", "1", ex=ttl_seconds, nx=True))
-        except Exception as exc:
-            logger.warning("[ChannelSecurity] Redis nonce consume failed: %s", exc, exc_info=True)
-
-    now = time.time()
-    with _used_entry_nonces_lock:
-        expired = [key for key, expires_at in _used_entry_nonces.items() if expires_at <= now]
-        for key in expired:
-            _used_entry_nonces.pop(key, None)
-
-        if nonce in _used_entry_nonces:
-            return False
-
-        _used_entry_nonces[nonce] = now + ttl_seconds
-        return True
+    return claim_wam_entry_nonce(
+        engine,
+        nonce_hash=hashlib.sha256(nonce.encode("utf-8")).hexdigest(),
+        subject_hash=hashlib.sha256((subject_hash or "").encode("utf-8")).hexdigest(),
+        ttl_seconds=ttl_seconds,
+    )
 
 
 def _normalize_wam_payload(payload: Any) -> dict[str, Any] | None:
@@ -229,7 +273,7 @@ def generate_wam_launch_token(manager_id: str, order_id: int | None = None, **ex
         source="launch_token",
         **extra_claims,
     )
-    return wam_serializer.dumps(payload)
+    return _wam_serializer("launch").dumps(payload)
 
 
 def generate_wam_entry_token(manager_id: str, order_id: int | None = None, **extra_claims) -> str:
@@ -242,7 +286,7 @@ def generate_wam_entry_token(manager_id: str, order_id: int | None = None, **ext
         nonce=extra_claims.pop("nonce", None) or uuid.uuid4().hex,
         **extra_claims,
     )
-    return wam_entry_serializer.dumps(payload)
+    return _wam_serializer("entry").dumps(payload)
 
 
 def generate_wam_short_link_token(order_id: int, manager_id: str = "wam_viewer", **extra_claims) -> str:
@@ -251,7 +295,7 @@ def generate_wam_short_link_token(order_id: int, manager_id: str = "wam_viewer",
     # surfaced directly in ChannelTalk messages. Non-default manager bindings
     # still use a compact dict so binding checks continue to work.
     if manager_id == "wam_viewer" and not extra_claims:
-        return wam_shortlink_serializer.dumps(int(order_id))
+        return _wam_serializer("shortlink").dumps(int(order_id))
 
     payload = {"o": int(order_id)}
     if manager_id != "wam_viewer":
@@ -267,7 +311,7 @@ def generate_wam_short_link_token(order_id: int, manager_id: str = "wam_viewer",
         value = extra_claims.get(key)
         if value is not None:
             payload[alias] = value
-    return wam_shortlink_serializer.dumps(payload)
+    return _wam_serializer("shortlink").dumps(payload)
 
 
 def generate_wam_session_token(manager_id: str, order_id: int | None = None, **extra_claims) -> str:
@@ -280,13 +324,35 @@ def generate_wam_session_token(manager_id: str, order_id: int | None = None, **e
         nonce=extra_claims.pop("nonce", None) or uuid.uuid4().hex,
         **extra_claims,
     )
-    return wam_session_serializer.dumps(payload)
+    return _wam_serializer("session").dumps(payload)
+
+
+def _rejected_by_wam_cutoff(payload: Any) -> bool:
+    """ACTIVE ``wam_not_before`` cutoff 이전에 발급된(iat) WAM 토큰인가(FORCE/compromise 무효화).
+
+    legacy/EMPTY(cutoff None)나 iat 부재 payload 는 거부하지 않는다(회귀 0).
+    """
+    cutoff = wam_not_before()
+    if cutoff is None or not isinstance(payload, dict):
+        return False
+    iat = payload.get("iat")
+    if not isinstance(iat, (int, float)):
+        return False
+    # wam_not_before 는 naive UTC(now_utc_naive 규약) — UTC 로 해석해 epoch 로 변환한다
+    # (naive.timestamp() 는 로컬TZ 로 오해석하므로 금지).
+    from datetime import timezone
+
+    cutoff_epoch = cutoff.replace(tzinfo=timezone.utc).timestamp()
+    return iat < cutoff_epoch
 
 
 def verify_wam_launch_token(token: str, max_age: int = 3600) -> dict[str, Any] | None:
     """Validate a WAM launch token and normalize its payload."""
     try:
-        payload = wam_serializer.loads(token, max_age=max_age)
+        payload = _wam_serializer("launch").loads(token, max_age=max_age)
+        if _rejected_by_wam_cutoff(payload):
+            logger.warning("[ChannelSecurity] WAM launch token predates active signing cutoff")
+            return None
         return _normalize_wam_payload(payload)
     except SignatureExpired:
         logger.warning("[ChannelSecurity] WAM token expired")
@@ -299,11 +365,15 @@ def verify_wam_launch_token(token: str, max_age: int = 3600) -> dict[str, Any] |
 def verify_wam_entry_token(token: str, max_age: int = 30) -> dict[str, Any] | None:
     """Validate a WAM entry ticket and enforce single-use nonce semantics."""
     try:
-        payload = wam_entry_serializer.loads(token, max_age=max_age)
+        payload = _wam_serializer("entry").loads(token, max_age=max_age)
+        if _rejected_by_wam_cutoff(payload):
+            logger.warning("[ChannelSecurity] WAM entry token predates active signing cutoff")
+            return None
         normalized = _normalize_wam_payload(payload)
         if not normalized:
             return None
-        if not _consume_entry_nonce(normalized.get("nonce"), max_age):
+        subject = f"{normalized.get('manager_id')}\0{normalized.get('order_id')}"
+        if not _consume_entry_nonce(normalized.get("nonce"), max_age, subject_hash=subject):
             logger.warning("[ChannelSecurity] Reused WAM entry token")
             return None
         return normalized
@@ -318,7 +388,7 @@ def verify_wam_entry_token(token: str, max_age: int = 30) -> dict[str, Any] | No
 def verify_wam_short_link_token(token: str, max_age: int = 30 * 24 * 3600) -> dict[str, Any] | None:
     """Validate a WAM short-link token and expand compact payload aliases."""
     try:
-        payload = wam_shortlink_serializer.loads(token, max_age=max_age)
+        payload = _wam_serializer("shortlink").loads(token, max_age=max_age)
         if isinstance(payload, int):
             payload = {
                 "manager_id": "wam_viewer",
@@ -362,7 +432,10 @@ def verify_wam_short_link_token(token: str, max_age: int = 30 * 24 * 3600) -> di
 def verify_wam_session_token(token: str, max_age: int = 300) -> dict[str, Any] | None:
     """Validate the WAM session cookie token."""
     try:
-        payload = wam_session_serializer.loads(token, max_age=max_age)
+        payload = _wam_serializer("session").loads(token, max_age=max_age)
+        if _rejected_by_wam_cutoff(payload):
+            logger.warning("[ChannelSecurity] WAM session token predates active signing cutoff")
+            return None
         return _normalize_wam_payload(payload)
     except SignatureExpired:
         logger.warning("[ChannelSecurity] WAM session token expired")

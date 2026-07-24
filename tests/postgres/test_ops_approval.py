@@ -544,7 +544,7 @@ def test_manifest_seed_integrity_and_bidirectional_green():
     # 채운다. 착수 완료 packet(CUTOVER-MODE-01, SESSION-SIGNING-STATE-00)은 자기 owner
     # operation 을 owner-only append 했고, 아직 착수하지 않은 consumer 는 여전히 cli=null 이다.
     from foms.services.security.ops_approval_manifest import EXPECTED_OWNER_OPERATIONS
-    _landed_packets = ("CUTOVER-MODE-01", "SESSION-SIGNING-STATE-00")
+    _landed_packets = ("CUTOVER-MODE-01", "SESSION-SIGNING-STATE-00", "SESSION-SIGNING-SECRET-01")
     _landed = {op for p in _landed_packets for op in EXPECTED_OWNER_OPERATIONS[p]}
     for opid, meta in m["operations"].items():
         if opid in _landed:
