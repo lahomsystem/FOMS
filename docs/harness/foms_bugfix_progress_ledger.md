@@ -46,7 +46,8 @@
 - ✅ CUTOVER-MODE-01 — `9f135a3e`. feature_cutover_fences(15 seed)/markers(irreversible trigger), build_compatibility.json+verify, mode manifest 15-row, transactional helper, CLI 4종(OPS-APPROVAL 토큰), security/cutover nested. PG 47·전체 2394·alembic 단일(feature_cutover_00). **defer: runtime_replica_heartbeats(배포배선), manifest prerequisite/affected 빈seed(family packet 채움).**
 - ✅ BACKFILL-ARTIFACT-00 — `3f121d65`. DPAPI(win32crypt) key-envelope·AES-GCM payload·maintenance_backfill_runs(lease/checkpoint/state machine)·approval-scope, artifact_root guard, consume_backfill_apply/reauthorize. crypto 25(Windows DPAPI)+PG 10+ops 30·전체 2419·alembic 단일(backfill_artifact_00). BACKFILL 3 op cli=null(consumer가 채움).
 - ✅ ASSIGNMENT-00 — `fd290ac5`. order_assignments(partial unique·claim/batch all-or-none/release·ID-only auth·legacy backfill), REV-00 helper 재사용. PG 22·전체 2419·alembic 단일(assignment_00). 실 AUTH enforcement=AUTH-01. scope note: 대량 backfill run은 BACKFILL runs.py wrap.
-- 🔵 SIDEFX-00(migration·outbox, deps []) ∥ SECRET-02(무migration·secret 위생 게이트, deps SECRET-01✅) — disjoint, AUTH-01 무관.
+- 🔵 SIDEFX-00(migration·outbox, deps []). 서브에이전트 af84dc0b.
+- ✅ SECRET-02 — `180adb40`. secret_literal_scan(AST literal 게이트, attribute/env-backed 제외로 SIGNING 경계)·check_deploy_secrets(배포 presence fail-fast)·allowlist. hygiene 22·APP_OK·회귀 0. → **SESSION-SIGNING-STATE-00 unblock**(deps SECRET-02✅+PGTEST✅+OPS-APPROVAL✅+CUTOVER✅).
 - **SECRET-02 재스코프 확정**: 잔존 credential secret 0(SECRET-01 Kakao·SIGNING은 SESSION-SIGNING-SECRET-01, KAKAO_JS는 공개 클라키 유지). SECRET-02=literal 스캔 test + 배포 credential presence fail-fast(삭제된 qa_deploy_test 대체).
 - head=assignment_00.
 - ✅ REV-CLEANUP-01 — `cf94d028`. purge_order_mutation_receipts.py(retention 7·batch·dry-run 기본·advisory·resume·active 불변)·railway-cron toml. PG 6·lane 94·namespace 190·APP_OK. 무마이그레이션.
