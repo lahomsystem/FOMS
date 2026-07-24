@@ -1347,8 +1347,12 @@
       "write_guard": false,
       "postgres": false
     },
-    "commands": [],
-    "existing_regressions": [],
+    "commands": [
+      "python -m pytest tests/domains/test_erp_order_shared_form_scripts.py -q"
+    ],
+    "existing_regressions": [
+      "tests/domains/test_erp_order_shared_form_scripts.py"
+    ],
     "created_tests": [],
     "browser_scenarios": [],
     "deploy_check_ids": [],
