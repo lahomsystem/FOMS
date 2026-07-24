@@ -73,6 +73,15 @@
 - ✅ HISTORY-01 — `c45315d9`. P1-16: 두 history mobile JS DOMContentLoaded-only→singleton guard+foms:erp-shell-fragment-swapped 리스너로 fragment swap 후 toggle/포커스 부활(G4 idempotent). ?v 범프 20260724a. shell 무변경. perf guard+p3 11 passed.
 - head=item_id_00. **43 packet 커밋 완료.**
 
+## ✅ 배치 3 완료 (6 packet·disjoint·회귀 2721 passed 0 failed)
+- ✅ PRODUCTION-BACKFILL-00 — `d4ce8c7c`. production_runs schema(마이그레이션 production_backfill_00·down=item_id_00·단일 head)+models.py ProductionRun 단독+audit/backfill(lite·flat→UUID run 보존·in-flight IN_PROGRESS 100%·ambiguous CSV). command flag ON·flat 삭제 0(전이=STATE-PROD-01). PG 16. **→ head=production_backfill_00.**
+- ✅ CHANNEL-WRITER-01 — `d224b55b`. channel_integration typed command(_record_push_metadata: execute_order_mutation one-tx·CHANNELTALK_PUSH event·enqueue dedupe by message_id·retry 1). transport/auth provider 무변경. test 7. 후속: CHANNEL_PUSH_RECORDED handler 등록 별도 packet.
+- ✅ WDC-XSS-01 — `7d01c3b3`. estimate-lifecycle.js 3 싱크 escapeHtml 래핑(hostile→text·Node vm 실행 0 검증). createTextNode는 fake-DOM mock 미지원→형제 패턴. ?v 20260724a. auth 무변경.
+- ✅ SW-01 — `cfc27685`. sw.js PII API 미캐시(foms_offline no-store)·subject purge(sync.js+layout sw-config)·network-first timeout(G3)·offline OFF. CACHE_VERSION v9→v10. opaque 이미지 가드 보존. ※실 SW purge/cold-miss 실Chrome 확인 권장.
+- ✅ BACKUP-01 — `36889387`. deprecated backup 제거(backup.py·backup_service.py·백업.bat 삭제, 참조 0·APP_OK). restore runbook 보존. password subprocess 복구 0.
+- ✅ EVENT-REVERT-01 — `6d7dc362`. generic revert(JSON-path walk write) 제거→POST /revert 404, typed compensation registry(DRAWING_ASSIGNEE_SET 화이트리스트·append-only CHANGE_REVERTED). policy·write_guard manifest에서 revert→compensate **rename**(STAFF_MUTATION 승계·비-admin 생성자 통과 실증). failopen inventory 496→485(BACKUP 삭제 -11). **⚠️inventory 커플링: BACKUP-01+CHANNEL-WRITER-01+EVENT-REVERT-01 production 승격 시 함께**.
+- head=production_backfill_00. **49 packet 커밋 완료.**
+
 ## 🎯 다음 후보 (신규 unblock)
 - **STATE 패밀리**(STATE-CORE unblock): STATE-PROD-01·STATE-PROD-ACTIONS-01·STATE-DRAWING-01·STATE-AS-01·STATE-QUEST-01(+AUTH-QUEST-READ) — endpoint를 order_transition_service로 이관. 단 BACKFILL 선행(PRODUCTION-BACKFILL-00·QUEST-BACKFILL-00·AS-BACKFILL-00·DRAWING-REVISION-BACKFILL-00·CONSTRUCTION-BACKFILL-00) 확인.
 - **DELETE 패밀리**(DELETE-CORE unblock): DELETE-BULK-01·DELETE-TRASH-01·DELETE-RETENTION-01.
