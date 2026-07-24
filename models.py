@@ -1287,3 +1287,134 @@ event.listen(
     'before_drop',
     DDL(FEATURE_CUTOVER_MARKER_IMMUTABLE_DROP_SQL).execute_if(dialect='postgresql'),
 )
+
+
+# --------------------------------------------------------------------------- #
+# BACKFILL-ARTIFACT-00: encrypted backfill run state machine (§7.3 line 1255-1259)
+# --------------------------------------------------------------------------- #
+# 모든 remediation audit/backfill 도구가 공유하는 resume run 정본. 실제 domain business
+# write 는 각 consumer packet 몫이며, 이 스키마는 run/lease/checkpoint/append-only approval
+# 메커니즘만 소유한다. 라이브러리 API 는 foms/services/security/backfill/ 다.
+class MaintenanceBackfillRun(Base):
+    """backfill resume run 정본 (§7.3 line 1257).
+
+    ``run_id = SHA256(LP(packet_id,phase,manifest_sha256,mapping_sha256))`` 로 결정적이며
+    동일 artifact/mapping 에 대한 재개를 한 행으로 모은다. lease token 은 raw 저장 0
+    (``lease_token_hash`` = sha256(raw))이고 60초 lease/10초 heartbeat 다. state 는
+    PENDING→RUNNING→(PAUSED_APPROVAL|STOPPED_DRIFT)→VERIFYING→DONE 로 전이한다.
+    """
+
+    __tablename__ = 'maintenance_backfill_runs'
+
+    run_id = Column(String(64), primary_key=True)
+    packet_id = Column(String(80), nullable=False)
+    phase = Column(String(80), nullable=False)
+    db_instance_id = Column(String(120), nullable=False)
+    manifest_sha256 = Column(String(64), nullable=False)
+    mapping_sha256 = Column(String(64), nullable=False)
+    current_approval_seq = Column(Integer, nullable=False, server_default=text('0'))
+    state = Column(String(20), nullable=False, server_default='PENDING')
+    lease_owner_hash = Column(String(64), nullable=True)
+    lease_token_hash = Column(String(64), nullable=True)
+    lease_expires_at = Column(DateTime, nullable=True)
+    heartbeat_at = Column(DateTime, nullable=True)
+    total_rows = Column(Integer, nullable=False, server_default=text('0'))
+    completed_rows = Column(Integer, nullable=False, server_default=text('0'))
+    last_error_code = Column(String(40), nullable=True)
+    started_at = Column(DateTime, nullable=True)
+    completed_at = Column(DateTime, nullable=True)
+    row_version = Column(Integer, nullable=False, server_default=text('1'))
+
+    __table_args__ = (
+        CheckConstraint(
+            "state IN ('PENDING','RUNNING','PAUSED_APPROVAL','STOPPED_DRIFT','VERIFYING','DONE')",
+            name='ck_maintenance_backfill_run_state',
+        ),
+    )
+
+
+class MaintenanceBackfillCheckpoint(Base):
+    """backfill batch 진행 원장 (§7.3 line 1257).
+
+    각 batch 의 business write + completed_rows + heartbeat 와 **같은 tx** 로 append 되어
+    resume 시 completed=expected-after / pending=expected-before 정합을 재구성한다. local
+    checkpoint 는 authority 0 (drift/tamper 판정은 fingerprint + run 정본).
+    """
+
+    __tablename__ = 'maintenance_backfill_checkpoints'
+
+    id = Column(Integer, primary_key=True)
+    run_id = Column(String(64), ForeignKey('maintenance_backfill_runs.run_id'), nullable=False)
+    batch_seq = Column(Integer, nullable=False)
+    completed_rows = Column(Integer, nullable=False)
+    checkpoint_sha256 = Column(String(64), nullable=False)
+    created_at = Column(DateTime, nullable=False, server_default=func.now())
+
+    __table_args__ = (
+        UniqueConstraint('run_id', 'batch_seq', name='uq_maintenance_backfill_checkpoint_seq'),
+    )
+
+
+class MaintenanceBackfillApproval(Base):
+    """backfill approval seq append-only 원장 (§7.3 line 1259).
+
+    최초 BACKFILL_APPLY 가 seq1 을, 이후 BACKFILL_REAUTHORIZE 가 seq2.. 를 append 한다.
+    기존 row 의 UPDATE/DELETE 는 PostgreSQL trigger 가 DB 레벨에서 거부한다(append-only).
+    ``composite_sha256`` 은 승인 시점 source composite 이며 run row_version CAS 와 함께
+    stale approval 재사용을 막는다.
+    """
+
+    __tablename__ = 'maintenance_backfill_approvals'
+
+    id = Column(Integer, primary_key=True)
+    run_id = Column(String(64), ForeignKey('maintenance_backfill_runs.run_id'), nullable=False)
+    seq = Column(Integer, nullable=False)
+    approval_id = Column(UUIDColumn, nullable=False)
+    kind = Column(String(20), nullable=False)
+    admin_principal_version = Column(Integer, nullable=False)
+    composite_sha256 = Column(String(64), nullable=False)
+    reason_code = Column(String(40), nullable=True)
+    created_at = Column(DateTime, nullable=False, server_default=func.now())
+
+    __table_args__ = (
+        UniqueConstraint('run_id', 'seq', name='uq_maintenance_backfill_approval_seq'),
+        CheckConstraint(
+            "kind IN ('APPLY','REAUTHORIZE')",
+            name='ck_maintenance_backfill_approval_kind',
+        ),
+    )
+
+
+# approval append-only — BEFORE UPDATE OR DELETE 를 RAISE 로 차단(PostgreSQL 전용, marker
+# irreversibility 와 동일 패턴). INSERT 만 허용. SQLite 테스트 lane 은 execute_if 로 skip
+# 되며 그 lane 은 approval row 갱신을 시도하지 않는다(append-only 는 PG 계약 테스트가 검증).
+MAINTENANCE_BACKFILL_APPROVAL_APPEND_ONLY_SQL = """
+CREATE OR REPLACE FUNCTION foms_maintenance_backfill_approval_append_only() RETURNS trigger AS $$
+BEGIN
+    RAISE EXCEPTION 'maintenance_backfill_approvals is append-only (UPDATE/DELETE not permitted)'
+        USING ERRCODE = 'restrict_violation';
+    RETURN NULL;
+END;
+$$ LANGUAGE plpgsql;
+
+DROP TRIGGER IF EXISTS trg_maintenance_backfill_approval_append_only ON maintenance_backfill_approvals;
+CREATE TRIGGER trg_maintenance_backfill_approval_append_only
+    BEFORE UPDATE OR DELETE ON maintenance_backfill_approvals
+    FOR EACH ROW EXECUTE FUNCTION foms_maintenance_backfill_approval_append_only();
+"""
+
+MAINTENANCE_BACKFILL_APPROVAL_APPEND_ONLY_DROP_SQL = """
+DROP TRIGGER IF EXISTS trg_maintenance_backfill_approval_append_only ON maintenance_backfill_approvals;
+DROP FUNCTION IF EXISTS foms_maintenance_backfill_approval_append_only();
+"""
+
+event.listen(
+    MaintenanceBackfillApproval.__table__,
+    'after_create',
+    DDL(MAINTENANCE_BACKFILL_APPROVAL_APPEND_ONLY_SQL).execute_if(dialect='postgresql'),
+)
+event.listen(
+    MaintenanceBackfillApproval.__table__,
+    'before_drop',
+    DDL(MAINTENANCE_BACKFILL_APPROVAL_APPEND_ONLY_DROP_SQL).execute_if(dialect='postgresql'),
+)

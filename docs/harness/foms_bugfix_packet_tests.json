@@ -184,9 +184,20 @@
       "write_guard": false,
       "postgres": true
     },
-    "commands": [],
+    "commands": [
+      "python -m pytest tests/domains/test_backfill_artifact_crypto.py -q"
+    ],
     "existing_regressions": [],
-    "created_tests": [],
+    "created_tests": [
+      {
+        "path": "tests/postgres/test_backfill_artifact.py",
+        "owner_packet": "BACKFILL-ARTIFACT-00"
+      },
+      {
+        "path": "tests/domains/test_backfill_artifact_crypto.py",
+        "owner_packet": "BACKFILL-ARTIFACT-00"
+      }
+    ],
     "browser_scenarios": [],
     "deploy_check_ids": [],
     "deployment_evidence_mode": "PROVIDER_BOOTSTRAP"
