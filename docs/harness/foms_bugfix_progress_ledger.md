@@ -33,9 +33,14 @@
 - ✅ PROXY-01 — `<committed>`. rate_limit key-func raw XFF/X-Real-IP 파싱 제거→canonical remote_addr, hop `FOMS_TRUSTED_PROXY_HOPS` env. test 5(spoof red→green)·rate 23, APP_OK. Railway hop 실측 merge-gate.
 - ✅ SURFACE-GATE-01 — `7ac3ee94`. P1-27 인라인 predicate→SSOT GATE 일원화(1024 소실 해소)+erp-order-cohort.js(pristine reload/dirty 동결+배너/keyboard flip 0). test 10(red9→green)·회귀 374, APP_OK.
 - ✅ REQUEST-LIMIT-01 — `<committed>`. MAX_CONTENT_LENGTH 500MiB→50MiB, FomsRequest(form memory 1MiB/parts 1000/tempfile unlink), route body-cap manifest(telemetry2K/login16K/normal1M/excel10M/legacy50M), pre-handler 413/415 JSON, presigned 제외. test 19·회귀 73, APP_OK.
-- 🔵 WRITE-GUARD-01 — 단독 wave(cross-cutting). deps PROXY✅+REQUEST-LIMIT✅. 기존 foms/services/request_write_guard.py 확장.
-- ⬜ FAILOPEN-01(deps API-ERROR ✅·cross-cutting=단독, WRITE-GUARD 뒤), PGTEST-00(CI defer)
-- WRITE-GUARD 이후: →OPS-APPROVAL-00→CUTOVER-MODE-01·BACKFILL-ARTIFACT-00→REV-00→AUTH-01…
+- ✅ WRITE-GUARD-01 — `dd2118ed`. 공용 CSRF(itsdangerous 세션바인딩)+Origin before_request 가드, manifest 149route(143+6exempt) url_map 전수, client layout_head 단일 choke(fetch/XHR/form/beacon), logout/switch POST전용. WRITE_GUARD_ENABLED=not TESTING. test 12 + **tests/domains 전체 2380 passed 0 failed**, APP_OK. holidays_kr_*.json gitignore.
+- 🔵 FAILOPEN-01 — 단독 wave(cross-cutting, 무PG). deps API-ERROR ✅.
+
+## ⚠️ PostgreSQL 갈림길
+- 로컬 DATABASE_URL 없음(SQLite). **postgres=true packet 63개**(OPS-APPROVAL-00·CUTOVER-MODE-01·REV-00·STATE-*·DELETE-* 등)는 PG 없이 로컬 green 불가.
+- OPS-APPROVAL-00 deps=PGTEST-00(PG lane)+WRITE-GUARD✅. PGTEST-00이 PG 필요 → 로컬 PG 셋업 여부가 대량 packet 진행 관건.
+- 옵션: (a) 로컬 PostgreSQL 셋업(foms_test_*)→PGTEST-00·PG packet 로컬검증 가능, (b) 무PG packet 먼저 소진 후 PG chain은 CI/PG환경.
+- 무PG로 진행 가능한 잔여: FAILOPEN-01, FE 계열 잔여, 일부 UI/XSS, MIG류.
 
 ## 알려진 loose end (retention spec 담당, 지금 미수정 — 도달불가 죽은코드)
 - foms/persistence/designer/repositories.py:339 함수지역 삭제모듈 import(도달불가), tools/designer/{generate_expected_json,run_calibration}.py dangling(오프라인).
