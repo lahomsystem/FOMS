@@ -1,9 +1,15 @@
-"""단건/벌크 주문 상태 변경의 ERP stage 동기화 계약 (_sync_erp_stage 공용 헬퍼).
+"""단건/벌크 주문 상태 변경의 ERP stage 동기화 계약.
 
-- 단건 POST /api/update_order_status: ERP 주문이면 workflow.stage 동기화 +
-  STAGE_CHANGED(manual:true, bulk:false) 기록 (single/bulk 불일치 결함 봉합)
-- 비ERP 주문 단건 변경: structured_data 무터치 + STAGE_CHANGED 없음
-- 벌크 POST /api/bulk_update_order_status: 기존 동작 불변(stage 동기화 + bulk:true)
+STATE-LEGACY-01 이후 **순수 메인 파이프라인 전이**(예: MEASURE→DRAWING)는 canonical
+전이 엔진(``SET_MAIN_STAGE``)을 경유한다 — legacy ``STAGE_CHANGED`` event(payload from/to)
++ mutation_version++ + STATE_SET_MAIN_STAGE receipt + canonical projection(order.status)을
+원자 기록한다. payload 의 ``manual``/``bulk`` 표식은 canonical 계약에서 제거됐고
+(소비자 production_change_alerts/timeline 은 from/to 만 사용), ``command``/``emergency_override``
+로 대체된다.
+
+- 단건 POST /api/update_order_status(ERP 메인): canonical 전이 + STAGE_CHANGED from/to.
+- 비ERP 주문 단건 변경: canonical 대상 아님 — structured_data 무터치 + STAGE_CHANGED 없음.
+- 벌크 POST /api/bulk_update_order_status(ERP 메인): 주문별 canonical 전이 + STAGE_CHANGED.
 """
 
 from __future__ import annotations
@@ -11,7 +17,7 @@ from __future__ import annotations
 from werkzeug.security import generate_password_hash
 
 from db import db_session
-from models import Order, OrderEvent, User
+from models import Order, OrderEvent, OrderMutationReceipt, User
 
 
 def _login_admin(client, username: str) -> User:
@@ -58,7 +64,7 @@ def _stage_events(order_id: int) -> list[OrderEvent]:
 
 
 def test_single_update_syncs_erp_stage_and_records_event(client):
-    """단건 변경(G2 핸드오프 플로우): stage 동기화 + STAGE_CHANGED bulk:false."""
+    """단건 변경(메인 파이프라인): canonical 전이 + workflow.stage 동기화 + STAGE_CHANGED."""
     user_id = _login_admin(client, "stage_sync_admin").id
     order_id = _make_order(status="MEASURE").id
 
@@ -74,13 +80,20 @@ def test_single_update_syncs_erp_stage_and_records_event(client):
     assert saved.status == "DRAWING"
     assert saved.structured_data["workflow"]["stage"] == "DRAWING"
     assert saved.structured_data["workflow"]["stage_updated_at"]
+    assert saved.mutation_version == 2  # canonical 전이 1회 bump(direct 배정 아님)
+    assert (
+        db_session.query(OrderMutationReceipt)
+        .filter_by(policy_id="STATE_SET_MAIN_STAGE")
+        .count()
+        == 1
+    )
 
     events = _stage_events(order_id)
     assert len(events) == 1
     assert events[0].payload["from"] == "MEASURE"
     assert events[0].payload["to"] == "DRAWING"
-    assert events[0].payload["manual"] is True
-    assert events[0].payload["bulk"] is False
+    assert events[0].payload["command"] == "SET_MAIN_STAGE"
+    assert events[0].payload["emergency_override"] is False
     assert events[0].created_by_user_id == user_id
 
 
@@ -105,7 +118,7 @@ def test_single_update_non_erp_order_leaves_sd_untouched(client):
 
 
 def test_bulk_update_erp_stage_sync_unchanged(client):
-    """벌크 변경 기존 동작 불변: stage 동기화 + STAGE_CHANGED bulk:true."""
+    """벌크 변경(메인 파이프라인): 주문별 canonical 전이 + stage 동기화 + STAGE_CHANGED."""
     user_id = _login_admin(client, "stage_sync_admin3").id
     order_id = _make_order(status="MEASURE").id
 
@@ -122,11 +135,11 @@ def test_bulk_update_erp_stage_sync_unchanged(client):
     saved = db_session.get(Order, order_id)
     assert saved.status == "DRAWING"
     assert saved.structured_data["workflow"]["stage"] == "DRAWING"
+    assert saved.mutation_version == 2  # canonical 전이 1회 bump
 
     events = _stage_events(order_id)
     assert len(events) == 1
     assert events[0].payload["from"] == "MEASURE"
     assert events[0].payload["to"] == "DRAWING"
-    assert events[0].payload["manual"] is True
-    assert events[0].payload["bulk"] is True
+    assert events[0].payload["command"] == "SET_MAIN_STAGE"
     assert events[0].created_by_user_id == user_id

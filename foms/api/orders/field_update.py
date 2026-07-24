@@ -243,11 +243,13 @@ def update_order_field_response(
             value = normalized_construction_type or None
 
         is_erp_order = is_erp_order_record(order)
+        status_transitioned = False
         if field == "status" and is_erp_order:
             from foms.services.orders.status_constants import is_logistics_board_status
             from foms.services.orders.stage_override import (
                 OVERRIDE_BLOCK_MESSAGE,
                 current_stage_for_order,
+                normalize_main_stage,
                 requires_privileged_override,
             )
 
@@ -255,6 +257,23 @@ def update_order_field_response(
             if not is_logistics_board_status(value):
                 if requires_privileged_override(current_stage_for_order(order), value):
                     return jsonify({"success": False, "message": OVERRIDE_BLOCK_MESSAGE}), 403
+
+            # STATE-LEGACY-01: 순수 메인 파이프라인 전이는 canonical 전이 엔진 경유
+            # (direct order.status/workflow.stage 배정 없음). 물류/AS/overlay 타깃과 overlay
+            # 혼재 주문은 should_canonicalize_main_status 가 False → 아래 legacy 경로 보존.
+            from foms.api.orders.status import (
+                apply_canonical_main_stage,
+                should_canonicalize_main_status,
+            )
+
+            if should_canonicalize_main_status(order, value):
+                err = apply_canonical_main_stage(
+                    db, order, normalize_main_stage(value),
+                    actor_user_id=getattr(user, "id", None), body=data,
+                )
+                if err is not None:
+                    return err
+                status_transitioned = True
 
         structured_data: dict[str, Any] = {}
         structured_changed = False
@@ -279,9 +298,15 @@ def update_order_field_response(
         ):
             pass
         else:
-            setattr(order, field, value)
+            if not status_transitioned:
+                setattr(order, field, value)
 
-        if field == "status" and is_erp_order and isinstance(structured_data, dict):
+        if (
+            field == "status"
+            and is_erp_order
+            and isinstance(structured_data, dict)
+            and not status_transitioned
+        ):
             from foms.services.orders.status_constants import (
                 should_sync_workflow_stage_on_status,
             )
