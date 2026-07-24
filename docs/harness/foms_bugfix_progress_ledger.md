@@ -41,7 +41,8 @@
 - ✅ PGTEST-00 — `bb9ec61d`. tests/postgres/(conftest 안전가드 localhost+foms_test_*, create_all 42테이블, xdist 격리), run_postgres_concurrency.ps1, CI postgres:16, smoke+safety 19 passed(dev env), 잔여 DB 0, opt-in skip. → **postgres=true 63개 packet 로컬 검증 경로 열림.**
 - ✅ FAILOPEN-01 — `0a533f22`. broad catch 499 전수 AST 인벤토리(unclassified 0), LOG_AND_CONTINUE 463(로깅 28)/FAIL_CLOSED 19/INTENTIONAL 17, silent-pass 45 전량 해소. release gate static. test 10 + 전체 2390 passed 0 failed, APP_OK. API-ERROR 겹침 표기.
 - ✅ OPS-APPROVAL-00 — `670f372e`. security_principal_versions+trigger·ops_approval_requests·target_audits, approval UI(재인증)·consume(FOR UPDATE one-time·cross-DB RESERVED)·control-root·reconciler, operations manifest 35op/9owner cli=null seed. PG 30 passed·전체 2390·마이그레이션 up/down·FAILOPEN/write-guard gate, APP_OK.
-- 🔵 REV-00(deps PGTEST✅ — 상태코어 선행) ∥ SECRET-01(P0-2 Kakao 키, 무PG 독립)
+- ✅ SECRET-01 — `34c64503`. Kakao REST 키 env-only+require_kakao_rest_key() fail-fast, geocode_config/address/converter/SCheduler 리터럴 제거, JS키(공개)는 유지. FAILOPEN inventory 재생성(라인시프트). test 4·address 93·APP_OK·gate. **운영: Kakao 콘솔 외부 rotate 필수(git history 잔존).** → SECRET-02(다음).
+- 🔵 REV-00(deps PGTEST✅ — 상태코어 선행). 서브에이전트 a4793fd3.
 - **다음 (PG chain)**: CUTOVER-MODE-01(deps OPS-APPROVAL✅)·BACKFILL-ARTIFACT-00(deps OPS-APPROVAL✅) / REV-00→STATE-CORE-00·DATA-01·DELETE-CORE-00 / SECRET-02→SESSION-SIGNING chain→AUTH-01
 
 ## ✅ 부트스트랩 보안 경계 완성 (16 packet)
