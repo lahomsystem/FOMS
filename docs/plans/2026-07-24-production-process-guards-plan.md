@@ -13,6 +13,70 @@
 
 리뷰 잔여 기록: 전이 API는 row lock 없음(동시 요청 시 이벤트 중복 가능) — 기존 start/complete 패턴 승계, 필요 시 with_for_update 별도 과제.
 
+## 2차 라운드 (2026-07-24 사용자 피드백 P4~P8) — 진행 원장
+
+- [x] Phase A = P4(보류 해제 confirm) + P5(사유 가시성) (165 passed)
+- [x] Phase B = P6(제작 취소·완료 취소 rollback 2종) (174 passed)
+- [x] Phase C = P7(보류 운영 가시성 KPI·D+n·임박 경고) + P8(PC 리스트 배지) (187 passed)
+- [x] 최종 코드리뷰 2판정 (스펙 전 항목 OK / Critical·Major 0, Minor 5 중 음수 D+n 가드 즉시 반영) + 동작검증 루프 (Playwright 태블릿+PC 21/21 PASS — 해제 confirm 거절/수락, KPI 보류 필터, 취소·완료취소, rework 복원, PC 배지)
+
+2차 리뷰 잔여 기록: (1) 라운드 배포 전 rework 완료 건은 completed_at 부재로 완료취소 시 재제작 배지 미복원(스테이징 하루치, 무시 가능) (2) 보류 당일 hold_days=0은 D+ 미표기(의도) (3) --foms-status-warning-text 토큰 미정의 fallback 이원화(기존 승계) (4) 다회 rework 사이클 회귀 테스트 없음(코드 불변식으로 안전 확인).
+
+### 2차 공통 컨텍스트 (1차 공통 컨텍스트 + 아래)
+
+- 1차 구현 완료 커밋: 357d8803 (전이 가드·보류 게이트·rework). 현재 워킹트리에 타 세션 미커밋 변경 존재(.claude/*, .mcp.json, docs/AI_STATUS.md, scripts/ops/clone_prod_to_deploy.ps1 등) — 절대 손대지 않는다.
+- 캐시버스터 현재값: JS(tablet-domain-sheets.js·tablet-production-kanban.js)=20260724c, CSS(foms-tablet-production-kanban.css)=20260724a(번들 체인 foms-tablet-bundle.css→layout_head.html=20260724a). 수정 시 다음 값(d/b…)으로 범프 + 계약 테스트 리터럴 동기(test_tablet_domain_sheets_contract.py:33, test_tablet_t2_contract.py:644, test_tablet_rail_contract.py:162).
+- KPI 타일: `foms/web/production/dashboard.py:281-` `_compute_tablet_prod_kpis`(enriched rows 파생, 신규 쿼리 금지), 마크업 tablet_kanban_body.html KPI 섹션(erp-pro-alerts, data-tablet-prod-kpi=line/load/delayed 상호배타 토글), 필터 predicate는 tablet-domain-sheets.js `applyProdFilter` L416-486 (카드 레벨 kpiOK 분기).
+- PC 리스트: templates/production/partials/filters_grid.html — 단계 badge(td L59), 퀘스트 셀(L60-77), 고객 셀 부배지 문법(자가실측, L86-88 bootstrap badge). 행 `o`는 enriched dict, `o.structured_data` 직접 접근 가능(제품 셀 L95 패턴).
+- hold 객체: `sd['production']['hold']` {active, reason, at(UTC iso, aware), by_name}. rework: {active, reason, count, at, by_name}.
+- 오늘 날짜: `get_today_kst()`는 **date 반환** (.date() 호출 금지 — 메모리 함정).
+
+### Phase A — P4 보류 해제 confirm + P5 사유 가시성
+
+**A-1 (P4)** `static/js/foms/tablet-domain-sheets.js` `productionHold`:
+- 해제 경로(isActive→비활성)에 `window.confirm("보류를 해제할까요?" + (사유 있으면 " (사유: X)"))` 추가. 사유는 버튼 인접 DOM이 아니라 **서버 렌더 데이터로**: tablet_sheet.html 보류 버튼에 `data-hold-reason="{{ order.hold_reason }}"` 속성 추가해 읽는다. 설정 경로(prompt)는 현행 유지.
+- 계약 테스트: test_tablet_domain_sheets_contract.py에 "보류를 해제할까요" assert.
+
+**A-2 (P5) 카드 사유 스트립** `templates/production/partials/tablet_kanban_body.html`:
+- 기존 변경 알림 스트립(.foms-kanban-card__alert, L169-182) 문법 재사용. 카드 상단에 hold active 시 앰버 행(fa-pause, 라벨 "보류", detail=사유(없으면 '사유 미입력')), rework active 시 블루 행(fa-rotate-left, 라벨 "재제작 N회"(count), detail=사유). 신규 kind 클래스 `--hold`, `--rework`는 CSS에 좌보더+틴트 정의(변경 스트립과 동일 문법, HMI 색 예외 — 보류=앰버(--foms-status-warning-*), 재제작=블루(--foms-color-info-*)).
+- 우상단 소형 배지(__hold/__rework)는 유지하되 rework 배지 텍스트를 "재제작{% if count>1 %} {{count}}회{% endif %}"로.
+
+**A-3 (P5) 시트 사유 콜아웃** `templates/production/partials/tablet_sheet.html` + CSS:
+- __hold-reason/__rework-reason 줄을 콜아웃로 승격: 배경 틴트+좌보더+font-size-base, 사유 부분 bold. 클래스 유지(계약 테스트 존재 가능 — grep 후 판단), 스타일만 강화. rework 콜아웃에 회차 병기.
+- dashboard.py sheet dict에 `rework_count`(int) 추가, 시트 배지 "재제작 N회".
+- CSS는 foms-tablet-production-kanban.css(시트 스타일 L1175 부근 __rework-badge 기존 블록 인접).
+
+**A-4** 캐시버스터: JS d, CSS b(번들 체인 포함) + 계약 리터럴 3곳.
+**A-5** 테스트: 시트 렌더(rework_count 병기), 카드 스트립 렌더(hold 사유 텍스트 노출), JS confirm 계약. 기존 가드 테스트 세트 전부 통과 유지.
+
+### Phase B — P6 되돌리기 2종 (시트 전용, 의도적 마찰)
+
+**B-1 서버** `foms/api/production/orders.py` (start 패턴 복제, deepcopy+flag_modified+sync_erp_flat_columns+SecurityLog, 에러 키 message):
+- `POST /<id>/production/cancel`: 가드 stage in ('생산','PRODUCTION') 아니면 409 INVALID_STAGE "제작중 상태에서만 제작을 취소할 수 있습니다.". **hold 게이트 미적용**(후진 전이는 보류와 무관 — 보류 유지된 채 제작대기 복귀 허용, docstring에 명시). body {reason 선택, trim}. wf.stage="CONFIRM", status="CONFIRM", note "제작 취소 (제작대기 복귀)"(+" — reason"), OrderEvent `PRODUCTION_CANCELLED` {reason, domain, action}. 응답 {"success":True,"message":"제작을 취소했습니다. (제작대기 복귀)","new_status":"CONFIRM"}.
+- `POST /<id>/production/uncomplete`: 가드 stage in ('시공','CONSTRUCTION') 아니면 409 "제작완료 상태에서만 완료 취소할 수 있습니다.". hold 게이트 미적용. wf.stage="PRODUCTION", status="PRODUCTION", note "완료 취소 (제작중 복귀)", OrderEvent `PRODUCTION_COMPLETE_REVERTED`. **rework 복원**: api_production_complete가 rework 해제 시 `rework["completed_at"]=now iso` 기록하도록 보강 → uncomplete는 rework dict에 completed_at 있고 active False면 active=True 복원+completed_at 삭제(회차 불변). 재제작 아니었으면 rework 무터치.
+- 응답 후진 전이는 판매 승인 무관(제작대기 복귀 후 다시 시작하려면 기존 가드가 승인 UI 분기 적용).
+
+**B-2 시트 UI** tablet_sheet.html + tablet-domain-sheets.js:
+- 제작중 시트 풋터: [보류 토글] [제작 취소(ghost)] [생산 완료(pri)] / 제작완료 시트: [보류 토글] [완료 취소(ghost)] [수정 제작(pri)].
+- ghost 버튼 클래스 `foms-prod-sheet__btn--ghost`(무채 아웃라인, CSS 신규 — 카드에는 미노출, 시트 전용 의도적 마찰).
+- 핸들러: production-cancel = confirm "제작을 취소하고 제작대기로 되돌릴까요?" + prompt 사유(선택, 취소 null=중단) → POST {reason}; production-uncomplete = confirm "완료를 취소하고 제작중으로 되돌릴까요?" → POST {}. submitTransition 재사용(HOLD_ACTIVE 분기는 서버가 안 내므로 무해).
+- 칸반 카드에는 추가하지 않는다(진행=카드, 되돌림=시트).
+
+**B-3** 캐시버스터 JS e + 리터럴. 테스트: API 6케이스(cancel 성공/409, uncomplete 성공/409, rework 복원, rework 아닌 완료취소 무터치) + 시트 렌더 2 + JS 계약.
+
+### Phase C — P7 보류 운영 가시성 + P8 PC 배지
+
+**C-1 (P7) hold_days 파생** `foms/services/production_dashboard_display.py` `_enrich_one_production_order`:
+- row에 `hold_active`(bool), `hold_days`(int|None — hold.at 파싱(UTC aware)→KST date 변환→get_today_kst()와 일수차, 파싱 실패·at 없음=None) 추가. 기존 행 규약 무파괴(추가만).
+**C-2 (P7) 카드**: 보류 배지 텍스트 "보류 D+{{n}}"(hold_days 있을 때). **보류+임박 충돌 경고**: hold active AND (dday<=2 or 지연) → 카드 클래스 `is-held-imminent`, CSS 강경고(적색 좌보더 3px + 배지 danger 톤 전환 — 애니메이션 금지, HMI).
+**C-3 (P7) KPI 타일**: `_compute_tablet_prod_kpis`에 `hold`(보류 카드 수) 추가. tablet_kanban_body KPI 행에 5번째 타일 "보류 {{n}}"(data-tablet-prod-kpi="hold", 기존 상호배타 토글 문법). applyProdFilter kpiOK에 `kpi==="hold" → card.classList.contains("is-held")` 분기.
+**C-4 (P8) PC 배지** filters_grid.html:
+- 단계 배지 셀(L59) 옆에: hold active 시 `<span class="badge bg-warning text-dark">보류{% if hold_days %} D+n{% endif %}</span>`(title=사유), rework active 시 `<span class="badge bg-info">재제작 N회</span>`. o.structured_data 직접 접근(제품 셀 패턴) + row hold_days 소비. PC 모바일 큐(mobile_queue.html)는 비범위.
+**C-5** 캐시버스터(JS f, CSS c — 실변경 파일만) + 테스트: enrichment 단위(hold_days 파싱·None), KPI hold 카운트, 카드 D+n·is-held-imminent 렌더, PC grid 배지 렌더, 필터 계약(data-tablet-prod-kpi="hold" 존재).
+
+### 2차 완료 기준 (각 Phase 공통)
+`python -m pytest tests/domains/test_production_transition_guard_api.py tests/domains/test_production_hold_api.py tests/domains/test_tablet_domain_sheets_contract.py tests/domains/test_tablet_t2_contract.py tests/domains/test_tablet_rail_contract.py tests/domains/test_production_kanban_full_window.py tests/domains/test_production_dashboard_mobile.py -q` 전부 통과 + `import app` APP_OK.
+
 ## 공통 컨텍스트 (모든 페이즈 필수 숙지)
 
 ### 스테이지 SSOT

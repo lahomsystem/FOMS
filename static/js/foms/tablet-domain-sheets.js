@@ -139,9 +139,30 @@
     submitTransition(orderId, "/production/rework", { reason: reason.trim() });
   }
 
+  // 제작 취소 — 제작중 → 제작대기 되돌림(시트 전용, 의도적 마찰). confirm 후 사유 prompt
+  // (취소=중단, 빈 값=진행). 후진 전이라 서버 보류 게이트 없음(HOLD_ACTIVE 분기 무발동, 무해).
+  function productionCancel(orderId) {
+    if (!orderId) return;
+    if (!window.confirm("제작을 취소하고 제작대기로 되돌릴까요?")) return;
+    // prompt 취소(null) = 전이 중단. 빈 문자열 확인은 빈 사유로 진행.
+    var reason = window.prompt("제작 취소 사유를 입력하세요. (선택)");
+    if (reason === null) return;
+    submitTransition(orderId, "/production/cancel", { reason: reason.trim() });
+  }
+
+  // 완료 취소 — 제작완료 → 제작중 되돌림(시트 전용, 의도적 마찰). confirm 만(사유 없음).
+  // 재제작 완료였으면 서버가 rework 를 다시 활성으로 복원한다. 후진 전이라 보류 게이트 없음.
+  function productionUncomplete(orderId) {
+    if (!orderId) return;
+    if (!window.confirm("완료를 취소하고 제작중으로 되돌릴까요?")) return;
+    submitTransition(orderId, "/production/uncomplete", {});
+  }
+
   // 생산 보류 토글 — 표시 전용 플래그(워크플로 전이 없음). 버튼의 data-hold-active 로
   // 현재 상태를 읽어 반대로 토글한다. 활성화 시 사유를 prompt 로 받는다(취소 시 중단).
-  // 성공 시 시트를 닫고 새로고침해 카드/시트 배지를 재조회한다. 에러 키 = error(생산 API).
+  // 해제 경로는 오조작 방지 confirm 을 거치며, 사유는 버튼 인접 DOM 이 아니라 서버 렌더
+  // data-hold-reason 에서 읽어 병기한다. 성공 시 시트를 닫고 새로고침해 카드/시트 배지를
+  // 재조회한다. 에러 키 = error(생산 API).
   function productionHold(orderId, btn) {
     if (!orderId) return;
     var isActive = btn && btn.getAttribute("data-hold-active") === "1";
@@ -150,6 +171,12 @@
     if (nextActive) {
       reason = window.prompt("보류 사유를 입력하세요. (선택)", "") || "";
       reason = reason.trim();
+    } else {
+      // 해제 confirm — 서버 렌더 사유(data-hold-reason)를 병기(있을 때만).
+      var heldReason = btn ? (btn.getAttribute("data-hold-reason") || "").trim() : "";
+      var releaseMsg = "보류를 해제할까요?";
+      if (heldReason) releaseMsg += " (사유: " + heldReason + ")";
+      if (!window.confirm(releaseMsg)) return;
     }
     fetch("/api/orders/" + encodeURIComponent(orderId) + "/production/hold", {
       method: "POST",
@@ -467,7 +494,8 @@
           card.getAttribute("data-changed") === "1" ||
           card.getAttribute("data-change-history") === "1";
 
-        // KPI 카드 레벨 조건: load=D-DAY(dday 0), delayed=지연(dday<0). line 은 열 레벨에서 처리.
+        // KPI 카드 레벨 조건: load=D-DAY(dday 0), delayed=지연(dday<0), hold=보류(.is-held).
+        // line 은 열 레벨에서 처리.
         var kpiOK = true;
         if (kpi === "load" || kpi === "delayed") {
           var dday = card.getAttribute("data-dday");
@@ -478,6 +506,8 @@
           } else {
             kpiOK = parseInt(dday, 10) < 0;
           }
+        } else if (kpi === "hold") {
+          kpiOK = card.classList.contains("is-held");
         }
 
         card.style.display = searchOK && factoryOK && changedOK && kpiOK ? "" : "none";
@@ -601,6 +631,16 @@
     if (action === "production-rework") {
       ev.preventDefault();
       productionRework(orderId);
+      return;
+    }
+    if (action === "production-cancel") {
+      ev.preventDefault();
+      productionCancel(orderId);
+      return;
+    }
+    if (action === "production-uncomplete") {
+      ev.preventDefault();
+      productionUncomplete(orderId);
       return;
     }
     if (action === "production-hold") {

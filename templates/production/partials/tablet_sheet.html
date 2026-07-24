@@ -20,16 +20,25 @@
       <span class="foms-prod-sheet__hold-badge" data-tablet-sheet-hold-badge>보류</span>
       {% endif %}
       {% if order.rework_active %}
-      <span class="foms-prod-sheet__rework-badge" data-tablet-sheet-rework-badge>재제작</span>
+      <span class="foms-prod-sheet__rework-badge" data-tablet-sheet-rework-badge>재제작{% if order.rework_count %} {{ order.rework_count }}회{% endif %}</span>
       {% endif %}
     </div>
     <div class="foms-prod-sheet__count">#{{ order.id }} · 상차 {{ order.load_md }}</div>
   </div>
+  {# ── 보류/재제작 사유 콜아웃: 좌보더+틴트 강조, 라벨은 준볼드·사유 본문은 볼드. #}
   {% if order.hold_active and order.hold_reason %}
-  <div class="foms-prod-sheet__hold-reason" data-tablet-sheet-hold-reason-view>보류 사유: {{ order.hold_reason }}</div>
+  <div class="foms-prod-sheet__hold-reason" data-tablet-sheet-hold-reason-view>
+    <i class="fas fa-pause" aria-hidden="true"></i>
+    <span class="foms-prod-sheet__reason-label">보류 사유</span>
+    <strong class="foms-prod-sheet__reason-text">{{ order.hold_reason }}</strong>
+  </div>
   {% endif %}
   {% if order.rework_active and order.rework_reason %}
-  <div class="foms-prod-sheet__rework-reason" data-tablet-sheet-rework-reason-view>재제작 사유: {{ order.rework_reason }}</div>
+  <div class="foms-prod-sheet__rework-reason" data-tablet-sheet-rework-reason-view>
+    <i class="fas fa-rotate-left" aria-hidden="true"></i>
+    <span class="foms-prod-sheet__reason-label">재제작{% if order.rework_count %} {{ order.rework_count }}회{% endif %} 사유</span>
+    <strong class="foms-prod-sheet__reason-text">{{ order.rework_reason }}</strong>
+  </div>
   {% endif %}
 
   {# ── 변경 알림: 생산 진입 후 감지된 시공일/도면 변경 목록 + [변경 확인](ack API → reload).
@@ -140,7 +149,8 @@
             class="foms-prod-sheet__btn foms-prod-sheet__btn--hold{% if order.hold_active %} is-active{% endif %}"
             data-tablet-sheet-action="production-hold"
             data-order-id="{{ order.id }}"
-            data-hold-active="{{ 1 if order.hold_active else 0 }}">{{ '보류 해제' if order.hold_active else '보류' }}</button>
+            data-hold-active="{{ 1 if order.hold_active else 0 }}"
+            data-hold-reason="{{ order.hold_reason }}">{{ '보류 해제' if order.hold_active else '보류' }}</button>
     {% if order.stage == '제작대기' %}
       {% if order.is_sales_approved %}
       <button type="button" class="foms-prod-sheet__btn foms-prod-sheet__btn--pri"
@@ -149,9 +159,13 @@
       <span class="foms-prod-sheet__muted" data-tablet-sheet-muted>고객 컨펌 전</span>
       {% endif %}
     {% elif order.stage == '제작중' %}
+      <button type="button" class="foms-prod-sheet__btn foms-prod-sheet__btn--ghost"
+              data-tablet-sheet-action="production-cancel" data-order-id="{{ order.id }}">제작 취소</button>
       <button type="button" class="foms-prod-sheet__btn foms-prod-sheet__btn--pri"
               data-tablet-sheet-action="production-complete" data-order-id="{{ order.id }}">생산 완료</button>
     {% elif order.stage == '제작완료' %}
+      <button type="button" class="foms-prod-sheet__btn foms-prod-sheet__btn--ghost"
+              data-tablet-sheet-action="production-uncomplete" data-order-id="{{ order.id }}">완료 취소</button>
       <button type="button" class="foms-prod-sheet__btn foms-prod-sheet__btn--pri"
               data-tablet-sheet-action="production-rework" data-order-id="{{ order.id }}">수정 제작</button>
     {% endif %}

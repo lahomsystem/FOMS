@@ -303,7 +303,11 @@ def api_production_complete(order_id):
         sd["workflow"] = wf
 
         if is_rework_completion:
-            rework["active"] = False  # count·reason·at·by_name 은 보존, active 만 해제.
+            # active 만 해제(count·reason·at·by_name 보존)하고 완료 시각을 기록한다.
+            # completed_at 은 uncomplete(완료 취소)가 "이 완료가 재제작 완료였는지" 판정하는
+            # 근거 — 존재하면 uncomplete 가 rework 를 active=True 로 복원한다.
+            rework["active"] = False
+            rework["completed_at"] = now_utc_naive().isoformat()
 
         order.structured_data = copy.deepcopy(sd)
         flag_modified(order, "structured_data")
@@ -458,6 +462,200 @@ def api_production_rework(order_id: int):
         db.commit()
         return jsonify(
             {"success": True, "message": "수정 제작을 시작했습니다.", "new_status": "PRODUCTION"}
+        )
+    except Exception as exc:
+        db.rollback()
+        return jsonify({"success": False, "message": str(exc)}), 500
+
+
+@erp_orders_production_bp.route("/<int:order_id>/production/cancel", methods=["POST"])
+@login_required
+@erp_edit_required
+def api_production_cancel(order_id: int):
+    """제작 취소 (제작중 → 제작대기/CONFIRM 되돌림).
+
+    제작중(생산/PRODUCTION) 상태의 주문을 제작대기(CONFIRM)로 되돌린다. 후진 전이이므로
+    **보류 게이트를 적용하지 않는다** — 보류는 전진(시작·완료·수정 제작)만 막는 표시 전용
+    플래그이며, 되돌리기는 보류가 걸린 채로도 허용한다(보류 상태는 그대로 유지된다).
+    가드는 404 → INVALID_STAGE(제작중이 아니면 409) 순서. start 패턴과 동일하게
+    deepcopy + flag_modified + sync_erp_flat_columns + SecurityLog + OrderEvent 를 남긴다.
+
+    :param order_id: 대상 주문 id.
+    :param reason: (body) 취소 사유(선택, trim). 빈 값 허용.
+    :return: ``{success, message, new_status}`` 또는 오류 JSON(에러 키 = message).
+    """
+    db = get_db()
+    try:
+        order = db.get(Order, order_id)
+        if not order or order.status == "DELETED" or order.deleted_at is not None:
+            return jsonify({"success": False, "message": "주문을 찾을 수 없습니다."}), 404
+
+        # 전이 전제조건: 제작중(생산/PRODUCTION) 에서만 취소 허용. 레거시 한글 값 포함.
+        if order.erp_stage_code not in ("생산", "PRODUCTION"):
+            return (
+                jsonify(
+                    {
+                        "success": False,
+                        "code": "INVALID_STAGE",
+                        "message": "제작중 상태에서만 제작을 취소할 수 있습니다.",
+                    }
+                ),
+                409,
+            )
+
+        body = request.get_json(silent=True) or {}
+        reason_raw = body.get("reason")
+        reason = reason_raw.strip() if isinstance(reason_raw, str) else ""
+
+        user_id = session.get("user_id")
+        user = get_user_by_id(user_id)
+
+        sd = _ensure_dict(order.structured_data)
+
+        wf = sd.get("workflow") or {}
+        wf["stage"] = "CONFIRM"
+        wf["stage_updated_at"] = now_utc_naive().isoformat()
+        wf["stage_updated_by"] = user.name if user else "Unknown"
+
+        note = "제작 취소 (제작대기 복귀)"
+        if reason:
+            note += f" — {reason}"
+        hist = wf.get("history") or []
+        hist.append(
+            {
+                "stage": "CONFIRM",
+                "updated_at": wf["stage_updated_at"],
+                "updated_by": wf["stage_updated_by"],
+                "note": note,
+            }
+        )
+        wf["history"] = hist
+        sd["workflow"] = wf
+
+        order.structured_data = copy.deepcopy(sd)
+        flag_modified(order, "structured_data")
+        order.status = "CONFIRM"
+        sync_erp_flat_columns(order, sd)
+
+        db.add(
+            OrderEvent(
+                order_id=order_id,
+                event_type="PRODUCTION_CANCELLED",
+                payload={
+                    "reason": reason,
+                    "domain": "PRODUCTION_DOMAIN",
+                    "action": "PRODUCTION_CANCELLED",
+                },
+                created_by_user_id=user_id,
+            )
+        )
+        db.add(SecurityLog(user_id=user_id, message=f"주문 #{order_id} 제작 취소 (제작대기 복귀)"))
+        db.commit()
+        return jsonify(
+            {
+                "success": True,
+                "message": "제작을 취소했습니다. (제작대기 복귀)",
+                "new_status": "CONFIRM",
+            }
+        )
+    except Exception as exc:
+        db.rollback()
+        return jsonify({"success": False, "message": str(exc)}), 500
+
+
+@erp_orders_production_bp.route("/<int:order_id>/production/uncomplete", methods=["POST"])
+@login_required
+@erp_edit_required
+def api_production_uncomplete(order_id: int):
+    """완료 취소 (제작완료 → 제작중/PRODUCTION 되돌림).
+
+    제작완료(시공/CONSTRUCTION) 상태의 주문을 다시 제작중(PRODUCTION)으로 되돌린다.
+    후진 전이이므로 **보류 게이트를 적용하지 않는다**(cancel 참조 — 보류는 유지된다).
+    가드는 404 → INVALID_STAGE(제작완료가 아니면 409) 순서.
+
+    **재제작 복원**: 직전 완료가 재제작 완료였다면(``rework`` dict 에 ``completed_at`` 가 있고
+    ``active`` 가 False) 완료를 되돌리며 rework 를 ``active=True`` 로 복원하고 ``completed_at``
+    키를 제거한다(회차 count 는 불변). 재제작 완료가 아니었으면 rework 는 건드리지 않는다.
+
+    :param order_id: 대상 주문 id.
+    :return: ``{success, message, new_status}`` 또는 오류 JSON(에러 키 = message).
+    """
+    db = get_db()
+    try:
+        order = db.get(Order, order_id)
+        if not order or order.status == "DELETED" or order.deleted_at is not None:
+            return jsonify({"success": False, "message": "주문을 찾을 수 없습니다."}), 404
+
+        # 전이 전제조건: 제작완료(시공/CONSTRUCTION) 에서만 완료 취소 허용. 레거시 한글 값 포함.
+        if order.erp_stage_code not in ("시공", "CONSTRUCTION"):
+            return (
+                jsonify(
+                    {
+                        "success": False,
+                        "code": "INVALID_STAGE",
+                        "message": "제작완료 상태에서만 완료 취소할 수 있습니다.",
+                    }
+                ),
+                409,
+            )
+
+        user_id = session.get("user_id")
+        user = get_user_by_id(user_id)
+
+        sd = _ensure_dict(order.structured_data)
+
+        wf = sd.get("workflow") or {}
+        wf["stage"] = "PRODUCTION"
+        wf["stage_updated_at"] = now_utc_naive().isoformat()
+        wf["stage_updated_by"] = user.name if user else "Unknown"
+
+        hist = wf.get("history") or []
+        hist.append(
+            {
+                "stage": "PRODUCTION",
+                "updated_at": wf["stage_updated_at"],
+                "updated_by": wf["stage_updated_by"],
+                "note": "완료 취소 (제작중 복귀)",
+            }
+        )
+        wf["history"] = hist
+        sd["workflow"] = wf
+
+        # 재제작 완료 되돌리기: 직전 완료가 재제작 완료였으면(completed_at 존재 + active False)
+        # rework 를 다시 활성으로 복원하고 완료 시각 표식을 제거한다(count 보존).
+        production = sd.get("production") if isinstance(sd.get("production"), dict) else None
+        rework = production.get("rework") if isinstance(production, dict) else None
+        rework_restored = False
+        if isinstance(rework, dict) and rework.get("completed_at") and not rework.get("active"):
+            rework["active"] = True
+            rework.pop("completed_at", None)
+            rework_restored = True
+
+        order.structured_data = copy.deepcopy(sd)
+        flag_modified(order, "structured_data")
+        order.status = "PRODUCTION"
+        sync_erp_flat_columns(order, sd)
+
+        db.add(
+            OrderEvent(
+                order_id=order_id,
+                event_type="PRODUCTION_COMPLETE_REVERTED",
+                payload={
+                    "rework_restored": rework_restored,
+                    "domain": "PRODUCTION_DOMAIN",
+                    "action": "PRODUCTION_COMPLETE_REVERTED",
+                },
+                created_by_user_id=user_id,
+            )
+        )
+        db.add(SecurityLog(user_id=user_id, message=f"주문 #{order_id} 완료 취소 (제작중 복귀)"))
+        db.commit()
+        return jsonify(
+            {
+                "success": True,
+                "message": "완료를 취소했습니다. (제작중 복귀)",
+                "new_status": "PRODUCTION",
+            }
         )
     except Exception as exc:
         db.rollback()

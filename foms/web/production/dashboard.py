@@ -289,16 +289,18 @@ def _compute_tablet_prod_kpis(orders: list[dict[str, Any]]) -> dict[str, Any]:
         orders: ``build_production_enriched_rows`` 결과 행 dict 리스트.
 
     Returns:
-        {today_line, today_load, delayed, week_units}. week_units는 소수 1자리 문자열.
+        {today_line, today_load, delayed, hold, week_units}. week_units는 소수 1자리 문자열.
     """
     today = get_today_kst()
     week_start = -today.weekday()      # 이번 주 월요일까지의 dday 오프셋
     week_end = 6 - today.weekday()     # 이번 주 일요일까지의 dday 오프셋
-    today_line = today_load = delayed = 0
+    today_line = today_load = delayed = hold = 0
     week_total = 0.0
     for row in orders:
         if row.get('stage') == '제작중':
             today_line += 1
+        if row.get('hold_active'):
+            hold += 1
         dday = row.get('construction_dday')
         if dday == 0:
             today_load += 1
@@ -313,6 +315,7 @@ def _compute_tablet_prod_kpis(orders: list[dict[str, Any]]) -> dict[str, Any]:
         'today_line': today_line,
         'today_load': today_load,
         'delayed': delayed,
+        'hold': hold,
         'week_units': f"{week_total:.1f}",
     }
 
@@ -438,6 +441,7 @@ def erp_production_tablet_sheet(order_id: int):
         'hold_reason': (_hold.get('reason') or '').strip() if isinstance(_hold.get('reason'), str) else '',
         'rework_active': bool(_rework.get('active')),
         'rework_reason': (_rework.get('reason') or '').strip() if isinstance(_rework.get('reason'), str) else '',
+        'rework_count': int(_rework.get('count') or 0),
         'stage': stage_label,
         'is_sales_approved': bool(is_sales_approved),
     }

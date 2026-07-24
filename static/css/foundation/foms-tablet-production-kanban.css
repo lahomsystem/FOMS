@@ -413,6 +413,16 @@
   body.erp-mobile-v2-layout .foms-kanban-card.is-held {
     box-shadow: inset 3px 0 0 0 var(--foms-status-warning-text, #d97706);
   }
+  /* 보류 + 임박/지연 충돌 강경고(P7): 시공 D-2 이내이거나 지연인데 보류면 앰버를 적색으로
+     격상하고 보류 배지도 danger 톤으로 전환한다. HMI 정지색 — 애니메이션 없음. is-held 뒤
+     소스 순서로 앰버 인셋 바를 덮는다(동일 특이도). */
+  body.erp-mobile-v2-layout .foms-kanban-card.is-held-imminent {
+    box-shadow: inset 3px 0 0 0 var(--foms-color-danger-600);
+  }
+  body.erp-mobile-v2-layout .foms-kanban-card.is-held-imminent .foms-kanban-card__hold {
+    background: var(--foms-color-danger-50);
+    color: var(--foms-color-danger-600);
+  }
   /* 사이드 시트가 연 카드 강조 — side-sheet.js 가 .foms-tablet-sheet-active 토글
      (.foms-tqgrid 행 하이라이트 전례와 동일: 브랜드 액센트 배경 + 좌측 인셋 바). */
   body.erp-mobile-v2-layout .foms-kanban-card.foms-tablet-sheet-active {
@@ -616,6 +626,18 @@
     border-left-color: var(--foms-color-warning-600);
     background: var(--erp-warning-light);
     color: var(--foms-color-warning-700);
+  }
+  /* 보류 사유 스트립 — HMI 색 예외(주의 앰버, 보류 배지 팔레트와 동일). */
+  body.erp-mobile-v2-layout .foms-kanban-card__alert-row--hold {
+    border-left-color: var(--foms-status-warning-text, #d97706);
+    background: var(--foms-status-warning-bg, #fef3c7);
+    color: var(--foms-status-warning-text, #92400e);
+  }
+  /* 재제작 사유 스트립 — HMI 색 예외(정보 블루, 재제작 배지 팔레트와 동일). */
+  body.erp-mobile-v2-layout .foms-kanban-card__alert-row--rework {
+    border-left-color: var(--foms-color-info-600);
+    background: var(--foms-color-info-50, #eff6ff);
+    color: var(--foms-color-info-600, #2563eb);
   }
   body.erp-mobile-v2-layout .foms-kanban-card__alert-detail {
     color: inherit;
@@ -1170,9 +1192,17 @@
   font-weight: var(--foms-font-weight-bold);
   vertical-align: middle;
 }
+/* 보류 사유 콜아웃 — 좌보더+틴트 강조(카드 스트립과 동형). 사유 본문은 볼드(__reason-text). */
 .foms-prod-sheet__hold-reason {
-  margin-top: var(--foms-space-1);
-  font-size: var(--foms-font-size-sm);
+  display: flex;
+  align-items: center;
+  gap: var(--foms-space-2);
+  margin-top: var(--foms-space-2);
+  padding: var(--foms-space-2) var(--foms-space-3);
+  border-left: 3px solid var(--foms-status-warning-text, #d97706);
+  border-radius: var(--foms-radius-sm);
+  background: var(--foms-status-warning-bg, #fef3c7);
+  font-size: var(--foms-font-size-base);
   color: var(--foms-status-warning-text, #92400e);
 }
 /* 시트 헤더 재제작 배지 + 사유 라인 — 보류(앰버)와 구분되는 정보 블루 톤(재작업 주의). */
@@ -1188,10 +1218,37 @@
   font-weight: var(--foms-font-weight-bold);
   vertical-align: middle;
 }
+/* 재제작 사유 콜아웃 — 정보 블루 좌보더+틴트. 사유 본문은 볼드(__reason-text). */
 .foms-prod-sheet__rework-reason {
-  margin-top: var(--foms-space-1);
-  font-size: var(--foms-font-size-sm);
+  display: flex;
+  align-items: center;
+  gap: var(--foms-space-2);
+  margin-top: var(--foms-space-2);
+  padding: var(--foms-space-2) var(--foms-space-3);
+  border-left: 3px solid var(--foms-color-info-600, #2563eb);
+  border-radius: var(--foms-radius-sm);
+  background: var(--foms-color-info-50, #eff6ff);
+  font-size: var(--foms-font-size-base);
   color: var(--foms-color-info-600, #2563eb);
+}
+/* 콜아웃 라벨(준볼드) + 사유 본문(볼드) — 사유 부분만 강조. */
+.foms-prod-sheet__reason-label {
+  font-weight: var(--foms-font-weight-semibold);
+}
+.foms-prod-sheet__reason-text {
+  font-weight: var(--foms-font-weight-bold);
+  word-break: break-word;
+}
+/* 되돌리기(제작 취소/완료 취소) — 무채 아웃라인. 시트 전용 의도적 마찰(카드 미노출):
+   진행(primary)과 시각 위계로 분리해 오조작을 늦춘다. HMI: 유채색 없음(중립 톤). */
+.foms-prod-sheet__btn--ghost {
+  flex: 1;
+  background: transparent;
+  color: var(--foms-text-secondary);
+  border-color: var(--foms-border-default);
+}
+.foms-prod-sheet__btn--ghost:hover {
+  background: var(--foms-surface-muted);
 }
 .foms-prod-sheet__btn--pri {
   flex: 2;

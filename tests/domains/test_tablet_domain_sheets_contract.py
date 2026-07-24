@@ -30,7 +30,7 @@ SHIPMENT_DASHBOARD_SCRIPTS = "templates/shipment/partials/dashboard_scripts.html
 CORE_MEDIA_QUERY = (
     "(min-width: 992px) and (orientation: landscape) and (pointer: coarse)"
 )
-SCRIPT_CACHEBUSTER = "?v=20260724c"
+SCRIPT_CACHEBUSTER = "?v=20260724f"
 
 
 def _read(rel: str) -> str:
@@ -74,6 +74,26 @@ def test_domain_sheets_js_wires_production_start_with_confirm() -> None:
     assert "/production/start" in js  # 기존 엔드포인트 재사용
     assert "제작을 시작하시겠습니까" in js  # 시작 confirm
     assert "제작을 완료하시겠습니까" in js  # 완료 confirm
+
+
+def test_domain_sheets_js_wires_production_cancel_and_uncomplete() -> None:
+    """되돌리기 2종(시트 전용): 제작 취소 = /production/cancel + confirm,
+    완료 취소 = /production/uncomplete + confirm. 위임 액션명·엔드포인트·문구 고정."""
+    js = _read(DOMAIN_SHEETS_JS)
+    assert "production-cancel" in js  # 시트 액션 위임 분기
+    assert "/production/cancel" in js  # 신규 되돌리기 엔드포인트
+    assert "제작을 취소하고 제작대기로 되돌릴까요" in js  # 취소 confirm
+    assert "production-uncomplete" in js
+    assert "/production/uncomplete" in js
+    assert "완료를 취소하고 제작중으로 되돌릴까요" in js  # 완료 취소 confirm
+
+
+def test_domain_sheets_js_wires_hold_release_confirm() -> None:
+    """보류 해제 경로 = confirm 게이트(오조작 방지) + 서버 렌더 사유(data-hold-reason) 병기.
+    설정(prompt) 경로는 현행 유지."""
+    js = _read(DOMAIN_SHEETS_JS)
+    assert "보류를 해제할까요" in js  # 해제 confirm 문구
+    assert "data-hold-reason" in js  # 사유는 버튼 인접 DOM 아닌 서버 렌더 데이터에서 읽음
 
 
 def test_domain_sheets_js_has_production_kanban_filter() -> None:
@@ -225,3 +245,20 @@ def test_kanban_body_cap_notice_gated() -> None:
     assert "kanban_capped | default(false)" in body
     assert "tablet-prod-cap-note" in body
     assert "표시 상한" in body
+
+
+# --- (8) 보류 운영 가시성 KPI 타일 + 필터 분기 (P7 C-3) ------------------------
+
+
+def test_kanban_body_has_hold_kpi_tile() -> None:
+    """KPI 행에 보류 타일(data-tablet-prod-kpi='hold') — 기존 상호배타 토글 문법 복제."""
+    body = _read(KANBAN_BODY)
+    assert 'data-tablet-prod-kpi="hold"' in body
+    assert "_kpi.get('hold'" in body  # 서버 KPI 카운트 소비
+
+
+def test_domain_sheets_js_has_hold_kpi_filter_branch() -> None:
+    """applyProdFilter kpiOK 에 hold 분기(.is-held 카드만 표시)."""
+    js = _read(DOMAIN_SHEETS_JS)
+    assert 'kpi === "hold"' in js
+    assert 'classList.contains("is-held")' in js

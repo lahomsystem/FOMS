@@ -200,6 +200,7 @@ def _sheet_ctx(**over) -> dict:
         "hold_reason": "",
         "rework_active": False,
         "rework_reason": "",
+        "rework_count": 0,
         "stage": "제작중",
         "is_sales_approved": True,
         "change_alerts": [],
@@ -254,6 +255,82 @@ def test_sheet_rework_active_shows_badge_and_reason(app):
     assert "foms-prod-sheet__rework-badge" in html
     assert "재제작" in html
     assert "foms-prod-sheet__rework-reason" in html
+    assert "치수 오류" in html
+
+
+def test_sheet_rework_badge_and_callout_show_count(app):
+    """P5 A-3: rework_count 병기 — 헤더 배지·사유 콜아웃에 '재제작 N회', 사유 본문 볼드."""
+    html = _render_sheet(
+        app, stage="제작중", rework_active=True, rework_reason="치수 오류", rework_count=2
+    )
+    assert "재제작 2회" in html  # 회차 병기(배지/콜아웃)
+    assert "foms-prod-sheet__reason-text" in html  # 사유 본문 볼드 승격
+
+
+def test_sheet_hold_reason_callout_upgraded(app):
+    """P5 A-3: 보류 사유 콜아웃 — 클래스 유지 + 사유 본문 볼드(__reason-text)."""
+    html = _render_sheet(app, hold_active=True, hold_reason="자재 입고 지연")
+    assert "foms-prod-sheet__hold-reason" in html  # 클래스 유지(계약)
+    assert "자재 입고 지연" in html
+    assert "foms-prod-sheet__reason-text" in html
+
+
+# --- 칸반 카드 보류/재제작 사유 스트립 (P5 A-2) --------------------------------
+
+_KANBAN_BODY_TEMPLATE = "production/partials/tablet_kanban_body.html"
+
+
+def _card_row(**over) -> dict:
+    """칸반 카드 렌더용 최소 enriched-row dict(제작중 버킷 기본)."""
+    base = {
+        "id": 1,
+        "customer_name": "카드 고객",
+        "stage": "제작중",
+        "structured_data": {"production": {}},
+        "construction_dday": None,
+        "change_alerts": [],
+        "has_changes": False,
+        "has_change_history": False,
+    }
+    base.update(over)
+    return base
+
+
+def _render_kanban_body(app, rows: list[dict]) -> str:
+    with app.test_request_context():
+        return app.jinja_env.get_template(_KANBAN_BODY_TEMPLATE).render(
+            kanban_orders=rows, orders=rows
+        )
+
+
+def test_kanban_card_hold_reason_strip(app):
+    """보류 active 카드 상단 앰버 스트립(--hold) + 사유 텍스트 노출."""
+    row = _card_row(
+        structured_data={"production": {"hold": {"active": True, "reason": "자재 지연"}}}
+    )
+    html = _render_kanban_body(app, [row])
+    assert "foms-kanban-card__alert-row--hold" in html
+    assert "자재 지연" in html
+
+
+def test_kanban_card_hold_no_reason_shows_placeholder(app):
+    """보류 사유 미입력 시 스트립 detail = '사유 미입력'."""
+    row = _card_row(structured_data={"production": {"hold": {"active": True}}})
+    html = _render_kanban_body(app, [row])
+    assert "foms-kanban-card__alert-row--hold" in html
+    assert "사유 미입력" in html
+
+
+def test_kanban_card_rework_reason_strip_with_count(app):
+    """재제작 active 카드 상단 블루 스트립(--rework) + '재제작 N회' 회차 병기 + 사유."""
+    row = _card_row(
+        structured_data={
+            "production": {"rework": {"active": True, "count": 2, "reason": "치수 오류"}}
+        }
+    )
+    html = _render_kanban_body(app, [row])
+    assert "foms-kanban-card__alert-row--rework" in html
+    assert "재제작 2회" in html
     assert "치수 오류" in html
 
 
@@ -542,3 +619,317 @@ def test_rework_reason_is_trimmed(client):
         .all()
     )
     assert events[0].payload["reason"] == "치수 오류"
+
+
+# --- 되돌리기 2종: 제작 취소 / 완료 취소 (B-3) --------------------------------
+
+
+def test_cancel_from_production_succeeds(client):
+    """제작중(PRODUCTION) 주문 → cancel → success, CONFIRM(제작대기) 복귀, 이벤트 기록."""
+    _login(client, _make_user("guard_x1"))
+    order_id = _make_order("PRODUCTION").id
+
+    resp = client.post(f"/api/orders/{order_id}/production/cancel", json={"reason": "  오배정  "})
+    assert resp.status_code == 200
+    data = resp.get_json()
+    assert data["success"] is True
+    assert data["new_status"] == "CONFIRM"
+
+    db_session.expire_all()
+    saved = db_session.get(Order, order_id)
+    assert saved.erp_stage_code == "CONFIRM"
+    assert saved.status == "CONFIRM"
+
+    events = (
+        db_session.query(OrderEvent)
+        .filter(
+            OrderEvent.order_id == order_id,
+            OrderEvent.event_type == "PRODUCTION_CANCELLED",
+        )
+        .all()
+    )
+    assert len(events) == 1
+    assert events[0].payload["reason"] == "오배정"  # trim 반영
+
+
+def test_cancel_blocked_when_not_production(client):
+    """제작대기(CONFIRM) 주문 → cancel → 409 INVALID_STAGE, 상태 불변."""
+    _login(client, _make_user("guard_x2"))
+    order_id = _make_order("CONFIRM").id
+
+    resp = client.post(f"/api/orders/{order_id}/production/cancel", json={})
+    assert resp.status_code == 409
+    data = resp.get_json()
+    assert data["success"] is False
+    assert data["code"] == "INVALID_STAGE"
+
+    db_session.expire_all()
+    saved = db_session.get(Order, order_id)
+    assert saved.erp_stage_code == "CONFIRM"
+
+
+def test_uncomplete_from_construction_succeeds(client):
+    """제작완료(CONSTRUCTION) 주문 → uncomplete → success, PRODUCTION(제작중) 복귀, 이벤트."""
+    _login(client, _make_user("guard_x3"))
+    order_id = _make_order("CONSTRUCTION").id
+
+    resp = client.post(f"/api/orders/{order_id}/production/uncomplete", json={})
+    assert resp.status_code == 200
+    data = resp.get_json()
+    assert data["success"] is True
+    assert data["new_status"] == "PRODUCTION"
+
+    db_session.expire_all()
+    saved = db_session.get(Order, order_id)
+    assert saved.erp_stage_code == "PRODUCTION"
+    assert saved.status == "PRODUCTION"
+
+    events = (
+        db_session.query(OrderEvent)
+        .filter(
+            OrderEvent.order_id == order_id,
+            OrderEvent.event_type == "PRODUCTION_COMPLETE_REVERTED",
+        )
+        .all()
+    )
+    assert len(events) == 1
+
+
+def test_uncomplete_blocked_when_not_construction(client):
+    """제작중(PRODUCTION) 주문 → uncomplete → 409 INVALID_STAGE, 상태 불변."""
+    _login(client, _make_user("guard_x4"))
+    order_id = _make_order("PRODUCTION").id
+
+    resp = client.post(f"/api/orders/{order_id}/production/uncomplete", json={})
+    assert resp.status_code == 409
+    data = resp.get_json()
+    assert data["success"] is False
+    assert data["code"] == "INVALID_STAGE"
+
+    db_session.expire_all()
+    saved = db_session.get(Order, order_id)
+    assert saved.erp_stage_code == "PRODUCTION"
+
+
+def test_uncomplete_restores_rework_when_was_rework_completion(client):
+    """재제작 완료(rework→complete) 후 uncomplete → rework active 복원 + completed_at 삭제, count 불변."""
+    _login(client, _make_user("guard_x5"))
+    order_id = _make_order("CONSTRUCTION").id
+
+    # rework → complete (completed_at 기록, active False, count=1)
+    assert client.post(f"/api/orders/{order_id}/production/rework", json={}).status_code == 200
+    assert client.post(f"/api/orders/{order_id}/production/complete", json={}).status_code == 200
+
+    db_session.expire_all()
+    saved = db_session.get(Order, order_id)
+    rework = saved.structured_data["production"]["rework"]
+    assert rework["active"] is False
+    assert "completed_at" in rework  # complete 가 완료 시각 기록
+
+    # uncomplete → 재제작 복원
+    resp = client.post(f"/api/orders/{order_id}/production/uncomplete", json={})
+    assert resp.status_code == 200
+
+    db_session.expire_all()
+    saved = db_session.get(Order, order_id)
+    assert saved.erp_stage_code == "PRODUCTION"
+    rework = saved.structured_data["production"]["rework"]
+    assert rework["active"] is True         # 활성 복원
+    assert "completed_at" not in rework     # 완료 시각 표식 삭제
+    assert rework["count"] == 1             # 회차 불변
+
+    events = (
+        db_session.query(OrderEvent)
+        .filter(
+            OrderEvent.order_id == order_id,
+            OrderEvent.event_type == "PRODUCTION_COMPLETE_REVERTED",
+        )
+        .all()
+    )
+    assert events[-1].payload["rework_restored"] is True
+
+
+def test_uncomplete_leaves_non_rework_completion_untouched(client):
+    """재제작 아닌 일반 완료 주문 → uncomplete → rework 무터치(생성 안 됨)."""
+    _login(client, _make_user("guard_x6"))
+    order_id = _make_order("CONSTRUCTION").id  # rework 없음
+
+    resp = client.post(f"/api/orders/{order_id}/production/uncomplete", json={})
+    assert resp.status_code == 200
+
+    db_session.expire_all()
+    saved = db_session.get(Order, order_id)
+    assert saved.erp_stage_code == "PRODUCTION"
+    production = saved.structured_data.get("production") or {}
+    assert "rework" not in production  # 무터치 — rework 미생성
+
+    events = (
+        db_session.query(OrderEvent)
+        .filter(
+            OrderEvent.order_id == order_id,
+            OrderEvent.event_type == "PRODUCTION_COMPLETE_REVERTED",
+        )
+        .all()
+    )
+    assert events[-1].payload["rework_restored"] is False
+
+
+# --- 시트 되돌리기 버튼 조건 렌더 (B-3) ----------------------------------------
+
+
+def test_sheet_production_shows_cancel_ghost_button(app):
+    """제작중 시트 → '제작 취소' ghost 버튼(production-cancel) + '생산 완료' primary."""
+    html = _render_sheet(app, stage="제작중")
+    assert 'data-tablet-sheet-action="production-cancel"' in html
+    assert "제작 취소" in html
+    assert "foms-prod-sheet__btn--ghost" in html
+    assert 'data-tablet-sheet-action="production-complete"' in html
+
+
+def test_sheet_done_shows_uncomplete_ghost_button(app):
+    """제작완료 시트 → '완료 취소' ghost 버튼(production-uncomplete) + '수정 제작' primary."""
+    html = _render_sheet(app, stage="제작완료")
+    assert 'data-tablet-sheet-action="production-uncomplete"' in html
+    assert "완료 취소" in html
+    assert "foms-prod-sheet__btn--ghost" in html
+    assert 'data-tablet-sheet-action="production-rework"' in html
+
+
+# --- 보류 운영 가시성: hold_days 파생 단위 (P7 C-1) ---------------------------
+
+
+def test_production_hold_days_normal_none_and_parsefail():
+    """hold_days = 오늘(KST) − 보류시작일(KST) 일수. None·파싱 실패는 None(bare except 아님)."""
+    import datetime
+
+    from foms.services.production_dashboard_display import _production_hold_days
+
+    three_days_ago = (
+        datetime.datetime.now(datetime.timezone.utc) - datetime.timedelta(days=3)
+    ).isoformat()
+    assert _production_hold_days(three_days_ago) == 3  # 정상(UTC aware ISO → KST 일수차)
+    assert _production_hold_days(None) is None          # 미입력
+    assert _production_hold_days("not-a-date") is None  # 파싱 실패
+
+
+def test_compute_tablet_prod_kpis_counts_hold():
+    """KPI 'hold' = hold_active 행 수(신규 쿼리 없이 enriched 행 파생)."""
+    from foms.web.production.dashboard import _compute_tablet_prod_kpis
+
+    rows = [
+        {"stage": "제작중", "hold_active": True, "construction_dday": None},
+        {"stage": "제작대기", "hold_active": True, "construction_dday": None},
+        {"stage": "제작중", "hold_active": False, "construction_dday": None},
+    ]
+    assert _compute_tablet_prod_kpis(rows)["hold"] == 2
+
+
+# --- 보류 운영 가시성: 카드 D+n · is-held-imminent 렌더 (P7 C-2) ---------------
+
+
+def test_kanban_card_hold_badge_shows_dday_plus(app):
+    """보류 카드 우상단 배지 = '보류 D+{n}'(row hold_days 소비)."""
+    row = _card_row(
+        structured_data={"production": {"hold": {"active": True, "reason": "자재"}}},
+        hold_days=5,
+    )
+    html = _render_kanban_body(app, [row])
+    assert "foms-kanban-card__hold" in html
+    assert "D+5" in html
+
+
+def test_kanban_card_hold_badge_omits_dday_when_zero(app):
+    """hold_days=0(당일 보류) 이면 D+ 미표기(그냥 '보류')."""
+    row = _card_row(
+        structured_data={"production": {"hold": {"active": True}}},
+        hold_days=0,
+        construction_dday=None,  # D-day 칩도 D+ 없음(미정)
+    )
+    html = _render_kanban_body(app, [row])
+    assert "foms-kanban-card__hold" in html
+    assert "D+" not in html
+
+
+def test_kanban_card_held_imminent_class_when_hold_and_dday_le2(app):
+    """보류 + 시공 D-2 이내(또는 지연) → is-held-imminent 강경고 클래스."""
+    row = _card_row(
+        structured_data={"production": {"hold": {"active": True}}},
+        construction_dday=1,
+    )
+    html = _render_kanban_body(app, [row])
+    assert "is-held-imminent" in html
+
+
+def test_kanban_card_no_held_imminent_when_dday_far(app):
+    """보류지만 시공일 여유(D-5) → is-held 만, is-held-imminent 없음."""
+    row = _card_row(
+        structured_data={"production": {"hold": {"active": True}}},
+        construction_dday=5,
+    )
+    html = _render_kanban_body(app, [row])
+    assert "is-held" in html
+    assert "is-held-imminent" not in html
+
+
+# --- PC 리스트 단계 셀 배지 (P8 C-4) -------------------------------------------
+
+_GRID_TEMPLATE = "production/partials/filters_grid.html"
+
+
+def _grid_row(**over) -> dict:
+    """PC filters_grid 렌더용 최소 enriched-row dict."""
+    base = {
+        "id": 1,
+        "alerts": {},
+        "stage": "제작중",
+        "is_sales_approved": True,
+        "structured_data": {"production": {}},
+        "customer_name": "고객",
+        "orderer_name": "",
+        "is_self_measurement": False,
+        "phone": "-",
+        "address": "-",
+        "is_erp_order": True,
+        "measurement_date": "",
+        "construction_date": "",
+        "manager_name": "-",
+        "has_media": False,
+        "attachments_count": 0,
+        "hold_days": None,
+    }
+    base.update(over)
+    return base
+
+
+def _render_grid(app, rows: list[dict]) -> str:
+    with app.test_request_context():
+        return app.jinja_env.get_template(_GRID_TEMPLATE).render(orders=rows)
+
+
+def test_pc_grid_hold_badge_renders(app):
+    """PC 단계 셀: hold active → '보류 D+n' 배지 + title 사유."""
+    row = _grid_row(
+        structured_data={"production": {"hold": {"active": True, "reason": "자재 지연"}}},
+        hold_days=4,
+    )
+    html = _render_grid(app, [row])
+    assert "보류 D+4" in html
+    assert "자재 지연" in html  # title 사유
+
+
+def test_pc_grid_rework_badge_renders(app):
+    """PC 단계 셀: rework active → '재제작 N회' 배지."""
+    row = _grid_row(
+        structured_data={
+            "production": {"rework": {"active": True, "count": 2, "reason": "치수"}}
+        },
+    )
+    html = _render_grid(app, [row])
+    assert "재제작 2회" in html
+
+
+def test_pc_grid_no_badges_when_inactive(app):
+    """보류/재제작 비활성 → 배지 미렌더(단계 배지만)."""
+    html = _render_grid(app, [_grid_row()])
+    assert "보류 D+" not in html
+    assert "재제작" not in html

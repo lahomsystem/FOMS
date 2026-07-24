@@ -4,6 +4,7 @@
 
 | 날짜 | 작업 | 수정 파일 | 커밋 |
 |------|------|-----------|------|
+| 2026-07-24 | 생산 보드 2차 P4~P8(보류 해제 confirm·사유 가시성 스트립·제작/완료 취소 rollback·보류 KPI/D+n/임박경고·PC 배지) — pytest 187 passed + Playwright 태블릿·PC 21/21 PASS | production/orders.py, production_dashboard_display.py, dashboard.py, tablet_kanban_body.html, tablet_sheet.html, filters_grid.html, tablet-domain-sheets.js 외 | (미커밋) |
 | 2026-07-24 | 생산 보드 프로세스 가드 3종(전이 전제조건·보류 게이트·수정 제작 rework) — 스펙 docs/plans/2026-07-24-production-process-guards-plan.md, pytest 159 passed + Playwright 태블릿 28/28 PASS | production/orders.py, dashboard.py, tablet_sheet.html, tablet_kanban_body.html, tablet-production-kanban.js, tablet-domain-sheets.js 외 | (미커밋) |
 | 2026-07-23 | 세션 자동 기록 | erp-order-shared.js, test_erp_order_edit_mobile_form.py, test_p1_mockup_structure.py 외 2개 | a8e3b168 |
 | 2026-07-23 | 세션 자동 기록 | test_p1_mockup_structure.py, test_tablet_t2_contract.py, test_erp_spec_calc_followup.py 외 2개 | 3c328837 |
