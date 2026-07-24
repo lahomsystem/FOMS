@@ -610,9 +610,16 @@
       "write_guard": false,
       "postgres": false
     },
-    "commands": [],
+    "commands": [
+      "python -m pytest tests/domains/test_stored_xss_sinks.py -q"
+    ],
     "existing_regressions": [],
-    "created_tests": [],
+    "created_tests": [
+      {
+        "path": "tests/domains/test_stored_xss_sinks.py",
+        "owner_packet": "STORED-XSS-01"
+      }
+    ],
     "browser_scenarios": [],
     "deploy_check_ids": [],
     "deployment_evidence_mode": "PROVIDER_BOOTSTRAP"

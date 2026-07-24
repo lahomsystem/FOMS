@@ -127,6 +127,11 @@
         width: 100%;
     }
 
+    /* 온라인 옵션 요약 상세: \n 을 HTML <br> 대신 CSS 줄바꿈으로 표시 (P0-20) */
+    .options-online-summary {
+        white-space: pre-line;
+    }
+
     /* 옵션 요약만 적용 */
     .options-summary {
         flex-grow: 1;
@@ -930,7 +935,7 @@
                                 {% endif %}
 
                                 <div class="options-summary-container">
-                                    <span class="options-summary">{{ summary_content | safe }}</span>
+                                    <span class="options-summary">{{ summary_content }}</span>
                                     {% if has_extra_content %}
                                     <button type="button" class="btn btn-sm btn-outline-secondary toggle-options"
                                         aria-expanded="false" aria-label="옵션 상세 내용 보기">
@@ -973,7 +978,7 @@
                                         {% elif key != 'details' %}
                                         {# online_options_summary 같은 키는 레이블 없이 값만 표시하거나, 필요시 레이블 추가 #}
                                         {% if key == 'online_options_summary' %}
-                                        <li>{{ value | replace('\n', '<br>') | safe }}</li> {# 값만 표시하고 줄바꿈 처리 #}
+                                        <li class="options-online-summary">{{ value }}</li> {# autoescape + CSS pre-line 줄바꿈 (P0-20: <br>|safe XSS sink 제거) #}
                                         {% else %}
                                         <li><strong>{{ key_korean_map.get(key, key) }}:</strong> {{ value }}</li> {# 매핑
                                         적용 #}

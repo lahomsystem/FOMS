@@ -4,7 +4,7 @@ import json
 import re
 import datetime
 from flask import Blueprint, make_response, render_template, request, redirect, url_for, flash, session, current_app, jsonify
-from markupsafe import Markup
+from markupsafe import Markup, escape
 from sqlalchemy import or_, String
 
 from foms.web.auth import login_required, role_required, log_access, get_user_by_id
@@ -71,12 +71,27 @@ order_pages_bp = Blueprint('order_pages', __name__, url_prefix='')
 
 @order_pages_bp.app_template_filter('order_link')
 def order_link_filter(s):
-    """메시지 내 '주문 #<번호>'를 클릭 가능한 링크로 변환."""
+    """메시지 텍스트를 HTML escape한 뒤 '주문 #<번호>'만 링크로 변환.
+
+    저장형 XSS 방지(P0-19): SecurityLog.message에는 로그인 실패 시 공개
+    username 등 신뢰할 수 없는 원문이 저장된다. 원문을 먼저 escape하여 텍스트로만
+    렌더하고, ``주문 #<digits>`` 패턴(숫자만)만 서버가 생성한 안전한 ``<a>``
+    링크로 치환한다. 기존에 저장된 hostile row도 escape 경로를 통과하므로 안전.
+
+    Args:
+        s: 렌더할 로그 메시지 문자열(신뢰 불가).
+
+    Returns:
+        Markup: escape된 텍스트 + 서버 생성 ``주문 #<n>`` 링크만 포함한 안전 HTML.
+    """
+    escaped = escape('' if s is None else s)  # Markup: < > & " ' 인코딩
+
     def repl(m):
-        oid = m.group(1)
-        link = url_for('order_edit.edit_order', order_id=oid)
-        return Markup(f'<a href="{link}">주문 #{oid}</a>')
-    return Markup(re.sub(r'주문 #(\d+)', repl, s))
+        oid = m.group(1)  # \d+ 만 매칭 → 정수 링크 인자로 안전
+        link = escape(url_for('order_edit.edit_order', order_id=oid))
+        return f'<a href="{link}">주문 #{oid}</a>'
+
+    return Markup(re.sub(r'주문 #(\d+)', repl, str(escaped)))
 
 
 def _legacy_orders_list_redirect():

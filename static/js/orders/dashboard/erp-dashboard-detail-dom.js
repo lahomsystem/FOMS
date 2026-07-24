@@ -335,7 +335,10 @@
               const canDrawingWork = (isDrawingTeam || isAssigned || isAdmin) && hasAssignee;
               const canToggleRevisionCheck = isDrawingTeam || isAssigned || isAdmin;
 
-              const assigneeNames = assignees.map(u => u.name).filter(Boolean).join(', ') || (assigneeIds.length ? `${assigneeIds.length}명 지정` : '');
+              // P0-21: User.name(자기수정 가능) 이 innerHTML 로 들어가므로 escape.
+              const assigneeNames = escapeHtml(
+                assignees.map(u => u.name).filter(Boolean).join(', ')
+              ) || (assigneeIds.length ? `${assigneeIds.length}명 지정` : '');
 
               const drawHistory = Array.isArray(sd.drawing_transfer_history) ? sd.drawing_transfer_history : [];
               const revisionRequests = drawHistory

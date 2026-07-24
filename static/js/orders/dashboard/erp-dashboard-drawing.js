@@ -422,6 +422,33 @@ showErpToast('요청 반영 체크 저장 중 오류가 발생했습니다.', 'e
 var __currentAssignOrderId = null;
 var __drawingUsersCache = null;
 
+// P0-21: User.name/team(자기수정 가능) 을 innerHTML 대신 DOM node + textContent 로
+// 렌더(cross-user stored XSS 차단). checkbox value 는 정수 id 만 허용.
+function renderErpDraftsmanCheckboxList(listEl, users, checkboxName, checkedIds) {
+  listEl.replaceChildren();
+  (users || []).forEach(u => {
+    const uid = Number(u && u.id);
+    if (!Number.isInteger(uid)) return;
+    const label = document.createElement('label');
+    label.className = 'list-group-item d-flex gap-2';
+    const input = document.createElement('input');
+    input.className = 'form-check-input flex-shrink-0';
+    input.type = 'checkbox';
+    input.value = String(uid);
+    input.name = checkboxName;
+    if (checkedIds && checkedIds.includes(u.id)) input.checked = true;
+    const span = document.createElement('span');
+    const strong = document.createElement('strong');
+    strong.textContent = (u && u.name) || '';
+    const small = document.createElement('small');
+    small.className = 'text-muted ms-1';
+    small.textContent = '(' + ((u && u.team) || '') + ')';
+    span.append(strong, document.createTextNode(' '), small);
+    label.append(input, span);
+    listEl.appendChild(label);
+  });
+}
+
 async function openDraftsmanAssignModal(orderId) {
 __currentAssignOrderId = orderId;
 const modalEl = document.getElementById('erpDraftsmanAssignModal');
@@ -462,18 +489,7 @@ const users = __drawingUsersCache || [];
 if (users.length === 0) {
 listEl.innerHTML = '<div class="text-muted text-center">도면팀 사용자가 없습니다.</div>';
 } else {
-listEl.innerHTML = users.map(u => {
-const isChecked = currentAssigneeIds.includes(u.id) ? 'checked' : '';
-return `
-<label class="list-group-item d-flex gap-2">
-  <input class="form-check-input flex-shrink-0" type="checkbox" value="${u.id}" name="draftsman_user" ${isChecked}>
-  <span>
-    <strong>${u.name}</strong>
-    <small class="text-muted ms-1">(${u.team})</small>
-  </span>
-</label>
-`;
-}).join('');
+renderErpDraftsmanCheckboxList(listEl, users, 'draftsman_user', currentAssigneeIds);
 }
 }
 
