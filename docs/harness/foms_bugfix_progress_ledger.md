@@ -53,8 +53,24 @@
 - ✅ PTC allowlist fix — REV-CLEANUP·SIDEFX-WORKER 루트 toml이 test_ptc_committed_root_allowlist_exact red로 만든 것 수정. **교훈: 회귀=domains+contracts 둘 다.**
 - ✅ AUTH-01 — `85ca1be7`. 권한 코어: order_mutation_policy SSOT + 150-route policy manifest(146 guard+4 exempt·unclassified 0) + app_factory before_request 가드(VIEWER 403·/api 403 JSON·ASSIGNMENT ID row·MEASURE→SALES) + production team-wide(P0-9). test 23·**전체 2559 정상사용자 무회귀**. 무migration.
 - ✅ STATE-MODEL-00 — `4c251460`. state_axes.py(read_state_axes 다축·legacy_projection·classify·registry read)+audit(mirror/projection/ambiguity 분리)+fixture. 무migration(read-only 파생). test 38·APP_OK. STATE-CORE-00은 read_state_axes/legacy_projection 사용.
-- 🔵 AUTH-FINANCE-01(P0-3 finance·무migration) ∥ CHANNEL-AUTH-01(P1-8·무migration, channel_identity 신규 catch→failopen inventory 재생성 소유) — 대기.
-- head=signing_state_00. **STATE-CORE-00 unblock**(REV✅+SIDEFX✅+SIDEFX-WORKER✅+AUTH-01✅+STATE-MODEL-00✅).
+- ✅ CHANNEL-AUTH-01 — `f33d4a62`. P1-8: process_foms_command fail-open 제거(manager_id 누락 allow 금지)+PII 봉쇄. channel_identity.get_user_by_manager_id는 link.user.is_active까지 확인(canonical active User only), order_mutation_policy.user_can_read_order 신설(read 판정 단일 chokepoint), quick_actions는 PII 前 resolve+read scope. deny/미매핑/비활성/DB fault/미존재=단일 no-data(PII 0·order id 미노출). test_channel_auth 12·failopen inventory 재생성(broad-catch 제거)·전체 2646. 무migration.
+- ✅ AUTH-FINANCE-01 — `c5bfe573`. P0-3 완결: AUTH-01 가드가 이미 settlement/cash/payment-confirm를 FINANCE_MUTATION(CS/SALES·viewer=False)로 enforce 확인(중복 route 체크 안 함=단일 chokepoint). UI finance control을 policy_can('FINANCE_MUTATION')로 은닉(completion_dashboard_body/scripts·tablet_completion_sheet·erp_order_tab[_mobile], 서버렌더 인라인·정적범프 불필요). test_auth_finance 37+cash 7=44·거부 시 event/log/sd 0·전체 2646. 무migration·정산 business 무변경.
+- head=signing_state_00. **STATE-CORE-00 unblock 확정**(REV✅+SIDEFX✅+SIDEFX-WORKER✅+AUTH-01✅+STATE-MODEL-00✅). 32 packet 커밋 완료.
+
+## ✅ 배치 완료 (5 packet·disjoint·회귀 2666 passed 0 failed)
+- ✅ CREW-00 — `9a0fe459`. installation_workers/order_installation_assignments 스키마(crew_00 마이그레이션·down=signing_state_00·단일 head·up/down 라운드트립 PG 검증)+models.py 2모델+worker CRUD(in-use 409)+배정 registry(0..20·replace/release history·FOR UPDATE 직렬화)+linked user 검증(422)+picker/audit/backfill(자동승격 0). auth 영향 0·route 미배선(하류 SHIPMENT-REFERENCE-01). PG 17·§4.4 allowlist에 crew 등록. **→ SHIPMENT-REFERENCE-01 unblock.**
+- ✅ STATE-CORE-00 — `1ab65f78`. order_transition_service.py 전이 정본 엔진(execute_order_mutation+state_axes+enqueue_side_effect 조립, expected-from 검증·actual-before snapshot·version·receipt·OrderEvent parity·tx내 outbox 롤백동조)+command registry+fixture. endpoint 미이관(하류)·무mig. domains+PG green. **→ STATE-PROD-01·STATE-DRAWING-01·STATE-AS-01·STATE-QUEST-01 unblock.**
+- ✅ DELETE-CORE-00 — `4c95b647`. soft_delete.py(deleted_at projection만 set/clear·main/overlay axis 보존·structured_data['delete'] 메타·execute_order_mutation 원자·멱등 no-op). hard delete·status string 직접저장 금지·무mig(기존 deleted_at 재사용). domains green. **→ DELETE-BULK-01·DELETE-TRASH-01 unblock.**
+- ✅ SIDEFX-RETENTION-01 — `af2ece4c`. tools/ops/purge_domain_side_effect_outbox.py(DONE 30d/DEAD 180d terminal만·PENDING/PROCESSING 0·dry-run 기본·batch1000·advisory·resume·Flask 미import)+runbook. worker daily RETENTION provider는 SIDEFX-WORKER-01에 기존(재구현 안 함). 무mig. PG green.
+- ✅ AUTH-QUEST-READ-01 — `d360a5a0`. quest GET의 read-writes-DB(lazy-create+sd append+commit+updated_at+cache 무효화) 제거→비영속 표시 합성, creation은 mutation path 유지(STATE-QUEST-01 이관). 반복 GET version/event/JSONB 0. failopen inventory 재생성(quest.py 라인시프트·496 불변). 무mig. domains green. **→ AUTH-QUEST-01 unblock.**
+- head=crew_00(CREW 마이그레이션). **37 packet 커밋 완료.**
+
+## 🎯 다음 후보 (신규 unblock)
+- **STATE 패밀리**(STATE-CORE unblock): STATE-PROD-01·STATE-PROD-ACTIONS-01·STATE-DRAWING-01·STATE-AS-01·STATE-QUEST-01(+AUTH-QUEST-READ) — endpoint를 order_transition_service로 이관. 단 BACKFILL 선행(PRODUCTION-BACKFILL-00·QUEST-BACKFILL-00·AS-BACKFILL-00·DRAWING-REVISION-BACKFILL-00·CONSTRUCTION-BACKFILL-00) 확인.
+- **DELETE 패밀리**(DELETE-CORE unblock): DELETE-BULK-01·DELETE-TRASH-01·DELETE-RETENTION-01.
+- **ITEM-ID-00**(migration·models.py, head=crew_00 위로 체인) — 다음 마이그레이션 슬롯 단독.
+- **SHIPMENT-REFERENCE-01**(CREW unblock·write_guard·pg), **AUTH-QUEST-01**(write_guard), **CALL-LOG-01·ERP-ESTIMATE-01**(REV+AUTH ready).
+- 마이그레이션 packet은 여전히 순차(현 head=crew_00): ITEM-ID-00 등 한 번에 하나.
 - ✅ SECRET-02 — `180adb40`. secret_literal_scan(AST literal 게이트, attribute/env-backed 제외로 SIGNING 경계)·check_deploy_secrets(배포 presence fail-fast)·allowlist. hygiene 22·APP_OK·회귀 0. → **SESSION-SIGNING-STATE-00 unblock**(deps SECRET-02✅+PGTEST✅+OPS-APPROVAL✅+CUTOVER✅).
 - **SECRET-02 재스코프 확정**: 잔존 credential secret 0(SECRET-01 Kakao·SIGNING은 SESSION-SIGNING-SECRET-01, KAKAO_JS는 공개 클라키 유지). SECRET-02=literal 스캔 test + 배포 credential presence fail-fast(삭제된 qa_deploy_test 대체).
 - head=assignment_00.
