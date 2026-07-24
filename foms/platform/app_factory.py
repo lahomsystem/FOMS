@@ -24,6 +24,7 @@ from .request_limits import FomsRequest, GLOBAL_BODY_CAP, register_request_limit
 from foms.services.context_processors import register_context_processors
 from foms.services.rate_limit import init_limiter
 from foms.services.request_write_guard import register_write_guard
+from foms.services.orders.order_mutation_policy import register_order_mutation_policy
 from foms.services.security.signing.signing_keys import (
     install_rotating_session_interface,
     resolve_legacy_secret,
@@ -231,5 +232,9 @@ def build_app(*, socketio_available: bool) -> AppFactoryResult:
     # WRITE-GUARD-01: 공용 CSRF+Origin before_request 가드 + csrf_token context processor.
     # (manifest 부재 시 여기서 loud fail — startup 차단.)
     register_write_guard(app)
+
+    # AUTH-01: §2.1 권한 정책 before_request 가드 + policy_can template helper.
+    # (URL-map manifest 부재 시 loud fail — startup 차단.)
+    register_order_mutation_policy(app)
 
     return AppFactoryResult(app=app, socketio=realtime_bindings.socketio)

@@ -13,10 +13,10 @@ from flask import Blueprint, jsonify, request, session
 from sqlalchemy.orm.attributes import flag_modified
 
 from foms.web.auth import get_user_by_id, login_required
+from foms.services.erp_permissions import erp_edit_required  # noqa: F401  # AUTH-01(P0-9): start/complete/rework 는 _production_steps_edit_required 로 전환됐으나 namespace surface 계약이 재노출을 요구해 유지
 from db import get_db
 from models import Order, OrderEvent, SecurityLog
 from foms.services.erp_display import _ensure_dict
-from foms.services.erp_permissions import erp_edit_required
 from foms.services.erp_sync_columns import sync_erp_flat_columns
 
 erp_orders_production_bp = Blueprint("erp_orders_production", __name__, url_prefix="/api/orders")
@@ -165,7 +165,7 @@ def _apply_production_hold_gate(
 
 @erp_orders_production_bp.route("/<int:order_id>/production/start", methods=["POST"])
 @login_required
-@erp_edit_required
+@_production_steps_edit_required
 def api_production_start(order_id):
     """제작 시작 (PRODUCTION 단계로 이동)"""
     db = get_db()
@@ -238,7 +238,7 @@ def api_production_start(order_id):
 
 @erp_orders_production_bp.route("/<int:order_id>/production/complete", methods=["POST"])
 @login_required
-@erp_edit_required
+@_production_steps_edit_required
 def api_production_complete(order_id):
     """제작 완료 (CONSTRUCTION 단계로 이동)"""
     db = get_db()
@@ -346,7 +346,7 @@ def api_production_complete(order_id):
 
 @erp_orders_production_bp.route("/<int:order_id>/production/rework", methods=["POST"])
 @login_required
-@erp_edit_required
+@_production_steps_edit_required
 def api_production_rework(order_id: int):
     """수정 제작 시작 (제작완료 → PRODUCTION 되돌림).
 
