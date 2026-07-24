@@ -124,9 +124,20 @@
       "write_guard": false,
       "postgres": true
     },
-    "commands": [],
+    "commands": [
+      "python -m pytest tests/postgres/test_pg_lane_safety.py -q"
+    ],
     "existing_regressions": [],
-    "created_tests": [],
+    "created_tests": [
+      {
+        "path": "tests/postgres/test_pg_lane_smoke.py",
+        "owner_packet": "PGTEST-00"
+      },
+      {
+        "path": "tests/postgres/test_pg_lane_safety.py",
+        "owner_packet": "PGTEST-00"
+      }
+    ],
     "browser_scenarios": [],
     "deploy_check_ids": [],
     "deployment_evidence_mode": "PROVIDER_BOOTSTRAP"

@@ -1,0 +1,58 @@
+name: FOMS PostgreSQL Lane
+
+# Opt-in real-PostgreSQL lane (PGTEST-00): schema on a throwaway foms_test_*
+# database, plus the concurrency / lock / SKIP LOCKED packets that build on it.
+# The main FOMS CI job runs on SQLite; this job provides a real PG 16 service.
+
+on:
+  push:
+    branches: [ "main", "deploy" ]
+  pull_request:
+    branches: [ "main", "deploy" ]
+
+permissions:
+  contents: read
+
+jobs:
+  pg-lane:
+    runs-on: ubuntu-latest
+
+    services:
+      postgres:
+        image: postgres:16
+        env:
+          POSTGRES_USER: postgres
+          POSTGRES_PASSWORD: postgres
+          POSTGRES_DB: postgres
+        ports:
+          - 5432:5432
+        options: >-
+          --health-cmd "pg_isready -U postgres"
+          --health-interval 10s
+          --health-timeout 5s
+          --health-retries 5
+
+    steps:
+      - uses: actions/checkout@v4
+
+      - name: Set up Python 3.12
+        uses: actions/setup-python@v5
+        with:
+          python-version: "3.12"
+          cache: 'pip'
+
+      - name: Install dependencies
+        run: |
+          python -m pip install --upgrade pip setuptools wheel
+          pip install -r requirements.txt
+
+      - name: Run PostgreSQL lane
+        env:
+          # Lane target: a LOCAL PG service (host 127.0.0.1 passes the safety guard).
+          FOMS_TEST_DATABASE_URL: "postgresql://postgres:postgres@127.0.0.1:5432/postgres"
+          # App import still uses SQLite (root tests/conftest.py); the lane is isolated.
+          DATABASE_URL: "sqlite:///:memory:"
+          SECRET_KEY: "ci-secret-key"
+          FLASK_ENV: "testing"
+        run: |
+          python -m pytest tests/postgres -q -p no:playwright
