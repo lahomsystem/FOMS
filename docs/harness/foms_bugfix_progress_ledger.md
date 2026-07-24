@@ -91,6 +91,13 @@
 - ✅ CHANNEL-FUNCTION-CONTRACT-01 — `33fe2cf8`. channel_functions Function 전용 서명(hex-key≥32B→raw body→HMAC-SHA256→Base64→constant-time·401/400)·disable gate 404 fail-start·method 405·signed context exact·generic deny·PII 0·key/channel missing fail-start. provider fixture+method schema+spec. Webhook 재사용 금지. **failopen inventory 485(STATE-PROD+RUM+CHANNEL 라인시프트). ⚠️inventory 커플링: STATE-PROD-01+RUM-INGEST-01+CHANNEL-FUNCTION-CONTRACT-01 승격 시 함께**.
 - head=as_backfill_00. **55 packet 커밋 완료.**
 
+## ✅ 배치 5 완료 (4 packet·disjoint·회귀 2873 passed 0 failed)
+- ✅ CHANNEL-WEBHOOK-AUTH-01 — `3f97ba69`. webhook 서명(raw UTF-8 key+hex HMAC·Function과 분리)·disabled 404·acceptance tx(JCS content_hash+30d dedup+AES-256-GCM envelope+receipt/intent/job transactional outbox·commit 뒤만 2xx·DB failure 503·부분수용 0)·redaction·Order 0·fail-start. 마이그레이션 channel_webhook_00(down=as_backfill_00·단일 head)·models.py +4테이블 단독. test 21+PG 21. **→ head=channel_webhook_00.**
+- ✅ STATE-PROD-ACTIONS-01 — `3b87e0a1`. production step/defect=execute_order_mutation(version+event one tx)·change-ack=Order 불변(receipt-only _record_immutable_ack_receipt·same-token event 0). start/complete/hold byte-identical·order_mutation_policy 무편집(PRODUCTION_EDIT 재사용). test 10. client 무변경(ack idempotency key 배선 후속).
+- ✅ WAM-TELEMETRY-01 — `9ca5ddf8`. channel_wam_telemetry 검증(scope token 선검사·2KiB·exact keys·7-event enum·bounds)·rate token+order/trusted-IP 120/min(realtime.py·PROXY canonical)·204/413/422/429·fail-open(telemetry→page 0). RUM과 별개.
+- ✅ DELETE-RETENTION-01 — `818fc2ac`. soft-delete 영구삭제 DELETE_RETENTION_APPLY(OPS-APPROVAL seq≥1 게이트·one-time·hash/count/before snapshot 검증·dry-run·soft-delete만·승인 없이 0). 무마이그레이션. **failopen inventory 485→487(WAM channel_wam+CHANNEL-WEBHOOK channel_security catch). ⚠️커플링: WAM+CHANNEL-WEBHOOK+DELETE-RETENTION 승격 시 함께**.
+- head=channel_webhook_00. **59 packet 커밋 완료.**
+
 ## 🎯 다음 후보 (신규 unblock)
 - **STATE 패밀리**(STATE-CORE unblock): STATE-PROD-01·STATE-PROD-ACTIONS-01·STATE-DRAWING-01·STATE-AS-01·STATE-QUEST-01(+AUTH-QUEST-READ) — endpoint를 order_transition_service로 이관. 단 BACKFILL 선행(PRODUCTION-BACKFILL-00·QUEST-BACKFILL-00·AS-BACKFILL-00·DRAWING-REVISION-BACKFILL-00·CONSTRUCTION-BACKFILL-00) 확인.
 - **DELETE 패밀리**(DELETE-CORE unblock): DELETE-BULK-01·DELETE-TRASH-01·DELETE-RETENTION-01.
