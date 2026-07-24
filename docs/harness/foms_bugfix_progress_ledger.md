@@ -45,7 +45,8 @@
 - ✅ REV-00 — `52ac2749`. orders.mutation_version + order_mutation_receipts/read_resources, execute_order_mutation helper(FOR UPDATE·If-Match·idempotency·read-receipt). PG 12·전체 2394·alembic 단일(ops_approval_00→rev_00). 실 route 적용은 하류.
 - ✅ CUTOVER-MODE-01 — `9f135a3e`. feature_cutover_fences(15 seed)/markers(irreversible trigger), build_compatibility.json+verify, mode manifest 15-row, transactional helper, CLI 4종(OPS-APPROVAL 토큰), security/cutover nested. PG 47·전체 2394·alembic 단일(feature_cutover_00). **defer: runtime_replica_heartbeats(배포배선), manifest prerequisite/affected 빈seed(family packet 채움).**
 - ✅ BACKFILL-ARTIFACT-00 — `3f121d65`. DPAPI(win32crypt) key-envelope·AES-GCM payload·maintenance_backfill_runs(lease/checkpoint/state machine)·approval-scope, artifact_root guard, consume_backfill_apply/reauthorize. crypto 25(Windows DPAPI)+PG 10+ops 30·전체 2419·alembic 단일(backfill_artifact_00). BACKFILL 3 op cli=null(consumer가 채움).
-- 🔵 ASSIGNMENT-00(마이그레이션·AUTH-01 선행, deps REV✅+BACKFILL✅) ∥ REV-CLEANUP-01(무마이그레이션·purge CLI, deps REV✅) — disjoint.
+- 🔵 ASSIGNMENT-00(마이그레이션·AUTH-01 선행, deps REV✅+BACKFILL✅). 서브에이전트 ad7568f3.
+- ✅ REV-CLEANUP-01 — `cf94d028`. purge_order_mutation_receipts.py(retention 7·batch·dry-run 기본·advisory·resume·active 불변)·railway-cron toml. PG 6·lane 94·namespace 190·APP_OK. 무마이그레이션.
 - head=backfill_artifact_00. 다음: SESSION-SIGNING chain(SECRET-02→STATE-00→SECRET-01)→AUTH-01, SIDEFX-00, STATE-MODEL-00.
 
 ## ⚠️ 진행 제약
