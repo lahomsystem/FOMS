@@ -24,12 +24,14 @@
 - ✅ MIG-WEB-RETIRE-01 — `7fa43775`. /admin/migration+run_web_migration+템플릿 삭제. test 4 passed, admin 회귀 green, APP_OK.
 - ✅ PUSH-01 — `5dd0343d`. sw.js nested data.* 우선+top-level fallback+same-origin sanitize. test 5(node VM)·push/notif 146 passed, node --check OK, APP_OK.
 - ✅ OPS-ROUTE-01 — `be6a5a51`. P0-18 /debug-db 삭제(404)·channel health 인증게이트(무인증 coarse+no-store, ADMIN detail private)·healthz status만. test 9(red7→green9)·channel/health 25·namespace 179, APP_OK. bearer/Railway ops-service 배포단계 분리.
-- ⬜ STORED-XSS-01, SURFACE-GATE-01
-- **SCALE-SKETCHUP-01 = N/A(auto no-op close)**: DESIGNER-RETIRE-01로 sketchup parse 대상 소멸.
+- ✅ STORED-XSS-01 — `b9c70f7a`. P0-19/20/21/23 sink 봉쇄(order_link escape-first, index.html autoescape+pre-line, User.name textContent, change_logs createElement/addEventListener). sink manifest 13개, test 20 passed, order/security/drawing/event 754, APP_OK. events.py는 STORED-XSS 무접근(P0-23=change_logs 클라렌더).
+- ✅ API-ERROR-01 — `81f90bae`. P1-28 http.py after_request 경계스크럽(handled str(e) 500 106곳 단일 choke), errorhandler(4xx 보존), error_logging.py(redaction+protected logger), print_exc 53→0. test 7(red→green), error/http/api 277·모듈 393, APP_OK. broad catch=FAILOPEN 소관.
+- **SCALE-SKETCHUP-01 = N/A(auto no-op close)**.
+- **교훈**: API-ERROR류 cross-cutting 스윕(print_exc 전파)은 파일겹침 필연 → 단독 wave. (이번엔 STORED-XSS와 events.py 안 겹쳐 무사, listing.py도 disjoint.)
 
-## Bootstrap chain (독립, off BASE-00 — 다음 wave)
-- ⬜ API-ERROR-01(app_factory 500핸들러+redaction), PROXY-01(app_factory ProxyFix+rate_limit — API-ERROR와 app_factory 경합→순차), PGTEST-00(test infra, 로컬 PG 필요 여부 확인)
-- 이후: FAILOPEN-01·REQUEST-LIMIT-01→WRITE-GUARD-01→OPS-APPROVAL-00→CUTOVER-MODE-01·BACKFILL-ARTIFACT-00
+## Bootstrap chain (진행)
+- ⬜ 다음: SURFACE-GATE-01(cohort CSS/JS+edit_order_body — 독립), PROXY-01(app_factory ProxyFix+rate_limit), PGTEST-00(test infra·로컬PG확인)
+- REQUEST-LIMIT-01(deps API-ERROR ✅)·FAILOPEN-01(deps API-ERROR ✅·cross-cutting=단독) → PROXY 이후 WRITE-GUARD-01→OPS-APPROVAL-00→CUTOVER-MODE-01·BACKFILL-ARTIFACT-00
 
 ## 알려진 loose end (retention spec 담당, 지금 미수정 — 도달불가 죽은코드)
 - foms/persistence/designer/repositories.py:339 함수지역 삭제모듈 import(도달불가), tools/designer/{generate_expected_json,run_calibration}.py dangling(오프라인).
