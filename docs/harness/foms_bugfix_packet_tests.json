@@ -520,9 +520,16 @@
       "write_guard": false,
       "postgres": true
     },
-    "commands": [],
+    "commands": [
+      "python -m pytest tests/postgres/test_crew.py -q"
+    ],
     "existing_regressions": [],
-    "created_tests": [],
+    "created_tests": [
+      {
+        "path": "tests/postgres/test_crew.py",
+        "owner_packet": "CREW-00"
+      }
+    ],
     "browser_scenarios": [],
     "deploy_check_ids": [],
     "deployment_evidence_mode": "PROVIDER_BOOTSTRAP"

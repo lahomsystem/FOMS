@@ -1743,3 +1743,103 @@ event.listen(
     'after_create',
     DDL(SECURITY_SIGNING_STATE_SEED_SQL),
 )
+
+
+# --------------------------------------------------------------------------- #
+# CREW-00: 설치 작업자 마스터 + 주문 배정 registry (§5.2 CREW-00)
+# --------------------------------------------------------------------------- #
+INSTALLATION_ASSIGNMENT_STATUSES = ('ACTIVE', 'RELEASED')
+
+
+class InstallationWorker(Base):
+    """외부 설치 작업자 마스터 (CREW-00, §5.2).
+
+    출고/시공 화면에서 free-name 문자열로 흩어져 있던 설치 작업자를 **정본 마스터
+    행**으로 옮긴다. 배정(:class:`OrderInstallationAssignment`)은 항상 이 마스터 id 를
+    가리키며, free-name 을 직접 배정하지 않는다(free-name master write 금지 — CREW-00
+    경계). crew row 는 순수 운영 마스터이며 **어떤 authorization 판정에도 쓰지 않는다**.
+
+    lifecycle:
+
+    * ``external_worker_id`` = 외부(업체 발급 등) 작업자 식별자. **활성 상태에서만**
+      유일하다(``uq_installation_worker_active_external_id`` partial unique) — 비활성화
+      후 같은 external ID 로 재등록(신규 행)할 수 있다.
+    * ``is_active`` = 활성 여부. 활성 배정(``OrderInstallationAssignment.status='ACTIVE'``)
+      이 남아 있는 worker 는 비활성화할 수 없다(in-use → 409, service 레벨 강제).
+    * ``user_id`` = linked 내부 계정(선택). 지정하면 실존·활성 User 임을 write 시점에
+      검증한다(존재/활성 아니면 거부). authorization 근거가 아니라 표시·연계용이다.
+
+    DDL 은 migration(``crew_00``) 과 SSOT 를 공유한다(create_all 테스트 lane 동일 스키마).
+    """
+
+    __tablename__ = 'installation_workers'
+
+    id = Column(Integer, primary_key=True)
+    external_worker_id = Column(String(64), nullable=False)
+    display_name = Column(String(120), nullable=False)
+    phone = Column(String(40), nullable=True)
+    is_active = Column(Boolean, nullable=False, default=True, server_default='true')
+    user_id = Column(Integer, ForeignKey('users.id'), nullable=True)
+    created_at = Column(DateTime, nullable=False, default=now_utc_naive, server_default=func.now())
+    updated_at = Column(DateTime, nullable=False, default=now_utc_naive, server_default=func.now())
+    deactivated_at = Column(DateTime, nullable=True)
+
+    __table_args__ = (
+        # 활성 external_worker_id 는 유일 — 비활성화 뒤 같은 ID 재등록은 partial 이라 허용.
+        Index(
+            'uq_installation_worker_active_external_id', 'external_worker_id',
+            unique=True, postgresql_where=text('is_active'),
+        ),
+        # picker display projection(활성 worker 정렬 목록) 조회.
+        Index('ix_installation_worker_active', 'is_active', 'display_name'),
+    )
+
+
+class OrderInstallationAssignment(Base):
+    """주문 ↔ 설치 작업자 배정 history (CREW-00, §5.2).
+
+    한 주문에 활성 설치 작업자를 **0..20명** 배정한다. release 는 hard delete 하지 않고
+    ``status='RELEASED'`` + ``released_at/released_by_user_id/release_reason`` 로 **이력을
+    보존**한다(released 뒤 같은 worker 재배정 허용). 상한(20) enforcement 와 동시성 직렬화
+    (주문 행 ``FOR UPDATE``)는 registry service 몫이며, 아래 partial unique 는 같은 worker
+    중복 active 배정을 DB 레벨에서 막는 backstop 이다.
+
+    * ``uq_order_installation_active`` = ``(order_id,worker_id) WHERE status='ACTIVE'`` —
+      같은 주문에 같은 worker 를 중복 active 배정 금지(released 뒤 재배정은 허용).
+
+    이 배정 row 는 **authorization 에 쓰지 않는다**(CREW-00 경계). DDL 은 migration
+    (``crew_00``) 과 SSOT 를 공유한다(create_all 테스트 lane 동일 스키마).
+    """
+
+    __tablename__ = 'order_installation_assignments'
+
+    id = Column(Integer, primary_key=True)
+    order_id = Column(
+        Integer, ForeignKey('orders.id', ondelete='CASCADE'), nullable=False,
+    )
+    worker_id = Column(
+        Integer, ForeignKey('installation_workers.id'), nullable=False,
+    )
+    status = Column(String(20), nullable=False, default='ACTIVE', server_default='ACTIVE')
+    assigned_at = Column(DateTime, nullable=False, default=now_utc_naive)
+    assigned_by_user_id = Column(Integer, ForeignKey('users.id'), nullable=True)
+    released_at = Column(DateTime, nullable=True)
+    released_by_user_id = Column(Integer, ForeignKey('users.id'), nullable=True)
+    release_reason = Column(Text, nullable=True)
+
+    __table_args__ = (
+        CheckConstraint(
+            "status IN ('ACTIVE','RELEASED')",
+            name='ck_order_installation_status',
+        ),
+        # 같은 worker 를 같은 주문에 중복 active 배정 금지(released 뒤 재배정은 허용).
+        Index(
+            'uq_order_installation_active', 'order_id', 'worker_id',
+            unique=True, postgresql_where=text("status = 'ACTIVE'"),
+        ),
+        # 주문별 active 배정 조회(0..20 카운트·picker) 인덱스.
+        Index(
+            'ix_order_installation_active_lookup', 'order_id',
+            postgresql_where=text("status = 'ACTIVE'"),
+        ),
+    )
