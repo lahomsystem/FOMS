@@ -1,0 +1,356 @@
+{
+  "schema_version": 1,
+  "description": "OPS-APPROVAL-00 고위험 ops operation SSOT (§2.1 line 209). OPS-APPROVAL-00 이 owner 표 9 packet 의 모든 operation_id 를 cli=null 로 seed 한다. 각 소비 packet 은 자기 owner_packet 인 operation 의 null 세부 필드(cli/scope_schema 등)만 원자적으로 채운다. 타 packet 행 수정·operation_id 신규 추가/삭제·owner_packet 변경은 test 가 red 로 거부한다. manifest 는 tools/ops 의 --approval-token-file CLI AST inventory 와 양방향 비교한다(미등록 CLI·미구현 operation 모두 red). db_mode 는 인프라 속성으로 seed 하며 (WDC-LINK-FENCE-00 SEPARATE=TARGET_RESERVED, 그 외 SAME), scope 는 RFC 8785 JCS object {schema_version,operation_id,packet_id,target_ids_or_family,phase,artifact_sha256,expected_version,expected_generation} exact fields 다.",
+  "operations": {
+    "AUTH_RATE_BOOTSTRAP_ACTIVATE": {
+      "owner_packet": "AUTH-ACCOUNT-01",
+      "cli": null,
+      "scope_schema": null,
+      "artifact_source": null,
+      "expected_version_source": null,
+      "expected_generation_source": null,
+      "db_mode": "SAME",
+      "consume_strategy": null
+    },
+    "AUTH_RATE_BOOTSTRAP_PREPARE": {
+      "owner_packet": "AUTH-ACCOUNT-01",
+      "cli": null,
+      "scope_schema": null,
+      "artifact_source": null,
+      "expected_version_source": null,
+      "expected_generation_source": null,
+      "db_mode": "SAME",
+      "consume_strategy": null
+    },
+    "AUTH_RATE_ROTATION_ACTIVATE": {
+      "owner_packet": "AUTH-ACCOUNT-01",
+      "cli": null,
+      "scope_schema": null,
+      "artifact_source": null,
+      "expected_version_source": null,
+      "expected_generation_source": null,
+      "db_mode": "SAME",
+      "consume_strategy": null
+    },
+    "AUTH_RATE_ROTATION_FINALIZE": {
+      "owner_packet": "AUTH-ACCOUNT-01",
+      "cli": null,
+      "scope_schema": null,
+      "artifact_source": null,
+      "expected_version_source": null,
+      "expected_generation_source": null,
+      "db_mode": "SAME",
+      "consume_strategy": null
+    },
+    "AUTH_RATE_ROTATION_PREPARE": {
+      "owner_packet": "AUTH-ACCOUNT-01",
+      "cli": null,
+      "scope_schema": null,
+      "artifact_source": null,
+      "expected_version_source": null,
+      "expected_generation_source": null,
+      "db_mode": "SAME",
+      "consume_strategy": null
+    },
+    "BACKFILL_APPLY": {
+      "owner_packet": "BACKFILL-ARTIFACT-00",
+      "cli": null,
+      "scope_schema": null,
+      "artifact_source": null,
+      "expected_version_source": null,
+      "expected_generation_source": null,
+      "db_mode": "SAME",
+      "consume_strategy": null
+    },
+    "BACKFILL_ARTIFACT_PURGE": {
+      "owner_packet": "BACKFILL-ARTIFACT-00",
+      "cli": null,
+      "scope_schema": null,
+      "artifact_source": null,
+      "expected_version_source": null,
+      "expected_generation_source": null,
+      "db_mode": "SAME",
+      "consume_strategy": null
+    },
+    "BACKFILL_REAUTHORIZE": {
+      "owner_packet": "BACKFILL-ARTIFACT-00",
+      "cli": null,
+      "scope_schema": null,
+      "artifact_source": null,
+      "expected_version_source": null,
+      "expected_generation_source": null,
+      "db_mode": "SAME",
+      "consume_strategy": null
+    },
+    "CHANNEL_CREATE_DISABLE": {
+      "owner_packet": "CHANNEL-INBOUND-ORDER-01",
+      "cli": null,
+      "scope_schema": null,
+      "artifact_source": null,
+      "expected_version_source": null,
+      "expected_generation_source": null,
+      "db_mode": "SAME",
+      "consume_strategy": null
+    },
+    "CHANNEL_CREATE_ENABLE": {
+      "owner_packet": "CHANNEL-INBOUND-ORDER-01",
+      "cli": null,
+      "scope_schema": null,
+      "artifact_source": null,
+      "expected_version_source": null,
+      "expected_generation_source": null,
+      "db_mode": "SAME",
+      "consume_strategy": null
+    },
+    "CHANNEL_KEY_ROTATION_ACTIVATE": {
+      "owner_packet": "CHANNEL-INBOUND-ORDER-01",
+      "cli": null,
+      "scope_schema": null,
+      "artifact_source": null,
+      "expected_version_source": null,
+      "expected_generation_source": null,
+      "db_mode": "SAME",
+      "consume_strategy": null
+    },
+    "CHANNEL_KEY_ROTATION_FINALIZE": {
+      "owner_packet": "CHANNEL-INBOUND-ORDER-01",
+      "cli": null,
+      "scope_schema": null,
+      "artifact_source": null,
+      "expected_version_source": null,
+      "expected_generation_source": null,
+      "db_mode": "SAME",
+      "consume_strategy": null
+    },
+    "CHANNEL_KEY_ROTATION_PREPARE": {
+      "owner_packet": "CHANNEL-INBOUND-ORDER-01",
+      "cli": null,
+      "scope_schema": null,
+      "artifact_source": null,
+      "expected_version_source": null,
+      "expected_generation_source": null,
+      "db_mode": "SAME",
+      "consume_strategy": null
+    },
+    "CHANNEL_RECOVERY_CREATE": {
+      "owner_packet": "CHANNEL-INBOUND-ORDER-01",
+      "cli": null,
+      "scope_schema": null,
+      "artifact_source": null,
+      "expected_version_source": null,
+      "expected_generation_source": null,
+      "db_mode": "SAME",
+      "consume_strategy": null
+    },
+    "CHANNEL_RECOVERY_IGNORE": {
+      "owner_packet": "CHANNEL-INBOUND-ORDER-01",
+      "cli": null,
+      "scope_schema": null,
+      "artifact_source": null,
+      "expected_version_source": null,
+      "expected_generation_source": null,
+      "db_mode": "SAME",
+      "consume_strategy": null
+    },
+    "CHANNEL_RETENTION_EXTEND": {
+      "owner_packet": "CHANNEL-INBOUND-ORDER-01",
+      "cli": null,
+      "scope_schema": null,
+      "artifact_source": null,
+      "expected_version_source": null,
+      "expected_generation_source": null,
+      "db_mode": "SAME",
+      "consume_strategy": null
+    },
+    "CUTOVER_DRAIN_ABORT": {
+      "owner_packet": "CUTOVER-MODE-01",
+      "cli": null,
+      "scope_schema": null,
+      "artifact_source": null,
+      "expected_version_source": null,
+      "expected_generation_source": null,
+      "db_mode": "SAME",
+      "consume_strategy": null
+    },
+    "CUTOVER_DRAIN_BEGIN": {
+      "owner_packet": "CUTOVER-MODE-01",
+      "cli": null,
+      "scope_schema": null,
+      "artifact_source": null,
+      "expected_version_source": null,
+      "expected_generation_source": null,
+      "db_mode": "SAME",
+      "consume_strategy": null
+    },
+    "CUTOVER_MARK": {
+      "owner_packet": "CUTOVER-MODE-01",
+      "cli": null,
+      "scope_schema": null,
+      "artifact_source": null,
+      "expected_version_source": null,
+      "expected_generation_source": null,
+      "db_mode": "SAME",
+      "consume_strategy": null
+    },
+    "DELETE_RETENTION_APPLY": {
+      "owner_packet": "DELETE-RETENTION-01",
+      "cli": null,
+      "scope_schema": null,
+      "artifact_source": null,
+      "expected_version_source": null,
+      "expected_generation_source": null,
+      "db_mode": "SAME",
+      "consume_strategy": null
+    },
+    "OFFLINE_LOCAL_RECOVERY_APPROVE": {
+      "owner_packet": "OFFLINE-01",
+      "cli": null,
+      "scope_schema": null,
+      "artifact_source": null,
+      "expected_version_source": null,
+      "expected_generation_source": null,
+      "db_mode": "SAME",
+      "consume_strategy": null
+    },
+    "SIGNING_COMPROMISE_ACTIVATE": {
+      "owner_packet": "SESSION-SIGNING-SECRET-01",
+      "cli": null,
+      "scope_schema": null,
+      "artifact_source": null,
+      "expected_version_source": null,
+      "expected_generation_source": null,
+      "db_mode": "SAME",
+      "consume_strategy": null
+    },
+    "SIGNING_CUTOVER_ACTIVATE": {
+      "owner_packet": "SESSION-SIGNING-SECRET-01",
+      "cli": null,
+      "scope_schema": null,
+      "artifact_source": null,
+      "expected_version_source": null,
+      "expected_generation_source": null,
+      "db_mode": "SAME",
+      "consume_strategy": null
+    },
+    "SIGNING_CUTOVER_PREPARE": {
+      "owner_packet": "SESSION-SIGNING-STATE-00",
+      "cli": null,
+      "scope_schema": null,
+      "artifact_source": null,
+      "expected_version_source": null,
+      "expected_generation_source": null,
+      "db_mode": "SAME",
+      "consume_strategy": null
+    },
+    "SIGNING_FORCE_ENTER": {
+      "owner_packet": "SESSION-SIGNING-SECRET-01",
+      "cli": null,
+      "scope_schema": null,
+      "artifact_source": null,
+      "expected_version_source": null,
+      "expected_generation_source": null,
+      "db_mode": "SAME",
+      "consume_strategy": null
+    },
+    "SIGNING_FORCE_EXIT": {
+      "owner_packet": "SESSION-SIGNING-SECRET-01",
+      "cli": null,
+      "scope_schema": null,
+      "artifact_source": null,
+      "expected_version_source": null,
+      "expected_generation_source": null,
+      "db_mode": "SAME",
+      "consume_strategy": null
+    },
+    "SIGNING_LEGACY_FINALIZE": {
+      "owner_packet": "SESSION-SIGNING-SECRET-01",
+      "cli": null,
+      "scope_schema": null,
+      "artifact_source": null,
+      "expected_version_source": null,
+      "expected_generation_source": null,
+      "db_mode": "SAME",
+      "consume_strategy": null
+    },
+    "SIGNING_RECOVERY_PREPARE": {
+      "owner_packet": "SESSION-SIGNING-STATE-00",
+      "cli": null,
+      "scope_schema": null,
+      "artifact_source": null,
+      "expected_version_source": null,
+      "expected_generation_source": null,
+      "db_mode": "SAME",
+      "consume_strategy": null
+    },
+    "SIGNING_RESCUE_ROLLFORWARD": {
+      "owner_packet": "SESSION-SIGNING-SECRET-01",
+      "cli": null,
+      "scope_schema": null,
+      "artifact_source": null,
+      "expected_version_source": null,
+      "expected_generation_source": null,
+      "db_mode": "SAME",
+      "consume_strategy": null
+    },
+    "SIGNING_ROTATION_ACTIVATE": {
+      "owner_packet": "SESSION-SIGNING-SECRET-01",
+      "cli": null,
+      "scope_schema": null,
+      "artifact_source": null,
+      "expected_version_source": null,
+      "expected_generation_source": null,
+      "db_mode": "SAME",
+      "consume_strategy": null
+    },
+    "SIGNING_ROTATION_FINALIZE": {
+      "owner_packet": "SESSION-SIGNING-SECRET-01",
+      "cli": null,
+      "scope_schema": null,
+      "artifact_source": null,
+      "expected_version_source": null,
+      "expected_generation_source": null,
+      "db_mode": "SAME",
+      "consume_strategy": null
+    },
+    "SIGNING_ROTATION_PREPARE": {
+      "owner_packet": "SESSION-SIGNING-STATE-00",
+      "cli": null,
+      "scope_schema": null,
+      "artifact_source": null,
+      "expected_version_source": null,
+      "expected_generation_source": null,
+      "db_mode": "SAME",
+      "consume_strategy": null
+    },
+    "WDC_LINK_ABORT": {
+      "owner_packet": "WDC-LINK-FENCE-00",
+      "cli": null,
+      "scope_schema": null,
+      "artifact_source": null,
+      "expected_version_source": null,
+      "expected_generation_source": null,
+      "db_mode": "TARGET_RESERVED",
+      "consume_strategy": null
+    },
+    "WDC_LINK_CANONICAL": {
+      "owner_packet": "WDC-LINK-FENCE-00",
+      "cli": null,
+      "scope_schema": null,
+      "artifact_source": null,
+      "expected_version_source": null,
+      "expected_generation_source": null,
+      "db_mode": "TARGET_RESERVED",
+      "consume_strategy": null
+    },
+    "WDC_LINK_FREEZE": {
+      "owner_packet": "WDC-LINK-FENCE-00",
+      "cli": null,
+      "scope_schema": null,
+      "artifact_source": null,
+      "expected_version_source": null,
+      "expected_generation_source": null,
+      "db_mode": "TARGET_RESERVED",
+      "consume_strategy": null
+    }
+  }
+}

@@ -1,7 +1,16 @@
 import datetime
-from sqlalchemy import Column, Integer, String, Text, Boolean, DateTime, Float, ForeignKey, func, JSON, UniqueConstraint, Index
+import uuid
+from sqlalchemy import (
+    Column, Integer, String, Text, Boolean, DateTime, Float, ForeignKey, func,
+    JSON, UniqueConstraint, Index, CheckConstraint, DDL, event, text,
+)
 from sqlalchemy.orm import relationship
-from sqlalchemy.dialects.postgresql import JSONB
+from sqlalchemy.dialects.postgresql import JSONB, UUID as PG_UUID
+
+# Portable UUID: native ``uuid`` on PostgreSQL, ``VARCHAR(36)`` on SQLite/others.
+# ``as_uuid=False`` keeps values as canonical str on every dialect so the same
+# Python code binds identically under the SQLite test lane and real PostgreSQL.
+UUIDColumn = PG_UUID(as_uuid=False).with_variant(String(36), 'sqlite')
 
 # JSON Type Compatibility Layer
 JSONColumn = JSON().with_variant(JSONB, 'postgresql')
@@ -935,3 +944,162 @@ class ChannelInboundEventLog(Base):
     __table_args__ = (
         Index('ix_channel_inbound_status_time', 'status', 'received_at'),
     )
+
+
+# ============================================================================
+# OPS-APPROVAL-00 — 고위험 ops 승인 인프라 (principal versions + approval requests)
+# ============================================================================
+#
+# SSOT: docs/plans/2026-07-22-foms-full-system-bug-audit-report.md §2.1
+#   (line 189 principal versions, line 205 ops_approval_requests, line 207 cross-DB).
+#
+# 주의: SSOT 프로즈는 principal-version trigger 대상을 ``password_hash|role|team|
+# is_active`` 로 기술하지만, 이 코드베이스의 users 테이블 비밀번호 컬럼명은 실제로
+# ``password`` (Werkzeug 해시를 저장) 다. trigger 는 실제 컬럼 ``password`` 를 관찰한다.
+
+_PRINCIPAL_VERSION_STATES = ('PENDING', 'APPROVED', 'RESERVED', 'CONSUMED', 'EXPIRED', 'REVOKED')
+
+
+class SecurityPrincipalVersion(Base):
+    """사용자별 보안 principal 버전 (session_version 정본).
+
+    User 는 version 1 로 seed 되고, ``password|role|team|is_active`` 를 바꾸는
+    transaction 에서 PostgreSQL trigger 가 정확히 1 증가시킨다. application 은 별도로
+    increment 하지 않는다(§2.1 line 189). approval consume 는 승인 시점 version 과
+    현재 version 이 같은지를 재확인해 authorization snapshot 무효화를 감지한다.
+    """
+
+    __tablename__ = 'security_principal_versions'
+
+    user_id = Column(Integer, ForeignKey('users.id'), primary_key=True)
+    version = Column(Integer, nullable=False, server_default=text('1'))
+    updated_at = Column(DateTime, nullable=False, server_default=func.now())
+
+
+class OpsApprovalRequest(Base):
+    """고위험 ops 승인 요청 정본 (§2.1 line 205 전 컬럼).
+
+    operator 가 PENDING + 256-bit one-time token 을 만들고(approver 지정 불가),
+    active ADMIN 이 화면 재인증으로 APPROVED 로 전이한다. 고위험 CLI 는
+    ``--approval-token-file`` 로만 소비하며 same-DB 는 ``FOR UPDATE`` one-time,
+    cross-DB 는 5분 RESERVED snapshot 뒤 target unique audit + CONSUMED finalize 다.
+    raw token 은 저장하지 않는다 — ``nonce_hash`` = sha256(one-time secret) 만 저장.
+    """
+
+    __tablename__ = 'ops_approval_requests'
+
+    id = Column(UUIDColumn, primary_key=True, default=lambda: str(uuid.uuid4()))
+    operation_type = Column(String(80), nullable=False)
+    scope_sha256 = Column(String(64), nullable=False)
+    artifact_sha256 = Column(String(64), nullable=True)
+    expected_version = Column(Integer, nullable=True)
+    expected_generation = Column(Integer, nullable=True)
+    nonce_hash = Column(String(64), nullable=False, unique=True)
+    expires_at = Column(DateTime, nullable=False)
+    state = Column(String(20), nullable=False, server_default='PENDING')
+    approved_by_user_id = Column(Integer, ForeignKey('users.id'), nullable=True)
+    approved_principal_version = Column(Integer, nullable=True)
+    approved_at = Column(DateTime, nullable=True)
+    reservation_id = Column(UUIDColumn, nullable=True)
+    reserved_at = Column(DateTime, nullable=True)
+    reservation_expires_at = Column(DateTime, nullable=True)
+    consumed_at = Column(DateTime, nullable=True)
+    operator_identity_hash = Column(String(64), nullable=False)
+    result_sha256 = Column(String(64), nullable=True)
+    row_version = Column(Integer, nullable=False, server_default=text('1'))
+    created_at = Column(DateTime, nullable=False, server_default=func.now())
+
+    __table_args__ = (
+        CheckConstraint(
+            "state IN ('PENDING','APPROVED','RESERVED','CONSUMED','EXPIRED','REVOKED')",
+            name='ck_ops_approval_state',
+        ),
+        Index('ix_ops_approval_state_expires', 'state', 'expires_at'),
+    )
+
+
+class OpsApprovalTargetAudit(Base):
+    """cross-DB(TARGET_RESERVED) consume 의 target-DB 측 idempotency/audit row.
+
+    ``(approval_id, reservation_id, operation_scope_sha256)`` unique 로 target
+    mutation 이 정확히 1회만 적용되게 만들고, crash retry 시 result hash 대조로
+    primary 를 finalize 만 한다(§2.1 line 207). 실제 배포에서는 target(예: WDC) DB 에
+    산다 — 테스트에서는 동일 물리 DB 의 별 테이블이 두 논리 DB 를 모델링한다.
+    """
+
+    __tablename__ = 'ops_approval_target_audits'
+
+    id = Column(Integer, primary_key=True)
+    approval_id = Column(UUIDColumn, nullable=False)
+    reservation_id = Column(UUIDColumn, nullable=False)
+    operation_scope_sha256 = Column(String(64), nullable=False)
+    operation_id = Column(String(80), nullable=False)
+    result_sha256 = Column(String(64), nullable=True)
+    committed_at = Column(DateTime, nullable=False, server_default=func.now())
+
+    __table_args__ = (
+        UniqueConstraint(
+            'approval_id', 'reservation_id', 'operation_scope_sha256',
+            name='uq_ops_approval_target_audit',
+        ),
+    )
+
+
+# --- PostgreSQL trigger: principal version seed(+1 on tracked change) ---------
+#
+# ``create_all`` (SQLite test lane 포함) 와 Alembic 양쪽에서 같은 DDL 을 쓰도록
+# security_principal_versions 테이블의 after_create 이벤트에 붙인다. SQLite 에서는
+# ``execute_if(dialect='postgresql')`` 로 skip 되어 회귀를 만들지 않는다.
+
+OPS_PRINCIPAL_VERSION_TRIGGER_SQL = """
+CREATE OR REPLACE FUNCTION foms_principal_version_seed() RETURNS trigger AS $$
+BEGIN
+    INSERT INTO security_principal_versions (user_id, version, updated_at)
+    VALUES (NEW.id, 1, now())
+    ON CONFLICT (user_id) DO NOTHING;
+    RETURN NEW;
+END;
+$$ LANGUAGE plpgsql;
+
+CREATE OR REPLACE FUNCTION foms_principal_version_bump() RETURNS trigger AS $$
+BEGIN
+    IF (NEW.password IS DISTINCT FROM OLD.password)
+       OR (NEW.role IS DISTINCT FROM OLD.role)
+       OR (NEW.team IS DISTINCT FROM OLD.team)
+       OR (NEW.is_active IS DISTINCT FROM OLD.is_active) THEN
+        UPDATE security_principal_versions
+           SET version = version + 1, updated_at = now()
+         WHERE user_id = NEW.id;
+    END IF;
+    RETURN NEW;
+END;
+$$ LANGUAGE plpgsql;
+
+DROP TRIGGER IF EXISTS trg_principal_version_seed ON users;
+CREATE TRIGGER trg_principal_version_seed
+    AFTER INSERT ON users
+    FOR EACH ROW EXECUTE FUNCTION foms_principal_version_seed();
+
+DROP TRIGGER IF EXISTS trg_principal_version_bump ON users;
+CREATE TRIGGER trg_principal_version_bump
+    AFTER UPDATE ON users
+    FOR EACH ROW EXECUTE FUNCTION foms_principal_version_bump();
+"""
+
+OPS_PRINCIPAL_VERSION_TRIGGER_DROP_SQL = """
+DROP TRIGGER IF EXISTS trg_principal_version_bump ON users;
+DROP TRIGGER IF EXISTS trg_principal_version_seed ON users;
+DROP FUNCTION IF EXISTS foms_principal_version_bump();
+DROP FUNCTION IF EXISTS foms_principal_version_seed();
+"""
+
+event.listen(
+    SecurityPrincipalVersion.__table__,
+    'after_create',
+    DDL(OPS_PRINCIPAL_VERSION_TRIGGER_SQL).execute_if(dialect='postgresql'),
+)
+event.listen(
+    SecurityPrincipalVersion.__table__,
+    'before_drop',
+    DDL(OPS_PRINCIPAL_VERSION_TRIGGER_DROP_SQL).execute_if(dialect='postgresql'),
+)

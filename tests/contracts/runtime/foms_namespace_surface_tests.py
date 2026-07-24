@@ -2246,6 +2246,7 @@ _SLG_FOMS_SERVICES_TOP_LEVEL_ALLOWED = frozenset(
         "notifications",
         "orders",
         "production",
+        "security",
         "shipment",
         "wdcalculator",
     }
