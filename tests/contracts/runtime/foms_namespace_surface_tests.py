@@ -2087,6 +2087,7 @@ def test_strict_canonical_tools_taxonomy() -> None:
     cron/ added: Railway scheduled job entrypoints (e.g. cleanup_order_drafts).
     design/ added: design SSOT lint helpers (ssot_lint.py).
     perf/ added: performance regression scanner (perf_scan.py — perf-guard/perf-audit skills).
+    tests/ added (PACKET-HARNESS-00): bug-audit packet runner (run_packet.ps1, report §8.1).
     """
     tools_dir = _REPO_ROOT / "tools"
     assert tools_dir.is_dir()
@@ -2101,6 +2102,7 @@ def test_strict_canonical_tools_taxonomy() -> None:
         "design",
         "sketchup_analyzer",
         "perf",
+        "tests",
     }
     for p in tools_dir.iterdir():
         if p.name.startswith(".") or p.name == "README.md" or p.name == "__pycache__":
@@ -2184,7 +2186,6 @@ _SLG_TEMPLATES_TOP_LEVEL_ALLOWED = frozenset(
         "channel",
         "construction",
         "cs",
-        "designer",
         "drawing",
         "macros",
         "measurement",
@@ -2203,7 +2204,6 @@ _SLG_FOMS_WEB_TOP_LEVEL_ALLOWED = frozenset(
         "channel",
         "construction",
         "cs",
-        "designer",
         "drawing",
         "measurement",
         "orders",
@@ -2220,7 +2220,6 @@ _SLG_FOMS_API_TOP_LEVEL_ALLOWED = frozenset(
         "channel",
         "construction",
         "cs",
-        "designer",
         "drawing",
         "files",
         "measurement",
@@ -2240,7 +2239,6 @@ _SLG_FOMS_SERVICES_TOP_LEVEL_ALLOWED = frozenset(
         "common",
         "construction",
         "cs",
-        "designer",
         "drawing",
         "files",
         "jobs",
