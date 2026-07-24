@@ -47,8 +47,10 @@
 - ✅ BACKFILL-ARTIFACT-00 — `3f121d65`. DPAPI(win32crypt) key-envelope·AES-GCM payload·maintenance_backfill_runs(lease/checkpoint/state machine)·approval-scope, artifact_root guard, consume_backfill_apply/reauthorize. crypto 25(Windows DPAPI)+PG 10+ops 30·전체 2419·alembic 단일(backfill_artifact_00). BACKFILL 3 op cli=null(consumer가 채움).
 - ✅ ASSIGNMENT-00 — `fd290ac5`. order_assignments(partial unique·claim/batch all-or-none/release·ID-only auth·legacy backfill), REV-00 helper 재사용. PG 22·전체 2419·alembic 단일(assignment_00). 실 AUTH enforcement=AUTH-01. scope note: 대량 backfill run은 BACKFILL runs.py wrap.
 - ✅ SIDEFX-00 — `78650235`. domain_side_effect_outbox(7-domain one-of FK CHECK matrix·dedupe·lease·retention)+heartbeat, enqueue/purge repository(flat 모듈). PG 18·전체 2441·alembic 단일(sidefx_00). status=PENDING|PROCESSING|DONE|DEAD(WORKER 정렬). ORDER_IMPORT_ARTIFACT=ORDER-IMPORT-01 추가.
-- 🔵 SESSION-SIGNING-STATE-00(migration·AUTH-01 임계경로, deps 전부✅) ∥ SIDEFX-WORKER-01(무migration·worker, deps SIDEFX-00✅) — disjoint.
-- head=sidefx_00. AUTH-01 경로: SESSION-SIGNING-STATE-00→SESSION-SIGNING-SECRET-01→AUTH-01(+ASSIGNMENT✅+WRITE-GUARD✅).
+- ✅ SESSION-SIGNING-STATE-00 — `2973ba15`. security_signing_state·wam_entry_nonces 스키마·signing_key_format(HKDF 5-label golden)·prepare CLI(EMPTY→READY 등, activation 없음). PG+pure 53·alembic 단일(signing_state_00). activation=SECRET-01.
+- ✅ SIDEFX-WORKER-01 — `53de4642`. outbox worker(SKIP LOCKED claim·lease·retry/DEAD·expiry·retention·heartbeat·readiness·handler registry). 무migration. PG worker 11·failopen inventory 재생성(499→500). 실 handler=하류.
+- 🔵 SESSION-SIGNING-SECRET-01 — 단독(무migration·runtime 서명 전환·P0-22 fix). deps SESSION-SIGNING-STATE-00✅. **AUTH-01 직전 마지막 선행.**
+- head=signing_state_00. AUTH-01=ASSIGNMENT✅+SESSION-SIGNING-SECRET-01+WRITE-GUARD✅.
 - ✅ SECRET-02 — `180adb40`. secret_literal_scan(AST literal 게이트, attribute/env-backed 제외로 SIGNING 경계)·check_deploy_secrets(배포 presence fail-fast)·allowlist. hygiene 22·APP_OK·회귀 0. → **SESSION-SIGNING-STATE-00 unblock**(deps SECRET-02✅+PGTEST✅+OPS-APPROVAL✅+CUTOVER✅).
 - **SECRET-02 재스코프 확정**: 잔존 credential secret 0(SECRET-01 Kakao·SIGNING은 SESSION-SIGNING-SECRET-01, KAKAO_JS는 공개 클라키 유지). SECRET-02=literal 스캔 test + 배포 credential presence fail-fast(삭제된 qa_deploy_test 대체).
 - head=assignment_00.
