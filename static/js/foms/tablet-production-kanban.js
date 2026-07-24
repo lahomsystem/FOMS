@@ -84,47 +84,53 @@
     submitMove(orderId, spec, body);
   }
 
+  // ERR-UX-01: 공용 mutation 에러 parser 경유(timeout/malformed JSON/403/409/428 분류,
+  // 절대 reject 하지 않음). 폴백은 공용 parser 미로드 시에만(로드 순서 방어).
+  function mutationFetch(url, opts) {
+    if (window.fomsMutationFetch) return window.fomsMutationFetch(url, opts);
+    return fetch(url, opts)
+      .then(function (res) {
+        return res.json().catch(function () { return null; }).then(function (data) {
+          if (data === null) {
+            return { ok: false, kind: "malformed", status: res.status, data: {}, message: "서버 응답 형식 오류" };
+          }
+          var ok = res.ok && data.success !== false;
+          return {
+            ok: ok, kind: ok ? "ok" : "error", status: res.status, data: data,
+            message: (data && (data.error || data.message)) || ("HTTP " + res.status),
+          };
+        });
+      })
+      .catch(function () {
+        return { ok: false, kind: "network", status: 0, data: {}, message: "네트워크 오류가 발생했습니다." };
+      });
+  }
+
   // 전이 POST. 409 HOLD_ACTIVE(보류 중) 면 해제 confirm 후 {release_hold:true} 로 1회 재시도.
   function submitMove(orderId, spec, body) {
-    fetch("/api/orders/" + encodeURIComponent(orderId) + spec.path, {
+    mutationFetch("/api/orders/" + encodeURIComponent(orderId) + spec.path, {
       method: "POST",
       credentials: "same-origin",
       headers: { "Content-Type": "application/json" },
       body: JSON.stringify(body || {}),
-    })
-      .then(function (res) {
-        var status = res.status;
-        return res
-          .json()
-          .catch(function () {
-            return { success: false, message: "서버 응답 형식 오류" };
-          })
-          .then(function (data) {
-            return { status: status, data: data || {} };
-          });
-      })
-      .then(function (result) {
-        var data = result.data;
-        if (result.status === 409 && data.code === "HOLD_ACTIVE" && !body.release_hold) {
-          if (window.confirm(holdConfirmText(data.hold))) {
-            // 재시도 시 기존 body(예: rework reason) 유지 + release_hold 부가.
-            var retry = {};
-            for (var k in body) if (body.hasOwnProperty(k)) retry[k] = body[k];
-            retry.release_hold = true;
-            submitMove(orderId, spec, retry);
-          }
-          return;
+    }).then(function (result) {
+      var data = result.data || {};
+      if (result.status === 409 && data.code === "HOLD_ACTIVE" && !body.release_hold) {
+        if (window.confirm(holdConfirmText(data.hold))) {
+          // 재시도 시 기존 body(예: rework reason) 유지 + release_hold 부가.
+          var retry = {};
+          for (var k in body) if (body.hasOwnProperty(k)) retry[k] = body[k];
+          retry.release_hold = true;
+          submitMove(orderId, spec, retry);
         }
-        if (data.success) {
-          window.location.reload();
-        } else {
-          window.alert("오류: " + (data.message || "처리에 실패했습니다."));
-        }
-      })
-      .catch(function (err) {
-        console.error("[foms-kanban] 열 이동 실패:", err);
-        window.alert("처리 중 오류가 발생했습니다.");
-      });
+        return;
+      }
+      if (result.ok) {
+        window.location.reload();
+      } else {
+        window.alert("오류: " + result.message);
+      }
+    });
   }
 
   // 열 이동 버튼 위임(document). 버튼은 카드 안의 <button>이라 side-sheet INTERACTIVE

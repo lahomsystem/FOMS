@@ -23,6 +23,27 @@
     return (window.fomsWriteFetch || fetch)(url, opts);
   }
 
+  // ERR-UX-01: 공용 mutation 에러 parser 경유(timeout/malformed JSON/403/409/428 을
+  // 한 곳에서 분류 → { ok, kind, status, data, message }). 절대 reject 하지 않는다.
+  // 폴백은 공용 parser 미로드 시에만(로드 순서 방어, foms-write.js 는 defer 순서상 항상 먼저).
+  function mutationFetch(url, opts) {
+    if (window.fomsMutationFetch) return window.fomsMutationFetch(url, opts);
+    return writeFetch(url, opts).then(function (res) {
+      return res.json().catch(function () { return null; }).then(function (data) {
+        if (data === null) {
+          return { ok: false, kind: 'malformed', status: res.status, data: {}, message: '서버 응답을 해석하지 못했습니다.' };
+        }
+        var ok = res.ok && data.success !== false;
+        return {
+          ok: ok, kind: ok ? 'ok' : 'error', status: res.status, data: data,
+          message: (data && (data.error || data.message)) || ('HTTP ' + res.status)
+        };
+      });
+    }).catch(function () {
+      return { ok: false, kind: 'network', status: 0, data: {}, message: '네트워크 오류가 발생했습니다.' };
+    });
+  }
+
   function hasOffcanvas() {
     return !!(window.bootstrap && window.bootstrap.Offcanvas);
   }
@@ -231,27 +252,20 @@
     if (currentOrderId == null || !reason) return;
     setDefectChipsDisabled(true);
     setDefectStatus('보고 중...');
-    try {
-      var res = await writeFetch('/api/orders/' + encodeURIComponent(currentOrderId) + '/production/defect', {
-        method: 'POST',
-        credentials: 'same-origin',
-        headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify({ reason: reason })
-      });
-      var data = await res.json();
-      if (!res.ok || !data.success) {
-        setDefectStatus('보고 실패: ' + ((data && (data.error || data.message)) || ('HTTP ' + res.status)));
-        return;
-      }
-      renderDefectRecent((data.data && data.data.latest) || null);
-      collapseDefectReasons();
-      setDefectStatus('불량이 보고되었습니다.');
-    } catch (err) {
-      console.error('production defect report error:', err);
-      setDefectStatus('불량 보고 중 오류가 발생했습니다.');
-    } finally {
-      setDefectChipsDisabled(false);
+    var result = await mutationFetch('/api/orders/' + encodeURIComponent(currentOrderId) + '/production/defect', {
+      method: 'POST',
+      credentials: 'same-origin',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify({ reason: reason })
+    });
+    setDefectChipsDisabled(false);
+    if (!result.ok) {
+      setDefectStatus('보고 실패: ' + result.message);
+      return;
     }
+    renderDefectRecent((result.data.data && result.data.data.latest) || null);
+    collapseDefectReasons();
+    setDefectStatus('불량이 보고되었습니다.');
   }
 
   function openSheet(orderId) {
@@ -269,25 +283,20 @@
     if (!key || currentOrderId == null || btn.disabled) return;
     var nextDone = btn.getAttribute('aria-pressed') !== 'true';
     btn.disabled = true;
-    try {
-      var res = await writeFetch('/api/orders/' + encodeURIComponent(currentOrderId) + '/production/steps', {
-        method: 'POST',
-        credentials: 'same-origin',
-        headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify({ key: key, done: nextDone })
-      });
-      var data = await res.json();
-      if (!res.ok || !data.success) {
-        alert('공정 저장 실패: ' + ((data && (data.error || data.message)) || ('HTTP ' + res.status)));
-        return;
-      }
-      renderSteps(data.data || {});
-    } catch (err) {
-      console.error('production step toggle error:', err);
-      alert('공정 저장 중 오류가 발생했습니다.');
-    } finally {
-      btn.disabled = false;
+    var result = await mutationFetch('/api/orders/' + encodeURIComponent(currentOrderId) + '/production/steps', {
+      method: 'POST',
+      credentials: 'same-origin',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify({ key: key, done: nextDone })
+    });
+    // 낙관 업데이트를 하지 않는 흐름이라(체크 상태는 renderSteps 성공 응답에서만 반영)
+    // rollback 대상 DOM 변경이 없다 — 버튼 re-enable만으로 원상태 보존.
+    btn.disabled = false;
+    if (!result.ok) {
+      alert('공정 저장 실패: ' + result.message);
+      return;
     }
+    renderSteps(result.data.data || {});
   }
 
   // 카드 배지 버튼 — capture 위임(카드 nav listener 보다 먼저 가로채 시트만 연다;
