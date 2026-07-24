@@ -12,7 +12,7 @@ from foms.services.common.address_ai_ops_loader import (
 )
 from foms.services.common.geocode_config import (
     DELAY_BETWEEN_REQUESTS,
-    KAKAO_REST_API_KEY,
+    kakao_rest_headers,
     MAX_LAT,
     MAX_LNG,
     MAX_RETRIES,
@@ -41,11 +41,10 @@ class FOMSAddressConverter:
     
     def __init__(self):
         """API 키 설정 및 기본 URL 설정"""
-        self.api_key = KAKAO_REST_API_KEY
         self.base_url = "https://dapi.kakao.com/v2/local/search/address.json"
         self.keyword_url = "https://dapi.kakao.com/v2/local/search/keyword.json"
         self.directions_url = "https://apis-navi.kakaomobility.com/v1/directions"
-        self.headers = {"Authorization": f"KakaoAK {self.api_key}"}
+        # Kakao REST 헤더는 요청 시점에 fail-fast 로 조립(하드코딩 키 제거, SECRET-01).
         
         # AI 시스템 초기화
         self.learning_system = FOMSAddressLearningSystem()
@@ -96,7 +95,7 @@ class FOMSAddressConverter:
             params = {"query": address}
             response = requests.get(
                 self.base_url, 
-                headers=self.headers, 
+                headers=kakao_rest_headers(), 
                 params=params, 
                 timeout=10
             )
@@ -147,7 +146,7 @@ class FOMSAddressConverter:
             params = {"query": address}
             response = requests.get(
                 self.keyword_url, 
-                headers=self.headers, 
+                headers=kakao_rest_headers(), 
                 params=params, 
                 timeout=10
             )
@@ -433,7 +432,7 @@ class FOMSAddressConverter:
             req_kwargs = {}
             if timeout is not None:
                 req_kwargs["timeout"] = timeout
-            response = requests.get(url, params=params, headers=self.headers, **req_kwargs)
+            response = requests.get(url, params=params, headers=kakao_rest_headers(), **req_kwargs)
             
             if response.status_code == 200:
                 data = response.json()

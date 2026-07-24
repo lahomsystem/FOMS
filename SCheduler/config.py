@@ -1,5 +1,6 @@
 # 카카오 API 설정
-KAKAO_REST_API_KEY = "6b616f811df2a8aeb3ab12ee71152952"  # 문서에서 제공된 API 키
+import os
+KAKAO_REST_API_KEY = os.environ.get("KAKAO_REST_API_KEY")  # env-only (SECRET-01/P0-2, 하드코딩 금지)
 
 # 기본 설정
 DEFAULT_CENTER = [37.5665, 126.9780]  # 서울 중심좌표

@@ -1,5 +1,30 @@
 # 지도 시스템 설정 (canonical; legacy `map_config.py` 대체)
-KAKAO_REST_API_KEY = "6b616f811df2a8aeb3ab12ee71152952"
+import os
+
+# Kakao REST secret 은 env-only (SECRET-01 / P0-2). 하드코딩 금지 · 외부 rotate.
+# 미설정 시 상수는 None 이고, 지오코딩 기능 사용 시점에 require_kakao_rest_key() 가
+# 명확히 실패한다(기능별 fail-fast — 앱 부팅은 막지 않음).
+KAKAO_REST_API_KEY = os.environ.get("KAKAO_REST_API_KEY")
+
+
+def require_kakao_rest_key() -> str:
+    """설정된 Kakao REST 키를 반환하고, 없으면 명확히 실패한다.
+
+    :return: `KAKAO_REST_API_KEY` env 값.
+    :raises RuntimeError: env 미설정 시(지오코딩 기능 fail-fast).
+    """
+    key = os.environ.get("KAKAO_REST_API_KEY")
+    if not key:
+        raise RuntimeError(
+            "KAKAO_REST_API_KEY 환경변수가 설정되지 않았습니다. "
+            "지오코딩/주소 검색 기능은 이 키가 필요합니다(하드코딩 금지)."
+        )
+    return key
+
+
+def kakao_rest_headers() -> dict:
+    """Kakao REST API 호출용 Authorization 헤더를 반환(요청 시점 fail-fast)."""
+    return {"Authorization": f"KakaoAK {require_kakao_rest_key()}"}
 
 # Kakao Maps JavaScript SDK 앱 키 (클라이언트 노출용 · 도메인 제한 공개 키).
 # 실측 "오늘 동선" 스트립이 실지도 위 방문 순서를 그릴 때 사용한다. REST 키와 별개이며
