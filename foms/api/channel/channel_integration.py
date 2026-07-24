@@ -426,11 +426,65 @@ def api_channel_push_estimate():
         return jsonify({'success': False, 'message': f'서버 오류: {err_msg}', 'error': err_msg}), 500
 
 
-@channel_integration_bp.route('/health', methods=['GET'])
-def api_channel_health():
+# --- OPS-ROUTE-01 배포 단계 분리 노트 (machine detail) ---
+# 사람용 ADMIN detail 은 아래 /health 세션 게이트로 로컬 검증 가능하다.
+# machine detail(스크립트/모니터용)은 이 public 앱이 아니라 별도 최소 서비스
+# (foms/ops_app.py + railway-ops-readiness.toml)의 /internal/ops/channel-readiness
+# 에만 등록하고, 그 Railway service 에는 public domain 을 만들지 않는다
+# (no-public-domain). 인증은 FOMS_OPS_READINESS_TOKEN(random ≥32 bytes, 미설정 시
+# 부팅 실패)을 timing-safe 비교하고 응답은 no-store / Vary: Authorization /
+# ETag·Last-Modified 0 을 쓴다. public 앱 blueprint 에는 /internal/ops/* 를 절대
+# 등록하지 않는다(로컬 계약 테스트가 404 로 고정). 이 배선은 배포 단계 산출물이므로
+# 본 packet 에서는 구현하지 않는다.
+
+
+def _viewer_is_ops_admin() -> bool:
+    """현재 요청 사용자가 ops detail 열람 권한(ADMIN/MANAGER)인지 판정한다.
+
+    ``g.current_user`` 는 ``app.before_request(_set_current_user)`` 가 모든 요청에
+    대해 설정한다(무인증이면 ``None``). 따라서 ``login_required`` 데코레이터 없이도
+    공개 라우트 안에서 인증/권한을 분기할 수 있다.
+
+    Returns:
+        bool: ADMIN 또는 MANAGER 세션이면 True, 그 외(무인증 포함) False.
     """
-    ChannelTalk 연동 상태 헬스체크 및 readiness 판단. (CT-00-03)
-    반환 상태: ready, degraded, fail
+    user = getattr(g, 'current_user', None)
+    return bool(user and getattr(user, 'role', None) in ('ADMIN', 'MANAGER'))
+
+
+def _apply_no_store(resp, *, private: bool):
+    """민감 detail 응답에 캐시 재사용 차단 헤더를 적용한다. (OPS-ROUTE-01)
+
+    logout→Back 또는 공유 프록시가 이전 body(운영 metric)를 한 byte 도 재사용하지
+    못하도록 ``no-store`` 와 함께 ETag/Last-Modified 검증자를 제거한다. 응답 본문이
+    세션 인증 여부에 따라 달라지므로 ``Vary: Cookie`` 로 캐시 분리를 강제한다.
+
+    Args:
+        resp: Flask 응답 객체.
+        private: True 면 ``private, no-store``(ADMIN detail), False 면 ``no-store``
+            (무인증 공개 최소 응답).
+
+    Returns:
+        헤더가 적용된 동일 응답 객체.
+    """
+    resp.headers['Cache-Control'] = 'private, no-store' if private else 'no-store'
+    resp.headers['Pragma'] = 'no-cache'
+    resp.headers['Vary'] = 'Cookie'
+    resp.headers.pop('ETag', None)
+    resp.headers.pop('Last-Modified', None)
+    return resp
+
+
+def _evaluate_channel_readiness() -> tuple[dict, int]:
+    """채널톡 연동 readiness 와 운영 detail 을 계산한다. (CT-00-03)
+
+    readiness 판정에 더해 환경변수 존재/flag/worker·backlog·delivery metric 을 담은
+    전체 payload 를 만든다. 무인증 공개 응답은 이 중 coarse ``readiness`` 만 노출하고,
+    나머지 운영 detail 은 ADMIN/MANAGER 세션 뒤에서만 반환한다.
+
+    Returns:
+        (payload, status_code): payload 는 readiness/environment/flags/queue/metrics
+        등 전체 detail, status_code 는 ready·degraded=200, fail=503.
     """
     flags = {
         'push': os.environ.get('CHANNEL_PUSH_ENABLED', 'false').lower() == 'true',
@@ -481,7 +535,7 @@ def api_channel_health():
         else:
             readiness = 'ready'
 
-        return jsonify({
+        return {
             'readiness': readiness,
             'environment': environment,
             'flags': flags,
@@ -494,10 +548,10 @@ def api_channel_health():
             'metrics': metrics,
             'security': security,
             'legacy_only_success_after_cutover': legacy_success_drift,
-        }), 200 if readiness != 'fail' else 503
+        }, 200 if readiness != 'fail' else 503
     except Exception as e:
         logger.error("[ChannelTalk Health] failed: %s\n%s", e, traceback.format_exc())
-        return jsonify({
+        return {
             'readiness': 'fail',
             'environment': environment,
             'flags': flags,
@@ -511,7 +565,29 @@ def api_channel_health():
             'security': security,
             'legacy_only_success_after_cutover': 0,
             'error': str(e),
-        }), 503
+        }, 503
+
+
+@channel_integration_bp.route('/health', methods=['GET'])
+def api_channel_health():
+    """채널톡 연동 헬스체크. 무인증=coarse readiness 만, ADMIN/MANAGER 세션=운영 detail.
+
+    OPS-ROUTE-01 / P0-18: 무인증 공개 응답에는 secret 존재 여부·worker/queue/delivery
+    metric·raw exception/traceback 을 노출하지 않고 coarse ``readiness`` 만 반환한다.
+    환경변수 존재·metric·flag_violations·error 를 포함한 운영 detail 은 ADMIN/MANAGER
+    세션 뒤에서만 제공하며 ``private, no-store`` 로 캐시 재사용을 차단한다.
+
+    machine detail(no-public-domain Railway ops service + random ≥32-byte bearer,
+    ``Vary: Authorization``)의 프로덕션 배선은 배포 단계 산출물이다(모듈 상단 노트).
+
+    Returns:
+        (JSON, status): 무인증 → ``{"readiness": ...}``(no-store), ADMIN/MANAGER →
+        전체 운영 detail(private, no-store). status 는 ready·degraded=200, fail=503.
+    """
+    payload, status = _evaluate_channel_readiness()
+    if _viewer_is_ops_admin():
+        return _apply_no_store(jsonify(payload), private=True), status
+    return _apply_no_store(jsonify({'readiness': payload['readiness']}), private=False), status
 
 @channel_integration_bp.route('/admin/delivery-status', methods=['GET'])
 @login_required
