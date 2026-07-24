@@ -20,6 +20,7 @@ from foms.api.files.common import (
     serialize_attachment,
 )
 from db import get_db
+from foms.services.files.upload_authz import category_upload_allowed
 from foms.services.files.upload_policy import ERP_MEDIA_ALLOWED_EXTENSIONS
 from foms.services.order_attachment_thumbnail import (
     schedule_order_attachment_thumbnail_generation,
@@ -98,6 +99,9 @@ def api_order_attachments_upload(order_id):
         category = normalize_attachment_category(request.form.get("category", "measurement"))
         if not category:
             return jsonify({"success": False, "message": "유효하지 않은 첨부 카테고리입니다."}), 400
+        # UPLOAD-01: VIEWER 403 + 용도별 role/team (direct 경로와 동일 방어). folder 는 서버 생성.
+        if not category_upload_allowed(_current_user(), category):
+            return jsonify({"success": False, "message": "이 업로드를 수행할 권한이 없습니다."}), 403
         ok, item_index, err = parse_attachment_item_index(request.form.get("item_index"))
         if not ok:
             return jsonify({"success": False, "message": err}), 400
