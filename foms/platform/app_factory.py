@@ -19,6 +19,7 @@ from wdcalculator_db import close_wdcalculator_db
 from .blueprints import register_blueprints
 from .http import register_http_bootstrap
 from .realtime import init_realtime_bootstrap
+from .request_limits import FomsRequest, GLOBAL_BODY_CAP, register_request_limits
 
 from foms.services.context_processors import register_context_processors
 from foms.services.rate_limit import init_limiter
@@ -208,7 +209,11 @@ def build_app(*, socketio_available: bool) -> AppFactoryResult:
 
     app.config["TEMPLATES_AUTO_RELOAD"] = not (is_production or is_railway)
     app.config["UPLOAD_FOLDER"] = UPLOAD_FOLDER
-    app.config["MAX_CONTENT_LENGTH"] = 500 * 1024 * 1024
+    # REQUEST-LIMIT-01 (P1-31): global body ceiling 50 MiB + 256 KiB overhead
+    # (was 500 MiB) plus per-route pre-parse caps and leak-free form parsing.
+    app.config["MAX_CONTENT_LENGTH"] = GLOBAL_BODY_CAP
+    app.request_class = FomsRequest
+    register_request_limits(app)
     os.makedirs(UPLOAD_FOLDER, exist_ok=True)
 
     register_http_bootstrap(
