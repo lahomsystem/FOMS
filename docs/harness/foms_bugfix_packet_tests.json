@@ -260,9 +260,16 @@
       "write_guard": false,
       "postgres": true
     },
-    "commands": [],
+    "commands": [
+      "python -m pytest tests/postgres/test_purge_order_mutation_receipts.py -q"
+    ],
     "existing_regressions": [],
-    "created_tests": [],
+    "created_tests": [
+      {
+        "path": "tests/postgres/test_purge_order_mutation_receipts.py",
+        "owner_packet": "REV-CLEANUP-01"
+      }
+    ],
     "browser_scenarios": [],
     "deploy_check_ids": [],
     "deployment_evidence_mode": "PROVIDER_BOOTSTRAP"
