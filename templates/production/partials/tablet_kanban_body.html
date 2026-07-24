@@ -92,42 +92,26 @@
   </div>
   </div>
 
-  {# ── 클라이언트 필터 바(D-c): 검색 input 상시 노출 + [필터] 토글. 상태·공장·변경·초기화는
-     .tablet-prod-filter__more[hidden] 로 접힘(기본). 열림 상태는 JS 가 localStorage
-     (foms_tablet_prod_filters_open)에 기억하고 fragment-swap 시 복원한다. 접힘 시 활성 고급
-     필터 개수를 토글 배지로 표식. 배선은 tablet-domain-sheets.js. ── #}
+  {# ── 클라이언트 필터 바(Phase G): 전 항목 상시 노출(접기 없음). 순서 = 공장 select(좌측)
+     · 검색 input · 변경 토글 · 초기화 · 전체화면. 상태 select 제거 — 검색은 무조건 전 열 대상
+     (applyProdFilter status 분기 없음). 배선은 tablet-domain-sheets.js. ── #}
   <div class="tablet-prod-filter" role="group" aria-label="칸반 필터">
+    <select data-tablet-prod-factory aria-label="공장 필터">
+      <option value="" selected>전체</option>
+      <option value="1">1공장</option>
+      <option value="2">2공장</option>
+    </select>
     <input type="search" data-tablet-prod-search placeholder="검색" aria-label="주문 검색">
-    {# 고급 필터 접기 토글 — 검색 밖(상시 노출). aria-expanded/hidden 동기화는 JS. #}
-    <button type="button" data-tablet-prod-filter-toggle class="tablet-prod-filter__toggle"
-            aria-expanded="false" aria-controls="tablet-prod-filter-more">
-      <i class="fas fa-sliders" aria-hidden="true"></i>
-      <span>필터</span>
-      <span class="tablet-prod-filter__toggle-badge" data-tablet-prod-filter-count hidden></span>
+    {# 변경 모아보기 토글 — data-changed="1" 카드만 필터(묘비는 항상 표시). changed_count>0 이면
+       주의 강조(has-changes). 배선은 tablet-domain-sheets.js(is-on 클래스 토글 + 재필터). #}
+    <button type="button" data-tablet-prod-changed aria-pressed="false"
+            class="tablet-prod-changed{% if (changed_count | default(0, true)) > 0 %} has-changes{% endif %}">
+      <i class="fas fa-triangle-exclamation" aria-hidden="true"></i>
+      <span>변경 {{ changed_count | default(0, true) }}</span>
     </button>
-    <div class="tablet-prod-filter__more" id="tablet-prod-filter-more" hidden>
-      <select data-tablet-prod-status aria-label="제작 상태 필터">
-        <option value="" selected>전체</option>
-        <option value="제작대기">제작대기</option>
-        <option value="제작중">제작중</option>
-        <option value="제작완료">제작완료</option>
-      </select>
-      <select data-tablet-prod-factory aria-label="공장 필터">
-        <option value="" selected>전체</option>
-        <option value="1">1공장</option>
-        <option value="2">2공장</option>
-      </select>
-      {# 변경 모아보기 토글 — data-changed="1" 카드만 필터(묘비는 항상 표시). changed_count>0 이면
-         주의 강조(has-changes). 배선은 tablet-domain-sheets.js(is-on 클래스 토글 + 재필터). #}
-      <button type="button" data-tablet-prod-changed aria-pressed="false"
-              class="tablet-prod-changed{% if (changed_count | default(0, true)) > 0 %} has-changes{% endif %}">
-        <i class="fas fa-triangle-exclamation" aria-hidden="true"></i>
-        <span>변경 {{ changed_count | default(0, true) }}</span>
-      </button>
-      <button type="button" data-tablet-prod-reset>초기화</button>
-    </div>
-    {# F-3 전체화면 진입 — 상단 크롬(통합 바+필터)을 접어 칸반을 최대화. 검색·[필터]와 같은 상시
-       노출 컨트롤(접이 영역 밖). 진입 시 이 바가 CSS 로 은닉되고 board 우상단 복원 버튼이 뜬다. #}
+    <button type="button" data-tablet-prod-reset>초기화</button>
+    {# F-3 전체화면 진입 — 상단 크롬(통합 바+필터)을 접어 칸반을 최대화. 진입 시 이 바가 CSS 로
+       은닉되고 board 우상단 복원 버튼이 뜬다. #}
     <button type="button" data-tablet-prod-fullscreen class="tablet-prod-fullscreen-btn" aria-pressed="false">
       <i class="fas fa-expand" aria-hidden="true"></i>
       <span>전체화면</span>
@@ -405,4 +389,4 @@
   </div>
   {% endif %}
 </div>
-<script src="{{ url_for('static', filename='js/foms/tablet-domain-sheets.js') }}?v=20260724i" defer></script>
+<script src="{{ url_for('static', filename='js/foms/tablet-domain-sheets.js') }}?v=20260724j" defer></script>

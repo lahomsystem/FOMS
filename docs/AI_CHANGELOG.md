@@ -4,6 +4,7 @@
 
 | 날짜 | 작업 | 수정 파일 | 커밋 |
 |------|------|-----------|------|
+| 2026-07-24 | 생산 보드 5차: 필터 바 단순화 — [필터] 토글·필터 접기·상태 select 제거, 공장 select를 검색 앞, 변경 버튼 상시 노출(검색=전체 조건) — pytest 212 passed + 필터 바 렌더 동작검증 | tablet_kanban_body.html, tablet-domain-sheets.js, foms-tablet-production-kanban.css 외 | (미커밋) |
 | 2026-07-24 | 생산 보드 4차: 제작 취소 깨끗한 되돌림(rework/hold 정리·제작이력 승인간주) + 라벨 인쇄 제거(통합바 1줄) + 전체화면 토글(크롬 접기·복원버튼·실측 캡90) — pytest 212 passed + Playwright 전체화면·F-1 실측검증, 리뷰 Critical/Major 0 | production/orders.py, production_dashboard_display.py, tablet_kanban_body.html, foms-tablet-production-kanban.css, tablet-domain-sheets.js 외 | (미커밋) |
 | 2026-07-24 | 생산 보드 3차: 제작취소 버튼 nowrap + 고정 바 재배치(KPI 5열·pcbar통합·필터접기·열캡 실측265) + 완료 이력(hold_history 보존·무채 배지) — pytest 200 passed + Playwright 재배치·이력 실측검증, 리뷰 Major 1+Minor 3 반영 | production/orders.py, production_dashboard_display.py, tablet_kanban_body.html, tablet_sheet.html, filters_grid.html, foms-tablet-production-kanban.css, tablet-domain-sheets.js 외 | (미커밋) |
 | 2026-07-24 | 생산 보드 2차 P4~P8(보류 해제 confirm·사유 가시성 스트립·제작/완료 취소 rollback·보류 KPI/D+n/임박경고·PC 배지) — pytest 187 passed + Playwright 태블릿·PC 21/21 PASS | production/orders.py, production_dashboard_display.py, dashboard.py, tablet_kanban_body.html, tablet_sheet.html, filters_grid.html, tablet-domain-sheets.js 외 | (미커밋) |

@@ -30,7 +30,7 @@ SHIPMENT_DASHBOARD_SCRIPTS = "templates/shipment/partials/dashboard_scripts.html
 CORE_MEDIA_QUERY = (
     "(min-width: 992px) and (orientation: landscape) and (pointer: coarse)"
 )
-SCRIPT_CACHEBUSTER = "?v=20260724i"
+SCRIPT_CACHEBUSTER = "?v=20260724j"
 
 
 def _read(rel: str) -> str:
@@ -121,7 +121,6 @@ def test_kanban_body_wires_domain_sheets_and_filter() -> None:
     assert "defer" in tag, "도메인 시트 스크립트 defer 부재(perf G1)"
     for attr in (
         "data-tablet-prod-search",
-        "data-tablet-prod-status",
         "data-tablet-prod-factory",
         "data-tablet-prod-reset",
     ):
@@ -264,32 +263,38 @@ def test_domain_sheets_js_has_hold_kpi_filter_branch() -> None:
     assert 'classList.contains("is-held")' in js
 
 
-# --- (9) 고정 바 재배치: 필터 접기(D-c) -------------------------------------
+# --- (9) Phase G: 필터 바 재구성(접기·상태 select 제거, 공장 앞·변경 상시) -----
 
 
-def test_kanban_body_filter_collapse_markup() -> None:
-    """D-c: 검색 input 상시 노출 + [필터] 토글 뒤 고급 필터 접힘(.__more[hidden]).
-    상태·공장·초기화는 접이 영역 안, 검색은 접이 영역 밖(상시)."""
+def test_kanban_body_filter_bar_simplified() -> None:
+    """Phase G: [필터] 토글·__more 접이·상태 select 제거 → 전 항목 상시 노출.
+    공장 select 가 검색 앞(좌측), 변경·초기화 상시. 전체화면 토글은 유지."""
     body = _read(KANBAN_BODY)
-    assert "data-tablet-prod-filter-toggle" in body  # 접기 토글 버튼
-    assert 'class="tablet-prod-filter__more"' in body  # 접이 컨테이너
-    assert 'id="tablet-prod-filter-more"' in body  # aria-controls 대상
-    assert "data-tablet-prod-filter-count" in body  # 활성 필터 개수 배지
-    # 검색은 접이 컨테이너보다 앞(상시 노출) — 접이 영역 안에 들어가면 위반.
-    # (컨테이너 마크업 class="..." 로 앵커 — 설명 주석의 .tablet-prod-filter__more 언급과 구분.)
-    assert body.index("data-tablet-prod-search") < body.index(
-        'class="tablet-prod-filter__more"'
-    ), "검색 input 이 접이 영역 안에 있음(상시 노출 위반)"
+    # 제거된 것: 필터 토글 버튼·접이 컨테이너·개수 배지·상태 select.
+    assert "data-tablet-prod-filter-toggle" not in body
+    assert "tablet-prod-filter__more" not in body
+    assert "data-tablet-prod-filter-count" not in body
+    assert "data-tablet-prod-status" not in body
+    # 공장 select 가 검색 input 앞(좌측) — 둘 다 상시 노출.
+    assert "data-tablet-prod-factory" in body
+    assert "data-tablet-prod-search" in body
+    assert body.index("data-tablet-prod-factory") < body.index(
+        "data-tablet-prod-search"
+    ), "공장 select 가 검색 input 앞에 있어야 함(Phase G 순서)"
+    # 변경 토글·초기화 상시 노출.
+    assert "data-tablet-prod-changed" in body
+    assert "data-tablet-prod-reset" in body
 
 
-def test_domain_sheets_js_wires_filter_collapse_toggle() -> None:
-    """D-c: 필터 접기 배선 — localStorage 키 + 토글 위임 셀렉터 + aria-expanded 동기화 +
-    fragment 스왑 복원."""
+def test_domain_sheets_js_filter_collapse_removed() -> None:
+    """Phase G: 필터 접기 배선 전부 제거 — localStorage 키·토글 셀렉터·복원·상태 필터 부재.
+    검색은 무조건 전 열(status 분기 없음). 전체화면 복원은 유지."""
     js = _read(DOMAIN_SHEETS_JS)
-    assert "foms_tablet_prod_filters_open" in js  # 열림 상태 기억 키
-    assert "data-tablet-prod-filter-toggle" in js  # 토글 위임 셀렉터
-    assert "aria-expanded" in js  # 접이 상태 a11y 동기화
-    assert "restoreFilterCollapse" in js  # 부트/스왑 복원
+    assert "foms_tablet_prod_filters_open" not in js
+    assert "data-tablet-prod-filter-toggle" not in js
+    assert "restoreFilterCollapse" not in js
+    assert "data-tablet-prod-status" not in js
+    assert "restoreFullscreen" in js  # 전체화면 복원은 유지(별도 리스너)
 
 
 # --- (10) F-2 라벨 인쇄 제거 + F-3 전체화면 토글 -------------------------------

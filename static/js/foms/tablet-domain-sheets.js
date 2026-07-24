@@ -2,7 +2,7 @@
  * FOMS 태블릿 도메인 시트 액션 + 생산 칸반 필터 (T2 · 목업 v8 마감).
  *
  * 태블릿 가로(코호트)에서 우측 사이드 시트 본문에 로드되는 도메인 전용 액션 버튼과,
- * 생산 칸반 상단 필터 바(검색 상시 노출 + [필터] 토글 접기, D-c)를 처리한다. 신규 API 없이
+ * 생산 칸반 상단 필터 바(공장·검색·변경·초기화 상시 노출)를 처리한다. 신규 API 없이
  * 기존 워크플로 엔드포인트를 재사용한다:
  *   - 생산 시작/완료/수정 제작: POST /api/orders/<id>/production/start|complete|rework (에러 키 = message)
  *   - 출고 배정: POST /api/erp/shipment/update/<id>          (권한 실패 = 403)
@@ -438,16 +438,14 @@
   }
 
   // ---- 생산 칸반 필터(클라이언트 사이드) --------------------------------------
-  // 컨트롤: 검색어 input, 상태 select(''|제작대기|제작중|제작완료), 공장 select(''|1|2),
-  // 리셋 button. 세 값을 읽어 열 표시(상태)와 카드 표시(검색+공장)를 재계산한다.
+  // 컨트롤: 공장 select(''|1|2), 검색어 input, 변경 토글, 리셋 button. 검색은 무조건 전 열
+  // 대상(상태 필터 없음). KPI line 탭만 열 표시를 제작중으로 좁힌다.
 
   function applyProdFilter() {
     if (!cohortActive()) return;
     var searchEl = document.querySelector("input[data-tablet-prod-search]");
-    var statusEl = document.querySelector("select[data-tablet-prod-status]");
     var factoryEl = document.querySelector("select[data-tablet-prod-factory]");
     var search = searchEl ? searchEl.value : "";
-    var status = statusEl ? statusEl.value : "";
     var factory = factoryEl ? factoryEl.value : "";
     var searchLower = search.toLowerCase();
     var changedEl = document.querySelector("button[data-tablet-prod-changed]");
@@ -459,11 +457,8 @@
     var cols = document.querySelectorAll(".foms-kanban-col[data-kanban-bucket]");
     Array.prototype.forEach.call(cols, function (col) {
       var bucket = col.getAttribute("data-kanban-bucket");
-      // 상태 필터: 미선택('')이면 전부 표시, 선택 시 해당 버킷 열만 표시.
-      // KPI line = 제작중 열만(status predicate 재사용, 교집합).
-      var colVisible =
-        (status === "" || bucket === status) &&
-        (kpi !== "line" || bucket === "제작중");
+      // 검색은 전 열 대상 — 열 표시는 KPI line 탭만 제작중으로 좁힌다(그 외 전부 표시).
+      var colVisible = kpi !== "line" || bucket === "제작중";
       col.style.display = colVisible ? "" : "none";
       if (!colVisible) return; // 숨긴 열의 카드는 재평가 불필요(열이 다시 보일 때 재계산).
 
@@ -518,10 +513,8 @@
 
   function resetProdFilter() {
     var searchEl = document.querySelector("input[data-tablet-prod-search]");
-    var statusEl = document.querySelector("select[data-tablet-prod-status]");
     var factoryEl = document.querySelector("select[data-tablet-prod-factory]");
     if (searchEl) searchEl.value = "";
-    if (statusEl) statusEl.value = "";
     if (factoryEl) factoryEl.value = "";
     var changedEl = document.querySelector("button[data-tablet-prod-changed]");
     if (changedEl) {
@@ -539,67 +532,6 @@
       el.classList.remove("is-on");
       el.setAttribute("aria-pressed", "false");
     });
-  }
-
-  // ---- D-c 생산 필터 접기 토글 -----------------------------------------------
-  // 검색은 상시 노출, 고급 필터(.tablet-prod-filter__more: 상태·공장·변경·초기화)는 [필터]
-  // 토글 뒤 접힘(기본). 열림 상태만 localStorage 에 기억한다(필터 값 자체는 서버 렌더 기본값
-  // 유지 — density-toggle 패턴). document 위임이라 fragment 스왑으로 DOM 이 재삽입돼도
-  // 재바인딩 불필요, 스왑 시엔 저장값 재적용(restoreFilterCollapse)만 건다.
-  var FILTERS_OPEN_KEY = "foms_tablet_prod_filters_open";
-
-  // 저장된 열림 상태("1")를 반환. 기본(미저장·저장 불가)은 접힘(false).
-  function readFiltersOpen() {
-    try {
-      return window.localStorage.getItem(FILTERS_OPEN_KEY) === "1";
-    } catch (e) {
-      return false;
-    }
-  }
-
-  // 열림 상태를 localStorage 에 저장. 사생활 모드 등 저장 불가 시 세션 내 표시만 유지(비치명적).
-  function writeFiltersOpen(open) {
-    try {
-      window.localStorage.setItem(FILTERS_OPEN_KEY, open ? "1" : "0");
-    } catch (e) {
-      /* 저장 불가 — 세션 표시만 유지(비치명적, 무음 삼킴 아님). */
-    }
-  }
-
-  // 접힘 시 토글 배지로 알릴 활성 고급 필터(상태·공장·변경) 개수. 검색·KPI 는 상시 노출이라 제외.
-  function activeAdvancedFilterCount() {
-    var n = 0;
-    var statusEl = document.querySelector("select[data-tablet-prod-status]");
-    var factoryEl = document.querySelector("select[data-tablet-prod-factory]");
-    var changedEl = document.querySelector("button[data-tablet-prod-changed]");
-    if (statusEl && statusEl.value) n += 1;
-    if (factoryEl && factoryEl.value) n += 1;
-    if (changedEl && changedEl.classList.contains("is-on")) n += 1;
-    return n;
-  }
-
-  // 토글/접이 영역 표시를 open 상태로 동기화(aria-expanded + hidden + 배지). idempotent.
-  function syncFilterToggle(open) {
-    var toggle = document.querySelector("[data-tablet-prod-filter-toggle]");
-    var more = document.getElementById("tablet-prod-filter-more");
-    if (!toggle || !more) return;
-    more.hidden = !open;
-    toggle.setAttribute("aria-expanded", open ? "true" : "false");
-    toggle.classList.toggle("is-open", open);
-    var badge = toggle.querySelector("[data-tablet-prod-filter-count]");
-    if (!badge) return;
-    var n = activeAdvancedFilterCount();
-    if (!open && n > 0) {
-      badge.textContent = String(n);
-      badge.hidden = false;
-    } else {
-      badge.hidden = true;
-    }
-  }
-
-  // 저장된 열림 상태로 접이 영역 복원(부트/스왑). 필터 값은 서버 렌더 기본값을 유지한다.
-  function restoreFilterCollapse() {
-    syncFilterToggle(readFiltersOpen());
   }
 
   // ---- F-3 전체화면 토글 -----------------------------------------------------
@@ -650,19 +582,6 @@
     if (!cohortActive()) return;
     var target = ev.target;
     if (!target || !target.closest) return;
-
-    // D-c 생산 필터 접기 토글 — 열림 상태 저장 + 표시 동기화. 현재 상태는 저장값이 아니라
-    // 실제 DOM(__more.hidden)에서 읽는다 — localStorage 불가 환경에서 read 가 항상 false 로
-    // 굳어 "열기만 되고 못 닫는" 버그 방지.
-    var filterToggleBtn = target.closest("[data-tablet-prod-filter-toggle]");
-    if (filterToggleBtn) {
-      ev.preventDefault();
-      var moreEl = document.getElementById("tablet-prod-filter-more");
-      var willOpen = moreEl ? moreEl.hidden : !readFiltersOpen();
-      writeFiltersOpen(willOpen);
-      syncFilterToggle(willOpen);
-      return;
-    }
 
     // F-3 전체화면 토글 — 진입(필터 바) / 복원(플로팅) 버튼 공용. 현재 상태는 저장값이 아니라
     // 실제 DOM(board.is-fullscreen)에서 읽어 플립한다 — localStorage 불가 환경에서 read 가
@@ -797,7 +716,7 @@
     if (!target || !target.closest) return;
     if (
       target.closest(
-        "input[data-tablet-prod-search], select[data-tablet-prod-status], select[data-tablet-prod-factory]"
+        "input[data-tablet-prod-search], select[data-tablet-prod-factory]"
       )
     ) {
       applyProdFilter();
@@ -835,10 +754,6 @@
   // is-open 중복 가드가 있어 재진입 안전.
   maybeShowChangeModal();
   document.addEventListener("foms:erp-shell-fragment-swapped", maybeShowChangeModal);
-
-  // ---- D-c 필터 접이 상태 복원: 부트 + fragment 스왑(칸반 body 재삽입) 시 저장값 재적용 ----
-  restoreFilterCollapse();
-  document.addEventListener("foms:erp-shell-fragment-swapped", restoreFilterCollapse);
 
   // ---- F-3 전체화면 상태 복원: 부트 + fragment 스왑 시 저장값 재적용 ----
   restoreFullscreen();

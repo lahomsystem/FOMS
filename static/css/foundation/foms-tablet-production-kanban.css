@@ -227,55 +227,6 @@
     font-weight: var(--foms-font-weight-bold);
     cursor: pointer;
   }
-  /* --- D-c 필터 접기: 검색·[필터] 토글은 상시, 고급 필터(.__more)는 토글 뒤 접힘 --- */
-  body.erp-mobile-v2-layout .tablet-prod-filter__toggle {
-    display: inline-flex;
-    align-items: center;
-    gap: var(--foms-space-1);
-    min-height: var(--foms-touch-target-min);
-    padding: 0 var(--foms-space-3);
-    border: 1px solid var(--foms-border-subtle);
-    border-radius: var(--foms-radius-md);
-    background: var(--foms-surface-base);
-    color: var(--foms-text-primary);
-    font-size: var(--foms-font-size-base);
-    font-weight: var(--foms-font-weight-semibold);
-    white-space: nowrap;
-    cursor: pointer;
-  }
-  body.erp-mobile-v2-layout .tablet-prod-filter__toggle.is-open {
-    border-color: var(--foms-interactive-primary);
-    color: var(--foms-interactive-primary);
-  }
-  /* 접힘 시 활성 고급 필터(상태·공장·변경) 개수 배지 — 브랜드 필. 검색·KPI 는 상시라 제외. */
-  body.erp-mobile-v2-layout .tablet-prod-filter__toggle-badge {
-    display: inline-flex;
-    align-items: center;
-    justify-content: center;
-    min-width: 1.25rem;
-    height: 1.25rem;
-    padding: 0 var(--foms-space-1);
-    border-radius: var(--foms-radius-full);
-    background: var(--foms-interactive-primary);
-    color: var(--foms-text-inverse);
-    font-size: var(--foms-font-size-xs);
-    font-weight: var(--foms-font-weight-bold);
-    font-variant-numeric: tabular-nums;
-  }
-  body.erp-mobile-v2-layout .tablet-prod-filter__toggle-badge[hidden] {
-    display: none;
-  }
-  /* 접이 영역: 검색·토글과 같은 필터 행에 인라인 flex 로 펼침. [hidden] 시 완전 숨김
-     (display:flex 이 UA [hidden]{display:none} 를 이기므로 명시 override 필수). */
-  body.erp-mobile-v2-layout .tablet-prod-filter__more {
-    display: flex;
-    flex-wrap: wrap;
-    align-items: center;
-    gap: var(--foms-space-2);
-  }
-  body.erp-mobile-v2-layout .tablet-prod-filter__more[hidden] {
-    display: none;
-  }
   /* 표시 상한 공지 — 무채 1줄(필터바 아래). 전량 셋이 300건 상한 초과 시 검색 유도. */
   body.erp-mobile-v2-layout .tablet-prod-cap-note {
     flex: none;

@@ -181,6 +181,33 @@
 ### 4차 완료 기준
 `python -m pytest tests/domains/test_production_transition_guard_api.py tests/domains/test_production_hold_api.py tests/domains/test_tablet_domain_sheets_contract.py tests/domains/test_tablet_t2_contract.py tests/domains/test_tablet_rail_contract.py tests/domains/test_production_kanban_full_window.py tests/domains/test_production_dashboard_mobile.py tests/domains/test_production_dashboard_query_count.py -q` 전부 통과 + import app APP_OK.
 
+## 5차 라운드 (2026-07-24 사용자 피드백: 필터 바 단순화) — 진행 원장
+
+- [x] Phase G = 필터 바 재구성: [필터] 토글·필터 접기 제거(상시 노출), 상태 select 제거(검색=전체 조건), 공장 select를 검색 앞, 변경 버튼 상시 노출. 동작검증(마크업 순서 [공장][검색][변경][초기화][전체화면]·토글/상태/접이 부재 확인)
+- [x] 커밋/푸시 (단순 UI 재배치 — diff+동작검증으로 검증, 별도 리뷰 생략)
+
+### 5차 공통 컨텍스트
+- 커밋 cb2cdda9(4차)까지 배포. 캐시버스터 현재값: JS=20260724i, CSS 체인=20260724h. 변경 시 다음 값(j/i).
+- 3차 D-c 필터 접기가 이번에 롤백됨. 관련 JS 함수(readFiltersOpen·writeFiltersOpen·activeAdvancedFilterCount·syncFilterToggle·restoreFilterCollapse·filter-toggle 위임·부트/스왑 복원) + 마크업(filter__more·filter-toggle·status select) + CSS(filter__toggle·__more·__toggle-badge) 전부 제거.
+
+### Phase G — 필터 바 재구성 (프론트만)
+사용자 요구 4개:
+1. [필터] 토글 버튼 제거 — 검색창 넓으니 불필요, 필터 항목 상시 노출(필터 접기 __more 롤백).
+2. 검색창 제일 앞(좌측)에 공장 선택(전체/1공장/2공장) select 배치.
+3. 상태 select(제작대기/제작중/제작완료) 제거 — 검색은 무조건 전체 조건(전 열 대상). applyProdFilter에서 status 필터 분기 제거.
+4. 변경 버튼 상시 노출.
+
+새 필터 바 순서: `[공장 select 전체/1/2][검색 input][변경 N 토글][초기화][전체화면 토글]`.
+
+- 마크업(tablet_kanban_body.html L95-131): filter-toggle 버튼·filter__more div·status select 제거, 공장 select를 검색 앞, 변경·초기화 상시(접이 밖), 전체화면 유지.
+- JS(tablet-domain-sheets.js): 필터 접기 함수·위임·복원 전부 제거. applyProdFilter/resetProdFilter의 status 참조 제거(L447·521·572·800). 공장·검색·변경·KPI 필터·전체화면은 유지.
+- CSS: filter__toggle·__more·__toggle-badge 규칙 제거, 필터 바 레이아웃(공장 앞) 정리.
+- 캐시버스터: JS i→j, CSS h→i(변경 파일 따라) + 계약 리터럴 동기.
+- 테스트: 필터 접기 계약(test_tablet_domain_sheets_contract.py) 제거/치환 — 검색 상시·공장 앞·변경 상시·status 부재·필터토글 부재 검증. t2/rail CSS 리터럴 동기.
+
+### 5차 완료 기준
+`python -m pytest tests/domains/test_production_transition_guard_api.py tests/domains/test_production_hold_api.py tests/domains/test_tablet_domain_sheets_contract.py tests/domains/test_tablet_t2_contract.py tests/domains/test_tablet_rail_contract.py tests/domains/test_production_kanban_full_window.py tests/domains/test_production_dashboard_mobile.py tests/domains/test_production_dashboard_query_count.py -q` 전부 통과 + import app APP_OK.
+
 ### 2차 완료 기준 (각 Phase 공통)
 `python -m pytest tests/domains/test_production_transition_guard_api.py tests/domains/test_production_hold_api.py tests/domains/test_tablet_domain_sheets_contract.py tests/domains/test_tablet_t2_contract.py tests/domains/test_tablet_rail_contract.py tests/domains/test_production_kanban_full_window.py tests/domains/test_production_dashboard_mobile.py -q` 전부 통과 + `import app` APP_OK.
 
