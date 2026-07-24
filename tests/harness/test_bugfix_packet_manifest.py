@@ -200,12 +200,18 @@ def test_entry_schema(manifest):
         assert entry["deployment_evidence_mode"] in EVIDENCE_MODES, pid
 
 
-def test_seed_lists_empty(manifest):
-    # Seed manifest: packets append their own; runner/deploy fields start empty.
+def test_no_cross_packet_preseed(manifest):
+    # §8.1: packets append ONLY their own entry; no future/foreign preseed.
+    # created_tests owner_packet must be the packet itself; commands must be
+    # plain strings (no arbitrary eval objects). Empty seed is allowed but not
+    # required -- packets legitimately fill their own lists as they land.
     for pid, entry in manifest.items():
-        for key in ("commands", "existing_regressions", "created_tests",
-                    "browser_scenarios", "deploy_check_ids"):
-            assert entry[key] == [], (pid, key)
+        for item in entry["created_tests"]:
+            assert isinstance(item, dict) and item.get("owner_packet") == pid, (
+                pid, "created_tests owner must be self (anti-preseed)", item,
+            )
+        for cmd in entry["commands"]:
+            assert isinstance(cmd, str) and cmd.strip(), (pid, "command", cmd)
 
 
 def test_explicit_deps_reference_existing_packets(manifest):
