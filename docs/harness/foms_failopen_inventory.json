@@ -5,16 +5,16 @@
   "overlap_api_error_01": "API-ERROR-01 owns response/stdout exposure (print_exc/str(e) -> log_handled_exception). This packet owns swallow classification. Sites that log via log_handled_exception are LOG_AND_CONTINUE here.",
   "marker_convention": "Silent-by-design catches carry an inline `# failopen: intentional: <reason>` (or `fail-closed`) marker; the scanner reads it as the justification. No bare allowlist, no lint-disable.",
   "baselines": {
-    "broad_total": 487,
+    "broad_total": 488,
     "unclassified": 0
   },
   "disposition_counts": {
     "FAIL_CLOSED": 20,
     "INTENTIONAL": 16,
-    "LOG_AND_CONTINUE": 451
+    "LOG_AND_CONTINUE": 452
   },
   "owner_counts": {
-    "api": 226,
+    "api": 227,
     "audit": 1,
     "auth": 10,
     "cache": 25,
@@ -2042,7 +2042,7 @@
     },
     {
       "path": "foms/api/production/orders.py",
-      "lineno": 520,
+      "lineno": 521,
       "handler_type": "broad_exception",
       "disposition": "LOG_AND_CONTINUE",
       "owner": "api",
@@ -2051,7 +2051,7 @@
     },
     {
       "path": "foms/api/production/orders.py",
-      "lineno": 584,
+      "lineno": 585,
       "handler_type": "broad_exception",
       "disposition": "LOG_AND_CONTINUE",
       "owner": "api",
@@ -2060,7 +2060,7 @@
     },
     {
       "path": "foms/api/production/orders.py",
-      "lineno": 704,
+      "lineno": 705,
       "handler_type": "broad_exception",
       "disposition": "LOG_AND_CONTINUE",
       "owner": "api",
@@ -2069,7 +2069,7 @@
     },
     {
       "path": "foms/api/production/orders.py",
-      "lineno": 769,
+      "lineno": 770,
       "handler_type": "broad_exception",
       "disposition": "LOG_AND_CONTINUE",
       "owner": "api",
@@ -2078,7 +2078,7 @@
     },
     {
       "path": "foms/api/production/orders.py",
-      "lineno": 890,
+      "lineno": 891,
       "handler_type": "broad_exception",
       "disposition": "LOG_AND_CONTINUE",
       "owner": "api",
@@ -2087,7 +2087,7 @@
     },
     {
       "path": "foms/api/production/orders.py",
-      "lineno": 980,
+      "lineno": 981,
       "handler_type": "broad_exception",
       "disposition": "LOG_AND_CONTINUE",
       "owner": "api",
@@ -2096,7 +2096,16 @@
     },
     {
       "path": "foms/api/production/orders.py",
-      "lineno": 1047,
+      "lineno": 1085,
+      "handler_type": "broad_exception",
+      "disposition": "LOG_AND_CONTINUE",
+      "owner": "api",
+      "has_logging": false,
+      "justification": "swallow-and-continue via control flow; logging recommended"
+    },
+    {
+      "path": "foms/api/production/orders.py",
+      "lineno": 1142,
       "handler_type": "broad_exception",
       "disposition": "LOG_AND_CONTINUE",
       "owner": "api",
