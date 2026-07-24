@@ -34,16 +34,12 @@ def init_limiter(app: Any) -> Limiter:
         except Exception:
             pass
 
-        x_forwarded_for = request.headers.get("X-Forwarded-For", "")
-        if x_forwarded_for:
-            client_ip = x_forwarded_for.split(",")[0].strip()
-            if client_ip:
-                return client_ip
-
-        x_real_ip = request.headers.get("X-Real-IP", "").strip()
-        if x_real_ip:
-            return x_real_ip
-
+        # Canonical client IP only. request.remote_addr is set by ProxyFix from
+        # exactly FOMS_TRUSTED_PROXY_HOPS trusted X-Forwarded-For hops (see
+        # foms.platform.app_factory.apply_proxy_fix). Parsing the raw
+        # X-Forwarded-For / X-Real-IP headers here would let a client spoof its
+        # rate-limit key via the attacker-controlled left-most entry, so it is
+        # deliberately not done.
         return get_remote_address()
 
     default_limits_raw = os.environ.get("FLASK_DEFAULT_RATE_LIMITS", "5000 per day,1200 per hour")

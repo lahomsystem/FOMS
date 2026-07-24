@@ -111,6 +111,42 @@ def _versioned_static_cache_middleware(wsgi_app: Any) -> Any:
     return _app
 
 
+def apply_proxy_fix(app: Flask) -> None:
+    """Trust exactly ``FOMS_TRUSTED_PROXY_HOPS`` ``X-Forwarded-For`` hops.
+
+    ProxyFix rewrites ``request.remote_addr`` to the address recorded ``hops``
+    positions from the *right* of ``X-Forwarded-For`` — i.e. the client IP that
+    our own trusted edge proxy observed. Any left-most entries a client injects
+    fall outside the trusted window and are ignored, so ``remote_addr`` (and the
+    rate-limit key derived from it) cannot be spoofed by a forged header.
+
+    Args:
+        app: The Flask app whose WSGI stack is wrapped in place.
+
+    Returns:
+        None. ``app.wsgi_app`` is replaced with the ProxyFix-wrapped callable.
+
+    The hop count is parameterized via the ``FOMS_TRUSTED_PROXY_HOPS`` env var
+    (default ``1`` = single Railway edge proxy, preserving the prior ``x_for=1``).
+    A non-integer value falls back to ``1``; negatives are floored to ``0``
+    (trust no proxy). Only ``x_for`` is parameterized — ``x_proto``/``x_host``/
+    ``x_prefix`` stay at ``1`` (proto/host trust is out of this packet's scope).
+
+    MERGE-GATE: set ``FOMS_TRUSTED_PROXY_HOPS`` to the *measured* Railway
+    proxy-chain hop count before merging. Shipping the default without confirming
+    the real chain length risks trusting one hop too few (breaks legitimate
+    client-IP resolution) or too many (re-opens the spoof this packet closes).
+    """
+    from werkzeug.middleware.proxy_fix import ProxyFix
+
+    raw = os.environ.get("FOMS_TRUSTED_PROXY_HOPS", "1") or "1"
+    try:
+        hops = max(0, int(raw))
+    except ValueError:
+        hops = 1
+    app.wsgi_app = ProxyFix(app.wsgi_app, x_for=hops, x_proto=1, x_host=1, x_prefix=1)
+
+
 def build_app(*, socketio_available: bool) -> AppFactoryResult:
     """Build the root Flask app while preserving the existing runtime order."""
     app = Flask("app")
@@ -158,9 +194,7 @@ def build_app(*, socketio_available: bool) -> AppFactoryResult:
 
     trust_proxy = os.environ.get("TRUST_PROXY", "").lower() in ("1", "true", "yes")
     if trust_proxy or is_production:
-        from werkzeug.middleware.proxy_fix import ProxyFix
-
-        app.wsgi_app = ProxyFix(app.wsgi_app, x_for=1, x_proto=1, x_host=1, x_prefix=1)
+        apply_proxy_fix(app)
 
     blueprint_bindings = register_blueprints(app)
 
