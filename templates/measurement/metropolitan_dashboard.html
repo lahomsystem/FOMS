@@ -1226,7 +1226,7 @@
 <script>
 document.addEventListener('DOMContentLoaded', function() {
     // 검색 결과 하이라이트 및 스크롤
-    const searchQuery = "{{ search_query|safe }}";
+    const searchQuery = {{ (search_query or '')|tojson }};
     if (searchQuery) {
         const rows = document.querySelectorAll('tr[data-order-id]');
         let firstMatch = null;
