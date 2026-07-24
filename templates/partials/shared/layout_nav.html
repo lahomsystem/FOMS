@@ -59,8 +59,13 @@
                         <li><a class="dropdown-item" href="{{ url_for('admin.change_logs') }}"><i
                                     class="fas fa-history"></i> 내 변경 로그</a></li>
                         {% if impersonating_from_id %}
-                        <li><a class="dropdown-item" href="{{ url_for('auth.switch_back') }}"><i
-                                    class="fas fa-undo"></i> 원래 관리자로 돌아가기</a></li>
+                        <li>
+                            <form method="post" action="{{ url_for('auth.switch_back') }}">
+                                <input type="hidden" name="csrf_token" value="{{ csrf_token() }}">
+                                <button type="submit" class="dropdown-item"><i class="fas fa-undo"></i> 원래
+                                    관리자로 돌아가기</button>
+                            </form>
+                        </li>
                         {% endif %}
                         {% if current_user.role == 'ADMIN' %}
                         <li>
@@ -77,17 +82,25 @@
                             <h6 class="dropdown-header">다른 사용자로 전환</h6>
                         </li>
                         {% for u in admin_switch_users %}
-                        <li><a class="dropdown-item" href="{{ url_for('auth.switch_user', target_user_id=u.id) }}">{{
-                                u.name }} ({{ u.username }})</a></li>
+                        <li>
+                            <form method="post" action="{{ url_for('auth.switch_user', target_user_id=u.id) }}">
+                                <input type="hidden" name="csrf_token" value="{{ csrf_token() }}">
+                                <button type="submit" class="dropdown-item">{{ u.name }} ({{ u.username }})</button>
+                            </form>
+                        </li>
                         {% endfor %}
                         {% endif %}
                         {% endif %}
                         <li>
                             <hr class="dropdown-divider">
                         </li>
-                        <li><a class="dropdown-item" href="{{ url_for('auth.logout') }}"><i
-                                    class="fas fa-sign-out-alt"></i>
-                                로그아웃</a></li>
+                        <li>
+                            <form method="post" action="{{ url_for('auth.logout') }}">
+                                <input type="hidden" name="csrf_token" value="{{ csrf_token() }}">
+                                <button type="submit" class="dropdown-item"><i class="fas fa-sign-out-alt"></i>
+                                    로그아웃</button>
+                            </form>
+                        </li>
                     </ul>
                 </div>
             </div>

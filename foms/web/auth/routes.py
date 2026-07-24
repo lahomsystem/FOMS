@@ -190,7 +190,7 @@ def login():
     
     return render_template('auth/login.html', next_url=next_url)
 
-@auth_bp.route('/logout')
+@auth_bp.route('/logout', methods=['POST'])
 def logout():
     if 'user_id' in session:
         user_id = session['user_id']
@@ -204,7 +204,7 @@ def logout():
     return redirect(url_for('auth.login'))
 
 
-@auth_bp.route('/switch-user/<int:target_user_id>')
+@auth_bp.route('/switch-user/<int:target_user_id>', methods=['POST'])
 @login_required
 @role_required(['ADMIN'])
 def switch_user(target_user_id):
@@ -233,7 +233,7 @@ def switch_user(target_user_id):
     return redirect(request.referrer or authenticated_home_url(user_id=target.id, request=request))
 
 
-@auth_bp.route('/switch-back')
+@auth_bp.route('/switch-back', methods=['POST'])
 @login_required
 def switch_back():
     """전환된 관리자가 원래 관리자 계정으로 복귀."""

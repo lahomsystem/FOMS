@@ -10,6 +10,82 @@
     <meta charset="UTF-8">
     <meta name="viewport" content="width=device-width, initial-scale=1.0">
     <meta name="color-scheme" content="light dark">
+
+    {# WRITE-GUARD-01: 세션 바인딩 CSRF 토큰. 아래 래퍼가 이 값을 모든 same-origin
+       mutation(fetch/XHR/form/sendBeacon)에 자동으로 실어 정상 사용자 403 회귀를 막는다.
+       route 별 ad hoc 토큰 주입 금지 — 이 파일이 단일 choke point 다. #}
+    <meta name="csrf-token" content="{{ csrf_token() }}">
+    <script>
+    (function () {
+      if (window.__FOMS_CSRF_BOUND) return;
+      window.__FOMS_CSRF_BOUND = true;
+      var _CSRF_H = 'X-CSRF-Token';
+      var MUT = { POST: 1, PUT: 1, PATCH: 1, DELETE: 1 };
+      function token() {
+        var m = document.querySelector('meta[name="csrf-token"]');
+        return m ? (m.getAttribute('content') || '') : '';
+      }
+      function sameOrigin(url) {
+        if (!url) return true; // 상대/미지정 = 현재 origin
+        try { return new URL(url, window.location.href).origin === window.location.origin; }
+        catch (e) { return true; }
+      }
+      window.fomsCsrfToken = token;
+
+      // 1) fetch: same-origin mutation 에 X-CSRF-Token 자동 부착(keepalive fetch 포함).
+      var origFetch = window.fetch;
+      if (typeof origFetch === 'function') {
+        window.fetch = function (input, init) {
+          init = init || {};
+          var method = (init.method
+            || (input && typeof input === 'object' && input.method)
+            || 'GET').toUpperCase();
+          var url = (typeof input === 'string') ? input : (input && input.url) || '';
+          if (MUT[method] && sameOrigin(url)) {
+            var headers = new Headers(
+              init.headers || (input && typeof input === 'object' && input.headers) || {}
+            );
+            if (!headers.has(_CSRF_H)) headers.set(_CSRF_H, token());
+            init.headers = headers;
+          }
+          return origFetch.call(this, input, init);
+        };
+      }
+
+      // 2) XMLHttpRequest: upload-progress/htmx 등 XHR mutation 커버.
+      var XO = XMLHttpRequest.prototype.open;
+      var XS = XMLHttpRequest.prototype.send;
+      XMLHttpRequest.prototype.open = function (method, url) {
+        this.__fomsMethod = (method || 'GET').toUpperCase();
+        this.__fomsUrl = url;
+        return XO.apply(this, arguments);
+      };
+      XMLHttpRequest.prototype.send = function () {
+        try {
+          if (MUT[this.__fomsMethod] && sameOrigin(this.__fomsUrl)) {
+            this.setRequestHeader(_CSRF_H, token());
+          }
+        } catch (e) { /* setRequestHeader 실패는 무시(요청은 진행) */ }
+        return XS.apply(this, arguments);
+      };
+
+      // 3) HTML form: same-origin mutation 제출 시 hidden csrf_token 자동 주입.
+      document.addEventListener('submit', function (e) {
+        var form = e.target;
+        if (!form || form.tagName !== 'FORM') return;
+        var method = (form.getAttribute('method') || 'GET').toUpperCase();
+        if (!MUT[method]) return;
+        if (!sameOrigin(form.getAttribute('action'))) return;
+        var existing = form.querySelector('input[name="csrf_token"]');
+        if (existing) { existing.value = token(); return; }
+        var input = document.createElement('input');
+        input.type = 'hidden';
+        input.name = 'csrf_token';
+        input.value = token();
+        form.appendChild(input);
+      }, true);
+    })();
+    </script>
     <script>
     (function () {
       var key = 'foms-theme';

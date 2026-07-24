@@ -23,6 +23,7 @@ from .request_limits import FomsRequest, GLOBAL_BODY_CAP, register_request_limit
 
 from foms.services.context_processors import register_context_processors
 from foms.services.rate_limit import init_limiter
+from foms.services.request_write_guard import register_write_guard
 
 
 @dataclass(frozen=True)
@@ -224,5 +225,9 @@ def build_app(*, socketio_available: bool) -> AppFactoryResult:
         close_wdcalculator_db=close_wdcalculator_db,
         register_context_processors=register_context_processors,
     )
+
+    # WRITE-GUARD-01: 공용 CSRF+Origin before_request 가드 + csrf_token context processor.
+    # (manifest 부재 시 여기서 loud fail — startup 차단.)
+    register_write_guard(app)
 
     return AppFactoryResult(app=app, socketio=realtime_bindings.socketio)

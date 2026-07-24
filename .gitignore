@@ -150,3 +150,6 @@ tools/request_log.txt
 .gstack/
 
 Add In Program/FOMSBrainDesigner/node_modules/
+
+# app AUTO-INIT 생성 KR 공휴일 데이터(런타임 생성물, 커밋 대상 아님)
+data/holidays_kr_*.json
