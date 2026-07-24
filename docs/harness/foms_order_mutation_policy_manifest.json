@@ -400,6 +400,11 @@
       "policy_id": "PRODUCTION_EDIT",
       "rule": "/api/orders/<int:order_id>/production/steps"
     },
+    "erp_orders_production.api_set_logistics_status": {
+      "mode": "guard",
+      "policy_id": "SHIPMENT_EDIT",
+      "rule": "/api/orders/<int:order_id>/logistics"
+    },
     "erp_orders_revision.api_ack_drawing_order_change": {
       "mode": "guard",
       "policy_id": "DRAWING_ASSIGNED",

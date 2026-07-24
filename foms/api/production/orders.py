@@ -35,7 +35,8 @@ from foms.services.orders.revision import (
     RevisionError,
     execute_order_mutation,
 )
-from foms.services.orders.state_axes import AXIS_MAIN
+from foms.services.orders.state_axes import AXIS_MAIN, read_logistics
+from foms.services.orders.order_mutation_policy import POLICY_REGISTRY, evaluate_policy
 from foms.services.orders.erp_policy_quests import check_quest_approvals_complete
 
 erp_orders_production_bp = Blueprint("erp_orders_production", __name__, url_prefix="/api/orders")
@@ -982,18 +983,62 @@ def api_production_defect(order_id: int):
         return jsonify({"success": False, "error": str(exc)}), 500
 
 
+def _mirror_workflow_hold_to_production(order: Order, active: bool, reason: str, user: Any) -> dict[str, Any]:
+    """전이기(transitional) dual-write: canonical ``workflow.hold`` 를 legacy ``production.hold`` 배지로 미러.
+
+    HOLD_ORDER/RELEASE_HOLD 전이는 canonical ``workflow.hold`` 축을 소유하지만, STATE-PROD-01
+    게이트(:func:`_hold_active` 가 ``production.hold.active`` 를 읽음)와 생산 칸반 배지가 아직
+    ``production.hold`` 를 읽는다. 따라서 전이 직후 **같은 tx** 에서 ``production.hold`` 를
+    canonical 상태로 동기화해 게이트·배지를 무회귀로 보존한다. ``at`` 은 canonical
+    ``workflow.hold.held_at`` 을 그대로 재사용해 두 저장소의 시각을 일치시킨다.
+
+    ponytail: transitional mirror. 완전 통합(``production.hold`` → read-only projection, 게이트
+    reader 를 ``workflow.hold`` 로 이관, backfill 마이그레이션)은 후속 packet(SSOT §350) 소관이며
+    그때 이 미러를 제거한다. 영구 해법으로 위장하지 말 것.
+
+    :param order: 전이가 ``workflow.hold`` 를 이미 쓴 주문(같은 tx, uncommitted).
+    :param active: True 면 보류 활성(HELD), False 면 해제(NONE).
+    :param reason: 보류 사유(active 일 때만 의미).
+    :param user: 요청 actor(``by_name`` 표기용).
+    :return: 미러된 ``production.hold`` dict(응답 body 용).
+    """
+    sd = copy.deepcopy(_ensure_dict(order.structured_data))
+    workflow = sd.get("workflow") if isinstance(sd.get("workflow"), dict) else {}
+    wf_hold = workflow.get("hold") if isinstance(workflow.get("hold"), dict) else {}
+    production = sd.get("production")
+    if not isinstance(production, dict):
+        production = {}
+        sd["production"] = production
+    hold = {
+        "active": active,
+        "reason": reason if active else "",
+        "at": wf_hold.get("held_at") if active else None,
+        "by_name": (user.name if user else None) if active else None,
+    }
+    production["hold"] = hold
+    order.structured_data = sd
+    flag_modified(order, "structured_data")
+    return hold
+
+
 @erp_orders_production_bp.route("/<int:order_id>/production/hold", methods=["POST"])
 @login_required
 @_production_steps_edit_required
 def api_production_hold(order_id: int):
-    """생산 보류 플래그 토글. body {active(bool), reason(str, optional)}.
+    """생산 보류 토글 — canonical HOLD_ORDER/RELEASE_HOLD 전이(STATE-OVERLAY-01).
 
-    ``sd['production']['hold'] = {active, reason, at(UTC iso 또는 None), by_name}`` 를
-    기록한다. 이는 **표시 전용 플래그**이며 워크플로 단계(``workflow.stage``)나
-    ``order.status`` 를 전이시키지 않는다 — 칸반 카드·시트에 보류 배지를 노출하기 위한
-    상태일 뿐이다. active=True 면 at/by_name/reason 을 기록하고, active=False(해제)면
-    at=None, by_name=None, reason="" 로 초기화한다. JSONB 는 copy.deepcopy+flag_modified
-    규약을 따른다. 권한은 생산 공정 스텝과 동일(ADMIN 또는 CS/SALES/PRODUCTION 팀).
+    body ``{active(bool), reason(str, optional), idempotency_key(optional)}``. active=True 는
+    ``HOLD_ORDER``(NONE→HELD), active=False 는 ``RELEASE_HOLD``(HELD→NONE) 전이를
+    :func:`transition_order` 로 실행한다 — canonical ``workflow.hold`` 축 소유 + mutation_version++
+    + idempotency receipt + legacy ``OrderEvent``(ORDER_HELD/ORDER_HOLD_RELEASED) + 같은 tx
+    outbox(HOLD_NOTIFICATION)를 원자 기록한다. 보류는 overlay 라 **main stage
+    (erp_stage_code/workflow.stage)는 불변**이며, legacy ``order.status`` 는 projection 규칙
+    (ON_HOLD>logistics>main)상 HELD 동안 ``ON_HOLD`` 로 파생된다.
+
+    전이 후 같은 tx 에서 ``production.hold`` 배지를 canonical 상태로 미러한다(전이기 dual-write,
+    :func:`_mirror_workflow_hold_to_production`). 권한은 생산 팀(PRODUCTION_EDIT: ADMIN 또는
+    CS/SALES/PRODUCTION). 이미 보류/해제 상태에서 같은 방향을 다시 호출하면 전이 엔진이 409 로
+    거부한다(상태 불변). same idempotency_key 재요청은 전이 1회 후 저장된 응답을 replay 한다.
 
     :param order_id: 대상 주문 id.
     :return: ``{success, data:{hold}}`` 또는 오류 JSON.
@@ -1011,39 +1056,89 @@ def api_production_hold(order_id: int):
         if not order or order.status == "DELETED" or order.deleted_at is not None:
             return jsonify({"success": False, "error": "주문을 찾을 수 없습니다."}), 404
 
-        user = get_user_by_id(session.get("user_id"))
-        sd = copy.deepcopy(_ensure_dict(order.structured_data))
-        production = sd.get("production")
-        if not isinstance(production, dict):
-            production = {}
-            sd["production"] = production
-
-        now_iso = datetime.datetime.now(datetime.timezone.utc).isoformat()
-        hold = {
-            "active": active,
-            "reason": reason if active else "",
-            "at": now_iso if active else None,
-            "by_name": (user.name if user else None) if active else None,
-        }
-        production["hold"] = hold
-
-        order.structured_data = sd
-        flag_modified(order, "structured_data")
-        db.add(
-            OrderEvent(
-                order_id=order_id,
-                event_type="PRODUCTION_HOLD_TOGGLED",
-                payload={
-                    "active": active,
-                    "reason": reason if active else "",
-                    "domain": "PRODUCTION_DOMAIN",
-                    "action": "PRODUCTION_HOLD_TOGGLED",
-                },
-                created_by_user_id=session.get("user_id"),
+        user_id = session.get("user_id")
+        user = get_user_by_id(user_id)
+        command_id = "HOLD_ORDER" if active else "RELEASE_HOLD"
+        try:
+            result = transition_order(
+                db, command_id=command_id, order_id=order_id,
+                actor_user_id=user_id,
+                expected_from="NONE" if active else "HELD",
+                target_value="HELD" if active else "NONE",
+                scope_hash=_scope_hash(command_id, order_id),
+                request_hash=_request_hash(payload),
+                idempotency_key=_idempotency_key(payload),
+                reason=reason if active else None,
             )
-        )
+        except (TransitionError, RevisionError) as exc:
+            db.rollback()
+            return _transition_error_response(exc)
+
+        if result.replayed:
+            hold = _hold_active(_ensure_dict(order.structured_data))[1] or {
+                "active": active, "reason": reason if active else "", "at": None, "by_name": None,
+            }
+        else:
+            hold = _mirror_workflow_hold_to_production(order, active, reason, user)
         db.commit()
         return jsonify({"success": True, "data": {"hold": hold}})
+    except Exception as exc:
+        db.rollback()
+        return jsonify({"success": False, "error": str(exc)}), 500
+
+
+@erp_orders_production_bp.route("/<int:order_id>/logistics", methods=["POST"])
+@login_required
+def api_set_logistics_status(order_id: int):
+    """물류 상태 전이 — canonical SET_LOGISTICS_STATUS(STATE-OVERLAY-01).
+
+    body ``{status, idempotency_key(optional)}``. ``shipment.logistics_status`` overlay 축을
+    :func:`transition_order` 로 전이한다(enum NONE|MEASURED|REGIONAL_MEASURED|SCHEDULED|
+    SHIPPED_PENDING). overlay 라 **main stage 불변**이며 mutation_version++·idempotency receipt·
+    legacy ``OrderEvent``(LOGISTICS_STATUS_CHANGED)·같은 tx outbox(LOGISTICS_NOTIFICATION)를
+    원자 기록한다. 현재 값을 expected-from 으로 읽어 낙관적으로 전이한다(동시 변경 시 409).
+
+    권한은 출고/물류 팀(SHIPMENT_EDIT: ADMIN/MANAGER 또는 STAFF+CS/SALES/SHIPMENT)을 policy
+    SSOT 로 인라인 판정한다(TESTING 에서도 강제). generic status write 는 이 엔드포인트가 아니라
+    STATE-LEGACY-01 소관이며, 여기선 typed 물류 enum 만 받는다(enum 밖이면 전이 엔진이 거부).
+
+    :param order_id: 대상 주문 id.
+    :return: ``{success, data:{logistics_status}}`` 또는 오류 JSON.
+    """
+    db = get_db()
+    try:
+        payload = request.get_json(silent=True) or {}
+        target = payload.get("status")
+        if not isinstance(target, str) or not target.strip():
+            return jsonify({"success": False, "error": "status 값이 올바르지 않습니다."}), 400
+        target = target.strip()
+
+        user_id = session.get("user_id")
+        user = get_user_by_id(user_id)
+        decision = evaluate_policy(POLICY_REGISTRY["SHIPMENT_EDIT"], user)
+        if not decision.allowed:
+            return jsonify({"success": False, "code": decision.code, "message": decision.reason}), decision.status
+
+        order = db.get(Order, order_id)
+        if not order or order.status == "DELETED" or order.deleted_at is not None:
+            return jsonify({"success": False, "error": "주문을 찾을 수 없습니다."}), 404
+
+        try:
+            transition_order(
+                db, command_id="SET_LOGISTICS_STATUS", order_id=order_id,
+                actor_user_id=user_id,
+                expected_from=read_logistics(order),
+                target_value=target,
+                scope_hash=_scope_hash("SET_LOGISTICS_STATUS", order_id),
+                request_hash=_request_hash(payload),
+                idempotency_key=_idempotency_key(payload),
+            )
+        except (TransitionError, RevisionError) as exc:
+            db.rollback()
+            return _transition_error_response(exc)
+
+        db.commit()
+        return jsonify({"success": True, "data": {"logistics_status": target}})
     except Exception as exc:
         db.rollback()
         return jsonify({"success": False, "error": str(exc)}), 500

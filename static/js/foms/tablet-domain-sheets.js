@@ -139,9 +139,11 @@
     submitTransition(orderId, "/production/rework", { reason: reason.trim() });
   }
 
-  // 생산 보류 토글 — 표시 전용 플래그(워크플로 전이 없음). 버튼의 data-hold-active 로
-  // 현재 상태를 읽어 반대로 토글한다. 활성화 시 사유를 prompt 로 받는다(취소 시 중단).
-  // 성공 시 시트를 닫고 새로고침해 카드/시트 배지를 재조회한다. 에러 키 = error(생산 API).
+  // 생산 보류 토글 — canonical HOLD_ORDER/RELEASE_HOLD 전이(STATE-OVERLAY-01). 버튼의
+  // data-hold-active 로 현재 상태를 읽어 반대로 토글하며, 서버는 workflow.hold 축을 전이하고
+  // production.hold 배지를 같은 tx 로 미러한다(응답 {success, data:{hold}} 형태 불변).
+  // 활성화 시 사유를 prompt 로 받는다(취소 시 중단). 성공 시 시트를 닫고 새로고침해 카드/시트
+  // 배지를 재조회한다. 에러 키 = error/message(전이 409 는 message).
   function productionHold(orderId, btn) {
     if (!orderId) return;
     var isActive = btn && btn.getAttribute("data-hold-active") === "1";
