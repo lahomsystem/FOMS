@@ -546,7 +546,7 @@ def test_construction_team_mobile_card_renders_drawing_lightbox(mock_url, client
             "parties": {"manager": {"name": user.name}},
             "shipment": {"construction_workers": [user.name]},
             "drawing_current_files": [
-                {"key": "drawings/plan.png", "filename": "plan.png"},
+                {"key": "orders/1/drawing/plan.png", "filename": "plan.png"},
             ],
         },
     )
@@ -568,7 +568,7 @@ def test_construction_team_mobile_card_renders_drawing_lightbox(mock_url, client
     body = response.get_data(as_text=True)
     assert 'id="erpAttachmentPreviewModal"' in body
     assert 'data-foms-erp-attachment-preview-gallery' in body
-    assert 'data-foms-erp-attachment-view-url="/files/drawings/plan.png"' in body
+    assert 'data-foms-erp-attachment-view-url="/files/orders/1/drawing/plan.png"' in body
     assert 'erp-attachment-preview-open.js' in body
     assert 'attachment-preview-zoom.js' in body
     assert "/files/const/site.jpg" not in body

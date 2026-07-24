@@ -110,6 +110,30 @@ def _url_from_file_entry(entry: dict[str, Any]) -> str | None:
     return build_file_view_url(key)
 
 
+_DRAWING_KEY_MARKERS = ("/drawing/", "/drawing_wizard/")
+
+
+def _is_drawing_file_entry(entry: dict[str, Any]) -> bool:
+    """True if a ``drawing_current_files`` entry points at a drawing asset.
+
+    drawing_current_files carries no category field; transfer API accepts any
+    file key, so measurement/general photos (``orders/<id>/attachments/...``)
+    can leak in. The only signal is the storage-key path — drawing assets live
+    under ``orders/<id>/drawing/`` or ``orders/<id>/drawing_wizard/``. Used to
+    keep the construction card (drawing-only) from showing non-drawing files.
+
+    Args:
+        entry: A drawing_current_files list item.
+
+    Returns:
+        True when the entry's key or view_url path marks it as a drawing.
+    """
+    if not isinstance(entry, dict):
+        return False
+    path = f"{entry.get('key') or ''} {entry.get('view_url') or ''}".lower()
+    return any(marker in path for marker in _DRAWING_KEY_MARKERS)
+
+
 def _thumb_url_from_attachment(attachment: OrderAttachment) -> str | None:
     """Card thumbnail URL (prefers generated thumbnail_key)."""
     thumb_key = (attachment.thumbnail_key or "").strip()
@@ -186,6 +210,8 @@ def _collect_preview_items(
     order_id = row.get("id")
     if not drawing_only or _DRAWING_CATEGORIES.intersection(categories):
         for entry in sd.get("drawing_current_files") or []:
+            if drawing_only and not _is_drawing_file_entry(entry):
+                continue
             _add(_preview_item_from_file_entry(entry))
             if len(items) >= _MAX_PREVIEW_COUNT:
                 return items[:_MAX_PREVIEW_COUNT]
@@ -243,6 +269,7 @@ def count_preview_attachments(
             entry
             for entry in (sd.get("drawing_current_files") or [])
             if _url_from_file_entry(entry)
+            and (not drawing_only or _is_drawing_file_entry(entry))
         ]
     )
     if not order_id:
