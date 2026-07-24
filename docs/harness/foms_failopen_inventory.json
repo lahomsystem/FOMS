@@ -5,30 +5,31 @@
   "overlap_api_error_01": "API-ERROR-01 owns response/stdout exposure (print_exc/str(e) -> log_handled_exception). This packet owns swallow classification. Sites that log via log_handled_exception are LOG_AND_CONTINUE here.",
   "marker_convention": "Silent-by-design catches carry an inline `# failopen: intentional: <reason>` (or `fail-closed`) marker; the scanner reads it as the justification. No bare allowlist, no lint-disable.",
   "baselines": {
-    "broad_total": 496,
+    "broad_total": 485,
     "unclassified": 0
   },
   "disposition_counts": {
-    "FAIL_CLOSED": 19,
+    "FAIL_CLOSED": 20,
     "INTENTIONAL": 17,
-    "LOG_AND_CONTINUE": 460
+    "LOG_AND_CONTINUE": 448
   },
   "owner_counts": {
     "api": 226,
     "auth": 10,
     "cache": 25,
-    "channel": 33,
+    "channel": 34,
     "persistence": 3,
     "platform": 5,
     "runtime": 6,
     "services": 97,
-    "storage": 28,
+    "storage": 16,
     "telemetry": 31,
     "web": 32
   },
   "fail_closed_sites": [
     "db.py:88",
-    "foms/api/channel/channel_integration.py:387",
+    "foms/api/channel/channel_integration.py:245",
+    "foms/api/channel/channel_integration.py:557",
     "foms/persistence/designer/repositories.py:173",
     "foms/persistence/designer/repositories.py:211",
     "foms/persistence/designer/repositories.py:505",
@@ -68,62 +69,8 @@
       "justification": "logs via logger/log_handled_exception"
     },
     {
-      "path": "foms/api/backup.py",
-      "lineno": 36,
-      "handler_type": "broad_exception",
-      "disposition": "LOG_AND_CONTINUE",
-      "owner": "storage",
-      "has_logging": false,
-      "justification": "swallow-and-continue via control flow; logging recommended"
-    },
-    {
-      "path": "foms/api/backup.py",
-      "lineno": 70,
-      "handler_type": "broad_exception",
-      "disposition": "LOG_AND_CONTINUE",
-      "owner": "storage",
-      "has_logging": false,
-      "justification": "swallow-and-continue via control flow; logging recommended"
-    },
-    {
-      "path": "foms/api/backup.py",
-      "lineno": 107,
-      "handler_type": "broad_exception",
-      "disposition": "LOG_AND_CONTINUE",
-      "owner": "storage",
-      "has_logging": false,
-      "justification": "swallow-and-continue via control flow; logging recommended"
-    },
-    {
-      "path": "foms/api/backup.py",
-      "lineno": 120,
-      "handler_type": "broad_exception",
-      "disposition": "LOG_AND_CONTINUE",
-      "owner": "storage",
-      "has_logging": false,
-      "justification": "swallow-and-continue via control flow; logging recommended"
-    },
-    {
       "path": "foms/api/channel/channel_integration.py",
-      "lineno": 230,
-      "handler_type": "broad_exception",
-      "disposition": "LOG_AND_CONTINUE",
-      "owner": "channel",
-      "has_logging": true,
-      "justification": "logs via logger/log_handled_exception"
-    },
-    {
-      "path": "foms/api/channel/channel_integration.py",
-      "lineno": 256,
-      "handler_type": "broad_exception",
-      "disposition": "LOG_AND_CONTINUE",
-      "owner": "channel",
-      "has_logging": true,
-      "justification": "logs via logger/log_handled_exception"
-    },
-    {
-      "path": "foms/api/channel/channel_integration.py",
-      "lineno": 387,
+      "lineno": 245,
       "handler_type": "broad_exception",
       "disposition": "FAIL_CLOSED",
       "owner": "channel",
@@ -132,7 +79,7 @@
     },
     {
       "path": "foms/api/channel/channel_integration.py",
-      "lineno": 423,
+      "lineno": 400,
       "handler_type": "broad_exception",
       "disposition": "LOG_AND_CONTINUE",
       "owner": "channel",
@@ -141,7 +88,7 @@
     },
     {
       "path": "foms/api/channel/channel_integration.py",
-      "lineno": 552,
+      "lineno": 426,
       "handler_type": "broad_exception",
       "disposition": "LOG_AND_CONTINUE",
       "owner": "channel",
@@ -150,7 +97,34 @@
     },
     {
       "path": "foms/api/channel/channel_integration.py",
-      "lineno": 629,
+      "lineno": 557,
+      "handler_type": "broad_exception",
+      "disposition": "FAIL_CLOSED",
+      "owner": "channel",
+      "has_logging": false,
+      "justification": "re-raises"
+    },
+    {
+      "path": "foms/api/channel/channel_integration.py",
+      "lineno": 583,
+      "handler_type": "broad_exception",
+      "disposition": "LOG_AND_CONTINUE",
+      "owner": "channel",
+      "has_logging": true,
+      "justification": "logs via logger/log_handled_exception"
+    },
+    {
+      "path": "foms/api/channel/channel_integration.py",
+      "lineno": 712,
+      "handler_type": "broad_exception",
+      "disposition": "LOG_AND_CONTINUE",
+      "owner": "channel",
+      "has_logging": true,
+      "justification": "logs via logger/log_handled_exception"
+    },
+    {
+      "path": "foms/api/channel/channel_integration.py",
+      "lineno": 789,
       "handler_type": "broad_exception",
       "disposition": "LOG_AND_CONTINUE",
       "owner": "channel",
@@ -1392,7 +1366,7 @@
     },
     {
       "path": "foms/api/events.py",
-      "lineno": 395,
+      "lineno": 452,
       "handler_type": "broad_exception",
       "disposition": "LOG_AND_CONTINUE",
       "owner": "api",
@@ -2748,78 +2722,6 @@
       "owner": "platform",
       "has_logging": false,
       "justification": "임시파일 close 정리 best-effort"
-    },
-    {
-      "path": "foms/services/admin/backup_service.py",
-      "lineno": 76,
-      "handler_type": "broad_exception",
-      "disposition": "LOG_AND_CONTINUE",
-      "owner": "storage",
-      "has_logging": true,
-      "justification": "logs via logger/log_handled_exception"
-    },
-    {
-      "path": "foms/services/admin/backup_service.py",
-      "lineno": 108,
-      "handler_type": "broad_exception",
-      "disposition": "LOG_AND_CONTINUE",
-      "owner": "storage",
-      "has_logging": false,
-      "justification": "print (weak; API-ERROR-01 owns stdout->logger migration)"
-    },
-    {
-      "path": "foms/services/admin/backup_service.py",
-      "lineno": 163,
-      "handler_type": "broad_exception",
-      "disposition": "LOG_AND_CONTINUE",
-      "owner": "storage",
-      "has_logging": false,
-      "justification": "print (weak; API-ERROR-01 owns stdout->logger migration)"
-    },
-    {
-      "path": "foms/services/admin/backup_service.py",
-      "lineno": 199,
-      "handler_type": "broad_exception",
-      "disposition": "LOG_AND_CONTINUE",
-      "owner": "storage",
-      "has_logging": false,
-      "justification": "print (weak; API-ERROR-01 owns stdout->logger migration)"
-    },
-    {
-      "path": "foms/services/admin/backup_service.py",
-      "lineno": 201,
-      "handler_type": "broad_exception",
-      "disposition": "LOG_AND_CONTINUE",
-      "owner": "storage",
-      "has_logging": false,
-      "justification": "print (weak; API-ERROR-01 owns stdout->logger migration)"
-    },
-    {
-      "path": "foms/services/admin/backup_service.py",
-      "lineno": 292,
-      "handler_type": "broad_exception",
-      "disposition": "LOG_AND_CONTINUE",
-      "owner": "storage",
-      "has_logging": false,
-      "justification": "print (weak; API-ERROR-01 owns stdout->logger migration)"
-    },
-    {
-      "path": "foms/services/admin/backup_service.py",
-      "lineno": 309,
-      "handler_type": "broad_exception",
-      "disposition": "LOG_AND_CONTINUE",
-      "owner": "storage",
-      "has_logging": false,
-      "justification": "print (weak; API-ERROR-01 owns stdout->logger migration)"
-    },
-    {
-      "path": "foms/services/admin/backup_service.py",
-      "lineno": 347,
-      "handler_type": "broad_exception",
-      "disposition": "LOG_AND_CONTINUE",
-      "owner": "storage",
-      "has_logging": false,
-      "justification": "print (weak; API-ERROR-01 owns stdout->logger migration)"
     },
     {
       "path": "foms/services/app_init.py",

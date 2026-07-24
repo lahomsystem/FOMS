@@ -398,9 +398,9 @@
       "mode": "guard",
       "rule": "/api/erp/shipment/packing/<int:order_id>"
     },
-    "events.api_revert_change_event": {
+    "events.api_compensate_change_event": {
       "mode": "guard",
-      "rule": "/api/orders/<int:order_id>/change-events/<int:event_id>/revert"
+      "rule": "/api/orders/<int:order_id>/change-events/<int:event_id>/compensate"
     },
     "excel.upload_excel": {
       "mode": "guard",

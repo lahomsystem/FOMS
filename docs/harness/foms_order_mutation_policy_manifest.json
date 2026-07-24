@@ -490,10 +490,10 @@
       "policy_id": "PACKING_WRITE",
       "rule": "/api/erp/shipment/packing/<int:order_id>"
     },
-    "events.api_revert_change_event": {
+    "events.api_compensate_change_event": {
       "mode": "guard",
       "policy_id": "STAFF_MUTATION",
-      "rule": "/api/orders/<int:order_id>/change-events/<int:event_id>/revert"
+      "rule": "/api/orders/<int:order_id>/change-events/<int:event_id>/compensate"
     },
     "excel.upload_excel": {
       "mode": "guard",

@@ -339,7 +339,7 @@ function confirmRevert() {
     return;
   }
   
-  fetch(`/api/orders/${currentRevertOrderId}/change-events/${currentRevertEventId}/revert`, {
+  fetch(`/api/orders/${currentRevertOrderId}/change-events/${currentRevertEventId}/compensate`, {
     method: 'POST',
     headers: {
       'Content-Type': 'application/json'
