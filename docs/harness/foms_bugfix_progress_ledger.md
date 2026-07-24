@@ -20,10 +20,16 @@
 ## 독립 즉시 봉쇄 (bootstrap과 병행 가능)
 - ✅ FE-SYNTAX — `81296da6` (P0-6 `#`→`//` + parser CI, node PARSE_OK·pytest 2). manifest 등록 완료(`8a1194fd`).
 - ✅ FE-XSS — `582af3bc` (P0-5 measurement 검색어 `|safe`→`tojson` 3파일 + test_measurement_search_xss 3 passed, Flask tojson hostile 중화 검증). 등록 완료.
-- 🔵 DESIGNER-RETIRE-01 — 서브에이전트 a9683fd9(designer/*+services/designer+blueprints.py+nav 삭제, persistence 유지판정). investigation 완료.
-- 🔵 MIG-WEB-RETIRE-01 — 서브에이전트 ad26ba82(/admin/migration+run_web_migration+템플릿 삭제).
-- ⬜ STORED-XSS-01, PUSH-01, SURFACE-GATE-01, OPS-ROUTE-01
-- **SCALE-SKETCHUP-01**: DESIGNER-RETIRE-01로 sketchup 삭제→대상 소멸. auto-N/A(no-op close) 예정, DESIGNER 착지 후 report/manifest 반영.
+- ✅ DESIGNER-RETIRE-01 — `75b00b65`. designer 3레이어+web/designer+templates+static+nav+blueprints 삭제(133파일), 죽은 테스트 43개+qa_deploy_test 제거. persistence/designer 유지(env.py·conftest ORM 매핑). test_designer_retired 13 passed, drawing/workbench 303·namespace 179 passed, APP_OK. tools/tests taxonomy allowlist 동반 수정(내 PACKET-HARNESS-00 회귀).
+- ✅ MIG-WEB-RETIRE-01 — `7fa43775`. /admin/migration+run_web_migration+템플릿 삭제. test 4 passed, admin 회귀 green, APP_OK.
+- ⬜ STORED-XSS-01, PUSH-01, SURFACE-GATE-01
+- **SCALE-SKETCHUP-01 = N/A(auto no-op close)**: DESIGNER-RETIRE-01로 sketchup parse 대상 소멸. §5상 optional·no-op close 그룹이라 그래프 재구성 불필요, 미구현 종료.
+
+## Bootstrap 다음 wave (독립, off BASE-00)
+- ⬜ OPS-ROUTE-01(debug.py+blueprints+ops surface), API-ERROR-01, PROXY-01(app_factory 경합→API-ERROR와 순차), PGTEST-00(test infra)
+
+## 알려진 loose end (retention spec 담당, 지금 미수정 — 도달불가 죽은코드)
+- foms/persistence/designer/repositories.py:339 함수지역 삭제모듈 import(도달불가), tools/designer/{generate_expected_json,run_calibration}.py dangling(오프라인).
 
 ## 완료 packet 로그
 - FE-SYNTAX `81296da6`: erp-attachment-preview-open.js:205 Python주석 제거, tests/domains/test_static_js_syntax.py(node --check 전 static/js). 등록 pending.
