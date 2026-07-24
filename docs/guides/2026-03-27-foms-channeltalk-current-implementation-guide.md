@@ -247,6 +247,15 @@
 4. 필요하면 manager mapping으로 읽기 권한을 확인한다.
 5. 텍스트 응답을 반환한다.
 
+> **Function 서명·enable 계약 (CHANNEL-FUNCTION-CONTRACT-01)**
+> Function 은 Webhook 과 **다른 전용 서명 체계**를 쓴다: `CHANNEL_FUNCTION_SIGNING_KEY` 를
+> hex-decode(≥32B)한 key 로 원본 body 를 `HMAC-SHA256` → Base64 → constant-time 비교
+> (상세: `docs/plans/channeltalk_policy/signature-validation-spec.md` §1-A).
+> `CHANNEL_FUNCTION_ENABLED=true` 일 때만 동작하고(미설정/false=모든 method 404,
+> provider-first), enable 상태에서 key/`CHANNEL_FUNCTION_CHANNEL_ID` 가 없으면 앱 기동이
+> 실패한다(fail-start). 공식 method 는 `PUT` 이며 `POST`/`GET` 은 405, read-only 라
+> 어떤 경로도 주문을 바꾸지 않는다(PII/mutation 0).
+
 ### 5.5 Webhook inbound 흐름
 
 1. ChannelTalk webhook이 들어온다.

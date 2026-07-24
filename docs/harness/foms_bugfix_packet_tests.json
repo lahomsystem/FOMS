@@ -1071,9 +1071,18 @@
       "write_guard": false,
       "postgres": false
     },
-    "commands": [],
-    "existing_regressions": [],
-    "created_tests": [],
+    "commands": [
+      "python -m pytest tests/domains/test_channel_function_contract.py -q"
+    ],
+    "existing_regressions": [
+      "tests/contracts/runtime/foms_namespace_surface_tests.py"
+    ],
+    "created_tests": [
+      {
+        "path": "tests/domains/test_channel_function_contract.py",
+        "owner_packet": "CHANNEL-FUNCTION-CONTRACT-01"
+      }
+    ],
     "browser_scenarios": [],
     "deploy_check_ids": [],
     "deployment_evidence_mode": "PROVIDER_BOOTSTRAP"

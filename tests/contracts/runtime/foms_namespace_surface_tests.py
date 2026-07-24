@@ -1022,11 +1022,18 @@ def test_channel_wam_api_uses_canonical_security_imports() -> None:
     assert channel_wam_api.verify_wam_short_link_token is namespaced_channel_security.verify_wam_short_link_token
 
 
-def test_channel_functions_api_uses_canonical_security_import() -> None:
-    """Function endpoint should bind signature verification from the canonical namespace."""
+def test_channel_functions_api_owns_dedicated_signature_contract() -> None:
+    """CHANNEL-FUNCTION-CONTRACT-01: Function endpoint owns a DEDICATED signature scheme.
+
+    Function 서명(hex-decode key ≥32B → raw body HMAC-SHA256 → Base64 → constant-time)은
+    Webhook 서명 helper(``require_channel_signature``, raw UTF-8 key + hex digest)를 재사용하지
+    않는다. Function 은 전용 ``verify_function_signature`` 를 소유하고, Webhook helper 를 이
+    모듈에 바인딩하지 않아야 한다.
+    """
     import foms.api.channel.channel_functions as channel_functions
 
-    assert channel_functions.require_channel_signature is namespaced_channel_security.require_channel_signature
+    assert hasattr(channel_functions, "verify_function_signature")
+    assert not hasattr(channel_functions, "require_channel_signature")
 
 
 def test_channel_functions_api_uses_canonical_quick_actions_import() -> None:

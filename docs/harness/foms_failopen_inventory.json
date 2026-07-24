@@ -10,20 +10,20 @@
   },
   "disposition_counts": {
     "FAIL_CLOSED": 20,
-    "INTENTIONAL": 17,
-    "LOG_AND_CONTINUE": 448
+    "INTENTIONAL": 16,
+    "LOG_AND_CONTINUE": 449
   },
   "owner_counts": {
     "api": 226,
     "auth": 10,
     "cache": 25,
-    "channel": 34,
+    "channel": 35,
     "persistence": 3,
     "platform": 5,
     "runtime": 6,
     "services": 97,
     "storage": 16,
-    "telemetry": 31,
+    "telemetry": 30,
     "web": 32
   },
   "fail_closed_sites": [
@@ -65,6 +65,15 @@
       "handler_type": "broad_exception",
       "disposition": "LOG_AND_CONTINUE",
       "owner": "api",
+      "has_logging": true,
+      "justification": "logs via logger/log_handled_exception"
+    },
+    {
+      "path": "foms/api/channel/channel_functions.py",
+      "lineno": 172,
+      "handler_type": "broad_exception",
+      "disposition": "LOG_AND_CONTINUE",
+      "owner": "channel",
       "has_logging": true,
       "justification": "logs via logger/log_handled_exception"
     },
@@ -1572,15 +1581,6 @@
       "justification": "logs via logger/log_handled_exception"
     },
     {
-      "path": "foms/api/foms_rum.py",
-      "lineno": 46,
-      "handler_type": "broad_exception",
-      "disposition": "INTENTIONAL",
-      "owner": "telemetry",
-      "has_logging": false,
-      "justification": "RUM 집계 fail-open (Redis 부재/오류/비화이트리스트 metric)"
-    },
-    {
       "path": "foms/api/measurement/routes.py",
       "lineno": 131,
       "handler_type": "broad_exception",
@@ -1600,7 +1600,7 @@
     },
     {
       "path": "foms/api/measurement/routes.py",
-      "lineno": 317,
+      "lineno": 322,
       "handler_type": "broad_exception",
       "disposition": "LOG_AND_CONTINUE",
       "owner": "api",
@@ -2032,7 +2032,7 @@
     },
     {
       "path": "foms/api/production/orders.py",
-      "lineno": 234,
+      "lineno": 466,
       "handler_type": "broad_exception",
       "disposition": "LOG_AND_CONTINUE",
       "owner": "api",
@@ -2041,7 +2041,7 @@
     },
     {
       "path": "foms/api/production/orders.py",
-      "lineno": 342,
+      "lineno": 530,
       "handler_type": "broad_exception",
       "disposition": "LOG_AND_CONTINUE",
       "owner": "api",
@@ -2050,7 +2050,7 @@
     },
     {
       "path": "foms/api/production/orders.py",
-      "lineno": 462,
+      "lineno": 650,
       "handler_type": "broad_exception",
       "disposition": "LOG_AND_CONTINUE",
       "owner": "api",
@@ -2059,7 +2059,7 @@
     },
     {
       "path": "foms/api/production/orders.py",
-      "lineno": 506,
+      "lineno": 694,
       "handler_type": "broad_exception",
       "disposition": "LOG_AND_CONTINUE",
       "owner": "api",
@@ -2068,7 +2068,7 @@
     },
     {
       "path": "foms/api/production/orders.py",
-      "lineno": 602,
+      "lineno": 790,
       "handler_type": "broad_exception",
       "disposition": "LOG_AND_CONTINUE",
       "owner": "api",
@@ -2077,7 +2077,7 @@
     },
     {
       "path": "foms/api/production/orders.py",
-      "lineno": 667,
+      "lineno": 855,
       "handler_type": "broad_exception",
       "disposition": "LOG_AND_CONTINUE",
       "owner": "api",
@@ -2086,7 +2086,7 @@
     },
     {
       "path": "foms/api/production/orders.py",
-      "lineno": 734,
+      "lineno": 922,
       "handler_type": "broad_exception",
       "disposition": "LOG_AND_CONTINUE",
       "owner": "api",
@@ -2698,7 +2698,7 @@
     },
     {
       "path": "foms/platform/realtime.py",
-      "lineno": 183,
+      "lineno": 196,
       "handler_type": "broad_exception",
       "disposition": "LOG_AND_CONTINUE",
       "owner": "platform",
