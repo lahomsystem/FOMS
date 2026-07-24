@@ -112,6 +112,13 @@
 - ✅ ERR-UX-01 — `083db0b7`. foms-write.js 공용 parser(fomsMutationFetch·timeout AbortController 15s[무기한 무음실패 근본결함]·malformed/403/409/428·offline queue 잠복버그)·production-steps/tablet-kanban/foms-complete-gate 전환·visible/rollback/re-enable·reload 0·API/정책/상태 무변경·?v 20260725a. **failopen inventory 488→486. ⚠️커플링: ERP-ESTIMATE+UPLOAD+PACK(Python catch 시프트)와 함께**.
 - head=task_backfill_00(무마이그레이션 배치). **67 packet 커밋 완료.**
 
+## ✅ 배치 8 완료 (4 packet·disjoint·회귀 3040 passed 0 failed)
+- ✅ INDEX-OPS-01 — `96cab49b`. exact duplicate 인덱스 제거 마이그레이션(index_ops_00·down=task_backfill_00·단일 head·CONCURRENTLY+advisory·기능 인덱스/trigram 존중·EXPLAIN 회귀 0). ※prod EXPLAIN 확인 필요 표기. PG green. **→ head=index_ops_00.**
+- ✅ STATE-LEGACY-01 — `1f20a975`. status.py→canonical SET_MAIN_STAGE command(single+bulk)·field_update.py field=status canonical projection 스플라이스→direct order.status/stage 저장 제거·direct stage assignment 0. admin emergency override만 reason+OrderEvent. 새 generic stage endpoint 0. **shared manifest 무편집**(기존 분류 재사용). test_order_status_stage_sync canonical 갱신. 무마이그레이션.
+- ✅ FILE-LEGACY-AUDIT-00 — `2d6e1cc8`. legacy attachment/key read-only 감사(OrderAttachment→order/purpose/key exact CSV+ambiguous quarantine CSV·UPLOAD canonical key 대조). **mutation 0**(감사 후 row/count/key 불변·R2 무접근). 추정 backfill/delete 금지(FILE-LEGACY-BACKFILL-01 하류).
+- ✅ WDC-AUTH-01 — `45121c86`. WDC blueprint 권한이 AUTH-01 SSOT에 이미 정확 분류됨을 확인·test 20으로 잠금(calculate WDC_CALCULATE viewer=True·estimate WDC_ESTIMATE CS/SALES·master MASTER_MUTATION ADMIN/MANAGER·VIEWER read). blueprint/manifest 무변경. **failopen inventory 486(STATE-LEGACY 라인시프트). ⚠️커플링: STATE-LEGACY-01과 함께**.
+- head=index_ops_00. **71 packet 커밋 완료.**
+
 ## 🎯 다음 후보 (신규 unblock)
 - **STATE 패밀리**(STATE-CORE unblock): STATE-PROD-01·STATE-PROD-ACTIONS-01·STATE-DRAWING-01·STATE-AS-01·STATE-QUEST-01(+AUTH-QUEST-READ) — endpoint를 order_transition_service로 이관. 단 BACKFILL 선행(PRODUCTION-BACKFILL-00·QUEST-BACKFILL-00·AS-BACKFILL-00·DRAWING-REVISION-BACKFILL-00·CONSTRUCTION-BACKFILL-00) 확인.
 - **DELETE 패밀리**(DELETE-CORE unblock): DELETE-BULK-01·DELETE-TRASH-01·DELETE-RETENTION-01.
