@@ -51,8 +51,9 @@
 - ✅ SIDEFX-WORKER-01 — `53de4642`. outbox worker(SKIP LOCKED claim·lease·retry/DEAD·expiry·retention·heartbeat·readiness·handler registry). 무migration. PG worker 11·failopen inventory 재생성(499→500). 실 handler=하류.
 - ✅ SESSION-SIGNING-SECRET-01 — `308db4d3`. signing_keys provider+RotatingSessionInterface(BRIDGE 기존세션 호환·강제로그아웃0), P0-22 deployed fail-fast(known-fallback 제거), P1-33 WAM nonce PG single-use, activate CLI 8종. PG+runtime 23·전체 2536(domains+contracts). 무migration.
 - ✅ PTC allowlist fix — REV-CLEANUP·SIDEFX-WORKER 루트 toml이 test_ptc_committed_root_allowlist_exact red로 만든 것 수정. **교훈: 회귀=domains+contracts 둘 다.**
-- 🔵 AUTH-01 — 단독 cross-cutting(무migration·write_guard). deps 전부✅. **권한 코어**(VIEWER 403·production team-wide·drawing/construction ID assignment·/api redirect 0·unclassified fail). P0-3/9·P1-3B/13/18 enforce.
-- head=signing_state_00. AUTH-01 후: AUTH-QUEST-READ-01·CHANNEL-AUTH-01·AUTH-FINANCE-01·STATE-CORE-00(REV+SIDEFX+AUTH+STATE-MODEL).
+- ✅ AUTH-01 — `85ca1be7`. 권한 코어: order_mutation_policy SSOT + 150-route policy manifest(146 guard+4 exempt·unclassified 0) + app_factory before_request 가드(VIEWER 403·/api 403 JSON·ASSIGNMENT ID row·MEASURE→SALES) + production team-wide(P0-9). test 23·**전체 2559 정상사용자 무회귀**. 무migration.
+- 🔵 STATE-MODEL-00(backfill·STATE-CORE-00 선행) ∥ AUTH-FINANCE-01(P0-3 finance·무migration) ∥ CHANNEL-AUTH-01(P1-8·무migration) — disjoint.
+- head=signing_state_00. STATE-CORE-00=REV✅+SIDEFX✅+SIDEFX-WORKER✅+AUTH-01✅+STATE-MODEL-00.
 - ✅ SECRET-02 — `180adb40`. secret_literal_scan(AST literal 게이트, attribute/env-backed 제외로 SIGNING 경계)·check_deploy_secrets(배포 presence fail-fast)·allowlist. hygiene 22·APP_OK·회귀 0. → **SESSION-SIGNING-STATE-00 unblock**(deps SECRET-02✅+PGTEST✅+OPS-APPROVAL✅+CUTOVER✅).
 - **SECRET-02 재스코프 확정**: 잔존 credential secret 0(SECRET-01 Kakao·SIGNING은 SESSION-SIGNING-SECRET-01, KAKAO_JS는 공개 클라키 유지). SECRET-02=literal 스캔 test + 배포 credential presence fail-fast(삭제된 qa_deploy_test 대체).
 - head=assignment_00.
