@@ -1179,3 +1179,111 @@ event.listen(
     'before_drop',
     DDL(OPS_PRINCIPAL_VERSION_TRIGGER_DROP_SQL).execute_if(dialect='postgresql'),
 )
+
+
+# --------------------------------------------------------------------------- #
+# CUTOVER-MODE-01: feature cutover fences / markers (§8.2 line 1518)
+# --------------------------------------------------------------------------- #
+# 15 family SSOT 는 foms/services/cutover/families.py 다. 여기서 import 하면 순환이
+# 생기지 않는다(그 모듈은 models 를 참조하지 않음).
+from foms.services.security.cutover.families import (  # noqa: E402
+    FEATURE_CUTOVER_FAMILIES,
+)
+
+
+class FeatureCutoverFence(Base):
+    """family별 무중단 cutover fence (§8.2 line 1518).
+
+    15 family 모두 ``mode=OPEN`` 으로 additive pre-seed 된다. 각 affected business
+    mutation 은 tx 시작 직후 이 행을 ``FOR KEY SHARE`` 로 잠가(동시 business 간 공유,
+    mark 의 ``FOR UPDATE`` 와 충돌) drain 계약을 만든다. mark/begin/abort CLI 만 mode 를
+    전이한다: COMPATIBLE 은 ``OPEN→CUTOVER``, DRAIN 은 ``OPEN→DRAINING→CUTOVER``.
+    실제 fence 적용(business mutation 게이트)은 각 family packet 몫이다.
+    """
+
+    __tablename__ = 'feature_cutover_fences'
+
+    family = Column(String(40), primary_key=True)
+    mode = Column(String(20), nullable=False, server_default='OPEN')
+    generation = Column(Integer, nullable=False, server_default=text('0'))
+    row_version = Column(Integer, nullable=False, server_default=text('1'))
+    updated_at = Column(DateTime, nullable=False, server_default=func.now())
+
+    __table_args__ = (
+        CheckConstraint(
+            "mode IN ('OPEN','DRAINING','CUTOVER')",
+            name='ck_feature_cutover_fence_mode',
+        ),
+    )
+
+
+class FeatureCutoverMarker(Base):
+    """family별 irreversible cutover marker (§8.2 line 1518).
+
+    mark CLI 가 **최초 1회만** insert 한다. update/delete/downgrade 는 PostgreSQL
+    trigger 가 DB 레벨에서 거부한다(사후 취소·되돌리기 불가). ``approved_by_admin_user_id``
+    는 CLI 입력이 아니라 소비된 approval row 에서 복사한다. runtime consumer 는 이 marker
+    를 live request 에서 읽어 post-cutover legacy writer 를 막는다(marker DB 장애는
+    fail-open 금지 — 시작 전 503).
+    """
+
+    __tablename__ = 'feature_cutover_markers'
+
+    family = Column(String(40), primary_key=True)
+    cutover_at = Column(DateTime, nullable=False, server_default=func.now())
+    cutover_sha = Column(String(64), nullable=False)
+    cutover_generation = Column(Integer, nullable=False)
+    minimum_compatibility_generation = Column(Integer, nullable=False)
+    readiness_artifact_sha256 = Column(String(64), nullable=False)
+    ops_approval_id = Column(UUIDColumn, nullable=False)
+    approved_by_admin_user_id = Column(Integer, ForeignKey('users.id'), nullable=False)
+    row_version = Column(Integer, nullable=False, server_default=text('1'))
+    created_at = Column(DateTime, nullable=False, server_default=func.now())
+
+
+# fence 15 family additive pre-seed — family 만 INSERT 하고 나머지는 server_default 로
+# 채운다(sqlite/PostgreSQL 양쪽 유효). create_all(테스트/부트스트랩) 경로용이며 Alembic
+# 은 migration 에서 동일 seed 를 별도 수행한다(principal trigger 와 같은 이중 SSOT 패턴).
+_FENCE_SEED_VALUES = ",".join(f"('{f}')" for f in FEATURE_CUTOVER_FAMILIES)
+FEATURE_CUTOVER_FENCE_SEED_SQL = (
+    f"INSERT INTO feature_cutover_fences (family) VALUES {_FENCE_SEED_VALUES}"
+)
+
+# marker irreversibility — BEFORE UPDATE OR DELETE 를 RAISE 로 차단(PostgreSQL 전용).
+# INSERT 는 허용(최초 mark). SQLite 테스트 lane 은 execute_if 로 skip 되며, 그 lane 은
+# marker 갱신을 시도하지 않으므로 회귀가 없다(irreversibility 는 PG 계약 테스트가 검증).
+FEATURE_CUTOVER_MARKER_IMMUTABLE_SQL = """
+CREATE OR REPLACE FUNCTION foms_feature_cutover_marker_immutable() RETURNS trigger AS $$
+BEGIN
+    RAISE EXCEPTION 'feature_cutover_markers is irreversible (UPDATE/DELETE not permitted)'
+        USING ERRCODE = 'restrict_violation';
+    RETURN NULL;
+END;
+$$ LANGUAGE plpgsql;
+
+DROP TRIGGER IF EXISTS trg_feature_cutover_marker_immutable ON feature_cutover_markers;
+CREATE TRIGGER trg_feature_cutover_marker_immutable
+    BEFORE UPDATE OR DELETE ON feature_cutover_markers
+    FOR EACH ROW EXECUTE FUNCTION foms_feature_cutover_marker_immutable();
+"""
+
+FEATURE_CUTOVER_MARKER_IMMUTABLE_DROP_SQL = """
+DROP TRIGGER IF EXISTS trg_feature_cutover_marker_immutable ON feature_cutover_markers;
+DROP FUNCTION IF EXISTS foms_feature_cutover_marker_immutable();
+"""
+
+event.listen(
+    FeatureCutoverFence.__table__,
+    'after_create',
+    DDL(FEATURE_CUTOVER_FENCE_SEED_SQL),
+)
+event.listen(
+    FeatureCutoverMarker.__table__,
+    'after_create',
+    DDL(FEATURE_CUTOVER_MARKER_IMMUTABLE_SQL).execute_if(dialect='postgresql'),
+)
+event.listen(
+    FeatureCutoverMarker.__table__,
+    'before_drop',
+    DDL(FEATURE_CUTOVER_MARKER_IMMUTABLE_DROP_SQL).execute_if(dialect='postgresql'),
+)

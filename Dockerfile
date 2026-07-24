@@ -26,6 +26,11 @@ RUN set -eux; \
     done; \
     exit 1
 
+# CUTOVER-MODE-01: in-image compatibility 정본을 explicit COPY (docs/ excluded 파일에
+# 의존하지 않도록 tracked foms/build_compatibility.json 을 명시적으로 이미지에 넣는다).
+# 아래 COPY . . 도 포함하지만, .dockerignore 회귀에도 이 파일은 항상 존재하게 보장한다.
+COPY foms/build_compatibility.json /app/foms/build_compatibility.json
+
 # 앱 코드 복사
 COPY . .
 

@@ -164,33 +164,33 @@
     },
     "CUTOVER_DRAIN_ABORT": {
       "owner_packet": "CUTOVER-MODE-01",
-      "cli": null,
-      "scope_schema": null,
-      "artifact_source": null,
-      "expected_version_source": null,
-      "expected_generation_source": null,
+      "cli": "tools/ops/abort_feature_cutover_drain.py",
+      "scope_schema": "{schema_version,operation_id,packet_id=CUTOVER-MODE-01,target_ids_or_family=<family>,phase=drain_abort,artifact_sha256=<unresolved-effect0 readiness sha256>,expected_version=<fence row_version>,expected_generation=<compatibility generation>}",
+      "artifact_source": "unresolved-effect0 readiness artifact sha256 (marker0 must hold)",
+      "expected_version_source": "feature_cutover_fences.row_version for the family",
+      "expected_generation_source": "foms/build_compatibility.json generation",
       "db_mode": "SAME",
-      "consume_strategy": null
+      "consume_strategy": "consume_same_db; target_mutation restores DRAINING->OPEN (FOR UPDATE, marker0) in the approval tx"
     },
     "CUTOVER_DRAIN_BEGIN": {
       "owner_packet": "CUTOVER-MODE-01",
-      "cli": null,
-      "scope_schema": null,
-      "artifact_source": null,
-      "expected_version_source": null,
-      "expected_generation_source": null,
+      "cli": "tools/ops/begin_feature_cutover_drain.py",
+      "scope_schema": "{schema_version,operation_id,packet_id=CUTOVER-MODE-01,target_ids_or_family=<family>,phase=drain_begin,artifact_sha256=<all-serving readiness sha256>,expected_version=<fence row_version>,expected_generation=<compatibility generation>}",
+      "artifact_source": "all-serving readiness artifact (per-family check_*_rollout output) sha256",
+      "expected_version_source": "feature_cutover_fences.row_version for the family",
+      "expected_generation_source": "foms/build_compatibility.json generation",
       "db_mode": "SAME",
-      "consume_strategy": null
+      "consume_strategy": "consume_same_db; target_mutation begins drain OPEN->DRAINING (FOR UPDATE) in the approval tx"
     },
     "CUTOVER_MARK": {
       "owner_packet": "CUTOVER-MODE-01",
-      "cli": null,
-      "scope_schema": null,
-      "artifact_source": null,
-      "expected_version_source": null,
-      "expected_generation_source": null,
+      "cli": "tools/ops/mark_feature_cutover.py",
+      "scope_schema": "{schema_version,operation_id,packet_id=CUTOVER-MODE-01,target_ids_or_family=<family>,phase=mark,artifact_sha256=<readiness sha256>,expected_version=<fence row_version>,expected_generation=<in-image compatibility generation>}",
+      "artifact_source": "readiness artifact sha256 (recorded on the irreversible marker)",
+      "expected_version_source": "feature_cutover_fences.row_version for the family",
+      "expected_generation_source": "foms/build_compatibility.json generation (all-serving state-aware)",
       "db_mode": "SAME",
-      "consume_strategy": null
+      "consume_strategy": "consume_same_db; target_mutation drains (FOR UPDATE) then inserts irreversible marker + fence->CUTOVER; approved_by_admin_user_id copied from the consumed approval row"
     },
     "DELETE_RETENTION_APPLY": {
       "owner_packet": "DELETE-RETENTION-01",

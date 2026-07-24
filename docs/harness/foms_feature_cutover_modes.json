@@ -1,0 +1,363 @@
+{
+  "description": "CUTOVER-MODE-01 feature cutover mode manifest (§8.2 line 1544). 15 family 의 env_var·allowed pre/post modes·minimum_compatibility_generation·pre_cutover_effect_policy·stability_seconds·effect_source·provider_reconciliation_check_id·runtime_readiness_class·incompatible_modes 를 exact literal 로 선언한다. foms/services/cutover/families.py(FAMILY_SPECS)와 양방향 비교하며 개수/enum/필드 불일치는 test 가 red 로 거부한다. prerequisite_packet_ids·affected_control_ids 는 각 family cutover packet 이 자기 inventory 로 채우며 메커니즘 seed 는 빈 목록이다.",
+  "families": {
+    "ASSIGNMENT": {
+      "affected_control_ids": [],
+      "allowed_post_cutover_modes": [
+        "ENFORCED",
+        "DISABLED"
+      ],
+      "allowed_pre_cutover_modes": [
+        "LEGACY",
+        "ENFORCED",
+        "DISABLED"
+      ],
+      "effect_source": "DOMAIN_SIDEFX_V1",
+      "env_var": "FOMS_ASSIGNMENT_MODE",
+      "family": "ASSIGNMENT",
+      "incompatible_modes": [
+        "LEGACY"
+      ],
+      "minimum_compatibility_generation": 1,
+      "pre_cutover_effect_policy": "COMPATIBLE",
+      "prerequisite_packet_ids": [],
+      "provider_reconciliation_check_id": "CUTOVER_SIDEFX_COMPAT",
+      "runtime_readiness_class": "DEGRADED_OK",
+      "stability_seconds": 30
+    },
+    "AS_CYCLE": {
+      "affected_control_ids": [],
+      "allowed_post_cutover_modes": [
+        "ENFORCED",
+        "DISABLED"
+      ],
+      "allowed_pre_cutover_modes": [
+        "LEGACY",
+        "ENFORCED",
+        "DISABLED"
+      ],
+      "effect_source": "DOMAIN_SIDEFX_V1",
+      "env_var": "FOMS_AS_CYCLE_MODE",
+      "family": "AS_CYCLE",
+      "incompatible_modes": [
+        "LEGACY"
+      ],
+      "minimum_compatibility_generation": 1,
+      "pre_cutover_effect_policy": "COMPATIBLE",
+      "prerequisite_packet_ids": [],
+      "provider_reconciliation_check_id": "CUTOVER_SIDEFX_COMPAT",
+      "runtime_readiness_class": "DEGRADED_OK",
+      "stability_seconds": 30
+    },
+    "CHAT_SCOPE": {
+      "affected_control_ids": [],
+      "allowed_post_cutover_modes": [
+        "ENFORCED",
+        "DISABLED"
+      ],
+      "allowed_pre_cutover_modes": [
+        "LEGACY",
+        "ENFORCED",
+        "DISABLED"
+      ],
+      "effect_source": "NONE",
+      "env_var": "FOMS_CHAT_SCOPE_MODE",
+      "family": "CHAT_SCOPE",
+      "incompatible_modes": [
+        "LEGACY"
+      ],
+      "minimum_compatibility_generation": 1,
+      "pre_cutover_effect_policy": "COMPATIBLE",
+      "prerequisite_packet_ids": [],
+      "provider_reconciliation_check_id": "CUTOVER_NONE_QUIET",
+      "runtime_readiness_class": "NONE",
+      "stability_seconds": 30
+    },
+    "CONSTRUCTION": {
+      "affected_control_ids": [],
+      "allowed_post_cutover_modes": [
+        "ENFORCED",
+        "DISABLED"
+      ],
+      "allowed_pre_cutover_modes": [
+        "LEGACY",
+        "ENFORCED",
+        "DISABLED"
+      ],
+      "effect_source": "DOMAIN_SIDEFX_V1",
+      "env_var": "FOMS_CONSTRUCTION_MODE",
+      "family": "CONSTRUCTION",
+      "incompatible_modes": [
+        "LEGACY"
+      ],
+      "minimum_compatibility_generation": 1,
+      "pre_cutover_effect_policy": "COMPATIBLE",
+      "prerequisite_packet_ids": [],
+      "provider_reconciliation_check_id": "CUTOVER_SIDEFX_COMPAT",
+      "runtime_readiness_class": "DEGRADED_OK",
+      "stability_seconds": 30
+    },
+    "DRAWING_REVISION": {
+      "affected_control_ids": [],
+      "allowed_post_cutover_modes": [
+        "ENFORCED",
+        "DISABLED"
+      ],
+      "allowed_pre_cutover_modes": [
+        "LEGACY",
+        "ENFORCED",
+        "DISABLED"
+      ],
+      "effect_source": "DOMAIN_SIDEFX_V1",
+      "env_var": "FOMS_DRAWING_REVISION_MODE",
+      "family": "DRAWING_REVISION",
+      "incompatible_modes": [
+        "LEGACY"
+      ],
+      "minimum_compatibility_generation": 1,
+      "pre_cutover_effect_policy": "COMPATIBLE",
+      "prerequisite_packet_ids": [],
+      "provider_reconciliation_check_id": "CUTOVER_SIDEFX_COMPAT",
+      "runtime_readiness_class": "DEGRADED_OK",
+      "stability_seconds": 30
+    },
+    "NOTIFICATION_DELIVERY": {
+      "affected_control_ids": [],
+      "allowed_post_cutover_modes": [
+        "ENFORCED",
+        "DISABLED"
+      ],
+      "allowed_pre_cutover_modes": [
+        "LEGACY",
+        "ENFORCED",
+        "DISABLED"
+      ],
+      "effect_source": "NOTIFICATION_PROVIDER_V1",
+      "env_var": "FOMS_NOTIFICATION_DELIVERY_MODE",
+      "family": "NOTIFICATION_DELIVERY",
+      "incompatible_modes": [
+        "LEGACY"
+      ],
+      "minimum_compatibility_generation": 1,
+      "pre_cutover_effect_policy": "DRAIN",
+      "prerequisite_packet_ids": [],
+      "provider_reconciliation_check_id": "CUTOVER_NOTIFICATION_DRAIN",
+      "runtime_readiness_class": "REQUIRE_DELIVERY",
+      "stability_seconds": 120
+    },
+    "OFFLINE_SW": {
+      "affected_control_ids": [],
+      "allowed_post_cutover_modes": [
+        "READ_ONLY",
+        "DISABLED"
+      ],
+      "allowed_pre_cutover_modes": [
+        "READ_ONLY",
+        "DISABLED"
+      ],
+      "effect_source": "NONE",
+      "env_var": "FOMS_OFFLINE_SW_MODE",
+      "family": "OFFLINE_SW",
+      "incompatible_modes": [],
+      "minimum_compatibility_generation": 1,
+      "pre_cutover_effect_policy": "COMPATIBLE",
+      "prerequisite_packet_ids": [],
+      "provider_reconciliation_check_id": "CUTOVER_NONE_QUIET",
+      "runtime_readiness_class": "NONE",
+      "stability_seconds": 30
+    },
+    "ORDER_MUTATION": {
+      "affected_control_ids": [],
+      "allowed_post_cutover_modes": [
+        "ENFORCED",
+        "DISABLED"
+      ],
+      "allowed_pre_cutover_modes": [
+        "LEGACY",
+        "ENFORCED",
+        "DISABLED"
+      ],
+      "effect_source": "DOMAIN_SIDEFX_V1",
+      "env_var": "FOMS_ORDER_MUTATION_MODE",
+      "family": "ORDER_MUTATION",
+      "incompatible_modes": [
+        "LEGACY"
+      ],
+      "minimum_compatibility_generation": 1,
+      "pre_cutover_effect_policy": "COMPATIBLE",
+      "prerequisite_packet_ids": [],
+      "provider_reconciliation_check_id": "CUTOVER_SIDEFX_COMPAT",
+      "runtime_readiness_class": "DEGRADED_OK",
+      "stability_seconds": 30
+    },
+    "PASSWORD_POLICY": {
+      "affected_control_ids": [],
+      "allowed_post_cutover_modes": [
+        "ENFORCED",
+        "DISABLED"
+      ],
+      "allowed_pre_cutover_modes": [
+        "WARN",
+        "ENFORCED",
+        "DISABLED"
+      ],
+      "effect_source": "NONE",
+      "env_var": "FOMS_PASSWORD_POLICY_MODE",
+      "family": "PASSWORD_POLICY",
+      "incompatible_modes": [
+        "WARN"
+      ],
+      "minimum_compatibility_generation": 1,
+      "pre_cutover_effect_policy": "COMPATIBLE",
+      "prerequisite_packet_ids": [],
+      "provider_reconciliation_check_id": "CUTOVER_NONE_QUIET",
+      "runtime_readiness_class": "NONE",
+      "stability_seconds": 30
+    },
+    "PRODUCTION_RUN": {
+      "affected_control_ids": [],
+      "allowed_post_cutover_modes": [
+        "ENFORCED",
+        "DISABLED"
+      ],
+      "allowed_pre_cutover_modes": [
+        "LEGACY",
+        "ENFORCED",
+        "DISABLED"
+      ],
+      "effect_source": "DOMAIN_SIDEFX_V1",
+      "env_var": "FOMS_PRODUCTION_RUN_MODE",
+      "family": "PRODUCTION_RUN",
+      "incompatible_modes": [
+        "LEGACY"
+      ],
+      "minimum_compatibility_generation": 1,
+      "pre_cutover_effect_policy": "COMPATIBLE",
+      "prerequisite_packet_ids": [],
+      "provider_reconciliation_check_id": "CUTOVER_SIDEFX_COMPAT",
+      "runtime_readiness_class": "DEGRADED_OK",
+      "stability_seconds": 30
+    },
+    "QUEST": {
+      "affected_control_ids": [],
+      "allowed_post_cutover_modes": [
+        "ENFORCED",
+        "DISABLED"
+      ],
+      "allowed_pre_cutover_modes": [
+        "LEGACY",
+        "ENFORCED",
+        "DISABLED"
+      ],
+      "effect_source": "DOMAIN_SIDEFX_V1",
+      "env_var": "FOMS_QUEST_MODE",
+      "family": "QUEST",
+      "incompatible_modes": [
+        "LEGACY"
+      ],
+      "minimum_compatibility_generation": 1,
+      "pre_cutover_effect_policy": "COMPATIBLE",
+      "prerequisite_packet_ids": [],
+      "provider_reconciliation_check_id": "CUTOVER_SIDEFX_COMPAT",
+      "runtime_readiness_class": "DEGRADED_OK",
+      "stability_seconds": 30
+    },
+    "STATE_COMMAND": {
+      "affected_control_ids": [],
+      "allowed_post_cutover_modes": [
+        "ENFORCED",
+        "DISABLED"
+      ],
+      "allowed_pre_cutover_modes": [
+        "LEGACY",
+        "ENFORCED",
+        "DISABLED"
+      ],
+      "effect_source": "DOMAIN_SIDEFX_V1",
+      "env_var": "FOMS_STATE_COMMAND_MODE",
+      "family": "STATE_COMMAND",
+      "incompatible_modes": [
+        "LEGACY"
+      ],
+      "minimum_compatibility_generation": 1,
+      "pre_cutover_effect_policy": "COMPATIBLE",
+      "prerequisite_packet_ids": [],
+      "provider_reconciliation_check_id": "CUTOVER_SIDEFX_COMPAT",
+      "runtime_readiness_class": "DEGRADED_OK",
+      "stability_seconds": 30
+    },
+    "TASK": {
+      "affected_control_ids": [],
+      "allowed_post_cutover_modes": [
+        "ENFORCED",
+        "DISABLED"
+      ],
+      "allowed_pre_cutover_modes": [
+        "LEGACY",
+        "ENFORCED",
+        "DISABLED"
+      ],
+      "effect_source": "DOMAIN_SIDEFX_V1",
+      "env_var": "FOMS_TASK_MODE",
+      "family": "TASK",
+      "incompatible_modes": [
+        "LEGACY"
+      ],
+      "minimum_compatibility_generation": 1,
+      "pre_cutover_effect_policy": "COMPATIBLE",
+      "prerequisite_packet_ids": [],
+      "provider_reconciliation_check_id": "CUTOVER_SIDEFX_COMPAT",
+      "runtime_readiness_class": "DEGRADED_OK",
+      "stability_seconds": 30
+    },
+    "UPLOAD": {
+      "affected_control_ids": [],
+      "allowed_post_cutover_modes": [
+        "TICKET",
+        "DISABLED"
+      ],
+      "allowed_pre_cutover_modes": [
+        "LEGACY",
+        "TICKET",
+        "DISABLED"
+      ],
+      "effect_source": "STORAGE_DELETE_V1",
+      "env_var": "FOMS_UPLOAD_MODE",
+      "family": "UPLOAD",
+      "incompatible_modes": [
+        "LEGACY"
+      ],
+      "minimum_compatibility_generation": 1,
+      "pre_cutover_effect_policy": "DRAIN",
+      "prerequisite_packet_ids": [],
+      "provider_reconciliation_check_id": "CUTOVER_STORAGE_DRAIN",
+      "runtime_readiness_class": "REQUIRE_EXPIRY_SCAN",
+      "stability_seconds": 120
+    },
+    "WDC_LINK": {
+      "affected_control_ids": [],
+      "allowed_post_cutover_modes": [
+        "CANONICAL",
+        "DISABLED"
+      ],
+      "allowed_pre_cutover_modes": [
+        "LEGACY",
+        "CANONICAL",
+        "DISABLED"
+      ],
+      "effect_source": "NONE",
+      "env_var": "FOMS_WDC_LINK_MODE",
+      "family": "WDC_LINK",
+      "incompatible_modes": [
+        "LEGACY"
+      ],
+      "minimum_compatibility_generation": 1,
+      "pre_cutover_effect_policy": "COMPATIBLE",
+      "prerequisite_packet_ids": [],
+      "provider_reconciliation_check_id": "CUTOVER_NONE_QUIET",
+      "runtime_readiness_class": "NONE",
+      "stability_seconds": 30
+    }
+  },
+  "schema_version": 1
+}
