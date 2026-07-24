@@ -89,7 +89,11 @@ class Order(Base):
     structured_schema_version = Column(Integer, nullable=False, default=1)
     structured_confidence = Column(String(20), nullable=True)  # high/medium/low
     structured_updated_at = Column(DateTime, nullable=True)
-    
+    # REV-00: optimistic-concurrency revision. 초 단위 structured_updated_at 이 구분하지
+    # 못하는 동시 저장을 mutation_version 단조 증가로 구분한다. 신규 draft 생성 = 1,
+    # 이후 각 Order row/scalar/JSONB/state mutation 이 +1 (helper foms.services.orders.revision).
+    mutation_version = Column(Integer, nullable=False, default=1, server_default=text('1'))
+
     # ERP Order 실측·시공 일정 정규화 컬럼 (D-day SQL 필터용)
     erp_measurement_date = Column(String(10), nullable=True, index=True)   # YYYY-MM-DD
     erp_construction_date = Column(String(10), nullable=True, index=True)  # YYYY-MM-DD
@@ -1042,6 +1046,78 @@ class OpsApprovalTargetAudit(Base):
             'approval_id', 'reservation_id', 'operation_scope_sha256',
             name='uq_ops_approval_target_audit',
         ),
+    )
+
+
+class OrderMutationReceipt(Base):
+    """Order mutation 의 idempotency + read-after-write receipt 정본 (REV-00, §2.4).
+
+    한 mutation 커밋마다 receipt 한 행이 두 역할을 겸한다:
+
+    * **idempotency**: ``(actor_user_id, policy_id, idempotency_key)`` unique. 같은
+      key replay 는 저장된 ``response_status``/``response_body`` 를 그대로 돌려주고
+      business write/event 는 재수행하지 않는다. ``expires_at`` (커밋+24시간) 이후 같은
+      key 는 ``409 IDEMPOTENCY_KEY_EXPIRED`` 다. key 는 UUID 문자열 최대 64자, 비-멱등
+      mutation 은 NULL (PostgreSQL 은 NULL 을 서로 distinct 로 취급하므로 dedupe 하지
+      않음).
+    * **read-after-write**: opaque 128-bit ``read_receipt_id`` UNIQUE 를 발급한다.
+      initiator client 가 다음 read 에 ``X-FOMS-Mutation-Receipt`` 로 되보내
+      ``read_expires_at`` (커밋+2분) 안에서 자기 write 를 확실히 본다.
+
+    REV-00 은 expiry 의 *의미* 와 ``(expires_at, id)`` purge 인덱스만 소유한다. 실제
+    retention purge CLI/schedule 은 REV-CLEANUP-01 이 소유한다(여기서 만들지 않음).
+    """
+
+    __tablename__ = 'order_mutation_receipts'
+
+    id = Column(Integer, primary_key=True)  # (expires_at, id) keyset purge 용 surrogate
+    read_receipt_id = Column(UUIDColumn, nullable=False, unique=True,
+                             default=lambda: str(uuid.uuid4()))
+    actor_user_id = Column(Integer, ForeignKey('users.id'), nullable=False)
+    policy_id = Column(String(80), nullable=False)
+    idempotency_key = Column(String(64), nullable=True)
+    scope_hash = Column(String(64), nullable=False)
+    request_hash = Column(String(64), nullable=False)
+    response_status = Column(Integer, nullable=False)
+    response_body = Column(JSONColumn, nullable=False)
+    resulting_versions = Column(JSONColumn, nullable=False)  # {order_id: mutation_version}
+    read_expires_at = Column(DateTime, nullable=False)       # 커밋 + 2분
+    expires_at = Column(DateTime, nullable=False)            # 커밋 + 24시간 (replay window)
+    created_at = Column(DateTime, nullable=False, server_default=func.now())
+
+    __table_args__ = (
+        UniqueConstraint(
+            'actor_user_id', 'policy_id', 'idempotency_key',
+            name='uq_order_mutation_receipt_idem',
+        ),
+        Index('ix_omr_actor_read_expires', 'actor_user_id', 'read_expires_at'),
+        Index('ix_omr_expires_id', 'expires_at', 'id'),  # REV-CLEANUP-01 purge keyset
+    )
+
+
+class OrderMutationReadResource(Base):
+    """Receipt 가 건드린 Order 를 정규화한 child (REV-00, §2.4 line 405).
+
+    단건/batch/copy/import 한 mutation 이 만드는 최대 1000개 resource 를 receipt 당
+    한 행씩 담는다. ``read_receipt_id`` 는 부모의 UNIQUE opaque UUID 를 참조하고 PK 는
+    ``(read_receipt_id, order_id)`` 다. ``changed_cache_families_json`` 은 호출자(하류
+    mutation packet)가 계산한 무효화 family 목록을 그대로 저장한다(REV-00 은 계산하지
+    않고 보관만 한다).
+    """
+
+    __tablename__ = 'order_mutation_read_resources'
+
+    read_receipt_id = Column(
+        UUIDColumn,
+        ForeignKey('order_mutation_receipts.read_receipt_id', ondelete='CASCADE'),
+        primary_key=True,
+    )
+    order_id = Column(Integer, ForeignKey('orders.id'), primary_key=True)
+    resulting_version = Column(Integer, nullable=False)
+    changed_cache_families_json = Column(JSONColumn, nullable=False)
+
+    __table_args__ = (
+        Index('ix_omrr_order_receipt', 'order_id', 'read_receipt_id'),
     )
 
 
