@@ -82,6 +82,15 @@
 - ✅ EVENT-REVERT-01 — `6d7dc362`. generic revert(JSON-path walk write) 제거→POST /revert 404, typed compensation registry(DRAWING_ASSIGNEE_SET 화이트리스트·append-only CHANGE_REVERTED). policy·write_guard manifest에서 revert→compensate **rename**(STAFF_MUTATION 승계·비-admin 생성자 통과 실증). failopen inventory 496→485(BACKUP 삭제 -11). **⚠️inventory 커플링: BACKUP-01+CHANNEL-WRITER-01+EVENT-REVERT-01 production 승격 시 함께**.
 - head=production_backfill_00. **49 packet 커밋 완료.**
 
+## ✅ 배치 4 완료 (6 packet·disjoint·회귀 2804 passed 0 failed)
+- ✅ AS-BACKFILL-00 — `c466d256`. AS cycle schema(마이그레이션 as_backfill_00·down=production_backfill_00·단일 head)+models.py OrderASCycle 단독+audit/backfill(lite·safe map·current 0/1·ambiguous CSV·coverage 100%·inferred rewrite 금지). PG green. **→ head=as_backfill_00.**
+- ✅ STATE-PROD-01 — `0c5ebe25`. production start/complete→order_transition_service(PRODUCTION_START/COMPLETE command·COMMAND_REGISTRY.setdefault import-time·엔진 파일 무편집). 5-step gate·quest gate·team-wide(PRODUCTION_EDIT 재사용·erp_edit_required 복구 안 함·policy 무편집)·same-key replay·357d8803 드리프트 same-tx 흡수. test 13+PG 4. order_transition_service·order_mutation_policy·models diff 0.
+- ✅ ROUTE-01 — `f2ea9a28`. P1-6: measurement_route가 NN 재배열→hero/next 불일치. route=예약순(SSOT)·NN은 optimized_route 분리. DB stage 무변경. test 5(red→green). ?v 20260724a.
+- ✅ SHELL-01 — `769c234c`. erp-shell.js A→B rapid nav race를 generation+AbortController(모든 commit isCurrent 게이트·A commit 0·B 보존). fetchFragment 시그니처 무변경. history 무접근. ?v 20260724a. test 7·G4 26.
+- ✅ RUM-INGEST-01 — `7c11fc59`. foms_rum 익명수집 엄격검증(2KiB·exact keys·metric/value/path/viewport bounds)·rate 120/min canonical(realtime.py·PROXY XFF 우회 불가)·Redis warning(raw 0·fail-open)·admin days 1..35. raw/PII 로그 0·silent except 0.
+- ✅ CHANNEL-FUNCTION-CONTRACT-01 — `33fe2cf8`. channel_functions Function 전용 서명(hex-key≥32B→raw body→HMAC-SHA256→Base64→constant-time·401/400)·disable gate 404 fail-start·method 405·signed context exact·generic deny·PII 0·key/channel missing fail-start. provider fixture+method schema+spec. Webhook 재사용 금지. **failopen inventory 485(STATE-PROD+RUM+CHANNEL 라인시프트). ⚠️inventory 커플링: STATE-PROD-01+RUM-INGEST-01+CHANNEL-FUNCTION-CONTRACT-01 승격 시 함께**.
+- head=as_backfill_00. **55 packet 커밋 완료.**
+
 ## 🎯 다음 후보 (신규 unblock)
 - **STATE 패밀리**(STATE-CORE unblock): STATE-PROD-01·STATE-PROD-ACTIONS-01·STATE-DRAWING-01·STATE-AS-01·STATE-QUEST-01(+AUTH-QUEST-READ) — endpoint를 order_transition_service로 이관. 단 BACKFILL 선행(PRODUCTION-BACKFILL-00·QUEST-BACKFILL-00·AS-BACKFILL-00·DRAWING-REVISION-BACKFILL-00·CONSTRUCTION-BACKFILL-00) 확인.
 - **DELETE 패밀리**(DELETE-CORE unblock): DELETE-BULK-01·DELETE-TRASH-01·DELETE-RETENTION-01.
