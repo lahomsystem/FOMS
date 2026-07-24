@@ -73,7 +73,7 @@ def api_order_tasks_create(order_id):
         try:
             db.rollback()
         except Exception:
-            pass
+            log_handled_exception("tasks rollback")
         log_handled_exception()
         return jsonify({'success': False, 'message': str(e)}), 500
 
@@ -111,7 +111,7 @@ def api_order_tasks_update(order_id, task_id):
         try:
             db.rollback()
         except Exception:
-            pass
+            log_handled_exception("tasks rollback")
         log_handled_exception()
         return jsonify({'success': False, 'message': str(e)}), 500
 
@@ -134,6 +134,6 @@ def api_order_tasks_delete(order_id, task_id):
         try:
             db.rollback()
         except Exception:
-            pass
+            log_handled_exception("tasks rollback")
         log_handled_exception()
         return jsonify({'success': False, 'message': str(e)}), 500

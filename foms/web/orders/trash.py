@@ -126,7 +126,7 @@ def reset_order_ids(db):
             try:
                 db.execute(text(f"ALTER SEQUENCE orders_id_seq RESTART WITH {max_id + 1}"))
             except Exception:
-                pass
+                pass  # failopen: intentional: 시퀀스 리셋 재시도 실패 무시 (best-effort)
         db.commit()
         db.execute(text("DROP TABLE IF EXISTS temp_order_mapping"))
     except Exception as exc:
@@ -134,7 +134,7 @@ def reset_order_ids(db):
         try:
             db.execute(text("DROP TABLE IF EXISTS temp_order_mapping"))
         except Exception:
-            pass
+            pass  # failopen: intentional: 임시테이블 정리 best-effort; 이후 원예외 재발생
         raise exc
 
 

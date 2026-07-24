@@ -436,7 +436,7 @@ def _erp_get_stage(order, structured_data):
                     return label
             return st
     except Exception:
-        pass
+        pass  # failopen: intentional: 표시 라벨 매칭 실패 시 원본 문자열 폴백
     return '주문접수'
 
 

@@ -82,7 +82,7 @@ def _audit_block(header_name: str, reason: str) -> None:
             request.remote_addr,
         )
     except Exception:  # noqa: BLE001 - 로깅 실패가 요청을 죽이면 안 됨
-        pass
+        pass  # failopen: intentional: 감사 로그 실패가 요청을 막지 않도록 fail-open (로그의 로그)
 
 
 def require_same_origin_write(header_name: str) -> Callable[[F], F]:

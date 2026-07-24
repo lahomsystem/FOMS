@@ -31,6 +31,7 @@ from foms.services.erp_policy import (
 )
 from foms.services.storage import get_storage
 from foms.api.files import build_file_view_url, build_file_download_url
+from foms.services.error_logging import log_handled_exception
 
 erp_orders_drawing_bp = Blueprint(
     'erp_orders_drawing',
@@ -459,7 +460,7 @@ def api_order_cancel_transfer(order_id):
                     if row.thumbnail_key:
                         storage.delete_file(row.thumbnail_key)
                 except Exception:
-                    pass
+                    log_handled_exception("drawing storage delete_file")
                 db.delete(row)
             for key in keys_to_delete:
                 if key in deleted_row_keys:
@@ -468,7 +469,7 @@ def api_order_cancel_transfer(order_id):
                     if storage.delete_file(key):
                         deleted_files_count += 1
                 except Exception:
-                    pass
+                    log_handled_exception("drawing storage delete_file")
 
         # ── 4. drawing_current_files 복원 ──────────────────────────────────────
         # transfer_info에 저장된 previous_current_files로 정확히 복원.

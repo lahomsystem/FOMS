@@ -423,7 +423,7 @@ def erp_drawing_workbench_dashboard():
                     target_no_raw = h.get('target_drawing_number')
                     latest_request_no = int(target_no_raw) if target_no_raw is not None else None
                 except Exception:
-                    pass
+                    pass  # failopen: intentional: 도면번호 파싱 실패 시 None 유지
                 latest_request_note = str(h.get('note') or '').strip()
                 break
         # 최신 전달(TRANSFER) 요약 1줄: 'vN 전달 · M/D HH:MM · 이름' (이미 로드된 history 파생, 추가 쿼리 없음).
@@ -736,7 +736,7 @@ def erp_drawing_workbench_detail(order_id):
                     and int(by_user_raw) == int(current_user_id)
                 )
             except Exception:
-                pass
+                pass  # failopen: intentional: 전달취소 권한 파싱 실패 시 False 유지
     # 전달취소는 표시상 도면팀+관리자로 한정 — self-cancel 레거시 분기(by_user_id 일치)가
     # 팀 무관하게 통과시키던 문제를 최종 게이트로 봉합(과거 데이터 호환은 위 분기가 유지).
     can_cancel_transfer = bool(can_cancel_transfer and is_transfer_authorized_team)

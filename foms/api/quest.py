@@ -160,7 +160,7 @@ def api_order_quest_create(order_id):
         try:
             db.rollback()
         except Exception:
-            pass
+            log_handled_exception("quest rollback")
         log_handled_exception()
         return jsonify({'success': False, 'message': str(e)}), 500
 
@@ -450,7 +450,7 @@ def api_order_quest_approve(order_id):
         try:
             db.rollback()
         except Exception:
-            pass
+            log_handled_exception("quest rollback")
         log_handled_exception()
         return jsonify({'success': False, 'message': str(e)}), 500
 
@@ -514,6 +514,6 @@ def api_order_quest_update_status(order_id):
         try:
             db.rollback()
         except Exception:
-            pass
+            log_handled_exception("quest rollback")
         log_handled_exception()
         return jsonify({'success': False, 'message': str(e)}), 500

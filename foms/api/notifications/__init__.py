@@ -573,7 +573,7 @@ def api_notifications_delete_all():
             try:
                 db.rollback()
             except Exception:
-                pass
+                log_handled_exception("notifications rollback")
         return jsonify({"success": False, "message": str(e)}), 500
 
 
@@ -761,7 +761,7 @@ def api_notifications_send():
             try:
                 db.rollback()
             except Exception:
-                pass
+                log_handled_exception("notifications rollback")
         return jsonify({"success": False, "message": str(e)}), 500
 
 
@@ -871,7 +871,7 @@ def api_order_urgent_mention(order_id):
             try:
                 db.rollback()
             except Exception:
-                pass
+                log_handled_exception("notifications rollback")
         return jsonify({"success": False, "message": str(e)}), 500
 
 

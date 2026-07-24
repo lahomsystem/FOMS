@@ -266,7 +266,7 @@ def index():
         try:
             current_app.logger.exception("Index 페이지 로딩 실패: %s", e)
         except Exception:
-            pass
+            pass  # failopen: intentional: 로거 호출 실패 무시 (이미 print로 관측)
         if 'user_id' in session:
             # 인증/세션 불일치 상태에서 / <-> /login 루프를 방지한다.
             session.clear()

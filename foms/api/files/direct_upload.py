@@ -196,7 +196,7 @@ def api_order_attachments_complete(order_id):
                 resp = storage.client.head_object(Bucket=storage.bucket_name, Key=key)
                 file_size = resp.get("ContentLength", 0)
             except Exception:
-                pass
+                log_handled_exception("direct_upload head_object size")
 
         attachment = OrderAttachment(
             order_id=order_id,
@@ -236,7 +236,7 @@ def api_order_attachments_complete(order_id):
         try:
             db.rollback()
         except Exception:
-            pass
+            log_handled_exception("direct_upload rollback")
         log_handled_exception()
         return jsonify({"success": False, "message": str(e)}), 500
 

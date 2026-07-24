@@ -184,7 +184,7 @@ class FomsRequest(Request):
                     try:
                         container.close()
                     except Exception:
-                        pass
+                        pass  # failopen: intentional: 임시파일 close 정리 best-effort
                 raise
 
         parser.parse = _guarded_parse  # type: ignore[method-assign]

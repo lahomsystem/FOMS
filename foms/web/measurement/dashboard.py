@@ -652,7 +652,7 @@ def metropolitan_dashboard():
                 if d.strip() == today_str:
                     return True
             except Exception:
-                pass
+                pass  # failopen: intentional: 측정일 문자열 매칭 실패 행 skip
         return False
 
     def _measurement_dates_any_lt_today(order):
@@ -665,7 +665,7 @@ def metropolitan_dashboard():
                 ).date() < get_today_kst():
                     return True
             except Exception:
-                pass
+                pass  # failopen: intentional: 측정일 파싱 실패 행 skip
         return False
 
     def _measurement_dates_any_gt_today(order):
@@ -678,7 +678,7 @@ def metropolitan_dashboard():
                 ).date() > get_today_kst():
                     return True
             except Exception:
-                pass
+                pass  # failopen: intentional: 측정일 파싱 실패 행 skip
         return False
 
     def _scheduled_dates_any_lt_today(order):
@@ -691,7 +691,7 @@ def metropolitan_dashboard():
                 ).date() < get_today_kst():
                     return True
             except Exception:
-                pass
+                pass  # failopen: intentional: 측정일 파싱 실패 행 skip
         return False
 
     urgent_candidates = get_filtered_orders(

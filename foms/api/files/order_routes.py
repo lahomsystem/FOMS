@@ -184,7 +184,7 @@ def api_order_attachments_upload(order_id):
         try:
             db.rollback()
         except Exception:
-            pass
+            log_handled_exception("order_routes rollback")
         log_handled_exception()
         return jsonify({"success": False, "message": str(e)}), 500
 
@@ -243,7 +243,7 @@ def api_order_attachments_patch(order_id, attachment_id):
         try:
             db.rollback()
         except Exception:
-            pass
+            log_handled_exception("order_routes rollback")
         log_handled_exception()
         return jsonify({"success": False, "message": str(e)}), 500
 
@@ -306,7 +306,7 @@ def api_order_attachments_delete(order_id, attachment_id):
         try:
             db.rollback()
         except Exception:
-            pass
+            log_handled_exception("order_routes rollback")
         log_handled_exception()
         return jsonify({"success": False, "message": str(e)}), 500
 

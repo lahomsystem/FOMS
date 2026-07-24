@@ -15,6 +15,7 @@ from foms.services.post_auth_navigation import (
     normalize_internal_next_url,
     resolve_post_login_redirect,
 )
+from foms.services.error_logging import log_handled_exception
 
 auth_bp = Blueprint('auth', __name__)
 
@@ -47,7 +48,7 @@ def log_access(action, user_id=None, additional_data=None, auto_commit=True):
         try:
             db.rollback()
         except Exception:
-            pass
+            log_handled_exception("auth log_access rollback")
 
 def is_password_strong(password):
     """Check if password meets security requirements"""

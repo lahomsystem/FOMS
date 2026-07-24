@@ -105,7 +105,7 @@ def api_chat_upload_complete():
                 resp = storage.client.head_object(Bucket=storage.bucket_name, Key=key)
                 file_size = resp.get("ContentLength", 0)
         except Exception:
-            pass
+            log_handled_exception("channel files head_object size")
 
         file_url = build_file_view_url(key)
         file_type = storage.get_file_type(filename)

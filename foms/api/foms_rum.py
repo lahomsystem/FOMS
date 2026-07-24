@@ -44,7 +44,7 @@ def ingest_rum_event() -> tuple[Any, int]:
     try:
         record_rum_metric(payload.get("metric"), payload.get("value"))
     except Exception:  # pragma: no cover - 집계 실패가 수신 응답을 막지 않도록.
-        pass
+        pass  # failopen: intentional: RUM 집계 fail-open (Redis 부재/오류/비화이트리스트 metric)
 
     return jsonify({"success": True}), 200
 

@@ -14,6 +14,7 @@ import os
 import shutil
 import subprocess
 from urllib.parse import urlparse
+from foms.services.error_logging import log_handled_exception
 
 
 def _get_db_config_from_env():
@@ -73,7 +74,7 @@ class SimpleBackupSystem:
                     self.pg_dump_path = result.stdout.strip().split('\n')[0]
                     print(f"✅ PATH에서 pg_dump 발견: {self.pg_dump_path}")
             except Exception:
-                pass
+                log_handled_exception("pg_dump path lookup")
 
         if not self.pg_dump_path:
             self.pg_dump_path = r"C:\Program Files\PostgreSQL\16\bin\pg_dump.exe"  # 기본값

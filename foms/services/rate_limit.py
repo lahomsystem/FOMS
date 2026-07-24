@@ -23,7 +23,7 @@ def init_limiter(app: Any) -> Limiter:
             if user_id:
                 return f"user:{user_id}"
         except Exception:
-            pass
+            pass  # failopen: intentional: 레이트리밋 키 산출 실패 시 폴백 키로 fail-open
 
         try:
             cookie_name = app.config.get("SESSION_COOKIE_NAME", "session")
@@ -32,7 +32,7 @@ def init_limiter(app: Any) -> Limiter:
                 cookie_hash = hashlib.sha1(raw_cookie.encode("utf-8")).hexdigest()[:16]
                 return f"sess:{cookie_hash}"
         except Exception:
-            pass
+            pass  # failopen: intentional: 레이트리밋 쿠키 키 산출 실패 시 폴백 키로 fail-open
 
         # Canonical client IP only. request.remote_addr is set by ProxyFix from
         # exactly FOMS_TRUSTED_PROXY_HOPS trusted X-Forwarded-For hops (see

@@ -286,7 +286,7 @@ class FOMSAddressConverter:
                 self._cache_set(cache_key, result[0], result[1], result[2], result[3])
                 return result
         except Exception as e:
-            pass
+            pass  # failopen: intentional: 주소 학습 캐시 매칭 실패 시 폴백 경로로 계속
         
         # 2단계: 상세주소 분리 (동/호수 등 제거 → 핵심 주소만)
         stripped_address = self._strip_detail_for_geocoding(address)

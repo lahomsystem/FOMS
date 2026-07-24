@@ -297,7 +297,7 @@ def _release_singleflight_lock(r: Any, lock_key: str, lock_token: str) -> None:
         if r.get(lock_key) == lock_token:
             r.delete(lock_key)
     except Exception:
-        pass
+        pass  # failopen: intentional: 분산 락 해제 best-effort; Redis 오류 시 TTL 만료
 
 
 def get_or_compute_dashboard_slice(

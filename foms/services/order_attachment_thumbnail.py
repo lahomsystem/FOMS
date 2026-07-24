@@ -8,6 +8,7 @@ from concurrent.futures import ThreadPoolExecutor
 from db import db_session
 from models import OrderAttachment
 from foms.services.storage import get_storage
+from foms.services.error_logging import log_handled_exception
 
 __all__ = ["schedule_order_attachment_thumbnail_generation"]
 
@@ -60,7 +61,7 @@ def schedule_order_attachment_thumbnail_generation(attachment_id: int, storage_k
         if enqueue_thumbnail_generation(attachment_id, storage_key):
             return
     except Exception:
-        pass
+        log_handled_exception("thumbnail enqueue")
     try:
         _thumbnail_executor.submit(
             _generate_order_attachment_thumbnail_background,
