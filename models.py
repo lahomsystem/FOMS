@@ -1121,6 +1121,77 @@ class OrderMutationReadResource(Base):
     )
 
 
+# 배정 domain / source enum SSOT — service·migration·backfill 이 공유한다.
+ORDER_ASSIGNMENT_DOMAINS = ('SALES', 'DRAWING', 'CONSTRUCTION')
+ORDER_ASSIGNMENT_SOURCES = ('SELF_CLAIM', 'TEAM_REPLACE', 'INITIAL_OWNER', 'BACKFILL')
+
+
+class OrderAssignment(Base):
+    """주문 배정 authorization 정본 (ASSIGNMENT-00, §2.1 line 172).
+
+    drawing/construction/sales 권한 판정은 **오직 이 user-ID row** 로만 한다. JSONB
+    이름 배열(``structured_data.assignments`` 등)은 server-owned 표시 projection 일 뿐
+    authorization 근거가 아니다.
+
+    * ``domain`` = ``SALES|DRAWING|CONSTRUCTION`` (check 제약).
+    * ``source`` = ``SELF_CLAIM|TEAM_REPLACE|INITIAL_OWNER|BACKFILL`` (check 제약);
+      release 규칙과 legacy backfill 승격 여부를 구분한다.
+    * ``active`` = 현재 유효 배정. release 는 hard delete 하지 않고 ``active=false`` +
+      ``released_at/released_by_user_id/release_reason`` 로 **이력을 보존**한다.
+
+    PostgreSQL partial unique 두 개가 정합성을 DB 레벨에서 강제한다:
+
+    * ``uq_order_assignment_active`` = ``(order_id,domain,user_id) WHERE active`` —
+      같은 사람을 같은 domain 에 중복 active 배정 금지(released 뒤 재배정은 허용).
+    * ``uq_order_assignment_sales_owner`` = ``(order_id) WHERE active AND domain='SALES'``
+      — SALES 는 주문당 active owner 1명 강제.
+
+    DDL 은 migration(assignment_00) 과 SSOT 를 공유한다(create_all 테스트 lane 동일 스키마).
+    """
+
+    __tablename__ = 'order_assignments'
+
+    id = Column(Integer, primary_key=True)
+    order_id = Column(
+        Integer, ForeignKey('orders.id', ondelete='CASCADE'), nullable=False,
+    )
+    domain = Column(String(20), nullable=False)
+    user_id = Column(Integer, ForeignKey('users.id'), nullable=False)
+    source = Column(String(20), nullable=False)
+    active = Column(Boolean, nullable=False, default=True, server_default='true')
+    assigned_at = Column(DateTime, nullable=False, default=now_utc_naive)
+    assigned_by_user_id = Column(Integer, ForeignKey('users.id'), nullable=False)
+    released_at = Column(DateTime, nullable=True)
+    released_by_user_id = Column(Integer, ForeignKey('users.id'), nullable=True)
+    release_reason = Column(Text, nullable=True)
+
+    __table_args__ = (
+        CheckConstraint(
+            "domain IN ('SALES','DRAWING','CONSTRUCTION')",
+            name='ck_order_assignment_domain',
+        ),
+        CheckConstraint(
+            "source IN ('SELF_CLAIM','TEAM_REPLACE','INITIAL_OWNER','BACKFILL')",
+            name='ck_order_assignment_source',
+        ),
+        # active (order,domain,user) 중복 금지 — released 뒤 재배정은 partial 이라 허용.
+        Index(
+            'uq_order_assignment_active', 'order_id', 'domain', 'user_id',
+            unique=True, postgresql_where=text('active'),
+        ),
+        # SALES active owner 는 주문당 1명.
+        Index(
+            'uq_order_assignment_sales_owner', 'order_id',
+            unique=True, postgresql_where=text("active AND domain = 'SALES'"),
+        ),
+        # authorization 조회(주문·domain 별 active 배정) 인덱스.
+        Index(
+            'ix_order_assignment_active_lookup', 'order_id', 'domain',
+            postgresql_where=text('active'),
+        ),
+    )
+
+
 # --- PostgreSQL trigger: principal version seed(+1 on tracked change) ---------
 #
 # ``create_all`` (SQLite test lane 포함) 와 Alembic 양쪽에서 같은 DDL 을 쓰도록
