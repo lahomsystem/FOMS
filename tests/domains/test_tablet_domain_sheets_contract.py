@@ -30,7 +30,7 @@ SHIPMENT_DASHBOARD_SCRIPTS = "templates/shipment/partials/dashboard_scripts.html
 CORE_MEDIA_QUERY = (
     "(min-width: 992px) and (orientation: landscape) and (pointer: coarse)"
 )
-SCRIPT_CACHEBUSTER = "?v=20260724f"
+SCRIPT_CACHEBUSTER = "?v=20260724h"
 
 
 def _read(rel: str) -> str:
@@ -262,3 +262,31 @@ def test_domain_sheets_js_has_hold_kpi_filter_branch() -> None:
     js = _read(DOMAIN_SHEETS_JS)
     assert 'kpi === "hold"' in js
     assert 'classList.contains("is-held")' in js
+
+
+# --- (9) 고정 바 재배치: 필터 접기(D-c) -------------------------------------
+
+
+def test_kanban_body_filter_collapse_markup() -> None:
+    """D-c: 검색 input 상시 노출 + [필터] 토글 뒤 고급 필터 접힘(.__more[hidden]).
+    상태·공장·초기화는 접이 영역 안, 검색은 접이 영역 밖(상시)."""
+    body = _read(KANBAN_BODY)
+    assert "data-tablet-prod-filter-toggle" in body  # 접기 토글 버튼
+    assert 'class="tablet-prod-filter__more"' in body  # 접이 컨테이너
+    assert 'id="tablet-prod-filter-more"' in body  # aria-controls 대상
+    assert "data-tablet-prod-filter-count" in body  # 활성 필터 개수 배지
+    # 검색은 접이 컨테이너보다 앞(상시 노출) — 접이 영역 안에 들어가면 위반.
+    # (컨테이너 마크업 class="..." 로 앵커 — 설명 주석의 .tablet-prod-filter__more 언급과 구분.)
+    assert body.index("data-tablet-prod-search") < body.index(
+        'class="tablet-prod-filter__more"'
+    ), "검색 input 이 접이 영역 안에 있음(상시 노출 위반)"
+
+
+def test_domain_sheets_js_wires_filter_collapse_toggle() -> None:
+    """D-c: 필터 접기 배선 — localStorage 키 + 토글 위임 셀렉터 + aria-expanded 동기화 +
+    fragment 스왑 복원."""
+    js = _read(DOMAIN_SHEETS_JS)
+    assert "foms_tablet_prod_filters_open" in js  # 열림 상태 기억 키
+    assert "data-tablet-prod-filter-toggle" in js  # 토글 위임 셀렉터
+    assert "aria-expanded" in js  # 접이 상태 a11y 동기화
+    assert "restoreFilterCollapse" in js  # 부트/스왑 복원

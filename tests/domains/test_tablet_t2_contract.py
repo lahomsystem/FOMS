@@ -402,6 +402,26 @@ def test_kanban_css_confirmed_change_has_persistent_border() -> None:
     assert '.foms-kanban-card[data-change-history="1"]:not(.is-changed)' in css
 
 
+def test_kanban_css_kpi_strip_is_five_column_flex_grow() -> None:
+    """D-a/D-b: 통합 상단 바 KPI 는 5타일 1줄(repeat(5)) + flex:1 로 pcbar 가운데 확장.
+    5번째 보류 타일 줄바꿈(2줄) 회귀 차단."""
+    css = _norm(_read(KANBAN_CSS))
+    assert (
+        ".erp-pro-alerts { flex: 1 1 auto; "
+        "grid-template-columns: repeat(5, minmax(0, 1fr))" in css
+    )
+
+
+def test_kanban_css_col_body_cap_lowered_for_chrome_shrink() -> None:
+    """D-d: pcbar+KPI 통합·필터 접기로 상단 크롬이 줄어든 만큼 열 body 캡 상수를 실측 조정
+    (240→265). 크롬(177) + 열 헤더 + 상하 패딩을 함께 상쇄해야 board 가 뷰포트를 안 넘어
+    페이지 스크롤이 없다 — 카드 17건 실측으로 board_bottom 이 뷰포트 안에 드는 확정값이
+    265(과소값은 오히려 페이지 스크롤 유발). 240 회귀 차단."""
+    css = _norm(_read(KANBAN_CSS))
+    assert "max-height: calc(100dvh - 265px)" in css
+    assert "calc(100dvh - 240px)" not in css
+
+
 # =====================================================================
 # W12 — 태블릿 실측 특수형 split view 계약
 # (docs/plans/2026-07-11-tablet-t2-dashboards-spec.md, 실행 단위 W12)
@@ -654,7 +674,7 @@ def test_w16_layout_head_loads_bundle_for_v2_and_v3_cohort() -> None:
     layout_head = _read("templates/partials/shared/layout_head.html")
     idx = layout_head.find("foms-tablet-bundle.css")
     assert idx != -1, "layout_head 에 태블릿 번들 <link> 부재"
-    assert "foms-tablet-bundle.css') }}?v=20260724d" in layout_head
+    assert "foms-tablet-bundle.css') }}?v=20260724g" in layout_head
     # Anchor on the nearest preceding `{% if %}` (the bundle gate) rather than a fixed
     # char window — the gate string grows over time (2026-07-12: +/wdcalculator arm).
     gate_start = layout_head.rfind("{% if", 0, idx)

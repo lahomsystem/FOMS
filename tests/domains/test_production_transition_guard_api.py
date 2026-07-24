@@ -933,3 +933,122 @@ def test_pc_grid_no_badges_when_inactive(app):
     html = _render_grid(app, [_grid_row()])
     assert "보류 D+" not in html
     assert "재제작" not in html
+
+
+# --- 완료 이력 (소실 방지 + 무채 배지, Phase E) --------------------------------
+
+
+def test_release_hold_via_gate_appends_history(client):
+    """전이 게이트 release(start + release_hold) 시 직전 active hold 를 hold_history 에 보존(E-a)."""
+    user = _make_user("guard_e_hist")
+    user_name = user.name
+    _login(client, user)
+    order_id = _make_order_with_hold("CONFIRM", reason="자재 입고 지연").id
+
+    resp = client.post(
+        f"/api/orders/{order_id}/production/start", json={"release_hold": True}
+    )
+    assert resp.status_code == 200
+
+    db_session.expire_all()
+    saved = db_session.get(Order, order_id)
+    history = saved.structured_data["production"]["hold_history"]
+    assert len(history) == 1
+    assert history[0]["reason"] == "자재 입고 지연"
+    assert history[0]["at"]  # 보류 시작 시각 보존
+    assert history[0]["released_at"]
+    assert history[0]["released_by"] == user_name
+    # hold 자체는 해제됨(이력은 별도 보존).
+    assert saved.structured_data["production"]["hold"]["active"] is False
+
+
+def test_enrich_row_derives_history_counts(client):
+    """enriched 행에 rework_count(int)·hold_history_count(int) 파생(E-b) — 완료 후 이력 소비용."""
+    from foms.services.production_dashboard_display import build_production_enriched_rows
+
+    _login(client, _make_user("guard_e_enrich"))
+    order = Order(
+        received_date=date.today().isoformat(),
+        customer_name="이력 고객",
+        phone="010-0000-0000",
+        address="Seoul",
+        product="붙박이장",
+        status="CONSTRUCTION",
+        manager_name="Bob",
+        is_erp_order=True,
+        structured_data={
+            "workflow": {"stage": "CONSTRUCTION"},
+            "production": {
+                "rework": {"active": False, "count": 3},
+                "hold_history": [{"reason": "a"}, {"reason": "b"}],
+            },
+        },
+        erp_stage_code="CONSTRUCTION",
+    )
+    db_session.add(order)
+    db_session.commit()
+
+    rows = build_production_enriched_rows([order], {})
+    assert len(rows) == 1
+    assert rows[0]["rework_count"] == 3
+    assert rows[0]["hold_history_count"] == 2
+
+
+def test_kanban_card_completed_history_badges(app):
+    """완료 카드 무채 이력 배지(E-c): rework 완료(active 아님+count>0) → '재제작 N회'(hist) +
+    hold_history_count>0 → '보류 이력'. 진행 배지(유채)와 구분되는 무채 __hist 클래스."""
+    row = _card_row(
+        stage="제작완료",
+        structured_data={"production": {"rework": {"active": False, "count": 2}}},
+        rework_count=2,
+        hold_history_count=3,
+    )
+    html = _render_kanban_body(app, [row])
+    assert "foms-kanban-card__hist" in html
+    assert "재제작 2회" in html
+    assert "보류 이력" in html
+
+
+def test_kanban_card_no_history_badge_while_rework_active(app):
+    """rework active 카드는 무채 이력 배지(__hist) 미렌더 — 진행 배지(유채)만."""
+    row = _card_row(
+        structured_data={"production": {"rework": {"active": True, "count": 1}}},
+        rework_count=1,
+    )
+    html = _render_kanban_body(app, [row])
+    assert "foms-kanban-card__hist" not in html
+
+
+def test_sheet_completed_history_section(app):
+    """완료 시트 무채 이력 섹션(E-d): rework 완료(active 아님+count>0) → '재제작 N회 · 최근 사유',
+    hold_history → '보류 이력 N건'. 진행 콜아웃(유채)과 구분되는 __hist 섹션."""
+    html = _render_sheet(
+        app,
+        stage="제작완료",
+        rework_active=False,
+        rework_count=2,
+        rework_reason="치수 오류",
+        hold_history=[{"reason": "a"}, {"reason": "b"}],
+    )
+    assert "foms-prod-sheet__hist" in html
+    assert "재제작 2회" in html
+    assert "최근 사유" in html
+    assert "치수 오류" in html
+    assert "보류 이력 2건" in html
+
+
+def test_sheet_no_history_section_when_none(app):
+    """이력 없음(rework_count=0, hold_history=[]) → 무채 이력 섹션 미렌더."""
+    html = _render_sheet(app, stage="제작완료", rework_count=0, hold_history=[])
+    assert "foms-prod-sheet__hist" not in html
+
+
+def test_pc_grid_completed_rework_history_badge(app):
+    """PC 단계 셀(E-e): 완료 건(rework active 아님+rework_count>0) → 무채 '재제작 N회' 이력 배지."""
+    row = _grid_row(
+        stage="제작완료",
+        structured_data={"production": {"rework": {"active": False, "count": 2}}},
+        rework_count=2,
+    )
+    html = _render_grid(app, [row])
+    assert "재제작 2회" in html

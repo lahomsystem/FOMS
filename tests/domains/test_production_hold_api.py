@@ -166,3 +166,47 @@ def test_order_event_recorded(client):
     assert events[0].payload["active"] is True
     assert events[0].payload["reason"] == "z"
     assert events[0].created_by_user_id == user_id
+
+
+def test_hold_release_appends_history(client):
+    """해제(active=False) 시 직전 active hold 를 hold_history 에 보존한다(완료 후 소실 방지, E-a).
+
+    {reason, at(보류 시작), released_at(now), released_by} 1건 append. 해제 응답의 hold 는
+    초기화되지만 hold_history 는 별도로 남는다.
+    """
+    user = _make_user("hold_hist", role="ADMIN")
+    user_name = user.name
+    _login(client, user)
+    order_id = _make_order().id
+
+    client.post(
+        f"/api/orders/{order_id}/production/hold",
+        json={"active": True, "reason": "자재 입고 지연"},
+    )
+    resp = client.post(f"/api/orders/{order_id}/production/hold", json={"active": False})
+    assert resp.status_code == 200
+
+    db_session.expire_all()
+    saved = db_session.get(Order, order_id)
+    history = saved.structured_data["production"]["hold_history"]
+    assert len(history) == 1
+    assert history[0]["reason"] == "자재 입고 지연"
+    assert history[0]["at"]  # 보류 시작 시각 보존
+    assert history[0]["released_at"]  # 해제 시각 기록
+    assert history[0]["released_by"] == user_name
+
+
+def test_hold_release_without_active_does_not_append_history(client):
+    """active hold 가 없는 상태의 해제(빈 해제)는 hold_history 를 만들지 않는다(중복·빈 append 방지)."""
+    user = _make_user("hold_hist2", role="ADMIN")
+    _login(client, user)
+    order_id = _make_order().id
+
+    # 활성화 없이 곧바로 해제 → 이력 append 없음.
+    resp = client.post(f"/api/orders/{order_id}/production/hold", json={"active": False})
+    assert resp.status_code == 200
+
+    db_session.expire_all()
+    saved = db_session.get(Order, order_id)
+    production = saved.structured_data.get("production") or {}
+    assert production.get("hold_history", []) == []

@@ -74,6 +74,71 @@
 - 단계 배지 셀(L59) 옆에: hold active 시 `<span class="badge bg-warning text-dark">보류{% if hold_days %} D+n{% endif %}</span>`(title=사유), rework active 시 `<span class="badge bg-info">재제작 N회</span>`. o.structured_data 직접 접근(제품 셀 패턴) + row hold_days 소비. PC 모바일 큐(mobile_queue.html)는 비범위.
 **C-5** 캐시버스터(JS f, CSS c — 실변경 파일만) + 테스트: enrichment 단위(hold_days 파싱·None), KPI hold 카운트, 카드 D+n·is-held-imminent 렌더, PC grid 배지 렌더, 필터 계약(data-tablet-prod-kpi="hold" 존재).
 
+## 3차 라운드 (2026-07-24 사용자 피드백: 시트 버튼 CSS·완료 이력·고정 바 공간) — 진행 원장
+
+- [x] 1번 제작 취소 버튼 줄바꿈 CSS 수정 (nowrap + padding 축소, 실측 확인, CSS 20260724e)
+- [x] Phase D = 고정 바 재배치 (a)+(b)+(c): KPI 5열 1줄 + pcbar·KPI 통합 + 필터 접기(localStorage 기억) + 열 캡 실측 확정 265(크롬 233→177px, page_scroll 없음, col_body +58px)
+- [x] Phase E = 완료 이력: hold_history 보존(직접 해제+게이트 release 양경로) + 완료 카드/시트/PC 무채 이력 배지(재제작 N회·보류 이력)
+- [x] 통합 리뷰(2판정: 스펙 대부분 OK / Major 1 B-1 hold 배지 active 가드 누락 + Minor 3 반영) + 동작검증 루프(재배치 실측 265·이력 API 흐름 13/13 PASS·B-1 재검증) + 커밋/푸시
+
+3차 리뷰 반영: B-1(카드/시트 hold 이력 배지에 not active 가드 — 진행 유채와 무채 이력 상호배타), B-2(필터 토글 willOpen을 DOM __more.hidden 파생 — 스토리지 불가 환경 못닫힘 버그), B-3(테스트 docstring 265 방향 정정), B-4(api_production_hold docstring hold_history 보존 반영). 잔여 관찰: 재보류(active 연속) 시 원 사유 이력 없이 덮어씀(해제 경로만 스펙 범위), hold_history 20캡 미검증(스펙 밖).
+
+### 3차 공통 컨텍스트
+
+- 캐시버스터 현재값: JS(tablet-domain-sheets.js·tablet-production-kanban.js)=20260724e, CSS 체인=20260724e(foms-tablet-bundle.css @import→layout_head.html 링크→계약 리터럴 test_tablet_t2_contract.py:657·test_tablet_rail_contract.py:162). 1번 CSS 수정으로 이미 e까지 범프됨. 추가 변경 시 f로.
+- **크롬 실측 근거(viewport 1280×800)**: pcbar 57px + KPI 112px(2줄) + 필터 64px = 크롬 233px(뷰포트 29%). KPI가 4열 grid([css:156] `repeat(4)`)라 5번째 보류 타일이 2줄로 줄바꿈.
+- **열 body 캡 함정**: `.foms-kanban-col__body { max-height: calc(100dvh - 240px) }`([css:328]). 크롬을 줄이면 이 240 상수도 동반 하향해야 회수분이 실제 스크롤 영역으로 반영됨(안 하면 바닥 여백으로 죽음). 최종값은 오케스트레이터가 실측으로 미세조정.
+- 열 헤더 sticky([css:295] `position:sticky;top:0`)는 이미 구현됨(스크롤 시 열 제목 유지).
+- 필터 접기 상태 기억: `static/js/foms/tablet-density-toggle.js`의 localStorage+document위임+싱글턴가드(perf G4)+fragment-swap 복원 패턴 복제(신규 라이브러리 금지).
+
+### Phase D — 고정 바 재배치 (a)+(b)+(c)
+
+수정 대상: templates/production/partials/tablet_kanban_body.html(마크업 재그룹), static/css/foundation/foms-tablet-production-kanban.css(레이아웃), static/js/foms/tablet-domain-sheets.js 또는 신규 소형 js(필터 접기 배선), 캐시버스터.
+
+**D-a (KPI 1줄)**: [css:156] `grid-template-columns: repeat(4, minmax(0,1fr))` → `repeat(5, minmax(0,1fr))`. 5타일 1줄. 992px 좁폭에서 타일 라벨/값 넘침 없는지(폰트·gap) 확인.
+
+**D-b (pcbar+KPI 통합)**: pcbar 층(타이틀·서브·라벨인쇄 버튼)을 KPI 스트립과 한 줄로. 설계 방향: 상위 flex 컨테이너 = [타이틀블록(생산 보드·전체N)][KPI grid 5타일 flex:1][라벨 인쇄 버튼]. `flex-wrap` 폴백(극단 좁폭에서 안전 degrade — 현재 상태로 wrap). KPI 필터 기능(data-tablet-prod-kpi 5개) 전부 유지. 라벨 인쇄 버튼은 좁을 때 아이콘-only 허용. 마크업 재그룹은 코호트 게이트(body.erp-mobile-v2-layout + coarse landscape MQ) 스코프 유지, PC/폰 누출 금지.
+
+**D-c (필터 접기)**: 검색 input 상시 노출. 상태 select·공장 select·변경 토글·초기화를 [필터 ▾] 토글 버튼 뒤로 접기(기본 접힘). 토글 클릭 시 펼침, 상태는 localStorage(`foms_tablet_prod_filters_open`)에 기억(density-toggle 패턴 복제). 접힘 시 활성 필터가 있으면 토글 버튼에 표식(예: 필터 N). fragment-swap 복원 리스너 포함. 배선은 tablet-domain-sheets.js에 추가(기존 applyProdFilter와 동일 파일 — 싱글턴 가드 확인) 또는 신규 파일.
+
+**D-d (열 캡 동반 하향)**: [css:328] `calc(100dvh - 240px)`의 240을 크롬 축소분 반영해 잠정 하향(예상 크롬 ~90~120px → 240→약 120~150). **최종값은 오케스트레이터 실측 조정** — 브리프에선 잠정값 설정 + 주석에 "오케스트레이터 실측 확정" 명시.
+
+**D-e 캐시버스터**: JS 변경 시 20260724e→f(핀 2곳+계약 리터럴), CSS 20260724e→f(번들 체인+리터럴 2곳).
+
+**D-f 테스트**: 계약 — KPI 5열 grid CSS 문자열, 필터 토글 마크업(data-* + 검색 상시), 접기 JS 문자열(localStorage 키), 캐시버스터 리터럴. 기존 test_tablet_t2_contract/test_tablet_rail_contract/test_production_kanban_full_window 무파괴. 시각 실측(크롬 높이·카드 노출)은 오케스트레이터 동작검증.
+
+**D 완료 기준**: 아래 3차 pytest 세트 통과 + import app APP_OK.
+
+### Phase E — 완료 이력 (소실 방지 + 무채 배지)
+
+수정 대상: foms/api/production/orders.py(hold 이력 보존), foms/services/production_dashboard_display.py(완료 이력 파생), foms/web/production/dashboard.py(sheet dict), templates/production/partials/tablet_kanban_body.html·tablet_sheet.html·filters_grid.html(무채 배지), static/css/foundation/foms-tablet-production-kanban.css, 캐시버스터.
+
+**E-a (보류 이력 소실 방지)** `foms/api/production/orders.py`:
+- hold 해제 경로 2곳 공통: (1) hold API 직접 해제(`api_production_hold` active=False) (2) 전이 게이트 `_apply_production_hold_gate` release. 해제로 hold를 초기화하기 전, 직전 active hold를 `sd['production']['hold_history']` 리스트에 append: `{reason, at(보류 시작), released_at(now iso), released_by(user.name)}`. hold_history는 최근 N(예: 20)건 캡.
+- rework는 이미 count·completed_at 보존되므로 별도 이력 불필요(배지는 count 사용).
+
+**E-b (완료 이력 파생)** `foms/services/production_dashboard_display.py` `_enrich_one_production_order`:
+- row에 `rework_count`(int, production.rework.count or 0), `hold_history_count`(int, len(production.hold_history)) 추가. 기존 hold_active/hold_days 규약 유지.
+
+**E-c (완료 카드 무채 배지)** tablet_kanban_body.html:
+- 진행 배지(is-held/rework active 유채)는 현행 유지. 추가: **active가 아니면서** rework_count>0 → 무채 회색 배지 "재제작 N회"(이력), hold_history_count>0 → 무채 "보류 이력". 클래스 `foms-kanban-card__hist`(무채 tertiary 톤, HMI 규율 — 이력은 유채 아님). title에 상세.
+- 즉 제작완료 열 카드에 진행 경보 대신 차분한 이력 배지.
+
+**E-d (완료 시트 이력)** tablet_sheet.html + dashboard.py:
+- sheet dict에 `rework_count`(이미 있음), `hold_history`(list) 추가. 시트에 active 아닌데 이력 있으면 무채 이력 섹션: "재제작 N회 · 최근 사유 X", "보류 이력 N건". 진행 콜아웃(유채)과 구분.
+
+**E-e (PC 리스트 이력)** filters_grid.html:
+- 단계 셀에 완료 건(active 아님) + rework_count>0 → 무채 badge "재제작 N회". (보류 이력은 선택 — PC 공간 고려, rework만 필수.)
+
+**E-f CSS**: `foms-kanban-card__hist`·시트 이력 섹션 무채 스타일(--foms-text-tertiary/surface-muted). 캐시버스터 동반.
+
+**E-g 테스트**: hold 해제 시 hold_history append(API 단위 — 직접 해제·release 양경로), 완료 카드 무채 배지 렌더(active=False+count>0), 파생 단위(hold_history_count), 시트 이력 렌더. 기존 세트 무파괴.
+
+**E 완료 기준**: 3차 pytest 세트 통과 + APP_OK.
+
+### 3차 pytest 세트
+`python -m pytest tests/domains/test_production_transition_guard_api.py tests/domains/test_production_hold_api.py tests/domains/test_tablet_domain_sheets_contract.py tests/domains/test_tablet_t2_contract.py tests/domains/test_tablet_rail_contract.py tests/domains/test_production_kanban_full_window.py tests/domains/test_production_dashboard_mobile.py tests/domains/test_production_dashboard_query_count.py -q` 전부 통과 + import app APP_OK.
+
 ### 2차 완료 기준 (각 Phase 공통)
 `python -m pytest tests/domains/test_production_transition_guard_api.py tests/domains/test_production_hold_api.py tests/domains/test_tablet_domain_sheets_contract.py tests/domains/test_tablet_t2_contract.py tests/domains/test_tablet_rail_contract.py tests/domains/test_production_kanban_full_window.py tests/domains/test_production_dashboard_mobile.py -q` 전부 통과 + `import app` APP_OK.
 

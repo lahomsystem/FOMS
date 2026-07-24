@@ -194,6 +194,8 @@ def _enrich_one_production_order(
     _first_item, _items = _production_first_item(sd)
     _prod = sd.get('production') if isinstance(sd.get('production'), dict) else {}
     _hold = _prod.get('hold') if isinstance(_prod.get('hold'), dict) else {}
+    _rework = _prod.get('rework') if isinstance(_prod.get('rework'), dict) else {}
+    _hold_history = _prod.get('hold_history') if isinstance(_prod.get('hold_history'), list) else []
     return {
         'id': o.id,
         'is_erp_order': o.is_erp_order,
@@ -206,6 +208,10 @@ def _enrich_one_production_order(
         # 파생(at 없으면 None) — 템플릿이 active 가드 안에서만 읽는다.
         'hold_active': bool(_hold.get('active')),
         'hold_days': _production_hold_days(_hold.get('at')),
+        # 완료 이력(E-b): 완료 카드/시트/PC 무채 이력 배지가 소비. rework_count=재제작 회차 누적,
+        # hold_history_count=해제된 보류 기록 건수(완료 후에도 보존 — CEO 품질분석·CS 응대).
+        'rework_count': int(_rework.get('count') or 0),
+        'hold_history_count': len(_hold_history),
         'alerts': alerts,
         'has_media': _erp_has_media(o, att_n),
         'attachments_count': att_n,

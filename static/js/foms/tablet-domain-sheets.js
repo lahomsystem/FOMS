@@ -2,7 +2,8 @@
  * FOMS 태블릿 도메인 시트 액션 + 생산 칸반 필터 (T2 · 목업 v8 마감).
  *
  * 태블릿 가로(코호트)에서 우측 사이드 시트 본문에 로드되는 도메인 전용 액션 버튼과,
- * 생산 칸반 상단 필터 바를 처리한다. 신규 API 없이 기존 워크플로 엔드포인트를 재사용한다:
+ * 생산 칸반 상단 필터 바(검색 상시 노출 + [필터] 토글 접기, D-c)를 처리한다. 신규 API 없이
+ * 기존 워크플로 엔드포인트를 재사용한다:
  *   - 생산 시작/완료/수정 제작: POST /api/orders/<id>/production/start|complete|rework (에러 키 = message)
  *   - 출고 배정: POST /api/erp/shipment/update/<id>          (권한 실패 = 403)
  * 성공 시 시트를 닫고 새로고침으로 read-model 을 재조회한다(낙관 갱신은 비범위 — 간단·근본).
@@ -540,11 +541,85 @@
     });
   }
 
+  // ---- D-c 생산 필터 접기 토글 -----------------------------------------------
+  // 검색은 상시 노출, 고급 필터(.tablet-prod-filter__more: 상태·공장·변경·초기화)는 [필터]
+  // 토글 뒤 접힘(기본). 열림 상태만 localStorage 에 기억한다(필터 값 자체는 서버 렌더 기본값
+  // 유지 — density-toggle 패턴). document 위임이라 fragment 스왑으로 DOM 이 재삽입돼도
+  // 재바인딩 불필요, 스왑 시엔 저장값 재적용(restoreFilterCollapse)만 건다.
+  var FILTERS_OPEN_KEY = "foms_tablet_prod_filters_open";
+
+  // 저장된 열림 상태("1")를 반환. 기본(미저장·저장 불가)은 접힘(false).
+  function readFiltersOpen() {
+    try {
+      return window.localStorage.getItem(FILTERS_OPEN_KEY) === "1";
+    } catch (e) {
+      return false;
+    }
+  }
+
+  // 열림 상태를 localStorage 에 저장. 사생활 모드 등 저장 불가 시 세션 내 표시만 유지(비치명적).
+  function writeFiltersOpen(open) {
+    try {
+      window.localStorage.setItem(FILTERS_OPEN_KEY, open ? "1" : "0");
+    } catch (e) {
+      /* 저장 불가 — 세션 표시만 유지(비치명적, 무음 삼킴 아님). */
+    }
+  }
+
+  // 접힘 시 토글 배지로 알릴 활성 고급 필터(상태·공장·변경) 개수. 검색·KPI 는 상시 노출이라 제외.
+  function activeAdvancedFilterCount() {
+    var n = 0;
+    var statusEl = document.querySelector("select[data-tablet-prod-status]");
+    var factoryEl = document.querySelector("select[data-tablet-prod-factory]");
+    var changedEl = document.querySelector("button[data-tablet-prod-changed]");
+    if (statusEl && statusEl.value) n += 1;
+    if (factoryEl && factoryEl.value) n += 1;
+    if (changedEl && changedEl.classList.contains("is-on")) n += 1;
+    return n;
+  }
+
+  // 토글/접이 영역 표시를 open 상태로 동기화(aria-expanded + hidden + 배지). idempotent.
+  function syncFilterToggle(open) {
+    var toggle = document.querySelector("[data-tablet-prod-filter-toggle]");
+    var more = document.getElementById("tablet-prod-filter-more");
+    if (!toggle || !more) return;
+    more.hidden = !open;
+    toggle.setAttribute("aria-expanded", open ? "true" : "false");
+    toggle.classList.toggle("is-open", open);
+    var badge = toggle.querySelector("[data-tablet-prod-filter-count]");
+    if (!badge) return;
+    var n = activeAdvancedFilterCount();
+    if (!open && n > 0) {
+      badge.textContent = String(n);
+      badge.hidden = false;
+    } else {
+      badge.hidden = true;
+    }
+  }
+
+  // 저장된 열림 상태로 접이 영역 복원(부트/스왑). 필터 값은 서버 렌더 기본값을 유지한다.
+  function restoreFilterCollapse() {
+    syncFilterToggle(readFiltersOpen());
+  }
+
   // ---- 단일 document 'click' 위임 --------------------------------------------
   document.addEventListener("click", function (ev) {
     if (!cohortActive()) return;
     var target = ev.target;
     if (!target || !target.closest) return;
+
+    // D-c 생산 필터 접기 토글 — 열림 상태 저장 + 표시 동기화. 현재 상태는 저장값이 아니라
+    // 실제 DOM(__more.hidden)에서 읽는다 — localStorage 불가 환경에서 read 가 항상 false 로
+    // 굳어 "열기만 되고 못 닫는" 버그 방지.
+    var filterToggleBtn = target.closest("[data-tablet-prod-filter-toggle]");
+    if (filterToggleBtn) {
+      ev.preventDefault();
+      var moreEl = document.getElementById("tablet-prod-filter-more");
+      var willOpen = moreEl ? moreEl.hidden : !readFiltersOpen();
+      writeFiltersOpen(willOpen);
+      syncFilterToggle(willOpen);
+      return;
+    }
 
     // 생산 필터 리셋 버튼.
     var resetBtn = target.closest("button[data-tablet-prod-reset]");
@@ -700,4 +775,8 @@
   // is-open 중복 가드가 있어 재진입 안전.
   maybeShowChangeModal();
   document.addEventListener("foms:erp-shell-fragment-swapped", maybeShowChangeModal);
+
+  // ---- D-c 필터 접이 상태 복원: 부트 + fragment 스왑(칸반 body 재삽입) 시 저장값 재적용 ----
+  restoreFilterCollapse();
+  document.addEventListener("foms:erp-shell-fragment-swapped", restoreFilterCollapse);
 })();

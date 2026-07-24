@@ -43,6 +43,9 @@ _PRODUCTION_STEP_KEYS = frozenset(k for k, _ in _PRODUCTION_STEP_DEFS)
 _PRODUCTION_DEFECT_REASONS = ("자재 불량", "가공 오류", "파손", "기타")
 _PRODUCTION_DEFECTS_CAP = 20
 
+# 보류 이력(hold_history) 캡 — 완료 후에도 보존되는 해제된 보류 기록(최근 20건 유지).
+_PRODUCTION_HOLD_HISTORY_CAP = 20
+
 
 def _can_edit_production_steps(user: Any) -> bool:
     """생산 공정 스텝 편집 가능 여부(ADMIN 또는 CS/SALES/PRODUCTION 팀)."""
@@ -96,6 +99,37 @@ def _ensure_production_steps(sd: dict[str, Any]) -> list[dict[str, Any]]:
     return steps
 
 
+def _append_hold_history(production: dict[str, Any], released_by: str | None) -> None:
+    """보류 해제 직전, active hold 를 hold_history 에 보존한다(완료 후 이력 소실 방지).
+
+    보류 해제 2경로(hold API 직접 해제 · 전이 게이트 release)가 공유한다. 호출 시점의
+    ``production['hold']`` 가 active 면 ``{reason, at(보류 시작), released_at(now),
+    released_by}`` 를 ``production['hold_history']`` 리스트에 append 하고 최근
+    ``_PRODUCTION_HOLD_HISTORY_CAP`` 건만 유지한다. active 가 아니면 아무것도 하지
+    않는다(빈 해제·중복 append 방지). 호출부가 이 함수 뒤에 hold 를 초기화한다.
+
+    :param production: ``sd['production']`` dict(호출부의 deepcopy 작업 사본 내부 참조).
+    :param released_by: 해제자 이름(``user.name`` 또는 None).
+    """
+    hold = production.get("hold")
+    if not (isinstance(hold, dict) and hold.get("active")):
+        return
+    history = production.get("hold_history")
+    if not isinstance(history, list):
+        history = []
+    history.append(
+        {
+            "reason": hold.get("reason") or "",
+            "at": hold.get("at"),
+            "released_at": now_utc_naive().isoformat(),
+            "released_by": released_by,
+        }
+    )
+    if len(history) > _PRODUCTION_HOLD_HISTORY_CAP:
+        history = history[-_PRODUCTION_HOLD_HISTORY_CAP:]
+    production["hold_history"] = history
+
+
 def _apply_production_hold_gate(
     sd: dict[str, Any],
     *,
@@ -103,6 +137,7 @@ def _apply_production_hold_gate(
     via: str,
     order_id: int,
     user_id: int | None,
+    released_by: str | None,
     db: Any,
 ) -> tuple[Any, int] | None:
     """생산 전이(start/complete/rework) 전 보류 게이트. 세 엔드포인트가 공유한다.
@@ -124,6 +159,7 @@ def _apply_production_hold_gate(
     :param via: 이벤트 payload ``via`` 값("release_on_start"|"release_on_complete"|"release_on_rework").
     :param order_id: 대상 주문 id(OrderEvent 기록용).
     :param user_id: 해제자 user id(OrderEvent created_by).
+    :param released_by: 해제자 이름(hold_history 보존용, ``user.name`` 또는 None).
     :param db: DB 세션(OrderEvent add).
     :return: 409 응답 튜플(보류·미해제) 또는 None(전이 진행).
     """
@@ -144,7 +180,8 @@ def _apply_production_hold_gate(
             409,
         )
 
-    # 해제 후 전이 — 같은 트랜잭션에서 hold 초기화 + 토글 이벤트 기록.
+    # 해제 후 전이 — 직전 active hold 를 이력에 보존한 뒤(소실 방지) hold 초기화 + 토글 이벤트 기록.
+    _append_hold_history(production, released_by)
     production["hold"] = {"active": False, "reason": "", "at": None, "by_name": None}
     db.add(
         OrderEvent(
@@ -201,6 +238,7 @@ def api_production_start(order_id):
             via="release_on_start",
             order_id=order_id,
             user_id=user_id,
+            released_by=user.name if user else None,
             db=db,
         )
         if hold_gate is not None:
@@ -274,6 +312,7 @@ def api_production_complete(order_id):
             via="release_on_complete",
             order_id=order_id,
             user_id=user_id,
+            released_by=user.name if user else None,
             db=db,
         )
         if hold_gate is not None:
@@ -400,6 +439,7 @@ def api_production_rework(order_id: int):
             via="release_on_rework",
             order_id=order_id,
             user_id=user_id,
+            released_by=user.name if user else None,
             db=db,
         )
         if hold_gate is not None:
@@ -877,8 +917,10 @@ def api_production_hold(order_id: int):
     기록한다. 이는 **표시 전용 플래그**이며 워크플로 단계(``workflow.stage``)나
     ``order.status`` 를 전이시키지 않는다 — 칸반 카드·시트에 보류 배지를 노출하기 위한
     상태일 뿐이다. active=True 면 at/by_name/reason 을 기록하고, active=False(해제)면
-    at=None, by_name=None, reason="" 로 초기화한다. JSONB 는 copy.deepcopy+flag_modified
-    규약을 따른다. 권한은 생산 공정 스텝과 동일(ADMIN 또는 CS/SALES/PRODUCTION 팀).
+    **초기화 직전 직전 active hold 를 ``hold_history`` 에 보존**(완료 후 이력 소실 방지,
+    ``_append_hold_history``)한 뒤 at=None, by_name=None, reason="" 로 초기화한다. JSONB 는
+    copy.deepcopy+flag_modified 규약을 따른다. 권한은 생산 공정 스텝과 동일(ADMIN 또는
+    CS/SALES/PRODUCTION 팀).
 
     :param order_id: 대상 주문 id.
     :return: ``{success, data:{hold}}`` 또는 오류 JSON.
@@ -910,6 +952,9 @@ def api_production_hold(order_id: int):
             "at": now_iso if active else None,
             "by_name": (user.name if user else None) if active else None,
         }
+        # 해제(active=False)면 직전 active hold 를 이력에 보존한 뒤 초기화한다(소실 방지).
+        if not active:
+            _append_hold_history(production, user.name if user else None)
         production["hold"] = hold
 
         order.structured_data = sd

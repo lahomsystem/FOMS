@@ -40,6 +40,28 @@
     <strong class="foms-prod-sheet__reason-text">{{ order.rework_reason }}</strong>
   </div>
   {% endif %}
+  {# ── 완료 이력(E-d, 무채): 진행 콜아웃(유채)이 사라진 완료 건의 차분한 이력. 재제작=완료된
+     rework(active 아님+count>0, 최근 사유 병기) · 보류 이력=해제된 보류 기록(hold_history) 건수.
+     HMI: 유채 아님(무채 tertiary 톤). CEO 품질분석·CS 응대용. #}
+  {% set _rework_hist = (not order.rework_active) and (order.rework_count | default(0, true)) > 0 %}
+  {% set _hold_hist = (not order.hold_active) and (order.hold_history | default([], true) | length) > 0 %}
+  {% if _rework_hist or _hold_hist %}
+  <section class="foms-prod-sheet__hist" aria-label="완료 이력">
+    {% if _rework_hist %}
+    <div class="foms-prod-sheet__hist-row">
+      <i class="fas fa-rotate-left" aria-hidden="true"></i>
+      <span class="foms-prod-sheet__hist-label">재제작 {{ order.rework_count }}회</span>
+      {% if order.rework_reason %}<span class="foms-prod-sheet__hist-detail">· 최근 사유 {{ order.rework_reason }}</span>{% endif %}
+    </div>
+    {% endif %}
+    {% if _hold_hist %}
+    <div class="foms-prod-sheet__hist-row">
+      <i class="fas fa-pause" aria-hidden="true"></i>
+      <span class="foms-prod-sheet__hist-label">보류 이력 {{ order.hold_history | length }}건</span>
+    </div>
+    {% endif %}
+  </section>
+  {% endif %}
 
   {# ── 변경 알림: 생산 진입 후 감지된 시공일/도면 변경 목록 + [변경 확인](ack API → reload).
      계약: order.has_changes / order.change_alerts(list[{kind,label,detail}]). 백엔드 미도착 안전 접근. #}
