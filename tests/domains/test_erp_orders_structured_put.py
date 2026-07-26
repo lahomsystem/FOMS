@@ -108,7 +108,6 @@ def test_structured_put_clears_order_notes_when_notes_empty_string(client, monke
     order.notes = "기존 비고"
     db_session.commit()
 
-    monkeypatch.setattr(erp_orders_structured, "_handle_stage_transition", lambda *a, **k: None)
     monkeypatch.setattr(erp_orders_structured, "_record_structured_events", lambda *a, **k: None)
     monkeypatch.setattr(erp_orders_structured, "_apply_structured_side_effects", lambda *a, **k: None)
     monkeypatch.setattr(erp_orders_structured, "_finalize_draft_state", lambda *a, **k: False)
@@ -138,7 +137,6 @@ def test_structured_get_put_round_trips_regional_and_self_measurement_flags(clie
     order = _create_order()
     order_id = order.id
 
-    monkeypatch.setattr(erp_orders_structured, "_handle_stage_transition", lambda *a, **k: None)
     monkeypatch.setattr(erp_orders_structured, "_record_structured_events", lambda *a, **k: None)
     monkeypatch.setattr(erp_orders_structured, "_apply_structured_side_effects", lambda *a, **k: None)
     monkeypatch.setattr(erp_orders_structured, "_finalize_draft_state", lambda *a, **k: False)
@@ -208,7 +206,6 @@ def test_structured_put_syncs_erp_dates_to_legacy_mirrors(client, monkeypatch):
     )
     order_id = order.id
 
-    monkeypatch.setattr(erp_orders_structured, "_handle_stage_transition", lambda *a, **k: None)
     monkeypatch.setattr(erp_orders_structured, "_record_structured_events", lambda *a, **k: None)
     monkeypatch.setattr(erp_orders_structured, "_apply_structured_side_effects", lambda *a, **k: None)
     monkeypatch.setattr(erp_orders_structured, "_finalize_draft_state", lambda *a, **k: False)
@@ -238,7 +235,6 @@ def test_structured_put_requires_construction_type_for_regional_order(client, mo
     _login_as_admin(client, username="erp-regional-type-required")
     order = _create_order()
 
-    monkeypatch.setattr(erp_orders_structured, "_handle_stage_transition", lambda *a, **k: None)
     monkeypatch.setattr(erp_orders_structured, "_record_structured_events", lambda *a, **k: None)
     monkeypatch.setattr(erp_orders_structured, "_apply_structured_side_effects", lambda *a, **k: None)
     monkeypatch.setattr(erp_orders_structured, "_finalize_draft_state", lambda *a, **k: False)
@@ -360,7 +356,6 @@ def test_structured_put_preserves_shipment_construction_workers_when_missing(cli
     order = _create_order(structured_data=original_sd)
     order_id = order.id
 
-    monkeypatch.setattr(erp_orders_structured, "_handle_stage_transition", lambda *a, **k: None)
     monkeypatch.setattr(erp_orders_structured, "_record_structured_events", lambda *a, **k: None)
     monkeypatch.setattr(erp_orders_structured, "_apply_structured_side_effects", lambda *a, **k: None)
     monkeypatch.setattr(erp_orders_structured, "_finalize_draft_state", lambda *a, **k: False)
@@ -546,7 +541,6 @@ def test_structured_put_rejects_address_clear_before_geocode_reset(client, monke
     push_calls = []
     reset_calls = []
 
-    monkeypatch.setattr(erp_orders_structured, "_handle_stage_transition", lambda *args, **kwargs: None)
     monkeypatch.setattr(erp_orders_structured, "_record_structured_events", lambda *args, **kwargs: None)
     monkeypatch.setattr(erp_orders_structured, "_apply_structured_side_effects", lambda *args, **kwargs: None)
     monkeypatch.setattr(erp_orders_structured, "_finalize_draft_state", lambda *args, **kwargs: False)
@@ -597,7 +591,6 @@ def test_structured_put_never_enqueues_channel_auto_push(client, monkeypatch):
     order = _create_order()
     order_id = order.id
 
-    monkeypatch.setattr(erp_orders_structured, "_handle_stage_transition", lambda *a, **k: None)
     monkeypatch.setattr(erp_orders_structured, "_record_structured_events", lambda *a, **k: None)
     monkeypatch.setattr(erp_orders_structured, "_apply_structured_side_effects", lambda *a, **k: None)
     monkeypatch.setattr(erp_orders_structured, "_finalize_draft_state", lambda *a, **k: False)
@@ -949,18 +942,28 @@ def test_structured_put_blocks_accidental_stage_regression_drawing_to_measure(cl
     assert hist[0].get("action") == "ERP_ORDER_CHANGED"
 
 
-def test_guard_accidental_stage_regression_unit():
-    from foms.api.erp_orders_structured import _guard_accidental_stage_regression
+def test_pin_form_stage_to_server_unit():
+    """STATE-FORM-01: 폼 payload 의 stage 는 방향 무관 서버 단계로 고정된다(전이 0)."""
+    from foms.api.erp_orders_structured import _pin_form_stage_to_server
 
     old = {"workflow": {"stage": "DRAWING"}}
-    new = {"workflow": {"stage": "MEASURE"}}
-    _guard_accidental_stage_regression(old, new)
-    assert new["workflow"]["stage"] == "DRAWING"
 
+    # 역행 시도 → 서버 단계 유지.
+    regress = {"workflow": {"stage": "MEASURE"}}
+    _pin_form_stage_to_server(old, regress)
+    assert regress["workflow"]["stage"] == "DRAWING"
+
+    # 인접 전진 시도도 폼으로는 불가 → 서버 단계 유지(암묵 전이 금지).
     forward = {"workflow": {"stage": "CONFIRM"}}
-    _guard_accidental_stage_regression(old, forward)
-    assert forward["workflow"]["stage"] == "CONFIRM"
+    _pin_form_stage_to_server(old, forward)
+    assert forward["workflow"]["stage"] == "DRAWING"
 
+    # 건너뛰기 시도 → 서버 단계 유지.
     skip = {"workflow": {"stage": "PRODUCTION"}}
-    _guard_accidental_stage_regression({"workflow": {"stage": "MEASURE"}}, skip)
+    _pin_form_stage_to_server({"workflow": {"stage": "MEASURE"}}, skip)
     assert skip["workflow"]["stage"] == "MEASURE"
+
+    # workflow 누락 payload 에도 서버 단계를 심는다.
+    empty: dict = {}
+    _pin_form_stage_to_server(old, empty)
+    assert empty["workflow"]["stage"] == "DRAWING"

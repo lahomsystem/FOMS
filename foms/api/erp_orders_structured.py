@@ -27,12 +27,7 @@ from foms.services.orders.estimate_defaults import (
 from foms.services.orders.construction_type import normalize_regional_construction_type
 from foms.services.orders.status_constants import STATUS
 from foms.web.auth import login_required, role_required
-from foms.services.erp_policy import (
-    STAGE_LABELS,
-    check_quest_approvals_complete,
-    create_quest_from_template,
-)
-from foms.services.datetime_kst import get_today_kst, now_kst, now_utc_naive
+from foms.services.datetime_kst import now_kst
 from foms.services.erp_order_flags import is_erp_draft_structured_data, is_erp_order_draft
 from foms.services.erp_sync_columns import sync_erp_flat_columns
 from foms.services.orders.erp_automation import apply_auto_tasks
@@ -58,10 +53,6 @@ from foms.services.orders.structured_form_projection import project_structured_f
 #: 는 이 엔드포인트를 STAFF_MUTATION guard 로 이미 enforce 하므로 route 는 정책 id 만 공유한다.
 STRUCTURED_PUT_POLICY_ID = "ERP_STRUCTURED_PUT"
 
-TEAM_LABELS = {
-    'CS': '라홈팀', 'SALES': '영업팀', 'MEASURE': '실측팀',
-    'DRAWING': '도면팀', 'PRODUCTION': '생산팀', 'CONSTRUCTION': '시공팀',
-}
 _CUSTOMER_PLACEHOLDERS = {ERP_DRAFT_PLACEHOLDER_CUSTOMER}
 _PRODUCT_PLACEHOLDERS = {ERP_DRAFT_PLACEHOLDER_PRODUCT}
 _ERP_DRAFT_TOKEN_MAX_LENGTH = 128
@@ -238,51 +229,37 @@ def _merge_preserving_missing(old_value: Any, incoming_value: Any) -> Any:
     return merged
 
 
-# Form PUT 가 stale erp-workflow-stage 로 DRAWING→MEASURE 같은 역행을 쓰면
-# 도면 작업실 목록에서 사라지고 "실측으로 회귀"처럼 보인다. 의도적 롤백은
-# stage-override API 로만 허용하고, structured PUT 에서는 역행을 차단한다.
-from foms.services.orders.stage_override import stage_forward_rank as _stage_forward_rank
+# STATE-FORM-01: 폼 저장은 단계를 바꾸지 않는다(form save ≠ stage change). 폼이 보낸
+# workflow.stage 는 서버 현재값으로 고정하고, 단계 전이는 오직 명시적 stage-override
+# (STATE-CORE transition) 경로로만 일어난다. 이렇게 하면 stale 탭이 전진/역행/건너뛰기
+# 어느 쪽으로도 상태를 덮어쓰지 못한다(암묵 단계전이 0).
 
 
-def _guard_accidental_stage_regression(old_sd: dict, structured_data: dict) -> None:
-    """structured PUT 의 단계 역행·건너뛰기를 서버 단계로 복구.
+def _pin_form_stage_to_server(old_sd: dict, structured_data: dict) -> None:
+    """폼 payload 의 workflow.stage 를 서버 현재 단계로 고정한다(단계 불변).
 
-    인접 전진(+1)·동일만 허용. 그 외(역행/스킵)는 stage-override API 전용.
+    STATE-FORM-01: structured PUT 은 폼 데이터만 저장하고 단계 전이는 하지 않는다.
+    old_sd 에 단계가 있으면 그 값으로 강제해, 폼 select(전진 포함)나 stale 탭이 상태를
+    바꾸지 못하게 한다. 실제 단계 변경은 stage-override API(explicit override)만 담당한다.
+
+    Args:
+        old_sd: 저장 직전 서버 structured_data(단계 SSOT).
+        structured_data: 클라이언트가 보낸 폼 payload(이 자리에서 stage 를 덮어씀).
+
+    Returns:
+        None. ``structured_data['workflow']['stage']`` 를 in-place 로 고정한다.
     """
     if not isinstance(old_sd, dict) or not isinstance(structured_data, dict):
         return
     old_wf = old_sd.get("workflow") if isinstance(old_sd.get("workflow"), dict) else {}
-    new_wf = structured_data.get("workflow") if isinstance(structured_data.get("workflow"), dict) else {}
     old_stage = old_wf.get("stage")
-    new_stage = new_wf.get("stage")
     if not old_stage:
         return
-    if not new_stage:
-        wf = structured_data.setdefault("workflow", {})
-        if isinstance(wf, dict):
-            wf["stage"] = old_stage
-        else:
-            structured_data["workflow"] = {"stage": old_stage}
-        return
-    if old_stage == new_stage:
-        return
-    old_rank = _stage_forward_rank(old_stage)
-    new_rank = _stage_forward_rank(new_stage)
-    # 미지(AS* 등): 폼 값 유지. 알려진 단계끼리만 인접(+1) 허용.
-    if old_rank < 0 or new_rank < 0:
-        return
-    if new_rank == old_rank + 1:
-        return
     wf = structured_data.setdefault("workflow", {})
-    if not isinstance(wf, dict):
-        structured_data["workflow"] = {"stage": old_stage}
-    else:
+    if isinstance(wf, dict):
         wf["stage"] = old_stage
-    logger.warning(
-        "[ERP_ORDER] blocked non-adjacent stage change %s -> %s (kept server stage)",
-        new_stage,
-        old_stage,
-    )
+    else:
+        structured_data["workflow"] = {"stage": old_stage}
 
 
 def _force_preserve_drawing_transfer_history(old_sd: dict, structured_data: dict) -> None:
@@ -323,47 +300,7 @@ def _preserve_operational_structured_state(old_sd: dict, structured_data: dict) 
         structured_data['quests'] = copy.deepcopy(old_sd.get('quests'))
 
     _force_preserve_drawing_transfer_history(old_sd, structured_data)
-    _guard_accidental_stage_regression(old_sd, structured_data)
-
-
-def _handle_stage_transition(
-    db: Session,
-    order: Order,
-    old_sd: dict,
-    structured_data: dict,
-) -> None:
-    """단계 전환 감지 및 OrderEvent/Quest 생성."""
-    new_stage = (structured_data.get('workflow') or {}).get('stage')
-    old_stage = (old_sd.get('workflow') or {}).get('stage')
-    if not new_stage or new_stage == old_stage:
-        return
-    if new_stage in STATUS:
-        setattr(order, 'status', new_stage)
-        # Entering the AS lifecycle through either stage should stamp the first received date once.
-        if new_stage in ('AS', 'AS_RECEIVED') and not getattr(order, 'as_received_date', None):
-            setattr(order, 'as_received_date', get_today_kst().strftime('%Y-%m-%d'))
-    is_quest_complete, missing_teams = check_quest_approvals_complete(old_sd, old_stage)
-    if not is_quest_complete and missing_teams:
-        stage_label = STAGE_LABELS.get(old_stage, old_stage) if old_stage else '알 수 없음'
-        missing_team_labels = [TEAM_LABELS.get(t, t) for t in missing_teams]
-        logger.warning("[%s] Quest 승인 미완료 팀: %s", stage_label, ', '.join(missing_team_labels))
-    (structured_data.get('workflow') or {})['stage_updated_at'] = now_utc_naive().isoformat()
-    db.add(OrderEvent(
-        order_id=order.id,
-        event_type='STAGE_CHANGED',
-        payload={'from': old_stage, 'to': new_stage, 'manual': True},
-        created_by_user_id=session.get('user_id')
-    ))
-    quests = structured_data.get('quests') or []
-    has_new_stage_quest = any(
-        isinstance(q, dict) and q.get('stage') == new_stage for q in quests
-    )
-    if not has_new_stage_quest:
-        new_quest = create_quest_from_template(new_stage, session.get('username') or '', structured_data)
-        if new_quest:
-            if not structured_data.get('quests'):
-                structured_data['quests'] = []
-            structured_data['quests'].append(new_quest)
+    _pin_form_stage_to_server(old_sd, structured_data)
 
 
 def _record_structured_events(
@@ -887,10 +824,9 @@ def api_put_order_structured(order_id):
                 # DATA-01 정본 projection: partial allowlist · provenance lock · server pricing.
                 project_structured_form(old_sd, structured_data)
 
-                try:
-                    _handle_stage_transition(sess, o, old_sd, structured_data)
-                except Exception as e:
-                    logger.warning("단계 전환 검증 오류: %s", e, exc_info=True)
+                # STATE-FORM-01: 폼 저장은 단계를 바꾸지 않는다. workflow.stage 는
+                # _pin_form_stage_to_server 가 이미 서버값으로 고정했고, 단계 전이는
+                # 명시적 stage-override(STATE-CORE transition) 경로 전용이다.
 
                 t0 = time.perf_counter()
                 _record_structured_events(sess, o, old_sd, structured_data)
