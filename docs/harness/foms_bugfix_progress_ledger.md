@@ -155,6 +155,15 @@
 - ✅ WDC-LINK-CLEANUP-01 — `fd84d3e3`. audit_wdc_link_cleanup: V2 checkpoint/marker/canonical effective 뒤에만 Order meta/later V1 retirement batch verify(실삭제 0·V1 drop 마이그레이션 없음)·separate encrypted artifact·marker 전 거부·V2 불변·ambiguous 제거 0·static guard. PG green. 실 V1 retirement은 후속. **failopen inventory 479.**
 - head=startup_schema_00. **88 커밋 + CHAT 5 N/A = 93/124 (75%)·잔여 구현 31.**
 
+## ✅ 배치 15 완료 (2 packet + STARTUP-BACKFILL fixup·domains+contracts 3165 passed 0 failed)
+- ✅ AUTH-ACCOUNT-01 — `3faa98fa`. auth rate 키 bootstrap/rotation OPS-APPROVAL 5 op(SESSION-SIGNING 동형 상태기계·version/generation·dual-accept)·마이그레이션 auth_account_00(AuthRateKeyState·down=startup_schema_00·단일 head)·auth_rate/crypto(AES-256-GCM env master key·Linux replica)·rate_limit.py BRIDGE byte-identical·no HTTP route. 경로 정정(request_limits→rate_limit.py key_func). PG 8.
+- ✅ DATA-01 — `6ad34dc4`. structured_form_projection 정본(envelope/path/item schema·raw/schema/confidence provenance 보존)·erp_orders_structured PUT one tx(If-Match·stale/PG race)·server pricing(클라 무시)·partial allowlist·provenance overwrite 금지·client provenance 미전송 ?v. manifest 무변경. **failopen inventory 480.**
+- ✅ fix STARTUP-BACKFILL-01 — `8666f938`. backfill_erp_flat_columns OPS_APPROVAL_OPERATION_ID="BACKFILL_APPLY" 선언(test_ops_approval 계약 완결·manifest cli 안 채움[owner _landed 밖]). **검증 사각 포착**: 배치별 회귀=domains+contracts라 tests/postgres 전역 계약 미실행→배치6 놓침. → 통합 시 tests/postgres 전수 실행 원칙.
+- head=auth_account_00. **89 unique 커밋 + CHAT 5 N/A = 94/124 (76%)·잔여 구현 ~30.**
+
+## ⚠️ 알려진 이슈 (PG-lane test-pollution·pre-existing 하네스·product 버그 아님)
+`pytest tests/postgres`(전체 suite) 실행 시 test_wdc_link_cleanup 2 failed+16 errors(RestrictViolation). **격리 단독은 20 passed**. 원인: conftest 격리=per-test 트랜잭션 rollback(:236)인데 PG 동시성 테스트(FOR UPDATE/SKIP LOCKED·real commit)가 row 누출→전체 suite 순서서 RESTRICT FK. 배치9/11/14 WDC-link 계열 잠복(full tests/postgres 미실행이라 지금 노출). **각 packet 격리 테스트·domains+contracts는 전부 green**. **수정 필요(production 승격 전·별도 conftest 격리 태스크)**: 동시성 테스트 후 truncate-cascade teardown. 지금 배치15 커밋은 이 이슈로 안 막음(개별 검증 green·pre-existing).
+
 ## 🎯 다음 후보 (신규 unblock)
 - **STATE 패밀리**(STATE-CORE unblock): STATE-PROD-01·STATE-PROD-ACTIONS-01·STATE-DRAWING-01·STATE-AS-01·STATE-QUEST-01(+AUTH-QUEST-READ) — endpoint를 order_transition_service로 이관. 단 BACKFILL 선행(PRODUCTION-BACKFILL-00·QUEST-BACKFILL-00·AS-BACKFILL-00·DRAWING-REVISION-BACKFILL-00·CONSTRUCTION-BACKFILL-00) 확인.
 - **DELETE 패밀리**(DELETE-CORE unblock): DELETE-BULK-01·DELETE-TRASH-01·DELETE-RETENTION-01.
