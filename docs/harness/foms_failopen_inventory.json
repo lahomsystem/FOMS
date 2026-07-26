@@ -5,16 +5,16 @@
   "overlap_api_error_01": "API-ERROR-01 owns response/stdout exposure (print_exc/str(e) -> log_handled_exception). This packet owns swallow classification. Sites that log via log_handled_exception are LOG_AND_CONTINUE here.",
   "marker_convention": "Silent-by-design catches carry an inline `# failopen: intentional: <reason>` (or `fail-closed`) marker; the scanner reads it as the justification. No bare allowlist, no lint-disable.",
   "baselines": {
-    "broad_total": 484,
+    "broad_total": 479,
     "unclassified": 0
   },
   "disposition_counts": {
     "FAIL_CLOSED": 20,
     "INTENTIONAL": 16,
-    "LOG_AND_CONTINUE": 448
+    "LOG_AND_CONTINUE": 443
   },
   "owner_counts": {
-    "api": 225,
+    "api": 220,
     "audit": 1,
     "auth": 10,
     "cache": 25,
@@ -1988,7 +1988,7 @@
     },
     {
       "path": "foms/api/personal_board.py",
-      "lineno": 266,
+      "lineno": 268,
       "handler_type": "broad_exception",
       "disposition": "LOG_AND_CONTINUE",
       "owner": "api",
@@ -1997,7 +1997,7 @@
     },
     {
       "path": "foms/api/personal_board.py",
-      "lineno": 318,
+      "lineno": 320,
       "handler_type": "broad_exception",
       "disposition": "LOG_AND_CONTINUE",
       "owner": "api",
@@ -2006,7 +2006,7 @@
     },
     {
       "path": "foms/api/personal_board.py",
-      "lineno": 393,
+      "lineno": 395,
       "handler_type": "broad_exception",
       "disposition": "LOG_AND_CONTINUE",
       "owner": "api",
@@ -2015,7 +2015,7 @@
     },
     {
       "path": "foms/api/personal_board.py",
-      "lineno": 436,
+      "lineno": 438,
       "handler_type": "broad_exception",
       "disposition": "LOG_AND_CONTINUE",
       "owner": "api",
@@ -2231,7 +2231,7 @@
     },
     {
       "path": "foms/api/tasks.py",
-      "lineno": 39,
+      "lineno": 170,
       "handler_type": "broad_exception",
       "disposition": "LOG_AND_CONTINUE",
       "owner": "api",
@@ -2240,52 +2240,7 @@
     },
     {
       "path": "foms/api/tasks.py",
-      "lineno": 71,
-      "handler_type": "broad_exception",
-      "disposition": "LOG_AND_CONTINUE",
-      "owner": "api",
-      "has_logging": true,
-      "justification": "logs via logger/log_handled_exception"
-    },
-    {
-      "path": "foms/api/tasks.py",
-      "lineno": 75,
-      "handler_type": "broad_exception",
-      "disposition": "LOG_AND_CONTINUE",
-      "owner": "api",
-      "has_logging": true,
-      "justification": "logs via logger/log_handled_exception"
-    },
-    {
-      "path": "foms/api/tasks.py",
-      "lineno": 109,
-      "handler_type": "broad_exception",
-      "disposition": "LOG_AND_CONTINUE",
-      "owner": "api",
-      "has_logging": true,
-      "justification": "logs via logger/log_handled_exception"
-    },
-    {
-      "path": "foms/api/tasks.py",
-      "lineno": 113,
-      "handler_type": "broad_exception",
-      "disposition": "LOG_AND_CONTINUE",
-      "owner": "api",
-      "has_logging": true,
-      "justification": "logs via logger/log_handled_exception"
-    },
-    {
-      "path": "foms/api/tasks.py",
-      "lineno": 132,
-      "handler_type": "broad_exception",
-      "disposition": "LOG_AND_CONTINUE",
-      "owner": "api",
-      "has_logging": true,
-      "justification": "logs via logger/log_handled_exception"
-    },
-    {
-      "path": "foms/api/tasks.py",
-      "lineno": 136,
+      "lineno": 213,
       "handler_type": "broad_exception",
       "disposition": "LOG_AND_CONTINUE",
       "owner": "api",
