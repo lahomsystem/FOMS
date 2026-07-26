@@ -489,6 +489,188 @@ class OrderASCycle(Base):
         }
 
 
+class DrawingRevision(Base):
+    """도면 개정(drawing revision)의 DB-global UUID registry (DRAWING-REVISION-BACKFILL-00, §5.2).
+
+    도면 이력은 오늘 주문마다 flat ``structured_data['drawing_transfer_history']``
+    (TRANSFER/REQUEST_REVISION/CONFIRM_RECEIPT 가 한 리스트에 뒤섞여 append 됨)·
+    ``drawing_status``·``drawing_current_files``·``blueprint.customer_confirmed`` 로만
+    기록돼, 개정별 안정 identity 도 current/receipt/customer-confirm 포인터도 남지 않는다.
+    이 registry 는 TRANSFER(도면 전달)마다 **안정 UUID revision row** 를 발급해, 전달·수령
+    확인(receipt)·고객 확인(customer-confirm) 스냅샷을 개정 단위로 귀속하고,
+    :func:`~foms.services.orders.state_axes.read_drawing_revision_registry` 의 canonical
+    포인터(``current_revision_id`` / ``receipt_revision_id`` /
+    ``customer_confirmed_revision_id``)와 shape 를 정합시킨다(주문당 각 포인터 0/1).
+
+    계약(§5.2 DRAWING-REVISION-BACKFILL-00):
+
+    * **DB-global unique**: ``id`` 는 UUID PK(= ``revision_id``)로 전 DB 유일하다.
+    * **order binding**: 모든 revision 은 한 주문(``order_id`` FK)에 묶인다.
+    * **status**: ``TRANSFERRED`` | ``RETURNED`` | ``CONFIRMED`` | ``SUPERSEDED``.
+    * **flat 보존**: revision 컬럼은 flat ``drawing_transfer_history`` entry·``blueprint``
+      의 **복제 스냅샷**이다 — backfill 은 flat/attachment 를 삭제/재작성하지 않고 복제만
+      한다. 전이(개정 발급/전달) 활성화는 하류 STATE-DRAWING-01 소관이라 runtime 의미
+      변경이 0 이다.
+    * ``legacy_seq`` 는 발급 근거 ``drawing_transfer_history`` 인덱스(provenance·backfill
+      멱등 키)일 뿐 런타임 근거로 쓰지 않는다.
+
+    ``uq_drawing_revision_current`` / ``_receipt`` / ``_customer`` (partial unique)로 한 주문의
+    current / receipt / customer-confirmed revision 은 각각 최대 1개다 — 세 canonical 포인터의
+    DB 표현이다. 종결된(``is_current=False``) 개정은 SUPERSEDED 이력으로 남는다.
+    ``uq_drawing_revision_legacy`` (partial unique)는 한 주문의 한 legacy transfer entry 에
+    revision 을 최대 1개로 강제해 backfill 을 멱등하게 만든다. DDL 은
+    migration(``drawing_revision_00``)과 SSOT 를 공유한다(create_all 테스트 lane 동일 스키마).
+    """
+
+    __tablename__ = 'drawing_revisions'
+
+    id = Column(UUIDColumn, primary_key=True, default=lambda: str(uuid.uuid4()))
+    order_id = Column(
+        Integer, ForeignKey('orders.id', ondelete='CASCADE'), nullable=False, index=True,
+    )
+    status = Column(String(20), nullable=False)  # TRANSFERRED|RETURNED|CONFIRMED|SUPERSEDED
+    # 개정 순번(주문 내 TRANSFER 발생 순 1-based) — provenance·정렬.
+    revision_no = Column(Integer, nullable=False)
+    # 전달(발급) 스냅샷: flat TRANSFER entry 의 transferred_at/by_user_name/note/files.
+    transferred_at = Column(DateTime, nullable=True)
+    transferred_by = Column(String(120), nullable=True)
+    note = Column(Text, nullable=True)
+    files = Column(JSONColumn, nullable=True)
+    # receipt(도면 수령 확인) 스냅샷: flat CONFIRM_RECEIPT entry 의 at/by_user_name.
+    receipt_confirmed_at = Column(DateTime, nullable=True)
+    receipt_confirmed_by = Column(String(120), nullable=True)
+    # customer-confirm 스냅샷: flat blueprint.confirmed_at/confirmed_by.
+    customer_confirmed_at = Column(DateTime, nullable=True)
+    customer_confirmed_by = Column(String(120), nullable=True)
+    is_current = Column(Boolean, nullable=False, default=False, server_default='false')
+    is_receipt = Column(Boolean, nullable=False, default=False, server_default='false')
+    is_customer_confirmed = Column(Boolean, nullable=False, default=False, server_default='false')
+    # 발급 근거 drawing_transfer_history 인덱스(provenance·backfill 멱등 키). 런타임 근거 아님.
+    legacy_seq = Column(Integer, nullable=True)
+    created_at = Column(DateTime, nullable=False, default=now_utc_naive, server_default=func.now())
+
+    __table_args__ = (
+        # 한 주문의 current revision 은 최대 1개(current_revision_id 포인터 DB 표현).
+        Index(
+            'uq_drawing_revision_current', 'order_id',
+            unique=True, postgresql_where=text('is_current'),
+        ),
+        # 한 주문의 receipt revision(수령 확인분)은 최대 1개(receipt_revision_id 포인터).
+        Index(
+            'uq_drawing_revision_receipt', 'order_id',
+            unique=True, postgresql_where=text('is_receipt'),
+        ),
+        # 한 주문의 customer-confirmed revision 은 최대 1개(customer_confirmed_revision_id 포인터).
+        Index(
+            'uq_drawing_revision_customer', 'order_id',
+            unique=True, postgresql_where=text('is_customer_confirmed'),
+        ),
+        # 한 주문의 한 legacy transfer entry 에 revision 은 최대 1개(중복 발급 방지·backfill 멱등).
+        Index(
+            'uq_drawing_revision_legacy', 'order_id', 'legacy_seq',
+            unique=True, postgresql_where=text('legacy_seq IS NOT NULL'),
+        ),
+    )
+
+    def to_dict(self):
+        return {
+            'id': self.id,
+            'order_id': self.order_id,
+            'status': self.status,
+            'revision_no': self.revision_no,
+            'transferred_at': format_datetime_kst(self.transferred_at) if self.transferred_at else None,
+            'transferred_by': self.transferred_by,
+            'note': self.note,
+            'files': self.files,
+            'receipt_confirmed_at': format_datetime_kst(self.receipt_confirmed_at) if self.receipt_confirmed_at else None,
+            'receipt_confirmed_by': self.receipt_confirmed_by,
+            'customer_confirmed_at': format_datetime_kst(self.customer_confirmed_at) if self.customer_confirmed_at else None,
+            'customer_confirmed_by': self.customer_confirmed_by,
+            'is_current': self.is_current,
+            'is_receipt': self.is_receipt,
+            'is_customer_confirmed': self.is_customer_confirmed,
+            'legacy_seq': self.legacy_seq,
+            'created_at': format_datetime_kst(self.created_at),
+        }
+
+
+class DrawingRevisionRequest(Base):
+    """도면 수정요청(revision request)의 DB-global UUID registry (DRAWING-REVISION-BACKFILL-00, §5.2).
+
+    수정요청은 오늘 주문마다 flat ``drawing_transfer_history`` 의 ``REQUEST_REVISION`` entry·
+    ``drawing_status == 'RETURNED'`` 로만 기록돼, 요청별 안정 identity 도 "열린 요청" 포인터도
+    남지 않는다. 이 registry 는 REQUEST_REVISION 마다 **안정 UUID request row** 를 발급해
+    요청 스냅샷(대상 도면 key·참고 파일·메모)을 요청 단위로 귀속하고,
+    :func:`~foms.services.orders.state_axes.read_drawing_revision_registry` 의
+    ``current_revision_request_id`` 포인터와 shape 를 정합시킨다.
+
+    계약(§5.2 DRAWING-REVISION-BACKFILL-00):
+
+    * **DB-global unique**: ``id`` 는 UUID PK(= ``request_id``)로 전 DB 유일하다.
+    * **order binding**: 모든 request 는 한 주문(``order_id`` FK)에 묶인다.
+    * ``revision_id`` 는 요청 대상 revision(발급 시점 current revision) 의 **soft link**
+      (FK 아님 — 형제 :class:`DrawingRevision` 과 느슨 결합). None 은 대상 미상.
+    * **status**: ``OPEN`` | ``RESOLVED``. flat REQUEST_REVISION → open, 후속 TRANSFER 로
+      해소된 과거 요청 → resolved 이력.
+    * **flat 보존**: request 컬럼은 flat entry 의 **복제 스냅샷**이다 — backfill 은
+      flat/attachment 를 삭제하지 않는다.
+
+    ``uq_drawing_request_open`` (partial unique)로 한 주문의 열린 요청은 최대 1개다 —
+    "duplicate open request 0" 불변식의 DB 강제이자 ``current_revision_request_id`` 포인터의
+    표현이다. ``uq_drawing_request_legacy`` (partial unique)는 backfill 멱등을 보장한다.
+    DDL 은 migration(``drawing_revision_00``)과 SSOT 를 공유한다.
+    """
+
+    __tablename__ = 'drawing_revision_requests'
+
+    id = Column(UUIDColumn, primary_key=True, default=lambda: str(uuid.uuid4()))
+    order_id = Column(
+        Integer, ForeignKey('orders.id', ondelete='CASCADE'), nullable=False, index=True,
+    )
+    # 요청 대상 revision(발급 시점 current revision) 의 soft link — FK 아님(느슨 결합).
+    revision_id = Column(UUIDColumn, nullable=True)
+    status = Column(String(20), nullable=False)  # OPEN|RESOLVED
+    # 요청 스냅샷: flat REQUEST_REVISION entry 의 at/by_user_name/note/files/대상 도면 key.
+    requested_at = Column(DateTime, nullable=True)
+    requested_by = Column(String(120), nullable=True)
+    note = Column(Text, nullable=True)
+    files = Column(JSONColumn, nullable=True)
+    target_drawing_keys = Column(JSONColumn, nullable=True)
+    is_open = Column(Boolean, nullable=False, default=False, server_default='false')
+    # 발급 근거 drawing_transfer_history 인덱스(provenance·backfill 멱등 키).
+    legacy_seq = Column(Integer, nullable=True)
+    created_at = Column(DateTime, nullable=False, default=now_utc_naive, server_default=func.now())
+
+    __table_args__ = (
+        # 한 주문의 열린(open) 수정요청은 최대 1개("duplicate open request 0" DB 강제).
+        Index(
+            'uq_drawing_request_open', 'order_id',
+            unique=True, postgresql_where=text('is_open'),
+        ),
+        # 한 주문의 한 legacy request entry 에 request 는 최대 1개(중복 발급 방지·backfill 멱등).
+        Index(
+            'uq_drawing_request_legacy', 'order_id', 'legacy_seq',
+            unique=True, postgresql_where=text('legacy_seq IS NOT NULL'),
+        ),
+    )
+
+    def to_dict(self):
+        return {
+            'id': self.id,
+            'order_id': self.order_id,
+            'revision_id': self.revision_id,
+            'status': self.status,
+            'requested_at': format_datetime_kst(self.requested_at) if self.requested_at else None,
+            'requested_by': self.requested_by,
+            'note': self.note,
+            'files': self.files,
+            'target_drawing_keys': self.target_drawing_keys,
+            'is_open': self.is_open,
+            'legacy_seq': self.legacy_seq,
+            'created_at': format_datetime_kst(self.created_at),
+        }
+
+
 class OrderEvent(Base):
     """ERP 이벤트 스트림(단계 변경/일정 변경/긴급 발주/컨펌 등)"""
     __tablename__ = 'order_events'
