@@ -4,10 +4,11 @@ ERP 주문 구조화 데이터 API (structured GET/PUT, parse-text, erp/draft).
 
 import copy
 import datetime
+import hashlib
 import json
 import logging
 import time
-from typing import Any, Optional, Tuple
+from typing import Any, List, Mapping, Optional, Tuple
 
 from flask import Blueprint, request, jsonify, session
 
@@ -50,6 +51,12 @@ from foms.services.order_geocode import reset_order_geocode_on_address_change
 from foms.services.feature_flags import env_bool
 from foms.services.erp_inline_patch import apply_field_patch, is_critical_field
 from foms.services.order_draft_service import format_updated_at, parse_updated_at
+from foms.services.orders.revision import RevisionError, execute_order_mutation
+from foms.services.orders.structured_form_projection import project_structured_form
+
+#: structured PUT 저장의 mutation 정책 id(receipt policy_id·OrderEvent scope). AUTH-01 manifest
+#: 는 이 엔드포인트를 STAFF_MUTATION guard 로 이미 enforce 하므로 route 는 정책 id 만 공유한다.
+STRUCTURED_PUT_POLICY_ID = "ERP_STRUCTURED_PUT"
 
 TEAM_LABELS = {
     'CS': '라홈팀', 'SALES': '영업팀', 'MEASURE': '실측팀',
@@ -574,6 +581,8 @@ def api_get_order_structured(order_id):
             'structured_schema_version': order.structured_schema_version,
             'structured_confidence': order.structured_confidence,
             'structured_updated_at': _updated_at.strftime('%Y-%m-%d %H:%M:%S') if _updated_at is not None else None,
+            # DATA-01: If-Match(mutation_version) 낙관 잠금 토큰. 저장 시 이 값을 If-Match 로 보낸다.
+            'mutation_version': getattr(order, 'mutation_version', None),
             'received_date': order.received_date or '',
             'received_time': order.received_time or '',
             'notes': order.notes or '',
@@ -724,14 +733,24 @@ def api_patch_order_structured_fields(order_id: int):
 @login_required
 @role_required(['ADMIN', 'MANAGER', 'STAFF'])
 def api_put_order_structured(order_id):
-    """구조화 데이터 저장(전사 공용)."""
+    """구조화 데이터 저장(전사 공용).
+
+    DATA-01: 저장은 REV-00 :func:`execute_order_mutation` 을 경유해 If-Match
+    (mutation_version) 낙관 잠금 · ``FOR UPDATE`` 직렬화 · version bump · idempotency
+    receipt 를 **한 transaction** 에 원자화한다(stale tab · PG race 방어). 폼 payload 는
+    :func:`project_structured_form`(partial allowlist · provenance lock · server pricing)
+    으로 정본화한다 — 클라이언트가 보낸 ``totals`` 및 provenance(raw/schema/confidence)는
+    신뢰하지 않는다.
+
+    optional 헤더: ``If-Match``(현재 mutation_version) · ``Idempotency-Key``(재요청 replay).
+    """
     start_time = time.perf_counter()
     db = get_db()
     try:
         order = db.query(Order).filter(Order.id == order_id, Order.not_deleted_filter()).first()
         query_time = (time.perf_counter() - start_time) * 1000
         logger.info(f"save latency - query_order: {query_time:.1f}ms")
-        
+
         if not order:
             return jsonify({'success': False, 'message': '주문을 찾을 수 없습니다.'}), 404
 
@@ -747,22 +766,11 @@ def api_put_order_structured(order_id):
         is_regional = payload.get('is_regional')
         construction_type = payload.get('construction_type')
         now = datetime.datetime.now()
-        draft_cleared = False
 
         if structured_data is not None and not isinstance(structured_data, dict):
             return jsonify({'success': False, 'message': 'structured_data는 JSON 객체여야 합니다.'}), 400
 
-        _sd_raw: Any = order.structured_data
-        old_sd = _sd_raw if isinstance(_sd_raw, dict) else {}
-        old_notes = getattr(order, 'notes', None)
-        old_is_regional = getattr(order, 'is_regional', None)
-        old_construction_type = getattr(order, 'construction_type', None)
-        drawing_notif = None
-        drawing_notif_created = False
-        prod_notif = None
-        prod_notif_created = False
-
-        # 모든 structured PUT은 실제 저장/승격 경로다. draft row도 여기서만 실제 주문으로 확정된다.
+        # 요청 검증(락 전, 400 경로): 필수값 누락은 write 전에 거부한다.
         if structured_data is not None:
             _missing = _missing_required_structured_fields(structured_data)
             if _missing:
@@ -772,10 +780,12 @@ def api_put_order_structured(order_id):
                     'message': f"필수 항목을 입력해주세요: {', '.join(_missing)}"
                 }), 400
 
-        if raw_order_text is not None:
-            setattr(order, 'raw_order_text', raw_order_text)
-        if is_self_measurement is not None:
-            setattr(order, 'is_self_measurement', bool(is_self_measurement))
+        # 지방주문/시공구분 검증(락 전, 400 경로): 원본과 동일 semantics — 검증 실패 시 DB 무접근.
+        # 적용 지시는 regional_set 으로 캡처해 락 안에서 setattr 한다.
+        #   None            → 미변경
+        #   (bool, ct|None) → is_regional·construction_type 동시 설정
+        #   ('__ct_only__', ct|None) → construction_type 만 설정
+        regional_set: Optional[tuple] = None
         if is_regional is not None:
             is_regional_flag = bool(is_regional)
             normalized_construction_type = normalize_regional_construction_type(construction_type)
@@ -789,8 +799,7 @@ def api_put_order_structured(order_id):
                     'success': False,
                     'message': '지방주문 구분(하우드/협력사)을 선택해주세요.',
                 }), 400
-            setattr(order, 'is_regional', is_regional_flag)
-            setattr(order, 'construction_type', normalized_construction_type if is_regional_flag else None)
+            regional_set = (is_regional_flag, normalized_construction_type if is_regional_flag else None)
         elif construction_type is not None:
             normalized_construction_type = normalize_regional_construction_type(construction_type)
             if str(construction_type or '').strip() and not normalized_construction_type:
@@ -808,91 +817,184 @@ def api_put_order_structured(order_id):
                     'success': False,
                     'message': '지방주문 구분(하우드/협력사)을 선택해주세요.',
                 }), 400
-            setattr(order, 'construction_type', normalized_construction_type or None)
-        if received_date is not None and isinstance(received_date, str) and received_date.strip():
-            setattr(order, 'received_date', received_date.strip())
-        if received_time is not None and isinstance(received_time, str):
-            setattr(order, 'received_time', received_time.strip() or None)
-        if notes is not None:
-            setattr(order, 'notes', (notes if isinstance(notes, str) else str(notes or '')) or None)
-        if structured_data is not None:
-            if not structured_data.get('workflow'):
-                structured_data['workflow'] = {}
-            if not structured_data.get('flags'):
-                structured_data['flags'] = {}
-            if not structured_data.get('assignments'):
-                structured_data['assignments'] = {}
-            _preserve_operational_structured_state(old_sd, structured_data)
-            _preserve_or_normalize_construction_workers(old_sd, structured_data)
+            regional_set = ('__ct_only__', normalized_construction_type or None)
 
+        # optional If-Match(mutation_version) 낙관 잠금 — 형식 오류는 삼키지 않고 400.
+        if_match_raw = (request.headers.get('If-Match') or '').strip().strip('"')
+        expected_versions: Optional[Mapping[int, int]] = None
+        if if_match_raw:
             try:
-                _handle_stage_transition(db, order, old_sd, structured_data)
-            except Exception as e:
-                logger.warning("단계 전환 검증 오류: %s", e, exc_info=True)
+                expected_versions = {order_id: int(if_match_raw)}
+            except ValueError:
+                return jsonify({'success': False, 'message': 'If-Match 형식이 올바르지 않습니다.'}), 400
+        idempotency_key = (request.headers.get('Idempotency-Key') or '').strip() or None
 
-            t0 = time.perf_counter()
-            _record_structured_events(db, order, old_sd, structured_data)
-            _apply_structured_side_effects(db, order.id, structured_data)
-            side_effect_time = (time.perf_counter() - t0) * 1000
-            logger.info(f"save latency - side_effects: {side_effect_time:.1f}ms")
-            
-            draft_cleared = _finalize_draft_state(order, structured_data, now, old_sd)
+        actor_user_id = session.get('user_id')
+        scope_hash = hashlib.sha256(f"{STRUCTURED_PUT_POLICY_ID}:{order_id}".encode()).hexdigest()
+        request_hash = hashlib.sha256(
+            json.dumps(payload, sort_keys=True, ensure_ascii=False, default=str).encode()
+        ).hexdigest()
 
-            drawing_notif, drawing_notif_created = _emit_drawing_order_change_if_needed(
+        # mutation 안에서 채워 커밋 후 사용할 값(캐시 무효화·알림 finalize·geocode enqueue).
+        captured: dict = {
+            'draft_cleared': False,
+            'address_changed': False,
+            'drawing_notif': None,
+            'drawing_notif_created': False,
+            'prod_notif': None,
+            'prod_notif_created': False,
+        }
+
+        def _mutate(sess: Session, orders: List[Order]) -> Mapping[int, List[str]]:
+            """FOR UPDATE 락 아래에서 폼 저장 전체(컬럼·structured projection·side-effect)."""
+            o = orders[0]
+            _sd_raw: Any = o.structured_data
+            old_sd = _sd_raw if isinstance(_sd_raw, dict) else {}
+            old_notes = getattr(o, 'notes', None)
+            old_is_regional = getattr(o, 'is_regional', None)
+            old_construction_type = getattr(o, 'construction_type', None)
+
+            # provenance(raw_order_text): 폼의 빈 문자열이 원본 파싱 텍스트를 지우지 못하게 한다.
+            # 실제 내용이 있고 기존이 비어 있을 때만 설정(client overwrite 금지 — DATA-01).
+            if raw_order_text is not None and str(raw_order_text).strip():
+                if not (getattr(o, 'raw_order_text', None) or '').strip():
+                    setattr(o, 'raw_order_text', raw_order_text)
+            if is_self_measurement is not None:
+                setattr(o, 'is_self_measurement', bool(is_self_measurement))
+            if regional_set is not None:
+                _flag, _ct = regional_set
+                if _flag == '__ct_only__':
+                    setattr(o, 'construction_type', _ct)
+                else:
+                    setattr(o, 'is_regional', _flag)
+                    setattr(o, 'construction_type', _ct)
+            if received_date is not None and isinstance(received_date, str) and received_date.strip():
+                setattr(o, 'received_date', received_date.strip())
+            if received_time is not None and isinstance(received_time, str):
+                setattr(o, 'received_time', received_time.strip() or None)
+            if notes is not None:
+                setattr(o, 'notes', (notes if isinstance(notes, str) else str(notes or '')) or None)
+
+            if structured_data is not None:
+                if not structured_data.get('workflow'):
+                    structured_data['workflow'] = {}
+                if not structured_data.get('flags'):
+                    structured_data['flags'] = {}
+                if not structured_data.get('assignments'):
+                    structured_data['assignments'] = {}
+                _preserve_operational_structured_state(old_sd, structured_data)
+                _preserve_or_normalize_construction_workers(old_sd, structured_data)
+                # DATA-01 정본 projection: partial allowlist · provenance lock · server pricing.
+                project_structured_form(old_sd, structured_data)
+
+                try:
+                    _handle_stage_transition(sess, o, old_sd, structured_data)
+                except Exception as e:
+                    logger.warning("단계 전환 검증 오류: %s", e, exc_info=True)
+
+                t0 = time.perf_counter()
+                _record_structured_events(sess, o, old_sd, structured_data)
+                _apply_structured_side_effects(sess, o.id, structured_data)
+                side_effect_time = (time.perf_counter() - t0) * 1000
+                logger.info(f"save latency - side_effects: {side_effect_time:.1f}ms")
+
+                captured['draft_cleared'] = _finalize_draft_state(o, structured_data, now, old_sd)
+
+                drawing_notif, drawing_notif_created = _emit_drawing_order_change_if_needed(
+                    sess,
+                    o,
+                    old_sd,
+                    structured_data,
+                    old_notes=old_notes,
+                    new_notes=getattr(o, 'notes', None),
+                    old_is_regional=old_is_regional,
+                    new_is_regional=getattr(o, 'is_regional', None),
+                    old_construction_type=old_construction_type,
+                    new_construction_type=getattr(o, 'construction_type', None),
+                )
+                prod_notif, prod_notif_created = _emit_production_change_if_needed(
+                    sess, o, old_sd, structured_data
+                )
+                captured['drawing_notif'] = drawing_notif
+                captured['drawing_notif_created'] = drawing_notif_created
+                captured['prod_notif'] = prod_notif
+                captured['prod_notif_created'] = prod_notif_created
+
+                o.structured_data = copy.deepcopy(structured_data)
+                flag_modified(o, 'structured_data')
+                sync_erp_flat_columns(o, structured_data)
+
+            # provenance(schema/confidence 컬럼): 기존 값이 있으면 클라이언트 값으로 덮지 않는다.
+            if getattr(o, 'structured_schema_version', None) is None:
+                setattr(o, 'structured_schema_version', int(schema_version) if schema_version else 1)
+            if not getattr(o, 'structured_confidence', None):
+                setattr(
+                    o,
+                    'structured_confidence',
+                    confidence or (structured_data.get('confidence') if isinstance(structured_data, dict) else None),
+                )
+            setattr(o, 'structured_updated_at', now)
+
+            # ERP structured 저장은 자동 ChannelTalk 푸시하지 않는다(수동 푸쉬만).
+            if structured_data is not None:
+                old_addr = (extract_address_from_structured_data(old_sd) or '').strip()
+                new_addr = (extract_address_from_structured_data(structured_data) or '').strip()
+                if old_addr != new_addr:
+                    captured['address_changed'] = True
+                    reset_order_geocode_on_address_change(o, new_addr)
+
+            return {o.id: [f"ORDER_DETAIL:{o.id}", "ORDERS_INDEX"]}
+
+        try:
+            outcome = execute_order_mutation(
                 db,
-                order,
-                old_sd,
-                structured_data,
-                old_notes=old_notes,
-                new_notes=getattr(order, 'notes', None),
-                old_is_regional=old_is_regional,
-                new_is_regional=getattr(order, 'is_regional', None),
-                old_construction_type=old_construction_type,
-                new_construction_type=getattr(order, 'construction_type', None),
+                actor_user_id=actor_user_id,
+                policy_id=STRUCTURED_PUT_POLICY_ID,
+                order_ids=[order_id],
+                expected_versions=expected_versions,
+                idempotency_key=idempotency_key,
+                scope_hash=scope_hash,
+                request_hash=request_hash,
+                mutation=_mutate,
             )
-            prod_notif, prod_notif_created = _emit_production_change_if_needed(
-                db, order, old_sd, structured_data
-            )
+            db.commit()
+        except RevisionError as rev:
+            db.rollback()
+            return jsonify(
+                {'success': False, 'message': str(rev), 'code': rev.error_code}
+            ), rev.status_code
 
-            order.structured_data = copy.deepcopy(structured_data)
-            flag_modified(order, 'structured_data')
-            
-            sync_erp_flat_columns(order, structured_data)
-            
-        setattr(order, 'structured_schema_version', int(schema_version) if schema_version else 1)
-        setattr(order, 'structured_confidence', confidence or (structured_data.get('confidence') if structured_data else None))
-        setattr(order, 'structured_updated_at', now)
-
-        # ERP structured 저장은 자동 ChannelTalk 푸시하지 않는다.
-        # 발주방 알림은 ERP Beta 「푸쉬」 수동 전송(/api/channel/push-manual)만 사용.
-
-        address_changed = False
-        if structured_data is not None:
-            old_addr = (extract_address_from_structured_data(old_sd) or '').strip()
-            new_addr = (extract_address_from_structured_data(structured_data) or '').strip()
-            if old_addr != new_addr:
-                address_changed = True
-                reset_order_geocode_on_address_change(order, new_addr)
-
-        db.commit()
         # Tier A(broad): 주문 저장(PUT structured)은 stage/status 변경을 포함 → 탭 이동.
         from foms.services.common.dashboard_cache import invalidate_all_dashboard_slice_caches
 
         invalidate_all_dashboard_slice_caches()
-        finalize_drawing_order_change_alert(db, drawing_notif, created_new=drawing_notif_created)
+        finalize_drawing_order_change_alert(
+            db, captured['drawing_notif'], created_new=captured['drawing_notif_created']
+        )
         try:
-            finalize_production_change_alert(db, prod_notif, created_new=prod_notif_created)
+            finalize_production_change_alert(
+                db, captured['prod_notif'], created_new=captured['prod_notif_created']
+            )
         except Exception as e:
             logger.warning("[ERP_ORDER] production change finalize failed: %s", e, exc_info=True)
         commit_time = (time.perf_counter() - start_time) * 1000
         logger.info(f"save latency - main_commit: {commit_time:.1f}ms")
 
-        if address_changed:
+        if captured['address_changed']:
             enqueue_geocode_order_address(order_id)
 
         total_time = (time.perf_counter() - start_time) * 1000
         logger.info(f"save latency - TOTAL: {total_time:.1f}ms")
-        return jsonify({'success': True, 'draft_cleared': draft_cleared})
+        _resources = outcome.body.get('resources') or [{}]
+        resp = jsonify({
+            'success': True,
+            'draft_cleared': captured['draft_cleared'],
+            'mutation_receipt': outcome.read_receipt_id,
+            'mutation_version': _resources[0].get('resulting_version'),
+        })
+        for header, value in outcome.headers.items():
+            resp.headers[header] = value
+        return resp
     except Exception as e:
         db.rollback()
         logger.exception("[ERP_ORDER] structured PUT 오류: %s", e)

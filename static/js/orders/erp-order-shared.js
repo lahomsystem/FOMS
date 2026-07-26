@@ -2032,10 +2032,10 @@ function erpCollectStructured() {
         'channeltalk_push_estimate',
     ];
 
+    // DATA-01: provenance(schema_version/confidence)는 서버 소유다. 폼은 전송하지 않는다
+    // (서버가 old-wins 로 보존). totals 도 서버가 재계산하지만, 편집 폼 표시용으로만 담는다.
     const structured = {
         entity_type: 'order_structured',
-        schema_version: 1,
-        confidence: null,
         totals,
         parties: {
             customer: {
@@ -2401,10 +2401,9 @@ async function erpSaveStructuredOnce(opts = {}) {
             method: 'PUT',
             headers: { 'Content-Type': 'application/json' },
             body: JSON.stringify({
+                // DATA-01: provenance(raw_order_text/schema_version/confidence)는 전송하지 않는다.
+                // 서버가 원본 파싱 provenance 를 보존한다(client overwrite 금지).
                 structured_data,
-                raw_order_text: '',
-                structured_schema_version: 1,
-                structured_confidence: structured_data.confidence,
                 received_date: received_date || undefined,
                 received_time: received_time || undefined,
                 notes: notesVal,

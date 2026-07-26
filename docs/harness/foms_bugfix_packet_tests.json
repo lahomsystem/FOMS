@@ -2018,9 +2018,22 @@
       "write_guard": true,
       "postgres": true
     },
-    "commands": [],
-    "existing_regressions": [],
-    "created_tests": [],
+    "commands": [
+      "python -m pytest tests/domains/test_data_structured.py -q"
+    ],
+    "existing_regressions": [
+      "tests/domains/test_erp_order_shared_form_scripts.py"
+    ],
+    "created_tests": [
+      {
+        "path": "tests/domains/test_data_structured.py",
+        "owner_packet": "DATA-01"
+      },
+      {
+        "path": "tests/postgres/test_data_structured_pg.py",
+        "owner_packet": "DATA-01"
+      }
+    ],
     "browser_scenarios": [],
     "deploy_check_ids": [],
     "deployment_evidence_mode": "PROVIDER_BOOTSTRAP"
