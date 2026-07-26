@@ -2673,9 +2673,18 @@
       "write_guard": false,
       "postgres": true
     },
-    "commands": [],
-    "existing_regressions": [],
-    "created_tests": [],
+    "commands": [
+      "python -m pytest tests/postgres/test_startup_schema.py -q"
+    ],
+    "existing_regressions": [
+      "tests/domains/test_app_init.py"
+    ],
+    "created_tests": [
+      {
+        "path": "tests/postgres/test_startup_schema.py",
+        "owner_packet": "STARTUP-SCHEMA-01"
+      }
+    ],
     "browser_scenarios": [],
     "deploy_check_ids": [],
     "deployment_evidence_mode": "PROVIDER_BOOTSTRAP"

@@ -295,11 +295,23 @@ def test_app_init_canonical_module_uses_canonical_persistence_imports() -> None:
     assert "from foms.persistence.main.models import Order" in backfill_source
 
 
-def test_app_init_uses_canonical_db_indexes_lazy_import() -> None:
-    """App init should lazy import DB index helpers from the canonical namespace."""
+def test_app_init_runs_no_ensure_schema_ddl_at_startup() -> None:
+    """STARTUP-SCHEMA-01: web startup issues zero ensure-schema DDL.
+
+    The column/index schema is owned by Alembic (migration ``startup_schema_00``,
+    applied in predeploy). ``run_auto_init`` must neither import nor invoke the
+    runtime ensure-repair helpers, so replicas never race on ``ALTER TABLE`` /
+    ``CREATE INDEX`` and a missing schema fails closed instead of self-healing.
+    """
     run_auto_init_source = inspect.getsource(namespaced_app_init.run_auto_init)
-    expected_import = "from foms.services.db_indexes import apply_phase2_indexes, ensure_erp_date_columns"
-    assert expected_import in run_auto_init_source
+    for banned in (
+        "apply_phase2_indexes",
+        "ensure_erp_date_columns",
+        "ensure_order_attachments_category_column",
+        "ensure_order_attachments_item_index_column",
+        "ensure_order_attachments_user_id_column",
+    ):
+        assert banned not in run_auto_init_source
 
 
 def test_namespaced_order_date_sync_shim_preserves_canonical_contract() -> None:

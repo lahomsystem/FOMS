@@ -214,37 +214,14 @@ def test_run_auto_init_uses_internal_startup_policy(monkeypatch):
         def app_context(self):
             return _FakeAppContext()
 
-    import foms.api.attachments as attachments_module
-    import foms.services.db_indexes as db_indexes_module
     import foms.services.order_date_sync as order_date_sync_module
 
+    # STARTUP-SCHEMA-01: run_auto_init no longer invokes any ensure-schema DDL helper
+    # (attachment columns / erp flat columns / phase-2 indexes are owned by Alembic
+    # migration startup_schema_00, applied in predeploy). Only the create_all baseline
+    # and the fail-closed readiness probe remain on the schema path.
     monkeypatch.setattr(app_init, "init_db", lambda: calls.append("init_db"))
-    monkeypatch.setattr(
-        attachments_module,
-        "ensure_order_attachments_category_column",
-        lambda: calls.append("attachments_category"),
-    )
-    monkeypatch.setattr(
-        attachments_module,
-        "ensure_order_attachments_item_index_column",
-        lambda: calls.append("attachments_item_index"),
-    )
-    monkeypatch.setattr(
-        attachments_module,
-        "ensure_order_attachments_user_id_column",
-        lambda: calls.append("attachments_user_id"),
-    )
     monkeypatch.setattr(app_init, "init_wdcalculator_db", lambda: calls.append("init_wdcalculator_db"))
-    monkeypatch.setattr(
-        db_indexes_module,
-        "apply_phase2_indexes",
-        lambda: calls.append("apply_phase2_indexes"),
-    )
-    monkeypatch.setattr(
-        db_indexes_module,
-        "ensure_erp_date_columns",
-        lambda: calls.append("ensure_erp_date_columns"),
-    )
     monkeypatch.setattr(
         app_init,
         "_verify_erp_flat_columns_ready",
@@ -273,12 +250,7 @@ def test_run_auto_init_uses_internal_startup_policy(monkeypatch):
     assert calls == [
         "enter_app_context",
         "init_db",
-        "attachments_category",
-        "attachments_item_index",
-        "attachments_user_id",
         "init_wdcalculator_db",
-        "apply_phase2_indexes",
-        "ensure_erp_date_columns",
         "verify_erp_flat_columns_ready",
         "backfill_erp_flat_columns",
         "register_date_sync_listener",

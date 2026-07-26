@@ -180,20 +180,11 @@ def run_auto_init(app) -> None:
         with app.app_context():
             print("[AUTO-INIT] Checking database tables...")
             init_db()
-            from foms.api.attachments import (
-                ensure_order_attachments_category_column,
-                ensure_order_attachments_item_index_column,
-                ensure_order_attachments_user_id_column,
-            )
-
-            ensure_order_attachments_category_column()
-            ensure_order_attachments_item_index_column()
-            ensure_order_attachments_user_id_column()
             init_wdcalculator_db()
-            from foms.services.db_indexes import apply_phase2_indexes, ensure_erp_date_columns
-
-            apply_phase2_indexes()
-            ensure_erp_date_columns()
+            # STARTUP-SCHEMA-01: web replica 는 ensure-repair DDL 을 실행하지 않는다.
+            # 컬럼/인덱스 스키마는 predeploy.sh 의 ``alembic upgrade head``(마이그레이션
+            # startup_schema_00)가 replica 부팅 전에 확정한다. 아래 readiness 체크는
+            # 스키마가 없으면 StartupReadinessError 로 앱을 fail-closed 시킨다(조용히 생성 금지).
             _verify_erp_flat_columns_ready()
             _backfill_erp_flat_columns()
 
