@@ -1542,9 +1542,16 @@
       "write_guard": true,
       "postgres": true
     },
-    "commands": [],
+    "commands": [
+      "python -m pytest tests/postgres/test_wdc_link.py -q"
+    ],
     "existing_regressions": [],
-    "created_tests": [],
+    "created_tests": [
+      {
+        "path": "tests/postgres/test_wdc_link.py",
+        "owner_packet": "WDC-LINK-01"
+      }
+    ],
     "browser_scenarios": [],
     "deploy_check_ids": [],
     "deployment_evidence_mode": "HEARTBEAT"
