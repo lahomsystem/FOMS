@@ -2096,7 +2096,7 @@
     },
     {
       "path": "foms/api/quest.py",
-      "lineno": 90,
+      "lineno": 85,
       "handler_type": "broad_exception",
       "disposition": "LOG_AND_CONTINUE",
       "owner": "api",
@@ -2105,7 +2105,7 @@
     },
     {
       "path": "foms/api/quest.py",
-      "lineno": 148,
+      "lineno": 143,
       "handler_type": "broad_exception",
       "disposition": "LOG_AND_CONTINUE",
       "owner": "api",
@@ -2114,7 +2114,7 @@
     },
     {
       "path": "foms/api/quest.py",
-      "lineno": 152,
+      "lineno": 147,
       "handler_type": "broad_exception",
       "disposition": "LOG_AND_CONTINUE",
       "owner": "api",
@@ -2123,7 +2123,7 @@
     },
     {
       "path": "foms/api/quest.py",
-      "lineno": 438,
+      "lineno": 441,
       "handler_type": "broad_exception",
       "disposition": "LOG_AND_CONTINUE",
       "owner": "api",
@@ -2132,7 +2132,7 @@
     },
     {
       "path": "foms/api/quest.py",
-      "lineno": 442,
+      "lineno": 445,
       "handler_type": "broad_exception",
       "disposition": "LOG_AND_CONTINUE",
       "owner": "api",
@@ -2141,7 +2141,7 @@
     },
     {
       "path": "foms/api/quest.py",
-      "lineno": 502,
+      "lineno": 505,
       "handler_type": "broad_exception",
       "disposition": "LOG_AND_CONTINUE",
       "owner": "api",
@@ -2150,7 +2150,7 @@
     },
     {
       "path": "foms/api/quest.py",
-      "lineno": 506,
+      "lineno": 509,
       "handler_type": "broad_exception",
       "disposition": "LOG_AND_CONTINUE",
       "owner": "api",

@@ -38,30 +38,50 @@ _FOMS_DIR = _REPO_ROOT / "foms"
 _INVENTORY = _REPO_ROOT / "docs" / "harness" / "foms_api_error_leak_inventory.json"
 
 
+def _register_error_probe_routes(app):
+    """Register throwaway routes that exercise each error path (idempotent).
+
+    ``add_url_rule`` may only be called before the app handles its first request.
+    We therefore register at module import (collection) time — before any test
+    makes a request — so this file is independent of alphabetical ordering: a
+    request-making domain test sorting earlier would otherwise lock the shared
+    app and turn these registrations into ``add_url_rule`` errors.
+    """
+    if "err_unhandled" in app.view_functions:
+        return
+
+    def err_unhandled():
+        raise ValueError(_LEAK)
+
+    def err_handled_500():
+        try:
+            raise ValueError(_LEAK)
+        except ValueError as e:  # historical P1-28 leak pattern
+            return jsonify({"success": False, "message": str(e)}), 500
+
+    def err_domain_409_json():
+        return jsonify({"success": False, "message": "도메인 오류 DOMAINKEEP"}), 409
+
+    def err_domain_400_abort():
+        abort(400, description="입력이 올바르지 않습니다 DOMAINKEEP")
+
+    app.add_url_rule("/api/__err_unhandled", "err_unhandled", err_unhandled)
+    app.add_url_rule("/api/__err_handled_500", "err_handled_500", err_handled_500)
+    app.add_url_rule("/api/__err_domain_409", "err_domain_409", err_domain_409_json)
+    app.add_url_rule("/api/__err_domain_400", "err_domain_400", err_domain_400_abort)
+
+
+# Register at import time (before the shared app handles any request), so the
+# probe routes exist regardless of test-file execution order.
+from app import app as _shared_app  # noqa: E402
+
+_register_error_probe_routes(_shared_app)
+
+
 @pytest.fixture(autouse=True)
 def _test_error_routes(app):
-    """Register throwaway routes that exercise each error path (once)."""
-    if "err_unhandled" not in app.view_functions:
-
-        def err_unhandled():
-            raise ValueError(_LEAK)
-
-        def err_handled_500():
-            try:
-                raise ValueError(_LEAK)
-            except ValueError as e:  # historical P1-28 leak pattern
-                return jsonify({"success": False, "message": str(e)}), 500
-
-        def err_domain_409_json():
-            return jsonify({"success": False, "message": "도메인 오류 DOMAINKEEP"}), 409
-
-        def err_domain_400_abort():
-            abort(400, description="입력이 올바르지 않습니다 DOMAINKEEP")
-
-        app.add_url_rule("/api/__err_unhandled", "err_unhandled", err_unhandled)
-        app.add_url_rule("/api/__err_handled_500", "err_handled_500", err_handled_500)
-        app.add_url_rule("/api/__err_domain_409", "err_domain_409", err_domain_409_json)
-        app.add_url_rule("/api/__err_domain_400", "err_domain_400", err_domain_400_abort)
+    """Safety net: ensure probe routes exist (idempotent no-op after import)."""
+    _register_error_probe_routes(app)
     return app
 
 

@@ -537,7 +537,7 @@
     },
     "notifications.api_notifications_delete_all": {
       "mode": "guard",
-      "policy_id": "ARCHIVE_OWN_NOTIFICATION",
+      "policy_id": "MASTER_MUTATION",
       "rule": "/erp/api/notifications/delete-all"
     },
     "notifications.api_notifications_mark_all_read": {
