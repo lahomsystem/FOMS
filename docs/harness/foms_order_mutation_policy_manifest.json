@@ -462,7 +462,7 @@
     },
     "erp_shipment.api_erp_shipment_settings_save": {
       "mode": "guard",
-      "policy_id": "SHIPMENT_EDIT",
+      "policy_id": "SHIPMENT_REFERENCE",
       "rule": "/api/erp/shipment-settings"
     },
     "erp_shipment.api_erp_shipment_update": {

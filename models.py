@@ -730,13 +730,64 @@ class OrderTask(Base):
 
 
 class SystemSetting(Base):
-    """시스템 전역 설정값 저장용 (JSONB 지원)"""
+    """시스템 전역 설정값 저장용 (JSONB 지원).
+
+    ``version`` 은 SHIPMENT-REFERENCE-01 이 도입한 optimistic-lock revision 이다. 설정
+    collection 을 갱신하는 command(예: ``UPDATE_SHIPMENT_REFERENCE_LISTS``)는 이 row 를
+    ``FOR UPDATE`` 로 잠그고 client 의 If-Match 가 현재 ``version`` 과 일치할 때만 쓴 뒤
+    ``version`` 을 1 증가시킨다(초 단위 ``updated_at`` 이 구분 못 하는 동시 저장 lost
+    update 를 차단). 기존 setting row 는 server_default 로 ``1`` 을 갖는다.
+    """
     __tablename__ = 'system_settings'
-    
+
     setting_key = Column(String(100), primary_key=True)
     setting_value = Column(JSONColumn, nullable=True)
     description = Column(Text, nullable=True)
+    version = Column(Integer, nullable=False, default=1, server_default=text('1'))
     updated_at = Column(DateTime, default=datetime.datetime.now, onupdate=datetime.datetime.now, nullable=False)
+
+
+class SystemSettingReceipt(Base):
+    """SystemSetting collection mutation 의 idempotency + audit receipt (SHIPMENT-REFERENCE-01).
+
+    Order 단위가 아니라 setting collection 단위의 revision 이므로 REV-00
+    :class:`OrderMutationReceipt`(order FK·per-order version) 대신 별도 정본을 둔다. 한
+    command 커밋마다 한 행이 두 역할을 겸한다:
+
+    * **idempotency**: ``(actor_user_id, policy_id, idempotency_key)`` unique. 같은 key
+      replay 는 저장된 ``response_status``/``response_body`` 를 그대로 돌려주고 business
+      write 는 재수행하지 않는다. ``expires_at`` (커밋+24시간) 이후 같은 key 는
+      ``IDEMPOTENCY_KEY_EXPIRED`` 다. 비-멱등 요청은 ``idempotency_key`` NULL(PostgreSQL
+      은 NULL 을 distinct 로 취급하므로 dedupe 하지 않음).
+    * **receipt**: opaque ``read_receipt_id`` 로 갱신 결과 version 을 확인시킨다.
+
+    ``resulting_version`` 은 커밋 후 setting 의 새 ``SystemSetting.version`` 이다.
+    """
+
+    __tablename__ = 'system_setting_receipts'
+
+    id = Column(Integer, primary_key=True)
+    read_receipt_id = Column(UUIDColumn, nullable=False, unique=True,
+                             default=lambda: str(uuid.uuid4()))
+    actor_user_id = Column(Integer, ForeignKey('users.id'), nullable=False)
+    setting_key = Column(String(100), nullable=False)
+    policy_id = Column(String(80), nullable=False)
+    idempotency_key = Column(String(64), nullable=True)
+    request_hash = Column(String(64), nullable=False)
+    response_status = Column(Integer, nullable=False)
+    response_body = Column(JSONColumn, nullable=False)
+    resulting_version = Column(Integer, nullable=False)
+    expires_at = Column(DateTime, nullable=False)  # 커밋 + 24시간 (replay window)
+    created_at = Column(DateTime, nullable=False, server_default=func.now())
+
+    __table_args__ = (
+        UniqueConstraint(
+            'actor_user_id', 'policy_id', 'idempotency_key',
+            name='uq_system_setting_receipt_idem',
+        ),
+        Index('ix_ssr_setting_key', 'setting_key'),
+        Index('ix_ssr_expires_id', 'expires_at', 'id'),  # 향후 retention purge keyset
+    )
 
 
 class SystemBuildStep(Base):

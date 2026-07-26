@@ -143,7 +143,9 @@ POLICY_REGISTRY: dict[str, Policy] = {
 
     # --- 출고/물류 (§2.1 line 165, STAFF/SHIPMENT) --------------------------
     "SHIPMENT_EDIT": _p("SHIPMENT_EDIT", teams=("CS", "SALES", "SHIPMENT"),
-                        description="shipment settings/update/AS-recommendation — CS/SALES/SHIPMENT team-wide."),
+                        description="shipment per-order update/AS-recommendation — CS/SALES/SHIPMENT team-wide."),
+    "SHIPMENT_REFERENCE": _p("SHIPMENT_REFERENCE", teams=("SHIPMENT",),
+                             description="shipment reference lists 설정(UPDATE_SHIPMENT_REFERENCE_LISTS) — STAFF+SHIPMENT 또는 ADMIN/MANAGER(SHIPMENT-REFERENCE-01). CS/SALES·VIEWER deny."),
 
     # --- 관리(MANAGER+/ADMIN) -----------------------------------------------
     "MANAGER_MUTATION": _p("MANAGER_MUTATION", teams=(),
