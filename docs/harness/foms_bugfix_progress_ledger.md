@@ -138,6 +138,12 @@
 - ✅ ACTOR-STATE-01 — `1a5973bb`. notification actor-owner 계약 test 22(owner/cross·VIEWER own/cross·receipt/version·rate·push·user_states 불오염·delete-all ADMIN). surface는 선행 packet 구현·tests-only(foms 무접근). **defense-in-depth 재분류**: api_notifications_delete_all(공유row 하드삭제) ARCHIVE_OWN_NOTIFICATION(viewer=True 오분류)→MASTER_MUTATION(오케스트레이터 적용). test_api_error_containment 순서회귀 근본수정. **failopen inventory 484. ⚠️커플링: 배치11**.
 - head=wdc_link_backfill_00. **81 packet 커밋 완료.**
 
+## ✅ 배치 12 완료 (3 packet·disjoint·회귀 3130 passed 0 failed)
+- ✅ STATE-QUEST-01 — `9b8a3f79`. quest_transition_service(service-layer): RECEIVED/MEASURE final approval→stage 전이(order_transition_service)·CUSTOMER_CONFIRM CONFIRM quest 한 tx·나머지 prerequisite only·standalone DRAWING/CONFIRM advance 금지. HTTP route/monkeypatch 없이 서비스 직접. 무마이그레이션·no manifest.
+- ✅ SCALE-AS-01 — `72867ebd`. AS hot query EXPLAIN+TTFB 측정 결과 이미 인덱스 사용(Seq Scan 없음)→**효과 없어 무변경 종료**(측정 전 index 금지·추측 회피). test_scale_as EXPLAIN 인덱스 사용 계약 고정(성능 가드). 마이그레이션/코드 0(verify-noop·WDC-AUTH식).
+- ✅ URGENT-CALL-01 — `fedc298a`. urgent target/send: participant(VIEWER) send·active target(cross-order 금지)·500/rate 5h·notification+NotificationEvent+sidefx NOTIFICATION_EVENT **한 tx**(별도 worker 재구현 안 함·Order mutation 0·multi-commit 0). ack는 ACTOR-STATE 소비만. manifest 무편집(기존 분류). **failopen inventory 484. ⚠️커플링: 배치12**.
+- head=wdc_link_backfill_00(SCALE-AS 무마이그레이션). **84 packet 커밋 완료.**
+
 ## 🎯 다음 후보 (신규 unblock)
 - **STATE 패밀리**(STATE-CORE unblock): STATE-PROD-01·STATE-PROD-ACTIONS-01·STATE-DRAWING-01·STATE-AS-01·STATE-QUEST-01(+AUTH-QUEST-READ) — endpoint를 order_transition_service로 이관. 단 BACKFILL 선행(PRODUCTION-BACKFILL-00·QUEST-BACKFILL-00·AS-BACKFILL-00·DRAWING-REVISION-BACKFILL-00·CONSTRUCTION-BACKFILL-00) 확인.
 - **DELETE 패밀리**(DELETE-CORE unblock): DELETE-BULK-01·DELETE-TRASH-01·DELETE-RETENTION-01.
