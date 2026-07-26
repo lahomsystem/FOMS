@@ -119,6 +119,13 @@
 - ✅ WDC-AUTH-01 — `45121c86`. WDC blueprint 권한이 AUTH-01 SSOT에 이미 정확 분류됨을 확인·test 20으로 잠금(calculate WDC_CALCULATE viewer=True·estimate WDC_ESTIMATE CS/SALES·master MASTER_MUTATION ADMIN/MANAGER·VIEWER read). blueprint/manifest 무변경. **failopen inventory 486(STATE-LEGACY 라인시프트). ⚠️커플링: STATE-LEGACY-01과 함께**.
 - head=index_ops_00. **71 packet 커밋 완료.**
 
+## ✅ 배치 9 완료 (4 packet·disjoint·회귀 3057 passed 0 failed)
+- ✅ WDC-LINK-FENCE-00 — `fafe15b5`. CUTOVER fence WDC_LINK_FREEZE/ABORT/CANONICAL(§4.4 closed-set additive·topology+fingerprint/rollout+state version·SEPARATE만 TARGET_RESERVED). 마이그레이션 wdc_link_fence_00(runtime state·down=index_ops_00·단일 head)·models.py fence state. 실 link migration=WDC-LINK-01 하류. PG green. **→ head=wdc_link_fence_00.**
+- ✅ AUTH-IMPERSONATION-01 — `c16a50b1`. switch_user 공유 @role_required(비-ADMIN 302) 결함→국소 403 게이트만(공유 데코/delete 무변경)·switch_back 복귀 대상 감사 보강. POST+write guard 소비·actor/target/back SecurityLog. policy/manifest 무편집. test 8.
+- ✅ FILE-LEGACY-BACKFILL-01 — `8c7f70ab`. FILE-LEGACY-AUDIT SAFE row만 ownership backfill(dry-run/approval·ambiguous CSV+reason·자동매핑 0·coverage 100%·idempotent/resume). BACKFILL/OPS-APPROVAL 재사용·무마이그레이션. PG green.
+- ✅ DELETE-BULK-01 — `93e03971`. bulk delete를 canonical soft_delete_order(deleted_at·version·ORDER_SOFT_DELETED·all-or-none 단일tx·STAFF/VIEWER 403). **trash 사일런트 회귀 봉쇄**: canonical은 deleted_at만 set인데 trash.py는 status=='DELETED' 술어→소실 위험. 전이기 dual-write(status='DELETED'+original_status 미러·완전 canonical화=DELETE-TRASH-01 하류)·test_delete_bulk가 route경유 trash 가시성/original_status/리스트제외 단언. **failopen inventory 486(status/auth 라인시프트). ⚠️커플링: DELETE-BULK+AUTH-IMPERSONATION**.
+- head=wdc_link_fence_00. **75 packet 커밋 완료.**
+
 ## 🎯 다음 후보 (신규 unblock)
 - **STATE 패밀리**(STATE-CORE unblock): STATE-PROD-01·STATE-PROD-ACTIONS-01·STATE-DRAWING-01·STATE-AS-01·STATE-QUEST-01(+AUTH-QUEST-READ) — endpoint를 order_transition_service로 이관. 단 BACKFILL 선행(PRODUCTION-BACKFILL-00·QUEST-BACKFILL-00·AS-BACKFILL-00·DRAWING-REVISION-BACKFILL-00·CONSTRUCTION-BACKFILL-00) 확인.
 - **DELETE 패밀리**(DELETE-CORE unblock): DELETE-BULK-01·DELETE-TRASH-01·DELETE-RETENTION-01.
