@@ -126,6 +126,12 @@
 - ✅ DELETE-BULK-01 — `93e03971`. bulk delete를 canonical soft_delete_order(deleted_at·version·ORDER_SOFT_DELETED·all-or-none 단일tx·STAFF/VIEWER 403). **trash 사일런트 회귀 봉쇄**: canonical은 deleted_at만 set인데 trash.py는 status=='DELETED' 술어→소실 위험. 전이기 dual-write(status='DELETED'+original_status 미러·완전 canonical화=DELETE-TRASH-01 하류)·test_delete_bulk가 route경유 trash 가시성/original_status/리스트제외 단언. **failopen inventory 486(status/auth 라인시프트). ⚠️커플링: DELETE-BULK+AUTH-IMPERSONATION**.
 - head=wdc_link_fence_00. **75 packet 커밋 완료.**
 
+## ✅ 배치 10 완료 (3 packet·disjoint·회귀 3076 passed 0 failed)
+- ✅ DRAWING-REVISION-BACKFILL-00 — `396f5685`. 도면 revision/request/receipt/customer-confirm registry schema(마이그레이션 drawing_revision_00·down=wdc_link_fence_00·단일 head)+models.py 단독+audit(safe/ambiguous·open request 0)/backfill(safe만·events 보존·coverage 100%·**production gate 추정 활성/attachment 삭제 0**). PG green. **→ head=drawing_revision_00.**
+- ✅ FILE-01 — `2a2255ae`. files/routes view/download에 attachment row+order read scope(user_can_read_order)·raw key 직접요청 거부(traversal·소유검증)·legacy coverage gate·미인증 거부. upload PR 분리·무마이그레이션.
+- ✅ DELETE-TRASH-01 — `b16d0be0`. trash 술어 status=='DELETED'→**deleted_at**·단일 delete soft_delete_order(GET 405)·**restore hybrid**(status=='DELETED'[legacy/미러/cron]→original_status 복구+deleted_at clear, else restore_order 보존)·**web hard-delete 제거**(물리=DELETE-RETENTION만). manifest order_trash.delete_order 등재(MANAGER_MUTATION). **restore ghost 봉쇄**(canonical restore가 status='DELETED' 잔존시키던 리스트·휴지통 소실을 3 roundtrip[bulk-mirror/canonical/legacy]로 봉쇄). **failopen inventory 484. ⚠️커플링: 배치10**.
+- head=drawing_revision_00. **78 packet 커밋 완료.** 교훈: DELETE-BULK 전이기 dual-write→DELETE-TRASH가 완결(restore hybrid 필수·canonical만으론 legacy status='DELETED' ghost). cross-packet transition은 완결 packet이 hybrid로 봉쇄.
+
 ## 🎯 다음 후보 (신규 unblock)
 - **STATE 패밀리**(STATE-CORE unblock): STATE-PROD-01·STATE-PROD-ACTIONS-01·STATE-DRAWING-01·STATE-AS-01·STATE-QUEST-01(+AUTH-QUEST-READ) — endpoint를 order_transition_service로 이관. 단 BACKFILL 선행(PRODUCTION-BACKFILL-00·QUEST-BACKFILL-00·AS-BACKFILL-00·DRAWING-REVISION-BACKFILL-00·CONSTRUCTION-BACKFILL-00) 확인.
 - **DELETE 패밀리**(DELETE-CORE unblock): DELETE-BULK-01·DELETE-TRASH-01·DELETE-RETENTION-01.
