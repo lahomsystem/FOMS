@@ -251,12 +251,15 @@ def test_write_cross_origin_returns_403(client, db):
 # urgent-targets
 # ---------------------------------------------------------------------------
 
-def test_urgent_targets_unrelated_caller_403(client, db):
+def test_urgent_targets_unrelated_reader_allowed_200(client, db):
+    """URGENT-CALL-01(report line 157): target list 는 order read scope(전역)만 요구하므로
+    주문과 무관한 VIEWER reader 도 200. 구 order-related-only 게이트는 P1-25 'VIEWER
+    participant 정책 미분류' 버그였다."""
     order = _mk_order(manager_name="담당자")
     unrelated = _mk_user("ut_unrel", "무관", role="VIEWER")
     _login(client, unrelated)
     resp = client.get(f"/erp/api/orders/{order.id}/urgent-targets")
-    assert resp.status_code == 403
+    assert resp.status_code == 200
 
 
 def test_urgent_targets_excludes_inactive_and_self(client, db):
@@ -328,17 +331,20 @@ def test_urgent_mention_unrelated_target_succeeds(client, db):
     )
     assert resp.status_code == 200
 
-def test_urgent_mention_unauthorized_caller_403(client, db):
+def test_urgent_mention_unrelated_reader_allowed_200(client, db):
+    """URGENT-CALL-01(report line 157): Order read scope actor(무관 VIEWER 포함)는 send 가능.
+    구 order-related-only sender 게이트는 P1-25 'VIEWER participant 정책 미분류' 버그였다.
+    (message 는 trim 1..500 필수이므로 사유를 함께 보낸다.)"""
     order = _mk_order(manager_name="담당자")
     caller = _mk_user("um_unrel", "무관", role="VIEWER")
     target = _mk_user("um_tgt", "담당자", role="VIEWER")
     _login(client, caller)
     resp = client.post(
         f"/erp/api/orders/{order.id}/urgent-mention",
-        json={"target_user_id": target.id},
+        json={"target_user_id": target.id, "message": "확인 부탁"},
         headers=WRITE_HEADERS,
     )
-    assert resp.status_code == 403
+    assert resp.status_code == 200
 
 
 def test_urgent_mention_self_returns_400(client, db):

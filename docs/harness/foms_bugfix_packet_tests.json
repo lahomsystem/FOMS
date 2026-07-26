@@ -1379,9 +1379,18 @@
       "write_guard": true,
       "postgres": true
     },
-    "commands": [],
-    "existing_regressions": [],
-    "created_tests": [],
+    "commands": [
+      "python -m pytest tests/domains/test_urgent_call.py -q"
+    ],
+    "existing_regressions": [
+      "tests/domains/test_notification_ownership.py"
+    ],
+    "created_tests": [
+      {
+        "path": "tests/domains/test_urgent_call.py",
+        "owner_packet": "URGENT-CALL-01"
+      }
+    ],
     "browser_scenarios": [],
     "deploy_check_ids": [],
     "deployment_evidence_mode": "HEARTBEAT"
