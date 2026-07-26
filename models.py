@@ -1826,6 +1826,53 @@ class WDCLinkRuntimeState(Base):
 
 
 # --------------------------------------------------------------------------- #
+# WDC-LINK-BACKFILL-00: canonical estimate<->order link (§5.2 line 1040)
+# --------------------------------------------------------------------------- #
+class EstimateOrderLinkV2(Base):
+    """canonical estimate↔order link 정본 (WDC-LINK-BACKFILL-00, §5.2 line 1040).
+
+    legacy ``EstimateOrderMatch``(V1, ``wdcalculator_models``) → 이 canonical row 로
+    topology-aware backfill 되는 대상이다. legacy runtime 은 이 테이블을 읽지 않으며(shadow),
+    marker/CANONICAL 뒤에야 WDC-LINK-01 canonical reader/writer 가 소비한다. **V1 테이블은
+    병행(무변경)** 이고 V1 cleanup 은 별도 packet(WDC-LINK-CLEANUP-01) 몫이라 이 모델은 V1 을
+    참조/삭제하지 않는다.
+
+    * **unique pair**: ``(estimate_id, order_id)`` 는 유일하다(``uq_estimate_order_link_v2_pair``).
+      backfill 은 V1 의 중복 pair 를 이 canonical row **하나**로 정규화한다(source-target
+      equivalence — target pair == source pair).
+    * **topology 표현**: :data:`source_topology` 가 이 row 를 만든 위상(``SAME_DATABASE`` |
+      ``SEPARATE_DATABASE``)을 기록해 phase conflation(SAME/SEPARATE 혼동)을 감사 가능하게 한다.
+    * **phase run ID / V2_BACKFILL checkpoint**: :data:`backfill_run_id` 가 이 row 를 발급한
+      resume run(:class:`MaintenanceBackfillRun`, ``V2_BACKFILL_*`` phase)에 연결해 checkpoint
+      원장과 provenance 를 맺는다.
+
+    ``estimate_id``/``order_id`` 는 cross-DB(SEPARATE 위상)라 물리 FK 를 걸지 않는다(V1 의
+    ``order_id`` 와 동일한 논리 참조 규약).
+    """
+
+    __tablename__ = 'estimate_order_links_v2'
+
+    id = Column(Integer, primary_key=True)
+    estimate_id = Column(Integer, nullable=False, index=True)  # WDC estimates.id (논리 참조·물리 FK 아님).
+    order_id = Column(Integer, nullable=False, index=True)      # FOMS orders.id (논리 참조·물리 FK 아님).
+    # 이 row 를 만든 위상(phase conflation 감사용).
+    source_topology = Column(String(20), nullable=False)
+    # provenance: 발급 근거 V1 estimate_order_matches.id(중복 pair 는 최소 id — 결정적 equivalence).
+    source_match_id = Column(Integer, nullable=True)
+    # 발급 resume run id(V2_BACKFILL_* phase). checkpoint 원장·phase run ID 연결.
+    backfill_run_id = Column(String(64), nullable=True)
+    linked_at = Column(DateTime, nullable=False, server_default=func.now())
+
+    __table_args__ = (
+        UniqueConstraint('estimate_id', 'order_id', name='uq_estimate_order_link_v2_pair'),
+        CheckConstraint(
+            "source_topology IN ('SAME_DATABASE','SEPARATE_DATABASE')",
+            name='ck_estimate_order_link_v2_topology',
+        ),
+    )
+
+
+# --------------------------------------------------------------------------- #
 # BACKFILL-ARTIFACT-00: encrypted backfill run state machine (§7.3 line 1255-1259)
 # --------------------------------------------------------------------------- #
 # 모든 remediation audit/backfill 도구가 공유하는 resume run 정본. 실제 domain business
