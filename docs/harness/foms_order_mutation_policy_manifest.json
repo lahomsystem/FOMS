@@ -652,17 +652,17 @@
     },
     "tasks.api_order_tasks_create": {
       "mode": "guard",
-      "policy_id": "STAFF_MUTATION",
+      "policy_id": "ERP_EDIT",
       "rule": "/api/orders/<int:order_id>/tasks"
     },
     "tasks.api_order_tasks_delete": {
       "mode": "guard",
-      "policy_id": "STAFF_MUTATION",
+      "policy_id": "ERP_EDIT",
       "rule": "/api/orders/<int:order_id>/tasks/<int:task_id>"
     },
     "tasks.api_order_tasks_update": {
       "mode": "guard",
-      "policy_id": "STAFF_MUTATION",
+      "policy_id": "ERP_EDIT",
       "rule": "/api/orders/<int:order_id>/tasks/<int:task_id>"
     },
     "wdcalculator.api_orders_wdc_estimate_sync": {

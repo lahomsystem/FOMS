@@ -230,11 +230,13 @@ def _stalled_count(db, user_team, days=3):
 
 
 def _pending_quest_and_task(db, user_id, user_team):
-    """OPEN Task 건수."""
+    """내게 배정된 활성(OPEN/IN_PROGRESS) Task 건수(취소·완료 제외, 삭제된 주문 제외)."""
     task_count = (
         db.query(OrderTask.id)
-        .filter(OrderTask.status == "OPEN")
+        .join(Order, Order.id == OrderTask.order_id)
+        .filter(OrderTask.status.in_(("OPEN", "IN_PROGRESS")))
         .filter(OrderTask.owner_user_id == user_id)
+        .filter(Order.active_filter())
         .count()
     )
     return 0, task_count
