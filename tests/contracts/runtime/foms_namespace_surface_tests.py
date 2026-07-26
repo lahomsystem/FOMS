@@ -1270,9 +1270,9 @@ def test_erp_api_modules_use_canonical_erp_permissions_imports() -> None:
         "foms.api.orders": {
             "can_edit_erp": namespaced_erp_permissions.can_edit_erp,
         },
-        "foms.api.quest": {
-            "can_edit_erp": namespaced_erp_permissions.can_edit_erp,
-        },
+        # foms.api.quest 는 AUTH-QUEST-01 에서 quest approve 권한을 order_mutation_policy
+        # (actor team=required team·ASSIGNMENT-00 배정) 기반 게이트로 정본화하며 can_edit_erp
+        # 를 더 이상 쓰지 않는다 — 따라서 erp_permissions 바인딩 기대에서 제외한다.
     }
 
     for module_name, expectations in module_expectations.items():

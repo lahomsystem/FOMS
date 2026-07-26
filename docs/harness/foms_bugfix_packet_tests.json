@@ -1040,9 +1040,18 @@
       "write_guard": true,
       "postgres": false
     },
-    "commands": [],
-    "existing_regressions": [],
-    "created_tests": [],
+    "commands": [
+      "python -m pytest tests/domains/test_auth_quest_approve.py -q"
+    ],
+    "existing_regressions": [
+      "tests/contracts/runtime/foms_namespace_surface_tests.py"
+    ],
+    "created_tests": [
+      {
+        "path": "tests/domains/test_auth_quest_approve.py",
+        "owner_packet": "AUTH-QUEST-01"
+      }
+    ],
     "browser_scenarios": [],
     "deploy_check_ids": [],
     "deployment_evidence_mode": "HEARTBEAT"
