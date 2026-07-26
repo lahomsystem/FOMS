@@ -1607,6 +1607,43 @@ event.listen(
 
 
 # --------------------------------------------------------------------------- #
+# WDC-LINK-FENCE-00: WDC link cutover runtime state (SEPARATE topology, §8.2 line 734)
+# --------------------------------------------------------------------------- #
+class WDCLinkRuntimeState(Base):
+    """SEPARATE_DATABASE topology 의 WDC link fence singleton (§8.2 line 734).
+
+    WDC DB 에 사는 정본으로 legacy ``EstimateOrderMatch`` → canonical
+    ``estimate_order_links_v2`` cutover 를 게이트한다(mode ``LEGACY → FROZEN → CANONICAL``).
+    SAME_DATABASE topology 는 한 transaction / no-freeze 이므로 이 행을 쓰지 않는다 — 그래서
+    singleton row 는 create_all / migration 이 **auto-seed 하지 않고** SEPARATE 프로비저닝
+    (하류)이 seed 한다. fence 전이 로직은 ``foms/services/security/cutover/wdc_link_fence.py``
+    다(이 packet 은 fence 정의만 — freeze / canonical / abort CLI 는 WDC-LINK-01 하류 몫).
+    """
+
+    __tablename__ = 'wdc_link_runtime_state'
+
+    id = Column(Integer, primary_key=True)  # singleton — 항상 1 (ck_wdc_link_state_singleton).
+    mode = Column(String(20), nullable=False, server_default='LEGACY')
+    generation = Column(Integer, nullable=False, server_default=text('0'))
+    row_version = Column(Integer, nullable=False, server_default=text('1'))
+    prepared_consumer_generation = Column(Integer, nullable=True)
+    frozen_at = Column(DateTime, nullable=True)
+    freeze_source_fingerprint = Column(String(64), nullable=True)
+    freeze_rollout_artifact_sha256 = Column(String(64), nullable=True)
+    updated_at = Column(DateTime, nullable=False, server_default=func.now())
+    # CLI 가 소비된 approval row 에서 복사하는 optional actor(fence 정의 helper 는 미설정).
+    updated_by_admin_user_id = Column(Integer, ForeignKey('users.id'), nullable=True)
+
+    __table_args__ = (
+        CheckConstraint(
+            "mode IN ('LEGACY','FROZEN','CANONICAL')",
+            name='ck_wdc_link_state_mode',
+        ),
+        CheckConstraint('id = 1', name='ck_wdc_link_state_singleton'),
+    )
+
+
+# --------------------------------------------------------------------------- #
 # BACKFILL-ARTIFACT-00: encrypted backfill run state machine (§7.3 line 1255-1259)
 # --------------------------------------------------------------------------- #
 # 모든 remediation audit/backfill 도구가 공유하는 resume run 정본. 실제 domain business
