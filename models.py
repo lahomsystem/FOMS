@@ -2256,6 +2256,79 @@ event.listen(
 )
 
 
+class AuthRateKeyState(Base):
+    """auth anti-abuse rate-limit key 상태기계 정본(singleton id=1, AUTH-ACCOUNT-01).
+
+    ``SecuritySigningState`` 와 동형인 prepare/activate 상태기계로, 로그인/telemetry
+    등 anti-abuse rate limiter 가 bucket 을 서명할 때 쓰는 **rate key** 의 bootstrap 과
+    rotation 을 OPS-APPROVAL 게이트 하에서 관리한다. signing state 가 key ID fingerprint
+    만 담고 raw 를 env 에 두는 것과 달리, 이 rate key 는 **AES-256-GCM 으로 암호화된
+    envelope(``*_key_ciphertext``)** 로 DB 에 at-rest 저장한다(plaintext 키 저장 금지).
+    각 replica 는 env master key 로 복호화해 runtime 에서 읽는다.
+
+    상태 전이:
+
+    * ``EMPTY → READY`` (BOOTSTRAP_PREPARE): 최초 pending key 준비(암호화 envelope +
+      fingerprint 기록). ``version`` 증가·``generation`` 을 1 로.
+    * ``READY → ACTIVE`` (BOOTSTRAP_ACTIVATE): pending 을 active 로 승격(첫 키 활성).
+    * ``ACTIVE → ROTATION_READY`` (ROTATION_PREPARE): 새 pending key(다음 generation).
+    * ``ROTATION_READY → ROTATING`` (ROTATION_ACTIVATE): previous=구 active, active=새 키,
+      ``previous_not_after`` grace 동안 **dual accept**(구·신 키 모두 유효).
+    * ``ROTATING → ACTIVE`` (ROTATION_FINALIZE): grace 경과 후 previous(구 키) 폐기.
+
+    ``version`` 은 매 전이마다 증가하며 OPS-APPROVAL scope 의 ``expected_version`` +
+    낙관적 concurrency guard 를 겸한다. ``generation`` 은 key 세대(각 prepare 에서 증가)로
+    scope 의 ``expected_generation`` 이다. key_id 컬럼은 material 의 sha256 fingerprint 만
+    담으며 raw 는 절대 저장하지 않는다.
+    """
+
+    __tablename__ = 'auth_rate_key_state'
+
+    id = Column(Integer, primary_key=True)  # singleton — 항상 1 (ck_auth_rate_key_singleton).
+    mode = Column(String(20), nullable=False, server_default='EMPTY')
+    version = Column(Integer, nullable=False, server_default=text('1'))
+    generation = Column(Integer, nullable=False, server_default=text('0'))
+    # key-material fingerprints (sha256 hex) only — never raw key bytes.
+    active_key_id = Column(String(64), nullable=True)
+    previous_key_id = Column(String(64), nullable=True)
+    pending_key_id = Column(String(64), nullable=True)
+    # AES-256-GCM encrypted envelopes (JSON text) — never plaintext key material.
+    active_key_ciphertext = Column(Text, nullable=True)
+    previous_key_ciphertext = Column(Text, nullable=True)
+    pending_key_ciphertext = Column(Text, nullable=True)
+    previous_not_after = Column(DateTime, nullable=True)  # dual-accept grace deadline (ROTATING).
+    # prepare-time evidence (deadline-null prepare records these; activation reads them).
+    prepared_key_artifact_sha256 = Column(String(64), nullable=True)
+    prepared_rollout_artifact_sha256 = Column(String(64), nullable=True)
+    prepared_at = Column(DateTime, nullable=True)
+    activated_at = Column(DateTime, nullable=True)
+    updated_at = Column(DateTime, nullable=False, default=now_utc_naive, server_default=func.now())
+    updated_by_admin_user_id = Column(Integer, ForeignKey('users.id'), nullable=True)
+
+    __table_args__ = (
+        # 단일 행 강제 — id 는 1 만 허용(singleton 정본).
+        CheckConstraint('id = 1', name='ck_auth_rate_key_singleton'),
+        CheckConstraint(
+            "mode IN ('EMPTY','READY','ACTIVE','ROTATION_READY','ROTATING')",
+            name='ck_auth_rate_key_mode',
+        ),
+    )
+
+
+# singleton EMPTY seed — id 만 INSERT 하고 mode/version/generation 은 server_default
+# (EMPTY/1/0)로 채운다. create_all(테스트/부트스트랩) 경로용이며 Alembic 은 migration
+# 에서 동일 seed 를 별도 수행한다(SecuritySigningState 와 같은 이중 SSOT 패턴).
+AUTH_RATE_KEY_STATE_SEED_SQL = (
+    "INSERT INTO auth_rate_key_state (id) VALUES (1)"
+)
+
+event.listen(
+    AuthRateKeyState.__table__,
+    'after_create',
+    DDL(AUTH_RATE_KEY_STATE_SEED_SQL),
+)
+
+
 # --------------------------------------------------------------------------- #
 # CREW-00: 설치 작업자 마스터 + 주문 배정 registry (§5.2 CREW-00)
 # --------------------------------------------------------------------------- #

@@ -10,6 +10,8 @@ from flask import request, session
 from flask_limiter import Limiter
 from flask_limiter.util import get_remote_address
 
+from foms.services.security.auth_rate.key_state import sign_rate_bucket
+
 __all__ = ["init_limiter"]
 
 
@@ -17,7 +19,7 @@ def init_limiter(app: Any) -> Limiter:
     """Initialize the Flask-Limiter instance for the current app."""
     redis_url = os.environ.get("REDIS_URL")
 
-    def rate_limit_key() -> str:
+    def _base_rate_limit_key() -> str:
         try:
             user_id = session.get("user_id")
             if user_id:
@@ -41,6 +43,12 @@ def init_limiter(app: Any) -> Limiter:
         # rate-limit key via the attacker-controlled left-most entry, so it is
         # deliberately not done.
         return get_remote_address()
+
+    def rate_limit_key() -> str:
+        # AUTH-ACCOUNT-01 BRIDGE: sign the bucket with the active auth-rate key when
+        # the state machine is engaged; a byte-identical pass-through otherwise (no
+        # forced invalidation of existing buckets). sign_rate_bucket is fail-open.
+        return sign_rate_bucket(_base_rate_limit_key())
 
     default_limits_raw = os.environ.get("FLASK_DEFAULT_RATE_LIMITS", "5000 per day,1200 per hour")
     default_limits = [value.strip() for value in default_limits_raw.split(",") if value.strip()]
