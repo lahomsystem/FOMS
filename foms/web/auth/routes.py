@@ -1,6 +1,6 @@
 """Auth blueprint and helpers (canonical; SFC-B11B)."""
 
-from flask import Blueprint, render_template, request, redirect, url_for, flash, session, current_app, g
+from flask import Blueprint, render_template, request, redirect, url_for, flash, session, current_app, g, abort
 from functools import wraps
 from datetime import datetime, timezone
 from sqlalchemy import case
@@ -207,9 +207,26 @@ def logout():
 
 @auth_bp.route('/switch-user/<int:target_user_id>', methods=['POST'])
 @login_required
-@role_required(['ADMIN'])
 def switch_user(target_user_id):
-    """관리자가 다른 사용자로 전환(드롭다운 아이디 이동)."""
+    """관리자가 다른 사용자로 전환(드롭다운 아이디 이동).
+
+    POST 전용이며 공용 write guard(WRITE-GUARD-01)의 CSRF/Origin 검증을 소비한다.
+    권한은 ADMIN 세션만 허용하고 그 외에는 302 리다이렉트가 아니라 **403** 으로 차단한다
+    (공유 ``role_required`` 데코레이터를 재사용하지 않는 이유: delete 등 다른 관리자 route 의
+    리다이렉트 동작을 바꾸지 않기 위해 이 route 에만 국소로 권한 게이트를 둔다).
+
+    :param target_user_id: 전환할 대상 사용자 id.
+    :return: 전환 성공 시 대상 홈으로 302, 권한 없으면 403.
+    """
+    actor = g.current_user
+    if not actor or actor.role != 'ADMIN':
+        actor_id = getattr(actor, 'id', None)
+        log_access(
+            f"switch-user 권한 없는 시도 (요청자 ID:{actor_id}, 대상 ID:{target_user_id})",
+            actor_id,
+        )
+        abort(403)
+    admin_id = actor.id
     target = get_user_by_id(target_user_id)
     if not target:
         flash('대상 사용자를 찾을 수 없습니다.', 'error')
@@ -217,7 +234,6 @@ def switch_user(target_user_id):
     if not target.is_active:
         flash('비활성화된 사용자로 전환할 수 없습니다.', 'error')
         return redirect(request.referrer or url_for('order_pages.index'))
-    admin_id = session['user_id']
     if target_user_id == admin_id:
         flash('이미 본인 계정입니다.', 'info')
         return redirect(request.referrer or url_for('order_pages.index'))
@@ -247,11 +263,16 @@ def switch_back():
         session.pop('impersonating_from', None)
         flash('원래 관리자 정보를 찾을 수 없습니다. 로그인해 주세요.', 'error')
         return redirect(url_for('auth.logout'))
+    impersonated_id = session.get('user_id')
     session.pop('impersonating_from', None)
     session['user_id'] = admin.id
     session['username'] = admin.username
     session['role'] = admin.role
-    log_access(f"관리자 복귀: {admin.username} (ID:{admin.id})", admin.id)
+    # back 감사: 원 관리자(original actor) 귀속 + 어떤 계정에서 복귀했는지(전환 계정) 추적.
+    log_access(
+        f"관리자 복귀: {admin.username} (ID:{admin.id}) — 전환 계정 ID:{impersonated_id}에서 복귀",
+        admin.id,
+    )
     flash(f'관리자({admin.name}) 계정으로 복귀했습니다.', 'success')
     return redirect(request.referrer or url_for('order_pages.index'))
 
