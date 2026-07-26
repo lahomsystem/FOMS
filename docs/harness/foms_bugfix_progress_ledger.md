@@ -150,6 +150,11 @@
 - ⛔ **CHAT 패밀리 5종 N/A (chat /chat 퇴역·사용자 지시 2026-07-26)**: CHAT-ROOM-01·CHAT-MESSAGE-01·CHAT-SOCKET-AUTH-01·UPLOAD-CHAT-01·CHAT-FILE-01 미구현(퇴역 대상·DESIGNER-RETIRE 선례처럼 설계도에서 제외). CHAT-ROOM-01 착수분은 중지·되돌림(rooms.py diff 0).
 - head=startup_schema_00. **86 packet 커밋 + CHAT 5 N/A = 91/124 해소. 잔여 구현 33.**
 
+## ✅ 배치 14 완료 (2 packet·회귀 3151 passed 0 failed)
+- ✅ TASK-01 — `2c8ca94d`. tasks.py/personal_board OrderTask API(parent scope·manual role/owner·exact team enum·any-STAFF/arbitrary meta/hard delete/raw SQL 금지·version/receipt/event one tx·cancel history·erp_automation typed auto upsert same tx·unique auto_key). TASK-BACKFILL expand 재사용·무마이그레이션. policy manifest task route 등재.
+- ✅ WDC-LINK-CLEANUP-01 — `fd84d3e3`. audit_wdc_link_cleanup: V2 checkpoint/marker/canonical effective 뒤에만 Order meta/later V1 retirement batch verify(실삭제 0·V1 drop 마이그레이션 없음)·separate encrypted artifact·marker 전 거부·V2 불변·ambiguous 제거 0·static guard. PG green. 실 V1 retirement은 후속. **failopen inventory 479.**
+- head=startup_schema_00. **88 커밋 + CHAT 5 N/A = 93/124 (75%)·잔여 구현 31.**
+
 ## 🎯 다음 후보 (신규 unblock)
 - **STATE 패밀리**(STATE-CORE unblock): STATE-PROD-01·STATE-PROD-ACTIONS-01·STATE-DRAWING-01·STATE-AS-01·STATE-QUEST-01(+AUTH-QUEST-READ) — endpoint를 order_transition_service로 이관. 단 BACKFILL 선행(PRODUCTION-BACKFILL-00·QUEST-BACKFILL-00·AS-BACKFILL-00·DRAWING-REVISION-BACKFILL-00·CONSTRUCTION-BACKFILL-00) 확인.
 - **DELETE 패밀리**(DELETE-CORE unblock): DELETE-BULK-01·DELETE-TRASH-01·DELETE-RETENTION-01.
