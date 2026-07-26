@@ -24,7 +24,7 @@ from typing import Any, Callable
 from flask import current_app, jsonify, request, session
 from sqlalchemy.orm.attributes import flag_modified
 
-from foms.web.auth import log_access
+from foms.web.auth import get_user_by_id, log_access
 from foms.services.orders.status_constants import (
     BULK_ACTION_STATUS,
     STATUS,
@@ -45,10 +45,12 @@ from foms.services.orders.order_transition_service import (
     transition_order,
 )
 from foms.services.orders.revision import RevisionError
+from foms.services.orders.soft_delete import soft_delete_order
+from foms.services.orders.order_mutation_policy import user_can
 from foms.services.orders.state_axes import AXIS_MAIN, read_main_stage, read_state_axes
 from foms.services.erp_order_flags import is_erp_order_record
 from db import get_db
-from foms.services.datetime_kst import now_kst, now_utc_naive
+from foms.services.datetime_kst import now_utc_naive
 from foms.services.erp_display import get_today_kst
 from foms.services.erp_sync_columns import sync_erp_flat_columns
 from models import Order, OrderEvent
@@ -293,6 +295,116 @@ def update_order_status_response(
         )
 
 
+def _parse_expected_versions(data: dict[str, Any]) -> dict[int, int]:
+    """요청 body 의 per-order If-Match version 맵을 파싱한다({order_id: expected_version}).
+
+    JSON 객체 키는 문자열이므로 int 로 정규화한다. int 로 해석되지 않는 항목은 건너뛴다
+    (해당 주문은 precondition 없이 삭제 — 하위호환: ``versions`` 미지정이면 전부 무검증).
+
+    Args:
+        data: 요청 JSON body. ``versions`` 키(dict)를 읽는다.
+
+    Returns:
+        order_id(int) → expected ``mutation_version``(int) 매핑(없으면 빈 dict).
+    """
+    raw = data.get("versions")
+    if not isinstance(raw, dict):
+        return {}
+    parsed: dict[int, int] = {}
+    for key, value in raw.items():
+        try:
+            parsed[int(key)] = int(value)
+        except (TypeError, ValueError):
+            continue
+    return parsed
+
+
+def _bulk_soft_delete_response(
+    db: Any,
+    order_ids: list[int],
+    expected_versions: dict[int, int],
+    *,
+    actor_user_id: Any,
+    actor_user: Any,
+):
+    """주문 대량 삭제를 canonical soft-delete + all-or-none 로 처리한다.
+
+    각 주문에 :func:`soft_delete_order` 를 적용해 delete projection(``deleted_at``) set +
+    ``mutation_version`` bump + ``ORDER_SOFT_DELETED`` event 를 기록하고(hard delete 없음),
+    **하나라도** 권한/version/존재 실패면 전체 롤백한다(부분 삭제 0·단일 tx). 삭제 권한은
+    AUTH-01 ``MANAGER_MUTATION`` 정책(ADMIN/MANAGER 전용; STAFF/VIEWER 403)을 재사용한다.
+
+    **전이기(transitional) dual-write**: trash 서브시스템(:mod:`foms.web.orders.trash` 의
+    list/restore/purge)이 아직 ``status=='DELETED'`` 술어에 의존하므로, canonical
+    ``deleted_at`` 과 함께 legacy ``status='DELETED'`` + ``original_status`` 를 같은 tx 에서
+    미러해 trash 가시성·restore 를 무회귀로 보존한다. 완전 canonical화(trash 술어→
+    ``deleted_at``, restore→:func:`restore_order`, 이 status 미러 제거)는 DELETE-TRASH-01 소관.
+
+    Args:
+        db: 활성 DB 세션(이 함수가 commit/rollback 소유).
+        order_ids: 삭제 대상 order id(정규화된 int 목록).
+        expected_versions: order_id → If-Match ``mutation_version``(없으면 precondition 없음).
+        actor_user_id: 삭제 actor user id(event/receipt 소유자).
+        actor_user: 권한 판정용 User 객체(``MANAGER_MUTATION`` 평가; None 이면 거부).
+
+    Returns:
+        Flask ``(json, status_code)`` 응답 튜플. 권한 실패 403, version 충돌 409, 미존재 404,
+        성공 200.
+    """
+    if not user_can("MANAGER_MUTATION", actor_user):
+        return (
+            jsonify({
+                "success": False,
+                "code": "FORBIDDEN",
+                "message": "대량 삭제는 관리자(ADMIN/MANAGER) 권한이 필요합니다.",
+            }),
+            403,
+        )
+    try:
+        deleted = 0
+        for order_id in order_ids:
+            result = soft_delete_order(
+                db,
+                order_id=order_id,
+                actor_user_id=actor_user_id,
+                expected_version=expected_versions.get(order_id),
+            )
+            if result is not None:  # None = 이미 삭제됨(멱등 no-op)
+                deleted += 1
+            # 전이기 dual-write: canonical deleted_at 과 함께 legacy status/original_status 를
+            # 같은 tx 에 미러(trash 호환). status 를 덮기 전 원상태를 original_status 로 보존한다.
+            order = db.get(Order, order_id)
+            if order is not None and getattr(order, "status", None) != "DELETED":
+                order.original_status = order.status or "RECEIVED"
+                order.status = "DELETED"
+            log_access(
+                f"주문 #{order_id} 휴지통 이동 (bulk): → DELETED",
+                actor_user_id,
+                auto_commit=False,
+            )
+        db.commit()
+    except RevisionError as exc:
+        # version 충돌/미존재 등 → 전체 롤백(부분 삭제 0). exc.status_code 로 HTTP 매핑.
+        db.rollback()
+        return (
+            jsonify({
+                "success": False,
+                "code": exc.error_code,
+                "message": str(exc),
+            }),
+            exc.status_code,
+        )
+    return (
+        jsonify({
+            "success": True,
+            "updated": deleted,
+            "new_status": "DELETED",
+            "status_display": STATUS.get("DELETED", "DELETED"),
+        }),
+        200,
+    )
+
+
 def bulk_update_order_status_response(
     *,
     get_today_kst_func: Callable[[], Any] = get_today_kst,
@@ -316,7 +428,6 @@ def bulk_update_order_status_response(
         user_id = session.get("user_id")
         updated = 0
         blocked_override_required: list[int] = []
-        deleted_at_str = now_kst().strftime("%Y-%m-%d %H:%M:%S")
 
         valid_ids = []
         for order_id in order_ids:
@@ -327,21 +438,20 @@ def bulk_update_order_status_response(
         if not valid_ids:
             return jsonify({"success": False, "message": "유효한 주문 ID가 없습니다."}), 400
 
+        if is_delete:
+            # 대량 삭제 = canonical soft-delete + all-or-none(권한/version/존재 실패→전체 롤백).
+            # trash route(status='DELETED' 직접 저장·original_status)와 혼합하지 않는다.
+            return _bulk_soft_delete_response(
+                db,
+                valid_ids,
+                _parse_expected_versions(data),
+                actor_user_id=user_id,
+                actor_user=get_user_by_id(user_id),
+            )
+
         orders = db.query(Order).filter(Order.id.in_(valid_ids)).all()  # perf-ok: request bulk order id batch
         for order in orders:
             old_status = getattr(order, "status", None) or ""
-            if is_delete:
-                setattr(order, "status", "DELETED")
-                setattr(order, "original_status", old_status or "RECEIVED")
-                setattr(order, "deleted_at", deleted_at_str)
-                log_access(
-                    f"주문 #{order.id} 휴지통 이동 (bulk): {old_status} → DELETED",
-                    user_id,
-                    auto_commit=False,
-                )
-                updated += 1
-                continue
-
             from_stage = current_stage_for_order(order)
             if is_erp_order_record(order) and requires_privileged_override(from_stage, new_status):
                 blocked_override_required.append(int(order.id))

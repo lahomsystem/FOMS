@@ -1187,9 +1187,18 @@
       "write_guard": true,
       "postgres": false
     },
-    "commands": [],
-    "existing_regressions": [],
-    "created_tests": [],
+    "commands": [
+      "python -m pytest tests/domains/test_delete_bulk.py -q"
+    ],
+    "existing_regressions": [
+      "tests/domains/test_order_trash.py"
+    ],
+    "created_tests": [
+      {
+        "path": "tests/domains/test_delete_bulk.py",
+        "owner_packet": "DELETE-BULK-01"
+      }
+    ],
     "browser_scenarios": [],
     "deploy_check_ids": [],
     "deployment_evidence_mode": "HEARTBEAT"
