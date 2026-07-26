@@ -291,8 +291,23 @@ def test_app_init_canonical_module_uses_canonical_persistence_imports() -> None:
     backfill_source = inspect.getsource(namespaced_app_init._backfill_erp_flat_columns)
 
     assert "from foms.persistence.main.db import get_db, init_db" in module_source
-    assert "from foms.persistence.main.models import User" in module_source
     assert "from foms.persistence.main.models import Order" in backfill_source
+
+
+def test_app_init_carries_no_admin_bootstrap_wiring() -> None:
+    """STARTUP-ADMIN-01: web startup creates zero admin auto-create wiring.
+
+    Admin bootstrap moved to the explicit ``tools/ops/bootstrap_admin.py`` CLI;
+    ``foms.services.app_init`` must import neither ``User`` nor a password
+    hasher, and ``run_auto_init`` must not reference the removed helper.
+    """
+    module_source = inspect.getsource(namespaced_app_init)
+    run_auto_init_source = inspect.getsource(namespaced_app_init.run_auto_init)
+
+    assert "from foms.persistence.main.models import User" not in module_source
+    assert "generate_password_hash" not in module_source
+    assert not hasattr(namespaced_app_init, "_ensure_default_admin")
+    assert "_ensure_default_admin" not in run_auto_init_source
 
 
 def test_app_init_runs_no_ensure_schema_ddl_at_startup() -> None:
@@ -1643,7 +1658,6 @@ def test_erp_api_modules_use_canonical_erp_display_imports() -> None:
     from foms.api import measurement as erp_measurement
     from foms.api.cs import as_orders as erp_orders_as
     from foms.api.cs import dashboard as erp_orders_completion
-    from foms.api import erp_orders_structured
     from foms.api import orders as orders_api
 
     assert erp_map.normalize_manager_name is namespaced_erp_display.normalize_manager_name
@@ -1657,7 +1671,6 @@ def test_erp_api_modules_use_canonical_erp_display_imports() -> None:
         erp_orders_completion._ensure_dict
         is namespaced_erp_display._ensure_dict
     )
-    assert erp_orders_structured.get_today_kst is namespaced_erp_display.get_today_kst
     assert orders_api.get_today_kst is namespaced_erp_display.get_today_kst
 
 

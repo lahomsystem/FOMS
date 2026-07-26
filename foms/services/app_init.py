@@ -2,15 +2,11 @@
 
 from __future__ import annotations
 
-import os
-
 from foms.persistence.main.db import get_db, init_db
-from foms.persistence.main.models import User
 from sqlalchemy import text
 from sqlalchemy.exc import OperationalError
 from sqlalchemy.orm import Session
 from wdcalculator_db import init_wdcalculator_db
-from werkzeug.security import generate_password_hash
 
 __all__ = ["run_auto_init"]
 
@@ -137,45 +133,12 @@ def _verify_erp_flat_columns_ready() -> None:
         db_session.rollback()
 
 
-def _get_bootstrap_admin_password() -> str | None:
-    """Return the configured bootstrap password for automatic admin creation."""
-    password = (os.environ.get("FOMS_ADMIN_DEFAULT_PASSWORD") or "").strip()
-    return password or None
-
-
-def _ensure_default_admin(db_session: Session) -> None:
-    """Create the default admin only when an explicit bootstrap password is set."""
-    try:
-        admin = db_session.query(User).filter_by(username="admin").first()
-        if admin:
-            print("[AUTO-INIT] Admin user exists.")
-            return
-
-        password = _get_bootstrap_admin_password()
-        if not password:
-            print(
-                "[AUTO-INIT] Admin user missing; skipping automatic admin bootstrap "
-                "because FOMS_ADMIN_DEFAULT_PASSWORD is not set."
-            )
-            return
-
-        print("[AUTO-INIT] Creating default admin user from configured bootstrap password.")
-        new_admin = User(
-            username="admin",
-            password=generate_password_hash(password),
-            name="관리자",
-            role="ADMIN",
-            is_active=True,
-        )
-        db_session.add(new_admin)
-        db_session.commit()
-    except Exception as e:
-        print(f"[AUTO-INIT] Failed to create admin user: {e}")
-        db_session.rollback()
-
-
 def run_auto_init(app) -> None:
-    """Ensure DB tables and optionally bootstrap the admin account on WSGI startup."""
+    """Ensure DB tables exist and repair bounded ERP flat-column drift on WSGI startup.
+
+    Admin bootstrap is intentionally excluded (STARTUP-ADMIN-01): run
+    ``tools/ops/bootstrap_admin.py`` explicitly to create the admin account.
+    """
     try:
         with app.app_context():
             print("[AUTO-INIT] Checking database tables...")
@@ -191,9 +154,8 @@ def run_auto_init(app) -> None:
             from foms.services.order_date_sync import register_date_sync_listener
 
             register_date_sync_listener()
-
-            db_session = get_db()
-            _ensure_default_admin(db_session)
+            # STARTUP-ADMIN-01: admin bootstrap is explicit-only (operator runs
+            # tools/ops/bootstrap_admin.py). Startup never auto-creates admin.
     except StartupReadinessError:
         raise
     except Exception as e:
