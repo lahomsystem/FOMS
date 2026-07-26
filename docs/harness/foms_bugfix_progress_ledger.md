@@ -132,6 +132,12 @@
 - ✅ DELETE-TRASH-01 — `b16d0be0`. trash 술어 status=='DELETED'→**deleted_at**·단일 delete soft_delete_order(GET 405)·**restore hybrid**(status=='DELETED'[legacy/미러/cron]→original_status 복구+deleted_at clear, else restore_order 보존)·**web hard-delete 제거**(물리=DELETE-RETENTION만). manifest order_trash.delete_order 등재(MANAGER_MUTATION). **restore ghost 봉쇄**(canonical restore가 status='DELETED' 잔존시키던 리스트·휴지통 소실을 3 roundtrip[bulk-mirror/canonical/legacy]로 봉쇄). **failopen inventory 484. ⚠️커플링: 배치10**.
 - head=drawing_revision_00. **78 packet 커밋 완료.** 교훈: DELETE-BULK 전이기 dual-write→DELETE-TRASH가 완결(restore hybrid 필수·canonical만으론 legacy status='DELETED' ghost). cross-packet transition은 완결 packet이 hybrid로 봉쇄.
 
+## ✅ 배치 11 완료 (3 packet·disjoint·회귀 3109 passed 0 failed)
+- ✅ WDC-LINK-BACKFILL-00 — `97104f85`. EstimateOrderLinkV2 schema(마이그레이션 wdc_link_backfill_00·down=drawing_revision_00·단일 head)+models.py 단독+topology audit/backfill(SAME online atomic dual-write·SEPARATE FROZEN fence 확인·unique pair·encrypted artifact·phase run ID·V1 불변/cleanup 0·phase conflation 0). PG green. **→ head=wdc_link_backfill_00.**
+- ✅ AUTH-QUEST-01 — `2391174c`. quest approve를 order_mutation_policy(actor team=required team) 게이트로 정본화(can_edit_erp 폴백 제거·불일치 403·DRAWING/CONFIRM standalone 409·construction assignment·override reason). transition 직접쓰기 0(STATE-QUEST-01 하류). namespace surface에서 quest erp_permissions 기대 제외 갱신. 무마이그레이션.
+- ✅ ACTOR-STATE-01 — `1a5973bb`. notification actor-owner 계약 test 22(owner/cross·VIEWER own/cross·receipt/version·rate·push·user_states 불오염·delete-all ADMIN). surface는 선행 packet 구현·tests-only(foms 무접근). **defense-in-depth 재분류**: api_notifications_delete_all(공유row 하드삭제) ARCHIVE_OWN_NOTIFICATION(viewer=True 오분류)→MASTER_MUTATION(오케스트레이터 적용). test_api_error_containment 순서회귀 근본수정. **failopen inventory 484. ⚠️커플링: 배치11**.
+- head=wdc_link_backfill_00. **81 packet 커밋 완료.**
+
 ## 🎯 다음 후보 (신규 unblock)
 - **STATE 패밀리**(STATE-CORE unblock): STATE-PROD-01·STATE-PROD-ACTIONS-01·STATE-DRAWING-01·STATE-AS-01·STATE-QUEST-01(+AUTH-QUEST-READ) — endpoint를 order_transition_service로 이관. 단 BACKFILL 선행(PRODUCTION-BACKFILL-00·QUEST-BACKFILL-00·AS-BACKFILL-00·DRAWING-REVISION-BACKFILL-00·CONSTRUCTION-BACKFILL-00) 확인.
 - **DELETE 패밀리**(DELETE-CORE unblock): DELETE-BULK-01·DELETE-TRASH-01·DELETE-RETENTION-01.
