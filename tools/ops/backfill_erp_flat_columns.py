@@ -41,6 +41,13 @@ from foms.services.orders.erp_flat_backfill import (  # noqa: E402
     run_backfill,
 )
 from foms.services.security.backfill import artifact_root, runs  # noqa: E402
+from foms.services.security.backfill.manifest import BACKFILL_APPLY_OPERATION_ID  # noqa: E402
+
+# 고위험 token CLI 규약(ops_approval_manifest): --approval-token-file 를 받는 CLI 는 자기가
+# 소비하는 OPS operation 을 선언해야 한다. 이 CLI 의 --apply 는 consume_backfill_apply 로
+# BACKFILL_APPLY 를 소비한다(BACKFILL-ARTIFACT-00 owner operation). literal 필수(AST 스캔).
+OPS_APPROVAL_OPERATION_ID = "BACKFILL_APPLY"
+assert OPS_APPROVAL_OPERATION_ID == BACKFILL_APPLY_OPERATION_ID  # 공유 operation id drift 가드
 
 
 def _load_token(path: str) -> tuple[str, bytes]:
