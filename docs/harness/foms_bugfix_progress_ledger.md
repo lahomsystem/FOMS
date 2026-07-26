@@ -144,6 +144,12 @@
 - ✅ URGENT-CALL-01 — `fedc298a`. urgent target/send: participant(VIEWER) send·active target(cross-order 금지)·500/rate 5h·notification+NotificationEvent+sidefx NOTIFICATION_EVENT **한 tx**(별도 worker 재구현 안 함·Order mutation 0·multi-commit 0). ack는 ACTOR-STATE 소비만. manifest 무편집(기존 분류). **failopen inventory 484. ⚠️커플링: 배치12**.
 - head=wdc_link_backfill_00(SCALE-AS 무마이그레이션). **84 packet 커밋 완료.**
 
+## ✅ 배치 13 완료 (2 packet·회귀 3130 passed 0 failed·CHAT-ROOM 스킵)
+- ✅ STARTUP-SCHEMA-01 — `51827b4c`. app_init runtime ensure-schema DDL→Alembic(startup_schema_00·down=wdc_link_backfill_00·단일 head·additive downgrade non-destructive)+predeploy. **web replica start DDL 0·fail-closed**(스키마 없으면 부팅 실패·조용히 생성 안 함). test_app_init/namespace surface 계약 갱신(no-ensure-DDL). backfill/auto-init 제거는 STARTUP-BACKFILL/PURE. PG green. **→ head=startup_schema_00.**
+- ✅ WDC-LINK-01 — `71ab2754`. estimate_order_link_runtime(라이브러리): topology reader/writer·SAME marker 전 legacy/dual write·marker 뒤 V2·SEPARATE FROZEN 503·CANONICAL 뒤 V2·same-key 1·drift 거부·Order meta 0. 신규 route 0·manifest 무변경. PG 18. 라이브 blueprint 재배선은 marker cutover 후속 롤아웃(라이브러리=SSOT). **failopen inventory 484.**
+- ⛔ **CHAT 패밀리 5종 N/A (chat /chat 퇴역·사용자 지시 2026-07-26)**: CHAT-ROOM-01·CHAT-MESSAGE-01·CHAT-SOCKET-AUTH-01·UPLOAD-CHAT-01·CHAT-FILE-01 미구현(퇴역 대상·DESIGNER-RETIRE 선례처럼 설계도에서 제외). CHAT-ROOM-01 착수분은 중지·되돌림(rooms.py diff 0).
+- head=startup_schema_00. **86 packet 커밋 + CHAT 5 N/A = 91/124 해소. 잔여 구현 33.**
+
 ## 🎯 다음 후보 (신규 unblock)
 - **STATE 패밀리**(STATE-CORE unblock): STATE-PROD-01·STATE-PROD-ACTIONS-01·STATE-DRAWING-01·STATE-AS-01·STATE-QUEST-01(+AUTH-QUEST-READ) — endpoint를 order_transition_service로 이관. 단 BACKFILL 선행(PRODUCTION-BACKFILL-00·QUEST-BACKFILL-00·AS-BACKFILL-00·DRAWING-REVISION-BACKFILL-00·CONSTRUCTION-BACKFILL-00) 확인.
 - **DELETE 패밀리**(DELETE-CORE unblock): DELETE-BULK-01·DELETE-TRASH-01·DELETE-RETENTION-01.
