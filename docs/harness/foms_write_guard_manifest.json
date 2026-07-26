@@ -3,7 +3,7 @@
   "guard": "CSRF_TOKEN+ORIGIN",
   "description": "WRITE-GUARD-01 정본: 모든 cookie-auth state-changing route 의 write_guard metadata. mode=guard 는 공용 CSRF+Origin before_request 가드(enforce_csrf_origin) 적용, mode=exempt 는 자기 정책(서명/ingest/anon)으로 명시 우회. url_map 의 모든 POST/PUT/PATCH/DELETE endpoint 가 여기 등재되어야 하며 누락은 static gate fail(fail-safe: 미등재 endpoint 는 런타임에서 guard).",
   "exempt_count": 6,
-  "guard_count": 145,
+  "guard_count": 144,
   "routes": {
     "admin.ops_approval_review": {
       "mode": "guard",
@@ -475,13 +475,9 @@
       "mode": "guard",
       "rule": "/bulk_action"
     },
-    "order_trash.permanent_delete_all_orders": {
+    "order_trash.delete_order": {
       "mode": "guard",
-      "rule": "/permanent_delete_all_orders"
-    },
-    "order_trash.permanent_delete_orders": {
-      "mode": "guard",
-      "rule": "/permanent_delete_orders"
+      "rule": "/delete/<int:order_id>"
     },
     "order_trash.restore_orders": {
       "mode": "guard",

@@ -222,7 +222,7 @@ def test_hook_trash_delete_order(client):
     _login(client, user)
     order_id = _make_order(stage="생산").id
 
-    resp = client.get(f"/delete/{order_id}", follow_redirects=False)
+    resp = client.post(f"/delete/{order_id}", follow_redirects=False)
     assert resp.status_code in (302, 303)
     notifs = _notifs(order_id)
     assert len(notifs) == 1

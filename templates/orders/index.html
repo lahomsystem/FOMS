@@ -801,12 +801,17 @@
                                         class="btn btn-sm btn-outline-primary" title="수정" aria-label="주문 {{ order.id }} 수정">
                                         <i class="fas fa-edit"></i>
                                     </a>
-                                    <a href="{{ url_for('order_trash.delete_order', order_id=order.id) }}"
+                                    {# soft delete 는 POST 전용(GET 405)·공용 CSRF 가드 소비.
+                                       행이 bulk-action-form 안에 있어 별도 form(order-trash-move-form)에
+                                       연결해 벌크 검증 핸들러와 분리한다. csrf_token 은 layout_head 전역
+                                       주입기가 제출 시 자동 삽입한다. #}
+                                    <button type="submit" form="order-trash-move-form"
+                                        formaction="{{ url_for('order_trash.delete_order', order_id=order.id) }}"
                                         class="btn btn-sm btn-outline-danger" title="휴지통으로 이동"
                                         aria-label="주문 {{ order.id }} 휴지통으로 이동"
                                         onclick="return confirm('이 주문을 휴지통으로 이동하시겠습니까?');">
                                         <i class="fas fa-trash"></i>
-                                    </a>
+                                    </button>
                                 </div>
                             </td>
                             <td class="th-received-date" data-label="접수일">{{ order.received_date }}</td>
@@ -1057,6 +1062,10 @@
             </div>
         </div> {# order-list-table-container 종료 #}
     </form> {# 일괄 작업 폼 종료 #}
+    {# 행별 휴지통 이동(soft delete) 전용 POST form. 각 행의 삭제 버튼이 form= 로 연결되며
+       formaction 이 대상 order_id 를 지정한다. csrf_token 은 layout_head 전역 주입기가 제출
+       시 자동 삽입한다(라우트별 ad hoc 토큰 주입 금지). #}
+    <form id="order-trash-move-form" method="post"></form>
 </div>
 
 <script>

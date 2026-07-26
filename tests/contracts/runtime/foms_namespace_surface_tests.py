@@ -1399,14 +1399,10 @@ def test_jobs_tasks_uses_canonical_storage_lazy_import() -> None:
     assert "from foms.services.storage import get_storage" in function_source
 
 
-def test_order_trash_uses_canonical_storage_cleanup_import() -> None:
-    """Trash workflow should bind permanent delete cleanup from the canonical namespace."""
-    from foms.web.orders import trash as order_trash
-
-    assert (
-        order_trash.delete_storage_files_for_order
-        is namespaced_order_storage_cleanup.delete_storage_files_for_order
-    )
+# DELETE-TRASH-01: trash 의 web hard-delete(물리 삭제) 경로가 제거되면서 trash.py 는 더 이상
+# delete_storage_files_for_order 를 import 하지 않는다(물리 삭제는 DELETE-RETENTION-01 만 수행).
+# 따라서 구 order_trash → 캐노니컬 storage cleanup import 계약 테스트는 폐기한다. namespaced
+# storage cleanup shim 자체의 계약은 test_namespaced_order_storage_cleanup_shim_* 가 계속 고정한다.
 
 
 def test_namespaced_erp_template_filters_shim_preserves_canonical_contract() -> None:
