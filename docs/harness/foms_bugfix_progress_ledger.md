@@ -296,3 +296,8 @@ BASE-00·PACKET-HARNESS-00 + OPS-ROUTE-01·API-ERROR-01·FAILOPEN-01·REQUEST-LI
 - **레이스 축**: migration/models=WIZ-01-COMPLETION 단독, guard scan=STATE-GUARD 단독, channel scale test=SCALE-CHANNEL 단독. 무충돌.
 - **검증**: APP_OK·head wiz_pending_00·secret 0·매니페스트 17·타깃 68 green·전체 domains 3298+contracts 65=3363 passed 0 failed(분할 포그라운드·백그라운드 회귀 2연속 kill 회피). 
 - **잔여 3**: WIZ-DELETE-01(WIZ-01-COMPLETION drawing_wizard_pending 위 구현·STORAGE_DELETE handler source_domain 분기 주의)→REV-99(STATE-GUARD·WIZ-DELETE dep)→RELEASE-GATE-00(REV-99·SCALE-CHANNEL dep).
+
+
+## ✅ 배치28 완료 (WIZ-DELETE-01 → head 불변 wiz_pending_00, 124-packet 116 + N/A 6 = 122/124 98%·잔여 2)
+- ✅ WIZ-DELETE-01 — api_delete_drawing_wizard_pending 하드닝: JSON pending→drawing_wizard_pending child lazy materialize(server-derived key)·DELETE_PENDING+WIZARD_PENDING STORAGE_DELETE outbox 한 tx·JSON 제거·연결 첨부도 ORDER_EVENT outbox 이관(동기 R2 삭제 0). **신규 공용 storage_delete_handler.py**(source_domain 분기·WIZARD_PENDING→R2+child DELETED same tx·타 도메인 object_key R2·object_session·worker Order write 0·retry idempotent·중복0·no-key safe skip)=**task#44(STORAGE_DELETE handler 0→DEAD 적체) 해소**. run_domain_side_effect_outbox 부트스트랩 register. 금지 4종 준수. test PG 8skip+domains 86·delete 2건 outbox 갱신(스펙). 검증 APP_OK·failopen 477/0·타깃 119·전체 domains 3298+contracts 65=3363 passed 0 failed.
+- **엔드게임 잔여 2**: REV-99(STATE-GUARD·WIZ-DELETE dep 모두 충족·최종 release gate)→RELEASE-GATE-00(REV-99·SCALE-CHANNEL dep).

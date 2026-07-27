@@ -5,16 +5,16 @@
   "overlap_api_error_01": "API-ERROR-01 owns response/stdout exposure (print_exc/str(e) -> log_handled_exception). This packet owns swallow classification. Sites that log via log_handled_exception are LOG_AND_CONTINUE here.",
   "marker_convention": "Silent-by-design catches carry an inline `# failopen: intentional: <reason>` (or `fail-closed`) marker; the scanner reads it as the justification. No bare allowlist, no lint-disable.",
   "baselines": {
-    "broad_total": 479,
+    "broad_total": 477,
     "unclassified": 0
   },
   "disposition_counts": {
     "FAIL_CLOSED": 22,
     "INTENTIONAL": 17,
-    "LOG_AND_CONTINUE": 440
+    "LOG_AND_CONTINUE": 438
   },
   "owner_counts": {
-    "api": 217,
+    "api": 215,
     "audit": 2,
     "auth": 11,
     "cache": 25,
@@ -784,7 +784,7 @@
     },
     {
       "path": "foms/api/drawing/wizard.py",
-      "lineno": 719,
+      "lineno": 725,
       "handler_type": "broad_exception",
       "disposition": "LOG_AND_CONTINUE",
       "owner": "api",
@@ -793,7 +793,7 @@
     },
     {
       "path": "foms/api/drawing/wizard.py",
-      "lineno": 723,
+      "lineno": 729,
       "handler_type": "broad_exception",
       "disposition": "LOG_AND_CONTINUE",
       "owner": "api",
@@ -802,7 +802,7 @@
     },
     {
       "path": "foms/api/drawing/wizard.py",
-      "lineno": 772,
+      "lineno": 778,
       "handler_type": "broad_exception",
       "disposition": "LOG_AND_CONTINUE",
       "owner": "api",
@@ -811,7 +811,7 @@
     },
     {
       "path": "foms/api/drawing/wizard.py",
-      "lineno": 833,
+      "lineno": 839,
       "handler_type": "broad_exception",
       "disposition": "LOG_AND_CONTINUE",
       "owner": "api",
@@ -820,7 +820,7 @@
     },
     {
       "path": "foms/api/drawing/wizard.py",
-      "lineno": 837,
+      "lineno": 843,
       "handler_type": "broad_exception",
       "disposition": "LOG_AND_CONTINUE",
       "owner": "api",
@@ -829,7 +829,7 @@
     },
     {
       "path": "foms/api/drawing/wizard.py",
-      "lineno": 921,
+      "lineno": 927,
       "handler_type": "broad_exception",
       "disposition": "LOG_AND_CONTINUE",
       "owner": "api",
@@ -838,7 +838,7 @@
     },
     {
       "path": "foms/api/drawing/wizard.py",
-      "lineno": 925,
+      "lineno": 931,
       "handler_type": "broad_exception",
       "disposition": "LOG_AND_CONTINUE",
       "owner": "api",
@@ -847,7 +847,7 @@
     },
     {
       "path": "foms/api/drawing/wizard.py",
-      "lineno": 929,
+      "lineno": 935,
       "handler_type": "broad_exception",
       "disposition": "LOG_AND_CONTINUE",
       "owner": "api",
@@ -856,7 +856,7 @@
     },
     {
       "path": "foms/api/drawing/wizard.py",
-      "lineno": 989,
+      "lineno": 995,
       "handler_type": "broad_exception",
       "disposition": "LOG_AND_CONTINUE",
       "owner": "api",
@@ -865,7 +865,7 @@
     },
     {
       "path": "foms/api/drawing/wizard.py",
-      "lineno": 1107,
+      "lineno": 1227,
       "handler_type": "broad_exception",
       "disposition": "LOG_AND_CONTINUE",
       "owner": "api",
@@ -874,7 +874,7 @@
     },
     {
       "path": "foms/api/drawing/wizard.py",
-      "lineno": 1128,
+      "lineno": 1231,
       "handler_type": "broad_exception",
       "disposition": "LOG_AND_CONTINUE",
       "owner": "api",
@@ -883,7 +883,7 @@
     },
     {
       "path": "foms/api/drawing/wizard.py",
-      "lineno": 1144,
+      "lineno": 1290,
       "handler_type": "broad_exception",
       "disposition": "LOG_AND_CONTINUE",
       "owner": "api",
@@ -892,7 +892,7 @@
     },
     {
       "path": "foms/api/drawing/wizard.py",
-      "lineno": 1148,
+      "lineno": 1294,
       "handler_type": "broad_exception",
       "disposition": "LOG_AND_CONTINUE",
       "owner": "api",
@@ -901,7 +901,7 @@
     },
     {
       "path": "foms/api/drawing/wizard.py",
-      "lineno": 1207,
+      "lineno": 1358,
       "handler_type": "broad_exception",
       "disposition": "LOG_AND_CONTINUE",
       "owner": "api",
@@ -910,7 +910,7 @@
     },
     {
       "path": "foms/api/drawing/wizard.py",
-      "lineno": 1211,
+      "lineno": 1362,
       "handler_type": "broad_exception",
       "disposition": "LOG_AND_CONTINUE",
       "owner": "api",
@@ -919,7 +919,7 @@
     },
     {
       "path": "foms/api/drawing/wizard.py",
-      "lineno": 1275,
+      "lineno": 1479,
       "handler_type": "broad_exception",
       "disposition": "LOG_AND_CONTINUE",
       "owner": "api",
@@ -928,25 +928,7 @@
     },
     {
       "path": "foms/api/drawing/wizard.py",
-      "lineno": 1279,
-      "handler_type": "broad_exception",
-      "disposition": "LOG_AND_CONTINUE",
-      "owner": "api",
-      "has_logging": true,
-      "justification": "logs via logger/log_handled_exception"
-    },
-    {
-      "path": "foms/api/drawing/wizard.py",
-      "lineno": 1396,
-      "handler_type": "broad_exception",
-      "disposition": "LOG_AND_CONTINUE",
-      "owner": "api",
-      "has_logging": true,
-      "justification": "logs via logger/log_handled_exception"
-    },
-    {
-      "path": "foms/api/drawing/wizard.py",
-      "lineno": 1445,
+      "lineno": 1528,
       "handler_type": "broad_exception",
       "disposition": "LOG_AND_CONTINUE",
       "owner": "api",
