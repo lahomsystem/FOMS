@@ -27,7 +27,7 @@
    entry는 as_log.decorate_entry()를 통과한 dict(파생 필드 ts_abs/ts_rel/type_label/is_* 포함).
    text는 sanitize_as_content_html을 이미 통과한 rich HTML이라 |safe.
    유형 칩 색은 CSS 클래스 as-tl-chip--<type>(T11)이 담당한다. #}
-{% macro render_as_timeline_entry(e) -%}
+{% macro render_as_timeline_entry(e, can_edit=true) -%}
 <div class="as-tl-item{% if e.is_system %} as-tl-item--system{% endif %}{% if e.is_legacy %} as-tl-item--legacy{% endif %}"
      data-log-id="{{ e.id }}" data-log-type="{{ e.type }}">
   <div class="as-tl-item__meta">
@@ -40,6 +40,15 @@
     {% if e.ts_abs %}<time class="as-tl-item__time" datetime="{{ e.ts }}" title="{{ e.ts_abs }} KST">{{ e.ts_rel or e.ts_abs }}</time>{% endif %}
     {% if e.is_legacy %}<span class="as-tl-item__legacy-label">{{ e.legacy_label }}</span>{% endif %}
     {% if e.is_edited %}<span class="as-tl-item__edited" title="{{ e.edited_at }} · {{ e.edited_by }}">(수정됨)</span>{% endif %}
+    {# 수기 항목만 수정 가능. system/legacy는 PATCH가 400으로 거부하므로 버튼 자체를 안 낸다.
+       작성자/관리자 판정은 서버 403이 소유한다(클라 은닉은 보안 경계가 아니다).
+       order_id는 조상 .as-timeline[data-order-id]에서 읽는다 — 쓰기 API 응답 html도
+       스트림 안에 삽입되므로 두 경로 모두 같은 조상을 갖는다. #}
+    {% if can_edit and not e.is_system and not e.is_legacy %}
+    <button type="button" class="as-tl-item__edit" title="기록 수정" aria-label="기록 수정">
+      <i class="fas fa-pen" aria-hidden="true"></i>
+    </button>
+    {% endif %}
   </div>
   <div class="as-tl-item__body">{{ e.text | safe }}</div>
 </div>
@@ -67,10 +76,10 @@
   {% endif %}
   {# 앵커: 접수 원문(우선) 또는 legacy #}
   {% if v.reception %}
-  <div class="as-timeline__anchor">{{ render_as_timeline_entry(v.reception) }}</div>
+  <div class="as-timeline__anchor">{{ render_as_timeline_entry(v.reception, can_edit) }}</div>
   {% elif v.legacy %}
   <div class="as-timeline__anchor as-timeline__anchor--legacy">
-    {% for e in v.legacy %}{{ render_as_timeline_entry(e) }}{% endfor %}
+    {% for e in v.legacy %}{{ render_as_timeline_entry(e, can_edit) }}{% endfor %}
   </div>
   {% endif %}
   {% if can_edit %}
@@ -92,7 +101,7 @@
   </form>
   {% endif %}
   <div class="as-timeline__stream">
-    {% for e in v.stream %}{{ render_as_timeline_entry(e) }}{% endfor %}
+    {% for e in v.stream %}{{ render_as_timeline_entry(e, can_edit) }}{% endfor %}
   </div>
   {% if v.has_more %}
   <button type="button" class="btn btn-sm btn-link as-timeline__more" data-order-id="{{ order_id }}">이전 기록 더보기 ({{ v.stream_total - v.stream|length }})</button>

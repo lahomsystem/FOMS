@@ -31,6 +31,26 @@ def _macros() -> str:
     return (_ROOT / "templates/cs/partials/as_card_macros.html").read_text(encoding="utf-8")
 
 
+def _timeline_block(js: str) -> str:
+    """싱글톤 가드로 감싼 타임라인 위임 블록만 잘라낸다.
+
+    파일 전역 카운트로 단언하면 무관한 핸들러의 동일 토큰(`await res.json()` 등)이
+    세는 수를 흐려 계약이 무력해진다.
+    """
+    start = js.index("window.__FOMS_AS_TIMELINE_BOUND")
+    end = js.index("e.target.closest('.as-sales-delivery-btn')", start)
+    return js[start:end]
+
+
+def _entry_chunks(body: str) -> dict[str, str]:
+    """렌더된 타임라인 HTML을 data-log-id 기준으로 항목별 조각으로 쪼갠다."""
+    chunks: dict[str, str] = {}
+    for part in body.split('data-log-id="')[1:]:
+        log_id, rest = part.split('"', 1)
+        chunks[log_id] = rest.split('data-log-id="', 1)[0]
+    return chunks
+
+
 def _login_as_admin(client, username="as_timeline_wiring_admin"):
     user = User(
         username=username,
@@ -153,20 +173,26 @@ def test_sales_delivery_toggle_hidden_without_edit_permission(client):
         username="as_timeline_viewer",
         password=generate_password_hash("pw"),
         role="STAFF",
-        team="CONSTRUCTION",  # ERP_EDIT_ALLOWED_TEAMS 밖 → can_edit_erp False
+        # ERP_EDIT_ALLOWED_TEAMS("CS","SALES") 밖 → can_edit_erp False.
+        # CONSTRUCTION 은 안 된다 — platform/http.py 가 /erp/as 자체를 리다이렉트해
+        # 단언이 빈 리다이렉트 페이지를 보고 vacuous pass 한다.
+        team="DRAWING",
         name="뷰어",
         is_active=True,
     )
     db_session.add(user)
     db_session.commit()
-    order_id = _create_as_order("권한 없는 조회")
+    order_id = _create_as_order("권한 없는 조회", shipment_extra={"as_log": [
+        {"id": "al_m", "ts": "2026-07-24T01:00:00", "by": "김", "by_id": None,
+         "type": "memo", "text": "읽기만 가능한 메모"},
+    ]})
     with client.session_transaction() as sess:
         sess["user_id"] = user.id
         sess["username"] = user.username
         sess["role"] = user.role
 
     body = client.get(f"/erp/as/timeline/{order_id}").get_data(as_text=True)
-    assert body.strip()
+    assert "읽기만 가능한 메모" in body  # 리다이렉트가 아니라 실제 타임라인을 봤다
     assert "as-sales-delivery-btn" not in body
     assert "as-timeline__quick-add" not in body
 
@@ -223,6 +249,54 @@ def test_quick_add_is_wired_with_ime_safe_shortcut():
     assert "if (empty) empty.remove();" in js
 
 
+def test_write_paths_guard_against_double_submit():
+    """append/patch 둘 다 재진입 가드가 있어야 한다.
+
+    버튼 disabled 는 Ctrl/⌘+Enter 경로를 막지 못한다. as_log 는 append-only + 삭제 API가
+    없으므로 단축키 연타 한 번이 영구 중복 기록이 된다(PATCH 는 마지막 값이 이겨 무해하지만
+    같은 가드를 쓰는 편이 갈라지지 않는다).
+    """
+    js = _js()
+    assert js.count("form.dataset.busy === '1'") == 2  # submitQuickAdd + submitLogEdit
+    assert js.count("form.dataset.busy = '1';") == 2
+    assert js.count("form.dataset.busy = '';") == 2
+
+
+def test_write_paths_do_not_leak_json_parse_errors():
+    """비-JSON 응답(로그인 리다이렉트 HTML·502)은 사람이 읽을 문구로 바뀐다."""
+    js = _js()
+    block = _timeline_block(js)
+    assert "async function readTimelineJson(res)" in block
+    assert block.count("await readTimelineJson(res)") == 2  # append + patch
+    assert block.count("await res.json()") == 1  # 원시 파싱은 헬퍼 안에서만
+    assert "세션이 만료되었거나 서버 오류가 발생했습니다" in block
+    assert "권한이 없거나 세션이 만료되었습니다" in block
+
+
+def test_log_edit_patch_is_wired():
+    """항목 수정: 인라인 폼 → PATCH → 응답 html로 그 항목만 교체 + 하이라이트 재적용."""
+    js = _js()
+    assert "async function submitLogEdit(form)" in js
+    assert "'/as/log/' + encodeURIComponent(logId)" in js
+    assert "method: 'PATCH'" in js
+    assert "item.outerHTML = data.html;" in js
+    assert "highlightTimelineStatic(parent);" in js
+    # 인라인 폼도 셸 GET submit 가로채기에서 빠져야 한다
+    assert "form.setAttribute('data-foms-erp-no-shell', '');" in js
+    # 취소 경로: 폼 제거 + 원본 본문 복원
+    assert ".as-tl-item__edit-cancel" in js
+    assert "if (body) body.hidden = false;" in js
+    # 서식 손실 방지: 본문은 sanitize를 통과한 rich HTML이라 textContent 로 읽으면 안 된다
+    assert "textEl.value = body.innerHTML.trim();" in js
+
+
+def test_more_button_preserves_unsent_draft():
+    """더보기의 innerHTML 교체가 미전송 quick-add 초안을 지우면 안 된다."""
+    js = _js()
+    assert "const draft = draftEl ? draftEl.value : '';" in js
+    assert "if (nextDraftEl && draft) nextDraftEl.value = draft;" in js
+
+
 def test_quick_add_form_opts_out_of_shell_navigation(client):
     """quick-add 폼은 erp-shell 의 method=get submit 가로채기에서 빠져야 한다.
 
@@ -258,6 +332,73 @@ def test_static_highlight_replaces_contenteditable_highlight():
     assert "as-search-highlight" in js
     # 확장 주입·더보기 교체·optimistic prepend·초기 렌더에서 각각 재적용
     assert js.count("highlightTimelineStatic(") >= 5
+
+
+def test_edit_button_only_on_editable_entries(client):
+    """수정 버튼은 수기 항목에만. system/legacy 는 PATCH 가 400으로 거부하므로 버튼도 없다."""
+    _login_as_admin(client, username="as_log_edit_admin")
+    order_id = _create_as_order("수정 버튼 확인", shipment_extra={"as_log": [
+        {"id": "al_m", "ts": "2026-07-24T01:00:00", "by": "김", "by_id": None,
+         "type": "memo", "text": "수정 가능 메모"},
+        {"id": "al_s", "ts": "2026-07-24T02:00:00", "by": "", "by_id": None,
+         "type": "system", "text": "AS 접수 처리"},
+    ]})
+    # legacy 앵커는 as_log 가 아직 없는(영구화 전) 주문에서만 나온다
+    legacy_id = _create_as_order("legacy 앵커", shipment_extra={"as_content": "옛 기록"})
+
+    chunks = _entry_chunks(client.get(f"/erp/as/timeline/{order_id}").get_data(as_text=True))
+    assert set(chunks) == {"al_m", "al_s"}
+    assert "as-tl-item__edit" in chunks["al_m"]
+    assert "as-tl-item__edit" not in chunks["al_s"]
+
+    legacy_chunks = _entry_chunks(
+        client.get(f"/erp/as/timeline/{legacy_id}").get_data(as_text=True)
+    )
+    assert set(legacy_chunks) == {"al_legacy_as_content"}
+    assert "as-tl-item__edit" not in legacy_chunks["al_legacy_as_content"]
+
+
+def test_edit_button_hidden_without_edit_permission(client):
+    """읽기 전용 사용자에겐 수정 버튼도 미렌더(서버 403 이 진짜 경계, 버튼은 UX)."""
+    user = User(
+        username="as_log_edit_viewer",
+        password=generate_password_hash("pw"),
+        role="STAFF",
+        team="DRAWING",  # CONSTRUCTION 은 /erp/as 자체가 리다이렉트라 vacuous pass 가 된다
+        name="뷰어",
+        is_active=True,
+    )
+    db_session.add(user)
+    db_session.commit()
+    order_id = _create_as_order("권한 없는 수정", shipment_extra={"as_log": [
+        {"id": "al_m", "ts": "2026-07-24T01:00:00", "by": "김", "by_id": None,
+         "type": "memo", "text": "메모"},
+    ]})
+    with client.session_transaction() as sess:
+        sess["user_id"] = user.id
+        sess["username"] = user.username
+        sess["role"] = user.role
+
+    body = client.get(f"/erp/as/timeline/{order_id}").get_data(as_text=True)
+    assert "as-tl-item" in body  # 항목 자체는 보인다
+    assert "as-tl-item__edit" not in body
+
+
+def test_log_patch_response_html_carries_edit_button(client):
+    """PATCH 응답 html도 목록과 같은 마크업(수정 버튼 + (수정됨))이어야 재편집이 이어진다."""
+    _login_as_admin(client, username="as_log_patch_html_admin")
+    order_id = _create_as_order("PATCH html", shipment_extra={"as_log": [
+        {"id": "al_m", "ts": "2026-07-24T01:00:00", "by": "김", "by_id": None,
+         "type": "memo", "text": "원본"},
+    ]})
+
+    res = client.patch(f"/api/orders/{order_id}/as/log/al_m", json={"text": "수정본"})
+    assert res.status_code == 200, res.get_data(as_text=True)
+    data = res.get_json()
+    assert data["success"] is True
+    assert "as-tl-item__edit" in data["html"]
+    assert "(수정됨)" in data["html"]
+    assert "수정본" in data["html"]
 
 
 def test_sales_delivery_handler_uses_order_id_dataset():

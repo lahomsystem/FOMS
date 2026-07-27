@@ -859,9 +859,28 @@
             '<div class="text-danger small py-2">타임라인을 불러오지 못했습니다.</div>'; });
       });
 
+      /**
+       * 쓰기 API 응답을 JSON으로 읽는다.
+       *
+       * res.ok로 먼저 끊지 않는 이유: 400/403도 body에 사용자에게 보여줄 message를 싣는다.
+       * 대신 비-JSON 본문(로그인 리다이렉트 HTML·프록시 502 등)이 오면 파싱 예외를
+       * "Unexpected token '<'" 그대로 노출하지 않고 사람이 읽을 문구로 바꾼다.
+       */
+      async function readTimelineJson(res) {
+        try {
+          return await res.json();
+        } catch (parseErr) {
+          throw new Error(res.status === 401 || res.status === 403
+            ? '권한이 없거나 세션이 만료되었습니다. 새로고침 후 다시 시도해주세요.'
+            : '세션이 만료되었거나 서버 오류가 발생했습니다(HTTP ' + res.status + '). 새로고침 후 다시 시도해주세요.');
+        }
+      }
+
       /** quick-add 폼 1건 전송 → 성공 시 응답 html을 스트림 맨 앞에 낙관적 삽입. */
       async function submitQuickAdd(form) {
-        if (!form) return;
+        // 재진입 가드: 버튼 disabled는 키보드 단축키 경로를 막지 못한다. as_log는 append-only이고
+        // 삭제 API가 없으므로 연타 한 번이 영구 중복 기록이 된다.
+        if (!form || form.dataset.busy === '1') return;
         const orderId = form.dataset.orderId;
         const textEl = form.querySelector('.as-timeline__text');
         const typeEl = form.querySelector('.as-timeline__type');
@@ -869,13 +888,14 @@
         if (!orderId || !text) return;
         const stream = form.parentElement.querySelector('.as-timeline__stream');
         const submitBtn = form.querySelector('.as-timeline__submit');
+        form.dataset.busy = '1';
         if (submitBtn) submitBtn.disabled = true;
         try {
           const res = await fetch('/api/orders/' + encodeURIComponent(orderId) + '/as/log', {
             method: 'POST', headers: { 'Content-Type': 'application/json' }, credentials: 'same-origin',
             body: JSON.stringify({ type: (typeEl && typeEl.value) || 'memo', text: text }),
           });
-          const data = await res.json();
+          const data = await readTimelineJson(res);
           if (!data.success) throw new Error(data.message || '기록 추가 실패');
           if (stream) {
             stream.insertAdjacentHTML('afterbegin', data.html); // optimistic prepend
@@ -889,14 +909,83 @@
         } catch (err) {
           // 입력 텍스트는 지우지 않는다 — 재시도 가능해야 한다.
           alert(String(err && err.message || err || '기록 추가 중 오류'));
-        } finally { if (submitBtn) submitBtn.disabled = false; }
+        } finally {
+          form.dataset.busy = '';
+          if (submitBtn) submitBtn.disabled = false;
+        }
       }
 
-      document.addEventListener('submit', function (e) {
-        const form = e.target.closest && e.target.closest('.as-timeline__quick-add');
+      /** 항목 수정 폼 전송 → PATCH 성공 시 해당 항목만 응답 html로 교체((수정됨) 표식 포함). */
+      async function submitLogEdit(form) {
+        if (!form || form.dataset.busy === '1') return;  // quick-add와 동일한 재진입 가드
+        const item = form.closest('.as-tl-item');
+        const timeline = form.closest('.as-timeline');
+        const logId = item && item.dataset.logId;
+        const orderId = timeline && timeline.dataset.orderId;
+        const textEl = form.querySelector('.as-timeline__text');
+        const text = (textEl && textEl.value || '').trim();
+        if (!logId || !orderId || !text) return;
+        const submitBtn = form.querySelector('.as-timeline__submit');
+        form.dataset.busy = '1';
+        if (submitBtn) submitBtn.disabled = true;
+        try {
+          const res = await fetch('/api/orders/' + encodeURIComponent(orderId)
+            + '/as/log/' + encodeURIComponent(logId), {
+            method: 'PATCH', headers: { 'Content-Type': 'application/json' }, credentials: 'same-origin',
+            body: JSON.stringify({ text: text }),
+          });
+          const data = await readTimelineJson(res);
+          if (!data.success) throw new Error(data.message || '기록 수정 실패');
+          const parent = item.parentElement;
+          item.outerHTML = data.html;
+          highlightTimelineStatic(parent);
+        } catch (err) {
+          // 400(캡 초과)·403(타인 기록)에서 입력 원문을 잃지 않는다 — 폼을 연 채로 둔다.
+          alert(String(err && err.message || err || '기록 수정 중 오류'));
+        } finally {
+          form.dataset.busy = '';
+          if (submitBtn) submitBtn.disabled = false;
+        }
+      }
+
+      // 수정 버튼 → 본문 자리에 인라인 폼(멱등: 이미 열려 있으면 무시).
+      document.addEventListener('click', function (e) {
+        const btn = e.target.closest && e.target.closest('.as-tl-item__edit');
+        if (!btn) return;
+        const item = btn.closest('.as-tl-item');
+        const body = item && item.querySelector('.as-tl-item__body');
+        if (!body || item.querySelector('.as-tl-item__edit-form')) return;
+        const form = document.createElement('form');
+        form.className = 'as-tl-item__edit-form';
+        form.setAttribute('data-foms-erp-no-shell', '');  // erp-shell GET submit 가로채기 회피
+        form.innerHTML = '<textarea class="as-timeline__text erp-pro-input" rows="2" aria-label="기록 내용 수정"></textarea>'
+          + '<button type="submit" class="btn btn-sm btn-primary as-timeline__submit">저장</button>'
+          + '<button type="button" class="btn btn-sm btn-link as-tl-item__edit-cancel">취소</button>';
+        // innerHTML로 채운다: 본문은 서버 sanitize를 통과한 rich HTML이고 재저장 시 같은
+        // sanitizer를 다시 타므로 왕복이 안정적이다. textContent면 서식(<b>/색)이 조용히 사라진다.
+        const textEl = form.querySelector('.as-timeline__text');
+        textEl.value = body.innerHTML.trim();
+        body.hidden = true;
+        body.after(form);
+        textEl.focus();
+      });
+
+      document.addEventListener('click', function (e) {
+        const cancel = e.target.closest && e.target.closest('.as-tl-item__edit-cancel');
+        if (!cancel) return;
+        const item = cancel.closest('.as-tl-item');
+        const form = item && item.querySelector('.as-tl-item__edit-form');
         if (!form) return;
-        e.preventDefault();
-        submitQuickAdd(form);
+        form.remove();
+        const body = item.querySelector('.as-tl-item__body');
+        if (body) body.hidden = false;
+      });
+
+      document.addEventListener('submit', function (e) {
+        const quickAdd = e.target.closest && e.target.closest('.as-timeline__quick-add');
+        if (quickAdd) { e.preventDefault(); submitQuickAdd(quickAdd); return; }
+        const editForm = e.target.closest && e.target.closest('.as-tl-item__edit-form');
+        if (editForm) { e.preventDefault(); submitLogEdit(editForm); }
       });
 
       // Ctrl/⌘+Enter 단축키. 한글 IME 조합 확정 Enter가 전송으로 새지 않도록 isComposing·229 가드.
@@ -905,7 +994,9 @@
         if (!textEl) return;
         if ((e.ctrlKey || e.metaKey) && e.key === 'Enter' && !e.isComposing && e.keyCode !== 229) {
           e.preventDefault();
-          submitQuickAdd(textEl.closest('.as-timeline__quick-add'));
+          const quickAdd = textEl.closest('.as-timeline__quick-add');
+          if (quickAdd) { submitQuickAdd(quickAdd); return; }
+          submitLogEdit(textEl.closest('.as-tl-item__edit-form'));
         }
       });
 
@@ -919,10 +1010,18 @@
           || more.closest('.erp-as-mobile-card__content')
           || (timeline && timeline.parentElement);
         if (!orderId || !body) return;
+        // innerHTML 교체는 미전송 초안을 지운다 — quick-add 입력값을 보존했다 되돌린다.
+        const draftEl = body.querySelector('.as-timeline__quick-add .as-timeline__text');
+        const draft = draftEl ? draftEl.value : '';
         fetch('/erp/as/timeline/' + encodeURIComponent(orderId) + '?full=1',
               { headers: { Accept: 'text/html' }, credentials: 'same-origin' })
           .then((r) => { if (!r.ok) throw new Error('HTTP ' + r.status); return r.text(); })
-          .then((html) => { body.innerHTML = html; highlightTimelineStatic(body); })
+          .then((html) => {
+            body.innerHTML = html;
+            const nextDraftEl = body.querySelector('.as-timeline__quick-add .as-timeline__text');
+            if (nextDraftEl && draft) nextDraftEl.value = draft;
+            highlightTimelineStatic(body);
+          })
           .catch(() => { more.textContent = '이전 기록을 불러오지 못했습니다.'; });
       });
     }
