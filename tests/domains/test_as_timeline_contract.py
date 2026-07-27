@@ -280,6 +280,9 @@ _XSS_PAYLOAD = '<img src=x onerror="alert(1)">본문'
 # 새 쓰기 경로가 생기면 이 목록이 어긋나 red 되어야 한다.
 _AS_LOG_WRITE_CALL_SITES = {
     ("foms/api/cs/as_orders.py", "append_client_log"),  # register(접수 원문) · POST /as/log
+    # T14 시스템 이벤트 4곳(register·schedule·billing 전환·complete). 본문은 사용자 입력
+    # 조립본이라 append_system_log 가 생성 지점에서 escape 한다(별도 sanitize 불필요).
+    ("foms/api/cs/as_orders.py", "append_system_log"),
     ("foms/services/orders/as_log.py", "build_as_log_entry"),  # append_client_log/append_system_log 내부
     ("foms/services/orders/as_log.py", "_legacy_entries_from_content"),  # migrate/lazy legacy
     ("foms/services/orders/as_log.py", 'as_log"].append'),  # 원시 append = 정본 생성지점 2곳뿐

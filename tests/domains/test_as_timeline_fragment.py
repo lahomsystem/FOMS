@@ -233,7 +233,8 @@ def test_register_does_not_seed_new_content_as_legacy(client):
 
     log = _shipment(order_id)["as_log"]
     assert [e["id"] for e in log if e.get("legacy") is True] == []
-    assert len(log) == 1
+    # T14: 접수는 수기 reception 1건 + system 이벤트 1건. 원문이 legacy 로도 굳으면 3건이 된다.
+    assert [e["type"] for e in log] == ["reception", "system"]
 
 
 def test_register_preserves_previous_content_as_legacy(client):
@@ -247,7 +248,9 @@ def test_register_preserves_previous_content_as_legacy(client):
     legacy = [e for e in log if e.get("legacy") is True]
     assert [e["id"] for e in legacy] == ["al_legacy_as_content"]
     assert legacy[0]["text"] == "예전 AS 메모"
-    assert log[-1]["type"] == "reception" and log[-1]["text"] == "새 접수 내용"
+    # T14 로 마지막 항목은 system 이벤트다 — 수기 원문은 reception 항목에서 확인한다.
+    reception = [e for e in log if e.get("type") == "reception"]
+    assert [e["text"] for e in reception] == ["새 접수 내용"]
 
 
 def test_register_enforces_log_text_cap(client):
@@ -264,14 +267,17 @@ def test_register_enforces_log_text_cap(client):
     assert shipment.get("as_content") in (None, "")  # 미저장(접수 자체가 거부)
 
 
-def test_register_without_content_creates_no_log_entry(client):
-    """빈 접수 원문은 로그 항목을 만들지 않는다(빈 reception 잡음 금지)."""
+def test_register_without_content_creates_no_manual_entry(client):
+    """빈 접수 원문은 수기 항목을 만들지 않는다(빈 reception 잡음 금지).
+
+    T14 이후 접수 사실 자체는 system 이벤트로 남는다 — 그건 잡음이 아니라 이벤트 로그다.
+    """
     _login_as_admin(client, username="as-timeline-empty-admin")
     order_id = _create_as_order(status="CS")
 
     client.post(f"/api/orders/{order_id}/as/register", json={"as_content": ""})
 
-    assert _shipment(order_id).get("as_log") in (None, [])
+    assert [e["type"] for e in _shipment(order_id)["as_log"]] == ["system"]
 
 
 def test_register_with_empty_content_still_preserves_previous_legacy(client):

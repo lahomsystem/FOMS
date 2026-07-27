@@ -305,6 +305,32 @@ def test_log_edit_patch_is_wired():
     assert "mark.replaceWith(...mark.childNodes)" in js
 
 
+def test_cell_summary_updates_locally_after_write():
+    """쓰기 성공 후 접힘 셀 요약을 응답 데이터로 로컬 갱신한다(재조회 금지 — T10 U1).
+
+    확장 행에서 기록을 추가·수정해도 같은 행의 `.as-tl-cell` 은 서버 렌더값 그대로라,
+    접는 순간 옛 최근줄과 실제보다 작은 배지 숫자만 남는다.
+    """
+    block = _timeline_block(_js())
+    assert "function updateAsCellSummary(orderId, html, opts)" in block
+    assert ".as-tl-cell[data-order-id=" in block
+    # quick-add = 최근줄 교체 + 배지 +1 / 항목 수정 = 텍스트만(배지 불변)
+    assert "updateAsCellSummary(orderId, data.html, { line: 'recent', countDelta: 1 });" in block
+    assert block.count("updateAsCellSummary(") == 3  # 정의 1 + append/patch 호출 2
+    # 하이라이트 dataset 가드를 지우지 않으면 갱신된 줄에 검색어가 다시 안 칠해진다
+    assert "delete line.dataset.highlightApplied;" in block
+
+    helper = block[block.index("function updateAsCellSummary"):]
+    helper = helper[: helper.index("\n      }")]
+    assert "fetch(" not in helper, "셀 갱신은 응답 데이터만 쓴다 — 재조회 금지"
+
+
+def test_cell_badge_label_matches_macro():
+    """배지 문구가 매크로와 JS 두 곳에 산다 — 갈리면 접기 전후로 라벨이 바뀐다."""
+    assert "타임라인 {{ v.count }}" in _macros()
+    assert "'타임라인 ' + " in _js()
+
+
 def test_more_button_preserves_unsent_draft():
     """더보기의 innerHTML 교체가 미전송 원고를 말없이 지우면 안 된다.
 

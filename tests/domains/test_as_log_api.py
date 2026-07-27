@@ -271,3 +271,124 @@ def test_log_patch_rejects_empty_text(client):
     res = client.patch(f"/api/orders/{order_id}/as/log/{log_id}", json={"text": ""})
     assert res.status_code == 400 and res.get_json()["success"] is False
     assert _as_log(order_id)[-1]["text"] == "원본 메모"
+
+
+# ---------------------------------------------------------------------------
+# 시스템 이벤트 자동 기록 (T14) — register · schedule · billing 전환 · complete
+# ---------------------------------------------------------------------------
+
+
+def _system_texts(order_id) -> list[str]:
+    """저장된 as_log 중 system 항목 본문만."""
+    return [e["text"] for e in _as_log(order_id) if e.get("type") == "system"]
+
+
+def test_register_appends_system_log(client):
+    """AS 접수는 수기 reception 원문과 별개로 system 이벤트를 남긴다."""
+    _login_as_admin(client, username="as-sys-register-admin")
+    order_id = _create_as_order(status="CS").id
+
+    res = client.post(f"/api/orders/{order_id}/as/register", json={"as_content": "문짝 처짐 접수"})
+    assert res.status_code == 200, res.get_data(as_text=True)
+
+    log = _as_log(order_id)
+    assert any(e["type"] == "reception" and "문짝 처짐 접수" in e["text"] for e in log)
+    assert "AS 접수됨" in _system_texts(order_id)
+
+
+def test_register_appends_system_log_without_content(client):
+    """접수 원문이 비어도 접수 사실 자체는 이벤트로 남는다(수기 항목만 없다)."""
+    _login_as_admin(client, username="as-sys-register-empty-admin")
+    order_id = _create_as_order(status="CS").id
+
+    res = client.post(f"/api/orders/{order_id}/as/register", json={"as_content": ""})
+    assert res.status_code == 200
+
+    log = _as_log(order_id)
+    assert [e["type"] for e in log] == ["system"]
+    assert log[0]["text"] == "AS 접수됨"
+
+
+def test_schedule_appends_system_log(client):
+    """방문일 확정은 확정된 날짜를 담은 system 이벤트를 남긴다(as_info 기록은 병행 유지)."""
+    _login_as_admin(client, username="as-sys-schedule-admin")
+    order_id = _create_as_order(shipment_extra={"as_log": []}).id
+
+    res = client.post(f"/api/orders/{order_id}/as/schedule", json={"visit_date": "2026-08-01"})
+    assert res.status_code == 200, res.get_data(as_text=True)
+
+    assert any("방문일 확정: 2026-08-01" in text for text in _system_texts(order_id))
+    db_session.expire_all()
+    sd = db_session.get(Order, order_id).structured_data
+    assert sd["schedule"]["as_visit"]["date"] == "2026-08-01"  # 기존 경로 불변
+
+
+def test_complete_appends_system_log(client):
+    """AS 완료는 system 이벤트를 남기고, as_info/OrderEvent 기록은 그대로 병행한다."""
+    from models import OrderEvent
+
+    _login_as_admin(client, username="as-sys-complete-admin")
+    order_id = _create_as_order(status="AS").id
+    db_session.get(Order, order_id).structured_data = {
+        "workflow": {"stage": "AS"},
+        "shipment": {},
+        "as_info": [{"id": 1, "status": "OPEN"}],
+    }
+    db_session.commit()
+
+    res = client.post(f"/api/orders/{order_id}/as/complete", json={"as_id": 1})
+    assert res.status_code == 200, res.get_data(as_text=True)
+
+    assert "AS 완료" in _system_texts(order_id)
+    db_session.expire_all()
+    order = db_session.get(Order, order_id)
+    assert order.structured_data["as_info"][0]["status"] == "COMPLETED"
+    assert db_session.query(OrderEvent).filter_by(
+        order_id=order_id, event_type="AS_COMPLETED").count() == 1
+
+
+def test_billing_switch_appends_system_log_with_reason(client):
+    """무상↔유상 전환은 사유까지 담아 남긴다 — 매출 판정 변경은 감사 대상이다."""
+    _login_as_admin(client, username="as-sys-billing-admin")
+    order_id = _create_as_order(shipment_extra={
+        "as_billing": {"type": "free", "confirmed": True, "amount": None, "reason": ""},
+    }).id
+
+    res = client.post(f"/api/orders/{order_id}/as/billing",
+                      json={"type": "paid", "amount": 150000, "reason": "고객 과실"})
+    assert res.status_code == 200, res.get_data(as_text=True)
+
+    assert "무상→유상 전환: 고객 과실" in _system_texts(order_id)
+
+
+def test_billing_reconfirm_same_type_appends_nothing(client):
+    """같은 유형 재확정은 전환이 아니다 — 이벤트 로그가 재확정 노이즈로 차면 안 된다."""
+    _login_as_admin(client, username="as-sys-billing-same-admin")
+    order_id = _create_as_order(shipment_extra={
+        "as_billing": {"type": "paid", "confirmed": True, "amount": 100000, "reason": "최초"},
+        "as_log": [],
+    }).id
+
+    res = client.post(f"/api/orders/{order_id}/as/billing",
+                      json={"type": "paid", "amount": 120000})
+    assert res.status_code == 200, res.get_data(as_text=True)
+
+    assert _system_texts(order_id) == []
+
+
+def test_billing_switch_system_log_escapes_reason(client):
+    """사유는 사용자 입력이라 저장 시점에 escape 된다(렌더는 |safe)."""
+    _login_as_admin(client, username="as-sys-billing-xss-admin")
+    order_id = _create_as_order(shipment_extra={
+        "as_billing": {"type": "free", "confirmed": True, "amount": None, "reason": ""},
+    }).id
+
+    res = client.post(f"/api/orders/{order_id}/as/billing", json={
+        "type": "paid", "amount": 1000,
+        "reason": '<img src=x onerror="alert(1)">현장 과실',
+    })
+    assert res.status_code == 200
+
+    text = _system_texts(order_id)[0]
+    assert "<img" not in text and "&lt;img" in text
+    assert "현장 과실" in text

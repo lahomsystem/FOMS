@@ -876,6 +876,55 @@
         }
       }
 
+      /**
+       * 접힘 셀 요약(.as-tl-cell)을 쓰기 응답 html로 로컬 갱신한다(재조회 없음).
+       *
+       * 확장 행/모바일 상세에서 기록을 추가·수정해도 같은 행의 요약 셀은 서버 렌더값
+       * 그대로라, 접는 순간 옛 최근줄과 실제보다 작은 배지 숫자만 남는다(T10 U1).
+       * 서버 요약 텍스트(as_dashboard_display._timeline_cell_text)는 항목 text를
+       * 평문화한 값이므로 응답 html의 .as-tl-item__body textContent가 같은 값이다 —
+       * 셀 하나 때문에 목록을 다시 부르지 않는다.
+       *
+       * @param {string} orderId 대상 주문 id
+       * @param {string} html 쓰기 API 응답 항목 html(목록과 같은 서버 매크로 렌더)
+       * @param {{line: string, countDelta: number}} opts line='recent'|'anchor', 배지 증감
+       */
+      function updateAsCellSummary(orderId, html, opts) {
+        const cell = document.querySelector('.as-tl-cell[data-order-id="' + orderId + '"]');
+        if (!cell) return; // 모바일 카드·상세 표면에는 요약 셀이 없다
+        const parsed = document.createElement('div');
+        parsed.innerHTML = html;
+        const bodyEl = parsed.querySelector('.as-tl-item__body');
+        const text = bodyEl ? bodyEl.textContent.replace(/\s+/g, ' ').trim() : '';
+        const isAnchor = opts.line === 'anchor';
+        const klass = isAnchor ? 'as-tl-cell__anchor' : 'as-tl-cell__recent';
+        let line = cell.querySelector('.' + klass);
+        if (!line) {
+          line = document.createElement('div');
+          line.className = klass + ' text-truncate';
+          const anchorEl = cell.querySelector('.as-tl-cell__anchor');
+          if (!isAnchor && anchorEl) anchorEl.after(line); else cell.prepend(line);
+        }
+        line.textContent = '';
+        // 시스템 항목은 칩 대신 아이콘 — 서버 매크로 분기를 재구현하지 않고 응답에서 옮겨 온다.
+        const chip = isAnchor ? null : parsed.querySelector('.as-tl-chip, .as-tl-item__sysicon');
+        if (chip) line.append(chip, ' ');
+        line.append(text); // 문자열 append = 텍스트 노드(마크업 주입 경로 아님)
+        // applyStaticHighlight는 dataset 가드로 재적용을 막는다 — 내용이 바뀌었으니 풀어준다.
+        delete line.dataset.highlightApplied;
+        highlightTimelineStatic(cell);
+        if (!opts.countDelta) return;
+        // 기록 0건 셀(.as-tl-cell__empty)은 첫 기록과 함께 확장 버튼으로 승격한다.
+        // ponytail: '타임라인 N' 서식이 매크로와 여기 두 곳 — 계약 테스트가 문구 드리프트를 잡는다.
+        const badge = cell.querySelector('.as-tl-cell__expand, .as-tl-cell__empty');
+        if (!badge) return;
+        const prev = badge.classList.contains('as-tl-cell__expand')
+          ? parseInt(badge.textContent.replace(/[^0-9]/g, ''), 10) || 0
+          : 0;
+        badge.className = 'as-tl-cell__expand';
+        badge.textContent = '타임라인 ' + (prev + opts.countDelta);
+      }
+
       /** quick-add 폼 1건 전송 → 성공 시 응답 html을 스트림 맨 앞에 낙관적 삽입. */
       async function submitQuickAdd(form) {
         // 재진입 가드: 버튼 disabled는 키보드 단축키 경로를 막지 못한다. as_log는 append-only이고
@@ -904,6 +953,8 @@
             const empty = form.parentElement.querySelector('.as-timeline__empty');
             if (empty) empty.remove();
           }
+          // 접힘 셀 요약도 같이 민다 — 확장 행을 닫는 순간 옛 요약만 남으면 안 된다.
+          updateAsCellSummary(orderId, data.html, { line: 'recent', countDelta: 1 });
           textEl.value = '';
           if (typeEl) typeEl.value = 'memo'; // 저장 후 memo 리셋(스펙 5.5)
         } catch (err) {
@@ -937,8 +988,14 @@
           const data = await readTimelineJson(res);
           if (!data.success) throw new Error(data.message || '기록 수정 실패');
           const parent = item.parentElement;
+          // 셀 요약이 비추는 항목(앵커 = 접수/legacy, 최근 1건 = 스트림 첫 항목)을 고쳤을 때만
+          // 셀을 민다. 판정은 교체 전에 — outerHTML 이후 item 참조는 DOM에서 떨어진다.
+          const stream = item.closest('.as-timeline__stream');
+          const cellLine = item.closest('.as-timeline__anchor') ? 'anchor'
+            : (stream && stream.firstElementChild === item ? 'recent' : '');
           item.outerHTML = data.html;
           highlightTimelineStatic(parent);
+          if (cellLine) updateAsCellSummary(orderId, data.html, { line: cellLine, countDelta: 0 });
         } catch (err) {
           // 400(캡 초과)·403(타인 기록)에서 입력 원문을 잃지 않는다 — 폼을 연 채로 둔다.
           alert(String(err && err.message || err || '기록 수정 중 오류'));

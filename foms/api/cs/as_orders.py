@@ -22,6 +22,7 @@ from foms.services.erp_sync_columns import sync_erp_flat_columns
 from foms.services.erp_utils import ensure_path
 from foms.services.orders.as_log import (
     append_client_log,
+    append_system_log,
     coerce_client_log_type,
     decorate_entry,
     migrate_legacy_into_log,
@@ -268,6 +269,8 @@ def api_as_complete(order_id):
         wf["history"] = hist
         sd["workflow"] = wf
 
+        append_system_log(sd, text="AS 완료")
+
         order.structured_data = sd
         flag_modified(order, "structured_data")
         order.status = "CS"
@@ -354,6 +357,9 @@ def api_as_register(order_id):
             append_client_log(
                 sd, log_type="reception", text=as_content,
                 by=(user.name if user else ""), by_id=(user.id if user else None))
+        # 접수 원문(수기 reception)과 별개로 접수 "사실"을 이벤트로 남긴다 — 원문 없이
+        # 접수만 하는 흐름에서도 타임라인 첫 줄이 비지 않는다.
+        append_system_log(sd, text="AS 접수됨")
         shipment["as_content"] = as_content
         # 최초 접수에서만 billing을 시드한다. 재접수(지방 재상차 등)는 정상 흐름이므로
         # 기존 billing을 덮으면 확정된 유상 금액이 free/미확정으로 되돌아간다.
@@ -466,6 +472,8 @@ def api_as_schedule(order_id):
         wf["history"] = hist
         sd["workflow"] = wf
 
+        append_system_log(sd, text=f"방문일 확정: {visit_date}")
+
         order.structured_data = sd
         flag_modified(order, "structured_data")
 
@@ -533,6 +541,12 @@ def api_as_billing(order_id: int):
             sd, billing_type=new_type, amount=amount,
             confirmed=True, reason=reason, user=user,
         )
+        # 전환(무상↔유상↔미정)만 이벤트로 남긴다 — 금액만 바꾸는 재확정까지 남기면
+        # 타임라인이 재확정 노이즈로 찬다. 사유는 사용자 입력이지만 append_system_log가
+        # 생성 지점에서 escape 한다.
+        if prev_type != new_type:
+            label = {"free": "무상", "paid": "유상", "undecided": "미정"}
+            append_system_log(sd, text=f"{label.get(prev_type, prev_type)}→{label.get(new_type, new_type)} 전환: {reason}")
         order.structured_data = sd
         flag_modified(order, "structured_data")
         sync_erp_flat_columns(order, sd)
