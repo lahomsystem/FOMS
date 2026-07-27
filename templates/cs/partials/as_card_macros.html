@@ -93,25 +93,34 @@
 
 {# AS 타임라인 단건 항목 — 목록(T9)과 쓰기 API 응답 html(T7)이 공유하는 SSOT.
    entry는 as_log.decorate_entry()를 통과한 dict(파생 필드 ts_abs/ts_rel/type_label/is_* 포함).
-   text는 sanitize_as_content_html을 이미 통과한 rich HTML이라 |safe. #}
-{% macro render_as_timeline_entry(entry) -%}
-<div class="as-timeline-entry{% if entry.is_system %} is-system{% endif %}{% if entry.is_legacy %} is-legacy{% endif %}"
-  data-log-id="{{ entry.id }}" data-log-type="{{ entry.type }}">
-  <div class="as-timeline-entry-meta">
-    <span class="as-timeline-entry-type">{{ entry.legacy_label or entry.type_label }}</span>
-    {% if entry.by %}<span class="as-timeline-entry-by">{{ entry.by }}</span>{% endif %}
-    {% if entry.ts_rel %}<span class="as-timeline-entry-ts" title="{{ entry.ts_abs }}">{{ entry.ts_rel }}</span>{% endif %}
-    {% if entry.is_edited %}<span class="as-timeline-entry-edited">수정됨</span>{% endif %}
+   text는 sanitize_as_content_html을 이미 통과한 rich HTML이라 |safe.
+   유형 칩 색은 CSS 클래스 as-tl-chip--<type>(T11)이 담당한다. #}
+{% macro render_as_timeline_entry(e) -%}
+<div class="as-tl-item{% if e.is_system %} as-tl-item--system{% endif %}{% if e.is_legacy %} as-tl-item--legacy{% endif %}"
+     data-log-id="{{ e.id }}" data-log-type="{{ e.type }}">
+  <div class="as-tl-item__meta">
+    {% if e.is_system %}
+    <i class="fas fa-gear as-tl-item__sysicon" aria-hidden="true"></i>
+    {% else %}
+    <span class="as-tl-chip as-tl-chip--{{ e.type }}">{{ e.type_label }}</span>
+    {% endif %}
+    {% if e.by %}<span class="as-tl-item__by">{{ e.by }}</span>{% endif %}
+    {% if e.ts_abs %}<time class="as-tl-item__time" datetime="{{ e.ts }}" title="{{ e.ts_abs }} KST">{{ e.ts_rel or e.ts_abs }}</time>{% endif %}
+    {% if e.is_legacy %}<span class="as-tl-item__legacy-label">{{ e.legacy_label }}</span>{% endif %}
+    {% if e.is_edited %}<span class="as-tl-item__edited" title="{{ e.edited_at }} · {{ e.edited_by }}">(수정됨)</span>{% endif %}
   </div>
-  <div class="as-timeline-entry-text">{{ entry.text | safe }}</div>
+  <div class="as-tl-item__body">{{ e.text | safe }}</div>
 </div>
 {%- endmacro %}
 
-{# AS 타임라인 전체(앵커 + 역시간순 스트림) — T9가 quick-add·더보기·유형 칩까지 확장할 스텁.
-   view는 as_log.build_as_timeline_view() 결과. 앵커는 접수 원문 우선, 없으면 legacy. #}
+{# AS 타임라인 전체(앵커 + quick-add + 역시간순 스트림 + 더보기).
+   view는 as_log.build_as_timeline_view() 결과. 앵커는 접수 원문 우선, 없으면 legacy.
+   재접수해도 앵커는 최초 접수로 고정된다(스펙 §5.5) — 이후 접수 원문은 스트림에 흐른다.
+   상호작용(quick-add submit·더보기 fetch)은 T10 as-dashboard.js 위임 배선. #}
 {% macro render_as_timeline(order_id, view, can_edit) -%}
 {% set v = view or {} %}
 <div class="as-timeline" data-order-id="{{ order_id }}">
+  {# 앵커: 접수 원문(우선) 또는 legacy #}
   {% if v.reception %}
   <div class="as-timeline__anchor">{{ render_as_timeline_entry(v.reception) }}</div>
   {% elif v.legacy %}
@@ -119,11 +128,52 @@
     {% for e in v.legacy %}{{ render_as_timeline_entry(e) }}{% endfor %}
   </div>
   {% endif %}
+  {% if can_edit %}
+  <form class="as-timeline__quick-add" data-order-id="{{ order_id }}">
+    <div class="as-timeline__quick-row">
+      <select class="as-timeline__type erp-pro-select" aria-label="유형">
+        <option value="memo" selected>메모</option>
+        <option value="call">통화</option>
+        <option value="action">방문/조치</option>
+        <option value="material">자재</option>
+        <option value="schedule">일정</option>
+      </select>
+    </div>
+    <textarea class="as-timeline__text erp-pro-input" rows="2" placeholder="기록 입력... (Ctrl/⌘+Enter로 추가)"></textarea>
+    <button type="submit" class="btn btn-sm btn-primary as-timeline__submit">기록 추가</button>
+  </form>
+  {% endif %}
   <div class="as-timeline__stream">
     {% for e in v.stream %}{{ render_as_timeline_entry(e) }}{% endfor %}
   </div>
+  {% if v.has_more %}
+  <button type="button" class="btn btn-sm btn-link as-timeline__more" data-order-id="{{ order_id }}">이전 기록 더보기 ({{ v.stream_total - v.stream|length }})</button>
+  {% endif %}
   {% if not v.reception and not v.legacy and not v.stream %}
-  <div class="as-timeline__empty text-muted small">기록 없음</div>
+  <div class="as-timeline__empty text-muted small">기록 없음 · 첫 기록을 남겨보세요.</div>
+  {% endif %}
+</div>
+{%- endmacro %}
+
+{# PC 테이블 내용 셀 요약 — 앵커 1줄 + 최근 1줄 + 배지. 전체 타임라인은 확장 시 lazy fetch(T10).
+   배지 수는 v.count(절단 전 전체)라 스트림 노출 수(기본 8)와 다르다. #}
+{% macro render_as_timeline_cell(order_id, view) -%}
+{% set v = view or {} %}
+{% set anchor = v.reception or (v.legacy[0] if v.legacy else none) %}
+<div class="as-tl-cell" data-order-id="{{ order_id }}">
+  {% if anchor %}
+  <div class="as-tl-cell__anchor text-truncate">{{ anchor.text | striptags }}</div>
+  {% endif %}
+  {% if v.stream %}
+  <div class="as-tl-cell__recent text-truncate">
+    <span class="as-tl-chip as-tl-chip--{{ v.stream[0].type }}">{{ v.stream[0].type_label }}</span>
+    {{ v.stream[0].text | striptags }}
+  </div>
+  {% endif %}
+  {% if v.count %}
+  <button type="button" class="as-tl-cell__expand" data-order-id="{{ order_id }}">타임라인 {{ v.count }}</button>
+  {% else %}
+  <span class="as-tl-cell__empty text-muted small">기록 없음 · 클릭해 첫 기록</span>
   {% endif %}
 </div>
 {%- endmacro %}

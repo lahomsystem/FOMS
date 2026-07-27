@@ -1,5 +1,5 @@
 {# foms-kv-rollout: erp_mobile_shell → kv-copy.js + queue card foms_order_contact_kv #}
-{% from 'cs/partials/as_card_macros.html' import render_as_rich_toolbar_template, render_as_content_tabs, render_as_orderer_line, render_as_construction_workers %}
+{% from 'cs/partials/as_card_macros.html' import render_as_rich_toolbar_template, render_as_content_tabs, render_as_orderer_line, render_as_construction_workers, render_as_timeline_cell %}
 
 <link rel="stylesheet" href="{{ url_for('static', filename='css/contexts/cs/as-dashboard-body.css') }}?v=20260727a">
 {# 카드 CSS는 body 파셜에 둔다 → fast-tab 프래그먼트 스왑(as_dashboard_fragment.html)에도
@@ -241,8 +241,8 @@
                 <input type="checkbox" class="form-check-input as-blueprint-checkbox" data-order-id="{{ r.id }}"
                   {% if r.has_as_blueprint %}checked{% endif %} aria-label="주문 #{{ r.id }} AS도면 여부">
               </td>
-              <td>
-                {{ render_as_content_tabs(r.id, r.is_sales_delivery, r.as_content_html, r.as_content_2_html, '60px') }}
+              <td class="erp-as-content-cell" data-order-id="{{ r.id }}">
+                {{ render_as_timeline_cell(r.id, r.as_timeline_view) }}
               </td>
               <td class="erp-as-status-cell" data-order-id="{{ r.id }}">
                 <span

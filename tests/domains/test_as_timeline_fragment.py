@@ -266,3 +266,92 @@ def test_register_without_content_creates_no_log_entry(client):
     client.post(f"/api/orders/{order_id}/as/register", json={"as_content": ""})
 
     assert _shipment(order_id).get("as_log") in (None, [])
+
+
+# ---------------------------------------------------------------------------
+# T9 — 3표면 렌더 계약(PC 셀 요약 · 모바일 카드 상세 · 확장 fragment)
+# ---------------------------------------------------------------------------
+
+
+def _reception_and_memos(count: int) -> list[dict]:
+    """접수 1건 + memo `count` 건(시간 오름차순) 로그."""
+    logs = [_entry("al_r", "2026-07-24T00:00:00", "reception", "접수 원문")]
+    logs += [
+        _entry(f"al_m{i}", f"2026-07-24T{i + 1:02d}:00:00", "memo", f"기록{i}")
+        for i in range(count)
+    ]
+    return logs
+
+
+def test_dashboard_cell_summarizes_timeline(client):
+    """PC 셀: 앵커 1줄 + 최근 1줄 + 배지. 배지 수는 절단 전 전체(count)이지 스트림 8이 아니다."""
+    _login_as_admin(client, username="as-timeline-cell-admin")
+    order_id = _create_as_order(shipment_extra={"as_log": _reception_and_memos(10)})
+
+    res = client.get("/erp/as")
+    assert res.status_code == 200
+    body = res.get_data(as_text=True)
+
+    assert "as-tl-cell" in body
+    assert "접수 원문" in body  # 앵커(최초 접수) 요약
+    assert "기록9" in body  # 최근 1줄
+    assert "타임라인 11" in body  # reception 1 + memo 10 = 절단 전 전체
+    assert "타임라인 8" not in body  # 스트림 노출 수(8)를 배지로 쓰면 안 된다
+    assert "as-tabbed-editor" not in body  # content-tabs 퇴역
+
+
+def test_dashboard_cell_empty_state(client):
+    """기록 0건이면 배지 대신 '첫 기록' 안내가 뜬다(빈 셀 클릭 유도)."""
+    _login_as_admin(client, username="as-timeline-cell-empty-admin")
+    _create_as_order()
+
+    body = client.get("/erp/as").get_data(as_text=True)
+    assert "as-tl-cell__empty" in body
+    assert "as-tl-cell__expand" not in body
+
+
+def test_dashboard_cell_anchor_strips_legacy_html(client):
+    """legacy 앵커(rich HTML)는 셀에서 태그를 벗겨 1줄 요약으로만 나온다.
+
+    striptags 는 엔티티를 되돌리므로(&lt;script&gt; → <script>) 셀이 |safe 로 새면
+    sanitizer 가 이미 이스케이프해 둔 위험 태그가 되살아난다. 자동 이스케이프 확인 포함.
+    """
+    _login_as_admin(client, username="as-timeline-cell-legacy-admin")
+    _create_as_order(shipment_extra={"as_content": "<div><b>옛</b> 기록 &lt;script&gt;alert(1)&lt;/script&gt;</div>"})
+
+    body = client.get("/erp/as").get_data(as_text=True)
+    cell = body.split('class="as-tl-cell"')[1].split("</div>")[0]
+    assert "<b>" not in cell
+    assert "<script" not in cell
+
+
+def test_card_detail_renders_timeline(client):
+    """모바일 카드 상세: content-tabs 대신 타임라인(앵커+스트림+quick-add)."""
+    _login_as_admin(client, username="as-timeline-detail-admin")
+    order_id = _create_as_order(shipment_extra={"as_log": _reception_and_memos(2)})
+
+    res = client.get(f"/erp/as/card-detail/{order_id}")
+    assert res.status_code == 200
+    body = res.get_data(as_text=True)
+
+    assert 'class="as-timeline"' in body
+    assert "접수 원문" in body and "기록1" in body
+    assert "as-timeline__quick-add" in body  # 편집 권한 → 입력기
+    assert "as-construction-worker-list" in body  # 시공자 블록은 유지
+    assert "as-tabbed-editor" not in body
+
+
+def test_timeline_fragment_entry_markup_contract(client):
+    """확장 fragment: 유형 칩(as-tl-chip--<type>) + 더보기 버튼(남은 수)."""
+    _login_as_admin(client, username="as-timeline-markup-admin")
+    logs = _reception_and_memos(10)
+    logs.append(_entry("al_c", "2026-07-24T20:00:00", "call", "고객 통화"))
+    order_id = _create_as_order(shipment_extra={"as_log": logs})
+
+    body = client.get(f"/erp/as/timeline/{order_id}").get_data(as_text=True)
+
+    assert "as-tl-item" in body
+    assert "as-tl-chip--call" in body
+    assert 'data-log-type="call"' in body
+    # 스트림 11건 중 8건 노출 → 남은 3건
+    assert "이전 기록 더보기 (3)" in body

@@ -76,8 +76,8 @@ def test_as_toolbar_rendered_once_as_template_not_per_row(client, monkeypatch):
     assert resp.status_code == 200
     body = resp.get_data(as_text=True)
 
-    # 여러 행 → 에디터는 다수(PC 2 + 모바일 2 = 행당 4)
-    assert body.count("as-rich-editor") >= 4
+    # T9: 3표면이 타임라인으로 교체되어 행별 리치 에디터는 0개(툴바 자체 퇴역은 T10)
+    assert body.count("as-rich-editor") == 0
     # template 원본은 정확히 1개
     assert body.count('id="as-rich-toolbar-template"') == 1
     # 실제 툴바 div는 template 안 1개뿐(행별 렌더 0)
@@ -87,8 +87,9 @@ def test_as_toolbar_rendered_once_as_template_not_per_row(client, monkeypatch):
     assert body.count('data-rich-command="foreColor"') == 2  # red + blue
     assert body.count('data-rich-command="clear-format"') == 1
     assert body.count("as-sales-delivery-btn") == 1
-    # 주문별 영업/전달 상태는 에디터에 data 속성으로만 실린다(툴바 아님)
-    assert "data-sales-delivery=" in body
+    # 주문별 영업/전달 상태를 싣던 .as-tabbed-editor 는 T9에서 사라졌다.
+    # 토글은 T10이 확장 행/모바일 상세 헤더로 이전한다(그때까지 template 안에서 대기).
+    assert "as-tabbed-editor" not in body
 
 
 def test_as_toolbar_hydrate_source_contract():

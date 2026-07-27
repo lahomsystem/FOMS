@@ -117,9 +117,10 @@ def test_as_pc_and_mobile_workflow_affordances_are_present():
     ):
         assert token in body
         assert token in mobile_card
-    assert "as-content-tab-btn" in body
-    assert "as-content-tab-btn" in card_macros
-    assert "render_as_content_tabs" in mobile_card
+    # T9: 내용 셀·모바일 카드는 타임라인 매크로가 담당한다(content-tabs 퇴역)
+    assert "render_as_timeline_cell" in body
+    assert "as-tl-item" in card_macros
+    assert "render_as_timeline" in mobile_card
     assert "?open=erp-order" in mobile_card
 
 
@@ -193,8 +194,12 @@ def test_as_visit_date_visual_state_updates_optimistically():
     assert "syncDateFieldInputs(orderId, fieldName, state.savedValue || '');" in src
 
 
-def test_as_dashboard_renders_primary_and_secondary_tabs(client, monkeypatch):
-    monkeypatch.setenv("ERP_MOBILE_V2_ENABLED", "true")
+def test_as_dashboard_renders_legacy_contents_in_timeline(client):
+    """T9: 1/2 탭 에디터 퇴역. 두 탭의 기존 내용은 legacy 항목으로 타임라인에 보존된다.
+
+    PC 셀은 앵커 1줄 요약(=legacy 첫 항목)만 실으므로 두 항목 모두 확인하려면
+    전체 타임라인을 렌더하는 표면(레거시 모바일 카드·확장 fragment)이어야 한다.
+    """
     _login_as_admin(client)
     _create_as_order()
 
@@ -202,11 +207,11 @@ def test_as_dashboard_renders_primary_and_secondary_tabs(client, monkeypatch):
 
     assert response.status_code == 200
     body = response.get_data(as_text=True)
-    assert 'data-as-tab-target="1"' in body
-    assert 'data-as-tab-target="2"' in body
-    assert 'data-field-name="as_content"' in body
-    assert 'data-field-name="as_content_2"' in body
+    assert 'data-as-tab-target="1"' not in body
+    assert 'data-field-name="as_content"' not in body
+    assert "1번 내용" in body
     assert "2번 내용" in body
+    assert "as-tl-item--legacy" in body
 
 
 def test_as_dashboard_renders_construction_workers_column(client):
@@ -335,7 +340,14 @@ def test_update_order_field_saves_secondary_as_content(client):
     assert saved_order.structured_data["shipment"]["as_content_2"] == data["normalized_value"]
 
 
-def test_as_dashboard_falls_back_to_order_notes_for_secondary_tab(client):
+def test_as_dashboard_notes_fallback_retired_with_content_tabs(client):
+    """T9: 주문 비고(notes) 를 2번 탭에 대신 띄우던 화면 폴백은 타임라인 전환과 함께 사라진다.
+
+    타임라인은 AS 도메인 기록(as_log·as_content legacy)만 싣는다 — 비고를 legacy 앵커로
+    끌어오면 '이전 기록(탭2)'로 둔갑해 없던 AS 기록이 생긴다(T8 결정,
+    test_dashboard_legacy_anchor_ignores_notes_fallback 이 고정). 비고 자체는 주문 편집
+    화면에 그대로 남는다.
+    """
     _login_as_admin(client)
     _create_as_order(notes="아일랜드 서랍 마이다 불량\n조명 색상변경", as_content_2=None)
 
@@ -343,8 +355,8 @@ def test_as_dashboard_falls_back_to_order_notes_for_secondary_tab(client):
 
     assert response.status_code == 200
     body = response.get_data(as_text=True)
-    assert "아일랜드 서랍 마이다 불량" in body
-    assert "조명 색상변경" in body
+    assert "아일랜드 서랍 마이다 불량" not in body
+    assert "1번 내용" in body  # AS 기록 자체는 타임라인에 그대로
 
 
 def test_as_dashboard_does_not_restore_notes_after_secondary_tab_is_cleared(client):

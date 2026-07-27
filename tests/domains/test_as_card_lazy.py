@@ -82,14 +82,15 @@ def test_mobile_card_content_tabs_are_lazy_placeholder(client, monkeypatch):
     # 모바일 카드마다 lazy placeholder 1개
     assert body.count("data-as-card-lazy") == 2
     assert "erp-as-mobile-card--v2" in body  # v2 카드 렌더 확인
-    # content-tabs는 PC 테이블 몫만 남는다(모바일 eager 제거) → as-tabbed-editor == 주문 수
-    assert body.count("as-tabbed-editor") == 2
+    # T9: PC 셀은 content-tabs 에디터에서 타임라인 요약(주문당 1개)으로 교체됨
+    assert "as-tabbed-editor" not in body
+    assert body.count('class="as-tl-cell"') == 2
     # placeholder 안에는 초기 스켈레톤만, 에디터 폼값 없음
     assert "erp-as-card-lazy__status" in body
 
 
 def test_card_detail_endpoint_renders_editor_markup(client, monkeypatch):
-    """card-detail endpoint: AS 주문 200 + 에디터/시공자 마크업 포함, 비-AS/없음 404, 비로그인 리다이렉트."""
+    """card-detail endpoint: AS 주문 200 + 타임라인/시공자 마크업 포함, 비-AS/없음 404, 비로그인 리다이렉트."""
     monkeypatch.setenv("ERP_MOBILE_V2_ENABLED", "true")
     user = _login_as_admin(client, username="as_card_detail_admin")
     monkeypatch.setenv("FOMS_V3_SHELL_COHORT", str(user.id))
@@ -100,11 +101,11 @@ def test_card_detail_endpoint_renders_editor_markup(client, monkeypatch):
     resp = client.get(f"/erp/as/card-detail/{as_order_id}")
     assert resp.status_code == 200
     body = resp.get_data(as_text=True)
-    # 대시보드 카드와 동일한 에디터/시공자 마크업(SSOT 매크로 재사용)
-    assert "as-tabbed-editor" in body
-    assert "as-content-input" in body
+    # 대시보드 카드와 동일한 타임라인/시공자 마크업(SSOT 매크로 재사용)
+    assert 'class="as-timeline"' in body
+    assert "as-timeline__quick-add" in body
     assert "as-construction-worker-list" in body
-    assert 'data-field-name="as_content"' in body
+    assert "as-tabbed-editor" not in body  # T9: content-tabs 퇴역
 
     # 비-AS 주문 → 404 (AS 상태 화이트리스트 밖)
     assert client.get(f"/erp/as/card-detail/{non_as_order_id}").status_code == 404
@@ -137,10 +138,10 @@ def test_card_lazy_js_source_contract():
 
 
 def test_card_detail_partial_reuses_shared_macros():
-    """파셜 소스 계약: content-tabs·시공자 매크로를 대시보드 카드와 동일하게 재사용(SSOT)."""
+    """파셜 소스 계약: 타임라인·시공자 매크로를 대시보드 카드와 동일하게 재사용(SSOT)."""
     partial = (_ROOT / "templates/cs/partials/as_card_detail_partial.html").read_text(encoding="utf-8")
-    assert "render_as_content_tabs" in partial
+    assert "render_as_timeline" in partial
     assert "render_as_construction_workers" in partial
-    # 모바일 카드 파셜에는 <details> 안 eager content-tabs가 없어야 한다(placeholder만)
+    # 모바일 카드 파셜에는 <details> 안 eager 상세가 없어야 한다(placeholder만)
     card = (_ROOT / "templates/cs/partials/as_mobile_order_card.html").read_text(encoding="utf-8")
     assert "data-as-card-lazy" in card
