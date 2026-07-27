@@ -287,14 +287,26 @@ def test_log_edit_patch_is_wired():
     assert ".as-tl-item__edit-cancel" in js
     assert "if (body) body.hidden = false;" in js
     # 서식 손실 방지: 본문은 sanitize를 통과한 rich HTML이라 textContent 로 읽으면 안 된다
-    assert "textEl.value = body.innerHTML.trim();" in js
+    assert "textEl.value = seed.innerHTML.trim();" in js
+    # 단 검색 하이라이트 <mark>는 화면 장식 — 사본에서 벗겨 시드해야 편집 대상에 안 섞인다
+    assert "const seed = body.cloneNode(true);" in js
+    assert "seed.querySelectorAll('mark.as-search-highlight')" in js
+    assert "mark.replaceWith(...mark.childNodes)" in js
 
 
 def test_more_button_preserves_unsent_draft():
-    """더보기의 innerHTML 교체가 미전송 quick-add 초안을 지우면 안 된다."""
+    """더보기의 innerHTML 교체가 미전송 원고를 말없이 지우면 안 된다.
+
+    quick-add 초안은 값을 옮겨 자동 복원한다. 수정 폼은 JS가 만든 것이라 재렌더로 되살릴 수
+    없으므로 대신 확인을 받는다(둘 다 없으면 조용히 날아간다).
+    """
     js = _js()
     assert "const draft = draftEl ? draftEl.value : '';" in js
     assert "if (nextDraftEl && draft) nextDraftEl.value = draft;" in js
+    block = _timeline_block(js)
+    more = block[block.index(".as-timeline__more"):]
+    assert "body.querySelector('.as-tl-item__edit-form')" in more
+    assert "window.confirm(" in more
 
 
 def test_quick_add_form_opts_out_of_shell_navigation(client):

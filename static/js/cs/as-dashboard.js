@@ -963,8 +963,14 @@
           + '<button type="button" class="btn btn-sm btn-link as-tl-item__edit-cancel">취소</button>';
         // innerHTML로 채운다: 본문은 서버 sanitize를 통과한 rich HTML이고 재저장 시 같은
         // sanitizer를 다시 타므로 왕복이 안정적이다. textContent면 서식(<b>/색)이 조용히 사라진다.
+        // 단 검색 하이라이트가 실제로 삽입한 <mark class="as-search-highlight">는 화면 장식이지
+        // 기록 본문이 아니다 — 사본에서 벗겨낸 뒤 시드해야 사용자가 정체불명 태그를 편집하지 않고
+        // 저장 시 <mark>가 본문으로 굳지 않는다(sanitizer는 mark를 unwrap하지만 그 전에 노출된다).
+        const seed = body.cloneNode(true);
+        seed.querySelectorAll('mark.as-search-highlight')
+          .forEach((mark) => mark.replaceWith(...mark.childNodes));
         const textEl = form.querySelector('.as-timeline__text');
-        textEl.value = body.innerHTML.trim();
+        textEl.value = seed.innerHTML.trim();
         body.hidden = true;
         body.after(form);
         textEl.focus();
@@ -1010,6 +1016,13 @@
           || more.closest('.erp-as-mobile-card__content')
           || (timeline && timeline.parentElement);
         if (!orderId || !body) return;
+        // 수정 폼은 JS가 만든 것이라 재렌더로 복원할 수 없다 — 편집 중 원고가 있으면 먼저 확인받는다.
+        // ponytail: 확인 1회로 끝낸다. 편집 원고까지 자동 보존하려면 log-id로 폼을 재개설해야 하는데
+        // 흔치 않은 동선(수정 열어둔 채 더보기)에 비해 비싸다.
+        if (body.querySelector('.as-tl-item__edit-form')
+            && !window.confirm('수정 중인 기록이 있습니다. 이전 기록을 더 불러오면 수정 내용이 사라집니다. 계속할까요?')) {
+          return;
+        }
         // innerHTML 교체는 미전송 초안을 지운다 — quick-add 입력값을 보존했다 되돌린다.
         const draftEl = body.querySelector('.as-timeline__quick-add .as-timeline__text');
         const draft = draftEl ? draftEl.value : '';
