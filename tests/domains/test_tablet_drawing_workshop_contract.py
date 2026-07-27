@@ -19,6 +19,8 @@ GALLERY_PARTIAL = "templates/drawing/partials/tablet_gallery_body.html"
 SHEET_PARTIAL = "templates/drawing/partials/tablet_sheet_body.html"
 GALLERY_CSS = "static/css/foundation/foms-tablet-drawing-gallery.css"
 GALLERY_JS = "static/js/foms/tablet-drawing-gallery.js"
+REVIEW_JS = "static/js/foms/tablet-drawing-review.js"
+SIDE_SHEET_JS = "static/js/foms/tablet-side-sheet.js"
 SHEET_ROUTE = "foms/web/drawing/tablet_sheet.py"
 DRAWING_INIT = "foms/web/drawing/__init__.py"
 WORKBENCH = "foms/web/drawing/workbench.py"
@@ -254,6 +256,58 @@ def test_gallery_js_longpress_multiselect_reuses_batch_modal() -> None:
     # 사이드 시트 억제(capture stopPropagation) + long-press 후속 click 소비.
     assert "stopPropagation" in js
     assert "consumeNextClick" in js
+
+
+# --- E2 전체화면 도면 뷰어 배선 (2026-07-27) ---------------------------------
+
+
+def test_viewer_marker_present_in_gallery_and_sheet_partials() -> None:
+    """썸네일 탭 진입점 계약: 갤러리 카드 thumb + 시트 스트립 img 양쪽에 마커."""
+    gallery = _read(GALLERY_PARTIAL)
+    # 이미지 도면이 있는 카드만 마커(+서버 JSON 파일 목록). role/tabindex 부여 금지.
+    assert "data-foms-drawing-viewer" in gallery
+    assert "data-foms-drawing-files='{{ r.drawing_files|tojson }}'" in gallery
+    assert 'role="button"' not in gallery
+    # 이미지 0장 카드는 마커 대신 "도면 없음" 플레이스홀더.
+    assert "foms-drawing-gallery-card__thumb-empty" in gallery
+    assert "도면 없음" in gallery
+
+    sheet = _read(SHEET_PARTIAL)
+    assert "data-foms-drawing-viewer" in sheet
+    assert 'data-view-url="{{ s.thumb_url }}"' in sheet
+    assert 'data-filename="{{ s.sheet_name }}"' in sheet
+
+
+def test_gallery_wires_review_js_deferred_with_cachebuster() -> None:
+    body = _read(GALLERY_PARTIAL)
+    m = re.search(r"<script[^>]*tablet-drawing-review\.js[^>]*>", body)
+    assert m is not None, "tablet-drawing-review.js not wired in gallery partial"
+    tag = m.group(0)
+    assert "defer" in tag, "review script must be defer (perf G1)"
+    assert "?v=20260727a" in tag, "신규 파일 캐시버스터 핀"
+
+
+def test_review_js_singleton_guard_mq_gate_and_preventdefault() -> None:
+    js = _read(REVIEW_JS)
+    assert "window.__FOMS_DRAWING_REVIEW_BOUND" in js  # 싱글턴 가드(perf G4)
+    # 코호트 게이트 = 태블릿 가로 coarse MQ(SSOT 문자열 side-sheet 와 동일).
+    assert "(min-width: 992px) and (orientation: landscape) and (pointer: coarse)" in js
+    # 카드 <a> 네비 + 시트 열기 차단 책임이 이 핸들러에 있다.
+    assert "ev.preventDefault()" in js
+    assert "ev.stopPropagation()" in js
+    # document 위임 1개(시트 aside 는 런타임 생성이라 컨테이너 바인딩 불가).
+    assert js.count("document.addEventListener") == 1
+    # 전역 뷰어 위임 + 부재 시 무음 금지.
+    assert "window.GlobalImageViewer.open(files, idx)" in js
+    assert "console.warn" in js
+
+
+def test_side_sheet_defers_drawing_viewer_marker() -> None:
+    """side-sheet 클릭 핸들러가 뷰어 마커를 만나면 시트를 열지 않는다(early-return)."""
+    js = _read(SIDE_SHEET_JS)
+    assert 'if (target.closest("[data-foms-drawing-viewer]")) return;' in js
+    # 가드는 row 처리보다 앞이어야 한다(시트 개방·preventDefault 전).
+    assert js.index("data-foms-drawing-viewer") < js.index("var row = target.closest(ROW_SELECTOR)")
 
 
 def test_gallery_css_longpress_selection_affordance() -> None:

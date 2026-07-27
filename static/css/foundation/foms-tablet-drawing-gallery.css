@@ -115,6 +115,16 @@
     height: 100%;
     object-fit: contain;
   }
+  /* 이미지 도면 0장 카드 — 중앙 무채 안내. __thumb-label(좌하단 배지)과 겹치지 않는다. */
+  body.erp-mobile-v2-layout .foms-drawing-gallery-card__thumb-empty {
+    position: absolute;
+    inset: 0;
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    color: var(--foms-text-tertiary);
+    font-size: var(--foms-font-size-xs);
+  }
   body.erp-mobile-v2-layout .foms-drawing-gallery-card__thumb-label {
     position: absolute;
     left: var(--foms-space-2);

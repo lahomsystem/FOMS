@@ -97,6 +97,10 @@ FRAGMENT_REPLAYED_GLOBAL_LISTENER_BASELINE: dict[str, int] = {
     "js/foms/search.js": 2,
     "js/foms/swipe-actions.js": 1,
     "js/foms/sync.js": 2,
+    # 도면 태블릿 뷰어 배선: document 클릭 위임 1개(갤러리 + 동적 생성 시트 스트립 공통).
+    # __FOMS_DRAWING_REVIEW_BOUND 싱글턴 가드가 있어 G4 검사는 통과하며, 이 항목은 기대
+    # 리스너 수를 문서화해 향후 무가드 리스너 추가를 눈에 띄게 한다.
+    "js/foms/tablet-drawing-review.js": 1,
     "js/runtime/erp-mobile-shell.js": 2,
 }
 

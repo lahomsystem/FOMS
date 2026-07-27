@@ -12,6 +12,7 @@
 
    표시/은닉·배타는 foms-tablet-drawing-gallery.css 소유(코호트 게이트). NO inline style.
    크기 토글·일괄 배정·시트 전달 위임은 tablet-drawing-gallery.js(defer·싱글턴).
+   썸네일 탭 → 전체화면 도면 뷰어(GlobalImageViewer)는 tablet-drawing-review.js(defer·싱글턴).
    ============================================================================ #}
 {% import 'drawing/partials/workbench_dashboard_macros.html' as wb %}
 {% set _dw_base = url_for('erp_drawing_workbench.erp_drawing_workbench_dashboard') %}
@@ -105,9 +106,16 @@
          data-foms-erp-no-shell
          href="{{ url_for('erp_drawing_workbench.erp_drawing_workbench_detail', order_id=r.id) }}?tab=timeline"
          aria-label="{{ r.customer_name }} 관리 시트 열기">
-        <div class="foms-drawing-gallery-card__thumb">
+        {# 썸네일 탭 = 전체화면 뷰어(tablet-drawing-review.js). 마커 속성만 부여하고
+           role/tabindex 는 주지 않는다(<a> content model 위반·포커스 트랩 방지 — 키보드
+           사용자는 카드 앵커로 상세 페이지 이동이라는 동등 경로 보유). 이미지 도면이 없는
+           카드는 마커 미부여 → 기존 사이드 시트 열기 동작 유지. #}
+        <div class="foms-drawing-gallery-card__thumb"
+             {% if r.thumbnail_url %}data-foms-drawing-viewer data-foms-drawing-files='{{ r.drawing_files|tojson }}'{% endif %}>
           {% if r.thumbnail_url %}
           <img class="foms-drawing-gallery-card__img" src="{{ r.thumbnail_url }}" alt="{{ r.customer_name }} 도면 미리보기" loading="lazy">
+          {% else %}
+          <span class="foms-drawing-gallery-card__thumb-empty">도면 없음</span>
           {% endif %}
           <span class="foms-drawing-gallery-card__thumb-label">시트 {{ r.file_count }}{% if r.transfer_round %} · v{{ r.transfer_round }}{% endif %} · {% if r.drawing_status in ('TRANSFERRED', 'CONFIRMED') %}전달본{% elif r.pending_count %}전달 대기{% else %}{{ r.drawing_status_label }}{% endif %}</span>
         </div>
@@ -153,3 +161,4 @@
   </section>
 </section>
 <script src="{{ url_for('static', filename='js/foms/tablet-drawing-gallery.js') }}?v=20260713b" defer></script>
+<script src="{{ url_for('static', filename='js/foms/tablet-drawing-review.js') }}?v=20260727a" defer></script>

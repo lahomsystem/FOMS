@@ -51,7 +51,8 @@ from foms.services.common.erp_shell_http import apply_erp_shell_fragment_headers
 from foms.services.request_utils import get_search_query_arg
 from foms.services.drawing_workbench_display import (
     drawing_thumb_enabled,
-    resolve_row_thumbnail_url,
+    pick_row_thumbnail_url,
+    resolve_row_image_list,
 )
 from foms.services.feature_flags import is_mobile_v2_shell, resolve_shell_variant_cached
 
@@ -333,6 +334,13 @@ def erp_drawing_workbench_dashboard():
         ):
             orders = [focus_order] + orders
 
+    # 판정 권한 축(요청당 1회 — 주문 무관). 상세 라우트의 동일 판정과 같은 조건이며
+    # `not is_drawing_team` 누락 금지: 누락 시 상세에선 숨는 버튼이 태블릿에서만 노출된다.
+    is_admin = bool(current_user and current_user.role == 'ADMIN')
+    is_drawing_team = bool(
+        current_user and (getattr(current_user, 'team', None) or '').strip() == 'DRAWING'
+    )
+
     rows = []
     order_sds = [_ensure_dict(o.structured_data) for o in orders]
     assignee_user_map = load_assignee_user_map_batch(db, order_sds)
@@ -375,6 +383,8 @@ def erp_drawing_workbench_dashboard():
         is_sales_owner = is_order_related_to_user(o, current_user, scope='sales')
         include_for_mine = is_order_related_to_user(o, current_user, scope=mine_scope)
         can_sales = _can_modify_sales_domain(current_user, o, sd, False, None)
+        # 판정 권한(순수 — 상태 미포함). 상세 라우트 can_confirm_receipt(상태 합성형)와 이름 분리.
+        can_review_perm = bool(is_admin or (can_sales and not is_drawing_team))
         can_transfer_row = bool(
             has_assignee
             and current_user
@@ -453,6 +463,12 @@ def erp_drawing_workbench_dashboard():
             '주문변경' if order_change_pending else '',
         ]).lower()
 
+        # 태블릿 전체화면 뷰어용 이미지 목록. 행당 OrderAttachment 조회는 최대 1회로 불변
+        # (기존 resolve_row_thumbnail_url 과 동일 조회 — 썸네일은 이 목록에서 파생).
+        image_files = resolve_row_image_list(
+            o.id, drawing_files, db, mobile_v2_active=mobile_v2_active
+        )
+
         construction_date = _resolve_construction_date_display(o, sd)
         # 제품 요약(고객·제품 카드용) — 이미 로드된 sd['items']에서 파생(추가 쿼리 없음).
         _sd_items = sd.get('items') or []
@@ -477,9 +493,11 @@ def erp_drawing_workbench_dashboard():
             'file_count': len(drawing_files),
             'transfer_round': transfer_round,
             'pending_count': pending_count,
-            'thumbnail_url': resolve_row_thumbnail_url(
-                o.id, drawing_files, db, mobile_v2_active=mobile_v2_active
-            ),
+            'thumbnail_url': pick_row_thumbnail_url(image_files),
+            # 뷰어 파일 목록(이미지만 — 비이미지 전달본은 뷰어 대상 밖, 카드 탭=시트 폴백).
+            'drawing_files': image_files,
+            'can_confirm_receipt_perm': can_review_perm,
+            'can_request_revision': can_review_perm,
             'target_no': latest_request_no,
             'turn_label': turn['label'],
             'turn_sub': turn['sub'],
