@@ -294,6 +294,26 @@ def _force_preserve_drawing_transfer_history(old_sd: dict, structured_data: dict
         structured_data["drawing_transfer_history"] = copy.deepcopy(old_hist)
 
 
+def _force_preserve_as_billing(old_sd: dict, structured_data: dict) -> None:
+    """shipment.as_billing 은 AS 전용 API 소관 — 폼 stale 스냅샷이 되돌리지 못하게 DB 값을 강제.
+
+    폼 JS 는 shipment 를 페이지 로드 시점 스냅샷에서 통째로 복사해 보내므로, 편집 탭을
+    열어둔 사이 AS 대시보드에서 확정한 유상 판정이 deep-merge 에서 무상으로 회귀한다.
+    DB 에 판정이 없으면 폼이 보낸 값도 채택하지 않는다(서버 전용 키).
+    """
+    if not isinstance(old_sd, dict) or not isinstance(structured_data, dict):
+        return
+    new_shipment = structured_data.get('shipment')
+    if not isinstance(new_shipment, dict):
+        return
+    old_shipment = old_sd.get('shipment')
+    old_billing = old_shipment.get('as_billing') if isinstance(old_shipment, dict) else None
+    if isinstance(old_billing, dict):
+        new_shipment['as_billing'] = copy.deepcopy(old_billing)
+    else:
+        new_shipment.pop('as_billing', None)
+
+
 def _preserve_operational_structured_state(old_sd: dict, structured_data: dict) -> None:
     """Preserve non-form operational state during ERP order full-form saves."""
     if not isinstance(old_sd, dict) or not isinstance(structured_data, dict):
@@ -316,6 +336,7 @@ def _preserve_operational_structured_state(old_sd: dict, structured_data: dict) 
         structured_data['quests'] = copy.deepcopy(old_sd.get('quests'))
 
     _force_preserve_drawing_transfer_history(old_sd, structured_data)
+    _force_preserve_as_billing(old_sd, structured_data)
     _guard_accidental_stage_regression(old_sd, structured_data)
 
 

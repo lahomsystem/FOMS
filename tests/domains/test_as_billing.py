@@ -1,4 +1,5 @@
 """AS 접수 무상/유상(as_billing) 계약 테스트 — 저장 API + 접수 모달 프론트 구조 + 대시보드 표면."""
+import copy
 import re
 from datetime import date
 from pathlib import Path
@@ -191,6 +192,79 @@ def test_register_preserves_existing_confirmed_billing(client):
     db_session.expire_all()
     billing = db_session.get(Order, order.id).structured_data["shipment"]["as_billing"]
     assert billing == confirmed
+
+
+def _erp_form_structured(stale_shipment: dict) -> dict:
+    """ERP 편집 폼이 실제로 보내는 모양의 structured PUT 본문.
+
+    폼 JS는 `shipment`를 페이지 로드 시점 스냅샷에서 통째로 복사해 되돌려 보낸다
+    (erp-order-shared.js `preservedTopLevelKeys`).
+    """
+    return {
+        "workflow": {"stage": "AS_RECEIVED"},
+        "shipment": stale_shipment,
+        "parties": {"customer": {"name": "AS 빌링 고객", "phone": "010-1234-5678"}},
+        "items": [{"product_name": "붙박이장"}],
+        "site": {"address_full": "Seoul", "address_main": "Seoul", "address_detail": ""},
+    }
+
+
+def test_structured_put_cannot_revert_confirmed_billing(client):
+    """ERP 편집 화면의 stale 스냅샷이 확정된 as_billing을 되돌리지 못한다(lost update).
+
+    편집 탭을 열어둔 채 AS 대시보드에서 유상 확정 → 편집 화면 저장 순서면,
+    폼이 되돌려 보내는 옛 shipment가 deep-merge에서 이겨 판정이 무상으로 회귀했다.
+    as_billing은 전용 API(POST /as/billing) 소관이므로 항상 DB 값이 이긴다.
+    """
+    _login_as_admin(client, username="as-billing-lostupdate-admin")
+    stale = {"type": "free", "confirmed": False, "amount": None,
+             "reason": "", "decided_by": "", "decided_at": ""}
+    order_id = _create_as_order(
+        status="AS_RECEIVED",
+        shipment_extra={"as_content": "문틀 뒤틀림", "as_billing": dict(stale)},
+    ).id
+
+    res = client.post(f"/api/orders/{order_id}/as/billing",
+                      json={"type": "paid", "amount": 90000, "reason": "고객 과실"})
+    assert res.status_code == 200 and res.get_json()["success"] is True
+    db_session.expire_all()
+    confirmed = copy.deepcopy(
+        db_session.get(Order, order_id).structured_data["shipment"]["as_billing"]
+    )
+    assert confirmed["type"] == "paid" and confirmed["confirmed"] is True
+
+    res = client.put(
+        f"/api/orders/{order_id}/structured",
+        json={"structured_data": _erp_form_structured(
+            {"as_content": "문틀 뒤틀림", "as_billing": dict(stale)}
+        )},
+    )
+    assert res.status_code == 200 and res.get_json()["success"] is True
+
+    db_session.expire_all()
+    saved = db_session.get(Order, order_id).structured_data["shipment"]
+    assert saved["as_billing"] == confirmed
+    assert saved["as_content"] == "문틀 뒤틀림"  # 나머지 shipment 병합은 그대로
+
+
+def test_structured_put_cannot_inject_billing_when_db_has_none(client):
+    """DB에 판정이 없으면 폼이 보낸 as_billing은 채택되지 않는다(서버 전용 키)."""
+    _login_as_admin(client, username="as-billing-inject-admin")
+    order_id = _create_as_order(status="AS_RECEIVED", shipment_extra={"as_content": "경첩"}).id
+
+    res = client.put(
+        f"/api/orders/{order_id}/structured",
+        json={"structured_data": _erp_form_structured({
+            "as_content": "경첩",
+            "as_billing": {"type": "paid", "confirmed": True, "amount": 999000},
+        })},
+    )
+    assert res.status_code == 200 and res.get_json()["success"] is True
+
+    db_session.expire_all()
+    saved = db_session.get(Order, order_id).structured_data["shipment"]
+    assert "as_billing" not in saved
+    assert saved["as_content"] == "경첩"
 
 
 # ---------------------------------------------------------------------------
