@@ -397,7 +397,7 @@
     },
     {
       "path": "foms/api/construction/orders.py",
-      "lineno": 62,
+      "lineno": 263,
       "handler_type": "broad_exception",
       "disposition": "LOG_AND_CONTINUE",
       "owner": "api",
@@ -406,7 +406,7 @@
     },
     {
       "path": "foms/api/construction/orders.py",
-      "lineno": 163,
+      "lineno": 349,
       "handler_type": "broad_exception",
       "disposition": "LOG_AND_CONTINUE",
       "owner": "api",
@@ -415,7 +415,7 @@
     },
     {
       "path": "foms/api/construction/orders.py",
-      "lineno": 257,
+      "lineno": 443,
       "handler_type": "broad_exception",
       "disposition": "LOG_AND_CONTINUE",
       "owner": "api",
@@ -424,7 +424,7 @@
     },
     {
       "path": "foms/api/construction/orders.py",
-      "lineno": 361,
+      "lineno": 575,
       "handler_type": "broad_exception",
       "disposition": "LOG_AND_CONTINUE",
       "owner": "api",
@@ -514,7 +514,7 @@
     },
     {
       "path": "foms/api/cs/complete.py",
-      "lineno": 85,
+      "lineno": 208,
       "handler_type": "broad_exception",
       "disposition": "LOG_AND_CONTINUE",
       "owner": "api",
@@ -2179,7 +2179,7 @@
     },
     {
       "path": "foms/api/shipment/recommendations.py",
-      "lineno": 57,
+      "lineno": 58,
       "handler_type": "broad_exception",
       "disposition": "LOG_AND_CONTINUE",
       "owner": "api",
@@ -2188,7 +2188,7 @@
     },
     {
       "path": "foms/api/shipment/recommendations.py",
-      "lineno": 67,
+      "lineno": 68,
       "handler_type": "broad_exception",
       "disposition": "LOG_AND_CONTINUE",
       "owner": "api",
@@ -2197,7 +2197,7 @@
     },
     {
       "path": "foms/api/shipment/recommendations.py",
-      "lineno": 615,
+      "lineno": 554,
       "handler_type": "broad_exception",
       "disposition": "LOG_AND_CONTINUE",
       "owner": "api",
@@ -2206,7 +2206,7 @@
     },
     {
       "path": "foms/api/shipment/recommendations.py",
-      "lineno": 778,
+      "lineno": 605,
       "handler_type": "broad_exception",
       "disposition": "LOG_AND_CONTINUE",
       "owner": "api",
@@ -2215,7 +2215,7 @@
     },
     {
       "path": "foms/api/shipment/settings.py",
-      "lineno": 136,
+      "lineno": 140,
       "handler_type": "broad_exception",
       "disposition": "LOG_AND_CONTINUE",
       "owner": "api",
@@ -2224,7 +2224,7 @@
     },
     {
       "path": "foms/api/shipment/settings.py",
-      "lineno": 161,
+      "lineno": 165,
       "handler_type": "broad_exception",
       "disposition": "LOG_AND_CONTINUE",
       "owner": "api",
@@ -2233,7 +2233,7 @@
     },
     {
       "path": "foms/api/shipment/settings.py",
-      "lineno": 234,
+      "lineno": 256,
       "handler_type": "broad_exception",
       "disposition": "LOG_AND_CONTINUE",
       "owner": "api",
