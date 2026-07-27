@@ -2,7 +2,7 @@
 import copy
 import json
 import re
-import datetime
+from typing import Optional
 from flask import Blueprint, make_response, render_template, request, redirect, url_for, flash, session, current_app, jsonify
 from markupsafe import Markup, escape
 from sqlalchemy import or_, String
@@ -17,10 +17,17 @@ from foms.services.orders.estimate_defaults import (
 )
 from foms.services.orders.status_constants import STATUS
 from foms.services.order_display_utils import format_options_for_display, _ensure_dict
-from foms.services.jobs.queue import enqueue_geocode_order_address
+# 지오코드 enqueue 는 이제 생성자(order_create)가 tx-내 GEOCODE outbox 로 예약한다. 이
+# 바인딩은 namespace surface 계약(foms_namespace_surface_tests: order_pages 가 canonical
+# jobs.queue 를 재노출)을 위해 유지한다.
+from foms.services.jobs.queue import enqueue_geocode_order_address  # noqa: F401
+from foms.services.orders.order_create import (
+    OrderCreateError,
+    create_order,
+    resolve_order_owner,
+)
 from foms.services.erp_display import erp_deposit_amount_from_structured
 from foms.services.datetime_kst import get_today_kst, now_kst, now_utc_naive
-from foms.services.erp_sync_columns import sync_erp_flat_columns
 from foms.services.request_utils import (
     get_preserved_filter_args,
     get_search_query_arg,
@@ -64,6 +71,27 @@ def _first_product_name_from_structured_data(structured_data):
         if product_name:
             return product_name
     return ''
+
+
+def _form_owner_user_id(form) -> Optional[int]:
+    """폼의 ``sales_owner_id`` (Admin/Manager 가 지정하는 SALES owner)를 int 로 파싱한다.
+
+    Args:
+        form: ``request.form`` MultiDict.
+
+    Returns:
+        지정 owner user_id, 없으면 None(STAFF self default 경로).
+
+    Raises:
+        OrderCreateError: 값이 있으나 정수가 아님.
+    """
+    raw = (form.get('sales_owner_id') or '').strip()
+    if not raw:
+        return None
+    try:
+        return int(raw)
+    except (TypeError, ValueError) as exc:
+        raise OrderCreateError('영업 담당자 지정이 올바르지 않습니다.') from exc
 
 
 order_pages_bp = Blueprint('order_pages', __name__, url_prefix='')
@@ -347,19 +375,26 @@ def add_order():
                     flash(f"필수 항목을 입력해주세요: {', '.join(missing)}", 'error')
                     return redirect(url_for('order_pages.add_order'))
 
-                new_order = Order(
-                    received_date=request.form.get('received_date') or get_today_kst().strftime('%Y-%m-%d'),
-                    received_time=request.form.get('received_time') or now_kst().strftime('%H:%M'),
-                    customer_name=cust_name, phone=cust_phone, address=addr, product=prod,
-                    options=None, notes=request.form.get('notes') or None, status='RECEIVED',
-                    is_erp_order=True, raw_order_text=raw_text, structured_data=structured_data,
-                    structured_schema_version=1, structured_confidence=None, structured_updated_at=datetime.datetime.now(),
+                actor = get_user_by_id(session.get('user_id'))
+                owner_user_id = resolve_order_owner(
+                    db, actor=actor,
+                    requested_owner_user_id=_form_owner_user_id(request.form),
                 )
-                db.add(new_order)
-                db.flush()
-                sync_erp_flat_columns(new_order, structured_data)
+                create_order(
+                    db,
+                    actor_user_id=actor.id,
+                    owner_user_id=owner_user_id,
+                    order_fields=dict(
+                        received_date=request.form.get('received_date') or get_today_kst().strftime('%Y-%m-%d'),
+                        received_time=request.form.get('received_time') or now_kst().strftime('%H:%M'),
+                        customer_name=cust_name, phone=cust_phone, address=addr, product=prod,
+                        options=None, notes=request.form.get('notes') or None, status='RECEIVED',
+                        raw_order_text=raw_text, structured_confidence=None,
+                    ),
+                    structured_data=structured_data,
+                    is_erp_order=True,
+                )
                 db.commit()
-                enqueue_geocode_order_address(new_order.id)
                 flash('ERP Order 주문이 성공적으로 추가되었습니다.', 'success')
                 return redirect(url_for('order_pages.index'))
 
@@ -403,43 +438,49 @@ def add_order():
                 regional_order_upload_val = 'regional_order_upload' in request.form
                 construction_type_val = request.form.get('construction_type')
 
-            new_order = Order(
-                received_date=request.form.get('received_date'),
-                received_time=request.form.get('received_time'),
-                customer_name=request.form.get('customer_name'),
-                phone=request.form.get('phone'),
-                address=request.form.get('address'),
-                product=request.form.get('product'),
-                options=options_data,
-                notes=request.form.get('notes'),
-                status=request.form.get('status', 'RECEIVED'),
-                measurement_date=request.form.get('measurement_date'),
-                measurement_time=request.form.get('measurement_time'),
-                completion_date=request.form.get('completion_date'),
-                manager_name=request.form.get('manager_name'),
-                payment_amount=payment_amount,
-                scheduled_date=request.form.get('scheduled_date'),
-                as_received_date=request.form.get('as_received_date'),
-                as_completed_date=request.form.get('as_completed_date'),
-                is_regional=is_regional_val,
-                is_self_measurement=is_self_measurement_val,
-                is_cabinet=is_cabinet_val,
-                cabinet_status='RECEIVED' if is_cabinet_val else None,
-                measurement_completed=measurement_completed_val,
-                regional_sales_order_upload=regional_sales_order_upload_val,
-                regional_blueprint_sent=regional_blueprint_sent_val,
-                regional_order_upload=regional_order_upload_val,
-                construction_type=construction_type_val,
+            actor = get_user_by_id(session.get('user_id'))
+            owner_user_id = resolve_order_owner(
+                db, actor=actor,
+                requested_owner_user_id=_form_owner_user_id(request.form),
+            )
+            new_order = create_order(
+                db,
+                actor_user_id=actor.id,
+                owner_user_id=owner_user_id,
+                order_fields=dict(
+                    received_date=request.form.get('received_date'),
+                    received_time=request.form.get('received_time'),
+                    customer_name=request.form.get('customer_name'),
+                    phone=request.form.get('phone'),
+                    address=request.form.get('address'),
+                    product=request.form.get('product'),
+                    options=options_data,
+                    notes=request.form.get('notes'),
+                    status=request.form.get('status', 'RECEIVED'),
+                    measurement_date=request.form.get('measurement_date'),
+                    measurement_time=request.form.get('measurement_time'),
+                    completion_date=request.form.get('completion_date'),
+                    manager_name=request.form.get('manager_name'),
+                    payment_amount=payment_amount,
+                    scheduled_date=request.form.get('scheduled_date'),
+                    as_received_date=request.form.get('as_received_date'),
+                    as_completed_date=request.form.get('as_completed_date'),
+                    is_regional=is_regional_val,
+                    is_self_measurement=is_self_measurement_val,
+                    is_cabinet=is_cabinet_val,
+                    cabinet_status='RECEIVED' if is_cabinet_val else None,
+                    measurement_completed=measurement_completed_val,
+                    regional_sales_order_upload=regional_sales_order_upload_val,
+                    regional_blueprint_sent=regional_blueprint_sent_val,
+                    regional_order_upload=regional_order_upload_val,
+                    construction_type=construction_type_val,
+                ),
                 is_erp_order=False,
             )
-            db.add(new_order)
-            db.flush()
             order_id_for_log = new_order.id
             customer_name_for_log = new_order.customer_name
-            user_for_log = get_user_by_id(session.get('user_id'))
-            user_name_for_log = user_for_log.name if user_for_log else "Unknown user"
+            user_name_for_log = actor.name if actor else "Unknown user"
             db.commit()
-            enqueue_geocode_order_address(order_id_for_log)
             log_access(f"주문 #{order_id_for_log} ({customer_name_for_log}) 추가 - 담당자: {user_name_for_log}", session.get('user_id'))
             flash('주문이 성공적으로 추가되었습니다.', 'success')
             return redirect(url_for('order_pages.index'))
