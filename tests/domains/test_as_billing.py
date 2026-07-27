@@ -27,8 +27,9 @@ def _login_as_admin(client, username="as-billing-admin"):
     return user
 
 
-def _create_as_order(*, status="AS_RECEIVED"):
+def _create_as_order(*, status="AS_RECEIVED", shipment_extra=None):
     today = date.today().strftime("%Y-%m-%d")
+    shipment = dict(shipment_extra or {})
     order = Order(
         received_date=today,
         customer_name="AS 빌링 고객",
@@ -38,7 +39,7 @@ def _create_as_order(*, status="AS_RECEIVED"):
         status=status,
         manager_name="Alice",
         is_erp_order=True,
-        structured_data={"workflow": {"stage": status}, "shipment": {}},
+        structured_data={"workflow": {"stage": status}, "shipment": shipment},
     )
     db_session.add(order)
     db_session.commit()
@@ -66,3 +67,25 @@ def test_register_paid_estimate_with_amount(client):
     db_session.expire_all()
     billing = db_session.get(Order, order.id).structured_data["shipment"]["as_billing"]
     assert billing["type"] == "paid" and billing["amount"] == 50000 and billing["confirmed"] is False
+
+
+def test_register_preserves_existing_confirmed_billing(client):
+    """재접수(지방 재상차 등)가 확정된 billing을 되돌리지 않는다. 확정/전환은 전용 API로만."""
+    _login_as_admin(client, username="as-billing-preserve-admin")
+    confirmed = {
+        "type": "paid",
+        "confirmed": True,
+        "amount": 80000,
+        "reason": "부품 파손 고객 과실",
+        "decided_by": "CS 관리자",
+        "decided_at": "2026-07-20T01:02:03",
+    }
+    order = _create_as_order(status="AS_RECEIVED", shipment_extra={"as_billing": dict(confirmed)})
+
+    res = client.post(f"/api/orders/{order.id}/as/register",
+                      json={"as_content": "재접수", "billing_type": "free", "amount": 0})
+
+    assert res.status_code == 200 and res.get_json()["success"] is True
+    db_session.expire_all()
+    billing = db_session.get(Order, order.id).structured_data["shipment"]["as_billing"]
+    assert billing == confirmed

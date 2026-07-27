@@ -330,12 +330,16 @@ def api_as_register(order_id):
         old_sd = copy.deepcopy(sd)
         shipment = ensure_path(sd, "shipment")
         shipment["as_content"] = as_content
-        billing_type = _coerce_billing_type(data.get("billing_type") or "free")
-        billing_amount = _coerce_billing_amount(data.get("amount")) if billing_type == "paid" else None
-        billing = _default_as_billing()
-        billing["type"] = billing_type
-        billing["amount"] = billing_amount
-        shipment["as_billing"] = billing
+        # 최초 접수에서만 billing을 시드한다. 재접수(지방 재상차 등)는 정상 흐름이므로
+        # 기존 billing을 덮으면 확정된 유상 금액이 free/미확정으로 되돌아간다.
+        # 확정·전환은 전용 API 소관(스펙 §3.2).
+        if not isinstance(shipment.get("as_billing"), dict):
+            billing_type = _coerce_billing_type(data.get("billing_type") or "free")
+            billing_amount = _coerce_billing_amount(data.get("amount")) if billing_type == "paid" else None
+            billing = _default_as_billing()
+            billing["type"] = billing_type
+            billing["amount"] = billing_amount
+            shipment["as_billing"] = billing
         construction_worker_name = _confirmed_construction_worker_name(user)
         if source_screen == "erp_construction_dashboard" and construction_worker_name:
             shipment["construction_workers"] = [construction_worker_name]
