@@ -73,6 +73,59 @@ def _confirmed_construction_worker_name(user) -> str:
     ).strip()
 
 
+_AS_BILLING_TYPES = ("free", "paid", "undecided")
+
+
+def _default_as_billing() -> dict[str, object]:
+    """as_billing 기본값(무상 추정·미확정)."""
+    return {
+        "type": "free",
+        "confirmed": False,
+        "amount": None,
+        "reason": "",
+        "decided_by": "",
+        "decided_at": "",
+    }
+
+
+def _coerce_billing_type(raw: object) -> str:
+    """billing 유형을 허용 enum으로 정규화. 미허용/빈값은 'free'."""
+    value = str(raw or "").strip().lower()
+    return value if value in _AS_BILLING_TYPES else "free"
+
+
+def _coerce_billing_amount(raw: object) -> int | None:
+    """금액을 0 이상 정수 또는 None으로 정규화. 음수/비정수는 ValueError."""
+    if raw in (None, ""):
+        return None
+    try:
+        amount = int(raw)
+    except (TypeError, ValueError) as exc:
+        raise ValueError("금액은 정수여야 합니다.") from exc
+    if amount < 0:
+        raise ValueError("금액은 0 이상이어야 합니다.")
+    return amount
+
+
+def _write_as_billing(sd: dict, *, billing_type: str, amount: int | None,
+                      confirmed: bool, reason: str, user) -> dict:
+    """sd['shipment']['as_billing']를 기존값 병합 후 갱신하고 반환."""
+    shipment = ensure_path(sd, "shipment")
+    billing = _default_as_billing()
+    existing = shipment.get("as_billing")
+    if isinstance(existing, dict):
+        billing.update(existing)
+    billing["type"] = billing_type
+    billing["amount"] = amount
+    billing["confirmed"] = bool(confirmed)
+    if reason:
+        billing["reason"] = reason
+    billing["decided_by"] = (user.name if user else "") or ""
+    billing["decided_at"] = now_utc_naive().isoformat()
+    shipment["as_billing"] = billing
+    return billing
+
+
 @erp_orders_as_bp.route("/<int:order_id>/as/start", methods=["POST"])
 @login_required
 @erp_edit_required
@@ -97,7 +150,7 @@ def api_as_start(order_id):
         as_info = sd.get("as_info") or []
         as_entry = {
             "id": len(as_info) + 1,
-            "started_at": datetime.datetime.now().isoformat(),
+            "started_at": now_utc_naive().isoformat(),
             "started_by": user.name if user else "Unknown",
             "reason": as_reason,
             "description": as_description,
@@ -277,6 +330,12 @@ def api_as_register(order_id):
         old_sd = copy.deepcopy(sd)
         shipment = ensure_path(sd, "shipment")
         shipment["as_content"] = as_content
+        billing_type = _coerce_billing_type(data.get("billing_type") or "free")
+        billing_amount = _coerce_billing_amount(data.get("amount")) if billing_type == "paid" else None
+        billing = _default_as_billing()
+        billing["type"] = billing_type
+        billing["amount"] = billing_amount
+        shipment["as_billing"] = billing
         construction_worker_name = _confirmed_construction_worker_name(user)
         if source_screen == "erp_construction_dashboard" and construction_worker_name:
             shipment["construction_workers"] = [construction_worker_name]
