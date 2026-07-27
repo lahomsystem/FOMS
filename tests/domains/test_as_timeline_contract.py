@@ -244,6 +244,7 @@ _AS_LOG_WRITE_CALL_SITES = {
     ("foms/api/cs/as_orders.py", "append_client_log"),  # register(접수 원문) · POST /as/log
     ("foms/services/orders/as_log.py", "build_as_log_entry"),  # append_client_log/append_system_log 내부
     ("foms/services/orders/as_log.py", "_legacy_entries_from_content"),  # migrate/lazy legacy
+    ("foms/services/orders/as_log.py", 'as_log"].append'),  # 원시 append = 정본 생성지점 2곳뿐
 }
 
 
@@ -255,7 +256,8 @@ def test_as_log_write_call_sites_are_the_known_set():
     root = Path(__file__).resolve().parents[2]
     pattern = re.compile(
         r"(?<!def )\b(append_client_log|append_system_log|build_as_log_entry"
-        r"|_legacy_entries_from_content)\s*\("
+        r"|_legacy_entries_from_content"
+        r"|as_log[\"']\]\s*\.append)\s*\("  # 헬퍼 우회 원시 append 도 red
     )
     found = {
         (path.relative_to(root).as_posix(), match.group(1))
