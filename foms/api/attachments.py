@@ -42,6 +42,10 @@ from foms.api.files.upload_intent import (
     api_create_upload_draft,
     api_finalize_upload_draft,
 )
+from foms.api.files.upload_ticket_routes import (
+    api_complete_upload_ticket,
+    api_issue_upload_ticket,
+)
 
 __all__ = [
     "ASYNC_ATTACHMENT_THUMBNAIL",
@@ -51,8 +55,10 @@ __all__ = [
     "_att_key",
     "allowed_erp_attachment_file",
     "api_cancel_upload_draft",
+    "api_complete_upload_ticket",
     "api_create_upload_draft",
     "api_finalize_upload_draft",
+    "api_issue_upload_ticket",
     "api_order_attachments_complete",
     "api_order_attachments_delete",
     "api_order_attachments_list",

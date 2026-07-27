@@ -2125,11 +2125,13 @@ class DomainSideEffectOutbox(Base):
         Integer, ForeignKey('order_events.id', ondelete='CASCADE'), nullable=True)
     notification_event_id = Column(
         Integer, ForeignKey('notification_events.id', ondelete='CASCADE'), nullable=True)
-    # 아래 3 도메인은 부모 테이블 미존재 → 소유 packet 이 FK 를 additive 로 추가(현재는
+    # 아래 2 도메인은 부모 테이블 미존재 → 소유 packet 이 FK 를 additive 로 추가(현재는
     # plain integer, one-of CHECK 로 domain 일치만 강제; orphan 거부는 FK 추가 후).
     address_learning_request_id = Column(Integer, nullable=True)
     wizard_pending_id = Column(Integer, nullable=True)
-    upload_ticket_id = Column(Integer, nullable=True)
+    # UPLOAD-02: upload_tickets 부모가 생겨 실 FK 로 orphan 거부(one-of matrix 유지).
+    upload_ticket_id = Column(
+        Integer, ForeignKey('upload_tickets.id', ondelete='CASCADE'), nullable=True)
     # UPLOAD-INTENT-01: upload_drafts 부모가 생겨 실 FK 로 orphan 거부(one-of matrix 유지).
     upload_draft_id = Column(
         Integer, ForeignKey('upload_drafts.id', ondelete='CASCADE'), nullable=True)
@@ -2302,6 +2304,78 @@ class UploadDraft(Base):
         # idempotent create: 같은 (order,kind,key) 는 최대 1행(중복 생성 0). key NULL 제외.
         Index('uq_upload_draft_idem', 'order_id', 'kind', 'idempotency_key',
               unique=True, postgresql_where=text('idempotency_key IS NOT NULL')),
+    )
+
+
+#: per-file upload ticket state machine (UPLOAD-02, §5.2 line 1083). ISSUED 는 활성,
+#: 나머지는 terminal. EXPIRED 는 bounded cleanup provider 가 만료 ISSUED 를 claim 하며
+#: 기록한다(UPLOAD-INTENT DRAFT 의 lazy EXPIRED 와 달리 ticket 은 provider 가 실기록).
+UPLOAD_TICKET_STATES = ('ISSUED', 'COMPLETED', 'EXPIRED', 'CANCELLED')
+#: ticket 유효기간(초). 900s(=15분) 안에 complete 하지 않으면 cleanup provider 가 EXPIRED.
+UPLOAD_TICKET_TTL_SECONDS = 900
+
+
+class UploadTicket(Base):
+    """per-file 업로드 ticket (UPLOAD-02, §5.2 line 1083).
+
+    한 파일의 direct-upload 수명을 durable 하게 예약하는 per-file 티켓이다. issue 는
+    server-derived object key(FILE-01)·900s expiry 와 함께 ISSUED 행을 발급하고, complete
+    는 파일 확정 시 auth/resource/item-active 를 **재검사**하며 tamper(key 불일치)·expiry·
+    type·size 를 검증한 뒤 :class:`OrderAttachment` 로 소비한다(REV-00 Order version 1회
+    bump). 만료·item 은퇴로 orphan 이 된 티켓은 :mod:`foms.services.upload_cleanup` bounded
+    scan provider 가 EXPIRED 로 claim 하고 ``STORAGE_DELETE`` outbox 를 만든다.
+
+    계약(§5.2 UPLOAD-02):
+
+    * **per-file / server-derived key**: ``object_key`` 는 서버가 유도하며(클라이언트 입력
+      아님) ``uq_upload_ticket_object_key`` 로 유일하다 — complete 시 exact-match tamper 검사.
+    * **900s expiry**: ``expires_at = created_at + 900s``. complete 는 만료 티켓을 거부하고
+      cleanup provider 가 만료 ISSUED 를 EXPIRED 로 claim 한다.
+    * **item active 재검사**: ``item_id`` 가 있으면 issue/complete 가 identity 활성을
+      재확인한다. complete 는 티켓·identity 를 ``FOR UPDATE`` 로 잠가 동시 retire 와
+      직렬화한다(item-retire race).
+    * **retry idempotent**: 이미 COMPLETED 인 티켓 재확정은 no-op(중복 첨부·version bump 0).
+
+    ``upload_ticket_id`` FK 로 :class:`DomainSideEffectOutbox` 가 이 행을 참조하며(source_domain=
+    ``UPLOAD_TICKET``), orphan 은 DB 가 거부한다. DDL 은 migration(``upload_02_00``)과 SSOT 를
+    공유한다(create_all 테스트 lane 동일 스키마).
+    """
+
+    __tablename__ = 'upload_tickets'
+
+    id = Column(Integer, primary_key=True)
+    order_id = Column(
+        Integer, ForeignKey('orders.id', ondelete='CASCADE'), nullable=False, index=True)
+    # 첨부 category(measurement/drawing/construction/as) — auth 정책·확장자 정책의 축.
+    category = Column(String(50), nullable=False, default='measurement')
+    # 아이템 결합 SSOT = 안정 UUID(order_item_identities.id). None 이면 order 공통 첨부.
+    item_id = Column(
+        UUIDColumn, ForeignKey('order_item_identities.id', ondelete='SET NULL'), nullable=True)
+    # 발급 시점 아이템 슬롯 좌표(provenance). 런타임 결합은 item_id, 이건 기록/재조회용.
+    item_index = Column(Integer, nullable=True)
+    # server-derived R2 object key(클라이언트 입력 아님). complete 의 exact-match tamper 기준.
+    object_key = Column(String(500), nullable=False)
+    filename = Column(String(255), nullable=False)
+    file_type = Column(String(50), nullable=False)  # image / video / file
+    file_size = Column(Integer, nullable=False, default=0)  # issue 시점 선언 크기(<=max)
+    state = Column(String(20), nullable=False, server_default='ISSUED')
+    issued_by = Column(Integer, ForeignKey('users.id', ondelete='SET NULL'), nullable=True)
+    row_version = Column(Integer, nullable=False, default=1, server_default=text('1'))
+    created_at = Column(DateTime, nullable=False, default=now_utc_naive, server_default=func.now())
+    # created_at + 900s. complete 만료 거부·provider 만료 claim 의 기준.
+    expires_at = Column(DateTime, nullable=False)
+    completed_at = Column(DateTime, nullable=True)
+
+    __table_args__ = (
+        CheckConstraint(
+            "state IN ('ISSUED','COMPLETED','EXPIRED','CANCELLED')",
+            name='ck_upload_ticket_state'),
+        # server-derived key 는 티켓당 유일 → complete tamper 검사·중복 발급 차단.
+        Index('uq_upload_ticket_object_key', 'object_key', unique=True),
+        # bounded cleanup provider 의 만료 claim hot path(만료 ISSUED 를 state,expires_at 순).
+        Index('ix_upload_ticket_expiry', 'state', 'expires_at'),
+        # item-retire cleanup: 은퇴 identity 의 ISSUED 티켓 claim.
+        Index('ix_upload_ticket_item', 'item_id'),
     )
 
 

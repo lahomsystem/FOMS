@@ -31,14 +31,13 @@ from foms.services.sidefx_outbox import (
     enqueue_side_effect,
     purge_retention,
 )
-from models import DomainSideEffectOutbox, Order, OrderEvent, UploadDraft
+from models import DomainSideEffectOutbox, Order, OrderEvent, UploadDraft, UploadTicket
 
 # 부모 테이블이 없는(=FK 없는) 도메인/컬럼 — one-of CHECK 를 FK setup 없이 isolate 한다.
-# UPLOAD_DRAFT 는 UPLOAD-INTENT-01 이 upload_drafts 부모 + 실 FK 를 부착하며 아래 FK_DOMAINS
-# 로 이동했다(orphan 거부).
+# UPLOAD_DRAFT 는 UPLOAD-INTENT-01 이, UPLOAD_TICKET 은 UPLOAD-02 가 각각 부모 테이블 + 실
+# FK 를 부착하며 아래 FK_DOMAINS 로 이동했다(orphan 거부).
 NO_FK_DOMAINS = [
     ("WIZARD_PENDING", "wizard_pending_id"),
-    ("UPLOAD_TICKET", "upload_ticket_id"),
     ("ADDRESS_LEARNING", "address_learning_request_id"),
 ]
 # 실 FK 도메인 — orphan 을 DB 가 거부한다.
@@ -47,6 +46,7 @@ FK_DOMAINS = [
     ("NOTIFICATION_EVENT", "notification_event_id"),
     ("CHAT_ATTACHMENT", "chat_attachment_id"),
     ("UPLOAD_DRAFT", "upload_draft_id"),
+    ("UPLOAD_TICKET", "upload_ticket_id"),
 ]
 
 
@@ -103,6 +103,23 @@ def _make_upload_draft(session) -> UploadDraft:
     return d
 
 
+def _make_upload_ticket(session) -> UploadTicket:
+    """UPLOAD_TICKET 도메인 실 FK happy-path 용 실존 부모 upload_ticket 행."""
+    o = Order(received_date="2026-07-24", customer_name="홍길동",
+              phone="010-0000-0000", address="서울", product="침대")
+    session.add(o)
+    session.commit()
+    t = UploadTicket(
+        order_id=o.id, category="measurement",
+        object_key="orders/%d/measurement/%s.jpg" % (o.id, uuid.uuid4().hex),
+        filename="a.jpg", file_type="image", file_size=10, state="ISSUED",
+        created_at=_now(), expires_at=_now() + datetime.timedelta(seconds=900),
+    )
+    session.add(t)
+    session.commit()
+    return t
+
+
 # --------------------------------------------------------------------------- #
 # 1. one-of FK CHECK matrix
 # --------------------------------------------------------------------------- #
@@ -157,12 +174,31 @@ def test_upload_draft_valid_with_real_parent(pg_engine):
         s.close()
 
 
+def test_upload_ticket_valid_with_real_parent(pg_engine):
+    """실 FK 도메인(UPLOAD_TICKET) happy path — 실존 부모 upload_ticket 참조(UPLOAD-02)."""
+    s = _session(pg_engine)
+    try:
+        ticket = _make_upload_ticket(s)
+        r = DomainSideEffectOutbox(
+            source_domain="UPLOAD_TICKET", upload_ticket_id=ticket.id,
+            effect_type=_marker(), payload={"x": 1},
+            available_at=_now(), created_at=_now(),
+        )
+        s.add(r)
+        s.commit()
+        assert r.id is not None
+    finally:
+        s.close()
+
+
 def test_check_rejects_domain_fk_mismatch(pg_engine):
     """source_domain 과 다른 FK 컬럼을 채우면 CHECK 거부."""
     s = _session(pg_engine)
     try:
+        # 순수 CHECK(도메인 mismatch) 검증 — no-FK 컬럼(address_learning_request_id)을 써서
+        # FK orphan 이 CHECK 보다 먼저 걸리는 것을 피한다.
         r = DomainSideEffectOutbox(
-            source_domain="WIZARD_PENDING", upload_ticket_id=5,  # 잘못된 컬럼
+            source_domain="WIZARD_PENDING", address_learning_request_id=5,  # 잘못된 컬럼
             effect_type=_marker(), payload={},
             available_at=_now(), created_at=_now(),
         )
@@ -178,8 +214,9 @@ def test_check_rejects_two_non_null_fks(pg_engine):
     """FK 두 개 non-null 이면 CHECK 거부(정확히 하나만 허용)."""
     s = _session(pg_engine)
     try:
+        # 두 컬럼 모두 no-FK 로 채워 순수 two-non-null CHECK 위반만 남긴다(FK orphan 배제).
         r = DomainSideEffectOutbox(
-            source_domain="WIZARD_PENDING", wizard_pending_id=1, upload_ticket_id=2,
+            source_domain="WIZARD_PENDING", wizard_pending_id=1, address_learning_request_id=2,
             effect_type=_marker(), payload={},
             available_at=_now(), created_at=_now(),
         )
@@ -360,8 +397,10 @@ def test_enqueue_commits_and_sets_only_one_fk(pg_engine):
     et = _marker()
     s = _session(pg_engine)
     try:
+        ticket = _make_upload_ticket(s)  # UPLOAD_TICKET 은 실 FK — 실존 부모 필요.
+        tid = ticket.id
         enqueue_side_effect(
-            s, source_domain="UPLOAD_TICKET", source_id=3,
+            s, source_domain="UPLOAD_TICKET", source_id=tid,
             effect_type=et, payload={}, dedupe_key="d-" + et,
             provider_idempotency_key="prov-1", schema_version=2,
         )
@@ -373,7 +412,7 @@ def test_enqueue_commits_and_sets_only_one_fk(pg_engine):
         rows = s2.query(DomainSideEffectOutbox).filter_by(effect_type=et).all()
         assert len(rows) == 1
         r = rows[0]
-        assert r.upload_ticket_id == 3
+        assert r.upload_ticket_id == tid
         assert r.wizard_pending_id is None and r.order_event_id is None
         assert r.status == "PENDING" and r.schema_version == 2
         assert r.provider_idempotency_key == "prov-1"

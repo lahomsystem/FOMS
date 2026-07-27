@@ -134,6 +134,44 @@ def dispatch(row: DomainSideEffectOutbox) -> None:
 
 
 # --------------------------------------------------------------------------- #
+# expiry-scan provider registry (인터페이스만 — 실 provider 는 도메인 packet 몫)
+# --------------------------------------------------------------------------- #
+# EXPIRY_SCAN loop 은 outbox lease reclaim 뒤 등록된 도메인 bounded-scan provider 를
+# 호출한다(예: UPLOAD-02 upload_cleanup 이 만료 ticket/draft 를 EXPIRED 로 claim 하고
+# STORAGE_DELETE outbox 를 만든다). provider 는 engine 을 받아 자기 advisory lock/세션/
+# commit 을 소유하는 bounded scan 을 1회 수행하고 카운트 dict 를 돌려준다. 이 registry 로
+# worker mechanics 를 도메인 로직과 분리한다(별도 scheduler/loop 를 만들지 않기 위함).
+ExpiryScanProvider = Callable[[Engine], dict]
+
+_EXPIRY_SCAN_PROVIDERS: dict[str, ExpiryScanProvider] = {}
+
+
+def register_expiry_scan_provider(
+    name: str, provider: ExpiryScanProvider, *, replace: bool = False
+) -> None:
+    """도메인 bounded-scan provider 를 300s expiry scan 에 등록한다(하류 packet 호출).
+
+    Args:
+        name: provider 식별자(결과 dict 키·중복 등록 판정).
+        provider: engine 을 받아 bounded scan 1회를 수행하고 카운트 dict 를 반환하는 callable.
+        replace: True 면 기존 등록을 덮어쓴다. 기본 False 는 중복 등록 거부(오배선 방지).
+
+    Raises:
+        ValueError: name 이 비었거나, replace 없이 이미 등록된 name 재등록.
+    """
+    if not name:
+        raise ValueError("provider name must be a non-empty string")
+    if not replace and name in _EXPIRY_SCAN_PROVIDERS:
+        raise ValueError(f"expiry-scan provider {name!r} already registered")
+    _EXPIRY_SCAN_PROVIDERS[name] = provider
+
+
+def clear_expiry_scan_providers() -> None:
+    """expiry-scan provider registry 를 비운다(테스트 격리용)."""
+    _EXPIRY_SCAN_PROVIDERS.clear()
+
+
+# --------------------------------------------------------------------------- #
 # claim / finalize (delivery core — caller 가 commit 소유)
 # --------------------------------------------------------------------------- #
 def backoff_seconds(
@@ -369,6 +407,48 @@ def reclaim_expired_once(
             s.commit()
     finally:
         s.close()
+
+
+def run_expiry_scan_once(
+    engine: Engine,
+    *,
+    max_attempts: int = DEFAULT_MAX_ATTEMPTS,
+    batch_size: int = DEFAULT_BATCH_SIZE,
+    backoff_base: int = DEFAULT_BACKOFF_BASE_SECONDS,
+    backoff_cap: int = DEFAULT_BACKOFF_CAP_SECONDS,
+    now_fn: Callable[[], datetime.datetime] = now_utc_naive,
+) -> dict:
+    """EXPIRY_SCAN 1회: outbox lease reclaim + 등록된 도메인 bounded-scan provider dispatch.
+
+    worker 의 300s expiry scan step 이 (구) ``reclaim_expired_once`` 대신 이 함수를 호출한다.
+    먼저 만료 lease 를 회수한 뒤, 등록된 provider(예: UPLOAD-02 upload_cleanup)를 순서대로
+    호출한다. **별도 scheduler/loop 를 만들지 않고** 기존 300s scan 에 provider 를 배선하는
+    유일 지점이다. 한 provider 실패는 로그로 남기고 다음 provider·다음 주기로 넘긴다(한
+    provider 오류가 lease reclaim 이나 다른 provider 를 막지 않음).
+
+    Args:
+        engine: 대상 DB 엔진.
+        max_attempts: reclaim 시 attempts 소진 판정 상한.
+        batch_size: reclaim 배치 크기.
+        backoff_base: reclaim 재큐 backoff base(초).
+        backoff_cap: reclaim 재큐 backoff cap(초).
+        now_fn: 기준 시각 factory.
+
+    Returns:
+        ``{"reclaim": <reclaim_expired_once 결과>, "providers": {name: <provider 결과>}}``.
+    """
+    reclaim = reclaim_expired_once(
+        engine, max_attempts=max_attempts, batch_size=batch_size,
+        backoff_base=backoff_base, backoff_cap=backoff_cap, now_fn=now_fn,
+    )
+    providers: dict[str, Any] = {}
+    for name, provider in list(_EXPIRY_SCAN_PROVIDERS.items()):
+        try:
+            providers[name] = provider(engine)
+        except Exception as exc:  # provider 실패는 삼키지 않고 로그(다음 주기 재시도)
+            _LOGGER.exception("[sidefx] expiry-scan provider %s failed", name)
+            providers[name] = {"error": repr(exc)}
+    return {"reclaim": reclaim, "providers": providers}
 
 
 def run_retention_once(

@@ -48,11 +48,13 @@ from foms.services.sidefx_worker import (  # noqa: E402
     WORKER_KIND_RETENTION,
     make_engine_from_env,
     oldest_pending_lag_seconds,
-    reclaim_expired_once,
+    register_expiry_scan_provider,
     run_delivery_once,
+    run_expiry_scan_once,
     run_retention_once,
     upsert_heartbeat,
 )
+from foms.services.upload_cleanup import run_upload_expiry_scan_once  # noqa: E402
 from sqlalchemy.engine import Engine  # noqa: E402
 from sqlalchemy.orm import sessionmaker  # noqa: E402
 
@@ -124,7 +126,7 @@ def _run_cycle(engine: Engine, args: argparse.Namespace, owner: str) -> dict:
         lease_seconds=args.lease_seconds, max_attempts=args.max_attempts,
         batch_size=args.batch_size,
     )
-    reclaim = reclaim_expired_once(
+    reclaim = run_expiry_scan_once(
         engine, max_attempts=args.max_attempts, batch_size=args.batch_size)
     retention = run_retention_once(engine, limit=args.retention_limit)
     _emit_heartbeats(engine, _Clock(now_utc_naive()))
@@ -149,7 +151,7 @@ def _run_loop(engine: Engine, args: argparse.Namespace, owner: str,
                 batch_size=args.batch_size), "delivery")
             next_delivery = mono + interval
         if mono >= next_expiry:
-            if _safe(lambda: reclaim_expired_once(
+            if _safe(lambda: run_expiry_scan_once(
                     engine, max_attempts=args.max_attempts, batch_size=args.batch_size),
                     "expiry-scan"):
                 clock.last_expiry_scan_at = now_utc_naive()
@@ -181,6 +183,9 @@ def main(argv: Optional[list[str]] = None) -> int:
     logging.basicConfig(level=logging.INFO, format="%(message)s")
     args = _parse_args(argv)
     owner = _owner_hash()
+    # UPLOAD-02: 만료 ticket/draft cleanup 을 300s expiry scan 에 배선(별도 scheduler 없음).
+    # replace=True 로 재시작·재-import 시 중복 등록을 idempotent 하게 처리한다.
+    register_expiry_scan_provider("upload_expiry", run_upload_expiry_scan_once, replace=True)
     try:
         engine = make_engine_from_env()
     except Exception:
