@@ -227,6 +227,46 @@ def test_paid_unconfirmed_kpi_counts_only_unconfirmed(client):
     assert re.search(r'data-as-incomplete-summary="paid_unconfirmed"[^>]*data-count="1"', body)
 
 
+# AS 표면의 필터 지속 계약: status/q/sort_dir/mine을 나르는 링크는 billing도 날라야 한다.
+# 하나라도 빠지면 탭 전환·정렬·페이지 이동 순간 비용 필터가 조용히 풀린다.
+_AS_LINK_TEMPLATES = (
+    "templates/cs/partials/as_dashboard_body.html",
+    "templates/cs/partials/as_mobile_controls.html",
+    "templates/cs/partials/tablet_as_compare_body.html",
+)
+
+
+@pytest.mark.parametrize("rel_path", _AS_LINK_TEMPLATES)
+def test_status_preserving_links_also_preserve_billing(rel_path):
+    """status를 보존하는 모든 AS 링크는 billing도 보존한다(초기화 링크는 status 미보존 → 면제)."""
+    lines = [
+        line
+        for line in (ROOT / rel_path).read_text(encoding="utf-8").splitlines()
+        if "erp_as_page.erp_as_dashboard" in line and "status=status_filter" in line
+    ]
+    assert lines, rel_path
+    missing = [line.strip() for line in lines if "billing=billing_filter" not in line]
+    assert not missing, missing
+
+
+def test_billing_survives_mobile_pager_and_js_navigation():
+    """모바일 페이저 쿼리 프리픽스와 JS 재이동(URL 화이트리스트)에도 billing이 남아야 한다."""
+    body = (ROOT / "templates/cs/partials/as_dashboard_body.html").read_text(encoding="utf-8")
+    js = (ROOT / "static/js/cs/as-dashboard.js").read_text(encoding="utf-8")
+    assert "_as_ctx.append('billing=' ~ billing_filter|urlencode)" in body
+    assert "'status', 'billing'" in js
+
+
+def test_billing_filter_persists_in_rendered_links(client):
+    """실제 렌더된 /erp/as 링크(탭·정렬·KPI pill) 전부가 billing=paid를 나른다."""
+    _login_as_admin(client)
+    _create_as_order(customer_name="유상건", shipment_extra={"as_billing": {"type": "paid"}})
+    body = client.get("/erp/as?tab=incomplete&billing=paid").get_data(as_text=True)
+    hrefs = re.findall(r'href="([^"]*/erp/as\?[^"]*)"', body)
+    assert hrefs
+    assert all("billing=paid" in href for href in hrefs), [h for h in hrefs if "billing=paid" not in h]
+
+
 def test_billing_filter_selects_are_present_on_both_cohorts(client):
     """데스크톱 필터 form과 모바일 offcanvas 양쪽에 같은 name/option의 billing select가 있어야 한다."""
     desktop = (ROOT / "templates/cs/partials/as_dashboard_body.html").read_text(encoding="utf-8")

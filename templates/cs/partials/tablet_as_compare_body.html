@@ -52,13 +52,14 @@
       <input type="hidden" name="sort_dir" value="{{ sort_dir or 'desc' }}">
       {% if as_bucket %}<input type="hidden" name="bucket" value="{{ as_bucket }}">{% endif %}
       {% if status_filter %}<input type="hidden" name="status" value="{{ status_filter }}">{% endif %}
+      {% if billing_filter %}<input type="hidden" name="billing" value="{{ billing_filter }}">{% endif %}
       {% if erp_mine_only %}<input type="hidden" name="mine" value="1">{% endif %}
       <i class="fas fa-search foms-as-compare-search__icon" aria-hidden="true"></i>
       <input type="search" class="foms-as-compare-search__input" name="q" value="{{ search_q or '' }}"
         placeholder="고객·연락처·주소·내용 검색" aria-label="AS 검색" enterkeyhint="search" autocomplete="off">
       {% if search_q %}
       <a class="foms-as-compare-search__clear"
-        href="{{ url_for('erp_as_page.erp_as_dashboard', tab=as_tab or 'incomplete', bucket=as_bucket or none, status=status_filter or '', sort_dir=sort_dir, mine='1' if erp_mine_only else '') }}"
+        href="{{ url_for('erp_as_page.erp_as_dashboard', tab=as_tab or 'incomplete', bucket=as_bucket or none, status=status_filter or '', billing=billing_filter or '', sort_dir=sort_dir, mine='1' if erp_mine_only else '') }}"
         aria-label="검색어 지우기"><i class="fas fa-times" aria-hidden="true"></i></a>
       {% endif %}
     </form>
@@ -76,19 +77,19 @@
   {# --- chip 서브탭: 영업/배송 · 미완료 · 완료 (PC nav-tabs 대체) --- #}
   <nav class="foms-as-compare-subtabs" aria-label="AS 분류">
     <a class="foms-as-compare-subtab{% if as_tab == 'sales_delivery' %} is-active{% endif %}"
-      href="{{ url_for('erp_as_page.erp_as_dashboard', tab='sales_delivery', status=status_filter or '', q=search_q or '', sort_dir=sort_dir, mine='1' if erp_mine_only else '') }}"
+      href="{{ url_for('erp_as_page.erp_as_dashboard', tab='sales_delivery', status=status_filter or '', billing=billing_filter or '', q=search_q or '', sort_dir=sort_dir, mine='1' if erp_mine_only else '') }}"
       {% if as_tab == 'sales_delivery' %}aria-current="true"{% endif %}>
       <i class="fas fa-truck" aria-hidden="true"></i><span>영업/배송</span>
       <span class="foms-as-compare-subtab__count">{{ as_tab_counts.sales_delivery }}</span>
     </a>
     <a class="foms-as-compare-subtab{% if as_tab == 'incomplete' %} is-active{% endif %}"
-      href="{{ url_for('erp_as_page.erp_as_dashboard', tab='incomplete', status=status_filter or '', q=search_q or '', sort_dir=sort_dir, mine='1' if erp_mine_only else '') }}"
+      href="{{ url_for('erp_as_page.erp_as_dashboard', tab='incomplete', status=status_filter or '', billing=billing_filter or '', q=search_q or '', sort_dir=sort_dir, mine='1' if erp_mine_only else '') }}"
       {% if as_tab == 'incomplete' %}aria-current="true"{% endif %}>
       <i class="fas fa-circle-exclamation" aria-hidden="true"></i><span>미완료</span>
       <span class="foms-as-compare-subtab__count">{{ as_tab_counts.incomplete }}</span>
     </a>
     <a class="foms-as-compare-subtab{% if as_tab == 'completed' %} is-active{% endif %}"
-      href="{{ url_for('erp_as_page.erp_as_dashboard', tab='completed', status=status_filter or '', q=search_q or '', sort_dir=sort_dir, mine='1' if erp_mine_only else '') }}"
+      href="{{ url_for('erp_as_page.erp_as_dashboard', tab='completed', status=status_filter or '', billing=billing_filter or '', q=search_q or '', sort_dir=sort_dir, mine='1' if erp_mine_only else '') }}"
       {% if as_tab == 'completed' %}aria-current="true"{% endif %}>
       <i class="fas fa-circle-check" aria-hidden="true"></i><span>완료</span>
       <span class="foms-as-compare-subtab__count">{{ as_tab_counts.completed }}</span>

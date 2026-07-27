@@ -390,7 +390,7 @@
     function buildAsDashboardUrl(overrides = {}) {
       const currentParams = new URLSearchParams(window.location.search);
       const params = new URLSearchParams();
-      ['tab', 'focus_order', 'sort_dir', 'mine', 'status', 'q', 'date'].forEach((key) => {
+      ['tab', 'focus_order', 'sort_dir', 'mine', 'status', 'billing', 'q', 'date'].forEach((key) => {
         const value = currentParams.get(key);
         if (value) {
           params.set(key, value);
