@@ -119,6 +119,36 @@ def test_log_append_ignores_client_ts(client):
     assert entry["by"] == "AS 로그 관리자"
 
 
+def test_log_append_sanitizes_text(client):
+    """본문은 sanitize를 통과한 뒤에만 저장·렌더된다(매크로가 |safe로 뿌리는 값).
+
+    sanitize 배선이 빠지면 script와 미종결 태그가 저장·응답 html에 원문으로 남는다.
+    """
+    _login_as_admin(client, username="as-log-sanitize-admin")
+    order_id = _create_as_order().id
+    res = client.post(f"/api/orders/{order_id}/as/log", json={
+        "type": "memo",
+        "text": '<script>alert(1)</script><b>굵게</b><a href="http://x">링크</a> hi <img src=x onerror=alert(9);//',
+    })
+    data = res.get_json()
+    assert res.status_code == 200
+    for payload in (data["entry"]["text"], data["html"], _as_log(order_id)[-1]["text"]):
+        assert "<script" not in payload and "<img" not in payload and "<a " not in payload
+        assert "&lt;img" in payload
+    assert "<b>굵게</b>" in data["entry"]["text"]  # 허용 서식은 보존
+
+
+def test_log_append_rejects_overlong_text(client):
+    """append-only 리스트의 무한 성장 방지 — 상한 초과는 400이고 저장되지 않는다."""
+    _login_as_admin(client, username="as-log-toolong-admin")
+    order_id = _create_as_order().id
+    res = client.post(f"/api/orders/{order_id}/as/log",
+                      json={"type": "memo", "text": "가" * 10001})
+    assert res.status_code == 400 and res.get_json()["success"] is False
+    db_session.expire_all()
+    assert "as_log" not in db_session.get(Order, order_id).structured_data["shipment"]
+
+
 def test_log_append_404_for_missing_order(client):
     _login_as_admin(client, username="as-log-404-admin")
     res = client.post("/api/orders/999999/as/log", json={"type": "memo", "text": "메모"})
@@ -201,6 +231,29 @@ def test_log_patch_rejects_system_entry(client):
     res = client.patch(f"/api/orders/{order_id}/as/log/al_sys_1", json={"text": "위조"})
     assert res.status_code == 400 and res.get_json()["success"] is False
     assert _as_log(order_id)[0]["text"] == "AS 비용 확정"
+
+
+def test_log_patch_sanitizes_text(client):
+    """PATCH도 append와 같은 sanitize·길이 검증을 통과해야 한다(우회 경로 금지)."""
+    _login_as_admin(client, username="as-log-patch-sanitize-admin")
+    order_id = _create_as_order().id
+    log_id = _append_as(client, _make_user("as-log-author6", role="STAFF"), order_id)
+    _login_as_admin(client, username="as-log-patch-sanitize-admin2")
+
+    res = client.patch(f"/api/orders/{order_id}/as/log/{log_id}", json={
+        "text": '<script>alert(1)</script><b>수정</b> hi <img src=x onerror=alert(9);//',
+    })
+    data = res.get_json()
+    assert res.status_code == 200
+    for payload in (data["entry"]["text"], data["html"], _as_log(order_id)[-1]["text"]):
+        assert "<script" not in payload and "<img" not in payload
+        assert "&lt;img" in payload
+    assert "<b>수정</b>" in data["entry"]["text"]
+
+    too_long = client.patch(f"/api/orders/{order_id}/as/log/{log_id}",
+                            json={"text": "가" * 10001})
+    assert too_long.status_code == 400 and too_long.get_json()["success"] is False
+    assert "<b>수정</b>" in _as_log(order_id)[-1]["text"]  # 거부된 요청은 본문 불변
 
 
 def test_log_patch_unknown_id_404(client):

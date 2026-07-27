@@ -32,6 +32,25 @@ def test_sanitize_as_content_html_preserves_only_supported_rich_markup() -> None
     assert '링크' in sanitized
 
 
+def test_sanitize_escapes_unterminated_tag_at_top_level() -> None:
+    """미종결 태그는 원문 통과 금지 — 렌더 측 |safe + 뒤 마크업이 태그를 완성해 실행된다.
+
+    top-level 텍스트 노드를 str()로 이어붙이면 이스케이프가 걸리지 않아
+    `hi <img src=x onerror=alert(9);//` 가 그대로 저장·출력됐다.
+    """
+    sanitized = sanitize_as_content_html("hi <img src=x onerror=alert(9);//")
+
+    assert "<img" not in sanitized
+    assert sanitized == "hi &lt;img src=x onerror=alert(9);//"
+
+
+def test_sanitize_escapes_bare_angle_and_ampersand_in_text() -> None:
+    """허용 태그는 보존하면서 인접 평문의 `<`/`&`만 이스케이프한다."""
+    sanitized = sanitize_as_content_html("<b>굵게</b> a < b & c")
+
+    assert sanitized == "<b>굵게</b> a &lt; b &amp; c"
+
+
 def test_as_content_html_to_text_normalizes_line_breaks() -> None:
     html = "<div>첫째<br/>둘째</div><ul><li>셋째</li></ul>"
 

@@ -100,7 +100,11 @@ def sanitize_as_content_html(value: Any) -> str:
         tag.attrs = {}
 
     root = soup.body or soup
-    return ''.join(str(child) for child in root.contents).strip()
+    # decode_contents()는 minimal formatter로 텍스트 노드의 `<`/`&`를 이스케이프한다.
+    # str(child) 조합은 top-level NavigableString을 원문 그대로 흘려 미종결 태그
+    # (`hi <img src=x onerror=...`)가 살아남았고, 렌더 측 |safe + 뒤따르는 마크업이
+    # 태그를 완성해 실행됐다. 허용 태그는 이미 attrs가 정리된 Tag라 그대로 보존된다.
+    return root.decode_contents().strip()
 
 
 def as_content_html_to_text(value: Any) -> str:

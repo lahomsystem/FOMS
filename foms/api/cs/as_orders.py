@@ -536,6 +536,21 @@ def _render_as_log_entry(entry: dict) -> str:
     )
 
 
+# as_log는 append-only라 항목당 상한이 없으면 sd가 무한히 커진다(도면 위저드 64KB 캡 선례).
+# ponytail: 항목당 sanitize 후 문자 수 캡. 리스트 총량 캡이 필요해지면 append 시점 트리밍으로.
+_AS_LOG_TEXT_MAX = 10000
+
+
+def _clean_as_log_text(raw: object) -> str:
+    """AS 기록 본문 sanitize + 길이 검증. 위반은 ValueError(호출부에서 400)."""
+    text = sanitize_as_content_html(raw)
+    if not text:
+        raise ValueError("내용을 입력해주세요.")
+    if len(text) > _AS_LOG_TEXT_MAX:
+        raise ValueError("내용이 너무 깁니다.")
+    return text
+
+
 @erp_orders_as_bp.route("/<int:order_id>/as/log", methods=["POST"])
 @login_required
 @erp_edit_required
@@ -550,12 +565,10 @@ def api_as_log_append(order_id: int):
         data = request.get_json(silent=True) or {}
         try:
             log_type = coerce_client_log_type(data.get("type"))
+            text = _clean_as_log_text(data.get("text"))
         except ValueError as ve:
             # 검증 실패는 400. 409는 낙관/무결성 전용(structured_data 로드 실패 등).
             return jsonify({"success": False, "message": str(ve)}), 400
-        text = sanitize_as_content_html(data.get("text"))
-        if not text:
-            return jsonify({"success": False, "message": "내용을 입력해주세요."}), 400
 
         user = get_user_by_id(session.get("user_id"))
         sd = _load_order_structured_data_for_update(order)
@@ -569,9 +582,12 @@ def api_as_log_append(order_id: int):
         sync_erp_flat_columns(order, sd)
         db.add(SecurityLog(
             user_id=session.get("user_id"), message=f"주문 #{order_id} AS 기록 추가"))
+        # 렌더는 commit 앞에서 — 템플릿 오류가 "저장은 됐는데 500"이 되면
+        # 클라 재시도가 append-only 리스트에 중복 항목을 남긴다.
+        html = _render_as_log_entry(entry)
         db.commit()
         _invalidate_shipment_asrec_caches("api_as_log_append")
-        return jsonify({"success": True, "entry": entry, "html": _render_as_log_entry(entry)})
+        return jsonify({"success": True, "entry": entry, "html": html})
     except ValueError as e:
         db.rollback()
         return jsonify({"success": False, "message": str(e)}), 409
@@ -594,9 +610,10 @@ def api_as_log_patch(order_id: int, log_id: str):
         if log_id.startswith("al_legacy_"):
             return jsonify({"success": False, "message": "이전 기록은 수정할 수 없습니다."}), 400
 
-        text = sanitize_as_content_html((request.get_json(silent=True) or {}).get("text"))
-        if not text:
-            return jsonify({"success": False, "message": "내용을 입력해주세요."}), 400
+        try:
+            text = _clean_as_log_text((request.get_json(silent=True) or {}).get("text"))
+        except ValueError as ve:
+            return jsonify({"success": False, "message": str(ve)}), 400
 
         user = get_user_by_id(session.get("user_id"))
         is_admin = bool(user and (user.role or "").upper() == "ADMIN")
@@ -620,9 +637,10 @@ def api_as_log_patch(order_id: int, log_id: str):
         db.add(SecurityLog(
             user_id=session.get("user_id"),
             message=f"주문 #{order_id} AS 기록 수정({log_id})"))
+        html = _render_as_log_entry(target)  # commit 앞 렌더(append와 동일 이유)
         db.commit()
         _invalidate_shipment_asrec_caches("api_as_log_patch")
-        return jsonify({"success": True, "entry": target, "html": _render_as_log_entry(target)})
+        return jsonify({"success": True, "entry": target, "html": html})
     except ValueError as e:
         db.rollback()
         return jsonify({"success": False, "message": str(e)}), 409
