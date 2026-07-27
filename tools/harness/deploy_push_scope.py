@@ -68,8 +68,15 @@ def list_unpushed_deploy_shas(project_root: str) -> tuple[str, ...]:
 
 
 def _is_session_worktree(project_root: str) -> bool:
-    """세션 worktree(c:/tmp/foms-s-*) 여부 — 경로 basename 프리픽스 판정."""
-    return os.path.basename(os.path.normpath(project_root)).startswith("foms-s-")
+    """세션 worktree(c:/tmp/foms-s-*) 여부 — 경로 basename 프리픽스 판정.
+
+    파라미터:
+        project_root: 저장소 루트(또는 worktree) 경로.
+    반환:
+        basename 이 `foms-s-` 로 시작하면 True. Windows 경로는 대소문자를
+        구분하지 않으므로 소문자로 비교한다.
+    """
+    return os.path.basename(os.path.normpath(project_root)).lower().startswith("foms-s-")
 
 
 def classify_deploy_scope(

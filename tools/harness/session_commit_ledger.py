@@ -65,6 +65,20 @@ def normalize_session_id(session_id: str | None) -> str:
     return sid if sid else "unknown"
 
 
+def _clean_sha(sha: str) -> str:
+    """SHA 를 정규화한다(소문자·공백 제거).
+
+    파라미터:
+        sha: 커밋 해시 후보(abbrev 허용).
+    반환:
+        정규화된 SHA. 비었거나 hex 가 아니면 빈 문자열(=기록 대상 아님).
+    """
+    sha = (sha or "").strip().lower()
+    if not sha or not all(c in "0123456789abcdef" for c in sha):
+        return ""
+    return sha
+
+
 def append_commit(project_root: str, session_id: str | None, sha: str) -> None:
     """세션 레저에 커밋 SHA 를 append 한다(중복 무시).
 
@@ -73,8 +87,8 @@ def append_commit(project_root: str, session_id: str | None, sha: str) -> None:
         session_id: 훅 session/conversation id.
         sha: 커밋 해시(abbrev 허용).
     """
-    sha = (sha or "").strip().lower()
-    if not sha or not all(c in "0123456789abcdef" for c in sha):
+    sha = _clean_sha(sha)
+    if not sha:
         return
     sid = normalize_session_id(session_id)
     data = load_ledger(project_root)
@@ -117,17 +131,36 @@ def all_known_shas(project_root: str) -> list[str]:
 
     세션 worktree 소유 판정용: worktree-로컬 ledger 에는 이 worktree 에서
     만든 커밋만 쌓이므로 union ⊇ push 범위 ⇔ own.
+
+    파라미터:
+        project_root: 저장소 루트.
+    반환:
+        정규화·중복 제거된 SHA 목록(등장 순서 유지). 손상 엔트리는 건너뛴다.
     """
-    data = load_ledger(project_root)
     out: list[str] = []
-    for entry in data.get("sessions", {}).values():
-        out.extend(s for s in entry.get("shas", []) if isinstance(s, str))
-    return out
+    for entry in load_ledger(project_root).get("sessions", {}).values():
+        if not isinstance(entry, dict):
+            continue
+        for raw in entry.get("shas") or []:
+            sha = _clean_sha(raw) if isinstance(raw, str) else ""
+            if sha:
+                out.append(sha)
+    return list(dict.fromkeys(out))
 
 
 def latest_session_id(project_root: str) -> str | None:
-    """updated_at 이 가장 최근인 세션 id. 세션이 없으면 None."""
-    sessions = load_ledger(project_root).get("sessions", {})
+    """updated_at 이 가장 최근인 세션 id.
+
+    파라미터:
+        project_root: 저장소 루트.
+    반환:
+        최근 세션 id. 세션이 없으면 None. 손상 엔트리는 후보에서 제외한다.
+    """
+    sessions = {
+        sid: entry
+        for sid, entry in load_ledger(project_root).get("sessions", {}).items()
+        if isinstance(entry, dict)
+    }
     if not sessions:
         return None
     return max(sessions.items(), key=lambda kv: kv[1].get("updated_at", ""))[0]
@@ -138,11 +171,19 @@ def set_session_shas(project_root: str, session_id: str | None, shas: list[str])
 
     스키마·타임스탬프(_now_iso, tz-aware UTC)는 이 SSOT 가 관리한다 —
     외부에서 ledger dict 를 직접 재작성하지 말 것.
+
+    파라미터:
+        project_root: 저장소 루트.
+        session_id: 훅 session/conversation id (없으면 unknown 버킷).
+        shas: 교체할 커밋 해시 목록. 빈 값·비 hex 는 append_commit 과
+            동일 기준(_clean_sha)으로 걸러진다.
+    반환:
+        없음(레저 파일을 갱신한다).
     """
     sid = normalize_session_id(session_id)
     data = load_ledger(project_root)
     data.setdefault("sessions", {})[sid] = {
-        "shas": [s.strip().lower() for s in shas if s and s.strip()],
+        "shas": [sha for sha in (_clean_sha(s) for s in shas) if sha],
         "updated_at": _now_iso(),
     }
     save_ledger(project_root, data)

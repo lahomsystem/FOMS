@@ -134,7 +134,7 @@ def _commit_file(local: Path, name: str) -> str:
     _git(local, "add", name)
     _git(local, "-c", "user.email=t@t", "-c", "user.name=t", "commit", "-m", name)
     return subprocess.check_output(
-        ["git", "rev-parse", "HEAD"], cwd=local, text=True
+        ["git", "rev-parse", "HEAD"], cwd=local, text=True, encoding="utf-8"
     ).strip()
 
 
