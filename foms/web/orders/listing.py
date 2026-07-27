@@ -26,6 +26,7 @@ from foms.services.orders.order_create import (
     create_order,
     resolve_order_owner,
 )
+from foms.services.order_copy import OrderCopyError, copy_orders_batch
 from foms.services.erp_display import erp_deposit_amount_from_structured
 from foms.services.datetime_kst import get_today_kst, now_kst, now_utc_naive
 from foms.services.request_utils import (
@@ -587,41 +588,28 @@ def bulk_action():
                     failed_count += 1
 
         elif action == 'copy':
-            now = now_kst()
-            today_str = now.strftime('%Y-%m-%d')
-            time_str = now.strftime('%H:%M')
-
-            order_ids = [int(order_id) for order_id in selected_ids]
-            originals_by_id = {
-                order.id: order
-                for order in db.query(Order).filter(Order.id.in_(order_ids)).all()  # perf-ok
-            }
-            for order_id in selected_ids:
-                original_order = originals_by_id.get(int(order_id))
-                if original_order:
-                    copied_order = Order()
-                    for column in Order.__table__.columns:
-                        col_name = column.name
-                        if col_name not in ['id', 'status', 'received_date', 'received_time',
-                                            'customer_name', 'notes', 'measurement_date', 'measurement_time',
-                                            'completion_date', 'original_status', 'deleted_at']:
-                            setattr(copied_order, col_name, getattr(original_order, col_name))
-                    setattr(copied_order, 'status', 'RECEIVED')
-                    setattr(copied_order, 'received_date', today_str)
-                    setattr(copied_order, 'received_time', time_str)
-                    setattr(copied_order, 'customer_name', f"[복사: 원본 #{original_order.id}] {getattr(original_order, 'customer_name', '')}")
-                    original_notes = getattr(original_order, 'notes', None) or ""
-                    setattr(copied_order, 'notes', f"원본 주문 #{original_order.id} 에서 복사됨.\n---\n" + original_notes)
-                    setattr(copied_order, 'measurement_date', None)
-                    setattr(copied_order, 'measurement_time', None)
-                    setattr(copied_order, 'completion_date', None)
-                    db.add(copied_order)
-                    db.flush()
-                    log_access(f"주문 #{original_order.id}를 새 주문 #{copied_order.id}로 복사 (일괄 작업)",
-                               current_user_id, {"original_order_id": original_order.id, "new_order_id": copied_order.id})
-                    processed_count += 1
-                else:
-                    failed_count += 1
+            # ORDER-COPY-01: raw Order() column clone 제거 → create_order 경유 fresh
+            # identity(all-or-none). 하나라도 없거나 owner 정책 위반이면 전체 abort.
+            actor = get_user_by_id(current_user_id)
+            try:
+                copied = copy_orders_batch(
+                    db,
+                    actor=actor,
+                    order_ids=[int(order_id) for order_id in selected_ids],
+                    requested_owner_user_id=_form_owner_user_id(request.form),
+                )
+            except (OrderCopyError, OrderCreateError) as copy_exc:
+                db.rollback()
+                flash(str(copy_exc), 'error')
+                redirect_args = get_preserved_filter_args(request.args)
+                return redirect(url_for('order_pages.index', **redirect_args))
+            for original_id, new_order in copied:
+                log_access(
+                    f"주문 #{original_id}를 새 주문 #{new_order.id}로 복사 (일괄 작업)",
+                    current_user_id,
+                    {"original_order_id": original_id, "new_order_id": new_order.id},
+                )
+                processed_count += 1
 
         elif action.startswith('status_'):
             new_status = action.split('_', 1)[1]
