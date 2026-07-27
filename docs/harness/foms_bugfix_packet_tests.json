@@ -2158,9 +2158,22 @@
    "write_guard": true,
    "postgres": true
   },
-  "commands": [],
-  "existing_regressions": [],
-  "created_tests": [],
+  "commands": [
+   "python -m pytest tests/domains/test_order_copy_api.py -q"
+  ],
+  "existing_regressions": [
+   "tests/domains/test_order_create_service.py"
+  ],
+  "created_tests": [
+   {
+    "path": "tests/postgres/test_order_copy.py",
+    "owner_packet": "ORDER-COPY-01"
+   },
+   {
+    "path": "tests/domains/test_order_copy_api.py",
+    "owner_packet": "ORDER-COPY-01"
+   }
+  ],
   "browser_scenarios": [],
   "deploy_check_ids": [],
   "deployment_evidence_mode": "HEARTBEAT"
@@ -2584,9 +2597,18 @@
    "write_guard": true,
    "postgres": true
   },
-  "commands": [],
-  "existing_regressions": [],
-  "created_tests": [],
+  "commands": [
+   "python -m pytest tests/postgres/test_upload_intent.py -q"
+  ],
+  "existing_regressions": [
+   "tests/postgres/test_sidefx_outbox.py"
+  ],
+  "created_tests": [
+   {
+    "path": "tests/postgres/test_upload_intent.py",
+    "owner_packet": "UPLOAD-INTENT-01"
+   }
+  ],
   "browser_scenarios": [],
   "deploy_check_ids": [],
   "deployment_evidence_mode": "HEARTBEAT"
