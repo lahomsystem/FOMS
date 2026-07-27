@@ -880,6 +880,9 @@
           if (stream) {
             stream.insertAdjacentHTML('afterbegin', data.html); // optimistic prepend
             highlightTimelineStatic(stream);
+            // 첫 기록이면 "기록 없음" 안내가 새 항목 옆에 남는다 — 서버 재렌더 없이 치운다.
+            const empty = form.parentElement.querySelector('.as-timeline__empty');
+            if (empty) empty.remove();
           }
           textEl.value = '';
           if (typeEl) typeEl.value = 'memo'; // 저장 후 memo 리셋(스펙 5.5)

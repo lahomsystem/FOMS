@@ -218,6 +218,9 @@ def test_quick_add_is_wired_with_ime_safe_shortcut():
     assert "!e.isComposing && e.keyCode !== 229" in js
     assert "stream.insertAdjacentHTML('afterbegin', data.html)" in js
     assert "if (!data.success) throw new Error" in js
+    # 첫 기록 삽입 후 "기록 없음" 안내가 새 항목 옆에 남으면 안 된다
+    assert ".as-timeline__empty" in js
+    assert "if (empty) empty.remove();" in js
 
 
 def test_quick_add_form_opts_out_of_shell_navigation(client):
