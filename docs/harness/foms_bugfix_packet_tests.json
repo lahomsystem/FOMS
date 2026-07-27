@@ -987,9 +987,22 @@
    "write_guard": true,
    "postgres": true
   },
-  "commands": [],
-  "existing_regressions": [],
-  "created_tests": [],
+  "commands": [
+   "python -m pytest tests/domains/test_password_policy.py -q"
+  ],
+  "existing_regressions": [
+   "tests/contracts/runtime/foms_namespace_surface_tests.py"
+  ],
+  "created_tests": [
+   {
+    "path": "tests/domains/test_password_policy.py",
+    "owner_packet": "PASSWORD-POLICY-01"
+   },
+   {
+    "path": "tests/postgres/test_password_policy.py",
+    "owner_packet": "PASSWORD-POLICY-01"
+   }
+  ],
   "browser_scenarios": [],
   "deploy_check_ids": [],
   "deployment_evidence_mode": "PROVIDER_BOOTSTRAP"
@@ -2357,9 +2370,22 @@
    "write_guard": true,
    "postgres": true
   },
-  "commands": [],
-  "existing_regressions": [],
-  "created_tests": [],
+  "commands": [
+   "python -m pytest tests/domains/test_wiz_put.py -q"
+  ],
+  "existing_regressions": [
+   "tests/domains/test_drawing_wizard_api.py"
+  ],
+  "created_tests": [
+   {
+    "path": "tests/domains/test_wiz_put.py",
+    "owner_packet": "WIZ-01"
+   },
+   {
+    "path": "tests/postgres/test_wiz_put_pg.py",
+    "owner_packet": "WIZ-01"
+   }
+  ],
   "browser_scenarios": [],
   "deploy_check_ids": [],
   "deployment_evidence_mode": "PROVIDER_BOOTSTRAP"
@@ -2809,9 +2835,18 @@
    "write_guard": false,
    "postgres": false
   },
-  "commands": [],
-  "existing_regressions": [],
-  "created_tests": [],
+  "commands": [
+   "python -m pytest tests/domains/test_startup_pure.py -q"
+  ],
+  "existing_regressions": [
+   "tests/domains/test_app_init.py"
+  ],
+  "created_tests": [
+   {
+    "path": "tests/domains/test_startup_pure.py",
+    "owner_packet": "STARTUP-PURE-01"
+   }
+  ],
   "browser_scenarios": [],
   "deploy_check_ids": [],
   "deployment_evidence_mode": "PROVIDER_BOOTSTRAP"
