@@ -53,6 +53,14 @@ IDEMPOTENCY_REPLAY_WINDOW = datetime.timedelta(hours=24)
 MAX_RESOURCES = 1000  # 단건/batch/copy/import 정규화 상한 (§2.4 line 405)
 NO_STORE_HEADERS = {"Cache-Control": "private, no-store"}
 
+# REV-99 전역 If-Match 강제(428) config flag. 켜지면 mutation route 는
+# ``require_if_match=if_match_enforced()`` 로 위임해, expected_version 누락 요청을
+# PreconditionRequiredError(428) 로 막는다. **안전 기본값 OFF** — 클라이언트가 아직
+# If-Match 를 전송하지 않는 단계에서 즉시 전역 강제하면 라이브 mutation 이 대량 428 로
+# 파손되므로, WRITE-GUARD 관례와 달리 ``not TESTING`` 이 아니라 명시 opt-in(False) 이
+# 기본이다. 점진 배포는 endpoint 별 cutover 후 이 flag 를 켜는 하류 packet 몫.
+IF_MATCH_ENFORCED_CONFIG = "REV_IF_MATCH_ENFORCED"
+
 # mutation 콜러블: 잠근 Order 목록을 받아 업무 변경을 수행하고, order_id → changed cache
 # family 목록을 돌려준다(REV-00 은 family 를 계산하지 않고 보관만 한다). None/누락은 [].
 MutationCallable = Callable[[Session, "list[Order]"], "Optional[Mapping[int, Sequence[str]]]"]
@@ -144,6 +152,26 @@ def _replay(receipt: OrderMutationReceipt) -> MutationResult:
         read_receipt_id=str(receipt.read_receipt_id),
         replayed=True,
     )
+
+
+def if_match_enforced() -> bool:
+    """전역 If-Match 강제(428) 를 이 요청에서 적용할지(REV-99 enforcement flag).
+
+    mutation route 는 ``require_if_match=if_match_enforced()`` 로 위임해, flag ON 이면
+    expected_version 누락 mutation 을 :class:`PreconditionRequiredError` (428) 로 막는다.
+
+    Returns:
+        config ``REV_IF_MATCH_ENFORCED`` 값(있으면). 없으면 **안전 기본값 False** —
+        클라 If-Match 미전송 단계의 라이브 파손을 막는 opt-in 기본. app context 밖
+        (설정 없음)에서도 False 로 폴백해 강제하지 않는다.
+    """
+    try:
+        from flask import current_app
+
+        return bool(current_app.config.get(IF_MATCH_ENFORCED_CONFIG, False))
+    except RuntimeError:
+        # app context 밖(백그라운드/CLI): 강제 근거가 없으므로 안전 기본 OFF.
+        return False
 
 
 def execute_order_mutation(
