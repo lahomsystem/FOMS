@@ -133,9 +133,12 @@ def test_as_register_clears_erp_draft_so_as_dashboard_lists_order(client, monkey
     db_session.expire_all()
     saved_order = db_session.get(Order, order_id)
     assert saved_order is not None
+    # STATE-AS-01: AS 는 orthogonal overlay 라 main workflow.stage 를 AS_RECEIVED 로 덮지
+    # 않는다(main stage 오염 금지). order.status 는 as_lifecycle overlay projection 으로
+    # AS_RECEIVED 이고, workflow.stage 는 draft 의 main 파이프라인(RECEIVED)을 보존한다.
     assert saved_order.status == "AS_RECEIVED"
     assert saved_order.structured_data["meta"]["draft"] is False
-    assert saved_order.structured_data["workflow"]["stage"] == "AS_RECEIVED"
+    assert saved_order.structured_data["workflow"]["stage"] == "RECEIVED"
 
     visible = (
         db_session.query(Order)

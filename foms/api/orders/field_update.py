@@ -37,7 +37,9 @@ ORDER_UPDATE_ALLOWED_FIELDS = [
     "regional_cargo_sent",
     "regional_construction_info_sent",
     "as_received_date",
-    "as_completed_date",
+    # STATE-AS-01: as_completed_date generic write 제거(§보고서 §2.2.1). 완료는 canonical
+    # AS_COMPLETE(/api/orders/<id>/as/complete) 전이만 소유 — generic 경로가 order.status/
+    # workflow.stage 를 AS_COMPLETED 로 덮던 AS main stage 복구 antipattern 을 차단한다.
     "as_visit_date",
     "as_content",
     "as_content_2",
@@ -278,7 +280,7 @@ def update_order_field_response(
         structured_data: dict[str, Any] = {}
         structured_changed = False
         old_sd_snapshot: dict[str, Any] = {}
-        if field == "as_completed_date" or is_erp_order or field in STRUCTURED_SYNC_FIELDS:
+        if is_erp_order or field in STRUCTURED_SYNC_FIELDS:
             structured_data = _load_order_structured_data_for_update(order)
             old_sd_snapshot = copy.deepcopy(structured_data)
 
@@ -317,26 +319,6 @@ def update_order_field_response(
                 workflow["stage"] = value
                 workflow["stage_updated_at"] = now_utc_naive().isoformat()
                 structured_changed = True
-
-        if field == "as_completed_date":
-            shipment = ensure_path(structured_data, "shipment")
-            if value:
-                setattr(order, "status", "AS_COMPLETED")
-                if is_erp_order:
-                    workflow = ensure_path(structured_data, "workflow")
-                    workflow["stage"] = "AS_COMPLETED"
-                    workflow["stage_updated_at"] = now_utc_naive().isoformat()
-                    structured_changed = True
-                if shipment.get("as_pending"):
-                    shipment["as_pending"] = False
-                    structured_changed = True
-            else:
-                setattr(order, "status", "AS_RECEIVED")
-                if is_erp_order:
-                    workflow = ensure_path(structured_data, "workflow")
-                    workflow["stage"] = "AS_RECEIVED"
-                    workflow["stage_updated_at"] = now_utc_naive().isoformat()
-                    structured_changed = True
 
         if is_erp_order or field in (
             "as_content",

@@ -1,26 +1,39 @@
-"""
-ERP 주문 AS(설치) API. (Phase 4-5h)
-erp.py에서 분리: as/start, as/complete, as/schedule.
+"""ERP 주문 AS(사후관리) API — canonical AS cycle 전이(STATE-AS-01).
+
+erp.py 에서 분리된 as/start·as/complete·as/register·as/schedule 을 canonical
+``as_lifecycle`` cycle 상태기계(:mod:`foms.services.orders.as_cycle_service`)로 이관한다.
+전이는 orthogonal AS 축(cycle transition history)만 쓰고 ``workflow.stage`` 를 AS_* 로
+덮지 않는다(AS main stage 복구/오염 금지). ``order.status`` 는 legacy projection 으로
+재계산되는 overlay 이며, version bump·idempotency receipt·``OrderEvent`` parity 는 REV-00
+:func:`execute_order_mutation` 이 원자 보장한다(commit 은 이 route 소유).
 """
 import copy
 import datetime
-from foms.services.datetime_kst import now_utc_naive
+import hashlib
+import json
 import logging
+from typing import Any, Optional
 
 from flask import Blueprint, jsonify, request, session
 from sqlalchemy.orm.attributes import flag_modified
 
 from foms.web.auth import get_user_by_id, login_required
 from db import get_db
-from foms.services.as_content_safety import (
-    load_structured_data_dict_or_raise,
-    sanitize_as_content_html,
-)
+from foms.services.as_content_safety import sanitize_as_content_html
 from foms.services.erp_display import get_today_kst
 from foms.services.erp_permissions import erp_construction_edit_required, erp_edit_required
-from foms.services.erp_sync_columns import sync_erp_flat_columns
-from foms.services.erp_utils import ensure_path
-from models import Order, OrderEvent, SecurityLog
+from foms.services.orders.as_cycle_service import (
+    ASCycleError,
+    complete_as_cycle,
+    register_as_cycle,
+    reopen_as_cycle,
+    schedule_as_cycle,
+    set_as_classification,
+    start_as_cycle,
+    unschedule_as_cycle,
+)
+from foms.services.orders.revision import RevisionError
+from models import Order, SecurityLog
 
 logger = logging.getLogger(__name__)
 
@@ -34,9 +47,8 @@ erp_orders_as_bp = Blueprint(
 def _invalidate_shipment_asrec_caches(reason: str) -> None:
     """Dashboard + shipment AS recommendation cache bust (commit-after, best-effort).
 
-    Tier A(broad): AS start/complete/register 는 order.status(AS↔CS↔AS_RECEIVED)와
-    workflow.stage_updated_at 를 바꿔 여러 탭(주문/시공/완료/출고 추천) 사이 이동을
-    유발하므로 전체 무효화를 유지한다.
+    Tier A(broad): AS 전이는 order.status(AS↔CS↔AS_RECEIVED)와 stage projection 을 바꿔
+    여러 탭(주문/시공/완료/출고 추천) 사이 이동을 유발하므로 전체 무효화를 유지한다.
     """
     try:
         from foms.services.common.dashboard_cache import invalidate_all_dashboard_slice_caches
@@ -54,16 +66,6 @@ def _invalidate_shipment_asrec_caches(reason: str) -> None:
         logger.warning("[AS-REC] shipment asrec cache invalidate failed (%s)", reason, exc_info=True)
 
 
-def _load_order_structured_data_for_update(order):
-    """structured_data가 안전할 때만 AS 쓰기 작업 진행."""
-    try:
-        return load_structured_data_dict_or_raise(getattr(order, "structured_data", None))
-    except ValueError as exc:
-        raise ValueError(
-            f"structured_data를 안전하게 불러올 수 없어 저장을 중단했습니다: {exc}"
-        ) from exc
-
-
 def _confirmed_construction_worker_name(user) -> str:
     """Return the construction worker name confirmed by the AS register actor."""
     if not user:
@@ -73,328 +75,280 @@ def _confirmed_construction_worker_name(user) -> str:
     ).strip()
 
 
-@erp_orders_as_bp.route("/<int:order_id>/as/start", methods=["POST"])
-@login_required
-@erp_edit_required
-def api_as_start(order_id):
-    """AS 시작 (CS 단계에서 AS가 필요한 경우)"""
-    db = get_db()
-    try:
-        order = db.get(Order, order_id)
-        if not order or order.status == "DELETED" or order.deleted_at is not None:
-            return jsonify({"success": False, "message": "주문을 찾을 수 없습니다."}), 404
-
-        data = request.get_json() or {}
-        as_reason = data.get("reason", "")
-        as_description = data.get("description", "")
-
-        user_id = session.get("user_id")
-        user = get_user_by_id(user_id)
-
-        sd = _load_order_structured_data_for_update(order)
-        wf = sd.get("workflow") or {}
-
-        as_info = sd.get("as_info") or []
-        as_entry = {
-            "id": len(as_info) + 1,
-            "started_at": datetime.datetime.now().isoformat(),
-            "started_by": user.name if user else "Unknown",
-            "reason": as_reason,
-            "description": as_description,
-            "status": "OPEN",
-            "visit_date": None,
-            "completed_at": None,
-        }
-        as_info.append(as_entry)
-        sd["as_info"] = as_info
-
-        wf["stage"] = "AS"
-        wf["stage_updated_at"] = now_utc_naive().isoformat()
-        wf["stage_updated_by"] = user.name if user else "Unknown"
-
-        hist = wf.get("history") or []
-        hist.append({
-            "stage": "AS",
-            "updated_at": wf["stage_updated_at"],
-            "updated_by": wf["stage_updated_by"],
-            "note": f"AS 시작: {as_reason}",
-        })
-        wf["history"] = hist
-        sd["workflow"] = wf
-
-        order.structured_data = sd
-        flag_modified(order, "structured_data")
-        order.status = "AS"
-        sync_erp_flat_columns(order, sd)
-
-        event_payload = {
-            "domain": "AS_DOMAIN",
-            "action": "AS_STARTED",
-            "target": "workflow.stage",
-            "before": "CS",
-            "after": "AS",
-            "change_method": "API",
-            "source_screen": "erp_cs_dashboard",
-            "reason": f"AS 시작: {as_reason}",
-            "as_id": as_entry["id"],
-            "as_description": as_description,
-        }
-        db.add(OrderEvent(
-            order_id=order_id,
-            event_type="AS_STARTED",
-            payload=event_payload,
-            created_by_user_id=user_id,
-        ))
-        db.add(SecurityLog(user_id=user_id, message=f"주문 #{order_id} AS 시작: {as_reason}"))
-        db.commit()
-        _invalidate_shipment_asrec_caches("api_as_start")
-
-        return jsonify({
-            "success": True,
-            "message": "AS가 시작되었습니다.",
-            "new_status": "AS",
-            "as_id": as_entry["id"],
-        })
-    except ValueError as e:
-        db.rollback()
-        return jsonify({"success": False, "message": str(e)}), 409
-    except Exception as e:
-        db.rollback()
-        return jsonify({"success": False, "message": str(e)}), 500
+def _scope_hash(command_id: str, order_id: int) -> str:
+    """전이 scope 의 sha256 hex(REV-00 receipt 저장용)."""
+    return hashlib.sha256(f"{command_id}:{order_id}".encode("utf-8")).hexdigest()
 
 
-@erp_orders_as_bp.route("/<int:order_id>/as/complete", methods=["POST"])
-@login_required
-@erp_edit_required
-def api_as_complete(order_id):
-    """AS 완료 -> CS 복귀"""
-    db = get_db()
-    try:
-        order = db.get(Order, order_id)
-        if not order or order.status == "DELETED" or order.deleted_at is not None:
-            return jsonify({"success": False, "message": "주문을 찾을 수 없습니다."}), 404
+def _request_hash(body: dict[str, Any]) -> str:
+    """요청 payload 의 sha256 hex(same-key/different-hash 감지용)."""
+    canonical = json.dumps(body, sort_keys=True, ensure_ascii=False, default=str)
+    return hashlib.sha256(canonical.encode("utf-8")).hexdigest()
 
-        data = request.get_json() or {}
-        as_id = data.get("as_id")
-        completion_note = data.get("note", "")
 
-        user_id = session.get("user_id")
-        user = get_user_by_id(user_id)
+def _idempotency_key(body: dict[str, Any]) -> Optional[str]:
+    """요청 idempotency key(헤더 우선, body fallback, ≤64자). 없으면 None."""
+    key = request.headers.get("Idempotency-Key") or body.get("idempotency_key")
+    key = str(key).strip() if key is not None else ""
+    return key[:64] if key else None
 
-        sd = _load_order_structured_data_for_update(order)
-        wf = sd.get("workflow") or {}
 
-        as_info = sd.get("as_info") or []
-        for entry in as_info:
-            if isinstance(entry, dict) and (entry.get("id") == as_id or as_id is None):
-                if entry.get("status") == "OPEN":
-                    entry["status"] = "COMPLETED"
-                    entry["completed_at"] = datetime.datetime.now().isoformat()
-                    entry["completed_by"] = user.name if user else "Unknown"
-                    entry["completion_note"] = completion_note
-                    break
-        sd["as_info"] = as_info
+def _load_active_order(db, order_id):
+    """활성 주문을 로드하고, 없거나 삭제됐으면 404 JSON 튜플을 돌려준다."""
+    order = db.get(Order, order_id)
+    if not order or order.status == "DELETED" or order.deleted_at is not None:
+        return None, (jsonify({"success": False, "message": "주문을 찾을 수 없습니다."}), 404)
+    return order, None
 
-        wf["stage"] = "CS"
-        wf["stage_updated_at"] = now_utc_naive().isoformat()
-        wf["stage_updated_by"] = user.name if user else "Unknown"
 
-        hist = wf.get("history") or []
-        hist.append({
-            "stage": "CS",
-            "updated_at": wf["stage_updated_at"],
-            "updated_by": wf["stage_updated_by"],
-            "note": "AS 완료 -> CS 복귀",
-        })
-        wf["history"] = hist
-        sd["workflow"] = wf
-
-        order.structured_data = sd
-        flag_modified(order, "structured_data")
-        order.status = "CS"
-        sync_erp_flat_columns(order, sd)
-
-        event_payload = {
-            "domain": "AS_DOMAIN",
-            "action": "AS_COMPLETED",
-            "target": "workflow.stage",
-            "before": "AS",
-            "after": "CS",
-            "change_method": "API",
-            "source_screen": "erp_as_dashboard",
-            "reason": "AS 완료 -> CS 복귀",
-            "as_id": as_id,
-            "completion_note": completion_note,
-        }
-        db.add(OrderEvent(
-            order_id=order_id,
-            event_type="AS_COMPLETED",
-            payload=event_payload,
-            created_by_user_id=user_id,
-        ))
-        db.add(SecurityLog(user_id=user_id, message=f"주문 #{order_id} AS 완료 -> CS 복귀"))
-        db.commit()
-        _invalidate_shipment_asrec_caches("api_as_complete")
-
-        return jsonify({"success": True, "message": "AS가 완료되었습니다.", "new_status": "CS"})
-    except ValueError as e:
-        db.rollback()
-        return jsonify({"success": False, "message": str(e)}), 409
-    except Exception as e:
-        db.rollback()
-        return jsonify({"success": False, "message": str(e)}), 500
+def _as_error_response(db, exc: Exception):
+    """AS cycle/REV 계약 위반을 409 로, 그 외는 500 으로 매핑하고 rollback 한다."""
+    db.rollback()
+    if isinstance(exc, (ASCycleError, RevisionError)):
+        return jsonify({"success": False, "message": str(exc)}), 409
+    logger.error("AS command failed", exc_info=True)
+    return jsonify({"success": False, "message": str(exc)}), 500
 
 
 @erp_orders_as_bp.route("/<int:order_id>/as/register", methods=["POST"])
 @login_required
 @erp_construction_edit_required
 def api_as_register(order_id):
-    """AS 접수 등록: 시공 대시보드에서 AS 이미지 업로드 후 호출. as_content 저장, 접수일=오늘, status=AS_RECEIVED."""
+    """AS 접수 등록: 새 RECEIVED cycle 발급 + 접수일 스탬프 + draft finalize(DRAFT-LIFECYCLE)."""
     db = get_db()
-    try:
-        order = db.get(Order, order_id)
-        if not order or order.status == "DELETED" or order.deleted_at is not None:
-            return jsonify({"success": False, "message": "주문을 찾을 수 없습니다."}), 404
+    order, err = _load_active_order(db, order_id)
+    if err:
+        return err
+    data = request.get_json(silent=True) or {}
+    as_content = sanitize_as_content_html(data.get("as_content"))
+    source_screen = str(data.get("source_screen") or "").strip()
+    shipping = str(data.get("shipping_scheduled_date") or "").strip() or None
 
-        data = request.get_json(silent=True) or {}
-        as_content = sanitize_as_content_html(data.get("as_content"))
-        source_screen = str(data.get("source_screen") or "").strip()
+    user_id = session.get("user_id")
+    user = get_user_by_id(user_id)
+    today = get_today_kst().strftime("%Y-%m-%d")
+    cw_name = (
+        _confirmed_construction_worker_name(user)
+        if source_screen == "erp_construction_dashboard"
+        else ""
+    )
+    old_sd = copy.deepcopy(order.structured_data or {})
+    now = datetime.datetime.now()
 
-        # 지방주문 AS 재상차용 상차일(optional). 값이 있으면 YYYY-MM-DD 검증 후 컬럼에 저장.
-        # 지방주문 + 미래 상차일이면 지방 대시보드가 자동으로 "상차 예정 알림"으로 승격한다
-        # (foms/web/measurement/dashboard.py shipping_alerts 버킷 + AS 뱃지).
-        raw_shipping_scheduled_date = str(data.get("shipping_scheduled_date") or "").strip()
-        if raw_shipping_scheduled_date:
-            try:
-                datetime.datetime.strptime(raw_shipping_scheduled_date, "%Y-%m-%d")
-            except ValueError:
-                raise ValueError("상차일 형식이 올바르지 않습니다. (YYYY-MM-DD)")
+    # /add draft 주문은 structured PUT 없이 AS 모달만 완료하므로 draft meta 를 먼저 정리한다
+    # (남으면 Order.active_filter 에서 제외돼 AS 탭에 안 보임). 이후 register 의 projection 이
+    # order.status 를 AS_RECEIVED overlay 로 최종 확정한다(finalize 의 stage 배정을 덮어씀).
+    from foms.api.erp_orders_structured import _finalize_draft_state
 
-        today = get_today_kst().strftime("%Y-%m-%d")
-        user_id = session.get("user_id")
-        user = get_user_by_id(user_id)
-        sd = _load_order_structured_data_for_update(order)
-        old_sd = copy.deepcopy(sd)
-        shipment = ensure_path(sd, "shipment")
-        shipment["as_content"] = as_content
-        construction_worker_name = _confirmed_construction_worker_name(user)
-        if source_screen == "erp_construction_dashboard" and construction_worker_name:
-            shipment["construction_workers"] = [construction_worker_name]
-        wf = sd.get("workflow") or {}
-        wf["stage"] = "AS_RECEIVED"
-        wf["stage_updated_at"] = now_utc_naive().isoformat()
-        wf["stage_updated_by"] = user.name if user else "Unknown"
-        sd["workflow"] = wf
-
-        order.as_received_date = today
-        order.status = "AS_RECEIVED"
-        # 상차일이 제공되면(지방주문 AS 재상차) 컬럼에 반영. 빈 값/미제공이면 기존값 보존.
-        if raw_shipping_scheduled_date:
-            order.shipping_scheduled_date = raw_shipping_scheduled_date
-
-        # /add draft 주문은 structured PUT 없이 AS 모달만 완료하는 경우가 많다.
-        # draft meta가 남으면 Order.active_filter()에서 제외되어 AS 탭에 보이지 않는다.
-        from foms.api.erp_orders_structured import _finalize_draft_state
-
-        now = datetime.datetime.now()
-        draft_cleared = _finalize_draft_state(order, sd, now, old_sd)
-        order.structured_data = sd
+    draft_cleared = _finalize_draft_state(order, order.structured_data, now, old_sd)
+    if draft_cleared:
         flag_modified(order, "structured_data")
-        sync_erp_flat_columns(order, sd)
 
-        db.add(SecurityLog(user_id=user_id, message=f"주문 #{order_id} AS 접수 등록 (접수일: {today})"))
-        db.commit()
-        _invalidate_shipment_asrec_caches("api_as_register")
+    try:
+        register_as_cycle(
+            db, order_id=order_id, actor_user_id=user_id, as_content=as_content,
+            shipping_scheduled_date=shipping, source_screen=source_screen or None,
+            received_date=today, construction_worker_name=cw_name or None,
+            scope_hash=_scope_hash("AS_REGISTER", order_id), request_hash=_request_hash(data),
+            idempotency_key=_idempotency_key(data),
+        )
+    except Exception as exc:  # noqa: BLE001 — 계약 위반은 409, 그 외 500 으로 분기
+        return _as_error_response(db, exc)
 
-        return jsonify({
-            "success": True,
-            "message": "AS 접수가 등록되었습니다.",
-            "as_received_date": today,
-            "new_status": "AS_RECEIVED",
-            "shipping_scheduled_date": getattr(order, "shipping_scheduled_date", None) or "",
-            "construction_workers": shipment.get("construction_workers") or [],
-            "draft_cleared": draft_cleared,
-        })
-    except ValueError as e:
-        db.rollback()
-        return jsonify({"success": False, "message": str(e)}), 409
-    except Exception as e:
-        db.rollback()
-        return jsonify({"success": False, "message": str(e)}), 500
+    db.add(SecurityLog(user_id=user_id, message=f"주문 #{order_id} AS 접수 등록 (접수일: {today})"))
+    db.commit()
+    _invalidate_shipment_asrec_caches("api_as_register")
+
+    shipment = (order.structured_data or {}).get("shipment") or {}
+    return jsonify({
+        "success": True,
+        "message": "AS 접수가 등록되었습니다.",
+        "as_received_date": today,
+        "new_status": order.status,
+        "shipping_scheduled_date": getattr(order, "shipping_scheduled_date", None) or "",
+        "construction_workers": shipment.get("construction_workers") or [],
+        "draft_cleared": draft_cleared,
+    })
 
 
 @erp_orders_as_bp.route("/<int:order_id>/as/schedule", methods=["POST"])
 @login_required
 @erp_edit_required
 def api_as_schedule(order_id):
-    """AS 방문일 확정"""
+    """AS 방문일 확정: current cycle 에 방문 날짜/시각 transition 기록(빈 날짜는 unschedule)."""
     db = get_db()
+    order, err = _load_active_order(db, order_id)
+    if err:
+        return err
+    data = request.get_json() or {}
+    visit_date = str(data.get("visit_date") or "").strip()
+    visit_time = data.get("visit_time", "")
+    user_id = session.get("user_id")
+
     try:
-        order = db.get(Order, order_id)
-        if not order or order.status == "DELETED" or order.deleted_at is not None:
-            return jsonify({"success": False, "message": "주문을 찾을 수 없습니다."}), 404
-
-        data = request.get_json() or {}
-        as_id = data.get("as_id")
-        visit_date = data.get("visit_date")
-        visit_time = data.get("visit_time", "")
-
         if not visit_date:
-            return jsonify({"success": False, "message": "방문일을 입력해주세요."}), 400
+            unschedule_as_cycle(
+                db, order_id=order_id, actor_user_id=user_id,
+                reason=str(data.get("reason") or "방문일 취소"),
+                cycle_id=data.get("cycle_id"),
+                scope_hash=_scope_hash("AS_UNSCHEDULE", order_id),
+                request_hash=_request_hash(data), idempotency_key=_idempotency_key(data),
+            )
+            message, result_date = "AS 방문일이 취소되었습니다.", ""
+        else:
+            schedule_as_cycle(
+                db, order_id=order_id, actor_user_id=user_id, visit_date=visit_date,
+                visit_time=visit_time, cycle_id=data.get("cycle_id"),
+                scope_hash=_scope_hash("AS_SCHEDULE", order_id),
+                request_hash=_request_hash(data), idempotency_key=_idempotency_key(data),
+            )
+            message, result_date = f"AS 방문일이 {visit_date}로 확정되었습니다.", visit_date
+    except Exception as exc:  # noqa: BLE001
+        return _as_error_response(db, exc)
 
-        user_id = session.get("user_id")
-        user = get_user_by_id(user_id)
+    db.add(SecurityLog(user_id=user_id, message=f"주문 #{order_id} AS 방문일: {result_date or '취소'}"))
+    db.commit()
+    _invalidate_shipment_asrec_caches("api_as_schedule")
+    return jsonify({"success": True, "message": message, "visit_date": result_date})
 
-        sd = _load_order_structured_data_for_update(order)
 
-        as_info = sd.get("as_info") or []
-        for entry in as_info:
-            if isinstance(entry, dict) and (entry.get("id") == as_id or as_id is None):
-                if entry.get("status") == "OPEN":
-                    entry["visit_date"] = visit_date
-                    entry["visit_time"] = visit_time
-                    entry["scheduled_by"] = user.name if user else "Unknown"
-                    entry["scheduled_at"] = datetime.datetime.now().isoformat()
-                    break
-        sd["as_info"] = as_info
+@erp_orders_as_bp.route("/<int:order_id>/as/unschedule", methods=["POST"])
+@login_required
+@erp_edit_required
+def api_as_unschedule(order_id):
+    """AS 방문일 취소: current cycle 방문 날짜/시각을 명시 transition 으로 clear(상태 불변)."""
+    db = get_db()
+    order, err = _load_active_order(db, order_id)
+    if err:
+        return err
+    data = request.get_json() or {}
+    user_id = session.get("user_id")
+    try:
+        unschedule_as_cycle(
+            db, order_id=order_id, actor_user_id=user_id,
+            reason=str(data.get("reason") or "방문일 취소"), cycle_id=data.get("cycle_id"),
+            scope_hash=_scope_hash("AS_UNSCHEDULE", order_id),
+            request_hash=_request_hash(data), idempotency_key=_idempotency_key(data),
+        )
+    except Exception as exc:  # noqa: BLE001
+        return _as_error_response(db, exc)
+    db.add(SecurityLog(user_id=user_id, message=f"주문 #{order_id} AS 방문일 취소"))
+    db.commit()
+    _invalidate_shipment_asrec_caches("api_as_unschedule")
+    return jsonify({"success": True, "message": "AS 방문일이 취소되었습니다."})
 
-        schedule = sd.get("schedule") or {}
-        as_visit = schedule.get("as_visit") or {}
-        as_visit["date"] = visit_date
-        as_visit["time"] = visit_time
-        as_visit["type"] = "AS"
-        schedule["as_visit"] = as_visit
-        sd["schedule"] = schedule
 
-        wf = sd.get("workflow") or {}
-        hist = wf.get("history") or []
-        hist.append({
-            "stage": "AS",
-            "updated_at": datetime.datetime.now().isoformat(),
-            "updated_by": user.name if user else "Unknown",
-            "note": f"AS 방문일 확정: {visit_date}",
-        })
-        wf["history"] = hist
-        sd["workflow"] = wf
+@erp_orders_as_bp.route("/<int:order_id>/as/start", methods=["POST"])
+@login_required
+@erp_edit_required
+def api_as_start(order_id):
+    """AS 시작: current RECEIVED cycle 을 IN_PROGRESS 로 전이(사유/설명 기록)."""
+    db = get_db()
+    order, err = _load_active_order(db, order_id)
+    if err:
+        return err
+    data = request.get_json() or {}
+    user_id = session.get("user_id")
+    try:
+        start_as_cycle(
+            db, order_id=order_id, actor_user_id=user_id,
+            reason=str(data.get("reason") or ""), description=str(data.get("description") or ""),
+            cycle_id=data.get("cycle_id"), scope_hash=_scope_hash("AS_START", order_id),
+            request_hash=_request_hash(data), idempotency_key=_idempotency_key(data),
+        )
+    except Exception as exc:  # noqa: BLE001
+        return _as_error_response(db, exc)
+    db.add(SecurityLog(user_id=user_id, message=f"주문 #{order_id} AS 시작"))
+    db.commit()
+    _invalidate_shipment_asrec_caches("api_as_start")
+    return jsonify({"success": True, "message": "AS가 시작되었습니다.", "new_status": order.status})
 
-        order.structured_data = sd
-        flag_modified(order, "structured_data")
 
-        db.add(SecurityLog(user_id=user_id, message=f"주문 #{order_id} AS 방문일 확정: {visit_date}"))
-        db.commit()
-        _invalidate_shipment_asrec_caches("api_as_schedule")
+@erp_orders_as_bp.route("/<int:order_id>/as/complete", methods=["POST"])
+@login_required
+@erp_edit_required
+def api_as_complete(order_id):
+    """AS 완료: current IN_PROGRESS cycle 을 COMPLETED 로 종결(완료 메모·완료일 기록)."""
+    db = get_db()
+    order, err = _load_active_order(db, order_id)
+    if err:
+        return err
+    data = request.get_json() or {}
+    user_id = session.get("user_id")
+    try:
+        complete_as_cycle(
+            db, order_id=order_id, actor_user_id=user_id, note=str(data.get("note") or ""),
+            cycle_id=data.get("cycle_id"), scope_hash=_scope_hash("AS_COMPLETE", order_id),
+            request_hash=_request_hash(data), idempotency_key=_idempotency_key(data),
+        )
+    except Exception as exc:  # noqa: BLE001
+        return _as_error_response(db, exc)
+    db.add(SecurityLog(user_id=user_id, message=f"주문 #{order_id} AS 완료"))
+    db.commit()
+    _invalidate_shipment_asrec_caches("api_as_complete")
+    return jsonify({"success": True, "message": "AS가 완료되었습니다.", "new_status": order.status})
 
-        return jsonify({
-            "success": True,
-            "message": f"AS 방문일이 {visit_date}로 확정되었습니다.",
-            "visit_date": visit_date,
-        })
-    except ValueError as e:
-        db.rollback()
-        return jsonify({"success": False, "message": str(e)}), 409
-    except Exception as e:
-        db.rollback()
-        return jsonify({"success": False, "message": str(e)}), 500
+
+@erp_orders_as_bp.route("/<int:order_id>/as/reopen", methods=["POST"])
+@login_required
+@erp_edit_required
+def api_as_reopen(order_id):
+    """AS 재개봉: 오완료된 current COMPLETED cycle 을 같은 cycle 로 RECEIVED 로 되돌린다."""
+    db = get_db()
+    order, err = _load_active_order(db, order_id)
+    if err:
+        return err
+    data = request.get_json() or {}
+    user_id = session.get("user_id")
+    try:
+        reopen_as_cycle(
+            db, order_id=order_id, actor_user_id=user_id,
+            reason=str(data.get("reason") or ""), cycle_id=data.get("cycle_id"),
+            scope_hash=_scope_hash("AS_REOPEN", order_id),
+            request_hash=_request_hash(data), idempotency_key=_idempotency_key(data),
+        )
+    except Exception as exc:  # noqa: BLE001
+        return _as_error_response(db, exc)
+    db.add(SecurityLog(user_id=user_id, message=f"주문 #{order_id} AS 재개봉"))
+    db.commit()
+    _invalidate_shipment_asrec_caches("api_as_reopen")
+    return jsonify({"success": True, "message": "AS가 재개봉되었습니다.", "new_status": order.status})
+
+
+@erp_orders_as_bp.route("/<int:order_id>/as/classification", methods=["POST"])
+@login_required
+@erp_edit_required
+def api_as_classification(order_id):
+    """AS 분류 토글: current cycle 의 as_pending/as_blueprint/sales_delivery 를 갱신(상태·main 불변)."""
+    db = get_db()
+    order, err = _load_active_order(db, order_id)
+    if err:
+        return err
+    data = request.get_json() or {}
+    user_id = session.get("user_id")
+    field = str(data.get("field") or "")
+    value = bool(data.get("value"))
+    try:
+        set_as_classification(
+            db, order_id=order_id, actor_user_id=user_id, field=field, value=value,
+            cycle_id=data.get("cycle_id"), scope_hash=_scope_hash("SET_AS_CLASSIFICATION", order_id),
+            request_hash=_request_hash(data), idempotency_key=_idempotency_key(data),
+        )
+    except Exception as exc:  # noqa: BLE001
+        return _as_error_response(db, exc)
+    db.add(SecurityLog(user_id=user_id, message=f"주문 #{order_id} AS 분류 {field}={value}"))
+    db.commit()
+    _invalidate_shipment_asrec_caches("api_as_classification")
+    shipment = (order.structured_data or {}).get("shipment") or {}
+    return jsonify({
+        "success": True,
+        "message": "AS 분류가 업데이트되었습니다.",
+        "field": field,
+        "value": value,
+        "as_pending": shipment.get("as_pending") is True,
+        "as_blueprint": shipment.get("as_blueprint") is True,
+        "sales_delivery": shipment.get("sales_delivery") is True,
+    })
 
 
 __all__ = [
@@ -403,5 +357,8 @@ __all__ = [
     "api_as_complete",
     "api_as_register",
     "api_as_schedule",
+    "api_as_unschedule",
+    "api_as_reopen",
+    "api_as_classification",
     "get_today_kst",
 ]
