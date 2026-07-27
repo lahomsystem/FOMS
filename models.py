@@ -2205,6 +2205,38 @@ class SideEffectWorkerHeartbeat(Base):
                         server_default=func.now())
 
 
+class AddressLearningRequest(Base):
+    """주소 교정 학습 요청 child 행 (DATA-MEASUREMENT-01).
+
+    운영자가 지오코딩이 틀린 주소를 바로잡으면(original→corrected + 좌표) 그 교정을
+    **감사 가능한 durable child 행**으로 기록한다. 무제한 all-STAFF in-memory 학습(구
+    ``FOMSAddressConverter.add_learning_data``)을 대체하는 정본으로, 세 가지를 강제한다.
+
+    * **audit**: ``requested_by_user_id``·``created_at`` 로 누가/언제 교정했는지 보존한다.
+    * **rate**: 요청 handler 가 사용자별 최근 창(window) row 수를 세어 폭주를 거부한다
+      (:mod:`foms.services.address_learning_requests`).
+    * **outbox 연동**: 이 행 id 를 ``domain_side_effect_outbox.address_learning_request_id``
+      (source_domain=``ADDRESS_LEARNING``)로 참조해 실제 학습 적용을 worker 로 비동기화한다.
+      그 컬럼은 아직 실 FK 가 아니므로(SIDEFX-00 note) 여기서 부모 테이블만 만든다.
+    """
+
+    __tablename__ = 'address_learning_requests'
+
+    id = Column(Integer, primary_key=True)
+    original_address = Column(Text, nullable=False)   # 사용자가 입력한(틀린) 원 주소
+    corrected_address = Column(Text, nullable=False)  # 정답 주소
+    lat = Column(Float, nullable=True)                # 교정 좌표(선택)
+    lng = Column(Float, nullable=True)
+    requested_by_user_id = Column(Integer, ForeignKey('users.id'), nullable=True)  # audit
+    created_at = Column(DateTime, nullable=False, default=now_utc_naive,
+                        server_default=func.now())
+
+    __table_args__ = (
+        # rate-limit 조회(사용자별 최근 창 count)와 audit 스캔 hot path.
+        Index('ix_alr_requester_created', 'requested_by_user_id', 'created_at'),
+    )
+
+
 # --------------------------------------------------------------------------- #
 # SESSION-SIGNING-STATE-00: signing-key state machine + WAM entry nonces
 # (§2.1 line 225-227). Additive expand only — the existing runtime reads NEITHER

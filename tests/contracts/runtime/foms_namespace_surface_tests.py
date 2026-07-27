@@ -822,13 +822,22 @@ def test_erp_measurement_uses_canonical_jobs_queue_imports() -> None:
     assert erp_measurement.enqueue_geocode_order_address is namespaced_jobs_queue.enqueue_geocode_order_address
 
 
-def test_erp_measurement_uses_canonical_jobs_task_fallback_import() -> None:
-    """ERP measurement API should use canonical jobs task fallback imports."""
+def test_erp_measurement_address_change_uses_geocode_outbox() -> None:
+    """DATA-MEASUREMENT-01: measurement address change enqueues GEOCODE via the SIDEFX
+    outbox producer and no longer performs a postcommit synchronous geocode fallback.
+
+    (Supersedes the previous contract that pinned the ``jobs.tasks`` sync fallback import;
+    the 3-forbidden SSOT removes postcommit direct geocode from the write path.)
+    """
     import importlib
 
     routes_mod = importlib.import_module("foms.api.measurement.routes")
     module_source = inspect.getsource(routes_mod)
-    assert "from foms.services.jobs.tasks import geocode_order_address" in module_source
+    assert (
+        "from foms.services.order_geocode_outbox import enqueue_order_address_geocode"
+        in module_source
+    )
+    assert "from foms.services.jobs.tasks import geocode_order_address" not in module_source
 
 
 def test_erp_orders_structured_uses_canonical_jobs_queue_imports() -> None:

@@ -4,15 +4,18 @@ HTTP routes for ERP 실측 API (`foms.api.measurement` package).
 """
 import copy
 import datetime
+import hashlib
+import json
 import logging
 
 logger = logging.getLogger(__name__)
 
 from flask import Blueprint, g, request, jsonify
+from sqlalchemy.orm import Session
 from sqlalchemy.orm.attributes import flag_modified
 
 from db import get_db
-from models import Order
+from models import Order, OrderEvent
 from foms.web.auth import login_required, role_required
 import foms.api.measurement as measurement_api
 from foms.services.erp_order_flags import is_erp_order_record
@@ -21,6 +24,8 @@ from foms.services.erp_permissions import is_order_related_to_user
 from foms.services.erp_sync_columns import sync_erp_flat_columns
 from foms.services.common.address_converter import FOMSAddressConverter
 from foms.services.order_geocode import reset_order_geocode_on_address_change
+from foms.services.order_geocode_outbox import enqueue_order_address_geocode
+from foms.services.orders.revision import RevisionError, execute_order_mutation
 from foms.services.measurement_dates import extract_all_measurement_dates
 from foms.services.measurement_read_model import apply_measurement_dashboard_order_scope
 from foms.services.measurement_route import build_measurement_route_payload
@@ -177,80 +182,116 @@ def api_erp_measurement_summary():
     })
 
 
+#: 실측 대시보드에서 저장 가능한 typed projection 필드(generic field update 금지).
+MEASUREMENT_UPDATE_FIELDS = frozenset({'manager', 'address', 'phone'})
+MEASUREMENT_FIELD_EVENT = 'MEASUREMENT_FIELD_UPDATED'
+MEASUREMENT_POLICY_ID = 'ERP_EDIT'
+
+
 @erp_measurement_bp.route('/update/<int:order_id>', methods=['POST'])
 @login_required
 @measurement_api.erp_edit_required
 @role_required(['ADMIN', 'MANAGER', 'STAFF'])
 def api_erp_measurement_update(order_id):
-    """실측 대시보드 업데이트"""
-    try:
-        db = get_db()
-        order = db.query(Order).filter(Order.id == order_id, Order.active_filter()).first()
-        if not order:
-            return jsonify({'success': False, 'message': '주문을 찾을 수 없습니다.'}), 404
+    """실측 대시보드 필드 저장(manager/phone/address projection).
 
-        if not is_erp_order_record(order):
-            return jsonify({'success': False, 'message': 'ERP Order 주문만 수정할 수 있습니다.'}), 400
+    generic field update 대신 **typed projection registry**(manager/phone/address)만
+    허용하고, 저장은 REV-00 :func:`execute_order_mutation` 경유로 If-Match·version bump·
+    receipt·OrderEvent 를 한 tx 에 원자화한다. 주소 변경 시 지오코드는 **SIDEFX outbox**
+    (GEOCODE)로 예약한다 — postcommit 직접 지오코드/폴백은 하지 않는다.
+    """
+    db: Session = get_db()
+    order = db.query(Order).filter(Order.id == order_id, Order.active_filter()).first()
+    if not order:
+        return jsonify({'success': False, 'message': '주문을 찾을 수 없습니다.'}), 404
+    if not is_erp_order_record(order):
+        return jsonify({'success': False, 'message': 'ERP Order 주문만 수정할 수 있습니다.'}), 400
 
-        payload = request.get_json(silent=True) or {}
-        field = payload.get('field')
-        raw_value = payload.get('value', '')
-        if isinstance(raw_value, dict):
-            raw_value = raw_value.get('name', '')
-        value = str(raw_value).strip()
-        if field == 'manager':
-            from foms.services.erp_display import clean_dict_like_name
-            value = clean_dict_like_name(value)
+    payload = request.get_json(silent=True) or {}
+    field = payload.get('field')
+    if not field:
+        return jsonify({'success': False, 'message': '필드명이 필요합니다.'}), 400
+    if field not in MEASUREMENT_UPDATE_FIELDS:
+        return jsonify({'success': False, 'message': f'지원하지 않는 필드: {field}'}), 400
 
-        if not field:
-            return jsonify({'success': False, 'message': '필드명이 필요합니다.'}), 400
+    raw_value = payload.get('value', '')
+    if isinstance(raw_value, dict):
+        raw_value = raw_value.get('name', '')
+    value = str(raw_value).strip()
+    if field == 'manager':
+        from foms.services.erp_display import clean_dict_like_name
+        value = clean_dict_like_name(value)
 
-        structured_data = copy.deepcopy(order.structured_data or {})
+    # optional If-Match(mutation_version) 낙관 잠금 — 형식 오류는 삼키지 않고 400.
+    if_match_raw = (request.headers.get('If-Match') or '').strip().strip('"')
+    expected_versions = None
+    if if_match_raw:
+        try:
+            expected_versions = {order_id: int(if_match_raw)}
+        except ValueError:
+            return jsonify({'success': False, 'message': 'If-Match 형식이 올바르지 않습니다.'}), 400
+    idempotency_key = (request.headers.get('Idempotency-Key') or '').strip() or None
+    user_id = getattr(getattr(g, 'current_user', None), 'id', None)
+    scope_hash = hashlib.sha256(f'{MEASUREMENT_POLICY_ID}:{order_id}'.encode()).hexdigest()
+    request_hash = hashlib.sha256(
+        json.dumps({'field': field, 'value': value}, sort_keys=True, ensure_ascii=False).encode()
+    ).hexdigest()
 
-        if field == 'manager':
-            if 'parties' not in structured_data:
-                structured_data['parties'] = {}
-            if 'manager' not in structured_data['parties']:
-                structured_data['parties']['manager'] = {}
-            structured_data['parties']['manager']['name'] = value
-            order.manager_name = value
-
-        elif field == 'address':
-            reset_order_geocode_on_address_change(order, value)
-
-        elif field == 'phone':
-            if 'parties' not in structured_data:
-                structured_data['parties'] = {}
-            if 'customer' not in structured_data['parties']:
-                structured_data['parties']['customer'] = {}
-            structured_data['parties']['customer']['phone'] = value
-            order.phone = value
-
-        else:
-            return jsonify({'success': False, 'message': f'지원하지 않는 필드: {field}'}), 400
-
-        if field != 'address':
-            order.structured_data = structured_data
-            flag_modified(order, 'structured_data')
-
-        if isinstance(order.structured_data, dict):
-            sync_erp_flat_columns(order, order.structured_data)
-
-        order.structured_updated_at = datetime.datetime.now()
-
-        db.commit()
-
+    def _mutate(sess: Session, orders):
+        """row lock 아래에서 단일 typed 필드만 projection + event/geocode 예약(축 불변)."""
+        o = orders[0]
         if field == 'address':
-            queued = measurement_api.enqueue_geocode_order_address(order_id)
-            if not queued:
-                from foms.services.jobs.tasks import geocode_order_address
-                geocode_order_address(order_id)
+            # 주소·site·좌표 초기화(자체 flag_modified) → GEOCODE outbox 예약(no postcommit).
+            reset_order_geocode_on_address_change(o, value)
+            enqueue_order_address_geocode(sess, o, address=value, actor_user_id=user_id)
+        else:
+            sd = copy.deepcopy(o.structured_data or {})
+            parties = sd.setdefault('parties', {})
+            if field == 'manager':
+                parties.setdefault('manager', {})['name'] = value
+                o.manager_name = value
+            else:  # phone
+                parties.setdefault('customer', {})['phone'] = value
+                o.phone = value
+            o.structured_data = sd
+            flag_modified(o, 'structured_data')
+            sess.add(OrderEvent(
+                order_id=o.id,
+                event_type=MEASUREMENT_FIELD_EVENT,
+                payload={'field': field},
+                created_by_user_id=user_id,
+            ))
 
-        return jsonify({'success': True})
-    except Exception as e:
+        if isinstance(o.structured_data, dict):
+            sync_erp_flat_columns(o, o.structured_data)
+        o.structured_updated_at = datetime.datetime.now()
+        return {o.id: [f'ORDER_DETAIL:{o.id}', 'ORDERS_INDEX', 'MEASUREMENT']}
+
+    try:
+        outcome = execute_order_mutation(
+            db,
+            actor_user_id=user_id,
+            policy_id=MEASUREMENT_POLICY_ID,
+            order_ids=[order_id],
+            expected_versions=expected_versions,
+            idempotency_key=idempotency_key,
+            scope_hash=scope_hash,
+            request_hash=request_hash,
+            mutation=_mutate,
+        )
+        db.commit()
+    except RevisionError as rev:
+        db.rollback()
+        return jsonify({'success': False, 'message': str(rev), 'code': rev.error_code}), rev.status_code
+    except Exception as e:  # noqa: BLE001 - 롤백 후 500
         db.rollback()
         logger.exception("[ERP_MEASUREMENT] 업데이트 오류: %s", e)
         return jsonify({'success': False, 'message': str(e)}), 500
+
+    resp = jsonify({'success': True, 'mutation_receipt': outcome.read_receipt_id})
+    for header, hvalue in outcome.headers.items():
+        resp.headers[header] = hvalue
+    return resp
 
 
 @erp_measurement_bp.route('/route')

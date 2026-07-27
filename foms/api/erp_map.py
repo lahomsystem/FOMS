@@ -3,12 +3,15 @@ ERP 지도·주소·유저 API. (Phase 4-4)
 erp.py에서 분리: map_data, erp users 목록, generate_map, update_address.
 """
 import datetime
+import hashlib
+import json
 import os
 import threading
 
 
 from flask import Blueprint, request, jsonify, render_template, current_app, g
 from sqlalchemy import or_, and_
+from sqlalchemy.orm import Session
 
 from db import get_db
 from models import Order, User
@@ -20,6 +23,13 @@ from foms.services.common.geocode_config import KAKAO_JS_API_KEY
 from foms.services.common.map_generator import FOMSMapGenerator
 from foms.services.jobs.queue import enqueue_geocode_order_address
 from foms.services.order_geocode import reset_order_geocode_on_address_change
+from foms.services.order_geocode_outbox import enqueue_order_address_geocode
+from foms.services.orders.revision import RevisionError, execute_order_mutation
+from foms.services.address_learning_requests import (
+    AddressLearningError,
+    AddressLearningRateLimited,
+    record_address_learning_request,
+)
 from foms.services.erp_display import normalize_manager_name
 from foms.services.measurement_read_model import apply_measurement_dashboard_order_scope
 erp_map_bp = Blueprint('erp_map', __name__)
@@ -654,19 +664,46 @@ def api_address_suggestions():
 @erp_map_bp.route('/api/add_address_learning', methods=['POST'])
 @login_required
 def api_add_address_learning():
-    """주소 학습 데이터 추가 API"""
+    """주소 학습 데이터 추가 API — audit child + rate limit(무제한 all-STAFF 쓰기 거부).
+
+    구 in-memory ``add_learning_data`` 무제한 쓰기를 대체한다: 교정을 durable child 행
+    (:class:`~models.AddressLearningRequest`, 누가/언제 audit)으로 기록하고, 사용자별 rate
+    창 상한을 강제하며, 실제 학습 적용은 ADDRESS_LEARNING outbox side-effect 로 예약한다.
+    """
+    db: Session = get_db()
     try:
-        data = request.get_json()
+        data = request.get_json() or {}
         original_address = data.get('original_address')
         corrected_address = data.get('corrected_address')
         latitude = data.get('latitude')
         longitude = data.get('longitude')
         if not all([original_address, corrected_address, latitude, longitude]):
             return jsonify({'success': False, 'error': '모든 필드가 필요합니다.'}), 400
-        converter = _get_address_converter()
-        converter.add_learning_data(original_address, corrected_address, latitude, longitude)
+
+        user_id = getattr(getattr(g, 'current_user', None), 'id', None)
+        try:
+            record_address_learning_request(
+                db,
+                original_address=original_address,
+                corrected_address=corrected_address,
+                lat=latitude,
+                lng=longitude,
+                requested_by_user_id=user_id,
+            )
+            db.commit()
+        except AddressLearningRateLimited as exc:
+            db.rollback()
+            return jsonify({'success': False, 'error': str(exc)}), 429
+        except AddressLearningError as exc:
+            db.rollback()
+            return jsonify({'success': False, 'error': str(exc)}), 400
+
+        # 학습 사전 캐시 무효화(교정이 이후 지오코드에 반영되도록). 적용 자체는 worker 몫.
+        _get_address_converter().clear_geocode_cache()
         return jsonify({'success': True, 'message': '학습 데이터가 추가되었습니다.'})
     except Exception as e:
+        db.rollback()
+        current_app.logger.error("add_address_learning error: %s", e, exc_info=True)
         return jsonify({'success': False, 'error': str(e)}), 500
 
 
@@ -685,64 +722,84 @@ def api_validate_address():
         return jsonify({'success': False, 'error': str(e)}), 500
 
 
+#: 주소 수정 mutation 의 receipt idempotency scope 식별자(auth 는 erp_edit_required 담당).
+UPDATE_ADDRESS_POLICY_ID = 'ERP_EDIT'
+
+
 @erp_map_bp.route('/api/orders/<int:order_id>/update_address', methods=['POST'])
 @login_required
 @erp_edit_required
 def api_update_order_address(order_id):
-    """주문 주소를 수정하고 재-지오코딩"""
-    try:
-        data = request.get_json()
-        new_address = (data.get('address') or '').strip()
+    """주문 주소를 수정하고 재-지오코딩을 SIDEFX outbox 로 예약한다.
 
+    저장은 REV-00 :func:`execute_order_mutation` 경유(If-Match·version bump·receipt·
+    ADDRESS_CHANGED event 한 tx). 지오코드는 GEOCODE outbox 이벤트로 예약하며 **postcommit
+    직접 지오코드/폴백은 하지 않는다**(worker 비동기 처리). 좌표는 항상 pending 으로 응답한다.
+    """
+    db: Session = get_db()
+    try:
+        data = request.get_json() or {}
+        new_address = (data.get('address') or '').strip()
         if not new_address:
             return jsonify({'success': False, 'message': '주소를 입력해주세요.'}), 400
 
-        db = get_db()
         order = db.query(Order).filter(Order.id == order_id).first()
-
         if not order:
             return jsonify({'success': False, 'message': '주문을 찾을 수 없습니다.'}), 404
 
-        reset_order_geocode_on_address_change(order, new_address)
-        db.commit()
-
-        queued = enqueue_geocode_order_address(order_id)
-        if not queued:
-            # RQ worker 미사용(개발환경 등) 시 즉각 동기처리(Fallback)
-            from foms.services.jobs.tasks import geocode_order_address
+        if_match_raw = (request.headers.get('If-Match') or '').strip().strip('"')
+        expected_versions = None
+        if if_match_raw:
             try:
-                geocode_order_address(order_id)
-            except Exception as e:
-                current_app.logger.warning(
-                    "update_address fallback geocode failed for order_id=%s: %s",
-                    order_id,
-                    e,
-                    exc_info=True,
-                )
+                expected_versions = {order_id: int(if_match_raw)}
+            except ValueError:
+                return jsonify({'success': False, 'message': 'If-Match 형식이 올바르지 않습니다.'}), 400
+        idempotency_key = (request.headers.get('Idempotency-Key') or '').strip() or None
+        user_id = getattr(getattr(g, 'current_user', None), 'id', None)
+        scope_hash = hashlib.sha256(f'{UPDATE_ADDRESS_POLICY_ID}:{order_id}'.encode()).hexdigest()
+        request_hash = hashlib.sha256(
+            json.dumps({'address': new_address}, sort_keys=True, ensure_ascii=False).encode()
+        ).hexdigest()
 
-            # geocode_order_address가 db_session.remove() 호출로 세션을 정리하므로
-            # refresh 대신 재조회로 최신 lat/lng 반영 (Root Cause Fix)
-            order = db.query(Order).filter(Order.id == order_id).first()
-            return jsonify({
-                'success': True,
-                'address': new_address,
-                'conversion_status': order.geocode_status or 'failed',
-                'latitude': order.lat,
-                'longitude': order.lng,
-                'geocode_queued': False,
-            })
+        def _mutate(sess: Session, orders):
+            """row lock 아래에서 주소·site·좌표 초기화 + GEOCODE outbox 예약(no postcommit)."""
+            o = orders[0]
+            reset_order_geocode_on_address_change(o, new_address)
+            enqueue_order_address_geocode(sess, o, address=new_address, actor_user_id=user_id)
+            return {o.id: [f'ORDER_DETAIL:{o.id}', 'ORDERS_INDEX', 'MEASUREMENT']}
 
-        # queue 경로: 항상 동일한 응답 계약 (2026-03-15)
-        return jsonify({
+        try:
+            outcome = execute_order_mutation(
+                db,
+                actor_user_id=user_id,
+                policy_id=UPDATE_ADDRESS_POLICY_ID,
+                order_ids=[order_id],
+                expected_versions=expected_versions,
+                idempotency_key=idempotency_key,
+                scope_hash=scope_hash,
+                request_hash=request_hash,
+                mutation=_mutate,
+            )
+            db.commit()
+        except RevisionError as rev:
+            db.rollback()
+            return jsonify({'success': False, 'message': str(rev), 'code': rev.error_code}), rev.status_code
+
+        resp = jsonify({
             'success': True,
             'address': new_address,
             'conversion_status': 'pending',
             'latitude': None,
             'longitude': None,
             'geocode_queued': True,
+            'mutation_receipt': outcome.read_receipt_id,
         })
+        for header, hvalue in outcome.headers.items():
+            resp.headers[header] = hvalue
+        return resp
 
     except Exception as e:
+        db.rollback()
         current_app.logger.error(
             "update_address error for order_id=%s: %s",
             order_id,
