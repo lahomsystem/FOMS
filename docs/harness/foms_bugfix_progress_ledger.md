@@ -162,6 +162,7 @@
 - head=auth_account_00. **89 unique 커밋 + CHAT 5 N/A = 94/124 (76%)·잔여 구현 ~30.**
 - **배치16(STATE-FORM-01·STARTUP-ADMIN-01·SHIPMENT-REFERENCE-01) 완료 → head=shipment_reference_00. 92 unique 커밋 + CHAT 5 N/A = 97/124 (78%)·잔여 구현 ~27.** (상세 아래 "✅ 배치16 완료")
 - **배치17(STARTUP-PURE-01·WIZ-01·PASSWORD-POLICY-01) 완료 → head=password_policy_00. 95 unique 커밋 + CHAT 5 N/A = 100/124 (80%)·잔여 구현 ~24.** (상세 아래 "✅ 배치17 완료")
+- **배치18(DATA-MEASUREMENT-01·WIZ-TRANSFER-01) 완료 → head=data_measurement_00. 97 unique 커밋 + CHAT 5 N/A = 102/124 (82%)·잔여 구현 ~22.** (상세 아래 "✅ 배치18 완료")
 
 ## ⚠️ 알려진 이슈 (PG-lane test-pollution·pre-existing 하네스·product 버그 아님)
 `pytest tests/postgres`(전체 suite) 실행 시 test_wdc_link_cleanup 2 failed+16 errors(RestrictViolation). **격리 단독은 20 passed**. 원인: conftest 격리=per-test 트랜잭션 rollback(:236)인데 PG 동시성 테스트(FOR UPDATE/SKIP LOCKED·real commit)가 row 누출→전체 suite 순서서 RESTRICT FK. 배치9/11/14 WDC-link 계열 잠복(full tests/postgres 미실행이라 지금 노출). **각 packet 격리 테스트·domains+contracts는 전부 green**. **수정 필요(production 승격 전·별도 conftest 격리 태스크)**: 동시성 테스트 후 truncate-cascade teardown. 지금 배치15 커밋은 이 이슈로 안 막음(개별 검증 green·pre-existing).
@@ -215,3 +216,9 @@ BASE-00·PACKET-HARNESS-00 + OPS-ROUTE-01·API-ERROR-01·FAILOPEN-01·REQUEST-LI
 - **레이스 축 분리 확인**: 마이그레이션/models=PASSWORD-POLICY 단독, startup wiring=STARTUP-PURE 단독(app.py/run.py/app_init/app_factory), wizard.py=WIZ-01 단독. namespace surface test는 PASSWORD allowlist + STARTUP-PURE init_db(net-zero 복원) 공존(레이스 무해). write_guard TESTING=True 통과라 agent 기능테스트에 manifest 불요, static gate만 reconcile.
 - **오케스트레이터 reconcile**: failopen_inventory 전체 재생성(475 broad/0 unclassified), packet manifest 3 entry 채움, namespace surface init_db reconcile 복원(noqa).
 - **검증**: APP_OK·alembic 단일 head password_policy_00·secret 누출 0·매니페스트 17·타깃 227 green.
+
+## ✅ 배치18 완료 (→ head=data_measurement_00, 97 unique+5 N/A=102/124 82%)
+- ✅ DATA-MEASUREMENT-01 — 마이그레이션 data_measurement_00(down=password_policy_00·단일 head): address_learning_requests 테이블(rate/audit·ix_alr_requester_created). SIDEFX outbox 스키마 무변경(ADDRESS_LEARNING no-FK 도메인 계약 보존·geocode=ORDER_EVENT source 재사용). **3대 금지 이행**: (1)typed registry(measurement projection {manager,phone,address}·regional 6-bool allowlist+memo·임의 필드 400) (2)all-STAFF direct commit 제거(전 write REV-00 execute_order_mutation·regional evaluate_policy STAFF_MUTATION·measurement erp_edit_required) (3)postcommit geocode 폴백 제거(write path=order_geocode_outbox enqueue GEOCODE SIDEFX·맵 렌더 _resolve_pending_geocodes는 표시용이라 보존). address-learning child(사용자별 rate 1h/60 초과 429+audit). unrelated-path 불변(copy.deepcopy+flag_modified). 신규 route 0→manifest 무변경. **out-of-lane 승인**: namespace 계약(postcommit fallback import 고정→geocode-outbox 계약 대체·바인딩 무변경)·regional 500 handler logging 추가(no-silent-error). test_data_measurement 순수 13 green(PG 6 skip·DSN無·SQLite 대체증거). **ORDER-CREATE-01 임계경로 해제.**
+- ✅ WIZ-TRANSFER-01 — 신규 foms/services/orders/drawing_transfer.py(materialize_pending_snapshot·materialize_transfer_attachments·_is_drawing_key). **commit=False 계약**: helper가 db 세션 인자 미수령→commit/flush/version/event/outbox 코드경로 부재(spy 증명). 도면 key 필터(drawing_wizard/drawing/drawing_gateway 접두만·실측/일반/타주문/traversal 거부). same-origin URL. endpoint/transaction 미소유(STATE-DRAWING 조립). 기존파일 편집 0·무마이그레이션/models/manifest. test_wiz_transfer 9 green.
+- **레이스 축 분리 확인**: 마이그레이션/models/manifest=DATA-MEASUREMENT 단독(WIZ-TRANSFER는 신규 2파일뿐). namespace surface=DATA-MEASUREMENT만 편집(WIZ-TRANSFER 무접근·레이스 없음). failopen 전체 재생성(474 broad/0 unclassified).
+- **검증**: APP_OK·alembic 단일 head data_measurement_00·secret 0·매니페스트 17·타깃 211 green(PG 6 skip).

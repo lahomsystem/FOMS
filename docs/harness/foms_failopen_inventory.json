@@ -5,16 +5,16 @@
   "overlap_api_error_01": "API-ERROR-01 owns response/stdout exposure (print_exc/str(e) -> log_handled_exception). This packet owns swallow classification. Sites that log via log_handled_exception are LOG_AND_CONTINUE here.",
   "marker_convention": "Silent-by-design catches carry an inline `# failopen: intentional: <reason>` (or `fail-closed`) marker; the scanner reads it as the justification. No bare allowlist, no lint-disable.",
   "baselines": {
-    "broad_total": 475,
+    "broad_total": 474,
     "unclassified": 0
   },
   "disposition_counts": {
     "FAIL_CLOSED": 20,
     "INTENTIONAL": 17,
-    "LOG_AND_CONTINUE": 438
+    "LOG_AND_CONTINUE": 437
   },
   "owner_counts": {
-    "api": 219,
+    "api": 218,
     "audit": 1,
     "auth": 11,
     "cache": 25,
@@ -971,7 +971,7 @@
     },
     {
       "path": "foms/api/erp_map.py",
-      "lineno": 388,
+      "lineno": 398,
       "handler_type": "broad_exception",
       "disposition": "LOG_AND_CONTINUE",
       "owner": "api",
@@ -980,7 +980,7 @@
     },
     {
       "path": "foms/api/erp_map.py",
-      "lineno": 491,
+      "lineno": 501,
       "handler_type": "broad_exception",
       "disposition": "LOG_AND_CONTINUE",
       "owner": "api",
@@ -989,7 +989,7 @@
     },
     {
       "path": "foms/api/erp_map.py",
-      "lineno": 614,
+      "lineno": 624,
       "handler_type": "broad_exception",
       "disposition": "LOG_AND_CONTINUE",
       "owner": "api",
@@ -998,7 +998,7 @@
     },
     {
       "path": "foms/api/erp_map.py",
-      "lineno": 635,
+      "lineno": 645,
       "handler_type": "broad_exception",
       "disposition": "LOG_AND_CONTINUE",
       "owner": "api",
@@ -1007,7 +1007,7 @@
     },
     {
       "path": "foms/api/erp_map.py",
-      "lineno": 650,
+      "lineno": 660,
       "handler_type": "broad_exception",
       "disposition": "LOG_AND_CONTINUE",
       "owner": "api",
@@ -1016,25 +1016,7 @@
     },
     {
       "path": "foms/api/erp_map.py",
-      "lineno": 669,
-      "handler_type": "broad_exception",
-      "disposition": "LOG_AND_CONTINUE",
-      "owner": "api",
-      "has_logging": false,
-      "justification": "swallow-and-continue via control flow; logging recommended"
-    },
-    {
-      "path": "foms/api/erp_map.py",
-      "lineno": 684,
-      "handler_type": "broad_exception",
-      "disposition": "LOG_AND_CONTINUE",
-      "owner": "api",
-      "has_logging": false,
-      "justification": "swallow-and-continue via control flow; logging recommended"
-    },
-    {
-      "path": "foms/api/erp_map.py",
-      "lineno": 715,
+      "lineno": 704,
       "handler_type": "broad_exception",
       "disposition": "LOG_AND_CONTINUE",
       "owner": "api",
@@ -1043,7 +1025,16 @@
     },
     {
       "path": "foms/api/erp_map.py",
-      "lineno": 745,
+      "lineno": 721,
+      "handler_type": "broad_exception",
+      "disposition": "LOG_AND_CONTINUE",
+      "owner": "api",
+      "has_logging": false,
+      "justification": "swallow-and-continue via control flow; logging recommended"
+    },
+    {
+      "path": "foms/api/erp_map.py",
+      "lineno": 801,
       "handler_type": "broad_exception",
       "disposition": "LOG_AND_CONTINUE",
       "owner": "api",
@@ -1565,7 +1556,7 @@
     },
     {
       "path": "foms/api/measurement/routes.py",
-      "lineno": 131,
+      "lineno": 136,
       "handler_type": "broad_exception",
       "disposition": "LOG_AND_CONTINUE",
       "owner": "api",
@@ -1574,7 +1565,7 @@
     },
     {
       "path": "foms/api/measurement/routes.py",
-      "lineno": 250,
+      "lineno": 286,
       "handler_type": "broad_exception",
       "disposition": "LOG_AND_CONTINUE",
       "owner": "api",
@@ -1583,7 +1574,7 @@
     },
     {
       "path": "foms/api/measurement/routes.py",
-      "lineno": 322,
+      "lineno": 363,
       "handler_type": "broad_exception",
       "disposition": "LOG_AND_CONTINUE",
       "owner": "api",
@@ -1898,21 +1889,21 @@
     },
     {
       "path": "foms/api/orders/regional.py",
-      "lineno": 48,
+      "lineno": 184,
       "handler_type": "broad_exception",
       "disposition": "LOG_AND_CONTINUE",
       "owner": "api",
-      "has_logging": false,
-      "justification": "swallow-and-continue via control flow; logging recommended"
+      "has_logging": true,
+      "justification": "logs via logger/log_handled_exception"
     },
     {
       "path": "foms/api/orders/regional.py",
-      "lineno": 76,
+      "lineno": 256,
       "handler_type": "broad_exception",
       "disposition": "LOG_AND_CONTINUE",
       "owner": "api",
-      "has_logging": false,
-      "justification": "swallow-and-continue via control flow; logging recommended"
+      "has_logging": true,
+      "justification": "logs via logger/log_handled_exception"
     },
     {
       "path": "foms/api/orders/stage_override.py",
