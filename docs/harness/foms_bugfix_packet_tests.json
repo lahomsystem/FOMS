@@ -2494,9 +2494,18 @@
    "write_guard": false,
    "postgres": false
   },
-  "commands": [],
-  "existing_regressions": [],
-  "created_tests": [],
+  "commands": [
+   "python -m pytest tests/domains/test_state_guard.py -q"
+  ],
+  "existing_regressions": [
+   "tests/domains/test_state_legacy.py"
+  ],
+  "created_tests": [
+   {
+    "path": "tests/domains/test_state_guard.py",
+    "owner_packet": "STATE-GUARD-01"
+   }
+  ],
   "browser_scenarios": [],
   "deploy_check_ids": [],
   "deployment_evidence_mode": "HEARTBEAT"
@@ -3073,9 +3082,18 @@
    "write_guard": false,
    "postgres": true
   },
-  "commands": [],
-  "existing_regressions": [],
-  "created_tests": [],
+  "commands": [
+   "python -m pytest tests/postgres/test_scale_channel.py -q"
+  ],
+  "existing_regressions": [
+   "tests/postgres/test_channel_inbound.py"
+  ],
+  "created_tests": [
+   {
+    "path": "tests/postgres/test_scale_channel.py",
+    "owner_packet": "SCALE-CHANNEL-01"
+   }
+  ],
   "browser_scenarios": [],
   "deploy_check_ids": [],
   "deployment_evidence_mode": "HEARTBEAT"
