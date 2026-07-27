@@ -149,6 +149,17 @@ def test_session_worktree_union_is_own(tmp_path: Path) -> None:
     assert scope.classify_deploy_scope(str(wt), "sid-day3").kind == "own"
 
 
+def test_session_worktree_relative_root(tmp_path: Path, monkeypatch) -> None:
+    """상대경로 root('.') 로도 세션 worktree 판정 — E2E 검증에서 적발된 결함 회귀."""
+    scope = _load_scope()
+    ledger = _load_ledger()
+    wt = _init_repo_with_deploy(tmp_path, "foms-s-rel")
+    ledger.append_commit(str(wt), "sid1", _commit_file(wt, "b.txt"))
+    monkeypatch.chdir(wt)
+    assert scope._is_session_worktree(".")
+    assert scope.classify_deploy_scope(".", "other-sid").kind == "own"
+
+
 def test_session_worktree_unledgered_is_foreign(tmp_path: Path) -> None:
     """세션 worktree: ledger 밖 커밋(cherry-pick 유입 재현)은 foreign 유지."""
     scope = _load_scope()

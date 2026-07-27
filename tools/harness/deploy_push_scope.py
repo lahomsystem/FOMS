@@ -74,9 +74,10 @@ def _is_session_worktree(project_root: str) -> bool:
         project_root: 저장소 루트(또는 worktree) 경로.
     반환:
         basename 이 `foms-s-` 로 시작하면 True. Windows 경로는 대소문자를
-        구분하지 않으므로 소문자로 비교한다.
+        구분하지 않으므로 소문자로 비교한다. 상대경로('.' 등)는 abspath 로
+        정규화해 판정한다 — normpath('.') 의 basename 은 '.' 이라 오판한다.
     """
-    return os.path.basename(os.path.normpath(project_root)).lower().startswith("foms-s-")
+    return os.path.basename(os.path.abspath(project_root)).lower().startswith("foms-s-")
 
 
 def classify_deploy_scope(
