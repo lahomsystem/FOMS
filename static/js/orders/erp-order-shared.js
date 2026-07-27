@@ -2774,6 +2774,59 @@ ${escapeHtml(sub)}</div>` : ''}`;
         const filesEl = document.getElementById('as-receive-files');
         const previewEl = document.getElementById('as-receive-preview');
         const submitBtn = document.getElementById('as-receive-submit-btn');
+        const amountWrap = document.getElementById('as-receive-amount-wrap');
+        const amountEl = document.getElementById('as-receive-amount');
+        const sinceBadge = document.getElementById('as-receive-since-badge');
+        const lockedNote = document.getElementById('as-receive-billing-locked-note');
+        const billingRadios = () => Array.from(document.querySelectorAll('input[name="as-receive-billing"]'));
+
+        function selectedBillingType() {
+            const checked = billingRadios().find((r) => r.checked);
+            return checked ? checked.value : 'free';
+        }
+
+        function syncBillingUi() {
+            if (amountWrap) amountWrap.classList.toggle('d-none', selectedBillingType() !== 'paid');
+        }
+        billingRadios().forEach((r) => r.addEventListener('change', syncBillingUi));
+
+        // 재접수(지방 재상차 등)는 서버가 billing 페이로드를 무시하고 기존 판정을 보존한다
+        // (foms/api/cs/as_orders.py: as_billing이 dict면 시드 건너뜀). 그래서 세그먼트를
+        // 열어두면 "골랐는데 저장 안 됨"이 된다 — 기존값으로 고정하고 잠근다.
+        function applyExistingBillingLock() {
+            const existing = window.__erpLastStructuredData?.shipment?.as_billing;
+            const locked = !!existing && typeof existing === 'object' && !Array.isArray(existing);
+            const radios = billingRadios();
+            if (locked) {
+                const type = String(existing.type || 'free');
+                radios.forEach((r) => { r.checked = (r.value === type); r.disabled = true; });
+                if (amountEl) {
+                    amountEl.value = (existing.amount === null || existing.amount === undefined)
+                        ? ''
+                        : String(existing.amount);
+                    amountEl.disabled = true;
+                }
+            } else {
+                radios.forEach((r) => { r.disabled = false; });
+                if (amountEl) amountEl.disabled = false;
+            }
+            if (lockedNote) lockedNote.classList.toggle('d-none', !locked);
+        }
+
+        function refreshSinceBadge() {
+            if (!sinceBadge) return;
+            // 시공일(#erp-construction-date)은 "2026-03-13, 2026-03-14"처럼 여러 날짜가
+            // 들어가는 text input이라 new Date(raw) 직접 파싱은 NaN이 난다. ISO 문자열은
+            // 사전순=시간순이므로 정렬 후 마지막(가장 늦은 시공일)을 기준으로 잡는다.
+            const raw = (document.getElementById('erp-construction-date')?.value || '').trim();
+            const found = raw.match(/\d{4}-\d{2}-\d{2}/g);
+            if (!found || !found.length) { sinceBadge.classList.add('d-none'); return; }
+            const base = new Date(`${found.slice().sort().pop()}T00:00:00`);
+            if (Number.isNaN(base.getTime())) { sinceBadge.classList.add('d-none'); return; }
+            const months = Math.max(0, Math.floor((Date.now() - base.getTime()) / (1000 * 60 * 60 * 24 * 30.44)));
+            sinceBadge.textContent = `시공 후 ${months}개월 경과`;
+            sinceBadge.classList.remove('d-none');
+        }
 
         if (filesEl && previewEl) {
             filesEl.addEventListener('change', function () {
@@ -2784,6 +2837,12 @@ ${escapeHtml(sub)}</div>` : ''}`;
         }
 
         if (modalEl) {
+            // 오픈마다 재평가(상차일 wrap과 동일 원칙): 판정 잠금 → 세그먼트 → 경과 배지 순.
+            modalEl.addEventListener('shown.bs.modal', function () {
+                applyExistingBillingLock();
+                syncBillingUi();
+                refreshSinceBadge();
+            });
             modalEl.addEventListener('hidden.bs.modal', function () {
                 if (window.__erpAsReceiveSubmitted !== true) {
                     const stageEl = document.getElementById('erp-workflow-stage');
@@ -2813,6 +2872,14 @@ ${escapeHtml(sub)}</div>` : ''}`;
 
                 // 지방주문 + 상차일 입력 시 AS 등록 payload에 포함(정본 경로에서 원자적 저장).
                 const regPayload = { as_content: content };
+                // 최초 접수의 무상/유상 "추정". 확정·전환은 POST /as/billing 소관이며,
+                // 재접수 시에는 서버가 이 두 필드를 무시하고 기존 판정을 보존한다.
+                const billingType = selectedBillingType();
+                regPayload.billing_type = billingType;
+                if (billingType === 'paid') {
+                    const amt = parseInt(amountEl?.value || '', 10);
+                    if (!Number.isNaN(amt) && amt >= 0) regPayload.amount = amt;
+                }
                 const shipDateEl = document.getElementById('as-receive-shipping-date');
                 const isRegionalNow = document.getElementById('erp-regional-order')?.checked === true;
                 const shipDateVal = (shipDateEl?.value || '').trim();
