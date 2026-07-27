@@ -1951,9 +1951,22 @@
    "write_guard": true,
    "postgres": true
   },
-  "commands": [],
-  "existing_regressions": [],
-  "created_tests": [],
+  "commands": [
+   "python -m pytest tests/domains/test_state_drawing.py -q"
+  ],
+  "existing_regressions": [
+   "tests/domains/test_wiz_transfer.py"
+  ],
+  "created_tests": [
+   {
+    "path": "tests/domains/test_state_drawing.py",
+    "owner_packet": "STATE-DRAWING-01"
+   },
+   {
+    "path": "tests/postgres/test_state_drawing.py",
+    "owner_packet": "STATE-DRAWING-01"
+   }
+  ],
   "browser_scenarios": [],
   "deploy_check_ids": [],
   "deployment_evidence_mode": "HEARTBEAT"
@@ -2189,9 +2202,18 @@
    "write_guard": true,
    "postgres": true
   },
-  "commands": [],
-  "existing_regressions": [],
-  "created_tests": [],
+  "commands": [
+   "python -m pytest tests/postgres/test_order_import.py -q"
+  ],
+  "existing_regressions": [
+   "tests/postgres/test_sidefx_outbox.py"
+  ],
+  "created_tests": [
+   {
+    "path": "tests/postgres/test_order_import.py",
+    "owner_packet": "ORDER-IMPORT-01"
+   }
+  ],
   "browser_scenarios": [],
   "deploy_check_ids": [],
   "deployment_evidence_mode": "HEARTBEAT"
@@ -2283,9 +2305,18 @@
    "write_guard": true,
    "postgres": false
   },
-  "commands": [],
-  "existing_regressions": [],
-  "created_tests": [],
+  "commands": [
+   "python -m pytest tests/domains/test_draft_lifecycle.py -q"
+  ],
+  "existing_regressions": [
+   "tests/domains/test_order_create_service.py"
+  ],
+  "created_tests": [
+   {
+    "path": "tests/domains/test_draft_lifecycle.py",
+    "owner_packet": "DRAFT-LIFECYCLE-01"
+   }
+  ],
   "browser_scenarios": [],
   "deploy_check_ids": [],
   "deployment_evidence_mode": "HEARTBEAT"

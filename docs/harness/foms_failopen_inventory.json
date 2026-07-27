@@ -5,16 +5,16 @@
   "overlap_api_error_01": "API-ERROR-01 owns response/stdout exposure (print_exc/str(e) -> log_handled_exception). This packet owns swallow classification. Sites that log via log_handled_exception are LOG_AND_CONTINUE here.",
   "marker_convention": "Silent-by-design catches carry an inline `# failopen: intentional: <reason>` (or `fail-closed`) marker; the scanner reads it as the justification. No bare allowlist, no lint-disable.",
   "baselines": {
-    "broad_total": 478,
+    "broad_total": 476,
     "unclassified": 0
   },
   "disposition_counts": {
-    "FAIL_CLOSED": 20,
+    "FAIL_CLOSED": 22,
     "INTENTIONAL": 17,
-    "LOG_AND_CONTINUE": 441
+    "LOG_AND_CONTINUE": 437
   },
   "owner_counts": {
-    "api": 217,
+    "api": 215,
     "audit": 1,
     "auth": 11,
     "cache": 25,
@@ -22,10 +22,10 @@
     "persistence": 3,
     "platform": 5,
     "runtime": 3,
-    "services": 97,
+    "services": 99,
     "storage": 20,
     "telemetry": 30,
-    "web": 30
+    "web": 28
   },
   "fail_closed_sites": [
     "db.py:88",
@@ -46,6 +46,8 @@
     "foms/services/jobs/tasks.py:221",
     "foms/services/jobs/tasks.py:227",
     "foms/services/notifications/push_sender.py:351",
+    "foms/services/orders/order_import.py:167",
+    "foms/services/orders/order_import.py:388",
     "foms/web/orders/trash.py:140",
     "wdcalculator_db.py:179"
   ],
@@ -566,7 +568,7 @@
     },
     {
       "path": "foms/api/drawing/erp_orders_drawing.py",
-      "lineno": 82,
+      "lineno": 85,
       "handler_type": "broad_exception",
       "disposition": "LOG_AND_CONTINUE",
       "owner": "api",
@@ -575,7 +577,7 @@
     },
     {
       "path": "foms/api/drawing/erp_orders_drawing.py",
-      "lineno": 259,
+      "lineno": 257,
       "handler_type": "broad_exception",
       "disposition": "LOG_AND_CONTINUE",
       "owner": "api",
@@ -584,7 +586,7 @@
     },
     {
       "path": "foms/api/drawing/erp_orders_drawing.py",
-      "lineno": 299,
+      "lineno": 297,
       "handler_type": "broad_exception",
       "disposition": "LOG_AND_CONTINUE",
       "owner": "api",
@@ -593,7 +595,7 @@
     },
     {
       "path": "foms/api/drawing/erp_orders_drawing.py",
-      "lineno": 363,
+      "lineno": 357,
       "handler_type": "broad_exception",
       "disposition": "LOG_AND_CONTINUE",
       "owner": "api",
@@ -602,7 +604,7 @@
     },
     {
       "path": "foms/api/drawing/erp_orders_drawing.py",
-      "lineno": 367,
+      "lineno": 361,
       "handler_type": "broad_exception",
       "disposition": "LOG_AND_CONTINUE",
       "owner": "api",
@@ -611,7 +613,7 @@
     },
     {
       "path": "foms/api/drawing/erp_orders_drawing.py",
-      "lineno": 407,
+      "lineno": 401,
       "handler_type": "broad_exception",
       "disposition": "LOG_AND_CONTINUE",
       "owner": "api",
@@ -620,7 +622,7 @@
     },
     {
       "path": "foms/api/drawing/erp_orders_drawing.py",
-      "lineno": 462,
+      "lineno": 566,
       "handler_type": "broad_exception",
       "disposition": "LOG_AND_CONTINUE",
       "owner": "api",
@@ -629,7 +631,7 @@
     },
     {
       "path": "foms/api/drawing/erp_orders_drawing.py",
-      "lineno": 471,
+      "lineno": 596,
       "handler_type": "broad_exception",
       "disposition": "LOG_AND_CONTINUE",
       "owner": "api",
@@ -638,25 +640,7 @@
     },
     {
       "path": "foms/api/drawing/erp_orders_drawing.py",
-      "lineno": 552,
-      "handler_type": "broad_exception",
-      "disposition": "LOG_AND_CONTINUE",
-      "owner": "api",
-      "has_logging": true,
-      "justification": "logs via logger/log_handled_exception"
-    },
-    {
-      "path": "foms/api/drawing/erp_orders_drawing.py",
-      "lineno": 582,
-      "handler_type": "broad_exception",
-      "disposition": "LOG_AND_CONTINUE",
-      "owner": "api",
-      "has_logging": true,
-      "justification": "logs via logger/log_handled_exception"
-    },
-    {
-      "path": "foms/api/drawing/erp_orders_drawing.py",
-      "lineno": 590,
+      "lineno": 604,
       "handler_type": "broad_exception",
       "disposition": "LOG_AND_CONTINUE",
       "owner": "api",
@@ -665,7 +649,7 @@
     },
     {
       "path": "foms/api/drawing/erp_orders_drawing.py",
-      "lineno": 634,
+      "lineno": 648,
       "handler_type": "broad_exception",
       "disposition": "LOG_AND_CONTINUE",
       "owner": "api",
@@ -674,7 +658,7 @@
     },
     {
       "path": "foms/api/drawing/erp_orders_drawing.py",
-      "lineno": 677,
+      "lineno": 691,
       "handler_type": "broad_exception",
       "disposition": "LOG_AND_CONTINUE",
       "owner": "api",
@@ -3598,6 +3582,24 @@
       "justification": "swallow-and-continue via control flow; logging recommended"
     },
     {
+      "path": "foms/services/orders/order_import.py",
+      "lineno": 167,
+      "handler_type": "broad_exception",
+      "disposition": "FAIL_CLOSED",
+      "owner": "services",
+      "has_logging": false,
+      "justification": "re-raises"
+    },
+    {
+      "path": "foms/services/orders/order_import.py",
+      "lineno": 388,
+      "handler_type": "broad_exception",
+      "disposition": "FAIL_CLOSED",
+      "owner": "services",
+      "has_logging": false,
+      "justification": "re-raises"
+    },
+    {
       "path": "foms/services/orders/order_text_parser.py",
       "lineno": 33,
       "handler_type": "broad_exception",
@@ -3965,24 +3967,6 @@
       "owner": "storage",
       "has_logging": false,
       "justification": "print (weak; API-ERROR-01 owns stdout->logger migration)"
-    },
-    {
-      "path": "foms/web/admin/excel_import.py",
-      "lineno": 46,
-      "handler_type": "broad_exception",
-      "disposition": "LOG_AND_CONTINUE",
-      "owner": "web",
-      "has_logging": false,
-      "justification": "swallow-and-continue via control flow; logging recommended"
-    },
-    {
-      "path": "foms/web/admin/excel_import.py",
-      "lineno": 156,
-      "handler_type": "broad_exception",
-      "disposition": "LOG_AND_CONTINUE",
-      "owner": "web",
-      "has_logging": false,
-      "justification": "flash() user notice"
     },
     {
       "path": "foms/web/admin/routes.py",
