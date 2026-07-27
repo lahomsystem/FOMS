@@ -510,6 +510,8 @@
                 // CS 완료 더블체크가 주입한 코멘트가 다음 이미지에 남지 않도록 정리.
                 var completionExtra = document.getElementById('global-viewer-completion-extra');
                 if (completionExtra) completionExtra.remove();
+                // 주입형 부가 노드(도면 판정 액션바·컨텍스트 스트립 등) 일반 정리 — 소유자 무관 전수 제거.
+                document.querySelectorAll('[data-viewer-extra]').forEach(function (node) { node.remove(); });
                 if (els.video) {
                     els.video.pause();
                     els.video.src = '';
@@ -840,10 +842,14 @@
                 else prev();
             }
 
+            // 현재 표시 중인 파일 인덱스(스와이프 반영) — 도면 판정이 대상 key 를 고르는 근거.
+            function getIndex() { return state.index; }
+
             return {
                 init,
                 open,
-                close
+                close,
+                getIndex
             };
         })();
 

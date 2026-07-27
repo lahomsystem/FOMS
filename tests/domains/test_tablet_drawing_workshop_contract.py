@@ -284,7 +284,7 @@ def test_gallery_wires_review_js_deferred_with_cachebuster() -> None:
     assert m is not None, "tablet-drawing-review.js not wired in gallery partial"
     tag = m.group(0)
     assert "defer" in tag, "review script must be defer (perf G1)"
-    assert "?v=20260727a" in tag, "신규 파일 캐시버스터 핀"
+    assert "?v=20260727b" in tag, "판정·연속리뷰 확장 반영 범프"
 
 
 def test_review_js_singleton_guard_mq_gate_and_preventdefault() -> None:
@@ -308,6 +308,108 @@ def test_side_sheet_defers_drawing_viewer_marker() -> None:
     assert 'if (target.closest("[data-foms-drawing-viewer]")) return;' in js
     # 가드는 row 처리보다 앞이어야 한다(시트 개방·preventDefault 전).
     assert js.index("data-foms-drawing-viewer") < js.index("var row = target.closest(ROW_SELECTOR)")
+
+
+# --- E3 판정 오버레이 · E5 연속 리뷰 · E6 딜라이트 (2026-07-27) ---------------
+
+
+def test_gallery_card_carries_review_context_data_attrs() -> None:
+    """액션바 노출 조건·컨텍스트 스트립이 읽는 카드 data-* 계약."""
+    body = _read(GALLERY_PARTIAL)
+    for attr in (
+        'data-foms-drawing-status="{{ r.drawing_status }}"',
+        "data-foms-can-confirm=",
+        "data-foms-can-revise=",
+        "data-foms-order-change=",
+        'data-foms-customer="{{ r.customer_name }}"',
+        "data-foms-dday=",
+        "data-foms-install=",
+    ):
+        assert attr in body, f"missing review data attr: {attr}"
+    assert "r.can_confirm_receipt_perm" in body
+    assert "r.can_request_revision" in body
+    # E6 ①: 시공 D-1 이하 앰버 테두리 + ④ 검색 inputmode.
+    assert "r.construction_days <= 1" in body
+    assert "is-due-soon" in body
+    assert 'inputmode="search"' in body
+
+
+def test_review_js_action_bar_uses_viewer_extra_and_textcontent() -> None:
+    js = _read(REVIEW_JS)
+    # append 패턴 마운트 지점 + 코어 리셋이 잡아가는 마커.
+    assert "data-viewer-extra" in js
+    assert 'document.getElementById("global-viewer-footer")' in js
+    assert "foms-viewer-actions" in js
+    assert "foms-viewer-context" in js
+    # 사용자 유래 문자열은 textContent/createElement 로만 — 전역 뷰어 오염 금지.
+    assert "innerHTML" not in js
+    assert "createElement" in js
+    assert "textContent" in js
+    # 주문변경 미확인 경고 배지.
+    assert "주문변경 미확인" in js
+
+
+def test_review_js_judgement_api_contract() -> None:
+    js = _read(REVIEW_JS)
+    assert "/confirm-drawing-receipt" in js
+    assert "/request-revision" in js
+    # 판정 대상 = 현재 뷰어 인덱스의 파일 key(열 때 인덱스 아님 — 코어 getIndex 필수).
+    assert "getIndex" in js
+    assert "target_drawing_keys" in js
+    # 기존 실행판 판정 fetch 와 동일한 헤더 패턴.
+    assert '"Content-Type": "application/json"' in js
+    # 응답 필드는 message(error 아님) + success 검증 + 상태코드별 문구.
+    assert "data.success" in js
+    assert "권한이 없습니다" in js
+    assert "이미 처리된 도면입니다" in js
+    assert "전송 실패 — 다시 시도" in js
+    # 이중 탭 방지 + 실패 시 컨텍스트 로그.
+    assert "disabled = busy" in js
+    assert 'console.error("[foms-drawing-review]"' in js
+
+
+def test_review_js_revision_reason_chips_preset() -> None:
+    js = _read(REVIEW_JS)
+    for chip in ("치수 확인", "재실측 필요", "마감/색상 확인", "설치 간섭"):
+        assert chip in js, f"missing revision reason chip: {chip}"
+
+
+def test_review_js_continuous_review_counter_and_next() -> None:
+    js = _read(REVIEW_JS)
+    # 카운터 모수 = 현재 DOM 목록의 TRANSFERRED 카드(서버 stats 아님).
+    assert "이 목록 확정 대기 " in js
+    assert 'data-foms-drawing-status="TRANSFERRED"' in js
+    # 확정 = 카드 제거 / 수정요청 = RETURNED 잔존 + 수정 요청 칩.
+    assert "card.remove()" in js
+    assert 'card.setAttribute("data-foms-drawing-status", "RETURNED")' in js
+    assert "foms-drawing-gallery-chip is-urgent" in js
+    # 목록 소진 안내 + 건너뛰기.
+    assert "이 목록의 확정 대기 도면을 모두 검토했습니다" in js
+    assert "다음 ▸" in js
+    # 신규 document 리스너 금지 — 액션바는 자체 노드 위임.
+    assert js.count("document.addEventListener") == 1
+    assert "bar.addEventListener" in js
+
+
+def test_review_js_longpress_hint_once_via_localstorage() -> None:
+    js = _read(REVIEW_JS)
+    assert "fomsDrawingLongpressHintSeen" in js
+    assert "카드를 길게 누르면 여러 건을 선택할 수 있습니다" in js
+    assert "foms-drawing-gallery-hint" in js
+
+
+def test_gallery_css_viewer_action_bar_touch_targets() -> None:
+    css = _norm(_read(GALLERY_CSS))
+    # 뷰어 오버레이는 body 직속 — 코호트 접두 없이 자체 클래스로만 스코프.
+    assert ".foms-viewer-actions {" in css
+    assert ".foms-viewer-context {" in css
+    assert "body.erp-mobile-v2-layout .foms-viewer-actions" not in css
+    # 터치 타깃 44px(버튼·칩).
+    assert ".foms-viewer-actions__btn { min-height: 44px" in css
+    assert ".foms-viewer-actions__chip { min-height: 44px" in css
+    # E6 ① 앰버 테두리는 하드코딩 색이 아니라 팔레트 변수.
+    assert ".foms-drawing-gallery-card.is-due-soon" in css
+    assert "var(--foms-color-warning-500" in css
 
 
 def test_gallery_css_longpress_selection_affordance() -> None:

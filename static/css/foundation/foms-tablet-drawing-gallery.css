@@ -100,6 +100,12 @@
     border-color: var(--foms-interactive-primary);
     box-shadow: var(--foms-shadow-focus-ring);
   }
+  /* E6 ①: 시공 D-1 이하 = 앰버 테두리(경보만 유채라는 HMI 색 규율 유지).
+     is-active 뒤에 두어 임박 건에서는 앰버가 이긴다(동일 특이도 — 순서로 결정). */
+  body.erp-mobile-v2-layout .foms-drawing-gallery-card.is-due-soon {
+    border-width: 2px;
+    border-color: var(--foms-color-warning-500, #f59e0b);
+  }
 
   /* --- 썸네일 (도면 미리보기 or 무채 플레이스홀더) --- */
   body.erp-mobile-v2-layout .foms-drawing-gallery-card__thumb {
@@ -722,4 +728,162 @@
   .foms-drawing-gallery-card {
     transition: none !important;
   }
+}
+
+/* ============================================================================
+   E6 ⑥ 롱프레스 다중선택 첫 사용 힌트 — 갤러리 위 1회성 안내 라인(localStorage 마킹).
+   tablet-drawing-review.js 가 코호트에서만 생성하지만, 표시 규칙은 다른 갤러리 크롬과
+   동일 게이트 아래 둔다.
+   ============================================================================ */
+@media (min-width: 992px) and (orientation: landscape) and (pointer: coarse) {
+
+  body.erp-mobile-v2-layout .foms-drawing-gallery-hint {
+    display: flex;
+    align-items: center;
+    gap: var(--foms-space-2);
+    padding: var(--foms-space-2) var(--foms-space-3);
+    border: 1px solid var(--foms-border-subtle);
+    border-radius: var(--foms-radius-md);
+    background: var(--foms-surface-subtle);
+    color: var(--foms-text-secondary);
+    font-size: var(--foms-font-size-sm);
+  }
+  body.erp-mobile-v2-layout .foms-drawing-gallery-hint__close {
+    margin-left: auto;
+    min-width: var(--foms-touch-target-comfortable, 44px);
+    min-height: var(--foms-touch-target-comfortable, 44px);
+    border: none;
+    background: transparent;
+    color: var(--foms-text-tertiary);
+    font-size: var(--foms-font-size-lg);
+    line-height: 1;
+    cursor: pointer;
+  }
+}
+
+/* ============================================================================
+   E3 뷰어 내 판정 오버레이 — 상단 컨텍스트 스트립 + 하단 액션바.
+   GlobalImageViewer 는 body 직속 오버레이라 코호트 body class 안쪽이 아니다. 따라서 이
+   섹션만 자체 클래스(.foms-viewer-*)로 스코프하고 코호트 접두·MQ 를 쓰지 않는다 — 노드를
+   붙이는 주체가 코호트 게이트를 이미 통과한 tablet-drawing-review.js 하나뿐이라 누출 없음.
+   ============================================================================ */
+
+.foms-viewer-context {
+  position: absolute;
+  top: 24px;
+  left: 24px;
+  right: 160px; /* 우상단 다운로드·닫기 버튼(48px×2) 회피 */
+  z-index: 3;
+  display: flex;
+  flex-wrap: wrap;
+  align-items: center;
+  gap: 8px;
+  color: #fff;
+  font-size: 15px;
+  font-weight: 700;
+  text-shadow: 0 1px 3px rgba(0, 0, 0, 0.6);
+  pointer-events: none; /* 핀치·스와이프 제스처를 가로막지 않는다 */
+}
+.foms-viewer-context__item + .foms-viewer-context__item::before {
+  content: "· ";
+  opacity: 0.6;
+}
+.foms-viewer-context__warn {
+  padding: 2px 10px;
+  border-radius: 999px;
+  background: var(--foms-color-warning-500, #f59e0b);
+  color: #1f2937;
+  font-size: 13px;
+}
+
+/* 액션바가 들어오면 footer 를 알약(CS 코멘트용 기본형) → 판정 패널로 전환. */
+#global-viewer-footer:has(.foms-viewer-actions) {
+  display: block;
+  border-radius: 14px;
+  padding: 12px 14px;
+  max-width: min(720px, 92vw);
+}
+
+.foms-viewer-actions {
+  display: flex;
+  flex-direction: column;
+  gap: 10px;
+}
+.foms-viewer-actions__row {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: center;
+  gap: 10px;
+}
+.foms-viewer-actions__row[hidden],
+.foms-viewer-actions__panel[hidden] {
+  display: none;
+}
+.foms-viewer-actions__counter {
+  margin-right: auto;
+  font-size: 14px;
+  font-weight: 700;
+  opacity: 0.85;
+  font-variant-numeric: tabular-nums;
+}
+.foms-viewer-actions__btn {
+  min-height: 44px;
+  min-width: 88px;
+  padding: 0 18px;
+  border-radius: 10px;
+  border: 1px solid rgba(255, 255, 255, 0.35);
+  background: rgba(255, 255, 255, 0.12);
+  color: #fff;
+  font-size: 15px;
+  font-weight: 700;
+  cursor: pointer;
+}
+.foms-viewer-actions__btn.is-primary {
+  border-color: transparent;
+  background: var(--foms-interactive-primary, #2563eb);
+}
+.foms-viewer-actions__btn[disabled] {
+  opacity: 0.5;
+  cursor: not-allowed;
+}
+.foms-viewer-actions__panel {
+  display: flex;
+  flex-direction: column;
+  gap: 10px;
+}
+.foms-viewer-actions__chips {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 8px;
+}
+.foms-viewer-actions__chip {
+  min-height: 44px;
+  padding: 0 14px;
+  border-radius: 999px;
+  border: 1px solid rgba(255, 255, 255, 0.35);
+  background: transparent;
+  color: #fff;
+  font-size: 14px;
+  font-weight: 700;
+  cursor: pointer;
+}
+.foms-viewer-actions__note {
+  min-height: 64px;
+  padding: 10px 12px;
+  border-radius: 10px;
+  border: 1px solid rgba(255, 255, 255, 0.3);
+  background: rgba(255, 255, 255, 0.1);
+  color: #fff;
+  font-size: 15px;
+  resize: vertical;
+}
+.foms-viewer-actions__note::placeholder {
+  color: rgba(255, 255, 255, 0.6);
+}
+.foms-viewer-actions__status {
+  margin: 0;
+  font-size: 14px;
+}
+.foms-viewer-actions__status:empty {
+  display: none;
 }

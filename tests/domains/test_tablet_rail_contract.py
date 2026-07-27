@@ -159,7 +159,7 @@ def test_cache_chain_versions_bumped() -> None:
     그리드 신설 = landscape.css), erp-pro.css link bumped off the old 20260711ad, and erp-pro.css @imports
     the bridge at ?v=20260712b (bridge content changed = T2 chrome-hide arm + rail-key de-scope)."""
     head = _read(LAYOUT_HEAD)
-    assert "foms-tablet-bundle.css') }}?v=20260727b" in head
+    assert "foms-tablet-bundle.css') }}?v=20260727c" in head
     # erp-pro.css link bumped (old value gone, a fresh value present).
     assert "?v=20260711ad" not in head
     assert "erp-pro.css') }}?v=20260715a" in head

@@ -66,7 +66,7 @@
       <input type="checkbox" class="foms-drawing-workshop__autofilter" name="pending" value="1" {% if filters.get('pending') == '1' %}checked{% endif %}>
       <span>전달 대기만</span>
     </label>
-    <input type="search" class="erp-pro-input foms-drawing-workshop__search" name="q"
+    <input type="search" inputmode="search" class="erp-pro-input foms-drawing-workshop__search" name="q"
            value="{{ filters.get('q') or '' }}" placeholder="고객명·주문번호·담당자 검색" autocomplete="off">
     <button type="submit" class="foms-drawing-workshop__btn foms-drawing-workshop__btn--ghost" aria-label="검색">
       <i class="fas fa-search" aria-hidden="true"></i>
@@ -100,8 +100,25 @@
   <section class="foms-drawing-gallery" aria-label="도면 시트 갤러리">
     {% if rows %}
       {% for r in rows %}
-      <a class="foms-drawing-gallery-card{% if r.my_todo %} is-active{% endif %}"
+      {# D-day 라벨·시공일 표기는 카드 칩과 뷰어 컨텍스트 스트립이 공유하므로 카드보다 먼저 계산한다. #}
+      {% set _dday = '' %}
+      {% if r.construction_days is not none %}
+        {% if r.construction_days == 0 %}{% set _dday = 'D-DAY' %}
+        {% elif r.construction_days > 0 %}{% set _dday = 'D-' ~ r.construction_days %}
+        {% else %}{% set _dday = 'D+' ~ (r.construction_days * -1) %}{% endif %}
+      {% endif %}
+      {% set _cparts = (r.construction_date or '').split(',') | map('trim') | select | list %}
+      <a class="foms-drawing-gallery-card{% if r.my_todo %} is-active{% endif %}{% if r.construction_days is not none and r.construction_days <= 1 %} is-due-soon{% endif %}"
          data-order-id="{{ r.id }}"
+         {# 뷰어 판정 액션바(tablet-drawing-review.js)가 읽는 카드 컨텍스트. 권한 플래그는
+            편의 게이트일 뿐이고 실제 방어선은 판정 API 서버 검증이다. #}
+         data-foms-drawing-status="{{ r.drawing_status }}"
+         data-foms-can-confirm="{{ '1' if r.can_confirm_receipt_perm else '' }}"
+         data-foms-can-revise="{{ '1' if r.can_request_revision else '' }}"
+         data-foms-order-change="{{ '1' if r.order_change_pending else '' }}"
+         data-foms-customer="{{ r.customer_name }}"
+         data-foms-dday="{{ _dday }}"
+         data-foms-install="{{ _cparts|join(' · ') if _cparts else '시공일 미정' }}"
          data-foms-sheet-url="{{ url_for('erp_drawing_workbench.erp_drawing_workbench_tablet_sheet', order_id=r.id) }}"
          data-foms-erp-no-shell
          href="{{ url_for('erp_drawing_workbench.erp_drawing_workbench_detail', order_id=r.id) }}?tab=timeline"
@@ -123,10 +140,7 @@
           <div class="foms-drawing-gallery-card__top">
             {% if r.drawing_status == 'RETURNED' %}<span class="foms-drawing-gallery-chip is-urgent">수정 요청</span>{% endif %}
             {% if r.order_change_pending %}<span class="foms-drawing-gallery-chip is-order-change">주문변경</span>{% endif %}
-            {% if r.construction_days is not none %}
-              {% if r.construction_days == 0 %}{% set _dday = 'D-DAY' %}
-              {% elif r.construction_days > 0 %}{% set _dday = 'D-' ~ r.construction_days %}
-              {% else %}{% set _dday = 'D+' ~ (r.construction_days * -1) %}{% endif %}
+            {% if _dday %}
               <span class="foms-drawing-gallery-chip{% if r.sla_level == '지연' %} is-overdue{% elif r.construction_d3 %} is-imminent{% endif %}">{{ _dday }}</span>
             {% endif %}
             <span class="foms-drawing-gallery-card__id">#{{ r.id }}</span>
@@ -134,7 +148,6 @@
           <div class="foms-drawing-gallery-card__name">{{ r.customer_name }}</div>
           {% if r.product_summary %}<div class="foms-drawing-gallery-card__product">{{ r.product_summary }}</div>{% endif %}
           <div class="foms-drawing-gallery-card__dates">
-            {% set _cparts = (r.construction_date or '').split(',') | map('trim') | select | list %}
             {% if _cparts %}{% for _d in _cparts %}<span class="foms-drawing-gallery-badge">시공 {{ _d }}</span>{% endfor %}{% else %}<span class="foms-drawing-gallery-badge is-muted">시공일 미정</span>{% endif %}
           </div>
           <div class="foms-drawing-gallery-card__foot">
@@ -161,4 +174,4 @@
   </section>
 </section>
 <script src="{{ url_for('static', filename='js/foms/tablet-drawing-gallery.js') }}?v=20260713b" defer></script>
-<script src="{{ url_for('static', filename='js/foms/tablet-drawing-review.js') }}?v=20260727a" defer></script>
+<script src="{{ url_for('static', filename='js/foms/tablet-drawing-review.js') }}?v=20260727b" defer></script>
