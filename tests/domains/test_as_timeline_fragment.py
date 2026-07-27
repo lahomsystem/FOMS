@@ -214,7 +214,9 @@ def test_register_creates_reception_log(client):
     shipment = _shipment(order_id)
     log = shipment["as_log"]
     assert any(e.get("type") == "reception" and "경첩 불량" in e.get("text", "") for e in log)
-    # T12 퇴역 전까지 legacy 폴백용 as_content 병행 유지
+    # T12 는 update_order_field 만 퇴역시켰다. register 의 as_content 병행 쓰기는 **유지**한다 —
+    # 태블릿 비교(as_content_html)·출고 대시보드(as_content_text)·완료 모달이 아직 이 필드를
+    # 읽는다. 그 3표면을 as_log 앵커로 옮기기 전에는 여기서 쓰기를 없애면 화면이 빈다.
     assert shipment["as_content"] == "경첩 불량"
 
 

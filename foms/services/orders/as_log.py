@@ -9,6 +9,8 @@ import secrets
 import time
 from typing import Any
 
+from markupsafe import escape
+
 from foms.services.as_content_safety import sanitize_as_content_html
 from foms.services.datetime_kst import format_datetime_kst, now_utc_naive, parse_datetime_utc
 
@@ -114,9 +116,17 @@ def append_client_log(sd: dict, *, log_type: str, text: str, by: str, by_id: int
 
 
 def append_system_log(sd: dict, *, text: str) -> dict:
-    """시스템 이벤트 항목 append(서버 전용)."""
+    """시스템 이벤트 항목 append(서버 전용). 본문은 escape 후 저장.
+
+    system 문구는 상태·담당자·메모 같은 **사용자 입력을 문자열로 조립**해 만들어진다.
+    항목 text는 렌더에서 `|safe`(sanitize 통과 rich HTML 전제)라 여기서 escape하지
+    않으면 조립된 입력이 그대로 실행 가능한 마크업이 된다. 호출부마다 escape를 요구하는
+    대신 유일한 생성 지점에서 봉인한다.
+    """
     migrate_legacy_into_log(sd)
-    entry = build_as_log_entry(log_type="system", text=text, by="시스템", by_id=None)
+    entry = build_as_log_entry(
+        log_type="system", text=str(escape(text or "")), by="시스템", by_id=None
+    )
     sd["shipment"]["as_log"].append(entry)
     return entry
 

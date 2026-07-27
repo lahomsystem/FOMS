@@ -384,7 +384,8 @@ def api_as_register(order_id):
         # draft meta가 남으면 Order.active_filter()에서 제외되어 AS 탭에 보이지 않는다.
         from foms.api.erp_orders_structured import _finalize_draft_state
 
-        now = datetime.datetime.now()
+        # meta['finalized_at']로 JSONB에 남는 값 — naive 타임스탬프는 UTC 규약(전역 규약 2).
+        now = now_utc_naive()
         draft_cleared = _finalize_draft_state(order, sd, now, old_sd)
         order.structured_data = sd
         flag_modified(order, "structured_data")

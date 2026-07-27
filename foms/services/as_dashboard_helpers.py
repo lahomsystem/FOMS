@@ -125,6 +125,10 @@ def _combined_as_content_expr(*, dialect_name='', use_postgres_regex=False):
 
     as_content 쓰기가 퇴역(T12)한 뒤 새 기록은 as_log에만 쌓인다. as_log를 빼면
     AS 내용 검색이 시간이 갈수록 비어간다.
+
+    성분 사이에 구분자를 넣지 않는다 — 유일한 소비자가 `_sql_compact`(공백 전부 제거)라
+    구분자는 어차피 지워지는데, 넣으려면 각 성분을 `CASE` 판정에서 한 번 더 평가해야
+    한다(행당 평가 2배).
     """
     parts = [
         _as_content_expr(
@@ -142,10 +146,7 @@ def _combined_as_content_expr(*, dialect_name='', use_postgres_regex=False):
             use_postgres_regex=use_postgres_regex,
         ),
     ]
-    combined = parts[0]
-    for part in parts[1:]:
-        combined = combined + case((part != '', ' '), else_='') + part
-    return func.trim(combined)
+    return parts[0] + parts[1] + parts[2]
 
 
 def _sales_delivery_expr(*, dialect_name=''):

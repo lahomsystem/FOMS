@@ -76,20 +76,25 @@ def _erp_order_search_filter(query, q, *, dialect_name='', use_postgres_regex=Fa
     manager_name = _display_manager_name_expr(dialect_name=dialect_name)
     phone = _display_phone_expr(dialect_name=dialect_name)
     address = _display_address_expr(dialect_name=dialect_name)
+    # perf-ok 근거(아래 8개 분기 공통, T12 실측):
+    #   이 OR 는 **어떤 trgm 인덱스도 타지 않는다**. `_sql_compact` 가 씌우는
+    #   `lower(regexp_replace(..))` 는 표현식 인덱스(`ix_orders_*_trgm`)와 형태가 달라
+    #   매칭되지 않고(EXPLAIN: `enable_seqscan=off` 강제에서도 Seq Scan), 분기 하나만
+    #   비인덱서블이어도 BitmapOr 자체가 성립하지 않는다. 과거 각 줄에 붙어 있던
+    #   `ix_orders_*_trgm` 인용은 사실이 아니어서 제거했다(플랜을 오독하게 만든다).
+    #   유지 근거는 인덱스가 아니라 **경로 성격**이다 — 검색어를 입력했을 때만 도는
+    #   콜드 경로이고 모집단도 AS 상태 부분집합이다. 인덱스로 접으려면 8개 분기를
+    #   합친 정규화 생성 컬럼(+trgm/tsvector)이 필요하며, 그건 별도 perf task 소관이다.
     return query.filter(
         or_(
-            _sql_compact(cast(Order.id, String), use_postgres_regex=use_postgres_regex).ilike(term),  # perf-ok: bounded id search admin/cold path
-            _sql_compact(customer_name, use_postgres_regex=use_postgres_regex).ilike(term),  # perf-ok: ix_orders_customer_name_trgm
-            _sql_compact(manager_name, use_postgres_regex=use_postgres_regex).ilike(term),  # perf-ok: ix_orders_manager_name_trgm
-            _sql_compact(phone, use_postgres_regex=use_postgres_regex).ilike(term),  # perf-ok: ix_orders_phone_trgm
-            _sql_compact(address, use_postgres_regex=use_postgres_regex).ilike(term),  # perf-ok: ix_orders_address_trgm
-            _sql_compact(Order.product, use_postgres_regex=use_postgres_regex).ilike(term),  # perf-ok: ix_orders_product_trgm
-            _sql_compact(Order.notes, use_postgres_regex=use_postgres_regex).ilike(term),  # perf-ok: ix_orders_structured_data_text_trgm
-            # 이 OR 는 어떤 trgm 인덱스도 못 탄다 — `lower(regexp_replace(..))` 로 감싼 식은
-            # 표현식 인덱스와 형태가 달라 매칭되지 않고(EXPLAIN: enable_seqscan=off 에서도
-            # Seq Scan), 다른 분기도 비인덱서블이라 BitmapOr 자체가 성립하지 않는다.
-            # as_log 확장(T12)은 이 성질을 바꾸지 않는다(같은 식에 항목 하나 추가).
-            _sql_compact(as_content, use_postgres_regex=use_postgres_regex).ilike(term),  # perf-ok: 검색어 입력 시에만 도는 콜드 경로(AS 상태 부분집합)
+            _sql_compact(cast(Order.id, String), use_postgres_regex=use_postgres_regex).ilike(term),  # perf-ok
+            _sql_compact(customer_name, use_postgres_regex=use_postgres_regex).ilike(term),  # perf-ok
+            _sql_compact(manager_name, use_postgres_regex=use_postgres_regex).ilike(term),  # perf-ok
+            _sql_compact(phone, use_postgres_regex=use_postgres_regex).ilike(term),  # perf-ok
+            _sql_compact(address, use_postgres_regex=use_postgres_regex).ilike(term),  # perf-ok
+            _sql_compact(Order.product, use_postgres_regex=use_postgres_regex).ilike(term),  # perf-ok
+            _sql_compact(Order.notes, use_postgres_regex=use_postgres_regex).ilike(term),  # perf-ok
+            _sql_compact(as_content, use_postgres_regex=use_postgres_regex).ilike(term),  # perf-ok
         )
     )
 

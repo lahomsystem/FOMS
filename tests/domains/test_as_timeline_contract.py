@@ -200,6 +200,22 @@ def test_search_finds_as_log_text(client):
     assert "검색제외대상" not in body
 
 
+def test_search_ignores_as_log_entry_id(client):
+    """항목 id·ts 는 검색 대상이 아니다 — 배열째 텍스트화하면 숫자 검색이 전부 오탐이 된다."""
+    _login_as_admin(client, username="as-contract-search-id")
+    _create_as_order(
+        customer_name="아이디오탐대상",
+        shipment_extra={
+            "as_log": [_log_entry("<div>문고리 교체</div>", entry_id="al_1753999999_ab")]
+        },
+    )
+
+    res = client.get("/erp/as?q=1753999999")
+
+    assert res.status_code == 200
+    assert "아이디오탐대상" not in res.get_data(as_text=True)
+
+
 def test_search_survives_malformed_as_log(client):
     """as_log 가 배열이 아닌 오염 행 하나가 검색 전체를 500 으로 만들면 안 된다."""
     _login_as_admin(client, username="as-contract-search-3")
@@ -213,6 +229,96 @@ def test_search_survives_malformed_as_log(client):
 
     assert res.status_code == 200
     assert "정상행고객" in res.get_data(as_text=True)
+
+
+# ---------------------------------------------------------------------------
+# 5) as_log 본문 sanitize 신뢰 계약 (T11 이월 c / T7 이월 d)
+# ---------------------------------------------------------------------------
+
+_XSS_PAYLOAD = '<img src=x onerror="alert(1)">본문'
+
+# as_log 항목을 만드는 호출부 전수. 렌더(`|safe`)와 `as_content_html_to_text(
+# already_sanitized=True)` 가 "저장된 text 는 이미 sanitize 됐다"를 전제하므로,
+# 새 쓰기 경로가 생기면 이 목록이 어긋나 red 되어야 한다.
+_AS_LOG_WRITE_CALL_SITES = {
+    ("foms/api/cs/as_orders.py", "append_client_log"),  # register(접수 원문) · POST /as/log
+    ("foms/services/orders/as_log.py", "build_as_log_entry"),  # append_client_log/append_system_log 내부
+    ("foms/services/orders/as_log.py", "_legacy_entries_from_content"),  # migrate/lazy legacy
+}
+
+
+def test_as_log_write_call_sites_are_the_known_set():
+    """as_log 쓰기 경로가 늘면 red — 새 경로도 sanitize 를 지나는지 확인하고 목록을 갱신할 것."""
+    import re
+    from pathlib import Path
+
+    root = Path(__file__).resolve().parents[2]
+    pattern = re.compile(
+        r"(?<!def )\b(append_client_log|append_system_log|build_as_log_entry"
+        r"|_legacy_entries_from_content)\s*\("
+    )
+    found = {
+        (path.relative_to(root).as_posix(), match.group(1))
+        for path in root.glob("foms/**/*.py")
+        for line in path.read_text(encoding="utf-8", errors="ignore").splitlines()
+        for match in pattern.finditer(line)
+    }
+
+    assert found == _AS_LOG_WRITE_CALL_SITES
+
+
+def test_as_log_write_paths_all_sanitize(client):
+    """쓰기 4경로(register·POST·PATCH·migrate)가 전부 sanitize 를 지난다."""
+    user_id = _login_as_admin(client, username="as-contract-sanitize")
+    order = _create_as_order(shipment_extra={"as_content": _XSS_PAYLOAD}, as_content_2=None)
+    order_id = order.id
+
+    # (1) POST /as/log — 이 append 가 (2) migrate(legacy 영구화)를 함께 태운다
+    res = client.post(
+        f"/api/orders/{order_id}/as/log", json={"type": "memo", "text": _XSS_PAYLOAD}
+    )
+    assert res.status_code == 200
+    memo_id = res.get_json()["entry"]["id"]
+
+    # (3) PATCH /as/log/<id>
+    res = client.patch(
+        f"/api/orders/{order_id}/as/log/{memo_id}", json={"text": _XSS_PAYLOAD}
+    )
+    assert res.status_code == 200
+
+    # (4) POST /as/register — 접수 원문
+    res = client.post(
+        f"/api/orders/{order_id}/as/register", json={"as_content": _XSS_PAYLOAD}
+    )
+    assert res.status_code == 200
+
+    db_session.expire_all()
+    log = db_session.get(Order, order_id).structured_data["shipment"]["as_log"]
+    by_kind = {
+        "memo": [e for e in log if e.get("id") == memo_id],
+        "legacy": [e for e in log if e.get("legacy") is True],
+        "reception": [e for e in log if e.get("type") == "reception"],
+    }
+    for kind, entries in by_kind.items():
+        assert entries, f"{kind} 항목이 없다 — 경로가 안 돌았다"
+        for entry in entries:
+            assert "onerror" not in entry["text"], kind
+            assert "<img" not in entry["text"], kind
+            assert "본문" in entry["text"], kind
+    assert user_id  # 작성자 판정 경로(PATCH 403 가드)가 실제로 로그인 사용자를 썼다
+
+
+def test_append_system_log_escapes_text():
+    """system 문구는 사용자 입력 조립본이라 생성 지점에서 escape 한다(렌더는 |safe)."""
+    from foms.services.orders.as_log import append_system_log
+
+    sd = {"shipment": {}}
+    entry = append_system_log(sd, text=_XSS_PAYLOAD + " <b>굵게</b>")
+
+    assert "<img" not in entry["text"]
+    assert "<b>" not in entry["text"]
+    assert "&lt;img" in entry["text"] and "&lt;b&gt;" in entry["text"]
+    assert "본문" in entry["text"]
 
 
 def test_search_still_finds_legacy_as_content(client):
