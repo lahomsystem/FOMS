@@ -249,6 +249,23 @@ def test_status_preserving_links_also_preserve_billing(rel_path):
     assert not missing, missing
 
 
+def test_route_redirects_also_preserve_billing():
+    """라우트 리다이렉트(탭 자동 이동·검색 단건 이동)도 status와 함께 billing을 보존한다.
+
+    템플릿 링크와 같은 규칙: status를 넘기면 billing도 넘긴다. 영업/택배 검색 리셋
+    리다이렉트는 `status=''`로 필터를 비우는 동선이라 자동 면제된다.
+    """
+    src = (ROOT / "foms/web/cs/as_dashboard.py").read_text(encoding="utf-8")
+    calls = [chunk.split("))")[0] for chunk in src.split("url_for(")[1:]]
+    status_calls = [
+        c for c in calls
+        if "erp_as_page.erp_as_dashboard" in c and "status=" in c and "status=''" not in c
+    ]
+    assert status_calls
+    missing = [c for c in status_calls if "billing=" not in c]
+    assert not missing, missing
+
+
 def test_billing_survives_mobile_pager_and_js_navigation():
     """모바일 페이저 쿼리 프리픽스와 JS 재이동(URL 화이트리스트)에도 billing이 남아야 한다."""
     body = (ROOT / "templates/cs/partials/as_dashboard_body.html").read_text(encoding="utf-8")
