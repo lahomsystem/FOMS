@@ -2,6 +2,7 @@
 from datetime import date
 from pathlib import Path
 
+import pytest
 from werkzeug.security import generate_password_hash
 
 from db import db_session
@@ -195,59 +196,93 @@ def test_register_preserves_existing_confirmed_billing(client):
 # 접수 모달 프론트 구조 계약 (T3)
 # ---------------------------------------------------------------------------
 
-def _order_tab_html() -> str:
-    return (ROOT / "templates/orders/partials/erp_order_tab.html").read_text(encoding="utf-8")
+# AS 접수 모달은 PC/모바일 두 템플릿에 각각 존재하고 같은 erp-order-shared.js가 구동한다.
+# 한쪽만 고치면 그 코호트에서 유상 접수가 불가능해져 매출 추적에 구멍이 난다.
+_AS_MODAL_TEMPLATES = (
+    "templates/orders/partials/erp_order_tab.html",
+    "templates/orders/partials/erp_order_tab_mobile.html",
+)
+
+
+@pytest.fixture(params=_AS_MODAL_TEMPLATES)
+def as_modal_tpl(request) -> str:
+    """AS 접수 모달을 품은 템플릿 원문(PC·모바일 양쪽에 같은 계약을 강제)."""
+    return (ROOT / request.param).read_text(encoding="utf-8")
 
 
 def _shared_js() -> str:
     return (ROOT / "static/js/orders/erp-order-shared.js").read_text(encoding="utf-8")
 
 
-def test_as_receive_modal_has_billing_segment():
+def test_as_receive_modal_has_billing_segment(as_modal_tpl):
     """접수 모달에 무상/유상/미정 3값 세그먼트가 있고 기본값은 무상 추정이다."""
-    tpl = _order_tab_html()
     for value in ("free", "paid", "undecided"):
-        assert f'name="as-receive-billing" id="as-billing-{value}" value="{value}"' in tpl
+        assert f'name="as-receive-billing" id="as-billing-{value}" value="{value}"' in as_modal_tpl
     # 기본 선택은 무상(추정) — 서버 기본값(_default_as_billing)과 일치해야 한다.
-    assert 'id="as-billing-free" value="free" checked' in tpl
-    assert 'id="as-billing-paid" value="paid">' in tpl
-    assert 'id="as-billing-undecided" value="undecided">' in tpl
+    assert 'id="as-billing-free" value="free" checked' in as_modal_tpl
+    assert 'id="as-billing-paid" value="paid">' in as_modal_tpl
+    assert 'id="as-billing-undecided" value="undecided">' in as_modal_tpl
 
 
-def test_as_receive_modal_amount_is_progressive_disclosure():
+def test_as_receive_modal_amount_is_progressive_disclosure(as_modal_tpl):
     """금액 입력은 기본 숨김(d-none) — 유상 선택 시에만 JS가 노출한다."""
-    tpl = _order_tab_html()
-    wrap_idx = tpl.index('id="as-receive-amount-wrap"')
-    wrap_tag = tpl[tpl.rindex("<div", 0, wrap_idx):tpl.index(">", wrap_idx) + 1]
+    wrap_idx = as_modal_tpl.index('id="as-receive-amount-wrap"')
+    wrap_tag = as_modal_tpl[as_modal_tpl.rindex("<div", 0, wrap_idx):as_modal_tpl.index(">", wrap_idx) + 1]
     assert "d-none" in wrap_tag
-    assert 'id="as-receive-amount"' in tpl
-    assert 'type="number"' in tpl[wrap_idx:wrap_idx + 400]
+    assert 'id="as-receive-amount"' in as_modal_tpl
+    assert 'type="number"' in as_modal_tpl[wrap_idx:wrap_idx + 400]
 
 
-def test_as_receive_modal_since_badge_defaults_hidden():
+def test_as_receive_modal_since_badge_defaults_hidden(as_modal_tpl):
     """경과 개월 배지는 시공일이 없으면 숨김이어야 하므로 마크업 기본값이 d-none."""
-    tpl = _order_tab_html()
-    idx = tpl.index('id="as-receive-since-badge"')
-    badge_tag = tpl[tpl.rindex("<span", 0, idx):tpl.index(">", idx) + 1]
+    idx = as_modal_tpl.index('id="as-receive-since-badge"')
+    badge_tag = as_modal_tpl[as_modal_tpl.rindex("<span", 0, idx):as_modal_tpl.index(">", idx) + 1]
     assert "d-none" in badge_tag
 
 
-def test_as_receive_billing_block_sits_between_content_and_shipping():
+def test_as_receive_billing_block_sits_between_content_and_shipping(as_modal_tpl):
     """세그먼트는 AS 내용 뒤·상차일 앞. 순서가 깨지면 판정 전 금액을 먼저 묻게 된다."""
-    tpl = _order_tab_html()
     assert (
-        tpl.index('id="as-receive-content"')
-        < tpl.index('id="as-receive-since-badge"')
-        < tpl.index('id="as-receive-amount-wrap"')
-        < tpl.index('id="as-receive-shipping-wrap"')
+        as_modal_tpl.index('id="as-receive-content"')
+        < as_modal_tpl.index('id="as-receive-since-badge"')
+        < as_modal_tpl.index('id="as-receive-amount-wrap"')
+        < as_modal_tpl.index('id="as-receive-shipping-wrap"')
     )
 
 
-def test_as_receive_billing_block_has_no_inline_style():
+def test_as_receive_billing_block_has_no_inline_style(as_modal_tpl):
     """인라인 스타일 금지(프로젝트 규약) — 세그먼트 블록 구간에 style= 없음."""
-    tpl = _order_tab_html()
-    block = tpl[tpl.index('id="as-receive-since-badge"'):tpl.index('id="as-receive-shipping-wrap"')]
+    block = as_modal_tpl[
+        as_modal_tpl.index('id="as-receive-since-badge"'):as_modal_tpl.index('id="as-receive-shipping-wrap"')
+    ]
     assert "style=" not in block
+
+
+def test_as_receive_billing_lock_note_present(as_modal_tpl):
+    """재접수 잠금 안내는 양쪽 템플릿에 있고 기본 숨김이다."""
+    note_idx = as_modal_tpl.index('id="as-receive-billing-locked-note"')
+    assert "AS 대시보드" in as_modal_tpl[note_idx:note_idx + 400]
+    note_tag = as_modal_tpl[as_modal_tpl.rindex("<div", 0, note_idx):as_modal_tpl.index(">", note_idx) + 1]
+    assert "d-none" in note_tag
+
+
+def test_as_modal_cohort_variants_are_mutually_exclusive_at_runtime():
+    """PC/모바일 모달은 같은 id를 쓰므로 JS 실행 시점에 반드시 하나만 남아야 한다.
+
+    edit_order_body.html은 두 파티얼을 모두 렌더한 뒤 **동기** 인라인 스크립트로
+    한쪽을 remove 한다. erp-order-shared.js는 defer라 항상 그 뒤에 실행되므로
+    getElementById/querySelector 단수 선택이 안전하다. 이 순서가 깨지면
+    (인라인이 defer/async가 되거나 remove가 사라지면) 모바일에서 PC 모달을
+    집어 배선이 엉킨다.
+    """
+    body = (ROOT / "templates/orders/partials/edit_order_body.html").read_text(encoding="utf-8")
+    legacy_idx = body.index('id="erp-order-form-legacy"')
+    mobile_idx = body.index('id="erp-order-form-mobile"')
+    remove_idx = body.index("(useMobile ? legacy : mobile).remove();")
+    assert legacy_idx < mobile_idx < remove_idx
+    script_open = body.rindex("<script", 0, remove_idx)
+    script_tag = body[script_open:body.index(">", script_open) + 1]
+    assert "defer" not in script_tag and "async" not in script_tag
 
 
 def test_shared_js_sends_billing_type_and_conditional_amount():
@@ -296,9 +331,4 @@ def test_existing_billing_locks_segment_on_reregister():
     assert "__erpLastStructuredData" in block and "as_billing" in block
     assert "disabled = true" in block
     assert "disabled = false" in block  # 최초 접수로 되돌아오면 잠금 해제
-    tpl = _order_tab_html()
-    assert 'id="as-receive-billing-locked-note"' in tpl
-    assert "AS 대시보드" in tpl[tpl.index('id="as-receive-billing-locked-note"'):][:400]
-    # 잠금 안내는 기본 숨김
-    note_idx = tpl.index('id="as-receive-billing-locked-note"')
-    assert "d-none" in tpl[tpl.rindex("<div", 0, note_idx):tpl.index(">", note_idx) + 1]
+    assert "as-receive-billing-locked-note" in js
