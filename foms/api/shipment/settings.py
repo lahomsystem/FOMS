@@ -3,27 +3,31 @@ ERP 출고 설정 페이지 및 API. (Phase 4-2)
 erp.py에서 분리. 서비스는 foms/services/erp_shipment_settings 사용.
 """
 
-import datetime
+import hashlib
+import json
 import logging
-from typing import Optional
+from typing import Any, Optional
 
 from flask import Blueprint, g, jsonify, make_response, render_template, request, session
 from sqlalchemy.orm.attributes import flag_modified
 
 from foms.web.auth import get_user_by_id, login_required, role_required
 from db import get_db
+from foms.services.datetime_kst import now_utc_naive
 from foms.services.erp_permissions import can_edit_erp, erp_edit_required
 from foms.services.erp_shipment_settings import (
     ERP_SHIPMENT_SETTINGS_KEY,
     load_erp_shipment_settings,
 )
 from foms.services.orders.order_mutation_policy import POLICY_REGISTRY, evaluate_policy
+from foms.services.orders.revision import RevisionError, execute_order_mutation
+from foms.services.shipment.writer import apply_shipment_settings
 from foms.services.shipment_reference import (
     SHIPMENT_REFERENCE_POLICY_ID,
     ShipmentReferenceError,
     update_shipment_reference_lists,
 )
-from models import Order, SystemSetting
+from models import Order, OrderEvent, SystemSetting
 
 from foms.services.common.erp_shell_http import apply_erp_shell_fragment_headers, wants_erp_shell_tab_body
 
@@ -162,76 +166,102 @@ def _invalidate_reference_caches() -> None:
         logger.warning("[SHIPMENT_REFERENCE] cache invalidate failed", exc_info=True)
 
 
+def _shipment_edit_decision() -> tuple[Any, Any]:
+    """SHIPMENT_EDIT(per-order 출고 쓰기) 권한을 payload 파싱 전에 in-handler 강제한다.
+
+    before_request 가드가 꺼진 컨텍스트(TESTING 등)에서도 CS/SALES/SHIPMENT 또는
+    ADMIN/MANAGER 만 통과하도록 :func:`evaluate_policy` 를 직접 적용한다.
+
+    Returns:
+        ``(user, Decision)`` 튜플.
+    """
+    user = get_user_by_id(session.get("user_id"))
+    return user, evaluate_policy(POLICY_REGISTRY["SHIPMENT_EDIT"], user)
+
+
 @erp_shipment_bp.route("/api/erp/shipment/update/<int:order_id>", methods=["POST"])
 @login_required
 @erp_edit_required
 @role_required(["ADMIN", "MANAGER", "STAFF"])
-def api_erp_shipment_update(order_id):
-    """출고 대시보드 업데이트. 시공팀은 수정 불가(조회만)."""
+def api_erp_shipment_update(order_id: int):
+    """per-order 출고 설정 저장(UPDATE_SHIPMENT_SETTINGS canonical).
+
+    exact non-assignment schema ``{site_extra,construction_time,vehicle,trip}`` 만
+    저장하고 ``site_extra`` color 는 고정 enum 으로 정규화한다. ``construction_workers``
+    등 assignment/crew 이름 배열·도면/측정 담당자는 쓰지 않는다(crew IDs via
+    ``SET_INSTALLATION_CREW`` · auth via ASSIGNMENT command — name-array/auth/AS info
+    direct write 제거). 시공팀은 조회만 가능하다. If-Match(``settings_version``/헤더)로
+    낙관적 concurrency 를 지키고 version/receipt/event 를 REV-00 로 한 tx 에 기록한다
+    (blind overwrite 방지).
+
+    Args:
+        order_id: 대상 주문 id.
+
+    Returns:
+        성공 시 ``{success, data:{version, mutation_receipt}}``; 권한/충돌/부재는
+        403/409/404 JSON.
+    """
     current_user = getattr(g, "current_user", None)
     if current_user and getattr(current_user, "team", None) == "CONSTRUCTION":
         return jsonify({"success": False, "message": "시공팀은 출고 데이터를 수정할 수 없습니다."}), 403
+    user, decision = _shipment_edit_decision()
+    if not decision.allowed:
+        return jsonify({
+            "success": False, "data": None,
+            "error": decision.reason, "message": decision.reason, "code": decision.code,
+        }), decision.status
+
+    payload = request.get_json(silent=True) or {}
+    if_match = _if_match_from_request(payload)
+    idempotency_key = (request.headers.get("Idempotency-Key") or "").strip() or None
+
+    db = get_db()
+    order = db.query(Order).filter(Order.id == order_id, Order.active_filter()).first()
+    if not order:
+        return jsonify({"success": False, "message": "주문을 찾을 수 없습니다."}), 404
+
+    actor_id = getattr(user, "id", None)
+
+    def _mutate(session_, orders):
+        target = orders[0]
+        target.structured_data = apply_shipment_settings(
+            getattr(target, "structured_data", None), payload
+        )
+        flag_modified(target, "structured_data")
+        target.structured_updated_at = now_utc_naive()
+        session_.add(OrderEvent(
+            order_id=target.id, event_type="SHIPMENT_SETTINGS_UPDATED",
+            payload={"domain": "SHIPMENT_DOMAIN", "action": "UPDATE_SHIPMENT_SETTINGS",
+                     "change_method": "API", "source_screen": "erp_shipment_dashboard"},
+            created_by_user_id=actor_id,
+        ))
+        return {target.id: [f"ORDER_DETAIL:{target.id}", "ORDERS_INDEX"]}
+
     try:
-        db = get_db()
-        order = db.query(Order).filter(Order.id == order_id, Order.active_filter()).first()
-        if not order:
-            return jsonify({"success": False, "message": "주문을 찾을 수 없습니다."}), 404
-
-        payload = request.get_json(silent=True) or {}
-        structured_data = dict(getattr(order, "structured_data", None) or {})
-
-        if "shipment" not in structured_data:
-            structured_data["shipment"] = {}
-        shipment = structured_data["shipment"]
-
-        if "site_extra" in payload:
-            site_extra = payload.get("site_extra")
-            if isinstance(site_extra, list):
-                normalized = []
-                for value in site_extra:
-                    if isinstance(value, dict):
-                        text_value = (value.get("text") or "").strip()
-                        color_value = (value.get("color") or "black").strip() or "black"
-                        if text_value:
-                            normalized.append({"text": text_value, "color": color_value})
-                    else:
-                        text_value = str(value).strip()
-                        if text_value:
-                            normalized.append({"text": text_value, "color": "black"})
-                shipment["site_extra"] = normalized
-            else:
-                shipment["site_extra"] = []
-        if "construction_time" in payload:
-            shipment["construction_time"] = str(payload.get("construction_time", "")).strip()
-        if "drawing_manager" in payload:
-            shipment["drawing_manager"] = str(payload.get("drawing_manager", "")).strip()
-        if "drawing_managers" in payload:
-            drawing_managers = payload.get("drawing_managers")
-            shipment["drawing_managers"] = (
-                [str(value).strip() for value in drawing_managers if str(value).strip()]
-                if isinstance(drawing_managers, list)
-                else []
-            )
-        if "construction_workers" in payload:
-            workers = payload.get("construction_workers")
-            shipment["construction_workers"] = (
-                [str(value).strip() for value in workers if str(value).strip()]
-                if isinstance(workers, list)
-                else []
-            )
-        if "vehicle" in payload:
-            shipment["vehicle"] = str(payload.get("vehicle", "")).strip()
-        if "trip" in payload:
-            shipment["trip"] = str(payload.get("trip", "")).strip()
-
-        structured_data["shipment"] = shipment
-        setattr(order, "structured_data", structured_data)
-        setattr(order, "structured_updated_at", datetime.datetime.now())
-        flag_modified(order, "structured_data")
-
+        result = execute_order_mutation(
+            db, actor_user_id=actor_id, policy_id="SHIPMENT_EDIT", order_ids=[order_id],
+            expected_versions=({order_id: if_match} if if_match is not None else None),
+            idempotency_key=idempotency_key,
+            scope_hash=hashlib.sha256(f"shipment_update:{order_id}".encode()).hexdigest(),
+            request_hash=hashlib.sha256(
+                json.dumps(payload, sort_keys=True, ensure_ascii=False, default=str).encode()
+            ).hexdigest(),
+            mutation=_mutate,
+        )
         db.commit()
-        return jsonify({"success": True})
+    except RevisionError as err:
+        db.rollback()
+        return jsonify({"success": False, "data": None, "error": str(err),
+                        "message": str(err), "code": err.error_code}), err.status_code
     except Exception as exc:
         db.rollback()
         logger.exception("[ERP_SHIPMENT] 업데이트 오류: %s", exc)
         return jsonify({"success": False, "message": str(exc)}), 500
+
+    resource = (result.body.get("resources") or [{}])[0]
+    resp = jsonify({"success": True, "data": {
+        "version": resource.get("resulting_version"),
+        "mutation_receipt": result.read_receipt_id,
+    }})
+    resp.headers["Cache-Control"] = "private, no-store"
+    return resp
