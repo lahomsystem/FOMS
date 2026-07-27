@@ -112,6 +112,27 @@ def test_billing_transition_with_reason(client):
     assert b["type"] == "paid" and b["amount"] == 30000 and b["reason"] == "고객 과실"
 
 
+def test_billing_reconfirm_preserves_amount(client):
+    """amount 키 미전송은 기존 금액 보존(reason 빈값 보존과 대칭). 명시적 null은 삭제."""
+    _login_as_admin(client)
+    order_id = _create_as_order(
+        status="AS_RECEIVED",
+        shipment_extra={"as_billing": {"type": "paid", "confirmed": False, "amount": 50000}},
+    ).id
+
+    res = client.post(f"/api/orders/{order_id}/as/billing", json={"type": "paid"})
+    assert res.status_code == 200 and res.get_json()["success"] is True
+    db_session.expire_all()
+    b = db_session.get(Order, order_id).structured_data["shipment"]["as_billing"]
+    assert b["amount"] == 50000 and b["confirmed"] is True
+
+    res = client.post(f"/api/orders/{order_id}/as/billing", json={"type": "paid", "amount": None})
+    assert res.status_code == 200
+    db_session.expire_all()
+    b = db_session.get(Order, order_id).structured_data["shipment"]["as_billing"]
+    assert b["amount"] is None
+
+
 def test_billing_rejects_unknown_type(client):
     """미허용 type은 조용한 free 강등이 아니라 400 (오타가 매출 판정을 바꾸면 안 된다)."""
     _login_as_admin(client)

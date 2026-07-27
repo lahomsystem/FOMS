@@ -481,11 +481,6 @@ def api_as_billing(order_id: int):
                 "message": f"판정 유형이 올바르지 않습니다. ({'/'.join(_AS_BILLING_TYPES)} 중 하나)",
             }), 400
         reason = str(data.get("reason") or "").strip()
-        try:
-            amount = _coerce_billing_amount(data.get("amount")) if new_type == "paid" else None
-        except ValueError as e:
-            # 입력 검증 실패는 400. 409는 낙관/무결성 전용(structured_data 로드 실패 등).
-            return jsonify({"success": False, "message": str(e)}), 400
 
         user = get_user_by_id(session.get("user_id"))
         sd = _load_order_structured_data_for_update(order)
@@ -493,6 +488,20 @@ def api_as_billing(order_id: int):
         prev_type = str(prev.get("type") or "free")
         if prev.get("confirmed") is True and prev_type != new_type and not reason:
             return jsonify({"success": False, "message": "판정 전환 시 사유는 필수입니다."}), 400
+
+        # amount 키가 없으면 기존 금액을 보존한다(reason 빈값 보존과 대칭).
+        # 금액 없이 재확정하는 요청이 확정된 청구액을 지우면 안 된다.
+        # 명시적 {"amount": null}은 의도적 삭제 경로로 허용한다.
+        if new_type != "paid":
+            amount = None
+        elif "amount" in data:
+            try:
+                # 입력 검증 실패는 400. 409는 낙관/무결성 전용(structured_data 로드 실패 등).
+                amount = _coerce_billing_amount(data["amount"])
+            except ValueError as e:
+                return jsonify({"success": False, "message": str(e)}), 400
+        else:
+            amount = prev.get("amount")
 
         billing = _write_as_billing(
             sd, billing_type=new_type, amount=amount,
