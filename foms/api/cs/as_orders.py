@@ -334,6 +334,13 @@ def api_as_register(order_id):
         sd = _load_order_structured_data_for_update(order)
         old_sd = copy.deepcopy(sd)
         shipment = ensure_path(sd, "shipment")
+        # 접수 원문을 첫 reception 항목으로 남긴다. as_content 덮어쓰기보다 **앞**이어야 한다 —
+        # append_client_log 안의 lazy 마이그레이션이 shipment["as_content"]를 legacy로 굳히므로,
+        # 뒤에 두면 방금 쓴 접수 원문이 legacy(이전 기록)로 중복 시드된다.
+        if as_content:
+            append_client_log(
+                sd, log_type="reception", text=as_content,
+                by=(user.name if user else ""), by_id=(user.id if user else None))
         shipment["as_content"] = as_content
         # 최초 접수에서만 billing을 시드한다. 재접수(지방 재상차 등)는 정상 흐름이므로
         # 기존 billing을 덮으면 확정된 유상 금액이 free/미확정으로 되돌아간다.

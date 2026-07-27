@@ -13,6 +13,7 @@ from foms.services.erp_display import (
     get_today_kst,
 )
 from foms.services.as_content_safety import sanitize_as_content_html
+from foms.services.orders.as_log import build_as_timeline_view
 from models import OrderAttachment
 
 __all__ = [
@@ -302,6 +303,8 @@ def apply_as_dashboard_row_display_fields(rows, db, *, mobile_v2_active):
             shipment.get('construction_workers')
         )
         r.construction_workers_text = ', '.join(r.construction_workers)
+        # 타임라인 뷰(셀 요약·확장 fragment 공용). as_content_html은 legacy 폴백 렌더용으로 유지.
+        r.as_timeline_view = build_as_timeline_view(r.structured_data)
         r.as_content_html = sanitize_as_content_html(shipment.get('as_content'))
         has_secondary_as_content = 'as_content_2' in shipment
         secondary_as_content_html = sanitize_as_content_html(shipment.get('as_content_2'))

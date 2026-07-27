@@ -33,6 +33,7 @@ from foms.services.as_dashboard_read_model import (
     build_as_tab_count_context,
     build_as_tab_query_conditions,
 )
+from foms.services.orders.as_log import build_as_timeline_view
 
 
 erp_as_page_bp = Blueprint('erp_as_page', __name__, url_prefix='/erp')
@@ -125,6 +126,39 @@ def erp_as_card_detail(order_id: int):
     current_user = getattr(g, 'current_user', None)
     return render_template(
         'cs/partials/as_card_detail_partial.html',
+        r=order,
+        can_edit_erp=can_edit_erp(current_user),
+    )
+
+
+@erp_as_page_bp.route('/as/timeline/<int:order_id>')
+@login_required
+def erp_as_timeline(order_id: int):
+    """AS PC 확장 행용 타임라인 fragment lazy 렌더(모바일 card-detail 패턴 복제).
+
+    Args:
+        order_id: 대상 주문 PK.
+
+    Returns:
+        타임라인 파셜 HTML(text/html). AS 상태가 아니거나 없으면 404.
+    """
+    db = get_db()
+    order = (
+        db.query(Order)
+        .filter(Order.active_filter())
+        .filter(Order.status.in_(['AS', 'AS_RECEIVED', 'AS_COMPLETED']))
+        .filter(Order.id == order_id)
+        .first()
+    )
+    if order is None:
+        abort(404)
+    apply_as_dashboard_row_display_fields([order], db, mobile_v2_active=False)
+    # 더보기(full=1)면 스트림 전량으로 뷰 재구성(display 기본 recent_limit=8을 덮어씀).
+    if request.args.get('full'):
+        order.as_timeline_view = build_as_timeline_view(order.structured_data, recent_limit=9999)
+    current_user = getattr(g, 'current_user', None)
+    return render_template(
+        'cs/partials/as_timeline_partial.html',
         r=order,
         can_edit_erp=can_edit_erp(current_user),
     )

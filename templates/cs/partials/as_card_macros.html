@@ -107,6 +107,27 @@
 </div>
 {%- endmacro %}
 
+{# AS 타임라인 전체(앵커 + 역시간순 스트림) — T9가 quick-add·더보기·유형 칩까지 확장할 스텁.
+   view는 as_log.build_as_timeline_view() 결과. 앵커는 접수 원문 우선, 없으면 legacy. #}
+{% macro render_as_timeline(order_id, view, can_edit) -%}
+{% set v = view or {} %}
+<div class="as-timeline" data-order-id="{{ order_id }}">
+  {% if v.reception %}
+  <div class="as-timeline__anchor">{{ render_as_timeline_entry(v.reception) }}</div>
+  {% elif v.legacy %}
+  <div class="as-timeline__anchor as-timeline__anchor--legacy">
+    {% for e in v.legacy %}{{ render_as_timeline_entry(e) }}{% endfor %}
+  </div>
+  {% endif %}
+  <div class="as-timeline__stream">
+    {% for e in v.stream %}{{ render_as_timeline_entry(e) }}{% endfor %}
+  </div>
+  {% if not v.reception and not v.legacy and not v.stream %}
+  <div class="as-timeline__empty text-muted small">기록 없음</div>
+  {% endif %}
+</div>
+{%- endmacro %}
+
 {% macro render_as_construction_workers(order_id, workers, can_edit) -%}
 {% set values = workers or [] %}
 {% set display_text = values | join(', ') %}

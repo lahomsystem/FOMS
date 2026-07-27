@@ -1,0 +1,3 @@
+{# AS 타임라인 단건 파셜 — PC 확장 행 lazy fetch가 이 파셜만 렌더. #}
+{% from 'cs/partials/as_card_macros.html' import render_as_timeline %}
+{{ render_as_timeline(r.id, r.as_timeline_view, can_edit_erp|default(false)) }}
