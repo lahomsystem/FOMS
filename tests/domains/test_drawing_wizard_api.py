@@ -1023,7 +1023,8 @@ def test_presets_post_then_get_round_trips_globally(client):
 
     post_resp = client.post(
         PRESETS_ENDPOINT,
-        json={"presets": [{"label": "테스트컷", "text": "[SR] 테스트컷"}]},
+        # 최초 저장: 저장 row 없음 → 현재 version 0 을 If-Match 로 되보냄(WIZ-PRESET-01).
+        json={"presets": [{"label": "테스트컷", "text": "[SR] 테스트컷"}], "settings_version": 0},
     )
     assert post_resp.status_code == 200, post_resp.get_json()
     assert post_resp.get_json()["data"]["presets"] == [
@@ -1049,7 +1050,8 @@ def test_presets_post_sanitizes_before_save(client):
                 {"label": "  좋은라벨  ", "text": "  유효본문  "},
                 {"label": "빈본문", "text": "   "},
                 {"label": "L" * (MAX_LABEL_LEN + 1), "text": "라벨초과"},
-            ]
+            ],
+            "settings_version": 0,
         },
     )
 

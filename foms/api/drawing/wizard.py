@@ -32,11 +32,17 @@ from foms.services.orders.revision import (
 )
 from foms.web.auth import login_required, get_user_by_id
 from foms.services.datetime_kst import now_kst, now_utc_naive
-from foms.services.erp_permissions import can_edit_erp
 from foms.services.erp_policy import is_drawing_workbench_participant
 from foms.services.storage import get_storage
 from foms.services.drawing_wizard_defaults import build_wizard_defaults, resolve_assignee_drew_en
-from foms.services.drawing_wizard_presets import load_wizard_presets, save_wizard_presets
+from foms.services.drawing_wizard_presets import (
+    WIZ_PRESET_POLICY_ID,
+    WizardPresetError,
+    current_presets_version,
+    load_wizard_presets,
+    update_wizard_presets,
+)
+from foms.services.orders.order_mutation_policy import POLICY_REGISTRY, evaluate_policy
 from foms.services.erp_product_items import build_product_items_for_order
 from foms.services.erp_display import _erp_coerce_item_price_krw
 
@@ -135,21 +141,6 @@ def _can_save_wizard(current_user, order) -> bool:
         current_user
         and (current_user.role == 'ADMIN' or is_drawing_workbench_participant(current_user, order))
     )
-
-
-def _can_manage_presets(current_user) -> bool:
-    """전역 프리셋(도면팀 공유) 저장·삭제 권한.
-
-    프리셋은 주문 무관 전역 자원이므로 주문 단위 참여 판정을 쓸 수 없다. 대신
-    ADMIN·도면팀(DRAWING)·ERP 편집 팀(CS/SALES)에게 관리 권한을 부여한다.
-    """
-    if not current_user:
-        return False
-    if current_user.role == 'ADMIN':
-        return True
-    if (getattr(current_user, 'team', None) or '').strip() == 'DRAWING':
-        return True
-    return can_edit_erp(current_user)
 
 
 def _parse_item_index(raw) -> int | None:
@@ -1375,13 +1366,33 @@ def api_get_drawing_wizard_asset_raw(order_id):
     return response
 
 
+def _preset_if_match(data: dict) -> Optional[int]:
+    """If-Match 헤더 또는 body ``settings_version`` 에서 정수 version 을 읽는다(형식 오류=None)."""
+    raw = (request.headers.get('If-Match') or '').strip().strip('"')
+    if not raw and isinstance(data, dict) and data.get('settings_version') is not None:
+        raw = str(data.get('settings_version')).strip()
+    if not raw:
+        return None
+    try:
+        return int(raw)
+    except (TypeError, ValueError):
+        return None
+
+
 @erp_orders_drawing_wizard_bp.route('/drawing-wizard/presets', methods=['GET'])
 @login_required
 def api_get_drawing_wizard_presets():
-    """도면팀 공유 사용자 프리셋 목록을 반환한다(주문 무관 전역)."""
+    """도면팀 공유 사용자 프리셋 목록을 반환한다(주문 무관 전역).
+
+    저장 시 optimistic lock 에 되보낼 ``version`` 을 동봉한다(저장 없으면 0).
+    """
     try:
+        db = get_db()
         presets = load_wizard_presets()
-        return jsonify({'success': True, 'data': {'presets': presets}})
+        return jsonify({
+            'success': True,
+            'data': {'presets': presets, 'version': current_presets_version(db)},
+        })
     except Exception as e:
         logger.error("drawing-wizard presets GET failed: %s", e, exc_info=True)
         return jsonify({'success': False, 'message': f'오류 발생: {str(e)}'}), 500
@@ -1390,29 +1401,57 @@ def api_get_drawing_wizard_presets():
 @erp_orders_drawing_wizard_bp.route('/drawing-wizard/presets', methods=['POST'])
 @login_required
 def api_post_drawing_wizard_presets():
-    """도면팀 공유 사용자 프리셋 목록을 검증·저장한다(전역 SystemSetting)."""
-    db = None
+    """도면팀 공유 사용자 프리셋을 저장한다(전역 SystemSetting, WIZ-PRESET-01).
+
+    DRAWING team + Admin 정책(in-handler ``evaluate_policy``)만 저장할 수 있고, exact
+    schema(``label``/``text`` 외 임의 필드 거부) + optimistic lock(If-Match/version) +
+    idempotency + SecurityLog audit 를 한 transaction 에 적용한다. version 불일치는 409
+    (silent global overwrite 차단). Order 는 건드리지 않는다.
+
+    Body: ``{presets, settings_version?}``. optional 헤더 ``If-Match``·``Idempotency-Key``.
+    """
+    current_user = get_user_by_id(session.get('user_id'))
+    decision = evaluate_policy(POLICY_REGISTRY[WIZ_PRESET_POLICY_ID], current_user)
+    if not decision.allowed:
+        return jsonify({
+            'success': False, 'data': None,
+            'error': decision.reason, 'message': decision.reason, 'code': decision.code,
+        }), decision.status
+
+    data = request.get_json(silent=True) or {}
+    if_match = _preset_if_match(data)
+    idempotency_key = (request.headers.get('Idempotency-Key') or '').strip() or None
+
+    db = get_db()
     try:
-        db = get_db()
-        current_user = get_user_by_id(session.get('user_id'))
-        if not _can_manage_presets(current_user):
-            return jsonify({
-                'success': False,
-                'message': '관리자·도면팀 또는 ERP 편집 권한자만 프리셋을 관리할 수 있습니다.',
-            }), 403
-
-        data = request.get_json(silent=True) or {}
-        presets = data.get('presets')
-        if not isinstance(presets, list):
-            return jsonify({'success': False, 'message': '프리셋 목록 형식이 올바르지 않습니다.'}), 400
-
-        saved = save_wizard_presets(presets)
-        return jsonify({'success': True, 'data': {'presets': saved}})
+        result = update_wizard_presets(
+            db,
+            actor_user_id=getattr(current_user, 'id', None),
+            payload=data.get('presets'),
+            if_match_version=if_match,
+            idempotency_key=idempotency_key,
+        )
+        db.commit()
+    except WizardPresetError as err:
+        db.rollback()
+        payload = {
+            'success': False, 'data': None, 'error': str(err),
+            'message': str(err), 'code': err.error_code,
+        }
+        current = getattr(err, 'current_version', None)
+        if current is not None:
+            payload['current_version'] = current
+        return jsonify(payload), err.status_code
     except Exception as e:
-        if db is not None:
-            try:
-                db.rollback()
-            except Exception as rb_err:
-                logger.warning("drawing-wizard presets POST rollback failed: %s", rb_err, exc_info=True)
+        db.rollback()
         logger.error("drawing-wizard presets POST failed: %s", e, exc_info=True)
         return jsonify({'success': False, 'message': f'오류 발생: {str(e)}'}), 500
+
+    return jsonify({
+        'success': True,
+        'data': {
+            'presets': result.presets,
+            'version': result.version,
+            'mutation_receipt': result.receipt_id,
+        },
+    })
