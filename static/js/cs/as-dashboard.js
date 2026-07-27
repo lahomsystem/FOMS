@@ -24,14 +24,30 @@
     // 싱글톤 가드를 쓰지 않는 이유: 배너는 fragment swap 마다 새 엘리먼트로 다시 렌더되므로
     // 리스너도 그 엘리먼트에 새로 붙어야 한다(전역 리스너가 아니라 누수도 없다).
     // 서버는 d-none 으로 렌더한다 — 이미 닫은 사용자에게 한 프레임 깜빡이지 않게 하려고.
+    // localStorage 접근은 사생활 모드/서드파티 쿠키 차단에서 SecurityError 를 던진다. 여기가
+    // initAsDashboard 최상단이라 예외가 새면 대시보드 JS 전체(토스트·날짜 저장·quick-add·
+    // 프리셋)가 죽는다. 아래 catch 는 에러 숨기기가 아니라 **예상된 브라우저 상태의 폴백**이다:
+    //   읽기 실패 → "아직 안 닫음"으로 보고 배너를 띄운다(안내 누락보다 재노출이 낫다)
+    //   쓰기 실패 → 저장만 포기하고 세션 내 제거는 유지한다(다음 방문에 다시 뜬다)
     (function () {
       const banner = document.getElementById('as-timeline-hint');
       if (!banner) return;
-      if (localStorage.getItem('foms_as_timeline_hint_dismissed') === '1') { banner.remove(); return; }
+      let dismissed = false;
+      try {
+        dismissed = localStorage.getItem('foms_as_timeline_hint_dismissed') === '1';
+      } catch (storageErr) {
+        dismissed = false; // 저장소 차단 — 미닫힘으로 폴백
+      }
+      if (dismissed) { banner.remove(); return; }
       banner.classList.remove('d-none');
       const dismiss = banner.querySelector('.as-timeline-hint__dismiss');
       if (dismiss) dismiss.addEventListener('click', function () {
-        localStorage.setItem('foms_as_timeline_hint_dismissed', '1'); banner.remove();
+        try {
+          localStorage.setItem('foms_as_timeline_hint_dismissed', '1');
+        } catch (storageErr) {
+          console.warn('[as-dashboard] 힌트 확인 저장 실패 — 다음 방문에 다시 표시됨', storageErr);
+        }
+        banner.remove(); // 저장 성공 여부와 무관하게 이번 세션에서는 사라진다
       });
     })();
 
@@ -1187,12 +1203,21 @@
       document.addEventListener('click', function (e) {
         const preset = e.target.closest && e.target.closest('.as-tl-preset');
         if (!preset) return;
-        const form = preset.closest('.as-timeline').querySelector('.as-timeline__quick-add');
+        const timeline = preset.closest('.as-timeline');
+        const form = timeline && timeline.querySelector('.as-timeline__quick-add');
         if (!form) return;
         const textEl = form.querySelector('.as-timeline__text');
         const typeEl = form.querySelector('.as-timeline__type');
         if (typeEl) typeEl.value = preset.dataset.type || 'memo';
-        if (textEl) { textEl.value = preset.dataset.text || ''; textEl.focus(); } // 수기 수정 후 저장
+        if (textEl) {
+          // 비파괴 주입: 타이핑 중이던 원고를 덮지 않고 뒤에 잇는다(입력 손실 0).
+          // value 대입은 undo 스택을 어차피 끊으므로, 최소한 글자는 잃지 않게 한다.
+          const prev = textEl.value.trim();
+          textEl.value = prev
+            ? prev + ' ' + (preset.dataset.text || '')
+            : (preset.dataset.text || '');
+          textEl.focus(); // 수기 수정 후 저장 — 전송은 사람이 한다
+        }
       });
 
       // 더보기: 기본 렌더는 최근 8건이라 ?full=1로 스트림 전량(상한 200)을 다시 받아 통째 교체.

@@ -756,6 +756,9 @@ def test_mobile_presets_render_above_quick_add(client):
     body = client.get(f"/erp/as/card-detail/{order_id}").get_data(as_text=True)
     presets = body.split('class="as-timeline__presets', 1)[1].split("</div>", 1)[0]
     assert "d-md-none" in presets
+    # aria-label 은 role 없는 generic div 에서 무시된다 — 스크린리더에 묶음으로 읽히려면 둘 다
+    assert 'role="group"' in presets
+    assert 'aria-label="빠른 기록"' in presets
     assert [
         (chunk.split('data-type="', 1)[1].split('"', 1)[0],
          chunk.split('data-text="', 1)[1].split('"', 1)[0],
@@ -796,12 +799,33 @@ def test_preset_click_injects_draft_without_autosubmit():
     anchor = block.index("e.target.closest('.as-tl-preset')")
     handler = block[anchor:block.index("});", anchor)]
     assert "typeEl.value = preset.dataset.type" in handler
-    assert "textEl.value = preset.dataset.text" in handler
     assert "textEl.focus()" in handler
     # 자동 전송 금지: 핸들러가 전송 경로를 건드리면 안 된다
     assert "submitQuickAdd" not in handler
     assert "fetch(" not in handler
     assert "requestSubmit" not in handler
+
+
+def test_preset_injection_is_non_destructive():
+    """타이핑 중이던 원고를 덮지 않고 뒤에 잇는다 — 무경고 value 대입은 입력 손실이다."""
+    js = _js()
+    block = _timeline_block(js)
+    anchor = block.index("e.target.closest('.as-tl-preset')")
+    handler = block[anchor:block.index("});", anchor)]
+    assert "const prev = textEl.value.trim();" in handler
+    assert "prev + ' ' + (preset.dataset.text || '')" in handler
+    # 조건 없는 통째 덮어쓰기 재도입 금지
+    assert "textEl.value = preset.dataset.text" not in handler
+
+
+def test_preset_handler_guards_missing_timeline_ancestor():
+    """`.as-timeline` 조상이 없으면 조용히 끝난다 — closest() null 에 .querySelector 하면 TypeError."""
+    js = _js()
+    block = _timeline_block(js)
+    anchor = block.index("e.target.closest('.as-tl-preset')")
+    handler = block[anchor:block.index("});", anchor)]
+    assert "const timeline = preset.closest('.as-timeline');" in handler
+    assert "timeline && timeline.querySelector('.as-timeline__quick-add')" in handler
 
 
 def test_preset_types_match_quick_add_select_options():
@@ -830,11 +854,36 @@ def test_hint_banner_is_dismissed_once_via_localstorage(client):
     assert hint.count("banner.remove()") == 2  # 이미 닫음 + 방금 닫음
 
 
+def test_hint_banner_survives_blocked_storage():
+    """사생활 모드 SecurityError 가 initAsDashboard 전체를 죽이면 안 된다(대시보드 JS 전멸).
+
+    읽기/쓰기 **양쪽** 이 try 안에 있어야 한다. 폴백은 읽기 실패=미닫힘(배너 노출),
+    쓰기 실패=세션 내 제거 유지 — 배너 제거는 catch 밖이라 저장 성공 여부와 무관하다.
+    """
+    js = _js()
+    hint = js[js.index("as-timeline-hint"):]
+    hint = hint[:hint.index("})();")]
+    assert hint.count("try {") == 2
+    assert hint.count("catch (storageErr)") == 2
+    for call in ("localStorage.getItem(", "localStorage.setItem("):
+        head = hint[:hint.index(call)]
+        # 직전 `try {` 가 직전 `catch` 보다 가까워야 = 이 호출이 try 블록 안이다
+        last_catch = head.rfind("catch (storageErr)")
+        assert head.rfind("try {") > last_catch, call
+    # 배너 제거는 catch 밖 — 저장 실패해도 이번 세션에서는 사라진다
+    assert "}\n        banner.remove();" in hint
+
+
 def test_preset_and_banner_styles_exist():
-    """신규 클래스에 스타일 실재(버튼 리셋 없는 프리셋은 폼 버튼처럼 보인다)."""
+    """신규 클래스에 스타일 실재. 배너는 **클래스** 선택자여야 한다.
+
+    id 특이도(100)로 스타일하면 유틸리티/테마 오버라이드가 이기지 못한다 —
+    `#as-timeline-hint` 는 JS getElementById 훅으로만 남긴다.
+    """
     css = _css(_CARD_CSS)
-    for selector in (".as-timeline__presets", ".as-tl-preset", "#as-timeline-hint"):
+    for selector in (".as-timeline__presets", ".as-tl-preset", ".as-timeline-hint"):
         assert selector in css, selector
+    assert "#as-timeline-hint" not in css
 
 
 def test_dashboard_js_link_is_version_pinned():

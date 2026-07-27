@@ -819,8 +819,10 @@
 }
 
 /* ─────────── T15 과도기 힌트 배너 ───────────
-   d-none 으로 렌더돼 JS 가 1회만 벗긴다(localStorage). PC/모바일 공통 표면. */
-#as-timeline-hint {
+   d-none 으로 렌더돼 JS 가 1회만 벗긴다(localStorage). PC/모바일 공통 표면.
+   id 가 아니라 클래스로 스타일한다 — id 특이도(100)는 유틸리티/테마 오버라이드를 이겨버린다.
+   #as-timeline-hint 는 JS getElementById 전용 훅. */
+.as-timeline-hint {
   display: flex;
   align-items: flex-start;
   gap: var(--foms-space-2, 0.5rem);
