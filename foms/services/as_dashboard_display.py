@@ -17,6 +17,8 @@ from foms.services.orders.as_log import build_as_timeline_view
 from models import OrderAttachment
 
 __all__ = [
+    "as_billing_badge_kind",
+    "as_billing_state_text",
     "as_stage_badge_modifier",
     "as_thumb_enabled",
     "batch_resolve_as_thumbnail_urls",
@@ -241,8 +243,13 @@ def batch_resolve_as_compare_photos(rows, db: Any) -> dict[int, dict[str, list]]
     return result
 
 
-def _as_billing_badge(billing: Any) -> str | None:
+_AS_BILLING_TYPE_LABELS = {'free': '무상', 'paid': '유상', 'undecided': '미정'}
+
+
+def as_billing_badge_kind(billing: Any) -> str | None:
     """상태 셀 billing 배지 종류. 무상(확정 여부 무관)은 None(무배지).
+
+    목록 렌더와 판정 변경 API 응답이 같은 배지를 그리도록 공개 SSOT다.
 
     Args:
         billing: ``structured_data.shipment.as_billing`` 값(비 dict면 무상 취급).
@@ -257,6 +264,29 @@ def _as_billing_badge(billing: Any) -> str | None:
     if btype == 'undecided':
         return 'undecided'
     return None
+
+
+def as_billing_state_text(billing: Any) -> str:
+    """타임라인 헤더의 현재 판정 1줄 표기(서버 렌더와 판정 변경 응답 공용 SSOT).
+
+    Args:
+        billing: ``structured_data.shipment.as_billing`` 값(비 dict면 무상 추정).
+
+    Returns:
+        '유상 확정 · 150,000원' / '무상 추정' / '미정' 형태의 표기.
+    """
+    b = billing if isinstance(billing, dict) else {}
+    btype = str(b.get('type') or 'free').lower()
+    if btype == 'undecided':
+        return '미정'
+    text = "%s %s" % (
+        _AS_BILLING_TYPE_LABELS.get(btype, btype),
+        '확정' if b.get('confirmed') is True else '추정',
+    )
+    amount = b.get('amount')
+    if btype == 'paid' and isinstance(amount, int) and amount > 0:
+        text = f"{text} · {amount:,}원"
+    return text
 
 
 def _timeline_cell_text(entry: dict[str, Any] | None) -> str:
@@ -327,7 +357,12 @@ def apply_as_dashboard_row_display_fields(rows, db, *, mobile_v2_active):
         r.has_as_photos = r.id in as_photo_order_ids
         shipment = r.structured_data.get('shipment') or {}
         r.as_pending = shipment.get('as_pending') is True
-        r.as_billing_badge = _as_billing_badge(shipment.get('as_billing'))
+        _billing = shipment.get('as_billing')
+        r.as_billing_badge = as_billing_badge_kind(_billing)
+        # 타임라인 헤더(판정 표시 + 변경 버튼)용. 목록엔 안 쓰이지만 세 표면이 같은 행 보강을
+        # 거치므로 여기서 한 번만 계산한다(문자열 조립뿐, 신규 쿼리 0).
+        r.as_billing_type = str((_billing or {}).get('type') or 'free') if isinstance(_billing, dict) else 'free'
+        r.as_billing_state_text = as_billing_state_text(_billing)
         r.has_as_blueprint = shipment.get('as_blueprint') is True
         r.is_sales_delivery = shipment.get('sales_delivery') is True
         r.construction_workers = _normalize_construction_worker_names(

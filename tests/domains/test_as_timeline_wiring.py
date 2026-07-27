@@ -268,9 +268,10 @@ def test_write_paths_guard_against_double_submit():
     같은 가드를 쓰는 편이 갈라지지 않는다).
     """
     js = _js()
-    assert js.count("form.dataset.busy === '1'") == 2  # submitQuickAdd + submitLogEdit
-    assert js.count("form.dataset.busy = '1';") == 2
-    assert js.count("form.dataset.busy = '';") == 2
+    # submitQuickAdd + submitLogEdit + submitBillingDecision
+    assert js.count("form.dataset.busy === '1'") == 3
+    assert js.count("form.dataset.busy = '1';") == 3
+    assert js.count("form.dataset.busy = '';") == 3
 
 
 def test_write_paths_do_not_leak_json_parse_errors():
@@ -278,7 +279,7 @@ def test_write_paths_do_not_leak_json_parse_errors():
     js = _js()
     block = _timeline_block(js)
     assert "async function readTimelineJson(res)" in block
-    assert block.count("await readTimelineJson(res)") == 2  # append + patch
+    assert block.count("await readTimelineJson(res)") == 3  # append + patch + billing
     assert block.count("await res.json()") == 1  # 원시 파싱은 헬퍼 안에서만
     assert "세션이 만료되었거나 서버 오류가 발생했습니다" in block
     assert "권한이 없거나 세션이 만료되었습니다" in block
@@ -316,13 +317,102 @@ def test_cell_summary_updates_locally_after_write():
     assert ".as-tl-cell[data-order-id=" in block
     # quick-add = 최근줄 교체 + 배지 +1 / 항목 수정 = 텍스트만(배지 불변)
     assert "updateAsCellSummary(orderId, data.html, { line: 'recent', countDelta: 1 });" in block
-    assert block.count("updateAsCellSummary(") == 3  # 정의 1 + append/patch 호출 2
+    assert block.count("updateAsCellSummary(") == 4  # 정의 1 + append/patch/billing 호출 3
     # 하이라이트 dataset 가드를 지우지 않으면 갱신된 줄에 검색어가 다시 안 칠해진다
     assert "delete line.dataset.highlightApplied;" in block
 
     helper = block[block.index("function updateAsCellSummary"):]
     helper = helper[: helper.index("\n      }")]
     assert "fetch(" not in helper, "셀 갱신은 응답 데이터만 쓴다 — 재조회 금지"
+    # 서버 요약과 같은 블록 경계 처리(textContent 만 읽으면 <div> 두 줄이 한 단어로 붙는다)
+    assert "querySelectorAll('div, p, li, br').forEach((el) => el.after(' '))" in helper
+
+
+def test_billing_decision_ui_is_rendered_in_timeline_header(client):
+    """비용 판정 표시 + 변경 버튼이 타임라인 헤더에 실재한다.
+
+    접수 모달은 "판정 변경은 AS 대시보드에서 하세요"라고 안내하는데, T14 이전에는
+    `POST /as/billing` 을 부르는 UI 가 어디에도 없어 그 안내가 막다른 길이었다.
+    """
+    _login_as_admin(client, username="as_billing_ui_admin")
+    order_id = _create_as_order("판정 UI", shipment_extra={
+        "as_billing": {"type": "paid", "confirmed": True, "amount": 150000},
+    })
+
+    body = client.get(f"/erp/as/timeline/{order_id}").get_data(as_text=True)
+    assert "as-billing-edit" in body
+    assert 'data-billing-type="paid"' in body
+    assert "유상 확정 · 150,000원" in body  # 금액까지 표기(as_billing_state_text SSOT)
+
+    detail = client.get(f"/erp/as/card-detail/{order_id}").get_data(as_text=True)
+    assert "as-billing-edit" in detail  # 모바일 상세도 같은 헤더
+
+
+def test_billing_decision_ui_hidden_without_edit_permission(client):
+    """읽기 전용 사용자에겐 판정 변경 진입점이 없다(quick-add 와 같은 게이트)."""
+    user = User(
+        username="as_billing_ui_viewer",
+        password=generate_password_hash("pw"),
+        role="STAFF",
+        team="DRAWING",  # CONSTRUCTION 은 /erp/as 자체가 리다이렉트라 vacuous pass 가 된다
+        name="뷰어",
+        is_active=True,
+    )
+    db_session.add(user)
+    db_session.commit()
+    order_id = _create_as_order("판정 UI 권한", shipment_extra={"as_log": [
+        {"id": "al_m", "ts": "2026-07-24T01:00:00", "by": "김", "by_id": None,
+         "type": "memo", "text": "메모"},
+    ]})
+    with client.session_transaction() as sess:
+        sess["user_id"] = user.id
+        sess["username"] = user.username
+        sess["role"] = user.role
+
+    body = client.get(f"/erp/as/timeline/{order_id}").get_data(as_text=True)
+    assert "메모" in body  # 리다이렉트가 아니라 실제 타임라인
+    assert "as-billing-edit" not in body
+
+
+def test_billing_decision_is_wired_without_refetch():
+    """판정 폼: POST → 표기·배지·타임라인·셀을 응답 데이터로 갱신(목록 재조회 금지)."""
+    block = _timeline_block(_js())
+    assert "async function submitBillingDecision(form)" in block
+    assert "'/as/billing'" in block
+    assert "data.state_text" in block
+    assert "updateAsBillingBadge(orderId, data.badge_html);" in block
+    # 빈 금액을 실어 보내면 서버가 명시적 삭제로 읽어 확정 청구액이 지워진다
+    assert "if (payload.type === 'paid' && amountRaw !== '') payload.amount = Number(amountRaw);" in block
+    # 인라인 폼도 셸 GET submit 가로채기에서 빠져야 한다
+    assert block.count("setAttribute('data-foms-erp-no-shell', '')") == 2  # 항목 수정 + 판정
+
+
+def test_billing_badge_markup_is_single_sourced(client):
+    """상태 셀 배지는 목록과 API 응답이 같은 매크로를 쓴다 — 마크업이 갈리면 낙관적 교체가 튄다."""
+    macros = _macros()
+    body = (_ROOT / "templates/cs/partials/as_dashboard_body.html").read_text(encoding="utf-8")
+    assert "{% macro render_as_billing_badge(kind)" in macros
+    assert "render_as_billing_badge(r.as_billing_badge)" in body
+    assert "erp-as-billing-badge--" not in body  # 인라인 중복 마크업 잔재 0
+
+    _login_as_admin(client, username="as_billing_badge_admin")
+    order_id = _create_as_order("배지 SSOT", shipment_extra={
+        "as_billing": {"type": "free", "confirmed": False},
+    })
+    res = client.post(f"/api/orders/{order_id}/as/billing", json={"type": "paid", "amount": 1000})
+
+    assert res.status_code == 200
+    data = res.get_json()
+    assert 'erp-as-billing-badge--paid"' in data["badge_html"] and "유상" in data["badge_html"]
+    assert data["state_text"] == "유상 확정 · 1,000원"
+    assert "유상 확정" in data["html"]  # 타임라인 낙관적 삽입용 항목도 함께
+
+
+def test_billing_form_classes_are_styled():
+    """판정 UI 신규 클래스에 스타일이 실재한다(인라인 스타일 금지 규약)."""
+    css = _css(_BODY_CSS)
+    for selector in (".as-billing-state", ".as-billing-edit", ".as-billing-form", ".as-billing-cancel"):
+        assert selector in css, selector
 
 
 def test_cell_badge_label_matches_macro():

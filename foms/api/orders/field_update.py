@@ -18,6 +18,7 @@ from foms.services.erp_order_flags import is_erp_order_record
 from foms.services.erp_permissions import can_edit_erp
 from foms.services.erp_display import _normalize_date_to_yyyymmdd
 from foms.services.erp_sync_columns import sync_erp_flat_columns
+from foms.services.orders.as_log import append_system_log
 from foms.services.orders.construction_type import normalize_regional_construction_type
 from models import Order, OrderEvent
 
@@ -94,6 +95,21 @@ def _clear_as_pending_if_both_as_dates_empty(order: Order, structured_data: dict
         return False
     ensure_path(structured_data, "shipment")["as_pending"] = False
     return True
+
+
+def _as_date_changed(old_value: Any, new_value: Any) -> bool:
+    """AS 날짜 두 값이 실제로 다른지 판정(표기 차이는 무시, 빈 값끼리는 같음).
+
+    Args:
+        old_value: 변경 전 값(컬럼 또는 structured_data 스냅샷).
+        new_value: 요청이 보낸 값.
+
+    Returns:
+        정규화 후 다르면 True.
+    """
+    return (_normalize_date_to_yyyymmdd(old_value) or "") != (
+        _normalize_date_to_yyyymmdd(new_value) or ""
+    )
 
 
 def _coerce_bool_value(value: Any) -> bool:
@@ -255,6 +271,10 @@ def update_order_field_response(
             old_sd_snapshot = copy.deepcopy(structured_data)
 
         old_value = getattr(order, field, None)
+        # AS 타임라인 system 이벤트 문구(있으면 아래에서 1건 append). AS 방문일·완료일의
+        # **정본 쓰기 경로가 여기**다 — 전용 /as/schedule·/as/complete 라우트는 UI 호출자가
+        # 없어서, 거기에만 배선하면 실사용 타임라인에는 아무 것도 안 남는다.
+        as_system_event = ""
         prod_notif = None
         prod_notif_created = False
         _prod_cons_change: tuple[Any, Any] | None = None
@@ -284,6 +304,10 @@ def update_order_field_response(
 
         if field == "as_completed_date":
             shipment = ensure_path(structured_data, "shipment")
+            # 완료 해제(값 비우기)도 남긴다 — 상태는 AS_RECEIVED 로 되돌아가는데 타임라인에
+            # "AS 완료"만 남아 있으면 기록이 현재 상태와 어긋난다.
+            if _as_date_changed(old_value, value):
+                as_system_event = "AS 완료" if str(value or "").strip() else "AS 완료 취소"
             if value:
                 setattr(order, "status", "AS_COMPLETED")
                 if is_erp_order:
@@ -357,6 +381,11 @@ def update_order_field_response(
             elif field == "as_visit_date":
                 schedule = ensure_path(structured_data, "schedule")
                 as_visit = ensure_path(schedule, "as_visit")
+                # 이전 값의 정본은 structured_data 스냅샷이다 — as_visit_date 는 ORM 컬럼이
+                # 아니라(표시 전용 인스턴스 속성) getattr 로는 항상 None 이 잡힌다.
+                old_visit = (
+                    (old_sd_snapshot.get("schedule") or {}).get("as_visit") or {}
+                ).get("date")
                 as_visit["date"] = value
                 structured_changed = True
                 trimmed = str(value or "").strip()
@@ -364,10 +393,21 @@ def update_order_field_response(
                     setattr(order, "as_visit_date", _normalize_date_to_yyyymmdd(trimmed))
                 else:
                     setattr(order, "as_visit_date", None)
+                if _as_date_changed(old_visit, value):
+                    as_system_event = (
+                        f"방문일 확정: {_normalize_date_to_yyyymmdd(trimmed)}"
+                        if trimmed else "방문일 취소"
+                    )
 
         if is_erp_order and field in ("as_received_date", "as_visit_date"):
             if _clear_as_pending_if_both_as_dates_empty(order, structured_data):
                 structured_changed = True
+
+        # 값이 실제로 바뀐 경우에만 1건. structured_changed 를 켜야 아래 저장 블록이 돈다
+        # (as_completed_date 는 비-ERP 주문에서 이 플래그가 꺼진 채로 올 수 있다).
+        if as_system_event and isinstance(structured_data, dict):
+            append_system_log(structured_data, text=as_system_event)
+            structured_changed = True
 
         if structured_changed:
             drawing_notif = None

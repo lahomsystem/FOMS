@@ -23,6 +23,12 @@
 {% endif %}
 {%- endmacro %}
 
+{# 상태 셀 비용 배지 — 목록 렌더와 판정 변경 API 응답(낙관적 교체)이 공유하는 SSOT.
+   kind는 as_dashboard_display.as_billing_badge_kind() 결과. 무상(무배지)은 아무것도 안 낸다. #}
+{% macro render_as_billing_badge(kind) -%}
+{%- if kind %}<span class="erp-as-billing-badge erp-as-billing-badge--{{ kind }}">{% if kind == 'paid' %}유상{% elif kind == 'paid_unconfirmed' %}유상?{% else %}미정{% endif %}</span>{% endif -%}
+{%- endmacro %}
+
 {# AS 타임라인 단건 항목 — 목록(T9)과 쓰기 API 응답 html(T7)이 공유하는 SSOT.
    entry는 as_log.decorate_entry()를 통과한 dict(파생 필드 ts_abs/ts_rel/type_label/is_* 포함).
    text는 sanitize_as_content_html을 이미 통과한 rich HTML이라 |safe.
@@ -62,11 +68,17 @@
    notes(주문 비고)는 lazy 표면(PC 확장 fragment·모바일 상세)만 전달한다 — 목록은 payload를
    키우지 않고, 비고는 AS 기록이 아니므로 스트림 밖 읽기 전용 블록으로 명확히 분리한다.
    is_sales_delivery는 구 툴바 hydrate 주입(.as-tabbed-editor[data-sales-delivery])의 대체다. #}
-{% macro render_as_timeline(order_id, view, can_edit, notes='', is_sales_delivery=false) -%}
+{% macro render_as_timeline(order_id, view, can_edit, notes='', is_sales_delivery=false, billing_state='', billing_type='free') -%}
 {% set v = view or {} %}
 <div class="as-timeline" data-order-id="{{ order_id }}">
   {% if can_edit %}
   <div class="as-timeline__header">
+    {# 비용 판정 표시 + 변경 진입점. 접수 모달의 "판정 변경은 AS 대시보드에서 하세요" 안내가
+       가리키는 실체가 여기다(그 전까지 POST /as/billing 은 호출자가 없었다).
+       폼은 as-dashboard.js가 만든다(항목 수정 폼과 같은 패턴). #}
+    <span class="as-billing-state" data-order-id="{{ order_id }}" data-billing-type="{{ billing_type }}">비용 {{ billing_state }}</span>
+    <button type="button" class="btn btn-sm btn-outline-secondary as-billing-edit"
+      data-order-id="{{ order_id }}" title="무상/유상 판정 변경">판정 변경</button>
     <button type="button"
       class="btn btn-sm as-sales-delivery-btn {{ 'btn-warning' if is_sales_delivery else 'btn-outline-warning' }}"
       data-sales-delivery-active="{{ '1' if is_sales_delivery else '0' }}"

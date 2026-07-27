@@ -440,6 +440,13 @@ def api_as_schedule(order_id):
 
         if not visit_date:
             return jsonify({"success": False, "message": "방문일을 입력해주세요."}), 400
+        try:
+            # 저장 전 형식 검증(register의 shipping_scheduled_date와 동일 패턴). 검증 없이
+            # 두면 임의 문자열이 schedule.as_visit.date와 영구 타임라인 문구로 함께 굳는다.
+            datetime.datetime.strptime(str(visit_date), "%Y-%m-%d")
+        except ValueError:
+            return jsonify({
+                "success": False, "message": "방문일 형식이 올바르지 않습니다. (YYYY-MM-DD)"}), 400
 
         user_id = session.get("user_id")
         user = get_user_by_id(user_id)
@@ -522,8 +529,8 @@ def api_as_billing(order_id: int):
 
         user = get_user_by_id(session.get("user_id"))
         sd = _load_order_structured_data_for_update(order)
-        prev_raw = (sd.get("shipment") or {}).get("as_billing")
-        prev = prev_raw if isinstance(prev_raw, dict) else {}
+        prev = (sd.get("shipment") or {}).get("as_billing")
+        prev = prev if isinstance(prev, dict) else {}
         prev_type = str(prev.get("type") or "free")
         if prev.get("confirmed") is True and prev_type != new_type and not reason:
             return jsonify({"success": False, "message": "판정 전환 시 사유는 필수입니다."}), 400
@@ -546,15 +553,20 @@ def api_as_billing(order_id: int):
             sd, billing_type=new_type, amount=amount,
             confirmed=True, reason=reason, user=user,
         )
-        # 최초 판정(as_billing 부재)과 전환만 이벤트로 남긴다 — 동일 유형 재확정(금액만 변경 등)
-        # 까지 남기면 타임라인이 노이즈로 찬다. 사유는 사용자 입력이지만 append_system_log가
-        # 생성 지점에서 escape 한다.
+        # 기준은 **확정 여부**다. type 만 보면 register 가 심은 미확정 추정값이 "이전 판정"으로
+        # 둔갑해 첫 확정이 전환으로 기록된다. 확정 상태에서의 동일 유형 재확정(금액만 변경 등)은
+        # 무기록 — 타임라인이 노이즈로 찬다. 사유는 사용자 입력이지만 append_system_log가
+        # 생성 지점에서 escape·절단한다.
         suffix = f": {reason}" if reason else ""
-        if not isinstance(prev_raw, dict):
-            append_system_log(sd, text=f"{_AS_BILLING_FIRST_EVENTS[new_type]}{suffix}")
+        if prev.get("confirmed") is not True:
+            event = _AS_BILLING_FIRST_EVENTS[new_type]
         elif prev_type != new_type:
-            append_system_log(sd, text=f"{_AS_BILLING_LABELS.get(prev_type, prev_type)}"
-                                       f"→{_AS_BILLING_LABELS[new_type]} 전환{suffix}")
+            event = (f"{_AS_BILLING_LABELS.get(prev_type, prev_type)}"
+                     f"→{_AS_BILLING_LABELS[new_type]} 전환")
+        else:
+            event = ""
+        # 응답 html은 낙관적 DOM 삽입용(재조회 금지). 렌더는 commit 앞 — append/patch와 같은 이유.
+        entry_html = _render_as_log_entry(append_system_log(sd, text=f"{event}{suffix}")) if event else ""
         order.structured_data = sd
         flag_modified(order, "structured_data")
         sync_erp_flat_columns(order, sd)
@@ -563,13 +575,35 @@ def api_as_billing(order_id: int):
             message=f"주문 #{order_id} AS 비용 판정: {new_type}"))
         db.commit()
         _invalidate_shipment_asrec_caches("api_as_billing")
-        return jsonify({"success": True, "billing": billing})
+        return jsonify({
+            "success": True,
+            "billing": billing,
+            "html": entry_html,          # 타임라인 낙관적 삽입용(없으면 빈 문자열)
+            "badge_html": _render_as_billing_badge(billing),  # 상태 셀 배지 교체용
+            "state_text": _as_billing_state_text(billing),    # 헤더 현재 판정 표기
+        })
     except ValueError as e:
         db.rollback()
         return jsonify({"success": False, "message": str(e)}), 409
     except Exception as e:
         db.rollback()
         return jsonify({"success": False, "message": str(e)}), 500
+
+
+def _render_as_billing_badge(billing: dict) -> str:
+    """상태 셀 비용 배지 단건 렌더(목록과 동일 매크로) — 판정 변경 응답의 낙관적 교체용."""
+    from foms.services.as_dashboard_display import as_billing_badge_kind
+
+    return render_template(
+        "cs/partials/as_billing_badge_partial.html", kind=as_billing_badge_kind(billing)
+    ).strip()
+
+
+def _as_billing_state_text(billing: dict) -> str:
+    """타임라인 헤더의 현재 판정 표기(서버 렌더와 같은 SSOT를 응답으로 되돌려준다)."""
+    from foms.services.as_dashboard_display import as_billing_state_text
+
+    return as_billing_state_text(billing)
 
 
 def _render_as_log_entry(entry: dict) -> str:

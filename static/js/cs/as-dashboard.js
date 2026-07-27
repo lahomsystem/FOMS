@@ -881,9 +881,11 @@
        *
        * 확장 행/모바일 상세에서 기록을 추가·수정해도 같은 행의 요약 셀은 서버 렌더값
        * 그대로라, 접는 순간 옛 최근줄과 실제보다 작은 배지 숫자만 남는다(T10 U1).
-       * 서버 요약 텍스트(as_dashboard_display._timeline_cell_text)는 항목 text를
-       * 평문화한 값이므로 응답 html의 .as-tl-item__body textContent가 같은 값이다 —
-       * 셀 하나 때문에 목록을 다시 부르지 않는다.
+       * 서버 요약(as_dashboard_display._timeline_cell_text)은 블록 태그를 개행으로 바꾼 뒤
+       * 공백으로 접는다. 여기서도 같은 순서로 흉내낸다 — textContent만 읽으면
+       * `<div>앞</div><div>뒤</div>`가 "앞뒤"로 붙어 접기 전후로 요약이 갈린다.
+       * (같은 코드가 아니라 미러다. 서버 파서와 완전 동치는 아니고, 두 표면이 눈에 띄게
+       *  갈리는 블록 경계 케이스를 맞춘다.)
        *
        * @param {string} orderId 대상 주문 id
        * @param {string} html 쓰기 API 응답 항목 html(목록과 같은 서버 매크로 렌더)
@@ -895,6 +897,8 @@
         const parsed = document.createElement('div');
         parsed.innerHTML = html;
         const bodyEl = parsed.querySelector('.as-tl-item__body');
+        // 블록 경계를 공백으로 살린 뒤 접는다(서버 as_content_html_to_text와 같은 순서).
+        if (bodyEl) bodyEl.querySelectorAll('div, p, li, br').forEach((el) => el.after(' '));
         const text = bodyEl ? bodyEl.textContent.replace(/\s+/g, ' ').trim() : '';
         const isAnchor = opts.line === 'anchor';
         const klass = isAnchor ? 'as-tl-cell__anchor' : 'as-tl-cell__recent';
@@ -1005,6 +1009,103 @@
         }
       }
 
+      /** 상태 셀의 비용 배지를 서버 렌더 html로 교체(무배지면 제거). PC 표면 전용. */
+      function updateAsBillingBadge(orderId, html) {
+        const cell = document.querySelector('.erp-as-status-cell[data-order-id="' + orderId + '"]');
+        if (!cell) return; // 모바일 카드에는 상태 셀이 없다
+        const old = cell.querySelector('.erp-as-billing-badge');
+        if (old) old.remove();
+        if (html) cell.insertAdjacentHTML('beforeend', html);
+      }
+
+      /**
+       * 비용 판정 폼 전송 → 판정 표기·상태 배지·타임라인·셀 요약을 응답으로 갱신(재조회 없음).
+       *
+       * 전환 사유 필수 판정은 서버(400)가 소유한다 — 클라가 미리 막으면 규칙이 두 곳에 산다.
+       */
+      async function submitBillingDecision(form) {
+        if (!form || form.dataset.busy === '1') return; // quick-add와 동일한 재진입 가드
+        const timeline = form.closest('.as-timeline');
+        const orderId = timeline && timeline.dataset.orderId;
+        const typeEl = form.querySelector('.as-billing-type');
+        const amountEl = form.querySelector('.as-billing-amount');
+        const reasonEl = form.querySelector('.as-billing-reason');
+        if (!orderId || !typeEl) return;
+        const payload = { type: typeEl.value, reason: (reasonEl && reasonEl.value || '').trim() };
+        const amountRaw = (amountEl && amountEl.value || '').trim();
+        // 빈 금액을 실어 보내면 서버가 "명시적 삭제"로 읽어 확정 청구액을 지운다 —
+        // 값이 있을 때만 키를 넣어 기존 금액 보존 경로를 탄다.
+        if (payload.type === 'paid' && amountRaw !== '') payload.amount = Number(amountRaw);
+        const submitBtn = form.querySelector('.as-timeline__submit');
+        form.dataset.busy = '1';
+        if (submitBtn) submitBtn.disabled = true;
+        try {
+          const res = await fetch('/api/orders/' + encodeURIComponent(orderId) + '/as/billing', {
+            method: 'POST', headers: { 'Content-Type': 'application/json' }, credentials: 'same-origin',
+            body: JSON.stringify(payload),
+          });
+          const data = await readTimelineJson(res);
+          if (!data.success) throw new Error(data.message || '판정 저장 실패');
+          const state = timeline.querySelector('.as-billing-state');
+          if (state) {
+            state.textContent = '비용 ' + (data.state_text || '');
+            state.dataset.billingType = payload.type;
+          }
+          updateAsBillingBadge(orderId, data.badge_html);
+          // 판정 이벤트가 실제로 기록됐을 때만(동일 유형 재확정은 html이 빈 문자열) 스트림·셀 갱신.
+          if (data.html) {
+            const stream = timeline.querySelector('.as-timeline__stream');
+            if (stream) {
+              stream.insertAdjacentHTML('afterbegin', data.html);
+              highlightTimelineStatic(stream);
+              const empty = timeline.querySelector('.as-timeline__empty');
+              if (empty) empty.remove();
+            }
+            updateAsCellSummary(orderId, data.html, { line: 'recent', countDelta: 1 });
+          }
+          form.remove();
+        } catch (err) {
+          // 400(사유 누락·금액 오류)·403에서 입력을 잃지 않는다 — 폼을 연 채로 둔다.
+          alert(String(err && err.message || err || '판정 저장 중 오류'));
+        } finally {
+          form.dataset.busy = '';
+          if (submitBtn) submitBtn.disabled = false;
+        }
+      }
+
+      // 판정 변경 버튼 → 헤더 아래 인라인 폼(멱등). 접수 모달이 안내하는 "AS 대시보드에서 변경".
+      document.addEventListener('click', function (e) {
+        const btn = e.target.closest && e.target.closest('.as-billing-edit');
+        if (!btn) return;
+        const timeline = btn.closest('.as-timeline');
+        const header = btn.closest('.as-timeline__header');
+        if (!timeline || !header || timeline.querySelector('.as-billing-form')) return;
+        const state = timeline.querySelector('.as-billing-state');
+        const current = (state && state.dataset.billingType) || 'free';
+        const form = document.createElement('form');
+        form.className = 'as-billing-form';
+        form.setAttribute('data-foms-erp-no-shell', ''); // 셸 GET submit 가로채기 회피
+        form.innerHTML = '<select class="as-billing-type erp-pro-select" aria-label="비용 판정">'
+          + '<option value="free">무상</option><option value="paid">유상</option>'
+          + '<option value="undecided">미정</option></select>'
+          + '<input type="number" min="0" step="1000" class="as-billing-amount erp-pro-input" placeholder="금액(원)" aria-label="유상 금액">'
+          + '<input type="text" class="as-billing-reason erp-pro-input" placeholder="사유 (확정 후 전환 시 필수)" aria-label="판정 사유">'
+          + '<button type="submit" class="btn btn-sm btn-primary as-timeline__submit">저장</button>'
+          + '<button type="button" class="btn btn-sm btn-link as-billing-cancel">취소</button>';
+        const typeEl = form.querySelector('.as-billing-type');
+        const amountEl = form.querySelector('.as-billing-amount');
+        typeEl.value = current;
+        amountEl.hidden = current !== 'paid';
+        typeEl.addEventListener('change', function () { amountEl.hidden = typeEl.value !== 'paid'; });
+        header.after(form);
+        typeEl.focus();
+      });
+
+      document.addEventListener('click', function (e) {
+        const cancel = e.target.closest && e.target.closest('.as-billing-cancel');
+        if (cancel) cancel.closest('.as-billing-form').remove();
+      });
+
       // 수정 버튼 → 본문 자리에 인라인 폼(멱등: 이미 열려 있으면 무시).
       document.addEventListener('click', function (e) {
         const btn = e.target.closest && e.target.closest('.as-tl-item__edit');
@@ -1048,7 +1149,9 @@
         const quickAdd = e.target.closest && e.target.closest('.as-timeline__quick-add');
         if (quickAdd) { e.preventDefault(); submitQuickAdd(quickAdd); return; }
         const editForm = e.target.closest && e.target.closest('.as-tl-item__edit-form');
-        if (editForm) { e.preventDefault(); submitLogEdit(editForm); }
+        if (editForm) { e.preventDefault(); submitLogEdit(editForm); return; }
+        const billingForm = e.target.closest && e.target.closest('.as-billing-form');
+        if (billingForm) { e.preventDefault(); submitBillingDecision(billingForm); }
       });
 
       // Ctrl/⌘+Enter 단축키. 한글 IME 조합 확정 Enter가 전송으로 새지 않도록 isComposing·229 가드.

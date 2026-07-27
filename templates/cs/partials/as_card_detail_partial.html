@@ -12,6 +12,6 @@
 <div class="erp-as-mobile-card__detail-row erp-pro-order-card__row erp-pro-order-card__row--full">
   <span class="erp-as-mobile-card__detail-label">AS 타임라인</span>
   <div class="erp-as-mobile-card__content">
-    {{ render_as_timeline(r.id, r.as_timeline_view, can_edit_erp|default(false), notes=r.notes or '', is_sales_delivery=r.is_sales_delivery) }}
+    {{ render_as_timeline(r.id, r.as_timeline_view, can_edit_erp|default(false), notes=r.notes or '', is_sales_delivery=r.is_sales_delivery, billing_state=r.as_billing_state_text|default(''), billing_type=r.as_billing_type|default('free')) }}
   </div>
 </div>

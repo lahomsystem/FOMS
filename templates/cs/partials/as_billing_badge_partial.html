@@ -1,0 +1,4 @@
+{# 상태 셀 비용 배지 단건 렌더 — 판정 변경 API(POST /as/billing) 응답 html 전용.
+   목록과 같은 매크로를 경유해 서버·클라 삽입 마크업이 갈라지지 않게 한다. #}
+{% from 'cs/partials/as_card_macros.html' import render_as_billing_badge %}
+{{ render_as_billing_badge(kind) }}

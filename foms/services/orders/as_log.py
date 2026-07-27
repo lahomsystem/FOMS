@@ -19,6 +19,11 @@ AS_LOG_TYPES = frozenset({
 })
 _CLIENT_TYPES = AS_LOG_TYPES - {"system"}
 _DEFAULT_TYPE = "memo"
+# 항목 본문 상한(문자). **생성 지점 봉인** — 클라 경로는 라우트가 400으로 거르지만, system
+# 문구는 사유·날짜 같은 무검증 입력을 서버가 조립하므로 여기서 자르지 않으면 append-only
+# JSONB 가 요청 한 번에 부풀 수 있다. 상한 근처에서 escape 엔티티가 잘릴 수는 있으나
+# (표시상 `&l` 같은 잔여) escape 는 이미 끝난 뒤라 주입 경로가 되지는 않는다.
+AS_LOG_TEXT_MAX = 10000
 _TYPE_LABELS = {
     "reception": "접수", "call": "통화", "action": "방문/조치",
     "material": "자재", "schedule": "일정", "memo": "메모", "system": "시스템",
@@ -39,14 +44,14 @@ def coerce_client_log_type(raw: Any) -> str:
 
 
 def build_as_log_entry(*, log_type: str, text: str, by: str, by_id: int | None) -> dict[str, Any]:
-    """as_log 항목 dict 생성. ts는 UTC naive ISO."""
+    """as_log 항목 dict 생성. ts는 UTC naive ISO, 본문은 AS_LOG_TEXT_MAX 로 절단."""
     return {
         "id": new_as_log_id(),
         "ts": now_utc_naive().isoformat(),
         "by": by or "",
         "by_id": by_id,
         "type": log_type,
-        "text": text,
+        "text": (text or "")[:AS_LOG_TEXT_MAX],
         "edited_at": None,
         "edited_by": None,
     }

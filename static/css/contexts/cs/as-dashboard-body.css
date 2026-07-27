@@ -101,8 +101,45 @@
   /* 타임라인 헤더: 구 툴바에 얹혀 있던 영업/전달 토글의 새 자리 */
   .as-timeline__header {
     display: flex;
+    align-items: center;
     justify-content: flex-end;
+    gap: 6px;
     margin-bottom: 6px;
+  }
+
+  /* 비용 판정 표시 — 헤더 좌측을 채워 버튼 두 개를 오른쪽에 붙인다. */
+  .as-billing-state {
+    margin-right: auto;
+    font-size: 0.75rem;
+    font-weight: 600;
+    color: #495057;
+  }
+
+  .as-billing-edit {
+    font-size: 0.75rem;
+    font-weight: 600;
+  }
+
+  /* 판정 변경 인라인 폼 — 항목 수정 폼과 같은 계열(가로 스택 + 줄바꿈). */
+  .as-billing-form {
+    display: flex;
+    flex-wrap: wrap;
+    align-items: center;
+    gap: 4px;
+    margin-bottom: 6px;
+  }
+
+  .as-billing-form .as-billing-reason {
+    flex: 1 1 140px;
+    min-width: 0;
+  }
+
+  .as-billing-form .as-billing-amount {
+    width: 110px;
+  }
+
+  .as-billing-cancel {
+    padding: 0 4px;
   }
 
   .as-sales-delivery-btn {

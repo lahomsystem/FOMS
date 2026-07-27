@@ -376,6 +376,72 @@ def test_billing_reconfirm_same_type_appends_nothing(client):
     assert _system_texts(order_id) == []
 
 
+def test_visit_date_field_update_appends_system_log(client):
+    """방문일의 정본 쓰기 경로는 /api/update_order_field 다 — 여기서 이벤트가 나와야 한다.
+
+    전용 `/as/schedule` 라우트는 UI 호출자가 0이라, 거기에만 배선하면 실사용에서는
+    타임라인에 아무 것도 안 남는다.
+    """
+    _login_as_admin(client, username="as-sys-visit-field-admin")
+    order_id = _create_as_order().id
+
+    res = client.post("/api/update_order_field", json={
+        "order_id": order_id, "field_name": "as_visit_date", "new_value": "2026-08-05"})
+    assert res.status_code == 200, res.get_data(as_text=True)
+
+    assert _system_texts(order_id) == ["방문일 확정: 2026-08-05"]
+    db_session.expire_all()
+    sd = db_session.get(Order, order_id).structured_data
+    assert sd["schedule"]["as_visit"]["date"] == "2026-08-05"  # 기존 쓰기 불변
+
+
+def test_field_update_same_value_appends_nothing(client):
+    """값이 안 바뀌면 무기록 — 같은 값 재저장이 타임라인을 중복으로 채우면 안 된다."""
+    _login_as_admin(client, username="as-sys-visit-noop-admin")
+    order_id = _create_as_order().id
+
+    for _ in range(2):
+        client.post("/api/update_order_field", json={
+            "order_id": order_id, "field_name": "as_visit_date", "new_value": "2026-08-05"})
+
+    assert _system_texts(order_id) == ["방문일 확정: 2026-08-05"]
+
+
+def test_completed_date_field_update_appends_system_log(client):
+    """AS 완료의 정본 쓰기 경로도 field_update 다. 완료 해제는 취소로 남는다."""
+    _login_as_admin(client, username="as-sys-complete-field-admin")
+    order_id = _create_as_order().id
+
+    client.post("/api/update_order_field", json={
+        "order_id": order_id, "field_name": "as_completed_date", "new_value": "2026-08-06"})
+    client.post("/api/update_order_field", json={
+        "order_id": order_id, "field_name": "as_completed_date", "new_value": ""})
+
+    assert _system_texts(order_id) == ["AS 완료", "AS 완료 취소"]
+
+
+def test_schedule_rejects_malformed_visit_date(client):
+    """방문일은 저장 전에 형식 검증 — 무검증 문자열이 영구 기록으로 새면 안 된다."""
+    _login_as_admin(client, username="as-sys-visit-bad-admin")
+    order_id = _create_as_order().id
+
+    res = client.post(f"/api/orders/{order_id}/as/schedule", json={"visit_date": "내일쯤"})
+
+    assert res.status_code == 400 and res.get_json()["success"] is False
+    db_session.expire_all()
+    assert "as_log" not in db_session.get(Order, order_id).structured_data["shipment"]
+
+
+def test_system_log_text_is_capped_at_generation(client):
+    """생성 지점 상한 — 무검증 입력(사유 등)이 조립돼도 JSONB 가 무한히 커지지 않는다."""
+    from foms.services.orders.as_log import AS_LOG_TEXT_MAX, append_system_log
+
+    sd = {"shipment": {}}
+    entry = append_system_log(sd, text="가" * (AS_LOG_TEXT_MAX + 500))
+
+    assert len(entry["text"]) == AS_LOG_TEXT_MAX
+
+
 def test_billing_first_decision_logs_confirmation_not_switch(client):
     """as_billing 이 없던 상태의 판정은 최초 확정 — "무상→유상 전환" 은 감사 기록 오기다.
 
@@ -395,17 +461,24 @@ def test_billing_first_decision_logs_confirmation_not_switch(client):
     assert _system_texts(undecided_id) == ["미정 처리"]
 
 
-def test_billing_switch_without_reason_omits_colon(client):
-    """사유가 없으면 콜론 접미를 붙이지 않는다(영구 기록에 매달린 ': ' 금지)."""
-    _login_as_admin(client, username="as-sys-billing-nocolon-admin")
-    order_id = _create_as_order(shipment_extra={
-        "as_billing": {"type": "free", "confirmed": False, "amount": None, "reason": ""},
-    }).id
+def test_billing_unconfirmed_prev_logs_confirmation_not_switch(client):
+    """미확정 추정(register 시드)에서의 첫 확정도 전환이 아니다 — 확정된 판정이 없었다.
 
-    res = client.post(f"/api/orders/{order_id}/as/billing", json={"type": "paid", "amount": 5000})
-    assert res.status_code == 200, res.get_data(as_text=True)
+    확정 여부가 기준이다. type 만 보면 register 가 심은 추정값이 "이전 판정"으로 둔갑한다.
+    사유가 없으면 콜론 접미도 붙지 않는다(영구 기록에 매달린 ': ' 금지).
+    """
+    _login_as_admin(client, username="as-sys-billing-unconfirmed-admin")
+    estimate = {"type": "free", "confirmed": False, "amount": None, "reason": ""}
+    plain_id = _create_as_order(shipment_extra={"as_billing": dict(estimate)}).id
+    reasoned_id = _create_as_order(shipment_extra={"as_billing": dict(estimate)}).id
 
-    assert _system_texts(order_id) == ["무상→유상 전환"]
+    assert client.post(f"/api/orders/{plain_id}/as/billing",
+                       json={"type": "paid", "amount": 5000}).status_code == 200
+    assert client.post(f"/api/orders/{reasoned_id}/as/billing",
+                       json={"type": "paid", "amount": 5000, "reason": "현장 과실"}).status_code == 200
+
+    assert _system_texts(plain_id) == ["유상 확정"]
+    assert _system_texts(reasoned_id) == ["유상 확정: 현장 과실"]
 
 
 def test_billing_switch_system_log_escapes_reason(client):
