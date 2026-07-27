@@ -51,14 +51,19 @@ def build_as_log_entry(*, log_type: str, text: str, by: str, by_id: int | None) 
 
 
 def _legacy_entries_from_content(shipment: dict) -> list[dict]:
-    """as_content/as_content_2를 읽기전용 legacy memo 항목으로 변환."""
+    """as_content/as_content_2를 읽기전용 legacy memo 항목으로 변환.
+
+    id는 원본 필드에서 파생한 결정적 상수다. 렌더마다 재생성하면 같은 항목이
+    매번 다른 id를 갖게 되어 DOM 키·중복 제거가 어긋나고, 영구화(migrate) 전후로
+    id가 바뀌어 불연속이 생긴다. migrate도 이 헬퍼를 경유하므로 id가 그대로 이어진다.
+    """
     out: list[dict] = []
     for field, label in (("as_content", "이전 기록"), ("as_content_2", "이전 기록(탭2)")):
         html = sanitize_as_content_html(shipment.get(field))
         if not html:
             continue
         out.append({
-            "id": new_as_log_id(),
+            "id": f"al_legacy_{field}",
             "ts": None,
             "by": "",
             "by_id": None,
@@ -104,7 +109,7 @@ def format_relative_kst(ts: str | None) -> str:
     dt = parse_datetime_utc(ts) if ts else None
     if dt is None:
         return ""
-    now = parse_datetime_utc(now_utc_naive().isoformat())
+    now = parse_datetime_utc(now_utc_naive())
     delta = (now - dt).total_seconds()
     if delta < 60:
         return "방금"
@@ -136,9 +141,9 @@ def build_as_timeline_view(sd: dict | None, *, recent_limit: int = 8) -> dict[st
     entries = shipment.get("as_log")
     reception: dict | None = None
     legacy: list[dict] = []
-    stream: list[dict] = []
+    ranked: list[tuple[str, int, dict]] = []
     if isinstance(entries, list) and entries:
-        for e in entries:
+        for idx, e in enumerate(entries):
             if not isinstance(e, dict):
                 continue
             if e.get("legacy") is True:
@@ -146,17 +151,21 @@ def build_as_timeline_view(sd: dict | None, *, recent_limit: int = 8) -> dict[st
             elif e.get("type") == "reception" and reception is None:
                 reception = decorate_entry(e)
             elif e.get("type") == "reception":
-                stream.append(decorate_entry(e))  # 두 번째 접수 이후는 스트림
+                ranked.append((e.get("ts") or "", idx, e))  # 두 번째 접수 이후는 스트림
             else:
-                stream.append(decorate_entry(e))
+                ranked.append((e.get("ts") or "", idx, e))
     else:
         legacy = [decorate_entry(x) for x in _legacy_entries_from_content(shipment)]
-    stream.sort(key=lambda x: x.get("ts") or "", reverse=True)
-    total = len(stream)
+    # ts 동률이면 삽입 인덱스로 tie-break. stable sort에 맡기면 동률 그룹이
+    # 삽입 순서(오래된 것 우선)로 남아 recent_limit 절단 시 최신 항목이 탈락한다.
+    ranked.sort(key=lambda item: (item[0], item[1]), reverse=True)
+    total = len(ranked)
+    # decorate는 절단 후에만 — 항목당 ts 파싱 3회를 전체가 아닌 노출분에만 지불한다.
+    stream = [decorate_entry(item[2]) for item in ranked[:recent_limit]]
     return {
         "reception": reception,
         "legacy": legacy,
-        "stream": stream[:recent_limit],
+        "stream": stream,
         "stream_total": total,
         "has_more": total > recent_limit,
         "count": total + (1 if reception else 0) + len(legacy),

@@ -4,11 +4,28 @@ import pytest
 
 from foms.services.orders.as_log import (
     append_client_log,
+    append_system_log,
     build_as_log_entry,
     build_as_timeline_view,
     coerce_client_log_type,
     migrate_legacy_into_log,
 )
+
+_DECORATED_KEYS = {"ts_abs", "ts_rel", "type_label", "is_system", "is_legacy", "is_edited"}
+
+
+def _entry(idx: int, ts: str, *, log_type: str = "memo") -> dict:
+    """고정 ts를 가진 as_log 항목(초 해상도 시드 형식)."""
+    return {
+        "id": f"al_seed_{idx}",
+        "ts": ts,
+        "by": "김",
+        "by_id": 1,
+        "type": log_type,
+        "text": f"m{idx}",
+        "edited_at": None,
+        "edited_by": None,
+    }
 
 
 def test_client_type_rejects_system():
@@ -74,3 +91,70 @@ def test_stream_respects_recent_limit():
     assert len(view["stream"]) == 2
     assert view["stream_total"] == 5
     assert view["has_more"] is True
+
+
+def test_append_system_log_is_server_authored():
+    """시스템 항목은 서버 저자(by='시스템', by_id=None)로 append되고 스트림에 노출된다."""
+    sd = {"shipment": {}}
+    entry = append_system_log(sd, text="AS 비용 확정")
+    assert entry["type"] == "system"
+    assert entry["by"] == "시스템" and entry["by_id"] is None
+    assert sd["shipment"]["as_log"][-1]["id"] == entry["id"]
+
+    decorated = build_as_timeline_view(sd)["stream"][0]
+    assert decorated["is_system"] is True
+    assert decorated["type_label"] == "시스템"
+
+
+def test_legacy_entry_ids_are_deterministic():
+    """legacy id는 원본 필드에서 파생한 상수 — 렌더 반복·영구화 전후로 불변."""
+    sd = {"shipment": {"as_content": "<div>옛 기록</div>", "as_content_2": "<div>탭2</div>"}}
+    expected = ["al_legacy_as_content", "al_legacy_as_content_2"]
+
+    first = [e["id"] for e in build_as_timeline_view(sd)["legacy"]]
+    second = [e["id"] for e in build_as_timeline_view(sd)["legacy"]]
+    assert first == expected and second == expected  # 렌더마다 재생성되지 않는다
+
+    migrate_legacy_into_log(sd)
+    assert [e["id"] for e in sd["shipment"]["as_log"]] == expected  # 영구화 후에도 동일
+
+
+def test_equal_ts_truncation_keeps_newest():
+    """ts 동률 그룹에서 절단할 때 가장 최신(삽입 순서 뒤) 항목이 살아남는다."""
+    sd = {"shipment": {"as_log": [_entry(i, "2026-07-20 10:00:00") for i in range(4)]}}
+    view = build_as_timeline_view(sd, recent_limit=2)
+    assert [e["text"] for e in view["stream"]] == ["m3", "m2"]
+    assert view["stream_total"] == 4 and view["has_more"] is True
+
+
+def test_mixed_ts_orders_by_time_then_insertion():
+    """서로 다른 ts는 시간 역순 우선, 동률 구간만 삽입 역순으로 정렬된다."""
+    sd = {"shipment": {"as_log": [
+        _entry(0, "2026-07-20 09:00:00"),
+        _entry(1, "2026-07-20 11:00:00"),
+        _entry(2, "2026-07-20 11:00:00"),
+        _entry(3, "2026-07-20 10:00:00"),
+    ]}}
+    view = build_as_timeline_view(sd)
+    assert [e["text"] for e in view["stream"]] == ["m2", "m1", "m3", "m0"]
+
+
+def test_view_shape_stable_after_decorate_moved_post_slice():
+    """절단 후 decorate로 바뀌어도 반환 shape과 항목 파생 필드는 동일하다."""
+    sd = {"shipment": {"as_log": [_entry(i, f"2026-07-20 10:0{i}:00") for i in range(5)]}}
+    sd["shipment"]["as_log"].append(_entry(9, "2026-07-20 08:00:00", log_type="reception"))
+    view = build_as_timeline_view(sd, recent_limit=2)
+
+    assert set(view) == {"reception", "legacy", "stream", "stream_total", "has_more", "count"}
+    assert len(view["stream"]) == 2
+    for decorated in view["stream"]:
+        assert _DECORATED_KEYS <= set(decorated)
+    assert _DECORATED_KEYS <= set(view["reception"])
+    assert view["count"] == view["stream_total"] + 1  # 절단분이 아닌 전체 기준
+
+
+def test_decorate_does_not_mutate_source_entries():
+    """decorate는 얕은 복사 — 원본 as_log 항목에 파생 필드가 새지 않는다."""
+    sd = {"shipment": {"as_log": [_entry(0, "2026-07-20 10:00:00")]}}
+    build_as_timeline_view(sd)
+    assert _DECORATED_KEYS.isdisjoint(sd["shipment"]["as_log"][0])
