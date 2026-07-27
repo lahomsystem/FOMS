@@ -2301,9 +2301,18 @@
    "write_guard": true,
    "postgres": true
   },
-  "commands": [],
-  "existing_regressions": [],
-  "created_tests": [],
+  "commands": [
+   "python -m pytest tests/domains/test_storage_writer.py -q"
+  ],
+  "existing_regressions": [
+   "tests/domains/test_auth_enforcement.py"
+  ],
+  "created_tests": [
+   {
+    "path": "tests/domains/test_storage_writer.py",
+    "owner_packet": "STORAGE-WRITER-01"
+   }
+  ],
   "browser_scenarios": [],
   "deploy_check_ids": [],
   "deployment_evidence_mode": "HEARTBEAT"
@@ -2436,9 +2445,18 @@
    "write_guard": true,
    "postgres": false
   },
-  "commands": [],
-  "existing_regressions": [],
-  "created_tests": [],
+  "commands": [
+   "python -m pytest tests/domains/test_wiz_preset.py -q"
+  ],
+  "existing_regressions": [
+   "tests/domains/test_drawing_wizard_api.py"
+  ],
+  "created_tests": [
+   {
+    "path": "tests/domains/test_wiz_preset.py",
+    "owner_packet": "WIZ-PRESET-01"
+   }
+  ],
   "browser_scenarios": [],
   "deploy_check_ids": [],
   "deployment_evidence_mode": "HEARTBEAT"
@@ -2626,9 +2644,18 @@
    "write_guard": true,
    "postgres": true
   },
-  "commands": [],
-  "existing_regressions": [],
-  "created_tests": [],
+  "commands": [
+   "python -m pytest tests/postgres/test_upload_02.py -q"
+  ],
+  "existing_regressions": [
+   "tests/postgres/test_sidefx_outbox.py"
+  ],
+  "created_tests": [
+   {
+    "path": "tests/postgres/test_upload_02.py",
+    "owner_packet": "UPLOAD-02"
+   }
+  ],
   "browser_scenarios": [],
   "deploy_check_ids": [],
   "deployment_evidence_mode": "HEARTBEAT"
