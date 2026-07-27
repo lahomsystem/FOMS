@@ -1,0 +1,27 @@
+{#
+  STATE-CONTROLS-01 — assignable-status <option> renderer for logistics/measurement
+  inline status selectors.
+
+  Terminal/canonical statuses — 완료(COMPLETED)·AS(AS/AS_RECEIVED/AS_COMPLETED)·
+  삭제(DELETED) — are NOT directly assignable here. Those transitions run only through
+  their canonical controls (STATE-AS / DELETE / COMPLETE). This macro omits them from
+  the assignable list while always preserving the order's *current* status as a
+  selected option, so display and submit stay correct even when a row currently sits
+  in a terminal state.
+
+  Args:
+    status_map: dict of code -> label to offer (e.g. LOGISTICS_BOARD_STATUS, STATUS).
+    current_status: the order's current status code (string or None).
+
+  Import ``with context`` so STATUS is available for the preserved-label lookup.
+#}
+{%- macro assignable_status_options(status_map, current_status) -%}
+  {%- set _terminal = ['COMPLETED', 'AS', 'AS_RECEIVED', 'AS_COMPLETED', 'DELETED'] -%}
+  {%- set _cur = (current_status or '') | string -%}
+  {%- if _cur and (_cur in _terminal or _cur not in status_map) -%}
+  <option value="{{ _cur }}" selected>{{ STATUS.get(_cur, _cur) if STATUS is defined else status_map.get(_cur, _cur) }}</option>
+  {%- endif -%}
+  {%- for code, name in status_map.items() if code not in _terminal -%}
+  <option value="{{ code }}"{% if _cur == code %} selected{% endif %}>{{ name }}</option>
+  {%- endfor -%}
+{%- endmacro -%}

@@ -95,7 +95,6 @@ FRAGMENT_REPLAYED_GLOBAL_LISTENER_BASELINE: dict[str, int] = {
     "js/foms/mobile-queue-focus.js": 1,
     "js/foms/mobile-queue-scroll.js": 1,
     "js/foms/search.js": 2,
-    "js/foms/swipe-actions.js": 1,
     "js/foms/sync.js": 2,
     "js/runtime/erp-mobile-shell.js": 2,
 }

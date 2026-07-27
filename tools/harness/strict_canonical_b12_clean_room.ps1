@@ -174,7 +174,7 @@ try {
     $allowedSharedHtml = @(
         'layout_head.html', 'layout_nav.html', 'layout_flash.html', 'layout_scripts.html',
         'erp_mobile_shell.html', 'erp_mobile_shell_header.html', 'erp_mobile_bottom_nav.html',
-        'erp_mobile_menu_drawer.html', 'erp_mobile_queue_card.html', 'erp_sub_nav.html'
+        'erp_mobile_menu_drawer.html', 'erp_sub_nav.html'
     ) | Sort-Object
     $actualSharedHtml = @(
         Get-ChildItem -LiteralPath $sharedPartials -File -Filter *.html -ErrorAction Stop |

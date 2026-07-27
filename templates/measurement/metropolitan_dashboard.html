@@ -3,6 +3,7 @@
 {% block title %}수도권 주문 관리 대시보드{% endblock %}
 
 {% block content %}
+{% from 'partials/shared/status_select_options.html' import assignable_status_options with context %}
 <div class="container-fluid metropolitan-dashboard">
     <div class="row">
         <div class="col-12">
@@ -160,14 +161,7 @@
                                                 <select class="form-select form-select-sm status-dropdown status-{{ order.status|lower }}" 
                                                         data-order-id="{{ order.id }}" 
                                                         data-current-status="{{ order.status }}">
-                                                    {% for status_code, status_name in STATUS.items() %}
-                                                        {% if status_code != 'DELETED' %}
-                                                            <option value="{{ status_code }}" 
-                                                                    {% if order.status == status_code %}selected{% endif %}>
-                                                                {{ status_name }}
-                                                            </option>
-                                                        {% endif %}
-                                                    {% endfor %}
+                                                    {{ assignable_status_options(STATUS, order.status) }}
                                                 </select>
                                             </td>
                                             <td class="text-danger">{{ order.measurement_date or '-' }}</td>
@@ -266,14 +260,7 @@
                                                 <select class="form-select form-select-sm status-dropdown status-{{ order.status|lower }}" 
                                                         data-order-id="{{ order.id }}" 
                                                         data-current-status="{{ order.status }}">
-                                                    {% for status_code, status_name in STATUS.items() %}
-                                                        {% if status_code != 'DELETED' %}
-                                                            <option value="{{ status_code }}" 
-                                                                    {% if order.status == status_code %}selected{% endif %}>
-                                                                {{ status_name }}
-                                                            </option>
-                                                        {% endif %}
-                                                    {% endfor %}
+                                                    {{ assignable_status_options(STATUS, order.status) }}
                                                 </select>
                                             </td>
                                             <td>{{ order.measurement_date or '-' }}</td>
@@ -362,14 +349,7 @@
                                                 <select class="form-select form-select-sm status-dropdown status-{{ order.status|lower }}" 
                                                         data-order-id="{{ order.id }}" 
                                                         data-current-status="{{ order.status }}">
-                                                    {% for status_code, status_name in STATUS.items() %}
-                                                        {% if status_code != 'DELETED' %}
-                                                            <option value="{{ status_code }}" 
-                                                                    {% if order.status == status_code %}selected{% endif %}>
-                                                                {{ status_name }}
-                                                            </option>
-                                                        {% endif %}
-                                                    {% endfor %}
+                                                    {{ assignable_status_options(STATUS, order.status) }}
                                                 </select>
                                             </td>
                                             <td class="text-info">{{ order.measurement_date or '-' }}</td>
@@ -458,14 +438,7 @@
                                                 <select class="form-select form-select-sm status-dropdown status-{{ order.status|lower }}" 
                                                         data-order-id="{{ order.id }}" 
                                                         data-current-status="{{ order.status }}">
-                                                    {% for status_code, status_name in STATUS.items() %}
-                                                        {% if status_code != 'DELETED' %}
-                                                            <option value="{{ status_code }}" 
-                                                                    {% if order.status == status_code %}selected{% endif %}>
-                                                                {{ status_name }}
-                                                            </option>
-                                                        {% endif %}
-                                                    {% endfor %}
+                                                    {{ assignable_status_options(STATUS, order.status) }}
                                                 </select>
                                             </td>
                                             <td>{{ order.manager_name or '-' }}</td>
@@ -543,12 +516,7 @@
                                             <td>
                                                 <select class="form-select form-select-sm status-dropdown status-{{ order.status.lower() }}" 
                                                         data-order-id="{{ order.id }}" data-field="status">
-                                                    {% for status_key, status_label in STATUS.items() %}
-                                                    <option value="{{ status_key }}" 
-                                                            {% if order.status == status_key %}selected{% endif %}>
-                                                        {{ status_label }}
-                                                    </option>
-                                                    {% endfor %}
+                                                    {{ assignable_status_options(STATUS, order.status) }}
                                                 </select>
                                             </td>
                                             <td>
@@ -639,14 +607,7 @@
                                                 <select class="form-select form-select-sm status-dropdown status-{{ order.status|lower }}" 
                                                         data-order-id="{{ order.id }}" 
                                                         data-current-status="{{ order.status }}">
-                                                    {% for status_code, status_name in STATUS.items() %}
-                                                        {% if status_code != 'DELETED' %}
-                                                            <option value="{{ status_code }}" 
-                                                                    {% if order.status == status_code %}selected{% endif %}>
-                                                                {{ status_name }}
-                                                            </option>
-                                                        {% endif %}
-                                                    {% endfor %}
+                                                    {{ assignable_status_options(STATUS, order.status) }}
                                                 </select>
                                             </td>
                                             <td style="width: 150px;">

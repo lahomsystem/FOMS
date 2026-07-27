@@ -609,14 +609,15 @@
                 <option value="delete">삭제</option>
                 <option value="copy">복사</option>
                 <optgroup label="상태 변경">
-                    {% for code, name_val in BULK_ACTION_STATUS.items() %}
+                    {# STATE-CONTROLS-01: 완료·AS·삭제는 canonical 전이 전용 — bulk 직접 선택 제거 #}
+                    {% for code, name_val in BULK_ACTION_STATUS.items() if code not in ['COMPLETED', 'AS', 'AS_RECEIVED', 'AS_COMPLETED'] %}
                     <option value="status_{{ code }}">{{ name_val }}</option>
                     {% endfor %}
                 </optgroup>
             </select>
             <select name="new_status" class="d-none" id="status-select" form="bulk-action-form">
                 <option value="">상태 선택</option>
-                {% for code, name_val in BULK_ACTION_STATUS.items() %}
+                {% for code, name_val in BULK_ACTION_STATUS.items() if code not in ['COMPLETED', 'AS', 'AS_RECEIVED', 'AS_COMPLETED'] %}
                 <option value="{{ code }}">{{ name_val }}</option>
                 {% endfor %}
             </select>

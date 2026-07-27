@@ -2435,7 +2435,6 @@ _PAC_PARTIALS_SHARED_HTML_ALLOWLIST = frozenset(
         "erp_mobile_notification_panel.html",
         "erp_mobile_order_timeline_sheet.html",
         "erp_mobile_urgent_call_panel.html",
-        "erp_mobile_queue_card.html",
         "erp_mobile_queue_card_v2.html",
         "erp_mobile_shell.html",
         "erp_mobile_shell_header.html",
@@ -2463,6 +2462,7 @@ _PAC_PARTIALS_SHARED_HTML_ALLOWLIST = frozenset(
         "layout_nav.html",
         "layout_scripts.html",
         "mobile_queue_pager.html",
+        "status_select_options.html",
     }
 )
 
