@@ -85,7 +85,11 @@ def _erp_order_search_filter(query, q, *, dialect_name='', use_postgres_regex=Fa
             _sql_compact(address, use_postgres_regex=use_postgres_regex).ilike(term),  # perf-ok: ix_orders_address_trgm
             _sql_compact(Order.product, use_postgres_regex=use_postgres_regex).ilike(term),  # perf-ok: ix_orders_product_trgm
             _sql_compact(Order.notes, use_postgres_regex=use_postgres_regex).ilike(term),  # perf-ok: ix_orders_structured_data_text_trgm
-            _sql_compact(as_content, use_postgres_regex=use_postgres_regex).ilike(term),  # perf-ok: ix_orders_structured_data_text_trgm
+            # 이 OR 는 어떤 trgm 인덱스도 못 탄다 — `lower(regexp_replace(..))` 로 감싼 식은
+            # 표현식 인덱스와 형태가 달라 매칭되지 않고(EXPLAIN: enable_seqscan=off 에서도
+            # Seq Scan), 다른 분기도 비인덱서블이라 BitmapOr 자체가 성립하지 않는다.
+            # as_log 확장(T12)은 이 성질을 바꾸지 않는다(같은 식에 항목 하나 추가).
+            _sql_compact(as_content, use_postgres_regex=use_postgres_regex).ilike(term),  # perf-ok: 검색어 입력 시에만 도는 콜드 경로(AS 상태 부분집합)
         )
     )
 

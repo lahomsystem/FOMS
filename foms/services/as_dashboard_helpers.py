@@ -7,7 +7,7 @@ flat 모듈(subpackage __init__ 순환 회피).
 """
 from __future__ import annotations
 
-from sqlalchemy import or_, and_, cast, String, func, case
+from sqlalchemy import or_, and_, cast, String, func, case, select, text
 from sqlalchemy.sql.elements import ColumnElement
 
 from models import Order
@@ -77,19 +77,75 @@ def _as_content_expr(field_name='as_content', *, dialect_name='', use_postgres_r
     return expr
 
 
+def _as_log_text_expr(*, dialect_name='', use_postgres_regex=False):
+    """structured_data.shipment.as_log 항목 본문(text)을 검색용 문자열로 반환.
+
+    두 dialect 모두 **항목 본문만** 모은다. 배열을 통째로 텍스트화하면 (a) 항목
+    id(``al_<epoch_ms>_..``)·ts가 검색어에 걸려 숫자 검색이 오탐투성이가 되고,
+    (b) sqlite는 비ASCII를 ``\\uXXXX``로 이스케이프해 저장하므로 한글이 아예 안 잡힌다.
+
+    Args:
+        dialect_name: 바인드 dialect 이름.
+        use_postgres_regex: PostgreSQL regexp로 HTML 태그를 제거할지 여부.
+
+    Returns:
+        태그가 제거된(옵션) as_log 본문 텍스트 SQL 표현식.
+    """
+    if dialect_name == 'postgresql':
+        expr = func.jsonb_path_query_array(
+            Order.structured_data,
+            text("'$.shipment.as_log[*].text'::jsonpath"),
+        )
+    elif dialect_name == 'sqlite':
+        # wildcard jsonpath가 없어 항목을 펼쳐 text만 이어붙인다. as_log가 배열이 아니면
+        # json_each는 'malformed JSON'으로 터지므로(postgres lax 모드는 조용히 무매칭)
+        # json_type 가드로 두 dialect의 실패 동작을 맞춘다.
+        element = func.json_each(
+            Order.structured_data, '$.shipment.as_log'
+        ).table_valued('value')
+        joined = (
+            select(func.group_concat(func.json_extract(element.c.value, '$.text'), ' '))
+            .select_from(element)
+            .scalar_subquery()
+        )
+        expr = case(
+            (func.json_type(Order.structured_data, '$.shipment.as_log') == 'array', joined),
+            else_='',
+        )
+    else:
+        expr = cast(Order.structured_data, String)
+    expr = func.coalesce(cast(expr, String), '')
+    if dialect_name == 'postgresql' and use_postgres_regex:
+        expr = func.regexp_replace(expr, r'<[^>]+>', '', 'g')
+    return expr
+
+
 def _combined_as_content_expr(*, dialect_name='', use_postgres_regex=False):
-    """AS 내용 1/2 탭을 합쳐 검색용 문자열로 반환."""
-    primary = _as_content_expr(
-        'as_content',
-        dialect_name=dialect_name,
-        use_postgres_regex=use_postgres_regex,
-    )
-    secondary = _as_content_expr(
-        'as_content_2',
-        dialect_name=dialect_name,
-        use_postgres_regex=use_postgres_regex,
-    )
-    return func.trim(primary + case((secondary != '', ' '), else_='') + secondary)
+    """legacy AS 내용(1/2) + 타임라인 기록(as_log) 본문을 합쳐 검색용 문자열로 반환.
+
+    as_content 쓰기가 퇴역(T12)한 뒤 새 기록은 as_log에만 쌓인다. as_log를 빼면
+    AS 내용 검색이 시간이 갈수록 비어간다.
+    """
+    parts = [
+        _as_content_expr(
+            'as_content',
+            dialect_name=dialect_name,
+            use_postgres_regex=use_postgres_regex,
+        ),
+        _as_content_expr(
+            'as_content_2',
+            dialect_name=dialect_name,
+            use_postgres_regex=use_postgres_regex,
+        ),
+        _as_log_text_expr(
+            dialect_name=dialect_name,
+            use_postgres_regex=use_postgres_regex,
+        ),
+    ]
+    combined = parts[0]
+    for part in parts[1:]:
+        combined = combined + case((part != '', ' '), else_='') + part
+    return func.trim(combined)
 
 
 def _sales_delivery_expr(*, dialect_name=''):

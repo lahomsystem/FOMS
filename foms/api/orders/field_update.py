@@ -13,10 +13,7 @@ from sqlalchemy.orm.attributes import flag_modified
 from foms.web.auth import get_user_by_id, log_access
 from foms.services.orders.status_constants import STATUS
 from db import get_db
-from foms.services.as_content_safety import (
-    load_structured_data_dict_or_raise,
-    sanitize_as_content_html,
-)
+from foms.services.as_content_safety import load_structured_data_dict_or_raise
 from foms.services.erp_order_flags import is_erp_order_record
 from foms.services.erp_permissions import can_edit_erp
 from foms.services.erp_display import _normalize_date_to_yyyymmdd
@@ -39,8 +36,6 @@ ORDER_UPDATE_ALLOWED_FIELDS = [
     "as_received_date",
     "as_completed_date",
     "as_visit_date",
-    "as_content",
-    "as_content_2",
     "as_pending",
     "as_blueprint",
     "sales_delivery",
@@ -53,10 +48,10 @@ ORDER_UPDATE_ALLOWED_FIELDS = [
     "construction_workers",
 ]
 
+# as_content/as_content_2 는 쓰기 퇴역(T12) — 신규 AS 기록은 as_log(POST /as/log)만
+# 받는다. 두 필드는 legacy 읽기 전용으로 남아 최초 append 때 as_log 로 영구화된다.
 STRUCTURED_SYNC_FIELDS = {
     "as_visit_date",
-    "as_content",
-    "as_content_2",
     "as_pending",
     "as_blueprint",
     "sales_delivery",
@@ -150,9 +145,7 @@ def _build_order_update_response(
     schedule = (structured_data.get("schedule") or {}) if structured_data else {}
     as_visit = (schedule.get("as_visit") or {}) if isinstance(schedule, dict) else {}
 
-    if field in ("as_content", "as_content_2"):
-        normalized_value = shipment.get(field) or ""
-    elif field == "as_pending":
+    if field == "as_pending":
         normalized_value = shipment.get("as_pending") is True
     elif field == "as_blueprint":
         normalized_value = shipment.get("as_blueprint") is True
@@ -230,8 +223,6 @@ def update_order_field_response(
         )
 
     try:
-        if field in ("as_content", "as_content_2"):
-            value = sanitize_as_content_html(value)
         if field == "construction_type":
             normalized_construction_type = normalize_regional_construction_type(value)
             if str(value or "").strip() and not normalized_construction_type:
@@ -270,8 +261,6 @@ def update_order_field_response(
         if field == "as_visit_date":
             pass
         elif field in (
-            "as_content",
-            "as_content_2",
             "as_pending",
             "as_blueprint",
             "sales_delivery",
@@ -314,8 +303,6 @@ def update_order_field_response(
                     structured_changed = True
 
         if is_erp_order or field in (
-            "as_content",
-            "as_content_2",
             "as_visit_date",
             "as_pending",
             "as_blueprint",
@@ -377,10 +364,6 @@ def update_order_field_response(
                     setattr(order, "as_visit_date", _normalize_date_to_yyyymmdd(trimmed))
                 else:
                     setattr(order, "as_visit_date", None)
-            elif field in ("as_content", "as_content_2"):
-                shipment = ensure_path(structured_data, "shipment")
-                shipment[field] = value
-                structured_changed = True
 
         if is_erp_order and field in ("as_received_date", "as_visit_date"):
             if _clear_as_pending_if_both_as_dates_empty(order, structured_data):
@@ -489,8 +472,6 @@ def update_order_field_response(
             "status",
             "address",
             "manager_name",
-            "as_content",
-            "as_content_2",
             "sales_delivery",
             "construction_workers",
             "construction_type",
@@ -526,8 +507,6 @@ def update_order_field_response(
                     extras_by_field = {
                         # 출고 대시보드 DTO(aggregates·AS 추천 행)가 읽는 필드
                         "as_visit_date": (DASHBOARD_FAMILY_SHIPMENT,),
-                        "as_content": (DASHBOARD_FAMILY_SHIPMENT,),
-                        "as_content_2": (DASHBOARD_FAMILY_SHIPMENT,),
                         "sales_delivery": (DASHBOARD_FAMILY_SHIPMENT,),
                         "construction_workers": (DASHBOARD_FAMILY_SHIPMENT,),
                         # 날짜 필드 → 날짜 기준 DTO를 가진 family

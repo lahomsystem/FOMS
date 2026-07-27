@@ -272,6 +272,24 @@ def test_register_without_content_creates_no_log_entry(client):
     assert _shipment(order_id).get("as_log") in (None, [])
 
 
+def test_register_with_empty_content_still_preserves_previous_legacy(client):
+    """빈 원문 재접수도 이전 as_content 를 legacy 로 굳힌 뒤에 덮어써야 한다.
+
+    빈 값이면 append 가 없어 lazy 마이그레이션도 안 돌던 잠복 경로 — 그대로 두면
+    `shipment["as_content"] = ""` 가 이전 원문을 **보존 없이** 지운다(T8 이월).
+    """
+    _login_as_admin(client, username="as-timeline-empty-legacy-admin")
+    order_id = _create_as_order(status="CS", shipment_extra={"as_content": "지워지면 안 되는 원문"})
+
+    client.post(f"/api/orders/{order_id}/as/register", json={"as_content": ""})
+
+    shipment = _shipment(order_id)
+    assert shipment["as_content"] == ""
+    legacy = [e for e in (shipment.get("as_log") or []) if e.get("legacy") is True]
+    assert [e["id"] for e in legacy] == ["al_legacy_as_content"]
+    assert legacy[0]["text"] == "지워지면 안 되는 원문"
+
+
 # ---------------------------------------------------------------------------
 # T9 — 3표면 렌더 계약(PC 셀 요약 · 모바일 카드 상세 · 확장 fragment)
 # ---------------------------------------------------------------------------

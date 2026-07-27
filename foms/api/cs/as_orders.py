@@ -24,6 +24,7 @@ from foms.services.orders.as_log import (
     append_client_log,
     coerce_client_log_type,
     decorate_entry,
+    migrate_legacy_into_log,
 )
 from models import Order, OrderEvent, SecurityLog
 
@@ -341,9 +342,14 @@ def api_as_register(order_id):
         sd = _load_order_structured_data_for_update(order)
         old_sd = copy.deepcopy(sd)
         shipment = ensure_path(sd, "shipment")
+        # 덮어쓰기 전에 이전 원문을 legacy로 굳힌다. append_client_log도 같은 마이그레이션을
+        # 하지만 그건 원문이 **있을 때만** 돈다 — 빈 원문 재접수는 append가 없어 아래
+        # `shipment["as_content"] = ""`가 이전 기록을 보존 없이 지웠다(멱등: 이미 as_log가
+        # 있으면 no-op).
+        migrate_legacy_into_log(sd)
         # 접수 원문을 첫 reception 항목으로 남긴다. as_content 덮어쓰기보다 **앞**이어야 한다 —
-        # append_client_log 안의 lazy 마이그레이션이 shipment["as_content"]를 legacy로 굳히므로,
-        # 뒤에 두면 방금 쓴 접수 원문이 legacy(이전 기록)로 중복 시드된다.
+        # 위 마이그레이션이 shipment["as_content"]를 legacy로 굳히므로, 뒤에 두면 방금 쓴
+        # 접수 원문이 legacy(이전 기록)로 중복 시드된다.
         if as_content:
             append_client_log(
                 sd, log_type="reception", text=as_content,

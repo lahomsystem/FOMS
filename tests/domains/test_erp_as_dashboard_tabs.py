@@ -315,29 +315,34 @@ def test_update_order_field_saves_construction_workers(client):
     assert saved_order.structured_data["shipment"]["construction_workers"] == ["신규시공", "보조시공"]
 
 
-def test_update_order_field_saves_secondary_as_content(client):
+def test_update_order_field_rejects_secondary_as_content(client):
+    """구 2번 탭 저장 경로는 퇴역했다 — as_content_2 는 허용 필드가 아니다(T12).
+
+    원래는 이 필드의 저장을 고정하던 테스트였다. 신규 AS 기록은 as_log(POST /as/log)
+    한 곳으로만 들어오고, as_content/as_content_2 는 읽기 전용 legacy 로만 남는다.
+    거부가 기존 값을 건드리지 않는 것까지 함께 고정한다.
+    """
     _login_as_admin(client)
     order = _create_as_order()
+    order_id = order.id
 
     response = client.post(
         "/api/update_order_field",
         json={
-            "order_id": order.id,
+            "order_id": order_id,
             "field_name": "as_content_2",
             "new_value": "<div>두번째<br>AS 내용</div>",
         },
     )
 
-    assert response.status_code == 200
+    assert response.status_code == 400
     data = response.get_json()
-    assert data["success"] is True
-    assert "두번째" in data["normalized_value"]
-    assert "AS 내용" in data["normalized_value"]
+    assert data["success"] is False
 
     db_session.expire_all()
-    saved_order = db_session.get(Order, order.id)
+    saved_order = db_session.get(Order, order_id)
     assert saved_order is not None
-    assert saved_order.structured_data["shipment"]["as_content_2"] == data["normalized_value"]
+    assert saved_order.structured_data["shipment"]["as_content_2"] == "<div>2번 내용</div>"
 
 
 def test_as_dashboard_notes_fallback_retired_with_content_tabs(client):
