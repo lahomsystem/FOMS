@@ -110,28 +110,35 @@ def _url_from_file_entry(entry: dict[str, Any]) -> str | None:
     return build_file_view_url(key)
 
 
-_DRAWING_KEY_MARKERS = ("/drawing/", "/drawing_wizard/")
+# drawing_current_files should hold drawings, but the transfer API accepts
+# arbitrary keys, so measurement/general photos leak in. Drawings live under
+# many folders (orders/<id>/drawing, drawing_wizard, drawing_gateway, blueprint);
+# an allow-list of those proved fragile (missed drawing_gateway → hid real
+# drawings). Deny only the known non-drawing location instead.
+_NON_DRAWING_KEY_MARKERS = ("/attachments/",)
 
 
 def _is_drawing_file_entry(entry: dict[str, Any]) -> bool:
-    """True if a ``drawing_current_files`` entry points at a drawing asset.
+    """True unless a ``drawing_current_files`` entry points at a non-drawing file.
 
-    drawing_current_files carries no category field; transfer API accepts any
-    file key, so measurement/general photos (``orders/<id>/attachments/...``)
-    can leak in. The only signal is the storage-key path — drawing assets live
-    under ``orders/<id>/drawing/`` or ``orders/<id>/drawing_wizard/``. Used to
-    keep the construction card (drawing-only) from showing non-drawing files.
+    Measurement/general photos live under ``orders/<id>/attachments/`` and can
+    leak into drawing_current_files via the transfer API (arbitrary keys, no
+    category field). Every other location is a drawing. Keeps the construction
+    card (drawing-only) from showing measurement photos while never hiding a
+    real drawing (drawing/ · drawing_wizard/ · drawing_gateway/ · blueprint/).
 
     Args:
         entry: A drawing_current_files list item.
 
     Returns:
-        True when the entry's key or view_url path marks it as a drawing.
+        True when the entry is a drawing (i.e. not a known non-drawing path).
     """
     if not isinstance(entry, dict):
         return False
     path = f"{entry.get('key') or ''} {entry.get('view_url') or ''}".lower()
-    return any(marker in path for marker in _DRAWING_KEY_MARKERS)
+    if not path.strip():
+        return False
+    return not any(marker in path for marker in _NON_DRAWING_KEY_MARKERS)
 
 
 def _thumb_url_from_attachment(attachment: OrderAttachment) -> str | None:
