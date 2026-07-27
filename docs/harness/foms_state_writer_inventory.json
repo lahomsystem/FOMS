@@ -1,0 +1,512 @@
+{
+  "packet": "STATE-GUARD-01",
+  "summary": "Order main-stage / overlay direct-writer inventory for foms/. Every direct assignment to order.status / workflow.stage(+erp_stage_code mirror) / shipment.logistics_status / workflow.hold is classified CANONICAL / CONSTRUCTOR / AUDITED_BACKFILL / EXTERNAL. Release target: EXTERNAL == 0 (every write routes through the canonical engine). EXTERNAL sites below are pinned residual writers reported to their owner STATE packet — the drift gate keeps the set from growing.",
+  "scope": "foms/**.py",
+  "baselines": {
+    "total": 40,
+    "external": 24
+  },
+  "classification_counts": {
+    "AUDITED_BACKFILL": 1,
+    "CANONICAL": 14,
+    "CONSTRUCTOR": 1,
+    "EXTERNAL": 24
+  },
+  "axis_counts": {
+    "HOLD": 2,
+    "LOGISTICS": 1,
+    "MAIN": 37
+  },
+  "external_sites": [
+    {
+      "path": "foms/api/construction/orders.py",
+      "lineno": 519,
+      "axis": "MAIN",
+      "kind": "subscript_stage",
+      "owner": "STATE-CONST-CS"
+    },
+    {
+      "path": "foms/api/construction/orders.py",
+      "lineno": 520,
+      "axis": "MAIN",
+      "kind": "subscript_stage",
+      "owner": "STATE-CONST-CS"
+    },
+    {
+      "path": "foms/api/construction/orders.py",
+      "lineno": 544,
+      "axis": "MAIN",
+      "kind": "attr_status",
+      "owner": "STATE-CONST-CS"
+    },
+    {
+      "path": "foms/api/drawing/erp_orders_draftsman.py",
+      "lineno": 358,
+      "axis": "MAIN",
+      "kind": "subscript_stage",
+      "owner": "STATE-DRAWING"
+    },
+    {
+      "path": "foms/api/drawing/erp_orders_draftsman.py",
+      "lineno": 359,
+      "axis": "MAIN",
+      "kind": "subscript_stage",
+      "owner": "STATE-DRAWING"
+    },
+    {
+      "path": "foms/api/drawing/erp_orders_draftsman.py",
+      "lineno": 391,
+      "axis": "MAIN",
+      "kind": "attr_status",
+      "owner": "STATE-DRAWING"
+    },
+    {
+      "path": "foms/api/erp_orders_structured.py",
+      "lineno": 260,
+      "axis": "MAIN",
+      "kind": "subscript_stage",
+      "owner": "STATE-FORM"
+    },
+    {
+      "path": "foms/api/erp_orders_structured.py",
+      "lineno": 468,
+      "axis": "MAIN",
+      "kind": "attr_status",
+      "owner": "STATE-FORM"
+    },
+    {
+      "path": "foms/api/erp_orders_structured.py",
+      "lineno": 1372,
+      "axis": "MAIN",
+      "kind": "attr_status",
+      "owner": "STATE-FORM"
+    },
+    {
+      "path": "foms/api/erp_orders_structured.py",
+      "lineno": 1445,
+      "axis": "MAIN",
+      "kind": "attr_status",
+      "owner": "STATE-FORM"
+    },
+    {
+      "path": "foms/api/orders/field_update.py",
+      "lineno": 319,
+      "axis": "MAIN",
+      "kind": "subscript_stage",
+      "owner": "STATE-LEGACY"
+    },
+    {
+      "path": "foms/api/orders/field_update.py",
+      "lineno": 320,
+      "axis": "MAIN",
+      "kind": "subscript_stage",
+      "owner": "STATE-LEGACY"
+    },
+    {
+      "path": "foms/api/orders/status.py",
+      "lineno": 212,
+      "axis": "MAIN",
+      "kind": "subscript_stage",
+      "owner": "STATE-LEGACY"
+    },
+    {
+      "path": "foms/api/orders/status.py",
+      "lineno": 213,
+      "axis": "MAIN",
+      "kind": "subscript_stage",
+      "owner": "STATE-LEGACY"
+    },
+    {
+      "path": "foms/api/orders/status.py",
+      "lineno": 270,
+      "axis": "MAIN",
+      "kind": "attr_status",
+      "owner": "STATE-LEGACY"
+    },
+    {
+      "path": "foms/api/orders/status.py",
+      "lineno": 378,
+      "axis": "MAIN",
+      "kind": "attr_status",
+      "owner": "STATE-LEGACY"
+    },
+    {
+      "path": "foms/api/orders/status.py",
+      "lineno": 379,
+      "axis": "MAIN",
+      "kind": "attr_status",
+      "owner": "STATE-LEGACY"
+    },
+    {
+      "path": "foms/api/production/orders.py",
+      "lineno": 648,
+      "axis": "MAIN",
+      "kind": "subscript_stage",
+      "owner": "STATE-PROD"
+    },
+    {
+      "path": "foms/api/production/orders.py",
+      "lineno": 649,
+      "axis": "MAIN",
+      "kind": "subscript_stage",
+      "owner": "STATE-PROD"
+    },
+    {
+      "path": "foms/api/production/orders.py",
+      "lineno": 684,
+      "axis": "MAIN",
+      "kind": "attr_status",
+      "owner": "STATE-PROD"
+    },
+    {
+      "path": "foms/web/orders/listing.py",
+      "lineno": 343,
+      "axis": "MAIN",
+      "kind": "subscript_stage",
+      "owner": "ORDER-CREATE"
+    },
+    {
+      "path": "foms/web/orders/listing.py",
+      "lineno": 344,
+      "axis": "MAIN",
+      "kind": "subscript_stage",
+      "owner": "ORDER-CREATE"
+    },
+    {
+      "path": "foms/web/orders/trash.py",
+      "lineno": 266,
+      "axis": "MAIN",
+      "kind": "attr_status",
+      "owner": "DELETE-TRASH"
+    },
+    {
+      "path": "foms/web/orders/trash.py",
+      "lineno": 267,
+      "axis": "MAIN",
+      "kind": "attr_status",
+      "owner": "DELETE-TRASH"
+    }
+  ],
+  "writers": [
+    {
+      "path": "foms/api/construction/orders.py",
+      "lineno": 519,
+      "kind": "subscript_stage",
+      "axis": "MAIN",
+      "classification": "EXTERNAL",
+      "owner": "STATE-CONST-CS"
+    },
+    {
+      "path": "foms/api/construction/orders.py",
+      "lineno": 520,
+      "kind": "subscript_stage",
+      "axis": "MAIN",
+      "classification": "EXTERNAL",
+      "owner": "STATE-CONST-CS"
+    },
+    {
+      "path": "foms/api/construction/orders.py",
+      "lineno": 544,
+      "kind": "attr_status",
+      "axis": "MAIN",
+      "classification": "EXTERNAL",
+      "owner": "STATE-CONST-CS"
+    },
+    {
+      "path": "foms/api/drawing/erp_orders_draftsman.py",
+      "lineno": 358,
+      "kind": "subscript_stage",
+      "axis": "MAIN",
+      "classification": "EXTERNAL",
+      "owner": "STATE-DRAWING"
+    },
+    {
+      "path": "foms/api/drawing/erp_orders_draftsman.py",
+      "lineno": 359,
+      "kind": "subscript_stage",
+      "axis": "MAIN",
+      "classification": "EXTERNAL",
+      "owner": "STATE-DRAWING"
+    },
+    {
+      "path": "foms/api/drawing/erp_orders_draftsman.py",
+      "lineno": 391,
+      "kind": "attr_status",
+      "axis": "MAIN",
+      "classification": "EXTERNAL",
+      "owner": "STATE-DRAWING"
+    },
+    {
+      "path": "foms/api/erp_orders_structured.py",
+      "lineno": 260,
+      "kind": "subscript_stage",
+      "axis": "MAIN",
+      "classification": "EXTERNAL",
+      "owner": "STATE-FORM"
+    },
+    {
+      "path": "foms/api/erp_orders_structured.py",
+      "lineno": 468,
+      "kind": "attr_status",
+      "axis": "MAIN",
+      "classification": "EXTERNAL",
+      "owner": "STATE-FORM"
+    },
+    {
+      "path": "foms/api/erp_orders_structured.py",
+      "lineno": 1372,
+      "kind": "attr_status",
+      "axis": "MAIN",
+      "classification": "EXTERNAL",
+      "owner": "STATE-FORM"
+    },
+    {
+      "path": "foms/api/erp_orders_structured.py",
+      "lineno": 1445,
+      "kind": "attr_status",
+      "axis": "MAIN",
+      "classification": "EXTERNAL",
+      "owner": "STATE-FORM"
+    },
+    {
+      "path": "foms/api/orders/field_update.py",
+      "lineno": 319,
+      "kind": "subscript_stage",
+      "axis": "MAIN",
+      "classification": "EXTERNAL",
+      "owner": "STATE-LEGACY"
+    },
+    {
+      "path": "foms/api/orders/field_update.py",
+      "lineno": 320,
+      "kind": "subscript_stage",
+      "axis": "MAIN",
+      "classification": "EXTERNAL",
+      "owner": "STATE-LEGACY"
+    },
+    {
+      "path": "foms/api/orders/status.py",
+      "lineno": 212,
+      "kind": "subscript_stage",
+      "axis": "MAIN",
+      "classification": "EXTERNAL",
+      "owner": "STATE-LEGACY"
+    },
+    {
+      "path": "foms/api/orders/status.py",
+      "lineno": 213,
+      "kind": "subscript_stage",
+      "axis": "MAIN",
+      "classification": "EXTERNAL",
+      "owner": "STATE-LEGACY"
+    },
+    {
+      "path": "foms/api/orders/status.py",
+      "lineno": 270,
+      "kind": "attr_status",
+      "axis": "MAIN",
+      "classification": "EXTERNAL",
+      "owner": "STATE-LEGACY"
+    },
+    {
+      "path": "foms/api/orders/status.py",
+      "lineno": 378,
+      "kind": "attr_status",
+      "axis": "MAIN",
+      "classification": "EXTERNAL",
+      "owner": "STATE-LEGACY"
+    },
+    {
+      "path": "foms/api/orders/status.py",
+      "lineno": 379,
+      "kind": "attr_status",
+      "axis": "MAIN",
+      "classification": "EXTERNAL",
+      "owner": "STATE-LEGACY"
+    },
+    {
+      "path": "foms/api/production/orders.py",
+      "lineno": 648,
+      "kind": "subscript_stage",
+      "axis": "MAIN",
+      "classification": "EXTERNAL",
+      "owner": "STATE-PROD"
+    },
+    {
+      "path": "foms/api/production/orders.py",
+      "lineno": 649,
+      "kind": "subscript_stage",
+      "axis": "MAIN",
+      "classification": "EXTERNAL",
+      "owner": "STATE-PROD"
+    },
+    {
+      "path": "foms/api/production/orders.py",
+      "lineno": 684,
+      "kind": "attr_status",
+      "axis": "MAIN",
+      "classification": "EXTERNAL",
+      "owner": "STATE-PROD"
+    },
+    {
+      "path": "foms/services/erp_sync_columns.py",
+      "lineno": 39,
+      "kind": "attr_stage_mirror",
+      "axis": "MAIN",
+      "classification": "CANONICAL",
+      "owner": "STATE-CORE"
+    },
+    {
+      "path": "foms/services/erp_sync_columns.py",
+      "lineno": 47,
+      "kind": "attr_stage_mirror",
+      "axis": "MAIN",
+      "classification": "CANONICAL",
+      "owner": "STATE-CORE"
+    },
+    {
+      "path": "foms/services/orders/as_cycle_service.py",
+      "lineno": 223,
+      "kind": "attr_status",
+      "axis": "MAIN",
+      "classification": "CANONICAL",
+      "owner": "STATE-AS"
+    },
+    {
+      "path": "foms/services/orders/order_create.py",
+      "lineno": 110,
+      "kind": "subscript_stage",
+      "axis": "MAIN",
+      "classification": "CONSTRUCTOR",
+      "owner": "ORDER-CREATE"
+    },
+    {
+      "path": "foms/services/orders/order_transition_service.py",
+      "lineno": 105,
+      "kind": "subscript_stage",
+      "axis": "MAIN",
+      "classification": "CANONICAL",
+      "owner": "STATE-CORE"
+    },
+    {
+      "path": "foms/services/orders/order_transition_service.py",
+      "lineno": 106,
+      "kind": "subscript_stage",
+      "axis": "MAIN",
+      "classification": "CANONICAL",
+      "owner": "STATE-CORE"
+    },
+    {
+      "path": "foms/services/orders/order_transition_service.py",
+      "lineno": 107,
+      "kind": "attr_stage_mirror",
+      "axis": "MAIN",
+      "classification": "CANONICAL",
+      "owner": "STATE-CORE"
+    },
+    {
+      "path": "foms/services/orders/order_transition_service.py",
+      "lineno": 108,
+      "kind": "attr_stage_mirror",
+      "axis": "MAIN",
+      "classification": "CANONICAL",
+      "owner": "STATE-CORE"
+    },
+    {
+      "path": "foms/services/orders/order_transition_service.py",
+      "lineno": 117,
+      "kind": "subscript_logistics",
+      "axis": "LOGISTICS",
+      "classification": "CANONICAL",
+      "owner": "STATE-CORE"
+    },
+    {
+      "path": "foms/services/orders/order_transition_service.py",
+      "lineno": 127,
+      "kind": "subscript_hold",
+      "axis": "HOLD",
+      "classification": "CANONICAL",
+      "owner": "STATE-CORE"
+    },
+    {
+      "path": "foms/services/orders/order_transition_service.py",
+      "lineno": 134,
+      "kind": "subscript_hold",
+      "axis": "HOLD",
+      "classification": "CANONICAL",
+      "owner": "STATE-CORE"
+    },
+    {
+      "path": "foms/services/orders/order_transition_service.py",
+      "lineno": 383,
+      "kind": "attr_status",
+      "axis": "MAIN",
+      "classification": "CANONICAL",
+      "owner": "STATE-CORE"
+    },
+    {
+      "path": "foms/services/orders/repair_order_state_axes.py",
+      "lineno": 171,
+      "kind": "attr_stage_mirror",
+      "axis": "MAIN",
+      "classification": "AUDITED_BACKFILL",
+      "owner": "STATE-AXES-REPAIR"
+    },
+    {
+      "path": "foms/services/orders/stage_override.py",
+      "lineno": 170,
+      "kind": "attr_status",
+      "axis": "MAIN",
+      "classification": "CANONICAL",
+      "owner": "STATE-OVERLAY"
+    },
+    {
+      "path": "foms/services/orders/stage_override.py",
+      "lineno": 181,
+      "kind": "subscript_stage",
+      "axis": "MAIN",
+      "classification": "CANONICAL",
+      "owner": "STATE-OVERLAY"
+    },
+    {
+      "path": "foms/services/orders/stage_override.py",
+      "lineno": 182,
+      "kind": "subscript_stage",
+      "axis": "MAIN",
+      "classification": "CANONICAL",
+      "owner": "STATE-OVERLAY"
+    },
+    {
+      "path": "foms/web/orders/listing.py",
+      "lineno": 343,
+      "kind": "subscript_stage",
+      "axis": "MAIN",
+      "classification": "EXTERNAL",
+      "owner": "ORDER-CREATE"
+    },
+    {
+      "path": "foms/web/orders/listing.py",
+      "lineno": 344,
+      "kind": "subscript_stage",
+      "axis": "MAIN",
+      "classification": "EXTERNAL",
+      "owner": "ORDER-CREATE"
+    },
+    {
+      "path": "foms/web/orders/trash.py",
+      "lineno": 266,
+      "kind": "attr_status",
+      "axis": "MAIN",
+      "classification": "EXTERNAL",
+      "owner": "DELETE-TRASH"
+    },
+    {
+      "path": "foms/web/orders/trash.py",
+      "lineno": 267,
+      "kind": "attr_status",
+      "axis": "MAIN",
+      "classification": "EXTERNAL",
+      "owner": "DELETE-TRASH"
+    }
+  ]
+}
