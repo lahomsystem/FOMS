@@ -376,6 +376,38 @@ def test_billing_reconfirm_same_type_appends_nothing(client):
     assert _system_texts(order_id) == []
 
 
+def test_billing_first_decision_logs_confirmation_not_switch(client):
+    """as_billing 이 없던 상태의 판정은 최초 확정 — "무상→유상 전환" 은 감사 기록 오기다.
+
+    prev_type 은 dict 부재 시에도 기본값 free 로 떨어지므로, 존재 여부로 분기하지 않으면
+    첫 유상 확정이 있지도 않았던 무상 판정에서 바뀐 것처럼 남는다.
+    """
+    _login_as_admin(client, username="as-sys-billing-first-admin")
+    paid_id = _create_as_order().id  # shipment 에 as_billing 키 자체가 없다
+    undecided_id = _create_as_order().id
+
+    assert client.post(f"/api/orders/{paid_id}/as/billing",
+                       json={"type": "paid", "amount": 90000}).status_code == 200
+    assert client.post(f"/api/orders/{undecided_id}/as/billing",
+                       json={"type": "undecided"}).status_code == 200
+
+    assert _system_texts(paid_id) == ["유상 확정"]
+    assert _system_texts(undecided_id) == ["미정 처리"]
+
+
+def test_billing_switch_without_reason_omits_colon(client):
+    """사유가 없으면 콜론 접미를 붙이지 않는다(영구 기록에 매달린 ': ' 금지)."""
+    _login_as_admin(client, username="as-sys-billing-nocolon-admin")
+    order_id = _create_as_order(shipment_extra={
+        "as_billing": {"type": "free", "confirmed": False, "amount": None, "reason": ""},
+    }).id
+
+    res = client.post(f"/api/orders/{order_id}/as/billing", json={"type": "paid", "amount": 5000})
+    assert res.status_code == 200, res.get_data(as_text=True)
+
+    assert _system_texts(order_id) == ["무상→유상 전환"]
+
+
 def test_billing_switch_system_log_escapes_reason(client):
     """사유는 사용자 입력이라 저장 시점에 escape 된다(렌더는 |safe)."""
     _login_as_admin(client, username="as-sys-billing-xss-admin")

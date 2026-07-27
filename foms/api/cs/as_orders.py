@@ -81,6 +81,10 @@ def _confirmed_construction_worker_name(user) -> str:
 
 
 _AS_BILLING_TYPES = ("free", "paid", "undecided")
+# 타임라인 system 문구용 표기. 최초 판정과 전환은 **다른 사건**이라 어휘를 분리한다
+# (기본값 free 를 이전 판정으로 읽어 첫 유상 확정을 "무상→유상 전환"으로 남기면 감사 기록 오기).
+_AS_BILLING_LABELS = {"free": "무상", "paid": "유상", "undecided": "미정"}
+_AS_BILLING_FIRST_EVENTS = {"free": "무상 확정", "paid": "유상 확정", "undecided": "미정 처리"}
 
 
 def _default_as_billing() -> dict[str, object]:
@@ -518,7 +522,8 @@ def api_as_billing(order_id: int):
 
         user = get_user_by_id(session.get("user_id"))
         sd = _load_order_structured_data_for_update(order)
-        prev = (sd.get("shipment") or {}).get("as_billing") or {}
+        prev_raw = (sd.get("shipment") or {}).get("as_billing")
+        prev = prev_raw if isinstance(prev_raw, dict) else {}
         prev_type = str(prev.get("type") or "free")
         if prev.get("confirmed") is True and prev_type != new_type and not reason:
             return jsonify({"success": False, "message": "판정 전환 시 사유는 필수입니다."}), 400
@@ -541,12 +546,15 @@ def api_as_billing(order_id: int):
             sd, billing_type=new_type, amount=amount,
             confirmed=True, reason=reason, user=user,
         )
-        # 전환(무상↔유상↔미정)만 이벤트로 남긴다 — 금액만 바꾸는 재확정까지 남기면
-        # 타임라인이 재확정 노이즈로 찬다. 사유는 사용자 입력이지만 append_system_log가
+        # 최초 판정(as_billing 부재)과 전환만 이벤트로 남긴다 — 동일 유형 재확정(금액만 변경 등)
+        # 까지 남기면 타임라인이 노이즈로 찬다. 사유는 사용자 입력이지만 append_system_log가
         # 생성 지점에서 escape 한다.
-        if prev_type != new_type:
-            label = {"free": "무상", "paid": "유상", "undecided": "미정"}
-            append_system_log(sd, text=f"{label.get(prev_type, prev_type)}→{label.get(new_type, new_type)} 전환: {reason}")
+        suffix = f": {reason}" if reason else ""
+        if not isinstance(prev_raw, dict):
+            append_system_log(sd, text=f"{_AS_BILLING_FIRST_EVENTS[new_type]}{suffix}")
+        elif prev_type != new_type:
+            append_system_log(sd, text=f"{_AS_BILLING_LABELS.get(prev_type, prev_type)}"
+                                       f"→{_AS_BILLING_LABELS[new_type]} 전환{suffix}")
         order.structured_data = sd
         flag_modified(order, "structured_data")
         sync_erp_flat_columns(order, sd)
