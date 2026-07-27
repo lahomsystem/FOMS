@@ -5,17 +5,17 @@
   "overlap_api_error_01": "API-ERROR-01 owns response/stdout exposure (print_exc/str(e) -> log_handled_exception). This packet owns swallow classification. Sites that log via log_handled_exception are LOG_AND_CONTINUE here.",
   "marker_convention": "Silent-by-design catches carry an inline `# failopen: intentional: <reason>` (or `fail-closed`) marker; the scanner reads it as the justification. No bare allowlist, no lint-disable.",
   "baselines": {
-    "broad_total": 478,
+    "broad_total": 479,
     "unclassified": 0
   },
   "disposition_counts": {
     "FAIL_CLOSED": 22,
     "INTENTIONAL": 17,
-    "LOG_AND_CONTINUE": 439
+    "LOG_AND_CONTINUE": 440
   },
   "owner_counts": {
     "api": 217,
-    "audit": 1,
+    "audit": 2,
     "auth": 11,
     "cache": 25,
     "channel": 36,
@@ -2746,7 +2746,7 @@
     },
     {
       "path": "foms/services/channel_inbound.py",
-      "lineno": 277,
+      "lineno": 268,
       "handler_type": "broad_exception",
       "disposition": "LOG_AND_CONTINUE",
       "owner": "services",
@@ -3751,6 +3751,15 @@
       "owner": "auth",
       "has_logging": true,
       "justification": "rate limiting 은 advisory. 서명 실패를 로그로 기록하고"
+    },
+    {
+      "path": "foms/services/security/channel_order/worker.py",
+      "lineno": 218,
+      "handler_type": "broad_exception",
+      "disposition": "LOG_AND_CONTINUE",
+      "owner": "audit",
+      "has_logging": true,
+      "justification": "logs via logger/log_handled_exception"
     },
     {
       "path": "foms/services/shipment_as_recommendation_cache.py",

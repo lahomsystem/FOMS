@@ -2279,9 +2279,18 @@
    "write_guard": false,
    "postgres": true
   },
-  "commands": [],
-  "existing_regressions": [],
-  "created_tests": [],
+  "commands": [
+   "python -m pytest tests/postgres/test_channel_inbound.py -q"
+  ],
+  "existing_regressions": [
+   "tests/postgres/test_ops_approval.py"
+  ],
+  "created_tests": [
+   {
+    "path": "tests/postgres/test_channel_inbound.py",
+    "owner_packet": "CHANNEL-INBOUND-ORDER-01"
+   }
+  ],
   "browser_scenarios": [],
   "deploy_check_ids": [],
   "deployment_evidence_mode": "HEARTBEAT"
