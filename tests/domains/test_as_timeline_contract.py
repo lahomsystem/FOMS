@@ -200,6 +200,44 @@ def test_search_finds_as_log_text(client):
     assert "검색제외대상" not in body
 
 
+def test_search_expressions_concatenate_on_postgres():
+    """검색 식의 문자열 결합은 postgres 에서 `||` 로 컴파일돼야 한다.
+
+    sqlite 는 `+`/`||` 를 둘 다 받아들여 **런타임 테스트 레인이 이 회귀를 못 잡는다**.
+    그래서 dialect 컴파일 결과를 직접 단언한다(sqlite 레인에서 돌아가는 정적 검사).
+
+    게이트 실측(T13):
+      - F4 이전: `||` — `case(cond, else_='')` 의 String 타입이 앵커 역할을 했다.
+      - F4 직후: `+`  — 세 성분이 전부 `func.regexp_replace` 산물(NullType)이라
+        SQLAlchemy 가 문자열 결합으로 승격하지 못했다. 운영 postgres 에서
+        `연산자 없음: text + text` → **검색어가 있는 모든 AS 요청 500**.
+      - 수정 후: `||` — `func.regexp_replace(..., type_=String)`.
+    타입 단언까지 함께 두는 이유: SQL 문자열만 보면 성분이 하나로 줄어든 미래 리팩터에서
+    `+` 가 안 보인다고 통과할 수 있는데, 근본 원인은 어디까지나 무타입(NullType)이다.
+    """
+    from sqlalchemy.dialects import postgresql
+    from sqlalchemy.sql.sqltypes import NullType
+
+    from foms.services.as_dashboard_helpers import (
+        _combined_as_content_expr,
+        _display_address_expr,
+    )
+
+    exprs = {
+        "combined_as_content": _combined_as_content_expr(
+            dialect_name="postgresql", use_postgres_regex=True
+        ),
+        "display_address": _display_address_expr(dialect_name="postgresql"),
+    }
+    for label, expr in exprs.items():
+        sql = str(
+            expr.compile(dialect=postgresql.dialect(), compile_kwargs={"literal_binds": True})
+        )
+        assert "||" in sql, f"{label}: 문자열 결합이 사라졌다"
+        assert " + " not in sql, f"{label}: `+` 로 컴파일됨 → postgres text + text 500"
+        assert not isinstance(expr.type, NullType), f"{label}: 무타입 산물 — 결합 시 `+` 로 샌다"
+
+
 def test_search_ignores_as_log_entry_id(client):
     """항목 id·ts 는 검색 대상이 아니다 — 배열째 텍스트화하면 숫자 검색이 전부 오탐이 된다."""
     _login_as_admin(client, username="as-contract-search-id")

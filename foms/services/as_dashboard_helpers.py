@@ -73,7 +73,9 @@ def _as_content_expr(field_name='as_content', *, dialect_name='', use_postgres_r
     expr = _json_text_expr('shipment', field_name, dialect_name=dialect_name)
     expr = func.coalesce(cast(expr, String), '')
     if dialect_name == 'postgresql' and use_postgres_regex:
-        expr = func.regexp_replace(expr, r'<[^>]+>', '', 'g')
+        # type_=String 필수: 무타입(NullType) 산물끼리 `+` 하면 SQLAlchemy가 문자열
+        # 결합으로 승격하지 못해 postgres에서 `text + text`(연산자 없음) → 500.
+        expr = func.regexp_replace(expr, r'<[^>]+>', '', 'g', type_=String)
     return expr
 
 
@@ -116,7 +118,9 @@ def _as_log_text_expr(*, dialect_name='', use_postgres_regex=False):
         expr = cast(Order.structured_data, String)
     expr = func.coalesce(cast(expr, String), '')
     if dialect_name == 'postgresql' and use_postgres_regex:
-        expr = func.regexp_replace(expr, r'<[^>]+>', '', 'g')
+        # type_=String 필수: 무타입(NullType) 산물끼리 `+` 하면 SQLAlchemy가 문자열
+        # 결합으로 승격하지 못해 postgres에서 `text + text`(연산자 없음) → 500.
+        expr = func.regexp_replace(expr, r'<[^>]+>', '', 'g', type_=String)
     return expr
 
 
