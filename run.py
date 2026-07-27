@@ -132,6 +132,7 @@ def _run_dev_server(
     should_run_startup_tasks: bool,
 ) -> None:
     """Run the local development server with Socket.IO when available."""
+    port = int(os.environ.get('PORT', '5000'))
     if should_run_startup_tasks:
         print("[START] 웹 서버를 시작합니다...")
         print(f"[INFO] SOCKETIO_AVAILABLE: {socketio_available}")
@@ -144,7 +145,7 @@ def _run_dev_server(
         socketio.run(
             app,
             host='0.0.0.0',
-            port=5000,
+            port=port,
             debug=debug_enabled,
             use_reloader=use_reloader,
             allow_unsafe_werkzeug=True,
@@ -155,7 +156,7 @@ def _run_dev_server(
         print("[WARN] Socket.IO가 비활성화되어 일반 Flask 모드로 시작합니다...")
     app.run(
         host='0.0.0.0',
-        port=5000,
+        port=port,
         debug=debug_enabled,
         use_reloader=use_reloader,
     )
@@ -180,7 +181,17 @@ def main() -> None:
         _use_reloader = True
     _debug_enabled = _resolve_debug_mode(_use_reloader)
     _is_reloader_child = (os.environ.get('WERKZEUG_RUN_MAIN') == 'true')
-    _should_run_startup_tasks = (not _use_reloader) or _is_reloader_child
+    # 세션 worktree(c:/tmp/foms-s-*)에서는 startup DDL이 공유 DB 스키마를
+    # 타 브랜치 기준으로 바꾸므로 기본 생략 (FOMS_SKIP_STARTUP_TASKS=0으로 강제 실행)
+    _in_session_worktree = os.path.basename(
+        os.path.dirname(os.path.abspath(__file__))
+    ).lower().startswith('foms-s-')
+    _skip_startup = os.environ.get(
+        'FOMS_SKIP_STARTUP_TASKS', '1' if _in_session_worktree else '0'
+    ) == '1'
+    if _in_session_worktree and _skip_startup:
+        print('[INFO] 세션 worktree — startup DDL 생략 (FOMS_SKIP_STARTUP_TASKS=0으로 강제 실행 가능)')
+    _should_run_startup_tasks = ((not _use_reloader) or _is_reloader_child) and not _skip_startup
 
     startup_log_path: str | None = None
 

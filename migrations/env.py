@@ -4,6 +4,17 @@ from logging.config import fileConfig
 
 from dotenv import load_dotenv
 load_dotenv()
+
+from pathlib import Path as _Path
+
+# 세션 worktree(c:/tmp/foms-s-*)에서 alembic 실행 시 공유 DB 스키마가
+# 해당 브랜치 기준으로 바뀌므로 코드 수준에서 차단한다 (Phase1 규칙).
+_repo_root = _Path(__file__).resolve().parents[1]
+if _repo_root.name.lower().startswith("foms-s-"):
+    raise RuntimeError(
+        "세션 worktree에서 alembic 실행 금지 — 공유 DB 스키마가 이 브랜치 기준으로 바뀐다. "
+        "마이그레이션은 메인 트리에서 실행하라."
+    )
 from sqlalchemy import engine_from_config
 from sqlalchemy import pool
 from sqlalchemy import text
