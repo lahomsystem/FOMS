@@ -2,14 +2,24 @@
 
 `origin/deploy..HEAD` 의 SHA 가 현재 세션 ledger 에 모두 있으면 own,
 하나라도 없으면 foreign, ledger/세션 불명이면 unknown.
+
+세션 worktree(basename `foms-s-*`)는 예외로 **전 세션 union** 을 기준으로
+판정한다. worktree-로컬 ledger 에는 이 창에서 만든 커밋만 쌓이므로
+세션 키가 여러 개 쌓여도 union 이면 전부 이 창 계보 = own 이다.
 """
 from __future__ import annotations
 
+import os
 import subprocess
 from dataclasses import dataclass
 from typing import Literal
 
-from session_commit_ledger import normalize_session_id, session_shas, sha_in_list
+from session_commit_ledger import (
+    all_known_shas,
+    normalize_session_id,
+    session_shas,
+    sha_in_list,
+)
 
 ScopeKind = Literal["empty", "own", "foreign", "unknown"]
 
@@ -57,6 +67,11 @@ def list_unpushed_deploy_shas(project_root: str) -> tuple[str, ...]:
     return tuple(line.strip().lower() for line in out.splitlines() if line.strip())
 
 
+def _is_session_worktree(project_root: str) -> bool:
+    """세션 worktree(c:/tmp/foms-s-*) 여부 — 경로 basename 프리픽스 판정."""
+    return os.path.basename(os.path.normpath(project_root)).startswith("foms-s-")
+
+
 def classify_deploy_scope(
     project_root: str,
     session_id: str | None,
@@ -72,6 +87,24 @@ def classify_deploy_scope(
     shas = list_unpushed_deploy_shas(project_root)
     if not shas:
         return ScopeResult("empty", (), (), "")
+
+    if _is_session_worktree(project_root):
+        union = all_known_shas(project_root)
+        if union:
+            foreign = tuple(s for s in shas if not sha_in_list(s, union))
+            if not foreign:
+                return ScopeResult("own", shas, (), "")
+            preview = ", ".join(s[:8] for s in foreign[:5])
+            return ScopeResult(
+                "foreign",
+                shas,
+                foreign,
+                (
+                    f"세션 worktree ledger 밖 커밋({len(foreign)}/{len(shas)}: {preview}) "
+                    f"— cherry-pick/merge 유입 여부 확인 필요"
+                ),
+            )
+        # ledger 가 빈 worktree(훅 미작동 창) → 아래 기존 세션 단일 기준으로 폴백
 
     sid = normalize_session_id(session_id)
     if sid == "unknown":

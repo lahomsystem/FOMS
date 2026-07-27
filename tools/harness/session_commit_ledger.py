@@ -110,3 +110,39 @@ def _sha_match(a: str, b: str) -> bool:
 def sha_in_list(sha: str, known: list[str]) -> bool:
     """sha 가 known 목록에 매칭되면 True."""
     return any(_sha_match(sha, k) for k in known)
+
+
+def all_known_shas(project_root: str) -> list[str]:
+    """모든 세션의 SHA 합집합.
+
+    세션 worktree 소유 판정용: worktree-로컬 ledger 에는 이 worktree 에서
+    만든 커밋만 쌓이므로 union ⊇ push 범위 ⇔ own.
+    """
+    data = load_ledger(project_root)
+    out: list[str] = []
+    for entry in data.get("sessions", {}).values():
+        out.extend(s for s in entry.get("shas", []) if isinstance(s, str))
+    return out
+
+
+def latest_session_id(project_root: str) -> str | None:
+    """updated_at 이 가장 최근인 세션 id. 세션이 없으면 None."""
+    sessions = load_ledger(project_root).get("sessions", {})
+    if not sessions:
+        return None
+    return max(sessions.items(), key=lambda kv: kv[1].get("updated_at", ""))[0]
+
+
+def set_session_shas(project_root: str, session_id: str | None, shas: list[str]) -> None:
+    """세션의 SHA 목록을 통째로 교체한다 (rebase 후 갱신 전용).
+
+    스키마·타임스탬프(_now_iso, tz-aware UTC)는 이 SSOT 가 관리한다 —
+    외부에서 ledger dict 를 직접 재작성하지 말 것.
+    """
+    sid = normalize_session_id(session_id)
+    data = load_ledger(project_root)
+    data.setdefault("sessions", {})[sid] = {
+        "shas": [s.strip().lower() for s in shas if s and s.strip()],
+        "updated_at": _now_iso(),
+    }
+    save_ledger(project_root, data)
