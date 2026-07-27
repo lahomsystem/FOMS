@@ -154,21 +154,28 @@ Repo: lahomproject/FOMS (Flask 2.3 + Jinja2 + Vanilla JS, Railway)
 ## Implementation Tasks
 본 리뷰 발견에서 도출. 단계 = 배포 순서(D9)와 일치. 체크박스로 진행 추적.
 
-- [ ] **T1 (P1, 단계1, CC ~30분)** — 갤러리 — E1: is-dim 삭제 + 썸네일 aspect-ratio/contain + 버전핀 4곳 + 계약 테스트 수정
+- [x] **T1 (P1, 단계1, CC ~30분)** — 갤러리 — E1: is-dim 삭제 + 썸네일 aspect-ratio/contain + 버전핀 4곳 + 계약 테스트 수정
   - Files: `templates/drawing/partials/tablet_gallery_body.html`, `static/css/foundation/foms-tablet-drawing-gallery.css`, `static/css/foundation/foms-tablet-bundle.css`, `templates/partials/shared/layout_head.html`, `tests/domains/test_tablet_drawing_workshop_contract.py`, `test_tablet_rail_contract.py:162`, `test_tablet_t2_contract.py:715`
   - Verify: 계약 테스트 3파일 + APP_OK
-- [ ] **T2 (P1, 단계2, CC ~40분)** — 서버 — E2: rows 3필드(`drawing_files`·권한 2종) + `resolve_row_image_list()` + 6A pytest
+- [x] **T2 (P1, 단계2, CC ~40분)** — 서버 — E2: rows 3필드(`drawing_files`·권한 2종) + `resolve_row_image_list()` + 6A pytest
   - Verify: 신규 pytest + 대시보드 TTFB/EXPLAIN
-- [ ] **T3 (P1, 단계2, CC ~40분)** — 프론트 — E2: `tablet-drawing-review.js` 신설(열람 경로) + side-sheet 가드 1줄 + `data-foms-drawing-viewer` 배선
+- [x] **T3 (P1, 단계2, CC ~40분)** — 프론트 — E2: `tablet-drawing-review.js` 신설(열람 경로) + side-sheet 가드 1줄 + `data-foms-drawing-viewer` 배선
   - Verify: gstack browse 탭→뷰어 스모크 + workshop 계약
-- [ ] **T4 (P1, 단계3, CC ~20분)** — 뷰어 코어 — E3: `close()` 정리 일반화 + `getIndex()` — core.js·인라인 사본 2본 동기화 + t0 마커 assertion
-- [ ] **T5 (P1, 단계3, CC ~1h)** — 프론트 — E3: 판정 액션바(권한 게이트·칩 프리셋·에러 처리·CSRF·textContent·주문변경 배지)
+- [x] **T4 (P1, 단계3, CC ~20분)** — 뷰어 코어 — E3: `close()` 정리 일반화 + `getIndex()` — core.js·인라인 사본 2본 동기화 + t0 마커 assertion
+- [x] **T5 (P1, 단계3, CC ~1h)** — 프론트 — E3: 판정 액션바(권한 게이트·칩 프리셋·에러 처리·CSRF·textContent·주문변경 배지)
   - Verify: 판정 E2E + 타 뷰어 누출 확인
-- [ ] **T6 (P2, 단계3, CC ~40분)** — 프론트 — E5: 연속 리뷰(확정=제거/수정요청=RETURNED 갱신·카운터·다음 버튼)
-- [ ] **T7 (P2, 단계3, CC ~40분)** — E6 딜라이트 4종(①앰버 ②컨텍스트+주문변경 ④검색 44px ⑥롱프레스 힌트) + 스켈레톤
-- [ ] **T8 (P2, 단계4, CC ~20분)** — E4-0: 파일 비교 현황 조사 → E4 1차 범위 재확정
-- [ ] **T9 (P2, 단계4, CC ~4h)** — E4: `foms-tablet-drawing-detail.css` 신설(3조건 미디어) + 번들 등록 + t2 assertion + 레이아웃 재구성
-- [ ] **T10 (P3, 기록)** — Deferred 4건 유지(채널톡 공유·칩 튜닝·이어보기·PDF 커버)
+- [x] **T6 (P2, 단계3, CC ~40분)** — 프론트 — E5: 연속 리뷰(확정=제거/수정요청=RETURNED 갱신·카운터·다음 버튼)
+- [x] **T7 (P2, 단계3, CC ~40분)** — E6 딜라이트 4종(①앰버 ②컨텍스트+주문변경 ④검색 44px ⑥롱프레스 힌트) + 스켈레톤
+- [x] **T8 (P2, 단계4, CC ~20분)** — E4-0: 파일 비교 현황 조사 → E4 1차 범위 재확정
+- [x] **T9 (P2, 단계4, CC ~4h)** — E4: `foms-tablet-drawing-detail.css` 신설(3조건 미디어) + 번들 등록 + t2 assertion + 레이아웃 재구성
+- [x] **T10 (P3, 기록)** — Deferred 4건 유지(채널톡 공유·칩 튜닝·이어보기·PDF 커버)
+
+## 배포 이력 (전 단계 완료)
+- 단계 1 (E1): deploy `63b8a2ef` — CI 3종 green
+- 단계 2 (E2): deploy `a2f73ad0` — CI 3종 green
+- 단계 3 (E3·E5·E6): deploy `231b77a1` — CI 3종 green
+- 단계 4 (E4-0·E4): deploy `57d9d74a`
+- 특기: E6③ 스켈레톤 미구현(서버 렌더 표면 — 로딩 상태 부재, fragment 로더 커버). CSRF는 앱 전체 부재 확인 — 기존 세션 쿠키 패턴 정합(전역 CSRF 도입은 별도 과제). E4는 E4-0 조사 결과 CSS 오버라이드 레이어만으로 완결(DOM 무수술).
 
 ## Reviewer 반영 이력
 - v4→v5 (Outside Voice, 5건 전건 검증·반영): [전략] D7 페르소나 확정 — 판정=영업 전용(코드 주석 근거), 도면팀=열람. 수정요청=카드 RETURNED 잔존(제거 아님). [구조] D8 — D6 options API 폐기 → append 패턴(completion_scripts 전례) + 코어 2줄(`close()` 정리 일반화 + `getIndex()` — 인덱스 미노출 시 엉뚱한 도면 key 전송 사고). [정정] E2 권한 = 기존 `can_sales` 재사용 + `not is_drawing_team` 필수. [정정] E4 미디어 3조건(landscape 추가·max 제거). [순서] E1 선행 단독 배포 4단계 출시.
