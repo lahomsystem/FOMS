@@ -31,6 +31,29 @@
         </a>
     </div>
 
+    {# PASSWORD-POLICY-01: legacy 상태 요약·필터(상태만 노출, hash/평문 없음). #}
+    <div class="card mb-3">
+        <div class="card-body d-flex flex-wrap align-items-center gap-2">
+            {% if policy_enforced %}
+            <span class="badge bg-success">비밀번호 정책: ENFORCED</span>
+            <span class="text-muted small">활성 legacy 계정 0 — 모든 활성 계정이 강력한 비밀번호입니다.</span>
+            {% else %}
+            <span class="badge bg-warning text-dark">비밀번호 정책: WARN</span>
+            <span class="me-2">활성 legacy 계정
+                <strong data-legacy-active-total>{{ legacy_active_total }}</strong>명</span>
+            {% for role, cnt in (legacy_counts or {}).items() %}
+            <span class="badge bg-secondary">{{ ROLES.get(role, role) }}: {{ cnt }}</span>
+            {% endfor %}
+            {% endif %}
+            <div class="ms-auto btn-group btn-group-sm" role="group">
+                <a href="{{ url_for('auth.user_list') }}"
+                   class="btn btn-outline-secondary {{ '' if policy_filter == 'legacy' else 'active' }}">전체</a>
+                <a href="{{ url_for('auth.user_list', policy='legacy') }}"
+                   class="btn btn-outline-warning {{ 'active' if policy_filter == 'legacy' else '' }}">LEGACY만</a>
+            </div>
+        </div>
+    </div>
+
     <div class="card">
         <div class="card-body p-0">
             <div class="table-responsive">
@@ -59,6 +82,9 @@
                                 <span class="badge bg-success">활성</span>
                                 {% else %}
                                 <span class="badge bg-danger">비활성</span>
+                                {% endif %}
+                                {% if user.id in (legacy_user_ids or []) %}
+                                <span class="badge bg-warning text-dark" data-legacy-badge>LEGACY</span>
                                 {% endif %}
                             </td>
                             <td>{{ (user.last_login|format_datetime_kst('%Y-%m-%d %H:%M')) if user.last_login else '-' }}</td>

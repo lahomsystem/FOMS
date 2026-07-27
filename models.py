@@ -811,6 +811,12 @@ class User(Base):
     role = Column(String, nullable=False, default='VIEWER')
     team = Column(String(50), nullable=True)  # cs/drawing/production/construction
     is_active = Column(Boolean, nullable=False, default=True)
+    # PASSWORD-POLICY-01: 비밀번호 강도 정책 버전(SSOT). 0=LEGACY(강도 미검증),
+    # 1=STRONG. hash rehash 로 추정하지 않고 설정 시점에 이 컬럼으로 명시 기록한다.
+    # 기존 행은 마이그레이션 server_default('0')=LEGACY 로 backfill 된다.
+    password_policy_version = Column(
+        Integer, nullable=False, server_default='0', default=0,
+    )
     created_at = Column(DateTime, default=datetime.datetime.now)
     last_login = Column(DateTime)
     

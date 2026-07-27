@@ -1,5 +1,7 @@
 {# P1-05 tablet split-view wrapper #}
 <div class="foms-split-enabled">
+  {# PASSWORD-POLICY-01 surface: 1024 태블릿 셸. #}
+  {% include 'partials/shared/foms_legacy_password_banner.html' %}
   <div class="foms-split-shell" data-foms-split-shell>
     {% include 'partials/shared/foms_side_tab.html' %}
     {% include 'partials/shared/foms_master_list.html' %}

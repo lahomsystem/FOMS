@@ -42,6 +42,12 @@
     display: none !important;
   }
 
+  /* PASSWORD-POLICY-01: 데스크톱/persistent legacy 배너는 layout-header 와 함께 숨긴다.
+     모바일 v2 셸(foms_app_shell)·태블릿 split 셸이 자체 배너를 노출하므로 중복 방지. */
+  body.erp-mobile-v2-layout .foms-legacy-banner-desktop {
+    display: none !important;
+  }
+
   /* The global rule `body > .container-fluid { overflow-x: auto }` (style.css,
      for wide desktop tables) turns this wrapper into a scroll container. Any
      non-visible overflow on an ancestor makes IT the scroll context for
