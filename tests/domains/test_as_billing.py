@@ -112,6 +112,29 @@ def test_billing_transition_with_reason(client):
     assert b["type"] == "paid" and b["amount"] == 30000 and b["reason"] == "고객 과실"
 
 
+def test_billing_rejects_unknown_type(client):
+    """미허용 type은 조용한 free 강등이 아니라 400 (오타가 매출 판정을 바꾸면 안 된다)."""
+    _login_as_admin(client)
+    # 접수 시드(유상 추정·미확정). 전환 사유 가드가 대신 잡아주지 않는 경로라서
+    # type 검증이 없으면 오타가 곧바로 "무상 확정"으로 굳는다.
+    seeded = {
+        "type": "paid",
+        "confirmed": False,
+        "amount": 70000,
+        "reason": "",
+        "decided_by": "",
+        "decided_at": "",
+    }
+    order_id = _create_as_order(
+        status="AS_RECEIVED", shipment_extra={"as_billing": dict(seeded)}
+    ).id
+    res = client.post(f"/api/orders/{order_id}/as/billing", json={"type": "bogus"})
+    assert res.status_code == 400
+    assert res.get_json()["success"] is False
+    db_session.expire_all()
+    assert db_session.get(Order, order_id).structured_data["shipment"]["as_billing"] == seeded
+
+
 def test_billing_invalid_amount_is_400(client):
     """검증 실패는 400 (409는 낙관/무결성 전용)."""
     _login_as_admin(client)

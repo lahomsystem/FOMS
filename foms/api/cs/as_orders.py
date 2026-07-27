@@ -472,7 +472,14 @@ def api_as_billing(order_id: int):
             return jsonify({"success": False, "message": "주문을 찾을 수 없습니다."}), 404
 
         data = request.get_json(silent=True) or {}
-        new_type = _coerce_billing_type(data.get("type"))
+        # 확정 API는 관대한 폴백(_coerce_billing_type의 free 강등)을 쓰지 않는다.
+        # 오타 하나가 조용히 "무상 확정"으로 굳으면 매출 판정이 바뀐다.
+        new_type = str(data.get("type") or "").strip().lower()
+        if new_type not in _AS_BILLING_TYPES:
+            return jsonify({
+                "success": False,
+                "message": f"판정 유형이 올바르지 않습니다. ({'/'.join(_AS_BILLING_TYPES)} 중 하나)",
+            }), 400
         reason = str(data.get("reason") or "").strip()
         try:
             amount = _coerce_billing_amount(data.get("amount")) if new_type == "paid" else None
