@@ -442,6 +442,35 @@ def test_as_receive_billing_lock_note_present(as_modal_tpl):
     assert "d-none" in note_tag
 
 
+def test_billing_selection_restored_when_dual_render_unchecks_all():
+    """이중 렌더 코호트에서 라디오 그룹 name 충돌로 선택이 0개가 되는 것을 보정한다.
+
+    PC·모바일 파티얼이 같은 페이지에 렌더되면 <form> 조상이 없는 동일 name 라디오가
+    문서 스코프를 공유해, 파싱 중 두 번째 checked가 첫 번째를 언체크한다. 데스크톱에서
+    모바일 블록이 제거되면 남은 세그먼트가 무선택으로 보인다(T5 실브라우저 적발).
+    """
+    js = _shared_js()
+    init_idx = js.index("function initAsReceiveModal()")
+    fn_idx = js.index("function ensureBillingSelection()", init_idx)
+    call_idx = js.index("ensureBillingSelection();", fn_idx)
+    # 초기화 시점에 1회 실행 — shown.bs.modal만으로는 fade 중 무선택이 보인다.
+    assert fn_idx < call_idx < js.index("if (filesEl && previewEl) {", init_idx)
+    body = js[fn_idx:call_idx]
+    assert "some((r) => r.checked)" in body  # idempotent: 이미 선택이 있으면 no-op
+    assert "'free'" in body
+
+
+def test_existing_billing_lock_outranks_default_restore():
+    """보정은 기본값 복원일 뿐 — 확정 판정이 있으면 잠금이 라디오 상태를 덮어써야 한다."""
+    js = _shared_js()
+    lock = js[js.index("function applyExistingBillingLock()"):][:1400]
+    # 잠금 분기는 전 라디오의 checked를 기존 type 기준으로 재계산한다(보정값을 덮어씀).
+    assert "r.checked = (r.value === type)" in lock
+    assert "const type = String(existing.type || 'free');" in lock
+    # 보정이 잠금 분기 안에서 다시 호출되어 기존값을 되돌리는 일이 없어야 한다.
+    assert "ensureBillingSelection()" not in lock
+
+
 def test_as_modal_cohort_variants_are_mutually_exclusive_at_runtime():
     """PC/모바일 모달은 같은 id를 쓰므로 JS 실행 시점에 반드시 하나만 남아야 한다.
 

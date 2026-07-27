@@ -2790,6 +2790,20 @@ ${escapeHtml(sub)}</div>` : ''}`;
         }
         billingRadios().forEach((r) => r.addEventListener('change', syncBillingUi));
 
+        // 모바일 v2 코호트 페이지(edit_order_body.html)는 PC·모바일 파티얼을 모두 렌더한 뒤
+        // 인라인 스크립트로 한쪽을 remove 한다. 두 벌의 라디오는 <form> 조상이 없어 같은
+        // name이 문서 전체로 스코프되고, 파싱 중 두 번째 checked가 첫 번째의 checkedness를
+        // 지운다 → 데스크톱에서 모바일 블록이 제거되면 남은 PC 세그먼트가 "선택 0개"가 된다
+        // (defaultChecked:true / checked:false). 저장값은 selectedBillingType()의 'free'
+        // 폴백으로 정확하지만 화면에는 기본값이 안 보인다. 그래서 살아남은 쪽을 보정한다.
+        // 템플릿의 checked 속성을 지우는 방식은 반대 코호트에서 같은 버그를 만든다.
+        function ensureBillingSelection() {
+            const radios = billingRadios();
+            if (!radios.length || radios.some((r) => r.checked)) return;
+            (radios.find((r) => r.value === 'free') || radios[0]).checked = true;
+        }
+        ensureBillingSelection();
+
         // 재접수(지방 재상차 등)는 서버가 billing 페이로드를 무시하고 기존 판정을 보존한다
         // (foms/api/cs/as_orders.py: as_billing이 dict면 시드 건너뜀). 그래서 세그먼트를
         // 열어두면 "골랐는데 저장 안 됨"이 된다 — 기존값으로 고정하고 잠근다.
