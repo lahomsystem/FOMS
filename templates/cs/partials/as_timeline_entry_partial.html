@@ -1,0 +1,4 @@
+{# AS 타임라인 단건 렌더 — 쓰기 API(POST/PATCH /as/log) 응답 html 전용.
+   목록 렌더와 같은 매크로를 경유해 서버·클라 삽입 마크업이 갈라지지 않게 한다. #}
+{% from 'cs/partials/as_card_macros.html' import render_as_timeline_entry %}
+{{ render_as_timeline_entry(entry) }}

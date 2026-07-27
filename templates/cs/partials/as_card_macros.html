@@ -91,6 +91,22 @@
 {% endif %}
 {%- endmacro %}
 
+{# AS 타임라인 단건 항목 — 목록(T9)과 쓰기 API 응답 html(T7)이 공유하는 SSOT.
+   entry는 as_log.decorate_entry()를 통과한 dict(파생 필드 ts_abs/ts_rel/type_label/is_* 포함).
+   text는 sanitize_as_content_html을 이미 통과한 rich HTML이라 |safe. #}
+{% macro render_as_timeline_entry(entry) -%}
+<div class="as-timeline-entry{% if entry.is_system %} is-system{% endif %}{% if entry.is_legacy %} is-legacy{% endif %}"
+  data-log-id="{{ entry.id }}" data-log-type="{{ entry.type }}">
+  <div class="as-timeline-entry-meta">
+    <span class="as-timeline-entry-type">{{ entry.legacy_label or entry.type_label }}</span>
+    {% if entry.by %}<span class="as-timeline-entry-by">{{ entry.by }}</span>{% endif %}
+    {% if entry.ts_rel %}<span class="as-timeline-entry-ts" title="{{ entry.ts_abs }}">{{ entry.ts_rel }}</span>{% endif %}
+    {% if entry.is_edited %}<span class="as-timeline-entry-edited">수정됨</span>{% endif %}
+  </div>
+  <div class="as-timeline-entry-text">{{ entry.text | safe }}</div>
+</div>
+{%- endmacro %}
+
 {% macro render_as_construction_workers(order_id, workers, can_edit) -%}
 {% set values = workers or [] %}
 {% set display_text = values | join(', ') %}

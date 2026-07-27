@@ -7,7 +7,7 @@ import datetime
 from foms.services.datetime_kst import now_utc_naive
 import logging
 
-from flask import Blueprint, jsonify, request, session
+from flask import Blueprint, jsonify, render_template, request, session
 from sqlalchemy.orm.attributes import flag_modified
 
 from foms.web.auth import get_user_by_id, login_required
@@ -20,6 +20,11 @@ from foms.services.erp_display import get_today_kst
 from foms.services.erp_permissions import erp_construction_edit_required, erp_edit_required
 from foms.services.erp_sync_columns import sync_erp_flat_columns
 from foms.services.erp_utils import ensure_path
+from foms.services.orders.as_log import (
+    append_client_log,
+    coerce_client_log_type,
+    decorate_entry,
+)
 from models import Order, OrderEvent, SecurityLog
 
 logger = logging.getLogger(__name__)
@@ -524,6 +529,108 @@ def api_as_billing(order_id: int):
         return jsonify({"success": False, "message": str(e)}), 500
 
 
+def _render_as_log_entry(entry: dict) -> str:
+    """as_log 항목 1건을 목록과 동일한 매크로로 렌더(낙관적 DOM 삽입용)."""
+    return render_template(
+        "cs/partials/as_timeline_entry_partial.html", entry=decorate_entry(entry)
+    )
+
+
+@erp_orders_as_bp.route("/<int:order_id>/as/log", methods=["POST"])
+@login_required
+@erp_edit_required
+def api_as_log_append(order_id: int):
+    """AS 타임라인 항목 append. body {type, text}. ts·작성자는 서버가 정한다."""
+    db = get_db()
+    try:
+        order = db.get(Order, order_id)
+        if not order or order.status == "DELETED" or order.deleted_at is not None:
+            return jsonify({"success": False, "message": "주문을 찾을 수 없습니다."}), 404
+
+        data = request.get_json(silent=True) or {}
+        try:
+            log_type = coerce_client_log_type(data.get("type"))
+        except ValueError as ve:
+            # 검증 실패는 400. 409는 낙관/무결성 전용(structured_data 로드 실패 등).
+            return jsonify({"success": False, "message": str(ve)}), 400
+        text = sanitize_as_content_html(data.get("text"))
+        if not text:
+            return jsonify({"success": False, "message": "내용을 입력해주세요."}), 400
+
+        user = get_user_by_id(session.get("user_id"))
+        sd = _load_order_structured_data_for_update(order)
+        # append_client_log는 최초 append 시 legacy(as_content)를 as_log로 영구화한다.
+        # sd는 무손실 로드가 돌려준 사본이라 반환값과 무관하게 재대입 + flag_modified 필수.
+        entry = append_client_log(
+            sd, log_type=log_type, text=text,
+            by=(user.name if user else ""), by_id=(user.id if user else None))
+        order.structured_data = sd
+        flag_modified(order, "structured_data")
+        sync_erp_flat_columns(order, sd)
+        db.add(SecurityLog(
+            user_id=session.get("user_id"), message=f"주문 #{order_id} AS 기록 추가"))
+        db.commit()
+        _invalidate_shipment_asrec_caches("api_as_log_append")
+        return jsonify({"success": True, "entry": entry, "html": _render_as_log_entry(entry)})
+    except ValueError as e:
+        db.rollback()
+        return jsonify({"success": False, "message": str(e)}), 409
+    except Exception as e:
+        db.rollback()
+        return jsonify({"success": False, "message": str(e)}), 500
+
+
+@erp_orders_as_bp.route("/<int:order_id>/as/log/<log_id>", methods=["PATCH"])
+@login_required
+@erp_edit_required
+def api_as_log_patch(order_id: int, log_id: str):
+    """AS 타임라인 항목 본문 수정. 작성자 본인 또는 관리자만."""
+    db = get_db()
+    try:
+        order = db.get(Order, order_id)
+        if not order or order.status == "DELETED" or order.deleted_at is not None:
+            return jsonify({"success": False, "message": "주문을 찾을 수 없습니다."}), 404
+        # legacy는 읽기 전용. 영구화 전(lazy) 항목도 같은 id로 노출되므로 조회 전에 막는다.
+        if log_id.startswith("al_legacy_"):
+            return jsonify({"success": False, "message": "이전 기록은 수정할 수 없습니다."}), 400
+
+        text = sanitize_as_content_html((request.get_json(silent=True) or {}).get("text"))
+        if not text:
+            return jsonify({"success": False, "message": "내용을 입력해주세요."}), 400
+
+        user = get_user_by_id(session.get("user_id"))
+        is_admin = bool(user and (user.role or "").upper() == "ADMIN")
+        sd = _load_order_structured_data_for_update(order)
+        log = (sd.get("shipment") or {}).get("as_log") or []
+        target = next((e for e in log if isinstance(e, dict) and e.get("id") == log_id), None)
+        if target is None:
+            return jsonify({"success": False, "message": "항목을 찾을 수 없습니다."}), 404
+        if target.get("legacy") is True:
+            return jsonify({"success": False, "message": "이전 기록은 수정할 수 없습니다."}), 400
+        if target.get("type") == "system":
+            return jsonify({"success": False, "message": "시스템 기록은 수정할 수 없습니다."}), 400
+        if not is_admin and target.get("by_id") != (user.id if user else None):
+            return jsonify({"success": False, "message": "본인 또는 관리자만 수정할 수 있습니다."}), 403
+
+        target["text"] = text
+        target["edited_at"] = now_utc_naive().isoformat()
+        target["edited_by"] = user.name if user else ""
+        order.structured_data = sd
+        flag_modified(order, "structured_data")
+        db.add(SecurityLog(
+            user_id=session.get("user_id"),
+            message=f"주문 #{order_id} AS 기록 수정({log_id})"))
+        db.commit()
+        _invalidate_shipment_asrec_caches("api_as_log_patch")
+        return jsonify({"success": True, "entry": target, "html": _render_as_log_entry(target)})
+    except ValueError as e:
+        db.rollback()
+        return jsonify({"success": False, "message": str(e)}), 409
+    except Exception as e:
+        db.rollback()
+        return jsonify({"success": False, "message": str(e)}), 500
+
+
 __all__ = [
     "erp_orders_as_bp",
     "api_as_start",
@@ -531,5 +638,7 @@ __all__ = [
     "api_as_register",
     "api_as_schedule",
     "api_as_billing",
+    "api_as_log_append",
+    "api_as_log_patch",
     "get_today_kst",
 ]
