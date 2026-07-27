@@ -21,6 +21,7 @@ from foms.services.erp_permissions import erp_construction_edit_required, erp_ed
 from foms.services.erp_sync_columns import sync_erp_flat_columns
 from foms.services.erp_utils import ensure_path
 from foms.services.orders.as_log import (
+    AS_LOG_TEXT_MAX,
     append_client_log,
     append_system_log,
     coerce_client_log_type,
@@ -326,7 +327,7 @@ def api_as_register(order_id):
         as_content = sanitize_as_content_html(data.get("as_content"))
         if as_content:
             # 접수 원문도 reception 로그가 되므로 quick-add와 같은 본문 캡을 지나야 한다
-            # (안 그러면 register가 _AS_LOG_TEXT_MAX 우회로가 된다). 빈 값은 register 계약상 허용.
+            # (안 그러면 register가 AS_LOG_TEXT_MAX 우회로가 된다). 빈 값은 register 계약상 허용.
             try:
                 as_content = _clean_as_log_text(as_content)
             except ValueError as ve:
@@ -614,16 +615,14 @@ def _render_as_log_entry(entry: dict) -> str:
 
 
 # as_log는 append-only라 항목당 상한이 없으면 sd가 무한히 커진다(도면 위저드 64KB 캡 선례).
-# ponytail: 항목당 sanitize 후 문자 수 캡. 리스트 총량 캡이 필요해지면 append 시점 트리밍으로.
-_AS_LOG_TEXT_MAX = 10000
-
-
+# 상한 값의 SSOT는 as_log.AS_LOG_TEXT_MAX(생성 지점 봉인)다 — 여기서 사본을 두면 한쪽만 올렸을 때
+# 라우트는 통과시키고 build_as_log_entry가 조용히 잘라 사용자가 유실을 모른다.
 def _clean_as_log_text(raw: object) -> str:
     """AS 기록 본문 sanitize + 길이 검증. 위반은 ValueError(호출부에서 400)."""
     text = sanitize_as_content_html(raw)
     if not text:
         raise ValueError("내용을 입력해주세요.")
-    if len(text) > _AS_LOG_TEXT_MAX:
+    if len(text) > AS_LOG_TEXT_MAX:
         raise ValueError("내용이 너무 깁니다.")
     return text
 

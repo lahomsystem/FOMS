@@ -781,3 +781,71 @@
   font-size: 1.25rem;
   opacity: 0.65;
 }
+
+/* ─────────── T15 원탭 프리셋(모바일 전용) ───────────
+   노출은 매크로의 .d-md-none 이 담당한다(표면 토글과 같은 md 브레이크포인트).
+   가로 스크롤로 두는 이유: 4개가 좁은 폰에서 2줄로 접히면 quick-add 가 화면 밖으로 밀린다. */
+.as-timeline__presets {
+  display: flex;
+  gap: var(--foms-space-2, 0.5rem);
+  margin-bottom: var(--foms-space-2, 0.5rem);
+  overflow-x: auto;
+  scrollbar-width: none;
+  -webkit-overflow-scrolling: touch;
+}
+
+.as-timeline__presets::-webkit-scrollbar {
+  display: none;
+}
+
+.as-tl-preset {
+  flex: 0 0 auto;
+  min-height: 36px;
+  padding: 0 0.75rem;
+  border: 1px solid var(--foms-border-default, #cbd5e1);
+  border-radius: var(--foms-radius-full, 9999px);
+  background: var(--foms-surface-raised, #fff);
+  color: var(--foms-text-secondary, #475569);
+  font-size: var(--foms-font-size-xs, 0.75rem);
+  font-weight: var(--foms-font-weight-semibold, 600);
+  line-height: var(--foms-line-height-tight, 1.25);
+  white-space: nowrap;
+}
+
+.as-tl-preset:active {
+  background: var(--foms-color-info-50, #eff6ff);
+  border-color: var(--foms-color-info-500, #3b82f6);
+  color: var(--foms-color-info-600, #2563eb);
+}
+
+/* ─────────── T15 과도기 힌트 배너 ───────────
+   d-none 으로 렌더돼 JS 가 1회만 벗긴다(localStorage). PC/모바일 공통 표면. */
+#as-timeline-hint {
+  display: flex;
+  align-items: flex-start;
+  gap: var(--foms-space-2, 0.5rem);
+  margin-bottom: var(--foms-space-3, 0.75rem);
+  padding: var(--foms-space-3, 0.75rem);
+  border: 1px solid var(--foms-color-info-500, #3b82f6);
+  border-radius: var(--foms-radius-md, 8px);
+  background: var(--foms-color-info-50, #eff6ff);
+  color: var(--foms-color-info-600, #2563eb);
+  font-size: var(--foms-font-size-xs, 0.75rem);
+  line-height: var(--foms-line-height-tight, 1.25);
+}
+
+.as-timeline-hint__text {
+  flex: 1 1 auto;
+}
+
+.as-timeline-hint__dismiss {
+  flex: 0 0 auto;
+  min-width: 32px;
+  min-height: 32px;
+  margin: -0.25rem -0.25rem -0.25rem 0;
+  border: 0;
+  background: none;
+  color: inherit;
+  font-size: 1.125rem;
+  line-height: 1;
+}

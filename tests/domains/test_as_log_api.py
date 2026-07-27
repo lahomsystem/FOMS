@@ -432,6 +432,26 @@ def test_schedule_rejects_malformed_visit_date(client):
     assert "as_log" not in db_session.get(Order, order_id).structured_data["shipment"]
 
 
+def test_field_update_rejects_malformed_visit_date(client):
+    """실흐름(field_update)도 정규화 실패면 400 — 「방문일 확정: None」 이 영구 기록되면 안 된다.
+
+    /as/schedule 은 UI 호출자가 없다. 방문일의 정본 쓰기 경로인 여기서 정규화가 None 을
+    돌려주는데도 통과시키면, as_log 는 append-only 라 그 오기를 되돌릴 수 없다.
+    """
+    _login_as_admin(client, username="as-sys-visit-field-bad-admin")
+    order_id = _create_as_order().id
+
+    res = client.post("/api/update_order_field", json={
+        "order_id": order_id, "field_name": "as_visit_date", "new_value": "내일쯤"})
+
+    assert res.status_code == 400, res.get_data(as_text=True)
+    assert res.get_json()["success"] is False
+    db_session.expire_all()
+    sd = db_session.get(Order, order_id).structured_data
+    assert "as_log" not in sd["shipment"]  # 「방문일 확정: None」 이 새지 않았다
+    assert (sd.get("schedule") or {}).get("as_visit") in (None, {})
+
+
 def test_system_log_text_is_capped_at_generation(client):
     """생성 지점 상한 — 무검증 입력(사유 등)이 조립돼도 JSONB 가 무한히 커지지 않는다."""
     from foms.services.orders.as_log import AS_LOG_TEXT_MAX, append_system_log
@@ -440,6 +460,15 @@ def test_system_log_text_is_capped_at_generation(client):
     entry = append_system_log(sd, text="가" * (AS_LOG_TEXT_MAX + 500))
 
     assert len(entry["text"]) == AS_LOG_TEXT_MAX
+
+
+def test_log_text_cap_is_single_sourced():
+    """라우트 검증 상한 = as_log 생성 상한(같은 객체). 이중 정의는 값이 갈리면 조용한 절단이다."""
+    from foms.api.cs import as_orders
+    from foms.services.orders import as_log
+
+    assert not hasattr(as_orders, "_AS_LOG_TEXT_MAX")  # 로컬 사본 재도입 금지
+    assert as_orders.AS_LOG_TEXT_MAX is as_log.AS_LOG_TEXT_MAX
 
 
 def test_billing_first_decision_logs_confirmation_not_switch(client):

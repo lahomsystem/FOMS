@@ -733,6 +733,118 @@ def test_plain_text_entries_skip_html_parsing():
         safety.BeautifulSoup = original
 
 
+# ---------------------------------------------------------------------------
+# 5) T15 — 모바일 원탭 프리셋 4종 + 과도기 힌트 배너
+# ---------------------------------------------------------------------------
+
+_PRESETS = [
+    ("call", "고객 부재중, 재연락 예정", "부재중"),
+    ("action", "방문 조치 완료", "조치 완료"),
+    ("schedule", "재방문 필요", "재방문 필요"),
+    ("material", "자재 발주 필요", "자재 필요"),
+]
+
+
+def test_mobile_presets_render_above_quick_add(client):
+    """프리셋 4종은 모바일 표면(d-md-none)에서 quick-add 폼 **위**에 스펙 순서대로 나온다.
+
+    부재중이 첫 버튼인 이유는 현장 빈도다(스펙 §5.5) — 순서가 뒤집히면 엄지 위치가 어긋난다.
+    """
+    _login_as_admin(client, username="as_preset_admin")
+    order_id = _create_as_order("프리셋")
+
+    body = client.get(f"/erp/as/card-detail/{order_id}").get_data(as_text=True)
+    presets = body.split('class="as-timeline__presets', 1)[1].split("</div>", 1)[0]
+    assert "d-md-none" in presets
+    assert [
+        (chunk.split('data-type="', 1)[1].split('"', 1)[0],
+         chunk.split('data-text="', 1)[1].split('"', 1)[0],
+         chunk.split(">", 1)[1].split("<", 1)[0])
+        for chunk in presets.split("<button")[1:]
+    ] == _PRESETS
+    # 초안 주입 대상(quick-add)보다 먼저 와야 엄지 동선이 위→아래로 이어진다
+    assert body.index("as-timeline__presets") < body.index("as-timeline__quick-add")
+
+
+def test_presets_hidden_without_edit_permission(client):
+    """읽기 전용 사용자에겐 프리셋도 미렌더 — 주입 대상 quick-add 자체가 없다."""
+    user = User(
+        username="as_preset_viewer",
+        password=generate_password_hash("pw"),
+        role="STAFF",
+        team="DRAWING",
+        name="뷰어",
+        is_active=True,
+    )
+    db_session.add(user)
+    db_session.commit()
+    order_id = _create_as_order("프리셋 권한")
+    with client.session_transaction() as sess:
+        sess["user_id"] = user.id
+        sess["username"] = user.username
+        sess["role"] = user.role
+
+    body = client.get(f"/erp/as/card-detail/{order_id}").get_data(as_text=True)
+    assert "as-timeline__presets" not in body
+    assert "as-timeline__quick-add" not in body
+
+
+def test_preset_click_injects_draft_without_autosubmit():
+    """프리셋은 초안 주입 + 유형 설정 + focus 까지만. 자동 전송은 수기 입력 원칙 위반이다."""
+    js = _js()
+    block = _timeline_block(js)
+    anchor = block.index("e.target.closest('.as-tl-preset')")
+    handler = block[anchor:block.index("});", anchor)]
+    assert "typeEl.value = preset.dataset.type" in handler
+    assert "textEl.value = preset.dataset.text" in handler
+    assert "textEl.focus()" in handler
+    # 자동 전송 금지: 핸들러가 전송 경로를 건드리면 안 된다
+    assert "submitQuickAdd" not in handler
+    assert "fetch(" not in handler
+    assert "requestSubmit" not in handler
+
+
+def test_preset_types_match_quick_add_select_options():
+    """프리셋 data-type 은 quick-add <select> 가 실제로 가진 값이어야 한다(무음 memo 폴백 방지)."""
+    macros = _macros()
+    select = macros.split('class="as-timeline__type', 1)[1].split("</select>", 1)[0]
+    options = {chunk.split('"', 1)[0] for chunk in select.split('<option value="')[1:]}
+    assert {log_type for log_type, _, _ in _PRESETS} <= options
+
+
+def test_hint_banner_is_dismissed_once_via_localstorage(client):
+    """과도기 배너: 서버는 숨긴 채 렌더하고, JS 가 localStorage 로 1회만 노출한다."""
+    _login_as_admin(client, username="as_hint_admin")
+    body = client.get("/erp/as").get_data(as_text=True)
+    banner = body.split('id="as-timeline-hint"', 1)[1].split("</div>", 1)[0]
+    assert "d-none" in banner  # 재방문자에게 깜빡임 없이 사라지려면 숨김 상태로 렌더
+    assert "as-timeline-hint__dismiss" in body
+    assert "AS 내용이 이력 형식으로 바뀌었습니다. 기존 내용은 '이전 기록'에 그대로 있습니다." in body
+
+    js = _js()
+    assert "foms_as_timeline_hint_dismissed" in js
+    hint = js[js.index("as-timeline-hint"):]
+    hint = hint[:hint.index("})();")]
+    assert "localStorage.getItem('foms_as_timeline_hint_dismissed') === '1'" in hint
+    assert "localStorage.setItem('foms_as_timeline_hint_dismissed', '1')" in hint
+    assert hint.count("banner.remove()") == 2  # 이미 닫음 + 방금 닫음
+
+
+def test_preset_and_banner_styles_exist():
+    """신규 클래스에 스타일 실재(버튼 리셋 없는 프리셋은 폼 버튼처럼 보인다)."""
+    css = _css(_CARD_CSS)
+    for selector in (".as-timeline__presets", ".as-tl-preset", "#as-timeline-hint"):
+        assert selector in css, selector
+
+
+def test_dashboard_js_link_is_version_pinned():
+    """SW staticCacheFirst — as-dashboard.js 링크도 `?v=` 없이는 실기기가 구버전을 계속 쓴다."""
+    body = (_ROOT / "templates/cs/partials/as_dashboard_body.html").read_text(encoding="utf-8")
+    link = [line for line in body.splitlines() if "js/cs/as-dashboard.js" in line]
+    assert len(link) == 1
+    assert "?v=" in link[0]
+
+
 def test_sales_delivery_handler_uses_order_id_dataset():
     """핸들러는 contenteditable 대신 버튼 dataset 의 order_id 로 동작한다(계약 보존).
 

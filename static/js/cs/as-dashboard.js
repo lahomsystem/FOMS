@@ -20,6 +20,21 @@
       }, 400);
     })();
 
+    // T15 과도기 힌트 배너 — "AS 내용"이 타임라인으로 바뀐 것을 1회만 알린다.
+    // 싱글톤 가드를 쓰지 않는 이유: 배너는 fragment swap 마다 새 엘리먼트로 다시 렌더되므로
+    // 리스너도 그 엘리먼트에 새로 붙어야 한다(전역 리스너가 아니라 누수도 없다).
+    // 서버는 d-none 으로 렌더한다 — 이미 닫은 사용자에게 한 프레임 깜빡이지 않게 하려고.
+    (function () {
+      const banner = document.getElementById('as-timeline-hint');
+      if (!banner) return;
+      if (localStorage.getItem('foms_as_timeline_hint_dismissed') === '1') { banner.remove(); return; }
+      banner.classList.remove('d-none');
+      const dismiss = banner.querySelector('.as-timeline-hint__dismiss');
+      if (dismiss) dismiss.addEventListener('click', function () {
+        localStorage.setItem('foms_as_timeline_hint_dismissed', '1'); banner.remove();
+      });
+    })();
+
     const toastEl = document.getElementById('saveToast');
     const toast = new bootstrap.Toast(toastEl, { delay: 2000 });
     const toastMsg = document.getElementById('toastMessage');
@@ -1164,6 +1179,20 @@
           if (quickAdd) { submitQuickAdd(quickAdd); return; }
           submitLogEdit(textEl.closest('.as-tl-item__edit-form'));
         }
+      });
+
+      // T15 원탭 프리셋: 초안 주입 + 유형 설정 + focus 까지만. **자동 전송 금지** —
+      // as_log 는 append-only(삭제 API 없음)라 오탭 한 번이 영구 기록이 된다. 사람이 문장을
+      // 다듬고 스스로 전송하는 것이 이 기능의 본체이고, 프리셋은 타이핑만 줄인다.
+      document.addEventListener('click', function (e) {
+        const preset = e.target.closest && e.target.closest('.as-tl-preset');
+        if (!preset) return;
+        const form = preset.closest('.as-timeline').querySelector('.as-timeline__quick-add');
+        if (!form) return;
+        const textEl = form.querySelector('.as-timeline__text');
+        const typeEl = form.querySelector('.as-timeline__type');
+        if (typeEl) typeEl.value = preset.dataset.type || 'memo';
+        if (textEl) { textEl.value = preset.dataset.text || ''; textEl.focus(); } // 수기 수정 후 저장
       });
 
       // 더보기: 기본 렌더는 최근 8건이라 ?full=1로 스트림 전량(상한 200)을 다시 받아 통째 교체.

@@ -5,7 +5,7 @@
 {# 카드 CSS는 body 파셜에 둔다 → fast-tab 프래그먼트 스왑(as_dashboard_fragment.html)에도
    함께 실려, 탭 이동 첫 진입에서 카드가 원시(미스타일)로 뜨는 FOUC를 막는다.
    (head_extra 전용이면 전체 새로고침 전까지 카드 CSS가 누락된다) #}
-<link rel="stylesheet" href="{{ url_for('static', filename='css/components/foms-as-mobile-card.css') }}?v=20260727a">
+<link rel="stylesheet" href="{{ url_for('static', filename='css/components/foms-as-mobile-card.css') }}?v=20260728b">
 <div class="erp-pro erp-mobile-shell erp-as-dashboard" data-erp-mobile-v2="{{ 'true' if erp_mobile_v2_enabled else 'false' }}">
   {% if erp_mobile_v2_enabled %}
     {% include 'partials/shared/erp_mobile_shell.html' %}
@@ -29,6 +29,14 @@
   </header>
   {% set erp_sub_nav_active = 'as' %}
   {% include 'partials/shared/erp_sub_nav.html' %}
+
+  {# T15 과도기 안내 — "AS 내용" 2패널이 타임라인으로 바뀐 첫 진입에서 1회만. 노출/닫힘은
+     as-dashboard.js(localStorage: foms_as_timeline_hint_dismissed)가 소유한다. 서버가 d-none
+     으로 렌더해야 이미 닫은 사용자에게 한 프레임 깜빡이지 않는다. #}
+  <div id="as-timeline-hint" class="as-timeline-hint d-none" role="status">
+    <span class="as-timeline-hint__text">AS 내용이 이력 형식으로 바뀌었습니다. 기존 내용은 '이전 기록'에 그대로 있습니다.</span>
+    <button type="button" class="as-timeline-hint__dismiss" aria-label="안내 닫기">&times;</button>
+  </div>
 
   {% if not erp_order_enabled %}
   <div class="erp-pro-alert erp-pro-alert--warning">
@@ -478,7 +486,7 @@
 </div>
 
 <div id="as-dashboard-config" class="d-none" data-search-query-compact="{{ (compact_search_q or '')|e }}" data-current-as-tab="{{ (as_tab or 'incomplete')|e }}"></div>
-<script src="{{ url_for('static', filename='js/cs/as-dashboard.js') }}?v=20260728a" defer></script>
+<script src="{{ url_for('static', filename='js/cs/as-dashboard.js') }}?v=20260728b" defer></script>
 {# 태블릿 가로 대조 표면 CTA(일정 변경·AS 완료) 배선 — v2 코호트(폰+태블릿)만 로드.
    표시 게이트는 CSS(coarse landscape)가 소유하므로 폰에선 버튼 은닉·무동작(문서 위임+싱글턴 가드). #}
 {% if erp_mobile_v2_enabled %}

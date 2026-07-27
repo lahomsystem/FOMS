@@ -94,6 +94,18 @@
     {% for e in v.legacy %}{{ render_as_timeline_entry(e, can_edit) }}{% endfor %}
   </div>
   {% endif %}
+  {# T15 원탭 프리셋 — 탭하면 아래 quick-add 에 초안을 넣고 focus 만 한다(자동 전송 금지).
+     현장에서 가장 잦은 '부재중'이 첫 버튼이다(스펙 §5.5). d-md-none 인 이유: PC 는 키보드가
+     있어 초안 주입이 이득이 없고, 모바일 카드/상세 표면 자체가 같은 md 브레이크포인트로
+     토글된다(.erp-pro-order-cards.d-md-none) — 노출 경계가 표면 경계와 일치한다. #}
+  {% if can_edit %}
+  <div class="as-timeline__presets d-md-none" aria-label="빠른 기록">
+    <button type="button" class="as-tl-preset" data-type="call" data-text="고객 부재중, 재연락 예정">부재중</button>
+    <button type="button" class="as-tl-preset" data-type="action" data-text="방문 조치 완료">조치 완료</button>
+    <button type="button" class="as-tl-preset" data-type="schedule" data-text="재방문 필요">재방문 필요</button>
+    <button type="button" class="as-tl-preset" data-type="material" data-text="자재 발주 필요">자재 필요</button>
+  </div>
+  {% endif %}
   {% if can_edit %}
   {# data-foms-erp-no-shell 필수: erp-shell.js가 method=get 폼 submit을 capture 단계에서 가로채
      프래그먼트 스왑으로 바꾼다. 이 폼은 JS가 fetch로 보내므로 셸 내비게이션 대상이 아니다

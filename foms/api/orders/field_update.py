@@ -379,6 +379,14 @@ def update_order_field_response(
                     ))
                     _prod_cons_change = (old_cons, value)
             elif field == "as_visit_date":
+                trimmed = str(value or "").strip()
+                normalized_visit = _normalize_date_to_yyyymmdd(trimmed) if trimmed else None
+                # 정규화 실패는 여기서 끊는다(쓰기 전). 통과시키면 as_visit_date 컬럼에 None 이
+                # 박히고 「방문일 확정: None」 이 append-only as_log 에 영구히 남는다.
+                if trimmed and not normalized_visit:
+                    return jsonify(
+                        {"success": False, "message": "방문일 형식이 올바르지 않습니다. (YYYY-MM-DD)"}
+                    ), 400
                 schedule = ensure_path(structured_data, "schedule")
                 as_visit = ensure_path(schedule, "as_visit")
                 # 이전 값의 정본은 structured_data 스냅샷이다 — as_visit_date 는 ORM 컬럼이
@@ -388,15 +396,10 @@ def update_order_field_response(
                 ).get("date")
                 as_visit["date"] = value
                 structured_changed = True
-                trimmed = str(value or "").strip()
-                if trimmed:
-                    setattr(order, "as_visit_date", _normalize_date_to_yyyymmdd(trimmed))
-                else:
-                    setattr(order, "as_visit_date", None)
+                setattr(order, "as_visit_date", normalized_visit)
                 if _as_date_changed(old_visit, value):
                     as_system_event = (
-                        f"방문일 확정: {_normalize_date_to_yyyymmdd(trimmed)}"
-                        if trimmed else "방문일 취소"
+                        f"방문일 확정: {normalized_visit}" if trimmed else "방문일 취소"
                     )
 
         if is_erp_order and field in ("as_received_date", "as_visit_date"):
