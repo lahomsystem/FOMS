@@ -671,6 +671,102 @@ class DrawingRevisionRequest(Base):
         }
 
 
+class OrderConstructionAttempt(Base):
+    """시공(construction) 실행 attempt 의 DB-global UUID registry (CONSTRUCTION-BACKFILL-00, §5.2).
+
+    시공은 오늘 주문마다 flat ``workflow.history`` 의 ``시공 시작`` 진입·
+    ``structured_data['construction_fail_history']`` (시공 불가 재작업 리스트)·
+    ``construction.evidence`` (before/after/서명)·``schedule.construction`` (시공 예정일)·
+    그리고 시공 완료 시 ``order.status``/``workflow.stage`` 의 ``COMPLETED`` 전이로만
+    기록된다 — attempt 별 경계도 current attempt 포인터도 남지 않는다. 이 registry 는 시공
+    attempt 마다 **안정 UUID attempt row** 를 발급해 schedule(예정일)·transition(시작)·
+    completion(완료)·classification(시공 불가 사유) 스냅샷을 attempt 단위로 귀속하고,
+    :data:`~foms.services.orders.state_axes.CONSTRUCTION_VALUES`
+    (``IN_PROGRESS|READY|COMPLETED|REWORKED``) read-model 과 shape 를 정합시킨다(주문당
+    current attempt 0/1).
+
+    계약(§5.2 CONSTRUCTION-BACKFILL-00):
+
+    * **DB-global unique**: ``id`` 는 UUID PK(= ``attempt_id``)로 전 DB 유일하다.
+    * **order binding**: 모든 attempt 는 한 주문(``order_id`` FK)에 묶인다.
+    * **status**: ``IN_PROGRESS`` | ``READY`` | ``COMPLETED`` | ``REWORKED``.
+    * **flat 보존**: attempt 컬럼은 flat 시공 데이터의 **복제 스냅샷**이다 — backfill 은
+      flat 을 삭제/재작성하지 않고 복제만 한다. 시공 완료(직접 COMPLETED)의 자동 추론은
+      금지되고(불명확 → 수동 CSV), 전이(시작/완료) 활성화는 하류 STATE-CONST-CS 소관이므로
+      이 registry 는 runtime 의미 변경이 0 이다.
+    * ``legacy_seq`` 는 발급 근거 시공 시작 ordinal(provenance·backfill 멱등 키)일 뿐
+      런타임 근거로 쓰지 않는다.
+
+    ``uq_construction_attempt_current`` (partial unique)로 한 주문에 current attempt 는 최대
+    1개다 — ``current_attempt_id`` 포인터의 DB 표현이자 "current attempt 0/1" 불변식의
+    강제다. 종결된 attempt(``is_current=False``, COMPLETED/REWORKED)은 이력으로 여러 개
+    남는다. ``uq_construction_attempt_legacy`` (partial unique)는 한 주문의 한
+    ``legacy_seq`` 에 attempt 를 최대 1개로 강제해 backfill 을 멱등하게 만든다. DDL 은
+    migration(``construction_backfill_00``)과 SSOT 를 공유한다(create_all 테스트 lane 동일
+    스키마).
+    """
+
+    __tablename__ = 'order_construction_attempts'
+
+    id = Column(UUIDColumn, primary_key=True, default=lambda: str(uuid.uuid4()))
+    order_id = Column(
+        Integer, ForeignKey('orders.id', ondelete='CASCADE'), nullable=False, index=True,
+    )
+    status = Column(String(20), nullable=False)  # IN_PROGRESS|READY|COMPLETED|REWORKED
+    # 발급 시점 시공 시작 ordinal(provenance·backfill 멱등 키). 런타임 근거 아님.
+    legacy_seq = Column(Integer, nullable=True)
+    # schedule 스냅샷 — 시공 예정일(schedule.construction.date, legacy 문자열 원문 보존).
+    scheduled_date = Column(String(32), nullable=True)
+    # transition(시작) 스냅샷 — workflow.history "시공 시작" entry.
+    started_at = Column(DateTime, nullable=True)
+    started_by = Column(String(120), nullable=True)
+    # completion 스냅샷 — 완료 시각/담당/메모(하류 STATE-CONST-CS 발급분).
+    completed_at = Column(DateTime, nullable=True)
+    completed_by = Column(String(120), nullable=True)
+    completion_note = Column(Text, nullable=True)
+    # classification 스냅샷 — REWORKED attempt 의 시공 불가 사유/상세.
+    fail_reason = Column(String(40), nullable=True)
+    fail_detail = Column(Text, nullable=True)
+    # evidence 스냅샷 — construction.evidence(before/after/signature) 참조.
+    evidence = Column(JSONColumn, nullable=True)
+    is_current = Column(Boolean, nullable=False, default=False, server_default='false')
+    created_at = Column(DateTime, nullable=False, default=now_utc_naive, server_default=func.now())
+
+    __table_args__ = (
+        # 한 주문의 current(열린) attempt 는 최대 1개("current attempt 0/1" 불변식의 DB 표현).
+        # 종결된 attempt(is_current=false)은 여러 개 이력으로 남을 수 있다.
+        Index(
+            'uq_construction_attempt_current', 'order_id',
+            unique=True, postgresql_where=text('is_current'),
+        ),
+        # 한 주문의 한 legacy 시공 시작 ordinal 에 attempt 는 최대 1개(중복 발급 방지·backfill 멱등).
+        # legacy_seq IS NULL(비-legacy)은 이 제약 밖(향후 STATE-CONST-CS 발급분).
+        Index(
+            'uq_construction_attempt_legacy', 'order_id', 'legacy_seq',
+            unique=True, postgresql_where=text('legacy_seq IS NOT NULL'),
+        ),
+    )
+
+    def to_dict(self):
+        return {
+            'id': self.id,
+            'order_id': self.order_id,
+            'status': self.status,
+            'legacy_seq': self.legacy_seq,
+            'scheduled_date': self.scheduled_date,
+            'started_at': format_datetime_kst(self.started_at) if self.started_at else None,
+            'started_by': self.started_by,
+            'completed_at': format_datetime_kst(self.completed_at) if self.completed_at else None,
+            'completed_by': self.completed_by,
+            'completion_note': self.completion_note,
+            'fail_reason': self.fail_reason,
+            'fail_detail': self.fail_detail,
+            'evidence': self.evidence,
+            'is_current': self.is_current,
+            'created_at': format_datetime_kst(self.created_at),
+        }
+
+
 class OrderEvent(Base):
     """ERP 이벤트 스트림(단계 변경/일정 변경/긴급 발주/컨펌 등)"""
     __tablename__ = 'order_events'
