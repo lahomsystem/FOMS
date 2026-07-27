@@ -316,6 +316,13 @@ def api_as_register(order_id):
 
         data = request.get_json(silent=True) or {}
         as_content = sanitize_as_content_html(data.get("as_content"))
+        if as_content:
+            # 접수 원문도 reception 로그가 되므로 quick-add와 같은 본문 캡을 지나야 한다
+            # (안 그러면 register가 _AS_LOG_TEXT_MAX 우회로가 된다). 빈 값은 register 계약상 허용.
+            try:
+                as_content = _clean_as_log_text(as_content)
+            except ValueError as ve:
+                return jsonify({"success": False, "message": str(ve)}), 400
         source_screen = str(data.get("source_screen") or "").strip()
 
         # 지방주문 AS 재상차용 상차일(optional). 값이 있으면 YYYY-MM-DD 검증 후 컬럼에 저장.

@@ -38,6 +38,9 @@ from foms.services.orders.as_log import build_as_timeline_view
 
 erp_as_page_bp = Blueprint('erp_as_page', __name__, url_prefix='/erp')
 
+# 타임라인 '더보기'(?full=1) 스트림 상한. 무제한이면 append-only as_log가 fragment를 폭증시킨다.
+_TIMELINE_FULL_LIMIT = 200
+
 
 def _compact_search_text(value):
     """검색 비교용 문자열 정규화 (NFC + 공백 제거 + 소문자)."""
@@ -153,9 +156,13 @@ def erp_as_timeline(order_id: int):
     if order is None:
         abort(404)
     apply_as_dashboard_row_display_fields([order], db, mobile_v2_active=False)
-    # 더보기(full=1)면 스트림 전량으로 뷰 재구성(display 기본 recent_limit=8을 덮어씀).
-    if request.args.get('full'):
-        order.as_timeline_view = build_as_timeline_view(order.structured_data, recent_limit=9999)
+    # 더보기(full=1)면 스트림 상한을 올려 뷰 재구성(display 기본 recent_limit=8을 덮어씀).
+    # 무제한이 아니라 200 캡 — as_log는 append-only + 항목당 10,000자라 상한이 없으면
+    # 오래된 주문 하나가 수 MB fragment가 된다. 200 초과 페이징은 T10 소관.
+    if request.args.get('full') == '1':
+        order.as_timeline_view = build_as_timeline_view(
+            order.structured_data, recent_limit=_TIMELINE_FULL_LIMIT
+        )
     current_user = getattr(g, 'current_user', None)
     return render_template(
         'cs/partials/as_timeline_partial.html',

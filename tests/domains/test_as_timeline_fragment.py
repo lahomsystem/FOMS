@@ -2,7 +2,7 @@
 
 세 가지를 고정한다.
 1) fragment 라우트: AS 상태 주문만 200(모바일 card-detail 과 동일한 권한·게이트), `?full=1` 은
-   recent_limit 절단을 풀어 전량 스트림을 렌더한다.
+   recent_limit 을 200 까지 올려 렌더한다(무제한 아님, `?full=0` 은 미적용).
 2) 대시보드 display 보강이 행마다 `as_timeline_view` 를 세팅한다(셀 요약·fragment 공용 SSOT).
 3) `POST /as/register` 가 접수 원문을 첫 `reception` 로그 항목으로 남기고, 이전 as_content 는
    legacy 항목으로 영구화한다(새 접수 원문이 legacy 로 중복 시드되지 않는다).
@@ -102,6 +102,23 @@ def test_timeline_fragment_full_param_lifts_recent_limit(client):
     assert "기록0" in full_body
     assert "기록11" in full_body
 
+    # ?full=0 은 더보기가 아니다(truthy 판정 금지 — '1' 정확 비교)
+    off_body = client.get(f"/erp/as/timeline/{order_id}?full=0").get_data(as_text=True)
+    assert "기록0" not in off_body
+
+
+def test_timeline_fragment_full_is_capped(client):
+    """`?full=1` 은 무제한이 아니라 200 캡. append-only as_log 가 fragment 를 폭증시키면 안 된다."""
+    _login_as_admin(client, username="as-timeline-cap-admin")
+    logs = [
+        _entry(f"al_{i}", f"2026-01-01T00:00:{i % 60:02d}", "memo", f"항목{i}")
+        for i in range(205)
+    ]
+    order_id = _create_as_order(shipment_extra={"as_log": logs})
+
+    body = client.get(f"/erp/as/timeline/{order_id}?full=1").get_data(as_text=True)
+    assert body.count("data-log-id=") == 200
+
 
 def test_timeline_fragment_gate_matches_card_detail(client):
     """비-AS 주문·없는 주문 404, 비로그인 리다이렉트 (card-detail 과 동일 게이트)."""
@@ -132,6 +149,49 @@ def test_dashboard_rows_get_timeline_view(client):
     view = row.as_timeline_view
     assert view["reception"]["text"] == "접수 원문"
     assert view["count"] == 1
+
+
+def test_dashboard_legacy_anchor_reuses_sanitized_values(client, monkeypatch):
+    """행 루프는 이미 정리한 as_content/as_content_2 를 주입한다(행당 중복 sanitize 제거).
+
+    주입이 실제로 쓰이는지 증명하려고 sanitize 를 호출 카운터로 감싼다. as_content·as_content_2
+    각각 1회씩(표시용)만 돌아야 하고, legacy 앵커가 그 결과를 재파싱하면 카운트가 늘어난다.
+    """
+    import foms.services.as_dashboard_display as display_mod
+
+    order_id = _create_as_order(shipment_extra={
+        "as_content": "<div>옛 기록</div>", "as_content_2": "<div>탭2 기록</div>",
+    })
+    db_session.expire_all()
+    row = db_session.get(Order, order_id)
+
+    calls = []
+    real = display_mod.sanitize_as_content_html
+    monkeypatch.setattr(
+        display_mod, "sanitize_as_content_html",
+        lambda value: (calls.append(value), real(value))[1],
+    )
+    display_mod.apply_as_dashboard_row_display_fields([row], db_session, mobile_v2_active=False)
+
+    assert len(calls) == 2  # as_content 1 + as_content_2 1, legacy 앵커용 재파싱 0
+    legacy_ids = [e["id"] for e in row.as_timeline_view["legacy"]]
+    assert legacy_ids == ["al_legacy_as_content", "al_legacy_as_content_2"]
+    assert row.as_timeline_view["legacy"][0]["text"] == "<div>옛 기록</div>"
+
+
+def test_dashboard_legacy_anchor_ignores_notes_fallback(client):
+    """as_content_2 가 없을 때의 notes 화면 폴백이 legacy 앵커로 새면 안 된다."""
+    from foms.services.as_dashboard_display import apply_as_dashboard_row_display_fields
+
+    order_id = _create_as_order(shipment_extra={"as_content": "옛 기록"})
+    db_session.expire_all()
+    row = db_session.get(Order, order_id)
+    row.notes = "화면 폴백용 비고"
+    apply_as_dashboard_row_display_fields([row], db_session, mobile_v2_active=False)
+
+    assert row.as_content_2_html == "화면 폴백용 비고"  # 화면 폴백은 유지
+    legacy_ids = [e["id"] for e in row.as_timeline_view["legacy"]]
+    assert legacy_ids == ["al_legacy_as_content"]  # 타임라인엔 notes 없음
 
 
 # ---------------------------------------------------------------------------
@@ -182,6 +242,20 @@ def test_register_preserves_previous_content_as_legacy(client):
     assert [e["id"] for e in legacy] == ["al_legacy_as_content"]
     assert legacy[0]["text"] == "예전 AS 메모"
     assert log[-1]["type"] == "reception" and log[-1]["text"] == "새 접수 내용"
+
+
+def test_register_enforces_log_text_cap(client):
+    """접수 원문도 as_log 본문 캡(10,000자)을 지나야 한다 — register 가 우회로가 되면 안 된다."""
+    _login_as_admin(client, username="as-timeline-cap-register-admin")
+    order_id = _create_as_order(status="CS")
+
+    res = client.post(f"/api/orders/{order_id}/as/register", json={"as_content": "가" * 10001})
+    assert res.status_code == 400
+    assert res.get_json()["success"] is False
+
+    shipment = _shipment(order_id)
+    assert shipment.get("as_log") in (None, [])
+    assert shipment.get("as_content") in (None, "")  # 미저장(접수 자체가 거부)
 
 
 def test_register_without_content_creates_no_log_entry(client):

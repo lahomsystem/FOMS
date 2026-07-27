@@ -119,6 +119,35 @@ def test_legacy_entry_ids_are_deterministic():
     assert [e["id"] for e in sd["shipment"]["as_log"]] == expected  # 영구화 후에도 동일
 
 
+def test_sanitized_injection_skips_reparse():
+    """사전 정리값을 주입하면 shipment 원문을 다시 파싱하지 않는다(행 루프 중복 sanitize 제거).
+
+    주입값을 원문과 다르게 주고 주입값이 이겨야 재파싱이 없다는 증거가 된다. 주입을 무시하면 red.
+    """
+    sd = {"shipment": {"as_content": "<div>원문</div>", "as_content_2": "<div>탭2 원문</div>"}}
+
+    view = build_as_timeline_view(sd, sanitized=("주입 1번", "주입 2번"))
+    assert [e["text"] for e in view["legacy"]] == ["주입 1번", "주입 2번"]
+    assert [e["id"] for e in view["legacy"]] == ["al_legacy_as_content", "al_legacy_as_content_2"]
+
+    # 빈 주입값은 해당 legacy 항목을 만들지 않는다(as_content_2 없는 행)
+    only_first = build_as_timeline_view(sd, sanitized=("주입 1번", ""))
+    assert [e["id"] for e in only_first["legacy"]] == ["al_legacy_as_content"]
+
+    # 미주입은 기존 동작(원문 sanitize) 그대로
+    assert [e["text"] for e in build_as_timeline_view(sd)["legacy"]] == [
+        "<div>원문</div>", "<div>탭2 원문</div>",
+    ]
+
+
+def test_migrate_ignores_sanitized_injection_path():
+    """영구화(write) 경로는 주입 없이 shipment를 정본으로 읽는다 — 읽기 최적화가 저장값을 오염시키지 않는다."""
+    sd = {"shipment": {"as_content": "<div>옛 기록</div>"}}
+    build_as_timeline_view(sd, sanitized=("표시용 위조값", None))  # 읽기 뷰는 주입값 사용
+    assert migrate_legacy_into_log(sd) is True
+    assert sd["shipment"]["as_log"][0]["text"] == "<div>옛 기록</div>"  # 저장은 원문 기준
+
+
 def test_equal_ts_truncation_keeps_newest():
     """ts 동률 그룹에서 절단할 때 가장 최신(삽입 순서 뒤) 항목이 살아남는다."""
     sd = {"shipment": {"as_log": [_entry(i, "2026-07-20 10:00:00") for i in range(4)]}}

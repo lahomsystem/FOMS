@@ -303,11 +303,16 @@ def apply_as_dashboard_row_display_fields(rows, db, *, mobile_v2_active):
             shipment.get('construction_workers')
         )
         r.construction_workers_text = ', '.join(r.construction_workers)
-        # 타임라인 뷰(셀 요약·확장 fragment 공용). as_content_html은 legacy 폴백 렌더용으로 유지.
-        r.as_timeline_view = build_as_timeline_view(r.structured_data)
         r.as_content_html = sanitize_as_content_html(shipment.get('as_content'))
         has_secondary_as_content = 'as_content_2' in shipment
         secondary_as_content_html = sanitize_as_content_html(shipment.get('as_content_2'))
+        # 타임라인 뷰(셀 요약·확장 fragment 공용). as_content_html은 legacy 폴백 렌더용으로 유지.
+        # 방금 정리한 두 값을 주입해 legacy 앵커용 재-sanitize(행당 BeautifulSoup 파싱 2회)를 없앤다.
+        # notes 폴백 이전 값이어야 한다 — legacy 앵커는 as_content_2 원본만 보고, notes는 화면 폴백 전용.
+        r.as_timeline_view = build_as_timeline_view(
+            r.structured_data,
+            sanitized=(r.as_content_html, secondary_as_content_html),
+        )
         if not has_secondary_as_content and not secondary_as_content_html:
             secondary_as_content_html = sanitize_as_content_html(getattr(r, 'notes', '') or '')
         r.as_content_2_html = secondary_as_content_html

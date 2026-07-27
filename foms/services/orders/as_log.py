@@ -50,16 +50,33 @@ def build_as_log_entry(*, log_type: str, text: str, by: str, by_id: int | None) 
     }
 
 
-def _legacy_entries_from_content(shipment: dict) -> list[dict]:
+def _legacy_entries_from_content(
+    shipment: dict,
+    sanitized: tuple[str | None, str | None] | None = None,
+) -> list[dict]:
     """as_content/as_content_2를 읽기전용 legacy memo 항목으로 변환.
 
     id는 원본 필드에서 파생한 결정적 상수다. 렌더마다 재생성하면 같은 항목이
     매번 다른 id를 갖게 되어 DOM 키·중복 제거가 어긋나고, 영구화(migrate) 전후로
     id가 바뀌어 불연속이 생긴다. migrate도 이 헬퍼를 경유하므로 id가 그대로 이어진다.
+
+    Args:
+        shipment: sd['shipment'] dict.
+        sanitized: 호출자가 이미 정리한 ``(as_content, as_content_2)`` HTML. 주입하면
+            재-sanitize를 생략한다 — AS 대시보드 행 루프는 같은 두 값을 바로 뒤에서
+            또 sanitize하므로 행마다 BeautifulSoup 파싱이 2배로 들던 중복을 없앤다.
+            영구화(migrate) 경로는 주입 없이 shipment를 정본으로 읽는다.
+
+    Returns:
+        legacy memo 항목 리스트(내용이 없으면 빈 리스트).
     """
     out: list[dict] = []
-    for field, label in (("as_content", "이전 기록"), ("as_content_2", "이전 기록(탭2)")):
-        html = sanitize_as_content_html(shipment.get(field))
+    fields = (("as_content", "이전 기록"), ("as_content_2", "이전 기록(탭2)"))
+    for idx, (field, label) in enumerate(fields):
+        if sanitized is not None:
+            html = sanitized[idx]
+        else:
+            html = sanitize_as_content_html(shipment.get(field))
         if not html:
             continue
         out.append({
@@ -135,8 +152,23 @@ def decorate_entry(entry: dict) -> dict:
     return out
 
 
-def build_as_timeline_view(sd: dict | None, *, recent_limit: int = 8) -> dict[str, Any]:
-    """앵커(접수/legacy) + 역시간순 스트림 뷰. lazy 마이그레이션은 표시 시점 비파괴."""
+def build_as_timeline_view(
+    sd: dict | None,
+    *,
+    recent_limit: int = 8,
+    sanitized: tuple[str | None, str | None] | None = None,
+) -> dict[str, Any]:
+    """앵커(접수/legacy) + 역시간순 스트림 뷰. lazy 마이그레이션은 표시 시점 비파괴.
+
+    Args:
+        sd: 주문 structured_data.
+        recent_limit: 스트림 노출 개수 상한.
+        sanitized: 이미 정리한 ``(as_content, as_content_2)`` HTML(중복 sanitize 방지).
+            `_legacy_entries_from_content`로 그대로 전달된다.
+
+    Returns:
+        ``{reception, legacy, stream, stream_total, has_more, count}``.
+    """
     shipment = (sd or {}).get("shipment") or {}
     entries = shipment.get("as_log")
     reception: dict | None = None
@@ -155,7 +187,7 @@ def build_as_timeline_view(sd: dict | None, *, recent_limit: int = 8) -> dict[st
             else:
                 ranked.append((e.get("ts") or "", idx, e))
     else:
-        legacy = [decorate_entry(x) for x in _legacy_entries_from_content(shipment)]
+        legacy = [decorate_entry(x) for x in _legacy_entries_from_content(shipment, sanitized)]
     # ts 동률이면 삽입 인덱스로 tie-break. stable sort에 맡기면 동률 그룹이
     # 삽입 순서(오래된 것 우선)로 남아 recent_limit 절단 시 최신 항목이 탈락한다.
     ranked.sort(key=lambda item: (item[0], item[1]), reverse=True)
