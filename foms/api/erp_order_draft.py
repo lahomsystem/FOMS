@@ -2,8 +2,6 @@
 
 from __future__ import annotations
 
-import copy
-import datetime
 from foms.services.datetime_kst import now_utc_naive
 import re
 from typing import Any
@@ -29,17 +27,16 @@ from foms.services.order_draft_service import (
 )
 from foms.services.storage import get_storage
 from foms.services.datetime_kst import get_today_kst, now_kst
-from foms.services.erp_sync_columns import sync_erp_flat_columns
-from foms.services.jobs.queue import enqueue_geocode_order_address
 from foms.services.orders.estimate_defaults import (
     ERP_DRAFT_PLACEHOLDER_CUSTOMER,
     ERP_DRAFT_PLACEHOLDER_PHONE,
     ERP_DRAFT_PLACEHOLDER_PRODUCT,
 )
 from foms.services.orders.initial_workflow_stage import resolve_initial_workflow_stage
+from foms.services.orders.order_create import create_order
 from foms.services.orders.status_constants import STATUS
+from foms.services.sidefx_outbox import enqueue_side_effect
 from foms.web.auth import login_required, role_required
-from models import Order
 
 erp_order_draft_bp = Blueprint("erp_order_draft", __name__, url_prefix="/api/erp")
 
@@ -288,11 +285,78 @@ def api_put_order_draft() -> tuple[Any, int]:
     )
 
 
+def _draft_attachment_tmp_keys(payload: Any, folder_prefix: str) -> list[str]:
+    """Collect this draft's own uploaded attachment object keys from its payload.
+
+    Only keys under ``folder_prefix`` (this draft's storage folder) are returned, so
+    discard never targets a finalized order's or another draft's files.
+
+    Args:
+        payload: draft_v1 payload dict (``{"data": {"items": [...]}}``).
+        folder_prefix: this draft's storage folder path plus trailing slash.
+
+    Returns:
+        List of draft-scoped tmp_key object keys (possibly empty).
+    """
+    data = payload.get("data") if isinstance(payload, dict) else None
+    items = data.get("items") if isinstance(data, dict) else None
+    keys: list[str] = []
+    if not isinstance(items, list):
+        return keys
+    for item in items:
+        if not isinstance(item, dict):
+            continue
+        attachments = item.get("attachments")
+        if not isinstance(attachments, list):
+            continue
+        for raw in attachments:
+            if not isinstance(raw, dict):
+                continue
+            tmp_key = str(raw.get("tmp_key") or "").strip()
+            if tmp_key and tmp_key.startswith(folder_prefix):
+                keys.append(tmp_key)
+    return keys
+
+
+def _enqueue_draft_attachment_cleanup(db: Any, uid: int, draft_key: str, row: Any) -> int:
+    """Enqueue one STORAGE_DELETE outbox row per orphaned draft attachment (enqueue only).
+
+    The wizard draft is a WIZARD_PENDING side-effect source; the actual R2 delete is
+    performed by the SIDEFX worker's STORAGE_DELETE handler (not here).
+
+    Args:
+        db: business transaction session (caller owns commit).
+        uid: owning user id (draft storage folder scope).
+        draft_key: draft key (storage folder scope).
+        row: the OrderDraft row being discarded.
+
+    Returns:
+        Number of STORAGE_DELETE rows enqueued.
+    """
+    folder_prefix = draft_attachment_folder(uid, draft_key) + "/"
+    keys = _draft_attachment_tmp_keys(row.payload, folder_prefix)
+    for index, object_key in enumerate(keys):
+        enqueue_side_effect(
+            db,
+            source_domain="WIZARD_PENDING",
+            source_id=row.id,
+            effect_type="STORAGE_DELETE",
+            payload={"object_key": object_key, "order_id": row.order_id},
+            dedupe_key=f"order_draft:{row.id}:{index}",
+            provider_idempotency_key=f"order_draft:{row.id}:{index}",
+        )
+    return len(keys)
+
+
 @erp_order_draft_bp.route("/order-draft", methods=["DELETE"])
 @login_required
 @role_required(["ADMIN", "MANAGER", "STAFF"])
 def api_delete_order_draft() -> tuple[Any, int]:
-    """Discard draft after successful order save."""
+    """Discard a wizard draft: clean up its orphaned attachments and hard-delete the row.
+
+    Enqueues a STORAGE_DELETE outbox row per draft-scoped attachment tmp_key, then
+    hard-deletes only the draft row (finalized Orders are never touched) — all in one tx.
+    """
     blocked = _require_wizard()
     if blocked is not None:
         return blocked
@@ -306,7 +370,10 @@ def api_delete_order_draft() -> tuple[Any, int]:
         return jsonify({"success": False, "error": "UNAUTHORIZED"}), 401
 
     db = get_db()
-    delete_draft(db, uid, draft_key)
+    row = get_draft(db, uid, draft_key)
+    if row is not None:
+        _enqueue_draft_attachment_cleanup(db, uid, draft_key, row)
+        delete_draft(db, uid, draft_key)
     db.commit()
     return jsonify({"success": True}), 200
 
@@ -436,26 +503,30 @@ def api_submit_order_draft() -> tuple[Any, int]:
     )
     order_status = workflow_stage if workflow_stage in STATUS else "RECEIVED"
 
-    new_order = Order(
-        received_date=received_date,
-        received_time=received_time,
-        customer_name=cust_name,
-        phone=cust_phone,
-        address=addr,
-        product=prod,
-        options=None,
-        notes=(structured_data.get("notes") or None),
-        status=order_status,
+    # 정본 승격: raw Order 조립 대신 ORDER-CREATE-01 create_order 를 경유한다 —
+    # version=1·SALES owner 배정·ORDER_CREATED event·quest seed·item identity·server totals·
+    # GEOCODE outbox 를 한 tx 에 원자 조립하고(호출자가 commit), postcommit 직접 지오코드는
+    # 하지 않는다. self-service wizard 이므로 생성자(uid)가 owner 다.
+    new_order = create_order(
+        db,
+        actor_user_id=uid,
+        owner_user_id=uid,
+        order_fields=dict(
+            received_date=received_date,
+            received_time=received_time,
+            customer_name=cust_name,
+            phone=cust_phone,
+            address=addr,
+            product=prod,
+            options=None,
+            notes=(structured_data.get("notes") or None),
+            status=order_status,
+            raw_order_text="",
+            structured_confidence=None,
+        ),
+        structured_data=structured_data,
         is_erp_order=True,
-        raw_order_text="",
-        structured_data=copy.deepcopy(structured_data),
-        structured_schema_version=1,
-        structured_confidence=None,
-        structured_updated_at=datetime.datetime.now(),
     )
-    db.add(new_order)
-    db.flush()
-    sync_erp_flat_columns(new_order, structured_data)
     items_in = data.get("items") if isinstance(data.get("items"), list) else []
     promote_draft_attachments(
         db,
@@ -465,5 +536,4 @@ def api_submit_order_draft() -> tuple[Any, int]:
     )
     delete_draft(db, uid, draft_key)
     db.commit()
-    enqueue_geocode_order_address(new_order.id)
     return jsonify({"success": True, "data": {"order_id": new_order.id}}), 200
