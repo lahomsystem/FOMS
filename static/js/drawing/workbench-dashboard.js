@@ -191,19 +191,24 @@
     } else {
       params.delete('status');
     }
-    // Status stage click replaces quick filters (미확인/오늘 마감); do not stack.
+    // Status stage click replaces quick filters (미확인/지연/오늘 마감); do not stack.
     params.delete('unread');
     params.delete('due_today');
+    params.delete('overdue');
     params.delete('page');
     window.location.href = window.location.pathname + '?' + params.toString();
   }
 
   function navigatePipelineQuickFilter(filterType) {
     var params = new URLSearchParams(window.location.search);
+    // Quick filters are mutually exclusive; clear siblings before setting.
+    params.delete('unread');
+    params.delete('due_today');
+    params.delete('overdue');
     if (filterType === 'unread') {
       params.set('unread', '1');
     } else if (filterType === 'overdue') {
-      params.set('due_today', '1');
+      params.set('overdue', '1');
     }
     params.delete('page');
     window.location.href = window.location.pathname + '?' + params.toString();
