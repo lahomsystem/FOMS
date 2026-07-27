@@ -15,6 +15,7 @@ import shutil
 import subprocess
 import sys
 import time
+import types
 import os
 from pathlib import Path
 
@@ -82,19 +83,27 @@ def _usage_log(root: Path, msg: str) -> None:
         p.parent.mkdir(parents=True, exist_ok=True)
         with open(p, "a", encoding="utf-8") as f:
             f.write(f"{time.strftime('%Y-%m-%dT%H:%M:%S')} {msg}\n")
-    except OSError as exc:
+    except (OSError, ValueError) as exc:
         print(f"[warn] usage log 기록 실패: {exc}", file=sys.stderr)
 
 
-def _range_shas(wt: Path) -> list[str]:
-    """origin/deploy..HEAD SHA 목록(오래된 순, 소문자)."""
-    _, out = _git(wt, "log", "--reverse", "--format=%H", "origin/deploy..HEAD")
+def _range_shas(wt: Path, end_ref: str = "HEAD") -> list[str]:
+    """origin/deploy..<end_ref> SHA 목록(오래된 순, 소문자).
+
+    파라미터:
+        wt: 대상 worktree 경로.
+        end_ref: 범위 종점(기본 HEAD). rebase 직후 `--ledger-only` 복구
+            호출에서는 ORIG_HEAD(rebase 전 SHA)를 넘겨 소유 검증에 쓴다(F1).
+    """
+    _, out = _git(wt, "log", "--reverse", "--format=%H", f"origin/deploy..{end_ref}")
     return [s.strip().lower() for s in out.splitlines() if s.strip()]
 
 
-def _ledger():
-    """session_commit_ledger 모듈 지연 로드 (harness 디렉터리 sys.path 주입)."""
-    sys.path.insert(0, str(Path(__file__).resolve().parent))
+def _ledger() -> types.ModuleType:
+    """session_commit_ledger 모듈 지연 로드 (harness 디렉터리 sys.path 주입, 중복 삽입 방지)."""
+    harness_dir = str(Path(__file__).resolve().parent)
+    if harness_dir not in sys.path:
+        sys.path.insert(0, harness_dir)
     import session_commit_ledger
     return session_commit_ledger
 
@@ -141,20 +150,25 @@ def cmd_list(_args: argparse.Namespace) -> int:
     for it in rows:
         wt, branch = it["path"], it["branch"] or "(detached)"
         code, ahead = _git(wt, "rev-list", "--count", "origin/deploy..HEAD", check=False)
-        _, dirty = _git(wt, "status", "--porcelain", check=False)
+        _, dirty = _status_porcelain(wt)
         flags = ("locked " if it["locked"] else "") + ("dirty" if dirty else "clean")
         print(f"{wt}  {branch}  ahead={ahead if code == 0 else '?'}  {flags}")
     return EXIT_OK
 
 
-def _status_porcelain(wt: Path) -> tuple[int, str]:
-    """worktree dirty 판정. harness 자체 부기 경로(docs/harness/runtime)는 제외한다.
+# harness 자체 부기 파일(SSOT: session_commit_ledger.py / 본 파일 USAGE_LOG) —
+# 사용자 미커밋 변경과 혼동하지 않도록 dirty 판정에서 제외한다. 디렉터리 전체가
+# 아니라 알려진 파일 2개(+ledger의 .tmp)로 좁혀, 향후 그 경로에 추가될 다른
+# 파일까지 조용히 가려버리는 일을 막는다(F4).
+_LEDGER_STATUS_EXCLUDES = (
+    ":!docs/harness/runtime/session_commit_ledger.json*",
+    ":!docs/harness/runtime/session_worktree_usage.log",
+)
 
-    append_commit(session_commit_ledger)이 worktree 내부에 자체 ledger 파일을
-    쓰므로(정상 repo는 .gitignore로 걸러지나, 옛 커밋 기반 worktree는 그 항목이
-    없을 수 있다) 사용자 미커밋 변경과 혼동하지 않도록 pathspec으로 제외한다.
-    """
-    return _git(wt, "status", "--porcelain", "--", ".", ":!docs/harness/runtime", check=False)
+
+def _status_porcelain(wt: Path) -> tuple[int, str]:
+    """worktree dirty 판정. harness 자체 부기 파일(ledger·usage log)은 제외한다."""
+    return _git(wt, "status", "--porcelain", "--", ".", *_LEDGER_STATUS_EXCLUDES, check=False)
 
 
 def _rebase_in_progress(wt: Path) -> bool:
@@ -170,8 +184,14 @@ def _rebase_in_progress(wt: Path) -> bool:
 def cmd_sync(args: argparse.Namespace) -> int:
     """fetch + rebase origin/deploy + ledger 갱신. 세션 worktree 전용.
 
-    소유 검증: rebase 전 범위가 이 worktree ledger union의 부분집합일 때만
-    진행한다 — cherry-pick/merge로 유입된 타 세션 커밋의 세탁 차단.
+    소유 검증: 최초 호출(rebase 전)은 현재 HEAD 범위로 검증한다. rebase는
+    커밋 SHA를 재작성하므로, 충돌 해결 후 `--ledger-only`로 재호출하는
+    복구 경로는 그 SHA가 항상 ledger 밖(unknown)이 되어 매번 --allow-foreign을
+    요구하게 된다(F1) — 이를 막기 위해 `--ledger-only` && ORIG_HEAD 존재 시엔
+    검증 범위를 ORIG_HEAD(rebase 전 HEAD)로 계산한다. ORIG_HEAD가 없으면(사전
+    rebase 없이 직접 --ledger-only 호출) 기존처럼 현재 HEAD 범위로 검증해
+    우회 구멍을 만들지 않는다. cherry-pick/merge로 유입된 타 세션 커밋의
+    세탁은 두 경로 모두 여전히 차단된다.
     """
     wt = Path(args.path).resolve() if args.path else repo_root()
     if not wt.name.lower().startswith(WT_PREFIX):
@@ -187,7 +207,10 @@ def cmd_sync(args: argparse.Namespace) -> int:
         print("[refuse] 미커밋 변경 존재 — 커밋 후 sync 재시도", file=sys.stderr)
         return EXIT_REFUSE
 
-    pre = _range_shas(wt)
+    verify_ref = "HEAD"
+    if args.ledger_only and _git(wt, "rev-parse", "--verify", "ORIG_HEAD", check=False)[0] == 0:
+        verify_ref = "ORIG_HEAD"
+    pre = _range_shas(wt, verify_ref)
     union = scl.all_known_shas(str(wt))
     unknown = [s for s in pre if not scl.sha_in_list(s, union)]
     if unknown and not args.allow_foreign:
@@ -215,10 +238,15 @@ def cmd_cleanup(args: argparse.Namespace) -> int:
     """세션 worktree 정리. 기본 dry-run 보고, --remove 시 clean+merged만 제거."""
     root = repo_root()
     _git(root, "fetch", "origin", "deploy", check=False)
+    rows = session_worktrees(root)
+    force_target = Path(args.force_path).resolve() if args.force_path else None
+    if force_target is not None and not any(it["path"] == force_target for it in rows):
+        print(f"[refuse] --force-path 대상이 세션 worktree 목록에 없음: {force_target}", file=sys.stderr)
+        return EXIT_REFUSE
     cwd = Path.cwd().resolve()
-    for it in session_worktrees(root):
+    for it in rows:
         wt, branch, locked = it["path"], it["branch"], it["locked"]
-        force_this = bool(args.force_path) and Path(args.force_path).resolve() == wt
+        force_this = force_target is not None and force_target == wt
         if cwd == wt or wt in cwd.parents:
             print(f"[keep] {wt} — 현재 셸 cwd 내부 (다른 창에서 실행)")
             continue
@@ -265,13 +293,26 @@ def _safe_remove(root: Path, wt: Path, branch: str) -> None:
     print(f"[removed] {wt} ({branch})")
 
 
+def _untracked_files(wt: Path) -> list[str]:
+    """미추적 파일 목록(전부, 하위 디렉터리 포함) — stash create 미커버 확인용."""
+    _, out = _git(wt, "status", "--porcelain", "--untracked-files=all", check=False)
+    return [line[3:] for line in out.splitlines() if line.startswith("??")]
+
+
 def _force_remove(root: Path, wt: Path, branch: str | None) -> None:
     """dirty/unmerged 강제 제거 — dirty는 stash create로 dangling 백업, 브랜치는 보존+백업 ref."""
     _, stash_sha = _git(wt, "stash", "create", check=False)
     if stash_sha:
         print(f"[backup] 미커밋 변경 dangling 커밋 {stash_sha} — 복구: git stash store {stash_sha}")
     else:
-        print("[warn] stash create 결과 없음 — 미추적 신규 파일은 백업되지 않는다")
+        print("[warn] stash create 결과 없음 — 추적 변경 없음(미추적 신규 파일은 아래 별도 확인)")
+    untracked = _untracked_files(wt)
+    if untracked:
+        preview = ", ".join(untracked[:10])
+        more = f" 외 {len(untracked) - 10}개" if len(untracked) > 10 else ""
+        print(f"[warn] 미추적 파일 {len(untracked)}개는 stash에 포함되지 않아 백업되지 않음: {preview}{more}")
+        # ponytail: stash create는 untracked 미포함. `git stash push -u`로 별도 백업 가능하나
+        # 공유 stash 오염 금지 규칙상 자동 실행하지 않는다 — 필요하면 --force-path 전 수동 백업.
     if branch:
         stamp = time.strftime("%Y%m%d-%H%M%S")
         backup = f"backup/{branch.replace('/', '-')}-{stamp}"
@@ -283,7 +324,10 @@ def _force_remove(root: Path, wt: Path, branch: str | None) -> None:
         shutil.rmtree(wt, ignore_errors=True)  # push_own_session_commits._cleanup과 동일 폴백
         _git(root, "worktree", "prune", check=False)
     _usage_log(root, f"force-remove {wt}")
-    print(f"[removed:force] {wt} — 브랜치 보존({branch})")
+    if wt.exists():
+        print(f"[warn] {wt} — 강제 제거 미완료(파일 잠금 추정), 수동 확인 필요. 브랜치는 보존됨({branch})", file=sys.stderr)
+    else:
+        print(f"[removed:force] {wt} — 브랜치 보존({branch})")
 
 
 def main(argv: list[str] | None = None) -> int:

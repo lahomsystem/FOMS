@@ -200,3 +200,65 @@ def test_cleanup_keeps_non_session_branch(repo: Path, tmp_path: Path) -> None:
     r = _run(repo, "cleanup", "--remove")
     assert r.returncode == 0
     assert wt.exists()
+
+
+# ---- 리뷰 반영 (fix round 1) ----
+
+def test_cleanup_force_path_backs_up_and_removes_dirty(repo: Path, tmp_path: Path) -> None:
+    """--force-path: dirty worktree도 강제 제거하되 브랜치 백업 ref를 남기고 원 브랜치는 보존한다."""
+    wt = _make_wt(repo, tmp_path, "t12")
+    (wt / "wip.txt").write_text("wip", encoding="utf-8")
+    r = _run(repo, "cleanup", "--force-path", str(wt), "--yes")
+    assert r.returncode == 0, r.stderr
+    assert not wt.exists()
+    assert "session/t12" in _git(repo, "branch", "--list", "session/t12")
+    assert "backup/session-t12-" in _git(repo, "branch", "--list", "backup/session-t12-*")
+
+
+def test_cleanup_force_path_mismatch_refuses(repo: Path, tmp_path: Path) -> None:
+    """--force-path 대상이 세션 worktree 목록에 없으면 exit 2로 거부한다(F2)."""
+    _make_wt(repo, tmp_path, "t13")
+    bogus = tmp_path / "wts" / "foms-s-does-not-exist"
+    r = _run(repo, "cleanup", "--force-path", str(bogus), "--yes")
+    assert r.returncode == 2
+
+
+def test_sync_conflict_then_ledger_only_recovers_and_scope_is_own(repo: Path, tmp_path: Path) -> None:
+    """F1 회귀: rebase 충돌 → 해결 → `sync --ledger-only`가 ORIG_HEAD 기준으로 own 판정을 유지한다."""
+    import session_commit_ledger as scl
+    from deploy_push_scope import classify_deploy_scope
+
+    wt = _make_wt(repo, tmp_path, "t14")
+    (wt / "a.txt").write_text("session-side", encoding="utf-8")
+    _git(wt, "add", "a.txt")
+    _git(wt, "commit", "-m", "session edits a.txt")
+    mine = _git(wt, "rev-parse", "HEAD")
+    scl.append_commit(str(wt), "sid1", mine)
+
+    # 타 세션이 동일 파일을 수정 후 deploy에 반영 — rebase 충돌 유도
+    (repo / "a.txt").write_text("other-side", encoding="utf-8")
+    _git(repo, "add", "a.txt")
+    _git(repo, "commit", "-m", "other session edits a.txt")
+    _git(repo, "push", "origin", "deploy")
+
+    r = _run(wt, "sync")
+    assert r.returncode == 3, r.stdout + r.stderr  # EXIT_CONFLICT
+
+    # 충돌 해결 후 계속
+    (wt / "a.txt").write_text("resolved", encoding="utf-8")
+    _git(wt, "add", "a.txt")
+    _git(wt, "-c", "core.editor=true", "rebase", "--continue")
+
+    r2 = _run(wt, "sync", "--ledger-only")
+    assert r2.returncode == 0, r2.stdout + r2.stderr
+    assert classify_deploy_scope(str(wt), "sid1").kind == "own"
+
+
+def test_cleanup_keeps_locked(repo: Path, tmp_path: Path) -> None:
+    """locked worktree는 --remove에도 불가침이다."""
+    wt = _make_wt(repo, tmp_path, "t15")
+    _git(repo, "worktree", "lock", str(wt))
+    r = _run(repo, "cleanup", "--remove")
+    assert r.returncode == 0
+    assert wt.exists()
+    assert "locked" in r.stdout
