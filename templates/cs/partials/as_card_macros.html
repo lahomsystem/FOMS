@@ -86,10 +86,15 @@
       title="영업/전달 분류 토글 후 탭 이동">{{ '☑' if is_sales_delivery else '☐' }} 영업/전달</button>
   </div>
   {% endif %}
-  {# 앵커: 접수 원문(우선) 또는 legacy #}
+  {# 앵커: 접수 원문 + legacy. 둘은 **배타가 아니다** — 기존 as_content 주문을 재접수하면
+     한 요청이 legacy 를 굳히고 reception 을 append 해 공존한다. legacy 는 스트림에 실리지
+     않으므로(앵커 전용) elif 로 묶으면 이전 기록이 어디에도 안 그려졌다. 셀 배지 count 는
+     reception+legacy+stream 을 모두 세므로 수치와 화면이 어긋나는 회귀이기도 하다.
+     순서는 접수 원문이 위, 이전 기록이 아래(최신 맥락 우선). #}
   {% if v.reception %}
   <div class="as-timeline__anchor">{{ render_as_timeline_entry(v.reception, can_edit) }}</div>
-  {% elif v.legacy %}
+  {% endif %}
+  {% if v.legacy %}
   <div class="as-timeline__anchor as-timeline__anchor--legacy">
     {% for e in v.legacy %}{{ render_as_timeline_entry(e, can_edit) }}{% endfor %}
   </div>

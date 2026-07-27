@@ -85,6 +85,25 @@ def test_timeline_fragment_renders(client):
     assert 'data-log-id="al_1"' in body
 
 
+def test_timeline_fragment_renders_legacy_alongside_reception(client):
+    """legacy 와 reception 이 공존해도 legacy 가 화면에서 사라지지 않는다.
+
+    기존 as_content 주문을 재접수하면 한 요청이 legacy 를 굳히고 reception 을 append 한다.
+    legacy 는 스트림에 없으므로(앵커 전용) 앵커가 `if reception / elif legacy` 배타 분기면
+    이전 기록이 **어디에도** 렌더되지 않는다 — 셀 배지 count 는 둘 다 세므로 수치와 화면이 어긋난다.
+    """
+    _login_as_admin(client, username="as-timeline-legacy-coexist-admin")
+    order_id = _create_as_order(status="CS", shipment_extra={"as_content": "옛 기록 본문"})
+
+    res = client.post(f"/api/orders/{order_id}/as/register", json={"as_content": "새 접수 본문"})
+    assert res.status_code == 200, res.get_data(as_text=True)
+
+    body = client.get(f"/erp/as/timeline/{order_id}").get_data(as_text=True)
+    assert "새 접수 본문" in body
+    assert "옛 기록 본문" in body
+    assert 'data-log-id="al_legacy_as_content"' in body
+
+
 def test_timeline_fragment_full_param_lifts_recent_limit(client):
     """기본은 최근 8건만, `?full=1` 이면 전량. 절단된 오래된 항목으로 분기를 증명한다."""
     _login_as_admin(client, username="as-timeline-full-admin")

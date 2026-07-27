@@ -526,3 +526,118 @@ def test_billing_switch_system_log_escapes_reason(client):
     text = _system_texts(order_id)[0]
     assert "<img" not in text and "&lt;img" in text
     assert "현장 과실" in text
+
+
+# ---------------------------------------------------------------------------
+# ERP 폼 PUT 이 as_log 를 stale 스냅샷으로 덮지 못한다
+# ---------------------------------------------------------------------------
+
+
+def _erp_form_structured(stale_shipment: dict) -> dict:
+    """ERP 편집 폼이 PUT 으로 되돌려 보내는 페이로드(shipment 는 페이지 로드 시점 스냅샷)."""
+    return {
+        "workflow": {"stage": "AS_RECEIVED"},
+        "shipment": stale_shipment,
+        "parties": {"customer": {"name": "AS 로그 고객", "phone": "010-1234-5678"}},
+        "items": [{"product_name": "붙박이장"}],
+        "site": {"address_full": "Seoul", "address_main": "Seoul", "address_detail": ""},
+    }
+
+
+def test_structured_put_cannot_clobber_as_log(client):
+    """편집 폼의 stale as_log 스냅샷이 서버 항목을 지우지 못한다(lost update).
+
+    deep-merge 는 리스트를 incoming 으로 통째 교체하므로, 편집 탭을 열어둔 사이 추가된
+    기록이 폼 저장 한 번에 사라졌다. as_log 는 AS 전용 API 소관이라 항상 DB 값이 이긴다.
+    """
+    import copy
+
+    _login_as_admin(client, username="as-log-stale-put-admin")
+    order_id = _create_as_order(shipment_extra={"as_content": "문틀"}).id
+    assert client.post(f"/api/orders/{order_id}/as/log",
+                       json={"type": "call", "text": "고객 통화"}).status_code == 200
+    saved = copy.deepcopy(_as_log(order_id))
+
+    res = client.put(
+        f"/api/orders/{order_id}/structured",
+        json={"structured_data": _erp_form_structured({"as_content": "문틀", "as_log": []})},
+    )
+    assert res.status_code == 200 and res.get_json()["success"] is True
+
+    assert _as_log(order_id) == saved
+
+
+def test_register_then_form_save_keeps_new_entries(client):
+    """접수 모달은 register 성공 직후 erpSaveStructured() 를 호출한다(결정적 발현 경로).
+
+    그 PUT 이 실어 보내는 shipment 는 페이지 로드 시점 스냅샷이라 as_log 가 재접수 이전
+    상태다 — 가드가 없으면 방금 만든 reception/system 항목이 즉시 소실된다.
+    """
+    _login_as_admin(client, username="as-log-register-save-admin")
+    stale_log = [{"id": "al_old", "ts": "2026-07-01T00:00:00", "by": "김", "by_id": None,
+                  "type": "memo", "text": "이전 기록"}]
+    order_id = _create_as_order(
+        status="CS", shipment_extra={"as_log": [dict(stale_log[0])]}).id
+
+    assert client.post(f"/api/orders/{order_id}/as/register",
+                       json={"as_content": "문짝 처짐"}).status_code == 200
+
+    res = client.put(
+        f"/api/orders/{order_id}/structured",
+        json={"structured_data": _erp_form_structured(
+            {"as_content": "문짝 처짐", "as_log": stale_log})},
+    )
+    assert res.status_code == 200 and res.get_json()["success"] is True
+
+    assert [e["type"] for e in _as_log(order_id)] == ["memo", "reception", "system"]
+
+
+# ---------------------------------------------------------------------------
+# 재접수 중복 reception 방지 · 원문 크기 선가드
+# ---------------------------------------------------------------------------
+
+
+def test_register_skips_unedited_duplicate_reception(client):
+    """재접수 모달은 기존 as_content 를 프리필한다 — 무편집 제출이 같은 본문을 또 쌓지 않는다.
+
+    접수 "사실"은 여전히 system 이벤트로 남는다(접수 자체를 거부하는 게 아니다).
+    본문을 실제로 고쳤다면 새 reception 이 정상 append 된다.
+    """
+    _login_as_admin(client, username="as-log-dup-reception-admin")
+    order_id = _create_as_order(status="CS").id
+
+    for _ in range(2):
+        assert client.post(f"/api/orders/{order_id}/as/register",
+                           json={"as_content": "문짝 처짐"}).status_code == 200
+    assert [e["type"] for e in _as_log(order_id)] == ["reception", "system", "system"]
+
+    assert client.post(f"/api/orders/{order_id}/as/register",
+                       json={"as_content": "문짝 처짐 + 경첩 파손"}).status_code == 200
+    receptions = [e["text"] for e in _as_log(order_id) if e["type"] == "reception"]
+    assert receptions == ["문짝 처짐", "문짝 처짐 + 경첩 파손"]
+
+
+def test_log_append_rejects_oversized_raw_before_parsing(client, monkeypatch):
+    """원문 크기 선가드는 sanitize(BeautifulSoup) 파싱 **앞**에 있어야 한다.
+
+    상한(10,000자)은 sanitize 결과에 걸리므로, 그 전까지 수 MB 페이로드를 전부 파싱했다.
+    """
+    import foms.api.cs.as_orders as as_orders_mod
+
+    parsed = []
+    monkeypatch.setattr(
+        as_orders_mod, "sanitize_as_content_html",
+        lambda value: (parsed.append(value), "")[1],
+    )
+    _login_as_admin(client, username="as-log-rawcap-admin")
+    order_id = _create_as_order().id
+
+    res = client.post(f"/api/orders/{order_id}/as/log",
+                      json={"type": "memo", "text": "a" * 100_001})
+    assert res.status_code == 400 and res.get_json()["success"] is False
+    assert parsed == []
+
+    res = client.post(f"/api/orders/{order_id}/as/register",
+                      json={"as_content": "a" * 100_001})
+    assert res.status_code == 400 and res.get_json()["success"] is False
+    assert parsed == []

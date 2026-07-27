@@ -324,14 +324,17 @@ def api_as_register(order_id):
             return jsonify({"success": False, "message": "주문을 찾을 수 없습니다."}), 404
 
         data = request.get_json(silent=True) or {}
-        as_content = sanitize_as_content_html(data.get("as_content"))
-        if as_content:
-            # 접수 원문도 reception 로그가 되므로 quick-add와 같은 본문 캡을 지나야 한다
-            # (안 그러면 register가 AS_LOG_TEXT_MAX 우회로가 된다). 빈 값은 register 계약상 허용.
-            try:
+        try:
+            # 파싱 전 원문 크기 선가드. register 는 자체 sanitize 가 먼저라 _clean_as_log_text
+            # 안의 선가드만으로는 거대 페이로드가 이미 한 번 파싱된 뒤다.
+            _guard_as_log_raw_size(data.get("as_content"))
+            as_content = sanitize_as_content_html(data.get("as_content"))
+            if as_content:
+                # 접수 원문도 reception 로그가 되므로 quick-add와 같은 본문 캡을 지나야 한다
+                # (안 그러면 register가 AS_LOG_TEXT_MAX 우회로가 된다). 빈 값은 register 계약상 허용.
                 as_content = _clean_as_log_text(as_content)
-            except ValueError as ve:
-                return jsonify({"success": False, "message": str(ve)}), 400
+        except ValueError as ve:
+            return jsonify({"success": False, "message": str(ve)}), 400
         source_screen = str(data.get("source_screen") or "").strip()
 
         # 지방주문 AS 재상차용 상차일(optional). 값이 있으면 YYYY-MM-DD 검증 후 컬럼에 저장.
@@ -358,7 +361,17 @@ def api_as_register(order_id):
         # 접수 원문을 첫 reception 항목으로 남긴다. as_content 덮어쓰기보다 **앞**이어야 한다 —
         # 위 마이그레이션이 shipment["as_content"]를 legacy로 굳히므로, 뒤에 두면 방금 쓴
         # 접수 원문이 legacy(이전 기록)로 중복 시드된다.
-        if as_content:
+        #
+        # 재접수 모달은 기존 as_content 를 프리필한다(erp-order-shared.js) — 무편집 제출이면
+        # 같은 본문이 그대로 돌아온다. 그 본문은 직전 reception 또는 방금 굳힌 legacy 로 이미
+        # 로그에 있으므로 append 하면 append-only 리스트에 영구 중복이 남는다. "as_content 가
+        # 그대로 + 같은 본문이 로그에 이미 존재" 둘 다일 때만 건너뛴다(내용을 실제로 고쳤거나
+        # 로그에 없는 원문이면 정상 append). 접수 "사실"은 아래 system 이벤트가 계속 남긴다.
+        already_logged = bool(as_content) and as_content == shipment.get("as_content") and any(
+            isinstance(e, dict) and e.get("text") == as_content
+            for e in (shipment.get("as_log") or [])
+        )
+        if as_content and not already_logged:
             append_client_log(
                 sd, log_type="reception", text=as_content,
                 by=(user.name if user else ""), by_id=(user.id if user else None))
@@ -617,8 +630,21 @@ def _render_as_log_entry(entry: dict) -> str:
 # as_log는 append-only라 항목당 상한이 없으면 sd가 무한히 커진다(도면 위저드 64KB 캡 선례).
 # 상한 값의 SSOT는 as_log.AS_LOG_TEXT_MAX(생성 지점 봉인)다 — 여기서 사본을 두면 한쪽만 올렸을 때
 # 라우트는 통과시키고 build_as_log_entry가 조용히 잘라 사용자가 유실을 모른다.
+# 원문(sanitize 전) 상한. AS_LOG_TEXT_MAX 는 **정리된 결과**에 걸리므로 그때까지 수 MB
+# 페이로드를 BeautifulSoup 이 전부 파싱한다 — 파싱 자체가 비용이라 진입부에서 먼저 자른다.
+# 태그·엔티티 오버헤드를 넉넉히 잡아 결과 상한의 10배.
+AS_LOG_RAW_MAX = 100_000
+
+
+def _guard_as_log_raw_size(raw: object) -> None:
+    """sanitize 파싱 **앞**에서 원문 크기를 자른다. 초과는 ValueError(호출부에서 400)."""
+    if len(str(raw or "")) > AS_LOG_RAW_MAX:
+        raise ValueError("내용이 너무 깁니다.")
+
+
 def _clean_as_log_text(raw: object) -> str:
     """AS 기록 본문 sanitize + 길이 검증. 위반은 ValueError(호출부에서 400)."""
+    _guard_as_log_raw_size(raw)
     text = sanitize_as_content_html(raw)
     if not text:
         raise ValueError("내용을 입력해주세요.")
