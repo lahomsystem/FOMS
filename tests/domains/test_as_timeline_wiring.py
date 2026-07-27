@@ -450,20 +450,56 @@ def test_retired_editor_styles_are_deleted():
     assert "mark.as-search-highlight" in css
 
 
-def test_timeline_type_chip_colors_match_spec():
-    """유형 칩 색 = 스펙 §5.5 (접수 남색·통화 파랑·방문/조치 초록·자재 주황·일정 보라·메모 회색)."""
+def _relative_luminance(hex_color: str) -> float:
+    """WCAG 상대 휘도."""
+    channels = (int(hex_color[i:i + 2], 16) / 255 for i in (1, 3, 5))
+    linear = [c / 12.92 if c <= 0.03928 else ((c + 0.055) / 1.055) ** 2.4 for c in channels]
+    return 0.2126 * linear[0] + 0.7152 * linear[1] + 0.0722 * linear[2]
+
+
+def _chip_colors() -> dict[str, str]:
+    """CSS 에서 유형별 칩 배경색을 뽑는다."""
     css = _css(_BODY_CSS)
-    for selector, color in (
-        (".as-tl-chip--reception", "#1e3a8a"),
-        (".as-tl-chip--call", "#2563eb"),
-        (".as-tl-chip--action", "#16a34a"),
-        (".as-tl-chip--material", "#f59e0b"),
-        (".as-tl-chip--schedule", "#7c3aed"),
-        (".as-tl-chip--memo", "#6b7280"),
-    ):
-        rule = css.split(selector, 1)
-        assert len(rule) == 2, selector
-        assert color in rule[1].split("}", 1)[0], (selector, color)
+    out: dict[str, str] = {}
+    for chunk in css.split(".as-tl-chip--")[1:]:
+        name = chunk.split(" ", 1)[0].split("{", 1)[0].strip()
+        block = chunk.split("{", 1)[1].split("}", 1)[0]
+        out[name] = block.split("background:", 1)[1].split(";", 1)[0].strip()
+    return out
+
+
+def test_timeline_type_chip_colors_match_spec():
+    """유형 칩 색 = 스펙 §5.5 색상군 + system 폴백.
+
+    action·material 은 스펙의 원래 값(#16a34a·#f59e0b)이 흰 글자 대비 AA 미달이라
+    같은 색상군의 진한 단계로 내렸다(아래 대비 테스트가 근거).
+    """
+    colors = _chip_colors()
+    assert colors == {
+        "reception": "#1e3a8a",
+        "call": "#2563eb",
+        "action": "#15803d",
+        "material": "#b45309",
+        "schedule": "#7c3aed",
+        "memo": "#6b7280",
+        "system": "#64748b",
+    }
+
+
+def test_timeline_chips_meet_wcag_aa_on_white_text():
+    """칩 글자는 0.7rem 굵게 — large-text 완화(3:1) 대상이 아니라 4.5:1 을 넘겨야 한다."""
+    white = _relative_luminance("#ffffff")
+    for name, color in _chip_colors().items():
+        bg = _relative_luminance(color)
+        ratio = (max(white, bg) + 0.05) / (min(white, bg) + 0.05)
+        assert ratio >= 4.5, f"{name} {color} = {ratio:.2f}:1"
+
+
+def test_chip_has_fallback_background():
+    """미지 type 이 와도 투명 칩(흰 배경 + 흰 글자)이 되지 않아야 한다."""
+    block = _css(_BODY_CSS).split(".as-tl-chip {", 1)[1].split("}", 1)[0]
+    assert "background:" in block
+    assert "color: #fff" in block
 
 
 def test_timeline_new_classes_are_styled():
@@ -530,6 +566,55 @@ def test_cell_summary_keeps_block_boundaries(client):
     assert "접수앞줄접수뒷줄" not in cell
     assert "최근앞줄 최근뒷줄" in cell
     assert "최근앞줄최근뒷줄" not in cell
+
+
+def test_cell_recent_mirrors_system_icon_branch(client):
+    """셀 요약의 최근 1건이 시스템이면 칩이 아니라 아이콘 — 전체 매크로와 표기가 갈리면 안 된다."""
+    _login_as_admin(client, username="as_cell_system_admin")
+    _create_as_order("셀 시스템", shipment_extra={"as_log": [
+        {"id": "al_m", "ts": "2026-07-24T01:00:00", "by": "김", "by_id": None,
+         "type": "memo", "text": "수기 메모"},
+        {"id": "al_s", "ts": "2026-07-24T09:00:00", "by": "시스템", "by_id": None,
+         "type": "system", "text": "AS 방문일이 확정되었습니다."},
+    ]})
+
+    body = client.get("/erp/as").get_data(as_text=True)
+    cell = body.split('class="as-tl-cell"', 1)[1].split("</table>", 1)[0]
+    assert "as-tl-item__sysicon" in cell
+    assert "as-tl-chip--system" not in cell  # 아이콘 분기를 탔으면 칩은 안 나온다
+
+
+def test_plain_text_entries_skip_html_parsing():
+    """평문 기록은 BeautifulSoup 없이 처리되고, 결과는 파싱 경로와 완전히 같아야 한다."""
+    import foms.services.as_content_safety as safety
+
+    calls = []
+    original = safety.BeautifulSoup
+
+    def counting(*args, **kwargs):
+        calls.append(args[0] if args else "")
+        return original(*args, **kwargs)
+
+    safety.BeautifulSoup = counting
+    try:
+        # 평문: 파싱 0회
+        assert safety.as_content_html_to_text("평문 기록", already_sanitized=True) == "평문 기록"
+        assert calls == []
+        # 개행 보존은 fast path 에서도 동일
+        assert safety.as_content_html_to_text("앞줄\n뒷줄", already_sanitized=True) == "앞줄\n뒷줄"
+        assert calls == []
+        # 태그·엔티티가 있으면 fast path 를 타지 않는다
+        assert safety.as_content_html_to_text(
+            "<div>앞</div><div>뒤</div>", already_sanitized=True) == "앞\n뒤"
+        assert len(calls) == 1
+        assert safety.as_content_html_to_text("a &amp; b", already_sanitized=True) == "a & b"
+        assert len(calls) == 2
+        # already_sanitized=False 는 언제나 sanitize+파싱 경로
+        calls.clear()
+        assert safety.as_content_html_to_text("평문 기록") == "평문 기록"
+        assert calls, "원본 입력은 `<`가 없어도 sanitize 를 건너뛰면 안 된다"
+    finally:
+        safety.BeautifulSoup = original
 
 
 def test_sales_delivery_handler_uses_order_id_dataset():

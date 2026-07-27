@@ -130,8 +130,15 @@
   <div class="as-tl-cell__anchor text-truncate">{{ v.cell_anchor_text }}</div>
   {% endif %}
   {% if v.stream %}
+  {% set recent = v.stream[0] %}
+  {# 시스템 항목은 전체 매크로와 동일하게 칩 대신 아이콘 — 표면마다 표기가 갈리지 않게 미러링.
+     CSS 쪽 .as-tl-chip--system 과 이중 방어다(한쪽이 빠져도 흰 글자가 사라지지 않는다). #}
   <div class="as-tl-cell__recent text-truncate">
-    <span class="as-tl-chip as-tl-chip--{{ v.stream[0].type }}">{{ v.stream[0].type_label }}</span>
+    {% if recent.is_system %}
+    <i class="fas fa-gear as-tl-item__sysicon" aria-hidden="true"></i>
+    {% else %}
+    <span class="as-tl-chip as-tl-chip--{{ recent.type }}">{{ recent.type_label }}</span>
+    {% endif %}
     {{ v.cell_recent_text }}
   </div>
   {% endif %}

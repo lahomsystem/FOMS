@@ -110,7 +110,13 @@
     font-weight: 600;
   }
 
-  /* 유형 칩 색 — 스펙 §5.5. 시스템 항목은 칩 대신 아이콘 + 옅은 배경으로 수기와 분리한다. */
+  /* 유형 칩 색 — 스펙 §5.5. 목록 표면(전체 매크로)은 시스템을 칩 대신 아이콘으로 내지만,
+     셀 요약은 최근 1건이 시스템일 수 있어 --system 도 실재해야 한다(무배경 = 흰 글자 실종).
+     기본 background 는 미지 type 폴백 — 새 유형이 늘어도 투명 칩이 되지 않는다.
+
+     흰 글자 기준 WCAG AA(4.5:1)를 전 색상이 통과한다. 칩 글자는 0.7rem 굵게라
+     large-text 완화(3:1) 대상이 아니다. action·material 은 스펙의 원래 값
+     (#16a34a 3.30:1 / #f59e0b 2.15:1)이 미달이라 같은 색상군의 진한 단계로 내렸다. */
   .as-tl-chip {
     display: inline-block;
     padding: 0 6px;
@@ -119,14 +125,16 @@
     font-weight: 700;
     line-height: 1.6;
     color: #fff;
+    background: #6b7280;
   }
 
-  .as-tl-chip--reception { background: #1e3a8a; }
-  .as-tl-chip--call { background: #2563eb; }
-  .as-tl-chip--action { background: #16a34a; }
-  .as-tl-chip--material { background: #f59e0b; }
-  .as-tl-chip--schedule { background: #7c3aed; }
-  .as-tl-chip--memo { background: #6b7280; }
+  .as-tl-chip--reception { background: #1e3a8a; }  /* 10.36:1 */
+  .as-tl-chip--call { background: #2563eb; }       /*  5.17:1 */
+  .as-tl-chip--action { background: #15803d; }     /*  5.02:1 */
+  .as-tl-chip--material { background: #b45309; }   /*  5.02:1 */
+  .as-tl-chip--schedule { background: #7c3aed; }   /*  5.70:1 */
+  .as-tl-chip--memo { background: #6b7280; }       /*  4.83:1 */
+  .as-tl-chip--system { background: #64748b; }     /*  4.76:1 */
 
   /* 앵커(접수 원문 고정 슬롯) — legacy 는 옅은 회색으로 "읽기 전용 이전 기록" 구분 */
   .as-timeline__anchor {
@@ -164,6 +172,15 @@
 
   .as-tl-item__sysicon {
     color: #94a3b8;
+  }
+
+  /* "이전 기록" 라벨 — 칩이 아니라 출처 표시라 작성자·시각과 섞이지 않게 이탤릭 + 옅은 배경 */
+  .as-tl-item__legacy-label {
+    padding: 0 4px;
+    border-radius: 3px;
+    background: #e2e8f0;
+    color: #475569;
+    font-style: italic;
   }
 
   /* display 를 주지 않는다 — 수정 폼이 열릴 때 본문 숨김은 `hidden` 속성(UA display:none)에

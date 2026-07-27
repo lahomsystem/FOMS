@@ -123,14 +123,20 @@ def as_content_html_to_text(value: Any, *, already_sanitized: bool = False) -> s
     if not sanitized:
         return ''
 
-    soup = BeautifulSoup(sanitized, 'html.parser')
-    for br in soup.find_all('br'):
-        br.replace_with('\n')
-    for tag_name in ('div', 'p', 'li'):
-        for tag in soup.find_all(tag_name):
-            tag.insert_after('\n')
+    if already_sanitized and '<' not in sanitized and '&' not in sanitized:
+        # quick-add 로 쌓이는 기록 대부분은 태그도 엔티티도 없는 평문이다. 파싱해도
+        # get_text()가 입력을 그대로 돌려주므로 BeautifulSoup 자체를 건너뛴다.
+        # 이미 sanitize된 값에서만 안전하다 — 원본은 `<`가 없어도 이스케이프 대상일 수 있다.
+        raw_text = sanitized
+    else:
+        soup = BeautifulSoup(sanitized, 'html.parser')
+        for br in soup.find_all('br'):
+            br.replace_with('\n')
+        for tag_name in ('div', 'p', 'li'):
+            for tag in soup.find_all(tag_name):
+                tag.insert_after('\n')
+        raw_text = soup.get_text('', strip=False)
 
-    raw_text = soup.get_text('', strip=False)
     lines = []
     for line in raw_text.splitlines():
         normalized = re.sub(r'\s+', ' ', line).strip()
