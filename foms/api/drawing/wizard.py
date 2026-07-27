@@ -10,18 +10,26 @@
 """
 
 import copy
+import hashlib
 import io
 import json
 import logging
 import os
 import re
+from typing import Callable, Optional
 
 from flask import Blueprint, Response, jsonify, request, session
+from sqlalchemy.orm import Session
 from sqlalchemy.orm.attributes import flag_modified
 from werkzeug.datastructures import FileStorage
 
 from db import get_db
-from models import Order, OrderAttachment
+from models import Order, OrderAttachment, User
+from foms.services.orders.revision import (
+    MutationResult,
+    RevisionError,
+    execute_order_mutation,
+)
 from foms.web.auth import login_required, get_user_by_id
 from foms.services.datetime_kst import now_kst, now_utc_naive
 from foms.services.erp_permissions import can_edit_erp
@@ -84,6 +92,14 @@ _CELL_FONT_MIN, _CELL_FONT_MAX = 10, 28
 
 _MSG_NOT_FOUND = '주문을 찾을 수 없습니다.'
 _MSG_FORBIDDEN = '도면 담당자·도면팀 또는 관리자만 저장할 수 있습니다.'
+
+#: PUT 페이로드에서 클라이언트가 소유·갱신할 수 있는 wizard 상태 최상위 키(허용 목록).
+#: 이 목록 밖 키(pending·versions·updated_* 등 서버 소유)는 클라가 덮거나 주입할 수 없다(P0-4).
+_CLIENT_OWNED_STATE_KEYS = ('v', 'sheets')
+
+#: REV-00 receipt·idempotency scope 용 정책 id. authz POLICY_REGISTRY 의 DRAWING_ASSIGNED
+#: (route 권한 판정)와는 별개이며 receipt 저장 scope 만 식별한다.
+DRAWING_WIZARD_PUT_POLICY_ID = 'DRAWING_WIZARD_PUT'
 
 
 def _load_order(db, order_id):
@@ -563,10 +579,83 @@ def api_get_drawing_wizard(order_id):
     })
 
 
+class _WizardStaleError(Exception):
+    """PUT 낙관적 잠금 충돌(base_updated_at 불일치). FOR UPDATE 락 아래에서 감지한다.
+
+    현재 서버 상태의 ``updated_at``/``updated_by_name`` 을 실어 클라이언트가 어떤 저장에
+    밀렸는지 409 응답으로 알린다.
+    """
+
+    def __init__(self, server_updated_at: Optional[str], server_updated_by_name: Optional[str]):
+        super().__init__('drawing wizard state is stale')
+        self.server_updated_at = server_updated_at
+        self.server_updated_by_name = server_updated_by_name
+
+
+def _project_wizard_state(saved: Optional[dict], state: dict) -> dict:
+    """클라 페이로드에서 허용 필드만 서버 보존 상태 위에 얹어 정본 wizard 상태를 만든다.
+
+    서버 소유 필드(pending·versions·updated_* 등)는 ``saved`` 에서 그대로 보존하고,
+    클라가 보낸 허용 목록(``_CLIENT_OWNED_STATE_KEYS``) 밖 키는 무시한다. 이렇게 해서
+    부분 페이로드가 서버 필드를 비우거나(소실) 위조 값을 주입하는 P0-4 를 근본 차단한다.
+
+    :param saved: 서버에 저장된 현재 wizard 상태 dict, 또는 최초 저장이면 ``None``.
+    :param state: 검증을 통과한 클라이언트 페이로드(``v``·``sheets`` 등).
+    :returns: 저장할 wizard 상태 dict(deepcopy 기반; 호출자가 updated_* 를 덧씌운다).
+    """
+    projected = copy.deepcopy(saved) if isinstance(saved, dict) else {}
+    for key in _CLIENT_OWNED_STATE_KEYS:
+        if key in state:
+            projected[key] = copy.deepcopy(state[key])
+    return projected
+
+
+def _run_wizard_mutation(
+    db: Session, order_id: int, current_user: User, data: dict, mutation: Callable
+) -> MutationResult:
+    """REV-00 :func:`execute_order_mutation` 을 wizard PUT 파라미터로 호출한다.
+
+    optional ``If-Match`` 헤더(mutation_version)를 낙관적 잠금 precondition 으로 넘기고,
+    receipt scope/request 해시를 구성한다. idempotency key 는 쓰지 않는다(도면 저장은
+    멱등 재요청 대상이 아님).
+
+    :param db: 활성 세션(호출자가 commit 을 소유).
+    :param order_id: 대상 주문 id.
+    :param current_user: 저장 actor(receipt 소유자).
+    :param data: 요청 JSON(request_hash 계산용).
+    :param mutation: ``FOR UPDATE`` 락 아래에서 실행할 콜러블.
+    :returns: :class:`MutationResult`.
+    """
+    if_match_raw = (request.headers.get('If-Match') or '').strip().strip('"')
+    expected_versions = {order_id: int(if_match_raw)} if if_match_raw.isdigit() else None
+    scope_hash = hashlib.sha256(f'{DRAWING_WIZARD_PUT_POLICY_ID}:{order_id}'.encode()).hexdigest()
+    request_hash = hashlib.sha256(
+        json.dumps(data, sort_keys=True, ensure_ascii=False, default=str).encode()
+    ).hexdigest()
+    return execute_order_mutation(
+        db,
+        actor_user_id=current_user.id,
+        policy_id=DRAWING_WIZARD_PUT_POLICY_ID,
+        order_ids=[order_id],
+        expected_versions=expected_versions,
+        scope_hash=scope_hash,
+        request_hash=request_hash,
+        mutation=mutation,
+    )
+
+
 @erp_orders_drawing_wizard_bp.route('/<int:order_id>/drawing-wizard', methods=['PUT'])
 @login_required
 def api_put_drawing_wizard(order_id):
-    """도면 마법사 시트 상태를 검증·낙관적 충돌 확인 후 저장한다."""
+    """도면 마법사 시트 상태를 REV-00 row lock·projection 으로 원자 저장한다.
+
+    저장은 REV-00 :func:`execute_order_mutation` 을 경유해 ``FOR UPDATE`` 직렬화 ·
+    mutation_version bump · receipt 를 한 transaction 에 원자화한다(동시 PUT lost update
+    차단). 락 아래에서 서버 상태를 새로 읽어 base_updated_at 낙관적 잠금으로 stale 탭을
+    409 로 막고, :func:`_project_wizard_state` 로 허용 필드(v·sheets)만 반영해 서버 소유
+    pending·versions 의 소실·주입(P0-4)을 근본 차단한다. optional ``If-Match`` 헤더는
+    mutation_version 기반 추가 방어다.
+    """
     db = None
     try:
         db = get_db()
@@ -586,34 +675,56 @@ def api_put_drawing_wizard(order_id):
         if error:
             return jsonify({'success': False, 'message': error}), 400
 
-        sd = _load_structured_data(order)
-        saved = sd.get('drawing_wizard')
-        if isinstance(saved, dict) and saved.get('updated_at') != (base_updated_at or None):
+        captured: dict = {'updated_at': None}
+
+        def _mutate(sess: Session, orders: list) -> dict:
+            """FOR UPDATE 락 아래: 최신 상태 재조회 → stale 확인 → projection → updated_* 기록."""
+            o = orders[0]
+            sess.refresh(o)  # 락 획득 후 최신 커밋 상태를 읽어 stale 판정·projection 을 race-free 화
+            sd = _load_structured_data(o)
+            saved = sd.get('drawing_wizard')
+            if isinstance(saved, dict) and saved.get('updated_at') != (base_updated_at or None):
+                raise _WizardStaleError(saved.get('updated_at'), saved.get('updated_by_name'))
+            projected = _project_wizard_state(saved, state)
+            projected['updated_at'] = now_utc_naive().strftime('%Y-%m-%d %H:%M:%S')
+            projected['updated_by'] = current_user.id
+            projected['updated_by_name'] = current_user.name
+            sd['drawing_wizard'] = projected
+            o.structured_data = sd
+            flag_modified(o, 'structured_data')
+            captured['updated_at'] = projected['updated_at']
+            return {o.id: [f'ORDER_DETAIL:{o.id}']}
+
+        try:
+            outcome = _run_wizard_mutation(db, order_id, current_user, data, _mutate)
+            db.commit()
+        except _WizardStaleError as stale:
+            db.rollback()
             return jsonify({
                 'success': False,
                 'error': 'conflict',
                 'message': '다른 사용자가 먼저 저장했습니다.',
-                'server_updated_at': saved.get('updated_at'),
-                'server_updated_by_name': saved.get('updated_by_name'),
+                'server_updated_at': stale.server_updated_at,
+                'server_updated_by_name': stale.server_updated_by_name,
             }), 409
+        except RevisionError as rev:
+            db.rollback()
+            return jsonify({
+                'success': False,
+                'error': rev.error_code,
+                'message': str(rev),
+            }), rev.status_code
 
-        # 버전 이력(versions)은 별도 스냅샷 경로가 관리하는 서버 소유 필드다. 클라이언트가
-        # 보낸 state 의 versions 는 신뢰하지 않고 서버 보존값으로 덮어써(없으면 제거) 클라가
-        # 실수로 versions 를 비우는 사고를 차단한다(설계 §4).
-        if isinstance(saved, dict) and isinstance(saved.get('versions'), list):
-            state['versions'] = saved['versions']
-        else:
-            state.pop('versions', None)
-
-        state['updated_at'] = now_utc_naive().strftime('%Y-%m-%d %H:%M:%S')
-        state['updated_by'] = session.get('user_id')
-        state['updated_by_name'] = current_user.name
-        sd['drawing_wizard'] = state
-        order.structured_data = sd
-        flag_modified(order, 'structured_data')
-        db.commit()
-
-        return jsonify({'success': True, 'data': {'updated_at': state['updated_at']}})
+        resources = outcome.body.get('resources') or [{}]
+        resp = jsonify({
+            'success': True,
+            'data': {'updated_at': captured['updated_at']},
+            'mutation_receipt': outcome.read_receipt_id,
+            'mutation_version': resources[0].get('resulting_version'),
+        })
+        for header, value in outcome.headers.items():
+            resp.headers[header] = value
+        return resp
     except Exception as e:
         if db is not None:
             try:
