@@ -37,6 +37,11 @@ from foms.api.files.order_routes import (
     api_order_attachments_upload,
 )
 from foms.api.files.search import api_search_attachments
+from foms.api.files.upload_intent import (
+    api_cancel_upload_draft,
+    api_create_upload_draft,
+    api_finalize_upload_draft,
+)
 
 __all__ = [
     "ASYNC_ATTACHMENT_THUMBNAIL",
@@ -45,6 +50,9 @@ __all__ = [
     "USE_DIRECT_UPLOAD",
     "_att_key",
     "allowed_erp_attachment_file",
+    "api_cancel_upload_draft",
+    "api_create_upload_draft",
+    "api_finalize_upload_draft",
     "api_order_attachments_complete",
     "api_order_attachments_delete",
     "api_order_attachments_list",

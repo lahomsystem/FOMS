@@ -2069,12 +2069,12 @@ event.listen(
 # SIDEFX-00 은 스키마+repository+계약 테스트만 소유한다.
 #
 # source_domain 은 정확히 자기 FK 컬럼 하나만 non-null 이어야 한다(one-of matrix,
-# ck_dseo_source_one_of). 부모 테이블이 이미 존재하는 3 도메인만 실 FK 로 orphan 을
-# 거부하고(order_events·notification_events·chat_attachments), 나머지 4 도메인
-# (address_learning·wizard_pending·upload_ticket·upload_draft)은 소유 packet 이 자기
-# business table 과 FK 를 additive migration 으로 등록한다(ORDER-IMPORT-01 이 8번째
-# ORDER_IMPORT_ARTIFACT 를 그렇게 추가하는 선례와 동일). SIDEFX-00 은 그 business
-# table 들을 선행 생성하지 않는다.
+# ck_dseo_source_one_of). 부모 테이블이 존재하는 4 도메인이 실 FK 로 orphan 을 거부하고
+# (order_events·notification_events·chat_attachments·**upload_drafts** — 마지막은
+# UPLOAD-INTENT-01 이 additive 로 부착), 나머지 3 도메인(address_learning·wizard_pending·
+# upload_ticket)은 소유 packet 이 자기 business table 과 FK 를 additive migration 으로
+# 등록한다(ORDER-IMPORT-01 이 8번째 ORDER_IMPORT_ARTIFACT 를 그렇게 추가하는 선례와 동일).
+# SIDEFX-00 은 그 business table 들을 선행 생성하지 않는다.
 DOMAIN_SIDE_EFFECT_FK_BY_DOMAIN = {
     'ORDER_EVENT': 'order_event_id',
     'NOTIFICATION_EVENT': 'notification_event_id',
@@ -2125,12 +2125,14 @@ class DomainSideEffectOutbox(Base):
         Integer, ForeignKey('order_events.id', ondelete='CASCADE'), nullable=True)
     notification_event_id = Column(
         Integer, ForeignKey('notification_events.id', ondelete='CASCADE'), nullable=True)
-    # 아래 4 도메인은 부모 테이블 미존재 → 소유 packet 이 FK 를 additive 로 추가(현재는
+    # 아래 3 도메인은 부모 테이블 미존재 → 소유 packet 이 FK 를 additive 로 추가(현재는
     # plain integer, one-of CHECK 로 domain 일치만 강제; orphan 거부는 FK 추가 후).
     address_learning_request_id = Column(Integer, nullable=True)
     wizard_pending_id = Column(Integer, nullable=True)
     upload_ticket_id = Column(Integer, nullable=True)
-    upload_draft_id = Column(Integer, nullable=True)
+    # UPLOAD-INTENT-01: upload_drafts 부모가 생겨 실 FK 로 orphan 거부(one-of matrix 유지).
+    upload_draft_id = Column(
+        Integer, ForeignKey('upload_drafts.id', ondelete='CASCADE'), nullable=True)
     chat_attachment_id = Column(
         Integer, ForeignKey('chat_attachments.id', ondelete='CASCADE'), nullable=True)
 
@@ -2234,6 +2236,72 @@ class AddressLearningRequest(Base):
     __table_args__ = (
         # rate-limit 조회(사용자별 최근 창 count)와 audit 스캔 hot path.
         Index('ix_alr_requester_created', 'requested_by_user_id', 'created_at'),
+    )
+
+
+# --------------------------------------------------------------------------- #
+# UPLOAD-INTENT-01: pre-file upload DRAFT (drawing revision / AS cycle intent)
+# --------------------------------------------------------------------------- #
+#: DRAFT 종류 — drawing revision 전달용 / AS cycle 접수용 업로드 의도.
+UPLOAD_DRAFT_KINDS = ('drawing_revision', 'as_cycle')
+#: DRAFT state machine. DRAFT 는 활성, 나머지는 terminal. EXPIRED 는 lazy 판정 결과이며
+#: scheduler 가 기록하지 않는다(만료는 조회 시 effective_state 로 계산).
+UPLOAD_DRAFT_STATES = ('DRAFT', 'FINALIZED', 'CANCELLED', 'EXPIRED')
+#: DRAFT 유효기간(시간). 만료는 lazy 판정(자동 정리 scheduler 없음).
+UPLOAD_DRAFT_TTL_HOURS = 24
+
+
+class UploadDraft(Base):
+    """파일 업로드 **전에** 발급하는 업로드 intent DRAFT (UPLOAD-INTENT-01, §5.2 line 1082).
+
+    drawing revision / AS cycle 파일을 R2 에 올리기 전부터 안정 ``id`` 를 발급해 업로드
+    의도를 durable 하게 예약한다. 실제 drawing revision / AS cycle row 발급과 상태 전이는
+    하류(STATE-DRAWING-01·STATE-AS-01) 몫이며, 이 packet 은 DRAFT 수명주기만 소유한다.
+
+    계약(§5.2 UPLOAD-INTENT-01):
+
+    * **pre-file id**: 파일 도착 전에 ``id`` 를 발급한다(create).
+    * **idempotent create**: 같은 ``(order_id, kind, idempotency_key)`` 재요청은 기존
+      DRAFT 를 돌려주고 새 행을 만들지 않는다(``uq_upload_draft_idem`` partial unique).
+    * **24h expiry (lazy)**: ``expires_at = created_at + 24h``. 만료는 조회 시
+      :func:`~foms.services.orders.upload_intent.effective_state` 로 판정하고 scheduler 가
+      상태를 기록하지 않는다.
+    * **queue 비노출**: 별도 테이블이라 order 대시보드/큐(orders 기반)에 노출되지 않는다.
+    * **cancel = terminal**: CANCELLED 로 마크(멱등). Order 는 불변.
+    * **finalize only bumps Order**: final command(finalize)만 Order ``mutation_version``
+      을 1회 올린다(REV-00). create/cancel 는 Order version 불변.
+
+    ``upload_draft_id`` FK 로 :class:`DomainSideEffectOutbox` 가 이 행을 참조하며(source_domain=
+    ``UPLOAD_DRAFT``), orphan 은 DB 가 거부한다. DDL 은 migration(``upload_intent_00``)과 SSOT
+    를 공유한다(create_all 테스트 lane 동일 스키마).
+    """
+
+    __tablename__ = 'upload_drafts'
+
+    id = Column(Integer, primary_key=True)
+    order_id = Column(
+        Integer, ForeignKey('orders.id', ondelete='CASCADE'), nullable=False, index=True)
+    kind = Column(String(32), nullable=False)  # drawing_revision | as_cycle
+    created_by_user_id = Column(Integer, ForeignKey('users.id'), nullable=True)  # audit
+    state = Column(String(20), nullable=False, server_default='DRAFT')
+    # FILE-01 direct_upload 로 이 DRAFT 아래 올라온 server-derived object key 목록.
+    object_keys = Column(JSONColumn, nullable=True)
+    # 같은 intent 재요청 dedupe 키(client 발급). NULL 이면 매 create 가 새 DRAFT.
+    idempotency_key = Column(String(80), nullable=True)
+    row_version = Column(Integer, nullable=False, default=1, server_default=text('1'))
+    created_at = Column(DateTime, nullable=False, default=now_utc_naive, server_default=func.now())
+    # created_at + 24h. 만료는 lazy 판정(scheduler 없음).
+    expires_at = Column(DateTime, nullable=False)
+
+    __table_args__ = (
+        CheckConstraint(
+            "kind IN ('drawing_revision','as_cycle')", name='ck_upload_draft_kind'),
+        CheckConstraint(
+            "state IN ('DRAFT','FINALIZED','CANCELLED','EXPIRED')",
+            name='ck_upload_draft_state'),
+        # idempotent create: 같은 (order,kind,key) 는 최대 1행(중복 생성 0). key NULL 제외.
+        Index('uq_upload_draft_idem', 'order_id', 'kind', 'idempotency_key',
+              unique=True, postgresql_where=text('idempotency_key IS NOT NULL')),
     )
 
 

@@ -31,13 +31,14 @@ from foms.services.sidefx_outbox import (
     enqueue_side_effect,
     purge_retention,
 )
-from models import DomainSideEffectOutbox, Order, OrderEvent
+from models import DomainSideEffectOutbox, Order, OrderEvent, UploadDraft
 
 # 부모 테이블이 없는(=FK 없는) 도메인/컬럼 — one-of CHECK 를 FK setup 없이 isolate 한다.
+# UPLOAD_DRAFT 는 UPLOAD-INTENT-01 이 upload_drafts 부모 + 실 FK 를 부착하며 아래 FK_DOMAINS
+# 로 이동했다(orphan 거부).
 NO_FK_DOMAINS = [
     ("WIZARD_PENDING", "wizard_pending_id"),
     ("UPLOAD_TICKET", "upload_ticket_id"),
-    ("UPLOAD_DRAFT", "upload_draft_id"),
     ("ADDRESS_LEARNING", "address_learning_request_id"),
 ]
 # 실 FK 도메인 — orphan 을 DB 가 거부한다.
@@ -45,6 +46,7 @@ FK_DOMAINS = [
     ("ORDER_EVENT", "order_event_id"),
     ("NOTIFICATION_EVENT", "notification_event_id"),
     ("CHAT_ATTACHMENT", "chat_attachment_id"),
+    ("UPLOAD_DRAFT", "upload_draft_id"),
 ]
 
 
@@ -88,6 +90,19 @@ def _make_order_event(session) -> OrderEvent:
     return ev
 
 
+def _make_upload_draft(session) -> UploadDraft:
+    """UPLOAD_DRAFT 도메인 실 FK happy-path 용 실존 부모 upload_draft 행."""
+    o = Order(received_date="2026-07-24", customer_name="홍길동",
+              phone="010-0000-0000", address="서울", product="침대")
+    session.add(o)
+    session.commit()
+    d = UploadDraft(order_id=o.id, kind="drawing_revision", state="DRAFT",
+                    created_at=_now(), expires_at=_now() + datetime.timedelta(hours=24))
+    session.add(d)
+    session.commit()
+    return d
+
+
 # --------------------------------------------------------------------------- #
 # 1. one-of FK CHECK matrix
 # --------------------------------------------------------------------------- #
@@ -115,6 +130,23 @@ def test_order_event_valid_with_real_parent(pg_engine):
         ev = _make_order_event(s)
         r = DomainSideEffectOutbox(
             source_domain="ORDER_EVENT", order_event_id=ev.id,
+            effect_type=_marker(), payload={"x": 1},
+            available_at=_now(), created_at=_now(),
+        )
+        s.add(r)
+        s.commit()
+        assert r.id is not None
+    finally:
+        s.close()
+
+
+def test_upload_draft_valid_with_real_parent(pg_engine):
+    """실 FK 도메인(UPLOAD_DRAFT) happy path — 실존 부모 upload_draft 참조(UPLOAD-INTENT-01)."""
+    s = _session(pg_engine)
+    try:
+        draft = _make_upload_draft(s)
+        r = DomainSideEffectOutbox(
+            source_domain="UPLOAD_DRAFT", upload_draft_id=draft.id,
             effect_type=_marker(), payload={"x": 1},
             available_at=_now(), created_at=_now(),
         )
