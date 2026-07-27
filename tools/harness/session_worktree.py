@@ -11,6 +11,7 @@ cleanup: 기본 dry-run 보고, --remove 시 clean+merged만 제거
 from __future__ import annotations
 
 import argparse
+import json
 import shutil
 import subprocess
 import sys
@@ -181,23 +182,65 @@ def _rebase_in_progress(wt: Path) -> bool:
     return False
 
 
+def _conflict_marker_path(wt: Path) -> Path:
+    """rebase 충돌 시 검증 통과한 pre-SHA 스냅샷을 적어두는 gitdir 내부 마커 경로.
+
+    `_rebase_in_progress`와 동일 패턴(`--git-path`가 상대경로면 wt 기준 해석)을
+    쓴다. gitdir 내부라 worktree status를 오염시키지 않는다(F1 round2).
+    """
+    _, p = _git(wt, "rev-parse", "--git-path", "foms_sync_conflict.json")
+    return Path(p) if os.path.isabs(p) else wt / p
+
+
+def _read_conflict_marker(marker: Path) -> list[str] | None:
+    """마커의 pre SHA 목록을 읽는다. 없거나 손상되면 None(=신뢰하지 않음)."""
+    if not marker.exists():
+        return None
+    try:
+        data = json.loads(marker.read_text(encoding="utf-8"))
+    except (OSError, ValueError):
+        return None
+    pre = data.get("pre") if isinstance(data, dict) else None
+    if isinstance(pre, list) and all(isinstance(s, str) for s in pre):
+        return pre
+    return None
+
+
+def _write_conflict_marker(marker: Path, pre: list[str]) -> None:
+    """검증 통과한 pre SHA 스냅샷을 마커에 기록한다."""
+    marker.parent.mkdir(parents=True, exist_ok=True)
+    marker.write_text(json.dumps({"pre": pre}), encoding="utf-8")
+
+
+def _clear_conflict_marker(marker: Path) -> None:
+    """마커 제거(있으면). 실패해도 다음 sync가 재정리하므로 무시."""
+    try:
+        marker.unlink(missing_ok=True)
+    except OSError:
+        pass
+
+
 def cmd_sync(args: argparse.Namespace) -> int:
     """fetch + rebase origin/deploy + ledger 갱신. 세션 worktree 전용.
 
-    소유 검증: 최초 호출(rebase 전)은 현재 HEAD 범위로 검증한다. rebase는
-    커밋 SHA를 재작성하므로, 충돌 해결 후 `--ledger-only`로 재호출하는
-    복구 경로는 그 SHA가 항상 ledger 밖(unknown)이 되어 매번 --allow-foreign을
-    요구하게 된다(F1) — 이를 막기 위해 `--ledger-only` && ORIG_HEAD 존재 시엔
-    검증 범위를 ORIG_HEAD(rebase 전 HEAD)로 계산한다. ORIG_HEAD가 없으면(사전
-    rebase 없이 직접 --ledger-only 호출) 기존처럼 현재 HEAD 범위로 검증해
-    우회 구멍을 만들지 않는다. cherry-pick/merge로 유입된 타 세션 커밋의
-    세탁은 두 경로 모두 여전히 차단된다.
+    소유 검증(F1 round2 — 충돌 마커 방식): 원칙은 매 호출마다 **현재 HEAD**
+    범위를 ledger union과 대조하는 것이다. 유일한 예외는 `--ledger-only`이고
+    이 CLI가 직전 rebase 충돌 시 이 worktree에 남긴 **마커**가 있으며, 그
+    마커에 적힌(그 시점 이미 검증 통과한) pre 범위가 지금의 `ORIG_HEAD` 범위와
+    **정확히 일치**할 때뿐이다 — 이때만 재검증을 생략하고 post 범위를 ledger에
+    반영한다. `ORIG_HEAD` 존재 자체는 신뢰 신호가 아니다: rebase뿐 아니라
+    merge/reset/pull/am도 이를 갱신하고 영구 잔존하므로, round1처럼 "ORIG_HEAD가
+    있으면 그걸로 검증"하면 `git merge <타세션>` 후 `--ledger-only` 한 번으로
+    foreign 커밋이 own으로 세탁된다(round1 Critical 재발견). 마커가 없으면
+    merge/cherry-pick/reset으로 유입된 커밋이 현재 HEAD 범위에 그대로 잡혀
+    거부된다. `--allow-foreign`은 최후의 명시적 우회로 남긴다.
     """
     wt = Path(args.path).resolve() if args.path else repo_root()
     if not wt.name.lower().startswith(WT_PREFIX):
         print("[refuse] sync는 세션 worktree(foms-s-*) 안에서만 동작한다", file=sys.stderr)
         return EXIT_REFUSE
     scl = _ledger()
+    marker = _conflict_marker_path(wt)
 
     if _rebase_in_progress(wt):
         print("[refuse] rebase 진행 중 — 해결 후 `git rebase --continue`, 그 다음 `sync --ledger-only`", file=sys.stderr)
@@ -207,29 +250,35 @@ def cmd_sync(args: argparse.Namespace) -> int:
         print("[refuse] 미커밋 변경 존재 — 커밋 후 sync 재시도", file=sys.stderr)
         return EXIT_REFUSE
 
-    verify_ref = "HEAD"
-    if args.ledger_only and _git(wt, "rev-parse", "--verify", "ORIG_HEAD", check=False)[0] == 0:
-        verify_ref = "ORIG_HEAD"
-    pre = _range_shas(wt, verify_ref)
-    union = scl.all_known_shas(str(wt))
-    unknown = [s for s in pre if not scl.sha_in_list(s, union)]
-    if unknown and not args.allow_foreign:
-        print(f"[refuse] ledger 밖 커밋 {len(unknown)}개 — 이 worktree에서 만든 커밋이 아님(cherry-pick/merge 유입?):", file=sys.stderr)
-        for s in unknown[:10]:
-            print(f"  {s[:10]}", file=sys.stderr)
-        print("  소유가 확실하면 --allow-foreign으로 명시 승인.", file=sys.stderr)
-        return EXIT_REFUSE
+    trusted_recovery = False
+    if args.ledger_only:
+        marker_pre = _read_conflict_marker(marker)
+        if marker_pre is not None and _git(wt, "rev-parse", "--verify", "ORIG_HEAD", check=False)[0] == 0:
+            trusted_recovery = _range_shas(wt, "ORIG_HEAD") == marker_pre
+
+    if not trusted_recovery:
+        pre = _range_shas(wt)
+        union = scl.all_known_shas(str(wt))
+        unknown = [s for s in pre if not scl.sha_in_list(s, union)]
+        if unknown and not args.allow_foreign:
+            print(f"[refuse] ledger 밖 커밋 {len(unknown)}개 — 이 worktree에서 만든 커밋이 아님(cherry-pick/merge 유입?):", file=sys.stderr)
+            for s in unknown[:10]:
+                print(f"  {s[:10]}", file=sys.stderr)
+            print("  소유가 확실하면 --allow-foreign으로 명시 승인.", file=sys.stderr)
+            return EXIT_REFUSE
 
     if not args.ledger_only:
         _git(wt, "fetch", "origin", "deploy")
         r = subprocess.run(["git", "rebase", "origin/deploy"], cwd=str(wt))
         if r.returncode != 0:
+            _write_conflict_marker(marker, pre)
             print("[conflict] rebase 충돌 — 임의 해결 금지. 해결 → `git rebase --continue` → `sync --ledger-only`", file=sys.stderr)
             return EXIT_CONFLICT
 
     post = _range_shas(wt)
     sid = scl.latest_session_id(str(wt)) or "unknown"
     scl.set_session_shas(str(wt), sid, post)
+    _clear_conflict_marker(marker)
     print(f"[ok] sync 완료 — ledger 갱신 session={sid}, {len(post)}커밋")
     return EXIT_OK
 
@@ -248,13 +297,17 @@ def cmd_cleanup(args: argparse.Namespace) -> int:
         wt, branch, locked = it["path"], it["branch"], it["locked"]
         force_this = force_target is not None and force_target == wt
         if cwd == wt or wt in cwd.parents:
+            if force_this:
+                print(f"[refuse] --force-path 대상이 현재 셸 cwd 내부: {wt} (다른 창/폴더에서 실행)", file=sys.stderr)
+                return EXIT_REFUSE
             print(f"[keep] {wt} — 현재 셸 cwd 내부 (다른 창에서 실행)")
             continue
         if force_this:
             if not args.yes:
                 print("[refuse] --force-path는 --yes 동반 필수 (미커밋 변경 영구 소실 경고)", file=sys.stderr)
                 return EXIT_REFUSE
-            _force_remove(root, wt, branch)
+            if not _force_remove(root, wt, branch):
+                return EXIT_GIT
             continue
         if locked:
             print(f"[keep] {wt} — locked. 해제: git worktree unlock \"{wt}\"")
@@ -294,13 +347,18 @@ def _safe_remove(root: Path, wt: Path, branch: str) -> None:
 
 
 def _untracked_files(wt: Path) -> list[str]:
-    """미추적 파일 목록(전부, 하위 디렉터리 포함) — stash create 미커버 확인용."""
-    _, out = _git(wt, "status", "--porcelain", "--untracked-files=all", check=False)
+    """미추적 파일 목록(harness 부기 파일 제외) — stash create 미커버 확인용."""
+    _, out = _git(wt, "status", "--porcelain", "--untracked-files=all", "--", ".", *_LEDGER_STATUS_EXCLUDES, check=False)
     return [line[3:] for line in out.splitlines() if line.startswith("??")]
 
 
-def _force_remove(root: Path, wt: Path, branch: str | None) -> None:
-    """dirty/unmerged 강제 제거 — dirty는 stash create로 dangling 백업, 브랜치는 보존+백업 ref."""
+def _force_remove(root: Path, wt: Path, branch: str | None) -> bool:
+    """dirty/unmerged 강제 제거 — dirty는 stash create로 dangling 백업, 브랜치는 보존+백업 ref.
+
+    반환:
+        최종 `wt.exists()` 재확인 기준 제거 성공 여부. False면 호출부
+        (`cmd_cleanup`)가 거짓 성공을 보고하지 않고 EXIT_GIT으로 전파한다(F5).
+    """
     _, stash_sha = _git(wt, "stash", "create", check=False)
     if stash_sha:
         print(f"[backup] 미커밋 변경 dangling 커밋 {stash_sha} — 복구: git stash store {stash_sha}")
@@ -323,11 +381,12 @@ def _force_remove(root: Path, wt: Path, branch: str | None) -> None:
     if code != 0 and wt.exists():
         shutil.rmtree(wt, ignore_errors=True)  # push_own_session_commits._cleanup과 동일 폴백
         _git(root, "worktree", "prune", check=False)
-    _usage_log(root, f"force-remove {wt}")
     if wt.exists():
         print(f"[warn] {wt} — 강제 제거 미완료(파일 잠금 추정), 수동 확인 필요. 브랜치는 보존됨({branch})", file=sys.stderr)
-    else:
-        print(f"[removed:force] {wt} — 브랜치 보존({branch})")
+        return False
+    _usage_log(root, f"force-remove {wt}")
+    print(f"[removed:force] {wt} — 브랜치 보존({branch})")
+    return True
 
 
 def main(argv: list[str] | None = None) -> int:

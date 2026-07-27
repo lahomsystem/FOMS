@@ -262,3 +262,46 @@ def test_cleanup_keeps_locked(repo: Path, tmp_path: Path) -> None:
     assert r.returncode == 0
     assert wt.exists()
     assert "locked" in r.stdout
+
+
+# ---- 리뷰 반영 (fix round 2) — F1 재설계: ORIG_HEAD 신뢰 → 충돌 마커 신뢰 ----
+
+def test_sync_ledger_only_refuses_after_merge_of_foreign_branch(repo: Path, tmp_path: Path) -> None:
+    """F1 round2 필수 회귀: merge로 유입된 foreign 커밋은 ORIG_HEAD 잔존과 무관하게 거부된다.
+
+    round1(ORIG_HEAD 존재 시 그 범위로 신뢰)은 `git merge` 후에도 ORIG_HEAD가
+    갱신·잔존해 세탁 구멍이었다 — 마커가 없으면 현재 HEAD 범위로 검증해야 한다.
+    """
+    import session_commit_ledger as scl
+
+    wt = _make_wt(repo, tmp_path, "t18")
+    mine = _commit(wt, "b.txt", "session work")
+    scl.append_commit(str(wt), "sid1", mine)
+
+    (repo / "c.txt").write_text("other", encoding="utf-8")
+    _git(repo, "add", "c.txt")
+    _git(repo, "commit", "-m", "other session unrelated file")
+    _git(repo, "push", "origin", "deploy")
+
+    _git(wt, "fetch", "origin", "deploy")
+    _git(wt, "-c", "core.editor=true", "merge", "origin/deploy", "-m", "merge foreign")
+
+    r = _run(wt, "sync", "--ledger-only")
+    assert r.returncode == 2, r.stdout + r.stderr
+
+
+def test_sync_ledger_only_refuses_after_reset_and_foreign_cherry_pick(repo: Path, tmp_path: Path) -> None:
+    """F1 round2 필수 회귀: reset --hard(ORIG_HEAD 갱신) 후 타 커밋 cherry-pick도 거부된다."""
+    import session_commit_ledger as scl
+
+    wt = _make_wt(repo, tmp_path, "t19")
+    mine = _commit(wt, "b.txt", "session work")
+    scl.append_commit(str(wt), "sid1", mine)
+
+    foreign = _commit(repo, "d.txt", "foreign work")  # ledger 미기록
+
+    _git(wt, "reset", "--hard", "HEAD")  # ORIG_HEAD 갱신 재현(round1이면 이후 신뢰됐을 값)
+    _git(wt, "cherry-pick", foreign)
+
+    r = _run(wt, "sync", "--ledger-only")
+    assert r.returncode == 2, r.stdout + r.stderr
