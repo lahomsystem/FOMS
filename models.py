@@ -2254,10 +2254,12 @@ class DomainSideEffectOutbox(Base):
         Integer, ForeignKey('order_events.id', ondelete='CASCADE'), nullable=True)
     notification_event_id = Column(
         Integer, ForeignKey('notification_events.id', ondelete='CASCADE'), nullable=True)
-    # 아래 2 도메인은 부모 테이블 미존재 → 소유 packet 이 FK 를 additive 로 추가(현재는
+    # 아래 도메인은 부모 테이블 미존재 → 소유 packet 이 FK 를 additive 로 추가(현재는
     # plain integer, one-of CHECK 로 domain 일치만 강제; orphan 거부는 FK 추가 후).
     address_learning_request_id = Column(Integer, nullable=True)
-    wizard_pending_id = Column(Integer, nullable=True)
+    # WIZ-01-COMPLETION: drawing_wizard_pending 부모가 생겨 실 FK 로 orphan 거부(one-of matrix 유지).
+    wizard_pending_id = Column(
+        Integer, ForeignKey('drawing_wizard_pending.id', ondelete='CASCADE'), nullable=True)
     # UPLOAD-02: upload_tickets 부모가 생겨 실 FK 로 orphan 거부(one-of matrix 유지).
     upload_ticket_id = Column(
         Integer, ForeignKey('upload_tickets.id', ondelete='CASCADE'), nullable=True)
@@ -2508,6 +2510,72 @@ class UploadTicket(Base):
         Index('ix_upload_ticket_expiry', 'state', 'expires_at'),
         # item-retire cleanup: 은퇴 identity 의 ISSUED 티켓 claim.
         Index('ix_upload_ticket_item', 'item_id'),
+    )
+
+
+# --------------------------------------------------------------------------- #
+# WIZ-01-COMPLETION: drawing wizard transfer-pending child (§ SSOT line 530)
+# --------------------------------------------------------------------------- #
+#: drawing wizard 전달 대기(sheet PNG export) pending 의 state machine(master plan line 530).
+#: READY = export 직후 전달 대기, CLAIMED = 전달이 소비(lock)한 상태, DELETE_PENDING =
+#: WIZ-DELETE-01 이 삭제 요청(STORAGE_DELETE outbox enqueue 후), DELETED = worker 가 object
+#: 삭제 확인, QUARANTINED = invalid pending 을 삭제하지 않고 보존(§2.6). DELETED 는 terminal.
+DRAWING_WIZARD_PENDING_STATES = (
+    'READY', 'CLAIMED', 'DELETE_PENDING', 'DELETED', 'QUARANTINED')
+#: pending orphan 정리 지평(초). 이 기간 안에 전달/삭제되지 않은 export pending 은 bounded
+#: cleanup provider 의 만료 claim 대상이다(active 작업 강제 만료가 아니라 orphan 청소용).
+DRAWING_WIZARD_PENDING_TTL_SECONDS = 7 * 24 * 3600
+
+
+class DrawingWizardPending(Base):
+    """drawing wizard 전달 대기 pending child row (WIZ-01-COMPLETION, § SSOT line 530).
+
+    도면 마법사가 export 한 sheet PNG(``orders/<id>/drawing_wizard/exports/`` 접두)를 전달
+    대기 상태로 durable 하게 기록하는 정본 child row 다. 기존에는 ``structured_data
+    ['drawing_wizard']['pending']`` JSON 에만 있었으나, WIZ-DELETE-01 의 "child row
+    DELETE_PENDING + STORAGE_DELETE outbox·worker child-only·Order JSON 0" 불변식이 실
+    child 테이블을 요구하므로 이 정본을 도입한다.
+
+    계약(§2.6 / line 530):
+
+    * **server-derived key**: ``object_key`` 는 서버가 유도한 exports prefix 이며
+      ``uq_drawing_wizard_pending_object_key`` 로 유일하다 — STORAGE_DELETE 의 대상 기준.
+    * **state machine**: READY→CLAIMED(전달)·READY/CLAIMED→DELETE_PENDING(삭제 요청)→
+      DELETED(worker 확인), invalid 는 QUARANTINED 로 보존(삭제 금지). 전이는
+      :mod:`foms.services.orders.drawing_wizard_pending` 서비스가 강제하고 ``row_version``
+      을 optimistic lock 으로 bump 한다.
+    * **collection ETag**: 서비스가 order 별 pending 집합의 (id, row_version, state) 로 ETag
+      를 유도해 전달/삭제의 collection precondition 으로 쓴다.
+
+    ``wizard_pending_id`` FK 로 :class:`DomainSideEffectOutbox` 가 이 행을 참조하며
+    (source_domain=``WIZARD_PENDING``), orphan 은 DB 가 거부한다. DDL 은 migration
+    (``wiz_pending_00``)과 SSOT 를 공유한다(create_all 테스트 lane 동일 스키마).
+    """
+
+    __tablename__ = 'drawing_wizard_pending'
+
+    id = Column(Integer, primary_key=True)
+    order_id = Column(
+        Integer, ForeignKey('orders.id', ondelete='CASCADE'), nullable=False, index=True)
+    # export/전달 대기 pending 을 소유한 도면 담당자(audit; 사용자 삭제 시 SET NULL 로 보존).
+    owner_user_id = Column(
+        Integer, ForeignKey('users.id', ondelete='SET NULL'), nullable=True)
+    # server-derived R2 object key(클라이언트 입력 아님). STORAGE_DELETE 의 exact 대상 기준.
+    object_key = Column(String(500), nullable=False)
+    state = Column(String(20), nullable=False, server_default='READY')
+    row_version = Column(Integer, nullable=False, default=1, server_default=text('1'))
+    created_at = Column(DateTime, nullable=False, default=now_utc_naive, server_default=func.now())
+    # created_at + TTL. bounded cleanup provider 의 만료 claim 기준(active 강제 만료 아님).
+    expires_at = Column(DateTime, nullable=False)
+
+    __table_args__ = (
+        CheckConstraint(
+            "state IN ('READY','CLAIMED','DELETE_PENDING','DELETED','QUARANTINED')",
+            name='ck_drawing_wizard_pending_state'),
+        # server-derived key 는 pending 당 유일 → 중복 export 차단·STORAGE_DELETE tamper 기준.
+        Index('uq_drawing_wizard_pending_object_key', 'object_key', unique=True),
+        # bounded cleanup provider 의 만료 claim hot path(만료 활성 pending 을 state,expires_at 순).
+        Index('ix_drawing_wizard_pending_expiry', 'state', 'expires_at'),
     )
 
 

@@ -33,6 +33,7 @@ from foms.services.sidefx_outbox import (
 )
 from models import (
     DomainSideEffectOutbox,
+    DrawingWizardPending,
     Order,
     OrderEvent,
     OrderImportArtifact,
@@ -42,9 +43,9 @@ from models import (
 
 # 부모 테이블이 없는(=FK 없는) 도메인/컬럼 — one-of CHECK 를 FK setup 없이 isolate 한다.
 # UPLOAD_DRAFT 는 UPLOAD-INTENT-01 이, UPLOAD_TICKET 은 UPLOAD-02 가, ORDER_IMPORT_ARTIFACT 는
-# ORDER-IMPORT-01 이 각각 부모 테이블 + 실 FK 를 부착하며 아래 FK_DOMAINS 로 이동했다(orphan 거부).
+# ORDER-IMPORT-01 이, WIZARD_PENDING 은 WIZ-01-COMPLETION 이 각각 부모 테이블 + 실 FK 를
+# 부착하며 아래 FK_DOMAINS 로 이동했다(orphan 거부). 남은 유일 no-FK 도메인이 ADDRESS_LEARNING.
 NO_FK_DOMAINS = [
-    ("WIZARD_PENDING", "wizard_pending_id"),
     ("ADDRESS_LEARNING", "address_learning_request_id"),
 ]
 # 실 FK 도메인 — orphan 을 DB 가 거부한다.
@@ -55,6 +56,7 @@ FK_DOMAINS = [
     ("UPLOAD_DRAFT", "upload_draft_id"),
     ("UPLOAD_TICKET", "upload_ticket_id"),
     ("ORDER_IMPORT_ARTIFACT", "order_import_artifact_id"),
+    ("WIZARD_PENDING", "wizard_pending_id"),
 ]
 
 
@@ -72,10 +74,10 @@ def _marker() -> str:
 
 
 def _row(**over) -> DomainSideEffectOutbox:
-    """no-FK 도메인(WIZARD_PENDING) 기준 최소 유효 outbox 행."""
+    """no-FK 도메인(ADDRESS_LEARNING) 기준 최소 유효 outbox 행(부모 불요·commit 가능)."""
     base = dict(
-        source_domain="WIZARD_PENDING",
-        wizard_pending_id=1,
+        source_domain="ADDRESS_LEARNING",
+        address_learning_request_id=1,
         effect_type=_marker(),
         payload={},
         status="PENDING",
@@ -126,6 +128,23 @@ def _make_upload_ticket(session) -> UploadTicket:
     session.add(t)
     session.commit()
     return t
+
+
+def _make_drawing_wizard_pending(session) -> DrawingWizardPending:
+    """WIZARD_PENDING 도메인 실 FK happy-path 용 실존 부모 drawing_wizard_pending 행."""
+    o = Order(received_date="2026-07-24", customer_name="홍길동",
+              phone="010-0000-0000", address="서울", product="침대")
+    session.add(o)
+    session.commit()
+    p = DrawingWizardPending(
+        order_id=o.id,
+        object_key="orders/%d/drawing_wizard/exports/%s.png" % (o.id, uuid.uuid4().hex),
+        state="READY", row_version=1,
+        created_at=_now(), expires_at=_now() + datetime.timedelta(days=7),
+    )
+    session.add(p)
+    session.commit()
+    return p
 
 
 def _make_order_import_artifact(session) -> OrderImportArtifact:
@@ -229,6 +248,23 @@ def test_order_import_artifact_valid_with_real_parent(pg_engine):
         s.close()
 
 
+def test_wizard_pending_valid_with_real_parent(pg_engine):
+    """실 FK 도메인(WIZARD_PENDING) happy path — 실존 부모 drawing_wizard_pending 참조(WIZ-01-COMPLETION)."""
+    s = _session(pg_engine)
+    try:
+        pending = _make_drawing_wizard_pending(s)
+        r = DomainSideEffectOutbox(
+            source_domain="WIZARD_PENDING", wizard_pending_id=pending.id,
+            effect_type=_marker(), payload={"x": 1},
+            available_at=_now(), created_at=_now(),
+        )
+        s.add(r)
+        s.commit()
+        assert r.id is not None
+    finally:
+        s.close()
+
+
 def test_check_rejects_domain_fk_mismatch(pg_engine):
     """source_domain 과 다른 FK 컬럼을 채우면 CHECK 거부."""
     s = _session(pg_engine)
@@ -252,9 +288,12 @@ def test_check_rejects_two_non_null_fks(pg_engine):
     """FK 두 개 non-null 이면 CHECK 거부(정확히 하나만 허용)."""
     s = _session(pg_engine)
     try:
-        # 두 컬럼 모두 no-FK 로 채워 순수 two-non-null CHECK 위반만 남긴다(FK orphan 배제).
+        # wizard_pending_id 는 실존 부모(orphan 아님), address_learning_request_id 는 no-FK →
+        # 순수 two-non-null CHECK 위반만 남긴다(FK orphan 이 CHECK 를 가리지 않게 격리).
+        pending = _make_drawing_wizard_pending(s)
         r = DomainSideEffectOutbox(
-            source_domain="WIZARD_PENDING", wizard_pending_id=1, address_learning_request_id=2,
+            source_domain="WIZARD_PENDING", wizard_pending_id=pending.id,
+            address_learning_request_id=2,
             effect_type=_marker(), payload={},
             available_at=_now(), created_at=_now(),
         )
@@ -416,7 +455,7 @@ def test_enqueue_rolls_back_with_business_tx(pg_engine):
     s = _session(pg_engine)
     try:
         row = enqueue_side_effect(
-            s, source_domain="WIZARD_PENDING", source_id=7,
+            s, source_domain="ADDRESS_LEARNING", source_id=7,
             effect_type=et, payload={"key": "x"},
         )
         assert row.id is not None  # flush 됨
