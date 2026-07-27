@@ -4,6 +4,8 @@
 
 | 날짜 | 작업 | 수정 파일 | 커밋 |
 |------|------|-----------|------|
+| 2026-07-27 | AS 대시보드 타임라인 개편(T1~T16): as_log append-only 타임라인 + 무상/유상 2단계 판정, 구 contenteditable 2탭 에디터 퇴역, PC/모바일/태블릿 3표면 매크로 SSOT, 시스템 이벤트 실흐름 배선, 검색 as_log 확장, sanitize 미종결 태그 XSS 봉합·2단 상한, lost-update/clobber 서버 보존 가드 — 태스크별 리뷰 루프 + 최종 whole-branch 리뷰 + pre_push_smoke exit 0(253 passed) | foms/services/orders/as_log.py, foms/api/cs/as_orders.py, templates/cs/partials/as_card_macros.html, static/js/cs/as-dashboard.js, foms/services/as_dashboard_display.py 외 | 6473d3b3~876836e1 |
+| 2026-07-27 | 세션 자동 기록 | regional_dashboard.html, test_tablet_rail_contract.py, test_tablet_as_compare_contract.py 외 2개 | abddac61 |
 | 2026-07-24 | 생산 보드 5차: 필터 바 단순화 — [필터] 토글·필터 접기·상태 select 제거, 공장 select를 검색 앞, 변경 버튼 상시 노출(검색=전체 조건) — pytest 212 passed + 필터 바 렌더 동작검증 | tablet_kanban_body.html, tablet-domain-sheets.js, foms-tablet-production-kanban.css 외 | (미커밋) |
 | 2026-07-24 | 생산 보드 4차: 제작 취소 깨끗한 되돌림(rework/hold 정리·제작이력 승인간주) + 라벨 인쇄 제거(통합바 1줄) + 전체화면 토글(크롬 접기·복원버튼·실측 캡90) — pytest 212 passed + Playwright 전체화면·F-1 실측검증, 리뷰 Critical/Major 0 | production/orders.py, production_dashboard_display.py, tablet_kanban_body.html, foms-tablet-production-kanban.css, tablet-domain-sheets.js 외 | (미커밋) |
 | 2026-07-24 | 생산 보드 3차: 제작취소 버튼 nowrap + 고정 바 재배치(KPI 5열·pcbar통합·필터접기·열캡 실측265) + 완료 이력(hold_history 보존·무채 배지) — pytest 200 passed + Playwright 재배치·이력 실측검증, 리뷰 Major 1+Minor 3 반영 | production/orders.py, production_dashboard_display.py, tablet_kanban_body.html, tablet_sheet.html, filters_grid.html, foms-tablet-production-kanban.css, tablet-domain-sheets.js 외 | (미커밋) |
@@ -22,10 +24,3 @@
 | 2026-07-23 | 세션 자동 기록 | test_erp_spec_calc_followup.py, test_p1_mockup_structure.py, test_erp_order_shared_form_scripts.py 외 2개 | 08b7ad25 |
 | 2026-07-23 | 세션 자동 기록 | test_production_kanban_full_window.py, tablet_kanban_body.html, dashboard.py 외 2개 | 08b7ad25 |
 | 2026-07-23 | 세션 자동 기록 | test_wdcalculator_product_settings.py, wdcalculator_body.html, blueprint.py 외 2개 | 36f97651 |
-| 2026-07-23 | 세션 자동 기록 | test_regional_dashboard_buckets.py, regional_dashboard.html, _tmp_patch_logistics2.py 외 2개 | ab7886e0 |
-| 2026-07-23 | 세션 자동 기록 | regional_dashboard.html, test_regional_dashboard_buckets.py, _tmp_patch_logistics2.py 외 2개 | 473d96d0 |
-| 2026-07-23 | 세션 자동 기록 | _tmp_patch_logistics2.py, status_constants.py, test_production_change_alerts.py 외 2개 | 473d96d0 |
-| 2026-07-23 | 세션 자동 기록 | test_production_change_alerts.py, erp_order_draft.py, quest.py 외 2개 | 473d96d0 |
-| 2026-07-22 | 세션 자동 기록 | field_update.py, orders.py, as_orders.py 외 2개 | 2b049026 |
-| 2026-07-22 | 세션 자동 기록 | _tmp_order_link_xss.py, _tmp_xss_probe3.py, _tmp_xss_probe2.py 외 2개 | 2b049026 |
-| 2026-07-22 | 세션 자동 기록 | _tmp_xss_probe2.py, _tmp_xss_probe.py, _tmp_sw_audit.py 외 2개 | 2b049026 |

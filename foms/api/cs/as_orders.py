@@ -627,11 +627,13 @@ def _render_as_log_entry(entry: dict) -> str:
     )
 
 
-# as_log는 append-only라 항목당 상한이 없으면 sd가 무한히 커진다(도면 위저드 64KB 캡 선례).
-# 상한 값의 SSOT는 as_log.AS_LOG_TEXT_MAX(생성 지점 봉인)다 — 여기서 사본을 두면 한쪽만 올렸을 때
-# 라우트는 통과시키고 build_as_log_entry가 조용히 잘라 사용자가 유실을 모른다.
-# 원문(sanitize 전) 상한. AS_LOG_TEXT_MAX 는 **정리된 결과**에 걸리므로 그때까지 수 MB
-# 페이로드를 BeautifulSoup 이 전부 파싱한다 — 파싱 자체가 비용이라 진입부에서 먼저 자른다.
+# AS_LOG_TEXT_MAX(sanitize 통과 **결과**의 상한)는 여기서 import만 한다. as_log는 append-only라
+# 항목당 상한이 없으면 sd가 무한히 커지는데(도면 위저드 64KB 캡 선례), 값의 SSOT는 생성 지점인
+# as_log 모듈이다 — 사본을 두면 한쪽만 올렸을 때 라우트는 통과시키고 build_as_log_entry가
+# 조용히 잘라 사용자가 유실을 모른다.
+
+# AS_LOG_RAW_MAX: 원문(sanitize 전) 상한. 위 결과 상한만 있으면 그때까지 수 MB 페이로드를
+# BeautifulSoup 이 전부 파싱한다 — 파싱 자체가 비용이라 진입부에서 먼저 자른다.
 # 태그·엔티티 오버헤드를 넉넉히 잡아 결과 상한의 10배.
 AS_LOG_RAW_MAX = 100_000
 

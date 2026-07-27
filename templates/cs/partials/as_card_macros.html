@@ -61,8 +61,9 @@
 {%- endmacro %}
 
 {# AS 타임라인 전체(헤더 + 앵커 + quick-add + 역시간순 스트림 + 더보기 + 비고).
-   view는 as_log.build_as_timeline_view() 결과. 앵커는 접수 원문 우선, 없으면 legacy.
-   재접수해도 앵커는 최초 접수로 고정된다(스펙 §5.5) — 이후 접수 원문은 스트림에 흐른다.
+   view는 as_log.build_as_timeline_view() 결과. 앵커는 접수 원문과 legacy를 **함께** 낸다
+   (배타 아님 — 상세 근거는 아래 앵커 블록 주석). 재접수해도 앵커는 최초 접수로
+   고정된다(스펙 §5.5) — 이후 접수 원문은 스트림에 흐른다.
    상호작용(quick-add submit·더보기 fetch·영업/전달 토글)은 as-dashboard.js 위임 배선.
 
    notes(주문 비고)는 lazy 표면(PC 확장 fragment·모바일 상세)만 전달한다 — 목록은 payload를
