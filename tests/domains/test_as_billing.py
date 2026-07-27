@@ -1,4 +1,5 @@
-"""AS 접수 무상/유상(as_billing) 계약 테스트 — 저장 API + 접수 모달 프론트 구조."""
+"""AS 접수 무상/유상(as_billing) 계약 테스트 — 저장 API + 접수 모달 프론트 구조 + 대시보드 표면."""
+import re
 from datetime import date
 from pathlib import Path
 
@@ -31,12 +32,12 @@ def _login_as_admin(client, username="as-billing-admin"):
     return user
 
 
-def _create_as_order(*, status="AS_RECEIVED", shipment_extra=None):
+def _create_as_order(*, status="AS_RECEIVED", shipment_extra=None, customer_name="AS 빌링 고객"):
     today = date.today().strftime("%Y-%m-%d")
     shipment = dict(shipment_extra or {})
     order = Order(
         received_date=today,
-        customer_name="AS 빌링 고객",
+        customer_name=customer_name,
         phone="010-1234-5678",
         address="Seoul",
         product="붙박이장",
@@ -190,6 +191,50 @@ def test_register_preserves_existing_confirmed_billing(client):
     db_session.expire_all()
     billing = db_session.get(Order, order.id).structured_data["shipment"]["as_billing"]
     assert billing == confirmed
+
+
+# ---------------------------------------------------------------------------
+# AS 대시보드 billing 필터·배지·KPI (T4)
+# ---------------------------------------------------------------------------
+
+
+def test_billing_filter_paid_only(client):
+    _login_as_admin(client)
+    _create_as_order(customer_name="유상건", shipment_extra={"as_billing": {"type": "paid", "confirmed": True}})
+    _create_as_order(customer_name="무상건", shipment_extra={"as_billing": {"type": "free", "confirmed": True}})
+    body = client.get("/erp/as?tab=incomplete&billing=paid").get_data(as_text=True)
+    assert "유상건" in body and "무상건" not in body
+
+
+def test_billing_badge_free_confirmed_hidden(client):
+    _login_as_admin(client)
+    _create_as_order(customer_name="무상확정", shipment_extra={"as_billing": {"type": "free", "confirmed": True}})
+    body = client.get("/erp/as?tab=incomplete").get_data(as_text=True)
+    assert "erp-as-billing-badge" not in body  # 무상 확정 무배지
+
+
+def test_paid_unconfirmed_kpi_counts_only_unconfirmed(client):
+    """'유상 미확정' KPI는 확정된 유상 건을 세지 않는다.
+
+    JSON boolean은 dialect마다 표현이 달라(postgres 'true' / sqlite 1) 문자열
+    등호 비교로 판정하면 확정 건이 미확정으로 새어 들어온다.
+    """
+    _login_as_admin(client)
+    _create_as_order(customer_name="유상확정", shipment_extra={"as_billing": {"type": "paid", "confirmed": True}})
+    _create_as_order(customer_name="유상미확정", shipment_extra={"as_billing": {"type": "paid", "confirmed": False}})
+    _create_as_order(customer_name="무상건")
+    body = client.get("/erp/as?tab=incomplete").get_data(as_text=True)
+    assert re.search(r'data-as-incomplete-summary="paid_unconfirmed"[^>]*data-count="1"', body)
+
+
+def test_billing_filter_selects_are_present_on_both_cohorts(client):
+    """데스크톱 필터 form과 모바일 offcanvas 양쪽에 같은 name/option의 billing select가 있어야 한다."""
+    desktop = (ROOT / "templates/cs/partials/as_dashboard_body.html").read_text(encoding="utf-8")
+    mobile = (ROOT / "templates/cs/partials/as_mobile_controls.html").read_text(encoding="utf-8")
+    for src in (desktop, mobile):
+        assert 'name="billing"' in src
+        for value in ("free", "paid", "undecided"):
+            assert f'value="{value}"' in src
 
 
 # ---------------------------------------------------------------------------

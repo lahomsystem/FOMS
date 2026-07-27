@@ -8,6 +8,7 @@ flat 모듈(subpackage __init__ 순환 회피).
 from __future__ import annotations
 
 from sqlalchemy import or_, and_, cast, String, func, case
+from sqlalchemy.sql.elements import ColumnElement
 
 from models import Order
 
@@ -149,6 +150,39 @@ def _as_visit_date_expr(*, dialect_name=''):
         cast(_json_text_expr('schedule', 'as_visit', 'date', dialect_name=dialect_name), String),
         ''
     )
+
+
+def _as_billing_type_expr(*, dialect_name: str = '') -> ColumnElement[str]:
+    """structured_data.shipment.as_billing.type 추출(기본 'free', 소문자).
+
+    Args:
+        dialect_name: DB dialect 이름('postgresql'/'sqlite'/기타).
+
+    Returns:
+        비용 종류 문자열 SQL 식(등호 비교용).
+    """
+    return func.lower(func.coalesce(
+        cast(_json_text_expr('shipment', 'as_billing', 'type', dialect_name=dialect_name), String),
+        'free',
+    ))
+
+
+def _as_billing_confirmed_expr(*, dialect_name: str = '') -> ColumnElement[str]:
+    """structured_data.shipment.as_billing.confirmed 추출(기본 'false', 소문자).
+
+    dialect마다 JSON boolean 표현이 다르므로(postgres 'true' / sqlite 1) 값 비교는
+    `_sales_delivery_true_filter`(true/1/yes 집합)로 하고 여기서는 문자열만 낸다.
+
+    Args:
+        dialect_name: DB dialect 이름('postgresql'/'sqlite'/기타).
+
+    Returns:
+        확정 여부 문자열 SQL 식(진리값 판정은 호출부에서).
+    """
+    return func.lower(func.coalesce(
+        cast(_json_text_expr('shipment', 'as_billing', 'confirmed', dialect_name=dialect_name), String),
+        'false',
+    ))
 
 
 def _has_text_value(expr):

@@ -217,7 +217,7 @@
 
   .erp-as-summary-strip {
     display: grid;
-    grid-template-columns: repeat(4, minmax(0, 1fr));
+    grid-template-columns: repeat(5, minmax(0, 1fr));
     gap: 10px;
     margin-bottom: 16px;
   }
@@ -297,6 +297,34 @@
     .erp-as-summary-pill__value {
       font-size: 1rem;
     }
+  }
+
+  /* 상태 셀 비용 배지. 무상 확정은 렌더되지 않는다(무배지) — 서버 _as_billing_badge 소관. */
+  .erp-as-billing-badge {
+    display: inline-block;
+    margin-top: 2px;
+    padding: 0 5px;
+    border-radius: 4px;
+    font-size: 0.68rem;
+    font-weight: 700;
+    line-height: 1.5;
+  }
+
+  .erp-as-billing-badge--paid {
+    background: #f59f00;
+    color: #fff;
+  }
+
+  .erp-as-billing-badge--undecided {
+    background: #e9ecef;
+    color: #495057;
+  }
+
+  /* 미확정(추정)은 점선 테두리로 "아직 판정 전"을 시각 구분 */
+  .erp-as-billing-badge--paid_unconfirmed {
+    background: #fff;
+    color: #d9480f;
+    border: 1px dashed #f59f00;
   }
 
   /* AS 고객 열: 전화번호 아래 발주사(라홈/하우드 로고 또는 이름) */

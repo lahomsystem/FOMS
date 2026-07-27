@@ -67,6 +67,9 @@
     {% if as_bucket %}
       <input type="hidden" name="bucket" value="{{ as_bucket }}">
     {% endif %}
+    {% if billing_filter %}
+      <input type="hidden" name="billing" value="{{ billing_filter }}">
+    {% endif %}
     <label class="visually-hidden" for="erp-as-mobile-search">검색</label>
     <input
       id="erp-as-mobile-search"
@@ -130,6 +133,16 @@
             <option value="">전체</option>
             <option value="AS_RECEIVED" {% if status_filter == 'AS_RECEIVED' %}selected{% endif %}>AS 접수</option>
             <option value="AS_COMPLETED" {% if status_filter == 'AS_COMPLETED' %}selected{% endif %}>AS 완료</option>
+          </select>
+        </div>
+
+        <div class="erp-as-mobile-controls__field">
+          <label for="erp-as-mobile-billing">비용</label>
+          <select id="erp-as-mobile-billing" class="form-select" name="billing">
+            <option value="">전체</option>
+            <option value="free" {% if billing_filter == 'free' %}selected{% endif %}>무상</option>
+            <option value="paid" {% if billing_filter == 'paid' %}selected{% endif %}>유상</option>
+            <option value="undecided" {% if billing_filter == 'undecided' %}selected{% endif %}>미정</option>
           </select>
         </div>
 

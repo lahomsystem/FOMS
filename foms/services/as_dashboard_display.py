@@ -240,6 +240,24 @@ def batch_resolve_as_compare_photos(rows, db: Any) -> dict[int, dict[str, list]]
     return result
 
 
+def _as_billing_badge(billing: Any) -> str | None:
+    """상태 셀 billing 배지 종류. 무상(확정 여부 무관)은 None(무배지).
+
+    Args:
+        billing: ``structured_data.shipment.as_billing`` 값(비 dict면 무상 취급).
+
+    Returns:
+        'paid' | 'paid_unconfirmed' | 'undecided' | None.
+    """
+    b = billing if isinstance(billing, dict) else {}
+    btype = str(b.get('type') or 'free').lower()
+    if btype == 'paid':
+        return 'paid' if b.get('confirmed') is True else 'paid_unconfirmed'
+    if btype == 'undecided':
+        return 'undecided'
+    return None
+
+
 def apply_as_dashboard_row_display_fields(rows, db, *, mobile_v2_active):
     """AS 대시보드 rows에 표시 필드를 in-place 보강 (구 erp_as_dashboard 표시 블록). 동작 보존.
 
@@ -277,6 +295,7 @@ def apply_as_dashboard_row_display_fields(rows, db, *, mobile_v2_active):
         r.has_as_photos = r.id in as_photo_order_ids
         shipment = r.structured_data.get('shipment') or {}
         r.as_pending = shipment.get('as_pending') is True
+        r.as_billing_badge = _as_billing_badge(shipment.get('as_billing'))
         r.has_as_blueprint = shipment.get('as_blueprint') is True
         r.is_sales_delivery = shipment.get('sales_delivery') is True
         r.construction_workers = _normalize_construction_worker_names(

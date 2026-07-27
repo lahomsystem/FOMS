@@ -142,6 +142,7 @@ def erp_as_dashboard():
     selected_date = _af.selected_date
     open_map = _af.open_map
     tab = _af.tab
+    billing_filter = _af.billing
 
     if open_map:
         date_val = selected_date or get_today_kst().strftime('%Y-%m-%d')
@@ -237,6 +238,13 @@ def erp_as_dashboard():
     as_visit_date_present = as_tab_conditions["as_visit_date_present"]
     incomplete_non_sales_condition = as_tab_conditions["incomplete_non_sales_condition"]
     sales_delivery_condition = as_tab_conditions["sales_delivery_condition"]
+    paid_unconfirmed_condition = as_tab_conditions["paid_unconfirmed_condition"]
+    billing_filters = as_tab_conditions["billing_filters"]
+
+    # 비용 필터(탭 무관)는 카운트 계산 전에 적용한다. status 필터와 같은 위치 계약이라
+    # 탭 카운트·버킷 요약·헤더 건수·페이지 수가 목록과 항상 같은 모집단을 본다.
+    if billing_filter in billing_filters:
+        filtered_base_query = filtered_base_query.filter(billing_filters[billing_filter])
 
     as_count_context = build_as_tab_count_context(
         filtered_base_query,
@@ -246,6 +254,7 @@ def erp_as_dashboard():
         sales_delivery_condition=sales_delivery_condition,
         as_pending_true=as_pending_true,
         as_visit_date_present=as_visit_date_present,
+        paid_unconfirmed_condition=paid_unconfirmed_condition,
     )
     incomplete_buckets = as_count_context["incomplete_buckets"]
     as_bucket = as_count_context["as_bucket"]
@@ -321,6 +330,7 @@ def erp_as_dashboard():
         as_tab_counts=as_tab_counts,
         as_incomplete_summary=as_incomplete_summary,
         as_bucket=as_bucket,
+        billing_filter=billing_filter,
         compact_search_q=compact_q,
         page=page,
         per_page=per_page,

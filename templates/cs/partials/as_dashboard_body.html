@@ -1,7 +1,7 @@
 {# foms-kv-rollout: erp_mobile_shell → kv-copy.js + queue card foms_order_contact_kv #}
 {% from 'cs/partials/as_card_macros.html' import render_as_rich_toolbar_template, render_as_content_tabs, render_as_orderer_line, render_as_construction_workers %}
 
-<link rel="stylesheet" href="{{ url_for('static', filename='css/contexts/cs/as-dashboard-body.css') }}?v=20260712a">
+<link rel="stylesheet" href="{{ url_for('static', filename='css/contexts/cs/as-dashboard-body.css') }}?v=20260727a">
 {# 카드 CSS는 body 파셜에 둔다 → fast-tab 프래그먼트 스왑(as_dashboard_fragment.html)에도
    함께 실려, 탭 이동 첫 진입에서 카드가 원시(미스타일)로 뜨는 FOUC를 막는다.
    (head_extra 전용이면 전체 새로고침 전까지 카드 CSS가 누락된다) #}
@@ -94,6 +94,15 @@
           </select>
         </div>
         <div class="erp-pro-filter-group">
+          <label class="erp-pro-filter-label">비용</label>
+          <select class="erp-pro-select" name="billing">
+            <option value="">전체</option>
+            <option value="free" {% if billing_filter=='free' %}selected{% endif %}>무상</option>
+            <option value="paid" {% if billing_filter=='paid' %}selected{% endif %}>유상</option>
+            <option value="undecided" {% if billing_filter=='undecided' %}selected{% endif %}>미정</option>
+          </select>
+        </div>
+        <div class="erp-pro-filter-group">
           <label class="erp-pro-filter-label">검색</label>
           <input type="text" class="erp-pro-input" name="q" value="{{ search_q or '' }}" placeholder="전체 검색...">
         </div>
@@ -120,7 +129,8 @@
           {'key': 'total', 'label': '총 건수'},
           {'key': 'visit_confirmed', 'label': '방문 확정'},
           {'key': 'pending', 'label': '미결'},
-          {'key': 'unassigned', 'label': '아직 미정'}
+          {'key': 'unassigned', 'label': '아직 미정'},
+          {'key': 'paid_unconfirmed', 'label': '유상 미확정'}
         ] %}
         {% set _bucket_active = (as_bucket == b.key) or (b.key == 'total' and not as_bucket) %}
         <a class="erp-as-summary-pill{% if _bucket_active %} is-active{% endif %}"
@@ -239,6 +249,11 @@
                   class="erp-pro-badge {% if r.as_pending %}erp-pro-badge--pending{% elif r.status == 'AS_COMPLETED' %}erp-pro-badge--success{% else %}erp-pro-badge--info{% endif %}">
                   {% if r.as_pending %}미결{% else %}{{ STATUS.get(r.status, r.status) }}{% endif %}
                 </span>
+                {% if r.as_billing_badge %}
+                <span class="erp-as-billing-badge erp-as-billing-badge--{{ r.as_billing_badge }}">
+                  {% if r.as_billing_badge == 'paid' %}유상{% elif r.as_billing_badge == 'paid_unconfirmed' %}유상?{% else %}미정{% endif %}
+                </span>
+                {% endif %}
               </td>
             </tr>
             {% endfor %}
