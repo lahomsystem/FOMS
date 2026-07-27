@@ -460,11 +460,60 @@ def api_as_schedule(order_id):
         return jsonify({"success": False, "message": str(e)}), 500
 
 
+@erp_orders_as_bp.route("/<int:order_id>/as/billing", methods=["POST"])
+@login_required
+@erp_edit_required
+def api_as_billing(order_id: int):
+    """AS 무상/유상 판정 확정·전환. 전환 시 reason 필수."""
+    db = get_db()
+    try:
+        order = db.get(Order, order_id)
+        if not order or order.status == "DELETED" or order.deleted_at is not None:
+            return jsonify({"success": False, "message": "주문을 찾을 수 없습니다."}), 404
+
+        data = request.get_json(silent=True) or {}
+        new_type = _coerce_billing_type(data.get("type"))
+        reason = str(data.get("reason") or "").strip()
+        try:
+            amount = _coerce_billing_amount(data.get("amount")) if new_type == "paid" else None
+        except ValueError as e:
+            # 입력 검증 실패는 400. 409는 낙관/무결성 전용(structured_data 로드 실패 등).
+            return jsonify({"success": False, "message": str(e)}), 400
+
+        user = get_user_by_id(session.get("user_id"))
+        sd = _load_order_structured_data_for_update(order)
+        prev = (sd.get("shipment") or {}).get("as_billing") or {}
+        prev_type = str(prev.get("type") or "free")
+        if prev.get("confirmed") is True and prev_type != new_type and not reason:
+            return jsonify({"success": False, "message": "판정 전환 시 사유는 필수입니다."}), 400
+
+        billing = _write_as_billing(
+            sd, billing_type=new_type, amount=amount,
+            confirmed=True, reason=reason, user=user,
+        )
+        order.structured_data = sd
+        flag_modified(order, "structured_data")
+        sync_erp_flat_columns(order, sd)
+        db.add(SecurityLog(
+            user_id=session.get("user_id"),
+            message=f"주문 #{order_id} AS 비용 판정: {new_type}"))
+        db.commit()
+        _invalidate_shipment_asrec_caches("api_as_billing")
+        return jsonify({"success": True, "billing": billing})
+    except ValueError as e:
+        db.rollback()
+        return jsonify({"success": False, "message": str(e)}), 409
+    except Exception as e:
+        db.rollback()
+        return jsonify({"success": False, "message": str(e)}), 500
+
+
 __all__ = [
     "erp_orders_as_bp",
     "api_as_start",
     "api_as_complete",
     "api_as_register",
     "api_as_schedule",
+    "api_as_billing",
     "get_today_kst",
 ]
