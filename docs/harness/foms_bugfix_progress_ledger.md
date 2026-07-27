@@ -163,6 +163,7 @@
 - **배치16(STATE-FORM-01·STARTUP-ADMIN-01·SHIPMENT-REFERENCE-01) 완료 → head=shipment_reference_00. 92 unique 커밋 + CHAT 5 N/A = 97/124 (78%)·잔여 구현 ~27.** (상세 아래 "✅ 배치16 완료")
 - **배치17(STARTUP-PURE-01·WIZ-01·PASSWORD-POLICY-01) 완료 → head=password_policy_00. 95 unique 커밋 + CHAT 5 N/A = 100/124 (80%)·잔여 구현 ~24.** (상세 아래 "✅ 배치17 완료")
 - **배치18(DATA-MEASUREMENT-01·WIZ-TRANSFER-01) 완료 → head=data_measurement_00. 97 unique 커밋 + CHAT 5 N/A = 102/124 (82%)·잔여 구현 ~22.** (상세 아래 "✅ 배치18 완료")
+- **배치19(ORDER-CREATE-01·WIZ-DELETE-01 defer) → head 불변 data_measurement_00. 98 unique 커밋 + CHAT 5 N/A = 103/124 (83%)·잔여 구현 ~21(WIZ-DELETE 포함).** (상세 아래 "✅ 배치19 완료")
 
 ## ⚠️ 알려진 이슈 (PG-lane test-pollution·pre-existing 하네스·product 버그 아님)
 `pytest tests/postgres`(전체 suite) 실행 시 test_wdc_link_cleanup 2 failed+16 errors(RestrictViolation). **격리 단독은 20 passed**. 원인: conftest 격리=per-test 트랜잭션 rollback(:236)인데 PG 동시성 테스트(FOR UPDATE/SKIP LOCKED·real commit)가 row 누출→전체 suite 순서서 RESTRICT FK. 배치9/11/14 WDC-link 계열 잠복(full tests/postgres 미실행이라 지금 노출). **각 packet 격리 테스트·domains+contracts는 전부 green**. **수정 필요(production 승격 전·별도 conftest 격리 태스크)**: 동시성 테스트 후 truncate-cascade teardown. 지금 배치15 커밋은 이 이슈로 안 막음(개별 검증 green·pre-existing).
@@ -222,3 +223,16 @@ BASE-00·PACKET-HARNESS-00 + OPS-ROUTE-01·API-ERROR-01·FAILOPEN-01·REQUEST-LI
 - ✅ WIZ-TRANSFER-01 — 신규 foms/services/orders/drawing_transfer.py(materialize_pending_snapshot·materialize_transfer_attachments·_is_drawing_key). **commit=False 계약**: helper가 db 세션 인자 미수령→commit/flush/version/event/outbox 코드경로 부재(spy 증명). 도면 key 필터(drawing_wizard/drawing/drawing_gateway 접두만·실측/일반/타주문/traversal 거부). same-origin URL. endpoint/transaction 미소유(STATE-DRAWING 조립). 기존파일 편집 0·무마이그레이션/models/manifest. test_wiz_transfer 9 green.
 - **레이스 축 분리 확인**: 마이그레이션/models/manifest=DATA-MEASUREMENT 단독(WIZ-TRANSFER는 신규 2파일뿐). namespace surface=DATA-MEASUREMENT만 편집(WIZ-TRANSFER 무접근·레이스 없음). failopen 전체 재생성(474 broad/0 unclassified).
 - **검증**: APP_OK·alembic 단일 head data_measurement_00·secret 0·매니페스트 17·타깃 211 green(PG 6 skip).
+
+## ✅ 배치19 완료 (ORDER-CREATE만·WIZ-DELETE defer → head 불변 data_measurement_00, 98 unique+5 N/A=103/124 83%)
+- ✅ ORDER-CREATE-01 — 신규 foms/services/orders/order_create.py::create_order(한 tx 원자 조립·호출자 commit): mutation_version=1·SALES OrderAssignment(INITIAL_OWNER·ASSIGNMENT-00)·ORDER_CREATED event. ERP 한정 RECEIVED quest seed(STATE-QUEST)·item UUID(ITEM-ID-00)·server totals 재계산(DATA-01)·flat projection(DATA-MEASUREMENT)·주소 GEOCODE outbox(postcommit 폴백 제거). resolve_order_owner: STAFF self(other-STAFF 거부)·ADMIN/MANAGER explicit 활성 SALES(admin owner/비활성/비SALES 거부·MEASURE→SALES 정규화). listing.py /add JSON·폼 어댑터 create_order 경유(add_order raw Order 0·copy 602는 무접근). **무마이그레이션/models/manifest**(기존 테이블·order_pages.add_order STAFF_MUTATION 재사용·enqueue_geocode_order_address noqa F401). test PG 7 skip(DSN無)+SQLite 12 green·domains 3161·contracts 33. **CHANNEL-INBOUND/DRAFT-LIFECYCLE/ORDER-COPY/ORDER-IMPORT unblock.**
+- ⚠️ **WIZ-DELETE-01 DEFER**(위 "⚠️ 배치19 WIZ-DELETE-01 DEFER" 참조): drawing_wizard_pending child 테이블 부재(WIZ-01 미배달 스코프)로 정당 차단, WIZ-01-COMPLETION 후속 랜딩 후 재디스패치.
+- **ORDER-CREATE follow-up(비블로킹)**: /add 폼에 Admin/Manager용 sales_owner_id selector UI 미배선(백엔드 정책 enforcement는 완결·STAFF self-owner 경로 정상·Admin form-create는 selector 필요). UI packet 소관.
+- **검증**: APP_OK·alembic head 불변 data_measurement_00·secret 0·매니페스트 17·failopen 474/0·타깃 24 green.
+
+## ⚠️ 배치19 WIZ-DELETE-01 DEFER (선행 산출물 누락·오케스트레이터 스코프 오류)
+- **차단 근거(검증됨)**: WIZ-DELETE-01의 "child row DELETE_PENDING + STORAGE_DELETE outbox·worker child-only·Order JSON 0" 불변식은 `drawing_wizard_pending(id,order_id,owner_user_id,object_key,state,...)` child 테이블(master plan line 530)을 요구. 그 테이블·모델 부재(models.py DrawingWizardPending 없음·마이그레이션 없음·wizard_pending_id는 FK 부모 없는 plain int·2131). pending은 여전히 structured_data['drawing_wizard']['pending'] JSON에만.
+- **근본 원인**: master plan line 721 "**WIZ-01 child/Order commands**" — WIZ-01이 child(drawing_wizard_pending 테이블+child commands)+Order commands 둘 다 소유했어야. 내 WIZ-01 브리프(배치17)가 **Order-command(PUT row lock/projection·P0-4)만 스코프하고 child-table 정규화 누락**. WIZ-01(ffe2def4)은 미완(Order projection만 배달).
+- **선행 필요 packet**: `drawing_wizard_pending` child 테이블 + JSON→child 정규화 + outbox WIZARD_PENDING FK 부착(=WIZ-01 미배달 스코프 완성). models+migration이라 ORDER-CREATE와 같은 배치 불가 → **후속 전용 마이그레이션 배치**에서 WIZ-01-COMPLETION으로 랜딩 후 WIZ-DELETE 재디스패치.
+- WIZ-TRANSFER-01(9bc046c4)은 JSON pending에서 materialize라 무영향(child 테이블 불요).
+- **부수 발견(재디스패치 시 반영)**: 현 delete route는 client key 신뢰 안 함(server-derived pending[sheet_id].key). 실 gap=동기 R2 삭제(wizard.py:1115/1136)+요청 tx Order JSON mutation. STORAGE_DELETE는 UPLOAD-02·BLUEPRINT-01도 발행하는 공유 effect(line 391)→handler는 source_domain별 분기·단독 register 충돌 주의.
