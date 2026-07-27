@@ -215,10 +215,11 @@ def test_run_auto_init_uses_internal_startup_policy(monkeypatch):
 
     import foms.services.order_date_sync as order_date_sync_module
 
-    # STARTUP-SCHEMA-01: run_auto_init no longer invokes any ensure-schema DDL helper
-    # (attachment columns / erp flat columns / phase-2 indexes are owned by Alembic
-    # migration startup_schema_00, applied in predeploy). Only the create_all baseline
-    # and the fail-closed readiness probe remain on the schema path.
+    # STARTUP-PURE-01: run_auto_init performs zero DB write/DDL. The create_all
+    # baseline (init_db / init_wdcalculator_db) and the ERP flat-column backfill
+    # were removed from the startup path (schema is owned by Alembic/predeploy;
+    # backfill by the STARTUP-BACKFILL-01 CLI). Only the read-only fail-closed
+    # readiness probe and the date-sync listener wiring remain.
     monkeypatch.setattr(app_init, "init_db", lambda: calls.append("init_db"))
     monkeypatch.setattr(app_init, "init_wdcalculator_db", lambda: calls.append("init_wdcalculator_db"))
     monkeypatch.setattr(
@@ -240,10 +241,11 @@ def test_run_auto_init_uses_internal_startup_policy(monkeypatch):
 
     assert calls == [
         "enter_app_context",
-        "init_db",
-        "init_wdcalculator_db",
         "verify_erp_flat_columns_ready",
-        "backfill_erp_flat_columns",
         "register_date_sync_listener",
         "exit_app_context",
     ]
+    # Purity guarantees: no create_all baseline, no startup backfill.
+    assert "init_db" not in calls
+    assert "init_wdcalculator_db" not in calls
+    assert "backfill_erp_flat_columns" not in calls

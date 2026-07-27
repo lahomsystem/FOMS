@@ -97,53 +97,30 @@ def _resolve_debug_mode(use_reloader: bool) -> bool:
 
 
 def _run_startup_tasks(app: Any, logger: logging.Logger) -> None:
-    """Run one-time local startup tasks before the dev server starts."""
-    from foms.api.attachments import (
-        ensure_order_attachments_category_column,
-        ensure_order_attachments_item_index_column,
-    )
-    from db import init_db
-    from wdcalculator_db import init_wdcalculator_db
+    """Verify the local DB schema is current before the dev server starts.
+
+    STARTUP-PURE-01: dev startup performs no DDL / ``create_all`` / migration
+    mutation. The schema is owned by Alembic (``alembic upgrade head``, run in
+    ``predeploy.sh`` for deploys and manually for local dev). Here we only fail
+    closed when migrations are pending, so a stale local schema is upgraded
+    explicitly instead of the server silently migrating it.
+
+    Args:
+        app: The Flask app (unused; kept for the stable startup-hook signature).
+        logger: Startup logger for deterministic dev-boot messages.
+
+    Raises:
+        StartupReadinessError: When the local PostgreSQL schema is behind the
+            Alembic head — surfaced loudly by ``main`` so the server never
+            starts on a stale schema.
+    """
+    from foms.services.app_init import verify_migrations_current
+    from db import engine
 
     logger.info("[START] FOMS 애플리케이션 시작 중...")
-    startup_success = True
-
-    try:
-        init_db()
-        with app.app_context():
-            ensure_order_attachments_category_column()
-            ensure_order_attachments_item_index_column()
-        logger.info("[OK] FOMS 데이터베이스 초기화 완료")
-    except Exception as exc:
-        logger.error("[ERROR] FOMS 데이터베이스 초기화 실패: %s", exc)
-        startup_success = False
-
-    try:
-        with app.app_context():
-            init_wdcalculator_db()
-        logger.info("[OK] 견적 계산기 데이터베이스 초기화 완료")
-    except Exception as exc:
-        logger.warning("[WARN] 견적 계산기 데이터베이스 초기화 실패 (견적 기능 제한): %s", exc)
-
-    try:
-        from safe_schema_migration import run_safe_migration
-
-        with app.app_context():
-            migration_success = run_safe_migration(app.app_context())
-        if migration_success:
-            logger.info("[OK] 스키마 마이그레이션 완료")
-        else:
-            logger.warning("[WARN] 스키마 마이그레이션 실패 - 기존 스키마로 계속 진행")
-            startup_success = False
-    except Exception as exc:
-        logger.error("[ERROR] 스키마 마이그레이션 중 예외: %s", exc)
-        startup_success = False
-
-    if startup_success:
-        logger.info("[SUCCESS] 모든 시작 프로세스가 성공적으로 완료되었습니다!")
-        print("[OK] FOMS 시스템이 준비되었습니다!")
-    else:
-        logger.warning("[WARN] 일부 시작 프로세스에서 오류가 발생했지만 앱은 정상적으로 시작됩니다.")
+    verify_migrations_current(engine)
+    logger.info("[OK] DB 스키마가 Alembic head와 일치합니다.")
+    print("[OK] FOMS 시스템이 준비되었습니다!")
 
 
 def _run_dev_server(
