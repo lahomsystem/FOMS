@@ -1521,13 +1521,43 @@ class ChannelInboundEventLog(Base):
     created_task_ref = Column(String(100), nullable=True)
     received_at = Column(DateTime, default=datetime.datetime.now, nullable=False)
     processed_at = Column(DateTime, nullable=True)
-    
+
+    # --- CHANNEL-INBOUND-ORDER-01: order-creation receipt lifecycle ---------- #
+    # 주문 생성 파이프라인의 정본 lifecycle(레거시 ``status`` 와 직교). dedicated worker 가
+    # 이 상태만 보고 create_order 로 전이한다. accepted 를 조용히 clear/DEAD 하지 않는다.
+    #   NONE            — 아직 생성 대상 아님(parse 전/dry-run).
+    #   ACCEPTED        — 생성 대기(worker claim 대상).
+    #   PAUSED_ACCEPTED — 전역 create flag cutoff 로 일시 중지(유실 0, 재개 가능).
+    #   RECOVERY_REQUIRED — worker 시도 소진(max attempts) → 운영자 recovery 필요.
+    #   CREATED         — 주문 1건 생성 완료(exact conservation).
+    #   IGNORED         — recovery 판정으로 무시(승인 필요).
+    #   RETENTION_EXPIRED — retention deadline 경과(visible incident, 조용한 삭제 아님).
+    receipt_state = Column(String(30), nullable=False, server_default='NONE')
+    #: 미생성 receipt 데이터를 보관/purge 해야 하는 기한(승인 없는 무기한 보관 금지).
+    retention_deadline = Column(DateTime, nullable=True)
+    #: 마지막으로 발송한 retention 경고 단계('7d'/'24h'/'6h') — 중복 알림 방지.
+    retention_alert_stage = Column(String(10), nullable=True)
+    #: 법적 보존(legal hold) — True 면 ignore/purge 로 조용히 없앨 수 없다.
+    legal_hold = Column(Boolean, nullable=False, server_default=text('false'))
+    #: worker 주문 생성 시도 횟수(max 도달 시 RECOVERY_REQUIRED, 무한 재시도 0).
+    create_attempts = Column(Integer, nullable=False, server_default=text('0'))
+    #: 이 receipt 의 sealed_secret 를 봉인한 channel key generation(rewrap old-reference 근거).
+    key_generation = Column(Integer, nullable=True)
+    #: channel key 로 봉인한 per-receipt secret 의 AES-256-GCM envelope(평문 0, rewrap 대상).
+    sealed_secret = Column(Text, nullable=True)
+    # worker claim lease(SKIP LOCKED · 크래시 시 만료 회수).
+    lease_owner_hash = Column(String(64), nullable=True)
+    lease_token = Column(String(64), nullable=True)
+    lease_expires_at = Column(DateTime, nullable=True)
+
     created_order = relationship('Order', foreign_keys=[created_order_id])
     created_task = relationship('OrderTask', foreign_keys=[created_task_id])
-    
+
     from sqlalchemy import Index
     __table_args__ = (
         Index('ix_channel_inbound_status_time', 'status', 'received_at'),
+        # worker 가 생성 대상(available lease)을 SKIP LOCKED 로 claim 할 때의 hot path.
+        Index('ix_channel_inbound_receipt_state', 'receipt_state', 'lease_expires_at'),
     )
 
 
@@ -2728,6 +2758,123 @@ event.listen(
     'after_create',
     DDL(AUTH_RATE_KEY_STATE_SEED_SQL),
 )
+
+
+# ============================================================================
+# CHANNEL-INBOUND-ORDER-01 — 채널 수신 주문 recovery key state + 전역 create flag
+#   + dedicated worker heartbeat (§2.1 line 218, §channel line 1066)
+# ============================================================================
+class ChannelInboundKeyState(Base):
+    """채널 수신 파이프라인 encryption key 상태기계 정본(singleton id=1).
+
+    :class:`AuthRateKeyState` 와 **동형** prepare/activate 상태기계다. 채널 수신
+    데이터(receipt 봉인 secret 등)를 암호화하는 channel key 의 bootstrap 과 rotation 을
+    OPS-APPROVAL 게이트 하에 관리한다. key material 은 AES-256-GCM envelope
+    (``*_key_ciphertext``)로 at-rest 저장하며 **plaintext 키를 절대 저장하지 않는다**.
+    각 replica 는 env master key(``FOMS_CHANNEL_INBOUND_MASTER_KEY_B64URL``)로 복호화한다.
+
+    상태 전이(AUTH-ACCOUNT-01 미러):
+
+    * ``EMPTY → READY`` (KEY_ROTATION_PREPARE 최초): 첫 pending key stage, generation→1.
+    * ``READY → ACTIVE`` (KEY_ROTATION_ACTIVATE 최초): pending→active(첫 키 활성).
+    * ``ACTIVE → ROTATION_READY`` (KEY_ROTATION_PREPARE): 새 pending key, generation++.
+    * ``ROTATION_READY → ROTATING`` (KEY_ROTATION_ACTIVATE): previous=구 active, active=새 키,
+      ``previous_not_after`` grace 동안 dual accept.
+    * ``ROTATING → ACTIVE`` (KEY_ROTATION_FINALIZE): grace 경과 **및 old-reference 0** 이어야
+      previous(구 키) 폐기(참조가 남은 키 삭제 금지 — rewrap 선행 강제).
+    """
+
+    __tablename__ = 'channel_inbound_key_state'
+
+    id = Column(Integer, primary_key=True)  # singleton — 항상 1.
+    mode = Column(String(20), nullable=False, server_default='EMPTY')
+    version = Column(Integer, nullable=False, server_default=text('1'))
+    generation = Column(Integer, nullable=False, server_default=text('0'))
+    # key-material fingerprints (sha256 hex) only — never raw key bytes.
+    active_key_id = Column(String(64), nullable=True)
+    previous_key_id = Column(String(64), nullable=True)
+    pending_key_id = Column(String(64), nullable=True)
+    # AES-256-GCM encrypted envelopes (JSON text) — never plaintext key material.
+    active_key_ciphertext = Column(Text, nullable=True)
+    previous_key_ciphertext = Column(Text, nullable=True)
+    pending_key_ciphertext = Column(Text, nullable=True)
+    previous_not_after = Column(DateTime, nullable=True)  # dual-accept grace deadline.
+    prepared_key_artifact_sha256 = Column(String(64), nullable=True)
+    prepared_rollout_artifact_sha256 = Column(String(64), nullable=True)
+    prepared_at = Column(DateTime, nullable=True)
+    activated_at = Column(DateTime, nullable=True)
+    updated_at = Column(DateTime, nullable=False, default=now_utc_naive, server_default=func.now())
+    updated_by_admin_user_id = Column(Integer, ForeignKey('users.id'), nullable=True)
+
+    __table_args__ = (
+        CheckConstraint('id = 1', name='ck_channel_inbound_key_singleton'),
+        CheckConstraint(
+            "mode IN ('EMPTY','READY','ACTIVE','ROTATION_READY','ROTATING')",
+            name='ck_channel_inbound_key_mode',
+        ),
+    )
+
+
+CHANNEL_INBOUND_KEY_STATE_SEED_SQL = (
+    "INSERT INTO channel_inbound_key_state (id) VALUES (1)"
+)
+
+event.listen(
+    ChannelInboundKeyState.__table__,
+    'after_create',
+    DDL(CHANNEL_INBOUND_KEY_STATE_SEED_SQL),
+)
+
+
+class ChannelCreateFlag(Base):
+    """전역 채널 주문 생성 on/off 플래그 정본(singleton id=1).
+
+    ``CHANNEL_CREATE_ENABLE`` / ``CHANNEL_CREATE_DISABLE`` OPS operation 이 이 한 행의
+    ``state`` 를 뒤집는다. **기본은 DISABLED**(명시 승인 전 자동 생성 0). worker 는 매
+    배치마다 이 행을 읽어 DISABLED 면 새 주문을 만들지 않는다(**global flag 우회 worker 0**).
+    disable(cutoff) 시 ACCEPTED receipt 는 조용히 버려지지 않고 PAUSED_ACCEPTED 로 보존되며
+    (job PAUSED), 재enable 시 되살아난다(유실 0).
+    """
+
+    __tablename__ = 'channel_create_flag'
+
+    id = Column(Integer, primary_key=True)  # singleton — 항상 1.
+    state = Column(String(20), nullable=False, server_default='DISABLED')
+    version = Column(Integer, nullable=False, server_default=text('1'))
+    updated_at = Column(DateTime, nullable=False, default=now_utc_naive, server_default=func.now())
+    updated_by_admin_user_id = Column(Integer, ForeignKey('users.id'), nullable=True)
+
+    __table_args__ = (
+        CheckConstraint('id = 1', name='ck_channel_create_flag_singleton'),
+        CheckConstraint("state IN ('ENABLED','DISABLED')", name='ck_channel_create_flag_state'),
+    )
+
+
+CHANNEL_CREATE_FLAG_SEED_SQL = (
+    "INSERT INTO channel_create_flag (id) VALUES (1)"
+)
+
+event.listen(
+    ChannelCreateFlag.__table__,
+    'after_create',
+    DDL(CHANNEL_CREATE_FLAG_SEED_SQL),
+)
+
+
+class ChannelInboundWorkerHeartbeat(Base):
+    """dedicated 채널 수신 worker heartbeat/lag 정본(SIDEFX-WORKER-01 미러).
+
+    PK ``worker_kind`` upsert(ON CONFLICT DO UPDATE). readiness gate 는 heartbeat 신선도와
+    oldest pending lag·RECOVERY_REQUIRED count 로 fail-closed 판정한다.
+    """
+
+    __tablename__ = 'channel_inbound_worker_heartbeats'
+
+    worker_kind = Column(String(40), primary_key=True)
+    last_heartbeat_at = Column(DateTime, nullable=False)
+    oldest_lag_seconds = Column(Integer, nullable=True)
+    metadata_json = Column(JSONColumn, nullable=True)
+    updated_at = Column(DateTime, nullable=False, default=now_utc_naive, server_default=func.now())
 
 
 # --------------------------------------------------------------------------- #

@@ -16,8 +16,7 @@ from datetime import datetime
 from typing import Any, Dict, Optional, Tuple
 
 from foms.persistence.main.db import db_session, get_db
-from foms.persistence.main.models import ChannelInboundEventLog, Order
-from foms.services.datetime_kst import get_today_kst
+from foms.persistence.main.models import ChannelInboundEventLog, Order  # noqa: F401
 from foms.services.jobs.queue import enqueue_channeltalk_inbound
 
 __all__ = [
@@ -90,6 +89,7 @@ def receive_webhook(payload: dict) -> Tuple[int, Dict[str, Any]]:
         terminal_statuses = [
             "worker_processing",
             "created",
+            "accepted",
             "parse_failed",
             "rejected_signature",
             "rejected_replay",
@@ -255,22 +255,13 @@ def process_inbound_job(log_id: int):
             db.commit()
             return
 
-        # 3. Order 생성
-        new_order = Order(
-            received_date=get_today_kst().strftime("%Y-%m-%d"),
-            customer_name=parsed_data.get("customer_name"),
-            phone=parsed_data.get("phone"),
-            address=parsed_data.get("address"),
-            product=parsed_data.get("product", "-"),
-            status="RECEIVED",
-            is_erp_order=True,
-        )
-        db.add(new_order)
-        db.commit()  # ID 획득
-
-        log.created_order_id = new_order.id
-        log.created_order_ref = f"ORD-{new_order.id}"
-        log.status = "created"
+        # 3. Handoff to the dedicated create worker (CHANNEL-INBOUND-ORDER-01).
+        #    레거시 raw ``Order(...)`` 인라인 생성(2 commit)을 제거한다. 파싱에 성공한 receipt 를
+        #    ACCEPTED 로 표시만 하고, 실제 주문 생성은 canonical ``create_order`` 를 쓰는 dedicated
+        #    worker 가 전역 create flag·활성 SALES owner 정책·멱등(receipt 1개=주문 1개) 하에서
+        #    수행한다(two commit 0·exact conservation·owner 부재 시 pause).
+        log.receipt_state = "ACCEPTED"
+        log.status = "accepted"
         log.processed_at = datetime.now()
         db.commit()
 
