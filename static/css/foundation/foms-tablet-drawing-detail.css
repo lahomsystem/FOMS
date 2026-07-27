@@ -1,0 +1,50 @@
+/* FOMS 태블릿 가로 도면 실행판 보정 레이어 — E4 (2026-07-27, T2).
+
+   실행판(workbench_detail_body.html, templates/drawing/partials/)은 인라인 <style>
+   (73-932행)로 PC 전용 배선돼 있다 — 그리드 .dw-detail-grid, 결정바 .dw-sidebar-actions,
+   썸네일 .drawing-gateway-thumb(파일비교·타임라인·현재버전 공유 매크로) 등. E4-0 조사
+   결과 DOM 재배치 불필요 — 태블릿 가로 터치 보정은 CSS 오버라이드 레이어만으로 충분하다
+   (마크업/JS 무변경, 인라인 <style> 자체도 무변경).
+
+   적용 조건 (T0 매트릭스 정합):
+     @media (min-width: 992.02px) and (orientation: landscape) and (pointer: coarse)
+   = 992+ 가로 + 굵은 포인터 = 진짜 터치 태블릿 가로. 실행판 인라인의 폭 992px 이하
+   축소 breakpoint(3곳)와 992.02px 경계로 중첩을 피한다(fine 992-1365 노트북 창은
+   pointer:coarse 아니므로 제외).
+
+   스코프: body.erp-mobile-v2-layout(코호트 게이트) 접두로 특이도(0,2,0)를 확보해
+   인라인 <style>의 동일 셀렉터(특이도 0,1,0)를 이긴다. 코호트 OFF/PC/폰 무영향.
+   (로드: foms-tablet-bundle.css @import — 코호트 번들에서만.) */
+
+@media (min-width: 992.02px) and (orientation: landscape) and (pointer: coarse) {
+
+  /* 1) 좌우 그리드 재구성 — 도면(현재버전 갤러리)·결정바 컬럼 우세(도면 중심 재구성). */
+  body.erp-mobile-v2-layout .dw-detail-grid {
+    grid-template-columns: minmax(0, 1fr) minmax(340px, 1.15fr);
+    gap: 16px;
+  }
+
+  /* 2) 썸네일 터치 확대 — 현재버전·타임라인·파일비교 전부 이 매크로 공유라 한 셀렉터로
+     전체 확대된다. */
+  body.erp-mobile-v2-layout .drawing-gateway-thumb-wrap {
+    width: 152px;
+  }
+  body.erp-mobile-v2-layout .drawing-gateway-thumb {
+    width: 150px;
+    height: 112px;
+  }
+
+  /* 3) 결정바 버튼 터치 타깃 44px(폰트는 그대로 — Bootstrap btn-sm 크기 유지). */
+  body.erp-mobile-v2-layout .dw-sidebar-actions .btn {
+    min-height: 44px;
+  }
+
+  /* 4) 접이식 섹션(타임라인/요청/파일비교) 헤더 터치 타깃 44px — 기존
+     align-items:center + 패딩과 자연스럽게 어울린다(패딩 변경 없음). */
+  body.erp-mobile-v2-layout .dw-secondary-collapse > summary {
+    min-height: 44px;
+  }
+
+  /* .dw-attach-thumb 확대는 생략: 실측 첨부 썸네일은 width:100%(그리드 셀 폭 종속) +
+     고정 높이 없음(단일 변형만 min-height:420px) — 확대할 고정 치수가 없다. */
+}

@@ -11,6 +11,8 @@
 @import url("foms-tablet-production-kanban.css?v=20260724i");
 @import url("foms-tablet-completion-grid.css?v=20260713p");
 @import url("foms-tablet-drawing-gallery.css?v=20260727c");
+/* E4: 도면 실행판(workbench_detail_body) 태블릿 가로 보정 — 그리드/썸네일/터치 타깃. */
+@import url("foms-tablet-drawing-detail.css?v=20260727a");
 /* T2 태블릿 가로 전역 메뉴 레일 (2026-07-12): /erp 전 페이지 좌측 72px 레일. */
 @import url("foms-tablet-rail.css?v=20260713a");
 /* AS 전/후 대조 표면 (2026-07-12): 태블릿 가로 코호트에서 AS 데스크톱 테이블을 대체. */

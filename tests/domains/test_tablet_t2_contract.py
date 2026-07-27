@@ -712,7 +712,7 @@ def test_w16_layout_head_loads_bundle_for_v2_and_v3_cohort() -> None:
     layout_head = _read("templates/partials/shared/layout_head.html")
     idx = layout_head.find("foms-tablet-bundle.css")
     assert idx != -1, "layout_head 에 태블릿 번들 <link> 부재"
-    assert "foms-tablet-bundle.css') }}?v=20260727c" in layout_head
+    assert "foms-tablet-bundle.css') }}?v=20260727d" in layout_head
     # Anchor on the nearest preceding `{% if %}` (the bundle gate) rather than a fixed
     # char window — the gate string grows over time (2026-07-12: +/wdcalculator arm).
     gate_start = layout_head.rfind("{% if", 0, idx)
@@ -1320,3 +1320,51 @@ def test_tablet_construction_viewport_offset_is_tight() -> None:
     )
     assert m, "시공 workmode min-height viewport calc 부재"
     assert int(m.group(1)) <= 4, f"시공 workmode offset 과다: {m.group(1)}rem"
+
+
+# =====================================================================
+# E4 — 도면 실행판(workbench_detail_body) 태블릿 가로 보정 레이어 (2026-07-27)
+# E4-0 조사 결과 DOM 재배치 불필요 — CSS 오버라이드 레이어만으로 그리드/썸네일/터치
+# 타깃을 보정한다(마크업/인라인 <style> 무변경). 992.02px 경계로 기존 실행판 인라인
+# breakpoint(max-width: 992px)와 중첩을 피한다.
+# =====================================================================
+
+DRAWING_DETAIL_CSS = "static/css/foundation/foms-tablet-drawing-detail.css"
+DRAWING_DETAIL_MEDIA_QUERY = (
+    "@media (min-width: 992.02px) and (orientation: landscape) and (pointer: coarse)"
+)
+
+
+def test_drawing_detail_bundle_import() -> None:
+    """번들이 실행판 보정 CSS 를 @import."""
+    bundle = _read(TABLET_BUNDLE_CSS)
+    assert '@import url("foms-tablet-drawing-detail.css?v=' in bundle
+
+
+def test_drawing_detail_css_exists_with_992_02_landscape_coarse_query() -> None:
+    """신규 CSS 는 992.02px 경계(기존 실행판 인라인 max-width:992px 와 중첩 회피) +
+    landscape + coarse 3조건 미디어 문자열을 그대로 가지고, max-width 는 쓰지 않는다."""
+    css = _read(DRAWING_DETAIL_CSS)
+    assert DRAWING_DETAIL_MEDIA_QUERY in css
+    assert "max-width" not in css
+
+
+def test_drawing_detail_css_scoped_to_cohort_with_touch_targets() -> None:
+    """모든 규칙이 body.erp-mobile-v2-layout 접두(특이도 0,2,0)로 인라인 <style>
+    (0,1,0)을 이기고, 결정바 버튼/접이식 섹션 헤더가 44px 터치 타깃을 갖는다."""
+    css = _norm(_read(DRAWING_DETAIL_CSS))
+    assert "body.erp-mobile-v2-layout .dw-detail-grid" in css
+    assert "body.erp-mobile-v2-layout .drawing-gateway-thumb-wrap" in css
+    assert "body.erp-mobile-v2-layout .drawing-gateway-thumb" in css
+    assert "body.erp-mobile-v2-layout .dw-sidebar-actions .btn { min-height: 44px" in css
+    assert (
+        "body.erp-mobile-v2-layout .dw-secondary-collapse > summary { min-height: 44px"
+        in css
+    )
+
+
+def test_drawing_detail_css_not_loaded_via_mobile_surfaces() -> None:
+    """미로드 사고 방지 계약: foms-mobile-surfaces.css 에는 실행판 보정 파일명이 없다
+    (로드는 오직 foms-tablet-bundle.css @import 경유)."""
+    surfaces = _read(MOBILE_SURFACES_CSS)
+    assert "foms-tablet-drawing-detail" not in surfaces
