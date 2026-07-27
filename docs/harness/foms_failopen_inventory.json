@@ -5,16 +5,16 @@
   "overlap_api_error_01": "API-ERROR-01 owns response/stdout exposure (print_exc/str(e) -> log_handled_exception). This packet owns swallow classification. Sites that log via log_handled_exception are LOG_AND_CONTINUE here.",
   "marker_convention": "Silent-by-design catches carry an inline `# failopen: intentional: <reason>` (or `fail-closed`) marker; the scanner reads it as the justification. No bare allowlist, no lint-disable.",
   "baselines": {
-    "broad_total": 479,
+    "broad_total": 478,
     "unclassified": 0
   },
   "disposition_counts": {
     "FAIL_CLOSED": 22,
     "INTENTIONAL": 17,
-    "LOG_AND_CONTINUE": 440
+    "LOG_AND_CONTINUE": 439
   },
   "owner_counts": {
-    "api": 218,
+    "api": 217,
     "audit": 1,
     "auth": 11,
     "cache": 25,
@@ -1045,7 +1045,7 @@
     },
     {
       "path": "foms/api/erp_orders_blueprint.py",
-      "lineno": 67,
+      "lineno": 119,
       "handler_type": "broad_exception",
       "disposition": "LOG_AND_CONTINUE",
       "owner": "api",
@@ -1054,7 +1054,7 @@
     },
     {
       "path": "foms/api/erp_orders_blueprint.py",
-      "lineno": 85,
+      "lineno": 162,
       "handler_type": "broad_exception",
       "disposition": "LOG_AND_CONTINUE",
       "owner": "api",
@@ -1063,7 +1063,7 @@
     },
     {
       "path": "foms/api/erp_orders_blueprint.py",
-      "lineno": 102,
+      "lineno": 180,
       "handler_type": "broad_exception",
       "disposition": "LOG_AND_CONTINUE",
       "owner": "api",
@@ -1072,16 +1072,7 @@
     },
     {
       "path": "foms/api/erp_orders_blueprint.py",
-      "lineno": 145,
-      "handler_type": "broad_exception",
-      "disposition": "LOG_AND_CONTINUE",
-      "owner": "api",
-      "has_logging": true,
-      "justification": "logs via logger/log_handled_exception"
-    },
-    {
-      "path": "foms/api/erp_orders_blueprint.py",
-      "lineno": 149,
+      "lineno": 217,
       "handler_type": "broad_exception",
       "disposition": "LOG_AND_CONTINUE",
       "owner": "api",

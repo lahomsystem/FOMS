@@ -2760,9 +2760,22 @@
    "write_guard": true,
    "postgres": true
   },
-  "commands": [],
-  "existing_regressions": [],
-  "created_tests": [],
+  "commands": [
+   "python -m pytest tests/domains/test_blueprint.py -q"
+  ],
+  "existing_regressions": [
+   "tests/postgres/test_startup_schema.py"
+  ],
+  "created_tests": [
+   {
+    "path": "tests/domains/test_blueprint.py",
+    "owner_packet": "BLUEPRINT-01"
+   },
+   {
+    "path": "tests/postgres/test_blueprint.py",
+    "owner_packet": "BLUEPRINT-01"
+   }
+  ],
   "browser_scenarios": [],
   "deploy_check_ids": [],
   "deployment_evidence_mode": "HEARTBEAT"
