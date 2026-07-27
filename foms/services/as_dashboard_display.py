@@ -12,7 +12,7 @@ from foms.services.erp_display import (
     apply_erp_display_fields_to_orders,
     get_today_kst,
 )
-from foms.services.as_content_safety import sanitize_as_content_html
+from foms.services.as_content_safety import as_content_html_to_text, sanitize_as_content_html
 from foms.services.orders.as_log import build_as_timeline_view
 from models import OrderAttachment
 
@@ -259,6 +259,37 @@ def _as_billing_badge(billing: Any) -> str | None:
     return None
 
 
+def _timeline_cell_text(entry: dict[str, Any] | None) -> str:
+    """타임라인 항목 → PC 셀 요약용 1줄 plain text.
+
+    템플릿 `striptags`는 태그를 지우기만 해 블록 경계를 잃는다 —
+    `<div>1줄</div><div>2줄</div>`이 "1줄2줄"로 붙어 서로 다른 기록이 한 단어가 됐다.
+    항목 `text`는 저장 시점에 이미 sanitize를 통과했으므로 재-sanitize 없이 텍스트화한다.
+
+    Args:
+        entry: decorate_entry를 통과한 타임라인 항목 dict. None이면 빈 문자열.
+
+    Returns:
+        블록 경계가 공백으로 보존된 1줄 텍스트(셀은 text-truncate 1줄 표시).
+    """
+    if not entry:
+        return ''
+    return as_content_html_to_text(entry.get('text'), already_sanitized=True).replace('\n', ' ')
+
+
+def _apply_timeline_cell_text(view: dict[str, Any]) -> None:
+    """타임라인 뷰에 PC 셀 요약 텍스트 2종(앵커·최근 1건)을 in-place로 채운다.
+
+    행 루프에서 1회만 계산해 템플릿이 그대로 소비한다(hot path 재파싱 금지).
+
+    Args:
+        view: build_as_timeline_view 결과 dict.
+    """
+    anchor = view['reception'] or (view['legacy'][0] if view['legacy'] else None)
+    view['cell_anchor_text'] = _timeline_cell_text(anchor)
+    view['cell_recent_text'] = _timeline_cell_text(view['stream'][0] if view['stream'] else None)
+
+
 def apply_as_dashboard_row_display_fields(rows, db, *, mobile_v2_active):
     """AS 대시보드 rows에 표시 필드를 in-place 보강 (구 erp_as_dashboard 표시 블록). 동작 보존.
 
@@ -313,6 +344,7 @@ def apply_as_dashboard_row_display_fields(rows, db, *, mobile_v2_active):
             r.structured_data,
             sanitized=(r.as_content_html, sanitize_as_content_html(shipment.get('as_content_2'))),
         )
+        _apply_timeline_cell_text(r.as_timeline_view)
         r.as_thumb_enabled = thumb_flag
         r.thumbnail_url = thumb_urls.get(r.id) if thumb_flag else None
         r.stage_badge_modifier = as_stage_badge_modifier(

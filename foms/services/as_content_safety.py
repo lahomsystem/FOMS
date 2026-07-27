@@ -107,9 +107,19 @@ def sanitize_as_content_html(value: Any) -> str:
     return root.decode_contents().strip()
 
 
-def as_content_html_to_text(value: Any) -> str:
-    """출고 대시보드용 AS 내용 plain text 요약."""
-    sanitized = sanitize_as_content_html(value)
+def as_content_html_to_text(value: Any, *, already_sanitized: bool = False) -> str:
+    """AS 내용 rich HTML → plain text 요약(블록·`<br>` 경계를 개행으로 보존).
+
+    Args:
+        value: AS 내용 HTML(원본 또는 이미 sanitize를 통과한 값).
+        already_sanitized: True면 sanitize 단계를 건너뛴다. as_log 항목 `text`처럼
+            저장 시점에 이미 sanitize된 값을 대시보드 행 루프에서 다시 파싱하지 않기
+            위한 경로다(행당 BeautifulSoup 파싱 2회 → 1회).
+
+    Returns:
+        공백이 정규화된 plain text. 내용이 없으면 빈 문자열.
+    """
+    sanitized = str(value or '') if already_sanitized else sanitize_as_content_html(value)
     if not sanitized:
         return ''
 

@@ -120,18 +120,19 @@
 {%- endmacro %}
 
 {# PC 테이블 내용 셀 요약 — 앵커 1줄 + 최근 1줄 + 배지. 전체 타임라인은 확장 시 lazy fetch(T10).
-   배지 수는 v.count(절단 전 전체)라 스트림 노출 수(기본 8)와 다르다. #}
+   배지 수는 v.count(절단 전 전체)라 스트림 노출 수(기본 8)와 다르다.
+   요약 텍스트는 as_dashboard_display._apply_timeline_cell_text 가 행당 1회 계산해 뷰에 싣는다
+   (striptags 는 <div> 경계를 잃어 서로 다른 기록이 한 단어로 붙었다 — T9 리뷰 M2). #}
 {% macro render_as_timeline_cell(order_id, view) -%}
 {% set v = view or {} %}
-{% set anchor = v.reception or (v.legacy[0] if v.legacy else none) %}
 <div class="as-tl-cell" data-order-id="{{ order_id }}">
-  {% if anchor %}
-  <div class="as-tl-cell__anchor text-truncate">{{ anchor.text | striptags }}</div>
+  {% if v.cell_anchor_text %}
+  <div class="as-tl-cell__anchor text-truncate">{{ v.cell_anchor_text }}</div>
   {% endif %}
   {% if v.stream %}
   <div class="as-tl-cell__recent text-truncate">
     <span class="as-tl-chip as-tl-chip--{{ v.stream[0].type }}">{{ v.stream[0].type_label }}</span>
-    {{ v.stream[0].text | striptags }}
+    {{ v.cell_recent_text }}
   </div>
   {% endif %}
   {% if v.count %}

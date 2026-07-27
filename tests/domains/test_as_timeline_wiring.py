@@ -31,6 +31,17 @@ def _macros() -> str:
     return (_ROOT / "templates/cs/partials/as_card_macros.html").read_text(encoding="utf-8")
 
 
+def _css(rel_path: str) -> str:
+    """주석을 걷어낸 CSS 본문.
+
+    퇴역 선택자 이름은 "왜 지웠는지" 주석에도 남는다 — 주석까지 세면 삭제 계약이
+    자기 문서화 때문에 실패한다. 규칙 본문만 남겨서 단언한다.
+    """
+    import re
+
+    return re.sub(r"/\*.*?\*/", "", (_ROOT / rel_path).read_text(encoding="utf-8"), flags=re.S)
+
+
 def _timeline_block(js: str) -> str:
     """싱글톤 가드로 감싼 타임라인 위임 블록만 잘라낸다.
 
@@ -411,6 +422,114 @@ def test_log_patch_response_html_carries_edit_button(client):
     assert "as-tl-item__edit" in data["html"]
     assert "(수정됨)" in data["html"]
     assert "수정본" in data["html"]
+
+
+# ---------------------------------------------------------------------------
+# 4) T11 — 타임라인 CSS + 구 리치에디터 스타일 퇴역 + 셀 요약 줄 경계
+# ---------------------------------------------------------------------------
+
+_BODY_CSS = "static/css/contexts/cs/as-dashboard-body.css"
+_CARD_CSS = "static/css/components/foms-as-mobile-card.css"
+
+
+def test_retired_editor_styles_are_deleted():
+    """구 리치에디터/탭/contenteditable 스타일이 두 CSS 어디에도 남지 않는다(소비자 0)."""
+    css = _css(_BODY_CSS) + _css(_CARD_CSS)
+    for selector in (
+        ".as-rich-editor",
+        ".as-rich-toolbar",
+        ".as-rich-command-btn",
+        ".as-content-tab-buttons",
+        ".as-content-tab-btn",
+        ".as-content-tab-panel",
+        ".as-content-input",
+    ):
+        assert selector not in css, selector
+    # 반면 살아있는 두 규칙은 유지돼야 한다(토글은 헤더로 이전, 하이라이트는 정적 재사용)
+    assert ".as-sales-delivery-btn" in css
+    assert "mark.as-search-highlight" in css
+
+
+def test_timeline_type_chip_colors_match_spec():
+    """유형 칩 색 = 스펙 §5.5 (접수 남색·통화 파랑·방문/조치 초록·자재 주황·일정 보라·메모 회색)."""
+    css = _css(_BODY_CSS)
+    for selector, color in (
+        (".as-tl-chip--reception", "#1e3a8a"),
+        (".as-tl-chip--call", "#2563eb"),
+        (".as-tl-chip--action", "#16a34a"),
+        (".as-tl-chip--material", "#f59e0b"),
+        (".as-tl-chip--schedule", "#7c3aed"),
+        (".as-tl-chip--memo", "#6b7280"),
+    ):
+        rule = css.split(selector, 1)
+        assert len(rule) == 2, selector
+        assert color in rule[1].split("}", 1)[0], (selector, color)
+
+
+def test_timeline_new_classes_are_styled():
+    """T9/T10이 새로 만든 클래스에 스타일이 실재한다(버튼 리셋·폼 레이아웃 포함)."""
+    css = _css(_BODY_CSS)
+    for selector in (
+        ".as-timeline__header",
+        ".as-timeline__notes",
+        ".as-timeline__notes-body",
+        ".as-tl-cell__empty",
+        ".as-tl-item__edit ",
+        ".as-tl-item__edit-form",
+        ".as-tl-item__edit-cancel",
+    ):
+        assert selector in css, selector
+    # <button> 기본 장식 리셋: 빈 셀·수정 버튼은 텍스트/아이콘처럼 보여야 한다
+    for selector in (".as-tl-cell__empty", ".as-tl-item__edit "):
+        block = css.split(selector, 1)[1].split("}", 1)[0]
+        assert "border: 0" in block, selector
+        assert "background: none" in block, selector
+
+
+def test_notes_body_preserves_line_breaks():
+    """비고는 평문 그대로 저장된다 — pre-wrap 없이는 여러 줄 메모가 한 줄로 뭉친다."""
+    css = _css(_BODY_CSS)
+    block = css.split(".as-timeline__notes-body", 1)[1].split("}", 1)[0]
+    assert "white-space: pre-wrap" in block
+
+
+def test_item_body_hidden_attribute_wins():
+    """수정 폼 열림 시 본문 숨김은 `hidden` 속성에 의존한다 — display 규칙이 이를 이기면 안 된다."""
+    css = _css(_BODY_CSS)
+    body_rule = css.split(".as-tl-item__body {", 1)[1].split("}", 1)[0]
+    assert "display" not in body_rule  # 애초에 display 를 주지 않는다
+    assert ".as-tl-item__body[hidden]" in css  # 나중에 추가돼도 숨김이 깨지지 않는 가드
+
+
+def test_dashboard_css_links_are_version_pinned():
+    """SW staticCacheFirst 함정 — 두 CSS 링크 모두 `?v=` 캐시 버스트를 달고 있어야 한다."""
+    body = (_ROOT / "templates/cs/partials/as_dashboard_body.html").read_text(encoding="utf-8")
+    for name in ("as-dashboard-body.css", "foms-as-mobile-card.css"):
+        link = [line for line in body.splitlines() if name in line and "<link" in line]
+        assert len(link) == 1, name
+        assert "?v=" in link[0], name
+
+
+def test_cell_summary_keeps_block_boundaries(client):
+    """셀 요약이 <div> 경계를 잃어 서로 다른 기록이 한 단어로 붙으면 안 된다(T9 리뷰 M2).
+
+    striptags 는 태그를 지우기만 해 `<div>첫줄</div><div>둘째줄</div>` 이 "첫줄둘째줄" 이 됐다.
+    display 계층이 as_content_html_to_text 로 미리 텍스트화한 값을 템플릿이 소비한다.
+    """
+    _login_as_admin(client, username="as_cell_boundary_admin")
+    _create_as_order("셀 줄경계", shipment_extra={"as_log": [
+        {"id": "al_r", "ts": "2026-07-24T01:00:00", "by": "김", "by_id": None,
+         "type": "reception", "text": "<div>접수앞줄</div><div>접수뒷줄</div>"},
+        {"id": "al_m", "ts": "2026-07-24T02:00:00", "by": "김", "by_id": None,
+         "type": "memo", "text": "<div>최근앞줄</div><div>최근뒷줄</div>"},
+    ]})
+
+    body = client.get("/erp/as").get_data(as_text=True)
+    cell = body.split('class="as-tl-cell"', 1)[1].split("</table>", 1)[0]
+    assert "접수앞줄 접수뒷줄" in cell
+    assert "접수앞줄접수뒷줄" not in cell
+    assert "최근앞줄 최근뒷줄" in cell
+    assert "최근앞줄최근뒷줄" not in cell
 
 
 def test_sales_delivery_handler_uses_order_id_dataset():

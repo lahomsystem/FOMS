@@ -718,10 +718,33 @@
     min-width: 0;
   }
 
-  body.erp-mobile-v2-layout .erp-as-dashboard[data-erp-mobile-v2='true'] .erp-as-mobile-card__content .as-content-input {
-    min-height: 48px !important;
-    max-height: 120px !important;
-    font-size: 0.8125rem !important;
+  /* AS 타임라인 모바일 밀도 — PC 기본값(as-dashboard-body.css)을 12px 계열로 압축한다.
+     구 contenteditable 입력부 규칙은 타임라인 전환으로 소비자가 0이라 삭제. */
+  body.erp-mobile-v2-layout .erp-as-dashboard[data-erp-mobile-v2='true'] .as-tl-item {
+    padding: 0.25rem 0;
+  }
+
+  body.erp-mobile-v2-layout .erp-as-dashboard[data-erp-mobile-v2='true'] .as-tl-item__meta {
+    gap: 0.25rem;
+    font-size: 0.6875rem;
+  }
+
+  body.erp-mobile-v2-layout .erp-as-dashboard[data-erp-mobile-v2='true'] .as-tl-item__body {
+    font-size: 0.75rem;
+  }
+
+  body.erp-mobile-v2-layout .erp-as-dashboard[data-erp-mobile-v2='true'] .as-tl-chip {
+    font-size: 0.6875rem;
+  }
+
+  /* 44px 터치 타깃은 유지(카드 내 다른 입력과 동일 규약), 글자만 줄인다 */
+  body.erp-mobile-v2-layout .erp-as-dashboard[data-erp-mobile-v2='true'] .as-timeline__text {
+    max-height: 120px;
+    font-size: 0.8125rem;
+  }
+
+  body.erp-mobile-v2-layout .erp-as-dashboard[data-erp-mobile-v2='true'] .as-timeline__notes-body {
+    font-size: 0.75rem;
   }
 }
 
