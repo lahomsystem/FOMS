@@ -104,13 +104,17 @@ def test_migration_chains_onto_current_head() -> None:
 
 
 def test_alembic_has_single_head() -> None:
-    """The script directory resolves to exactly one head: startup_schema_00."""
+    """The script directory resolves to exactly one head (no branching).
+
+    이 불변식은 "분기 없는 단일 head"이지 특정 revision 핀이 아니다 — 정상 마이그레이션은
+    head 를 이동시키므로 값 하드코딩은 stale 회귀를 만든다. 개수만 검증한다.
+    """
     from alembic.config import Config
     from alembic.script import ScriptDirectory
 
     config = Config(str(_REPO_ROOT / "alembic.ini"))
     script = ScriptDirectory.from_config(config)
-    assert script.get_heads() == ["startup_schema_00"]
+    assert len(script.get_heads()) == 1, script.get_heads()
 
 
 def test_upgrade_is_expand_only() -> None:

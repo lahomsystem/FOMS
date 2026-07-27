@@ -1912,9 +1912,18 @@
    "write_guard": false,
    "postgres": true
   },
-  "commands": [],
-  "existing_regressions": [],
-  "created_tests": [],
+  "commands": [
+   "python -m pytest tests/postgres/test_construction_backfill.py -q"
+  ],
+  "existing_regressions": [
+   "tests/postgres/test_startup_schema.py"
+  ],
+  "created_tests": [
+   {
+    "path": "tests/postgres/test_construction_backfill.py",
+    "owner_packet": "CONSTRUCTION-BACKFILL-00"
+   }
+  ],
   "browser_scenarios": [],
   "deploy_check_ids": [],
   "deployment_evidence_mode": "HEARTBEAT"
@@ -2010,9 +2019,22 @@
    "write_guard": true,
    "postgres": true
   },
-  "commands": [],
-  "existing_regressions": [],
-  "created_tests": [],
+  "commands": [
+   "python -m pytest tests/domains/test_state_as.py -q"
+  ],
+  "existing_regressions": [
+   "tests/domains/test_as_received_date_kst.py"
+  ],
+  "created_tests": [
+   {
+    "path": "tests/domains/test_state_as.py",
+    "owner_packet": "STATE-AS-01"
+   },
+   {
+    "path": "tests/postgres/test_state_as.py",
+    "owner_packet": "STATE-AS-01"
+   }
+  ],
   "browser_scenarios": [],
   "deploy_check_ids": [],
   "deployment_evidence_mode": "HEARTBEAT"
