@@ -99,7 +99,7 @@
   <section class="foms-drawing-gallery" aria-label="도면 시트 갤러리">
     {% if rows %}
       {% for r in rows %}
-      <a class="foms-drawing-gallery-card{% if r.my_todo %} is-active{% endif %}{% if r.drawing_status in ('TRANSFERRED', 'CONFIRMED') %} is-dim{% endif %}"
+      <a class="foms-drawing-gallery-card{% if r.my_todo %} is-active{% endif %}"
          data-order-id="{{ r.id }}"
          data-foms-sheet-url="{{ url_for('erp_drawing_workbench.erp_drawing_workbench_tablet_sheet', order_id=r.id) }}"
          data-foms-erp-no-shell

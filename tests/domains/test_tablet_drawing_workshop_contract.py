@@ -104,8 +104,8 @@ def test_gallery_card_carries_sheet_url_and_order_id() -> None:
     assert "in ('TRANSFERRED', 'CONFIRMED') %}전달본" in body
     assert "{% elif r.pending_count %}전달 대기" in body
     assert "{{ r.drawing_status_label }}" in body
-    # 전달완료 dim.
-    assert "is-dim" in body
+    # 전달완료 dim 폐지(2026-07-27): 카드 클래스에 is-dim 조건 없음, tlabel 텍스트로만 구분.
+    assert "is-dim" not in body
     assert "'TRANSFERRED', 'CONFIRMED'" in body
     # 다음 페이지 카드.
     assert "foms-drawing-gallery-card--more" in body
@@ -221,6 +221,11 @@ def test_gallery_css_workshop_shell_size_variants_and_landscape_only() -> None:
     assert "grid-template-columns: repeat(4, 1fr)" in css
     assert "width: 120px" in css
     assert "height: 84px" in css
+    # 갤러리 카드 썸네일 비율(2026-07-27): 고정 132px → aspect-ratio 4/3 + max-height 180px,
+    # object-fit contain(레터박스, 원본 비율 왜곡 금지). 전달완료 dim 폐지.
+    assert ".foms-drawing-gallery-card__thumb { position: relative; aspect-ratio: 4 / 3; max-height: 180px" in css
+    assert ".foms-drawing-gallery-card__img { display: block; width: 100%; height: 100%; object-fit: contain" in css
+    assert "is-dim" not in css
     # landscape 전용(portrait 토큰 금지, split-view 가드 정합).
     assert "orientation: portrait" not in css
 
