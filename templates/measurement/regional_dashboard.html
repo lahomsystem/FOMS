@@ -186,6 +186,12 @@
 {% endblock %}
 
 {% block content %}
+{# 라홈시스템(factory2) 뱃지: ERP 대시보드(orders/partials/dashboard_grid.html)와 동일한 flags.factory2 판정. #}
+{% macro factory2_badge(order) -%}
+  {%- if order.is_erp_order and ((order.structured_data or {}).get('flags') or {}).get('factory2') %}
+  <span class="badge bg-warning text-dark" title="라홈시스템"><i class="fas fa-industry"></i> 라홈시스템</span>
+  {%- endif %}
+{%- endmacro %}
 <div class="container-fluid regional-dashboard">
             <div class="d-flex justify-content-between align-items-center mb-4">
         <h1 class="h3 mb-0"><i class="fas fa-map-marked-alt text-success"></i> 지방 주문 관리 대시보드</h1>
@@ -358,6 +364,7 @@
                                                     {% endif %}
                                                     {{ order.customer_name }}
                                                     <i class="fas fa-map-marker-alt text-warning ms-1" title="지방 주문"></i>
+                                                    {{ factory2_badge(order) }}
                                                 </div>
                                                 <small class="text-muted">{{ order.phone }}</small>
                                             </div>
@@ -579,6 +586,7 @@
                                                 <div>
                                                     {{ order.customer_name }}
                                                     <i class="fas fa-map-marker-alt text-warning ms-1" title="지방 주문"></i>
+                                                    {{ factory2_badge(order) }}
                                                 </div>
                                                 <small class="text-muted">{{ order.phone }}</small>
                                             </td>
@@ -776,7 +784,7 @@
                                                           style="font-size: 14px; min-height: 32px; resize: none; overflow: hidden;">{{ order.regional_memo or '' }}</textarea>
                                             </td>
                                             <td>
-                                                <div>{{ order.customer_name }}</div>
+                                                <div>{{ order.customer_name }}{{ factory2_badge(order) }}</div>
                                                 <small class="text-muted">{{ order.phone }}</small>
                                             </td>
                                             <td class="text-truncate" style="max-width: 200px;" title="{{ order.address }}">
@@ -953,7 +961,7 @@
                                                           placeholder="메모 입력...">{{ order.regional_memo or '' }}</textarea>
                                             </td>
                                             
-                                            <td>{{ order.customer_name }}</td>
+                                            <td>{{ order.customer_name }}{{ factory2_badge(order) }}</td>
                                             <td style="max-width: 200px; word-break: break-word;">{{ order.address }}</td>
                                             <td style="max-width: 200px; word-break: break-word;">{{ order.product }}</td>
                                             <td>
@@ -1155,7 +1163,7 @@
                                                           rows="1" style="font-size: 14px; min-height: 32px; resize: none; overflow: hidden;"
                                                           data-order-id="{{ order.id }}" data-field="regional_memo">{{ order.regional_memo or '' }}</textarea>
                                             </td>
-                                            <td>{{ order.customer_name }}</td>
+                                            <td>{{ order.customer_name }}{{ factory2_badge(order) }}</td>
                                             <td>{{ order.phone }}</td>
                                             <td class="text-truncate" style="max-width: 200px;" title="{{ order.address }}">{{ order.address }}</td>
                                             <td class="text-truncate" style="max-width: 150px;" title="{{ order.product }}">{{ order.product }}</td>
@@ -1344,6 +1352,7 @@
                                                 <div>
                                                     {{ order.customer_name }}
                                                     <i class="fas fa-map-marker-alt text-warning ms-1" title="지방 주문"></i>
+                                                    {{ factory2_badge(order) }}
                                                 </div>
                                                 <small class="text-muted">{{ order.phone }}</small>
                                             </td>
