@@ -13,7 +13,7 @@ from sqlalchemy.orm.attributes import flag_modified
 logger = logging.getLogger(__name__)
 
 from db import get_db
-from models import Order, OrderAttachment, Notification, SecurityLog
+from models import Order, OrderAttachment, Notification, OrderEvent, SecurityLog
 from foms.web.auth import login_required, get_user_by_id
 from foms.services.datetime_kst import now_utc_naive
 from foms.api.notifications import (
@@ -27,11 +27,14 @@ from foms.services.erp_policy import (
     can_modify_domain,
     get_assignee_ids,
     has_pending_unchecked_drawing_revision_requests,
-    is_drawing_workbench_participant,
 )
+from foms.services.orders.drawing_transfer import (
+    materialize_pending_snapshot,
+    materialize_transfer_attachments,
+)
+from foms.services.sidefx_outbox import enqueue_side_effect
 from foms.services.storage import get_storage
 from foms.api.files import build_file_view_url, build_file_download_url
-from foms.services.error_logging import log_handled_exception
 
 erp_orders_drawing_bp = Blueprint(
     'erp_orders_drawing',
@@ -88,12 +91,20 @@ def perform_drawing_transfer(
 
     if not current_user:
         return {'success': False, 'message': '사용자 정보를 찾을 수 없습니다.'}, 401
-    if current_user.role == 'MANAGER' and emergency_override and override_reason:
+    try:
+        actor_uid = int(current_user.id)
+    except (TypeError, ValueError):
+        actor_uid = None
+    # explicit assignment 만 쓰기 허용 — 도면팀 소속(team-only write)만으로는 전달 불가.
+    # (지정 담당자 · 관리자 · 사유 있는 매니저 긴급 오버라이드만.)
+    if current_user.role == 'ADMIN':
+        can_do_transfer = True
+    elif current_user.role == 'MANAGER' and emergency_override and override_reason:
         can_do_transfer = True
     else:
-        can_do_transfer = is_drawing_workbench_participant(current_user, order)
+        can_do_transfer = actor_uid is not None and actor_uid in draw_assignee_ids
     if not can_do_transfer:
-        msg = '도면 전달 권한이 없습니다. (도면 담당자·도면팀 또는 관리자만 가능)'
+        msg = '도면 전달 권한이 없습니다. (지정된 도면 담당자 또는 관리자만 가능)'
         if current_user.role == 'MANAGER':
             msg += ' (긴급 시 사유와 함께 오버라이드를 사용하세요.)'
         return {'success': False, 'message': msg}, 403
@@ -114,22 +125,9 @@ def perform_drawing_transfer(
     now_str = now_utc_naive().strftime('%Y-%m-%d %H:%M:%S')
     user_name = current_user.name if current_user else 'Unknown'
 
-    raw_new_files = files or []
-    new_files = []
-    if isinstance(raw_new_files, list):
-        for f in raw_new_files:
-            if not isinstance(f, dict):
-                continue
-            key = (f.get('key') or '').strip()
-            if not key:
-                continue
-            filename = (f.get('filename') or key.rsplit('/', 1)[-1]).strip()
-            new_files.append({
-                'key': key,
-                'filename': filename,
-                'view_url': f"/api/files/view/{key}",
-                'download_url': f"/api/files/download/{key}",
-            })
+    # WIZ-TRANSFER helper 로 전달 소스 조립(인라인 재구현 금지). 도면 key 경로만 통과시켜
+    # 실측/일반 첨부 유출을 차단한다(drawing_current_files leak 함정 SSOT).
+    new_files = materialize_transfer_attachments(order_id, files or [])
 
     old_files = list(s_data.get('drawing_current_files', []) or [])
     updated_files = list(old_files)
@@ -328,11 +326,7 @@ def api_order_transfer_drawing(order_id):
         # 도면 마법사 [저장]본(pending) 병합 — 재업로드 없이 저장된 대기 도면을 함께 전달.
         # pending_sheet_ids 가 오면 해당 대기 시트의 {key, filename} 을 파일 목록에 병합하고,
         # 전달 성공 후 그 sheet_id 들만 스냅샷 저장 + pending 제거(없으면 기존 동작 100% 불변).
-        from foms.api.drawing.wizard import (
-            _pending_list,
-            _load_structured_data,
-            snapshot_and_clear_pending,
-        )
+        from foms.api.drawing.wizard import snapshot_and_clear_pending
         pending_sheet_ids = [str(x) for x in (data.get('pending_sheet_ids') or []) if str(x)]
         manual_files = list(data.get('files') or [])
         pending_files = []
@@ -340,7 +334,7 @@ def api_order_transfer_drawing(order_id):
             wanted = set(pending_sheet_ids)
             pending_files = [
                 {'key': p['key'], 'filename': p['filename']}
-                for p in _pending_list(_load_structured_data(order))
+                for p in materialize_pending_snapshot(order)
                 if p['sheet_id'] in wanted
             ]
         # 저장된 대기 도면(primary)을 앞에, 직접 올린 파일(supplementary)을 뒤에 둔다.
@@ -439,37 +433,29 @@ def api_order_cancel_transfer(order_id):
                         newly_uploaded_keys.add(k)
 
         # ── 3. 삭제 대상 결정 ──────────────────────────────────────────────────
-        # 이번 전달에서 새로 올린 파일(newly_uploaded_keys)만 삭제.
+        # 이번 전달에서 새로 올린 파일(newly_uploaded_keys)만 회수 대상.
         # 기존 파일들은 1차 전달 이력 등 타임라인에서 계속 참조되므로 절대 삭제 금지.
+        # OrderAttachment DB row 는 이 트랜잭션에서 제거하고, 실제 R2 blob 삭제는
+        # STORAGE_DELETE outbox 로 예약한다(동기 R2 삭제 금지 — 아래 6.5 참조).
         keys_to_delete = newly_uploaded_keys
-
-        deleted_files_count = 0
+        storage_keys_for_outbox = set()  # 삭제 예약할 R2 object key(원본 + 썸네일)
         if keys_to_delete:
-            storage = get_storage()
             rows = db.query(OrderAttachment).filter(
                 OrderAttachment.order_id == order_id,
                 OrderAttachment.storage_key.in_(list(keys_to_delete))
             ).all()
-            deleted_row_keys = set()
+            handled = set()
             for row in rows:
-                try:
-                    if row.storage_key:
-                        if storage.delete_file(row.storage_key):
-                            deleted_files_count += 1
-                        deleted_row_keys.add(row.storage_key)
-                    if row.thumbnail_key:
-                        storage.delete_file(row.thumbnail_key)
-                except Exception:
-                    log_handled_exception("drawing storage delete_file")
+                if row.storage_key:
+                    storage_keys_for_outbox.add(row.storage_key)
+                    handled.add(row.storage_key)
+                if row.thumbnail_key:
+                    storage_keys_for_outbox.add(row.thumbnail_key)
                 db.delete(row)
             for key in keys_to_delete:
-                if key in deleted_row_keys:
-                    continue
-                try:
-                    if storage.delete_file(key):
-                        deleted_files_count += 1
-                except Exception:
-                    log_handled_exception("drawing storage delete_file")
+                if key not in handled:
+                    storage_keys_for_outbox.add(key)
+        deleted_files_count = len(keys_to_delete)
 
         # ── 4. drawing_current_files 복원 ──────────────────────────────────────
         # transfer_info에 저장된 previous_current_files로 정확히 복원.
@@ -515,10 +501,38 @@ def api_order_cancel_transfer(order_id):
             user_id=session.get('user_id'),
             message=(
                 f"주문 #{order_id} 도면 전달 취소 → {restore_status} 복귀 "
-                f"(신규 파일 {deleted_files_count}개 삭제, 보존 {len(restored_files)}개, "
+                f"(신규 파일 {deleted_files_count}개 삭제예약, 보존 {len(restored_files)}개, "
                 f"히스토리 정리: {'Y' if removed_transfer else 'N'})"
             )
         ))
+
+        # ── 6.5 회수 파일 R2 blob 삭제를 STORAGE_DELETE outbox 로 예약 ────────────
+        # 동기 R2 삭제 금지 — sidefx worker/handler 가 소비한다(이 핸들러는 enqueue 만).
+        # ORDER_EVENT 를 source 로 두어 one-of FK 매트릭스를 만족하고, business tx 가
+        # rollback 되면 event·outbox 도 함께 rollback 된다(원자성).
+        if storage_keys_for_outbox:
+            cancel_event = OrderEvent(
+                order_id=order_id,
+                event_type='DRAWING_TRANSFER_CANCELLED',
+                payload={
+                    'action': 'CANCEL_TRANSFER',
+                    'restore_status': restore_status,
+                    'deleted_keys': sorted(storage_keys_for_outbox),
+                },
+                created_by_user_id=session.get('user_id'),
+            )
+            db.add(cancel_event)
+            db.flush()
+            order.mutation_version = (order.mutation_version or 0) + 1
+            for object_key in sorted(storage_keys_for_outbox):
+                enqueue_side_effect(
+                    db,
+                    source_domain='ORDER_EVENT',
+                    source_id=cancel_event.id,
+                    effect_type='STORAGE_DELETE',
+                    payload={'object_key': object_key, 'order_id': order_id},
+                    dedupe_key=f'drawing_cancel:{order_id}:{object_key}',
+                )
 
         # 전달취소 알림 → 영업(전달 알림과 동일 매니저 라우팅). 실패해도 취소는 진행(로그만).
         cancel_notif = None
