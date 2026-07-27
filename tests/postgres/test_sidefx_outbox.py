@@ -31,11 +31,18 @@ from foms.services.sidefx_outbox import (
     enqueue_side_effect,
     purge_retention,
 )
-from models import DomainSideEffectOutbox, Order, OrderEvent, UploadDraft, UploadTicket
+from models import (
+    DomainSideEffectOutbox,
+    Order,
+    OrderEvent,
+    OrderImportArtifact,
+    UploadDraft,
+    UploadTicket,
+)
 
 # 부모 테이블이 없는(=FK 없는) 도메인/컬럼 — one-of CHECK 를 FK setup 없이 isolate 한다.
-# UPLOAD_DRAFT 는 UPLOAD-INTENT-01 이, UPLOAD_TICKET 은 UPLOAD-02 가 각각 부모 테이블 + 실
-# FK 를 부착하며 아래 FK_DOMAINS 로 이동했다(orphan 거부).
+# UPLOAD_DRAFT 는 UPLOAD-INTENT-01 이, UPLOAD_TICKET 은 UPLOAD-02 가, ORDER_IMPORT_ARTIFACT 는
+# ORDER-IMPORT-01 이 각각 부모 테이블 + 실 FK 를 부착하며 아래 FK_DOMAINS 로 이동했다(orphan 거부).
 NO_FK_DOMAINS = [
     ("WIZARD_PENDING", "wizard_pending_id"),
     ("ADDRESS_LEARNING", "address_learning_request_id"),
@@ -47,6 +54,7 @@ FK_DOMAINS = [
     ("CHAT_ATTACHMENT", "chat_attachment_id"),
     ("UPLOAD_DRAFT", "upload_draft_id"),
     ("UPLOAD_TICKET", "upload_ticket_id"),
+    ("ORDER_IMPORT_ARTIFACT", "order_import_artifact_id"),
 ]
 
 
@@ -120,6 +128,19 @@ def _make_upload_ticket(session) -> UploadTicket:
     return t
 
 
+def _make_order_import_artifact(session) -> OrderImportArtifact:
+    """ORDER_IMPORT_ARTIFACT 도메인 실 FK happy-path 용 실존 부모 artifact 행."""
+    a = OrderImportArtifact(
+        file_hash=uuid.uuid4().hex, filename="orders.xlsx", row_count=1,
+        state="COMPLETED",
+        source_object_key="order_imports/1/%s.xlsx" % uuid.uuid4().hex,
+        created_at=_now(), expires_at=_now() + datetime.timedelta(hours=24),
+    )
+    session.add(a)
+    session.commit()
+    return a
+
+
 # --------------------------------------------------------------------------- #
 # 1. one-of FK CHECK matrix
 # --------------------------------------------------------------------------- #
@@ -181,6 +202,23 @@ def test_upload_ticket_valid_with_real_parent(pg_engine):
         ticket = _make_upload_ticket(s)
         r = DomainSideEffectOutbox(
             source_domain="UPLOAD_TICKET", upload_ticket_id=ticket.id,
+            effect_type=_marker(), payload={"x": 1},
+            available_at=_now(), created_at=_now(),
+        )
+        s.add(r)
+        s.commit()
+        assert r.id is not None
+    finally:
+        s.close()
+
+
+def test_order_import_artifact_valid_with_real_parent(pg_engine):
+    """실 FK 도메인(ORDER_IMPORT_ARTIFACT) happy path — 실존 부모 artifact 참조(ORDER-IMPORT-01)."""
+    s = _session(pg_engine)
+    try:
+        art = _make_order_import_artifact(s)
+        r = DomainSideEffectOutbox(
+            source_domain="ORDER_IMPORT_ARTIFACT", order_import_artifact_id=art.id,
             effect_type=_marker(), payload={"x": 1},
             available_at=_now(), created_at=_now(),
         )

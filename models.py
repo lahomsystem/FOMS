@@ -2083,6 +2083,9 @@ DOMAIN_SIDE_EFFECT_FK_BY_DOMAIN = {
     'UPLOAD_TICKET': 'upload_ticket_id',
     'UPLOAD_DRAFT': 'upload_draft_id',
     'CHAT_ATTACHMENT': 'chat_attachment_id',
+    # ORDER-IMPORT-01: 8번째 도메인. order_import_artifacts 부모가 생겨 실 FK 로 orphan 거부
+    # (one-of matrix 유지). SIDEFX-00 이 남겨둔 선례대로 소유 packet 이 additive 로 추가한다.
+    'ORDER_IMPORT_ARTIFACT': 'order_import_artifact_id',
 }
 DOMAIN_SIDE_EFFECT_STATUSES = ('PENDING', 'PROCESSING', 'DONE', 'DEAD')
 
@@ -2137,6 +2140,9 @@ class DomainSideEffectOutbox(Base):
         Integer, ForeignKey('upload_drafts.id', ondelete='CASCADE'), nullable=True)
     chat_attachment_id = Column(
         Integer, ForeignKey('chat_attachments.id', ondelete='CASCADE'), nullable=True)
+    # ORDER-IMPORT-01: order_import_artifacts 부모가 생겨 실 FK 로 orphan 거부(8번째 도메인).
+    order_import_artifact_id = Column(
+        Integer, ForeignKey('order_import_artifacts.id', ondelete='CASCADE'), nullable=True)
 
     effect_type = Column(String(40), nullable=False)
     payload = Column(JSONColumn, nullable=False)
@@ -2376,6 +2382,74 @@ class UploadTicket(Base):
         Index('ix_upload_ticket_expiry', 'state', 'expires_at'),
         # item-retire cleanup: 은퇴 identity 의 ISSUED 티켓 claim.
         Index('ix_upload_ticket_item', 'item_id'),
+    )
+
+
+# --------------------------------------------------------------------------- #
+# ORDER-IMPORT-01: admin Excel import receipt/artifact (§ SSOT line ~1065)
+# --------------------------------------------------------------------------- #
+#: import artifact state machine. COMPLETED = 주문 batch 생성 성공, FAILED = 전 행 검증
+#: 실패(에러 리포트 보관), EXPIRED = 24h 만료를 SIDEFX worker 300s expiry scan provider 가
+#: claim 하며 기록(별도 cleanup scheduler 없음). COMPLETED/FAILED 는 24h 만료 대상.
+ORDER_IMPORT_ARTIFACT_STATES = ('COMPLETED', 'FAILED', 'EXPIRED')
+#: import artifact 보존기간(시간). created_at + 24h 이후 scan provider 가 STORAGE_DELETE.
+ORDER_IMPORT_ARTIFACT_TTL_HOURS = 24
+
+
+class OrderImportArtifact(Base):
+    """admin Excel import 의 durable receipt/artifact (ORDER-IMPORT-01).
+
+    한 번의 admin Excel import 를 durable 하게 기록하는 정본 receipt 다. 원본 파일과(검증
+    실패 시) 에러 리포트를 **server-derived object key**(클라이언트 경로 아님·public/local
+    temp path 아님)로 private 하게 24h 보관하고, ``file_hash`` 로 같은 파일 재import 를
+    멱등 처리한다(중복 주문 0). 생성된 Order id 목록을 ``resource_order_ids`` 에 담아
+    resources[] 로 돌려준다.
+
+    계약(§ORDER-IMPORT-01):
+
+    * **file-hash receipt**: ``file_hash`` (원본 sha256)로 같은 파일 재import 를 멱등
+      처리한다. 만료 전(state<>EXPIRED) 같은 hash 는 ``uq_order_import_artifact_hash``
+      partial unique 로 최대 1행이며, 서비스가 기존 receipt 를 그대로 돌려준다(재생성 0).
+    * **private source/error artifact 24h**: ``source_object_key``·``error_object_key`` 는
+      서버가 유도한 private key(``order_imports/...``)이며 ``expires_at = created_at + 24h``.
+    * **all-or-none**: 검증 통과 행만 :func:`~foms.services.orders.order_create.create_order`
+      경유 batch 생성하고 한 tx 로 commit 한다(raw Order constructor·row commit 금지).
+
+    ``order_import_artifact_id`` FK 로 :class:`DomainSideEffectOutbox` 가 이 행을 참조하며
+    (source_domain=``ORDER_IMPORT_ARTIFACT``), orphan 은 DB 가 거부한다. DDL 은 migration
+    (``order_import_00``)과 SSOT 를 공유한다(create_all 테스트 lane 동일 스키마).
+    """
+
+    __tablename__ = 'order_import_artifacts'
+
+    id = Column(Integer, primary_key=True)
+    # import 를 실행한 admin/manager(audit; 사용자 삭제 시 SET NULL 로 artifact 보존).
+    uploaded_by = Column(Integer, ForeignKey('users.id', ondelete='SET NULL'), nullable=True)
+    # 원본 파일 sha256 hex — 재import 멱등(receipt)의 정본 키.
+    file_hash = Column(String(64), nullable=False)
+    # 원본 표시용 파일명(receipt display; 경로 아님).
+    filename = Column(String(255), nullable=True)
+    row_count = Column(Integer, nullable=False, server_default=text('0'))
+    state = Column(String(20), nullable=False, server_default='COMPLETED')
+    # server-derived private object key(클라이언트 경로 아님·static/tmp 아님). 만료 정리 대상.
+    source_object_key = Column(String(500), nullable=True)
+    # 검증 실패 시 에러 리포트 key(FAILED 만 채움). error download 가 이 key 를 스트림.
+    error_object_key = Column(String(500), nullable=True)
+    # 생성된 Order id 목록(resources[]). all-or-none 성공 시에만 채움.
+    resource_order_ids = Column(JSONColumn, nullable=True)
+    created_at = Column(DateTime, nullable=False, default=now_utc_naive, server_default=func.now())
+    # created_at + 24h. scan provider 만료 claim 의 기준.
+    expires_at = Column(DateTime, nullable=False)
+
+    __table_args__ = (
+        CheckConstraint(
+            "state IN ('COMPLETED','FAILED','EXPIRED')",
+            name='ck_order_import_artifact_state'),
+        # file-hash receipt: 만료 전 같은 hash 는 최대 1행(재import 멱등의 DB backstop).
+        Index('uq_order_import_artifact_hash', 'file_hash', unique=True,
+              postgresql_where=text("state <> 'EXPIRED'")),
+        # bounded cleanup provider 의 만료 claim hot path(COMPLETED/FAILED 를 state,expires_at 순).
+        Index('ix_order_import_artifact_expiry', 'state', 'expires_at'),
     )
 
 
