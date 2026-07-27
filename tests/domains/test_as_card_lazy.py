@@ -61,10 +61,11 @@ def _create_order(name, *, status="AS_RECEIVED"):
 
 
 def test_mobile_card_content_tabs_are_lazy_placeholder(client, monkeypatch):
-    """모바일 v2 카드: content-tabs eager 렌더 제거 + placeholder 존재. PC 테이블은 무변경.
+    """모바일 v2 카드: 상세(시공자·AS 타임라인) eager 렌더 금지 + placeholder 존재.
 
-    주문 N개 → 모바일 placeholder N개(data-as-card-lazy). as-tabbed-editor는 PC 테이블 몫 N개만
-    남아야 한다(이전엔 PC N + 모바일 N = 2N). 이것이 모바일 카드가 더 이상 eager 렌더하지 않는 증거.
+    주문 N개 → 모바일 placeholder N개(data-as-card-lazy). 대시보드 응답에는 타임라인 본체
+    (.as-timeline)가 하나도 없어야 한다 — PC 셀은 요약(.as-tl-cell)만, 모바일은 placeholder만
+    싣기 때문이다. 카드에 render_as_timeline 이 eager 로 재유입되면 이 단언이 깨진다.
     """
     monkeypatch.setenv("ERP_MOBILE_V2_ENABLED", "true")
     user = _login_as_admin(client)
@@ -85,6 +86,8 @@ def test_mobile_card_content_tabs_are_lazy_placeholder(client, monkeypatch):
     # T9: PC 셀은 content-tabs 에디터에서 타임라인 요약(주문당 1개)으로 교체됨
     assert "as-tabbed-editor" not in body
     assert body.count('class="as-tl-cell"') == 2
+    # 모바일 eager 금지의 진짜 가드: 타임라인 본체는 lazy 상세에서만 렌더된다
+    assert 'class="as-timeline"' not in body
     # placeholder 안에는 초기 스켈레톤만, 에디터 폼값 없음
     assert "erp-as-card-lazy__status" in body
 
