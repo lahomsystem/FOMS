@@ -49,11 +49,13 @@ from foms.services.sidefx_worker import (  # noqa: E402
     make_engine_from_env,
     oldest_pending_lag_seconds,
     register_expiry_scan_provider,
+    register_handler,
     run_delivery_once,
     run_expiry_scan_once,
     run_retention_once,
     upsert_heartbeat,
 )
+from foms.services.storage_delete_handler import handle_storage_delete  # noqa: E402
 from foms.services.upload_cleanup import run_upload_expiry_scan_once  # noqa: E402
 from foms.services.order_import_cleanup import run_order_import_expiry_scan_once  # noqa: E402
 from sqlalchemy.engine import Engine  # noqa: E402
@@ -184,6 +186,10 @@ def main(argv: Optional[list[str]] = None) -> int:
     logging.basicConfig(level=logging.INFO, format="%(message)s")
     args = _parse_args(argv)
     owner = _owner_hash()
+    # WIZ-DELETE-01(task #44): STORAGE_DELETE delivery handler 를 등록한다(공용·source_domain
+    # 분기). 이게 없으면 STORAGE_DELETE 행이 NoHandler → 재시도 → DEAD 로 쌓인다. replace=True
+    # 로 재시작·재-import 시 중복 등록을 idempotent 하게 처리한다.
+    register_handler("STORAGE_DELETE", handle_storage_delete, replace=True)
     # UPLOAD-02: 만료 ticket/draft cleanup 을 300s expiry scan 에 배선(별도 scheduler 없음).
     # replace=True 로 재시작·재-import 시 중복 등록을 idempotent 하게 처리한다.
     register_expiry_scan_provider("upload_expiry", run_upload_expiry_scan_once, replace=True)

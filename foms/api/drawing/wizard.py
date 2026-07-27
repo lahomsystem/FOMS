@@ -24,12 +24,18 @@ from sqlalchemy.orm.attributes import flag_modified
 from werkzeug.datastructures import FileStorage
 
 from db import get_db
-from models import Order, OrderAttachment, User
+from models import DrawingWizardPending, Order, OrderAttachment, OrderEvent, User
 from foms.services.orders.revision import (
     MutationResult,
     RevisionError,
     execute_order_mutation,
 )
+from foms.services.orders.drawing_wizard_pending import (
+    DrawingWizardPendingError,
+    mark_delete_pending,
+    record_pending,
+)
+from foms.services.sidefx_outbox import enqueue_side_effect
 from foms.web.auth import login_required, get_user_by_id
 from foms.services.datetime_kst import now_kst, now_utc_naive
 from foms.services.erp_policy import is_drawing_workbench_participant
@@ -1063,21 +1069,110 @@ def api_get_drawing_wizard_pending(order_id):
     return jsonify({'success': True, 'data': {'pending': _pending_list(_load_structured_data(order))}})
 
 
+def _enqueue_pending_export_delete(db, order_id: int, entry: dict, owner_user_id: int | None):
+    """JSON pending export PNG 을 child row 로 브리지해 DELETE_PENDING + STORAGE_DELETE(한 tx).
+
+    WIZ-01-COMPLETION 이 JSON→child 전면 rewire 를 이연했으므로 pending 은 여전히
+    ``structured_data['drawing_wizard']['pending']`` JSON 이 canonical 이다. 삭제 경로에서
+    그 JSON 엔트리의 **server-derived object_key**(``entry['key']``)를 :func:`record_pending`
+    으로 child row 에 materialize(있으면 재사용)하고 ``DELETE_PENDING`` 으로 마크한 뒤,
+    ``WIZARD_PENDING`` ``STORAGE_DELETE`` outbox(``wizard_pending_id`` 실 FK)를 같은 tx 로
+    enqueue 한다. **동기 R2 삭제는 하지 않는다** — worker 의 공용 handler 가 R2 삭제 + child
+    ``DELETED`` 전이를 소유한다. object_key 는 client 가 아닌 서버 JSON 에서만 오며,
+    ``record_pending`` 이 ``orders/<id>/drawing_wizard/exports/`` 접두를 강제한다(traversal·타
+    주문·실측 key 거부). 이미 삭제 요청/완료된 child 는 재-enqueue 없이 idempotent 처리한다.
+
+    Args:
+        db: 활성 세션(호출자가 commit 소유).
+        order_id: 대상 주문 id.
+        entry: JSON pending 엔트리(``{key, filename, at, sheet_name}``).
+        owner_user_id: 삭제 요청자 id(child audit; None 허용).
+
+    Returns:
+        ``(deleted_key, pending_id)`` — 유효 export 가 아니거나(빈 key) server-derived key
+        검증 실패면 ``(None, None)``.
+    """
+    object_key = (entry.get('key') or '').strip()
+    if not object_key:
+        return None, None
+    try:
+        existing = db.query(DrawingWizardPending).filter_by(object_key=object_key).one_or_none()
+        if existing is not None and existing.state in ('DELETE_PENDING', 'DELETED'):
+            return object_key, existing.id  # 이미 삭제 진행/완료 — idempotent
+        child = existing or record_pending(
+            db, order_id=order_id, object_key=object_key, owner_user_id=owner_user_id)
+        mark_delete_pending(db, child, expected_row_version=child.row_version)
+        enqueue_side_effect(
+            db, source_domain='WIZARD_PENDING', source_id=child.id,
+            effect_type='STORAGE_DELETE',
+            payload={'object_key': object_key, 'order_id': order_id},
+            dedupe_key=f'wizdel:{child.id}',
+        )
+        return object_key, child.id
+    except DrawingWizardPendingError as key_err:
+        # server-derived key 계약 위반(비정상/tamper JSON) — 동기 삭제 없이 로그만, JSON 엔트리는
+        # 호출자가 제거한다(orphan R2 는 outbox 로 안전히 스케줄할 수 없으므로 삭제 예약 skip).
+        logger.warning("pending export key rejected (not server-derived): %s (%s)",
+                       object_key, key_err)
+        return None, None
+
+
+def _enqueue_attachment_delete(db, order_id: int, att: OrderAttachment, sheet: dict,
+                               owner_user_id: int | None) -> None:
+    """연결 도면탭 첨부의 R2 blob 삭제를 ``ORDER_EVENT`` STORAGE_DELETE outbox 로 예약한다.
+
+    OrderAttachment DB 행은 command tx 에서 삭제하고(내부 write), R2 blob 은 worker 가 삭제한다
+    (동기 외부 삭제 금지 — blueprint_projection 과 동일 규약). 감사 ``OrderEvent`` 를 만들어
+    one-of FK 매트릭스를 만족시키고 삭제 이력을 남기되, ``mutation_version`` 은 건드리지
+    않는다(wizard 낙관적 잠금·REV-00 소비처 무회귀). 시트에서 ``attachment_id`` 를 떼어낸다.
+
+    Args:
+        db: 활성 세션(호출자가 commit 소유).
+        order_id: 대상 주문 id.
+        att: 삭제할 도면탭 OrderAttachment.
+        sheet: ``attachment_id`` 를 떼어낼 wizard 시트 dict.
+        owner_user_id: 삭제 요청자 id(event 소유자; None 허용).
+    """
+    att_key = (att.storage_key or '').strip()
+    if att_key:
+        event = OrderEvent(
+            order_id=order_id,
+            event_type='DRAWING_PENDING_ATTACHMENT_DELETED',
+            payload={'object_key': att_key, 'sheet_id': sheet.get('id')},
+            created_by_user_id=owner_user_id,
+        )
+        db.add(event)
+        db.flush()
+        enqueue_side_effect(
+            db, source_domain='ORDER_EVENT', source_id=event.id,
+            effect_type='STORAGE_DELETE',
+            payload={'object_key': att_key, 'order_id': order_id},
+            dedupe_key=f'wizdel_att:{order_id}:{att_key}',
+        )
+    db.delete(att)
+    sheet.pop('attachment_id', None)
+
+
 @erp_orders_drawing_wizard_bp.route('/<int:order_id>/drawing-wizard/pending/<sheet_id>', methods=['DELETE'])
 @login_required
 def api_delete_drawing_wizard_pending(order_id: int, sheet_id: str):
-    """전달 대기(pending) 저장 도면 1건을 삭제한다(R2 export 파일 + 연결 도면탭 첨부 정리).
+    """전달 대기(pending) 저장 도면 1건을 삭제 예약한다(child DELETE_PENDING + STORAGE_DELETE outbox).
 
-    ``sd['drawing_wizard']['pending'][sheet_id]`` 항목을 제거하고 그 항목의 export PNG
-    (``entry['key']``)를 R2에서 삭제한다. 해당 시트에 도면 탭 첨부(``attachment_id``)가
-    연결돼 있으면 그 ``OrderAttachment`` 행과 R2 파일도 함께 삭제하고 시트에서
-    ``attachment_id`` 를 떼어낸다. **시트의 ``objects``(편집 중 캔버스)는 절대 건드리지 않는다**
-    (저장 도면만 취소하고 편집 상태는 보존). ``structured_data`` 는 ``copy.deepcopy`` +
-    ``flag_modified`` 로 갱신한다.
+    ``sd['drawing_wizard']['pending'][sheet_id]`` JSON 엔트리를 제거하고, 그 export PNG
+    (server-derived ``entry['key']``)를 ``drawing_wizard_pending`` child row 로 브리지해
+    ``DELETE_PENDING`` 마크 + ``WIZARD_PENDING`` ``STORAGE_DELETE`` outbox 를 **한 tx** 로
+    예약한다(실 R2 삭제·child ``DELETED`` 전이는 worker 의 공용 handler 소관 — **요청 tx 에서
+    동기 외부 삭제는 하지 않는다**). 해당 시트에 도면 탭 첨부(``attachment_id``)가 연결돼
+    있으면 그 ``OrderAttachment`` 행은 tx 에서 삭제하고 R2 blob 은 ``ORDER_EVENT``
+    STORAGE_DELETE outbox 로 예약한다. **시트의 ``objects``(편집 중 캔버스)는 절대 건드리지
+    않는다**(저장 도면만 취소·편집 상태 보존). ``structured_data`` 는 ``copy.deepcopy`` +
+    ``flag_modified`` 로 갱신한다. object_key 는 client 를 신뢰하지 않고 서버 JSON·exports 접두
+    검증에서만 유도한다.
 
     :param order_id: ERP 주문 id.
     :param sheet_id: 삭제할 pending 시트 식별자.
-    :returns: Flask ``(response, status)`` 튜플. 성공 시 ``{success, data:{sheet_id, deleted_key}}``.
+    :returns: Flask ``(response, status)`` 튜플. 성공 시
+        ``{success, data:{sheet_id, deleted_key, pending_id}}``.
     """
     db = None
     try:
@@ -1097,17 +1192,13 @@ def api_delete_drawing_wizard_pending(order_id: int, sheet_id: str):
         if not isinstance(entry, dict):
             return jsonify({'success': False, 'message': '삭제할 저장 도면이 없습니다.'}), 404
 
-        storage = get_storage()
+        owner_user_id = current_user.id if current_user else None
 
-        # 1) export PNG(R2) 삭제 — 파일이 이미 없을 수 있으니 실패는 로그만 남기고 계속.
-        deleted_key = (entry.get('key') or '').strip()
-        if deleted_key:
-            try:
-                storage.delete_file(deleted_key)
-            except Exception as del_err:
-                logger.warning("pending export delete failed (%s): %s", deleted_key, del_err)
+        # 1) export PNG → child DELETE_PENDING + WIZARD_PENDING STORAGE_DELETE outbox(한 tx).
+        deleted_key, pending_id = _enqueue_pending_export_delete(
+            db, order_id, entry, owner_user_id)
 
-        # 2) 연결된 도면 탭 첨부(OrderAttachment) 정리 — 시트의 attachment_id 로 추적.
+        # 2) 연결 도면탭 첨부 정리 — DB 행은 tx 에서 삭제, R2 blob 은 ORDER_EVENT outbox 로 예약.
         sheet = None
         for s in (dw.get('sheets') or []):
             if isinstance(s, dict) and s.get('id') == sheet_id:
@@ -1121,18 +1212,9 @@ def api_delete_drawing_wizard_pending(order_id: int, sheet_id: str):
                     OrderAttachment.order_id == order_id,
                 ).first()
                 if att is not None:
-                    att_key = (att.storage_key or '').strip()
-                    if att_key:
-                        try:
-                            storage.delete_file(att_key)
-                        except Exception as att_del_err:
-                            logger.warning(
-                                "pending attachment file delete failed (%s): %s", att_key, att_del_err
-                            )
-                    db.delete(att)
-                    sheet.pop('attachment_id', None)
+                    _enqueue_attachment_delete(db, order_id, att, sheet, owner_user_id)
 
-        # 3) pending 항목 제거 — sheet.objects(편집 캔버스)는 보존한다.
+        # 3) pending JSON 엔트리 제거 — sheet.objects(편집 캔버스)는 보존한다.
         pending.pop(sheet_id, None)
 
         sd['drawing_wizard'] = dw
@@ -1140,7 +1222,8 @@ def api_delete_drawing_wizard_pending(order_id: int, sheet_id: str):
         flag_modified(order, 'structured_data')
         db.commit()
 
-        return jsonify({'success': True, 'data': {'sheet_id': sheet_id, 'deleted_key': deleted_key}})
+        return jsonify({'success': True, 'data': {
+            'sheet_id': sheet_id, 'deleted_key': deleted_key, 'pending_id': pending_id}})
     except Exception as e:
         if db is not None:
             try:
