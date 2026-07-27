@@ -102,17 +102,17 @@ def _erp_as_tab_for_order(order):
 @erp_as_page_bp.route('/as/card-detail/<int:order_id>')
 @login_required
 def erp_as_card_detail(order_id: int):
-    """AS 모바일 카드 상세(content-tabs) lazy 렌더 파셜 (D1c).
+    """AS 모바일 카드 상세(시공자 + AS 타임라인) lazy 렌더 파셜 (D1c).
 
     닫힌 <details>가 열릴 때 as-dashboard.js가 fetch하는 경량 endpoint.
-    대시보드 카드와 동일한 매크로(render_as_content_tabs·시공자)를 단건 렌더하므로
-    폼/툴바/autosave 배선 계약이 eager 렌더와 완전히 동일하다.
+    PC 확장 fragment와 동일한 매크로(render_as_timeline·시공자)를 단건 렌더하므로
+    quick-add·영업/전달 토글 배선 계약이 두 표면에서 동일하다.
 
     Args:
         order_id: 대상 주문 PK.
 
     Returns:
-        content-tabs 파셜 HTML(text/html). AS 상태가 아니거나 없으면 404.
+        카드 상세 파셜 HTML(text/html). AS 상태가 아니거나 없으면 404.
     """
     db = get_db()
     order = (

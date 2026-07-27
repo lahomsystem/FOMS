@@ -1,3 +1,4 @@
-{# AS 타임라인 단건 파셜 — PC 확장 행 lazy fetch가 이 파셜만 렌더. #}
+{# AS 타임라인 단건 파셜 — PC 확장 행 lazy fetch가 이 파셜만 렌더.
+   비고(notes)·영업전달 상태는 lazy 표면에서만 싣는다(목록 payload 불변). #}
 {% from 'cs/partials/as_card_macros.html' import render_as_timeline %}
-{{ render_as_timeline(r.id, r.as_timeline_view, can_edit_erp|default(false)) }}
+{{ render_as_timeline(r.id, r.as_timeline_view, can_edit_erp|default(false), notes=r.notes or '', is_sales_delivery=r.is_sales_delivery) }}

@@ -227,7 +227,8 @@
     <div class="erp-pro-order-card__row erp-pro-order-card__row--full">
       <span class="erp-pro-order-card__label">AS 타임라인</span>
       <div class="mt-1 w-100">
-        {{ render_as_timeline(r.id, r.as_timeline_view, can_edit_erp|default(false)) }}
+        {# 레거시(비-v2) 카드는 상세가 eager 렌더라 비고는 싣지 않는다(목록 payload 불변). #}
+        {{ render_as_timeline(r.id, r.as_timeline_view, can_edit_erp|default(false), is_sales_delivery=r.is_sales_delivery) }}
       </div>
     </div>
   </div>

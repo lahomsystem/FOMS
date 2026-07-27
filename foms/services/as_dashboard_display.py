@@ -303,19 +303,16 @@ def apply_as_dashboard_row_display_fields(rows, db, *, mobile_v2_active):
             shipment.get('construction_workers')
         )
         r.construction_workers_text = ', '.join(r.construction_workers)
+        # as_content_html은 태블릿 가로 대조 표면(tablet_as_compare_body)이 소비하므로 유지한다.
+        # T10: 2번 탭 표시필드(as_content_2_html)와 그 notes 폴백은 퇴역했다 — 탭 에디터가 사라져
+        # 소비자가 0이고, 비고는 타임라인 확장/상세의 읽기 전용 '비고' 블록이 직접 렌더한다.
         r.as_content_html = sanitize_as_content_html(shipment.get('as_content'))
-        has_secondary_as_content = 'as_content_2' in shipment
-        secondary_as_content_html = sanitize_as_content_html(shipment.get('as_content_2'))
-        # 타임라인 뷰(셀 요약·확장 fragment 공용). as_content_html은 legacy 폴백 렌더용으로 유지.
-        # 방금 정리한 두 값을 주입해 legacy 앵커용 재-sanitize(행당 BeautifulSoup 파싱 2회)를 없앤다.
-        # notes 폴백 이전 값이어야 한다 — legacy 앵커는 as_content_2 원본만 보고, notes는 화면 폴백 전용.
+        # 타임라인 뷰(셀 요약·확장 fragment 공용). 방금 정리한 두 값을 주입해
+        # legacy 앵커용 재-sanitize(행당 BeautifulSoup 파싱 2회)를 없앤다.
         r.as_timeline_view = build_as_timeline_view(
             r.structured_data,
-            sanitized=(r.as_content_html, secondary_as_content_html),
+            sanitized=(r.as_content_html, sanitize_as_content_html(shipment.get('as_content_2'))),
         )
-        if not has_secondary_as_content and not secondary_as_content_html:
-            secondary_as_content_html = sanitize_as_content_html(getattr(r, 'notes', '') or '')
-        r.as_content_2_html = secondary_as_content_html
         r.as_thumb_enabled = thumb_flag
         r.thumbnail_url = thumb_urls.get(r.id) if thumb_flag else None
         r.stage_badge_modifier = as_stage_badge_modifier(

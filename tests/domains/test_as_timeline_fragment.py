@@ -180,7 +180,11 @@ def test_dashboard_legacy_anchor_reuses_sanitized_values(client, monkeypatch):
 
 
 def test_dashboard_legacy_anchor_ignores_notes_fallback(client):
-    """as_content_2 가 없을 때의 notes 화면 폴백이 legacy 앵커로 새면 안 된다."""
+    """notes 는 legacy 앵커로도, 구 `as_content_2_html` 폴백으로도 새지 않는다(T10 퇴역).
+
+    비고는 AS 기록이 아니라 주문 속성이다. 타임라인/확장 표면에는 별도 '비고' 블록으로만
+    노출된다(test_timeline_fragment_shows_order_notes_block).
+    """
     from foms.services.as_dashboard_display import apply_as_dashboard_row_display_fields
 
     order_id = _create_as_order(shipment_extra={"as_content": "옛 기록"})
@@ -189,7 +193,7 @@ def test_dashboard_legacy_anchor_ignores_notes_fallback(client):
     row.notes = "화면 폴백용 비고"
     apply_as_dashboard_row_display_fields([row], db_session, mobile_v2_active=False)
 
-    assert row.as_content_2_html == "화면 폴백용 비고"  # 화면 폴백은 유지
+    assert not hasattr(row, "as_content_2_html")  # 2탭 표시필드 자체가 퇴역
     legacy_ids = [e["id"] for e in row.as_timeline_view["legacy"]]
     assert legacy_ids == ["al_legacy_as_content"]  # 타임라인엔 notes 없음
 
@@ -355,3 +359,49 @@ def test_timeline_fragment_entry_markup_contract(client):
     assert 'data-log-type="call"' in body
     # 스트림 11건 중 8건 노출 → 남은 3건
     assert "이전 기록 더보기 (3)" in body
+
+
+# ---------------------------------------------------------------------------
+# 주문 비고(notes) 읽기 전용 블록 — 구 2번 탭 폴백의 정보 보존처(T10)
+# ---------------------------------------------------------------------------
+
+
+def test_timeline_fragment_shows_order_notes_block(client):
+    """확장 fragment·모바일 상세는 주문 비고를 '비고' 라벨의 읽기 전용 블록으로 싣는다."""
+    _login_as_admin(client, username="as-timeline-notes-admin")
+    order_id = _create_as_order(shipment_extra={"as_log": _reception_and_memos(1)})
+    db_session.get(Order, order_id).notes = "서랍 마이다 불량 <b>확인</b>"
+    db_session.commit()
+
+    body = client.get(f"/erp/as/timeline/{order_id}").get_data(as_text=True)
+    assert "as-timeline__notes" in body
+    assert ">비고<" in body
+    assert "서랍 마이다 불량" in body
+    # 비고는 rich HTML 이 아니라 평문 — 자동 이스케이프로 태그가 살아나면 안 된다
+    assert "<b>확인</b>" not in body
+    assert "&lt;b&gt;확인&lt;/b&gt;" in body
+
+    detail = client.get(f"/erp/as/card-detail/{order_id}").get_data(as_text=True)
+    assert "as-timeline__notes" in detail
+    assert "서랍 마이다 불량" in detail
+
+
+def test_timeline_notes_block_absent_without_notes(client):
+    """비고가 없으면 빈 블록을 만들지 않는다."""
+    _login_as_admin(client, username="as-timeline-nonotes-admin")
+    order_id = _create_as_order(shipment_extra={"as_log": _reception_and_memos(1)})
+
+    body = client.get(f"/erp/as/timeline/{order_id}").get_data(as_text=True)
+    assert "as-timeline__notes" not in body
+
+
+def test_dashboard_list_does_not_render_notes_block(client):
+    """목록(PC 셀·레거시 카드)에는 비고를 싣지 않는다 — 확장/상세 전용(payload·정보 분리)."""
+    _login_as_admin(client, username="as-timeline-listnotes-admin")
+    order_id = _create_as_order(shipment_extra={"as_log": _reception_and_memos(1)})
+    db_session.get(Order, order_id).notes = "목록에는 없어야 할 비고"
+    db_session.commit()
+
+    body = client.get("/erp/as").get_data(as_text=True)
+    assert "목록에는 없어야 할 비고" not in body
+    assert "as-timeline__notes" not in body

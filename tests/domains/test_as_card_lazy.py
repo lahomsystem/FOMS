@@ -1,13 +1,13 @@
-"""D1c 계약: AS 모바일 카드 <details> content-tabs를 eager 렌더에서 열 때 fetch 주입으로 전환.
+"""D1c 계약: AS 모바일 카드 <details> 상세를 eager 렌더에서 열 때 fetch 주입으로 전환.
 
 성능 목적(fragment payload 잔여 최대 덩어리 제거)이므로 계약의 의도는 세 가지다.
-1) 서버 렌더 마크업: 모바일 v2 카드는 content-tabs(에디터 2패널·시공자)를 더 이상 eager 렌더하지
-   않고 placeholder(data-as-card-lazy)만 남긴다. PC 테이블은 무변경(화면에 보이는 UI)이라
-   as-tabbed-editor는 PC 몫(주문당 1개)만 남는다.
+1) 서버 렌더 마크업: 모바일 v2 카드는 상세(시공자·AS 타임라인)를 더 이상 eager 렌더하지 않고
+   placeholder(data-as-card-lazy)만 남긴다. PC 테이블은 타임라인 요약 셀(.as-tl-cell)만 싣고,
+   타임라인 본체(.as-timeline)는 lazy 표면(상세·확장 fragment) 전용이다.
 2) 서버 endpoint: GET /erp/as/card-detail/<id>가 대시보드와 동일한 매크로로 단건 상세를 렌더한다.
    비-AS 주문/없는 주문은 404, 비로그인은 로그인 리다이렉트.
 3) 클라이언트: <details> toggle 위임(capture·window 가드) + dataset.loaded 멱등 + 에러/재시도 경로 +
-   주입 후 폼/autosave 재배선(window.__fomsAsRebindLazyCard).
+   주입 후 날짜/시공자 재배선 + 검색어 하이라이트 재적용(window.__fomsAsRebindLazyCard).
 """
 
 from __future__ import annotations
@@ -92,7 +92,7 @@ def test_mobile_card_content_tabs_are_lazy_placeholder(client, monkeypatch):
     assert "erp-as-card-lazy__status" in body
 
 
-def test_card_detail_endpoint_renders_editor_markup(client, monkeypatch):
+def test_card_detail_endpoint_renders_timeline_markup(client, monkeypatch):
     """card-detail endpoint: AS 주문 200 + 타임라인/시공자 마크업 포함, 비-AS/없음 404, 비로그인 리다이렉트."""
     monkeypatch.setenv("ERP_MOBILE_V2_ENABLED", "true")
     user = _login_as_admin(client, username="as_card_detail_admin")
@@ -122,7 +122,7 @@ def test_card_detail_endpoint_renders_editor_markup(client, monkeypatch):
     assert unauth.status_code in (301, 302)
 
 
-def test_card_lazy_js_source_contract():
+def test_card_lazy_js_contract():
     """클라이언트 lazy 계약: toggle 위임(capture·window 가드)·loaded 멱등·에러/재시도·재배선."""
     js = (_ROOT / "static/js/cs/as-dashboard.js").read_text(encoding="utf-8")
     # fetch 대상 endpoint
@@ -135,9 +135,10 @@ def test_card_lazy_js_source_contract():
     assert "dataset.loaded" in js
     # 조용한 실패 금지: 에러 표시 + 재시도 버튼
     assert "as-card-lazy-retry" in js
-    # 주입 후 폼/autosave 재배선(최신 클로저 = 살아있는 AbortController)
+    # 주입 후 날짜/시공자 재배선(최신 클로저 = 살아있는 AbortController) + 하이라이트 재적용
     assert "__fomsAsRebindLazyCard" in js
-    assert "bindAsContentAutosaveInputs" in js
+    assert "bindAsDateAndWorkerInputs(scope)" in js
+    assert "highlightTimelineStatic(scope)" in js
 
 
 def test_card_detail_partial_reuses_shared_macros():

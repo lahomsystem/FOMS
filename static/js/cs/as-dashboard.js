@@ -24,10 +24,19 @@
     const toast = new bootstrap.Toast(toastEl, { delay: 2000 });
     const toastMsg = document.getElementById('toastMessage');
     const _asCfgEl = document.getElementById('as-dashboard-config');
-    const searchQueryCompact = (_asCfgEl && _asCfgEl.dataset.searchQueryCompact) || '';
     const currentAsTab = (_asCfgEl && _asCfgEl.dataset.currentAsTab) || 'incomplete';
-    const asContentHtmlCache = new WeakMap();
-    const asContentSaveState = new Map();
+
+    /**
+     * 현재 화면의 검색어(공백제거·소문자)를 config 엘리먼트에서 매번 읽는다.
+     *
+     * 싱글톤 가드(window.__FOMS_AS_*_BOUND)로 1회만 등록되는 위임 핸들러는 최초 init의
+     * 클로저를 계속 쓴다 — 값을 상수로 잡아두면 fragment 스왑으로 검색어가 바뀐 뒤에도
+     * 옛 검색어를 칠하게 된다. config 엘리먼트는 스왑마다 새로 렌더되므로 읽기 시점에 조회한다.
+     */
+    function getSearchQueryCompact() {
+      const cfg = document.getElementById('as-dashboard-config');
+      return (cfg && cfg.dataset.searchQueryCompact) || '';
+    }
     const dateFieldSaveState = new Map();
     const previousAsDashboardController = window.__fomsAsDashboardAbortController;
     if (previousAsDashboardController && typeof previousAsDashboardController.abort === 'function') {
@@ -58,23 +67,6 @@
         }
       }
       target.addEventListener(type, handler, listenerOptions);
-    }
-
-    function normalizeAsHtmlValue(value) {
-      return String(value == null ? '' : value).trim();
-    }
-
-    function getOrderIdFromElement(el) {
-      return el && el.dataset && el.dataset.orderId ? String(el.dataset.orderId) : '';
-    }
-
-    function getAsContentFieldName(el) {
-      return el && el.dataset && el.dataset.fieldName ? String(el.dataset.fieldName) : 'as_content';
-    }
-
-    function getAsContentInputsForOrder(orderId, fieldName = 'as_content') {
-      if (!orderId) return [];
-      return Array.from(document.querySelectorAll(`.as-content-input[data-order-id="${orderId}"][data-field-name="${fieldName}"]`));
     }
 
     function getDateInputsForOrder(orderId, field) {
@@ -335,58 +327,6 @@
       return orderId ? document.querySelector(`.erp-pro-order-card[data-order-id="${orderId}"]`) : null;
     }
 
-    function setAsContentActiveTab(orderId, tabId) {
-      if (!orderId) return;
-      const nextTab = tabId === '2' ? '2' : '1';
-      document.querySelectorAll(`.as-tabbed-editor[data-order-id="${orderId}"]`).forEach((container) => {
-        container.dataset.activeTab = nextTab;
-        container.querySelectorAll('.as-content-tab-btn').forEach((btn) => {
-          const isActive = btn.dataset.asTabTarget === nextTab;
-          btn.classList.toggle('is-active', isActive);
-          btn.setAttribute('aria-selected', isActive ? 'true' : 'false');
-        });
-        container.querySelectorAll('.as-content-tab-panel').forEach((panel) => {
-          const isActive = panel.dataset.asTabPanel === nextTab;
-          panel.classList.toggle('is-active', isActive);
-          panel.hidden = !isActive;
-        });
-      });
-    }
-
-    function inputHasAsContentSearchMatch(el) {
-      if (!el || !searchQueryCompact) return false;
-      return findCompactMatchesInWholeText(el.textContent || '', searchQueryCompact).length > 0;
-    }
-
-    function syncAsContentSearchTabs() {
-      if (!searchQueryCompact) return;
-      const visitedOrderIds = new Set();
-      document.querySelectorAll('.as-tabbed-editor[data-order-id]').forEach((container) => {
-        const orderId = container.dataset.orderId || '';
-        if (!orderId || visitedOrderIds.has(orderId)) return;
-        visitedOrderIds.add(orderId);
-        const primaryInput = getAsContentInputsForOrder(orderId, 'as_content')[0];
-        const secondaryInput = getAsContentInputsForOrder(orderId, 'as_content_2')[0];
-        const primaryMatched = inputHasAsContentSearchMatch(primaryInput);
-        const secondaryMatched = inputHasAsContentSearchMatch(secondaryInput);
-        if (!primaryMatched && secondaryMatched) {
-          setAsContentActiveTab(orderId, '2');
-        } else if (primaryMatched) {
-          setAsContentActiveTab(orderId, '1');
-        }
-      });
-    }
-
-    function getAsEditorContext(sourceEl) {
-      const row = sourceEl ? sourceEl.closest('tr') : null;
-      const card = sourceEl ? sourceEl.closest('.erp-pro-order-card') : null;
-      return {
-        row: row,
-        card: card,
-        contextRoot: row || card || document,
-      };
-    }
-
     function buildAsDashboardUrl(overrides = {}) {
       const currentParams = new URLSearchParams(window.location.search);
       const params = new URLSearchParams();
@@ -406,33 +346,6 @@
       params.delete('page');
       const queryString = params.toString();
       return queryString ? `/erp/as?${queryString}` : '/erp/as';
-    }
-
-    function getAsContentRawHtml(el) {
-      if (!el) return '';
-      return asContentHtmlCache.has(el) ? (asContentHtmlCache.get(el) || '') : (el.innerHTML || '');
-    }
-
-    function setAsContentRawHtml(el, html) {
-      if (!el) return;
-      asContentHtmlCache.set(el, html || '');
-    }
-
-    function clearAsContentHighlight(el) {
-      if (!el || !el.hasAttribute('contenteditable')) return;
-      const rawHtml = getAsContentRawHtml(el);
-      const hasHighlightMarkup = el.dataset.highlightApplied === '1' || !!el.querySelector('mark.as-search-highlight');
-      if (hasHighlightMarkup && el.innerHTML !== rawHtml) {
-        el.innerHTML = rawHtml;
-      }
-      el.dataset.highlightApplied = '0';
-    }
-
-    function prepareAsContentEditing(el) {
-      if (!el || !el.hasAttribute('contenteditable')) return;
-      if (el.dataset.highlightApplied === '1') {
-        clearAsContentHighlight(el);
-      }
     }
 
     function collectHighlightTextNodes(root) {
@@ -521,20 +434,22 @@
       return true;
     }
 
-    function applyAsContentHighlight(el) {
-      if (!el || !el.hasAttribute('contenteditable')) return;
-      if (!searchQueryCompact) return;
-      if (el.offsetParent === null) return;
-      clearAsContentHighlight(el);
-      const wholeText = el.textContent || '';
-      const matchRanges = findCompactMatchesInWholeText(wholeText, searchQueryCompact);
-      if (!matchRanges.length) {
-        el.dataset.highlightApplied = '0';
-        return;
-      }
-      const textNodes = collectHighlightTextNodes(el);
+    /**
+     * 정적 텍스트 요소(타임라인 본문·셀 요약) 안의 검색어를 <mark>로 감싼다.
+     *
+     * 구 리치에디터 전용 하이라이트에서 편집 가능 전제만 뺀 축약판이다. 정적 DOM은
+     * 편집으로 바뀌지 않으므로 "지우고 다시 칠하기"가 필요 없고, 재적용은 dataset 가드로 막는다
+     * (중첩 <mark> 방지). 표시 여부(offsetParent) 검사도 뺐다 — PC 표/모바일 카드가 코호트에
+     * 따라 CSS로 숨겨질 뿐이라, 숨은 채 칠해 두는 편이 resize 재계산보다 싸다.
+     */
+    function applyStaticHighlight(el) {
+      if (!el || el.dataset.highlightApplied === '1') return;
+      const needle = getSearchQueryCompact();
+      if (!needle) return;
+      const matchRanges = findCompactMatchesInWholeText(el.textContent || '', needle);
+      if (!matchRanges.length) return;
       let applied = false;
-      textNodes.forEach((item) => {
+      collectHighlightTextNodes(el).forEach((item) => {
         if (!item.text) return;
         const localRanges = [];
         matchRanges.forEach(([start, end]) => {
@@ -551,70 +466,12 @@
       el.dataset.highlightApplied = applied ? '1' : '0';
     }
 
-    function maybeApplyAsContentHighlight(el) {
-      if (!el || !searchQueryCompact) return;
-      if (document.activeElement === el) return;
-      if (el.offsetParent === null) return;
-      applyAsContentHighlight(el);
-    }
-
-    function getAsContentSaveState(target) {
-      const orderId = typeof target === 'string' ? target : getOrderIdFromElement(target);
-      const fieldName = typeof target === 'string' ? 'as_content' : getAsContentFieldName(target);
-      if (!orderId) {
-        throw new Error('AS 내용 저장 대상을 찾지 못했습니다.');
-      }
-      const stateKey = `${orderId}:${fieldName}`;
-      let state = asContentSaveState.get(stateKey);
-      if (!state) {
-        const firstInput = typeof target === 'string'
-          ? getAsContentInputsForOrder(orderId, fieldName)[0]
-          : target;
-        const initialValue = normalizeAsHtmlValue(getAsContentRawHtml(firstInput));
-        state = {
-          savedHtml: initialValue,
-          draftHtml: initialValue,
-          saveTimeout: null,
-          pendingValue: null,
-          pendingSavePromise: null,
-          requestSeq: 0,
-        };
-        asContentSaveState.set(stateKey, state);
-      }
-      return state;
-    }
-
-    function syncAsContentEditors(orderId, fieldName, html, options = {}) {
-      const sourceEl = options.sourceEl || null;
-      const forceValue = normalizeAsHtmlValue(html);
-      getAsContentInputsForOrder(orderId, fieldName).forEach((input) => {
-        setAsContentRawHtml(input, forceValue);
-        if (input === sourceEl) {
-          return;
-        }
-        if (document.activeElement !== input || options.forceDom === true) {
-          input.innerHTML = forceValue;
-          input.dataset.highlightApplied = '0';
-          maybeApplyAsContentHighlight(input);
-        }
-      });
-    }
-
-    function updateAsContentDraft(el, html) {
-      const orderId = getOrderIdFromElement(el);
-      const fieldName = getAsContentFieldName(el);
-      if (!orderId) return;
-      const state = getAsContentSaveState(el);
-      const normalized = normalizeAsHtmlValue(html);
-      state.draftHtml = normalized;
-      setAsContentRawHtml(el, normalized);
-      syncAsContentEditors(orderId, fieldName, normalized, { sourceEl: el });
-    }
-
-    function hasPendingAsContentChange(el) {
-      if (!el) return false;
-      const state = getAsContentSaveState(el);
-      return state.draftHtml !== state.savedHtml;
+    /** 타임라인 정적 텍스트에 검색어 하이라이트 적용(fragment/optimistic 주입 후 재호출). */
+    function highlightTimelineStatic(root) {
+      if (!getSearchQueryCompact()) return;
+      (root || document)
+        .querySelectorAll('.as-tl-item__body, .as-tl-cell__anchor, .as-tl-cell__recent')
+        .forEach(applyStaticHighlight);
     }
 
     async function saveOrderFieldDirect(orderId, fieldName, newValue) {
@@ -632,97 +489,6 @@
         throw new Error(data.message || '주문 정보 저장 실패');
       }
       return data;
-    }
-
-    async function saveAsContent(el, options = {}) {
-      const silent = options.silent === true;
-      const isEditable = el && el.hasAttribute('contenteditable');
-      const orderId = getOrderIdFromElement(el);
-      const fieldName = getAsContentFieldName(el);
-      const state = getAsContentSaveState(el);
-      if (state.saveTimeout) {
-        clearTimeout(state.saveTimeout);
-        state.saveTimeout = null;
-      }
-      const value = isEditable ? normalizeAsHtmlValue(getAsContentRawHtml(el)) : normalizeAsHtmlValue(el.value || '');
-      state.draftHtml = value;
-      if (value === state.savedHtml) {
-        if (isEditable) maybeApplyAsContentHighlight(el);
-        return { success: true, skipped: true };
-      }
-      if (state.pendingSavePromise && state.pendingValue === value) {
-        return state.pendingSavePromise;
-      }
-      const requestSeq = state.requestSeq + 1;
-      state.requestSeq = requestSeq;
-      state.pendingValue = value;
-      el.style.backgroundColor = '#fff3cd';
-      const requestPromise = fetch('/api/update_order_field', {
-        method: 'POST',
-        headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify({
-          order_id: el.dataset.orderId,
-          field_name: fieldName,
-          new_value: value
-        })
-      })
-        .then(res => res.json())
-        .then(data => {
-          if (!data.success) {
-            throw new Error(data.message || 'AS 내용 저장 실패');
-          }
-          const normalizedValue = normalizeAsHtmlValue(
-            Object.prototype.hasOwnProperty.call(data, 'normalized_value') ? data.normalized_value : value
-          );
-          const isLatestResponse = requestSeq === state.requestSeq;
-          if (isLatestResponse) {
-            state.savedHtml = normalizedValue;
-            if (state.draftHtml === value || state.draftHtml === normalizedValue) {
-              state.draftHtml = normalizedValue;
-              syncAsContentEditors(orderId, fieldName, normalizedValue, { forceDom: true });
-            }
-          }
-          if (isEditable && state.draftHtml === state.savedHtml) {
-            maybeApplyAsContentHighlight(el);
-          }
-          if (!silent && isLatestResponse) {
-            showFeedback('AS 내용이 저장되었습니다.');
-          }
-          return Object.assign({}, data, { normalized_value: normalizedValue });
-        })
-        .catch(err => {
-          if (isEditable) maybeApplyAsContentHighlight(el);
-          if (!silent) {
-            const msg = err && err.message ? err.message : '네트워크 오류가 발생했습니다.';
-            showFeedback('저장 실패: ' + msg, true);
-          }
-          throw err;
-        })
-        .finally(() => {
-          el.style.backgroundColor = '';
-          if (state.pendingSavePromise === requestPromise) {
-            state.pendingSavePromise = null;
-            if (state.pendingValue === value) {
-              state.pendingValue = null;
-            }
-          }
-        });
-      state.pendingSavePromise = requestPromise;
-      return requestPromise;
-    }
-
-    async function flushAsContentIfNeeded(el, options = {}) {
-      if (!el) return null;
-      const state = getAsContentSaveState(el);
-      if (state.saveTimeout) {
-        clearTimeout(state.saveTimeout);
-        state.saveTimeout = null;
-      }
-      if (!hasPendingAsContentChange(el)) {
-        if (el.hasAttribute('contenteditable')) maybeApplyAsContentHighlight(el);
-        return null;
-      }
-      return saveAsContent(el, options);
     }
 
     function getDateFieldSaveState(input) {
@@ -986,86 +752,20 @@
       return saveDateField(input, options);
     }
 
-    function syncVisibleAsContentHighlights() {
-      if (!searchQueryCompact) return;
-      document.querySelectorAll('.as-content-input[contenteditable="true"]').forEach((input) => {
-        if (input.offsetParent === null) {
-          clearAsContentHighlight(input);
-          return;
-        }
-        maybeApplyAsContentHighlight(input);
-      });
-    }
+    // 최초 렌더/프래그먼트 스왑 직후 타임라인 요약 셀에 검색어 하이라이트 적용.
+    highlightTimelineStatic(document);
 
-    bindAsContentEditableInputs(document);
-    syncAsContentSearchTabs();
-    syncVisibleAsContentHighlights();
-    let asHighlightResizeTimer = null;
-    addAsDashboardListener(window, 'resize', function () {
-      if (!searchQueryCompact) return;
-      if (asHighlightResizeTimer) clearTimeout(asHighlightResizeTimer);
-      asHighlightResizeTimer = setTimeout(syncVisibleAsContentHighlights, 120);
-    });
-
-    // ───────── 리치 툴바 lazy hydrate ─────────
-    // 툴바(행당 4개 × 100행 = 400개 ≈ 350KB)를 서버에서 렌더하지 않고,
-    // fragment당 1개의 <template id="as-rich-toolbar-template">에서 focus 시점에 clone 삽입한다.
-    // 삽입 위치 계약: 원본 마크업과 동일하게 .as-rich-editor의 first child(= .as-content-input 앞).
-    // 그래야 기존 명령/영업전달 버튼의 btn.closest('.as-rich-editor').querySelector('.as-content-input')
-    // 탐색이 무수정으로 작동한다. 멱등: editor.dataset.toolbarHydrated.
-    function hydrateAsRichToolbar(editor) {
-      if (!editor || editor.dataset.toolbarHydrated === '1') return;
-      const tmpl = document.getElementById('as-rich-toolbar-template');
-      if (!tmpl || !('content' in tmpl)) return;
-      const frag = tmpl.content.cloneNode(true);
-      const toolbar = frag.querySelector('.as-rich-toolbar');
-      if (!toolbar) return;
-      const input = editor.querySelector('.as-content-input[contenteditable="true"]');
-      const tabbed = editor.closest('.as-tabbed-editor');
-      const orderId = (input && input.dataset.orderId)
-        || (tabbed && tabbed.dataset.orderId) || '';
-      // 주문별 가변값 주입: order_id + 영업/전달 활성 상태(.as-tabbed-editor[data-sales-delivery]).
-      const salesBtn = toolbar.querySelector('.as-sales-delivery-btn');
-      if (salesBtn) {
-        if (orderId) salesBtn.dataset.orderId = orderId;
-        const active = !!(tabbed && tabbed.dataset.salesDelivery === '1');
-        salesBtn.dataset.salesDeliveryActive = active ? '1' : '0';
-        salesBtn.textContent = `${active ? '☑' : '☐'} 영업/전달`;
-        salesBtn.classList.toggle('btn-warning', active);
-        salesBtn.classList.toggle('btn-outline-warning', !active);
-      }
-      editor.dataset.toolbarHydrated = '1';
-      editor.insertBefore(toolbar, editor.firstChild);
-    }
-
-    // document 레벨 위임 focusin — 프래그먼트 스왑과 무관하게 한 번만 등록(window 가드).
-    // hydrate 함수는 순수 DOM 조작이라 최초 클로저를 재사용해도 안전.
-    if (!window.__FOMS_AS_TOOLBAR_BOUND) {
-      window.__FOMS_AS_TOOLBAR_BOUND = true;
-      document.addEventListener('focusin', function (e) {
-        const target = e.target;
-        if (!target || !target.closest) return;
-        const input = target.closest('.as-content-input[contenteditable="true"]');
-        if (!input) return;
-        const editor = input.closest('.as-rich-editor');
-        if (editor) hydrateAsRichToolbar(editor);
-      });
-    }
-
-    // ───────── 카드 상세(content-tabs) lazy 렌더 (D1c) ─────────
-    // 닫힌 <details> 안 content-tabs(에디터 2패널·시공자)를 서버에서 eager 렌더하지 않고
-    // (100행 × 2패널 폼 ≈ fragment 비만의 잔여 최대 덩어리), 열릴 때
+    // ───────── 카드 상세 lazy 렌더 (D1c) ─────────
+    // 닫힌 <details> 안 상세(시공자·AS 타임라인)를 서버에서 eager 렌더하지 않고
+    // (100행 × 상세 = fragment 비만의 잔여 최대 덩어리), 열릴 때
     // GET /erp/as/card-detail/<id>로 fetch해 placeholder에 주입한다. 멱등: placeholder.dataset.loaded.
-    // 주입 후 폼/autosave 재배선은 window.__fomsAsRebindLazyCard로 위임한다. 이 함수는 매 init마다
+    // 주입 후 재배선은 window.__fomsAsRebindLazyCard로 위임한다. 이 함수는 매 init마다
     // 최신 클로저(= 살아있는 AbortController)로 덮어써지므로, 프래그먼트 스왑 뒤 열리는 카드도
     // 죽은(aborted) signal이 아닌 현재 컨트롤러에 바인딩된다(직접 바인딩이 abort-scoped이므로 핵심).
     window.__fomsAsRebindLazyCard = function (scope) {
       if (!scope) return;
-      bindAsContentEditableInputs(scope);
-      bindAsContentAutosaveInputs(scope);
       bindAsDateAndWorkerInputs(scope);
-      // 검색 모드에서 lazy 오픈된 카드도 매치 탭 자동 선택(1:1 리뷰 MINOR 반영).
-      syncAsContentSearchTabs();
+      highlightTimelineStatic(scope);
     };
 
     function loadAsCardDetail(placeholder) {
@@ -1122,74 +822,126 @@
       });
     }
 
-    addAsDashboardListener(document, 'mousedown', function (e) {
-      const btn = e.target.closest('.as-rich-toolbar button');
-      if (!btn) return;
-      e.preventDefault();
-    });
+    // ───────── AS 타임라인 상호작용(확장 행·quick-add·더보기) ─────────
+    // fragment swap마다 이 파일이 재실행되므로 document 위임은 window 가드로 1회만 등록한다(perf G4).
+    // 핸들러는 필요한 값(order_id·검색어)을 매번 DOM에서 읽으므로 최초 클로저 재사용이 안전하다.
+    // 사용자 피드백에 showFeedback(=최초 init의 toast 인스턴스)을 쓰지 않는 이유도 같다 —
+    // 스왑 뒤엔 그 toast 엘리먼트가 DOM에서 사라져 조용히 무동작이 된다.
+    if (!window.__FOMS_AS_TIMELINE_BOUND) {
+      window.__FOMS_AS_TIMELINE_BOUND = true;
 
-    addAsDashboardListener(document, 'click', async function (e) {
-      const tabBtn = e.target.closest('.as-content-tab-btn');
-      if (!tabBtn) return;
-      e.preventDefault();
-      const orderId = tabBtn.dataset.orderId || '';
-      const nextTab = tabBtn.dataset.asTabTarget || '1';
-      const currentContainer = tabBtn.closest('.as-tabbed-editor');
-      const currentInput = currentContainer
-        ? currentContainer.querySelector('.as-content-tab-panel.is-active .as-content-input[contenteditable="true"]')
-        : null;
-      if (currentInput) {
+      // PC 내용 셀 클릭 → 아래에 full-width 행을 만들어 타임라인 fragment를 lazy fetch(재클릭=닫기).
+      // 기록 0건 셀(.as-tl-cell__empty)도 같은 경로로 열려야 quick-add로 첫 기록을 남길 수 있다.
+      document.addEventListener('click', function (e) {
+        const btn = e.target.closest && e.target.closest('.as-tl-cell__expand, .as-tl-cell__empty');
+        if (!btn) return;
+        const orderId = btn.dataset.orderId;
+        const row = btn.closest('tr[data-order-id]');
+        if (!row || !orderId) return;
+        const next = row.nextElementSibling;
+        if (next && next.classList.contains('as-tl-expand-row')) { next.remove(); return; } // 토글
+        const tr = document.createElement('tr');
+        tr.className = 'as-tl-expand-row';
+        tr.dataset.orderId = orderId;
+        tr.innerHTML = '<td colspan="12"><div class="as-tl-expand-body" data-loading="1">'
+          + '<div class="text-muted small py-2">불러오는 중...</div></div></td>';
+        row.after(tr);
+        fetch('/erp/as/timeline/' + encodeURIComponent(orderId), {
+          headers: { Accept: 'text/html' }, credentials: 'same-origin',
+        }).then((r) => { if (!r.ok) throw new Error('HTTP ' + r.status); return r.text(); })
+          .then((html) => {
+            const body = tr.querySelector('.as-tl-expand-body');
+            body.innerHTML = html;
+            body.dataset.loading = '';
+            highlightTimelineStatic(body);
+          })
+          .catch(() => { tr.querySelector('.as-tl-expand-body').innerHTML =
+            '<div class="text-danger small py-2">타임라인을 불러오지 못했습니다.</div>'; });
+      });
+
+      /** quick-add 폼 1건 전송 → 성공 시 응답 html을 스트림 맨 앞에 낙관적 삽입. */
+      async function submitQuickAdd(form) {
+        if (!form) return;
+        const orderId = form.dataset.orderId;
+        const textEl = form.querySelector('.as-timeline__text');
+        const typeEl = form.querySelector('.as-timeline__type');
+        const text = (textEl && textEl.value || '').trim();
+        if (!orderId || !text) return;
+        const stream = form.parentElement.querySelector('.as-timeline__stream');
+        const submitBtn = form.querySelector('.as-timeline__submit');
+        if (submitBtn) submitBtn.disabled = true;
         try {
-          await flushAsContentIfNeeded(currentInput);
+          const res = await fetch('/api/orders/' + encodeURIComponent(orderId) + '/as/log', {
+            method: 'POST', headers: { 'Content-Type': 'application/json' }, credentials: 'same-origin',
+            body: JSON.stringify({ type: (typeEl && typeEl.value) || 'memo', text: text }),
+          });
+          const data = await res.json();
+          if (!data.success) throw new Error(data.message || '기록 추가 실패');
+          if (stream) {
+            stream.insertAdjacentHTML('afterbegin', data.html); // optimistic prepend
+            highlightTimelineStatic(stream);
+          }
+          textEl.value = '';
+          if (typeEl) typeEl.value = 'memo'; // 저장 후 memo 리셋(스펙 5.5)
         } catch (err) {
-          return;
-        }
+          // 입력 텍스트는 지우지 않는다 — 재시도 가능해야 한다.
+          alert(String(err && err.message || err || '기록 추가 중 오류'));
+        } finally { if (submitBtn) submitBtn.disabled = false; }
       }
-      setAsContentActiveTab(orderId, nextTab);
-      syncVisibleAsContentHighlights();
-    });
 
-    addAsDashboardListener(document, 'click', function (e) {
-      const btn = e.target.closest('.as-rich-command-btn');
-      if (!btn) return;
-      e.preventDefault();
-      const editor = btn.closest('.as-rich-editor');
-      const input = editor ? editor.querySelector('.as-content-input[contenteditable="true"]') : null;
-      if (!input) return;
-      prepareAsContentEditing(input);
-      input.focus();
-      const command = btn.dataset.richCommand || '';
-      if (command === 'clear-format') {
-        document.execCommand('removeFormat', false, null);
-        document.execCommand('foreColor', false, 'black');
-      } else if (command) {
-        document.execCommand(command, false, btn.dataset.richValue || null);
-      }
-      updateAsContentDraft(input, input.innerHTML || '');
-      // 서식 적용도 즉시 저장하지 않고 blur(입력박스 밖 클릭) 시 저장 — 타이핑 흐름 방해 방지.
-    });
+      document.addEventListener('submit', function (e) {
+        const form = e.target.closest && e.target.closest('.as-timeline__quick-add');
+        if (!form) return;
+        e.preventDefault();
+        submitQuickAdd(form);
+      });
+
+      // Ctrl/⌘+Enter 단축키. 한글 IME 조합 확정 Enter가 전송으로 새지 않도록 isComposing·229 가드.
+      document.addEventListener('keydown', function (e) {
+        const textEl = e.target.closest && e.target.closest('.as-timeline__text');
+        if (!textEl) return;
+        if ((e.ctrlKey || e.metaKey) && e.key === 'Enter' && !e.isComposing && e.keyCode !== 229) {
+          e.preventDefault();
+          submitQuickAdd(textEl.closest('.as-timeline__quick-add'));
+        }
+      });
+
+      // 더보기: 기본 렌더는 최근 8건이라 ?full=1로 스트림 전량(상한 200)을 다시 받아 통째 교체.
+      document.addEventListener('click', function (e) {
+        const more = e.target.closest && e.target.closest('.as-timeline__more');
+        if (!more) return;
+        const orderId = more.dataset.orderId;
+        const timeline = more.closest('.as-timeline');
+        const body = more.closest('.as-tl-expand-body')
+          || more.closest('.erp-as-mobile-card__content')
+          || (timeline && timeline.parentElement);
+        if (!orderId || !body) return;
+        fetch('/erp/as/timeline/' + encodeURIComponent(orderId) + '?full=1',
+              { headers: { Accept: 'text/html' }, credentials: 'same-origin' })
+          .then((r) => { if (!r.ok) throw new Error('HTTP ' + r.status); return r.text(); })
+          .then((html) => { body.innerHTML = html; highlightTimelineStatic(body); })
+          .catch(() => { more.textContent = '이전 기록을 불러오지 못했습니다.'; });
+      });
+    }
 
     addAsDashboardListener(document, 'click', async function (e) {
       const btn = e.target.closest('.as-sales-delivery-btn');
       if (!btn) return;
       e.preventDefault();
 
-      const editor = btn.closest('.as-rich-editor');
-      const input = editor ? editor.querySelector('.as-content-input[contenteditable="true"]') : null;
-      const orderId = input ? input.dataset.orderId : '';
-      if (!input || !orderId) {
+      // 토글은 타임라인 헤더 소속이라 구 리치에디터 조상이 없다 — dataset을 직접 읽는다.
+      const orderId = btn.dataset.orderId || '';
+      if (!orderId) {
         showFeedback('영업/택배 분류 대상을 찾지 못했습니다.', true);
         return;
       }
 
       const prevDisabled = btn.disabled;
       const wasActive = btn.dataset.salesDeliveryActive === '1';
-      const context = getAsEditorContext(input);
-      const contextRoot = context.contextRoot;
-      const completedInput = contextRoot.querySelector('.editable-date-as[data-field="as_completed_date"]');
+      // 완료일 입력은 확장 행/상세 밖(행·카드 본문)에 있으므로 order_id로 문서 전역에서 찾는다.
+      const completedInput = getDateInputsForOrder(orderId, 'as_completed_date')[0];
       btn.disabled = true;
       try {
-        await flushAsContentIfNeeded(input, { silent: true });
         await flushDateFieldIfNeeded(completedInput, { silent: true, redirectAfterComplete: false });
         const baseTab = completedInput && completedInput.value ? 'completed' : 'incomplete';
         const nextActive = !wasActive;
@@ -2121,22 +1873,7 @@
         });
     });
 
-    // AS 내용 자동 저장 (입력 중엔 로컬 draft만, blur=입력박스 밖 클릭 시 저장)
-    bindAsContentAutosaveInputs(document);
-
     // --- per-card 바인딩 함수 (페이지별 렌더마다 init에서 호출, dataset 가드로 멱등) ---
-    function bindAsContentEditableInputs(scope) {
-      (scope || document).querySelectorAll('.as-content-input[contenteditable="true"]').forEach((input) => {
-        if (input.dataset.asEditableBound === '1') return;
-        input.dataset.asEditableBound = '1';
-        setAsContentRawHtml(input, input.innerHTML || '');
-        getAsContentSaveState(input);
-        input.dataset.highlightApplied = '0';
-        addAsDashboardListener(input, 'mousedown', function () { prepareAsContentEditing(this); });
-        addAsDashboardListener(input, 'beforeinput', function () { prepareAsContentEditing(this); });
-      });
-    }
-
     function bindAsDateAndWorkerInputs(scope) {
       const root = scope || document;
       root.querySelectorAll('.editable-date-as').forEach(input => {
@@ -2154,32 +1891,6 @@
       });
     }
 
-    function bindAsContentAutosaveInputs(scope) {
-      (scope || document).querySelectorAll('.as-content-input').forEach(input => {
-        if (input.dataset.asAutosaveBound === '1') return;
-        input.dataset.asAutosaveBound = '1';
-        getAsContentSaveState(input);
-        addAsDashboardListener(input, 'blur', function () {
-          flushAsContentIfNeeded(this).catch(() => {});
-        });
-        addAsDashboardListener(input, 'input', function () {
-          // 입력 중에는 로컬 draft만 갱신(서버 저장 X). 저장은 blur(입력박스 밖 클릭) 시 flush.
-          updateAsContentDraft(this, this.innerHTML || '');
-        });
-        addAsDashboardListener(input, 'keypress', function (e) {
-          if (e.key === 'Enter' && !e.shiftKey && this.tagName !== 'TEXTAREA' && !this.hasAttribute('contenteditable')) this.blur();
-        });
-        if (input.tagName === 'TEXTAREA') {
-          input.style.overflow = 'hidden';
-          addAsDashboardListener(input, 'input', function () {
-            this.style.height = 'auto';
-            this.style.height = (this.scrollHeight) + 'px';
-          });
-          input.style.height = 'auto';
-          input.style.height = (input.scrollHeight) + 'px';
-        }
-      });
-    }
     }
 
     // static defer 모듈 부트스트랩:

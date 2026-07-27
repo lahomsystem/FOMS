@@ -341,12 +341,14 @@ def test_update_order_field_saves_secondary_as_content(client):
 
 
 def test_as_dashboard_notes_fallback_retired_with_content_tabs(client):
-    """T9: 주문 비고(notes) 를 2번 탭에 대신 띄우던 화면 폴백은 타임라인 전환과 함께 사라진다.
+    """주문 비고(notes) 를 2번 탭에 대신 띄우던 화면 폴백은 타임라인 전환과 함께 사라진다.
 
     타임라인은 AS 도메인 기록(as_log·as_content legacy)만 싣는다 — 비고를 legacy 앵커로
     끌어오면 '이전 기록(탭2)'로 둔갑해 없던 AS 기록이 생긴다(T8 결정,
-    test_dashboard_legacy_anchor_ignores_notes_fallback 이 고정). 비고 자체는 주문 편집
-    화면에 그대로 남는다.
+    test_dashboard_legacy_anchor_ignores_notes_fallback 이 고정).
+
+    T10: 비고 자체는 사라지지 않는다. 목록에는 안 싣고, 확장 fragment·모바일 상세에서
+    별도 '비고' 블록으로 읽는다(test_timeline_fragment_shows_order_notes_block).
     """
     _login_as_admin(client)
     _create_as_order(notes="아일랜드 서랍 마이다 불량\n조명 색상변경", as_content_2=None)
@@ -360,6 +362,7 @@ def test_as_dashboard_notes_fallback_retired_with_content_tabs(client):
 
 
 def test_as_dashboard_does_not_restore_notes_after_secondary_tab_is_cleared(client):
+    """빈 문자열로 지운 2번 탭이 비고로 되살아나지 않는다(목록 표면 기준)."""
     _login_as_admin(client)
     _create_as_order(notes="복구되면 안 되는 기존 메모", as_content_2="")
 
