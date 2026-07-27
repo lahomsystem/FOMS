@@ -48,8 +48,8 @@ ORDER_UPDATE_ALLOWED_FIELDS = [
     "regional_memo",
     "construction_type",
     "is_cabinet",
-    "cabinet_status",
-    "shipping_fee",
+    # cabinet_status·shipping_fee → STORAGE-WRITER-01 typed adapter(storage.py:
+    # update_storage_field)로 이관, generic coercion 경로 제거.
     "construction_workers",
 ]
 
