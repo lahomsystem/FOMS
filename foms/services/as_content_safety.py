@@ -22,6 +22,11 @@ _ALLOWED_RICH_TAGS = {
     'ul', 'ol', 'li',
 }
 
+# 뒤에 `>`가 하나도 없는 `<` = 끝까지 닫히지 않는 조각.
+# ponytail: `<div title="a>b` 처럼 따옴표 안의 `>`로 위장한 미종결 태그는 이 규칙이 못 잡는다.
+# 실입력(사용자가 친 `<`, 잘린 붙여넣기)은 전부 커버되며, 완전 커버는 토크나이저가 필요하다.
+_DANGLING_LT_RE = re.compile(r'<(?=[^>]*$)')
+
 _COLOR_ALIASES = {
     'red': 'red',
     '#ff0000': 'red',
@@ -66,7 +71,10 @@ def sanitize_as_content_html(value: Any) -> str:
     if not raw_html.strip():
         return ''
 
-    soup = BeautifulSoup(raw_html, 'html.parser')
+    # html.parser의 EOF 미종결 태그 처리는 Python 패치 버전마다 다르다
+    # (3.12.10=데이터로 유지 / 3.12.13=태그로 취급 → 허용 태그가 아니면 통째 소실 = 사용자 텍스트 유실).
+    # 파서에 넘기기 전에 닫히지 않는 `<` 조각을 이스케이프해 런타임 무관 동일 입력을 만든다.
+    soup = BeautifulSoup(_DANGLING_LT_RE.sub('&lt;', raw_html), 'html.parser')
     for comment in soup.find_all(string=lambda text: isinstance(text, Comment)):
         comment.extract()
 

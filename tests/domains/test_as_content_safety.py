@@ -44,6 +44,21 @@ def test_sanitize_escapes_unterminated_tag_at_top_level() -> None:
     assert sanitized == "hi &lt;img src=x onerror=alert(9);//"
 
 
+def test_sanitize_unterminated_tag_is_parser_version_independent() -> None:
+    """미종결 조각은 파서에 닿기 전에 이스케이프된다 — 어느 Python에서도 텍스트가 보존된다.
+
+    html.parser의 EOF 미종결 태그 처리는 패치 버전마다 다르다(3.12.10=데이터로 유지,
+    3.12.13=태그로 취급). 허용 태그 조각(`<b`)이면 태그 취급된 쪽에서 내용 없는 태그로
+    지워져 사용자 텍스트가 조용히 사라졌다(XSS는 아니지만 데이터 유실).
+    """
+    assert sanitize_as_content_html("hi <b") == "hi &lt;b"
+    assert sanitize_as_content_html("메모 <div") == "메모 &lt;div"
+
+    # 이스케이프 결과를 다시 통과시켜도 누적 이스케이프가 없어야 한다(저장→편집→재저장 경로).
+    once = sanitize_as_content_html("hi <img src=x onerror=alert(9);//")
+    assert sanitize_as_content_html(once) == once
+
+
 def test_sanitize_escapes_bare_angle_and_ampersand_in_text() -> None:
     """허용 태그는 보존하면서 인접 평문의 `<`/`&`만 이스케이프한다."""
     sanitized = sanitize_as_content_html("<b>굵게</b> a < b & c")
