@@ -909,3 +909,68 @@ def test_sales_delivery_handler_uses_order_id_dataset():
     assert "btn.dataset.salesDeliveryActive === '1'" in handler
     assert "getDateInputsForOrder(orderId, 'as_completed_date')" in handler
     assert "buildAsDashboardUrl({" in handler
+
+
+# ---------------------------------------------------------------------------
+# 6) PC 테이블 레이아웃 붕괴 회귀 가드 (2026-07-28 실화면 핫픽스)
+# ---------------------------------------------------------------------------
+#
+# 증상: /erp/as?tab=incomplete 에서 주소가 한 글자씩 세로로 흘러내리고(행 높이 810px)
+# 확장 행의 입력 폼·제출 버튼이 통짜로 늘어나 라벨이 화면 밖으로 밀렸다.
+# 원인: 셀 요약 두 줄이 .text-truncate(white-space:nowrap)라 AS 내용 셀의 내재
+# 최대폭 = 기록 전문 한 줄 길이가 됐고, auto table-layout 이 여유폭을
+# (max-content − min-content) 비율로 나눠주는 탓에 그 열 하나가 여유를 전부 흡수했다
+# (실측 AS 내용 1342px / 테이블 2578px). 남은 열은 min-content 로 떨어지는데
+# 주소는 break-word 라 min-content 가 '한 글자'다.
+# 확장 행 colspan 은 원인이 아니다 — 열고 닫아도 열 폭이 변하지 않는 것을 실측 확인했다.
+
+
+def test_timeline_cell_width_is_capped():
+    """AS 내용 셀은 열 폭 계약(<th width:450px>) 위로 자라지 못한다.
+
+    상한이 사라지면 nowrap 요약이 다시 열 폭을 삼켜 주소 열이 붕괴한다.
+    """
+    css = _css(_BODY_CSS)
+    block = css.split(".as-tl-cell {", 1)
+    assert len(block) == 2, ".as-tl-cell 폭 상한 규칙이 없다"
+    assert "max-width" in block[1].split("}", 1)[0]
+
+
+def test_address_column_has_min_width_floor():
+    """주소 열 하한 — CSS 규칙과 템플릿 훅 클래스가 짝으로 존재해야 의미가 있다."""
+    css = _css(_BODY_CSS)
+    rule = css.split(".erp-as-address-cell {", 1)
+    assert len(rule) == 2, ".erp-as-address-cell 하한 규칙이 없다"
+    assert "min-width" in rule[1].split("}", 1)[0]
+    body = (_ROOT / "templates/cs/partials/as_dashboard_body.html").read_text(encoding="utf-8")
+    assert "erp-pro-table__cell--wrap erp-as-address-cell" in body
+
+
+def test_expand_body_is_width_bounded():
+    """확장 본문 상한 — 없으면 폼/버튼이 테이블 폭(≈1.8k)만큼 늘어나 라벨이 밀려난다."""
+    css = _css(_BODY_CSS)
+    rule = css.split(".as-tl-expand-body {", 1)
+    assert len(rule) == 2, ".as-tl-expand-body 폭 상한 규칙이 없다"
+    assert "max-width" in rule[1].split("}", 1)[0]
+
+
+def test_quick_add_desktop_layout_is_scoped_to_expand_row():
+    """PC 입력부 가로 배치는 확장 행 스코프 전용.
+
+    베이스(.as-timeline__quick-add)의 세로 스택 + 전폭 버튼은 모바일 44px 터치 규약이라
+    전역으로 풀면 모바일 카드 상세가 함께 깨진다.
+    """
+    css = _css(_BODY_CSS)
+    assert ".as-tl-expand-body .as-timeline__submit" in css
+    assert ".as-tl-expand-body .as-timeline__type" in css
+    # 베이스 규칙은 세로 스택 그대로
+    base = css.split(".as-timeline__quick-add {", 1)[1].split("}", 1)[0]
+    assert "flex-direction: column" in base
+
+
+def test_body_css_link_is_version_pinned():
+    """CSS 도 SW staticCacheFirst 대상 — `?v=` 없이는 실기기가 구버전 스타일을 계속 쓴다."""
+    body = (_ROOT / "templates/cs/partials/as_dashboard_body.html").read_text(encoding="utf-8")
+    link = [line for line in body.splitlines() if "css/contexts/cs/as-dashboard-body.css" in line]
+    assert len(link) == 1
+    assert "?v=" in link[0]

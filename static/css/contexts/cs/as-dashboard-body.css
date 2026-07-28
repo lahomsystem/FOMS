@@ -107,11 +107,28 @@
     margin-bottom: 6px;
   }
 
-  /* 비용 판정 표시 — 헤더 좌측을 채워 버튼 두 개를 오른쪽에 붙인다. */
+  /* 비용 판정 표시 — 헤더 좌측을 채워 버튼 두 개를 오른쪽에 붙인다.
+     담당자가 확장 행에서 가장 먼저 읽는 값이라 맨몸 텍스트가 아니라 알약 배지로 낸다
+     (기존엔 "비용 유상 확정 · 145,000원"이 헤더 왼쪽에 글자만 떠 있어 판정인지
+     기록 본문인지 구분되지 않았다). 색은 상태 셀 배지(.erp-as-billing-badge)와 같은
+     계열 — 같은 판정이 두 표면에서 다른 색이면 오독한다. */
   .as-billing-state {
     margin-right: auto;
+    padding: 2px 8px;
+    border-radius: 999px;
+    background: #f1f3f5;
     font-size: 0.75rem;
     font-weight: 600;
+    color: #495057;
+  }
+
+  .as-billing-state[data-billing-type="paid"] {
+    background: #fff4e6;
+    color: #d9480f;
+  }
+
+  .as-billing-state[data-billing-type="undecided"] {
+    background: #e9ecef;
     color: #495057;
   }
 
@@ -302,7 +319,36 @@
     color: #475569;
   }
 
-  /* PC 내용 셀 요약 + 확장 행 */
+  /* ── PC 내용 셀 요약 + 확장 행 ──────────────────────────────────────────
+     [붕괴 원인] 요약 두 줄은 .text-truncate(= white-space:nowrap)라 셀의 내재
+     최대폭이 "기록 전문을 한 줄로 편 길이"가 된다. auto table-layout 은 테이블
+     여유폭을 열별 (max-content − min-content) 비율로 나눠주므로, 이 열 하나가
+     여유를 통째로 흡수하고(실측: AS 내용 1342px / 테이블 2578px) 나머지 열은
+     전부 min-content 로 주저앉았다. 주소 열은 `word-break: break-word`
+     (= overflow-wrap:anywhere) 라 min-content 가 '한 글자' → 세로로 흘러내리고
+     행 높이가 810px 로 터졌다. 확장 행 colspan 은 원인이 아니다(열고 닫아도
+     열 폭 불변) — 이미 넓어진 테이블 폭을 물려받아 폼이 통짜로 늘어났을 뿐이다.
+     폭 계약의 SSOT 는 <th style="width:450px"> 이므로, 셀 내용이 그 위로 자라지
+     못하게 상한을 건다(td 좌우 패딩 제외분).
+     회귀 가드: tests/domains/test_as_timeline_wiring.py §6 */
+  .as-tl-cell {
+    max-width: 420px;
+  }
+
+  /* 주소 열 하한 — 위 상한이 원인을 없애지만, 다른 열이 폭을 크게 먹는 순간
+     같은 붕괴(주소만 1글자 세로 흐름)가 재발한다. 주소는 AS 방문 동선의 1차
+     판단 근거라 읽을 수 있는 하한을 못박아 둔다. */
+  .erp-as-address-cell {
+    min-width: 260px;
+  }
+
+  /* '일정' 버튼은 주소와 같은 flex 줄에 있어 좁아지면 제 이름부터 세로로 쪼개진다
+     ('일'/'정' 2줄 → 행 높이까지 끌어올린다). 줄어드는 쪽은 항상 주소 텍스트다. */
+  .erp-as-address-cell .find-schedule-btn {
+    flex-shrink: 0;
+    white-space: nowrap;
+  }
+
   .as-tl-cell__anchor {
     font-size: 0.82rem;
   }
@@ -333,6 +379,57 @@
 
   .as-tl-expand-row > td {
     background: #fbfcfe;
+    padding: 12px 16px;
+  }
+
+  /* 확장 본문 폭 상한 — 두 가지를 동시에 막는다.
+     (1) 12열 테이블은 선언 폭 합이 뷰포트보다 넓어(가로 스크롤 전제) colspan 셀도
+         그만큼 넓다. 상한이 없으면 입력 폼·제출 버튼이 그 폭으로 늘어나고, 버튼
+         라벨은 가운데 정렬이라 화면 밖으로 밀린다("라벨 없는 파란 띠"의 정체).
+     (2) colspan="12" 셀의 내재 폭이 열 재배분에 끼어드는 경로도 함께 닫는다.
+     값은 기록을 읽기 좋은 measure 기준. */
+  .as-tl-expand-body {
+    max-width: 720px;
+  }
+
+  /* 정보 위계: 판정 헤더 → 앵커 → 입력 → 스트림.
+     구분선 없이 전부 같은 여백으로 붙어 있어 어디까지가 판정이고 어디부터
+     기록인지 읽히지 않았다. 경계만 긋고 밀도는 유지한다. */
+  .as-tl-expand-body .as-timeline__header {
+    margin-bottom: 10px;
+    padding-bottom: 8px;
+    border-bottom: 1px solid #e2e8f0;
+  }
+
+  /* PC 입력부: 세로 스택 기본값(모바일 44px 전폭 규약)을 데스크톱에서만 푼다.
+     유형 select 는 내용 폭, 제출 버튼은 우측 정렬. 입력 영역을 흰 패널로 띄워
+     위(앵커)·아래(스트림)의 읽기 전용 기록과 시각적으로 분리한다. */
+  .as-tl-expand-body .as-timeline__quick-add {
+    gap: 6px;
+    margin: 10px 0;
+    padding: 10px 12px;
+    border: 1px solid #e2e8f0;
+    border-radius: 8px;
+    background: #fff;
+  }
+
+  .as-tl-expand-body .as-timeline__type {
+    width: auto;
+    min-width: 7.5rem;
+  }
+
+  .as-tl-expand-body .as-timeline__submit {
+    align-self: flex-end;
+  }
+
+  /* 스트림 항목: 앵커(좌측 남색 바)와 같은 정렬선에 두되 색으로 층을 나눈다. */
+  .as-tl-expand-body .as-timeline__stream .as-tl-item {
+    border-left: 3px solid #e2e8f0;
+    padding-left: 8px;
+  }
+
+  .as-tl-expand-body .as-timeline__more {
+    padding-left: 0;
   }
 
   mark.as-search-highlight {
