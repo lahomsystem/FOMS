@@ -466,3 +466,82 @@ def test_sync_ledger_only_refuses_new_foreign_merge_with_stale_marker(repo: Path
 
     r2 = _run(wt, "sync", "--ledger-only")
     assert r2.returncode == 2, r2.stdout + r2.stderr
+
+
+# ---- 리뷰 반영 (fix round 4) — F1-v4: post-rewrite 훅 ledger 승계 ----
+# 마커·patch-id 회계(round2/3)는 전부 제거됐다. record_rewrite_ledger.py 단위
+# 테스트는 git 저장소가 필요 없다(순수 파일 I/O) — 일반 tmp_path만 사용한다.
+
+def test_record_rewrite_ledger_succeeds_for_owning_session(tmp_path: Path) -> None:
+    """old_sha를 보유한 세션에 new_sha가 append된다."""
+    import session_commit_ledger as scl
+    import record_rewrite_ledger as rrl
+
+    root = str(tmp_path)
+    old_sha, new_sha = "a" * 40, "b" * 40
+    scl.append_commit(root, "sid1", old_sha)
+
+    handled = rrl.process_rewrite(root, [f"{old_sha} {new_sha}"])
+
+    assert handled == 1
+    assert scl.sha_in_list(new_sha, scl.session_shas(root, "sid1"))
+
+
+def test_record_rewrite_ledger_ignores_unowned_old_sha(tmp_path: Path) -> None:
+    """old_sha가 어느 세션에도 없으면 무시(handled=0), 예외 없음."""
+    import record_rewrite_ledger as rrl
+
+    handled = rrl.process_rewrite(str(tmp_path), [f"{'c' * 40} {'d' * 40}"])
+
+    assert handled == 0
+
+
+def test_record_rewrite_ledger_tolerates_malformed_lines(tmp_path: Path) -> None:
+    """빈 줄·토큰 부족 줄·extra-info가 붙은 줄도 예외 없이 처리한다."""
+    import record_rewrite_ledger as rrl
+
+    handled = rrl.process_rewrite(
+        str(tmp_path), ["", "onlyonetoken", f"{'e' * 40} {'f' * 40} rebase-extra-info"],
+    )
+
+    assert handled == 0  # e/f는 세션 미보유 — 파싱은 정상, 승계 대상만 없는 것
+
+
+def test_record_rewrite_ledger_survives_corrupt_ledger_file(tmp_path: Path) -> None:
+    """ledger 파일이 손상돼 있어도 예외 없이 넘어간다(fail-open)."""
+    import record_rewrite_ledger as rrl
+    from paths import HARNESS_RUNTIME_DIR
+
+    ledger_path = tmp_path / HARNESS_RUNTIME_DIR / "session_commit_ledger.json"
+    ledger_path.parent.mkdir(parents=True, exist_ok=True)
+    ledger_path.write_text("{not valid json", encoding="utf-8")
+
+    handled = rrl.process_rewrite(str(tmp_path), [f"{'a' * 40} {'b' * 40}"])
+
+    assert handled == 0
+
+
+def test_create_provisions_post_rewrite_hook(repo: Path, tmp_path: Path) -> None:
+    """create가 공유 post-rewrite 훅을 설치한다(record_rewrite_ledger.py 절대경로 포함)."""
+    _make_wt(repo, tmp_path, "t26")
+    common_dir = _git(repo, "rev-parse", "--git-common-dir")
+    hook_path = (repo / common_dir).resolve() / "hooks" / "post-rewrite"
+
+    assert hook_path.is_file()
+    assert "record_rewrite_ledger.py" in hook_path.read_text(encoding="utf-8")
+
+
+def test_create_preserves_existing_foreign_hook(repo: Path, tmp_path: Path) -> None:
+    """기존 post-rewrite 훅(타 도구 설치분)이 있으면 덮어쓰지 않고 경고만 출력한다."""
+    common_dir = _git(repo, "rev-parse", "--git-common-dir")
+    hooks_dir = (repo / common_dir).resolve() / "hooks"
+    hooks_dir.mkdir(parents=True, exist_ok=True)
+    hook_path = hooks_dir / "post-rewrite"
+    foreign_content = "#!/bin/sh\necho foreign-hook\n"
+    hook_path.write_text(foreign_content, encoding="utf-8")
+
+    r = _run(repo, "create", "--name", "t27", "--parent", str(tmp_path / "wts"))
+
+    assert r.returncode == 0, r.stderr
+    assert hook_path.read_text(encoding="utf-8") == foreign_content
+    assert "기존 post-rewrite 훅" in (r.stdout + r.stderr)

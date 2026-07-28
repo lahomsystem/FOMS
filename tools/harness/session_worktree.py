@@ -11,7 +11,6 @@ cleanup: 기본 dry-run 보고, --remove 시 clean+merged만 제거
 from __future__ import annotations
 
 import argparse
-import json
 import shutil
 import subprocess
 import sys
@@ -25,6 +24,10 @@ BRANCH_PREFIX = "session/"
 DEFAULT_PARENT = "c:/tmp" if os.name == "nt" else "/tmp"
 SOFT_LIMIT = 3  # ponytail: 스펙 §2.6 동시 상한 2-3, 초과는 경고만
 USAGE_LOG = os.path.join("docs", "harness", "runtime", "session_worktree_usage.log")
+
+# F1-v4: post-rewrite 훅 — rebase가 재작성한 SHA를 ledger에 자동 승계한다.
+# 훅은 worktree마다가 아니라 공유 git-common-dir(모든 worktree가 공유)에 설치되므로
+# 세션 worktree 어느 것을 만들 때 처음 설치되든 이후 전부에 적용된다.
 
 EXIT_OK = 0
 EXIT_REFUSE = 2
@@ -108,6 +111,62 @@ def _ledger() -> types.ModuleType:
     return session_commit_ledger
 
 
+def _post_rewrite_hook_content() -> str:
+    """post-rewrite 훅 셸 스크립트 내용을 만든다.
+
+    `record_rewrite_ledger.py`의 **절대경로를 프로비저닝 시점에 고정**해 굽는다.
+    훅 실행 시점에 `git rev-parse --show-toplevel`로 다시 찾으면, 재작성이
+    일어난 worktree 자신의 체크아웃에는 그 파일이 없을 수 있다 — 예를 들어
+    이 harness 파일이 추가되기 이전 커밋 기반으로 만들어진 worktree, 또는
+    이 스크립트만 격리해 실행하는 테스트 fixture. 실측: 이 문제로 훅이
+    "No such file or directory"로 조용히 실패하는 것을 확인했다(F1-v4 초판).
+    이 CLI(`session_worktree.py`) 자신은 항상 실제 harness 디렉터리에서
+    실행되므로, 그 `__file__` 기준 절대경로를 쓰면 어느 worktree에서 rebase가
+    일어나든 동일한 실제 스크립트를 가리킨다.
+    """
+    script = Path(__file__).resolve().parent / "record_rewrite_ledger.py"
+    return f'#!/bin/sh\npython "{script.as_posix()}" "$@" || exit 0\n'
+
+
+def _ensure_post_rewrite_hook(root: Path) -> None:
+    """공유 post-rewrite 훅을 프로비저닝한다(없으면 생성, 있으면 손대지 않음).
+
+    훅은 `git rev-parse --git-common-dir`가 가리키는 모든 worktree 공유 위치에
+    설치한다 — 어느 worktree를 만들 때든 한 번만 설치되면 이후 모든 rebase에
+    적용된다. 이미 파일이 있고 내용이 우리 것과 다르면(타 도구가 설치한 훅일
+    수 있음) **덮어쓰지 않고 경고만** 남긴다.
+
+    파라미터:
+        root: 훅 위치를 조회할 기준 저장소/worktree 경로.
+    반환:
+        없음(부작용: 훅 파일 생성 + 실행권한 부여, 필요 시 stderr 경고).
+    """
+    hook_content = _post_rewrite_hook_content()
+    code, common_dir = _git(root, "rev-parse", "--git-common-dir", check=False)
+    if code != 0 or not common_dir:
+        print("[warn] git-common-dir 조회 실패 — post-rewrite 훅 설치 생략", file=sys.stderr)
+        return
+    hooks_dir = Path(common_dir)
+    if not hooks_dir.is_absolute():
+        hooks_dir = root / hooks_dir
+    hook_path = hooks_dir / "hooks" / "post-rewrite"
+    if hook_path.exists():
+        existing = hook_path.read_text(encoding="utf-8", errors="replace")
+        if existing != hook_content:
+            print(
+                f"[warn] 기존 post-rewrite 훅 발견({hook_path}) — 덮어쓰지 않음. "
+                "ledger 자동 승계가 필요하면 내용을 수동 병합하세요.",
+                file=sys.stderr,
+            )
+        return
+    hook_path.parent.mkdir(parents=True, exist_ok=True)
+    hook_path.write_text(hook_content, encoding="utf-8", newline="\n")
+    try:
+        hook_path.chmod(hook_path.stat().st_mode | 0o111)  # Windows Git은 셔뱅으로 실행하나 실행비트도 부여
+    except OSError:
+        pass
+
+
 def cmd_create(args: argparse.Namespace) -> int:
     """origin/deploy 기반 세션 worktree 생성. 기존 브랜치 재사용 금지(-b)."""
     root = repo_root()
@@ -115,6 +174,7 @@ def cmd_create(args: argparse.Namespace) -> int:
     if _git(root, "rev-parse", "--verify", "origin/deploy", check=False)[0] != 0:
         print("[error] origin/deploy ref 없음 — 네트워크 연결 후 재시도", file=sys.stderr)
         return EXIT_GIT
+    _ensure_post_rewrite_hook(root)
     existing = session_worktrees(root)
     if len(existing) >= SOFT_LIMIT:
         print(f"[warn] 세션 worktree {len(existing)}개 활성 — 권장 상한 {SOFT_LIMIT}. cleanup 권장.")
@@ -181,114 +241,23 @@ def _rebase_in_progress(wt: Path) -> bool:
     return False
 
 
-def _conflict_marker_path(wt: Path) -> Path:
-    """rebase 충돌 시 검증 통과한 pre 스냅샷을 적어두는 gitdir 내부 마커 경로.
-
-    `_rebase_in_progress`와 동일 패턴(`--git-path`가 상대경로면 wt 기준 해석)을
-    쓴다. gitdir 내부라 worktree status를 오염시키지 않는다.
-    """
-    _, p = _git(wt, "rev-parse", "--git-path", "foms_sync_conflict.json")
-    return Path(p) if os.path.isabs(p) else wt / p
-
-
-def _read_conflict_marker(marker: Path) -> dict[str, list[str]] | None:
-    """마커의 pre SHA·patch-id 목록을 읽는다. 없거나 손상되면 None(=신뢰하지 않음)."""
-    if not marker.exists():
-        return None
-    try:
-        data = json.loads(marker.read_text(encoding="utf-8"))
-    except (OSError, ValueError):
-        return None
-    if not isinstance(data, dict):
-        return None
-    pre, pre_patch_ids = data.get("pre"), data.get("pre_patch_ids")
-    if not (isinstance(pre, list) and all(isinstance(s, str) for s in pre)):
-        return None
-    if not (isinstance(pre_patch_ids, list) and all(isinstance(s, str) for s in pre_patch_ids)):
-        return None
-    return {"pre": pre, "pre_patch_ids": pre_patch_ids}
-
-
-def _write_conflict_marker(marker: Path, pre: list[str], pre_patch_ids: list[str]) -> None:
-    """검증 통과한 pre SHA·patch-id 스냅샷을 마커에 기록한다."""
-    marker.parent.mkdir(parents=True, exist_ok=True)
-    marker.write_text(json.dumps({"pre": pre, "pre_patch_ids": pre_patch_ids}), encoding="utf-8")
-
-
-def _clear_conflict_marker(marker: Path) -> None:
-    """마커 제거(있으면). 실패해도 다음 sync가 재정리하므로 무시."""
-    try:
-        marker.unlink(missing_ok=True)
-    except OSError:
-        pass
-
-
-def _range_patch_ids(wt: Path, ref: str = "HEAD") -> dict[str, str]:
-    """origin/deploy..<ref> 범위 각 커밋의 patch-id 사전 {sha: patch_id}(둘 다 소문자).
-
-    `git log -p ... | git patch-id --stable` 파이프로 diff 내용 해시(patch-id)를
-    얻는다. 충돌 해결로 파일 내용이 바뀌면 sha와 무관하게 patch-id도 달라진다
-    — 이 성질로 재작성 슬롯과 진짜 foreign 커밋을 구분한다(F1-v3 전단사 회계).
-    """
-    log_proc = subprocess.run(
-        ["git", "log", "-p", "--no-color", f"origin/deploy..{ref}"],
-        cwd=str(wt), capture_output=True, text=True, encoding="utf-8", errors="replace",
-    )
-    id_proc = subprocess.run(
-        ["git", "patch-id", "--stable"],
-        cwd=str(wt), input=log_proc.stdout, capture_output=True, text=True,
-        encoding="utf-8", errors="replace",
-    )
-    out: dict[str, str] = {}
-    for line in id_proc.stdout.splitlines():
-        parts = line.split()
-        if len(parts) >= 2:
-            out[parts[1].lower()] = parts[0].lower()
-    return out
-
-
-def _recovery_accounting_passes(wt: Path, marker_data: dict[str, list[str]]) -> bool:
-    """F1-v3 patch-id 전단사 회계 — 마커 기반 복구 검증의 핵심.
-
-    post(origin/deploy..HEAD) 각 커밋의 patch-id가 마커의 pre patch-id 집합에
-    있으면 "explained", 없으면 `unexplained_post`. pre patch-id 중 post 어디에도
-    나타나지 않는 것은 충돌 해결로 재작성돼 사라진 "consumed_pre" 슬롯이다.
-    `len(unexplained_post) <= len(consumed_pre)`일 때만 통과한다 — 충돌 해결로
-    내용이 바뀐 커밋(정당한 재작성)은 슬롯 하나를 소비하고 슬롯 하나를 설명해
-    통과하지만, merge/cherry-pick으로 유입된 진짜 foreign 커밋은 소비되지 않는
-    unexplained 슬롯을 추가로 만들어 거부된다. ORIG_HEAD는 신뢰 신호로 쓰지
-    않는다(merge/reset/pull/am도 갱신·영구 잔존해 round1·round2 모두 세탁 구멍이었다).
-    """
-    pre_patch_ids = set(marker_data["pre_patch_ids"])
-    post_map = _range_patch_ids(wt)
-    post_patch_ids = set(post_map.values())
-    unexplained_post = [sha for sha, pid in post_map.items() if pid not in pre_patch_ids]
-    consumed_pre = pre_patch_ids - post_patch_ids
-    return len(unexplained_post) <= len(consumed_pre)
-
-
 def cmd_sync(args: argparse.Namespace) -> int:
     """fetch + rebase origin/deploy + ledger 갱신. 세션 worktree 전용.
 
-    소유 검증(F1-v3 — patch-id 전단사 회계): 원칙은 매 호출마다 **현재 HEAD**
-    범위를 ledger union과 대조하는 것이다(최초 호출·마커 없는 `--ledger-only`
-    모두 이 경로). 유일한 예외는 `--ledger-only`이고 직전 rebase 충돌 시 이
-    worktree에 남긴 **마커**가 있을 때이며, 이때는 `_recovery_accounting_passes`
-    (post 각 커밋의 patch-id를 마커의 pre patch-id와 전단사로 맞춰보는 회계)가
-    통과해야만 재검증을 생략한다. ORIG_HEAD는 신뢰 신호로 전혀 쓰지 않는다 —
-    round1(ORIG_HEAD 존재 시 신뢰)과 round2(마커+ORIG_HEAD 일치 시 신뢰) 둘 다
-    `rebase --abort` 후 `merge`/`cherry-pick`으로 재현되는 세탁 구멍이었다(마커는
-    남아있지만 그 시점 이후 상태 변화를 검증하지 않았기 때문). v3는 마커의
-    "존재"가 아니라 마커가 설명하는 patch-id 회계로만 신뢰하므로, 마커가 아무리
-    오래 남아있어도(A3) 그 사이 유입된 foreign 패치는 여전히 unexplained로
-    잡힌다. `--allow-foreign`은 최후의 명시적 우회로 남긴다.
+    소유 검증(F1-v4 — post-rewrite 훅 ledger 승계): 매 호출마다 동일하게
+    `origin/deploy..HEAD`가 ledger union의 부분집합인지만 확인한다. 마커나
+    patch-id 회계 같은 특수 분기가 없다 — rebase가 커밋 SHA를 재작성해도
+    `cmd_create`가 설치한 공유 post-rewrite 훅(`record_rewrite_ledger.py`)이
+    그 순간 old→new 승계를 ledger에 이미 반영해두므로, `--ledger-only` 복구
+    호출도 표준 검증을 그대로 통과한다(v1~v3의 신뢰 창·회계 기계를 전부
+    제거했다). 훅이 설치되지 않은 환경(수동 git 조작 등)에서 rebase하면
+    ledger가 승계되지 않아 refuse가 나는 것이 안전한 기본값이다.
     """
     wt = Path(args.path).resolve() if args.path else repo_root()
     if not wt.name.lower().startswith(WT_PREFIX):
         print("[refuse] sync는 세션 worktree(foms-s-*) 안에서만 동작한다", file=sys.stderr)
         return EXIT_REFUSE
     scl = _ledger()
-    marker = _conflict_marker_path(wt)
 
     if _rebase_in_progress(wt):
         print("[refuse] rebase 진행 중 — 해결 후 `git rebase --continue`, 그 다음 `sync --ledger-only`", file=sys.stderr)
@@ -298,51 +267,27 @@ def cmd_sync(args: argparse.Namespace) -> int:
         print("[refuse] 미커밋 변경 존재 — 커밋 후 sync 재시도", file=sys.stderr)
         return EXIT_REFUSE
 
-    # F1-v3 위생: 분기 앞에서 무조건 초기화 — 이후 사용 시점이 어느 분기를
-    # 거쳤는지에 대한 암묵적 불변식에 의존하지 않는다(재리뷰 지적).
-    pre: list[str] = []
-    pre_patch_ids: list[str] = []
-
-    marker_data = _read_conflict_marker(marker) if args.ledger_only else None
-    recovered_via_marker = False
-    if marker_data is not None:
-        recovered_via_marker = _recovery_accounting_passes(wt, marker_data)
-        if not recovered_via_marker and not args.allow_foreign:
-            print(
-                "[refuse] 복구 검증 실패 — 마커 이후 설명되지 않는 커밋이 있음"
-                "(merge/cherry-pick 등 유입 의심). 임의 해결 금지.",
-                file=sys.stderr,
-            )
-            print("  소유가 확실하면 --allow-foreign으로 명시 승인.", file=sys.stderr)
-            return EXIT_REFUSE
-        recovered_via_marker = True  # 회계 통과 또는 --allow-foreign 명시 우회
-
-    if not recovered_via_marker:
-        pre = _range_shas(wt)
-        union = scl.all_known_shas(str(wt))
-        unknown = [s for s in pre if not scl.sha_in_list(s, union)]
-        if unknown and not args.allow_foreign:
-            print(f"[refuse] ledger 밖 커밋 {len(unknown)}개 — 이 worktree에서 만든 커밋이 아님(cherry-pick/merge 유입?):", file=sys.stderr)
-            for s in unknown[:10]:
-                print(f"  {s[:10]}", file=sys.stderr)
-            print("  소유가 확실하면 --allow-foreign으로 명시 승인.", file=sys.stderr)
-            return EXIT_REFUSE
-        if not args.ledger_only:
-            pre_patch_ids = list(_range_patch_ids(wt).values())
+    pre = _range_shas(wt)
+    union = scl.all_known_shas(str(wt))
+    unknown = [s for s in pre if not scl.sha_in_list(s, union)]
+    if unknown and not args.allow_foreign:
+        print(f"[refuse] ledger 밖 커밋 {len(unknown)}개 — 이 worktree에서 만든 커밋이 아님(cherry-pick/merge 유입?):", file=sys.stderr)
+        for s in unknown[:10]:
+            print(f"  {s[:10]}", file=sys.stderr)
+        print("  소유가 확실하면 --allow-foreign으로 명시 승인.", file=sys.stderr)
+        print("  post-rewrite 훅 미설치가 원인일 수 있음 — worktree 생성 시 자동 설치되며, 수동 설치는 create 재실행.", file=sys.stderr)
+        return EXIT_REFUSE
 
     if not args.ledger_only:
-        _clear_conflict_marker(marker)  # 새 rebase 시도 전 잔존 마커 선삭제(A3 방어)
         _git(wt, "fetch", "origin", "deploy")
         r = subprocess.run(["git", "rebase", "origin/deploy"], cwd=str(wt))
         if r.returncode != 0:
-            _write_conflict_marker(marker, pre, pre_patch_ids)
             print("[conflict] rebase 충돌 — 임의 해결 금지. 해결 → `git rebase --continue` → `sync --ledger-only`", file=sys.stderr)
             return EXIT_CONFLICT
 
     post = _range_shas(wt)
     sid = scl.latest_session_id(str(wt)) or "unknown"
     scl.set_session_shas(str(wt), sid, post)
-    _clear_conflict_marker(marker)
     print(f"[ok] sync 완료 — ledger 갱신 session={sid}, {len(post)}커밋")
     return EXIT_OK
 
