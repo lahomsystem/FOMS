@@ -106,7 +106,9 @@ def test_as_dashboard_body_keeps_desktop_table_markup() -> None:
     """데스크톱 테이블 마크업(side-sheet 소스 + T2 lock)은 무변경 보존 — CSS 로만 은닉한다
     (마크업 제거 금지, 회귀 금지)."""
     body = _norm(_read(AS_DASHBOARD_BODY))
-    assert 'class="erp-pro-table-wrapper d-none d-md-block"' in body
+    # 래퍼는 헤드 고정(sticky)용 훅 클래스가 하나 더 붙었다 — 코호트 은닉 계약의 핵심인
+    # d-none/d-md-block 조합은 그대로다.
+    assert 'class="erp-pro-table-wrapper erp-as-table-wrapper d-none d-md-block"' in body
     assert '<tr data-order-id="{{ r.id }}">' in body
 
 

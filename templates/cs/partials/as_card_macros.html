@@ -24,9 +24,15 @@
 {%- endmacro %}
 
 {# 상태 셀 비용 배지 — 목록 렌더와 판정 변경 API 응답(낙관적 교체)이 공유하는 SSOT.
-   kind는 as_dashboard_display.as_billing_badge_kind() 결과. 무상(무배지)은 아무것도 안 낸다. #}
+   kind는 as_dashboard_display.as_billing_badge_kind() 결과. 무상(무배지)은 아무것도 안 낸다.
+
+   data-billing-filter: 배지 클릭 = 그 비용 상태로 목록 필터(as-dashboard.js 문서 위임).
+   "비용 필터가 있는 줄 몰랐다"는 실사용 피드백의 발견성 보강이다. URL 조립을 매크로가
+   하지 않는 이유 — 이 매크로는 판정 변경 API 응답(as_billing_badge_partial)도 렌더하는데
+   그쪽엔 현재 탭·검색어 컨텍스트가 없다. 위임 핸들러가 현재 URL에서 읽으면 두 경로가 같아진다.
+   필터 값은 free/paid/undecided 셋뿐이라 paid_unconfirmed(유상 추정)는 paid 로 접는다. #}
 {% macro render_as_billing_badge(kind) -%}
-{%- if kind %}<span class="erp-as-billing-badge erp-as-billing-badge--{{ kind }}">{% if kind == 'paid' %}유상{% elif kind == 'paid_unconfirmed' %}유상?{% else %}미정{% endif %}</span>{% endif -%}
+{%- if kind %}<span class="erp-as-billing-badge erp-as-billing-badge--{{ kind }}" data-billing-filter="{{ 'undecided' if kind == 'undecided' else 'paid' }}" role="button" tabindex="0" title="이 비용 상태만 보기">{% if kind == 'paid' %}유상{% elif kind == 'paid_unconfirmed' %}유상?{% else %}미정{% endif %}</span>{% endif -%}
 {%- endmacro %}
 
 {# AS 타임라인 단건 항목 — 목록(T9)과 쓰기 API 응답 html(T7)이 공유하는 SSOT.

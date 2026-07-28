@@ -1,7 +1,7 @@
 {# foms-kv-rollout: erp_mobile_shell → kv-copy.js + queue card foms_order_contact_kv #}
 {% from 'cs/partials/as_card_macros.html' import render_as_orderer_line, render_as_construction_workers, render_as_timeline_cell, render_as_billing_badge %}
 
-<link rel="stylesheet" href="{{ url_for('static', filename='css/contexts/cs/as-dashboard-body.css') }}?v=20260728d">
+<link rel="stylesheet" href="{{ url_for('static', filename='css/contexts/cs/as-dashboard-body.css') }}?v=20260728e">
 {# 카드 CSS는 body 파셜에 둔다 → fast-tab 프래그먼트 스왑(as_dashboard_fragment.html)에도
    함께 실려, 탭 이동 첫 진입에서 카드가 원시(미스타일)로 뜨는 FOUC를 막는다.
    (head_extra 전용이면 전체 새로고침 전까지 카드 CSS가 누락된다) #}
@@ -124,6 +124,13 @@
             <span class="d-none d-sm-inline">지도</span>
           </a>
           {% endif %}
+          {# 컬럼 폭 초기화 — 드래그로 열을 뭉갠 뒤 되돌릴 길이 없으면 지원 요청이 된다.
+             출고 대시보드의 #btn-reset-column-widths 와 같은 역할(저장분 삭제 → CSS 기본폭 복귀). #}
+          <button type="button" class="erp-pro-btn erp-pro-btn--ghost" id="as-btn-reset-column-widths"
+            title="컬럼 너비를 기본값으로 되돌립니다">
+            <i class="fas fa-table-columns"></i>
+            <span class="d-none d-lg-inline">열너비 초기화</span>
+          </button>
         </div>
       </form>
     </div>
@@ -155,30 +162,49 @@
          으로 완전 무동작 → 폰/세로/데스크톱 동작 불변(데스크톱 테이블 그대로). #}
       {% if erp_mobile_v2_enabled %}{% include 'cs/partials/tablet_as_compare_body.html' %}{% endif %}
       <!-- PC Table View -->
-      <div class="erp-pro-table-wrapper d-none d-md-block">
-        <table class="erp-pro-table">
+      {# 컬럼 폭의 SSOT = colgroup(기본값은 as-dashboard-body.css 의 col[data-col-key] 규칙,
+         사용자 조정분은 as-dashboard-columns.js 가 인라인으로 덮어씀). 구 <th style="width:">
+         인라인 폭은 auto table-layout 의 '힌트'일 뿐이라 한 열이 폭을 삼키면 무너졌다
+         (2026-07-28 주소 1글자 세로 붕괴). table-layout:fixed + colgroup 이 그 재분배 자체를 없앤다.
+         출고 대시보드(shipment-dashboard-table)의 colgroup+data-col-key 계약을 그대로 따른다. #}
+      <div class="erp-pro-table-wrapper erp-as-table-wrapper d-none d-md-block">
+        <table class="erp-pro-table erp-as-table" id="as-dashboard-table">
+          <colgroup>
+            <col data-col-key="order">
+            <col data-col-key="received">
+            <col data-col-key="visit">
+            <col data-col-key="completed">
+            <col data-col-key="manager">
+            <col data-col-key="workers">
+            <col data-col-key="customer">
+            <col data-col-key="address">
+            <col data-col-key="attach">
+            <col data-col-key="blueprint">
+            <col data-col-key="content">
+            <col data-col-key="status">
+          </colgroup>
           <thead>
             <tr>
-              <th style="width: 90px;">주문</th>
-              <th style="width: 120px;" class="erp-as-sort-th">
+              <th data-col-key="order">주문<button type="button" class="col-resize-handle" aria-label="주문 열 너비 조절"></button></th>
+              <th data-col-key="received" class="erp-as-sort-th">
                 <a href="{{ url_for('erp_as_page.erp_as_dashboard', tab=as_tab, status=status_filter or '', billing=billing_filter or '', q=search_q or '', sort_dir='asc' if sort_dir == 'desc' else 'desc', mine='1' if erp_mine_only else '') }}"
                   class="text-decoration-none text-dark" title="클릭 시 접수일 정렬 방향 변경">
                   AS 접수일 {% if sort_dir == 'desc' %}<i class="fas fa-sort-down ms-1"></i>{% else %}<i
                     class="fas fa-sort-up ms-1"></i>{% endif %}
-                </a>
+                </a><button type="button" class="col-resize-handle" aria-label="AS 접수일 열 너비 조절"></button>
               </th>
-              <th style="width: 150px;">AS 방문일</th>
-              <th style="width: 120px;">AS 완료일</th>
-              <th style="width: 120px;">담당자</th>
-              <th style="width: 140px;">시공자</th>
-              <th style="width: 120px;">고객</th>
-              <th style="width: 450px;">주소</th>
-              <th style="width: 60px;">첨부</th>
-              <th style="width: 56px;" class="text-center" title="AS도면">
-                <span class="d-inline-block small lh-sm">AS<br>도면</span>
+              <th data-col-key="visit">AS 방문일<button type="button" class="col-resize-handle" aria-label="AS 방문일 열 너비 조절"></button></th>
+              <th data-col-key="completed">AS 완료일<button type="button" class="col-resize-handle" aria-label="AS 완료일 열 너비 조절"></button></th>
+              <th data-col-key="manager">담당자<button type="button" class="col-resize-handle" aria-label="담당자 열 너비 조절"></button></th>
+              <th data-col-key="workers">시공자<button type="button" class="col-resize-handle" aria-label="시공자 열 너비 조절"></button></th>
+              <th data-col-key="customer">고객<button type="button" class="col-resize-handle" aria-label="고객 열 너비 조절"></button></th>
+              <th data-col-key="address">주소<button type="button" class="col-resize-handle" aria-label="주소 열 너비 조절"></button></th>
+              <th data-col-key="attach">첨부<button type="button" class="col-resize-handle" aria-label="첨부 열 너비 조절"></button></th>
+              <th data-col-key="blueprint" class="text-center" title="AS도면">
+                <span class="d-inline-block small lh-sm">AS<br>도면</span><button type="button" class="col-resize-handle" aria-label="AS도면 열 너비 조절"></button>
               </th>
-              <th style="width: 450px;">AS 내용</th>
-              <th style="width: 100px;">상태</th>
+              <th data-col-key="content">AS 내용<button type="button" class="col-resize-handle" aria-label="AS 내용 열 너비 조절"></button></th>
+              <th data-col-key="status">상태</th>
             </tr>
           </thead>
           <tbody>
@@ -217,9 +243,9 @@
                 <span class="d-block small text-muted">{{ r.phone|format_phone }}</span>
                 {{ render_as_orderer_line(r.orderer_name) }}
               </td>
-              {# erp-as-address-cell: 주소 열 min-width 하한(as-dashboard-body.css).
-                 주소는 break-word 라 min-content 가 한 글자여서, 다른 열이 폭을 먹으면
-                 이 열만 세로로 흘러내린다. 하한을 CSS 로 못박는 훅. #}
+              {# erp-as-address-cell: '일정' 버튼 nowrap 훅(as-dashboard-body.css).
+                 열 폭 자체는 colgroup 이, 드래그 하한은 as-dashboard-columns.js 의
+                 MIN_WIDTHS.address 가 소유한다. #}
               <td class="erp-pro-table__cell--wrap erp-as-address-cell">
                 <div class="d-flex justify-content-between align-items-start">
                   <span>{{ r.address or '-' }}</span>
@@ -246,7 +272,7 @@
                 <span class="text-muted small">-</span>
                 {% endif %}
               </td>
-              <td class="text-center align-middle" style="width: 56px;">
+              <td class="text-center align-middle">
                 <input type="checkbox" class="form-check-input as-blueprint-checkbox" data-order-id="{{ r.id }}"
                   {% if r.has_as_blueprint %}checked{% endif %} aria-label="주문 #{{ r.id }} AS도면 여부">
               </td>
@@ -489,7 +515,10 @@
 </div>
 
 <div id="as-dashboard-config" class="d-none" data-search-query-compact="{{ (compact_search_q or '')|e }}" data-current-as-tab="{{ (as_tab or 'incomplete')|e }}"></div>
-<script src="{{ url_for('static', filename='js/cs/as-dashboard.js') }}?v=20260728c" defer></script>
+<script src="{{ url_for('static', filename='js/cs/as-dashboard.js') }}?v=20260728e" defer></script>
+{# PC 12열 컬럼 폭 조절(드래그 + localStorage). 모바일은 파일 자체가 조기 반환 —
+   body 파셜에 두는 이유는 CSS 와 같다(fast-tab 프래그먼트 스왑에도 함께 실려야 재초기화된다). #}
+<script src="{{ url_for('static', filename='js/cs/as-dashboard-columns.js') }}?v=20260728a" defer></script>
 {# 태블릿 가로 대조 표면 CTA(일정 변경·AS 완료) 배선 — v2 코호트(폰+태블릿)만 로드.
    표시 게이트는 CSS(coarse landscape)가 소유하므로 폰에선 버튼 은닉·무동작(문서 위임+싱글턴 가드). #}
 {% if erp_mobile_v2_enabled %}

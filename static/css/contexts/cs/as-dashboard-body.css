@@ -114,10 +114,10 @@
      계열 — 같은 판정이 두 표면에서 다른 색이면 오독한다. */
   .as-billing-state {
     margin-right: auto;
-    padding: 2px 8px;
+    padding: 3px 10px;
     border-radius: 999px;
     background: #f1f3f5;
-    font-size: 0.75rem;
+    font-size: 0.85rem;
     font-weight: 600;
     color: #495057;
   }
@@ -168,16 +168,20 @@
      셀 요약은 최근 1건이 시스템일 수 있어 --system 도 실재해야 한다(무배경 = 흰 글자 실종).
      기본 background 는 미지 type 폴백 — 새 유형이 늘어도 투명 칩이 되지 않는다.
 
-     흰 글자 기준 WCAG AA(4.5:1)를 전 색상이 통과한다. 칩 글자는 0.7rem 굵게라
-     large-text 완화(3:1) 대상이 아니다. action·material 은 스펙의 원래 값
-     (#16a34a 3.30:1 / #f59e0b 2.15:1)이 미달이라 같은 색상군의 진한 단계로 내렸다. */
+     흰 글자 기준 WCAG AA(4.5:1)를 전 색상이 통과한다. 칩 글자는 0.8rem(12.8px) 굵게라
+     large-text 완화(18.66px 이상) 대상이 아니어서 4.5:1 기준이 그대로 유효하다.
+     action·material 은 스펙의 원래 값
+     (#16a34a 3.30:1 / #f59e0b 2.15:1)이 미달이라 같은 색상군의 진한 단계로 내렸다.
+
+     크기는 2026-07-28 실사용 피드백("배지가 작아 안 읽힌다")으로 한 단계 올렸다
+     (0.7 → 0.8rem). line-height 를 1.6 → 1.45 로 조여 행 높이 증가를 상쇄한다. */
   .as-tl-chip {
     display: inline-block;
-    padding: 0 6px;
+    padding: 1px 8px;
     border-radius: 10px;
-    font-size: 0.7rem;
+    font-size: 0.8rem;
     font-weight: 700;
-    line-height: 1.6;
+    line-height: 1.45;
     color: #fff;
     background: #6b7280;
   }
@@ -220,7 +224,7 @@
     display: flex;
     align-items: center;
     gap: 6px;
-    font-size: 0.72rem;
+    font-size: 0.78rem;
     color: #64748b;
   }
 
@@ -241,7 +245,7 @@
      의존한다. 아래 [hidden] 규칙은 나중에 display 가 추가돼도 숨김이 깨지지 않게 하는 가드다. */
   .as-tl-item__body {
     white-space: pre-wrap;
-    font-size: 0.85rem;
+    font-size: 0.9rem;
     margin-top: 2px;
   }
 
@@ -260,7 +264,7 @@
     border: 0;
     background: none;
     color: #94a3b8;
-    font-size: 0.72rem;
+    font-size: 0.8rem;
     line-height: 1;
     cursor: pointer;
   }
@@ -319,27 +323,98 @@
     color: #475569;
   }
 
-  /* ── PC 내용 셀 요약 + 확장 행 ──────────────────────────────────────────
-     [붕괴 원인] 요약 두 줄은 .text-truncate(= white-space:nowrap)라 셀의 내재
-     최대폭이 "기록 전문을 한 줄로 편 길이"가 된다. auto table-layout 은 테이블
-     여유폭을 열별 (max-content − min-content) 비율로 나눠주므로, 이 열 하나가
-     여유를 통째로 흡수하고(실측: AS 내용 1342px / 테이블 2578px) 나머지 열은
-     전부 min-content 로 주저앉았다. 주소 열은 `word-break: break-word`
-     (= overflow-wrap:anywhere) 라 min-content 가 '한 글자' → 세로로 흘러내리고
-     행 높이가 810px 로 터졌다. 확장 행 colspan 은 원인이 아니다(열고 닫아도
-     열 폭 불변) — 이미 넓어진 테이블 폭을 물려받아 폼이 통짜로 늘어났을 뿐이다.
-     폭 계약의 SSOT 는 <th style="width:450px"> 이므로, 셀 내용이 그 위로 자라지
-     못하게 상한을 건다(td 좌우 패딩 제외분).
+  /* ══ PC 12열 테이블: 폭 계약 · 리사이저 · 헤드 고정 ═════════════════════
+     [2026-07-28 붕괴 이력] 구조는 <th style="width:Npx"> + auto table-layout 이었다.
+     인라인 폭은 auto 레이아웃에선 '힌트'일 뿐이고, 실제 배분은 열별
+     (max-content − min-content) 비율로 이뤄진다. AS 내용 셀 요약이 .text-truncate
+     (= white-space:nowrap)라 그 열의 max-content 가 "기록 전문 한 줄 길이"로 뛰자
+     여유폭을 통째로 흡수했고(실측 1342px / 테이블 2578px) 나머지 열은 전부
+     min-content 로 주저앉았다. 주소는 word-break:break-word(= overflow-wrap:anywhere)
+     라 min-content 가 '한 글자' → 세로로 흘러내리고 행 높이가 810px 로 터졌다.
+     지금은 table-layout:fixed + colgroup 이 재분배 자체를 없앤다 — 한 열의 내용이
+     아무리 길어도 다른 열 폭에 손댈 수 없다(증상뿐 아니라 메커니즘을 제거).
      회귀 가드: tests/domains/test_as_timeline_wiring.py §6 */
-  .as-tl-cell {
-    max-width: 420px;
+  #as-dashboard-table {
+    table-layout: fixed;
   }
 
-  /* 주소 열 하한 — 위 상한이 원인을 없애지만, 다른 열이 폭을 크게 먹는 순간
-     같은 붕괴(주소만 1글자 세로 흐름)가 재발한다. 주소는 AS 방문 동선의 1차
-     판단 근거라 읽을 수 있는 하한을 못박아 둔다. */
-  .erp-as-address-cell {
-    min-width: 260px;
+  /* 열 기본 폭 SSOT. 사용자 조정분만 as-dashboard-columns.js 가 인라인으로 덮는다
+     (초기화 = 인라인 제거 → 이 값 복귀). 드래그 하한은 <col> 에 min-width 가 먹지
+     않아 JS MIN_WIDTHS 가 소유한다 — 두 값의 역할이 다르니 중복이 아니다. */
+  #as-dashboard-table col[data-col-key="order"] { width: 76px; }
+  #as-dashboard-table col[data-col-key="received"] { width: 104px; }
+  #as-dashboard-table col[data-col-key="visit"] { width: 190px; }
+  #as-dashboard-table col[data-col-key="completed"] { width: 186px; }
+  #as-dashboard-table col[data-col-key="manager"] { width: 88px; }
+  #as-dashboard-table col[data-col-key="workers"] { width: 190px; }
+  #as-dashboard-table col[data-col-key="customer"] { width: 126px; }
+  #as-dashboard-table col[data-col-key="address"] { width: 264px; }
+  #as-dashboard-table col[data-col-key="attach"] { width: 62px; }
+  #as-dashboard-table col[data-col-key="blueprint"] { width: 54px; }
+  #as-dashboard-table col[data-col-key="content"] { width: 420px; }
+  #as-dashboard-table col[data-col-key="status"] { width: 104px; }
+
+  /* 리사이즈 핸들(출고 대시보드와 동일 계약). th 만 relative — td 에까지 걸면
+     시공자 드롭다운(.as-construction-worker-menu, position:absolute)이 잘린다. */
+  #as-dashboard-table thead th {
+    position: relative;
+  }
+
+  /* 핸들은 자기 th 안에 완전히 들어와야 한다(출고판의 right:-4px 를 따라가지 않는 이유).
+     헤드 고정 때문에 모든 th 가 sticky + z-index 를 갖는데, th 경계를 넘어간 핸들의
+     바깥쪽 절반은 DOM 순서상 뒤에 오는 옆 th 가 덮어 클릭이 먹지 않는다. */
+  #as-dashboard-table .col-resize-handle {
+    position: absolute;
+    top: 0;
+    right: 0;
+    width: 9px;
+    height: 100%;
+    z-index: 2;
+    margin: 0;
+    padding: 0;
+    border: 0;
+    background: transparent;
+    cursor: col-resize;
+    touch-action: none;
+  }
+
+  #as-dashboard-table thead th:hover .col-resize-handle {
+    background: rgba(13, 110, 253, 0.14);
+    border-radius: 2px;
+  }
+
+  #as-dashboard-table.col-resizing,
+  #as-dashboard-table.col-resizing * {
+    user-select: none;
+    -webkit-user-select: none;
+  }
+
+  body.col-resizing-active {
+    cursor: col-resize;
+  }
+
+  /* 헤드 고정 — .erp-pro-table thead 에 이미 sticky 가 선언돼 있었지만 무동작이었다.
+     .erp-pro-table-wrapper 는 overflow-x:auto 라 세로축도 auto 로 계산돼 자기 자신이
+     스크롤포트가 된다. 그런데 높이가 콘텐츠만큼 자라 세로로 스크롤될 일이 없으니
+     sticky 가 붙을 자리가 없었다(페이지가 스크롤돼도 헤드는 표와 함께 올라갔다).
+     래퍼에 높이 상한을 줘 세로 스크롤포트로 만들어야 비로소 고정된다.
+     sticky 는 thead 가 아니라 th 에 건다 — border-collapse:collapse 에서 thead sticky 는
+     브라우저별로 배경/경계가 새기 때문이다(태블릿 헤드 고정 da9cbcf6 과 같은 계열의 함정). */
+  .erp-as-table-wrapper {
+    max-height: calc(100vh - 190px);
+    min-height: 240px;
+    overflow-y: auto;
+  }
+
+  #as-dashboard-table thead th {
+    position: sticky;
+    top: 0;
+    z-index: 12;
+    background: var(--erp-bg-sidebar);
+    /* border-collapse:collapse 에서 th 의 border-bottom 은 셀이 아니라 '접힌 격자'에
+       속해 sticky 로 떠 있는 동안 함께 따라오지 않는다(실측: 고정 상태에서 구분선 소실 →
+       헤더와 스크롤되는 행이 맞붙는다). 셀 자신이 그리는 inset 그림자로 대체한다. */
+    box-shadow: inset 0 -2px 0 var(--erp-border);
   }
 
   /* '일정' 버튼은 주소와 같은 flex 줄에 있어 좁아지면 제 이름부터 세로로 쪼개진다
@@ -350,11 +425,11 @@
   }
 
   .as-tl-cell__anchor {
-    font-size: 0.82rem;
+    font-size: 0.88rem;
   }
 
   .as-tl-cell__recent {
-    font-size: 0.78rem;
+    font-size: 0.84rem;
     color: #475569;
   }
 
@@ -362,7 +437,8 @@
     border: 0;
     background: none;
     color: #2563eb;
-    font-size: 0.72rem;
+    font-size: 0.82rem;
+    font-weight: 600;
     padding: 0;
     cursor: pointer;
   }
@@ -372,7 +448,7 @@
     border: 0;
     background: none;
     padding: 0;
-    font-size: 0.72rem;
+    font-size: 0.8rem;
     text-align: left;
     cursor: pointer;
   }
@@ -382,13 +458,18 @@
     padding: 12px 16px;
   }
 
-  /* 확장 본문 폭 상한 — 두 가지를 동시에 막는다.
-     (1) 12열 테이블은 선언 폭 합이 뷰포트보다 넓어(가로 스크롤 전제) colspan 셀도
-         그만큼 넓다. 상한이 없으면 입력 폼·제출 버튼이 그 폭으로 늘어나고, 버튼
-         라벨은 가운데 정렬이라 화면 밖으로 밀린다("라벨 없는 파란 띠"의 정체).
-     (2) colspan="12" 셀의 내재 폭이 열 재배분에 끼어드는 경로도 함께 닫는다.
-     값은 기록을 읽기 좋은 measure 기준. */
+  /* 확장 본문 — 폭 상한 + 가로 스크롤 추종.
+     [상한] 12열 테이블은 폭 합이 뷰포트보다 넓어(가로 스크롤 전제) colspan 셀도 그만큼
+     넓다. 상한이 없으면 입력 폼·제출 버튼이 그 폭으로 늘어나고 버튼 라벨은 가운데
+     정렬이라 화면 밖으로 밀린다("라벨 없는 파란 띠"의 정체).
+     [sticky] 확장 진입점('타임라인 N')은 오른쪽 끝 AS 내용 열이라, 누르려면 표를
+     오른쪽으로 스크롤한 상태다. 본문이 표 왼쪽에 고정돼 있으면 정작 연 사람 시야
+     밖에서 열린다. sticky left:0 이면 가로 스크롤 위치와 무관하게 항상 보이는 영역
+     왼쪽에 붙는다 — 오른쪽 정렬(margin-left:auto)은 스크롤 0 일 때 되레 화면 밖으로
+     나가므로 채택하지 않았다. 세로 sticky(헤드)와 축이 달라 서로 간섭하지 않는다. */
   .as-tl-expand-body {
+    position: sticky;
+    left: 0;
     max-width: 720px;
   }
 
@@ -549,15 +630,34 @@
     }
   }
 
+  /* 상태 배지(AS 접수/완료/미결) — 전역 .erp-pro-badge 는 --erp-font-size-xs 라 작다.
+     타 페이지 파급 없이 이 대시보드에서만 한 단계 키운다. */
+  .erp-as-dashboard .erp-pro-badge {
+    font-size: 0.8rem;
+    font-weight: 600;
+  }
+
   /* 상태 셀 비용 배지. 무상 확정은 렌더되지 않는다(무배지) — 서버 _as_billing_badge 소관. */
   .erp-as-billing-badge {
     display: inline-block;
-    margin-top: 2px;
-    padding: 0 5px;
+    margin-top: 3px;
+    padding: 1px 7px;
     border-radius: 4px;
-    font-size: 0.68rem;
+    font-size: 0.78rem;
     font-weight: 700;
-    line-height: 1.5;
+    line-height: 1.45;
+  }
+
+  /* 클릭 = 그 비용 상태로 필터(발견성 보강). 배지 자체가 상태 표기라 링크 장식은
+     주지 않고 커서·호버만으로 조작 가능함을 알린다. */
+  .erp-as-billing-badge[data-billing-filter] {
+    cursor: pointer;
+  }
+
+  .erp-as-billing-badge[data-billing-filter]:hover,
+  .erp-as-billing-badge[data-billing-filter]:focus-visible {
+    outline: 2px solid rgba(13, 110, 253, 0.45);
+    outline-offset: 1px;
   }
 
   .erp-as-billing-badge--paid {
