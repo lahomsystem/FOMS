@@ -325,3 +325,12 @@ BASE-00·PACKET-HARNESS-00 + OPS-ROUTE-01·API-ERROR-01·FAILOPEN-01·REQUEST-LI
 - ✅ **origin/deploy 55커밋 의미론 병합 완결** — `ee52cd04`(merge)+`acc3f442`(통합). 충돌 9파일: AS 3파일=canonical 골격 위에 deploy 타임라인 전량 이식(as_log sd_hook 같은 tx·billing/log 라우트 REV-00 경유·신규 직접 writer 0), 생산 3파일=제작취소/보류해제/완료이력 canonical command 흡수(tablet-domain-sheets ?v 20260728a), 소형 3파일=양측 보존. **아키텍처 결정 3건**: (A) as_lifecycle 없는 레거시 AS 주문=forward-only LEGACY_BRIDGE(사용자 액션 시점 provenance 태그 개시·과거 이력 추정 0·§296 준수·개시 상태는 read_as_status 파생값=읽기/쓰기 정합), (B) 재접수=라우트 중재(open cycle 시 새 cycle 없이 reception append 200 — 지방 재상차 실플로우 보존·서비스 단일 open cycle 불변식 유지), (C) field_update as_completed_date=canonical 브리지(complete/reopen 위임·400 파손 봉쇄). 신규 mutation 라우트 5종 OM+WG manifest 등재(ERP_EDIT·PRODUCTION_EDIT). 인벤토리 재생성 state_writer 40/24·mutation_writer 62/22(EXTERNAL 불변)·failopen 483/0.
 - ✅ **최종 검증(병합 후)**: tests/postgres 전수 4차 **641 passed 0 failed** · domains 3,625+contracts 65 **0 failed** · 게이트(state_guard/rev_99/auth/write_guard/failopen) 76 passed · APP_OK · 단일 head wiz_pending_00 · readiness verifier `--skip-service` **READY exit 0**.
 - **후속 follow-up 추가**: as_info flat 리스트 stale(shipment recommendations 링크 id/정렬 폴백만 영향·기존 "OrderASCycle vs as_lifecycle 정합" 가족) · AS-BACKFILL의 as_lifecycle JSON 미채움(레거시 주문은 LEGACY_BRIDGE가 사용 시점 개시로 커버).
+
+## ✅✅✅ 스테이징(deploy) 배포 완결 (2026-07-28 · deploy 3a4b3b3f · CI 4/4 green)
+- 푸시 4회(레이스 2회 흡수): b35ef7ec(본대)→e43eb4d5(failopen 재생성)→a90a38fa(Docker 매니페스트)→3a4b3b3f(harness-ci env). 최종 healthz=3a4b3b3f 실서빙·FOMS CI/Harness CI/PostgreSQL Lane/perf-gate 전부 success·ci_watch exit 0.
+- **배포에서만 노출된 결함 3건(로컬·CI 사각) 근본수정**:
+  1. `9214c15f` 마이그레이션 상수 동결 — sidefx_00이 models의 ck_dseo one-of CHECK를 live import → ORDER-IMPORT-01 8도메인 추가가 소급 오염, fresh 체인 upgrade 파산(스테이징 predeploy 확정 실패였음). 작성 시점 dict 파일 지역 동결(order_import_00 동형)·byte-identical 증명·29체인+왕복 green.
+  2. Docker 이미지 런타임 매니페스트 부재 — .dockerignore `docs/` 제외로 WRITE-GUARD/AUTH-01 부팅 로드 JSON 미포함→gunicorn boot 파산(스테이징 FAILED 실측). negation 4건+Dockerfile 명시 COPY(존재 assert·CUTOVER 선례 동형). cutover modes·ops approval 매니페스트 동반 포함.
+  3. harness-ci DATABASE_URL 미선언 — STARTUP-PURE fail-closed 프로브가 PG 없는 러너에서 정직 노출(구 코드 fail-open이 은폐하던 갭). ci.yml 동형 sqlite 선언.
+- **predeploy 실증**: 첫 FAILED 배포에서도 predeploy는 성공 — 스테이징 실DB alembic_version=wiz_pending_00·84테이블, 구 코드가 신 스키마 위 무중단 서빙(expand-only 설계 실증).
+- **production 승격 미실행(절대 규칙)** — 사용자 명시 승인 대기. 승격 시 주의: 이 브랜치는 deploy 병합 포함이라 cherry-pick 대상 아님 → 승격 절차는 사용자와 별도 확정 필요.
