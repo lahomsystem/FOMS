@@ -888,12 +888,19 @@
       });
 
       // PC 내용 셀 클릭 → 아래에 full-width 행을 만들어 타임라인 fragment를 lazy fetch(재클릭=닫기).
-      // 기록 0건 셀(.as-tl-cell__empty)도 같은 경로로 열려야 quick-add로 첫 기록을 남길 수 있다.
+      // 히트 영역은 버튼이 아니라 **셀 전체**(.as-tl-cell)다 — 앵커 줄·최근 줄 텍스트를 눌러도
+      // 열린다(스펙 §5.2 "셀 클릭 시 확장"). 기록 0건 셀도 같은 경로로 열려야 quick-add로
+      // 첫 기록을 남길 수 있는데, .as-tl-cell__empty 가 그 셀 안에 있으므로 자동으로 포함된다.
+      // closest 가드: 셀 안의 다른 인터랙티브 요소(링크·입력·향후 추가될 버튼)는 가로채지 않는다.
       document.addEventListener('click', function (e) {
-        const btn = e.target.closest && e.target.closest('.as-tl-cell__expand, .as-tl-cell__empty');
-        if (!btn) return;
-        const orderId = btn.dataset.orderId;
-        const row = btn.closest('tr[data-order-id]');
+        if (!e.target.closest) return;
+        const cell = e.target.closest('.as-tl-cell');
+        if (!cell) return;
+        if (e.target.closest('a, input, select, textarea')) return;
+        const otherBtn = e.target.closest('button');
+        if (otherBtn && !otherBtn.matches('.as-tl-cell__expand, .as-tl-cell__empty')) return;
+        const orderId = cell.dataset.orderId;
+        const row = cell.closest('tr[data-order-id]');
         if (!row || !orderId) return;
         const next = row.nextElementSibling;
         if (next && next.classList.contains('as-tl-expand-row')) { next.remove(); return; } // 토글
