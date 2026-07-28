@@ -25,12 +25,17 @@ from typing import Iterator
 
 import pytest
 from sqlalchemy import create_engine, text
-from sqlalchemy.engine import make_url
+from sqlalchemy.engine import Engine, make_url
 from sqlalchemy.engine.url import URL
 from sqlalchemy.orm import Session, sessionmaker
+from sqlalchemy.pool import NullPool
 
 TEST_DB_PREFIX = "foms_test_"
 LOCAL_HOSTS = frozenset({"localhost", "127.0.0.1", "::1"})
+
+# Tracks the live session-scoped PG engine so the module-teardown reset below
+# can no-op when the PG lane was never activated (pure/no-DSN test runs).
+_ACTIVE_PG_ENGINE: Engine | None = None
 
 
 class PgLaneSafetyError(RuntimeError):
@@ -202,14 +207,20 @@ def pg_engine(pg_test_database: URL):
     Yields:
         A SQLAlchemy Engine bound to the throwaway test database.
     """
+    global _ACTIVE_PG_ENGINE
+    # NullPool: conn.close() 가 실제로 커넥션을 닫아 세션 advisory lock/idle tx 가
+    # 풀 반납 후에도 잔존해 후속 테스트를 무한 블록시키는 leak 계급을 원천 차단한다
+    # (localhost 재접속 비용은 테스트 lane 에서 무시 가능).
     engine = create_engine(
         pg_test_database,
         connect_args={"client_encoding": "utf8"},
-        pool_pre_ping=True,
+        poolclass=NullPool,
     )
+    _ACTIVE_PG_ENGINE = engine
     try:
         yield engine
     finally:
+        _ACTIVE_PG_ENGINE = None
         engine.dispose()
 
 
@@ -235,3 +246,78 @@ def pg_session(pg_engine) -> Iterator[Session]:
         if trans.is_active:
             trans.rollback()
         connection.close()
+
+
+def _reset_pg_database_to_fresh(engine: Engine) -> None:
+    """Truncate every app table and re-run bootstrap seeds (restores create_all state).
+
+    Root cause this guards against: ``pg_engine`` is session-scoped, and
+    concurrency tests (FOR UPDATE / SKIP LOCKED) commit real rows through it
+    directly — bypassing the per-test rollback that ``pg_session`` provides.
+    Because that engine spans every test module in the suite, an uncleaned
+    commit from one module leaks into every module that runs after it (e.g.
+    FK RESTRICT violations in later modules), even though each module is
+    green when run in isolation. Truncating + reseeding after each module
+    reproduces the isolated-run baseline for every module that follows.
+
+    Args:
+        engine: the live session-scoped PG engine, already pointed at the
+            throwaway ``foms_test_*`` database created by ``pg_test_database``.
+
+    Raises:
+        Exception: any TRUNCATE/seed failure propagates unchanged (no
+            swallow) — a stuck lock or seed error must fail loud rather than
+            leave the database in a half-reset state for the next module.
+    """
+    import app  # noqa: F401  (ensure every model module is registered on Base.metadata)
+    from db import Base
+    from models import (
+        AUTH_RATE_KEY_STATE_SEED_SQL,
+        CHANNEL_CREATE_FLAG_SEED_SQL,
+        CHANNEL_INBOUND_KEY_STATE_SEED_SQL,
+        FEATURE_CUTOVER_FENCE_SEED_SQL,
+        SECURITY_SIGNING_STATE_SEED_SQL,
+    )
+
+    table_names = sorted(Base.metadata.tables.keys())
+    quoted_tables = ", ".join(f'"{name}"' for name in table_names)
+
+    with engine.begin() as conn:
+        # Loud failure instead of a silently hung test run if a leaked
+        # connection from an earlier test still holds a lock on any table.
+        conn.execute(text("SET LOCAL lock_timeout = '30s'"))
+        # Single statement over every table: CASCADE is redundant here (every
+        # FK target is already listed) but harmless, so it stays for safety.
+        # RESTART IDENTITY: 격리 단독 실행(fresh create_all, 시퀀스 1부터)과 동일
+        # 조건 재현 — 시퀀스가 이어지면 id 가정 테스트가 순서 의존으로 갈린다.
+        conn.execute(text(f"TRUNCATE TABLE {quoted_tables} RESTART IDENTITY CASCADE"))
+        for seed_sql in (
+            FEATURE_CUTOVER_FENCE_SEED_SQL,
+            SECURITY_SIGNING_STATE_SEED_SQL,
+            AUTH_RATE_KEY_STATE_SEED_SQL,
+            CHANNEL_INBOUND_KEY_STATE_SEED_SQL,
+            CHANNEL_CREATE_FLAG_SEED_SQL,
+        ):
+            conn.execute(text(seed_sql))
+
+
+@pytest.fixture(autouse=True, scope="module")
+def _pg_module_data_reset() -> Iterator[None]:
+    """Reset the PG test database to a fresh state after each test module.
+
+    Only ``pg_session`` (per-test rollback) is safe against pollution on its
+    own; tests that use ``pg_engine`` directly for multi-connection
+    concurrency coverage commit real rows that would otherwise persist for
+    the rest of the (session-scoped) pytest run and leak into unrelated
+    modules. No-op when the PG lane was never activated in this session (pure
+    /no-DSN test runs never create ``_ACTIVE_PG_ENGINE``), so this fixture is
+    safe to run unconditionally as autouse.
+
+    Yields:
+        None; the reset happens on teardown, after the module's tests ran.
+    """
+    yield
+    engine = _ACTIVE_PG_ENGINE
+    if engine is None:
+        return
+    _reset_pg_database_to_fresh(engine)

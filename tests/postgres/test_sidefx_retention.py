@@ -36,7 +36,7 @@ from foms.services.sidefx_worker import (
     upsert_heartbeat,
 )
 from tools.ops.purge_domain_side_effect_outbox import ADVISORY_LOCK_KEY, run
-from models import DomainSideEffectOutbox
+from models import DomainSideEffectOutbox, Order, OrderEvent
 
 
 # --------------------------------------------------------------------------- #
@@ -60,8 +60,24 @@ def _clean(pg_engine) -> None:
         conn.execute(text("DELETE FROM domain_side_effect_outbox"))
 
 
+def _order_event_id(session) -> int:
+    """order_event_id FK 를 만족할 실 Order+OrderEvent 를 만들어 id 를 반환한다.
+
+    retention worker mechanics 는 도메인 정체성과 무관하므로(브리프 A급 처방) FK 부모가
+    실존하는 ORDER_EVENT 를 재사용한다(WIZARD_PENDING 은 drawing_wizard_pending 부모 필요).
+    """
+    order = Order(received_date="2026-07-27", customer_name="TR", phone="010-0000-0000",
+                 address="서울", product="테스트")
+    session.add(order)
+    session.flush()
+    event = OrderEvent(order_id=order.id, event_type="TEST_MARKER", payload={})
+    session.add(event)
+    session.flush()
+    return event.id
+
+
 def _seed(pg_engine, et, *, status, count=1, **over) -> list[int]:
-    """no-FK 도메인(WIZARD_PENDING) 기준 status 행 count 개를 commit 하고 id 리스트 반환.
+    """실 ORDER_EVENT 부모 기준 status 행 count 개를 commit 하고 id 리스트 반환.
 
     ``over`` 로 completed_at/dead_at/available_at 등을 개별 지정한다.
     """
@@ -69,9 +85,10 @@ def _seed(pg_engine, et, *, status, count=1, **over) -> list[int]:
     ids = []
     try:
         base = _now()
+        event_id = _order_event_id(s)
         for i in range(count):
             row = DomainSideEffectOutbox(
-                source_domain="WIZARD_PENDING", wizard_pending_id=1,
+                source_domain="ORDER_EVENT", order_event_id=event_id,
                 effect_type=et, payload={"i": i},
                 status=status, attempts=0,
                 available_at=base, created_at=base,

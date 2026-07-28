@@ -173,7 +173,7 @@ def test_handler_wizard_pending_deletes_object_and_marks_child(pg_engine, storag
             effect_type="STORAGE_DELETE", payload={"object_key": key},
             dedupe_key=f"wizdel:{child.id}")
         s.commit()
-        child_id, row_id = child.id, row.id
+        order_id, child_id, row_id = o.id, child.id, row.id
     finally:
         s.close()
 
@@ -188,7 +188,7 @@ def test_handler_wizard_pending_deletes_object_and_marks_child(pg_engine, storag
         assert s.get(DrawingWizardPending, child_id).state == "DELETED"
         assert s.get(DomainSideEffectOutbox, row_id).status == "DONE"
         # worker Order write 0 — version·structured_data 무변경.
-        order = s.get(Order, o.id)
+        order = s.get(Order, order_id)
         assert order.mutation_version == base_version
         assert order.structured_data == base_sd
     finally:

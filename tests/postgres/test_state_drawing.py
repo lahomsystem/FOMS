@@ -115,18 +115,18 @@ def test_pg_cancel_storage_delete_dedupe(pg_engine):
     try:
         actor = _make_actor(s)
         order = _make_order(s)
-        key = f"orders/{order.id}/drawing_wizard/exports/dup.png"
-        _cancel_effect(s, order, actor.id, [key])
+        order_id, actor_id = order.id, actor.id
+        key = f"orders/{order_id}/drawing_wizard/exports/dup.png"
+        _cancel_effect(s, order, actor_id, [key])
         s.commit()
     finally:
         s.close()
 
     s2 = _session(pg_engine)
     try:
-        o = s2.query(Order).filter_by(id=order.id).one()
-        actor2 = o  # noqa: F841 (reuse committed order)
+        o = s2.query(Order).filter_by(id=order_id).one()
         with pytest.raises(IntegrityError):
-            _cancel_effect(s2, o, actor.id, [key])
+            _cancel_effect(s2, o, actor_id, [key])
             s2.flush()
     finally:
         s2.rollback()

@@ -19,7 +19,6 @@ from __future__ import annotations
 
 import datetime
 import pathlib
-import types
 import uuid
 
 import pytest
@@ -47,6 +46,7 @@ from models import (
     OrderAttachment,
     UploadDraft,
     UploadTicket,
+    User,
 )
 
 
@@ -58,12 +58,21 @@ def _now():
     return now_utc_naive()
 
 
-def _staff():
-    return types.SimpleNamespace(id=1, role="STAFF", team="CS")
+def _staff(session) -> User:
+    """실 User row(FK 대상) — issue/complete 는 issued_by 를 upload_tickets.issued_by→users FK 로 부착한다."""
+    u = User(username=f"upl2_staff_{uuid.uuid4().hex[:10]}", password="pw-not-committed",
+             name="스태프", role="STAFF", team="CS", is_active=True)
+    session.add(u)
+    session.flush()
+    return u
 
 
-def _viewer():
-    return types.SimpleNamespace(id=2, role="VIEWER", team=None)
+def _viewer(session) -> User:
+    u = User(username=f"upl2_viewer_{uuid.uuid4().hex[:10]}", password="pw-not-committed",
+             name="뷰어", role="VIEWER", team=None, is_active=True)
+    session.add(u)
+    session.flush()
+    return u
 
 
 def _make_order(session) -> Order:
@@ -82,15 +91,16 @@ def test_issue_creates_issued_ticket_900s(pg_engine):
     s = _session(pg_engine)
     try:
         o = _make_order(s)
+        staff = _staff(s)
         base = _now()
         t = issue_ticket(s, order_id=o.id, filename="a.jpg", file_size=1000,
-                         user=_staff(), category="measurement", now=base)
+                         user=staff, category="measurement", now=base)
         s.commit()
         assert t.state == "ISSUED"
         assert t.expires_at == base + datetime.timedelta(seconds=900)
         assert t.object_key.startswith(f"orders/{o.id}/measurement/")
         assert t.file_type == "image"
-        assert t.issued_by == 1
+        assert t.issued_by == staff.id
     finally:
         s.close()
 
@@ -102,7 +112,7 @@ def test_issue_forbidden_for_viewer(pg_engine):
         o = _make_order(s)
         with pytest.raises(UploadTicketForbidden):
             issue_ticket(s, order_id=o.id, filename="a.jpg", file_size=10,
-                         user=_viewer(), category="measurement")
+                         user=_viewer(s), category="measurement")
         s.rollback()
     finally:
         s.close()
@@ -113,15 +123,15 @@ def test_issue_rejects_missing_order_and_bad_type_size(pg_engine):
     s = _session(pg_engine)
     try:
         with pytest.raises(UploadTicketError):
-            issue_ticket(s, order_id=999999, filename="a.jpg", file_size=10, user=_staff())
+            issue_ticket(s, order_id=999999, filename="a.jpg", file_size=10, user=_staff(s))
         s.rollback()
         o = _make_order(s)
         with pytest.raises(UploadTicketError):  # .exe 불허
-            issue_ticket(s, order_id=o.id, filename="x.exe", file_size=10, user=_staff())
+            issue_ticket(s, order_id=o.id, filename="x.exe", file_size=10, user=_staff(s))
         s.rollback()
         with pytest.raises(UploadTicketError):  # 이미지 20MB 초과
             issue_ticket(s, order_id=o.id, filename="a.jpg",
-                         file_size=21 * 1024 * 1024, user=_staff())
+                         file_size=21 * 1024 * 1024, user=_staff(s))
         s.rollback()
     finally:
         s.close()
@@ -134,12 +144,12 @@ def test_issue_item_active_recheck(pg_engine):
         o = _make_order(s)
         with pytest.raises(UploadTicketError):  # 활성 identity 없는 슬롯
             issue_ticket(s, order_id=o.id, filename="a.jpg", file_size=10,
-                         user=_staff(), item_index=0)
+                         user=_staff(s), item_index=0)
         s.rollback()
         ident = get_or_create_identity(s, o.id, 0)
         s.commit()
         t = issue_ticket(s, order_id=o.id, filename="a.jpg", file_size=10,
-                         user=_staff(), item_index=0)
+                         user=_staff(s), item_index=0)
         s.commit()
         assert t.item_id == ident.id and t.item_index == 0
     finally:
@@ -155,10 +165,10 @@ def test_complete_creates_attachment_and_bumps_order(pg_engine):
     try:
         o = _make_order(s)
         assert o.mutation_version == 1
-        t = issue_ticket(s, order_id=o.id, filename="a.jpg", file_size=1000, user=_staff())
+        t = issue_ticket(s, order_id=o.id, filename="a.jpg", file_size=1000, user=_staff(s))
         s.commit()
         ticket, att = complete_ticket(s, ticket_id=t.id, object_key=t.object_key,
-                                      user=_staff(), file_size=1000)
+                                      user=_staff(s), file_size=1000)
         s.commit()
         s.refresh(o)
         assert ticket.state == "COMPLETED" and ticket.completed_at is not None
@@ -173,11 +183,11 @@ def test_complete_retry_idempotent(pg_engine):
     s = _session(pg_engine)
     try:
         o = _make_order(s)
-        t = issue_ticket(s, order_id=o.id, filename="a.jpg", file_size=10, user=_staff())
+        t = issue_ticket(s, order_id=o.id, filename="a.jpg", file_size=10, user=_staff(s))
         s.commit()
-        _, att1 = complete_ticket(s, ticket_id=t.id, object_key=t.object_key, user=_staff())
+        _, att1 = complete_ticket(s, ticket_id=t.id, object_key=t.object_key, user=_staff(s))
         s.commit()
-        _, att2 = complete_ticket(s, ticket_id=t.id, object_key=t.object_key, user=_staff())
+        _, att2 = complete_ticket(s, ticket_id=t.id, object_key=t.object_key, user=_staff(s))
         s.commit()
         s.refresh(o)
         assert att1.id == att2.id
@@ -194,14 +204,14 @@ def test_complete_rejects_tamper_and_expired(pg_engine):
     s = _session(pg_engine)
     try:
         o = _make_order(s)
-        t = issue_ticket(s, order_id=o.id, filename="a.jpg", file_size=10, user=_staff())
+        t = issue_ticket(s, order_id=o.id, filename="a.jpg", file_size=10, user=_staff(s))
         s.commit()
         with pytest.raises(UploadTicketError):  # tamper
             complete_ticket(s, ticket_id=t.id,
-                            object_key=f"orders/{o.id}/measurement/evil.jpg", user=_staff())
+                            object_key=f"orders/{o.id}/measurement/evil.jpg", user=_staff(s))
         s.rollback()
         with pytest.raises(UploadTicketError):  # 만료(now>=expires_at)
-            complete_ticket(s, ticket_id=t.id, object_key=t.object_key, user=_staff(),
+            complete_ticket(s, ticket_id=t.id, object_key=t.object_key, user=_staff(s),
                             now=_now() + datetime.timedelta(seconds=901))
         s.rollback()
     finally:
@@ -216,12 +226,12 @@ def test_complete_rejects_after_item_retire(pg_engine):
         ident = get_or_create_identity(s, o.id, 0)
         s.commit()
         t = issue_ticket(s, order_id=o.id, filename="a.jpg", file_size=10,
-                         user=_staff(), item_index=0)
+                         user=_staff(s), item_index=0)
         s.commit()
         retire_identity(s, ident.id)
         s.commit()
         with pytest.raises(UploadTicketError):
-            complete_ticket(s, ticket_id=t.id, object_key=t.object_key, user=_staff())
+            complete_ticket(s, ticket_id=t.id, object_key=t.object_key, user=_staff(s))
         s.rollback()
     finally:
         s.close()
@@ -235,9 +245,9 @@ def test_complete_then_retire_keeps_attachment(pg_engine):
         ident = get_or_create_identity(s, o.id, 0)
         s.commit()
         t = issue_ticket(s, order_id=o.id, filename="a.jpg", file_size=10,
-                         user=_staff(), item_index=0)
+                         user=_staff(s), item_index=0)
         s.commit()
-        _, att = complete_ticket(s, ticket_id=t.id, object_key=t.object_key, user=_staff())
+        _, att = complete_ticket(s, ticket_id=t.id, object_key=t.object_key, user=_staff(s))
         s.commit()
         retire_identity(s, ident.id)
         s.commit()
@@ -254,7 +264,7 @@ def _expired_ticket(s, order_id, *, item_index=None) -> UploadTicket:
     """created_at 을 과거로 밀어 즉시 만료된 ISSUED 티켓을 만든다."""
     past = _now() - datetime.timedelta(seconds=1000)
     t = issue_ticket(s, order_id=order_id, filename="a.jpg", file_size=10,
-                     user=_staff(), item_index=item_index, now=past)
+                     user=_staff(s), item_index=item_index, now=past)
     s.commit()
     return t
 
@@ -286,7 +296,7 @@ def test_provider_claims_item_retired_ticket(pg_engine):
         ident = get_or_create_identity(s, o.id, 0)
         s.commit()
         t = issue_ticket(s, order_id=o.id, filename="a.jpg", file_size=10,
-                         user=_staff(), item_index=0)  # 만료 전(now)
+                         user=_staff(s), item_index=0)  # 만료 전(now)
         s.commit()
         retire_identity(s, ident.id)
         s.commit()

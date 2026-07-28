@@ -45,7 +45,7 @@ from foms.services.sidefx_worker import (
     run_retention_once,
     upsert_heartbeat,
 )
-from models import DomainSideEffectOutbox, SideEffectWorkerHeartbeat
+from models import DomainSideEffectOutbox, Order, OrderEvent, SideEffectWorkerHeartbeat
 
 
 @pytest.fixture(autouse=True)
@@ -87,15 +87,32 @@ def _quiesce(pg_engine) -> None:
         )
 
 
+def _order_event_id(session) -> int:
+    """order_event_id FK 를 만족할 실 Order+OrderEvent 를 만들어 id 를 반환한다.
+
+    worker mechanics 는 도메인 정체성과 무관하므로(브리프 A급 처방) FK 부모가 실존하는
+    ORDER_EVENT 를 재사용한다(WIZARD_PENDING 은 drawing_wizard_pending 부모 필요).
+    """
+    order = Order(received_date="2026-07-27", customer_name="TR", phone="010-0000-0000",
+                 address="서울", product="테스트")
+    session.add(order)
+    session.flush()
+    event = OrderEvent(order_id=order.id, event_type="TEST_MARKER", payload={})
+    session.add(event)
+    session.flush()
+    return event.id
+
+
 def _pending(pg_engine, effect_type, *, count=1, offset=0, **over):
-    """no-FK 도메인(WIZARD_PENDING) 기준 PENDING 행 count 개를 commit 하고 id 리스트 반환."""
+    """실 ORDER_EVENT 부모 기준 PENDING 행 count 개를 commit 하고 id 리스트 반환."""
     s = _session(pg_engine)
     ids = []
     try:
         base = _now()
+        event_id = _order_event_id(s)
         for i in range(count):
             row = DomainSideEffectOutbox(
-                source_domain="WIZARD_PENDING", wizard_pending_id=1,
+                source_domain="ORDER_EVENT", order_event_id=event_id,
                 effect_type=effect_type, payload={"i": i},
                 status="PENDING", attempts=0,
                 available_at=base - datetime.timedelta(seconds=offset + count - i),
@@ -233,14 +250,15 @@ def test_reclaim_expired_lease_requeues(pg_engine):
     now = _now()
     s = _session(pg_engine)
     try:
+        event_id = _order_event_id(s)
         alive = DomainSideEffectOutbox(
-            source_domain="WIZARD_PENDING", wizard_pending_id=1, effect_type=et,
+            source_domain="ORDER_EVENT", order_event_id=event_id, effect_type=et,
             payload={}, status="PROCESSING", attempts=1,
             available_at=now, created_at=now, lease_owner_hash="d" * 64,
             lease_token=str(uuid.uuid4()),
             lease_expires_at=now - datetime.timedelta(seconds=5))  # 만료
         maxed = DomainSideEffectOutbox(
-            source_domain="WIZARD_PENDING", wizard_pending_id=1, effect_type=et,
+            source_domain="ORDER_EVENT", order_event_id=event_id, effect_type=et,
             payload={}, status="PROCESSING", attempts=5,
             available_at=now, created_at=now, lease_owner_hash="d" * 64,
             lease_token=str(uuid.uuid4()),
@@ -342,8 +360,9 @@ def test_collect_readiness_observations_reflects_db(pg_engine):
     _pending(pg_engine, et, count=1, offset=30)  # available_at ~30s 과거
     s = _session(pg_engine)
     try:
+        event_id = _order_event_id(s)
         dead = DomainSideEffectOutbox(
-            source_domain="WIZARD_PENDING", wizard_pending_id=1, effect_type=et,
+            source_domain="ORDER_EVENT", order_event_id=event_id, effect_type=et,
             payload={}, status="DEAD", attempts=10,
             available_at=now, created_at=now,
             dead_at=now - datetime.timedelta(seconds=1))
@@ -376,16 +395,17 @@ def test_retention_scan_purges_terminal(pg_engine):
     now = _now()
     s = _session(pg_engine)
     try:
+        event_id = _order_event_id(s)
         old_done = DomainSideEffectOutbox(
-            source_domain="WIZARD_PENDING", wizard_pending_id=1, effect_type=et,
+            source_domain="ORDER_EVENT", order_event_id=event_id, effect_type=et,
             payload={}, status="DONE", available_at=now, created_at=now,
             completed_at=now - datetime.timedelta(days=31))
         old_dead = DomainSideEffectOutbox(
-            source_domain="WIZARD_PENDING", wizard_pending_id=1, effect_type=et,
+            source_domain="ORDER_EVENT", order_event_id=event_id, effect_type=et,
             payload={}, status="DEAD", available_at=now, created_at=now,
             dead_at=now - datetime.timedelta(days=181))
         recent_done = DomainSideEffectOutbox(
-            source_domain="WIZARD_PENDING", wizard_pending_id=1, effect_type=et,
+            source_domain="ORDER_EVENT", order_event_id=event_id, effect_type=et,
             payload={}, status="DONE", available_at=now, created_at=now,
             completed_at=now - datetime.timedelta(days=1))
         for r in (old_done, old_dead, recent_done):

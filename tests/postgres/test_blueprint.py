@@ -19,8 +19,6 @@ STORAGE_DELETE outbox one-of 매트릭스)으로 고정한다:
 """
 from __future__ import annotations
 
-import types
-
 import pytest
 from sqlalchemy.orm import sessionmaker
 
@@ -38,19 +36,33 @@ from foms.services.orders.upload_ticket import (
     complete_ticket,
     issue_ticket,
 )
-from models import DomainSideEffectOutbox, Order, OrderAttachment, OrderEvent
+from models import DomainSideEffectOutbox, Order, OrderAttachment, OrderEvent, User
 
 
 def _session(pg_engine):
     return sessionmaker(bind=pg_engine)()
 
 
-def _staff():
-    return types.SimpleNamespace(id=1, role="STAFF", team="CS")
+def _staff(session):
+    """실 STAFF User row 를 얻는다(멱등 get-or-create — issued_by/created_by_user_id FK 만족)."""
+    u = session.query(User).filter_by(username="pgtest_blueprint_staff").one_or_none()
+    if u is None:
+        u = User(username="pgtest_blueprint_staff", password="x", name="staff",
+                 role="STAFF", team="CS")
+        session.add(u)
+        session.commit()
+    return u
 
 
-def _viewer():
-    return types.SimpleNamespace(id=2, role="VIEWER", team=None)
+def _viewer(session):
+    """실 VIEWER User row 를 얻는다(멱등 get-or-create)."""
+    u = session.query(User).filter_by(username="pgtest_blueprint_viewer").one_or_none()
+    if u is None:
+        u = User(username="pgtest_blueprint_viewer", password="x", name="viewer",
+                 role="VIEWER", team=None)
+        session.add(u)
+        session.commit()
+    return u
 
 
 def _make_order(session, scalar=None) -> Order:
@@ -63,12 +75,14 @@ def _make_order(session, scalar=None) -> Order:
 
 def _upload(session, order_id, filename="plan.png"):
     """issue→complete 로 blueprint 첨부를 만들고 projection 을 설정한다(한 tx)."""
+    staff = _staff(session)
     ticket = issue_ticket(session, order_id=order_id, filename=filename, file_size=1000,
-                          user=_staff(), category="measurement")
+                          user=staff, category="measurement")
     _ticket, attachment = complete_ticket(
-        session, ticket_id=ticket.id, object_key=ticket.object_key, user=_staff())
+        session, ticket_id=ticket.id, object_key=ticket.object_key, user=staff)
     order = session.get(Order, order_id)
-    current = set_current_blueprint(session, order, attachment=attachment, actor_user_id=1)
+    current = set_current_blueprint(session, order, attachment=attachment,
+                                    actor_user_id=staff.id)
     session.commit()
     return ticket, attachment, current
 
@@ -100,11 +114,12 @@ def test_complete_rejects_tampered_key(pg_engine):
     s = _session(pg_engine)
     try:
         o = _make_order(s)
-        ticket = issue_ticket(s, order_id=o.id, filename="a.png", file_size=10, user=_staff())
+        staff = _staff(s)
+        ticket = issue_ticket(s, order_id=o.id, filename="a.png", file_size=10, user=staff)
         s.commit()
         with pytest.raises(UploadTicketError):
             complete_ticket(s, ticket_id=ticket.id, object_key=ticket.object_key + "x",
-                            user=_staff())
+                            user=staff)
     finally:
         s.close()
 
@@ -115,7 +130,7 @@ def test_issue_rejects_viewer(pg_engine):
     try:
         o = _make_order(s)
         with pytest.raises(UploadTicketForbidden):
-            issue_ticket(s, order_id=o.id, filename="a.png", file_size=10, user=_viewer())
+            issue_ticket(s, order_id=o.id, filename="a.png", file_size=10, user=_viewer(s))
     finally:
         s.close()
 
@@ -150,7 +165,7 @@ def test_delete_enqueues_outbox_and_clears(pg_engine):
         o = _make_order(s)
         _t, att, _c = _upload(s, o.id)
         order = s.get(Order, o.id)
-        removed = clear_current_blueprint(s, order, actor_user_id=1)
+        removed = clear_current_blueprint(s, order, actor_user_id=_staff(s).id)
         order.mutation_version = (order.mutation_version or 0) + 1  # 호출자 version bump(REV-00)
         s.commit()
 
@@ -172,6 +187,10 @@ def test_backfill_exact_ambiguous_coverage_idempotent(pg_engine):
     """scalar → projection: exact 유도·ambiguous 무손실 보존·coverage 100%·멱등·downgrade."""
     s = _session(pg_engine)
     try:
+        # 공유 pg_engine: 앞선 테스트가 남긴 blueprint_image_url 스칼라를 지워 backfill 전역
+        # COUNT 를 결정적으로 만든다(tests/postgres/test_sidefx_retention.py 의 _clean 관용과 동일 원리).
+        s.query(Order).update({"blueprint_image_url": None})
+        s.commit()
         oe = _make_order(s)
         oe.blueprint_image_url = f"/api/files/view/orders/{oe.id}/blueprint/plan.png"
         oa = _make_order(s, scalar="https://cdn.example.com/legacy.png")
