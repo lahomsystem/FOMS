@@ -127,8 +127,13 @@ def test_dashboard_js_tag_carries_version_bump() -> None:
     m = re.search(r"<script[^>]*workbench-dashboard\.js[^>]*>", body)
     assert m is not None, "workbench-dashboard.js not wired in dashboard body"
     tag = m.group(0)
-    assert "?v=20260728a" in tag, "수정된 JS 는 SW staticCacheFirst 회피용 ?v 범프 필수"
+    assert "?v=20260728b" in tag, "수정된 JS 는 SW staticCacheFirst 회피용 ?v 범프 필수"
     assert "defer" in tag, "렌더 차단 동기 스크립트 금지(perf G1)"
+
+
+def test_row_click_delegates_to_shell_row_link() -> None:
+    js = _read(DASHBOARD_JS)
+    assert "querySelector('a.js-row-link')" in js, "PC 행 클릭은 창구 열기 앵커를 합성 클릭해 fragment swap 경로를 타야 함"
 
 
 # --- P1-4 미확인 0건 배지 숨김 -----------------------------------------------

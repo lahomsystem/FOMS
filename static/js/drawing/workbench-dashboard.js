@@ -292,9 +292,14 @@
       if (e.target.closest('a, button, input, select, label')) {
         return;
       }
+      var link = row.querySelector('a.js-row-link');
+      if (link) {
+        link.click(); // erp-shell 인터셉트 → fragment swap (풀 리로드 회피)
+        return;
+      }
       var href = row.getAttribute('data-href');
       if (href) {
-        window.location.href = href;
+        window.location.href = href; // 앵커 부재 폴백
       }
     });
 
