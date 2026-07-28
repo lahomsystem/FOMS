@@ -2,7 +2,7 @@
 
 create : origin/deploy 기반 세션 worktree + session/<name> 브랜치 생성
 list   : 세션 worktree 현황(브랜치·ahead·dirty·locked·detached)
-sync   : rebase origin/deploy + ledger 갱신 (소유 검증 후)
+sync   : rebase origin/deploy (소유 검증 후, ledger 승계는 post-rewrite 훅)
 cleanup: 기본 dry-run 보고, --remove 시 clean+merged만 제거
 
 설계 정본: docs/plans/2026-07-27-session-worktree-isolation-phase1.md
@@ -11,6 +11,7 @@ cleanup: 기본 dry-run 보고, --remove 시 clean+merged만 제거
 from __future__ import annotations
 
 import argparse
+import re
 import shutil
 import subprocess
 import sys
@@ -29,6 +30,10 @@ USAGE_LOG = os.path.join("docs", "harness", "runtime", "session_worktree_usage.l
 # 훅은 worktree마다가 아니라 공유 git-common-dir(모든 worktree가 공유)에 설치되므로
 # 세션 worktree 어느 것을 만들 때 처음 설치되든 이후 전부에 적용된다.
 POST_REWRITE_HOOK_SENTINEL = "# foms-session-worktree post-rewrite v1"
+
+#: --name 허용 문자 — 단일 경로 컴포넌트이자 안전한 git ref 조각.
+#: 경로 구분자·`..`·공백·git ref 금지문자(~^:?*[\)를 전부 배제한다.
+_SAFE_NAME_RE = re.compile(r"^[A-Za-z0-9][A-Za-z0-9._-]*$")
 
 EXIT_OK = 0
 EXIT_REFUSE = 2
@@ -126,7 +131,9 @@ def _post_rewrite_hook_content() -> str:
     일어나든 동일한 실제 스크립트를 가리킨다. `POST_REWRITE_HOOK_SENTINEL`은
     이 훅이 우리 것임을 표시해 자가치유(§`_ensure_post_rewrite_hook`)를 가능케
     하고, `|| { ... }`는 python 실행 자체가 실패해도(예: python 미설치) 무로그
-    swallow 없이 harness 로그에 남기고 fail-open한다(FOMS 훅 규칙).
+    swallow 없이 harness 로그에 남기고 fail-open한다(FOMS 훅 규칙). 로그 줄에는
+    재작성이 일어난 worktree(`$PWD`)를 함께 적어 어느 창의 rebase였는지 추적한다
+    — 훅은 메인 트리를 포함한 전 worktree가 공유하므로 출처가 없으면 무의미하다.
     """
     script = Path(__file__).resolve().parent / "record_rewrite_ledger.py"
     main_tree = Path(__file__).resolve().parents[2]
@@ -137,7 +144,7 @@ def _post_rewrite_hook_content() -> str:
         f"{POST_REWRITE_HOOK_SENTINEL}\n"
         f'python "{script.as_posix()}" "$@" || {{ '
         f'mkdir -p "{log_dir}" 2>/dev/null; '
-        f'echo "$(date) post-rewrite ledger 승계 실패 (record_rewrite_ledger 실행 불가)" >> "{log_path}" 2>/dev/null; '
+        f'echo "$(date) [$PWD] post-rewrite ledger 승계 실패 (record_rewrite_ledger 실행 불가)" >> "{log_path}" 2>/dev/null; '
         "exit 0; }\n"
     )
 
@@ -194,8 +201,32 @@ def _ensure_post_rewrite_hook(root: Path) -> None:
         pass
 
 
+def _is_safe_name(name: str) -> bool:
+    """`--name` 이 단일 안전 경로 컴포넌트인지 검사한다.
+
+    `nested/demo` 같은 이름은 worktree 를 `<parent>/foms-s-nested/demo` 에 만들어
+    basename 을 `demo` 로 바꾼다 — `foms-s-` 프리픽스에 의존하는 list/sync/cleanup·
+    union 소유 판정·`run.py`/`migrations/env.py` DDL 차단이 전부 무력화된다.
+    그래서 경로 구분자·`..`·절대경로·공백·git ref 금지문자를 아예 거부한다.
+
+    파라미터:
+        name: 사용자가 준 worktree/브랜치 이름.
+    반환:
+        영숫자로 시작하고 `[A-Za-z0-9._-]` 만 쓰며 `..`/`.lock` 이 없으면 True.
+    """
+    return bool(_SAFE_NAME_RE.match(name)) and ".." not in name and not name.endswith(".lock")
+
+
 def cmd_create(args: argparse.Namespace) -> int:
     """origin/deploy 기반 세션 worktree 생성. 기존 브랜치 재사용 금지(-b)."""
+    name = args.name or time.strftime("s%m%d-%H%M%S")
+    if not _is_safe_name(name):
+        print(
+            f"[refuse] --name 부적합: {name!r} — 영숫자로 시작하는 단일 이름만 허용"
+            " (`/`·`\\`·`..`·공백·절대경로·git ref 금지문자 불가)",
+            file=sys.stderr,
+        )
+        return EXIT_REFUSE
     root = repo_root()
     _git(root, "fetch", "origin", "deploy", check=False)  # 오프라인 허용
     if _git(root, "rev-parse", "--verify", "origin/deploy", check=False)[0] != 0:
@@ -205,7 +236,6 @@ def cmd_create(args: argparse.Namespace) -> int:
     existing = session_worktrees(root)
     if len(existing) >= SOFT_LIMIT:
         print(f"[warn] 세션 worktree {len(existing)}개 활성 — 권장 상한 {SOFT_LIMIT}. cleanup 권장.")
-    name = args.name or time.strftime("s%m%d-%H%M%S")
     branch = f"{BRANCH_PREFIX}{name}"
     if _git(root, "rev-parse", "--verify", f"refs/heads/{branch}", check=False)[0] == 0:
         print(f"[refuse] 브랜치 {branch} 이미 존재 — 다른 이름 사용 또는 cleanup 후 재시도", file=sys.stderr)
@@ -269,7 +299,7 @@ def _rebase_in_progress(wt: Path) -> bool:
 
 
 def cmd_sync(args: argparse.Namespace) -> int:
-    """fetch + rebase origin/deploy + ledger 갱신. 세션 worktree 전용.
+    """fetch + rebase origin/deploy. 세션 worktree 전용(ledger 승계는 post-rewrite 훅).
 
     소유 검증(F1-v4 — post-rewrite 훅 ledger 승계): 매 호출마다 동일하게
     `origin/deploy..HEAD`가 ledger union의 부분집합인지만 확인한다. 마커나
@@ -303,12 +333,15 @@ def cmd_sync(args: argparse.Namespace) -> int:
             print(f"  {s[:10]}", file=sys.stderr)
         print("  소유가 확실하면 --allow-foreign으로 명시 승인.", file=sys.stderr)
         hook_path = _post_rewrite_hook_path(wt)
+        where = str(hook_path) if hook_path else "경로 조회 실패(git-common-dir)"
         print(
-            f"  post-rewrite 훅({hook_path}) 미설치/손상이 원인일 수 있음 — "
+            f"  post-rewrite 훅({where}) 미설치/손상이 원인일 수 있음 — "
             "session_worktree.py create가 sentinel 훅을 자가치유합니다.",
             file=sys.stderr,
         )
         return EXIT_REFUSE
+    if unknown:  # --allow-foreign 우회는 무흔적이면 안 된다 — 감사 1줄
+        _usage_log(wt, f"sync --allow-foreign 승인 {len(unknown)}커밋: " + ", ".join(s[:8] for s in unknown[:10]))
 
     if not args.ledger_only:
         _git(wt, "fetch", "origin", "deploy")
@@ -317,17 +350,21 @@ def cmd_sync(args: argparse.Namespace) -> int:
             print("[conflict] rebase 충돌 — 임의 해결 금지. 해결 → `git rebase --continue` → `sync --ledger-only`", file=sys.stderr)
             return EXIT_CONFLICT
 
+    # ledger 갱신은 하지 않는다: rebase가 재작성한 SHA는 공유 post-rewrite 훅이
+    # **세션별로** 승계한다. 여기서 `origin/deploy..HEAD` 전체를 한 세션 키로
+    # set_session_shas 하면 여러 세션이 함께 쓴 worktree에서 마지막 세션이 남의
+    # 커밋까지 소유하게 되고, 그 ledger를 단일 세션 기준으로 읽는
+    # push_own_session_commits/promote 헬퍼가 타 세션 커밋을 실어 나른다.
     post = _range_shas(wt)
-    sid = scl.latest_session_id(str(wt)) or "unknown"
-    scl.set_session_shas(str(wt), sid, post)
-    print(f"[ok] sync 완료 — ledger 갱신 session={sid}, {len(post)}커밋")
+    print(f"[ok] sync 완료 — origin/deploy..HEAD {len(post)}커밋 (ledger 승계는 post-rewrite 훅 담당)")
     return EXIT_OK
 
 
 def cmd_cleanup(args: argparse.Namespace) -> int:
     """세션 worktree 정리. 기본 dry-run 보고, --remove 시 clean+merged만 제거."""
     root = repo_root()
-    _git(root, "fetch", "origin", "deploy", check=False)
+    if _git(root, "fetch", "origin", "deploy", check=False)[0] != 0:
+        print("[warn] fetch origin deploy 실패 — merged 판정이 stale할 수 있음(오프라인?)", file=sys.stderr)
     rows = session_worktrees(root)
     force_target = Path(args.force_path).resolve() if args.force_path else None
     if force_target is not None and not any(it["path"] == force_target for it in rows):
@@ -347,8 +384,9 @@ def cmd_cleanup(args: argparse.Namespace) -> int:
             if not args.yes:
                 print("[refuse] --force-path는 --yes 동반 필수 (미커밋 변경 영구 소실 경고)", file=sys.stderr)
                 return EXIT_REFUSE
-            if not _force_remove(root, wt, branch):
-                return EXIT_GIT
+            rc = _force_remove(root, wt, branch)
+            if rc != EXIT_OK:
+                return rc
             continue
         if locked:
             print(f"[keep] {wt} — locked. 해제: git worktree unlock \"{wt}\"")
@@ -372,7 +410,8 @@ def cmd_cleanup(args: argparse.Namespace) -> int:
             print(f"[removable] {wt} ({branch}) — 실제 제거: cleanup --remove")
         else:
             _safe_remove(root, wt, branch)
-    _git(root, "worktree", "prune", check=False)
+    if _git(root, "worktree", "prune", check=False)[0] != 0:
+        print("[warn] worktree prune 실패 — 잔여 worktree 메타데이터 수동 확인 필요", file=sys.stderr)
     return EXIT_OK
 
 
@@ -393,13 +432,49 @@ def _untracked_files(wt: Path) -> list[str]:
     return [line[3:] for line in out.splitlines() if line.startswith("??")]
 
 
-def _force_remove(root: Path, wt: Path, branch: str | None) -> bool:
+def _backup_ref(root: Path, wt: Path, branch: str | None) -> bool:
+    """제거 전 백업 ref를 만든다. detached HEAD면 커밋 소실 방지의 유일한 안전장치다.
+
+    브랜치가 있으면 원 브랜치가 그대로 보존되므로 백업 ref 실패는 경고로 끝내고,
+    detached면 백업 ref가 없는 순간 HEAD 커밋이 dangling 되므로 실패 시 False를
+    돌려 제거 자체를 중단시킨다.
+
+    파라미터:
+        root: 메인 저장소 루트(ref 생성 대상).
+        wt: 제거 대상 worktree.
+        branch: worktree 체크아웃 브랜치. None이면 detached HEAD.
+    반환:
+        제거를 진행해도 되면 True, 중단해야 하면 False.
+    """
+    stamp = time.strftime("%Y%m%d-%H%M%S")
+    if branch:
+        backup = f"backup/{branch.replace('/', '-')}-{stamp}"
+        if _git(root, "branch", backup, branch, check=False)[0] != 0:
+            print(f"[warn] 백업 ref 생성 실패({backup}) — 원 브랜치({branch})는 보존됨", file=sys.stderr)
+            return True
+        print(f"[backup] 브랜치 백업 ref: {backup}")
+        return True
+    code, head = _git(wt, "rev-parse", "HEAD", check=False)
+    if code != 0 or not head:
+        print("[refuse] detached HEAD SHA 조회 실패 — 백업 불가, 강제 제거 중단", file=sys.stderr)
+        return False
+    backup = f"backup/detached-{stamp}"
+    if _git(root, "branch", backup, head, check=False)[0] != 0:
+        print(f"[refuse] detached HEAD 백업 ref 생성 실패({backup}) — 커밋 소실 위험, 강제 제거 중단", file=sys.stderr)
+        return False
+    print(f"[backup] detached HEAD({head[:10]}) 백업 ref: {backup}")
+    return True
+
+
+def _force_remove(root: Path, wt: Path, branch: str | None) -> int:
     """dirty/unmerged 강제 제거 — dirty는 stash create로 dangling 백업, 브랜치는 보존+백업 ref.
 
     반환:
-        최종 `wt.exists()` 재확인 기준 제거 성공 여부. False면 호출부
-        (`cmd_cleanup`)가 거짓 성공을 보고하지 않고 EXIT_GIT으로 전파한다(F5).
+        EXIT_OK 제거 성공, EXIT_REFUSE 백업 ref 확보 실패로 중단(제거 안 함),
+        EXIT_GIT 제거 시도 후에도 worktree가 남음(파일 잠금 등, F5).
     """
+    if not _backup_ref(root, wt, branch):
+        return EXIT_REFUSE
     _, stash_sha = _git(wt, "stash", "create", check=False)
     if stash_sha:
         print(f"[backup] 미커밋 변경 dangling 커밋 {stash_sha} — 복구: git stash store {stash_sha}")
@@ -412,11 +487,6 @@ def _force_remove(root: Path, wt: Path, branch: str | None) -> bool:
         print(f"[warn] 미추적 파일 {len(untracked)}개는 stash에 포함되지 않아 백업되지 않음: {preview}{more}")
         # ponytail: stash create는 untracked 미포함. `git stash push -u`로 별도 백업 가능하나
         # 공유 stash 오염 금지 규칙상 자동 실행하지 않는다 — 필요하면 --force-path 전 수동 백업.
-    if branch:
-        stamp = time.strftime("%Y%m%d-%H%M%S")
-        backup = f"backup/{branch.replace('/', '-')}-{stamp}"
-        _git(root, "branch", backup, branch, check=False)
-        print(f"[backup] 브랜치 백업 ref: {backup}")
     _git(root, "worktree", "unlock", str(wt), check=False)
     code, _ = _git(root, "worktree", "remove", "--force", str(wt), check=False)
     if code != 0 and wt.exists():
@@ -424,10 +494,10 @@ def _force_remove(root: Path, wt: Path, branch: str | None) -> bool:
         _git(root, "worktree", "prune", check=False)
     if wt.exists():
         print(f"[warn] {wt} — 강제 제거 미완료(파일 잠금 추정), 수동 확인 필요. 브랜치는 보존됨({branch})", file=sys.stderr)
-        return False
+        return EXIT_GIT
     _usage_log(root, f"force-remove {wt}")
     print(f"[removed:force] {wt} — 브랜치 보존({branch})")
-    return True
+    return EXIT_OK
 
 
 def main(argv: list[str] | None = None) -> int:
@@ -441,7 +511,7 @@ def main(argv: list[str] | None = None) -> int:
     c.set_defaults(fn=cmd_create)
     ls = sub.add_parser("list", help="세션 worktree 현황")
     ls.set_defaults(fn=cmd_list)
-    s = sub.add_parser("sync", help="rebase origin/deploy + ledger 갱신")
+    s = sub.add_parser("sync", help="rebase origin/deploy (ledger 승계는 post-rewrite 훅)")
     s.add_argument("--path", default=None)
     s.add_argument("--ledger-only", action="store_true")
     s.add_argument("--allow-foreign", action="store_true")

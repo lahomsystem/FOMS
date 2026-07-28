@@ -1,9 +1,14 @@
 """git post-rewrite 훅 — rebase/amend로 재작성된 커밋을 세션 ledger에 승계한다.
 
 stdin으로 `old_sha new_sha [extra-info]` 쌍(줄당 1쌍, git post-rewrite 규격)을
-읽어, old_sha를 보유한 세션을 찾아 그 세션에 new_sha를 append한다(ledger의
-`append_commit` 재사용). old_sha가 어느 세션에도 없으면 그 줄은 조용히
-건너뛴다(다른 워크트리/외부 커밋 등 정상 케이스).
+읽어 **new_sha 기준으로 그룹핑**한 뒤, 그 그룹의 모든 old_sha가 **동일한 단일
+세션 소유일 때만** new_sha를 그 세션에 append한다(ledger의 `append_commit`
+재사용). squash/fixup은 `old1 new` / `old2 new`처럼 여러 old를 하나의 new로
+접기 때문에, 줄 단위로 처리하면 소유한 첫 줄만 보고 승계해 나머지 old(타
+세션·미보유)의 내용이 내 커밋으로 세탁된다 — 그룹 판정이 그 경로를 막는다.
+
+승계하지 않은 그룹은 사유를 harness 런타임 로그에 남긴다. 조용히 무시하면
+나중에 `sync`/push가 refuse했을 때 원인을 추적할 수 없다(FOMS 훅 규칙).
 
 이 스크립트는 훅에서 `|| exit 0`로 감싸 실행되므로 항상 fail-open이지만,
 원인 없는 swallow는 FOMS 규칙 위반이다 — 예상 못 한 실패는 harness 런타임
@@ -52,6 +57,23 @@ def _owning_session(ledger: dict, old_sha: str) -> str | None:
     return None
 
 
+def _group_by_new_sha(lines: list[str]) -> list[tuple[str, list[str]]]:
+    """post-rewrite stdin 라인을 new_sha 기준으로 묶는다(등장 순서 유지).
+
+    파라미터:
+        lines: `old_sha new_sha [extra-info]` 형식의 줄 목록. 토큰 2개 미만은 버린다.
+    반환:
+        `(new_sha, [old_sha, ...])` 목록. squash/fixup은 한 new_sha에 old가 여럿이다.
+    """
+    groups: dict[str, list[str]] = {}
+    for line in lines:
+        parts = line.split()
+        if len(parts) < 2:
+            continue
+        groups.setdefault(parts[1], []).append(parts[0])
+    return list(groups.items())
+
+
 def _log_failure(project_root: str, msg: str) -> None:
     """예상 못 한 실패를 harness 런타임 로그에 남긴다. 로그 자체 실패는 무시(훅 안정성 우선)."""
     try:
@@ -66,23 +88,36 @@ def _log_failure(project_root: str, msg: str) -> None:
 def process_rewrite(project_root: str, lines: list[str]) -> int:
     """post-rewrite stdin 라인들을 처리해 ledger를 승계한다.
 
+    new_sha 그룹의 old_sha가 **전부 같은 한 세션 소유**일 때만 승계한다.
+    하나라도 미보유이거나 소유 세션이 갈리면 승계하지 않고 사유를 로그에 남긴다
+    (squash 승계 세탁 차단).
+
     파라미터:
         project_root: ledger가 위치한 저장소(워크트리) 루트.
         lines: `old_sha new_sha [extra-info]` 형식의 줄 목록.
     반환:
-        실제로 승계(append)한 줄 수.
+        실제로 승계(append)한 new_sha 수.
     """
     ledger = scl.load_ledger(project_root)
     handled = 0
-    for line in lines:
-        parts = line.split()
-        if len(parts) < 2:
+    for new_sha, olds in _group_by_new_sha(lines):
+        owners = {_owning_session(ledger, old) for old in olds}
+        if owners == {None}:
+            _log_failure(
+                project_root,
+                f"[skip] {new_sha[:10]} 승계 안 함 — old {len(olds)}개 전부 ledger 미보유"
+                " (타 워크트리/외부 커밋 재작성)",
+            )
             continue
-        old_sha, new_sha = parts[0], parts[1]
-        sid = _owning_session(ledger, old_sha)
-        if sid is None:
+        if len(owners) > 1:
+            preview = ", ".join(sorted(str(o) for o in owners))
+            _log_failure(
+                project_root,
+                f"[refuse] {new_sha[:10]} 승계 거부 — old {len(olds)}개의 소유가 단일하지 않음"
+                f" (squash 세탁 차단, 소유: {preview})",
+            )
             continue
-        scl.append_commit(project_root, sid, new_sha)
+        scl.append_commit(project_root, owners.pop(), new_sha)
         handled += 1
     return handled
 

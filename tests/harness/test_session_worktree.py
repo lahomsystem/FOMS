@@ -10,10 +10,6 @@ HARNESS = Path(__file__).resolve().parents[2] / "tools" / "harness"
 SW = HARNESS / "session_worktree.py"
 sys.path.insert(0, str(HARNESS))
 
-pytestmark = pytest.mark.skipif(
-    not SW.exists(), reason="session_worktree.py 미구현 (Task 2에서 활성화)"
-)
-
 
 def _run(cwd: Path, *args: str) -> subprocess.CompletedProcess:
     """CLI 실행 — 자식은 PYTHONUTF8=1로 cp949 사고 차단."""
@@ -552,6 +548,129 @@ def test_create_preserves_existing_foreign_hook(repo: Path, tmp_path: Path) -> N
     assert r.returncode == 0, r.stderr
     assert hook_path.read_text(encoding="utf-8") == foreign_content
     assert "기존 post-rewrite 훅" in (r.stdout + r.stderr)
+
+
+def test_record_rewrite_ledger_refuses_squash_with_unowned_old(tmp_path: Path) -> None:
+    """C3: squash(old1/old2 → 같은 new)에 미보유 old가 섞이면 승계 거부 + 사유 로그."""
+    import session_commit_ledger as scl
+    import record_rewrite_ledger as rrl
+
+    root = str(tmp_path)
+    mine, foreign, new = "a" * 40, "b" * 40, "c" * 40
+    scl.append_commit(root, "sid1", mine)
+
+    handled = rrl.process_rewrite(root, [f"{mine} {new}", f"{foreign} {new}"])
+
+    assert handled == 0
+    assert not scl.sha_in_list(new, scl.session_shas(root, "sid1"))
+    log = (tmp_path / rrl.REWRITE_LOG).read_text(encoding="utf-8")
+    assert "승계 거부" in log and new[:10] in log
+
+
+def test_record_rewrite_ledger_refuses_squash_across_sessions(tmp_path: Path) -> None:
+    """C3: squash로 접힌 old들의 소유 세션이 갈리면 어느 쪽에도 승계하지 않는다."""
+    import session_commit_ledger as scl
+    import record_rewrite_ledger as rrl
+
+    root = str(tmp_path)
+    a, b, new = "1" * 40, "2" * 40, "3" * 40
+    scl.append_commit(root, "sid-a", a)
+    scl.append_commit(root, "sid-b", b)
+
+    handled = rrl.process_rewrite(root, [f"{a} {new}", f"{b} {new}"])
+
+    assert handled == 0
+    assert not scl.sha_in_list(new, scl.session_shas(root, "sid-a"))
+    assert not scl.sha_in_list(new, scl.session_shas(root, "sid-b"))
+
+
+def test_record_rewrite_ledger_inherits_single_session_squash(tmp_path: Path) -> None:
+    """C3: 같은 세션 old만 접은 squash는 정상 승계된다(거짓 거부 아님)."""
+    import session_commit_ledger as scl
+    import record_rewrite_ledger as rrl
+
+    root = str(tmp_path)
+    a, b, new = "4" * 40, "5" * 40, "6" * 40
+    scl.append_commit(root, "sid1", a)
+    scl.append_commit(root, "sid1", b)
+
+    handled = rrl.process_rewrite(root, [f"{a} {new}", f"{b} {new}"])
+
+    assert handled == 1
+    assert scl.sha_in_list(new, scl.session_shas(root, "sid1"))
+
+
+def test_sync_does_not_collapse_other_session_ownership(repo: Path, tmp_path: Path) -> None:
+    """C5: 한 worktree에 두 세션 커밋이 있어도 sync가 소유를 한 세션으로 몰지 않는다."""
+    import session_commit_ledger as scl
+    from deploy_push_scope import classify_deploy_scope
+
+    wt = _make_wt(repo, tmp_path, "t30")
+    scl.append_commit(str(wt), "sid-a", _commit(wt, "a1.txt", "sid-a work"))
+    scl.append_commit(str(wt), "sid-b", _commit(wt, "b1.txt", "sid-b work"))
+
+    (repo / "z.txt").write_text("z", encoding="utf-8")  # deploy 전진 → rebase 유발
+    _git(repo, "add", "z.txt")
+    _git(repo, "commit", "-m", "other session")
+    _git(repo, "push", "origin", "deploy")
+
+    r = _run(wt, "sync")
+    assert r.returncode == 0, r.stdout + r.stderr
+
+    post = [s.lower() for s in _git(wt, "log", "--reverse", "--format=%H", "origin/deploy..HEAD").splitlines()]
+    assert len(post) == 2
+    new_a, new_b = post
+    sid_a, sid_b = scl.session_shas(str(wt), "sid-a"), scl.session_shas(str(wt), "sid-b")
+    assert scl.sha_in_list(new_a, sid_a) and not scl.sha_in_list(new_b, sid_a)
+    assert scl.sha_in_list(new_b, sid_b) and not scl.sha_in_list(new_a, sid_b)
+    assert classify_deploy_scope(str(wt), "sid-a").kind == "own"  # union 판정은 그대로 own
+
+
+@pytest.mark.parametrize("bad", ["nested/demo", "..", "../evil", "back\\slash", "with space", "colon:x", "-lead", ".hidden"])
+def test_create_refuses_unsafe_name(repo: Path, tmp_path: Path, bad: str) -> None:
+    """C6-a: 경로 컴포넌트를 벗어나는 --name은 foms-s-* 판정을 우회하므로 거부한다."""
+    r = _run(repo, "create", f"--name={bad}", "--parent", str(tmp_path / "wts"))  # `-lead`는 =형식이어야 argparse를 통과
+    assert r.returncode == 2, r.stdout + r.stderr
+    assert "부적합" in (r.stdout + r.stderr)
+
+
+def test_sync_allow_foreign_leaves_audit_trail(repo: Path, tmp_path: Path) -> None:
+    """I3: --allow-foreign 우회는 usage log에 승인 커밋 수·SHA를 남긴다."""
+    wt = _make_wt(repo, tmp_path, "t32")
+    sha = _commit(wt, "b.txt", "unledgered")
+
+    r = _run(wt, "sync", "--allow-foreign")
+
+    assert r.returncode == 0, r.stdout + r.stderr
+    log = (wt / "docs" / "harness" / "runtime" / "session_worktree_usage.log").read_text(encoding="utf-8")
+    assert "--allow-foreign 승인 1커밋" in log
+    assert sha[:8].lower() in log
+
+
+def test_cleanup_warns_when_fetch_fails(repo: Path, tmp_path: Path) -> None:
+    """M2: fetch 실패는 무출력 fail-open이 아니라 [warn] 1줄을 남긴다."""
+    _make_wt(repo, tmp_path, "t33")
+    _git(repo, "remote", "remove", "origin")
+
+    r = _run(repo, "cleanup")
+
+    assert r.returncode == 0, r.stdout + r.stderr
+    assert "fetch origin deploy 실패" in (r.stdout + r.stderr)
+
+
+def test_cleanup_force_path_detached_creates_backup_ref(repo: Path, tmp_path: Path) -> None:
+    """C8: detached worktree 강제 제거 시 HEAD를 가리키는 backup/detached-* ref를 남긴다."""
+    wt = _make_wt(repo, tmp_path, "t31")
+    sha = _commit(wt, "det.txt", "detached work")
+    _git(wt, "checkout", "--detach")
+
+    r = _run(repo, "cleanup", "--force-path", str(wt), "--yes")
+
+    assert r.returncode == 0, r.stdout + r.stderr
+    assert not wt.exists()
+    refs = _git(repo, "for-each-ref", "--format=%(refname:short)", "refs/heads/backup/detached-*").splitlines()
+    assert refs, r.stdout + r.stderr
+    assert _git(repo, "rev-parse", refs[0]) == sha
 
 
 def test_create_self_heals_stale_sentinel_hook(repo: Path, tmp_path: Path) -> None:

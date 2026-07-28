@@ -172,6 +172,23 @@ def test_session_worktree_unledgered_is_foreign(tmp_path: Path) -> None:
     assert "ledger 밖" in result.label
 
 
+def test_missing_baseline_is_unknown_not_empty(tmp_path: Path) -> None:
+    """C7: origin/deploy ref 부재는 empty(=allow)가 아니라 unknown(=ask)."""
+    scope = _load_scope()
+    local = tmp_path / "solo"
+    _git(tmp_path, "init", str(local))
+    (local / "README").write_text("base\n", encoding="utf-8")
+    _git(local, "add", "README")
+    _git(local, "-c", "user.email=t@t", "-c", "user.name=t", "commit", "-m", "base")
+
+    result = scope.classify_deploy_scope(str(local), "sess-a")
+
+    assert result.kind == "unknown"
+    assert "baseline" in result.label
+    # 기존 공개 API 는 호환 유지(빈 튜플)
+    assert scope.list_unpushed_deploy_shas(str(local)) == ()
+
+
 def test_session_worktree_empty_ledger_falls_back(tmp_path: Path) -> None:
     """세션 worktree 라도 ledger 가 비면 기존 unknown 경로(=ask) 폴백."""
     scope = _load_scope()

@@ -262,6 +262,61 @@ def test_deploy_push_asks_without_project_root() -> None:
         assert "deploy" in label.lower() or "세션" in label
 
 
+def _repo_with_session_branch(tmp_path: Path, *, upstream_deploy: bool, branch: str) -> Path:
+    """bare origin + deploy 클론에 <branch> 를 만든 뒤 커밋 1개를 얹는다.
+
+    파라미터:
+        tmp_path: 임시 디렉터리.
+        upstream_deploy: True 면 <branch> 의 upstream 을 origin/deploy 로 설정.
+        branch: 체크아웃할 브랜치 이름.
+    반환:
+        작업 클론 경로.
+    """
+    bare, local = tmp_path / "remote.git", tmp_path / "local"
+    run = lambda cwd, *a: subprocess.run(["git", *a], cwd=cwd, check=True, capture_output=True, text=True)
+    run(tmp_path, "init", "--bare", str(bare))
+    run(tmp_path, "clone", str(bare), str(local))
+    run(local, "config", "user.email", "t@t")
+    run(local, "config", "user.name", "t")
+    (local / "README").write_text("base\n", encoding="utf-8")
+    run(local, "add", "README")
+    run(local, "commit", "-m", "base")
+    run(local, "branch", "-M", "deploy")
+    run(local, "push", "-u", "origin", "deploy")
+    run(local, "checkout", "-b", branch)
+    if upstream_deploy:
+        run(local, "branch", f"--set-upstream-to=origin/deploy", branch)
+    (local / "work.txt").write_text("w\n", encoding="utf-8")
+    run(local, "add", "work.txt")
+    run(local, "commit", "-m", "session work")
+    return local
+
+
+def test_no_refspec_push_from_session_branch_tracking_deploy_asks(tmp_path: Path) -> None:
+    """C4: session/* 브랜치의 upstream 이 origin/deploy 면 무refspec push 도 범위 분류 대상."""
+    policy = _load_policy()
+    local = _repo_with_session_branch(tmp_path, upstream_deploy=True, branch="session/x")
+    for command in ("git push", "git push origin"):
+        decision, label = policy.classify_command(command, project_root=str(local), session_id="sess-x")
+        assert decision == "ask", f"{command}: {label}"
+
+
+def test_no_refspec_push_from_session_branch_without_upstream_asks(tmp_path: Path) -> None:
+    """C4: push 대상을 못 읽는 session/* 브랜치는 deploy 도달 배제 불가 → 안전측 ask."""
+    policy = _load_policy()
+    local = _repo_with_session_branch(tmp_path, upstream_deploy=False, branch="session/y")
+    decision, label = policy.classify_command("git push", project_root=str(local), session_id="sess-y")
+    assert decision == "ask", label
+
+
+def test_no_refspec_push_from_feature_branch_allows(tmp_path: Path) -> None:
+    """C4 회귀: 비세션 브랜치 + upstream 없음은 기존대로 allow(오탐 방지)."""
+    policy = _load_policy()
+    local = _repo_with_session_branch(tmp_path, upstream_deploy=False, branch="feature/z")
+    decision, label = policy.classify_command("git push", project_root=str(local), session_id="sess-z")
+    assert decision == "allow", label
+
+
 def test_deploy_push_allows_when_scope_empty() -> None:
     """project_root 있고 origin/deploy..HEAD 비면 allow."""
     policy = _load_policy()
