@@ -33,6 +33,7 @@ from foms.services.erp_display import (
 )
 from foms.services.erp_product_items import build_product_items_for_order
 from foms.services.notifications.drawing_order_change import (
+    _change_parts,
     humanize_order_change_changes,
     is_order_change_pending,
     join_changes_text,
@@ -192,6 +193,27 @@ def _drawing_row_sla_level(construction_days: Any, drawing_status: str) -> str:
     if construction_days <= 3:
         return '임박'
     return '정상'
+
+
+def _construction_badge_level(construction_days: Any) -> str:
+    """시공일 뱃지 색상 레벨(임박도 3단 + 무일정).
+
+    SLA 뱃지(``_drawing_row_sla_level``)와 달리 도면 상태를 보지 않는 순수 일정 축이다
+    (전달 완료분도 시공일이 코앞이면 시각적으로 구분돼야 한다).
+
+    Args:
+        construction_days: 시공일까지 영업일수(경과 시 음수, 미정이면 None).
+
+    Returns:
+        ``'none'``(미정) / ``'danger'``(D-2 이내·경과) / ``'warn'``(D-4 이내) / ``'info'``.
+    """
+    if construction_days is None:
+        return 'none'
+    if construction_days <= 2:
+        return 'danger'
+    if construction_days <= 4:
+        return 'warn'
+    return 'info'
 
 
 def _build_drawing_turn(
@@ -519,11 +541,15 @@ def erp_drawing_workbench_dashboard():
         }.get(h_action, h_action or '-')
         # 최근 이벤트 note 는 write-time 고정본이라 2026-07-16 이전 엔트리에 raw JSON 이 박제돼 있다.
         # 실행판(상세)과 동일하게 렌더마다 changes 를 재변환해 표시 문자열을 만든다(추가 쿼리 없음).
+        # latest_event_parts: 같은 재변환 결과의 조각 리스트(PC 목록 세로 스택·접기용).
+        # 비변경 이벤트는 빈 리스트 → 템플릿이 기존 note 1줄 표기로 폴백한다.
         _last_changes = (last_event or {}).get('changes')
         if h_action == 'ERP_ORDER_CHANGED' and isinstance(_last_changes, list) and _last_changes:
+            latest_event_parts = _change_parts(_last_changes)
             latest_event_note = summarize_changes(_last_changes)
             latest_event_note_full = join_changes_text(_last_changes)
         else:
+            latest_event_parts = []
             latest_event_note = str((last_event or {}).get('note') or '')
             latest_event_note_full = latest_event_note
         order_change_pending = is_order_change_pending(sd)
@@ -582,6 +608,7 @@ def erp_drawing_workbench_dashboard():
             'latest_event_action': h_action,
             'latest_event_note': latest_event_note,
             'latest_event_note_full': latest_event_note_full,
+            'latest_event_parts': latest_event_parts,
             'latest_transfer_line': latest_transfer_line,
             'latest_request_note': latest_request_note,
             'sla_level': sla_level,
@@ -590,6 +617,7 @@ def erp_drawing_workbench_dashboard():
             # 시공 D-day(영업일 기준, 미정=None) + D-3 이내 플래그(시공 임박순 정렬·KPI·필터 소스).
             'construction_days': alerts.get('construction_days'),
             'construction_d3': bool(alerts.get('construction_d3')),
+            'construction_badge_level': _construction_badge_level(alerts.get('construction_days')),
             'unread_count': unchecked_requests,
             'order_change_pending': order_change_pending,
             'my_todo': my_todo,
@@ -658,28 +686,35 @@ def erp_drawing_workbench_dashboard():
     ))
 
     if sort_by:
+        # sort_by 는 아래 my_todo 핀 게이트의 판정 소스라 원본 유지 — 접두사 제거본은 sort_key.
         reverse = sort_by.startswith('-')
-        sort_by = sort_by[1:] if reverse else sort_by
-        if sort_by == 'sla':
-            rows.sort(key=lambda r: (0 if r.get('is_overdue') else (1 if r.get('due_today') else 2), -int(r.get('id') or 0)), reverse=reverse)
-        elif sort_by == 'status':
-            status_order = {'RETURNED': 1, 'TRANSFERRED': 2, 'IN_PROGRESS': 3, 'WAITING': 4, 'CONFIRMED': 5}
+        sort_key = sort_by[1:] if reverse else sort_by
+        if sort_key == 'sla':
+            # 표시 뱃지(sla_level)와 같은 축으로 정렬하고, 동급은 시공일 임박순으로 가른다.
+            sla_rank = {'지연': 0, '임박': 1, '정상': 2}
+            rows.sort(key=lambda r: (sla_rank.get(r.get('sla_level'), 9), r.get('construction_days') if r.get('construction_days') is not None else 9999, -int(r.get('id') or 0)), reverse=reverse)
+        elif sort_key == 'status':
+            # PENDING 은 표시상 대기중/작업중으로 갈리지만 drawing_status 원본은 PENDING —
+            # 맵에 없으면 99로 밀려 정렬이 무의미해지므로 IN_PROGRESS 와 동급으로 둔다.
+            status_order = {'RETURNED': 1, 'TRANSFERRED': 2, 'IN_PROGRESS': 3, 'PENDING': 3, 'WAITING': 4, 'CONFIRMED': 5}
             rows.sort(key=lambda r: (status_order.get(r.get('drawing_status'), 99), -int(r.get('id') or 0)), reverse=reverse)
-        elif sort_by == 'updated_at':
+        elif sort_key == 'updated_at':
             rows.sort(key=lambda r: r.get('latest_event_at') or '', reverse=not reverse)
-        elif sort_by == 'unread':
+        elif sort_key == 'unread':
             rows.sort(key=lambda r: (-int(r.get('unread_count') or 0), -int(r.get('id') or 0)), reverse=reverse)
-        elif sort_by == 'id':
+        elif sort_key == 'id':
             rows.sort(key=lambda r: int(r.get('id') or 0), reverse=reverse)
-        elif sort_by == 'schedule':
+        elif sort_key == 'schedule':
             # 시공일 임박순: 시공 D-day 오름차순(임박·지연 먼저), 미정은 맨 뒤.
             rows.sort(
                 key=lambda r: (0, r['construction_days']) if r.get('construction_days') is not None else (1, 0),
                 reverse=reverse,
             )
 
-    # 모바일 단일 리스트 무한스크롤: 정렬 무관 '내 차례'를 항상 앞으로(안정 정렬로 그룹 보존).
-    rows.sort(key=lambda r: 0 if r.get('my_todo') else 1)
+    # 모바일 기본 목록(무한스크롤) 전용 핀: '내 차례'를 앞으로(안정 정렬로 그룹 보존).
+    # 명시 정렬(?sort=)이 있으면 사용자가 고른 순서를 덮지 않도록 생략한다.
+    if not sort_by:
+        rows.sort(key=lambda r: 0 if r.get('my_todo') else 1)
 
     total_count = len(rows)
     total_pages = max(1, (total_count + per_page - 1) // per_page) if per_page > 0 else 1
