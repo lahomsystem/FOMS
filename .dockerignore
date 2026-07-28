@@ -25,6 +25,12 @@ Thumbs.db
 
 # 문서/백업 (배포 불필요)
 docs/
+# 단, 런타임 로드 매니페스트 4종은 이미지 필수 (write_guard·mutation_policy 는 부팅 치명,
+# cutover modes·ops approval 은 ops 사용 시점 로드) — docs/ 제외의 예외로 재포함한다.
+!docs/harness/foms_write_guard_manifest.json
+!docs/harness/foms_order_mutation_policy_manifest.json
+!docs/harness/foms_feature_cutover_modes.json
+!docs/harness/foms_ops_approval_operations.json
 backups/
 SCheduler
 *.dump

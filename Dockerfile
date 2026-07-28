@@ -31,6 +31,14 @@ RUN set -eux; \
 # 아래 COPY . . 도 포함하지만, .dockerignore 회귀에도 이 파일은 항상 존재하게 보장한다.
 COPY foms/build_compatibility.json /app/foms/build_compatibility.json
 
+# WRITE-GUARD-01/AUTH-01/CUTOVER/OPS-APPROVAL: 런타임 로드 매니페스트 4종 explicit COPY.
+# .dockerignore 의 docs/ 제외에 negation 예외가 있어 컨텍스트에 포함되며, 이 COPY 는
+# 파일 누락 시 빌드를 실패시키는 존재 assert 역할을 겸한다(부팅 후 FileNotFoundError 방지).
+COPY docs/harness/foms_write_guard_manifest.json /app/docs/harness/foms_write_guard_manifest.json
+COPY docs/harness/foms_order_mutation_policy_manifest.json /app/docs/harness/foms_order_mutation_policy_manifest.json
+COPY docs/harness/foms_feature_cutover_modes.json /app/docs/harness/foms_feature_cutover_modes.json
+COPY docs/harness/foms_ops_approval_operations.json /app/docs/harness/foms_ops_approval_operations.json
+
 # 앱 코드 복사
 COPY . .
 
