@@ -28,6 +28,7 @@ USAGE_LOG = os.path.join("docs", "harness", "runtime", "session_worktree_usage.l
 # F1-v4: post-rewrite 훅 — rebase가 재작성한 SHA를 ledger에 자동 승계한다.
 # 훅은 worktree마다가 아니라 공유 git-common-dir(모든 worktree가 공유)에 설치되므로
 # 세션 worktree 어느 것을 만들 때 처음 설치되든 이후 전부에 적용된다.
+POST_REWRITE_HOOK_SENTINEL = "# foms-session-worktree post-rewrite v1"
 
 EXIT_OK = 0
 EXIT_REFUSE = 2
@@ -122,43 +123,69 @@ def _post_rewrite_hook_content() -> str:
     "No such file or directory"로 조용히 실패하는 것을 확인했다(F1-v4 초판).
     이 CLI(`session_worktree.py`) 자신은 항상 실제 harness 디렉터리에서
     실행되므로, 그 `__file__` 기준 절대경로를 쓰면 어느 worktree에서 rebase가
-    일어나든 동일한 실제 스크립트를 가리킨다.
+    일어나든 동일한 실제 스크립트를 가리킨다. `POST_REWRITE_HOOK_SENTINEL`은
+    이 훅이 우리 것임을 표시해 자가치유(§`_ensure_post_rewrite_hook`)를 가능케
+    하고, `|| { ... }`는 python 실행 자체가 실패해도(예: python 미설치) 무로그
+    swallow 없이 harness 로그에 남기고 fail-open한다(FOMS 훅 규칙).
     """
     script = Path(__file__).resolve().parent / "record_rewrite_ledger.py"
-    return f'#!/bin/sh\npython "{script.as_posix()}" "$@" || exit 0\n'
+    main_tree = Path(__file__).resolve().parents[2]
+    log_dir = (main_tree / "docs" / "harness" / "runtime").as_posix()
+    log_path = f"{log_dir}/record_rewrite_ledger.log"
+    return (
+        "#!/bin/sh\n"
+        f"{POST_REWRITE_HOOK_SENTINEL}\n"
+        f'python "{script.as_posix()}" "$@" || {{ '
+        f'mkdir -p "{log_dir}" 2>/dev/null; '
+        f'echo "$(date) post-rewrite ledger 승계 실패 (record_rewrite_ledger 실행 불가)" >> "{log_path}" 2>/dev/null; '
+        "exit 0; }\n"
+    )
+
+
+def _post_rewrite_hook_path(wt: Path) -> Path | None:
+    """공유 post-rewrite 훅 파일 경로(git-common-dir 기준). 조회 실패 시 None."""
+    code, common_dir = _git(wt, "rev-parse", "--git-common-dir", check=False)
+    if code != 0 or not common_dir:
+        return None
+    hooks_dir = Path(common_dir)
+    if not hooks_dir.is_absolute():
+        hooks_dir = wt / hooks_dir
+    return hooks_dir / "hooks" / "post-rewrite"
 
 
 def _ensure_post_rewrite_hook(root: Path) -> None:
-    """공유 post-rewrite 훅을 프로비저닝한다(없으면 생성, 있으면 손대지 않음).
+    """공유 post-rewrite 훅을 프로비저닝한다(없으면 생성, sentinel 있으면 자가치유).
 
     훅은 `git rev-parse --git-common-dir`가 가리키는 모든 worktree 공유 위치에
     설치한다 — 어느 worktree를 만들 때든 한 번만 설치되면 이후 모든 rebase에
-    적용된다. 이미 파일이 있고 내용이 우리 것과 다르면(타 도구가 설치한 훅일
-    수 있음) **덮어쓰지 않고 경고만** 남긴다.
+    적용된다. 파일이 없으면 새로 만들고, 있고 내용이 다르면 두 갈래로
+    나뉜다: **sentinel이 있으면**(=우리가 이전에 설치한 훅, 예를 들어 메인
+    트리 브랜치 체크아웃으로 스크립트가 사라졌다가 돌아온 경우) 최신 내용으로
+    **자가치유(재작성)**하고, **sentinel이 없으면**(타 도구가 설치한 훅일 수
+    있음) **덮어쓰지 않고 경고만** 남긴다.
 
     파라미터:
         root: 훅 위치를 조회할 기준 저장소/worktree 경로.
     반환:
-        없음(부작용: 훅 파일 생성 + 실행권한 부여, 필요 시 stderr 경고).
+        없음(부작용: 훅 파일 생성/자가치유 + 실행권한 부여, 필요 시 stderr 경고).
     """
-    hook_content = _post_rewrite_hook_content()
-    code, common_dir = _git(root, "rev-parse", "--git-common-dir", check=False)
-    if code != 0 or not common_dir:
+    hook_path = _post_rewrite_hook_path(root)
+    if hook_path is None:
         print("[warn] git-common-dir 조회 실패 — post-rewrite 훅 설치 생략", file=sys.stderr)
         return
-    hooks_dir = Path(common_dir)
-    if not hooks_dir.is_absolute():
-        hooks_dir = root / hooks_dir
-    hook_path = hooks_dir / "hooks" / "post-rewrite"
+    hook_content = _post_rewrite_hook_content()
     if hook_path.exists():
         existing = hook_path.read_text(encoding="utf-8", errors="replace")
-        if existing != hook_content:
+        if existing == hook_content:
+            return
+        if POST_REWRITE_HOOK_SENTINEL not in existing:
             print(
                 f"[warn] 기존 post-rewrite 훅 발견({hook_path}) — 덮어쓰지 않음. "
                 "ledger 자동 승계가 필요하면 내용을 수동 병합하세요.",
                 file=sys.stderr,
             )
-        return
+            return
+        # sentinel 있음 = 우리 훅인데 내용이 최신과 다름 — 자가치유(아래 write로 재작성)
     hook_path.parent.mkdir(parents=True, exist_ok=True)
     hook_path.write_text(hook_content, encoding="utf-8", newline="\n")
     try:
@@ -275,7 +302,12 @@ def cmd_sync(args: argparse.Namespace) -> int:
         for s in unknown[:10]:
             print(f"  {s[:10]}", file=sys.stderr)
         print("  소유가 확실하면 --allow-foreign으로 명시 승인.", file=sys.stderr)
-        print("  post-rewrite 훅 미설치가 원인일 수 있음 — worktree 생성 시 자동 설치되며, 수동 설치는 create 재실행.", file=sys.stderr)
+        hook_path = _post_rewrite_hook_path(wt)
+        print(
+            f"  post-rewrite 훅({hook_path}) 미설치/손상이 원인일 수 있음 — "
+            "session_worktree.py create가 sentinel 훅을 자가치유합니다.",
+            file=sys.stderr,
+        )
         return EXIT_REFUSE
 
     if not args.ledger_only:

@@ -224,7 +224,8 @@ def test_cleanup_force_path_mismatch_refuses(repo: Path, tmp_path: Path) -> None
 
 
 def test_sync_conflict_then_ledger_only_recovers_and_scope_is_own(repo: Path, tmp_path: Path) -> None:
-    """F1 회귀: rebase 충돌 → 해결 → `sync --ledger-only`가 ORIG_HEAD 기준으로 own 판정을 유지한다."""
+    """F1 회귀: rebase 충돌 → 해결 → `rebase --continue`가 post-rewrite 훅을 발화시켜
+    ledger를 승계하므로 `sync --ledger-only`가 own 판정을 유지한다."""
     import session_commit_ledger as scl
     from deploy_push_scope import classify_deploy_scope
 
@@ -267,10 +268,11 @@ def test_cleanup_keeps_locked(repo: Path, tmp_path: Path) -> None:
 # ---- 리뷰 반영 (fix round 2) — F1 재설계: ORIG_HEAD 신뢰 → 충돌 마커 신뢰 ----
 
 def test_sync_ledger_only_refuses_after_merge_of_foreign_branch(repo: Path, tmp_path: Path) -> None:
-    """F1 round2 필수 회귀: merge로 유입된 foreign 커밋은 ORIG_HEAD 잔존과 무관하게 거부된다.
+    """F1 회귀: merge로 유입된 foreign 커밋은 거부된다.
 
-    round1(ORIG_HEAD 존재 시 그 범위로 신뢰)은 `git merge` 후에도 ORIG_HEAD가
-    갱신·잔존해 세탁 구멍이었다 — 마커가 없으면 현재 HEAD 범위로 검증해야 한다.
+    post-rewrite 훅은 merge에서는 발화하지 않는다(rebase/amend 전용) —
+    foreign 커밋이 ledger에 승계될 길이 없어 현재 HEAD 범위 vs union 표준
+    검증이 그대로 잡는다.
     """
     import session_commit_ledger as scl
 
@@ -291,7 +293,8 @@ def test_sync_ledger_only_refuses_after_merge_of_foreign_branch(repo: Path, tmp_
 
 
 def test_sync_ledger_only_refuses_after_reset_and_foreign_cherry_pick(repo: Path, tmp_path: Path) -> None:
-    """F1 round2 필수 회귀: reset --hard(ORIG_HEAD 갱신) 후 타 커밋 cherry-pick도 거부된다."""
+    """F1 회귀: reset --hard 후 타 커밋 cherry-pick도 거부된다(cherry-pick은 post-rewrite
+    훅 대상이 아니라 ledger에 승계되지 않는다)."""
     import session_commit_ledger as scl
 
     wt = _make_wt(repo, tmp_path, "t19")
@@ -300,7 +303,7 @@ def test_sync_ledger_only_refuses_after_reset_and_foreign_cherry_pick(repo: Path
 
     foreign = _commit(repo, "d.txt", "foreign work")  # ledger 미기록
 
-    _git(wt, "reset", "--hard", "HEAD")  # ORIG_HEAD 갱신 재현(round1이면 이후 신뢰됐을 값)
+    _git(wt, "reset", "--hard", "HEAD")  # no-op reset 재현
     _git(wt, "cherry-pick", foreign)
 
     r = _run(wt, "sync", "--ledger-only")
@@ -497,14 +500,18 @@ def test_record_rewrite_ledger_ignores_unowned_old_sha(tmp_path: Path) -> None:
 
 
 def test_record_rewrite_ledger_tolerates_malformed_lines(tmp_path: Path) -> None:
-    """빈 줄·토큰 부족 줄·extra-info가 붙은 줄도 예외 없이 처리한다."""
+    """빈 줄·토큰 부족 줄은 건너뛰고, extra-info가 붙은 3토큰 줄은 실제로 승계된다(N-G 실증)."""
+    import session_commit_ledger as scl
     import record_rewrite_ledger as rrl
 
-    handled = rrl.process_rewrite(
-        str(tmp_path), ["", "onlyonetoken", f"{'e' * 40} {'f' * 40} rebase-extra-info"],
-    )
+    root = str(tmp_path)
+    old_sha, new_sha = "e" * 40, "f" * 40
+    scl.append_commit(root, "sid1", old_sha)  # 3토큰 줄이 진짜 파싱·승계되는지 실증하려면 소유 세션 필요
 
-    assert handled == 0  # e/f는 세션 미보유 — 파싱은 정상, 승계 대상만 없는 것
+    handled = rrl.process_rewrite(root, ["", "onlyonetoken", f"{old_sha} {new_sha} rebase-extra-info"])
+
+    assert handled == 1
+    assert scl.sha_in_list(new_sha, scl.session_shas(root, "sid1"))
 
 
 def test_record_rewrite_ledger_survives_corrupt_ledger_file(tmp_path: Path) -> None:
@@ -545,3 +552,20 @@ def test_create_preserves_existing_foreign_hook(repo: Path, tmp_path: Path) -> N
     assert r.returncode == 0, r.stderr
     assert hook_path.read_text(encoding="utf-8") == foreign_content
     assert "기존 post-rewrite 훅" in (r.stdout + r.stderr)
+
+
+def test_create_self_heals_stale_sentinel_hook(repo: Path, tmp_path: Path) -> None:
+    """N-A: sentinel이 있는 옛 버전 훅은 타 도구 훅이 아니라 우리 것 — create가 최신으로 재작성한다."""
+    common_dir = _git(repo, "rev-parse", "--git-common-dir")
+    hooks_dir = (repo / common_dir).resolve() / "hooks"
+    hooks_dir.mkdir(parents=True, exist_ok=True)
+    hook_path = hooks_dir / "post-rewrite"
+    stale_content = "#!/bin/sh\n# foms-session-worktree post-rewrite v1\necho stale-version\n"
+    hook_path.write_text(stale_content, encoding="utf-8")
+
+    r = _run(repo, "create", "--name", "t28", "--parent", str(tmp_path / "wts"))
+
+    assert r.returncode == 0, r.stderr
+    healed = hook_path.read_text(encoding="utf-8")
+    assert healed != stale_content
+    assert "record_rewrite_ledger.py" in healed
