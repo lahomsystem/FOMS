@@ -490,9 +490,9 @@
   </div>
 </div>
 
-<!-- Schedule Map Modal (가까운 일정 찾기 — 기준↔시공지 경로) -->
-<link rel="stylesheet" href="https://unpkg.com/leaflet@1.9.4/dist/leaflet.css" crossorigin="" />
-<script src="https://unpkg.com/leaflet@1.9.4/dist/leaflet.js" crossorigin="" defer></script>
+<!-- Schedule Map Modal (가까운 일정 찾기 — 기준↔시공지 경로)
+     지도 = 카카오 지도 JS SDK(실측 지도와 동일 스택). SDK 는 모달을 처음 열 때 as-dashboard.js 가
+     lazy 주입한다 — 여기서 CDN script 를 미리 걸지 않는다(가드 G2). 키 SSOT = geocode_config. -->
 <div class="modal fade" id="scheduleMapModal" tabindex="-1" aria-hidden="true">
   <div class="modal-dialog modal-lg modal-fullscreen-md-down">
     <div class="modal-content">
@@ -503,7 +503,7 @@
         <button type="button" class="btn-close" data-bs-dismiss="modal" aria-label="Close"></button>
       </div>
       <div class="modal-body p-0">
-        <div id="scheduleMapContainer" class="schedule-map-container"></div>
+        <div id="scheduleMapContainer" class="schedule-map-container" data-kakao-js-key="{{ kakao_js_key or '' }}"></div>
         <div id="scheduleMapRouteInfo" class="p-3">
           <div class="text-center text-muted py-3">
             <div class="spinner-border spinner-border-sm me-2" role="status"></div>경로 계산 중...
@@ -515,7 +515,7 @@
 </div>
 
 <div id="as-dashboard-config" class="d-none" data-search-query-compact="{{ (compact_search_q or '')|e }}" data-current-as-tab="{{ (as_tab or 'incomplete')|e }}"></div>
-<script src="{{ url_for('static', filename='js/cs/as-dashboard.js') }}?v=20260728f" defer></script>
+<script src="{{ url_for('static', filename='js/cs/as-dashboard.js') }}?v=20260728g" defer></script>
 {# PC 12열 컬럼 폭 조절(드래그 + localStorage). 모바일은 파일 자체가 조기 반환 —
    body 파셜에 두는 이유는 CSS 와 같다(fast-tab 프래그먼트 스왑에도 함께 실려야 재초기화된다). #}
 <script src="{{ url_for('static', filename='js/cs/as-dashboard-columns.js') }}?v=20260728b" defer></script>

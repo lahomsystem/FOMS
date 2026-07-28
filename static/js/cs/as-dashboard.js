@@ -1333,7 +1333,7 @@
       let _refAddress = '';
       const _routeCache = new Map();
       let _scheduleMapModalInstance = null;
-      let _scheduleMapLeaflet = null;
+      let _scheduleMapKakao = null;
       let _scheduleMapGen = 0;
 
       function _routeCacheKey(lat1, lng1, lat2, lng2) {
@@ -1556,19 +1556,95 @@
       const scheduleMapModalEl = document.getElementById('scheduleMapModal');
       if (scheduleMapModalEl) {
         addAsDashboardListener(scheduleMapModalEl, 'hidden.bs.modal', function () {
-          if (_scheduleMapLeaflet) {
-            try {
-              _scheduleMapLeaflet.remove();
-            } catch (e) { /* ignore */ }
-            _scheduleMapLeaflet = null;
-          }
+          // 카카오 지도는 destroy API가 없다 — 컨테이너를 비워 타일·오버레이 DOM을 놓아준다.
+          _scheduleMapKakao = null;
+          const container = document.getElementById('scheduleMapContainer');
+          if (container) container.replaceChildren();
         });
+      }
+
+      /**
+       * 카카오 지도 JS SDK를 사용 시점에 1회만 주입한다(전역 로드 금지 · 가드 G2).
+       * 프래그먼트 스왑으로 이 파일이 재실행돼도 window 프라미스를 재사용해 중복 주입을 막는다(가드 G4).
+       * @param {string} jsKey 카카오 JS 앱 키(geocode_config SSOT → data-kakao-js-key).
+       * @returns {Promise<boolean>} SDK 사용 가능 여부(미등록 도메인·네트워크 차단 시 false).
+       */
+      function loadKakaoSdk(jsKey) {
+        if (window.kakao && window.kakao.maps && window.kakao.maps.Map) return Promise.resolve(true);
+        if (window.__fomsKakaoSdkPromise) return window.__fomsKakaoSdkPromise;
+        if (!jsKey) return Promise.resolve(false);
+        window.__fomsKakaoSdkPromise = new Promise(function (resolve) {
+          const s = document.createElement('script');
+          s.id = 'foms-kakao-maps-sdk';
+          s.async = true;
+          s.src = 'https://dapi.kakao.com/v2/maps/sdk.js?appkey=' +
+            encodeURIComponent(jsKey) + '&autoload=false';
+          s.onload = function () {
+            if (!window.kakao || !window.kakao.maps || !window.kakao.maps.load) { resolve(false); return; }
+            window.kakao.maps.load(function () {
+              resolve(!!(window.kakao.maps && window.kakao.maps.Map));
+            });
+          };
+          // 카카오 콘솔 미등록 도메인은 sdk.js 가 401 → onerror. 지도만 포기하고 경로 정보는 살린다.
+          s.onerror = function () { resolve(false); };
+          document.head.appendChild(s);
+        });
+        return window.__fomsKakaoSdkPromise;
+      }
+
+      /**
+       * 지도 위 라벨 핀 1개를 올린다(카카오 기본 마커는 색 구분이 안 되므로 CustomOverlay 사용).
+       * @param {object} map 카카오 지도 인스턴스.
+       * @param {number} lat 위도.
+       * @param {number} lng 경도.
+       * @param {string} modifierClass 색 구분 클래스(schedule-map-pin--from|--to).
+       * @param {string} label 핀에 표시할 짧은 라벨.
+       * @param {string} title 네이티브 툴팁으로 보여줄 전체 주소.
+       * @returns {void}
+       */
+      function addSchedulePin(map, lat, lng, modifierClass, label, title) {
+        const el = document.createElement('span');
+        el.className = 'schedule-map-pin ' + modifierClass;
+        el.textContent = label;
+        el.title = title || '';
+        new window.kakao.maps.CustomOverlay({
+          map: map,
+          position: new window.kakao.maps.LatLng(lat, lng),
+          content: el,
+          yAnchor: 1.2
+        });
+      }
+
+      /**
+       * 기준↔시공지 두 지점을 카카오 지도에 그린다.
+       * @returns {object} 생성된 카카오 지도 인스턴스(폴리라인 추가용).
+       */
+      function renderScheduleMap(container, refAddr, refLat, refLng, tgtAddr, tgtName, tgtLat, tgtLng) {
+        const maps = window.kakao.maps;
+        const map = new maps.Map(container, { center: new maps.LatLng(refLat, refLng), level: 8 });
+        _scheduleMapKakao = map;
+        addSchedulePin(map, refLat, refLng, 'schedule-map-pin--from', '기준', _truncateAddr(refAddr, 80));
+        addSchedulePin(map, tgtLat, tgtLng, 'schedule-map-pin--to', tgtName || '시공지', tgtAddr);
+        const bounds = new maps.LatLngBounds();
+        bounds.extend(new maps.LatLng(refLat, refLng));
+        bounds.extend(new maps.LatLng(tgtLat, tgtLng));
+        function fit() {
+          try { map.setBounds(bounds, 40, 40, 40, 40); } catch (e) { /* fit 실패 시 center/level 유지 */ }
+        }
+        fit();
+        // 모달 전환 직후 컨테이너 크기가 늦게 확정되는 경우 0-사이즈 init 방어(카카오는 자동 복구 없음).
+        requestAnimationFrame(function () {
+          if (_scheduleMapKakao !== map) return;
+          try { map.relayout(); } catch (e) { /* relayout 실패 무해 */ }
+          fit();
+        });
+        return map;
       }
 
       function openScheduleMap(refAddr, refLat, refLng, tgtLat, tgtLng, tgtAddr, tgtName, scoreText) {
         const modalEl = document.getElementById('scheduleMapModal');
         const routeInfoEl = document.getElementById('scheduleMapRouteInfo');
-        if (typeof L === 'undefined' || !modalEl || !routeInfoEl) return;
+        if (!modalEl || !routeInfoEl) return;
 
         const myGen = ++_scheduleMapGen;
         routeInfoEl.innerHTML = '<div class="text-center text-muted py-3"><div class="spinner-border spinner-border-sm me-2" role="status"></div>경로 계산 중...</div>';
@@ -1578,59 +1654,28 @@
         }
 
         const onShown = function () {
-          modalEl.removeEventListener('shown.bs.modal', onShown);
           if (myGen !== _scheduleMapGen) return;
-
-          if (_scheduleMapLeaflet) {
-            try {
-              _scheduleMapLeaflet.remove();
-            } catch (e) { /* ignore */ }
-            _scheduleMapLeaflet = null;
-          }
 
           const container = document.getElementById('scheduleMapContainer');
           if (!container) return;
           container.replaceChildren();
+          _scheduleMapKakao = null;
 
-          const map = L.map(container).setView([refLat, refLng], 11);
-          _scheduleMapLeaflet = map;
-          L.tileLayer('https://{s}.tile.openstreetmap.org/{z}/{x}/{y}.png', {
-            maxZoom: 19,
-            attribution: '&copy; <a href="https://www.openstreetmap.org/copyright" rel="noopener">OpenStreetMap</a>'
-          }).addTo(map);
-
-          L.circleMarker([refLat, refLng], {
-            radius: 9,
-            color: '#c0392b',
-            weight: 2,
-            fillColor: '#ff6b6b',
-            fillOpacity: 0.95
-          }).addTo(map).bindPopup(esc(_truncateAddr(refAddr, 80)));
-
-          L.circleMarker([tgtLat, tgtLng], {
-            radius: 9,
-            color: '#2e7d32',
-            weight: 2,
-            fillColor: '#4caf50',
-            fillOpacity: 0.95
-          }).addTo(map).bindPopup('<strong>' + esc(tgtName) + '</strong><br>' + esc(tgtAddr));
-
-          map.fitBounds(L.latLngBounds([[refLat, refLng], [tgtLat, tgtLng]]), { padding: [50, 50], maxZoom: 14 });
-
-          function bumpMapSize() {
-            if (myGen !== _scheduleMapGen || !_scheduleMapLeaflet || _scheduleMapLeaflet !== map) return;
-            try {
-              map.invalidateSize({ animate: false });
-            } catch (e) { /* ignore */ }
-          }
-          map.whenReady(bumpMapSize);
-          requestAnimationFrame(function () {
-            bumpMapSize();
-            setTimeout(bumpMapSize, 120);
-            setTimeout(bumpMapSize, 400);
+          // 지도 렌더와 경로 조회는 독립 — SDK가 막힌 환경(카카오 콘솔 미등록 도메인)에서도
+          // 거리·소요시간 텍스트는 그대로 나온다. 폴리라인만 둘 다 준비됐을 때 그린다.
+          const mapReady = loadKakaoSdk(container.dataset.kakaoJsKey || '').then(function (ok) {
+            if (myGen !== _scheduleMapGen || !container.isConnected) return null;
+            if (!ok) {
+              const warn = document.createElement('div');
+              warn.className = 'schedule-map-unavailable';
+              warn.textContent = '지도를 불러오지 못했습니다. 아래 경로 정보를 확인해 주세요.';
+              container.replaceChildren(warn);
+              return null;
+            }
+            return renderScheduleMap(container, refAddr, refLat, refLng, tgtAddr, tgtName, tgtLat, tgtLng);
           });
 
-          (async function loadRoute() {
+          async function loadRoute() {
             const cacheKey = _routeCacheKey(refLat, refLng, tgtLat, tgtLng);
             let routeJson = _routeCache.get(cacheKey);
             try {
@@ -1649,22 +1694,11 @@
                   _routeCache.set(cacheKey, routeJson);
                 }
               }
-              if (myGen !== _scheduleMapGen || !_scheduleMapLeaflet || _scheduleMapLeaflet !== map) return;
+              if (myGen !== _scheduleMapGen) return null;
 
               if (routeJson && routeJson.success && routeJson.data &&
                   routeJson.data.route_coords && routeJson.data.route_coords.length > 0) {
                 const routeData = routeJson.data;
-                const line = L.polyline(routeData.route_coords, {
-                  color: '#ff4757',
-                  weight: 5,
-                  opacity: 0.8
-                }).addTo(map);
-                try {
-                  map.fitBounds(line.getBounds(), { padding: [50, 50], maxZoom: 14 });
-                } catch (e) { /* ignore */ }
-                bumpMapSize();
-                setTimeout(bumpMapSize, 200);
-
                 const summ = routeData.summary || {};
                 const distT = summ.distance_text != null ? summ.distance_text : (routeData.distance_km + 'km');
                 const durT = summ.duration_text != null ? summ.duration_text : ((routeData.duration_min || 0) + '분');
@@ -1678,11 +1712,13 @@
                   '<div class="mb-1"><strong>소요시간:</strong> ' + esc(durT) + '</div>' +
                   '<div><strong>통행료:</strong> ' + esc(tollT) + '</div>' +
                   '</div>';
-              } else {
-                throw new Error((routeJson && routeJson.error) ? String(routeJson.error) : 'ROUTE_FAIL');
+                return routeData.route_coords;
               }
+              throw new Error((routeJson && routeJson.error) ? String(routeJson.error) : 'ROUTE_FAIL');
             } catch (err) {
-              if (myGen !== _scheduleMapGen) return;
+              // 서버 원인(예: KAKAO_REST_API_KEY 미설정)은 콘솔에 남긴다 — 사용자 문구는 그대로.
+              console.warn('[as-dashboard] 경로 계산 실패', err);
+              if (myGen !== _scheduleMapGen) return null;
               const msg = (err && err.message === 'RATE_LIMIT')
                 ? '요청 한도에 도달했습니다. 잠시 후 다시 시도해 주세요.'
                 : '자동차 경로를 계산하지 못했습니다. 직선거리를 참고해 주세요.';
@@ -1695,8 +1731,23 @@
                 '<p class="mb-0 small">' + esc(msg) + '</p>' +
                 hint +
                 '</div>';
+              return null;
             }
-          })();
+          }
+
+          Promise.all([mapReady, loadRoute()]).then(function (results) {
+            const map = results[0];
+            const coords = results[1];
+            if (!map || !coords || myGen !== _scheduleMapGen || _scheduleMapKakao !== map) return;
+            const maps = window.kakao.maps;
+            const path = coords.map(function (c) { return new maps.LatLng(c[0], c[1]); });
+            new maps.Polyline({
+              map: map, path: path, strokeWeight: 5, strokeColor: '#ff4757', strokeOpacity: 0.8
+            });
+            const bounds = new maps.LatLngBounds();
+            path.forEach(function (p) { bounds.extend(p); });
+            try { map.setBounds(bounds, 40, 40, 40, 40); } catch (e) { /* fit 실패 시 두 지점 bounds 유지 */ }
+          });
         };
 
         addAsDashboardListener(modalEl, 'shown.bs.modal', onShown, { once: true });
@@ -2257,7 +2308,7 @@
 
     // static defer 모듈 부트스트랩:
     // - 최초 풀페이지 로드: defer 실행 시점 readyState는 'interactive'(아직 다른 defer 스크립트(bootstrap.bundle 등) 미실행)
-    //   → DOMContentLoaded까지 대기해야 bootstrap/leaflet/flatpickr 등 전역이 모두 준비된다.
+    //   → DOMContentLoaded까지 대기해야 bootstrap/flatpickr 등 전역이 모두 준비된다.
     // - erp-shell fragment swap: 페이지가 이미 'complete' → 즉시 init(스왑마다 재실행, AbortController로 idempotent).
     if (document.readyState === 'complete') {
       initAsDashboard();

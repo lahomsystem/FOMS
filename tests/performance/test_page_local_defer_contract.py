@@ -139,10 +139,17 @@ def test_mobile_order_detail_zoom_helper_is_deferred_before_mobile_bundles() -> 
     )
 
 
-def test_cs_schedule_map_leaflet_is_deferred() -> None:
+def test_cs_schedule_map_loads_kakao_sdk_lazily_without_cdn_tag() -> None:
+    """AS 일정찾기 지도 = 카카오 SDK lazy 주입(모달 첫 오픈). CDN 지도 script 태그 신규 금지(가드 G2)."""
     html = _read("templates/cs/partials/as_dashboard_body.html")
+    js = _read("static/js/cs/as-dashboard.js")
 
-    _assert_deferred(html, "leaflet.js")
+    assert "leaflet" not in html.lower()
+    assert "dapi.kakao.com" not in html
+    assert 'data-kakao-js-key="{{ kakao_js_key or \'\' }}"' in html
+    # 로더는 사용 시점 주입 + window 싱글톤(프래그먼트 재실행 중복 주입 차단, 가드 G4)
+    assert "dapi.kakao.com/v2/maps/sdk.js" in js
+    assert "window.__fomsKakaoSdkPromise" in js
 
 
 def test_measurement_map_blocking_scripts_are_deferred() -> None:

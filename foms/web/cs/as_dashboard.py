@@ -19,6 +19,7 @@ from foms.services.common.erp_shell_http import (
     wants_erp_shell_tab_body,
 )
 from foms.services.common.ept_b7_profile import apply_ept_b7_render_headers
+from foms.services.common.geocode_config import KAKAO_JS_API_KEY
 from foms.services.as_dashboard_filters import parse_as_dashboard_filters
 from foms.services.as_dashboard_helpers import (
     _combined_as_content_expr,
@@ -388,6 +389,8 @@ def erp_as_dashboard():
         per_page=per_page,
         total_pages=total_pages,
         total_orders=total_orders,
+        # 일정찾기 지도 모달(카카오) 전용 — layout_head 의 지도 origin preconnect 게이트도 겸한다.
+        kakao_js_key=KAKAO_JS_API_KEY,
     )
     _render_ms = (time.perf_counter() - _t0) * 1000.0
     response = make_response(_body)
