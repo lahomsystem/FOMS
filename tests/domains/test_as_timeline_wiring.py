@@ -952,13 +952,58 @@ def test_table_layout_is_fixed_with_colgroup_widths():
     assert "style=" not in thead
 
 
-def test_address_column_floor_lives_in_resizer_schema():
-    """주소 열 하한은 리사이저 스키마가 소유한다(<col> 에는 min-width 가 안 먹는다)."""
+def _min_widths() -> dict[str, int]:
+    """리사이저 열별 하한 맵을 파싱한다."""
     js = (_ROOT / "static/js/cs/as-dashboard-columns.js").read_text(encoding="utf-8")
     schema = js.split("MIN_WIDTHS = {", 1)[1].split("}", 1)[0]
-    for key in _COL_KEYS:
-        assert key + ":" in schema, key
-    assert "address: 180" in schema
+    out: dict[str, int] = {}
+    for line in schema.splitlines():
+        line = line.strip().rstrip(",")
+        if ":" not in line:
+            continue
+        key, value = line.split(":", 1)
+        out[key.strip()] = int(value.strip())
+    return out
+
+
+def test_column_floors_are_per_column_and_content_sized():
+    """하한은 전역 일괄이 아니라 열별이고, 값은 그 열의 실제 표시 내용 기준이다.
+
+    시공자(이름 2~3자)에 콘텐츠 열과 같은 하한을 주면 "안 줄어든다"는 실사용 불만이 된다
+    — 실제로 workers 가 150 이었던 근거는 표시 내용이 아니라 편집 위젯 min-width 였다.
+    """
+    floors = _min_widths()
+    assert set(floors) == set(_COL_KEYS), floors
+    # 짧은 텍스트/컨트롤 열: 넉넉히 잡아도 100px 미만이어야 한다
+    for key in ("order", "manager", "workers", "attach", "blueprint", "customer", "status"):
+        assert floors[key] < 100, (key, floors[key])
+    assert floors["workers"] <= 80
+    # 콘텐츠 열: 2026-07-28 붕괴(주소 1글자 세로 흐름) 재발 방지선은 낮추지 않는다
+    assert floors["address"] >= 180
+    assert floors["content"] >= 200
+    # 하한은 기본 폭(colgroup)을 넘지 않아야 한다 — 넘으면 기본 상태가 이미 하한 위반이다
+    css = _css(_BODY_CSS)
+    for key, floor in floors.items():
+        rule = '#as-dashboard-table col[data-col-key="%s"] { width: ' % key
+        default = int(css.split(rule, 1)[1].split("px", 1)[0])
+        assert default >= floor, (key, default, floor)
+
+
+def test_worker_widget_does_not_pin_the_column_width():
+    """시공자 편집 위젯의 min-width 가 열 하한을 결정하면 안 된다.
+
+    보기 모드는 열 폭을 따르고(min-width:0), 조작 폭은 편집 중에만 셀 밖으로 넘쳐 확보한다.
+    """
+    css = _css(_BODY_CSS)
+    lst = css.split(".as-construction-worker-list {", 1)[1].split("}", 1)[0]
+    assert "min-width: 0" in lst
+    inp = css.split(".as-construction-worker-input {", 1)[1].split("}", 1)[0]
+    assert "min-width: 0" in inp
+    editing = css.split(".as-construction-worker-row.editing .as-construction-worker-edit {", 1)
+    assert len(editing) == 2, "편집 중 조작 폭 확보 규칙이 없다"
+    block = editing[1].split("}", 1)[0]
+    assert "min-width" in block
+    assert "z-index" in block  # 없으면 DOM 상 뒤에 오는 옆 셀이 덮는다
 
 
 def test_expand_body_is_width_bounded():
@@ -996,18 +1041,22 @@ def test_body_css_link_is_version_pinned():
 # ---------------------------------------------------------------------------
 
 
-def test_expand_body_follows_horizontal_scroll():
-    """확장 본문은 sticky left:0 — 오른쪽 끝 열에서 열어도 시야 안에 들어온다.
+def test_expand_body_sticks_to_the_right_edge():
+    """확장 본문은 가로 스크롤포트 **오른쪽**에 고정된다(사용자 지정 방향).
 
-    진입점('타임라인 N')이 표 오른쪽 끝이라 누를 땐 이미 가로 스크롤된 상태다.
-    본문이 표 왼쪽에 고정되면 정작 연 사람 눈에 안 보인다.
+    진입점('타임라인 N')이 표 오른쪽 끝 AS 내용 열이라 클릭 지점과 같은 쪽에 떠야 한다.
+    margin-left:auto(셀 안 우측 배치) + sticky right:0(스크롤포트 우측 고정) 조합이며
+    둘 중 하나만으론 부족하다 — margin 만 쓰면 scrollLeft 0 에서 화면 밖, sticky 만 쓰면
+    셀 왼쪽에 붙는다. left 를 함께 주면 LTR 에서 left 가 이겨 우측 고정이 죽는다.
     """
     css = _css(_BODY_CSS)
     rule = css.split(".as-tl-expand-body {", 1)
     assert len(rule) == 2
     block = rule[1].split("}", 1)[0]
     assert "position: sticky" in block
-    assert "left: 0" in block
+    assert "right: 0" in block
+    assert "margin-left: auto" in block
+    assert "left:" not in block.replace("margin-left:", "")
     assert "max-width" in block
 
 
@@ -1090,3 +1139,25 @@ def test_sticky_thead_needs_a_scrollport_and_own_border():
     assert "box-shadow: inset 0 -2px 0" in th_block
     body = (_ROOT / "templates/cs/partials/as_dashboard_body.html").read_text(encoding="utf-8")
     assert "erp-pro-table-wrapper erp-as-table-wrapper" in body
+
+
+def test_whole_content_cell_is_the_expand_target():
+    """히트 영역 = 셀 전체(.as-tl-cell) — 앵커 줄·최근 줄 텍스트를 눌러도 열린다(스펙 §5.2).
+
+    버튼만 대상이면 텍스트를 눌러도 반응이 없어 "안 열린다"로 읽힌다.
+    셀 안 다른 인터랙티브 요소는 closest 가드로 가로채지 않는다. 컨테이너에
+    role="button" 은 주지 않는다 — 안쪽에 실제 <button> 이 있어 인터랙티브 중첩(ARIA 위반)이다.
+    """
+    js = _js()
+    block = js.split("window.__FOMS_AS_TIMELINE_BOUND = true;", 1)[1][:3000]
+    handler = block.split("const cell = e.target.closest('.as-tl-cell');", 1)
+    assert len(handler) == 2, "셀 전체 위임 셀렉터가 없다"
+    guard = handler[1].split("const orderId", 1)[0]
+    assert "e.target.closest('a, input, select, textarea')" in guard
+    assert ".as-tl-cell__expand, .as-tl-cell__empty" in guard  # 두 버튼은 통과시킨다
+    assert "cell.dataset.orderId" in handler[1] or "const orderId = cell.dataset.orderId" in js
+    css = _css(_BODY_CSS)
+    cursor = css.split(".as-tl-cell {", 1)[1].split("}", 1)[0]
+    assert "cursor: pointer" in cursor
+    macros = _macros()
+    assert 'role="button"' not in macros.split("macro render_as_timeline_cell", 1)[1]

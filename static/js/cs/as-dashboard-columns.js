@@ -22,14 +22,24 @@
   var RESET_BTN_ID = 'as-btn-reset-column-widths';
   var DESKTOP_MIN_WIDTH = 768; // PC 테이블 표시 경계(.d-none.d-md-block)와 동일
 
-  /** 열별 드래그 하한(px). 키는 col[data-col-key] 와 1:1. */
+  /** 열별 드래그 하한(px). 키는 col[data-col-key] 와 1:1.
+   *
+   * 값 기준은 "그 열의 실제 표시 내용이 읽히는 최소 폭"이다(td 좌우 패딩 32px 포함).
+   * visit/completed 는 <input type="date">(Chrome 고유 최소 폭 + 달력 아이콘),
+   * customer 는 전화번호 한 줄, received 는 'YYYY-MM-DD' 가 기준.
+   * address·content 하한은 2026-07-28 붕괴(주소 1글자 세로 흐름) 재발 방지선이라 낮추지 않는다.
+   *
+   * workers 는 150 → 80. 150 이었던 근거는 표시 내용이 아니라 **편집 위젯**
+   * (.as-construction-worker-list min-width:160px + 입력 min-width:7.5rem + 액션 30px)
+   * 이었는데, 시공자 이름은 보통 2~3자고 미배정이 많아 열이 늘 과하게 넓었다.
+   * 위젯 쪽 하한을 풀고(아래 CSS) 편집 중에만 셀 밖으로 넘치게 바꿔 표시 폭과 분리했다. */
   var MIN_WIDTHS = {
     order: 56,
     received: 88,
     visit: 150,
     completed: 150,
     manager: 64,
-    workers: 150,
+    workers: 80,
     customer: 96,
     address: 180,
     attach: 48,
