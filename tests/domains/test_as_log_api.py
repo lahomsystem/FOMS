@@ -1,4 +1,6 @@
-"""AS 타임라인 로그 쓰기 API 계약 테스트 (POST /as/log · PATCH /as/log/<log_id>)."""
+"""AS 타임라인 로그 쓰기 API 계약 테스트
+
+(POST /as/log · PATCH /as/log/<log_id> · POST /as/log/<log_id>/delete)."""
 
 from datetime import date
 
@@ -640,3 +642,156 @@ def test_log_append_rejects_oversized_raw_before_parsing(client, monkeypatch):
                       json={"as_content": "a" * 100_001})
     assert res.status_code == 400 and res.get_json()["success"] is False
     assert parsed == []
+
+
+# ---------------------------------------------------------------------------
+# POST /api/orders/<id>/as/log/<log_id>/delete — 소프트 삭제
+# ---------------------------------------------------------------------------
+#
+# 물리 삭제하지 않는 이유: as_log 는 AS 분쟁 시 "언제 누가 뭘 했는지"의 증거라
+# append-only 가 원칙이다(스펙 §8). 화면·집계에서만 감추고 원문은 sd 에 남긴다.
+
+
+def _delete(client, order_id, log_id):
+    return client.post(f"/api/orders/{order_id}/as/log/{log_id}/delete")
+
+
+def test_log_delete_by_author_soft_deletes(client):
+    """작성자 삭제 → 200 + 원문 보존 + deleted 메타 3종."""
+    author = _make_user("as-log-del-author", role="STAFF", name="작성자")
+    order_id = _create_as_order().id
+    log_id = _append_as(client, author, order_id)
+
+    res = _delete(client, order_id, log_id)
+    data = res.get_json()
+    assert res.status_code == 200 and data["success"] is True
+
+    saved = _as_log(order_id)[-1]
+    assert saved["id"] == log_id
+    assert saved["deleted"] is True
+    assert saved["deleted_by"] == "작성자" and saved["deleted_at"]
+    assert saved["text"] == "원본 메모"  # 물리 삭제 금지 — 원문은 그대로
+
+
+def test_log_delete_by_non_author_forbidden(client):
+    """작성자 아닌 비관리자는 403 — 플래그가 붙지 않는다."""
+    author = _make_user("as-log-del-author2", role="STAFF", name="작성자")
+    other = _make_user("as-log-del-other", role="STAFF", name="타인")
+    order_id = _create_as_order().id
+    log_id = _append_as(client, author, order_id)
+
+    _login(client, other)
+    res = _delete(client, order_id, log_id)
+    assert res.status_code == 403 and res.get_json()["success"] is False
+    assert _as_log(order_id)[-1].get("deleted") is not True
+
+
+def test_log_delete_by_admin_allowed(client):
+    admin = _make_user("as-log-del-admin", role="ADMIN", name="관리자")
+    author = _make_user("as-log-del-author3", role="STAFF", name="작성자")
+    order_id = _create_as_order().id
+    log_id = _append_as(client, author, order_id)
+
+    _login(client, admin)
+    res = _delete(client, order_id, log_id)
+    assert res.status_code == 200
+    assert _as_log(order_id)[-1]["deleted_by"] == "관리자"
+
+
+def test_log_delete_rejects_system_entry(client):
+    """시스템 항목은 감사 기록 — 삭제 불가(400)."""
+    _login_as_admin(client, username="as-log-del-system-admin")
+    order_id = _create_as_order(shipment_extra={"as_log": [{
+        "id": "al_sys_del", "ts": "2026-07-20T10:00:00", "by": "시스템", "by_id": None,
+        "type": "system", "text": "AS 비용 확정", "edited_at": None, "edited_by": None,
+    }]}).id
+
+    res = _delete(client, order_id, "al_sys_del")
+    assert res.status_code == 400 and res.get_json()["success"] is False
+    assert _as_log(order_id)[0].get("deleted") is not True
+
+
+def test_log_delete_rejects_legacy_entry(client):
+    """legacy(이전 기록)는 읽기 전용 — 400. 영구화 전 lazy id 도 같은 경로로 막힌다."""
+    _login_as_admin(client, username="as-log-del-legacy-admin")
+    order_id = _create_as_order(shipment_extra={"as_content": "<div>옛 기록</div>"}).id
+    client.post(f"/api/orders/{order_id}/as/log", json={"type": "memo", "text": "새 메모"})
+
+    res = _delete(client, order_id, "al_legacy_as_content")
+    assert res.status_code == 400 and res.get_json()["success"] is False
+    assert _as_log(order_id)[0].get("deleted") is not True
+
+
+def test_log_delete_unknown_id_404(client):
+    _login_as_admin(client, username="as-log-del-404-admin")
+    order_id = _create_as_order().id
+    client.post(f"/api/orders/{order_id}/as/log", json={"type": "memo", "text": "메모"})
+    assert _delete(client, order_id, "al_nope").status_code == 404
+
+
+def test_log_delete_is_idempotent(client):
+    """연타/뒤늦은 재시도는 성공으로 흘린다 — deleted_at 은 최초 값 그대로."""
+    admin = _make_user("as-log-del-twice-admin", role="ADMIN", name="관리자")
+    order_id = _create_as_order().id
+    log_id = _append_as(client, admin, order_id)
+
+    assert _delete(client, order_id, log_id).status_code == 200
+    first_at = _as_log(order_id)[-1]["deleted_at"]
+    res = _delete(client, order_id, log_id)
+    assert res.status_code == 200 and res.get_json()["success"] is True
+    assert _as_log(order_id)[-1]["deleted_at"] == first_at
+
+
+def test_log_delete_hides_entry_from_view_and_count(client):
+    """렌더 제외 + count 정합 — 감추기는 build_as_timeline_view 한 곳이 담당한다."""
+    from foms.services.orders.as_log import build_as_timeline_view
+
+    admin = _make_user("as-log-del-view-admin", role="ADMIN", name="관리자")
+    order_id = _create_as_order().id
+    keep_id = _append_as(client, admin, order_id, text="남길 메모")
+    drop_id = _append_as(client, admin, order_id, text="지울 메모")
+
+    db_session.expire_all()
+    before = build_as_timeline_view(db_session.get(Order, order_id).structured_data)
+    assert before["count"] == 2 and before["stream_total"] == 2
+
+    assert _delete(client, order_id, drop_id).status_code == 200
+    db_session.expire_all()
+    after = build_as_timeline_view(db_session.get(Order, order_id).structured_data)
+    assert after["count"] == 1 and after["stream_total"] == 1
+    ids = [e["id"] for e in after["stream"]]
+    assert ids == [keep_id] and drop_id not in ids
+
+
+def test_log_delete_response_carries_fresh_cell_html(client):
+    """응답 cell_html 은 삭제 반영된 요약 — 지운 본문이 '최근 1줄'에 남으면 안 된다."""
+    admin = _make_user("as-log-del-cell-admin", role="ADMIN", name="관리자")
+    order_id = _create_as_order().id
+    _append_as(client, admin, order_id, text="남길 메모")
+    drop_id = _append_as(client, admin, order_id, text="지울 메모")
+
+    data = _delete(client, order_id, drop_id).get_json()
+    html = data["cell_html"]
+    assert "지울 메모" not in html
+    assert "남길 메모" in html
+    assert "타임라인 1" in html  # 배지 수도 삭제분을 뺀다
+
+
+def test_log_delete_writes_only_flags_never_text(client):
+    """삭제는 text 를 만지지 않는다 → sanitize 대상이 아니다.
+
+    쓰기경로 스캔(test_as_timeline_contract._AS_LOG_WRITE_CALL_SITES)은 **항목 생성**을
+    감시하는 계약이라 이 경로는 대상이 아니다. 대신 여기서 "플래그 말고는 안 건드린다"를
+    고정한다 — 훗날 '삭제 사유' 같은 사용자 입력이 sanitize 없이 끼어드는 걸 막는 가드다.
+    """
+    admin = _make_user("as-log-del-keys-admin", role="ADMIN", name="관리자")
+    order_id = _create_as_order().id
+    log_id = _append_as(client, admin, order_id, text="원본 메모")
+    before = dict(_as_log(order_id)[-1])
+
+    assert _delete(client, order_id, log_id).status_code == 200
+    after = _as_log(order_id)[-1]
+
+    assert set(after) - set(before) == {"deleted", "deleted_at", "deleted_by"}
+    for key, value in before.items():
+        assert after[key] == value, key

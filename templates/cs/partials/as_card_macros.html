@@ -60,6 +60,11 @@
     <button type="button" class="as-tl-item__edit" title="기록 수정" aria-label="기록 수정">
       <i class="fas fa-pen" aria-hidden="true"></i>
     </button>
+    {# 삭제는 소프트 삭제(deleted 플래그) — 서버가 화면·집계에서만 감춘다. 수정과 같은
+       권한 매트릭스라 노출 조건도 같다(system/legacy 는 서버가 400 으로 거부). #}
+    <button type="button" class="as-tl-item__delete" title="기록 삭제" aria-label="기록 삭제">
+      <i class="fas fa-trash" aria-hidden="true"></i>
+    </button>
     {% endif %}
   </div>
   <div class="as-tl-item__body">{{ e.text | safe }}</div>

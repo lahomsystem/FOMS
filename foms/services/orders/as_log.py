@@ -193,6 +193,12 @@ def build_as_timeline_view(
         for idx, e in enumerate(entries):
             if not isinstance(e, dict):
                 continue
+            # 소프트 삭제: 화면·집계에서만 감추고 원문은 sd에 남긴다(as_log는 append-only —
+            # AS 분쟁 시 "언제 뭘 했는지"의 증거라 물리 삭제하지 않는다).
+            # 여기 한 곳이 앵커·legacy·스트림·count를 모두 덮는다 — 표면마다 거르면
+            # 배지 수와 실제 노출이 갈린다(T9 리뷰에서 이미 한 번 난 회귀 유형).
+            if e.get("deleted") is True:
+                continue
             if e.get("legacy") is True:
                 legacy.append(decorate_entry(e))
             elif e.get("type") == "reception" and reception is None:

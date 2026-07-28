@@ -279,7 +279,7 @@ def test_write_paths_do_not_leak_json_parse_errors():
     js = _js()
     block = _timeline_block(js)
     assert "async function readTimelineJson(res)" in block
-    assert block.count("await readTimelineJson(res)") == 3  # append + patch + billing
+    assert block.count("await readTimelineJson(res)") == 4  # append + patch + billing + delete
     assert block.count("await res.json()") == 1  # 원시 파싱은 헬퍼 안에서만
     assert "세션이 만료되었거나 서버 오류가 발생했습니다" in block
     assert "권한이 없거나 세션이 만료되었습니다" in block
@@ -629,10 +629,12 @@ def test_timeline_new_classes_are_styled():
         ".as-tl-item__edit ",
         ".as-tl-item__edit-form",
         ".as-tl-item__edit-cancel",
+        ".as-tl-item__delete",
     ):
         assert selector in css, selector
-    # <button> 기본 장식 리셋: 빈 셀·수정 버튼은 텍스트/아이콘처럼 보여야 한다
-    for selector in (".as-tl-cell__empty", ".as-tl-item__edit "):
+    # <button> 기본 장식 리셋: 빈 셀·수정·삭제 버튼은 텍스트/아이콘처럼 보여야 한다.
+    # 수정·삭제는 같은 리셋을 쓰므로 그룹 선택자 한 블록이 소유한다.
+    for selector in (".as-tl-cell__empty", ".as-tl-item__edit,\n  .as-tl-item__delete"):
         block = css.split(selector, 1)[1].split("}", 1)[0]
         assert "border: 0" in block, selector
         assert "background: none" in block, selector
@@ -1161,3 +1163,77 @@ def test_whole_content_cell_is_the_expand_target():
     assert "cursor: pointer" in cursor
     macros = _macros()
     assert 'role="button"' not in macros.split("macro render_as_timeline_cell", 1)[1]
+
+
+# ---------------------------------------------------------------------------
+# 8) 기록 삭제(소프트) 배선 — 2026-07-28 사용자 요청(스펙 §8 YAGNI 해제)
+# ---------------------------------------------------------------------------
+
+
+def test_delete_button_renders_next_to_edit_with_same_gate():
+    """휴지통은 연필과 **같은 노출 조건** — 수정 가능한 항목만 삭제 가능해야 계약이 맞다."""
+    macros = _macros()
+    entry = macros.split("macro render_as_timeline_entry", 1)[1].split("endmacro", 1)[0]
+    gate = "{% if can_edit and not e.is_system and not e.is_legacy %}"
+    assert gate in entry
+    tail = entry.split(gate, 1)[1]
+    assert 'class="as-tl-item__edit"' in tail
+    assert 'class="as-tl-item__delete"' in tail
+    assert 'aria-label="기록 삭제"' in tail
+
+
+def test_delete_is_soft_and_hidden_in_one_place():
+    """감추기는 build_as_timeline_view 한 곳 — 표면마다 거르면 배지 수와 노출이 갈린다."""
+    src = (_ROOT / "foms/services/orders/as_log.py").read_text(encoding="utf-8")
+    view = src.split("def build_as_timeline_view", 1)[1]
+    assert 'if e.get("deleted") is True:' in view
+    api = (_ROOT / "foms/api/cs/as_orders.py").read_text(encoding="utf-8")
+    route = api.split("def api_as_log_delete", 1)[1].split("__all__", 1)[0]
+    # 소프트 삭제: 플래그만 쓰고 항목을 리스트에서 빼지 않는다.
+    # 쓰기는 _run_sd_mutation 이 잠근 사본(locked) 위에서 일어난다(append·patch 와 동일 계층).
+    assert 'locked["deleted"] = True' in route
+    assert 'locked["deleted_at"]' in route and 'locked["deleted_by"]' in route
+    assert ".remove(" not in route and "del " not in route
+    # 상태축을 안 건드리므로 cycle 전이가 아니라 sd mutation 으로 감싼다
+    assert "policy_id=POLICY_AS_LOG_DELETE" in route
+    assert "_run_sd_mutation(" in route
+    # POST 라우트(DELETE 메서드 아님)
+    assert 'methods=["POST"]' in api.split('as/log/<log_id>/delete"', 1)[1][:80]
+
+
+def test_delete_and_patch_share_one_permission_guard():
+    """수정·삭제 권한 매트릭스는 한 함수가 소유한다(각자 판정하면 갈린다)."""
+    api = (_ROOT / "foms/api/cs/as_orders.py").read_text(encoding="utf-8")
+    assert "def _resolve_as_log_entry(" in api
+    for route in ("api_as_log_patch", "api_as_log_delete"):
+        body = api.split("def %s(" % route, 1)[1].split("@erp_orders_as_bp.route", 1)[0]
+        assert "_resolve_as_log_entry(log, log_id, user" in body, route
+    guard = api.split("def _resolve_as_log_entry(", 1)[1].split("\ndef ", 1)[0]
+    assert '"항목을 찾을 수 없습니다.", 404' in guard
+    assert "400" in guard and "403" in guard
+
+
+def test_delete_client_wiring_is_singleton_and_confirms():
+    """클라: 싱글톤 위임 + confirm 1회 + 재진입 가드 + 셀 요약 통째 교체."""
+    js = _js()
+    block = js.split("window.__FOMS_AS_TIMELINE_BOUND = true;", 1)[1]
+    handler = block.split(".as-tl-item__delete'", 1)
+    assert len(handler) == 2, "삭제 위임 핸들러가 없다"
+    body = handler[1].split("/** quick-add", 1)[0]
+    assert "window.confirm(" in body
+    assert "btn.dataset.busy === '1'" in body or "dataset.busy" in body
+    assert "/as/log/' + encodeURIComponent(logId) + '/delete'" in body
+    assert "item.remove();" in body
+    assert "replaceAsCellSummary(orderId, data.cell_html)" in body
+    # 증분 갱신(updateAsCellSummary)을 쓰면 지운 본문이 '최근 1줄'에 남는다
+    assert "function replaceAsCellSummary" in block
+    assert "cell.outerHTML = html" in block
+
+
+def test_delete_cell_partial_reuses_the_list_macro():
+    """응답 셀 HTML 은 목록과 같은 매크로 — 서버·클라 마크업이 갈라지지 않게."""
+    partial = (_ROOT / "templates/cs/partials/as_timeline_cell_partial.html").read_text(
+        encoding="utf-8")
+    assert "render_as_timeline_cell" in partial
+    api = (_ROOT / "foms/api/cs/as_orders.py").read_text(encoding="utf-8")
+    assert "cs/partials/as_timeline_cell_partial.html" in api

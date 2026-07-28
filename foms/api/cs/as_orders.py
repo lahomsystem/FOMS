@@ -52,6 +52,7 @@ from foms.services.orders.as_log import (
     AS_LOG_TEXT_MAX,
     append_client_log,
     append_system_log,
+    build_as_timeline_view,
     coerce_client_log_type,
     decorate_entry,
     migrate_legacy_into_log,
@@ -71,6 +72,7 @@ erp_orders_as_bp = Blueprint(
 POLICY_AS_BILLING = "STATE_AS_BILLING"
 POLICY_AS_LOG_APPEND = "STATE_AS_LOG_APPEND"
 POLICY_AS_LOG_PATCH = "STATE_AS_LOG_PATCH"
+POLICY_AS_LOG_DELETE = "STATE_AS_LOG_DELETE"
 POLICY_AS_REREGISTER = "STATE_AS_REREGISTER"
 
 
@@ -301,6 +303,54 @@ def _render_as_log_entry(entry: dict) -> str:
     return render_template(
         "cs/partials/as_timeline_entry_partial.html", entry=decorate_entry(entry)
     )
+
+
+def _resolve_as_log_entry(
+    log: list, log_id: str, user, *, verb: str
+) -> tuple[dict | None, tuple[str, int] | None]:
+    """as_log 단건 조회 + 수정/삭제 공통 권한 판정 (두 라우트가 공유하는 SSOT).
+
+    각 라우트가 따로 판정하면 한쪽만 손봤을 때 권한 매트릭스가 갈린다 — system/legacy
+    불가와 "작성자 본인 또는 관리자"는 수정·삭제가 같아야 한다. verb 만 문구로 주입한다.
+
+    잠금 **전** 사본으로 미리 거른다(_run_sd_mutation 을 헛돌리지 않기 위해). 잠근 뒤
+    항목이 사라지는 경쟁은 apply 안에서 다시 확인한다(patch·delete 공통 계약).
+
+    Args:
+        log: ``structured_data.shipment.as_log`` 리스트(호출부가 [] 로 정규화해 넘긴다).
+        log_id: 대상 항목 id.
+        user: 현재 사용자(None 가능).
+        verb: 사용자 문구에 넣을 동작 이름('수정' / '삭제').
+
+    Returns:
+        (항목, None) 또는 (None, (사용자 문구, HTTP 상태)).
+    """
+    target = next((e for e in log if isinstance(e, dict) and e.get("id") == log_id), None)
+    if target is None:
+        return None, ("항목을 찾을 수 없습니다.", 404)
+    if target.get("legacy") is True:
+        return None, (f"이전 기록은 {verb}할 수 없습니다.", 400)
+    if target.get("type") == "system":
+        return None, (f"시스템 기록은 {verb}할 수 없습니다.", 400)
+    is_admin = bool(user and (user.role or "").upper() == "ADMIN")
+    if not is_admin and target.get("by_id") != (user.id if user else None):
+        return None, (f"본인 또는 관리자만 {verb}할 수 있습니다.", 403)
+    return target, None
+
+
+def _render_as_timeline_cell(order_id: int, sd: dict) -> str:
+    """PC 요약 셀 재렌더(목록과 동일 매크로) — 기록 삭제 응답의 셀 교체용.
+
+    클라가 증분으로 계산하면 방금 지운 기록의 본문이 '최근 1줄'에 그대로 남는다
+    (남은 기록 목록을 클라가 갖고 있지 않다). 서버가 다시 그려 통째로 바꾼다.
+    """
+    from foms.services.as_dashboard_display import apply_timeline_cell_text
+
+    view = build_as_timeline_view(sd)
+    apply_timeline_cell_text(view)
+    return render_template(
+        "cs/partials/as_timeline_cell_partial.html", order_id=order_id, view=view
+    ).strip()
 
 
 @erp_orders_as_bp.route("/<int:order_id>/as/register", methods=["POST"])
@@ -814,17 +864,10 @@ def api_as_log_patch(order_id: int, log_id: str):
 
     user_id = session.get("user_id")
     user = get_user_by_id(user_id)
-    is_admin = bool(user and (user.role or "").upper() == "ADMIN")
     log = ((order.structured_data or {}).get("shipment") or {}).get("as_log") or []
-    target = next((e for e in log if isinstance(e, dict) and e.get("id") == log_id), None)
-    if target is None:
-        return jsonify({"success": False, "message": "항목을 찾을 수 없습니다."}), 404
-    if target.get("legacy") is True:
-        return jsonify({"success": False, "message": "이전 기록은 수정할 수 없습니다."}), 400
-    if target.get("type") == "system":
-        return jsonify({"success": False, "message": "시스템 기록은 수정할 수 없습니다."}), 400
-    if not is_admin and target.get("by_id") != (user.id if user else None):
-        return jsonify({"success": False, "message": "본인 또는 관리자만 수정할 수 있습니다."}), 403
+    _target, perm_err = _resolve_as_log_entry(log, log_id, user, verb="수정")
+    if perm_err:
+        return jsonify({"success": False, "message": perm_err[0]}), perm_err[1]
 
     captured: dict[str, Any] = {}
 
@@ -855,6 +898,77 @@ def api_as_log_patch(order_id: int, log_id: str):
     return jsonify({"success": True, "entry": entry, "html": html})
 
 
+@erp_orders_as_bp.route("/<int:order_id>/as/log/<log_id>/delete", methods=["POST"])
+@login_required
+@erp_edit_required
+def api_as_log_delete(order_id: int, log_id: str):
+    """AS 타임라인 항목 소프트 삭제. 작성자 본인 또는 관리자만.
+
+    DELETE 메서드·물리 삭제를 쓰지 않는 이유 — as_log 는 AS 분쟁 시 "언제 누가 뭘 했는지"의
+    증거라 append-only 가 원칙이다(스펙 §8). 화면과 집계에서만 감추고 원문·작성자·시각은
+    sd 에 그대로 남긴다. 감추기는 build_as_timeline_view 한 곳이 담당한다.
+
+    상태축을 건드리지 않으므로 cycle 전이가 아니라 _run_sd_mutation(REV-00)으로 감싼다
+    — append·patch 와 같은 계층이다. text 를 만지지 않으므로 sanitize 대상도 아니다.
+
+    Args:
+        order_id: 대상 주문 PK.
+        log_id: 삭제할 as_log 항목 id.
+
+    Returns:
+        {'success': True, 'cell_html': PC 요약 셀 재렌더 HTML}.
+    """
+    db = get_db()
+    order, err = _load_active_order(db, order_id)
+    if err:
+        return err
+    # legacy 는 영구화 전(lazy) 항목도 같은 id 로 노출되므로 조회 전에 막는다(PATCH 와 동일).
+    if log_id.startswith("al_legacy_"):
+        return jsonify({"success": False, "message": "이전 기록은 삭제할 수 없습니다."}), 400
+
+    user_id = session.get("user_id")
+    user = get_user_by_id(user_id)
+    log = ((order.structured_data or {}).get("shipment") or {}).get("as_log") or []
+    target, perm_err = _resolve_as_log_entry(log, log_id, user, verb="삭제")
+    if perm_err:
+        return jsonify({"success": False, "message": perm_err[0]}), perm_err[1]
+    if target.get("deleted") is True:
+        # 멱등: 이미 지운 항목 재요청(연타·뒤늦은 재시도)은 성공으로 흘리고 셀만 다시 준다.
+        # mutation 을 돌리지 않으므로 무변경에 REV bump·receipt 를 남기지 않는다.
+        return jsonify({
+            "success": True,
+            "cell_html": _render_as_timeline_cell(order_id, order.structured_data or {}),
+        })
+
+    body = request.get_json(silent=True) or {}
+    captured: dict[str, Any] = {}
+
+    def _delete(sd: Dict[str, Any], _order: Order) -> None:
+        """잠긴 사본에서 항목을 다시 찾아 삭제 플래그만 세운다(위 검증과 같은 계약)."""
+        entries = (sd.get("shipment") or {}).get("as_log") or []
+        locked = next((e for e in entries if isinstance(e, dict) and e.get("id") == log_id), None)
+        if locked is None:
+            raise ValueError("항목을 찾을 수 없습니다.")
+        locked["deleted"] = True
+        locked["deleted_at"] = now_utc_naive().isoformat()
+        locked["deleted_by"] = user.name if user else ""
+        captured["sd"] = sd
+
+    try:
+        _run_sd_mutation(
+            db, order_id=order_id, actor_user_id=user_id, policy_id=POLICY_AS_LOG_DELETE,
+            command_id=f"AS_LOG_DELETE:{log_id}", apply=_delete, body=body,
+        )
+    except Exception as exc:  # noqa: BLE001
+        return _as_error_response(db, exc)
+
+    db.add(SecurityLog(user_id=user_id, message=f"주문 #{order_id} AS 기록 삭제({log_id})"))
+    cell_html = _render_as_timeline_cell(order_id, captured["sd"])  # commit 앞 렌더
+    db.commit()
+    _invalidate_shipment_asrec_caches("api_as_log_delete")
+    return jsonify({"success": True, "cell_html": cell_html})
+
+
 __all__ = [
     "erp_orders_as_bp",
     "api_as_start",
@@ -867,5 +981,6 @@ __all__ = [
     "api_as_billing",
     "api_as_log_append",
     "api_as_log_patch",
+    "api_as_log_delete",
     "get_today_kst",
 ]

@@ -993,10 +993,58 @@
         badge.textContent = '타임라인 ' + (prev + opts.countDelta);
       }
 
+      /**
+       * 삭제 응답의 셀 요약 HTML로 접힘 셀(.as-tl-cell)을 통째로 교체한다.
+       *
+       * 증분 갱신(updateAsCellSummary)을 쓰지 않는 이유 — 방금 지운 기록이 '최근 1줄'이었다면
+       * 남은 기록 중 무엇이 새 최근인지 클라가 알 수 없다(스트림 전체를 갖고 있지 않다).
+       * 서버가 목록과 같은 매크로로 다시 그린 마크업을 그대로 끼운다.
+       *
+       * @param {string} orderId 대상 주문 id
+       * @param {string} html 서버 렌더 .as-tl-cell 마크업
+       */
+      function replaceAsCellSummary(orderId, html) {
+        const sel = '.as-tl-cell[data-order-id="' + orderId + '"]';
+        const cell = document.querySelector(sel);
+        if (!cell || !html) return; // 모바일 상세 표면에는 요약 셀이 없다
+        cell.outerHTML = html;
+        const fresh = document.querySelector(sel);
+        if (fresh) highlightTimelineStatic(fresh);
+      }
+
+      /** 기록 소프트 삭제: confirm 1회 → POST → 항목 DOM 제거 + 셀 요약 교체. */
+      document.addEventListener('click', async function (e) {
+        const btn = e.target.closest && e.target.closest('.as-tl-item__delete');
+        if (!btn || btn.dataset.busy === '1') return;
+        const item = btn.closest('.as-tl-item');
+        const timeline = btn.closest('.as-timeline');
+        const logId = item && item.dataset.logId;
+        const orderId = timeline && timeline.dataset.orderId;
+        if (!item || !logId || !orderId) return;
+        if (!window.confirm('이 기록을 삭제할까요? 목록에서 사라집니다.')) return;
+        btn.dataset.busy = '1';
+        btn.disabled = true;
+        try {
+          const res = await fetch(
+            '/api/orders/' + encodeURIComponent(orderId)
+            + '/as/log/' + encodeURIComponent(logId) + '/delete',
+            { method: 'POST', credentials: 'same-origin' });
+          const data = await readTimelineJson(res);
+          if (!data.success) throw new Error(data.message || '삭제하지 못했습니다.');
+          item.remove(); // btn도 함께 사라지므로 아래 finally의 복구는 무해한 no-op
+          replaceAsCellSummary(orderId, data.cell_html);
+        } catch (err) {
+          window.alert(err.message || '삭제하지 못했습니다.');
+        } finally {
+          btn.dataset.busy = '';
+          btn.disabled = false;
+        }
+      });
+
       /** quick-add 폼 1건 전송 → 성공 시 응답 html을 스트림 맨 앞에 낙관적 삽입. */
       async function submitQuickAdd(form) {
-        // 재진입 가드: 버튼 disabled는 키보드 단축키 경로를 막지 못한다. as_log는 append-only이고
-        // 삭제 API가 없으므로 연타 한 번이 영구 중복 기록이 된다.
+        // 재진입 가드: 버튼 disabled는 키보드 단축키 경로를 막지 못한다. as_log는 append-only라
+        // 연타 한 번이 중복 기록을 남긴다(삭제는 소프트 삭제여서 감춰질 뿐 되돌려지지 않는다).
         if (!form || form.dataset.busy === '1') return;
         const orderId = form.dataset.orderId;
         const textEl = form.querySelector('.as-timeline__text');

@@ -19,6 +19,7 @@ from models import OrderAttachment
 __all__ = [
     "as_billing_badge_kind",
     "as_billing_state_text",
+    "apply_timeline_cell_text",
     "as_stage_badge_modifier",
     "as_thumb_enabled",
     "batch_resolve_as_thumbnail_urls",
@@ -307,7 +308,7 @@ def _timeline_cell_text(entry: dict[str, Any] | None) -> str:
     return as_content_html_to_text(entry.get('text'), already_sanitized=True).replace('\n', ' ')
 
 
-def _apply_timeline_cell_text(view: dict[str, Any]) -> None:
+def apply_timeline_cell_text(view: dict[str, Any]) -> None:
     """타임라인 뷰에 PC 셀 요약 텍스트 2종(앵커·최근 1건)을 in-place로 채운다.
 
     행 루프에서 1회만 계산해 템플릿이 그대로 소비한다(hot path 재파싱 금지).
@@ -379,7 +380,7 @@ def apply_as_dashboard_row_display_fields(rows, db, *, mobile_v2_active):
             r.structured_data,
             sanitized=(r.as_content_html, sanitize_as_content_html(shipment.get('as_content_2'))),
         )
-        _apply_timeline_cell_text(r.as_timeline_view)
+        apply_timeline_cell_text(r.as_timeline_view)
         r.as_thumb_enabled = thumb_flag
         r.thumbnail_url = thumb_urls.get(r.id) if thumb_flag else None
         r.stage_badge_modifier = as_stage_badge_modifier(

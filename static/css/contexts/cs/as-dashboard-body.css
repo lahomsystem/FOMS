@@ -257,9 +257,10 @@
     color: #94a3b8;
   }
 
-  /* 수정 버튼: 아이콘 전용이라 버튼 기본 장식을 지우고 meta 우측 끝으로 민다 */
-  .as-tl-item__edit {
-    margin-left: auto;
+  /* 수정·삭제 버튼: 아이콘 전용이라 버튼 기본 장식을 지우고 meta 우측 끝으로 민다.
+     margin-left:auto 는 첫 버튼(수정)에만 — 둘이 붙어서 오른쪽에 모인다. */
+  .as-tl-item__edit,
+  .as-tl-item__delete {
     padding: 0 2px;
     border: 0;
     background: none;
@@ -269,9 +270,24 @@
     cursor: pointer;
   }
 
+  .as-tl-item__edit {
+    margin-left: auto;
+  }
+
   .as-tl-item__edit:hover,
   .as-tl-item__edit:focus-visible {
     color: #2563eb;
+  }
+
+  /* 삭제는 되돌리는 UI 가 없는 동작이라 호버 색을 위험(빨강)으로 분리한다. */
+  .as-tl-item__delete:hover,
+  .as-tl-item__delete:focus-visible {
+    color: #dc2626;
+  }
+
+  .as-tl-item__delete[disabled] {
+    opacity: 0.5;
+    cursor: default;
   }
 
   /* 인라인 수정 폼: textarea 는 한 줄 전체, 저장/취소는 그 아래 나란히 */
