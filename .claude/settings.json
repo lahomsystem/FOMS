@@ -26,6 +26,17 @@
         ]
       }
     ],
+    "UserPromptSubmit": [
+      {
+        "matcher": "",
+        "hooks": [
+          {
+            "type": "command",
+            "command": "python \"${CLAUDE_PROJECT_DIR}/.claude/hooks/ctx_gate.py\""
+          }
+        ]
+      }
+    ],
     "PreCompact": [
       {
         "matcher": "",

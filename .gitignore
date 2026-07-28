@@ -107,6 +107,7 @@ docs/harness/runtime/.post_task_qc_debounce.json
 docs/harness/runtime/.claude_pending_verify.json
 docs/harness/runtime/.cursor_ci_gate_pending.json
 docs/harness/runtime/.ci_watch_rerun_state.json
+docs/harness/runtime/.ctx_gate_state.json
 docs/harness/runtime/session_commit_ledger.json
 docs/harness/runtime/session_commit_ledger.json.tmp
 docs/harness/runtime/session_worktree_usage.log
