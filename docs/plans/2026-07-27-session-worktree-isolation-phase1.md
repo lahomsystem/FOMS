@@ -3,6 +3,12 @@
 > **For agentic workers:** REQUIRED SUB-SKILL: Use superpowers:subagent-driven-development (recommended) or superpowers:executing-plans to implement this plan task-by-task. Steps use checkbox (`- [ ]`) syntax for tracking.
 >
 > v1 → v2: gstack-autoplan 듀얼 보이스 리뷰(Claude CEO 20건 + Claude Eng 25건, Codex는 CLI 비호환으로 [subagent-only] 격하) 반영 전면 개정. 판정 내역은 부록 B(Decision Audit Trail), 리뷰 요약은 부록 C.
+>
+> **v2.1 정정 (2026-07-27 구현 중 태스크 리뷰 F1)**: 본 문서 Task 2의 `cmd_sync` 코드 중 `--ledger-only` 경로는 결함 — 소유 검증이 rebase **후** SHA를 대상으로 돌아 충돌 복구가 항상 refuse된다(탈출구가 `--allow-foreign`뿐 = 세탁 방지 장치 무력화 훈련). 또한 dirty 판정은 CLI 부기 파일 2패턴만 pathspec 제외한다(`_status_porcelain`).
+>
+> **v2.2 재정정 (라운드 2)**: v2.1의 1차 수정(ORIG_HEAD 기준 검증)은 재리뷰에서 **신규 세탁 구멍**으로 실증 기각 — ORIG_HEAD는 merge/reset/pull도 갱신하며 영구 잔존. 2차 수정(충돌 마커 + ORIG_HEAD 일치)도 관통됨(abort→merge 재일치, continue 후 cherry-pick 불변). 3차 수정(patch-id 전단사 회계)은 방어에 성공했으나 잔여 슬랙(자기 커밋 순감 시 foreign 슬롯)과 false refuse 계열이 남았다.
+>
+> **v2.3 최종 설계 (라운드 4)**: 신뢰창 회계를 전부 폐기하고 **git post-rewrite 훅 ledger 승계**로 종결 — rebase/amend 완료 시 훅(`record_rewrite_ledger.py`)이 old→new SHA를 같은 세션으로 ledger에 append. 재작성 커밋이 "정식 own"이 되므로 sync는 **단일 union 검증**만 남는다(마커·patch-id·ORIG_HEAD 기계 전삭, net −55줄). cherry-pick/merge는 post-rewrite를 발화시키지 않아 foreign 차단력 유지. 훅은 `create`가 공유 훅 디렉터리에 1회 프로비저닝. 정본은 `tools/harness/session_worktree.py` + `record_rewrite_ledger.py` 구현.
 
 **Goal:** 다중 에이전트 창(터미널 Claude CLI, Cursor 내 Claude/Codex)이 각자 `c:/tmp` 세션 worktree에서 작업해 **워킹트리 레이스·stash 오염·검증 대상 트리 오염**(타 창 WIP 섞인 트리에서 스모크·import 검증이 도는 문제)을 제거한다. **선택 표준** — 강제 아님, 단일 창은 공유 트리 유지.
 
