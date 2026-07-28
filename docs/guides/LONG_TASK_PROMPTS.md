@@ -1,5 +1,7 @@
 # 작업 크기별 공통 프롬프트 (복붙 템플릿)
 
+> 각 문구가 **왜 그렇게 생겼는지** 풀어쓴 해설판: `LONG_TASK_PROMPTS_EASY.md`
+
 > 2026-07-28 작성. `<>` 자리만 채워 쓴다. 배경 스택: SDD 프로토콜(전역 CLAUDE.md, 상시) + CTX-GATE 훅(55% 자가정리) + `/overnight` 스킬 + AI_STATUS 40줄 계약. 설계 근거: `docs/specs/2026-07-28-context-ledger-hygiene-design.md`
 
 ## 크기 판정
