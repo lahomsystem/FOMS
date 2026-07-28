@@ -909,3 +909,184 @@ def test_sales_delivery_handler_uses_order_id_dataset():
     assert "btn.dataset.salesDeliveryActive === '1'" in handler
     assert "getDateInputsForOrder(orderId, 'as_completed_date')" in handler
     assert "buildAsDashboardUrl({" in handler
+
+
+# ---------------------------------------------------------------------------
+# 6) PC 테이블 레이아웃 붕괴 회귀 가드 (2026-07-28 실화면 핫픽스)
+# ---------------------------------------------------------------------------
+#
+# 증상: /erp/as?tab=incomplete 에서 주소가 한 글자씩 세로로 흘러내리고(행 높이 810px)
+# 확장 행의 입력 폼·제출 버튼이 통짜로 늘어나 라벨이 화면 밖으로 밀렸다.
+# 원인: 셀 요약 두 줄이 .text-truncate(white-space:nowrap)라 AS 내용 셀의 내재
+# 최대폭 = 기록 전문 한 줄 길이가 됐고, auto table-layout 이 여유폭을
+# (max-content − min-content) 비율로 나눠주는 탓에 그 열 하나가 여유를 전부 흡수했다
+# (실측 AS 내용 1342px / 테이블 2578px). 남은 열은 min-content 로 떨어지는데
+# 주소는 break-word 라 min-content 가 '한 글자'다.
+# 확장 행 colspan 은 원인이 아니다 — 열고 닫아도 열 폭이 변하지 않는 것을 실측 확인했다.
+
+
+_COL_KEYS = (
+    "order", "received", "visit", "completed", "manager", "workers",
+    "customer", "address", "attach", "blueprint", "content", "status",
+)
+
+
+def test_table_layout_is_fixed_with_colgroup_widths():
+    """열 폭 재분배 자체를 없앤 구조 — table-layout:fixed + colgroup 이 SSOT.
+
+    auto 레이아웃이었을 때 AS 내용 셀의 nowrap 요약이 여유폭을 통째로 먹고
+    나머지 열이 min-content 로 주저앉아 주소가 1글자씩 세로로 흘렀다.
+    fixed 는 한 열의 내용이 다른 열 폭에 영향을 줄 경로 자체가 없다.
+    """
+    css = _css(_BODY_CSS)
+    fixed = css.split("#as-dashboard-table {", 1)
+    assert len(fixed) == 2, "#as-dashboard-table 레이아웃 규칙이 없다"
+    assert "table-layout: fixed" in fixed[1].split("}", 1)[0]
+    body = (_ROOT / "templates/cs/partials/as_dashboard_body.html").read_text(encoding="utf-8")
+    for key in _COL_KEYS:
+        assert '<col data-col-key="%s">' % key in body, key
+        # 기본 폭은 CSS 가 소유(인라인 style 금지 규약 + JS 미실행 시 12등분 붕괴 방지)
+        assert '#as-dashboard-table col[data-col-key="%s"]' % key in css, key
+    # 구 인라인 폭 힌트는 남아 있으면 안 된다(두 SSOT 금지)
+    thead = body.split("<thead>", 1)[1].split("</thead>", 1)[0]
+    assert "style=" not in thead
+
+
+def test_address_column_floor_lives_in_resizer_schema():
+    """주소 열 하한은 리사이저 스키마가 소유한다(<col> 에는 min-width 가 안 먹는다)."""
+    js = (_ROOT / "static/js/cs/as-dashboard-columns.js").read_text(encoding="utf-8")
+    schema = js.split("MIN_WIDTHS = {", 1)[1].split("}", 1)[0]
+    for key in _COL_KEYS:
+        assert key + ":" in schema, key
+    assert "address: 180" in schema
+
+
+def test_expand_body_is_width_bounded():
+    """확장 본문 상한 — 없으면 폼/버튼이 테이블 폭(≈1.8k)만큼 늘어나 라벨이 밀려난다."""
+    css = _css(_BODY_CSS)
+    rule = css.split(".as-tl-expand-body {", 1)
+    assert len(rule) == 2, ".as-tl-expand-body 폭 상한 규칙이 없다"
+    assert "max-width" in rule[1].split("}", 1)[0]
+
+
+def test_quick_add_desktop_layout_is_scoped_to_expand_row():
+    """PC 입력부 가로 배치는 확장 행 스코프 전용.
+
+    베이스(.as-timeline__quick-add)의 세로 스택 + 전폭 버튼은 모바일 44px 터치 규약이라
+    전역으로 풀면 모바일 카드 상세가 함께 깨진다.
+    """
+    css = _css(_BODY_CSS)
+    assert ".as-tl-expand-body .as-timeline__submit" in css
+    assert ".as-tl-expand-body .as-timeline__type" in css
+    # 베이스 규칙은 세로 스택 그대로
+    base = css.split(".as-timeline__quick-add {", 1)[1].split("}", 1)[0]
+    assert "flex-direction: column" in base
+
+
+def test_body_css_link_is_version_pinned():
+    """CSS 도 SW staticCacheFirst 대상 — `?v=` 없이는 실기기가 구버전 스타일을 계속 쓴다."""
+    body = (_ROOT / "templates/cs/partials/as_dashboard_body.html").read_text(encoding="utf-8")
+    link = [line for line in body.splitlines() if "css/contexts/cs/as-dashboard-body.css" in line]
+    assert len(link) == 1
+    assert "?v=" in link[0]
+
+
+# ---------------------------------------------------------------------------
+# 7) 실사용 피드백 5건 (2026-07-28) — 확장 위치·배지 크기·비용 필터·리사이저·헤드 고정
+# ---------------------------------------------------------------------------
+
+
+def test_expand_body_follows_horizontal_scroll():
+    """확장 본문은 sticky left:0 — 오른쪽 끝 열에서 열어도 시야 안에 들어온다.
+
+    진입점('타임라인 N')이 표 오른쪽 끝이라 누를 땐 이미 가로 스크롤된 상태다.
+    본문이 표 왼쪽에 고정되면 정작 연 사람 눈에 안 보인다.
+    """
+    css = _css(_BODY_CSS)
+    rule = css.split(".as-tl-expand-body {", 1)
+    assert len(rule) == 2
+    block = rule[1].split("}", 1)[0]
+    assert "position: sticky" in block
+    assert "left: 0" in block
+    assert "max-width" in block
+
+
+def _font_size(css: str, selector: str) -> float:
+    """선택자 블록의 font-size(rem) 값."""
+    block = css.split(selector + " {", 1)[1].split("}", 1)[0]
+    return float(block.split("font-size:", 1)[1].split("rem", 1)[0].strip())
+
+
+def test_badges_are_legible_sized():
+    """배지/칩 글자 크기 하한 — "작아서 안 읽힌다" 피드백의 회귀 가드.
+
+    0.75rem(12px) 미만으로 다시 줄면 실패한다. 상태 배지는 전역 .erp-pro-badge 가
+    아니라 페이지 스코프 오버라이드여야 타 대시보드에 파급되지 않는다.
+    """
+    css = _css(_BODY_CSS)
+    for selector in (".as-tl-chip", ".erp-as-billing-badge", ".as-billing-state",
+                     ".as-tl-cell__anchor", ".as-tl-cell__recent"):
+        assert _font_size(css, selector) >= 0.75, selector
+    assert ".erp-as-dashboard .erp-pro-badge" in css
+
+
+def test_billing_badge_is_a_filter_entrypoint():
+    """상태 셀 비용 배지 클릭 = 그 비용 상태로 필터(발견성 보강).
+
+    URL 조립을 매크로가 아니라 위임 핸들러가 하는 게 계약이다 — 같은 배지를
+    판정 변경 API 응답도 렌더하는데 그쪽엔 탭/검색어 컨텍스트가 없다.
+    """
+    macros = _macros()
+    assert "data-billing-filter=\"{{ 'undecided' if kind == 'undecided' else 'paid' }}\"" in macros
+    assert 'role="button"' in macros and 'tabindex="0"' in macros
+    js = _js()
+    assert ".erp-as-billing-badge[data-billing-filter]" in js
+    assert "buildAsDashboardUrl({ billing:" in js
+    # role="button" 은 키보드 동작을 공짜로 주지 않는다
+    assert "e.key !== 'Enter' && e.key !== ' '" in js
+
+
+def test_column_resizer_is_wired():
+    """리사이저 — DOM 계약(핸들)·저장소·G4 싱글톤·모바일 조기 반환·초기화 버튼."""
+    body = (_ROOT / "templates/cs/partials/as_dashboard_body.html").read_text(encoding="utf-8")
+    assert body.count('class="col-resize-handle"') == 11  # 마지막 열(상태)은 핸들 없음
+    assert 'id="as-btn-reset-column-widths"' in body
+    link = [ln for ln in body.splitlines() if "js/cs/as-dashboard-columns.js" in ln]
+    assert len(link) == 1 and "?v=" in link[0]
+    js = (_ROOT / "static/js/cs/as-dashboard-columns.js").read_text(encoding="utf-8")
+    assert "window.__FOMS_AS_COLUMNS_BOUND" in js          # perf 가드 G4
+    assert "foms:erp-shell-fragment-swapped" in js          # 스왑 재초기화
+    assert "foms.asDashboard.columnWidths.v1" in js
+    assert "setPointerCapture" in js                        # 표 밖으로 나가도 드래그 유지
+    assert "DESKTOP_MIN_WIDTH = 768" in js                  # 모바일 무동작
+    css = _css(_BODY_CSS)
+    assert "#as-dashboard-table .col-resize-handle" in css
+    assert "right: 0" in css.split("#as-dashboard-table .col-resize-handle {", 1)[1].split("}", 1)[0]
+
+
+def test_sticky_thead_needs_a_scrollport_and_own_border():
+    """헤드 고정 — 래퍼가 세로 스크롤포트가 돼야 sticky 가 붙을 자리가 생긴다.
+
+    .erp-pro-table-wrapper 는 overflow-x:auto 라 세로축도 auto 지만 높이가
+    콘텐츠만큼 자라 세로로 스크롤될 일이 없었다(= sticky 무동작). 또 collapse
+    테이블에서 th 의 border-bottom 은 고정 중 사라지므로 inset 그림자로 대체한다.
+    """
+    css = _css(_BODY_CSS)
+    wrapper = css.split(".erp-as-table-wrapper {", 1)
+    assert len(wrapper) == 2, "래퍼 높이 상한 규칙이 없다"
+    block = wrapper[1].split("}", 1)[0]
+    assert "max-height" in block and "overflow-y: auto" in block
+    # thead 가 아니라 th 에 걸려야 한다 — 두 개의 `#as-dashboard-table thead th` 블록 중
+    # sticky 를 가진 쪽(핸들 앵커용 relative 블록이 아닌 쪽)을 골라 단언한다.
+    th_blocks = [
+        chunk.split("}", 1)[0]
+        for chunk in css.split("#as-dashboard-table thead th {")[1:]
+    ]
+    sticky = [b for b in th_blocks if "position: sticky" in b]
+    assert len(sticky) == 1, "th sticky 규칙이 없다(thead 가 아니라 th 여야 한다)"
+    th_block = sticky[0]
+    assert "top: 0" in th_block
+    assert "background:" in th_block          # 투명하면 아래 행이 비쳐 보인다
+    assert "box-shadow: inset 0 -2px 0" in th_block
+    body = (_ROOT / "templates/cs/partials/as_dashboard_body.html").read_text(encoding="utf-8")
+    assert "erp-pro-table-wrapper erp-as-table-wrapper" in body

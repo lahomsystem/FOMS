@@ -147,7 +147,10 @@ def test_as_dashboard_script_runs_after_erp_shell_fragment_swap():
 def test_as_dashboard_construction_worker_contract_is_wired():
     src = _as_surface_src()
 
-    assert "<th style=\"width: 140px;\">시공자</th>" in src
+    # 열 폭은 2026-07-28 부터 colgroup+CSS 소유(구 <th style="width:"> 인라인 폐지).
+    # 이 계약이 지키려던 것은 "시공자 열이 실재한다" 이므로 새 훅으로 갱신한다.
+    assert '<th data-col-key="workers">시공자' in src
+    assert '<col data-col-key="workers">' in src
     assert "as-construction-worker-list" in src
     assert "as-construction-worker-row" in src
     assert "as-construction-worker-view" in src

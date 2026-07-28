@@ -861,6 +861,32 @@
     if (!window.__FOMS_AS_TIMELINE_BOUND) {
       window.__FOMS_AS_TIMELINE_BOUND = true;
 
+      // 상태 셀 비용 배지 클릭 → 그 비용 상태로 목록 필터. "비용 필터가 있는 줄 몰랐다"는
+      // 실사용 피드백의 발견성 보강이다(필터 select 자체는 이미 동작 — 스테이징 실측 확인).
+      // 문서 위임인 이유: 같은 배지를 판정 변경 API 응답(updateAsBillingBadge)도 꽂아 넣는데,
+      // 그 마크업엔 현재 탭·검색어 컨텍스트가 없다. 여기서 현재 URL로 조립하면 두 경로가 같아진다.
+      function applyBillingFilterFromBadge(badge) {
+        const kind = badge.dataset.billingFilter;
+        if (!kind) return;
+        // 같은 값 재클릭 = 해제(토글). buildAsDashboardUrl은 빈 값이면 파라미터를 지운다.
+        const current = new URLSearchParams(window.location.search).get('billing') || '';
+        window.location.href = buildAsDashboardUrl({ billing: current === kind ? '' : kind });
+      }
+
+      document.addEventListener('click', function (e) {
+        const badge = e.target.closest && e.target.closest('.erp-as-billing-badge[data-billing-filter]');
+        if (badge) applyBillingFilterFromBadge(badge);
+      });
+
+      // role="button"은 Enter/Space 동작을 공짜로 주지 않는다(네이티브 button이 아니므로).
+      document.addEventListener('keydown', function (e) {
+        if (e.key !== 'Enter' && e.key !== ' ') return;
+        const badge = e.target.closest && e.target.closest('.erp-as-billing-badge[data-billing-filter]');
+        if (!badge) return;
+        e.preventDefault();
+        applyBillingFilterFromBadge(badge);
+      });
+
       // PC 내용 셀 클릭 → 아래에 full-width 행을 만들어 타임라인 fragment를 lazy fetch(재클릭=닫기).
       // 기록 0건 셀(.as-tl-cell__empty)도 같은 경로로 열려야 quick-add로 첫 기록을 남길 수 있다.
       document.addEventListener('click', function (e) {

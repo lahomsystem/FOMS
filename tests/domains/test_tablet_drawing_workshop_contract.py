@@ -181,8 +181,8 @@ def test_workbench_route_adds_dday_aggregation_filters_and_sort() -> None:
     # 쿼리스트링 필터.
     assert "dday3_only" in route
     assert "pending_only" in route
-    # 시공일 임박순 정렬.
-    assert "sort_by == 'schedule'" in route
+    # 시공일 임박순 정렬. (정렬 분기 키는 sort_key — sort_by 원본은 my_todo 핀 게이트가 소비)
+    assert "sort_key == 'schedule'" in route
 
 
 # --- JS 계약 ----------------------------------------------------------------

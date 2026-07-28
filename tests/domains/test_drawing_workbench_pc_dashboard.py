@@ -230,6 +230,139 @@ def test_template_sla_cell_renders_imminent_level() -> None:
     assert '<span class="badge bg-success">정상</span>' in body
 
 
+# --- PC2-1 시공일 뱃지 3단 ---------------------------------------------------
+
+
+def test_construction_badge_level_has_four_level_contract() -> None:
+    """시공일 뱃지: 미정=none / D-2 이내·경과=danger / D-4 이내=warn / 그 외=info."""
+    route = _read(WORKBENCH)
+    fn = route.split("def _construction_badge_level(")[1].split("\ndef ")[0]
+    assert "if construction_days is None:" in fn
+    assert "return 'none'" in fn
+    assert "if construction_days <= 2:" in fn
+    assert "return 'danger'" in fn
+    assert "if construction_days <= 4:" in fn
+    assert "return 'warn'" in fn
+    assert "return 'info'" in fn
+    # 기본색이 회색(none)이 아니라 파랑(info) 이어야 한다 — none 은 무일정 전용.
+    assert fn.rstrip().endswith("return 'info'")
+    assert (
+        "'construction_badge_level': _construction_badge_level(alerts.get('construction_days')),"
+        in route
+    )
+
+
+def test_template_construction_cell_uses_badge_level_class() -> None:
+    body = _read(BODY)
+    assert "r.construction_badge_level" in body
+    assert 'class="badge dw-cdate-badge is-{{ _clevel }} me-1"' in body
+    # bg-secondary 고정색 폐기 + 인라인 스타일 → 클래스 이관.
+    assert '<span class="badge bg-secondary me-1">' not in body
+    assert 'style="font-size: 1rem; color: #495057;"' not in body
+    assert "dw-cdate-cell" in body
+
+
+def test_construction_badge_css_four_variants_use_palette_tokens() -> None:
+    css = _read(STYLES)
+    assert ".dw-cdate-badge {" in css
+    for cls in (
+        ".dw-cdate-badge.is-none",
+        ".dw-cdate-badge.is-danger",
+        ".dw-cdate-badge.is-warn",
+        ".dw-cdate-badge.is-info",
+    ):
+        assert cls in css, f"missing cdate badge rule: {cls}"
+    assert ".dw-cdate-cell {" in css
+
+
+# --- PC2-2 최근 이벤트 세로 스택 + 접기 --------------------------------------
+
+
+def test_rows_expose_latest_event_parts_reusing_change_parts() -> None:
+    """조각 리스트는 join_changes_text 와 같은 SSOT(_change_parts) 를 재사용한다."""
+    route = _read(WORKBENCH)
+    assert "_change_parts," in route, "_change_parts 를 import 해 조립을 중복하지 않는다"
+    assert "latest_event_parts = _change_parts(_last_changes)" in route
+    # 비변경 이벤트는 빈 리스트 → 템플릿이 note 1줄로 폴백.
+    assert "latest_event_parts = []" in route
+    assert "'latest_event_parts': latest_event_parts," in route
+
+
+def test_template_stacks_event_parts_and_folds_overflow() -> None:
+    body = _read(BODY)
+    assert "{% if r.latest_event_parts %}" in body
+    # 첫 2개는 항상 표시, 나머지는 네이티브 details 로 접기(JS 불요).
+    assert "r.latest_event_parts[:2]" in body
+    assert "r.latest_event_parts[2:]" in body
+    assert "{% if r.latest_event_parts|length > 2 %}" in body
+    assert '<details class="dw-event-more"' in body
+    assert "외 {{ r.latest_event_parts|length - 2 }}건 펼치기" in body
+    assert '<div class="dw-event-part">{{ _p }}</div>' in body
+    # 폴백(note 1줄)과 풀텍스트 툴팁 유지.
+    assert "{% elif r.latest_event_note %}" in body
+    assert 'title="{{ r.latest_event_note_full }}"' in body
+    # 행 클릭 내비게이션(문서 위임)이 summary 클릭을 가로채면 안 된다.
+    assert 'onclick="event.stopPropagation();"' in body.split('<details class="dw-event-more"')[1][:80]
+
+
+def test_event_part_css_present() -> None:
+    css = _read(STYLES)
+    assert ".dw-event-part {" in css
+    assert ".dw-event-more > summary {" in css
+    assert "cursor: pointer;" in css.split(".dw-event-more > summary {")[1].split("}")[0]
+
+
+# --- PC2-3 정렬·컬럼 폭 -------------------------------------------------------
+
+
+def test_sla_sort_ranks_display_level_with_schedule_tiebreak() -> None:
+    """SLA 정렬은 표시 뱃지(sla_level)와 같은 축 + 동급은 시공일 임박순."""
+    route = _read(WORKBENCH)
+    assert "sla_rank = {'지연': 0, '임박': 1, '정상': 2}" in route
+    assert "sla_rank.get(r.get('sla_level'), 9)" in route
+    assert "r.get('construction_days') if r.get('construction_days') is not None else 9999" in route
+    # due_today 기반 구 정렬키 폐기(뱃지와 축이 달라 첫 클릭이 무의미했다).
+    assert "0 if r.get('is_overdue') else (1 if r.get('due_today') else 2)" not in route
+
+
+def test_status_sort_map_covers_pending() -> None:
+    """drawing_status 원본은 PENDING — 맵 누락 시 99로 밀려 정렬이 죽는다."""
+    route = _read(WORKBENCH)
+    assert "'IN_PROGRESS': 3, 'PENDING': 3," in route
+    assert "'WAITING': 4, 'CONFIRMED': 5}" in route
+
+
+def test_my_todo_pin_is_gated_on_explicit_sort() -> None:
+    """명시 정렬(?sort=)이 있으면 my_todo 핀이 사용자 선택을 덮지 않는다."""
+    route = _read(WORKBENCH)
+    tail = route.split("    if sort_by:")[1]
+    assert "    if not sort_by:\n        rows.sort(key=lambda r: 0 if r.get('my_todo') else 1)" in tail
+    # 게이트 판정용 원본 보존 — 접두사 제거는 별도 변수(sort_key)로.
+    assert "sort_key = sort_by[1:] if reverse else sort_by" in route
+    assert "sort_by = sort_by[1:] if reverse else sort_by" not in route
+
+
+def test_narrow_columns_have_fixed_width_without_table_layout_fixed() -> None:
+    """필터·정렬 시 컬럼 흔들림 제거. table-layout: fixed 는 금지(이벤트 셀 깨짐)."""
+    css = _read(STYLES)
+    assert "table-layout: fixed" not in css
+    for nth, width in (
+        (3, "110px"),  # 시공일
+        (5, "90px"),   # 도면 담당
+        (6, "110px"),  # 상태
+        (7, "70px"),   # 대상 번호
+        (9, "80px"),   # SLA
+        (10, "70px"),  # 미확인
+        (11, "100px"),  # 열기
+    ):
+        rule = f".erp-drawing-workbench-table-wrap td:nth-child({nth}) {{"
+        assert rule in css, f"missing width rule for column {nth}"
+        assert width in css.split(rule)[1].split("}")[0], f"column {nth} width != {width}"
+    # 가변 유지: 주문/고객(2)·다음 액션(4)·최근 이벤트(8) 는 폭 고정 금지.
+    for nth in (2, 4, 8):
+        assert f"td:nth-child({nth})" not in css, f"column {nth} must stay fluid"
+
+
 def test_no_new_db_query_in_row_loop() -> None:
     """행 파생 필드는 이미 로드된 sd/alerts/history 재사용 — 신규 쿼리 금지."""
     route = _read(WORKBENCH)

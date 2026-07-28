@@ -228,10 +228,11 @@
                 </span>
                 {% endif %}
               </td>
-              <td class="fw-semibold" style="font-size: 1rem; color: #495057;">
+              <td class="fw-semibold dw-cdate-cell">
                 {% set _c = (r.construction_date or '') %}
                 {% set _cparts = (_c.split(',')|map('trim')|list)|select|list %}
-                {% for _d in _cparts %}<span class="badge bg-secondary me-1">{{ _d }}</span>{% endfor %}
+                {% set _clevel = r.construction_badge_level|default('none') %}
+                {% for _d in _cparts %}<span class="badge dw-cdate-badge is-{{ _clevel }} me-1">{{ _d }}</span>{% endfor %}
                 {% if not _cparts %}<span class="text-muted">-</span>{% endif %}
               </td>
               <td class="small dw-next-action is-{{ r.next_action_tone|default('mine') }}">{{ r.next_action }}</td>
@@ -269,7 +270,18 @@
                 <div class="small text-muted">{{ r.latest_event_at }}
                   <span class="dw-event-chip{{ _evt_tone }}">{{ r.latest_event_label }}</span>
                 </div>
-                {% if r.latest_event_note %}
+                {% if r.latest_event_parts %}
+                {# 주문변경: 한 줄 " · " 나열 대신 세로 스택. 3개 이상은 네이티브 details 로 접어 행 높이 유지. #}
+                <div class="small" title="{{ r.latest_event_note_full }}">
+                  {% for _p in r.latest_event_parts[:2] %}<div class="dw-event-part">{{ _p }}</div>{% endfor %}
+                  {% if r.latest_event_parts|length > 2 %}
+                  <details class="dw-event-more" onclick="event.stopPropagation();">
+                    <summary>외 {{ r.latest_event_parts|length - 2 }}건 펼치기</summary>
+                    {% for _p in r.latest_event_parts[2:] %}<div class="dw-event-part">{{ _p }}</div>{% endfor %}
+                  </details>
+                  {% endif %}
+                </div>
+                {% elif r.latest_event_note %}
                 <div class="small" title="{{ r.latest_event_note_full }}">{{ r.latest_event_note }}</div>
                 {% else %}
                 <div class="small text-muted">-</div>
