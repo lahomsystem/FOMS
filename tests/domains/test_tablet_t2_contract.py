@@ -775,7 +775,9 @@ def test_as_pc_table_main_row_exposes_side_sheet_source() -> None:
     """AS PC 테이블 본행이 data-order-id 를 노출(side-sheet 행 탭 소스). 마크업은 이미 존재 —
     이 소스가 사라지면 AS 시트가 무동작하므로 잠근다(템플릿 변경 없음)."""
     body = _norm(_read(AS_DASHBOARD_BODY))
-    assert 'class="erp-pro-table-wrapper d-none d-md-block"' in body
+    # 래퍼는 클래스 토큰 존재로 판정 — 헤드 고정(erp-as-table-wrapper) 등 형제 토큰 추가에 면역
+    assert 'erp-pro-table-wrapper' in body
+    assert 'd-none d-md-block' in body
     assert '<tr data-order-id="{{ r.id }}">' in body
 
 
