@@ -93,8 +93,7 @@ def _range_shas(wt: Path, end_ref: str = "HEAD") -> list[str]:
 
     파라미터:
         wt: 대상 worktree 경로.
-        end_ref: 범위 종점(기본 HEAD). rebase 직후 `--ledger-only` 복구
-            호출에서는 ORIG_HEAD(rebase 전 SHA)를 넘겨 소유 검증에 쓴다(F1).
+        end_ref: 범위 종점(기본 HEAD).
     """
     _, out = _git(wt, "log", "--reverse", "--format=%H", f"origin/deploy..{end_ref}")
     return [s.strip().lower() for s in out.splitlines() if s.strip()]
@@ -183,33 +182,37 @@ def _rebase_in_progress(wt: Path) -> bool:
 
 
 def _conflict_marker_path(wt: Path) -> Path:
-    """rebase 충돌 시 검증 통과한 pre-SHA 스냅샷을 적어두는 gitdir 내부 마커 경로.
+    """rebase 충돌 시 검증 통과한 pre 스냅샷을 적어두는 gitdir 내부 마커 경로.
 
     `_rebase_in_progress`와 동일 패턴(`--git-path`가 상대경로면 wt 기준 해석)을
-    쓴다. gitdir 내부라 worktree status를 오염시키지 않는다(F1 round2).
+    쓴다. gitdir 내부라 worktree status를 오염시키지 않는다.
     """
     _, p = _git(wt, "rev-parse", "--git-path", "foms_sync_conflict.json")
     return Path(p) if os.path.isabs(p) else wt / p
 
 
-def _read_conflict_marker(marker: Path) -> list[str] | None:
-    """마커의 pre SHA 목록을 읽는다. 없거나 손상되면 None(=신뢰하지 않음)."""
+def _read_conflict_marker(marker: Path) -> dict[str, list[str]] | None:
+    """마커의 pre SHA·patch-id 목록을 읽는다. 없거나 손상되면 None(=신뢰하지 않음)."""
     if not marker.exists():
         return None
     try:
         data = json.loads(marker.read_text(encoding="utf-8"))
     except (OSError, ValueError):
         return None
-    pre = data.get("pre") if isinstance(data, dict) else None
-    if isinstance(pre, list) and all(isinstance(s, str) for s in pre):
-        return pre
-    return None
+    if not isinstance(data, dict):
+        return None
+    pre, pre_patch_ids = data.get("pre"), data.get("pre_patch_ids")
+    if not (isinstance(pre, list) and all(isinstance(s, str) for s in pre)):
+        return None
+    if not (isinstance(pre_patch_ids, list) and all(isinstance(s, str) for s in pre_patch_ids)):
+        return None
+    return {"pre": pre, "pre_patch_ids": pre_patch_ids}
 
 
-def _write_conflict_marker(marker: Path, pre: list[str]) -> None:
-    """검증 통과한 pre SHA 스냅샷을 마커에 기록한다."""
+def _write_conflict_marker(marker: Path, pre: list[str], pre_patch_ids: list[str]) -> None:
+    """검증 통과한 pre SHA·patch-id 스냅샷을 마커에 기록한다."""
     marker.parent.mkdir(parents=True, exist_ok=True)
-    marker.write_text(json.dumps({"pre": pre}), encoding="utf-8")
+    marker.write_text(json.dumps({"pre": pre, "pre_patch_ids": pre_patch_ids}), encoding="utf-8")
 
 
 def _clear_conflict_marker(marker: Path) -> None:
@@ -220,20 +223,65 @@ def _clear_conflict_marker(marker: Path) -> None:
         pass
 
 
+def _range_patch_ids(wt: Path, ref: str = "HEAD") -> dict[str, str]:
+    """origin/deploy..<ref> 범위 각 커밋의 patch-id 사전 {sha: patch_id}(둘 다 소문자).
+
+    `git log -p ... | git patch-id --stable` 파이프로 diff 내용 해시(patch-id)를
+    얻는다. 충돌 해결로 파일 내용이 바뀌면 sha와 무관하게 patch-id도 달라진다
+    — 이 성질로 재작성 슬롯과 진짜 foreign 커밋을 구분한다(F1-v3 전단사 회계).
+    """
+    log_proc = subprocess.run(
+        ["git", "log", "-p", "--no-color", f"origin/deploy..{ref}"],
+        cwd=str(wt), capture_output=True, text=True, encoding="utf-8", errors="replace",
+    )
+    id_proc = subprocess.run(
+        ["git", "patch-id", "--stable"],
+        cwd=str(wt), input=log_proc.stdout, capture_output=True, text=True,
+        encoding="utf-8", errors="replace",
+    )
+    out: dict[str, str] = {}
+    for line in id_proc.stdout.splitlines():
+        parts = line.split()
+        if len(parts) >= 2:
+            out[parts[1].lower()] = parts[0].lower()
+    return out
+
+
+def _recovery_accounting_passes(wt: Path, marker_data: dict[str, list[str]]) -> bool:
+    """F1-v3 patch-id 전단사 회계 — 마커 기반 복구 검증의 핵심.
+
+    post(origin/deploy..HEAD) 각 커밋의 patch-id가 마커의 pre patch-id 집합에
+    있으면 "explained", 없으면 `unexplained_post`. pre patch-id 중 post 어디에도
+    나타나지 않는 것은 충돌 해결로 재작성돼 사라진 "consumed_pre" 슬롯이다.
+    `len(unexplained_post) <= len(consumed_pre)`일 때만 통과한다 — 충돌 해결로
+    내용이 바뀐 커밋(정당한 재작성)은 슬롯 하나를 소비하고 슬롯 하나를 설명해
+    통과하지만, merge/cherry-pick으로 유입된 진짜 foreign 커밋은 소비되지 않는
+    unexplained 슬롯을 추가로 만들어 거부된다. ORIG_HEAD는 신뢰 신호로 쓰지
+    않는다(merge/reset/pull/am도 갱신·영구 잔존해 round1·round2 모두 세탁 구멍이었다).
+    """
+    pre_patch_ids = set(marker_data["pre_patch_ids"])
+    post_map = _range_patch_ids(wt)
+    post_patch_ids = set(post_map.values())
+    unexplained_post = [sha for sha, pid in post_map.items() if pid not in pre_patch_ids]
+    consumed_pre = pre_patch_ids - post_patch_ids
+    return len(unexplained_post) <= len(consumed_pre)
+
+
 def cmd_sync(args: argparse.Namespace) -> int:
     """fetch + rebase origin/deploy + ledger 갱신. 세션 worktree 전용.
 
-    소유 검증(F1 round2 — 충돌 마커 방식): 원칙은 매 호출마다 **현재 HEAD**
-    범위를 ledger union과 대조하는 것이다. 유일한 예외는 `--ledger-only`이고
-    이 CLI가 직전 rebase 충돌 시 이 worktree에 남긴 **마커**가 있으며, 그
-    마커에 적힌(그 시점 이미 검증 통과한) pre 범위가 지금의 `ORIG_HEAD` 범위와
-    **정확히 일치**할 때뿐이다 — 이때만 재검증을 생략하고 post 범위를 ledger에
-    반영한다. `ORIG_HEAD` 존재 자체는 신뢰 신호가 아니다: rebase뿐 아니라
-    merge/reset/pull/am도 이를 갱신하고 영구 잔존하므로, round1처럼 "ORIG_HEAD가
-    있으면 그걸로 검증"하면 `git merge <타세션>` 후 `--ledger-only` 한 번으로
-    foreign 커밋이 own으로 세탁된다(round1 Critical 재발견). 마커가 없으면
-    merge/cherry-pick/reset으로 유입된 커밋이 현재 HEAD 범위에 그대로 잡혀
-    거부된다. `--allow-foreign`은 최후의 명시적 우회로 남긴다.
+    소유 검증(F1-v3 — patch-id 전단사 회계): 원칙은 매 호출마다 **현재 HEAD**
+    범위를 ledger union과 대조하는 것이다(최초 호출·마커 없는 `--ledger-only`
+    모두 이 경로). 유일한 예외는 `--ledger-only`이고 직전 rebase 충돌 시 이
+    worktree에 남긴 **마커**가 있을 때이며, 이때는 `_recovery_accounting_passes`
+    (post 각 커밋의 patch-id를 마커의 pre patch-id와 전단사로 맞춰보는 회계)가
+    통과해야만 재검증을 생략한다. ORIG_HEAD는 신뢰 신호로 전혀 쓰지 않는다 —
+    round1(ORIG_HEAD 존재 시 신뢰)과 round2(마커+ORIG_HEAD 일치 시 신뢰) 둘 다
+    `rebase --abort` 후 `merge`/`cherry-pick`으로 재현되는 세탁 구멍이었다(마커는
+    남아있지만 그 시점 이후 상태 변화를 검증하지 않았기 때문). v3는 마커의
+    "존재"가 아니라 마커가 설명하는 patch-id 회계로만 신뢰하므로, 마커가 아무리
+    오래 남아있어도(A3) 그 사이 유입된 foreign 패치는 여전히 unexplained로
+    잡힌다. `--allow-foreign`은 최후의 명시적 우회로 남긴다.
     """
     wt = Path(args.path).resolve() if args.path else repo_root()
     if not wt.name.lower().startswith(WT_PREFIX):
@@ -250,13 +298,26 @@ def cmd_sync(args: argparse.Namespace) -> int:
         print("[refuse] 미커밋 변경 존재 — 커밋 후 sync 재시도", file=sys.stderr)
         return EXIT_REFUSE
 
-    trusted_recovery = False
-    if args.ledger_only:
-        marker_pre = _read_conflict_marker(marker)
-        if marker_pre is not None and _git(wt, "rev-parse", "--verify", "ORIG_HEAD", check=False)[0] == 0:
-            trusted_recovery = _range_shas(wt, "ORIG_HEAD") == marker_pre
+    # F1-v3 위생: 분기 앞에서 무조건 초기화 — 이후 사용 시점이 어느 분기를
+    # 거쳤는지에 대한 암묵적 불변식에 의존하지 않는다(재리뷰 지적).
+    pre: list[str] = []
+    pre_patch_ids: list[str] = []
 
-    if not trusted_recovery:
+    marker_data = _read_conflict_marker(marker) if args.ledger_only else None
+    recovered_via_marker = False
+    if marker_data is not None:
+        recovered_via_marker = _recovery_accounting_passes(wt, marker_data)
+        if not recovered_via_marker and not args.allow_foreign:
+            print(
+                "[refuse] 복구 검증 실패 — 마커 이후 설명되지 않는 커밋이 있음"
+                "(merge/cherry-pick 등 유입 의심). 임의 해결 금지.",
+                file=sys.stderr,
+            )
+            print("  소유가 확실하면 --allow-foreign으로 명시 승인.", file=sys.stderr)
+            return EXIT_REFUSE
+        recovered_via_marker = True  # 회계 통과 또는 --allow-foreign 명시 우회
+
+    if not recovered_via_marker:
         pre = _range_shas(wt)
         union = scl.all_known_shas(str(wt))
         unknown = [s for s in pre if not scl.sha_in_list(s, union)]
@@ -266,12 +327,15 @@ def cmd_sync(args: argparse.Namespace) -> int:
                 print(f"  {s[:10]}", file=sys.stderr)
             print("  소유가 확실하면 --allow-foreign으로 명시 승인.", file=sys.stderr)
             return EXIT_REFUSE
+        if not args.ledger_only:
+            pre_patch_ids = list(_range_patch_ids(wt).values())
 
     if not args.ledger_only:
+        _clear_conflict_marker(marker)  # 새 rebase 시도 전 잔존 마커 선삭제(A3 방어)
         _git(wt, "fetch", "origin", "deploy")
         r = subprocess.run(["git", "rebase", "origin/deploy"], cwd=str(wt))
         if r.returncode != 0:
-            _write_conflict_marker(marker, pre)
+            _write_conflict_marker(marker, pre, pre_patch_ids)
             print("[conflict] rebase 충돌 — 임의 해결 금지. 해결 → `git rebase --continue` → `sync --ledger-only`", file=sys.stderr)
             return EXIT_CONFLICT
 

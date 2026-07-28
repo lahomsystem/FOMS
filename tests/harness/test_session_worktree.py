@@ -305,3 +305,164 @@ def test_sync_ledger_only_refuses_after_reset_and_foreign_cherry_pick(repo: Path
 
     r = _run(wt, "sync", "--ledger-only")
     assert r.returncode == 2, r.stdout + r.stderr
+
+
+# ---- 리뷰 반영 (fix round 3) — F1-v3: patch-id 전단사 회계 (A1/A2/A3 실증 대응) ----
+
+def test_sync_ledger_only_refuses_after_abort_then_merge_foreign(repo: Path, tmp_path: Path) -> None:
+    """A1 재현: 충돌 → abort → merge foreign → ledger-only → exit 2, foreign 미등록.
+
+    round1/round2는 ORIG_HEAD를 신뢰 신호로 썼는데, `rebase --abort` 후
+    `merge`를 해도 ORIG_HEAD가 갱신·잔존해 두 라운드 모두 여기서 세탁됐다.
+    v3는 마커의 patch-id 회계로만 판단하므로 abort 후 유입된 foreign은
+    여전히 unexplained로 잡혀 거부된다.
+    """
+    import session_commit_ledger as scl
+    from deploy_push_scope import classify_deploy_scope
+
+    # a.txt와 무관한 foreign 브랜치를 분기 전 상태에서 미리 만들어 둔다 —
+    # 나중에 병합할 때 a.txt 충돌이 재발하지 않도록(테스트 셋업 자체가
+    # 충돌로 죽지 않게) 하기 위함.
+    _git(repo, "branch", "foreign-branch")
+    _git(repo, "checkout", "foreign-branch")
+    (repo / "f.txt").write_text("foreign", encoding="utf-8")
+    _git(repo, "add", "f.txt")
+    _git(repo, "commit", "-m", "foreign work on separate branch")
+    _git(repo, "checkout", "deploy")
+
+    wt = _make_wt(repo, tmp_path, "t20")
+    (wt / "a.txt").write_text("session-side", encoding="utf-8")
+    _git(wt, "add", "a.txt")
+    _git(wt, "commit", "-m", "session edits a.txt")
+    mine = _git(wt, "rev-parse", "HEAD")
+    scl.append_commit(str(wt), "sid1", mine)
+
+    (repo / "a.txt").write_text("other-side", encoding="utf-8")
+    _git(repo, "add", "a.txt")
+    _git(repo, "commit", "-m", "other session edits a.txt")
+    _git(repo, "push", "origin", "deploy")
+
+    r = _run(wt, "sync")
+    assert r.returncode == 3, r.stdout + r.stderr  # 충돌, 마커 기록됨
+
+    _git(wt, "rebase", "--abort")  # wt는 mine 상태로 복귀, 마커는 잔존(A1 조건)
+
+    _git(wt, "fetch", str(repo), "foreign-branch")
+    _git(wt, "-c", "core.editor=true", "merge", "FETCH_HEAD", "-m", "merge foreign after abort")
+
+    r2 = _run(wt, "sync", "--ledger-only")
+    assert r2.returncode == 2, r2.stdout + r2.stderr
+    assert classify_deploy_scope(str(wt), "sid1").kind != "own"
+
+
+def test_sync_ledger_only_refuses_after_continue_then_cherry_pick_foreign(repo: Path, tmp_path: Path) -> None:
+    """A2 재현: 충돌 → resolve → continue → cherry-pick foreign → ledger-only → exit 2.
+
+    복구 자체는(마커 회계로) 통과 가능한 상태이지만, continue 이후 추가로
+    유입된 foreign 커밋은 전단사 회계에서 소비되지 않는 unexplained 슬롯을
+    만들어 거부되어야 한다.
+    """
+    import session_commit_ledger as scl
+
+    wt = _make_wt(repo, tmp_path, "t21")
+    (wt / "a.txt").write_text("session-side", encoding="utf-8")
+    _git(wt, "add", "a.txt")
+    _git(wt, "commit", "-m", "session edits a.txt")
+    mine = _git(wt, "rev-parse", "HEAD")
+    scl.append_commit(str(wt), "sid1", mine)
+
+    (repo / "a.txt").write_text("other-side", encoding="utf-8")
+    _git(repo, "add", "a.txt")
+    _git(repo, "commit", "-m", "other session edits a.txt")
+    _git(repo, "push", "origin", "deploy")
+
+    r = _run(wt, "sync")
+    assert r.returncode == 3, r.stdout + r.stderr
+
+    (wt / "a.txt").write_text("resolved", encoding="utf-8")
+    _git(wt, "add", "a.txt")
+    _git(wt, "-c", "core.editor=true", "rebase", "--continue")
+
+    foreign = _commit(repo, "g.txt", "foreign work2")  # ledger 미기록, worktree가 object store 공유라 fetch 불요
+    _git(wt, "cherry-pick", foreign)
+
+    r2 = _run(wt, "sync", "--ledger-only")
+    assert r2.returncode == 2, r2.stdout + r2.stderr
+
+
+def test_sync_ledger_only_recovers_when_resolution_rewrites_patch_content(repo: Path, tmp_path: Path) -> None:
+    """F1-v3 필수: 충돌 해결로 patch 내용 자체가 바뀐 커밋도 exit 0 + own으로 복구된다.
+
+    엄격 포함관계(post의 모든 patch-id가 pre 집합의 부분집합)였다면 이 케이스가
+    거짓 거부(false refuse)였을 것이다 — 해결된 커밋은 diff 내용이 바뀌어
+    patch-id도 달라지기 때문(F1 원증상 재발 지점). 전단사 회계
+    (unexplained_post <= consumed_pre)는 이 슬롯 교체를 정확히 1:1로 허용한다.
+    """
+    import session_commit_ledger as scl
+    from deploy_push_scope import classify_deploy_scope
+
+    wt = _make_wt(repo, tmp_path, "t22")
+    (wt / "a.txt").write_text("session-side", encoding="utf-8")
+    _git(wt, "add", "a.txt")
+    _git(wt, "commit", "-m", "session edits a.txt")
+    mine = _git(wt, "rev-parse", "HEAD")
+    scl.append_commit(str(wt), "sid1", mine)
+
+    (repo / "a.txt").write_text("other-side", encoding="utf-8")
+    _git(repo, "add", "a.txt")
+    _git(repo, "commit", "-m", "other session edits a.txt")
+    _git(repo, "push", "origin", "deploy")
+
+    r = _run(wt, "sync")
+    assert r.returncode == 3, r.stdout + r.stderr
+
+    # 해결 시 patch 내용을 원본(session-side)과 다르게 재작성 — patch-id가 바뀐다.
+    (wt / "a.txt").write_text("resolved-with-different-content", encoding="utf-8")
+    _git(wt, "add", "a.txt")
+    _git(wt, "-c", "core.editor=true", "rebase", "--continue")
+
+    r2 = _run(wt, "sync", "--ledger-only")
+    assert r2.returncode == 0, r2.stdout + r2.stderr
+    assert classify_deploy_scope(str(wt), "sid1").kind == "own"
+
+
+def test_sync_ledger_only_refuses_new_foreign_merge_with_stale_marker(repo: Path, tmp_path: Path) -> None:
+    """A3 재현: 마커가 잔존한 채(그 사이 정당한 추가 커밋까지 쌓인 뒤) 새로 유입된
+    foreign 병합도 전단사 회계로 거부된다 — 마커의 '존재'가 아니라 그 순간의
+    회계 결과만 신뢰함을 검증한다.
+    """
+    import session_commit_ledger as scl
+
+    _git(repo, "branch", "foreign-branch2")
+    _git(repo, "checkout", "foreign-branch2")
+    (repo / "h.txt").write_text("foreign3", encoding="utf-8")
+    _git(repo, "add", "h.txt")
+    _git(repo, "commit", "-m", "foreign work on separate branch 2")
+    _git(repo, "checkout", "deploy")
+
+    wt = _make_wt(repo, tmp_path, "t23")
+    (wt / "a.txt").write_text("session-side", encoding="utf-8")
+    _git(wt, "add", "a.txt")
+    _git(wt, "commit", "-m", "session edits a.txt")
+    mine = _git(wt, "rev-parse", "HEAD")
+    scl.append_commit(str(wt), "sid1", mine)
+
+    (repo / "a.txt").write_text("other-side", encoding="utf-8")
+    _git(repo, "add", "a.txt")
+    _git(repo, "commit", "-m", "other session edits a.txt")
+    _git(repo, "push", "origin", "deploy")
+
+    r = _run(wt, "sync")
+    assert r.returncode == 3, r.stdout + r.stderr  # 마커 기록(pre=[mine] 시점)
+
+    _git(wt, "rebase", "--abort")
+
+    # "시간이 지나며" 세션이 정당한 커밋을 하나 더 쌓는다 — 마커는 그대로(A3).
+    later = _commit(wt, "later.txt", "more session work")
+    scl.append_commit(str(wt), "sid1", later)
+
+    _git(wt, "fetch", str(repo), "foreign-branch2")
+    _git(wt, "-c", "core.editor=true", "merge", "FETCH_HEAD", "-m", "merge foreign much later")
+
+    r2 = _run(wt, "sync", "--ledger-only")
+    assert r2.returncode == 2, r2.stdout + r2.stderr
