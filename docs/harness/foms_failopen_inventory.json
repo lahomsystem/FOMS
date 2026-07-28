@@ -4177,7 +4177,7 @@
     },
     {
       "path": "foms/web/drawing/workbench.py",
-      "lineno": 497,
+      "lineno": 519,
       "handler_type": "broad_exception",
       "disposition": "INTENTIONAL",
       "owner": "web",
@@ -4186,7 +4186,7 @@
     },
     {
       "path": "foms/web/drawing/workbench.py",
-      "lineno": 838,
+      "lineno": 873,
       "handler_type": "broad_exception",
       "disposition": "INTENTIONAL",
       "owner": "web",
