@@ -91,6 +91,9 @@ def test_timeline_fragment_renders_legacy_alongside_reception(client):
     기존 as_content 주문을 재접수하면 한 요청이 legacy 를 굳히고 reception 을 append 한다.
     legacy 는 스트림에 없으므로(앵커 전용) 앵커가 `if reception / elif legacy` 배타 분기면
     이전 기록이 **어디에도** 렌더되지 않는다 — 셀 배지 count 는 둘 다 세므로 수치와 화면이 어긋난다.
+
+    배치도 함께 고정한다: 접수 원문은 상단 앵커, legacy 는 스트림/더보기 **아래**(가장 오래된
+    기록이 역시간순 스트림의 끝). 배타 분기 회귀는 존재 검사로, 순서 회귀는 위치 검사로 잡는다.
     """
     _login_as_admin(client, username="as-timeline-legacy-coexist-admin")
     order_id = _create_as_order(status="CS", shipment_extra={"as_content": "옛 기록 본문"})
@@ -102,6 +105,9 @@ def test_timeline_fragment_renders_legacy_alongside_reception(client):
     assert "새 접수 본문" in body
     assert "옛 기록 본문" in body
     assert 'data-log-id="al_legacy_as_content"' in body
+    # 상단 reception → 중간 스트림 → 하단 legacy
+    assert body.index("새 접수 본문") < body.index('class="as-timeline__stream"')
+    assert body.index('class="as-timeline__stream"') < body.index("as-timeline__anchor--legacy")
 
 
 def test_timeline_fragment_full_param_lifts_recent_limit(client):
