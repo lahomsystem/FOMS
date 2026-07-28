@@ -163,6 +163,9 @@
 - [ ] docs/AI_STATUS.md 갱신 (상태 변경 시)
 - [ ] `deploy`/`main` push 직전 `scripts/ops/pre_push_smoke.ps1` 실행 → exit 0 확인
 
+# Compact instructions
+컨텍스트 압축 시 보존 우선순위: 작업 브랜치·HEAD SHA, 검증 명령과 마지막 결과(성공/실패 원문), 미해결 실패, 편집 파일 경로 목록, 사용자 승인·결정 사항. 탐색성 read/grep/대형 도구 출력은 버린다. 상세 복원은 `docs/harness/runtime/COMPACT_CHECKPOINT.md`가 담당.
+
 ## 참조 문서
 - `docs/AI_STATUS.md` → 프로젝트 현재 상태
 - `docs/AI_CHANGELOG.md` → 작업 기록

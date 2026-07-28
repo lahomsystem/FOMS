@@ -63,11 +63,7 @@
         "hooks": [
           {
             "type": "command",
-            "command": "python \"${CLAUDE_PROJECT_DIR}/.claude/hooks/record_commit_ledger.py\""
-          },
-          {
-            "type": "command",
-            "command": "python \"${CLAUDE_PROJECT_DIR}/.claude/hooks/post_push_watch.py\""
+            "command": "python \"${CLAUDE_PROJECT_DIR}/.claude/hooks/post_bash.py\""
           }
         ]
       }

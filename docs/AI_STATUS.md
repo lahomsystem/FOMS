@@ -1,9 +1,42 @@
 # FOMS 현재 상태
-> 자동 업데이트: 2026-07-28 | **124-packet 전 시스템 버그감사 remediation 스테이징 반영 완료** — bugfix/full-system-remediation(118 구현+6 N/A) deploy 병합·푸시, 마이그레이션 29종 스테이징 실DB 적용(wiz_pending_00), CI 4워크플로 green, healthz 신 SHA 서빙. PG 전수 641 green(dev DSN 최초)·마이그레이션 체인 동결 결함 수정·이미지 매니페스트 포함 수정. 정본: docs/harness/foms_bugfix_progress_ledger.md. production 승격은 사용자 명시 승인 대기. 이전: **실측 지도 카카오 전환 완결(Z~Z4)** — Z: 동선 카드 카카오 실지도(SDK lazy·SVG 폴백·키 SSOT=geocode_config→data 속성)+fragment 최초진입 CHAIN 편입, 출고 카드 통합(v2 카드 옵트인 슬롯 3종·바이트 패리티)+수정시트 85vh. Z2: route 빌더 SSOT(foms/services/measurement_route.py)→서버 인라인 data-route-inline(첫 페인트 API 왕복 제거), 푸터 본줄 3고정+조건부 버튼 아랫줄 일반화, 카카오 JS 키 교체(구 앱 OPEN_MAP_AND_LOCAL 비활성이 회색화면 원인). Z3: 0-사이즈 init 공백(명시높이+ResizeObserver relayout)·순번 8색 팔레트(--foms-route-stop SSOT, AA 실측). Z4: **map_view 본체 카카오 전환**(map-view-kakao.js 신규 — 마커 pill·팝업 selectOrder 연동·범례 복원·동선 오버레이·그룹핑·폴링 마커 갱신, SDK 실패 시 folium 자동 폴백 보존). 제외·후속: 2마커 경로계산(폴백 잔존)·줌 그룹 안무. **운영 승격 시 카카오 콘솔에 운영 도메인 등록 필수.** 이전: fragment 인라인 스크립트 잠복 결함 전량 수술(Y라운드) — X라운드 보류분 해소: 시공(1478줄)·생산(2블록)·주문 index(590줄)·이력 DOMContentLoaded 블록 5개를 per-swap(요소 바인딩=재실행 의존, 무가드)/once-only(document·body 위임=window.__FOMS_*_BOUND 싱글톤, 이벤트 시점 요소 조회) 분리 수술 + 같은 파일 top-level 누적 리스너 6건 가드 흡수. **dashboard_scripts_detail_dom+형제 6종=완전 사문 판정·제거(~2,900줄)** — 부모부터 렌더 경로 0건 고아, 로직은 erp-dashboard-entry.js CHAIN(static/js/orders/dashboard/*)에 개선판 이관 완료 상태였음. 계약 테스트 5종은 삭제 아닌 라이브 트윈 재지정(커버리지 보존). 패턴 정본: activateScripts 재실행→swapped 이벤트 순서라 per-swap에 이벤트 재바인딩 추가 금지(이중 바인딩), 스크립트 뒤 렌더 DOM 필요 시 readyState 게이트+once 정당. 이전: 모바일 실기기 QA 5결함 라운드(X1~X5) — X1 FOUC 근본수정: fragment body 내 CSS `<link>` 20여 곳이 원인, erp-shell `navigateByShell` swap 직전 스타일시트 선로드(head 주입+load await, 1.5s Promise.race 상한, href 중복 스킵) 단일 초크포인트로 전 페이지 일괄 해결. X2 실측 캡처 기능 전삭제(사용자 번복 확정 — capture.py·capture_sheet·measure-capture js/css·테스트 삭제, photo-capture(사진첨부)는 별개라 유지). X3 실측 히어로 내비·전화·상세 1줄 비율 배치. X4 동선: route API mine=1 전파(대시보드와 동일 predicate)+실측 지도(folium/OSM) 동선 오버레이(route=1 opt-in, 순번 배지+시간순 폴리라인, 카카오 비용 0). X5 출고 정보 수정 버튼 사망 = 인라인 스크립트 DOMContentLoaded 래퍼(fragment swap 후 미발화) → 싱글톤+document 위임+클릭시점 조회 전환, 2차 결함(erp-shell submit 인터셉트)도 data-foms-erp-no-shell로 차단. **잠복 동종 결함 4건 보류·보고**: construction/production scripts·orders/index·dashboard_scripts_detail_dom의 DOMContentLoaded 대형 블록(각 500~1500줄, body 리스너 혼재로 정밀 수술 필요 — 별도 태스크 권장). 이전: 모바일 W1~W4 소탕 완료 (deploy 3efa9f40 + 핀 동기 641b80d5·9b0afb73, 스테이징 실조작 검증) — 사용자 4분기 확정 구현: 실측 카드 빠른수정(주소/연락처/담당) 삭제·캡처 유지, 도면 워크벤치 모바일 요약 카드(버전 칩·전달 1줄·요청 메모·마법사 바로가기, 쿼리 0), 출고 차량/회차 필드 신설(patch whitelist+대시보드 파생), CS 부재중 페이지 내 클라 필터(foms-call-filter.js, show_last_call 게이트로 타 큐 바이트 무영향). 함정 재확인: foms-mobile-surfaces.css ?v= 범프 시 테스트 리터럴 핀 분산(p1_mockup·spec_calc_followup·tablet_t2) — grep 전수 치환 후 **치환된 파일 전부 커밋까지 확인**(이번에 1개만 커밋해 CI red 2회). 이전: 모바일 실기능 B라운드 완주 (deploy 351f1276~3958fa91, CI green·스테이징 E2E 실호출 검증) — 목업 실기능 7종 v2 탑재: 통화 결과 기록(sd.calls+CALL_LOGGED), 생산 공정 5스텝(lazy 시트 — fragment 예산 보호), 출고 패킹 파생 체크리스트, 실측 캡처(사진 파이프 재사용+dims/note — spec_rows 무터치), 시공 완료 게이트(FOMS_CONSTRUCTION_GATE_ENABLED, after≥2+서명 서버 검증 — 스테이징 on·운영 off), QR 라벨(segno)+BarcodeDetector 스캔, sync 배지+IndexedDB 재시도 큐(FOMS_OFFLINE_SW_ENABLED — sw.js 무터치). perf 예산 bytes 재시드(관측×1.3)+TTFB CI 심판석 복원. 이전: 모바일 v3 셸(Field OS) 완성 라운드
+> 자동 업데이트: 2026-07-28
+> 최신: 124-packet 전 시스템 버그감사 remediation 스테이징 반영 완료(CI 4/4 green) — production 승격은 사용자 승인 대기. 직전: AS 타임라인 개편 완주, 실측 지도 카카오 전환 완결(Z~Z4).
+> 이 파일 상단 40줄이 세션 시작 컨텍스트의 전부다(hygiene 계약 테스트로 강제). 상세 이력: "## 최근 완료"·"## 기록 보관", 과거 헤더 상세는 기록 보관에 이관.
 
 ## 스택
 Flask 2.3 + PostgreSQL + R2 + Railway (Web×2, Worker×1)
 브랜치: deploy (스테이징) → production (운영)
+
+## 진행 중
+- [2026-07-28] **124-packet remediation production 승격 대기** — deploy 반영 완료(CI 4/4 green), 사용자 명시 승인 후 승격. 정본: docs/harness/foms_bugfix_progress_ledger.md
+- [2026-04-17] **ERP fast-page `EPT-B8`:** run record `docs/plans/2026-04-17-ept-b8-verification-railway-evidence-run-record.md` — 로컬 게이트 완료; staging HTTP 하네스로 **§4 표·§5** 부분 채움; **closeout** 은 deploy ID·§6 모드·hard stop 조건 충족 후.
+- [2026-04-15] **`SFC-B11B`** (§6.16 `apps/` overlay retirement): **working tree 기준 `apps/` 디렉터리 없음** — 구현·계약은 batch11b·B11A run record·`pytest` strict 계약으로 동결. 원격/HEAD와 불일치 시 동기화만 확인.
+- [2026-04-15] active mainline 구조 tranche 없음. `WR-B1` / `WR-J1` / `WR-H1`는 explicit future batch 조건에서만 재개.
+- [2026-03-26] 채널톡 연동 파일럿(Wave 0 ~ 5) 운영 모니터링 (실제 데이터 축적 대기 중)
+
+## 알려진 이슈
+- 차단 이슈 없음. post-Wave9 endgame mainline은 종료되었고, 남은 구조 부채는 `WR-B1` / `WR-J1` / `WR-H1`처럼 explicit future-batch 조건으로만 존재한다. W5-B8의 로컬 authenticated browser smoke 환경 이탈은 run record에 residual로 문서화되어 있으며, `wdcalculator_scripts_config.html` Jinja 상단 변수 주입 구간의 JS lint false-positive는 기존과 동일하게 남아 있다.
+
+## 아키텍처 요약
+- 파일 업로드: 브라우저→R2 Presigned PUT 직접 (배치+병렬, UUID키)
+- 도면 생명주기: 발송(보존)→취소(신규만삭제)→확정(구버전정리)
+- 지도: Folium iframe + `/api/map_data` 경량 폴링 (15s×5회)
+- 성능/조회: `OrderScheduleDate`(날짜정규화), Partial Indexes, `Order.active_filter()` / `dashboard_active_filter(days=60)` 병행 계약 존재
+- 권한: CONSTRUCTION팀 출고/시공만, 도면팀 발송/취소
+- 하네스 문서 자산: Step 7에서 `docs/harness/{policy,bundles,runtime,logs}` canonical taxonomy로 분리됐고, `docs/context`는 incident/reference 기록만 유지한다
+- 패키징: Step 8 verdict는 repo-root `foms/` boundary 유지이며, full `src/foms`/metadata hardening은 boot/worker/Alembic/tests import contract explicit화 전까지 defer 상태다
+- 대형 파일 분해: Step 6에서 inventory와 separate governance spec이 분리됐고, 실제 split은 future batch에서 contract freeze 후 실행한다
+
+<!-- 이하 상세 기록. 세션 시작 시에는 상단 40줄만 읽는다(hygiene 계약) -->
+
+
+
+
+
+
+
+
+
 
 ## 최근 완료 (최대 5개)
 - [2026-07-28] **124-packet 버그감사 remediation 스테이징 배포 완결 (deploy 3a4b3b3f, CI 4/4 green·healthz 실서빙 확인):** 이전 세션 118 packet 구현분을 PG 전수검증(로컬 dev PG, tests/postgres 641 passed 0 failed — 오염 근본수정: per-module TRUNCATE RESTART IDENTITY+seed 재주입·NullPool advisory-lock leak 차단·FK 시대 픽스처 31건 수리) 후 origin/deploy 59커밋(AS 타임라인 개편·생산 보드 2~5차)과 의미론 병합(canonical 골격 불가침+deploy 기능 100% 보존, LEGACY_BRIDGE·재접수 라우트 중재·as_completed_date canonical 브리지). **배포에서만 터지는 결함 3건 근본수정**: sidefx_00/order_import_00 마이그레이션 models live-import 소급 오염(fresh 체인 upgrade 파산 — 작성 시점 상수 동결), .dockerignore docs/ 제외로 런타임 매니페스트 4종 이미지 부재(부팅 FileNotFoundError — negation+명시 COPY), harness-ci DATABASE_URL 미선언(STARTUP-PURE fail-closed 프로브 노출 — sqlite 선언). 스테이징 실DB predeploy로 마이그레이션 29종 적용(wiz_pending_00·84테이블·expand-only로 구 코드 서빙 무중단 실증). 정본: docs/harness/foms_bugfix_progress_ledger.md. **production 승격 금지 — 사용자 명시 승인 대기.**
@@ -72,16 +105,10 @@ Flask 2.3 + PostgreSQL + R2 + Railway (Web×2, Worker×1)
 - [2026-04-14] Wave 7 **test / contract rationalization** 실행 완료 (W7-B0~B7, Branch A): runtime anchor를 `tests/contracts/runtime/foms_namespace_surface_tests.py` + thin `test_foms_namespace_imports.py`로 정리했고, WDCalculator `composition`/`primary-form`은 parametrized chunk suites로 수령했다. 레거시 pytest 래퍼 37개 제거, defer 16 micro-pair 유지.
 - [2026-04-14] Wave 5 **large front-end island** mainline closeout (W5-B4~B9): `estimate-lifecycle.js`, `pricing-core.js`, `beta-shared.js` owner 정렬과 thin partial closeout을 완료했고, residual live browser smoke gap과 shell/CSS/high-risk defer register는 `docs/plans/2026-04-14-wave5-batch9-closeout-run-record.md`에 잠금 처리했다.
 
-## 진행 중
-- [2026-04-17] **ERP fast-page `EPT-B8`:** run record `docs/plans/2026-04-17-ept-b8-verification-railway-evidence-run-record.md` — 로컬 게이트 완료; staging HTTP 하네스로 **§4 표·§5** 부분 채움; **closeout** 은 deploy ID·§6 모드·hard stop 조건 충족 후.
-- [2026-04-15] **`SFC-B11D`** (§6.18 `src/` retirement): **종료** — batch11d run record 참고.
-- [2026-04-15] **`SFC-B12`** (§6.19 clean-room): **종료** — `HEAD` `b7014c74`에서 `strict_canonical_b12_clean_room.ps1`로 SG6 재현 완료(batch12 run record §8).
-- [2026-04-15] **`SFC-B11B`** (§6.16 `apps/` overlay retirement): **working tree 기준 `apps/` 디렉터리 없음** — 구현·계약은 batch11b·B11A run record·`pytest` strict 계약으로 동결. 원격/HEAD와 불일치 시 동기화만 확인.
-- [2026-04-15] **`SFC-B11A`:** §**6.15** **종료** (batch11a sign-off). B11B와 혼동 금지.
-- [2026-04-15] active mainline 구조 tranche 없음. `WR-B1` / `WR-J1` / `WR-H1`는 explicit future batch 조건에서만 재개.
-- [2026-03-26] 채널톡 연동 파일럿(Wave 0 ~ 5) 운영 모니터링 (실제 데이터 축적 대기 중)
+### 2026-07-28 이전 헤더 상세 (이관)
+> 자동 업데이트: 2026-07-28 | **124-packet 전 시스템 버그감사 remediation 스테이징 반영 완료** — bugfix/full-system-remediation(118 구현+6 N/A) deploy 병합·푸시, 마이그레이션 29종 스테이징 실DB 적용(wiz_pending_00), CI 4워크플로 green, healthz 신 SHA 서빙. PG 전수 641 green(dev DSN 최초)·마이그레이션 체인 동결 결함 수정·이미지 매니페스트 포함 수정. 정본: docs/harness/foms_bugfix_progress_ledger.md. production 승격은 사용자 명시 승인 대기. 이전: **실측 지도 카카오 전환 완결(Z~Z4)** — Z: 동선 카드 카카오 실지도(SDK lazy·SVG 폴백·키 SSOT=geocode_config→data 속성)+fragment 최초진입 CHAIN 편입, 출고 카드 통합(v2 카드 옵트인 슬롯 3종·바이트 패리티)+수정시트 85vh. Z2: route 빌더 SSOT(foms/services/measurement_route.py)→서버 인라인 data-route-inline(첫 페인트 API 왕복 제거), 푸터 본줄 3고정+조건부 버튼 아랫줄 일반화, 카카오 JS 키 교체(구 앱 OPEN_MAP_AND_LOCAL 비활성이 회색화면 원인). Z3: 0-사이즈 init 공백(명시높이+ResizeObserver relayout)·순번 8색 팔레트(--foms-route-stop SSOT, AA 실측). Z4: **map_view 본체 카카오 전환**(map-view-kakao.js 신규 — 마커 pill·팝업 selectOrder 연동·범례 복원·동선 오버레이·그룹핑·폴링 마커 갱신, SDK 실패 시 folium 자동 폴백 보존). 제외·후속: 2마커 경로계산(폴백 잔존)·줌 그룹 안무. **운영 승격 시 카카오 콘솔에 운영 도메인 등록 필수.** 이전: fragment 인라인 스크립트 잠복 결함 전량 수술(Y라운드) — X라운드 보류분 해소: 시공(1478줄)·생산(2블록)·주문 index(590줄)·이력 DOMContentLoaded 블록 5개를 per-swap(요소 바인딩=재실행 의존, 무가드)/once-only(document·body 위임=window.__FOMS_*_BOUND 싱글톤, 이벤트 시점 요소 조회) 분리 수술 + 같은 파일 top-level 누적 리스너 6건 가드 흡수. **dashboard_scripts_detail_dom+형제 6종=완전 사문 판정·제거(~2,900줄)** — 부모부터 렌더 경로 0건 고아, 로직은 erp-dashboard-entry.js CHAIN(static/js/orders/dashboard/*)에 개선판 이관 완료 상태였음. 계약 테스트 5종은 삭제 아닌 라이브 트윈 재지정(커버리지 보존). 패턴 정본: activateScripts 재실행→swapped 이벤트 순서라 per-swap에 이벤트 재바인딩 추가 금지(이중 바인딩), 스크립트 뒤 렌더 DOM 필요 시 readyState 게이트+once 정당. 이전: 모바일 실기기 QA 5결함 라운드(X1~X5) — X1 FOUC 근본수정: fragment body 내 CSS `<link>` 20여 곳이 원인, erp-shell `navigateByShell` swap 직전 스타일시트 선로드(head 주입+load await, 1.5s Promise.race 상한, href 중복 스킵) 단일 초크포인트로 전 페이지 일괄 해결. X2 실측 캡처 기능 전삭제(사용자 번복 확정 — capture.py·capture_sheet·measure-capture js/css·테스트 삭제, photo-capture(사진첨부)는 별개라 유지). X3 실측 히어로 내비·전화·상세 1줄 비율 배치. X4 동선: route API mine=1 전파(대시보드와 동일 predicate)+실측 지도(folium/OSM) 동선 오버레이(route=1 opt-in, 순번 배지+시간순 폴리라인, 카카오 비용 0). X5 출고 정보 수정 버튼 사망 = 인라인 스크립트 DOMContentLoaded 래퍼(fragment swap 후 미발화) → 싱글톤+document 위임+클릭시점 조회 전환, 2차 결함(erp-shell submit 인터셉트)도 data-foms-erp-no-shell로 차단. **잠복 동종 결함 4건 보류·보고**: construction/production scripts·orders/index·dashboard_scripts_detail_dom의 DOMContentLoaded 대형 블록(각 500~1500줄, body 리스너 혼재로 정밀 수술 필요 — 별도 태스크 권장). 이전: 모바일 W1~W4 소탕 완료 (deploy 3efa9f40 + 핀 동기 641b80d5·9b0afb73, 스테이징 실조작 검증) — 사용자 4분기 확정 구현: 실측 카드 빠른수정(주소/연락처/담당) 삭제·캡처 유지, 도면 워크벤치 모바일 요약 카드(버전 칩·전달 1줄·요청 메모·마법사 바로가기, 쿼리 0), 출고 차량/회차 필드 신설(patch whitelist+대시보드 파생), CS 부재중 페이지 내 클라 필터(foms-call-filter.js, show_last_call 게이트로 타 큐 바이트 무영향). 함정 재확인: foms-mobile-surfaces.css ?v= 범프 시 테스트 리터럴 핀 분산(p1_mockup·spec_calc_followup·tablet_t2) — grep 전수 치환 후 **치환된 파일 전부 커밋까지 확인**(이번에 1개만 커밋해 CI red 2회). 이전: 모바일 실기능 B라운드 완주 (deploy 351f1276~3958fa91, CI green·스테이징 E2E 실호출 검증) — 목업 실기능 7종 v2 탑재: 통화 결과 기록(sd.calls+CALL_LOGGED), 생산 공정 5스텝(lazy 시트 — fragment 예산 보호), 출고 패킹 파생 체크리스트, 실측 캡처(사진 파이프 재사용+dims/note — spec_rows 무터치), 시공 완료 게이트(FOMS_CONSTRUCTION_GATE_ENABLED, after≥2+서명 서버 검증 — 스테이징 on·운영 off), QR 라벨(segno)+BarcodeDetector 스캔, sync 배지+IndexedDB 재시도 큐(FOMS_OFFLINE_SW_ENABLED — sw.js 무터치). perf 예산 bytes 재시드(관측×1.3)+TTFB CI 심판석 복원. 이전: 모바일 v3 셸(Field OS) 완성 라운드
 
-## 검증 필요
+### 검증 필요 (전부 완료 확인, 2026-04 이전 — 이관)
 - [x] 실측 summary panel vs 실측 대시보드/지도 건수 parity 수동 확인 (temp QA 기준 2026-04-11 row 3 / panel 3 / map total_orders 3 일치 확인)
 - [x] 실측 지도 E2E: `/erp/measurement?open_map=1` → `map_view` redirect, `/api/map_data`·`/api/generate_map` server smoke와 브라우저 시각 확인까지 temp QA 기준 완료
 - [x] Legacy 정리: `python scripts/maintenance/fix_geocode_status_inconsistency.py` 1회 실행 완료 (`정리 대상 없음`)
@@ -89,9 +116,6 @@ Flask 2.3 + PostgreSQL + R2 + Railway (Web×2, Worker×1)
 - [x] 시공팀 접근 제한 + mine 필터 수동 테스트 (temp QA construction user 기준 `/erp/shipment` mine=assigned only, `/erp/measurement`·`/erp/dashboard` 접근 시 `/erp/shipment` redirect 확인)
 - [x] 출고 대시보드 시공자 그룹 파스텔 색상 확인 (temp QA shipment UI에서 `시공1` light-blue pastel 그룹 스타일 확인)
 - [x] 성능 최적화(Phase) 전반 체감 속도 향상 확인 (temp QA 기준 `/erp/measurement`, `/map_view`, `/api/generate_map`, `/api/map_data` timing smoke 재확인)
-
-## 알려진 이슈
-- 차단 이슈 없음. post-Wave9 endgame mainline은 종료되었고, 남은 구조 부채는 `WR-B1` / `WR-J1` / `WR-H1`처럼 explicit future-batch 조건으로만 존재한다. W5-B8의 로컬 authenticated browser smoke 환경 이탈은 run record에 residual로 문서화되어 있으며, `wdcalculator_scripts_config.html` Jinja 상단 변수 주입 구간의 JS lint false-positive는 기존과 동일하게 남아 있다.
 
 ## 핵심 모듈 (최근 수정)
 | 파일 | 역할 |
@@ -222,13 +246,3 @@ Flask 2.3 + PostgreSQL + R2 + Railway (Web×2, Worker×1)
 | `tests/test_wdcalculator_base_components_contract_node.py` | `primary-form.js`에서 추출한 base-components row DOM/selectors·hook contract를 Node로 검증 |
 | `tests/test_wdcalculator_estimate_totals_node.py` | `estimate-totals.js` 수식을 Node로 검증하는 focused regression test |
 | `tests/test_wdcalculator_notes_contract_node.py` | `primary-form.js`에서 추출한 notes load/collect·formatting contract를 Node로 검증 |
-
-## 아키텍처 요약
-- 파일 업로드: 브라우저→R2 Presigned PUT 직접 (배치+병렬, UUID키)
-- 도면 생명주기: 발송(보존)→취소(신규만삭제)→확정(구버전정리)
-- 지도: Folium iframe + `/api/map_data` 경량 폴링 (15s×5회)
-- 성능/조회: `OrderScheduleDate`(날짜정규화), Partial Indexes, `Order.active_filter()` / `dashboard_active_filter(days=60)` 병행 계약 존재
-- 권한: CONSTRUCTION팀 출고/시공만, 도면팀 발송/취소
-- 하네스 문서 자산: Step 7에서 `docs/harness/{policy,bundles,runtime,logs}` canonical taxonomy로 분리됐고, `docs/context`는 incident/reference 기록만 유지한다
-- 패키징: Step 8 verdict는 repo-root `foms/` boundary 유지이며, full `src/foms`/metadata hardening은 boot/worker/Alembic/tests import contract explicit화 전까지 defer 상태다
-- 대형 파일 분해: Step 6에서 inventory와 separate governance spec이 분리됐고, 실제 split은 future batch에서 contract freeze 후 실행한다

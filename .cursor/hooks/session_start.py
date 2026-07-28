@@ -43,7 +43,7 @@ def main():
     # AI 자동 메모리: 세션 시작 시 안내
     system1_message = (
         "[SYSTEM] 새 세션입니다.\n"
-        "1. `docs/AI_STATUS.md`를 읽어 현재 상황을 파악하세요.\n"
+        "1. `docs/AI_STATUS.md`는 상단 40줄만 읽으세요 — live 상태는 전부 상단, 아래는 상세 기록(필요 시 grep).\n"
         "2. 새 기능/중대형 수정, 또는 하네스 핵심 변경(Hooks/Rules/Agents/Verification)이면 반드시 조사(R)→계획(P)→실행(I) 순서를 따르세요.\n"
         "   - 조사: docs/harness/policy/DECISIONS.md, docs/ARCHIVE_INDEX.md에서 관련 과거 기록 검색\n"
         "   - 계획: docs/guides/SPEC_TEMPLATE.md 기반으로 Spec 작성 → 사용자 승인 대기\n"

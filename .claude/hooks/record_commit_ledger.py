@@ -29,10 +29,14 @@ def _response_text(tool_response) -> str:
     return ""
 
 
-def main() -> None:
-    """커밋 성공 시 ledger append. 무출력이 정상."""
+def process(payload: dict) -> None:
+    """커밋 성공 시 ledger append. 무출력이 정상.
+
+    파라미터:
+        payload: PostToolUse(Bash) 훅 페이로드(stdin JSON 파싱 결과).
+    반환: 없음. 실패는 fail-open + hook_log.
+    """
     try:
-        payload = read_stdin_json()
         command = (payload.get("tool_input") or {}).get("command", "") or ""
         if "git commit" not in command.lower():
             return
@@ -58,6 +62,11 @@ def main() -> None:
             f"record_commit_ledger fail-open: {type(exc).__name__}: {exc}",
             tag="commit_ledger",
         )
+
+
+def main() -> None:
+    """standalone 실행 진입점(stdin JSON 1회 읽어 process 호출)."""
+    process(read_stdin_json())
 
 
 if __name__ == "__main__":

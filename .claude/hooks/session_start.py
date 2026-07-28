@@ -1,6 +1,6 @@
 """Claude Code SessionStart hook: SESSION_LOG 기록 + 상황 파악/RPI 안내 주입.
 
-stdin으로 {"session_id": ..., "source": "startup"|"resume"|"clear"|"compact", ...}
+stdin으로 {"session_id": ..., "source": "startup"|"resume"|"clear"|"compact"|"fork", ...}
 형태의 페이로드를 받아 SESSION_LOG.md에 세션 시작을 기록하고,
 additionalContext로 AI_STATUS/RPI 안내를 주입한다. 실패해도 fail-open(exit 0).
 """
@@ -43,7 +43,7 @@ def _build_context(source: str) -> str:
     """
     lines = [
         "[SYSTEM] 새 Claude Code 세션입니다.",
-        "1. docs/AI_STATUS.md를 읽어 현재 상황을 파악하세요.",
+        "1. docs/AI_STATUS.md는 상단 40줄만 읽으세요(Read limit=40) — live 상태는 전부 상단에 있고, 아래는 상세 기록입니다(필요 시 grep).",
         "2. 핵심 코어 변경(DB/Auth/API/배포/하네스)이면 RPI(조사→계획→실행)를 따르세요.",
         "   - 조사: docs/harness/policy/DECISIONS.md, docs/ARCHIVE_INDEX.md에서 관련 기록 검색",
         "   - 계획: docs/guides/SPEC_TEMPLATE.md 기반 Spec 작성 → 사용자 승인 대기",
