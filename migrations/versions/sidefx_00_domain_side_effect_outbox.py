@@ -24,8 +24,10 @@ expiry/retention loop)는 하류(SIDEFX-WORKER-01·CHANNEL·URGENT 등) 몫이�
     retention ``(completed_at) WHERE DONE`` / ``(dead_at) WHERE DEAD``.
 * ``side_effect_worker_heartbeats`` — worker readiness 정본(worker 가 upsert; 여기선 테이블만).
 
-one-of CHECK SQL 은 ``models.DOMAIN_SIDE_EFFECT_ONE_OF_CHECK_SQL`` 을 공유해 ORM(create_all
-테스트 lane)과 DDL drift 를 막는다.
+one-of CHECK SQL 은 작성 시점(7도메인) 스냅샷을 파일 지역에 동결한다(마이그레이션 불변
+원칙 — models import 금지). ORM(models.DOMAIN_SIDE_EFFECT_ONE_OF_CHECK_SQL, create_all
+테스트 lane) 과는 7도메인 시점 텍스트가 byte-identical 이어야 하며, 8번째 도메인은
+order_import_00 이 CHECK 를 재작성한다.
 """
 from typing import Sequence, Union
 
@@ -33,12 +35,35 @@ from alembic import op
 import sqlalchemy as sa
 from sqlalchemy.dialects import postgresql
 
-from models import DOMAIN_SIDE_EFFECT_ONE_OF_CHECK_SQL
-
 revision: str = 'sidefx_00'
 down_revision: Union[str, None] = 'assignment_00'
 branch_labels: Union[str, Sequence[str], None] = None
 depends_on: Union[str, Sequence[str], None] = None
+
+
+def _one_of_sql(fk_by_domain: dict) -> str:
+    """exact one-of FK 매트릭스 CHECK 식을 도메인 dict 로부터 만든다(models 생성기와 동일 규칙)."""
+    cols = list(fk_by_domain.values())
+    clauses = []
+    for domain, own in fk_by_domain.items():
+        parts = ["source_domain = '%s'" % domain, "%s IS NOT NULL" % own]
+        parts += ["%s IS NULL" % c for c in cols if c != own]
+        clauses.append("(" + " AND ".join(parts) + ")")
+    return " OR ".join(clauses)
+
+
+# SIDEFX-00 작성 시점(7도메인) 스냅샷 — models.py 를 import 하지 않는다(마이그레이션 불변
+# 원칙). 8번째 도메인(ORDER_IMPORT_ARTIFACT)은 order_import_00 이 컬럼 추가와 함께 CHECK 를
+# 재작성한다.
+_SIDEFX00_FK_BY_DOMAIN = {
+    'ORDER_EVENT': 'order_event_id',
+    'NOTIFICATION_EVENT': 'notification_event_id',
+    'ADDRESS_LEARNING': 'address_learning_request_id',
+    'WIZARD_PENDING': 'wizard_pending_id',
+    'UPLOAD_TICKET': 'upload_ticket_id',
+    'UPLOAD_DRAFT': 'upload_draft_id',
+    'CHAT_ATTACHMENT': 'chat_attachment_id',
+}
 
 
 def upgrade() -> None:
@@ -88,8 +113,8 @@ def upgrade() -> None:
             "status IN ('PENDING','PROCESSING','DONE','DEAD')",
             name='ck_dseo_status',
         ),
-        # exact source-domain/FK one-of matrix(models 와 공유).
-        sa.CheckConstraint(DOMAIN_SIDE_EFFECT_ONE_OF_CHECK_SQL, name='ck_dseo_source_one_of'),
+        # exact source-domain/FK one-of matrix(작성 시점 7도메인 스냅샷, models 와 byte-identical).
+        sa.CheckConstraint(_one_of_sql(_SIDEFX00_FK_BY_DOMAIN), name='ck_dseo_source_one_of'),
     )
     # dedupe unique(effect_type,dedupe_key) — dedupe_key NULL 행은 collapse 하지 않음.
     op.create_index(

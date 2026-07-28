@@ -18,7 +18,8 @@ admin Excel import receipt/artifact 의 유일 스키마 변경이다. 단일 ad
 * ``domain_side_effect_outbox.order_import_artifact_id`` **컬럼 추가 + FK 부착** — SIDEFX-00
   계약이 예고한 8번째 도메인의 부모 테이블이 생겼으므로 실 FK 로 orphan 을 DB 가 거부한다.
   one-of matrix(``ck_dseo_source_one_of``)와 도메인 enum(``ck_dseo_source_domain``)을 8도메인
-  버전으로 재작성한다(ORM ``models.DOMAIN_SIDE_EFFECT_ONE_OF_CHECK_SQL`` 과 SSOT 공유).
+  버전으로 재작성한다(작성 시점 스냅샷 — ORM ``models.DOMAIN_SIDE_EFFECT_ONE_OF_CHECK_SQL`` 과
+  byte-identical 이어야 한다).
 
 **경계(ORDER-IMPORT-01)**: 별도 scheduler/cleanup loop 를 만들지 않는다(만료 scan 은 SIDEFX
 worker 300s expiry scan provider 가 호출). DDL 은 models.py ORM 정의와 SSOT 를 공유한다
@@ -32,8 +33,6 @@ from typing import Sequence, Union
 from alembic import op
 import sqlalchemy as sa
 from sqlalchemy.dialects import postgresql
-
-from models import DOMAIN_SIDE_EFFECT_FK_BY_DOMAIN, DOMAIN_SIDE_EFFECT_ONE_OF_CHECK_SQL
 
 revision: str = 'order_import_00'
 down_revision: Union[str, None] = 'upload_02_00'
@@ -57,9 +56,22 @@ def _one_of_sql(fk_by_domain: dict) -> str:
     return " OR ".join(clauses)
 
 
+# ORDER-IMPORT-01 작성 시점(8도메인) 스냅샷 — models.py 를 import 하지 않는다(마이그레이션
+# 불변 원칙). models.py 의 DOMAIN_SIDE_EFFECT_FK_BY_DOMAIN 과 동일 순서·내용이어야 한다.
+_ORDER_IMPORT00_FK_BY_DOMAIN = {
+    'ORDER_EVENT': 'order_event_id',
+    'NOTIFICATION_EVENT': 'notification_event_id',
+    'ADDRESS_LEARNING': 'address_learning_request_id',
+    'WIZARD_PENDING': 'wizard_pending_id',
+    'UPLOAD_TICKET': 'upload_ticket_id',
+    'UPLOAD_DRAFT': 'upload_draft_id',
+    'CHAT_ATTACHMENT': 'chat_attachment_id',
+    'ORDER_IMPORT_ARTIFACT': 'order_import_artifact_id',
+}
+
 #: ORDER_IMPORT_ARTIFACT 제거한 이전(7도메인) matrix — downgrade 복원용.
 _PRIOR_FK_BY_DOMAIN = {
-    k: v for k, v in DOMAIN_SIDE_EFFECT_FK_BY_DOMAIN.items()
+    k: v for k, v in _ORDER_IMPORT00_FK_BY_DOMAIN.items()
     if k != 'ORDER_IMPORT_ARTIFACT'
 }
 
@@ -101,17 +113,17 @@ def upgrade() -> None:
         'order_import_artifacts', ['order_import_artifact_id'], ['id'],
         ondelete='CASCADE',
     )
-    # 도메인 enum·one-of matrix 를 8도메인으로 재작성(ORM 과 SSOT 공유).
+    # 도메인 enum·one-of matrix 를 8도메인으로 재작성(작성 시점 스냅샷, ORM 과 byte-identical).
     op.drop_constraint('ck_dseo_source_domain', 'domain_side_effect_outbox',
                        type_='check')
     op.create_check_constraint(
         'ck_dseo_source_domain', 'domain_side_effect_outbox',
-        _domain_in_sql(DOMAIN_SIDE_EFFECT_FK_BY_DOMAIN))
+        _domain_in_sql(_ORDER_IMPORT00_FK_BY_DOMAIN))
     op.drop_constraint('ck_dseo_source_one_of', 'domain_side_effect_outbox',
                        type_='check')
     op.create_check_constraint(
         'ck_dseo_source_one_of', 'domain_side_effect_outbox',
-        DOMAIN_SIDE_EFFECT_ONE_OF_CHECK_SQL)
+        _one_of_sql(_ORDER_IMPORT00_FK_BY_DOMAIN))
 
 
 def downgrade() -> None:
