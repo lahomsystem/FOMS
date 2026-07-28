@@ -70,7 +70,7 @@
   /* 보드는 완료 정산 그리드(foms-tablet-completion-grid.css:51-60)와 동일한 flex-column
      크롬/스크롤 분리 골격으로 전환한다: 크롬(pcbar·KPI·필터)은 flex:none, 칸반만 flex:1.
      완료 그리드처럼 보드 자체에는 명시 height 를 두지 않는다(임의 100dvh 가정 금지) —
-     열 내부 스크롤 캡(아래 __body 의 100dvh−240px)이 페이지 오버플로를 막는 SSOT. */
+     열 내부 스크롤 캡(아래 __body 의 100dvh−265px)이 페이지 오버플로를 막는 SSOT. */
   body.erp-mobile-v2-layout .tablet-prod-board {
     display: flex;
     flex-direction: column;
@@ -89,7 +89,7 @@
     display: none !important;
   }
 
-  /* --- 목업 frame05 pcbar: 생산 보드 · 전체N건·오늘라인M · 라벨 인쇄(우) ---
+  /* --- 목업 frame05 pcbar: 생산 보드 · 전체N건·오늘라인M (F-2 후 [lead][KPI] 2요소) ---
      .tablet-prod-board(base display:none) 내부라 PC/폰 자동 은닉. 코호트 가로에서만 flex. */
   body.erp-mobile-v2-layout .tablet-prod-board .foms-prod-pcbar {
     flex: none;
@@ -120,43 +120,20 @@
     font-size: var(--foms-font-size-sm);
     color: var(--foms-text-tertiary);
   }
-  body.erp-mobile-v2-layout .foms-prod-pcbar__actions {
-    display: flex;
-    align-items: center;
-    gap: var(--foms-space-2);
-  }
-  body.erp-mobile-v2-layout .foms-prod-pcbar__label {
-    display: inline-flex;
-    align-items: center;
-    gap: var(--foms-space-1);
-    min-height: var(--foms-touch-target-min);
-    padding: 0 var(--foms-space-4);
-    border: 1px solid var(--foms-border-subtle);
-    border-radius: var(--foms-radius-md);
-    background: var(--foms-surface-base);
-    color: var(--foms-text-primary);
-    font-size: var(--foms-font-size-sm);
-    font-weight: var(--foms-font-weight-semibold);
-    white-space: nowrap;
-    cursor: pointer;
-  }
-  body.erp-mobile-v2-layout .foms-prod-pcbar__label[disabled] {
-    opacity: 0.5;
-    cursor: not-allowed;
-  }
 
-  /* --- 상단 KPI 슬림 스트립: erp-pro-alert 그래머 재사용, 4타일 1행 인라인 --- */
+  /* --- D-b 통합 상단 바 가운데 KPI 슬림 스트립: erp-pro-alert 그래머 재사용, 5타일 1행 인라인 --- */
   /* 2열 접힘 차단: base 03-card-pipeline.css:162-166 의
      `@media(max-width:1200px){ .erp-pro-alerts{ repeat(2,1fr) } }`(특이도 0,1,0)가
-     992~1199 태블릿 가로에서 KPI 를 2×2 로 접어 세로 2배로 만든다. 우리 셀렉터
-     (0,3,1) 가 base 를 이겨(!important 불필요) 4열을 강제 → 접힘 완전 제거.
-     margin-bottom:0 로 base 24px 제거, gap 축소로 스트립 밀도만 확보. */
+     992~1199 태블릿 가로에서 KPI 를 2×N 으로 접어 세로 2배로 만든다. 우리 셀렉터
+     (0,3,1) 가 base 를 이겨(!important 불필요) 5열을 강제 → 접힘 완전 제거(D-a).
+     flex:1 로 통합 바(foms-prod-pcbar) 가운데를 채우고, 바깥 여백(padding)은 pcbar 가
+     소유하므로 0. margin-bottom:0 로 base 24px 제거, gap 축소로 스트립 밀도만 확보. */
   body.erp-mobile-v2-layout .tablet-prod-board .erp-pro-alerts {
-    flex: none;
-    grid-template-columns: repeat(4, minmax(0, 1fr));
+    flex: 1 1 auto;
+    grid-template-columns: repeat(5, minmax(0, 1fr));
     gap: var(--foms-space-2);
     margin-bottom: 0;
-    padding: var(--foms-space-2) var(--foms-space-4);
+    padding: 0;
   }
   /* 타일 = 얇은 1행(아이콘 + 라벨 + 값 가로 인라인). 정보 표시용(비인터랙티브)이라
      48px 터치타깃 비적용 — comfortable(44px)로 슬림. */
@@ -261,6 +238,71 @@
     color: var(--foms-text-tertiary);
     font-size: var(--foms-font-size-sm);
   }
+
+  /* ── F-3 전체화면 토글 ────────────────────────────────────────────────────
+     상단 크롬(통합 바 + 필터 바)을 접어 칸반을 뷰포트 전부로 확대. 진입 버튼은 필터 바의
+     상시 노출 컨트롤(검색·[필터] 옆), 복원 버튼은 board 우상단 플로팅(전체화면 시만). 상태는
+     board 의 .is-fullscreen 단일 클래스가 소유(JS 는 클래스만 토글, 표시/은닉은 전부 CSS).
+     코호트 게이트 유지(비코호트/PC/폰 무영향). ── */
+  body.erp-mobile-v2-layout .tablet-prod-fullscreen-btn {
+    display: inline-flex;
+    align-items: center;
+    gap: var(--foms-space-1);
+    min-height: var(--foms-touch-target-min);
+    padding: 0 var(--foms-space-3);
+    border: 1px solid var(--foms-border-subtle);
+    border-radius: var(--foms-radius-md);
+    background: var(--foms-surface-base);
+    color: var(--foms-text-primary);
+    font-size: var(--foms-font-size-base);
+    font-weight: var(--foms-font-weight-semibold);
+    white-space: nowrap;
+    cursor: pointer;
+  }
+  body.erp-mobile-v2-layout .tablet-prod-fullscreen-btn:focus-visible {
+    outline: none;
+    box-shadow: var(--foms-shadow-focus-ring);
+  }
+  /* 진입 시: 통합 바·필터 바 은닉 → 칸반이 세로 전부 차지(진입 버튼도 필터 바째 사라짐). */
+  body.erp-mobile-v2-layout .tablet-prod-board.is-fullscreen .foms-prod-pcbar,
+  body.erp-mobile-v2-layout .tablet-prod-board.is-fullscreen .tablet-prod-filter {
+    display: none;
+  }
+  /* 플로팅 복원 버튼 — 기본 은닉(hidden attr + base none). 전체화면 시만 board 우상단 표시.
+     HMI 무채, 48px 원형 터치타깃, position:fixed(크롬 없으니 뷰포트 우상단이 안전). */
+  body.erp-mobile-v2-layout .tablet-prod-fullscreen-exit {
+    display: none;
+  }
+  body.erp-mobile-v2-layout .tablet-prod-board.is-fullscreen .tablet-prod-fullscreen-exit {
+    position: fixed;
+    top: var(--foms-space-3);
+    right: var(--foms-space-3);
+    /* 열 헤더 sticky(--foms-z-sticky)보다 1 높게 — 동일 z-index 면 DOM 후순위 헤더가 덮어
+       복원 버튼이 우상단 코너에서 가려진다(모달 1050 밑은 유지). */
+    z-index: calc(var(--foms-z-sticky) + 1);
+    display: inline-flex;
+    align-items: center;
+    justify-content: center;
+    width: 48px;
+    height: 48px;
+    border: 1px solid var(--foms-border-subtle);
+    border-radius: var(--foms-radius-full);
+    background: var(--foms-surface-base);
+    color: var(--foms-text-secondary);
+    box-shadow: var(--foms-shadow-md, 0 4px 12px rgba(0, 0, 0, 0.18));
+    cursor: pointer;
+  }
+  body.erp-mobile-v2-layout .tablet-prod-board.is-fullscreen .tablet-prod-fullscreen-exit:focus-visible {
+    outline: none;
+    box-shadow: var(--foms-shadow-focus-ring);
+  }
+  /* 전체화면 시 열 body 캡 확대: 상단 크롬(265px 상수의 대부분)이 사라졌으므로 열 헤더 +
+     상하 패딩만 상쇄한다. 카드 15건 실측 확정값 = 90(board_bottom 이 뷰포트 안에 들고
+     페이지 스크롤 없음 — 60은 과소라 30px 넘쳤다). 일반 캡 calc(100dvh - 265px) 대비
+     회수분이 스크롤 영역이 된다. */
+  body.erp-mobile-v2-layout .tablet-prod-board.is-fullscreen .foms-kanban-col__body {
+    max-height: calc(100dvh - 90px);
+  }
   /* 칸반이 보드의 남는 세로 높이 전부를 차지(flex:1). align-items:stretch 로 3열을
      같은 높이로 늘려(가장 긴 열 기준) 각 열이 남는 높이를 채운다. */
   body.erp-mobile-v2-layout .foms-kanban {
@@ -320,12 +362,18 @@
     padding: var(--foms-space-3);
     align-content: start;
     /* 완료 정산 그리드 __scroll(foms-tablet-completion-grid.css:72-77) 이식:
-       flex:1 + min-height:0 으로 stretched 열의 남는 높이를 받고, 완료 그리드와
-       동일한 100dvh−240px 캡으로 페이지가 아닌 열 내부 스크롤을 보장(하드코딩
-       min-height:280px 제거 — flex 가 높이를 소유). dvh = 모바일 툴바 보정. */
+       flex:1 + min-height:0 으로 stretched 열의 남는 높이를 받고, 100dvh−Npx 캡으로
+       페이지가 아닌 열 내부 스크롤을 보장(하드코딩 min-height:280px 제거 — flex 가
+       높이를 소유). dvh = 모바일 툴바 보정.
+       D-d: pcbar+KPI 통합·필터 접기로 상단 크롬이 233→177px 축소됐으나, 이 캡은 크롬만이
+       아니라 (크롬 + 열 헤더 + 상하 패딩)을 함께 상쇄해야 board 가 뷰포트를 넘지 않는다.
+       과소값(예 130)은 col_body 가 화면을 넘어 페이지 스크롤을 유발해 고정 크롬까지 밀어
+       올린다(열 내부 스크롤 설계 붕괴). 카드 17건 실측으로 board_bottom 이 뷰포트(800) 안에
+       들어오는 확정값 = 265(col_body 가 화면 하단에 닿고 이하는 열 내부 스크롤). 크롬 높이가
+       바뀌면 이 값도 재실측 필요. */
     flex: 1 1 auto;
     min-height: 0;
-    max-height: calc(100dvh - 240px);
+    max-height: calc(100dvh - 265px);
     overflow-y: auto;
     -webkit-overflow-scrolling: touch;
   }
@@ -409,9 +457,34 @@
     font-weight: var(--foms-font-weight-bold);
     white-space: nowrap;
   }
+  /* 완료 이력 배지(무채) — 진행 경보(보류 앰버/재제작 블루)가 사라진 완료 건의 차분한 이력.
+     HMI: 유채 아님(tertiary 톤 + muted 배경). __factory 칩과 같은 문법. */
+  body.erp-mobile-v2-layout .foms-kanban-card__hist {
+    flex: 0 0 auto;
+    display: inline-flex;
+    align-items: center;
+    gap: 4px;
+    padding: 2px var(--foms-space-2);
+    border-radius: var(--foms-radius-full);
+    background: var(--foms-surface-muted);
+    color: var(--foms-text-tertiary);
+    font-size: var(--foms-font-size-xs);
+    font-weight: var(--foms-font-weight-bold);
+    white-space: nowrap;
+  }
   /* 보류 카드 좌측 앰버 액센트 바(카드 자체는 무채 유지). */
   body.erp-mobile-v2-layout .foms-kanban-card.is-held {
     box-shadow: inset 3px 0 0 0 var(--foms-status-warning-text, #d97706);
+  }
+  /* 보류 + 임박/지연 충돌 강경고(P7): 시공 D-2 이내이거나 지연인데 보류면 앰버를 적색으로
+     격상하고 보류 배지도 danger 톤으로 전환한다. HMI 정지색 — 애니메이션 없음. is-held 뒤
+     소스 순서로 앰버 인셋 바를 덮는다(동일 특이도). */
+  body.erp-mobile-v2-layout .foms-kanban-card.is-held-imminent {
+    box-shadow: inset 3px 0 0 0 var(--foms-color-danger-600);
+  }
+  body.erp-mobile-v2-layout .foms-kanban-card.is-held-imminent .foms-kanban-card__hold {
+    background: var(--foms-color-danger-50);
+    color: var(--foms-color-danger-600);
   }
   /* 사이드 시트가 연 카드 강조 — side-sheet.js 가 .foms-tablet-sheet-active 토글
      (.foms-tqgrid 행 하이라이트 전례와 동일: 브랜드 액센트 배경 + 좌측 인셋 바). */
@@ -616,6 +689,18 @@
     border-left-color: var(--foms-color-warning-600);
     background: var(--erp-warning-light);
     color: var(--foms-color-warning-700);
+  }
+  /* 보류 사유 스트립 — HMI 색 예외(주의 앰버, 보류 배지 팔레트와 동일). */
+  body.erp-mobile-v2-layout .foms-kanban-card__alert-row--hold {
+    border-left-color: var(--foms-status-warning-text, #d97706);
+    background: var(--foms-status-warning-bg, #fef3c7);
+    color: var(--foms-status-warning-text, #92400e);
+  }
+  /* 재제작 사유 스트립 — HMI 색 예외(정보 블루, 재제작 배지 팔레트와 동일). */
+  body.erp-mobile-v2-layout .foms-kanban-card__alert-row--rework {
+    border-left-color: var(--foms-color-info-600);
+    background: var(--foms-color-info-50, #eff6ff);
+    color: var(--foms-color-info-600, #2563eb);
   }
   body.erp-mobile-v2-layout .foms-kanban-card__alert-detail {
     color: inherit;
@@ -1135,11 +1220,12 @@
 .foms-prod-sheet__btn {
   appearance: none;
   min-height: var(--foms-touch-target-min);
-  padding: 0 var(--foms-space-4);
+  padding: 0 var(--foms-space-3);
   border: 1px solid transparent;
   border-radius: var(--foms-radius-md);
   font-size: var(--foms-font-size-base);
   font-weight: var(--foms-font-weight-bold);
+  white-space: nowrap;
   cursor: pointer;
 }
 .foms-prod-sheet__btn--hold {
@@ -1170,9 +1256,17 @@
   font-weight: var(--foms-font-weight-bold);
   vertical-align: middle;
 }
+/* 보류 사유 콜아웃 — 좌보더+틴트 강조(카드 스트립과 동형). 사유 본문은 볼드(__reason-text). */
 .foms-prod-sheet__hold-reason {
-  margin-top: var(--foms-space-1);
-  font-size: var(--foms-font-size-sm);
+  display: flex;
+  align-items: center;
+  gap: var(--foms-space-2);
+  margin-top: var(--foms-space-2);
+  padding: var(--foms-space-2) var(--foms-space-3);
+  border-left: 3px solid var(--foms-status-warning-text, #d97706);
+  border-radius: var(--foms-radius-sm);
+  background: var(--foms-status-warning-bg, #fef3c7);
+  font-size: var(--foms-font-size-base);
   color: var(--foms-status-warning-text, #92400e);
 }
 /* 시트 헤더 재제작 배지 + 사유 라인 — 보류(앰버)와 구분되는 정보 블루 톤(재작업 주의). */
@@ -1188,10 +1282,63 @@
   font-weight: var(--foms-font-weight-bold);
   vertical-align: middle;
 }
+/* 재제작 사유 콜아웃 — 정보 블루 좌보더+틴트. 사유 본문은 볼드(__reason-text). */
 .foms-prod-sheet__rework-reason {
-  margin-top: var(--foms-space-1);
-  font-size: var(--foms-font-size-sm);
+  display: flex;
+  align-items: center;
+  gap: var(--foms-space-2);
+  margin-top: var(--foms-space-2);
+  padding: var(--foms-space-2) var(--foms-space-3);
+  border-left: 3px solid var(--foms-color-info-600, #2563eb);
+  border-radius: var(--foms-radius-sm);
+  background: var(--foms-color-info-50, #eff6ff);
+  font-size: var(--foms-font-size-base);
   color: var(--foms-color-info-600, #2563eb);
+}
+/* 콜아웃 라벨(준볼드) + 사유 본문(볼드) — 사유 부분만 강조. */
+.foms-prod-sheet__reason-label {
+  font-weight: var(--foms-font-weight-semibold);
+}
+.foms-prod-sheet__reason-text {
+  font-weight: var(--foms-font-weight-bold);
+  word-break: break-word;
+}
+/* 완료 이력 섹션(무채) — 진행 콜아웃(보류 앰버/재제작 블루)이 사라진 완료 건의 차분한 이력.
+   HMI: 유채 아님(중립 보더/바탕 + tertiary 텍스트). 변경 이력(확인됨) 변형과 동형. */
+.foms-prod-sheet__hist {
+  display: flex;
+  flex-direction: column;
+  gap: var(--foms-space-2);
+  margin-top: var(--foms-space-2);
+  padding: var(--foms-space-3) var(--foms-space-4);
+  border: 1px solid var(--foms-border-subtle);
+  border-radius: var(--foms-radius-lg);
+  background: var(--foms-surface-muted);
+}
+.foms-prod-sheet__hist-row {
+  display: flex;
+  align-items: center;
+  gap: var(--foms-space-2);
+  font-size: var(--foms-font-size-base);
+  color: var(--foms-text-tertiary);
+}
+.foms-prod-sheet__hist-label {
+  font-weight: var(--foms-font-weight-semibold);
+}
+.foms-prod-sheet__hist-detail {
+  color: var(--foms-text-tertiary);
+  word-break: break-word;
+}
+/* 되돌리기(제작 취소/완료 취소) — 무채 아웃라인. 시트 전용 의도적 마찰(카드 미노출):
+   진행(primary)과 시각 위계로 분리해 오조작을 늦춘다. HMI: 유채색 없음(중립 톤). */
+.foms-prod-sheet__btn--ghost {
+  flex: 1;
+  background: transparent;
+  color: var(--foms-text-secondary);
+  border-color: var(--foms-border-default);
+}
+.foms-prod-sheet__btn--ghost:hover {
+  background: var(--foms-surface-muted);
 }
 .foms-prod-sheet__btn--pri {
   flex: 2;

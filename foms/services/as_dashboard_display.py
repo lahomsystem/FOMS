@@ -12,10 +12,13 @@ from foms.services.erp_display import (
     apply_erp_display_fields_to_orders,
     get_today_kst,
 )
-from foms.services.as_content_safety import sanitize_as_content_html
+from foms.services.as_content_safety import as_content_html_to_text, sanitize_as_content_html
+from foms.services.orders.as_log import build_as_timeline_view
 from models import OrderAttachment
 
 __all__ = [
+    "as_billing_badge_kind",
+    "as_billing_state_text",
     "as_stage_badge_modifier",
     "as_thumb_enabled",
     "batch_resolve_as_thumbnail_urls",
@@ -240,6 +243,83 @@ def batch_resolve_as_compare_photos(rows, db: Any) -> dict[int, dict[str, list]]
     return result
 
 
+_AS_BILLING_TYPE_LABELS = {'free': '무상', 'paid': '유상', 'undecided': '미정'}
+
+
+def as_billing_badge_kind(billing: Any) -> str | None:
+    """상태 셀 billing 배지 종류. 무상(확정 여부 무관)은 None(무배지).
+
+    목록 렌더와 판정 변경 API 응답이 같은 배지를 그리도록 공개 SSOT다.
+
+    Args:
+        billing: ``structured_data.shipment.as_billing`` 값(비 dict면 무상 취급).
+
+    Returns:
+        'paid' | 'paid_unconfirmed' | 'undecided' | None.
+    """
+    b = billing if isinstance(billing, dict) else {}
+    btype = str(b.get('type') or 'free').lower()
+    if btype == 'paid':
+        return 'paid' if b.get('confirmed') is True else 'paid_unconfirmed'
+    if btype == 'undecided':
+        return 'undecided'
+    return None
+
+
+def as_billing_state_text(billing: Any) -> str:
+    """타임라인 헤더의 현재 판정 1줄 표기(서버 렌더와 판정 변경 응답 공용 SSOT).
+
+    Args:
+        billing: ``structured_data.shipment.as_billing`` 값(비 dict면 무상 추정).
+
+    Returns:
+        '유상 확정 · 150,000원' / '무상 추정' / '미정' 형태의 표기.
+    """
+    b = billing if isinstance(billing, dict) else {}
+    btype = str(b.get('type') or 'free').lower()
+    if btype == 'undecided':
+        return '미정'
+    text = "%s %s" % (
+        _AS_BILLING_TYPE_LABELS.get(btype, btype),
+        '확정' if b.get('confirmed') is True else '추정',
+    )
+    amount = b.get('amount')
+    if btype == 'paid' and isinstance(amount, int) and amount > 0:
+        text = f"{text} · {amount:,}원"
+    return text
+
+
+def _timeline_cell_text(entry: dict[str, Any] | None) -> str:
+    """타임라인 항목 → PC 셀 요약용 1줄 plain text.
+
+    템플릿 `striptags`는 태그를 지우기만 해 블록 경계를 잃는다 —
+    `<div>1줄</div><div>2줄</div>`이 "1줄2줄"로 붙어 서로 다른 기록이 한 단어가 됐다.
+    항목 `text`는 저장 시점에 이미 sanitize를 통과했으므로 재-sanitize 없이 텍스트화한다.
+
+    Args:
+        entry: decorate_entry를 통과한 타임라인 항목 dict. None이면 빈 문자열.
+
+    Returns:
+        블록 경계가 공백으로 보존된 1줄 텍스트(셀은 text-truncate 1줄 표시).
+    """
+    if not entry:
+        return ''
+    return as_content_html_to_text(entry.get('text'), already_sanitized=True).replace('\n', ' ')
+
+
+def _apply_timeline_cell_text(view: dict[str, Any]) -> None:
+    """타임라인 뷰에 PC 셀 요약 텍스트 2종(앵커·최근 1건)을 in-place로 채운다.
+
+    행 루프에서 1회만 계산해 템플릿이 그대로 소비한다(hot path 재파싱 금지).
+
+    Args:
+        view: build_as_timeline_view 결과 dict.
+    """
+    anchor = view['reception'] or (view['legacy'][0] if view['legacy'] else None)
+    view['cell_anchor_text'] = _timeline_cell_text(anchor)
+    view['cell_recent_text'] = _timeline_cell_text(view['stream'][0] if view['stream'] else None)
+
+
 def apply_as_dashboard_row_display_fields(rows, db, *, mobile_v2_active):
     """AS 대시보드 rows에 표시 필드를 in-place 보강 (구 erp_as_dashboard 표시 블록). 동작 보존.
 
@@ -277,18 +357,29 @@ def apply_as_dashboard_row_display_fields(rows, db, *, mobile_v2_active):
         r.has_as_photos = r.id in as_photo_order_ids
         shipment = r.structured_data.get('shipment') or {}
         r.as_pending = shipment.get('as_pending') is True
+        _billing = shipment.get('as_billing')
+        r.as_billing_badge = as_billing_badge_kind(_billing)
+        # 타임라인 헤더(판정 표시 + 변경 버튼)용. 목록엔 안 쓰이지만 세 표면이 같은 행 보강을
+        # 거치므로 여기서 한 번만 계산한다(문자열 조립뿐, 신규 쿼리 0).
+        r.as_billing_type = str((_billing or {}).get('type') or 'free') if isinstance(_billing, dict) else 'free'
+        r.as_billing_state_text = as_billing_state_text(_billing)
         r.has_as_blueprint = shipment.get('as_blueprint') is True
         r.is_sales_delivery = shipment.get('sales_delivery') is True
         r.construction_workers = _normalize_construction_worker_names(
             shipment.get('construction_workers')
         )
         r.construction_workers_text = ', '.join(r.construction_workers)
+        # as_content_html은 태블릿 가로 대조 표면(tablet_as_compare_body)이 소비하므로 유지한다.
+        # T10: 2번 탭 표시필드(as_content_2_html)와 그 notes 폴백은 퇴역했다 — 탭 에디터가 사라져
+        # 소비자가 0이고, 비고는 타임라인 확장/상세의 읽기 전용 '비고' 블록이 직접 렌더한다.
         r.as_content_html = sanitize_as_content_html(shipment.get('as_content'))
-        has_secondary_as_content = 'as_content_2' in shipment
-        secondary_as_content_html = sanitize_as_content_html(shipment.get('as_content_2'))
-        if not has_secondary_as_content and not secondary_as_content_html:
-            secondary_as_content_html = sanitize_as_content_html(getattr(r, 'notes', '') or '')
-        r.as_content_2_html = secondary_as_content_html
+        # 타임라인 뷰(셀 요약·확장 fragment 공용). 방금 정리한 두 값을 주입해
+        # legacy 앵커용 재-sanitize(행당 BeautifulSoup 파싱 2회)를 없앤다.
+        r.as_timeline_view = build_as_timeline_view(
+            r.structured_data,
+            sanitized=(r.as_content_html, sanitize_as_content_html(shipment.get('as_content_2'))),
+        )
+        _apply_timeline_cell_text(r.as_timeline_view)
         r.as_thumb_enabled = thumb_flag
         r.thumbnail_url = thumb_urls.get(r.id) if thumb_flag else None
         r.stage_badge_modifier = as_stage_badge_modifier(

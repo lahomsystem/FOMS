@@ -2,7 +2,8 @@
  * FOMS 태블릿 도메인 시트 액션 + 생산 칸반 필터 (T2 · 목업 v8 마감).
  *
  * 태블릿 가로(코호트)에서 우측 사이드 시트 본문에 로드되는 도메인 전용 액션 버튼과,
- * 생산 칸반 상단 필터 바를 처리한다. 신규 API 없이 기존 워크플로 엔드포인트를 재사용한다:
+ * 생산 칸반 상단 필터 바(공장·검색·변경·초기화 상시 노출)를 처리한다. 신규 API 없이
+ * 기존 워크플로 엔드포인트를 재사용한다:
  *   - 생산 시작/완료/수정 제작: POST /api/orders/<id>/production/start|complete|rework (에러 키 = message)
  *   - 출고 배정: POST /api/erp/shipment/update/<id>          (권한 실패 = 403)
  * 성공 시 시트를 닫고 새로고침으로 read-model 을 재조회한다(낙관 갱신은 비범위 — 간단·근본).
@@ -139,11 +140,31 @@
     submitTransition(orderId, "/production/rework", { reason: reason.trim() });
   }
 
+  // 제작 취소 — 제작중 → 제작대기 되돌림(시트 전용, 의도적 마찰). confirm 후 사유 prompt
+  // (취소=중단, 빈 값=진행). 후진 전이라 서버 보류 게이트 없음(HOLD_ACTIVE 분기 무발동, 무해).
+  function productionCancel(orderId) {
+    if (!orderId) return;
+    if (!window.confirm("제작을 취소하고 제작대기로 되돌릴까요?")) return;
+    // prompt 취소(null) = 전이 중단. 빈 문자열 확인은 빈 사유로 진행.
+    var reason = window.prompt("제작 취소 사유를 입력하세요. (선택)");
+    if (reason === null) return;
+    submitTransition(orderId, "/production/cancel", { reason: reason.trim() });
+  }
+
+  // 완료 취소 — 제작완료 → 제작중 되돌림(시트 전용, 의도적 마찰). confirm 만(사유 없음).
+  // 재제작 완료였으면 서버가 rework 를 다시 활성으로 복원한다. 후진 전이라 보류 게이트 없음.
+  function productionUncomplete(orderId) {
+    if (!orderId) return;
+    if (!window.confirm("완료를 취소하고 제작중으로 되돌릴까요?")) return;
+    submitTransition(orderId, "/production/uncomplete", {});
+  }
+
   // 생산 보류 토글 — canonical HOLD_ORDER/RELEASE_HOLD 전이(STATE-OVERLAY-01). 버튼의
   // data-hold-active 로 현재 상태를 읽어 반대로 토글하며, 서버는 workflow.hold 축을 전이하고
   // production.hold 배지를 같은 tx 로 미러한다(응답 {success, data:{hold}} 형태 불변).
-  // 활성화 시 사유를 prompt 로 받는다(취소 시 중단). 성공 시 시트를 닫고 새로고침해 카드/시트
-  // 배지를 재조회한다. 에러 키 = error/message(전이 409 는 message).
+  // 활성화 시 사유를 prompt 로 받는다(취소 시 중단). 해제 경로는 오조작 방지 confirm 을 거치며,
+  // 사유는 버튼 인접 DOM 이 아니라 서버 렌더 data-hold-reason 에서 읽어 병기한다. 성공 시 시트를
+  // 닫고 새로고침해 카드/시트 배지를 재조회한다. 에러 키 = error/message(전이 409 는 message).
   function productionHold(orderId, btn) {
     if (!orderId) return;
     var isActive = btn && btn.getAttribute("data-hold-active") === "1";
@@ -152,6 +173,12 @@
     if (nextActive) {
       reason = window.prompt("보류 사유를 입력하세요. (선택)", "") || "";
       reason = reason.trim();
+    } else {
+      // 해제 confirm — 서버 렌더 사유(data-hold-reason)를 병기(있을 때만).
+      var heldReason = btn ? (btn.getAttribute("data-hold-reason") || "").trim() : "";
+      var releaseMsg = "보류를 해제할까요?";
+      if (heldReason) releaseMsg += " (사유: " + heldReason + ")";
+      if (!window.confirm(releaseMsg)) return;
     }
     fetch("/api/orders/" + encodeURIComponent(orderId) + "/production/hold", {
       method: "POST",
@@ -412,16 +439,14 @@
   }
 
   // ---- 생산 칸반 필터(클라이언트 사이드) --------------------------------------
-  // 컨트롤: 검색어 input, 상태 select(''|제작대기|제작중|제작완료), 공장 select(''|1|2),
-  // 리셋 button. 세 값을 읽어 열 표시(상태)와 카드 표시(검색+공장)를 재계산한다.
+  // 컨트롤: 공장 select(''|1|2), 검색어 input, 변경 토글, 리셋 button. 검색은 무조건 전 열
+  // 대상(상태 필터 없음). KPI line 탭만 열 표시를 제작중으로 좁힌다.
 
   function applyProdFilter() {
     if (!cohortActive()) return;
     var searchEl = document.querySelector("input[data-tablet-prod-search]");
-    var statusEl = document.querySelector("select[data-tablet-prod-status]");
     var factoryEl = document.querySelector("select[data-tablet-prod-factory]");
     var search = searchEl ? searchEl.value : "";
-    var status = statusEl ? statusEl.value : "";
     var factory = factoryEl ? factoryEl.value : "";
     var searchLower = search.toLowerCase();
     var changedEl = document.querySelector("button[data-tablet-prod-changed]");
@@ -433,11 +458,8 @@
     var cols = document.querySelectorAll(".foms-kanban-col[data-kanban-bucket]");
     Array.prototype.forEach.call(cols, function (col) {
       var bucket = col.getAttribute("data-kanban-bucket");
-      // 상태 필터: 미선택('')이면 전부 표시, 선택 시 해당 버킷 열만 표시.
-      // KPI line = 제작중 열만(status predicate 재사용, 교집합).
-      var colVisible =
-        (status === "" || bucket === status) &&
-        (kpi !== "line" || bucket === "제작중");
+      // 검색은 전 열 대상 — 열 표시는 KPI line 탭만 제작중으로 좁힌다(그 외 전부 표시).
+      var colVisible = kpi !== "line" || bucket === "제작중";
       col.style.display = colVisible ? "" : "none";
       if (!colVisible) return; // 숨긴 열의 카드는 재평가 불필요(열이 다시 보일 때 재계산).
 
@@ -469,7 +491,8 @@
           card.getAttribute("data-changed") === "1" ||
           card.getAttribute("data-change-history") === "1";
 
-        // KPI 카드 레벨 조건: load=D-DAY(dday 0), delayed=지연(dday<0). line 은 열 레벨에서 처리.
+        // KPI 카드 레벨 조건: load=D-DAY(dday 0), delayed=지연(dday<0), hold=보류(.is-held).
+        // line 은 열 레벨에서 처리.
         var kpiOK = true;
         if (kpi === "load" || kpi === "delayed") {
           var dday = card.getAttribute("data-dday");
@@ -480,6 +503,8 @@
           } else {
             kpiOK = parseInt(dday, 10) < 0;
           }
+        } else if (kpi === "hold") {
+          kpiOK = card.classList.contains("is-held");
         }
 
         card.style.display = searchOK && factoryOK && changedOK && kpiOK ? "" : "none";
@@ -489,10 +514,8 @@
 
   function resetProdFilter() {
     var searchEl = document.querySelector("input[data-tablet-prod-search]");
-    var statusEl = document.querySelector("select[data-tablet-prod-status]");
     var factoryEl = document.querySelector("select[data-tablet-prod-factory]");
     if (searchEl) searchEl.value = "";
-    if (statusEl) statusEl.value = "";
     if (factoryEl) factoryEl.value = "";
     var changedEl = document.querySelector("button[data-tablet-prod-changed]");
     if (changedEl) {
@@ -512,11 +535,71 @@
     });
   }
 
+  // ---- F-3 전체화면 토글 -----------------------------------------------------
+  // 상단 크롬(통합 바 + 필터 바)을 접어 칸반을 최대화한다. 상태는 board 의 .is-fullscreen 단일
+  // 클래스가 소유하고(표시/은닉은 전부 CSS), JS 는 클래스 토글 + aria + 저장만 한다. 열림 상태만
+  // localStorage 에 기억한다(density-toggle·필터 접기 패턴 복제). document 위임이라 fragment
+  // 스왑 후에도 재바인딩 불필요, 스왑 시엔 저장값 재적용(restoreFullscreen)만 건다.
+  var FULLSCREEN_KEY = "foms_tablet_prod_fullscreen";
+
+  // 저장된 전체화면 상태("1")를 반환. 기본(미저장·저장 불가)은 비활성(false).
+  function readFullscreen() {
+    try {
+      return window.localStorage.getItem(FULLSCREEN_KEY) === "1";
+    } catch (e) {
+      return false;
+    }
+  }
+
+  // 전체화면 상태를 localStorage 에 저장. 사생활 모드 등 저장 불가 시 세션 표시만 유지(비치명적).
+  function writeFullscreen(on) {
+    try {
+      window.localStorage.setItem(FULLSCREEN_KEY, on ? "1" : "0");
+    } catch (e) {
+      /* 저장 불가 — 세션 표시만 유지(비치명적, 무음 삼킴 아님). */
+    }
+  }
+
+  // board.is-fullscreen 클래스 + 진입 버튼 aria-pressed + 복원 버튼 hidden 을 동기화. idempotent.
+  // 복원 버튼은 hidden 속성을 JS 로 직접 제어한다 — hidden 속성과 CSS display 혼용은 표시가
+  // 불안정하므로(전체화면인데 버튼이 안 떠 빠져나올 수 없는 버그), 표시/은닉을 hidden 속성
+  // 하나로 확정한다.
+  function syncFullscreen(on) {
+    var board = document.querySelector(".tablet-prod-board");
+    if (board) board.classList.toggle("is-fullscreen", on);
+    var toggle = document.querySelector("[data-tablet-prod-fullscreen]");
+    if (toggle) toggle.setAttribute("aria-pressed", on ? "true" : "false");
+    var exit = document.querySelector("[data-tablet-prod-fullscreen-exit]");
+    if (exit) exit.hidden = !on;
+  }
+
+  // 저장된 전체화면 상태로 복원(부트/스왑).
+  function restoreFullscreen() {
+    syncFullscreen(readFullscreen());
+  }
+
   // ---- 단일 document 'click' 위임 --------------------------------------------
   document.addEventListener("click", function (ev) {
     if (!cohortActive()) return;
     var target = ev.target;
     if (!target || !target.closest) return;
+
+    // F-3 전체화면 토글 — 진입(필터 바) / 복원(플로팅) 버튼 공용. 현재 상태는 저장값이 아니라
+    // 실제 DOM(board.is-fullscreen)에서 읽어 플립한다 — localStorage 불가 환경에서 read 가
+    // 굳어 "켜기만 되고 못 끄는" 버그 방지(필터 접기와 동일 교훈, 3차 B-2).
+    var fullscreenBtn = target.closest(
+      "[data-tablet-prod-fullscreen], [data-tablet-prod-fullscreen-exit]"
+    );
+    if (fullscreenBtn) {
+      ev.preventDefault();
+      var board = document.querySelector(".tablet-prod-board");
+      var willOn = board
+        ? !board.classList.contains("is-fullscreen")
+        : !readFullscreen();
+      writeFullscreen(willOn);
+      syncFullscreen(willOn);
+      return;
+    }
 
     // 생산 필터 리셋 버튼.
     var resetBtn = target.closest("button[data-tablet-prod-reset]");
@@ -605,6 +688,16 @@
       productionRework(orderId);
       return;
     }
+    if (action === "production-cancel") {
+      ev.preventDefault();
+      productionCancel(orderId);
+      return;
+    }
+    if (action === "production-uncomplete") {
+      ev.preventDefault();
+      productionUncomplete(orderId);
+      return;
+    }
     if (action === "production-hold") {
       ev.preventDefault();
       productionHold(orderId, actionBtn);
@@ -624,7 +717,7 @@
     if (!target || !target.closest) return;
     if (
       target.closest(
-        "input[data-tablet-prod-search], select[data-tablet-prod-status], select[data-tablet-prod-factory]"
+        "input[data-tablet-prod-search], select[data-tablet-prod-factory]"
       )
     ) {
       applyProdFilter();
@@ -662,4 +755,8 @@
   // is-open 중복 가드가 있어 재진입 안전.
   maybeShowChangeModal();
   document.addEventListener("foms:erp-shell-fragment-swapped", maybeShowChangeModal);
+
+  // ---- F-3 전체화면 상태 복원: 부트 + fragment 스왑 시 저장값 재적용 ----
+  restoreFullscreen();
+  document.addEventListener("foms:erp-shell-fragment-swapped", restoreFullscreen);
 })();

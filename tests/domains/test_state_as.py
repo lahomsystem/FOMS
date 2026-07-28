@@ -12,13 +12,17 @@ AS cycle 상태기계를 실제 HTTP 경로로 고정한다(PG DSN 불필요 —
   ``order.status`` projection 을 바꾼다.
 * **classification main/lifecycle 불변**: 분류 토글이 상태/방문/main 을 바꾸지 않는다.
 * **CREATE draft finalize**: draft 주문 register 가 draft 를 finalize 하고 AS cycle 을 연다.
-* **field_update 이관**: generic ``as_completed_date`` write 는 allowlist 에서 거부(400)된다.
+* **field_update 이관**: generic ``as_completed_date`` write 는 canonical AS_COMPLETE 브리지로
+  위임된다(직접 status/stage 쓰기 0). cycle 이 없는 레거시 AS 주문은 forward-only
+  ``LEGACY_BRIDGE`` 로 개시된 뒤 전이한다 — 과거 이력은 복원하지 않는다(감사보고서 §296).
 """
 from __future__ import annotations
 
+import pytest
 from werkzeug.security import generate_password_hash
 
 from db import db_session
+from foms.services.orders.as_cycle_service import ASCycleError, register_as_cycle
 from foms.services.orders.state_axes import read_as_status
 from models import Order, OrderEvent, User
 
@@ -166,15 +170,47 @@ def test_new_register_appends_cycle_and_preserves_history(client):
     assert read_as_status(saved) == "RECEIVED"
 
 
-def test_register_rejects_duplicate_open_cycle(client):
-    """열린 cycle 이 있으면 중복 register 는 409, 상태 불변."""
+def test_register_route_treats_duplicate_as_reregistration(client):
+    """열린 cycle 이 있는 재접수는 새 cycle 없이 접수 기록만 갱신한다(지방 AS 재상차 실플로우).
+
+    한 AS 건을 다시 접수하는 것은 정상 업무 흐름이라 새 cycle 을 열면 한 건이 두 건으로
+    갈라진다. 서비스의 "중복 open cycle 거부" 불변식은 그대로이고 라우트가 중재한다
+    (:func:`test_register_service_still_rejects_duplicate_open_cycle` 이 불변식을 고정).
+    """
     _login_as_admin(client, "state-as-dup")
     order = _create_cs_order()
     oid = order.id
     client.post(f"/api/orders/{oid}/as/register", json={"as_content": "1차"})
-    r = client.post(f"/api/orders/{oid}/as/register", json={"as_content": "중복"})
-    assert r.status_code == 409
-    assert r.get_json()["success"] is False
+    first_id = _reload(oid).structured_data["as_lifecycle"]["current_cycle_id"]
+
+    r = client.post(f"/api/orders/{oid}/as/register", json={"as_content": "2차 접수 내용"})
+    assert r.status_code == 200 and r.get_json()["success"] is True
+    saved = _reload(oid)
+    lifecycle = saved.structured_data["as_lifecycle"]
+    assert len(lifecycle["cycles"]) == 1  # 새 cycle 미발급
+    assert lifecycle["current_cycle_id"] == first_id
+    assert read_as_status(saved) == "RECEIVED"
+    shipment = saved.structured_data["shipment"]
+    assert shipment["as_content"] == "2차 접수 내용"  # 접수 원문 갱신
+    receptions = [e["text"] for e in shipment["as_log"] if e["type"] == "reception"]
+    assert receptions == ["1차", "2차 접수 내용"]  # 재접수도 타임라인에 남는다
+
+
+def test_register_service_still_rejects_duplicate_open_cycle(client):
+    """서비스 계층 불변식은 불변 — 열린 cycle 위에 새 cycle 발급은 ASCycleError."""
+    _login_as_admin(client, "state-as-dup-service")
+    order = _create_cs_order()
+    oid = order.id
+    client.post(f"/api/orders/{oid}/as/register", json={"as_content": "1차"})
+    db_session.expire_all()
+
+    with pytest.raises(ASCycleError):
+        register_as_cycle(
+            db_session, order_id=oid, actor_user_id=_reload(oid).structured_data[
+                "as_lifecycle"]["cycles"][0]["opened_by"],
+            as_content="중복", scope_hash="scope", request_hash="req",
+        )
+    db_session.rollback()
 
 
 def test_wrong_stage_transition_is_rejected(client):
@@ -214,14 +250,25 @@ def test_classification_leaves_lifecycle_and_main_unchanged(client):
     assert saved.structured_data["workflow"]["stage"] == "CS"
 
 
-def test_field_update_rejects_as_completed_date(client):
-    """generic field_update 의 as_completed_date write 이관 — allowlist 에서 거부(400)."""
+def test_field_update_as_completed_date_uses_canonical_bridge(client):
+    """generic field_update 의 as_completed_date 는 canonical AS_COMPLETE 로 위임된다.
+
+    프론트(AS 대시보드·태블릿 비교화면)가 완료 버튼을 이 필드로 보내므로 400 으로 막으면
+    완료 자체가 불가능해진다. 직접 ``order.status``/``workflow.stage`` 쓰기 없이 cycle 전이로
+    처리하고, cycle 이 없는 레거시 AS 주문은 forward-only LEGACY_BRIDGE 로 개시한 뒤 전이한다
+    (현재 축 값만 옮기고 과거 방문·일정·완료 이력은 복원하지 않는다).
+    """
     _login_as_admin(client, "state-as-field")
     order = _create_cs_order(status="AS")
     oid = order.id
     r = client.post("/api/update_order_field",
                     json={"order_id": oid, "field": "as_completed_date", "value": "2026-08-05"})
-    assert r.status_code == 400
-    assert "as_completed_date" in r.get_json()["message"]
+    assert r.status_code == 200 and r.get_json()["success"] is True
     saved = _reload(oid)
-    assert saved.status == "AS"  # main stage 복구 antipattern 미발생
+    assert saved.as_completed_date == "2026-08-05"
+    assert read_as_status(saved) == "COMPLETED"
+    assert saved.status == "AS_COMPLETED"  # AS overlay projection
+    assert saved.structured_data["workflow"]["stage"] == "AS"  # main stage 직접 쓰기 0
+    cycle = _current_cycle(saved)
+    assert cycle["origin"] == "LEGACY_BRIDGE"  # provenance 태그
+    assert [t["command"] for t in cycle["transitions"]] == ["AS_LEGACY_BRIDGE", "AS_COMPLETE"]

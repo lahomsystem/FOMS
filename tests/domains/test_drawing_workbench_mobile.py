@@ -655,4 +655,6 @@ def test_drawing_workbench_status_pipeline_clears_quick_filters_in_js() -> None:
     assert "params.delete('due_today')" in status_fn
     quick_fn = source.split("function navigatePipelineQuickFilter(filterType)")[1].split("function bindPipelineDelegationOnce")[0]
     assert "params.set('unread', '1')" in quick_fn
-    assert "params.set('due_today', '1')" in quick_fn
+    # 지연 타일은 due_today 가 아니라 전용 overdue 파라미터를 세팅한다(P1-3 필터 정합).
+    assert "params.set('overdue', '1')" in quick_fn
+    assert "params.delete('due_today')" in quick_fn

@@ -31,7 +31,10 @@
     <div class="foms-drawing-sheet__strip">
       {% for s in sheet_strip %}
       <figure class="foms-drawing-sheet__sheet">
-        <img class="foms-drawing-sheet__sheet-thumb" src="{{ s.thumb_url }}" alt="{{ s.sheet_name }} 도면 미리보기" loading="lazy">
+        {# 스트립 탭 → 전체화면 뷰어(열람 전용 — 미전달 autosave PNG 라 판정 없음).
+           tablet-drawing-review.js 가 형제 스트립 img 를 모아 GlobalImageViewer 로 연다. #}
+        <img class="foms-drawing-sheet__sheet-thumb" src="{{ s.thumb_url }}" alt="{{ s.sheet_name }} 도면 미리보기" loading="lazy"
+             data-foms-drawing-viewer data-view-url="{{ s.thumb_url }}" data-filename="{{ s.sheet_name }}">
         <figcaption class="foms-drawing-sheet__sheet-label">{{ s.sheet_name }}{% if s.at %} · {{ s.at }}{% endif %}</figcaption>
       </figure>
       {% endfor %}

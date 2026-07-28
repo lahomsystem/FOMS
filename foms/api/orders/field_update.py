@@ -13,14 +13,12 @@ from sqlalchemy.orm.attributes import flag_modified
 from foms.web.auth import get_user_by_id, log_access
 from foms.services.orders.status_constants import STATUS
 from db import get_db
-from foms.services.as_content_safety import (
-    load_structured_data_dict_or_raise,
-    sanitize_as_content_html,
-)
+from foms.services.as_content_safety import load_structured_data_dict_or_raise
 from foms.services.erp_order_flags import is_erp_order_record
 from foms.services.erp_permissions import can_edit_erp
 from foms.services.erp_display import _normalize_date_to_yyyymmdd
 from foms.services.erp_sync_columns import sync_erp_flat_columns
+from foms.services.orders.as_log import append_system_log
 from foms.services.orders.construction_type import normalize_regional_construction_type
 from models import Order, OrderEvent
 
@@ -37,12 +35,13 @@ ORDER_UPDATE_ALLOWED_FIELDS = [
     "regional_cargo_sent",
     "regional_construction_info_sent",
     "as_received_date",
-    # STATE-AS-01: as_completed_date generic write 제거(§보고서 §2.2.1). 완료는 canonical
-    # AS_COMPLETE(/api/orders/<id>/as/complete) 전이만 소유 — generic 경로가 order.status/
-    # workflow.stage 를 AS_COMPLETED 로 덮던 AS main stage 복구 antipattern 을 차단한다.
+    # STATE-AS-01: as_completed_date 의 generic write(order.status/workflow.stage 를
+    # AS_COMPLETED 로 덮던 AS main stage 복구 antipattern)는 제거됐다. 다만 AS 대시보드·
+    # 태블릿 비교화면의 완료 버튼은 이 필드를 여기로 보내므로(전용 /as/complete 는 UI
+    # 호출자 0), 허용은 유지하되 canonical AS cycle command 로 위임한다
+    # (:func:`_bridge_as_completed_date`) — 직접 상태 쓰기는 이 파일에 없다.
+    "as_completed_date",
     "as_visit_date",
-    "as_content",
-    "as_content_2",
     "as_pending",
     "as_blueprint",
     "sales_delivery",
@@ -55,10 +54,10 @@ ORDER_UPDATE_ALLOWED_FIELDS = [
     "construction_workers",
 ]
 
+# as_content/as_content_2 는 쓰기 퇴역(T12) — 신규 AS 기록은 as_log(POST /as/log)만
+# 받는다. 두 필드는 legacy 읽기 전용으로 남아 최초 append 때 as_log 로 영구화된다.
 STRUCTURED_SYNC_FIELDS = {
     "as_visit_date",
-    "as_content",
-    "as_content_2",
     "as_pending",
     "as_blueprint",
     "sales_delivery",
@@ -101,6 +100,21 @@ def _clear_as_pending_if_both_as_dates_empty(order: Order, structured_data: dict
         return False
     ensure_path(structured_data, "shipment")["as_pending"] = False
     return True
+
+
+def _as_date_changed(old_value: Any, new_value: Any) -> bool:
+    """AS 날짜 두 값이 실제로 다른지 판정(표기 차이는 무시, 빈 값끼리는 같음).
+
+    Args:
+        old_value: 변경 전 값(컬럼 또는 structured_data 스냅샷).
+        new_value: 요청이 보낸 값.
+
+    Returns:
+        정규화 후 다르면 True.
+    """
+    return (_normalize_date_to_yyyymmdd(old_value) or "") != (
+        _normalize_date_to_yyyymmdd(new_value) or ""
+    )
 
 
 def _coerce_bool_value(value: Any) -> bool:
@@ -152,9 +166,7 @@ def _build_order_update_response(
     schedule = (structured_data.get("schedule") or {}) if structured_data else {}
     as_visit = (schedule.get("as_visit") or {}) if isinstance(schedule, dict) else {}
 
-    if field in ("as_content", "as_content_2"):
-        normalized_value = shipment.get(field) or ""
-    elif field == "as_pending":
+    if field == "as_pending":
         normalized_value = shipment.get("as_pending") is True
     elif field == "as_blueprint":
         normalized_value = shipment.get("as_blueprint") is True
@@ -186,6 +198,81 @@ def _build_order_update_response(
             shipment.get("construction_workers")
         ),
     }
+
+
+def _bridge_as_completed_date(db, order: Order, user: Any, value: Any, body: dict[str, Any]):
+    """AS 완료/완료 취소를 canonical AS cycle command 로 위임한다(STATE-AS-01 브리지).
+
+    AS 대시보드·태블릿 비교화면의 완료 버튼은 이 필드를 generic field_update 로 보낸다.
+    generic 경로가 ``order.status``/``workflow.stage`` 를 직접 덮던 main stage 복구
+    antipattern 을 없애면서 그 버튼을 살리는 방법은, 이 필드만 canonical command 로
+    위임하는 것이다. 타임라인 system 이벤트는 command 와 **같은 tx** 안에서 append 된다
+    (별도 commit 금지 — 전이 실패 시 기록만 남는 구멍을 막는다).
+
+    Args:
+        db: 요청 세션(commit 은 이 함수 소유). order: 대상 주문. user: actor.
+        value: 요청 값(빈 값이면 완료 취소). body: 원본 payload(hash·idempotency 계산용).
+
+    Returns:
+        Flask 응답. 형식 오류 400, cycle 계약 위반 409, 성공은 generic 응답과 같은 형태.
+    """
+    from foms.api.cs.as_orders import (
+        _as_error_response,
+        _idempotency_key,
+        _invalidate_shipment_asrec_caches,
+        _request_hash,
+        _scope_hash,
+    )
+    from foms.services.orders.as_cycle_service import (
+        AS_IN_PROGRESS,
+        AS_RECEIVED,
+        complete_as_cycle,
+        reopen_as_cycle,
+    )
+
+    trimmed = str(value or "").strip()
+    normalized = _normalize_date_to_yyyymmdd(trimmed) if trimmed else None
+    if trimmed and not normalized:
+        return jsonify(
+            {"success": False, "message": "완료일 형식이 올바르지 않습니다. (YYYY-MM-DD)"}
+        ), 400
+    structured_data = getattr(order, "structured_data", None) or {}
+    if not _as_date_changed(getattr(order, "as_completed_date", None), normalized):
+        # 같은 값 재저장은 무기록 — append-only 타임라인이 중복으로 차면 안 된다.
+        return jsonify(_build_order_update_response(order, "as_completed_date", value, structured_data))
+
+    actor_user_id = getattr(user, "id", None)
+    try:
+        if normalized:
+            complete_as_cycle(
+                db, order_id=order.id, actor_user_id=actor_user_id,
+                note=str(body.get("note") or ""), completed_date=normalized,
+                # AS 대시보드는 RECEIVED cycle 을 곧바로 완료 처리한다(별도 시작 버튼 없음).
+                allow_from=(AS_RECEIVED, AS_IN_PROGRESS),
+                sd_hook=lambda sd: append_system_log(sd, text="AS 완료"),
+                legacy_bridge=True,
+                scope_hash=_scope_hash("AS_COMPLETE", order.id),
+                request_hash=_request_hash(body), idempotency_key=_idempotency_key(body),
+            )
+        else:
+            reopen_as_cycle(
+                db, order_id=order.id, actor_user_id=actor_user_id, reason="AS 완료 취소",
+                sd_hook=lambda sd: append_system_log(sd, text="AS 완료 취소"),
+                legacy_bridge=True,
+                scope_hash=_scope_hash("AS_REOPEN", order.id),
+                request_hash=_request_hash(body), idempotency_key=_idempotency_key(body),
+            )
+    except Exception as exc:  # noqa: BLE001 — 계약 위반은 409, 그 외 500 으로 분기
+        return _as_error_response(db, exc)
+
+    log_access(
+        f"주문 #{order.id}의 'as_completed_date' 필드를 '{value}'(으)로 변경",
+        session["user_id"], auto_commit=False,
+    )
+    db.commit()
+    _invalidate_shipment_asrec_caches("field_update:as_completed_date")
+    return jsonify(_build_order_update_response(
+        order, "as_completed_date", value, getattr(order, "structured_data", None) or {}))
 
 
 def update_order_field_response(
@@ -231,9 +318,11 @@ def update_order_field_response(
             400,
         )
 
+    # AS 완료/취소는 상태축 전이라 generic 쓰기 경로로 내려보내지 않는다(STATE-AS-01).
+    if field == "as_completed_date":
+        return _bridge_as_completed_date(db, order, user, value, data)
+
     try:
-        if field in ("as_content", "as_content_2"):
-            value = sanitize_as_content_html(value)
         if field == "construction_type":
             normalized_construction_type = normalize_regional_construction_type(value)
             if str(value or "").strip() and not normalized_construction_type:
@@ -285,14 +374,16 @@ def update_order_field_response(
             old_sd_snapshot = copy.deepcopy(structured_data)
 
         old_value = getattr(order, field, None)
+        # AS 타임라인 system 이벤트 문구(있으면 아래에서 1건 append). AS 방문일·완료일의
+        # **정본 쓰기 경로가 여기**다 — 전용 /as/schedule·/as/complete 라우트는 UI 호출자가
+        # 없어서, 거기에만 배선하면 실사용 타임라인에는 아무 것도 안 남는다.
+        as_system_event = ""
         prod_notif = None
         prod_notif_created = False
         _prod_cons_change: tuple[Any, Any] | None = None
         if field == "as_visit_date":
             pass
         elif field in (
-            "as_content",
-            "as_content_2",
             "as_pending",
             "as_blueprint",
             "sales_delivery",
@@ -321,8 +412,6 @@ def update_order_field_response(
                 structured_changed = True
 
         if is_erp_order or field in (
-            "as_content",
-            "as_content_2",
             "as_visit_date",
             "as_pending",
             "as_blueprint",
@@ -375,23 +464,38 @@ def update_order_field_response(
                     ))
                     _prod_cons_change = (old_cons, value)
             elif field == "as_visit_date":
+                trimmed = str(value or "").strip()
+                normalized_visit = _normalize_date_to_yyyymmdd(trimmed) if trimmed else None
+                # 정규화 실패는 여기서 끊는다(쓰기 전). 통과시키면 as_visit_date 컬럼에 None 이
+                # 박히고 「방문일 확정: None」 이 append-only as_log 에 영구히 남는다.
+                if trimmed and not normalized_visit:
+                    return jsonify(
+                        {"success": False, "message": "방문일 형식이 올바르지 않습니다. (YYYY-MM-DD)"}
+                    ), 400
                 schedule = ensure_path(structured_data, "schedule")
                 as_visit = ensure_path(schedule, "as_visit")
+                # 이전 값의 정본은 structured_data 스냅샷이다 — as_visit_date 는 ORM 컬럼이
+                # 아니라(표시 전용 인스턴스 속성) getattr 로는 항상 None 이 잡힌다.
+                old_visit = (
+                    (old_sd_snapshot.get("schedule") or {}).get("as_visit") or {}
+                ).get("date")
                 as_visit["date"] = value
                 structured_changed = True
-                trimmed = str(value or "").strip()
-                if trimmed:
-                    setattr(order, "as_visit_date", _normalize_date_to_yyyymmdd(trimmed))
-                else:
-                    setattr(order, "as_visit_date", None)
-            elif field in ("as_content", "as_content_2"):
-                shipment = ensure_path(structured_data, "shipment")
-                shipment[field] = value
-                structured_changed = True
+                setattr(order, "as_visit_date", normalized_visit)
+                if _as_date_changed(old_visit, value):
+                    as_system_event = (
+                        f"방문일 확정: {normalized_visit}" if trimmed else "방문일 취소"
+                    )
 
         if is_erp_order and field in ("as_received_date", "as_visit_date"):
             if _clear_as_pending_if_both_as_dates_empty(order, structured_data):
                 structured_changed = True
+
+        # 값이 실제로 바뀐 경우에만 1건. structured_changed 를 켜야 아래 저장 블록이 돈다
+        # (as_completed_date 는 비-ERP 주문에서 이 플래그가 꺼진 채로 올 수 있다).
+        if as_system_event and isinstance(structured_data, dict):
+            append_system_log(structured_data, text=as_system_event)
+            structured_changed = True
 
         if structured_changed:
             drawing_notif = None
@@ -496,8 +600,6 @@ def update_order_field_response(
             "status",
             "address",
             "manager_name",
-            "as_content",
-            "as_content_2",
             "sales_delivery",
             "construction_workers",
             "construction_type",
@@ -533,8 +635,6 @@ def update_order_field_response(
                     extras_by_field = {
                         # 출고 대시보드 DTO(aggregates·AS 추천 행)가 읽는 필드
                         "as_visit_date": (DASHBOARD_FAMILY_SHIPMENT,),
-                        "as_content": (DASHBOARD_FAMILY_SHIPMENT,),
-                        "as_content_2": (DASHBOARD_FAMILY_SHIPMENT,),
                         "sales_delivery": (DASHBOARD_FAMILY_SHIPMENT,),
                         "construction_workers": (DASHBOARD_FAMILY_SHIPMENT,),
                         # 날짜 필드 → 날짜 기준 DTO를 가진 family

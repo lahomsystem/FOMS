@@ -36,10 +36,12 @@ from sqlalchemy.orm import Session
 from sqlalchemy.orm.attributes import flag_modified
 
 from foms.services.datetime_kst import now_utc_naive
+from foms.services.orders.as_log import append_system_log
 from foms.services.orders.revision import MutationResult, execute_order_mutation
 from foms.services.orders.state_axes import (
     AS_VALUES,
     legacy_status_projection,
+    read_as_status,
     read_state_axes,
 )
 from models import Order, OrderEvent
@@ -212,6 +214,64 @@ def _optional_visit_time(value: Any) -> Optional[str]:
 
 
 # --------------------------------------------------------------------------- #
+# 레거시 전환 브리지(forward-only)
+# --------------------------------------------------------------------------- #
+# cycle.origin 값. canonical register 로 열린 cycle 과 레거시 전환으로 개시된 cycle 을
+# 사후에 구분할 수 있어야 감사·재집계가 가능하다(태그 없으면 둘이 영구히 섞인다).
+LEGACY_BRIDGE_ORIGIN = "LEGACY_BRIDGE"
+
+
+def _open_legacy_bridge_cycle(
+    sd: Dict[str, Any], order: Order, *, actor_user_id: int, now: datetime.datetime
+) -> bool:
+    """``as_lifecycle`` 이 없는 레거시 AS 주문에 **지금부터**의 cycle 을 개시한다.
+
+    STATE-AS-01 이전에 접수된 주문은 cycle 이 없어 canonical 전이가 전부 409 로 막힌다
+    (진행 중인 AS 의 방문일·완료 버튼 파손). 이 브리지는 그 주문을 canonical 축으로
+    끌어올리되 **과거 이력은 재구성하지 않는다**(감사보고서 §296: as_info/history/방문일
+    추정 금지). 옮기는 것은 canonical read-model 이 이미 노출하고 있는 **현재 축 값**
+    하나뿐이다 — :func:`read_as_status` 가 legacy ``order.status`` 에서 파생하는 값 그대로
+    cycle 을 열어, 읽기와 쓰기가 같은 상태를 보게 만든다.
+
+    Args:
+        sd: 잠긴 row 의 structured_data 사본(in-place 변경). order: 대상 주문.
+        actor_user_id: 전환을 유발한 actor(provenance). now: 개시 시각.
+
+    Returns:
+        cycle 을 개시했으면 True. 이미 cycle 이 있거나 AS 상태가 아니면 False(무변경).
+    """
+    if current_cycle(sd) is not None:
+        return False
+    status = read_as_status(order)
+    if status not in (AS_RECEIVED, AS_IN_PROGRESS, AS_COMPLETED):
+        return False
+    lifecycle = _lifecycle(sd)
+    if lifecycle["cycles"]:
+        # 과거 cycle 은 있는데 current 가 없다 = canonical 로 정상 종결된 주문. 레거시 아님.
+        return False
+    cycle_id = str(uuid.uuid4())
+    cycle = {
+        "cycle_id": cycle_id, "opened_at": now.isoformat(), "opened_by": actor_user_id,
+        "initial_content": str((sd.get("shipment") or {}).get("as_content") or ""),
+        "initial_shipping_date": None, "origin": LEGACY_BRIDGE_ORIGIN,
+        "classification": {f: False for f in CLASSIFICATION_FIELDS}, "transitions": [],
+    }
+    _append_transition(
+        cycle, command="AS_LEGACY_BRIDGE", from_status=AS_NONE, to_status=status,
+        payload={
+            "origin": LEGACY_BRIDGE_ORIGIN,
+            "legacy_status": getattr(order, "status", None),
+            "reason": "레거시 AS 주문의 canonical 전환 자동 개시(과거 이력 미복원)",
+        },
+        actor_user_id=actor_user_id, now=now,
+    )
+    lifecycle["cycles"].append(cycle)
+    lifecycle["current_cycle_id"] = cycle_id
+    append_system_log(sd, text="AS 접수됨(레거시 전환)")
+    return True
+
+
+# --------------------------------------------------------------------------- #
 # execute_order_mutation 조립(정책·이벤트·version·idempotency·row lock)
 # --------------------------------------------------------------------------- #
 def _reproject_and_sync(order: Order, sd: Dict[str, Any]) -> None:
@@ -229,18 +289,33 @@ def _run_as_command(
     event_type: str, apply: Callable[[Dict[str, Any], Order], Dict[str, Any]],
     scope_hash: str, request_hash: str, expected_version: Optional[int] = None,
     idempotency_key: Optional[str] = None, now: Optional[datetime.datetime] = None,
+    sd_hook: Optional[Callable[[Dict[str, Any]], None]] = None,
+    legacy_bridge: bool = False,
 ) -> MutationResult:
     """AS cycle 전이를 REV-00 원자 mutation 으로 감싼다(commit 은 호출자 소유).
 
     ``apply(sd, order)`` 는 row lock 아래 ``structured_data`` 사본을 mutate 하고 event
     payload 를 돌려준다(계약 위반 시 :class:`ASCycleError`). 이후 legacy status projection
     재계산 + version bump + receipt + ``OrderEvent`` parity 를 원자 기록한다.
+
+    ``sd_hook`` 은 endpoint 가 **같은 tx·같은 sd 사본**에 남기는 부수 기록(AS 타임라인
+    ``as_log`` append, ``as_billing`` 시드)이다. ``apply`` **직전**에 돌아야 한다 — register
+    의 ``apply`` 가 ``shipment['as_content']`` 를 덮으므로, 뒤에 두면 legacy 영구화가 방금
+    쓴 접수 원문을 "이전 기록"으로 중복 시드한다. 전이가 거부되면 부수 기록도 함께 롤백된다.
+
+    ``legacy_bridge`` 는 cycle 이 없는 레거시 AS 주문을 같은 tx 안에서 canonical 축으로
+    끌어올린 뒤 전이를 진행한다(:func:`_open_legacy_bridge_cycle`). 기본 off — 켠 endpoint
+    만 적용된다.
     """
     now = now or now_utc_naive()
 
     def _mutate(sess: Session, orders: List[Order]) -> Dict[int, List[str]]:
         order = orders[0]
         sd = copy.deepcopy(order.structured_data or {})
+        if legacy_bridge:
+            _open_legacy_bridge_cycle(sd, order, actor_user_id=actor_user_id, now=now)
+        if sd_hook is not None:
+            sd_hook(sd)
         payload = apply(sd, order)
         order.structured_data = sd
         flag_modified(order, "structured_data")
@@ -270,6 +345,7 @@ def register_as_cycle(
     received_date: Optional[str] = None, construction_worker_name: Optional[str] = None,
     scope_hash: str, request_hash: str, now: Optional[datetime.datetime] = None,
     idempotency_key: Optional[str] = None,
+    sd_hook: Optional[Callable[[Dict[str, Any]], None]] = None,
 ) -> MutationResult:
     """AS_REGISTER: 새 RECEIVED cycle 을 발급하고 current 로 교체한다(과거 cycle 보존).
 
@@ -313,6 +389,7 @@ def register_as_cycle(
         session, order_id=order_id, actor_user_id=actor_user_id, policy_id=POLICY_AS_REGISTER,
         event_type="AS_REGISTERED", apply=_apply, scope_hash=scope_hash,
         request_hash=request_hash, idempotency_key=idempotency_key, now=now,
+        sd_hook=sd_hook,
     )
 
 
@@ -321,6 +398,8 @@ def schedule_as_cycle(
     visit_time: Optional[str] = None, cycle_id: Optional[str] = None,
     scope_hash: str, request_hash: str, now: Optional[datetime.datetime] = None,
     idempotency_key: Optional[str] = None,
+    sd_hook: Optional[Callable[[Dict[str, Any]], None]] = None,
+    legacy_bridge: bool = False,
 ) -> MutationResult:
     """AS_SCHEDULE: current RECEIVED/IN_PROGRESS cycle 에 방문일/시각을 기록한다(상태 불변)."""
     now = now or now_utc_naive()
@@ -341,6 +420,7 @@ def schedule_as_cycle(
         session, order_id=order_id, actor_user_id=actor_user_id, policy_id=POLICY_AS_SCHEDULE,
         event_type="AS_SCHEDULED", apply=_apply, scope_hash=scope_hash,
         request_hash=request_hash, idempotency_key=idempotency_key, now=now,
+        sd_hook=sd_hook, legacy_bridge=legacy_bridge,
     )
 
 
@@ -348,6 +428,8 @@ def unschedule_as_cycle(
     session: Session, *, order_id: int, actor_user_id: int, reason: str,
     cycle_id: Optional[str] = None, scope_hash: str, request_hash: str,
     now: Optional[datetime.datetime] = None, idempotency_key: Optional[str] = None,
+    sd_hook: Optional[Callable[[Dict[str, Any]], None]] = None,
+    legacy_bridge: bool = False,
 ) -> MutationResult:
     """AS_UNSCHEDULE: current cycle 방문 날짜/시각을 명시적 transition 으로 clear 한다(상태 불변)."""
     now = now or now_utc_naive()
@@ -366,6 +448,7 @@ def unschedule_as_cycle(
         session, order_id=order_id, actor_user_id=actor_user_id, policy_id=POLICY_AS_UNSCHEDULE,
         event_type="AS_UNSCHEDULED", apply=_apply, scope_hash=scope_hash,
         request_hash=request_hash, idempotency_key=idempotency_key, now=now,
+        sd_hook=sd_hook, legacy_bridge=legacy_bridge,
     )
 
 
@@ -398,23 +481,34 @@ def complete_as_cycle(
     session: Session, *, order_id: int, actor_user_id: int, note: str = "",
     cycle_id: Optional[str] = None, scope_hash: str, request_hash: str,
     now: Optional[datetime.datetime] = None, idempotency_key: Optional[str] = None,
+    completed_date: Optional[str] = None, allow_from: Any = (AS_IN_PROGRESS,),
+    sd_hook: Optional[Callable[[Dict[str, Any]], None]] = None,
+    legacy_bridge: bool = False,
 ) -> MutationResult:
-    """AS_COMPLETE: current IN_PROGRESS cycle 을 COMPLETED 로 종결한다(완료 메모·완료일)."""
+    """AS_COMPLETE: current cycle 을 COMPLETED 로 종결한다(완료 메모·완료일).
+
+    ``allow_from`` 은 종결을 허용하는 출발 상태다. 기본값은 ``/as/complete`` 라우트 계약인
+    IN_PROGRESS 전용이고, AS 대시보드 완료 버튼(``field_update`` as_completed_date 브리지)은
+    RECEIVED cycle 을 곧바로 종결하는 실제 동선이라 ``(RECEIVED, IN_PROGRESS)`` 를 넘긴다.
+    ``completed_date`` 는 사용자가 고른 완료일(``YYYY-MM-DD``); 생략하면 오늘(KST)이다.
+    """
     now = now or now_utc_naive()
     note_str = _require_text(note, field="완료 메모", min_len=0, max_len=_MAX_NOTE)
+    done_date = _require_iso_date(completed_date, field="완료일") if completed_date else None
 
     def _apply(sd: Dict[str, Any], order: Order) -> Dict[str, Any]:
-        cycle = _require_open_cycle(sd, cycle_id, allow=(AS_IN_PROGRESS,))
-        _append_transition(cycle, command="AS_COMPLETE", from_status=AS_IN_PROGRESS,
+        cycle = _require_open_cycle(sd, cycle_id, allow=allow_from)
+        _append_transition(cycle, command="AS_COMPLETE", from_status=cycle_status(cycle),
                             to_status=AS_COMPLETED, payload={"note": note_str},
                             actor_user_id=actor_user_id, now=now)
-        order.as_completed_date = _today_str()
+        order.as_completed_date = done_date or _today_str()
         return {"command": "AS_COMPLETE", "cycle_id": cycle.get("cycle_id"), "to": AS_COMPLETED}
 
     return _run_as_command(
         session, order_id=order_id, actor_user_id=actor_user_id, policy_id=POLICY_AS_COMPLETE,
         event_type="AS_COMPLETED", apply=_apply, scope_hash=scope_hash,
         request_hash=request_hash, idempotency_key=idempotency_key, now=now,
+        sd_hook=sd_hook, legacy_bridge=legacy_bridge,
     )
 
 
@@ -422,6 +516,8 @@ def reopen_as_cycle(
     session: Session, *, order_id: int, actor_user_id: int, reason: str,
     cycle_id: Optional[str] = None, scope_hash: str, request_hash: str,
     now: Optional[datetime.datetime] = None, idempotency_key: Optional[str] = None,
+    sd_hook: Optional[Callable[[Dict[str, Any]], None]] = None,
+    legacy_bridge: bool = False,
 ) -> MutationResult:
     """AS_REOPEN: 오완료된 current COMPLETED cycle 을 **같은 cycle** 로 RECEIVED 로 되돌린다."""
     now = now or now_utc_naive()
@@ -439,6 +535,7 @@ def reopen_as_cycle(
         session, order_id=order_id, actor_user_id=actor_user_id, policy_id=POLICY_AS_REOPEN,
         event_type="AS_REOPENED", apply=_apply, scope_hash=scope_hash,
         request_hash=request_hash, idempotency_key=idempotency_key, now=now,
+        sd_hook=sd_hook, legacy_bridge=legacy_bridge,
     )
 
 
@@ -533,6 +630,7 @@ def _today_str() -> str:
 
 __all__ = [
     "ASCycleError",
+    "LEGACY_BRIDGE_ORIGIN",
     "AS_NONE",
     "AS_RECEIVED",
     "AS_IN_PROGRESS",

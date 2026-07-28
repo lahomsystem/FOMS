@@ -278,6 +278,36 @@ def _force_preserve_drawing_transfer_history(old_sd: dict, structured_data: dict
         structured_data["drawing_transfer_history"] = copy.deepcopy(old_hist)
 
 
+# shipment 하위 AS 서버 전용 키 — 폼은 렌더하지 않고 AS 전용 API 만 쓴다.
+_AS_SERVER_OWNED_SHIPMENT_KEYS = ('as_billing', 'as_log')
+
+
+def _force_preserve_as_server_state(old_sd: dict, structured_data: dict) -> None:
+    """shipment 의 AS 서버 전용 키(as_billing·as_log)를 DB 값으로 강제.
+
+    폼 JS 는 shipment 를 페이지 로드 시점 스냅샷에서 통째로 복사해 보낸다. deep-merge 는
+    dict 만 병합하고 나머지는 incoming 으로 교체하므로 두 키 모두 stale 스냅샷에 진다 —
+    확정된 유상 판정이 무상으로 회귀했고, append-only 인 as_log 는 항목이 통째로 사라졌다.
+    as_log 는 접수 모달이 register 직후 erpSaveStructured() 를 호출하는 탓에 방금 만든
+    reception/system 항목이 즉시 소실되는 결정적 발현 경로를 갖는다.
+    DB 에 값이 없으면 폼이 보낸 값도 채택하지 않는다(서버 전용 키).
+    """
+    if not isinstance(old_sd, dict) or not isinstance(structured_data, dict):
+        return
+    new_shipment = structured_data.get('shipment')
+    if not isinstance(new_shipment, dict):
+        return
+    old_shipment = old_sd.get('shipment')
+    if not isinstance(old_shipment, dict):
+        old_shipment = {}
+    for key in _AS_SERVER_OWNED_SHIPMENT_KEYS:
+        old_value = old_shipment.get(key)
+        if isinstance(old_value, (dict, list)):
+            new_shipment[key] = copy.deepcopy(old_value)
+        else:
+            new_shipment.pop(key, None)
+
+
 def _preserve_operational_structured_state(old_sd: dict, structured_data: dict) -> None:
     """Preserve non-form operational state during ERP order full-form saves."""
     if not isinstance(old_sd, dict) or not isinstance(structured_data, dict):
@@ -300,7 +330,11 @@ def _preserve_operational_structured_state(old_sd: dict, structured_data: dict) 
         structured_data['quests'] = copy.deepcopy(old_sd.get('quests'))
 
     _force_preserve_drawing_transfer_history(old_sd, structured_data)
+    # 폼 저장의 암묵 전이 0(STATE-FORM-01): 단계는 서버값으로 고정하고, AS 전용 API 소관
+    # 키(as_billing·as_log)는 폼 스냅샷이 되돌리지 못하게 서버값으로 되돌린다. 전자가
+    # 단계를, 후자가 AS 서버 상태를 지키므로 둘 다 필요하다.
     _pin_form_stage_to_server(old_sd, structured_data)
+    _force_preserve_as_server_state(old_sd, structured_data)
 
 
 def _record_structured_events(

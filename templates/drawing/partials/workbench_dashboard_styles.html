@@ -258,4 +258,46 @@
     color: #b91c1c !important;
     border: 1px solid #fca5a5;
   }
+
+  /* 최근 이벤트 타입 칩 — 기본은 무채, 액션별로 팔레트 토큰 톤만 갈아끼운다. */
+  .dw-event-chip {
+    display: inline-block;
+    padding: 0.05rem 0.4rem;
+    border-radius: 999px;
+    border: 1px solid #d9d9d9;
+    background: #f4f4f5;
+    color: #52525b;
+    font-size: 0.7rem;
+    font-weight: 700;
+    line-height: 1.45;
+    white-space: nowrap;
+  }
+  .dw-event-chip.is-order-change {
+    background: var(--foms-color-warning-50, #fffbeb);
+    border-color: var(--foms-color-warning-500, #f59e0b);
+    color: var(--foms-color-warning-700, #b45309);
+  }
+  .dw-event-chip.is-revision {
+    background: var(--foms-color-danger-50, #fef2f2);
+    border-color: var(--foms-color-danger-500, #ef4444);
+    color: var(--foms-color-danger-600, #dc2626);
+  }
+  .dw-event-chip.is-transfer {
+    background: var(--foms-color-info-50, #eff6ff);
+    border-color: var(--foms-color-info-500, #3b82f6);
+    color: var(--foms-color-info-600, #2563eb);
+  }
+
+  /* 다음 액션 턴 시각화 — 내 턴은 진하게, 상대 턴은 흐리게, 담당 미지정은 경고 톤. */
+  .dw-next-action.is-mine {
+    color: #131e29;
+    font-weight: 700;
+  }
+  .dw-next-action.is-other {
+    color: #6c757d;
+  }
+  .dw-next-action.is-assign {
+    color: #b91c1c;
+    font-weight: 700;
+  }
 </style>
