@@ -10,7 +10,7 @@ from __future__ import annotations
 import datetime
 from typing import Any
 
-from foms.services.datetime_kst import get_today_kst
+from foms.services.datetime_kst import get_today_kst, parse_datetime_utc
 from foms.services.erp_display import (
     _ensure_dict,
     _erp_alerts,
@@ -120,6 +120,27 @@ def _production_construction_md(construction_date: Any) -> str | None:
     return f'{target.month}/{target.day}'
 
 
+# 한국 표준시는 DST가 없어 고정 오프셋(+9)으로 정확하다.
+_KST_TZ_OFFSET = datetime.timezone(datetime.timedelta(hours=9))
+
+
+def _production_hold_days(hold_at: Any) -> int | None:
+    """보류 시작(hold.at)부터 오늘(KST)까지 경과 일수(D+n).
+
+    Args:
+        hold_at: ``sd['production']['hold']['at']`` — aware UTC ISO 문자열 또는 None.
+
+    Returns:
+        오늘(KST) − 보류 시작일(KST)의 일수. at 미입력·파싱 실패·미래 시각(음수)은 None.
+    """
+    dt = parse_datetime_utc(hold_at)  # None·파싱 실패는 내부에서 None 반환(bare except 아님)
+    if dt is None:
+        return None
+    hold_date = dt.astimezone(_KST_TZ_OFFSET).date()
+    days = (get_today_kst() - hold_date).days
+    return days if days >= 0 else None
+
+
 def _production_stage_label_from_stage(stage: str) -> str | None:
     if stage not in ['고객컨펌', '생산', '시공', 'CONFIRM', 'PRODUCTION', 'CONSTRUCTION']:
         return None
@@ -136,9 +157,22 @@ def _production_stage_label_from_stage(stage: str) -> str | None:
 def _production_quest_sales_state(
     sd: dict[str, Any], stage_label: str
 ) -> tuple[bool | None, Any]:
-    """제작대기일 때 퀘스트·영업 승인 상태."""
+    """제작대기일 때 퀘스트·영업 승인 상태.
+
+    제작대기가 아니면 항상 승인(True) 취급한다. 제작대기라도 ``workflow.history`` 에
+    PRODUCTION('생산'/'PRODUCTION') 기록이 하나라도 있으면 이미 컨펌·제작된 건이므로
+    (제작 취소로 제작대기에 복귀했더라도) 재승인 없이 재시작을 허용한다(True 반환) —
+    소급 자동 커버(별도 마커 불필요). 그 외에는 기존 퀘스트/영업 승인 판정을 따른다.
+    """
     if stage_label != '제작대기':
         return True, None
+    # 제작 이력 판정: 이미 제작에 들어간 적이 있으면 취소 복귀라도 재시작 허용(True).
+    workflow = sd.get('workflow')
+    history = workflow.get('history') if isinstance(workflow, dict) else None
+    if isinstance(history, list):
+        for entry in history:
+            if isinstance(entry, dict) and entry.get('stage') in ('PRODUCTION', '생산'):
+                return True, None
     is_sales_approved = False
     quests = sd.get('quests') or []
     active_quest = next((q for q in quests if q.get('stage') in ('CONFIRM', '고객컨펌')), None)
@@ -171,6 +205,10 @@ def _enrich_one_production_order(
     alerts = _erp_alerts(o, sd, att_n)
     _construction_date = (((sd.get('schedule') or {}).get('construction') or {}).get('date'))
     _first_item, _items = _production_first_item(sd)
+    _prod = sd.get('production') if isinstance(sd.get('production'), dict) else {}
+    _hold = _prod.get('hold') if isinstance(_prod.get('hold'), dict) else {}
+    _rework = _prod.get('rework') if isinstance(_prod.get('rework'), dict) else {}
+    _hold_history = _prod.get('hold_history') if isinstance(_prod.get('hold_history'), list) else []
     return {
         'id': o.id,
         'is_erp_order': o.is_erp_order,
@@ -179,6 +217,14 @@ def _enrich_one_production_order(
         'customer_name': (((sd.get('parties') or {}).get('customer') or {}).get('name')) or '-',
         'address': (((sd.get('site') or {}).get('address_full')) or ((sd.get('site') or {}).get('address_main'))) or '-',
         'stage': stage_label,
+        # 보류 운영 가시성(P7): 카드 D+n·KPI·PC 배지가 소비. hold_days는 활성/비활성 무관
+        # 파생(at 없으면 None) — 템플릿이 active 가드 안에서만 읽는다.
+        'hold_active': bool(_hold.get('active')),
+        'hold_days': _production_hold_days(_hold.get('at')),
+        # 완료 이력(E-b): 완료 카드/시트/PC 무채 이력 배지가 소비. rework_count=재제작 회차 누적,
+        # hold_history_count=해제된 보류 기록 건수(완료 후에도 보존 — CEO 품질분석·CS 응대).
+        'rework_count': int(_rework.get('count') or 0),
+        'hold_history_count': len(_hold_history),
         'alerts': alerts,
         'has_media': _erp_has_media(o, att_n),
         'attachments_count': att_n,

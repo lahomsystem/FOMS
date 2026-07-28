@@ -30,7 +30,7 @@ SHIPMENT_DASHBOARD_SCRIPTS = "templates/shipment/partials/dashboard_scripts.html
 CORE_MEDIA_QUERY = (
     "(min-width: 992px) and (orientation: landscape) and (pointer: coarse)"
 )
-SCRIPT_CACHEBUSTER = "?v=20260724c"
+SCRIPT_CACHEBUSTER = "?v=20260728a"
 
 
 def _read(rel: str) -> str:
@@ -76,6 +76,26 @@ def test_domain_sheets_js_wires_production_start_with_confirm() -> None:
     assert "제작을 완료하시겠습니까" in js  # 완료 confirm
 
 
+def test_domain_sheets_js_wires_production_cancel_and_uncomplete() -> None:
+    """되돌리기 2종(시트 전용): 제작 취소 = /production/cancel + confirm,
+    완료 취소 = /production/uncomplete + confirm. 위임 액션명·엔드포인트·문구 고정."""
+    js = _read(DOMAIN_SHEETS_JS)
+    assert "production-cancel" in js  # 시트 액션 위임 분기
+    assert "/production/cancel" in js  # 신규 되돌리기 엔드포인트
+    assert "제작을 취소하고 제작대기로 되돌릴까요" in js  # 취소 confirm
+    assert "production-uncomplete" in js
+    assert "/production/uncomplete" in js
+    assert "완료를 취소하고 제작중으로 되돌릴까요" in js  # 완료 취소 confirm
+
+
+def test_domain_sheets_js_wires_hold_release_confirm() -> None:
+    """보류 해제 경로 = confirm 게이트(오조작 방지) + 서버 렌더 사유(data-hold-reason) 병기.
+    설정(prompt) 경로는 현행 유지."""
+    js = _read(DOMAIN_SHEETS_JS)
+    assert "보류를 해제할까요" in js  # 해제 confirm 문구
+    assert "data-hold-reason" in js  # 사유는 버튼 인접 DOM 아닌 서버 렌더 데이터에서 읽음
+
+
 def test_domain_sheets_js_has_production_kanban_filter() -> None:
     """생산 칸반 클라이언트 필터 컨트롤 attr 계약."""
     js = _read(DOMAIN_SHEETS_JS)
@@ -101,7 +121,6 @@ def test_kanban_body_wires_domain_sheets_and_filter() -> None:
     assert "defer" in tag, "도메인 시트 스크립트 defer 부재(perf G1)"
     for attr in (
         "data-tablet-prod-search",
-        "data-tablet-prod-status",
         "data-tablet-prod-factory",
         "data-tablet-prod-reset",
     ):
@@ -225,3 +244,79 @@ def test_kanban_body_cap_notice_gated() -> None:
     assert "kanban_capped | default(false)" in body
     assert "tablet-prod-cap-note" in body
     assert "표시 상한" in body
+
+
+# --- (8) 보류 운영 가시성 KPI 타일 + 필터 분기 (P7 C-3) ------------------------
+
+
+def test_kanban_body_has_hold_kpi_tile() -> None:
+    """KPI 행에 보류 타일(data-tablet-prod-kpi='hold') — 기존 상호배타 토글 문법 복제."""
+    body = _read(KANBAN_BODY)
+    assert 'data-tablet-prod-kpi="hold"' in body
+    assert "_kpi.get('hold'" in body  # 서버 KPI 카운트 소비
+
+
+def test_domain_sheets_js_has_hold_kpi_filter_branch() -> None:
+    """applyProdFilter kpiOK 에 hold 분기(.is-held 카드만 표시)."""
+    js = _read(DOMAIN_SHEETS_JS)
+    assert 'kpi === "hold"' in js
+    assert 'classList.contains("is-held")' in js
+
+
+# --- (9) Phase G: 필터 바 재구성(접기·상태 select 제거, 공장 앞·변경 상시) -----
+
+
+def test_kanban_body_filter_bar_simplified() -> None:
+    """Phase G: [필터] 토글·__more 접이·상태 select 제거 → 전 항목 상시 노출.
+    공장 select 가 검색 앞(좌측), 변경·초기화 상시. 전체화면 토글은 유지."""
+    body = _read(KANBAN_BODY)
+    # 제거된 것: 필터 토글 버튼·접이 컨테이너·개수 배지·상태 select.
+    assert "data-tablet-prod-filter-toggle" not in body
+    assert "tablet-prod-filter__more" not in body
+    assert "data-tablet-prod-filter-count" not in body
+    assert "data-tablet-prod-status" not in body
+    # 공장 select 가 검색 input 앞(좌측) — 둘 다 상시 노출.
+    assert "data-tablet-prod-factory" in body
+    assert "data-tablet-prod-search" in body
+    assert body.index("data-tablet-prod-factory") < body.index(
+        "data-tablet-prod-search"
+    ), "공장 select 가 검색 input 앞에 있어야 함(Phase G 순서)"
+    # 변경 토글·초기화 상시 노출.
+    assert "data-tablet-prod-changed" in body
+    assert "data-tablet-prod-reset" in body
+
+
+def test_domain_sheets_js_filter_collapse_removed() -> None:
+    """Phase G: 필터 접기 배선 전부 제거 — localStorage 키·토글 셀렉터·복원·상태 필터 부재.
+    검색은 무조건 전 열(status 분기 없음). 전체화면 복원은 유지."""
+    js = _read(DOMAIN_SHEETS_JS)
+    assert "foms_tablet_prod_filters_open" not in js
+    assert "data-tablet-prod-filter-toggle" not in js
+    assert "restoreFilterCollapse" not in js
+    assert "data-tablet-prod-status" not in js
+    assert "restoreFullscreen" in js  # 전체화면 복원은 유지(별도 리스너)
+
+
+# --- (10) F-2 라벨 인쇄 제거 + F-3 전체화면 토글 -------------------------------
+
+
+def test_kanban_body_has_fullscreen_toggle_and_exit_markup() -> None:
+    """F-3: 필터 바 전체화면 진입 버튼 + board 우상단 플로팅 복원 버튼(기본 hidden).
+    진입=fa-expand, 복원=fa-compress. 고유 클래스/data 속성으로 잠근다."""
+    body = _read(KANBAN_BODY)
+    assert "data-tablet-prod-fullscreen" in body  # 진입 토글 위임 속성
+    assert "data-tablet-prod-fullscreen-exit" in body  # 플로팅 복원 버튼(고유)
+    assert "tablet-prod-fullscreen-btn" in body  # 필터 바 진입 버튼 클래스(고유)
+    assert "fa-expand" in body
+    assert "fa-compress" in body
+
+
+def test_domain_sheets_js_wires_fullscreen_toggle() -> None:
+    """F-3: 전체화면 토글 배선 — localStorage 키 + 진입/복원 위임 셀렉터 + is-fullscreen 클래스
+    토글(board DOM 상태로 플립) + fragment 스왑 복원."""
+    js = _read(DOMAIN_SHEETS_JS)
+    assert "foms_tablet_prod_fullscreen" in js  # 상태 기억 키
+    assert "data-tablet-prod-fullscreen" in js  # 진입 위임 셀렉터
+    assert "data-tablet-prod-fullscreen-exit" in js  # 복원 위임 셀렉터
+    assert "is-fullscreen" in js  # board 클래스 토글
+    assert "restoreFullscreen" in js  # 부트/스왑 복원

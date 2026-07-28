@@ -163,6 +163,13 @@ def test_tablet_bundle_imports_compare_css() -> None:
     assert '@import url("../components/foms-tablet-side-sheet.css?v=' in bundle
 
 
+def test_tablet_bundle_imports_compare_css_pinned_version() -> None:
+    """캐시 계약: sticky 헤드 + 검색 구조 변경(2026-07-24)으로 대조 CSS @import ?v 범프(구버전에서
+    신버전 20260724a 로) — 브라우저가 구 캐시로 신규 마크업/CSS 를 못 받는 회귀 차단."""
+    bundle = _read(TABLET_BUNDLE_CSS)
+    assert '@import url("foms-tablet-as-compare.css?v=20260724a")' in bundle
+
+
 # --- (5) 서비스: 전/후 사진 매핑 기능 계약 ----------------------------------
 
 
@@ -361,3 +368,80 @@ def test_service_sets_as_visit_time_from_schedule(app) -> None:
     apply_as_dashboard_row_display_fields([order], db_session, mobile_v2_active=False)
     assert order.as_visit_time == "10:00"
     assert order.construction_workers_text == "시공1팀"
+
+
+# --- (7) sticky 헤드 구조: pcbar·subtabs = 카드 section 의 형제(grid 밖) -----
+
+
+def test_compare_partial_head_wrapper_exists_before_card_section() -> None:
+    """.foms-as-compare-head 래퍼가 카드 section(#foms-as-compare-surface) 앞에 존재하고,
+    pcbar·subtabs 둘 다 head 래퍼 범위 안(= section 밖)에 있다 — grid item 은 sticky 불가라
+    grid 밖 형제 래퍼로 옮긴 구조 전환 계약."""
+    body = _read(COMPARE_PARTIAL)
+    assert '<div class="foms-as-compare-head" id="foms-as-compare-head">' in body
+    head_idx = body.index('<div class="foms-as-compare-head" id="foms-as-compare-head">')
+    section_idx = body.index('<section class="foms-as-compare" id="foms-as-compare-surface"')
+    assert head_idx < section_idx, "head 래퍼가 카드 section 보다 앞에 있어야 함"
+    pcbar_idx = body.index("foms-as-compare-pcbar", head_idx)
+    subtabs_idx = body.index("foms-as-compare-subtabs", head_idx)
+    assert head_idx < pcbar_idx < section_idx, "pcbar 가 head 래퍼 안(=section 밖)에 없음"
+    assert head_idx < subtabs_idx < section_idx, "subtabs 가 head 래퍼 안(=section 밖)에 없음"
+
+
+def test_compare_partial_head_wrapper_is_sibling_not_nested_in_card_section() -> None:
+    """head 래퍼가 section 바로 앞에서 닫혀 형제 관계 성립(중첩 아님) — 밀도 토글 대상
+    id(#foms-as-compare-surface)는 section 이 그대로 유지(기존 계약 불변)."""
+    body = _norm(_read(COMPARE_PARTIAL))
+    assert (
+        '</div> <section class="foms-as-compare" id="foms-as-compare-surface"'
+    ) in body
+    assert "foms_density_target = '#foms-as-compare-surface'" in body
+
+
+# --- (8) 검색폼: 순수 GET + 현재 탭/정렬/필터 컨텍스트 hidden 보존 ----------
+
+
+def test_compare_partial_has_search_form_with_context_hidden_fields() -> None:
+    """검색: role=search 순수 GET 폼 + name=q + tab/sort_dir hidden 보존(검색 후에도 현재
+    탭/정렬 컨텍스트 유지, 신규 라우트/JS 없음)."""
+    body = _read(COMPARE_PARTIAL)
+    assert '<form class="foms-as-compare-search" method="get"' in body
+    assert 'role="search"' in body
+    assert 'name="q"' in body
+    assert "name=\"tab\" value=\"{{ as_tab or 'incomplete' }}\"" in body
+    assert "name=\"sort_dir\" value=\"{{ sort_dir or 'desc' }}\"" in body
+
+
+def test_compare_partial_search_form_sits_between_pcbar_head_and_tools() -> None:
+    """검색폼은 pcbar __head(제목)와 __tools(밀도토글·CTA) 사이 — 목업 pcbar 레이아웃 순서 계약."""
+    body = _read(COMPARE_PARTIAL)
+    head_idx = body.index("foms-as-compare-pcbar__head")
+    form_idx = body.index('class="foms-as-compare-search"')
+    tools_idx = body.index("foms-as-compare-pcbar__tools")
+    assert head_idx < form_idx < tools_idx
+
+
+# --- (9) CSS: 헤드 base-hide 순서 + sticky + 카드 overflow 해제 -------------
+
+
+def test_compare_css_head_base_hidden_before_cohort_mq() -> None:
+    """헤드 래퍼(.foms-as-compare-head)도 base 구간에서 display:none — 코호트 MQ 앞(순서 계약,
+    기존 .foms-as-compare/.foms-as-compare-visit__datetext base-hide 와 동일 패턴). 파일 상단
+    주석에도 MQ 문자열이 등장하므로(설명용), 실제 @media 규칙(뒤에 '{')로 앵커링한다."""
+    css = _norm(_read(COMPARE_CSS))
+    base_idx = css.index(".foms-as-compare-head { display: none")
+    mq_idx = css.index(CORE_MEDIA_QUERY + " {")
+    assert base_idx < mq_idx, "헤드 base-hide 가 코호트 MQ 뒤에 있음(순서 계약 위반)"
+
+
+def test_compare_css_head_is_sticky_with_card_overflow_released() -> None:
+    """헤드는 코호트에서 position:sticky(top:0) — 전제조건인 .erp-pro-card 의
+    overflow:hidden(카드 라운드 클립, sticky 무력화 원인)을 페이지+코호트 스코프에서만 해제."""
+    css = _norm(_read(COMPARE_CSS))
+    cohort_selector = "body.erp-mobile-v2-layout .erp-as-dashboard .foms-as-compare-head {"
+    assert cohort_selector in css
+    head_idx = css.index(cohort_selector)
+    assert "position: sticky" in css[head_idx : head_idx + 400]
+    assert (
+        "body.erp-mobile-v2-layout .erp-as-dashboard .erp-pro-card { overflow: visible"
+    ) in css

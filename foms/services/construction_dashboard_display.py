@@ -110,6 +110,37 @@ def _url_from_file_entry(entry: dict[str, Any]) -> str | None:
     return build_file_view_url(key)
 
 
+# drawing_current_files should hold drawings, but the transfer API accepts
+# arbitrary keys, so measurement/general photos leak in. Drawings live under
+# many folders (orders/<id>/drawing, drawing_wizard, drawing_gateway, blueprint);
+# an allow-list of those proved fragile (missed drawing_gateway → hid real
+# drawings). Deny only the known non-drawing location instead.
+_NON_DRAWING_KEY_MARKERS = ("/attachments/",)
+
+
+def _is_drawing_file_entry(entry: dict[str, Any]) -> bool:
+    """True unless a ``drawing_current_files`` entry points at a non-drawing file.
+
+    Measurement/general photos live under ``orders/<id>/attachments/`` and can
+    leak into drawing_current_files via the transfer API (arbitrary keys, no
+    category field). Every other location is a drawing. Keeps the construction
+    card (drawing-only) from showing measurement photos while never hiding a
+    real drawing (drawing/ · drawing_wizard/ · drawing_gateway/ · blueprint/).
+
+    Args:
+        entry: A drawing_current_files list item.
+
+    Returns:
+        True when the entry is a drawing (i.e. not a known non-drawing path).
+    """
+    if not isinstance(entry, dict):
+        return False
+    path = f"{entry.get('key') or ''} {entry.get('view_url') or ''}".lower()
+    if not path.strip():
+        return False
+    return not any(marker in path for marker in _NON_DRAWING_KEY_MARKERS)
+
+
 def _thumb_url_from_attachment(attachment: OrderAttachment) -> str | None:
     """Card thumbnail URL (prefers generated thumbnail_key)."""
     thumb_key = (attachment.thumbnail_key or "").strip()
@@ -186,6 +217,8 @@ def _collect_preview_items(
     order_id = row.get("id")
     if not drawing_only or _DRAWING_CATEGORIES.intersection(categories):
         for entry in sd.get("drawing_current_files") or []:
+            if drawing_only and not _is_drawing_file_entry(entry):
+                continue
             _add(_preview_item_from_file_entry(entry))
             if len(items) >= _MAX_PREVIEW_COUNT:
                 return items[:_MAX_PREVIEW_COUNT]
@@ -243,6 +276,7 @@ def count_preview_attachments(
             entry
             for entry in (sd.get("drawing_current_files") or [])
             if _url_from_file_entry(entry)
+            and (not drawing_only or _is_drawing_file_entry(entry))
         ]
     )
     if not order_id:

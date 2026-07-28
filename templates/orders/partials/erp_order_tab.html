@@ -525,6 +525,25 @@ ERP Order Tab Pane (shared between add_order and edit_order)
                     <textarea id="as-receive-content" class="form-control" rows="5"
                         placeholder="예: 슬라이딩 붙박이장 가운데 문이 내려앉음(안닫힘)&#10;금일 오후 4시반~6시반까지 통화 어려우심"></textarea>
                 </div>
+                <div class="mb-3">
+                    <label class="form-label fw-bold">비용 구분</label>
+                    <span id="as-receive-since-badge" class="badge bg-secondary ms-2 d-none"></span>
+                    <div class="btn-group w-100 as-receive-billing-seg" role="group" aria-label="AS 비용 구분">
+                        <input type="radio" class="btn-check" name="as-receive-billing" id="as-billing-free" value="free" checked>
+                        <label class="btn btn-outline-success" for="as-billing-free">무상(추정)</label>
+                        <input type="radio" class="btn-check" name="as-receive-billing" id="as-billing-paid" value="paid">
+                        <label class="btn btn-outline-warning" for="as-billing-paid">유상</label>
+                        <input type="radio" class="btn-check" name="as-receive-billing" id="as-billing-undecided" value="undecided">
+                        <label class="btn btn-outline-secondary" for="as-billing-undecided">미정</label>
+                    </div>
+                    <div class="mt-2 d-none" id="as-receive-amount-wrap">
+                        <label class="form-label" for="as-receive-amount">예상 금액(원)</label>
+                        <input type="number" min="0" step="1000" id="as-receive-amount" class="form-control" placeholder="선택 입력">
+                    </div>
+                    <div class="small text-muted mt-1 d-none" id="as-receive-billing-locked-note">
+                        이미 판정된 AS입니다. 판정 변경은 AS 대시보드에서 하세요.
+                    </div>
+                </div>
                 <div class="mb-3 d-none" id="as-receive-shipping-wrap">
                     <label class="form-label fw-bold" for="as-receive-shipping-date">상차일 (지방주문)</label>
                     <input type="date" id="as-receive-shipping-date" class="form-control">

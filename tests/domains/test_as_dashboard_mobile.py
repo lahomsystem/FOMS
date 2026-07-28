@@ -201,8 +201,13 @@ def test_as_dashboard_mobile_v2_wiring_contract():
     assert body_src.count("as_mobile_controls.html") == 1
 
 
-def test_as_content_input_saves_on_blur_not_while_typing():
-    """요청: 입력 중 실시간 자동저장 제거, blur(입력박스 밖 클릭) 시에만 저장."""
+def test_as_record_input_is_explicit_save_only():
+    """T10: AS 기록 입력은 자동저장이 아니라 명시 저장(버튼/단축키)만이다.
+
+    구 계약은 contenteditable 2탭의 blur autosave(`flushAsContentIfNeeded`)였다. 타임라인
+    quick-add 는 append-only 로그라 blur 로 조용히 append 되면 오타 한 번이 영구 기록이 된다 —
+    submit(버튼) 또는 Ctrl/⌘+Enter 로만 전송되어야 한다.
+    """
     root = Path(__file__).resolve().parents[2]
     # Batch 5: inline JS가 static/js/cs/as-dashboard.js로 이동 → 표면(템플릿+모듈) 합본 검사
     body_src = (
@@ -210,11 +215,15 @@ def test_as_content_input_saves_on_blur_not_while_typing():
         + "\n"
         + (root / "static/js/cs/as-dashboard.js").read_text(encoding="utf-8")
     )
-    # 디바운스 실시간 저장 스케줄러 완전 제거
-    assert "scheduleAsContentSave" not in body_src
-    # blur 시 저장(flush) + 멱등 재배선 함수 존재
-    assert "flushAsContentIfNeeded" in body_src
-    assert "bindAsContentAutosaveInputs" in body_src
+    # 구 자동저장 경로(디바운스·blur flush·재배선) 전부 제거
+    for retired in ("scheduleAsContentSave", "flushAsContentIfNeeded", "bindAsContentAutosaveInputs"):
+        assert retired not in body_src, retired
+    # 신규: 명시 submit + IME 안전 단축키만
+    assert "submitQuickAdd(form)" in body_src
+    assert "'submit'" in body_src
+    assert "e.key === 'Enter'" in body_src
+    # 전송 진입점은 두 곳(submit 위임 · 단축키)뿐이다
+    assert body_src.count("submitQuickAdd(") == 3  # 정의 1 + 호출 2
 
 
 def test_as_dashboard_mobile_renders_cards_without_scroll(client, monkeypatch):

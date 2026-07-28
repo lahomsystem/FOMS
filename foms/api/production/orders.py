@@ -63,6 +63,9 @@ _PRODUCTION_STEP_KEYS = frozenset(k for k, _ in _PRODUCTION_STEP_DEFS)
 _PRODUCTION_DEFECT_REASONS = ("자재 불량", "가공 오류", "파손", "기타")
 _PRODUCTION_DEFECTS_CAP = 20
 
+# 보류 이력(hold_history) 캡 — 완료 후에도 보존되는 해제된 보류 기록(최근 20건 유지).
+_PRODUCTION_HOLD_HISTORY_CAP = 20
+
 
 def _can_edit_production_steps(user: Any) -> bool:
     """생산 공정 스텝 편집 가능 여부(ADMIN 또는 CS/SALES/PRODUCTION 팀)."""
@@ -116,6 +119,37 @@ def _ensure_production_steps(sd: dict[str, Any]) -> list[dict[str, Any]]:
     return steps
 
 
+def _append_hold_history(production: dict[str, Any], released_by: str | None) -> None:
+    """보류 해제 직전, active hold 를 hold_history 에 보존한다(완료 후 이력 소실 방지).
+
+    보류 해제 2경로(hold API 직접 해제 · 전이 게이트 release)가 공유한다. 호출 시점의
+    ``production['hold']`` 가 active 면 ``{reason, at(보류 시작), released_at(now),
+    released_by}`` 를 ``production['hold_history']`` 리스트에 append 하고 최근
+    ``_PRODUCTION_HOLD_HISTORY_CAP`` 건만 유지한다. active 가 아니면 아무것도 하지
+    않는다(빈 해제·중복 append 방지). 호출부가 이 함수 뒤에 hold 를 초기화한다.
+
+    :param production: ``sd['production']`` dict(호출부의 deepcopy 작업 사본 내부 참조).
+    :param released_by: 해제자 이름(``user.name`` 또는 None).
+    """
+    hold = production.get("hold")
+    if not (isinstance(hold, dict) and hold.get("active")):
+        return
+    history = production.get("hold_history")
+    if not isinstance(history, list):
+        history = []
+    history.append(
+        {
+            "reason": hold.get("reason") or "",
+            "at": hold.get("at"),
+            "released_at": now_utc_naive().isoformat(),
+            "released_by": released_by,
+        }
+    )
+    if len(history) > _PRODUCTION_HOLD_HISTORY_CAP:
+        history = history[-_PRODUCTION_HOLD_HISTORY_CAP:]
+    production["hold_history"] = history
+
+
 def _apply_production_hold_gate(
     sd: dict[str, Any],
     *,
@@ -123,6 +157,7 @@ def _apply_production_hold_gate(
     via: str,
     order_id: int,
     user_id: int | None,
+    released_by: str | None,
     db: Any,
 ) -> tuple[Any, int] | None:
     """생산 전이(start/complete/rework) 전 보류 게이트. 세 엔드포인트가 공유한다.
@@ -144,6 +179,7 @@ def _apply_production_hold_gate(
     :param via: 이벤트 payload ``via`` 값("release_on_start"|"release_on_complete"|"release_on_rework").
     :param order_id: 대상 주문 id(OrderEvent 기록용).
     :param user_id: 해제자 user id(OrderEvent created_by).
+    :param released_by: 해제자 이름(hold_history 보존용, ``user.name`` 또는 None).
     :param db: DB 세션(OrderEvent add).
     :return: 409 응답 튜플(보류·미해제) 또는 None(전이 진행).
     """
@@ -164,7 +200,8 @@ def _apply_production_hold_gate(
             409,
         )
 
-    # 해제 후 전이 — 같은 트랜잭션에서 hold 초기화 + 토글 이벤트 기록.
+    # 해제 후 전이 — 직전 active hold 를 이력에 보존한 뒤(소실 방지) hold 초기화 + 토글 이벤트 기록.
+    _append_hold_history(production, released_by)
     production["hold"] = {"active": False, "reason": "", "at": None, "by_name": None}
     db.add(
         OrderEvent(
@@ -193,6 +230,12 @@ def _apply_production_hold_gate(
 _POLICY_PRODUCTION_START = "STATE_PRODUCTION_START"
 _POLICY_PRODUCTION_COMPLETE = "STATE_PRODUCTION_COMPLETE"
 
+# 되돌리기 2종(제작 취소·완료 취소)도 같은 엔진 경유 — 후진 전이라 stage 게이트만 앞세우고
+# 보류 게이트는 걸지 않는다(보류는 전진만 막는다). 직접 order.status/workflow.stage 대입을
+# 신설하지 않으므로 STATE-GUARD-01 EXTERNAL 잔여가 늘지 않는다.
+_POLICY_PRODUCTION_CANCEL = "STATE_PRODUCTION_CANCEL"
+_POLICY_PRODUCTION_UNCOMPLETE = "STATE_PRODUCTION_UNCOMPLETE"
+
 # --- STATE-PROD-ACTIONS-01: step/defect(version++ mutation)·ACK(Order 불변 receipt) ---
 # 아래는 REV-00 receipt idempotency scope 식별자(free-form string)일 뿐이다. AUTH 게이트는
 # order_mutation_policy PRODUCTION_EDIT 를 그대로 재사용하며(이 파일에서 재분류 없음), 여기
@@ -211,6 +254,16 @@ for _command in (
         command_id="PRODUCTION_COMPLETE", policy_id=_POLICY_PRODUCTION_COMPLETE,
         axis=AXIS_MAIN, from_values=("PRODUCTION",), to_values=("CONSTRUCTION",),
         event_type="PRODUCTION_COMPLETED", effect_type="STAGE_NOTIFICATION",
+    ),
+    TransitionCommand(
+        command_id="PRODUCTION_CANCEL", policy_id=_POLICY_PRODUCTION_CANCEL,
+        axis=AXIS_MAIN, from_values=("PRODUCTION",), to_values=("CONFIRM",),
+        event_type="PRODUCTION_CANCELLED", effect_type="STAGE_NOTIFICATION",
+    ),
+    TransitionCommand(
+        command_id="PRODUCTION_UNCOMPLETE", policy_id=_POLICY_PRODUCTION_UNCOMPLETE,
+        axis=AXIS_MAIN, from_values=("CONSTRUCTION",), to_values=("PRODUCTION",),
+        event_type="PRODUCTION_COMPLETE_REVERTED", effect_type="STAGE_NOTIFICATION",
     ),
 ):
     COMMAND_REGISTRY.setdefault(_command.command_id, _command)
@@ -354,12 +407,18 @@ def _is_rework_completion(sd: dict[str, Any]) -> bool:
     return bool(isinstance(rework, dict) and rework.get("active"))
 
 
-def _release_hold_in_sd(sd: dict[str, Any], db: Any, order_id: int, user_id: Any, via: str) -> None:
-    """same-tx 보류 해제 + PRODUCTION_HOLD_TOGGLED 이벤트(전이 후 side-effect)."""
+def _release_hold_in_sd(sd: dict[str, Any], db: Any, order_id: int, user_id: Any, via: str,
+                        released_by: str | None = None) -> None:
+    """same-tx 보류 해제 + PRODUCTION_HOLD_TOGGLED 이벤트(전이 후 side-effect).
+
+    초기화 직전 active hold 를 :func:`_append_hold_history` 로 보존한다 — 완료 후에도 해제
+    사유가 남아야 한다(전이 게이트 release 경로와 hold API 직접 해제가 공유하는 계약).
+    """
     production = sd.get("production")
     if not isinstance(production, dict):
         production = {}
         sd["production"] = production
+    _append_hold_history(production, released_by)
     production["hold"] = {"active": False, "reason": "", "at": None, "by_name": None}
     db.add(OrderEvent(
         order_id=order_id, event_type="PRODUCTION_HOLD_TOGGLED",
@@ -417,7 +476,8 @@ def _apply_start_side_effects(db: Any, order: Order, user: Any, user_id: Any,
     sd = copy.deepcopy(_ensure_dict(order.structured_data))
     _append_stage_history(sd, "PRODUCTION", "제작 시작", user)
     if release_hold and hold_was_active:
-        _release_hold_in_sd(sd, db, order.id, user_id, "release_on_start")
+        _release_hold_in_sd(sd, db, order.id, user_id, "release_on_start",
+                            user.name if user else None)
     order.structured_data = sd
     flag_modified(order, "structured_data")
     sync_erp_flat_columns(order, sd)
@@ -436,8 +496,12 @@ def _apply_complete_side_effects(db: Any, order: Order, user: Any, user_id: Any,
         rework = production.get("rework") if isinstance(production, dict) else None
         if isinstance(rework, dict):
             rework["active"] = False  # count·reason·at·by_name 은 보존, active 만 해제.
+            # completed_at 은 uncomplete(완료 취소)가 "이 완료가 재제작 완료였는지" 판정하는
+            # 근거 — 존재하면 uncomplete 가 rework 를 active=True 로 복원한다.
+            rework["completed_at"] = now_utc_naive().isoformat()
     if release_hold and hold_was_active:
-        _release_hold_in_sd(sd, db, order.id, user_id, "release_on_complete")
+        _release_hold_in_sd(sd, db, order.id, user_id, "release_on_complete",
+                            user.name if user else None)
     order.structured_data = sd
     flag_modified(order, "structured_data")
     sync_erp_flat_columns(order, sd)
@@ -446,24 +510,105 @@ def _apply_complete_side_effects(db: Any, order: Order, user: Any, user_id: Any,
     db.add(SecurityLog(user_id=user_id, message=f"주문 #{order.id} 제작 완료 (CONSTRUCTION)"))
 
 
-def _enrich_production_completed_event(db: Any, event_id: Any, is_rework: bool) -> None:
-    """전이가 만든 PRODUCTION_COMPLETED 이벤트 payload 에 legacy 표시 키·rework 표식을 보강한다."""
+def _apply_cancel_side_effects(db: Any, order: Order, user: Any, user_id: Any,
+                               reason: str, event_id: Any) -> None:
+    """PRODUCTION_CANCEL 전이 후 same-tx side-effect: history·진행 플래그 정리·event 보강.
+
+    깨끗한 되돌림(F-1b): ``rework.active`` 해제(count·reason·at 보존)와 active hold 해제
+    (:func:`_append_hold_history` 로 이력 보존)를 수행하고, 정리 여부를 전이 event payload 에
+    ``rework_cleared``/``hold_released`` 로 남긴다.
+    """
+    sd = copy.deepcopy(_ensure_dict(order.structured_data))
+    note = "제작 취소 (제작대기 복귀)"
+    if reason:
+        note += f" — {reason}"
+    _append_stage_history(sd, "CONFIRM", note, user)
+
+    production = sd.get("production")
+    rework_cleared = False
+    hold_released = False
+    if isinstance(production, dict):
+        rework = production.get("rework")
+        if isinstance(rework, dict):
+            rework_cleared = bool(rework.get("active"))
+            rework["active"] = False  # count·reason·at 보존
+        hold = production.get("hold")
+        if isinstance(hold, dict) and hold.get("active"):
+            _append_hold_history(production, user.name if user else None)
+            production["hold"] = {"active": False, "reason": "", "at": None, "by_name": None}
+            hold_released = True
+
+    order.structured_data = sd
+    flag_modified(order, "structured_data")
+    sync_erp_flat_columns(order, sd)
+    _merge_event_payload(db, event_id, {
+        "domain": "PRODUCTION_DOMAIN", "action": "PRODUCTION_CANCELLED",
+        "reason": reason, "rework_cleared": rework_cleared, "hold_released": hold_released,
+    })
+    # production run 은 건드리지 않는다 — 재시작 시 _mint_current_production_run 이 기존 current
+    # run 을 그대로 재사용(멱등)하므로 중복 발급이 없고, 취소된 run 을 COMPLETED 로 종결하는
+    # 의미 왜곡도 피한다(rework 경로와 동일 관례).
+    db.add(SecurityLog(user_id=user_id, message=f"주문 #{order.id} 제작 취소 (제작대기 복귀)"))
+
+
+def _apply_uncomplete_side_effects(db: Any, order: Order, user: Any, user_id: Any,
+                                   event_id: Any) -> None:
+    """PRODUCTION_UNCOMPLETE 전이 후 same-tx side-effect: history·재제작 복원·event 보강.
+
+    직전 완료가 재제작 완료였으면(``rework.completed_at`` 존재 + ``active`` False) rework 를
+    다시 활성으로 복원하고 완료 시각 표식을 제거한다(count 불변). production run 은 rework
+    경로와 동일하게 건드리지 않는다(재완료 시 종결 호출이 no-op 로 수렴).
+    """
+    sd = copy.deepcopy(_ensure_dict(order.structured_data))
+    _append_stage_history(sd, "PRODUCTION", "완료 취소 (제작중 복귀)", user)
+
+    production = sd.get("production") if isinstance(sd.get("production"), dict) else None
+    rework = production.get("rework") if isinstance(production, dict) else None
+    rework_restored = False
+    if isinstance(rework, dict) and rework.get("completed_at") and not rework.get("active"):
+        rework["active"] = True
+        rework.pop("completed_at", None)
+        rework_restored = True
+
+    order.structured_data = sd
+    flag_modified(order, "structured_data")
+    sync_erp_flat_columns(order, sd)
+    _merge_event_payload(db, event_id, {
+        "domain": "PRODUCTION_DOMAIN", "action": "PRODUCTION_COMPLETE_REVERTED",
+        "rework_restored": rework_restored,
+    })
+    db.add(SecurityLog(user_id=user_id, message=f"주문 #{order.id} 완료 취소 (제작중 복귀)"))
+
+
+def _merge_event_payload(db: Any, event_id: Any, extra: dict[str, Any]) -> None:
+    """전이가 만든 OrderEvent payload 에 legacy 표시 키를 덧씌운다(없는 event 는 no-op).
+
+    :param db: DB 세션.
+    :param event_id: 전이 결과 ``result.event_id`` (replay 면 None).
+    :param extra: payload 에 병합할 키(같은 키는 덮어쓴다).
+    """
     if not event_id:
         return
     event = db.get(OrderEvent, event_id)
     if event is None:
         return
     payload = dict(event.payload or {})
-    payload.update({
+    payload.update(extra)
+    event.payload = payload
+    flag_modified(event, "payload")
+
+
+def _enrich_production_completed_event(db: Any, event_id: Any, is_rework: bool) -> None:
+    """전이가 만든 PRODUCTION_COMPLETED 이벤트 payload 에 legacy 표시 키·rework 표식을 보강한다."""
+    extra: dict[str, Any] = {
         "domain": "PRODUCTION_DOMAIN", "action": "PRODUCTION_COMPLETED",
         "target": "workflow.stage", "before": "PRODUCTION", "after": "CONSTRUCTION",
         "change_method": "API", "source_screen": "erp_production_dashboard",
         "reason": "제작 완료 (시공 대기)",
-    })
+    }
     if is_rework:
-        payload["rework"] = True
-    event.payload = payload
-    flag_modified(event, "payload")
+        extra["rework"] = True
+    _merge_event_payload(db, event_id, extra)
 
 
 @erp_orders_production_bp.route("/<int:order_id>/production/start", methods=["POST"])
@@ -639,6 +784,7 @@ def api_production_rework(order_id: int):
             via="release_on_rework",
             order_id=order_id,
             user_id=user_id,
+            released_by=user.name if user else None,
             db=db,
         )
         if hold_gate is not None:
@@ -703,6 +849,133 @@ def api_production_rework(order_id: int):
             {"success": True, "message": "수정 제작을 시작했습니다.", "new_status": "PRODUCTION"}
         )
     except Exception as exc:
+        db.rollback()
+        return jsonify({"success": False, "message": str(exc)}), 500
+
+
+@erp_orders_production_bp.route("/<int:order_id>/production/cancel", methods=["POST"])
+@login_required
+@_production_steps_edit_required
+def api_production_cancel(order_id: int):
+    """제작 취소 (제작중 → 제작대기/CONFIRM 되돌림), transition_order(PRODUCTION_CANCEL) 경유.
+
+    제작중(생산/PRODUCTION) 상태의 주문을 제작대기(CONFIRM)로 되돌린다. 후진 전이이므로
+    **보류 게이트를 적용하지 않는다** — 보류는 전진(시작·완료·수정 제작)만 막는 배지이며,
+    되돌리기는 보류가 걸린 채로도 허용한다(단, 아래처럼 정리한다). 가드는 404 →
+    INVALID_STAGE(제작중이 아니면 409) 순서. 상태 변이는 start/complete 와 같은 canonical
+    엔진 경유라 mutation_version++·idempotency receipt·legacy OrderEvent·tx내 outbox 가
+    원자 보장되며, 전이 후 same-tx 로 history·플래그 정리·SecurityLog 를 반영한다.
+
+    **깨끗한 되돌림(F-1)**: 취소는 진행 자체를 되돌리므로 진행 플래그를 정리한다(이력 보존).
+    ``sd['production']`` 이 dict 면 (1) ``rework`` dict 의 ``active`` 를 False 로(count·reason·at
+    보존), (2) ``hold`` 가 active 면 ``_append_hold_history`` 로 이력에 보존한 뒤 hold 초기화.
+    이렇게 하면 제작대기로 복귀한 카드/시트에 재제작·보류 배지가 잔존하지 않는다.
+    (완료 취소 ``uncomplete`` 는 제작중 복귀라 rework 를 **복원**하므로 여기와 반대다.)
+
+    :param order_id: 대상 주문 id.
+    :param reason: (body) 취소 사유(선택, trim). 빈 값 허용.
+    :return: ``{success, message, new_status}`` 또는 오류 JSON(에러 키 = message).
+    """
+    db = get_db()
+    try:
+        order = db.get(Order, order_id)
+        if not order or order.status == "DELETED" or order.deleted_at is not None:
+            return jsonify({"success": False, "message": "주문을 찾을 수 없습니다."}), 404
+
+        body = request.get_json(silent=True) or {}
+        reason_raw = body.get("reason")
+        reason = reason_raw.strip() if isinstance(reason_raw, str) else ""
+        idem_key = _idempotency_key(body)
+        user_id = session.get("user_id")
+        user = get_user_by_id(user_id)
+
+        # replay(같은 key 저장 receipt 존재) 가 아니면 전제 게이트를 검사한다.
+        # 전이 전제조건: 제작중(생산/PRODUCTION) 에서만 취소 허용. 레거시 한글 값 포함.
+        if not _idempotency_receipt_exists(db, user_id, _POLICY_PRODUCTION_CANCEL, idem_key):
+            if order.erp_stage_code not in ("생산", "PRODUCTION"):
+                return jsonify({"success": False, "code": "INVALID_STAGE",
+                                "message": "제작중 상태에서만 제작을 취소할 수 있습니다."}), 409
+
+        try:
+            result = transition_order(
+                db, command_id="PRODUCTION_CANCEL", order_id=order_id,
+                actor_user_id=user_id, expected_from="PRODUCTION", target_value="CONFIRM",
+                scope_hash=_scope_hash("PRODUCTION_CANCEL", order_id),
+                request_hash=_request_hash(body), idempotency_key=idem_key,
+                reason=reason or None,
+            )
+        except (TransitionError, RevisionError) as exc:
+            db.rollback()
+            return _transition_error_response(exc)
+
+        if not result.replayed:
+            _apply_cancel_side_effects(db, order, user, user_id, reason, result.event_id)
+        db.commit()
+        return jsonify({
+            "success": True,
+            "message": "제작을 취소했습니다. (제작대기 복귀)",
+            "new_status": "CONFIRM",
+        })
+    except Exception as exc:  # noqa: BLE001 - 최종 방어(구체 전이 예외는 위에서 매핑)
+        db.rollback()
+        return jsonify({"success": False, "message": str(exc)}), 500
+
+
+@erp_orders_production_bp.route("/<int:order_id>/production/uncomplete", methods=["POST"])
+@login_required
+@_production_steps_edit_required
+def api_production_uncomplete(order_id: int):
+    """완료 취소 (제작완료 → 제작중/PRODUCTION 되돌림), transition_order(PRODUCTION_UNCOMPLETE) 경유.
+
+    제작완료(시공/CONSTRUCTION) 상태의 주문을 다시 제작중(PRODUCTION)으로 되돌린다.
+    후진 전이이므로 **보류 게이트를 적용하지 않는다**(cancel 참조 — 보류는 유지된다).
+    가드는 404 → INVALID_STAGE(제작완료가 아니면 409) 순서. 상태 변이는 canonical 엔진
+    경유이며, 전이 후 same-tx 로 history·재제작 복원·run 재발급·SecurityLog 를 반영한다.
+
+    **재제작 복원**: 직전 완료가 재제작 완료였다면(``rework`` dict 에 ``completed_at`` 가 있고
+    ``active`` 가 False) 완료를 되돌리며 rework 를 ``active=True`` 로 복원하고 ``completed_at``
+    키를 제거한다(회차 count 는 불변). 재제작 완료가 아니었으면 rework 는 건드리지 않는다.
+
+    :param order_id: 대상 주문 id.
+    :return: ``{success, message, new_status}`` 또는 오류 JSON(에러 키 = message).
+    """
+    db = get_db()
+    try:
+        order = db.get(Order, order_id)
+        if not order or order.status == "DELETED" or order.deleted_at is not None:
+            return jsonify({"success": False, "message": "주문을 찾을 수 없습니다."}), 404
+
+        body = request.get_json(silent=True) or {}
+        idem_key = _idempotency_key(body)
+        user_id = session.get("user_id")
+        user = get_user_by_id(user_id)
+
+        # 전이 전제조건: 제작완료(시공/CONSTRUCTION) 에서만 완료 취소 허용. 레거시 한글 값 포함.
+        if not _idempotency_receipt_exists(db, user_id, _POLICY_PRODUCTION_UNCOMPLETE, idem_key):
+            if order.erp_stage_code not in ("시공", "CONSTRUCTION"):
+                return jsonify({"success": False, "code": "INVALID_STAGE",
+                                "message": "제작완료 상태에서만 완료 취소할 수 있습니다."}), 409
+
+        try:
+            result = transition_order(
+                db, command_id="PRODUCTION_UNCOMPLETE", order_id=order_id,
+                actor_user_id=user_id, expected_from="CONSTRUCTION", target_value="PRODUCTION",
+                scope_hash=_scope_hash("PRODUCTION_UNCOMPLETE", order_id),
+                request_hash=_request_hash(body), idempotency_key=idem_key,
+            )
+        except (TransitionError, RevisionError) as exc:
+            db.rollback()
+            return _transition_error_response(exc)
+
+        if not result.replayed:
+            _apply_uncomplete_side_effects(db, order, user, user_id, result.event_id)
+        db.commit()
+        return jsonify({
+            "success": True,
+            "message": "완료를 취소했습니다. (제작중 복귀)",
+            "new_status": "PRODUCTION",
+        })
+    except Exception as exc:  # noqa: BLE001 - 최종 방어(구체 전이 예외는 위에서 매핑)
         db.rollback()
         return jsonify({"success": False, "message": str(exc)}), 500
 
@@ -1015,6 +1288,9 @@ def _mirror_workflow_hold_to_production(order: Order, active: bool, reason: str,
         "at": wf_hold.get("held_at") if active else None,
         "by_name": (user.name if user else None) if active else None,
     }
+    # 해제 미러 시 초기화 직전 active hold 를 이력에 보존한다(완료 후 사유 소실 방지).
+    if not active:
+        _append_hold_history(production, user.name if user else None)
     production["hold"] = hold
     order.structured_data = sd
     flag_modified(order, "structured_data")
@@ -1036,9 +1312,12 @@ def api_production_hold(order_id: int):
     (ON_HOLD>logistics>main)상 HELD 동안 ``ON_HOLD`` 로 파생된다.
 
     전이 후 같은 tx 에서 ``production.hold`` 배지를 canonical 상태로 미러한다(전이기 dual-write,
-    :func:`_mirror_workflow_hold_to_production`). 권한은 생산 팀(PRODUCTION_EDIT: ADMIN 또는
-    CS/SALES/PRODUCTION). 이미 보류/해제 상태에서 같은 방향을 다시 호출하면 전이 엔진이 409 로
-    거부한다(상태 불변). same idempotency_key 재요청은 전이 1회 후 저장된 응답을 replay 한다.
+    :func:`_mirror_workflow_hold_to_production`). 해제(active=False) 미러 시에는 초기화 직전의
+    active hold 를 ``production.hold_history`` 에 보존한다(완료 후 이력 소실 방지,
+    :func:`_append_hold_history` — 전이 게이트 release 경로와 같은 헬퍼). 권한은 생산 팀
+    (PRODUCTION_EDIT: ADMIN 또는 CS/SALES/PRODUCTION). 이미 보류/해제 상태에서 같은 방향을 다시
+    호출하면 전이 엔진이 409 로 거부한다(상태 불변). same idempotency_key 재요청은 전이 1회 후
+    저장된 응답을 replay 한다.
 
     :param order_id: 대상 주문 id.
     :return: ``{success, data:{hold}}`` 또는 오류 JSON.

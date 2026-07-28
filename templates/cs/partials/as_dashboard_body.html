@@ -1,14 +1,12 @@
 {# foms-kv-rollout: erp_mobile_shell → kv-copy.js + queue card foms_order_contact_kv #}
-{% from 'cs/partials/as_card_macros.html' import render_as_rich_toolbar_template, render_as_content_tabs, render_as_orderer_line, render_as_construction_workers %}
+{% from 'cs/partials/as_card_macros.html' import render_as_orderer_line, render_as_construction_workers, render_as_timeline_cell, render_as_billing_badge %}
 
-<link rel="stylesheet" href="{{ url_for('static', filename='css/contexts/cs/as-dashboard-body.css') }}?v=20260712a">
+<link rel="stylesheet" href="{{ url_for('static', filename='css/contexts/cs/as-dashboard-body.css') }}?v=20260728a">
 {# 카드 CSS는 body 파셜에 둔다 → fast-tab 프래그먼트 스왑(as_dashboard_fragment.html)에도
    함께 실려, 탭 이동 첫 진입에서 카드가 원시(미스타일)로 뜨는 FOUC를 막는다.
    (head_extra 전용이면 전체 새로고침 전까지 카드 CSS가 누락된다) #}
-<link rel="stylesheet" href="{{ url_for('static', filename='css/components/foms-as-mobile-card.css') }}?v=20260716a">
+<link rel="stylesheet" href="{{ url_for('static', filename='css/components/foms-as-mobile-card.css') }}?v=20260728c">
 <div class="erp-pro erp-mobile-shell erp-as-dashboard" data-erp-mobile-v2="{{ 'true' if erp_mobile_v2_enabled else 'false' }}">
-  {# AS 리치 툴바 원본 — fragment당 1개. 각 에디터 focusin 시 as-dashboard.js가 여기서 clone-hydrate. #}
-  {{ render_as_rich_toolbar_template() }}
   {% if erp_mobile_v2_enabled %}
     {% include 'partials/shared/erp_mobile_shell.html' %}
     {% include 'cs/partials/as_mobile_v2_camera_bar.html' %}
@@ -32,6 +30,14 @@
   {% set erp_sub_nav_active = 'as' %}
   {% include 'partials/shared/erp_sub_nav.html' %}
 
+  {# T15 과도기 안내 — "AS 내용" 2패널이 타임라인으로 바뀐 첫 진입에서 1회만. 노출/닫힘은
+     as-dashboard.js(localStorage: foms_as_timeline_hint_dismissed)가 소유한다. 서버가 d-none
+     으로 렌더해야 이미 닫은 사용자에게 한 프레임 깜빡이지 않는다. #}
+  <div id="as-timeline-hint" class="as-timeline-hint d-none" role="status">
+    <span class="as-timeline-hint__text">AS 내용이 이력 형식으로 바뀌었습니다. 기존 내용은 '이전 기록'에 그대로 있습니다.</span>
+    <button type="button" class="as-timeline-hint__dismiss" aria-label="안내 닫기">&times;</button>
+  </div>
+
   {% if not erp_order_enabled %}
   <div class="erp-pro-alert erp-pro-alert--warning">
     <div class="erp-pro-alert__icon"><i class="fas fa-exclamation-triangle"></i></div>
@@ -47,7 +53,7 @@
           <a class="nav-link {{ 'active' if as_tab == 'sales_delivery' else '' }}"
             data-as-tab-key="sales_delivery"
             data-as-tab-count="{{ as_tab_counts.sales_delivery }}"
-            href="{{ url_for('erp_as_page.erp_as_dashboard', tab='sales_delivery', status=status_filter or '', q=search_q or '', sort_dir=sort_dir, mine='1' if erp_mine_only else '') }}"
+            href="{{ url_for('erp_as_page.erp_as_dashboard', tab='sales_delivery', status=status_filter or '', billing=billing_filter or '', q=search_q or '', sort_dir=sort_dir, mine='1' if erp_mine_only else '') }}"
             title="영업/택배">
             <i class="fas fa-truck text-secondary fs-5"></i>
             <span class="ms-1">영업/택배</span>
@@ -58,7 +64,7 @@
           <a class="nav-link {{ 'active' if as_tab == 'incomplete' else '' }}"
             data-as-tab-key="incomplete"
             data-as-tab-count="{{ as_tab_counts.incomplete }}"
-            href="{{ url_for('erp_as_page.erp_as_dashboard', tab='incomplete', status=status_filter or '', q=search_q or '', sort_dir=sort_dir, mine='1' if erp_mine_only else '') }}"
+            href="{{ url_for('erp_as_page.erp_as_dashboard', tab='incomplete', status=status_filter or '', billing=billing_filter or '', q=search_q or '', sort_dir=sort_dir, mine='1' if erp_mine_only else '') }}"
             title="완료 안된 건">
             <i class="fas fa-times text-danger fs-5"></i>
             <span class="ms-1">미완료</span>
@@ -69,7 +75,7 @@
           <a class="nav-link {{ 'active' if as_tab == 'completed' else '' }}"
             data-as-tab-key="completed"
             data-as-tab-count="{{ as_tab_counts.completed }}"
-            href="{{ url_for('erp_as_page.erp_as_dashboard', tab='completed', status=status_filter or '', q=search_q or '', sort_dir=sort_dir, mine='1' if erp_mine_only else '') }}"
+            href="{{ url_for('erp_as_page.erp_as_dashboard', tab='completed', status=status_filter or '', billing=billing_filter or '', q=search_q or '', sort_dir=sort_dir, mine='1' if erp_mine_only else '') }}"
             title="완료 된 건">
             <i class="far fa-circle text-primary fw-bold fs-5"></i>
             <span class="ms-1">완료</span>
@@ -94,6 +100,15 @@
           </select>
         </div>
         <div class="erp-pro-filter-group">
+          <label class="erp-pro-filter-label">비용</label>
+          <select class="erp-pro-select" name="billing">
+            <option value="">전체</option>
+            <option value="free" {% if billing_filter=='free' %}selected{% endif %}>무상</option>
+            <option value="paid" {% if billing_filter=='paid' %}selected{% endif %}>유상</option>
+            <option value="undecided" {% if billing_filter=='undecided' %}selected{% endif %}>미정</option>
+          </select>
+        </div>
+        <div class="erp-pro-filter-group">
           <label class="erp-pro-filter-label">검색</label>
           <input type="text" class="erp-pro-input" name="q" value="{{ search_q or '' }}" placeholder="전체 검색...">
         </div>
@@ -104,7 +119,7 @@
           </button>
           {% if selected_date %}
           <a class="erp-pro-btn erp-pro-btn--secondary"
-            href="{{ url_for('erp_as_page.erp_as_dashboard', date=selected_date, tab=as_tab, status=status_filter or '', q=search_q or '', sort_dir=sort_dir, mine='1' if erp_mine_only else '', open_map='1') }}">
+            href="{{ url_for('erp_as_page.erp_as_dashboard', date=selected_date, tab=as_tab, status=status_filter or '', billing=billing_filter or '', q=search_q or '', sort_dir=sort_dir, mine='1' if erp_mine_only else '', open_map='1') }}">
             <i class="fas fa-map"></i>
             <span class="d-none d-sm-inline">지도</span>
           </a>
@@ -120,14 +135,15 @@
           {'key': 'total', 'label': '총 건수'},
           {'key': 'visit_confirmed', 'label': '방문 확정'},
           {'key': 'pending', 'label': '미결'},
-          {'key': 'unassigned', 'label': '아직 미정'}
+          {'key': 'unassigned', 'label': '아직 미정'},
+          {'key': 'paid_unconfirmed', 'label': '유상 미확정'}
         ] %}
         {% set _bucket_active = (as_bucket == b.key) or (b.key == 'total' and not as_bucket) %}
         <a class="erp-as-summary-pill{% if _bucket_active %} is-active{% endif %}"
           data-as-incomplete-summary="{{ b.key }}"
           data-count="{{ as_incomplete_summary[b.key] }}"
           {% if _bucket_active %}aria-current="true"{% endif %}
-          href="{{ url_for('erp_as_page.erp_as_dashboard', tab='incomplete', bucket=(none if b.key == 'total' else b.key), status=status_filter or '', q=search_q or '', sort_dir=sort_dir, mine='1' if erp_mine_only else '') }}">
+          href="{{ url_for('erp_as_page.erp_as_dashboard', tab='incomplete', bucket=(none if b.key == 'total' else b.key), status=status_filter or '', billing=billing_filter or '', q=search_q or '', sort_dir=sort_dir, mine='1' if erp_mine_only else '') }}">
           <span class="erp-as-summary-pill__label">{{ b.label }}</span>
           <span class="erp-as-summary-pill__value">{{ as_incomplete_summary[b.key] }}건</span>
         </a>
@@ -145,7 +161,7 @@
             <tr>
               <th style="width: 90px;">주문</th>
               <th style="width: 120px;" class="erp-as-sort-th">
-                <a href="{{ url_for('erp_as_page.erp_as_dashboard', tab=as_tab, status=status_filter or '', q=search_q or '', sort_dir='asc' if sort_dir == 'desc' else 'desc', mine='1' if erp_mine_only else '') }}"
+                <a href="{{ url_for('erp_as_page.erp_as_dashboard', tab=as_tab, status=status_filter or '', billing=billing_filter or '', q=search_q or '', sort_dir='asc' if sort_dir == 'desc' else 'desc', mine='1' if erp_mine_only else '') }}"
                   class="text-decoration-none text-dark" title="클릭 시 접수일 정렬 방향 변경">
                   AS 접수일 {% if sort_dir == 'desc' %}<i class="fas fa-sort-down ms-1"></i>{% else %}<i
                     class="fas fa-sort-up ms-1"></i>{% endif %}
@@ -231,14 +247,15 @@
                 <input type="checkbox" class="form-check-input as-blueprint-checkbox" data-order-id="{{ r.id }}"
                   {% if r.has_as_blueprint %}checked{% endif %} aria-label="주문 #{{ r.id }} AS도면 여부">
               </td>
-              <td>
-                {{ render_as_content_tabs(r.id, r.is_sales_delivery, r.as_content_html, r.as_content_2_html, '60px') }}
+              <td class="erp-as-content-cell" data-order-id="{{ r.id }}">
+                {{ render_as_timeline_cell(r.id, r.as_timeline_view) }}
               </td>
               <td class="erp-as-status-cell" data-order-id="{{ r.id }}">
                 <span
                   class="erp-pro-badge {% if r.as_pending %}erp-pro-badge--pending{% elif r.status == 'AS_COMPLETED' %}erp-pro-badge--success{% else %}erp-pro-badge--info{% endif %}">
                   {% if r.as_pending %}미결{% else %}{{ STATUS.get(r.status, r.status) }}{% endif %}
                 </span>
+                {{ render_as_billing_badge(r.as_billing_badge) }}
               </td>
             </tr>
             {% endfor %}
@@ -258,6 +275,7 @@
       {% if as_tab %}{% set _ = _as_ctx.append('tab=' ~ as_tab|urlencode) %}{% endif %}
       {% if status_filter %}{% set _ = _as_ctx.append('status=' ~ status_filter|urlencode) %}{% endif %}
       {% if as_bucket %}{% set _ = _as_ctx.append('bucket=' ~ as_bucket|urlencode) %}{% endif %}
+      {% if billing_filter %}{% set _ = _as_ctx.append('billing=' ~ billing_filter|urlencode) %}{% endif %}
       {% if search_q %}{% set _ = _as_ctx.append('q=' ~ search_q|urlencode) %}{% endif %}
       {% if sort_dir %}{% set _ = _as_ctx.append('sort_dir=' ~ sort_dir|urlencode) %}{% endif %}
       {% if erp_mine_only %}{% set _ = _as_ctx.append('mine=1') %}{% endif %}
@@ -297,7 +315,7 @@
         <nav aria-label="Page navigation">
           <ul class="pagination pagination-sm mb-1">
             <li class="page-item {% if page <= 1 %}disabled{% endif %}">
-              <a class="page-link" href="{{ url_for('erp_as_page.erp_as_dashboard', page=page-1, tab=as_tab, status=status_filter or '', q=search_q or '', sort_dir=sort_dir, mine='1' if erp_mine_only else '') }}" aria-label="Previous">
+              <a class="page-link" href="{{ url_for('erp_as_page.erp_as_dashboard', page=page-1, tab=as_tab, status=status_filter or '', billing=billing_filter or '', q=search_q or '', sort_dir=sort_dir, mine='1' if erp_mine_only else '') }}" aria-label="Previous">
                 <span aria-hidden="true">&laquo;</span>
               </a>
             </li>
@@ -316,12 +334,12 @@
 
             {% for p in range(start_page, end_page + 1) %}
             <li class="page-item {% if p == page %}active{% endif %}">
-              <a class="page-link" href="{{ url_for('erp_as_page.erp_as_dashboard', page=p, tab=as_tab, status=status_filter or '', q=search_q or '', sort_dir=sort_dir, mine='1' if erp_mine_only else '') }}">{{ p }}</a>
+              <a class="page-link" href="{{ url_for('erp_as_page.erp_as_dashboard', page=p, tab=as_tab, status=status_filter or '', billing=billing_filter or '', q=search_q or '', sort_dir=sort_dir, mine='1' if erp_mine_only else '') }}">{{ p }}</a>
             </li>
             {% endfor %}
 
             <li class="page-item {% if page >= total_pages %}disabled{% endif %}">
-              <a class="page-link" href="{{ url_for('erp_as_page.erp_as_dashboard', page=page+1, tab=as_tab, status=status_filter or '', q=search_q or '', sort_dir=sort_dir, mine='1' if erp_mine_only else '') }}" aria-label="Next">
+              <a class="page-link" href="{{ url_for('erp_as_page.erp_as_dashboard', page=page+1, tab=as_tab, status=status_filter or '', billing=billing_filter or '', q=search_q or '', sort_dir=sort_dir, mine='1' if erp_mine_only else '') }}" aria-label="Next">
                 <span aria-hidden="true">&raquo;</span>
               </a>
             </li>
@@ -468,7 +486,7 @@
 </div>
 
 <div id="as-dashboard-config" class="d-none" data-search-query-compact="{{ (compact_search_q or '')|e }}" data-current-as-tab="{{ (as_tab or 'incomplete')|e }}"></div>
-<script src="{{ url_for('static', filename='js/cs/as-dashboard.js') }}?v=20260704b" defer></script>
+<script src="{{ url_for('static', filename='js/cs/as-dashboard.js') }}?v=20260728c" defer></script>
 {# 태블릿 가로 대조 표면 CTA(일정 변경·AS 완료) 배선 — v2 코호트(폰+태블릿)만 로드.
    표시 게이트는 CSS(coarse landscape)가 소유하므로 폰에선 버튼 은닉·무동작(문서 위임+싱글턴 가드). #}
 {% if erp_mobile_v2_enabled %}
