@@ -303,6 +303,20 @@ ERP Order Tab Pane (shared between add_order and edit_order)
                                     <input type="text" class="form-control form-control-sm mt-2 d-none" id="erp-construction-time"
                                         placeholder="예: 10:30 / 오전 / 오후 / 종일" autocomplete="off" lang="ko">
                                 </div>
+                                <div class="col-12">
+                                    <button class="btn btn-sm btn-link p-0 mt-1 text-secondary" type="button"
+                                        data-bs-toggle="collapse" data-bs-target="#erp-collapse-construction-note"
+                                        aria-expanded="false" aria-controls="erp-collapse-construction-note">
+                                        <i class="fas fa-chevron-down small"></i> 시공 특이사항
+                                    </button>
+                                    <div class="collapse mt-2" id="erp-collapse-construction-note">
+                                        <div class="mt-1">
+                                            <label class="form-label mb-1" for="erp-construction-note">시공 특이사항</label>
+                                            <input type="text" class="form-control form-control-sm" id="erp-construction-note"
+                                                placeholder="예: 시공 시 주의사항/현장 요청사항 등" autocomplete="off" lang="ko">
+                                        </div>
+                                    </div>
+                                </div>
                             </div>
                         </div>
                     </div>

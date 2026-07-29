@@ -98,6 +98,8 @@ CRITICAL_ERP_IDS = {
     "erp-collapse-address-note",
     "erp-collapse-address-note-btn",
     "erp-collapse-measure-note",
+    "erp-construction-note",
+    "erp-collapse-construction-note",
 }
 
 # 영발/발주 PUSH 버튼과 (숨김) 변환 textarea는 모바일에도 제공된다.

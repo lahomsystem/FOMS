@@ -340,7 +340,7 @@
              기존 별도 .foms-ship-grid-hint 는 제거(중복 제거). #}
           {% include 'shipment/partials/tablet_ship_grid.html' %}
           <div class="table-responsive shipment-table-wrapper">
-            <link rel="stylesheet" href="{{ url_for('static', filename='css/contexts/shipment/dashboard-table-extras.css') }}?v=20260716a">
+            <link rel="stylesheet" href="{{ url_for('static', filename='css/contexts/shipment/dashboard-table-extras.css') }}?v=20260730a">
             <table class="table table-sm table-hover align-middle shipment-table erp-mobile-card-table" id="shipment-dashboard-table">
               <colgroup>
                 <col data-col-key="detail">
@@ -519,6 +519,9 @@
                     {% if r.status in ('AS', 'AS_RECEIVED', 'AS_COMPLETED') %}
                     <div class="small bg-light-danger p-2 rounded border border-danger-subtle cell-wrap">
                       <div style="white-space: pre-wrap;">{{ r.as_content_text if r.as_content_text else 'AS 내용 없음' }}</div>
+                      {% if r.as_material_text %}
+                      <div class="mt-1 shipment-as-material-line"><span class="badge bg-secondary">자재</span> {{ r.as_material_text }}</div>
+                      {% endif %}
                     </div>
                     {% else %}
                     <div class="d-flex flex-column gap-1 shipment-product-list">
@@ -553,18 +556,15 @@
                     <div class="shipment-address-block">
                       <div class="cell-wrap shipment-address-text mb-1" title="기본 주소">{{ address or '-' }}</div>
                       <ul class="shipment-site-extra-list mb-0" data-order-id="{{ r.id }}" data-field="site_extra">
-                        {# [GDM] ERP Items extra_input 자동 표시 (수정 불가, 저장 제외) #}
-                        {% for it in erp_items %}
-                        {% set ei = (it.get('extra_input') or '')|string|trim %}
-                        {% if ei %}
+                        {# 시공 특이사항(sd.notes.construction_note) 자동 표시 (수정 불가, 저장 제외) #}
+                        {% set _notes = sd.get('notes') %}
+                        {% set construction_note = ((_notes.get('construction_note') or '')|string|trim) if _notes is mapping else '' %}
+                        {% if construction_note %}
                         <li class="shipment-site-extra-static">
-                          <i class="fas fa-asterisk text-black-50 shipment-site-extra-static-icon"
-                            aria-hidden="true"></i>
-                          <div class="site-extra-color-blue fw-semibold shipment-site-extra-static-text"
-                            title="항목 추가입력 연동">{{ ei }}</div>
+                          <i class="fas fa-asterisk text-black-50 shipment-site-extra-static-icon" aria-hidden="true"></i>
+                          <div class="site-extra-color-blue fw-semibold shipment-site-extra-static-text" title="시공 특이사항 연동">{{ construction_note }}</div>
                         </li>
                         {% endif %}
-                        {% endfor %}
 
                         {% for line in site_extra %}
                         {% if line is mapping %}

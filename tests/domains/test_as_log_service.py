@@ -8,6 +8,7 @@ from foms.services.orders.as_log import (
     build_as_log_entry,
     build_as_timeline_view,
     coerce_client_log_type,
+    latest_client_log_text,
     migrate_legacy_into_log,
 )
 
@@ -187,3 +188,74 @@ def test_decorate_does_not_mutate_source_entries():
     sd = {"shipment": {"as_log": [_entry(0, "2026-07-20 10:00:00")]}}
     build_as_timeline_view(sd)
     assert _DECORATED_KEYS.isdisjoint(sd["shipment"]["as_log"][0])
+
+
+def test_latest_client_log_text_picks_newest_ts():
+    """가장 최신 ts를 가진 지정 type 항목의 text를 반환한다."""
+    sd = {"shipment": {"as_log": [
+        _entry(0, "2026-07-20 09:00:00", log_type="material"),
+        _entry(1, "2026-07-20 11:00:00", log_type="material"),
+        _entry(2, "2026-07-20 10:00:00", log_type="material"),
+    ]}}
+    assert latest_client_log_text(sd, log_type="material") == "m1"
+
+
+def test_latest_client_log_text_excludes_deleted():
+    """soft-delete(deleted=True) 항목은 최신 판정에서 제외한다."""
+    newest = _entry(1, "2026-07-20 11:00:00", log_type="material")
+    newest["deleted"] = True
+    sd = {"shipment": {"as_log": [
+        _entry(0, "2026-07-20 09:00:00", log_type="material"),
+        newest,
+    ]}}
+    assert latest_client_log_text(sd, log_type="material") == "m0"
+
+
+def test_latest_client_log_text_ties_break_by_later_index():
+    """ts 동률이면 삽입 인덱스가 뒤인(나중에 append된) 항목이 이긴다."""
+    sd = {"shipment": {"as_log": [
+        _entry(0, "2026-07-20 10:00:00", log_type="material"),
+        _entry(1, "2026-07-20 10:00:00", log_type="material"),
+    ]}}
+    assert latest_client_log_text(sd, log_type="material") == "m1"
+
+
+def test_latest_client_log_text_ignores_other_types():
+    """지정 type이 아닌 항목(memo/call 등)은 무시한다."""
+    sd = {"shipment": {"as_log": [
+        _entry(0, "2026-07-20 09:00:00", log_type="material"),
+        _entry(1, "2026-07-20 12:00:00", log_type="memo"),
+        _entry(2, "2026-07-20 11:00:00", log_type="call"),
+    ]}}
+    assert latest_client_log_text(sd, log_type="material") == "m0"
+
+
+def test_latest_client_log_text_missing_returns_empty():
+    """as_log 없음/빈 리스트/sd None 이면 빈 문자열."""
+    assert latest_client_log_text(None, log_type="material") == ""
+    assert latest_client_log_text({"shipment": {}}, log_type="material") == ""
+    assert latest_client_log_text({"shipment": {"as_log": []}}, log_type="material") == ""
+    assert latest_client_log_text({"shipment": {"as_log": [
+        _entry(0, "2026-07-20 09:00:00", log_type="memo"),
+    ]}}, log_type="material") == ""
+
+
+def test_latest_client_log_text_excludes_legacy():
+    """legacy 항목(as_content 마이그레이션 산물)은 최신 판정에서 제외한다."""
+    legacy_entry = _entry(0, "2026-07-20 11:00:00", log_type="memo")
+    legacy_entry["legacy"] = True
+    sd = {"shipment": {"as_log": [legacy_entry]}}
+    assert latest_client_log_text(sd, log_type="memo") == ""
+
+
+def test_latest_client_log_text_empty_text_field():
+    """항목은 있으나 text가 빈 문자열/None이면 빈 문자열을 반환한다."""
+    entry = _entry(0, "2026-07-20 09:00:00", log_type="material")
+    entry["text"] = ""
+    sd = {"shipment": {"as_log": [entry]}}
+    assert latest_client_log_text(sd, log_type="material") == ""
+
+    entry_none = _entry(0, "2026-07-20 09:00:00", log_type="material")
+    entry_none["text"] = None
+    sd_none = {"shipment": {"as_log": [entry_none]}}
+    assert latest_client_log_text(sd_none, log_type="material") == ""

@@ -1,8 +1,8 @@
 """ERP 출고 대시보드 행 보강·정렬·모바일 큐 표시 헬퍼 (Batch 3 shipment 구조-추출, 동작 보존).
 
 `erp_shipment_dashboard()`의 목록 rows 후처리(표시 파생 필드 보강·정렬)와 모바일 v2 큐
-카드 행 빌드를 분리한다. recommendation_link/as_content_text/is_production_approved 판정,
-정렬 키, 모바일 큐 메타 조립을 원본과 1:1 동일하게 유지한다(캐시 아님).
+카드 행 빌드를 분리한다. recommendation_link/as_content_text/as_material_text/
+is_production_approved 판정, 정렬 키, 모바일 큐 메타 조립을 원본과 1:1 동일하게 유지한다(캐시 아님).
 쿼리/패널 집계/derived는 shipment_read_model이 담당한다(한 슬라이스 한 경계).
 flat 모듈(subpackage __init__ 순환 회피).
 """
@@ -12,6 +12,7 @@ from typing import Any
 
 from foms.services.erp_display import _ensure_dict
 from foms.services.as_content_safety import as_content_html_to_text
+from foms.services.orders.as_log import latest_client_log_text
 from foms.services.shipment_dashboard_helpers import (
     is_as_order,
     _get_order_spec_units,
@@ -32,8 +33,8 @@ __all__ = [
 def enrich_shipment_rows(rows: list[Any]) -> None:
     """목록 rows에 표시용 파생 필드를 in-place 보강한다.
 
-    shipment_as_recommendation_link / as_content_text / is_production_approved를
-    원본 라우트와 1:1 동일하게 설정한다.
+    shipment_as_recommendation_link / as_content_text / as_material_text /
+    is_production_approved를 원본 라우트와 1:1 동일하게 설정한다.
     """
     # lazy import: api 레이어 상수(services→api 순환 회피, 원본 패턴 유지)
     from foms.api.shipment.recommendations import SHREC_SOURCE
@@ -44,8 +45,12 @@ def enrich_shipment_rows(rows: list[Any]) -> None:
         sd = r.structured_data
         shipment = (sd.get('shipment') or {}) if isinstance(sd, dict) else {}
         r.as_content_text = as_content_html_to_text(shipment.get('as_content') or '')
+        r.as_material_text = ""
 
         if is_as_order(r):
+            r.as_material_text = as_content_html_to_text(
+                latest_client_log_text(sd, log_type="material"), already_sanitized=True
+            )
             sched = (sd.get("schedule") or {}) if isinstance(sd, dict) else {}
             av = sched.get("as_visit") if isinstance(sched, dict) else {}
             sr = av.get("shipment_recommendation") if isinstance(av, dict) else None

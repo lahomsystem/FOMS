@@ -1876,6 +1876,7 @@ async function erpLoadStructured(bootstrapData, options) {
     }
     const constructionTime = sd?.schedule?.construction?.time || '';
     erpSetScheduleTimeControlValue('erp-construction-time-select', 'erp-construction-time', constructionTime);
+    document.getElementById('erp-construction-note').value = sd?.notes?.construction_note || '';
 
     const itemsWrap = document.getElementById('erp-items');
     itemsWrap.innerHTML = '';
@@ -2080,7 +2081,8 @@ function erpCollectStructured() {
         notes: {
             phone_note: getVal('erp-phone-note'),
             address_note: getVal('erp-address-note'),
-            measurement_note: getVal('erp-measurement-note')
+            measurement_note: getVal('erp-measurement-note'),
+            construction_note: getVal('erp-construction-note')
         },
         workflow: (function () {
             const prevWorkflow = (prevSd.workflow && typeof prevSd.workflow === 'object' && !Array.isArray(prevSd.workflow))

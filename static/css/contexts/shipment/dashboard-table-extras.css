@@ -486,6 +486,10 @@
                 overflow-wrap: anywhere;
               }
 
+              .shipment-as-material-line {
+                white-space: pre-wrap;
+              }
+
               .shipment-site-extra-row .line-remove-btn {
                 display: none;
                 margin-left: 2px;

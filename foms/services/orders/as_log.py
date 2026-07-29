@@ -167,6 +167,40 @@ def decorate_entry(entry: dict) -> dict:
     return out
 
 
+def latest_client_log_text(sd: dict | None, *, log_type: str) -> str:
+    """as_log에서 soft-delete·legacy 제외, 지정 유형의 최신 항목 text를 반환한다.
+
+    Args:
+        sd: 주문 structured_data (None 허용).
+        log_type: as_log 항목 type (예: 'material').
+
+    Returns:
+        최신 항목의 text. 해당 항목이 없으면 빈 문자열. legacy 항목(as_content
+        마이그레이션 산물, type='memo')은 build_as_timeline_view가 스트림
+        최신 판정에서 분리하는 규칙과 정합하도록 여기서도 제외한다.
+    """
+    shipment = (sd or {}).get("shipment") or {}
+    entries = shipment.get("as_log")
+    if not isinstance(entries, list):
+        return ""
+    best: tuple[str, int] | None = None
+    best_text = ""
+    for idx, e in enumerate(entries):
+        if not isinstance(e, dict):
+            continue
+        if e.get("deleted") is True:
+            continue
+        if e.get("legacy") is True:
+            continue
+        if e.get("type") != log_type:
+            continue
+        key = (e.get("ts") or "", idx)
+        if best is None or key > best:
+            best = key
+            best_text = str(e.get("text") or "")
+    return best_text
+
+
 def build_as_timeline_view(
     sd: dict | None,
     *,

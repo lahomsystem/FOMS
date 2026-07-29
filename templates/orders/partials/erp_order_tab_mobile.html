@@ -186,6 +186,18 @@ ERP Order mobile-v2 tab pane.
                                     placeholder="시간 변경 가능/현장 특이사항/준비물" autocomplete="off" lang="ko"></textarea>
                             </div>
                         </div>
+                        <button class="foms-btn foms-btn--ghost foms-btn--sm" type="button"
+                            data-bs-toggle="collapse" data-bs-target="#erp-collapse-construction-note"
+                            aria-expanded="false" aria-controls="erp-collapse-construction-note">
+                            <i class="fas fa-chevron-down"></i> 시공 특이사항
+                        </button>
+                        <div class="collapse" id="erp-collapse-construction-note">
+                            <div class="field">
+                                <label class="field__label" for="erp-construction-note">시공 특이사항</label>
+                                <textarea class="foms-textarea erp-autosize-textarea erp-flex-textarea" id="erp-construction-note" rows="1" data-erp-min-height="40"
+                                    placeholder="예: 시공 시 주의사항/현장 요청사항 등" autocomplete="off" lang="ko"></textarea>
+                            </div>
+                        </div>
                         </div>
                     </section>
 
