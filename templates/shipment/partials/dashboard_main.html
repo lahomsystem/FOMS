@@ -518,9 +518,11 @@
                   <td class="cell-wrap shipment-product-cell" data-label="제품" style="border-right: 1px solid #e0e0e0;">
                     {% if r.status in ('AS', 'AS_RECEIVED', 'AS_COMPLETED') %}
                     <div class="small bg-light-danger p-2 rounded border border-danger-subtle cell-wrap">
-                      <div style="white-space: pre-wrap;">{{ r.as_content_text if r.as_content_text else 'AS 내용 없음' }}</div>
+                      {# 자재(as_log material)가 있으면 자재만 표시(접수/이전 기록 숨김 — 출고팀은 최신 자재가 정보원). 없으면 기존 AS 내용 폴백. #}
                       {% if r.as_material_text %}
-                      <div class="mt-1 shipment-as-material-line"><span class="badge bg-secondary">자재</span> {{ r.as_material_text }}</div>
+                      <div class="shipment-as-material-line"><span class="badge bg-secondary">자재</span> {{ r.as_material_text }}</div>
+                      {% else %}
+                      <div style="white-space: pre-wrap;">{{ r.as_content_text if r.as_content_text else 'AS 내용 없음' }}</div>
                       {% endif %}
                     </div>
                     {% else %}
