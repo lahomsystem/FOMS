@@ -594,6 +594,33 @@
                 width: 100%;
               }
 
+              /* --- 편집 오버레이(데스크톱 전용): table-layout:fixed + td overflow:hidden 때문에
+                 좁은 컬럼에서 input-group이 짓눌린다. 편집 중인 행만 셀 위로 띄운다
+                 (스프레드시트 셀 에디터 패턴). 모바일 카드 뷰는 기존 동작 유지. --- */
+              @media (min-width: 993px) {
+                #shipment-dashboard-table td.shipment-field-cell:has(.shipment-text-row.editing) {
+                  overflow: visible;
+                }
+                #shipment-dashboard-table .shipment-text-row.editing {
+                  position: relative;
+                  min-height: var(--shipment-edit-action-size, 2rem);
+                }
+                #shipment-dashboard-table .shipment-text-row.editing .shipment-text-edit {
+                  position: absolute;
+                  left: -2px;
+                  top: 50%;
+                  transform: translateY(-50%);
+                  width: max-content;
+                  min-width: 16rem;
+                  max-width: 26rem;
+                  z-index: 40;
+                  background: #fff;
+                  border-radius: 6px;
+                  box-shadow: 0 2px 10px rgba(15, 23, 42, 0.22);
+                  padding: 2px;
+                }
+              }
+
               .shipment-table td[data-label="시공시간"],
               .shipment-table td[data-label="도면담당자"],
               .shipment-table td[data-label="시공자"] {

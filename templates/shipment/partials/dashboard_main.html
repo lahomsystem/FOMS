@@ -340,7 +340,7 @@
              기존 별도 .foms-ship-grid-hint 는 제거(중복 제거). #}
           {% include 'shipment/partials/tablet_ship_grid.html' %}
           <div class="table-responsive shipment-table-wrapper">
-            <link rel="stylesheet" href="{{ url_for('static', filename='css/contexts/shipment/dashboard-table-extras.css') }}?v=20260730a">
+            <link rel="stylesheet" href="{{ url_for('static', filename='css/contexts/shipment/dashboard-table-extras.css') }}?v=20260730b">
             <table class="table table-sm table-hover align-middle shipment-table erp-mobile-card-table" id="shipment-dashboard-table">
               <colgroup>
                 <col data-col-key="detail">
@@ -367,8 +367,8 @@
                   <th data-col-key="construction_time" style="border-right: 1px solid #e0e0e0;">시공시간<button class="col-resize-handle" aria-label="컬럼 크기 조절"></button></th>
                   <th data-col-key="drawing_managers" style="border-right: 1px solid #e0e0e0;">도면담당자<button class="col-resize-handle" aria-label="컬럼 크기 조절"></button></th>
                   <th data-col-key="construction_workers" style="border-right: 1px solid #e0e0e0;">시공자<button class="col-resize-handle" aria-label="컬럼 크기 조절"></button></th>
-                  <th data-col-key="vehicle" style="border-right: 1px solid #e0e0e0;">차량</th>
-                  <th data-col-key="trip" style="border-right: 1px solid #e0e0e0;">회차</th>
+                  <th data-col-key="vehicle" style="border-right: 1px solid #e0e0e0;">차량<button class="col-resize-handle" aria-label="컬럼 크기 조절"></button></th>
+                  <th data-col-key="trip" style="border-right: 1px solid #e0e0e0;">회차<button class="col-resize-handle" aria-label="컬럼 크기 조절"></button></th>
                   <th data-col-key="manager">담당자<button class="col-resize-handle" aria-label="컬럼 크기 조절"></button></th>
                 </tr>
               </thead>

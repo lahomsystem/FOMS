@@ -23,6 +23,8 @@
     construction_time:    { defaultWidth: 150, minWidth: 140, resizable: true },
     drawing_managers:     { defaultWidth: 170, minWidth: 150, resizable: true },
     construction_workers: { defaultWidth: 170, minWidth: 150, resizable: true },
+    vehicle:              { defaultWidth: 110, minWidth: 80,  resizable: true },
+    trip:                 { defaultWidth: 120, minWidth: 80,  resizable: true },
     manager:              { defaultWidth: 95,  minWidth: 95,  resizable: true }
   };
 
