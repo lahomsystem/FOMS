@@ -1379,20 +1379,6 @@
       let _refLat = null;
       let _refLng = null;
       let _refAddress = '';
-      const _routeCache = new Map();
-      let _scheduleMapModalInstance = null;
-      let _scheduleMapKakao = null;
-      let _scheduleMapGen = 0;
-
-      function _routeCacheKey(lat1, lng1, lat2, lng2) {
-        return `${Number(lat1).toFixed(6)},${Number(lng1).toFixed(6)}-${Number(lat2).toFixed(6)},${Number(lng2).toFixed(6)}`;
-      }
-
-      function _truncateAddr(s, maxLen) {
-        const t = String(s || '').trim();
-        if (t.length <= maxLen) return t;
-        return t.slice(0, maxLen) + '…';
-      }
 
       function esc(s) {
         if (s == null) return '';
@@ -1601,220 +1587,30 @@
         });
       }
 
-      const scheduleMapModalEl = document.getElementById('scheduleMapModal');
-      if (scheduleMapModalEl) {
-        addAsDashboardListener(scheduleMapModalEl, 'hidden.bs.modal', function () {
-          // 카카오 지도는 destroy API가 없다 — 컨테이너를 비워 타일·오버레이 DOM을 놓아준다.
-          _scheduleMapKakao = null;
-          const container = document.getElementById('scheduleMapContainer');
-          if (container) container.replaceChildren();
-        });
-      }
-
-      /**
-       * 카카오 지도 JS SDK를 사용 시점에 1회만 주입한다(전역 로드 금지 · 가드 G2).
-       * 프래그먼트 스왑으로 이 파일이 재실행돼도 window 프라미스를 재사용해 중복 주입을 막는다(가드 G4).
-       * @param {string} jsKey 카카오 JS 앱 키(geocode_config SSOT → data-kakao-js-key).
-       * @returns {Promise<boolean>} SDK 사용 가능 여부(미등록 도메인·네트워크 차단 시 false).
-       */
-      function loadKakaoSdk(jsKey) {
-        if (window.kakao && window.kakao.maps && window.kakao.maps.Map) return Promise.resolve(true);
-        if (window.__fomsKakaoSdkPromise) return window.__fomsKakaoSdkPromise;
-        if (!jsKey) return Promise.resolve(false);
-        window.__fomsKakaoSdkPromise = new Promise(function (resolve) {
-          const s = document.createElement('script');
-          s.id = 'foms-kakao-maps-sdk';
-          s.async = true;
-          s.src = 'https://dapi.kakao.com/v2/maps/sdk.js?appkey=' +
-            encodeURIComponent(jsKey) + '&autoload=false';
-          s.onload = function () {
-            if (!window.kakao || !window.kakao.maps || !window.kakao.maps.load) { resolve(false); return; }
-            window.kakao.maps.load(function () {
-              resolve(!!(window.kakao.maps && window.kakao.maps.Map));
-            });
-          };
-          // 카카오 콘솔 미등록 도메인은 sdk.js 가 401 → onerror. 지도만 포기하고 경로 정보는 살린다.
-          s.onerror = function () { resolve(false); };
-          document.head.appendChild(s);
-        });
-        return window.__fomsKakaoSdkPromise;
-      }
-
-      /**
-       * 지도 위 라벨 핀 1개를 올린다(카카오 기본 마커는 색 구분이 안 되므로 CustomOverlay 사용).
-       * @param {object} map 카카오 지도 인스턴스.
-       * @param {number} lat 위도.
-       * @param {number} lng 경도.
-       * @param {string} modifierClass 색 구분 클래스(schedule-map-pin--from|--to).
-       * @param {string} label 핀에 표시할 짧은 라벨.
-       * @param {string} title 네이티브 툴팁으로 보여줄 전체 주소.
-       * @returns {void}
-       */
-      function addSchedulePin(map, lat, lng, modifierClass, label, title) {
-        const el = document.createElement('span');
-        el.className = 'schedule-map-pin ' + modifierClass;
-        el.textContent = label;
-        el.title = title || '';
-        new window.kakao.maps.CustomOverlay({
-          map: map,
-          position: new window.kakao.maps.LatLng(lat, lng),
-          content: el,
-          yAnchor: 1.2
-        });
-      }
-
-      /**
-       * 기준↔시공지 두 지점을 카카오 지도에 그린다.
-       * @returns {object} 생성된 카카오 지도 인스턴스(폴리라인 추가용).
-       */
-      function renderScheduleMap(container, refAddr, refLat, refLng, tgtAddr, tgtName, tgtLat, tgtLng) {
-        const maps = window.kakao.maps;
-        const map = new maps.Map(container, { center: new maps.LatLng(refLat, refLng), level: 8 });
-        _scheduleMapKakao = map;
-        addSchedulePin(map, refLat, refLng, 'schedule-map-pin--from', '기준', _truncateAddr(refAddr, 80));
-        addSchedulePin(map, tgtLat, tgtLng, 'schedule-map-pin--to', tgtName || '시공지', tgtAddr);
-        const bounds = new maps.LatLngBounds();
-        bounds.extend(new maps.LatLng(refLat, refLng));
-        bounds.extend(new maps.LatLng(tgtLat, tgtLng));
-        function fit() {
-          try { map.setBounds(bounds, 40, 40, 40, 40); } catch (e) { /* fit 실패 시 center/level 유지 */ }
-        }
-        fit();
-        // 모달 전환 직후 컨테이너 크기가 늦게 확정되는 경우 0-사이즈 init 방어(카카오는 자동 복구 없음).
-        requestAnimationFrame(function () {
-          if (_scheduleMapKakao !== map) return;
-          try { map.relayout(); } catch (e) { /* relayout 실패 무해 */ }
-          fit();
-        });
-        return map;
-      }
-
-      function openScheduleMap(refAddr, refLat, refLng, tgtLat, tgtLng, tgtAddr, tgtName, scoreText) {
-        const modalEl = document.getElementById('scheduleMapModal');
-        const routeInfoEl = document.getElementById('scheduleMapRouteInfo');
-        if (!modalEl || !routeInfoEl) return;
-
-        const myGen = ++_scheduleMapGen;
-        routeInfoEl.innerHTML = '<div class="text-center text-muted py-3"><div class="spinner-border spinner-border-sm me-2" role="status"></div>경로 계산 중...</div>';
-
-        if (!_scheduleMapModalInstance) {
-          _scheduleMapModalInstance = new bootstrap.Modal(modalEl);
-        }
-
-        const onShown = function () {
-          if (myGen !== _scheduleMapGen) return;
-
-          const container = document.getElementById('scheduleMapContainer');
-          if (!container) return;
-          container.replaceChildren();
-          _scheduleMapKakao = null;
-
-          // 지도 렌더와 경로 조회는 독립 — SDK가 막힌 환경(카카오 콘솔 미등록 도메인)에서도
-          // 거리·소요시간 텍스트는 그대로 나온다. 폴리라인만 둘 다 준비됐을 때 그린다.
-          const mapReady = loadKakaoSdk(container.dataset.kakaoJsKey || '').then(function (ok) {
-            if (myGen !== _scheduleMapGen || !container.isConnected) return null;
-            if (!ok) {
-              const warn = document.createElement('div');
-              warn.className = 'schedule-map-unavailable';
-              warn.textContent = '지도를 불러오지 못했습니다. 아래 경로 정보를 확인해 주세요.';
-              container.replaceChildren(warn);
-              return null;
-            }
-            return renderScheduleMap(container, refAddr, refLat, refLng, tgtAddr, tgtName, tgtLat, tgtLng);
-          });
-
-          async function loadRoute() {
-            const cacheKey = _routeCacheKey(refLat, refLng, tgtLat, tgtLng);
-            let routeJson = _routeCache.get(cacheKey);
-            try {
-              if (!routeJson) {
-                const res = await fetch(
-                  '/api/calculate_route?start_lat=' + encodeURIComponent(refLat) +
-                  '&start_lng=' + encodeURIComponent(refLng) +
-                  '&end_lat=' + encodeURIComponent(tgtLat) +
-                  '&end_lng=' + encodeURIComponent(tgtLng)
-                );
-                if (res.status === 429) {
-                  throw new Error('RATE_LIMIT');
-                }
-                routeJson = await res.json();
-                if (routeJson && routeJson.success) {
-                  _routeCache.set(cacheKey, routeJson);
-                }
-              }
-              if (myGen !== _scheduleMapGen) return null;
-
-              if (routeJson && routeJson.success && routeJson.data &&
-                  routeJson.data.route_coords && routeJson.data.route_coords.length > 0) {
-                const routeData = routeJson.data;
-                const summ = routeData.summary || {};
-                const distT = summ.distance_text != null ? summ.distance_text : (routeData.distance_km + 'km');
-                const durT = summ.duration_text != null ? summ.duration_text : ((routeData.duration_min || 0) + '분');
-                const tollT = summ.toll_text != null ? summ.toll_text : '—';
-                routeInfoEl.innerHTML =
-                  '<div class="schedule-map-route-info">' +
-                  '<h6><i class="fas fa-car-side me-1"></i> 경로 정보</h6>' +
-                  '<div class="mb-1"><strong>출발:</strong> ' + esc(refAddr) + '</div>' +
-                  '<div class="mb-1"><strong>도착:</strong> ' + esc(tgtAddr) + '</div>' +
-                  '<div class="mb-1"><strong>거리:</strong> ' + esc(distT) + '</div>' +
-                  '<div class="mb-1"><strong>소요시간:</strong> ' + esc(durT) + '</div>' +
-                  '<div><strong>통행료:</strong> ' + esc(tollT) + '</div>' +
-                  '</div>';
-                return routeData.route_coords;
-              }
-              throw new Error((routeJson && routeJson.error) ? String(routeJson.error) : 'ROUTE_FAIL');
-            } catch (err) {
-              // 서버 원인(예: KAKAO_REST_API_KEY 미설정)은 콘솔에 남긴다 — 사용자 문구는 그대로.
-              console.warn('[as-dashboard] 경로 계산 실패', err);
-              if (myGen !== _scheduleMapGen) return null;
-              const msg = (err && err.message === 'RATE_LIMIT')
-                ? '요청 한도에 도달했습니다. 잠시 후 다시 시도해 주세요.'
-                : '자동차 경로를 계산하지 못했습니다. 직선거리를 참고해 주세요.';
-              const hint = scoreText
-                ? ('<p class="mb-0 small mt-2">직선거리 참고: ' + esc(scoreText) + '</p>')
-                : '';
-              routeInfoEl.innerHTML =
-                '<div class="alert alert-warning mb-0" role="alert">' +
-                '<strong>경로 계산 실패</strong>' +
-                '<p class="mb-0 small">' + esc(msg) + '</p>' +
-                hint +
-                '</div>';
-              return null;
-            }
-          }
-
-          Promise.all([mapReady, loadRoute()]).then(function (results) {
-            const map = results[0];
-            const coords = results[1];
-            if (!map || !coords || myGen !== _scheduleMapGen || _scheduleMapKakao !== map) return;
-            const maps = window.kakao.maps;
-            const path = coords.map(function (c) { return new maps.LatLng(c[0], c[1]); });
-            new maps.Polyline({
-              map: map, path: path, strokeWeight: 5, strokeColor: '#ff4757', strokeOpacity: 0.8
-            });
-            const bounds = new maps.LatLngBounds();
-            path.forEach(function (p) { bounds.extend(p); });
-            try { map.setBounds(bounds, 40, 40, 40, 40); } catch (e) { /* fit 실패 시 두 지점 bounds 유지 */ }
-          });
-        };
-
-        addAsDashboardListener(modalEl, 'shown.bs.modal', onShown, { once: true });
-        _scheduleMapModalInstance.show();
-      }
-
+      // 지도 렌더·SDK 주입·경로 조회·정리는 공용 모듈 static/js/common/foms-schedule-map.js 소관
+      // (출고 대시보드와 공유). 여기서는 기준 좌표 + 버튼 data-* 만 넘긴다.
       addAsDashboardListener(document.body, 'click', function (e) {
         const btn = e.target.closest('.schedule-map-btn');
         if (!btn) return;
         e.stopPropagation();
         e.preventDefault();
+        const modalEl = document.getElementById('scheduleMapModal');
+        if (!modalEl || !window.FOMS_SCHEDULE_MAP) return;
         const targetLat = parseFloat(btn.dataset.lat);
         const targetLng = parseFloat(btn.dataset.lng);
-        const targetAddress = btn.dataset.address || '';
-        const targetName = btn.dataset.name || '';
-        const scoreText = btn.dataset.scoreText || '';
         if (!_refLat || !_refLng) return;
         if (!Number.isFinite(targetLat) || !Number.isFinite(targetLng)) return;
-        openScheduleMap(_refAddress, _refLat, _refLng, targetLat, targetLng, targetAddress, targetName, scoreText);
+        window.FOMS_SCHEDULE_MAP.open({
+          modalEl: modalEl,
+          ref: { lat: _refLat, lng: _refLng, address: _refAddress },
+          target: {
+            lat: targetLat,
+            lng: targetLng,
+            address: btn.dataset.address || '',
+            name: btn.dataset.name || ''
+          },
+          scoreText: btn.dataset.scoreText || ''
+        });
       });
     })();
 

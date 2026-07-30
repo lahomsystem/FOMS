@@ -1,6 +1,9 @@
 {# foms-kv-rollout: erp_mobile_shell → kv-copy.js + queue card foms_order_contact_kv #}
 {% from 'cs/partials/as_card_macros.html' import render_as_orderer_line, render_as_construction_workers, render_as_timeline_cell, render_as_billing_badge %}
 
+{# AS 타임라인 공용 컴포넌트(SSOT) — 컨텍스트 오버라이드(as-dashboard-body.css)보다 먼저 로드해
+   캐스케이드 순서를 지킨다(컴포넌트 → 컨텍스트 오버라이드). #}
+<link rel="stylesheet" href="{{ url_for('static', filename='css/components/foms-as-timeline.css') }}?v=20260730a">
 <link rel="stylesheet" href="{{ url_for('static', filename='css/contexts/cs/as-dashboard-body.css') }}?v=20260728g">
 {# 카드 CSS는 body 파셜에 둔다 → fast-tab 프래그먼트 스왑(as_dashboard_fragment.html)에도
    함께 실려, 탭 이동 첫 진입에서 카드가 원시(미스타일)로 뜨는 FOUC를 막는다.
@@ -491,8 +494,9 @@
 </div>
 
 <!-- Schedule Map Modal (가까운 일정 찾기 — 기준↔시공지 경로)
-     지도 = 카카오 지도 JS SDK(실측 지도와 동일 스택). SDK 는 모달을 처음 열 때 as-dashboard.js 가
-     lazy 주입한다 — 여기서 CDN script 를 미리 걸지 않는다(가드 G2). 키 SSOT = geocode_config. -->
+     지도 = 카카오 지도 JS SDK(실측 지도와 동일 스택). SDK 는 모달을 처음 열 때 공용 모듈
+     static/js/common/foms-schedule-map.js 가 lazy 주입한다 — 여기서 CDN script 를 미리 걸지
+     않는다(가드 G2). 키 SSOT = geocode_config. -->
 <div class="modal fade" id="scheduleMapModal" tabindex="-1" aria-hidden="true">
   <div class="modal-dialog modal-lg modal-fullscreen-md-down">
     <div class="modal-content">
@@ -515,7 +519,10 @@
 </div>
 
 <div id="as-dashboard-config" class="d-none" data-search-query-compact="{{ (compact_search_q or '')|e }}" data-current-as-tab="{{ (as_tab or 'incomplete')|e }}"></div>
-<script src="{{ url_for('static', filename='js/cs/as-dashboard.js') }}?v=20260728g" defer></script>
+{# 기준↔시공지 지도 공용 모듈(출고 AS 일정추천 모달과 공유). 클릭 시점 호출이라 순서 의존은
+   없지만 프래그먼트 경로에도 함께 실려야 지도 버튼이 죽지 않는다. #}
+<script src="{{ url_for('static', filename='js/common/foms-schedule-map.js') }}?v=20260730f" defer></script>
+<script src="{{ url_for('static', filename='js/cs/as-dashboard.js') }}?v=20260730f" defer></script>
 {# PC 12열 컬럼 폭 조절(드래그 + localStorage). 모바일은 파일 자체가 조기 반환 —
    body 파셜에 두는 이유는 CSS 와 같다(fast-tab 프래그먼트 스왑에도 함께 실려야 재초기화된다). #}
 <script src="{{ url_for('static', filename='js/cs/as-dashboard-columns.js') }}?v=20260728b" defer></script>

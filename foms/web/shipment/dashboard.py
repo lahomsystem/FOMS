@@ -11,6 +11,7 @@ from sqlalchemy import or_, and_, inspect
 from sqlalchemy.orm import load_only
 from sqlalchemy.orm.attributes import set_committed_value
 from foms.services.common.business_calendar import get_holidays_kr
+from foms.services.common.geocode_config import KAKAO_JS_API_KEY
 from foms.services.erp_permissions import can_edit_erp, is_order_related_to_user
 from foms.services.erp_display import _ensure_dict, apply_erp_display_fields_to_orders, get_today_kst
 from foms.services.shipment_dashboard_helpers import (
@@ -619,6 +620,9 @@ def erp_shipment_dashboard():
         is_construction_team=is_construction,
         tablet_ship_kpis=tablet_ship_kpis,
         shipment_team_group_meta=shipment_team_group_meta,
+        # AS 일정추천 모달의 기준↔AS 지도(#scheduleMapContainer[data-kakao-js-key]).
+        # fragment/full 두 템플릿이 같은 컨텍스트를 받으므로 여기 1곳이면 된다.
+        kakao_js_key=KAKAO_JS_API_KEY,
     )
     _render_ms = (time.perf_counter() - _t0) * 1000.0
     response = make_response(_body)

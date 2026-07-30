@@ -842,11 +842,6 @@ var __shipDashSelectedDate = (__shipDashCfgEl && __shipDashCfgEl.dataset.selecte
       window.__shipmentAsRecModalEl = window.__shipmentAsRecModalEl || null;
       window.__shipmentAsRecMapModalEl = window.__shipmentAsRecMapModalEl || null;
       window.__shipmentAsRecNeedsReload = false;
-      var shipmentAsRecMapModalInstance = null;
-      window.__shipmentAsRecMapLeaflet = window.__shipmentAsRecMapLeaflet || null;
-      var shipmentAsRecMapGen = 0;
-      var shipmentAsRecLeafletPromise = null;
-      var shipmentAsRecRouteCache = new Map();
 
       function adoptModalFromMain() {
         var main = document.getElementById('main-content');
@@ -863,8 +858,6 @@ var __shipDashSelectedDate = (__shipDashCfgEl && __shipDashCfgEl.dataset.selecte
         if (freshMap) {
           var prevMap = window.__shipmentAsRecMapModalEl;
           if (prevMap && prevMap !== freshMap && prevMap.parentNode) {
-            resetShipmentAsRecMap();
-            shipmentAsRecMapModalInstance = null;
             prevMap.remove();
           }
           document.body.appendChild(freshMap);
@@ -895,189 +888,8 @@ var __shipDashSelectedDate = (__shipDashCfgEl && __shipDashCfgEl.dataset.selecte
           .replace(/"/g, '&quot;');
       }
 
-      function routeCacheKey(a, b, c, d) {
-        return [a, b, c, d].map(function (v) {
-          return Number(v).toFixed(6);
-        }).join(',');
-      }
-
-      function ensureLeaflet() {
-        if (window.L) return Promise.resolve();
-        if (shipmentAsRecLeafletPromise) return shipmentAsRecLeafletPromise;
-        shipmentAsRecLeafletPromise = new Promise(function (resolve, reject) {
-          if (!document.getElementById('shipment-as-rec-leaflet-css')) {
-            var link = document.createElement('link');
-            link.id = 'shipment-as-rec-leaflet-css';
-            link.rel = 'stylesheet';
-            link.href = 'https://unpkg.com/leaflet@1.9.4/dist/leaflet.css';
-            link.crossOrigin = '';
-            document.head.appendChild(link);
-          }
-          var script = document.getElementById('shipment-as-rec-leaflet-js');
-          if (!script) {
-            script = document.createElement('script');
-            script.id = 'shipment-as-rec-leaflet-js';
-            script.src = 'https://unpkg.com/leaflet@1.9.4/dist/leaflet.js';
-            script.crossOrigin = '';
-            document.head.appendChild(script);
-          }
-          script.addEventListener('load', function () { resolve(); }, { once: true });
-          script.addEventListener('error', function () { reject(new Error('Leaflet 로드 실패')); }, { once: true });
-        });
-        return shipmentAsRecLeafletPromise;
-      }
-
       function getMapModal() {
         return window.__shipmentAsRecMapModalEl || document.getElementById('scheduleMapModal');
-      }
-
-      function resetShipmentAsRecMap() {
-        if (window.__shipmentAsRecMapLeaflet) {
-          try {
-            window.__shipmentAsRecMapLeaflet.remove();
-          } catch (e) { /* ignore */ }
-          window.__shipmentAsRecMapLeaflet = null;
-        }
-      }
-
-      function getFreshScheduleMapContainer() {
-        var container = document.getElementById('scheduleMapContainer');
-        if (!container) return null;
-        if (container._leaflet_id) {
-          var clone = container.cloneNode(false);
-          container.parentNode.replaceChild(clone, container);
-          container = clone;
-        }
-        container.replaceChildren();
-        return container;
-      }
-
-      function openShipmentAsRecMap(refAddr, refLat, refLng, tgtLat, tgtLng, tgtAddr, tgtName, scoreText) {
-        adoptModalFromMain();
-        var modalEl = getMapModal();
-        var routeInfoEl = document.getElementById('scheduleMapRouteInfo');
-        if (!modalEl || !routeInfoEl || typeof bootstrap === 'undefined') return;
-        routeInfoEl.innerHTML = '<div class="text-center text-muted py-3"><div class="spinner-border spinner-border-sm me-2" role="status"></div>경로 계산 중...</div>';
-        var myGen = ++shipmentAsRecMapGen;
-
-        ensureLeaflet().then(function () {
-          if (!window.L || myGen !== shipmentAsRecMapGen) return;
-          if (!shipmentAsRecMapModalInstance) {
-            shipmentAsRecMapModalInstance = bootstrap.Modal.getOrCreateInstance(modalEl);
-          }
-          var onShown = function () {
-            modalEl.removeEventListener('shown.bs.modal', onShown);
-            if (myGen !== shipmentAsRecMapGen) return;
-            resetShipmentAsRecMap();
-            var container = getFreshScheduleMapContainer();
-            if (!container) return;
-            var map = L.map(container).setView([refLat, refLng], 11);
-            window.__shipmentAsRecMapLeaflet = map;
-            L.tileLayer('https://{s}.tile.openstreetmap.org/{z}/{x}/{y}.png', {
-              maxZoom: 19,
-              attribution: '&copy; <a href="https://www.openstreetmap.org/copyright" rel="noopener">OpenStreetMap</a>'
-            }).addTo(map);
-            L.circleMarker([refLat, refLng], {
-              radius: 9,
-              color: '#c0392b',
-              weight: 2,
-              fillColor: '#ff6b6b',
-              fillOpacity: 0.95
-            }).addTo(map).bindPopup(escHtml(refAddr));
-            L.circleMarker([tgtLat, tgtLng], {
-              radius: 9,
-              color: '#2e7d32',
-              weight: 2,
-              fillColor: '#4caf50',
-              fillOpacity: 0.95
-            }).addTo(map).bindPopup('<strong>' + escHtml(tgtName) + '</strong><br>' + escHtml(tgtAddr));
-            map.fitBounds(L.latLngBounds([[refLat, refLng], [tgtLat, tgtLng]]), { padding: [50, 50], maxZoom: 14 });
-
-            function bumpMapSize() {
-              if (myGen !== shipmentAsRecMapGen || window.__shipmentAsRecMapLeaflet !== map) return;
-              try {
-                map.invalidateSize({ animate: false });
-              } catch (e) { /* ignore */ }
-            }
-            map.whenReady(bumpMapSize);
-            requestAnimationFrame(function () {
-              bumpMapSize();
-              setTimeout(bumpMapSize, 120);
-              setTimeout(bumpMapSize, 400);
-            });
-
-            var cacheKey = routeCacheKey(refLat, refLng, tgtLat, tgtLng);
-            var routePromise = shipmentAsRecRouteCache.has(cacheKey)
-              ? Promise.resolve(shipmentAsRecRouteCache.get(cacheKey))
-              : fetch(
-                '/api/calculate_route?start_lat=' + encodeURIComponent(refLat) +
-                '&start_lng=' + encodeURIComponent(refLng) +
-                '&end_lat=' + encodeURIComponent(tgtLat) +
-                '&end_lng=' + encodeURIComponent(tgtLng)
-              ).then(function (res) {
-                if (res.status === 429) throw new Error('RATE_LIMIT');
-                return res.json();
-              }).then(function (json) {
-                if (json && json.success) shipmentAsRecRouteCache.set(cacheKey, json);
-                return json;
-              });
-
-            routePromise.then(function (routeJson) {
-              if (myGen !== shipmentAsRecMapGen || window.__shipmentAsRecMapLeaflet !== map) return;
-              if (routeJson && routeJson.success && routeJson.data &&
-                  routeJson.data.route_coords && routeJson.data.route_coords.length > 0) {
-                var routeData = routeJson.data;
-                var line = L.polyline(routeData.route_coords, {
-                  color: '#ff4757',
-                  weight: 5,
-                  opacity: 0.8
-                }).addTo(map);
-                try {
-                  map.fitBounds(line.getBounds(), { padding: [50, 50], maxZoom: 14 });
-                } catch (e) { /* ignore */ }
-                bumpMapSize();
-                setTimeout(bumpMapSize, 200);
-                var summ = routeData.summary || {};
-                var distT = summ.distance_text != null ? summ.distance_text : (routeData.distance_km + 'km');
-                var durT = summ.duration_text != null ? summ.duration_text : ((routeData.duration_min || 0) + '분');
-                var tollT = summ.toll_text != null ? summ.toll_text : '—';
-                routeInfoEl.innerHTML =
-                  '<div class="schedule-map-route-info">' +
-                  '<h6><i class="fas fa-car-side me-1"></i> 경로 정보</h6>' +
-                  '<div class="mb-1"><strong>출발:</strong> ' + escHtml(refAddr) + '</div>' +
-                  '<div class="mb-1"><strong>도착:</strong> ' + escHtml(tgtAddr) + '</div>' +
-                  '<div class="mb-1"><strong>거리:</strong> ' + escHtml(distT) + '</div>' +
-                  '<div class="mb-1"><strong>소요시간:</strong> ' + escHtml(durT) + '</div>' +
-                  '<div><strong>통행료:</strong> ' + escHtml(tollT) + '</div>' +
-                  '</div>';
-                return;
-              }
-              throw new Error((routeJson && routeJson.error) ? String(routeJson.error) : 'ROUTE_FAIL');
-            }).catch(function (err) {
-              if (myGen !== shipmentAsRecMapGen) return;
-              var msg = (err && err.message === 'RATE_LIMIT')
-                ? '요청 한도에 도달했습니다. 잠시 후 다시 시도해 주세요.'
-                : '자동차 경로를 계산하지 못했습니다. 직선거리를 참고해 주세요.';
-              var hint = scoreText
-                ? ('<p class="mb-0 small mt-2">직선거리 참고: ' + escHtml(scoreText) + '</p>')
-                : '';
-              routeInfoEl.innerHTML =
-                '<div class="alert alert-warning mb-0" role="alert">' +
-                '<strong>경로 계산 실패</strong>' +
-                '<p class="mb-0 small">' + escHtml(msg) + '</p>' +
-                hint +
-                '</div>';
-            });
-          };
-          modalEl.addEventListener('shown.bs.modal', onShown, { once: true });
-          shipmentAsRecMapModalInstance.show();
-        }).catch(function (err) {
-          routeInfoEl.innerHTML =
-            '<div class="alert alert-warning mb-0" role="alert">' +
-            '<strong>지도 로드 실패</strong>' +
-            '<p class="mb-0 small">' + escHtml(err && err.message ? err.message : '지도 모듈을 불러오지 못했습니다.') + '</p>' +
-            '</div>';
-        });
       }
 
       function getModal() {
@@ -1113,21 +925,23 @@ var __shipDashSelectedDate = (__shipDashCfgEl && __shipDashCfgEl.dataset.selecte
         return Promise.resolve();
       }
 
-      function hydrateAsRecRichPreviews(payload, rootEl) {
+      /**
+       * 추천 카드 본문에 서버 렌더 AS 타임라인(as_timeline_html)을 주입한다.
+       *
+       * AS 기록 SSOT 는 append-only shipment.as_log 이고 legacy as_content 는 그 뷰의
+       * legacy 앵커로 이미 포함되므로, 본문은 타임라인 하나만 그린다(구 as_content_html
+       * 병행 표시는 같은 내용을 두 번 내보내므로 제거됨).
+       * 값은 서버 sanitize 를 통과한 HTML 이므로 innerHTML 주입이 허용된다.
+       */
+      function hydrateAsRecTimelines(payload, rootEl) {
         if (!rootEl) return;
         var targets = (payload && payload.targets) || [];
         targets.forEach(function (t) {
           (t.recommendations || []).forEach(function (r) {
             var key = String(t.order_id) + '-' + String(r.as_order_id);
-            var el = rootEl.querySelector('[data-asrec-rich="' + key + '"]');
+            var el = rootEl.querySelector('[data-asrec-timeline="' + key + '"]');
             if (!el) return;
-            if (r.as_content_html) {
-              el.innerHTML = r.as_content_html;
-              el.classList.remove('asrec-rich-preview--plain');
-            } else if (r.as_content_text) {
-              el.textContent = r.as_content_text;
-              el.classList.add('asrec-rich-preview--plain');
-            }
+            el.innerHTML = r.as_timeline_html || '<div class="text-muted small">기록 없음</div>';
           });
         });
       }
@@ -1199,7 +1013,7 @@ var __shipDashSelectedDate = (__shipDashCfgEl && __shipDashCfgEl.dataset.selecte
             var recLat = Number(r.lat);
             var recLng = Number(r.lng);
             var canOpenMap = Number.isFinite(targetLat) && Number.isFinite(targetLng) && Number.isFinite(recLat) && Number.isFinite(recLng);
-            var richKey = String(t.order_id) + '-' + String(r.as_order_id);
+            var timelineKey = String(t.order_id) + '-' + String(r.as_order_id);
             html += '<div class="border rounded p-2 mb-2 small" data-as-order-id="' + escHtml(r.as_order_id) + '">';
             html += '<div class="row g-2 align-items-stretch">';
             html += '<div class="col-12 col-md-6 asrec-card-meta">';
@@ -1227,16 +1041,15 @@ var __shipDashSelectedDate = (__shipDashCfgEl && __shipDashCfgEl.dataset.selecte
             html += '</div>';
             html += '<div class="col-12 col-md-6 asrec-card-content">';
             html += '<div class="border rounded bg-light h-100 p-2">';
-            html += '<div class="erp-pro-input as-content-input asrec-rich-preview js-asrec-rich-preview" ';
-            html += 'contenteditable="false" tabindex="-1" role="region" aria-readonly="true" aria-label="AS 내용" ';
-            html += 'data-asrec-rich="' + escHtml(richKey) + '"></div>';
+            html += '<div class="asrec-timeline-slot" role="region" aria-label="AS 기록 타임라인" ';
+            html += 'data-asrec-timeline="' + escHtml(timelineKey) + '"></div>';
             html += '</div></div>';
             html += '</div></div>';
           });
           html += '</div></div></div>';
         });
         groupsEl.innerHTML = html;
-        hydrateAsRecRichPreviews(payload, groupsEl);
+        hydrateAsRecTimelines(payload, groupsEl);
         if (payload && payload.warnings && payload.warnings.length) {
           setStatus('참고 알림 ' + payload.warnings.length + '건 (경로 계산 한도·화면 기준일 불일치 등)');
         }
@@ -1361,12 +1174,6 @@ var __shipDashSelectedDate = (__shipDashCfgEl && __shipDashCfgEl.dataset.selecte
       if (!window.__shipmentAsRecDocListenersBound) {
         window.__shipmentAsRecDocListenersBound = true;
 
-        document.addEventListener('hidden.bs.modal', function (ev) {
-          if (ev.target && ev.target.id === 'scheduleMapModal') {
-            resetShipmentAsRecMap();
-          }
-        });
-
         document.addEventListener('click', function (ev) {
         var openBtn = ev.target.closest && ev.target.closest('#shipment-as-recommend-btn, [data-shipment-as-recommend-open]');
         if (openBtn) {
@@ -1400,23 +1207,28 @@ var __shipDashSelectedDate = (__shipDashCfgEl && __shipDashCfgEl.dataset.selecte
         var mapBtn = ev.target.closest && ev.target.closest('.js-shipment-as-rec-map');
         if (mapBtn) {
           ev.preventDefault();
-          var refLat = Number(mapBtn.getAttribute('data-ref-lat'));
-          var refLng = Number(mapBtn.getAttribute('data-ref-lng'));
-          var tgtLat = Number(mapBtn.getAttribute('data-lat'));
-          var tgtLng = Number(mapBtn.getAttribute('data-lng'));
-          if (!Number.isFinite(refLat) || !Number.isFinite(refLng) || !Number.isFinite(tgtLat) || !Number.isFinite(tgtLng)) {
-            return;
-          }
-          openShipmentAsRecMap(
-            mapBtn.getAttribute('data-ref-address') || '',
-            refLat,
-            refLng,
-            tgtLat,
-            tgtLng,
-            mapBtn.getAttribute('data-address') || '',
-            mapBtn.getAttribute('data-name') || '',
-            mapBtn.getAttribute('data-score-text') || ''
-          );
+          // 지도 렌더·카카오 SDK 주입·경로 조회·정리는 공용 모듈
+          // static/js/common/foms-schedule-map.js 소관(AS 대시보드와 공유).
+          // modalEl 은 프래그먼트 스왑마다 adoptModalFromMain 이 body 로 재부모화한 노드다.
+          if (!window.FOMS_SCHEDULE_MAP) return;
+          adoptModalFromMain();
+          var mapModalEl = getMapModal();
+          if (!mapModalEl) return;
+          window.FOMS_SCHEDULE_MAP.open({
+            modalEl: mapModalEl,
+            ref: {
+              lat: Number(mapBtn.getAttribute('data-ref-lat')),
+              lng: Number(mapBtn.getAttribute('data-ref-lng')),
+              address: mapBtn.getAttribute('data-ref-address') || ''
+            },
+            target: {
+              lat: Number(mapBtn.getAttribute('data-lat')),
+              lng: Number(mapBtn.getAttribute('data-lng')),
+              address: mapBtn.getAttribute('data-address') || '',
+              name: mapBtn.getAttribute('data-name') || ''
+            },
+            scoreText: mapBtn.getAttribute('data-score-text') || ''
+          });
           return;
         }
 

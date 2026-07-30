@@ -546,6 +546,10 @@ def test_log_patch_response_html_carries_edit_button(client):
 
 _BODY_CSS = "static/css/contexts/cs/as-dashboard-body.css"
 _CARD_CSS = "static/css/components/foms-as-mobile-card.css"
+# 2026-07-30 T1: 타임라인 코어 렌더 규칙(.as-timeline__*, .as-tl-item*, .as-tl-chip*)이
+# 공용 컴포넌트로 이전(SSOT, 출고 AS 일정추천 모달과 공유). _BODY_CSS 에는 AS 대시보드
+# 헤더(비용 판정/영업전달)와 테이블 전용 오버라이드(.as-tl-cell*/.as-tl-expand*)만 남는다.
+_TL_CSS = "static/css/components/foms-as-timeline.css"
 
 
 def test_retired_editor_styles_are_deleted():
@@ -575,7 +579,7 @@ def _relative_luminance(hex_color: str) -> float:
 
 def _chip_colors() -> dict[str, str]:
     """CSS 에서 유형별 칩 배경색을 뽑는다."""
-    css = _css(_BODY_CSS)
+    css = _css(_TL_CSS)
     out: dict[str, str] = {}
     for chunk in css.split(".as-tl-chip--")[1:]:
         name = chunk.split(" ", 1)[0].split("{", 1)[0].strip()
@@ -613,14 +617,14 @@ def test_timeline_chips_meet_wcag_aa_on_white_text():
 
 def test_chip_has_fallback_background():
     """미지 type 이 와도 투명 칩(흰 배경 + 흰 글자)이 되지 않아야 한다."""
-    block = _css(_BODY_CSS).split(".as-tl-chip {", 1)[1].split("}", 1)[0]
+    block = _css(_TL_CSS).split(".as-tl-chip {", 1)[1].split("}", 1)[0]
     assert "background:" in block
     assert "color: #fff" in block
 
 
 def test_timeline_new_classes_are_styled():
     """T9/T10이 새로 만든 클래스에 스타일이 실재한다(버튼 리셋·폼 레이아웃 포함)."""
-    css = _css(_BODY_CSS)
+    css = _css(_TL_CSS) + _css(_BODY_CSS)
     for selector in (
         ".as-timeline__header",
         ".as-timeline__notes",
@@ -642,14 +646,14 @@ def test_timeline_new_classes_are_styled():
 
 def test_notes_body_preserves_line_breaks():
     """비고는 평문 그대로 저장된다 — pre-wrap 없이는 여러 줄 메모가 한 줄로 뭉친다."""
-    css = _css(_BODY_CSS)
+    css = _css(_TL_CSS)
     block = css.split(".as-timeline__notes-body", 1)[1].split("}", 1)[0]
     assert "white-space: pre-wrap" in block
 
 
 def test_item_body_hidden_attribute_wins():
     """수정 폼 열림 시 본문 숨김은 `hidden` 속성에 의존한다 — display 규칙이 이를 이기면 안 된다."""
-    css = _css(_BODY_CSS)
+    css = _css(_TL_CSS)
     body_rule = css.split(".as-tl-item__body {", 1)[1].split("}", 1)[0]
     assert "display" not in body_rule  # 애초에 display 를 주지 않는다
     assert ".as-tl-item__body[hidden]" in css  # 나중에 추가돼도 숨김이 깨지지 않는 가드
@@ -1022,7 +1026,10 @@ def test_quick_add_desktop_layout_is_scoped_to_expand_row():
     베이스(.as-timeline__quick-add)의 세로 스택 + 전폭 버튼은 모바일 44px 터치 규약이라
     전역으로 풀면 모바일 카드 상세가 함께 깨진다.
     """
-    css = _css(_BODY_CSS)
+    # 베이스 규칙(_TL_CSS)을 먼저 이어붙인다 — _BODY_CSS 의 오버라이드
+    # `.as-tl-expand-body .as-timeline__quick-add {` 도 동일 접미 문자열을 포함해
+    # 순서가 바뀌면 split 이 오버라이드 블록을 베이스로 오인한다.
+    css = _css(_TL_CSS) + _css(_BODY_CSS)
     assert ".as-tl-expand-body .as-timeline__submit" in css
     assert ".as-tl-expand-body .as-timeline__type" in css
     # 베이스 규칙은 세로 스택 그대로
@@ -1074,7 +1081,7 @@ def test_badges_are_legible_sized():
     0.75rem(12px) 미만으로 다시 줄면 실패한다. 상태 배지는 전역 .erp-pro-badge 가
     아니라 페이지 스코프 오버라이드여야 타 대시보드에 파급되지 않는다.
     """
-    css = _css(_BODY_CSS)
+    css = _css(_TL_CSS) + _css(_BODY_CSS)
     for selector in (".as-tl-chip", ".erp-as-billing-badge", ".as-billing-state",
                      ".as-tl-cell__anchor", ".as-tl-cell__recent"):
         assert _font_size(css, selector) >= 0.75, selector

@@ -1,0 +1,5 @@
+{# 출고 AS 일정추천 모달 카드 본문 — AS 타임라인 읽기 전용 렌더(SSOT 매크로 재사용).
+   can_edit=False: 비용 판정 헤더·프리셋·quick-add·항목 수정/삭제 버튼 전부 제외.
+   show_more=False: 더보기 버튼 핸들러가 as-dashboard.js 전용이라 출고 페이지에서는 죽는다. #}
+{% from 'cs/partials/as_card_macros.html' import render_as_timeline %}
+{{ render_as_timeline(order_id, view, false, show_more=false) }}

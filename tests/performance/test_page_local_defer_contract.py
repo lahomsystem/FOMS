@@ -139,17 +139,35 @@ def test_mobile_order_detail_zoom_helper_is_deferred_before_mobile_bundles() -> 
     )
 
 
-def test_cs_schedule_map_loads_kakao_sdk_lazily_without_cdn_tag() -> None:
-    """AS 일정찾기 지도 = 카카오 SDK lazy 주입(모달 첫 오픈). CDN 지도 script 태그 신규 금지(가드 G2)."""
-    html = _read("templates/cs/partials/as_dashboard_body.html")
-    js = _read("static/js/cs/as-dashboard.js")
+def test_schedule_map_module_loads_kakao_sdk_lazily_without_cdn_tag() -> None:
+    """기준↔시공지 지도 = 공용 모듈의 카카오 SDK lazy 주입(모달 첫 오픈).
 
-    assert "leaflet" not in html.lower()
-    assert "dapi.kakao.com" not in html
-    assert 'data-kakao-js-key="{{ kakao_js_key or \'\' }}"' in html
+    AS 대시보드(가까운 일정 찾기)와 출고 대시보드(AS 일정 추천)가 같은 모듈을 쓴다.
+    CDN 지도 script 태그 신규 금지(가드 G2) + defer 로만 모듈 로드(가드 G1).
+    """
+    module = _read("static/js/common/foms-schedule-map.js")
+
     # 로더는 사용 시점 주입 + window 싱글톤(프래그먼트 재실행 중복 주입 차단, 가드 G4)
-    assert "dapi.kakao.com/v2/maps/sdk.js" in js
-    assert "window.__fomsKakaoSdkPromise" in js
+    assert "dapi.kakao.com/v2/maps/sdk.js" in module
+    assert "window.__fomsKakaoSdkPromise" in module
+    assert "if (window.FOMS_SCHEDULE_MAP) return;" in module
+
+    for page in (
+        "templates/cs/partials/as_dashboard_body.html",
+        "templates/shipment/partials/dashboard_main.html",
+    ):
+        html = _read(page)
+        assert "leaflet" not in html.lower(), page
+        assert "dapi.kakao.com" not in html, page
+        assert 'data-kakao-js-key="{{ kakao_js_key or \'\' }}"' in html, page
+        _assert_deferred(html, "js/common/foms-schedule-map.js")
+
+    # 지도 렌더 코드는 모듈 단독 소유 — 호출부에 카카오/Leaflet 잔재가 남으면 두 구현으로 재분기한다.
+    for caller in ("static/js/cs/as-dashboard.js", "static/js/shipment/shipment-dashboard.js"):
+        js = _read(caller)
+        assert "leaflet" not in js.lower(), caller
+        assert "dapi.kakao.com" not in js, caller
+        assert "FOMS_SCHEDULE_MAP.open(" in js, caller
 
 
 def test_measurement_map_blocking_scripts_are_deferred() -> None:

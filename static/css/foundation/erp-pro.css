@@ -42,6 +42,17 @@
     }
 }
 
+/* AS 일정 추천 모달 본문 = 서버 렌더 AS 타임라인(as_timeline_html) 주입 슬롯.
+   타임라인 자체 스타일은 css/components/foms-as-timeline.css 소관 — 여기서는 모달 카드가
+   기록 수에 따라 세로로 무한히 길어지지 않게 스크롤 상한만 잡는다(퇴역한
+   .asrec-rich-preview 의 max-height:250px 과 동일 역할). 이 파일에 두는 이유:
+   출고 페이지 전용 CSS(foms-shipment-mobile.css)는 v3 셸에서 제외되지만 이 모달은
+   v3 데스크톱 폴백에서도 렌더된다. */
+#shipmentAsRecommendModal .asrec-timeline-slot {
+    max-height: 250px;
+    overflow-y: auto;
+}
+
 /* AS 일정 추천: 대시보드 as_content-input과 동일 타이포의 읽기 전용 리치 미리보기 */
 #shipmentAsRecommendModal .asrec-rich-preview.erp-pro-input.as-content-input {
     width: 100%;

@@ -364,19 +364,20 @@ def test_candidate_pool_as_content_html_includes_notes_when_tab2_absent(client) 
     assert "<font color=\"red\">노트내용</font>" in row["as_content_html"] or "red" in row["as_content_html"]
 
 
-def test_shipment_as_recommendation_map_reuses_global_leaflet_instance() -> None:
-    # Batch 5: inline JS가 static/js/shipment/shipment-dashboard.js로 이동 → 표면 합본 검사
-    root = Path(__file__).resolve().parents[2]
-    src = (
-        (root / "templates/shipment/partials/dashboard_main.html").read_text(encoding="utf-8")
-        + "\n"
-        + (root / "static/js/shipment/shipment-dashboard.js").read_text(encoding="utf-8")
-    )
+def test_shipment_as_recommendation_map_delegates_to_shared_kakao_module() -> None:
+    """출고 지도 = 공용 카카오 모듈 위임(Leaflet/OSM 자체 렌더러는 퇴역).
 
-    assert "window.__shipmentAsRecMapLeaflet" in src
-    assert "function getFreshScheduleMapContainer()" in src
-    assert "container._leaflet_id" in src
-    assert "replaceChild(clone, container)" in src
+    AS 대시보드와 같은 `#scheduleMapModal` 을 쓰므로 렌더러가 갈라지면 안 된다.
+    modalEl 은 adoptModalFromMain 이 body 로 재부모화한 노드를 넘겨야 한다 —
+    모듈이 document.getElementById 로 찾으면 프래그먼트 스왑 후 옛 노드를 잡는다.
+    """
+    root = Path(__file__).resolve().parents[2]
+    js = (root / "static/js/shipment/shipment-dashboard.js").read_text(encoding="utf-8")
+
+    assert "leaflet" not in js.lower()
+    assert "window.FOMS_SCHEDULE_MAP.open(" in js
+    assert "modalEl: mapModalEl" in js
+    assert "function getMapModal()" in js
 
 
 def test_recommend_token_fallback_only_when_no_route_success() -> None:

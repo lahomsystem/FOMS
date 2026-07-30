@@ -80,7 +80,7 @@
    notes(주문 비고)는 lazy 표면(PC 확장 fragment·모바일 상세)만 전달한다 — 목록은 payload를
    키우지 않고, 비고는 AS 기록이 아니므로 스트림 밖 읽기 전용 블록으로 명확히 분리한다.
    is_sales_delivery는 구 툴바 hydrate 주입(.as-tabbed-editor[data-sales-delivery])의 대체다. #}
-{% macro render_as_timeline(order_id, view, can_edit, notes='', is_sales_delivery=false, billing_state='', billing_type='free') -%}
+{% macro render_as_timeline(order_id, view, can_edit, notes='', is_sales_delivery=false, billing_state='', billing_type='free', show_more=true) -%}
 {% set v = view or {} %}
 <div class="as-timeline" data-order-id="{{ order_id }}">
   {% if can_edit %}
@@ -141,7 +141,14 @@
     {% for e in v.stream %}{{ render_as_timeline_entry(e, can_edit) }}{% endfor %}
   </div>
   {% if v.has_more %}
+  {# show_more=false: 더보기 fetch 클릭 핸들러가 as-dashboard.js 문서 위임에만 있다. 그 스크립트가
+     없는 표면(출고 AS 일정추천 모달)에서 버튼을 내면 클릭해도 아무 반응이 없는 죽은 버튼이 되므로,
+     같은 정보를 정적 안내 문구로만 낸다(더보기는 AS 대시보드에서). #}
+  {% if show_more %}
   <button type="button" class="btn btn-sm btn-link as-timeline__more" data-order-id="{{ order_id }}">이전 기록 더보기 ({{ v.stream_total - v.stream|length }})</button>
+  {% else %}
+  <div class="as-timeline__more-hint text-muted small">이전 기록 {{ v.stream_total - v.stream|length }}건은 AS 대시보드에서 확인</div>
+  {% endif %}
   {% endif %}
   {# legacy 앵커(이전 기록)는 스트림 **아래**, 더보기 **아래**. 스트림은 역시간순(최신 위)이고
      legacy 는 as_log 이전 시대의 가장 오래된 본문이라 시간 흐름의 끝이 여기다. 더보기보다

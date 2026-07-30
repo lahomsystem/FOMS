@@ -171,11 +171,17 @@ def test_shipment_dashboard_template_includes_as_recommend_entrypoint() -> None:
     assert "{% if can_edit_shipment %}" in template
 
 
-def test_shipment_dashboard_as_rec_modal_has_rich_preview_hydration() -> None:
+def test_shipment_dashboard_as_rec_modal_hydrates_server_rendered_as_timeline() -> None:
+    """추천 카드 본문 = 서버 렌더 AS 타임라인(as_timeline_html) 주입 슬롯.
+
+    legacy as_content_html/as_content_text 소비는 퇴역했다 — as_log 가 AS 기록 SSOT 이고
+    legacy 본문은 타임라인 뷰의 legacy 앵커로 이미 포함되므로 병행 표시는 중복이다.
+    """
     template = _shipment_dashboard_surface()
-    assert "hydrateAsRecRichPreviews" in template
-    assert "data-asrec-rich" in template
-    assert "asrec-rich-preview" in template
+    assert "hydrateAsRecTimelines" in template
+    assert "data-asrec-timeline" in template
+    assert "as_timeline_html" in template
+    assert "contenteditable" not in template.split("asrec-card-content")[1][:400]
 
 
 def test_shipment_dashboard_hides_as_recommend_for_construction_team(client):
@@ -263,6 +269,42 @@ def test_shipment_dashboard_shows_as_recommend_for_cs_staff(client):
     assert response.status_code == 200
     body = response.get_data(as_text=True)
     assert 'id="shipment-as-recommend-btn"' in body
+
+
+def test_shipment_dashboard_and_fragment_load_as_recommend_map_assets(client):
+    """AS 일정추천 모달 필수 정적 자산(AS 타임라인 CSS·카카오 지도 키·지도 JS)이
+
+    전체 페이지 응답과 ERP 셸 프래그먼트 응답 모두에 실제로 포함되는지 검증한다.
+
+    문자열 grep이 아니라 렌더 응답을 보는 이유(회귀 재발 방지): 과거
+    templates/shipment/dashboard.html 의 {% block head_extra %} 안에 AS 타임라인
+    CSS 링크를 뒀으나, templates/shipment/layout.html 에는 대응하는 head_extra
+    블록이 없어 Jinja가 그 블록을 조용히 무시하고 렌더하지 않았다(죽은 블록).
+    템플릿 소스 문자열에는 링크가 그대로 존재하므로
+    `"foms-as-timeline.css" in template_source` 식의 grep 검사는 통과하지만,
+    실제로 브라우저가 받는 HTML에는 CSS가 빠져 모달이 미스타일로 떴다. 이 함정을
+    다시 밟지 않도록 반드시 client.get() 의 렌더 응답 본문을 검사한다.
+    """
+    _login_erp_admin(client)
+
+    full = client.get("/erp/shipment")
+    assert full.status_code == 200
+    full_body = full.get_data(as_text=True)
+    assert "css/components/foms-as-timeline.css" in full_body
+    assert "data-kakao-js-key=" in full_body
+    assert "js/common/foms-schedule-map.js" in full_body
+
+    # ERP 셸 프래그먼트 경로(탭 전환 시 실제 요청 형태): X-FOMS-ERP-SHELL 헤더 +
+    # ?view=fragment. wants_erp_shell_tab_body()가 이 조합만 True로 판정한다.
+    fragment = client.get(
+        "/erp/shipment?view=fragment",
+        headers={"X-FOMS-ERP-SHELL": "1"},
+    )
+    assert fragment.status_code == 200
+    fragment_body = fragment.get_data(as_text=True)
+    assert "css/components/foms-as-timeline.css" in fragment_body
+    assert "data-kakao-js-key=" in fragment_body
+    assert "js/common/foms-schedule-map.js" in fragment_body
 
 
 def test_shipment_dashboard_allows_past_date_search(client):

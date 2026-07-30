@@ -7,7 +7,7 @@ from typing import Any
 
 from copy import deepcopy
 
-from flask import g, jsonify, request, session
+from flask import g, jsonify, render_template, request, session
 from sqlalchemy.orm import load_only
 
 from db import get_db
@@ -33,6 +33,7 @@ from foms.services.common.dashboard_cache import (
     invalidate_dashboard_families,
 )
 from foms.services.orders.as_cycle_service import ASCycleError
+from foms.services.orders.as_log import build_as_timeline_view
 from foms.services.orders.order_mutation_policy import POLICY_REGISTRY, evaluate_policy
 from foms.services.shipment.as_recommendation import (
     ASRecommendationError,
@@ -203,7 +204,9 @@ def _compute_recommendation_payload(
     for tgt in final_targets:
         tgt.pop("linked_as_schedules", None)
 
-    _enrich_recommendations(final_targets, link_as_to_shipment)
+    _enrich_recommendations(
+        final_targets, link_as_to_shipment, db=db, render_timeline=return_targets
+    )
     linked_by = _build_linked_schedules_for_targets(db, order_ids, link_as_to_shipment)
     for tgt in final_targets:
         tgt["linked_as_schedules"] = linked_by.get(int(tgt["order_id"]), [])
@@ -331,10 +334,71 @@ def _load_orders_map(db, ids: list[int]) -> dict[int, Order]:
     return {o.id: o for o in rows}
 
 
+def _render_asrec_timelines(db, as_order_ids: list[int]) -> dict[int, str]:
+    """추천된 AS 주문의 읽기 전용 AS 타임라인 HTML을 배치 렌더한다.
+
+    id 를 먼저 중복 제거하므로 같은 AS 가 여러 출고 타깃에 추천되어도 조회는 1회,
+    렌더는 id 당 1회다(호출부가 dict 에서 같은 문자열을 재사용한다).
+
+    Args:
+        db: DB 세션.
+        as_order_ids: 추천에 등장한 AS 주문 id(중복 포함 가능).
+
+    Returns:
+        ``{as_order_id: 타임라인 HTML}``. 삭제/미존재 주문은 키가 없다.
+    """
+    uniq = sorted({int(aid) for aid in as_order_ids})
+    if not uniq:
+        return {}
+    as_orders = _load_orders_map(db, uniq)  # 배치 1회 (Order.id.in_ + active_filter)
+    html_by_id: dict[int, str] = {}
+    for aid in uniq:
+        order = as_orders.get(aid)
+        if order is None:
+            continue
+        sd = order.structured_data if isinstance(order.structured_data, dict) else {}
+        html_by_id[aid] = render_template(
+            "shipment/partials/asrec_timeline_partial.html",
+            order_id=aid,
+            view=build_as_timeline_view(sd, recent_limit=8),
+        )
+    return html_by_id
+
+
 def _enrich_recommendations(
     targets_payload: list[dict[str, Any]],
     link_as_to_shipment: dict[int, int],
+    *,
+    db=None,
+    render_timeline: bool = False,
 ) -> None:
+    """추천 rec 에 연결 상태와 AS 타임라인 HTML을 채우고 legacy 본문 키를 제거한다.
+
+    타임라인은 후보 풀/타깃 캐시가 아니라 여기서 만든다 — 실제 추천된 AS 만
+    대상이라 요청당 배치 1회 조회로 끝나고 값이 항상 DB 기준 최신이다.
+    legacy ``as_content_html``/``as_content_text`` 는 타임라인 legacy 앵커에 이미
+    포함되므로 payload 에서 뺀다(중복 표시·응답 비대 방지). 후보 풀 DTO 는 그대로다
+    (그 값들은 캐시 지문·검색에 쓰인다).
+
+    Args:
+        targets_payload: target 행 목록. 각 행의 ``recommendations`` 를 in-place 수정한다.
+        link_as_to_shipment: AS→출고 역인덱스(연결/취소 가능 판정용).
+        db: 타임라인 렌더용 DB 세션. ``render_timeline`` 이 True 일 때만 쓴다.
+        render_timeline: 모달로 나가는 응답만 True. prewarm 은 조회·렌더를 전부 건너뛴다.
+
+    Returns:
+        None (in-place).
+    """
+    timelines: dict[int, str] = {}
+    if render_timeline and db is not None:
+        timelines = _render_asrec_timelines(
+            db,
+            [
+                int(rec["as_order_id"])
+                for tgt in targets_payload
+                for rec in (tgt.get("recommendations") or [])
+            ],
+        )
     for tgt in targets_payload:
         sid = int(tgt["order_id"])
         for rec in tgt.get("recommendations") or []:
@@ -344,6 +408,10 @@ def _enrich_recommendations(
                 linked if linked is not None and linked != sid else None
             )
             rec["can_cancel_link"] = bool(linked is not None and linked == sid)
+            if render_timeline:
+                rec["as_timeline_html"] = timelines.get(aid, "")
+            rec.pop("as_content_html", None)
+            rec.pop("as_content_text", None)
 
 
 def _worker_names(db, worker_ids: list) -> list[str]:
