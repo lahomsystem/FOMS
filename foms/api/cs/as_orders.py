@@ -62,6 +62,7 @@ from foms.services.orders.as_schedule_link import (
     ack_link,
     clear_link,
     evaluate_drift,
+    read_as_visit_date,
     read_link,
     relink,
     write_link,
@@ -991,23 +992,6 @@ _SCHEDULE_LINK_ACTION_LABELS = {
 }
 
 
-def _as_visit_date(sd: Optional[dict]) -> Optional[str]:
-    """``sd.schedule.as_visit.date`` 안전 조회(중간 노드가 dict 가 아니면 None).
-
-    Args:
-        sd: 주문 structured_data(None 허용).
-
-    Returns:
-        방문일 문자열(Da) 또는 None.
-    """
-    node: Any = sd or {}
-    for key in ("schedule", "as_visit", "date"):
-        if not isinstance(node, dict):
-            return None
-        node = node.get(key)
-    return node if isinstance(node, str) and node.strip() else None
-
-
 def _ref_construction_date(ref: Order) -> str:
     """기준 주문의 **현재** 시공일(Ds). ``erp_construction_date`` 우선, 없으면 ``scheduled_date``.
 
@@ -1120,7 +1104,7 @@ def _apply_schedule_link(
         cleared = clear_link(sd)
         if cleared:
             append_system_log(sd, text="기준 일정 매칭 해제")
-    return {"link": read_link(sd), "cleared": cleared, "as_visit_date": _as_visit_date(sd)}
+    return {"link": read_link(sd), "cleared": cleared, "as_visit_date": read_as_visit_date(sd)}
 
 
 def _schedule_link_payload(
@@ -1177,7 +1161,7 @@ def api_as_schedule_link(order_id: int):
         # (as/log delete 선례 — 무변경에 mutation 을 돌리지 않는다).
         return jsonify(_schedule_link_payload(
             action=action, link=None, cleared=False, ref_date=None,
-            as_visit_date=_as_visit_date(order.structured_data)))
+            as_visit_date=read_as_visit_date(order.structured_data)))
     user_id = session.get("user_id")
     user = get_user_by_id(user_id)
     captured: Dict[str, Any] = {}

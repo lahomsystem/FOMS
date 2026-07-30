@@ -14,7 +14,11 @@ from foms.services.erp_display import (
 )
 from foms.services.as_content_safety import as_content_html_to_text, sanitize_as_content_html
 from foms.services.orders.as_log import build_as_timeline_view
-from foms.services.orders.as_schedule_link import evaluate_drift, read_link
+from foms.services.orders.as_schedule_link import (
+    evaluate_drift,
+    read_as_visit_date,
+    read_link,
+)
 from models import Order, OrderAttachment
 
 __all__ = [
@@ -27,6 +31,7 @@ __all__ = [
     "batch_resolve_as_compare_photos",
     "apply_as_dashboard_row_display_fields",
     "apply_schedule_link_drift_fields",
+    "build_schedule_link_drift",
 ]
 
 _IMAGE_SUFFIXES = (".jpg", ".jpeg", ".png", ".webp", ".gif", ".bmp")
@@ -411,6 +416,61 @@ def _ref_label(ref_id: Any, customer_name: Any) -> str:
     return name if name else f"#{ref_id}"
 
 
+def _evaluate_link_drift(link, ref_snapshot: dict[int, dict[str, Any]], as_visit_date: Any) -> dict:
+    """링크 + 기준 주문 스냅샷 → 표시 필드까지 채운 드리프트 dict (목록·주문 상세 공용 SSOT).
+
+    목록(행 배지)과 주문 상세(상단 배너)가 같은 판정·같은 표기를 내도록 여기 한 곳만
+    거친다 — 기준일 해석(erp_construction_date → scheduled_date)과 삭제 판정은
+    `_batch_load_ref_schedule_snapshot` 이, 상태 판정은 `evaluate_drift` 가 소유한다.
+
+    Args:
+        link: `read_link(sd)` 결과(없으면 None → 상태 `none`).
+        ref_snapshot: `_batch_load_ref_schedule_snapshot` 결과(해당 ref 가 없어도 됨).
+        as_visit_date: 이 AS 건의 현재 방문일(Da).
+
+    Returns:
+        `evaluate_drift` 결과 + 표시 전용 파생 필드
+        (`ref_customer_name`/`ref_label`/`ref_date_md`/`ref_current_date_md`).
+    """
+    ref_info = ref_snapshot.get(link.get("ref_order_id")) if link else None
+    drift = evaluate_drift(
+        link,
+        ref_current_date=(ref_info or {}).get("current_date"),
+        as_visit_date=as_visit_date,
+        ref_missing=bool(link) and (ref_info is None or bool(ref_info.get("missing"))),
+    )
+    # 배지 렌더용 표시 필드(매크로가 조립) — id 는 ref_order_id 로 그대로 유지된다
+    # (액션 버튼·테스트가 소비하는 값이라 표시만 이름으로 바꾸고 데이터는 안 건드린다).
+    drift["ref_customer_name"] = (ref_info or {}).get("customer_name") if link else None
+    drift["ref_label"] = _ref_label(drift.get("ref_order_id"), drift.get("ref_customer_name"))
+    drift["ref_date_md"] = _short_md(drift.get("ref_date"))
+    drift["ref_current_date_md"] = _short_md(drift.get("ref_current_date"))
+    return drift
+
+
+def build_schedule_link_drift(structured_data: Any, db: Any) -> dict:
+    """단건 주문의 기준 일정 드리프트 (주문 상세 최상단 배너용).
+
+    목록 경로(`apply_schedule_link_drift_fields`)와 동일한 배치 스냅샷·판정 함수를 쓴다 —
+    기준일 해석/삭제 판정을 여기서 다시 구현하지 않는다. 링크가 없으면 DB 조회 자체를
+    하지 않으므로 AS 가 아닌 주문 상세에는 쿼리 비용이 0이다.
+
+    Args:
+        structured_data: 주문 structured_data(dict 가 아니면 링크 없음으로 취급).
+        db: SQLAlchemy 세션.
+
+    Returns:
+        `_evaluate_link_drift` 결과. 링크가 없으면 `state == 'none'`(템플릿이 렌더 생략).
+    """
+    sd = _ensure_dict(structured_data) or {}
+    link = read_link(sd) if isinstance(sd, dict) else None
+    ref_id = link.get("ref_order_id") if link else None
+    ref_snapshot = (
+        _batch_load_ref_schedule_snapshot({ref_id}, db) if isinstance(ref_id, int) else {}
+    )
+    return _evaluate_link_drift(link, ref_snapshot, read_as_visit_date(sd))
+
+
 def apply_schedule_link_drift_fields(rows, db: Any) -> int:
     """행마다 `schedule_link_drift` 를 부착하고, 경고가 필요한 건수를 반환한다.
 
@@ -429,20 +489,9 @@ def apply_schedule_link_drift_fields(rows, db: Any) -> int:
     ref_snapshot = _batch_load_ref_schedule_snapshot(ref_ids, db)
     drift_count = 0
     for r in rows:
-        link = read_link(r.structured_data)
-        ref_info = ref_snapshot.get(link.get("ref_order_id")) if link else None
-        drift = evaluate_drift(
-            link,
-            ref_current_date=(ref_info or {}).get("current_date"),
-            as_visit_date=getattr(r, "as_visit_date", None),
-            ref_missing=bool(link) and (ref_info is None or bool(ref_info.get("missing"))),
+        drift = _evaluate_link_drift(
+            read_link(r.structured_data), ref_snapshot, getattr(r, "as_visit_date", None)
         )
-        # 배지 렌더용 표시 필드(매크로가 조립) — id 는 ref_order_id 로 그대로 유지된다
-        # (액션 버튼·테스트가 소비하는 값이라 표시만 이름으로 바꾸고 데이터는 안 건드린다).
-        drift["ref_customer_name"] = (ref_info or {}).get("customer_name") if link else None
-        drift["ref_label"] = _ref_label(drift.get("ref_order_id"), drift.get("ref_customer_name"))
-        drift["ref_date_md"] = _short_md(drift.get("ref_date"))
-        drift["ref_current_date_md"] = _short_md(drift.get("ref_current_date"))
         r.schedule_link_drift = drift
         if drift["state"] in _DRIFT_WARN_STATES:
             drift_count += 1

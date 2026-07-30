@@ -87,6 +87,26 @@ def read_link(sd: dict) -> dict | None:
     return link if isinstance(link, dict) else None
 
 
+def read_as_visit_date(sd: dict | None) -> str | None:
+    """``schedule.as_visit.date``(Da) 안전 조회 — 중간 노드가 dict 가 아니면 None.
+
+    드리프트 판정의 Da 입력을 만드는 유일한 경로다(링크 API·목록·주문 상세 공용).
+    반환값 정규화는 하지 않는다 — `evaluate_drift` 가 `_norm_date` 로 처리하므로
+    여기서 또 정규화하면 날짜 포맷 경로가 둘로 갈라진다.
+
+    Args:
+        sd: 주문 structured_data(None 허용).
+
+    Returns:
+        비어 있지 않은 방문일 문자열 또는 None.
+    """
+    container = _link_container(sd or {}, create=False)
+    if container is None:
+        return None
+    value = container.get("date")
+    return value if isinstance(value, str) and value.strip() else None
+
+
 def write_link(
     sd: dict,
     *,

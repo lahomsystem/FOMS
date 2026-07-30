@@ -1,0 +1,151 @@
+/* AS 기준 일정 드리프트 배너 — 주문 상세 최상단(2026-07-30).
+   선례: 도면 작업실 주문변경 배너(.dw-order-change-banner). 톤/구조만 따르고 도면 전용
+   로직·클래스는 가져오지 않는다.
+
+   이 파일은 배너 매크로(templates/orders/partials/as_drift_banner.html)가 직접 <link> 로
+   싣는다 — 배너가 붙는 세 표면 중 둘(태블릿 split 패널 · HTMX 상세 fragment)은 layout head
+   가 없어 {% block styles %} 로는 CSS 가 도착하지 않는다(project_fragment_asset_lifecycle_traps).
+   색 토큰은 erp-pro.css(전역 layout_head 로드)의 --erp-* 를 그대로 쓴다 — 목록 행 배지
+   (.erp-as-drift-badge, as-dashboard-body.css)와 같은 색이어야 두 화면이 한 시스템으로 읽힌다. */
+
+.foms-as-drift-banner {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: center;
+  justify-content: space-between;
+  gap: 10px;
+  margin-bottom: 12px;
+  padding: 12px 14px;
+  border: 1px solid transparent;
+  border-radius: var(--erp-radius, 0.5rem);
+  color: var(--erp-text-white, #fff);
+}
+
+.foms-as-drift-banner__main {
+  display: flex;
+  align-items: flex-start;
+  gap: 10px;
+  min-width: 0;
+}
+
+.foms-as-drift-banner__icon {
+  flex: none;
+  margin-top: 2px;
+  font-size: 1.1rem;
+}
+
+.foms-as-drift-banner__title {
+  font-size: 1rem;
+  font-weight: 800;
+  line-height: 1.35;
+}
+
+/* 기준 주문 고객명 + 옛 날짜 → 새 날짜. 한 줄로 읽히되 좁은 폭에선 배너 안에서 접힌다. */
+.foms-as-drift-banner__detail {
+  margin-top: 3px;
+  font-size: 0.92rem;
+  font-weight: 600;
+  line-height: 1.4;
+  overflow-wrap: anywhere;
+}
+
+/* 옛 기준일 = 더 이상 유효하지 않음(행 배지 .erp-as-drift-badge__old 와 같은 처리). */
+.foms-as-drift-banner__old {
+  font-weight: 500;
+  opacity: 0.85;
+}
+
+.foms-as-drift-banner__arrow {
+  font-weight: 500;
+  opacity: 0.85;
+}
+
+.foms-as-drift-banner__new {
+  font-weight: 800;
+}
+
+/* ref_moved: 주 케이스 — 진한 빨강 단색 채움(행 배지와 동일 톤). */
+.foms-as-drift-banner--ref_moved {
+  background: var(--erp-danger-dark, #dc2626);
+  border-color: var(--erp-danger-dark, #dc2626);
+}
+
+/* both_moved: 방문일도 따로 움직여 자동 판단이 애매 — 한 단계 낮은 긴급도의 주황. */
+.foms-as-drift-banner--both_moved {
+  background: var(--erp-warning-dark, #d97706);
+  border-color: var(--erp-warning-dark, #d97706);
+}
+
+/* ok/resolved: 조치 불필요 — 행 배지 .erp-as-drift-badge--ok 와 같은 파랑 한 줄 확인 표기. */
+.foms-as-drift-banner--ok,
+.foms-as-drift-banner--resolved {
+  background: var(--erp-primary-dark, #1d4ed8);
+  border-color: var(--erp-primary-dark, #1d4ed8);
+  padding: 8px 14px;
+}
+
+.foms-as-drift-banner--ok .foms-as-drift-banner__title,
+.foms-as-drift-banner--resolved .foms-as-drift-banner__title {
+  font-size: 0.92rem;
+  font-weight: 700;
+}
+
+/* ref_gone/acked: 조치를 요구하지 않는 회색 표기(행 배지와 동일). */
+.foms-as-drift-banner--ref_gone,
+.foms-as-drift-banner--acked {
+  background: #e9ecef;
+  border-color: #ced4da;
+  color: #495057;
+}
+
+.foms-as-drift-banner__actions {
+  display: inline-flex;
+  flex-wrap: wrap;
+  gap: 6px;
+  align-items: center;
+}
+
+.foms-as-drift-banner__action {
+  padding: 5px 12px;
+  border: 1px solid #ced4da;
+  border-radius: 6px;
+  background: #fff;
+  color: #495057;
+  font-size: 0.84rem;
+  font-weight: 700;
+  line-height: 1.4;
+  white-space: nowrap;
+  cursor: pointer;
+}
+
+.foms-as-drift-banner__action:hover:not(:disabled) {
+  background: #f1f3f5;
+}
+
+.foms-as-drift-banner__action:disabled {
+  opacity: 0.55;
+  cursor: progress;
+}
+
+/* 재적용 = 권장 조치라 강조, 연결 해제 = 파괴적이라 경고색 글자. */
+.foms-as-drift-banner__action--relink {
+  border-color: #fff;
+  background: #fff;
+  color: var(--erp-danger-dark, #dc2626);
+}
+
+.foms-as-drift-banner__action--unlink {
+  color: #b02a37;
+}
+
+/* 실패 메시지 슬롯 — 무음 실패 금지(비어 있으면 자리도 차지하지 않는다). */
+.foms-as-drift-banner__msg {
+  flex-basis: 100%;
+  margin: 0;
+  font-size: 0.86rem;
+  font-weight: 700;
+}
+
+.foms-as-drift-banner__msg:empty {
+  display: none;
+}
