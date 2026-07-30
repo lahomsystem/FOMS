@@ -196,3 +196,12 @@
     font-size: 0.8rem;
     color: #475569;
   }
+
+  /* 출고 AS 일정추천 모달 카드 본문 슬롯 — 기록 수에 따라 세로로 무한히 길어지지
+     않게 스크롤 상한만 잡는다. erp-pro.css가 아니라 여기 두는 이유: erp-pro.css는
+     전역 대용량 CSS라 범프하면 전 사용자 캐시가 무효화되고 태블릿 계약 테스트에
+     핀 값이 하드코딩돼 있다 — 이 스타일은 타임라인 컴포넌트와 수명이 같다. */
+  #shipmentAsRecommendModal .asrec-timeline-slot {
+    max-height: 250px;
+    overflow-y: auto;
+  }
