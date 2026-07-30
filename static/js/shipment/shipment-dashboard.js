@@ -142,15 +142,33 @@ var __shipDashSelectedDate = (__shipDashCfgEl && __shipDashCfgEl.dataset.selecte
         Array.prototype.forEach.call(tbody.querySelectorAll('tr.shipment-grp-row'), function (h) {
           grpHeadByKey[h.getAttribute('data-grp-key') || ''] = h;
         });
+        var desiredOrder = [];
         var lastGrpKey = null;
         rows.forEach(function (tr) {
           var gk = ((parseInt(tr.dataset.as, 10) || 0)) + '|' + (getFirstWorkerFromRow(tr) || '').trim().toLowerCase();
           if (gk !== lastGrpKey) {
             lastGrpKey = gk;
-            if (grpHeadByKey[gk]) tbody.appendChild(grpHeadByKey[gk]);
+            if (grpHeadByKey[gk]) desiredOrder.push(grpHeadByKey[gk]);
           }
-          tbody.appendChild(tr);
+          desiredOrder.push(tr);
         });
+        // 순서가 이미 목표와 동일하면 재-append 를 건너뛴다(무조건 재배치 금지).
+        // 이 함수는 construction_workers blur 로 예약(setTimeout 0)되므로, 사람 클릭의
+        // mousedown→mouseup 사이에 실행될 수 있다. 그때 행을 DOM 이동시키면 click 합성이
+        // 무효화되어 첫 클릭이 사라진다(불러오기 버튼 2클릭 버그의 근본 원인).
+        // ponytail: indexOf 멤버십 = O(n^2). 행이 수천 단위가 되면 WeakSet/Map 으로 교체.
+        var currentOrder = Array.prototype.slice
+          .call(tbody.querySelectorAll('tr.shipment-row, tr.shipment-grp-row'))
+          .filter(function (el) { return desiredOrder.indexOf(el) !== -1; });
+        var sameOrder = currentOrder.length === desiredOrder.length;
+        if (sameOrder) {
+          for (var oi = 0; oi < desiredOrder.length; oi++) {
+            if (currentOrder[oi] !== desiredOrder[oi]) { sameOrder = false; break; }
+          }
+        }
+        if (!sameOrder) {
+          desiredOrder.forEach(function (el) { tbody.appendChild(el); });
+        }
         var workerList = [];
         rows.forEach(function (tr) {
           var w = getFirstWorkerFromRow(tr);
@@ -218,9 +236,16 @@ var __shipDashSelectedDate = (__shipDashCfgEl && __shipDashCfgEl.dataset.selecte
           span.className = 'dropdown-item text-muted';
           span.textContent = '저장된 값이 없습니다.';
           div.appendChild(span);
+          div.__shipmentAnchor = anchor;
           document.body.appendChild(div);
-          function closeEmpty() { div.remove(); document.removeEventListener('click', closeEmpty); }
-          setTimeout(function () { document.addEventListener('click', closeEmpty); }, 10);
+          // 닫기는 click 이 아니라 mousedown 으로 감지한다: 버튼 mousedown 에서 열린 경우
+          // 같은 제스처의 잔여 click 이 즉시 닫아버리는 것을 막는다(mousedown 은 재발화 없음).
+          function closeEmpty(e) {
+            if (e && e.target && div.contains(e.target)) return;
+            div.remove();
+            document.removeEventListener('mousedown', closeEmpty);
+          }
+          setTimeout(function () { document.addEventListener('mousedown', closeEmpty); }, 10);
           setTimeout(function () { closeEmpty(); }, 2500);
           return;
         }
@@ -248,9 +273,16 @@ var __shipDashSelectedDate = (__shipDashCfgEl && __shipDashCfgEl.dataset.selecte
           a.addEventListener('click', function (e) { e.preventDefault(); onSelect(val); div.remove(); });
           div.appendChild(a);
         });
+        div.__shipmentAnchor = anchor;
         document.body.appendChild(div);
-        function close() { div.remove(); document.removeEventListener('click', close); }
-        setTimeout(function () { document.addEventListener('click', close); }, 10);
+        // 닫기는 mousedown 감지(위 closeEmpty 와 동일 사유). 드롭다운 내부 mousedown 은
+        // 무시해야 항목 a 의 click 이 정상 발화한다.
+        function close(e) {
+          if (e && e.target && div.contains(e.target)) return;
+          div.remove();
+          document.removeEventListener('mousedown', close);
+        }
+        setTimeout(function () { document.addEventListener('mousedown', close); }, 10);
       }
 
       var shipmentSaveQueue = Object.create(null);
@@ -623,6 +655,22 @@ var __shipDashSelectedDate = (__shipDashCfgEl && __shipDashCfgEl.dataset.selecte
         return li;
       }
 
+      // 불러오기 버튼(행 단위) 드롭다운 오픈 — mousedown/click 양쪽에서 공유한다.
+      // 같은 버튼으로 이미 열려 있으면(직전 mousedown 이 연 경우) 재오픈하지 않는다.
+      function openShipmentSavedDropdownForLoadBtn(loadBtn) {
+        var list = getShipmentEditList(loadBtn);
+        var row = loadBtn.closest('.shipment-text-row');
+        var input = row && row.querySelector('.shipment-text-input');
+        if (!list || !row || !input) return;
+        var existing = document.getElementById('shipment-saved-dropdown');
+        if (existing && existing.__shipmentAnchor === loadBtn) return;
+        showSavedDropdown(loadBtn, getShipmentEditListKey(list), function (value) {
+          input.value = value;
+          saveShipmentEditRowValue(list, row);
+          input.focus();
+        });
+      }
+
       if (!window.__shipmentDashboardDocListenersBound) {
         window.__shipmentDashboardDocListenersBound = true;
 
@@ -631,9 +679,18 @@ var __shipDashSelectedDate = (__shipDashCfgEl && __shipDashCfgEl.dataset.selecte
         });
 
         document.addEventListener('mousedown', function (e) {
-          if (!e.target.closest('.btn-remove-shipment-text-row, .shipment-btn-load-saved-text-row')) return;
+          var btn = e.target.closest('.btn-remove-shipment-text-row, .shipment-btn-load-saved-text-row');
+          if (!btn) return;
           var row = e.target.closest('.shipment-text-row');
-          if (row) row.dataset.skipBlurSave = '1';
+          // blur-save 건너뛰기는 "이 행의 input 이 실제로 포커스를 잃는" 경우에만 건다.
+          // 포커스가 다른 행/요소에 있으면 이 행엔 blur 가 오지 않아 플래그가 stale 로 남고,
+          // 다음 진짜 편집의 저장을 한 번 삼킨다(기존 잠복 데이터 유실 경로).
+          if (row && row.contains(document.activeElement)) row.dataset.skipBlurSave = '1';
+          if (!btn.classList.contains('shipment-btn-load-saved-text-row')) return;
+          // 불러오기는 mousedown 에서 즉시 연다: 같은 제스처의 blur → 행 재배치로 click 이
+          // 합성되지 않아도(2클릭 버그) 첫 클릭이 동작한다. preventDefault 로 포커스 이동 최소화.
+          e.preventDefault();
+          openShipmentSavedDropdownForLoadBtn(btn);
         }, true);
 
         document.addEventListener('click', function (e) {
@@ -686,17 +743,11 @@ var __shipDashSelectedDate = (__shipDashCfgEl && __shipDashCfgEl.dataset.selecte
 
           var loadBtn = e.target.closest('.shipment-btn-load-saved-text-row');
           if (loadBtn) {
-            var list = getShipmentEditList(loadBtn);
-            var row = loadBtn.closest('.shipment-text-row');
-            var input = row && row.querySelector('.shipment-text-input');
-            if (!list || !row || !input) return;
             e.preventDefault();
             e.stopPropagation();
-            showSavedDropdown(loadBtn, getShipmentEditListKey(list), function (value) {
-              input.value = value;
-              saveShipmentEditRowValue(list, row);
-              input.focus();
-            });
+            // 직전 mousedown 이 이미 열었으면 helper 가 no-op (키보드 Enter 등 mousedown 없는
+            // 경로에서는 여기서 열린다).
+            openShipmentSavedDropdownForLoadBtn(loadBtn);
           }
         });
 
