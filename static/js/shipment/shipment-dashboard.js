@@ -847,13 +847,21 @@ var __shipDashSelectedDate = (__shipDashCfgEl && __shipDashCfgEl.dataset.selecte
         var main = document.getElementById('main-content');
         if (!main) return;
         var fresh = main.querySelector('#shipmentAsRecommendModal');
-        if (!fresh) return;
-        var prev = window.__shipmentAsRecModalEl;
-        if (prev && prev !== fresh && prev.parentNode) {
-          prev.remove();
+        if (fresh) {
+          var prev = window.__shipmentAsRecModalEl;
+          if (prev && prev !== fresh && prev.parentNode && prev.classList.contains('show')) {
+            // 성공 후 프래그먼트 새로고침(foms:main-content-swapped)이 열려있는 모달을
+            // 지우고 빈 새 사본으로 바꾸면 사용자 눈앞에서 모달이 사라진다.
+            // 열린 모달은 그대로 두고 #main-content 의 중복 사본만 버린다(중복 id 방지).
+            fresh.remove();
+          } else {
+            if (prev && prev !== fresh && prev.parentNode) {
+              prev.remove();
+            }
+            document.body.appendChild(fresh);
+            window.__shipmentAsRecModalEl = fresh;
+          }
         }
-        document.body.appendChild(fresh);
-        window.__shipmentAsRecModalEl = fresh;
         var freshMap = main.querySelector('#scheduleMapModal');
         if (freshMap) {
           var prevMap = window.__shipmentAsRecMapModalEl;
@@ -1014,7 +1022,9 @@ var __shipDashSelectedDate = (__shipDashCfgEl && __shipDashCfgEl.dataset.selecte
             var recLng = Number(r.lng);
             var canOpenMap = Number.isFinite(targetLat) && Number.isFinite(targetLng) && Number.isFinite(recLat) && Number.isFinite(recLng);
             var timelineKey = String(t.order_id) + '-' + String(r.as_order_id);
-            html += '<div class="border rounded p-2 mb-2 small" data-as-order-id="' + escHtml(r.as_order_id) + '">';
+            // js-asrec-card: 카드 래퍼 전용 훅. 버튼도 data-as-order-id 를 갖고 있어
+            // closest('[data-as-order-id]') 로는 버튼 자신이 잡혀 .js-asrec-err 형제를 못 찾는다.
+            html += '<div class="border rounded p-2 mb-2 small js-asrec-card" data-as-order-id="' + escHtml(r.as_order_id) + '">';
             html += '<div class="row g-2 align-items-stretch">';
             html += '<div class="col-12 col-md-6 asrec-card-meta">';
             html += '<div class="fw-bold">AS #' + escHtml(r.as_order_id) + ' ' + escHtml(r.customer_name) + badge + '</div>';
@@ -1138,6 +1148,24 @@ var __shipDashSelectedDate = (__shipDashCfgEl && __shipDashCfgEl.dataset.selecte
         runChunk();
       }
 
+      // 세션 만료·권한 리다이렉트 시 서버가 HTML(로그인 페이지)을 302 후 200으로 내려줄 수 있다.
+      // r.json() 을 그대로 걸면 그 자리에서 reject 되어 실패가 조용히 사라지므로,
+      // 본문을 텍스트로 받아 방어적으로 파싱하고 실패 시 표준 실패 shape 로 폴백한다.
+      function parseJsonResponse(r) {
+        return r.text().then(function (text) {
+          var data = null;
+          try {
+            data = text ? JSON.parse(text) : null;
+          } catch (e) {
+            data = null;
+          }
+          if (!data || typeof data !== 'object') {
+            data = { success: false, message: '서버 응답 오류 (' + r.status + ')' };
+          }
+          return { ok: r.ok, status: r.status, data: data };
+        });
+      }
+
       function postApply(shipmentOrderId, asOrderId, asInfoId, force) {
         return fetch('/api/erp/shipment/as-recommendations/apply', {
           method: 'POST',
@@ -1148,11 +1176,7 @@ var __shipDashSelectedDate = (__shipDashCfgEl && __shipDashCfgEl.dataset.selecte
             as_info_id: asInfoId === '' || asInfoId == null ? null : parseInt(asInfoId, 10),
             force: !!force,
           }),
-        }).then(function (r) {
-          return r.json().then(function (data) {
-            return { ok: r.ok, status: r.status, data: data };
-          });
-        });
+        }).then(parseJsonResponse);
       }
 
       function postCancel(shipmentOrderId, asOrderId, asInfoId) {
@@ -1164,11 +1188,7 @@ var __shipDashSelectedDate = (__shipDashCfgEl && __shipDashCfgEl.dataset.selecte
             as_order_id: asOrderId,
             as_info_id: asInfoId === '' || asInfoId == null ? null : parseInt(asInfoId, 10),
           }),
-        }).then(function (r) {
-          return r.json().then(function (data) {
-            return { ok: r.ok, status: r.status, data: data };
-          });
-        });
+        }).then(parseJsonResponse);
       }
 
       if (!window.__shipmentAsRecDocListenersBound) {
@@ -1235,7 +1255,7 @@ var __shipDashSelectedDate = (__shipDashCfgEl && __shipDashCfgEl.dataset.selecte
         var applyBtn = ev.target.closest && ev.target.closest('.js-shipment-as-rec-apply');
         if (applyBtn && !applyBtn.disabled) {
           ev.preventDefault();
-          var row = applyBtn.closest('[data-as-order-id]');
+          var row = applyBtn.closest('.js-asrec-card');
           var errEl = row ? row.querySelector('.js-asrec-err') : null;
           if (errEl) errEl.textContent = '';
           var sid = parseInt(applyBtn.getAttribute('data-shipment-order-id'), 10);
@@ -1273,6 +1293,15 @@ var __shipDashSelectedDate = (__shipDashCfgEl && __shipDashCfgEl.dataset.selecte
               return;
             }
             if (errEl) errEl.textContent = msg || '적용 실패';
+          }).catch(function (err) {
+            // fetch 자체 실패(오프라인 등)·응답 파싱 실패까지 포함해 실패가 조용히
+            // 사라지지 않게 한다. errEl 이 없으면(카드 구조 변경 등) alert 로 폴백.
+            var msg = '적용 중 오류가 발생했습니다' + (err && err.message ? ' (' + err.message + ')' : '');
+            if (errEl) {
+              errEl.textContent = msg;
+            } else {
+              window.alert(msg);
+            }
           });
           return;
         }
