@@ -101,9 +101,13 @@ D0 = `schedule_link.ref_date`, Ds = 기준 주문 현재 시공일, Da = AS 현�
    - 기준 AS id 는 이미 모달 클로저에 있다: `_searchState.excludeId`(`static/js/cs/as-dashboard.js:1573`).
    - 결과 행 전체가 `<a>` 이므로 핸들러에서 `stopPropagation()` + `preventDefault()` 필수
      (지도 버튼 선례 `as-dashboard.js:1592-1596`).
-4. 성공 시 버튼 → `매칭됨`, 행에 기준 표기.
-5. 방문일 입력은 **기존 흐름 그대로**(`.editable-date-as` → `POST /api/update_order_field`).
-   매칭과 날짜 입력은 독립 — 매칭이 날짜를 바꾸지 않는다(v1).
+4. 성공 시 버튼 → `매칭됨`, 행에 기준 표기. 모달을 다시 열어도 유지된다 — 서버가
+   `.find-schedule-btn[data-linked-ref-order-id]` 로 현재 링크를 내려주고 결과 렌더가
+   그 후보를 `매칭됨`(나머지는 `매칭 변경`)으로 그린다(표시 경로는 매칭 직후와 동일 함수).
+5. 매칭은 **AS 방문일을 기준 주문 시공일(`link.ref_date`)로 자동 기록한다.** 쓰기는
+   기존 경로 그대로(`.editable-date-as` → `POST /api/update_order_field`) — 새 날짜 쓰기
+   코드·포맷을 만들지 않는다. 기존 방문일이 다르면 `confirm()` 후 덮어쓰고, 비었거나
+   같으면 묻지 않는다(같으면 요청 자체가 no-op).
 
 ### 5.2 변경 감지 후 대응
 

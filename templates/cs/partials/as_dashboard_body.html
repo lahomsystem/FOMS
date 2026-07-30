@@ -272,6 +272,7 @@
                     data-order-id="{{ r.id }}"
                     data-lat="{{ r.lat or '' }}"
                     data-lng="{{ r.lng or '' }}"
+                    data-linked-ref-order-id="{{ r.schedule_link_drift.ref_order_id or '' }}"
                     title="주변 일정 찾기" style="font-size: 0.75rem; line-height: 1.5;">
                     <i class="fas fa-map-marker-alt"></i> 일정
                   </button>
@@ -536,7 +537,7 @@
 {# 기준↔시공지 지도 공용 모듈(출고 AS 일정추천 모달과 공유). 클릭 시점 호출이라 순서 의존은
    없지만 프래그먼트 경로에도 함께 실려야 지도 버튼이 죽지 않는다. #}
 <script src="{{ url_for('static', filename='js/common/foms-schedule-map.js') }}?v=20260730g" defer></script>
-<script src="{{ url_for('static', filename='js/cs/as-dashboard.js') }}?v=20260730h" defer></script>
+<script src="{{ url_for('static', filename='js/cs/as-dashboard.js') }}?v=20260730i" defer></script>
 {# PC 12열 컬럼 폭 조절(드래그 + localStorage). 모바일은 파일 자체가 조기 반환 —
    body 파셜에 두는 이유는 CSS 와 같다(fast-tab 프래그먼트 스왑에도 함께 실려야 재초기화된다). #}
 <script src="{{ url_for('static', filename='js/cs/as-dashboard-columns.js') }}?v=20260728b" defer></script>

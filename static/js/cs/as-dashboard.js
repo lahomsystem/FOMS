@@ -1470,8 +1470,11 @@
     (function () {
       // 탭별 pre-computed 리스트 (백엔드에서 각각 계산해 내려줌)
       let _lists = { distance: [], date: [], combined: [] };
-      // 재검색 시 사용할 현재 주문 컨텍스트
-      let _searchState = { excludeId: null, lat: null, lng: null };
+      // 재검색 시 사용할 현재 주문 컨텍스트.
+      // linkedRefId = 이 AS 건에 이미 걸려 있는 기준 주문 id(서버 렌더 data-linked-ref-order-id).
+      // /api/orders/nearby 는 링크를 모르므로 이 값이 없으면 모달을 다시 열 때마다
+      // 이미 매칭된 후보가 미매칭('이 일정에 매칭')으로 그려진다.
+      let _searchState = { excludeId: null, lat: null, lng: null, linkedRefId: '' };
       // 일정찾기 성공 응답 기준 좌표 (지도 모달 출발점)
       let _refLat = null;
       let _refLng = null;
@@ -1576,6 +1579,15 @@
             ${linkBtnHtml ? '<div class="as-schedule-link-msg text-danger small mt-1" role="alert"></div>' : ''}`;
           resList.appendChild(el);
         });
+        // 기존 링크 표시는 매칭 직후와 **같은 함수**를 탄다 — 라벨/비활성/클래스를 여기서
+        // 따로 조립하면 두 구현이 반드시 갈라진다(모달 재오픈 시 '매칭됨' 소실 회귀).
+        // 링크는 있는데 후보 목록에 그 주문이 없으면 activeBtn=null → 전부 '매칭 변경'(정확한 표시).
+        if (_searchState.linkedRefId) {
+          markScheduleLinkApplied(
+            Array.from(resList.querySelectorAll('.js-as-schedule-link'))
+              .find((b) => b.dataset.refOrderId === _searchState.linkedRefId) || null
+          );
+        }
       }
 
       // API 호출 + 결과 렌더링 — 버튼 클릭/재검색 공통 사용
@@ -1677,7 +1689,12 @@
 
         const addrEl = document.getElementById('scheduleSearchAddr');
         if (addrEl) addrEl.value = addr;
-        _searchState = { excludeId: orderId, lat: btnLat, lng: btnLng };
+        _searchState = {
+          excludeId: orderId,
+          lat: btnLat,
+          lng: btnLng,
+          linkedRefId: String(btn.dataset.linkedRefOrderId || ''),
+        };
         new bootstrap.Modal(modalEl).show();
         await runSearch(addr, orderId, btnLat, btnLng);
       });
@@ -1694,7 +1711,11 @@
         });
       }
 
-      /** 매칭 성공 표시 — 누른 버튼은 '매칭됨'(비활성), 나머지는 '매칭 변경'(1 AS = 1 링크). */
+      /**
+       * 매칭 상태 표시의 단일 경로 — 누른/이미 걸린 버튼은 '매칭됨'(비활성),
+       * 나머지는 '매칭 변경'(1 AS = 1 링크). 매칭 직후와 모달 최초 렌더가 이 함수를
+       * 공유한다(renderResults 말미 호출). activeBtn=null 이면 전부 '매칭 변경'.
+       */
       function markScheduleLinkApplied(activeBtn) {
         const resList = document.getElementById('scheduleSearchResults');
         if (!resList) return;
@@ -1707,9 +1728,42 @@
         });
       }
 
+      /**
+       * 매칭 직후 AS 방문일을 기준 주문 시공일로 채운다(기존 날짜 저장 경로 재사용).
+       *
+       * 링크는 이미 저장된 뒤에 호출된다 — 여기서 실패해도 매칭 자체는 유효하므로
+       * 버튼 상태를 되돌리지 않고 안내만 남긴다(무음 실패 금지).
+       *
+       * @param {string} asOrderId 대상 AS 주문 id.
+       * @param {string} refDate 서버가 확정한 기준 주문 시공일(link.ref_date).
+       * @param {(text: string) => void} notify 사용자에게 보이는 안내 출력.
+       * @returns {Promise<boolean>} 목록 재조회로 진행해도 되는지(안내만 남겼으면 false).
+       */
+      async function writeAsVisitDateFromLink(asOrderId, refDate, notify) {
+        if (!refDate) {
+          notify('매칭은 저장됐지만 기준 일정 날짜가 비어 있어 방문일을 채우지 못했습니다.');
+          return false;
+        }
+        // 방문일 입력은 모달 뒤 대시보드 DOM에 있다. 없으면(다른 표면에서 연 모달 등)
+        // 링크만 남기고 사람이 직접 넣도록 안내한다 — 액션 전체를 실패시키지 않는다.
+        const input = getDateInputsForOrder(asOrderId, 'as_visit_date')[0];
+        if (!input) {
+          notify('매칭은 저장됐습니다. 다만 방문일 입력을 찾지 못해 ' + refDate + ' 자동 입력에 실패했습니다 — 새로고침 후 직접 입력해주세요.');
+          return false;
+        }
+        const current = input.value || '';
+        if (current && current !== refDate
+          && !window.confirm('AS 방문일이 ' + current + '로 지정돼 있습니다. 기준 일정(' + refDate + ')으로 바꿀까요?')) {
+          return true;
+        }
+        // 같은 날짜면 saveDateField 가 skipped 로 no-op 한다(요청 자체가 안 나간다).
+        await applyRefDateToAsVisit(asOrderId, refDate);
+        return true;
+      }
+
       // 결과 행 전체가 <a href="/edit/...">라 stopPropagation+preventDefault가 첫 줄이어야 한다
       // (지도 버튼 선례). 없으면 요청은 날아가지만 화면이 편집 페이지로 이탈해 결과를 못 본다.
-      addAsDashboardListener(document.body, 'click', function (e) {
+      addAsDashboardListener(document.body, 'click', async function (e) {
         const btn = e.target.closest('.js-as-schedule-link');
         if (!btn) return;
         e.stopPropagation();
@@ -1718,26 +1772,43 @@
         if (!asOrderId) return;
         const row = btn.closest('.list-group-item');
         const msgEl = row ? row.querySelector('.as-schedule-link-msg') : null;
+        function notify(text) {
+          if (msgEl) msgEl.textContent = text;
+          else showFeedback(text, true);
+        }
         if (msgEl) msgEl.textContent = '';
         btn.disabled = true;
-        postScheduleLink(asOrderId, {
-          action: 'link',
-          ref_order_id: parseInt(btn.dataset.refOrderId, 10),
-          ref_date: btn.dataset.refDate || '',
-        })
-          .then(function (res) {
-            if (!res.ok || res.data.success !== true) {
-              throw new Error(scheduleLinkErrorText(res, '매칭에 실패했습니다.'));
-            }
-            markScheduleLinkApplied(btn);
-          })
-          .catch(function (err) {
-            // 라벨은 손대지 않는다 — 실패 시 되돌리면 아이콘(<i>)까지 지워진다.
-            btn.disabled = false;
-            const text = String((err && err.message) || err || '매칭 중 오류가 발생했습니다.');
-            if (msgEl) msgEl.textContent = text;
-            else showFeedback(text, true);
+        let refDate = '';
+        try {
+          const res = await postScheduleLink(asOrderId, {
+            action: 'link',
+            ref_order_id: parseInt(btn.dataset.refOrderId, 10),
+            ref_date: btn.dataset.refDate || '',
           });
+          if (!res.ok || res.data.success !== true) {
+            throw new Error(scheduleLinkErrorText(res, '매칭에 실패했습니다.'));
+          }
+          // 서버가 기준 주문에서 다시 읽은 값이 정본(스펙 §6, 모달 stale 방지).
+          refDate = String((res.data.link && res.data.link.ref_date) || '');
+        } catch (err) {
+          // 라벨은 손대지 않는다 — 실패 시 되돌리면 아이콘(<i>)까지 지워진다.
+          btn.disabled = false;
+          notify(String((err && err.message) || err || '매칭 중 오류가 발생했습니다.'));
+          return;
+        }
+        // 여기부터 링크는 저장 완료 — 이후 실패는 '매칭됨' 표시를 되돌리지 않는다.
+        _searchState.linkedRefId = String(btn.dataset.refOrderId || '');
+        markScheduleLinkApplied(btn);
+        try {
+          if (!await writeAsVisitDateFromLink(asOrderId, refDate, notify)) return;
+        } catch (err) {
+          notify('매칭은 저장됐지만 방문일 저장에 실패했습니다: '
+            + String((err && err.message) || err || '알 수 없는 오류'));
+          return;
+        }
+        // 배지·배너 문구의 SSOT 는 서버(as_dashboard_display) — 행 액션과 같은 방식으로
+        // 목록을 다시 받아 재계산시킨다. 모달 작업(링크+방문일)이 끝난 뒤에만 이동한다.
+        window.location.href = buildAsDashboardUrl({ focus_order: asOrderId });
       });
 
       // 지도 렌더·SDK 주입·경로 조회·정리는 공용 모듈 static/js/common/foms-schedule-map.js 소관

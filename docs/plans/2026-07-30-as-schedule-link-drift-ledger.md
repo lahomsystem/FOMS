@@ -14,7 +14,7 @@
 | T5 재적용/무시/해제 액션 | DONE | 재적용=기존 `saveDateField` 재사용 + relink, 5 passed |
 | T6 출고 apply/cancel 링크 동기화 | DONE | 같은 tx 내 AS sd 변형(as_sd_mutator), 클로버 방지 가드, 28 passed |
 | T7 기존 적용분 백필 | DONE | `tools/maintenance/backfill_as_schedule_links.py`(dry-run 기본, 멱등), 로컬 대상 0건 → pytest로 멱등 증명 |
-| T8 최종 검증·커밋·푸시 | IN_PROGRESS | writer 인벤토리 3종 재생성 후 guard green |
+| T8 최종 검증·커밋·푸시 | DONE | pre_push_smoke exit 0(253 passed), 커밋 `68be7a3a` → deploy push, ci_watch 감시 |
 
 ## 검증 기록
 

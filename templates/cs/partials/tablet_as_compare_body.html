@@ -213,6 +213,7 @@
           <button type="button" class="foms-as-compare-btn find-schedule-btn"
             data-address="{{ r.address }}" data-order-id="{{ r.id }}"
             data-lat="{{ r.lat or '' }}" data-lng="{{ r.lng or '' }}"
+            data-linked-ref-order-id="{{ r.schedule_link_drift.ref_order_id or '' }}"
             title="주변 일정 찾기">
             <i class="fas fa-map-marker-alt" aria-hidden="true"></i><span>주변 일정</span>
           </button>

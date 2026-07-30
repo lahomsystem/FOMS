@@ -146,6 +146,71 @@ def test_ref_gone_row_renders_unlink_only(client):
     assert "js-as-drift-ack" not in body
 
 
+def _find_schedule_buttons(body: str) -> list[str]:
+    """렌더 본문에서 `.find-schedule-btn` 버튼 태그들만 잘라낸다(속성 검사용)."""
+    return re.findall(r"<button[^>]*find-schedule-btn[^>]*>", body)
+
+
+def test_find_schedule_btn_carries_linked_ref_order_id(client):
+    """링크가 있으면 '일정찾기' 버튼이 현재 기준 주문 id 를 들고 렌더된다.
+
+    한 응답에 PC 테이블 버튼과 모바일 카드 버튼이 함께 들어온다(as_dashboard_body 가
+    두 표면을 같이 렌더하고 CSS 로 나눈다) — 두 경로 모두를 한 번에 잠근다.
+    """
+    _login_as_admin(client)
+    ref_id = _create_ref_order(construction_date="2026-08-12")
+    _create_as_order(visit_date="2026-08-05", ref_order_id=ref_id, ref_date="2026-08-05")
+
+    body = client.get("/erp/as?tab=incomplete").get_data(as_text=True)
+
+    buttons = _find_schedule_buttons(body)
+    assert len(buttons) >= 2, buttons  # PC 테이블 + 모바일 카드
+    assert all(f'data-linked-ref-order-id="{ref_id}"' in b for b in buttons)
+
+
+def test_find_schedule_btn_has_no_ref_id_without_link(client):
+    """링크가 없으면 같은 버튼의 `data-linked-ref-order-id` 는 빈 값이다(모달 = 미매칭 표시)."""
+    _login_as_admin(client)
+    ref_id = _create_ref_order(construction_date="2026-08-12")
+    _create_as_order(visit_date="2026-08-05")
+
+    body = client.get("/erp/as?tab=incomplete").get_data(as_text=True)
+
+    buttons = _find_schedule_buttons(body)
+    assert len(buttons) >= 2, buttons
+    assert f'data-linked-ref-order-id="{ref_id}"' not in body
+    assert all('data-linked-ref-order-id=""' in b for b in buttons)
+
+
+def test_schedule_link_marking_is_a_single_shared_path():
+    """모달 최초 렌더와 매칭 직후가 같은 표시 함수(markScheduleLinkApplied)를 쓴다.
+
+    두 곳에서 라벨/비활성 상태를 따로 조립하면 재오픈 시 '매칭됨'이 소실되는 회귀가
+    다시 난다(Defect 1). 호출 지점 2곳 + 상태를 실어 나르는 `linkedRefId` 를 잠근다.
+    """
+    js = (_ROOT / "static/js/cs/as-dashboard.js").read_text(encoding="utf-8")
+
+    assert js.count("function markScheduleLinkApplied(") == 1
+    assert js.count("markScheduleLinkApplied(") == 3  # 정의 1 + 호출 2(초기 렌더·매칭 직후)
+    assert "_searchState.linkedRefId" in js
+    assert "btn.dataset.linkedRefOrderId" in js
+
+
+def test_match_writes_as_visit_date_through_existing_save_path():
+    """매칭 성공 후 방문일 자동 기록이 기존 날짜 저장 경로를 그대로 탄다(Defect 2)."""
+    js = (_ROOT / "static/js/cs/as-dashboard.js").read_text(encoding="utf-8")
+
+    assert "writeAsVisitDateFromLink(" in js
+    # 새 날짜 쓰기 fetch 를 만들지 않고 기존 헬퍼 체인을 재사용한다.
+    assert "await applyRefDateToAsVisit(asOrderId, refDate)" in js
+    assert "getDateInputsForOrder(asOrderId, 'as_visit_date')[0]" in js
+    # 기존 값이 다를 때만 확인, 입력이 없으면 링크는 유지하고 안내만 남긴다(무음 실패 금지).
+    assert "window.confirm('AS 방문일이 '" in js
+    assert "매칭은 저장됐습니다." in js
+    # 서버가 재조회한 기준일을 쓴다(클라 stale 금지, 스펙 §6).
+    assert "res.data.link && res.data.link.ref_date" in js
+
+
 def test_nearby_modal_match_button_hook_exists():
     """'이 일정에 매칭' 버튼 훅과 무음 실패 방지 배선이 JS 모듈에 살아 있어야 한다."""
     js = (_ROOT / "static/js/cs/as-dashboard.js").read_text(encoding="utf-8")
