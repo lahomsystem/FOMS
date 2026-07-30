@@ -20,6 +20,7 @@ __all__ = [
     "lahom_deposit_gold",
     "LAHOM_STANDARD_DEPOSIT_AMOUNTS",
     "queue_card_schedule_filter",
+    "meas_daypart",
     "register_erp_template_filters",
 ]
 
@@ -271,6 +272,77 @@ def queue_card_schedule_filter(order) -> dict[str, str | None]:
     )
 
 
+# 실측 시간 자유 텍스트 → 오전/오후 판정 경계 (매직넘버 금지, meas_daypart 전용)
+MEAS_AM_START_HOUR = 7
+MEAS_AM_END_HOUR = 11
+MEAS_HOUR_RE = re.compile(r'(\d{1,2})\s*(?::|시)')
+
+
+def meas_daypart(value: str | None) -> str | None:
+    """실측 대시보드 '시간' 컬럼 자유 텍스트를 오전/오후/종일로 분류한다.
+
+    입력은 실측 시간 원문("10시", "9시30분 ~10시", "12시 전 후", "오후",
+    "11:30 이후", "-" 등)이며 렌더 시 판정만 하고 저장은 하지 않는다.
+
+    판정 순서(첫 매치에서 종료, strip 후 판정):
+      1. '종일'/'all day' 포함 → 'allday'
+      2. 오전 마커(오전·AM·새벽·아침) / 오후 마커(오후·PM·저녁·밤·낮)가 문자열
+         어디든 있으면 그 값 우선. 둘 다 있으면 먼저 나온 쪽(=시작 기준) 채택.
+      3. 첫 숫자 시각(``9시``, ``11:`` 등 첫 매치, 범위/접미사는 시작값 기준)을
+         추출해 7~11시는 'am', 그 외 1~6시·12~23시는 'pm', 0시·24시 이상은 판정 불가.
+      4. 그 외(숫자 없음, '-', 빈값, '미정' 등) → 판정 불가.
+
+    Args:
+        value: 실측 시간 원문 문자열(또는 None).
+
+    Returns:
+        'am' | 'pm' | 'allday' | None(판정 불가).
+    """
+    if value is None:
+        return None
+    s = str(value).strip()
+    if not s:
+        return None
+    lower = s.lower()
+
+    if '종일' in s or 'all day' in lower:
+        return 'allday'
+
+    am_markers = ('오전', '새벽', '아침')
+    pm_markers = ('오후', '저녁', '밤', '낮')
+    hits: list[tuple[int, str]] = []
+    for marker in am_markers:
+        idx = s.find(marker)
+        if idx != -1:
+            hits.append((idx, 'am'))
+    for marker in pm_markers:
+        idx = s.find(marker)
+        if idx != -1:
+            hits.append((idx, 'pm'))
+    am_idx = lower.find('am')
+    if am_idx != -1:
+        hits.append((am_idx, 'am'))
+    pm_idx = lower.find('pm')
+    if pm_idx != -1:
+        hits.append((pm_idx, 'pm'))
+    match = MEAS_HOUR_RE.search(s)
+    if hits:
+        hits.sort(key=lambda hit: hit[0])
+        # 마커가 첫 시각보다 뒤에 있으면 범위의 종료부 마커다("10시~오후2시").
+        # 판정은 항상 시작 기준이므로 이때는 마커 대신 첫 시각 규칙을 쓴다.
+        if match is None or hits[0][0] < match.start():
+            return hits[0][1]
+
+    if not match:
+        return None
+    hour = int(match.group(1))
+    if hour <= 0 or hour >= 24:
+        return None
+    if MEAS_AM_START_HOUR <= hour <= MEAS_AM_END_HOUR:
+        return 'am'
+    return 'pm'
+
+
 def register_erp_template_filters(bp):
     """Blueprint에 ERP 템플릿 필터 등록 (Blueprint.add_app_template_filter 사용)"""
     bp.add_app_template_filter(payment_confirmed_bool, 'payment_confirmed_bool')
@@ -284,3 +356,4 @@ def register_erp_template_filters(bp):
     bp.add_app_template_filter(item_spec_w300_display, 'item_spec_w300')
     bp.add_app_template_filter(schedule_datetime_display, 'schedule_datetime_display')
     bp.add_app_template_filter(queue_card_schedule_filter, 'queue_card_schedule')
+    bp.add_app_template_filter(meas_daypart, 'meas_daypart')

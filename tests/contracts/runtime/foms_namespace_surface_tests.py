@@ -1459,6 +1459,7 @@ def test_namespaced_erp_template_filters_shim_preserves_canonical_contract() -> 
         "lahom_deposit_gold",
         "LAHOM_STANDARD_DEPOSIT_AMOUNTS",
         "queue_card_schedule_filter",
+        "meas_daypart",
         "register_erp_template_filters",
     ]
 

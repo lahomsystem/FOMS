@@ -325,6 +325,35 @@
                 color: #000000 !important;
               }
 
+              /* 실측 시간 셀: 오전/오후/종일 파스텔 배경 (색은 3개로 고정 - CSS 속성 선택자로 처리) */
+              .meas-time-cell[data-daypart="am"] {
+                background-color: #e3f2fd;
+              }
+
+              .meas-time-cell[data-daypart="pm"] {
+                background-color: #fff3e0;
+              }
+
+              .meas-time-cell[data-daypart="allday"] {
+                background-color: #e8f5e9;
+              }
+
+              /* hover 시 tr:hover 전역 회색 오버라이드(.measurement-table.table-hover>tbody>tr:hover>*)에 덮이지 않도록 유지 */
+              .table-hover tbody tr:hover td.meas-time-cell[data-daypart="am"],
+              .measurement-table tbody tr:hover td.meas-time-cell[data-daypart="am"] {
+                background-color: #e3f2fd !important;
+              }
+
+              .table-hover tbody tr:hover td.meas-time-cell[data-daypart="pm"],
+              .measurement-table tbody tr:hover td.meas-time-cell[data-daypart="pm"] {
+                background-color: #fff3e0 !important;
+              }
+
+              .table-hover tbody tr:hover td.meas-time-cell[data-daypart="allday"],
+              .measurement-table tbody tr:hover td.meas-time-cell[data-daypart="allday"] {
+                background-color: #e8f5e9 !important;
+              }
+
               .measurement-panel-list {
                 max-height: 520px;
                 overflow-y: auto;
@@ -804,7 +833,8 @@
                     {% endfor %}
                     {% if not _parts %}-{% endif %}
                   </td>
-                  <td data-label="시간" style="border-right: 1px solid #e0e0e0;">{{ meas_time or '-' }}</td>
+                  <td class="meas-time-cell" data-label="시간" data-daypart="{{ meas_time|meas_daypart or '' }}"
+                    style="border-right: 1px solid #e0e0e0;">{{ meas_time or '-' }}</td>
                   <td class="cell-wrap measurement-product-cell" data-label="제품"
                     style="border-right: 1px solid #e0e0e0;">{{ (product or
                     '-')|strip_product_w or '-' }}</td>

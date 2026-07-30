@@ -310,6 +310,18 @@
                 cell.style.verticalAlign = 'middle';
                 cell.style.textAlign = 'center';
                 cell.style.whiteSpace = 'nowrap';
+
+                /*
+                 * 실측 시간 셀 배경(오전/오후/종일)은 페이지 <style> 의 속성 선택자로 칠해지고
+                 * data-daypart 속성은 cloneNode로 그대로 보존된다. 캡처 직전 계산값을 인라인으로
+                 * 굳혀 렌더링 경로 차이에 안전하게 대비한다(담당자 셀 data-bg 복원과 동일 취지).
+                 * hex 하드코딩 대신 클론 문서 자체의 계산값을 사용해 CSS와 중복 정의하지 않는다.
+                 */
+                if (cell.classList.contains('meas-time-cell') && cell.dataset.daypart) {
+                    const win = clonedDoc.defaultView;
+                    const computedBg = win ? win.getComputedStyle(cell).backgroundColor : '';
+                    if (computedBg) cell.style.backgroundColor = computedBg;
+                }
             });
 
             const detailCell = cells[0];

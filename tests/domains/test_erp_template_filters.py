@@ -1,5 +1,6 @@
 """Tests for ERP template filters."""
 
+import pytest
 from flask import Blueprint, Flask
 
 from foms.services.erp_template_filters import (
@@ -9,6 +10,7 @@ from foms.services.erp_template_filters import (
     item_spec_w300_display,
     item_spec_w300_value,
     lahom_deposit_gold,
+    meas_daypart,
     payment_confirmed_bool,
     queue_card_schedule_filter,
     register_erp_template_filters,
@@ -148,6 +150,43 @@ def test_spec_w300_uses_composite_total_for_shipment_units() -> None:
     assert item_spec_w300_value(item) == round((5700 + 7312) / 300, 1)
 
 
+@pytest.mark.parametrize(
+    ("value", "expected"),
+    [
+        # 실제 운영 화면에서 관측된 샘플
+        ("-", None),
+        ("오후", "pm"),
+        ("12시 전 후", "pm"),
+        ("3시 이후", "pm"),
+        ("10시", "am"),
+        ("11:30 이후", "am"),
+        ("11시", "am"),
+        ("9:30", "am"),
+        ("9시30분 ~10시", "am"),
+        ("오전", "am"),
+        ("10시 30", "am"),
+        # 추가 엣지
+        (None, None),
+        ("", None),
+        ("종일", "allday"),
+        ("14:00", "pm"),
+        ("오전 12시", "am"),
+        ("낮 12시", "pm"),
+        ("미정", None),
+        ("저녁 7시", "pm"),
+        ("7시", "am"),
+        ("6시", "pm"),
+        ("0시", None),
+        # 범위 종료부 마커는 시작 시각을 뒤집지 못한다
+        ("10시~오후2시", "am"),
+        ("오전 10시~2시", "am"),
+    ],
+)
+def test_meas_daypart_classifies_free_text_time_values(value, expected) -> None:
+    """실측 대시보드 '시간' 컬럼 자유 텍스트를 오전/오후/종일로 분류한다."""
+    assert meas_daypart(value) == expected
+
+
 def test_register_erp_template_filters_registers_expected_jinja_filters() -> None:
     app = Flask(__name__)
     blueprint = Blueprint("erp_template_filters_test", __name__)
@@ -167,9 +206,11 @@ def test_register_erp_template_filters_registers_expected_jinja_filters() -> Non
         "coerce_deposit_amount",
         "lahom_deposit_gold",
         "queue_card_schedule",
+        "meas_daypart",
     ]:
         assert filter_name in app.jinja_env.filters
 
+    assert app.jinja_env.filters["meas_daypart"]("오전") == "am"
     assert app.jinja_env.filters["payment_confirmed_bool"]("true") is True
     assert app.jinja_env.filters["lahom_deposit_gold"]("라홈", 150000) is True
     assert app.jinja_env.filters["coerce_deposit_amount"]("150,000원") == 150000
