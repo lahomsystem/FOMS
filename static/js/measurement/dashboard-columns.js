@@ -20,7 +20,6 @@
     orderer:          { defaultWidth: 110, minWidth: 90 },
     address:          { defaultWidth: 190, minWidth: 150 },
     phone:            { defaultWidth: 130, minWidth: 110 },
-    measurement_date: { defaultWidth: 100, minWidth: 90 },
     meas_time:        { defaultWidth: 110, minWidth: 90 },
     product:          { defaultWidth: 190, minWidth: 150 },
     manager:          { defaultWidth: 200, minWidth: 150 }

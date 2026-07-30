@@ -61,7 +61,6 @@
             orderer: txt('td[data-field="orderer"]'),
             address: txt('td[data-field="address"]'),
             phone: txt('td[data-field="phone"]'),
-            measDate: txt('td[data-field="meas_date"]'),
             measTime: txt('td[data-field="meas_time"]'),
             product: txt('td[data-field="product"]'),
             manager: txt('td[data-field="manager"]')
@@ -125,20 +124,9 @@
         var orderer = fv.orderer != null && fv.orderer !== '' ? fv.orderer : '-';
         var addr = fv.address != null && fv.address !== '' ? fv.address : '-';
         var phone = fv.phone != null && fv.phone !== '' ? fv.phone : '-';
-        var mdate = fv.measDate != null && fv.measDate !== '' ? fv.measDate : '-';
         var mtime = fv.measTime != null && fv.measTime !== '' ? fv.measTime : '-';
         var prod = fv.product != null && fv.product !== '' ? fv.product : '-';
         var mgr = fv.manager != null && fv.manager !== '' ? fv.manager : '-';
-
-        var dateCellHtml;
-        if (mdate !== '-' && mdate !== '') {
-            dateCellHtml = escapeHtml(mdate);
-        } else if (selectedDate) {
-            dateCellHtml =
-                '<span class="badge bg-secondary me-1">' + escapeHtml(String(selectedDate)) + '</span>';
-        } else {
-            dateCellHtml = '-';
-        }
 
         tr.innerHTML =
             '<td class="text-center" data-label="상세" style="border-right: 1px solid #e0e0e0;">' +
@@ -155,9 +143,6 @@
             '</td>' +
             '<td data-field="phone" data-label="전화번호" class="editable-cell" style="border-right: 1px solid #e0e0e0;">' +
             escapeHtml(phone) +
-            '</td>' +
-            '<td data-field="meas_date" data-label="실측일" class="measurement-date-cell" style="border-right: 1px solid #e0e0e0;">' +
-            dateCellHtml +
             '</td>' +
             '<td data-field="meas_time" data-label="시간" class="editable-cell" style="border-right: 1px solid #e0e0e0;">' +
             escapeHtml(mtime) +

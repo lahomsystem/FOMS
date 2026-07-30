@@ -230,8 +230,6 @@
         clonedTable.style.fontSize = EXPORT_BODY_FONT_SIZE;
         clonedTable.style.lineHeight = '1.35';
 
-        removeExportColumn(clonedTable, 'measurement_date');
-
         var headColCount =
             clonedTable.querySelectorAll('thead tr:last-child th').length || 8;
         insertExportAssigneeGroupGaps(clonedDoc, clonedTable, headColCount);
