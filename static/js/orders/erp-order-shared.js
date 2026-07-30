@@ -1796,6 +1796,12 @@ async function erpLoadStructured(bootstrapData, options) {
         return;
     }
 
+    // DATA-01 낙관 잠금 토큰. 저장·단계 override 가 If-Match 로 되돌려 보내는 SSOT
+    // (erp-stage-override.js 와 공유). 숫자가 아니면 null — 구버전 서버(필드 없음)에서는
+    // If-Match 를 생략해 기존 동작을 유지한다(graceful degradation).
+    window.__erpLastMutationVersion =
+        typeof data.mutation_version === 'number' ? data.mutation_version : null;
+
     erpApplyAttachmentPermissionsFromBootstrap(data);
 
     const sd = data.structured_data || {};
@@ -2399,9 +2405,17 @@ async function erpSaveStructuredOnce(opts = {}) {
         // 빠져 서버가 column을 갱신하지 않아(이전 값 유지) 삭제·변경이 반영되지 않는 버그가 난다.
         const notesVal = (document.getElementById('erp-notes')?.value ?? '').trim();
 
+        // DATA-01 낙관 잠금: 로드/저장이 받은 mutation_version 을 If-Match 로 되돌려 보내
+        // 동시 편집의 lost update(items 배열 통째 교체)를 서버에서 막는다.
+        // opts.force 는 사용자가 409 후 "덮어쓰기"를 고른 재시도 → 의도적으로 생략한다.
+        const saveHeaders = { 'Content-Type': 'application/json' };
+        if (opts.force !== true && typeof window.__erpLastMutationVersion === 'number') {
+            saveHeaders['If-Match'] = String(window.__erpLastMutationVersion);
+        }
+
         const res = await fetch(`/api/orders/${targetId}/structured`, {
             method: 'PUT',
-            headers: { 'Content-Type': 'application/json' },
+            headers: saveHeaders,
             body: JSON.stringify({
                 // DATA-01: provenance(raw_order_text/schema_version/confidence)는 전송하지 않는다.
                 // 서버가 원본 파싱 provenance 를 보존한다(client overwrite 금지).
@@ -2415,10 +2429,28 @@ async function erpSaveStructuredOnce(opts = {}) {
             })
         });
         const data = await res.json();
+        // 409(VERSION_CONFLICT): 데이터 보존이 최우선 — 여기서 절대 erpLoadStructured()나
+        // 폼 리셋을 호출하지 않는다(사용자가 입력한 내용이 화면에 그대로 남아야 한다).
+        if (res.status === 409 && opts.force !== true) {
+            const wantsOverwrite = confirm(
+                '다른 사용자가 이 주문을 먼저 수정했습니다.\n' +
+                '내 입력으로 덮어쓸까요?\n\n' +
+                '(취소하면 저장하지 않고 입력한 내용을 그대로 둡니다)'
+            );
+            if (!wantsOverwrite) {
+                erpSetStatus('저장하지 않았습니다. 입력한 내용은 그대로 남아 있습니다.', true);
+                return { success: false, message: '다른 사용자의 수정과 충돌해 저장하지 않았습니다.' };
+            }
+            // 덮어쓰기 재시도는 1회뿐 — force 호출에서 또 409 가 나면 아래 실패 경로로 간다.
+            return await erpSaveStructuredOnce({ ...opts, force: true });
+        }
         if (!data.success) {
             erpSetStatus(data.message || '저장 실패', true);
             return { success: false, message: data.message || '저장 실패' };
         }
+        // 다음 저장이 stale 토큰으로 나가 무조건 409 가 되는 것을 막는다.
+        window.__erpLastMutationVersion =
+            typeof data.mutation_version === 'number' ? data.mutation_version : null;
         erpSetStatus(doRedirect ? '저장 완료! 이동합니다...' : '저장 완료');
         // 명시 저장(승격) 성공 → 자동저장 모듈이 로컬/세션 draft 흔적을 정리하도록 알림.
         try { document.dispatchEvent(new Event('erp:order-saved')); } catch (_e) {}
@@ -5205,9 +5237,21 @@ async function erpApproveQuestTeam(team) {
             if (data.auto_transitioned && data.next_stage) {
                 const nextStageLabel = erpLabel(ERP_STAGE_LABELS, data.next_stage, data.next_stage);
                 erpSetQuestStatus(`✅ 모든 팀 승인 완료! 다음 단계(${nextStageLabel})로 자동 전환되었습니다.`);
-                setTimeout(() => {
-                    erpLoadQuest(); // 새 Quest 로드
-                    erpLoadStructured(); // structured_data도 새로고침
+                setTimeout(async () => {
+                    erpLoadQuest(); // 새 Quest 로드(폼을 건드리지 않으므로 무조건)
+                    // 미저장 편집이 있으면 서버 재조회로 DOM(사용자 입력)을 덮어쓰지 않는다.
+                    // dirty가 아닐 때만 structured_data를 새로고침(탭 복귀 가드와 동일 패턴).
+                    var _autosave = window.fomsErpAutosave;
+                    var _erpDirty = _autosave && typeof _autosave.isDirty === 'function'
+                        ? _autosave.isDirty() : false;
+                    if (!_erpDirty) {
+                        await erpLoadStructured();
+                        if (_autosave && typeof _autosave.recaptureBaseline === 'function') {
+                            _autosave.recaptureBaseline();
+                        }
+                    } else {
+                        erpSetQuestStatus('미저장 입력이 있어 화면 새로고침을 건너뛰었습니다. 저장 후 새로고침하세요.', true);
+                    }
                 }, 1500);
             } else {
                 erpSetQuestStatus('✅ 모든 팀 승인 완료!');

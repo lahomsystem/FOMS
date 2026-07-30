@@ -46,7 +46,12 @@ from foms.services.order_geocode import reset_order_geocode_on_address_change
 from foms.services.feature_flags import env_bool
 from foms.services.erp_inline_patch import apply_field_patch, is_critical_field
 from foms.services.order_draft_service import format_updated_at, parse_updated_at
-from foms.services.orders.revision import RevisionError, execute_order_mutation
+from foms.services.orders.revision import (
+    PreconditionRequiredError,
+    RevisionConflictError,
+    RevisionError,
+    execute_order_mutation,
+)
 from foms.services.orders.structured_form_projection import project_structured_form
 
 #: structured PUT 저장의 mutation 정책 id(receipt policy_id·OrderEvent scope). AUTH-01 manifest
@@ -928,6 +933,31 @@ def api_put_order_structured(order_id):
                 mutation=_mutate,
             )
             db.commit()
+        except RevisionConflictError as conflict:
+            # 동시편집 충돌은 정상 운영 흐름이므로 exception 이 아니라 info 로 남긴다.
+            # 클라이언트는 409 + current.mutation_version 으로 덮어쓰기 여부를 사용자에게 묻는다.
+            db.rollback()
+            logger.info(
+                "[ERP_ORDER] structured PUT version conflict: order=%s expected=%s current=%s",
+                order_id, expected_versions, conflict.current_versions,
+            )
+            return jsonify({
+                'success': False,
+                'error': 'VERSION_CONFLICT',
+                # STATE-FORM 기존 계약(code) 유지 — error/current 는 추가 필드다.
+                'code': conflict.error_code,
+                'message': '다른 사용자가 이 주문을 먼저 수정했습니다.',
+                'current': {'mutation_version': conflict.current_versions.get(order_id)},
+            }), 409
+        except PreconditionRequiredError as precondition:
+            db.rollback()
+            logger.warning("[ERP_ORDER] structured PUT If-Match 누락: %s", precondition)
+            return jsonify({
+                'success': False,
+                'error': 'IF_MATCH_REQUIRED',
+                'code': precondition.error_code,
+                'message': '최신 주문 상태를 다시 불러온 뒤 저장해주세요.',
+            }), 428
         except RevisionError as rev:
             db.rollback()
             return jsonify(

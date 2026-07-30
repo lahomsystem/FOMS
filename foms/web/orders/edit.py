@@ -413,6 +413,10 @@ def _build_erp_order_bootstrap(order, user=None):
         'structured_schema_version': getattr(order, 'structured_schema_version', None),
         'structured_confidence': getattr(order, 'structured_confidence', None),
         'structured_updated_at': updated_at_str,
+        # DATA-01: If-Match(mutation_version) 낙관 잠금 토큰. GET /structured 와 동일 —
+        # 이게 빠지면 bootstrap 으로 첫 페인트한 세션의 첫 저장이 If-Match 없이 나가
+        # 낙관 잠금이 무력화된다.
+        'mutation_version': getattr(order, 'mutation_version', None),
         'received_date': order.received_date or '',
         'received_time': order.received_time or '',
         'notes': order.notes or '',

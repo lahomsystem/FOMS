@@ -942,6 +942,99 @@ def test_structured_put_blocks_accidental_stage_regression_drawing_to_measure(cl
     assert hist[0].get("action") == "ERP_ORDER_CHANGED"
 
 
+def _mute_structured_side_effects(monkeypatch):
+    """PUT 낙관 잠금 테스트에서 저장 부수효과(이벤트/알림/지오코딩)를 제거한다."""
+    monkeypatch.setattr(erp_orders_structured, "_record_structured_events", lambda *a, **k: None)
+    monkeypatch.setattr(erp_orders_structured, "_apply_structured_side_effects", lambda *a, **k: None)
+    monkeypatch.setattr(erp_orders_structured, "_finalize_draft_state", lambda *a, **k: False)
+    monkeypatch.setattr(erp_orders_structured, "sync_erp_flat_columns", lambda *a, **k: None)
+    monkeypatch.setattr(erp_orders_structured, "enqueue_geocode_order_address", lambda *a, **k: None)
+
+
+def test_structured_put_stale_if_match_returns_409_not_500(client, monkeypatch):
+    """stale If-Match 는 500(generic 예외)이 아니라 409 VERSION_CONFLICT + 서버 현재 버전."""
+    _login_as_admin(client, username="erp-ifmatch-conflict")
+    _mute_structured_side_effects(monkeypatch)
+    order = _create_order()
+    order_id = order.id
+    sd = copy.deepcopy(order.structured_data)
+
+    first = client.put(
+        f"/api/orders/{order_id}/structured",
+        json={"structured_data": sd, "structured_schema_version": 1},
+    )
+    assert first.status_code == 200
+    current_version = first.get_json()["mutation_version"]
+    assert isinstance(current_version, int)
+
+    stale = client.put(
+        f"/api/orders/{order_id}/structured",
+        json={"structured_data": sd, "structured_schema_version": 1},
+        headers={"If-Match": str(current_version - 1)},
+    )
+
+    assert stale.status_code == 409, stale.get_data(as_text=True)
+    payload = stale.get_json()
+    assert payload["success"] is False
+    assert payload["error"] == "VERSION_CONFLICT"
+    assert payload["current"]["mutation_version"] == current_version
+
+    db_session.expire_all()
+    assert db_session.get(Order, order_id).mutation_version == current_version
+
+
+def test_structured_put_matching_if_match_bumps_mutation_version(client, monkeypatch):
+    """올바른 If-Match 는 200 + 요청한 값보다 큰 mutation_version 을 돌려준다."""
+    _login_as_admin(client, username="erp-ifmatch-ok")
+    _mute_structured_side_effects(monkeypatch)
+    order = _create_order()
+    order_id = order.id
+    sd = copy.deepcopy(order.structured_data)
+
+    expected = client.get(f"/api/orders/{order_id}/structured").get_json()["mutation_version"]
+    assert isinstance(expected, int)
+
+    response = client.put(
+        f"/api/orders/{order_id}/structured",
+        json={"structured_data": sd, "structured_schema_version": 1},
+        headers={"If-Match": str(expected)},
+    )
+
+    assert response.status_code == 200, response.get_data(as_text=True)
+    assert response.get_json()["mutation_version"] > expected
+
+
+def test_structured_put_without_if_match_still_saves(client, monkeypatch):
+    """하위 호환: If-Match 미전송 저장은 그대로 200(전역 강제는 REV_IF_MATCH_ENFORCED 몫)."""
+    _login_as_admin(client, username="erp-ifmatch-absent")
+    _mute_structured_side_effects(monkeypatch)
+    order = _create_order()
+    order_id = order.id
+
+    response = client.put(
+        f"/api/orders/{order_id}/structured",
+        json={
+            "structured_data": copy.deepcopy(order.structured_data),
+            "structured_schema_version": 1,
+        },
+    )
+
+    assert response.status_code == 200
+    assert response.get_json()["success"] is True
+
+
+def test_erp_order_bootstrap_exposes_mutation_version(client):
+    """bootstrap payload 는 GET /structured 와 동일하게 If-Match 토큰을 포함해야 한다."""
+    from foms.web.orders.edit import _build_erp_order_bootstrap
+
+    _login_as_admin(client, username="erp-bootstrap-ifmatch")
+    order = _create_order()
+
+    bootstrap = _build_erp_order_bootstrap(order)
+    assert bootstrap["mutation_version"] == order.mutation_version
+    assert isinstance(bootstrap["mutation_version"], int)
+
+
 def test_pin_form_stage_to_server_unit():
     """STATE-FORM-01: 폼 payload 의 stage 는 방향 무관 서버 단계로 고정된다(전이 0)."""
     from foms.api.erp_orders_structured import _pin_form_stage_to_server
