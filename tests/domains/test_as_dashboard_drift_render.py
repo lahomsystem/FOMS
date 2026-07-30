@@ -141,6 +141,10 @@ def test_ref_unchanged_shows_no_banner(client):
     body = resp.get_data(as_text=True)
     assert "as-schedule-drift-banner" not in body
     assert "erp-as-drift-badge--ref_moved" not in body
+    # 매칭 정상 상태도 눈에 띄어야 한다 — 아웃라인 칩은 AS 상태별 행 배경색에 묻혀
+    # "매칭됨"이 안 보인다는 신고로 파랑 단색 + 링크 아이콘으로 바꿨다(경고 2색과 대비).
+    assert "erp-as-drift-badge--ok" in body
+    assert "fa-link erp-as-drift-badge__icon" in body
 
 
 def test_ref_deleted_shows_grey_badge_and_banner_excludes_it(client):

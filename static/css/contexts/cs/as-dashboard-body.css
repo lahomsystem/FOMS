@@ -601,14 +601,16 @@
   }
 
   /* ok: 기준과 일치(정상) · resolved: 방문일을 이미 새 기준에 맞춰 렌더 시엔 경고를 내지 않는다
-     (스펙 §4 — 실제 ref_date 자동 갱신은 다음 링크 API 호출 때). 경고가 아니므로 채움 없는
-     아웃라인 칩으로 조용하게 — ref_moved/both_moved 의 단색 채움과 대비를 준다. */
+     (스펙 §4 — 실제 ref_date 자동 갱신은 다음 링크 API 호출 때).
+     2026-07-30 2차: 아웃라인 칩은 행 배경색(AS 상태별 분홍·노랑 등)에 묻혀 "매칭됨"이
+     안 보인다는 신고 반영 — 파랑 단색으로 바꿔 행 배경과 무관하게 뜨게 한다. 경고 2색
+     (빨강 ref_moved · 주황 both_moved)과 색상환에서 멀어 상태 혼동도 없다. */
   .erp-as-drift-badge--ok,
   .erp-as-drift-badge--resolved {
-    background: transparent;
-    border-color: var(--erp-border, #ced4da);
-    color: #495057;
-    font-weight: 600;
+    background: var(--erp-primary-dark);
+    border-color: var(--erp-primary-dark);
+    color: var(--erp-text-white);
+    font-weight: 700;
   }
 
   /* 2026-07-30 T5: 드리프트 행 액션(재적용/무시/연결 해제).
