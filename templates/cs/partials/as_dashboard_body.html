@@ -1,10 +1,10 @@
 {# foms-kv-rollout: erp_mobile_shell → kv-copy.js + queue card foms_order_contact_kv #}
-{% from 'cs/partials/as_card_macros.html' import render_as_orderer_line, render_as_construction_workers, render_as_timeline_cell, render_as_billing_badge, render_as_schedule_drift_badge %}
+{% from 'cs/partials/as_card_macros.html' import render_as_orderer_line, render_as_construction_workers, render_as_timeline_cell, render_as_billing_badge, render_as_schedule_drift_badge, render_as_drift_jump_chip %}
 
 {# AS 타임라인 공용 컴포넌트(SSOT) — 컨텍스트 오버라이드(as-dashboard-body.css)보다 먼저 로드해
    캐스케이드 순서를 지킨다(컴포넌트 → 컨텍스트 오버라이드). #}
 <link rel="stylesheet" href="{{ url_for('static', filename='css/components/foms-as-timeline.css') }}?v=20260730b">
-<link rel="stylesheet" href="{{ url_for('static', filename='css/contexts/cs/as-dashboard-body.css') }}?v=20260730d">
+<link rel="stylesheet" href="{{ url_for('static', filename='css/contexts/cs/as-dashboard-body.css') }}?v=20260730e">
 {# 카드 CSS는 body 파셜에 둔다 → fast-tab 프래그먼트 스왑(as_dashboard_fragment.html)에도
    함께 실려, 탭 이동 첫 진입에서 카드가 원시(미스타일)로 뜨는 FOUC를 막는다.
    (head_extra 전용이면 전체 새로고침 전까지 카드 CSS가 누락된다) #}
@@ -42,14 +42,28 @@
   </div>
 
   {# 기준 일정 드리프트 배너 — 렌더된 행 집합 기준(스펙 §8, 전체 미완료 AS 스캔 아님)이라
-     문구도 "현재 목록에서"로 정직하게 쓴다. 재적용/무시/해제 액션은 T5 소관이라 여기선
-     상태 안내만(마크업/톤은 도면 배너 templates/drawing/partials/workbench_detail_body.html
-     의 dw-order-change-banner를 참조하되 AS 전용 클래스로 분리). #}
-  {% if drift_count %}
-  <div class="erp-pro-card mb-3 as-schedule-drift-banner" id="as-schedule-drift-banner">
-    <div class="card-body py-3 d-flex align-items-center gap-2">
+     문구도 "현재 목록에서"로 정직하게 쓴다. 행 액션(재적용/무시/해제)은 행 배지가 소유하고
+     배너는 "누구인지 + 거기로 데려다주기"만 한다 — 건수만 알려주던 첫 배포판은 목록에서
+     빨간 배지를 손으로 찾아야 했다(실사용 피드백).
+     톤은 행 배지(.erp-as-drift-badge--ref_moved)·주문 상세 배너(.foms-as-drift-banner)와
+     같은 --erp-danger-dark 단색 채움. erp-pro-card 를 쓰지 않는 이유: 모바일 v2 코호트에서
+     foms-as-mobile-card.css 가 .erp-pro-card 를 background:transparent 로 덮어(더 높은
+     명시도 + 늦은 로드) 흰 글자만 남는다. #}
+  {% if drift_banner and drift_banner.count %}
+  <div class="as-schedule-drift-banner mb-3" id="as-schedule-drift-banner" role="alert">
+    <div class="as-schedule-drift-banner__head">
       <i class="fas fa-exclamation-triangle as-schedule-drift-banner__icon" aria-hidden="true"></i>
-      <span class="fw-semibold">현재 목록에서 기준 일정이 변경된 AS {{ drift_count }}건</span>
+      <span class="as-schedule-drift-banner__title">현재 목록에서 기준 일정이 변경된 AS {{ drift_banner.count }}건</span>
+    </div>
+    <div class="as-schedule-drift-banner__chips">
+      {% for chip in drift_banner.chips %}
+      {{ render_as_drift_jump_chip(chip, 'as-row-', 'd-none d-md-inline-flex') }}
+      {{ render_as_drift_jump_chip(chip, 'as-card-', 'd-inline-flex d-md-none') }}
+      {% endfor %}
+      {# 상한 초과분은 반드시 문구로 밝힌다 — 조용한 절단 금지. #}
+      {% if drift_banner.overflow %}
+      <span class="as-schedule-drift-banner__overflow">외 {{ drift_banner.overflow }}건</span>
+      {% endif %}
     </div>
   </div>
   {% endif %}
@@ -226,7 +240,9 @@
           <tbody>
             {% if rows %}
             {% for r in rows %}
-            <tr data-order-id="{{ r.id }}">
+            {# id: 드리프트 배너 점프 칩(`#as-row-<id>`)의 앵커 + `:target` 하이라이트 대상.
+               모바일 카드는 `as-card-<id>`로 따로 잡는다(중복 id 금지 — 매크로 주석 참조). #}
+            <tr id="as-row-{{ r.id }}" data-order-id="{{ r.id }}">
               <td>
                 {% if can_edit_erp|default(false) %}
                 <a href="{{ url_for('order_edit.edit_order', order_id=r.id) }}?open=erp-order" class="erp-pro-link">#{{

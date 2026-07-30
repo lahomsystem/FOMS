@@ -329,6 +329,9 @@ def apply_timeline_cell_text(view: dict[str, Any]) -> None:
 
 
 _DRIFT_WARN_STATES = ("ref_moved", "both_moved")
+# 배너 점프 칩 상한. 100행 페이지 전부가 드리프트면 칩 벽이 목록을 밀어내므로 접는다 —
+# 접었을 때는 반드시 "외 N건"을 함께 낸다(조용한 절단은 지금의 숫자만 있는 배너보다 나쁘다).
+_DRIFT_BANNER_CHIP_LIMIT = 5
 
 
 def _collect_schedule_link_ref_ids(rows) -> set[int]:
@@ -471,11 +474,36 @@ def build_schedule_link_drift(structured_data: Any, db: Any) -> dict:
     return _evaluate_link_drift(link, ref_snapshot, read_as_visit_date(sd))
 
 
-def apply_schedule_link_drift_fields(rows, db: Any) -> int:
-    """행마다 `schedule_link_drift` 를 부착하고, 경고가 필요한 건수를 반환한다.
+def _drift_banner_chip(row: Any, drift: dict) -> dict[str, Any]:
+    """경고 상태 행 1건 → 배너 점프 칩 데이터(고객명 · id · 옛 기준일 → 새 기준일).
+
+    칩이 부르는 이름은 **그 AS 건 자신의 고객명**이다(기준 주문 고객명이 아니다) —
+    배너는 "어느 AS 를 손봐야 하나"를 답해야 하고, 목록에서 눈으로 찾는 단서도 AS 행의
+    고객명이다. 기준 주문 쪽 표기는 행 배지(`ref_label`)가 이미 담당한다.
+
+    Args:
+        row: 현재 페이지 Order(고객명·id 소유).
+        drift: `_evaluate_link_drift` 결과(M/D 표시 파생 필드 포함).
+
+    Returns:
+        템플릿이 그대로 배치하는 dict — `order_id`/`customer_name`/`old_md`/`new_md`/`state`.
+        고객명이 비어 있으면 빈 문자열(템플릿이 `#id` 만 낸다).
+    """
+    return {
+        "order_id": int(row.id),
+        "customer_name": str(getattr(row, "customer_name", "") or "").strip(),
+        "old_md": drift.get("ref_date_md") or "",
+        "new_md": drift.get("ref_current_date_md") or "",
+        "state": drift.get("state"),
+    }
+
+
+def apply_schedule_link_drift_fields(rows, db: Any) -> dict[str, Any]:
+    """행마다 `schedule_link_drift` 를 부착하고, 상단 배너용 요약을 반환한다.
 
     렌더된 행 집합에 한정해 기준 주문을 `in_()` 1회 배치 조회한다(전체 미완료 AS
     스캔 없음 — 스펙 §8). 읽기 전용: DB write 없음(`resolved` 자동 갱신은 여기서 하지 않는다).
+    배너 칩(누가 영향받았나)도 **이 한 번의 루프**에서 함께 모은다 — 재평가·재조회 없음.
 
     Args:
         rows: structured_data 가 이미 dict 로 정규화되고 `as_visit_date` 가 채워진
@@ -483,19 +511,24 @@ def apply_schedule_link_drift_fields(rows, db: Any) -> int:
         db: SQLAlchemy 세션.
 
     Returns:
-        state 가 `ref_moved`/`both_moved` 인 행 개수(배너용 `drift_count`).
+        `{"count": 경고 행 총수, "chips": 상한(_DRIFT_BANNER_CHIP_LIMIT)까지의 칩 리스트,
+        "overflow": 칩으로 못 낸 나머지 건수}`. 경고가 없으면 count=0(템플릿이 배너 생략).
     """
     ref_ids = _collect_schedule_link_ref_ids(rows)
     ref_snapshot = _batch_load_ref_schedule_snapshot(ref_ids, db)
-    drift_count = 0
+    chips: list[dict[str, Any]] = []
     for r in rows:
         drift = _evaluate_link_drift(
             read_link(r.structured_data), ref_snapshot, getattr(r, "as_visit_date", None)
         )
         r.schedule_link_drift = drift
         if drift["state"] in _DRIFT_WARN_STATES:
-            drift_count += 1
-    return drift_count
+            chips.append(_drift_banner_chip(r, drift))
+    return {
+        "count": len(chips),
+        "chips": chips[:_DRIFT_BANNER_CHIP_LIMIT],
+        "overflow": max(len(chips) - _DRIFT_BANNER_CHIP_LIMIT, 0),
+    }
 
 
 def apply_as_dashboard_row_display_fields(rows, db, *, mobile_v2_active):
@@ -512,7 +545,9 @@ def apply_as_dashboard_row_display_fields(rows, db, *, mobile_v2_active):
         mobile_v2_active: ERP mobile v2 cohort 활성 여부(썸네일 게이트).
 
     Returns:
-        `schedule_link_drift.state` 가 `ref_moved`/`both_moved` 인 행 개수(배너 `drift_count`).
+        상단 배너 요약 dict(`apply_schedule_link_drift_fields` 반환값 그대로 —
+        `count`/`chips`/`overflow`). 단건 렌더 호출부(카드 상세·타임라인 fragment)는
+        배너를 그리지 않으므로 이 값을 버려도 된다.
     """
     for r in rows:
         r.structured_data = _ensure_dict(r.structured_data)  # type: ignore[assignment]

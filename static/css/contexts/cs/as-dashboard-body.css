@@ -524,14 +524,136 @@
   }
 
   /* 2026-07-30 T4: 기준 일정 드리프트 배너 + 행 배지(스펙 §4 판정표).
-     배너는 도면 주문변경 배너(dw-order-change-banner)와 같은 erp-pro-card 톤을 쓰되
-     AS 전용 클래스로 분리한다(재적용/무시/해제 액션은 T5가 여기에 이어 붙인다). */
+     2026-07-30 2차: "몇 건인지만 알려주고 어느 건인지는 안 알려준다"는 신고 반영 —
+     배너가 대상 AS 를 칩으로 호명하고 클릭하면 그 행/카드로 점프한다.
+     채움은 행 배지(.erp-as-drift-badge--ref_moved)·주문 상세 배너(.foms-as-drift-banner)와
+     같은 --erp-danger-dark 단색: 세 표면이 한 시스템으로 읽혀야 한다.
+     erp-pro-card 를 안 쓰는 이유는 템플릿 주석 참조(모바일 v2 코호트가 그 클래스를
+     background:transparent 로 덮어 흰 글자만 남는다). */
   .as-schedule-drift-banner {
-    border-left: 4px solid var(--erp-danger);
+    padding: 12px 14px;
+    border-radius: var(--erp-radius-lg, 0.75rem);
+    background: var(--erp-danger-dark);
+    color: var(--erp-text-white);
+  }
+
+  .as-schedule-drift-banner__head {
+    display: flex;
+    align-items: center;
+    gap: 8px;
   }
 
   .as-schedule-drift-banner__icon {
-    color: var(--erp-danger);
+    flex: none;
+    font-size: 1.05rem;
+  }
+
+  .as-schedule-drift-banner__title {
+    font-size: 1rem;
+    font-weight: 800;
+    line-height: 1.35;
+  }
+
+  /* 칩 줄 — 모바일에서도 가로 스크롤 없이 배너 안에서 접힌다(wrap). */
+  .as-schedule-drift-banner__chips {
+    display: flex;
+    flex-wrap: wrap;
+    align-items: center;
+    gap: 6px;
+    margin-top: 8px;
+  }
+
+  .as-schedule-drift-banner__overflow {
+    font-size: 0.86rem;
+    font-weight: 700;
+    opacity: 0.9;
+  }
+
+  /* 점프 칩 = 흰 알약 + 빨간 글자(배너 채움색 위에서 가장 큰 대비, 눌리는 것처럼 보인다). */
+  .as-drift-chip {
+    align-items: center;
+    gap: 4px;
+    max-width: 100%;
+    padding: 4px 10px;
+    border-radius: 999px;
+    background: var(--erp-text-white);
+    color: var(--erp-danger-dark);
+    font-size: 0.86rem;
+    font-weight: 700;
+    line-height: 1.3;
+    text-decoration: none;
+    overflow-wrap: anywhere;
+  }
+
+  .as-drift-chip:hover,
+  .as-drift-chip:focus-visible {
+    color: var(--erp-danger-dark);
+    filter: brightness(0.94);
+  }
+
+  /* both_moved 는 행 배지와 같은 주황 계열 글자로 상태를 구분한다(칩 배경은 흰색 유지). */
+  .as-drift-chip--both_moved {
+    color: var(--erp-warning-dark);
+  }
+
+  .as-drift-chip--both_moved:hover,
+  .as-drift-chip--both_moved:focus-visible {
+    color: var(--erp-warning-dark);
+  }
+
+  .as-drift-chip__id {
+    opacity: 0.75;
+    font-weight: 600;
+  }
+
+  .as-drift-chip__old {
+    font-weight: 500;
+    opacity: 0.7;
+  }
+
+  .as-drift-chip__arrow {
+    font-weight: 500;
+    opacity: 0.7;
+  }
+
+  .as-drift-chip__new {
+    font-weight: 800;
+  }
+
+  /* 점프 착지 하이라이트 — 칩은 순수 해시 링크라 JS 가 없다. `:target` 이 그 자리를 대신한다.
+     배경색을 쓰지 않는 이유: AS 상태별 셀/행 배경(.erp-as-visit-cell--set 등)이 !important 라
+     애니메이션조차 이긴다. box-shadow/outline 은 그 경합 밖이라 어떤 행에서도 똑같이 보인다.
+     스크롤 여백은 각 표면의 고정 헤드(표는 sticky th, 모바일은 셸 헤더)만큼 확보한다. */
+  #as-dashboard-table tbody tr[id^='as-row-'] {
+    scroll-margin-top: 48px;
+  }
+
+  #as-dashboard-table tbody tr:target > td {
+    box-shadow:
+      inset 0 3px 0 var(--erp-danger-dark),
+      inset 0 -3px 0 var(--erp-danger-dark);
+    animation: as-drift-target-flash 0.9s ease-out 2;
+  }
+
+  .erp-as-mobile-card {
+    scroll-margin-top: 84px;
+  }
+
+  .erp-as-mobile-card:target {
+    outline: 3px solid var(--erp-danger-dark);
+    outline-offset: 2px;
+    animation: as-drift-target-flash 0.9s ease-out 2;
+  }
+
+  /* spread 를 크게 준 inset 그림자는 배경색과 무관하게 셀/카드 전면을 물들였다가 빠진다. */
+  @keyframes as-drift-target-flash {
+    from {
+      box-shadow: inset 0 0 0 200px rgba(220, 38, 38, 0.32);
+    }
+
+    to {
+      box-shadow: inset 0 0 0 0 rgba(220, 38, 38, 0);
+    }
   }
 
   /* 2026-07-30 가독성 개선: 배지가 비용 배지(.erp-as-billing-badge)와 같은 각주급

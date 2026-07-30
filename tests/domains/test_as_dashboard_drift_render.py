@@ -58,8 +58,15 @@ def _create_ref_order(
     return order.id
 
 
-def _create_as_order(*, visit_date: str, ref_order_id: int, ref_date: str) -> int:
-    """AS 주문 시드 — `schedule.as_visit.schedule_link`을 직접 심는다(write_link 출력 형태)."""
+def _create_as_order(
+    *, visit_date: str, ref_order_id: int, ref_date: str,
+    customer_name: str = "드리프트 AS 고객",
+) -> int:
+    """AS 주문 시드 — `schedule.as_visit.schedule_link`을 직접 심는다(write_link 출력 형태).
+
+    customer_name 은 배너 점프 칩이 **그 AS 건 자신의** 고객명을 부르는지 검증하기 위해
+    override 가능하다(기준 주문 고객명과 구분되어야 한다).
+    """
     schedule_link = {
         "ref_order_id": ref_order_id,
         "ref_kind": "construction",
@@ -72,7 +79,7 @@ def _create_as_order(*, visit_date: str, ref_order_id: int, ref_date: str) -> in
     }
     order = Order(
         received_date=_TODAY,
-        customer_name="드리프트 AS 고객",
+        customer_name=customer_name,
         phone="010-2222-3333",
         address="Seoul",
         product="붙박이장",
@@ -159,3 +166,83 @@ def test_ref_deleted_shows_grey_badge_and_banner_excludes_it(client):
     body = resp.get_data(as_text=True)
     assert "erp-as-drift-badge--ref_gone" in body
     assert "as-schedule-drift-banner" not in body
+
+
+# ---------------------------------------------------------------------------
+# 배너 점프 칩 (2026-07-30 UX 보강) — "몇 건"만이 아니라 "어느 건"을 부르고 거기로 보낸다.
+# ---------------------------------------------------------------------------
+
+
+def test_banner_chip_names_the_affected_order_and_links_to_its_row(client):
+    """배너 칩이 대상 AS 의 고객명·id·두 날짜를 담고, href 앵커가 같은 응답에 실제로 있다."""
+    _login_as_admin(client)
+    ref_id = _create_ref_order(construction_date="2026-08-12")
+    as_id = _create_as_order(
+        visit_date="2026-08-05", ref_order_id=ref_id, ref_date="2026-08-05",
+        customer_name="김영희",
+    )
+
+    resp = client.get("/erp/as?tab=incomplete")
+
+    assert resp.status_code == 200
+    body = resp.get_data(as_text=True)
+    # 칩: 고객명 + id + 옛 날짜 → 새 날짜
+    assert '<span class="as-drift-chip__name">김영희</span>' in body
+    assert f'<span class="as-drift-chip__id">#{as_id}</span>' in body
+    assert '<s class="as-drift-chip__old">8/5</s>' in body
+    assert '<strong class="as-drift-chip__new">8/12</strong>' in body
+    # 점프: href 앵커와 실제 행/카드 id 가 짝을 이룬다(끊긴 링크 금지).
+    assert f'href="#as-row-{as_id}"' in body
+    assert f'id="as-row-{as_id}"' in body
+    assert f'href="#as-card-{as_id}"' in body
+    assert f'id="as-card-{as_id}"' in body
+    # 상한 미만이면 초과 문구는 없다.
+    assert "as-schedule-drift-banner__overflow" not in body
+
+
+def test_two_affected_orders_render_two_chips(client):
+    """영향받은 AS 가 2건이면 칩도 2개 — 표면(PC 행/모바일 카드)마다 하나씩 총 4 앵커."""
+    _login_as_admin(client)
+    ref_id = _create_ref_order(construction_date="2026-08-12")
+    first = _create_as_order(
+        visit_date="2026-08-05", ref_order_id=ref_id, ref_date="2026-08-05",
+        customer_name="김영희",
+    )
+    second = _create_as_order(
+        visit_date="2026-08-05", ref_order_id=ref_id, ref_date="2026-08-05",
+        customer_name="박철수",
+    )
+
+    resp = client.get("/erp/as?tab=incomplete")
+
+    assert resp.status_code == 200
+    body = resp.get_data(as_text=True)
+    assert "현재 목록에서 기준 일정이 변경된 AS 2건" in body
+    assert body.count('<span class="as-drift-chip__name">김영희</span>') == 2
+    assert body.count('<span class="as-drift-chip__name">박철수</span>') == 2
+    for as_id in (first, second):
+        assert f'href="#as-row-{as_id}"' in body
+        assert f'id="as-row-{as_id}"' in body
+
+
+def test_chip_list_is_capped_and_says_so(client):
+    """상한(5)을 넘으면 칩은 5건까지만, 나머지는 '외 N건'으로 명시한다(조용한 절단 금지)."""
+    from foms.services.as_dashboard_display import _DRIFT_BANNER_CHIP_LIMIT
+
+    _login_as_admin(client)
+    ref_id = _create_ref_order(construction_date="2026-08-12")
+    total = _DRIFT_BANNER_CHIP_LIMIT + 2
+    for i in range(total):
+        _create_as_order(
+            visit_date="2026-08-05", ref_order_id=ref_id, ref_date="2026-08-05",
+            customer_name=f"고객{i}",
+        )
+
+    resp = client.get("/erp/as?tab=incomplete")
+
+    assert resp.status_code == 200
+    body = resp.get_data(as_text=True)
+    assert f"현재 목록에서 기준 일정이 변경된 AS {total}건" in body
+    # 표면 2개 × 상한 5 = 10 칩(이름 span 기준). 상한을 넘지 않는다.
+    assert body.count('class="as-drift-chip__id"') == _DRIFT_BANNER_CHIP_LIMIT * 2
+    assert f'<span class="as-schedule-drift-banner__overflow">외 {total - _DRIFT_BANNER_CHIP_LIMIT}건</span>' in body

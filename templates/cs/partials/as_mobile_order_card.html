@@ -5,7 +5,10 @@
 {# v2 compact: 현장 담당자가 스크롤 최소로 건 스캔·방문일·사진·미결 처리 #}
 {% set safe_phone = (r.phone or '')|replace('-', '')|replace(' ', '') %}
 {% set has_phone = safe_phone and safe_phone != '-' %}
+{# id: 드리프트 배너 점프 칩(`#as-card-<id>`) 앵커 + `:target` 하이라이트 대상.
+   PC 표 행은 `as-row-<id>`로 따로 잡는다(두 표면이 동시에 DOM 에 있어 중복 id 금지). #}
 <article
+  id="as-card-{{ r.id }}"
   class="erp-pro-order-card erp-as-mobile-card erp-as-mobile-card--v2{% if r.as_pending %} is-pending{% endif %}"
   data-order-id="{{ r.id }}">
   <header class="erp-as-mobile-card__head{% if r.as_pending %} erp-as-customer-row--pending{% endif %}">
@@ -138,8 +141,8 @@
 </article>
 
 {% else %}
-{# Legacy mobile card (non-v2 cohort) #}
-<div class="erp-pro-order-card erp-as-mobile-card" data-order-id="{{ r.id }}">
+{# Legacy mobile card (non-v2 cohort). id 계약은 v2 카드와 동일(`as-card-<id>`). #}
+<div id="as-card-{{ r.id }}" class="erp-pro-order-card erp-as-mobile-card" data-order-id="{{ r.id }}">
   <div class="erp-pro-order-card__header">
     {% if can_edit_erp|default(false) %}
     <a href="{{ url_for('order_edit.edit_order', order_id=r.id) }}?open=erp-order"

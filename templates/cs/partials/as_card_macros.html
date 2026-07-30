@@ -247,6 +247,24 @@
 {%- endif -%}
 {%- endmacro %}
 
+{# 드리프트 배너 점프 칩 — "몇 건"만 알려주고 어느 건인지는 안 알려주던 배너의 보강.
+   chip 은 as_dashboard_display._drift_banner_chip() 결과(그 AS 건 자신의 고객명 · id ·
+   옛 기준일 → 새 기준일). 클릭 = 순수 해시 링크로 그 행/카드로 점프하고 CSS `:target`
+   이 하이라이트한다 — JS 0줄(erp-shell.js 는 href 가 '#' 로 시작하면 스왑을 건너뛴다,
+   runtime/erp-shell.js:839).
+
+   href 앵커 접두어를 인자로 받는 이유: PC 표(`#as-row-<id>`)와 모바일 카드
+   (`#as-card-<id>`)는 **동시에 DOM 에 존재**한다(표는 d-none d-md-block, 카드는 d-md-none).
+   같은 id 를 양쪽에 붙이면 중복 id 라 `:target` 은 문서 순서상 첫 요소(=숨은 PC 행)만
+   잡아 모바일에서 점프가 죽는다. 그래서 칩을 표면별로 두 개 내고 표시 유틸리티로 가른다. #}
+{% macro render_as_drift_jump_chip(chip, anchor_prefix, visibility_class) -%}
+<a class="as-drift-chip as-drift-chip--{{ chip.state }} {{ visibility_class }}" href="#{{ anchor_prefix }}{{ chip.order_id }}" title="목록에서 이 AS 건으로 이동">
+{%- if chip.customer_name %}<span class="as-drift-chip__name">{{ chip.customer_name }}</span>{% endif -%}
+<span class="as-drift-chip__id">#{{ chip.order_id }}</span>
+<s class="as-drift-chip__old">{{ chip.old_md }}</s><span class="as-drift-chip__arrow" aria-hidden="true">→</span><strong class="as-drift-chip__new">{{ chip.new_md }}</strong>
+</a>
+{%- endmacro %}
+
 {% macro render_as_construction_workers(order_id, workers, can_edit) -%}
 {% set values = workers or [] %}
 {% set display_text = values | join(', ') %}

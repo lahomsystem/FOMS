@@ -778,7 +778,8 @@ def test_as_pc_table_main_row_exposes_side_sheet_source() -> None:
     # 래퍼는 클래스 토큰 존재로 판정 — 헤드 고정(erp-as-table-wrapper) 등 형제 토큰 추가에 면역
     assert 'erp-pro-table-wrapper' in body
     assert 'd-none d-md-block' in body
-    assert '<tr data-order-id="{{ r.id }}">' in body
+    # id="as-row-<id>" 는 드리프트 배너 점프 앵커(2026-07-30) — data-order-id 노출 계약은 불변.
+    assert '<tr id="as-row-{{ r.id }}" data-order-id="{{ r.id }}">' in body
 
 
 def test_history_main_row_has_side_sheet_source_class_and_order_id() -> None:

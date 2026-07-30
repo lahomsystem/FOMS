@@ -109,7 +109,8 @@ def test_as_dashboard_body_keeps_desktop_table_markup() -> None:
     # 래퍼는 헤드 고정(sticky)용 훅 클래스가 하나 더 붙었다 — 코호트 은닉 계약의 핵심인
     # d-none/d-md-block 조합은 그대로다.
     assert 'class="erp-pro-table-wrapper erp-as-table-wrapper d-none d-md-block"' in body
-    assert '<tr data-order-id="{{ r.id }}">' in body
+    # 행에는 드리프트 배너 점프 앵커(id="as-row-<id>")가 추가됐다 — data-order-id 계약은 불변.
+    assert '<tr id="as-row-{{ r.id }}" data-order-id="{{ r.id }}">' in body
 
 
 # --- (3) CSS: 코어 MQ + 순서 계약 + 테이블 은닉 + 스코프 + landscape 전용 ---
