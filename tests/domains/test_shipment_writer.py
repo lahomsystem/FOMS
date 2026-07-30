@@ -2,7 +2,7 @@
 
 ``api_erp_shipment_update`` canonical화(UPDATE_SHIPMENT_SETTINGS)를 고정한다:
 
-* exact non-assignment schema(site_extra/construction_time/vehicle/trip)만 저장하고,
+* exact non-assignment schema(site_extra/construction_time)만 저장하고,
   site_extra color 는 고정 enum 으로 정규화한다(임의 색은 persist 하지 않음 = 거부).
 * ``construction_workers`` 등 assignment/crew 이름 배열은 저장하지 않는다(name-array
   direct write 거부 — crew IDs via command).
@@ -39,7 +39,7 @@ def test_patch_keeps_only_exact_non_assignment_keys() -> None:
             "unknown_field": "x",
         }
     )
-    assert set(patch.keys()) == {"site_extra", "construction_time", "vehicle", "trip"}
+    assert set(patch.keys()) == {"site_extra", "construction_time"}
     assert patch["construction_time"] == "오전 10시"  # trim
 
 
@@ -65,12 +65,12 @@ def test_site_extra_cap_and_plain_strings() -> None:
 
 
 def test_apply_preserves_existing_crew_projection() -> None:
-    sd = {"shipment": {"construction_workers": ["기존작업자"], "vehicle": "old"}}
-    out = apply_shipment_settings(sd, {"vehicle": "1톤", "construction_workers": ["새이름배열"]})
-    assert out["shipment"]["vehicle"] == "1톤"
+    sd = {"shipment": {"construction_workers": ["기존작업자"], "construction_time": "old"}}
+    out = apply_shipment_settings(sd, {"construction_time": "10:00", "construction_workers": ["새이름배열"]})
+    assert out["shipment"]["construction_time"] == "10:00"
     # name-array direct write 거부: construction_workers 는 그대로 보존(덮어쓰지 않음)
     assert out["shipment"]["construction_workers"] == ["기존작업자"]
-    assert sd["shipment"]["vehicle"] == "old"  # 원본 미변경(deepcopy)
+    assert sd["shipment"]["construction_time"] == "old"  # 원본 미변경(deepcopy)
 
 
 # --------------------------------------------------------------------------- #
@@ -108,7 +108,7 @@ def test_update_writes_exact_schema_and_bumps_version(client) -> None:
     oid, base_version = order.id, order.mutation_version
     resp = client.post(
         f"/api/erp/shipment/update/{oid}",
-        json={"construction_time": "오전 10시", "vehicle": "1톤", "trip": "왕복",
+        json={"construction_time": "오전 10시",
               "site_extra": [{"text": "정문 앞", "color": "#abcdef"}]},
     )
     assert resp.status_code == 200
@@ -120,7 +120,6 @@ def test_update_writes_exact_schema_and_bumps_version(client) -> None:
     db_session.expire_all()
     sd = db_session.get(Order, oid).structured_data["shipment"]
     assert sd["construction_time"] == "오전 10시"
-    assert sd["vehicle"] == "1톤"
     assert sd["site_extra"] == [{"text": "정문 앞", "color": DEFAULT_SITE_EXTRA_COLOR}]
     events = [e.event_type for e in db_session.query(OrderEvent).filter_by(order_id=oid).all()]
     assert "SHIPMENT_SETTINGS_UPDATED" in events
@@ -132,12 +131,12 @@ def test_update_refuses_name_array_construction_workers(client) -> None:
     oid = order.id
     resp = client.post(
         f"/api/erp/shipment/update/{oid}",
-        json={"construction_workers": ["침입이름1", "침입이름2"], "vehicle": "2.5톤"},
+        json={"construction_workers": ["침입이름1", "침입이름2"], "construction_time": "오후 2시"},
     )
     assert resp.status_code == 200
     db_session.expire_all()
     sd = db_session.get(Order, oid).structured_data["shipment"]
-    assert sd["vehicle"] == "2.5톤"
+    assert sd["construction_time"] == "오후 2시"
     # crew IDs via SET_INSTALLATION_CREW command — name-array 는 저장되지 않음(기존 보존)
     assert sd["construction_workers"] == ["기존작업자"]
 
@@ -148,7 +147,7 @@ def test_update_if_match_stale_returns_409(client) -> None:
     oid = order.id
     resp = client.post(
         f"/api/erp/shipment/update/{oid}",
-        json={"vehicle": "1톤", "settings_version": 999},
+        json={"construction_time": "오전 10시", "settings_version": 999},
     )
     assert resp.status_code == 409
     assert resp.get_json()["success"] is False
@@ -165,6 +164,6 @@ def test_update_construction_team_forbidden(client) -> None:
     with client.session_transaction() as sess:
         sess["user_id"] = user.id
         sess["role"] = user.role
-    resp = client.post(f"/api/erp/shipment/update/{order.id}", json={"vehicle": "1톤"})
+    resp = client.post(f"/api/erp/shipment/update/{order.id}", json={"construction_time": "오전 10시"})
     assert resp.status_code == 403
     assert "시공팀" in resp.get_json().get("message", "")

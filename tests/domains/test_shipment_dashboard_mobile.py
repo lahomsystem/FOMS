@@ -91,10 +91,10 @@ def test_shipment_mobile_controls_template_contract() -> None:
     assert "max-height: 18px" in (
         ROOT / "static/css/components/foms-queue-card-v2.css"
     ).read_text(encoding="utf-8")
-    for field in ("site_extra", "construction_time", "construction_date", "drawing_managers", "construction_workers", "vehicle", "trip"):
+    for field in ("site_extra", "construction_time", "construction_date", "drawing_managers", "construction_workers"):
         assert field in queue
     assert "시공일" in queue
-    for field in ("site_extra", "construction_time", "drawing_managers", "construction_workers", "vehicle", "trip"):
+    for field in ("site_extra", "construction_time", "drawing_managers", "construction_workers"):
         assert field in pc
 
 

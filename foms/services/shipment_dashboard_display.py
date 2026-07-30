@@ -173,10 +173,6 @@ def build_shipment_mobile_queue_rows(
                 "construction_time": shipment.get("construction_time") or "",
                 "drawing_managers": drawing_managers,
                 "construction_workers": construction_workers,
-                # 신규 배차 필드(sd.shipment.vehicle 차량번호 / sd.shipment.trip 회차 라벨) —
-                # 로드된 structured_data 에서만 파생(추가 쿼리 없음). v2 카드·v3 홈 공용 표기.
-                "vehicle": str(shipment.get("vehicle") or "").strip(),
-                "trip": str(shipment.get("trip") or "").strip(),
                 "site_extra": site_extra,
                 "spec_units": _get_order_spec_units(order),
                 "is_as": is_as_order(order),

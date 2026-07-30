@@ -8,7 +8,7 @@
  * (실측탭 5.8s 사건과 같은 병·같은 처방: fragment 내 다중 <script src> → entry singleton.)
  */
 (function () {
-  var SHIP_JS_V = '20260730a';
+  var SHIP_JS_V = '20260730b';
   var CHAIN = [
     '/static/js/shipment/image-export.js?v=' + SHIP_JS_V,
     '/static/js/shipment/dashboard-columns.js?v=' + SHIP_JS_V

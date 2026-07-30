@@ -1,7 +1,7 @@
 """per-order 출고 설정(non-assignment) canonical writer (SHIPMENT-WRITER-01).
 
 ``api_erp_shipment_update`` (per-order shipment settings) 의 정본 스키마/정규화 로직이다.
-exact non-assignment schema ``{site_extra, construction_time, vehicle, trip}`` 만 쓰고,
+exact non-assignment schema ``{site_extra, construction_time}`` 만 쓰고,
 ``site_extra`` color 는 고정 enum 으로 제약한다. ``construction_workers``/도면·측정
 담당자 등 assignment/crew 이름 배열은 이 command 소관이 **아니므로 쓰지 않는다**
 (crew IDs via ``SET_INSTALLATION_CREW`` command · auth assignment via ASSIGNMENT command).
@@ -30,7 +30,7 @@ SITE_EXTRA_TEXT_MAX = 500
 SETTINGS_STRING_MAX = 200
 
 #: 이 command 가 쓰는 exact non-assignment 스키마 키.
-ALLOWED_SETTINGS_KEYS: tuple[str, ...] = ("site_extra", "construction_time", "vehicle", "trip")
+ALLOWED_SETTINGS_KEYS: tuple[str, ...] = ("site_extra", "construction_time")
 
 #: 이 command 가 쓰지 않는 assignment/crew 이름 키(name-array/auth direct write 금지 대상).
 #: payload 에 있어도 저장하지 않는다(crew IDs via SET_INSTALLATION_CREW · auth via ASSIGNMENT).
@@ -85,7 +85,7 @@ def _normalize_site_extra(raw: Any) -> List[Dict[str, str]]:
 def build_shipment_settings_patch(payload: Any) -> Dict[str, Any]:
     """payload 에서 exact non-assignment 설정만 골라 정규화한 patch 를 만든다.
 
-    ``site_extra``/``construction_time``/``vehicle``/``trip`` 중 **존재하는 키만**
+    ``site_extra``/``construction_time`` 중 **존재하는 키만**
     정규화해 돌려준다. assignment/crew 이름 키와 미지 키는 무시한다(name-array/auth
     direct write 제거). 존재하지 않는 키는 patch 에 없으므로 기존 서버 값이 보존된다.
 
@@ -100,7 +100,7 @@ def build_shipment_settings_patch(payload: Any) -> Dict[str, Any]:
     patch: Dict[str, Any] = {}
     if "site_extra" in payload:
         patch["site_extra"] = _normalize_site_extra(payload.get("site_extra"))
-    for key in ("construction_time", "vehicle", "trip"):
+    for key in ("construction_time",):
         if key in payload:
             patch[key] = str(payload.get(key) or "").strip()[:SETTINGS_STRING_MAX]
     return patch

@@ -186,7 +186,7 @@ def _shipment_edit_decision() -> tuple[Any, Any]:
 def api_erp_shipment_update(order_id: int):
     """per-order 출고 설정 저장(UPDATE_SHIPMENT_SETTINGS canonical).
 
-    exact non-assignment schema ``{site_extra,construction_time,vehicle,trip}`` 만
+    exact non-assignment schema ``{site_extra,construction_time}`` 만
     저장하고 ``site_extra`` color 는 고정 enum 으로 정규화한다. ``construction_workers``
     등 assignment/crew 이름 배열·도면/측정 담당자는 쓰지 않는다(crew IDs via
     ``SET_INSTALLATION_CREW`` · auth via ASSIGNMENT command — name-array/auth/AS info
