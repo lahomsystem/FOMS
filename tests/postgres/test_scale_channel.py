@@ -92,6 +92,19 @@ class StopLoadTest(RuntimeError):
 # --------------------------------------------------------------------------- #
 # pure harness functions (run without a database — structural evidence)
 # --------------------------------------------------------------------------- #
+def _bucket_aligned(ts: datetime.datetime) -> datetime.datetime:
+    """``ts`` 를 5분 버킷 시작점으로 내림 정렬한다(시드 결정성 전용).
+
+    버킷은 :func:`bucket_5min_peak` 가 ``int(ts.timestamp()) // 300`` 으로 자른다.
+    정렬하지 않은 앵커에서 초 단위로 30건을 심으면 앵커가 버킷 끝 29초 안에 떨어질 때
+    (약 10% 확률) 두 버킷으로 갈려 peak 가 29 로 나온다 — 코드 문제가 아니라 시드가
+    벽시계에 의존한 것이므로 시드를 경계에 맞춘다. 변환은 버킷 계산과 같은
+    ``timestamp()`` 규약(naive=로컬 해석)을 써 왕복이 어긋나지 않게 한다.
+    """
+    floored = (int(ts.timestamp()) // BUCKET_SECONDS) * BUCKET_SECONDS
+    return datetime.datetime.fromtimestamp(floored)
+
+
 def bucket_5min_peak(timestamps: list[datetime.datetime]) -> Optional[int]:
     """Return the busiest 5-minute window's receipt count, or None if empty.
 
@@ -448,7 +461,7 @@ def test_compute_5min_peak_stops_when_no_ingress(channel_clean) -> None:
 def test_compute_5min_peak_from_prior_ingress(channel_clean) -> None:
     """Peak reflects the busiest real 5-minute window of prior-7-day ingress."""
     now = now_utc_naive()
-    anchor = now - datetime.timedelta(days=2)
+    anchor = _bucket_aligned(now - datetime.timedelta(days=2))
     session = sessionmaker(bind=channel_clean)()
     try:
         for i in range(30):  # 30 receipts inside one 5-minute window
@@ -478,7 +491,7 @@ def test_channel_load_n_worker_sla(channel_clean, monkeypatch) -> None:
     now = now_utc_naive()
     session = sessionmaker(bind=channel_clean)()
     try:
-        anchor = now - datetime.timedelta(days=1)
+        anchor = _bucket_aligned(now - datetime.timedelta(days=1))
         for i in range(30):
             session.add(ChannelInboundEventLog(
                 dedupe_key=f"peakseed-{uuid.uuid4().hex}", payload_hash="h",
