@@ -202,7 +202,8 @@
         if (isAs) {
             var material = td.querySelector('.shipment-as-material-line');
             if (material) {
-                pushMultiline(out, material.textContent, '[자재] ');
+                out.push('[자재]');
+                pushMultiline(out, material.textContent, '');
                 return out;
             }
             var box = td.querySelector('.bg-light-danger') || td;
@@ -278,6 +279,7 @@
      */
     function extractRow(tr) {
         var isAs = tr.getAttribute('data-as') === '1';
+        var workerTd = tr.querySelector('td[data-col-key="construction_workers"]');
         return {
             group: false,
             is_as: isAs,
@@ -288,7 +290,9 @@
             address: addressLines(tr.querySelector('td[data-col-key="address"]')),
             construction_time: cellLines(tr.querySelector('td[data-label="시공시간"]')),
             drawing_managers: cellLines(tr.querySelector('td[data-label="도면담당자"]')),
-            construction_workers: cellLines(tr.querySelector('td[data-label="시공자"]')),
+            construction_workers: cellLines(workerTd),
+            worker_bg_color: workerTd ? (workerTd.getAttribute('data-worker-bg-color') || '') : '',
+            worker_text_color: workerTd ? (workerTd.getAttribute('data-worker-text-color') || '') : '',
             manager: cellLines(tr.querySelector('td[data-label="담당자"]'))
         };
     }
@@ -425,6 +429,25 @@
     }
 
     /**
+     * 제품 셀: AS 자재 라벨 줄('[자재]')만 작게·회색 강조, 나머지는 본문 스타일.
+     * @param {Document} doc
+     * @param {HTMLTableCellElement} td
+     * @param {Array<string>} lines
+     */
+    function fillProductCell(doc, td, lines) {
+        lines.forEach(function (line) {
+            var div = doc.createElement('div');
+            div.textContent = line;
+            if (line === '[자재]') {
+                div.style.fontWeight = '800';
+                div.style.fontSize = '16px';
+                div.style.color = '#6b7280';
+            }
+            td.appendChild(div);
+        });
+    }
+
+    /**
      * 시공팀 그룹 밴드 행(표 전체폭 span).
      * @param {Document} doc
      * @param {string} label
@@ -534,8 +557,14 @@
                     td.style.fontWeight = '700';
                 } else if (c.key === 'customer') {
                     fillCustomerCell(doc, td, item);
+                } else if (c.key === 'product') {
+                    fillProductCell(doc, td, item.product || []);
                 } else {
                     fillLinesCell(doc, td, item[c.key] || []);
+                }
+                if (c.key === 'construction_workers') {
+                    if (item.worker_bg_color) td.style.backgroundColor = item.worker_bg_color;
+                    if (item.worker_text_color) td.style.color = item.worker_text_color;
                 }
                 tr.appendChild(td);
             });
