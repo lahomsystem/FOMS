@@ -530,11 +530,16 @@
      같은 --erp-danger-dark 단색: 세 표면이 한 시스템으로 읽혀야 한다.
      erp-pro-card 를 안 쓰는 이유는 템플릿 주석 참조(모바일 v2 코호트가 그 클래스를
      background:transparent 로 덮어 흰 글자만 남는다). */
+  /* 2026-07-30 3차: 단색 빨강 블록은 목록 상단을 통째로 덮어 "너무 빨갛다"는 신고.
+     파스텔 채움 + 진한 좌측 띠로 바꾼다 — 눈에 띄는 역할은 띠·아이콘·굵은 제목이
+     가져가고 면적은 순해진다. 글자는 danger-dark 라 대비는 유지(5.3:1). */
   .as-schedule-drift-banner {
     padding: 12px 14px;
     border-radius: var(--erp-radius-lg, 0.75rem);
-    background: var(--erp-danger-dark);
-    color: var(--erp-text-white);
+    border: 1px solid var(--erp-danger, #ef4444);
+    border-left: 5px solid var(--erp-danger-dark);
+    background: var(--erp-danger-light);
+    color: var(--erp-danger-dark);
   }
 
   .as-schedule-drift-banner__head {
@@ -569,12 +574,14 @@
     opacity: 0.9;
   }
 
-  /* 점프 칩 = 흰 알약 + 빨간 글자(배너 채움색 위에서 가장 큰 대비, 눌리는 것처럼 보인다). */
+  /* 점프 칩 = 흰 알약 + 빨간 글자. 파스텔 배너 위에서는 흰 배경만으로는 경계가
+     흐려지므로 테두리를 줘 "누를 수 있는 것"으로 읽히게 한다. */
   .as-drift-chip {
     align-items: center;
     gap: 4px;
     max-width: 100%;
     padding: 4px 10px;
+    border: 1px solid var(--erp-danger-dark);
     border-radius: 999px;
     background: var(--erp-text-white);
     color: var(--erp-danger-dark);
@@ -593,6 +600,7 @@
 
   /* both_moved 는 행 배지와 같은 주황 계열 글자로 상태를 구분한다(칩 배경은 흰색 유지). */
   .as-drift-chip--both_moved {
+    border-color: var(--erp-warning-dark);
     color: var(--erp-warning-dark);
   }
 

@@ -25,7 +25,7 @@
 {% set d = drift or {} %}
 {%- if d.state and d.state != 'none' -%}
 {% set is_warn = d.state in ('ref_moved', 'both_moved') %}
-<link rel="stylesheet" href="{{ url_for('static', filename='css/components/foms-as-drift-banner.css') }}?v=20260730a">
+<link rel="stylesheet" href="{{ url_for('static', filename='css/components/foms-as-drift-banner.css') }}?v=20260730b">
 <div class="foms-as-drift-banner foms-as-drift-banner--{{ d.state }}"
   id="fomsAsDriftBanner"
   data-as-order-id="{{ order_id }}"
