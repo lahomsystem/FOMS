@@ -186,11 +186,11 @@ def _shipment_edit_decision() -> tuple[Any, Any]:
 def api_erp_shipment_update(order_id: int):
     """per-order 출고 설정 저장(UPDATE_SHIPMENT_SETTINGS canonical).
 
-    exact non-assignment schema ``{site_extra,construction_time}`` 만
-    저장하고 ``site_extra`` color 는 고정 enum 으로 정규화한다. ``construction_workers``
-    등 assignment/crew 이름 배열·도면/측정 담당자는 쓰지 않는다(crew IDs via
-    ``SET_INSTALLATION_CREW`` · auth via ASSIGNMENT command — name-array/auth/AS info
-    direct write 제거). 시공팀은 조회만 가능하다. If-Match(``settings_version``/헤더)로
+    exact schema ``{site_extra,construction_time,construction_workers}`` 만
+    저장하고 ``site_extra`` color 는 고정 enum 으로, ``construction_workers`` 는 이름
+    문자열 배열(trim·dedup·최대 10개)로 정규화한다. 도면/측정 담당자는 쓰지 않는다
+    (auth via ASSIGNMENT command — auth/AS info direct write 제거).
+    시공팀은 조회만 가능하다. If-Match(``settings_version``/헤더)로
     낙관적 concurrency 를 지키고 version/receipt/event 를 REV-00 로 한 tx 에 기록한다
     (blind overwrite 방지).
 

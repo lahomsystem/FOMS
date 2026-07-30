@@ -1,12 +1,15 @@
 """per-order 출고 설정(non-assignment) canonical writer (SHIPMENT-WRITER-01).
 
 ``api_erp_shipment_update`` (per-order shipment settings) 의 정본 스키마/정규화 로직이다.
-exact non-assignment schema ``{site_extra, construction_time}`` 만 쓰고,
-``site_extra`` color 는 고정 enum 으로 제약한다. ``construction_workers``/도면·측정
-담당자 등 assignment/crew 이름 배열은 이 command 소관이 **아니므로 쓰지 않는다**
-(crew IDs via ``SET_INSTALLATION_CREW`` command · auth assignment via ASSIGNMENT command).
-목적은 name-array/auth direct write 제거다. AS 방문/일정은 as_cycle_service 소관이라
-여기서 기록하지 않는다(AS info direct write 없음).
+exact schema ``{site_extra, construction_time, construction_workers}`` 만 쓰고,
+``site_extra`` color 는 고정 enum 으로 제약한다. 도면·측정 담당자 등 auth assignment
+키는 여전히 이 command 소관이 아니다(ASSIGNMENT command).
+
+``construction_workers``(시공자 이름 배열)는 2026-07-30 settings 스키마로 **복귀**했다:
+대체 경로로 예정했던 ``SET_INSTALLATION_CREW`` command 가 미구현인 채 direct write 만
+제거되어 출고 대시보드의 시공자 추가가 422 없이 조용히 버려지는(reload 시 소실) 상태였다.
+crew ID 모델이 구현되면 그때 다시 이 키를 옮긴다. AS 방문/일정은 as_cycle_service
+소관이라 여기서 기록하지 않는다(AS info direct write 없음).
 
 report §2.2 UPDATE_SHIPMENT_SETTINGS 계약: ``site_extra`` 최대 20개 exact ``{text,color}``,
 text 500자, color ∈ 8-enum, 나머지 string 200자. 프론트 재배선을 피하기 위해 스키마 밖
@@ -29,13 +32,18 @@ SITE_EXTRA_MAX = 20
 SITE_EXTRA_TEXT_MAX = 500
 SETTINGS_STRING_MAX = 200
 
-#: 이 command 가 쓰는 exact non-assignment 스키마 키.
-ALLOWED_SETTINGS_KEYS: tuple[str, ...] = ("site_extra", "construction_time")
+#: 한 주문에 배정할 수 있는 시공자 이름 최대 개수.
+CONSTRUCTION_WORKERS_MAX = 10
 
-#: 이 command 가 쓰지 않는 assignment/crew 이름 키(name-array/auth direct write 금지 대상).
-#: payload 에 있어도 저장하지 않는다(crew IDs via SET_INSTALLATION_CREW · auth via ASSIGNMENT).
+#: 이 command 가 쓰는 exact 스키마 키.
+ALLOWED_SETTINGS_KEYS: tuple[str, ...] = (
+    "site_extra", "construction_time", "construction_workers",
+)
+
+#: 이 command 가 쓰지 않는 auth assignment 담당자 키(direct write 금지 대상).
+#: payload 에 있어도 저장하지 않는다(auth via ASSIGNMENT command).
 NON_SETTINGS_ASSIGNMENT_KEYS: tuple[str, ...] = (
-    "construction_workers", "drawing_manager", "drawing_managers",
+    "drawing_manager", "drawing_managers",
     "measurement_manager", "measurement_managers",
 )
 
@@ -82,12 +90,42 @@ def _normalize_site_extra(raw: Any) -> List[Dict[str, str]]:
     return out
 
 
-def build_shipment_settings_patch(payload: Any) -> Dict[str, Any]:
-    """payload 에서 exact non-assignment 설정만 골라 정규화한 patch 를 만든다.
+def _normalize_workers(raw: Any) -> List[str]:
+    """construction_workers 를 시공자 이름 문자열 배열로 정규화한다.
 
-    ``site_extra``/``construction_time`` 중 **존재하는 키만**
-    정규화해 돌려준다. assignment/crew 이름 키와 미지 키는 무시한다(name-array/auth
-    direct write 제거). 존재하지 않는 키는 patch 에 없으므로 기존 서버 값이 보존된다.
+    각 항목을 trim 하고 빈 이름을 버리며, 200자로 자르고 순서를 유지한 채 중복을
+    제거한 뒤 :data:`CONSTRUCTION_WORKERS_MAX` 개로 제한한다. dict 항목은
+    ``name``/``text`` 를 이름으로 읽는다(dict 를 문자열화한 쓰레기 저장 방지).
+
+    Args:
+        raw: payload 의 ``construction_workers`` (list 가 아니면 빈 결과).
+
+    Returns:
+        정규화된 이름 리스트(최대 :data:`CONSTRUCTION_WORKERS_MAX` 개).
+    """
+    if not isinstance(raw, list):
+        return []
+    out: List[str] = []
+    for item in raw:
+        if isinstance(item, dict):
+            name = str(item.get("name") or item.get("text") or "")
+        else:
+            name = str(item or "")
+        name = name.strip()[:SETTINGS_STRING_MAX]
+        if not name or name in out:
+            continue
+        out.append(name)
+        if len(out) >= CONSTRUCTION_WORKERS_MAX:
+            break
+    return out
+
+
+def build_shipment_settings_patch(payload: Any) -> Dict[str, Any]:
+    """payload 에서 exact 출고 설정 키만 골라 정규화한 patch 를 만든다.
+
+    ``site_extra``/``construction_time``/``construction_workers`` 중 **존재하는 키만**
+    정규화해 돌려준다. auth assignment 담당자 키와 미지 키는 무시한다(direct write
+    제거). 존재하지 않는 키는 patch 에 없으므로 기존 서버 값이 보존된다.
 
     Args:
         payload: 요청 JSON. dict 가 아니면 빈 patch.
@@ -100,6 +138,8 @@ def build_shipment_settings_patch(payload: Any) -> Dict[str, Any]:
     patch: Dict[str, Any] = {}
     if "site_extra" in payload:
         patch["site_extra"] = _normalize_site_extra(payload.get("site_extra"))
+    if "construction_workers" in payload:
+        patch["construction_workers"] = _normalize_workers(payload.get("construction_workers"))
     for key in ("construction_time",):
         if key in payload:
             patch[key] = str(payload.get(key) or "").strip()[:SETTINGS_STRING_MAX]
@@ -107,11 +147,11 @@ def build_shipment_settings_patch(payload: Any) -> Dict[str, Any]:
 
 
 def apply_shipment_settings(structured_data: Any, payload: Any) -> Dict[str, Any]:
-    """structured_data 의 shipment 블록에 non-assignment 설정 patch 를 적용한다.
+    """structured_data 의 shipment 블록에 출고 설정 patch 를 적용한다.
 
     ``structured_data`` 를 deepcopy 하여 ``shipment`` 블록에 정규화된 설정만 병합해
-    돌려준다(원본 미변경). ``construction_workers`` 등 assignment/crew projection 은
-    건드리지 않는다(변경은 crew/assignment command).
+    돌려준다(원본 미변경). 도면/측정 담당자 등 auth assignment projection 은 건드리지
+    않는다(변경은 ASSIGNMENT command).
 
     Args:
         structured_data: 대상 Order 의 ``structured_data`` (dict/None).
@@ -132,7 +172,7 @@ def apply_shipment_settings(structured_data: Any, payload: Any) -> Dict[str, Any
 
 __all__ = [
     "SITE_EXTRA_COLORS", "DEFAULT_SITE_EXTRA_COLOR", "SITE_EXTRA_MAX",
-    "SITE_EXTRA_TEXT_MAX", "SETTINGS_STRING_MAX", "ALLOWED_SETTINGS_KEYS",
-    "NON_SETTINGS_ASSIGNMENT_KEYS",
+    "SITE_EXTRA_TEXT_MAX", "SETTINGS_STRING_MAX", "CONSTRUCTION_WORKERS_MAX",
+    "ALLOWED_SETTINGS_KEYS", "NON_SETTINGS_ASSIGNMENT_KEYS",
     "build_shipment_settings_patch", "apply_shipment_settings",
 ]
