@@ -35,7 +35,7 @@
 | T2 | 출고 주소셀 표시: dashboard_main.html extra_input static 블록(556-567) **삭제**, 그 자리에 시공 특이사항 static li 추가, `notes is mapping` 가드, title "시공 특이사항 연동" | sonnet | DONE(diff·is mapping 가드 직접 검증) | APP_OK; 로컬 렌더에서 시드 주문 주소 아래 표시 + extra_input 미표시; notes=문자열 주문 가드 (템플릿 mapping 체크 코드 확인) |
 | T3 | AS 최신 자재 표시: `as_log.py`에 `latest_client_log_text(sd, log_type)` 헬퍼(soft-delete 제외, (ts,idx) 역순), `enrich_shipment_rows`에서 AS 건만 `r.as_material_text` 파생, AS 박스(519-522)에 "자재" 라벨+내용 추가 표시, pytest 단위테스트 | sonnet | DONE(diff·22 passed 직접 검증) | 신규 pytest green (deleted 제외·tie-break·타 type 무시·빈 로그); APP_OK; 로컬 렌더 확인 |
 | T4 | 코드 리뷰 (2판정: 스펙 준수 / 코드 품질 분리) + 지적 반영 재위임 | opus | DONE(F1~F8 반영, 85 passed 직접 검증) | 리뷰 finding 전부 처리(수정 또는 근거 기각), diff 재확인 |
-| T5 | 검증·배포·dev 테스트: pre_push_smoke exit 0 → 커밋 → deploy push → ci_watch green → lahom-dev 실데이터 시드로 3기능 직접 테스트(시드→확인→정리) → 최종 보고 | 메인 | PENDING | ci_watch exit 0; lahom-dev에서 (1) 저장·재로드 유지 (2) 주소 아래 표시 (3) AS 자재 최신 표시 육안 확인 |
+| T5 | 검증·배포·dev 테스트: pre_push_smoke exit 0 → 커밋 → deploy push → ci_watch green → lahom-dev 실데이터 시드로 3기능 직접 테스트(시드→확인→정리) → 최종 보고 | 메인 | DONE(CI green·lahom-dev E2E 22체크 ALL PASS·시드 정리 완료) | ci_watch exit 0; lahom-dev에서 (1) 저장·재로드 유지 (2) 주소 아래 표시 (3) AS 자재 최신 표시 육안 확인 |
 
 ## 결정 사항 (승인 시 확정)
 

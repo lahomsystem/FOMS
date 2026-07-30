@@ -1,6 +1,6 @@
 # FOMS 현재 상태
 > 자동 업데이트: 2026-07-28
-> 최신: 124-packet 전 시스템 버그감사 remediation 스테이징 반영 완료(CI 4/4 green) — production 승격은 사용자 승인 대기. 직전: AS 타임라인 개편 완주, 실측 지도 카카오 전환 완결(Z~Z4).
+> 최신: 시공 특이사항 신설+출고 대시보드 표시(주소 아래·AS 최신 자재) 스테이징 완결 — CI 4/4 green, lahom-dev E2E ALL PASS (플랜: docs/plans/2026-07-30-construction-note-shipment-display-plan.md). 직전: 124-packet 버그감사 remediation 스테이징 완료(production 승격 승인 대기).
 > 이 파일 상단 40줄이 세션 시작 컨텍스트의 전부다(hygiene 계약 테스트로 강제). 상세 이력: "## 최근 완료"·"## 기록 보관", 과거 헤더 상세는 기록 보관에 이관.
 
 ## 스택
