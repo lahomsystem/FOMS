@@ -11,7 +11,18 @@
 | T4 출고 JS 본문 렌더 교체 + ?v | DONE | `hydrateAsRecTimelines` + `.asrec-timeline-slot`, `?v=20260730f` 전 핀 일치 |
 | T5 공용 카카오 지도 모듈 + Leaflet 제거 | DONE | `static/js/common/foms-schedule-map.js` 신규, 출고 Leaflet 185줄·CS 201줄 제거, 양쪽 위임 호출 |
 | T6 출고 kakao_js_key 배선 | DONE | `dashboard.py` 컨텍스트 + `#scheduleMapContainer[data-kakao-js-key]`, 렌더 계약 테스트 추가 |
-| T7 최종 검증·커밋·푸시 | IN PROGRESS | 타깃 스윕 154 passed / APP_OK. pre_push_smoke → deploy push → ci_watch 남음 |
+| T7 최종 검증·커밋·푸시 | DONE | 커밋 3개(`c652a339`·`258dc3ba`·`2ccb33e6`) → deploy `fa008570`·`698942e0`·`cbe17540`, **ci_watch ALL GREEN** |
+
+## CI red 2라운드 (수정 완료, 재발 방지 메모 반영)
+
+1. `test_failopen_inventory.py` stale — recommendations.py 상단 import 추가로 broad except lineno 4건 밀림.
+   `python tools/harness/failopen_scan.py` 재생성(`258dc3ba`).
+2. `test_tablet_rail_contract.py::test_cache_chain_versions_bumped` — 전역 `erp-pro.css` 핀 값을
+   하드코딩. 테스트를 고치지 않고 **모달 슬롯 규칙을 `foms-as-timeline.css`로 이전 + erp-pro.css 원복**
+   (전역 대용량 CSS 캐시 무효화도 함께 회피). 컴포넌트 핀 `?v=20260730b` 범프(`2ccb33e6`).
+
+둘 다 `pre_push_smoke` pytest 서브셋 밖 = 로컬 green·CI red 유형. Python import 추가·전역 CSS 핀
+변경 시 두 테스트 명시 실행 필요.
 
 ## 검증 기록
 
