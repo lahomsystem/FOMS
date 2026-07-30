@@ -33,11 +33,17 @@ def _login_as_admin(client, username: str = "drift-render-admin") -> None:
         sess["user_id"] = user.id
 
 
-def _create_ref_order(*, status: str = "CONSTRUCTION", construction_date: str | None) -> int:
-    """기준 주문(시공일 보유) 시드. `erp_construction_date` 컬럼만 채운다(스펙 §3.3)."""
+def _create_ref_order(
+    *, status: str = "CONSTRUCTION", construction_date: str | None,
+    customer_name: str = "기준 주문 고객",
+) -> int:
+    """기준 주문(시공일 보유) 시드. `erp_construction_date` 컬럼만 채운다(스펙 §3.3).
+
+    customer_name 은 배지 표시명 폴백(#id) 검증을 위해 override 가능(기본값은 정상 케이스).
+    """
     order = Order(
         received_date=_TODAY,
-        customer_name="기준 주문 고객",
+        customer_name=customer_name,
         phone="010-0000-1111",
         address="Seoul",
         product="붙박이장",
@@ -85,7 +91,11 @@ def _create_as_order(*, visit_date: str, ref_order_id: int, ref_date: str) -> in
 
 
 def test_ref_moved_shows_banner_and_red_badge(client):
-    """기준 시공일이 바뀌고 AS 방문일은 옛 기준(D0)에 남아있으면 ref_moved — 배너+빨강 배지."""
+    """기준 시공일이 바뀌고 AS 방문일은 옛 기준(D0)에 남아있으면 ref_moved — 배너+빨강 배지.
+
+    2026-07-30 가독성 개선: 배지는 기준 주문 id 대신 고객명을 보여주고(요구사항 1),
+    아이콘 + 옛 날짜 취소선/새 날짜 굵게로 눈에 띄게 렌더한다(요구사항 3).
+    """
     _login_as_admin(client)
     ref_id = _create_ref_order(construction_date="2026-08-12")
     _create_as_order(visit_date="2026-08-05", ref_order_id=ref_id, ref_date="2026-08-05")
@@ -97,7 +107,26 @@ def test_ref_moved_shows_banner_and_red_badge(client):
     assert "as-schedule-drift-banner" in body
     assert "현재 목록에서 기준 일정이 변경된 AS 1건" in body
     assert "erp-as-drift-badge--ref_moved" in body
-    assert f"기준 #{ref_id} 8/5 → 8/12" in body
+    # id 가 아니라 기준 주문의 고객명이 뜬다 — 옛 "#id" 표기는 이름이 있으면 더 이상 안 나온다.
+    assert "기준 기준 주문 고객" in body
+    assert f"기준 #{ref_id}" not in body
+    # 경고 아이콘 + 옛 날짜 취소선 / 새 날짜 굵게(요구사항 3).
+    assert "fa-triangle-exclamation" in body
+    assert '<s class="erp-as-drift-badge__old">8/5</s>' in body
+    assert '<strong class="erp-as-drift-badge__new">8/12</strong>' in body
+
+
+def test_ref_moved_with_missing_customer_name_falls_back_to_id(client):
+    """기준 주문 고객명이 비어있으면 이름 대신 '#id' 로 폴백한다(빈칸 배지 방지)."""
+    _login_as_admin(client)
+    ref_id = _create_ref_order(construction_date="2026-08-12", customer_name="")
+    _create_as_order(visit_date="2026-08-05", ref_order_id=ref_id, ref_date="2026-08-05")
+
+    resp = client.get("/erp/as?tab=incomplete")
+
+    assert resp.status_code == 200
+    body = resp.get_data(as_text=True)
+    assert f"기준 #{ref_id}" in body
 
 
 def test_ref_unchanged_shows_no_banner(client):

@@ -347,17 +347,20 @@ def _collect_schedule_link_ref_ids(rows) -> set[int]:
 def _batch_load_ref_schedule_snapshot(ref_ids: set[int], db: Any) -> dict[int, dict[str, Any]]:
     """기준 주문들의 현재 시공일 스냅샷을 단일 in_() 쿼리로 배치 조회 (N+1 금지).
 
-    JSONB 필터 없이 `id, status, deleted_at, erp_construction_date, scheduled_date`
-    5개 컬럼만 읽는다(스펙 §3.3·§8 — 무인덱스 JSONB 스캔 금지).
+    JSONB 필터 없이 `id, status, deleted_at, erp_construction_date, scheduled_date,
+    customer_name` 6개 컬럼만 읽는다(스펙 §3.3·§8 — 무인덱스 JSONB 스캔 금지).
+    customer_name 은 배지 표시용(UI 개선: id 대신 고객명 노출) — 별도 쿼리를 만들지 않고
+    이미 열려 있는 배치 조회에 컬럼만 추가한다.
 
     Args:
         ref_ids: 조회할 기준 주문 id 집합.
         db: SQLAlchemy 세션.
 
     Returns:
-        ``{ref_order_id: {"current_date": str|None, "missing": bool}}``. missing=True 는
-        DELETED 상태이거나 soft-delete(``deleted_at`` 존재)된 경우. 결과에 없는 id 는
-        호출측이 "조회 불가(orphan)"로 처리한다.
+        ``{ref_order_id: {"current_date": str|None, "missing": bool,
+        "customer_name": str|None}}``. missing=True 는 DELETED 상태이거나
+        soft-delete(``deleted_at`` 존재)된 경우. 결과에 없는 id 는 호출측이
+        "조회 불가(orphan)"로 처리한다.
     """
     if not ref_ids:
         return {}
@@ -368,16 +371,18 @@ def _batch_load_ref_schedule_snapshot(ref_ids: set[int], db: Any) -> dict[int, d
             Order.deleted_at,
             Order.erp_construction_date,
             Order.scheduled_date,
+            Order.customer_name,
         )
         .filter(Order.id.in_(ref_ids))
         .all()
     )
     snapshot: dict[int, dict[str, Any]] = {}
-    for oid, status, deleted_at, erp_date, sched_date in query_rows:
+    for oid, status, deleted_at, erp_date, sched_date, customer_name in query_rows:
         missing = bool(deleted_at) or str(status or "") == "DELETED"
         snapshot[int(oid)] = {
             "current_date": erp_date or sched_date or None,
             "missing": missing,
+            "customer_name": customer_name or None,
         }
     return snapshot
 
@@ -388,26 +393,22 @@ def _short_md(iso_date: Any) -> str:
     return f"{parsed.month}/{parsed.day}" if parsed else ""
 
 
-def _schedule_link_drift_label(drift: dict[str, Any]) -> str:
-    """드리프트 배지 표기 문자열 조립(스펙 §4 예시 '기준 #3694 8/5 → 8/12').
+def _ref_label(ref_id: Any, customer_name: Any) -> str:
+    """드리프트 배지의 기준 주문 표시명 — 고객명이 있으면 이름, 없으면 '#id' 폴백.
+
+    UI 피드백: id 만 보여주면("기준 #4348") 어떤 주문인지 알아보려면 클릭해 열어야
+    했다. 이름이 비어있거나 기준 주문을 못 찾은 경우(고아 링크)엔 이름이 아예 없으므로
+    옛 id 표기로 안전하게 폴백해 "기준  8/7" 같은 빈칸을 내지 않는다.
 
     Args:
-        drift: `evaluate_drift()` 결과.
+        ref_id: 기준 주문 id.
+        customer_name: 배치 스냅샷에서 읽은 기준 주문 고객명(없으면 None/빈 문자열).
 
     Returns:
-        배지에 그대로 넣을 1줄 텍스트. state 가 'none'이면 빈 문자열(배지 생략은 템플릿 소관).
+        고객명(공백 trim) 또는 ``#<id>``.
     """
-    state = drift.get("state")
-    if state == "none":
-        return ""
-    ref_id = drift.get("ref_order_id")
-    if state == "ref_gone":
-        return f"기준 #{ref_id} 연결 끊김"
-    d0 = _short_md(drift.get("ref_date"))
-    if state in ("ok", "resolved"):
-        return f"기준 #{ref_id} {d0}"
-    ds = _short_md(drift.get("ref_current_date"))
-    return f"기준 #{ref_id} {d0} → {ds}"
+    name = str(customer_name or "").strip()
+    return name if name else f"#{ref_id}"
 
 
 def apply_schedule_link_drift_fields(rows, db: Any) -> int:
@@ -436,7 +437,12 @@ def apply_schedule_link_drift_fields(rows, db: Any) -> int:
             as_visit_date=getattr(r, "as_visit_date", None),
             ref_missing=bool(link) and (ref_info is None or bool(ref_info.get("missing"))),
         )
-        drift["label"] = _schedule_link_drift_label(drift)
+        # 배지 렌더용 표시 필드(매크로가 조립) — id 는 ref_order_id 로 그대로 유지된다
+        # (액션 버튼·테스트가 소비하는 값이라 표시만 이름으로 바꾸고 데이터는 안 건드린다).
+        drift["ref_customer_name"] = (ref_info or {}).get("customer_name") if link else None
+        drift["ref_label"] = _ref_label(drift.get("ref_order_id"), drift.get("ref_customer_name"))
+        drift["ref_date_md"] = _short_md(drift.get("ref_date"))
+        drift["ref_current_date_md"] = _short_md(drift.get("ref_current_date"))
         r.schedule_link_drift = drift
         if drift["state"] in _DRIFT_WARN_STATES:
             drift_count += 1

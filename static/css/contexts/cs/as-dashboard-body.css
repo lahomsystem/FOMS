@@ -534,29 +534,63 @@
     color: var(--erp-danger);
   }
 
-  /* 배지는 비용 배지(.erp-as-billing-badge)와 같은 알약 형태·치수를 공유해
-     같은 셀 안에서 크기가 들쭉날쭉해 보이지 않게 한다. */
+  /* 2026-07-30 가독성 개선: 배지가 비용 배지(.erp-as-billing-badge)와 같은 각주급
+     알약(0.72rem)이라 목록에서 묻힌다는 신고 3건 반영 — 1차 상태 칩으로 승격한다.
+     inline-flex + flex-wrap: 좁은 컬럼(PC 190px 방문일 열·모바일 카드 1/3 폭)에서
+     아이콘·이름·날짜가 옆으로 넘치지 않고 배지 안에서 줄바꿈한다(max-width:100%
+     가 컬럼 폭을 절대 넘지 않게 고정 — 표 레이아웃/모바일 카드 모두 overflow 없음). */
   .erp-as-drift-badge {
-    display: inline-block;
-    margin-top: 3px;
-    padding: 1px 7px;
-    border-radius: 4px;
-    font-size: 0.72rem;
+    display: inline-flex;
+    flex-wrap: wrap;
+    align-items: center;
+    gap: 2px 5px;
+    max-width: 100%;
+    margin-top: 4px;
+    padding: 4px 10px;
+    border: 1px solid transparent;
+    border-radius: 8px;
+    font-size: 0.86rem;
     font-weight: 700;
-    line-height: 1.45;
-    white-space: nowrap;
+    line-height: 1.3;
+    overflow-wrap: anywhere;
   }
 
-  /* ref_moved: 주 케이스(방문일이 옛 기준일에 맞춰진 채 기준이 움직임) — 가장 눈에 띄는 경고. */
+  .erp-as-drift-badge__icon {
+    font-size: 0.92em;
+  }
+
+  /* 옛 기준일(D0) = 더 이상 유효하지 않음 → 취소선 + 낮춘 명도로 시선에서 물러나게. */
+  .erp-as-drift-badge__old {
+    font-weight: 500;
+    opacity: 0.8;
+  }
+
+  .erp-as-drift-badge__arrow {
+    font-weight: 500;
+    opacity: 0.8;
+  }
+
+  /* 새 기준일(Ds) = 지금 맞춰야 할 값 → 굵게 강조. */
+  .erp-as-drift-badge__new {
+    font-weight: 800;
+  }
+
+  /* ref_moved: 주 케이스(방문일이 옛 기준일에 맞춰진 채 기준이 움직임) — 진한 빨강 단색
+     채움 + 흰 글자로 "지금 조치 필요"를 가장 크게 낸다. */
+  /* 채움색은 -dark 계열을 쓴다: 흰 글자 대비가 danger 2.9:1 → 4.8:1 로 올라가
+     작은 칩에서도 읽힌다(밝은 원색 채움은 흰 글자가 뭉개진다). */
   .erp-as-drift-badge--ref_moved {
-    background: var(--erp-danger-light);
-    color: var(--erp-danger-dark);
+    background: var(--erp-danger-dark);
+    border-color: var(--erp-danger-dark);
+    color: var(--erp-text-white);
   }
 
-  /* both_moved: 방문일도 다른 값으로 움직여 자동 판단이 애매한 케이스 — 주황(경계). */
+  /* both_moved: 방문일도 다른 값으로 움직여 자동 판단이 애매한 케이스 — 같은 톤의
+     주황 단색 채움(경계 신호, ref_moved 보다는 한 단계 낮은 긴급도). */
   .erp-as-drift-badge--both_moved {
-    background: var(--erp-warning-light);
-    color: var(--erp-warning-dark);
+    background: var(--erp-warning-dark);
+    border-color: var(--erp-warning-dark);
+    color: var(--erp-text-white);
   }
 
   /* acked(경고 무시)·ref_gone(기준 주문 삭제)은 더 이상 조치를 요구하지 않는 회색 표기만. */
@@ -567,36 +601,39 @@
   }
 
   /* ok: 기준과 일치(정상) · resolved: 방문일을 이미 새 기준에 맞춰 렌더 시엔 경고를 내지 않는다
-     (스펙 §4 — 실제 ref_date 자동 갱신은 다음 링크 API 호출 때). 둘 다 조용한 중립 톤. */
+     (스펙 §4 — 실제 ref_date 자동 갱신은 다음 링크 API 호출 때). 경고가 아니므로 채움 없는
+     아웃라인 칩으로 조용하게 — ref_moved/both_moved 의 단색 채움과 대비를 준다. */
   .erp-as-drift-badge--ok,
   .erp-as-drift-badge--resolved {
-    background: #f1f3f5;
+    background: transparent;
+    border-color: var(--erp-border, #ced4da);
     color: #495057;
     font-weight: 600;
   }
 
   /* 2026-07-30 T5: 드리프트 행 액션(재적용/무시/연결 해제).
-     방문일 셀은 이미 좁으므로(입력 + 배지 + 미결 버튼) 버튼은 배지보다 한 단계 작은
-     텍스트 칩으로 낸다 — 세 표면(PC 셀·모바일 v2 카드·legacy 카드) 모두 같은 컨테이너
-     폭 제약을 받으므로 표면별 분기 없이 wrap 으로 흘린다. */
+     배지가 1차 상태 칩(0.86rem)으로 커진 만큼 버튼도 한 단계 키워 배지 옆에서
+     짓눌려 보이지 않게 한다 — 세 표면(PC 셀·모바일 v2 카드·legacy 카드) 모두 같은
+     컨테이너 폭 제약을 받으므로 표면별 분기 없이 wrap 으로 흘린다. */
   .erp-as-drift-actions {
     display: inline-flex;
     flex-wrap: wrap;
+    align-items: center;
     gap: 4px;
-    margin-top: 3px;
+    margin-top: 4px;
     margin-left: 4px;
     vertical-align: middle;
   }
 
   .erp-as-drift-action {
-    padding: 1px 6px;
+    padding: 2px 8px;
     border: 1px solid #ced4da;
-    border-radius: 4px;
+    border-radius: 6px;
     background: #fff;
     color: #495057;
-    font-size: 0.7rem;
+    font-size: 0.76rem;
     font-weight: 600;
-    line-height: 1.45;
+    line-height: 1.5;
     white-space: nowrap;
     cursor: pointer;
   }

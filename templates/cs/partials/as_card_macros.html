@@ -207,10 +207,17 @@
 
 {# 기준 일정 드리프트 배지 — PC 테이블·모바일 카드(v2/legacy) 공유 SSOT.
    drift는 as_dashboard_display.apply_schedule_link_drift_fields가 행마다 부착한
-   evaluate_drift() 결과(+label, 서비스 계층에서 조립한 표시 문자열).
-   state='none'(링크 없음)이면 배지를 아예 내지 않는다. 색상은 state별 CSS 클래스
+   evaluate_drift() 결과 + 표시 전용 파생 필드(ref_customer_name/ref_label/
+   ref_date_md/ref_current_date_md, 전부 서비스 계층 조립 — 매크로는 배치만 한다).
+   ref_label 은 고객명이 있으면 이름, 없으면(고아 링크 등) '#id' 폴백이라
+   "기준  8/7" 처럼 이름이 빈칸으로 뜨는 경우가 없다. ref_order_id 자체는 그대로
+   유지된다 — 액션 버튼 data 속성과 테스트가 id 를 그대로 소비한다(표시만 이름).
+   state='none'(링크 없음)이면 배지를 아예 내지 않는다. 색상/크기는 state별 CSS 클래스
    (erp-as-drift-badge--<state>, as-dashboard-body.css)가 소유 — 'resolved'는 렌더 시
    자동 갱신을 하지 않으므로(스펙 §4) 'ok'와 같은 조용한 톤으로 CSS가 접는다.
+   ref_moved/both_moved 는 경고색 단색 채움 + 아이콘 + 옛 날짜 취소선/새 날짜 굵게로
+   "지금 조치가 필요하다"를 시각적으로 크게 낸다(2026-07-30 가독성 개선 — 각주급 조용한
+   알약이었던 첫 배포 버전에서 승격).
 
    T5 액션 버튼(재적용/무시/연결 해제)도 여기서 낸다 — PC 테이블·모바일 카드(v2/legacy)
    세 표면이 이 매크로 하나를 공유하므로 버튼을 호출부에 흩으면 SSOT가 셋으로 갈라진다.
@@ -227,7 +234,7 @@
 {% macro render_as_schedule_drift_badge(drift, order_id=None) -%}
 {% set d = drift or {} %}
 {%- if d.state and d.state != 'none' -%}
-<span class="erp-as-drift-badge erp-as-drift-badge--{{ d.state }}" title="기준 주문 일정 연동 상태">{{ d.label }}</span>
+<span class="erp-as-drift-badge erp-as-drift-badge--{{ d.state }}" title="기준 주문 일정 연동 상태">{%- if d.state in ('ref_moved', 'both_moved') -%}<i class="fas fa-triangle-exclamation erp-as-drift-badge__icon" aria-hidden="true"></i>{%- endif -%}<span class="erp-as-drift-badge__ref">기준 {{ d.ref_label }}</span>{%- if d.state == 'ref_gone' %} 연결 끊김{%- elif d.state in ('ok', 'resolved') %} {{ d.ref_date_md }}{%- else %} <s class="erp-as-drift-badge__old">{{ d.ref_date_md }}</s><span class="erp-as-drift-badge__arrow" aria-hidden="true">→</span><strong class="erp-as-drift-badge__new">{{ d.ref_current_date_md }}</strong>{%- endif -%}</span>
 {%- if order_id and d.state in ('ref_moved', 'both_moved', 'ref_gone') -%}
 <span class="erp-as-drift-actions">
 {%- if d.state != 'ref_gone' -%}
