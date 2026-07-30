@@ -24,7 +24,7 @@ from __future__ import annotations
 import copy
 import datetime
 import hashlib
-from typing import Any, Dict, List, Optional, Tuple
+from typing import Any, Callable, Dict, List, Optional, Tuple
 
 from sqlalchemy.orm import Session
 from sqlalchemy.orm.attributes import flag_modified
@@ -38,6 +38,7 @@ from foms.services.orders.as_cycle_service import (
     schedule_as_cycle,
     unschedule_as_cycle,
 )
+from foms.services.orders.as_schedule_link import SOURCE_SHIPMENT, clear_link, read_link, write_link
 from foms.services.orders.revision import execute_order_mutation
 from models import InstallationWorker, Order, OrderEvent
 
@@ -156,16 +157,18 @@ def _last_transition_seq(as_order: Order) -> Optional[int]:
 def _write_ship_recommendations(
     session: Session, ship_id: int, as_id: int, snapshot: Optional[Dict[str, Any]],
     *, actor_user_id: int, event_type: str, payload: Dict[str, Any],
-    now: datetime.datetime,
+    now: datetime.datetime, as_sd_mutator: Optional[Callable[[dict], Any]] = None,
 ) -> Order:
     """출고 Order 의 추천 snapshot list 를 갱신한다(REV-00: version/receipt/event 한 tx).
 
-    ``snapshot`` 이 있으면 해당 as_id 항목을 upsert, ``None`` 이면 제거한다. 출고 Order
-    를 이미 잠근 상태에서 :func:`execute_order_mutation` 로 version bump + receipt +
-    ``event_type`` OrderEvent 를 기록한다.
+    ``snapshot`` 이 있으면 해당 as_id 항목을 upsert, ``None`` 이면 제거한다. ``as_sd_mutator``
+    가 주어지면 **같은 mutation·같은 tx** 안에서 AS Order 의 structured_data 도 함께
+    ``copy.deepcopy`` + `flag_modified` 로 변형한다(§3.2 — AS 쪽 schedule_link 동기화용,
+    추가 command/커밋 없음). ``None`` 이면 AS Order 는 잠그지도 건드리지도 않는다.
     """
     def _mutate(sess: Session, orders: List[Order]) -> Dict[int, List[str]]:
-        target = orders[0]
+        by_id = {o.id: o for o in orders}
+        target = by_id[ship_id]
         sd = copy.deepcopy(target.structured_data or {})
         shipment = sd.setdefault("shipment", {})
         if not isinstance(shipment, dict):
@@ -178,19 +181,38 @@ def _write_ship_recommendations(
         shipment["recommendations"] = existing
         target.structured_data = sd
         flag_modified(target, "structured_data")
+        families = {target.id: [f"ORDER_DETAIL:{target.id}", "ORDERS_INDEX"]}
+
+        if as_sd_mutator is not None:
+            as_order = by_id[as_id]
+            as_sd = copy.deepcopy(as_order.structured_data or {})
+            as_sd_mutator(as_sd)
+            as_order.structured_data = as_sd
+            flag_modified(as_order, "structured_data")
+            families[as_order.id] = [f"ORDER_DETAIL:{as_order.id}"]
+
         sess.add(OrderEvent(
             order_id=target.id, event_type=event_type, payload=payload,
             created_by_user_id=actor_user_id, created_at=now,
         ))
-        return {target.id: [f"ORDER_DETAIL:{target.id}", "ORDERS_INDEX"]}
+        return families
 
+    order_ids = [ship_id, as_id] if as_sd_mutator is not None else [ship_id]
     execute_order_mutation(
         session, actor_user_id=actor_user_id, policy_id="SHIPMENT_AS_RECOMMENDATION",
-        order_ids=[ship_id], scope_hash=_hash(f"asrec:{ship_id}:{as_id}"),
+        order_ids=order_ids, scope_hash=_hash(f"asrec:{ship_id}:{as_id}"),
         request_hash=_hash(f"asrec:{event_type}:{now.isoformat()}"),
         mutation=_mutate, now=now,
     )
     return session.get(Order, ship_id)
+
+
+def _safe_int(value: Any) -> Optional[int]:
+    """느슨한 int 변환(실패 시 None) — 링크 ``ref_order_id`` 비교 전용."""
+    try:
+        return int(value)
+    except (TypeError, ValueError):
+        return None
 
 
 def apply_as_recommendation(
@@ -261,6 +283,10 @@ def apply_as_recommendation(
             "change_method": "API", "source_screen": source_screen or "erp_shipment_dashboard",
         },
         now=now,
+        as_sd_mutator=lambda sd: write_link(
+            sd, ref_order_id=ship.id, ref_date=ship_date, source=SOURCE_SHIPMENT,
+            user_id=actor_user_id, user_name="", now=now,
+        ),
     )
     return {
         "as_order_id": as_order.id, "applied_date": ship_date,
@@ -333,6 +359,12 @@ def cancel_as_recommendation(
         session, order_id=as_order.id, worker_ids=prev_crew,
         reason="AS 추천 취소", actor_user_id=actor_user_id, now=now,
     )
+    as_link = read_link(as_order.structured_data or {})
+    owns_link = (
+        as_link is not None
+        and as_link.get("source") == SOURCE_SHIPMENT
+        and _safe_int(as_link.get("ref_order_id")) == ship.id
+    )
     _write_ship_recommendations(
         session, ship.id, as_order.id, None, actor_user_id=actor_user_id,
         event_type="AS_RECOMMENDATION_CANCELLED",
@@ -343,6 +375,9 @@ def cancel_as_recommendation(
             "source_screen": "erp_shipment_dashboard",
         },
         now=now,
+        # 사용자가 이후 다른 기준 주문에 손으로 재매칭했을 수 있다 — 이 출고건이 만든
+        # 링크일 때만 해제한다(클로버 방지, 스펙 §3.2/플랜 T6).
+        as_sd_mutator=(lambda sd: clear_link(sd)) if owns_link else None,
     )
     return {
         "as_order_id": as_order.id, "cleared_visit_date": applied_date,

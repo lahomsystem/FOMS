@@ -205,6 +205,41 @@
 </div>
 {%- endmacro %}
 
+{# 기준 일정 드리프트 배지 — PC 테이블·모바일 카드(v2/legacy) 공유 SSOT.
+   drift는 as_dashboard_display.apply_schedule_link_drift_fields가 행마다 부착한
+   evaluate_drift() 결과(+label, 서비스 계층에서 조립한 표시 문자열).
+   state='none'(링크 없음)이면 배지를 아예 내지 않는다. 색상은 state별 CSS 클래스
+   (erp-as-drift-badge--<state>, as-dashboard-body.css)가 소유 — 'resolved'는 렌더 시
+   자동 갱신을 하지 않으므로(스펙 §4) 'ok'와 같은 조용한 톤으로 CSS가 접는다.
+
+   T5 액션 버튼(재적용/무시/연결 해제)도 여기서 낸다 — PC 테이블·모바일 카드(v2/legacy)
+   세 표면이 이 매크로 하나를 공유하므로 버튼을 호출부에 흩으면 SSOT가 셋으로 갈라진다.
+   조치가 가능한 상태에서만 낸다: ref_moved/both_moved = 3개 전부, ref_gone(기준 주문 삭제)
+   = 재적용할 날짜도, 무시할 변경도 없으므로 '연결 해제'만. ok/resolved/acked는 배지만.
+   order_id 가 없으면(구 호출부) 버튼을 생략한다 — 대상 없는 버튼은 무음 실패가 된다.
+   노출 게이트를 걸지 않는 이유는 스펙 §8: 화면 노출은 로그인 사용자 전원, 쓰기 권한은
+   API(@erp_edit_required)가 소유한다(클라 은닉은 보안 경계가 아니다).
+   핸들러는 as-dashboard.js 의 .js-as-drift-* 위임 배선. #}
+{% macro render_as_drift_action(hook, label, title, d, order_id) -%}
+<button type="button" class="erp-as-drift-action {{ hook }}" data-as-order-id="{{ order_id }}" data-ref-current-date="{{ d.ref_current_date or '' }}" data-drift-state="{{ d.state }}" title="{{ title }}">{{ label }}</button>
+{%- endmacro %}
+
+{% macro render_as_schedule_drift_badge(drift, order_id=None) -%}
+{% set d = drift or {} %}
+{%- if d.state and d.state != 'none' -%}
+<span class="erp-as-drift-badge erp-as-drift-badge--{{ d.state }}" title="기준 주문 일정 연동 상태">{{ d.label }}</span>
+{%- if order_id and d.state in ('ref_moved', 'both_moved', 'ref_gone') -%}
+<span class="erp-as-drift-actions">
+{%- if d.state != 'ref_gone' -%}
+{{ render_as_drift_action('erp-as-drift-action--relink js-as-drift-relink', '재적용', '기준 주문의 새 일정으로 AS 방문일만 맞춥니다 (시공자 복제 없음)', d, order_id) }}
+{{ render_as_drift_action('js-as-drift-ack', '무시', '이 변경은 확인했으니 경고를 숨깁니다', d, order_id) }}
+{%- endif -%}
+{{ render_as_drift_action('erp-as-drift-action--unlink js-as-drift-unlink', '연결 해제', '기준 일정 연결을 해제합니다 (방문일은 유지)', d, order_id) }}
+</span>
+{%- endif -%}
+{%- endif -%}
+{%- endmacro %}
+
 {% macro render_as_construction_workers(order_id, workers, can_edit) -%}
 {% set values = workers or [] %}
 {% set display_text = values | join(', ') %}

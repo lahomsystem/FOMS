@@ -148,7 +148,7 @@ AS 1건 + 기준 주문 1건 링크 → 기준 시공일 변경 → 렌더 응�
 
 ## T7 — 기존 적용분 백필 (1회성)
 
-**신규** `tools/maintenance/backfill_as_schedule_links.py`
+**신규** `tools/ops/backfill_as_schedule_links.py`
 
 - `sd.shipment.recommendations` 가 있는 출고 주문을 순회 → 각 `as_order_id` 의 AS 주문에
   `schedule_link`(source=`shipment_asrec`, ref_date=`applied_visit_date`) 를 채운다.

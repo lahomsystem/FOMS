@@ -1,8 +1,10 @@
 """Shipment dashboard AS schedule recommendation API contracts."""
 
+import copy
 from datetime import date
 from pathlib import Path
 
+from sqlalchemy.orm.attributes import flag_modified
 from werkzeug.security import generate_password_hash
 
 from db import db_session
@@ -11,11 +13,13 @@ from models import InstallationWorker, Order, OrderEvent, OrderScheduleDate, Use
 import foms.api.shipment.recommendations as shipment_rec_api
 import foms.services.shipment_as_recommendation_cache as shipment_rec_cache
 from foms.services.crew.assignments import active_worker_ids, assign_worker
+from foms.services.datetime_kst import now_utc_naive
 from foms.services.orders.as_cycle_service import (
     project_current_as_cycle,
     register_as_cycle,
     schedule_as_cycle,
 )
+from foms.services.orders.as_schedule_link import SOURCE_SHIPMENT, read_link, write_link
 from foms.services.schedule_recommendations import recommend_nearby_schedules_for_targets
 
 
@@ -759,6 +763,90 @@ def test_cancel_after_manual_date_change_returns_409(client) -> None:
     )
     assert response.status_code == 409
     assert "수동" in response.get_json().get("message", "")
+
+
+def _as_schedule_link(as_id: int):
+    """AS 주문의 현재 schedule_link 를 새로 읽어온다(세션 캐시 회피)."""
+    db_session.expire_all()
+    sd = db_session.get(Order, as_id).structured_data or {}
+    return read_link(sd)
+
+
+def test_apply_writes_as_side_schedule_link(client) -> None:
+    """T6: 출고 추천 적용은 AS 주문 쪽에도 schedule_link 를 남긴다(경로 A 동기화, §3.2)."""
+    user = _login_cs_staff(client, "shipment-rec-apply-link")
+    ship_id, _, ship_date = _make_ship_with_crew(["철수"])
+    as_id = _make_as_order_with_cycle(user.id)
+
+    response = client.post(
+        "/api/erp/shipment/as-recommendations/apply",
+        json={"shipment_order_id": ship_id, "as_order_id": as_id},
+    )
+    assert response.status_code == 200
+
+    link = _as_schedule_link(as_id)
+    assert link is not None
+    assert link["source"] == SOURCE_SHIPMENT
+    assert link["ref_order_id"] == ship_id
+    assert link["ref_date"] == ship_date
+
+
+def test_cancel_removes_as_side_schedule_link(client) -> None:
+    """T6: 취소는 이 출고건이 만든 schedule_link 를 해제한다."""
+    user = _login_cs_staff(client, "shipment-rec-cancel-link")
+    ship_id, _, _ = _make_ship_with_crew(["철수"])
+    as_id = _make_as_order_with_cycle(user.id)
+    client.post(
+        "/api/erp/shipment/as-recommendations/apply",
+        json={"shipment_order_id": ship_id, "as_order_id": as_id},
+    )
+    assert _as_schedule_link(as_id) is not None
+
+    response = client.post(
+        "/api/erp/shipment/as-recommendations/cancel",
+        json={"shipment_order_id": ship_id, "as_order_id": as_id},
+    )
+    assert response.status_code == 200
+    assert _as_schedule_link(as_id) is None
+
+
+def test_cancel_does_not_clobber_link_to_different_ref_order(client) -> None:
+    """T6: 취소 시점에 링크의 ref_order_id 가 이 출고건과 다르면 건드리지 않는다.
+
+    사용자가 취소 전에 AS 대시보드 "가까운 일정 찾기"(또는 다른 출고건)로 손으로
+    재매칭했을 수 있다 — clobber 는 데이터 유실 버그(스펙 §3.2/플랜 T6).
+    """
+    user = _login_cs_staff(client, "shipment-rec-cancel-link-guard")
+    user_id = user.id
+    ship_id, _, _ = _make_ship_with_crew(["철수"])
+    other_ship_id, _, other_ship_date = _make_ship_with_crew(["영희"])
+    as_id = _make_as_order_with_cycle(user_id)
+    client.post(
+        "/api/erp/shipment/as-recommendations/apply",
+        json={"shipment_order_id": ship_id, "as_order_id": as_id},
+    )
+    assert _as_schedule_link(as_id)["ref_order_id"] == ship_id
+
+    # 취소 전에 다른 기준 주문으로 재매칭된 상태를 재현.
+    as_order = db_session.get(Order, as_id)
+    sd = copy.deepcopy(as_order.structured_data or {})
+    write_link(
+        sd, ref_order_id=other_ship_id, ref_date=other_ship_date,
+        source=SOURCE_SHIPMENT, user_id=user_id, user_name="", now=now_utc_naive(),
+    )
+    as_order.structured_data = sd
+    flag_modified(as_order, "structured_data")
+    db_session.commit()
+
+    response = client.post(
+        "/api/erp/shipment/as-recommendations/cancel",
+        json={"shipment_order_id": ship_id, "as_order_id": as_id},
+    )
+    assert response.status_code == 200
+
+    link = _as_schedule_link(as_id)
+    assert link is not None
+    assert link["ref_order_id"] == other_ship_id
 
 
 def test_prewarm_endpoint_requires_order_ids(client) -> None:

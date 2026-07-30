@@ -523,6 +523,123 @@
     border: 1px dashed #f59f00;
   }
 
+  /* 2026-07-30 T4: 기준 일정 드리프트 배너 + 행 배지(스펙 §4 판정표).
+     배너는 도면 주문변경 배너(dw-order-change-banner)와 같은 erp-pro-card 톤을 쓰되
+     AS 전용 클래스로 분리한다(재적용/무시/해제 액션은 T5가 여기에 이어 붙인다). */
+  .as-schedule-drift-banner {
+    border-left: 4px solid var(--erp-danger);
+  }
+
+  .as-schedule-drift-banner__icon {
+    color: var(--erp-danger);
+  }
+
+  /* 배지는 비용 배지(.erp-as-billing-badge)와 같은 알약 형태·치수를 공유해
+     같은 셀 안에서 크기가 들쭉날쭉해 보이지 않게 한다. */
+  .erp-as-drift-badge {
+    display: inline-block;
+    margin-top: 3px;
+    padding: 1px 7px;
+    border-radius: 4px;
+    font-size: 0.72rem;
+    font-weight: 700;
+    line-height: 1.45;
+    white-space: nowrap;
+  }
+
+  /* ref_moved: 주 케이스(방문일이 옛 기준일에 맞춰진 채 기준이 움직임) — 가장 눈에 띄는 경고. */
+  .erp-as-drift-badge--ref_moved {
+    background: var(--erp-danger-light);
+    color: var(--erp-danger-dark);
+  }
+
+  /* both_moved: 방문일도 다른 값으로 움직여 자동 판단이 애매한 케이스 — 주황(경계). */
+  .erp-as-drift-badge--both_moved {
+    background: var(--erp-warning-light);
+    color: var(--erp-warning-dark);
+  }
+
+  /* acked(경고 무시)·ref_gone(기준 주문 삭제)은 더 이상 조치를 요구하지 않는 회색 표기만. */
+  .erp-as-drift-badge--acked,
+  .erp-as-drift-badge--ref_gone {
+    background: #e9ecef;
+    color: #495057;
+  }
+
+  /* ok: 기준과 일치(정상) · resolved: 방문일을 이미 새 기준에 맞춰 렌더 시엔 경고를 내지 않는다
+     (스펙 §4 — 실제 ref_date 자동 갱신은 다음 링크 API 호출 때). 둘 다 조용한 중립 톤. */
+  .erp-as-drift-badge--ok,
+  .erp-as-drift-badge--resolved {
+    background: #f1f3f5;
+    color: #495057;
+    font-weight: 600;
+  }
+
+  /* 2026-07-30 T5: 드리프트 행 액션(재적용/무시/연결 해제).
+     방문일 셀은 이미 좁으므로(입력 + 배지 + 미결 버튼) 버튼은 배지보다 한 단계 작은
+     텍스트 칩으로 낸다 — 세 표면(PC 셀·모바일 v2 카드·legacy 카드) 모두 같은 컨테이너
+     폭 제약을 받으므로 표면별 분기 없이 wrap 으로 흘린다. */
+  .erp-as-drift-actions {
+    display: inline-flex;
+    flex-wrap: wrap;
+    gap: 4px;
+    margin-top: 3px;
+    margin-left: 4px;
+    vertical-align: middle;
+  }
+
+  .erp-as-drift-action {
+    padding: 1px 6px;
+    border: 1px solid #ced4da;
+    border-radius: 4px;
+    background: #fff;
+    color: #495057;
+    font-size: 0.7rem;
+    font-weight: 600;
+    line-height: 1.45;
+    white-space: nowrap;
+    cursor: pointer;
+  }
+
+  .erp-as-drift-action:hover:not(:disabled) {
+    background: #f1f3f5;
+  }
+
+  .erp-as-drift-action:disabled {
+    opacity: 0.55;
+    cursor: progress;
+  }
+
+  /* 재적용 = 권장 조치라 유일하게 채색, 연결 해제 = 파괴적이라 경고색 테두리. */
+  .erp-as-drift-action--relink {
+    border-color: var(--erp-primary, #0d6efd);
+    background: var(--erp-primary, #0d6efd);
+    color: #fff;
+  }
+
+  .erp-as-drift-action--relink:hover:not(:disabled) {
+    filter: brightness(0.93);
+    background: var(--erp-primary, #0d6efd);
+  }
+
+  .erp-as-drift-action--unlink {
+    border-color: #f1aeb5;
+    color: #b02a37;
+  }
+
+  /* 가까운 일정 찾기 모달(T3): 지도 + '이 일정에 매칭' 버튼 묶음 + 행 오류 메시지 슬롯.
+     실패 메시지는 행 안에서 나야 한다 — 모달이 열려 있으면 페이지 토스트가 뒤에 가린다. */
+  .as-schedule-result__btns {
+    display: inline-flex;
+    flex-wrap: wrap;
+    gap: 6px;
+    align-items: center;
+  }
+
+  .as-schedule-link-msg:empty {
+    display: none;
+  }
+
   /* AS 고객 열: 전화번호 아래 발주사(라홈/하우드 로고 또는 이름) */
   .erp-as-orderer-line {
     margin-top: 2px;

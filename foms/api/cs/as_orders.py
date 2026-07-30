@@ -57,6 +57,15 @@ from foms.services.orders.as_log import (
     decorate_entry,
     migrate_legacy_into_log,
 )
+from foms.services.orders.as_schedule_link import (
+    SOURCE_NEARBY,
+    ack_link,
+    clear_link,
+    evaluate_drift,
+    read_link,
+    relink,
+    write_link,
+)
 from foms.services.orders.revision import RevisionError, execute_order_mutation
 from models import Order, SecurityLog
 
@@ -74,6 +83,7 @@ POLICY_AS_LOG_APPEND = "STATE_AS_LOG_APPEND"
 POLICY_AS_LOG_PATCH = "STATE_AS_LOG_PATCH"
 POLICY_AS_LOG_DELETE = "STATE_AS_LOG_DELETE"
 POLICY_AS_REREGISTER = "STATE_AS_REREGISTER"
+POLICY_AS_SCHEDULE_LINK = "STATE_AS_SCHEDULE_LINK"
 
 
 def _invalidate_shipment_asrec_caches(reason: str) -> None:
@@ -969,6 +979,229 @@ def api_as_log_delete(order_id: int, log_id: str):
     return jsonify({"success": True, "cell_html": cell_html})
 
 
+# --------------------------------------------------------------------------- #
+# AS 기준 일정 매칭 링크(schedule_link) — 매칭 / 재적용 / 무시 / 해제
+# --------------------------------------------------------------------------- #
+# 스펙: docs/specs/2026-07-30-as-schedule-link-drift-design.md §3·§4·§6.
+# 판정·스키마는 순수 서비스(foms/services/orders/as_schedule_link.py)가 SSOT 고,
+# 여기서는 검증·기준 주문 재조회·mutation 배선만 한다.
+_SCHEDULE_LINK_ACTIONS = ("link", "relink", "ack", "unlink")
+_SCHEDULE_LINK_ACTION_LABELS = {
+    "link": "매칭", "relink": "재적용", "ack": "무시", "unlink": "해제",
+}
+
+
+def _as_visit_date(sd: Optional[dict]) -> Optional[str]:
+    """``sd.schedule.as_visit.date`` 안전 조회(중간 노드가 dict 가 아니면 None).
+
+    Args:
+        sd: 주문 structured_data(None 허용).
+
+    Returns:
+        방문일 문자열(Da) 또는 None.
+    """
+    node: Any = sd or {}
+    for key in ("schedule", "as_visit", "date"):
+        if not isinstance(node, dict):
+            return None
+        node = node.get(key)
+    return node if isinstance(node, str) and node.strip() else None
+
+
+def _ref_construction_date(ref: Order) -> str:
+    """기준 주문의 **현재** 시공일(Ds). ``erp_construction_date`` 우선, 없으면 ``scheduled_date``.
+
+    Args:
+        ref: 기준 주문(활성 확인 완료).
+
+    Returns:
+        비어 있지 않은 날짜 문자열.
+
+    Raises:
+        ValueError: 두 값 모두 비어 있을 때 — 비교 기준선(D0)이 없으면 드리프트 판정
+            자체가 성립하지 않으므로 링크를 만들지 않는다(호출부에서 400).
+    """
+    for value in (ref.erp_construction_date, ref.scheduled_date):
+        text = str(value or "").strip()
+        if text:
+            return text
+    raise ValueError("기준 주문에 시공일이 없어 일정을 매칭할 수 없습니다.")
+
+
+def _resolve_schedule_link_ref(db: Session, raw_ref_id: object, *, as_order_id: int):
+    """기준 주문 id 를 검증·로드하고 서버 기준의 현재 시공일까지 확정한다.
+
+    클라이언트가 보낸 ``ref_date`` 는 채택하지 않는다 — 모달을 열어둔 사이 기준 주문의
+    시공일이 바뀌었을 수 있어(stale) 링크의 D0 가 처음부터 틀어진다(스펙 §6).
+
+    Args:
+        db: 요청 세션.
+        raw_ref_id: 기준 주문 id 원본(요청 body 또는 기존 링크에서 온 값).
+        as_order_id: 요청 대상 AS 주문 id(자기 자신 매칭 차단용).
+
+    Returns:
+        ``((ref_order_id, ref_date), None)`` 또는 ``(None, (응답, 상태코드))``.
+    """
+    try:
+        ref_id = int(raw_ref_id)
+    except (TypeError, ValueError):
+        return None, (jsonify({"success": False, "message": "기준 주문 id가 필요합니다."}), 400)
+    if ref_id == as_order_id:
+        return None, (
+            jsonify({"success": False, "message": "자기 자신을 기준으로 매칭할 수 없습니다."}), 400)
+    ref, err = _load_active_order(db, ref_id)
+    if err:
+        return None, (jsonify({"success": False, "message": "기준 주문을 찾을 수 없습니다."}), 404)
+    try:
+        return (ref_id, _ref_construction_date(ref)), None
+    except ValueError as ve:
+        return None, (jsonify({"success": False, "message": str(ve)}), 400)
+
+
+def _plan_schedule_link(db: Session, order: Order, data: Dict[str, Any]):
+    """요청을 검증해 실행 계획을 확정한다(쓰기 전 단계 — 잠금 없이 판단 가능한 것만).
+
+    Args:
+        db: 요청 세션. order: 대상 AS 주문. data: 요청 body.
+
+    Returns:
+        ``((action, ref_order_id, ref_date, 기존 링크), None)`` 또는 ``(None, (응답, 상태코드))``.
+        ``unlink`` 는 기준 주문을 조회하지 않으므로 ref 두 값이 None 이다.
+    """
+    action = str(data.get("action") or "").strip()
+    if action not in _SCHEDULE_LINK_ACTIONS:
+        return None, (jsonify({"success": False, "message": "지원하지 않는 action 입니다."}), 400)
+    existing = read_link(order.structured_data or {})
+    if action in ("relink", "ack") and existing is None:
+        return None, (jsonify({"success": False, "message": "연결된 기준 일정이 없습니다."}), 409)
+    if action == "unlink":
+        return (action, None, None, existing), None
+    raw_ref = data.get("ref_order_id") if action == "link" else existing.get("ref_order_id")
+    resolved, err = _resolve_schedule_link_ref(db, raw_ref, as_order_id=order.id)
+    if err:
+        return None, err
+    return (action, resolved[0], resolved[1], existing), None
+
+
+def _apply_schedule_link(
+    sd: Dict[str, Any], *, action: str, ref_order_id: Optional[int], ref_date: Optional[str],
+    user_id: Optional[int], user_name: str,
+) -> Dict[str, Any]:
+    """잠긴 sd 에 링크 액션을 적용한다(``_run_sd_mutation`` 의 apply 본체).
+
+    ``link``/``unlink`` 만 AS 타임라인에 system 항목을 남긴다 — ``relink``/``ack`` 은
+    날짜 자체를 바꾸지 않고(방문일 쓰기는 update_order_field 소관) 노이즈만 늘린다.
+
+    Args:
+        sd: 잠긴 주문 structured_data 사본.
+        action: ``link``|``relink``|``ack``|``unlink``.
+        ref_order_id: 기준 주문 id(unlink 는 None).
+        ref_date: 서버가 재조회한 기준 주문 현재 시공일(unlink 는 None).
+        user_id: 링크에 남길 actor id. user_name: 링크에 남길 actor 표시명.
+
+    Returns:
+        ``{'link': 갱신된 링크 or None, 'cleared': bool, 'as_visit_date': str|None}``.
+
+    Raises:
+        ValueError: relink/ack 인데 잠근 뒤 링크가 사라진 경우(경쟁) → 호출부에서 409.
+    """
+    cleared = False
+    if action == "link":
+        write_link(sd, ref_order_id=ref_order_id, ref_date=ref_date, source=SOURCE_NEARBY,
+                   user_id=user_id, user_name=user_name, now=now_utc_naive())
+        append_system_log(sd, text=f"기준 일정 매칭: 주문 #{ref_order_id} ({ref_date})")
+    elif action == "relink":
+        if not relink(sd, ref_date):
+            raise ValueError("연결된 기준 일정이 없습니다.")
+    elif action == "ack":
+        if not ack_link(sd, ref_date):
+            raise ValueError("연결된 기준 일정이 없습니다.")
+    else:
+        cleared = clear_link(sd)
+        if cleared:
+            append_system_log(sd, text="기준 일정 매칭 해제")
+    return {"link": read_link(sd), "cleared": cleared, "as_visit_date": _as_visit_date(sd)}
+
+
+def _schedule_link_payload(
+    *, action: str, link: Optional[dict], cleared: bool, ref_date: Optional[str],
+    as_visit_date: Optional[str],
+) -> Dict[str, Any]:
+    """성공 응답 조립 — 링크 + 방금 확정한 기준일 기준의 드리프트 판정.
+
+    Args:
+        action: 수행한 액션. link: 갱신 후 링크(없으면 None). cleared: unlink 성사 여부.
+        ref_date: 기준 주문의 현재 시공일(Ds). as_visit_date: AS 현재 방문일(Da).
+
+    Returns:
+        ``{'success', 'link', 'drift'}`` (+ unlink 는 ``'cleared'``).
+    """
+    payload: Dict[str, Any] = {
+        "success": True,
+        "link": link,
+        "drift": evaluate_drift(link, ref_current_date=ref_date,
+                                as_visit_date=as_visit_date, ref_missing=False),
+    }
+    if action == "unlink":
+        payload["cleared"] = cleared
+    return payload
+
+
+@erp_orders_as_bp.route("/<int:order_id>/as/schedule-link", methods=["POST"])
+@login_required
+@erp_edit_required
+def api_as_schedule_link(order_id: int):
+    """AS 기준 일정 링크 쓰기. body ``{action, ref_order_id?, ref_date?}``.
+
+    기준일(D0)은 서버가 기준 주문에서 다시 읽는다 — 클라이언트 ``ref_date`` 는 참고도
+    하지 않는다(스펙 §6, stale 방지).
+
+    Args:
+        order_id: 대상 AS 주문 PK.
+
+    Returns:
+        200 ``{'success', 'link', 'drift'}`` (unlink 는 ``'cleared'`` 포함) /
+        400 검증 실패 / 404 기준 주문 없음·삭제됨 / 409 링크 없음·무결성.
+    """
+    db = get_db()
+    order, err = _load_active_order(db, order_id)
+    if err:
+        return err
+    data = request.get_json(silent=True) or {}
+    plan, plan_err = _plan_schedule_link(db, order, data)
+    if plan_err:
+        return plan_err
+    action, ref_id, ref_date, existing = plan
+    if action == "unlink" and existing is None:
+        # 멱등: 이미 해제된 링크의 재요청에 REV bump·receipt·system 로그를 남기지 않는다
+        # (as/log delete 선례 — 무변경에 mutation 을 돌리지 않는다).
+        return jsonify(_schedule_link_payload(
+            action=action, link=None, cleared=False, ref_date=None,
+            as_visit_date=_as_visit_date(order.structured_data)))
+    user_id = session.get("user_id")
+    user = get_user_by_id(user_id)
+    captured: Dict[str, Any] = {}
+    try:
+        _run_sd_mutation(
+            db, order_id=order_id, actor_user_id=user_id,
+            policy_id=POLICY_AS_SCHEDULE_LINK, command_id="AS_SCHEDULE_LINK", body=data,
+            apply=lambda sd, _order: captured.update(_apply_schedule_link(
+                sd, action=action, ref_order_id=ref_id, ref_date=ref_date,
+                user_id=user_id, user_name=(user.name if user else ""))),
+        )
+    except Exception as exc:  # noqa: BLE001
+        return _as_error_response(db, exc)
+
+    db.add(SecurityLog(
+        user_id=user_id,
+        message=f"주문 #{order_id} AS 기준 일정 {_SCHEDULE_LINK_ACTION_LABELS[action]}"))
+    db.commit()
+    _invalidate_shipment_asrec_caches("api_as_schedule_link")
+    return jsonify(_schedule_link_payload(
+        action=action, link=captured["link"], cleared=captured["cleared"],
+        ref_date=ref_date, as_visit_date=captured["as_visit_date"]))
+
+
 __all__ = [
     "erp_orders_as_bp",
     "api_as_start",
@@ -982,5 +1215,6 @@ __all__ = [
     "api_as_log_append",
     "api_as_log_patch",
     "api_as_log_delete",
+    "api_as_schedule_link",
     "get_today_kst",
 ]

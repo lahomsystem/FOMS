@@ -1,10 +1,10 @@
 {# foms-kv-rollout: erp_mobile_shell → kv-copy.js + queue card foms_order_contact_kv #}
-{% from 'cs/partials/as_card_macros.html' import render_as_orderer_line, render_as_construction_workers, render_as_timeline_cell, render_as_billing_badge %}
+{% from 'cs/partials/as_card_macros.html' import render_as_orderer_line, render_as_construction_workers, render_as_timeline_cell, render_as_billing_badge, render_as_schedule_drift_badge %}
 
 {# AS 타임라인 공용 컴포넌트(SSOT) — 컨텍스트 오버라이드(as-dashboard-body.css)보다 먼저 로드해
    캐스케이드 순서를 지킨다(컴포넌트 → 컨텍스트 오버라이드). #}
 <link rel="stylesheet" href="{{ url_for('static', filename='css/components/foms-as-timeline.css') }}?v=20260730b">
-<link rel="stylesheet" href="{{ url_for('static', filename='css/contexts/cs/as-dashboard-body.css') }}?v=20260728g">
+<link rel="stylesheet" href="{{ url_for('static', filename='css/contexts/cs/as-dashboard-body.css') }}?v=20260730b">
 {# 카드 CSS는 body 파셜에 둔다 → fast-tab 프래그먼트 스왑(as_dashboard_fragment.html)에도
    함께 실려, 탭 이동 첫 진입에서 카드가 원시(미스타일)로 뜨는 FOUC를 막는다.
    (head_extra 전용이면 전체 새로고침 전까지 카드 CSS가 누락된다) #}
@@ -40,6 +40,19 @@
     <span class="as-timeline-hint__text">AS 내용이 이력 형식으로 바뀌었습니다. 기존 내용은 '이전 기록'에 그대로 있습니다.</span>
     <button type="button" class="as-timeline-hint__dismiss" aria-label="안내 닫기">&times;</button>
   </div>
+
+  {# 기준 일정 드리프트 배너 — 렌더된 행 집합 기준(스펙 §8, 전체 미완료 AS 스캔 아님)이라
+     문구도 "현재 목록에서"로 정직하게 쓴다. 재적용/무시/해제 액션은 T5 소관이라 여기선
+     상태 안내만(마크업/톤은 도면 배너 templates/drawing/partials/workbench_detail_body.html
+     의 dw-order-change-banner를 참조하되 AS 전용 클래스로 분리). #}
+  {% if drift_count %}
+  <div class="erp-pro-card mb-3 as-schedule-drift-banner" id="as-schedule-drift-banner">
+    <div class="card-body py-3 d-flex align-items-center gap-2">
+      <i class="fas fa-exclamation-triangle as-schedule-drift-banner__icon" aria-hidden="true"></i>
+      <span class="fw-semibold">현재 목록에서 기준 일정이 변경된 AS {{ drift_count }}건</span>
+    </div>
+  </div>
+  {% endif %}
 
   {% if not erp_order_enabled %}
   <div class="erp-pro-alert erp-pro-alert--warning">
@@ -228,6 +241,7 @@
                   <input type="date" class="erp-pro-input editable-date-as" value="{{ r.as_visit_date or '' }}"
                     data-order-id="{{ r.id }}" data-field="as_visit_date" style="width: 100%;">
                 </div>
+                {{ render_as_schedule_drift_badge(r.schedule_link_drift, r.id) }}
                 {% if r.as_visit_date %}
                 <button type="button" class="erp-as-pending-btn as-pending-btn{% if r.as_pending %} erp-as-pending-btn--active{% endif %}" data-order-id="{{ r.id }}"
                   data-as-pending="{% if r.as_pending %}1{% else %}0{% endif %}"
@@ -522,7 +536,7 @@
 {# 기준↔시공지 지도 공용 모듈(출고 AS 일정추천 모달과 공유). 클릭 시점 호출이라 순서 의존은
    없지만 프래그먼트 경로에도 함께 실려야 지도 버튼이 죽지 않는다. #}
 <script src="{{ url_for('static', filename='js/common/foms-schedule-map.js') }}?v=20260730g" defer></script>
-<script src="{{ url_for('static', filename='js/cs/as-dashboard.js') }}?v=20260730g" defer></script>
+<script src="{{ url_for('static', filename='js/cs/as-dashboard.js') }}?v=20260730h" defer></script>
 {# PC 12열 컬럼 폭 조절(드래그 + localStorage). 모바일은 파일 자체가 조기 반환 —
    body 파셜에 두는 이유는 CSS 와 같다(fast-tab 프래그먼트 스왑에도 함께 실려야 재초기화된다). #}
 <script src="{{ url_for('static', filename='js/cs/as-dashboard-columns.js') }}?v=20260728b" defer></script>

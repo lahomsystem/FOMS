@@ -1369,6 +1369,103 @@
       }
     });
 
+    // ───────── 기준 일정 매칭 링크(schedule_link) 공용 배선 ─────────
+    // 스펙: docs/specs/2026-07-30-as-schedule-link-drift-design.md §5·§6.
+    // T3(모달 '이 일정에 매칭')과 T5(행 재적용/무시/해제)가 같은 POST를 쓰므로 헬퍼는 여기 하나.
+    // CSRF 헤더는 layout_head.html의 전역 fetch 인터셉터가 붙인다(여기서 수동 부착 금지 — 중복).
+
+    /**
+     * 응답 본문을 텍스트로 받아 방어적으로 JSON 파싱한다(선례: shipment-dashboard.js).
+     *
+     * 세션 만료 리다이렉트는 HTML을 200/302로 돌려준다 — res.json()을 바로 쓰면
+     * SyntaxError가 나고, .catch가 없으면 버튼이 아무 반응 없이 죽는다(무음 실패).
+     * 파싱 실패는 상태코드를 담은 실패 객체로 접어 호출부가 항상 메시지를 낼 수 있게 한다.
+     */
+    function parseJsonResponse(r) {
+      return r.text().then(function (text) {
+        var data = null;
+        try {
+          data = text ? JSON.parse(text) : null;
+        } catch (e) {
+          data = null;
+        }
+        if (!data || typeof data !== 'object') {
+          data = { success: false, message: '서버 응답 오류 (' + r.status + ')' };
+        }
+        return { ok: r.ok, status: r.status, data: data };
+      });
+    }
+
+    /** POST /api/orders/<id>/as/schedule-link — body는 {action, ref_order_id?, ref_date?}. */
+    function postScheduleLink(asOrderId, body) {
+      return fetch('/api/orders/' + encodeURIComponent(asOrderId) + '/as/schedule-link', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json', 'X-Requested-With': 'XMLHttpRequest' },
+        credentials: 'same-origin',
+        body: JSON.stringify(body),
+      }).then(parseJsonResponse);
+    }
+
+    /** 링크 API 응답에서 사람이 읽을 실패 사유를 뽑는다(없으면 기본 문구). */
+    function scheduleLinkErrorText(res, fallback) {
+      var d = (res && res.data) || {};
+      return String(d.message || d.error || fallback);
+    }
+
+    /**
+     * 재적용 1단계 — 기존 날짜 저장 경로(saveDateField)를 그대로 태운다.
+     *
+     * 새 날짜 쓰기 엔드포인트/포맷을 만들지 않는 이유: as_visit_date 쓰기는
+     * POST /api/update_order_field 하나가 SSOT고, 그 경로가 as_log에 '방문일 확정'
+     * system 항목까지 남긴다. 여기서 직접 fetch하면 그 부수효과와 화면 동기화가 갈라진다.
+     * saveDateField는 실패 시 입력값을 원래대로 되돌리고 throw한다(silent=토스트만 억제).
+     */
+    async function applyRefDateToAsVisit(orderId, refCurrentDate) {
+      const input = getDateInputsForOrder(orderId, 'as_visit_date')[0];
+      if (!input) throw new Error('방문일 입력을 찾을 수 없습니다. 새로고침 후 다시 시도해주세요.');
+      // 순서 주의: 저장 상태는 첫 조회 시점의 input.value 로 savedValue 를 굳힌다.
+      // 값을 먼저 바꾸면 savedValue == value 가 되어 saveDateField 가 skipped 로 빠지고
+      // 요청이 아예 안 나간다(무음 no-op). 그래서 상태를 먼저 깨운다.
+      getDateFieldSaveState(input);
+      input.value = refCurrentDate;
+      return saveDateField(input, { silent: true });
+    }
+
+    // 행 액션 3종(재적용/무시/연결 해제). 성공 후 목록 재조회는 이 파일의 기존 방식
+    // (buildAsDashboardUrl + focus_order)을 그대로 쓴다 — 배지 문구·배너 카운트의 SSOT가
+    // 서버(as_dashboard_display)라 클라에서 라벨을 다시 조립하면 두 구현으로 갈라진다.
+    addAsDashboardListener(document.body, 'click', async function (e) {
+      const btn = e.target.closest('.js-as-drift-relink, .js-as-drift-ack, .js-as-drift-unlink');
+      if (!btn) return;
+      e.stopPropagation();
+      e.preventDefault();
+      const orderId = btn.dataset.asOrderId;
+      if (!orderId) return;
+      const refCurrentDate = btn.dataset.refCurrentDate || '';
+      const isRelink = btn.classList.contains('js-as-drift-relink');
+      const isUnlink = btn.classList.contains('js-as-drift-unlink');
+      if (isUnlink && !window.confirm('기준 일정 연결을 해제할까요? AS 방문일은 그대로 둡니다.')) return;
+      // both_moved = 방문일도 손으로 따로 바뀐 상태 — 재적용은 그 값을 덮어쓴다(스펙 §4).
+      if (isRelink && btn.dataset.driftState === 'both_moved'
+        && !window.confirm('AS 방문일이 따로 변경돼 있습니다. 기준 주문의 새 일정(' + refCurrentDate + ')으로 덮어쓸까요?')) return;
+      const action = isRelink ? 'relink' : (isUnlink ? 'unlink' : 'ack');
+      btn.disabled = true;
+      try {
+        if (isRelink) {
+          if (!refCurrentDate) throw new Error('기준 주문의 새 일정을 알 수 없습니다.');
+          await applyRefDateToAsVisit(orderId, refCurrentDate);
+        }
+        const res = await postScheduleLink(orderId, { action: action });
+        if (!res.ok || res.data.success !== true) {
+          throw new Error(scheduleLinkErrorText(res, '기준 일정 처리에 실패했습니다.'));
+        }
+        window.location.href = buildAsDashboardUrl({ focus_order: orderId });
+      } catch (err) {
+        btn.disabled = false;
+        showFeedback(String((err && err.message) || err || '기준 일정 처리 중 오류가 발생했습니다.'), true);
+      }
+    });
+
     // ───────── 가까운 일정 찾기 ─────────
     (function () {
       // 탭별 pre-computed 리스트 (백엔드에서 각각 계산해 내려줌)
@@ -1448,6 +1545,15 @@
                 <i class="fas fa-map"></i> 지도
               </button>`
             : '<span></span>';
+          // '이 일정에 매칭'(T3) — 기준 AS id는 모달을 연 버튼이 남긴 _searchState.excludeId.
+          // 없으면(주소 재검색 등으로 컨텍스트 유실) 버튼 자체를 렌더하지 않는다: 대상 없는
+          // 버튼이 눌리면 어디에도 못 쓰고 조용히 실패한다.
+          const linkBtnHtml = _searchState.excludeId
+            ? `<button type="button" class="btn btn-sm btn-outline-primary js-as-schedule-link"
+                data-ref-order-id="${esc(item.id)}" data-ref-date="${esc(item.date)}">
+                <i class="fas fa-link"></i> 이 일정에 매칭
+              </button>`
+            : '';
           el.innerHTML = `
             <div class="d-flex w-100 justify-content-between align-items-center mb-2">
               <div>
@@ -1464,9 +1570,10 @@
               ${item.score_text ? `<span class="badge bg-light text-dark border ms-2"><i class="fas fa-car-side me-1"></i>${esc(item.score_text)}</span>` : ''}
             </p>
             <div class="d-flex justify-content-between align-items-end mt-1">
-              ${mapBtnHtml}
+              <span class="as-schedule-result__btns">${mapBtnHtml}${linkBtnHtml}</span>
               <small class="text-primary fw-bold"><i class="fas fa-external-link-alt"></i> 바로가기</small>
-            </div>`;
+            </div>
+            ${linkBtnHtml ? '<div class="as-schedule-link-msg text-danger small mt-1" role="alert"></div>' : ''}`;
           resList.appendChild(el);
         });
       }
@@ -1586,6 +1693,52 @@
           await runSearch(newAddr, _searchState.excludeId, null, null);
         });
       }
+
+      /** 매칭 성공 표시 — 누른 버튼은 '매칭됨'(비활성), 나머지는 '매칭 변경'(1 AS = 1 링크). */
+      function markScheduleLinkApplied(activeBtn) {
+        const resList = document.getElementById('scheduleSearchResults');
+        if (!resList) return;
+        resList.querySelectorAll('.js-as-schedule-link').forEach(function (b) {
+          const isActive = b === activeBtn;
+          b.textContent = isActive ? '매칭됨' : '매칭 변경';
+          b.disabled = isActive;
+          b.classList.toggle('btn-outline-primary', !isActive);
+          b.classList.toggle('btn-success', isActive);
+        });
+      }
+
+      // 결과 행 전체가 <a href="/edit/...">라 stopPropagation+preventDefault가 첫 줄이어야 한다
+      // (지도 버튼 선례). 없으면 요청은 날아가지만 화면이 편집 페이지로 이탈해 결과를 못 본다.
+      addAsDashboardListener(document.body, 'click', function (e) {
+        const btn = e.target.closest('.js-as-schedule-link');
+        if (!btn) return;
+        e.stopPropagation();
+        e.preventDefault();
+        const asOrderId = _searchState.excludeId;
+        if (!asOrderId) return;
+        const row = btn.closest('.list-group-item');
+        const msgEl = row ? row.querySelector('.as-schedule-link-msg') : null;
+        if (msgEl) msgEl.textContent = '';
+        btn.disabled = true;
+        postScheduleLink(asOrderId, {
+          action: 'link',
+          ref_order_id: parseInt(btn.dataset.refOrderId, 10),
+          ref_date: btn.dataset.refDate || '',
+        })
+          .then(function (res) {
+            if (!res.ok || res.data.success !== true) {
+              throw new Error(scheduleLinkErrorText(res, '매칭에 실패했습니다.'));
+            }
+            markScheduleLinkApplied(btn);
+          })
+          .catch(function (err) {
+            // 라벨은 손대지 않는다 — 실패 시 되돌리면 아이콘(<i>)까지 지워진다.
+            btn.disabled = false;
+            const text = String((err && err.message) || err || '매칭 중 오류가 발생했습니다.');
+            if (msgEl) msgEl.textContent = text;
+            else showFeedback(text, true);
+          });
+      });
 
       // 지도 렌더·SDK 주입·경로 조회·정리는 공용 모듈 static/js/common/foms-schedule-map.js 소관
       // (출고 대시보드와 공유). 여기서는 기준 좌표 + 버튼 data-* 만 넘긴다.

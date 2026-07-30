@@ -14,7 +14,8 @@ from foms.services.erp_display import (
 )
 from foms.services.as_content_safety import as_content_html_to_text, sanitize_as_content_html
 from foms.services.orders.as_log import build_as_timeline_view
-from models import OrderAttachment
+from foms.services.orders.as_schedule_link import evaluate_drift, read_link
+from models import Order, OrderAttachment
 
 __all__ = [
     "as_billing_badge_kind",
@@ -25,6 +26,7 @@ __all__ = [
     "batch_resolve_as_thumbnail_urls",
     "batch_resolve_as_compare_photos",
     "apply_as_dashboard_row_display_fields",
+    "apply_schedule_link_drift_fields",
 ]
 
 _IMAGE_SUFFIXES = (".jpg", ".jpeg", ".png", ".webp", ".gif", ".bmp")
@@ -321,17 +323,141 @@ def apply_timeline_cell_text(view: dict[str, Any]) -> None:
     view['cell_recent_text'] = _timeline_cell_text(view['stream'][0] if view['stream'] else None)
 
 
+_DRIFT_WARN_STATES = ("ref_moved", "both_moved")
+
+
+def _collect_schedule_link_ref_ids(rows) -> set[int]:
+    """행들의 schedule_link 가 참조하는 기준 주문 id 집합을 모은다(중복 제거).
+
+    Args:
+        rows: structured_data 가 이미 dict 로 정규화된 Order 리스트.
+
+    Returns:
+        ref_order_id 집합(링크 없거나 형식이 이상하면 제외).
+    """
+    ref_ids: set[int] = set()
+    for r in rows:
+        link = read_link(r.structured_data)
+        ref_id = link.get("ref_order_id") if link else None
+        if isinstance(ref_id, int):
+            ref_ids.add(ref_id)
+    return ref_ids
+
+
+def _batch_load_ref_schedule_snapshot(ref_ids: set[int], db: Any) -> dict[int, dict[str, Any]]:
+    """기준 주문들의 현재 시공일 스냅샷을 단일 in_() 쿼리로 배치 조회 (N+1 금지).
+
+    JSONB 필터 없이 `id, status, deleted_at, erp_construction_date, scheduled_date`
+    5개 컬럼만 읽는다(스펙 §3.3·§8 — 무인덱스 JSONB 스캔 금지).
+
+    Args:
+        ref_ids: 조회할 기준 주문 id 집합.
+        db: SQLAlchemy 세션.
+
+    Returns:
+        ``{ref_order_id: {"current_date": str|None, "missing": bool}}``. missing=True 는
+        DELETED 상태이거나 soft-delete(``deleted_at`` 존재)된 경우. 결과에 없는 id 는
+        호출측이 "조회 불가(orphan)"로 처리한다.
+    """
+    if not ref_ids:
+        return {}
+    query_rows = (
+        db.query(
+            Order.id,
+            Order.status,
+            Order.deleted_at,
+            Order.erp_construction_date,
+            Order.scheduled_date,
+        )
+        .filter(Order.id.in_(ref_ids))
+        .all()
+    )
+    snapshot: dict[int, dict[str, Any]] = {}
+    for oid, status, deleted_at, erp_date, sched_date in query_rows:
+        missing = bool(deleted_at) or str(status or "") == "DELETED"
+        snapshot[int(oid)] = {
+            "current_date": erp_date or sched_date or None,
+            "missing": missing,
+        }
+    return snapshot
+
+
+def _short_md(iso_date: Any) -> str:
+    """'YYYY-MM-DD' → 'M/D'(0 패딩 없음). 파싱 실패/None 이면 빈 문자열."""
+    parsed = _parse_iso_date(iso_date)
+    return f"{parsed.month}/{parsed.day}" if parsed else ""
+
+
+def _schedule_link_drift_label(drift: dict[str, Any]) -> str:
+    """드리프트 배지 표기 문자열 조립(스펙 §4 예시 '기준 #3694 8/5 → 8/12').
+
+    Args:
+        drift: `evaluate_drift()` 결과.
+
+    Returns:
+        배지에 그대로 넣을 1줄 텍스트. state 가 'none'이면 빈 문자열(배지 생략은 템플릿 소관).
+    """
+    state = drift.get("state")
+    if state == "none":
+        return ""
+    ref_id = drift.get("ref_order_id")
+    if state == "ref_gone":
+        return f"기준 #{ref_id} 연결 끊김"
+    d0 = _short_md(drift.get("ref_date"))
+    if state in ("ok", "resolved"):
+        return f"기준 #{ref_id} {d0}"
+    ds = _short_md(drift.get("ref_current_date"))
+    return f"기준 #{ref_id} {d0} → {ds}"
+
+
+def apply_schedule_link_drift_fields(rows, db: Any) -> int:
+    """행마다 `schedule_link_drift` 를 부착하고, 경고가 필요한 건수를 반환한다.
+
+    렌더된 행 집합에 한정해 기준 주문을 `in_()` 1회 배치 조회한다(전체 미완료 AS
+    스캔 없음 — 스펙 §8). 읽기 전용: DB write 없음(`resolved` 자동 갱신은 여기서 하지 않는다).
+
+    Args:
+        rows: structured_data 가 이미 dict 로 정규화되고 `as_visit_date` 가 채워진
+            Order 리스트(`apply_erp_display_fields_to_orders` 이후 호출 전제).
+        db: SQLAlchemy 세션.
+
+    Returns:
+        state 가 `ref_moved`/`both_moved` 인 행 개수(배너용 `drift_count`).
+    """
+    ref_ids = _collect_schedule_link_ref_ids(rows)
+    ref_snapshot = _batch_load_ref_schedule_snapshot(ref_ids, db)
+    drift_count = 0
+    for r in rows:
+        link = read_link(r.structured_data)
+        ref_info = ref_snapshot.get(link.get("ref_order_id")) if link else None
+        drift = evaluate_drift(
+            link,
+            ref_current_date=(ref_info or {}).get("current_date"),
+            as_visit_date=getattr(r, "as_visit_date", None),
+            ref_missing=bool(link) and (ref_info is None or bool(ref_info.get("missing"))),
+        )
+        drift["label"] = _schedule_link_drift_label(drift)
+        r.schedule_link_drift = drift
+        if drift["state"] in _DRIFT_WARN_STATES:
+            drift_count += 1
+    return drift_count
+
+
 def apply_as_dashboard_row_display_fields(rows, db, *, mobile_v2_active):
     """AS 대시보드 rows에 표시 필드를 in-place 보강 (구 erp_as_dashboard 표시 블록). 동작 보존.
 
     structured_data 정규화 + ERP 표시 필드 + AS 사진 보유/대기/도면/영업택배 플래그 +
-    시공자 목록 + AS 내용 HTML(+notes 폴백) + 썸네일 + 단계 배지를 채운다. 캐시 아님.
-    batch_resolve_as_thumbnail_urls / as_thumb_enabled 동작은 변경하지 않는다.
+    시공자 목록 + AS 내용 HTML(+notes 폴백) + 썸네일 + 단계 배지 + 기준 일정 드리프트를
+    채운다. 캐시 아님. batch_resolve_as_thumbnail_urls / as_thumb_enabled 동작은
+    변경하지 않는다.
 
     Args:
         rows: 현재 페이지 Order 객체 리스트.
         db: SQLAlchemy 세션.
         mobile_v2_active: ERP mobile v2 cohort 활성 여부(썸네일 게이트).
+
+    Returns:
+        `schedule_link_drift.state` 가 `ref_moved`/`both_moved` 인 행 개수(배너 `drift_count`).
     """
     for r in rows:
         r.structured_data = _ensure_dict(r.structured_data)  # type: ignore[assignment]
@@ -396,3 +522,4 @@ def apply_as_dashboard_row_display_fields(rows, db, *, mobile_v2_active):
         _cmp = compare_photos.get(r.id) or {"before": [], "after": []}
         r.as_before_photos = _cmp["before"]
         r.as_after_photos = _cmp["after"]
+    return apply_schedule_link_drift_fields(rows, db)

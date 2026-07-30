@@ -1,5 +1,5 @@
 {# AS 모바일 주문 카드 1건 — 초기 렌더 루프와 무한스크롤 청크가 공유(SSOT). 루프 변수 r 필요. #}
-{% from 'cs/partials/as_card_macros.html' import render_as_orderer_line, render_as_construction_workers, render_as_timeline %}
+{% from 'cs/partials/as_card_macros.html' import render_as_orderer_line, render_as_construction_workers, render_as_timeline, render_as_schedule_drift_badge %}
 
 {% if erp_mobile_v2_enabled %}
 {# v2 compact: 현장 담당자가 스크롤 최소로 건 스캔·방문일·사진·미결 처리 #}
@@ -68,6 +68,7 @@
         <input type="date" class="erp-pro-input editable-date-as" value="{{ r.as_visit_date or '' }}"
           data-order-id="{{ r.id }}" data-field="as_visit_date" aria-label="AS 방문일">
       </div>
+      {{ render_as_schedule_drift_badge(r.schedule_link_drift, r.id) }}
     </div>
     <div
       class="erp-as-mobile-card__date erp-as-mobile-card__date--complete {% if r.as_completed_date %}erp-as-complete-row--set{% endif %}">
@@ -182,6 +183,7 @@
         <input type="date" class="erp-pro-input editable-date-as" value="{{ r.as_visit_date or '' }}"
           data-order-id="{{ r.id }}" data-field="as_visit_date">
       </div>
+      {{ render_as_schedule_drift_badge(r.schedule_link_drift, r.id) }}
       {% if r.as_visit_date %}
       <button type="button" class="erp-as-pending-btn as-pending-btn{% if r.as_pending %} erp-as-pending-btn--active{% endif %}" data-order-id="{{ r.id }}"
         data-as-pending="{% if r.as_pending %}1{% else %}0{% endif %}"

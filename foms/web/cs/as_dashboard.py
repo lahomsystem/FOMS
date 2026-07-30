@@ -359,7 +359,8 @@ def erp_as_dashboard():
         resolve_shell_variant_cached(current_user.id if current_user else None)
     )
     # Batch 5: rows 표시 필드 보강은 apply_as_dashboard_row_display_fields(display 모듈)로 분리(동작 보존, 캐시 아님).
-    apply_as_dashboard_row_display_fields(rows, db, mobile_v2_active=mobile_v2_active)
+    # T4: 반환값 = 렌더된 행 중 기준 일정 드리프트(ref_moved/both_moved) 건수(배너용).
+    drift_count = apply_as_dashboard_row_display_fields(rows, db, mobile_v2_active=mobile_v2_active)
     # 시공자가 아닌 사용자만 AS 카테고리 사진 조회 가능 (관리자 등)
     can_view_as_photos = not (current_user and (current_user.team or '').strip() == 'CONSTRUCTION')
 
@@ -391,6 +392,7 @@ def erp_as_dashboard():
         total_orders=total_orders,
         # 일정찾기 지도 모달(카카오) 전용 — layout_head 의 지도 origin preconnect 게이트도 겸한다.
         kakao_js_key=KAKAO_JS_API_KEY,
+        drift_count=drift_count,
     )
     _render_ms = (time.perf_counter() - _t0) * 1000.0
     response = make_response(_body)
