@@ -29,6 +29,9 @@ def _load_hook(module_name: str):
     module = importlib.util.module_from_spec(spec)
     saved_path = list(sys.path)
     saved_shared = sys.modules.get("shared_utils")
+    # 선행 테스트가 .cursor/hooks 의 동명 shared_utils 를 sys.modules 에 남기면
+    # session_start 의 import 가 캐시에 걸려 ImportError — fresh 해석을 강제한다.
+    sys.modules.pop("shared_utils", None)
     try:
         spec.loader.exec_module(module)
     finally:
