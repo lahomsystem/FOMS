@@ -79,7 +79,8 @@
       {%- set _wi = namespace(idx=-1) %}
       {%- for w in _sg_worker_list %}{% if w == worker_key %}{% set _wi.idx = loop.index0 %}{% endif %}{% endfor %}
       {# 제품/행별 자수(item_spec_w300 필터 합 = 그룹 meta 합산 산식과 동일). #}
-      {%- set erp_items = sd.get('items') or [] %}
+      {#- 선택 날짜에 출고되는 품목만(라우트가 부착). 날짜 판정은 Python 헬퍼 SSOT. -#}
+      {%- set erp_items = r.shipment_visible_items if r.shipment_visible_items is defined else (sd.get('items') or []) %}
       {%- set _u = namespace(v=0.0) %}
       {%- for it in erp_items %}{% set _iv = it|item_spec_w300 %}{% if _iv %}{% set _u.v = _u.v + _iv %}{% endif %}{% endfor %}
       {# 시공팀 그룹 헤더(목업 06 .grp) — 팀 전환 시 1행 삽입. 키 = "<AS여부>|<팀 소문자>". #}

@@ -15,7 +15,7 @@ from foms.services.as_content_safety import as_content_html_to_text
 from foms.services.orders.as_log import latest_client_log_text
 from foms.services.shipment_dashboard_helpers import (
     is_as_order,
-    _get_order_spec_units,
+    visible_spec_units,
     _get_order_construction_date,
 )
 from foms.services.erp_mobile_order_display import (
@@ -174,7 +174,9 @@ def build_shipment_mobile_queue_rows(
                 "drawing_managers": drawing_managers,
                 "construction_workers": construction_workers,
                 "site_extra": site_extra,
-                "spec_units": _get_order_spec_units(order),
+                # 선택 날짜에 출고되는 품목 기준(라우트가 부착한 shipment_visible_items).
+                # 미부착이면 전 품목 합 — PC 그리드/KPI와 같은 규칙.
+                "spec_units": visible_spec_units(order),
                 "is_as": is_as_order(order),
                 "as_content_text": getattr(order, "as_content_text", "") or "",
                 "recommendation_link": getattr(order, "shipment_as_recommendation_link", None),

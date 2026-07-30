@@ -442,7 +442,8 @@
                 {% set worker_text_color = '#000000' %}
 
                 {# 제품/규격: items 기준 세로 배치. 규격 = 실제 W/300 숫자 #}
-                {% set erp_items = sd.get('items') or [] %}
+                {# 선택 날짜에 출고되는 품목만(라우트가 부착). 날짜 판정은 Python 헬퍼 SSOT. #}
+                {% set erp_items = r.shipment_visible_items if r.shipment_visible_items is defined else (sd.get('items') or []) %}
                 {% set item_count = erp_items|length %}
                 {% if item_count == 0 and (r.product or '') %}
                 {% set item_count = (r.product or '')|split_count(',') %}

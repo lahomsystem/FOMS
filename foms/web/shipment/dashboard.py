@@ -20,6 +20,9 @@ from foms.services.shipment_dashboard_helpers import (
     _normalize_worker_name,
     _get_order_spec_units,
     _get_order_construction_date,
+    order_spec_units,
+    visible_items_for_dates,
+    visible_spec_units,
 )
 from foms.services.erp_shipment_settings import (
     load_erp_shipment_settings,
@@ -179,14 +182,14 @@ def _compute_tablet_ship_kpis(rows: list) -> dict:
     Returns:
         {'total_units': str(1-decimal), 'order_count': int,
          'team_count': int, 'unassigned': int}.
-        total_units=행별 자수 합, order_count=행 수,
+        total_units=행별 자수 합(선택 날짜의 가시 품목 기준), order_count=행 수,
         team_count=행 전반에서 등장한 고유 시공팀명 수, unassigned=시공자 미배정 행 수.
     """
     total_units = 0.0
     teams: set[str] = set()
     unassigned = 0
     for r in rows:
-        total_units += _get_order_spec_units(r)
+        total_units += visible_spec_units(r)
         sd = r.structured_data if isinstance(r.structured_data, dict) else {}
         workers = (sd.get('shipment') or {}).get('construction_workers') or []
         names = [str(w).strip() for w in workers if str(w or '').strip()]
@@ -234,7 +237,7 @@ def _compute_shipment_team_group_meta(rows: list, worker_settings: list) -> dict
                 key = s
                 break
         slot = acc.setdefault(key, {'units': 0.0, 'count': 0})
-        slot['units'] += _get_order_spec_units(r)
+        slot['units'] += visible_spec_units(r)
         slot['count'] += 1
     meta: dict[str, dict] = {}
     for key, slot in acc.items():
@@ -292,13 +295,15 @@ def compute_team_remaining_units_for_date(db, target_date: str | None, worker_se
         # 일치해야 하므로 order_by(Order.id)를 명시(집계 전용이라 순서 무관).
         .order_by(Order.id)
         .distinct(Order.id)
-        .options(load_only(Order.id, Order.structured_data, Order.is_erp_order))
+        # scheduled_date: order_spec_units → _get_order_construction_date 폴백 경로가
+        # 읽는다. load_only에서 빠지면 주문마다 deferred 컬럼 lazy load(N+1)가 난다.
+        .options(load_only(Order.id, Order.structured_data, Order.is_erp_order, Order.scheduled_date))
         .all()
     )
     for o in orders_on_date:
         sd = o.structured_data if isinstance(o.structured_data, dict) else {}
         workers = (sd.get('shipment') or {}).get('construction_workers') or []
-        units = _get_order_spec_units(o)
+        units = order_spec_units(o, target_date=target_date)
         seen: set[str] = set()
         for w in workers:
             norm = _normalize_worker_name(w)
@@ -563,6 +568,17 @@ def erp_shipment_dashboard():
     # 헤더의 unloaded 검사로 이중 로드가 방지된다. 이후 enrich/display/kpi/정렬/모바일큐가
     # 안전하게 structured_data에 접근한다.
     _hydrate_structured_data(db, rows)
+
+    # 품목별 시공일 필터: 행은 주문 단위 날짜(합집합)로 떴어도, 제품/규격 셀과 자수는
+    # 선택 날짜에 실제 출고되는 품목만 보여야 한다. 날짜 판정은 헬퍼 1곳에만 두고
+    # 결과 리스트를 행에 부착한다(템플릿·KPI·팀 합계가 같은 리스트를 공유).
+    for r in rows:
+        r.shipment_visible_items = visible_items_for_dates(
+            r,
+            target_date=selected_date if use_single_day else None,
+            date_from=date_from if use_range else None,
+            date_to=date_to if use_range else None,
+        )
 
     enrich_shipment_rows(rows)
 
