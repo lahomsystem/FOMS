@@ -4814,6 +4814,22 @@ function fomsMountErpOrderSurface() {
     async function erpRunChannelPush(btn, pushKind, resendRetryState) {
         const retryState = resendRetryState || { resendRecoveryUsed: false };
 
+        // 푸시 본문은 저장 전 라이브 DOM에서 조립된다 — 미저장 변경이 있으면
+        // "전송완료" 표시만 남고 DB엔 반영 안 되는 사고가 나므로 먼저 저장 확인.
+        // 재귀(resend note) 호출은 이미 게이트를 통과했으므로 재질문하지 않는다.
+        if (!resendRetryState && window.fomsErpAutosave && window.fomsErpAutosave.isDirty()) {
+            const wantsSave = confirm(
+                '저장되지 않은 변경이 있습니다.\n저장한 뒤 푸시할까요?\n\n(취소하면 푸시하지 않습니다)'
+            );
+            if (!wantsSave) {
+                return;
+            }
+            const saveResult = await erpSaveStructured({ redirect: false });
+            if (saveResult?.success !== true) {
+                return;
+            }
+        }
+
         if (typeof erpGenerateConversionText === 'function') {
             erpGenerateConversionText();
         }
