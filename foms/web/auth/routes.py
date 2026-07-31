@@ -9,7 +9,10 @@ from werkzeug.security import check_password_hash
 
 from db import get_db
 from models import User, SecurityLog
-from foms.services.user_deletion import detach_user_references_for_delete
+from foms.services.user_deletion import (
+    UserDeletionBlockedError,
+    detach_user_references_for_delete,
+)
 from foms.services.post_auth_navigation import (
     authenticated_home_url,
     normalize_internal_next_url,
@@ -599,6 +602,10 @@ def delete_user(user_id):
         log_access(f"사용자 #{user_id} 삭제", session.get('user_id'))
         
         flash('사용자가 성공적으로 삭제되었습니다.', 'success')
+    except UserDeletionBlockedError as blocked:
+        db.rollback()
+        current_app.logger.warning("User deletion blocked by audit references: user_id=%s reason=%s", user_id, blocked)
+        flash(str(blocked), 'error')
     except IntegrityError:
         db.rollback()
         current_app.logger.exception("User deletion blocked by remaining references: user_id=%s", user_id)
