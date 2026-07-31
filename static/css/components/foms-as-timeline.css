@@ -169,6 +169,13 @@
     min-height: 44px;
   }
 
+  /* be6c2a19 이후 저장 경로는 이 버튼(제출/blur autosave 없음) 하나뿐이다. dirty 상태를
+     알리는 별도 표시가 없으므로, 버튼 자체를 굵게 강조해 "입력 후 반드시 눌러야 한다"는
+     신호를 키운다(btn-primary 색은 이미 있음 — 굵기만 보강). */
+  .as-timeline__submit {
+    font-weight: 700;
+  }
+
   /* 더보기 안내(show_more=false) — 출고 AS 일정추천 모달처럼 더보기 버튼 핸들러가 없는
      표면에서 render_as_timeline 이 내는 정적 텍스트. 버튼(.as-timeline__more)은 부트스트랩
      btn-link 로 이미 스타일이 있어 별도 규칙이 없었다 — 이 힌트도 딱 그만큼만 준다. */
