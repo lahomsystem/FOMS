@@ -1,26 +1,32 @@
 """SHIPMENT-REFERENCE-01: 출고 reference 설정(SystemSetting) 정본 command.
 
-출고 대시보드/실측/도면 표기가 참조하는 **네 개의 reference 리스트**를 하나의
+출고 대시보드/실측/도면 표기가 참조하는 **다섯 개의 reference 리스트**를 하나의
 SystemSetting collection(``erp_shipment_settings``)으로 관리한다. 이 모듈은 그 collection
 을 갱신하는 유일 command(``UPDATE_SHIPMENT_REFERENCE_LISTS``)의 스키마 검증 + optimistic
 lock(If-Match/version) + collection receipt/idempotency + audit(SecurityLog)를 한 곳에
 모은다.
 
-**exact four-list schema** (임의 필드 거부):
+**exact list schema** (임의 필드 거부):
 
-* ``construction_time``     — 최대 50개, trim string 1..50
-* ``drawing_managers``      — 최대 100개, ``{name:1..100, english_name:0..100}``
-* ``measurement_managers``  — 최대 100개, ``{name:1..100, phone:0..50, sort_order:int 0..9999}``
-* ``site_extra``            — 최대 100개, trim string 1..500
+* ``construction_time``      — 최대 50개, trim string 1..50
+* ``drawing_managers``       — 최대 100개, ``{name:1..100, english_name:0..100}``
+* ``measurement_managers``   — 최대 100개, ``{name:1..100, phone:0..50, sort_order:int 0..9999}``
+* ``site_extra``             — 최대 100개, trim string 1..500
+* ``construction_workers``   — 최대 100개, ``{name:1..200, capacity:int>=0, off_dates:[str]}``
 
 중복 normalized entry 는 422. old ``drawing_manager``(문자열 리스트) + ``drawing_manager_en``
-(dict)는 한 object array(``drawing_managers``)로 **safe backfill**(무손실). ``construction_workers``
-key 는 이 command 의 소관이 아니므로(worker master 는 CREW-00) request 에 있으면 400 이고,
-이미 저장된 ``construction_workers`` 값은 **보존**한다(출고 대시보드가 계속 읽는다).
+(dict)는 한 object array(``drawing_managers``)로 **safe backfill**(무손실).
+
+``construction_workers``(시공자 마스터: 이름 + 자수 + 휴무일)는 한때 "CREW-00 이관 예정"으로
+이 command 에서 제외됐으나 이관처가 만들어지지 않아 자수·휴무일을 **아무도 편집할 수 없는**
+상태가 됐다(기존 값은 남아 화면은 정상으로 보이고 숫자만 얼어붙는다 → 휴가 중인 기사에게
+배차). per-order 이름 배열을 되살린 ``397891a6`` 과 같은 이유로 이 command 소관으로 되돌린다.
+저장 형태는 읽기 SSOT :func:`~foms.services.erp_shipment_settings.normalize_erp_shipment_workers`
+가 그대로 소비하는 dict 형태다. request 에 key 가 **없으면** 기존 저장값을 보존한다(부분 저장
+클라이언트가 마스터를 지우지 못하게 — 삭제는 빈 리스트를 명시해야 한다).
 
 **경계**: 이 command 는 SystemSetting 만 쓴다. CREW-00 ``installation_workers`` 마스터도,
-주문별 ``structured_data.shipment`` 도 쓰지 않는다(construction worker master·per-order write
-혼합 금지).
+주문별 ``structured_data.shipment`` 도 쓰지 않는다(per-order write 혼합 금지).
 """
 from __future__ import annotations
 
@@ -34,6 +40,7 @@ from sqlalchemy.exc import IntegrityError
 from sqlalchemy.orm import Session
 
 from foms.services.datetime_kst import now_utc_naive
+from foms.services.erp_shipment_settings import DEFAULT_ERP_WORKER_CAPACITY
 from models import SecurityLog, SystemSetting, SystemSettingReceipt
 
 #: AUTH-01 정책 식별자(STAFF+SHIPMENT 또는 ADMIN/MANAGER). route manifest·UI 은닉·핸들러 공유.
@@ -42,15 +49,23 @@ SHIPMENT_REFERENCE_POLICY_ID = "SHIPMENT_REFERENCE"
 #: reference collection 을 담는 SystemSetting.setting_key(기존 키 재사용 — 무손실 이관).
 SHIPMENT_REFERENCE_SETTING_KEY = "erp_shipment_settings"
 
-#: exact four-list schema 의 최상위 허용 필드(그 외 key 는 400).
+#: exact list schema 의 최상위 허용 필드(그 외 key 는 400).
 _ALLOWED_FIELDS = frozenset(
-    {"construction_time", "drawing_managers", "measurement_managers", "site_extra"}
+    {
+        "construction_time",
+        "drawing_managers",
+        "measurement_managers",
+        "site_extra",
+        "construction_workers",
+    }
 )
 
 _MAX_CONSTRUCTION_TIME = 50
 _MAX_DRAWING_MANAGERS = 100
 _MAX_MEASUREMENT_MANAGERS = 100
 _MAX_SITE_EXTRA = 100
+_MAX_CONSTRUCTION_WORKERS = 100
+_MAX_WORKER_NAME_LEN = 200
 
 # idempotency replay window(커밋+24시간). purge 는 향후 retention CLI 소관.
 IDEMPOTENCY_REPLAY_WINDOW = datetime.timedelta(hours=24)
@@ -253,6 +268,90 @@ def _validate_measurement_managers(raw: Any) -> list[dict[str, Any]]:
     return out
 
 
+def _validate_construction_workers(raw: Any) -> list[dict[str, Any]]:
+    """시공자 마스터 검증: 최대 100, ``{name:1..200, capacity:int>=0, off_dates:[str]}``.
+
+    저장 형태는 읽기 SSOT
+    :func:`~foms.services.erp_shipment_settings.normalize_erp_shipment_workers` 가 그대로
+    소비하는 dict 여야 한다(읽기-쓰기 왕복 무손실). 이름이 같은 항목은 읽기 경로가 이름으로만
+    기사를 식별하므로 첫 항목만 남긴다(422 대신 순서 유지 dedupe).
+
+    Args:
+        raw: request 의 ``construction_workers`` 값. 항목은 dict
+            ``{name, capacity, off_dates}`` 또는 이름 문자열(구 저장 형태 왕복 호환).
+
+    Returns:
+        canonical ``[{"name": str, "capacity": int, "off_dates": list[str]}]``.
+
+    Raises:
+        ShipmentReferenceSchemaError: list 아님·개수 초과·이름 길이 초과(400).
+    """
+    if not isinstance(raw, list):
+        raise ShipmentReferenceSchemaError("construction_workers는 리스트여야 합니다.")
+    if len(raw) > _MAX_CONSTRUCTION_WORKERS:
+        raise ShipmentReferenceSchemaError(
+            f"construction_workers는 최대 {_MAX_CONSTRUCTION_WORKERS}개입니다."
+        )
+    out: list[dict[str, Any]] = []
+    seen: set[str] = set()
+    for entry in raw:
+        is_dict = isinstance(entry, dict)
+        name = str((entry.get("name") if is_dict else entry) or "").strip()
+        if not name:
+            continue
+        if len(name) > _MAX_WORKER_NAME_LEN:
+            raise ShipmentReferenceSchemaError(
+                f"시공자 이름은 {_MAX_WORKER_NAME_LEN}자 이하여야 합니다."
+            )
+        if name in seen:
+            continue
+        seen.add(name)
+        out.append({
+            "name": name,
+            "capacity": _coerce_worker_capacity(entry.get("capacity") if is_dict else None),
+            "off_dates": _normalize_off_dates(entry.get("off_dates") if is_dict else None),
+        })
+    return out
+
+
+def _coerce_worker_capacity(value: Any) -> int:
+    """시공자 자수를 0 이상 정수로 강제한다(빈 값·비수·음수는 기본 자수).
+
+    Args:
+        value: 폼에서 온 자수(빈 입력은 ``None``, 문자열 숫자도 허용).
+
+    Returns:
+        0 이상 int. 변환 불가·음수면 ``DEFAULT_ERP_WORKER_CAPACITY``.
+    """
+    try:
+        capacity = int(value)
+    except (TypeError, ValueError):
+        return DEFAULT_ERP_WORKER_CAPACITY
+    return capacity if capacity >= 0 else DEFAULT_ERP_WORKER_CAPACITY
+
+
+def _normalize_off_dates(raw: Any) -> list[str]:
+    """휴무일 목록을 trim·빈값 제거·순서 유지 dedupe 한 문자열 리스트로 정규화한다.
+
+    Args:
+        raw: 휴무일 리스트(그 외 타입은 빈 리스트 — 읽기 SSOT 와 동일 관용).
+
+    Returns:
+        중복 없는 trim 문자열 리스트(입력 순서 유지). ``None`` 항목은 문자열 ``"None"`` 으로
+        새지 않고 버려진다.
+    """
+    if not isinstance(raw, list):
+        return []
+    out: list[str] = []
+    seen: set[str] = set()
+    for value in raw:
+        text = "" if value is None else str(value).strip()
+        if text and text not in seen:
+            seen.add(text)
+            out.append(text)
+    return out
+
+
 def _coerce_sort_order(value: Any) -> int:
     """sort_order 를 0..9999 정수로 강제한다(비수/범위밖은 400)."""
     if value in (None, ""):
@@ -267,28 +366,29 @@ def _coerce_sort_order(value: Any) -> int:
 
 
 def validate_reference_payload(payload: Any) -> dict[str, Any]:
-    """exact four-list schema 로 request payload 를 검증·정규화한다.
+    """exact list schema 로 request payload 를 검증·정규화한다.
+
+    ``construction_workers`` 는 key 가 있을 때만 canonical 에 실린다. 없으면 결과에서 빠져
+    :func:`_write_canonical` 의 merge 가 기존 저장값을 보존한다(부분 저장 클라이언트가 시공자
+    마스터를 통째로 지우는 사고 방지 — 삭제는 빈 리스트를 명시해야 한다).
 
     Args:
         payload: request JSON body(``settings_version`` 등 제어 필드는 호출부가 이미 분리).
 
     Returns:
-        canonical dict ``{construction_time, drawing_managers, measurement_managers, site_extra}``.
+        canonical dict ``{construction_time, drawing_managers, measurement_managers,
+        site_extra}`` (+ payload 에 있었으면 ``construction_workers``).
 
     Raises:
-        ShipmentReferenceSchemaError: 임의 필드·``construction_workers``·타입/길이/개수 위반(400).
+        ShipmentReferenceSchemaError: 임의 필드·타입/길이/개수 위반(400).
         ShipmentReferenceDuplicateError: 중복 normalized entry(422).
     """
     if not isinstance(payload, dict):
         raise ShipmentReferenceSchemaError("payload는 객체여야 합니다.")
-    if "construction_workers" in payload:
-        raise ShipmentReferenceSchemaError(
-            "construction_workers는 이 설정의 소관이 아닙니다(작업자 마스터는 CREW 관리)."
-        )
     unknown = set(payload) - _ALLOWED_FIELDS
     if unknown:
         raise ShipmentReferenceSchemaError(f"허용되지 않은 필드: {sorted(unknown)}")
-    return {
+    canonical: dict[str, Any] = {
         "construction_time": _trimmed_string_list(
             payload.get("construction_time", []),
             field="construction_time", max_items=_MAX_CONSTRUCTION_TIME, max_len=50,
@@ -302,6 +402,11 @@ def validate_reference_payload(payload: Any) -> dict[str, Any]:
             field="site_extra", max_items=_MAX_SITE_EXTRA, max_len=500,
         ),
     }
+    if "construction_workers" in payload:
+        canonical["construction_workers"] = _validate_construction_workers(
+            payload["construction_workers"]
+        )
+    return canonical
 
 
 # --------------------------------------------------------------------------- #
@@ -386,16 +491,16 @@ def update_shipment_reference_lists(
     idempotency_key: Optional[str] = None,
     now: Optional[datetime.datetime] = None,
 ) -> ReferenceUpdateResult:
-    """reference 네 리스트를 optimistic lock + receipt + audit 로 원자 갱신한다.
+    """reference 리스트를 optimistic lock + receipt + audit 로 원자 갱신한다.
 
     호출부가 ``session.commit()`` 을 소유한다. 순서: schema 검증 → SystemSetting row
     ``FOR UPDATE`` 잠금 → idempotency 조회(replay) → If-Match(version) 검증 → canonical
-    저장(construction_workers 보존) → version bump → receipt/SecurityLog 기록.
+    저장(payload 에 없는 key 는 기존 값 보존) → version bump → receipt/SecurityLog 기록.
 
     Args:
         session: business transaction 세션(커밋 미수행).
         actor_user_id: 요청 actor(receipt 소유자·audit 주체).
-        payload: request body(제어 필드 제외한 four-list).
+        payload: request body(제어 필드 제외한 reference 리스트).
         if_match_version: client 가 보낸 현재 version(None 이면 428).
         idempotency_key: UUID 문자열(≤64자) 또는 None(dedupe 안 함).
         now: 테스트용 시각 주입(기본 now_utc_naive()).
@@ -483,11 +588,10 @@ def update_shipment_reference_lists(
 def _write_canonical(
     session: Session, setting: Optional[SystemSetting], canonical: dict[str, Any]
 ) -> SystemSetting:
-    """canonical four-list 를 setting_value 에 병합 저장한다(construction_workers 보존).
+    """canonical 리스트를 setting_value 에 병합 저장한다(canonical 에 없는 key 는 보존).
 
-    기존 row 가 없으면 생성한다(version=0 baseline → 호출부가 1 로 bump). 이미 저장된
-    ``construction_workers`` 값은 그대로 둔다(worker master 는 CREW-00; 이 command 는 write
-    하지 않지만 read 소비처를 위해 유실하지 않는다).
+    기존 row 가 없으면 생성한다(version=0 baseline → 호출부가 1 로 bump). merge 이므로
+    payload 가 보내지 않은 key(예: ``construction_workers``)의 기존 값은 유실되지 않는다.
     """
     import copy
 

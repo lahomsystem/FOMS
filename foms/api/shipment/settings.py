@@ -102,12 +102,13 @@ def api_erp_shipment_settings_get():
 def api_erp_shipment_settings_save():
     """출고 reference 리스트 저장(UPDATE_SHIPMENT_REFERENCE_LISTS command).
 
-    exact four-list schema(construction_time/drawing_managers/measurement_managers/site_extra)
-    를 SHIPMENT_REFERENCE 정책(STAFF+SHIPMENT 또는 ADMIN/MANAGER) 하에서 If-Match(version)+
-    receipt/idempotency+audit 로 한 transaction 에 저장한다. ``construction_workers`` 는 이
-    command 소관이 아니라 400 이고 기존 값은 보존된다(worker master 는 CREW-00).
+    exact list schema(construction_time/drawing_managers/measurement_managers/site_extra/
+    construction_workers)를 SHIPMENT_REFERENCE 정책(STAFF+SHIPMENT 또는 ADMIN/MANAGER) 하에서
+    If-Match(version)+receipt/idempotency+audit 로 한 transaction 에 저장한다. 시공자 마스터
+    (``construction_workers``: 이름·자수·휴무일)도 이 command 소관이며, key 를 보내지 않으면
+    기존 값이 보존된다(부분 저장 클라이언트가 마스터를 지우지 못하게).
 
-    Body: four-list(+ ``settings_version``). optional 헤더 ``If-Match``·``Idempotency-Key``.
+    Body: reference 리스트(+ ``settings_version``). optional 헤더 ``If-Match``·``Idempotency-Key``.
     """
     user, decision = _reference_policy_decision()
     if not decision.allowed:

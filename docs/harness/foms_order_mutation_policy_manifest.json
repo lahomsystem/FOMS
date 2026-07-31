@@ -427,12 +427,12 @@
     },
     "erp_orders_revision.api_order_cancel_revision_request": {
       "mode": "guard",
-      "policy_id": "DRAWING_ASSIGNED",
+      "policy_id": "ERP_EDIT",
       "rule": "/api/orders/<int:order_id>/cancel-revision-request"
     },
     "erp_orders_revision.api_order_request_revision": {
       "mode": "guard",
-      "policy_id": "DRAWING_ASSIGNED",
+      "policy_id": "ERP_EDIT",
       "rule": "/api/orders/<int:order_id>/request-revision"
     },
     "erp_orders_revision.api_order_request_revision_check": {
