@@ -4,12 +4,20 @@ SSOT: docs/plans/2026-07-22-foms-full-system-bug-audit-report.md §5.2 WDC-AUTH-
 "WDC blueprint policy registry | calculate pure; estimate CS/SALES; master MANAGER+;
 VIEWER read | calculate 금지 rollback 금지".
 
+**2026-07-31 결정 변경**: WDC-AUTH-01 은 master(product/category/notes/spec-preset)
+mutation 을 ``MASTER_MUTATION``(ADMIN/MANAGER 전용)으로 분류했으나, 운영 배포 전
+사용자 결재로 **잠금을 채우지 않고 운영 현행(로그인한 누구나, ``@login_required`` 만)을
+유지**하기로 확정했다. 이에 따라 master 12개 엔드포인트는 ``MASTER_MUTATION`` 이 아니라
+``WDC_CALCULATE``(teams="*", viewer=True — 로그인 사용자 누구나 통과, 미인증만 401)로
+route manifest 를 재분류했다. ``MASTER_MUTATION`` 자체는 정책 정의·notifications
+전용 라우트(``notifications.api_notifications_delete_all``)에 그대로 남는다(무편집).
+
 investigation-first 로 확인한 사실: WDC 라우트는 이미 AUTH-01 이 만든 공용 정책 SSOT
 (``foms.services.orders.order_mutation_policy``)와 route manifest
 (``docs/harness/foms_order_mutation_policy_manifest.json``)에 ``WDC_CALCULATE``·
-``WDC_ESTIMATE``·``MASTER_MUTATION`` 으로 이미 분류되어 있다(재사용, 무편집). 이 파일은
-그 분류가 WDC-AUTH-01 요구사항(calculate pure/estimate CS·SALES/master MANAGER+/VIEWER
-read)과 정확히 일치함을 WDC 전용으로 증명하고, "calculate 차단 rollback" 회귀를 감시한다.
+``WDC_ESTIMATE`` 로 분류되어 있다(재사용, 무편집). 이 파일은 그 분류가 위 결정(calculate
+pure/estimate CS·SALES/master=로그인 전원 허용)과 정확히 일치함을 WDC 전용으로 증명하고,
+"calculate 차단 rollback" 및 "master 잠금 무단 부활" 회귀를 감시한다.
 
 가드는 ``AUTH_POLICY_ENABLED`` config(미지정 시 ``not TESTING``)로 켜진다. 기존 테스트는
 ``TESTING=True`` + 미지정이라 가드 OFF 로 통과하고(회귀 0), 이 파일만 ``policy_on``
@@ -103,18 +111,20 @@ def _product_payload(name="테스트 제품"):
 
 
 # --------------------------------------------------------------------------
-# manifest 정본 — calculate pure / estimate CS·SALES / master MANAGER+ 분류 확인
+# manifest 정본 — calculate pure / estimate CS·SALES / master=로그인 전원 허용 분류 확인
 # --------------------------------------------------------------------------
 def test_manifest_classifies_wdc_routes_per_spec():
-    """WDC route→policy_id 분류가 §5.2 WDC-AUTH-01 스펙과 정확히 일치한다."""
+    """WDC route→policy_id 분류가 2026-07-31 결정(master 잠금 미채움, 운영 현행 유지)과 일치한다."""
     manifest = load_policy_manifest()
     routes = manifest["routes"]
 
     assert routes["wdcalculator.api_wdcalculator_calculate"]["policy_id"] == "WDC_CALCULATE"
     for ep in _ESTIMATE_ROUTE_ENDPOINTS:
         assert routes[ep]["policy_id"] == "WDC_ESTIMATE", ep
+    # master(product/category/notes/spec-preset) 는 MASTER_MUTATION 이 아니라 WDC_CALCULATE
+    # 로 분류된다 — 로그인 사용자 누구나 통과(잠금 미채움, 운영 현행 유지).
     for ep in _MASTER_ROUTE_ENDPOINTS:
-        assert routes[ep]["policy_id"] == "MASTER_MUTATION", ep
+        assert routes[ep]["policy_id"] == "WDC_CALCULATE", ep
 
 
 def test_calculate_policy_is_pure_and_viewer_allowed():
@@ -131,12 +141,22 @@ def test_estimate_policy_is_cs_sales_only():
     assert policy.viewer is False
 
 
-def test_master_policy_is_manager_plus_only():
-    """master 정책은 team 만으로 통과 불가(role-only) → ADMIN/MANAGER 전용, VIEWER deny."""
+def test_master_mutation_policy_definition_unchanged_but_unused_by_wdc():
+    """MASTER_MUTATION 정책 정의 자체(ADMIN/MANAGER 전용)는 그대로다 — 정책 SSOT 는 무편집
+    (notifications.api_notifications_delete_all 이 계속 쓴다). 다만 WDC master 라우트는
+    2026-07-31 결정 이후 더 이상 이 policy_id 를 참조하지 않는다 — manifest 상 잔여
+    MASTER_MUTATION 라우트는 notifications 1건뿐이어야 한다."""
     policy = POLICY_REGISTRY["MASTER_MUTATION"]
     assert policy.teams == ()
     assert policy.viewer is False
     assert policy.manager_ok is True
+
+    manifest = load_policy_manifest()
+    routes = manifest["routes"]
+    master_policy_routes = sorted(
+        ep for ep, r in routes.items() if r.get("policy_id") == "MASTER_MUTATION"
+    )
+    assert master_policy_routes == ["notifications.api_notifications_delete_all"]
 
 
 # --------------------------------------------------------------------------
@@ -196,33 +216,33 @@ def test_estimate_save_allowed_for_admin_and_manager_override(client, app, polic
 
 
 # --------------------------------------------------------------------------
-# master: ADMIN/MANAGER 200, 그 외 403
+# master: 2026-07-31 결정 — 잠금 미채움, 운영 현행 유지(로그인 전원 200, 미인증만 401)
 # --------------------------------------------------------------------------
-@pytest.mark.parametrize("role", ["ADMIN", "MANAGER"])
-def test_master_mutation_allowed_for_admin_and_manager(client, app, policy_on, wdcalculator_settings_env, role):
-    """ADMIN/MANAGER 는 제품 마스터 저장이 200 성공한다."""
-    _login(client, _make_user(f"wdc-{role.lower()}-master", role=role))
+@pytest.mark.parametrize("role,team", [
+    ("ADMIN", None),
+    ("MANAGER", None),
+    ("VIEWER", None),
+    ("STAFF", "CS"),
+    ("STAFF", "SALES"),
+    ("STAFF", "PRODUCTION"),
+])
+def test_master_mutation_allowed_for_any_logged_in_user(client, app, policy_on, wdcalculator_settings_env, role, team):
+    """운영 현행 유지: WDC master(제품) 저장은 role/team 무관 로그인 사용자면 전부 200."""
+    _login(client, _make_user(f"wdc-master-allow-{role.lower()}-{team}", role=role, team=team))
     resp = client.post("/api/wdcalculator/products", json=_product_payload())
     assert _gate_passed(resp)
     assert resp.status_code == 200
     assert resp.get_json()["success"] is True
 
 
-@pytest.mark.parametrize("role,team", [
-    ("VIEWER", None),
-    ("STAFF", "CS"),
-    ("STAFF", "SALES"),
-    ("STAFF", "PRODUCTION"),
-])
-def test_master_mutation_denied_for_others(client, app, policy_on, wdcalculator_settings_env, role, team):
-    """VIEWER 와 STAFF(team 무관 — CS/SALES 포함)는 제품 마스터 저장이 403(team-only 통과 불가)."""
-    _login(client, _make_user(f"wdc-master-deny-{role.lower()}-{team}", role=role, team=team))
+def test_master_mutation_denies_unauthenticated(client, app, policy_on):
+    """미인증 WDC master 저장 호출은 정책 가드가 401 로 거부한다(handler 미실행) — 로그인만 요구."""
     resp = client.post("/api/wdcalculator/products", json=_product_payload())
-    assert _denied(resp)
+    assert _denied(resp, status=401)
 
 
 # --------------------------------------------------------------------------
-# VIEWER: read 는 전부 200, mutation 은 전부 403(calculate 예외)
+# VIEWER: read 전부 200, master/calculate 도 통과(로그인=허용), estimate 만 403
 # --------------------------------------------------------------------------
 def test_viewer_can_read_all_wdc_endpoints(client, app, policy_on, wdcalculator_settings_env):
     """VIEWER 는 WDC 조회(GET) 전 엔드포인트를 200 으로 읽을 수 있다."""
@@ -234,10 +254,11 @@ def test_viewer_can_read_all_wdc_endpoints(client, app, policy_on, wdcalculator_
     assert client.get("/api/wdcalculator/search-estimates").status_code == 200
 
 
-def test_viewer_denied_wdc_mutation_everywhere_except_calculate(client, app, policy_on, wdcalculator_settings_env):
-    """VIEWER 는 master/estimate mutation 은 403, calculate 만 예외로 통과."""
+def test_viewer_allowed_wdc_master_and_calculate_denied_only_estimate(client, app, policy_on, wdcalculator_settings_env):
+    """VIEWER 는 master(제품) 저장·calculate 는 통과(로그인=허용), estimate save/match 만 CS/SALES
+    전용이라 403 — 2026-07-31 결정으로 master 잠금을 채우지 않은 계약을 못박는다."""
     _login(client, _make_user("wdc-viewer-mut", role="VIEWER"))
-    assert _denied(client.post("/api/wdcalculator/products", json=_product_payload()))
+    assert _gate_passed(client.post("/api/wdcalculator/products", json=_product_payload()))
     assert _denied(client.post("/api/wdcalculator/save-estimate", json=_estimate_payload()))
     assert _denied(client.post("/api/wdcalculator/match-order", json={"estimate_id": 1, "order_id": 1}))
     assert _gate_passed(client.post("/api/wdcalculator/calculate", json={"product_id": 1, "width_mm": 900}))

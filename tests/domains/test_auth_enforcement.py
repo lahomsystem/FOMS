@@ -191,10 +191,11 @@ def test_viewer_denied_across_business_surfaces(client, app, policy_on, method, 
     assert _denied(resp), (path, resp.status_code)
 
 
-def test_viewer_denied_wdc_master_and_estimate(client, app, policy_on):
-    """VIEWER 는 WDC master(product)·estimate save 도 403 (WDC 포함)."""
+def test_viewer_denied_wdc_estimate_but_allowed_master(client, app, policy_on):
+    """VIEWER 는 WDC estimate save 는 403(CS/SALES 전용)이지만, master(product) 저장은
+    통과한다 — 2026-07-31 결정: master 잠금을 채우지 않고 운영 현행(로그인=허용)을 유지."""
     _login(client, _make_user("viewer-wdc", role="VIEWER"))
-    assert _denied(client.post("/api/wdcalculator/products", json={"name": "x"}))
+    assert _gate_passed(client.post("/api/wdcalculator/products", json={"name": "x"}))
     assert _denied(client.post("/api/wdcalculator/save-estimate", json={}))
 
 
@@ -313,9 +314,9 @@ def test_erp_api_namespace_denies_with_json_not_redirect(client, app, policy_on)
 
 def test_api_namespace_denies_with_json_not_redirect(client, app, policy_on):
     """/api 권한 실패는 403 JSON (P1-13)."""
-    _login(client, _make_user("staff-master", role="STAFF", team="CS"))
-    # WDC master 는 ADMIN/MANAGER 전용 → STAFF/CS 는 403 JSON
-    resp = client.post("/api/wdcalculator/products", json={"name": "x"})
+    _login(client, _make_user("staff-noestimate", role="STAFF", team="PRODUCTION"))
+    # WDC estimate 는 CS/SALES 전용 → 무관 팀(PRODUCTION)은 403 JSON
+    resp = client.post("/api/wdcalculator/save-estimate", json={"customer_name": "x", "estimate_data": {}})
     assert resp.status_code == 403
     assert "Location" not in resp.headers
     assert resp.is_json
@@ -341,13 +342,19 @@ def test_normal_roles_pass_gate(client, app, policy_on):
     assert _gate_passed(client.post("/bulk_action", data={"action": "x"}))
 
 
-def test_master_mutation_denies_staff_allows_manager(client, app, policy_on):
-    """WDC master 는 STAFF 403, MANAGER/ADMIN 통과(WDC-AUTH-01 master MANAGER+)."""
-    _login(client, _make_user("staff-nomaster", role="STAFF", team="SALES"))
-    assert _denied(client.post("/api/wdcalculator/products", json={"name": "x"}))
+def test_wdc_master_allows_any_logged_in_role_denies_unauthenticated(client, app, policy_on):
+    """WDC master 는 잠금을 채우지 않는다(2026-07-31 결정) — STAFF/MANAGER/ADMIN 전부 통과,
+    미인증만 401(로그인만 요구, 운영 현행 유지)."""
+    _login(client, _make_user("staff-master-ok", role="STAFF", team="SALES"))
+    assert _gate_passed(client.post("/api/wdcalculator/products", json={"name": "x"}))
 
     _login(client, _make_user("mgr-master", role="MANAGER"))
     assert _gate_passed(client.post("/api/wdcalculator/products", json={"name": "x"}))
+
+    with client.session_transaction() as sess:
+        sess.clear()
+    resp = client.post("/api/wdcalculator/products", json={"name": "x"})
+    assert resp.status_code == 401 and resp.headers.get("X-Auth-Policy") == "denied"
 
 
 # --------------------------------------------------------------------------

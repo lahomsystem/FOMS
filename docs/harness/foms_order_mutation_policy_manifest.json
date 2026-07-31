@@ -687,32 +687,32 @@
     },
     "wdcalculator.api_wdcalculator_delete_category": {
       "mode": "guard",
-      "policy_id": "MASTER_MUTATION",
+      "policy_id": "WDC_CALCULATE",
       "rule": "/api/wdcalculator/additional-options/categories/<int:category_id>"
     },
     "wdcalculator.api_wdcalculator_delete_notes_category": {
       "mode": "guard",
-      "policy_id": "MASTER_MUTATION",
+      "policy_id": "WDC_CALCULATE",
       "rule": "/api/wdcalculator/notes/categories/<int:category_id>"
     },
     "wdcalculator.api_wdcalculator_delete_notes_option": {
       "mode": "guard",
-      "policy_id": "MASTER_MUTATION",
+      "policy_id": "WDC_CALCULATE",
       "rule": "/api/wdcalculator/notes/categories/<int:category_id>/options/<int:option_id>"
     },
     "wdcalculator.api_wdcalculator_delete_option": {
       "mode": "guard",
-      "policy_id": "MASTER_MUTATION",
+      "policy_id": "WDC_CALCULATE",
       "rule": "/api/wdcalculator/additional-options/categories/<int:category_id>/options/<int:option_id>"
     },
     "wdcalculator.api_wdcalculator_delete_product": {
       "mode": "guard",
-      "policy_id": "MASTER_MUTATION",
+      "policy_id": "WDC_CALCULATE",
       "rule": "/api/wdcalculator/products/<int:product_id>"
     },
     "wdcalculator.api_wdcalculator_delete_spec_field_preset": {
       "mode": "guard",
-      "policy_id": "MASTER_MUTATION",
+      "policy_id": "WDC_CALCULATE",
       "rule": "/api/wdcalculator/spec-field-presets/<field>/<int:preset_id>"
     },
     "wdcalculator.api_wdcalculator_estimate": {
@@ -727,7 +727,7 @@
     },
     "wdcalculator.api_wdcalculator_save_category": {
       "mode": "guard",
-      "policy_id": "MASTER_MUTATION",
+      "policy_id": "WDC_CALCULATE",
       "rule": "/api/wdcalculator/additional-options/categories"
     },
     "wdcalculator.api_wdcalculator_save_estimate": {
@@ -737,27 +737,27 @@
     },
     "wdcalculator.api_wdcalculator_save_notes_category": {
       "mode": "guard",
-      "policy_id": "MASTER_MUTATION",
+      "policy_id": "WDC_CALCULATE",
       "rule": "/api/wdcalculator/notes/categories"
     },
     "wdcalculator.api_wdcalculator_save_notes_option": {
       "mode": "guard",
-      "policy_id": "MASTER_MUTATION",
+      "policy_id": "WDC_CALCULATE",
       "rule": "/api/wdcalculator/notes/categories/<int:category_id>/options"
     },
     "wdcalculator.api_wdcalculator_save_option": {
       "mode": "guard",
-      "policy_id": "MASTER_MUTATION",
+      "policy_id": "WDC_CALCULATE",
       "rule": "/api/wdcalculator/additional-options/categories/<int:category_id>/options"
     },
     "wdcalculator.api_wdcalculator_save_product": {
       "mode": "guard",
-      "policy_id": "MASTER_MUTATION",
+      "policy_id": "WDC_CALCULATE",
       "rule": "/api/wdcalculator/products"
     },
     "wdcalculator.api_wdcalculator_save_spec_field_preset": {
       "mode": "guard",
-      "policy_id": "MASTER_MUTATION",
+      "policy_id": "WDC_CALCULATE",
       "rule": "/api/wdcalculator/spec-field-presets"
     },
     "wdcalculator.api_wdcalculator_unmatch_order": {
