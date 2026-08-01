@@ -169,6 +169,11 @@ def test_user_delete_survives_deploy_added_fk_tables(pg_session) -> None:
     pg_session.delete(user)
     pg_session.flush()  # FK 위반이면 여기서 IntegrityError
 
+    # detach 는 bulk UPDATE(synchronize_session=False)라 세션 안의 객체를 갱신하지 않는다.
+    # expire 하지 않으면 아래 단언이 identity-map 의 낡은 값을 읽어 DB 실제 상태를 검증하지
+    # 못한다(실측: installation_workers 행은 user_id=NULL 인데 객체는 옛 id 를 들고 있었다).
+    pg_session.expire_all()
+
     assert pg_session.query(User).filter(User.id == user_id).count() == 0
 
     # 사람에게 종속된 행은 사라진다.
