@@ -1,0 +1,596 @@
+{
+  "packet": "REV-99",
+  "summary": "Order mutation writer inventory for foms/. Every persisted order mutation — flag_modified(order, 'structured_data') or a direct mutation_version bump — is classified CANONICAL (routes through REV-00 execute_order_mutation / canonical mutator) / VERSIONED_DIRECT (direct version bump under FOR UPDATE) / AUDITED_RECOVERY (OPS-APPROVAL offline apply) / EXTERNAL (direct writer with no version/If-Match contract). Release target: EXTERNAL == 0 (every order mutation carries version bump + If-Match/idempotency metadata). EXTERNAL sites below are pinned residual writers reported to their owner packet — the drift gate keeps the set from growing.",
+  "scope": "foms/**.py",
+  "baselines": {
+    "total": 63,
+    "external": 22
+  },
+  "classification_counts": {
+    "AUDITED_RECOVERY": 1,
+    "CANONICAL": 35,
+    "EXTERNAL": 22,
+    "VERSIONED_DIRECT": 5
+  },
+  "kind_counts": {
+    "flag_modified_structured_data": 59,
+    "mutation_version_bump": 4
+  },
+  "external_sites": [
+    {
+      "path": "foms/api/cs/complete.py",
+      "lineno": 147,
+      "kind": "flag_modified_structured_data",
+      "owner": "STATE-CONST-CS-01"
+    },
+    {
+      "path": "foms/api/cs/confirm.py",
+      "lineno": 65,
+      "kind": "flag_modified_structured_data",
+      "owner": "STATE-CONST-CS-01"
+    },
+    {
+      "path": "foms/api/cs/dashboard.py",
+      "lineno": 348,
+      "kind": "flag_modified_structured_data",
+      "owner": "STATE-CONST-CS-01"
+    },
+    {
+      "path": "foms/api/cs/dashboard.py",
+      "lineno": 434,
+      "kind": "flag_modified_structured_data",
+      "owner": "STATE-CONST-CS-01"
+    },
+    {
+      "path": "foms/api/drawing/erp_orders_draftsman.py",
+      "lineno": 106,
+      "kind": "flag_modified_structured_data",
+      "owner": "STATE-DRAWING-01"
+    },
+    {
+      "path": "foms/api/drawing/erp_orders_draftsman.py",
+      "lineno": 244,
+      "kind": "flag_modified_structured_data",
+      "owner": "STATE-DRAWING-01"
+    },
+    {
+      "path": "foms/api/drawing/erp_orders_draftsman.py",
+      "lineno": 390,
+      "kind": "flag_modified_structured_data",
+      "owner": "STATE-DRAWING-01"
+    },
+    {
+      "path": "foms/api/drawing/erp_orders_revision.py",
+      "lineno": 118,
+      "kind": "flag_modified_structured_data",
+      "owner": "DRAWING-REVISION-BACKFILL-00"
+    },
+    {
+      "path": "foms/api/drawing/erp_orders_revision.py",
+      "lineno": 332,
+      "kind": "flag_modified_structured_data",
+      "owner": "DRAWING-REVISION-BACKFILL-00"
+    },
+    {
+      "path": "foms/api/drawing/erp_orders_revision.py",
+      "lineno": 477,
+      "kind": "flag_modified_structured_data",
+      "owner": "DRAWING-REVISION-BACKFILL-00"
+    },
+    {
+      "path": "foms/api/events.py",
+      "lineno": 418,
+      "kind": "flag_modified_structured_data",
+      "owner": "EVENT-REVERT-01"
+    },
+    {
+      "path": "foms/api/orders/field_update.py",
+      "lineno": 551,
+      "kind": "flag_modified_structured_data",
+      "owner": "STATE-LEGACY-01"
+    },
+    {
+      "path": "foms/api/orders/status.py",
+      "lineno": 216,
+      "kind": "flag_modified_structured_data",
+      "owner": "STATE-LEGACY-01"
+    },
+    {
+      "path": "foms/api/quest.py",
+      "lineno": 417,
+      "kind": "flag_modified_structured_data",
+      "owner": "STATE-QUEST-01"
+    },
+    {
+      "path": "foms/api/wdcalculator/blueprint.py",
+      "lineno": 1174,
+      "kind": "flag_modified_structured_data",
+      "owner": "WDC-LINK-01"
+    },
+    {
+      "path": "foms/services/notifications/drawing_order_change.py",
+      "lineno": 1017,
+      "kind": "flag_modified_structured_data",
+      "owner": "STATE-DRAWING-01"
+    },
+    {
+      "path": "foms/services/order_geocode.py",
+      "lineno": 87,
+      "kind": "flag_modified_structured_data",
+      "owner": "DATA-01"
+    },
+    {
+      "path": "foms/services/orders/backfill_order_quests.py",
+      "lineno": 145,
+      "kind": "flag_modified_structured_data",
+      "owner": "QUEST-BACKFILL-00"
+    },
+    {
+      "path": "foms/services/orders/blueprint_projection.py",
+      "lineno": 137,
+      "kind": "flag_modified_structured_data",
+      "owner": "BLUEPRINT-01"
+    },
+    {
+      "path": "foms/services/orders/quest_transition_service.py",
+      "lineno": 142,
+      "kind": "flag_modified_structured_data",
+      "owner": "STATE-QUEST-01"
+    },
+    {
+      "path": "foms/services/orders/quest_transition_service.py",
+      "lineno": 294,
+      "kind": "flag_modified_structured_data",
+      "owner": "STATE-QUEST-01"
+    },
+    {
+      "path": "foms/web/orders/edit.py",
+      "lineno": 257,
+      "kind": "flag_modified_structured_data",
+      "owner": "ORDER-CREATE-01"
+    }
+  ],
+  "writers": [
+    {
+      "path": "foms/api/channel/channel_integration.py",
+      "lineno": 204,
+      "kind": "flag_modified_structured_data",
+      "classification": "CANONICAL",
+      "owner": "CHANNEL-WRITER-01"
+    },
+    {
+      "path": "foms/api/construction/orders.py",
+      "lineno": 232,
+      "kind": "flag_modified_structured_data",
+      "classification": "CANONICAL",
+      "owner": "STATE-CONST-CS-01"
+    },
+    {
+      "path": "foms/api/construction/orders.py",
+      "lineno": 287,
+      "kind": "flag_modified_structured_data",
+      "classification": "CANONICAL",
+      "owner": "STATE-CONST-CS-01"
+    },
+    {
+      "path": "foms/api/construction/orders.py",
+      "lineno": 431,
+      "kind": "flag_modified_structured_data",
+      "classification": "CANONICAL",
+      "owner": "STATE-CONST-CS-01"
+    },
+    {
+      "path": "foms/api/construction/orders.py",
+      "lineno": 542,
+      "kind": "flag_modified_structured_data",
+      "classification": "CANONICAL",
+      "owner": "STATE-CONST-CS-01"
+    },
+    {
+      "path": "foms/api/cs/as_orders.py",
+      "lineno": 193,
+      "kind": "flag_modified_structured_data",
+      "classification": "CANONICAL",
+      "owner": "STATE-AS-01"
+    },
+    {
+      "path": "foms/api/cs/as_orders.py",
+      "lineno": 428,
+      "kind": "flag_modified_structured_data",
+      "classification": "CANONICAL",
+      "owner": "STATE-AS-01"
+    },
+    {
+      "path": "foms/api/cs/complete.py",
+      "lineno": 147,
+      "kind": "flag_modified_structured_data",
+      "classification": "EXTERNAL",
+      "owner": "STATE-CONST-CS-01"
+    },
+    {
+      "path": "foms/api/cs/confirm.py",
+      "lineno": 65,
+      "kind": "flag_modified_structured_data",
+      "classification": "EXTERNAL",
+      "owner": "STATE-CONST-CS-01"
+    },
+    {
+      "path": "foms/api/cs/dashboard.py",
+      "lineno": 348,
+      "kind": "flag_modified_structured_data",
+      "classification": "EXTERNAL",
+      "owner": "STATE-CONST-CS-01"
+    },
+    {
+      "path": "foms/api/cs/dashboard.py",
+      "lineno": 434,
+      "kind": "flag_modified_structured_data",
+      "classification": "EXTERNAL",
+      "owner": "STATE-CONST-CS-01"
+    },
+    {
+      "path": "foms/api/drawing/erp_orders_draftsman.py",
+      "lineno": 106,
+      "kind": "flag_modified_structured_data",
+      "classification": "EXTERNAL",
+      "owner": "STATE-DRAWING-01"
+    },
+    {
+      "path": "foms/api/drawing/erp_orders_draftsman.py",
+      "lineno": 244,
+      "kind": "flag_modified_structured_data",
+      "classification": "EXTERNAL",
+      "owner": "STATE-DRAWING-01"
+    },
+    {
+      "path": "foms/api/drawing/erp_orders_draftsman.py",
+      "lineno": 390,
+      "kind": "flag_modified_structured_data",
+      "classification": "EXTERNAL",
+      "owner": "STATE-DRAWING-01"
+    },
+    {
+      "path": "foms/api/drawing/erp_orders_drawing.py",
+      "lineno": 214,
+      "kind": "flag_modified_structured_data",
+      "classification": "VERSIONED_DIRECT",
+      "owner": "WIZ-TRANSFER-01"
+    },
+    {
+      "path": "foms/api/drawing/erp_orders_drawing.py",
+      "lineno": 499,
+      "kind": "flag_modified_structured_data",
+      "classification": "VERSIONED_DIRECT",
+      "owner": "WIZ-TRANSFER-01"
+    },
+    {
+      "path": "foms/api/drawing/erp_orders_drawing.py",
+      "lineno": 526,
+      "kind": "mutation_version_bump",
+      "classification": "VERSIONED_DIRECT",
+      "owner": "WIZ-TRANSFER-01"
+    },
+    {
+      "path": "foms/api/drawing/erp_orders_revision.py",
+      "lineno": 118,
+      "kind": "flag_modified_structured_data",
+      "classification": "EXTERNAL",
+      "owner": "DRAWING-REVISION-BACKFILL-00"
+    },
+    {
+      "path": "foms/api/drawing/erp_orders_revision.py",
+      "lineno": 332,
+      "kind": "flag_modified_structured_data",
+      "classification": "EXTERNAL",
+      "owner": "DRAWING-REVISION-BACKFILL-00"
+    },
+    {
+      "path": "foms/api/drawing/erp_orders_revision.py",
+      "lineno": 477,
+      "kind": "flag_modified_structured_data",
+      "classification": "EXTERNAL",
+      "owner": "DRAWING-REVISION-BACKFILL-00"
+    },
+    {
+      "path": "foms/api/drawing/wizard.py",
+      "lineno": 691,
+      "kind": "flag_modified_structured_data",
+      "classification": "CANONICAL",
+      "owner": "WIZ-01"
+    },
+    {
+      "path": "foms/api/drawing/wizard.py",
+      "lineno": 921,
+      "kind": "flag_modified_structured_data",
+      "classification": "CANONICAL",
+      "owner": "WIZ-01"
+    },
+    {
+      "path": "foms/api/drawing/wizard.py",
+      "lineno": 1056,
+      "kind": "flag_modified_structured_data",
+      "classification": "CANONICAL",
+      "owner": "WIZ-01"
+    },
+    {
+      "path": "foms/api/drawing/wizard.py",
+      "lineno": 1222,
+      "kind": "flag_modified_structured_data",
+      "classification": "CANONICAL",
+      "owner": "WIZ-01"
+    },
+    {
+      "path": "foms/api/drawing/wizard.py",
+      "lineno": 1354,
+      "kind": "flag_modified_structured_data",
+      "classification": "CANONICAL",
+      "owner": "WIZ-01"
+    },
+    {
+      "path": "foms/api/erp_orders_structured.py",
+      "lineno": 679,
+      "kind": "flag_modified_structured_data",
+      "classification": "CANONICAL",
+      "owner": "DATA-01"
+    },
+    {
+      "path": "foms/api/erp_orders_structured.py",
+      "lineno": 899,
+      "kind": "flag_modified_structured_data",
+      "classification": "CANONICAL",
+      "owner": "DATA-01"
+    },
+    {
+      "path": "foms/api/erp_orders_structured.py",
+      "lineno": 1067,
+      "kind": "flag_modified_structured_data",
+      "classification": "CANONICAL",
+      "owner": "DATA-01"
+    },
+    {
+      "path": "foms/api/erp_orders_structured.py",
+      "lineno": 1432,
+      "kind": "flag_modified_structured_data",
+      "classification": "CANONICAL",
+      "owner": "DATA-01"
+    },
+    {
+      "path": "foms/api/events.py",
+      "lineno": 418,
+      "kind": "flag_modified_structured_data",
+      "classification": "EXTERNAL",
+      "owner": "EVENT-REVERT-01"
+    },
+    {
+      "path": "foms/api/measurement/routes.py",
+      "lineno": 257,
+      "kind": "flag_modified_structured_data",
+      "classification": "CANONICAL",
+      "owner": "DATA-MEASUREMENT-01"
+    },
+    {
+      "path": "foms/api/orders/call_log.py",
+      "lineno": 170,
+      "kind": "flag_modified_structured_data",
+      "classification": "CANONICAL",
+      "owner": "CALL-LOG-01"
+    },
+    {
+      "path": "foms/api/orders/field_update.py",
+      "lineno": 551,
+      "kind": "flag_modified_structured_data",
+      "classification": "EXTERNAL",
+      "owner": "STATE-LEGACY-01"
+    },
+    {
+      "path": "foms/api/orders/status.py",
+      "lineno": 216,
+      "kind": "flag_modified_structured_data",
+      "classification": "EXTERNAL",
+      "owner": "STATE-LEGACY-01"
+    },
+    {
+      "path": "foms/api/production/orders.py",
+      "lineno": 482,
+      "kind": "flag_modified_structured_data",
+      "classification": "CANONICAL",
+      "owner": "STATE-PROD-01"
+    },
+    {
+      "path": "foms/api/production/orders.py",
+      "lineno": 506,
+      "kind": "flag_modified_structured_data",
+      "classification": "CANONICAL",
+      "owner": "STATE-PROD-01"
+    },
+    {
+      "path": "foms/api/production/orders.py",
+      "lineno": 542,
+      "kind": "flag_modified_structured_data",
+      "classification": "CANONICAL",
+      "owner": "STATE-PROD-01"
+    },
+    {
+      "path": "foms/api/production/orders.py",
+      "lineno": 574,
+      "kind": "flag_modified_structured_data",
+      "classification": "CANONICAL",
+      "owner": "STATE-PROD-01"
+    },
+    {
+      "path": "foms/api/production/orders.py",
+      "lineno": 829,
+      "kind": "flag_modified_structured_data",
+      "classification": "CANONICAL",
+      "owner": "STATE-PROD-01"
+    },
+    {
+      "path": "foms/api/production/orders.py",
+      "lineno": 1126,
+      "kind": "flag_modified_structured_data",
+      "classification": "CANONICAL",
+      "owner": "STATE-PROD-01"
+    },
+    {
+      "path": "foms/api/production/orders.py",
+      "lineno": 1217,
+      "kind": "flag_modified_structured_data",
+      "classification": "CANONICAL",
+      "owner": "STATE-PROD-01"
+    },
+    {
+      "path": "foms/api/production/orders.py",
+      "lineno": 1296,
+      "kind": "flag_modified_structured_data",
+      "classification": "CANONICAL",
+      "owner": "STATE-PROD-01"
+    },
+    {
+      "path": "foms/api/quest.py",
+      "lineno": 417,
+      "kind": "flag_modified_structured_data",
+      "classification": "EXTERNAL",
+      "owner": "STATE-QUEST-01"
+    },
+    {
+      "path": "foms/api/shipment/packing.py",
+      "lineno": 347,
+      "kind": "flag_modified_structured_data",
+      "classification": "CANONICAL",
+      "owner": "PACK-01"
+    },
+    {
+      "path": "foms/api/shipment/settings.py",
+      "lineno": 231,
+      "kind": "flag_modified_structured_data",
+      "classification": "CANONICAL",
+      "owner": "SHIPMENT-REFERENCE-01"
+    },
+    {
+      "path": "foms/api/wdcalculator/blueprint.py",
+      "lineno": 1174,
+      "kind": "flag_modified_structured_data",
+      "classification": "EXTERNAL",
+      "owner": "WDC-LINK-01"
+    },
+    {
+      "path": "foms/services/notifications/drawing_order_change.py",
+      "lineno": 1017,
+      "kind": "flag_modified_structured_data",
+      "classification": "EXTERNAL",
+      "owner": "STATE-DRAWING-01"
+    },
+    {
+      "path": "foms/services/order_geocode.py",
+      "lineno": 87,
+      "kind": "flag_modified_structured_data",
+      "classification": "EXTERNAL",
+      "owner": "DATA-01"
+    },
+    {
+      "path": "foms/services/orders/as_cycle_service.py",
+      "lineno": 321,
+      "kind": "flag_modified_structured_data",
+      "classification": "CANONICAL",
+      "owner": "STATE-AS-01"
+    },
+    {
+      "path": "foms/services/orders/backfill_order_quests.py",
+      "lineno": 145,
+      "kind": "flag_modified_structured_data",
+      "classification": "EXTERNAL",
+      "owner": "QUEST-BACKFILL-00"
+    },
+    {
+      "path": "foms/services/orders/blueprint_projection.py",
+      "lineno": 137,
+      "kind": "flag_modified_structured_data",
+      "classification": "EXTERNAL",
+      "owner": "BLUEPRINT-01"
+    },
+    {
+      "path": "foms/services/orders/offline_recovery.py",
+      "lineno": 257,
+      "kind": "flag_modified_structured_data",
+      "classification": "AUDITED_RECOVERY",
+      "owner": "OFFLINE-01"
+    },
+    {
+      "path": "foms/services/orders/order_transition_service.py",
+      "lineno": 379,
+      "kind": "flag_modified_structured_data",
+      "classification": "CANONICAL",
+      "owner": "STATE-CORE-00"
+    },
+    {
+      "path": "foms/services/orders/quest_transition_service.py",
+      "lineno": 142,
+      "kind": "flag_modified_structured_data",
+      "classification": "EXTERNAL",
+      "owner": "STATE-QUEST-01"
+    },
+    {
+      "path": "foms/services/orders/quest_transition_service.py",
+      "lineno": 294,
+      "kind": "flag_modified_structured_data",
+      "classification": "EXTERNAL",
+      "owner": "STATE-QUEST-01"
+    },
+    {
+      "path": "foms/services/orders/revision.py",
+      "lineno": 279,
+      "kind": "mutation_version_bump",
+      "classification": "CANONICAL",
+      "owner": "REV-00"
+    },
+    {
+      "path": "foms/services/orders/soft_delete.py",
+      "lineno": 90,
+      "kind": "flag_modified_structured_data",
+      "classification": "CANONICAL",
+      "owner": "DELETE-CORE-00"
+    },
+    {
+      "path": "foms/services/orders/stage_override.py",
+      "lineno": 185,
+      "kind": "flag_modified_structured_data",
+      "classification": "CANONICAL",
+      "owner": "STATE-OVERLAY-01"
+    },
+    {
+      "path": "foms/services/orders/upload_intent.py",
+      "lineno": 236,
+      "kind": "mutation_version_bump",
+      "classification": "VERSIONED_DIRECT",
+      "owner": "UPLOAD-INTENT-01"
+    },
+    {
+      "path": "foms/services/orders/upload_ticket.py",
+      "lineno": 296,
+      "kind": "mutation_version_bump",
+      "classification": "VERSIONED_DIRECT",
+      "owner": "UPLOAD-01"
+    },
+    {
+      "path": "foms/services/shipment/as_recommendation.py",
+      "lineno": 183,
+      "kind": "flag_modified_structured_data",
+      "classification": "CANONICAL",
+      "owner": "STATE-AS-01"
+    },
+    {
+      "path": "foms/services/shipment/as_recommendation.py",
+      "lineno": 191,
+      "kind": "flag_modified_structured_data",
+      "classification": "CANONICAL",
+      "owner": "STATE-AS-01"
+    },
+    {
+      "path": "foms/web/orders/edit.py",
+      "lineno": 257,
+      "kind": "flag_modified_structured_data",
+      "classification": "EXTERNAL",
+      "owner": "ORDER-CREATE-01"
+    }
+  ]
+}

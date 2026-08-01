@@ -19,6 +19,7 @@ from foms.services.common.erp_shell_http import (
     wants_erp_shell_tab_body,
 )
 from foms.services.common.ept_b7_profile import apply_ept_b7_render_headers
+from foms.services.common.geocode_config import KAKAO_JS_API_KEY
 from foms.services.as_dashboard_filters import parse_as_dashboard_filters
 from foms.services.as_dashboard_helpers import (
     _combined_as_content_expr,
@@ -33,9 +34,13 @@ from foms.services.as_dashboard_read_model import (
     build_as_tab_count_context,
     build_as_tab_query_conditions,
 )
+from foms.services.orders.as_log import build_as_timeline_view
 
 
 erp_as_page_bp = Blueprint('erp_as_page', __name__, url_prefix='/erp')
+
+# 타임라인 '더보기'(?full=1) 스트림 상한. 무제한이면 append-only as_log가 fragment를 폭증시킨다.
+_TIMELINE_FULL_LIMIT = 200
 
 
 def _compact_search_text(value):
@@ -72,16 +77,25 @@ def _erp_order_search_filter(query, q, *, dialect_name='', use_postgres_regex=Fa
     manager_name = _display_manager_name_expr(dialect_name=dialect_name)
     phone = _display_phone_expr(dialect_name=dialect_name)
     address = _display_address_expr(dialect_name=dialect_name)
+    # perf-ok 근거(아래 8개 분기 공통, T12 실측):
+    #   이 OR 는 **어떤 trgm 인덱스도 타지 않는다**. `_sql_compact` 가 씌우는
+    #   `lower(regexp_replace(..))` 는 표현식 인덱스(`ix_orders_*_trgm`)와 형태가 달라
+    #   매칭되지 않고(EXPLAIN: `enable_seqscan=off` 강제에서도 Seq Scan), 분기 하나만
+    #   비인덱서블이어도 BitmapOr 자체가 성립하지 않는다. 과거 각 줄에 붙어 있던
+    #   `ix_orders_*_trgm` 인용은 사실이 아니어서 제거했다(플랜을 오독하게 만든다).
+    #   유지 근거는 인덱스가 아니라 **경로 성격**이다 — 검색어를 입력했을 때만 도는
+    #   콜드 경로이고 모집단도 AS 상태 부분집합이다. 인덱스로 접으려면 8개 분기를
+    #   합친 정규화 생성 컬럼(+trgm/tsvector)이 필요하며, 그건 별도 perf task 소관이다.
     return query.filter(
         or_(
-            _sql_compact(cast(Order.id, String), use_postgres_regex=use_postgres_regex).ilike(term),  # perf-ok: bounded id search admin/cold path
-            _sql_compact(customer_name, use_postgres_regex=use_postgres_regex).ilike(term),  # perf-ok: ix_orders_customer_name_trgm
-            _sql_compact(manager_name, use_postgres_regex=use_postgres_regex).ilike(term),  # perf-ok: ix_orders_manager_name_trgm
-            _sql_compact(phone, use_postgres_regex=use_postgres_regex).ilike(term),  # perf-ok: ix_orders_phone_trgm
-            _sql_compact(address, use_postgres_regex=use_postgres_regex).ilike(term),  # perf-ok: ix_orders_address_trgm
-            _sql_compact(Order.product, use_postgres_regex=use_postgres_regex).ilike(term),  # perf-ok: ix_orders_product_trgm
-            _sql_compact(Order.notes, use_postgres_regex=use_postgres_regex).ilike(term),  # perf-ok: ix_orders_structured_data_text_trgm
-            _sql_compact(as_content, use_postgres_regex=use_postgres_regex).ilike(term),  # perf-ok: ix_orders_structured_data_text_trgm
+            _sql_compact(cast(Order.id, String), use_postgres_regex=use_postgres_regex).ilike(term),  # perf-ok
+            _sql_compact(customer_name, use_postgres_regex=use_postgres_regex).ilike(term),  # perf-ok
+            _sql_compact(manager_name, use_postgres_regex=use_postgres_regex).ilike(term),  # perf-ok
+            _sql_compact(phone, use_postgres_regex=use_postgres_regex).ilike(term),  # perf-ok
+            _sql_compact(address, use_postgres_regex=use_postgres_regex).ilike(term),  # perf-ok
+            _sql_compact(Order.product, use_postgres_regex=use_postgres_regex).ilike(term),  # perf-ok
+            _sql_compact(Order.notes, use_postgres_regex=use_postgres_regex).ilike(term),  # perf-ok
+            _sql_compact(as_content, use_postgres_regex=use_postgres_regex).ilike(term),  # perf-ok
         )
     )
 
@@ -98,17 +112,17 @@ def _erp_as_tab_for_order(order):
 @erp_as_page_bp.route('/as/card-detail/<int:order_id>')
 @login_required
 def erp_as_card_detail(order_id: int):
-    """AS 모바일 카드 상세(content-tabs) lazy 렌더 파셜 (D1c).
+    """AS 모바일 카드 상세(시공자 + AS 타임라인) lazy 렌더 파셜 (D1c).
 
     닫힌 <details>가 열릴 때 as-dashboard.js가 fetch하는 경량 endpoint.
-    대시보드 카드와 동일한 매크로(render_as_content_tabs·시공자)를 단건 렌더하므로
-    폼/툴바/autosave 배선 계약이 eager 렌더와 완전히 동일하다.
+    PC 확장 fragment와 동일한 매크로(render_as_timeline·시공자)를 단건 렌더하므로
+    quick-add·영업/전달 토글 배선 계약이 두 표면에서 동일하다.
 
     Args:
         order_id: 대상 주문 PK.
 
     Returns:
-        content-tabs 파셜 HTML(text/html). AS 상태가 아니거나 없으면 404.
+        카드 상세 파셜 HTML(text/html). AS 상태가 아니거나 없으면 404.
     """
     db = get_db()
     order = (
@@ -130,6 +144,43 @@ def erp_as_card_detail(order_id: int):
     )
 
 
+@erp_as_page_bp.route('/as/timeline/<int:order_id>')
+@login_required
+def erp_as_timeline(order_id: int):
+    """AS PC 확장 행용 타임라인 fragment lazy 렌더(모바일 card-detail 패턴 복제).
+
+    Args:
+        order_id: 대상 주문 PK.
+
+    Returns:
+        타임라인 파셜 HTML(text/html). AS 상태가 아니거나 없으면 404.
+    """
+    db = get_db()
+    order = (
+        db.query(Order)
+        .filter(Order.active_filter())
+        .filter(Order.status.in_(['AS', 'AS_RECEIVED', 'AS_COMPLETED']))
+        .filter(Order.id == order_id)
+        .first()
+    )
+    if order is None:
+        abort(404)
+    apply_as_dashboard_row_display_fields([order], db, mobile_v2_active=False)
+    # 더보기(full=1)면 스트림 상한을 올려 뷰 재구성(display 기본 recent_limit=8을 덮어씀).
+    # 무제한이 아니라 200 캡 — as_log는 append-only + 항목당 10,000자라 상한이 없으면
+    # 오래된 주문 하나가 수 MB fragment가 된다. 200 초과 페이징은 T10 소관.
+    if request.args.get('full') == '1':
+        order.as_timeline_view = build_as_timeline_view(
+            order.structured_data, recent_limit=_TIMELINE_FULL_LIMIT
+        )
+    current_user = getattr(g, 'current_user', None)
+    return render_template(
+        'cs/partials/as_timeline_partial.html',
+        r=order,
+        can_edit_erp=can_edit_erp(current_user),
+    )
+
+
 @erp_as_page_bp.route('/as')
 @login_required
 def erp_as_dashboard():
@@ -142,6 +193,7 @@ def erp_as_dashboard():
     selected_date = _af.selected_date
     open_map = _af.open_map
     tab = _af.tab
+    billing_filter = _af.billing
 
     if open_map:
         date_val = selected_date or get_today_kst().strftime('%Y-%m-%d')
@@ -201,6 +253,7 @@ def erp_as_dashboard():
                 'erp_as_page.erp_as_dashboard',
                 tab=target_tab,
                 status=only_order.status or '',
+                billing=billing_filter,
                 q=search_q,
                 sort_dir=(request.args.get('sort_dir') or 'desc').strip().lower(),
                 mine='1' if erp_mine_only else '',
@@ -216,6 +269,7 @@ def erp_as_dashboard():
                     'erp_as_page.erp_as_dashboard',
                     tab=target_tab,
                     status=status_filter,
+                    billing=billing_filter,
                     q=search_q,
                     sort_dir=(request.args.get('sort_dir') or 'desc').strip().lower(),
                     mine='1' if erp_mine_only else '',
@@ -237,6 +291,13 @@ def erp_as_dashboard():
     as_visit_date_present = as_tab_conditions["as_visit_date_present"]
     incomplete_non_sales_condition = as_tab_conditions["incomplete_non_sales_condition"]
     sales_delivery_condition = as_tab_conditions["sales_delivery_condition"]
+    paid_unconfirmed_condition = as_tab_conditions["paid_unconfirmed_condition"]
+    billing_filters = as_tab_conditions["billing_filters"]
+
+    # 비용 필터(탭 무관)는 카운트 계산 전에 적용한다. status 필터와 같은 위치 계약이라
+    # 탭 카운트·버킷 요약·헤더 건수·페이지 수가 목록과 항상 같은 모집단을 본다.
+    if billing_filter in billing_filters:
+        filtered_base_query = filtered_base_query.filter(billing_filters[billing_filter])
 
     as_count_context = build_as_tab_count_context(
         filtered_base_query,
@@ -246,6 +307,7 @@ def erp_as_dashboard():
         sales_delivery_condition=sales_delivery_condition,
         as_pending_true=as_pending_true,
         as_visit_date_present=as_visit_date_present,
+        paid_unconfirmed_condition=paid_unconfirmed_condition,
     )
     incomplete_buckets = as_count_context["incomplete_buckets"]
     as_bucket = as_count_context["as_bucket"]
@@ -297,7 +359,9 @@ def erp_as_dashboard():
         resolve_shell_variant_cached(current_user.id if current_user else None)
     )
     # Batch 5: rows 표시 필드 보강은 apply_as_dashboard_row_display_fields(display 모듈)로 분리(동작 보존, 캐시 아님).
-    apply_as_dashboard_row_display_fields(rows, db, mobile_v2_active=mobile_v2_active)
+    # T4: 반환값 = 렌더된 행 중 기준 일정 드리프트(ref_moved/both_moved) 배너 요약
+    # (count + 점프 칩 + 초과 건수). 같은 행 루프에서 모으므로 추가 쿼리·재평가 없음.
+    drift_banner = apply_as_dashboard_row_display_fields(rows, db, mobile_v2_active=mobile_v2_active)
     # 시공자가 아닌 사용자만 AS 카테고리 사진 조회 가능 (관리자 등)
     can_view_as_photos = not (current_user and (current_user.team or '').strip() == 'CONSTRUCTION')
 
@@ -321,11 +385,15 @@ def erp_as_dashboard():
         as_tab_counts=as_tab_counts,
         as_incomplete_summary=as_incomplete_summary,
         as_bucket=as_bucket,
+        billing_filter=billing_filter,
         compact_search_q=compact_q,
         page=page,
         per_page=per_page,
         total_pages=total_pages,
         total_orders=total_orders,
+        # 일정찾기 지도 모달(카카오) 전용 — layout_head 의 지도 origin preconnect 게이트도 겸한다.
+        kakao_js_key=KAKAO_JS_API_KEY,
+        drift_banner=drift_banner,
     )
     _render_ms = (time.perf_counter() - _t0) * 1000.0
     response = make_response(_body)

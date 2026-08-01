@@ -226,48 +226,56 @@
       }
     }
 
-    async function startProduction(orderId) {
-      if (!confirm('제작을 시작하시겠습니까? (상태가 제작중으로 변경됩니다)')) return;
+    // HOLD_ACTIVE 재시도 confirm 문구(사유 있으면 병기).
+    function prodHoldConfirmText(hold) {
+      let msg = '보류 중인 주문입니다';
+      if (hold && hold.reason) msg += ' (사유: ' + hold.reason + ')';
+      return msg + '\n보류를 해제하고 진행할까요?';
+    }
 
+    async function postProductionTransition(orderId, path, body) {
+      const res = await fetch(`/api/orders/${orderId}${path}`, {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify(body || {})
+      });
+      let data;
       try {
-        const res = await fetch(`/api/orders/${orderId}/production/start`, {
-          method: 'POST',
-          headers: { 'Content-Type': 'application/json' }
-        });
-        const data = await res.json();
+        data = await res.json();
+      } catch (_) {
+        data = { success: false, message: '서버 응답 형식 오류' };
+      }
+      return { status: res.status, data: data || {} };
+    }
 
-        if (data.success) {
-          alert(data.message);
+    // 전이 실행 — 409 HOLD_ACTIVE(보류 중) 면 해제 confirm 후 {release_hold:true} 로 1회 재시도.
+    async function submitProductionTransition(orderId, path) {
+      try {
+        let result = await postProductionTransition(orderId, path, {});
+        if (result.status === 409 && result.data.code === 'HOLD_ACTIVE') {
+          if (!confirm(prodHoldConfirmText(result.data.hold))) return;
+          result = await postProductionTransition(orderId, path, { release_hold: true });
+        }
+        if (result.data.success) {
+          alert(result.data.message);
           window.location.reload();
         } else {
-          alert('오류: ' + data.message);
+          alert('오류: ' + (result.data.message || '처리에 실패했습니다.'));
         }
       } catch (err) {
-        console.error('Production start error:', err);
+        console.error('Production transition error:', err);
         alert('처리 중 오류가 발생했습니다.');
       }
     }
 
+    async function startProduction(orderId) {
+      if (!confirm('제작을 시작하시겠습니까? (상태가 제작중으로 변경됩니다)')) return;
+      await submitProductionTransition(orderId, '/production/start');
+    }
+
     async function completeProduction(orderId) {
       if (!confirm('제작을 완료하시겠습니까? (상태가 출고대기로 변경됩니다)')) return;
-
-      try {
-        const res = await fetch(`/api/orders/${orderId}/production/complete`, {
-          method: 'POST',
-          headers: { 'Content-Type': 'application/json' }
-        });
-        const data = await res.json();
-
-        if (data.success) {
-          alert(data.message);
-          window.location.reload();
-        } else {
-          alert('오류: ' + data.message);
-        }
-      } catch (err) {
-        console.error('Production complete error:', err);
-        alert('처리 중 오류가 발생했습니다.');
-      }
+      await submitProductionTransition(orderId, '/production/complete');
     }
 
     // 생산 액션 버튼(.erp-production-action) 클릭 위임은 하단 __fomsProdWireOnce() 로 이관.

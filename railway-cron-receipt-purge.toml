@@ -1,0 +1,11 @@
+# order_mutation_receipts purge 전용 Railway Cron Config (REV-CLEANUP-01)
+# 별도 Cron 서비스로 등록: Railway 대시보드 > Cron 서비스 > Settings >
+#   Config Path: railway-cron-receipt-purge.toml
+# railway-cron.toml(cleanup_order_drafts, UTC 17:00) 와 같은 패턴을 재사용하되
+# 30분 뒤로 어긋내 리소스 겹침을 피한다. 서비스 provisioning/등록은 오케스트레이터 몫.
+[build]
+builder = "nixpacks"
+
+[deploy]
+startCommand = "python tools/ops/purge_order_mutation_receipts.py --retention-days 7 --batch-size 1000 --apply"
+cronSchedule = "30 17 * * *"  # UTC 17:30 = KST 02:30 (daily)

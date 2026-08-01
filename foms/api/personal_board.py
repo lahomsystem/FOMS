@@ -5,6 +5,7 @@ WR-P1 retires the `apps.api.personal_board` adapter shell so the Blueprint,
 decorator binding, and response helper all live on `foms.api.personal_board`.
 """
 import datetime
+from foms.services.error_logging import log_handled_exception
 
 from flask import Blueprint, jsonify, session
 from sqlalchemy import and_, func, or_
@@ -229,11 +230,13 @@ def _stalled_count(db, user_team, days=3):
 
 
 def _pending_quest_and_task(db, user_id, user_team):
-    """OPEN Task 건수."""
+    """내게 배정된 활성(OPEN/IN_PROGRESS) Task 건수(취소·완료 제외, 삭제된 주문 제외)."""
     task_count = (
         db.query(OrderTask.id)
-        .filter(OrderTask.status == "OPEN")
+        .join(Order, Order.id == OrderTask.order_id)
+        .filter(OrderTask.status.in_(("OPEN", "IN_PROGRESS")))
         .filter(OrderTask.owner_user_id == user_id)
+        .filter(Order.active_filter())
         .count()
     )
     return 0, task_count
@@ -433,9 +436,7 @@ def personal_board_summary_response():
             }
         )
     except Exception as e:
-        import traceback
-
-        traceback.print_exc()
+        log_handled_exception()
         return jsonify({"success": False, "message": str(e)}), 500
 
 

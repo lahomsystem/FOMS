@@ -10,9 +10,7 @@ var __shipDashSelectedDate = (__shipDashCfgEl && __shipDashCfgEl.dataset.selecte
         construction_time: 'erp_shipment_construction_time_list',
         drawing_manager: 'erp_shipment_drawing_manager_list',
         construction_workers: 'erp_shipment_construction_workers_list',
-        site_extra: 'erp_shipment_site_extra_list',
-        vehicle: 'erp_shipment_vehicle_list',
-        trip: 'erp_shipment_trip_list'
+        site_extra: 'erp_shipment_site_extra_list'
       };
       const MAX_SAVED = 20;
 
@@ -144,15 +142,33 @@ var __shipDashSelectedDate = (__shipDashCfgEl && __shipDashCfgEl.dataset.selecte
         Array.prototype.forEach.call(tbody.querySelectorAll('tr.shipment-grp-row'), function (h) {
           grpHeadByKey[h.getAttribute('data-grp-key') || ''] = h;
         });
+        var desiredOrder = [];
         var lastGrpKey = null;
         rows.forEach(function (tr) {
           var gk = ((parseInt(tr.dataset.as, 10) || 0)) + '|' + (getFirstWorkerFromRow(tr) || '').trim().toLowerCase();
           if (gk !== lastGrpKey) {
             lastGrpKey = gk;
-            if (grpHeadByKey[gk]) tbody.appendChild(grpHeadByKey[gk]);
+            if (grpHeadByKey[gk]) desiredOrder.push(grpHeadByKey[gk]);
           }
-          tbody.appendChild(tr);
+          desiredOrder.push(tr);
         });
+        // 순서가 이미 목표와 동일하면 재-append 를 건너뛴다(무조건 재배치 금지).
+        // 이 함수는 construction_workers blur 로 예약(setTimeout 0)되므로, 사람 클릭의
+        // mousedown→mouseup 사이에 실행될 수 있다. 그때 행을 DOM 이동시키면 click 합성이
+        // 무효화되어 첫 클릭이 사라진다(불러오기 버튼 2클릭 버그의 근본 원인).
+        // ponytail: indexOf 멤버십 = O(n^2). 행이 수천 단위가 되면 WeakSet/Map 으로 교체.
+        var currentOrder = Array.prototype.slice
+          .call(tbody.querySelectorAll('tr.shipment-row, tr.shipment-grp-row'))
+          .filter(function (el) { return desiredOrder.indexOf(el) !== -1; });
+        var sameOrder = currentOrder.length === desiredOrder.length;
+        if (sameOrder) {
+          for (var oi = 0; oi < desiredOrder.length; oi++) {
+            if (currentOrder[oi] !== desiredOrder[oi]) { sameOrder = false; break; }
+          }
+        }
+        if (!sameOrder) {
+          desiredOrder.forEach(function (el) { tbody.appendChild(el); });
+        }
         var workerList = [];
         rows.forEach(function (tr) {
           var w = getFirstWorkerFromRow(tr);
@@ -190,15 +206,11 @@ var __shipDashSelectedDate = (__shipDashCfgEl && __shipDashCfgEl.dataset.selecte
         fillDatalist('datalist-construction-time', 'construction_time');
         fillDatalist('datalist-drawing-manager', 'drawing_manager');
         fillDatalist('datalist-construction-workers', 'construction_workers');
-        fillDatalist('datalist-vehicle', 'vehicle');
-        fillDatalist('datalist-trip', 'trip');
         applyShipmentWorkerSortAndColors();
       }).catch(function () {
         fillDatalist('datalist-construction-time', 'construction_time');
         fillDatalist('datalist-drawing-manager', 'drawing_manager');
         fillDatalist('datalist-construction-workers', 'construction_workers');
-        fillDatalist('datalist-vehicle', 'vehicle');
-        fillDatalist('datalist-trip', 'trip');
       });
       var shipmentTableEl = document.querySelector('.shipment-table');
       if (shipmentTableEl) {
@@ -224,9 +236,16 @@ var __shipDashSelectedDate = (__shipDashCfgEl && __shipDashCfgEl.dataset.selecte
           span.className = 'dropdown-item text-muted';
           span.textContent = '저장된 값이 없습니다.';
           div.appendChild(span);
+          div.__shipmentAnchor = anchor;
           document.body.appendChild(div);
-          function closeEmpty() { div.remove(); document.removeEventListener('click', closeEmpty); }
-          setTimeout(function () { document.addEventListener('click', closeEmpty); }, 10);
+          // 닫기는 click 이 아니라 mousedown 으로 감지한다: 버튼 mousedown 에서 열린 경우
+          // 같은 제스처의 잔여 click 이 즉시 닫아버리는 것을 막는다(mousedown 은 재발화 없음).
+          function closeEmpty(e) {
+            if (e && e.target && div.contains(e.target)) return;
+            div.remove();
+            document.removeEventListener('mousedown', closeEmpty);
+          }
+          setTimeout(function () { document.addEventListener('mousedown', closeEmpty); }, 10);
           setTimeout(function () { closeEmpty(); }, 2500);
           return;
         }
@@ -254,9 +273,16 @@ var __shipDashSelectedDate = (__shipDashCfgEl && __shipDashCfgEl.dataset.selecte
           a.addEventListener('click', function (e) { e.preventDefault(); onSelect(val); div.remove(); });
           div.appendChild(a);
         });
+        div.__shipmentAnchor = anchor;
         document.body.appendChild(div);
-        function close() { div.remove(); document.removeEventListener('click', close); }
-        setTimeout(function () { document.addEventListener('click', close); }, 10);
+        // 닫기는 mousedown 감지(위 closeEmpty 와 동일 사유). 드롭다운 내부 mousedown 은
+        // 무시해야 항목 a 의 click 이 정상 발화한다.
+        function close(e) {
+          if (e && e.target && div.contains(e.target)) return;
+          div.remove();
+          document.removeEventListener('mousedown', close);
+        }
+        setTimeout(function () { document.addEventListener('mousedown', close); }, 10);
       }
 
       var shipmentSaveQueue = Object.create(null);
@@ -629,6 +655,22 @@ var __shipDashSelectedDate = (__shipDashCfgEl && __shipDashCfgEl.dataset.selecte
         return li;
       }
 
+      // 불러오기 버튼(행 단위) 드롭다운 오픈 — mousedown/click 양쪽에서 공유한다.
+      // 같은 버튼으로 이미 열려 있으면(직전 mousedown 이 연 경우) 재오픈하지 않는다.
+      function openShipmentSavedDropdownForLoadBtn(loadBtn) {
+        var list = getShipmentEditList(loadBtn);
+        var row = loadBtn.closest('.shipment-text-row');
+        var input = row && row.querySelector('.shipment-text-input');
+        if (!list || !row || !input) return;
+        var existing = document.getElementById('shipment-saved-dropdown');
+        if (existing && existing.__shipmentAnchor === loadBtn) return;
+        showSavedDropdown(loadBtn, getShipmentEditListKey(list), function (value) {
+          input.value = value;
+          saveShipmentEditRowValue(list, row);
+          input.focus();
+        });
+      }
+
       if (!window.__shipmentDashboardDocListenersBound) {
         window.__shipmentDashboardDocListenersBound = true;
 
@@ -637,9 +679,18 @@ var __shipDashSelectedDate = (__shipDashCfgEl && __shipDashCfgEl.dataset.selecte
         });
 
         document.addEventListener('mousedown', function (e) {
-          if (!e.target.closest('.btn-remove-shipment-text-row, .shipment-btn-load-saved-text-row')) return;
+          var btn = e.target.closest('.btn-remove-shipment-text-row, .shipment-btn-load-saved-text-row');
+          if (!btn) return;
           var row = e.target.closest('.shipment-text-row');
-          if (row) row.dataset.skipBlurSave = '1';
+          // blur-save 건너뛰기는 "이 행의 input 이 실제로 포커스를 잃는" 경우에만 건다.
+          // 포커스가 다른 행/요소에 있으면 이 행엔 blur 가 오지 않아 플래그가 stale 로 남고,
+          // 다음 진짜 편집의 저장을 한 번 삼킨다(기존 잠복 데이터 유실 경로).
+          if (row && row.contains(document.activeElement)) row.dataset.skipBlurSave = '1';
+          if (!btn.classList.contains('shipment-btn-load-saved-text-row')) return;
+          // 불러오기는 mousedown 에서 즉시 연다: 같은 제스처의 blur → 행 재배치로 click 이
+          // 합성되지 않아도(2클릭 버그) 첫 클릭이 동작한다. preventDefault 로 포커스 이동 최소화.
+          e.preventDefault();
+          openShipmentSavedDropdownForLoadBtn(btn);
         }, true);
 
         document.addEventListener('click', function (e) {
@@ -692,17 +743,11 @@ var __shipDashSelectedDate = (__shipDashCfgEl && __shipDashCfgEl.dataset.selecte
 
           var loadBtn = e.target.closest('.shipment-btn-load-saved-text-row');
           if (loadBtn) {
-            var list = getShipmentEditList(loadBtn);
-            var row = loadBtn.closest('.shipment-text-row');
-            var input = row && row.querySelector('.shipment-text-input');
-            if (!list || !row || !input) return;
             e.preventDefault();
             e.stopPropagation();
-            showSavedDropdown(loadBtn, getShipmentEditListKey(list), function (value) {
-              input.value = value;
-              saveShipmentEditRowValue(list, row);
-              input.focus();
-            });
+            // 직전 mousedown 이 이미 열었으면 helper 가 no-op (키보드 Enter 등 mousedown 없는
+            // 경로에서는 여기서 열린다).
+            openShipmentSavedDropdownForLoadBtn(loadBtn);
           }
         });
 
@@ -797,29 +842,30 @@ var __shipDashSelectedDate = (__shipDashCfgEl && __shipDashCfgEl.dataset.selecte
       window.__shipmentAsRecModalEl = window.__shipmentAsRecModalEl || null;
       window.__shipmentAsRecMapModalEl = window.__shipmentAsRecMapModalEl || null;
       window.__shipmentAsRecNeedsReload = false;
-      var shipmentAsRecMapModalInstance = null;
-      window.__shipmentAsRecMapLeaflet = window.__shipmentAsRecMapLeaflet || null;
-      var shipmentAsRecMapGen = 0;
-      var shipmentAsRecLeafletPromise = null;
-      var shipmentAsRecRouteCache = new Map();
 
       function adoptModalFromMain() {
         var main = document.getElementById('main-content');
         if (!main) return;
         var fresh = main.querySelector('#shipmentAsRecommendModal');
-        if (!fresh) return;
-        var prev = window.__shipmentAsRecModalEl;
-        if (prev && prev !== fresh && prev.parentNode) {
-          prev.remove();
+        if (fresh) {
+          var prev = window.__shipmentAsRecModalEl;
+          if (prev && prev !== fresh && prev.parentNode && prev.classList.contains('show')) {
+            // 성공 후 프래그먼트 새로고침(foms:main-content-swapped)이 열려있는 모달을
+            // 지우고 빈 새 사본으로 바꾸면 사용자 눈앞에서 모달이 사라진다.
+            // 열린 모달은 그대로 두고 #main-content 의 중복 사본만 버린다(중복 id 방지).
+            fresh.remove();
+          } else {
+            if (prev && prev !== fresh && prev.parentNode) {
+              prev.remove();
+            }
+            document.body.appendChild(fresh);
+            window.__shipmentAsRecModalEl = fresh;
+          }
         }
-        document.body.appendChild(fresh);
-        window.__shipmentAsRecModalEl = fresh;
         var freshMap = main.querySelector('#scheduleMapModal');
         if (freshMap) {
           var prevMap = window.__shipmentAsRecMapModalEl;
           if (prevMap && prevMap !== freshMap && prevMap.parentNode) {
-            resetShipmentAsRecMap();
-            shipmentAsRecMapModalInstance = null;
             prevMap.remove();
           }
           document.body.appendChild(freshMap);
@@ -850,189 +896,8 @@ var __shipDashSelectedDate = (__shipDashCfgEl && __shipDashCfgEl.dataset.selecte
           .replace(/"/g, '&quot;');
       }
 
-      function routeCacheKey(a, b, c, d) {
-        return [a, b, c, d].map(function (v) {
-          return Number(v).toFixed(6);
-        }).join(',');
-      }
-
-      function ensureLeaflet() {
-        if (window.L) return Promise.resolve();
-        if (shipmentAsRecLeafletPromise) return shipmentAsRecLeafletPromise;
-        shipmentAsRecLeafletPromise = new Promise(function (resolve, reject) {
-          if (!document.getElementById('shipment-as-rec-leaflet-css')) {
-            var link = document.createElement('link');
-            link.id = 'shipment-as-rec-leaflet-css';
-            link.rel = 'stylesheet';
-            link.href = 'https://unpkg.com/leaflet@1.9.4/dist/leaflet.css';
-            link.crossOrigin = '';
-            document.head.appendChild(link);
-          }
-          var script = document.getElementById('shipment-as-rec-leaflet-js');
-          if (!script) {
-            script = document.createElement('script');
-            script.id = 'shipment-as-rec-leaflet-js';
-            script.src = 'https://unpkg.com/leaflet@1.9.4/dist/leaflet.js';
-            script.crossOrigin = '';
-            document.head.appendChild(script);
-          }
-          script.addEventListener('load', function () { resolve(); }, { once: true });
-          script.addEventListener('error', function () { reject(new Error('Leaflet 로드 실패')); }, { once: true });
-        });
-        return shipmentAsRecLeafletPromise;
-      }
-
       function getMapModal() {
         return window.__shipmentAsRecMapModalEl || document.getElementById('scheduleMapModal');
-      }
-
-      function resetShipmentAsRecMap() {
-        if (window.__shipmentAsRecMapLeaflet) {
-          try {
-            window.__shipmentAsRecMapLeaflet.remove();
-          } catch (e) { /* ignore */ }
-          window.__shipmentAsRecMapLeaflet = null;
-        }
-      }
-
-      function getFreshScheduleMapContainer() {
-        var container = document.getElementById('scheduleMapContainer');
-        if (!container) return null;
-        if (container._leaflet_id) {
-          var clone = container.cloneNode(false);
-          container.parentNode.replaceChild(clone, container);
-          container = clone;
-        }
-        container.replaceChildren();
-        return container;
-      }
-
-      function openShipmentAsRecMap(refAddr, refLat, refLng, tgtLat, tgtLng, tgtAddr, tgtName, scoreText) {
-        adoptModalFromMain();
-        var modalEl = getMapModal();
-        var routeInfoEl = document.getElementById('scheduleMapRouteInfo');
-        if (!modalEl || !routeInfoEl || typeof bootstrap === 'undefined') return;
-        routeInfoEl.innerHTML = '<div class="text-center text-muted py-3"><div class="spinner-border spinner-border-sm me-2" role="status"></div>경로 계산 중...</div>';
-        var myGen = ++shipmentAsRecMapGen;
-
-        ensureLeaflet().then(function () {
-          if (!window.L || myGen !== shipmentAsRecMapGen) return;
-          if (!shipmentAsRecMapModalInstance) {
-            shipmentAsRecMapModalInstance = bootstrap.Modal.getOrCreateInstance(modalEl);
-          }
-          var onShown = function () {
-            modalEl.removeEventListener('shown.bs.modal', onShown);
-            if (myGen !== shipmentAsRecMapGen) return;
-            resetShipmentAsRecMap();
-            var container = getFreshScheduleMapContainer();
-            if (!container) return;
-            var map = L.map(container).setView([refLat, refLng], 11);
-            window.__shipmentAsRecMapLeaflet = map;
-            L.tileLayer('https://{s}.tile.openstreetmap.org/{z}/{x}/{y}.png', {
-              maxZoom: 19,
-              attribution: '&copy; <a href="https://www.openstreetmap.org/copyright" rel="noopener">OpenStreetMap</a>'
-            }).addTo(map);
-            L.circleMarker([refLat, refLng], {
-              radius: 9,
-              color: '#c0392b',
-              weight: 2,
-              fillColor: '#ff6b6b',
-              fillOpacity: 0.95
-            }).addTo(map).bindPopup(escHtml(refAddr));
-            L.circleMarker([tgtLat, tgtLng], {
-              radius: 9,
-              color: '#2e7d32',
-              weight: 2,
-              fillColor: '#4caf50',
-              fillOpacity: 0.95
-            }).addTo(map).bindPopup('<strong>' + escHtml(tgtName) + '</strong><br>' + escHtml(tgtAddr));
-            map.fitBounds(L.latLngBounds([[refLat, refLng], [tgtLat, tgtLng]]), { padding: [50, 50], maxZoom: 14 });
-
-            function bumpMapSize() {
-              if (myGen !== shipmentAsRecMapGen || window.__shipmentAsRecMapLeaflet !== map) return;
-              try {
-                map.invalidateSize({ animate: false });
-              } catch (e) { /* ignore */ }
-            }
-            map.whenReady(bumpMapSize);
-            requestAnimationFrame(function () {
-              bumpMapSize();
-              setTimeout(bumpMapSize, 120);
-              setTimeout(bumpMapSize, 400);
-            });
-
-            var cacheKey = routeCacheKey(refLat, refLng, tgtLat, tgtLng);
-            var routePromise = shipmentAsRecRouteCache.has(cacheKey)
-              ? Promise.resolve(shipmentAsRecRouteCache.get(cacheKey))
-              : fetch(
-                '/api/calculate_route?start_lat=' + encodeURIComponent(refLat) +
-                '&start_lng=' + encodeURIComponent(refLng) +
-                '&end_lat=' + encodeURIComponent(tgtLat) +
-                '&end_lng=' + encodeURIComponent(tgtLng)
-              ).then(function (res) {
-                if (res.status === 429) throw new Error('RATE_LIMIT');
-                return res.json();
-              }).then(function (json) {
-                if (json && json.success) shipmentAsRecRouteCache.set(cacheKey, json);
-                return json;
-              });
-
-            routePromise.then(function (routeJson) {
-              if (myGen !== shipmentAsRecMapGen || window.__shipmentAsRecMapLeaflet !== map) return;
-              if (routeJson && routeJson.success && routeJson.data &&
-                  routeJson.data.route_coords && routeJson.data.route_coords.length > 0) {
-                var routeData = routeJson.data;
-                var line = L.polyline(routeData.route_coords, {
-                  color: '#ff4757',
-                  weight: 5,
-                  opacity: 0.8
-                }).addTo(map);
-                try {
-                  map.fitBounds(line.getBounds(), { padding: [50, 50], maxZoom: 14 });
-                } catch (e) { /* ignore */ }
-                bumpMapSize();
-                setTimeout(bumpMapSize, 200);
-                var summ = routeData.summary || {};
-                var distT = summ.distance_text != null ? summ.distance_text : (routeData.distance_km + 'km');
-                var durT = summ.duration_text != null ? summ.duration_text : ((routeData.duration_min || 0) + '분');
-                var tollT = summ.toll_text != null ? summ.toll_text : '—';
-                routeInfoEl.innerHTML =
-                  '<div class="schedule-map-route-info">' +
-                  '<h6><i class="fas fa-car-side me-1"></i> 경로 정보</h6>' +
-                  '<div class="mb-1"><strong>출발:</strong> ' + escHtml(refAddr) + '</div>' +
-                  '<div class="mb-1"><strong>도착:</strong> ' + escHtml(tgtAddr) + '</div>' +
-                  '<div class="mb-1"><strong>거리:</strong> ' + escHtml(distT) + '</div>' +
-                  '<div class="mb-1"><strong>소요시간:</strong> ' + escHtml(durT) + '</div>' +
-                  '<div><strong>통행료:</strong> ' + escHtml(tollT) + '</div>' +
-                  '</div>';
-                return;
-              }
-              throw new Error((routeJson && routeJson.error) ? String(routeJson.error) : 'ROUTE_FAIL');
-            }).catch(function (err) {
-              if (myGen !== shipmentAsRecMapGen) return;
-              var msg = (err && err.message === 'RATE_LIMIT')
-                ? '요청 한도에 도달했습니다. 잠시 후 다시 시도해 주세요.'
-                : '자동차 경로를 계산하지 못했습니다. 직선거리를 참고해 주세요.';
-              var hint = scoreText
-                ? ('<p class="mb-0 small mt-2">직선거리 참고: ' + escHtml(scoreText) + '</p>')
-                : '';
-              routeInfoEl.innerHTML =
-                '<div class="alert alert-warning mb-0" role="alert">' +
-                '<strong>경로 계산 실패</strong>' +
-                '<p class="mb-0 small">' + escHtml(msg) + '</p>' +
-                hint +
-                '</div>';
-            });
-          };
-          modalEl.addEventListener('shown.bs.modal', onShown, { once: true });
-          shipmentAsRecMapModalInstance.show();
-        }).catch(function (err) {
-          routeInfoEl.innerHTML =
-            '<div class="alert alert-warning mb-0" role="alert">' +
-            '<strong>지도 로드 실패</strong>' +
-            '<p class="mb-0 small">' + escHtml(err && err.message ? err.message : '지도 모듈을 불러오지 못했습니다.') + '</p>' +
-            '</div>';
-        });
       }
 
       function getModal() {
@@ -1068,21 +933,23 @@ var __shipDashSelectedDate = (__shipDashCfgEl && __shipDashCfgEl.dataset.selecte
         return Promise.resolve();
       }
 
-      function hydrateAsRecRichPreviews(payload, rootEl) {
+      /**
+       * 추천 카드 본문에 서버 렌더 AS 타임라인(as_timeline_html)을 주입한다.
+       *
+       * AS 기록 SSOT 는 append-only shipment.as_log 이고 legacy as_content 는 그 뷰의
+       * legacy 앵커로 이미 포함되므로, 본문은 타임라인 하나만 그린다(구 as_content_html
+       * 병행 표시는 같은 내용을 두 번 내보내므로 제거됨).
+       * 값은 서버 sanitize 를 통과한 HTML 이므로 innerHTML 주입이 허용된다.
+       */
+      function hydrateAsRecTimelines(payload, rootEl) {
         if (!rootEl) return;
         var targets = (payload && payload.targets) || [];
         targets.forEach(function (t) {
           (t.recommendations || []).forEach(function (r) {
             var key = String(t.order_id) + '-' + String(r.as_order_id);
-            var el = rootEl.querySelector('[data-asrec-rich="' + key + '"]');
+            var el = rootEl.querySelector('[data-asrec-timeline="' + key + '"]');
             if (!el) return;
-            if (r.as_content_html) {
-              el.innerHTML = r.as_content_html;
-              el.classList.remove('asrec-rich-preview--plain');
-            } else if (r.as_content_text) {
-              el.textContent = r.as_content_text;
-              el.classList.add('asrec-rich-preview--plain');
-            }
+            el.innerHTML = r.as_timeline_html || '<div class="text-muted small">기록 없음</div>';
           });
         });
       }
@@ -1154,8 +1021,10 @@ var __shipDashSelectedDate = (__shipDashCfgEl && __shipDashCfgEl.dataset.selecte
             var recLat = Number(r.lat);
             var recLng = Number(r.lng);
             var canOpenMap = Number.isFinite(targetLat) && Number.isFinite(targetLng) && Number.isFinite(recLat) && Number.isFinite(recLng);
-            var richKey = String(t.order_id) + '-' + String(r.as_order_id);
-            html += '<div class="border rounded p-2 mb-2 small" data-as-order-id="' + escHtml(r.as_order_id) + '">';
+            var timelineKey = String(t.order_id) + '-' + String(r.as_order_id);
+            // js-asrec-card: 카드 래퍼 전용 훅. 버튼도 data-as-order-id 를 갖고 있어
+            // closest('[data-as-order-id]') 로는 버튼 자신이 잡혀 .js-asrec-err 형제를 못 찾는다.
+            html += '<div class="border rounded p-2 mb-2 small js-asrec-card" data-as-order-id="' + escHtml(r.as_order_id) + '">';
             html += '<div class="row g-2 align-items-stretch">';
             html += '<div class="col-12 col-md-6 asrec-card-meta">';
             html += '<div class="fw-bold">AS #' + escHtml(r.as_order_id) + ' ' + escHtml(r.customer_name) + badge + '</div>';
@@ -1182,16 +1051,15 @@ var __shipDashSelectedDate = (__shipDashCfgEl && __shipDashCfgEl.dataset.selecte
             html += '</div>';
             html += '<div class="col-12 col-md-6 asrec-card-content">';
             html += '<div class="border rounded bg-light h-100 p-2">';
-            html += '<div class="erp-pro-input as-content-input asrec-rich-preview js-asrec-rich-preview" ';
-            html += 'contenteditable="false" tabindex="-1" role="region" aria-readonly="true" aria-label="AS 내용" ';
-            html += 'data-asrec-rich="' + escHtml(richKey) + '"></div>';
+            html += '<div class="asrec-timeline-slot" role="region" aria-label="AS 기록 타임라인" ';
+            html += 'data-asrec-timeline="' + escHtml(timelineKey) + '"></div>';
             html += '</div></div>';
             html += '</div></div>';
           });
           html += '</div></div></div>';
         });
         groupsEl.innerHTML = html;
-        hydrateAsRecRichPreviews(payload, groupsEl);
+        hydrateAsRecTimelines(payload, groupsEl);
         if (payload && payload.warnings && payload.warnings.length) {
           setStatus('참고 알림 ' + payload.warnings.length + '건 (경로 계산 한도·화면 기준일 불일치 등)');
         }
@@ -1280,6 +1148,24 @@ var __shipDashSelectedDate = (__shipDashCfgEl && __shipDashCfgEl.dataset.selecte
         runChunk();
       }
 
+      // 세션 만료·권한 리다이렉트 시 서버가 HTML(로그인 페이지)을 302 후 200으로 내려줄 수 있다.
+      // r.json() 을 그대로 걸면 그 자리에서 reject 되어 실패가 조용히 사라지므로,
+      // 본문을 텍스트로 받아 방어적으로 파싱하고 실패 시 표준 실패 shape 로 폴백한다.
+      function parseJsonResponse(r) {
+        return r.text().then(function (text) {
+          var data = null;
+          try {
+            data = text ? JSON.parse(text) : null;
+          } catch (e) {
+            data = null;
+          }
+          if (!data || typeof data !== 'object') {
+            data = { success: false, message: '서버 응답 오류 (' + r.status + ')' };
+          }
+          return { ok: r.ok, status: r.status, data: data };
+        });
+      }
+
       function postApply(shipmentOrderId, asOrderId, asInfoId, force) {
         return fetch('/api/erp/shipment/as-recommendations/apply', {
           method: 'POST',
@@ -1290,11 +1176,7 @@ var __shipDashSelectedDate = (__shipDashCfgEl && __shipDashCfgEl.dataset.selecte
             as_info_id: asInfoId === '' || asInfoId == null ? null : parseInt(asInfoId, 10),
             force: !!force,
           }),
-        }).then(function (r) {
-          return r.json().then(function (data) {
-            return { ok: r.ok, status: r.status, data: data };
-          });
-        });
+        }).then(parseJsonResponse);
       }
 
       function postCancel(shipmentOrderId, asOrderId, asInfoId) {
@@ -1306,21 +1188,11 @@ var __shipDashSelectedDate = (__shipDashCfgEl && __shipDashCfgEl.dataset.selecte
             as_order_id: asOrderId,
             as_info_id: asInfoId === '' || asInfoId == null ? null : parseInt(asInfoId, 10),
           }),
-        }).then(function (r) {
-          return r.json().then(function (data) {
-            return { ok: r.ok, status: r.status, data: data };
-          });
-        });
+        }).then(parseJsonResponse);
       }
 
       if (!window.__shipmentAsRecDocListenersBound) {
         window.__shipmentAsRecDocListenersBound = true;
-
-        document.addEventListener('hidden.bs.modal', function (ev) {
-          if (ev.target && ev.target.id === 'scheduleMapModal') {
-            resetShipmentAsRecMap();
-          }
-        });
 
         document.addEventListener('click', function (ev) {
         var openBtn = ev.target.closest && ev.target.closest('#shipment-as-recommend-btn, [data-shipment-as-recommend-open]');
@@ -1355,30 +1227,35 @@ var __shipDashSelectedDate = (__shipDashCfgEl && __shipDashCfgEl.dataset.selecte
         var mapBtn = ev.target.closest && ev.target.closest('.js-shipment-as-rec-map');
         if (mapBtn) {
           ev.preventDefault();
-          var refLat = Number(mapBtn.getAttribute('data-ref-lat'));
-          var refLng = Number(mapBtn.getAttribute('data-ref-lng'));
-          var tgtLat = Number(mapBtn.getAttribute('data-lat'));
-          var tgtLng = Number(mapBtn.getAttribute('data-lng'));
-          if (!Number.isFinite(refLat) || !Number.isFinite(refLng) || !Number.isFinite(tgtLat) || !Number.isFinite(tgtLng)) {
-            return;
-          }
-          openShipmentAsRecMap(
-            mapBtn.getAttribute('data-ref-address') || '',
-            refLat,
-            refLng,
-            tgtLat,
-            tgtLng,
-            mapBtn.getAttribute('data-address') || '',
-            mapBtn.getAttribute('data-name') || '',
-            mapBtn.getAttribute('data-score-text') || ''
-          );
+          // 지도 렌더·카카오 SDK 주입·경로 조회·정리는 공용 모듈
+          // static/js/common/foms-schedule-map.js 소관(AS 대시보드와 공유).
+          // modalEl 은 프래그먼트 스왑마다 adoptModalFromMain 이 body 로 재부모화한 노드다.
+          if (!window.FOMS_SCHEDULE_MAP) return;
+          adoptModalFromMain();
+          var mapModalEl = getMapModal();
+          if (!mapModalEl) return;
+          window.FOMS_SCHEDULE_MAP.open({
+            modalEl: mapModalEl,
+            ref: {
+              lat: Number(mapBtn.getAttribute('data-ref-lat')),
+              lng: Number(mapBtn.getAttribute('data-ref-lng')),
+              address: mapBtn.getAttribute('data-ref-address') || ''
+            },
+            target: {
+              lat: Number(mapBtn.getAttribute('data-lat')),
+              lng: Number(mapBtn.getAttribute('data-lng')),
+              address: mapBtn.getAttribute('data-address') || '',
+              name: mapBtn.getAttribute('data-name') || ''
+            },
+            scoreText: mapBtn.getAttribute('data-score-text') || ''
+          });
           return;
         }
 
         var applyBtn = ev.target.closest && ev.target.closest('.js-shipment-as-rec-apply');
         if (applyBtn && !applyBtn.disabled) {
           ev.preventDefault();
-          var row = applyBtn.closest('[data-as-order-id]');
+          var row = applyBtn.closest('.js-asrec-card');
           var errEl = row ? row.querySelector('.js-asrec-err') : null;
           if (errEl) errEl.textContent = '';
           var sid = parseInt(applyBtn.getAttribute('data-shipment-order-id'), 10);
@@ -1416,6 +1293,15 @@ var __shipDashSelectedDate = (__shipDashCfgEl && __shipDashCfgEl.dataset.selecte
               return;
             }
             if (errEl) errEl.textContent = msg || '적용 실패';
+          }).catch(function (err) {
+            // fetch 자체 실패(오프라인 등)·응답 파싱 실패까지 포함해 실패가 조용히
+            // 사라지지 않게 한다. errEl 이 없으면(카드 구조 변경 등) alert 로 폴백.
+            var msg = '적용 중 오류가 발생했습니다' + (err && err.message ? ' (' + err.message + ')' : '');
+            if (errEl) {
+              errEl.textContent = msg;
+            } else {
+              window.alert(msg);
+            }
           });
           return;
         }

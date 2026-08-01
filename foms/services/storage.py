@@ -16,6 +16,7 @@ from datetime import datetime
 
 from flask import current_app
 from werkzeug.utils import secure_filename
+from foms.services.error_logging import log_handled_exception
 
 # 클라우드 스토리지 사용 시에만 import
 try:
@@ -272,7 +273,7 @@ class StorageAdapter:
                         "thumbnail_url": f"/static/uploads/{thumbnail_key}",
                     }
         except Exception:
-            pass
+            log_handled_exception("thumbnail generation")
 
         try:
             if self.storage_type in ["r2", "s3"]:

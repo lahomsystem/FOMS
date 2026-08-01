@@ -933,22 +933,27 @@ body.erp-mobile-v2-layout .erp-order-mobile-form .erp-mobile-attachment-controls
   }
 }
 
-/* ── 모바일 섹션 이동 칩 네비 (스크롤 길이 완화: 공간 지도 + 점프) ──
-   셸 헤더(높이 --foms-shell-header-h) 바로 아래 sticky 고정 → 스크롤 내려도
-   탭 이동 항상 가능. z는 헤더(1020) 바로 아래(1019). */
+/* ── 모바일 섹션 이동 칩 네비 ──
+   셸 헤더 바로 아래 sticky. z는 헤더(--foms-z-sticky=1020) 바로 아래(1019).
+   ※ sticky에 overflow-x:auto 금지 → 가로 스크롤은 .erp-mobile-secnav-track.
+   ※ sticky 음수 top 마진 금지(iOS 흔들림).
+   ※ 디테일에서 position:fixed 금지 — top:header만 쓰면 orderTabs(주문/계산기/견적)
+     세그먼트를 덮어 가림. sticky는 문서 흐름상 탭 아래에 남아 초기 화면에서 탭 노출. */
 .erp-order-mobile-form .erp-mobile-secnav {
   position: sticky;
   top: calc(var(--foms-shell-header-h, 48px) + var(--foms-safe-area-top, 0px));
   z-index: 1019;
-  display: flex;
-  gap: var(--foms-space-2);
   padding: var(--foms-space-2) 0;
-  margin-bottom: var(--foms-space-2);
-  overflow-x: auto;
-  -webkit-overflow-scrolling: touch;
-  scrollbar-width: none;
+  margin: 0 0 var(--foms-space-2);
+  overflow: visible;
   background: var(--foms-surface-base);
   border-bottom: 1px solid var(--foms-border-subtle, #e5e7eb);
+}
+.erp-order-mobile-form .erp-mobile-secnav-track {
+  display: flex;
+  gap: var(--foms-space-2);
+  overflow-x: auto;
+  scrollbar-width: none;
 }
 /* sticky가 동작하려면 조상 카드의 overflow:hidden을 풀어야 한다(안 그러면 sticky
    컨테이닝블록이 카드가 되어 문서 스크롤 시 함께 올라가 버림). 모바일에만 적용. */
@@ -956,7 +961,7 @@ body.erp-mobile-v2-layout .erp-order-mobile-form .erp-mobile-attachment-controls
   body.erp-mobile-v2-layout .card[data-order-id],
   body.erp-mobile-v2-layout .erp-order-mobile-card { overflow: visible; }
 }
-.erp-order-mobile-form .erp-mobile-secnav::-webkit-scrollbar { display: none; }
+.erp-order-mobile-form .erp-mobile-secnav-track::-webkit-scrollbar { display: none; }
 .erp-order-mobile-form .erp-mobile-secnav-chip {
   flex: 0 0 auto;
   min-height: 2.25rem;
@@ -1194,14 +1199,17 @@ body.erp-mobile-v2-layout .erp-order-mobile-form .erp-mobile-attachment-controls
   body.erp-mobile-v2-layout .erp-order-mobile-form {
     background: var(--foms-surface-overlay, #eef2f7);
     padding: var(--foms-space-2);
-    /* sticky 저장/PUSH 바 클리어런스: 기기 하단 safe-area(제스처바) 포함.
-       (회색 카드화로 padding 단축 시 form.foms-page-form의 하단 여백을 덮어
-        실기기에서 마지막 섹션이 잘리던 회귀 방지) */
-    padding-bottom: calc(6rem + env(safe-area-inset-bottom, 0px));
+    /* 기본은 sticky 저장/PUSH 바만. 마지막 섹션 이동에 필요한 만큼만 JS가
+       --erp-mobile-secnav-tail로 아래 공간을 추가한다. */
+    --erp-mobile-secnav-tail: 0px;
+    padding-bottom: calc(
+      6rem + var(--erp-mobile-secnav-tail)
+      + env(safe-area-inset-bottom, 0px)
+    );
   }
-  /* sticky 칩 네비는 폼 패딩을 넘어 가로 전체로 + 회색 배경 위에 */
+  /* sticky full-bleed: 가로만 음수 마진(음수 top 금지 — iOS 흔들림). */
   body.erp-mobile-v2-layout .erp-order-mobile-form .erp-mobile-secnav {
-    margin: calc(-1 * var(--foms-space-2)) calc(-1 * var(--foms-space-2)) var(--foms-space-2);
+    margin: 0 calc(-1 * var(--foms-space-2)) var(--foms-space-2);
     padding: var(--foms-space-2);
     background: var(--foms-surface-overlay, #eef2f7);
     border-bottom: 0;

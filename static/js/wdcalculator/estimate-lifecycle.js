@@ -402,11 +402,21 @@
         return Math.round(Number(num) || 0).toLocaleString("ko-KR");
     }
 
+    function fallbackEscapeHtml(value) {
+        return String(value)
+            .replace(/&/g, "&amp;")
+            .replace(/</g, "&lt;")
+            .replace(/>/g, "&gt;")
+            .replace(/"/g, "&quot;")
+            .replace(/'/g, "&#39;");
+    }
+
     var WdCalculatorSearchResultsLoad = window.WdCalculatorSearchResultsLoad || {};
 
     (function (ns) {
         var loadEstimateToForm = function () {};
         var formatNumber = window.formatNumber || fallbackFormatNumber;
+        var escapeHtml = window.escapeHtml || fallbackEscapeHtml;
         var fetchImpl = window.fetch ? window.fetch.bind(window) : function () {
             return Promise.reject(new Error("fetch is not available"));
         };
@@ -448,13 +458,16 @@
                 var totalPrice = estimateData.totalPrice || 0;
                 var basePrice = estimateData.basePrice || 0;
                 var additionalPrice = estimateData.additionalPrice || 0;
+                var customerNameSafe = escapeHtml(estimate.customer_name);
+                var createdAtSafe = escapeHtml(estimate.created_at);
+                var estimateIdSafe = escapeHtml(estimate.id);
 
                 html += `
                 <div class="list-group-item">
                     <div class="d-flex justify-content-between align-items-start">
                         <div>
-                            <h6 class="mb-1">${estimate.customer_name}</h6>
-                            <small class="text-muted">생성일: ${estimate.created_at}</small>
+                            <h6 class="mb-1">${customerNameSafe}</h6>
+                            <small class="text-muted">생성일: ${createdAtSafe}</small>
                             <div class="mt-2">
                                 <small>기본 견적: ${formatNumber(basePrice)}원</small><br>
                                 <small>추가 옵션: ${formatNumber(additionalPrice)}원</small><br>
@@ -462,10 +475,10 @@
                             </div>
                         </div>
                         <div>
-                            <button class="btn btn-sm btn-primary load-estimate-btn" data-estimate-id="${estimate.id}">
+                            <button class="btn btn-sm btn-primary load-estimate-btn" data-estimate-id="${estimateIdSafe}">
                                 <i class="fas fa-download"></i> 불러오기
                             </button>
-                            <button class="btn btn-sm btn-success match-order-btn mt-1" data-estimate-id="${estimate.id}" data-customer-name="${estimate.customer_name}">
+                            <button class="btn btn-sm btn-success match-order-btn mt-1" data-estimate-id="${estimateIdSafe}" data-customer-name="${customerNameSafe}">
                                 <i class="fas fa-link"></i> 주문 매칭
                             </button>
                         </div>
@@ -1532,6 +1545,15 @@
 
 /* --- included: load-saved-estimate-to-form.js --- */
 (function () {
+    function fallbackEscapeHtml(value) {
+        return String(value)
+            .replace(/&/g, "&amp;")
+            .replace(/</g, "&lt;")
+            .replace(/>/g, "&gt;")
+            .replace(/"/g, "&quot;")
+            .replace(/'/g, "&#39;");
+    }
+
     var WdCalculatorLoadSavedEstimateToForm = window.WdCalculatorLoadSavedEstimateToForm || {};
 
     (function (ns) {
@@ -1543,6 +1565,7 @@
         var formatNumber = function (value) {
             return String(value || 0);
         };
+        var escapeHtml = window.escapeHtml || fallbackEscapeHtml;
         var renderEstimatesList = function () {};
         var ensureBaseComponentsUI = function () {};
         var calculateEstimate = function () {};
@@ -1652,7 +1675,7 @@
             if (headerTitle) {
                 headerTitle.innerHTML =
                     '<i class="fas fa-edit me-2"></i>견적 수정: ' +
-                    displayCustomerName +
+                    escapeHtml(displayCustomerName) +
                     ' <span class="badge bg-warning text-dark ms-2">수정모드</span>';
             }
 
@@ -3303,6 +3326,15 @@
 var WdCalculatorOrderMatchUI = window.WdCalculatorOrderMatchUI || {};
 
 (function (ns) {
+    function escapeHtml(value) {
+        return String(value == null ? "" : value)
+            .replace(/&/g, "&amp;")
+            .replace(/</g, "&lt;")
+            .replace(/>/g, "&gt;")
+            .replace(/"/g, "&quot;")
+            .replace(/'/g, "&#39;");
+    }
+
     function showOrderSelectionModal(estimateId, orders) {
         var html = '<div class="modal fade" id="orderSelectionModal" tabindex="-1">';
         html += '<div class="modal-dialog modal-lg modal-fullscreen-md-down"><div class="modal-content">';
@@ -3314,26 +3346,26 @@ var WdCalculatorOrderMatchUI = window.WdCalculatorOrderMatchUI || {};
             html +=
                 '\n                <button type="button" class="list-group-item list-group-item-action select-order-btn" ' +
                 '\n                        data-estimate-id="' +
-                estimateId +
+                escapeHtml(estimateId) +
                 '" data-order-id="' +
-                order.id +
+                escapeHtml(order.id) +
                 '">' +
                 '\n                    <div class="d-flex justify-content-between">' +
                 "\n                        <div>" +
                 "\n                            <strong>주문 #" +
-                order.id +
+                escapeHtml(order.id) +
                 "</strong><br>" +
                 "\n                            <small>고객명: " +
-                order.customer_name +
+                escapeHtml(order.customer_name) +
                 "</small><br>" +
                 "\n                            <small>전화번호: " +
-                order.phone +
+                escapeHtml(order.phone) +
                 "</small><br>" +
                 "\n                            <small>제품: " +
-                order.product +
+                escapeHtml(order.product) +
                 "</small><br>" +
                 "\n                            <small>상태: " +
-                order.status +
+                escapeHtml(order.status) +
                 "</small>" +
                 "\n                        </div>" +
                 "\n                    </div>" +

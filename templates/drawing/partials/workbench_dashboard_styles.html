@@ -258,4 +258,145 @@
     color: #b91c1c !important;
     border: 1px solid #fca5a5;
   }
+
+  /* 최근 이벤트 타입 칩 — 기본은 무채, 액션별로 팔레트 토큰 톤만 갈아끼운다. */
+  .dw-event-chip {
+    display: inline-block;
+    padding: 0.05rem 0.4rem;
+    border-radius: 999px;
+    border: 1px solid #d9d9d9;
+    background: #f4f4f5;
+    color: #52525b;
+    font-size: 0.7rem;
+    font-weight: 700;
+    line-height: 1.45;
+    white-space: nowrap;
+  }
+  .dw-event-chip.is-order-change {
+    background: var(--foms-color-warning-50, #fffbeb);
+    border-color: var(--foms-color-warning-500, #f59e0b);
+    color: var(--foms-color-warning-700, #b45309);
+  }
+  .dw-event-chip.is-revision {
+    background: var(--foms-color-danger-50, #fef2f2);
+    border-color: var(--foms-color-danger-500, #ef4444);
+    color: var(--foms-color-danger-600, #dc2626);
+  }
+  .dw-event-chip.is-transfer {
+    background: var(--foms-color-info-50, #eff6ff);
+    border-color: var(--foms-color-info-500, #3b82f6);
+    color: var(--foms-color-info-600, #2563eb);
+  }
+
+  /* 시공일 뱃지 3단 임박도(+ 무일정) — 색상은 팔레트 토큰(fallback 허용). */
+  .dw-cdate-cell {
+    font-size: 1rem;
+    color: #495057;
+  }
+  .dw-cdate-badge {
+    border: 1px solid transparent;
+    font-weight: 700;
+    white-space: nowrap;
+  }
+  .dw-cdate-badge.is-none {
+    background: #f4f4f5;
+    border-color: #d9d9d9;
+    color: #52525b;
+  }
+  .dw-cdate-badge.is-danger {
+    background: var(--foms-color-danger-50, #fef2f2);
+    border-color: var(--foms-color-danger-500, #ef4444);
+    color: var(--foms-color-danger-600, #dc2626);
+  }
+  .dw-cdate-badge.is-warn {
+    background: var(--foms-color-warning-50, #fffbeb);
+    border-color: var(--foms-color-warning-500, #f59e0b);
+    color: var(--foms-color-warning-700, #b45309);
+  }
+  .dw-cdate-badge.is-info {
+    background: var(--foms-color-info-50, #eff6ff);
+    border-color: var(--foms-color-info-500, #3b82f6);
+    color: var(--foms-color-info-600, #2563eb);
+  }
+
+  /* 최근 이벤트 세로 스택 — 변경 항목 1줄씩, 3개 이상은 details 로 접는다. */
+  .dw-event-part {
+    line-height: 1.35;
+    word-break: break-word;
+  }
+  .dw-event-part + .dw-event-part {
+    margin-top: 0.1rem;
+  }
+  .dw-event-more {
+    margin-top: 0.15rem;
+  }
+  .dw-event-more > summary {
+    cursor: pointer;
+    color: var(--foms-color-info-600, #2563eb);
+    font-weight: 600;
+  }
+  .dw-event-more[open] > summary {
+    color: #6c757d;
+  }
+
+  /* 목록 컬럼 폭 고정 — 필터·정렬로 내용이 바뀌어도 좁은 컬럼이 흔들리지 않게.
+     고정 레이아웃(table-layout)은 금지 — 긴 최근 이벤트 셀이 깨진다. 폭 힌트 + nowrap 조합만.
+     컬럼 순서: 1 체크 · 2 주문/고객 · 3 시공일 · 4 다음 액션 · 5 도면 담당 · 6 상태
+                · 7 대상 번호 · 8 최근 이벤트 · 9 SLA · 10 미확인 · 11 열기
+     (2·4·8 은 가변 유지) */
+  .erp-drawing-workbench-table-wrap th:nth-child(3),
+  .erp-drawing-workbench-table-wrap td:nth-child(3) {
+    width: 110px;
+  }
+  .erp-drawing-workbench-table-wrap th:nth-child(5),
+  .erp-drawing-workbench-table-wrap td:nth-child(5) {
+    width: 90px;
+  }
+  .erp-drawing-workbench-table-wrap th:nth-child(6),
+  .erp-drawing-workbench-table-wrap td:nth-child(6) {
+    width: 110px;
+  }
+  .erp-drawing-workbench-table-wrap th:nth-child(7),
+  .erp-drawing-workbench-table-wrap td:nth-child(7) {
+    width: 70px;
+  }
+  .erp-drawing-workbench-table-wrap th:nth-child(9),
+  .erp-drawing-workbench-table-wrap td:nth-child(9) {
+    width: 80px;
+  }
+  .erp-drawing-workbench-table-wrap th:nth-child(10),
+  .erp-drawing-workbench-table-wrap td:nth-child(10) {
+    width: 70px;
+  }
+  .erp-drawing-workbench-table-wrap th:nth-child(11),
+  .erp-drawing-workbench-table-wrap td:nth-child(11) {
+    width: 100px;
+  }
+  /* 줄바꿈 금지는 단일 토큰 컬럼에만. 3번(시공일)은 복수 일정 뱃지가 세로로 쌓여야 해서 제외. */
+  .erp-drawing-workbench-table-wrap th:nth-child(3),
+  .erp-drawing-workbench-table-wrap th:nth-child(5),
+  .erp-drawing-workbench-table-wrap td:nth-child(5),
+  .erp-drawing-workbench-table-wrap th:nth-child(6),
+  .erp-drawing-workbench-table-wrap td:nth-child(6),
+  .erp-drawing-workbench-table-wrap th:nth-child(7),
+  .erp-drawing-workbench-table-wrap td:nth-child(7),
+  .erp-drawing-workbench-table-wrap th:nth-child(9),
+  .erp-drawing-workbench-table-wrap td:nth-child(9),
+  .erp-drawing-workbench-table-wrap th:nth-child(10),
+  .erp-drawing-workbench-table-wrap td:nth-child(10) {
+    white-space: nowrap;
+  }
+
+  /* 다음 액션 턴 시각화 — 내 턴은 진하게, 상대 턴은 흐리게, 담당 미지정은 경고 톤. */
+  .dw-next-action.is-mine {
+    color: #131e29;
+    font-weight: 700;
+  }
+  .dw-next-action.is-other {
+    color: #6c757d;
+  }
+  .dw-next-action.is-assign {
+    color: #b91c1c;
+    font-weight: 700;
+  }
 </style>

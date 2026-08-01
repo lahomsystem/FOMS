@@ -1,14 +1,15 @@
 {# foms-kv-rollout: erp_mobile_shell → kv-copy.js + queue card foms_order_contact_kv #}
-{% from 'cs/partials/as_card_macros.html' import render_as_rich_toolbar_template, render_as_content_tabs, render_as_orderer_line, render_as_construction_workers %}
+{% from 'cs/partials/as_card_macros.html' import render_as_orderer_line, render_as_construction_workers, render_as_timeline_cell, render_as_billing_badge, render_as_schedule_drift_badge, render_as_drift_jump_chip %}
 
-<link rel="stylesheet" href="{{ url_for('static', filename='css/contexts/cs/as-dashboard-body.css') }}?v=20260712a">
+{# AS 타임라인 공용 컴포넌트(SSOT) — 컨텍스트 오버라이드(as-dashboard-body.css)보다 먼저 로드해
+   캐스케이드 순서를 지킨다(컴포넌트 → 컨텍스트 오버라이드). #}
+<link rel="stylesheet" href="{{ url_for('static', filename='css/components/foms-as-timeline.css') }}?v=20260730c">
+<link rel="stylesheet" href="{{ url_for('static', filename='css/contexts/cs/as-dashboard-body.css') }}?v=20260730f">
 {# 카드 CSS는 body 파셜에 둔다 → fast-tab 프래그먼트 스왑(as_dashboard_fragment.html)에도
    함께 실려, 탭 이동 첫 진입에서 카드가 원시(미스타일)로 뜨는 FOUC를 막는다.
    (head_extra 전용이면 전체 새로고침 전까지 카드 CSS가 누락된다) #}
-<link rel="stylesheet" href="{{ url_for('static', filename='css/components/foms-as-mobile-card.css') }}?v=20260716a">
+<link rel="stylesheet" href="{{ url_for('static', filename='css/components/foms-as-mobile-card.css') }}?v=20260728c">
 <div class="erp-pro erp-mobile-shell erp-as-dashboard" data-erp-mobile-v2="{{ 'true' if erp_mobile_v2_enabled else 'false' }}">
-  {# AS 리치 툴바 원본 — fragment당 1개. 각 에디터 focusin 시 as-dashboard.js가 여기서 clone-hydrate. #}
-  {{ render_as_rich_toolbar_template() }}
   {% if erp_mobile_v2_enabled %}
     {% include 'partials/shared/erp_mobile_shell.html' %}
     {% include 'cs/partials/as_mobile_v2_camera_bar.html' %}
@@ -32,6 +33,41 @@
   {% set erp_sub_nav_active = 'as' %}
   {% include 'partials/shared/erp_sub_nav.html' %}
 
+  {# T15 과도기 안내 — "AS 내용" 2패널이 타임라인으로 바뀐 첫 진입에서 1회만. 노출/닫힘은
+     as-dashboard.js(localStorage: foms_as_timeline_hint_dismissed)가 소유한다. 서버가 d-none
+     으로 렌더해야 이미 닫은 사용자에게 한 프레임 깜빡이지 않는다. #}
+  <div id="as-timeline-hint" class="as-timeline-hint d-none" role="status">
+    <span class="as-timeline-hint__text">AS 내용이 이력 형식으로 바뀌었습니다. 기존 내용은 '이전 기록'에 그대로 있습니다.</span>
+    <button type="button" class="as-timeline-hint__dismiss" aria-label="안내 닫기">&times;</button>
+  </div>
+
+  {# 기준 일정 드리프트 배너 — 렌더된 행 집합 기준(스펙 §8, 전체 미완료 AS 스캔 아님)이라
+     문구도 "현재 목록에서"로 정직하게 쓴다. 행 액션(재적용/무시/해제)은 행 배지가 소유하고
+     배너는 "누구인지 + 거기로 데려다주기"만 한다 — 건수만 알려주던 첫 배포판은 목록에서
+     빨간 배지를 손으로 찾아야 했다(실사용 피드백).
+     톤은 행 배지(.erp-as-drift-badge--ref_moved)·주문 상세 배너(.foms-as-drift-banner)와
+     같은 --erp-danger-dark 단색 채움. erp-pro-card 를 쓰지 않는 이유: 모바일 v2 코호트에서
+     foms-as-mobile-card.css 가 .erp-pro-card 를 background:transparent 로 덮어(더 높은
+     명시도 + 늦은 로드) 흰 글자만 남는다. #}
+  {% if drift_banner and drift_banner.count %}
+  <div class="as-schedule-drift-banner mb-3" id="as-schedule-drift-banner" role="alert">
+    <div class="as-schedule-drift-banner__head">
+      <i class="fas fa-exclamation-triangle as-schedule-drift-banner__icon" aria-hidden="true"></i>
+      <span class="as-schedule-drift-banner__title">현재 목록에서 기준 일정이 변경된 AS {{ drift_banner.count }}건</span>
+    </div>
+    <div class="as-schedule-drift-banner__chips">
+      {% for chip in drift_banner.chips %}
+      {{ render_as_drift_jump_chip(chip, 'as-row-', 'd-none d-md-inline-flex') }}
+      {{ render_as_drift_jump_chip(chip, 'as-card-', 'd-inline-flex d-md-none') }}
+      {% endfor %}
+      {# 상한 초과분은 반드시 문구로 밝힌다 — 조용한 절단 금지. #}
+      {% if drift_banner.overflow %}
+      <span class="as-schedule-drift-banner__overflow">외 {{ drift_banner.overflow }}건</span>
+      {% endif %}
+    </div>
+  </div>
+  {% endif %}
+
   {% if not erp_order_enabled %}
   <div class="erp-pro-alert erp-pro-alert--warning">
     <div class="erp-pro-alert__icon"><i class="fas fa-exclamation-triangle"></i></div>
@@ -47,7 +83,7 @@
           <a class="nav-link {{ 'active' if as_tab == 'sales_delivery' else '' }}"
             data-as-tab-key="sales_delivery"
             data-as-tab-count="{{ as_tab_counts.sales_delivery }}"
-            href="{{ url_for('erp_as_page.erp_as_dashboard', tab='sales_delivery', status=status_filter or '', q=search_q or '', sort_dir=sort_dir, mine='1' if erp_mine_only else '') }}"
+            href="{{ url_for('erp_as_page.erp_as_dashboard', tab='sales_delivery', status=status_filter or '', billing=billing_filter or '', q=search_q or '', sort_dir=sort_dir, mine='1' if erp_mine_only else '') }}"
             title="영업/택배">
             <i class="fas fa-truck text-secondary fs-5"></i>
             <span class="ms-1">영업/택배</span>
@@ -58,7 +94,7 @@
           <a class="nav-link {{ 'active' if as_tab == 'incomplete' else '' }}"
             data-as-tab-key="incomplete"
             data-as-tab-count="{{ as_tab_counts.incomplete }}"
-            href="{{ url_for('erp_as_page.erp_as_dashboard', tab='incomplete', status=status_filter or '', q=search_q or '', sort_dir=sort_dir, mine='1' if erp_mine_only else '') }}"
+            href="{{ url_for('erp_as_page.erp_as_dashboard', tab='incomplete', status=status_filter or '', billing=billing_filter or '', q=search_q or '', sort_dir=sort_dir, mine='1' if erp_mine_only else '') }}"
             title="완료 안된 건">
             <i class="fas fa-times text-danger fs-5"></i>
             <span class="ms-1">미완료</span>
@@ -69,7 +105,7 @@
           <a class="nav-link {{ 'active' if as_tab == 'completed' else '' }}"
             data-as-tab-key="completed"
             data-as-tab-count="{{ as_tab_counts.completed }}"
-            href="{{ url_for('erp_as_page.erp_as_dashboard', tab='completed', status=status_filter or '', q=search_q or '', sort_dir=sort_dir, mine='1' if erp_mine_only else '') }}"
+            href="{{ url_for('erp_as_page.erp_as_dashboard', tab='completed', status=status_filter or '', billing=billing_filter or '', q=search_q or '', sort_dir=sort_dir, mine='1' if erp_mine_only else '') }}"
             title="완료 된 건">
             <i class="far fa-circle text-primary fw-bold fs-5"></i>
             <span class="ms-1">완료</span>
@@ -94,6 +130,15 @@
           </select>
         </div>
         <div class="erp-pro-filter-group">
+          <label class="erp-pro-filter-label">비용</label>
+          <select class="erp-pro-select" name="billing">
+            <option value="">전체</option>
+            <option value="free" {% if billing_filter=='free' %}selected{% endif %}>무상</option>
+            <option value="paid" {% if billing_filter=='paid' %}selected{% endif %}>유상</option>
+            <option value="undecided" {% if billing_filter=='undecided' %}selected{% endif %}>미정</option>
+          </select>
+        </div>
+        <div class="erp-pro-filter-group">
           <label class="erp-pro-filter-label">검색</label>
           <input type="text" class="erp-pro-input" name="q" value="{{ search_q or '' }}" placeholder="전체 검색...">
         </div>
@@ -104,11 +149,18 @@
           </button>
           {% if selected_date %}
           <a class="erp-pro-btn erp-pro-btn--secondary"
-            href="{{ url_for('erp_as_page.erp_as_dashboard', date=selected_date, tab=as_tab, status=status_filter or '', q=search_q or '', sort_dir=sort_dir, mine='1' if erp_mine_only else '', open_map='1') }}">
+            href="{{ url_for('erp_as_page.erp_as_dashboard', date=selected_date, tab=as_tab, status=status_filter or '', billing=billing_filter or '', q=search_q or '', sort_dir=sort_dir, mine='1' if erp_mine_only else '', open_map='1') }}">
             <i class="fas fa-map"></i>
             <span class="d-none d-sm-inline">지도</span>
           </a>
           {% endif %}
+          {# 컬럼 폭 초기화 — 드래그로 열을 뭉갠 뒤 되돌릴 길이 없으면 지원 요청이 된다.
+             출고 대시보드의 #btn-reset-column-widths 와 같은 역할(저장분 삭제 → CSS 기본폭 복귀). #}
+          <button type="button" class="erp-pro-btn erp-pro-btn--ghost" id="as-btn-reset-column-widths"
+            title="컬럼 너비를 기본값으로 되돌립니다">
+            <i class="fas fa-table-columns"></i>
+            <span class="d-none d-lg-inline">열너비 초기화</span>
+          </button>
         </div>
       </form>
     </div>
@@ -120,14 +172,15 @@
           {'key': 'total', 'label': '총 건수'},
           {'key': 'visit_confirmed', 'label': '방문 확정'},
           {'key': 'pending', 'label': '미결'},
-          {'key': 'unassigned', 'label': '아직 미정'}
+          {'key': 'unassigned', 'label': '아직 미정'},
+          {'key': 'paid_unconfirmed', 'label': '유상 미확정'}
         ] %}
         {% set _bucket_active = (as_bucket == b.key) or (b.key == 'total' and not as_bucket) %}
         <a class="erp-as-summary-pill{% if _bucket_active %} is-active{% endif %}"
           data-as-incomplete-summary="{{ b.key }}"
           data-count="{{ as_incomplete_summary[b.key] }}"
           {% if _bucket_active %}aria-current="true"{% endif %}
-          href="{{ url_for('erp_as_page.erp_as_dashboard', tab='incomplete', bucket=(none if b.key == 'total' else b.key), status=status_filter or '', q=search_q or '', sort_dir=sort_dir, mine='1' if erp_mine_only else '') }}">
+          href="{{ url_for('erp_as_page.erp_as_dashboard', tab='incomplete', bucket=(none if b.key == 'total' else b.key), status=status_filter or '', billing=billing_filter or '', q=search_q or '', sort_dir=sort_dir, mine='1' if erp_mine_only else '') }}">
           <span class="erp-as-summary-pill__label">{{ b.label }}</span>
           <span class="erp-as-summary-pill__value">{{ as_incomplete_summary[b.key] }}건</span>
         </a>
@@ -139,36 +192,57 @@
          으로 완전 무동작 → 폰/세로/데스크톱 동작 불변(데스크톱 테이블 그대로). #}
       {% if erp_mobile_v2_enabled %}{% include 'cs/partials/tablet_as_compare_body.html' %}{% endif %}
       <!-- PC Table View -->
-      <div class="erp-pro-table-wrapper d-none d-md-block">
-        <table class="erp-pro-table">
+      {# 컬럼 폭의 SSOT = colgroup(기본값은 as-dashboard-body.css 의 col[data-col-key] 규칙,
+         사용자 조정분은 as-dashboard-columns.js 가 인라인으로 덮어씀). 구 <th style="width:">
+         인라인 폭은 auto table-layout 의 '힌트'일 뿐이라 한 열이 폭을 삼키면 무너졌다
+         (2026-07-28 주소 1글자 세로 붕괴). table-layout:fixed + colgroup 이 그 재분배 자체를 없앤다.
+         출고 대시보드(shipment-dashboard-table)의 colgroup+data-col-key 계약을 그대로 따른다. #}
+      <div class="erp-pro-table-wrapper erp-as-table-wrapper d-none d-md-block">
+        <table class="erp-pro-table erp-as-table" id="as-dashboard-table">
+          <colgroup>
+            <col data-col-key="order">
+            <col data-col-key="received">
+            <col data-col-key="visit">
+            <col data-col-key="completed">
+            <col data-col-key="manager">
+            <col data-col-key="workers">
+            <col data-col-key="customer">
+            <col data-col-key="address">
+            <col data-col-key="attach">
+            <col data-col-key="blueprint">
+            <col data-col-key="content">
+            <col data-col-key="status">
+          </colgroup>
           <thead>
             <tr>
-              <th style="width: 90px;">주문</th>
-              <th style="width: 120px;" class="erp-as-sort-th">
-                <a href="{{ url_for('erp_as_page.erp_as_dashboard', tab=as_tab, status=status_filter or '', q=search_q or '', sort_dir='asc' if sort_dir == 'desc' else 'desc', mine='1' if erp_mine_only else '') }}"
+              <th data-col-key="order">주문<button type="button" class="col-resize-handle" aria-label="주문 열 너비 조절"></button></th>
+              <th data-col-key="received" class="erp-as-sort-th">
+                <a href="{{ url_for('erp_as_page.erp_as_dashboard', tab=as_tab, status=status_filter or '', billing=billing_filter or '', q=search_q or '', sort_dir='asc' if sort_dir == 'desc' else 'desc', mine='1' if erp_mine_only else '') }}"
                   class="text-decoration-none text-dark" title="클릭 시 접수일 정렬 방향 변경">
                   AS 접수일 {% if sort_dir == 'desc' %}<i class="fas fa-sort-down ms-1"></i>{% else %}<i
                     class="fas fa-sort-up ms-1"></i>{% endif %}
-                </a>
+                </a><button type="button" class="col-resize-handle" aria-label="AS 접수일 열 너비 조절"></button>
               </th>
-              <th style="width: 150px;">AS 방문일</th>
-              <th style="width: 120px;">AS 완료일</th>
-              <th style="width: 120px;">담당자</th>
-              <th style="width: 140px;">시공자</th>
-              <th style="width: 120px;">고객</th>
-              <th style="width: 450px;">주소</th>
-              <th style="width: 60px;">첨부</th>
-              <th style="width: 56px;" class="text-center" title="AS도면">
-                <span class="d-inline-block small lh-sm">AS<br>도면</span>
+              <th data-col-key="visit">AS 방문일<button type="button" class="col-resize-handle" aria-label="AS 방문일 열 너비 조절"></button></th>
+              <th data-col-key="completed">AS 완료일<button type="button" class="col-resize-handle" aria-label="AS 완료일 열 너비 조절"></button></th>
+              <th data-col-key="manager">담당자<button type="button" class="col-resize-handle" aria-label="담당자 열 너비 조절"></button></th>
+              <th data-col-key="workers">시공자<button type="button" class="col-resize-handle" aria-label="시공자 열 너비 조절"></button></th>
+              <th data-col-key="customer">고객<button type="button" class="col-resize-handle" aria-label="고객 열 너비 조절"></button></th>
+              <th data-col-key="address">주소<button type="button" class="col-resize-handle" aria-label="주소 열 너비 조절"></button></th>
+              <th data-col-key="attach">첨부<button type="button" class="col-resize-handle" aria-label="첨부 열 너비 조절"></button></th>
+              <th data-col-key="blueprint" class="text-center" title="AS도면">
+                <span class="d-inline-block small lh-sm">AS<br>도면</span><button type="button" class="col-resize-handle" aria-label="AS도면 열 너비 조절"></button>
               </th>
-              <th style="width: 450px;">AS 내용</th>
-              <th style="width: 100px;">상태</th>
+              <th data-col-key="content">AS 내용<button type="button" class="col-resize-handle" aria-label="AS 내용 열 너비 조절"></button></th>
+              <th data-col-key="status">상태</th>
             </tr>
           </thead>
           <tbody>
             {% if rows %}
             {% for r in rows %}
-            <tr data-order-id="{{ r.id }}">
+            {# id: 드리프트 배너 점프 칩(`#as-row-<id>`)의 앵커 + `:target` 하이라이트 대상.
+               모바일 카드는 `as-card-<id>`로 따로 잡는다(중복 id 금지 — 매크로 주석 참조). #}
+            <tr id="as-row-{{ r.id }}" data-order-id="{{ r.id }}">
               <td>
                 {% if can_edit_erp|default(false) %}
                 <a href="{{ url_for('order_edit.edit_order', order_id=r.id) }}?open=erp-order" class="erp-pro-link">#{{
@@ -183,6 +257,7 @@
                   <input type="date" class="erp-pro-input editable-date-as" value="{{ r.as_visit_date or '' }}"
                     data-order-id="{{ r.id }}" data-field="as_visit_date" style="width: 100%;">
                 </div>
+                {{ render_as_schedule_drift_badge(r.schedule_link_drift, r.id) }}
                 {% if r.as_visit_date %}
                 <button type="button" class="erp-as-pending-btn as-pending-btn{% if r.as_pending %} erp-as-pending-btn--active{% endif %}" data-order-id="{{ r.id }}"
                   data-as-pending="{% if r.as_pending %}1{% else %}0{% endif %}"
@@ -201,7 +276,10 @@
                 <span class="d-block small text-muted">{{ r.phone|format_phone }}</span>
                 {{ render_as_orderer_line(r.orderer_name) }}
               </td>
-              <td class="erp-pro-table__cell--wrap">
+              {# erp-as-address-cell: '일정' 버튼 nowrap 훅(as-dashboard-body.css).
+                 열 폭 자체는 colgroup 이, 드래그 하한은 as-dashboard-columns.js 의
+                 MIN_WIDTHS.address 가 소유한다. #}
+              <td class="erp-pro-table__cell--wrap erp-as-address-cell">
                 <div class="d-flex justify-content-between align-items-start">
                   <span>{{ r.address or '-' }}</span>
                   {% if r.address %}
@@ -210,6 +288,7 @@
                     data-order-id="{{ r.id }}"
                     data-lat="{{ r.lat or '' }}"
                     data-lng="{{ r.lng or '' }}"
+                    data-linked-ref-order-id="{{ r.schedule_link_drift.ref_order_id or '' }}"
                     title="주변 일정 찾기" style="font-size: 0.75rem; line-height: 1.5;">
                     <i class="fas fa-map-marker-alt"></i> 일정
                   </button>
@@ -227,18 +306,19 @@
                 <span class="text-muted small">-</span>
                 {% endif %}
               </td>
-              <td class="text-center align-middle" style="width: 56px;">
+              <td class="text-center align-middle">
                 <input type="checkbox" class="form-check-input as-blueprint-checkbox" data-order-id="{{ r.id }}"
                   {% if r.has_as_blueprint %}checked{% endif %} aria-label="주문 #{{ r.id }} AS도면 여부">
               </td>
-              <td>
-                {{ render_as_content_tabs(r.id, r.is_sales_delivery, r.as_content_html, r.as_content_2_html, '60px') }}
+              <td class="erp-as-content-cell" data-order-id="{{ r.id }}">
+                {{ render_as_timeline_cell(r.id, r.as_timeline_view) }}
               </td>
               <td class="erp-as-status-cell" data-order-id="{{ r.id }}">
                 <span
                   class="erp-pro-badge {% if r.as_pending %}erp-pro-badge--pending{% elif r.status == 'AS_COMPLETED' %}erp-pro-badge--success{% else %}erp-pro-badge--info{% endif %}">
                   {% if r.as_pending %}미결{% else %}{{ STATUS.get(r.status, r.status) }}{% endif %}
                 </span>
+                {{ render_as_billing_badge(r.as_billing_badge) }}
               </td>
             </tr>
             {% endfor %}
@@ -258,6 +338,7 @@
       {% if as_tab %}{% set _ = _as_ctx.append('tab=' ~ as_tab|urlencode) %}{% endif %}
       {% if status_filter %}{% set _ = _as_ctx.append('status=' ~ status_filter|urlencode) %}{% endif %}
       {% if as_bucket %}{% set _ = _as_ctx.append('bucket=' ~ as_bucket|urlencode) %}{% endif %}
+      {% if billing_filter %}{% set _ = _as_ctx.append('billing=' ~ billing_filter|urlencode) %}{% endif %}
       {% if search_q %}{% set _ = _as_ctx.append('q=' ~ search_q|urlencode) %}{% endif %}
       {% if sort_dir %}{% set _ = _as_ctx.append('sort_dir=' ~ sort_dir|urlencode) %}{% endif %}
       {% if erp_mine_only %}{% set _ = _as_ctx.append('mine=1') %}{% endif %}
@@ -297,7 +378,7 @@
         <nav aria-label="Page navigation">
           <ul class="pagination pagination-sm mb-1">
             <li class="page-item {% if page <= 1 %}disabled{% endif %}">
-              <a class="page-link" href="{{ url_for('erp_as_page.erp_as_dashboard', page=page-1, tab=as_tab, status=status_filter or '', q=search_q or '', sort_dir=sort_dir, mine='1' if erp_mine_only else '') }}" aria-label="Previous">
+              <a class="page-link" href="{{ url_for('erp_as_page.erp_as_dashboard', page=page-1, tab=as_tab, status=status_filter or '', billing=billing_filter or '', q=search_q or '', sort_dir=sort_dir, mine='1' if erp_mine_only else '') }}" aria-label="Previous">
                 <span aria-hidden="true">&laquo;</span>
               </a>
             </li>
@@ -316,12 +397,12 @@
 
             {% for p in range(start_page, end_page + 1) %}
             <li class="page-item {% if p == page %}active{% endif %}">
-              <a class="page-link" href="{{ url_for('erp_as_page.erp_as_dashboard', page=p, tab=as_tab, status=status_filter or '', q=search_q or '', sort_dir=sort_dir, mine='1' if erp_mine_only else '') }}">{{ p }}</a>
+              <a class="page-link" href="{{ url_for('erp_as_page.erp_as_dashboard', page=p, tab=as_tab, status=status_filter or '', billing=billing_filter or '', q=search_q or '', sort_dir=sort_dir, mine='1' if erp_mine_only else '') }}">{{ p }}</a>
             </li>
             {% endfor %}
 
             <li class="page-item {% if page >= total_pages %}disabled{% endif %}">
-              <a class="page-link" href="{{ url_for('erp_as_page.erp_as_dashboard', page=page+1, tab=as_tab, status=status_filter or '', q=search_q or '', sort_dir=sort_dir, mine='1' if erp_mine_only else '') }}" aria-label="Next">
+              <a class="page-link" href="{{ url_for('erp_as_page.erp_as_dashboard', page=page+1, tab=as_tab, status=status_filter or '', billing=billing_filter or '', q=search_q or '', sort_dir=sort_dir, mine='1' if erp_mine_only else '') }}" aria-label="Next">
                 <span aria-hidden="true">&raquo;</span>
               </a>
             </li>
@@ -443,9 +524,10 @@
   </div>
 </div>
 
-<!-- Schedule Map Modal (가까운 일정 찾기 — 기준↔시공지 경로) -->
-<link rel="stylesheet" href="https://unpkg.com/leaflet@1.9.4/dist/leaflet.css" crossorigin="" />
-<script src="https://unpkg.com/leaflet@1.9.4/dist/leaflet.js" crossorigin="" defer></script>
+<!-- Schedule Map Modal (가까운 일정 찾기 — 기준↔시공지 경로)
+     지도 = 카카오 지도 JS SDK(실측 지도와 동일 스택). SDK 는 모달을 처음 열 때 공용 모듈
+     static/js/common/foms-schedule-map.js 가 lazy 주입한다 — 여기서 CDN script 를 미리 걸지
+     않는다(가드 G2). 키 SSOT = geocode_config. -->
 <div class="modal fade" id="scheduleMapModal" tabindex="-1" aria-hidden="true">
   <div class="modal-dialog modal-lg modal-fullscreen-md-down">
     <div class="modal-content">
@@ -456,7 +538,7 @@
         <button type="button" class="btn-close" data-bs-dismiss="modal" aria-label="Close"></button>
       </div>
       <div class="modal-body p-0">
-        <div id="scheduleMapContainer" class="schedule-map-container"></div>
+        <div id="scheduleMapContainer" class="schedule-map-container" data-kakao-js-key="{{ kakao_js_key or '' }}"></div>
         <div id="scheduleMapRouteInfo" class="p-3">
           <div class="text-center text-muted py-3">
             <div class="spinner-border spinner-border-sm me-2" role="status"></div>경로 계산 중...
@@ -468,7 +550,13 @@
 </div>
 
 <div id="as-dashboard-config" class="d-none" data-search-query-compact="{{ (compact_search_q or '')|e }}" data-current-as-tab="{{ (as_tab or 'incomplete')|e }}"></div>
-<script src="{{ url_for('static', filename='js/cs/as-dashboard.js') }}?v=20260704b" defer></script>
+{# 기준↔시공지 지도 공용 모듈(출고 AS 일정추천 모달과 공유). 클릭 시점 호출이라 순서 의존은
+   없지만 프래그먼트 경로에도 함께 실려야 지도 버튼이 죽지 않는다. #}
+<script src="{{ url_for('static', filename='js/common/foms-schedule-map.js') }}?v=20260730g" defer></script>
+<script src="{{ url_for('static', filename='js/cs/as-dashboard.js') }}?v=20260730i" defer></script>
+{# PC 12열 컬럼 폭 조절(드래그 + localStorage). 모바일은 파일 자체가 조기 반환 —
+   body 파셜에 두는 이유는 CSS 와 같다(fast-tab 프래그먼트 스왑에도 함께 실려야 재초기화된다). #}
+<script src="{{ url_for('static', filename='js/cs/as-dashboard-columns.js') }}?v=20260728b" defer></script>
 {# 태블릿 가로 대조 표면 CTA(일정 변경·AS 완료) 배선 — v2 코호트(폰+태블릿)만 로드.
    표시 게이트는 CSS(coarse landscape)가 소유하므로 폰에선 버튼 은닉·무동작(문서 위임+싱글턴 가드). #}
 {% if erp_mobile_v2_enabled %}

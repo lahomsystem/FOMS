@@ -2,7 +2,6 @@
 
 /admin - 관리자 페이지
 /admin/update_menu - 메뉴 구성 업데이트
-/admin/migration - DB 마이그레이션 (SQLite → Postgres)
 /admin/test-r2 - R2 스토리지 연결 테스트
 /admin/notifications - 공지/알림 발송 화면
 """
@@ -10,7 +9,6 @@
 import os
 
 from flask import Blueprint, jsonify, redirect, render_template, request, session, url_for, flash
-from werkzeug.utils import secure_filename
 
 from foms.web.auth import get_user_by_id, log_access, login_required, role_required
 from db import get_db
@@ -57,49 +55,6 @@ def update_menu():
         flash(f"메뉴 업데이트 중 오류가 발생했습니다: {str(exc)}", "error")
 
     return redirect(url_for("admin.admin"))
-
-
-@admin_bp.route("/admin/migration", methods=["GET", "POST"])
-@login_required
-@role_required(["ADMIN", "MANAGER"])
-def admin_migration():
-    """Web-based Data Migration (SQLite Upload -> Postgres)."""
-    from flask import current_app
-
-    if request.method == "POST":
-        if "db_file" not in request.files:
-            flash("파일이 없습니다.", "error")
-            return redirect(request.url)
-
-        file_obj = request.files["db_file"]
-        if file_obj.filename == "":
-            flash("파일을 선택해주세요.", "error")
-            return redirect(request.url)
-
-        if file_obj:
-            filename = secure_filename(file_obj.filename or "")
-            temp_path = os.path.join(current_app.config["UPLOAD_FOLDER"], "temp_migration.db")
-            file_obj.save(temp_path)
-
-            do_reset = request.form.get("reset") == "on"
-
-            from scripts.migrations.web_migration import run_web_migration
-
-            db_session = get_db()
-
-            success, logs = run_web_migration(temp_path, db_session, reset=do_reset)
-
-            if os.path.exists(temp_path):
-                os.remove(temp_path)
-
-            if success:
-                flash(f"마이그레이션 완료! ({len(logs)} logs)", "success")
-            else:
-                flash("마이그레이션 중 오류가 발생했습니다.", "error")
-
-            return render_template("admin/migration_result.html", logs=logs, success=success)
-
-    return render_template("admin/migration_upload.html")
 
 
 @admin_bp.route("/admin/test-r2")

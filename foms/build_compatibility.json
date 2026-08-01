@@ -1,0 +1,22 @@
+{
+  "generation": 1,
+  "schema_version": 1,
+  "state_aware_families": [
+    "ASSIGNMENT",
+    "ORDER_MUTATION",
+    "STATE_COMMAND",
+    "QUEST",
+    "PRODUCTION_RUN",
+    "AS_CYCLE",
+    "DRAWING_REVISION",
+    "UPLOAD",
+    "CONSTRUCTION",
+    "CHAT_SCOPE",
+    "NOTIFICATION_DELIVERY",
+    "TASK",
+    "PASSWORD_POLICY",
+    "OFFLINE_SW",
+    "WDC_LINK"
+  ],
+  "supersedes_generation": 0
+}

@@ -107,8 +107,16 @@ docs/harness/runtime/.post_task_qc_debounce.json
 docs/harness/runtime/.claude_pending_verify.json
 docs/harness/runtime/.cursor_ci_gate_pending.json
 docs/harness/runtime/.ci_watch_rerun_state.json
+docs/harness/runtime/.ctx_gate_state.json
+docs/harness/runtime/concurrent_notice_state.json
 docs/harness/runtime/session_commit_ledger.json
 docs/harness/runtime/session_commit_ledger.json.tmp
+docs/harness/runtime/session_worktree_usage.log
+# 로그 원자 저장(tmp+os.replace)·파일락 부산물
+docs/harness/runtime/*.lock
+docs/harness/runtime/*.tmp
+docs/harness/logs/*.lock
+docs/harness/logs/*.tmp
 
 # 하네스 런타임 로그 (세션마다 재생성; 커밋 금지 — git rm --cached는 전환 커밋에서)
 docs/harness/runtime/SESSION_LOG.md
@@ -150,3 +158,6 @@ tools/request_log.txt
 .gstack/
 
 Add In Program/FOMSBrainDesigner/node_modules/
+
+# app AUTO-INIT 생성 KR 공휴일 데이터(런타임 생성물, 커밋 대상 아님)
+data/holidays_kr_*.json

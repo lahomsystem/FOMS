@@ -263,7 +263,7 @@ ERP Order Tab Pane (shared between add_order and edit_order)
                                         <button type="button" class="btn btn-outline-secondary" id="erp-construction-date-open" title="달력에서 선택" aria-label="달력 열기"><i class="fas fa-calendar-alt"></i></button>
                                     </div>
                                 </div>
-                                <div class="col-12">
+                                <div class="col-md-6">
                                     <button class="btn btn-sm btn-link p-0 mt-1 text-secondary" type="button"
                                         data-bs-toggle="collapse" data-bs-target="#erp-collapse-measure-note"
                                         aria-expanded="false" aria-controls="erp-collapse-measure-note">
@@ -274,6 +274,20 @@ ERP Order Tab Pane (shared between add_order and edit_order)
                                             <label class="form-label mb-1">실측 특이사항</label>
                                             <input type="text" class="form-control form-control-sm" id="erp-measurement-note"
                                                 placeholder="예: 시간 변경 가능/현장 특이사항/준비물 등" autocomplete="off" lang="ko">
+                                        </div>
+                                    </div>
+                                </div>
+                                <div class="col-md-6">
+                                    <button class="btn btn-sm btn-link p-0 mt-1 text-secondary" type="button"
+                                        data-bs-toggle="collapse" data-bs-target="#erp-collapse-construction-note"
+                                        aria-expanded="false" aria-controls="erp-collapse-construction-note">
+                                        <i class="fas fa-chevron-down small"></i> 시공 특이사항
+                                    </button>
+                                    <div class="collapse mt-2" id="erp-collapse-construction-note">
+                                        <div class="mt-1">
+                                            <label class="form-label mb-1" for="erp-construction-note">시공 특이사항</label>
+                                            <input type="text" class="form-control form-control-sm" id="erp-construction-note"
+                                                placeholder="예: 시공 시 주의사항/현장 요청사항 등" autocomplete="off" lang="ko">
                                         </div>
                                     </div>
                                 </div>
@@ -368,7 +382,7 @@ ERP Order Tab Pane (shared between add_order and edit_order)
                         </div>
                         <div id="erp-deposit-section" class="d-flex justify-content-end align-items-center gap-2 w-100" style="max-width: 16rem;">
                             <div class="d-flex align-items-center gap-1">
-                                <button type="button" class="erp-payment-confirm-btn" onclick="window.erpTogglePayment(this, 'deposit')" data-payment-type="deposit" data-confirmed="0" title="미확인 - 클릭하여 확인 완료 처리" style="background: none; border: 0; padding: 0.1rem; cursor: pointer;">
+                                <button type="button" class="erp-payment-confirm-btn" data-payment-type="deposit" data-confirmed="0"{% if policy_can('FINANCE_MUTATION') %} onclick="window.erpTogglePayment(this, 'deposit')" title="미확인 - 클릭하여 확인 완료 처리" style="background: none; border: 0; padding: 0.1rem; cursor: pointer;"{% else %} title="예약금 확인 상태(변경 권한 없음)" style="background: none; border: 0; padding: 0.1rem; cursor: default;" aria-disabled="true"{% endif %}>
                                     <img src="{{ url_for('static', filename='images/pay-coin-gray.png') }}" class="erp-custom-payment-icon erp-custom-payment-unconfirmed" alt="예약금">
                                 </button>
                                 <label for="erp-deposit-amount" class="form-label mb-0 fw-bold text-nowrap">예약금(선금)</label>
@@ -385,7 +399,7 @@ ERP Order Tab Pane (shared between add_order and edit_order)
                         </div>
                         <div id="erp-remaining-section" class="d-flex justify-content-end align-items-center gap-2 w-100" style="max-width: 16rem; display: none;">
                             <div class="d-flex align-items-center gap-1">
-                                <button type="button" class="erp-payment-confirm-btn" onclick="window.erpTogglePayment(this, 'balance')" data-payment-type="balance" data-confirmed="0" title="미확인 - 클릭하여 확인 완료 처리" style="background: none; border: 0; padding: 0.1rem; cursor: pointer;">
+                                <button type="button" class="erp-payment-confirm-btn" data-payment-type="balance" data-confirmed="0"{% if policy_can('FINANCE_MUTATION') %} onclick="window.erpTogglePayment(this, 'balance')" title="미확인 - 클릭하여 확인 완료 처리" style="background: none; border: 0; padding: 0.1rem; cursor: pointer;"{% else %} title="잔금 확인 상태(변경 권한 없음)" style="background: none; border: 0; padding: 0.1rem; cursor: default;" aria-disabled="true"{% endif %}>
                                     <img src="{{ url_for('static', filename='images/pay-bill-gray.png') }}" class="erp-custom-payment-icon erp-custom-payment-unconfirmed" alt="잔금">
                                 </button>
                                 <label class="form-label mb-0 fw-bold text-nowrap">잔금</label>
@@ -524,6 +538,25 @@ ERP Order Tab Pane (shared between add_order and edit_order)
                     <label class="form-label fw-bold">AS 내용 <span class="text-danger">*</span></label>
                     <textarea id="as-receive-content" class="form-control" rows="5"
                         placeholder="예: 슬라이딩 붙박이장 가운데 문이 내려앉음(안닫힘)&#10;금일 오후 4시반~6시반까지 통화 어려우심"></textarea>
+                </div>
+                <div class="mb-3">
+                    <label class="form-label fw-bold">비용 구분</label>
+                    <span id="as-receive-since-badge" class="badge bg-secondary ms-2 d-none"></span>
+                    <div class="btn-group w-100 as-receive-billing-seg" role="group" aria-label="AS 비용 구분">
+                        <input type="radio" class="btn-check" name="as-receive-billing" id="as-billing-free" value="free" checked>
+                        <label class="btn btn-outline-success" for="as-billing-free">무상(추정)</label>
+                        <input type="radio" class="btn-check" name="as-receive-billing" id="as-billing-paid" value="paid">
+                        <label class="btn btn-outline-warning" for="as-billing-paid">유상</label>
+                        <input type="radio" class="btn-check" name="as-receive-billing" id="as-billing-undecided" value="undecided">
+                        <label class="btn btn-outline-secondary" for="as-billing-undecided">미정</label>
+                    </div>
+                    <div class="mt-2 d-none" id="as-receive-amount-wrap">
+                        <label class="form-label" for="as-receive-amount">예상 금액(원)</label>
+                        <input type="number" min="0" step="1000" id="as-receive-amount" class="form-control" placeholder="선택 입력">
+                    </div>
+                    <div class="small text-muted mt-1 d-none" id="as-receive-billing-locked-note">
+                        이미 판정된 AS입니다. 판정 변경은 AS 대시보드에서 하세요.
+                    </div>
                 </div>
                 <div class="mb-3 d-none" id="as-receive-shipping-wrap">
                     <label class="form-label fw-bold" for="as-receive-shipping-date">상차일 (지방주문)</label>

@@ -102,6 +102,14 @@
     return '';
   }
 
+  // STATE-FORM-01 stale tab 방어: override 는 서버 mutation_version 을 If-Match 로 실어
+  // 오래된 탭이 상태를 덮어쓰지 못하게 한다. 폼 GET/저장이 노출한 최신 버전을 재사용하고,
+  // 알 수 없으면 헤더를 생략한다(서버는 precondition 없이 진행 — 하위호환).
+  function currentMutationVersion() {
+    var v = window.__erpLastMutationVersion;
+    return typeof v === 'number' && isFinite(v) ? v : null;
+  }
+
   function showError(msg) {
     var box = document.getElementById('erp-stage-override-error');
     if (!box) return;
@@ -229,12 +237,16 @@
     if (btn) btn.disabled = true;
     showError('');
 
+    var headers = {
+      'Content-Type': 'application/json',
+      'X-Requested-With': 'XMLHttpRequest'
+    };
+    var ifMatch = currentMutationVersion();
+    if (ifMatch !== null) headers['If-Match'] = String(ifMatch);
+
     fetch('/api/orders/' + orderId + '/workflow/stage-override', {
       method: 'POST',
-      headers: {
-        'Content-Type': 'application/json',
-        'X-Requested-With': 'XMLHttpRequest'
-      },
+      headers: headers,
       body: JSON.stringify({ to_stage: to, reason: reason, confirm: true })
     })
       .then(function (r) {
@@ -243,9 +255,17 @@
         });
       })
       .then(function (res) {
+        if (res.status === 409) {
+          showError('다른 탭/사용자가 이미 상태를 변경했습니다. 새로고침 후 다시 시도하세요.');
+          return;
+        }
         if (!res.data || !res.data.success) {
           showError((res.data && (res.data.error || res.data.message)) || '변경 실패');
           return;
+        }
+        // 최신 mutation_version 을 갱신해 다음 override/저장이 stale 되지 않게 한다.
+        if (res.data.data && typeof res.data.data.mutation_version === 'number') {
+          window.__erpLastMutationVersion = res.data.data.mutation_version;
         }
         var stageEl = document.getElementById('erp-workflow-stage');
         if (stageEl) stageEl.value = to;

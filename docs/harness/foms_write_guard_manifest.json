@@ -1,0 +1,675 @@
+{
+  "version": 1,
+  "guard": "CSRF_TOKEN+ORIGIN",
+  "description": "WRITE-GUARD-01 정본: 모든 cookie-auth state-changing route 의 write_guard metadata. mode=guard 는 공용 CSRF+Origin before_request 가드(enforce_csrf_origin) 적용, mode=exempt 는 자기 정책(서명/ingest/anon)으로 명시 우회. url_map 의 모든 POST/PUT/PATCH/DELETE endpoint 가 여기 등재되어야 하며 누락은 static gate fail(fail-safe: 미등재 endpoint 는 런타임에서 guard).",
+  "exempt_count": 6,
+  "guard_count": 159,
+  "routes": {
+    "admin.ops_approval_review": {
+      "mode": "guard",
+      "rule": "/admin/ops/approvals/<approval_id>"
+    },
+    "admin.update_menu": {
+      "mode": "guard",
+      "rule": "/admin/update_menu"
+    },
+    "attachments.api_cancel_upload_draft": {
+      "mode": "guard",
+      "rule": "/api/upload-drafts/<int:draft_id>/cancel"
+    },
+    "attachments.api_create_upload_draft": {
+      "mode": "guard",
+      "rule": "/api/orders/<int:order_id>/upload-drafts"
+    },
+    "attachments.api_finalize_upload_draft": {
+      "mode": "guard",
+      "rule": "/api/upload-drafts/<int:draft_id>/finalize"
+    },
+    "attachments.api_order_attachments_complete": {
+      "mode": "guard",
+      "rule": "/api/orders/<int:order_id>/attachments/complete"
+    },
+    "attachments.api_order_attachments_delete": {
+      "mode": "guard",
+      "rule": "/api/orders/<int:order_id>/attachments/<int:attachment_id>"
+    },
+    "attachments.api_order_attachments_patch": {
+      "mode": "guard",
+      "rule": "/api/orders/<int:order_id>/attachments/<int:attachment_id>"
+    },
+    "attachments.api_order_attachments_upload": {
+      "mode": "guard",
+      "rule": "/api/orders/<int:order_id>/attachments"
+    },
+    "attachments.api_upload_session": {
+      "mode": "guard",
+      "rule": "/api/upload/session"
+    },
+    "attachments.api_upload_session_batch": {
+      "mode": "guard",
+      "rule": "/api/upload/session/batch"
+    },
+    "auth.add_user": {
+      "mode": "guard",
+      "rule": "/admin/users/add"
+    },
+    "auth.delete_user": {
+      "mode": "guard",
+      "rule": "/admin/users/delete/<int:user_id>"
+    },
+    "auth.edit_user": {
+      "mode": "guard",
+      "rule": "/admin/users/edit/<int:user_id>"
+    },
+    "auth.login": {
+      "mode": "exempt",
+      "reason": "anonymous(pre-auth) 로그인 — 아직 세션 없음. anonymous session token + trusted-IP/username rate policy(AUTH 소관)로 방어.",
+      "rule": "/login"
+    },
+    "auth.logout": {
+      "mode": "guard",
+      "rule": "/logout"
+    },
+    "auth.profile": {
+      "mode": "guard",
+      "rule": "/profile"
+    },
+    "auth.register": {
+      "mode": "exempt",
+      "reason": "anonymous bootstrap 최초 관리자 등록(user_count==0 에서만) — 세션 이전. account policy 로 방어.",
+      "rule": "/register"
+    },
+    "auth.switch_back": {
+      "mode": "guard",
+      "rule": "/switch-back"
+    },
+    "auth.switch_user": {
+      "mode": "guard",
+      "rule": "/switch-user/<int:target_user_id>"
+    },
+    "channel_functions.handle_function": {
+      "mode": "exempt",
+      "reason": "ChannelTalk provider Function — HMAC x-signature 검증(require_channel_signature)이 인증. 쿠키 세션 미사용.",
+      "rule": "/api/channel/functions"
+    },
+    "channel_integration.api_channel_push_estimate": {
+      "mode": "guard",
+      "rule": "/api/channel/push-estimate"
+    },
+    "channel_integration.api_channel_push_manual": {
+      "mode": "guard",
+      "rule": "/api/channel/push-manual"
+    },
+    "channel_wam_api.wam_telemetry": {
+      "mode": "exempt",
+      "reason": "WAM provider session token(verify_wam_session_token) 인증, 쿠키 세션 미사용. WAM 블루프린트는 현재 retired(before_request _wam_retired).",
+      "rule": "/channel/wam/api/telemetry"
+    },
+    "channel_webhooks.handle_webhook": {
+      "mode": "exempt",
+      "reason": "ChannelTalk provider webhook — HMAC x-signature 검증(require_channel_signature)이 인증. 쿠키 세션 미사용.",
+      "rule": "/api/channel/webhooks"
+    },
+    "chat.api_chat_mark_read": {
+      "mode": "guard",
+      "rule": "/api/chat/rooms/<int:room_id>/mark-read"
+    },
+    "chat.api_chat_rooms_add_member": {
+      "mode": "guard",
+      "rule": "/api/chat/rooms/<int:room_id>/members"
+    },
+    "chat.api_chat_rooms_create": {
+      "mode": "guard",
+      "rule": "/api/chat/rooms"
+    },
+    "chat.api_chat_rooms_delete": {
+      "mode": "guard",
+      "rule": "/api/chat/rooms/<int:room_id>"
+    },
+    "chat.api_chat_rooms_remove_member": {
+      "mode": "guard",
+      "rule": "/api/chat/rooms/<int:room_id>/members/<int:member_user_id>"
+    },
+    "chat.api_chat_rooms_update": {
+      "mode": "guard",
+      "rule": "/api/chat/rooms/<int:room_id>"
+    },
+    "chat.api_chat_send_message": {
+      "mode": "guard",
+      "rule": "/api/chat/messages"
+    },
+    "chat.api_chat_upload": {
+      "mode": "guard",
+      "rule": "/api/chat/upload"
+    },
+    "chat.api_chat_upload_complete": {
+      "mode": "guard",
+      "rule": "/api/chat/upload/complete"
+    },
+    "chat.api_chat_upload_session": {
+      "mode": "guard",
+      "rule": "/api/chat/upload/session"
+    },
+    "erp_estimates.create_order_estimate": {
+      "mode": "guard",
+      "rule": "/api/orders/<int:order_id>/estimates"
+    },
+    "erp_estimates.delete_estimate": {
+      "mode": "guard",
+      "rule": "/api/estimates/<int:estimate_id>"
+    },
+    "erp_estimates.update_estimate_api": {
+      "mode": "guard",
+      "rule": "/api/estimates/<int:estimate_id>"
+    },
+    "erp_map.api_add_address_learning": {
+      "mode": "guard",
+      "rule": "/api/add_address_learning"
+    },
+    "erp_map.api_update_order_address": {
+      "mode": "guard",
+      "rule": "/api/orders/<int:order_id>/update_address"
+    },
+    "erp_measurement.api_erp_measurement_update": {
+      "mode": "guard",
+      "rule": "/api/erp/measurement/update/<int:order_id>"
+    },
+    "erp_order_draft.api_delete_order_draft": {
+      "mode": "guard",
+      "rule": "/api/erp/order-draft"
+    },
+    "erp_order_draft.api_put_order_draft": {
+      "mode": "guard",
+      "rule": "/api/erp/order-draft"
+    },
+    "erp_order_draft.api_submit_order_draft": {
+      "mode": "guard",
+      "rule": "/api/erp/order-draft/submit"
+    },
+    "erp_order_draft.api_upload_order_draft_attachment": {
+      "mode": "guard",
+      "rule": "/api/erp/order-draft/attachments"
+    },
+    "erp_orders_as.api_as_complete": {
+      "mode": "guard",
+      "rule": "/api/orders/<int:order_id>/as/complete"
+    },
+    "erp_orders_as.api_as_register": {
+      "mode": "guard",
+      "rule": "/api/orders/<int:order_id>/as/register"
+    },
+    "erp_orders_as.api_as_schedule": {
+      "mode": "guard",
+      "rule": "/api/orders/<int:order_id>/as/schedule"
+    },
+    "erp_orders_as.api_as_start": {
+      "mode": "guard",
+      "rule": "/api/orders/<int:order_id>/as/start"
+    },
+    "erp_orders_blueprint.api_blueprint_complete": {
+      "mode": "guard",
+      "rule": "/api/orders/<int:order_id>/blueprint/complete"
+    },
+    "erp_orders_blueprint.api_delete_blueprint": {
+      "mode": "guard",
+      "rule": "/api/orders/<int:order_id>/blueprint"
+    },
+    "erp_orders_blueprint.api_upload_blueprint": {
+      "mode": "guard",
+      "rule": "/api/orders/<int:order_id>/blueprint"
+    },
+    "erp_orders_completion.api_cash_receipt_issue": {
+      "mode": "guard",
+      "rule": "/api/orders/<int:order_id>/cash-receipt/issue"
+    },
+    "erp_orders_completion.api_settlement_issue": {
+      "mode": "guard",
+      "rule": "/api/orders/<int:order_id>/settlement/issue"
+    },
+    "erp_orders_confirm.api_customer_confirm": {
+      "mode": "guard",
+      "rule": "/api/orders/<int:order_id>/confirm/customer"
+    },
+    "erp_orders_construction.api_construction_complete": {
+      "mode": "guard",
+      "rule": "/api/orders/<int:order_id>/construction/complete"
+    },
+    "erp_orders_construction.api_construction_evidence": {
+      "mode": "guard",
+      "rule": "/api/orders/<int:order_id>/construction/evidence"
+    },
+    "erp_orders_construction.api_construction_fail": {
+      "mode": "guard",
+      "rule": "/api/orders/<int:order_id>/construction/fail"
+    },
+    "erp_orders_construction.api_construction_start": {
+      "mode": "guard",
+      "rule": "/api/orders/<int:order_id>/construction/start"
+    },
+    "erp_orders_cs.api_cs_complete": {
+      "mode": "guard",
+      "rule": "/api/orders/<int:order_id>/cs/complete"
+    },
+    "erp_orders_draftsman.api_order_assign_draftsman": {
+      "mode": "guard",
+      "rule": "/api/orders/<int:order_id>/assign-draftsman"
+    },
+    "erp_orders_draftsman.api_order_confirm_drawing_receipt": {
+      "mode": "guard",
+      "rule": "/api/orders/<int:order_id>/confirm-drawing-receipt"
+    },
+    "erp_orders_draftsman.api_orders_batch_assign_draftsman": {
+      "mode": "guard",
+      "rule": "/api/orders/batch-assign-draftsman"
+    },
+    "erp_orders_drawing.api_drawing_gateway_complete": {
+      "mode": "guard",
+      "rule": "/api/orders/<int:order_id>/drawing-gateway/complete"
+    },
+    "erp_orders_drawing.api_drawing_gateway_upload": {
+      "mode": "guard",
+      "rule": "/api/orders/<int:order_id>/drawing-gateway-upload"
+    },
+    "erp_orders_drawing.api_order_cancel_transfer": {
+      "mode": "guard",
+      "rule": "/api/orders/<int:order_id>/cancel-transfer"
+    },
+    "erp_orders_drawing.api_order_transfer_drawing": {
+      "mode": "guard",
+      "rule": "/api/orders/<int:order_id>/transfer-drawing"
+    },
+    "erp_orders_drawing_wizard.api_delete_drawing_wizard_pending": {
+      "mode": "guard",
+      "rule": "/api/orders/<int:order_id>/drawing-wizard/pending/<sheet_id>"
+    },
+    "erp_orders_drawing_wizard.api_post_drawing_wizard_asset": {
+      "mode": "guard",
+      "rule": "/api/orders/<int:order_id>/drawing-wizard/asset"
+    },
+    "erp_orders_drawing_wizard.api_post_drawing_wizard_import_attachment": {
+      "mode": "guard",
+      "rule": "/api/orders/<int:order_id>/drawing-wizard/import-attachment"
+    },
+    "erp_orders_drawing_wizard.api_post_drawing_wizard_presets": {
+      "mode": "guard",
+      "rule": "/api/orders/drawing-wizard/presets"
+    },
+    "erp_orders_drawing_wizard.api_post_drawing_wizard_sheet_png": {
+      "mode": "guard",
+      "rule": "/api/orders/<int:order_id>/drawing-wizard/sheet-png"
+    },
+    "erp_orders_drawing_wizard.api_post_drawing_wizard_transfer_pending": {
+      "mode": "guard",
+      "rule": "/api/orders/<int:order_id>/drawing-wizard/transfer-pending"
+    },
+    "erp_orders_drawing_wizard.api_post_drawing_wizard_version_snapshot": {
+      "mode": "guard",
+      "rule": "/api/orders/<int:order_id>/drawing-wizard/version-snapshot"
+    },
+    "erp_orders_drawing_wizard.api_put_drawing_wizard": {
+      "mode": "guard",
+      "rule": "/api/orders/<int:order_id>/drawing-wizard"
+    },
+    "erp_orders_production.api_production_change_ack": {
+      "mode": "guard",
+      "rule": "/api/orders/<int:order_id>/production/change-ack"
+    },
+    "erp_orders_production.api_production_complete": {
+      "mode": "guard",
+      "rule": "/api/orders/<int:order_id>/production/complete"
+    },
+    "erp_orders_production.api_production_defect": {
+      "mode": "guard",
+      "rule": "/api/orders/<int:order_id>/production/defect"
+    },
+    "erp_orders_production.api_production_hold": {
+      "mode": "guard",
+      "rule": "/api/orders/<int:order_id>/production/hold"
+    },
+    "erp_orders_production.api_production_rework": {
+      "mode": "guard",
+      "rule": "/api/orders/<int:order_id>/production/rework"
+    },
+    "erp_orders_production.api_production_start": {
+      "mode": "guard",
+      "rule": "/api/orders/<int:order_id>/production/start"
+    },
+    "erp_orders_production.api_production_steps": {
+      "mode": "guard",
+      "rule": "/api/orders/<int:order_id>/production/steps"
+    },
+    "erp_orders_production.api_set_logistics_status": {
+      "mode": "guard",
+      "rule": "/api/orders/<int:order_id>/logistics"
+    },
+    "erp_orders_revision.api_ack_drawing_order_change": {
+      "mode": "guard",
+      "rule": "/api/orders/<int:order_id>/drawing/ack-order-change"
+    },
+    "erp_orders_revision.api_order_cancel_revision_request": {
+      "mode": "guard",
+      "rule": "/api/orders/<int:order_id>/cancel-revision-request"
+    },
+    "erp_orders_revision.api_order_request_revision": {
+      "mode": "guard",
+      "rule": "/api/orders/<int:order_id>/request-revision"
+    },
+    "erp_orders_revision.api_order_request_revision_check": {
+      "mode": "guard",
+      "rule": "/api/orders/<int:order_id>/request-revision-check"
+    },
+    "erp_orders_structured.api_erp_create_draft": {
+      "mode": "guard",
+      "rule": "/api/orders/erp/draft"
+    },
+    "erp_orders_structured.api_erp_discard_draft": {
+      "mode": "guard",
+      "rule": "/api/orders/erp/draft/discard"
+    },
+    "erp_orders_structured.api_erp_draft_autosave": {
+      "mode": "guard",
+      "rule": "/api/orders/erp/draft/autosave"
+    },
+    "erp_orders_structured.api_parse_order_text": {
+      "mode": "guard",
+      "rule": "/api/orders/parse-text"
+    },
+    "erp_orders_structured.api_patch_order_structured_fields": {
+      "mode": "guard",
+      "rule": "/api/orders/<int:order_id>/structured/fields"
+    },
+    "erp_orders_structured.api_payment_confirm": {
+      "mode": "guard",
+      "rule": "/api/orders/<int:order_id>/payment-confirm"
+    },
+    "erp_orders_structured.api_put_order_structured": {
+      "mode": "guard",
+      "rule": "/api/orders/<int:order_id>/structured"
+    },
+    "erp_shipment.api_erp_shipment_settings_save": {
+      "mode": "guard",
+      "rule": "/api/erp/shipment-settings"
+    },
+    "erp_shipment.api_erp_shipment_update": {
+      "mode": "guard",
+      "rule": "/api/erp/shipment/update/<int:order_id>"
+    },
+    "erp_shipment.api_shipment_as_recommendations": {
+      "mode": "guard",
+      "rule": "/api/erp/shipment/as-recommendations"
+    },
+    "erp_shipment.api_shipment_as_recommendations_apply": {
+      "mode": "guard",
+      "rule": "/api/erp/shipment/as-recommendations/apply"
+    },
+    "erp_shipment.api_shipment_as_recommendations_cancel": {
+      "mode": "guard",
+      "rule": "/api/erp/shipment/as-recommendations/cancel"
+    },
+    "erp_shipment.api_shipment_as_recommendations_prewarm": {
+      "mode": "guard",
+      "rule": "/api/erp/shipment/as-recommendations/prewarm"
+    },
+    "erp_shipment.api_shipment_packing_save": {
+      "mode": "guard",
+      "rule": "/api/erp/shipment/packing/<int:order_id>"
+    },
+    "events.api_compensate_change_event": {
+      "mode": "guard",
+      "rule": "/api/orders/<int:order_id>/change-events/<int:event_id>/compensate"
+    },
+    "excel.upload_excel": {
+      "mode": "guard",
+      "rule": "/upload"
+    },
+    "foms_rum.ingest_rum_event": {
+      "mode": "exempt",
+      "reason": "anonymous RUM/Web-Vitals ingest — sendBeacon 무인증 수집. ingest policy(무인증·부작용 없음)로만 방어, CSRF 대상 아님.",
+      "rule": "/api/foms/rum"
+    },
+    "notifications.api_notification_ack": {
+      "mode": "guard",
+      "rule": "/erp/api/notifications/<int:notification_id>/ack"
+    },
+    "notifications.api_notification_archive": {
+      "mode": "guard",
+      "rule": "/erp/api/notifications/<int:notification_id>/archive"
+    },
+    "notifications.api_notification_mark_read": {
+      "mode": "guard",
+      "rule": "/erp/api/notifications/<int:notification_id>/read"
+    },
+    "notifications.api_notifications_archive_all": {
+      "mode": "guard",
+      "rule": "/erp/api/notifications/archive-all"
+    },
+    "notifications.api_notifications_delete_all": {
+      "mode": "guard",
+      "rule": "/erp/api/notifications/delete-all"
+    },
+    "notifications.api_notifications_mark_all_read": {
+      "mode": "guard",
+      "rule": "/erp/api/notifications/read-all"
+    },
+    "notifications.api_notifications_send": {
+      "mode": "guard",
+      "rule": "/erp/api/notifications/send"
+    },
+    "notifications.api_order_urgent_mention": {
+      "mode": "guard",
+      "rule": "/erp/api/orders/<int:order_id>/urgent-mention"
+    },
+    "notifications_push.push_event": {
+      "mode": "guard",
+      "rule": "/erp/api/notifications/push/event"
+    },
+    "notifications_push.push_test": {
+      "mode": "guard",
+      "rule": "/erp/api/notifications/push/test"
+    },
+    "notifications_push.subscribe": {
+      "mode": "guard",
+      "rule": "/erp/api/notifications/push/subscribe"
+    },
+    "order_edit.edit_order": {
+      "mode": "guard",
+      "rule": "/edit/<int:order_id>"
+    },
+    "order_pages.add_order": {
+      "mode": "guard",
+      "rule": "/add"
+    },
+    "order_pages.bulk_action": {
+      "mode": "guard",
+      "rule": "/bulk_action"
+    },
+    "order_trash.delete_order": {
+      "mode": "guard",
+      "rule": "/delete/<int:order_id>"
+    },
+    "order_trash.restore_orders": {
+      "mode": "guard",
+      "rule": "/restore_orders"
+    },
+    "orders.api_order_call_log": {
+      "mode": "guard",
+      "rule": "/api/orders/<int:order_id>/call-log"
+    },
+    "orders.api_order_stage_override": {
+      "mode": "guard",
+      "rule": "/api/orders/<int:order_id>/workflow/stage-override"
+    },
+    "orders.bulk_update_order_status": {
+      "mode": "guard",
+      "rule": "/api/bulk_update_order_status"
+    },
+    "orders.copy_orders": {
+      "mode": "guard",
+      "rule": "/api/orders/copy"
+    },
+    "orders.update_order_field": {
+      "mode": "guard",
+      "rule": "/api/update_order_field"
+    },
+    "orders.update_order_status": {
+      "mode": "guard",
+      "rule": "/api/update_order_status"
+    },
+    "orders.update_regional_memo": {
+      "mode": "guard",
+      "rule": "/api/update_regional_memo"
+    },
+    "orders.update_regional_status": {
+      "mode": "guard",
+      "rule": "/api/update_regional_status"
+    },
+    "quest.api_order_quest_approve": {
+      "mode": "guard",
+      "rule": "/api/orders/<int:order_id>/quest/approve"
+    },
+    "quest.api_order_quest_create": {
+      "mode": "guard",
+      "rule": "/api/orders/<int:order_id>/quest"
+    },
+    "quest.api_order_quest_update_status": {
+      "mode": "guard",
+      "rule": "/api/orders/<int:order_id>/quest/status"
+    },
+    "tasks.api_order_tasks_create": {
+      "mode": "guard",
+      "rule": "/api/orders/<int:order_id>/tasks"
+    },
+    "tasks.api_order_tasks_delete": {
+      "mode": "guard",
+      "rule": "/api/orders/<int:order_id>/tasks/<int:task_id>"
+    },
+    "tasks.api_order_tasks_update": {
+      "mode": "guard",
+      "rule": "/api/orders/<int:order_id>/tasks/<int:task_id>"
+    },
+    "wdcalculator.api_orders_wdc_estimate_sync": {
+      "mode": "guard",
+      "rule": "/api/orders/<int:order_id>/wdc-estimate-sync"
+    },
+    "wdcalculator.api_wdcalculator_calculate": {
+      "mode": "guard",
+      "rule": "/api/wdcalculator/calculate"
+    },
+    "wdcalculator.api_wdcalculator_delete_category": {
+      "mode": "guard",
+      "rule": "/api/wdcalculator/additional-options/categories/<int:category_id>"
+    },
+    "wdcalculator.api_wdcalculator_delete_notes_category": {
+      "mode": "guard",
+      "rule": "/api/wdcalculator/notes/categories/<int:category_id>"
+    },
+    "wdcalculator.api_wdcalculator_delete_notes_option": {
+      "mode": "guard",
+      "rule": "/api/wdcalculator/notes/categories/<int:category_id>/options/<int:option_id>"
+    },
+    "wdcalculator.api_wdcalculator_delete_option": {
+      "mode": "guard",
+      "rule": "/api/wdcalculator/additional-options/categories/<int:category_id>/options/<int:option_id>"
+    },
+    "wdcalculator.api_wdcalculator_delete_product": {
+      "mode": "guard",
+      "rule": "/api/wdcalculator/products/<int:product_id>"
+    },
+    "wdcalculator.api_wdcalculator_delete_spec_field_preset": {
+      "mode": "guard",
+      "rule": "/api/wdcalculator/spec-field-presets/<field>/<int:preset_id>"
+    },
+    "wdcalculator.api_wdcalculator_estimate": {
+      "mode": "guard",
+      "rule": "/api/wdcalculator/estimate/<int:estimate_id>"
+    },
+    "wdcalculator.api_wdcalculator_match_order": {
+      "mode": "guard",
+      "rule": "/api/wdcalculator/match-order"
+    },
+    "wdcalculator.api_wdcalculator_save_category": {
+      "mode": "guard",
+      "rule": "/api/wdcalculator/additional-options/categories"
+    },
+    "wdcalculator.api_wdcalculator_save_estimate": {
+      "mode": "guard",
+      "rule": "/api/wdcalculator/save-estimate"
+    },
+    "wdcalculator.api_wdcalculator_save_notes_category": {
+      "mode": "guard",
+      "rule": "/api/wdcalculator/notes/categories"
+    },
+    "wdcalculator.api_wdcalculator_save_notes_option": {
+      "mode": "guard",
+      "rule": "/api/wdcalculator/notes/categories/<int:category_id>/options"
+    },
+    "wdcalculator.api_wdcalculator_save_option": {
+      "mode": "guard",
+      "rule": "/api/wdcalculator/additional-options/categories/<int:category_id>/options"
+    },
+    "wdcalculator.api_wdcalculator_save_product": {
+      "mode": "guard",
+      "rule": "/api/wdcalculator/products"
+    },
+    "wdcalculator.api_wdcalculator_save_spec_field_preset": {
+      "mode": "guard",
+      "rule": "/api/wdcalculator/spec-field-presets"
+    },
+    "wdcalculator.api_wdcalculator_unmatch_order": {
+      "mode": "guard",
+      "rule": "/api/wdcalculator/unmatch-order"
+    },
+    "storage_dashboard.update_storage_field": {
+      "mode": "guard",
+      "rule": "/api/storage_dashboard/order/<int:order_id>/field"
+    },
+    "attachments.api_issue_upload_ticket": {
+      "mode": "guard",
+      "rule": "/api/orders/<int:order_id>/upload-tickets"
+    },
+    "attachments.api_complete_upload_ticket": {
+      "mode": "guard",
+      "rule": "/api/upload-tickets/<int:ticket_id>/complete"
+    },
+    "erp_orders_as.api_as_unschedule": {
+      "mode": "guard",
+      "rule": "/api/orders/<int:order_id>/as/unschedule"
+    },
+    "erp_orders_as.api_as_reopen": {
+      "mode": "guard",
+      "rule": "/api/orders/<int:order_id>/as/reopen"
+    },
+    "erp_orders_as.api_as_classification": {
+      "mode": "guard",
+      "rule": "/api/orders/<int:order_id>/as/classification"
+    },
+    "erp_orders_as.api_as_billing": {
+      "mode": "guard",
+      "rule": "/api/orders/<int:order_id>/as/billing"
+    },
+    "erp_orders_as.api_as_log_append": {
+      "mode": "guard",
+      "rule": "/api/orders/<int:order_id>/as/log"
+    },
+    "erp_orders_as.api_as_log_delete": {
+      "mode": "guard",
+      "rule": "/api/orders/<int:order_id>/as/log/<log_id>/delete"
+    },
+    "erp_orders_as.api_as_log_patch": {
+      "mode": "guard",
+      "rule": "/api/orders/<int:order_id>/as/log/<log_id>"
+    },
+    "erp_orders_as.api_as_schedule_link": {
+      "mode": "guard",
+      "rule": "/api/orders/<int:order_id>/as/schedule-link"
+    },
+    "erp_orders_production.api_production_cancel": {
+      "mode": "guard",
+      "rule": "/api/orders/<int:order_id>/production/cancel"
+    },
+    "erp_orders_production.api_production_uncomplete": {
+      "mode": "guard",
+      "rule": "/api/orders/<int:order_id>/production/uncomplete"
+    }
+  }
+}

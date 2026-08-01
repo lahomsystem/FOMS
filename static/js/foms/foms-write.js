@@ -75,6 +75,75 @@
   };
 
   // ------------------------------------------------------------------
+  // ERR-UX-01: 공용 mutation 에러 parser.
+  //   production/tablet/construction 쓰기 호출이 각자 ad-hoc 으로 처리하던 실패
+  //   (timeout·네트워크 오류·malformed JSON·403·409·428)를 한 곳에서 분류한다.
+  //   window.fomsMutationFetch(url, opts) 는 절대 reject 하지 않고 항상
+  //   { ok, kind, status, data, message } 를 resolve 한다 — 호출자는 result.ok
+  //   만 보면 되므로 무음 실패(누락된 catch)가 구조적으로 불가능해진다.
+  //     kind: 'ok' | 'queued'(오프라인 큐 적재) | 'timeout' | 'network' |
+  //           'malformed' | '403' | '409' | '428' | 'error'(기타 4xx/5xx)
+  //   API policy/state 는 건드리지 않는다 — 서버 응답을 그대로 분류만 한다
+  //   (API-ERROR-01 의 {success,error|message} 4xx 형식과 정합).
+  // ------------------------------------------------------------------
+  window.FOMS_MUTATION_TIMEOUT_MS = 15000;
+
+  var STATUS_MESSAGES = {
+    403: '권한이 없습니다.',
+    409: '다른 요청과 충돌했습니다. 새로고침 후 다시 시도하세요.',
+    428: '최신 정보가 아닙니다. 새로고침 후 다시 시도하세요.'
+  };
+
+  // 서버 4xx 응답은 {error: string}(신규) 와 {message: string}(레거시)이 혼재한다 —
+  // 둘 다 지원(API-ERROR-01 은 500 만 통일했고 4xx 도메인 매핑은 보존했다).
+  function extractServerMessage(data) {
+    if (!data) return '';
+    if (typeof data.error === 'string' && data.error) return data.error;
+    if (data.error && typeof data.error === 'object' && data.error.message) return data.error.message;
+    if (typeof data.message === 'string' && data.message) return data.message;
+    return '';
+  }
+
+  window.fomsMutationFetch = function (url, opts) {
+    opts = opts || {};
+    var timeoutMs = opts.timeoutMs || window.FOMS_MUTATION_TIMEOUT_MS;
+    var controller = (typeof AbortController !== 'undefined') ? new AbortController() : null;
+    var timer = null;
+    var fetchOpts = opts;
+    if (controller) {
+      fetchOpts = {};
+      for (var k in opts) { if (opts.hasOwnProperty(k)) fetchOpts[k] = opts[k]; }
+      if (!fetchOpts.signal) fetchOpts.signal = controller.signal;
+      timer = setTimeout(function () { controller.abort(); }, timeoutMs);
+    }
+    var clearTimer = function () { if (timer) clearTimeout(timer); };
+
+    return window.fomsWriteFetch(url, fetchOpts).then(function (res) {
+      clearTimer();
+      if (res && res.queued) {
+        return { ok: true, kind: 'queued', status: 0, data: {}, message: '' };
+      }
+      return res.json().catch(function () { return null; }).then(function (data) {
+        if (data === null) {
+          return { ok: false, kind: 'malformed', status: res.status, data: {}, message: '서버 응답을 해석하지 못했습니다.' };
+        }
+        if (res.ok && data.success !== false) {
+          return { ok: true, kind: 'ok', status: res.status, data: data, message: '' };
+        }
+        var kind = (res.status === 403 || res.status === 409 || res.status === 428) ? String(res.status) : 'error';
+        var message = extractServerMessage(data) || STATUS_MESSAGES[res.status] || ('처리에 실패했습니다. (HTTP ' + res.status + ')');
+        return { ok: false, kind: kind, status: res.status, data: data, message: message };
+      });
+    }).catch(function (err) {
+      clearTimer();
+      if (err && err.name === 'AbortError') {
+        return { ok: false, kind: 'timeout', status: 0, data: {}, message: '요청 시간이 초과되었습니다. 다시 시도하세요.' };
+      }
+      return { ok: false, kind: 'network', status: 0, data: {}, message: '네트워크 오류가 발생했습니다. 다시 시도하세요.' };
+    });
+  };
+
+  // ------------------------------------------------------------------
   // sync 배지 컨트롤러 (헤더 [data-foms-sync-badge]).
   //   - 0건        → 숨김
   //   - 대기 N건   → warn (색+텍스트)

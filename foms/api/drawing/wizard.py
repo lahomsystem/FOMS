@@ -10,25 +10,45 @@
 """
 
 import copy
+import hashlib
 import io
 import json
 import logging
 import os
 import re
+from typing import Callable, Optional
 
 from flask import Blueprint, Response, jsonify, request, session
+from sqlalchemy.orm import Session
 from sqlalchemy.orm.attributes import flag_modified
 from werkzeug.datastructures import FileStorage
 
 from db import get_db
-from models import Order, OrderAttachment
+from models import DrawingWizardPending, Order, OrderAttachment, OrderEvent, User
+from foms.services.orders.revision import (
+    MutationResult,
+    RevisionError,
+    execute_order_mutation,
+)
+from foms.services.orders.drawing_wizard_pending import (
+    DrawingWizardPendingError,
+    mark_delete_pending,
+    record_pending,
+)
+from foms.services.sidefx_outbox import enqueue_side_effect
 from foms.web.auth import login_required, get_user_by_id
 from foms.services.datetime_kst import now_kst, now_utc_naive
-from foms.services.erp_permissions import can_edit_erp
 from foms.services.erp_policy import is_drawing_workbench_participant
 from foms.services.storage import get_storage
 from foms.services.drawing_wizard_defaults import build_wizard_defaults, resolve_assignee_drew_en
-from foms.services.drawing_wizard_presets import load_wizard_presets, save_wizard_presets
+from foms.services.drawing_wizard_presets import (
+    WIZ_PRESET_POLICY_ID,
+    WizardPresetError,
+    current_presets_version,
+    load_wizard_presets,
+    update_wizard_presets,
+)
+from foms.services.orders.order_mutation_policy import POLICY_REGISTRY, evaluate_policy
 from foms.services.erp_product_items import build_product_items_for_order
 from foms.services.erp_display import _erp_coerce_item_price_krw
 
@@ -85,6 +105,14 @@ _CELL_FONT_MIN, _CELL_FONT_MAX = 10, 28
 _MSG_NOT_FOUND = '주문을 찾을 수 없습니다.'
 _MSG_FORBIDDEN = '도면 담당자·도면팀 또는 관리자만 저장할 수 있습니다.'
 
+#: PUT 페이로드에서 클라이언트가 소유·갱신할 수 있는 wizard 상태 최상위 키(허용 목록).
+#: 이 목록 밖 키(pending·versions·updated_* 등 서버 소유)는 클라가 덮거나 주입할 수 없다(P0-4).
+_CLIENT_OWNED_STATE_KEYS = ('v', 'sheets')
+
+#: REV-00 receipt·idempotency scope 용 정책 id. authz POLICY_REGISTRY 의 DRAWING_ASSIGNED
+#: (route 권한 판정)와는 별개이며 receipt 저장 scope 만 식별한다.
+DRAWING_WIZARD_PUT_POLICY_ID = 'DRAWING_WIZARD_PUT'
+
 
 def _load_order(db, order_id):
     """활성 ERP 주문을 로드한다(soft-delete·draft 제외). 없으면 None."""
@@ -119,21 +147,6 @@ def _can_save_wizard(current_user, order) -> bool:
         current_user
         and (current_user.role == 'ADMIN' or is_drawing_workbench_participant(current_user, order))
     )
-
-
-def _can_manage_presets(current_user) -> bool:
-    """전역 프리셋(도면팀 공유) 저장·삭제 권한.
-
-    프리셋은 주문 무관 전역 자원이므로 주문 단위 참여 판정을 쓸 수 없다. 대신
-    ADMIN·도면팀(DRAWING)·ERP 편집 팀(CS/SALES)에게 관리 권한을 부여한다.
-    """
-    if not current_user:
-        return False
-    if current_user.role == 'ADMIN':
-        return True
-    if (getattr(current_user, 'team', None) or '').strip() == 'DRAWING':
-        return True
-    return can_edit_erp(current_user)
 
 
 def _parse_item_index(raw) -> int | None:
@@ -563,10 +576,83 @@ def api_get_drawing_wizard(order_id):
     })
 
 
+class _WizardStaleError(Exception):
+    """PUT 낙관적 잠금 충돌(base_updated_at 불일치). FOR UPDATE 락 아래에서 감지한다.
+
+    현재 서버 상태의 ``updated_at``/``updated_by_name`` 을 실어 클라이언트가 어떤 저장에
+    밀렸는지 409 응답으로 알린다.
+    """
+
+    def __init__(self, server_updated_at: Optional[str], server_updated_by_name: Optional[str]):
+        super().__init__('drawing wizard state is stale')
+        self.server_updated_at = server_updated_at
+        self.server_updated_by_name = server_updated_by_name
+
+
+def _project_wizard_state(saved: Optional[dict], state: dict) -> dict:
+    """클라 페이로드에서 허용 필드만 서버 보존 상태 위에 얹어 정본 wizard 상태를 만든다.
+
+    서버 소유 필드(pending·versions·updated_* 등)는 ``saved`` 에서 그대로 보존하고,
+    클라가 보낸 허용 목록(``_CLIENT_OWNED_STATE_KEYS``) 밖 키는 무시한다. 이렇게 해서
+    부분 페이로드가 서버 필드를 비우거나(소실) 위조 값을 주입하는 P0-4 를 근본 차단한다.
+
+    :param saved: 서버에 저장된 현재 wizard 상태 dict, 또는 최초 저장이면 ``None``.
+    :param state: 검증을 통과한 클라이언트 페이로드(``v``·``sheets`` 등).
+    :returns: 저장할 wizard 상태 dict(deepcopy 기반; 호출자가 updated_* 를 덧씌운다).
+    """
+    projected = copy.deepcopy(saved) if isinstance(saved, dict) else {}
+    for key in _CLIENT_OWNED_STATE_KEYS:
+        if key in state:
+            projected[key] = copy.deepcopy(state[key])
+    return projected
+
+
+def _run_wizard_mutation(
+    db: Session, order_id: int, current_user: User, data: dict, mutation: Callable
+) -> MutationResult:
+    """REV-00 :func:`execute_order_mutation` 을 wizard PUT 파라미터로 호출한다.
+
+    optional ``If-Match`` 헤더(mutation_version)를 낙관적 잠금 precondition 으로 넘기고,
+    receipt scope/request 해시를 구성한다. idempotency key 는 쓰지 않는다(도면 저장은
+    멱등 재요청 대상이 아님).
+
+    :param db: 활성 세션(호출자가 commit 을 소유).
+    :param order_id: 대상 주문 id.
+    :param current_user: 저장 actor(receipt 소유자).
+    :param data: 요청 JSON(request_hash 계산용).
+    :param mutation: ``FOR UPDATE`` 락 아래에서 실행할 콜러블.
+    :returns: :class:`MutationResult`.
+    """
+    if_match_raw = (request.headers.get('If-Match') or '').strip().strip('"')
+    expected_versions = {order_id: int(if_match_raw)} if if_match_raw.isdigit() else None
+    scope_hash = hashlib.sha256(f'{DRAWING_WIZARD_PUT_POLICY_ID}:{order_id}'.encode()).hexdigest()
+    request_hash = hashlib.sha256(
+        json.dumps(data, sort_keys=True, ensure_ascii=False, default=str).encode()
+    ).hexdigest()
+    return execute_order_mutation(
+        db,
+        actor_user_id=current_user.id,
+        policy_id=DRAWING_WIZARD_PUT_POLICY_ID,
+        order_ids=[order_id],
+        expected_versions=expected_versions,
+        scope_hash=scope_hash,
+        request_hash=request_hash,
+        mutation=mutation,
+    )
+
+
 @erp_orders_drawing_wizard_bp.route('/<int:order_id>/drawing-wizard', methods=['PUT'])
 @login_required
 def api_put_drawing_wizard(order_id):
-    """도면 마법사 시트 상태를 검증·낙관적 충돌 확인 후 저장한다."""
+    """도면 마법사 시트 상태를 REV-00 row lock·projection 으로 원자 저장한다.
+
+    저장은 REV-00 :func:`execute_order_mutation` 을 경유해 ``FOR UPDATE`` 직렬화 ·
+    mutation_version bump · receipt 를 한 transaction 에 원자화한다(동시 PUT lost update
+    차단). 락 아래에서 서버 상태를 새로 읽어 base_updated_at 낙관적 잠금으로 stale 탭을
+    409 로 막고, :func:`_project_wizard_state` 로 허용 필드(v·sheets)만 반영해 서버 소유
+    pending·versions 의 소실·주입(P0-4)을 근본 차단한다. optional ``If-Match`` 헤더는
+    mutation_version 기반 추가 방어다.
+    """
     db = None
     try:
         db = get_db()
@@ -586,34 +672,56 @@ def api_put_drawing_wizard(order_id):
         if error:
             return jsonify({'success': False, 'message': error}), 400
 
-        sd = _load_structured_data(order)
-        saved = sd.get('drawing_wizard')
-        if isinstance(saved, dict) and saved.get('updated_at') != (base_updated_at or None):
+        captured: dict = {'updated_at': None}
+
+        def _mutate(sess: Session, orders: list) -> dict:
+            """FOR UPDATE 락 아래: 최신 상태 재조회 → stale 확인 → projection → updated_* 기록."""
+            o = orders[0]
+            sess.refresh(o)  # 락 획득 후 최신 커밋 상태를 읽어 stale 판정·projection 을 race-free 화
+            sd = _load_structured_data(o)
+            saved = sd.get('drawing_wizard')
+            if isinstance(saved, dict) and saved.get('updated_at') != (base_updated_at or None):
+                raise _WizardStaleError(saved.get('updated_at'), saved.get('updated_by_name'))
+            projected = _project_wizard_state(saved, state)
+            projected['updated_at'] = now_utc_naive().strftime('%Y-%m-%d %H:%M:%S')
+            projected['updated_by'] = current_user.id
+            projected['updated_by_name'] = current_user.name
+            sd['drawing_wizard'] = projected
+            o.structured_data = sd
+            flag_modified(o, 'structured_data')
+            captured['updated_at'] = projected['updated_at']
+            return {o.id: [f'ORDER_DETAIL:{o.id}']}
+
+        try:
+            outcome = _run_wizard_mutation(db, order_id, current_user, data, _mutate)
+            db.commit()
+        except _WizardStaleError as stale:
+            db.rollback()
             return jsonify({
                 'success': False,
                 'error': 'conflict',
                 'message': '다른 사용자가 먼저 저장했습니다.',
-                'server_updated_at': saved.get('updated_at'),
-                'server_updated_by_name': saved.get('updated_by_name'),
+                'server_updated_at': stale.server_updated_at,
+                'server_updated_by_name': stale.server_updated_by_name,
             }), 409
+        except RevisionError as rev:
+            db.rollback()
+            return jsonify({
+                'success': False,
+                'error': rev.error_code,
+                'message': str(rev),
+            }), rev.status_code
 
-        # 버전 이력(versions)은 별도 스냅샷 경로가 관리하는 서버 소유 필드다. 클라이언트가
-        # 보낸 state 의 versions 는 신뢰하지 않고 서버 보존값으로 덮어써(없으면 제거) 클라가
-        # 실수로 versions 를 비우는 사고를 차단한다(설계 §4).
-        if isinstance(saved, dict) and isinstance(saved.get('versions'), list):
-            state['versions'] = saved['versions']
-        else:
-            state.pop('versions', None)
-
-        state['updated_at'] = now_utc_naive().strftime('%Y-%m-%d %H:%M:%S')
-        state['updated_by'] = session.get('user_id')
-        state['updated_by_name'] = current_user.name
-        sd['drawing_wizard'] = state
-        order.structured_data = sd
-        flag_modified(order, 'structured_data')
-        db.commit()
-
-        return jsonify({'success': True, 'data': {'updated_at': state['updated_at']}})
+        resources = outcome.body.get('resources') or [{}]
+        resp = jsonify({
+            'success': True,
+            'data': {'updated_at': captured['updated_at']},
+            'mutation_receipt': outcome.read_receipt_id,
+            'mutation_version': resources[0].get('resulting_version'),
+        })
+        for header, value in outcome.headers.items():
+            resp.headers[header] = value
+        return resp
     except Exception as e:
         if db is not None:
             try:
@@ -961,21 +1069,110 @@ def api_get_drawing_wizard_pending(order_id):
     return jsonify({'success': True, 'data': {'pending': _pending_list(_load_structured_data(order))}})
 
 
+def _enqueue_pending_export_delete(db, order_id: int, entry: dict, owner_user_id: int | None):
+    """JSON pending export PNG 을 child row 로 브리지해 DELETE_PENDING + STORAGE_DELETE(한 tx).
+
+    WIZ-01-COMPLETION 이 JSON→child 전면 rewire 를 이연했으므로 pending 은 여전히
+    ``structured_data['drawing_wizard']['pending']`` JSON 이 canonical 이다. 삭제 경로에서
+    그 JSON 엔트리의 **server-derived object_key**(``entry['key']``)를 :func:`record_pending`
+    으로 child row 에 materialize(있으면 재사용)하고 ``DELETE_PENDING`` 으로 마크한 뒤,
+    ``WIZARD_PENDING`` ``STORAGE_DELETE`` outbox(``wizard_pending_id`` 실 FK)를 같은 tx 로
+    enqueue 한다. **동기 R2 삭제는 하지 않는다** — worker 의 공용 handler 가 R2 삭제 + child
+    ``DELETED`` 전이를 소유한다. object_key 는 client 가 아닌 서버 JSON 에서만 오며,
+    ``record_pending`` 이 ``orders/<id>/drawing_wizard/exports/`` 접두를 강제한다(traversal·타
+    주문·실측 key 거부). 이미 삭제 요청/완료된 child 는 재-enqueue 없이 idempotent 처리한다.
+
+    Args:
+        db: 활성 세션(호출자가 commit 소유).
+        order_id: 대상 주문 id.
+        entry: JSON pending 엔트리(``{key, filename, at, sheet_name}``).
+        owner_user_id: 삭제 요청자 id(child audit; None 허용).
+
+    Returns:
+        ``(deleted_key, pending_id)`` — 유효 export 가 아니거나(빈 key) server-derived key
+        검증 실패면 ``(None, None)``.
+    """
+    object_key = (entry.get('key') or '').strip()
+    if not object_key:
+        return None, None
+    try:
+        existing = db.query(DrawingWizardPending).filter_by(object_key=object_key).one_or_none()
+        if existing is not None and existing.state in ('DELETE_PENDING', 'DELETED'):
+            return object_key, existing.id  # 이미 삭제 진행/완료 — idempotent
+        child = existing or record_pending(
+            db, order_id=order_id, object_key=object_key, owner_user_id=owner_user_id)
+        mark_delete_pending(db, child, expected_row_version=child.row_version)
+        enqueue_side_effect(
+            db, source_domain='WIZARD_PENDING', source_id=child.id,
+            effect_type='STORAGE_DELETE',
+            payload={'object_key': object_key, 'order_id': order_id},
+            dedupe_key=f'wizdel:{child.id}',
+        )
+        return object_key, child.id
+    except DrawingWizardPendingError as key_err:
+        # server-derived key 계약 위반(비정상/tamper JSON) — 동기 삭제 없이 로그만, JSON 엔트리는
+        # 호출자가 제거한다(orphan R2 는 outbox 로 안전히 스케줄할 수 없으므로 삭제 예약 skip).
+        logger.warning("pending export key rejected (not server-derived): %s (%s)",
+                       object_key, key_err)
+        return None, None
+
+
+def _enqueue_attachment_delete(db, order_id: int, att: OrderAttachment, sheet: dict,
+                               owner_user_id: int | None) -> None:
+    """연결 도면탭 첨부의 R2 blob 삭제를 ``ORDER_EVENT`` STORAGE_DELETE outbox 로 예약한다.
+
+    OrderAttachment DB 행은 command tx 에서 삭제하고(내부 write), R2 blob 은 worker 가 삭제한다
+    (동기 외부 삭제 금지 — blueprint_projection 과 동일 규약). 감사 ``OrderEvent`` 를 만들어
+    one-of FK 매트릭스를 만족시키고 삭제 이력을 남기되, ``mutation_version`` 은 건드리지
+    않는다(wizard 낙관적 잠금·REV-00 소비처 무회귀). 시트에서 ``attachment_id`` 를 떼어낸다.
+
+    Args:
+        db: 활성 세션(호출자가 commit 소유).
+        order_id: 대상 주문 id.
+        att: 삭제할 도면탭 OrderAttachment.
+        sheet: ``attachment_id`` 를 떼어낼 wizard 시트 dict.
+        owner_user_id: 삭제 요청자 id(event 소유자; None 허용).
+    """
+    att_key = (att.storage_key or '').strip()
+    if att_key:
+        event = OrderEvent(
+            order_id=order_id,
+            event_type='DRAWING_PENDING_ATTACHMENT_DELETED',
+            payload={'object_key': att_key, 'sheet_id': sheet.get('id')},
+            created_by_user_id=owner_user_id,
+        )
+        db.add(event)
+        db.flush()
+        enqueue_side_effect(
+            db, source_domain='ORDER_EVENT', source_id=event.id,
+            effect_type='STORAGE_DELETE',
+            payload={'object_key': att_key, 'order_id': order_id},
+            dedupe_key=f'wizdel_att:{order_id}:{att_key}',
+        )
+    db.delete(att)
+    sheet.pop('attachment_id', None)
+
+
 @erp_orders_drawing_wizard_bp.route('/<int:order_id>/drawing-wizard/pending/<sheet_id>', methods=['DELETE'])
 @login_required
 def api_delete_drawing_wizard_pending(order_id: int, sheet_id: str):
-    """전달 대기(pending) 저장 도면 1건을 삭제한다(R2 export 파일 + 연결 도면탭 첨부 정리).
+    """전달 대기(pending) 저장 도면 1건을 삭제 예약한다(child DELETE_PENDING + STORAGE_DELETE outbox).
 
-    ``sd['drawing_wizard']['pending'][sheet_id]`` 항목을 제거하고 그 항목의 export PNG
-    (``entry['key']``)를 R2에서 삭제한다. 해당 시트에 도면 탭 첨부(``attachment_id``)가
-    연결돼 있으면 그 ``OrderAttachment`` 행과 R2 파일도 함께 삭제하고 시트에서
-    ``attachment_id`` 를 떼어낸다. **시트의 ``objects``(편집 중 캔버스)는 절대 건드리지 않는다**
-    (저장 도면만 취소하고 편집 상태는 보존). ``structured_data`` 는 ``copy.deepcopy`` +
-    ``flag_modified`` 로 갱신한다.
+    ``sd['drawing_wizard']['pending'][sheet_id]`` JSON 엔트리를 제거하고, 그 export PNG
+    (server-derived ``entry['key']``)를 ``drawing_wizard_pending`` child row 로 브리지해
+    ``DELETE_PENDING`` 마크 + ``WIZARD_PENDING`` ``STORAGE_DELETE`` outbox 를 **한 tx** 로
+    예약한다(실 R2 삭제·child ``DELETED`` 전이는 worker 의 공용 handler 소관 — **요청 tx 에서
+    동기 외부 삭제는 하지 않는다**). 해당 시트에 도면 탭 첨부(``attachment_id``)가 연결돼
+    있으면 그 ``OrderAttachment`` 행은 tx 에서 삭제하고 R2 blob 은 ``ORDER_EVENT``
+    STORAGE_DELETE outbox 로 예약한다. **시트의 ``objects``(편집 중 캔버스)는 절대 건드리지
+    않는다**(저장 도면만 취소·편집 상태 보존). ``structured_data`` 는 ``copy.deepcopy`` +
+    ``flag_modified`` 로 갱신한다. object_key 는 client 를 신뢰하지 않고 서버 JSON·exports 접두
+    검증에서만 유도한다.
 
     :param order_id: ERP 주문 id.
     :param sheet_id: 삭제할 pending 시트 식별자.
-    :returns: Flask ``(response, status)`` 튜플. 성공 시 ``{success, data:{sheet_id, deleted_key}}``.
+    :returns: Flask ``(response, status)`` 튜플. 성공 시
+        ``{success, data:{sheet_id, deleted_key, pending_id}}``.
     """
     db = None
     try:
@@ -995,17 +1192,13 @@ def api_delete_drawing_wizard_pending(order_id: int, sheet_id: str):
         if not isinstance(entry, dict):
             return jsonify({'success': False, 'message': '삭제할 저장 도면이 없습니다.'}), 404
 
-        storage = get_storage()
+        owner_user_id = current_user.id if current_user else None
 
-        # 1) export PNG(R2) 삭제 — 파일이 이미 없을 수 있으니 실패는 로그만 남기고 계속.
-        deleted_key = (entry.get('key') or '').strip()
-        if deleted_key:
-            try:
-                storage.delete_file(deleted_key)
-            except Exception as del_err:
-                logger.warning("pending export delete failed (%s): %s", deleted_key, del_err)
+        # 1) export PNG → child DELETE_PENDING + WIZARD_PENDING STORAGE_DELETE outbox(한 tx).
+        deleted_key, pending_id = _enqueue_pending_export_delete(
+            db, order_id, entry, owner_user_id)
 
-        # 2) 연결된 도면 탭 첨부(OrderAttachment) 정리 — 시트의 attachment_id 로 추적.
+        # 2) 연결 도면탭 첨부 정리 — DB 행은 tx 에서 삭제, R2 blob 은 ORDER_EVENT outbox 로 예약.
         sheet = None
         for s in (dw.get('sheets') or []):
             if isinstance(s, dict) and s.get('id') == sheet_id:
@@ -1019,18 +1212,9 @@ def api_delete_drawing_wizard_pending(order_id: int, sheet_id: str):
                     OrderAttachment.order_id == order_id,
                 ).first()
                 if att is not None:
-                    att_key = (att.storage_key or '').strip()
-                    if att_key:
-                        try:
-                            storage.delete_file(att_key)
-                        except Exception as att_del_err:
-                            logger.warning(
-                                "pending attachment file delete failed (%s): %s", att_key, att_del_err
-                            )
-                    db.delete(att)
-                    sheet.pop('attachment_id', None)
+                    _enqueue_attachment_delete(db, order_id, att, sheet, owner_user_id)
 
-        # 3) pending 항목 제거 — sheet.objects(편집 캔버스)는 보존한다.
+        # 3) pending JSON 엔트리 제거 — sheet.objects(편집 캔버스)는 보존한다.
         pending.pop(sheet_id, None)
 
         sd['drawing_wizard'] = dw
@@ -1038,7 +1222,8 @@ def api_delete_drawing_wizard_pending(order_id: int, sheet_id: str):
         flag_modified(order, 'structured_data')
         db.commit()
 
-        return jsonify({'success': True, 'data': {'sheet_id': sheet_id, 'deleted_key': deleted_key}})
+        return jsonify({'success': True, 'data': {
+            'sheet_id': sheet_id, 'deleted_key': deleted_key, 'pending_id': pending_id}})
     except Exception as e:
         if db is not None:
             try:
@@ -1264,13 +1449,33 @@ def api_get_drawing_wizard_asset_raw(order_id):
     return response
 
 
+def _preset_if_match(data: dict) -> Optional[int]:
+    """If-Match 헤더 또는 body ``settings_version`` 에서 정수 version 을 읽는다(형식 오류=None)."""
+    raw = (request.headers.get('If-Match') or '').strip().strip('"')
+    if not raw and isinstance(data, dict) and data.get('settings_version') is not None:
+        raw = str(data.get('settings_version')).strip()
+    if not raw:
+        return None
+    try:
+        return int(raw)
+    except (TypeError, ValueError):
+        return None
+
+
 @erp_orders_drawing_wizard_bp.route('/drawing-wizard/presets', methods=['GET'])
 @login_required
 def api_get_drawing_wizard_presets():
-    """도면팀 공유 사용자 프리셋 목록을 반환한다(주문 무관 전역)."""
+    """도면팀 공유 사용자 프리셋 목록을 반환한다(주문 무관 전역).
+
+    저장 시 optimistic lock 에 되보낼 ``version`` 을 동봉한다(저장 없으면 0).
+    """
     try:
+        db = get_db()
         presets = load_wizard_presets()
-        return jsonify({'success': True, 'data': {'presets': presets}})
+        return jsonify({
+            'success': True,
+            'data': {'presets': presets, 'version': current_presets_version(db)},
+        })
     except Exception as e:
         logger.error("drawing-wizard presets GET failed: %s", e, exc_info=True)
         return jsonify({'success': False, 'message': f'오류 발생: {str(e)}'}), 500
@@ -1279,29 +1484,57 @@ def api_get_drawing_wizard_presets():
 @erp_orders_drawing_wizard_bp.route('/drawing-wizard/presets', methods=['POST'])
 @login_required
 def api_post_drawing_wizard_presets():
-    """도면팀 공유 사용자 프리셋 목록을 검증·저장한다(전역 SystemSetting)."""
-    db = None
+    """도면팀 공유 사용자 프리셋을 저장한다(전역 SystemSetting, WIZ-PRESET-01).
+
+    DRAWING team + Admin 정책(in-handler ``evaluate_policy``)만 저장할 수 있고, exact
+    schema(``label``/``text`` 외 임의 필드 거부) + optimistic lock(If-Match/version) +
+    idempotency + SecurityLog audit 를 한 transaction 에 적용한다. version 불일치는 409
+    (silent global overwrite 차단). Order 는 건드리지 않는다.
+
+    Body: ``{presets, settings_version?}``. optional 헤더 ``If-Match``·``Idempotency-Key``.
+    """
+    current_user = get_user_by_id(session.get('user_id'))
+    decision = evaluate_policy(POLICY_REGISTRY[WIZ_PRESET_POLICY_ID], current_user)
+    if not decision.allowed:
+        return jsonify({
+            'success': False, 'data': None,
+            'error': decision.reason, 'message': decision.reason, 'code': decision.code,
+        }), decision.status
+
+    data = request.get_json(silent=True) or {}
+    if_match = _preset_if_match(data)
+    idempotency_key = (request.headers.get('Idempotency-Key') or '').strip() or None
+
+    db = get_db()
     try:
-        db = get_db()
-        current_user = get_user_by_id(session.get('user_id'))
-        if not _can_manage_presets(current_user):
-            return jsonify({
-                'success': False,
-                'message': '관리자·도면팀 또는 ERP 편집 권한자만 프리셋을 관리할 수 있습니다.',
-            }), 403
-
-        data = request.get_json(silent=True) or {}
-        presets = data.get('presets')
-        if not isinstance(presets, list):
-            return jsonify({'success': False, 'message': '프리셋 목록 형식이 올바르지 않습니다.'}), 400
-
-        saved = save_wizard_presets(presets)
-        return jsonify({'success': True, 'data': {'presets': saved}})
+        result = update_wizard_presets(
+            db,
+            actor_user_id=getattr(current_user, 'id', None),
+            payload=data.get('presets'),
+            if_match_version=if_match,
+            idempotency_key=idempotency_key,
+        )
+        db.commit()
+    except WizardPresetError as err:
+        db.rollback()
+        payload = {
+            'success': False, 'data': None, 'error': str(err),
+            'message': str(err), 'code': err.error_code,
+        }
+        current = getattr(err, 'current_version', None)
+        if current is not None:
+            payload['current_version'] = current
+        return jsonify(payload), err.status_code
     except Exception as e:
-        if db is not None:
-            try:
-                db.rollback()
-            except Exception as rb_err:
-                logger.warning("drawing-wizard presets POST rollback failed: %s", rb_err, exc_info=True)
+        db.rollback()
         logger.error("drawing-wizard presets POST failed: %s", e, exc_info=True)
         return jsonify({'success': False, 'message': f'오류 발생: {str(e)}'}), 500
+
+    return jsonify({
+        'success': True,
+        'data': {
+            'presets': result.presets,
+            'version': result.version,
+            'mutation_receipt': result.receipt_id,
+        },
+    })

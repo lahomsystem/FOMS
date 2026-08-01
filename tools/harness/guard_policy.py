@@ -31,6 +31,9 @@ PROTECTED_FORCE_BRANCHES: frozenset[str] = frozenset(
     {"main", "master", "deploy", "production"}
 )
 
+#: 세션 worktree 브랜치 프리픽스 (session_worktree.py BRANCH_PREFIX 와 동일).
+SESSION_BRANCH_PREFIX = "session/"
+
 #: plain push 라도 사용자 명시 승인이 필요한 브랜치 (도달 시 ask).
 #: CLAUDE.md 절대규칙: production push 는 사용자 명시 요청 시에만.
 APPROVAL_REQUIRED_BRANCHES: frozenset[str] = frozenset({"production"})
@@ -211,11 +214,11 @@ def _refspec_dest(refspec: str) -> str:
 # git subcommand 판정기
 # ---------------------------------------------------------------------------
 
-def _current_branch(project_root: str) -> str | None:
-    """현재 체크아웃 브랜치 이름. 실패 시 None."""
+def _git_out(project_root: str, *args: str) -> str | None:
+    """git 명령의 stdout(strip). 실패하거나 출력이 비면 None."""
     try:
         proc = subprocess.run(
-            ["git", "rev-parse", "--abbrev-ref", "HEAD"],
+            ["git", *args],
             cwd=project_root,
             capture_output=True,
             text=True,
@@ -227,8 +230,31 @@ def _current_branch(project_root: str) -> str | None:
         return None
     if proc.returncode != 0:
         return None
-    name = (proc.stdout or "").strip()
-    return name or None
+    return (proc.stdout or "").strip() or None
+
+
+def _current_branch(project_root: str) -> str | None:
+    """현재 체크아웃 브랜치 이름. 실패 시 None."""
+    return _git_out(project_root, "rev-parse", "--abbrev-ref", "HEAD")
+
+
+def _push_dest_branch(project_root: str) -> str | None:
+    """타깃 없는 `git push`가 실제로 갱신할 원격 브랜치명(마지막 컴포넌트, 소문자).
+
+    브랜치 이름만 보면 `session/*` worktree에서 `git push`가 deploy를 갱신하는
+    경로(upstream=`origin/deploy` + `push.default=upstream`)를 놓친다.
+    `@{push}`(push.default 반영)를 우선 보고 없으면 `@{u}`로 폴백한다.
+
+    파라미터:
+        project_root: 저장소(또는 worktree) 루트.
+    반환:
+        `origin/deploy` → `"deploy"`. upstream 미설정·조회 실패 시 None.
+    """
+    for ref in ("@{push}", "@{u}"):
+        out = _git_out(project_root, "rev-parse", "--abbrev-ref", "--symbolic-full-name", ref)
+        if out:
+            return out.rsplit("/", 1)[-1].lower()
+    return None
 
 
 def _classify_deploy_push_scope(
@@ -310,6 +336,13 @@ def _classify_git_push(
         branch = _current_branch(project_root)
         if branch is None or branch.lower() == "deploy":
             return _classify_deploy_push_scope(project_root, session_id)
+        dest = _push_dest_branch(project_root)
+        if dest == "deploy":
+            # 브랜치명이 deploy가 아니어도 실효 push 대상이 origin/deploy면 분류 대상.
+            return _classify_deploy_push_scope(project_root, session_id)
+        if dest is None and branch.lower().startswith(SESSION_BRANCH_PREFIX):
+            # 세션 worktree인데 push 대상을 못 읽음 → deploy 도달 가능성 배제 불가.
+            return "ask", "세션 브랜치 무refspec 푸시(대상 확인 불가)"
         return "allow", ""
 
     return "allow", ""

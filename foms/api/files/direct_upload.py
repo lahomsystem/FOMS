@@ -1,6 +1,7 @@
 """Direct-upload endpoints for order attachments."""
 
 from flask import jsonify, request, session
+from foms.services.error_logging import log_handled_exception
 
 from foms.web.auth import get_user_by_id, login_required
 from foms.api.files.blueprint import (
@@ -15,6 +16,11 @@ from foms.api.files.common import (
     serialize_attachment,
 )
 from foms.api.files.routes import build_file_view_url
+from foms.services.files.upload_authz import (
+    category_upload_allowed,
+    parse_upload_folder,
+    validate_upload_key,
+)
 from foms.services.files.upload_policy import DIRECT_UPLOAD_ALLOWED_CONTENT_TYPES
 from db import get_db
 from foms.services.order_attachment_thumbnail import (
@@ -22,6 +28,12 @@ from foms.services.order_attachment_thumbnail import (
 )
 from foms.services.storage import get_storage
 from models import Order, OrderAttachment
+
+
+def _current_user():
+    """세션 user_id 로 현재 사용자 로드(권한 판정용)."""
+    uid = session.get("user_id")
+    return get_user_by_id(uid) if uid else None
 
 
 @attachments_bp.route("/upload/session", methods=["POST"])
@@ -33,19 +45,22 @@ def api_upload_session():
         filename = data.get("filename")
         size = data.get("size", 0)
         folder = data.get("folder", "")
-        category = resolve_attachment_category(str(folder or ""), data.get("category"))
 
         if not filename or not isinstance(size, (int, float)) or size <= 0 or not folder:
             return jsonify({"success": False, "message": "filename, size, folder 필수가 필요합니다."}), 400
-        if not isinstance(folder, str):
-            folder = str(folder)
         if not isinstance(filename, str):
             filename = str(filename)
-        if ".." in folder or folder.startswith("/"):
-            return jsonify({"success": False, "message": "유효하지 않은 folder 경로입니다."}), 400
+
+        # UPLOAD-01: arbitrary folder 0 — 서버가 folder 를 완전 정규화·화이트리스트 검증한다.
+        ok_folder, _order_id, norm_folder, category, folder_err = parse_upload_folder(folder)
+        if not ok_folder:
+            return jsonify({"success": False, "message": folder_err}), 400
+        # UPLOAD-01: VIEWER 403 + 용도별 role/team (AUTH-01 정책 재사용).
+        if not category_upload_allowed(_current_user(), category):
+            return jsonify({"success": False, "message": "이 업로드를 수행할 권한이 없습니다."}), 403
 
         storage = get_storage()
-        key = storage.generate_direct_upload_key(filename, folder)
+        key = storage.generate_direct_upload_key(filename, norm_folder)
         ct = storage._get_content_type(filename)
         if ct not in DIRECT_UPLOAD_ALLOWED_CONTENT_TYPES:
             return jsonify({"success": False, "message": "허용되지 않은 파일 형식입니다."}), 400
@@ -75,10 +90,7 @@ def api_upload_session():
             }
         )
     except Exception as e:
-        import traceback
-
-        print(f"업로드 세션 오류: {e}")
-        print(traceback.format_exc())
+        log_handled_exception()
         return jsonify({"success": False, "message": str(e)}), 500
 
 
@@ -93,12 +105,14 @@ def api_upload_session_batch():
         if not files or not isinstance(files, list):
             return jsonify({"success": False, "message": "files 리스트가 필요합니다."}), 400
 
-        if not isinstance(folder, str):
-            folder = str(folder)
-        if not folder or ".." in folder or folder.startswith("/"):
-            return jsonify({"success": False, "message": "유효하지 않은 folder 경로입니다."}), 400
+        # UPLOAD-01: arbitrary folder 0 — 완전 정규화·화이트리스트 검증.
+        ok_folder, _order_id, norm_folder, category, folder_err = parse_upload_folder(folder)
+        if not ok_folder:
+            return jsonify({"success": False, "message": folder_err}), 400
+        # UPLOAD-01: VIEWER 403 + 용도별 role/team (AUTH-01 정책 재사용).
+        if not category_upload_allowed(_current_user(), category):
+            return jsonify({"success": False, "message": "이 업로드를 수행할 권한이 없습니다."}), 403
 
-        category = resolve_attachment_category(folder, data.get("category"))
         storage = get_storage()
         sessions = []
 
@@ -120,7 +134,7 @@ def api_upload_session_batch():
             if not allowed_erp_attachment_file(filename, category):
                 continue
 
-            key = storage.generate_direct_upload_key(filename, folder)
+            key = storage.generate_direct_upload_key(filename, norm_folder)
             ct = storage._get_content_type(filename)
             if ct not in DIRECT_UPLOAD_ALLOWED_CONTENT_TYPES:
                 continue
@@ -140,10 +154,7 @@ def api_upload_session_batch():
 
         return jsonify({"success": True, "sessions": sessions})
     except Exception as e:
-        import traceback
-
-        print(f"업로드 다중 세션 오류: {e}")
-        print(traceback.format_exc())
+        log_handled_exception()
         return jsonify({"success": False, "message": str(e)}), 500
 
 
@@ -166,8 +177,14 @@ def api_order_attachments_complete(order_id):
             key = str(key)
         if not isinstance(filename, str):
             filename = str(filename)
-        if f"orders/{order_id}/" not in key or ".." in key:
-            return jsonify({"success": False, "message": "유효하지 않은 key 경로입니다."}), 400
+
+        # UPLOAD-01: arbitrary folder 0 + 대상 order 일치 — substring 검사가 아닌 완전 정규화.
+        ok_key, key_category, key_err = validate_upload_key(key, order_id)
+        if not ok_key:
+            return jsonify({"success": False, "message": key_err}), 400
+        # UPLOAD-01: VIEWER 403 + 용도별 role/team (key 의 실제 저장 위치 기준).
+        if not category_upload_allowed(_current_user(), key_category):
+            return jsonify({"success": False, "message": "이 업로드를 수행할 권한이 없습니다."}), 403
 
         storage = get_storage()
         if not storage.object_exists(key):
@@ -201,7 +218,7 @@ def api_order_attachments_complete(order_id):
                 resp = storage.client.head_object(Bucket=storage.bucket_name, Key=key)
                 file_size = resp.get("ContentLength", 0)
             except Exception:
-                pass
+                log_handled_exception("direct_upload head_object size")
 
         attachment = OrderAttachment(
             order_id=order_id,
@@ -241,11 +258,8 @@ def api_order_attachments_complete(order_id):
         try:
             db.rollback()
         except Exception:
-            pass
-        import traceback
-
-        print(f"Direct upload 완료 오류: {e}")
-        print(traceback.format_exc())
+            log_handled_exception("direct_upload rollback")
+        log_handled_exception()
         return jsonify({"success": False, "message": str(e)}), 500
 
 

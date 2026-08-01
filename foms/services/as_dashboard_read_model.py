@@ -9,6 +9,8 @@ from __future__ import annotations
 from sqlalchemy import and_
 
 from foms.services.as_dashboard_helpers import (
+    _as_billing_confirmed_expr,
+    _as_billing_type_expr,
     _as_pending_expr,
     _as_visit_date_expr,
     _count_cases,
@@ -34,11 +36,25 @@ def build_as_tab_query_conditions(*, dialect_name=''):
         _erp_as_incomplete_condition(),
         sales_delivery_true,
     )
+    # 비용(무상/유상/미정) 판정: JSONB ->> 등호 비교(ILIKE 금지). confirmed는 dialect별
+    # boolean 표현 차이(postgres 'true' / sqlite 1) 때문에 true 집합 필터로 판정한다.
+    billing_type = _as_billing_type_expr(dialect_name=dialect_name)
+    billing_confirmed_true = _sales_delivery_true_filter(
+        _as_billing_confirmed_expr(dialect_name=dialect_name)
+    )
+    paid_unconfirmed_condition = and_(billing_type == 'paid', ~billing_confirmed_true)
+    billing_filters = {
+        'free': billing_type == 'free',
+        'paid': billing_type == 'paid',
+        'undecided': billing_type == 'undecided',
+    }
     return {
         "as_pending_true": as_pending_true,
         "as_visit_date_present": as_visit_date_present,
         "incomplete_non_sales_condition": incomplete_non_sales_condition,
         "sales_delivery_condition": sales_delivery_condition,
+        "paid_unconfirmed_condition": paid_unconfirmed_condition,
+        "billing_filters": billing_filters,
     }
 
 
@@ -51,6 +67,7 @@ def build_as_tab_count_context(
     sales_delivery_condition,
     as_pending_true,
     as_visit_date_present,
+    paid_unconfirmed_condition,
 ):
     """AS 탭 카운트와 미완료 summary count context를 계산한다.
 
@@ -68,6 +85,7 @@ def build_as_tab_count_context(
         'visit_confirmed': and_(incomplete_non_sales_condition, ~as_pending_true, as_visit_date_present),
         'pending': and_(incomplete_non_sales_condition, as_pending_true),
         'unassigned': and_(incomplete_non_sales_condition, ~as_pending_true, ~as_visit_date_present),
+        'paid_unconfirmed': and_(incomplete_non_sales_condition, paid_unconfirmed_condition),
     }
     as_bucket = (bucket or '').strip()
     if tab != 'incomplete' or as_bucket not in incomplete_buckets:
@@ -85,6 +103,7 @@ def build_as_tab_count_context(
         ('visit_confirmed', incomplete_buckets['visit_confirmed']),
         ('pending', incomplete_buckets['pending']),
         ('unassigned', incomplete_buckets['unassigned']),
+        ('paid_unconfirmed', incomplete_buckets['paid_unconfirmed']),
     )
     return {
         "incomplete_buckets": incomplete_buckets,

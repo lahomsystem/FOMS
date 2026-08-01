@@ -33,8 +33,11 @@ from foms.services.erp_display import (
 )
 from foms.services.erp_product_items import build_product_items_for_order
 from foms.services.notifications.drawing_order_change import (
+    _change_parts,
     humanize_order_change_changes,
     is_order_change_pending,
+    join_changes_text,
+    summarize_changes,
 )
 from foms.services.common.dashboard_cache import (
     KEY_VERSION,
@@ -51,7 +54,8 @@ from foms.services.common.erp_shell_http import apply_erp_shell_fragment_headers
 from foms.services.request_utils import get_search_query_arg
 from foms.services.drawing_workbench_display import (
     drawing_thumb_enabled,
-    resolve_row_thumbnail_url,
+    pick_row_thumbnail_url,
+    resolve_row_image_list,
 )
 from foms.services.feature_flags import is_mobile_v2_shell, resolve_shell_variant_cached
 
@@ -131,6 +135,85 @@ def _history_event_after(left: Mapping[str, Any], right: Mapping[str, Any]) -> b
     if left_dt is not None and right_dt is not None:
         return left_dt > right_dt
     return _history_event_at_raw(left) > _history_event_at_raw(right)
+
+
+def _drawing_next_action_tone(drawing_status: str, has_assignee: bool) -> str:
+    """다음 액션 턴 주체 톤(목록 셀 강조용).
+
+    Args:
+        drawing_status: 도면 상태 코드.
+        has_assignee: 도면 담당자 지정 여부.
+
+    Returns:
+        ``'assign'``(담당 미지정) / ``'mine'``(도면팀 차례) / ``'other'``(상대 차례).
+    """
+    if not has_assignee:
+        return 'assign'
+    return 'mine' if (drawing_status or 'PENDING').upper() in ('PENDING', 'RETURNED') else 'other'
+
+
+def _drawing_row_status_label(drawing_status: str, has_assignee: bool) -> str:
+    """목록 행 상태 라벨: PENDING 을 담당 지정 여부로 대기중/작업중 분리.
+
+    ``_drawing_status_label`` 은 다른 소비처(상세·퀘스트) 계약이라 무변경으로 두고,
+    작업실 행 레벨에서만 오버라이드한다.
+
+    Args:
+        drawing_status: 도면 상태 코드.
+        has_assignee: 도면 담당자 지정 여부.
+
+    Returns:
+        표시용 상태 라벨.
+    """
+    if (drawing_status or '').upper() == 'PENDING':
+        return '작업중' if has_assignee else '대기중'
+    return _drawing_status_label(drawing_status)
+
+
+def _drawing_row_sla_level(construction_days: Any, drawing_status: str) -> str:
+    """도면작업실 전용 SLA: 시공일 대비 미전달 여부로 재정의.
+
+    스테이지 진입 48h 기준(``_erp_alerts.drawing_overdue``)은 도면 지연 신호로
+    쓸모가 없어 행 레벨에서만 시공일 기준으로 대체한다(전역 alerts 는 무변경).
+
+    Args:
+        construction_days: 시공일까지 영업일수(경과 시 음수, 미정이면 None).
+        drawing_status: 도면 상태 코드.
+
+    Returns:
+        ``'지연'`` / ``'임박'`` / ``'정상'``.
+    """
+    if construction_days is None:
+        return '정상'
+    # 레거시 데이터의 'IN_PROGRESS' 리터럴도 미전달 작업분이므로 판정 대상에 포함.
+    if (drawing_status or '').upper() not in ('PENDING', 'RETURNED', 'IN_PROGRESS'):
+        return '정상'
+    if construction_days < 0:
+        return '지연'
+    if construction_days <= 3:
+        return '임박'
+    return '정상'
+
+
+def _construction_badge_level(construction_days: Any) -> str:
+    """시공일 뱃지 색상 레벨(임박도 3단 + 무일정).
+
+    SLA 뱃지(``_drawing_row_sla_level``)와 달리 도면 상태를 보지 않는 순수 일정 축이다
+    (전달 완료분도 시공일이 코앞이면 시각적으로 구분돼야 한다).
+
+    Args:
+        construction_days: 시공일까지 영업일수(경과 시 음수, 미정이면 None).
+
+    Returns:
+        ``'none'``(미정) / ``'danger'``(D-2 이내·경과) / ``'warn'``(D-4 이내) / ``'info'``.
+    """
+    if construction_days is None:
+        return 'none'
+    if construction_days <= 2:
+        return 'danger'
+    if construction_days <= 4:
+        return 'warn'
+    return 'info'
 
 
 def _build_drawing_turn(
@@ -261,6 +344,8 @@ def erp_drawing_workbench_dashboard():
     mine_only = erp_mine_only_from_request(request)
     unread_only = (request.args.get('unread') or '').strip() == '1'
     due_today_only = (request.args.get('due_today') or '').strip() == '1'
+    # 프로세스 맵 '지연' 타일 전용 필터(due_today 와 별개 축 — 시공일 경과 미전달).
+    overdue_only = (request.args.get('overdue') or '').strip() == '1'
     # 태블릿 도면 작업실 필터(추가, 부재 시 무영향): D-3 이내(시공 임박)만 / 전달 대기(마법사 저장분)만.
     dday3_only = (request.args.get('dday3') or '').strip() == '1'
     pending_only = (request.args.get('pending') or '').strip() == '1'
@@ -333,6 +418,13 @@ def erp_drawing_workbench_dashboard():
         ):
             orders = [focus_order] + orders
 
+    # 판정 권한 축(요청당 1회 — 주문 무관). 상세 라우트의 동일 판정과 같은 조건이며
+    # `not is_drawing_team` 누락 금지: 누락 시 상세에선 숨는 버튼이 태블릿에서만 노출된다.
+    is_admin = bool(current_user and current_user.role == 'ADMIN')
+    is_drawing_team = bool(
+        current_user and (getattr(current_user, 'team', None) or '').strip() == 'DRAWING'
+    )
+
     rows = []
     order_sds = [_ensure_dict(o.structured_data) for o in orders]
     assignee_user_map = load_assignee_user_map_batch(db, order_sds)
@@ -375,6 +467,8 @@ def erp_drawing_workbench_dashboard():
         is_sales_owner = is_order_related_to_user(o, current_user, scope='sales')
         include_for_mine = is_order_related_to_user(o, current_user, scope=mine_scope)
         can_sales = _can_modify_sales_domain(current_user, o, sd, False, None)
+        # 판정 권한(순수 — 상태 미포함). 상세 라우트 can_confirm_receipt(상태 합성형)와 이름 분리.
+        can_review_perm = bool(is_admin or (can_sales and not is_drawing_team))
         can_transfer_row = bool(
             has_assignee
             and current_user
@@ -423,7 +517,7 @@ def erp_drawing_workbench_dashboard():
                     target_no_raw = h.get('target_drawing_number')
                     latest_request_no = int(target_no_raw) if target_no_raw is not None else None
                 except Exception:
-                    pass
+                    pass  # failopen: intentional: 도면번호 파싱 실패 시 None 유지
                 latest_request_note = str(h.get('note') or '').strip()
                 break
         # 최신 전달(TRANSFER) 요약 1줄: 'vN 전달 · M/D HH:MM · 이름' (이미 로드된 history 파생, 추가 쿼리 없음).
@@ -445,13 +539,32 @@ def erp_drawing_workbench_dashboard():
             'CANCEL_TRANSFER': '전달 취소', 'CONFIRM_RECEIPT': '수령 확정',
             'ERP_ORDER_CHANGED': '주문 변경',
         }.get(h_action, h_action or '-')
+        # 최근 이벤트 note 는 write-time 고정본이라 2026-07-16 이전 엔트리에 raw JSON 이 박제돼 있다.
+        # 실행판(상세)과 동일하게 렌더마다 changes 를 재변환해 표시 문자열을 만든다(추가 쿼리 없음).
+        # latest_event_parts: 같은 재변환 결과의 조각 리스트(PC 목록 세로 스택·접기용).
+        # 비변경 이벤트는 빈 리스트 → 템플릿이 기존 note 1줄 표기로 폴백한다.
+        _last_changes = (last_event or {}).get('changes')
+        if h_action == 'ERP_ORDER_CHANGED' and isinstance(_last_changes, list) and _last_changes:
+            latest_event_parts = _change_parts(_last_changes)
+            latest_event_note = summarize_changes(_last_changes)
+            latest_event_note_full = join_changes_text(_last_changes)
+        else:
+            latest_event_parts = []
+            latest_event_note = str((last_event or {}).get('note') or '')
+            latest_event_note_full = latest_event_note
         order_change_pending = is_order_change_pending(sd)
-        sla_level = '지연' if alerts.get('drawing_overdue') else ('오늘 마감' if due_today else '정상')
+        sla_level = _drawing_row_sla_level(alerts.get('construction_days'), drawing_status)
         search_hay = ' '.join([
             str(o.id), str(customer_name), str(manager_name), str(assignee_text),
             str((last_event or {}).get('note') or ''),
             '주문변경' if order_change_pending else '',
         ]).lower()
+
+        # 태블릿 전체화면 뷰어용 이미지 목록. 행당 OrderAttachment 조회는 최대 1회로 불변
+        # (기존 resolve_row_thumbnail_url 과 동일 조회 — 썸네일은 이 목록에서 파생).
+        image_files = resolve_row_image_list(
+            o.id, drawing_files, db, mobile_v2_active=mobile_v2_active
+        )
 
         construction_date = _resolve_construction_date_display(o, sd)
         # 제품 요약(고객·제품 카드용) — 이미 로드된 sd['items']에서 파생(추가 쿼리 없음).
@@ -473,13 +586,15 @@ def erp_drawing_workbench_dashboard():
             'no_assignee': not has_assignee,
             'measurement_assignee_text': measurement_assignee_text,
             'drawing_status': drawing_status,
-            'drawing_status_label': _drawing_status_label(drawing_status),
+            'drawing_status_label': _drawing_row_status_label(drawing_status, has_assignee),
             'file_count': len(drawing_files),
             'transfer_round': transfer_round,
             'pending_count': pending_count,
-            'thumbnail_url': resolve_row_thumbnail_url(
-                o.id, drawing_files, db, mobile_v2_active=mobile_v2_active
-            ),
+            'thumbnail_url': pick_row_thumbnail_url(image_files),
+            # 뷰어 파일 목록(이미지만 — 비이미지 전달본은 뷰어 대상 밖, 카드 탭=시트 폴백).
+            'drawing_files': image_files,
+            'can_confirm_receipt_perm': can_review_perm,
+            'can_request_revision': can_review_perm,
             'target_no': latest_request_no,
             'turn_label': turn['label'],
             'turn_sub': turn['sub'],
@@ -487,17 +602,22 @@ def erp_drawing_workbench_dashboard():
             'primary_action_label': primary_action['label'],
             'primary_action_icon': primary_action['icon'],
             'next_action': _drawing_next_action_text(drawing_status, has_assignee),
+            'next_action_tone': _drawing_next_action_tone(drawing_status, has_assignee),
             'latest_event_at': (last_event or {}).get('transferred_at') or (last_event or {}).get('at') or '-',
             'latest_event_label': h_action_label,
-            'latest_event_note': (last_event or {}).get('note') or '',
+            'latest_event_action': h_action,
+            'latest_event_note': latest_event_note,
+            'latest_event_note_full': latest_event_note_full,
+            'latest_event_parts': latest_event_parts,
             'latest_transfer_line': latest_transfer_line,
             'latest_request_note': latest_request_note,
             'sla_level': sla_level,
-            'is_overdue': bool(alerts.get('drawing_overdue')),
+            'is_overdue': sla_level == '지연',
             'due_today': due_today,
             # 시공 D-day(영업일 기준, 미정=None) + D-3 이내 플래그(시공 임박순 정렬·KPI·필터 소스).
             'construction_days': alerts.get('construction_days'),
             'construction_d3': bool(alerts.get('construction_d3')),
+            'construction_badge_level': _construction_badge_level(alerts.get('construction_days')),
             'unread_count': unchecked_requests,
             'order_change_pending': order_change_pending,
             'my_todo': my_todo,
@@ -509,8 +629,9 @@ def erp_drawing_workbench_dashboard():
     stats = {'total': len(rows), 'WAITING': 0, 'IN_PROGRESS': 0, 'RETURNED': 0, 'TRANSFERRED': 0, 'CONFIRMED': 0, 'overdue': 0, 'unread': 0, 'd3': 0, 'pending_transfer': 0}
     for r in rows:
         status = (r.get('drawing_status') or 'WAITING').upper()
+        # 대기중 = PENDING && 담당 미지정 / 작업중 = PENDING && 담당 지정(미전달 작업분).
         if status == 'PENDING':
-            status = 'WAITING'
+            status = 'WAITING' if r.get('no_assignee') else 'IN_PROGRESS'
         if status in stats:
             stats[status] += 1
         if r.get('is_overdue'):
@@ -535,6 +656,8 @@ def erp_drawing_workbench_dashboard():
             rows = [r for r in rows if r.get('unread_count', 0) > 0]
         if due_today_only:
             rows = [r for r in rows if r.get('due_today')]
+        if overdue_only:
+            rows = [r for r in rows if r.get('is_overdue')]
         if dday3_only:
             rows = [r for r in rows if r.get('construction_d3')]
         if pending_only:
@@ -545,10 +668,15 @@ def erp_drawing_workbench_dashboard():
             rows = [r for r in rows if q in (r.get('search_hay') or '')]
 
         if status_filter:
-            def _match_status(row_status):
-                s = (row_status or '').upper()
-                return s in ('WAITING', 'PENDING') if status_filter == 'WAITING' else s == status_filter
-            rows = [r for r in rows if _match_status(r.get('drawing_status') or '')]
+            def _match_status(row: dict[str, Any]) -> bool:
+                """WAITING/IN_PROGRESS 는 PENDING 을 담당 지정 여부로 갈라 매칭한다."""
+                s = (row.get('drawing_status') or '').upper()
+                if status_filter == 'WAITING':
+                    return s == 'WAITING' or (s == 'PENDING' and bool(row.get('no_assignee')))
+                if status_filter == 'IN_PROGRESS':
+                    return s == 'IN_PROGRESS' or (s == 'PENDING' and not row.get('no_assignee'))
+                return s == status_filter
+            rows = [r for r in rows if _match_status(r)]
 
     rows.sort(key=lambda r: (
         0 if r.get('order_change_pending') else 1,
@@ -558,28 +686,35 @@ def erp_drawing_workbench_dashboard():
     ))
 
     if sort_by:
+        # sort_by 는 아래 my_todo 핀 게이트의 판정 소스라 원본 유지 — 접두사 제거본은 sort_key.
         reverse = sort_by.startswith('-')
-        sort_by = sort_by[1:] if reverse else sort_by
-        if sort_by == 'sla':
-            rows.sort(key=lambda r: (0 if r.get('is_overdue') else (1 if r.get('due_today') else 2), -int(r.get('id') or 0)), reverse=reverse)
-        elif sort_by == 'status':
-            status_order = {'RETURNED': 1, 'TRANSFERRED': 2, 'IN_PROGRESS': 3, 'WAITING': 4, 'CONFIRMED': 5}
+        sort_key = sort_by[1:] if reverse else sort_by
+        if sort_key == 'sla':
+            # 표시 뱃지(sla_level)와 같은 축으로 정렬하고, 동급은 시공일 임박순으로 가른다.
+            sla_rank = {'지연': 0, '임박': 1, '정상': 2}
+            rows.sort(key=lambda r: (sla_rank.get(r.get('sla_level'), 9), r.get('construction_days') if r.get('construction_days') is not None else 9999, -int(r.get('id') or 0)), reverse=reverse)
+        elif sort_key == 'status':
+            # PENDING 은 표시상 대기중/작업중으로 갈리지만 drawing_status 원본은 PENDING —
+            # 맵에 없으면 99로 밀려 정렬이 무의미해지므로 IN_PROGRESS 와 동급으로 둔다.
+            status_order = {'RETURNED': 1, 'TRANSFERRED': 2, 'IN_PROGRESS': 3, 'PENDING': 3, 'WAITING': 4, 'CONFIRMED': 5}
             rows.sort(key=lambda r: (status_order.get(r.get('drawing_status'), 99), -int(r.get('id') or 0)), reverse=reverse)
-        elif sort_by == 'updated_at':
+        elif sort_key == 'updated_at':
             rows.sort(key=lambda r: r.get('latest_event_at') or '', reverse=not reverse)
-        elif sort_by == 'unread':
+        elif sort_key == 'unread':
             rows.sort(key=lambda r: (-int(r.get('unread_count') or 0), -int(r.get('id') or 0)), reverse=reverse)
-        elif sort_by == 'id':
+        elif sort_key == 'id':
             rows.sort(key=lambda r: int(r.get('id') or 0), reverse=reverse)
-        elif sort_by == 'schedule':
+        elif sort_key == 'schedule':
             # 시공일 임박순: 시공 D-day 오름차순(임박·지연 먼저), 미정은 맨 뒤.
             rows.sort(
                 key=lambda r: (0, r['construction_days']) if r.get('construction_days') is not None else (1, 0),
                 reverse=reverse,
             )
 
-    # 모바일 단일 리스트 무한스크롤: 정렬 무관 '내 차례'를 항상 앞으로(안정 정렬로 그룹 보존).
-    rows.sort(key=lambda r: 0 if r.get('my_todo') else 1)
+    # 모바일 기본 목록(무한스크롤) 전용 핀: '내 차례'를 앞으로(안정 정렬로 그룹 보존).
+    # 명시 정렬(?sort=)이 있으면 사용자가 고른 순서를 덮지 않도록 생략한다.
+    if not sort_by:
+        rows.sort(key=lambda r: 0 if r.get('my_todo') else 1)
 
     total_count = len(rows)
     total_pages = max(1, (total_count + per_page - 1) // per_page) if per_page > 0 else 1
@@ -599,7 +734,7 @@ def erp_drawing_workbench_dashboard():
             stats=stats,
             pagination={'page': page, 'per_page': per_page, 'total_count': total_count, 'total_pages': total_pages, 'has_prev': page > 1, 'has_next': page < total_pages},
             sort_by=request.args.get('sort') or '',
-            filters={'q': q_raw, 'status': status_filter, 'mine': '1' if mine_only else '', 'unread': '1' if unread_only else '', 'due_today': '1' if due_today_only else '', 'assignee': assignee_filter_raw, 'dday3': '1' if dday3_only else '', 'pending': '1' if pending_only else ''},
+            filters={'q': q_raw, 'status': status_filter, 'mine': '1' if mine_only else '', 'unread': '1' if unread_only else '', 'due_today': '1' if due_today_only else '', 'overdue': '1' if overdue_only else '', 'assignee': assignee_filter_raw, 'dday3': '1' if dday3_only else '', 'pending': '1' if pending_only else ''},
             can_edit_erp=can_edit_erp(current_user),
             erp_order_enabled=True,
             erp_mine_only=mine_only,
@@ -736,7 +871,7 @@ def erp_drawing_workbench_detail(order_id):
                     and int(by_user_raw) == int(current_user_id)
                 )
             except Exception:
-                pass
+                pass  # failopen: intentional: 전달취소 권한 파싱 실패 시 False 유지
     # 전달취소는 표시상 도면팀+관리자로 한정 — self-cancel 레거시 분기(by_user_id 일치)가
     # 팀 무관하게 통과시키던 문제를 최종 게이트로 봉합(과거 데이터 호환은 위 분기가 유지).
     can_cancel_transfer = bool(can_cancel_transfer and is_transfer_authorized_team)

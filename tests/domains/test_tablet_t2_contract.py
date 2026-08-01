@@ -115,7 +115,7 @@ def test_mobile_surfaces_parent_cachebuster_bumped() -> None:
     the prior baseline (T0 교훈: 자식 범프=부모 내용 변경=부모도 범프).
     W9=ae → W11=af → W12=ag → W14=ah."""
     layout_head = _read("templates/partials/shared/layout_head.html")
-    assert "foms-mobile-surfaces.css') }}?v=20260722c" in layout_head
+    assert "foms-mobile-surfaces.css') }}?v=20260723i" in layout_head
     assert "foms-mobile-surfaces.css') }}?v=20260711ag" not in layout_head
 
 
@@ -320,11 +320,24 @@ def test_kanban_groups_read_model_bucket_via_row_stage() -> None:
 
 
 def test_kanban_move_buttons_reuse_existing_production_api() -> None:
-    """열 이동 = 신규 API 없이 기존 생산 워크플로 엔드포인트 재사용(production/orders.py)."""
+    """열 이동 = 신규 API 없이 기존 생산 워크플로 엔드포인트 재사용(production/orders.py).
+    P3: 제작완료 열 = 수정 제작(/production/rework) 되돌림 엔드포인트."""
     js = _read(KANBAN_JS)
     assert "/api/orders/" in js
     assert "/production/start" in js
     assert "/production/complete" in js
+    assert "/production/rework" in js
+
+
+def test_kanban_rework_badge_and_move_button_rendered() -> None:
+    """P3: 제작완료 열 = 수정 제작(rework) 이동 버튼 + active 카드 재제작 배지
+    (보류 배지와 동일 문법: fa-rotate-left '재제작' 칩)."""
+    body = _read(KANBAN_PARTIAL)
+    assert "'move': 'rework'" in body
+    assert 'data-kanban-action="rework"' in body
+    assert "foms-kanban-card__rework" in body
+    assert "fa-rotate-left" in body
+    assert "재제작" in body
 
 
 def test_kanban_js_has_idempotent_guard() -> None:
@@ -383,10 +396,68 @@ def test_kanban_css_is_landscape_only_no_portrait_token() -> None:
 
 
 def test_kanban_css_confirmed_change_has_persistent_border() -> None:
-    """R6/R7: 확인됨 변경 카드(data-change-history=1, is-changed 아님)에 상설 정적 테두리 —
-    원거리 식별용. 미확인(.is-changed danger 빨강 펄스)과 파스텔 핑크로 위계 구분."""
+    """R6/R8: 확인됨 변경 카드(data-change-history=1, is-changed 아님)에 상설 정적 테두리 —
+    원거리 식별용. 미확인(.is-changed danger 빨강 펄스)과 파스텔 라벤더로 위계 구분."""
     css = _norm(_read(KANBAN_CSS))
     assert '.foms-kanban-card[data-change-history="1"]:not(.is-changed)' in css
+
+
+def test_kanban_css_kpi_strip_is_five_column_flex_grow() -> None:
+    """D-a/D-b: 통합 상단 바 KPI 는 5타일 1줄(repeat(5)) + flex:1 로 pcbar 가운데 확장.
+    5번째 보류 타일 줄바꿈(2줄) 회귀 차단."""
+    css = _norm(_read(KANBAN_CSS))
+    assert (
+        ".erp-pro-alerts { flex: 1 1 auto; "
+        "grid-template-columns: repeat(5, minmax(0, 1fr))" in css
+    )
+
+
+def test_kanban_css_col_body_cap_lowered_for_chrome_shrink() -> None:
+    """D-d: pcbar+KPI 통합·필터 접기로 상단 크롬이 줄어든 만큼 열 body 캡 상수를 실측 조정
+    (240→265). 크롬(177) + 열 헤더 + 상하 패딩을 함께 상쇄해야 board 가 뷰포트를 안 넘어
+    페이지 스크롤이 없다 — 카드 17건 실측으로 board_bottom 이 뷰포트 안에 드는 확정값이
+    265(과소값은 오히려 페이지 스크롤 유발). 240 회귀 차단."""
+    css = _norm(_read(KANBAN_CSS))
+    assert "max-height: calc(100dvh - 265px)" in css
+    assert "calc(100dvh - 240px)" not in css
+
+
+def test_kanban_body_has_no_label_print_button() -> None:
+    """F-2: 미구현 전역 라벨 인쇄 버튼(disabled) 제거 — pcbar actions/label 마크업 부재.
+    통합 바가 [lead][KPI] 2요소로 1줄 안정."""
+    body = _read(KANBAN_PARTIAL)
+    assert "foms-prod-pcbar__actions" not in body
+    assert "foms-prod-pcbar__label" not in body
+
+
+def test_kanban_css_has_no_label_print_rules() -> None:
+    """F-2: 사용처 없는 라벨 인쇄 CSS 규칙 정리 — pcbar__actions/__label 셀렉터 부재."""
+    css = _read(KANBAN_CSS)
+    assert "foms-prod-pcbar__actions" not in css
+    assert "foms-prod-pcbar__label" not in css
+
+
+def test_kanban_css_fullscreen_hides_chrome_and_expands_board() -> None:
+    """F-3: 전체화면(.tablet-prod-board.is-fullscreen)에서 통합 바·필터 바 은닉 + 플로팅 복원
+    버튼 표시 + 열 body 캡 확대(크롬 없으니 복원 버튼 여백만). 코호트 게이트 유지."""
+    css = _norm(_read(KANBAN_CSS))
+    assert CORE_MEDIA_QUERY in css
+    # 통합 바·필터 바 은닉.
+    assert (
+        "body.erp-mobile-v2-layout .tablet-prod-board.is-fullscreen .foms-prod-pcbar, "
+        "body.erp-mobile-v2-layout .tablet-prod-board.is-fullscreen .tablet-prod-filter "
+        "{ display: none" in css
+    )
+    # 플로팅 복원 버튼 전체화면 시 표시.
+    assert (
+        "body.erp-mobile-v2-layout .tablet-prod-board.is-fullscreen "
+        ".tablet-prod-fullscreen-exit {" in css
+    )
+    # 열 body 캡 확대(일반 265 → 크롬 사라져 열 헤더+패딩만 상쇄). 카드 15건 실측 확정 90.
+    assert (
+        "body.erp-mobile-v2-layout .tablet-prod-board.is-fullscreen .foms-kanban-col__body "
+        "{ max-height: calc(100dvh - 90px)" in css
+    )
 
 
 # =====================================================================
@@ -641,7 +712,7 @@ def test_w16_layout_head_loads_bundle_for_v2_and_v3_cohort() -> None:
     layout_head = _read("templates/partials/shared/layout_head.html")
     idx = layout_head.find("foms-tablet-bundle.css")
     assert idx != -1, "layout_head 에 태블릿 번들 <link> 부재"
-    assert "foms-tablet-bundle.css') }}?v=20260722h" in layout_head
+    assert "foms-tablet-bundle.css') }}?v=20260727d" in layout_head
     # Anchor on the nearest preceding `{% if %}` (the bundle gate) rather than a fixed
     # char window — the gate string grows over time (2026-07-12: +/wdcalculator arm).
     gate_start = layout_head.rfind("{% if", 0, idx)
@@ -704,8 +775,11 @@ def test_as_pc_table_main_row_exposes_side_sheet_source() -> None:
     """AS PC 테이블 본행이 data-order-id 를 노출(side-sheet 행 탭 소스). 마크업은 이미 존재 —
     이 소스가 사라지면 AS 시트가 무동작하므로 잠근다(템플릿 변경 없음)."""
     body = _norm(_read(AS_DASHBOARD_BODY))
-    assert 'class="erp-pro-table-wrapper d-none d-md-block"' in body
-    assert '<tr data-order-id="{{ r.id }}">' in body
+    # 래퍼는 클래스 토큰 존재로 판정 — 헤드 고정(erp-as-table-wrapper) 등 형제 토큰 추가에 면역
+    assert 'erp-pro-table-wrapper' in body
+    assert 'd-none d-md-block' in body
+    # id="as-row-<id>" 는 드리프트 배너 점프 앵커(2026-07-30) — data-order-id 노출 계약은 불변.
+    assert '<tr id="as-row-{{ r.id }}" data-order-id="{{ r.id }}">' in body
 
 
 def test_history_main_row_has_side_sheet_source_class_and_order_id() -> None:
@@ -1249,3 +1323,51 @@ def test_tablet_construction_viewport_offset_is_tight() -> None:
     )
     assert m, "시공 workmode min-height viewport calc 부재"
     assert int(m.group(1)) <= 4, f"시공 workmode offset 과다: {m.group(1)}rem"
+
+
+# =====================================================================
+# E4 — 도면 실행판(workbench_detail_body) 태블릿 가로 보정 레이어 (2026-07-27)
+# E4-0 조사 결과 DOM 재배치 불필요 — CSS 오버라이드 레이어만으로 그리드/썸네일/터치
+# 타깃을 보정한다(마크업/인라인 <style> 무변경). 992.02px 경계로 기존 실행판 인라인
+# breakpoint(max-width: 992px)와 중첩을 피한다.
+# =====================================================================
+
+DRAWING_DETAIL_CSS = "static/css/foundation/foms-tablet-drawing-detail.css"
+DRAWING_DETAIL_MEDIA_QUERY = (
+    "@media (min-width: 992.02px) and (orientation: landscape) and (pointer: coarse)"
+)
+
+
+def test_drawing_detail_bundle_import() -> None:
+    """번들이 실행판 보정 CSS 를 @import."""
+    bundle = _read(TABLET_BUNDLE_CSS)
+    assert '@import url("foms-tablet-drawing-detail.css?v=' in bundle
+
+
+def test_drawing_detail_css_exists_with_992_02_landscape_coarse_query() -> None:
+    """신규 CSS 는 992.02px 경계(기존 실행판 인라인 max-width:992px 와 중첩 회피) +
+    landscape + coarse 3조건 미디어 문자열을 그대로 가지고, max-width 는 쓰지 않는다."""
+    css = _read(DRAWING_DETAIL_CSS)
+    assert DRAWING_DETAIL_MEDIA_QUERY in css
+    assert "max-width" not in css
+
+
+def test_drawing_detail_css_scoped_to_cohort_with_touch_targets() -> None:
+    """모든 규칙이 body.erp-mobile-v2-layout 접두(특이도 0,2,0)로 인라인 <style>
+    (0,1,0)을 이기고, 결정바 버튼/접이식 섹션 헤더가 44px 터치 타깃을 갖는다."""
+    css = _norm(_read(DRAWING_DETAIL_CSS))
+    assert "body.erp-mobile-v2-layout .dw-detail-grid" in css
+    assert "body.erp-mobile-v2-layout .drawing-gateway-thumb-wrap" in css
+    assert "body.erp-mobile-v2-layout .drawing-gateway-thumb" in css
+    assert "body.erp-mobile-v2-layout .dw-sidebar-actions .btn { min-height: 44px" in css
+    assert (
+        "body.erp-mobile-v2-layout .dw-secondary-collapse > summary { min-height: 44px"
+        in css
+    )
+
+
+def test_drawing_detail_css_not_loaded_via_mobile_surfaces() -> None:
+    """미로드 사고 방지 계약: foms-mobile-surfaces.css 에는 실행판 보정 파일명이 없다
+    (로드는 오직 foms-tablet-bundle.css @import 경유)."""
+    surfaces = _read(MOBILE_SURFACES_CSS)
+    assert "foms-tablet-drawing-detail" not in surfaces

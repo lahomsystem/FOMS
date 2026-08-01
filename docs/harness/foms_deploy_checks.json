@@ -1,0 +1,21 @@
+{
+  "schema_version": 1,
+  "checks": {
+    "CUTOVER_SIDEFX_COMPAT": {
+      "owner_packet": "CUTOVER-MODE-01",
+      "command_template": "python tools/ops/check_feature_cutover_modes.py --manifest docs/harness/foms_feature_mode_matrix.json --family {family} --check CUTOVER_SIDEFX_COMPAT"
+    },
+    "CUTOVER_STORAGE_DRAIN": {
+      "owner_packet": "CUTOVER-MODE-01",
+      "command_template": "python tools/ops/check_feature_cutover_modes.py --manifest docs/harness/foms_feature_mode_matrix.json --family UPLOAD --check CUTOVER_STORAGE_DRAIN --stability-seconds 120"
+    },
+    "CUTOVER_NOTIFICATION_DRAIN": {
+      "owner_packet": "CUTOVER-MODE-01",
+      "command_template": "python tools/ops/check_feature_cutover_modes.py --manifest docs/harness/foms_feature_mode_matrix.json --family NOTIFICATION_DELIVERY --check CUTOVER_NOTIFICATION_DRAIN --stability-seconds 120"
+    },
+    "CUTOVER_NONE_QUIET": {
+      "owner_packet": "CUTOVER-MODE-01",
+      "command_template": "python tools/ops/check_feature_cutover_modes.py --manifest docs/harness/foms_feature_mode_matrix.json --family {family} --check CUTOVER_NONE_QUIET --stability-seconds 30"
+    }
+  }
+}

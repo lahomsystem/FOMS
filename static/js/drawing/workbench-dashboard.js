@@ -10,6 +10,37 @@
   var filterSubmitTimeout = null;
   var initAbortController = null;
 
+  // P0-21: 도면팀 사용자 목록(User.name/team 은 사용자가 자기수정 가능 → cross-user
+  // stored XSS). innerHTML 문자열 조립 대신 DOM node + textContent 로 렌더하고,
+  // checkbox value 는 정수 id 만 허용(integer allowlist).
+  function renderDraftsmanCheckboxList(listEl, users, checkboxName, checkedIds) {
+    listEl.replaceChildren();
+    (users || []).forEach(function (u) {
+      var uid = Number(u && u.id);
+      if (!Number.isInteger(uid)) return;
+      var label = document.createElement('label');
+      label.className = 'list-group-item d-flex gap-2';
+      var input = document.createElement('input');
+      input.className = 'form-check-input flex-shrink-0';
+      input.type = 'checkbox';
+      input.value = String(uid);
+      input.name = checkboxName;
+      if (checkedIds && checkedIds.includes(u.id)) input.checked = true;
+      var span = document.createElement('span');
+      var strong = document.createElement('strong');
+      strong.textContent = (u && u.name) || '';
+      var small = document.createElement('small');
+      small.className = 'text-muted ms-1';
+      small.textContent = '(' + ((u && u.team) || '') + ')';
+      span.appendChild(strong);
+      span.appendChild(document.createTextNode(' '));
+      span.appendChild(small);
+      label.appendChild(input);
+      label.appendChild(span);
+      listEl.appendChild(label);
+    });
+  }
+
   function isDrawingWorkbenchDashboard() {
     return !!document.querySelector('#main-content .dw-process-map, .dw-process-map');
   }
@@ -93,14 +124,7 @@
     if (users.length === 0) {
       listEl.innerHTML = '<div class="text-muted text-center">도면팀 사용자가 없습니다.</div>';
     } else {
-      listEl.innerHTML = users.map(function (u) {
-        return (
-          '<label class="list-group-item d-flex gap-2">' +
-          '<input class="form-check-input flex-shrink-0" type="checkbox" value="' + u.id + '" name="batch_draftsman_user">' +
-          '<span><strong>' + u.name + '</strong> <small class="text-muted ms-1">(' + u.team + ')</small></span>' +
-          '</label>'
-        );
-      }).join('');
+      renderDraftsmanCheckboxList(listEl, users, 'batch_draftsman_user', null);
     }
   }
 
@@ -147,15 +171,7 @@
     if (users.length === 0) {
       listEl.innerHTML = '<div class="text-muted text-center">도면팀 사용자가 없습니다.</div>';
     } else {
-      listEl.innerHTML = users.map(function (u) {
-        var isChecked = currentAssigneeIds.includes(u.id) ? 'checked' : '';
-        return (
-          '<label class="list-group-item d-flex gap-2">' +
-          '<input class="form-check-input flex-shrink-0" type="checkbox" value="' + u.id + '" name="single_draftsman_user" ' + isChecked + '>' +
-          '<span><strong>' + u.name + '</strong> <small class="text-muted ms-1">(' + u.team + ')</small></span>' +
-          '</label>'
-        );
-      }).join('');
+      renderDraftsmanCheckboxList(listEl, users, 'single_draftsman_user', currentAssigneeIds);
     }
   }
 
@@ -191,19 +207,24 @@
     } else {
       params.delete('status');
     }
-    // Status stage click replaces quick filters (미확인/오늘 마감); do not stack.
+    // Status stage click replaces quick filters (미확인/지연/오늘 마감); do not stack.
     params.delete('unread');
     params.delete('due_today');
+    params.delete('overdue');
     params.delete('page');
     window.location.href = window.location.pathname + '?' + params.toString();
   }
 
   function navigatePipelineQuickFilter(filterType) {
     var params = new URLSearchParams(window.location.search);
+    // Quick filters are mutually exclusive; clear siblings before setting.
+    params.delete('unread');
+    params.delete('due_today');
+    params.delete('overdue');
     if (filterType === 'unread') {
       params.set('unread', '1');
     } else if (filterType === 'overdue') {
-      params.set('due_today', '1');
+      params.set('overdue', '1');
     }
     params.delete('page');
     window.location.href = window.location.pathname + '?' + params.toString();
@@ -271,9 +292,14 @@
       if (e.target.closest('a, button, input, select, label')) {
         return;
       }
+      var link = row.querySelector('a.js-row-link');
+      if (link) {
+        link.click(); // erp-shell 인터셉트 → fragment swap (풀 리로드 회피)
+        return;
+      }
       var href = row.getAttribute('data-href');
       if (href) {
-        window.location.href = href;
+        window.location.href = href; // 앵커 부재 폴백
       }
     });
 

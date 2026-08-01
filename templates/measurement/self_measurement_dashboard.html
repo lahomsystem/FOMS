@@ -109,6 +109,7 @@
 {% endblock %}
 
 {% block content %}
+{% from 'partials/shared/status_select_options.html' import assignable_status_options with context %}
 <div class="erp-pro self-measurement-dashboard">
     <!-- Modern Header -->
     <header class="erp-pro-header">
@@ -250,16 +251,7 @@
                                         <select class="form-select form-select-sm inline-edit status-dropdown" 
                                                 data-order-id="{{ order.id }}"
                                                 data-field="status">
-                                            {% if order.status and order.status not in LOGISTICS_BOARD_STATUS %}
-                                                <option value="{{ order.status }}" selected>
-                                                    {{ STATUS.get(order.status, order.status) }}
-                                                </option>
-                                            {% endif %}
-                                            {% for status_code, status_name in LOGISTICS_BOARD_STATUS.items() %}
-                                                <option value="{{ status_code }}" {% if order.status == status_code %}selected{% endif %}>
-                                                    {{ status_name }}
-                                                </option>
-                                            {% endfor %}
+                                            {{ assignable_status_options(LOGISTICS_BOARD_STATUS, order.status) }}
                                         </select>
                                     </td>
                                     <td>
@@ -428,16 +420,7 @@
                                         <select class="form-select form-select-sm inline-edit status-dropdown" 
                                                 data-order-id="{{ order.id }}"
                                                 data-field="status">
-                                            {% if order.status and order.status not in LOGISTICS_BOARD_STATUS %}
-                                                <option value="{{ order.status }}" selected>
-                                                    {{ STATUS.get(order.status, order.status) }}
-                                                </option>
-                                            {% endif %}
-                                            {% for status_code, status_name in LOGISTICS_BOARD_STATUS.items() %}
-                                                <option value="{{ status_code }}" {% if order.status == status_code %}selected{% endif %}>
-                                                    {{ status_name }}
-                                                </option>
-                                            {% endfor %}
+                                            {{ assignable_status_options(LOGISTICS_BOARD_STATUS, order.status) }}
                                         </select>
                                     </td>
                                     <td>
@@ -606,16 +589,7 @@
                                         <select class="form-select form-select-sm inline-edit status-dropdown" 
                                                 data-order-id="{{ order.id }}"
                                                 data-field="status">
-                                            {% if order.status and order.status not in LOGISTICS_BOARD_STATUS %}
-                                                <option value="{{ order.status }}" selected>
-                                                    {{ STATUS.get(order.status, order.status) }}
-                                                </option>
-                                            {% endif %}
-                                            {% for status_code, status_name in LOGISTICS_BOARD_STATUS.items() %}
-                                                <option value="{{ status_code }}" {% if order.status == status_code %}selected{% endif %}>
-                                                    {{ status_name }}
-                                                </option>
-                                            {% endfor %}
+                                            {{ assignable_status_options(LOGISTICS_BOARD_STATUS, order.status) }}
                                         </select>
                                     </td>
                                     <td>
@@ -739,16 +713,7 @@
                                         <select class="form-select form-select-sm inline-edit status-dropdown" 
                                                 data-order-id="{{ order.id }}"
                                                 data-field="status">
-                                            {% if order.status and order.status not in LOGISTICS_BOARD_STATUS %}
-                                                <option value="{{ order.status }}" selected>
-                                                    {{ STATUS.get(order.status, order.status) }}
-                                                </option>
-                                            {% endif %}
-                                            {% for status_code, status_name in LOGISTICS_BOARD_STATUS.items() %}
-                                                <option value="{{ status_code }}" {% if order.status == status_code %}selected{% endif %}>
-                                                    {{ status_name }}
-                                                </option>
-                                            {% endfor %}
+                                            {{ assignable_status_options(LOGISTICS_BOARD_STATUS, order.status) }}
                                         </select>
                                     </td>
                                     <td>
@@ -831,7 +796,7 @@
 <script>
 document.addEventListener('DOMContentLoaded', function() {
     // 검색 결과 하이라이트 및 스크롤
-    const searchQuery = "{{ search_query|safe }}";
+    const searchQuery = {{ (search_query or '')|tojson }};
     if (searchQuery) {
         const rows = document.querySelectorAll('tr[data-order-id]');
         let firstMatch = null;

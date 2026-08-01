@@ -1,6 +1,7 @@
 """Search endpoints for attachment metadata."""
 
 from flask import jsonify, request
+from foms.services.error_logging import log_handled_exception
 
 from foms.web.auth import login_required
 from foms.api.files.blueprint import attachments_bp
@@ -85,10 +86,7 @@ def api_search_attachments():
             }
         )
     except Exception as e:
-        import traceback
-
-        print(f"첨부 검색 오류: {e}")
-        print(traceback.format_exc())
+        log_handled_exception()
         return jsonify({"success": False, "message": str(e)}), 500
 
 

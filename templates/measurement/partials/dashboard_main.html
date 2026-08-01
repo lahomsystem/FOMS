@@ -148,7 +148,6 @@
               .measurement-column-toolbar {
                 display: flex;
                 align-items: center;
-                justify-content: flex-end;
                 gap: 12px;
                 flex-wrap: wrap;
                 margin-bottom: 8px;
@@ -156,11 +155,36 @@
 
               .measurement-column-reset-btn {
                 white-space: nowrap;
+                margin-left: auto;
+              }
+
+              .measurement-date-display {
+                display: flex;
+                align-items: baseline;
+                gap: 8px;
+                flex-wrap: wrap;
+              }
+
+              .measurement-date-display__label {
+                font-size: 0.75rem;
+                font-weight: 600;
+                color: #6c757d;
+                white-space: nowrap;
+              }
+
+              .measurement-date-display__value {
+                font-size: 1.4rem;
+                font-weight: 700;
+                color: #ffffff;
+                background-color: #0d6efd;
+                padding: 4px 16px;
+                border-radius: 999px;
+                line-height: 1.3;
               }
 
               .measurement-table {
                 width: 100%;
-                min-width: calc(1220px);
+                min-width: calc(1120px);
                 font-size: 0.875rem;
                 table-layout: fixed;
               }
@@ -230,7 +254,7 @@
               /* 모바일: 컬럼 폭은 프리셋이 담당, 화면은 가로 스크롤 기준으로 유지 */
               @media (max-width: 768px) {
                 .measurement-table {
-                  min-width: calc(1280px);
+                  min-width: calc(1180px);
                 }
               }
 
@@ -323,6 +347,35 @@
                 background-color: var(--manager-bg-color, inherit) !important;
                 background: var(--manager-bg-color, inherit) !important;
                 color: #000000 !important;
+              }
+
+              /* 실측 시간 셀: 오전/오후/종일 파스텔 배경 (색은 3개로 고정 - CSS 속성 선택자로 처리) */
+              .meas-time-cell[data-daypart="am"] {
+                background-color: #e3f2fd;
+              }
+
+              .meas-time-cell[data-daypart="pm"] {
+                background-color: #fff3e0;
+              }
+
+              .meas-time-cell[data-daypart="allday"] {
+                background-color: #e8f5e9;
+              }
+
+              /* hover 시 tr:hover 전역 회색 오버라이드(.measurement-table.table-hover>tbody>tr:hover>*)에 덮이지 않도록 유지 */
+              .table-hover tbody tr:hover td.meas-time-cell[data-daypart="am"],
+              .measurement-table tbody tr:hover td.meas-time-cell[data-daypart="am"] {
+                background-color: #e3f2fd !important;
+              }
+
+              .table-hover tbody tr:hover td.meas-time-cell[data-daypart="pm"],
+              .measurement-table tbody tr:hover td.meas-time-cell[data-daypart="pm"] {
+                background-color: #fff3e0 !important;
+              }
+
+              .table-hover tbody tr:hover td.meas-time-cell[data-daypart="allday"],
+              .measurement-table tbody tr:hover td.meas-time-cell[data-daypart="allday"] {
+                background-color: #e8f5e9 !important;
               }
 
               .measurement-panel-list {
@@ -441,12 +494,6 @@
               .measurement-panel-item.is-today {
                 border-color: #198754;
                 box-shadow: 0 0 0 1px rgba(25, 135, 84, 0.25);
-              }
-
-              /* 실측일 컬럼: 연분홍으로 눈에 띄게 */
-              .measurement-table td.measurement-date-cell {
-                background-color: #ffe4ec !important;
-                font-weight: 600;
               }
 
               .measurement-chevron {
@@ -649,7 +696,7 @@
                 }
 
                 .measurement-table {
-                  min-width: calc(1220px);
+                  min-width: calc(1120px);
                 }
 
                 .measurement-table thead {
@@ -676,6 +723,13 @@
               }
             </style>
             <div class="measurement-column-toolbar">
+              {% set _toolbar_date_value = (date_from ~ ' ~ ' ~ date_to) if use_date_range else selected_date %}
+              {% if (use_date_range and date_from and date_to) or (not use_date_range and selected_date) %}
+              <div class="measurement-date-display">
+                <span class="measurement-date-display__label"><i class="fas fa-calendar-day"></i> 실측일</span>
+                <span class="measurement-date-display__value">{{ _toolbar_date_value }}</span>
+              </div>
+              {% endif %}
               <button id="btn-reset-measurement-column-widths" type="button"
                 class="erp-pro-btn erp-pro-btn--outline measurement-column-reset-btn"
                 title="컬럼 폭을 기본값으로 초기화">
@@ -690,7 +744,6 @@
                 <col data-col-key="orderer" style="width: 110px;">
                 <col data-col-key="address" style="width: 190px;">
                 <col data-col-key="phone" style="width: 130px;">
-                <col data-col-key="measurement_date" style="width: 100px;">
                 <col data-col-key="meas_time" style="width: 110px;">
                 <col data-col-key="product" style="width: 190px;">
                 <col data-col-key="manager" style="width: 200px;">
@@ -702,7 +755,6 @@
                   <th data-col-key="orderer" style="border-right: 1px solid #e0e0e0;">발주사</th>
                   <th data-col-key="address" style="border-right: 1px solid #e0e0e0;">주소</th>
                   <th data-col-key="phone" style="border-right: 1px solid #e0e0e0;">전화번호</th>
-                  <th data-col-key="measurement_date" style="border-right: 1px solid #e0e0e0;">실측일</th>
                   <th data-col-key="meas_time" style="border-right: 1px solid #e0e0e0;">시간</th>
                   <th class="measurement-product-cell" data-col-key="product" style="border-right: 1px solid #e0e0e0;">제품</th>
                   <th data-col-key="manager">담당자</th>
@@ -718,7 +770,6 @@
                 {% set address = r.address %}
                 {% set phone = r.phone %}
                 {% set meas_time = r.measurement_time %}
-                {% set meas_date = r.measurement_date %}
                 {% set product = r.product %}
                 {% set manager = r.manager_name %}
                 {% set manager = (manager or '')|trim %}
@@ -795,16 +846,8 @@
                   <td class="editable-cell" data-field="phone" data-label="전화번호"
                     style="border-right: 1px solid #e0e0e0;">{{
                     phone|format_phone }}</td>
-                  <td class="measurement-date-cell" data-label="실측일"
-                    style="border-right: 1px solid #e0e0e0; white-space: nowrap;">
-                    {% set _parts = r.measurement_dates_display if r.measurement_dates_display is defined else [] %}
-                    {% for _d in _parts %}
-                    {% set _is_match = (not use_date_range and selected_date and _d == selected_date) or (use_date_range and date_from and date_to and _d >= date_from and _d <= date_to) %}
-                    <span class="badge {{ 'bg-primary' if _is_match else 'bg-secondary' }} me-1">{{ _d }}</span>
-                    {% endfor %}
-                    {% if not _parts %}-{% endif %}
-                  </td>
-                  <td data-label="시간" style="border-right: 1px solid #e0e0e0;">{{ meas_time or '-' }}</td>
+                  <td class="meas-time-cell" data-label="시간" data-daypart="{{ meas_time|meas_daypart or '' }}"
+                    style="border-right: 1px solid #e0e0e0;">{{ meas_time or '-' }}</td>
                   <td class="cell-wrap measurement-product-cell" data-label="제품"
                     style="border-right: 1px solid #e0e0e0;">{{ (product or
                     '-')|strip_product_w or '-' }}</td>
@@ -815,7 +858,7 @@
                 </tr>
                 <tr class="measurement-detail-row" id="detail-{{ r.id }}" data-order-id="{{ r.id }}"
                   style="display:none;" aria-hidden="true">
-                  <td colspan="9" class="erp-measurement-detail-cell">
+                  <td colspan="8" class="erp-measurement-detail-cell">
                     {%- set rsd = r.structured_data or {} %}
                     {%- set rsd_notes_raw = rsd.get('notes') %}
                     {%- set rsd_notes = rsd_notes_raw if rsd_notes_raw is mapping else {} %}
@@ -1010,7 +1053,7 @@
                 {% endfor %}
                 {% else %}
                 <tr>
-                  <td colspan="9" class="text-center text-muted py-4">데이터가 없습니다.</td>
+                  <td colspan="8" class="text-center text-muted py-4">데이터가 없습니다.</td>
                 </tr>
                 {% endif %}
               </tbody>

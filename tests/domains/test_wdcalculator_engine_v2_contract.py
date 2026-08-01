@@ -74,9 +74,10 @@ def test_leave_direct_clears_empty_fee_rows():
 
 def test_mobile_manual_name_full_width_guard():
     mobile = (ROOT / "static/css/wdcalculator/mobile.css").read_text(encoding="utf-8")
-    assert "base-manual-area > .mb-2" in mobile
-    assert ".base-manual-name" in mobile
-    assert "flex: 0 0 100%" in mobile.split("base-manual-area > .mb-2")[1].split("base-manual-30cm-col")[0]
+    stack = mobile.split("wd-field-stack: Field Form vertical stack marker")[1].split("직접 fee")[0]
+    assert "base-manual-area > .mb-2" in stack
+    assert ".base-manual-name" in stack
+    assert "width: 100%" in stack
 
 
 def test_wd_line_container_query_primitive():
@@ -86,7 +87,7 @@ def test_wd_line_container_query_primitive():
     assert "@container wd-line" in line
     assert "--wd-line-touch-h" in line
     assert "wd-line.css" in calc
-    assert "wd-line.css') }}?v=20260716i" in calc or "wd-line.css') }}?v=" in calc
+    assert "wd-line.css') }}?v=20260723a" in calc or "wd-line.css') }}?v=" in calc
 
 
 def test_t4_direct_mode_serializes_null_product():
@@ -145,3 +146,28 @@ def test_e5_binding_null_guard_kept():
 
 def test_mobile_manual_name_fallback():
     assert MOBILE.count("manualName") >= 2  # 1m·30cm 분기
+
+
+def test_mobile_mode_segment_toolbar_contract():
+    """모바일 툴바: 세그먼트 클래스 + select 숨김 클래스 + buildBaseToolbar 존재."""
+    assert "function buildBaseToolbar" in MOBILE
+    assert "wd-bc-mode-seg" in MOBILE
+    assert "wd-bc-mode-select-hidden" in MOBILE
+    assert "base-mode-btn" in MOBILE
+
+
+def test_mobile_field_form_stack_css_contract():
+    css = (ROOT / "static/css/wdcalculator/mobile.css").read_text(encoding="utf-8")
+    assert ".wd-bc-mode-seg" in css
+    assert ".wd-bc-mode-select-hidden" in css
+    assert "wd-field-price" in css or "base-manual-price30" in css
+    # 한줄 압착(contents로 30cm|1cm|W) 대신 전폭 스택 마커
+    assert "wd-field-stack" in css
+    assert "min-height: 48px" in css
+    assert "flex-direction: column" in css
+    assert "base-manual-area" in css
+    # Kill regression of one-line squeeze via display:contents
+    assert "display: contents !important" not in css
+    assert css.count("display: contents") == 0
+    # Legacy no-segment fallback: visible select fills toolbar row
+    assert ".wd-bc-toolbar .base-mode-select:not(.wd-bc-mode-select-hidden)" in css

@@ -45,6 +45,12 @@
   display: none;
 }
 
+/* sticky 헤드 래퍼(pcbar+subtabs, 카드 section 의 형제)도 base 숨김 — 코호트 @media 만이
+   표시한다(기존 base-hide 계약과 동일 패턴). 순서 계약 = MQ 앞. */
+.foms-as-compare-head {
+  display: none;
+}
+
 @media (min-width: 992px) and (orientation: landscape) and (pointer: coarse) {
 
   /* --- 배타: 데스크톱 테이블 은닉 + 대조 그리드 표시(동일 게이트 결합) --- */
@@ -57,6 +63,29 @@
     gap: var(--foms-space-3);
     padding: var(--foms-space-3) var(--foms-space-4) var(--foms-space-6);
     align-items: start;
+  }
+
+  /* --- sticky 헤드 전제: .erp-pro-card { overflow:hidden }(카드 라운드 클립)이 sticky 자손을
+     무력화한다 → 이 코호트에서만 해제. 코호트에선 데스크톱 테이블이 은닉되어(위) 카드 밖으로
+     넘칠 자식이 없어 시각 부작용 없음(페이지+코호트 스코프 한정, PC/폰/타 페이지 무영향). --- */
+  body.erp-mobile-v2-layout .erp-as-dashboard .erp-pro-card {
+    overflow: visible;
+  }
+
+  /* --- pcbar+subtabs sticky 헤드 래퍼: 카드 section(#foms-as-compare-surface) 의 형제(grid 밖)라
+     sticky 가 가능해졌다. 카드가 스크롤돼 아래로 지나가도 헤드가 뷰포트 상단(스크롤 컨테이너=
+     window/body)에 고정 — z-index 는 카드 위, 좌측 레일(--foms-z-action-bar=1040) 아래.
+     구분선(border-bottom)은 이 래퍼가 소유(아래 pcbar 자체 border-bottom 은 제거). --- */
+  body.erp-mobile-v2-layout .erp-as-dashboard .foms-as-compare-head {
+    position: sticky;
+    top: 0;
+    z-index: var(--foms-z-sticky);
+    display: flex;
+    flex-direction: column;
+    gap: var(--foms-space-3);
+    background: var(--erp-bg-card);
+    border-bottom: 1px solid var(--foms-border-subtle);
+    box-shadow: var(--foms-shadow-sm);
   }
 
   /* --- frame08: 코호트에서 PC 크롬(헤더/데스크톱 서브탭/필터) 은닉 → 클린 pcbar+chip 서브탭 대체.
@@ -362,21 +391,20 @@
   }
 
   /* ==========================================================================
-     frame08 크롬 — pcbar / chip 서브탭 / 방문 블록 / 완료 버튼 / 밀도(뷰) 3단.
-     pcbar·서브탭은 .foms-as-compare(grid) 의 grid-column:1/-1 자식 → 부모 base-hide 상속
-     (코호트에서만 표시, 별도 base-hide 불요). 터치 컨트롤 ≥44px(comfortable) 토큰 구동.
+     frame08 크롬 — pcbar / 검색 / chip 서브탭 / 방문 블록 / 완료 버튼 / 밀도(뷰) 3단.
+     pcbar·서브탭은 이제 .foms-as-compare-head(sticky 래퍼, grid 밖)의 자식이다 — 헤드 래퍼가
+     자체 base-hide 를 소유하고 코호트 @media 에서만 표시(위 base 구간 참조, 구 grid-column:1/-1
+     상속 패턴 폐기). 터치 컨트롤 ≥44px(comfortable) 토큰 구동.
      ========================================================================== */
 
-  /* --- pcbar: 제목 · 미완료 N건 · 밀도 토글 · AS 접수 CTA --- */
+  /* --- pcbar: 제목 · 미완료 N건 · 검색 · 밀도 토글 · AS 접수 CTA. 구분선(border-bottom)은
+     헤드 래퍼(.foms-as-compare-head)가 소유 — pcbar 자체엔 두지 않는다(중복 방지). --- */
   body.erp-mobile-v2-layout .erp-as-dashboard .foms-as-compare-pcbar {
-    grid-column: 1 / -1;
     display: flex;
     align-items: center;
     justify-content: space-between;
     flex-wrap: wrap;
     gap: var(--foms-space-3);
-    padding-bottom: var(--foms-space-3);
-    border-bottom: 1px solid var(--foms-border-subtle);
   }
   body.erp-mobile-v2-layout .erp-as-dashboard .foms-as-compare-pcbar__head {
     display: flex;
@@ -419,11 +447,56 @@
     background: var(--foms-interactive-primary-hover);
   }
 
+  /* --- 검색: PC 필터폼(.erp-as-desktop-filters)이 코호트에서 은닉되므로 pcbar 안에 신설한
+     대체 검색 수단. 순수 GET(erp_as_page.erp_as_dashboard) — 신규 JS 없음. pcbar 는
+     flex-wrap:wrap 이라 좁으면 검색폼이 다음 행으로 자연 랩(의도된 동작). --- */
+  body.erp-mobile-v2-layout .erp-as-dashboard .foms-as-compare-search {
+    flex: 1 1 260px;
+    max-width: 520px;
+    display: flex;
+    align-items: center;
+    gap: var(--foms-space-2);
+    min-height: var(--foms-touch-target-comfortable);
+    padding: 0 var(--foms-space-3);
+    background: var(--foms-surface-muted);
+    border: 1px solid var(--foms-border-subtle);
+    border-radius: var(--foms-radius-full);
+  }
+  body.erp-mobile-v2-layout .erp-as-dashboard .foms-as-compare-search:focus-within {
+    background: var(--foms-surface-base);
+    box-shadow: var(--foms-shadow-focus-ring);
+  }
+  body.erp-mobile-v2-layout .erp-as-dashboard .foms-as-compare-search__icon {
+    color: var(--foms-text-tertiary);
+    font-size: var(--foms-font-size-sm);
+  }
+  body.erp-mobile-v2-layout .erp-as-dashboard .foms-as-compare-search__input {
+    flex: 1;
+    min-width: 0;
+    border: 0;
+    background: transparent;
+    color: var(--foms-text-primary);
+    font-size: var(--foms-font-size-sm);
+    outline: none;
+  }
+  body.erp-mobile-v2-layout .erp-as-dashboard .foms-as-compare-search__input::-webkit-search-cancel-button {
+    -webkit-appearance: none;
+  }
+  body.erp-mobile-v2-layout .erp-as-dashboard .foms-as-compare-search__clear {
+    display: inline-flex;
+    align-items: center;
+    justify-content: center;
+    min-width: var(--foms-touch-target-min);
+    min-height: var(--foms-touch-target-min);
+    border-radius: var(--foms-radius-full);
+    color: var(--foms-text-tertiary);
+    text-decoration: none;
+  }
+
   /* --- chip 서브탭: 영업/배송 · 미완료 · 완료 (PC nav-tabs 대체) --- */
   /* 세그먼트 컨트롤 트랙 (muted 배경·radius·내부 패딩). 개별 full-radius pill 대신 iOS 형
      세그먼트 = 활성 세그먼트만 surface-base 썸(그림자). */
   body.erp-mobile-v2-layout .erp-as-dashboard .foms-as-compare-subtabs {
-    grid-column: 1 / -1;
     display: flex;
     flex-wrap: wrap;
     gap: var(--foms-space-1);

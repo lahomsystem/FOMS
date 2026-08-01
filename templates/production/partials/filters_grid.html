@@ -56,7 +56,24 @@
                     {% endif %}
                     </div>
                   </td>
-                  <td data-label="단계"><span class="badge bg-secondary erp-grid-badge-stage">{{ o.stage }}</span></td>
+                  <td data-label="단계">
+                    <span class="badge bg-secondary erp-grid-badge-stage">{{ o.stage }}</span>
+                    {# 보류/재제작 운영 배지(P8): structured_data 직접 접근(제품 셀 패턴) + row hold_days 소비. #}
+                    {% set _prod = (o.structured_data.get('production') if o.structured_data else none) or {} %}
+                    {% set _hold = (_prod.get('hold') if _prod else none) or {} %}
+                    {% set _rework = (_prod.get('rework') if _prod else none) or {} %}
+                    {% if _hold.get('active') %}
+                    <span class="badge bg-warning text-dark" title="보류 사유: {{ _hold.get('reason') or '미입력' }}">보류{% if o.hold_days %} D+{{ o.hold_days }}{% endif %}</span>
+                    {% endif %}
+                    {% if _rework.get('active') %}
+                    <span class="badge bg-info" title="재제작 사유: {{ _rework.get('reason') or '미입력' }}">재제작{% if _rework.get('count') %} {{ _rework.get('count') }}회{% endif %}</span>
+                    {% endif %}
+                    {# 완료 이력(E-e, 무채): 재제작 완료 건(active 아님+count>0). 진행 경보(유채 info)가
+                       사라진 완료 건에 차분한 이력 배지. 보류 이력은 PC 공간상 생략(rework만 필수). #}
+                    {% if not _rework.get('active') and (o.rework_count | default(0, true)) > 0 %}
+                    <span class="badge bg-light text-secondary border" title="재제작 이력">재제작 {{ o.rework_count }}회</span>
+                    {% endif %}
+                  </td>
                   <td data-label="퀘스트" class="erp-quest-cell erp-wrap">
                     {% if o.stage == '제작대기' %}
                       {% if not o.is_sales_approved %}

@@ -6,6 +6,12 @@
 
 ---
 
+### [2026-07-27] 세션 worktree 격리 Phase 1 (선택 표준 + ledger union 소유 판정)
+- **키워드**: harness, worktree, session-isolation, deploy, union, sync, cleanup, multi-agent
+- **결정**: 2026-07-16 스펙 §2.6 Phase 1 집행. 동시 2+창 코드 편집 시 `session_worktree.py create`로 `c:/tmp/foms-s-*` + `session/*` 브랜치 분리(**선택 표준, 강제 아님**). 소유 판정은 세션별 ledger 키가 아니라 **worktree-로컬 ledger union**(`deploy_push_scope` 분기) — worktree는 며칠 살며 세션 키가 누적되므로(실측 35세션/11일) 단일 세션 전제가 거짓이기 때문. `sync`는 rebase 전 union 부분집합 검증으로 cherry-pick 유입 세탁 차단, `cleanup`은 dry-run 기본. 공유 DB 보호는 코드 3중(startup DDL 자동 생략·alembic env.py 차단·문서). 핫파일 4종은 공유 트리 직렬화. kill criteria: 4주 create<3이면 CLI 삭제. **ledger 승계는 post-rewrite 훅**(`record_rewrite_ledger.py`)이 전담 — `create`가 공유 `.git/hooks`(git-common-dir)에 설치하므로 **메인 트리를 포함한 전 worktree**의 rebase/amend에서 발화해 old→new SHA를 세션별로 승계한다(`sync`는 소유 검증·rebase만, ledger를 통째로 재기록하지 않는다 — 한 세션으로 소유가 붕괴되기 때문). squash는 new_sha 그룹의 old가 전부 단일 세션 소유일 때만 승계(세탁 차단), 나머지는 사유를 런타임 로그에 기록.
+- **이유**: push/승격 수준 격리(Phase 0)로도 워킹트리 레이스·stash 오염·검증 트리 오염은 남음. gstack-autoplan 듀얼 보이스 리뷰(CEO 20건·Eng 25건)가 v1의 단일세션 전제 거짓·ledger 세탁 경로·cp949 전멸을 적발해 union 판정으로 재설계.
+- **영향**: `tools/harness/{session_worktree,session_commit_ledger,deploy_push_scope,record_rewrite_ledger,guard_policy}.py`, `run.py`, `migrations/env.py`, `tests/harness/test_session_worktree.py`, `AGENTS.md`/`CLAUDE.md`/`.cursor/rules/00-project-context.mdc`, `docs/plans/2026-07-27-session-worktree-isolation-phase1.md`.
+
 ### [2026-07-22] production promote baseline 완전성 (cherry patch-id)
 - **키워드**: harness, production, promote, cherry-pick, completeness, patch-id, baseline
 - **결정**: 세션 소유권 격리와 별층으로 production 승격 전 `promote_completeness` 사전검사 필수. 알고리즘 = 승격 SHA 파일 교집합 × `git log base..sha -- files` × `git cherry +`만 missing(`-`=이미 동등, ancestry-only false positive 제거). runner `promote_own_to_production.py`는 incomplete 기본 차단·`--allow-incomplete`만 우회·`gh pr --base production`(직접 `HEAD:production` 금지)·충돌 시 exit 3·자동 해결 금지. guard_policy 자동 차단은 후속.

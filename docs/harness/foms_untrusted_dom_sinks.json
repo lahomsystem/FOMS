@@ -1,0 +1,126 @@
+{
+  "packet": "STORED-XSS-01",
+  "purpose": "저장/조회 데이터가 raw HTML/JS sink로 흘러 stored/DOM XSS가 되는 경로를 100% 열거. 원칙: 출력 인코딩으로 봉쇄(입력 HTML 금지·blanket escape·기존 hostile data 삭제 금지). autoescape 신뢰.",
+  "ssot": "docs/plans/2026-07-22-foms-full-system-bug-audit-report.md §3.1 P0-19/P0-20/P0-21/P0-23, §5.2 STORED-XSS-01",
+  "generated": "2026-07-24",
+  "notes": "Designer sink는 DESIGNER-RETIRE-01 삭제로 제외. events.py는 순수 JSON producer(flask jsonify가 JSON 인코딩)이므로 코드 변경 없음 — 소비자(change_logs.html) DOM 빌드에서 출력 인코딩.",
+  "sinks": [
+    {
+      "id": "P0-19-order-link-filter",
+      "path": "foms/web/orders/listing.py",
+      "symbol": "order_link_filter",
+      "source_field": "SecurityLog.message (공개 login 실패 시 attacker-controlled username 포함)",
+      "vulnerability": "message 원문을 escape 없이 Markup으로 감싸 re.sub linkify → 비매칭 원문이 raw HTML로 렌더(저장형 XSS).",
+      "disposition": "escape-first: markupsafe.escape(message) 후 str에 대해서만 `주문 #<digits>` 패턴을 서버 생성 <a>로 치환. 기존 저장된 hostile row도 escape 경로 통과 → 안전. 입력 HTML 금지·blanket escape 아님(출력 인코딩).",
+      "test": "tests/domains/test_stored_xss_sinks.py::test_order_link_filter_escapes_hostile_message, ::test_order_link_filter_keeps_legit_order_link, ::test_order_link_filter_is_escape_first_static"
+    },
+    {
+      "id": "P0-19-security-logs-template",
+      "path": "templates/admin/security_logs.html",
+      "symbol": "line ~56 `{{ log_entry.message | order_link | safe }}`",
+      "source_field": "SecurityLog.message",
+      "vulnerability": "|safe가 message를 raw HTML로 렌더(order_link가 escape하지 않던 시절).",
+      "disposition": "order_link 필터가 escape-first Markup을 반환하므로 |safe는 신뢰 가능한 필터 출력에만 적용(raw 사용자 데이터 아님). 템플릿 변경 없음 — 봉쇄는 필터에서(단일 sink 근본수정).",
+      "test": "tests/domains/test_stored_xss_sinks.py::test_security_logs_template_routes_message_through_order_link"
+    },
+    {
+      "id": "P0-19-login-producer",
+      "path": "foms/web/auth/routes.py",
+      "symbol": "login (로그인 실패 log_access, line ~165/175)",
+      "source_field": "request.form['username'] (공개 login form, 인증 전)",
+      "vulnerability": "hostile username이 SecurityLog.message에 저장되어 P0-19 sink의 소스가 됨.",
+      "disposition": "코드 변경 없음. 원칙(입력 시점 HTML 금지로 대체하지 마라·기존 hostile data 삭제 금지)에 따라 raw 저장을 보존하고 order_link_filter 출력 인코딩으로 중화. 렌더 결과에 raw username 0.",
+      "test": "P0-19-order-link-filter 테스트로 커버(기존 hostile row escape 검증)"
+    },
+    {
+      "id": "P0-20-order-summary",
+      "path": "templates/orders/index.html",
+      "symbol": "line ~937 `{{ summary_content }}` (options-summary)",
+      "source_field": "Order.options (product_name/color/standard/online_options_summary 첫 줄)",
+      "vulnerability": "`summary_content | safe`가 사용자 옵션 문자열을 raw HTML로 렌더.",
+      "disposition": "|safe 제거 → Jinja autoescape. 봉쇄=출력 인코딩(입력 무변경).",
+      "test": "tests/domains/test_stored_xss_sinks.py::test_order_index_no_safe_on_options_summary, ::test_jinja_autoescape_neutralises_hostile_options"
+    },
+    {
+      "id": "P0-20-online-summary-detail",
+      "path": "templates/orders/index.html",
+      "symbol": "line ~980 `<li class=\"options-online-summary\">{{ value }}</li>`",
+      "source_field": "Order.options online_options_summary (멀티라인)",
+      "vulnerability": "`value | replace('\\n','<br>') | safe`가 raw HTML 주입 후 실행.",
+      "disposition": "replace/|safe 제거 → autoescape + CSS `.options-online-summary { white-space: pre-line }` 로 줄바꿈(HTML <br> 미사용).",
+      "test": "tests/domains/test_stored_xss_sinks.py::test_order_index_online_summary_no_br_safe, ::test_order_index_online_summary_pre_line_css"
+    },
+    {
+      "id": "P0-21-workbench-dashboard-js",
+      "path": "static/js/drawing/workbench-dashboard.js",
+      "symbol": "renderDraftsmanCheckboxList (batch/single 담당자 목록, 구 line ~96/150 innerHTML)",
+      "source_field": "User.name / User.team (/erp/api/users; 사용자 자기수정 가능 → cross-user)",
+      "vulnerability": "innerHTML 문자열 조립에 `u.name`/`u.team` raw 주입.",
+      "disposition": "DOM node + textContent 렌더. checkbox value = Number.isInteger(id) allowlist. innerHTML에 사용자 데이터 0.",
+      "test": "tests/domains/test_stored_xss_sinks.py::test_no_user_field_in_js_innerHTML, ::test_modified_js_node_check"
+    },
+    {
+      "id": "P0-21-erp-dashboard-drawing-js",
+      "path": "static/js/orders/dashboard/erp-dashboard-drawing.js",
+      "symbol": "renderErpDraftsmanCheckboxList (구 line ~465 innerHTML)",
+      "source_field": "User.name / User.team",
+      "vulnerability": "template literal innerHTML에 `${u.name}`/`${u.team}` raw 주입.",
+      "disposition": "DOM node + textContent 렌더, 정수 id allowlist.",
+      "test": "tests/domains/test_stored_xss_sinks.py::test_no_user_field_in_js_innerHTML, ::test_modified_js_node_check"
+    },
+    {
+      "id": "P0-21-erp-dashboard-detail-dom-js",
+      "path": "static/js/orders/dashboard/erp-dashboard-detail-dom.js",
+      "symbol": "assigneeNames (구 line ~338 → container.innerHTML line ~544)",
+      "source_field": "User.name (sd.drawing_assignees)",
+      "vulnerability": "assigneeNames(User.name join)이 대형 template-literal innerHTML에 raw 주입.",
+      "disposition": "escapeHtml(assignees.map(name).join) — 파일 기존 convention(escapeHtml 전역, textContent 기반)과 일치. blanket 아님(단일 필드 타깃 인코딩).",
+      "test": "tests/domains/test_stored_xss_sinks.py::test_detail_dom_assignee_names_escaped, ::test_modified_js_node_check"
+    },
+    {
+      "id": "P0-21-workbench-detail-body-js",
+      "path": "templates/drawing/partials/workbench_detail_body.html",
+      "symbol": "renderDetailDraftsmanCheckboxList (인라인 JS, 구 line ~2901 innerHTML)",
+      "source_field": "User.name / User.team",
+      "vulnerability": "template literal innerHTML에 `${u.name}`/`${u.team}` raw 주입.",
+      "disposition": "DOM node + textContent 렌더, 정수 id allowlist.",
+      "test": "tests/domains/test_stored_xss_sinks.py::test_no_user_field_in_js_innerHTML"
+    },
+    {
+      "id": "P0-21-workbench-detail-body-jinja",
+      "path": "templates/drawing/partials/workbench_detail_body.html",
+      "symbol": "line ~941 `{{ manager_name }}` · `{{ assignee_text }}`",
+      "source_field": "User.name (도면/주문 담당)",
+      "vulnerability": "없음(Jinja autoescape). 열거 완결성 목적.",
+      "disposition": "Jinja autoescape(신뢰) — 변경 없음.",
+      "test": "autoescape 기본 동작(별도 테스트 불요)"
+    },
+    {
+      "id": "P0-23-change-logs-event-card",
+      "path": "templates/admin/change_logs.html",
+      "symbol": "buildEventCard (구 loadMyEvents forEach, `${event.customer_name}` innerHTML + inline onclick)",
+      "source_field": "Order.customer_name(get_order_display_name), how_text, reason, what_label, when",
+      "vulnerability": "현재 Order의 hostile customer_name을 raw innerHTML로, 되돌리기 버튼을 escapeHtml-in-onclick(HTML 디코드 후 JS 문자열 breakout 가능)으로 렌더.",
+      "disposition": "createElement + textContent로 카드 전체 렌더. 되돌리기 버튼은 addEventListener + 클로저 바인딩. inline onclick / JSON attribute 0. customer_name 링크는 textContent + encodeURIComponent(order_id).",
+      "test": "tests/domains/test_stored_xss_sinks.py::test_change_logs_no_inline_onclick, ::test_change_logs_no_raw_customer_name_innerHTML, ::test_change_logs_inline_js_node_check"
+    },
+    {
+      "id": "P0-23-change-logs-revert-modal",
+      "path": "templates/admin/change_logs.html",
+      "symbol": "showRevertModal (구 `${whatLabel}`/`${howText}` innerHTML)",
+      "source_field": "what_label / how_text (변경 payload, 사용자 데이터 포함 가능)",
+      "vulnerability": "revert-event-info innerHTML에 whatLabel/howText raw 주입.",
+      "disposition": "createElement + textContent 렌더.",
+      "test": "tests/domains/test_stored_xss_sinks.py::test_change_logs_inline_js_node_check"
+    },
+    {
+      "id": "P0-23-events-api-producer",
+      "path": "foms/api/events.py",
+      "symbol": "api_my_change_events / api_order_change_events",
+      "source_field": "customer_name(get_order_display_name), how_text, reason (Order/OrderEvent.payload)",
+      "vulnerability": "P0-23 sink의 데이터 소스. hostile customer_name/payload를 JSON으로 반환.",
+      "disposition": "코드 변경 없음 — flask jsonify가 JSON-safe 인코딩. XSS 봉쇄는 소비자(change_logs.html) DOM 빌드의 출력 인코딩에서. 순수 JSON producer.",
+      "test": "P0-23-change-logs-event-card 테스트로 커버"
+    }
+  ]
+}

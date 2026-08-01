@@ -156,6 +156,8 @@ def summarize_samples(warm_samples: list[dict[str, Any]]) -> dict[str, Any]:
         # 판정 자격 검사용(judge_path) — warm 표본 전부 200 이어야 유효 측정.
         # status 미기록 표본(구버전/단위테스트 픽스처)은 자격 검사에서 제외(관용).
         "statuses": [int(s["status"]) for s in warm_samples if s.get("status") is not None],
+        # 로그인 페이지도 200 이라 status 검사를 통과한다 → 별도 자격 검사.
+        "login_redirected": any(s.get("login_redirect") for s in warm_samples),
     }
 
 
@@ -195,6 +197,8 @@ def judge_path(
     bad = [s for s in (summary.get("statuses") or []) if s != 200]
     if bad:
         reasons.append(f"non-200 응답 {bad} (세션만료/서버오류 — 측정 무효)")
+    if summary.get("login_redirected"):
+        reasons.append("/login 리다이렉트 응답 (인증 소실 — 로그인 페이지를 잰 무효 측정)")
     delta_budget = budget.get("ttfb_delta_min_ms")
     p95_delta_budget = budget.get("p95_ttfb_delta_ms")
     bytes_budget = budget.get("body_bytes_max")
@@ -345,6 +349,10 @@ def measure_path(session: requests.Session, base: str, path: str, rounds: int = 
             "render_ms": float(render) if render not in (None, "") else None,
             "content_encoding": resp.headers.get("Content-Encoding"),
             "etag_present": bool(resp.headers.get("ETag")),
+            # 세션이 죽으면 fragment GET 은 /login 으로 리다이렉트되고 requests 가 그것을
+            # 따라가 status 200(로그인 페이지)이 된다 → status 검사만으로는 무효 측정을
+            # 못 걸러 로그인 페이지 바이트가 성능 수치로 보고된다(2026-07-28 실사고).
+            "login_redirect": "/login" in (resp.url or ""),
         })
         time.sleep(SLEEP_S)
     warm = samples[1:] if len(samples) > 1 else samples

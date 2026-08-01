@@ -1,173 +1,164 @@
-"""엑셀 업로드/다운로드 Blueprint (canonical; SFC-B11B): /upload, /download_excel."""
+"""엑셀 업로드/다운로드 Blueprint (canonical; SFC-B11B): /upload, /download_excel.
+
+import(POST /upload)는 ORDER-IMPORT-01 정본 서비스(:mod:`foms.services.orders.order_import`)
+로 위임한다 — strict schema·full validate·create_order batch all-or-none·file-hash receipt·
+private artifact 24h 는 서비스가 소유하고, 이 route 는 in-handler ``evaluate_policy``
+(``MANAGER_MUTATION`` = Admin/Manager)·파일 수신·flash/redirect·error download 스트림만 배선한다.
+"""
 import os
-import re
 import datetime
-from flask import Blueprint, render_template, request, redirect, url_for, flash, session, send_file
+from io import BytesIO
+from flask import (
+    Blueprint, render_template, request, redirect, url_for, flash, session,
+    send_file, abort,
+)
 from werkzeug.utils import secure_filename
 from sqlalchemy import or_, func, String
 import pandas as pd
 
-from foms.web.auth import login_required, role_required, log_access
+from foms.web.auth import login_required, log_access, get_user_by_id
 from db import get_db
-from models import Order
-from foms.services.datetime_kst import get_today_kst
+from models import Order, OrderImportArtifact, User
 from foms.services.files.storage_paths import UPLOAD_FOLDER
 from foms.services.orders.status_constants import STATUS
 from foms.services.files.file_utils import allowed_file
 from foms.services.order_display_utils import format_options_for_display
+from foms.services.storage import get_storage
+from foms.services.orders.order_mutation_policy import (
+    POLICY_REGISTRY, evaluate_policy, normalize_team,
+)
+from foms.services.orders.order_create import OwnerPolicyError
+from foms.services.orders.order_import import (
+    REQUIRED_COLUMNS,
+    OrderImportError,
+    OrderImportValidationError,
+    import_orders,
+)
 
 excel_bp = Blueprint('excel', __name__, url_prefix='')
 
+#: import route 정책 — bulk delete/restore/excel-import(Admin/Manager). manifest 정본과 동일.
+_IMPORT_POLICY_ID = 'MANAGER_MUTATION'
+#: 빈 템플릿 헤더(필수 + 흔한 선택 컬럼). import 서비스 정규화 키와 일치.
+_TEMPLATE_COLUMNS = list(REQUIRED_COLUMNS) + [
+    '옵션', '비고', '접수시간', '실측일', '실측시간', '설치완료일', '담당자', '결제금액']
 
-def _parse_time_from_row(raw_val):
-    """엑셀 행에서 시간 값을 HH:MM 문자열로 변환."""
-    if pd.isna(raw_val):
+
+def _current_user():
+    """세션 user_id 로 현재 사용자 로드(in-handler 권한 판정용)."""
+    uid = session.get('user_id')
+    return get_user_by_id(uid) if uid else None
+
+
+def _require_import_policy():
+    """MANAGER_MUTATION 정책을 in-handler 로 판정하고 거부면 abort(그 외 403)."""
+    decision = evaluate_policy(POLICY_REGISTRY[_IMPORT_POLICY_ID], _current_user())
+    if not decision.allowed:
+        log_access(f"엑셀 import 권한 거부({decision.code})", session.get('user_id'))
+        abort(decision.status)
+
+
+def _form_owner_id():
+    """폼의 explicit owner user_id 를 int 로 파싱한다(없으면 None)."""
+    raw = request.form.get('owner_user_id')
+    try:
+        return int(raw) if raw not in (None, '') else None
+    except (TypeError, ValueError):
         return None
-    if isinstance(raw_val, datetime.time):
-        return raw_val.strftime('%H:%M')
-    if isinstance(raw_val, datetime.datetime):
-        return raw_val.strftime('%H:%M')
-    if isinstance(raw_val, str):
-        if re.match(r'^\d{1,2}:\d{2}$', raw_val.strip()):
-            return raw_val.strip()
-        try:
-            time_float = float(raw_val)
-            hours = int(time_float * 24)
-            minutes = int((time_float * 24 * 60) % 60)
-            return f"{hours:02d}:{minutes:02d}"
-        except (ValueError, TypeError):
-            return None
-    if isinstance(raw_val, (int, float)):
-        try:
-            total_seconds = int(raw_val * 24 * 60 * 60)
-            hours = total_seconds // 3600
-            minutes = (total_seconds % 3600) // 60
-            return f"{hours:02d}:{minutes:02d}"
-        except Exception:
-            return None
-    return None
+
+
+def _active_sales_owners(db):
+    """import owner 후보 = 활성 SALES(MEASURE→SALES 정규화) 사용자 (id, name) 목록."""
+    rows = (db.query(User.id, User.name, User.team)
+            .filter(User.is_active.is_(True)).order_by(User.name).all())
+    return [{"id": uid, "name": (nm or '').strip() or f"user#{uid}"}
+            for uid, nm, team in rows if normalize_team(team) == 'SALES']
 
 
 @excel_bp.route('/upload', methods=['GET', 'POST'])
 @login_required
-@role_required(['ADMIN', 'MANAGER'])
 def upload_excel():
-    """엑셀 파일 업로드로 주문 일괄 등록."""
-    if request.method == 'POST':
-        if 'excel_file' not in request.files:
-            flash('파일이 선택되지 않았습니다.', 'error')
-            log_access("엑셀 업로드 실패: 파일이 선택되지 않음", session.get('user_id'))
-            return redirect(request.url)
+    """엑셀 파일 업로드로 주문 일괄 등록(Admin/Manager, strict·all-or-none·멱등)."""
+    _require_import_policy()
+    if request.method != 'POST':
+        return render_template('admin/upload.html',
+                               sales_owners=_active_sales_owners(get_db()))
 
-        file = request.files['excel_file']
-        if file.filename == '':
-            flash('파일이 선택되지 않았습니다.', 'error')
-            log_access("엑셀 업로드 실패: 빈 파일명", session.get('user_id'))
-            return redirect(request.url)
+    if 'excel_file' not in request.files or request.files['excel_file'].filename == '':
+        flash('파일이 선택되지 않았습니다.', 'error')
+        return redirect(request.url)
+    file = request.files['excel_file']
+    if not allowed_file(file.filename):
+        flash('허용되지 않은 파일 형식입니다. .xlsx 또는 .xls 파일만 업로드 가능합니다.', 'error')
+        log_access(f"엑셀 import 실패: 형식 - {file.filename}", session.get('user_id'))
+        return redirect(request.url)
 
-        if not file or not allowed_file(file.filename):
-            flash('허용되지 않은 파일 형식입니다. .xlsx 또는 .xls 파일만 업로드 가능합니다.', 'error')
-            log_access(f"엑셀 업로드 실패: 허용되지 않은 파일 형식 - {file.filename}", session.get('user_id'),
-                      {"filename": file.filename})
-            return redirect(request.url)
+    filename = secure_filename(file.filename) or 'import.xlsx'
+    defaults = {k: request.form.get(k)
+                for k in ('scheduled_date', 'as_received_date', 'as_completed_date')}
+    db = get_db()
+    try:
+        receipt = import_orders(
+            db, actor=_current_user(), owner_user_id=_form_owner_id(),
+            file_bytes=file.read(), filename=filename,
+            storage=get_storage(), form_defaults=defaults)
+    except OrderImportValidationError as exc:
+        return _flash_validation_error(exc, filename)
+    except (OrderImportError, OwnerPolicyError) as exc:
+        db.rollback()
+        flash(f'엑셀 import 실패: {exc}', 'error')
+        log_access(f"엑셀 import 실패: {filename} - {exc}", session.get('user_id'))
+        return redirect(request.url)
 
-        filename = secure_filename(file.filename)
-        file_path = os.path.join(UPLOAD_FOLDER, filename)
-        file.save(file_path)
+    if receipt.idempotent:
+        flash(f'이미 등록된 파일입니다({receipt.row_count}건, 재생성 없음).', 'info')
+    else:
+        flash(f'{receipt.row_count}개의 주문이 성공적으로 등록되었습니다.', 'success')
+    log_access(f"엑셀 import: {filename} → {receipt.row_count}건(artifact={receipt.artifact_id})",
+               session.get('user_id'),
+               {"artifact_id": receipt.artifact_id, "idempotent": receipt.idempotent,
+                "order_ids": receipt.resource_order_ids})
+    return redirect(url_for('order_pages.index'))
 
-        db = get_db()
-        try:
-            df = pd.read_excel(file_path)
-            required_columns = ['접수일', '고객명', '전화번호', '주소', '제품']
-            missing_columns = [col for col in required_columns if col not in df.columns]
-            if missing_columns:
-                flash(f'엑셀 파일에 필수 컬럼이 누락되었습니다: {", ".join(missing_columns)}', 'error')
-                log_access(f"엑셀 업로드 실패: 필수 컬럼 누락 ({missing_columns}) - {filename}", session.get('user_id'))
-                try:
-                    os.remove(file_path)
-                except OSError:
-                    pass
-                return redirect(request.url)
 
-            order_count = 0
-            added_order_ids = []
-            for index, row in df.iterrows():
-                received_date_dt = pd.to_datetime(row['접수일'], errors='coerce')
-                received_date = received_date_dt.strftime('%Y-%m-%d') if pd.notna(received_date_dt) else get_today_kst().strftime('%Y-%m-%d')
+def _flash_validation_error(exc: OrderImportValidationError, filename: str):
+    """full validate 실패를 flash 하고 error download 링크를 안내한다(주문 미생성)."""
+    receipt = exc.receipt
+    errors_url = url_for('excel.download_order_import_errors', artifact_id=receipt.artifact_id)
+    flash(f'{len(receipt.row_errors)}개 행 검증 실패 — 주문이 생성되지 않았습니다. '
+          f'에러 리포트: {errors_url}', 'error')
+    log_access(f"엑셀 import 검증 실패: {filename} - {len(receipt.row_errors)}행"
+               f"(artifact={receipt.artifact_id})", session.get('user_id'))
+    return redirect(request.url)
 
-                measurement_date_dt = pd.to_datetime(row.get('실측일'), errors='coerce')
-                measurement_date = measurement_date_dt.strftime('%Y-%m-%d') if pd.notna(measurement_date_dt) else None
 
-                completion_date_dt = pd.to_datetime(row.get('설치완료일'), errors='coerce')
-                completion_date = completion_date_dt.strftime('%Y-%m-%d') if pd.notna(completion_date_dt) else None
+@excel_bp.route('/admin/order-imports/<int:artifact_id>/errors')
+@login_required
+def download_order_import_errors(artifact_id):
+    """FAILED import artifact 의 에러 리포트를 private key 에서 스트림한다(Admin/Manager)."""
+    _require_import_policy()
+    db = get_db()
+    artifact = db.get(OrderImportArtifact, artifact_id)
+    if artifact is None or not artifact.error_object_key:
+        abort(404)
+    data = get_storage().read_file_bytes(artifact.error_object_key)
+    if data is None:
+        abort(404)
+    return send_file(BytesIO(data), as_attachment=True,
+                     download_name=f'import_errors_{artifact_id}.csv', mimetype='text/csv')
 
-                received_time = _parse_time_from_row(row.get('접수시간'))
-                measurement_time = _parse_time_from_row(row.get('실측시간'))
 
-                options_raw = row.get('옵션')
-                options = str(options_raw) if pd.notna(options_raw) else None
-
-                notes_raw = row.get('비고')
-                notes = str(notes_raw) if pd.notna(notes_raw) else None
-
-                manager_name_raw = row.get('담당자')
-                manager_name = str(manager_name_raw) if pd.notna(manager_name_raw) else None
-
-                payment_amount_raw = row.get('결제금액')
-                payment_amount = 0
-                if pd.notna(payment_amount_raw):
-                    try:
-                        if isinstance(payment_amount_raw, str):
-                            payment_amount = int(float(payment_amount_raw.replace(',', '')))
-                        elif isinstance(payment_amount_raw, (int, float)):
-                            payment_amount = int(payment_amount_raw)
-                    except ValueError:
-                        payment_amount = 0
-
-                new_order = Order(
-                    customer_name=str(row['고객명']) if pd.notna(row['고객명']) else '',
-                    phone=str(row['전화번호']) if pd.notna(row['전화번호']) else '',
-                    address=str(row['주소']) if pd.notna(row['주소']) else '',
-                    product=str(row['제품']) if pd.notna(row['제품']) else '',
-                    options=options,
-                    notes=notes,
-                    received_date=received_date,
-                    received_time=received_time,
-                    status='RECEIVED',
-                    measurement_date=measurement_date,
-                    measurement_time=measurement_time,
-                    completion_date=completion_date,
-                    manager_name=manager_name,
-                    payment_amount=payment_amount,
-                    scheduled_date=request.form.get('scheduled_date'),
-                    as_received_date=request.form.get('as_received_date'),
-                    as_completed_date=request.form.get('as_completed_date'),
-                    is_regional=False,
-                )
-                db.add(new_order)
-                db.flush()
-                added_order_ids.append(new_order.id)
-                order_count += 1
-
-            db.commit()
-            flash(f'{order_count}개의 주문이 성공적으로 등록되었습니다.', 'success')
-            log_access(f"엑셀 업로드 성공: {filename} 파일에서 {order_count}개 주문 추가", session.get('user_id'),
-                      {"filename": filename, "orders_added": order_count, "order_ids": added_order_ids})
-        except Exception as e:
-            if db:
-                db.rollback()
-            flash(f'엑셀 파일 처리 중 오류가 발생했습니다: {str(e)}', 'error')
-            log_access(f"엑셀 업로드 실패: {filename} - {str(e)}", session.get('user_id'),
-                      {"filename": filename, "error": str(e)})
-        finally:
-            try:
-                os.remove(file_path)
-            except OSError:
-                pass
-
-        return redirect(url_for('order_pages.index'))
-
-    return render_template('admin/upload.html')
+@excel_bp.route('/download_excel_template')
+@login_required
+def download_excel_template():
+    """import 용 빈 템플릿(필수+선택 컬럼 헤더)을 다운로드한다(Admin/Manager)."""
+    _require_import_policy()
+    buf = BytesIO()
+    pd.DataFrame(columns=_TEMPLATE_COLUMNS).to_excel(buf, index=False, engine='openpyxl')
+    buf.seek(0)
+    return send_file(
+        buf, as_attachment=True, download_name='order_import_template.xlsx',
+        mimetype='application/vnd.openxmlformats-officedocument.spreadsheetml.sheet')
 
 
 @excel_bp.route('/download_excel')

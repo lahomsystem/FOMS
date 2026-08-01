@@ -1,5 +1,5 @@
 from db import db_session
-from models import Order
+from models import ChannelManagerLink, Order, User
 from foms.services.channel_quick_actions import (
     STATUS_MAP,
     get_order_summary_for_wam,
@@ -11,6 +11,27 @@ from foms.services.channel_security import generate_wam_short_link_token
 
 ORDER_CMD = "\uc8fc\ubb38"
 SCHEDULE_CMD = "\uc77c\uc815"
+
+
+def _active_manager(manager_id: str, *, role: str = "STAFF") -> str:
+    """CHANNEL-AUTH-01: quick action \uc740 read scope \uc788\ub294 active manager \ub9cc \uc870\ud68c \uac00\ub2a5.
+
+    active User + active ChannelManagerLink \ub97c \ub9cc\ub4e4\uace0 manager_id \ub97c \ub3cc\ub824\uc900\ub2e4.
+    """
+    user = User(
+        username=f"qa-mgr-{manager_id}",
+        password="x",
+        role=role,
+        name=f"qa-{manager_id}",
+        is_active=True,
+    )
+    db_session.add(user)
+    db_session.commit()
+    db_session.add(
+        ChannelManagerLink(channel_manager_id=manager_id, user_id=user.id, is_active=True)
+    )
+    db_session.commit()
+    return manager_id
 
 
 def test_parse_foms_command():
@@ -37,9 +58,12 @@ def test_process_foms_command_invalid(app):
 
 
 def test_process_foms_command_order_not_found(app):
+    """존재하지 않는 주문 → no-data(존재 여부·order id 미노출, PII 0)."""
     with app.app_context():
-        res = process_foms_command(f"{ORDER_CMD} 99999")
-        assert "99999" in res["result"]["text"]
+        mgr = _active_manager("mgr-notfound")
+        res = process_foms_command(f"{ORDER_CMD} 99999", manager_id=mgr)
+        # 존재 여부 미노출: order id 를 결과에 담지 않는다.
+        assert "99999" not in res["result"]["text"]
 
 
 def test_process_foms_command_success(app):
@@ -55,7 +79,8 @@ def test_process_foms_command_success(app):
         db_session.add(order)
         db_session.commit()
 
-        res = process_foms_command(f"{ORDER_CMD} {order.id}")
+        mgr = _active_manager("mgr-success")
+        res = process_foms_command(f"{ORDER_CMD} {order.id}", manager_id=mgr)
         text = res["result"]["text"]
         assert "Legacy Customer" in text
         assert "Legacy Product" in text
@@ -66,17 +91,21 @@ def test_process_foms_command_success(app):
         assert wam_data["status_kr"] == STATUS_MAP["RECEIVED"]
 
 
-def test_process_foms_command_uses_canonical_identity_import(monkeypatch, app):
+def test_process_foms_command_gates_on_canonical_identity_resolve(monkeypatch, app):
+    """CHANNEL-AUTH-01: manager 인증은 canonical identity resolve 로 게이트된다.
+
+    resolve 가 deny(None) 면 PII 없는 no-data 결과를 반환한다(fail-open 제거).
+    """
     with app.app_context():
         monkeypatch.setattr(
-            "foms.services.channel_identity.is_action_allowed_for_manager",
-            lambda manager_id, action_type: False,
+            "foms.services.channel_quick_actions.get_user_by_manager_id",
+            lambda manager_id: None,
         )
 
         res = process_foms_command(f"{ORDER_CMD} 123", manager_id="mgr-1")
 
-        assert res["type"] == "text"
-        assert "권한이 없습니다" in res["text"]
+        assert res["result"]["type"] == "text"
+        assert "123" not in res["result"]["text"]  # 존재 여부 미노출
 
 
 def test_get_order_summary_for_wam_uses_structured_data_for_erp_order(app):

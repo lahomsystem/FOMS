@@ -415,6 +415,9 @@
     if (!cohortActive()) return;
     var target = ev.target;
     if (!target || !target.closest) return;
+    // 도면 썸네일 마커는 전체화면 뷰어(tablet-drawing-review.js) 소유 — 시트를 열지 않는다.
+    // 앵커 네비 차단(preventDefault) 책임도 그 핸들러로 이관된다.
+    if (target.closest("[data-foms-drawing-viewer]")) return;
 
     var row = target.closest(ROW_SELECTOR);
     if (row) {

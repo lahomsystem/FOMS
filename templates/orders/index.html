@@ -127,6 +127,11 @@
         width: 100%;
     }
 
+    /* 온라인 옵션 요약 상세: \n 을 HTML <br> 대신 CSS 줄바꿈으로 표시 (P0-20) */
+    .options-online-summary {
+        white-space: pre-line;
+    }
+
     /* 옵션 요약만 적용 */
     .options-summary {
         flex-grow: 1;
@@ -604,14 +609,15 @@
                 <option value="delete">삭제</option>
                 <option value="copy">복사</option>
                 <optgroup label="상태 변경">
-                    {% for code, name_val in BULK_ACTION_STATUS.items() %}
+                    {# STATE-CONTROLS-01: 완료·AS·삭제는 canonical 전이 전용 — bulk 직접 선택 제거 #}
+                    {% for code, name_val in BULK_ACTION_STATUS.items() if code not in ['COMPLETED', 'AS', 'AS_RECEIVED', 'AS_COMPLETED'] %}
                     <option value="status_{{ code }}">{{ name_val }}</option>
                     {% endfor %}
                 </optgroup>
             </select>
             <select name="new_status" class="d-none" id="status-select" form="bulk-action-form">
                 <option value="">상태 선택</option>
-                {% for code, name_val in BULK_ACTION_STATUS.items() %}
+                {% for code, name_val in BULK_ACTION_STATUS.items() if code not in ['COMPLETED', 'AS', 'AS_RECEIVED', 'AS_COMPLETED'] %}
                 <option value="{{ code }}">{{ name_val }}</option>
                 {% endfor %}
             </select>
@@ -796,12 +802,17 @@
                                         class="btn btn-sm btn-outline-primary" title="수정" aria-label="주문 {{ order.id }} 수정">
                                         <i class="fas fa-edit"></i>
                                     </a>
-                                    <a href="{{ url_for('order_trash.delete_order', order_id=order.id) }}"
+                                    {# soft delete 는 POST 전용(GET 405)·공용 CSRF 가드 소비.
+                                       행이 bulk-action-form 안에 있어 별도 form(order-trash-move-form)에
+                                       연결해 벌크 검증 핸들러와 분리한다. csrf_token 은 layout_head 전역
+                                       주입기가 제출 시 자동 삽입한다. #}
+                                    <button type="submit" form="order-trash-move-form"
+                                        formaction="{{ url_for('order_trash.delete_order', order_id=order.id) }}"
                                         class="btn btn-sm btn-outline-danger" title="휴지통으로 이동"
                                         aria-label="주문 {{ order.id }} 휴지통으로 이동"
                                         onclick="return confirm('이 주문을 휴지통으로 이동하시겠습니까?');">
                                         <i class="fas fa-trash"></i>
-                                    </a>
+                                    </button>
                                 </div>
                             </td>
                             <td class="th-received-date" data-label="접수일">{{ order.received_date }}</td>
@@ -930,7 +941,7 @@
                                 {% endif %}
 
                                 <div class="options-summary-container">
-                                    <span class="options-summary">{{ summary_content | safe }}</span>
+                                    <span class="options-summary">{{ summary_content }}</span>
                                     {% if has_extra_content %}
                                     <button type="button" class="btn btn-sm btn-outline-secondary toggle-options"
                                         aria-expanded="false" aria-label="옵션 상세 내용 보기">
@@ -973,7 +984,7 @@
                                         {% elif key != 'details' %}
                                         {# online_options_summary 같은 키는 레이블 없이 값만 표시하거나, 필요시 레이블 추가 #}
                                         {% if key == 'online_options_summary' %}
-                                        <li>{{ value | replace('\n', '<br>') | safe }}</li> {# 값만 표시하고 줄바꿈 처리 #}
+                                        <li class="options-online-summary">{{ value }}</li> {# autoescape + CSS pre-line 줄바꿈 (P0-20: <br>|safe XSS sink 제거) #}
                                         {% else %}
                                         <li><strong>{{ key_korean_map.get(key, key) }}:</strong> {{ value }}</li> {# 매핑
                                         적용 #}
@@ -1052,6 +1063,10 @@
             </div>
         </div> {# order-list-table-container 종료 #}
     </form> {# 일괄 작업 폼 종료 #}
+    {# 행별 휴지통 이동(soft delete) 전용 POST form. 각 행의 삭제 버튼이 form= 로 연결되며
+       formaction 이 대상 order_id 를 지정한다. csrf_token 은 layout_head 전역 주입기가 제출
+       시 자동 삽입한다(라우트별 ad hoc 토큰 주입 금지). #}
+    <form id="order-trash-move-form" method="post"></form>
 </div>
 
 <script>

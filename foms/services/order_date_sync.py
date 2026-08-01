@@ -227,6 +227,31 @@ def _spec_signature(specs: list[dict[str, Any]]) -> tuple[tuple[str, str, str, A
     )
 
 
+def _resolve_item_id_map(order: Any, db_session: Any, specs: list[dict[str, Any]]) -> dict[int, Any]:
+    """Resolve ``{item_index: active identity UUID}`` for item-scoped schedule specs.
+
+    ITEM-ID-00: schedule rows carry a stable ``item_id`` UUID, not the positional
+    ``item_index``. Since ``sync_order_dates`` wholesale-replaces ``schedule_dates``,
+    it must repopulate ``item_id`` from :class:`~models.OrderItemIdentity` on rebuild,
+    otherwise a backfilled link would be lost on the next order edit. Returns an empty
+    map for a not-yet-persisted order (no id → no registry rows yet) or when no spec is
+    item-scoped. Uses ``no_autoflush`` so the read cannot re-enter this before_flush.
+    """
+    order_id = getattr(order, "id", None)
+    if order_id is None:
+        return {}
+    indices = {s["item_index"] for s in specs if s.get("item_index") is not None}
+    if not indices:
+        return {}
+    from foms.services.orders.item_identity import resolve_active_item_id
+
+    resolved: dict[int, Any] = {}
+    with db_session.no_autoflush:
+        for idx in indices:
+            resolved[idx] = resolve_active_item_id(db_session, order_id, idx)
+    return resolved
+
+
 def sync_order_dates(order: Any, db_session: Any = None) -> bool:
     """Extract dates from an order and refresh ``schedule_dates`` only when changed."""
     if db_session is None:
@@ -236,12 +261,18 @@ def sync_order_dates(order: Any, db_session: Any = None) -> bool:
     if _schedule_date_signature(getattr(order, "schedule_dates", [])) == _spec_signature(specs):
         return False
 
+    item_id_map = _resolve_item_id_map(order, db_session, specs)
     order.schedule_dates = [
         OrderScheduleDate(
             kind=spec["kind"],
             date=spec["date"],
             source=spec["source"],
             item_index=spec["item_index"],
+            item_id=(
+                item_id_map.get(spec["item_index"])
+                if spec["item_index"] is not None
+                else None
+            ),
         )
         for spec in specs
     ]

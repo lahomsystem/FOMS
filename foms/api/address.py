@@ -12,13 +12,11 @@ import requests
 from flask import Blueprint, jsonify, request
 
 from foms.web.auth import login_required
-from foms.services.common.geocode_config import KAKAO_REST_API_KEY
+from foms.services.common.geocode_config import kakao_rest_headers
 
 logger = logging.getLogger(__name__)
 
 address_bp = Blueprint("address", __name__, url_prefix="/api/address")
-
-HEADERS = {"Authorization": f"KakaoAK {KAKAO_REST_API_KEY}"}
 
 
 def _strip_detail(q: str) -> str:
@@ -173,7 +171,7 @@ def search():
             if variant == q:
                 r = requests.get(
                     url_address,
-                    headers=HEADERS,
+                    headers=kakao_rest_headers(),
                     params={"query": variant, "size": size},
                     timeout=10,
                 )
@@ -185,7 +183,7 @@ def search():
             if len(results) < size:
                 rk = requests.get(
                     url_keyword,
-                    headers=HEADERS,
+                    headers=kakao_rest_headers(),
                     params={"query": variant, "size": size},
                     timeout=10,
                 )

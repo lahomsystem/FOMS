@@ -1,18 +1,20 @@
-"""Order copy API handlers."""
+"""Order copy API handlers (ORDER-COPY-01)."""
 
 from __future__ import annotations
+
+from typing import Optional
 
 from flask import current_app, jsonify, request, session
 
 from db import get_db
 from foms.services.common.dashboard_cache import invalidate_all_dashboard_slice_caches
-from foms.services.jobs.queue import enqueue_geocode_order_address
-from foms.services.order_copy import copy_order_as_new
-from foms.web.auth import log_access
-from models import Order
+from foms.services.order_copy import OrderCopyError, copy_orders_batch
+from foms.services.orders.order_create import OrderCreateError
+from foms.web.auth import get_user_by_id, log_access
 
 
 def _valid_order_ids(raw_order_ids) -> list[int]:
+    """요청 order_ids 를 정수 목록으로 정규화한다(중복·비정수 제거, 입력 순서 보존)."""
     valid_ids: list[int] = []
     seen: set[int] = set()
     if not isinstance(raw_order_ids, list):
@@ -29,8 +31,23 @@ def _valid_order_ids(raw_order_ids) -> list[int]:
     return valid_ids
 
 
+def _requested_owner_user_id(data: dict) -> Optional[int]:
+    """요청 body 의 ``owner_user_id`` (Admin/Manager 가 지정하는 SALES owner)를 파싱한다.
+
+    STAFF 는 self owner 로 생성되므로 생략 가능하다(None). 값이 있으나 정수가 아니면
+    :class:`OrderCreateError` 로 400 매핑한다.
+    """
+    raw = data.get("owner_user_id")
+    if raw is None or (isinstance(raw, str) and not raw.strip()):
+        return None
+    try:
+        return int(raw)
+    except (TypeError, ValueError) as exc:
+        raise OrderCreateError("owner_user_id 는 정수여야 합니다.") from exc
+
+
 def copy_orders_response():
-    """Copy selected orders into new order rows with fresh DB order numbers."""
+    """선택 주문을 fresh identity 새 주문으로 복사한다(all-or-none, create_order 경유)."""
     db = get_db()
     try:
         data = request.get_json() or {}
@@ -38,46 +55,24 @@ def copy_orders_response():
         if not order_ids:
             return jsonify({"success": False, "message": "복사할 주문을 선택하세요."}), 400
 
-        originals_by_id = {
-            order.id: order
-            for order in (
-                db.query(Order)
-                .filter(Order.id.in_(order_ids), Order.not_deleted_filter())
-                .all()  # perf-ok: request bulk order id batch
-            )
-        }
+        actor = get_user_by_id(session.get("user_id"))
+        if actor is None:
+            return jsonify({"success": False, "message": "로그인이 필요합니다."}), 401
 
-        copied_orders = []
-        failed_ids = []
-        user_id = session.get("user_id")
-        for order_id in order_ids:
-            original_order = originals_by_id.get(order_id)
-            if original_order is None:
-                failed_ids.append(order_id)
-                continue
-            copied_order = copy_order_as_new(original_order)
-            db.add(copied_order)
-            db.flush()
-            copied_orders.append(
-                {
-                    "original_order_id": original_order.id,
-                    "new_order_id": copied_order.id,
-                }
-            )
+        copied = copy_orders_batch(
+            db,
+            actor=actor,
+            order_ids=order_ids,
+            requested_owner_user_id=_requested_owner_user_id(data),
+        )
+        for original_id, new_order in copied:
             log_access(
-                f"주문 #{original_order.id}를 새 주문 #{copied_order.id}로 복사",
-                user_id,
+                f"주문 #{original_id}를 새 주문 #{new_order.id}로 복사",
+                actor.id,
                 auto_commit=False,
             )
-
-        if not copied_orders:
-            db.rollback()
-            return jsonify({"success": False, "message": "복사 가능한 주문이 없습니다."}), 404
-
         db.commit()
 
-        for item in copied_orders:
-            enqueue_geocode_order_address(item["new_order_id"])
         try:
             invalidate_all_dashboard_slice_caches()
         except Exception as cache_exc:
@@ -90,12 +85,19 @@ def copy_orders_response():
         return jsonify(
             {
                 "success": True,
-                "copied": len(copied_orders),
-                "failed": len(failed_ids),
-                "orders": copied_orders,
-                "failed_order_ids": failed_ids,
+                "copied": len(copied),
+                "orders": [
+                    {"original_order_id": original_id, "new_order_id": new_order.id}
+                    for original_id, new_order in copied
+                ],
             }
         )
+    except OrderCopyError as exc:
+        db.rollback()
+        return jsonify({"success": False, "message": str(exc)}), exc.status_code
+    except OrderCreateError as exc:
+        db.rollback()
+        return jsonify({"success": False, "message": str(exc)}), exc.status_code
     except Exception as exc:
         db.rollback()
         current_app.logger.error("copy_orders 실패: %s", exc, exc_info=True)

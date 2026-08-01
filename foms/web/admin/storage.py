@@ -1,14 +1,35 @@
-"""수납장 대시보드 Blueprint (canonical; SFC-B11B). Phase 2-2 app.py 슬림다운."""
-from flask import Blueprint, render_template, request, redirect, url_for, flash, send_file, session, current_app
-from sqlalchemy import or_, func, String
-from db import get_db
-from models import Order
-from foms.web.auth import login_required, role_required, log_access
-from foms.services.orders.status_constants import CABINET_STATUS, STATUS
+"""수납장 대시보드 Blueprint (canonical; SFC-B11B). Phase 2-2 app.py 슬림다운.
+
+STORAGE-WRITER-01: 대시보드 인라인 편집은 generic field adapter(임의 필드 강제) 대신
+typed field adapter(:func:`update_storage_field_response`)로 저장한다. cabinet 상태는
+enum·Production/Shipment 정책, 배송비는 정수·Finance 정책으로 in-handler enforce 하고,
+REV-00 :func:`execute_order_mutation` 으로 If-Match·version bump·receipt·OrderEvent 를 한
+transaction 에 묶는다. main/logistics/settlement 축은 건드리지 않는다.
+"""
+import hashlib
+import json
 import os
 import datetime
+from typing import Any, Optional
+
+from flask import Blueprint, render_template, request, redirect, url_for, flash, send_file, session, current_app, jsonify
+from sqlalchemy import or_, func, String
+from sqlalchemy.orm import Session
+from db import get_db
+from models import Order, OrderEvent
+from foms.web.auth import login_required, role_required, log_access, get_user_by_id
+from foms.services.orders.status_constants import CABINET_STATUS, STATUS
+from foms.services.orders.order_mutation_policy import POLICY_REGISTRY, evaluate_policy, Decision
+from foms.services.orders.revision import RevisionError, execute_order_mutation
 
 storage_dashboard_bp = Blueprint('storage_dashboard', __name__)
+
+#: typed adapter 가 쓰는 유일한 두 필드(generic coercion 금지). OrderEvent.event_type·receipt
+#: policy_id 가 이 command 문자열을 공유한다.
+STORAGE_CABINET_COMMAND = "CABINET_STATUS_CHANGED"
+STORAGE_SHIPPING_COMMAND = "SHIPPING_FEE_CHANGED"
+_STORAGE_TYPED_FIELDS = ("cabinet_status", "shipping_fee")
+_VALID_CABINET_STATUSES = frozenset(CABINET_STATUS.keys())
 
 
 @storage_dashboard_bp.route('/storage_dashboard')
@@ -165,3 +186,181 @@ def export_storage_dashboard_excel():
     log_access(f"수납장 대시보드 제작중 엑셀 다운로드: {excel_filename} ({len(orders)}건)", session.get('user_id'))
 
     return send_file(excel_path, as_attachment=True, download_name=excel_filename)
+
+
+# --------------------------------------------------------------------------- #
+# typed field adapter (STORAGE-WRITER-01) — generic coercion 제거
+# --------------------------------------------------------------------------- #
+def _json_error(message: str, status: int, code: str = "") -> Any:
+    """canonical ``{success,data,error}`` 실패 응답을 만든다."""
+    return jsonify({
+        "success": False, "data": None,
+        "error": message, "message": message, "code": code,
+    }), status
+
+
+def _coerce_shipping_fee(value: Any) -> Optional[int]:
+    """배송비를 비음수 정수로 강제한다(재정의 없이 원값 저장; [[shipping_price_grand_total]]).
+
+    Args:
+        value: 요청 payload 의 배송비(int/float/정수문자열 허용).
+
+    Returns:
+        비음수 정수, 또는 정수로 안전 해석 불가 시 ``None``(호출자가 422 처리).
+    """
+    if isinstance(value, bool):
+        return None
+    if isinstance(value, int):
+        return value if value >= 0 else None
+    if isinstance(value, float):
+        return int(value) if value.is_integer() and value >= 0 else None
+    if isinstance(value, str):
+        cleaned = value.strip().replace(",", "")
+        if cleaned.isdigit():
+            return int(cleaned)
+    return None
+
+
+def _authorize_storage_field(field: str, user: Any) -> Decision:
+    """typed field 별 §2.1 정책 판정(in-handler).
+
+    cabinet_status 는 Production 또는 Shipment 정책(CS/SALES/PRODUCTION/SHIPMENT +
+    ADMIN/MANAGER), shipping_fee 는 Finance 정책(CS/SALES + ADMIN/MANAGER). VIEWER deny.
+
+    Args:
+        field: ``"cabinet_status"`` 또는 ``"shipping_fee"``.
+        user: 현재 사용자(``None`` 이면 미인증).
+
+    Returns:
+        :class:`Decision` (거부 시 status/code/reason 동봉).
+    """
+    if field == "cabinet_status":
+        prod = evaluate_policy(POLICY_REGISTRY["PRODUCTION_EDIT"], user)
+        if prod.allowed:
+            return prod
+        return evaluate_policy(POLICY_REGISTRY["SHIPMENT_EDIT"], user)
+    return evaluate_policy(POLICY_REGISTRY["FINANCE_MUTATION"], user)
+
+
+def _validate_storage_value(field: str, value: Any) -> tuple[Any, Optional[tuple]]:
+    """typed 값 검증. 반환 ``(typed_value, error)``; error 가 not None 이면 거부(422)."""
+    if field == "cabinet_status":
+        if value in _VALID_CABINET_STATUSES:
+            return value, None
+        return None, (f"유효하지 않은 수납장 상태입니다: {value}", 422, "INVALID_CABINET_STATUS")
+    fee = _coerce_shipping_fee(value)
+    if fee is None:
+        return None, ("배송비는 0 이상의 정수만 가능합니다.", 422, "INVALID_SHIPPING_FEE")
+    return fee, None
+
+
+def _storage_hashes(order_id: int, field: str, value: Any) -> tuple[str, str]:
+    """``(scope_hash, request_hash)`` — receipt 저장·same-key/different-hash 감지용 sha256."""
+    scope = hashlib.sha256(f"STORAGE:{order_id}:{field}".encode()).hexdigest()
+    payload = json.dumps({"field": field, "value": value}, sort_keys=True, ensure_ascii=False)
+    return scope, hashlib.sha256(payload.encode()).hexdigest()
+
+
+def _parse_if_match(order_id: int) -> tuple[Optional[dict], Optional[Any]]:
+    """optional ``If-Match``(mutation_version) → expected_versions. 형식오류는 ``(None, 400)``."""
+    raw = (request.headers.get("If-Match") or "").strip().strip('"')
+    if not raw:
+        return None, None
+    try:
+        return {order_id: int(raw)}, None
+    except ValueError:
+        return None, _json_error("If-Match 형식이 올바르지 않습니다.", 400, "BAD_IF_MATCH")
+
+
+def _commit_storage_field(
+    db: Session, order_id: int, field: str, typed_value: Any,
+    expected_versions: Optional[dict], idempotency_key: Optional[str],
+) -> Any:
+    """REV-00 one-tx: FOR UPDATE + If-Match + version bump + receipt + OrderEvent.
+
+    typed scalar 컬럼(cabinet_status/shipping_fee)만 setattr 한다 — structured_data(JSONB)·
+    main/logistics/settlement 축은 건드리지 않는다.
+    """
+    user_id = session.get("user_id")
+    command = STORAGE_CABINET_COMMAND if field == "cabinet_status" else STORAGE_SHIPPING_COMMAND
+    scope_hash, request_hash = _storage_hashes(order_id, field, typed_value)
+
+    def _mutate(sess: Session, orders: list) -> dict:
+        o = orders[0]
+        old_value = getattr(o, field)
+        setattr(o, field, typed_value)
+        sess.add(OrderEvent(
+            order_id=o.id, event_type=command,
+            payload={"field": field, "from": old_value, "to": typed_value},
+            created_by_user_id=user_id,
+        ))
+        return {o.id: [f"ORDER_DETAIL:{o.id}", "ORDERS_INDEX"]}
+
+    try:
+        outcome = execute_order_mutation(
+            db, actor_user_id=user_id, policy_id=command, order_ids=[order_id],
+            expected_versions=expected_versions, idempotency_key=idempotency_key,
+            scope_hash=scope_hash, request_hash=request_hash, mutation=_mutate,
+        )
+        db.commit()
+    except RevisionError as rev:
+        db.rollback()
+        return _json_error(str(rev), rev.status_code, rev.error_code)
+    except Exception as exc:  # noqa: BLE001 - 롤백 후 500 반환
+        db.rollback()
+        current_app.logger.error("[STORAGE] typed field 저장 실패: %s", exc, exc_info=True)
+        return _json_error(f"오류 발생: {exc}", 500, "STORAGE_WRITE_FAILED")
+
+    resp = jsonify({
+        "success": True, "error": None,
+        "data": {"normalized_value": typed_value, "mutation_receipt": outcome.read_receipt_id},
+    })
+    for header, value in outcome.headers.items():
+        resp.headers[header] = value
+    return resp
+
+
+def update_storage_field_response(order_id: int) -> Any:
+    """수납장 대시보드 typed field(cabinet_status·shipping_fee)를 저장한다 (STORAGE-WRITER-01).
+
+    generic coercion 없이 두 typed 필드만 허용하고, in-handler 정책(cabinet=Production/
+    Shipment, shipping_fee=Finance)으로 권한을 enforce 한 뒤 REV-00 경유로 저장한다.
+
+    Args:
+        order_id: URL 경로의 대상 주문 ID.
+
+    Returns:
+        성공 시 ``{success, data:{normalized_value, mutation_receipt}}`` + no-store,
+        실패 시 canonical 오류(400/403/404/409/422/500).
+    """
+    db: Session = get_db()
+    data = request.get_json(silent=True) or {}
+    field = data.get("field")
+    if field not in _STORAGE_TYPED_FIELDS:
+        return _json_error(f"허용되지 않은 필드입니다: {field}", 400, "FIELD_NOT_ALLOWED")
+
+    decision = _authorize_storage_field(field, get_user_by_id(session.get("user_id")))
+    if not decision.allowed:
+        return _json_error(decision.reason, decision.status, decision.code)
+
+    typed_value, err = _validate_storage_value(field, data.get("value"))
+    if err:
+        return _json_error(*err)
+
+    order = db.query(Order).filter(Order.id == order_id).first()
+    if not order:
+        return _json_error("유효하지 않은 주문입니다.", 404, "ORDER_NOT_FOUND")
+
+    expected_versions, if_match_err = _parse_if_match(order_id)
+    if if_match_err:
+        return if_match_err
+    idempotency_key = (request.headers.get("Idempotency-Key") or "").strip() or None
+
+    return _commit_storage_field(db, order_id, field, typed_value, expected_versions, idempotency_key)
+
+
+@storage_dashboard_bp.route('/api/storage_dashboard/order/<int:order_id>/field', methods=['POST'])
+@login_required
+def update_storage_field(order_id: int):
+    """수납장 typed field 저장 route. 권한은 handler in-handler 정책이 enforce 한다."""
+    return update_storage_field_response(order_id)

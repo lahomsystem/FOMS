@@ -9,7 +9,7 @@
       <div class="card shadow">
         <div class="card-header bg-primary text-white d-flex justify-content-between align-items-center">
           <h4 class="mb-0"><i class="fas fa-history"></i> 변경 로그</h4>
-          <button class="btn btn-light btn-sm" onclick="loadMyEvents()">
+          <button type="button" class="btn btn-light btn-sm" id="btn-refresh-events">
             <i class="fas fa-sync-alt"></i> 새로고침
           </button>
         </div>
@@ -64,7 +64,7 @@
       </div>
       <div class="modal-footer">
         <button type="button" class="btn btn-secondary" data-bs-dismiss="modal">취소</button>
-        <button type="button" class="btn btn-warning" onclick="confirmRevert()">
+        <button type="button" class="btn btn-warning" id="btn-confirm-revert">
           <i class="fas fa-undo"></i> 되돌리기 실행
         </button>
       </div>
@@ -127,108 +127,164 @@
 let currentRevertEventId = null;
 let currentRevertOrderId = null;
 
-// 페이지 로드 시 자동 로드
+// 페이지 로드 시 자동 로드 + 정적 버튼 이벤트 바인딩 (inline onclick 제거, P0-23)
 document.addEventListener('DOMContentLoaded', function() {
   loadMyEvents();
+  document.getElementById('btn-refresh-events')?.addEventListener('click', loadMyEvents);
+  document.getElementById('btn-confirm-revert')?.addEventListener('click', confirmRevert);
 });
 
 function loadMyEvents() {
   const container = document.getElementById('events-container');
   const loading = document.getElementById('loading');
-  
+
   loading.style.display = 'block';
-  container.innerHTML = '';
-  
+  container.replaceChildren();
+
   fetch('/api/me/change-events?limit=200')
     .then(response => response.json())
     .then(data => {
       loading.style.display = 'none';
-      
+
       if (!data.success) {
-        container.innerHTML = `
-          <div class="alert alert-danger">
-            <i class="fas fa-exclamation-circle"></i> 로그를 불러오는데 실패했습니다: ${data.message}
-          </div>
-        `;
+        container.appendChild(buildAlert('danger', 'fa-exclamation-circle',
+          '로그를 불러오는데 실패했습니다: ' + (data.message || '')));
         return;
       }
-      
+
       if (data.events.length === 0) {
-        container.innerHTML = `
-          <div class="alert alert-info">
-            <i class="fas fa-info-circle"></i> 아직 변경 이력이 없습니다.
-          </div>
-        `;
+        container.appendChild(buildAlert('info', 'fa-info-circle', '아직 변경 이력이 없습니다.'));
         return;
       }
-      
-      // 이벤트 목록 렌더링
-      let html = `<div class="mb-3"><strong>총 ${data.total}건의 변경 이력</strong></div>`;
-      
-      data.events.forEach(event => {
-        const isReverted = event.event_type === 'CHANGE_REVERTED';
-        const isOverride = event.is_override;
-        
-        let cardClass = 'event-card card';
-        if (isReverted) cardClass += ' reverted';
-        if (isOverride) cardClass += ' override';
-        
-        html += `
-          <div class="${cardClass}">
-            <div class="card-body">
-              <div class="d-flex justify-content-between align-items-start mb-2">
-                <div>
-                  <strong class="text-primary" style="font-size: 1.1rem;">
-                    <a href="/edit/${event.order_id}?open=erp-order" target="_blank">
-                      ${event.customer_name}
-                    </a>
-                  </strong>
-                  ${isOverride ? '<span class="badge badge-override ms-2">긴급 권한 사용</span>' : ''}
-                  ${isReverted ? '<span class="badge bg-secondary ms-2">되돌림</span>' : ''}
-                </div>
-                <div class="event-meta">
-                  <i class="far fa-clock"></i> ${event.when}
-                </div>
-              </div>
-              
-              <div class="mb-2">
-                <span class="badge bg-info">${event.what_label}</span>
-              </div>
-              
-              <div class="event-change mb-2">
-                ${escapeHtml(event.how_text)}
-              </div>
-              
-              ${event.reason ? `
-                <div class="event-reason">
-                  <strong><i class="fas fa-info-circle"></i> 사유:</strong>
-                  <span>${escapeHtml(event.reason)}</span>
-                </div>
-              ` : ''}
-              
-              ${!isReverted && canRevert(event) ? `
-                <div class="text-end">
-                  <button class="btn btn-sm btn-outline-warning" onclick="showRevertModal(${event.id}, ${event.order_id}, '${escapeHtml(event.what_label)}', '${escapeHtml(event.how_text)}')">
-                    <i class="fas fa-undo"></i> 되돌리기
-                  </button>
-                </div>
-              ` : ''}
-            </div>
-          </div>
-        `;
-      });
-      
-      container.innerHTML = html;
+
+      // 이벤트 목록 렌더링 (DOM node + textContent — 아래 buildEventCard)
+      const header = document.createElement('div');
+      header.className = 'mb-3';
+      const headerStrong = document.createElement('strong');
+      headerStrong.textContent = `총 ${data.total}건의 변경 이력`;
+      header.appendChild(headerStrong);
+      container.appendChild(header);
+
+      data.events.forEach(event => container.appendChild(buildEventCard(event)));
     })
     .catch(error => {
       loading.style.display = 'none';
-      container.innerHTML = `
-        <div class="alert alert-danger">
-          <i class="fas fa-exclamation-circle"></i> 네트워크 오류: ${error.message}
-        </div>
-      `;
+      container.appendChild(buildAlert('danger', 'fa-exclamation-circle',
+        '네트워크 오류: ' + ((error && error.message) || '')));
       console.error('로그 로딩 오류:', error);
     });
+}
+
+// 상태/서버 메시지 알림 박스 (사용자 데이터 아님 — textContent 로 안전 렌더).
+function buildAlert(kind, icon, message) {
+  const box = document.createElement('div');
+  box.className = 'alert alert-' + kind;
+  const i = document.createElement('i');
+  i.className = 'fas ' + icon;
+  box.appendChild(i);
+  box.appendChild(document.createTextNode(' ' + message));
+  return box;
+}
+
+function buildBadge(cls, text) {
+  const span = document.createElement('span');
+  span.className = 'badge ' + cls;
+  span.textContent = text;
+  return span;
+}
+
+// P0-23: 변경이력 카드. 현재 Order 의 customer_name(hostile 가능)·reason·how_text 등
+// 모든 필드를 textContent 로 렌더하고, 되돌리기 버튼은 addEventListener + 클로저
+// 바인딩(inline onclick / JSON attribute 0 → 저장형/DOM XSS 차단).
+function buildEventCard(event) {
+  const isReverted = event.event_type === 'CHANGE_REVERTED';
+  const isOverride = event.is_override;
+
+  const card = document.createElement('div');
+  card.className = 'event-card card'
+    + (isReverted ? ' reverted' : '')
+    + (isOverride ? ' override' : '');
+
+  const body = document.createElement('div');
+  body.className = 'card-body';
+  card.appendChild(body);
+
+  // 헤더 줄: 고객명 링크 + 배지 + 시간
+  const headRow = document.createElement('div');
+  headRow.className = 'd-flex justify-content-between align-items-start mb-2';
+
+  const left = document.createElement('div');
+  const strong = document.createElement('strong');
+  strong.className = 'text-primary';
+  strong.style.fontSize = '1.1rem';
+  const link = document.createElement('a');
+  link.href = '/edit/' + encodeURIComponent(event.order_id) + '?open=erp-order';
+  link.target = '_blank';
+  link.textContent = event.customer_name || '';
+  strong.appendChild(link);
+  left.appendChild(strong);
+  if (isOverride) left.appendChild(buildBadge('badge-override ms-2', '긴급 권한 사용'));
+  if (isReverted) left.appendChild(buildBadge('bg-secondary ms-2', '되돌림'));
+
+  const meta = document.createElement('div');
+  meta.className = 'event-meta';
+  const clock = document.createElement('i');
+  clock.className = 'far fa-clock';
+  meta.appendChild(clock);
+  meta.appendChild(document.createTextNode(' ' + (event.when || '')));
+
+  headRow.appendChild(left);
+  headRow.appendChild(meta);
+  body.appendChild(headRow);
+
+  // what_label 배지
+  const whatWrap = document.createElement('div');
+  whatWrap.className = 'mb-2';
+  whatWrap.appendChild(buildBadge('bg-info', event.what_label || ''));
+  body.appendChild(whatWrap);
+
+  // how_text
+  const how = document.createElement('div');
+  how.className = 'event-change mb-2';
+  how.textContent = event.how_text || '';
+  body.appendChild(how);
+
+  // reason (있을 때)
+  if (event.reason) {
+    const reasonWrap = document.createElement('div');
+    reasonWrap.className = 'event-reason';
+    const rStrong = document.createElement('strong');
+    const rIcon = document.createElement('i');
+    rIcon.className = 'fas fa-info-circle';
+    rStrong.appendChild(rIcon);
+    rStrong.appendChild(document.createTextNode(' 사유:'));
+    const rSpan = document.createElement('span');
+    rSpan.textContent = event.reason;
+    reasonWrap.appendChild(rStrong);
+    reasonWrap.appendChild(document.createTextNode(' '));
+    reasonWrap.appendChild(rSpan);
+    body.appendChild(reasonWrap);
+  }
+
+  // 되돌리기 버튼 (inline onclick 금지 — addEventListener + 클로저)
+  if (!isReverted && canRevert(event)) {
+    const actions = document.createElement('div');
+    actions.className = 'text-end';
+    const btn = document.createElement('button');
+    btn.type = 'button';
+    btn.className = 'btn btn-sm btn-outline-warning';
+    const bIcon = document.createElement('i');
+    bIcon.className = 'fas fa-undo';
+    btn.appendChild(bIcon);
+    btn.appendChild(document.createTextNode(' 되돌리기'));
+    btn.addEventListener('click', function () {
+      showRevertModal(event.id, event.order_id, event.what_label || '', event.how_text || '');
+    });
+    actions.appendChild(btn);
+    body.appendChild(actions);
+  }
+
+  return card;
 }
 
 function canRevert(event) {
@@ -243,18 +299,30 @@ function canRevert(event) {
 function showRevertModal(eventId, orderId, whatLabel, howText) {
   currentRevertEventId = eventId;
   currentRevertOrderId = orderId;
-  
-  document.getElementById('revert-event-info').innerHTML = `
-    <div class="card">
-      <div class="card-body">
-        <div class="mb-2"><strong>변경 내용:</strong> ${whatLabel}</div>
-        <div class="event-change">${howText}</div>
-      </div>
-    </div>
-  `;
-  
+
+  // whatLabel/howText 는 변경 payload(사용자 데이터 포함 가능) → textContent 로 렌더.
+  const info = document.getElementById('revert-event-info');
+  info.replaceChildren();
+  const card = document.createElement('div');
+  card.className = 'card';
+  const body = document.createElement('div');
+  body.className = 'card-body';
+  const whatLine = document.createElement('div');
+  whatLine.className = 'mb-2';
+  const whatStrong = document.createElement('strong');
+  whatStrong.textContent = '변경 내용: ';
+  whatLine.appendChild(whatStrong);
+  whatLine.appendChild(document.createTextNode(whatLabel || ''));
+  const howLine = document.createElement('div');
+  howLine.className = 'event-change';
+  howLine.textContent = howText || '';
+  body.appendChild(whatLine);
+  body.appendChild(howLine);
+  card.appendChild(body);
+  info.appendChild(card);
+
   document.getElementById('revert-reason').value = '';
-  
+
   const modal = new bootstrap.Modal(document.getElementById('revertModal'));
   modal.show();
 }
@@ -271,7 +339,7 @@ function confirmRevert() {
     return;
   }
   
-  fetch(`/api/orders/${currentRevertOrderId}/change-events/${currentRevertEventId}/revert`, {
+  fetch(`/api/orders/${currentRevertOrderId}/change-events/${currentRevertEventId}/compensate`, {
     method: 'POST',
     headers: {
       'Content-Type': 'application/json'
@@ -297,18 +365,6 @@ function confirmRevert() {
     alert('네트워크 오류: ' + error.message);
     console.error('되돌리기 오류:', error);
   });
-}
-
-function escapeHtml(text) {
-  if (!text) return '';
-  const map = {
-    '&': '&amp;',
-    '<': '&lt;',
-    '>': '&gt;',
-    '"': '&quot;',
-    "'": '&#039;'
-  };
-  return text.replace(/[&<>"']/g, m => map[m]);
 }
 </script>
 {% endblock %}

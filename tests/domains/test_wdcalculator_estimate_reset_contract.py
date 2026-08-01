@@ -52,8 +52,9 @@ def test_wdcalculator_mobile_builder_opens_editor_below_tapped_card():
     assert "display: grid !important; grid-template-columns: minmax(0, 1fr) auto" in builder_css
     assert "white-space: normal !important; overflow: hidden !important; text-overflow: clip !important" in builder_css
     assert "body.wd-builder #estimatesListContainer .estimate-detail-options:empty::before" in builder_css
-    assert "grid-template-columns: repeat(12, minmax(0, 1fr))" in builder_css
-    assert "base-manual-30cm-col { grid-column: 1 / span 5; }" in builder_css
+    assert 'body.wd-builder .wd-esec .base-component-row[data-mode="manual"] .base-manual-area > .row' in builder_css
+    assert "flex-direction: column !important" in builder_css
+    assert "grid-column: auto !important" in builder_css
     assert "grid-template-columns: minmax(0, 1fr) minmax(72px, .42fr) 44px" in builder_css
     assert ".wd-esec--collapsible.wd-esec--collapsed > :not(.wd-esec__head)" in builder_css
     assert "base-additional-fees-list:empty { display: none; }" in builder_css

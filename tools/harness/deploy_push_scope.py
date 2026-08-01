@@ -1,15 +1,26 @@
 """deploy push 범위 vs 세션 레저 분류.
 
 `origin/deploy..HEAD` 의 SHA 가 현재 세션 ledger 에 모두 있으면 own,
-하나라도 없으면 foreign, ledger/세션 불명이면 unknown.
+하나라도 없으면 foreign, ledger/세션 불명이거나 baseline(`origin/deploy`)
+조회 자체가 실패하면 unknown(=ask).
+
+세션 worktree(basename `foms-s-*`)는 예외로 **전 세션 union** 을 기준으로
+판정한다. worktree-로컬 ledger 에는 이 창에서 만든 커밋만 쌓이므로
+세션 키가 여러 개 쌓여도 union 이면 전부 이 창 계보 = own 이다.
 """
 from __future__ import annotations
 
+import os
 import subprocess
 from dataclasses import dataclass
 from typing import Literal
 
-from session_commit_ledger import normalize_session_id, session_shas, sha_in_list
+from session_commit_ledger import (
+    all_known_shas,
+    normalize_session_id,
+    session_shas,
+    sha_in_list,
+)
 
 ScopeKind = Literal["empty", "own", "foreign", "unknown"]
 
@@ -38,23 +49,50 @@ def _run_git(project_root: str, *args: str) -> tuple[int, str, str]:
     return proc.returncode, (proc.stdout or "").strip(), (proc.stderr or "").strip()
 
 
+def _unpushed_deploy_shas(project_root: str) -> tuple[bool, tuple[str, ...]]:
+    """(baseline_ok, SHA 목록). baseline 조회 실패와 "정상적으로 빈 범위"를 구분한다.
+
+    `origin/deploy` ref 부재나 `git log` 실패를 빈 튜플로 뭉개면 호출부가
+    empty(=allow)로 오인한다 — 범위를 모르는 것과 범위가 없는 것은 다르다.
+
+    파라미터:
+        project_root: 저장소(또는 worktree) 루트.
+    반환:
+        `(True, shas)` 정상 조회(shas 가 비면 진짜 empty),
+        `(False, ())` baseline 조회 실패(=판정 불가).
+    """
+    code, _out, _err = _run_git(project_root, "rev-parse", "--verify", "origin/deploy")
+    if code != 0:
+        return False, ()
+    code, out, _err = _run_git(
+        project_root, "log", "--reverse", "--format=%H", "origin/deploy..HEAD"
+    )
+    if code != 0:
+        return False, ()
+    return True, tuple(line.strip().lower() for line in out.splitlines() if line.strip())
+
+
 def list_unpushed_deploy_shas(project_root: str) -> tuple[str, ...]:
     """`origin/deploy..HEAD` SHA 목록(오래된 순). remote 없으면 빈 튜플.
 
     fetch 는 호출하지 않는다(가드 경로 지연·네트워크 회피). 로컬
-    `origin/deploy` ref 가 있으면 그걸 쓴다.
+    `origin/deploy` ref 가 있으면 그걸 쓴다. 조회 실패까지 알아야 하는
+    호출부는 `_unpushed_deploy_shas` 를 쓴다.
     """
-    code, out, _err = _run_git(
-        project_root, "rev-parse", "--verify", "origin/deploy"
-    )
-    if code != 0:
-        return ()
-    code, out, _err = _run_git(
-        project_root, "log", "--reverse", "--format=%H", "origin/deploy..HEAD"
-    )
-    if code != 0 or not out:
-        return ()
-    return tuple(line.strip().lower() for line in out.splitlines() if line.strip())
+    return _unpushed_deploy_shas(project_root)[1]
+
+
+def _is_session_worktree(project_root: str) -> bool:
+    """세션 worktree(c:/tmp/foms-s-*) 여부 — 경로 basename 프리픽스 판정.
+
+    파라미터:
+        project_root: 저장소 루트(또는 worktree) 경로.
+    반환:
+        basename 이 `foms-s-` 로 시작하면 True. Windows 경로는 대소문자를
+        구분하지 않으므로 소문자로 비교한다. 상대경로('.' 등)는 abspath 로
+        정규화해 판정한다 — normpath('.') 의 basename 은 '.' 이라 오판한다.
+    """
+    return os.path.basename(os.path.abspath(project_root)).lower().startswith("foms-s-")
 
 
 def classify_deploy_scope(
@@ -69,9 +107,32 @@ def classify_deploy_scope(
     반환:
         ScopeResult (empty/own/foreign/unknown).
     """
-    shas = list_unpushed_deploy_shas(project_root)
+    baseline_ok, shas = _unpushed_deploy_shas(project_root)
+    if not baseline_ok:
+        return ScopeResult(
+            "unknown", (), (),
+            "deploy baseline(origin/deploy) 조회 실패 — push 범위 판정 불가",
+        )
     if not shas:
         return ScopeResult("empty", (), (), "")
+
+    if _is_session_worktree(project_root):
+        union = all_known_shas(project_root)
+        if union:
+            foreign = tuple(s for s in shas if not sha_in_list(s, union))
+            if not foreign:
+                return ScopeResult("own", shas, (), "")
+            preview = ", ".join(s[:8] for s in foreign[:5])
+            return ScopeResult(
+                "foreign",
+                shas,
+                foreign,
+                (
+                    f"세션 worktree ledger 밖 커밋({len(foreign)}/{len(shas)}: {preview}) "
+                    f"— cherry-pick/merge 유입 여부 확인 필요"
+                ),
+            )
+        # ledger 가 빈 worktree(훅 미작동 창) → 아래 기존 세션 단일 기준으로 폴백
 
     sid = normalize_session_id(session_id)
     if sid == "unknown":

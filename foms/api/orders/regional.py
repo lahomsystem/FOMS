@@ -1,12 +1,37 @@
-"""Regional/self-measurement mutation handlers for the legacy orders blueprint."""
+"""지방/자가실측 체크리스트·메모 mutation handlers (DATA-MEASUREMENT-01).
+
+P1-22 remediation: 예전엔 6종 체크리스트 불리언과 자유 메모를 로그인 사용자면 누구나
+``setattr(order, field, value)`` + ``db.commit()`` 으로 **generic·direct** 저장했다(타입
+검증 0·version/receipt/event 0). 이 모듈은 그것을 세 축으로 정본화한다.
+
+* **typed field registry**: 체크리스트는 정확히 6개 불리언 필드만(``REGIONAL_ALLOWED_FIELDS``),
+  값은 불리언으로 강제(임의 필드/타입 거부). 메모는 문자열만.
+* **policy**: §2.1 canonical ``STAFF_MUTATION`` 을 handler 에서 enforce(VIEWER deny) —
+  AUTH-01 before_request 가드가 꺼진 컨텍스트(TESTING)에서도 항상.
+* **revision**: 저장은 REV-00 :func:`execute_order_mutation` 경유 — If-Match(mutation_version)
+  낙관 잠금·``FOR UPDATE``·version bump·idempotency receipt·OrderEvent parity 를 한 tx 에.
+
+**unrelated-path invariant**: 지정된 flat 컬럼 하나(또는 regional_memo)만 바꾸고 나머지
+structured_data/컬럼은 건드리지 않는다.
+"""
 
 from __future__ import annotations
 
-from flask import jsonify, request, session
+import hashlib
+import json
+import logging
+from typing import Any, List, Mapping, Optional, Tuple
 
-from foms.web.auth import log_access
+from flask import jsonify, request, session
+from sqlalchemy.orm import Session
+
+logger = logging.getLogger(__name__)
+
 from db import get_db
-from models import Order
+from foms.services.orders.order_mutation_policy import POLICY_REGISTRY, evaluate_policy
+from foms.services.orders.revision import RevisionError, execute_order_mutation
+from foms.web.auth import get_user_by_id, log_access
+from models import Order, OrderEvent
 
 REGIONAL_ALLOWED_FIELDS = [
     "measurement_completed",
@@ -16,73 +41,237 @@ REGIONAL_ALLOWED_FIELDS = [
     "regional_cargo_sent",
     "regional_construction_info_sent",
 ]
+_REGIONAL_ALLOWED = frozenset(REGIONAL_ALLOWED_FIELDS)
+
+#: 체크리스트/메모 write 정책 — 전 STAFF 팀 업무, VIEWER deny(§2.1 STAFF_MUTATION).
+REGIONAL_POLICY_ID = "STAFF_MUTATION"
+REGIONAL_CHECKLIST_EVENT = "REGIONAL_CHECKLIST_UPDATED"
+REGIONAL_MEMO_EVENT = "REGIONAL_MEMO_UPDATED"
+_MEMO_MAX = 2000
+
+
+def _coerce_checklist_bool(value: Any) -> bool:
+    """체크리스트 값을 불리언으로 강제한다(임의 타입 거부).
+
+    Args:
+        value: 요청 값(bool/숫자/문자 토큰만 허용).
+
+    Returns:
+        정규화된 불리언.
+
+    Raises:
+        ValueError: dict/list/None 등 불리언으로 해석할 수 없는 타입.
+    """
+    if isinstance(value, bool):
+        return value
+    if isinstance(value, (int, float)):
+        return value != 0
+    if isinstance(value, str):
+        return value.strip().lower() in ("1", "true", "yes", "y", "on")
+    raise ValueError("체크리스트 값은 불리언이어야 합니다.")
+
+
+def _authorize() -> Optional[Any]:
+    """STAFF_MUTATION 정책을 enforce. 거부면 (json, status), 허용이면 None."""
+    user = get_user_by_id(session.get("user_id"))
+    decision = evaluate_policy(POLICY_REGISTRY[REGIONAL_POLICY_ID], user)
+    if not decision.allowed:
+        return (
+            jsonify({
+                "success": False,
+                "data": None,
+                "error": decision.reason,
+                "message": decision.reason,
+                "code": decision.code,
+            }),
+            decision.status,
+        )
+    return None
+
+
+def _parse_if_match(order_id: int) -> Tuple[Optional[Mapping[int, int]], Optional[Any]]:
+    """optional If-Match(mutation_version) → expected_versions. 형식 오류는 (None, err)."""
+    raw = (request.headers.get("If-Match") or "").strip().strip('"')
+    if not raw:
+        return None, None
+    try:
+        return {order_id: int(raw)}, None
+    except ValueError:
+        return None, (jsonify({"success": False, "message": "If-Match 형식이 올바르지 않습니다."}), 400)
+
+
+def _hashes(order_id: int, payload: dict) -> Tuple[str, str]:
+    """(scope_hash, request_hash) — receipt·same-key 감지용 sha256."""
+    scope = hashlib.sha256(f"{REGIONAL_POLICY_ID}:{order_id}".encode()).hexdigest()
+    req = hashlib.sha256(
+        json.dumps(payload, sort_keys=True, ensure_ascii=False, default=str).encode()
+    ).hexdigest()
+    return scope, req
+
+
+def _order_or_404(db: Session, order_id: Any) -> Tuple[Optional[Order], Optional[Any]]:
+    """지방/자가실측 주문만 허용. (order, None) 또는 (None, 404 응답)."""
+    order = db.query(Order).filter_by(id=order_id).first()
+    is_regional = getattr(order, "is_regional", False)
+    is_self = getattr(order, "is_self_measurement", False)
+    if not order or (not is_regional and not is_self):
+        return None, (jsonify({"success": False, "message": "유효하지 않은 주문입니다."}), 404)
+    return order, None
+
+
+def _order_type_label(order: Order) -> str:
+    return "자가실측" if getattr(order, "is_self_measurement", False) else "지방 주문"
 
 
 def update_regional_status_response():
-    """Update regional/self-measurement checklist fields."""
+    """6종 체크리스트 불리언 1개를 typed·REV-00 로 저장한다."""
+    err = _authorize()
+    if err:
+        return err
     db = get_db()
     data = request.get_json() or {}
-
     order_id = data.get("order_id")
     field = data.get("field")
-    value = data.get("value")
-    order = db.query(Order).filter_by(id=order_id).first()
+    raw_value = data.get("value")
 
-    is_regional = getattr(order, "is_regional", False)
-    is_self_measurement = getattr(order, "is_self_measurement", False)
-    if not order or (not is_regional and not is_self_measurement):
-        return jsonify({"success": False, "message": "유효하지 않은 주문입니다."}), 404
-
-    if field not in REGIONAL_ALLOWED_FIELDS:
+    if field not in _REGIONAL_ALLOWED:
         return jsonify({"success": False, "message": "허용되지 않은 필드입니다."}), 400
+    try:
+        value = _coerce_checklist_bool(raw_value)
+    except ValueError as exc:
+        return jsonify({"success": False, "message": str(exc)}), 400
+
+    order, resp = _order_or_404(db, order_id)
+    if resp:
+        return resp
+    order_id = order.id
+
+    expected_versions, if_match_err = _parse_if_match(order_id)
+    if if_match_err:
+        return if_match_err
+    idempotency_key = (request.headers.get("Idempotency-Key") or "").strip() or None
+    user_id = session.get("user_id")
+    scope_hash, request_hash = _hashes(order_id, {"field": field, "value": value})
+
+    def _mutate(sess: Session, orders: List[Order]) -> Mapping[int, List[str]]:
+        """row lock 아래에서 단일 체크리스트 컬럼만 설정 + event parity(축 불변)."""
+        o = orders[0]
+        setattr(o, field, value)
+        sess.add(OrderEvent(
+            order_id=o.id,
+            event_type=REGIONAL_CHECKLIST_EVENT,
+            payload={"field": field, "value": value},
+            created_by_user_id=user_id,
+        ))
+        return {o.id: [f"ORDER_DETAIL:{o.id}", "ORDERS_INDEX"]}
 
     try:
-        setattr(order, field, value)
+        outcome = execute_order_mutation(
+            db,
+            actor_user_id=user_id,
+            policy_id=REGIONAL_POLICY_ID,
+            order_ids=[order_id],
+            expected_versions=expected_versions,
+            idempotency_key=idempotency_key,
+            scope_hash=scope_hash,
+            request_hash=request_hash,
+            mutation=_mutate,
+        )
         db.commit()
-        order_type = "자가실측" if is_self_measurement else "지방 주문"
-        log_access(
-            f"{order_type} #{order.id}의 '{field}' 상태를 '{value}'(으)로 변경",
-            session["user_id"],
-        )
-        return jsonify({"success": True, "message": "상태가 업데이트되었습니다."})
-    except Exception as exc:
+    except RevisionError as rev:
         db.rollback()
-        return (
-            jsonify({"success": False, "message": f"오류 발생: {str(exc)}"}),
-            500,
-        )
+        return jsonify({"success": False, "message": str(rev), "code": rev.error_code}), rev.status_code
+    except Exception as exc:  # noqa: BLE001 - 롤백 후 500
+        db.rollback()
+        logger.exception("[REGIONAL] 체크리스트 업데이트 오류 order=%s field=%s", order_id, field)
+        return jsonify({"success": False, "message": f"오류 발생: {str(exc)}"}), 500
+
+    log_access(
+        f"{_order_type_label(order)} #{order_id}의 '{field}' 상태를 '{value}'(으)로 변경",
+        session["user_id"],
+    )
+    resp = jsonify({
+        "success": True,
+        "message": "상태가 업데이트되었습니다.",
+        "mutation_receipt": outcome.read_receipt_id,
+    })
+    for header, hvalue in outcome.headers.items():
+        resp.headers[header] = hvalue
+    return resp
 
 
 def update_regional_memo_response():
-    """Update the legacy regional memo field."""
+    """자유 메모(문자열)를 typed·REV-00 로 저장한다."""
+    err = _authorize()
+    if err:
+        return err
     db = get_db()
     data = request.get_json() or {}
-
     order_id = data.get("order_id")
     memo = data.get("memo", "")
-    order = db.query(Order).filter_by(id=order_id).first()
+    if not isinstance(memo, str):
+        return jsonify({"success": False, "message": "메모는 문자열이어야 합니다."}), 400
+    memo = memo[:_MEMO_MAX]
 
-    is_regional = getattr(order, "is_regional", False)
-    is_self_measurement = getattr(order, "is_self_measurement", False)
-    if not order or (not is_regional and not is_self_measurement):
-        return jsonify({"success": False, "message": "유효하지 않은 주문입니다."}), 404
+    order, resp = _order_or_404(db, order_id)
+    if resp:
+        return resp
+    order_id = order.id
+
+    expected_versions, if_match_err = _parse_if_match(order_id)
+    if if_match_err:
+        return if_match_err
+    idempotency_key = (request.headers.get("Idempotency-Key") or "").strip() or None
+    user_id = session.get("user_id")
+    scope_hash, request_hash = _hashes(order_id, {"memo_len": len(memo)})
+
+    def _mutate(sess: Session, orders: List[Order]) -> Mapping[int, List[str]]:
+        """row lock 아래에서 regional_memo 컬럼만 설정 + event parity(축 불변)."""
+        o = orders[0]
+        o.regional_memo = memo
+        sess.add(OrderEvent(
+            order_id=o.id,
+            event_type=REGIONAL_MEMO_EVENT,
+            payload={"memo_len": len(memo)},
+            created_by_user_id=user_id,
+        ))
+        return {o.id: [f"ORDER_DETAIL:{o.id}", "ORDERS_INDEX"]}
 
     try:
-        order.regional_memo = memo
-        db.commit()
-        order_type = "자가실측" if is_self_measurement else "지방 주문"
-        log_access(f"{order_type} #{order.id}의 메모를 업데이트", session["user_id"])
-        return jsonify({"success": True, "message": "메모가 저장되었습니다."})
-    except Exception as exc:
-        db.rollback()
-        return (
-            jsonify({"success": False, "message": f"오류 발생: {str(exc)}"}),
-            500,
+        outcome = execute_order_mutation(
+            db,
+            actor_user_id=user_id,
+            policy_id=REGIONAL_POLICY_ID,
+            order_ids=[order_id],
+            expected_versions=expected_versions,
+            idempotency_key=idempotency_key,
+            scope_hash=scope_hash,
+            request_hash=request_hash,
+            mutation=_mutate,
         )
+        db.commit()
+    except RevisionError as rev:
+        db.rollback()
+        return jsonify({"success": False, "message": str(rev), "code": rev.error_code}), rev.status_code
+    except Exception as exc:  # noqa: BLE001 - 롤백 후 500
+        db.rollback()
+        logger.exception("[REGIONAL] 메모 업데이트 오류 order=%s", order_id)
+        return jsonify({"success": False, "message": f"오류 발생: {str(exc)}"}), 500
+
+    log_access(f"{_order_type_label(order)} #{order_id}의 메모를 업데이트", session["user_id"])
+    resp = jsonify({
+        "success": True,
+        "message": "메모가 저장되었습니다.",
+        "mutation_receipt": outcome.read_receipt_id,
+    })
+    for header, hvalue in outcome.headers.items():
+        resp.headers[header] = hvalue
+    return resp
 
 
 __all__ = [
     "REGIONAL_ALLOWED_FIELDS",
+    "REGIONAL_POLICY_ID",
     "update_regional_memo_response",
     "update_regional_status_response",
 ]

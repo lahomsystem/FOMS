@@ -24,6 +24,12 @@ from foms.services.common.erp_navigation_contract import ERP_PRIMARY_NAV_PATHS
 
 GLOBAL_BUDGET = {"render_ms_max": 500, "etag_required": True, "conditional_304_required": True}
 
+# 로그인 헬퍼는 게이트가 쓰는 것과 동일한 모듈 파일을 직접 로드한다(패키지 __init__ 없음 —
+# gate._load_module_file 과 같은 이유: foms 패키지 연쇄 import 회피).
+login_helper = gate._load_module_file(
+    "ept_b8_login_helper_under_test", "tools/harness/ept_b8_staging_session_from_login.py"
+)
+
 
 def _sample(
     ttfb_ms: int,
@@ -311,6 +317,57 @@ def test_non_200_status_invalidates_measurement():
     row = gate.judge_path("/x", summary, True, _budget(), GLOBAL_BUDGET, base_ttfb_ms=380)
     assert row["passed"] is False
     assert any("non-200" in r for r in row["reasons"])
+
+
+def test_login_page_redirect_invalidates_measurement():
+    """세션 소실 → /login 리다이렉트를 따라간 200(로그인 페이지)은 측정 무효 FAIL.
+
+    2026-07-28~30 실사고 회귀 계약: 9경로가 전부 같은 로그인 페이지 바이트(wire 21K)를
+    내는데도 status 200 이라 예산 초과 '성능 회귀'로 보고됐다.
+    """
+    warm = [dict(_sample(400), login_redirect=True) for _ in range(4)]
+    summary = gate.summarize_samples(warm)
+    assert summary["login_redirected"] is True
+    row = gate.judge_path("/x", summary, True, _budget(), GLOBAL_BUDGET, base_ttfb_ms=380)
+    assert row["passed"] is False
+    assert any("/login 리다이렉트" in r for r in row["reasons"])
+
+
+def test_login_redirect_absent_in_old_samples_is_not_flagged():
+    """login_redirect 키 없는 구버전/픽스처 표본은 무효 판정하지 않는다(관용)."""
+    summary = gate.summarize_samples([_sample(400) for _ in range(4)])
+    assert summary["login_redirected"] is False
+
+
+# ---------------------------------------------------------------------------
+# 로그인 쿠키 양성 검증 (거부된 로그인의 false-success 차단)
+# ---------------------------------------------------------------------------
+class _FakeResponse:
+    """requests.Response 최소 대역(is_redirect 만 필요)."""
+
+    def __init__(self, status_code: int) -> None:
+        self.status_code = status_code
+        self.headers = {"Location": "/erp/dashboard"} if status_code in (301, 302) else {}
+
+    @property
+    def is_redirect(self) -> bool:
+        return self.status_code in (301, 302) and "Location" in self.headers
+
+
+def test_cookie_authenticates_true_when_login_page_redirects(monkeypatch):
+    """인증된 쿠키로 GET /login → 302(홈으로 튕김) → True."""
+    monkeypatch.setattr(login_helper.requests, "get", lambda *a, **k: _FakeResponse(302))
+    assert login_helper.cookie_authenticates("https://x", "session_staging=abc") is True
+
+
+def test_cookie_authenticates_false_for_anonymous_cookie(monkeypatch):
+    """익명 쿠키로 GET /login → 200(폼 렌더) → False.
+
+    Flask 는 로그아웃 상태에도 session_staging(CSRF seed)을 발급하므로 '쿠키가 있다'는
+    인증의 증거가 아니다 — perf-gate 가 3일간 로그인 페이지를 잰 실사고의 핵심.
+    """
+    monkeypatch.setattr(login_helper.requests, "get", lambda *a, **k: _FakeResponse(200))
+    assert login_helper.cookie_authenticates("https://x", "session_staging=abc") is False
 
 
 # ---------------------------------------------------------------------------

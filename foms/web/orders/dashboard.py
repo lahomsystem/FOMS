@@ -661,10 +661,14 @@ def erp_order_mobile_detail(order_id: int):
     return_to = (request.args.get('return_to') or '').strip()
     back_endpoint = resolve_edit_return_back_endpoint(return_to)
 
+    # AS 기준 일정 드리프트 배너(상세 최상단). 링크가 없으면 쿼리도 마크업도 없다.
+    from foms.services.as_dashboard_display import build_schedule_link_drift
+
     return render_template(
         'orders/mobile_order_detail.html',
         order=order_row,
         timeline=load_order_timeline(db, order),
+        as_schedule_drift=build_schedule_link_drift(order.structured_data, db),
         can_edit_erp=can_edit_erp_flag,
         erp_sub_nav_active='dashboard',
         mobile_shell_title='주문 상세',

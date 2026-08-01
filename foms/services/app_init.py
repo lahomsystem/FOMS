@@ -2,17 +2,18 @@
 
 from __future__ import annotations
 
-import os
+from pathlib import Path
 
-from foms.persistence.main.db import get_db, init_db
-from foms.persistence.main.models import User
+from foms.persistence.main.db import get_db, init_db  # noqa: F401  # init_db: startup-purity spy seam (run_auto_init must NOT call it)
 from sqlalchemy import text
 from sqlalchemy.exc import OperationalError
 from sqlalchemy.orm import Session
-from wdcalculator_db import init_wdcalculator_db
-from werkzeug.security import generate_password_hash
+from wdcalculator_db import init_wdcalculator_db  # noqa: F401  # spy seam (startup must NOT create wdcalculator tables)
 
 __all__ = ["run_auto_init"]
+
+# Repo-root ``alembic.ini`` (foms/services/app_init.py -> parents[2] == repo root).
+_ALEMBIC_INI_PATH = Path(__file__).resolve().parents[2] / "alembic.ini"
 
 
 class StartupReadinessError(RuntimeError):
@@ -24,6 +25,15 @@ _BACKFILL_STATEMENT_TIMEOUT_MS = 5000
 _BACKFILL_BATCH_SIZE = 200
 
 
+def _session_dialect_name(db_session: Session) -> str | None:
+    """Return the SQLAlchemy dialect name bound to ``db_session`` (or None)."""
+    try:
+        bind = db_session.get_bind()
+    except Exception:
+        bind = getattr(db_session, "bind", None)
+    return getattr(getattr(bind, "dialect", None), "name", None)
+
+
 def _apply_postgresql_timeouts(
     db_session: Session,
     *,
@@ -31,12 +41,7 @@ def _apply_postgresql_timeouts(
     statement_timeout_ms: int,
 ) -> None:
     """Apply bounded PostgreSQL timeouts for startup maintenance queries."""
-    try:
-        bind = db_session.get_bind()
-    except Exception:
-        bind = getattr(db_session, "bind", None)
-    dialect_name = getattr(getattr(bind, "dialect", None), "name", None)
-    if dialect_name != "postgresql":
+    if _session_dialect_name(db_session) != "postgresql":
         return
     db_session.execute(text(f"SET LOCAL lock_timeout = '{lock_timeout_ms}ms'"))
     db_session.execute(text(f"SET LOCAL statement_timeout = '{statement_timeout_ms}ms'"))
@@ -91,8 +96,17 @@ def _backfill_erp_flat_columns() -> None:
 
 
 def _verify_erp_flat_columns_ready() -> None:
-    """Fail fast when automatic startup repair cannot confirm required ERP flat columns."""
+    """Fail closed (read-only) when the required ERP flat columns are absent.
+
+    PostgreSQL-only: SQLite (local QA / pytest) owns its schema via test
+    fixtures / ``create_all``, not Alembic, so the probe short-circuits there
+    instead of failing on an intentionally partial table.
+    """
     db_session = get_db()
+    if _session_dialect_name(db_session) != "postgresql":
+        db_session.rollback()
+        print("[AUTO-INIT] ERP flat-column readiness check skipped (non-PostgreSQL).")
+        return
     try:
         _apply_postgresql_timeouts(
             db_session,
@@ -137,73 +151,85 @@ def _verify_erp_flat_columns_ready() -> None:
         db_session.rollback()
 
 
-def _get_bootstrap_admin_password() -> str | None:
-    """Return the configured bootstrap password for automatic admin creation."""
-    password = (os.environ.get("FOMS_ADMIN_DEFAULT_PASSWORD") or "").strip()
-    return password or None
-
-
-def _ensure_default_admin(db_session: Session) -> None:
-    """Create the default admin only when an explicit bootstrap password is set."""
-    try:
-        admin = db_session.query(User).filter_by(username="admin").first()
-        if admin:
-            print("[AUTO-INIT] Admin user exists.")
-            return
-
-        password = _get_bootstrap_admin_password()
-        if not password:
-            print(
-                "[AUTO-INIT] Admin user missing; skipping automatic admin bootstrap "
-                "because FOMS_ADMIN_DEFAULT_PASSWORD is not set."
-            )
-            return
-
-        print("[AUTO-INIT] Creating default admin user from configured bootstrap password.")
-        new_admin = User(
-            username="admin",
-            password=generate_password_hash(password),
-            name="관리자",
-            role="ADMIN",
-            is_active=True,
-        )
-        db_session.add(new_admin)
-        db_session.commit()
-    except Exception as e:
-        print(f"[AUTO-INIT] Failed to create admin user: {e}")
-        db_session.rollback()
-
-
 def run_auto_init(app) -> None:
-    """Ensure DB tables and optionally bootstrap the admin account on WSGI startup."""
+    """Wire startup-only side effects on WSGI import — never write or issue DDL.
+
+    STARTUP-PURE-01: the import/startup path performs **zero** DB mutation. No
+    ``create_all`` baseline, no ERP flat-column backfill, no ``alembic stamp`` —
+    the schema is owned entirely by Alembic (``alembic upgrade head`` runs once
+    in ``predeploy.sh`` before any replica boots). Startup keeps only:
+
+    * ``_verify_erp_flat_columns_ready`` — a read-only PostgreSQL probe that
+      fails the app closed when the required flat columns are absent, so a
+      replica never serves against an unmigrated schema (and never self-heals).
+    * ``register_date_sync_listener`` — pure SQLAlchemy listener wiring (no DB
+      write) for KST date synchronization.
+
+    Excluded on purpose: schema DDL (STARTUP-SCHEMA-01 → Alembic/predeploy),
+    flat-column backfill (STARTUP-BACKFILL-01 → operator CLI), and admin
+    bootstrap (STARTUP-ADMIN-01 → ``tools/ops/bootstrap_admin.py``). None of
+    these are revived here when the schema is already current.
+    """
     try:
         with app.app_context():
-            print("[AUTO-INIT] Checking database tables...")
-            init_db()
-            from foms.api.attachments import (
-                ensure_order_attachments_category_column,
-                ensure_order_attachments_item_index_column,
-                ensure_order_attachments_user_id_column,
-            )
-
-            ensure_order_attachments_category_column()
-            ensure_order_attachments_item_index_column()
-            ensure_order_attachments_user_id_column()
-            init_wdcalculator_db()
-            from foms.services.db_indexes import apply_phase2_indexes, ensure_erp_date_columns
-
-            apply_phase2_indexes()
-            ensure_erp_date_columns()
+            # Read-only, PostgreSQL-only fail-closed readiness check. On a
+            # missing/unmigrated schema this raises StartupReadinessError rather
+            # than silently creating anything.
             _verify_erp_flat_columns_ready()
-            _backfill_erp_flat_columns()
 
             from foms.services.order_date_sync import register_date_sync_listener
 
             register_date_sync_listener()
-
-            db_session = get_db()
-            _ensure_default_admin(db_session)
     except StartupReadinessError:
         raise
     except Exception as e:
-        print(f"[AUTO-INIT] Database initialization failed: {e}")
+        print(f"[AUTO-INIT] Startup wiring failed: {e}")
+
+
+def _alembic_heads() -> set[str]:
+    """Return the Alembic migration script head revision id(s)."""
+    from alembic.config import Config
+    from alembic.script import ScriptDirectory
+
+    config = Config(str(_ALEMBIC_INI_PATH))
+    return set(ScriptDirectory.from_config(config).get_heads())
+
+
+def _db_current_revisions(engine) -> set[str]:
+    """Return the Alembic revision id(s) currently stamped in ``engine``'s DB."""
+    from alembic.migration import MigrationContext
+
+    with engine.connect() as connection:
+        return set(MigrationContext.configure(connection).get_current_heads())
+
+
+def verify_migrations_current(engine) -> None:
+    """Fail closed (dev) when the database schema is behind the Alembic head(s).
+
+    Compares the migration script head(s) against the revision recorded in the
+    database's ``alembic_version`` table. When they differ the local dev server
+    refuses to boot instead of silently upgrading — the developer runs
+    ``alembic upgrade head`` explicitly. When they match, nothing is created or
+    backfilled (no auto-init revival).
+
+    PostgreSQL-only: non-PostgreSQL engines (SQLite tests / local QA) are not
+    Alembic-managed, so the check short-circuits without touching the DB.
+
+    Args:
+        engine: The SQLAlchemy engine bound to the database to verify.
+
+    Raises:
+        StartupReadinessError: When pending migrations are detected on
+            PostgreSQL (silent auto-upgrade is disabled).
+    """
+    if getattr(getattr(engine, "dialect", None), "name", None) != "postgresql":
+        return
+    heads = _alembic_heads()
+    current = _db_current_revisions(engine)
+    if current != heads:
+        raise StartupReadinessError(
+            "Pending database migrations "
+            f"(alembic head={sorted(heads)}, database={sorted(current)}). "
+            "Run `alembic upgrade head` before starting the dev server; "
+            "startup no longer performs a silent auto-upgrade."
+        )

@@ -3,6 +3,7 @@ ERP 주문 도면 담당자 지정/확정 API. (Phase 4-5e)
 erp.py에서 분리: assign-draftsman, batch-assign-draftsman, confirm-drawing-receipt.
 """
 import copy
+from foms.services.error_logging import log_handled_exception
 from datetime import datetime
 
 from flask import Blueprint, request, jsonify, session
@@ -155,9 +156,7 @@ def api_orders_batch_assign_draftsman():
     except Exception as e:
         if db:
             db.rollback()
-        import traceback
-        print(f"Batch Assign Draftsman Error: {e}")
-        print(traceback.format_exc())
+        log_handled_exception()
         return jsonify({'success': False, 'message': str(e)}), 500
 
 

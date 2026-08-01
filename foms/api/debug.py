@@ -1,29 +1,13 @@
-"""디버그용 API (DB 연결 확인 등)."""
-import os
-from flask import Blueprint, jsonify
-from db import get_db
-from models import User
+"""디버그용 blueprint (라우트 없음).
+
+OPS-ROUTE-01 / P0-18: 무인증 ``/debug-db`` 가 DB schema·table name·User count·env
+존재 여부를 노출하고 실패 시 raw exception/traceback 까지 반환하던 진단 라우트를
+제거했다. 이 blueprint 는 어디에도 등록되지 않으며(=deployed registration 0),
+심볼(``debug_bp``)만 namespace surface 계약(tests/contracts/runtime)을 위해 유지한다.
+
+진단이 다시 필요하면 무인증 public 이 아니라 ADMIN 세션 게이트 뒤에서
+``Cache-Control: private, no-store`` 로만 노출할 것(무인증 public 복구 금지).
+"""
+from flask import Blueprint
 
 debug_bp = Blueprint('debug', __name__)
-
-
-@debug_bp.route('/debug-db')
-def debug_db():
-    """Database Connection Check Route (Temporary)."""
-    try:
-        from sqlalchemy import text
-        db = get_db()
-        result = db.execute(text("SELECT 1")).fetchone()
-        tables_query = text("SELECT table_name FROM information_schema.tables WHERE table_schema='public'")
-        tables = [row[0] for row in db.execute(tables_query).fetchall()]
-        status = "SUCCESS"
-        message = f"Connected! Result: {result}, Tables: {tables}"
-        if 'users' in tables:
-            message += f" | Users count: {db.query(User).count()}"
-        else:
-            status = "WARNING"
-            message += " | 'users' table MISSING"
-        return jsonify({"status": status, "message": message, "env_db_url_set": bool(os.environ.get('DATABASE_URL'))})
-    except Exception as e:
-        import traceback
-        return jsonify({"status": "ERROR", "error": str(e), "traceback": traceback.format_exc()}), 500

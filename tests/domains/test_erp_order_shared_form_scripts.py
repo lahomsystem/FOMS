@@ -67,7 +67,7 @@ def _assert_shared_form_script_contract(body: str) -> None:
     )
     assert "html2canvas.min.js" not in body
     assert "js/orders/erp-channel-push-confirm.js?v=20260703a" in body
-    assert "js/orders/erp-order-shared.js?v=20260730b" in body
+    assert "js/orders/erp-order-shared.js?v=20260730c" in body
     assert "js/orders/erp-stage-override.js?v=20260716b" in body
     assert "erp_stage_override_modal.html" not in body  # include renders modal markup, not path
     assert 'id="erpStageOverrideModal"' in body
@@ -219,7 +219,7 @@ def test_wdcalculator_embedded_mode_renders_pc_split_contract(erp_editor_client)
     assert "css/orders/erp-wdc-split.css" in body
     assert "js/wdcalculator/embedded-shell.js" in body
     assert "js/wdcalculator/mobile-enhance.js" not in body
-    assert "js/wdcalculator/estimate-lifecycle.js?v=20260716d" in body
+    assert "js/wdcalculator/estimate-lifecycle.js?v=20260724a" in body
     assert "주문으로 돌아가기" not in body
 
 
@@ -664,6 +664,69 @@ def test_shared_erp_order_js_guards_duplicate_save_clicks_and_tokens_draft_creat
     assert "body: JSON.stringify({ draft_token: erpGetDraftRequestToken() })" in draft_block
 
 
+def test_shared_erp_order_js_sends_if_match_and_preserves_input_on_conflict() -> None:
+    """저장은 If-Match(mutation_version)를 실어 보내고, 409 는 입력을 파괴하지 않는다."""
+    root = Path(__file__).resolve().parents[2]
+    text = (root / "static/js/orders/erp-order-shared.js").read_text(encoding="utf-8")
+
+    # 로드가 토큰을 보관한다(숫자가 아니면 null → If-Match 생략, 구버전 서버 하위호환).
+    load_start = text.index("async function erpLoadStructured(bootstrapData, options)")
+    load_block = text[load_start : text.index("const sd = data.structured_data || {};", load_start)]
+    assert "window.__erpLastMutationVersion =" in load_block
+    assert "typeof data.mutation_version === 'number' ? data.mutation_version : null;" in load_block
+
+    save_start = text.index("async function erpSaveStructuredOnce(opts = {})")
+    save_end = text.index("document.addEventListener('DOMContentLoaded', function () {", save_start)
+    save_block = text[save_start:save_end]
+
+    # (1) If-Match 전송 + 토큰 가드 + force 재시도에서는 생략.
+    assert "const saveHeaders = { 'Content-Type': 'application/json' };" in save_block
+    assert (
+        "if (opts.force !== true && typeof window.__erpLastMutationVersion === 'number') {"
+        in save_block
+    )
+    assert "saveHeaders['If-Match'] = String(window.__erpLastMutationVersion);" in save_block
+    assert "headers: saveHeaders," in save_block
+
+    # (2) 409 분기 + 덮어쓰기 재시도는 1회(force 호출에서는 재진입하지 않는다).
+    assert "if (res.status === 409 && opts.force !== true) {" in save_block
+    assert "다른 사용자가 이 주문을 먼저 수정했습니다." in save_block
+    assert "return await erpSaveStructuredOnce({ ...opts, force: true });" in save_block
+
+    # (3) 409 분기 안에서는 폼을 절대 재조회하지 않는다(입력 보존 계약).
+    conflict_start = save_block.index("if (res.status === 409 && opts.force !== true) {")
+    conflict_end = save_block.index("if (!data.success) {", conflict_start)
+    conflict_block = save_block[conflict_start:conflict_end]
+    assert "erpLoadStructured" not in conflict_block
+    assert "innerHTML" not in conflict_block
+
+    # (4) 저장 성공 시 토큰 갱신 — 없으면 두 번째 저장이 stale 토큰으로 항상 409 가 된다.
+    success_start = save_block.index("if (!data.success) {")
+    success_block = save_block[success_start : save_block.index("erpSetStatus(doRedirect", success_start)]
+    assert "window.__erpLastMutationVersion =" in success_block
+
+
+def test_shared_erp_order_js_guards_quest_auto_transition_reload_on_dirty() -> None:
+    """Quest 전팀 승인 자동전환은 dirty(미저장 입력)일 때 폼 재조회를 건너뛰고 알린다."""
+    root = Path(__file__).resolve().parents[2]
+    text = (root / "static/js/orders/erp-order-shared.js").read_text(encoding="utf-8")
+
+    approve_start = text.index("async function erpApproveQuestTeam(team)")
+    approve_end = text.index("async function erpUpdateQuestStatus()", approve_start)
+    approve_block = text[approve_start:approve_end]
+
+    assert "setTimeout(async () => {" in approve_block
+    dirty_idx = approve_block.index(
+        "var _erpDirty = _autosave && typeof _autosave.isDirty === 'function'"
+    )
+    reload_idx = approve_block.index("await erpLoadStructured();")
+    assert dirty_idx < reload_idx
+    assert "if (!_erpDirty) {" in approve_block
+    assert "_autosave.recaptureBaseline();" in approve_block
+    # dirty 스킵은 조용히 넘어가지 않는다.
+    assert "미저장 입력이 있어 화면 새로고침을 건너뛰었습니다" in approve_block
+
+
 def test_shared_erp_order_js_syncs_stage_from_measurement_date() -> None:
     """실측일 선택/해제는 단계 select를 실측/주문접수로 즉시 동기화한다."""
     root = Path(__file__).resolve().parents[2]
@@ -1078,8 +1141,8 @@ def test_mobile_attachment_preview_uses_viewport_sized_modal() -> None:
     ) in css_text
     assert ".erp-order-mobile-form .erp-attachment-preview-actions .btn" not in css_text
     assert "max-width: min(92vw, 36rem)" not in css_text
-    assert "../components/foms-form-field.css?v=20260716a" in mobile_bundle
-    assert "foms-mobile-surfaces.css') }}?v=20260722c" in layout_head
+    assert "../components/foms-form-field.css?v=20260723i" in mobile_bundle
+    assert "foms-mobile-surfaces.css') }}?v=20260723i" in layout_head
 
 
 def test_mobile_erp_autosize_textarea_overrides_80px_floor() -> None:

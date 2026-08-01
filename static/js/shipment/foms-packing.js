@@ -390,6 +390,8 @@
     var form = event.target.closest('[data-foms-packing-add]');
     if (!form) return;
     event.preventDefault();
+    // submit 1회 = POST 1: 제출 진행 중이면 더블탭·Enter 재제출을 무시(중복 항목 방지).
+    if (form.dataset.submitting === '1') return;
     var labelInput = form.querySelector('[name="label"]');
     var qtyInput = form.querySelector('[name="qty"]');
     var label = labelInput ? labelInput.value.trim() : '';
@@ -399,7 +401,12 @@
     }
     var qty = qtyInput ? parseInt(qtyInput.value, 10) : 1;
     if (!qty || qty < 1) qty = 1;
+    var submitBtn = form.querySelector('[type="submit"]');
+    form.dataset.submitting = '1';
+    if (submitBtn) submitBtn.disabled = true;
     postPacking({ add: { label: label, qty: qty } }).then(function (ok) {
+      form.dataset.submitting = '';
+      if (submitBtn) submitBtn.disabled = false;
       if (ok && labelInput) {
         labelInput.value = '';
         if (qtyInput) qtyInput.value = '1';

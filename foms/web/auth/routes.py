@@ -1,19 +1,32 @@
 """Auth blueprint and helpers (canonical; SFC-B11B)."""
 
-from flask import Blueprint, render_template, request, redirect, url_for, flash, session, current_app, g
+from flask import Blueprint, render_template, request, redirect, url_for, flash, session, current_app, g, abort
 from functools import wraps
 from datetime import datetime, timezone
 from sqlalchemy import case
 from sqlalchemy.exc import IntegrityError
-from werkzeug.security import check_password_hash, generate_password_hash
+from werkzeug.security import check_password_hash
 
 from db import get_db
 from models import User, SecurityLog
-from foms.services.user_deletion import detach_user_references_for_delete
+from foms.services.user_deletion import (
+    UserDeletionBlockedError,
+    detach_user_references_for_delete,
+)
 from foms.services.post_auth_navigation import (
     authenticated_home_url,
     normalize_internal_next_url,
     resolve_post_login_redirect,
+)
+from foms.services.error_logging import log_handled_exception
+from foms.services.security.password_policy import (
+    WeakPasswordError,
+    active_legacy_count,
+    is_password_legacy,
+    is_policy_enforced,
+    legacy_counts_by_role,
+    set_strong_password,
+    validate_password_strength,
 )
 
 auth_bp = Blueprint('auth', __name__)
@@ -47,11 +60,33 @@ def log_access(action, user_id=None, additional_data=None, auto_commit=True):
         try:
             db.rollback()
         except Exception:
-            pass
+            log_handled_exception("auth log_access rollback")
 
 def is_password_strong(password):
-    """Check if password meets security requirements"""
-    return len(password) >= 4
+    """Check if a password meets the current strong policy (PASSWORD-POLICY-01 SSOT).
+
+    Thin compatibility shim delegating to the password-policy service so strength
+    is defined in exactly one place.
+    """
+    ok, _reason = validate_password_strength(password)
+    return ok
+
+
+@auth_bp.app_context_processor
+def inject_legacy_password_banner():
+    """Expose the legacy-password WARN banner state to every template (3 surfaces).
+
+    Activates the persistent banner when the current user's password is legacy
+    (strength unverified) per the column SSOT — never by rehashing the stored
+    hash. WARN only: it nudges a password change and never blocks business use.
+    """
+    user = getattr(g, 'current_user', None)
+    return {
+        'legacy_password_banner': {
+            'active': bool(user) and is_password_legacy(user),
+            'change_url': url_for('auth.profile'),
+        }
+    }
 
 def get_user_by_username(username):
     """Retrieve user by username"""
@@ -183,14 +218,18 @@ def login():
         
         update_last_login(user.id)
         log_access(f"로그인 성공: 사용자 {user.username} (ID: {user.id})", user.id)
-        
+
+        # WARN legacy: 업무는 차단하지 않고(가장 중요한 함정) 비밀번호 변경만 유도한다.
+        if is_password_legacy(user):
+            flash('보안 강화를 위해 비밀번호를 변경해주세요. 현재 비밀번호는 이전 강도 기준으로 설정되어 있습니다.', 'warning')
+
         flash(f'{user.name}님, 환영합니다!', 'success')
         next_url = resolve_post_login_redirect(request.values.get('next'), user_id=user.id, request=request)
         return redirect(next_url)
     
     return render_template('auth/login.html', next_url=next_url)
 
-@auth_bp.route('/logout')
+@auth_bp.route('/logout', methods=['POST'])
 def logout():
     if 'user_id' in session:
         user_id = session['user_id']
@@ -204,11 +243,28 @@ def logout():
     return redirect(url_for('auth.login'))
 
 
-@auth_bp.route('/switch-user/<int:target_user_id>')
+@auth_bp.route('/switch-user/<int:target_user_id>', methods=['POST'])
 @login_required
-@role_required(['ADMIN'])
 def switch_user(target_user_id):
-    """관리자가 다른 사용자로 전환(드롭다운 아이디 이동)."""
+    """관리자가 다른 사용자로 전환(드롭다운 아이디 이동).
+
+    POST 전용이며 공용 write guard(WRITE-GUARD-01)의 CSRF/Origin 검증을 소비한다.
+    권한은 ADMIN 세션만 허용하고 그 외에는 302 리다이렉트가 아니라 **403** 으로 차단한다
+    (공유 ``role_required`` 데코레이터를 재사용하지 않는 이유: delete 등 다른 관리자 route 의
+    리다이렉트 동작을 바꾸지 않기 위해 이 route 에만 국소로 권한 게이트를 둔다).
+
+    :param target_user_id: 전환할 대상 사용자 id.
+    :return: 전환 성공 시 대상 홈으로 302, 권한 없으면 403.
+    """
+    actor = g.current_user
+    if not actor or actor.role != 'ADMIN':
+        actor_id = getattr(actor, 'id', None)
+        log_access(
+            f"switch-user 권한 없는 시도 (요청자 ID:{actor_id}, 대상 ID:{target_user_id})",
+            actor_id,
+        )
+        abort(403)
+    admin_id = actor.id
     target = get_user_by_id(target_user_id)
     if not target:
         flash('대상 사용자를 찾을 수 없습니다.', 'error')
@@ -216,7 +272,6 @@ def switch_user(target_user_id):
     if not target.is_active:
         flash('비활성화된 사용자로 전환할 수 없습니다.', 'error')
         return redirect(request.referrer or url_for('order_pages.index'))
-    admin_id = session['user_id']
     if target_user_id == admin_id:
         flash('이미 본인 계정입니다.', 'info')
         return redirect(request.referrer or url_for('order_pages.index'))
@@ -233,7 +288,7 @@ def switch_user(target_user_id):
     return redirect(request.referrer or authenticated_home_url(user_id=target.id, request=request))
 
 
-@auth_bp.route('/switch-back')
+@auth_bp.route('/switch-back', methods=['POST'])
 @login_required
 def switch_back():
     """전환된 관리자가 원래 관리자 계정으로 복귀."""
@@ -246,11 +301,16 @@ def switch_back():
         session.pop('impersonating_from', None)
         flash('원래 관리자 정보를 찾을 수 없습니다. 로그인해 주세요.', 'error')
         return redirect(url_for('auth.logout'))
+    impersonated_id = session.get('user_id')
     session.pop('impersonating_from', None)
     session['user_id'] = admin.id
     session['username'] = admin.username
     session['role'] = admin.role
-    log_access(f"관리자 복귀: {admin.username} (ID:{admin.id})", admin.id)
+    # back 감사: 원 관리자(original actor) 귀속 + 어떤 계정에서 복귀했는지(전환 계정) 추적.
+    log_access(
+        f"관리자 복귀: {admin.username} (ID:{admin.id}) — 전환 계정 ID:{impersonated_id}에서 복귀",
+        admin.id,
+    )
     flash(f'관리자({admin.name}) 계정으로 복귀했습니다.', 'success')
     return redirect(request.referrer or url_for('order_pages.index'))
 
@@ -280,21 +340,23 @@ def register():
             flash('비밀번호가 일치하지 않습니다.', 'error')
             return render_template('auth/register.html')
         
-        if not is_password_strong(password):
-            flash('비밀번호는 4자 이상이어야 합니다.', 'error')
+        strong_ok, strong_reason = validate_password_strength(password)
+        if not strong_ok:
+            flash(strong_reason, 'error')
             return render_template('auth/register.html')
-        
+
         if get_user_by_username(username):
             flash('이미 존재하는 아이디입니다.', 'error')
             return render_template('auth/register.html')
-        
+
         new_user = User(
             username=username,
-            password=generate_password_hash(password),
             name=name,
             role='ADMIN',
             is_active=True
         )
+        # 새 계정은 항상 strong: 검증 통과 hash 를 설정하며 STRONG 버전을 명시 기록한다.
+        set_strong_password(new_user, password)
         
         try:
             db.add(new_user)
@@ -327,8 +389,24 @@ def user_list():
     
     # Count admin users for template
     count_admin = db.query(User).filter(User.role == 'ADMIN').count()
-    
-    return render_template('auth/user_list.html', users=users, count_admin=count_admin, ROLES=ROLES, TEAMS=TEAMS)
+
+    # PASSWORD-POLICY-01: legacy 상태만(hash/평문 미노출) — role별 count + in-app LEGACY 필터.
+    legacy_user_ids = {u.id for u in users if is_password_legacy(u)}
+    if request.args.get('policy') == 'legacy':
+        users = [u for u in users if u.id in legacy_user_ids]
+
+    return render_template(
+        'auth/user_list.html',
+        users=users,
+        count_admin=count_admin,
+        ROLES=ROLES,
+        TEAMS=TEAMS,
+        legacy_user_ids=legacy_user_ids,
+        legacy_counts=legacy_counts_by_role(db, active_only=True),
+        legacy_active_total=active_legacy_count(db),
+        policy_enforced=is_policy_enforced(db),
+        policy_filter=request.args.get('policy'),
+    )
 
 @auth_bp.route('/admin/users/add', methods=['GET', 'POST'])
 @login_required
@@ -346,9 +424,10 @@ def add_user():
             flash('모든 필수 입력 필드를 입력해주세요.', 'error')
             return render_template('auth/add_user.html', roles=ROLES, teams=TEAMS)
         
-        # Check password strength
-        if not is_password_strong(password):
-            flash('비밀번호는 4자리 이상이어야 합니다.', 'error')
+        # Check password strength (new accounts are always strong)
+        strong_ok, strong_reason = validate_password_strength(password)
+        if not strong_ok:
+            flash(strong_reason, 'error')
             return render_template('auth/add_user.html', roles=ROLES, teams=TEAMS)
         
         # Check if username already exists
@@ -363,20 +442,17 @@ def add_user():
         
         try:
             db = get_db()
-            
-            # Hash password
-            hashed_password = generate_password_hash(password)
-            
-            # Create new user
+
+            # Create new user with a policy-versioned strong password (records STRONG).
             new_user = User(
                 username=username,
-                password=hashed_password,
                 name=name,
                 role=role,
                 team=team,
                 is_active=True
             )
-            
+            set_strong_password(new_user, password)
+
             # Add and commit
             db.add(new_user)
             db.commit()
@@ -445,20 +521,34 @@ def edit_user(user_id):
                 session['username'] = new_username
 
         try:
+            was_active = user.is_active
+            reactivating = (not was_active) and is_active
+
+            # Handle password change if provided (admin reset is always strong; records STRONG).
+            new_password = request.form.get('new_password')
+            password_set_strong = False
+            if new_password:
+                try:
+                    set_strong_password(user, new_password)
+                    password_set_strong = True
+                    flash('비밀번호가 변경되었습니다.', 'success')
+                except WeakPasswordError as strength_err:
+                    db.rollback()
+                    flash(str(strength_err), 'error')
+                    return render_template('auth/edit_user.html', user=user, roles=ROLES, teams=TEAMS, count_admin=db.query(User).filter(User.role == 'ADMIN').count())
+
+            # inactive legacy 계정 blind reactivate 금지: 비활성 legacy 계정을 다시
+            # 활성화하려면 강도 재검사(강력한 새 비밀번호 동반)를 통과해야 한다.
+            if reactivating and is_password_legacy(user) and not password_set_strong:
+                db.rollback()
+                flash('비활성 상태의 기존(legacy) 계정을 다시 활성화하려면 강력한 새 비밀번호를 함께 설정해야 합니다.', 'error')
+                return render_template('auth/edit_user.html', user=user, roles=ROLES, teams=TEAMS, count_admin=db.query(User).filter(User.role == 'ADMIN').count())
+
             # Update user
             user.name = name
             user.role = role
             user.team = team
             user.is_active = is_active
-
-            # Handle password change if provided
-            new_password = request.form.get('new_password')
-            if new_password:
-                if is_password_strong(new_password):
-                    user.password = generate_password_hash(new_password)
-                    flash('비밀번호가 변경되었습니다.', 'success')
-                else:
-                    flash('비밀번호는 4자리 이상이어야 합니다.', 'error')
 
             db.commit()
 
@@ -512,6 +602,10 @@ def delete_user(user_id):
         log_access(f"사용자 #{user_id} 삭제", session.get('user_id'))
         
         flash('사용자가 성공적으로 삭제되었습니다.', 'success')
+    except UserDeletionBlockedError as blocked:
+        db.rollback()
+        current_app.logger.warning("User deletion blocked by audit references: user_id=%s reason=%s", user_id, blocked)
+        flash(str(blocked), 'error')
     except IntegrityError:
         db.rollback()
         current_app.logger.exception("User deletion blocked by remaining references: user_id=%s", user_id)
@@ -560,11 +654,13 @@ def profile():
                     flash("새 비밀번호가 일치하지 않습니다.", "error")
                     return render_template("auth/profile.html", user=user)
 
-                if not is_password_strong(new_password):
-                    flash("비밀번호는 4자리 이상이어야 합니다.", "error")
+                strong_ok, strong_reason = validate_password_strength(new_password)
+                if not strong_ok:
+                    flash(strong_reason, "error")
                     return render_template("auth/profile.html", user=user)
 
-                user.password = generate_password_hash(new_password)
+                # 본인 변경도 항상 strong: 검증 통과 hash 설정 + STRONG 버전 기록.
+                set_strong_password(user, new_password)
                 db.commit()
                 log_access("비밀번호 변경 완료", user_id)
                 flash("비밀번호가 성공적으로 변경되었습니다.", "success")

@@ -38,9 +38,10 @@ def test_rum_ingest_endpoint(client) -> None:
 
 
 def test_rum_report_requires_login(client) -> None:
-    """비로그인 → login_required 리다이렉트(302)."""
+    """비로그인 → JSON 401(RUM-INGEST-01: 리다이렉트 대신 API 계약)."""
     resp = client.get("/api/foms/rum/report", follow_redirects=False)
-    assert resp.status_code in (301, 302)
+    assert resp.status_code == 401
+    assert resp.get_json()["success"] is False
 
 
 def test_rum_report_non_admin_forbidden(login) -> None:

@@ -475,7 +475,9 @@ def test_ept_b5_shipment_settings_shell_fragment_contract(client, monkeypatch):
     )
     assert response.status_code == 200
     assert response.headers.get("X-FOMS-ERP-FRAGMENT") == "1"
-    assert b"worker-settings-grid" in response.data
+    # SHIPMENT-REFERENCE-01: worker-settings-grid(시공자 마스터 탭)은 CREW-00 소관으로 이관되어
+    # 제거됨. 출고 설정 fragment 렌더 증명은 canonical 4-리스트 body 의 root 속성으로 고정.
+    assert b"data-settings-version" in response.data
 
 
 def test_ept_b5_map_view_full_document_no_shell_fragment_contract(client, monkeypatch):

@@ -11,6 +11,13 @@
   {% if erp_mobile_v2_enabled %}
   <link rel="stylesheet" href="{{ url_for('static', filename='css/components/foms-packing.css') }}?v=20260714a">
   {% endif %}
+  {# AS 타임라인 공용 컴포넌트(SSOT) — AS 일정추천 모달 카드 본문. 셸 변형과 무관하게 항상 필요하다
+     (모달은 dashboard_main.html에 무조건 포함).
+     styles 블록에 두는 이유: 위 head_extra 는 shipment/layout.html 에 대응 블록이 없어 렌더되지
+     않는다(선행 이슈 — foms-shipment-mobile.css 는 foundation/foms-mobile-surfaces.css 의
+     @import 로 들어와 무증상). 이 파일은 다른 진입이 없어 head_extra 에 두면 전체 페이지 로드에서
+     타임라인이 미스타일로 뜬다. #}
+  <link rel="stylesheet" href="{{ url_for('static', filename='css/components/foms-as-timeline.css') }}?v=20260730c">
 {% endblock %}
 
 {% block content %}
@@ -23,6 +30,6 @@
 {% include 'shipment/partials/dashboard_scripts.html' %}
 {% endif %}
 {% if erp_mobile_v2_enabled %}
-<script src="{{ url_for('static', filename='js/shipment/foms-packing.js') }}?v=20260714a" defer></script>
+<script src="{{ url_for('static', filename='js/shipment/foms-packing.js') }}?v=20260725a" defer></script>
 {% endif %}
 {% endblock %}

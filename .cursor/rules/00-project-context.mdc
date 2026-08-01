@@ -37,6 +37,7 @@ alwaysApply: true
 - **컨텍스트 번들**: 상시 커밋 컨텍스트 번들은 2026-07-08 재설계 Phase 1b에서 폐기됐다. 온디맨드로 묶음 컨텍스트가 필요하면 `python tools/harness/build_context_bundle.py --all`로 생성한다(커밋하지 않음).
 - **작업 레벨·RPI 판단**: 문서 규칙(새 세션 시작 프로토콜, 위 RPI 절)을 따른다. 코어 변경 게이트는 Stop 훅·pre_push_smoke·branch protection이 코드로 강제한다. (구 task_classifier 자동 분류기·Codex 래퍼는 2026-07-08 퇴역 — `docs/harness/policy/DECISIONS.md` 참조)
 - **브라우저 역할**: Cursor browser MCP는 탐색·수동 재현·디버깅, gstack browse는 setup 완료 후 반복 가능한 smoke/QA 자동화 전용이다.
+- **세션 worktree 격리 (선택 표준)**: 동시 2+창 코드 편집 시 `python tools/harness/session_worktree.py create`로 `c:/tmp/foms-s-*`를 만들어 그 폴더를 열어 작업한다(Cursor=폴더 열기, Codex=`codex exec` cwd). push는 `git push origin HEAD:deploy`(ledger union 판정), 종료 시 `cleanup --remove`. 단일 창·핫파일 작업은 공유 트리 유지. 세션 worktree에서 alembic·startup DDL은 코드 차단. 상세: `docs/plans/2026-07-27-session-worktree-isolation-phase1.md`.
 
 ## 문제 해결 및 디버깅 원칙 (Occam's Razor & Clean Code) - 필수 준수
 프론트엔드(브라우저)에서 SyntaxError 등 라인 번호가 명시된 에러 발생을 포함한 모든 버그 해결 시:

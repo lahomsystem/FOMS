@@ -54,7 +54,7 @@
         {% if r.unread_count > 0 %}<span class="foms-drawing-queue-card__chip is-alert">미확인 {{ r.unread_count }}</span>{% endif %}
         {% if r.order_change_pending %}<span class="foms-drawing-queue-card__chip is-order-change">주문변경</span>{% endif %}
         {% if r.sla_level == '지연' %}<span class="foms-drawing-queue-card__chip is-alert">지연</span>
-        {% elif r.sla_level == '오늘 마감' %}<span class="foms-drawing-queue-card__chip is-warn">오늘 마감</span>{% endif %}
+        {% elif r.sla_level in ('오늘 마감', '임박') %}<span class="foms-drawing-queue-card__chip is-warn">{{ r.sla_level }}</span>{% endif %}
         {% if r.my_todo %}<span class="foms-drawing-queue-card__chip is-mine">내 할 일</span>{% endif %}
       </div>
     </div>

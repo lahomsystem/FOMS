@@ -111,7 +111,7 @@ def test_p1_flag_combination_api_gating(
 
 def test_p1_kv_rollout_manifest_coverage() -> None:
     paths = json.loads(MANIFEST.read_text(encoding="utf-8"))
-    assert len(paths) == 15
+    assert len(paths) == 13
     missing: list[str] = []
     for rel in paths:
         text = (ROOT / rel).read_text(encoding="utf-8")

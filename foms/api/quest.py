@@ -4,17 +4,16 @@ GET/POST /api/orders/<id>/quest, POST /approve, PUT /status
 """
 
 import datetime
-from foms.services.datetime_kst import now_utc_naive
+from foms.services.error_logging import log_handled_exception
 from flask import Blueprint, request, jsonify, session
 from sqlalchemy.orm.attributes import flag_modified
 
 from db import get_db
 from models import Order, User, OrderEvent
-from foms.services.orders.status_constants import STATUS
 from foms.web.auth import login_required, role_required
-from foms.services.erp_order_flags import is_erp_order_record
-from foms.services.erp_permissions import can_edit_erp
 from foms.services.erp_sync_columns import sync_erp_flat_columns
+from foms.services.orders.erp_policy_constants import DEFAULT_OWNER_TEAM_BY_STAGE
+from foms.services.orders.order_mutation_policy import normalize_team
 from foms.services.erp_policy import (
     get_stage,
     STAGE_LABELS,
@@ -23,9 +22,6 @@ from foms.services.erp_policy import (
     create_quest_from_template,
     check_quest_approvals_complete,
     get_next_stage_for_completed_quest,
-    get_required_approval_teams_for_stage,
-    can_modify_domain,
-    get_assignee_ids,
 )
 
 
@@ -72,23 +68,13 @@ def api_order_quest_get(order_id):
                     current_quest = q
                     break
 
-        # quest가 없으면 템플릿에서 생성하고 DB에 저장 (한글 단계명으로 생성)
+        # quest가 없으면 템플릿에서 표시용으로 합성만 한다 (비영속).
+        # GET은 순수 read — 저장/생성은 기존 mutation(POST/PUT) 경로에서만 수행한다.
         if not current_quest:
             quest_tpl = get_quest_template_for_stage(current_stage_code)
             if quest_tpl:
                 owner_person = session.get('username') or ''
                 current_quest = create_quest_from_template(current_stage_code, owner_person, sd)
-                if current_quest:
-                    if not sd.get("quests"):
-                        sd["quests"] = []
-                    sd["quests"].append(current_quest)
-                    order.structured_data = sd
-                    order.updated_at = datetime.datetime.now()
-                    db.commit()
-                    # Tier A(broad): quest 흐름은 stage 전환을 유발해 탭 간 이동이 일어남.
-                    from foms.services.common.dashboard_cache import invalidate_all_dashboard_slice_caches
-
-                    invalidate_all_dashboard_slice_caches()
 
         return jsonify({
             'success': True,
@@ -97,9 +83,7 @@ def api_order_quest_get(order_id):
             'stage_label': STAGE_LABELS.get(current_stage_code, current_stage_code),
         })
     except Exception as e:
-        import traceback
-        print(f"Quest 조회 오류: {e}")
-        print(traceback.format_exc())
+        log_handled_exception()
         return jsonify({'success': False, 'message': str(e)}), 500
 
 
@@ -161,18 +145,105 @@ def api_order_quest_create(order_id):
         try:
             db.rollback()
         except Exception:
-            pass
-        import traceback
-        print(f"Quest 생성 오류: {e}")
-        print(traceback.format_exc())
+            log_handled_exception("quest rollback")
+        log_handled_exception()
         return jsonify({'success': False, 'message': str(e)}), 500
+
+
+# DRAWING/CONFIRM 은 전용 command(도면 전달·고객 컨펌)로만 진행 — 단독 quest 승인 거부.
+_COMMAND_REQUIRED_STAGES = frozenset({"DRAWING", "CONFIRM"})
+
+
+def _int_or_none(value):
+    """int 변환 실패 시 None."""
+    try:
+        return int(value)
+    except (TypeError, ValueError):
+        return None
+
+
+def _required_teams_for_stage(current_quest, stage_code):
+    """현 단계의 dynamic 필수 승인 팀(정규화). quest.required_approvals 우선, 없으면 기본 owner team.
+
+    Args:
+        current_quest: 현재 단계 quest dict (QUEST-BACKFILL 정규화된 required_approvals).
+        stage_code: 현재 단계 영문 코드.
+
+    Returns:
+        정규화된 팀 코드 목록.
+    """
+    raw = current_quest.get("required_approvals") if isinstance(current_quest, dict) else None
+    teams = [normalize_team(t) for t in (raw or []) if t]
+    if not teams:
+        default = DEFAULT_OWNER_TEAM_BY_STAGE.get(stage_code)
+        if default:
+            teams = [normalize_team(default)]
+    return [t for t in teams if t]
+
+
+def _authorize_quest_approve(
+    db, user, order, stage_code, current_quest, *, emergency_override, override_reason
+):
+    """quest approve 권한 게이트 (AUTH-QUEST-01). 권한만 판정 — 상태 전이·기록은 하지 않는다.
+
+    §5.2: actor team = 현 단계 필수 승인 팀; 시공은 ASSIGNMENT-00 user-ID row 기반;
+    관리자 override 는 사유 필수(감사). DRAWING/CONFIRM 의 command-required 거부는 caller 가
+    앞단에서 처리한다.
+
+    Args:
+        db: DB 세션(construction assignment 조회용).
+        user: 승인 주체(role/team/id).
+        order: 대상 주문.
+        stage_code: 현재 단계 영문 코드.
+        current_quest: 현재 단계 quest(required_approvals dynamic 팀 근거).
+        emergency_override: 관리자 오버라이드 요청 여부.
+        override_reason: 오버라이드 사유(오버라이드 시 필수).
+
+    Returns:
+        (allowed, status, message) 튜플. 허용이면 ``(True, 200, "")``.
+    """
+    role = (getattr(user, "role", None) or "").strip().upper()
+    actor_team = normalize_team(getattr(user, "team", None))
+
+    # 관리자 오버라이드: 사유 필수(감사). role/team 불일치를 override_reason 으로만 뚫는다.
+    if emergency_override:
+        if role not in ("ADMIN", "MANAGER"):
+            return (False, 403, "긴급 오버라이드는 관리자만 가능합니다.")
+        if not override_reason:
+            return (False, 422, "오버라이드 승인은 사유(override_reason)가 필수입니다.")
+        return (True, 200, "")
+
+    # ADMIN 정상 command 통과(§2.1 role bypass).
+    if role == "ADMIN":
+        return (True, 200, "")
+
+    # 시공: ASSIGNMENT-00 user-ID row 기반(JSONB 이름 미사용).
+    if stage_code == "CONSTRUCTION":
+        from foms.services.orders.assignment import active_assignee_ids
+
+        assigned = active_assignee_ids(db, order.id, "CONSTRUCTION")
+        if assigned:
+            uid = _int_or_none(getattr(user, "id", None))
+            if uid is not None and uid in assigned:
+                return (True, 200, "")
+            return (False, 403, "이 주문에 배정된 시공 담당자만 승인할 수 있습니다.")
+        # 배정 0(backfill 미완) → 팀 capability 폴백(lock-out 방지).
+        if actor_team in ("CS", "SALES", "CONSTRUCTION"):
+            return (True, 200, "")
+        return (False, 403, "시공 승인 권한이 없는 팀입니다.")
+
+    # 일반: actor team = 현 단계 필수 승인 팀(dynamic).
+    required_teams = _required_teams_for_stage(current_quest, stage_code)
+    if required_teams and actor_team in required_teams:
+        return (True, 200, "")
+    return (False, 403, "현재 단계 승인 권한이 없는 팀입니다. (오버라이드가 필요합니다.)")
 
 
 @quest_bp.route('/orders/<int:order_id>/quest/approve', methods=['POST'])
 @login_required
 @role_required(['ADMIN', 'MANAGER', 'STAFF'])
 def api_order_quest_approve(order_id):
-    """팀별/담당자 Quest 승인 및 자동 단계 전환"""
+    """팀별/담당자 Quest 승인 (권한 게이트 + 승인 기록). 상태 전이는 STATE-QUEST-01 하류."""
     try:
         db = get_db()
         order = db.query(Order).filter(Order.id == order_id).first()
@@ -189,41 +260,8 @@ def api_order_quest_approve(order_id):
         if not user:
             return jsonify({'success': False, 'message': '사용자를 찾을 수 없습니다.'}), 401
 
-        # ERP Order 주문 기본 승인 권한
-        if is_erp_order_record(order) and not can_edit_erp(user):
-            sd_tmp = order.structured_data or {}
-            stage_tmp = get_stage(sd_tmp)
-            domain_tmp = None
-            if stage_tmp in ('MEASURE', 'CONFIRM'):
-                domain_tmp = 'SALES_DOMAIN'
-            elif stage_tmp == 'DRAWING':
-                domain_tmp = 'DRAWING_DOMAIN'
-
-            can_assignee_override = False
-            if domain_tmp:
-                can_assignee_override = can_modify_domain(user, order, domain_tmp, emergency_override, override_reason)
-
-                if (not can_assignee_override) and domain_tmp == 'SALES_DOMAIN':
-                    allowed_ids = get_assignee_ids(order, domain_tmp)
-                    if not allowed_ids:
-                        manager_names = set()
-                        parties_tmp = (sd_tmp.get('parties') or {}) if isinstance(sd_tmp, dict) else {}
-                        manager_name_sd = ((parties_tmp.get('manager') or {}).get('name') or '').strip()
-                        if manager_name_sd:
-                            manager_names.add(manager_name_sd.lower())
-                        manager_name_col = (order.manager_name or '').strip()
-                        if manager_name_col:
-                            manager_names.add(manager_name_col.lower())
-                        user_name = (user.name or '').strip().lower()
-                        user_username = (user.username or '').strip().lower()
-                        if user_name in manager_names or user_username in manager_names:
-                            can_assignee_override = True
-
-            if not can_assignee_override:
-                return jsonify({
-                    'success': False,
-                    'message': 'ERP Order 수정 권한이 없습니다. (관리자, 라홈팀, 하우드팀, 영업팀 또는 지정 담당자만 가능)'
-                }), 403
+        role = (user.role or '').strip().upper()
+        actor_team = normalize_team(user.team)
 
         sd = order.structured_data or {}
         current_stage_code = get_stage(sd)
@@ -231,12 +269,16 @@ def api_order_quest_approve(order_id):
         if not current_stage_code:
             return jsonify({'success': False, 'message': '현재 단계가 없습니다.'}), 400
 
-        # 도면 단계는 퀘스트 승인 자체를 허용하지 않음
-        if current_stage_code == 'DRAWING':
+        # DRAWING/CONFIRM 단독 승인은 전용 command(도면 전달·고객 컨펌)로만 — command-required 거부.
+        if current_stage_code in _COMMAND_REQUIRED_STAGES:
             return jsonify({
                 'success': False,
-                'message': '도면 단계 퀘스트 승인은 비활성화되었습니다. 도면 전달/수령 확정으로 진행해주세요.'
-            }), 400
+                'code': 'COMMAND_REQUIRED',
+                'message': (
+                    f'{STAGE_LABELS.get(current_stage_code, current_stage_code)} 단계는 '
+                    f'단독 퀘스트 승인이 아니라 전용 command로 진행해야 합니다.'
+                ),
+            }), 409
 
         CODE_TO_STAGE_NAME = {v: k for k, v in STAGE_NAME_TO_CODE.items()}
         current_stage_name = CODE_TO_STAGE_NAME.get(current_stage_code, current_stage_code)
@@ -262,8 +304,19 @@ def api_order_quest_approve(order_id):
             sd["quests"].append(current_quest)
             quest_index = len(sd["quests"]) - 1
 
+        # ── 권한 게이트 (AUTH-QUEST-01): 권한만 판정. 상태 전이·기록은 하지 않는다. ──
+        allowed, deny_status, deny_msg = _authorize_quest_approve(
+            db, user, order, current_stage_code, current_quest,
+            emergency_override=emergency_override, override_reason=override_reason,
+        )
+        if not allowed:
+            return jsonify({'success': False, 'message': deny_msg}), deny_status
+
         username = session.get('username') or ''
         now = datetime.datetime.now()
+
+        # 승인 슬롯 팀: 기본은 actor 자기 팀(스푸핑 방지). ADMIN/오버라이드는 payload team 허용.
+        effective_team = (team or actor_team) if (role == 'ADMIN' or emergency_override) else actor_team
 
         approval_mode = current_quest.get("approval_mode", "team")
 
@@ -273,34 +326,6 @@ def api_order_quest_approve(order_id):
                 domain = 'SALES_DOMAIN'
             elif current_stage_code == 'DRAWING':
                 domain = 'DRAWING_DOMAIN'
-
-            if domain:
-                can_modify = can_modify_domain(user, order, domain, emergency_override, override_reason)
-
-                if (not can_modify) and domain == 'SALES_DOMAIN':
-                    allowed_ids = get_assignee_ids(order, domain)
-                    if not allowed_ids:
-                        manager_names = set()
-                        parties = (sd.get('parties') or {}) if isinstance(sd, dict) else {}
-                        manager_name_sd = ((parties.get('manager') or {}).get('name') or '').strip()
-                        if manager_name_sd:
-                            manager_names.add(manager_name_sd.lower())
-                        manager_name_col = (order.manager_name or '').strip()
-                        if manager_name_col:
-                            manager_names.add(manager_name_col.lower())
-                        owner_person = (current_quest.get('owner_person') or '').strip()
-                        if owner_person:
-                            manager_names.add(owner_person.lower())
-                        user_name = (user.name or '').strip().lower()
-                        user_username = (user.username or '').strip().lower()
-                        if user_name in manager_names or user_username in manager_names:
-                            can_modify = True
-
-                if not can_modify:
-                    msg = f'{current_stage_name} 단계는 지정 담당자만 승인할 수 있습니다.'
-                    if user.role == 'MANAGER':
-                        msg += ' (긴급 오버라이드가 필요합니다.)'
-                    return jsonify({'success': False, 'message': msg}), 403
 
             if "assignee_approval" not in current_quest:
                 current_quest["assignee_approval"] = {}
@@ -339,13 +364,13 @@ def api_order_quest_approve(order_id):
             db.add(quest_approval_event)
 
         else:
-            if not team:
+            if not effective_team:
                 return jsonify({'success': False, 'message': '팀이 지정되지 않았습니다.'}), 400
 
             if not current_quest.get("team_approvals"):
                 current_quest["team_approvals"] = {}
 
-            current_quest["team_approvals"][team] = {
+            current_quest["team_approvals"][effective_team] = {
                 "approved": True,
                 "approved_by": user_id,
                 "approved_by_name": username,
@@ -360,12 +385,12 @@ def api_order_quest_approve(order_id):
             quest_event_payload = {
                 'domain': f'{current_stage_code}_DOMAIN',
                 'action': 'QUEST_APPROVAL_CHANGED',
-                'target': f'quest.team_approvals.{team}',
+                'target': f'quest.team_approvals.{effective_team}',
                 'before': 'not_approved',
                 'after': 'approved',
                 'change_method': 'API',
                 'source_screen': 'erp_dashboard',
-                'reason': f'{team} 팀 승인 완료',
+                'reason': f'{effective_team} 팀 승인 완료',
                 'is_override': emergency_override,
                 'override_reason': override_reason if emergency_override else None,
             }
@@ -379,56 +404,21 @@ def api_order_quest_approve(order_id):
 
         sd["quests"][quest_index] = current_quest
 
-        auto_transitioned = False
+        # 승인 완료 시 quest 를 COMPLETED 로 마킹만 한다(승인 bookkeeping). 실제 상태 전이
+        # (workflow.stage·order.status 변경·다음 quest 생성)는 STATE-QUEST-01 하류 몫 —
+        # AUTH-QUEST-01 은 권한 게이트 + 승인 기록만 하고 order 상태를 직접 바꾸지 않는다.
         if is_complete:
             current_quest["status"] = "COMPLETED"
             current_quest["completed_at"] = now.isoformat()
             sd["quests"][quest_index] = current_quest
-
-            if current_stage_code != 'CONFIRM':
-                next_stage_code = get_next_stage_for_completed_quest(current_stage_name)
-                if next_stage_code:
-                    CODE_TO_STAGE_NAME = {v: k for k, v in STAGE_NAME_TO_CODE.items()}
-                    next_stage_name = CODE_TO_STAGE_NAME.get(next_stage_code, next_stage_code)
-
-                    workflow = sd.get("workflow") or {}
-                    old_stage = workflow.get("stage")
-                    workflow["stage"] = next_stage_code
-                    workflow["stage_updated_at"] = now_utc_naive().isoformat()
-                    sd["workflow"] = workflow
-
-                    # [GDM] Order.status 동기화
-                    if next_stage_code in STATUS:
-                        order.status = next_stage_code
-                    elif next_stage_code == 'AS':
-                        order.status = 'AS'
-
-                    next_quest = create_quest_from_template(next_stage_name, username, sd)
-                    if next_quest:
-                        if not sd.get("quests"):
-                            sd["quests"] = []
-                        sd["quests"].append(next_quest)
-
-                    ev = OrderEvent(
-                        order_id=order.id,
-                        event_type='STAGE_AUTO_TRANSITIONED',
-                        payload={
-                            'from': old_stage,
-                            'to': next_stage_code,
-                            'reason': 'quest_approvals_complete',
-                            'approved_teams': get_required_approval_teams_for_stage(current_stage_name),
-                        },
-                        created_by_user_id=user_id
-                    )
-                    db.add(ev)
-                    auto_transitioned = True
+        auto_transitioned = False
 
         order.structured_data = sd
         flag_modified(order, "structured_data")
         order.updated_at = now
         sync_erp_flat_columns(order, sd)
         db.commit()
-        # Tier A(broad): quest 승인은 workflow.stage 전환(+order.status)을 유발 → 탭 이동.
+        # quest 승인 기록은 배지/카운트에 반영되므로 대시보드 슬라이스 캐시를 무효화한다.
         from foms.services.common.dashboard_cache import invalidate_all_dashboard_slice_caches
 
         invalidate_all_dashboard_slice_caches()
@@ -453,10 +443,8 @@ def api_order_quest_approve(order_id):
         try:
             db.rollback()
         except Exception:
-            pass
-        import traceback
-        print(f"Quest 승인 오류: {e}")
-        print(traceback.format_exc())
+            log_handled_exception("quest rollback")
+        log_handled_exception()
         return jsonify({'success': False, 'message': str(e)}), 500
 
 
@@ -519,8 +507,6 @@ def api_order_quest_update_status(order_id):
         try:
             db.rollback()
         except Exception:
-            pass
-        import traceback
-        print(f"Quest 상태 업데이트 오류: {e}")
-        print(traceback.format_exc())
+            log_handled_exception("quest rollback")
+        log_handled_exception()
         return jsonify({'success': False, 'message': str(e)}), 500

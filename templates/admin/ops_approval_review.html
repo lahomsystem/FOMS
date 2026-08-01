@@ -1,0 +1,40 @@
+{% extends "admin/layout.html" %}
+
+{% block title %}고위험 ops 승인{% endblock %}
+
+{% block content %}
+<div class="container" style="max-width: 640px;">
+  <h2>고위험 ops 승인 검토</h2>
+  <p class="text-muted">
+    이 요청을 승인하면 operation-bound 1회 토큰이 활성화됩니다. 값·secret 은 노출되지
+    않으며(마스킹), 승인자 신원과 principal version 은 현재 세션에서만 기록됩니다.
+  </p>
+
+  <table class="table">
+    <tbody>
+      <tr><th>operation</th><td>{{ detail.operation_type }}</td></tr>
+      <tr><th>state</th><td>{{ detail.state }}</td></tr>
+      <tr><th>scope hash</th><td><code>{{ detail.scope_sha256_masked }}</code></td></tr>
+      <tr><th>artifact hash</th><td><code>{{ detail.artifact_sha256_masked }}</code></td></tr>
+      <tr><th>expected version</th><td>{{ detail.expected_version if detail.expected_version is not none else '-' }}</td></tr>
+      <tr><th>expected generation</th><td>{{ detail.expected_generation if detail.expected_generation is not none else '-' }}</td></tr>
+      <tr><th>expires at</th><td>{{ detail.expires_at }}</td></tr>
+      <tr><th>approved at</th><td>{{ detail.approved_at if detail.approved_at else '-' }}</td></tr>
+    </tbody>
+  </table>
+
+  {% if detail.state == 'PENDING' %}
+  <form method="post" action="{{ url_for('admin.ops_approval_review', approval_id=detail.approval_id) }}">
+    <input type="hidden" name="csrf_token" value="{{ csrf_token() }}">
+    <div class="form-group">
+      <label for="current_password">현재 비밀번호로 재인증</label>
+      <input type="password" class="form-control" id="current_password" name="current_password"
+             autocomplete="current-password" required>
+    </div>
+    <button type="submit" class="btn btn-danger">승인</button>
+  </form>
+  {% else %}
+  <p><strong>이 요청은 더 이상 승인 대기 상태가 아닙니다.</strong></p>
+  {% endif %}
+</div>
+{% endblock %}

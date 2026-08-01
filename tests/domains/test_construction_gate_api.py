@@ -183,7 +183,9 @@ def test_complete_gate_off_keeps_legacy_behavior(client, app, monkeypatch):
     assert resp.status_code == 200
     data = resp.get_json()
     assert data["success"] is True
-    assert data["new_status"] == "COMPLETED"
+    # STATE-CONST-CS-01: 시공 완료는 direct COMPLETED 가 아니라 canonical CS 로 advance 한다
+    # (최종 COMPLETED 는 CS 단계 cs/complete 의 quest+AS gate 소관).
+    assert data["new_status"] == "CS"
 
 
 def test_complete_gate_on_blocks_without_evidence(client, app, monkeypatch):
@@ -224,7 +226,8 @@ def test_complete_gate_on_allows_with_evidence(client, app, monkeypatch):
         json={"completion_note": "완료"},
     )
     assert resp.status_code == 200
-    assert resp.get_json()["new_status"] == "COMPLETED"
+    # STATE-CONST-CS-01: 시공 완료 = CONSTRUCTION→CS(direct COMPLETED 금지).
+    assert resp.get_json()["new_status"] == "CS"
 
 
 def test_complete_gate_on_blocks_with_one_after_only(client, app, monkeypatch):

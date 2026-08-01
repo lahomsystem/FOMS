@@ -127,10 +127,14 @@ def _ci_gate_message(branch: str) -> str:
     )
 
 
-def main() -> None:
-    """PostToolUse(Bash) 진입점. 실제 push 성공만 감지해 게이트를 주입한다(그 외 무출력)."""
+def process(payload: dict) -> None:
+    """실제 push 성공만 감지해 CI-GATE 를 주입한다(그 외 무출력).
+
+    파라미터:
+        payload: PostToolUse(Bash) 훅 페이로드(stdin JSON 파싱 결과).
+    반환: 없음. 실패는 fail-open + hook_log.
+    """
     try:
-        payload = read_stdin_json()
         command = (payload.get("tool_input") or {}).get("command", "") or ""
         if not command or not _might_push(command):
             return
@@ -149,6 +153,11 @@ def main() -> None:
         )
     except Exception as exc:  # noqa: BLE001 - 훅 크래시가 세션을 막지 않도록 fail-open
         hook_log(f"post_push_watch fail-open: {type(exc).__name__}: {exc}", tag="post_push_watch")
+
+
+def main() -> None:
+    """standalone 실행 진입점(stdin JSON 1회 읽어 process 호출)."""
+    process(read_stdin_json())
 
 
 if __name__ == "__main__":

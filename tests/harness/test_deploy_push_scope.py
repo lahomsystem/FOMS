@@ -47,10 +47,13 @@ def _git(cwd: Path, *args: str) -> None:
     )
 
 
-def _init_repo_with_deploy(tmp_path: Path) -> Path:
-    """bare remote + local clone on deploy with one base commit."""
+def _init_repo_with_deploy(tmp_path: Path, name: str = "local") -> Path:
+    """bare remote + local clone on deploy with one base commit.
+
+    name 으로 클론 디렉터리명을 바꿀 수 있다(세션 worktree `foms-s-*` 재현용).
+    """
     bare = tmp_path / "remote.git"
-    local = tmp_path / "local"
+    local = tmp_path / name
     _git(tmp_path, "init", "--bare", str(bare))
     _git(tmp_path, "clone", str(bare), str(local))
     _git(local, "checkout", "-b", "deploy")
@@ -123,3 +126,72 @@ def test_unknown_without_ledger(tmp_path: Path) -> None:
     _git(local, "-c", "user.email=t@t", "-c", "user.name=t", "commit", "-m", "x")
     result = scope.classify_deploy_scope(str(local), "sess-z")
     assert result.kind == "unknown"
+
+
+def _commit_file(local: Path, name: str) -> str:
+    """파일 1개 커밋 후 SHA 반환."""
+    (local / name).write_text(name, encoding="utf-8")
+    _git(local, "add", name)
+    _git(local, "-c", "user.email=t@t", "-c", "user.name=t", "commit", "-m", name)
+    return subprocess.check_output(
+        ["git", "rev-parse", "HEAD"], cwd=local, text=True, encoding="utf-8"
+    ).strip()
+
+
+def test_session_worktree_union_is_own(tmp_path: Path) -> None:
+    """세션 worktree: 세션 키가 여러 개여도 union 이면 own(P3 거짓 문제 해법)."""
+    scope = _load_scope()
+    ledger = _load_ledger()
+    wt = _init_repo_with_deploy(tmp_path, "foms-s-u1")
+    ledger.append_commit(str(wt), "sid-day1", _commit_file(wt, "b.txt"))
+    ledger.append_commit(str(wt), "sid-day2", _commit_file(wt, "c.txt"))
+    # 오늘의 새 세션 id 로도 own
+    assert scope.classify_deploy_scope(str(wt), "sid-day3").kind == "own"
+
+
+def test_session_worktree_relative_root(tmp_path: Path, monkeypatch) -> None:
+    """상대경로 root('.') 로도 세션 worktree 판정 — E2E 검증에서 적발된 결함 회귀."""
+    scope = _load_scope()
+    ledger = _load_ledger()
+    wt = _init_repo_with_deploy(tmp_path, "foms-s-rel")
+    ledger.append_commit(str(wt), "sid1", _commit_file(wt, "b.txt"))
+    monkeypatch.chdir(wt)
+    assert scope._is_session_worktree(".")
+    assert scope.classify_deploy_scope(".", "other-sid").kind == "own"
+
+
+def test_session_worktree_unledgered_is_foreign(tmp_path: Path) -> None:
+    """세션 worktree: ledger 밖 커밋(cherry-pick 유입 재현)은 foreign 유지."""
+    scope = _load_scope()
+    ledger = _load_ledger()
+    wt = _init_repo_with_deploy(tmp_path, "foms-s-u2")
+    ledger.append_commit(str(wt), "sid1", _commit_file(wt, "b.txt"))
+    _commit_file(wt, "d.txt")  # ledger 미기록
+    result = scope.classify_deploy_scope(str(wt), "sid1")
+    assert result.kind == "foreign"
+    assert "ledger 밖" in result.label
+
+
+def test_missing_baseline_is_unknown_not_empty(tmp_path: Path) -> None:
+    """C7: origin/deploy ref 부재는 empty(=allow)가 아니라 unknown(=ask)."""
+    scope = _load_scope()
+    local = tmp_path / "solo"
+    _git(tmp_path, "init", str(local))
+    (local / "README").write_text("base\n", encoding="utf-8")
+    _git(local, "add", "README")
+    _git(local, "-c", "user.email=t@t", "-c", "user.name=t", "commit", "-m", "base")
+
+    result = scope.classify_deploy_scope(str(local), "sess-a")
+
+    assert result.kind == "unknown"
+    assert "baseline" in result.label
+    # 기존 공개 API 는 호환 유지(빈 튜플)
+    assert scope.list_unpushed_deploy_shas(str(local)) == ()
+
+
+def test_session_worktree_empty_ledger_falls_back(tmp_path: Path) -> None:
+    """세션 worktree 라도 ledger 가 비면 기존 unknown 경로(=ask) 폴백."""
+    scope = _load_scope()
+    wt = _init_repo_with_deploy(tmp_path, "foms-s-u3")
+    _commit_file(wt, "b.txt")
+    assert scope.classify_deploy_scope(str(wt), "some-sid").kind == "unknown"

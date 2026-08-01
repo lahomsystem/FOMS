@@ -12,6 +12,8 @@ class _FakeOrderScheduleDate:
         self.date = kwargs["date"]
         self.source = kwargs["source"]
         self.item_index = kwargs["item_index"]
+        # ITEM-ID-00: rebuild 시 registry 에서 채우는 안정 UUID(없으면 None).
+        self.item_id = kwargs.get("item_id")
 
 
 def test_collect_order_schedule_date_specs_normalizes_and_deduplicates_dates():
@@ -109,9 +111,11 @@ def test_sync_order_dates_uses_get_db_when_session_missing(monkeypatch):
 
     order_date_sync.sync_order_dates(order)
 
+    # ITEM-ID-00: 일정 row 는 item_id 를 함께 받는다. order 에 id 가 없어(등록 전) registry
+    # 조회가 조기 반환하므로 item_id 는 None 이다.
     assert calls == [
-        {"kind": "measurement", "date": "2026-04-01", "source": "legacy_column", "item_index": None},
-        {"kind": "construction", "date": "2026-05-01", "source": "beta_schedule", "item_index": 2},
+        {"kind": "measurement", "date": "2026-04-01", "source": "legacy_column", "item_index": None, "item_id": None},
+        {"kind": "construction", "date": "2026-05-01", "source": "beta_schedule", "item_index": 2, "item_id": None},
     ]
     assert [(row.kind, row.date, row.source, row.item_index) for row in order.schedule_dates] == [
         ("measurement", "2026-04-01", "legacy_column", None),

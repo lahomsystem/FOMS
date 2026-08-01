@@ -486,6 +486,10 @@
                 overflow-wrap: anywhere;
               }
 
+              .shipment-as-material-line {
+                white-space: pre-wrap;
+              }
+
               .shipment-site-extra-row .line-remove-btn {
                 display: none;
                 margin-left: 2px;
@@ -588,6 +592,66 @@
               .shipment-text-list-single .shipment-text-view,
               .shipment-text-list-single .shipment-text-edit {
                 width: 100%;
+              }
+
+              /* --- 편집 오버레이 v2(데스크톱 전용): table-layout:fixed + td overflow:hidden 때문에
+                 좁은 컬럼에서 input-group이 짓눌린다. 편집 중인 행만 카드형 에디터로 셀 위에 띄운다
+                 (스프레드시트 셀 에디터 패턴). 우측 끝 편집 컬럼(시공자)은 우측 기준으로 펼쳐
+                 표/화면 밖 이탈을 막는다. 모바일 카드 뷰는 기존 동작 유지. --- */
+              @media (min-width: 993px) {
+                #shipment-dashboard-table td.shipment-field-cell:has(.shipment-text-row.editing) {
+                  overflow: visible;
+                }
+                #shipment-dashboard-table .shipment-text-row.editing {
+                  position: relative;
+                  min-height: var(--shipment-edit-action-size, 2rem);
+                }
+                #shipment-dashboard-table .shipment-text-row.editing .shipment-text-edit {
+                  position: absolute;
+                  left: -6px;
+                  top: 50%;
+                  transform: translateY(-50%);
+                  width: max-content;
+                  min-width: 17rem;
+                  max-width: 24rem;
+                  z-index: 40;
+                  background: #fff;
+                  border: 1px solid #cbd5e1;
+                  border-radius: 8px;
+                  box-shadow: 0 1px 2px rgba(15, 23, 42, 0.08), 0 8px 24px rgba(15, 23, 42, 0.16);
+                  padding: 4px;
+                  gap: 4px;
+                }
+                #shipment-dashboard-table td[data-col-key="construction_workers"] .shipment-text-row.editing .shipment-text-edit {
+                  left: auto;
+                  right: -6px;
+                }
+                #shipment-dashboard-table .shipment-text-row.editing .shipment-text-input {
+                  border: 1px solid transparent;
+                  background: #f8fafc;
+                  border-radius: 6px !important;
+                  height: var(--shipment-edit-action-size, 2rem);
+                }
+                #shipment-dashboard-table .shipment-text-row.editing .shipment-text-input:focus {
+                  background: #fff;
+                  border-color: #86b7fe;
+                  box-shadow: none;
+                }
+                #shipment-dashboard-table .shipment-text-row.editing .shipment-btn-load-saved-text-row,
+                #shipment-dashboard-table .shipment-text-row.editing .btn-remove-shipment-text-row {
+                  border: 0;
+                  border-radius: 6px !important;
+                  color: #64748b;
+                  background: transparent;
+                }
+                #shipment-dashboard-table .shipment-text-row.editing .shipment-btn-load-saved-text-row:hover {
+                  background: #eef2f7;
+                  color: #0d6efd;
+                }
+                #shipment-dashboard-table .shipment-text-row.editing .btn-remove-shipment-text-row:hover {
+                  background: #fee2e2;
+                  color: #dc2626;
+                }
               }
 
               .shipment-table td[data-label="시공시간"],

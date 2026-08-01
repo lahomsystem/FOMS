@@ -436,7 +436,7 @@ def _erp_get_stage(order, structured_data):
                     return label
             return st
     except Exception:
-        pass
+        pass  # failopen: intentional: 표시 라벨 매칭 실패 시 원본 문자열 폴백
     return '주문접수'
 
 
@@ -529,11 +529,20 @@ def _drawing_status_label(status: str) -> str:
 
 
 def _drawing_next_action_text(drawing_status: str, has_assignee: bool) -> str:
+    """도면 단계 다음 액션 문구(도면팀 관점 — 누가 무엇을 해야 하는지).
+
+    Args:
+        drawing_status: 도면 상태 코드(PENDING/TRANSFERRED/RETURNED/CONFIRMED 등).
+        has_assignee: 도면 담당자 지정 여부.
+
+    Returns:
+        표시용 한글 문구.
+    """
     s = (drawing_status or 'PENDING').upper()
     if not has_assignee:
         return '도면 담당자 지정 필요'
     if s == 'TRANSFERRED':
-        return '주문 담당 수령 확정 또는 수정 요청'
+        return '주문 담당 확정 대기'
     if s == 'RETURNED':
         return '도면 담당 수정본 재전달 필요'
     if s in ('CONFIRMED', 'DONE'):

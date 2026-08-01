@@ -67,7 +67,7 @@
           <div class="erp-pro-pipeline__label">완료</div>
         </div>
 
-        <div class="erp-pro-pipeline__stage ms-2" data-filter="overdue" role="button" tabindex="0" title="오늘 마감만 보기">
+        <div class="erp-pro-pipeline__stage ms-2" data-filter="overdue" role="button" tabindex="0" title="지연만 보기">
           <div class="erp-pro-pipeline__count text-danger">{{ stats.overdue }}</div>
           <div class="erp-pro-pipeline__label"><i class="fas fa-exclamation-triangle me-1 text-danger"></i>지연</div>
         </div>
@@ -228,13 +228,14 @@
                 </span>
                 {% endif %}
               </td>
-              <td class="fw-semibold" style="font-size: 1rem; color: #495057;">
+              <td class="fw-semibold dw-cdate-cell">
                 {% set _c = (r.construction_date or '') %}
                 {% set _cparts = (_c.split(',')|map('trim')|list)|select|list %}
-                {% for _d in _cparts %}<span class="badge bg-secondary me-1">{{ _d }}</span>{% endfor %}
+                {% set _clevel = r.construction_badge_level|default('none') %}
+                {% for _d in _cparts %}<span class="badge dw-cdate-badge is-{{ _clevel }} me-1">{{ _d }}</span>{% endfor %}
                 {% if not _cparts %}<span class="text-muted">-</span>{% endif %}
               </td>
-              <td class="small">{{ r.next_action }}</td>
+              <td class="small dw-next-action is-{{ r.next_action_tone|default('mine') }}">{{ r.next_action }}</td>
               <td>
                 <span>{{ r.assignee_text }}</span>
                 <button type="button" class="btn btn-sm btn-outline-primary ms-1" onclick="event.stopPropagation(); openSingleAssignModal({{ r.id }})" title="담당자 변경">
@@ -265,9 +266,23 @@
                 {% endif %}
               </td>
               <td>
-                <div class="small text-muted">{{ r.latest_event_at }} · {{ r.latest_event_label }}</div>
-                {% if r.latest_event_note %}
-                <div class="small">{{ r.latest_event_note }}</div>
+                {% set _evt_tone = {'ERP_ORDER_CHANGED': ' is-order-change', 'REQUEST_REVISION': ' is-revision', 'TRANSFER': ' is-transfer'}.get(r.latest_event_action, '') %}
+                <div class="small text-muted">{{ r.latest_event_at }}
+                  <span class="dw-event-chip{{ _evt_tone }}">{{ r.latest_event_label }}</span>
+                </div>
+                {% if r.latest_event_parts %}
+                {# 주문변경: 한 줄 " · " 나열 대신 세로 스택. 3개 이상은 네이티브 details 로 접어 행 높이 유지. #}
+                <div class="small" title="{{ r.latest_event_note_full }}">
+                  {% for _p in r.latest_event_parts[:2] %}<div class="dw-event-part">{{ _p }}</div>{% endfor %}
+                  {% if r.latest_event_parts|length > 2 %}
+                  <details class="dw-event-more" onclick="event.stopPropagation();">
+                    <summary>외 {{ r.latest_event_parts|length - 2 }}건 펼치기</summary>
+                    {% for _p in r.latest_event_parts[2:] %}<div class="dw-event-part">{{ _p }}</div>{% endfor %}
+                  </details>
+                  {% endif %}
+                </div>
+                {% elif r.latest_event_note %}
+                <div class="small" title="{{ r.latest_event_note_full }}">{{ r.latest_event_note }}</div>
                 {% else %}
                 <div class="small text-muted">-</div>
                 {% endif %}
@@ -275,8 +290,8 @@
               <td>
                 {% if r.sla_level == '지연' %}
                 <span class="badge bg-danger">지연</span>
-                {% elif r.sla_level == '오늘 마감' %}
-                <span class="badge bg-warning text-dark">오늘 마감</span>
+                {% elif r.sla_level == '임박' %}
+                <span class="badge bg-warning text-dark">임박</span>
                 {% else %}
                 <span class="badge bg-success">정상</span>
                 {% endif %}
@@ -285,7 +300,7 @@
                 {% if r.unread_count > 0 %}
                 <span class="badge bg-danger">{{ r.unread_count }}건</span>
                 {% else %}
-                <span class="badge bg-light text-dark border">0건</span>
+                <span class="text-muted small">-</span>
                 {% endif %}
               </td>
               <td class="text-end">
@@ -415,7 +430,7 @@
   </div>
 </div>
 
-<script src="{{ url_for('static', filename='js/drawing/workbench-dashboard.js') }}" defer></script>
+<script src="{{ url_for('static', filename='js/drawing/workbench-dashboard.js') }}?v=20260728b" defer></script>
 {% endset %}{% if shell_variant == 'v3' %}
 <div class="fos-v3-mobile-scope">
 {# v3 셸: 도면 페르소나 홈(읽기/표시 전용). v2/legacy는 아래 else 경로 그대로. #}

@@ -1796,6 +1796,12 @@ async function erpLoadStructured(bootstrapData, options) {
         return;
     }
 
+    // DATA-01 낙관 잠금 토큰. 저장·단계 override 가 If-Match 로 되돌려 보내는 SSOT
+    // (erp-stage-override.js 와 공유). 숫자가 아니면 null — 구버전 서버(필드 없음)에서는
+    // If-Match 를 생략해 기존 동작을 유지한다(graceful degradation).
+    window.__erpLastMutationVersion =
+        typeof data.mutation_version === 'number' ? data.mutation_version : null;
+
     erpApplyAttachmentPermissionsFromBootstrap(data);
 
     const sd = data.structured_data || {};
@@ -1876,6 +1882,7 @@ async function erpLoadStructured(bootstrapData, options) {
     }
     const constructionTime = sd?.schedule?.construction?.time || '';
     erpSetScheduleTimeControlValue('erp-construction-time-select', 'erp-construction-time', constructionTime);
+    document.getElementById('erp-construction-note').value = sd?.notes?.construction_note || '';
 
     const itemsWrap = document.getElementById('erp-items');
     itemsWrap.innerHTML = '';
@@ -2032,10 +2039,10 @@ function erpCollectStructured() {
         'channeltalk_push_estimate',
     ];
 
+    // DATA-01: provenance(schema_version/confidence)는 서버 소유다. 폼은 전송하지 않는다
+    // (서버가 old-wins 로 보존). totals 도 서버가 재계산하지만, 편집 폼 표시용으로만 담는다.
     const structured = {
         entity_type: 'order_structured',
-        schema_version: 1,
-        confidence: null,
         totals,
         parties: {
             customer: {
@@ -2080,7 +2087,8 @@ function erpCollectStructured() {
         notes: {
             phone_note: getVal('erp-phone-note'),
             address_note: getVal('erp-address-note'),
-            measurement_note: getVal('erp-measurement-note')
+            measurement_note: getVal('erp-measurement-note'),
+            construction_note: getVal('erp-construction-note')
         },
         workflow: (function () {
             const prevWorkflow = (prevSd.workflow && typeof prevSd.workflow === 'object' && !Array.isArray(prevSd.workflow))
@@ -2397,14 +2405,21 @@ async function erpSaveStructuredOnce(opts = {}) {
         // 빠져 서버가 column을 갱신하지 않아(이전 값 유지) 삭제·변경이 반영되지 않는 버그가 난다.
         const notesVal = (document.getElementById('erp-notes')?.value ?? '').trim();
 
+        // DATA-01 낙관 잠금: 로드/저장이 받은 mutation_version 을 If-Match 로 되돌려 보내
+        // 동시 편집의 lost update(items 배열 통째 교체)를 서버에서 막는다.
+        // opts.force 는 사용자가 409 후 "덮어쓰기"를 고른 재시도 → 의도적으로 생략한다.
+        const saveHeaders = { 'Content-Type': 'application/json' };
+        if (opts.force !== true && typeof window.__erpLastMutationVersion === 'number') {
+            saveHeaders['If-Match'] = String(window.__erpLastMutationVersion);
+        }
+
         const res = await fetch(`/api/orders/${targetId}/structured`, {
             method: 'PUT',
-            headers: { 'Content-Type': 'application/json' },
+            headers: saveHeaders,
             body: JSON.stringify({
+                // DATA-01: provenance(raw_order_text/schema_version/confidence)는 전송하지 않는다.
+                // 서버가 원본 파싱 provenance 를 보존한다(client overwrite 금지).
                 structured_data,
-                raw_order_text: '',
-                structured_schema_version: 1,
-                structured_confidence: structured_data.confidence,
                 received_date: received_date || undefined,
                 received_time: received_time || undefined,
                 notes: notesVal,
@@ -2414,10 +2429,28 @@ async function erpSaveStructuredOnce(opts = {}) {
             })
         });
         const data = await res.json();
+        // 409(VERSION_CONFLICT): 데이터 보존이 최우선 — 여기서 절대 erpLoadStructured()나
+        // 폼 리셋을 호출하지 않는다(사용자가 입력한 내용이 화면에 그대로 남아야 한다).
+        if (res.status === 409 && opts.force !== true) {
+            const wantsOverwrite = confirm(
+                '다른 사용자가 이 주문을 먼저 수정했습니다.\n' +
+                '내 입력으로 덮어쓸까요?\n\n' +
+                '(취소하면 저장하지 않고 입력한 내용을 그대로 둡니다)'
+            );
+            if (!wantsOverwrite) {
+                erpSetStatus('저장하지 않았습니다. 입력한 내용은 그대로 남아 있습니다.', true);
+                return { success: false, message: '다른 사용자의 수정과 충돌해 저장하지 않았습니다.' };
+            }
+            // 덮어쓰기 재시도는 1회뿐 — force 호출에서 또 409 가 나면 아래 실패 경로로 간다.
+            return await erpSaveStructuredOnce({ ...opts, force: true });
+        }
         if (!data.success) {
             erpSetStatus(data.message || '저장 실패', true);
             return { success: false, message: data.message || '저장 실패' };
         }
+        // 다음 저장이 stale 토큰으로 나가 무조건 409 가 되는 것을 막는다.
+        window.__erpLastMutationVersion =
+            typeof data.mutation_version === 'number' ? data.mutation_version : null;
         erpSetStatus(doRedirect ? '저장 완료! 이동합니다...' : '저장 완료');
         // 명시 저장(승격) 성공 → 자동저장 모듈이 로컬/세션 draft 흔적을 정리하도록 알림.
         try { document.dispatchEvent(new Event('erp:order-saved')); } catch (_e) {}
@@ -2716,15 +2749,54 @@ ${escapeHtml(sub)}</div>` : ''}`;
         const nav = document.getElementById('erp-mobile-secnav');
         if (!nav || nav.dataset.erpSecnavBound === '1') return;
         nav.dataset.erpSecnavBound = '1';
+        let scrollGen = 0;
+
+        function scrollSecToView(target, gen) {
+            const form = target.closest('.erp-order-mobile-form');
+            const scroller = document.scrollingElement;
+            if (!form || !scroller) return;
+
+            form.style.removeProperty('--erp-mobile-secnav-tail');
+            requestAnimationFrame(() => {
+                if (gen !== scrollGen) return;
+                const stickyTop = Number.parseFloat(window.getComputedStyle(nav).top) || 0;
+                const viewportTargetTop = stickyTop + nav.getBoundingClientRect().height + 8;
+                const targetTop = window.scrollY + target.getBoundingClientRect().top;
+                const top = Math.max(0, targetTop - viewportTargetTop);
+                const tail = Math.max(0, top - (scroller.scrollHeight - window.innerHeight));
+                if (tail) form.style.setProperty('--erp-mobile-secnav-tail', `${Math.ceil(tail)}px`);
+
+                requestAnimationFrame(() => {
+                    if (gen === scrollGen) window.scrollTo({ top, behavior: 'auto' });
+                });
+            });
+        }
+
+        function expandThenScroll(target, toggle, gen) {
+            const bodySel = toggle.getAttribute('data-bs-target');
+            const body = bodySel ? document.querySelector(bodySel) : null;
+            if (!body) {
+                toggle.click();
+                if (gen === scrollGen) scrollSecToView(target, gen);
+                return;
+            }
+            // Expand first, then measure after Bootstrap finishes its height transition.
+            body.addEventListener('shown.bs.collapse', () => {
+                if (gen === scrollGen) scrollSecToView(target, gen);
+            }, { once: true });
+            toggle.click();
+        }
+
         nav.addEventListener('click', (e) => {
             const chip = e.target.closest('.erp-mobile-secnav-chip');
             if (!chip) return;
             const target = chip.dataset.erpSecnavTarget && document.getElementById(chip.dataset.erpSecnavTarget);
             if (!target) return;
             nav.querySelectorAll('.erp-mobile-secnav-chip').forEach((c) => c.classList.toggle('is-active', c === chip));
+            const gen = ++scrollGen;
             const collapsedToggle = target.querySelector('.erp-mobile-collapse-toggle[aria-expanded="false"]');
-            if (collapsedToggle) collapsedToggle.click();
-            target.scrollIntoView({ behavior: 'smooth', block: 'start' });
+            if (collapsedToggle) expandThenScroll(target, collapsedToggle, gen);
+            else scrollSecToView(target, gen);
         });
     })();
 
@@ -2735,6 +2807,73 @@ ${escapeHtml(sub)}</div>` : ''}`;
         const filesEl = document.getElementById('as-receive-files');
         const previewEl = document.getElementById('as-receive-preview');
         const submitBtn = document.getElementById('as-receive-submit-btn');
+        const amountWrap = document.getElementById('as-receive-amount-wrap');
+        const amountEl = document.getElementById('as-receive-amount');
+        const sinceBadge = document.getElementById('as-receive-since-badge');
+        const lockedNote = document.getElementById('as-receive-billing-locked-note');
+        const billingRadios = () => Array.from(document.querySelectorAll('input[name="as-receive-billing"]'));
+
+        function selectedBillingType() {
+            const checked = billingRadios().find((r) => r.checked);
+            return checked ? checked.value : 'free';
+        }
+
+        function syncBillingUi() {
+            if (amountWrap) amountWrap.classList.toggle('d-none', selectedBillingType() !== 'paid');
+        }
+        billingRadios().forEach((r) => r.addEventListener('change', syncBillingUi));
+
+        // 모바일 v2 코호트 페이지(edit_order_body.html)는 PC·모바일 파티얼을 모두 렌더한 뒤
+        // 인라인 스크립트로 한쪽을 remove 한다. 두 벌의 라디오는 <form> 조상이 없어 같은
+        // name이 문서 전체로 스코프되고, 파싱 중 두 번째 checked가 첫 번째의 checkedness를
+        // 지운다 → 데스크톱에서 모바일 블록이 제거되면 남은 PC 세그먼트가 "선택 0개"가 된다
+        // (defaultChecked:true / checked:false). 저장값은 selectedBillingType()의 'free'
+        // 폴백으로 정확하지만 화면에는 기본값이 안 보인다. 그래서 살아남은 쪽을 보정한다.
+        // 템플릿의 checked 속성을 지우는 방식은 반대 코호트에서 같은 버그를 만든다.
+        function ensureBillingSelection() {
+            const radios = billingRadios();
+            if (!radios.length || radios.some((r) => r.checked)) return;
+            (radios.find((r) => r.value === 'free') || radios[0]).checked = true;
+        }
+        ensureBillingSelection();
+
+        // 재접수(지방 재상차 등)는 서버가 billing 페이로드를 무시하고 기존 판정을 보존한다
+        // (foms/api/cs/as_orders.py: as_billing이 dict면 시드 건너뜀). 그래서 세그먼트를
+        // 열어두면 "골랐는데 저장 안 됨"이 된다 — 기존값으로 고정하고 잠근다.
+        function applyExistingBillingLock() {
+            const existing = window.__erpLastStructuredData?.shipment?.as_billing;
+            const locked = !!existing && typeof existing === 'object' && !Array.isArray(existing);
+            const radios = billingRadios();
+            if (locked) {
+                const type = String(existing.type || 'free');
+                radios.forEach((r) => { r.checked = (r.value === type); r.disabled = true; });
+                if (amountEl) {
+                    amountEl.value = (existing.amount === null || existing.amount === undefined)
+                        ? ''
+                        : String(existing.amount);
+                    amountEl.disabled = true;
+                }
+            } else {
+                radios.forEach((r) => { r.disabled = false; });
+                if (amountEl) amountEl.disabled = false;
+            }
+            if (lockedNote) lockedNote.classList.toggle('d-none', !locked);
+        }
+
+        function refreshSinceBadge() {
+            if (!sinceBadge) return;
+            // 시공일(#erp-construction-date)은 "2026-03-13, 2026-03-14"처럼 여러 날짜가
+            // 들어가는 text input이라 new Date(raw) 직접 파싱은 NaN이 난다. ISO 문자열은
+            // 사전순=시간순이므로 정렬 후 마지막(가장 늦은 시공일)을 기준으로 잡는다.
+            const raw = (document.getElementById('erp-construction-date')?.value || '').trim();
+            const found = raw.match(/\d{4}-\d{2}-\d{2}/g);
+            if (!found || !found.length) { sinceBadge.classList.add('d-none'); return; }
+            const base = new Date(`${found.slice().sort().pop()}T00:00:00`);
+            if (Number.isNaN(base.getTime())) { sinceBadge.classList.add('d-none'); return; }
+            const months = Math.max(0, Math.floor((Date.now() - base.getTime()) / (1000 * 60 * 60 * 24 * 30.44)));
+            sinceBadge.textContent = `시공 후 ${months}개월 경과`;
+            sinceBadge.classList.remove('d-none');
+        }
 
         if (filesEl && previewEl) {
             filesEl.addEventListener('change', function () {
@@ -2745,6 +2884,12 @@ ${escapeHtml(sub)}</div>` : ''}`;
         }
 
         if (modalEl) {
+            // 오픈마다 재평가(상차일 wrap과 동일 원칙): 판정 잠금 → 세그먼트 → 경과 배지 순.
+            modalEl.addEventListener('shown.bs.modal', function () {
+                applyExistingBillingLock();
+                syncBillingUi();
+                refreshSinceBadge();
+            });
             modalEl.addEventListener('hidden.bs.modal', function () {
                 if (window.__erpAsReceiveSubmitted !== true) {
                     const stageEl = document.getElementById('erp-workflow-stage');
@@ -2774,6 +2919,14 @@ ${escapeHtml(sub)}</div>` : ''}`;
 
                 // 지방주문 + 상차일 입력 시 AS 등록 payload에 포함(정본 경로에서 원자적 저장).
                 const regPayload = { as_content: content };
+                // 최초 접수의 무상/유상 "추정". 확정·전환은 POST /as/billing 소관이며,
+                // 재접수 시에는 서버가 이 두 필드를 무시하고 기존 판정을 보존한다.
+                const billingType = selectedBillingType();
+                regPayload.billing_type = billingType;
+                if (billingType === 'paid') {
+                    const amt = parseInt(amountEl?.value || '', 10);
+                    if (!Number.isNaN(amt) && amt >= 0) regPayload.amount = amt;
+                }
                 const shipDateEl = document.getElementById('as-receive-shipping-date');
                 const isRegionalNow = document.getElementById('erp-regional-order')?.checked === true;
                 const shipDateVal = (shipDateEl?.value || '').trim();
@@ -5084,9 +5237,21 @@ async function erpApproveQuestTeam(team) {
             if (data.auto_transitioned && data.next_stage) {
                 const nextStageLabel = erpLabel(ERP_STAGE_LABELS, data.next_stage, data.next_stage);
                 erpSetQuestStatus(`✅ 모든 팀 승인 완료! 다음 단계(${nextStageLabel})로 자동 전환되었습니다.`);
-                setTimeout(() => {
-                    erpLoadQuest(); // 새 Quest 로드
-                    erpLoadStructured(); // structured_data도 새로고침
+                setTimeout(async () => {
+                    erpLoadQuest(); // 새 Quest 로드(폼을 건드리지 않으므로 무조건)
+                    // 미저장 편집이 있으면 서버 재조회로 DOM(사용자 입력)을 덮어쓰지 않는다.
+                    // dirty가 아닐 때만 structured_data를 새로고침(탭 복귀 가드와 동일 패턴).
+                    var _autosave = window.fomsErpAutosave;
+                    var _erpDirty = _autosave && typeof _autosave.isDirty === 'function'
+                        ? _autosave.isDirty() : false;
+                    if (!_erpDirty) {
+                        await erpLoadStructured();
+                        if (_autosave && typeof _autosave.recaptureBaseline === 'function') {
+                            _autosave.recaptureBaseline();
+                        }
+                    } else {
+                        erpSetQuestStatus('미저장 입력이 있어 화면 새로고침을 건너뛰었습니다. 저장 후 새로고침하세요.', true);
+                    }
                 }, 1500);
             } else {
                 erpSetQuestStatus('✅ 모든 팀 승인 완료!');

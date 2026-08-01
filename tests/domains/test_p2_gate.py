@@ -105,8 +105,6 @@ def test_p2_04_lightbox_assets() -> None:
     js = (ROOT / "static/js/foms/lightbox.js").read_text(encoding="utf-8")
     assert "data-foms-lightbox-gallery" in js
     assert "FomsLightbox" in js
-    card = (ROOT / "templates/partials/shared/erp_mobile_queue_card.html").read_text(encoding="utf-8")
-    assert "data-foms-lightbox-src" in card
 
 
 def test_p2_05_voice_input_script() -> None:
@@ -135,11 +133,9 @@ def test_p2_06_manifest_and_head() -> None:
     assert 'register("/static/sw.js"' in sync_js
 
 
-def test_p2_07_swipe_and_haptic() -> None:
-    swipe = (ROOT / "static/js/foms/swipe-actions.js").read_text(encoding="utf-8")
-    assert "data-foms-swipe-card" in swipe
-    card = (ROOT / "templates/partials/shared/erp_mobile_queue_card.html").read_text(encoding="utf-8")
-    assert "data-foms-swipe-action" in card
+def test_p2_07_haptic() -> None:
+    """Queue swipe actions were removed (STATE-CONTROLS-01: orphan caller-0 route);
+    haptic.js itself is still wired into foms_p2_surface_bundle.html / wizard_shell.html."""
     haptic = (ROOT / "static/js/foms/haptic.js").read_text(encoding="utf-8")
     assert "prefers-reduced-motion" in haptic
 

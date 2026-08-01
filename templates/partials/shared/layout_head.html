@@ -10,6 +10,82 @@
     <meta charset="UTF-8">
     <meta name="viewport" content="width=device-width, initial-scale=1.0">
     <meta name="color-scheme" content="light dark">
+
+    {# WRITE-GUARD-01: 세션 바인딩 CSRF 토큰. 아래 래퍼가 이 값을 모든 same-origin
+       mutation(fetch/XHR/form/sendBeacon)에 자동으로 실어 정상 사용자 403 회귀를 막는다.
+       route 별 ad hoc 토큰 주입 금지 — 이 파일이 단일 choke point 다. #}
+    <meta name="csrf-token" content="{{ csrf_token() }}">
+    <script>
+    (function () {
+      if (window.__FOMS_CSRF_BOUND) return;
+      window.__FOMS_CSRF_BOUND = true;
+      var _CSRF_H = 'X-CSRF-Token';
+      var MUT = { POST: 1, PUT: 1, PATCH: 1, DELETE: 1 };
+      function token() {
+        var m = document.querySelector('meta[name="csrf-token"]');
+        return m ? (m.getAttribute('content') || '') : '';
+      }
+      function sameOrigin(url) {
+        if (!url) return true; // 상대/미지정 = 현재 origin
+        try { return new URL(url, window.location.href).origin === window.location.origin; }
+        catch (e) { return true; }
+      }
+      window.fomsCsrfToken = token;
+
+      // 1) fetch: same-origin mutation 에 X-CSRF-Token 자동 부착(keepalive fetch 포함).
+      var origFetch = window.fetch;
+      if (typeof origFetch === 'function') {
+        window.fetch = function (input, init) {
+          init = init || {};
+          var method = (init.method
+            || (input && typeof input === 'object' && input.method)
+            || 'GET').toUpperCase();
+          var url = (typeof input === 'string') ? input : (input && input.url) || '';
+          if (MUT[method] && sameOrigin(url)) {
+            var headers = new Headers(
+              init.headers || (input && typeof input === 'object' && input.headers) || {}
+            );
+            if (!headers.has(_CSRF_H)) headers.set(_CSRF_H, token());
+            init.headers = headers;
+          }
+          return origFetch.call(this, input, init);
+        };
+      }
+
+      // 2) XMLHttpRequest: upload-progress/htmx 등 XHR mutation 커버.
+      var XO = XMLHttpRequest.prototype.open;
+      var XS = XMLHttpRequest.prototype.send;
+      XMLHttpRequest.prototype.open = function (method, url) {
+        this.__fomsMethod = (method || 'GET').toUpperCase();
+        this.__fomsUrl = url;
+        return XO.apply(this, arguments);
+      };
+      XMLHttpRequest.prototype.send = function () {
+        try {
+          if (MUT[this.__fomsMethod] && sameOrigin(this.__fomsUrl)) {
+            this.setRequestHeader(_CSRF_H, token());
+          }
+        } catch (e) { /* setRequestHeader 실패는 무시(요청은 진행) */ }
+        return XS.apply(this, arguments);
+      };
+
+      // 3) HTML form: same-origin mutation 제출 시 hidden csrf_token 자동 주입.
+      document.addEventListener('submit', function (e) {
+        var form = e.target;
+        if (!form || form.tagName !== 'FORM') return;
+        var method = (form.getAttribute('method') || 'GET').toUpperCase();
+        if (!MUT[method]) return;
+        if (!sameOrigin(form.getAttribute('action'))) return;
+        var existing = form.querySelector('input[name="csrf_token"]');
+        if (existing) { existing.value = token(); return; }
+        var input = document.createElement('input');
+        input.type = 'hidden';
+        input.name = 'csrf_token';
+        input.value = token();
+        form.appendChild(input);
+      }, true);
+    })();
+    </script>
     <script>
     (function () {
       var key = 'foms-theme';
@@ -128,7 +204,9 @@
     <!-- ERP Pro Dashboard Styles (Modern SaaS Design System) -->
     <link rel="stylesheet" href="{{ url_for('static', filename='css/foundation/erp-pro.css') }}?v=20260715a">
     {# Order edit (/edit/<id>) joins the erp-mobile-v2 shell cohort (see orders/layout.html),
-       so it must load the same mobile shell CSS bundle that styles the foms header + surfaces. #}
+       so it must load the same mobile shell CSS bundle that styles the foms header + surfaces.
+       v3 셸은 아래 배타 자산(foms-mobile-v3.css)을 쓰지만, 주문 수정 모바일 폼
+       (secnav sticky·form-field)은 surfaces 번들이 정본 → v3에서도 order_edit만 추가 로드. #}
     {% if shell_variant == 'v2' and (request.path.startswith('/erp') or request.endpoint == 'order_edit.edit_order') %}
     <style id="foms-mobile-v2-critical-css">
       @media (max-width: 991.98px) {
@@ -155,14 +233,16 @@
       }
     </style>
     <link rel="stylesheet" href="https://cdn.jsdelivr.net/gh/orioncactus/pretendard@v1.3.9/dist/web/variable/pretendardvariable-dynamic-subset.min.css" crossorigin="anonymous">
-    <link rel="stylesheet" href="{{ url_for('static', filename='css/foundation/foms-mobile-surfaces.css') }}?v=20260722c">
+    <link rel="stylesheet" href="{{ url_for('static', filename='css/foundation/foms-mobile-surfaces.css') }}?v=20260723i">
+    {% elif erp_mobile_v2_enabled and request.endpoint == 'order_edit.edit_order' %}
+    <link rel="stylesheet" href="{{ url_for('static', filename='css/foundation/foms-mobile-surfaces.css') }}?v=20260723i">
     {% endif %}
     {# 태블릿 T2 융합 레이어는 셸 변형과 직교 — v2·v3 공통으로 로드(2026-07-12 v3 미로드 실사고 봉합).
        surfaces 와 별도 <link>·surfaces 직후 위치라 v2 캐스케이드 순변화 0.
        /wdcalculator 추가(2026-07-12 목업 v5 정합): 전역 레일 CSS(foms-tablet-rail.css)가
        계산기 페이지에서도 로드되도록 게이트에 포함한다. #}
     {% if erp_mobile_v2_enabled and (request.path.startswith('/erp') or request.endpoint == 'order_edit.edit_order' or request.path.startswith('/wdcalculator')) %}
-    <link rel="stylesheet" href="{{ url_for('static', filename='css/foundation/foms-tablet-bundle.css') }}?v=20260722h">
+    <link rel="stylesheet" href="{{ url_for('static', filename='css/foundation/foms-tablet-bundle.css') }}?v=20260727d">
     {% endif %}
     {# 모바일 v2 서피스 광폭(≥992) 숨김 — 셸-독립 정본(v2∪v3 공통, 2026-07-13 v3 누출 봉합).
        v3 은 원 소유 hide 규칙이 담긴 foms-shell.css(shell_variant=='v2' 게이트 @import)를 미로드하므로,
@@ -180,7 +260,7 @@
     <script src="{{ url_for('static', filename='js/v3/foms-mobile-v3.js') }}?v=20260713b" defer></script>
     {# B7 sync 배지 컨트롤러: v3 앱바 [data-foms-sync-badge] 배지를 갱신한다. v2 셸은
        foms_app_shell.html 이 로드하지만 v3 셸은 그 파샬을 include 하지 않으므로 여기서 배타 로드. #}
-    <script src="{{ url_for('static', filename='js/foms/foms-write.js') }}?v=20260713b" defer></script>
+    <script src="{{ url_for('static', filename='js/foms/foms-write.js') }}?v=20260725a" defer></script>
     {% endif %}
     {# 셸 토글 JS는 v3 자격자면(v3 활성이든, v2로 복귀해 drawer 진입점을 쓰든) 로드.
        경량·standalone(v3 CSS 의존 없음)·singleton 가드. 비자격/legacy는 미로드. #}
