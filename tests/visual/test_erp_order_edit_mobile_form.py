@@ -98,6 +98,8 @@ CRITICAL_ERP_IDS = {
     "erp-collapse-address-note",
     "erp-collapse-address-note-btn",
     "erp-collapse-measure-note",
+    "erp-construction-note",
+    "erp-collapse-construction-note",
 }
 
 # 영발/발주 PUSH 버튼과 (숨김) 변환 textarea는 모바일에도 제공된다.
@@ -291,6 +293,40 @@ def test_edit_erp_order_ships_responsive_form_mounts_for_cohort(
     assert 'id="erp-channeltalk-push-drawing-btn"' in mobile_form
     assert 'id="erpChannelPushResendModal"' in mobile_form
     assert "erp-mobile-pre-sticky-footer" in mobile_form
+
+
+def test_mobile_erp_secnav_has_single_scroll_owner() -> None:
+    """Secnav has no wrapper, timer, smooth-scroll, or permanent jump padding."""
+    css = (ROOT / "static" / "css" / "components" / "foms-form-field.css").read_text(
+        encoding="utf-8"
+    )
+    js = (ROOT / "static" / "js" / "orders" / "erp-order-shared.js").read_text(
+        encoding="utf-8"
+    )
+    mobile = (
+        ROOT / "templates" / "orders" / "partials" / "erp_order_tab_mobile.html"
+    ).read_text(encoding="utf-8")
+    assert 'class="erp-mobile-secnav-track"' in mobile
+    assert "erp-mobile-secnav-slot" not in mobile
+    assert "--erp-mobile-secnav-tail" in css
+    assert "--erp-mobile-sec-scroll-margin" not in css
+    assert ".erp-mobile-secnav-track" in css
+    nav_idx = css.index(".erp-order-mobile-form .erp-mobile-secnav {")
+    nav_end = css.index("}", nav_idx)
+    nav_block = css[nav_idx : nav_end + 1]
+    assert "position: sticky" in nav_block
+    assert "position: fixed" not in nav_block
+    assert "overflow-x: auto" not in nav_block
+    assert "overflow: visible" in nav_block
+    assert ".foms-detail-page-wrap .erp-order-mobile-form .erp-mobile-secnav" not in css
+    assert "scrollIntoView({ behavior: 'smooth', block: 'start' })" not in js
+    assert "shown.bs.collapse" in js
+    assert "expandThenScroll" in js
+    assert "window.setTimeout(finish, 450)" not in js
+    assert "window.getComputedStyle(nav).top" in js
+    assert "window.scrollTo({ top, behavior: 'auto' })" in js
+    assert "erpSecnavBound" in js
+    assert "initErpMobileSecNav" in js
 
 
 def test_mobile_erp_secnav_chip_order_and_targets() -> None:

@@ -177,6 +177,28 @@ def is_order_mine_for_user(order, user):
     return (user_name in manager_names) or (user_username in manager_names)
 
 
+def _project_loaded_settings(data):
+    """저장 blob(신 canonical/구 legacy 무관)을 loader 출력 스키마로 정규화한다.
+
+    SHIPMENT-REFERENCE-01 이후 저장 canonical 은 ``drawing_managers``(object array)/
+    ``measurement_managers`` 이나, read 소비처는 여전히 ``drawing_manager``(list)+
+    ``drawing_manager_en``(dict)+``measurement_manager``+``construction_workers`` 를 읽는다.
+    :func:`~foms.services.shipment_reference.project_to_legacy_shape` 로 어느 저장 형태든
+    동일한 legacy 출력으로 투영한 뒤 기존 정규화(measurement/worker/en)를 적용한다.
+    """
+    from foms.services.shipment_reference import project_to_legacy_shape
+
+    legacy = project_to_legacy_shape(data)
+    return {
+        'construction_time': legacy.get('construction_time', []),
+        'drawing_manager': legacy.get('drawing_manager', []),
+        'drawing_manager_en': normalize_drawing_manager_en(legacy.get('drawing_manager_en', {})),
+        'measurement_manager': normalize_measurement_managers(legacy.get('measurement_manager', [])),
+        'construction_workers': normalize_erp_shipment_workers(legacy.get('construction_workers', [])),
+        'site_extra': legacy.get('site_extra', []),
+    }
+
+
 def load_erp_shipment_settings():
     """ERP 출고 설정(시공시간/도면담당자/시공자/현장주소) DB에서 로드. (이전 JSON 파일 대체)"""
     default_settings = {
@@ -190,15 +212,7 @@ def load_erp_shipment_settings():
     try:
         setting = db_session.query(SystemSetting).filter_by(setting_key=ERP_SHIPMENT_SETTINGS_KEY).first()
         if setting and setting.setting_value:
-            data = setting.setting_value
-            return {
-                'construction_time': data.get('construction_time', []),
-                'drawing_manager': data.get('drawing_manager', []),
-                'drawing_manager_en': normalize_drawing_manager_en(data.get('drawing_manager_en', {})),
-                'measurement_manager': normalize_measurement_managers(data.get('measurement_manager', [])),
-                'construction_workers': normalize_erp_shipment_workers(data.get('construction_workers', [])),
-                'site_extra': data.get('site_extra', []),
-            }
+            return _project_loaded_settings(setting.setting_value)
 
         # Migration from JSON if DB is empty
         if os.path.exists(ERP_SHIPMENT_SETTINGS_PATH):
@@ -214,14 +228,7 @@ def load_erp_shipment_settings():
                 db_session.add(new_setting)
                 db_session.commit()
 
-                return {
-                    'construction_time': data.get('construction_time', []),
-                    'drawing_manager': data.get('drawing_manager', []),
-                    'drawing_manager_en': normalize_drawing_manager_en(data.get('drawing_manager_en', {})),
-                    'measurement_manager': normalize_measurement_managers(data.get('measurement_manager', [])),
-                    'construction_workers': normalize_erp_shipment_workers(data.get('construction_workers', [])),
-                    'site_extra': data.get('site_extra', []),
-                }
+                return _project_loaded_settings(data)
 
         return default_settings
     except Exception as e:

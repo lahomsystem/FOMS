@@ -333,6 +333,19 @@
     color: #c0392b;
   }
 
+  /* WRITE-GUARD-01: logout/switch는 POST 전용이라 anchor→form+button으로 전환.
+     form은 display:contents로 grid 셀 구조를 유지하고, button은 UA chrome만 제거해
+     기존 account-link 링크와 동일하게 렌더한다. */
+  .erp-mobile-menu-drawer__account-form {
+    display: contents;
+  }
+
+  button.erp-mobile-menu-drawer__account-link {
+    cursor: pointer;
+    -webkit-appearance: none;
+    appearance: none;
+  }
+
   /* display:contents 조상 밖으로 옮겨도 Bootstrap backdrop(1040) 대비 확실히 위. */
   #erp-mobile-menu-drawer.offcanvas.show {
     z-index: var(--foms-z-menu-drawer, 1060);

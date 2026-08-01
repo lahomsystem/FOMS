@@ -1,6 +1,7 @@
 """Chat message, search, and user routes."""
 
 import datetime
+from foms.services.error_logging import log_handled_exception
 
 from flask import jsonify, request, session
 from sqlalchemy import or_
@@ -121,10 +122,7 @@ def api_chat_search():
                 unique_results.append(result)
         return jsonify({"success": True, "results": unique_results[:limit], "count": len(unique_results)})
     except Exception as e:
-        import traceback
-
-        print(f"채팅 검색 오류: {e}")
-        print(traceback.format_exc())
+        log_handled_exception()
         return jsonify({"success": False, "message": str(e)}), 500
 
 
@@ -150,10 +148,7 @@ def api_chat_mark_read(room_id):
         return jsonify({"success": True})
     except Exception as e:
         db.rollback()
-        import traceback
-
-        print(f"읽음 상태 업데이트 오류: {e}")
-        print(traceback.format_exc())
+        log_handled_exception()
         return jsonify({"success": False, "message": str(e)}), 500
 
 
@@ -173,10 +168,7 @@ def api_chat_users_list():
         users_list = [{"id": user.id, "name": user.name, "username": user.username, "role": user.role} for user in users]
         return jsonify({"success": True, "users": users_list})
     except Exception as e:
-        import traceback
-
-        print(f"사용자 목록 조회 오류: {e}")
-        print(traceback.format_exc())
+        log_handled_exception()
         return jsonify({"success": False, "message": str(e)}), 500
 
 
@@ -246,10 +238,7 @@ def api_chat_send_message():
         return jsonify({"success": True, "message": message_data})
     except Exception as e:
         db.rollback()
-        import traceback
-
-        print(f"메시지 전송 오류: {e}")
-        print(traceback.format_exc())
+        log_handled_exception()
         return jsonify({"success": False, "message": str(e)}), 500
 
 
@@ -279,8 +268,5 @@ def api_chat_get_message(message_id):
             message_data["attachments"] = [attachment.to_dict() for attachment in attachments]
         return jsonify({"success": True, "message": message_data})
     except Exception as e:
-        import traceback
-
-        print(f"메시지 조회 오류: {e}")
-        print(traceback.format_exc())
+        log_handled_exception()
         return jsonify({"success": False, "message": str(e)}), 500

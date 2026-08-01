@@ -3,12 +3,16 @@
         display: none;
     }
 </style>
+{% from 'orders/partials/as_drift_banner.html' import render_as_schedule_drift_banner %}
 {# erp order surface flags are derived once so fragment/full-page bootstrap read the same contract. #}
 {% set erp_order_feature_enabled = erp_order_enabled %}
 {% set is_erp_order_flag = order.is_erp_order %}
 {% set is_erp_order = erp_order_feature_enabled and is_erp_order_flag %}
 <div class="row erp-edit-shell{% if is_erp_order %} erp-edit-shell--erp-order{% endif %}" id="erpEditShell">
     <div class="col-md-8 mx-auto erp-edit-col{% if is_erp_order %} erp-edit-col--split-ready{% endif %}">
+        {# AS 기준 일정 드리프트 — 탭 안이 아니라 카드 위(주문 상세 최상단)여야 어느 탭에
+           있든 먼저 보인다. state='none'(대다수 주문)이면 마크업·자산 모두 렌더되지 않는다. #}
+        {{ render_as_schedule_drift_banner(as_schedule_drift, order.id) }}
         <div class="card" data-order-id="{{ order.id }}" data-payment-amount="{{ order.payment_amount or 0 }}"
             data-erp-order-enabled="{{ 'true' if is_erp_order else 'false' }}">
             <div id="erp-order-config" class="d-none" data-order-id="{{ order.id }}"
@@ -564,13 +568,21 @@
                     </div>
                     <script>
                     (function () {
+                        // Cohort surface gate — byte-identical to the CSS SSOT
+                        // (foms-detail-hero.css / foms-form-field.css / foms-shell.css)
+                        // and to erp-order-cohort.js. CSS styles the mobile shell on
+                        // <=991.98px OR a coarse-pointer physical-portrait tablet; this
+                        // JS MUST use the same gate or a surface is styled-but-removed
+                        // (P1-27: 1024 coarse portrait dropped the mobile form).
+                        var GATE = '(max-width: 991.98px), ((min-width: 992px) and (pointer: coarse) and (orientation: portrait))';
                         var legacy = document.getElementById('erp-order-form-legacy');
                         var mobile = document.getElementById('erp-order-form-mobile');
                         if (!legacy || !mobile) return;
-                        var useMobile = window.matchMedia('(max-width: 991.98px)').matches;
-                        (useMobile ? legacy : mobile).remove();
+                        // Duplicate ERP ids across both surfaces → keep exactly one.
+                        (window.matchMedia(GATE).matches ? legacy : mobile).remove();
                     })();
                     </script>
+                    <script src="{{ url_for('static', filename='js/orders/erp-order-cohort.js') }}?v=20260724a" defer></script>
                     {% include 'partials/shared/foms_attachment_preview_modal.html' %}
                     {% else %}
                     {% include "orders/partials/erp_order_tab.html" %}

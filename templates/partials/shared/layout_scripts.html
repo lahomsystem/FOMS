@@ -63,9 +63,13 @@
 <script src="{{ url_for('static', filename='js/foms/notification-write.js') }}?v=20260704a" defer></script>
 <script src="{{ url_for('static', filename='js/foms/visual-viewport.js') }}?v=20260529c" defer></script>
 <script src="{{ url_for('static', filename='js/foms/theme.js') }}?v=20260626d" defer></script>
+{# SW subject 통지용 구성: 현재 로그인 사용자 id 를 sync.js 가 읽어 SW 에 postMessage 한다
+   → SW 가 subject 변경(전환/재로그인/로그아웃) 시 API 캐시를 purge(공유 기기 PII 잔존 0).
+   비로그인=빈 값. #}
+<div id="foms-sw-config" data-foms-subject="{{ current_user.id if current_user else '' }}" hidden></div>
 {# SW 등록 SSOT(window.fomsRegisterServiceWorker) — a2hs-prompt / mobile-push 가 경유하므로
    그 스크립트들보다 먼저 전역 로드한다(defer 실행 순서로 helper 선정의 보장). #}
-<script src="{{ url_for('static', filename='js/foms/sync.js') }}?v=20260704b" defer></script>
+<script src="{{ url_for('static', filename='js/foms/sync.js') }}?v=20260724a" defer></script>
 {# 알림 센터 SSOT: PC topnav·모바일 셸·태블릿 레일 공통 시트 + defer JS (layout 1회 include). #}
 {% if current_user %}
 {% include 'partials/shared/erp_mobile_notification_panel.html' %}
@@ -78,11 +82,11 @@
 <script src="{{ url_for('static', filename='js/foms/a2hs-prompt.js') }}?v=20260704b" defer></script>
 <script src="{{ url_for('static', filename='js/components/foms-mobile-select.js') }}?v=20260711a" defer></script>
 <script src="{{ url_for('static', filename='js/foms/fragment-loader.js') }}?v=20260711b" defer></script>
-<script src="{{ url_for('static', filename='js/foms/tablet-side-sheet.js') }}?v=20260713o" defer></script>
+<script src="{{ url_for('static', filename='js/foms/tablet-side-sheet.js') }}?v=20260727a" defer></script>
 <script src="{{ url_for('static', filename='js/foms/tablet-density-toggle.js') }}?v=20260713a" defer></script>
 <script src="{{ url_for('static', filename='js/foms/tablet-measure-form.js') }}?v=20260722b" defer></script>
 <script src="{{ url_for('static', filename='js/foms/tablet-measurement.js') }}?v=20260720a" defer></script>
-<script src="{{ url_for('static', filename='js/foms/tablet-production-kanban.js') }}?v=20260711b" defer></script>
+<script src="{{ url_for('static', filename='js/foms/tablet-production-kanban.js') }}?v=20260725a" defer></script>
 {% if flag_rum_baseline %}
 <script src="{{ url_for('static', filename='js/foms/rum-baseline.js') }}?v=20260704a" defer></script>
 {% endif %}
@@ -510,6 +514,8 @@
                 // CS 완료 더블체크가 주입한 코멘트가 다음 이미지에 남지 않도록 정리.
                 var completionExtra = document.getElementById('global-viewer-completion-extra');
                 if (completionExtra) completionExtra.remove();
+                // 주입형 부가 노드(도면 판정 액션바·컨텍스트 스트립 등) 일반 정리 — 소유자 무관 전수 제거.
+                document.querySelectorAll('[data-viewer-extra]').forEach(function (node) { node.remove(); });
                 if (els.video) {
                     els.video.pause();
                     els.video.src = '';
@@ -840,10 +846,14 @@
                 else prev();
             }
 
+            // 현재 표시 중인 파일 인덱스(스와이프 반영) — 도면 판정이 대상 key 를 고르는 근거.
+            function getIndex() { return state.index; }
+
             return {
                 init,
                 open,
-                close
+                close,
+                getIndex
             };
         })();
 
@@ -1564,6 +1574,6 @@
     {% endif %}
     {% if request.path.startswith('/erp/') %}
     <script src="{{ url_for('static', filename='js/foms/erp-mine-only.js') }}" defer></script>
-    <script src="{{ url_for('static', filename='js/runtime/erp-shell.js') }}?v=20260714a" defer></script>
+    <script src="{{ url_for('static', filename='js/runtime/erp-shell.js') }}?v=20260724a" defer></script>
     <script src="{{ url_for('static', filename='js/orders/erp-dashboard-entry.js') }}?v=20260722a" defer></script>
     {% endif %}

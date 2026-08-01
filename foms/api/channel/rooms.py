@@ -1,6 +1,7 @@
 """Chat room and order lookup routes."""
 
 import datetime
+from foms.services.error_logging import log_handled_exception
 
 from flask import jsonify, request, session
 from sqlalchemy import and_, func, or_
@@ -112,10 +113,7 @@ def api_chat_rooms_list():
             rooms_list.append(room_data)
         return jsonify({"success": True, "rooms": rooms_list, "count": len(rooms_list)})
     except Exception as e:
-        import traceback
-
-        print(f"채팅방 목록 조회 오류: {e}")
-        print(traceback.format_exc())
+        log_handled_exception()
         return jsonify({"success": False, "message": str(e)}), 500
 
 
@@ -151,10 +149,7 @@ def api_chat_rooms_create():
         return jsonify({"success": True, "message": "채팅방이 생성되었습니다.", "room": new_room.to_dict()}), 201
     except Exception as e:
         db.rollback()
-        import traceback
-
-        print(f"채팅방 생성 오류: {e}")
-        print(traceback.format_exc())
+        log_handled_exception()
         return jsonify({"success": False, "message": str(e)}), 500
 
 
@@ -248,22 +243,17 @@ def api_chat_rooms_detail(room_id):
                     try:
                         order_data["estimates"] = _load_estimates_for_order(room.order_id)
                     except Exception as e:
-                        print(f"견적 정보 조회 오류 (무시): {e}")
                         order_data["estimates"] = []
                     room_data["order"] = order_data
                 else:
                     room_data["order"] = None
             except Exception as e:
-                print(f"주문 정보 조회 오류 (무시): {e}")
                 room_data["order"] = None
         else:
             room_data["order"] = None
         return jsonify({"success": True, "room": room_data})
     except Exception as e:
-        import traceback
-
-        print(f"채팅방 상세 조회 오류: {e}")
-        print(traceback.format_exc())
+        log_handled_exception()
         return jsonify({"success": False, "message": str(e)}), 500
 
 
@@ -292,10 +282,7 @@ def api_chat_rooms_update(room_id):
         return jsonify({"success": True, "message": "채팅방이 수정되었습니다.", "room": room.to_dict()})
     except Exception as e:
         db.rollback()
-        import traceback
-
-        print(f"채팅방 수정 오류: {e}")
-        print(traceback.format_exc())
+        log_handled_exception()
         return jsonify({"success": False, "message": str(e)}), 500
 
 
@@ -318,10 +305,7 @@ def api_chat_rooms_delete(room_id):
         return jsonify({"success": True, "message": "채팅방이 삭제되었습니다."})
     except Exception as e:
         db.rollback()
-        import traceback
-
-        print(f"채팅방 삭제 오류: {e}")
-        print(traceback.format_exc())
+        log_handled_exception()
         return jsonify({"success": False, "message": str(e)}), 500
 
 
@@ -363,10 +347,7 @@ def api_chat_rooms_add_member(room_id):
         return jsonify({"success": True, "message": "멤버가 추가되었습니다.", "member": new_member.to_dict()}), 201
     except Exception as e:
         db.rollback()
-        import traceback
-
-        print(f"멤버 추가 오류: {e}")
-        print(traceback.format_exc())
+        log_handled_exception()
         return jsonify({"success": False, "message": str(e)}), 500
 
 
@@ -395,10 +376,7 @@ def api_chat_rooms_remove_member(room_id, member_user_id):
         return jsonify({"success": True, "message": "멤버가 제거되었습니다."})
     except Exception as e:
         db.rollback()
-        import traceback
-
-        print(f"멤버 제거 오류: {e}")
-        print(traceback.format_exc())
+        log_handled_exception()
         return jsonify({"success": False, "message": str(e)}), 500
 
 
@@ -415,14 +393,10 @@ def api_chat_order_detail(order_id):
         try:
             order_data["estimates"] = _load_estimates_for_order(order_id)
         except Exception as e:
-            print(f"견적 정보 조회 오류 (무시): {e}")
             order_data["estimates"] = []
         return jsonify({"success": True, "order": order_data})
     except Exception as e:
-        import traceback
-
-        print(f"주문 정보 조회 오류: {e}")
-        print(traceback.format_exc())
+        log_handled_exception()
         return jsonify({"success": False, "message": str(e)}), 500
 
 
@@ -464,8 +438,5 @@ def api_chat_search_orders():
         ]
         return jsonify({"success": True, "orders": orders_list, "count": len(orders_list)})
     except Exception as e:
-        import traceback
-
-        print(f"주문 검색 오류: {e}")
-        print(traceback.format_exc())
+        log_handled_exception()
         return jsonify({"success": False, "message": str(e)}), 500

@@ -1,6 +1,9 @@
 from __future__ import annotations
 
+import hashlib
+
 from flask import Blueprint, current_app, g, jsonify, make_response, redirect, render_template, request, url_for
+from flask_limiter.util import get_remote_address
 
 from foms.services.channel_identity import get_user_by_manager_id
 from foms.services.channel_security import (
@@ -22,7 +25,7 @@ from foms.services.channel_wam_service import (
     build_wam_request_context,
     get_wam_feature_flags,
 )
-from foms.services.channel_wam_telemetry import record_wam_telemetry
+from foms.services.channel_wam_telemetry import record_wam_telemetry, validate_wam_telemetry
 
 channel_wam_bp = Blueprint("channel_wam", __name__, url_prefix="/channel/wam")
 channel_wam_api_bp = Blueprint("channel_wam_api", __name__, url_prefix="/channel/wam/api")
@@ -31,6 +34,41 @@ channel_shortlink_bp = Blueprint("channel_shortlink", __name__)
 WAM_SESSION_COOKIE = "wam_session"
 WAM_SESSION_MAX_AGE = 300
 WAM_RETIRED_MESSAGE = "Channel WAM page has been retired. Use the mobile ERP order detail."
+
+
+def wam_telemetry_ip_rate_key() -> str:
+    """Rate-limit bucket keyed by the canonical client IP (PROXY-01).
+
+    ``request.remote_addr`` is set by ProxyFix from exactly the trusted proxy
+    hops, so an attacker-controlled left-most ``X-Forwarded-For`` entry cannot
+    mint a fresh bucket. Raw XFF / X-Real-IP headers are deliberately not read.
+
+    Returns:
+        The canonical remote address string used as the IP rate-limit key.
+    """
+    return get_remote_address()
+
+
+def wam_telemetry_token_rate_key() -> str:
+    """Rate-limit bucket keyed by the WAM session token + its order.
+
+    The token is minted per ``(manager, order)`` (SESSION-SIGNING), so the token
+    hash already scopes the order; the verified ``order_id`` is appended for an
+    explicit token+order bucket. Runs in the limiter's pre-dispatch hook (before
+    the blueprint token check), so the token is verified here rather than read
+    from ``g``.
+
+    Returns:
+        A stable ``wam-tok:<hash>:<order>`` key, or an IP-scoped fallback when no
+        session token is present.
+    """
+    token = request.cookies.get(WAM_SESSION_COOKIE, "")
+    if not token:
+        return f"wam-tok:none:{get_remote_address()}"
+    token_hash = hashlib.sha256(token.encode("utf-8")).hexdigest()[:16]
+    payload = verify_wam_session_token(token)
+    order_id = payload.get("order_id") if payload else None
+    return f"wam-tok:{token_hash}:{order_id}"
 
 
 def _is_api_request() -> bool:
@@ -168,6 +206,10 @@ def verify_wam_html_token():
 
 @channel_wam_api_bp.before_request
 def verify_wam_api_token():
+    # The WAM page/API is retired (410). Telemetry ingest survives as a hardened,
+    # scoped surface: verify the scope (session) token BEFORE the body is parsed.
+    if request.endpoint == "channel_wam_api.wam_telemetry":
+        return _verify_api_request_token()
     return _wam_retired()
 
 
@@ -249,6 +291,8 @@ def wam_bootstrap():
 
 @channel_wam_api_bp.route("/telemetry", methods=["POST"])
 def wam_telemetry():
+    # Scope token was already verified pre-parse (before_request); confirm the
+    # page scope before touching the request body.
     scope_error = _require_wam_scope("page")
     if scope_error:
         return scope_error
@@ -257,12 +301,16 @@ def wam_telemetry():
     if gate_error:
         return gate_error
 
-    payload = request.get_json(silent=True) or {}
-    event_name = payload.get("event_name") or payload.get("eventName")
-    if not event_name:
-        return jsonify({"ok": False, "error_code": "missing_event_name"}), 400
+    record, error = validate_wam_telemetry(request.get_json(silent=True))
+    if error is not None:
+        return jsonify({"ok": False, "error_code": "invalid_telemetry", "error": error}), 422
 
-    record_wam_telemetry(g.wam_context, str(event_name), payload)
+    try:
+        record_wam_telemetry(g.wam_context, record)
+    except Exception:
+        # fail-open: a telemetry failure must never surface as a page/endpoint
+        # failure, and the raw payload is never logged here.
+        current_app.logger.warning("[WAMTelemetry] ingest skipped: internal error")
     return "", 204
 
 

@@ -17,7 +17,7 @@
       data-as-incomplete-summary="{{ b.key }}"
       data-count="{{ as_incomplete_summary[b.key] }}"
       {% if _bucket_active %}aria-current="true"{% endif %}
-      href="{{ url_for('erp_as_page.erp_as_dashboard', tab='incomplete', bucket=(none if b.key == 'total' else b.key), status=status_filter or '', q=search_q or '', sort_dir=sort_dir, mine='1' if erp_mine_only else '') }}">
+      href="{{ url_for('erp_as_page.erp_as_dashboard', tab='incomplete', bucket=(none if b.key == 'total' else b.key), status=status_filter or '', billing=billing_filter or '', q=search_q or '', sort_dir=sort_dir, mine='1' if erp_mine_only else '') }}">
       <span class="erp-as-mobile-controls__stat-label">{{ b.label }}</span>
       <strong>{{ as_incomplete_summary[b.key] }}</strong>
     </a>
@@ -30,7 +30,7 @@
       class="erp-as-mobile-tabs__item{% if as_tab == 'sales_delivery' %} is-active{% endif %}"
       data-as-tab-key="sales_delivery"
       data-as-tab-count="{{ as_tab_counts.sales_delivery }}"
-      href="{{ url_for('erp_as_page.erp_as_dashboard', tab='sales_delivery', status=status_filter or '', q=search_q or '', sort_dir=sort_dir, mine='1' if erp_mine_only else '') }}">
+      href="{{ url_for('erp_as_page.erp_as_dashboard', tab='sales_delivery', status=status_filter or '', billing=billing_filter or '', q=search_q or '', sort_dir=sort_dir, mine='1' if erp_mine_only else '') }}">
       <i class="fas fa-truck"></i>
       <span>영업/배송</span>
       <span class="erp-as-mobile-tabs__count">{{ as_tab_counts.sales_delivery }}</span>
@@ -39,7 +39,7 @@
       class="erp-as-mobile-tabs__item{% if as_tab == 'incomplete' %} is-active{% endif %}"
       data-as-tab-key="incomplete"
       data-as-tab-count="{{ as_tab_counts.incomplete }}"
-      href="{{ url_for('erp_as_page.erp_as_dashboard', tab='incomplete', status=status_filter or '', q=search_q or '', sort_dir=sort_dir, mine='1' if erp_mine_only else '') }}">
+      href="{{ url_for('erp_as_page.erp_as_dashboard', tab='incomplete', status=status_filter or '', billing=billing_filter or '', q=search_q or '', sort_dir=sort_dir, mine='1' if erp_mine_only else '') }}">
       <i class="fas fa-circle-exclamation"></i>
       <span>미완료</span>
       <span class="erp-as-mobile-tabs__count">{{ as_tab_counts.incomplete }}</span>
@@ -48,7 +48,7 @@
       class="erp-as-mobile-tabs__item{% if as_tab == 'completed' %} is-active{% endif %}"
       data-as-tab-key="completed"
       data-as-tab-count="{{ as_tab_counts.completed }}"
-      href="{{ url_for('erp_as_page.erp_as_dashboard', tab='completed', status=status_filter or '', q=search_q or '', sort_dir=sort_dir, mine='1' if erp_mine_only else '') }}">
+      href="{{ url_for('erp_as_page.erp_as_dashboard', tab='completed', status=status_filter or '', billing=billing_filter or '', q=search_q or '', sort_dir=sort_dir, mine='1' if erp_mine_only else '') }}">
       <i class="fas fa-circle-check"></i>
       <span>완료</span>
       <span class="erp-as-mobile-tabs__count">{{ as_tab_counts.completed }}</span>
@@ -66,6 +66,9 @@
     {% endif %}
     {% if as_bucket %}
       <input type="hidden" name="bucket" value="{{ as_bucket }}">
+    {% endif %}
+    {% if billing_filter %}
+      <input type="hidden" name="billing" value="{{ billing_filter }}">
     {% endif %}
     <label class="visually-hidden" for="erp-as-mobile-search">검색</label>
     <input
@@ -96,7 +99,7 @@
     {% if selected_date %}
       <a
         class="erp-as-mobile-controls__quick-link chip foms-chip"
-        href="{{ url_for('erp_as_page.erp_as_dashboard', date=selected_date, tab=as_tab, status=status_filter or '', q=search_q or '', sort_dir=sort_dir, mine='1' if erp_mine_only else '', open_map='1') }}">
+        href="{{ url_for('erp_as_page.erp_as_dashboard', date=selected_date, tab=as_tab, status=status_filter or '', billing=billing_filter or '', q=search_q or '', sort_dir=sort_dir, mine='1' if erp_mine_only else '', open_map='1') }}">
         <i class="fas fa-map-marked-alt"></i>
         <span>지도</span>
       </a>
@@ -130,6 +133,16 @@
             <option value="">전체</option>
             <option value="AS_RECEIVED" {% if status_filter == 'AS_RECEIVED' %}selected{% endif %}>AS 접수</option>
             <option value="AS_COMPLETED" {% if status_filter == 'AS_COMPLETED' %}selected{% endif %}>AS 완료</option>
+          </select>
+        </div>
+
+        <div class="erp-as-mobile-controls__field">
+          <label for="erp-as-mobile-billing">비용</label>
+          <select id="erp-as-mobile-billing" class="form-select" name="billing">
+            <option value="">전체</option>
+            <option value="free" {% if billing_filter == 'free' %}selected{% endif %}>무상</option>
+            <option value="paid" {% if billing_filter == 'paid' %}selected{% endif %}>유상</option>
+            <option value="undecided" {% if billing_filter == 'undecided' %}selected{% endif %}>미정</option>
           </select>
         </div>
 

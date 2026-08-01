@@ -42,6 +42,31 @@ def _cookie_header_value(session: requests.Session) -> str | None:
     return None
 
 
+def cookie_authenticates(base: str, cookie: str, *, timeout: float = 120.0) -> bool:
+    """Positive proof that ``cookie`` carries a logged-in session.
+
+    Flask hands ``session_staging`` to logged-out visitors too (CSRF seed / flash),
+    so cookie presence proves nothing. ``GET /login`` is the role-independent oracle:
+    the route redirects (302) an already-authenticated visitor to its home, and
+    renders the form (200) for anyone else.
+
+    Args:
+        base: staging origin.
+        cookie: ``name=value`` Cookie header fragment to test (exactly what callers send).
+        timeout: per-request timeout in seconds.
+
+    Returns:
+        True when the cookie authenticates, False when it is an anonymous session.
+    """
+    resp = requests.get(
+        f"{base.rstrip('/')}/login",
+        headers={"Cookie": cookie, "User-Agent": _DEFAULT_UA, "Accept": "text/html"},
+        allow_redirects=False,
+        timeout=timeout,
+    )
+    return resp.is_redirect
+
+
 def fetch_session_cookie(
     base: str,
     username: str,
@@ -86,9 +111,17 @@ def fetch_session_cookie(
             f"{hint}"
         )
 
-    final = (r1.url or "").replace("\\", "/")
-    if "/login" in final and "next=" in final:
-        raise RuntimeError("Still on /login after POST — credentials rejected or CSRF issue.")
+    # 이전 가드(final URL 에 "/login" + "next=")는 절대 발동하지 않았다: POST 대상은 쿼리 없는
+    # {origin}/login 이고 next 는 본문에 실리므로, 로그인이 거부돼도 final URL 은 ".../login"
+    # (next= 없음)이라 통과했다. 그 결과 거부된 로그인이 익명 session_staging 쿠키를 성공처럼
+    # 반환했고, perf-gate 는 9경로 전부 로그인 페이지를 재면서 성능 수치를 만들어냈다
+    # (2026-07-28~30 실사고). 형태 매칭 대신 쿠키가 실제로 인증되는지 양성 검증한다.
+    if not cookie_authenticates(origin, cookie, timeout=timeout):
+        raise RuntimeError(
+            "Login POST returned an unauthenticated session_staging cookie — "
+            "credentials rejected (wrong id/password, inactive or deleted account).\n"
+            f"{_login_failure_hint(r1, [c.name for c in session.cookies])}"
+        )
 
     return cookie, r1
 

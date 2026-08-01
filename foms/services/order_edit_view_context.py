@@ -84,6 +84,13 @@ def build_order_edit_get_context(order: Order, user: Any | None = None) -> dict[
 
         erp_bootstrap = _build_erp_order_bootstrap(order, user=user)
 
+    # AS 기준 일정 드리프트 배너(주문 상세 최상단). 세 표면(전체 편집 페이지 · 태블릿 split
+    # 패널 · HTMX 상세 fragment)이 모두 이 컨텍스트를 거치므로 여기 한 곳에서 계산한다.
+    # 지연 import: as_dashboard_display 는 models/foms.api.files 를 끌고 와 모듈 로드 순환을
+    # 만들 수 있다(이 모듈은 edit.py·fragment.py 가 import 시점에 로드한다).
+    from db import get_db
+    from foms.services.as_dashboard_display import build_schedule_link_drift
+
     return {
         "order": order,
         "option_type": option_type,
@@ -91,4 +98,7 @@ def build_order_edit_get_context(order: Order, user: Any | None = None) -> dict[
         "direct_options": direct_options,
         "erp_bootstrap": erp_bootstrap,
         "erp_order_active": bool(is_erp_order_record(order)),
+        "as_schedule_drift": build_schedule_link_drift(
+            getattr(order, "structured_data", None), get_db()
+        ),
     }

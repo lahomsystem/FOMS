@@ -1,77 +1,9 @@
 {# AS 카드 공용 매크로 — 데스크톱 테이블·모바일 카드·무한스크롤 청크가 공유(SSOT).
    원래 as_dashboard_body.html 인라인 정의였으나, 청크 백엔드 단독 렌더에서 import 가능하도록 분리. #}
-{# 툴바는 정적·반복(행당 4회 × 페이지 100행 = 툴바 400개 ≈ 350KB)이라 payload 비만의 주범이었다.
-   D1a: 인라인 style → as-dashboard-body.css 이전(-225KB).
-   D1b: 행별 렌더 완전 제거 → fragment당 <template id="as-rich-toolbar-template"> 1개만 렌더하고,
-        as-dashboard.js가 .as-content-input focusin(위임) 시 해당 .as-rich-editor에 clone-hydrate 한다.
-        툴바는 focus-within 전까지 어차피 display:none 이므로 시각 영향 없음(멱등: editor.dataset.toolbarHydrated). #}
-{# fragment당 정확히 1개. 주문별 가변값(영업/전달 활성·order_id)은 hydrate 시 JS가 주입한다.
-   기본 상태는 비활성(☐ / btn-outline-warning / data-sales-delivery-active="0"). #}
-{% macro render_as_rich_toolbar_template() -%}
-<template id="as-rich-toolbar-template">
-  <div class="as-rich-toolbar">
-    <button type="button"
-      class="btn btn-sm p-1 as-sales-delivery-btn btn-outline-warning"
-      data-sales-delivery-active="0"
-      title="영업/전달 분류 토글 후 탭 이동">☐ 영업/전달</button>
-    <button type="button" class="btn btn-sm btn-light p-1 as-rich-command-btn" data-rich-command="bold" title="굵게">B</button>
-    <button type="button" class="btn btn-sm btn-light p-1 as-rich-command-btn" data-rich-command="foreColor" data-rich-value="red" title="빨간색">A</button>
-    <button type="button" class="btn btn-sm btn-light p-1 as-rich-command-btn" data-rich-command="foreColor" data-rich-value="blue" title="파란색">A</button>
-    <button type="button" class="btn btn-sm btn-light p-1 as-rich-command-btn" data-rich-command="clear-format" title="서식 초기화">
-      <i class="fas fa-eraser"></i>
-    </button>
-  </div>
-</template>
-{%- endmacro %}
-
-{% macro render_as_content_tabs(order_id, is_sales_delivery, as_content_html, as_content_2_html, min_height='60px') -%}
-{% set initial_tab = '2' if (not as_content_html and as_content_2_html) else '1' %}
-<div class="as-tabbed-editor" data-order-id="{{ order_id }}" data-active-tab="{{ initial_tab }}"
-  data-sales-delivery="{{ '1' if is_sales_delivery else '0' }}">
-  <div class="as-content-tab-buttons" role="tablist" aria-label="주문 #{{ order_id }} AS 내용 탭">
-    <button type="button"
-      class="as-content-tab-btn{% if initial_tab == '1' %} is-active{% endif %}"
-      data-order-id="{{ order_id }}"
-      data-as-tab-target="1"
-      role="tab"
-      aria-selected="{{ 'true' if initial_tab == '1' else 'false' }}">
-      1
-    </button>
-    <button type="button"
-      class="as-content-tab-btn{% if initial_tab == '2' %} is-active{% endif %}"
-      data-order-id="{{ order_id }}"
-      data-as-tab-target="2"
-      role="tab"
-      aria-selected="{{ 'true' if initial_tab == '2' else 'false' }}">
-      2
-    </button>
-  </div>
-  <div class="as-content-tab-panel{% if initial_tab == '1' %} is-active{% endif %}"
-    data-order-id="{{ order_id }}"
-    data-as-tab-panel="1"
-    {% if initial_tab != '1' %}hidden{% endif %}>
-    <div class="as-rich-editor">
-      {# 툴바는 focusin 시 as-rich-toolbar-template에서 clone-hydrate(as-dashboard.js). #}
-      <div class="erp-pro-input as-content-input" contenteditable="true" data-order-id="{{ order_id }}"
-        data-field-name="as_content"
-        style="min-height: {{ min_height }};"
-        data-placeholder="내용 입력...">{{ as_content_html | safe }}</div>
-    </div>
-  </div>
-  <div class="as-content-tab-panel{% if initial_tab == '2' %} is-active{% endif %}"
-    data-order-id="{{ order_id }}"
-    data-as-tab-panel="2"
-    {% if initial_tab != '2' %}hidden{% endif %}>
-    <div class="as-rich-editor">
-      {# 툴바는 focusin 시 as-rich-toolbar-template에서 clone-hydrate(as-dashboard.js). #}
-      <div class="erp-pro-input as-content-input" contenteditable="true" data-order-id="{{ order_id }}"
-        data-field-name="as_content_2"
-        style="min-height: {{ min_height }};"
-        data-placeholder="내용 입력...">{{ as_content_2_html | safe }}</div>
-    </div>
-  </div>
-</div>
-{%- endmacro %}
+{# T10: 구 리치에디터 체계(render_as_rich_toolbar_template / render_as_content_tabs = 1·2번 탭
+   인라인 편집 영역 + B/색상 툴바 + focus clone-hydrate)는 타임라인 전환으로 전면 퇴역했다.
+   기록 입력은 as_log quick-add(POST /api/orders/<id>/as/log), 영업/전달 토글은
+   render_as_timeline 헤더가 담당한다. 재도입 금지 가드: tests/domains/test_as_timeline_wiring.py. #}
 
 {# 발주사: 라홈/하우드 로고, 그 외 파란색 이름, 없음 '-' #}
 {% macro render_as_orderer_line(orderer_name) -%}
@@ -89,6 +21,248 @@
 {% else %}
 <span class="d-block small erp-as-orderer-line erp-as-orderer-name text-primary">{{ raw }}</span>
 {% endif %}
+{%- endmacro %}
+
+{# 상태 셀 비용 배지 — 목록 렌더와 판정 변경 API 응답(낙관적 교체)이 공유하는 SSOT.
+   kind는 as_dashboard_display.as_billing_badge_kind() 결과. 무상(무배지)은 아무것도 안 낸다.
+
+   data-billing-filter: 배지 클릭 = 그 비용 상태로 목록 필터(as-dashboard.js 문서 위임).
+   "비용 필터가 있는 줄 몰랐다"는 실사용 피드백의 발견성 보강이다. URL 조립을 매크로가
+   하지 않는 이유 — 이 매크로는 판정 변경 API 응답(as_billing_badge_partial)도 렌더하는데
+   그쪽엔 현재 탭·검색어 컨텍스트가 없다. 위임 핸들러가 현재 URL에서 읽으면 두 경로가 같아진다.
+   필터 값은 free/paid/undecided 셋뿐이라 paid_unconfirmed(유상 추정)는 paid 로 접는다. #}
+{% macro render_as_billing_badge(kind) -%}
+{%- if kind %}<span class="erp-as-billing-badge erp-as-billing-badge--{{ kind }}" data-billing-filter="{{ 'undecided' if kind == 'undecided' else 'paid' }}" role="button" tabindex="0" title="이 비용 상태만 보기">{% if kind == 'paid' %}유상{% elif kind == 'paid_unconfirmed' %}유상?{% else %}미정{% endif %}</span>{% endif -%}
+{%- endmacro %}
+
+{# AS 타임라인 단건 항목 — 목록(T9)과 쓰기 API 응답 html(T7)이 공유하는 SSOT.
+   entry는 as_log.decorate_entry()를 통과한 dict(파생 필드 ts_abs/ts_rel/type_label/is_* 포함).
+   text는 sanitize_as_content_html을 이미 통과한 rich HTML이라 |safe.
+   유형 칩 색은 CSS 클래스 as-tl-chip--<type>(T11)이 담당한다. #}
+{% macro render_as_timeline_entry(e, can_edit=true) -%}
+<div class="as-tl-item{% if e.is_system %} as-tl-item--system{% endif %}{% if e.is_legacy %} as-tl-item--legacy{% endif %}"
+     data-log-id="{{ e.id }}" data-log-type="{{ e.type }}">
+  <div class="as-tl-item__meta">
+    {% if e.is_system %}
+    <i class="fas fa-gear as-tl-item__sysicon" aria-hidden="true"></i>
+    {% else %}
+    <span class="as-tl-chip as-tl-chip--{{ e.type }}">{{ e.type_label }}</span>
+    {% endif %}
+    {% if e.by %}<span class="as-tl-item__by">{{ e.by }}</span>{% endif %}
+    {% if e.ts_abs %}<time class="as-tl-item__time" datetime="{{ e.ts }}" title="{{ e.ts_abs }} KST">{{ e.ts_rel or e.ts_abs }}</time>{% endif %}
+    {% if e.is_legacy %}<span class="as-tl-item__legacy-label">{{ e.legacy_label }}</span>{% endif %}
+    {% if e.is_edited %}<span class="as-tl-item__edited" title="{{ e.edited_at }} · {{ e.edited_by }}">(수정됨)</span>{% endif %}
+    {# 수기 항목만 수정 가능. system/legacy는 PATCH가 400으로 거부하므로 버튼 자체를 안 낸다.
+       작성자/관리자 판정은 서버 403이 소유한다(클라 은닉은 보안 경계가 아니다).
+       order_id는 조상 .as-timeline[data-order-id]에서 읽는다 — 쓰기 API 응답 html도
+       스트림 안에 삽입되므로 두 경로 모두 같은 조상을 갖는다. #}
+    {% if can_edit and not e.is_system and not e.is_legacy %}
+    <button type="button" class="as-tl-item__edit" title="기록 수정" aria-label="기록 수정">
+      <i class="fas fa-pen" aria-hidden="true"></i>
+    </button>
+    {# 삭제는 소프트 삭제(deleted 플래그) — 서버가 화면·집계에서만 감춘다. 수정과 같은
+       권한 매트릭스라 노출 조건도 같다(system/legacy 는 서버가 400 으로 거부). #}
+    <button type="button" class="as-tl-item__delete" title="기록 삭제" aria-label="기록 삭제">
+      <i class="fas fa-trash" aria-hidden="true"></i>
+    </button>
+    {% endif %}
+  </div>
+  <div class="as-tl-item__body">{{ e.text | safe }}</div>
+</div>
+{%- endmacro %}
+
+{# AS 타임라인 전체(헤더 + 앵커 + quick-add + 역시간순 스트림 + 더보기 + 비고).
+   view는 as_log.build_as_timeline_view() 결과. 앵커는 접수 원문과 legacy를 **함께** 낸다
+   (배타 아님 — 상세 근거는 아래 앵커 블록 주석). 재접수해도 앵커는 최초 접수로
+   고정된다(스펙 §5.5) — 이후 접수 원문은 스트림에 흐른다.
+   상호작용(quick-add submit·더보기 fetch·영업/전달 토글)은 as-dashboard.js 위임 배선.
+
+   notes(주문 비고)는 lazy 표면(PC 확장 fragment·모바일 상세)만 전달한다 — 목록은 payload를
+   키우지 않고, 비고는 AS 기록이 아니므로 스트림 밖 읽기 전용 블록으로 명확히 분리한다.
+   is_sales_delivery는 구 툴바 hydrate 주입(.as-tabbed-editor[data-sales-delivery])의 대체다. #}
+{% macro render_as_timeline(order_id, view, can_edit, notes='', is_sales_delivery=false, billing_state='', billing_type='free', show_more=true) -%}
+{% set v = view or {} %}
+<div class="as-timeline" data-order-id="{{ order_id }}">
+  {% if can_edit %}
+  <div class="as-timeline__header">
+    {# 비용 판정 표시 + 변경 진입점. 접수 모달의 "판정 변경은 AS 대시보드에서 하세요" 안내가
+       가리키는 실체가 여기다(그 전까지 POST /as/billing 은 호출자가 없었다).
+       폼은 as-dashboard.js가 만든다(항목 수정 폼과 같은 패턴). #}
+    <span class="as-billing-state" data-order-id="{{ order_id }}" data-billing-type="{{ billing_type }}">비용 {{ billing_state }}</span>
+    <button type="button" class="btn btn-sm btn-outline-secondary as-billing-edit"
+      data-order-id="{{ order_id }}" title="무상/유상 판정 변경">판정 변경</button>
+    <button type="button"
+      class="btn btn-sm as-sales-delivery-btn {{ 'btn-warning' if is_sales_delivery else 'btn-outline-warning' }}"
+      data-sales-delivery-active="{{ '1' if is_sales_delivery else '0' }}"
+      data-order-id="{{ order_id }}"
+      title="영업/전달 분류 토글 후 탭 이동">{{ '☑' if is_sales_delivery else '☐' }} 영업/전달</button>
+  </div>
+  {% endif %}
+  {# 앵커: 접수 원문 + legacy. 둘은 **배타가 아니다** — 기존 as_content 주문을 재접수하면
+     한 요청이 legacy 를 굳히고 reception 을 append 해 공존한다. legacy 는 스트림에 실리지
+     않으므로(앵커 전용) elif 로 묶으면 이전 기록이 어디에도 안 그려졌다. 셀 배지 count 는
+     reception+legacy+stream 을 모두 세므로 수치와 화면이 어긋나는 회귀이기도 하다.
+     두 앵커는 화면에서 떨어져 있다 — 접수 원문은 여기(상단 고정), legacy 는 스트림 맨 아래
+     (더보기 아래). 렌더 자체는 여전히 서로 독립된 if 두 개다. #}
+  {% if v.reception %}
+  <div class="as-timeline__anchor">{{ render_as_timeline_entry(v.reception, can_edit) }}</div>
+  {% endif %}
+  {# T15 원탭 프리셋 — 탭하면 아래 quick-add 에 초안을 넣고 focus 만 한다(자동 전송 금지).
+     현장에서 가장 잦은 '부재중'이 첫 버튼이다(스펙 §5.5). d-md-none 인 이유: PC 는 키보드가
+     있어 초안 주입이 이득이 없고, 모바일 카드/상세 표면 자체가 같은 md 브레이크포인트로
+     토글된다(.erp-pro-order-cards.d-md-none) — 노출 경계가 표면 경계와 일치한다. #}
+  {% if can_edit %}
+  <div class="as-timeline__presets d-md-none" role="group" aria-label="빠른 기록">
+    <button type="button" class="as-tl-preset" data-type="call" data-text="고객 부재중, 재연락 예정">부재중</button>
+    <button type="button" class="as-tl-preset" data-type="action" data-text="방문 조치 완료">조치 완료</button>
+    <button type="button" class="as-tl-preset" data-type="schedule" data-text="재방문 필요">재방문 필요</button>
+    <button type="button" class="as-tl-preset" data-type="material" data-text="자재 발주 필요">자재 필요</button>
+  </div>
+  {% endif %}
+  {% if can_edit %}
+  {# data-foms-erp-no-shell 필수: erp-shell.js가 method=get 폼 submit을 capture 단계에서 가로채
+     프래그먼트 스왑으로 바꾼다. 이 폼은 JS가 fetch로 보내므로 셸 내비게이션 대상이 아니다
+     (없으면 기록은 저장되지만 화면이 통째로 다시 그려져 낙관적 삽입·확장 행이 날아간다). #}
+  <form class="as-timeline__quick-add" data-order-id="{{ order_id }}" data-foms-erp-no-shell>
+    <div class="as-timeline__quick-row">
+      <select class="as-timeline__type erp-pro-select" aria-label="유형">
+        <option value="memo" selected>메모</option>
+        <option value="call">통화</option>
+        <option value="action">방문/조치</option>
+        <option value="material">자재</option>
+        <option value="schedule">일정</option>
+      </select>
+    </div>
+    <textarea class="as-timeline__text erp-pro-input" rows="2" aria-label="기록 내용" placeholder="기록 입력... (Ctrl/⌘+Enter로 추가)"></textarea>
+    <button type="submit" class="btn btn-sm btn-primary as-timeline__submit">기록 추가</button>
+  </form>
+  {% endif %}
+  <div class="as-timeline__stream">
+    {% for e in v.stream %}{{ render_as_timeline_entry(e, can_edit) }}{% endfor %}
+  </div>
+  {% if v.has_more %}
+  {# show_more=false: 더보기 fetch 클릭 핸들러가 as-dashboard.js 문서 위임에만 있다. 그 스크립트가
+     없는 표면(출고 AS 일정추천 모달)에서 버튼을 내면 클릭해도 아무 반응이 없는 죽은 버튼이 되므로,
+     같은 정보를 정적 안내 문구로만 낸다(더보기는 AS 대시보드에서). #}
+  {% if show_more %}
+  <button type="button" class="btn btn-sm btn-link as-timeline__more" data-order-id="{{ order_id }}">이전 기록 더보기 ({{ v.stream_total - v.stream|length }})</button>
+  {% else %}
+  <div class="as-timeline__more-hint text-muted small">이전 기록 {{ v.stream_total - v.stream|length }}건은 AS 대시보드에서 확인</div>
+  {% endif %}
+  {% endif %}
+  {# legacy 앵커(이전 기록)는 스트림 **아래**, 더보기 **아래**. 스트림은 역시간순(최신 위)이고
+     legacy 는 as_log 이전 시대의 가장 오래된 본문이라 시간 흐름의 끝이 여기다. 더보기보다
+     아래인 이유: 더보기는 절단된 옛 항목을 스트림에 채워 넣으므로(?full=1 재렌더), legacy 가
+     버튼 위에 있으면 새로 채워진 옛 기록이 legacy 보다 아래로 와 시간순이 뒤집힌다.
+     위 reception 앵커와 배타가 아님에 주의 — 두 if 는 독립이고 공존 시 둘 다 렌더된다. #}
+  {% if v.legacy %}
+  <div class="as-timeline__anchor as-timeline__anchor--legacy">
+    {% for e in v.legacy %}{{ render_as_timeline_entry(e, can_edit) }}{% endfor %}
+  </div>
+  {% endif %}
+  {% if not v.reception and not v.legacy and not v.stream %}
+  <div class="as-timeline__empty text-muted small">기록 없음 · 첫 기록을 남겨보세요.</div>
+  {% endif %}
+  {# 주문 비고 — AS 기록이 아니라 주문 속성이라 스트림 밖 읽기 전용 블록. 평문이므로 |safe 금지. #}
+  {% if notes %}
+  <div class="as-timeline__notes">
+    <div class="as-timeline__notes-label">비고</div>
+    <div class="as-timeline__notes-body">{{ notes }}</div>
+  </div>
+  {% endif %}
+</div>
+{%- endmacro %}
+
+{# PC 테이블 내용 셀 요약 — 앵커 1줄 + 최근 1줄 + 배지. 전체 타임라인은 확장 시 lazy fetch(T10).
+   배지 수는 v.count(절단 전 전체)라 스트림 노출 수(기본 8)와 다르다.
+   요약 텍스트는 as_dashboard_display._apply_timeline_cell_text 가 행당 1회 계산해 뷰에 싣는다
+   (striptags 는 <div> 경계를 잃어 서로 다른 기록이 한 단어로 붙었다 — T9 리뷰 M2). #}
+{% macro render_as_timeline_cell(order_id, view) -%}
+{% set v = view or {} %}
+<div class="as-tl-cell" data-order-id="{{ order_id }}">
+  {% if v.cell_anchor_text %}
+  <div class="as-tl-cell__anchor text-truncate">{{ v.cell_anchor_text }}</div>
+  {% endif %}
+  {% if v.stream %}
+  {% set recent = v.stream[0] %}
+  {# 시스템 항목은 전체 매크로와 동일하게 칩 대신 아이콘 — 표면마다 표기가 갈리지 않게 미러링.
+     CSS 쪽 .as-tl-chip--system 과 이중 방어다(한쪽이 빠져도 흰 글자가 사라지지 않는다). #}
+  <div class="as-tl-cell__recent text-truncate">
+    {% if recent.is_system %}
+    <i class="fas fa-gear as-tl-item__sysicon" aria-hidden="true"></i>
+    {% else %}
+    <span class="as-tl-chip as-tl-chip--{{ recent.type }}">{{ recent.type_label }}</span>
+    {% endif %}
+    {{ v.cell_recent_text }}
+  </div>
+  {% endif %}
+  {% if v.count %}
+  <button type="button" class="as-tl-cell__expand" data-order-id="{{ order_id }}">타임라인 {{ v.count }}</button>
+  {% else %}
+  {# 기록 0건도 확장 가능해야 quick-add로 첫 기록을 남길 수 있다(같은 클릭 위임이 받는다). #}
+  <button type="button" class="as-tl-cell__empty text-muted small" data-order-id="{{ order_id }}">기록 없음 · 클릭해 첫 기록</button>
+  {% endif %}
+</div>
+{%- endmacro %}
+
+{# 기준 일정 드리프트 배지 — PC 테이블·모바일 카드(v2/legacy) 공유 SSOT.
+   drift는 as_dashboard_display.apply_schedule_link_drift_fields가 행마다 부착한
+   evaluate_drift() 결과 + 표시 전용 파생 필드(ref_customer_name/ref_label/
+   ref_date_md/ref_current_date_md, 전부 서비스 계층 조립 — 매크로는 배치만 한다).
+   ref_label 은 고객명이 있으면 이름, 없으면(고아 링크 등) '#id' 폴백이라
+   "기준  8/7" 처럼 이름이 빈칸으로 뜨는 경우가 없다. ref_order_id 자체는 그대로
+   유지된다 — 액션 버튼 data 속성과 테스트가 id 를 그대로 소비한다(표시만 이름).
+   state='none'(링크 없음)이면 배지를 아예 내지 않는다. 색상/크기는 state별 CSS 클래스
+   (erp-as-drift-badge--<state>, as-dashboard-body.css)가 소유 — 'resolved'는 렌더 시
+   자동 갱신을 하지 않으므로(스펙 §4) 'ok'와 같은 조용한 톤으로 CSS가 접는다.
+   ref_moved/both_moved 는 경고색 단색 채움 + 아이콘 + 옛 날짜 취소선/새 날짜 굵게로
+   "지금 조치가 필요하다"를 시각적으로 크게 낸다(2026-07-30 가독성 개선 — 각주급 조용한
+   알약이었던 첫 배포 버전에서 승격).
+
+   T5 액션 버튼(재적용/무시/연결 해제)도 여기서 낸다 — PC 테이블·모바일 카드(v2/legacy)
+   세 표면이 이 매크로 하나를 공유하므로 버튼을 호출부에 흩으면 SSOT가 셋으로 갈라진다.
+   조치가 가능한 상태에서만 낸다: ref_moved/both_moved = 3개 전부, ref_gone(기준 주문 삭제)
+   = 재적용할 날짜도, 무시할 변경도 없으므로 '연결 해제'만. ok/resolved/acked는 배지만.
+   order_id 가 없으면(구 호출부) 버튼을 생략한다 — 대상 없는 버튼은 무음 실패가 된다.
+   노출 게이트를 걸지 않는 이유는 스펙 §8: 화면 노출은 로그인 사용자 전원, 쓰기 권한은
+   API(@erp_edit_required)가 소유한다(클라 은닉은 보안 경계가 아니다).
+   핸들러는 as-dashboard.js 의 .js-as-drift-* 위임 배선. #}
+{% macro render_as_drift_action(hook, label, title, d, order_id) -%}
+<button type="button" class="erp-as-drift-action {{ hook }}" data-as-order-id="{{ order_id }}" data-ref-current-date="{{ d.ref_current_date or '' }}" data-drift-state="{{ d.state }}" title="{{ title }}">{{ label }}</button>
+{%- endmacro %}
+
+{% macro render_as_schedule_drift_badge(drift, order_id=None) -%}
+{% set d = drift or {} %}
+{%- if d.state and d.state != 'none' -%}
+<span class="erp-as-drift-badge erp-as-drift-badge--{{ d.state }}" title="기준 주문 일정 연동 상태">{%- if d.state in ('ref_moved', 'both_moved') -%}<i class="fas fa-triangle-exclamation erp-as-drift-badge__icon" aria-hidden="true"></i>{%- elif d.state in ('ok', 'resolved') -%}<i class="fas fa-link erp-as-drift-badge__icon" aria-hidden="true"></i>{%- endif -%}<span class="erp-as-drift-badge__ref">기준 {{ d.ref_label }}</span>{%- if d.state == 'ref_gone' %} 연결 끊김{%- elif d.state in ('ok', 'resolved') %} {{ d.ref_date_md }}{%- else %} <s class="erp-as-drift-badge__old">{{ d.ref_date_md }}</s><span class="erp-as-drift-badge__arrow" aria-hidden="true">→</span><strong class="erp-as-drift-badge__new">{{ d.ref_current_date_md }}</strong>{%- endif -%}</span>
+{%- if order_id and d.state in ('ref_moved', 'both_moved', 'ref_gone') -%}
+<span class="erp-as-drift-actions">
+{%- if d.state != 'ref_gone' -%}
+{{ render_as_drift_action('erp-as-drift-action--relink js-as-drift-relink', '재적용', '기준 주문의 새 일정으로 AS 방문일만 맞춥니다 (시공자 복제 없음)', d, order_id) }}
+{{ render_as_drift_action('js-as-drift-ack', '무시', '이 변경은 확인했으니 경고를 숨깁니다', d, order_id) }}
+{%- endif -%}
+{{ render_as_drift_action('erp-as-drift-action--unlink js-as-drift-unlink', '연결 해제', '기준 일정 연결을 해제합니다 (방문일은 유지)', d, order_id) }}
+</span>
+{%- endif -%}
+{%- endif -%}
+{%- endmacro %}
+
+{# 드리프트 배너 점프 칩 — "몇 건"만 알려주고 어느 건인지는 안 알려주던 배너의 보강.
+   chip 은 as_dashboard_display._drift_banner_chip() 결과(그 AS 건 자신의 고객명 · id ·
+   옛 기준일 → 새 기준일). 클릭 = 순수 해시 링크로 그 행/카드로 점프하고 CSS `:target`
+   이 하이라이트한다 — JS 0줄(erp-shell.js 는 href 가 '#' 로 시작하면 스왑을 건너뛴다,
+   runtime/erp-shell.js:839).
+
+   href 앵커 접두어를 인자로 받는 이유: PC 표(`#as-row-<id>`)와 모바일 카드
+   (`#as-card-<id>`)는 **동시에 DOM 에 존재**한다(표는 d-none d-md-block, 카드는 d-md-none).
+   같은 id 를 양쪽에 붙이면 중복 id 라 `:target` 은 문서 순서상 첫 요소(=숨은 PC 행)만
+   잡아 모바일에서 점프가 죽는다. 그래서 칩을 표면별로 두 개 내고 표시 유틸리티로 가른다. #}
+{% macro render_as_drift_jump_chip(chip, anchor_prefix, visibility_class) -%}
+<a class="as-drift-chip as-drift-chip--{{ chip.state }} {{ visibility_class }}" href="#{{ anchor_prefix }}{{ chip.order_id }}" title="목록에서 이 AS 건으로 이동">
+{%- if chip.customer_name %}<span class="as-drift-chip__name">{{ chip.customer_name }}</span>{% endif -%}
+<span class="as-drift-chip__id">#{{ chip.order_id }}</span>
+<s class="as-drift-chip__old">{{ chip.old_md }}</s><span class="as-drift-chip__arrow" aria-hidden="true">→</span><strong class="as-drift-chip__new">{{ chip.new_md }}</strong>
+</a>
 {%- endmacro %}
 
 {% macro render_as_construction_workers(order_id, workers, can_edit) -%}

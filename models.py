@@ -1,7 +1,17 @@
 import datetime
-from sqlalchemy import Column, Integer, String, Text, Boolean, DateTime, Float, ForeignKey, func, JSON, UniqueConstraint, Index
+import uuid
+from sqlalchemy import (
+    Column, Integer, BigInteger, String, Text, Boolean, DateTime, Float,
+    ForeignKey, func, JSON, UniqueConstraint, Index, CheckConstraint, DDL,
+    event, text,
+)
 from sqlalchemy.orm import relationship
-from sqlalchemy.dialects.postgresql import JSONB
+from sqlalchemy.dialects.postgresql import JSONB, UUID as PG_UUID
+
+# Portable UUID: native ``uuid`` on PostgreSQL, ``VARCHAR(36)`` on SQLite/others.
+# ``as_uuid=False`` keeps values as canonical str on every dialect so the same
+# Python code binds identically under the SQLite test lane and real PostgreSQL.
+UUIDColumn = PG_UUID(as_uuid=False).with_variant(String(36), 'sqlite')
 
 # JSON Type Compatibility Layer
 JSONColumn = JSON().with_variant(JSONB, 'postgresql')
@@ -80,7 +90,11 @@ class Order(Base):
     structured_schema_version = Column(Integer, nullable=False, default=1)
     structured_confidence = Column(String(20), nullable=True)  # high/medium/low
     structured_updated_at = Column(DateTime, nullable=True)
-    
+    # REV-00: optimistic-concurrency revision. 초 단위 structured_updated_at 이 구분하지
+    # 못하는 동시 저장을 mutation_version 단조 증가로 구분한다. 신규 draft 생성 = 1,
+    # 이후 각 Order row/scalar/JSONB/state mutation 이 +1 (helper foms.services.orders.revision).
+    mutation_version = Column(Integer, nullable=False, default=1, server_default=text('1'))
+
     # ERP Order 실측·시공 일정 정규화 컬럼 (D-day SQL 필터용)
     erp_measurement_date = Column(String(10), nullable=True, index=True)   # YYYY-MM-DD
     erp_construction_date = Column(String(10), nullable=True, index=True)  # YYYY-MM-DD
@@ -197,7 +211,14 @@ class OrderScheduleDate(Base):
     kind = Column(String(50), nullable=False, index=True)      # e.g., 'measurement', 'construction', 'shipping'
     date = Column(String(20), nullable=False, index=True)      # e.g., '2026-03-09'
     source = Column(String(50), nullable=False)                # e.g., 'legacy_column', 'beta_schedule', 'beta_item'
-    item_index = Column(Integer, nullable=True)                # e.g., 0, 1 ... (for items array)
+    item_index = Column(Integer, nullable=True)                # e.g., 0, 1 ... (for items array, legacy provenance)
+    # ITEM-ID-00: 아이템-스코프 일정의 결합 SSOT = 안정 UUID(order_item_identities.id).
+    # date-sync(order_date_sync)가 rebuild 시 registry 에서 이 UUID 를 다시 채운다(위치
+    # 인덱스가 아니라 UUID 로 결합). expand 단계라 nullable.
+    item_id = Column(
+        UUIDColumn, ForeignKey('order_item_identities.id', ondelete='SET NULL'),
+        nullable=True, index=True,
+    )
 
     from sqlalchemy import Index
     __table_args__ = (
@@ -225,7 +246,14 @@ class OrderAttachment(Base):
     filename = Column(String(255), nullable=False)
     file_type = Column(String(50), nullable=False)  # image / video
     category = Column(String(50), nullable=False, default='measurement')  # measurement / drawing / construction / as
-    item_index = Column(Integer, nullable=True, default=None, index=True)  # 제품 항목 인덱스 (None=공통)
+    item_index = Column(Integer, nullable=True, default=None, index=True)  # 제품 항목 인덱스 (None=공통, legacy provenance)
+    # ITEM-ID-00: 아이템 결합 SSOT = 안정 UUID(order_item_identities.id). item_index 는
+    # legacy positional provenance 로만 남고, 결합/authz 판정은 이 UUID 를 쓴다. expand
+    # 단계라 nullable 이며, ambiguous 0건 backfill 완료 전에는 NOT NULL enforcement 를 걸지 않는다.
+    item_id = Column(
+        UUIDColumn, ForeignKey('order_item_identities.id', ondelete='SET NULL'),
+        nullable=True, index=True,
+    )
     file_size = Column(Integer, nullable=False, default=0)
 
     storage_key = Column(String(500), nullable=False)  # static/uploads 기준 key 또는 R2 key
@@ -252,6 +280,493 @@ class OrderAttachment(Base):
         }
 
 
+class OrderItemIdentity(Base):
+    """주문 아이템의 DB-global UUID identity registry (ITEM-ID-00, §5.2).
+
+    주문 아이템은 오늘 ``structured_data['items']`` 배열의 **위치 인덱스**(``item_index``)
+    로만 식별된다 — 아이템 추가/삭제/재정렬에 인덱스가 밀리면 첨부(:class:`OrderAttachment`)
+    ·일정(:class:`OrderScheduleDate`) 결합이 조용히 깨진다. 이 registry 는 아이템마다
+    **안정 UUID identity row** 를 발급해, 첨부/일정이 위치 인덱스가 아니라 이 UUID
+    (``item_id``)를 가리키게 한다.
+
+    계약(§5.2 ITEM-ID-00):
+
+    * **DB-global unique**: ``id`` 는 UUID PK 로 전 DB 유일하다.
+    * **order binding**: 모든 identity 는 한 주문(``order_id`` FK)에 묶인다.
+    * **immutable / no-reuse**: 발급된 UUID 는 다른 아이템에 재발급되지 않는다. 아이템이
+      사라지면 hard delete 하지 않고 tombstone(``is_active=False`` + ``retired_at``)으로
+      은퇴시키며, 은퇴한 UUID 는 재활성화하지 않는다(같은 슬롯은 **새 UUID** 로 재발급).
+    * ``item_index`` 는 발급 시점 아이템 슬롯 좌표(provenance·backfill 멱등 키)일 뿐
+      **런타임 authorization/link 근거로 쓰지 않는다** — 첨부/일정 결합은 오직 UUID 다.
+
+    ``uq_order_item_identity_active`` (partial unique)로 한 주문의 한 슬롯에 활성 identity
+    는 최대 1개다 — 중복 발급을 막고 backfill 을 멱등하게 만든다. tombstone 뒤 같은 슬롯은
+    새 UUID 로 다시 발급할 수 있다. DDL 은 migration(``item_id_00``)과 SSOT 를 공유한다
+    (create_all 테스트 lane 동일 스키마).
+    """
+
+    __tablename__ = 'order_item_identities'
+
+    id = Column(UUIDColumn, primary_key=True, default=lambda: str(uuid.uuid4()))
+    order_id = Column(
+        Integer, ForeignKey('orders.id', ondelete='CASCADE'), nullable=False, index=True,
+    )
+    # 발급 시점 아이템 슬롯 좌표(provenance/backfill 멱등 키). 런타임 auth/link 근거 아님.
+    item_index = Column(Integer, nullable=False)
+    is_active = Column(Boolean, nullable=False, default=True, server_default='true')
+    created_at = Column(DateTime, nullable=False, default=now_utc_naive, server_default=func.now())
+    retired_at = Column(DateTime, nullable=True)
+
+    __table_args__ = (
+        # 한 주문의 한 아이템 슬롯에 활성 identity 는 최대 1개(중복 발급 방지·backfill 멱등).
+        # tombstone(is_active=False) 뒤 같은 슬롯은 새 UUID 로 재발급 가능.
+        Index(
+            'uq_order_item_identity_active', 'order_id', 'item_index',
+            unique=True, postgresql_where=text('is_active'),
+        ),
+    )
+
+    def to_dict(self):
+        return {
+            'id': self.id,
+            'order_id': self.order_id,
+            'item_index': self.item_index,
+            'is_active': self.is_active,
+            'created_at': format_datetime_kst(self.created_at),
+            'retired_at': format_datetime_kst(self.retired_at) if self.retired_at else None,
+        }
+
+
+class ProductionRun(Base):
+    """생산 실행(production run)의 DB-global UUID run registry (PRODUCTION-BACKFILL-00, §5.2).
+
+    생산 공정은 오늘 주문마다 **단일 flat** ``structured_data['production']``(단일 steps
+    리스트·단일 defects 리스트·rework count)로만 기록돼, 재제작(rework)마다 새 실행이 열려도
+    이전 실행의 step/defect scope 경계가 남지 않는다. 이 registry 는 실행마다 **안정 UUID
+    run row** 를 발급해, step/defect scope 를 실행 단위로 귀속한다
+    (:func:`~foms.services.orders.state_axes.read_current_production_run` 의 canonical
+    target — ``production.runs[]`` + ``current_run_id`` — 과 shape 정합).
+
+    계약(§5.2 PRODUCTION-BACKFILL-00):
+
+    * **DB-global unique**: ``id`` 는 UUID PK(= ``run_id``)로 전 DB 유일하다.
+    * **order binding**: 모든 run 은 한 주문(``order_id`` FK)에 묶인다.
+    * **status**: ``IN_PROGRESS`` | ``COMPLETED`` | ``SUPERSEDED`` (§2.2 read-model target).
+    * **flat 보존**: run 의 ``steps``/``defects`` 는 flat ``structured_data['production']``
+      의 **복제 스냅샷**이다 — backfill 은 flat 을 삭제하지 않고 복제만 한다(전이 활성화는
+      하류 STATE-PROD-01 소관).
+
+    ``uq_production_run_current`` (partial unique)로 한 주문에 current run 은 최대 1개다 —
+    ``current_run_id`` 포인터의 DB 표현이자 중복 발급 방지·backfill 멱등 키다. 종결된
+    run(``is_current=False``, COMPLETED/SUPERSEDED)은 이력으로 남는다. DDL 은
+    migration(``production_backfill_00``)과 SSOT 를 공유한다(create_all 테스트 lane 동일 스키마).
+    """
+
+    __tablename__ = 'production_runs'
+
+    id = Column(UUIDColumn, primary_key=True, default=lambda: str(uuid.uuid4()))
+    order_id = Column(
+        Integer, ForeignKey('orders.id', ondelete='CASCADE'), nullable=False, index=True,
+    )
+    status = Column(String(20), nullable=False)  # IN_PROGRESS|COMPLETED|SUPERSEDED
+    # legacy 생산 시작 시각(provenance) — flat workflow.history 의 PRODUCTION 진입 시각.
+    started_at = Column(DateTime, nullable=True)
+    # 실행 단위 step/defect scope 스냅샷(flat production.steps/defects 의 복제 — flat 보존).
+    steps = Column(JSONColumn, nullable=True)
+    defects = Column(JSONColumn, nullable=True)
+    is_current = Column(Boolean, nullable=False, default=True, server_default='true')
+    created_at = Column(DateTime, nullable=False, default=now_utc_naive, server_default=func.now())
+
+    __table_args__ = (
+        # 한 주문의 current run 은 최대 1개(current_run_id 포인터 DB 표현·backfill 멱등).
+        # 종결된 run(is_current=False)은 여러 개 이력으로 남을 수 있다.
+        Index(
+            'uq_production_run_current', 'order_id',
+            unique=True, postgresql_where=text('is_current'),
+        ),
+    )
+
+    def to_dict(self):
+        return {
+            'id': self.id,
+            'order_id': self.order_id,
+            'status': self.status,
+            'started_at': format_datetime_kst(self.started_at) if self.started_at else None,
+            'steps': self.steps,
+            'defects': self.defects,
+            'is_current': self.is_current,
+            'created_at': format_datetime_kst(self.created_at),
+        }
+
+
+class OrderASCycle(Base):
+    """AS(A/S) 실행 cycle 의 DB-global UUID registry (AS-BACKFILL-00, §5.2).
+
+    AS 는 오늘 주문마다 flat ``structured_data['as_info']`` 리스트(접수/방문일정/완료가 한
+    entry 에 뭉쳐 있고, 재접수마다 entry 가 append 됨)와 flat ``order.status``/
+    ``workflow.history`` 의 AS 전이로만 기록된다 — 실행별 cycle 경계·current cycle 포인터가
+    없다. 이 registry 는 AS 발생마다 **안정 UUID cycle row** 를 발급해, transition(시작)·
+    schedule(방문일)·completion(완료)·classification(사유/설명)을 cycle 단위로 귀속하고,
+    :data:`~foms.services.orders.state_axes.AS_VALUES`(``RECEIVED|IN_PROGRESS|COMPLETED``)
+    read-model 과 shape 를 정합시킨다(주문당 current cycle 0/1).
+
+    계약(§5.2 AS-BACKFILL-00):
+
+    * **DB-global unique**: ``id`` 는 UUID PK(= ``cycle_id``)로 전 DB 유일하다.
+    * **order binding**: 모든 cycle 은 한 주문(``order_id`` FK)에 묶인다.
+    * **status**: ``RECEIVED`` | ``IN_PROGRESS`` | ``COMPLETED`` (§2.2 AS axis read-model).
+    * **flat 보존**: cycle 컬럼은 flat ``as_info`` entry 의 **복제 스냅샷**이다 — backfill 은
+      flat 을 삭제/재작성하지 않고 복제만 한다. legacy stage rewrite·전이(create/complete)
+      활성화는 하류 STATE-AS-01 소관이므로 이 registry 는 runtime 의미 변경이 0 이다.
+    * ``legacy_as_id`` 는 발급 시점 ``as_info`` entry id(provenance·backfill 멱등 키)일 뿐
+      런타임 근거로 쓰지 않는다.
+
+    ``uq_order_as_cycle_current`` (partial unique)로 한 주문에 current cycle 은 최대 1개다 —
+    ``current_cycle_id`` 포인터의 DB 표현이자 "current cycle 0/1" 불변식의 강제다. 종결된
+    cycle(``is_current=False``, COMPLETED)은 이력으로 여러 개 남는다.
+    ``uq_order_as_cycle_legacy`` (partial unique)는 한 주문의 한 ``legacy_as_id`` 에 cycle 을
+    최대 1개로 강제해 backfill 을 멱등하게 만든다. DDL 은 migration(``as_backfill_00``)과 SSOT
+    를 공유한다(create_all 테스트 lane 동일 스키마).
+    """
+
+    __tablename__ = 'order_as_cycles'
+
+    id = Column(UUIDColumn, primary_key=True, default=lambda: str(uuid.uuid4()))
+    order_id = Column(
+        Integer, ForeignKey('orders.id', ondelete='CASCADE'), nullable=False, index=True,
+    )
+    status = Column(String(20), nullable=False)  # RECEIVED|IN_PROGRESS|COMPLETED
+    # 발급 시점 as_info entry id(provenance·backfill 멱등 키). 런타임 근거 아님.
+    legacy_as_id = Column(Integer, nullable=True)
+    # transition(시작): flat as_info entry 의 started_at/started_by 스냅샷.
+    started_at = Column(DateTime, nullable=True)
+    started_by = Column(String(120), nullable=True)
+    # classification: AS 사유/설명 스냅샷.
+    reason = Column(Text, nullable=True)
+    description = Column(Text, nullable=True)
+    # schedule: AS 방문일/시각 스냅샷(legacy 문자열 원문 보존 — 파싱 유실 방지).
+    visit_date = Column(String(32), nullable=True)
+    visit_time = Column(String(32), nullable=True)
+    # completion: 완료 시각/담당/메모 스냅샷.
+    completed_at = Column(DateTime, nullable=True)
+    completed_by = Column(String(120), nullable=True)
+    completion_note = Column(Text, nullable=True)
+    is_current = Column(Boolean, nullable=False, default=False, server_default='false')
+    created_at = Column(DateTime, nullable=False, default=now_utc_naive, server_default=func.now())
+
+    __table_args__ = (
+        # 한 주문의 current(열린) cycle 은 최대 1개("current cycle 0/1" 불변식의 DB 표현).
+        # 종결된 cycle(is_current=False)은 여러 개 이력으로 남을 수 있다.
+        Index(
+            'uq_order_as_cycle_current', 'order_id',
+            unique=True, postgresql_where=text('is_current'),
+        ),
+        # 한 주문의 한 legacy as_info entry 에 cycle 은 최대 1개(중복 발급 방지·backfill 멱등).
+        # legacy_as_id IS NULL(비-legacy)은 이 제약 밖(향후 STATE-AS-01 발급분).
+        Index(
+            'uq_order_as_cycle_legacy', 'order_id', 'legacy_as_id',
+            unique=True, postgresql_where=text('legacy_as_id IS NOT NULL'),
+        ),
+    )
+
+    def to_dict(self):
+        return {
+            'id': self.id,
+            'order_id': self.order_id,
+            'status': self.status,
+            'legacy_as_id': self.legacy_as_id,
+            'started_at': format_datetime_kst(self.started_at) if self.started_at else None,
+            'started_by': self.started_by,
+            'reason': self.reason,
+            'description': self.description,
+            'visit_date': self.visit_date,
+            'visit_time': self.visit_time,
+            'completed_at': format_datetime_kst(self.completed_at) if self.completed_at else None,
+            'completed_by': self.completed_by,
+            'completion_note': self.completion_note,
+            'is_current': self.is_current,
+            'created_at': format_datetime_kst(self.created_at),
+        }
+
+
+class DrawingRevision(Base):
+    """도면 개정(drawing revision)의 DB-global UUID registry (DRAWING-REVISION-BACKFILL-00, §5.2).
+
+    도면 이력은 오늘 주문마다 flat ``structured_data['drawing_transfer_history']``
+    (TRANSFER/REQUEST_REVISION/CONFIRM_RECEIPT 가 한 리스트에 뒤섞여 append 됨)·
+    ``drawing_status``·``drawing_current_files``·``blueprint.customer_confirmed`` 로만
+    기록돼, 개정별 안정 identity 도 current/receipt/customer-confirm 포인터도 남지 않는다.
+    이 registry 는 TRANSFER(도면 전달)마다 **안정 UUID revision row** 를 발급해, 전달·수령
+    확인(receipt)·고객 확인(customer-confirm) 스냅샷을 개정 단위로 귀속하고,
+    :func:`~foms.services.orders.state_axes.read_drawing_revision_registry` 의 canonical
+    포인터(``current_revision_id`` / ``receipt_revision_id`` /
+    ``customer_confirmed_revision_id``)와 shape 를 정합시킨다(주문당 각 포인터 0/1).
+
+    계약(§5.2 DRAWING-REVISION-BACKFILL-00):
+
+    * **DB-global unique**: ``id`` 는 UUID PK(= ``revision_id``)로 전 DB 유일하다.
+    * **order binding**: 모든 revision 은 한 주문(``order_id`` FK)에 묶인다.
+    * **status**: ``TRANSFERRED`` | ``RETURNED`` | ``CONFIRMED`` | ``SUPERSEDED``.
+    * **flat 보존**: revision 컬럼은 flat ``drawing_transfer_history`` entry·``blueprint``
+      의 **복제 스냅샷**이다 — backfill 은 flat/attachment 를 삭제/재작성하지 않고 복제만
+      한다. 전이(개정 발급/전달) 활성화는 하류 STATE-DRAWING-01 소관이라 runtime 의미
+      변경이 0 이다.
+    * ``legacy_seq`` 는 발급 근거 ``drawing_transfer_history`` 인덱스(provenance·backfill
+      멱등 키)일 뿐 런타임 근거로 쓰지 않는다.
+
+    ``uq_drawing_revision_current`` / ``_receipt`` / ``_customer`` (partial unique)로 한 주문의
+    current / receipt / customer-confirmed revision 은 각각 최대 1개다 — 세 canonical 포인터의
+    DB 표현이다. 종결된(``is_current=False``) 개정은 SUPERSEDED 이력으로 남는다.
+    ``uq_drawing_revision_legacy`` (partial unique)는 한 주문의 한 legacy transfer entry 에
+    revision 을 최대 1개로 강제해 backfill 을 멱등하게 만든다. DDL 은
+    migration(``drawing_revision_00``)과 SSOT 를 공유한다(create_all 테스트 lane 동일 스키마).
+    """
+
+    __tablename__ = 'drawing_revisions'
+
+    id = Column(UUIDColumn, primary_key=True, default=lambda: str(uuid.uuid4()))
+    order_id = Column(
+        Integer, ForeignKey('orders.id', ondelete='CASCADE'), nullable=False, index=True,
+    )
+    status = Column(String(20), nullable=False)  # TRANSFERRED|RETURNED|CONFIRMED|SUPERSEDED
+    # 개정 순번(주문 내 TRANSFER 발생 순 1-based) — provenance·정렬.
+    revision_no = Column(Integer, nullable=False)
+    # 전달(발급) 스냅샷: flat TRANSFER entry 의 transferred_at/by_user_name/note/files.
+    transferred_at = Column(DateTime, nullable=True)
+    transferred_by = Column(String(120), nullable=True)
+    note = Column(Text, nullable=True)
+    files = Column(JSONColumn, nullable=True)
+    # receipt(도면 수령 확인) 스냅샷: flat CONFIRM_RECEIPT entry 의 at/by_user_name.
+    receipt_confirmed_at = Column(DateTime, nullable=True)
+    receipt_confirmed_by = Column(String(120), nullable=True)
+    # customer-confirm 스냅샷: flat blueprint.confirmed_at/confirmed_by.
+    customer_confirmed_at = Column(DateTime, nullable=True)
+    customer_confirmed_by = Column(String(120), nullable=True)
+    is_current = Column(Boolean, nullable=False, default=False, server_default='false')
+    is_receipt = Column(Boolean, nullable=False, default=False, server_default='false')
+    is_customer_confirmed = Column(Boolean, nullable=False, default=False, server_default='false')
+    # 발급 근거 drawing_transfer_history 인덱스(provenance·backfill 멱등 키). 런타임 근거 아님.
+    legacy_seq = Column(Integer, nullable=True)
+    created_at = Column(DateTime, nullable=False, default=now_utc_naive, server_default=func.now())
+
+    __table_args__ = (
+        # 한 주문의 current revision 은 최대 1개(current_revision_id 포인터 DB 표현).
+        Index(
+            'uq_drawing_revision_current', 'order_id',
+            unique=True, postgresql_where=text('is_current'),
+        ),
+        # 한 주문의 receipt revision(수령 확인분)은 최대 1개(receipt_revision_id 포인터).
+        Index(
+            'uq_drawing_revision_receipt', 'order_id',
+            unique=True, postgresql_where=text('is_receipt'),
+        ),
+        # 한 주문의 customer-confirmed revision 은 최대 1개(customer_confirmed_revision_id 포인터).
+        Index(
+            'uq_drawing_revision_customer', 'order_id',
+            unique=True, postgresql_where=text('is_customer_confirmed'),
+        ),
+        # 한 주문의 한 legacy transfer entry 에 revision 은 최대 1개(중복 발급 방지·backfill 멱등).
+        Index(
+            'uq_drawing_revision_legacy', 'order_id', 'legacy_seq',
+            unique=True, postgresql_where=text('legacy_seq IS NOT NULL'),
+        ),
+    )
+
+    def to_dict(self):
+        return {
+            'id': self.id,
+            'order_id': self.order_id,
+            'status': self.status,
+            'revision_no': self.revision_no,
+            'transferred_at': format_datetime_kst(self.transferred_at) if self.transferred_at else None,
+            'transferred_by': self.transferred_by,
+            'note': self.note,
+            'files': self.files,
+            'receipt_confirmed_at': format_datetime_kst(self.receipt_confirmed_at) if self.receipt_confirmed_at else None,
+            'receipt_confirmed_by': self.receipt_confirmed_by,
+            'customer_confirmed_at': format_datetime_kst(self.customer_confirmed_at) if self.customer_confirmed_at else None,
+            'customer_confirmed_by': self.customer_confirmed_by,
+            'is_current': self.is_current,
+            'is_receipt': self.is_receipt,
+            'is_customer_confirmed': self.is_customer_confirmed,
+            'legacy_seq': self.legacy_seq,
+            'created_at': format_datetime_kst(self.created_at),
+        }
+
+
+class DrawingRevisionRequest(Base):
+    """도면 수정요청(revision request)의 DB-global UUID registry (DRAWING-REVISION-BACKFILL-00, §5.2).
+
+    수정요청은 오늘 주문마다 flat ``drawing_transfer_history`` 의 ``REQUEST_REVISION`` entry·
+    ``drawing_status == 'RETURNED'`` 로만 기록돼, 요청별 안정 identity 도 "열린 요청" 포인터도
+    남지 않는다. 이 registry 는 REQUEST_REVISION 마다 **안정 UUID request row** 를 발급해
+    요청 스냅샷(대상 도면 key·참고 파일·메모)을 요청 단위로 귀속하고,
+    :func:`~foms.services.orders.state_axes.read_drawing_revision_registry` 의
+    ``current_revision_request_id`` 포인터와 shape 를 정합시킨다.
+
+    계약(§5.2 DRAWING-REVISION-BACKFILL-00):
+
+    * **DB-global unique**: ``id`` 는 UUID PK(= ``request_id``)로 전 DB 유일하다.
+    * **order binding**: 모든 request 는 한 주문(``order_id`` FK)에 묶인다.
+    * ``revision_id`` 는 요청 대상 revision(발급 시점 current revision) 의 **soft link**
+      (FK 아님 — 형제 :class:`DrawingRevision` 과 느슨 결합). None 은 대상 미상.
+    * **status**: ``OPEN`` | ``RESOLVED``. flat REQUEST_REVISION → open, 후속 TRANSFER 로
+      해소된 과거 요청 → resolved 이력.
+    * **flat 보존**: request 컬럼은 flat entry 의 **복제 스냅샷**이다 — backfill 은
+      flat/attachment 를 삭제하지 않는다.
+
+    ``uq_drawing_request_open`` (partial unique)로 한 주문의 열린 요청은 최대 1개다 —
+    "duplicate open request 0" 불변식의 DB 강제이자 ``current_revision_request_id`` 포인터의
+    표현이다. ``uq_drawing_request_legacy`` (partial unique)는 backfill 멱등을 보장한다.
+    DDL 은 migration(``drawing_revision_00``)과 SSOT 를 공유한다.
+    """
+
+    __tablename__ = 'drawing_revision_requests'
+
+    id = Column(UUIDColumn, primary_key=True, default=lambda: str(uuid.uuid4()))
+    order_id = Column(
+        Integer, ForeignKey('orders.id', ondelete='CASCADE'), nullable=False, index=True,
+    )
+    # 요청 대상 revision(발급 시점 current revision) 의 soft link — FK 아님(느슨 결합).
+    revision_id = Column(UUIDColumn, nullable=True)
+    status = Column(String(20), nullable=False)  # OPEN|RESOLVED
+    # 요청 스냅샷: flat REQUEST_REVISION entry 의 at/by_user_name/note/files/대상 도면 key.
+    requested_at = Column(DateTime, nullable=True)
+    requested_by = Column(String(120), nullable=True)
+    note = Column(Text, nullable=True)
+    files = Column(JSONColumn, nullable=True)
+    target_drawing_keys = Column(JSONColumn, nullable=True)
+    is_open = Column(Boolean, nullable=False, default=False, server_default='false')
+    # 발급 근거 drawing_transfer_history 인덱스(provenance·backfill 멱등 키).
+    legacy_seq = Column(Integer, nullable=True)
+    created_at = Column(DateTime, nullable=False, default=now_utc_naive, server_default=func.now())
+
+    __table_args__ = (
+        # 한 주문의 열린(open) 수정요청은 최대 1개("duplicate open request 0" DB 강제).
+        Index(
+            'uq_drawing_request_open', 'order_id',
+            unique=True, postgresql_where=text('is_open'),
+        ),
+        # 한 주문의 한 legacy request entry 에 request 는 최대 1개(중복 발급 방지·backfill 멱등).
+        Index(
+            'uq_drawing_request_legacy', 'order_id', 'legacy_seq',
+            unique=True, postgresql_where=text('legacy_seq IS NOT NULL'),
+        ),
+    )
+
+    def to_dict(self):
+        return {
+            'id': self.id,
+            'order_id': self.order_id,
+            'revision_id': self.revision_id,
+            'status': self.status,
+            'requested_at': format_datetime_kst(self.requested_at) if self.requested_at else None,
+            'requested_by': self.requested_by,
+            'note': self.note,
+            'files': self.files,
+            'target_drawing_keys': self.target_drawing_keys,
+            'is_open': self.is_open,
+            'legacy_seq': self.legacy_seq,
+            'created_at': format_datetime_kst(self.created_at),
+        }
+
+
+class OrderConstructionAttempt(Base):
+    """시공(construction) 실행 attempt 의 DB-global UUID registry (CONSTRUCTION-BACKFILL-00, §5.2).
+
+    시공은 오늘 주문마다 flat ``workflow.history`` 의 ``시공 시작`` 진입·
+    ``structured_data['construction_fail_history']`` (시공 불가 재작업 리스트)·
+    ``construction.evidence`` (before/after/서명)·``schedule.construction`` (시공 예정일)·
+    그리고 시공 완료 시 ``order.status``/``workflow.stage`` 의 ``COMPLETED`` 전이로만
+    기록된다 — attempt 별 경계도 current attempt 포인터도 남지 않는다. 이 registry 는 시공
+    attempt 마다 **안정 UUID attempt row** 를 발급해 schedule(예정일)·transition(시작)·
+    completion(완료)·classification(시공 불가 사유) 스냅샷을 attempt 단위로 귀속하고,
+    :data:`~foms.services.orders.state_axes.CONSTRUCTION_VALUES`
+    (``IN_PROGRESS|READY|COMPLETED|REWORKED``) read-model 과 shape 를 정합시킨다(주문당
+    current attempt 0/1).
+
+    계약(§5.2 CONSTRUCTION-BACKFILL-00):
+
+    * **DB-global unique**: ``id`` 는 UUID PK(= ``attempt_id``)로 전 DB 유일하다.
+    * **order binding**: 모든 attempt 는 한 주문(``order_id`` FK)에 묶인다.
+    * **status**: ``IN_PROGRESS`` | ``READY`` | ``COMPLETED`` | ``REWORKED``.
+    * **flat 보존**: attempt 컬럼은 flat 시공 데이터의 **복제 스냅샷**이다 — backfill 은
+      flat 을 삭제/재작성하지 않고 복제만 한다. 시공 완료(직접 COMPLETED)의 자동 추론은
+      금지되고(불명확 → 수동 CSV), 전이(시작/완료) 활성화는 하류 STATE-CONST-CS 소관이므로
+      이 registry 는 runtime 의미 변경이 0 이다.
+    * ``legacy_seq`` 는 발급 근거 시공 시작 ordinal(provenance·backfill 멱등 키)일 뿐
+      런타임 근거로 쓰지 않는다.
+
+    ``uq_construction_attempt_current`` (partial unique)로 한 주문에 current attempt 는 최대
+    1개다 — ``current_attempt_id`` 포인터의 DB 표현이자 "current attempt 0/1" 불변식의
+    강제다. 종결된 attempt(``is_current=False``, COMPLETED/REWORKED)은 이력으로 여러 개
+    남는다. ``uq_construction_attempt_legacy`` (partial unique)는 한 주문의 한
+    ``legacy_seq`` 에 attempt 를 최대 1개로 강제해 backfill 을 멱등하게 만든다. DDL 은
+    migration(``construction_backfill_00``)과 SSOT 를 공유한다(create_all 테스트 lane 동일
+    스키마).
+    """
+
+    __tablename__ = 'order_construction_attempts'
+
+    id = Column(UUIDColumn, primary_key=True, default=lambda: str(uuid.uuid4()))
+    order_id = Column(
+        Integer, ForeignKey('orders.id', ondelete='CASCADE'), nullable=False, index=True,
+    )
+    status = Column(String(20), nullable=False)  # IN_PROGRESS|READY|COMPLETED|REWORKED
+    # 발급 시점 시공 시작 ordinal(provenance·backfill 멱등 키). 런타임 근거 아님.
+    legacy_seq = Column(Integer, nullable=True)
+    # schedule 스냅샷 — 시공 예정일(schedule.construction.date, legacy 문자열 원문 보존).
+    scheduled_date = Column(String(32), nullable=True)
+    # transition(시작) 스냅샷 — workflow.history "시공 시작" entry.
+    started_at = Column(DateTime, nullable=True)
+    started_by = Column(String(120), nullable=True)
+    # completion 스냅샷 — 완료 시각/담당/메모(하류 STATE-CONST-CS 발급분).
+    completed_at = Column(DateTime, nullable=True)
+    completed_by = Column(String(120), nullable=True)
+    completion_note = Column(Text, nullable=True)
+    # classification 스냅샷 — REWORKED attempt 의 시공 불가 사유/상세.
+    fail_reason = Column(String(40), nullable=True)
+    fail_detail = Column(Text, nullable=True)
+    # evidence 스냅샷 — construction.evidence(before/after/signature) 참조.
+    evidence = Column(JSONColumn, nullable=True)
+    is_current = Column(Boolean, nullable=False, default=False, server_default='false')
+    created_at = Column(DateTime, nullable=False, default=now_utc_naive, server_default=func.now())
+
+    __table_args__ = (
+        # 한 주문의 current(열린) attempt 는 최대 1개("current attempt 0/1" 불변식의 DB 표현).
+        # 종결된 attempt(is_current=false)은 여러 개 이력으로 남을 수 있다.
+        Index(
+            'uq_construction_attempt_current', 'order_id',
+            unique=True, postgresql_where=text('is_current'),
+        ),
+        # 한 주문의 한 legacy 시공 시작 ordinal 에 attempt 는 최대 1개(중복 발급 방지·backfill 멱등).
+        # legacy_seq IS NULL(비-legacy)은 이 제약 밖(향후 STATE-CONST-CS 발급분).
+        Index(
+            'uq_construction_attempt_legacy', 'order_id', 'legacy_seq',
+            unique=True, postgresql_where=text('legacy_seq IS NOT NULL'),
+        ),
+    )
+
+    def to_dict(self):
+        return {
+            'id': self.id,
+            'order_id': self.order_id,
+            'status': self.status,
+            'legacy_seq': self.legacy_seq,
+            'scheduled_date': self.scheduled_date,
+            'started_at': format_datetime_kst(self.started_at) if self.started_at else None,
+            'started_by': self.started_by,
+            'completed_at': format_datetime_kst(self.completed_at) if self.completed_at else None,
+            'completed_by': self.completed_by,
+            'completion_note': self.completion_note,
+            'fail_reason': self.fail_reason,
+            'fail_detail': self.fail_detail,
+            'evidence': self.evidence,
+            'is_current': self.is_current,
+            'created_at': format_datetime_kst(self.created_at),
+        }
+
+
 class OrderEvent(Base):
     """ERP 이벤트 스트림(단계 변경/일정 변경/긴급 발주/컨펌 등)"""
     __tablename__ = 'order_events'
@@ -270,7 +785,16 @@ class OrderEvent(Base):
 
 
 class OrderTask(Base):
-    """팔로업/이슈 추적(Task)"""
+    """팔로업/이슈 추적(Task).
+
+    TASK-BACKFILL-00 (§5.2) expand: flat task 행에 **DB-global 안정 UUID identity**
+    (``task_uuid``)·**optimistic mutation version**(``version``)·**provenance**
+    (``provenance``, backfill 은 ``'LEGACY'``) 3개 컬럼을 additive(nullable)로 더한다.
+    backfill 은 audit 이 SAFE 로 분류한 task 에만 seed 하고(자동 매핑 0), orphan/status/
+    date/team/user/auto_key 이상이 있는 ambiguous task 는 NULL 로 남겨 quarantine 한다.
+    기존 컬럼은 무변경(expand 단계) — NOT NULL·auto_key collision unique enforcement 와
+    version_id_col 배선은 하류 TASK-01 소관이라 이 단계의 runtime 의미 변경은 0 이다.
+    """
     __tablename__ = 'order_tasks'
 
     id = Column(Integer, primary_key=True)
@@ -281,21 +805,85 @@ class OrderTask(Base):
     owner_user_id = Column(Integer, ForeignKey('users.id'), nullable=True)
     due_date = Column(String, nullable=True)  # YYYY-MM-DD
     meta = Column(JSONColumn, nullable=True)
+    # TASK-BACKFILL-00 expand(nullable): backfill 이 SAFE task 에만 채운다. ambiguous 는 NULL.
+    task_uuid = Column(UUIDColumn, nullable=True)          # DB-global 안정 identity(전 DB 유일)
+    version = Column(Integer, nullable=True)               # optimistic mutation version(SAFE=1 seed)
+    provenance = Column(String(20), nullable=True)         # 'LEGACY'(backfill 표식) — creator 추정 금지
     created_at = Column(DateTime, default=datetime.datetime.now, nullable=False)
     updated_at = Column(DateTime, default=datetime.datetime.now, nullable=False)
+
+    __table_args__ = (
+        # 발급된 task_uuid 는 전 DB 유일(partial — 아직 미발급/ambiguous NULL 행은 제외).
+        # auto_key collision unique(active) 는 ambiguous 0 확인 후 하류 enforcement 마이그레이션.
+        Index(
+            'uq_order_task_uuid', 'task_uuid',
+            unique=True, postgresql_where=text('task_uuid IS NOT NULL'),
+        ),
+    )
 
     order = relationship('Order', foreign_keys=[order_id])
     owner_user = relationship('User', foreign_keys=[owner_user_id])
 
 
 class SystemSetting(Base):
-    """시스템 전역 설정값 저장용 (JSONB 지원)"""
+    """시스템 전역 설정값 저장용 (JSONB 지원).
+
+    ``version`` 은 SHIPMENT-REFERENCE-01 이 도입한 optimistic-lock revision 이다. 설정
+    collection 을 갱신하는 command(예: ``UPDATE_SHIPMENT_REFERENCE_LISTS``)는 이 row 를
+    ``FOR UPDATE`` 로 잠그고 client 의 If-Match 가 현재 ``version`` 과 일치할 때만 쓴 뒤
+    ``version`` 을 1 증가시킨다(초 단위 ``updated_at`` 이 구분 못 하는 동시 저장 lost
+    update 를 차단). 기존 setting row 는 server_default 로 ``1`` 을 갖는다.
+    """
     __tablename__ = 'system_settings'
-    
+
     setting_key = Column(String(100), primary_key=True)
     setting_value = Column(JSONColumn, nullable=True)
     description = Column(Text, nullable=True)
+    version = Column(Integer, nullable=False, default=1, server_default=text('1'))
     updated_at = Column(DateTime, default=datetime.datetime.now, onupdate=datetime.datetime.now, nullable=False)
+
+
+class SystemSettingReceipt(Base):
+    """SystemSetting collection mutation 의 idempotency + audit receipt (SHIPMENT-REFERENCE-01).
+
+    Order 단위가 아니라 setting collection 단위의 revision 이므로 REV-00
+    :class:`OrderMutationReceipt`(order FK·per-order version) 대신 별도 정본을 둔다. 한
+    command 커밋마다 한 행이 두 역할을 겸한다:
+
+    * **idempotency**: ``(actor_user_id, policy_id, idempotency_key)`` unique. 같은 key
+      replay 는 저장된 ``response_status``/``response_body`` 를 그대로 돌려주고 business
+      write 는 재수행하지 않는다. ``expires_at`` (커밋+24시간) 이후 같은 key 는
+      ``IDEMPOTENCY_KEY_EXPIRED`` 다. 비-멱등 요청은 ``idempotency_key`` NULL(PostgreSQL
+      은 NULL 을 distinct 로 취급하므로 dedupe 하지 않음).
+    * **receipt**: opaque ``read_receipt_id`` 로 갱신 결과 version 을 확인시킨다.
+
+    ``resulting_version`` 은 커밋 후 setting 의 새 ``SystemSetting.version`` 이다.
+    """
+
+    __tablename__ = 'system_setting_receipts'
+
+    id = Column(Integer, primary_key=True)
+    read_receipt_id = Column(UUIDColumn, nullable=False, unique=True,
+                             default=lambda: str(uuid.uuid4()))
+    actor_user_id = Column(Integer, ForeignKey('users.id'), nullable=False)
+    setting_key = Column(String(100), nullable=False)
+    policy_id = Column(String(80), nullable=False)
+    idempotency_key = Column(String(64), nullable=True)
+    request_hash = Column(String(64), nullable=False)
+    response_status = Column(Integer, nullable=False)
+    response_body = Column(JSONColumn, nullable=False)
+    resulting_version = Column(Integer, nullable=False)
+    expires_at = Column(DateTime, nullable=False)  # 커밋 + 24시간 (replay window)
+    created_at = Column(DateTime, nullable=False, server_default=func.now())
+
+    __table_args__ = (
+        UniqueConstraint(
+            'actor_user_id', 'policy_id', 'idempotency_key',
+            name='uq_system_setting_receipt_idem',
+        ),
+        Index('ix_ssr_setting_key', 'setting_key'),
+        Index('ix_ssr_expires_id', 'expires_at', 'id'),  # 향후 retention purge keyset
+    )
 
 
 class SystemBuildStep(Base):
@@ -319,6 +907,12 @@ class User(Base):
     role = Column(String, nullable=False, default='VIEWER')
     team = Column(String(50), nullable=True)  # cs/drawing/production/construction
     is_active = Column(Boolean, nullable=False, default=True)
+    # PASSWORD-POLICY-01: 비밀번호 강도 정책 버전(SSOT). 0=LEGACY(강도 미검증),
+    # 1=STRONG. hash rehash 로 추정하지 않고 설정 시점에 이 컬럼으로 명시 기록한다.
+    # 기존 행은 마이그레이션 server_default('0')=LEGACY 로 backfill 된다.
+    password_policy_version = Column(
+        Integer, nullable=False, server_default='0', default=0,
+    )
     created_at = Column(DateTime, default=datetime.datetime.now)
     last_login = Column(DateTime)
     
@@ -927,11 +1521,1628 @@ class ChannelInboundEventLog(Base):
     created_task_ref = Column(String(100), nullable=True)
     received_at = Column(DateTime, default=datetime.datetime.now, nullable=False)
     processed_at = Column(DateTime, nullable=True)
-    
+
+    # --- CHANNEL-INBOUND-ORDER-01: order-creation receipt lifecycle ---------- #
+    # 주문 생성 파이프라인의 정본 lifecycle(레거시 ``status`` 와 직교). dedicated worker 가
+    # 이 상태만 보고 create_order 로 전이한다. accepted 를 조용히 clear/DEAD 하지 않는다.
+    #   NONE            — 아직 생성 대상 아님(parse 전/dry-run).
+    #   ACCEPTED        — 생성 대기(worker claim 대상).
+    #   PAUSED_ACCEPTED — 전역 create flag cutoff 로 일시 중지(유실 0, 재개 가능).
+    #   RECOVERY_REQUIRED — worker 시도 소진(max attempts) → 운영자 recovery 필요.
+    #   CREATED         — 주문 1건 생성 완료(exact conservation).
+    #   IGNORED         — recovery 판정으로 무시(승인 필요).
+    #   RETENTION_EXPIRED — retention deadline 경과(visible incident, 조용한 삭제 아님).
+    receipt_state = Column(String(30), nullable=False, server_default='NONE')
+    #: 미생성 receipt 데이터를 보관/purge 해야 하는 기한(승인 없는 무기한 보관 금지).
+    retention_deadline = Column(DateTime, nullable=True)
+    #: 마지막으로 발송한 retention 경고 단계('7d'/'24h'/'6h') — 중복 알림 방지.
+    retention_alert_stage = Column(String(10), nullable=True)
+    #: 법적 보존(legal hold) — True 면 ignore/purge 로 조용히 없앨 수 없다.
+    legal_hold = Column(Boolean, nullable=False, server_default=text('false'))
+    #: worker 주문 생성 시도 횟수(max 도달 시 RECOVERY_REQUIRED, 무한 재시도 0).
+    create_attempts = Column(Integer, nullable=False, server_default=text('0'))
+    #: 이 receipt 의 sealed_secret 를 봉인한 channel key generation(rewrap old-reference 근거).
+    key_generation = Column(Integer, nullable=True)
+    #: channel key 로 봉인한 per-receipt secret 의 AES-256-GCM envelope(평문 0, rewrap 대상).
+    sealed_secret = Column(Text, nullable=True)
+    # worker claim lease(SKIP LOCKED · 크래시 시 만료 회수).
+    lease_owner_hash = Column(String(64), nullable=True)
+    lease_token = Column(String(64), nullable=True)
+    lease_expires_at = Column(DateTime, nullable=True)
+
     created_order = relationship('Order', foreign_keys=[created_order_id])
     created_task = relationship('OrderTask', foreign_keys=[created_task_id])
-    
+
     from sqlalchemy import Index
     __table_args__ = (
         Index('ix_channel_inbound_status_time', 'status', 'received_at'),
+        # worker 가 생성 대상(available lease)을 SKIP LOCKED 로 claim 할 때의 hot path.
+        Index('ix_channel_inbound_receipt_state', 'receipt_state', 'lease_expires_at'),
+    )
+
+
+# ============================================================================
+# OPS-APPROVAL-00 — 고위험 ops 승인 인프라 (principal versions + approval requests)
+# ============================================================================
+#
+# SSOT: docs/plans/2026-07-22-foms-full-system-bug-audit-report.md §2.1
+#   (line 189 principal versions, line 205 ops_approval_requests, line 207 cross-DB).
+#
+# 주의: SSOT 프로즈는 principal-version trigger 대상을 ``password_hash|role|team|
+# is_active`` 로 기술하지만, 이 코드베이스의 users 테이블 비밀번호 컬럼명은 실제로
+# ``password`` (Werkzeug 해시를 저장) 다. trigger 는 실제 컬럼 ``password`` 를 관찰한다.
+
+_PRINCIPAL_VERSION_STATES = ('PENDING', 'APPROVED', 'RESERVED', 'CONSUMED', 'EXPIRED', 'REVOKED')
+
+
+class SecurityPrincipalVersion(Base):
+    """사용자별 보안 principal 버전 (session_version 정본).
+
+    User 는 version 1 로 seed 되고, ``password|role|team|is_active`` 를 바꾸는
+    transaction 에서 PostgreSQL trigger 가 정확히 1 증가시킨다. application 은 별도로
+    increment 하지 않는다(§2.1 line 189). approval consume 는 승인 시점 version 과
+    현재 version 이 같은지를 재확인해 authorization snapshot 무효화를 감지한다.
+    """
+
+    __tablename__ = 'security_principal_versions'
+
+    user_id = Column(Integer, ForeignKey('users.id'), primary_key=True)
+    version = Column(Integer, nullable=False, server_default=text('1'))
+    updated_at = Column(DateTime, nullable=False, server_default=func.now())
+
+
+class OpsApprovalRequest(Base):
+    """고위험 ops 승인 요청 정본 (§2.1 line 205 전 컬럼).
+
+    operator 가 PENDING + 256-bit one-time token 을 만들고(approver 지정 불가),
+    active ADMIN 이 화면 재인증으로 APPROVED 로 전이한다. 고위험 CLI 는
+    ``--approval-token-file`` 로만 소비하며 same-DB 는 ``FOR UPDATE`` one-time,
+    cross-DB 는 5분 RESERVED snapshot 뒤 target unique audit + CONSUMED finalize 다.
+    raw token 은 저장하지 않는다 — ``nonce_hash`` = sha256(one-time secret) 만 저장.
+    """
+
+    __tablename__ = 'ops_approval_requests'
+
+    id = Column(UUIDColumn, primary_key=True, default=lambda: str(uuid.uuid4()))
+    operation_type = Column(String(80), nullable=False)
+    scope_sha256 = Column(String(64), nullable=False)
+    artifact_sha256 = Column(String(64), nullable=True)
+    expected_version = Column(Integer, nullable=True)
+    expected_generation = Column(Integer, nullable=True)
+    nonce_hash = Column(String(64), nullable=False, unique=True)
+    expires_at = Column(DateTime, nullable=False)
+    state = Column(String(20), nullable=False, server_default='PENDING')
+    approved_by_user_id = Column(Integer, ForeignKey('users.id'), nullable=True)
+    approved_principal_version = Column(Integer, nullable=True)
+    approved_at = Column(DateTime, nullable=True)
+    reservation_id = Column(UUIDColumn, nullable=True)
+    reserved_at = Column(DateTime, nullable=True)
+    reservation_expires_at = Column(DateTime, nullable=True)
+    consumed_at = Column(DateTime, nullable=True)
+    operator_identity_hash = Column(String(64), nullable=False)
+    result_sha256 = Column(String(64), nullable=True)
+    row_version = Column(Integer, nullable=False, server_default=text('1'))
+    created_at = Column(DateTime, nullable=False, server_default=func.now())
+
+    __table_args__ = (
+        CheckConstraint(
+            "state IN ('PENDING','APPROVED','RESERVED','CONSUMED','EXPIRED','REVOKED')",
+            name='ck_ops_approval_state',
+        ),
+        Index('ix_ops_approval_state_expires', 'state', 'expires_at'),
+    )
+
+
+class OpsApprovalTargetAudit(Base):
+    """cross-DB(TARGET_RESERVED) consume 의 target-DB 측 idempotency/audit row.
+
+    ``(approval_id, reservation_id, operation_scope_sha256)`` unique 로 target
+    mutation 이 정확히 1회만 적용되게 만들고, crash retry 시 result hash 대조로
+    primary 를 finalize 만 한다(§2.1 line 207). 실제 배포에서는 target(예: WDC) DB 에
+    산다 — 테스트에서는 동일 물리 DB 의 별 테이블이 두 논리 DB 를 모델링한다.
+    """
+
+    __tablename__ = 'ops_approval_target_audits'
+
+    id = Column(Integer, primary_key=True)
+    approval_id = Column(UUIDColumn, nullable=False)
+    reservation_id = Column(UUIDColumn, nullable=False)
+    operation_scope_sha256 = Column(String(64), nullable=False)
+    operation_id = Column(String(80), nullable=False)
+    result_sha256 = Column(String(64), nullable=True)
+    committed_at = Column(DateTime, nullable=False, server_default=func.now())
+
+    __table_args__ = (
+        UniqueConstraint(
+            'approval_id', 'reservation_id', 'operation_scope_sha256',
+            name='uq_ops_approval_target_audit',
+        ),
+    )
+
+
+class OrderMutationReceipt(Base):
+    """Order mutation 의 idempotency + read-after-write receipt 정본 (REV-00, §2.4).
+
+    한 mutation 커밋마다 receipt 한 행이 두 역할을 겸한다:
+
+    * **idempotency**: ``(actor_user_id, policy_id, idempotency_key)`` unique. 같은
+      key replay 는 저장된 ``response_status``/``response_body`` 를 그대로 돌려주고
+      business write/event 는 재수행하지 않는다. ``expires_at`` (커밋+24시간) 이후 같은
+      key 는 ``409 IDEMPOTENCY_KEY_EXPIRED`` 다. key 는 UUID 문자열 최대 64자, 비-멱등
+      mutation 은 NULL (PostgreSQL 은 NULL 을 서로 distinct 로 취급하므로 dedupe 하지
+      않음).
+    * **read-after-write**: opaque 128-bit ``read_receipt_id`` UNIQUE 를 발급한다.
+      initiator client 가 다음 read 에 ``X-FOMS-Mutation-Receipt`` 로 되보내
+      ``read_expires_at`` (커밋+2분) 안에서 자기 write 를 확실히 본다.
+
+    REV-00 은 expiry 의 *의미* 와 ``(expires_at, id)`` purge 인덱스만 소유한다. 실제
+    retention purge CLI/schedule 은 REV-CLEANUP-01 이 소유한다(여기서 만들지 않음).
+    """
+
+    __tablename__ = 'order_mutation_receipts'
+
+    id = Column(Integer, primary_key=True)  # (expires_at, id) keyset purge 용 surrogate
+    read_receipt_id = Column(UUIDColumn, nullable=False, unique=True,
+                             default=lambda: str(uuid.uuid4()))
+    actor_user_id = Column(Integer, ForeignKey('users.id'), nullable=False)
+    policy_id = Column(String(80), nullable=False)
+    idempotency_key = Column(String(64), nullable=True)
+    scope_hash = Column(String(64), nullable=False)
+    request_hash = Column(String(64), nullable=False)
+    response_status = Column(Integer, nullable=False)
+    response_body = Column(JSONColumn, nullable=False)
+    resulting_versions = Column(JSONColumn, nullable=False)  # {order_id: mutation_version}
+    read_expires_at = Column(DateTime, nullable=False)       # 커밋 + 2분
+    expires_at = Column(DateTime, nullable=False)            # 커밋 + 24시간 (replay window)
+    created_at = Column(DateTime, nullable=False, server_default=func.now())
+
+    __table_args__ = (
+        UniqueConstraint(
+            'actor_user_id', 'policy_id', 'idempotency_key',
+            name='uq_order_mutation_receipt_idem',
+        ),
+        Index('ix_omr_actor_read_expires', 'actor_user_id', 'read_expires_at'),
+        Index('ix_omr_expires_id', 'expires_at', 'id'),  # REV-CLEANUP-01 purge keyset
+    )
+
+
+class OrderMutationReadResource(Base):
+    """Receipt 가 건드린 Order 를 정규화한 child (REV-00, §2.4 line 405).
+
+    단건/batch/copy/import 한 mutation 이 만드는 최대 1000개 resource 를 receipt 당
+    한 행씩 담는다. ``read_receipt_id`` 는 부모의 UNIQUE opaque UUID 를 참조하고 PK 는
+    ``(read_receipt_id, order_id)`` 다. ``changed_cache_families_json`` 은 호출자(하류
+    mutation packet)가 계산한 무효화 family 목록을 그대로 저장한다(REV-00 은 계산하지
+    않고 보관만 한다).
+    """
+
+    __tablename__ = 'order_mutation_read_resources'
+
+    read_receipt_id = Column(
+        UUIDColumn,
+        ForeignKey('order_mutation_receipts.read_receipt_id', ondelete='CASCADE'),
+        primary_key=True,
+    )
+    order_id = Column(Integer, ForeignKey('orders.id'), primary_key=True)
+    resulting_version = Column(Integer, nullable=False)
+    changed_cache_families_json = Column(JSONColumn, nullable=False)
+
+    __table_args__ = (
+        Index('ix_omrr_order_receipt', 'order_id', 'read_receipt_id'),
+    )
+
+
+# 배정 domain / source enum SSOT — service·migration·backfill 이 공유한다.
+ORDER_ASSIGNMENT_DOMAINS = ('SALES', 'DRAWING', 'CONSTRUCTION')
+ORDER_ASSIGNMENT_SOURCES = ('SELF_CLAIM', 'TEAM_REPLACE', 'INITIAL_OWNER', 'BACKFILL')
+
+
+class OrderAssignment(Base):
+    """주문 배정 authorization 정본 (ASSIGNMENT-00, §2.1 line 172).
+
+    drawing/construction/sales 권한 판정은 **오직 이 user-ID row** 로만 한다. JSONB
+    이름 배열(``structured_data.assignments`` 등)은 server-owned 표시 projection 일 뿐
+    authorization 근거가 아니다.
+
+    * ``domain`` = ``SALES|DRAWING|CONSTRUCTION`` (check 제약).
+    * ``source`` = ``SELF_CLAIM|TEAM_REPLACE|INITIAL_OWNER|BACKFILL`` (check 제약);
+      release 규칙과 legacy backfill 승격 여부를 구분한다.
+    * ``active`` = 현재 유효 배정. release 는 hard delete 하지 않고 ``active=false`` +
+      ``released_at/released_by_user_id/release_reason`` 로 **이력을 보존**한다.
+
+    PostgreSQL partial unique 두 개가 정합성을 DB 레벨에서 강제한다:
+
+    * ``uq_order_assignment_active`` = ``(order_id,domain,user_id) WHERE active`` —
+      같은 사람을 같은 domain 에 중복 active 배정 금지(released 뒤 재배정은 허용).
+    * ``uq_order_assignment_sales_owner`` = ``(order_id) WHERE active AND domain='SALES'``
+      — SALES 는 주문당 active owner 1명 강제.
+
+    DDL 은 migration(assignment_00) 과 SSOT 를 공유한다(create_all 테스트 lane 동일 스키마).
+    """
+
+    __tablename__ = 'order_assignments'
+
+    id = Column(Integer, primary_key=True)
+    order_id = Column(
+        Integer, ForeignKey('orders.id', ondelete='CASCADE'), nullable=False,
+    )
+    domain = Column(String(20), nullable=False)
+    user_id = Column(Integer, ForeignKey('users.id'), nullable=False)
+    source = Column(String(20), nullable=False)
+    active = Column(Boolean, nullable=False, default=True, server_default='true')
+    assigned_at = Column(DateTime, nullable=False, default=now_utc_naive)
+    assigned_by_user_id = Column(Integer, ForeignKey('users.id'), nullable=False)
+    released_at = Column(DateTime, nullable=True)
+    released_by_user_id = Column(Integer, ForeignKey('users.id'), nullable=True)
+    release_reason = Column(Text, nullable=True)
+
+    __table_args__ = (
+        CheckConstraint(
+            "domain IN ('SALES','DRAWING','CONSTRUCTION')",
+            name='ck_order_assignment_domain',
+        ),
+        CheckConstraint(
+            "source IN ('SELF_CLAIM','TEAM_REPLACE','INITIAL_OWNER','BACKFILL')",
+            name='ck_order_assignment_source',
+        ),
+        # active (order,domain,user) 중복 금지 — released 뒤 재배정은 partial 이라 허용.
+        Index(
+            'uq_order_assignment_active', 'order_id', 'domain', 'user_id',
+            unique=True, postgresql_where=text('active'),
+        ),
+        # SALES active owner 는 주문당 1명.
+        Index(
+            'uq_order_assignment_sales_owner', 'order_id',
+            unique=True, postgresql_where=text("active AND domain = 'SALES'"),
+        ),
+        # authorization 조회(주문·domain 별 active 배정) 인덱스.
+        Index(
+            'ix_order_assignment_active_lookup', 'order_id', 'domain',
+            postgresql_where=text('active'),
+        ),
+    )
+
+
+# --- PostgreSQL trigger: principal version seed(+1 on tracked change) ---------
+#
+# ``create_all`` (SQLite test lane 포함) 와 Alembic 양쪽에서 같은 DDL 을 쓰도록
+# security_principal_versions 테이블의 after_create 이벤트에 붙인다. SQLite 에서는
+# ``execute_if(dialect='postgresql')`` 로 skip 되어 회귀를 만들지 않는다.
+
+OPS_PRINCIPAL_VERSION_TRIGGER_SQL = """
+CREATE OR REPLACE FUNCTION foms_principal_version_seed() RETURNS trigger AS $$
+BEGIN
+    INSERT INTO security_principal_versions (user_id, version, updated_at)
+    VALUES (NEW.id, 1, now())
+    ON CONFLICT (user_id) DO NOTHING;
+    RETURN NEW;
+END;
+$$ LANGUAGE plpgsql;
+
+CREATE OR REPLACE FUNCTION foms_principal_version_bump() RETURNS trigger AS $$
+BEGIN
+    IF (NEW.password IS DISTINCT FROM OLD.password)
+       OR (NEW.role IS DISTINCT FROM OLD.role)
+       OR (NEW.team IS DISTINCT FROM OLD.team)
+       OR (NEW.is_active IS DISTINCT FROM OLD.is_active) THEN
+        UPDATE security_principal_versions
+           SET version = version + 1, updated_at = now()
+         WHERE user_id = NEW.id;
+    END IF;
+    RETURN NEW;
+END;
+$$ LANGUAGE plpgsql;
+
+DROP TRIGGER IF EXISTS trg_principal_version_seed ON users;
+CREATE TRIGGER trg_principal_version_seed
+    AFTER INSERT ON users
+    FOR EACH ROW EXECUTE FUNCTION foms_principal_version_seed();
+
+DROP TRIGGER IF EXISTS trg_principal_version_bump ON users;
+CREATE TRIGGER trg_principal_version_bump
+    AFTER UPDATE ON users
+    FOR EACH ROW EXECUTE FUNCTION foms_principal_version_bump();
+"""
+
+OPS_PRINCIPAL_VERSION_TRIGGER_DROP_SQL = """
+DROP TRIGGER IF EXISTS trg_principal_version_bump ON users;
+DROP TRIGGER IF EXISTS trg_principal_version_seed ON users;
+DROP FUNCTION IF EXISTS foms_principal_version_bump();
+DROP FUNCTION IF EXISTS foms_principal_version_seed();
+"""
+
+event.listen(
+    SecurityPrincipalVersion.__table__,
+    'after_create',
+    DDL(OPS_PRINCIPAL_VERSION_TRIGGER_SQL).execute_if(dialect='postgresql'),
+)
+event.listen(
+    SecurityPrincipalVersion.__table__,
+    'before_drop',
+    DDL(OPS_PRINCIPAL_VERSION_TRIGGER_DROP_SQL).execute_if(dialect='postgresql'),
+)
+
+
+# --------------------------------------------------------------------------- #
+# CUTOVER-MODE-01: feature cutover fences / markers (§8.2 line 1518)
+# --------------------------------------------------------------------------- #
+# 15 family SSOT 는 foms/services/cutover/families.py 다. 여기서 import 하면 순환이
+# 생기지 않는다(그 모듈은 models 를 참조하지 않음).
+from foms.services.security.cutover.families import (  # noqa: E402
+    FEATURE_CUTOVER_FAMILIES,
+)
+
+
+class FeatureCutoverFence(Base):
+    """family별 무중단 cutover fence (§8.2 line 1518).
+
+    15 family 모두 ``mode=OPEN`` 으로 additive pre-seed 된다. 각 affected business
+    mutation 은 tx 시작 직후 이 행을 ``FOR KEY SHARE`` 로 잠가(동시 business 간 공유,
+    mark 의 ``FOR UPDATE`` 와 충돌) drain 계약을 만든다. mark/begin/abort CLI 만 mode 를
+    전이한다: COMPATIBLE 은 ``OPEN→CUTOVER``, DRAIN 은 ``OPEN→DRAINING→CUTOVER``.
+    실제 fence 적용(business mutation 게이트)은 각 family packet 몫이다.
+    """
+
+    __tablename__ = 'feature_cutover_fences'
+
+    family = Column(String(40), primary_key=True)
+    mode = Column(String(20), nullable=False, server_default='OPEN')
+    generation = Column(Integer, nullable=False, server_default=text('0'))
+    row_version = Column(Integer, nullable=False, server_default=text('1'))
+    updated_at = Column(DateTime, nullable=False, server_default=func.now())
+
+    __table_args__ = (
+        CheckConstraint(
+            "mode IN ('OPEN','DRAINING','CUTOVER')",
+            name='ck_feature_cutover_fence_mode',
+        ),
+    )
+
+
+class FeatureCutoverMarker(Base):
+    """family별 irreversible cutover marker (§8.2 line 1518).
+
+    mark CLI 가 **최초 1회만** insert 한다. update/delete/downgrade 는 PostgreSQL
+    trigger 가 DB 레벨에서 거부한다(사후 취소·되돌리기 불가). ``approved_by_admin_user_id``
+    는 CLI 입력이 아니라 소비된 approval row 에서 복사한다. runtime consumer 는 이 marker
+    를 live request 에서 읽어 post-cutover legacy writer 를 막는다(marker DB 장애는
+    fail-open 금지 — 시작 전 503).
+    """
+
+    __tablename__ = 'feature_cutover_markers'
+
+    family = Column(String(40), primary_key=True)
+    cutover_at = Column(DateTime, nullable=False, server_default=func.now())
+    cutover_sha = Column(String(64), nullable=False)
+    cutover_generation = Column(Integer, nullable=False)
+    minimum_compatibility_generation = Column(Integer, nullable=False)
+    readiness_artifact_sha256 = Column(String(64), nullable=False)
+    ops_approval_id = Column(UUIDColumn, nullable=False)
+    approved_by_admin_user_id = Column(Integer, ForeignKey('users.id'), nullable=False)
+    row_version = Column(Integer, nullable=False, server_default=text('1'))
+    created_at = Column(DateTime, nullable=False, server_default=func.now())
+
+
+# fence 15 family additive pre-seed — family 만 INSERT 하고 나머지는 server_default 로
+# 채운다(sqlite/PostgreSQL 양쪽 유효). create_all(테스트/부트스트랩) 경로용이며 Alembic
+# 은 migration 에서 동일 seed 를 별도 수행한다(principal trigger 와 같은 이중 SSOT 패턴).
+_FENCE_SEED_VALUES = ",".join(f"('{f}')" for f in FEATURE_CUTOVER_FAMILIES)
+FEATURE_CUTOVER_FENCE_SEED_SQL = (
+    f"INSERT INTO feature_cutover_fences (family) VALUES {_FENCE_SEED_VALUES}"
+)
+
+# marker irreversibility — BEFORE UPDATE OR DELETE 를 RAISE 로 차단(PostgreSQL 전용).
+# INSERT 는 허용(최초 mark). SQLite 테스트 lane 은 execute_if 로 skip 되며, 그 lane 은
+# marker 갱신을 시도하지 않으므로 회귀가 없다(irreversibility 는 PG 계약 테스트가 검증).
+FEATURE_CUTOVER_MARKER_IMMUTABLE_SQL = """
+CREATE OR REPLACE FUNCTION foms_feature_cutover_marker_immutable() RETURNS trigger AS $$
+BEGIN
+    RAISE EXCEPTION 'feature_cutover_markers is irreversible (UPDATE/DELETE not permitted)'
+        USING ERRCODE = 'restrict_violation';
+    RETURN NULL;
+END;
+$$ LANGUAGE plpgsql;
+
+DROP TRIGGER IF EXISTS trg_feature_cutover_marker_immutable ON feature_cutover_markers;
+CREATE TRIGGER trg_feature_cutover_marker_immutable
+    BEFORE UPDATE OR DELETE ON feature_cutover_markers
+    FOR EACH ROW EXECUTE FUNCTION foms_feature_cutover_marker_immutable();
+"""
+
+FEATURE_CUTOVER_MARKER_IMMUTABLE_DROP_SQL = """
+DROP TRIGGER IF EXISTS trg_feature_cutover_marker_immutable ON feature_cutover_markers;
+DROP FUNCTION IF EXISTS foms_feature_cutover_marker_immutable();
+"""
+
+event.listen(
+    FeatureCutoverFence.__table__,
+    'after_create',
+    DDL(FEATURE_CUTOVER_FENCE_SEED_SQL),
+)
+event.listen(
+    FeatureCutoverMarker.__table__,
+    'after_create',
+    DDL(FEATURE_CUTOVER_MARKER_IMMUTABLE_SQL).execute_if(dialect='postgresql'),
+)
+event.listen(
+    FeatureCutoverMarker.__table__,
+    'before_drop',
+    DDL(FEATURE_CUTOVER_MARKER_IMMUTABLE_DROP_SQL).execute_if(dialect='postgresql'),
+)
+
+
+# --------------------------------------------------------------------------- #
+# WDC-LINK-FENCE-00: WDC link cutover runtime state (SEPARATE topology, §8.2 line 734)
+# --------------------------------------------------------------------------- #
+class WDCLinkRuntimeState(Base):
+    """SEPARATE_DATABASE topology 의 WDC link fence singleton (§8.2 line 734).
+
+    WDC DB 에 사는 정본으로 legacy ``EstimateOrderMatch`` → canonical
+    ``estimate_order_links_v2`` cutover 를 게이트한다(mode ``LEGACY → FROZEN → CANONICAL``).
+    SAME_DATABASE topology 는 한 transaction / no-freeze 이므로 이 행을 쓰지 않는다 — 그래서
+    singleton row 는 create_all / migration 이 **auto-seed 하지 않고** SEPARATE 프로비저닝
+    (하류)이 seed 한다. fence 전이 로직은 ``foms/services/security/cutover/wdc_link_fence.py``
+    다(이 packet 은 fence 정의만 — freeze / canonical / abort CLI 는 WDC-LINK-01 하류 몫).
+    """
+
+    __tablename__ = 'wdc_link_runtime_state'
+
+    id = Column(Integer, primary_key=True)  # singleton — 항상 1 (ck_wdc_link_state_singleton).
+    mode = Column(String(20), nullable=False, server_default='LEGACY')
+    generation = Column(Integer, nullable=False, server_default=text('0'))
+    row_version = Column(Integer, nullable=False, server_default=text('1'))
+    prepared_consumer_generation = Column(Integer, nullable=True)
+    frozen_at = Column(DateTime, nullable=True)
+    freeze_source_fingerprint = Column(String(64), nullable=True)
+    freeze_rollout_artifact_sha256 = Column(String(64), nullable=True)
+    updated_at = Column(DateTime, nullable=False, server_default=func.now())
+    # CLI 가 소비된 approval row 에서 복사하는 optional actor(fence 정의 helper 는 미설정).
+    updated_by_admin_user_id = Column(Integer, ForeignKey('users.id'), nullable=True)
+
+    __table_args__ = (
+        CheckConstraint(
+            "mode IN ('LEGACY','FROZEN','CANONICAL')",
+            name='ck_wdc_link_state_mode',
+        ),
+        CheckConstraint('id = 1', name='ck_wdc_link_state_singleton'),
+    )
+
+
+# --------------------------------------------------------------------------- #
+# WDC-LINK-BACKFILL-00: canonical estimate<->order link (§5.2 line 1040)
+# --------------------------------------------------------------------------- #
+class EstimateOrderLinkV2(Base):
+    """canonical estimate↔order link 정본 (WDC-LINK-BACKFILL-00, §5.2 line 1040).
+
+    legacy ``EstimateOrderMatch``(V1, ``wdcalculator_models``) → 이 canonical row 로
+    topology-aware backfill 되는 대상이다. legacy runtime 은 이 테이블을 읽지 않으며(shadow),
+    marker/CANONICAL 뒤에야 WDC-LINK-01 canonical reader/writer 가 소비한다. **V1 테이블은
+    병행(무변경)** 이고 V1 cleanup 은 별도 packet(WDC-LINK-CLEANUP-01) 몫이라 이 모델은 V1 을
+    참조/삭제하지 않는다.
+
+    * **unique pair**: ``(estimate_id, order_id)`` 는 유일하다(``uq_estimate_order_link_v2_pair``).
+      backfill 은 V1 의 중복 pair 를 이 canonical row **하나**로 정규화한다(source-target
+      equivalence — target pair == source pair).
+    * **topology 표현**: :data:`source_topology` 가 이 row 를 만든 위상(``SAME_DATABASE`` |
+      ``SEPARATE_DATABASE``)을 기록해 phase conflation(SAME/SEPARATE 혼동)을 감사 가능하게 한다.
+    * **phase run ID / V2_BACKFILL checkpoint**: :data:`backfill_run_id` 가 이 row 를 발급한
+      resume run(:class:`MaintenanceBackfillRun`, ``V2_BACKFILL_*`` phase)에 연결해 checkpoint
+      원장과 provenance 를 맺는다.
+
+    ``estimate_id``/``order_id`` 는 cross-DB(SEPARATE 위상)라 물리 FK 를 걸지 않는다(V1 의
+    ``order_id`` 와 동일한 논리 참조 규약).
+    """
+
+    __tablename__ = 'estimate_order_links_v2'
+
+    id = Column(Integer, primary_key=True)
+    estimate_id = Column(Integer, nullable=False, index=True)  # WDC estimates.id (논리 참조·물리 FK 아님).
+    order_id = Column(Integer, nullable=False, index=True)      # FOMS orders.id (논리 참조·물리 FK 아님).
+    # 이 row 를 만든 위상(phase conflation 감사용).
+    source_topology = Column(String(20), nullable=False)
+    # provenance: 발급 근거 V1 estimate_order_matches.id(중복 pair 는 최소 id — 결정적 equivalence).
+    source_match_id = Column(Integer, nullable=True)
+    # 발급 resume run id(V2_BACKFILL_* phase). checkpoint 원장·phase run ID 연결.
+    backfill_run_id = Column(String(64), nullable=True)
+    linked_at = Column(DateTime, nullable=False, server_default=func.now())
+
+    __table_args__ = (
+        UniqueConstraint('estimate_id', 'order_id', name='uq_estimate_order_link_v2_pair'),
+        CheckConstraint(
+            "source_topology IN ('SAME_DATABASE','SEPARATE_DATABASE')",
+            name='ck_estimate_order_link_v2_topology',
+        ),
+    )
+
+
+# --------------------------------------------------------------------------- #
+# BACKFILL-ARTIFACT-00: encrypted backfill run state machine (§7.3 line 1255-1259)
+# --------------------------------------------------------------------------- #
+# 모든 remediation audit/backfill 도구가 공유하는 resume run 정본. 실제 domain business
+# write 는 각 consumer packet 몫이며, 이 스키마는 run/lease/checkpoint/append-only approval
+# 메커니즘만 소유한다. 라이브러리 API 는 foms/services/security/backfill/ 다.
+class MaintenanceBackfillRun(Base):
+    """backfill resume run 정본 (§7.3 line 1257).
+
+    ``run_id = SHA256(LP(packet_id,phase,manifest_sha256,mapping_sha256))`` 로 결정적이며
+    동일 artifact/mapping 에 대한 재개를 한 행으로 모은다. lease token 은 raw 저장 0
+    (``lease_token_hash`` = sha256(raw))이고 60초 lease/10초 heartbeat 다. state 는
+    PENDING→RUNNING→(PAUSED_APPROVAL|STOPPED_DRIFT)→VERIFYING→DONE 로 전이한다.
+    """
+
+    __tablename__ = 'maintenance_backfill_runs'
+
+    run_id = Column(String(64), primary_key=True)
+    packet_id = Column(String(80), nullable=False)
+    phase = Column(String(80), nullable=False)
+    db_instance_id = Column(String(120), nullable=False)
+    manifest_sha256 = Column(String(64), nullable=False)
+    mapping_sha256 = Column(String(64), nullable=False)
+    current_approval_seq = Column(Integer, nullable=False, server_default=text('0'))
+    state = Column(String(20), nullable=False, server_default='PENDING')
+    lease_owner_hash = Column(String(64), nullable=True)
+    lease_token_hash = Column(String(64), nullable=True)
+    lease_expires_at = Column(DateTime, nullable=True)
+    heartbeat_at = Column(DateTime, nullable=True)
+    total_rows = Column(Integer, nullable=False, server_default=text('0'))
+    completed_rows = Column(Integer, nullable=False, server_default=text('0'))
+    last_error_code = Column(String(40), nullable=True)
+    started_at = Column(DateTime, nullable=True)
+    completed_at = Column(DateTime, nullable=True)
+    row_version = Column(Integer, nullable=False, server_default=text('1'))
+
+    __table_args__ = (
+        CheckConstraint(
+            "state IN ('PENDING','RUNNING','PAUSED_APPROVAL','STOPPED_DRIFT','VERIFYING','DONE')",
+            name='ck_maintenance_backfill_run_state',
+        ),
+    )
+
+
+class MaintenanceBackfillCheckpoint(Base):
+    """backfill batch 진행 원장 (§7.3 line 1257).
+
+    각 batch 의 business write + completed_rows + heartbeat 와 **같은 tx** 로 append 되어
+    resume 시 completed=expected-after / pending=expected-before 정합을 재구성한다. local
+    checkpoint 는 authority 0 (drift/tamper 판정은 fingerprint + run 정본).
+    """
+
+    __tablename__ = 'maintenance_backfill_checkpoints'
+
+    id = Column(Integer, primary_key=True)
+    run_id = Column(String(64), ForeignKey('maintenance_backfill_runs.run_id'), nullable=False)
+    batch_seq = Column(Integer, nullable=False)
+    completed_rows = Column(Integer, nullable=False)
+    checkpoint_sha256 = Column(String(64), nullable=False)
+    created_at = Column(DateTime, nullable=False, server_default=func.now())
+
+    __table_args__ = (
+        UniqueConstraint('run_id', 'batch_seq', name='uq_maintenance_backfill_checkpoint_seq'),
+    )
+
+
+class MaintenanceBackfillApproval(Base):
+    """backfill approval seq append-only 원장 (§7.3 line 1259).
+
+    최초 BACKFILL_APPLY 가 seq1 을, 이후 BACKFILL_REAUTHORIZE 가 seq2.. 를 append 한다.
+    기존 row 의 UPDATE/DELETE 는 PostgreSQL trigger 가 DB 레벨에서 거부한다(append-only).
+    ``composite_sha256`` 은 승인 시점 source composite 이며 run row_version CAS 와 함께
+    stale approval 재사용을 막는다.
+    """
+
+    __tablename__ = 'maintenance_backfill_approvals'
+
+    id = Column(Integer, primary_key=True)
+    run_id = Column(String(64), ForeignKey('maintenance_backfill_runs.run_id'), nullable=False)
+    seq = Column(Integer, nullable=False)
+    approval_id = Column(UUIDColumn, nullable=False)
+    kind = Column(String(20), nullable=False)
+    admin_principal_version = Column(Integer, nullable=False)
+    composite_sha256 = Column(String(64), nullable=False)
+    reason_code = Column(String(40), nullable=True)
+    created_at = Column(DateTime, nullable=False, server_default=func.now())
+
+    __table_args__ = (
+        UniqueConstraint('run_id', 'seq', name='uq_maintenance_backfill_approval_seq'),
+        CheckConstraint(
+            "kind IN ('APPLY','REAUTHORIZE')",
+            name='ck_maintenance_backfill_approval_kind',
+        ),
+    )
+
+
+# approval append-only — BEFORE UPDATE OR DELETE 를 RAISE 로 차단(PostgreSQL 전용, marker
+# irreversibility 와 동일 패턴). INSERT 만 허용. SQLite 테스트 lane 은 execute_if 로 skip
+# 되며 그 lane 은 approval row 갱신을 시도하지 않는다(append-only 는 PG 계약 테스트가 검증).
+MAINTENANCE_BACKFILL_APPROVAL_APPEND_ONLY_SQL = """
+CREATE OR REPLACE FUNCTION foms_maintenance_backfill_approval_append_only() RETURNS trigger AS $$
+BEGIN
+    RAISE EXCEPTION 'maintenance_backfill_approvals is append-only (UPDATE/DELETE not permitted)'
+        USING ERRCODE = 'restrict_violation';
+    RETURN NULL;
+END;
+$$ LANGUAGE plpgsql;
+
+DROP TRIGGER IF EXISTS trg_maintenance_backfill_approval_append_only ON maintenance_backfill_approvals;
+CREATE TRIGGER trg_maintenance_backfill_approval_append_only
+    BEFORE UPDATE OR DELETE ON maintenance_backfill_approvals
+    FOR EACH ROW EXECUTE FUNCTION foms_maintenance_backfill_approval_append_only();
+"""
+
+MAINTENANCE_BACKFILL_APPROVAL_APPEND_ONLY_DROP_SQL = """
+DROP TRIGGER IF EXISTS trg_maintenance_backfill_approval_append_only ON maintenance_backfill_approvals;
+DROP FUNCTION IF EXISTS foms_maintenance_backfill_approval_append_only();
+"""
+
+event.listen(
+    MaintenanceBackfillApproval.__table__,
+    'after_create',
+    DDL(MAINTENANCE_BACKFILL_APPROVAL_APPEND_ONLY_SQL).execute_if(dialect='postgresql'),
+)
+event.listen(
+    MaintenanceBackfillApproval.__table__,
+    'before_drop',
+    DDL(MAINTENANCE_BACKFILL_APPROVAL_APPEND_ONLY_DROP_SQL).execute_if(dialect='postgresql'),
+)
+
+
+# --------------------------------------------------------------------------- #
+# SIDEFX-00: typed-domain side-effect outbox (SSOT §2.2.1 line 385 / §2.3 line 391)
+# --------------------------------------------------------------------------- #
+# domain side-effect(notification·cache·geocode·storage-delete·provider call)를
+# business tx 와 원자적으로 기록하는 typed outbox. 실 producer(도메인 write)·consumer
+# (worker delivery/expiry/retention)는 하류(SIDEFX-WORKER-01·CHANNEL·URGENT 등) 몫이다 —
+# SIDEFX-00 은 스키마+repository+계약 테스트만 소유한다.
+#
+# source_domain 은 정확히 자기 FK 컬럼 하나만 non-null 이어야 한다(one-of matrix,
+# ck_dseo_source_one_of). 부모 테이블이 존재하는 4 도메인이 실 FK 로 orphan 을 거부하고
+# (order_events·notification_events·chat_attachments·**upload_drafts** — 마지막은
+# UPLOAD-INTENT-01 이 additive 로 부착), 나머지 3 도메인(address_learning·wizard_pending·
+# upload_ticket)은 소유 packet 이 자기 business table 과 FK 를 additive migration 으로
+# 등록한다(ORDER-IMPORT-01 이 8번째 ORDER_IMPORT_ARTIFACT 를 그렇게 추가하는 선례와 동일).
+# SIDEFX-00 은 그 business table 들을 선행 생성하지 않는다.
+DOMAIN_SIDE_EFFECT_FK_BY_DOMAIN = {
+    'ORDER_EVENT': 'order_event_id',
+    'NOTIFICATION_EVENT': 'notification_event_id',
+    'ADDRESS_LEARNING': 'address_learning_request_id',
+    'WIZARD_PENDING': 'wizard_pending_id',
+    'UPLOAD_TICKET': 'upload_ticket_id',
+    'UPLOAD_DRAFT': 'upload_draft_id',
+    'CHAT_ATTACHMENT': 'chat_attachment_id',
+    # ORDER-IMPORT-01: 8번째 도메인. order_import_artifacts 부모가 생겨 실 FK 로 orphan 거부
+    # (one-of matrix 유지). SIDEFX-00 이 남겨둔 선례대로 소유 packet 이 additive 로 추가한다.
+    'ORDER_IMPORT_ARTIFACT': 'order_import_artifact_id',
+}
+DOMAIN_SIDE_EFFECT_STATUSES = ('PENDING', 'PROCESSING', 'DONE', 'DEAD')
+
+
+def _domain_side_effect_one_of_sql() -> str:
+    """source_domain 별 exact one-of FK 매트릭스를 SQL boolean 식으로 생성한다.
+
+    각 도메인 절은 (source_domain=D AND 자기 FK IS NOT NULL AND 나머지 FK 전부 IS NULL)
+    이고 전체는 OR 이다 → 정확히 하나의 FK 만 non-null 이며 그것이 domain 과 일치할 때만
+    참. mismatch(다른 FK)·다중 non-null·전부 NULL 은 모두 거짓 → CHECK 위반. migration
+    과 ORM 이 이 문자열을 공유해 drift 를 막는다.
+    """
+    cols = list(DOMAIN_SIDE_EFFECT_FK_BY_DOMAIN.values())
+    clauses = []
+    for domain, own in DOMAIN_SIDE_EFFECT_FK_BY_DOMAIN.items():
+        parts = ["source_domain = '%s'" % domain, "%s IS NOT NULL" % own]
+        parts += ["%s IS NULL" % c for c in cols if c != own]
+        clauses.append("(" + " AND ".join(parts) + ")")
+    return " OR ".join(clauses)
+
+
+DOMAIN_SIDE_EFFECT_ONE_OF_CHECK_SQL = _domain_side_effect_one_of_sql()
+
+
+class DomainSideEffectOutbox(Base):
+    """typed-domain side-effect outbox 행(SIDEFX-00).
+
+    business transaction 안에서 INSERT 되어 side effect 를 durable 하게 예약한다. 하류
+    worker 가 ``FOR UPDATE SKIP LOCKED`` + lease(획득/만료 reclaim)로 소비하고 최대 재시도
+    후 DEAD 로 보낸다(worker 는 SIDEFX-WORKER-01 몫). 여기서는 스키마만 정의한다.
+    """
+
+    __tablename__ = 'domain_side_effect_outbox'
+
+    id = Column(Integer, primary_key=True)
+    source_domain = Column(String(40), nullable=False)
+
+    # per-domain source FK — 정확히 하나만 non-null(ck_dseo_source_one_of).
+    order_event_id = Column(
+        Integer, ForeignKey('order_events.id', ondelete='CASCADE'), nullable=True)
+    notification_event_id = Column(
+        Integer, ForeignKey('notification_events.id', ondelete='CASCADE'), nullable=True)
+    # 아래 도메인은 부모 테이블 미존재 → 소유 packet 이 FK 를 additive 로 추가(현재는
+    # plain integer, one-of CHECK 로 domain 일치만 강제; orphan 거부는 FK 추가 후).
+    address_learning_request_id = Column(Integer, nullable=True)
+    # WIZ-01-COMPLETION: drawing_wizard_pending 부모가 생겨 실 FK 로 orphan 거부(one-of matrix 유지).
+    wizard_pending_id = Column(
+        Integer, ForeignKey('drawing_wizard_pending.id', ondelete='CASCADE'), nullable=True)
+    # UPLOAD-02: upload_tickets 부모가 생겨 실 FK 로 orphan 거부(one-of matrix 유지).
+    upload_ticket_id = Column(
+        Integer, ForeignKey('upload_tickets.id', ondelete='CASCADE'), nullable=True)
+    # UPLOAD-INTENT-01: upload_drafts 부모가 생겨 실 FK 로 orphan 거부(one-of matrix 유지).
+    upload_draft_id = Column(
+        Integer, ForeignKey('upload_drafts.id', ondelete='CASCADE'), nullable=True)
+    chat_attachment_id = Column(
+        Integer, ForeignKey('chat_attachments.id', ondelete='CASCADE'), nullable=True)
+    # ORDER-IMPORT-01: order_import_artifacts 부모가 생겨 실 FK 로 orphan 거부(8번째 도메인).
+    order_import_artifact_id = Column(
+        Integer, ForeignKey('order_import_artifacts.id', ondelete='CASCADE'), nullable=True)
+
+    effect_type = Column(String(40), nullable=False)
+    payload = Column(JSONColumn, nullable=False)
+    schema_version = Column(Integer, nullable=False, server_default=text('1'))
+    source_generation = Column(BigInteger, nullable=True)
+    # provider 로 보낼 idempotency key(consumer 측). dedupe_key 는 producer 측 중복 행 차단.
+    provider_idempotency_key = Column(String(200), nullable=True)
+    dedupe_key = Column(String(200), nullable=True)
+
+    status = Column(String(20), nullable=False, server_default='PENDING')
+    attempts = Column(Integer, nullable=False, server_default=text('0'))
+    last_error = Column(Text, nullable=True)
+
+    lease_owner_hash = Column(String(64), nullable=True)
+    lease_token = Column(UUIDColumn, nullable=True)
+    lease_expires_at = Column(DateTime, nullable=True)
+
+    available_at = Column(DateTime, nullable=False, default=now_utc_naive,
+                          server_default=func.now())
+    created_at = Column(DateTime, nullable=False, default=now_utc_naive,
+                        server_default=func.now())
+    completed_at = Column(DateTime, nullable=True)
+    dead_at = Column(DateTime, nullable=True)
+
+    __table_args__ = (
+        CheckConstraint(
+            "source_domain IN ("
+            + ", ".join("'%s'" % d for d in DOMAIN_SIDE_EFFECT_FK_BY_DOMAIN)
+            + ")",
+            name='ck_dseo_source_domain',
+        ),
+        CheckConstraint(
+            "status IN ('PENDING','PROCESSING','DONE','DEAD')",
+            name='ck_dseo_status',
+        ),
+        # exact source-domain/FK one-of matrix (mismatch/다중/전무 거부).
+        CheckConstraint(DOMAIN_SIDE_EFFECT_ONE_OF_CHECK_SQL, name='ck_dseo_source_one_of'),
+        # dedupe: 같은 effect 의 중복 outbox 행 차단(SSOT unique(effect_type,dedupe_key)).
+        # dedupe_key NULL 행은 collapse 하지 않도록 partial.
+        Index('uq_dseo_effect_dedupe', 'effect_type', 'dedupe_key',
+              unique=True, postgresql_where=text('dedupe_key IS NOT NULL')),
+        # queue pickup: PENDING 을 available_at 순으로.
+        Index('ix_dseo_queue', 'status', 'available_at'),
+        # lease reclaim: 만료 lease(PROCESSING) 회수.
+        Index('ix_dseo_lease_expiry', 'lease_expires_at',
+              postgresql_where=text("status = 'PROCESSING'")),
+        # retention: DONE completed_at>30d / DEAD dead_at>180d 조회.
+        Index('ix_dseo_done_retention', 'completed_at',
+              postgresql_where=text("status = 'DONE'")),
+        Index('ix_dseo_dead_retention', 'dead_at',
+              postgresql_where=text("status = 'DEAD'")),
+    )
+
+
+class SideEffectWorkerHeartbeat(Base):
+    """side-effect worker readiness 정본(SIDEFX-00 은 테이블만).
+
+    worker(SIDEFX-WORKER-01)가 loop 종류별로 upsert 한다. readiness gate 는 heartbeat
+    신선도(<30s)와 lag(delivery<60s·expiry scan<360s·retention<90000s)를 이 행에서 읽는다.
+    """
+
+    __tablename__ = 'side_effect_worker_heartbeats'
+
+    worker_kind = Column(String(40), primary_key=True)  # DELIVERY|EXPIRY_SCAN|RETENTION
+    last_heartbeat_at = Column(DateTime, nullable=False, default=now_utc_naive,
+                               server_default=func.now())
+    oldest_lag_seconds = Column(Integer, nullable=True)
+    metadata_json = Column(JSONColumn, nullable=True)
+    updated_at = Column(DateTime, nullable=False, default=now_utc_naive,
+                        server_default=func.now())
+
+
+class AddressLearningRequest(Base):
+    """주소 교정 학습 요청 child 행 (DATA-MEASUREMENT-01).
+
+    운영자가 지오코딩이 틀린 주소를 바로잡으면(original→corrected + 좌표) 그 교정을
+    **감사 가능한 durable child 행**으로 기록한다. 무제한 all-STAFF in-memory 학습(구
+    ``FOMSAddressConverter.add_learning_data``)을 대체하는 정본으로, 세 가지를 강제한다.
+
+    * **audit**: ``requested_by_user_id``·``created_at`` 로 누가/언제 교정했는지 보존한다.
+    * **rate**: 요청 handler 가 사용자별 최근 창(window) row 수를 세어 폭주를 거부한다
+      (:mod:`foms.services.address_learning_requests`).
+    * **outbox 연동**: 이 행 id 를 ``domain_side_effect_outbox.address_learning_request_id``
+      (source_domain=``ADDRESS_LEARNING``)로 참조해 실제 학습 적용을 worker 로 비동기화한다.
+      그 컬럼은 아직 실 FK 가 아니므로(SIDEFX-00 note) 여기서 부모 테이블만 만든다.
+    """
+
+    __tablename__ = 'address_learning_requests'
+
+    id = Column(Integer, primary_key=True)
+    original_address = Column(Text, nullable=False)   # 사용자가 입력한(틀린) 원 주소
+    corrected_address = Column(Text, nullable=False)  # 정답 주소
+    lat = Column(Float, nullable=True)                # 교정 좌표(선택)
+    lng = Column(Float, nullable=True)
+    requested_by_user_id = Column(Integer, ForeignKey('users.id'), nullable=True)  # audit
+    created_at = Column(DateTime, nullable=False, default=now_utc_naive,
+                        server_default=func.now())
+
+    __table_args__ = (
+        # rate-limit 조회(사용자별 최근 창 count)와 audit 스캔 hot path.
+        Index('ix_alr_requester_created', 'requested_by_user_id', 'created_at'),
+    )
+
+
+# --------------------------------------------------------------------------- #
+# UPLOAD-INTENT-01: pre-file upload DRAFT (drawing revision / AS cycle intent)
+# --------------------------------------------------------------------------- #
+#: DRAFT 종류 — drawing revision 전달용 / AS cycle 접수용 업로드 의도.
+UPLOAD_DRAFT_KINDS = ('drawing_revision', 'as_cycle')
+#: DRAFT state machine. DRAFT 는 활성, 나머지는 terminal. EXPIRED 는 lazy 판정 결과이며
+#: scheduler 가 기록하지 않는다(만료는 조회 시 effective_state 로 계산).
+UPLOAD_DRAFT_STATES = ('DRAFT', 'FINALIZED', 'CANCELLED', 'EXPIRED')
+#: DRAFT 유효기간(시간). 만료는 lazy 판정(자동 정리 scheduler 없음).
+UPLOAD_DRAFT_TTL_HOURS = 24
+
+
+class UploadDraft(Base):
+    """파일 업로드 **전에** 발급하는 업로드 intent DRAFT (UPLOAD-INTENT-01, §5.2 line 1082).
+
+    drawing revision / AS cycle 파일을 R2 에 올리기 전부터 안정 ``id`` 를 발급해 업로드
+    의도를 durable 하게 예약한다. 실제 drawing revision / AS cycle row 발급과 상태 전이는
+    하류(STATE-DRAWING-01·STATE-AS-01) 몫이며, 이 packet 은 DRAFT 수명주기만 소유한다.
+
+    계약(§5.2 UPLOAD-INTENT-01):
+
+    * **pre-file id**: 파일 도착 전에 ``id`` 를 발급한다(create).
+    * **idempotent create**: 같은 ``(order_id, kind, idempotency_key)`` 재요청은 기존
+      DRAFT 를 돌려주고 새 행을 만들지 않는다(``uq_upload_draft_idem`` partial unique).
+    * **24h expiry (lazy)**: ``expires_at = created_at + 24h``. 만료는 조회 시
+      :func:`~foms.services.orders.upload_intent.effective_state` 로 판정하고 scheduler 가
+      상태를 기록하지 않는다.
+    * **queue 비노출**: 별도 테이블이라 order 대시보드/큐(orders 기반)에 노출되지 않는다.
+    * **cancel = terminal**: CANCELLED 로 마크(멱등). Order 는 불변.
+    * **finalize only bumps Order**: final command(finalize)만 Order ``mutation_version``
+      을 1회 올린다(REV-00). create/cancel 는 Order version 불변.
+
+    ``upload_draft_id`` FK 로 :class:`DomainSideEffectOutbox` 가 이 행을 참조하며(source_domain=
+    ``UPLOAD_DRAFT``), orphan 은 DB 가 거부한다. DDL 은 migration(``upload_intent_00``)과 SSOT
+    를 공유한다(create_all 테스트 lane 동일 스키마).
+    """
+
+    __tablename__ = 'upload_drafts'
+
+    id = Column(Integer, primary_key=True)
+    order_id = Column(
+        Integer, ForeignKey('orders.id', ondelete='CASCADE'), nullable=False, index=True)
+    kind = Column(String(32), nullable=False)  # drawing_revision | as_cycle
+    created_by_user_id = Column(Integer, ForeignKey('users.id'), nullable=True)  # audit
+    state = Column(String(20), nullable=False, server_default='DRAFT')
+    # FILE-01 direct_upload 로 이 DRAFT 아래 올라온 server-derived object key 목록.
+    object_keys = Column(JSONColumn, nullable=True)
+    # 같은 intent 재요청 dedupe 키(client 발급). NULL 이면 매 create 가 새 DRAFT.
+    idempotency_key = Column(String(80), nullable=True)
+    row_version = Column(Integer, nullable=False, default=1, server_default=text('1'))
+    created_at = Column(DateTime, nullable=False, default=now_utc_naive, server_default=func.now())
+    # created_at + 24h. 만료는 lazy 판정(scheduler 없음).
+    expires_at = Column(DateTime, nullable=False)
+
+    __table_args__ = (
+        CheckConstraint(
+            "kind IN ('drawing_revision','as_cycle')", name='ck_upload_draft_kind'),
+        CheckConstraint(
+            "state IN ('DRAFT','FINALIZED','CANCELLED','EXPIRED')",
+            name='ck_upload_draft_state'),
+        # idempotent create: 같은 (order,kind,key) 는 최대 1행(중복 생성 0). key NULL 제외.
+        Index('uq_upload_draft_idem', 'order_id', 'kind', 'idempotency_key',
+              unique=True, postgresql_where=text('idempotency_key IS NOT NULL')),
+    )
+
+
+#: per-file upload ticket state machine (UPLOAD-02, §5.2 line 1083). ISSUED 는 활성,
+#: 나머지는 terminal. EXPIRED 는 bounded cleanup provider 가 만료 ISSUED 를 claim 하며
+#: 기록한다(UPLOAD-INTENT DRAFT 의 lazy EXPIRED 와 달리 ticket 은 provider 가 실기록).
+UPLOAD_TICKET_STATES = ('ISSUED', 'COMPLETED', 'EXPIRED', 'CANCELLED')
+#: ticket 유효기간(초). 900s(=15분) 안에 complete 하지 않으면 cleanup provider 가 EXPIRED.
+UPLOAD_TICKET_TTL_SECONDS = 900
+
+
+class UploadTicket(Base):
+    """per-file 업로드 ticket (UPLOAD-02, §5.2 line 1083).
+
+    한 파일의 direct-upload 수명을 durable 하게 예약하는 per-file 티켓이다. issue 는
+    server-derived object key(FILE-01)·900s expiry 와 함께 ISSUED 행을 발급하고, complete
+    는 파일 확정 시 auth/resource/item-active 를 **재검사**하며 tamper(key 불일치)·expiry·
+    type·size 를 검증한 뒤 :class:`OrderAttachment` 로 소비한다(REV-00 Order version 1회
+    bump). 만료·item 은퇴로 orphan 이 된 티켓은 :mod:`foms.services.upload_cleanup` bounded
+    scan provider 가 EXPIRED 로 claim 하고 ``STORAGE_DELETE`` outbox 를 만든다.
+
+    계약(§5.2 UPLOAD-02):
+
+    * **per-file / server-derived key**: ``object_key`` 는 서버가 유도하며(클라이언트 입력
+      아님) ``uq_upload_ticket_object_key`` 로 유일하다 — complete 시 exact-match tamper 검사.
+    * **900s expiry**: ``expires_at = created_at + 900s``. complete 는 만료 티켓을 거부하고
+      cleanup provider 가 만료 ISSUED 를 EXPIRED 로 claim 한다.
+    * **item active 재검사**: ``item_id`` 가 있으면 issue/complete 가 identity 활성을
+      재확인한다. complete 는 티켓·identity 를 ``FOR UPDATE`` 로 잠가 동시 retire 와
+      직렬화한다(item-retire race).
+    * **retry idempotent**: 이미 COMPLETED 인 티켓 재확정은 no-op(중복 첨부·version bump 0).
+
+    ``upload_ticket_id`` FK 로 :class:`DomainSideEffectOutbox` 가 이 행을 참조하며(source_domain=
+    ``UPLOAD_TICKET``), orphan 은 DB 가 거부한다. DDL 은 migration(``upload_02_00``)과 SSOT 를
+    공유한다(create_all 테스트 lane 동일 스키마).
+    """
+
+    __tablename__ = 'upload_tickets'
+
+    id = Column(Integer, primary_key=True)
+    order_id = Column(
+        Integer, ForeignKey('orders.id', ondelete='CASCADE'), nullable=False, index=True)
+    # 첨부 category(measurement/drawing/construction/as) — auth 정책·확장자 정책의 축.
+    category = Column(String(50), nullable=False, default='measurement')
+    # 아이템 결합 SSOT = 안정 UUID(order_item_identities.id). None 이면 order 공통 첨부.
+    item_id = Column(
+        UUIDColumn, ForeignKey('order_item_identities.id', ondelete='SET NULL'), nullable=True)
+    # 발급 시점 아이템 슬롯 좌표(provenance). 런타임 결합은 item_id, 이건 기록/재조회용.
+    item_index = Column(Integer, nullable=True)
+    # server-derived R2 object key(클라이언트 입력 아님). complete 의 exact-match tamper 기준.
+    object_key = Column(String(500), nullable=False)
+    filename = Column(String(255), nullable=False)
+    file_type = Column(String(50), nullable=False)  # image / video / file
+    file_size = Column(Integer, nullable=False, default=0)  # issue 시점 선언 크기(<=max)
+    state = Column(String(20), nullable=False, server_default='ISSUED')
+    issued_by = Column(Integer, ForeignKey('users.id', ondelete='SET NULL'), nullable=True)
+    row_version = Column(Integer, nullable=False, default=1, server_default=text('1'))
+    created_at = Column(DateTime, nullable=False, default=now_utc_naive, server_default=func.now())
+    # created_at + 900s. complete 만료 거부·provider 만료 claim 의 기준.
+    expires_at = Column(DateTime, nullable=False)
+    completed_at = Column(DateTime, nullable=True)
+
+    __table_args__ = (
+        CheckConstraint(
+            "state IN ('ISSUED','COMPLETED','EXPIRED','CANCELLED')",
+            name='ck_upload_ticket_state'),
+        # server-derived key 는 티켓당 유일 → complete tamper 검사·중복 발급 차단.
+        Index('uq_upload_ticket_object_key', 'object_key', unique=True),
+        # bounded cleanup provider 의 만료 claim hot path(만료 ISSUED 를 state,expires_at 순).
+        Index('ix_upload_ticket_expiry', 'state', 'expires_at'),
+        # item-retire cleanup: 은퇴 identity 의 ISSUED 티켓 claim.
+        Index('ix_upload_ticket_item', 'item_id'),
+    )
+
+
+# --------------------------------------------------------------------------- #
+# WIZ-01-COMPLETION: drawing wizard transfer-pending child (§ SSOT line 530)
+# --------------------------------------------------------------------------- #
+#: drawing wizard 전달 대기(sheet PNG export) pending 의 state machine(master plan line 530).
+#: READY = export 직후 전달 대기, CLAIMED = 전달이 소비(lock)한 상태, DELETE_PENDING =
+#: WIZ-DELETE-01 이 삭제 요청(STORAGE_DELETE outbox enqueue 후), DELETED = worker 가 object
+#: 삭제 확인, QUARANTINED = invalid pending 을 삭제하지 않고 보존(§2.6). DELETED 는 terminal.
+DRAWING_WIZARD_PENDING_STATES = (
+    'READY', 'CLAIMED', 'DELETE_PENDING', 'DELETED', 'QUARANTINED')
+#: pending orphan 정리 지평(초). 이 기간 안에 전달/삭제되지 않은 export pending 은 bounded
+#: cleanup provider 의 만료 claim 대상이다(active 작업 강제 만료가 아니라 orphan 청소용).
+DRAWING_WIZARD_PENDING_TTL_SECONDS = 7 * 24 * 3600
+
+
+class DrawingWizardPending(Base):
+    """drawing wizard 전달 대기 pending child row (WIZ-01-COMPLETION, § SSOT line 530).
+
+    도면 마법사가 export 한 sheet PNG(``orders/<id>/drawing_wizard/exports/`` 접두)를 전달
+    대기 상태로 durable 하게 기록하는 정본 child row 다. 기존에는 ``structured_data
+    ['drawing_wizard']['pending']`` JSON 에만 있었으나, WIZ-DELETE-01 의 "child row
+    DELETE_PENDING + STORAGE_DELETE outbox·worker child-only·Order JSON 0" 불변식이 실
+    child 테이블을 요구하므로 이 정본을 도입한다.
+
+    계약(§2.6 / line 530):
+
+    * **server-derived key**: ``object_key`` 는 서버가 유도한 exports prefix 이며
+      ``uq_drawing_wizard_pending_object_key`` 로 유일하다 — STORAGE_DELETE 의 대상 기준.
+    * **state machine**: READY→CLAIMED(전달)·READY/CLAIMED→DELETE_PENDING(삭제 요청)→
+      DELETED(worker 확인), invalid 는 QUARANTINED 로 보존(삭제 금지). 전이는
+      :mod:`foms.services.orders.drawing_wizard_pending` 서비스가 강제하고 ``row_version``
+      을 optimistic lock 으로 bump 한다.
+    * **collection ETag**: 서비스가 order 별 pending 집합의 (id, row_version, state) 로 ETag
+      를 유도해 전달/삭제의 collection precondition 으로 쓴다.
+
+    ``wizard_pending_id`` FK 로 :class:`DomainSideEffectOutbox` 가 이 행을 참조하며
+    (source_domain=``WIZARD_PENDING``), orphan 은 DB 가 거부한다. DDL 은 migration
+    (``wiz_pending_00``)과 SSOT 를 공유한다(create_all 테스트 lane 동일 스키마).
+    """
+
+    __tablename__ = 'drawing_wizard_pending'
+
+    id = Column(Integer, primary_key=True)
+    order_id = Column(
+        Integer, ForeignKey('orders.id', ondelete='CASCADE'), nullable=False, index=True)
+    # export/전달 대기 pending 을 소유한 도면 담당자(audit; 사용자 삭제 시 SET NULL 로 보존).
+    owner_user_id = Column(
+        Integer, ForeignKey('users.id', ondelete='SET NULL'), nullable=True)
+    # server-derived R2 object key(클라이언트 입력 아님). STORAGE_DELETE 의 exact 대상 기준.
+    object_key = Column(String(500), nullable=False)
+    state = Column(String(20), nullable=False, server_default='READY')
+    row_version = Column(Integer, nullable=False, default=1, server_default=text('1'))
+    created_at = Column(DateTime, nullable=False, default=now_utc_naive, server_default=func.now())
+    # created_at + TTL. bounded cleanup provider 의 만료 claim 기준(active 강제 만료 아님).
+    expires_at = Column(DateTime, nullable=False)
+
+    __table_args__ = (
+        CheckConstraint(
+            "state IN ('READY','CLAIMED','DELETE_PENDING','DELETED','QUARANTINED')",
+            name='ck_drawing_wizard_pending_state'),
+        # server-derived key 는 pending 당 유일 → 중복 export 차단·STORAGE_DELETE tamper 기준.
+        Index('uq_drawing_wizard_pending_object_key', 'object_key', unique=True),
+        # bounded cleanup provider 의 만료 claim hot path(만료 활성 pending 을 state,expires_at 순).
+        Index('ix_drawing_wizard_pending_expiry', 'state', 'expires_at'),
+    )
+
+
+# --------------------------------------------------------------------------- #
+# ORDER-IMPORT-01: admin Excel import receipt/artifact (§ SSOT line ~1065)
+# --------------------------------------------------------------------------- #
+#: import artifact state machine. COMPLETED = 주문 batch 생성 성공, FAILED = 전 행 검증
+#: 실패(에러 리포트 보관), EXPIRED = 24h 만료를 SIDEFX worker 300s expiry scan provider 가
+#: claim 하며 기록(별도 cleanup scheduler 없음). COMPLETED/FAILED 는 24h 만료 대상.
+ORDER_IMPORT_ARTIFACT_STATES = ('COMPLETED', 'FAILED', 'EXPIRED')
+#: import artifact 보존기간(시간). created_at + 24h 이후 scan provider 가 STORAGE_DELETE.
+ORDER_IMPORT_ARTIFACT_TTL_HOURS = 24
+
+
+class OrderImportArtifact(Base):
+    """admin Excel import 의 durable receipt/artifact (ORDER-IMPORT-01).
+
+    한 번의 admin Excel import 를 durable 하게 기록하는 정본 receipt 다. 원본 파일과(검증
+    실패 시) 에러 리포트를 **server-derived object key**(클라이언트 경로 아님·public/local
+    temp path 아님)로 private 하게 24h 보관하고, ``file_hash`` 로 같은 파일 재import 를
+    멱등 처리한다(중복 주문 0). 생성된 Order id 목록을 ``resource_order_ids`` 에 담아
+    resources[] 로 돌려준다.
+
+    계약(§ORDER-IMPORT-01):
+
+    * **file-hash receipt**: ``file_hash`` (원본 sha256)로 같은 파일 재import 를 멱등
+      처리한다. 만료 전(state<>EXPIRED) 같은 hash 는 ``uq_order_import_artifact_hash``
+      partial unique 로 최대 1행이며, 서비스가 기존 receipt 를 그대로 돌려준다(재생성 0).
+    * **private source/error artifact 24h**: ``source_object_key``·``error_object_key`` 는
+      서버가 유도한 private key(``order_imports/...``)이며 ``expires_at = created_at + 24h``.
+    * **all-or-none**: 검증 통과 행만 :func:`~foms.services.orders.order_create.create_order`
+      경유 batch 생성하고 한 tx 로 commit 한다(raw Order constructor·row commit 금지).
+
+    ``order_import_artifact_id`` FK 로 :class:`DomainSideEffectOutbox` 가 이 행을 참조하며
+    (source_domain=``ORDER_IMPORT_ARTIFACT``), orphan 은 DB 가 거부한다. DDL 은 migration
+    (``order_import_00``)과 SSOT 를 공유한다(create_all 테스트 lane 동일 스키마).
+    """
+
+    __tablename__ = 'order_import_artifacts'
+
+    id = Column(Integer, primary_key=True)
+    # import 를 실행한 admin/manager(audit; 사용자 삭제 시 SET NULL 로 artifact 보존).
+    uploaded_by = Column(Integer, ForeignKey('users.id', ondelete='SET NULL'), nullable=True)
+    # 원본 파일 sha256 hex — 재import 멱등(receipt)의 정본 키.
+    file_hash = Column(String(64), nullable=False)
+    # 원본 표시용 파일명(receipt display; 경로 아님).
+    filename = Column(String(255), nullable=True)
+    row_count = Column(Integer, nullable=False, server_default=text('0'))
+    state = Column(String(20), nullable=False, server_default='COMPLETED')
+    # server-derived private object key(클라이언트 경로 아님·static/tmp 아님). 만료 정리 대상.
+    source_object_key = Column(String(500), nullable=True)
+    # 검증 실패 시 에러 리포트 key(FAILED 만 채움). error download 가 이 key 를 스트림.
+    error_object_key = Column(String(500), nullable=True)
+    # 생성된 Order id 목록(resources[]). all-or-none 성공 시에만 채움.
+    resource_order_ids = Column(JSONColumn, nullable=True)
+    created_at = Column(DateTime, nullable=False, default=now_utc_naive, server_default=func.now())
+    # created_at + 24h. scan provider 만료 claim 의 기준.
+    expires_at = Column(DateTime, nullable=False)
+
+    __table_args__ = (
+        CheckConstraint(
+            "state IN ('COMPLETED','FAILED','EXPIRED')",
+            name='ck_order_import_artifact_state'),
+        # file-hash receipt: 만료 전 같은 hash 는 최대 1행(재import 멱등의 DB backstop).
+        Index('uq_order_import_artifact_hash', 'file_hash', unique=True,
+              postgresql_where=text("state <> 'EXPIRED'")),
+        # bounded cleanup provider 의 만료 claim hot path(COMPLETED/FAILED 를 state,expires_at 순).
+        Index('ix_order_import_artifact_expiry', 'state', 'expires_at'),
+    )
+
+
+# --------------------------------------------------------------------------- #
+# SESSION-SIGNING-STATE-00: signing-key state machine + WAM entry nonces
+# (§2.1 line 225-227). Additive expand only — the existing runtime reads NEITHER
+# table nor the new env, so cookie/token semantics are unchanged. The runtime
+# provider/serializer switch and activation transitions are SESSION-SIGNING-
+# SECRET-01; this packet ships the schema, the singleton EMPTY seed, and the pure
+# key-format/inspect/prepare tooling only.
+# --------------------------------------------------------------------------- #
+SIGNING_STATE_MODES = (
+    'EMPTY', 'READY', 'ACTIVE', 'CURRENT_ONLY', 'ROTATION_READY', 'ROTATING',
+)
+SIGNING_MAINTENANCE_MODES = ('OFF', 'AUTH_ONLY')
+SIGNING_LEGACY_CUTOVER_MODES = ('BRIDGE', 'FORCE_REAUTH')
+
+
+class SecuritySigningState(Base):
+    """signing-key state machine 정본(singleton id=1, §2.1 line 227).
+
+    multi-replica 가 요청마다 이 한 행을 읽어 어떤 key 로 sign/verify 할지 판정하는
+    정본이다(process cache 금지). SESSION-SIGNING-STATE-00 은 ``mode=EMPTY`` 로 seed 만
+    하고 어떤 runtime 도 아직 이 행을 읽지 않는다. prepare CLI 는 deadline-null 전이만
+    수행하고(EMPTY→READY 등), active=pending·deadline 기록·READY→ACTIVE 같은 activation
+    은 SESSION-SIGNING-SECRET-01 몫이다. key ID 컬럼은 fingerprint 만 담으며 raw/subkey 는
+    절대 저장하지 않는다.
+    """
+
+    __tablename__ = 'security_signing_state'
+
+    id = Column(Integer, primary_key=True)  # singleton — 항상 1 (ck_signing_state_singleton).
+    mode = Column(String(20), nullable=False, server_default='EMPTY')
+    maintenance_mode = Column(String(20), nullable=False, server_default='OFF')
+    maintenance_started_at = Column(DateTime, nullable=True)
+    generation = Column(Integer, nullable=False, server_default=text('0'))
+    session_epoch = Column(Integer, nullable=False, server_default=text('0'))
+    wam_not_before = Column(DateTime, nullable=True)
+    # key-ID fingerprints only (never raw/subkey material).
+    active_key_id = Column(String(64), nullable=True)
+    previous_key_id = Column(String(64), nullable=True)
+    pending_key_id = Column(String(64), nullable=True)
+    previous_not_after = Column(DateTime, nullable=True)
+    legacy_cutover_mode = Column(String(20), nullable=True)  # BRIDGE|FORCE_REAUTH (null until prepared)
+    legacy_flask_not_after = Column(DateTime, nullable=True)
+    legacy_wam_not_after = Column(DateTime, nullable=True)
+    grace_seconds = Column(Integer, nullable=False, server_default=text('0'))
+    row_version = Column(Integer, nullable=False, server_default=text('1'))
+    # prepare-time evidence (deadline-null prepare records these; activation reads them).
+    prepared_consumer_sha = Column(String(64), nullable=True)
+    prepared_key_artifact_sha256 = Column(String(64), nullable=True)
+    prepared_rollout_artifact_sha256 = Column(String(64), nullable=True)
+    rescue_deployment_sha = Column(String(64), nullable=True)
+    prepared_at = Column(DateTime, nullable=True)
+    activated_at = Column(DateTime, nullable=True)
+    updated_at = Column(DateTime, nullable=False, default=now_utc_naive, server_default=func.now())
+    updated_by_admin_user_id = Column(Integer, ForeignKey('users.id'), nullable=True)
+
+    __table_args__ = (
+        # 단일 행 강제 — id 는 1 만 허용(singleton 정본).
+        CheckConstraint('id = 1', name='ck_signing_state_singleton'),
+        CheckConstraint(
+            "mode IN ('EMPTY','READY','ACTIVE','CURRENT_ONLY','ROTATION_READY','ROTATING')",
+            name='ck_signing_state_mode',
+        ),
+        CheckConstraint(
+            "maintenance_mode IN ('OFF','AUTH_ONLY')",
+            name='ck_signing_state_maintenance_mode',
+        ),
+        CheckConstraint(
+            "legacy_cutover_mode IS NULL OR legacy_cutover_mode IN ('BRIDGE','FORCE_REAUTH')",
+            name='ck_signing_state_legacy_cutover_mode',
+        ),
+    )
+
+
+class WamEntryNonce(Base):
+    """WAM entry-token one-time nonce 정본(§2.1 line 227/239).
+
+    ACTIVE runtime 에서 신규 entry issue 는 nonce 행을 insert 하고 exchange 는
+    ``UPDATE ... WHERE consumed_at IS NULL AND expires_at > clock_timestamp() RETURNING``
+    한 건만 성공시켜 replay 를 막는다(그 issue/exchange 는 SESSION-SIGNING-SECRET-01 몫).
+    SESSION-SIGNING-STATE-00 은 테이블만 만든다 — nonce_hash 는 raw nonce 의 해시이며 raw
+    는 저장하지 않는다.
+    """
+
+    __tablename__ = 'wam_entry_nonces'
+
+    nonce_hash = Column(String(64), primary_key=True)
+    subject_hash = Column(String(64), nullable=False)
+    expires_at = Column(DateTime, nullable=False)
+    consumed_at = Column(DateTime, nullable=True)
+    created_at = Column(DateTime, nullable=False, default=now_utc_naive, server_default=func.now())
+    # ponytail: exchange 는 nonce_hash(PK) 로 조회하므로 추가 인덱스 불필요. 만료 sweep
+    #           (expires_at 스캔)은 retention worker(SECRET-01/downstream)가 필요 시 인덱스 추가.
+
+
+# singleton EMPTY seed — id 만 INSERT 하고 mode/maintenance_mode/generation 등은
+# server_default(EMPTY/OFF/0)로 채운다. create_all(테스트/부트스트랩) 경로용이며 Alembic
+# 은 migration 에서 동일 seed 를 별도 수행한다(fence/principal trigger 와 같은 이중 SSOT).
+SECURITY_SIGNING_STATE_SEED_SQL = (
+    "INSERT INTO security_signing_state (id) VALUES (1)"
+)
+
+event.listen(
+    SecuritySigningState.__table__,
+    'after_create',
+    DDL(SECURITY_SIGNING_STATE_SEED_SQL),
+)
+
+
+class AuthRateKeyState(Base):
+    """auth anti-abuse rate-limit key 상태기계 정본(singleton id=1, AUTH-ACCOUNT-01).
+
+    ``SecuritySigningState`` 와 동형인 prepare/activate 상태기계로, 로그인/telemetry
+    등 anti-abuse rate limiter 가 bucket 을 서명할 때 쓰는 **rate key** 의 bootstrap 과
+    rotation 을 OPS-APPROVAL 게이트 하에서 관리한다. signing state 가 key ID fingerprint
+    만 담고 raw 를 env 에 두는 것과 달리, 이 rate key 는 **AES-256-GCM 으로 암호화된
+    envelope(``*_key_ciphertext``)** 로 DB 에 at-rest 저장한다(plaintext 키 저장 금지).
+    각 replica 는 env master key 로 복호화해 runtime 에서 읽는다.
+
+    상태 전이:
+
+    * ``EMPTY → READY`` (BOOTSTRAP_PREPARE): 최초 pending key 준비(암호화 envelope +
+      fingerprint 기록). ``version`` 증가·``generation`` 을 1 로.
+    * ``READY → ACTIVE`` (BOOTSTRAP_ACTIVATE): pending 을 active 로 승격(첫 키 활성).
+    * ``ACTIVE → ROTATION_READY`` (ROTATION_PREPARE): 새 pending key(다음 generation).
+    * ``ROTATION_READY → ROTATING`` (ROTATION_ACTIVATE): previous=구 active, active=새 키,
+      ``previous_not_after`` grace 동안 **dual accept**(구·신 키 모두 유효).
+    * ``ROTATING → ACTIVE`` (ROTATION_FINALIZE): grace 경과 후 previous(구 키) 폐기.
+
+    ``version`` 은 매 전이마다 증가하며 OPS-APPROVAL scope 의 ``expected_version`` +
+    낙관적 concurrency guard 를 겸한다. ``generation`` 은 key 세대(각 prepare 에서 증가)로
+    scope 의 ``expected_generation`` 이다. key_id 컬럼은 material 의 sha256 fingerprint 만
+    담으며 raw 는 절대 저장하지 않는다.
+    """
+
+    __tablename__ = 'auth_rate_key_state'
+
+    id = Column(Integer, primary_key=True)  # singleton — 항상 1 (ck_auth_rate_key_singleton).
+    mode = Column(String(20), nullable=False, server_default='EMPTY')
+    version = Column(Integer, nullable=False, server_default=text('1'))
+    generation = Column(Integer, nullable=False, server_default=text('0'))
+    # key-material fingerprints (sha256 hex) only — never raw key bytes.
+    active_key_id = Column(String(64), nullable=True)
+    previous_key_id = Column(String(64), nullable=True)
+    pending_key_id = Column(String(64), nullable=True)
+    # AES-256-GCM encrypted envelopes (JSON text) — never plaintext key material.
+    active_key_ciphertext = Column(Text, nullable=True)
+    previous_key_ciphertext = Column(Text, nullable=True)
+    pending_key_ciphertext = Column(Text, nullable=True)
+    previous_not_after = Column(DateTime, nullable=True)  # dual-accept grace deadline (ROTATING).
+    # prepare-time evidence (deadline-null prepare records these; activation reads them).
+    prepared_key_artifact_sha256 = Column(String(64), nullable=True)
+    prepared_rollout_artifact_sha256 = Column(String(64), nullable=True)
+    prepared_at = Column(DateTime, nullable=True)
+    activated_at = Column(DateTime, nullable=True)
+    updated_at = Column(DateTime, nullable=False, default=now_utc_naive, server_default=func.now())
+    updated_by_admin_user_id = Column(Integer, ForeignKey('users.id'), nullable=True)
+
+    __table_args__ = (
+        # 단일 행 강제 — id 는 1 만 허용(singleton 정본).
+        CheckConstraint('id = 1', name='ck_auth_rate_key_singleton'),
+        CheckConstraint(
+            "mode IN ('EMPTY','READY','ACTIVE','ROTATION_READY','ROTATING')",
+            name='ck_auth_rate_key_mode',
+        ),
+    )
+
+
+# singleton EMPTY seed — id 만 INSERT 하고 mode/version/generation 은 server_default
+# (EMPTY/1/0)로 채운다. create_all(테스트/부트스트랩) 경로용이며 Alembic 은 migration
+# 에서 동일 seed 를 별도 수행한다(SecuritySigningState 와 같은 이중 SSOT 패턴).
+AUTH_RATE_KEY_STATE_SEED_SQL = (
+    "INSERT INTO auth_rate_key_state (id) VALUES (1)"
+)
+
+event.listen(
+    AuthRateKeyState.__table__,
+    'after_create',
+    DDL(AUTH_RATE_KEY_STATE_SEED_SQL),
+)
+
+
+# ============================================================================
+# CHANNEL-INBOUND-ORDER-01 — 채널 수신 주문 recovery key state + 전역 create flag
+#   + dedicated worker heartbeat (§2.1 line 218, §channel line 1066)
+# ============================================================================
+class ChannelInboundKeyState(Base):
+    """채널 수신 파이프라인 encryption key 상태기계 정본(singleton id=1).
+
+    :class:`AuthRateKeyState` 와 **동형** prepare/activate 상태기계다. 채널 수신
+    데이터(receipt 봉인 secret 등)를 암호화하는 channel key 의 bootstrap 과 rotation 을
+    OPS-APPROVAL 게이트 하에 관리한다. key material 은 AES-256-GCM envelope
+    (``*_key_ciphertext``)로 at-rest 저장하며 **plaintext 키를 절대 저장하지 않는다**.
+    각 replica 는 env master key(``FOMS_CHANNEL_INBOUND_MASTER_KEY_B64URL``)로 복호화한다.
+
+    상태 전이(AUTH-ACCOUNT-01 미러):
+
+    * ``EMPTY → READY`` (KEY_ROTATION_PREPARE 최초): 첫 pending key stage, generation→1.
+    * ``READY → ACTIVE`` (KEY_ROTATION_ACTIVATE 최초): pending→active(첫 키 활성).
+    * ``ACTIVE → ROTATION_READY`` (KEY_ROTATION_PREPARE): 새 pending key, generation++.
+    * ``ROTATION_READY → ROTATING`` (KEY_ROTATION_ACTIVATE): previous=구 active, active=새 키,
+      ``previous_not_after`` grace 동안 dual accept.
+    * ``ROTATING → ACTIVE`` (KEY_ROTATION_FINALIZE): grace 경과 **및 old-reference 0** 이어야
+      previous(구 키) 폐기(참조가 남은 키 삭제 금지 — rewrap 선행 강제).
+    """
+
+    __tablename__ = 'channel_inbound_key_state'
+
+    id = Column(Integer, primary_key=True)  # singleton — 항상 1.
+    mode = Column(String(20), nullable=False, server_default='EMPTY')
+    version = Column(Integer, nullable=False, server_default=text('1'))
+    generation = Column(Integer, nullable=False, server_default=text('0'))
+    # key-material fingerprints (sha256 hex) only — never raw key bytes.
+    active_key_id = Column(String(64), nullable=True)
+    previous_key_id = Column(String(64), nullable=True)
+    pending_key_id = Column(String(64), nullable=True)
+    # AES-256-GCM encrypted envelopes (JSON text) — never plaintext key material.
+    active_key_ciphertext = Column(Text, nullable=True)
+    previous_key_ciphertext = Column(Text, nullable=True)
+    pending_key_ciphertext = Column(Text, nullable=True)
+    previous_not_after = Column(DateTime, nullable=True)  # dual-accept grace deadline.
+    prepared_key_artifact_sha256 = Column(String(64), nullable=True)
+    prepared_rollout_artifact_sha256 = Column(String(64), nullable=True)
+    prepared_at = Column(DateTime, nullable=True)
+    activated_at = Column(DateTime, nullable=True)
+    updated_at = Column(DateTime, nullable=False, default=now_utc_naive, server_default=func.now())
+    updated_by_admin_user_id = Column(Integer, ForeignKey('users.id'), nullable=True)
+
+    __table_args__ = (
+        CheckConstraint('id = 1', name='ck_channel_inbound_key_singleton'),
+        CheckConstraint(
+            "mode IN ('EMPTY','READY','ACTIVE','ROTATION_READY','ROTATING')",
+            name='ck_channel_inbound_key_mode',
+        ),
+    )
+
+
+CHANNEL_INBOUND_KEY_STATE_SEED_SQL = (
+    "INSERT INTO channel_inbound_key_state (id) VALUES (1)"
+)
+
+event.listen(
+    ChannelInboundKeyState.__table__,
+    'after_create',
+    DDL(CHANNEL_INBOUND_KEY_STATE_SEED_SQL),
+)
+
+
+class ChannelCreateFlag(Base):
+    """전역 채널 주문 생성 on/off 플래그 정본(singleton id=1).
+
+    ``CHANNEL_CREATE_ENABLE`` / ``CHANNEL_CREATE_DISABLE`` OPS operation 이 이 한 행의
+    ``state`` 를 뒤집는다. **기본은 DISABLED**(명시 승인 전 자동 생성 0). worker 는 매
+    배치마다 이 행을 읽어 DISABLED 면 새 주문을 만들지 않는다(**global flag 우회 worker 0**).
+    disable(cutoff) 시 ACCEPTED receipt 는 조용히 버려지지 않고 PAUSED_ACCEPTED 로 보존되며
+    (job PAUSED), 재enable 시 되살아난다(유실 0).
+    """
+
+    __tablename__ = 'channel_create_flag'
+
+    id = Column(Integer, primary_key=True)  # singleton — 항상 1.
+    state = Column(String(20), nullable=False, server_default='DISABLED')
+    version = Column(Integer, nullable=False, server_default=text('1'))
+    updated_at = Column(DateTime, nullable=False, default=now_utc_naive, server_default=func.now())
+    updated_by_admin_user_id = Column(Integer, ForeignKey('users.id'), nullable=True)
+
+    __table_args__ = (
+        CheckConstraint('id = 1', name='ck_channel_create_flag_singleton'),
+        CheckConstraint("state IN ('ENABLED','DISABLED')", name='ck_channel_create_flag_state'),
+    )
+
+
+CHANNEL_CREATE_FLAG_SEED_SQL = (
+    "INSERT INTO channel_create_flag (id) VALUES (1)"
+)
+
+event.listen(
+    ChannelCreateFlag.__table__,
+    'after_create',
+    DDL(CHANNEL_CREATE_FLAG_SEED_SQL),
+)
+
+
+class ChannelInboundWorkerHeartbeat(Base):
+    """dedicated 채널 수신 worker heartbeat/lag 정본(SIDEFX-WORKER-01 미러).
+
+    PK ``worker_kind`` upsert(ON CONFLICT DO UPDATE). readiness gate 는 heartbeat 신선도와
+    oldest pending lag·RECOVERY_REQUIRED count 로 fail-closed 판정한다.
+    """
+
+    __tablename__ = 'channel_inbound_worker_heartbeats'
+
+    worker_kind = Column(String(40), primary_key=True)
+    last_heartbeat_at = Column(DateTime, nullable=False)
+    oldest_lag_seconds = Column(Integer, nullable=True)
+    metadata_json = Column(JSONColumn, nullable=True)
+    updated_at = Column(DateTime, nullable=False, default=now_utc_naive, server_default=func.now())
+
+
+# --------------------------------------------------------------------------- #
+# CREW-00: 설치 작업자 마스터 + 주문 배정 registry (§5.2 CREW-00)
+# --------------------------------------------------------------------------- #
+INSTALLATION_ASSIGNMENT_STATUSES = ('ACTIVE', 'RELEASED')
+
+
+class InstallationWorker(Base):
+    """외부 설치 작업자 마스터 (CREW-00, §5.2).
+
+    출고/시공 화면에서 free-name 문자열로 흩어져 있던 설치 작업자를 **정본 마스터
+    행**으로 옮긴다. 배정(:class:`OrderInstallationAssignment`)은 항상 이 마스터 id 를
+    가리키며, free-name 을 직접 배정하지 않는다(free-name master write 금지 — CREW-00
+    경계). crew row 는 순수 운영 마스터이며 **어떤 authorization 판정에도 쓰지 않는다**.
+
+    lifecycle:
+
+    * ``external_worker_id`` = 외부(업체 발급 등) 작업자 식별자. **활성 상태에서만**
+      유일하다(``uq_installation_worker_active_external_id`` partial unique) — 비활성화
+      후 같은 external ID 로 재등록(신규 행)할 수 있다.
+    * ``is_active`` = 활성 여부. 활성 배정(``OrderInstallationAssignment.status='ACTIVE'``)
+      이 남아 있는 worker 는 비활성화할 수 없다(in-use → 409, service 레벨 강제).
+    * ``user_id`` = linked 내부 계정(선택). 지정하면 실존·활성 User 임을 write 시점에
+      검증한다(존재/활성 아니면 거부). authorization 근거가 아니라 표시·연계용이다.
+
+    DDL 은 migration(``crew_00``) 과 SSOT 를 공유한다(create_all 테스트 lane 동일 스키마).
+    """
+
+    __tablename__ = 'installation_workers'
+
+    id = Column(Integer, primary_key=True)
+    external_worker_id = Column(String(64), nullable=False)
+    display_name = Column(String(120), nullable=False)
+    phone = Column(String(40), nullable=True)
+    is_active = Column(Boolean, nullable=False, default=True, server_default='true')
+    user_id = Column(Integer, ForeignKey('users.id'), nullable=True)
+    created_at = Column(DateTime, nullable=False, default=now_utc_naive, server_default=func.now())
+    updated_at = Column(DateTime, nullable=False, default=now_utc_naive, server_default=func.now())
+    deactivated_at = Column(DateTime, nullable=True)
+
+    __table_args__ = (
+        # 활성 external_worker_id 는 유일 — 비활성화 뒤 같은 ID 재등록은 partial 이라 허용.
+        Index(
+            'uq_installation_worker_active_external_id', 'external_worker_id',
+            unique=True, postgresql_where=text('is_active'),
+        ),
+        # picker display projection(활성 worker 정렬 목록) 조회.
+        Index('ix_installation_worker_active', 'is_active', 'display_name'),
+    )
+
+
+class OrderInstallationAssignment(Base):
+    """주문 ↔ 설치 작업자 배정 history (CREW-00, §5.2).
+
+    한 주문에 활성 설치 작업자를 **0..20명** 배정한다. release 는 hard delete 하지 않고
+    ``status='RELEASED'`` + ``released_at/released_by_user_id/release_reason`` 로 **이력을
+    보존**한다(released 뒤 같은 worker 재배정 허용). 상한(20) enforcement 와 동시성 직렬화
+    (주문 행 ``FOR UPDATE``)는 registry service 몫이며, 아래 partial unique 는 같은 worker
+    중복 active 배정을 DB 레벨에서 막는 backstop 이다.
+
+    * ``uq_order_installation_active`` = ``(order_id,worker_id) WHERE status='ACTIVE'`` —
+      같은 주문에 같은 worker 를 중복 active 배정 금지(released 뒤 재배정은 허용).
+
+    이 배정 row 는 **authorization 에 쓰지 않는다**(CREW-00 경계). DDL 은 migration
+    (``crew_00``) 과 SSOT 를 공유한다(create_all 테스트 lane 동일 스키마).
+    """
+
+    __tablename__ = 'order_installation_assignments'
+
+    id = Column(Integer, primary_key=True)
+    order_id = Column(
+        Integer, ForeignKey('orders.id', ondelete='CASCADE'), nullable=False,
+    )
+    worker_id = Column(
+        Integer, ForeignKey('installation_workers.id'), nullable=False,
+    )
+    status = Column(String(20), nullable=False, default='ACTIVE', server_default='ACTIVE')
+    assigned_at = Column(DateTime, nullable=False, default=now_utc_naive)
+    assigned_by_user_id = Column(Integer, ForeignKey('users.id'), nullable=True)
+    released_at = Column(DateTime, nullable=True)
+    released_by_user_id = Column(Integer, ForeignKey('users.id'), nullable=True)
+    release_reason = Column(Text, nullable=True)
+
+    __table_args__ = (
+        CheckConstraint(
+            "status IN ('ACTIVE','RELEASED')",
+            name='ck_order_installation_status',
+        ),
+        # 같은 worker 를 같은 주문에 중복 active 배정 금지(released 뒤 재배정은 허용).
+        Index(
+            'uq_order_installation_active', 'order_id', 'worker_id',
+            unique=True, postgresql_where=text("status = 'ACTIVE'"),
+        ),
+        # 주문별 active 배정 조회(0..20 카운트·picker) 인덱스.
+        Index(
+            'ix_order_installation_active_lookup', 'order_id',
+            postgresql_where=text("status = 'ACTIVE'"),
+        ),
+    )
+
+
+# ============================================================================
+# CHANNEL-WEBHOOK-AUTH-01 — Webhook acceptance 정본(receipt/conflict/intent/job)
+# ============================================================================
+#
+# SSOT: docs/plans/2026-07-22-foms-full-system-bug-audit-report.md §5.2
+#   (CHANNEL-WEBHOOK-AUTH-01 — receipt/conflict/intent/job migration, versioned
+#    AES-GCM envelope, stable hash/JCS, log redaction).
+#
+# ChannelTalk Webhook 수신은 provider token 검증 뒤 **acceptance transaction** 으로만
+# 2xx 를 낸다: JCS canonical hash → 30d dedup window → versioned AES-256-GCM envelope →
+# receipt/intent/job 를 **한 트랜잭션**에 커밋(transactional outbox). durable job row 가
+# 커밋된 뒤에만 2xx 이므로 부분 수용이 없다(DB/job insert 실패 → 롤백 → non-2xx). 실제
+# Order mutation 은 downstream worker 소관이라 이 테이블들은 Order 를 건드리지 않는다.
+# raw payload 는 평문 저장/로깅하지 않고 envelope(암호문)로만 남긴다.
+
+
+class ChannelWebhookReceipt(Base):
+    """Webhook acceptance ledger — accepted_at + JCS hash + 암호화 envelope.
+
+    30d dedup window 의 기준 row. ``content_hash`` 는 payload 의 JCS canonical sha256
+    이고, ``envelope`` 은 raw payload 를 AES-256-GCM 으로 암호화한 versioned 봉투(평문
+    미저장)다. 30일이 지나면 같은 hash 라도 새 acceptance 로 취급하므로 hash 를 전역
+    unique 로 두지 않고 (content_hash, accepted_at) 인덱스로 window 조회한다.
+    """
+
+    __tablename__ = 'channel_webhook_receipts'
+
+    id = Column(UUIDColumn, primary_key=True, default=lambda: str(uuid.uuid4()))
+    source = Column(String(40), nullable=False)
+    content_hash = Column(String(64), nullable=False, index=True)
+    accepted_at = Column(DateTime, nullable=False)
+    dedup_expires_at = Column(DateTime, nullable=False)
+    # versioned AES-256-GCM envelope(version/alg/nonce/aad_sha256/ciphertext) — 평문 0.
+    envelope = Column(JSONColumn, nullable=False)
+    created_at = Column(DateTime, nullable=False, server_default=func.now())
+
+    __table_args__ = (
+        Index('ix_channel_webhook_receipt_hash_time', 'content_hash', 'accepted_at'),
+    )
+
+
+class ChannelWebhookConflict(Base):
+    """중복 재전송(soak) 관측 기록 — masked only(hash/receipt 참조만, payload 0).
+
+    30d window 안에서 같은 ``content_hash`` 가 다시 오면 새 receipt 를 만들지 않고 이
+    row 만 append 한다(실 Order/downstream 재실행 없음).
+    """
+
+    __tablename__ = 'channel_webhook_conflicts'
+
+    id = Column(Integer, primary_key=True)
+    receipt_id = Column(
+        UUIDColumn, ForeignKey('channel_webhook_receipts.id', ondelete='CASCADE'),
+        nullable=False, index=True,
+    )
+    content_hash = Column(String(64), nullable=False, index=True)
+    source = Column(String(40), nullable=False)
+    observed_at = Column(DateTime, nullable=False)
+    created_at = Column(DateTime, nullable=False, server_default=func.now())
+
+
+class ChannelWebhookIntent(Base):
+    """수용된 webhook 의 intent marker(receipt 당 1개). 상세 파싱/실행은 downstream."""
+
+    __tablename__ = 'channel_webhook_intents'
+
+    id = Column(UUIDColumn, primary_key=True, default=lambda: str(uuid.uuid4()))
+    receipt_id = Column(
+        UUIDColumn, ForeignKey('channel_webhook_receipts.id', ondelete='CASCADE'),
+        nullable=False, unique=True,
+    )
+    intent_type = Column(String(80), nullable=False)
+    created_at = Column(DateTime, nullable=False)
+
+
+class ChannelWebhookJob(Base):
+    """durable ID-job(transactional outbox) — receipt 와 같은 tx 에서 생성.
+
+    이 row 가 커밋된 뒤에만 webhook 이 2xx 를 낸다. downstream RQ dispatch 는 best-effort
+    이며 실패해도 row 는 ``pending`` 으로 남아 재구동 가능하다(2xx 취소 아님). ``legacy_log_id``
+    는 기존 ``channel_inbound_event_logs`` 파이프라인과의 연결 고리다.
+    """
+
+    __tablename__ = 'channel_webhook_jobs'
+
+    id = Column(UUIDColumn, primary_key=True, default=lambda: str(uuid.uuid4()))
+    receipt_id = Column(
+        UUIDColumn, ForeignKey('channel_webhook_receipts.id', ondelete='CASCADE'),
+        nullable=False, index=True,
+    )
+    status = Column(String(20), nullable=False, server_default='pending')
+    legacy_log_id = Column(Integer, nullable=True)
+    created_at = Column(DateTime, nullable=False)
+    updated_at = Column(DateTime, nullable=False)
+
+    __table_args__ = (
+        CheckConstraint(
+            "status IN ('pending','enqueued','failed')",
+            name='ck_channel_webhook_job_status',
+        ),
     )

@@ -27,6 +27,13 @@
 3. **단순 UI 변경/타이포** → 바로 코딩 허용
 4. **대화가 길어지면** → 핵심 요약 후 새 세션 권유
 
+## 작업 등급 마커 (프롬프트 맨 앞 `**A`~`**D` = 사용자 명시 선언 — 해당 절차 생략 금지)
+- `**A` 소형: 완료 기준이 없으면 착수 전 1줄 스스로 정의. 나머지는 기본 프로토콜(직접/단일 위임 → 검증 → 보고, 플랜 생략).
+- `**B` 하루: 플랜+progress ledger 작성(task마다 완료 기준 필수) → 요약 승인 1회 → 이 세션에서 완주(task마다 위임→검증→커밋→ledger 갱신).
+- `**C` 릴레이: 프롬프트에 플랜/ledger 경로가 있으면 다음 PENDING부터 재개(막히면 BLOCKED 기록 후 전진), 없으면 스펙+플랜+ledger 설계 후 승인 대기. 작업 단위 끝나면 `/clear <이름>` 권고.
+- `**D` 최고 안전등급: `**C` 설계 앞단에 CEO 리뷰+3-agent 교차검수+파일럿 1 task 추가. 무인 본진은 플랜 확정 후 `/overnight <플랜> <T범위>` 명령을 만들어 제시하고 사용자가 입력한다(자동 진입 금지).
+- `**A출고버그`처럼 마커 뒤에 글자가 바로 붙어도 마커로 해석한다. 상세 절차·해설: `docs/guides/LONG_TASK_PROMPTS.md`(+`_EASY.md`).
+
 ## 하네스 자동 배선 (Claude Code 세션)
 - **세션 시작/컴팩트**: `SessionStart` 훅이 AI_STATUS·RPI 안내를 주입하고, `PreCompact` 훅이 `docs/harness/runtime/COMPACT_CHECKPOINT.md`를 갱신한다.
 - **Stop 게이트**: `.py` 편집 세션은 턴 종료 시 `import app` 검증을 자동 통과해야 한다 (실패 시 종료 차단, 근본 수정 후 재시도).
@@ -131,6 +138,7 @@
 - **브랜치 전략**: `deploy` (스테이징) → `production` (운영)
 - **운영(production) 푸시는 사용자 명시 요청 시에만 (절대 규칙)**: 기본 푸시 대상은 항상 `deploy`(스테이징, lahom-dev)다. `production`(운영) 브랜치로의 push·force-push·reset은 **사용자가 명시적으로 "production 푸시/배포"를 요청했을 때만** 수행한다. **"deploy 푸쉬"는 절대 `production`을 포함하지 않는다.** 스테이징 검증 → 사용자 승인 → 운영 승격 순서를 지키며, 임의 운영 푸시는 금지한다.
 - **deploy push 세션 격리 (ask)**: `git push … deploy` 시 타 세션/미확인 커밋이 범위에 있으면 훅이 ask. (1) 전체 포함 승인 / (2) 자기 몫만 → `python tools/harness/push_own_session_commits.py --session-id <id>`. 설계: `docs/specs/2026-07-16-deploy-push-session-isolation-design.md`.
+- **세션 worktree 격리 (선택 표준)**: 동시 2+창 코드 편집 시 `python tools/harness/session_worktree.py create` → `c:/tmp/foms-s-*`에서 작업, push는 `git push origin HEAD:deploy`(ledger union 판정 own=allow). union own=allow는 **worktree에서 에이전트를 새로 기동**해야 걸린다 — 메인 세션에서 `cd <worktree> && git push`는 메인 트리 기준 분류(안전측 ask). non-fast-forward는 `sync`(ledger 밖 커밋 refuse), 종료 시 `cleanup`(dry-run → `--remove`). 단일 창·핫파일(tablet 계약테스트·layout_head·tablet-bundle.css) 작업은 공유 트리 유지, 상한 2–3. 세션 worktree에서 alembic·startup DDL은 코드 차단. 메인 복귀 시 `git pull --ff-only origin deploy`. 미커밋 파일은 worktree로 안 넘어감. 상세: `docs/plans/2026-07-27-session-worktree-isolation-phase1.md`.
 - **production 승격 = 세션 커밋 cherry-pick 기본 (절대 규칙)**: "커밋 모두 푸쉬"·"전체 푸쉬"·"deploy 전체 승격" 등 명시 지시가 없으면, production 승격은 **이 세션(작업 창)이 만든 커밋만** cherry-pick해 반영한다. deploy HEAD 전체 merge·push 금지 — 여러 LLM 창이 deploy를 공유하므로 타 세션 미검증 커밋이 운영에 혼입된다. 절차: 자기 커밋 SHA를 `git log`로 확정 → **`promote_completeness.py --shas`로 baseline 구멍 확인**(incomplete면 의존 포함 여부 확인) → `origin/production` 정본 확인(`git ls-remote`) → `c:/tmp` worktree(production 기반)에서 해당 SHA만 cherry-pick → `gh pr --base production`. 헬퍼: `promote_own_to_production.py`. cherry-pick 충돌 = 타 세션 커밋 의존 신호 → 임의 해결 금지, 사용자에게 포함 여부 확인.
 - **푸시 전 스모크**: `deploy`/`main` push **직전** `powershell -NoProfile -File scripts/ops/pre_push_smoke.ps1` (APP_OK·harness verify·SSOT lint·CI subset·`test_p1_mockup_*` 구조 테스트). **UI/CSS/템플릿 변경** 시 PNG `-Visual`/win32 baseline은 필수 아님(선택). exit 0 확인 후 push. `-Full`은 머지 직전 전체 pytest. 상세: `docs/guides/PRE_PUSH_SMOKE.md`
 - **푸시 후 CI green 확인 (push 완료의 정의)**: push 직후 `python tools/harness/ci_watch.py`(기본 HEAD·deploy; production은 `... HEAD production`)로 CI 완료를 감시한다. exit 0=green, **exit 1=코드 실패 → 근본 수정 → pre_push_smoke → 재푸시까지가 한 작업 단위**, exit 2=자동 재실행(재폴링), exit 3=gh 미설치/미인증. `post_push_watch` 훅이 push 감지 시 이 실행을 자동 리마인드하므로 생략 금지.
@@ -161,6 +169,9 @@
 - [ ] 주요 수정 파일 lint 확인
 - [ ] docs/AI_STATUS.md 갱신 (상태 변경 시)
 - [ ] `deploy`/`main` push 직전 `scripts/ops/pre_push_smoke.ps1` 실행 → exit 0 확인
+
+# Compact instructions
+컨텍스트 압축 시 보존 우선순위: 작업 브랜치·HEAD SHA, 검증 명령과 마지막 결과(성공/실패 원문), 미해결 실패, 편집 파일 경로 목록, 사용자 승인·결정 사항. 탐색성 read/grep/대형 도구 출력은 버린다. 상세 복원은 `docs/harness/runtime/COMPACT_CHECKPOINT.md`가 담당.
 
 ## 참조 문서
 - `docs/AI_STATUS.md` → 프로젝트 현재 상태

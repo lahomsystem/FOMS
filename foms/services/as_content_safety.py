@@ -22,6 +22,11 @@ _ALLOWED_RICH_TAGS = {
     'ul', 'ol', 'li',
 }
 
+# 뒤에 `>`가 하나도 없는 `<` = 끝까지 닫히지 않는 조각.
+# ponytail: `<div title="a>b` 처럼 따옴표 안의 `>`로 위장한 미종결 태그는 이 규칙이 못 잡는다.
+# 실입력(사용자가 친 `<`, 잘린 붙여넣기)은 전부 커버되며, 완전 커버는 토크나이저가 필요하다.
+_DANGLING_LT_RE = re.compile(r'<(?=[^>]*$)')
+
 _COLOR_ALIASES = {
     'red': 'red',
     '#ff0000': 'red',
@@ -66,7 +71,10 @@ def sanitize_as_content_html(value: Any) -> str:
     if not raw_html.strip():
         return ''
 
-    soup = BeautifulSoup(raw_html, 'html.parser')
+    # html.parser의 EOF 미종결 태그 처리는 Python 패치 버전마다 다르다
+    # (3.12.10=데이터로 유지 / 3.12.13=태그로 취급 → 허용 태그가 아니면 통째 소실 = 사용자 텍스트 유실).
+    # 파서에 넘기기 전에 닫히지 않는 `<` 조각을 이스케이프해 런타임 무관 동일 입력을 만든다.
+    soup = BeautifulSoup(_DANGLING_LT_RE.sub('&lt;', raw_html), 'html.parser')
     for comment in soup.find_all(string=lambda text: isinstance(text, Comment)):
         comment.extract()
 
@@ -100,23 +108,43 @@ def sanitize_as_content_html(value: Any) -> str:
         tag.attrs = {}
 
     root = soup.body or soup
-    return ''.join(str(child) for child in root.contents).strip()
+    # decode_contents()는 minimal formatter로 텍스트 노드의 `<`/`&`를 이스케이프한다.
+    # str(child) 조합은 top-level NavigableString을 원문 그대로 흘려 미종결 태그
+    # (`hi <img src=x onerror=...`)가 살아남았고, 렌더 측 |safe + 뒤따르는 마크업이
+    # 태그를 완성해 실행됐다. 허용 태그는 이미 attrs가 정리된 Tag라 그대로 보존된다.
+    return root.decode_contents().strip()
 
 
-def as_content_html_to_text(value: Any) -> str:
-    """출고 대시보드용 AS 내용 plain text 요약."""
-    sanitized = sanitize_as_content_html(value)
+def as_content_html_to_text(value: Any, *, already_sanitized: bool = False) -> str:
+    """AS 내용 rich HTML → plain text 요약(블록·`<br>` 경계를 개행으로 보존).
+
+    Args:
+        value: AS 내용 HTML(원본 또는 이미 sanitize를 통과한 값).
+        already_sanitized: True면 sanitize 단계를 건너뛴다. as_log 항목 `text`처럼
+            저장 시점에 이미 sanitize된 값을 대시보드 행 루프에서 다시 파싱하지 않기
+            위한 경로다(행당 BeautifulSoup 파싱 2회 → 1회).
+
+    Returns:
+        공백이 정규화된 plain text. 내용이 없으면 빈 문자열.
+    """
+    sanitized = str(value or '') if already_sanitized else sanitize_as_content_html(value)
     if not sanitized:
         return ''
 
-    soup = BeautifulSoup(sanitized, 'html.parser')
-    for br in soup.find_all('br'):
-        br.replace_with('\n')
-    for tag_name in ('div', 'p', 'li'):
-        for tag in soup.find_all(tag_name):
-            tag.insert_after('\n')
+    if already_sanitized and '<' not in sanitized and '&' not in sanitized:
+        # quick-add 로 쌓이는 기록 대부분은 태그도 엔티티도 없는 평문이다. 파싱해도
+        # get_text()가 입력을 그대로 돌려주므로 BeautifulSoup 자체를 건너뛴다.
+        # 이미 sanitize된 값에서만 안전하다 — 원본은 `<`가 없어도 이스케이프 대상일 수 있다.
+        raw_text = sanitized
+    else:
+        soup = BeautifulSoup(sanitized, 'html.parser')
+        for br in soup.find_all('br'):
+            br.replace_with('\n')
+        for tag_name in ('div', 'p', 'li'):
+            for tag in soup.find_all(tag_name):
+                tag.insert_after('\n')
+        raw_text = soup.get_text('', strip=False)
 
-    raw_text = soup.get_text('', strip=False)
     lines = []
     for line in raw_text.splitlines():
         normalized = re.sub(r'\s+', ' ', line).strip()

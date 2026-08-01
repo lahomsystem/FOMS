@@ -136,7 +136,7 @@ def test_process_inbound_job_dry_run(mock_enqueue, app, monkeypatch):
 @patch('foms.services.channel_inbound.enqueue_channeltalk_inbound')
 def test_process_inbound_job_create_enabled(mock_enqueue, app, monkeypatch):
     monkeypatch.setenv("CHANNEL_INBOUND_CREATE_ENABLED", "true")
-    
+
     with app.app_context():
         log = ChannelInboundEventLog(
             dedupe_key="test-job-2",
@@ -151,14 +151,14 @@ def test_process_inbound_job_create_enabled(mock_enqueue, app, monkeypatch):
         )
         db_session.add(log)
         db_session.commit()
-        
+
         process_inbound_job(log.id)
-        
+
         db_session.refresh(log)
-        assert log.status == 'created'
-        assert log.created_order_id is not None
-        
-        order = db_session.query(Order).get(log.created_order_id)
-        assert order.customer_name == "실제고객"
-        assert order.address == "부산시"
-        assert order.is_erp_order is True
+        # CHANNEL-INBOUND-ORDER-01: 레거시 raw ``Order(...)`` 인라인 생성을 제거하고 canonical
+        # dedicated worker(create_order 경유)로 handoff 한다. process_inbound_job 는 파싱 성공
+        # receipt 를 ACCEPTED 로만 표시하고(two commit 0), 실제 주문 생성은 worker 가 활성 SALES
+        # owner 정책·전역 flag·멱등 하에 수행한다(PG lane: tests/postgres/test_channel_inbound.py).
+        assert log.receipt_state == 'ACCEPTED'
+        assert log.status == 'accepted'
+        assert log.created_order_id is None

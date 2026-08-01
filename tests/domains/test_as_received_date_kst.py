@@ -2,11 +2,8 @@ from datetime import date
 import importlib
 from pathlib import Path
 
-from flask import session
-import pytest
 from werkzeug.security import generate_password_hash
 
-from foms.api import erp_orders_structured
 from db import db_session
 from models import Order, User
 
@@ -136,9 +133,12 @@ def test_as_register_clears_erp_draft_so_as_dashboard_lists_order(client, monkey
     db_session.expire_all()
     saved_order = db_session.get(Order, order_id)
     assert saved_order is not None
+    # STATE-AS-01: AS 는 orthogonal overlay 라 main workflow.stage 를 AS_RECEIVED 로 덮지
+    # 않는다(main stage 오염 금지). order.status 는 as_lifecycle overlay projection 으로
+    # AS_RECEIVED 이고, workflow.stage 는 draft 의 main 파이프라인(RECEIVED)을 보존한다.
     assert saved_order.status == "AS_RECEIVED"
     assert saved_order.structured_data["meta"]["draft"] is False
-    assert saved_order.structured_data["workflow"]["stage"] == "AS_RECEIVED"
+    assert saved_order.structured_data["workflow"]["stage"] == "RECEIVED"
 
     visible = (
         db_session.query(Order)
@@ -188,44 +188,9 @@ def test_construction_dashboard_as_register_marks_source_screen():
     assert "source_screen: 'erp_construction_dashboard'" in src
 
 
-@pytest.mark.parametrize(
-    ("old_stage", "target_stage"),
-    [("RECEIVED", "AS"), ("AS", "AS_RECEIVED")],
-)
-def test_structured_stage_transition_uses_kst_received_date(
-    app,
-    client,
-    monkeypatch,
-    old_stage,
-    target_stage,
-):
-    user = _login_as_admin(client, username="structured-stage-admin")
-    order = _create_order(
-        status=old_stage,
-        structured_data={"workflow": {"stage": old_stage}, "shipment": {}},
-    )
-    old_sd = {"workflow": {"stage": old_stage}}
-    new_sd = {"workflow": {"stage": target_stage}}
-
-    monkeypatch.setattr(erp_orders_structured, "get_today_kst", lambda: date(2026, 4, 8))
-    monkeypatch.setattr(
-        erp_orders_structured,
-        "check_quest_approvals_complete",
-        lambda *args, **kwargs: (True, []),
-    )
-    monkeypatch.setattr(
-        erp_orders_structured,
-        "create_quest_from_template",
-        lambda *args, **kwargs: None,
-    )
-
-    with app.test_request_context("/api/orders/structured"):
-        session["user_id"] = user.id
-        session["username"] = user.username
-        erp_orders_structured._handle_stage_transition(db_session, order, old_sd, new_sd)
-
-    assert order.status == target_stage
-    assert order.as_received_date == "2026-04-08"
+# NOTE: 폼 저장을 통한 단계 전이(_handle_stage_transition)는 STATE-FORM-01 에서 제거됐다
+# (form save ≠ stage change). AS 진입 시 as_received_date 스탬핑은 이제 상태 전용 경로
+# (/api/update_order_status, as_orders)만 담당하며, 아래 테스트들이 그 계약을 지킨다.
 
 
 def test_update_order_status_uses_kst_received_date(client, monkeypatch):

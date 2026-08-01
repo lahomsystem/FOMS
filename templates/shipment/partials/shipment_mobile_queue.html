@@ -17,7 +17,7 @@
         {% set sales_name = (o.manager_name or '')|trim %}
         {% set drawing_text = (meta.drawing_managers or [])|join(', ') %}
         {% set construction_text = (meta.construction_workers or [])|join(', ') %}
-        {% set has_logistics = meta.primary_date or meta.construction_time or meta.vehicle or meta.trip or meta.site_extra or meta.spec_units or (meta.is_as and meta.as_content_text) %}
+        {% set has_logistics = meta.primary_date or meta.construction_time or meta.site_extra or meta.spec_units or (meta.is_as and meta.as_content_text) %}
         {#- 출고 IA(2026-07-22): 고객(이름·발주사·주소·연락·제품) → 시공 → 배차 → 담당3(영업·도면·시공 항상)
             → W/300 → 첨부 → 패킹. 공용 메타 실측/역할 억제. 담당3은 빈값이어도 '-'로 칸 유지. -#}
         {% set detail_slot %}
@@ -29,14 +29,6 @@
             <div data-shipment-mobile-detail-row="construction_time" {% if not meta.construction_time %}hidden{% endif %}>
               <dt>시공시간</dt>
               <dd data-shipment-mobile-detail-field="construction_time">{{ meta.construction_time }}</dd>
-            </div>
-            <div data-shipment-mobile-detail-row="vehicle" {% if not meta.vehicle %}hidden{% endif %}>
-              <dt>차량</dt>
-              <dd data-shipment-mobile-detail-field="vehicle">{{ meta.vehicle }}</dd>
-            </div>
-            <div data-shipment-mobile-detail-row="trip" {% if not meta.trip %}hidden{% endif %}>
-              <dt>회차</dt>
-              <dd data-shipment-mobile-detail-field="trip">{{ meta.trip }}</dd>
             </div>
             <div data-shipment-mobile-detail-row="site_extra" {% if not meta.site_extra %}hidden{% endif %}>
               <dt>현장추가</dt>
@@ -107,8 +99,6 @@
             data-construction-time="{{ meta.construction_time or '' }}"
             data-drawing-managers="{{ drawing_text }}"
             data-construction-workers="{{ construction_text }}"
-            data-vehicle="{{ meta.vehicle or '' }}"
-            data-trip="{{ meta.trip or '' }}"
             data-site-extra="{{ (meta.site_extra or [])|join('\n') }}">
             출고 정보 수정
           </button>
@@ -182,14 +172,6 @@
         <input class="form-control" name="construction_workers" autocomplete="off" placeholder="쉼표로 구분">
       </div>
       <div class="mb-3">
-        <label class="form-label">차량번호</label>
-        <input class="form-control" name="vehicle" autocomplete="off" placeholder="예: 84로3712">
-      </div>
-      <div class="mb-3">
-        <label class="form-label">회차</label>
-        <input class="form-control" name="trip" autocomplete="off" placeholder="예: 1회차 06:30">
-      </div>
-      <div class="mb-3">
         <label class="form-label">현장주소 추가 정보</label>
         <textarea class="form-control" name="site_extra" rows="3" placeholder="한 줄에 하나씩 입력"></textarea>
       </div>
@@ -254,8 +236,6 @@
       syncDetailField(card, 'construction_time', payload.construction_time);
       syncDetailField(card, 'drawing_managers', payload.drawing_managers);
       syncDetailField(card, 'construction_workers', payload.construction_workers);
-      syncDetailField(card, 'vehicle', payload.vehicle);
-      syncDetailField(card, 'trip', payload.trip);
       syncDetailField(card, 'site_extra', payload.site_extra);
       // 담당3이 항상 보이므로 detail 블록은 숨기지 않는다.
       if (detail) detail.hidden = false;
@@ -276,8 +256,6 @@
       form.elements.construction_time.value = trigger.dataset.constructionTime || '';
       form.elements.drawing_managers.value = trigger.dataset.drawingManagers || '';
       form.elements.construction_workers.value = trigger.dataset.constructionWorkers || '';
-      form.elements.vehicle.value = trigger.dataset.vehicle || '';
-      form.elements.trip.value = trigger.dataset.trip || '';
       form.elements.site_extra.value = trigger.dataset.siteExtra || '';
       setError(errorEl, '');
       bootstrap.Offcanvas.getOrCreateInstance(sheetEl).show();
@@ -298,8 +276,6 @@
         construction_time: form.elements.construction_time.value.trim(),
         drawing_managers: splitList(form.elements.drawing_managers.value),
         construction_workers: splitList(form.elements.construction_workers.value),
-        vehicle: form.elements.vehicle.value.trim(),
-        trip: form.elements.trip.value.trim(),
         site_extra: splitList(form.elements.site_extra.value)
       };
       setLoading(submitBtn, true);
@@ -319,8 +295,6 @@
           activeTrigger.dataset.constructionTime = payload.construction_time;
           activeTrigger.dataset.drawingManagers = payload.drawing_managers.join(', ');
           activeTrigger.dataset.constructionWorkers = payload.construction_workers.join(', ');
-          activeTrigger.dataset.vehicle = payload.vehicle;
-          activeTrigger.dataset.trip = payload.trip;
           activeTrigger.dataset.siteExtra = payload.site_extra.join('\n');
           var card = activeTrigger.closest('.erp-shipment-mobile-card');
           syncShipmentMobileDetail(card, payload);

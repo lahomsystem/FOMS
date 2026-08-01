@@ -1,11 +1,14 @@
 {# AS 모바일 주문 카드 1건 — 초기 렌더 루프와 무한스크롤 청크가 공유(SSOT). 루프 변수 r 필요. #}
-{% from 'cs/partials/as_card_macros.html' import render_as_orderer_line, render_as_construction_workers, render_as_content_tabs %}
+{% from 'cs/partials/as_card_macros.html' import render_as_orderer_line, render_as_construction_workers, render_as_timeline, render_as_schedule_drift_badge %}
 
 {% if erp_mobile_v2_enabled %}
 {# v2 compact: 현장 담당자가 스크롤 최소로 건 스캔·방문일·사진·미결 처리 #}
 {% set safe_phone = (r.phone or '')|replace('-', '')|replace(' ', '') %}
 {% set has_phone = safe_phone and safe_phone != '-' %}
+{# id: 드리프트 배너 점프 칩(`#as-card-<id>`) 앵커 + `:target` 하이라이트 대상.
+   PC 표 행은 `as-row-<id>`로 따로 잡는다(두 표면이 동시에 DOM 에 있어 중복 id 금지). #}
 <article
+  id="as-card-{{ r.id }}"
   class="erp-pro-order-card erp-as-mobile-card erp-as-mobile-card--v2{% if r.as_pending %} is-pending{% endif %}"
   data-order-id="{{ r.id }}">
   <header class="erp-as-mobile-card__head{% if r.as_pending %} erp-as-customer-row--pending{% endif %}">
@@ -68,6 +71,7 @@
         <input type="date" class="erp-pro-input editable-date-as" value="{{ r.as_visit_date or '' }}"
           data-order-id="{{ r.id }}" data-field="as_visit_date" aria-label="AS 방문일">
       </div>
+      {{ render_as_schedule_drift_badge(r.schedule_link_drift, r.id) }}
     </div>
     <div
       class="erp-as-mobile-card__date erp-as-mobile-card__date--complete {% if r.as_completed_date %}erp-as-complete-row--set{% endif %}">
@@ -85,6 +89,7 @@
       data-order-id="{{ r.id }}"
       data-lat="{{ r.lat or '' }}"
       data-lng="{{ r.lng or '' }}"
+      data-linked-ref-order-id="{{ r.schedule_link_drift.ref_order_id or '' }}"
       title="주변 일정 찾기">
       <i class="fas fa-map-marker-alt" aria-hidden="true"></i>
       <span>일정</span>
@@ -136,8 +141,8 @@
 </article>
 
 {% else %}
-{# Legacy mobile card (non-v2 cohort) #}
-<div class="erp-pro-order-card erp-as-mobile-card" data-order-id="{{ r.id }}">
+{# Legacy mobile card (non-v2 cohort). id 계약은 v2 카드와 동일(`as-card-<id>`). #}
+<div id="as-card-{{ r.id }}" class="erp-pro-order-card erp-as-mobile-card" data-order-id="{{ r.id }}">
   <div class="erp-pro-order-card__header">
     {% if can_edit_erp|default(false) %}
     <a href="{{ url_for('order_edit.edit_order', order_id=r.id) }}?open=erp-order"
@@ -182,6 +187,7 @@
         <input type="date" class="erp-pro-input editable-date-as" value="{{ r.as_visit_date or '' }}"
           data-order-id="{{ r.id }}" data-field="as_visit_date">
       </div>
+      {{ render_as_schedule_drift_badge(r.schedule_link_drift, r.id) }}
       {% if r.as_visit_date %}
       <button type="button" class="erp-as-pending-btn as-pending-btn{% if r.as_pending %} erp-as-pending-btn--active{% endif %}" data-order-id="{{ r.id }}"
         data-as-pending="{% if r.as_pending %}1{% else %}0{% endif %}"
@@ -203,6 +209,7 @@
           data-order-id="{{ r.id }}"
           data-lat="{{ r.lat or '' }}"
           data-lng="{{ r.lng or '' }}"
+          data-linked-ref-order-id="{{ r.schedule_link_drift.ref_order_id or '' }}"
           title="주변 일정 찾기" style="font-size: 0.75rem; white-space: nowrap;">
           <i class="fas fa-map-marker-alt"></i> 일정
         </button>
@@ -225,9 +232,10 @@
         {% if r.has_as_blueprint %}checked{% endif %} aria-label="주문 #{{ r.id }} AS도면 여부">
     </div>
     <div class="erp-pro-order-card__row erp-pro-order-card__row--full">
-      <span class="erp-pro-order-card__label">AS 내용</span>
+      <span class="erp-pro-order-card__label">AS 타임라인</span>
       <div class="mt-1 w-100">
-        {{ render_as_content_tabs(r.id, r.is_sales_delivery, r.as_content_html, r.as_content_2_html, '80px') }}
+        {# 레거시(비-v2) 카드는 상세가 eager 렌더라 비고는 싣지 않는다(목록 payload 불변). #}
+        {{ render_as_timeline(r.id, r.as_timeline_view, can_edit_erp|default(false), is_sales_delivery=r.is_sales_delivery, billing_state=r.as_billing_state_text|default(''), billing_type=r.as_billing_type|default('free')) }}
       </div>
     </div>
   </div>

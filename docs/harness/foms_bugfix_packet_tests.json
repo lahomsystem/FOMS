@@ -1,0 +1,3263 @@
+{
+ "BASE-00": {
+  "depends_on": [],
+  "dependency_classes": {
+   "packet_harness": false,
+   "backfill_artifact": false,
+   "write_guard": false,
+   "postgres": false
+  },
+  "commands": [],
+  "existing_regressions": [],
+  "created_tests": [],
+  "browser_scenarios": [],
+  "deploy_check_ids": [],
+  "deployment_evidence_mode": "PROVIDER_BOOTSTRAP"
+ },
+ "PACKET-HARNESS-00": {
+  "depends_on": [
+   "BASE-00"
+  ],
+  "dependency_classes": {
+   "packet_harness": false,
+   "backfill_artifact": false,
+   "write_guard": false,
+   "postgres": false
+  },
+  "commands": [],
+  "existing_regressions": [],
+  "created_tests": [],
+  "browser_scenarios": [],
+  "deploy_check_ids": [],
+  "deployment_evidence_mode": "PROVIDER_BOOTSTRAP"
+ },
+ "OPS-ROUTE-01": {
+  "depends_on": [],
+  "dependency_classes": {
+   "packet_harness": true,
+   "backfill_artifact": false,
+   "write_guard": false,
+   "postgres": false
+  },
+  "commands": [
+   "python -m pytest tests/domains/test_ops_route_containment.py -q"
+  ],
+  "existing_regressions": [],
+  "created_tests": [
+   {
+    "path": "tests/domains/test_ops_route_containment.py",
+    "owner_packet": "OPS-ROUTE-01"
+   }
+  ],
+  "browser_scenarios": [],
+  "deploy_check_ids": [],
+  "deployment_evidence_mode": "PROVIDER_BOOTSTRAP"
+ },
+ "API-ERROR-01": {
+  "depends_on": [],
+  "dependency_classes": {
+   "packet_harness": true,
+   "backfill_artifact": false,
+   "write_guard": false,
+   "postgres": false
+  },
+  "commands": [
+   "python -m pytest tests/domains/test_api_error_containment.py -q"
+  ],
+  "existing_regressions": [],
+  "created_tests": [
+   {
+    "path": "tests/domains/test_api_error_containment.py",
+    "owner_packet": "API-ERROR-01"
+   }
+  ],
+  "browser_scenarios": [],
+  "deploy_check_ids": [],
+  "deployment_evidence_mode": "PROVIDER_BOOTSTRAP"
+ },
+ "FAILOPEN-01": {
+  "depends_on": [
+   "API-ERROR-01"
+  ],
+  "dependency_classes": {
+   "packet_harness": true,
+   "backfill_artifact": false,
+   "write_guard": false,
+   "postgres": false
+  },
+  "commands": [
+   "python -m pytest tests/domains/test_failopen_inventory.py -q"
+  ],
+  "existing_regressions": [],
+  "created_tests": [
+   {
+    "path": "tests/domains/test_failopen_inventory.py",
+    "owner_packet": "FAILOPEN-01"
+   }
+  ],
+  "browser_scenarios": [],
+  "deploy_check_ids": [],
+  "deployment_evidence_mode": "PROVIDER_BOOTSTRAP"
+ },
+ "REQUEST-LIMIT-01": {
+  "depends_on": [
+   "API-ERROR-01"
+  ],
+  "dependency_classes": {
+   "packet_harness": true,
+   "backfill_artifact": false,
+   "write_guard": false,
+   "postgres": false
+  },
+  "commands": [
+   "python -m pytest tests/domains/test_request_body_limits.py -q"
+  ],
+  "existing_regressions": [],
+  "created_tests": [
+   {
+    "path": "tests/domains/test_request_body_limits.py",
+    "owner_packet": "REQUEST-LIMIT-01"
+   }
+  ],
+  "browser_scenarios": [],
+  "deploy_check_ids": [],
+  "deployment_evidence_mode": "PROVIDER_BOOTSTRAP"
+ },
+ "PGTEST-00": {
+  "depends_on": [],
+  "dependency_classes": {
+   "packet_harness": true,
+   "backfill_artifact": false,
+   "write_guard": false,
+   "postgres": true
+  },
+  "commands": [
+   "python -m pytest tests/postgres/test_pg_lane_safety.py -q"
+  ],
+  "existing_regressions": [],
+  "created_tests": [
+   {
+    "path": "tests/postgres/test_pg_lane_smoke.py",
+    "owner_packet": "PGTEST-00"
+   },
+   {
+    "path": "tests/postgres/test_pg_lane_safety.py",
+    "owner_packet": "PGTEST-00"
+   }
+  ],
+  "browser_scenarios": [],
+  "deploy_check_ids": [],
+  "deployment_evidence_mode": "PROVIDER_BOOTSTRAP"
+ },
+ "OPS-APPROVAL-00": {
+  "depends_on": [
+   "PGTEST-00",
+   "WRITE-GUARD-01"
+  ],
+  "dependency_classes": {
+   "packet_harness": true,
+   "backfill_artifact": false,
+   "write_guard": false,
+   "postgres": true
+  },
+  "commands": [
+   "python -m pytest tests/postgres/test_ops_approval.py -q"
+  ],
+  "existing_regressions": [],
+  "created_tests": [
+   {
+    "path": "tests/postgres/test_ops_approval.py",
+    "owner_packet": "OPS-APPROVAL-00"
+   }
+  ],
+  "browser_scenarios": [],
+  "deploy_check_ids": [],
+  "deployment_evidence_mode": "PROVIDER_BOOTSTRAP"
+ },
+ "BACKFILL-ARTIFACT-00": {
+  "depends_on": [
+   "OPS-APPROVAL-00"
+  ],
+  "dependency_classes": {
+   "packet_harness": true,
+   "backfill_artifact": false,
+   "write_guard": false,
+   "postgres": true
+  },
+  "commands": [
+   "python -m pytest tests/domains/test_backfill_artifact_crypto.py -q"
+  ],
+  "existing_regressions": [],
+  "created_tests": [
+   {
+    "path": "tests/postgres/test_backfill_artifact.py",
+    "owner_packet": "BACKFILL-ARTIFACT-00"
+   },
+   {
+    "path": "tests/domains/test_backfill_artifact_crypto.py",
+    "owner_packet": "BACKFILL-ARTIFACT-00"
+   }
+  ],
+  "browser_scenarios": [],
+  "deploy_check_ids": [],
+  "deployment_evidence_mode": "PROVIDER_BOOTSTRAP"
+ },
+ "CUTOVER-MODE-01": {
+  "depends_on": [
+   "OPS-APPROVAL-00"
+  ],
+  "dependency_classes": {
+   "packet_harness": true,
+   "backfill_artifact": false,
+   "write_guard": false,
+   "postgres": true
+  },
+  "commands": [
+   "python -m pytest tests/postgres/test_feature_cutover.py -q"
+  ],
+  "existing_regressions": [],
+  "created_tests": [
+   {
+    "path": "tests/postgres/test_feature_cutover.py",
+    "owner_packet": "CUTOVER-MODE-01"
+   }
+  ],
+  "browser_scenarios": [],
+  "deploy_check_ids": [],
+  "deployment_evidence_mode": "HEARTBEAT"
+ },
+ "REV-00": {
+  "depends_on": [
+   "PGTEST-00"
+  ],
+  "dependency_classes": {
+   "packet_harness": true,
+   "backfill_artifact": false,
+   "write_guard": false,
+   "postgres": true
+  },
+  "commands": [
+   "python -m pytest tests/postgres/test_rev00_revision.py -q"
+  ],
+  "existing_regressions": [],
+  "created_tests": [
+   {
+    "path": "tests/postgres/test_rev00_revision.py",
+    "owner_packet": "REV-00"
+   }
+  ],
+  "browser_scenarios": [],
+  "deploy_check_ids": [],
+  "deployment_evidence_mode": "PROVIDER_BOOTSTRAP"
+ },
+ "REV-CLEANUP-01": {
+  "depends_on": [
+   "REV-00"
+  ],
+  "dependency_classes": {
+   "packet_harness": true,
+   "backfill_artifact": false,
+   "write_guard": false,
+   "postgres": true
+  },
+  "commands": [
+   "python -m pytest tests/postgres/test_purge_order_mutation_receipts.py -q"
+  ],
+  "existing_regressions": [],
+  "created_tests": [
+   {
+    "path": "tests/postgres/test_purge_order_mutation_receipts.py",
+    "owner_packet": "REV-CLEANUP-01"
+   }
+  ],
+  "browser_scenarios": [],
+  "deploy_check_ids": [],
+  "deployment_evidence_mode": "PROVIDER_BOOTSTRAP"
+ },
+ "SIDEFX-00": {
+  "depends_on": [],
+  "dependency_classes": {
+   "packet_harness": true,
+   "backfill_artifact": false,
+   "write_guard": false,
+   "postgres": true
+  },
+  "commands": [
+   "python -m pytest tests/postgres/test_sidefx_outbox.py -q"
+  ],
+  "existing_regressions": [],
+  "created_tests": [
+   {
+    "path": "tests/postgres/test_sidefx_outbox.py",
+    "owner_packet": "SIDEFX-00"
+   }
+  ],
+  "browser_scenarios": [],
+  "deploy_check_ids": [],
+  "deployment_evidence_mode": "PROVIDER_BOOTSTRAP"
+ },
+ "SIDEFX-WORKER-01": {
+  "depends_on": [
+   "SIDEFX-00"
+  ],
+  "dependency_classes": {
+   "packet_harness": true,
+   "backfill_artifact": false,
+   "write_guard": false,
+   "postgres": true
+  },
+  "commands": [
+   "python -m pytest tests/postgres/test_sidefx_worker.py -q"
+  ],
+  "existing_regressions": [],
+  "created_tests": [
+   {
+    "path": "tests/postgres/test_sidefx_worker.py",
+    "owner_packet": "SIDEFX-WORKER-01"
+   }
+  ],
+  "browser_scenarios": [],
+  "deploy_check_ids": [],
+  "deployment_evidence_mode": "PROVIDER_BOOTSTRAP"
+ },
+ "SIDEFX-RETENTION-01": {
+  "depends_on": [
+   "SIDEFX-WORKER-01"
+  ],
+  "dependency_classes": {
+   "packet_harness": true,
+   "backfill_artifact": false,
+   "write_guard": false,
+   "postgres": true
+  },
+  "commands": [
+   "python -m pytest tests/postgres/test_sidefx_retention.py -q"
+  ],
+  "existing_regressions": [],
+  "created_tests": [
+   {
+    "path": "tests/postgres/test_sidefx_retention.py",
+    "owner_packet": "SIDEFX-RETENTION-01"
+   }
+  ],
+  "browser_scenarios": [],
+  "deploy_check_ids": [],
+  "deployment_evidence_mode": "PROVIDER_BOOTSTRAP"
+ },
+ "REV-99": {
+  "depends_on": [
+   "ACTOR-STATE-01",
+   "API-ERROR-01",
+   "AS-BACKFILL-00",
+   "ASSIGNMENT-00",
+   "AUTH-01",
+   "AUTH-ACCOUNT-01",
+   "AUTH-FINANCE-01",
+   "AUTH-IMPERSONATION-01",
+   "AUTH-QUEST-01",
+   "AUTH-QUEST-READ-01",
+   "BACKFILL-ARTIFACT-00",
+   "BLUEPRINT-01",
+   "CALL-LOG-01",
+   "CHANNEL-AUTH-01",
+   "CHANNEL-FUNCTION-CONTRACT-01",
+   "CHANNEL-INBOUND-ORDER-01",
+   "CHANNEL-WEBHOOK-AUTH-01",
+   "CHANNEL-WRITER-01",
+   "CHAT-FILE-01",
+   "CHAT-MESSAGE-01",
+   "CHAT-ROOM-01",
+   "CHAT-SOCKET-AUTH-01",
+   "CONSTRUCTION-BACKFILL-00",
+   "CREW-00",
+   "CUTOVER-MODE-01",
+   "DATA-01",
+   "DATA-MEASUREMENT-01",
+   "DELETE-BULK-01",
+   "DELETE-CORE-00",
+   "DELETE-RETENTION-01",
+   "DELETE-TRASH-01",
+   "DESIGNER-RETIRE-01",
+   "DRAFT-LIFECYCLE-01",
+   "DRAWING-REVISION-BACKFILL-00",
+   "ERP-ESTIMATE-01",
+   "ERR-UX-01",
+   "EVENT-REVERT-01",
+   "FAILOPEN-01",
+   "FE-SYNTAX",
+   "FE-XSS",
+   "FILE-01",
+   "FILE-LEGACY-AUDIT-00",
+   "FILE-LEGACY-BACKFILL-01",
+   "HISTORY-01",
+   "ITEM-ID-00",
+   "MIG-WEB-RETIRE-01",
+   "OFFLINE-01",
+   "OPS-APPROVAL-00",
+   "OPS-ROUTE-01",
+   "ORDER-COPY-01",
+   "ORDER-CREATE-01",
+   "ORDER-IMPORT-01",
+   "PACK-01",
+   "PASSWORD-POLICY-01",
+   "PGTEST-00",
+   "PRODUCTION-BACKFILL-00",
+   "PROXY-01",
+   "PUSH-01",
+   "QUEST-BACKFILL-00",
+   "REQUEST-LIMIT-01",
+   "REV-00",
+   "REV-CLEANUP-01",
+   "ROUTE-01",
+   "RUM-INGEST-01",
+   "SECRET-01",
+   "SECRET-02",
+   "SESSION-SIGNING-SECRET-01",
+   "SESSION-SIGNING-STATE-00",
+   "SHELL-01",
+   "SHIPMENT-REFERENCE-01",
+   "SHIPMENT-WRITER-01",
+   "SIDEFX-00",
+   "SIDEFX-RETENTION-01",
+   "SIDEFX-WORKER-01",
+   "STATE-AS-01",
+   "STATE-AXES-REPAIR-00",
+   "STATE-CONST-CS-01",
+   "STATE-CONTROLS-01",
+   "STATE-CORE-00",
+   "STATE-DRAWING-01",
+   "STATE-FORM-01",
+   "STATE-GUARD-01",
+   "STATE-LEGACY-01",
+   "STATE-MODEL-00",
+   "STATE-OVERLAY-01",
+   "STATE-PROD-01",
+   "STATE-PROD-ACTIONS-01",
+   "STATE-QUEST-01",
+   "STORAGE-WRITER-01",
+   "STORED-XSS-01",
+   "SURFACE-GATE-01",
+   "SW-01",
+   "TASK-01",
+   "TASK-BACKFILL-00",
+   "UPLOAD-01",
+   "UPLOAD-02",
+   "UPLOAD-CHAT-01",
+   "UPLOAD-INTENT-01",
+   "URGENT-CALL-01",
+   "WAM-TELEMETRY-01",
+   "WDC-AUTH-01",
+   "WDC-LINK-01",
+   "WDC-LINK-BACKFILL-00",
+   "WDC-LINK-CLEANUP-01",
+   "WDC-LINK-FENCE-00",
+   "WDC-XSS-01",
+   "WIZ-01",
+   "WIZ-DELETE-01",
+   "WIZ-PRESET-01",
+   "WIZ-TRANSFER-01",
+   "WRITE-GUARD-01"
+  ],
+  "dependency_classes": {
+   "packet_harness": true,
+   "backfill_artifact": false,
+   "write_guard": false,
+   "postgres": false
+  },
+  "commands": [
+   "python -m pytest tests/domains/test_rev_99.py -q"
+  ],
+  "existing_regressions": [
+   "tests/domains/test_state_guard.py"
+  ],
+  "created_tests": [
+   {
+    "path": "tests/domains/test_rev_99.py",
+    "owner_packet": "REV-99"
+   }
+  ],
+  "browser_scenarios": [],
+  "deploy_check_ids": [],
+  "deployment_evidence_mode": "HEARTBEAT"
+ },
+ "RELEASE-GATE-00": {
+  "depends_on": [
+   "REV-99",
+   "STARTUP-SCHEMA-01",
+   "STARTUP-BACKFILL-01",
+   "STARTUP-ADMIN-01",
+   "STARTUP-PURE-01",
+   "SCALE-AS-01",
+   "SCALE-CHANNEL-01",
+   "SCALE-SKETCHUP-01",
+   "BACKUP-01",
+   "INDEX-OPS-01"
+  ],
+  "dependency_classes": {
+   "packet_harness": true,
+   "backfill_artifact": false,
+   "write_guard": false,
+   "postgres": false
+  },
+  "commands": [
+   "python -m pytest tests/domains/test_release_gate.py -q"
+  ],
+  "existing_regressions": [
+   "tests/domains/test_rev_99.py"
+  ],
+  "created_tests": [
+   {
+    "path": "tests/domains/test_release_gate.py",
+    "owner_packet": "RELEASE-GATE-00"
+   }
+  ],
+  "browser_scenarios": [],
+  "deploy_check_ids": [],
+  "deployment_evidence_mode": "HEARTBEAT"
+ },
+ "ASSIGNMENT-00": {
+  "depends_on": [],
+  "dependency_classes": {
+   "packet_harness": true,
+   "backfill_artifact": true,
+   "write_guard": false,
+   "postgres": true
+  },
+  "commands": [
+   "python -m pytest tests/postgres/test_order_assignments.py -q"
+  ],
+  "existing_regressions": [],
+  "created_tests": [
+   {
+    "path": "tests/postgres/test_order_assignments.py",
+    "owner_packet": "ASSIGNMENT-00"
+   }
+  ],
+  "browser_scenarios": [],
+  "deploy_check_ids": [],
+  "deployment_evidence_mode": "PROVIDER_BOOTSTRAP"
+ },
+ "CREW-00": {
+  "depends_on": [],
+  "dependency_classes": {
+   "packet_harness": true,
+   "backfill_artifact": true,
+   "write_guard": false,
+   "postgres": true
+  },
+  "commands": [
+   "python -m pytest tests/postgres/test_crew.py -q"
+  ],
+  "existing_regressions": [],
+  "created_tests": [
+   {
+    "path": "tests/postgres/test_crew.py",
+    "owner_packet": "CREW-00"
+   }
+  ],
+  "browser_scenarios": [],
+  "deploy_check_ids": [],
+  "deployment_evidence_mode": "PROVIDER_BOOTSTRAP"
+ },
+ "SHIPMENT-REFERENCE-01": {
+  "depends_on": [
+   "CREW-00"
+  ],
+  "dependency_classes": {
+   "packet_harness": true,
+   "backfill_artifact": false,
+   "write_guard": true,
+   "postgres": true
+  },
+  "commands": [
+   "python -m pytest tests/postgres/test_shipment_reference.py -q"
+  ],
+  "existing_regressions": [
+   "tests/domains/test_erp_shell_fragment_contract.py"
+  ],
+  "created_tests": [
+   {
+    "path": "tests/postgres/test_shipment_reference.py",
+    "owner_packet": "SHIPMENT-REFERENCE-01"
+   }
+  ],
+  "browser_scenarios": [],
+  "deploy_check_ids": [],
+  "deployment_evidence_mode": "PROVIDER_BOOTSTRAP"
+ },
+ "ITEM-ID-00": {
+  "depends_on": [],
+  "dependency_classes": {
+   "packet_harness": true,
+   "backfill_artifact": true,
+   "write_guard": false,
+   "postgres": true
+  },
+  "commands": [
+   "python -m pytest tests/postgres/test_item_id.py -q"
+  ],
+  "existing_regressions": [
+   "tests/domains/test_order_date_sync.py"
+  ],
+  "created_tests": [
+   {
+    "path": "tests/postgres/test_item_id.py",
+    "owner_packet": "ITEM-ID-00"
+   }
+  ],
+  "browser_scenarios": [],
+  "deploy_check_ids": [],
+  "deployment_evidence_mode": "PROVIDER_BOOTSTRAP"
+ },
+ "MIG-WEB-RETIRE-01": {
+  "depends_on": [],
+  "dependency_classes": {
+   "packet_harness": true,
+   "backfill_artifact": false,
+   "write_guard": false,
+   "postgres": false
+  },
+  "commands": [
+   "python -m pytest tests/domains/test_web_migration_retired.py -q"
+  ],
+  "existing_regressions": [],
+  "created_tests": [
+   {
+    "path": "tests/domains/test_web_migration_retired.py",
+    "owner_packet": "MIG-WEB-RETIRE-01"
+   }
+  ],
+  "browser_scenarios": [],
+  "deploy_check_ids": [],
+  "deployment_evidence_mode": "PROVIDER_BOOTSTRAP"
+ },
+ "SECRET-01": {
+  "depends_on": [],
+  "dependency_classes": {
+   "packet_harness": true,
+   "backfill_artifact": false,
+   "write_guard": false,
+   "postgres": false
+  },
+  "commands": [
+   "python -m pytest tests/domains/test_secret_kakao_env.py -q"
+  ],
+  "existing_regressions": [],
+  "created_tests": [
+   {
+    "path": "tests/domains/test_secret_kakao_env.py",
+    "owner_packet": "SECRET-01"
+   }
+  ],
+  "browser_scenarios": [],
+  "deploy_check_ids": [],
+  "deployment_evidence_mode": "PROVIDER_BOOTSTRAP"
+ },
+ "SECRET-02": {
+  "depends_on": [
+   "SECRET-01"
+  ],
+  "dependency_classes": {
+   "packet_harness": true,
+   "backfill_artifact": false,
+   "write_guard": false,
+   "postgres": false
+  },
+  "commands": [
+   "python -m pytest tests/domains/test_secret_hygiene.py -q"
+  ],
+  "existing_regressions": [],
+  "created_tests": [
+   {
+    "path": "tests/domains/test_secret_hygiene.py",
+    "owner_packet": "SECRET-02"
+   }
+  ],
+  "browser_scenarios": [],
+  "deploy_check_ids": [],
+  "deployment_evidence_mode": "PROVIDER_BOOTSTRAP"
+ },
+ "SESSION-SIGNING-STATE-00": {
+  "depends_on": [
+   "SECRET-02",
+   "PGTEST-00",
+   "OPS-APPROVAL-00",
+   "CUTOVER-MODE-01"
+  ],
+  "dependency_classes": {
+   "packet_harness": true,
+   "backfill_artifact": false,
+   "write_guard": false,
+   "postgres": true
+  },
+  "commands": [
+   "python -m pytest tests/domains/test_signing_key_format.py -q"
+  ],
+  "existing_regressions": [],
+  "created_tests": [
+   {
+    "path": "tests/postgres/test_signing_state_schema.py",
+    "owner_packet": "SESSION-SIGNING-STATE-00"
+   },
+   {
+    "path": "tests/domains/test_signing_key_format.py",
+    "owner_packet": "SESSION-SIGNING-STATE-00"
+   }
+  ],
+  "browser_scenarios": [],
+  "deploy_check_ids": [],
+  "deployment_evidence_mode": "HEARTBEAT"
+ },
+ "SESSION-SIGNING-SECRET-01": {
+  "depends_on": [
+   "SESSION-SIGNING-STATE-00"
+  ],
+  "dependency_classes": {
+   "packet_harness": true,
+   "backfill_artifact": false,
+   "write_guard": false,
+   "postgres": false
+  },
+  "commands": [
+   "python -m pytest tests/domains/test_signing_runtime.py -q"
+  ],
+  "existing_regressions": [],
+  "created_tests": [
+   {
+    "path": "tests/postgres/test_signing_secret_activation.py",
+    "owner_packet": "SESSION-SIGNING-SECRET-01"
+   },
+   {
+    "path": "tests/domains/test_signing_runtime.py",
+    "owner_packet": "SESSION-SIGNING-SECRET-01"
+   }
+  ],
+  "browser_scenarios": [],
+  "deploy_check_ids": [],
+  "deployment_evidence_mode": "HEARTBEAT"
+ },
+ "FE-SYNTAX": {
+  "depends_on": [],
+  "dependency_classes": {
+   "packet_harness": true,
+   "backfill_artifact": false,
+   "write_guard": false,
+   "postgres": false
+  },
+  "commands": [
+   "python -m pytest tests/domains/test_static_js_syntax.py -q"
+  ],
+  "existing_regressions": [],
+  "created_tests": [
+   {
+    "path": "tests/domains/test_static_js_syntax.py",
+    "owner_packet": "FE-SYNTAX"
+   }
+  ],
+  "browser_scenarios": [],
+  "deploy_check_ids": [],
+  "deployment_evidence_mode": "PROVIDER_BOOTSTRAP"
+ },
+ "FE-XSS": {
+  "depends_on": [],
+  "dependency_classes": {
+   "packet_harness": true,
+   "backfill_artifact": false,
+   "write_guard": false,
+   "postgres": false
+  },
+  "commands": [
+   "python -m pytest tests/domains/test_measurement_search_xss.py -q"
+  ],
+  "existing_regressions": [],
+  "created_tests": [
+   {
+    "path": "tests/domains/test_measurement_search_xss.py",
+    "owner_packet": "FE-XSS"
+   }
+  ],
+  "browser_scenarios": [],
+  "deploy_check_ids": [],
+  "deployment_evidence_mode": "PROVIDER_BOOTSTRAP"
+ },
+ "STORED-XSS-01": {
+  "depends_on": [],
+  "dependency_classes": {
+   "packet_harness": true,
+   "backfill_artifact": false,
+   "write_guard": false,
+   "postgres": false
+  },
+  "commands": [
+   "python -m pytest tests/domains/test_stored_xss_sinks.py -q"
+  ],
+  "existing_regressions": [],
+  "created_tests": [
+   {
+    "path": "tests/domains/test_stored_xss_sinks.py",
+    "owner_packet": "STORED-XSS-01"
+   }
+  ],
+  "browser_scenarios": [],
+  "deploy_check_ids": [],
+  "deployment_evidence_mode": "PROVIDER_BOOTSTRAP"
+ },
+ "SURFACE-GATE-01": {
+  "depends_on": [],
+  "dependency_classes": {
+   "packet_harness": true,
+   "backfill_artifact": false,
+   "write_guard": false,
+   "postgres": false
+  },
+  "commands": [
+   "python -m pytest tests/domains/test_surface_gate_cohort.py -q"
+  ],
+  "existing_regressions": [],
+  "created_tests": [
+   {
+    "path": "tests/domains/test_surface_gate_cohort.py",
+    "owner_packet": "SURFACE-GATE-01"
+   }
+  ],
+  "browser_scenarios": [],
+  "deploy_check_ids": [],
+  "deployment_evidence_mode": "PROVIDER_BOOTSTRAP"
+ },
+ "DESIGNER-RETIRE-01": {
+  "depends_on": [],
+  "dependency_classes": {
+   "packet_harness": true,
+   "backfill_artifact": false,
+   "write_guard": false,
+   "postgres": false
+  },
+  "commands": [
+   "python -m pytest tests/domains/test_designer_retired.py -q"
+  ],
+  "existing_regressions": [],
+  "created_tests": [
+   {
+    "path": "tests/domains/test_designer_retired.py",
+    "owner_packet": "DESIGNER-RETIRE-01"
+   }
+  ],
+  "browser_scenarios": [],
+  "deploy_check_ids": [],
+  "deployment_evidence_mode": "PROVIDER_BOOTSTRAP"
+ },
+ "PUSH-01": {
+  "depends_on": [],
+  "dependency_classes": {
+   "packet_harness": true,
+   "backfill_artifact": false,
+   "write_guard": false,
+   "postgres": false
+  },
+  "commands": [
+   "python -m pytest tests/domains/test_push_payload_contract.py -q"
+  ],
+  "existing_regressions": [],
+  "created_tests": [
+   {
+    "path": "tests/domains/test_push_payload_contract.py",
+    "owner_packet": "PUSH-01"
+   }
+  ],
+  "browser_scenarios": [],
+  "deploy_check_ids": [],
+  "deployment_evidence_mode": "PROVIDER_BOOTSTRAP"
+ },
+ "PACK-01": {
+  "depends_on": [
+   "REV-00",
+   "AUTH-01"
+  ],
+  "dependency_classes": {
+   "packet_harness": true,
+   "backfill_artifact": false,
+   "write_guard": true,
+   "postgres": false
+  },
+  "commands": [
+   "python -m pytest tests/domains/test_packing.py -q"
+  ],
+  "existing_regressions": [],
+  "created_tests": [
+   {
+    "path": "tests/domains/test_packing.py",
+    "owner_packet": "PACK-01"
+   }
+  ],
+  "browser_scenarios": [],
+  "deploy_check_ids": [],
+  "deployment_evidence_mode": "HEARTBEAT"
+ },
+ "ERR-UX-01": {
+  "depends_on": [
+   "REV-00",
+   "API-ERROR-01"
+  ],
+  "dependency_classes": {
+   "packet_harness": true,
+   "backfill_artifact": false,
+   "write_guard": false,
+   "postgres": false
+  },
+  "commands": [
+   "python -m pytest tests/domains/test_err_ux.py -q"
+  ],
+  "existing_regressions": [],
+  "created_tests": [
+   {
+    "path": "tests/domains/test_err_ux.py",
+    "owner_packet": "ERR-UX-01"
+   }
+  ],
+  "browser_scenarios": [],
+  "deploy_check_ids": [],
+  "deployment_evidence_mode": "PROVIDER_BOOTSTRAP"
+ },
+ "AUTH-01": {
+  "depends_on": [
+   "ASSIGNMENT-00",
+   "SESSION-SIGNING-SECRET-01",
+   "WRITE-GUARD-01"
+  ],
+  "dependency_classes": {
+   "packet_harness": true,
+   "backfill_artifact": false,
+   "write_guard": true,
+   "postgres": false
+  },
+  "commands": [
+   "python -m pytest tests/domains/test_auth_enforcement.py -q"
+  ],
+  "existing_regressions": [],
+  "created_tests": [
+   {
+    "path": "tests/domains/test_auth_enforcement.py",
+    "owner_packet": "AUTH-01"
+   }
+  ],
+  "browser_scenarios": [],
+  "deploy_check_ids": [],
+  "deployment_evidence_mode": "HEARTBEAT"
+ },
+ "WRITE-GUARD-01": {
+  "depends_on": [
+   "PROXY-01",
+   "REQUEST-LIMIT-01"
+  ],
+  "dependency_classes": {
+   "packet_harness": true,
+   "backfill_artifact": false,
+   "write_guard": true,
+   "postgres": false
+  },
+  "commands": [
+   "python -m pytest tests/domains/test_write_guard.py -q"
+  ],
+  "existing_regressions": [],
+  "created_tests": [
+   {
+    "path": "tests/domains/test_write_guard.py",
+    "owner_packet": "WRITE-GUARD-01"
+   }
+  ],
+  "browser_scenarios": [],
+  "deploy_check_ids": [],
+  "deployment_evidence_mode": "PROVIDER_BOOTSTRAP"
+ },
+ "AUTH-ACCOUNT-01": {
+  "depends_on": [
+   "WRITE-GUARD-01",
+   "REQUEST-LIMIT-01",
+   "OPS-APPROVAL-00"
+  ],
+  "dependency_classes": {
+   "packet_harness": true,
+   "backfill_artifact": false,
+   "write_guard": true,
+   "postgres": true
+  },
+  "commands": [
+   "python -m pytest tests/postgres/test_auth_account.py -q"
+  ],
+  "existing_regressions": [],
+  "created_tests": [
+   {
+    "path": "tests/postgres/test_auth_account.py",
+    "owner_packet": "AUTH-ACCOUNT-01"
+   }
+  ],
+  "browser_scenarios": [],
+  "deploy_check_ids": [],
+  "deployment_evidence_mode": "PROVIDER_BOOTSTRAP"
+ },
+ "PASSWORD-POLICY-01": {
+  "depends_on": [
+   "AUTH-ACCOUNT-01"
+  ],
+  "dependency_classes": {
+   "packet_harness": true,
+   "backfill_artifact": false,
+   "write_guard": true,
+   "postgres": true
+  },
+  "commands": [
+   "python -m pytest tests/domains/test_password_policy.py -q"
+  ],
+  "existing_regressions": [
+   "tests/contracts/runtime/foms_namespace_surface_tests.py"
+  ],
+  "created_tests": [
+   {
+    "path": "tests/domains/test_password_policy.py",
+    "owner_packet": "PASSWORD-POLICY-01"
+   },
+   {
+    "path": "tests/postgres/test_password_policy.py",
+    "owner_packet": "PASSWORD-POLICY-01"
+   }
+  ],
+  "browser_scenarios": [],
+  "deploy_check_ids": [],
+  "deployment_evidence_mode": "PROVIDER_BOOTSTRAP"
+ },
+ "AUTH-FINANCE-01": {
+  "depends_on": [
+   "REV-00",
+   "AUTH-01"
+  ],
+  "dependency_classes": {
+   "packet_harness": true,
+   "backfill_artifact": false,
+   "write_guard": true,
+   "postgres": false
+  },
+  "commands": [
+   "python -m pytest tests/domains/test_auth_finance.py tests/domains/test_cash_receipt_issue_api.py -q"
+  ],
+  "existing_regressions": [
+   "tests/domains/test_cash_receipt_issue_api.py"
+  ],
+  "created_tests": [
+   {
+    "path": "tests/domains/test_auth_finance.py",
+    "owner_packet": "AUTH-FINANCE-01"
+   }
+  ],
+  "browser_scenarios": [],
+  "deploy_check_ids": [],
+  "deployment_evidence_mode": "HEARTBEAT"
+ },
+ "AUTH-QUEST-READ-01": {
+  "depends_on": [
+   "REV-00",
+   "AUTH-01"
+  ],
+  "dependency_classes": {
+   "packet_harness": true,
+   "backfill_artifact": false,
+   "write_guard": false,
+   "postgres": false
+  },
+  "commands": [
+   "python -m pytest tests/domains/test_auth_quest_read.py -q"
+  ],
+  "existing_regressions": [],
+  "created_tests": [
+   {
+    "path": "tests/domains/test_auth_quest_read.py",
+    "owner_packet": "AUTH-QUEST-READ-01"
+   }
+  ],
+  "browser_scenarios": [],
+  "deploy_check_ids": [],
+  "deployment_evidence_mode": "HEARTBEAT"
+ },
+ "AUTH-QUEST-01": {
+  "depends_on": [
+   "AUTH-QUEST-READ-01"
+  ],
+  "dependency_classes": {
+   "packet_harness": true,
+   "backfill_artifact": false,
+   "write_guard": true,
+   "postgres": false
+  },
+  "commands": [
+   "python -m pytest tests/domains/test_auth_quest_approve.py -q"
+  ],
+  "existing_regressions": [
+   "tests/contracts/runtime/foms_namespace_surface_tests.py"
+  ],
+  "created_tests": [
+   {
+    "path": "tests/domains/test_auth_quest_approve.py",
+    "owner_packet": "AUTH-QUEST-01"
+   }
+  ],
+  "browser_scenarios": [],
+  "deploy_check_ids": [],
+  "deployment_evidence_mode": "HEARTBEAT"
+ },
+ "CHANNEL-AUTH-01": {
+  "depends_on": [
+   "REV-00",
+   "AUTH-01"
+  ],
+  "dependency_classes": {
+   "packet_harness": true,
+   "backfill_artifact": false,
+   "write_guard": false,
+   "postgres": false
+  },
+  "commands": [
+   "python -m pytest tests/domains/test_channel_auth.py -q"
+  ],
+  "existing_regressions": [
+   "tests/domains/test_channel_quick_actions.py"
+  ],
+  "created_tests": [
+   {
+    "path": "tests/domains/test_channel_auth.py",
+    "owner_packet": "CHANNEL-AUTH-01"
+   }
+  ],
+  "browser_scenarios": [],
+  "deploy_check_ids": [],
+  "deployment_evidence_mode": "HEARTBEAT"
+ },
+ "CHANNEL-FUNCTION-CONTRACT-01": {
+  "depends_on": [
+   "REQUEST-LIMIT-01",
+   "API-ERROR-01"
+  ],
+  "dependency_classes": {
+   "packet_harness": true,
+   "backfill_artifact": false,
+   "write_guard": false,
+   "postgres": false
+  },
+  "commands": [
+   "python -m pytest tests/domains/test_channel_function_contract.py -q"
+  ],
+  "existing_regressions": [
+   "tests/contracts/runtime/foms_namespace_surface_tests.py"
+  ],
+  "created_tests": [
+   {
+    "path": "tests/domains/test_channel_function_contract.py",
+    "owner_packet": "CHANNEL-FUNCTION-CONTRACT-01"
+   }
+  ],
+  "browser_scenarios": [],
+  "deploy_check_ids": [],
+  "deployment_evidence_mode": "PROVIDER_BOOTSTRAP"
+ },
+ "CHANNEL-WEBHOOK-AUTH-01": {
+  "depends_on": [
+   "PGTEST-00",
+   "REQUEST-LIMIT-01",
+   "API-ERROR-01"
+  ],
+  "dependency_classes": {
+   "packet_harness": true,
+   "backfill_artifact": false,
+   "write_guard": false,
+   "postgres": true
+  },
+  "commands": [
+   "python -m pytest tests/domains/test_channel_webhook_auth.py -q"
+  ],
+  "existing_regressions": [],
+  "created_tests": [
+   {
+    "path": "tests/domains/test_channel_webhook_auth.py",
+    "owner_packet": "CHANNEL-WEBHOOK-AUTH-01"
+   }
+  ],
+  "browser_scenarios": [],
+  "deploy_check_ids": [],
+  "deployment_evidence_mode": "PROVIDER_BOOTSTRAP"
+ },
+ "CHANNEL-WRITER-01": {
+  "depends_on": [
+   "SIDEFX-WORKER-01"
+  ],
+  "dependency_classes": {
+   "packet_harness": true,
+   "backfill_artifact": false,
+   "write_guard": false,
+   "postgres": false
+  },
+  "commands": [
+   "python -m pytest tests/domains/test_channel_writer.py -q"
+  ],
+  "existing_regressions": [],
+  "created_tests": [
+   {
+    "path": "tests/domains/test_channel_writer.py",
+    "owner_packet": "CHANNEL-WRITER-01"
+   }
+  ],
+  "browser_scenarios": [],
+  "deploy_check_ids": [],
+  "deployment_evidence_mode": "PROVIDER_BOOTSTRAP"
+ },
+ "DELETE-CORE-00": {
+  "depends_on": [
+   "REV-00",
+   "AUTH-01",
+   "STATE-MODEL-00"
+  ],
+  "dependency_classes": {
+   "packet_harness": true,
+   "backfill_artifact": false,
+   "write_guard": false,
+   "postgres": true
+  },
+  "commands": [
+   "python -m pytest tests/domains/test_soft_delete_core.py -q"
+  ],
+  "existing_regressions": [],
+  "created_tests": [
+   {
+    "path": "tests/domains/test_soft_delete_core.py",
+    "owner_packet": "DELETE-CORE-00"
+   }
+  ],
+  "browser_scenarios": [],
+  "deploy_check_ids": [],
+  "deployment_evidence_mode": "HEARTBEAT"
+ },
+ "DELETE-BULK-01": {
+  "depends_on": [
+   "DELETE-CORE-00"
+  ],
+  "dependency_classes": {
+   "packet_harness": true,
+   "backfill_artifact": false,
+   "write_guard": true,
+   "postgres": false
+  },
+  "commands": [
+   "python -m pytest tests/domains/test_delete_bulk.py -q"
+  ],
+  "existing_regressions": [
+   "tests/domains/test_order_trash.py"
+  ],
+  "created_tests": [
+   {
+    "path": "tests/domains/test_delete_bulk.py",
+    "owner_packet": "DELETE-BULK-01"
+   }
+  ],
+  "browser_scenarios": [],
+  "deploy_check_ids": [],
+  "deployment_evidence_mode": "HEARTBEAT"
+ },
+ "DELETE-TRASH-01": {
+  "depends_on": [
+   "DELETE-CORE-00"
+  ],
+  "dependency_classes": {
+   "packet_harness": true,
+   "backfill_artifact": false,
+   "write_guard": true,
+   "postgres": false
+  },
+  "commands": [
+   "python -m pytest tests/domains/test_delete_trash.py -q"
+  ],
+  "existing_regressions": [
+   "tests/domains/test_order_trash.py",
+   "tests/domains/test_delete_bulk.py",
+   "tests/domains/test_production_change_notification.py"
+  ],
+  "created_tests": [
+   {
+    "path": "tests/domains/test_delete_trash.py",
+    "owner_packet": "DELETE-TRASH-01"
+   }
+  ],
+  "browser_scenarios": [],
+  "deploy_check_ids": [],
+  "deployment_evidence_mode": "HEARTBEAT"
+ },
+ "DELETE-RETENTION-01": {
+  "depends_on": [
+   "DELETE-CORE-00",
+   "OPS-APPROVAL-00"
+  ],
+  "dependency_classes": {
+   "packet_harness": true,
+   "backfill_artifact": false,
+   "write_guard": false,
+   "postgres": true
+  },
+  "commands": [
+   "python -m pytest tests/postgres/test_delete_retention.py -q"
+  ],
+  "existing_regressions": [],
+  "created_tests": [
+   {
+    "path": "tests/postgres/test_delete_retention.py",
+    "owner_packet": "DELETE-RETENTION-01"
+   }
+  ],
+  "browser_scenarios": [],
+  "deploy_check_ids": [],
+  "deployment_evidence_mode": "HEARTBEAT"
+ },
+ "AUTH-IMPERSONATION-01": {
+  "depends_on": [
+   "WRITE-GUARD-01"
+  ],
+  "dependency_classes": {
+   "packet_harness": true,
+   "backfill_artifact": false,
+   "write_guard": true,
+   "postgres": false
+  },
+  "commands": [
+   "python -m pytest tests/domains/test_auth_impersonation.py -q"
+  ],
+  "existing_regressions": [],
+  "created_tests": [
+   {
+    "path": "tests/domains/test_auth_impersonation.py",
+    "owner_packet": "AUTH-IMPERSONATION-01"
+   }
+  ],
+  "browser_scenarios": [],
+  "deploy_check_ids": [],
+  "deployment_evidence_mode": "PROVIDER_BOOTSTRAP"
+ },
+ "ACTOR-STATE-01": {
+  "depends_on": [
+   "REV-00",
+   "AUTH-01"
+  ],
+  "dependency_classes": {
+   "packet_harness": true,
+   "backfill_artifact": false,
+   "write_guard": true,
+   "postgres": true
+  },
+  "commands": [
+   "python -m pytest tests/domains/test_actor_state.py -q"
+  ],
+  "existing_regressions": [
+   "tests/domains/test_api_error_containment.py"
+  ],
+  "created_tests": [
+   {
+    "path": "tests/domains/test_actor_state.py",
+    "owner_packet": "ACTOR-STATE-01"
+   }
+  ],
+  "browser_scenarios": [],
+  "deploy_check_ids": [],
+  "deployment_evidence_mode": "HEARTBEAT"
+ },
+ "CHAT-ROOM-01": {
+  "depends_on": [
+   "ACTOR-STATE-01"
+  ],
+  "dependency_classes": {
+   "packet_harness": true,
+   "backfill_artifact": false,
+   "write_guard": true,
+   "postgres": true
+  },
+  "commands": [],
+  "existing_regressions": [],
+  "created_tests": [],
+  "browser_scenarios": [],
+  "deploy_check_ids": [],
+  "deployment_evidence_mode": "HEARTBEAT"
+ },
+ "CHAT-MESSAGE-01": {
+  "depends_on": [
+   "UPLOAD-CHAT-01",
+   "CHAT-ROOM-01"
+  ],
+  "dependency_classes": {
+   "packet_harness": true,
+   "backfill_artifact": false,
+   "write_guard": true,
+   "postgres": true
+  },
+  "commands": [],
+  "existing_regressions": [],
+  "created_tests": [],
+  "browser_scenarios": [],
+  "deploy_check_ids": [],
+  "deployment_evidence_mode": "HEARTBEAT"
+ },
+ "CHAT-SOCKET-AUTH-01": {
+  "depends_on": [
+   "CHAT-MESSAGE-01"
+  ],
+  "dependency_classes": {
+   "packet_harness": true,
+   "backfill_artifact": false,
+   "write_guard": false,
+   "postgres": false
+  },
+  "commands": [],
+  "existing_regressions": [],
+  "created_tests": [],
+  "browser_scenarios": [],
+  "deploy_check_ids": [],
+  "deployment_evidence_mode": "HEARTBEAT"
+ },
+ "URGENT-CALL-01": {
+  "depends_on": [
+   "SIDEFX-WORKER-01",
+   "ACTOR-STATE-01"
+  ],
+  "dependency_classes": {
+   "packet_harness": true,
+   "backfill_artifact": false,
+   "write_guard": true,
+   "postgres": true
+  },
+  "commands": [
+   "python -m pytest tests/domains/test_urgent_call.py -q"
+  ],
+  "existing_regressions": [
+   "tests/domains/test_notification_ownership.py"
+  ],
+  "created_tests": [
+   {
+    "path": "tests/domains/test_urgent_call.py",
+    "owner_packet": "URGENT-CALL-01"
+   }
+  ],
+  "browser_scenarios": [],
+  "deploy_check_ids": [],
+  "deployment_evidence_mode": "HEARTBEAT"
+ },
+ "TASK-BACKFILL-00": {
+  "depends_on": [],
+  "dependency_classes": {
+   "packet_harness": true,
+   "backfill_artifact": true,
+   "write_guard": false,
+   "postgres": true
+  },
+  "commands": [
+   "python -m pytest tests/postgres/test_task_backfill.py -q"
+  ],
+  "existing_regressions": [],
+  "created_tests": [
+   {
+    "path": "tests/postgres/test_task_backfill.py",
+    "owner_packet": "TASK-BACKFILL-00"
+   }
+  ],
+  "browser_scenarios": [],
+  "deploy_check_ids": [],
+  "deployment_evidence_mode": "PROVIDER_BOOTSTRAP"
+ },
+ "TASK-01": {
+  "depends_on": [
+   "TASK-BACKFILL-00"
+  ],
+  "dependency_classes": {
+   "packet_harness": true,
+   "backfill_artifact": false,
+   "write_guard": true,
+   "postgres": true
+  },
+  "commands": [
+   "python -m pytest tests/domains/test_task_api.py -q"
+  ],
+  "existing_regressions": [],
+  "created_tests": [
+   {
+    "path": "tests/domains/test_task_api.py",
+    "owner_packet": "TASK-01"
+   }
+  ],
+  "browser_scenarios": [],
+  "deploy_check_ids": [],
+  "deployment_evidence_mode": "PROVIDER_BOOTSTRAP"
+ },
+ "WDC-XSS-01": {
+  "depends_on": [
+   "REV-00",
+   "AUTH-01"
+  ],
+  "dependency_classes": {
+   "packet_harness": true,
+   "backfill_artifact": false,
+   "write_guard": false,
+   "postgres": false
+  },
+  "commands": [
+   "python -m pytest tests/domains/test_erp_order_shared_form_scripts.py -q"
+  ],
+  "existing_regressions": [
+   "tests/domains/test_erp_order_shared_form_scripts.py"
+  ],
+  "created_tests": [],
+  "browser_scenarios": [],
+  "deploy_check_ids": [],
+  "deployment_evidence_mode": "HEARTBEAT"
+ },
+ "WDC-AUTH-01": {
+  "depends_on": [
+   "REV-00",
+   "AUTH-01"
+  ],
+  "dependency_classes": {
+   "packet_harness": true,
+   "backfill_artifact": false,
+   "write_guard": false,
+   "postgres": false
+  },
+  "commands": [
+   "python -m pytest tests/domains/test_wdc_auth.py -q"
+  ],
+  "existing_regressions": [],
+  "created_tests": [
+   {
+    "path": "tests/domains/test_wdc_auth.py",
+    "owner_packet": "WDC-AUTH-01"
+   }
+  ],
+  "browser_scenarios": [],
+  "deploy_check_ids": [],
+  "deployment_evidence_mode": "HEARTBEAT"
+ },
+ "WDC-LINK-FENCE-00": {
+  "depends_on": [
+   "WDC-AUTH-01",
+   "PGTEST-00",
+   "OPS-APPROVAL-00",
+   "BACKFILL-ARTIFACT-00"
+  ],
+  "dependency_classes": {
+   "packet_harness": true,
+   "backfill_artifact": false,
+   "write_guard": false,
+   "postgres": true
+  },
+  "commands": [
+   "python -m pytest tests/postgres/test_wdc_link_fence.py -q"
+  ],
+  "existing_regressions": [],
+  "created_tests": [
+   {
+    "path": "tests/postgres/test_wdc_link_fence.py",
+    "owner_packet": "WDC-LINK-FENCE-00"
+   }
+  ],
+  "browser_scenarios": [],
+  "deploy_check_ids": [],
+  "deployment_evidence_mode": "HEARTBEAT"
+ },
+ "WDC-LINK-BACKFILL-00": {
+  "depends_on": [
+   "WDC-LINK-FENCE-00"
+  ],
+  "dependency_classes": {
+   "packet_harness": true,
+   "backfill_artifact": true,
+   "write_guard": false,
+   "postgres": true
+  },
+  "commands": [
+   "python -m pytest tests/postgres/test_wdc_link_backfill.py -q"
+  ],
+  "existing_regressions": [],
+  "created_tests": [
+   {
+    "path": "tests/postgres/test_wdc_link_backfill.py",
+    "owner_packet": "WDC-LINK-BACKFILL-00"
+   }
+  ],
+  "browser_scenarios": [],
+  "deploy_check_ids": [],
+  "deployment_evidence_mode": "HEARTBEAT"
+ },
+ "WDC-LINK-01": {
+  "depends_on": [
+   "WDC-LINK-BACKFILL-00"
+  ],
+  "dependency_classes": {
+   "packet_harness": true,
+   "backfill_artifact": false,
+   "write_guard": true,
+   "postgres": true
+  },
+  "commands": [
+   "python -m pytest tests/postgres/test_wdc_link.py -q"
+  ],
+  "existing_regressions": [],
+  "created_tests": [
+   {
+    "path": "tests/postgres/test_wdc_link.py",
+    "owner_packet": "WDC-LINK-01"
+   }
+  ],
+  "browser_scenarios": [],
+  "deploy_check_ids": [],
+  "deployment_evidence_mode": "HEARTBEAT"
+ },
+ "WDC-LINK-CLEANUP-01": {
+  "depends_on": [
+   "WDC-LINK-01",
+   "CUTOVER-MODE-01"
+  ],
+  "dependency_classes": {
+   "packet_harness": true,
+   "backfill_artifact": true,
+   "write_guard": false,
+   "postgres": true
+  },
+  "commands": [
+   "python -m pytest tests/postgres/test_wdc_link_cleanup.py -q"
+  ],
+  "existing_regressions": [],
+  "created_tests": [
+   {
+    "path": "tests/postgres/test_wdc_link_cleanup.py",
+    "owner_packet": "WDC-LINK-CLEANUP-01"
+   }
+  ],
+  "browser_scenarios": [],
+  "deploy_check_ids": [],
+  "deployment_evidence_mode": "HEARTBEAT"
+ },
+ "ERP-ESTIMATE-01": {
+  "depends_on": [
+   "REV-00",
+   "AUTH-01"
+  ],
+  "dependency_classes": {
+   "packet_harness": true,
+   "backfill_artifact": false,
+   "write_guard": true,
+   "postgres": false
+  },
+  "commands": [
+   "python -m pytest tests/domains/test_erp_estimate.py -q"
+  ],
+  "existing_regressions": [],
+  "created_tests": [
+   {
+    "path": "tests/domains/test_erp_estimate.py",
+    "owner_packet": "ERP-ESTIMATE-01"
+   }
+  ],
+  "browser_scenarios": [],
+  "deploy_check_ids": [],
+  "deployment_evidence_mode": "HEARTBEAT"
+ },
+ "CALL-LOG-01": {
+  "depends_on": [
+   "REV-00",
+   "AUTH-01"
+  ],
+  "dependency_classes": {
+   "packet_harness": true,
+   "backfill_artifact": false,
+   "write_guard": true,
+   "postgres": false
+  },
+  "commands": [
+   "python -m pytest tests/domains/test_call_log.py -q"
+  ],
+  "existing_regressions": [
+   "tests/domains/test_call_log_api.py",
+   "tests/domains/test_auth_enforcement.py"
+  ],
+  "created_tests": [
+   {
+    "path": "tests/domains/test_call_log.py",
+    "owner_packet": "CALL-LOG-01"
+   }
+  ],
+  "browser_scenarios": [],
+  "deploy_check_ids": [],
+  "deployment_evidence_mode": "HEARTBEAT"
+ },
+ "EVENT-REVERT-01": {
+  "depends_on": [
+   "REV-00",
+   "AUTH-01"
+  ],
+  "dependency_classes": {
+   "packet_harness": true,
+   "backfill_artifact": false,
+   "write_guard": false,
+   "postgres": false
+  },
+  "commands": [
+   "python -m pytest tests/domains/test_event_revert.py -q"
+  ],
+  "existing_regressions": [
+   "tests/domains/test_auth_enforcement.py",
+   "tests/domains/test_write_guard.py"
+  ],
+  "created_tests": [
+   {
+    "path": "tests/domains/test_event_revert.py",
+    "owner_packet": "EVENT-REVERT-01"
+   }
+  ],
+  "browser_scenarios": [],
+  "deploy_check_ids": [],
+  "deployment_evidence_mode": "HEARTBEAT"
+ },
+ "STATE-MODEL-00": {
+  "depends_on": [],
+  "dependency_classes": {
+   "packet_harness": true,
+   "backfill_artifact": true,
+   "write_guard": false,
+   "postgres": false
+  },
+  "commands": [
+   "python -m pytest tests/domains/test_state_axes_model.py -q"
+  ],
+  "existing_regressions": [],
+  "created_tests": [
+   {
+    "path": "tests/domains/test_state_axes_model.py",
+    "owner_packet": "STATE-MODEL-00"
+   }
+  ],
+  "browser_scenarios": [],
+  "deploy_check_ids": [],
+  "deployment_evidence_mode": "PROVIDER_BOOTSTRAP"
+ },
+ "STATE-AXES-REPAIR-00": {
+  "depends_on": [
+   "STATE-MODEL-00"
+  ],
+  "dependency_classes": {
+   "packet_harness": true,
+   "backfill_artifact": true,
+   "write_guard": false,
+   "postgres": false
+  },
+  "commands": [
+   "python -m pytest tests/domains/test_state_axes_repair.py -q"
+  ],
+  "existing_regressions": [],
+  "created_tests": [
+   {
+    "path": "tests/domains/test_state_axes_repair.py",
+    "owner_packet": "STATE-AXES-REPAIR-00"
+   }
+  ],
+  "browser_scenarios": [],
+  "deploy_check_ids": [],
+  "deployment_evidence_mode": "PROVIDER_BOOTSTRAP"
+ },
+ "PRODUCTION-BACKFILL-00": {
+  "depends_on": [
+   "STATE-MODEL-00"
+  ],
+  "dependency_classes": {
+   "packet_harness": true,
+   "backfill_artifact": true,
+   "write_guard": false,
+   "postgres": true
+  },
+  "commands": [
+   "python -m pytest tests/postgres/test_production_backfill.py -q"
+  ],
+  "existing_regressions": [],
+  "created_tests": [
+   {
+    "path": "tests/postgres/test_production_backfill.py",
+    "owner_packet": "PRODUCTION-BACKFILL-00"
+   }
+  ],
+  "browser_scenarios": [],
+  "deploy_check_ids": [],
+  "deployment_evidence_mode": "PROVIDER_BOOTSTRAP"
+ },
+ "QUEST-BACKFILL-00": {
+  "depends_on": [
+   "STATE-MODEL-00"
+  ],
+  "dependency_classes": {
+   "packet_harness": true,
+   "backfill_artifact": true,
+   "write_guard": false,
+   "postgres": true
+  },
+  "commands": [
+   "python -m pytest tests/postgres/test_quest_backfill.py -q"
+  ],
+  "existing_regressions": [],
+  "created_tests": [
+   {
+    "path": "tests/postgres/test_quest_backfill.py",
+    "owner_packet": "QUEST-BACKFILL-00"
+   }
+  ],
+  "browser_scenarios": [],
+  "deploy_check_ids": [],
+  "deployment_evidence_mode": "PROVIDER_BOOTSTRAP"
+ },
+ "AS-BACKFILL-00": {
+  "depends_on": [
+   "STATE-MODEL-00"
+  ],
+  "dependency_classes": {
+   "packet_harness": true,
+   "backfill_artifact": true,
+   "write_guard": false,
+   "postgres": true
+  },
+  "commands": [
+   "python -m pytest tests/postgres/test_as_backfill.py -q"
+  ],
+  "existing_regressions": [],
+  "created_tests": [
+   {
+    "path": "tests/postgres/test_as_backfill.py",
+    "owner_packet": "AS-BACKFILL-00"
+   }
+  ],
+  "browser_scenarios": [],
+  "deploy_check_ids": [],
+  "deployment_evidence_mode": "PROVIDER_BOOTSTRAP"
+ },
+ "STATE-CORE-00": {
+  "depends_on": [
+   "REV-00",
+   "SIDEFX-00",
+   "SIDEFX-WORKER-01",
+   "AUTH-01",
+   "STATE-MODEL-00"
+  ],
+  "dependency_classes": {
+   "packet_harness": true,
+   "backfill_artifact": false,
+   "write_guard": false,
+   "postgres": true
+  },
+  "commands": [
+   "python -m pytest tests/domains/test_order_transition_service.py tests/postgres/test_order_transition_service.py -q"
+  ],
+  "existing_regressions": [],
+  "created_tests": [
+   {
+    "path": "tests/domains/test_order_transition_service.py",
+    "owner_packet": "STATE-CORE-00"
+   },
+   {
+    "path": "tests/postgres/test_order_transition_service.py",
+    "owner_packet": "STATE-CORE-00"
+   }
+  ],
+  "browser_scenarios": [],
+  "deploy_check_ids": [],
+  "deployment_evidence_mode": "HEARTBEAT"
+ },
+ "STATE-PROD-01": {
+  "depends_on": [
+   "PRODUCTION-BACKFILL-00"
+  ],
+  "dependency_classes": {
+   "packet_harness": true,
+   "backfill_artifact": false,
+   "write_guard": true,
+   "postgres": true
+  },
+  "commands": [
+   "python -m pytest tests/domains/test_state_prod.py tests/postgres/test_state_prod_pg.py -q"
+  ],
+  "existing_regressions": [],
+  "created_tests": [
+   {
+    "path": "tests/domains/test_state_prod.py",
+    "owner_packet": "STATE-PROD-01"
+   },
+   {
+    "path": "tests/postgres/test_state_prod_pg.py",
+    "owner_packet": "STATE-PROD-01"
+   }
+  ],
+  "browser_scenarios": [],
+  "deploy_check_ids": [],
+  "deployment_evidence_mode": "PROVIDER_BOOTSTRAP"
+ },
+ "STATE-PROD-ACTIONS-01": {
+  "depends_on": [
+   "STATE-PROD-01"
+  ],
+  "dependency_classes": {
+   "packet_harness": true,
+   "backfill_artifact": false,
+   "write_guard": true,
+   "postgres": true
+  },
+  "commands": [
+   "python -m pytest tests/domains/test_state_prod_actions.py -q"
+  ],
+  "existing_regressions": [],
+  "created_tests": [
+   {
+    "path": "tests/domains/test_state_prod_actions.py",
+    "owner_packet": "STATE-PROD-ACTIONS-01"
+   }
+  ],
+  "browser_scenarios": [],
+  "deploy_check_ids": [],
+  "deployment_evidence_mode": "PROVIDER_BOOTSTRAP"
+ },
+ "CONSTRUCTION-BACKFILL-00": {
+  "depends_on": [
+   "STATE-MODEL-00",
+   "ASSIGNMENT-00",
+   "UPLOAD-02"
+  ],
+  "dependency_classes": {
+   "packet_harness": true,
+   "backfill_artifact": true,
+   "write_guard": false,
+   "postgres": true
+  },
+  "commands": [
+   "python -m pytest tests/postgres/test_construction_backfill.py -q"
+  ],
+  "existing_regressions": [
+   "tests/postgres/test_startup_schema.py"
+  ],
+  "created_tests": [
+   {
+    "path": "tests/postgres/test_construction_backfill.py",
+    "owner_packet": "CONSTRUCTION-BACKFILL-00"
+   }
+  ],
+  "browser_scenarios": [],
+  "deploy_check_ids": [],
+  "deployment_evidence_mode": "HEARTBEAT"
+ },
+ "STATE-CONST-CS-01": {
+  "depends_on": [
+   "STATE-CORE-00",
+   "CONSTRUCTION-BACKFILL-00"
+  ],
+  "dependency_classes": {
+   "packet_harness": true,
+   "backfill_artifact": false,
+   "write_guard": true,
+   "postgres": true
+  },
+  "commands": [
+   "python -m pytest tests/domains/test_state_const_cs.py -q"
+  ],
+  "existing_regressions": [
+   "tests/domains/test_construction_gate_api.py"
+  ],
+  "created_tests": [
+   {
+    "path": "tests/domains/test_state_const_cs.py",
+    "owner_packet": "STATE-CONST-CS-01"
+   },
+   {
+    "path": "tests/postgres/test_state_const_cs.py",
+    "owner_packet": "STATE-CONST-CS-01"
+   }
+  ],
+  "browser_scenarios": [],
+  "deploy_check_ids": [],
+  "deployment_evidence_mode": "HEARTBEAT"
+ },
+ "STATE-DRAWING-01": {
+  "depends_on": [
+   "STATE-CORE-00",
+   "STATE-QUEST-01",
+   "DRAWING-REVISION-BACKFILL-00",
+   "WIZ-TRANSFER-01",
+   "UPLOAD-02"
+  ],
+  "dependency_classes": {
+   "packet_harness": true,
+   "backfill_artifact": false,
+   "write_guard": true,
+   "postgres": true
+  },
+  "commands": [
+   "python -m pytest tests/domains/test_state_drawing.py -q"
+  ],
+  "existing_regressions": [
+   "tests/domains/test_wiz_transfer.py"
+  ],
+  "created_tests": [
+   {
+    "path": "tests/domains/test_state_drawing.py",
+    "owner_packet": "STATE-DRAWING-01"
+   },
+   {
+    "path": "tests/postgres/test_state_drawing.py",
+    "owner_packet": "STATE-DRAWING-01"
+   }
+  ],
+  "browser_scenarios": [],
+  "deploy_check_ids": [],
+  "deployment_evidence_mode": "HEARTBEAT"
+ },
+ "DRAWING-REVISION-BACKFILL-00": {
+  "depends_on": [
+   "STATE-MODEL-00",
+   "FILE-LEGACY-BACKFILL-01"
+  ],
+  "dependency_classes": {
+   "packet_harness": true,
+   "backfill_artifact": true,
+   "write_guard": false,
+   "postgres": true
+  },
+  "commands": [
+   "python -m pytest tests/postgres/test_drawing_revision_backfill.py -q"
+  ],
+  "existing_regressions": [],
+  "created_tests": [
+   {
+    "path": "tests/postgres/test_drawing_revision_backfill.py",
+    "owner_packet": "DRAWING-REVISION-BACKFILL-00"
+   }
+  ],
+  "browser_scenarios": [],
+  "deploy_check_ids": [],
+  "deployment_evidence_mode": "HEARTBEAT"
+ },
+ "STATE-AS-01": {
+  "depends_on": [
+   "STATE-CORE-00",
+   "DRAFT-LIFECYCLE-01",
+   "UPLOAD-INTENT-01",
+   "UPLOAD-02",
+   "AS-BACKFILL-00"
+  ],
+  "dependency_classes": {
+   "packet_harness": true,
+   "backfill_artifact": false,
+   "write_guard": true,
+   "postgres": true
+  },
+  "commands": [
+   "python -m pytest tests/domains/test_state_as.py -q"
+  ],
+  "existing_regressions": [
+   "tests/domains/test_as_received_date_kst.py"
+  ],
+  "created_tests": [
+   {
+    "path": "tests/domains/test_state_as.py",
+    "owner_packet": "STATE-AS-01"
+   },
+   {
+    "path": "tests/postgres/test_state_as.py",
+    "owner_packet": "STATE-AS-01"
+   }
+  ],
+  "browser_scenarios": [],
+  "deploy_check_ids": [],
+  "deployment_evidence_mode": "HEARTBEAT"
+ },
+ "STATE-QUEST-01": {
+  "depends_on": [
+   "AUTH-QUEST-01",
+   "QUEST-BACKFILL-00"
+  ],
+  "dependency_classes": {
+   "packet_harness": true,
+   "backfill_artifact": false,
+   "write_guard": true,
+   "postgres": true
+  },
+  "commands": [
+   "python -m pytest tests/domains/test_state_quest.py -q"
+  ],
+  "existing_regressions": [],
+  "created_tests": [
+   {
+    "path": "tests/domains/test_state_quest.py",
+    "owner_packet": "STATE-QUEST-01"
+   }
+  ],
+  "browser_scenarios": [],
+  "deploy_check_ids": [],
+  "deployment_evidence_mode": "HEARTBEAT"
+ },
+ "DATA-01": {
+  "depends_on": [
+   "ITEM-ID-00",
+   "TASK-01"
+  ],
+  "dependency_classes": {
+   "packet_harness": true,
+   "backfill_artifact": false,
+   "write_guard": true,
+   "postgres": true
+  },
+  "commands": [
+   "python -m pytest tests/domains/test_data_structured.py -q"
+  ],
+  "existing_regressions": [
+   "tests/domains/test_erp_order_shared_form_scripts.py"
+  ],
+  "created_tests": [
+   {
+    "path": "tests/domains/test_data_structured.py",
+    "owner_packet": "DATA-01"
+   },
+   {
+    "path": "tests/postgres/test_data_structured_pg.py",
+    "owner_packet": "DATA-01"
+   }
+  ],
+  "browser_scenarios": [],
+  "deploy_check_ids": [],
+  "deployment_evidence_mode": "PROVIDER_BOOTSTRAP"
+ },
+ "DATA-MEASUREMENT-01": {
+  "depends_on": [
+   "DATA-01",
+   "REV-00",
+   "AUTH-01",
+   "SIDEFX-00",
+   "SIDEFX-WORKER-01"
+  ],
+  "dependency_classes": {
+   "packet_harness": true,
+   "backfill_artifact": false,
+   "write_guard": true,
+   "postgres": true
+  },
+  "commands": [
+   "python -m pytest tests/postgres/test_data_measurement.py -q"
+  ],
+  "existing_regressions": [
+   "tests/contracts/runtime/foms_namespace_surface_tests.py"
+  ],
+  "created_tests": [
+   {
+    "path": "tests/postgres/test_data_measurement.py",
+    "owner_packet": "DATA-MEASUREMENT-01"
+   }
+  ],
+  "browser_scenarios": [],
+  "deploy_check_ids": [],
+  "deployment_evidence_mode": "HEARTBEAT"
+ },
+ "SHIPMENT-WRITER-01": {
+  "depends_on": [
+   "STATE-AS-01",
+   "ASSIGNMENT-00",
+   "CREW-00",
+   "REV-00",
+   "AUTH-01"
+  ],
+  "dependency_classes": {
+   "packet_harness": true,
+   "backfill_artifact": false,
+   "write_guard": true,
+   "postgres": true
+  },
+  "commands": [
+   "python -m pytest tests/domains/test_shipment_writer.py -q"
+  ],
+  "existing_regressions": [
+   "tests/domains/test_shipment_as_recommendations.py"
+  ],
+  "created_tests": [
+   {
+    "path": "tests/domains/test_shipment_writer.py",
+    "owner_packet": "SHIPMENT-WRITER-01"
+   },
+   {
+    "path": "tests/postgres/test_shipment_writer.py",
+    "owner_packet": "SHIPMENT-WRITER-01"
+   }
+  ],
+  "browser_scenarios": [],
+  "deploy_check_ids": [],
+  "deployment_evidence_mode": "HEARTBEAT"
+ },
+ "ORDER-CREATE-01": {
+  "depends_on": [
+   "STATE-QUEST-01",
+   "ASSIGNMENT-00",
+   "ITEM-ID-00",
+   "DATA-01",
+   "DATA-MEASUREMENT-01",
+   "STATE-MODEL-00"
+  ],
+  "dependency_classes": {
+   "packet_harness": true,
+   "backfill_artifact": false,
+   "write_guard": true,
+   "postgres": true
+  },
+  "commands": [
+   "python -m pytest tests/postgres/test_order_create.py -q"
+  ],
+  "existing_regressions": [
+   "tests/contracts/runtime/foms_namespace_surface_tests.py"
+  ],
+  "created_tests": [
+   {
+    "path": "tests/postgres/test_order_create.py",
+    "owner_packet": "ORDER-CREATE-01"
+   },
+   {
+    "path": "tests/domains/test_order_create_service.py",
+    "owner_packet": "ORDER-CREATE-01"
+   }
+  ],
+  "browser_scenarios": [],
+  "deploy_check_ids": [],
+  "deployment_evidence_mode": "HEARTBEAT"
+ },
+ "ORDER-COPY-01": {
+  "depends_on": [
+   "ORDER-CREATE-01",
+   "STATE-QUEST-01",
+   "ASSIGNMENT-00"
+  ],
+  "dependency_classes": {
+   "packet_harness": true,
+   "backfill_artifact": false,
+   "write_guard": true,
+   "postgres": true
+  },
+  "commands": [
+   "python -m pytest tests/domains/test_order_copy_api.py -q"
+  ],
+  "existing_regressions": [
+   "tests/domains/test_order_create_service.py"
+  ],
+  "created_tests": [
+   {
+    "path": "tests/postgres/test_order_copy.py",
+    "owner_packet": "ORDER-COPY-01"
+   },
+   {
+    "path": "tests/domains/test_order_copy_api.py",
+    "owner_packet": "ORDER-COPY-01"
+   }
+  ],
+  "browser_scenarios": [],
+  "deploy_check_ids": [],
+  "deployment_evidence_mode": "HEARTBEAT"
+ },
+ "ORDER-IMPORT-01": {
+  "depends_on": [
+   "ORDER-CREATE-01",
+   "SIDEFX-WORKER-01"
+  ],
+  "dependency_classes": {
+   "packet_harness": true,
+   "backfill_artifact": false,
+   "write_guard": true,
+   "postgres": true
+  },
+  "commands": [
+   "python -m pytest tests/postgres/test_order_import.py -q"
+  ],
+  "existing_regressions": [
+   "tests/postgres/test_sidefx_outbox.py"
+  ],
+  "created_tests": [
+   {
+    "path": "tests/postgres/test_order_import.py",
+    "owner_packet": "ORDER-IMPORT-01"
+   }
+  ],
+  "browser_scenarios": [],
+  "deploy_check_ids": [],
+  "deployment_evidence_mode": "HEARTBEAT"
+ },
+ "CHANNEL-INBOUND-ORDER-01": {
+  "depends_on": [
+   "ORDER-CREATE-01",
+   "SIDEFX-WORKER-01",
+   "CHANNEL-WEBHOOK-AUTH-01",
+   "OPS-APPROVAL-00"
+  ],
+  "dependency_classes": {
+   "packet_harness": true,
+   "backfill_artifact": false,
+   "write_guard": false,
+   "postgres": true
+  },
+  "commands": [
+   "python -m pytest tests/postgres/test_channel_inbound.py -q"
+  ],
+  "existing_regressions": [
+   "tests/postgres/test_ops_approval.py"
+  ],
+  "created_tests": [
+   {
+    "path": "tests/postgres/test_channel_inbound.py",
+    "owner_packet": "CHANNEL-INBOUND-ORDER-01"
+   }
+  ],
+  "browser_scenarios": [],
+  "deploy_check_ids": [],
+  "deployment_evidence_mode": "HEARTBEAT"
+ },
+ "STATE-FORM-01": {
+  "depends_on": [
+   "DATA-01",
+   "STATE-CORE-00"
+  ],
+  "dependency_classes": {
+   "packet_harness": true,
+   "backfill_artifact": false,
+   "write_guard": true,
+   "postgres": false
+  },
+  "commands": [
+   "python -m pytest tests/domains/test_state_form.py -q"
+  ],
+  "existing_regressions": [
+   "tests/domains/test_workflow_stage_override.py",
+   "tests/domains/test_erp_orders_structured_put.py"
+  ],
+  "created_tests": [
+   {
+    "path": "tests/domains/test_state_form.py",
+    "owner_packet": "STATE-FORM-01"
+   }
+  ],
+  "browser_scenarios": [],
+  "deploy_check_ids": [],
+  "deployment_evidence_mode": "HEARTBEAT"
+ },
+ "STATE-OVERLAY-01": {
+  "depends_on": [
+   "STATE-CORE-00"
+  ],
+  "dependency_classes": {
+   "packet_harness": true,
+   "backfill_artifact": false,
+   "write_guard": true,
+   "postgres": true
+  },
+  "commands": [
+   "python -m pytest tests/domains/test_state_overlay.py -q"
+  ],
+  "existing_regressions": [
+   "tests/domains/test_production_hold_api.py",
+   "tests/domains/test_write_guard.py",
+   "tests/domains/test_auth_enforcement.py"
+  ],
+  "created_tests": [
+   {
+    "path": "tests/domains/test_state_overlay.py",
+    "owner_packet": "STATE-OVERLAY-01"
+   }
+  ],
+  "browser_scenarios": [],
+  "deploy_check_ids": [],
+  "deployment_evidence_mode": "HEARTBEAT"
+ },
+ "DRAFT-LIFECYCLE-01": {
+  "depends_on": [
+   "ORDER-CREATE-01",
+   "SIDEFX-WORKER-01"
+  ],
+  "dependency_classes": {
+   "packet_harness": true,
+   "backfill_artifact": false,
+   "write_guard": true,
+   "postgres": false
+  },
+  "commands": [
+   "python -m pytest tests/domains/test_draft_lifecycle.py -q"
+  ],
+  "existing_regressions": [
+   "tests/domains/test_order_create_service.py"
+  ],
+  "created_tests": [
+   {
+    "path": "tests/domains/test_draft_lifecycle.py",
+    "owner_packet": "DRAFT-LIFECYCLE-01"
+   }
+  ],
+  "browser_scenarios": [],
+  "deploy_check_ids": [],
+  "deployment_evidence_mode": "HEARTBEAT"
+ },
+ "STORAGE-WRITER-01": {
+  "depends_on": [
+   "REV-00",
+   "AUTH-01"
+  ],
+  "dependency_classes": {
+   "packet_harness": true,
+   "backfill_artifact": false,
+   "write_guard": true,
+   "postgres": true
+  },
+  "commands": [
+   "python -m pytest tests/domains/test_storage_writer.py -q"
+  ],
+  "existing_regressions": [
+   "tests/domains/test_auth_enforcement.py"
+  ],
+  "created_tests": [
+   {
+    "path": "tests/domains/test_storage_writer.py",
+    "owner_packet": "STORAGE-WRITER-01"
+   }
+  ],
+  "browser_scenarios": [],
+  "deploy_check_ids": [],
+  "deployment_evidence_mode": "HEARTBEAT"
+ },
+ "STATE-LEGACY-01": {
+  "depends_on": [
+   "REV-00",
+   "AUTH-01",
+   "STATE-CORE-00"
+  ],
+  "dependency_classes": {
+   "packet_harness": true,
+   "backfill_artifact": false,
+   "write_guard": true,
+   "postgres": false
+  },
+  "commands": [
+   "python -m pytest tests/domains/test_state_legacy.py -q"
+  ],
+  "existing_regressions": [
+   "tests/domains/test_order_status_stage_sync.py"
+  ],
+  "created_tests": [
+   {
+    "path": "tests/domains/test_state_legacy.py",
+    "owner_packet": "STATE-LEGACY-01"
+   }
+  ],
+  "browser_scenarios": [],
+  "deploy_check_ids": [],
+  "deployment_evidence_mode": "HEARTBEAT"
+ },
+ "STATE-CONTROLS-01": {
+  "depends_on": [
+   "DELETE-TRASH-01",
+   "STATE-AS-01",
+   "STATE-OVERLAY-01"
+  ],
+  "dependency_classes": {
+   "packet_harness": true,
+   "backfill_artifact": false,
+   "write_guard": true,
+   "postgres": false
+  },
+  "commands": [
+   "python -m pytest tests/domains/test_state_controls.py -q"
+  ],
+  "existing_regressions": [
+   "tests/domains/test_p3_gate.py"
+  ],
+  "created_tests": [
+   {
+    "path": "tests/domains/test_state_controls.py",
+    "owner_packet": "STATE-CONTROLS-01"
+   }
+  ],
+  "browser_scenarios": [],
+  "deploy_check_ids": [],
+  "deployment_evidence_mode": "HEARTBEAT"
+ },
+ "STATE-GUARD-01": {
+  "depends_on": [
+   "STATE-PROD-01",
+   "STATE-PROD-ACTIONS-01",
+   "STATE-CONST-CS-01",
+   "STATE-DRAWING-01",
+   "STATE-AS-01",
+   "STATE-QUEST-01",
+   "STATE-FORM-01",
+   "STATE-OVERLAY-01",
+   "STATE-CONTROLS-01",
+   "STATE-AXES-REPAIR-00",
+   "DELETE-CORE-00",
+   "DELETE-BULK-01",
+   "DELETE-TRASH-01",
+   "DELETE-RETENTION-01",
+   "ORDER-CREATE-01",
+   "ORDER-COPY-01",
+   "ORDER-IMPORT-01",
+   "CHANNEL-INBOUND-ORDER-01",
+   "DRAFT-LIFECYCLE-01",
+   "STATE-LEGACY-01",
+   "ERP-ESTIMATE-01",
+   "STORAGE-WRITER-01",
+   "BLUEPRINT-01",
+   "EVENT-REVERT-01"
+  ],
+  "dependency_classes": {
+   "packet_harness": true,
+   "backfill_artifact": false,
+   "write_guard": false,
+   "postgres": false
+  },
+  "commands": [
+   "python -m pytest tests/domains/test_state_guard.py -q"
+  ],
+  "existing_regressions": [
+   "tests/domains/test_state_legacy.py"
+  ],
+  "created_tests": [
+   {
+    "path": "tests/domains/test_state_guard.py",
+    "owner_packet": "STATE-GUARD-01"
+   }
+  ],
+  "browser_scenarios": [],
+  "deploy_check_ids": [],
+  "deployment_evidence_mode": "HEARTBEAT"
+ },
+ "WIZ-01": {
+  "depends_on": [
+   "ITEM-ID-00"
+  ],
+  "dependency_classes": {
+   "packet_harness": true,
+   "backfill_artifact": false,
+   "write_guard": true,
+   "postgres": true
+  },
+  "commands": [
+   "python -m pytest tests/domains/test_wiz_put.py -q"
+  ],
+  "existing_regressions": [
+   "tests/domains/test_drawing_wizard_api.py"
+  ],
+  "created_tests": [
+   {
+    "path": "tests/domains/test_wiz_put.py",
+    "owner_packet": "WIZ-01"
+   },
+   {
+    "path": "tests/postgres/test_wiz_put_pg.py",
+    "owner_packet": "WIZ-01"
+   }
+  ],
+  "browser_scenarios": [],
+  "deploy_check_ids": [],
+  "deployment_evidence_mode": "PROVIDER_BOOTSTRAP"
+ },
+ "WIZ-PRESET-01": {
+  "depends_on": [
+   "REV-00",
+   "AUTH-01"
+  ],
+  "dependency_classes": {
+   "packet_harness": true,
+   "backfill_artifact": false,
+   "write_guard": true,
+   "postgres": false
+  },
+  "commands": [
+   "python -m pytest tests/domains/test_wiz_preset.py -q"
+  ],
+  "existing_regressions": [
+   "tests/domains/test_drawing_wizard_api.py"
+  ],
+  "created_tests": [
+   {
+    "path": "tests/domains/test_wiz_preset.py",
+    "owner_packet": "WIZ-PRESET-01"
+   }
+  ],
+  "browser_scenarios": [],
+  "deploy_check_ids": [],
+  "deployment_evidence_mode": "HEARTBEAT"
+ },
+ "WIZ-TRANSFER-01": {
+  "depends_on": [
+   "SIDEFX-00",
+   "SIDEFX-WORKER-01",
+   "WIZ-01"
+  ],
+  "dependency_classes": {
+   "packet_harness": true,
+   "backfill_artifact": false,
+   "write_guard": false,
+   "postgres": false
+  },
+  "commands": [
+   "python -m pytest tests/domains/test_wiz_transfer.py -q"
+  ],
+  "existing_regressions": [
+   "tests/domains/test_drawing_wizard_api.py"
+  ],
+  "created_tests": [
+   {
+    "path": "tests/domains/test_wiz_transfer.py",
+    "owner_packet": "WIZ-TRANSFER-01"
+   }
+  ],
+  "browser_scenarios": [],
+  "deploy_check_ids": [],
+  "deployment_evidence_mode": "PROVIDER_BOOTSTRAP"
+ },
+ "WIZ-DELETE-01": {
+  "depends_on": [
+   "SIDEFX-00",
+   "SIDEFX-WORKER-01",
+   "WIZ-01"
+  ],
+  "dependency_classes": {
+   "packet_harness": true,
+   "backfill_artifact": false,
+   "write_guard": true,
+   "postgres": true
+  },
+  "commands": [
+   "python -m pytest tests/postgres/test_wiz_delete.py -q"
+  ],
+  "existing_regressions": [
+   "tests/domains/test_drawing_wizard_api.py"
+  ],
+  "created_tests": [
+   {
+    "path": "tests/postgres/test_wiz_delete.py",
+    "owner_packet": "WIZ-DELETE-01"
+   }
+  ],
+  "browser_scenarios": [],
+  "deploy_check_ids": [],
+  "deployment_evidence_mode": "PROVIDER_BOOTSTRAP"
+ },
+ "UPLOAD-01": {
+  "depends_on": [
+   "REV-00",
+   "AUTH-01"
+  ],
+  "dependency_classes": {
+   "packet_harness": true,
+   "backfill_artifact": false,
+   "write_guard": true,
+   "postgres": false
+  },
+  "commands": [
+   "python -m pytest tests/domains/test_upload_auth.py -q"
+  ],
+  "existing_regressions": [],
+  "created_tests": [
+   {
+    "path": "tests/domains/test_upload_auth.py",
+    "owner_packet": "UPLOAD-01"
+   }
+  ],
+  "browser_scenarios": [],
+  "deploy_check_ids": [],
+  "deployment_evidence_mode": "HEARTBEAT"
+ },
+ "FILE-LEGACY-AUDIT-00": {
+  "depends_on": [
+   "UPLOAD-01"
+  ],
+  "dependency_classes": {
+   "packet_harness": true,
+   "backfill_artifact": true,
+   "write_guard": false,
+   "postgres": false
+  },
+  "commands": [
+   "python -m pytest tests/domains/test_file_legacy_audit.py -q"
+  ],
+  "existing_regressions": [],
+  "created_tests": [
+   {
+    "path": "tests/domains/test_file_legacy_audit.py",
+    "owner_packet": "FILE-LEGACY-AUDIT-00"
+   }
+  ],
+  "browser_scenarios": [],
+  "deploy_check_ids": [],
+  "deployment_evidence_mode": "HEARTBEAT"
+ },
+ "FILE-LEGACY-BACKFILL-01": {
+  "depends_on": [
+   "FILE-LEGACY-AUDIT-00"
+  ],
+  "dependency_classes": {
+   "packet_harness": true,
+   "backfill_artifact": true,
+   "write_guard": false,
+   "postgres": true
+  },
+  "commands": [
+   "python -m pytest tests/postgres/test_file_legacy_backfill.py -q"
+  ],
+  "existing_regressions": [],
+  "created_tests": [
+   {
+    "path": "tests/postgres/test_file_legacy_backfill.py",
+    "owner_packet": "FILE-LEGACY-BACKFILL-01"
+   }
+  ],
+  "browser_scenarios": [],
+  "deploy_check_ids": [],
+  "deployment_evidence_mode": "HEARTBEAT"
+ },
+ "FILE-01": {
+  "depends_on": [
+   "FILE-LEGACY-BACKFILL-01"
+  ],
+  "dependency_classes": {
+   "packet_harness": true,
+   "backfill_artifact": false,
+   "write_guard": false,
+   "postgres": false
+  },
+  "commands": [
+   "python -m pytest tests/domains/test_file_download_auth.py -q"
+  ],
+  "existing_regressions": [],
+  "created_tests": [
+   {
+    "path": "tests/domains/test_file_download_auth.py",
+    "owner_packet": "FILE-01"
+   }
+  ],
+  "browser_scenarios": [],
+  "deploy_check_ids": [],
+  "deployment_evidence_mode": "HEARTBEAT"
+ },
+ "UPLOAD-INTENT-01": {
+  "depends_on": [
+   "FILE-01"
+  ],
+  "dependency_classes": {
+   "packet_harness": true,
+   "backfill_artifact": false,
+   "write_guard": true,
+   "postgres": true
+  },
+  "commands": [
+   "python -m pytest tests/postgres/test_upload_intent.py -q"
+  ],
+  "existing_regressions": [
+   "tests/postgres/test_sidefx_outbox.py"
+  ],
+  "created_tests": [
+   {
+    "path": "tests/postgres/test_upload_intent.py",
+    "owner_packet": "UPLOAD-INTENT-01"
+   }
+  ],
+  "browser_scenarios": [],
+  "deploy_check_ids": [],
+  "deployment_evidence_mode": "HEARTBEAT"
+ },
+ "UPLOAD-02": {
+  "depends_on": [
+   "ITEM-ID-00",
+   "FILE-01",
+   "UPLOAD-INTENT-01",
+   "SIDEFX-WORKER-01"
+  ],
+  "dependency_classes": {
+   "packet_harness": true,
+   "backfill_artifact": false,
+   "write_guard": true,
+   "postgres": true
+  },
+  "commands": [
+   "python -m pytest tests/postgres/test_upload_02.py -q"
+  ],
+  "existing_regressions": [
+   "tests/postgres/test_sidefx_outbox.py"
+  ],
+  "created_tests": [
+   {
+    "path": "tests/postgres/test_upload_02.py",
+    "owner_packet": "UPLOAD-02"
+   }
+  ],
+  "browser_scenarios": [],
+  "deploy_check_ids": [],
+  "deployment_evidence_mode": "HEARTBEAT"
+ },
+ "BLUEPRINT-01": {
+  "depends_on": [
+   "UPLOAD-02",
+   "FILE-LEGACY-BACKFILL-01",
+   "STATE-CORE-00"
+  ],
+  "dependency_classes": {
+   "packet_harness": true,
+   "backfill_artifact": true,
+   "write_guard": true,
+   "postgres": true
+  },
+  "commands": [
+   "python -m pytest tests/domains/test_blueprint.py -q"
+  ],
+  "existing_regressions": [
+   "tests/postgres/test_startup_schema.py"
+  ],
+  "created_tests": [
+   {
+    "path": "tests/domains/test_blueprint.py",
+    "owner_packet": "BLUEPRINT-01"
+   },
+   {
+    "path": "tests/postgres/test_blueprint.py",
+    "owner_packet": "BLUEPRINT-01"
+   }
+  ],
+  "browser_scenarios": [],
+  "deploy_check_ids": [],
+  "deployment_evidence_mode": "HEARTBEAT"
+ },
+ "UPLOAD-CHAT-01": {
+  "depends_on": [
+   "UPLOAD-02"
+  ],
+  "dependency_classes": {
+   "packet_harness": true,
+   "backfill_artifact": false,
+   "write_guard": true,
+   "postgres": false
+  },
+  "commands": [],
+  "existing_regressions": [],
+  "created_tests": [],
+  "browser_scenarios": [],
+  "deploy_check_ids": [],
+  "deployment_evidence_mode": "HEARTBEAT"
+ },
+ "CHAT-FILE-01": {
+  "depends_on": [
+   "CHAT-MESSAGE-01"
+  ],
+  "dependency_classes": {
+   "packet_harness": true,
+   "backfill_artifact": true,
+   "write_guard": false,
+   "postgres": true
+  },
+  "commands": [],
+  "existing_regressions": [],
+  "created_tests": [],
+  "browser_scenarios": [],
+  "deploy_check_ids": [],
+  "deployment_evidence_mode": "HEARTBEAT"
+ },
+ "SHELL-01": {
+  "depends_on": [],
+  "dependency_classes": {
+   "packet_harness": true,
+   "backfill_artifact": false,
+   "write_guard": false,
+   "postgres": false
+  },
+  "commands": [
+   "python -m pytest tests/domains/test_shell_nav_race.py -q"
+  ],
+  "existing_regressions": [
+   "tests/domains/test_erp_runtime_shell_js_contract.py"
+  ],
+  "created_tests": [
+   {
+    "path": "tests/domains/test_shell_nav_race.py",
+    "owner_packet": "SHELL-01"
+   }
+  ],
+  "browser_scenarios": [],
+  "deploy_check_ids": [],
+  "deployment_evidence_mode": "PROVIDER_BOOTSTRAP"
+ },
+ "HISTORY-01": {
+  "depends_on": [],
+  "dependency_classes": {
+   "packet_harness": true,
+   "backfill_artifact": false,
+   "write_guard": false,
+   "postgres": false
+  },
+  "commands": [
+   "python -m pytest tests/performance/test_perf_regression_guard.py tests/domains/test_p3_gate.py -q"
+  ],
+  "existing_regressions": [
+   "tests/performance/test_perf_regression_guard.py",
+   "tests/domains/test_p3_gate.py"
+  ],
+  "created_tests": [],
+  "browser_scenarios": [],
+  "deploy_check_ids": [],
+  "deployment_evidence_mode": "PROVIDER_BOOTSTRAP"
+ },
+ "ROUTE-01": {
+  "depends_on": [],
+  "dependency_classes": {
+   "packet_harness": true,
+   "backfill_artifact": false,
+   "write_guard": false,
+   "postgres": false
+  },
+  "commands": [
+   "python -m pytest tests/domains/test_measurement_route.py -q"
+  ],
+  "existing_regressions": [],
+  "created_tests": [
+   {
+    "path": "tests/domains/test_measurement_route.py",
+    "owner_packet": "ROUTE-01"
+   }
+  ],
+  "browser_scenarios": [],
+  "deploy_check_ids": [],
+  "deployment_evidence_mode": "PROVIDER_BOOTSTRAP"
+ },
+ "SW-01": {
+  "depends_on": [],
+  "dependency_classes": {
+   "packet_harness": true,
+   "backfill_artifact": false,
+   "write_guard": false,
+   "postgres": false
+  },
+  "commands": [
+   "python -m pytest tests/domains/test_sw_pii_cache.py tests/domains/test_sw_push_contract.py -q"
+  ],
+  "existing_regressions": [
+   "tests/domains/test_sw_push_contract.py",
+   "tests/domains/test_erp_runtime_shell_js_contract.py"
+  ],
+  "created_tests": [
+   {
+    "path": "tests/domains/test_sw_pii_cache.py",
+    "owner_packet": "SW-01"
+   }
+  ],
+  "browser_scenarios": [],
+  "deploy_check_ids": [],
+  "deployment_evidence_mode": "PROVIDER_BOOTSTRAP"
+ },
+ "OFFLINE-01": {
+  "depends_on": [
+   "SW-01",
+   "CUTOVER-MODE-01",
+   "WRITE-GUARD-01",
+   "OPS-APPROVAL-00"
+  ],
+  "dependency_classes": {
+   "packet_harness": true,
+   "backfill_artifact": false,
+   "write_guard": false,
+   "postgres": false
+  },
+  "commands": [
+   "python -m pytest tests/domains/test_offline_recovery.py -q"
+  ],
+  "existing_regressions": [],
+  "created_tests": [
+   {
+    "path": "tests/domains/test_offline_recovery.py",
+    "owner_packet": "OFFLINE-01"
+   }
+  ],
+  "browser_scenarios": [],
+  "deploy_check_ids": [],
+  "deployment_evidence_mode": "HEARTBEAT"
+ },
+ "STARTUP-SCHEMA-01": {
+  "depends_on": [],
+  "dependency_classes": {
+   "packet_harness": true,
+   "backfill_artifact": false,
+   "write_guard": false,
+   "postgres": true
+  },
+  "commands": [
+   "python -m pytest tests/postgres/test_startup_schema.py -q"
+  ],
+  "existing_regressions": [
+   "tests/domains/test_app_init.py"
+  ],
+  "created_tests": [
+   {
+    "path": "tests/postgres/test_startup_schema.py",
+    "owner_packet": "STARTUP-SCHEMA-01"
+   }
+  ],
+  "browser_scenarios": [],
+  "deploy_check_ids": [],
+  "deployment_evidence_mode": "PROVIDER_BOOTSTRAP"
+ },
+ "STARTUP-BACKFILL-01": {
+  "depends_on": [],
+  "dependency_classes": {
+   "packet_harness": true,
+   "backfill_artifact": true,
+   "write_guard": false,
+   "postgres": true
+  },
+  "commands": [
+   "python -m pytest tests/postgres/test_startup_backfill.py -q"
+  ],
+  "existing_regressions": [],
+  "created_tests": [
+   {
+    "path": "tests/postgres/test_startup_backfill.py",
+    "owner_packet": "STARTUP-BACKFILL-01"
+   }
+  ],
+  "browser_scenarios": [],
+  "deploy_check_ids": [],
+  "deployment_evidence_mode": "PROVIDER_BOOTSTRAP"
+ },
+ "STARTUP-ADMIN-01": {
+  "depends_on": [
+   "AUTH-ACCOUNT-01"
+  ],
+  "dependency_classes": {
+   "packet_harness": true,
+   "backfill_artifact": false,
+   "write_guard": false,
+   "postgres": false
+  },
+  "commands": [
+   "python -m pytest tests/domains/test_bootstrap_admin.py -q"
+  ],
+  "existing_regressions": [
+   "tests/domains/test_app_init.py"
+  ],
+  "created_tests": [
+   {
+    "path": "tests/domains/test_bootstrap_admin.py",
+    "owner_packet": "STARTUP-ADMIN-01"
+   }
+  ],
+  "browser_scenarios": [],
+  "deploy_check_ids": [],
+  "deployment_evidence_mode": "PROVIDER_BOOTSTRAP"
+ },
+ "STARTUP-PURE-01": {
+  "depends_on": [
+   "STARTUP-SCHEMA-01",
+   "STARTUP-BACKFILL-01",
+   "STARTUP-ADMIN-01"
+  ],
+  "dependency_classes": {
+   "packet_harness": true,
+   "backfill_artifact": false,
+   "write_guard": false,
+   "postgres": false
+  },
+  "commands": [
+   "python -m pytest tests/domains/test_startup_pure.py -q"
+  ],
+  "existing_regressions": [
+   "tests/domains/test_app_init.py"
+  ],
+  "created_tests": [
+   {
+    "path": "tests/domains/test_startup_pure.py",
+    "owner_packet": "STARTUP-PURE-01"
+   }
+  ],
+  "browser_scenarios": [],
+  "deploy_check_ids": [],
+  "deployment_evidence_mode": "PROVIDER_BOOTSTRAP"
+ },
+ "SCALE-AS-01": {
+  "depends_on": [],
+  "dependency_classes": {
+   "packet_harness": true,
+   "backfill_artifact": false,
+   "write_guard": false,
+   "postgres": true
+  },
+  "commands": [
+   "python -m pytest tests/postgres/test_scale_as.py -q"
+  ],
+  "existing_regressions": [],
+  "created_tests": [
+   {
+    "path": "tests/postgres/test_scale_as.py",
+    "owner_packet": "SCALE-AS-01"
+   }
+  ],
+  "browser_scenarios": [],
+  "deploy_check_ids": [],
+  "deployment_evidence_mode": "PROVIDER_BOOTSTRAP"
+ },
+ "SCALE-CHANNEL-01": {
+  "depends_on": [
+   "CHANNEL-INBOUND-ORDER-01"
+  ],
+  "dependency_classes": {
+   "packet_harness": true,
+   "backfill_artifact": false,
+   "write_guard": false,
+   "postgres": true
+  },
+  "commands": [
+   "python -m pytest tests/postgres/test_scale_channel.py -q"
+  ],
+  "existing_regressions": [
+   "tests/postgres/test_channel_inbound.py"
+  ],
+  "created_tests": [
+   {
+    "path": "tests/postgres/test_scale_channel.py",
+    "owner_packet": "SCALE-CHANNEL-01"
+   }
+  ],
+  "browser_scenarios": [],
+  "deploy_check_ids": [],
+  "deployment_evidence_mode": "HEARTBEAT"
+ },
+ "SCALE-SKETCHUP-01": {
+  "depends_on": [],
+  "dependency_classes": {
+   "packet_harness": true,
+   "backfill_artifact": false,
+   "write_guard": false,
+   "postgres": true
+  },
+  "commands": [],
+  "existing_regressions": [],
+  "created_tests": [],
+  "browser_scenarios": [],
+  "deploy_check_ids": [],
+  "deployment_evidence_mode": "PROVIDER_BOOTSTRAP"
+ },
+ "BACKUP-01": {
+  "depends_on": [],
+  "dependency_classes": {
+   "packet_harness": true,
+   "backfill_artifact": false,
+   "write_guard": false,
+   "postgres": false
+  },
+  "commands": [
+   "python -m pytest tests/domains/test_backup_removed.py -q"
+  ],
+  "existing_regressions": [],
+  "created_tests": [
+   {
+    "path": "tests/domains/test_backup_removed.py",
+    "owner_packet": "BACKUP-01"
+   }
+  ],
+  "browser_scenarios": [],
+  "deploy_check_ids": [],
+  "deployment_evidence_mode": "PROVIDER_BOOTSTRAP"
+ },
+ "PROXY-01": {
+  "depends_on": [],
+  "dependency_classes": {
+   "packet_harness": true,
+   "backfill_artifact": false,
+   "write_guard": false,
+   "postgres": false
+  },
+  "commands": [
+   "python -m pytest tests/domains/test_proxy_xff_trust.py -q"
+  ],
+  "existing_regressions": [],
+  "created_tests": [
+   {
+    "path": "tests/domains/test_proxy_xff_trust.py",
+    "owner_packet": "PROXY-01"
+   }
+  ],
+  "browser_scenarios": [],
+  "deploy_check_ids": [],
+  "deployment_evidence_mode": "PROVIDER_BOOTSTRAP"
+ },
+ "RUM-INGEST-01": {
+  "depends_on": [
+   "PROXY-01",
+   "REQUEST-LIMIT-01"
+  ],
+  "dependency_classes": {
+   "packet_harness": true,
+   "backfill_artifact": false,
+   "write_guard": false,
+   "postgres": false
+  },
+  "commands": [
+   "python -m pytest tests/domains/test_rum_ingest.py tests/domains/test_foms_rum_baseline.py -q"
+  ],
+  "existing_regressions": [
+   "tests/domains/test_foms_rum_baseline.py"
+  ],
+  "created_tests": [
+   {
+    "path": "tests/domains/test_rum_ingest.py",
+    "owner_packet": "RUM-INGEST-01"
+   }
+  ],
+  "browser_scenarios": [],
+  "deploy_check_ids": [],
+  "deployment_evidence_mode": "PROVIDER_BOOTSTRAP"
+ },
+ "WAM-TELEMETRY-01": {
+  "depends_on": [
+   "PROXY-01",
+   "REQUEST-LIMIT-01",
+   "API-ERROR-01",
+   "SESSION-SIGNING-SECRET-01"
+  ],
+  "dependency_classes": {
+   "packet_harness": true,
+   "backfill_artifact": false,
+   "write_guard": false,
+   "postgres": false
+  },
+  "commands": [
+   "python -m pytest tests/domains/test_wam_telemetry.py -q"
+  ],
+  "existing_regressions": [],
+  "created_tests": [
+   {
+    "path": "tests/domains/test_wam_telemetry.py",
+    "owner_packet": "WAM-TELEMETRY-01"
+   }
+  ],
+  "browser_scenarios": [],
+  "deploy_check_ids": [],
+  "deployment_evidence_mode": "HEARTBEAT"
+ },
+ "INDEX-OPS-01": {
+  "depends_on": [],
+  "dependency_classes": {
+   "packet_harness": true,
+   "backfill_artifact": false,
+   "write_guard": false,
+   "postgres": true
+  },
+  "commands": [
+   "python -m pytest tests/postgres/test_index_ops.py -q"
+  ],
+  "existing_regressions": [],
+  "created_tests": [
+   {
+    "path": "tests/postgres/test_index_ops.py",
+    "owner_packet": "INDEX-OPS-01"
+   }
+  ],
+  "browser_scenarios": [],
+  "deploy_check_ids": [],
+  "deployment_evidence_mode": "PROVIDER_BOOTSTRAP"
+ }
+}

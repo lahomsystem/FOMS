@@ -12,8 +12,10 @@ from typing import Any
 
 from foms.persistence.main.db import get_db
 from foms.persistence.main.models import Order, OrderAttachment
+from foms.services.channel_identity import get_user_by_manager_id
 from foms.services.erp_display import _ensure_dict, _erp_get_stage, apply_erp_display_fields
 from foms.services.erp_order_flags import is_erp_order_record
+from foms.services.orders.order_mutation_policy import user_can_read_order
 from foms.services.storage import get_storage
 
 logger = logging.getLogger(__name__)
@@ -49,113 +51,130 @@ def parse_foms_command(text: str) -> tuple[str, str]:
     return "", ""
 
 
-def get_order_summary_text(order_id: str) -> str:
-    db = get_db()
+#: 사용 가능한 quick action 명령어(주문/일정/담당). 그 외는 사용법 안내.
+_ORDER_COMMANDS = ("주문", "일정", "담당")
+
+_USAGE_TEXT = (
+    "[안내] 사용 가능한 명령어:\n"
+    "- /foms 주문 {번호}\n"
+    "- /foms 일정 {번호}\n"
+    "- /foms 담당 {번호}"
+)
+
+#: 모든 deny/nonexistent 를 구분 없이 덮는 단일 no-data 문구.
+#: 권한 거부·미매핑·비활성·DB 오류·미존재 주문을 서로 구별하지 않는다(존재 여부 미노출).
+#: PII·raw exception·order id 를 절대 담지 않는다.
+_NO_DATA_TEXT = "요청하신 정보를 조회할 수 없습니다. FOMS 계정 연동과 주문 조회 권한을 확인해주세요."
+
+
+def _text_result(text: str) -> dict[str, Any]:
+    """Channel Function domain result 봉투(``{"result": {"type":"text",...}}``)."""
+    return {"result": {"type": "text", "text": text}}
+
+
+def _no_data_result() -> dict[str, Any]:
+    """존재 여부·PII 를 노출하지 않는 단일 no-data 도메인 결과(모든 deny 공통)."""
+    return _text_result(_NO_DATA_TEXT)
+
+
+def _load_readable_order(user: Any, order_num: str) -> Order | None:
+    """resolve 된 User 가 canonical read scope 로 조회 가능한 active Order 를 로드한다.
+
+    ``user`` 가 없거나(미인증/미매핑/비활성/DB 오류로 resolve 실패) read scope 가 없거나
+    주문이 없으면 ``None``(deny) 을 반환한다. read scope 는 PII 를 만지기 **전에** 적용하며,
+    DB fault 는 삼키지 않고 서버 로그에만 남긴다(호출자에게 raw exception 미노출).
+    """
+    if user is None:
+        return None
     try:
-        order = db.query(Order).filter(Order.id == int(order_id), Order.active_filter()).first()
-        if not order:
-            return f"[오류] 존재하지 않는 주문 번호이거나 조회 권한이 없습니다. (#{order_id})"
-
-        status_kr = STATUS_MAP.get(order.status, order.status)
-        return (
-            f"📦 주문 #{order.id} 요약\n"
-            f"- 고객명: {order.customer_name or '-'}\n"
-            f"- 연락처: {order.phone or '-'}\n"
-            f"- 주소: {order.address or '-'}\n"
-            f"- 현재 상태: {status_kr}\n"
-            f"- 수주 제품: {order.product or '-'}"
-        )
-    except Exception as e:
-        logger.error("[QuickAction] get_order_summary error: %s", e)
-        return "[오류] 주문 정보를 불러오는 중 서버 오류가 발생했습니다."
+        db = get_db()
+        order = db.query(Order).filter(Order.id == int(order_num), Order.active_filter()).first()
+    except Exception as e:  # DB fault → deny(존재 여부·raw exception 미노출)
+        logger.error("[QuickAction] readable-order load failed: %s", e)
+        return None
+    if order is None or not user_can_read_order(user, order):
+        return None
+    return order
 
 
-def get_order_schedule_text(order_id: str) -> str:
-    db = get_db()
-    try:
-        order = db.query(Order).filter(Order.id == int(order_id), Order.active_filter()).first()
-        if not order:
-            return f"[오류] 존재하지 않는 주문 번호이거나 조회 권한이 없습니다. (#{order_id})"
-
-        sd = order.structured_data or {}
-        sched = sd.get("schedule", {})
-        recv = order.received_date or "-"
-        measure = sched.get("measurement", {}).get("date", order.measurement_date or "-")
-        const = sched.get("construction", {}).get("date", order.scheduled_date or "-")
-
-        return (
-            f"📅 주문 #{order.id} 일정 정보\n"
-            f"- 접수일: {recv}\n"
-            f"- 실측일: {measure}\n"
-            f"- 시공일: {const}"
-        )
-    except Exception as e:
-        logger.error("[QuickAction] get_order_schedule error: %s", e)
-        return "[오류] 일정 정보를 불러오는 중 서버 오류가 발생했습니다."
+def _format_order_summary(order: Order) -> str:
+    status_kr = STATUS_MAP.get(order.status, order.status)
+    return (
+        f"📦 주문 #{order.id} 요약\n"
+        f"- 고객명: {order.customer_name or '-'}\n"
+        f"- 연락처: {order.phone or '-'}\n"
+        f"- 주소: {order.address or '-'}\n"
+        f"- 현재 상태: {status_kr}\n"
+        f"- 수주 제품: {order.product or '-'}"
+    )
 
 
-def get_order_manager_text(order_id: str) -> str:
-    db = get_db()
-    try:
-        order = db.query(Order).filter(Order.id == int(order_id), Order.active_filter()).first()
-        if not order:
-            return f"[오류] 존재하지 않는 주문 번호이거나 조회 권한이 없습니다. (#{order_id})"
+def _format_order_schedule(order: Order) -> str:
+    sd = order.structured_data or {}
+    sched = sd.get("schedule", {})
+    recv = order.received_date or "-"
+    measure = sched.get("measurement", {}).get("date", order.measurement_date or "-")
+    const = sched.get("construction", {}).get("date", order.scheduled_date or "-")
+    return (
+        f"📅 주문 #{order.id} 일정 정보\n"
+        f"- 접수일: {recv}\n"
+        f"- 실측일: {measure}\n"
+        f"- 시공일: {const}"
+    )
 
-        sd = order.structured_data or {}
-        shipment = sd.get("shipment", {})
-        draw_managers = shipment.get("drawing_managers", [])
-        draw_mgr_str = ", ".join(draw_managers) if draw_managers else shipment.get("drawing_manager", "-")
 
-        const_workers = shipment.get("construction_workers", [])
-        const_wkr_str = ", ".join(const_workers) if const_workers else "-"
+def _format_order_manager(order: Order) -> str:
+    sd = order.structured_data or {}
+    shipment = sd.get("shipment", {})
+    draw_managers = shipment.get("drawing_managers", [])
+    draw_mgr_str = ", ".join(draw_managers) if draw_managers else shipment.get("drawing_manager", "-")
+    const_workers = shipment.get("construction_workers", [])
+    const_wkr_str = ", ".join(const_workers) if const_workers else "-"
+    return (
+        f"👤 주문 #{order.id} 담당자 정보\n"
+        f"- 담당 매니저: {order.manager_name or '-'}\n"
+        f"- 도면 담당자: {draw_mgr_str}\n"
+        f"- 시공 담당자: {const_wkr_str}"
+    )
 
-        return (
-            f"👤 주문 #{order.id} 담당자 정보\n"
-            f"- 담당 매니저: {order.manager_name or '-'}\n"
-            f"- 도면 담당자: {draw_mgr_str}\n"
-            f"- 시공 담당자: {const_wkr_str}"
-        )
-    except Exception as e:
-        logger.error("[QuickAction] get_order_manager error: %s", e)
-        return "[오류] 담당자 정보를 불러오는 중 서버 오류가 발생했습니다."
+
+_COMMAND_FORMATTERS = {
+    "주문": _format_order_summary,
+    "일정": _format_order_schedule,
+    "담당": _format_order_manager,
+}
 
 
 def process_foms_command(text: str, manager_id: str | None = None) -> dict[str, Any]:
-    """Parse and process the ChannelTalk `/foms` quick action command."""
-    if manager_id:
-        from foms.services.channel_identity import is_action_allowed_for_manager
+    """ChannelTalk ``/foms`` quick action 명령을 처리한다(read-only).
 
-        if not is_action_allowed_for_manager(manager_id, "read_order"):
-            return {
-                "type": "text",
-                "text": "❌ 권한이 없습니다. FOMS 계정 연동을 확인해주세요.",
-            }
+    PII(customer/phone/address/schedule/assignee) 를 만지기 전에 (1) manager id 를
+    canonical active User 로 resolve 하고 (2) 일반 Order detail 과 동일한 read scope 를
+    적용한다. manager id 누락은 allow 가 아니다(fail-open 제거). deny·미매핑·비활성·DB
+    오류·미존재 주문은 모두 동일한 no-data 결과(PII 0, 존재 여부 미노출)를 반환하며, Order
+    row/version/receipt 를 변경하지 않는다. 명령 형식 오류만 PII 없는 사용법 안내를 준다.
 
+    Args:
+        text: quick action 명령 문자열(예: ``"주문 1234"``).
+        manager_id: ChannelTalk caller manager id(transport adapter 제공). ``None``/
+            unmapped/비활성은 deny.
+
+    Returns:
+        Channel Function domain result(``{"result": {"type": "text", "text": ...}}``).
+    """
     cmd_type, order_num = parse_foms_command(text)
 
-    if not cmd_type or not order_num.isdigit():
-        return {
-            "result": {
-                "type": "text",
-                "text": "[안내] 사용 가능한 명령어:\n- /foms 주문 {번호}\n- /foms 일정 {번호}\n- /foms 담당 {번호}",
-            }
-        }
+    # 명령 형식 오류(PII·주문 데이터 없음) → 사용법 안내(pre-auth 허용).
+    if cmd_type not in _ORDER_COMMANDS or not order_num.isdigit():
+        return _text_result(_USAGE_TEXT)
 
-    if cmd_type == "주문":
-        resp_text = get_order_summary_text(order_num)
-    elif cmd_type == "일정":
-        resp_text = get_order_schedule_text(order_num)
-    elif cmd_type == "담당":
-        resp_text = get_order_manager_text(order_num)
-    else:
-        resp_text = "[안내] 사용 가능한 명령어:\n- /foms 주문 {번호}\n- /foms 일정 {번호}\n- /foms 담당 {번호}"
+    # 권한: manager id → canonical active User + Order read scope(PII 조회 전 적용).
+    user = get_user_by_manager_id(manager_id) if manager_id else None
+    order = _load_readable_order(user, order_num)
+    if order is None:
+        return _no_data_result()
 
-    return {
-        "result": {
-            "type": "text",
-            "text": resp_text,
-        }
-    }
+    return _text_result(_COMMAND_FORMATTERS[cmd_type](order))
 
 
 def get_order_summary_for_wam(order_id: int) -> dict[str, Any] | None:

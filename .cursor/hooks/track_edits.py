@@ -34,6 +34,22 @@ def _normalize_uri_to_path(uri):
 
 _PATH_KEYS = ["file_path", "path", "filePath", "file", "uri", "relativeWorkspacePath", "target_file", "resource", "document"]
 
+# session_start.py와 동일한 키 목록 — SESSION_LOG 블록 id와 Session 컬럼을 일치시킨다.
+_SESSION_KEYS = [
+    "conversation_id", "conversationId", "session_id", "sessionId", "id",
+    "chatId", "chat_id", "threadId", "thread_id",
+]
+
+def _get_session(payload):
+    """Cursor 페이로드에서 세션/대화 식별자 앞 8자를 뽑는다(미상이면 "-")."""
+    sid = find_key_recursive(payload, _SESSION_KEYS, default=None)
+    if isinstance(sid, list):
+        sid = sid[0] if sid else None
+    if isinstance(sid, dict):
+        sid = sid.get("id")
+    sid = str(sid).strip() if sid else ""
+    return sid[:8] if sid and sid != "unknown" else "-"
+
 def _get_file_path(payload):
     # 1) 최상위 path 우선 (Cursor afterFileEdit payload는 file_path가 최상위에 옴)
     top = find_key_recursive(payload, _PATH_KEYS, default=None)
@@ -86,7 +102,13 @@ def main():
     rel_path = os.path.relpath(abs_path, os.path.abspath(project_root)).replace("\\", "/")
 
     # EDIT_LOG 포맷·dedup·캡은 공용 유틸에 위임(Claude 훅과 단일 테이블 포맷).
-    append_edit_row(harness_runtime_path(project_root, "EDIT_LOG.md"), rel_path, "Cursor")
+    # Session 컬럼만 전달한다 — 경고 주입은 v1에서 Claude 훅 전담.
+    append_edit_row(
+        harness_runtime_path(project_root, "EDIT_LOG.md"),
+        rel_path,
+        "Cursor",
+        session=_get_session(payload),
+    )
 
     sys.stdout.write(json.dumps({"continue": True}))
 

@@ -59,7 +59,12 @@ def _login_admin(client, username="channel-admin", password="admin"):
 
 
 def test_channel_health_endpoint_exists(client):
-    """GET /api/channel/health returns 200 or 503 depending on env vars."""
+    """ADMIN 세션 detail은 200/503 + readiness/environment/flags를 반환한다.
+
+    OPS-ROUTE-01 이후 운영 detail은 ADMIN/MANAGER 세션 뒤에서만 노출된다
+    (무인증 공개 응답은 coarse readiness만 → test_ops_route_containment.py).
+    """
+    _login_admin(client)
     r = client.get("/api/channel/health")
     assert r.status_code in (200, 503)
     data = r.get_json()
@@ -75,6 +80,7 @@ def test_channel_admin_delivery_status_requires_auth(client):
 
 
 def test_channel_health_uses_runtime_worker_status(client, monkeypatch):
+    _login_admin(client)
     monkeypatch.setenv("FOMS_BASE_URL", "https://example.com")
     monkeypatch.setenv("CHANNEL_PUSH_ENABLED", "true")
     monkeypatch.setattr(
@@ -93,6 +99,7 @@ def test_channel_health_uses_runtime_worker_status(client, monkeypatch):
 
 
 def test_channel_health_returns_json_when_runtime_probe_fails(client, monkeypatch):
+    _login_admin(client)
     monkeypatch.setenv("FOMS_BASE_URL", "https://example.com")
 
     def _raise_probe():

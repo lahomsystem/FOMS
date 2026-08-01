@@ -1,0 +1,77 @@
+{# AS 기준 일정 드리프트 배너 — 주문 상세 최상단(2026-07-30).
+
+   pain: 드리프트가 AS 대시보드 행 배지로만 보였다. 주문 자체를 열어본 사람에게는
+   아무 경고가 없어 옛 날짜 그대로 현장에 나갔다. 도면 작업실의 주문변경 배너
+   (templates/drawing/partials/workbench_detail_body.html #dwOrderChangeBanner)와 같은
+   위치·톤으로 주문 상세 맨 위에 낸다(도면 전용 로직은 가져오지 않는다).
+
+   drift = as_dashboard_display.build_schedule_link_drift() 결과 —
+   목록 행 배지(render_as_schedule_drift_badge)와 **같은 판정 함수·같은 표시 필드**를 쓴다.
+   state='none'(링크 없음)이면 마크업도 자산도 내지 않는다 → AS 가 아닌 주문 상세는 비용 0.
+
+   자산을 매크로 안에서 싣는 이유: 이 배너가 붙는 표면 셋 중 둘(태블릿 split 패널·HTMX
+   상세 fragment)은 layout head 가 없어 {% block styles %}/{% block scripts %} 로는 CSS·JS 가
+   도착하지 않는다(project_fragment_asset_lifecycle_traps). <script>는 defer(perf G1),
+   핸들러는 document 위임 + window.__FOMS_AS_DRIFT_BANNER_BOUND 싱글톤(perf G4)이라
+   fragment 재실행에도 중복 바인딩되지 않는다.
+
+   액션은 AS 대시보드와 같은 두 엔드포인트만 쓴다(새 엔드포인트·새 날짜 포맷 경로 금지):
+   POST /api/update_order_field(field_name=as_visit_date) + POST /api/orders/<id>/as/schedule-link.
+   여기 핸들러가 as-dashboard.js 와 분리된 이유는 그 파일의 재적용이 대시보드 전용 헬퍼
+   (saveDateField·getDateInputsForOrder = 목록의 날짜 input)에 의존하는데 주문 상세엔 그
+   input 이 없기 때문이다. 서버가 정규화한 ref_current_date 를 그대로 실어 보낸다. #}
+
+{% macro render_as_schedule_drift_banner(drift, order_id) -%}
+{% set d = drift or {} %}
+{%- if d.state and d.state != 'none' -%}
+{% set is_warn = d.state in ('ref_moved', 'both_moved') %}
+<link rel="stylesheet" href="{{ url_for('static', filename='css/components/foms-as-drift-banner.css') }}?v=20260730b">
+<div class="foms-as-drift-banner foms-as-drift-banner--{{ d.state }}"
+  id="fomsAsDriftBanner"
+  data-as-order-id="{{ order_id }}"
+  data-ref-current-date="{{ d.ref_current_date or '' }}"
+  data-drift-state="{{ d.state }}"
+  role="{{ 'alert' if is_warn else 'status' }}">
+  <div class="foms-as-drift-banner__main">
+    {%- if is_warn %}
+    <i class="fas fa-triangle-exclamation foms-as-drift-banner__icon" aria-hidden="true"></i>
+    {%- elif d.state == 'ref_gone' %}
+    <i class="fas fa-link-slash foms-as-drift-banner__icon" aria-hidden="true"></i>
+    {%- else %}
+    <i class="fas fa-link foms-as-drift-banner__icon" aria-hidden="true"></i>
+    {%- endif %}
+    <div>
+      {%- if is_warn %}
+      <div class="foms-as-drift-banner__title">기준 일정이 변경됐습니다 — AS 방문일 확인 필요</div>
+      {# 요구 문구: "기준 노현정 8/11 → 8/12". 한눈에 무엇이 어떻게 바뀌었는지 읽혀야 한다. #}
+      <div class="foms-as-drift-banner__detail">기준 {{ d.ref_label }}
+        <s class="foms-as-drift-banner__old">{{ d.ref_date_md }}</s><span class="foms-as-drift-banner__arrow" aria-hidden="true">→</span><strong class="foms-as-drift-banner__new">{{ d.ref_current_date_md }}</strong>
+        {%- if d.state == 'both_moved' %} · AS 방문일도 따로 변경돼 있습니다{% endif %}</div>
+      {%- elif d.state == 'ref_gone' %}
+      <div class="foms-as-drift-banner__title">기준 {{ d.ref_label }} 주문을 찾을 수 없습니다 (연결 끊김)</div>
+      <div class="foms-as-drift-banner__detail">AS 방문일은 그대로입니다. 연결만 정리하세요.</div>
+      {%- elif d.state == 'acked' %}
+      <div class="foms-as-drift-banner__title">기준 {{ d.ref_label }} 일정 변경을 확인함 ({{ d.ref_current_date_md }})</div>
+      {%- else %}
+      <div class="foms-as-drift-banner__title">기준 {{ d.ref_label }} {{ d.ref_date_md }} 일정과 맞춰져 있습니다 · 조치 불필요</div>
+      {%- endif %}
+    </div>
+  </div>
+  {%- if d.state in ('ref_moved', 'both_moved', 'ref_gone') %}
+  <div class="foms-as-drift-banner__actions">
+    {%- if is_warn %}
+    <button type="button" class="foms-as-drift-banner__action foms-as-drift-banner__action--relink js-as-banner-drift-relink"
+      title="기준 주문의 새 일정으로 AS 방문일만 맞춥니다 (시공자 복제 없음)">재적용</button>
+    <button type="button" class="foms-as-drift-banner__action js-as-banner-drift-ack"
+      title="이 변경은 확인했으니 경고를 숨깁니다">무시</button>
+    {%- endif %}
+    <button type="button" class="foms-as-drift-banner__action foms-as-drift-banner__action--unlink js-as-banner-drift-unlink"
+      title="기준 일정 연결을 해제합니다 (방문일은 유지)">연결 해제</button>
+  </div>
+  {# 실패 메시지 슬롯 — 배너 자체가 role=alert 이라 중첩 alert 대신 live region 으로. #}
+  <p class="foms-as-drift-banner__msg" data-as-drift-banner-msg aria-live="polite"></p>
+  <script src="{{ url_for('static', filename='js/orders/as-drift-banner.js') }}?v=20260730a" defer></script>
+  {%- endif %}
+</div>
+{%- endif -%}
+{%- endmacro %}

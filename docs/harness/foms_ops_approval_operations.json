@@ -1,0 +1,356 @@
+{
+  "schema_version": 1,
+  "description": "OPS-APPROVAL-00 고위험 ops operation SSOT (§2.1 line 209). OPS-APPROVAL-00 이 owner 표 9 packet 의 모든 operation_id 를 cli=null 로 seed 한다. 각 소비 packet 은 자기 owner_packet 인 operation 의 null 세부 필드(cli/scope_schema 등)만 원자적으로 채운다. 타 packet 행 수정·operation_id 신규 추가/삭제·owner_packet 변경은 test 가 red 로 거부한다. manifest 는 tools/ops 의 --approval-token-file CLI AST inventory 와 양방향 비교한다(미등록 CLI·미구현 operation 모두 red). db_mode 는 인프라 속성으로 seed 하며 (WDC-LINK-FENCE-00 SEPARATE=TARGET_RESERVED, 그 외 SAME), scope 는 RFC 8785 JCS object {schema_version,operation_id,packet_id,target_ids_or_family,phase,artifact_sha256,expected_version,expected_generation} exact fields 다.",
+  "operations": {
+    "AUTH_RATE_BOOTSTRAP_ACTIVATE": {
+      "owner_packet": "AUTH-ACCOUNT-01",
+      "cli": null,
+      "scope_schema": null,
+      "artifact_source": null,
+      "expected_version_source": null,
+      "expected_generation_source": null,
+      "db_mode": "SAME",
+      "consume_strategy": null
+    },
+    "AUTH_RATE_BOOTSTRAP_PREPARE": {
+      "owner_packet": "AUTH-ACCOUNT-01",
+      "cli": null,
+      "scope_schema": null,
+      "artifact_source": null,
+      "expected_version_source": null,
+      "expected_generation_source": null,
+      "db_mode": "SAME",
+      "consume_strategy": null
+    },
+    "AUTH_RATE_ROTATION_ACTIVATE": {
+      "owner_packet": "AUTH-ACCOUNT-01",
+      "cli": null,
+      "scope_schema": null,
+      "artifact_source": null,
+      "expected_version_source": null,
+      "expected_generation_source": null,
+      "db_mode": "SAME",
+      "consume_strategy": null
+    },
+    "AUTH_RATE_ROTATION_FINALIZE": {
+      "owner_packet": "AUTH-ACCOUNT-01",
+      "cli": null,
+      "scope_schema": null,
+      "artifact_source": null,
+      "expected_version_source": null,
+      "expected_generation_source": null,
+      "db_mode": "SAME",
+      "consume_strategy": null
+    },
+    "AUTH_RATE_ROTATION_PREPARE": {
+      "owner_packet": "AUTH-ACCOUNT-01",
+      "cli": null,
+      "scope_schema": null,
+      "artifact_source": null,
+      "expected_version_source": null,
+      "expected_generation_source": null,
+      "db_mode": "SAME",
+      "consume_strategy": null
+    },
+    "BACKFILL_APPLY": {
+      "owner_packet": "BACKFILL-ARTIFACT-00",
+      "cli": null,
+      "scope_schema": null,
+      "artifact_source": null,
+      "expected_version_source": null,
+      "expected_generation_source": null,
+      "db_mode": "SAME",
+      "consume_strategy": null
+    },
+    "BACKFILL_ARTIFACT_PURGE": {
+      "owner_packet": "BACKFILL-ARTIFACT-00",
+      "cli": null,
+      "scope_schema": null,
+      "artifact_source": null,
+      "expected_version_source": null,
+      "expected_generation_source": null,
+      "db_mode": "SAME",
+      "consume_strategy": null
+    },
+    "BACKFILL_REAUTHORIZE": {
+      "owner_packet": "BACKFILL-ARTIFACT-00",
+      "cli": null,
+      "scope_schema": null,
+      "artifact_source": null,
+      "expected_version_source": null,
+      "expected_generation_source": null,
+      "db_mode": "SAME",
+      "consume_strategy": null
+    },
+    "CHANNEL_CREATE_DISABLE": {
+      "owner_packet": "CHANNEL-INBOUND-ORDER-01",
+      "cli": null,
+      "scope_schema": null,
+      "artifact_source": null,
+      "expected_version_source": null,
+      "expected_generation_source": null,
+      "db_mode": "SAME",
+      "consume_strategy": null
+    },
+    "CHANNEL_CREATE_ENABLE": {
+      "owner_packet": "CHANNEL-INBOUND-ORDER-01",
+      "cli": null,
+      "scope_schema": null,
+      "artifact_source": null,
+      "expected_version_source": null,
+      "expected_generation_source": null,
+      "db_mode": "SAME",
+      "consume_strategy": null
+    },
+    "CHANNEL_KEY_ROTATION_ACTIVATE": {
+      "owner_packet": "CHANNEL-INBOUND-ORDER-01",
+      "cli": null,
+      "scope_schema": null,
+      "artifact_source": null,
+      "expected_version_source": null,
+      "expected_generation_source": null,
+      "db_mode": "SAME",
+      "consume_strategy": null
+    },
+    "CHANNEL_KEY_ROTATION_FINALIZE": {
+      "owner_packet": "CHANNEL-INBOUND-ORDER-01",
+      "cli": null,
+      "scope_schema": null,
+      "artifact_source": null,
+      "expected_version_source": null,
+      "expected_generation_source": null,
+      "db_mode": "SAME",
+      "consume_strategy": null
+    },
+    "CHANNEL_KEY_ROTATION_PREPARE": {
+      "owner_packet": "CHANNEL-INBOUND-ORDER-01",
+      "cli": null,
+      "scope_schema": null,
+      "artifact_source": null,
+      "expected_version_source": null,
+      "expected_generation_source": null,
+      "db_mode": "SAME",
+      "consume_strategy": null
+    },
+    "CHANNEL_RECOVERY_CREATE": {
+      "owner_packet": "CHANNEL-INBOUND-ORDER-01",
+      "cli": null,
+      "scope_schema": null,
+      "artifact_source": null,
+      "expected_version_source": null,
+      "expected_generation_source": null,
+      "db_mode": "SAME",
+      "consume_strategy": null
+    },
+    "CHANNEL_RECOVERY_IGNORE": {
+      "owner_packet": "CHANNEL-INBOUND-ORDER-01",
+      "cli": null,
+      "scope_schema": null,
+      "artifact_source": null,
+      "expected_version_source": null,
+      "expected_generation_source": null,
+      "db_mode": "SAME",
+      "consume_strategy": null
+    },
+    "CHANNEL_RETENTION_EXTEND": {
+      "owner_packet": "CHANNEL-INBOUND-ORDER-01",
+      "cli": null,
+      "scope_schema": null,
+      "artifact_source": null,
+      "expected_version_source": null,
+      "expected_generation_source": null,
+      "db_mode": "SAME",
+      "consume_strategy": null
+    },
+    "CUTOVER_DRAIN_ABORT": {
+      "owner_packet": "CUTOVER-MODE-01",
+      "cli": "tools/ops/abort_feature_cutover_drain.py",
+      "scope_schema": "{schema_version,operation_id,packet_id=CUTOVER-MODE-01,target_ids_or_family=<family>,phase=drain_abort,artifact_sha256=<unresolved-effect0 readiness sha256>,expected_version=<fence row_version>,expected_generation=<compatibility generation>}",
+      "artifact_source": "unresolved-effect0 readiness artifact sha256 (marker0 must hold)",
+      "expected_version_source": "feature_cutover_fences.row_version for the family",
+      "expected_generation_source": "foms/build_compatibility.json generation",
+      "db_mode": "SAME",
+      "consume_strategy": "consume_same_db; target_mutation restores DRAINING->OPEN (FOR UPDATE, marker0) in the approval tx"
+    },
+    "CUTOVER_DRAIN_BEGIN": {
+      "owner_packet": "CUTOVER-MODE-01",
+      "cli": "tools/ops/begin_feature_cutover_drain.py",
+      "scope_schema": "{schema_version,operation_id,packet_id=CUTOVER-MODE-01,target_ids_or_family=<family>,phase=drain_begin,artifact_sha256=<all-serving readiness sha256>,expected_version=<fence row_version>,expected_generation=<compatibility generation>}",
+      "artifact_source": "all-serving readiness artifact (per-family check_*_rollout output) sha256",
+      "expected_version_source": "feature_cutover_fences.row_version for the family",
+      "expected_generation_source": "foms/build_compatibility.json generation",
+      "db_mode": "SAME",
+      "consume_strategy": "consume_same_db; target_mutation begins drain OPEN->DRAINING (FOR UPDATE) in the approval tx"
+    },
+    "CUTOVER_MARK": {
+      "owner_packet": "CUTOVER-MODE-01",
+      "cli": "tools/ops/mark_feature_cutover.py",
+      "scope_schema": "{schema_version,operation_id,packet_id=CUTOVER-MODE-01,target_ids_or_family=<family>,phase=mark,artifact_sha256=<readiness sha256>,expected_version=<fence row_version>,expected_generation=<in-image compatibility generation>}",
+      "artifact_source": "readiness artifact sha256 (recorded on the irreversible marker)",
+      "expected_version_source": "feature_cutover_fences.row_version for the family",
+      "expected_generation_source": "foms/build_compatibility.json generation (all-serving state-aware)",
+      "db_mode": "SAME",
+      "consume_strategy": "consume_same_db; target_mutation drains (FOR UPDATE) then inserts irreversible marker + fence->CUTOVER; approved_by_admin_user_id copied from the consumed approval row"
+    },
+    "DELETE_RETENTION_APPLY": {
+      "owner_packet": "DELETE-RETENTION-01",
+      "cli": null,
+      "scope_schema": null,
+      "artifact_source": null,
+      "expected_version_source": null,
+      "expected_generation_source": null,
+      "db_mode": "SAME",
+      "consume_strategy": null
+    },
+    "OFFLINE_LOCAL_RECOVERY_APPROVE": {
+      "owner_packet": "OFFLINE-01",
+      "cli": null,
+      "scope_schema": null,
+      "artifact_source": null,
+      "expected_version_source": null,
+      "expected_generation_source": null,
+      "db_mode": "SAME",
+      "consume_strategy": null
+    },
+    "SIGNING_COMPROMISE_ACTIVATE": {
+      "owner_packet": "SESSION-SIGNING-SECRET-01",
+      "cli": "tools/ops/activate_compromised_signing_key_rotation.py",
+      "scope_schema": "{schema_version,operation_id,packet_id=SESSION-SIGNING-SECRET-01,target_ids_or_family=SESSION_SIGNING_STATE,phase=compromise_activate,artifact_sha256=<active+NEXT rescue all-serving rollout artifact sha256>,expected_version=<security_signing_state.row_version>,expected_generation=<security_signing_state.generation>}",
+      "artifact_source": "active+NEXT rescue all-serving rollout artifact sha256 (quiescence artifact also verified)",
+      "expected_version_source": "security_signing_state.row_version (singleton id=1)",
+      "expected_generation_source": "security_signing_state.generation (singleton id=1)",
+      "db_mode": "SAME",
+      "consume_strategy": "consume_same_db; target_mutation sets active=fresh NEXT, previous/pending null, old/legacy deadlines=DB now, session_epoch+1, wam_not_before=now, mode->CURRENT_ONLY (maintenance kept) in the approval tx; approver copied"
+    },
+    "SIGNING_CUTOVER_ACTIVATE": {
+      "owner_packet": "SESSION-SIGNING-SECRET-01",
+      "cli": "tools/ops/activate_signing_key_cutover.py",
+      "scope_schema": "{schema_version,operation_id,packet_id=SESSION-SIGNING-SECRET-01,target_ids_or_family=SESSION_SIGNING_STATE,phase=cutover_activate,artifact_sha256=<READY all-serving rollout artifact sha256>,expected_version=<security_signing_state.row_version>,expected_generation=<security_signing_state.generation>}",
+      "artifact_source": "READY all-serving rollout artifact (check_signing_consumer_rollout output) sha256",
+      "expected_version_source": "security_signing_state.row_version (singleton id=1)",
+      "expected_generation_source": "security_signing_state.generation (singleton id=1)",
+      "db_mode": "SAME",
+      "consume_strategy": "consume_same_db; target_mutation READY->ACTIVE (active=pending, legacy deadlines=now+grace for BRIDGE; now+epoch+1+wam_not_before for FORCE_REAUTH) in the approval tx; approver copied"
+    },
+    "SIGNING_CUTOVER_PREPARE": {
+      "owner_packet": "SESSION-SIGNING-STATE-00",
+      "cli": "tools/ops/prepare_signing_key_cutover.py",
+      "scope_schema": "{schema_version,operation_id,packet_id=SESSION-SIGNING-STATE-00,target_ids_or_family=SESSION_SIGNING_STATE,phase=cutover_prepare,artifact_sha256=<inspect CURRENT key-ID/encoding artifact sha256>,expected_version=<security_signing_state.row_version>,expected_generation=<security_signing_state.generation>}",
+      "artifact_source": "inspect_signing_key_slot.py --slot CURRENT key-ID/encoding-only artifact sha256",
+      "expected_version_source": "security_signing_state.row_version (singleton id=1)",
+      "expected_generation_source": "security_signing_state.generation (singleton id=1)",
+      "db_mode": "SAME",
+      "consume_strategy": "consume_same_db; target_mutation records deadline-null EMPTY->READY (pending key ID/artifact hash/legacy BRIDGE|FORCE_REAUTH/grace/consumer SHA) in the approval tx; no activation"
+    },
+    "SIGNING_FORCE_ENTER": {
+      "owner_packet": "SESSION-SIGNING-SECRET-01",
+      "cli": "tools/ops/enter_signing_force_maintenance.py",
+      "scope_schema": "{schema_version,operation_id,packet_id=SESSION-SIGNING-SECRET-01,target_ids_or_family=SESSION_SIGNING_STATE,phase=force_enter,artifact_sha256=<FORCE_PREPARED rescue all-serving rollout artifact sha256>,expected_version=<security_signing_state.row_version>,expected_generation=<security_signing_state.generation>}",
+      "artifact_source": "FORCE_PREPARED rescue all-serving rollout artifact sha256",
+      "expected_version_source": "security_signing_state.row_version (singleton id=1)",
+      "expected_generation_source": "security_signing_state.generation (singleton id=1)",
+      "db_mode": "SAME",
+      "consume_strategy": "consume_same_db; target_mutation maintenance_mode OFF->AUTH_ONLY (maintenance_started_at=now, rescue_deployment_sha recorded) in the approval tx; approver copied"
+    },
+    "SIGNING_FORCE_EXIT": {
+      "owner_packet": "SESSION-SIGNING-SECRET-01",
+      "cli": "tools/ops/exit_signing_force_maintenance.py",
+      "scope_schema": "{schema_version,operation_id,packet_id=SESSION-SIGNING-SECRET-01,target_ids_or_family=SESSION_SIGNING_STATE,phase=force_exit,artifact_sha256=<private current-key smoke artifact sha256>,expected_version=<security_signing_state.row_version>,expected_generation=<security_signing_state.generation>}",
+      "artifact_source": "private current-key cookie/WAM smoke artifact sha256 (green required before OFF)",
+      "expected_version_source": "security_signing_state.row_version (singleton id=1)",
+      "expected_generation_source": "security_signing_state.generation (singleton id=1)",
+      "db_mode": "SAME",
+      "consume_strategy": "consume_same_db; target_mutation maintenance_mode AUTH_ONLY->OFF (maintenance_started_at cleared) in the approval tx; approver copied"
+    },
+    "SIGNING_LEGACY_FINALIZE": {
+      "owner_packet": "SESSION-SIGNING-SECRET-01",
+      "cli": "tools/ops/finalize_signing_legacy_cutover.py",
+      "scope_schema": "{schema_version,operation_id,packet_id=SESSION-SIGNING-SECRET-01,target_ids_or_family=SESSION_SIGNING_STATE,phase=legacy_finalize,artifact_sha256=<current-only all-serving rollout artifact sha256>,expected_version=<security_signing_state.row_version>,expected_generation=<security_signing_state.generation>}",
+      "artifact_source": "current-only all-serving rollout artifact sha256 (legacy env removed)",
+      "expected_version_source": "security_signing_state.row_version (singleton id=1)",
+      "expected_generation_source": "security_signing_state.generation (singleton id=1)",
+      "db_mode": "SAME",
+      "consume_strategy": "consume_same_db; target_mutation ACTIVE->CURRENT_ONLY after both legacy deadlines pass (legacy deadlines/cutover_mode nulled) in the approval tx; approver copied"
+    },
+    "SIGNING_RECOVERY_PREPARE": {
+      "owner_packet": "SESSION-SIGNING-STATE-00",
+      "cli": "tools/ops/prepare_signing_emergency_recovery.py",
+      "scope_schema": "{schema_version,operation_id,packet_id=SESSION-SIGNING-STATE-00,target_ids_or_family=SESSION_SIGNING_STATE,phase=recovery_prepare,artifact_sha256=<inspect NEXT key-ID/encoding artifact sha256>,expected_version=<security_signing_state.row_version>,expected_generation=<security_signing_state.generation>}",
+      "artifact_source": "inspect_signing_key_slot.py --slot NEXT key-ID/encoding-only artifact sha256",
+      "expected_version_source": "security_signing_state.row_version (singleton id=1)",
+      "expected_generation_source": "security_signing_state.generation (singleton id=1)",
+      "db_mode": "SAME",
+      "consume_strategy": "consume_same_db; target_mutation stages fresh NEXT rescue key material (pending key ID/artifact hash/rescue deployment SHA/consumer SHA), mode unchanged; activation is SESSION-SIGNING-SECRET-01"
+    },
+    "SIGNING_RESCUE_ROLLFORWARD": {
+      "owner_packet": "SESSION-SIGNING-SECRET-01",
+      "cli": "tools/ops/rescue_signing_rollforward.py",
+      "scope_schema": "{schema_version,operation_id,packet_id=SESSION-SIGNING-SECRET-01,target_ids_or_family=SESSION_SIGNING_STATE,phase=rescue_rollforward,artifact_sha256=<ACTIVE_RESCUE all-serving rollout artifact sha256>,expected_version=<security_signing_state.row_version>,expected_generation=<security_signing_state.generation>}",
+      "artifact_source": "ACTIVE_RESCUE all-serving rollout artifact sha256 (rescue deployment artifact also recorded)",
+      "expected_version_source": "security_signing_state.row_version (singleton id=1)",
+      "expected_generation_source": "security_signing_state.generation (singleton id=1)",
+      "db_mode": "SAME",
+      "consume_strategy": "consume_same_db; target_mutation records rescue_deployment_sha + prepared_rollout_artifact_sha256 (roll-forward only, mode unchanged, no legacy/old rollback) in the approval tx; approver copied"
+    },
+    "SIGNING_ROTATION_ACTIVATE": {
+      "owner_packet": "SESSION-SIGNING-SECRET-01",
+      "cli": "tools/ops/activate_signing_key_rotation.py",
+      "scope_schema": "{schema_version,operation_id,packet_id=SESSION-SIGNING-SECRET-01,target_ids_or_family=SESSION_SIGNING_STATE,phase=rotation_activate,artifact_sha256=<ROTATION_READY all-serving rollout artifact sha256>,expected_version=<security_signing_state.row_version>,expected_generation=<security_signing_state.generation>}",
+      "artifact_source": "ROTATION_READY all-serving rollout artifact sha256",
+      "expected_version_source": "security_signing_state.row_version (singleton id=1)",
+      "expected_generation_source": "security_signing_state.generation (singleton id=1)",
+      "db_mode": "SAME",
+      "consume_strategy": "consume_same_db; target_mutation ROTATION_READY->ROTATING (previous=old active, active=new pending, pending null, previous deadline=now+grace) in the approval tx; approver copied"
+    },
+    "SIGNING_ROTATION_FINALIZE": {
+      "owner_packet": "SESSION-SIGNING-SECRET-01",
+      "cli": "tools/ops/finalize_signing_key_rotation.py",
+      "scope_schema": "{schema_version,operation_id,packet_id=SESSION-SIGNING-SECRET-01,target_ids_or_family=SESSION_SIGNING_STATE,phase=rotation_finalize,artifact_sha256=<current-only all-serving rollout artifact sha256>,expected_version=<security_signing_state.row_version>,expected_generation=<security_signing_state.generation>}",
+      "artifact_source": "current-only (PREVIOUS removed) all-serving rollout artifact sha256",
+      "expected_version_source": "security_signing_state.row_version (singleton id=1)",
+      "expected_generation_source": "security_signing_state.generation (singleton id=1)",
+      "db_mode": "SAME",
+      "consume_strategy": "consume_same_db; target_mutation ROTATING->CURRENT_ONLY after previous deadline passes (previous slot cleared) in the approval tx; approver copied"
+    },
+    "SIGNING_ROTATION_PREPARE": {
+      "owner_packet": "SESSION-SIGNING-STATE-00",
+      "cli": "tools/ops/prepare_signing_key_rotation.py",
+      "scope_schema": "{schema_version,operation_id,packet_id=SESSION-SIGNING-STATE-00,target_ids_or_family=SESSION_SIGNING_STATE,phase=rotation_prepare,artifact_sha256=<inspect NEXT key-ID/encoding artifact sha256>,expected_version=<security_signing_state.row_version>,expected_generation=<security_signing_state.generation>}",
+      "artifact_source": "inspect_signing_key_slot.py --slot NEXT key-ID/encoding-only artifact sha256",
+      "expected_version_source": "security_signing_state.row_version (singleton id=1)",
+      "expected_generation_source": "security_signing_state.generation (singleton id=1)",
+      "db_mode": "SAME",
+      "consume_strategy": "consume_same_db; target_mutation records deadline-null CURRENT_ONLY->ROTATION_READY (pending NEXT key ID/generation+1/consumer SHA) in the approval tx; no activation"
+    },
+    "WDC_LINK_ABORT": {
+      "owner_packet": "WDC-LINK-FENCE-00",
+      "cli": null,
+      "scope_schema": null,
+      "artifact_source": null,
+      "expected_version_source": null,
+      "expected_generation_source": null,
+      "db_mode": "TARGET_RESERVED",
+      "consume_strategy": null
+    },
+    "WDC_LINK_CANONICAL": {
+      "owner_packet": "WDC-LINK-FENCE-00",
+      "cli": null,
+      "scope_schema": null,
+      "artifact_source": null,
+      "expected_version_source": null,
+      "expected_generation_source": null,
+      "db_mode": "TARGET_RESERVED",
+      "consume_strategy": null
+    },
+    "WDC_LINK_FREEZE": {
+      "owner_packet": "WDC-LINK-FENCE-00",
+      "cli": null,
+      "scope_schema": null,
+      "artifact_source": null,
+      "expected_version_source": null,
+      "expected_generation_source": null,
+      "db_mode": "TARGET_RESERVED",
+      "consume_strategy": null
+    }
+  }
+}

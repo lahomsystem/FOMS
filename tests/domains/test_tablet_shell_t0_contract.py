@@ -190,6 +190,27 @@ def test_image_viewer_gate_uses_tablet_mq_not_768() -> None:
     assert "max-width: 768px" not in gate_body
 
 
+def test_viewer_extra_cleanup_and_get_index_synced_in_both_copies() -> None:
+    """E3 코어 2줄(close() 의 [data-viewer-extra] 전수 정리 + 공개 getIndex)이 미러
+    SSOT(.js)와 실서빙 인라인 사본 **양쪽**에 있어야 한다.
+
+    한쪽만 고치면 조용히 무효화된다: 인라인만 빠지면 판정 액션바가 다음 뷰어(AS·첨부)로
+    새고, getIndex 가 빠지면 스와이프 후 수정 요청이 열 때의 인덱스 key 를 보낸다.
+    """
+    for rel in (IMAGE_VIEWER_JS, "templates/partials/shared/layout_scripts.html"):
+        body = _read(rel)
+        assert (
+            "document.querySelectorAll('[data-viewer-extra]')" in body
+        ), f"{rel}: close() 의 [data-viewer-extra] 전수 정리 누락"
+        assert "function getIndex() { return state.index; }" in body, f"{rel}: getIndex 누락"
+        # 공개 API 노출까지 확인(정의만 하고 return 객체에 안 넣는 사고 차단).
+        assert re.search(r"return \{\s*init,\s*open,\s*close,\s*getIndex\s*\}", body), (
+            f"{rel}: getIndex 가 공개 API(return)에 없음"
+        )
+        # 기존 CS 완료 코멘트 하드코딩 정리는 유지(최소 diff 계약).
+        assert "global-viewer-completion-extra" in body
+
+
 def test_mobile_select_gate_uses_tablet_mq_not_bare_width() -> None:
     """foms-mobile-select adopts the coarse-pointer tablet gate; the old bare
     ``matchMedia("(max-width: 991.98px)")`` (no pointer clause) is gone."""

@@ -35,6 +35,12 @@ jobs:
 
       - name: Run harness tests
         run: python -m pytest tests/harness -q
+        env:
+          # app import 가 PG 준비성 프로브(STARTUP-PURE fail-closed)를 타지 않도록
+          # ci.yml 과 동일하게 in-memory SQLite 로 선언(러너에 PostgreSQL 없음).
+          DATABASE_URL: "sqlite:///:memory:"
 
       - name: Run verify-result baseline
         run: python tools/harness/verify_result.py --json
+        env:
+          DATABASE_URL: "sqlite:///:memory:"

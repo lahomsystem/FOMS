@@ -115,7 +115,8 @@
 
 **Phase 1 — 선택적 창별 worktree (강제 아님)**  
 독립·장시간·파일 겹침 위험 작업에 Cursor `/worktree` · Claude `--worktree` 사용. 동시 상한 2–3. `.worktreeinclude`로 `.env` 복사. 일상 한 줄/탐색은 공유 트리 유지.  
-(2026 트렌드·YouTube·공식 문서 조사 + 찬성/반대/중립 토론 결론: 전창 강제는 FOMS에서 OneDrive·공유 PG·머지 병목으로 비효율.)
+(2026 트렌드·YouTube·공식 문서 조사 + 찬성/반대/중립 토론 결론: 전창 강제는 FOMS에서 OneDrive·공유 PG·머지 병목으로 비효율.)  
+➡ **2026-07-27 구현됨** (선택 표준 유지, 소유 판정은 ledger union으로 재설계): `docs/plans/2026-07-27-session-worktree-isolation-phase1.md`
 
 **Phase 2 — DB/포트 격리**  
 마이그레이션 병렬이 실제 아플 때만 스키마 접두 또는 컨테이너.

@@ -188,8 +188,11 @@
             </h5>
             <button type="button" class="btn-close" data-bs-dismiss="modal" aria-label="Close"></button>
           </div>
+          <!-- 지도 = 카카오 지도 JS SDK. SDK 는 모달을 처음 열 때 공용 모듈
+               static/js/common/foms-schedule-map.js 가 lazy 주입한다(여기서 CDN script 금지 · 가드 G2).
+               키 SSOT = geocode_config.KAKAO_JS_API_KEY (AS 대시보드와 동일). -->
           <div class="modal-body p-0">
-            <div id="scheduleMapContainer" class="schedule-map-container"></div>
+            <div id="scheduleMapContainer" class="schedule-map-container" data-kakao-js-key="{{ kakao_js_key or '' }}"></div>
             <div id="scheduleMapRouteInfo" class="p-3">
               <div class="text-center text-muted py-3">
                 <div class="spinner-border spinner-border-sm me-2" role="status"></div>경로 계산 중...
@@ -340,7 +343,7 @@
              기존 별도 .foms-ship-grid-hint 는 제거(중복 제거). #}
           {% include 'shipment/partials/tablet_ship_grid.html' %}
           <div class="table-responsive shipment-table-wrapper">
-            <link rel="stylesheet" href="{{ url_for('static', filename='css/contexts/shipment/dashboard-table-extras.css') }}?v=20260716a">
+            <link rel="stylesheet" href="{{ url_for('static', filename='css/contexts/shipment/dashboard-table-extras.css') }}?v=20260730c">
             <table class="table table-sm table-hover align-middle shipment-table erp-mobile-card-table" id="shipment-dashboard-table">
               <colgroup>
                 <col data-col-key="detail">
@@ -352,8 +355,6 @@
                 <col data-col-key="construction_time">
                 <col data-col-key="drawing_managers">
                 <col data-col-key="construction_workers">
-                <col data-col-key="vehicle">
-                <col data-col-key="trip">
                 <col data-col-key="manager">
               </colgroup>
               <thead class="table-light">
@@ -367,8 +368,6 @@
                   <th data-col-key="construction_time" style="border-right: 1px solid #e0e0e0;">시공시간<button class="col-resize-handle" aria-label="컬럼 크기 조절"></button></th>
                   <th data-col-key="drawing_managers" style="border-right: 1px solid #e0e0e0;">도면담당자<button class="col-resize-handle" aria-label="컬럼 크기 조절"></button></th>
                   <th data-col-key="construction_workers" style="border-right: 1px solid #e0e0e0;">시공자<button class="col-resize-handle" aria-label="컬럼 크기 조절"></button></th>
-                  <th data-col-key="vehicle" style="border-right: 1px solid #e0e0e0;">차량</th>
-                  <th data-col-key="trip" style="border-right: 1px solid #e0e0e0;">회차</th>
                   <th data-col-key="manager">담당자<button class="col-resize-handle" aria-label="컬럼 크기 조절"></button></th>
                 </tr>
               </thead>
@@ -408,8 +407,6 @@
                 {% set shipment = sd.get('shipment') or {} %}
                 {% set site_extra = shipment.get('site_extra') or [] %}
                 {% set construction_time = shipment.get('construction_time') or '' %}
-                {% set vehicle = shipment.get('vehicle') or '' %}
-                {% set trip = shipment.get('trip') or '' %}
                 {% set drawing_manager_values = shipment.get('drawing_managers') or [] %}
                 {% set drawing_ns = namespace(values=[]) %}
                 {% for dm in drawing_manager_values %}
@@ -448,7 +445,8 @@
                 {% set worker_text_color = '#000000' %}
 
                 {# 제품/규격: items 기준 세로 배치. 규격 = 실제 W/300 숫자 #}
-                {% set erp_items = sd.get('items') or [] %}
+                {# 선택 날짜에 출고되는 품목만(라우트가 부착). 날짜 판정은 Python 헬퍼 SSOT. #}
+                {% set erp_items = r.shipment_visible_items if r.shipment_visible_items is defined else (sd.get('items') or []) %}
                 {% set item_count = erp_items|length %}
                 {% if item_count == 0 and (r.product or '') %}
                 {% set item_count = (r.product or '')|split_count(',') %}
@@ -465,7 +463,7 @@
                 {% set grp_ns.prev = _gcomposite %}
                 {% set _gm = shipment_team_group_meta.get(worker_key) or {} %}
                 <tr class="shipment-grp-row" data-team-color-index="{{ ns.worker_index }}" data-grp-key="{{ _gcomposite }}" aria-hidden="true">
-                  <td class="shipment-grp-cell" colspan="12">
+                  <td class="shipment-grp-cell" colspan="10">
                     <span class="shipment-grp-team">{% if worker_key %}시공 {{ worker_key }}{% else %}미배정{% endif %}</span>
                     <span class="shipment-grp-sum">합계 {{ _gm.get('units', '0.0') }}자</span>
                     <span class="shipment-grp-count">{{ _gm.get('count', 0) }}건</span>
@@ -518,7 +516,13 @@
                   <td class="cell-wrap shipment-product-cell" data-label="제품" style="border-right: 1px solid #e0e0e0;">
                     {% if r.status in ('AS', 'AS_RECEIVED', 'AS_COMPLETED') %}
                     <div class="small bg-light-danger p-2 rounded border border-danger-subtle cell-wrap">
+                      {# 자재(as_log material)가 있으면 자재만 표시(접수/이전 기록 숨김 — 출고팀은 최신 자재가 정보원). 없으면 기존 AS 내용 폴백. #}
+                      {% if r.as_material_text %}
+                      <div><span class="badge bg-secondary">자재</span></div>
+                      <div class="shipment-as-material-line">{{ r.as_material_text }}</div>
+                      {% else %}
                       <div style="white-space: pre-wrap;">{{ r.as_content_text if r.as_content_text else 'AS 내용 없음' }}</div>
+                      {% endif %}
                     </div>
                     {% else %}
                     <div class="d-flex flex-column gap-1 shipment-product-list">
@@ -553,18 +557,15 @@
                     <div class="shipment-address-block">
                       <div class="cell-wrap shipment-address-text mb-1" title="기본 주소">{{ address or '-' }}</div>
                       <ul class="shipment-site-extra-list mb-0" data-order-id="{{ r.id }}" data-field="site_extra">
-                        {# [GDM] ERP Items extra_input 자동 표시 (수정 불가, 저장 제외) #}
-                        {% for it in erp_items %}
-                        {% set ei = (it.get('extra_input') or '')|string|trim %}
-                        {% if ei %}
+                        {# 시공 특이사항(sd.notes.construction_note) 자동 표시 (수정 불가, 저장 제외) #}
+                        {% set _notes = sd.get('notes') %}
+                        {% set construction_note = ((_notes.get('construction_note') or '')|string|trim) if _notes is mapping else '' %}
+                        {% if construction_note %}
                         <li class="shipment-site-extra-static">
-                          <i class="fas fa-asterisk text-black-50 shipment-site-extra-static-icon"
-                            aria-hidden="true"></i>
-                          <div class="site-extra-color-blue fw-semibold shipment-site-extra-static-text"
-                            title="항목 추가입력 연동">{{ ei }}</div>
+                          <i class="fas fa-asterisk text-black-50 shipment-site-extra-static-icon" aria-hidden="true"></i>
+                          <div class="site-extra-color-blue fw-semibold shipment-site-extra-static-text" title="시공 특이사항 연동">{{ construction_note }}</div>
                         </li>
                         {% endif %}
-                        {% endfor %}
 
                         {% for line in site_extra %}
                         {% if line is mapping %}
@@ -695,50 +696,6 @@
                       {% endif %}
                     </ul>
                   </td>
-                  <td class="shipment-field-cell" data-col-key="vehicle" data-label="차량" style="border-right: 1px solid #e0e0e0;">
-                    <ul
-                      class="shipment-edit-list shipment-text-list-single shipment-vehicle-list mb-0"
-                      data-order-id="{{ r.id }}" data-field="vehicle" data-list-key="vehicle"
-                      data-storage-key="vehicle" data-datalist-id="datalist-vehicle"
-                      data-placeholder="예: 84로3712" data-single="true" data-empty-placeholder="입력">
-                      <li class="shipment-text-row {% if vehicle %}has-value{% else %}is-empty{% endif %}">
-                        <span class="shipment-text-view" data-empty-placeholder="입력">{{ vehicle }}</span>
-                        {% if can_edit_shipment %}
-                        <div class="shipment-text-edit input-group input-group-sm flex-nowrap">
-                          <input type="text" class="form-control form-control-sm shipment-text-input"
-                            data-order-id="{{ r.id }}" data-field="vehicle" value="{{ vehicle }}"
-                            placeholder="예: 84로3712" list="datalist-vehicle">
-                          <button type="button" class="btn btn-sm btn-outline-secondary shipment-btn-load-saved-text-row"
-                            title="저장된 차량번호 불러오기"><i class="fas fa-list"></i></button>
-                          <button type="button" class="btn btn-sm btn-outline-danger btn-remove-shipment-text-row"
-                            title="삭제">&times;</button>
-                        </div>
-                        {% endif %}
-                      </li>
-                    </ul>
-                  </td>
-                  <td class="shipment-field-cell" data-col-key="trip" data-label="회차" style="border-right: 1px solid #e0e0e0;">
-                    <ul
-                      class="shipment-edit-list shipment-text-list-single shipment-trip-list mb-0"
-                      data-order-id="{{ r.id }}" data-field="trip" data-list-key="trip"
-                      data-storage-key="trip" data-datalist-id="datalist-trip"
-                      data-placeholder="예: 1회차 06:30" data-single="true" data-empty-placeholder="입력">
-                      <li class="shipment-text-row {% if trip %}has-value{% else %}is-empty{% endif %}">
-                        <span class="shipment-text-view" data-empty-placeholder="입력">{{ trip }}</span>
-                        {% if can_edit_shipment %}
-                        <div class="shipment-text-edit input-group input-group-sm flex-nowrap">
-                          <input type="text" class="form-control form-control-sm shipment-text-input"
-                            data-order-id="{{ r.id }}" data-field="trip" value="{{ trip }}"
-                            placeholder="예: 1회차 06:30" list="datalist-trip">
-                          <button type="button" class="btn btn-sm btn-outline-secondary shipment-btn-load-saved-text-row"
-                            title="저장된 회차 불러오기"><i class="fas fa-list"></i></button>
-                          <button type="button" class="btn btn-sm btn-outline-danger btn-remove-shipment-text-row"
-                            title="삭제">&times;</button>
-                        </div>
-                        {% endif %}
-                      </li>
-                    </ul>
-                  </td>
                   <td data-col-key="manager" data-label="담당자">
                     {{ r.manager_name or '-' }}
                   </td>
@@ -746,7 +703,7 @@
                 {% endfor %}
                 {% else %}
                 <tr>
-                  <td colspan="12" class="text-center text-muted py-4">데이터가 없습니다.</td>
+                  <td colspan="10" class="text-center text-muted py-4">데이터가 없습니다.</td>
                 </tr>
                 {% endif %}
               </tbody>
@@ -761,11 +718,12 @@
   <datalist id="datalist-construction-time"></datalist>
   <datalist id="datalist-drawing-manager"></datalist>
   <datalist id="datalist-construction-workers"></datalist>
-  <datalist id="datalist-vehicle"></datalist>
-  <datalist id="datalist-trip"></datalist>
 
   <div id="shipment-dashboard-config" class="d-none" data-can-edit="{{ 'true' if can_edit_shipment else 'false' }}" data-selected-date="{{ selected_date|default('', true)|e }}"></div>
-  <script src="{{ url_for('static', filename='js/shipment/shipment-dashboard.js') }}?v=20260714a" defer></script>
+  {# 지도 모듈은 shipment-dashboard.js 보다 먼저(defer 는 문서 순서 유지) — 실제 호출은 클릭 시점이라
+     순서 의존은 없지만, 프래그먼트 경로에서도 함께 실려야 지도 버튼이 죽지 않는다. #}
+  <script src="{{ url_for('static', filename='js/common/foms-schedule-map.js') }}?v=20260730g" defer></script>
+  <script src="{{ url_for('static', filename='js/shipment/shipment-dashboard.js') }}?v=20260730g" defer></script>
   {% endif %}
 </div><!-- end erp-pro -->
 

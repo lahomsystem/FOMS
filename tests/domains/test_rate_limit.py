@@ -85,6 +85,9 @@ def test_init_limiter_rate_limit_key_precedence(monkeypatch):
     ):
         assert limiter.key_func() == f"sess:{expected_cookie_hash}"
 
+    # PROXY-01: raw X-Forwarded-For / X-Real-IP are attacker-controlled and are
+    # NOT consulted; the key falls back to the canonical client IP
+    # (get_remote_address == request.remote_addr, normalized by ProxyFix).
     with app.test_request_context(
         "/",
         headers={
@@ -92,10 +95,10 @@ def test_init_limiter_rate_limit_key_precedence(monkeypatch):
             "X-Real-IP": "3.3.3.3",
         },
     ):
-        assert limiter.key_func() == "1.1.1.1"
+        assert limiter.key_func() == "9.9.9.9"
 
     with app.test_request_context("/", headers={"X-Real-IP": "3.3.3.3"}):
-        assert limiter.key_func() == "3.3.3.3"
+        assert limiter.key_func() == "9.9.9.9"
 
     with app.test_request_context("/"):
         assert limiter.key_func() == "9.9.9.9"

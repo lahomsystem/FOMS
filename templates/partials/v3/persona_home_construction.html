@@ -38,7 +38,6 @@
       {% set _hero_danger = _hero.alerts and _hero.alerts.construction_d3 %}
       {% set _hero_tel = (_hero.phone or '') | replace('-', '') | replace(' ', '') %}
       {% set _cw = (_hero.structured_data.get('shipment') or {}).get('construction_workers') %}
-      {% set _veh = (_hero.structured_data.get('shipment') or {}).get('vehicle') %}
       {% set _crew_names = [] %}
       {% if _cw is string %}
         {% set _ = _crew_names.append(_cw) %}
@@ -63,18 +62,12 @@
             <span class="tnum">{{ _hero.construction_date }}</span>
             {% if _hero.address and _hero.address != '-' %}<span class="addr">{{ _hero.address }}</span>{% endif %}
           </div>
-          {% if _crew or _veh %}
+          {% if _crew %}
           <div class="px-construction-crew">
             {% if _crew %}
             <div>
               <span class="k">동승 기사</span>
               <span class="v">{{ _crew }}</span>
-            </div>
-            {% endif %}
-            {% if _veh %}
-            <div>
-              <span class="k">차량</span>
-              <span class="v">{{ _veh }}</span>
             </div>
             {% endif %}
           </div>

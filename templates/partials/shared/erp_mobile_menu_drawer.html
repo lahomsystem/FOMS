@@ -49,13 +49,19 @@
             </a>
             {% endif %}
             {% if impersonating_from_id %}
-            <a class="erp-mobile-menu-drawer__account-link" href="{{ url_for('auth.switch_back') }}">
-              <i class="fas fa-undo" aria-hidden="true"></i><span>관리자 복귀</span>
-            </a>
+            <form class="erp-mobile-menu-drawer__account-form" method="post" action="{{ url_for('auth.switch_back') }}">
+              <input type="hidden" name="csrf_token" value="{{ csrf_token() }}">
+              <button type="submit" class="erp-mobile-menu-drawer__account-link">
+                <i class="fas fa-undo" aria-hidden="true"></i><span>관리자 복귀</span>
+              </button>
+            </form>
             {% endif %}
-            <a class="erp-mobile-menu-drawer__account-link erp-mobile-menu-drawer__account-link--danger" href="{{ url_for('auth.logout') }}">
-              <i class="fas fa-sign-out-alt" aria-hidden="true"></i><span>로그아웃</span>
-            </a>
+            <form class="erp-mobile-menu-drawer__account-form" method="post" action="{{ url_for('auth.logout') }}">
+              <input type="hidden" name="csrf_token" value="{{ csrf_token() }}">
+              <button type="submit" class="erp-mobile-menu-drawer__account-link erp-mobile-menu-drawer__account-link--danger">
+                <i class="fas fa-sign-out-alt" aria-hidden="true"></i><span>로그아웃</span>
+              </button>
+            </form>
           </nav>
         </div>
         {% endif %}

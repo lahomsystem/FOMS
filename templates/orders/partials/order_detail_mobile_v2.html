@@ -1,4 +1,5 @@
 {% from 'macros/foms_kv.html' import foms_kv_row, foms_kv_list %}
+{% from 'orders/partials/as_drift_banner.html' import render_as_schedule_drift_banner %}
 
 {% macro mobile_attach_grid(attachments, order_id, show_add=false) -%}
   {% if attachments %}
@@ -91,6 +92,8 @@
 
 <div class="foms-detail-page">
   <div class="foms-shell-body">
+    {# AS 기준 일정 드리프트 — hero 위(상세 최상단). 편집 페이지와 같은 매크로/판정/자산. #}
+    {{ render_as_schedule_drift_banner(as_schedule_drift, order.id) }}
     <header class="detail-hero foms-detail-hero">
       <div class="detail-hero__badges foms-detail-hero__badges">
         <span class="foms-stage-badge foms-stage-badge{{ order.stage_badge_modifier|default('--received') }}">

@@ -6,6 +6,7 @@ from typing import Any
 
 from models import OrderAttachment
 from foms.services.storage import get_storage
+from foms.services.error_logging import log_handled_exception
 
 __all__ = ["delete_storage_files_for_order"]
 
@@ -26,12 +27,12 @@ def delete_storage_files_for_order(db: Any, order: Any) -> None:
             if attachment.storage_key:
                 storage.delete_file(attachment.storage_key)
         except Exception:
-            pass
+            log_handled_exception("storage cleanup delete_file")
         try:
             if attachment.thumbnail_key:
                 storage.delete_file(attachment.thumbnail_key)
         except Exception:
-            pass
+            log_handled_exception("storage cleanup delete thumbnail")
 
     blueprint_url = (order.blueprint_image_url or "").strip()
     if blueprint_url.startswith(VIEW_URL_PREFIX):
@@ -40,7 +41,7 @@ def delete_storage_files_for_order(db: Any, order: Any) -> None:
             try:
                 storage.delete_file(key)
             except Exception:
-                pass
+                log_handled_exception("storage cleanup delete blueprint")
 
     structured_data = order.structured_data or {}
     drawing_files = structured_data.get("drawing_current_files") or []
@@ -52,4 +53,4 @@ def delete_storage_files_for_order(db: Any, order: Any) -> None:
             try:
                 storage.delete_file(key)
             except Exception:
-                pass
+                log_handled_exception("storage cleanup delete structured key")

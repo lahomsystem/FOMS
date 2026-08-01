@@ -7,6 +7,12 @@
 
 쿼리·points 구성·최근접 이웃 순서 결정은 기존 API 구현을 동작 보존으로
 추출한 것이다(중복 구현 금지).
+
+ROUTE-01: `route`(양쪽 빌더 공통 키)는 항상 예약 순서(측정 시각 오름차순)다.
+'다음 방문'/히어로(대표 다음 목적지) 판정은 반드시 이 배열 기준이어야 다른
+화면의 히어로 위젯과 일치한다. 최근접 이웃(NN) 재배열은
+`build_measurement_route_payload`의 `optimized_route`/`optimized_total_distance_km`로만
+별도 제공한다(데스크톱 "경로 계획" 근사 직선거리 참고용 — hero/next 판정 금지).
 """
 from __future__ import annotations
 
@@ -270,6 +276,14 @@ def build_measurement_route_payload(
 ) -> dict[str, Any]:
     """실측 동선 페이로드(dict) — API 응답 본문(`success` 제외)과 동일 형태.
 
+    `route`는 예약 순서(측정 시각 오름차순 — `_query_route_orders` SSOT)를 그대로
+    반환한다. 히어로/'다음 방문' 판정(첫 미완료 지점)은 반드시 이 순서를 기준으로
+    해야 한다 — 스케줄 히어로와 실제 다음 방문지가 어긋나던 버그(ROUTE-01)의 원인이
+    바로 이 배열을 최근접 이웃으로 재배열해 반환하던 것이었다.
+    `optimized_route`/`optimized_total_distance_km`는 최근접 이웃 휴리스틱으로
+    재배열한 별도 동선(데스크톱 "경로 계획" 모달의 근사 직선거리 참고용)이다 —
+    예약 순서와 다른 label·sequence로 분리해 제공하며, hero/next 판정에는 쓰지 않는다.
+
     Args:
         db: SQLAlchemy 세션.
         date_filter: 실측일(YYYY-MM-DD).
@@ -278,7 +292,7 @@ def build_measurement_route_payload(
         current_user / mine_active: '내 주문' 필터 계보.
 
     Returns:
-        {date, manager, total_points, route, total_distance_km}
+        {date, manager, total_points, route, optimized_route, optimized_total_distance_km}
     """
     limit = max(1, min(int(limit), 30))
     orders = _query_route_orders(db, date_filter, manager_filter, limit, current_user, mine_active)
@@ -289,15 +303,17 @@ def build_measurement_route_payload(
             "manager": manager_filter,
             "total_points": len(points),
             "route": points,
-            "total_distance_km": 0,
+            "optimized_route": points,
+            "optimized_total_distance_km": 0,
         }
-    route, total_km = _order_nearest_neighbor(points)
+    optimized_route, optimized_total_km = _order_nearest_neighbor(points)
     return {
         "date": date_filter,
         "manager": manager_filter,
         "total_points": len(points),
-        "route": route,
-        "total_distance_km": total_km,
+        "route": points,
+        "optimized_route": optimized_route,
+        "optimized_total_distance_km": optimized_total_km,
     }
 
 
@@ -314,6 +330,12 @@ def build_inline_route_strip_payload(
     좌표가 없는 주문은 백그라운드 지오코딩 대상이며, 여기서는 제외한다.
     2지점 미만이어도 빈/단일 route 를 내려 JS fetch 폴백의 동기 지오코딩 재진입을 막는다.
 
+    `route`는 예약 순서(측정 시각 오름차순) 그대로다 — 최근접 이웃 재배열을 하지
+    않는다(ROUTE-01). 스트립의 히어로/'다음 방문' 캡션이 이 배열의 첫 미완료
+    지점에서 파생되므로, 재배열하면 다른 히어로 위젯이 말하는 '다음 방문'과
+    어긋난다. 최적 동선(최근접 이웃)이 필요하면 `build_measurement_route_payload`의
+    `optimized_route`를 쓴다.
+
     Args:
         db: SQLAlchemy 세션.
         date_filter: 실측일(YYYY-MM-DD).
@@ -326,7 +348,4 @@ def build_inline_route_strip_payload(
         db, date_filter, "", 20, current_user, mine_active,
     )
     pts = _build_route_points_from_stored_coords(orders)
-    route = pts
-    if len(pts) > 1:
-        route, _ = _order_nearest_neighbor(pts)
-    return {"route": [{k: p.get(k) for k in INLINE_POINT_FIELDS} for p in route]}
+    return {"route": [{k: p.get(k) for k in INLINE_POINT_FIELDS} for p in pts]}

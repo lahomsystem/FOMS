@@ -10,6 +10,8 @@ from flask import request, session
 from flask_limiter import Limiter
 from flask_limiter.util import get_remote_address
 
+from foms.services.security.auth_rate.key_state import sign_rate_bucket
+
 __all__ = ["init_limiter"]
 
 
@@ -17,13 +19,13 @@ def init_limiter(app: Any) -> Limiter:
     """Initialize the Flask-Limiter instance for the current app."""
     redis_url = os.environ.get("REDIS_URL")
 
-    def rate_limit_key() -> str:
+    def _base_rate_limit_key() -> str:
         try:
             user_id = session.get("user_id")
             if user_id:
                 return f"user:{user_id}"
         except Exception:
-            pass
+            pass  # failopen: intentional: 레이트리밋 키 산출 실패 시 폴백 키로 fail-open
 
         try:
             cookie_name = app.config.get("SESSION_COOKIE_NAME", "session")
@@ -32,19 +34,21 @@ def init_limiter(app: Any) -> Limiter:
                 cookie_hash = hashlib.sha1(raw_cookie.encode("utf-8")).hexdigest()[:16]
                 return f"sess:{cookie_hash}"
         except Exception:
-            pass
+            pass  # failopen: intentional: 레이트리밋 쿠키 키 산출 실패 시 폴백 키로 fail-open
 
-        x_forwarded_for = request.headers.get("X-Forwarded-For", "")
-        if x_forwarded_for:
-            client_ip = x_forwarded_for.split(",")[0].strip()
-            if client_ip:
-                return client_ip
-
-        x_real_ip = request.headers.get("X-Real-IP", "").strip()
-        if x_real_ip:
-            return x_real_ip
-
+        # Canonical client IP only. request.remote_addr is set by ProxyFix from
+        # exactly FOMS_TRUSTED_PROXY_HOPS trusted X-Forwarded-For hops (see
+        # foms.platform.app_factory.apply_proxy_fix). Parsing the raw
+        # X-Forwarded-For / X-Real-IP headers here would let a client spoof its
+        # rate-limit key via the attacker-controlled left-most entry, so it is
+        # deliberately not done.
         return get_remote_address()
+
+    def rate_limit_key() -> str:
+        # AUTH-ACCOUNT-01 BRIDGE: sign the bucket with the active auth-rate key when
+        # the state machine is engaged; a byte-identical pass-through otherwise (no
+        # forced invalidation of existing buckets). sign_rate_bucket is fail-open.
+        return sign_rate_bucket(_base_rate_limit_key())
 
     default_limits_raw = os.environ.get("FLASK_DEFAULT_RATE_LIMITS", "5000 per day,1200 per hour")
     default_limits = [value.strip() for value in default_limits_raw.split(",") if value.strip()]

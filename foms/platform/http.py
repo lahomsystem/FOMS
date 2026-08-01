@@ -2,13 +2,58 @@
 
 from __future__ import annotations
 
+import json
 import os
 import time
+import uuid
 from typing import Any, Callable
 
+from werkzeug.exceptions import HTTPException
+
 from foms.services.datetime_kst import get_today_kst
+from foms.services.error_logging import install_protected_logging
 
 from flask import Flask, current_app, g, jsonify, redirect, request, session, url_for
+
+# Fixed, non-leaking message for any unexpected 500 (API-ERROR-01 / P1-28).
+_INTERNAL_ERROR_MESSAGE = "요청을 처리하는 중 오류가 발생했습니다. 잠시 후 다시 시도해 주세요."
+
+
+def _current_request_id() -> str:
+    """Return this request's id, assigning one if the before_request hook missed it."""
+    rid = getattr(g, "request_id", None)
+    if not rid:
+        rid = uuid.uuid4().hex
+        g.request_id = rid
+    return rid
+
+
+def _contained_error_payload(request_id: str) -> dict[str, Any]:
+    """Build the safe INTERNAL_ERROR JSON body (no str(e)/traceback/path/SQL).
+
+    A top-level ``message`` is kept for backward compatibility with existing
+    frontend code that reads ``data.message`` on failure.
+    """
+    return {
+        "success": False,
+        "message": _INTERNAL_ERROR_MESSAGE,
+        "error": {
+            "code": "INTERNAL_ERROR",
+            "message": _INTERNAL_ERROR_MESSAGE,
+            "request_id": request_id,
+        },
+    }
+
+
+def _wants_json() -> bool:
+    """Whether the current request should receive a JSON (vs HTML) error."""
+    path = request.path or ""
+    if path.startswith("/api") or "/api/" in path or path.startswith("/erp/api"):
+        return True
+    if request.is_json or request.headers.get("X-Requested-With") == "XMLHttpRequest":
+        return True
+    accept = request.accept_mimetypes
+    return accept["application/json"] > 0 and accept["application/json"] >= accept["text/html"]
 
 # Inline HTML for global 404/500 (spec: no templates/errors or templates/partials/http_errors).
 _INLINE_ERROR_THEME_SCRIPT = """<script>(function(){try{var k='foms-theme',s=localStorage.getItem(k),d=(s==='dark'||(s!=='light'&&window.matchMedia('(prefers-color-scheme:dark)').matches));if(d){document.documentElement.setAttribute('data-theme','dark');document.documentElement.style.colorScheme='dark';}}catch(e){}})();</script>"""
@@ -155,6 +200,12 @@ def register_http_bootstrap(
 ) -> None:
     """Register app-wide request hooks, routes, handlers, and teardown wiring."""
 
+    install_protected_logging(app)
+
+    @app.before_request
+    def _assign_request_id() -> None:
+        g.request_id = uuid.uuid4().hex
+
     @app.before_request
     def _record_request_start() -> None:
         g._request_start = time.perf_counter()
@@ -215,6 +266,27 @@ def register_http_bootstrap(
         return None
 
     @app.after_request
+    def _contain_error_responses(response: Any) -> Any:
+        """Attach X-Request-ID and scrub any JSON 500 body at the boundary.
+
+        This is the single choke point that neutralises the P1-28 leak: every
+        handler that returns ``str(e)`` in a 500 body (handled or not) is
+        replaced here with the fixed INTERNAL_ERROR payload. Domain 4xx and
+        non-JSON responses are untouched, so expected mappings are preserved.
+        """
+        rid = getattr(g, "request_id", None)
+        if rid:
+            response.headers.setdefault("X-Request-ID", rid)
+        if (
+            response.status_code == 500
+            and response.mimetype == "application/json"
+            and not response.direct_passthrough
+        ):
+            payload = _contained_error_payload(rid or _current_request_id())
+            response.set_data(json.dumps(payload, ensure_ascii=False))
+        return response
+
+    @app.after_request
     def _log_request_duration(response: Any) -> Any:
         if hasattr(g, "_request_start"):
             duration_ms = (time.perf_counter() - g._request_start) * 1000
@@ -228,19 +300,41 @@ def register_http_bootstrap(
                 )
         return response
 
+    def _handle_internal_error(error: Any) -> Any:
+        """Log the unexpected exception once (protected, with stack) and return
+        the contained response. Never exposes str(e)/traceback/path/SQL."""
+        rid = _current_request_id()
+        exc = getattr(error, "original_exception", None)
+        current_app.logger.error(
+            "unhandled exception request_id=%s endpoint=%s",
+            rid,
+            request.endpoint or request.path,
+            exc_info=exc or True,
+        )
+        if _wants_json():
+            response = jsonify(_contained_error_payload(rid))
+            response.status_code = 500
+            return response
+        marker = '<a href="/" class="btn-home">홈으로 돌아가기</a>'
+        html = _INLINE_HTML_500.replace(
+            marker,
+            f'{marker}\n        <p style="margin-top:16px;color:var(--err-body);'
+            f'font-size:12px;">오류 코드: {rid}</p>',
+        )
+        return html, 500
+
     @app.errorhandler(500)
     def internal_error(error):
-        import traceback
+        return _handle_internal_error(error)
 
-        if app.debug or not is_production:
-            return f"<pre>500 Error: {str(error)}\n\n{traceback.format_exc()}</pre>", 500
-
-        app.logger.error(
-            "Internal Server Error: %s\n%s",
-            str(error),
-            traceback.format_exc(),
-        )
-        return _INLINE_HTML_500, 500
+    @app.errorhandler(Exception)
+    def unhandled_exception(error):
+        # Preserve expected domain mappings (400/403/404/409/422, ...): let
+        # Flask render the HTTPException as-is; only truly unexpected
+        # (non-HTTP) exceptions get the contained 500 treatment.
+        if isinstance(error, HTTPException):
+            return error
+        return _handle_internal_error(error)
 
     @app.errorhandler(404)
     def not_found_error(error):

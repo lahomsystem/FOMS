@@ -64,9 +64,13 @@ def test_side_sheet_open_uses_resolved_url() -> None:
 
 
 def test_side_sheet_cachebuster_bumped_to_20260713a() -> None:
-    """side-sheet.js ?v 가 범프(2026-07-13 이중 헤더 제거 headless 게이팅으로 JS 내용 변경 → e→o)."""
+    """side-sheet.js ?v 가 범프(2026-07-27 도면 뷰어 마커 early-return 추가로 JS 내용 변경 → o→20260727a).
+
+    SW staticCacheFirst 는 no-cache 헤더로 무력화되지 않으므로 JS 수정 시 ?v 범프가 필수다.
+    """
     html = _read(LAYOUT_SCRIPTS)
-    assert "tablet-side-sheet.js') }}?v=20260713o" in html
+    assert "tablet-side-sheet.js') }}?v=20260727a" in html
+    assert "tablet-side-sheet.js') }}?v=20260713o" not in html
     assert "tablet-side-sheet.js') }}?v=20260713e" not in html
 
 

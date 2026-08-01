@@ -7,6 +7,7 @@
 - date(원본 그대로, None 가능)
 - open_map 플래그
 - tab 화이트리스트(incomplete/completed/sales_delivery, 그 외 incomplete)
+- billing 화이트리스트(free/paid/undecided, 그 외 '' = 전체)
 
 쿼리/리다이렉트/카운트/렌더는 일절 건드리지 않는다. flat 모듈(subpackage 순환 회피).
 """
@@ -27,6 +28,7 @@ class AsDashboardFilters:
     selected_date: Optional[str]
     open_map: bool
     tab: str
+    billing: str
 
 
 def parse_as_dashboard_filters(request) -> AsDashboardFilters:
@@ -47,10 +49,15 @@ def parse_as_dashboard_filters(request) -> AsDashboardFilters:
     if tab not in ('incomplete', 'completed', 'sales_delivery'):
         tab = 'incomplete'
 
+    billing = (request.args.get('billing') or '').strip().lower()
+    if billing not in ('free', 'paid', 'undecided'):
+        billing = ''
+
     return AsDashboardFilters(
         status_filter=status_filter,
         search_q=search_q,
         selected_date=selected_date,
         open_map=open_map,
         tab=tab,
+        billing=billing,
     )

@@ -205,6 +205,7 @@
   var baseUpdatedAt = null;
   var canSave = !!CONFIG.can_save;
   var userPresets = [];                // 도면팀 공유 사용자 프리셋 [{label,text}] (전역 SystemSetting)
+  var presetsVersion = 0;              // preset SystemSetting optimistic-lock version (GET 로 갱신, 저장 If-Match)
   var defaults = {};
   var products = [];                   // 주문 제품 리스트 [{index,name,spec,price}] (좌측 패널 소스)
   var measurePhotos = [];              // 실측 사진 [{key,filename,item_index,thumb_url}] (사이드 참조 소스)
@@ -2895,11 +2896,12 @@
     }
   }
 
-  /** 전역 프리셋 목록을 로드해 메뉴를 갱신한다(실패 시 기본 프리셋만). */
+  /** 전역 프리셋 목록을 로드해 메뉴를 갱신한다(실패 시 기본 프리셋만). version 도 갱신. */
   function loadUserPresets() {
     jsonFetch(PRESETS_ENDPOINT, { headers: { 'Accept': 'application/json' } }).then(function (r) {
       if (r.status === 200 && r.data && r.data.success && r.data.data) {
         userPresets = r.data.data.presets || [];
+        presetsVersion = (r.data.data.version != null) ? r.data.data.version : 0;
       } else {
         userPresets = [];
       }
@@ -2907,18 +2909,26 @@
     });
   }
 
-  /** 프리셋 목록을 서버에 저장(POST)하고 성공 시 메뉴 갱신 + 토스트. */
+  /** 프리셋 목록을 서버에 저장(POST)하고 성공 시 메뉴 갱신 + 토스트.
+      version(If-Match)을 함께 보내 silent overwrite 를 차단한다. 다른 사용자가 먼저
+      저장한 경우(409 REVISION_CONFLICT) 목록을 새로고침해 사용자가 재시도하게 한다. */
   function persistUserPresets(list, okMsg) {
     jsonFetch(PRESETS_ENDPOINT, {
       method: 'POST',
       headers: { 'Content-Type': 'application/json', 'Accept': 'application/json' },
-      body: JSON.stringify({ presets: list })
+      body: JSON.stringify({ presets: list, settings_version: presetsVersion })
     }).then(function (r) {
       if (r.status !== 200 || !r.data || !r.data.success) {
+        if (r.data && r.data.code === 'REVISION_CONFLICT') {
+          loadUserPresets();
+          toast('다른 사용자가 먼저 프리셋을 수정했습니다. 목록을 새로고침했으니 다시 시도해주세요.');
+          return;
+        }
         toast((r.data && r.data.message) || '프리셋 저장에 실패했습니다.');
         return;
       }
       userPresets = (r.data.data && r.data.data.presets) || [];
+      if (r.data.data && r.data.data.version != null) { presetsVersion = r.data.data.version; }
       renderPresetMenu();
       toast(okMsg);
     });

@@ -15,7 +15,7 @@ from foms.services.shipment_dashboard_helpers import (
     is_as_order,
     extract_all_construction_dates,
     _normalize_worker_name,
-    _get_order_spec_units,
+    order_spec_units,
 )
 
 logger = logging.getLogger(__name__)
@@ -78,7 +78,9 @@ def compute_shipment_panel_aggregates(panel_orders, range_start, range_end, work
                 if name_key in worker_name_map:
                     aw.setdefault(key, set()).add(name_key)
 
-            su[key] = su.get(key, 0.0) + _get_order_spec_units(order)
+            # 그날 자수 = 그날 실제 출고되는 품목만(항목별 시공일 기준). 건수(cc)는
+            # 주문 단위이므로 필터하지 않는다.
+            su[key] = su.get(key, 0.0) + order_spec_units(order, target_date=key)
     return {
         "construction_counts": cc,
         "assigned_workers_by_date": {k: sorted(list(v)) for k, v in aw.items()},

@@ -557,26 +557,52 @@
       var body = rowEl.querySelector(".card-body");
       if (!body || body.querySelector(".wd-bc-toolbar")) return;
       var modeSelect = rowEl.querySelector(".base-mode-select");
-      var seg = !modeSelect ? rowEl.querySelector(".btn-group") : null;
+      var hooks = rowEl.querySelector(".base-mode-btn-hooks");
+      var modeBtns = rowEl.querySelectorAll(".base-mode-btn");
       var del = rowEl.querySelector(".base-remove-btn");
-      if (!modeSelect && !seg && !del) return;
+      if (!modeSelect && !modeBtns.length && !del) return;
+
       var toolbar = document.createElement("div");
       toolbar.className = "wd-bc-toolbar";
+
       if (modeSelect) {
+        modeSelect.classList.add("wd-bc-mode-select-hidden");
+        modeSelect.setAttribute("aria-hidden", "true");
+        modeSelect.tabIndex = -1;
         var selectCol = modeSelect.closest('[class*="col-"]');
-        toolbar.appendChild(modeSelect);
         if (selectCol) selectCol.classList.add("wd-bc-orphan-col");
-      } else if (seg) {
-        var segCol = seg.closest('[class*="col-"]');
-        toolbar.appendChild(seg);
-        if (segCol) segCol.classList.add("wd-bc-orphan-col");
       }
+
+      if (modeBtns.length) {
+        var seg = document.createElement("div");
+        seg.className = "btn-group wd-bc-mode-seg";
+        seg.setAttribute("role", "group");
+        seg.setAttribute("aria-label", "방식");
+        forEachNode(modeBtns, function (btn) {
+          seg.appendChild(btn);
+        });
+        if (hooks) {
+          hooks.classList.add("wd-bc-orphan-col");
+          hooks.classList.remove("d-none");
+          hooks.setAttribute("aria-hidden", "true");
+        }
+        toolbar.appendChild(seg);
+      } else if (modeSelect) {
+        // fallback: 세그먼트 없으면 select 노출(레거시)
+        modeSelect.classList.remove("wd-bc-mode-select-hidden");
+        toolbar.appendChild(modeSelect);
+      }
+
       if (del) {
         var delCol = del.closest('[class*="col-"]');
         toolbar.appendChild(del);
         if (delCol) delCol.classList.add("wd-bc-orphan-col");
       }
+
       body.insertBefore(toolbar, body.firstChild);
+
+      var manualArea = rowEl.querySelector(".base-manual-area");
+      if (manualArea) manualArea.classList.add("wd-field-stack");
     }
 
     function enhanceBaseRow(rowEl, expand) {

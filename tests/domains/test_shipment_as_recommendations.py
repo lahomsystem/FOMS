@@ -8,10 +8,18 @@ from sqlalchemy.orm.attributes import flag_modified
 from werkzeug.security import generate_password_hash
 
 from db import db_session
-from models import Order, OrderScheduleDate, User
+from models import InstallationWorker, Order, OrderEvent, OrderScheduleDate, User
 
 import foms.api.shipment.recommendations as shipment_rec_api
 import foms.services.shipment_as_recommendation_cache as shipment_rec_cache
+from foms.services.crew.assignments import active_worker_ids, assign_worker
+from foms.services.datetime_kst import now_utc_naive
+from foms.services.orders.as_cycle_service import (
+    project_current_as_cycle,
+    register_as_cycle,
+    schedule_as_cycle,
+)
+from foms.services.orders.as_schedule_link import SOURCE_SHIPMENT, read_link, write_link
 from foms.services.schedule_recommendations import recommend_nearby_schedules_for_targets
 
 
@@ -360,19 +368,20 @@ def test_candidate_pool_as_content_html_includes_notes_when_tab2_absent(client) 
     assert "<font color=\"red\">노트내용</font>" in row["as_content_html"] or "red" in row["as_content_html"]
 
 
-def test_shipment_as_recommendation_map_reuses_global_leaflet_instance() -> None:
-    # Batch 5: inline JS가 static/js/shipment/shipment-dashboard.js로 이동 → 표면 합본 검사
-    root = Path(__file__).resolve().parents[2]
-    src = (
-        (root / "templates/shipment/partials/dashboard_main.html").read_text(encoding="utf-8")
-        + "\n"
-        + (root / "static/js/shipment/shipment-dashboard.js").read_text(encoding="utf-8")
-    )
+def test_shipment_as_recommendation_map_delegates_to_shared_kakao_module() -> None:
+    """출고 지도 = 공용 카카오 모듈 위임(Leaflet/OSM 자체 렌더러는 퇴역).
 
-    assert "window.__shipmentAsRecMapLeaflet" in src
-    assert "function getFreshScheduleMapContainer()" in src
-    assert "container._leaflet_id" in src
-    assert "replaceChild(clone, container)" in src
+    AS 대시보드와 같은 `#scheduleMapModal` 을 쓰므로 렌더러가 갈라지면 안 된다.
+    modalEl 은 adoptModalFromMain 이 body 로 재부모화한 노드를 넘겨야 한다 —
+    모듈이 document.getElementById 로 찾으면 프래그먼트 스왑 후 옛 노드를 잡는다.
+    """
+    root = Path(__file__).resolve().parents[2]
+    js = (root / "static/js/shipment/shipment-dashboard.js").read_text(encoding="utf-8")
+
+    assert "leaflet" not in js.lower()
+    assert "window.FOMS_SCHEDULE_MAP.open(" in js
+    assert "modalEl: mapModalEl" in js
+    assert "function getMapModal()" in js
 
 
 def test_recommend_token_fallback_only_when_no_route_success() -> None:
@@ -524,259 +533,320 @@ def test_as_recommendations_batch_forwards_selected_date(client, monkeypatch) ->
     assert captured.get("include_workers") is True
 
 
-def _make_as_order_for_apply(
-    *,
-    visit_date: str,
-    as_info: list[dict],
-) -> Order:
+_H64 = "a" * 64
+
+
+def _make_installation_worker(ext: str, name: str) -> InstallationWorker:
+    """활성 설치 작업자 마스터 1명 생성."""
+    worker = InstallationWorker(external_worker_id=ext, display_name=name, is_active=True)
+    db_session.add(worker)
+    db_session.commit()
+    return worker
+
+
+def _make_ship_with_crew(worker_names: list[str]):
+    """시공일 + 활성 crew 배정(ID)을 가진 출고 기준 주문을 만든다.
+
+    Returns:
+        ``(ship_id, sorted_worker_ids, construction_date)`` — id 로 반환해 client 요청 후
+        detached instance 접근을 피한다.
+    """
+    today = date.today().strftime("%Y-%m-%d")
+    ship = Order(
+        received_date=today, customer_name="출고 기준", phone="010-3333-4444",
+        address="Seoul Gangnam", product="장", status="IN_CONSTRUCTION", is_erp_order=True,
+        structured_data={"schedule": {"construction": {"date": today}}, "shipment": {}},
+    )
+    db_session.add(ship)
+    db_session.commit()
+    ship_id = ship.id
+    worker_ids = []
+    for i, name in enumerate(worker_names):
+        worker = _make_installation_worker(f"W{ship_id}-{i}", name)
+        assign_worker(db_session, order_id=ship_id, worker_id=worker.id)
+        worker_ids.append(worker.id)
+    db_session.commit()
+    return ship_id, sorted(worker_ids), today
+
+
+def _make_as_order_with_cycle(actor_id: int) -> int:
+    """RECEIVED AS cycle 을 연 AS 주문을 만들고 id 를 돌려준다(canonical as_lifecycle)."""
     today = date.today().strftime("%Y-%m-%d")
     order = Order(
-        received_date=today,
-        customer_name="AS 추천 대상",
-        phone="010-1111-2222",
-        address="Seoul AS",
-        product="AS",
-        status="AS_RECEIVED",
-        is_erp_order=True,
-        structured_data={
-            "schedule": {
-                "as_visit": {
-                    "date": visit_date,
-                    "time": "",
-                    "type": "AS",
-                }
-            },
-            "shipment": {"construction_workers": ["OldWorker"]},
-            "as_info": as_info,
-        },
+        received_date=today, customer_name="AS 추천 대상", phone="010-1111-2222",
+        address="Seoul AS", product="AS", status="AS_RECEIVED", is_erp_order=True,
+        structured_data={"workflow": {"stage": "CS"}, "shipment": {}},
     )
     db_session.add(order)
     db_session.commit()
-    return order
-
-
-def test_as_recommendations_apply_conflict_without_force_returns_409(client) -> None:
-    _login_cs_staff(client, "shipment-rec-apply-409")
-    ship = _make_shipment_target_order()
-    ship_id = ship.id
-    as_order = _make_as_order_for_apply(
-        visit_date="2099-12-31",
-        as_info=[
-            {
-                "id": 1,
-                "status": "OPEN",
-                "visit_date": None,
-                "visit_time": None,
-            }
-        ],
+    order_id = order.id
+    register_as_cycle(
+        db_session, order_id=order_id, actor_user_id=actor_id, as_content="문 파손",
+        received_date=today, scope_hash=_H64, request_hash=_H64,
     )
-    as_id = as_order.id
+    db_session.commit()
+    return order_id
+
+
+def _current_cycle_id(order_id: int) -> str:
+    db_session.expire_all()
+    return project_current_as_cycle(db_session.get(Order, order_id))["cycle_id"]
+
+
+def _ship_recommendations(ship_id: int) -> list:
+    db_session.expire_all()
+    sd = db_session.get(Order, ship_id).structured_data or {}
+    return (sd.get("shipment") or {}).get("recommendations") or []
+
+
+def test_apply_schedules_as_cycle_and_replaces_crew_via_command(client) -> None:
+    """추천 적용: AS cycle schedule + crew replace(ID command) + 출고 snapshot 한 tx."""
+    user = _login_cs_staff(client, "shipment-rec-apply-canon")
+    ship_id, ship_crew, ship_date = _make_ship_with_crew(["철수", "영희"])
+    as_id = _make_as_order_with_cycle(user.id)
+
     response = client.post(
         "/api/erp/shipment/as-recommendations/apply",
-        json={
-            "shipment_order_id": ship_id,
-            "as_order_id": as_id,
-            "as_info_id": 1,
-            "force": False,
-        },
+        json={"shipment_order_id": ship_id, "as_order_id": as_id},
+    )
+    assert response.status_code == 200
+    assert response.get_json()["success"] is True
+
+    db_session.expire_all()
+    refreshed = db_session.get(Order, as_id)
+    # AS 방문일은 as_cycle_service 가 canonical 하게 기록(직접 blob write 아님)
+    assert project_current_as_cycle(refreshed)["visit_date"] == ship_date
+    as_visit = (refreshed.structured_data.get("schedule") or {}).get("as_visit") or {}
+    assert "shipment_recommendation" not in as_visit  # legacy 직접쓰기 흔적 없음
+    # crew IDs via command: AS 배정이 출고 crew 로 replace 됨(name-array 아님)
+    assert active_worker_ids(db_session, as_id) == ship_crew
+    # snapshot 은 출고 Order 에 보존(AS info direct write 아님)
+    recs = _ship_recommendations(ship_id)
+    assert len(recs) == 1 and recs[0]["as_order_id"] == as_id
+    assert recs[0]["applied_crew_ids"] == ship_crew
+    events = [
+        e.event_type
+        for e in db_session.query(OrderEvent).filter_by(order_id=as_id).all()
+    ]
+    assert "AS_SCHEDULED" in events  # as_cycle_service version/receipt/event 한 tx
+
+
+def test_apply_conflict_without_force_returns_409(client) -> None:
+    user = _login_cs_staff(client, "shipment-rec-apply-409")
+    ship_id, _, _ = _make_ship_with_crew(["철수"])
+    as_id = _make_as_order_with_cycle(user.id)
+    schedule_as_cycle(
+        db_session, order_id=as_id, visit_date="2099-12-31",
+        cycle_id=_current_cycle_id(as_id), actor_user_id=user.id,
+        scope_hash=_H64, request_hash=_H64,
+    )
+    db_session.commit()
+
+    response = client.post(
+        "/api/erp/shipment/as-recommendations/apply",
+        json={"shipment_order_id": ship_id, "as_order_id": as_id, "force": False},
     )
     assert response.status_code == 409
     assert "force" in response.get_json().get("message", "")
 
 
-def test_as_recommendations_apply_force_overwrites_visit(client) -> None:
-    _login_cs_staff(client, "shipment-rec-apply-force")
-    ship = _make_shipment_target_order()
-    ship_id = ship.id
-    as_order = _make_as_order_for_apply(
-        visit_date="2099-12-31",
-        as_info=[
-            {
-                "id": 1,
-                "status": "OPEN",
-                "visit_date": None,
-                "visit_time": None,
-            }
-        ],
+def test_apply_force_overwrites_and_snapshots_previous(client) -> None:
+    """force 는 덮되 덮인 값을 snapshot 에 보존한다(현재 값 무시 통째 덮어쓰기 아님)."""
+    user = _login_cs_staff(client, "shipment-rec-apply-force")
+    ship_id, _, ship_date = _make_ship_with_crew(["철수"])
+    as_id = _make_as_order_with_cycle(user.id)
+    schedule_as_cycle(
+        db_session, order_id=as_id, visit_date="2099-12-31",
+        cycle_id=_current_cycle_id(as_id), actor_user_id=user.id,
+        scope_hash=_H64, request_hash=_H64,
     )
-    as_id = as_order.id
-    ship_date = date.today().strftime("%Y-%m-%d")
+    db_session.commit()
+
     response = client.post(
         "/api/erp/shipment/as-recommendations/apply",
-        json={
-            "shipment_order_id": ship_id,
-            "as_order_id": as_id,
-            "as_info_id": 1,
-            "force": True,
-        },
+        json={"shipment_order_id": ship_id, "as_order_id": as_id, "force": True},
     )
     assert response.status_code == 200
-    payload = response.get_json()
-    assert payload["success"] is True
     db_session.expire_all()
-    refreshed = db_session.get(Order, as_id)
-    sd = refreshed.structured_data
-    assert sd["schedule"]["as_visit"]["date"] == ship_date
-    meta = sd["schedule"]["as_visit"]["shipment_recommendation"]
-    assert meta["source"] == shipment_rec_api.SHREC_SOURCE
-    assert meta["shipment_order_id"] == ship_id
+    assert project_current_as_cycle(db_session.get(Order, as_id))["visit_date"] == ship_date
+    rec = _ship_recommendations(ship_id)[0]
+    assert rec["forced"] is True
+    assert rec["previous_visit_date"] == "2099-12-31"
 
 
-def test_as_recommendations_cancel_clears_visit_even_when_previous_date_existed(client) -> None:
-    """추천 취소는 출고에 추가한 AS 방문일 자체를 삭제한다."""
-    _login_cs_staff(client, "shipment-rec-cancel-clears-prev")
-    ship = _make_shipment_target_order()
-    ship_id = ship.id
-    as_order = _make_as_order_for_apply(
-        visit_date="2099-12-31",
-        as_info=[
-            {
-                "id": 1,
-                "status": "OPEN",
-                "visit_date": "2099-12-31",
-                "visit_time": "",
-            }
-        ],
+def test_apply_if_match_stale_returns_409(client) -> None:
+    """as_version If-Match stale → 409(blind overwrite 방지)."""
+    user = _login_cs_staff(client, "shipment-rec-apply-ifmatch")
+    ship_id, _, _ = _make_ship_with_crew(["철수"])
+    as_id = _make_as_order_with_cycle(user.id)
+    response = client.post(
+        "/api/erp/shipment/as-recommendations/apply",
+        json={"shipment_order_id": ship_id, "as_order_id": as_id, "as_version": 999},
     )
-    as_id = as_order.id
+    assert response.status_code == 409
+
+
+def test_cancel_restores_previous_visit_and_crew(client) -> None:
+    """취소는 이전 방문일/작업자 snapshot 을 typed compensation 으로 복원한다.
+
+    (이전 crew 가 비어 있는 케이스 — 이전 crew 로의 재배정(released worker 재삽입)은
+    partial-unique 가 필요해 PG lane ``tests/postgres/test_shipment_writer.py`` 가 검증한다.)
+    """
+    user = _login_cs_staff(client, "shipment-rec-cancel-restore")
+    user_id = user.id
+    ship_id, ship_crew, _ = _make_ship_with_crew(["철수", "영희"])
+    as_id = _make_as_order_with_cycle(user_id)
+    # AS 원래: 방문일 2099-01-01, crew 없음
+    schedule_as_cycle(
+        db_session, order_id=as_id, visit_date="2099-01-01",
+        cycle_id=_current_cycle_id(as_id), actor_user_id=user_id,
+        scope_hash=_H64, request_hash=_H64,
+    )
+    db_session.commit()
+
     apply_response = client.post(
         "/api/erp/shipment/as-recommendations/apply",
-        json={
-            "shipment_order_id": ship_id,
-            "as_order_id": as_id,
-            "as_info_id": 1,
-            "force": True,
-        },
+        json={"shipment_order_id": ship_id, "as_order_id": as_id, "force": True},
     )
     assert apply_response.status_code == 200
+    db_session.expire_all()
+    assert active_worker_ids(db_session, as_id) == ship_crew  # 적용: crew=출고 crew
 
     cancel_response = client.post(
         "/api/erp/shipment/as-recommendations/cancel",
-        json={
-            "shipment_order_id": ship_id,
-            "as_order_id": as_id,
-            "as_info_id": 1,
-        },
+        json={"shipment_order_id": ship_id, "as_order_id": as_id},
     )
     assert cancel_response.status_code == 200
     db_session.expire_all()
-    refreshed = db_session.get(Order, as_id)
-    sd = refreshed.structured_data
-    assert sd["schedule"]["as_visit"]["date"] == ""
-    assert sd["schedule"]["as_visit"]["time"] == ""
-    assert "shipment_recommendation" not in sd["schedule"]["as_visit"]
-    assert sd["as_info"][0]["visit_date"] is None
-    assert not [
-        d
-        for d in refreshed.schedule_dates
-        if d.kind == "as_visit" and d.date
-    ]
+    assert project_current_as_cycle(db_session.get(Order, as_id))["visit_date"] == "2099-01-01"
+    assert active_worker_ids(db_session, as_id) == []  # 이전(빈) crew 복원
+    assert _ship_recommendations(ship_id) == []  # snapshot 제거
 
 
-def test_as_recommendations_cancel_wrong_shipment_returns_409(client) -> None:
-    _login_cs_staff(client, "shipment-rec-cancel-ship")
-    ship = _make_shipment_target_order()
-    ship_id = ship.id
-    other_ship = _make_shipment_target_order()
-    other_ship_id = other_ship.id
-    as_order = _make_as_order_for_apply(
-        visit_date="",
-        as_info=[
-            {"id": 1, "status": "OPEN", "visit_date": None, "visit_time": None},
-        ],
-    )
-    as_id = as_order.id
+def test_cancel_wrong_shipment_returns_409(client) -> None:
+    user = _login_cs_staff(client, "shipment-rec-cancel-ship")
+    ship_id, _, _ = _make_ship_with_crew(["철수"])
+    other_ship_id, _, _ = _make_ship_with_crew(["영희"])
+    as_id = _make_as_order_with_cycle(user.id)
     client.post(
         "/api/erp/shipment/as-recommendations/apply",
-        json={
-            "shipment_order_id": ship_id,
-            "as_order_id": as_id,
-            "as_info_id": 1,
-            "force": False,
-        },
+        json={"shipment_order_id": ship_id, "as_order_id": as_id},
     )
     response = client.post(
         "/api/erp/shipment/as-recommendations/cancel",
-        json={
-            "shipment_order_id": other_ship_id,
-            "as_order_id": as_id,
-            "as_info_id": 1,
-        },
+        json={"shipment_order_id": other_ship_id, "as_order_id": as_id},
     )
     assert response.status_code == 409
-    assert "출고" in response.get_json().get("message", "")
+    assert "추천" in response.get_json().get("message", "")
 
 
-def test_as_recommendations_cancel_after_manual_date_change_returns_409(client) -> None:
-    _login_cs_staff(client, "shipment-rec-cancel-manual")
-    ship = _make_shipment_target_order()
-    ship_id = ship.id
-    as_order = _make_as_order_for_apply(
-        visit_date="",
-        as_info=[
-            {"id": 1, "status": "OPEN", "visit_date": None, "visit_time": None},
-        ],
-    )
-    as_id = as_order.id
+def test_cancel_after_manual_date_change_returns_409(client) -> None:
+    user = _login_cs_staff(client, "shipment-rec-cancel-manual")
+    user_id = user.id
+    ship_id, _, _ = _make_ship_with_crew(["철수"])
+    as_id = _make_as_order_with_cycle(user_id)
     client.post(
         "/api/erp/shipment/as-recommendations/apply",
-        json={
-            "shipment_order_id": ship_id,
-            "as_order_id": as_id,
-            "as_info_id": 1,
-            "force": False,
-        },
+        json={"shipment_order_id": ship_id, "as_order_id": as_id},
     )
-    db_session.expire_all()
-    row = db_session.get(Order, as_id)
-    sd = copy.deepcopy(row.structured_data)
-    sd["schedule"]["as_visit"]["date"] = "2099-06-01"
-    row.structured_data = sd
-    flag_modified(row, "structured_data")
+    # 사용자가 canonical command 로 방문일을 수동 변경
+    schedule_as_cycle(
+        db_session, order_id=as_id, visit_date="2099-06-01",
+        cycle_id=_current_cycle_id(as_id), actor_user_id=user_id,
+        scope_hash=_H64, request_hash=_H64,
+    )
     db_session.commit()
 
     response = client.post(
         "/api/erp/shipment/as-recommendations/cancel",
-        json={
-            "shipment_order_id": ship_id,
-            "as_order_id": as_id,
-            "as_info_id": 1,
-        },
+        json={"shipment_order_id": ship_id, "as_order_id": as_id},
     )
     assert response.status_code == 409
     assert "수동" in response.get_json().get("message", "")
 
 
-def test_as_recommendations_cancel_as_info_id_mismatch_returns_409(client) -> None:
-    _login_cs_staff(client, "shipment-rec-cancel-infoid")
-    ship = _make_shipment_target_order()
-    ship_id = ship.id
-    as_order = _make_as_order_for_apply(
-        visit_date="",
-        as_info=[
-            {"id": 1, "status": "OPEN", "visit_date": None, "visit_time": None},
-        ],
+def _as_schedule_link(as_id: int):
+    """AS 주문의 현재 schedule_link 를 새로 읽어온다(세션 캐시 회피)."""
+    db_session.expire_all()
+    sd = db_session.get(Order, as_id).structured_data or {}
+    return read_link(sd)
+
+
+def test_apply_writes_as_side_schedule_link(client) -> None:
+    """T6: 출고 추천 적용은 AS 주문 쪽에도 schedule_link 를 남긴다(경로 A 동기화, §3.2)."""
+    user = _login_cs_staff(client, "shipment-rec-apply-link")
+    ship_id, _, ship_date = _make_ship_with_crew(["철수"])
+    as_id = _make_as_order_with_cycle(user.id)
+
+    response = client.post(
+        "/api/erp/shipment/as-recommendations/apply",
+        json={"shipment_order_id": ship_id, "as_order_id": as_id},
     )
-    as_id = as_order.id
+    assert response.status_code == 200
+
+    link = _as_schedule_link(as_id)
+    assert link is not None
+    assert link["source"] == SOURCE_SHIPMENT
+    assert link["ref_order_id"] == ship_id
+    assert link["ref_date"] == ship_date
+
+
+def test_cancel_removes_as_side_schedule_link(client) -> None:
+    """T6: 취소는 이 출고건이 만든 schedule_link 를 해제한다."""
+    user = _login_cs_staff(client, "shipment-rec-cancel-link")
+    ship_id, _, _ = _make_ship_with_crew(["철수"])
+    as_id = _make_as_order_with_cycle(user.id)
     client.post(
         "/api/erp/shipment/as-recommendations/apply",
-        json={
-            "shipment_order_id": ship_id,
-            "as_order_id": as_id,
-            "as_info_id": 1,
-            "force": False,
-        },
+        json={"shipment_order_id": ship_id, "as_order_id": as_id},
     )
+    assert _as_schedule_link(as_id) is not None
+
     response = client.post(
         "/api/erp/shipment/as-recommendations/cancel",
-        json={
-            "shipment_order_id": ship_id,
-            "as_order_id": as_id,
-            "as_info_id": 99,
-        },
+        json={"shipment_order_id": ship_id, "as_order_id": as_id},
     )
-    assert response.status_code == 409
-    assert "일치" in response.get_json().get("message", "")
+    assert response.status_code == 200
+    assert _as_schedule_link(as_id) is None
+
+
+def test_cancel_does_not_clobber_link_to_different_ref_order(client) -> None:
+    """T6: 취소 시점에 링크의 ref_order_id 가 이 출고건과 다르면 건드리지 않는다.
+
+    사용자가 취소 전에 AS 대시보드 "가까운 일정 찾기"(또는 다른 출고건)로 손으로
+    재매칭했을 수 있다 — clobber 는 데이터 유실 버그(스펙 §3.2/플랜 T6).
+    """
+    user = _login_cs_staff(client, "shipment-rec-cancel-link-guard")
+    user_id = user.id
+    ship_id, _, _ = _make_ship_with_crew(["철수"])
+    other_ship_id, _, other_ship_date = _make_ship_with_crew(["영희"])
+    as_id = _make_as_order_with_cycle(user_id)
+    client.post(
+        "/api/erp/shipment/as-recommendations/apply",
+        json={"shipment_order_id": ship_id, "as_order_id": as_id},
+    )
+    assert _as_schedule_link(as_id)["ref_order_id"] == ship_id
+
+    # 취소 전에 다른 기준 주문으로 재매칭된 상태를 재현.
+    as_order = db_session.get(Order, as_id)
+    sd = copy.deepcopy(as_order.structured_data or {})
+    write_link(
+        sd, ref_order_id=other_ship_id, ref_date=other_ship_date,
+        source=SOURCE_SHIPMENT, user_id=user_id, user_name="", now=now_utc_naive(),
+    )
+    as_order.structured_data = sd
+    flag_modified(as_order, "structured_data")
+    db_session.commit()
+
+    response = client.post(
+        "/api/erp/shipment/as-recommendations/cancel",
+        json={"shipment_order_id": ship_id, "as_order_id": as_id},
+    )
+    assert response.status_code == 200
+
+    link = _as_schedule_link(as_id)
+    assert link is not None
+    assert link["ref_order_id"] == other_ship_id
 
 
 def test_prewarm_endpoint_requires_order_ids(client) -> None:

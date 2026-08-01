@@ -6,6 +6,8 @@
   - track_edits: 트리밖 편집은 EDIT_LOG·pending_verify 모두 미기록 (commonpath 판정)
   - track_edits: 트리 안 .py는 EDIT_LOG·pending_verify 모두 기록
   - EDIT_LOG 50행 캡
+  - SESSION_LOG 동일 id 중복 흡수 / id 미매치 no-op / 동시 writer 유실 0 (v2 T1)
+  - AI_STATUS 상단 소비 예산 · "진행 중" 섹션 사망 항목 금지 (v2 T4)
 """
 
 from __future__ import annotations
@@ -14,9 +16,14 @@ import importlib.util
 import json
 import re
 import sys
+from concurrent.futures import ThreadPoolExecutor
 from pathlib import Path
 
 REPO_ROOT = Path(__file__).resolve().parents[2]
+
+# session_start 훅이 지시하는 AI_STATUS 소비 범위(Read limit) 및 그 문자 예산.
+AI_STATUS_HEAD_LINES = 40
+AI_STATUS_HEAD_MAX_CHARS = 4000
 
 # hook_log_utils를 sys.path 오염 없이 격리 로드 (고유 모듈명 사용).
 _HLU_PATH = REPO_ROOT / "tools" / "harness" / "hook_log_utils.py"
@@ -87,6 +94,115 @@ def test_update_session_block_missing_returns_false(tmp_path: Path) -> None:
     """대상 파일이 없으면 갱신은 조용히 False."""
     log = tmp_path / "SESSION_LOG.md"
     assert hlu.update_session_block(str(log), "nope", {"상태": "완료"}) is False
+
+
+# --- v2 T1: 중복 흡수 · no-op · 동시성 ------------------------------------
+def test_prepend_same_session_id_absorbs_duplicate(tmp_path: Path) -> None:
+    """같은 id로 2회 prepend(resume/clear/compact 재발화) 시 블록은 1개여야 한다."""
+    log = tmp_path / "SESSION_LOG.md"
+    hlu.prepend_session_block(str(log), "e38945c7", "2026-07-28 09:00:00")
+    hlu.prepend_session_block(str(log), "e38945c7", "2026-07-28 14:00:00")
+
+    content = log.read_text(encoding="utf-8")
+    assert content.count("### Session: e38945c7") == 1, "중복 블록이 흡수되지 않았다"
+    assert "2026-07-28 14:00:00" in content, "최신 시작 시각이 유지돼야 한다"
+    assert "2026-07-28 09:00:00" not in content, "옛 블록 잔존 = 영구 진행중 원인"
+
+
+def test_prepend_absorb_keeps_other_sessions(tmp_path: Path) -> None:
+    """중복 흡수는 자기 id만 제거하고 타 세션 블록은 보존한다."""
+    log = tmp_path / "SESSION_LOG.md"
+    hlu.prepend_session_block(str(log), "aaaa1111", "2026-07-28 09:00:00")
+    hlu.prepend_session_block(str(log), "bbbb2222", "2026-07-28 10:00:00")
+    hlu.prepend_session_block(str(log), "aaaa1111", "2026-07-28 11:00:00")
+
+    ids = re.findall(r"### Session: (\S+)", log.read_text(encoding="utf-8"))
+    assert ids == ["aaaa1111", "bbbb2222"], f"unexpected blocks: {ids}"
+
+
+def test_prepend_then_update_marks_block_done(tmp_path: Path) -> None:
+    """prepend→update 시나리오에서 해당 블록이 단일·완료 상태가 된다."""
+    log = tmp_path / "SESSION_LOG.md"
+    hlu.prepend_session_block(str(log), "c3c7bd06", "2026-07-28 09:00:00")
+    hlu.prepend_session_block(str(log), "c3c7bd06", "2026-07-28 14:00:00")
+
+    assert hlu.update_session_block(
+        str(log), "c3c7bd06", {"상태": "완료", "종료": "2026-07-28 15:00:00"}
+    ) is True
+
+    content = log.read_text(encoding="utf-8")
+    assert content.count("### Session:") == 1
+    assert "- **상태**: 완료" in content
+    assert "- **상태**: 진행중" not in content, "잔존 진행중 블록이 없어야 한다"
+
+
+def test_update_unknown_or_mismatched_id_is_noop(tmp_path: Path) -> None:
+    """id 미상/미매치 갱신은 파일을 건드리지 않는다(타 세션 live 블록 clobber 금지)."""
+    log = tmp_path / "SESSION_LOG.md"
+    hlu.prepend_session_block(str(log), "live0001", "2026-07-28 09:00:00")
+    before = log.read_text(encoding="utf-8")
+
+    assert hlu.update_session_block(str(log), "unknown", {"상태": "완료"}) is False
+    assert log.read_text(encoding="utf-8") == before, "unknown id가 남의 블록을 덮었다"
+
+    assert hlu.update_session_block(str(log), "other999", {"상태": "완료"}) is False
+    assert log.read_text(encoding="utf-8") == before, "미매치 id가 남의 블록을 덮었다"
+
+
+def test_find_open_session_id_still_works_without_fallback(tmp_path: Path) -> None:
+    """조회 전용 헬퍼는 `_find_block` 폴백 제거 후에도 열린 세션을 찾아야 한다."""
+    log = tmp_path / "SESSION_LOG.md"
+    hlu.prepend_session_block(str(log), "open1234", "2026-07-28 09:00:00")
+    assert hlu.find_open_session_id(str(log)) == "open1234"
+
+    hlu.update_session_block(
+        str(log), "open1234", {"상태": "완료", "종료": "2026-07-28 10:00:00"}
+    )
+    assert hlu.find_open_session_id(str(log)) is None
+
+
+def test_concurrent_prepend_loses_no_block(tmp_path: Path) -> None:
+    """동시 12 writer(서로 다른 id) 유실 0 — 무잠금 RMW 유실 회귀 방지."""
+    log = tmp_path / "SESSION_LOG.md"
+    ids = [f"c{i:03d}" for i in range(12)]
+
+    with ThreadPoolExecutor(max_workers=12) as pool:
+        list(pool.map(lambda sid: hlu.prepend_session_block(str(log), sid), ids))
+
+    content = log.read_text(encoding="utf-8")
+    found = set(re.findall(r"### Session: (\S+)", content))
+    assert found == set(ids), f"유실/중복 발생: missing={set(ids) - found}"
+    assert (tmp_path / "SESSION_LOG.md.lock").exists(), "파일락이 사용되지 않았다"
+
+
+# --- v2 T4: AI_STATUS 소비 예산 --------------------------------------------
+def _ai_status_lines() -> list[str]:
+    """docs/AI_STATUS.md 전체 라인을 반환한다."""
+    return (REPO_ROOT / "docs" / "AI_STATUS.md").read_text(encoding="utf-8").splitlines()
+
+
+def test_ai_status_head_budget() -> None:
+    """session_start가 지시하는 상단 40줄이 4,000자를 넘으면 안 된다(컨텍스트 예산)."""
+    head = _ai_status_lines()[:AI_STATUS_HEAD_LINES]
+    size = sum(len(line) + 1 for line in head)
+    assert size <= AI_STATUS_HEAD_MAX_CHARS, (
+        f"AI_STATUS 상단 {AI_STATUS_HEAD_LINES}줄이 {size}자 "
+        f"(예산 {AI_STATUS_HEAD_MAX_CHARS}자) — live 섹션을 상단으로 올리고 "
+        f"장문 블롭은 '## 기록 보관'으로 이관하라"
+    )
+
+
+def test_no_dead_tasks_in_active_section() -> None:
+    """`## 진행 중` 섹션에 종료된 항목(`**종료**` 포함 라인)이 남아 있으면 안 된다."""
+    dead: list[str] = []
+    in_section = False
+    for line in _ai_status_lines():
+        if line.startswith("## "):
+            in_section = line.strip() == "## 진행 중"
+            continue
+        if in_section and "**종료**" in line:
+            dead.append(line.strip())
+    assert not dead, f"'진행 중'에 종료 항목 잔존: {dead}"
 
 
 # --- EDIT_LOG 캡 -----------------------------------------------------------

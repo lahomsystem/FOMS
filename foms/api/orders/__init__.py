@@ -91,9 +91,8 @@ def copy_orders():
 
 @orders_bp.route("/orders/<int:order_id>/call-log", methods=["POST"])
 @login_required
-@erp_edit_required
 def api_order_call_log(order_id):
-    """주문 통화 결과 기록 (B1)."""
+    """주문 통화 결과 기록 (B1). 권한은 command ``CALL_LOGGED`` 정책(ERP_EDIT)이 handler 에서 enforce."""
     return log_call_response(order_id)
 
 

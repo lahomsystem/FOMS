@@ -12,5 +12,10 @@
       "Bash(powershell -NoProfile -File tools/harness/ptc_workspace_cleanup.ps1 -RecursePyCache)",
       "Bash(powershell -NoProfile -File tools/harness/ptc_workspace_hygiene_probe.ps1 -RecursePyCache)"
     ]
-  }
+  },
+  "enabledMcpjsonServers": [
+    "postgres",
+    "context7",
+    "youtube"
+  ]
 }

@@ -1,6 +1,7 @@
 """Chat file upload/download routes."""
 
 import datetime
+from foms.services.error_logging import log_handled_exception
 import os
 
 from flask import jsonify, redirect, request, send_file, session
@@ -72,10 +73,7 @@ def api_chat_upload_session():
             }
         )
     except Exception as e:
-        import traceback
-
-        print(f"채팅 업로드 세션 오류: {e}")
-        print(traceback.format_exc())
+        log_handled_exception()
         return jsonify({"success": False, "message": str(e)}), 500
 
 
@@ -107,7 +105,7 @@ def api_chat_upload_complete():
                 resp = storage.client.head_object(Bucket=storage.bucket_name, Key=key)
                 file_size = resp.get("ContentLength", 0)
         except Exception:
-            pass
+            log_handled_exception("channel files head_object size")
 
         file_url = build_file_view_url(key)
         file_type = storage.get_file_type(filename)
@@ -124,10 +122,7 @@ def api_chat_upload_complete():
         log_access(f"채팅 Direct 업로드 완료: {filename}", session.get("user_id"))
         return jsonify({"success": True, "message": "파일이 성공적으로 업로드되었습니다.", "file_info": file_info})
     except Exception as e:
-        import traceback
-
-        print(f"채팅 업로드 완료 오류: {e}")
-        print(traceback.format_exc())
+        log_handled_exception()
         return jsonify({"success": False, "message": str(e)}), 500
 
 
@@ -203,10 +198,7 @@ def api_chat_upload():
         )
         return jsonify({"success": True, "message": "파일이 성공적으로 업로드되었습니다.", "file_info": file_info})
     except Exception as e:
-        import traceback
-
-        print(f"채팅 파일 업로드 오류: {e}")
-        print(traceback.format_exc())
+        log_handled_exception()
         return jsonify({"success": False, "message": f"파일 업로드 중 오류가 발생했습니다: {str(e)}"}), 500
 
 
@@ -231,10 +223,7 @@ def api_chat_download(storage_key):
         log_access(f"채팅 파일 다운로드: {storage_key}", session.get("user_id"))
         return send_file(file_path, as_attachment=True)
     except Exception as e:
-        import traceback
-
-        print(f"파일 다운로드 오류: {e}")
-        print(traceback.format_exc())
+        log_handled_exception()
         return jsonify({"success": False, "message": str(e)}), 500
 
 
@@ -274,8 +263,5 @@ def api_chat_preview(storage_key):
 
         return jsonify({"success": False, "message": "미리보기를 지원하지 않는 파일 형식입니다.", "type": "file"}), 400
     except Exception as e:
-        import traceback
-
-        print(f"파일 미리보기 오류: {e}")
-        print(traceback.format_exc())
+        log_handled_exception()
         return jsonify({"success": False, "message": str(e)}), 500

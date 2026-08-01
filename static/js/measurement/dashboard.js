@@ -264,9 +264,11 @@
                     const data = await res.json();
                     if (!data.success) throw new Error(data.message || '\uB3D9\uC120 \uACC4\uC0B0 \uC2E4\uD328');
 
+                    // ROUTE-01: \uACBD\uB85C \uACC4\uD68D \uBAA8\uB2EC\uC740 \uCD5C\uADFC\uC811 \uC774\uC6C3(NN) \uCD5C\uC801 \uB3D9\uC120 \uC804\uC6A9 \uD544\uB4DC\uB97C \uC4F4\uB2E4
+                    // (data.route \uB294 \uC608\uC57D \uC21C\uC11C SSOT \u2014 hero/'\uB2E4\uC74C \uBC29\uBB38' \uD310\uC815\uC6A9\uC774\uB77C \uC5EC\uAE30 \uC4F0\uC9C0 \uC54A\uB294\uB2E4).
                     const list = document.getElementById('route-plan-list');
                     list.innerHTML = '';
-                    (data.route || []).forEach(function (p) {
+                    (data.optimized_route || []).forEach(function (p) {
                         const li = document.createElement('li');
                         const time = p.measurement_time ? '(' + p.measurement_time + ') ' : '';
                         li.innerHTML = time + '<a href="/edit/' + p.id + '">\uC8FC\uBB38 #' + p.id + '</a> - ' + escapeHtml(String(p.customer_name || '-')) + ' / ' + escapeHtml(String(p.address || '-'));
@@ -274,7 +276,7 @@
                     });
 
                     const dur = data.total_duration_min ? ' / \uCD1D \uC2DC\uAC04: ' + data.total_duration_min + '\uBD84' : '';
-                    setText('route-plan-distance', '\uCD1D \uAC70\uB9AC: ' + (data.total_distance_km || 0) + ' km' + dur + ' / \uC9C0\uC810: ' + (data.total_points || 0));
+                    setText('route-plan-distance', '\uCD1D \uAC70\uB9AC: ' + (data.optimized_total_distance_km || 0) + ' km' + dur + ' / \uC9C0\uC810: ' + (data.total_points || 0));
                     setText('route-plan-note', data.note || '');
                     setVisible('route-plan-loading', false);
                     setVisible('route-plan-result', true);

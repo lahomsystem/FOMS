@@ -54,10 +54,8 @@
     <form action="" method="post" id="trash-action-form">
         <div class="mb-3">
             <button type="submit" name="action" value="restore" formaction="{{ url_for('order_trash.restore_orders') }}" class="btn btn-success me-2" onclick="return confirm('선택한 주문을 복원하시겠습니까?');">선택 복원</button>
-            <button type="submit" name="action" value="delete_permanently" formaction="{{ url_for('order_trash.permanent_delete_orders') }}" class="btn btn-danger me-2" onclick="return confirm('선택한 주문을 영구 삭제하시겠습니까? 이 작업은 되돌릴 수 없습니다.');">선택 영구 삭제</button>
-            {% if current_user and current_user.role == 'ADMIN' %}
-            <button type="submit" name="action" value="delete_all_permanently" formaction="{{ url_for('order_trash.permanent_delete_all_orders') }}" class="btn btn-danger" onclick="return confirm('정말 모든 주문을 영구적으로 삭제하시겠습니까? 이 작업은 되돌릴 수 없으며, ID 번호가 모두 초기화됩니다.');">모든 주문 영구 삭제</button>
-            {% endif %}
+            {# web 영구 삭제(hard delete)는 제거됨(DELETE-TRASH-01): 물리 삭제는 보존정책
+               승인(DELETE-RETENTION-01, OPS-APPROVAL)만 수행한다. 휴지통은 복원만 제공. #}
         </div>
         
         <div class="table-responsive table-fixed-header">

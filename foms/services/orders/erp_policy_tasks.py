@@ -12,6 +12,7 @@ from foms.services.orders.erp_policy_data_access import (
     get_task_templates,
     recommend_owner_team,
 )
+from foms.services.error_logging import log_handled_exception
 
 
 def _business_days_until(date_iso: str):
@@ -88,7 +89,7 @@ def build_auto_tasks(sd: Dict[str, Any], now: Optional[datetime.datetime] = None
                 )
             )
         except Exception:
-            pass
+            log_handled_exception("policy task append")
 
     if meas_date:
         days_until = _business_days_until(meas_date.isoformat())

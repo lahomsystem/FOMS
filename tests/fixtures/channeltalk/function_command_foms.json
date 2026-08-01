@@ -1,17 +1,16 @@
 {
+  "_comment": "CHANNEL-FUNCTION-CONTRACT-01 redacted provider fixture. ChannelTalk Native Function 요청 정본 형태: method + exact params(text) + signed context(channel/caller). channel/caller 는 signature 가 덮는 context 안에 있어야 exact 검증이 성립한다(top-level channel/caller 는 stale — 서명 밖이라 위조 가능). 실제 값은 redacted.",
   "method": "foms",
-  "caller": {
-    "type": "manager",
-    "id": "manager123"
-  },
-  "channel": {
-    "id": "1234"
-  },
   "params": {
-    "text": "123"
+    "text": "주문 1234"
   },
   "context": {
-    "type": "userChat",
-    "id": "12345"
+    "channel": {
+      "id": "REDACTED_CHANNEL_ID"
+    },
+    "caller": {
+      "type": "manager",
+      "id": "REDACTED_MANAGER_ID"
+    }
   }
 }

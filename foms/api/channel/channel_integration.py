@@ -5,6 +5,8 @@
 
 import copy
 import datetime
+import hashlib
+import json
 import logging
 import os
 import traceback
@@ -13,11 +15,13 @@ from flask import Blueprint, g, jsonify, request
 from sqlalchemy.orm.attributes import flag_modified
 
 from db import get_db
-from models import Order, OrderAttachment
+from models import Order, OrderAttachment, OrderEvent
 from foms.web.auth import login_required, role_required
 from foms.services.channel_client import is_configured
 from foms.services.channel_dispatch import dispatch_order_event
 from foms.services.channel_policy import ChannelGroupRetiredError, get_routing_group_id
+from foms.services.orders.revision import execute_order_mutation
+from foms.services.sidefx_outbox import enqueue_side_effect
 from foms.services.storage import get_storage
 from foms.services.channel_delivery import (
     check_legacy_only_success_after_cutover,
@@ -32,6 +36,17 @@ _MAX_TEXT_LENGTH = 4000
 _MIN_CHANGE_NOTE_LEN = 1
 _MAX_CHANGE_NOTE_LEN = 500
 _RETIRED_GROUP_MESSAGE = '이 채널톡 방(554075)으로의 PUSH 기능은 삭제되었습니다.'
+
+# CHANNEL-WRITER-01: push 전송 결과 metadata 를 기록하는 typed command 상수.
+# 전송(transport provider: dispatch_order_event/channel_functions)은 무변경 — 아래 이름들은
+# 오직 metadata 기록 축(mutation_version/receipt/OrderEvent/side-effect outbox)에만 쓴다.
+# message_id 는 한 send 의 안정적 신원이므로 idempotency/dedupe 축으로 삼는다(같은 send
+# 결과를 두 번 기록해도 receipt replay + outbox dedupe 로 history/event 정확히 1).
+_PUSH_POLICY_ID = 'CHANNEL_PUSH'             # execute_order_mutation receipt policy_id
+_PUSH_EVENT_TYPE = 'CHANNELTALK_PUSH'        # OrderEvent.event_type
+_PUSH_EFFECT_TYPE = 'CHANNEL_PUSH_RECORDED'  # side-effect outbox effect_type
+_PUSH_SIDEFX_DOMAIN = 'ORDER_EVENT'          # outbox one-of FK 매트릭스 도메인
+_PUSH_CHANGE_LOG_CAP = 20                    # structured_data 이력 change_log 보존 개수
 
 # push_kind → (첨부 category, structured_data 이력 키)
 _PUSH_KIND_CONFIG = {
@@ -65,6 +80,172 @@ def _infer_mime(filename: str, file_type: str) -> str:
         if ext in _MIME_MAP:
             return _MIME_MAP[ext]
     return 'video/mp4' if file_type == 'video' else 'image/jpeg'
+
+
+def _push_mutation_hashes(
+    order_id: int, push_kind: str, send_ref, is_resend: bool, change_note: str, group_id
+) -> tuple:
+    """(scope_hash, request_hash) — receipt 저장·same-key/different-hash 감지용 sha256.
+
+    Args:
+        order_id: 대상 주문 id(scope 축).
+        push_kind: measurement/drawing/estimate(scope 축).
+        send_ref: 전송 message_id(없으면 None) — request 신원.
+        is_resend: 재전송 여부(request 내용).
+        change_note: 재전송 변경 메모(request 내용).
+        group_id: 전송 대상 채널 그룹(request 내용).
+
+    Returns:
+        (scope_hash, request_hash): 둘 다 64자 sha256 hex.
+    """
+    scope = hashlib.sha256(f"{_PUSH_POLICY_ID}:{order_id}:{push_kind}".encode()).hexdigest()
+    request_payload = json.dumps(
+        {
+            'order_id': order_id,
+            'push_kind': push_kind,
+            'message_id': send_ref,
+            'is_resend': is_resend,
+            'change_note': change_note,
+            'group_id': group_id,
+        },
+        sort_keys=True,
+        ensure_ascii=False,
+    )
+    return scope, hashlib.sha256(request_payload.encode()).hexdigest()
+
+
+def _record_push_metadata(
+    db,
+    *,
+    order,
+    history_key: str,
+    push_kind: str,
+    group_id,
+    result: dict,
+    is_resend: bool,
+    change_note: str,
+    pushed_by_name,
+    actor_user_id,
+):
+    """채널톡 push 전송 결과·metadata 를 typed command 로 원자 기록한다 (CHANNEL-WRITER-01).
+
+    전송(dispatch_order_event)은 이 함수 밖에서 이미 끝났다(transport provider 무변경).
+    여기서는 그 결과를 REV-00 ``execute_order_mutation`` 한 transaction 으로 묶어
+    ``structured_data[history_key]`` 이력 + ``mutation_version`` bump + idempotency receipt +
+    ``OrderEvent`` 1 + side-effect outbox **dedupe** enqueue 를 원자화한다. 같은 send 결과를
+    두 번 기록(재시도)해도 receipt replay(같은 message_id) + outbox dedupe 로 history/event 는
+    **정확히 1**(중복 폭주 없음). structured_data 수정은 lock 아래에서 copy.deepcopy +
+    flag_modified 로 수행한다.
+
+    Args:
+        db: business transaction 세션(호출자 소유; 이 함수가 commit).
+        order: 대상 Order(scope/order_ids 용, id 만 사용; 실제 write 는 lock 된 행에서).
+        history_key: structured_data 이력 키(channeltalk_push[_drawing|_estimate]).
+        push_kind: measurement/drawing/estimate.
+        group_id: 전송된 채널 그룹 id(metadata).
+        result: dispatch_order_event 반환 dict(``message_id`` 포함 가능).
+        is_resend: 재전송이면 change_log 를 누적한다.
+        change_note: 재전송 변경 메모(재전송이 아니면 '').
+        pushed_by_name: 전송자 표시명(change_log 기록).
+        actor_user_id: receipt/OrderEvent actor(로그인 사용자 id).
+
+    Returns:
+        MutationResult: ``replayed`` 여부 포함. 호출자는 성공 응답만 만들면 된다.
+    """
+    msg_id = result.get('message_id')
+    if not msg_id:
+        logger.warning(
+            "[채널톡 %s푸쉬] 전송 성공이나 message_id 미수신 (order_id=%s)", push_kind, order.id
+        )
+    sent_at = datetime.datetime.now(datetime.timezone.utc).isoformat()
+
+    # message_id 없는 degraded 경로는 dedupe 축이 없으므로 idempotency/dedupe 를 끈다
+    # (NULL 은 서로 distinct → 매번 새 receipt/outbox; 원본 동작과 동일하게 항상 기록).
+    send_ref = str(msg_id) if msg_id else None
+    # idempotency_key 는 String(64). ChannelTalk message id 는 짧지만 외부 입력이므로 64자
+    # 초과 시 dedupe 를 끄고 계속 기록한다(500 대신 graceful — 원본 동작과 동일).
+    if send_ref and len(send_ref) > 64:
+        logger.warning(
+            "[채널톡 %s푸쉬] message_id 길이 초과로 dedupe 생략 (order_id=%s, len=%s)",
+            push_kind, order.id, len(send_ref),
+        )
+        send_ref = None
+    idempotency_key = send_ref
+    dedupe_key = (
+        f"{_PUSH_EFFECT_TYPE}:{push_kind}:{order.id}:{send_ref}" if send_ref else None
+    )
+    scope_hash, request_hash = _push_mutation_hashes(
+        order.id, push_kind, send_ref, is_resend, change_note, group_id
+    )
+
+    def _mutate(sess, orders):
+        """row lock 아래에서 이력 write + OrderEvent 1 + side-effect dedupe enqueue."""
+        o = orders[0]
+        sd = copy.deepcopy(o.structured_data or {})
+        prev = sd.get(history_key) or {}
+        next_push = {
+            'pushed': True,
+            'message_id': msg_id,
+            'group_id': group_id,
+            'sent_at': sent_at,
+            'is_modified': is_resend,
+        }
+        if is_resend:
+            change_log = list(prev.get('change_log') or [])
+            change_log.append({
+                'at': sent_at,
+                'by': pushed_by_name,
+                'note': change_note,
+                'message_id': msg_id,
+            })
+            next_push['change_log'] = change_log[-_PUSH_CHANGE_LOG_CAP:]
+        sd[history_key] = next_push
+        o.structured_data = sd
+        flag_modified(o, 'structured_data')
+
+        event = OrderEvent(
+            order_id=o.id,
+            event_type=_PUSH_EVENT_TYPE,
+            payload={
+                'push_kind': push_kind,
+                'history_key': history_key,
+                'message_id': msg_id,
+                'group_id': group_id,
+                'is_resend': is_resend,
+            },
+            created_by_user_id=actor_user_id,
+        )
+        sess.add(event)
+        sess.flush()  # event.id 확보(outbox one-of FK 참조)
+
+        if dedupe_key:
+            enqueue_side_effect(
+                sess,
+                source_domain=_PUSH_SIDEFX_DOMAIN,
+                source_id=event.id,
+                effect_type=_PUSH_EFFECT_TYPE,
+                payload={'order_id': o.id, 'push_kind': push_kind, 'message_id': msg_id},
+                dedupe_key=dedupe_key,
+                provider_idempotency_key=send_ref,
+            )
+        return {o.id: [f"ORDER_DETAIL:{o.id}", "ORDERS_INDEX"]}
+
+    try:
+        outcome = execute_order_mutation(
+            db,
+            actor_user_id=actor_user_id,
+            policy_id=_PUSH_POLICY_ID,
+            order_ids=[order.id],
+            scope_hash=scope_hash,
+            request_hash=request_hash,
+            mutation=_mutate,
+            idempotency_key=idempotency_key,
+        )
+        db.commit()
+    except Exception:
+        db.rollback()
+        raise
+    return outcome
 
 
 @channel_integration_bp.route('/push-manual', methods=['POST'])
@@ -193,31 +374,20 @@ def api_channel_push_manual():
             raise_on_error=True
         )
 
-        # 전송 성공 후 push 이력을 structured_data에 저장 (push_kind별 분리)
-        msg_id = result.get('message_id')
-        if not msg_id:
-            logger.warning("[채널톡 수동푸쉬] 전송 성공이나 message_id 미수신 (order_id=%s, push_kind=%s)", order_id, push_kind)
-        sent_at = datetime.datetime.now(datetime.timezone.utc).isoformat()
-        next_push = {
-            'pushed': True,
-            'message_id': msg_id,
-            'group_id': group_id,
-            'sent_at': sent_at,
-            'is_modified': is_resend,
-        }
-        if is_resend:
-            change_log = list(prev_push.get('change_log') or [])
-            change_log.append({
-                'at': sent_at,
-                'by': pushed_by_name,
-                'note': change_note,
-                'message_id': msg_id,
-            })
-            next_push['change_log'] = change_log[-20:]
-        sd[kind_config['history_key']] = next_push
-        order.structured_data = sd
-        flag_modified(order, 'structured_data')
-        db.commit()
+        # 전송 성공 후 push 결과·metadata 를 typed command 로 원자 기록한다(push_kind별 분리):
+        # structured_data 이력 + mutation_version bump + receipt + OrderEvent 1 + dedupe enqueue.
+        _record_push_metadata(
+            db,
+            order=order,
+            history_key=kind_config['history_key'],
+            push_kind=push_kind,
+            group_id=group_id,
+            result=result,
+            is_resend=is_resend,
+            change_note=change_note,
+            pushed_by_name=pushed_by_name,
+            actor_user_id=current_user.id if current_user else None,
+        )
 
         return jsonify({'success': True, 'files_count': len(files)})
 
@@ -388,30 +558,20 @@ def api_channel_push_estimate():
             _safe_delete_estimate_upload(storage, upload_key)
             raise
 
-        msg_id = result.get('message_id')
-        if not msg_id:
-            logger.warning("[채널톡 견적서푸쉬] 전송 성공이나 message_id 미수신 (order_id=%s)", order_id)
-        sent_at = datetime.datetime.now(datetime.timezone.utc).isoformat()
-        next_push = {
-            'pushed': True,
-            'message_id': msg_id,
-            'group_id': group_id,
-            'sent_at': sent_at,
-            'is_modified': is_resend,
-        }
-        if is_resend:
-            change_log = list(prev_push.get('change_log') or [])
-            change_log.append({
-                'at': sent_at,
-                'by': pushed_by_name,
-                'note': change_note,
-                'message_id': msg_id,
-            })
-            next_push['change_log'] = change_log[-20:]
-        sd[_ESTIMATE_PUSH_HISTORY_KEY] = next_push
-        order.structured_data = sd
-        flag_modified(order, 'structured_data')
-        db.commit()
+        # 전송 성공 후 push 결과·metadata 를 typed command 로 원자 기록한다:
+        # structured_data 이력 + mutation_version bump + receipt + OrderEvent 1 + dedupe enqueue.
+        _record_push_metadata(
+            db,
+            order=order,
+            history_key=_ESTIMATE_PUSH_HISTORY_KEY,
+            push_kind='estimate',
+            group_id=group_id,
+            result=result,
+            is_resend=is_resend,
+            change_note=change_note,
+            pushed_by_name=pushed_by_name,
+            actor_user_id=current_user.id if current_user else None,
+        )
 
         return jsonify({'success': True})
 
@@ -426,11 +586,65 @@ def api_channel_push_estimate():
         return jsonify({'success': False, 'message': f'서버 오류: {err_msg}', 'error': err_msg}), 500
 
 
-@channel_integration_bp.route('/health', methods=['GET'])
-def api_channel_health():
+# --- OPS-ROUTE-01 배포 단계 분리 노트 (machine detail) ---
+# 사람용 ADMIN detail 은 아래 /health 세션 게이트로 로컬 검증 가능하다.
+# machine detail(스크립트/모니터용)은 이 public 앱이 아니라 별도 최소 서비스
+# (foms/ops_app.py + railway-ops-readiness.toml)의 /internal/ops/channel-readiness
+# 에만 등록하고, 그 Railway service 에는 public domain 을 만들지 않는다
+# (no-public-domain). 인증은 FOMS_OPS_READINESS_TOKEN(random ≥32 bytes, 미설정 시
+# 부팅 실패)을 timing-safe 비교하고 응답은 no-store / Vary: Authorization /
+# ETag·Last-Modified 0 을 쓴다. public 앱 blueprint 에는 /internal/ops/* 를 절대
+# 등록하지 않는다(로컬 계약 테스트가 404 로 고정). 이 배선은 배포 단계 산출물이므로
+# 본 packet 에서는 구현하지 않는다.
+
+
+def _viewer_is_ops_admin() -> bool:
+    """현재 요청 사용자가 ops detail 열람 권한(ADMIN/MANAGER)인지 판정한다.
+
+    ``g.current_user`` 는 ``app.before_request(_set_current_user)`` 가 모든 요청에
+    대해 설정한다(무인증이면 ``None``). 따라서 ``login_required`` 데코레이터 없이도
+    공개 라우트 안에서 인증/권한을 분기할 수 있다.
+
+    Returns:
+        bool: ADMIN 또는 MANAGER 세션이면 True, 그 외(무인증 포함) False.
     """
-    ChannelTalk 연동 상태 헬스체크 및 readiness 판단. (CT-00-03)
-    반환 상태: ready, degraded, fail
+    user = getattr(g, 'current_user', None)
+    return bool(user and getattr(user, 'role', None) in ('ADMIN', 'MANAGER'))
+
+
+def _apply_no_store(resp, *, private: bool):
+    """민감 detail 응답에 캐시 재사용 차단 헤더를 적용한다. (OPS-ROUTE-01)
+
+    logout→Back 또는 공유 프록시가 이전 body(운영 metric)를 한 byte 도 재사용하지
+    못하도록 ``no-store`` 와 함께 ETag/Last-Modified 검증자를 제거한다. 응답 본문이
+    세션 인증 여부에 따라 달라지므로 ``Vary: Cookie`` 로 캐시 분리를 강제한다.
+
+    Args:
+        resp: Flask 응답 객체.
+        private: True 면 ``private, no-store``(ADMIN detail), False 면 ``no-store``
+            (무인증 공개 최소 응답).
+
+    Returns:
+        헤더가 적용된 동일 응답 객체.
+    """
+    resp.headers['Cache-Control'] = 'private, no-store' if private else 'no-store'
+    resp.headers['Pragma'] = 'no-cache'
+    resp.headers['Vary'] = 'Cookie'
+    resp.headers.pop('ETag', None)
+    resp.headers.pop('Last-Modified', None)
+    return resp
+
+
+def _evaluate_channel_readiness() -> tuple[dict, int]:
+    """채널톡 연동 readiness 와 운영 detail 을 계산한다. (CT-00-03)
+
+    readiness 판정에 더해 환경변수 존재/flag/worker·backlog·delivery metric 을 담은
+    전체 payload 를 만든다. 무인증 공개 응답은 이 중 coarse ``readiness`` 만 노출하고,
+    나머지 운영 detail 은 ADMIN/MANAGER 세션 뒤에서만 반환한다.
+
+    Returns:
+        (payload, status_code): payload 는 readiness/environment/flags/queue/metrics
+        등 전체 detail, status_code 는 ready·degraded=200, fail=503.
     """
     flags = {
         'push': os.environ.get('CHANNEL_PUSH_ENABLED', 'false').lower() == 'true',
@@ -481,7 +695,7 @@ def api_channel_health():
         else:
             readiness = 'ready'
 
-        return jsonify({
+        return {
             'readiness': readiness,
             'environment': environment,
             'flags': flags,
@@ -494,10 +708,10 @@ def api_channel_health():
             'metrics': metrics,
             'security': security,
             'legacy_only_success_after_cutover': legacy_success_drift,
-        }), 200 if readiness != 'fail' else 503
+        }, 200 if readiness != 'fail' else 503
     except Exception as e:
         logger.error("[ChannelTalk Health] failed: %s\n%s", e, traceback.format_exc())
-        return jsonify({
+        return {
             'readiness': 'fail',
             'environment': environment,
             'flags': flags,
@@ -511,7 +725,29 @@ def api_channel_health():
             'security': security,
             'legacy_only_success_after_cutover': 0,
             'error': str(e),
-        }), 503
+        }, 503
+
+
+@channel_integration_bp.route('/health', methods=['GET'])
+def api_channel_health():
+    """채널톡 연동 헬스체크. 무인증=coarse readiness 만, ADMIN/MANAGER 세션=운영 detail.
+
+    OPS-ROUTE-01 / P0-18: 무인증 공개 응답에는 secret 존재 여부·worker/queue/delivery
+    metric·raw exception/traceback 을 노출하지 않고 coarse ``readiness`` 만 반환한다.
+    환경변수 존재·metric·flag_violations·error 를 포함한 운영 detail 은 ADMIN/MANAGER
+    세션 뒤에서만 제공하며 ``private, no-store`` 로 캐시 재사용을 차단한다.
+
+    machine detail(no-public-domain Railway ops service + random ≥32-byte bearer,
+    ``Vary: Authorization``)의 프로덕션 배선은 배포 단계 산출물이다(모듈 상단 노트).
+
+    Returns:
+        (JSON, status): 무인증 → ``{"readiness": ...}``(no-store), ADMIN/MANAGER →
+        전체 운영 detail(private, no-store). status 는 ready·degraded=200, fail=503.
+    """
+    payload, status = _evaluate_channel_readiness()
+    if _viewer_is_ops_admin():
+        return _apply_no_store(jsonify(payload), private=True), status
+    return _apply_no_store(jsonify({'readiness': payload['readiness']}), private=False), status
 
 @channel_integration_bp.route('/admin/delivery-status', methods=['GET'])
 @login_required

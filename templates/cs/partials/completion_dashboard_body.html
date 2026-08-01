@@ -2,6 +2,7 @@
 <div class="container-fluid erp-dashboard erp-pro erp-completion erp-mobile-shell"
   data-erp-mobile-v2="{{ 'true' if erp_mobile_v2_enabled else 'false' }}"
   data-is-construction-team="{{ 'true' if is_construction_team|default(false) else 'false' }}"
+  data-can-finance="{{ 'true' if policy_can('FINANCE_MUTATION') else 'false' }}"
   data-search-q="{{ search_q|default('', true) }}"
   data-focus-order="{{ focus_order_id|default('', true) }}">
   {% if erp_mobile_v2_enabled %}
@@ -55,8 +56,8 @@
   {% endif %}
 </div>
 
-<!-- 비용 청구 모달 (Phase 3) — 시공팀 비노출 -->
-{% if not is_construction_team|default(false) %}
+<!-- 비용 청구 모달 (Phase 3) — 금융 권한(FINANCE_MUTATION: ADMIN/MANAGER·STAFF+CS/SALES)만 노출 -->
+{% if policy_can('FINANCE_MUTATION') %}
 <div class="modal fade" id="erp-settlement-modal" tabindex="-1" aria-labelledby="erp-settlement-modal-label" aria-hidden="true">
   <div class="modal-dialog modal-dialog-centered">
     <div class="modal-content">

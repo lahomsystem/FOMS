@@ -41,4 +41,9 @@ def offline_queue_snapshot() -> tuple[Any, int]:
         }
         for o in rows
     ]
-    return jsonify({"success": True, "data": payload}), 200
+    resp = jsonify({"success": True, "data": payload})
+    # PII 봉쇄: 이 스냅샷은 고객명/전화/주소(PII)를 담는다. Service Worker(및 브라우저 HTTP
+    # 캐시)가 CacheStorage 에 저장하지 못하도록 no-store 를 명시한다 — 공유 기기에서 이전
+    # 사용자 PII 가 다음 사용자에게 노출되는 것을 원천 차단한다(SW responseForbidsStore 게이트).
+    resp.headers["Cache-Control"] = "no-store"
+    return resp, 200

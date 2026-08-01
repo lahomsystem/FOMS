@@ -1,4 +1,13 @@
-"""휴지통/삭제 관련 Blueprint: delete_order, trash, restore, permanent_delete."""
+"""휴지통/삭제 관련 Blueprint: delete_order(canonical soft delete), trash, restore.
+
+web hard-delete 는 제거됐다(DELETE-TRASH-01): 물리 영구 삭제는 OPS-APPROVAL 게이트를
+통과하는 DELETE-RETENTION-01 만 수행한다. 휴지통 목록/복구/purge **대상 선별**은 canonical
+``deleted_at`` projection 을 SSOT 로 쓴다. 복구는 transition-aware hybrid 다: transition 기에
+``status=='DELETED'`` 로 축을 덮은 주문(legacy web bulk·DELETE-BULK 전이기 미러·cron
+cleanup_order_drafts)은 원상태(``original_status``)로 되돌리고, canonical
+:func:`soft_delete_order` 로 삭제된(status 실상태 보존) 주문은 delete 축만 clear 한다 —
+두 경로 모두 ``deleted_at`` 을 반드시 clear 해 ghost(active_filter 제외) 를 막는다.
+"""
 
 import copy
 import logging
@@ -8,11 +17,10 @@ from sqlalchemy import String, text
 
 from foms.web.auth import get_user_by_id, log_access, login_required, role_required
 from db import get_db
-from foms.services.datetime_kst import now_kst
 from foms.services.erp_display import _ensure_dict, apply_erp_display_fields
 from foms.services.erp_order_flags import is_erp_order_record
 from foms.services.order_display_utils import format_options_for_display
-from foms.services.order_storage_cleanup import delete_storage_files_for_order
+from foms.services.orders.soft_delete import restore_order, soft_delete_order
 from foms.services.request_utils import get_preserved_filter_args
 from foms.services.gnav_contract import gnav_orders_layout_parent, wants_gnav_fragment
 from models import Order
@@ -126,7 +134,7 @@ def reset_order_ids(db):
             try:
                 db.execute(text(f"ALTER SEQUENCE orders_id_seq RESTART WITH {max_id + 1}"))
             except Exception:
-                pass
+                pass  # failopen: intentional: 시퀀스 리셋 재시도 실패 무시 (best-effort)
         db.commit()
         db.execute(text("DROP TABLE IF EXISTS temp_order_mapping"))
     except Exception as exc:
@@ -134,30 +142,32 @@ def reset_order_ids(db):
         try:
             db.execute(text("DROP TABLE IF EXISTS temp_order_mapping"))
         except Exception:
-            pass
+            pass  # failopen: intentional: 임시테이블 정리 best-effort; 이후 원예외 재발생
         raise exc
 
 
-@order_trash_bp.route("/delete/<int:order_id>")
+@order_trash_bp.route("/delete/<int:order_id>", methods=["POST"])
 @login_required
 @role_required(["ADMIN", "MANAGER"])
 def delete_order(order_id):
-    """주문을 휴지통으로 이동 (소프트 삭제)."""
+    """주문을 휴지통으로 이동 (canonical soft delete).
+
+    POST 전용(GET 405)·공용 CSRF/Origin write guard 소비. 삭제는 canonical
+    :func:`soft_delete_order` 로 delete 축 projection(``deleted_at``)만 set 하고 main/
+    overlay(logistics/hold/AS/construction) 축은 보존한다 — ``order.status`` 를 직접
+    'DELETED' 로 덮어쓰지 않는다.
+    """
+    db = get_db()
     try:
-        db = get_db()
         order = db.query(Order).filter(Order.id == order_id, Order.active_filter()).first()
         if not order:
             flash("주문을 찾을 수 없거나 이미 삭제되었습니다.", "error")
             return redirect(url_for("order_pages.index"))
 
-        original_status = order.status
-        order.status = "DELETED"
-        order.original_status = original_status
-        order.deleted_at = now_kst().strftime("%Y-%m-%d %H:%M:%S")
         customer_name_for_log = order.customer_name
-
         user_for_log = get_user_by_id(session.get("user_id"))
         user_name_for_log = user_for_log.name if user_for_log else "Unknown user"
+
         prod_notif = None
         prod_notif_created = False
         try:
@@ -169,6 +179,9 @@ def delete_order(order_id):
         except Exception as exc_notif:
             logger.warning("production change alert (delete) failed: %s", exc_notif, exc_info=True)
 
+        # canonical soft delete: deleted_at projection + version bump + ORDER_SOFT_DELETED
+        # event(hard delete 없음·status/overlay 축 보존). commit 은 이 route 가 소유한다.
+        soft_delete_order(db, order_id=order_id, actor_user_id=session.get("user_id"))
         db.commit()
 
         try:
@@ -196,7 +209,9 @@ def trash():
     """휴지통 페이지."""
     search_term = request.args.get("search", "")
     db = get_db()
-    query = db.query(Order).filter(Order.status == "DELETED")
+    # canonical delete 술어: deleted_at IS NOT NULL (DELETE-CORE projection). legacy
+    # status=='DELETED' 미러(DELETE-BULK 전이기)에 의존하지 않는다.
+    query = db.query(Order).filter(Order.deleted_at.isnot(None))
     if search_term:
         search_pattern = f"%{search_term}%"
         query = query.filter(
@@ -232,84 +247,38 @@ def restore_orders():
         flash("복원할 주문을 선택해주세요.", "warning")
         return redirect(url_for("order_trash.trash"))
 
+    db = get_db()
     try:
-        db = get_db()
         order_ids = [int(order_id) for order_id in selected_ids]
-        orders_by_id = {
-            order.id: order
-            for order in db.query(Order).filter(Order.id.in_(order_ids), Order.status == "DELETED").all()  # perf-ok
-        }
-        for order_id in selected_ids:
-            order = orders_by_id.get(int(order_id))
-            if order:
-                original_status = order.original_status if order.original_status else "RECEIVED"
-                order.status = original_status
+        # canonical delete 술어(deleted_at)로 실제 휴지통 항목만 선별한다.
+        orders = (
+            db.query(Order)
+            .filter(Order.id.in_(order_ids), Order.deleted_at.isnot(None))
+            .all()  # perf-ok
+        )
+        actor_user_id = session.get("user_id")
+        for order in orders:
+            if (order.status or "") == "DELETED":
+                # transition: status 축을 'DELETED'로 덮은 주문(legacy web bulk·DELETE-BULK
+                # 전이기 미러·cron cleanup). 원상태로 되돌린다 — restore_order 만으로는
+                # status='DELETED' 가 잔존해 active_filter(status!='DELETED' AND deleted_at
+                # IS NULL) 에서 제외되는 ghost 가 된다. DELETE-BULK 미러는 무접근(제거 안 함).
+                order.status = order.original_status or "RECEIVED"
                 order.original_status = None
                 order.deleted_at = None
+            else:
+                # canonical soft_delete_order 로 삭제(status 실상태 보존) → delete 축만 clear,
+                # main/logistics/hold/AS overlay 보존.
+                restore_order(db, order_id=order.id, actor_user_id=actor_user_id)
         db.commit()
-        log_access(f"주문 {len(selected_ids)}개 복원", session.get("user_id"), {"count": len(selected_ids)})
-        flash(f"{len(selected_ids)}개 주문이 성공적으로 복원되었습니다.", "success")
+        log_access(f"주문 {len(orders)}개 복원", session.get("user_id"), {"count": len(orders)})
+        flash(f"{len(orders)}개 주문이 성공적으로 복원되었습니다.", "success")
     except Exception as exc:
         db.rollback()
         flash(f"주문 복원 중 오류가 발생했습니다: {str(exc)}", "error")
     return redirect(url_for("order_trash.trash"))
 
 
-@order_trash_bp.route("/permanent_delete_orders", methods=["POST"])
-@login_required
-@role_required(["ADMIN"])
-def permanent_delete_orders():
-    """선택한 주문 영구 삭제."""
-    selected_ids = request.form.getlist("selected_order")
-    if not selected_ids:
-        flash("영구 삭제할 주문을 선택해주세요.", "warning")
-        return redirect(url_for("order_trash.trash"))
-
-    try:
-        db = get_db()
-        order_ids = [int(order_id) for order_id in selected_ids]
-        orders_by_id = {
-            order.id: order
-            for order in db.query(Order).filter(Order.id.in_(order_ids)).all()  # perf-ok
-        }
-        for order_id in selected_ids:
-            order = orders_by_id.get(int(order_id))
-            if order:
-                delete_storage_files_for_order(db, order)
-                db.delete(order)
-        db.commit()
-        log_access(f"주문 {len(selected_ids)}개 영구 삭제", session.get("user_id"), {"count": len(selected_ids)})
-        flash(f"{len(selected_ids)}개의 주문이 영구적으로 삭제되었습니다.", "success")
-    except Exception as exc:
-        db.rollback()
-        flash(f"주문 영구 삭제 중 오류가 발생했습니다: {str(exc)}", "error")
-    return redirect(url_for("order_trash.trash"))
-
-
-@order_trash_bp.route("/permanent_delete_all_orders", methods=["POST"])
-@login_required
-@role_required(["ADMIN"])
-def permanent_delete_all_orders():
-    """휴지통의 모든 주문 영구 삭제."""
-    try:
-        db = get_db()
-        deleted_count = 0
-        while True:
-            deleted_orders = db.query(Order).filter(Order.status == "DELETED").limit(100).all()
-            if not deleted_orders:
-                break
-            for order in deleted_orders:
-                delete_storage_files_for_order(db, order)
-                db.delete(order)
-            db.commit()
-            deleted_count += len(deleted_orders)
-        if deleted_count == 0:
-            flash("휴지통에 삭제할 주문이 없습니다.", "warning")
-            return redirect(url_for("order_trash.trash"))
-
-        log_access(f"모든 주문 영구 삭제 ({deleted_count}개 항목)", session.get("user_id"), {"count": deleted_count})
-        flash(f"모든 주문({deleted_count}개)이 영구적으로 삭제되었습니다.", "success")
-    except Exception as exc:
-        db.rollback()
-        flash(f"주문 영구 삭제 중 오류가 발생했습니다: {str(exc)}", "error")
-    return redirect(url_for("order_trash.trash"))
+# web hard-delete 제거(DELETE-TRASH-01): 물리 삭제(``db.delete``)는 web 에서 노출하지 않는다.
+# retention 기간 경과분의 영구 삭제는 OPS-APPROVAL 게이트를 통과한 DELETE-RETENTION-01
+# (:mod:`foms.services.orders.delete_retention`) 만이 수행한다. 휴지통에서는 복원만 제공한다.

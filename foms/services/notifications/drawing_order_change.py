@@ -686,16 +686,41 @@ def compute_drawing_relevant_changes(
     return changes
 
 
-def summarize_changes(changes: Sequence[Dict[str, str]], *, max_len: int = NOTE_MAX_LEN) -> str:
-    """타임라인/알림용 한글 요약 (항상 before→after, JSON 금지)."""
-    if not changes:
-        return ""
-    parts = []
+def _change_parts(changes: Sequence[Dict[str, str]]) -> List[str]:
+    """변경 항목별 ``라벨 before→after`` 조각 목록 (요약·전문 공용 조립 SSOT).
+
+    Args:
+        changes: history.changes 원본(또는 이미 humanize 된 사본).
+
+    Returns:
+        절단·조인 전 조각 문자열 리스트.
+    """
+    parts: List[str] = []
     for ch in humanize_order_change_changes(changes):
         label = ch.get("label") or ch.get("path") or "항목"
         from_v = ch.get("from") or "(없음)"
         to_v = ch.get("to") or "(없음)"
         parts.append(f"{label} {from_v}→{to_v}")
+    return parts
+
+
+def join_changes_text(changes: Sequence[Dict[str, str]]) -> str:
+    """절단 없는 변경 전문 (목록 tooltip 등). summarize_changes 와 동일 포맷.
+
+    Args:
+        changes: history.changes 원본.
+
+    Returns:
+        ``라벨 before→after`` 를 ``  ·  `` 로 이은 전체 문자열 (비면 빈 문자열).
+    """
+    return " · ".join(_change_parts(changes))
+
+
+def summarize_changes(changes: Sequence[Dict[str, str]], *, max_len: int = NOTE_MAX_LEN) -> str:
+    """타임라인/알림용 한글 요약 (항상 before→after, JSON 금지)."""
+    if not changes:
+        return ""
+    parts = _change_parts(changes)
     text = " · ".join(parts)
     if len(text) <= max_len:
         return text

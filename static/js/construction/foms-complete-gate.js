@@ -137,46 +137,60 @@
     document.body.classList.remove('foms-cgate-open');
   }
 
+  // ERR-UX-01: 공용 mutation 에러 parser 경유(timeout/malformed JSON/403/409/428 분류,
+  // 절대 reject 하지 않음). 폴백은 공용 parser 미로드 시에만(로드 순서 방어).
+  function mutationFetch(url, opts) {
+    if (window.fomsMutationFetch) return window.fomsMutationFetch(url, opts);
+    return fetch(url, opts)
+      .then(function (r) {
+        return r.json().catch(function () { return null; }).then(function (data) {
+          if (data === null) {
+            return { ok: false, kind: 'malformed', status: r.status, data: {}, message: '서버 응답을 해석하지 못했습니다.' };
+          }
+          var ok = r.ok && data.success !== false;
+          return {
+            ok: ok, kind: ok ? 'ok' : 'error', status: r.status, data: data,
+            message: (data && (data.error || data.message)) || ('HTTP ' + r.status)
+          };
+        });
+      })
+      .catch(function () {
+        return { ok: false, kind: 'network', status: 0, data: {}, message: '네트워크 오류가 발생했습니다.' };
+      });
+  }
+
   function uploadAttachment(orderId, file, filename) {
     var fd = new FormData();
     fd.append('file', file, filename);
     fd.append('category', 'construction');
-    return fetch('/api/orders/' + encodeURIComponent(orderId) + '/attachments', {
+    return mutationFetch('/api/orders/' + encodeURIComponent(orderId) + '/attachments', {
       method: 'POST',
       credentials: 'same-origin',
       body: fd
-    })
-      .then(function (r) {
-        return r.json().catch(function () { return {}; }).then(function (data) {
-          return { ok: r.ok, data: data };
-        });
-      })
-      .then(function (res) {
-        if (!res.ok || !res.data || res.data.success !== true || !res.data.attachment) {
-          throw new Error('upload failed');
-        }
-        return res.data.attachment;
-      });
+    }).then(function (result) {
+      if (!result.ok || !result.data.attachment) {
+        var err = new Error('upload failed');
+        err.fomsMessage = result.message;
+        throw err;
+      }
+      return result.data.attachment;
+    });
   }
 
   function registerEvidence(orderId, kind, attachmentId) {
-    return fetch('/api/orders/' + encodeURIComponent(orderId) + '/construction/evidence', {
+    return mutationFetch('/api/orders/' + encodeURIComponent(orderId) + '/construction/evidence', {
       method: 'POST',
       credentials: 'same-origin',
       headers: { 'Content-Type': 'application/json' },
       body: JSON.stringify({ kind: kind, attachment_id: attachmentId })
-    })
-      .then(function (r) {
-        return r.json().catch(function () { return {}; }).then(function (data) {
-          return { ok: r.ok, data: data };
-        });
-      })
-      .then(function (res) {
-        if (!res.ok || !res.data || res.data.success !== true) {
-          throw new Error('register failed');
-        }
-        return res.data.data || {};
-      });
+    }).then(function (result) {
+      if (!result.ok) {
+        var err = new Error('register failed');
+        err.fomsMessage = result.message;
+        throw err;
+      }
+      return result.data.data || {};
+    });
   }
 
   function handlePhotoUpload(sheet, kind, file) {
@@ -199,11 +213,12 @@
     uploadAttachment(orderId, file, file.name)
       .then(function (att) { return registerEvidence(orderId, kind, att.id); })
       .then(function (ev) { applyEvidence(sheet, ev); })
-      .catch(function () {
+      .catch(function (err) {
+        // DOM rollback: 실패 시 낙관적으로 붙였던 미리보기 썸네일을 되돌린다.
         if (img && img.parentNode) {
           img.parentNode.removeChild(img);
         }
-        setError(sheet, '사진 업로드에 실패했습니다. 다시 시도하세요.');
+        setError(sheet, (err && err.fomsMessage) || '사진 업로드에 실패했습니다. 다시 시도하세요.');
       });
   }
 
@@ -232,7 +247,9 @@
       uploadAttachment(orderId, blob, filename)
         .then(function (att) { return registerEvidence(orderId, 'signature', att.id); })
         .then(function (ev) { applyEvidence(sheet, ev); })
-        .catch(function () { setError(sheet, '서명 저장에 실패했습니다. 다시 시도하세요.'); })
+        .catch(function (err) {
+          setError(sheet, (err && err.fomsMessage) || '서명 저장에 실패했습니다. 다시 시도하세요.');
+        })
         .then(function () { if (saveBtn) { saveBtn.disabled = false; } });
     }, 'image/png');
   }
@@ -249,31 +266,20 @@
       btn.disabled = true;
     }
     setError(sheet, '');
-    fetch('/api/orders/' + encodeURIComponent(orderId) + '/construction/complete', {
+    mutationFetch('/api/orders/' + encodeURIComponent(orderId) + '/construction/complete', {
       method: 'POST',
       credentials: 'same-origin',
       headers: { 'Content-Type': 'application/json' },
       body: JSON.stringify({ completion_note: note })
-    })
-      .then(function (r) {
-        return r.json().catch(function () { return {}; }).then(function (data) {
-          return { ok: r.ok, data: data };
-        });
-      })
-      .then(function (res) {
-        if (!res.ok || !res.data || res.data.success !== true) {
-          var msg = (res.data && (res.data.error || res.data.message)) || '완료 처리에 실패했습니다.';
-          setError(sheet, msg);
-          if (btn) { btn.disabled = false; }
-          return;
-        }
-        closeSheet();
-        window.location.reload();
-      })
-      .catch(function () {
-        setError(sheet, '네트워크 오류로 완료하지 못했습니다.');
+    }).then(function (result) {
+      if (!result.ok) {
+        setError(sheet, result.message || '완료 처리에 실패했습니다.');
         if (btn) { btn.disabled = false; }
-      });
+        return;
+      }
+      closeSheet();
+      window.location.reload();
+    });
   }
 
   // --- 서명 패드 드로잉(pointer 위임) ---------------------------------------

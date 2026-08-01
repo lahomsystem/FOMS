@@ -80,6 +80,25 @@
   var hoverTimer = null;
 
   /**
+   * Rapid A→B nav race guard. Every real navigation bumps navGeneration and
+   * aborts the previous nav's in-flight fetch (navAbortController). A late
+   * response from a superseded nav carries a stale generation, so the commit
+   * gate (isCurrent) skips its history/DOM mutation entirely — A commit 0, the
+   * newer surface B is preserved. This only *tightens* commits (never adds a
+   * listener/bind), so fragment re-exec stays idempotent (perf guard G4).
+   */
+  var navGeneration = 0;
+  var navAbortController = null;
+  /**
+   * One-shot channel handing the current navigation's abort signal to the very
+   * next fetchFragment() call, without widening its shared signature (prefetch/
+   * heartbeat callers must NOT inherit a nav's abort lifecycle). Set right before
+   * the nav fetch and consumed+cleared at the top of fetchFragment — both run in
+   * the same synchronous tick, so no other caller can observe a stale value.
+   */
+  var navFetchSignal = null;
+
+  /**
    * Wrap #main-content once so a loading overlay can sit above it without being
    * destroyed by innerHTML swaps.
    */
@@ -503,6 +522,11 @@
   }
 
   function fetchFragment(canonical) {
+    // Consume the one-shot nav abort signal set by navigateByShell (null for
+    // prefetch/heartbeat callers). Read+clear before any early return so a reused
+    // in-flight promise can't leak this signal to the next caller.
+    var navSignal = navFetchSignal;
+    navFetchSignal = null;
     var fetchUrl = new URL(canonical.toString());
     fetchUrl.searchParams.set('view', 'fragment');
     var key = getCacheKey(canonical.href);
@@ -529,6 +553,7 @@
     var p = fetch(fetchUrl.toString(), {
       credentials: 'same-origin',
       headers: reqHeaders,
+      signal: navSignal || undefined,
     })
       .then(function (r) {
         if (r.status === 304) {
@@ -592,6 +617,27 @@
       return Promise.resolve();
     }
 
+    // Rapid A→B nav race guard: this navigation supersedes any in-flight one.
+    // Bumping the generation makes a late A response fail the commit gate below
+    // (A commit 0); aborting tears down A's dead request so B does not queue
+    // behind it. AbortController-less browsers still get correct gating.
+    var myGeneration = ++navGeneration;
+    if (navAbortController) {
+      try {
+        navAbortController.abort();
+      } catch (e) {
+        /* ignore */
+      }
+    }
+    navAbortController =
+      typeof AbortController !== 'undefined' ? new AbortController() : null;
+    var mySignal = navAbortController ? navAbortController.signal : null;
+
+    /** Only the newest navigation may mutate history/DOM/loading — else commit 0. */
+    function isCurrent() {
+      return myGeneration === navGeneration;
+    }
+
     var fromKey = getCacheKey(window.location.href);
     if (!opts.fromPopState) {
       scrollMemory[fromKey] = window.scrollY;
@@ -621,11 +667,17 @@
     if (!opts.bypassCache && isFragmentCacheable(canonical.href)) {
       var cached = cacheGet(destKey);
       if (cached) {
-        commitShellHistory(canonical);
         // 스타일 선로드 후 swap — 콜드 캐시라도 FOUC 없이 즉시 정상 렌더.
         return preloadFragmentStylesheets(cached).then(function () {
+          // 선로드 도중 더 새 nav 가 시작됐으면 이 캐시 커밋을 버린다(commit 0).
+          if (!isCurrent()) {
+            return;
+          }
+          commitShellHistory(canonical);
           if (applyFragmentToMain(cached, canonical.href)) {
             afterSwap();
+            // 앞선 network nav 가 켜 둔 오버레이가 남아 있을 수 있어 명시적으로 내린다.
+            setShellFragmentLoading(false);
             return;
           }
           window.location.href = canonical.pathname + canonical.search + canonical.hash;
@@ -634,13 +686,21 @@
     }
 
     setShellFragmentLoading(true);
+    navFetchSignal = mySignal;
     return fetchFragment(canonical)
       .then(function (payload) {
+        // 응답 도착이 늦어 더 새 nav 에 밀렸으면 commit 0(B 화면 보존).
+        if (!isCurrent()) {
+          return;
+        }
         var finalUrl = payload.finalUrl || canonical;
-        commitShellHistory(finalUrl);
-        // 스타일 선로드 후 swap(가드 G3 상한). commitShellHistory 는 위에서 이미 실행 —
+        // 스타일 선로드 후 swap(가드 G3 상한). commit 직전 generation 재확인 —
         // inline page 스크립트가 window.location.search 를 읽으므로 swap 전 history 확정.
         return preloadFragmentStylesheets(payload.html).then(function () {
+          if (!isCurrent()) {
+            return;
+          }
+          commitShellHistory(finalUrl);
           if (!applyFragmentToMain(payload.html, finalUrl.href)) {
             setShellFragmentLoading(false);
             window.location.href = canonical.pathname + canonical.search + canonical.hash;
@@ -650,10 +710,19 @@
         });
       })
       .catch(function () {
+        // 밀린 nav(abort 로 reject 되었거나 stale generation)는 하드 네비게이션 폴백을
+        // 하지 않는다 — 사용자가 고른 새 화면 B 를 덮어쓰기 때문. 진짜 실패(현재 nav)만 폴백.
+        if (!isCurrent()) {
+          return;
+        }
         setShellFragmentLoading(false);
         window.location.href = canonical.pathname + canonical.search + canonical.hash;
       })
       .then(function () {
+        // 새 nav 가 켠 오버레이를 밀린 nav 가 끄지 않도록 현재 nav 만 정리한다.
+        if (!isCurrent()) {
+          return;
+        }
         setShellFragmentLoading(false);
       });
   }

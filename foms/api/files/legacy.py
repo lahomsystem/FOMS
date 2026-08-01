@@ -4,6 +4,7 @@ from sqlalchemy import inspect, text
 
 from db import get_db
 from foms.services.user_deletion import ensure_order_attachment_user_fk_set_null
+from foms.services.error_logging import log_handled_exception
 
 
 def _column_exists(db, table_name: str, column_name: str) -> bool:
@@ -37,7 +38,7 @@ def _ensure_order_attachment_column(column_name: str, ddl_suffix: str) -> bool:
             if db is not None:
                 db.rollback()
         except Exception:
-            pass
+            log_handled_exception("legacy rollback")
         print(f"[AUTO-MIGRATION] Failed to ensure order_attachments.{column_name}: {e}")
         return False
 
@@ -78,7 +79,7 @@ def ensure_order_attachments_user_id_column():
             if db is not None:
                 db.rollback()
         except Exception:
-            pass
+            log_handled_exception("legacy rollback")
         print(f"[AUTO-MIGRATION] Failed to ensure order_attachments.user_id: {e}")
         return False
 

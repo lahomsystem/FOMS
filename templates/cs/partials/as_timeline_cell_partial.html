@@ -1,0 +1,5 @@
+{# PC 요약 셀 단건 렌더 — 기록 삭제 API 응답의 셀 교체용.
+   목록과 같은 매크로를 경유해 서버·클라 삽입 마크업이 갈라지지 않게 한다
+   (as_billing_badge_partial 과 동일한 패턴). #}
+{% from 'cs/partials/as_card_macros.html' import render_as_timeline_cell %}
+{{ render_as_timeline_cell(order_id, view) }}

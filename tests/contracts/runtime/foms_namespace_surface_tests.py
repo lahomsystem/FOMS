@@ -291,15 +291,42 @@ def test_app_init_canonical_module_uses_canonical_persistence_imports() -> None:
     backfill_source = inspect.getsource(namespaced_app_init._backfill_erp_flat_columns)
 
     assert "from foms.persistence.main.db import get_db, init_db" in module_source
-    assert "from foms.persistence.main.models import User" in module_source
     assert "from foms.persistence.main.models import Order" in backfill_source
 
 
-def test_app_init_uses_canonical_db_indexes_lazy_import() -> None:
-    """App init should lazy import DB index helpers from the canonical namespace."""
+def test_app_init_carries_no_admin_bootstrap_wiring() -> None:
+    """STARTUP-ADMIN-01: web startup creates zero admin auto-create wiring.
+
+    Admin bootstrap moved to the explicit ``tools/ops/bootstrap_admin.py`` CLI;
+    ``foms.services.app_init`` must import neither ``User`` nor a password
+    hasher, and ``run_auto_init`` must not reference the removed helper.
+    """
+    module_source = inspect.getsource(namespaced_app_init)
     run_auto_init_source = inspect.getsource(namespaced_app_init.run_auto_init)
-    expected_import = "from foms.services.db_indexes import apply_phase2_indexes, ensure_erp_date_columns"
-    assert expected_import in run_auto_init_source
+
+    assert "from foms.persistence.main.models import User" not in module_source
+    assert "generate_password_hash" not in module_source
+    assert not hasattr(namespaced_app_init, "_ensure_default_admin")
+    assert "_ensure_default_admin" not in run_auto_init_source
+
+
+def test_app_init_runs_no_ensure_schema_ddl_at_startup() -> None:
+    """STARTUP-SCHEMA-01: web startup issues zero ensure-schema DDL.
+
+    The column/index schema is owned by Alembic (migration ``startup_schema_00``,
+    applied in predeploy). ``run_auto_init`` must neither import nor invoke the
+    runtime ensure-repair helpers, so replicas never race on ``ALTER TABLE`` /
+    ``CREATE INDEX`` and a missing schema fails closed instead of self-healing.
+    """
+    run_auto_init_source = inspect.getsource(namespaced_app_init.run_auto_init)
+    for banned in (
+        "apply_phase2_indexes",
+        "ensure_erp_date_columns",
+        "ensure_order_attachments_category_column",
+        "ensure_order_attachments_item_index_column",
+        "ensure_order_attachments_user_id_column",
+    ):
+        assert banned not in run_auto_init_source
 
 
 def test_namespaced_order_date_sync_shim_preserves_canonical_contract() -> None:
@@ -795,13 +822,22 @@ def test_erp_measurement_uses_canonical_jobs_queue_imports() -> None:
     assert erp_measurement.enqueue_geocode_order_address is namespaced_jobs_queue.enqueue_geocode_order_address
 
 
-def test_erp_measurement_uses_canonical_jobs_task_fallback_import() -> None:
-    """ERP measurement API should use canonical jobs task fallback imports."""
+def test_erp_measurement_address_change_uses_geocode_outbox() -> None:
+    """DATA-MEASUREMENT-01: measurement address change enqueues GEOCODE via the SIDEFX
+    outbox producer and no longer performs a postcommit synchronous geocode fallback.
+
+    (Supersedes the previous contract that pinned the ``jobs.tasks`` sync fallback import;
+    the 3-forbidden SSOT removes postcommit direct geocode from the write path.)
+    """
     import importlib
 
     routes_mod = importlib.import_module("foms.api.measurement.routes")
     module_source = inspect.getsource(routes_mod)
-    assert "from foms.services.jobs.tasks import geocode_order_address" in module_source
+    assert (
+        "from foms.services.order_geocode_outbox import enqueue_order_address_geocode"
+        in module_source
+    )
+    assert "from foms.services.jobs.tasks import geocode_order_address" not in module_source
 
 
 def test_erp_orders_structured_uses_canonical_jobs_queue_imports() -> None:
@@ -1022,11 +1058,18 @@ def test_channel_wam_api_uses_canonical_security_imports() -> None:
     assert channel_wam_api.verify_wam_short_link_token is namespaced_channel_security.verify_wam_short_link_token
 
 
-def test_channel_functions_api_uses_canonical_security_import() -> None:
-    """Function endpoint should bind signature verification from the canonical namespace."""
+def test_channel_functions_api_owns_dedicated_signature_contract() -> None:
+    """CHANNEL-FUNCTION-CONTRACT-01: Function endpoint owns a DEDICATED signature scheme.
+
+    Function 서명(hex-decode key ≥32B → raw body HMAC-SHA256 → Base64 → constant-time)은
+    Webhook 서명 helper(``require_channel_signature``, raw UTF-8 key + hex digest)를 재사용하지
+    않는다. Function 은 전용 ``verify_function_signature`` 를 소유하고, Webhook helper 를 이
+    모듈에 바인딩하지 않아야 한다.
+    """
     import foms.api.channel.channel_functions as channel_functions
 
-    assert channel_functions.require_channel_signature is namespaced_channel_security.require_channel_signature
+    assert hasattr(channel_functions, "verify_function_signature")
+    assert not hasattr(channel_functions, "require_channel_signature")
 
 
 def test_channel_functions_api_uses_canonical_quick_actions_import() -> None:
@@ -1263,9 +1306,9 @@ def test_erp_api_modules_use_canonical_erp_permissions_imports() -> None:
         "foms.api.orders": {
             "can_edit_erp": namespaced_erp_permissions.can_edit_erp,
         },
-        "foms.api.quest": {
-            "can_edit_erp": namespaced_erp_permissions.can_edit_erp,
-        },
+        # foms.api.quest 는 AUTH-QUEST-01 에서 quest approve 권한을 order_mutation_policy
+        # (actor team=required team·ASSIGNMENT-00 배정) 기반 게이트로 정본화하며 can_edit_erp
+        # 를 더 이상 쓰지 않는다 — 따라서 erp_permissions 바인딩 기대에서 제외한다.
     }
 
     for module_name, expectations in module_expectations.items():
@@ -1392,14 +1435,10 @@ def test_jobs_tasks_uses_canonical_storage_lazy_import() -> None:
     assert "from foms.services.storage import get_storage" in function_source
 
 
-def test_order_trash_uses_canonical_storage_cleanup_import() -> None:
-    """Trash workflow should bind permanent delete cleanup from the canonical namespace."""
-    from foms.web.orders import trash as order_trash
-
-    assert (
-        order_trash.delete_storage_files_for_order
-        is namespaced_order_storage_cleanup.delete_storage_files_for_order
-    )
+# DELETE-TRASH-01: trash 의 web hard-delete(물리 삭제) 경로가 제거되면서 trash.py 는 더 이상
+# delete_storage_files_for_order 를 import 하지 않는다(물리 삭제는 DELETE-RETENTION-01 만 수행).
+# 따라서 구 order_trash → 캐노니컬 storage cleanup import 계약 테스트는 폐기한다. namespaced
+# storage cleanup shim 자체의 계약은 test_namespaced_order_storage_cleanup_shim_* 가 계속 고정한다.
 
 
 def test_namespaced_erp_template_filters_shim_preserves_canonical_contract() -> None:
@@ -1420,6 +1459,7 @@ def test_namespaced_erp_template_filters_shim_preserves_canonical_contract() -> 
         "lahom_deposit_gold",
         "LAHOM_STANDARD_DEPOSIT_AMOUNTS",
         "queue_card_schedule_filter",
+        "meas_daypart",
         "register_erp_template_filters",
     ]
 
@@ -1628,7 +1668,6 @@ def test_erp_api_modules_use_canonical_erp_display_imports() -> None:
     from foms.api import measurement as erp_measurement
     from foms.api.cs import as_orders as erp_orders_as
     from foms.api.cs import dashboard as erp_orders_completion
-    from foms.api import erp_orders_structured
     from foms.api import orders as orders_api
 
     assert erp_map.normalize_manager_name is namespaced_erp_display.normalize_manager_name
@@ -1642,7 +1681,6 @@ def test_erp_api_modules_use_canonical_erp_display_imports() -> None:
         erp_orders_completion._ensure_dict
         is namespaced_erp_display._ensure_dict
     )
-    assert erp_orders_structured.get_today_kst is namespaced_erp_display.get_today_kst
     assert orders_api.get_today_kst is namespaced_erp_display.get_today_kst
 
 
@@ -2087,6 +2125,7 @@ def test_strict_canonical_tools_taxonomy() -> None:
     cron/ added: Railway scheduled job entrypoints (e.g. cleanup_order_drafts).
     design/ added: design SSOT lint helpers (ssot_lint.py).
     perf/ added: performance regression scanner (perf_scan.py — perf-guard/perf-audit skills).
+    tests/ added (PACKET-HARNESS-00): bug-audit packet runner (run_packet.ps1, report §8.1).
     """
     tools_dir = _REPO_ROOT / "tools"
     assert tools_dir.is_dir()
@@ -2101,6 +2140,7 @@ def test_strict_canonical_tools_taxonomy() -> None:
         "design",
         "sketchup_analyzer",
         "perf",
+        "tests",
     }
     for p in tools_dir.iterdir():
         if p.name.startswith(".") or p.name == "README.md" or p.name == "__pycache__":
@@ -2184,7 +2224,6 @@ _SLG_TEMPLATES_TOP_LEVEL_ALLOWED = frozenset(
         "channel",
         "construction",
         "cs",
-        "designer",
         "drawing",
         "macros",
         "measurement",
@@ -2203,7 +2242,6 @@ _SLG_FOMS_WEB_TOP_LEVEL_ALLOWED = frozenset(
         "channel",
         "construction",
         "cs",
-        "designer",
         "drawing",
         "measurement",
         "orders",
@@ -2220,7 +2258,6 @@ _SLG_FOMS_API_TOP_LEVEL_ALLOWED = frozenset(
         "channel",
         "construction",
         "cs",
-        "designer",
         "drawing",
         "files",
         "measurement",
@@ -2239,8 +2276,8 @@ _SLG_FOMS_SERVICES_TOP_LEVEL_ALLOWED = frozenset(
         "channel",
         "common",
         "construction",
+        "crew",
         "cs",
-        "designer",
         "drawing",
         "files",
         "jobs",
@@ -2248,6 +2285,7 @@ _SLG_FOMS_SERVICES_TOP_LEVEL_ALLOWED = frozenset(
         "notifications",
         "orders",
         "production",
+        "security",
         "shipment",
         "wdcalculator",
     }
@@ -2398,7 +2436,6 @@ _PAC_PARTIALS_SHARED_HTML_ALLOWLIST = frozenset(
         "erp_mobile_notification_panel.html",
         "erp_mobile_order_timeline_sheet.html",
         "erp_mobile_urgent_call_panel.html",
-        "erp_mobile_queue_card.html",
         "erp_mobile_queue_card_v2.html",
         "erp_mobile_shell.html",
         "erp_mobile_shell_header.html",
@@ -2417,6 +2454,7 @@ _PAC_PARTIALS_SHARED_HTML_ALLOWLIST = frozenset(
         "foms_side_tab.html",
         "foms_split_shell.html",
         "foms_density_toggle.html",
+        "foms_legacy_password_banner.html",
         "foms_tablet_rail.html",
         "foms_theme_toggle.html",
         "htmx_layout.html",
@@ -2425,6 +2463,7 @@ _PAC_PARTIALS_SHARED_HTML_ALLOWLIST = frozenset(
         "layout_nav.html",
         "layout_scripts.html",
         "mobile_queue_pager.html",
+        "status_select_options.html",
     }
 )
 

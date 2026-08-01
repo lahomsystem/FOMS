@@ -5,6 +5,7 @@
 - POST /api/orders/<id>/settlement/issue: 비용 청구/차감 이벤트 기록 (structured_data.settlement).
 """
 import copy
+from foms.services.error_logging import log_handled_exception
 import datetime
 
 from flask import Blueprint, jsonify, request, session
@@ -254,8 +255,7 @@ def api_orders_completion():
         result = _serialize_completion_orders(db, orders)
         return jsonify({"success": True, "orders": result})
     except Exception as e:
-        import traceback
-        traceback.print_exc()
+        log_handled_exception()
         return jsonify({"success": False, "message": str(e)}), 500
 
 
@@ -380,8 +380,7 @@ def api_settlement_issue(order_id):
     except Exception as e:
         if db is not None:
             db.rollback()
-        import traceback
-        traceback.print_exc()
+        log_handled_exception()
         return jsonify({"success": False, "message": str(e)}), 500
 
 
@@ -446,8 +445,7 @@ def api_cash_receipt_issue(order_id):
     except Exception as e:
         if db is not None:
             db.rollback()
-        import traceback
-        traceback.print_exc()
+        log_handled_exception()
         return jsonify({"success": False, "error": str(e)}), 500
 
 

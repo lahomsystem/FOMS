@@ -13,7 +13,14 @@ from sqlalchemy.orm.attributes import flag_modified
 from werkzeug.security import generate_password_hash
 
 from db import db_session
-from models import Notification, Order, OrderAttachment, User
+from models import (
+    DomainSideEffectOutbox,
+    DrawingWizardPending,
+    Notification,
+    Order,
+    OrderAttachment,
+    User,
+)
 
 
 def _login(client, *, username, role, team):
@@ -1023,7 +1030,8 @@ def test_presets_post_then_get_round_trips_globally(client):
 
     post_resp = client.post(
         PRESETS_ENDPOINT,
-        json={"presets": [{"label": "테스트컷", "text": "[SR] 테스트컷"}]},
+        # 최초 저장: 저장 row 없음 → 현재 version 0 을 If-Match 로 되보냄(WIZ-PRESET-01).
+        json={"presets": [{"label": "테스트컷", "text": "[SR] 테스트컷"}], "settings_version": 0},
     )
     assert post_resp.status_code == 200, post_resp.get_json()
     assert post_resp.get_json()["data"]["presets"] == [
@@ -1049,7 +1057,8 @@ def test_presets_post_sanitizes_before_save(client):
                 {"label": "  좋은라벨  ", "text": "  유효본문  "},
                 {"label": "빈본문", "text": "   "},
                 {"label": "L" * (MAX_LABEL_LEN + 1), "text": "라벨초과"},
-            ]
+            ],
+            "settings_version": 0,
         },
     )
 
@@ -1930,17 +1939,6 @@ def test_transfer_drawing_without_pending_unchanged(client):
 # ---------------------------------------------------------------------------
 
 
-class _DeletingStorage:
-    """delete_file 호출 key 를 기록하는 테스트용 스토리지(삭제 추적)."""
-
-    def __init__(self):
-        self.deleted = []
-
-    def delete_file(self, key):
-        self.deleted.append(key)
-        return True
-
-
 def _seed_pending_for_delete(order, *, sheet_id="s-1", key=None, objects=None, attachment_id=None):
     """order.structured_data.drawing_wizard 에 pending 1건 + 대응 시트를 심는다(삭제 테스트용).
 
@@ -1976,8 +1974,12 @@ def _seed_pending_for_delete(order, *, sheet_id="s-1", key=None, objects=None, a
     return key
 
 
-def test_delete_pending_removes_entry_and_r2_key_but_keeps_objects(client, monkeypatch):
-    """pending 삭제 = 항목 제거 + R2 export 파일 삭제, 단 시트 objects(편집 캔버스)는 보존."""
+def test_delete_pending_removes_entry_and_schedules_outbox_but_keeps_objects(client):
+    """pending 삭제 = JSON 항목 제거 + child DELETE_PENDING + WIZARD_PENDING STORAGE_DELETE
+    outbox(한 tx), 동기 R2 삭제 0, 시트 objects(편집 캔버스)는 보존.
+
+    WIZ-DELETE-01 하드닝: 요청 tx 에서 R2 를 직접 삭제하지 않고 worker 공용 handler 가 삭제하도록
+    outbox 로 예약한다(no synchronous external delete)."""
     _login_participant_admin(client)
     order = _erp_order()
     order_id = order.id
@@ -1997,17 +1999,36 @@ def test_delete_pending_removes_entry_and_r2_key_but_keeps_objects(client, monke
     ]
     key = _seed_pending_for_delete(order, sheet_id="s-1", objects=objects)
 
-    storage = _DeletingStorage()
-    monkeypatch.setattr("foms.api.drawing.wizard.get_storage", lambda: storage)
+    # 동기 R2 삭제가 일어나면 즉시 fail(no synchronous external delete 보증).
+    class _Boom:
+        def delete_file(self, _key):
+            raise AssertionError("요청 tx 에서 동기 R2 삭제 금지 — outbox 경유여야 함")
 
-    resp = client.delete(f"/api/orders/{order_id}/drawing-wizard/pending/s-1")
+    import foms.api.drawing.wizard as wiz_module  # noqa: PLC0415
+    orig_get_storage = wiz_module.get_storage
+    wiz_module.get_storage = lambda: _Boom()
+    try:
+        resp = client.delete(f"/api/orders/{order_id}/drawing-wizard/pending/s-1")
+    finally:
+        wiz_module.get_storage = orig_get_storage
     assert resp.status_code == 200, resp.get_json()
     data = resp.get_json()["data"]
     assert data["sheet_id"] == "s-1"
     assert data["deleted_key"] == key
-    assert key in storage.deleted
+    assert data["pending_id"] is not None
 
     db_session.expire_all()
+    # child row: DELETE_PENDING 으로 마크(server-derived object_key 로 materialize).
+    child = db_session.query(DrawingWizardPending).filter_by(id=data["pending_id"]).first()
+    assert child is not None and child.object_key == key and child.state == "DELETE_PENDING"
+    # WIZARD_PENDING STORAGE_DELETE outbox(실 FK) 1개.
+    outbox = db_session.query(DomainSideEffectOutbox).filter_by(
+        source_domain="WIZARD_PENDING", wizard_pending_id=child.id,
+        effect_type="STORAGE_DELETE").all()
+    assert len(outbox) == 1
+    assert (outbox[0].payload or {}).get("object_key") == key
+    assert outbox[0].status == "PENDING"
+
     sd = db_session.query(Order).filter_by(id=order_id).first().structured_data
     dw = sd.get("drawing_wizard") or {}
     assert "s-1" not in (dw.get("pending") or {})
@@ -2015,9 +2036,10 @@ def test_delete_pending_removes_entry_and_r2_key_but_keeps_objects(client, monke
     assert dw["sheets"][0]["objects"] == objects
 
 
-def test_delete_pending_also_deletes_linked_attachment(client, monkeypatch):
-    """시트에 연결된 도면 탭 첨부(attachment_id)가 있으면 그 OrderAttachment 행·R2 파일도
-    삭제되고 시트에서 attachment_id 가 제거된다."""
+def test_delete_pending_also_schedules_linked_attachment_delete(client):
+    """시트에 연결된 도면 탭 첨부(attachment_id)가 있으면 OrderAttachment 행은 tx 에서 삭제되고
+    R2 blob 은 ORDER_EVENT STORAGE_DELETE outbox 로 예약되며 시트에서 attachment_id 가 제거된다
+    (동기 R2 삭제 0)."""
     _login_participant_admin(client)
     order = _erp_order()
     order_id = order.id
@@ -2028,17 +2050,26 @@ def test_delete_pending_also_deletes_linked_attachment(client, monkeypatch):
     att_key = att.storage_key
     _seed_pending_for_delete(order, sheet_id="s-1", attachment_id=att_id)
 
-    storage = _DeletingStorage()
-    monkeypatch.setattr("foms.api.drawing.wizard.get_storage", lambda: storage)
+    class _Boom:
+        def delete_file(self, _key):
+            raise AssertionError("요청 tx 에서 동기 R2 삭제 금지 — outbox 경유여야 함")
 
-    resp = client.delete(f"/api/orders/{order_id}/drawing-wizard/pending/s-1")
+    import foms.api.drawing.wizard as wiz_module  # noqa: PLC0415
+    orig_get_storage = wiz_module.get_storage
+    wiz_module.get_storage = lambda: _Boom()
+    try:
+        resp = client.delete(f"/api/orders/{order_id}/drawing-wizard/pending/s-1")
+    finally:
+        wiz_module.get_storage = orig_get_storage
     assert resp.status_code == 200, resp.get_json()
 
     db_session.expire_all()
-    # OrderAttachment 행 삭제됨.
+    # OrderAttachment 행 삭제됨(내부 DB write).
     assert db_session.query(OrderAttachment).filter_by(id=att_id).first() is None
-    # att 의 R2 key 삭제 호출됨.
-    assert att_key in storage.deleted
+    # att 의 R2 key 는 ORDER_EVENT STORAGE_DELETE outbox 로 예약됨(동기 삭제 아님).
+    att_outbox = db_session.query(DomainSideEffectOutbox).filter_by(
+        source_domain="ORDER_EVENT", effect_type="STORAGE_DELETE").all()
+    assert any((r.payload or {}).get("object_key") == att_key for r in att_outbox)
     # 시트에서 attachment_id 제거됨.
     sd = db_session.query(Order).filter_by(id=order_id).first().structured_data
     sheet = (sd.get("drawing_wizard") or {})["sheets"][0]

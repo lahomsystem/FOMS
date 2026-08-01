@@ -370,7 +370,15 @@
     var json = serverPayloadJson(payload);
     try {
       if (navigator.sendBeacon) {
-        navigator.sendBeacon(AUTOSAVE_URL, new Blob([json], { type: "application/json" }));
+        // sendBeacon은 커스텀 헤더를 못 실으므로 CSRF 토큰을 body에 주입한다
+        // (WRITE-GUARD-01: 서버 가드가 JSON body의 csrf_token을 헤더 대체로 인정).
+        var beaconBody = json;
+        try {
+          var withToken = JSON.parse(json);
+          withToken.csrf_token = window.fomsCsrfToken ? window.fomsCsrfToken() : "";
+          beaconBody = JSON.stringify(withToken);
+        } catch (e) {}
+        navigator.sendBeacon(AUTOSAVE_URL, new Blob([beaconBody], { type: "application/json" }));
         return;
       }
     } catch (e) {}

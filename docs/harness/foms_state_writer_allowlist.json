@@ -1,0 +1,42 @@
+{
+  "_packet": "STATE-GUARD-01",
+  "_comment": "Allowlist for the static main-stage/overlay direct-writer scan gate (tools/harness/state_writer_scan.py). An entry marks a FILE as a canonical write path: CANONICAL (canonical mutator engine/helper), CONSTRUCTOR (new-order initial stage), or AUDITED_BACKFILL (audited repair/backfill). Every direct writer OUTSIDE these files is EXTERNAL (a residual writer to migrate to the canonical engine). Adding an EXTERNAL endpoint file here is forbidden without confirming the site genuinely routes through the canonical engine — canonical-equivalence, not convenience.",
+  "allow": [
+    {
+      "path": "foms/services/orders/order_transition_service.py",
+      "classification": "CANONICAL",
+      "owner": "STATE-CORE",
+      "reason": "다축 전이 정본 엔진. _apply_main/_apply_logistics/_apply_hold 가 workflow.stage·erp_stage_code·shipment.logistics_status·workflow.hold 를 쓰고, legacy order.status projection 을 재계산한다. 상태 변경의 유일한 정본 경로."
+    },
+    {
+      "path": "foms/services/orders/stage_override.py",
+      "classification": "CANONICAL",
+      "owner": "STATE-OVERLAY",
+      "reason": "관리자 stage override 정본 mutator — order.status + workflow.stage 를 override 규칙에 따라 원자적으로 쓴다(비인접 전이 관문)."
+    },
+    {
+      "path": "foms/services/orders/as_cycle_service.py",
+      "classification": "CANONICAL",
+      "owner": "STATE-AS",
+      "reason": "AS lifecycle overlay 반영 후 legacy order.status projection + flat 컬럼을 재계산하는 AS 축 정본 mutator."
+    },
+    {
+      "path": "foms/services/erp_sync_columns.py",
+      "classification": "CANONICAL",
+      "owner": "STATE-CORE",
+      "reason": "flat 컬럼 미러 sync 정본 helper — structured_data workflow.stage 로부터 erp_stage_code/erp_stage_updated_at 를 파생 write 한다. 캐논 경로가 호출하는 미러러(독립 전이 아님)."
+    },
+    {
+      "path": "foms/services/orders/order_create.py",
+      "classification": "CONSTRUCTOR",
+      "owner": "ORDER-CREATE",
+      "reason": "신규 주문 생성 시 초기 workflow.stage 를 RECEIVED(또는 전달값)로 seed 하는 constructor initial stage."
+    },
+    {
+      "path": "foms/services/orders/repair_order_state_axes.py",
+      "classification": "AUDITED_BACKFILL",
+      "owner": "STATE-AXES-REPAIR",
+      "reason": "audited projection/mirror 복구 backfill — mismatch 감사 후 erp_stage_code=workflow.stage·legacy status projection 을 재기록한다(감사 전제 backfill)."
+    }
+  ]
+}

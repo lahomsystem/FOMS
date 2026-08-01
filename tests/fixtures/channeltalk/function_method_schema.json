@@ -1,0 +1,8 @@
+{
+  "_comment": "CHANNEL-FUNCTION-CONTRACT-01 method schema manifest. 실제 등록된 Function method 와 정확한 param 스키마의 정본 사본이다. foms.api.channel.channel_functions.REGISTERED_FUNCTION_METHODS 와 byte-단위로 일치해야 한다(test_channel_function_contract 가 stale/누락/accept-all 을 차단). wildcard('*') method·accept-all params 금지. 새 method 등록 시 코드와 이 파일을 함께 갱신한다.",
+  "registered_methods": {
+    "foms": {
+      "text": "str"
+    }
+  }
+}

@@ -1,0 +1,126 @@
+{
+  "_packet": "REV-99",
+  "_comment": "Allowlist for the order-mutation writer scan gate (tools/harness/order_mutation_writer_scan.py). An entry marks a FILE as a versioned write path: CANONICAL (routes through REV-00 execute_order_mutation or is a canonical mutator the engine drives), VERSIONED_DIRECT (direct mutation_version bump under FOR UPDATE — canonical-equivalent metadata), or AUDITED_RECOVERY (OPS-APPROVAL-gated offline apply, no autonomous replay). Every order-mutation writer OUTSIDE these files is EXTERNAL (a residual direct writer with no version/If-Match contract, to migrate to the canonical engine). Adding an EXTERNAL file here is forbidden without confirming the site genuinely carries the REV-00 contract — canonical-equivalence, not convenience.",
+  "allow": [
+    {
+      "path": "foms/services/orders/revision.py",
+      "classification": "CANONICAL",
+      "owner": "REV-00",
+      "reason": "REV-00 정본 helper. execute_order_mutation 이 If-Match 검증·FOR UPDATE 직렬화·mutation_version bump·idempotency receipt 를 소유한다. 모든 canonical order mutation 의 유일한 버전 write 경로."
+    },
+    {
+      "path": "foms/services/orders/order_transition_service.py",
+      "classification": "CANONICAL",
+      "owner": "STATE-CORE-00",
+      "reason": "다축 전이 정본 엔진. execute_order_mutation 경유로 workflow.stage/structured_data 를 원자 변경하며 하류 transition_order 호출자에 version/If-Match 계약을 전달한다."
+    },
+    {
+      "path": "foms/services/orders/stage_override.py",
+      "classification": "CANONICAL",
+      "owner": "STATE-OVERLAY-01",
+      "reason": "관리자 stage override 정본 mutator — REV-00 route(api/orders/stage_override) 의 execute_order_mutation callback 안에서 structured_data 를 원자 변경한다(STATE-GUARD-01 CANONICAL 과 동일 파일)."
+    },
+    {
+      "path": "foms/services/orders/as_cycle_service.py",
+      "classification": "CANONICAL",
+      "owner": "STATE-AS-01",
+      "reason": "AS lifecycle overlay 정본 mutator — execute_order_mutation 경유로 structured_data 를 변경한다(STATE-GUARD-01 CANONICAL 과 동일 파일)."
+    },
+    {
+      "path": "foms/services/orders/soft_delete.py",
+      "classification": "CANONICAL",
+      "owner": "DELETE-CORE-00",
+      "reason": "soft-delete/restore 를 REV-00 execute_order_mutation 경유로 수행(version bump + receipt)."
+    },
+    {
+      "path": "foms/services/shipment/as_recommendation.py",
+      "classification": "CANONICAL",
+      "owner": "STATE-AS-01",
+      "reason": "AS 추천 반영을 REV-00 execute_order_mutation 경유로 structured_data 에 원자 기록한다."
+    },
+    {
+      "path": "foms/api/erp_orders_structured.py",
+      "classification": "CANONICAL",
+      "owner": "DATA-01",
+      "reason": "ERP 구조화 폼 저장을 REV-00 execute_order_mutation 경유로 If-Match + version bump + receipt 로 수행한다."
+    },
+    {
+      "path": "foms/api/production/orders.py",
+      "classification": "CANONICAL",
+      "owner": "STATE-PROD-01",
+      "reason": "생산 단계 전이/증빙을 REV-00 execute_order_mutation 경유로 수행한다."
+    },
+    {
+      "path": "foms/api/construction/orders.py",
+      "classification": "CANONICAL",
+      "owner": "STATE-CONST-CS-01",
+      "reason": "시공 시작/재작업/증빙을 REV-00 execute_order_mutation 경유로 수행한다."
+    },
+    {
+      "path": "foms/api/drawing/wizard.py",
+      "classification": "CANONICAL",
+      "owner": "WIZ-01",
+      "reason": "도면 마법사 저장을 REV-00 execute_order_mutation 경유로 If-Match + version bump 으로 수행한다."
+    },
+    {
+      "path": "foms/api/measurement/routes.py",
+      "classification": "CANONICAL",
+      "owner": "DATA-MEASUREMENT-01",
+      "reason": "실측 저장을 REV-00 execute_order_mutation 경유로 수행한다."
+    },
+    {
+      "path": "foms/api/orders/call_log.py",
+      "classification": "CANONICAL",
+      "owner": "CALL-LOG-01",
+      "reason": "통화 로그 append 를 REV-00 execute_order_mutation 경유로 version bump 하며 수행한다."
+    },
+    {
+      "path": "foms/api/shipment/packing.py",
+      "classification": "CANONICAL",
+      "owner": "PACK-01",
+      "reason": "패킹/출고 반영을 REV-00 execute_order_mutation 경유로 수행한다."
+    },
+    {
+      "path": "foms/api/shipment/settings.py",
+      "classification": "CANONICAL",
+      "owner": "SHIPMENT-REFERENCE-01",
+      "reason": "출고 설정 반영을 REV-00 execute_order_mutation 경유로 수행한다."
+    },
+    {
+      "path": "foms/api/cs/as_orders.py",
+      "classification": "CANONICAL",
+      "owner": "STATE-AS-01",
+      "reason": "AS 주문 mutation 을 REV-00 execute_order_mutation 경유로 수행한다."
+    },
+    {
+      "path": "foms/api/channel/channel_integration.py",
+      "classification": "CANONICAL",
+      "owner": "CHANNEL-WRITER-01",
+      "reason": "채널 push 반영을 REV-00 execute_order_mutation 한 transaction 으로 묶어 version bump 하며 수행한다."
+    },
+    {
+      "path": "foms/services/orders/upload_intent.py",
+      "classification": "VERSIONED_DIRECT",
+      "owner": "UPLOAD-INTENT-01",
+      "reason": "upload draft finalize — order 를 FOR UPDATE 로 잠그고 final command 만 mutation_version 을 1회 직접 bump 한다(REV-00 계약 동등 metadata, helper 미경유)."
+    },
+    {
+      "path": "foms/services/orders/upload_ticket.py",
+      "classification": "VERSIONED_DIRECT",
+      "owner": "UPLOAD-01",
+      "reason": "upload ticket 확정 — 확정 시에만 mutation_version 을 1회 직접 bump 한다(REV-00 계약 동등 metadata, helper 미경유)."
+    },
+    {
+      "path": "foms/api/drawing/erp_orders_drawing.py",
+      "classification": "VERSIONED_DIRECT",
+      "owner": "WIZ-TRANSFER-01",
+      "reason": "도면 전달 취소 — OrderEvent 를 source 로 outbox 예약하는 business tx 안에서 mutation_version 을 직접 bump 한다(REV-00 계약 동등 metadata)."
+    },
+    {
+      "path": "foms/services/orders/offline_recovery.py",
+      "classification": "AUDITED_RECOVERY",
+      "owner": "OFFLINE-01",
+      "reason": "오프라인 로컬 큐 recovery apply — OPS-APPROVAL(seq>=1 재인증·one-time·artifact_sha256 바인딩) 하에서만, 큐 무결성 검증 뒤 all-or-none 한 tx 로 적용한다. SW-01 이 offline mutation 을 OFF 로 유지 → 자동/백그라운드 replay 0(명시 승인 apply 만)."
+    }
+  ]
+}

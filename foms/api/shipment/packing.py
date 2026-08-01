@@ -19,19 +19,32 @@ from __future__ import annotations
 
 import copy
 import datetime
+import hashlib
+import json
 import logging
 from functools import wraps
-from typing import Any, Callable
+from typing import Any, Callable, List, Mapping, Optional
 
 from flask import jsonify, request, session
+from sqlalchemy.orm import Session
 from sqlalchemy.orm.attributes import flag_modified
 
 from db import get_db
 from foms.api.shipment.settings import erp_shipment_bp
+from foms.services.orders.order_mutation_policy import POLICY_REGISTRY, evaluate_policy
+from foms.services.orders.revision import RevisionError, execute_order_mutation
 from foms.web.auth import get_user_by_id
 from models import Order, OrderEvent
 
 logger = logging.getLogger(__name__)
+
+#: §2.1 canonical packing write 정책(AUTH-01). route manifest·UI 은닉·이 핸들러가 공유한다
+#: (CS/SALES/SHIPMENT/CONSTRUCTION team-wide 또는 ADMIN/MANAGER; VIEWER hard deny).
+PACKING_WRITE_POLICY_ID = "PACKING_WRITE"
+
+
+class _PackingGateError(Exception):
+    """출발 보고 전제(전 항목 체크) 위반 — mutation 내부에서 raise, 호출부가 400 으로 매핑."""
 
 # 통합 후보: 아래 팀 권한은 향후 erp_permissions.py의 표준 헬퍼/데코레이터로
 # 승격할 예정이다. B6 범위에서는 erp_permissions.py를 무터치로 두고 출고 패킹
@@ -169,12 +182,48 @@ def api_shipment_packing_get(order_id: int):
     )
 
 
+def _mutation_hashes(
+    order_id: int, updates: Any, add: Any, departed_flag: bool
+) -> tuple[str, str]:
+    """(scope_hash, request_hash) — receipt 저장·same-key/different-hash 감지용 sha256."""
+    scope = hashlib.sha256(f"{PACKING_WRITE_POLICY_ID}:{order_id}".encode()).hexdigest()
+    request_payload = json.dumps(
+        {"updates": updates, "add": add, "departed": departed_flag},
+        sort_keys=True,
+        ensure_ascii=False,
+        default=str,
+    )
+    return scope, hashlib.sha256(request_payload.encode()).hexdigest()
+
+
 @erp_shipment_bp.route("/api/erp/shipment/packing/<int:order_id>", methods=["POST"])
-@_packing_edit_required
 def api_shipment_packing_save(order_id: int):
-    """패킹 체크 상태 갱신 및 항목 추가(JSONB 저장 + OrderEvent 기록)."""
-    updates = None
-    add = None
+    """패킹 제출을 정본 command 로 원자 기록한다(REV-00 one-tx).
+
+    packing 갱신(체크/항목 추가/출발 보고)을 REV-00 :func:`execute_order_mutation` 경유로
+    §2.1 policy(``PACKING_WRITE``) + If-Match(mutation_version 낙관 잠금) + version bump +
+    idempotency receipt + OrderEvent 를 **한 transaction** 에 묶는다. 같은 ``Idempotency-Key``
+    재요청은 replay(중복 제출 0)로 수렴한다.
+
+    Body: ``{updates?, add?, departed?}``. optional 헤더 ``If-Match``·``Idempotency-Key``.
+    반환: ``{success, data:{...packing payload, mutation_receipt}}`` + ``Cache-Control: no-store``.
+    """
+    db: Session = get_db()
+
+    # 1) §2.1 canonical 권한 — PACKING_WRITE. AUTH-01 before_request 가드가 꺼진 컨텍스트
+    #    (TESTING 등)에서도 payload 파싱 전에 항상 enforce 한다(우회 차단).
+    user = get_user_by_id(session.get("user_id"))
+    decision = evaluate_policy(POLICY_REGISTRY[PACKING_WRITE_POLICY_ID], user)
+    if not decision.allowed:
+        return jsonify({
+            "success": False,
+            "data": None,
+            "error": decision.reason,
+            "message": decision.reason,
+            "code": decision.code,
+        }), decision.status
+
+    # 2) payload 검증(기존 계약 유지).
     payload = request.get_json(silent=True) or {}
     updates = payload.get("updates")
     add = payload.get("add")
@@ -206,17 +255,30 @@ def api_shipment_packing_save(order_id: int):
         if add_qty <= 0:
             add_qty = 1
 
-    db = get_db()
     order = db.query(Order).filter(Order.id == order_id, Order.active_filter()).first()
     if not order:
         return jsonify({"success": False, "error": "주문을 찾을 수 없습니다."}), 404
 
-    user = get_user_by_id(session.get("user_id"))
+    # 3) optional If-Match(mutation_version) — 형식 오류는 삼키지 않고 400.
+    if_match_raw = (request.headers.get("If-Match") or "").strip().strip('"')
+    expected_versions: Optional[Mapping[int, int]] = None
+    if if_match_raw:
+        try:
+            expected_versions = {order_id: int(if_match_raw)}
+        except ValueError:
+            return jsonify({"success": False, "error": "If-Match 형식이 올바르지 않습니다."}), 400
+    idempotency_key = (request.headers.get("Idempotency-Key") or "").strip() or None
+
+    user_id = getattr(user, "id", None)
     by_name = (getattr(user, "name", None) or getattr(user, "username", None) or "").strip()
     now_iso = datetime.datetime.now(datetime.timezone.utc).isoformat()
+    scope_hash, request_hash = _mutation_hashes(order_id, updates, add, departed_flag)
+    captured: dict[str, Any] = {}
 
-    try:
-        sd = copy.deepcopy(order.structured_data if isinstance(order.structured_data, dict) else {})
+    def _mutate(sess: Session, orders: List[Order]) -> Mapping[int, List[str]]:
+        """row lock 아래에서 packing JSONB 갱신 + OrderEvent parity(다른 축 불변)."""
+        o = orders[0]
+        sd = copy.deepcopy(o.structured_data if isinstance(o.structured_data, dict) else {})
         shipment = sd.get("shipment")
         if not isinstance(shipment, dict):
             shipment = {}
@@ -273,38 +335,73 @@ def api_shipment_packing_save(order_id: int):
         event_type = "PACKING_UPDATED"
         if departed_flag:
             # 서버 게이트: 전 항목 체크 없이는 출발 보고 불가(클라 disabled 우회 차단).
+            # lock 아래에서 판정 → 호출부가 rollback 후 400(상태 미저장).
             if total == 0 or checked_count < total:
-                db.rollback()
-                return jsonify({"success": False, "error": "전 항목 체크 후 출발 보고"}), 400
+                raise _PackingGateError("전 항목 체크 후 출발 보고")
             # 멱등: 이미 departed여도 타임스탬프·담당을 재기록(재보고=갱신).
             packing["departed_at"] = now_iso
             packing["departed_by_name"] = by_name
             event_type = "PACKING_DEPARTED"
 
-        order.structured_data = sd
-        flag_modified(order, "structured_data")
-        db.add(
+        o.structured_data = sd
+        flag_modified(o, "structured_data")
+        sess.add(
             OrderEvent(
-                order_id=order.id,
+                order_id=o.id,
                 event_type=event_type,
                 payload={
                     "checked_count": checked_count,
                     "total": total,
                     "issues_count": issues_count,
                 },
-                created_by_user_id=getattr(user, "id", None),
+                created_by_user_id=user_id,
             )
         )
-        db.commit()
-        return jsonify(
-            {
-                "success": True,
-                "data": _packing_payload(
-                    items, True, packing.get("departed_at"), packing.get("departed_by_name")
-                ),
-            }
+        captured["items"] = items
+        captured["departed_at"] = packing.get("departed_at")
+        captured["departed_by_name"] = packing.get("departed_by_name")
+        return {o.id: [f"ORDER_DETAIL:{o.id}", "ORDERS_INDEX"]}
+
+    # 4) REV-00 one-tx: policy(위)+If-Match+FOR UPDATE+version bump+idempotency+receipt+event.
+    try:
+        outcome = execute_order_mutation(
+            db,
+            actor_user_id=user_id,
+            policy_id=PACKING_WRITE_POLICY_ID,
+            order_ids=[order_id],
+            expected_versions=expected_versions,
+            idempotency_key=idempotency_key,
+            scope_hash=scope_hash,
+            request_hash=request_hash,
+            mutation=_mutate,
         )
-    except Exception as exc:
+        db.commit()
+    except _PackingGateError as gate:
+        db.rollback()
+        return jsonify({"success": False, "error": str(gate)}), 400
+    except RevisionError as rev:
+        db.rollback()
+        return jsonify({"success": False, "error": str(rev), "code": rev.error_code}), rev.status_code
+    except Exception as exc:  # noqa: BLE001 - 상위에서 롤백 후 500 반환
         db.rollback()
         logger.exception("[SHIPMENT_PACKING] save error: %s", exc)
         return jsonify({"success": False, "error": str(exc)}), 500
+
+    if outcome.replayed:  # same-key replay: 저장된 write 를 재조회해 응답 재구성(중복 제출 0).
+        fresh = db.query(Order).filter(Order.id == order_id).first()
+        sd = fresh.structured_data if isinstance(fresh.structured_data, dict) else {}
+        items, _ = _load_packing_items(sd)
+        packing = (sd.get("shipment") or {}).get("packing") or {}
+        data = _packing_payload(
+            items, True, packing.get("departed_at"), packing.get("departed_by_name")
+        )
+    else:
+        data = _packing_payload(
+            captured["items"], True, captured.get("departed_at"), captured.get("departed_by_name")
+        )
+    data["mutation_receipt"] = outcome.read_receipt_id
+
+    resp = jsonify({"success": True, "data": data})
+    for header, value in outcome.headers.items():
+        resp.headers[header] = value
+    return resp

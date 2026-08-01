@@ -6,7 +6,6 @@ from types import SimpleNamespace
 
 import pytest
 from sqlalchemy.exc import OperationalError
-from werkzeug.security import check_password_hash
 
 import foms.services.app_init as app_init
 
@@ -214,37 +213,15 @@ def test_run_auto_init_uses_internal_startup_policy(monkeypatch):
         def app_context(self):
             return _FakeAppContext()
 
-    import foms.api.attachments as attachments_module
-    import foms.services.db_indexes as db_indexes_module
     import foms.services.order_date_sync as order_date_sync_module
 
+    # STARTUP-PURE-01: run_auto_init performs zero DB write/DDL. The create_all
+    # baseline (init_db / init_wdcalculator_db) and the ERP flat-column backfill
+    # were removed from the startup path (schema is owned by Alembic/predeploy;
+    # backfill by the STARTUP-BACKFILL-01 CLI). Only the read-only fail-closed
+    # readiness probe and the date-sync listener wiring remain.
     monkeypatch.setattr(app_init, "init_db", lambda: calls.append("init_db"))
-    monkeypatch.setattr(
-        attachments_module,
-        "ensure_order_attachments_category_column",
-        lambda: calls.append("attachments_category"),
-    )
-    monkeypatch.setattr(
-        attachments_module,
-        "ensure_order_attachments_item_index_column",
-        lambda: calls.append("attachments_item_index"),
-    )
-    monkeypatch.setattr(
-        attachments_module,
-        "ensure_order_attachments_user_id_column",
-        lambda: calls.append("attachments_user_id"),
-    )
     monkeypatch.setattr(app_init, "init_wdcalculator_db", lambda: calls.append("init_wdcalculator_db"))
-    monkeypatch.setattr(
-        db_indexes_module,
-        "apply_phase2_indexes",
-        lambda: calls.append("apply_phase2_indexes"),
-    )
-    monkeypatch.setattr(
-        db_indexes_module,
-        "ensure_erp_date_columns",
-        lambda: calls.append("ensure_erp_date_columns"),
-    )
     monkeypatch.setattr(
         app_init,
         "_verify_erp_flat_columns_ready",
@@ -260,134 +237,15 @@ def test_run_auto_init_uses_internal_startup_policy(monkeypatch):
         "register_date_sync_listener",
         lambda: calls.append("register_date_sync_listener"),
     )
-    fake_db_session = object()
-    monkeypatch.setattr(app_init, "get_db", lambda: fake_db_session)
-    monkeypatch.setattr(
-        app_init,
-        "_ensure_default_admin",
-        lambda session: calls.append(("ensure_default_admin", session)),
-    )
-
     app_init.run_auto_init(_FakeApp())
 
     assert calls == [
         "enter_app_context",
-        "init_db",
-        "attachments_category",
-        "attachments_item_index",
-        "attachments_user_id",
-        "init_wdcalculator_db",
-        "apply_phase2_indexes",
-        "ensure_erp_date_columns",
         "verify_erp_flat_columns_ready",
-        "backfill_erp_flat_columns",
         "register_date_sync_listener",
-        ("ensure_default_admin", fake_db_session),
         "exit_app_context",
     ]
-
-
-class _FakeQuery:
-    """Minimal query double for the admin bootstrap helper."""
-
-    def __init__(self, admin) -> None:
-        self._admin = admin
-
-    def filter_by(self, **kwargs):
-        assert kwargs == {"username": "admin"}
-        return self
-
-    def first(self):
-        return self._admin
-
-
-class _FakeSession:
-    """Minimal session double for admin bootstrap tests."""
-
-    def __init__(self, admin=None) -> None:
-        self._admin = admin
-        self.added = []
-        self.commits = 0
-        self.rollbacks = 0
-
-    def query(self, model):
-        assert model is app_init.User
-        return _FakeQuery(self._admin)
-
-    def add(self, obj) -> None:
-        self.added.append(obj)
-        self._admin = obj
-
-    def commit(self) -> None:
-        self.commits += 1
-
-    def rollback(self) -> None:
-        self.rollbacks += 1
-
-
-def test_get_bootstrap_admin_password_returns_none_when_env_missing(monkeypatch) -> None:
-    """Missing or blank env values should disable automatic admin bootstrap."""
-    monkeypatch.delenv("FOMS_ADMIN_DEFAULT_PASSWORD", raising=False)
-    assert app_init._get_bootstrap_admin_password() is None
-
-    monkeypatch.setenv("FOMS_ADMIN_DEFAULT_PASSWORD", "   ")
-    assert app_init._get_bootstrap_admin_password() is None
-
-
-def test_ensure_default_admin_skips_without_configured_password(monkeypatch, capsys) -> None:
-    """Automatic admin bootstrap should skip when no explicit password is configured."""
-    monkeypatch.delenv("FOMS_ADMIN_DEFAULT_PASSWORD", raising=False)
-    session = _FakeSession()
-
-    app_init._ensure_default_admin(session)
-
-    captured = capsys.readouterr().out
-    assert session.added == []
-    assert session.commits == 0
-    assert session.rollbacks == 0
-    assert "FOMS_ADMIN_DEFAULT_PASSWORD" in captured
-    assert "admin1234" not in captured
-    assert "admin/" not in captured
-
-
-def test_ensure_default_admin_creates_user_from_configured_password(monkeypatch, capsys) -> None:
-    """Configured bootstrap password should be hashed and never echoed back to logs."""
-    monkeypatch.setenv("FOMS_ADMIN_DEFAULT_PASSWORD", "super-secret")
-    session = _FakeSession()
-
-    app_init._ensure_default_admin(session)
-
-    captured = capsys.readouterr().out
-    assert len(session.added) == 1
-    assert session.commits == 1
-    assert session.rollbacks == 0
-    created_admin = session.added[0]
-    assert created_admin.username == "admin"
-    assert check_password_hash(created_admin.password, "super-secret")
-    assert "configured bootstrap password" in captured
-    assert "super-secret" not in captured
-    assert "admin1234" not in captured
-    assert "admin/" not in captured
-
-
-def test_ensure_default_admin_preserves_existing_admin(monkeypatch, capsys) -> None:
-    """Existing admin rows should bypass automatic creation and avoid side effects."""
-    monkeypatch.setenv("FOMS_ADMIN_DEFAULT_PASSWORD", "super-secret")
-    existing_admin = app_init.User(
-        username="admin",
-        password="already-set",
-        name="관리자",
-        role="ADMIN",
-        is_active=True,
-    )
-    session = _FakeSession(admin=existing_admin)
-
-    app_init._ensure_default_admin(session)
-
-    captured = capsys.readouterr().out
-    assert session.added == []
-    assert session.commits == 0
-    assert session.rollbacks == 0
-    assert "Admin user exists." in captured
-    assert "super-secret" not in captured
-    assert "admin1234" not in captured
+    # Purity guarantees: no create_all baseline, no startup backfill.
+    assert "init_db" not in calls
+    assert "init_wdcalculator_db" not in calls
+    assert "backfill_erp_flat_columns" not in calls

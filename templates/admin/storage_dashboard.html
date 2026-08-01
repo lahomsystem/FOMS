@@ -295,11 +295,12 @@
 // 인라인 편집 공통 함수 재사용 (self_measurement_dashboard와 동일한 패턴)
 document.addEventListener('DOMContentLoaded', function() {
     function saveField(orderId, field, value) {
-        return fetch('/api/update_order_field', {
+        // STORAGE-WRITER-01: typed adapter(cabinet_status enum·shipping_fee 정수) 경유.
+        return fetch(`/api/storage_dashboard/order/${orderId}/field`, {
             method: 'POST',
             headers: { 'Content-Type': 'application/json' },
-            body: JSON.stringify({ order_id: orderId, field_name: field, new_value: value })
-        }).then(r => r.json()).then(data => { if (!data.success) alert('오류: ' + data.message); return data; });
+            body: JSON.stringify({ field: field, value: value })
+        }).then(r => r.json()).then(data => { if (!data.success) alert('오류: ' + (data.message || data.error)); return data; });
     }
 
     document.querySelectorAll('.auto-resize-textarea').forEach(function(textarea) {

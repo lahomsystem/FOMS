@@ -1,10 +1,8 @@
 [
   "templates/macros/foms_kv.html",
   "templates/partials/shared/foms_order_contact_kv.html",
-  "templates/partials/shared/erp_mobile_queue_card.html",
   "templates/orders/partials/history_dashboard_body.html",
   "templates/measurement/partials/mobile_list.html",
-  "templates/orders/partials/dashboard_mobile_queue.html",
   "templates/production/partials/mobile_queue.html",
   "templates/construction/partials/mobile_queue.html",
   "templates/cs/partials/as_dashboard_body.html",
