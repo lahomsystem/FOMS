@@ -30,6 +30,44 @@
 
 ---
 
+## ✅ 승격 완료 (2026-08-01 14:12 KST)
+
+**PR #35 머지 → `origin/production` = `0aae8d9f`.** deploy `980810bb` 전체(356커밋·838파일) 반영.
+
+| 검증 항목 | 결과 |
+|---|---|
+| Railway web 배포 | `693df33d` **SUCCESS** (140초) |
+| 서빙 커밋 | `/healthz` = `0aae8d9f` ✅ |
+| alembic | `phase_0a_notif_user_states` → **`wiz_pending_00`** (29개 전부 적용) |
+| 테이블 수 | 45 → **84** |
+| 데이터 무손상 | orders 3,608→3,614(승격 중 신규 주문) · users 28 · order_events 11,044→11,054 · attachments 2,344 |
+| `security_principal_versions` | 28행 = users 28 일치 |
+| 스모크 11경로 | **전부 200** (dashboard 710ms · as 627ms · construction 582ms) |
+| WORKER / FOMS-cron | 둘 다 SUCCESS, 에러 로그 0 |
+| 백업 | `/c/tmp/foms-backups/foms-production-pre-promote.dump` (4.1MB, `pg_restore --list` 검증) |
+
+**운영 실물 확인된 이번 세션 수정:**
+- T1 시공자 마스터: 시공자 탭 존재 · `capacity` 입력 18개 · `off_dates` 입력 20개 · "이관되었습니다" 문구 제거 · 월력 CSS 링크 정상
+- 사고 수정(채널톡 푸시 게이트): `erpRunChannelPush` 본문 내 `isDirty(393) → 확인문구(462) → 저장(635) → 텍스트조립(847)` 순서 정상, If-Match 배선 확인
+
+**승격 시 못 한 것**: WORKER 0 스케일. Railway CLI에 스케일 명령이 없다(`down`은 배포 제거라 비가역 위험). RQ 워커는 잡 단위 실패라 프로세스가 죽지 않는 구조라 진행했고, 결과적으로 에러 0.
+
+### 승격 후 후속 (차단 아님)
+
+1. **construction 대시보드 서버 렌더 +22ms** — 7/28 16ms → 8/1 38ms. dTTFB 판정값은 154(예산 147)지만 그중 실제 서버 몫은 +22ms고 나머지 +38은 healthz base가 260→222로 빨라져 생긴 착시다(절대 min 351→376). 코드 A/B에서 기여분 0, wire +399B. **예산 재시드 금지 — 원인 미규명.**
+2. **CI PG Lane이 PostgreSQL 16, 운영은 17.10** — 한 세대 낮은 구조적 사각. 이번 FK 건은 공통 동작이라 무영향이었고 로컬 17.9로 교차 검증(659 passed)했다.
+3. **T8: 사용자 삭제 FK 근본 수정** — `OrderAssignment.user_id`/`assigned_by_user_id`에 `ON DELETE SET NULL` + nullable화 마이그레이션. 현재는 "삭제 거부"로 동작.
+4. `normalize_erp_shipment_workers`의 `str(None)` → `'None'` 결함(읽기 SSOT, 쓰기 측은 차단됨).
+5. `/erp/history` trailing-slash 301 여분 홉.
+
+### 이 세션에서 배운 하네스 함정 (반복 금지)
+
+- **`ci_watch.py`는 워크플로 1개만 본다.** 저장소에 7개 있다. 그 exit 0을 "CI green"으로 옮겨 적어 PG Lane 3연속 red를 놓쳤다. 판정은 반드시 `gh run list --branch <b>`로 **커밋별 전 워크플로 나열**.
+- **SQLite 레인은 FK를 강제하지 않는다.** FK 관련 수정은 PG 레인 없이는 검증 불가. 로컬 PG가 없으면 설치된 바이너리로 `initdb` + `pg_ctl`로 격리 클러스터를 띄울 수 있다(포트 충돌 주의 — 5433에 기존 PG 15가 있었다).
+- **`tests/postgres/conftest.py`는 비로컬 호스트를 거부한다**(Railway DSN 차단 가드). 우회하지 말 것.
+- **`synchronize_session=False` 대량 UPDATE 뒤 단언은 `expire_all()` 필수.** 안 하면 identity-map의 낡은 값을 검증한다(실측: DB는 NULL인데 객체는 옛 id).
+- **`wait_staging_deploy.py` 타임아웃(600s)은 성능 실패가 아니다.** Railway 배포 지연과 레이스.
+
 ## 진행 상황 (2026-07-31 갱신)
 
 작업 브랜치: `session/s0731-092912` (worktree `c:\tmp\foms-s-s0731-092912`, base `origin/deploy 1b3452a6`)
@@ -209,7 +247,21 @@ deploy push 런은 `--advisory`라 항상 exit 0이어서 가려져 있었다(`p
 
 ---
 
-## 승격 전 반드시 결재받을 것 (사업 판단)
+## 결재 결과 (2026-07-31 — 8건 전부 확정)
+
+| 안건 | 결정 | 후속 작업 |
+|---|---|---|
+| 출고 기준목록 편집 권한 (T3) | **관리자 3명 유지** | 없음 (코드 변경 0) |
+| 사용자 삭제 FK (T4) | **나중에 제대로 고치기** — 지금은 거부 유지, 다음에 DB 구조 수정 | **T8**(백로그): 마이그레이션으로 `OrderAssignment.user_id`/`assigned_by_user_id`에 `ON DELETE SET NULL` + nullable화. 승격 차단 아님 |
+| WDC 계산기 마스터 권한 | **잠그지 않는다 — 운영 현행(로그인한 누구나) 유지** | **W1**: 매니페스트 wdcalculator 12건 `MASTER_MUTATION` → `WDC_CALCULATE`(`teams="*", viewer=True`). `notifications.api_notifications_delete_all`은 그대로 |
+| 폼 저장 암묵 단계전이 제거 (`e8293513`) | **새 방식 유지, 공지 없음** | 없음 |
+| AS 대시보드 autosave 퇴역 (`be6c2a19`) | **새 방식 유지, 단 저장 버튼 가시성 확인 후 적용** | **W2**: 버튼 존재/가시/dirty표시 3판정 후 필요시 최소 수정. 자동저장 복구 금지 |
+| 주문 4414 복구 | **복구 안 함** | 없음 |
+| 사고 공지 | **공지 안 함** | 없음 |
+| 승격 방식 | **남은 준비 끝내고 349커밋 한 번에** | W1·W2·W3 완료 후 재확인 |
+| perf-gate (T6) | **진단한다** (예산 재시드 금지) | **W3**: 9경로 동일 응답의 정체 규명 |
+
+## 승격 전 반드시 결재받을 것 (사업 판단) — ✅ 전부 결재 완료, 아래는 근거 기록
 
 - **출고 기준목록 편집 권한 (T3)**: 시공시간·도면담당자·실측담당자·현장주소·**시공자 마스터**를 누가 편집하는가. 현재 `SHIPMENT_REFERENCE = teams=("SHIPMENT",)`인데 운영에 SHIPMENT 팀원 0명 → **ADMIN/MANAGER 3명 전용**. 넓히면 CS/SALES 25명. 넓히려면 policy 정의 + `settings.py:52` + 매니페스트 + `test_shipment_reference.py:72` 4곳을 함께 바꿔야 한다. **T1이 시공자 마스터 편집을 되살렸으므로 이 결정이 곧 "누가 기사 자수·휴무를 관리하느냐"다.**
 - **WDC 마스터 13종**: 오늘 `@login_required`만이라 **VIEWER 포함 로그인한 누구나 삭제 가능**. 승격 후 ADMIN·MANAGER 3명으로 제한(`MASTER_MUTATION` teams=()). 방향은 옳으나 STAFF 25명이 막힌다. 편집 진입점은 `/wdcalculator/product-settings` 한 곳뿐이고 주문 폼은 GET만 하므로 빈도는 낮을 것으로 추정(운영 확인: `SELECT updated_at FROM wdcalculator_product_settings;` — 6개월 넘었으면 논쟁 종료). **권고: 정책 유지 + 페이지에 `role_required(["ADMIN","MANAGER"])` 1줄로 "안 보임" 처리.** "보이는데 눌러도 안 됨"이 훨씬 비싸다.
