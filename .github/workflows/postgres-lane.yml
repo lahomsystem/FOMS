@@ -19,7 +19,12 @@ jobs:
 
     services:
       postgres:
-        image: postgres:16
+        # 스테이징·운영이 PG 17.10 이므로 메이저를 맞춘다(2026-08-01). 이전 postgres:16 은
+        # 한 세대 낮아 17 전용 회귀를 CI 가 못 잡는 사각이었다. PG17 "Migration to Version 17"
+        # 비호환 17개 항목을 이 저장소가 쓰는 기능(CREATE INDEX CONCURRENTLY · gin_trgm_ops ·
+        # partial unique index · DISTINCT ON · FOR UPDATE SKIP LOCKED)과 전수 대조해 해당 0건
+        # 확인. 마이너는 floating 이라 운영 패치 레벨과 정확히 같지는 않다(메이저만 고정).
+        image: postgres:17
         env:
           POSTGRES_USER: postgres
           POSTGRES_PASSWORD: postgres

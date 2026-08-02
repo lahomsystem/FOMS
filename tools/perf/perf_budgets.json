@@ -45,7 +45,7 @@
       "ttfb_delta_min_ms": 107,
       "body_bytes_max": 17438
     },
-    "/erp/history?view=fragment": {
+    "/erp/history/?view=fragment": {
       "ttfb_delta_min_ms": 290,
       "body_bytes_max": 9152
     }
