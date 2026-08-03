@@ -8,8 +8,6 @@
   data-erp-mobile-shell
   data-offline-sw="{{ 'true' if flag_offline_sw else 'false' }}"
   data-bottom-nav-htmx="{{ 'true' if flag_bottom_nav_htmx else 'false' }}">
-  {# PASSWORD-POLICY-01 surface: 390 모바일 셸 크롬. #}
-  {% include 'partials/shared/foms_legacy_password_banner.html' %}
   {% include 'partials/shared/erp_mobile_shell_header.html' %}
   {% include 'partials/shared/erp_mobile_bottom_nav.html' %}
   {% include 'partials/shared/htmx_layout.html' %}

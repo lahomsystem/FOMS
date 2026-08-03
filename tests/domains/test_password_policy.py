@@ -193,16 +193,17 @@ def test_legacy_login_not_blocked_warn_only(client, app):
         assert sess.get("user_id") is not None
 
 
-def test_banner_present_for_legacy_absent_for_strong(client, app):
+def test_no_password_change_nag_for_legacy(client, app):
+    """legacy 사용자에게도 비밀번호 변경 배너/유도 문구를 노출하지 않는다(2026-08 제거).
+
+    강도 정책 자체(새/변경 비번 strong 강제, weak rollback 불가)는 유지되며,
+    사용자에게 변경을 요구하는 UI 표면만 제거되었다.
+    """
     legacy = _make_user("banleg", role="STAFF", version=POLICY_VERSION_LEGACY)
     _login(client, legacy)
     html = client.get("/profile").get_data(as_text=True)
-    assert "data-foms-legacy-password-banner" in html
-
-    strong = _make_user("banstrong", role="STAFF", version=POLICY_VERSION_STRONG)
-    _login(client, strong)
-    html2 = client.get("/profile").get_data(as_text=True)
-    assert "data-foms-legacy-password-banner" not in html2
+    assert "data-foms-legacy-password-banner" not in html
+    assert "보안 강화를 위해 비밀번호를 변경해주세요" not in html
 
 
 def test_admin_user_list_shows_legacy_badge_and_filter(client, app):
