@@ -56,6 +56,11 @@
 
     <div class="card">
         <div class="card-body p-0">
+            <div class="px-3 pt-3 text-muted small">
+                <i class="fas fa-info-circle"></i>
+                주문을 맡거나 배정받은 이력이 있는 계정은 삭제가 거부됩니다 — 대신 <strong>수정</strong>에서
+                "계정 활성 상태"를 해제해 사용 중지하세요.
+            </div>
             <div class="table-responsive">
                 <table class="table table-striped table-hover mb-0">
                     <thead class="table-light">
@@ -97,6 +102,7 @@
                                 {% if user.id != current_user.id and not (user.role == 'ADMIN' and count_admin <= 1) %}
                                 <form method="post" action="{{ url_for('auth.delete_user', user_id=user.id) }}" class="d-inline">
                                     <button type="submit" class="btn btn-sm btn-outline-danger"
+                                        title="주문 배정 이력이 있는 계정은 삭제 대신 사용 중지를 이용하세요."
                                         onclick="return confirm('이 사용자를 삭제하시겠습니까?');">
                                         <i class="fas fa-trash"></i> 삭제
                                     </button>

@@ -378,7 +378,7 @@ def test_delete_user_refused_when_feature_cutover_marker_remains(client):
     db_session.expire_all()
     assert db_session.query(User).filter(User.id == target_id).first() is not None
     assert db_session.query(FeatureCutoverMarker).count() == 1
-    assert "cutover" in response.get_data(as_text=True)
+    assert "되돌릴 수 없는 시스템 설정" in response.get_data(as_text=True)
 
 
 def test_delete_user_requires_post(client):
