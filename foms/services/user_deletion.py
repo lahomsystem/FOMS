@@ -99,7 +99,7 @@ _DELETE_USER_REFERENCE_FIELDS: tuple[tuple[Any, str], ...] = (
 # nullify 도 행 삭제도 불가능한 참조 — (model, column, 거부 사유).
 _BLOCKING_USER_REFERENCE_FIELDS: tuple[tuple[Any, str, str], ...] = (
     # PostgreSQL trigger 가 UPDATE/DELETE 자체를 거부한다(irreversible marker).
-    (FeatureCutoverMarker, "approved_by_admin_user_id", "기능 cutover 승인 이력"),
+    (FeatureCutoverMarker, "approved_by_admin_user_id", "되돌릴 수 없는 시스템 설정 승인 이력"),
     # 권한 판정 정본 — 행을 지우면 주문 소유권/배정 이력이 조용히 사라진다.
     (OrderAssignment, "user_id", "주문 배정"),
     (OrderAssignment, "assigned_by_user_id", "주문 배정 실행 이력"),
