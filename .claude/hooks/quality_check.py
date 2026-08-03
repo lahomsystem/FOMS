@@ -2,7 +2,7 @@
 
 track_edits.py가 기록한 pending `.py` 편집이 있으면 `import app`을 실제 실행해
 앱이 정상 import되는지 검증한다. 실패하면 exit 2 + stderr로 턴 종료를 차단하고,
-성공하면 pending을 클리어한다. pending이 없으면 기존 체크리스트 리마인더로 동작한다.
+성공하면 pending을 클리어한다. pending이 없으면 무출력 통과한다.
 
 훅 자체 오류(subprocess timeout, JSON 깨짐 등)는 fail-open 하되 로그를 남긴다.
 """
@@ -75,34 +75,6 @@ def _clear_pending() -> None:
         os.remove(pending_path)
 
 
-def _emit_checklist_reminder() -> None:
-    """EDIT_LOG 기반 품질 체크리스트 리마인더를 stdout에 출력 (수정 파일 있을 때만)."""
-    edit_log_path = harness_runtime_path("EDIT_LOG.md")
-    edited_files = []
-    if os.path.exists(edit_log_path):
-        with open(edit_log_path, "r", encoding="utf-8") as f:
-            for line in f:
-                if line.startswith("| 20") and "`" in line:
-                    parts = line.split("`")
-                    if len(parts) >= 2:
-                        edited_files.append(parts[1])
-
-    edited_files = list(dict.fromkeys(reversed(edited_files)))[:10]
-    if not edited_files:
-        return
-
-    files_list = "\n".join(f"  - {f}" for f in edited_files)
-    message = f"""[Quality Check] 수정된 파일:
-{files_list}
-
-체크리스트:
-- [ ] 에러 처리 누락 없는지?
-- [ ] 보안 취약점(XSS/SQL Injection) 없는지?
-- [ ] FOMS 코딩 규칙 준수했는지?
-- [ ] docs/AI_STATUS.md 갱신 필요한지?"""
-    write_stdout_json({"message": message})
-
-
 def _run_import_gate(pending_files: list, project_root: str) -> None:
     """pending .py가 있으면 `import app`을 실행해 통과/차단을 결정한다.
 
@@ -149,7 +121,8 @@ def main() -> None:
         return
 
     if not pending_files:
-        _emit_checklist_reminder()
+        # 체크리스트 리마인더는 CLAUDE.md "작업 완료 체크리스트"와 중복이라
+        # 제거했다(2026-08-03 하네스 ablation). pending 없으면 무출력 통과.
         return
 
     try:
