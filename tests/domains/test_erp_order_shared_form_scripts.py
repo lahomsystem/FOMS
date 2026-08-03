@@ -67,7 +67,7 @@ def _assert_shared_form_script_contract(body: str) -> None:
     )
     assert "html2canvas.min.js" not in body
     assert "js/orders/erp-channel-push-confirm.js?v=20260703a" in body
-    assert "js/orders/erp-order-shared.js?v=20260803a" in body
+    assert "js/orders/erp-order-shared.js?v=20260803c" in body
     assert "js/orders/erp-stage-override.js?v=20260716b" in body
     assert "erp_stage_override_modal.html" not in body  # include renders modal markup, not path
     assert 'id="erpStageOverrideModal"' in body
@@ -1418,3 +1418,35 @@ def test_shared_erp_order_js_gates_channel_push_on_unsaved_changes() -> None:
     # 재귀(resend note) 호출은 이미 게이트를 통과했으므로 재질문하지 않는다.
     assert "if (!resendRetryState && window.fomsErpAutosave" in push_block
     assert "저장되지 않은 변경이 있습니다" in push_block
+
+
+def test_shared_erp_order_js_regional_type_gate_alerts_without_scroll_jump() -> None:
+    """지방주문 구분 미선택 저장은 alert 검증에 걸리고, 스크롤 점프를 만들지 않는다.
+
+    사고 재현: 지방주문 체크 + 구분 미선택 상태의 저장이 alert 없이 맨 .focus()로
+    뷰포트를 폼 상단으로 튕겨 "저장 누르면 스크롤만 올라가고 저장이 안 된다"로
+    보였다(안내 문구는 하단 erp-status-text에 남아 사용자가 못 봄). 구분 누락은
+    필수값 alert 목록에 포함되고, 모든 포커스 이동은 erpFocusWithoutScroll이어야 한다.
+    """
+    root = Path(__file__).resolve().parents[2]
+    text = (root / "static/js/orders/erp-order-shared.js").read_text(encoding="utf-8")
+
+    once_start = text.index("async function erpSaveStructuredOnce(opts = {})")
+    once_end = text.index("document.addEventListener('DOMContentLoaded'", once_start)
+    once_block = text[once_start:once_end]
+
+    # 사용자 저장 검증(alert)에 지방주문 구분 포함
+    validation_start = once_block.index("if (opts._skipValidation !== true) {")
+    validation_end = once_block.index("if (_paymentTogglePending)", validation_start)
+    validation_block = once_block[validation_start:validation_end]
+    assert "missing.push('지방주문 구분 (하우드/협력사)')" in validation_block
+    assert (
+        "erpFocusWithoutScroll(document.getElementById('erp-regional-construction-type'))"
+        in validation_block
+    )
+
+    # 잔여 방어선(_skipValidation 경로)도 스크롤 유발 맨 .focus() 금지
+    assert (
+        "document.getElementById('erp-regional-construction-type')?.focus()"
+        not in text
+    )
