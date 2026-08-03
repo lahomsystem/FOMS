@@ -7,17 +7,44 @@ load_dotenv()
 
 from pathlib import Path as _Path
 
+from sqlalchemy import engine_from_config
+from sqlalchemy import pool
+from sqlalchemy import text
+from sqlalchemy.engine import make_url
+from sqlalchemy.exc import ArgumentError
+
+
+def _targets_throwaway_test_db(url: str) -> bool:
+    """DSN이 테스트 레인의 일회용 ``foms_test_*`` DB를 가리키는지 판정한다.
+
+    Args:
+        url: 검사할 DSN 문자열 (비어 있을 수 있다).
+
+    Returns:
+        DB 이름이 ``foms_test_`` 로 시작하면 True. 파싱 불가/미지정이면 False
+        (fail-closed — 공유 DB로 간주해 차단한다).
+    """
+    if not url:
+        return False
+    try:
+        return (make_url(url).database or "").startswith("foms_test_")
+    except ArgumentError:
+        return False
+
+
 # 세션 worktree(c:/tmp/foms-s-*)에서 alembic 실행 시 공유 DB 스키마가
 # 해당 브랜치 기준으로 바뀌므로 코드 수준에서 차단한다 (Phase1 규칙).
+# 예외: pytest PG 레인이 세션마다 만들고 지우는 일회용 ``foms_test_*`` DB는
+# 공유 자원이 아니므로 차단 대상이 아니다(마이그레이션 체인 왕복 테스트가
+# worktree 에서도 돌아야 한다).
 _repo_root = _Path(__file__).resolve().parents[1]
-if _repo_root.name.lower().startswith("foms-s-"):
+if _repo_root.name.lower().startswith("foms-s-") and not _targets_throwaway_test_db(
+    os.getenv("DATABASE_URL", "")
+):
     raise RuntimeError(
         "세션 worktree에서 alembic 실행 금지 — 공유 DB 스키마가 이 브랜치 기준으로 바뀐다. "
         "마이그레이션은 메인 트리에서 실행하라."
     )
-from sqlalchemy import engine_from_config
-from sqlalchemy import pool
-from sqlalchemy import text
 
 from alembic import context
 
