@@ -158,7 +158,7 @@ def test_autosave_local_storage_key_scoped_by_user(app) -> None:
     assert 'LS_KEY_PREFIX + ":u" + uid' in js
     assert "purgeLegacyLocalStorage()" in js
     assert "localStorage.removeItem(LEGACY_LS_KEY)" in js
-    assert "erp-order-autosave.js') }}?v=20260709a" in erp_js
+    assert "erp-order-autosave.js') }}?v=20260803a" in erp_js
 
 
 def test_autosave_suspends_after_explicit_save() -> None:
@@ -178,6 +178,11 @@ def test_autosave_suspends_after_explicit_save() -> None:
     # 재입력 시 해제.
     sidx = js.index("function schedule()")
     assert "_suspended = false;" in js[sidx: sidx + 200]
+    # 저장 '시작' 시점에도 선(先)중단 — PUT 왕복 중 발화한 타이머/beacon 차단.
+    saving_idx = js.index('addEventListener("erp:order-saving"')
+    assert "_suspended = true;" in js[saving_idx: saving_idx + 200]
+    shared = (root / "static/js/orders/erp-order-shared.js").read_text(encoding="utf-8")
+    assert "erp:order-saving" in shared
 
 
 def test_edit_mode_autosave_wiring() -> None:
@@ -354,6 +359,54 @@ def test_autosave_empty_does_not_overwrite_existing_content(client, app) -> None
         # 작성분 보존.
         assert order.structured_data["parties"]["customer"]["name"] == "홍길동"
         assert order.structured_data["site"]["address_full"] == "서울시 종로구"
+
+
+def test_autosave_after_promotion_does_not_resurrect_draft(client, app) -> None:
+    """production 실사고 회귀 방어: 승격 뒤 도착한 자동저장이 draft를 되살리지 않는다.
+
+    저장 버튼의 blur → 즉시 자동저장 POST 와 명시 저장 PUT 이 겹치면, 자동저장이
+    ``meta.draft=True`` 를 다시 써서 주문이 대시보드에서 사라졌다(주문 #4608 등 7건).
+    """
+    from db import db_session
+    from models import Order
+
+    _login(client, app, "autosave_promoted_user")
+    created = _autosave(
+        client,
+        _structured(name="신은옥", phone="010-2707-3003", address="서울시 송파구"),
+        token="tok-promoted",
+    )
+    order_id = created.get_json()["order_id"]
+    assert order_id
+
+    # 명시 저장(PUT structured)이 draft를 승격한 상태를 재현한다.
+    with app.app_context():
+        order = db_session.query(Order).filter_by(id=order_id).one()
+        sd = json.loads(json.dumps(order.structured_data))
+        sd["meta"]["draft"] = False
+        order.structured_data = sd
+        order.status = "RECEIVED"
+        db_session.commit()
+
+    with app.app_context():
+        drafts_before = db_session.query(Order).filter(Order.status == "DRAFT").count()
+
+    late = _autosave(
+        client,
+        _structured(name="신은옥", phone="010-2707-3003", address="서울시 송파구"),
+        token="tok-promoted",
+    )
+    body = late.get_json()
+    assert body["success"] is True
+    assert body.get("skipped") == "already_promoted"
+    assert body["order_id"] is None  # 유령 중복 draft도 만들지 않는다
+
+    with app.app_context():
+        order = db_session.query(Order).filter_by(id=order_id).one()
+        assert order.status == "RECEIVED"
+        assert order.structured_data["meta"]["draft"] is False
+        # 유령 draft 행이 새로 생기지 않았다.
+        assert db_session.query(Order).filter(Order.status == "DRAFT").count() == drafts_before
 
 
 def test_restore_banner_excluded_from_alert_autodismiss(app) -> None:

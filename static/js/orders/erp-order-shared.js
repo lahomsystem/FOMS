@@ -2349,6 +2349,10 @@ async function erpSaveStructuredOnce(opts = {}) {
     }
 
     erpSetStatus('저장 중...');
+    // 저장 시작을 자동저장 모듈에 먼저 알린다. 저장(PUT)이 승격한 draft 를 뒤늦은
+    // 자동저장(디바운스 타이머·beforeunload beacon)이 다시 draft 로 되돌려 주문이
+    // 대시보드에서 사라지는 사고를 막는다(서버 행 잠금과 2중 방어).
+    try { document.dispatchEvent(new Event('erp:order-saving')); } catch (_e) {}
 
     try {
         const structured_data = erpCollectStructured();
