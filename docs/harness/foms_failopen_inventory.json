@@ -3277,7 +3277,7 @@
     },
     {
       "path": "foms/services/jobs/queue.py",
-      "lineno": 47,
+      "lineno": 52,
       "handler_type": "broad_exception",
       "disposition": "LOG_AND_CONTINUE",
       "owner": "services",
@@ -3286,7 +3286,7 @@
     },
     {
       "path": "foms/services/jobs/queue.py",
-      "lineno": 62,
+      "lineno": 67,
       "handler_type": "broad_exception",
       "disposition": "LOG_AND_CONTINUE",
       "owner": "services",
@@ -3295,7 +3295,7 @@
     },
     {
       "path": "foms/services/jobs/queue.py",
-      "lineno": 70,
+      "lineno": 75,
       "handler_type": "broad_exception",
       "disposition": "LOG_AND_CONTINUE",
       "owner": "services",
@@ -3304,7 +3304,7 @@
     },
     {
       "path": "foms/services/jobs/queue.py",
-      "lineno": 93,
+      "lineno": 98,
       "handler_type": "broad_exception",
       "disposition": "LOG_AND_CONTINUE",
       "owner": "services",
@@ -3313,7 +3313,7 @@
     },
     {
       "path": "foms/services/jobs/queue.py",
-      "lineno": 122,
+      "lineno": 127,
       "handler_type": "broad_exception",
       "disposition": "LOG_AND_CONTINUE",
       "owner": "services",
@@ -3322,7 +3322,7 @@
     },
     {
       "path": "foms/services/jobs/queue.py",
-      "lineno": 142,
+      "lineno": 147,
       "handler_type": "broad_exception",
       "disposition": "LOG_AND_CONTINUE",
       "owner": "services",
@@ -3331,7 +3331,7 @@
     },
     {
       "path": "foms/services/jobs/queue.py",
-      "lineno": 161,
+      "lineno": 166,
       "handler_type": "broad_exception",
       "disposition": "LOG_AND_CONTINUE",
       "owner": "services",
