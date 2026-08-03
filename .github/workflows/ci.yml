@@ -12,7 +12,27 @@ permissions:
 jobs:
   test:
     runs-on: ubuntu-latest
-    
+
+    services:
+      # RQ positive-path lane 전용 Redis. 2026-07-21 Redis 장애(레이트리미터 매 요청
+      # 500) 이후에도 CI 에는 Redis 가 한 대도 없었다. 장애(fail-open) 계약은 stub 으로
+      # 검증하므로 컨테이너가 필요 없고, 이 컨테이너는 stub 이 못 잡는 것 하나만 맡는다:
+      # requirements 가 rq>=1.15.0 / redis>=5.0.0 처럼 상한 없는 floating 이라 CI 가
+      # 매번 최신(현재 rq 2.5.x, 2.0 은 breaking 릴리스였다)을 당겨오는데, rq API 가
+      # 바뀌면 get_rq_worker_count 가 조용히 0 을 반환한다. redis:7-alpine 은 ~15MB 라
+      # 기동 비용이 무시 가능하다. REDIS_URL 은 여기서 전역으로 켜지 않는다 — 그 변수는
+      # Socket.IO·dashboard micro-cache·rate limiter 까지 동시에 켜서 전체 스위트 거동을
+      # 바꾼다(PG lane 의 FOMS_TEST_DATABASE_URL 분리와 같은 이유).
+      redis:
+        image: redis:7-alpine
+        ports:
+          - 6379:6379
+        options: >-
+          --health-cmd "redis-cli ping"
+          --health-interval 10s
+          --health-timeout 5s
+          --health-retries 5
+
     steps:
     - uses: actions/checkout@v4
     
@@ -39,6 +59,16 @@ jobs:
       run: |
         # tests/harness는 Harness CI job이 전담(이중 실행 제거), -q로 로그 절감
         python -m pytest -q --ignore=tests/visual --ignore=tests/harness -p no:playwright
+
+    - name: Run Redis lane (RQ positive path / rq API drift)
+      env:
+        # 이 lane 에서만 켜지는 opt-in 변수. 미설정이면 해당 테스트는 skip 된다.
+        FOMS_TEST_REDIS_URL: "redis://127.0.0.1:6379/15"
+        DATABASE_URL: "sqlite:///:memory:"
+        SECRET_KEY: "ci-secret-key"
+        FLASK_ENV: "testing"
+      run: |
+        python -m pytest tests/domains/test_jobs_queue_redis_lane.py -q -p no:playwright
 
     - name: Run UI structural tests (no Playwright PNG regression)
       env:

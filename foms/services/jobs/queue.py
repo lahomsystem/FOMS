@@ -41,7 +41,12 @@ def get_rq_queue():
         from redis import Redis
         from rq import Queue
 
-        conn = Redis.from_url(redis_url)
+        # socket_*timeout: Redis 가 blackhole 상태(하드웨어 장애 등)면 from_url 기본값
+        # (None = OS TCP 타임아웃, 수십~130초)로는 enqueue 가 웹 워커를 통째로 붙잡는다.
+        # 2026-07-21 Redis 장애 때 rate_limit / dashboard_cache 에만 상한을 넣고 이
+        # 경로는 빠졌다. 초과 시 예외 → 아래 호출부의 기존 fail-open(False 반환 +
+        # 동기 fallback)이 흡수한다.
+        conn = Redis.from_url(redis_url, socket_connect_timeout=2, socket_timeout=2)
         _rq_queue = Queue("default", connection=conn)
         return _rq_queue
     except Exception as e:
