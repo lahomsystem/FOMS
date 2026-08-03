@@ -166,6 +166,28 @@ A2가 내 가설을 확인해주지 않았다.
 4. `normalize_erp_shipment_workers`의 `str(None)` → `'None'` 결함(읽기 SSOT, 쓰기 측은 차단됨).
 5. `/erp/history` trailing-slash 301 여분 홉.
 
+### ⑤ ORM↔마이그레이션 타입 드리프트 3건 ✅ DONE (`typedrift_00`, deploy `b2dc9b83`)
+
+MIGCHAIN-01 왕복 검증이 `create_all` 스키마와 마이그레이션 스키마를 처음 컬럼 단위로 대조하며 드러난 3건. **데이터 문제가 아니라 마이그레이션 작성 실수**다.
+
+| 테이블.컬럼 | models.py | 마이그레이션이 만든 것 | 만든 파일 |
+|---|---|---|---|
+| `system_setting_receipts.read_receipt_id` | `UUIDColumn`(=`postgresql.UUID`) | `sa.String(36)` | `shipment_reference_00` |
+| `system_setting_receipts.response_body` | `JSONColumn`(=`JSONB`) | `sa.JSON()` | `shipment_reference_00` |
+| `channel_inbound_worker_heartbeats.metadata_json` | `JSONColumn`(=`JSONB`) | `sa.JSON()` | `channel_inbound_00` |
+
+**의도의 증거**: 같은 역할의 형제 테이블 `order_mutation_receipts`는 `rev_00`에서 `postgresql.UUID` / `postgresql.JSONB`로 **정확히** 만들어져 있다(운영 실측 확인: `uuid` / `jsonb`). 처음부터 uuid·jsonb가 맞았고 위 두 마이그레이션만 빠뜨렸다.
+
+**기존 레인이 못 잡은 이유**: SQLite 레인은 타입 구분이 없고, PG 레인은 `create_all`(= ORM 타입)로 부트스트랩하므로 **양쪽 다 jsonb만 본다.** 마이그레이션을 실제로 돌리는 경로는 predeploy와 MIGCHAIN-01 둘뿐이다.
+
+**영향**: 현재 기능 결함 0 — 두 컬럼 모두 whole-row read/write만 하고 JSONB 전용 연산자(`@>`·`?`·GIN) 사용처가 0건이다. 위험은 앞으로다: models.py가 jsonb라 선언하므로 누군가 jsonb 연산자를 쓰면 **두 레인 모두 green이고 운영에서만 깨진다.**
+
+**비용**: 운영 실측 `system_setting_receipts` 0행(48kB), `channel_inbound_worker_heartbeats` 0행(16kB) → `ALTER TYPE` 재작성 비용 사실상 없음. `read_receipt_id`는 `str(uuid4())`로만 채워져 `::uuid` 캐스트가 항상 성립.
+
+UNIQUE 제약 이름(`uq_system_setting_receipt_read_id` → create_all 기본 이름)도 함께 맞춰 `_KNOWN_INDEX_NAME_DRIFT`도 비웠다. **두 알려진-드리프트 목록 모두 빈 집합** — 새 드리프트가 생기면 즉시 red.
+
+검증: PG 레인 전수 **660 passed**(로컬 PG 17.9 포트 5440), `pre_push_smoke` exit 0, `APP_OK`. **운영 적용은 다음 승격 predeploy 시점**(승격은 사용자 명시 요청 시에만).
+
 ### 이 세션에서 배운 하네스 함정 (반복 금지)
 
 - **`ci_watch.py`는 워크플로 1개만 본다.** 저장소에 7개 있다. 그 exit 0을 "CI green"으로 옮겨 적어 PG Lane 3연속 red를 놓쳤다. 판정은 반드시 `gh run list --branch <b>`로 **커밋별 전 워크플로 나열**.
