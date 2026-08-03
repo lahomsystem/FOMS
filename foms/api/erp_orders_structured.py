@@ -28,7 +28,11 @@ from foms.services.orders.construction_type import normalize_regional_constructi
 from foms.services.orders.status_constants import STATUS
 from foms.web.auth import login_required, role_required
 from foms.services.datetime_kst import now_kst
-from foms.services.erp_order_flags import is_erp_draft_structured_data, is_erp_order_draft
+from foms.services.erp_order_flags import (
+    is_erp_draft_structured_data,
+    is_erp_order_draft,
+    is_erp_order_record,
+)
 from foms.services.erp_sync_columns import sync_erp_flat_columns
 from foms.services.orders.erp_automation import apply_auto_tasks
 from foms.services.orders.order_text_parser import parse_order_text
@@ -265,6 +269,39 @@ def _pin_form_stage_to_server(old_sd: dict, structured_data: dict) -> None:
         wf["stage"] = old_stage
     else:
         structured_data["workflow"] = {"stage": old_stage}
+
+
+#: 실측일이 잡히면 자동 전진하는 출발 단계(전진 1칸만 — RECEIVED → MEASURE).
+_AUTO_MEASURE_FROM_STAGES = ('RECEIVED', '주문접수')
+
+
+def _should_auto_advance_to_measure(order: Order) -> bool:
+    """저장된 주문이 '실측일 지정된 접수 건'인지 판정한다(상태는 쓰지 않는다).
+
+    STATE-FORM-01(폼 저장 ≠ 단계 전이)을 지키기 위해 폼 저장 트랜잭션은 단계를
+    건드리지 않는다. 이 함수는 커밋된 서버 저장본만 보고 조건을 판정하고, 실제 전이는
+    커밋 뒤 canonical 엔진(``SET_MAIN_STAGE``)이 수행한다 — 그래야 STAGE_CHANGED 이벤트·
+    outbox·version bump·receipt 가 다른 전이와 동일한 경로로 남는다.
+
+    클라이언트가 보낸 workflow.stage 는 신뢰하지 않는다(:func:`_pin_form_stage_to_server`
+    가 이미 서버값으로 고정). 판정 입력은 서버 저장본의 stage 와 실측일뿐이라 stale 탭이
+    임의 단계를 밀어 넣을 수 없고, 전진 1칸(RECEIVED→MEASURE) 외 전이는 발생하지 않는다.
+
+    Args:
+        order: 폼 저장이 커밋된 뒤의 대상 Order.
+
+    Returns:
+        MEASURE 로 자동 전진해야 하면 True.
+    """
+    if not is_erp_order_record(order):
+        return False
+    sd = order.structured_data if isinstance(order.structured_data, dict) else {}
+    workflow = sd.get('workflow') if isinstance(sd.get('workflow'), dict) else {}
+    if str(workflow.get('stage') or '').strip() not in _AUTO_MEASURE_FROM_STAGES:
+        return False
+    schedule = sd.get('schedule') if isinstance(sd.get('schedule'), dict) else {}
+    measurement = schedule.get('measurement') if isinstance(schedule.get('measurement'), dict) else {}
+    return bool(str(measurement.get('date') or '').strip())
 
 
 def _force_preserve_drawing_transfer_history(old_sd: dict, structured_data: dict) -> None:
@@ -866,6 +903,7 @@ def api_put_order_structured(order_id):
                 # STATE-FORM-01: 폼 저장은 단계를 바꾸지 않는다. workflow.stage 는
                 # _pin_form_stage_to_server 가 이미 서버값으로 고정했고, 단계 전이는
                 # 명시적 stage-override(STATE-CORE transition) 경로 전용이다.
+                # 실측일 지정 자동 전진도 여기서 쓰지 않고, 커밋 뒤 canonical 엔진이 맡는다.
 
                 t0 = time.perf_counter()
                 _record_structured_events(sess, o, old_sd, structured_data)
@@ -964,6 +1002,29 @@ def api_put_order_structured(order_id):
                 {'success': False, 'message': str(rev), 'code': rev.error_code}
             ), rev.status_code
 
+        # 실측일이 지정된 접수 건은 canonical 엔진(SET_MAIN_STAGE)으로 실측 단계에 올린다.
+        # 폼 트랜잭션 밖에서 별도 전이로 수행해야 STAGE_CHANGED·outbox·receipt 가 다른
+        # 전이와 같은 경로로 남는다. 전이 실패는 폼 저장을 되돌리지 않는다(저장은 이미 성공).
+        auto_stage_error = None
+        if _should_auto_advance_to_measure(order):
+            from foms.api.orders.status import apply_canonical_main_stage
+
+            auto_stage_error = apply_canonical_main_stage(
+                db,
+                order,
+                'MEASURE',
+                actor_user_id=actor_user_id,
+                body={'auto': 'MEASUREMENT_DATE_SET', 'order_id': order_id},
+                idempotency_key=None,
+            )
+            if auto_stage_error is None:
+                db.commit()
+            else:
+                logger.warning(
+                    "[ERP_ORDER] 실측일 자동 단계전진 실패: order=%s status=%s",
+                    order_id, auto_stage_error[1],
+                )
+
         # Tier A(broad): 주문 저장(PUT structured)은 stage/status 변경을 포함 → 탭 이동.
         from foms.services.common.dashboard_cache import invalidate_all_dashboard_slice_caches
 
@@ -986,11 +1047,16 @@ def api_put_order_structured(order_id):
         total_time = (time.perf_counter() - start_time) * 1000
         logger.info(f"save latency - TOTAL: {total_time:.1f}ms")
         _resources = outcome.body.get('resources') or [{}]
+        # 자동 단계전진이 붙었으면 version 이 한 번 더 올라간다 — 폼 저장 시점 값을 돌려주면
+        # 다음 저장이 무조건 409(stale If-Match)가 된다. 실제 최종 version 을 돌려준다.
+        final_version = _resources[0].get('resulting_version')
+        if auto_stage_error is None and getattr(order, 'mutation_version', None) is not None:
+            final_version = order.mutation_version
         resp = jsonify({
             'success': True,
             'draft_cleared': captured['draft_cleared'],
             'mutation_receipt': outcome.read_receipt_id,
-            'mutation_version': _resources[0].get('resulting_version'),
+            'mutation_version': final_version,
         })
         for header, value in outcome.headers.items():
             resp.headers[header] = value
@@ -1169,6 +1235,55 @@ def api_erp_create_draft():
         return jsonify({'success': False, 'message': str(e)}), 500
 
 
+def _lock_draft_row(db: Session, order_id: int) -> Optional[Order]:
+    """``FOR UPDATE`` 로 잠근 최신 행을 돌려준다(자동저장이 승격을 되돌리지 못하게).
+
+    명시 저장(PUT structured)은 REV-00 mutation core 가 같은 행을 ``FOR UPDATE`` 로
+    잡고 draft 를 승격한다. 자동저장이 잠금 없이 미리 읽은 draft 스냅샷을 그대로 쓰면,
+    승격 커밋 직후에 ``meta.draft=True`` 를 되살려 주문이 대시보드에서 사라진다
+    (production 실사고). 같은 잠금을 태워 승격 완료를 관측한 뒤 재판정한다.
+
+    Args:
+        db: 활성 세션.
+        order_id: 대상 주문 id.
+
+    Returns:
+        잠긴 최신 Order(없으면 None). identity map 의 stale 값은 populate_existing 로 갱신.
+    """
+    return (
+        db.query(Order)
+        .filter(Order.id == order_id, Order.not_deleted_filter())
+        .populate_existing()
+        .with_for_update()
+        .first()
+    )
+
+
+def _resolve_draft_for_autosave(db: Session, draft_token: str = '') -> tuple[Optional[Order], bool]:
+    """자동저장용 draft 해석. ``(draft, promoted)`` 를 돌려준다.
+
+    ``promoted=True`` 는 "이 세션의 draft 가 방금 명시 저장으로 승격됐다"는 뜻이다.
+    이 경우 자동저장은 아무것도 쓰지 않는다 — 되살리면 주문이 사라지고(draft 부활),
+    새 draft 를 만들면 보이지 않는 중복 행이 쌓인다.
+
+    Args:
+        db: 활성 세션.
+        draft_token: 브라우저 페이지 토큰(선택).
+
+    Returns:
+        (열려 있는 draft Order 또는 None, 승격 감지 여부).
+    """
+    existing_id = session.get('erp_draft_order_id')
+    if existing_id:
+        order = _lock_draft_row(db, int(existing_id))
+        if order and is_erp_order_draft(order):
+            return order, False
+        session.pop('erp_draft_order_id', None)
+        if order is not None:
+            return None, True
+    return _resolve_session_draft(db, draft_token), False
+
+
 def _resolve_session_draft(db: Session, draft_token: str = '') -> Optional[Order]:
     """Return the current session/token ERP draft Order, or None. Never creates.
 
@@ -1181,14 +1296,17 @@ def _resolve_session_draft(db: Session, draft_token: str = '') -> Optional[Order
     """
     existing_id = session.get('erp_draft_order_id')
     if existing_id:
-        order = db.query(Order).filter(Order.id == int(existing_id), Order.not_deleted_filter()).first()
+        order = _lock_draft_row(db, int(existing_id))
         if order and is_erp_order_draft(order):
             return order
         session.pop('erp_draft_order_id', None)
     token_order = _find_existing_draft_by_token(db, draft_token)
     if token_order:
-        session['erp_draft_order_id'] = token_order.id
-        return token_order
+        locked = _lock_draft_row(db, token_order.id)
+        if locked and is_erp_order_draft(locked):
+            session['erp_draft_order_id'] = locked.id
+            return locked
+        return None
     return None
 
 
@@ -1396,7 +1514,15 @@ def api_erp_draft_autosave():
             return jsonify({'success': False, 'message': 'structured_data는 JSON 객체여야 합니다.'}), 400
 
         _lock_draft_token_if_supported(db, draft_token)
-        order = _resolve_session_draft(db, draft_token)
+        order, already_promoted = _resolve_draft_for_autosave(db, draft_token)
+        if already_promoted:
+            # 명시 저장이 먼저 커밋됨 → 자동저장은 no-op(draft 부활·중복 행 방지).
+            return jsonify({
+                'success': True,
+                'order_id': None,
+                'updated_at': None,
+                'skipped': 'already_promoted',
+            })
         if order is None:
             # 기존 draft가 없으면 의미 있는 내용이 있을 때만 생성(빈 draft row 폭증 방지).
             if not _structured_has_meaningful_content(structured_data, payload.get('notes') or ''):

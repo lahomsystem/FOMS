@@ -733,6 +733,14 @@
     }
   }
 
+  // 명시 저장 '시작' 즉시 자동저장 중단. 저장 성공 이벤트(erp:order-saved)만으로는
+  // PUT 왕복 사이에 발화한 디바운스 타이머/beacon 이 승격된 주문을 draft 로 되돌린다.
+  document.addEventListener("erp:order-saving", function () {
+    _suspended = true;
+    clearTimeout(_localTimer);
+    clearTimeout(_serverTimer);
+  });
+
   // 명시 저장 성공 시 자동저장 흔적 정리(add draft + edit 작업본) → 재진입 복원 배너 미표시.
   document.addEventListener("erp:order-saved", function () {
     // 저장 직후 페이지 이탈(visibilitychange/beforeunload)이 방금 저장한 내용을

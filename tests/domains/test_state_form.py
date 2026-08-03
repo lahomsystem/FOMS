@@ -124,6 +124,50 @@ def test_form_save_ignores_backward_stage_change(client):
     assert "STAGE_CHANGED" not in _event_types(order_id)
 
 
+def test_form_save_auto_advances_to_measure_when_measurement_date_set(client):
+    """실측일을 지정한 접수 주문은 폼 저장으로 실측(MEASURE) 단계에 자동 전진한다.
+
+    STATE-FORM-01 의 유일한 예외. 판정은 서버가 schedule.measurement.date 로만 한다.
+    """
+    _login(client, "sf_auto_measure")
+    order = _make_erp_order(stage="RECEIVED")
+    order_id = order.id
+
+    sd = copy.deepcopy(order.structured_data)
+    sd["schedule"] = {"measurement": {"date": "2026-08-10"}}
+    resp = client.put(
+        f"/api/orders/{order_id}/structured",
+        json={"structured_data": sd, "structured_schema_version": 1},
+    )
+    assert resp.status_code == 200, resp.get_json()
+
+    db_session.expire_all()
+    saved = db_session.get(Order, order_id)
+    assert saved.status == "MEASURE"
+    assert saved.structured_data["workflow"]["stage"] == "MEASURE"
+    assert "STAGE_CHANGED" in _event_types(order_id)
+
+
+def test_form_save_measurement_date_never_regresses_later_stage(client):
+    """이미 진행된 단계(DRAWING)는 실측일이 있어도 되돌아가지 않는다(전진 1칸만)."""
+    _login(client, "sf_auto_measure_norollback")
+    order = _make_erp_order(stage="DRAWING")
+    order_id = order.id
+
+    sd = copy.deepcopy(order.structured_data)
+    sd["schedule"] = {"measurement": {"date": "2026-08-10"}}
+    resp = client.put(
+        f"/api/orders/{order_id}/structured",
+        json={"structured_data": sd, "structured_schema_version": 1},
+    )
+    assert resp.status_code == 200, resp.get_json()
+
+    db_session.expire_all()
+    saved = db_session.get(Order, order_id)
+    assert saved.status == "DRAWING"
+    assert saved.structured_data["workflow"]["stage"] == "DRAWING"
+
+
 # --- 2) 명시 override → REV core(version/receipt) + STAGE_OVERRIDE audit ------
 def test_explicit_override_routes_through_rev_core_with_audit(client):
     """단계 변경은 override 만: REV-00 version/receipt 경유 + STAGE_OVERRIDE 감사 기록."""
