@@ -275,43 +275,33 @@ def _pin_form_stage_to_server(old_sd: dict, structured_data: dict) -> None:
 _AUTO_MEASURE_FROM_STAGES = ('RECEIVED', '주문접수')
 
 
-def _auto_advance_stage_on_measurement_date(
-    order: Order,
-    structured_data: dict,
-    now: datetime.datetime,
-) -> bool:
-    """실측일이 지정된 접수(RECEIVED) ERP 주문을 실측(MEASURE) 단계로 전진시킨다.
+def _should_auto_advance_to_measure(order: Order) -> bool:
+    """저장된 주문이 '실측일 지정된 접수 건'인지 판정한다(상태는 쓰지 않는다).
 
-    STATE-FORM-01(폼 저장 ≠ 단계 전이)의 유일한 예외다. 클라이언트가 보낸
-    workflow.stage 는 :func:`_pin_form_stage_to_server` 가 이미 서버값으로 고정했고,
-    이 함수는 서버가 보관한 stage + 폼의 실측일 유무만으로 판정한다. 따라서 stale 탭이
+    STATE-FORM-01(폼 저장 ≠ 단계 전이)을 지키기 위해 폼 저장 트랜잭션은 단계를
+    건드리지 않는다. 이 함수는 커밋된 서버 저장본만 보고 조건을 판정하고, 실제 전이는
+    커밋 뒤 canonical 엔진(``SET_MAIN_STAGE``)이 수행한다 — 그래야 STAGE_CHANGED 이벤트·
+    outbox·version bump·receipt 가 다른 전이와 동일한 경로로 남는다.
+
+    클라이언트가 보낸 workflow.stage 는 신뢰하지 않는다(:func:`_pin_form_stage_to_server`
+    가 이미 서버값으로 고정). 판정 입력은 서버 저장본의 stage 와 실측일뿐이라 stale 탭이
     임의 단계를 밀어 넣을 수 없고, 전진 1칸(RECEIVED→MEASURE) 외 전이는 발생하지 않는다.
 
     Args:
-        order: 잠금 아래의 대상 Order.
-        structured_data: 서버 projection 이 끝난 폼 payload(이 자리에서 stage 를 갱신).
-        now: 이번 저장의 기준 시각.
+        order: 폼 저장이 커밋된 뒤의 대상 Order.
 
     Returns:
-        단계를 전진시켰으면 True, 조건 미충족이면 False.
+        MEASURE 로 자동 전진해야 하면 True.
     """
     if not is_erp_order_record(order):
         return False
-    workflow = structured_data.get('workflow')
-    if not isinstance(workflow, dict):
-        return False
+    sd = order.structured_data if isinstance(order.structured_data, dict) else {}
+    workflow = sd.get('workflow') if isinstance(sd.get('workflow'), dict) else {}
     if str(workflow.get('stage') or '').strip() not in _AUTO_MEASURE_FROM_STAGES:
         return False
-    schedule = structured_data.get('schedule')
-    measurement = schedule.get('measurement') if isinstance(schedule, dict) else None
-    if not isinstance(measurement, dict):
-        return False
-    if not str(measurement.get('date') or '').strip():
-        return False
-    workflow['stage'] = 'MEASURE'
-    workflow['stage_updated_at'] = now.isoformat()
-    order.status = 'MEASURE'
-    return True
+    schedule = sd.get('schedule') if isinstance(sd.get('schedule'), dict) else {}
+    measurement = schedule.get('measurement') if isinstance(schedule.get('measurement'), dict) else {}
+    return bool(str(measurement.get('date') or '').strip())
 
 
 def _force_preserve_drawing_transfer_history(old_sd: dict, structured_data: dict) -> None:
@@ -913,20 +903,7 @@ def api_put_order_structured(order_id):
                 # STATE-FORM-01: 폼 저장은 단계를 바꾸지 않는다. workflow.stage 는
                 # _pin_form_stage_to_server 가 이미 서버값으로 고정했고, 단계 전이는
                 # 명시적 stage-override(STATE-CORE transition) 경로 전용이다.
-                # 유일한 예외: 실측일이 지정된 접수 주문의 RECEIVED→MEASURE 자동 전진
-                # (서버가 실측일 유무로만 판정 — 클라이언트 stage 는 여전히 불신).
-                if _auto_advance_stage_on_measurement_date(o, structured_data, now):
-                    sess.add(OrderEvent(
-                        order_id=o.id,
-                        event_type='STAGE_CHANGED',
-                        payload={
-                            'from': 'RECEIVED',
-                            'to': 'MEASURE',
-                            'reason': '실측일 지정 자동 전진',
-                            'auto': True,
-                        },
-                        created_by_user_id=actor_user_id,
-                    ))
+                # 실측일 지정 자동 전진도 여기서 쓰지 않고, 커밋 뒤 canonical 엔진이 맡는다.
 
                 t0 = time.perf_counter()
                 _record_structured_events(sess, o, old_sd, structured_data)
@@ -1025,6 +1002,29 @@ def api_put_order_structured(order_id):
                 {'success': False, 'message': str(rev), 'code': rev.error_code}
             ), rev.status_code
 
+        # 실측일이 지정된 접수 건은 canonical 엔진(SET_MAIN_STAGE)으로 실측 단계에 올린다.
+        # 폼 트랜잭션 밖에서 별도 전이로 수행해야 STAGE_CHANGED·outbox·receipt 가 다른
+        # 전이와 같은 경로로 남는다. 전이 실패는 폼 저장을 되돌리지 않는다(저장은 이미 성공).
+        auto_stage_error = None
+        if _should_auto_advance_to_measure(order):
+            from foms.api.orders.status import apply_canonical_main_stage
+
+            auto_stage_error = apply_canonical_main_stage(
+                db,
+                order,
+                'MEASURE',
+                actor_user_id=actor_user_id,
+                body={'auto': 'MEASUREMENT_DATE_SET', 'order_id': order_id},
+                idempotency_key=None,
+            )
+            if auto_stage_error is None:
+                db.commit()
+            else:
+                logger.warning(
+                    "[ERP_ORDER] 실측일 자동 단계전진 실패: order=%s status=%s",
+                    order_id, auto_stage_error[1],
+                )
+
         # Tier A(broad): 주문 저장(PUT structured)은 stage/status 변경을 포함 → 탭 이동.
         from foms.services.common.dashboard_cache import invalidate_all_dashboard_slice_caches
 
@@ -1047,11 +1047,16 @@ def api_put_order_structured(order_id):
         total_time = (time.perf_counter() - start_time) * 1000
         logger.info(f"save latency - TOTAL: {total_time:.1f}ms")
         _resources = outcome.body.get('resources') or [{}]
+        # 자동 단계전진이 붙었으면 version 이 한 번 더 올라간다 — 폼 저장 시점 값을 돌려주면
+        # 다음 저장이 무조건 409(stale If-Match)가 된다. 실제 최종 version 을 돌려준다.
+        final_version = _resources[0].get('resulting_version')
+        if auto_stage_error is None and getattr(order, 'mutation_version', None) is not None:
+            final_version = order.mutation_version
         resp = jsonify({
             'success': True,
             'draft_cleared': captured['draft_cleared'],
             'mutation_receipt': outcome.read_receipt_id,
-            'mutation_version': _resources[0].get('resulting_version'),
+            'mutation_version': final_version,
         })
         for header, value in outcome.headers.items():
             resp.headers[header] = value
