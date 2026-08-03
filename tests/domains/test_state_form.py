@@ -148,6 +148,73 @@ def test_form_save_auto_advances_to_measure_when_measurement_date_set(client):
     assert "STAGE_CHANGED" in _event_types(order_id)
 
 
+def test_regional_order_advances_to_measure_without_measurement_date(client):
+    """지방주문은 실측일을 잡지 않는다 — 폼에서 '실측'을 고른 저장으로 전진할 수 있다."""
+    _login(client, "sf_regional_measure")
+    order = _make_erp_order(stage="RECEIVED")
+    order.is_regional = True
+    order.construction_type = "협력사 시공"
+    db_session.commit()
+    order_id = order.id
+
+    sd = copy.deepcopy(order.structured_data)
+    sd["workflow"]["stage"] = "MEASURE"  # 폼 select
+    resp = client.put(
+        f"/api/orders/{order_id}/structured",
+        json={"structured_data": sd, "structured_schema_version": 1},
+    )
+    assert resp.status_code == 200, resp.get_json()
+
+    db_session.expire_all()
+    saved = db_session.get(Order, order_id)
+    assert saved.status == "MEASURE"
+    assert saved.structured_data["workflow"]["stage"] == "MEASURE"
+
+
+def test_self_measurement_order_advances_to_measure_without_measurement_date(client):
+    """자가실측도 동일 — 실측일 없이 '실측' 선택 저장으로 전진한다."""
+    _login(client, "sf_self_measure")
+    order = _make_erp_order(stage="RECEIVED")
+    order.is_self_measurement = True
+    db_session.commit()
+    order_id = order.id
+
+    sd = copy.deepcopy(order.structured_data)
+    sd["workflow"]["stage"] = "MEASURE"
+    resp = client.put(
+        f"/api/orders/{order_id}/structured",
+        json={"structured_data": sd, "structured_schema_version": 1},
+    )
+    assert resp.status_code == 200, resp.get_json()
+
+    db_session.expire_all()
+    saved = db_session.get(Order, order_id)
+    assert saved.status == "MEASURE"
+
+
+def test_regional_order_form_stage_cannot_skip_beyond_measure(client):
+    """지방주문 예외는 MEASURE 전용 — 폼이 더 앞 단계를 보내도 전이는 없다."""
+    _login(client, "sf_regional_skip")
+    order = _make_erp_order(stage="RECEIVED")
+    order.is_regional = True
+    order.construction_type = "협력사 시공"
+    db_session.commit()
+    order_id = order.id
+
+    sd = copy.deepcopy(order.structured_data)
+    sd["workflow"]["stage"] = "PRODUCTION"
+    resp = client.put(
+        f"/api/orders/{order_id}/structured",
+        json={"structured_data": sd, "structured_schema_version": 1},
+    )
+    assert resp.status_code == 200, resp.get_json()
+
+    db_session.expire_all()
+    saved = db_session.get(Order, order_id)
+    assert saved.status == "RECEIVED"
+    assert saved.structured_data["workflow"]["stage"] == "RECEIVED"
+
+
 def test_form_save_measurement_date_never_regresses_later_stage(client):
     """이미 진행된 단계(DRAWING)는 실측일이 있어도 되돌아가지 않는다(전진 1칸만)."""
     _login(client, "sf_auto_measure_norollback")
