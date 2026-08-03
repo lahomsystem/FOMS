@@ -25,6 +25,7 @@ from foms.services.orders.estimate_defaults import (
     ERP_DRAFT_PLACEHOLDER_PRODUCT,
 )
 from foms.services.orders.construction_type import normalize_regional_construction_type
+from foms.services.orders.stage_override import normalize_main_stage
 from foms.services.orders.status_constants import STATUS
 from foms.web.auth import login_required, role_required
 from foms.services.datetime_kst import now_kst
@@ -275,23 +276,31 @@ def _pin_form_stage_to_server(old_sd: dict, structured_data: dict) -> None:
 _AUTO_MEASURE_FROM_STAGES = ('RECEIVED', '주문접수')
 
 
-def _should_auto_advance_to_measure(order: Order) -> bool:
-    """저장된 주문이 '실측일 지정된 접수 건'인지 판정한다(상태는 쓰지 않는다).
+def _should_auto_advance_to_measure(order: Order, requested_stage: str = '') -> bool:
+    """접수 건을 실측 단계로 올려야 하는지 판정한다(상태는 쓰지 않는다).
+
+    두 경로가 있다(둘 다 출발은 RECEIVED, 목적지는 MEASURE — 전진 1칸뿐):
+
+    1. 실측일 지정: 서버 저장본에 ``schedule.measurement.date`` 가 있으면 자동 전진한다.
+    2. 지방주문·자가실측: 실측 일정을 잡지 않는 유형이라 1번 조건이 영원히 성립하지 않는다.
+       이 두 유형에 한해, 폼에서 사용자가 단계를 '실측'으로 고른 저장을 전이 의사로 받는다.
 
     STATE-FORM-01(폼 저장 ≠ 단계 전이)을 지키기 위해 폼 저장 트랜잭션은 단계를
     건드리지 않는다. 이 함수는 커밋된 서버 저장본만 보고 조건을 판정하고, 실제 전이는
     커밋 뒤 canonical 엔진(``SET_MAIN_STAGE``)이 수행한다 — 그래야 STAGE_CHANGED 이벤트·
     outbox·version bump·receipt 가 다른 전이와 동일한 경로로 남는다.
 
-    클라이언트가 보낸 workflow.stage 는 신뢰하지 않는다(:func:`_pin_form_stage_to_server`
-    가 이미 서버값으로 고정). 판정 입력은 서버 저장본의 stage 와 실측일뿐이라 stale 탭이
-    임의 단계를 밀어 넣을 수 없고, 전진 1칸(RECEIVED→MEASURE) 외 전이는 발생하지 않는다.
+    2번에서 폼 값을 보긴 하지만 그것만으로는 아무 단계도 열리지 않는다. 목적지는 MEASURE
+    고정이고, 출발은 서버가 보관한 RECEIVED 여야 하며, 유형 판정(is_regional·
+    is_self_measurement)은 서버 컬럼으로 한다. 따라서 stale 탭이 임의 단계를 밀어 넣거나
+    역행·건너뛰기를 만들 수 없다.
 
     Args:
         order: 폼 저장이 커밋된 뒤의 대상 Order.
+        requested_stage: 폼이 보낸 workflow.stage 원본(pin 되기 전 값).
 
     Returns:
-        MEASURE 로 자동 전진해야 하면 True.
+        MEASURE 로 전진해야 하면 True.
     """
     if not is_erp_order_record(order):
         return False
@@ -301,7 +310,11 @@ def _should_auto_advance_to_measure(order: Order) -> bool:
         return False
     schedule = sd.get('schedule') if isinstance(sd.get('schedule'), dict) else {}
     measurement = schedule.get('measurement') if isinstance(schedule.get('measurement'), dict) else {}
-    return bool(str(measurement.get('date') or '').strip())
+    if str(measurement.get('date') or '').strip():
+        return True
+    if normalize_main_stage(requested_stage) != 'MEASURE':
+        return False
+    return bool(getattr(order, 'is_regional', False) or getattr(order, 'is_self_measurement', False))
 
 
 def _force_preserve_drawing_transfer_history(old_sd: dict, structured_data: dict) -> None:
@@ -779,6 +792,10 @@ def api_put_order_structured(order_id):
         is_regional = payload.get('is_regional')
         construction_type = payload.get('construction_type')
         now = datetime.datetime.now()
+        # 폼이 고른 단계. _pin_form_stage_to_server 가 곧 서버값으로 덮으므로 여기서 보관한다
+        # (실측일 없는 지방주문/자가실측의 실측 단계 이동 판정에만 쓰인다).
+        _wf_in = (structured_data or {}).get('workflow') if isinstance(structured_data, dict) else None
+        requested_stage = str((_wf_in or {}).get('stage') or '').strip() if isinstance(_wf_in, dict) else ''
 
         if structured_data is not None and not isinstance(structured_data, dict):
             return jsonify({'success': False, 'message': 'structured_data는 JSON 객체여야 합니다.'}), 400
@@ -1006,7 +1023,7 @@ def api_put_order_structured(order_id):
         # 폼 트랜잭션 밖에서 별도 전이로 수행해야 STAGE_CHANGED·outbox·receipt 가 다른
         # 전이와 같은 경로로 남는다. 전이 실패는 폼 저장을 되돌리지 않는다(저장은 이미 성공).
         auto_stage_error = None
-        if _should_auto_advance_to_measure(order):
+        if _should_auto_advance_to_measure(order, requested_stage):
             from foms.api.orders.status import apply_canonical_main_stage
 
             auto_stage_error = apply_canonical_main_stage(
