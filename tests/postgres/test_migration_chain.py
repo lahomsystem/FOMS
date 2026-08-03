@@ -75,22 +75,16 @@ _FK_NAME_ALIGNMENT = tuple(
     )
 )
 
-# 이미 존재하는 models.py ↔ 마이그레이션 타입 불일치. 왕복이 이걸 발견했다(2026-08-03).
-# 운영/스테이징은 마이그레이션 계보이므로 **오른쪽 타입이 실제 운영 타입**이고,
-# ORM·create_all 테스트 레인만 왼쪽 타입을 본다. 여기서는 고칠 수 없어(새 마이그레이션
-# 필요) 알려진 목록으로 고정한다 — 목록이 늘면 새 드리프트가 생긴 것이고, 줄면 누군가
-# 고친 것이니 항목을 지워라.
-#   (table, column, create_all 타입, 운영 타입)
-_KNOWN_TYPE_DRIFT = frozenset({
-    ("channel_inbound_worker_heartbeats", "metadata_json", "jsonb", "json"),
-    ("system_setting_receipts", "read_receipt_id", "uuid", "character varying"),
-    ("system_setting_receipts", "response_body", "jsonb", "json"),
-})
+# models.py ↔ 마이그레이션 타입 불일치는 **0건이어야 한다**. 왕복이 2026-08-03 에 3건을
+# 발견했고(`shipment_reference_00`·`channel_inbound_00` 이 sa.String(36)/sa.JSON() 으로
+# 만들어 ORM 의 UUID/JSONB 와 어긋남) `typedrift_00` 이 해소했다. 목록이 늘면 새 드리프트가
+# 생긴 것이니 여기 추가하지 말고 **마이그레이션을 고쳐라** — 여기 추가하는 순간 그 컬럼은
+# 두 테스트 레인 모두 통과하고 운영에서만 다른 타입이 된다.
+#   (table, column, create_all 타입, 마이그레이션 타입)
+_KNOWN_TYPE_DRIFT: frozenset = frozenset()
 
-# 같은 컬럼에 같은 UNIQUE 인덱스를 만들지만 이름만 다른 케이스(기능 동일).
-# create_all: system_setting_receipts_read_receipt_id_key
-# 마이그레이션: uq_system_setting_receipt_read_id
-_KNOWN_INDEX_NAME_DRIFT = frozenset({"system_setting_receipts_read_receipt_id_key"})
+# UNIQUE 인덱스 이름도 create_all 기본값과 일치해야 한다(typedrift_00 이 rename 으로 해소).
+_KNOWN_INDEX_NAME_DRIFT: frozenset = frozenset()
 
 
 @pytest.fixture(scope="module")
