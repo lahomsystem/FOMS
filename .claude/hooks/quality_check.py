@@ -25,6 +25,17 @@ from shared_utils import (  # type: ignore[import-not-found]
 PENDING_VERIFY_FILE = ".claude_pending_verify.json"
 HOOK_LOG_FILE = "CLAUDE_HOOK_LOG.md"
 IMPORT_TIMEOUT_SEC = 120
+SCAN_TIMEOUT_SEC = 60
+
+# repo-state 인벤토리 스캐너: .py 편집 턴 종료 시 자동 재생성 (CI 드리프트 red 예방).
+INVENTORY_SCANNERS = (
+    ("tools/harness/failopen_scan.py", "docs/harness/foms_failopen_inventory.json"),
+    (
+        "tools/harness/order_mutation_writer_scan.py",
+        "docs/harness/foms_order_mutation_writer_inventory.json",
+    ),
+    ("tools/harness/state_writer_scan.py", "docs/harness/foms_state_writer_inventory.json"),
+)
 
 
 def _force_utf8_streams() -> None:
@@ -75,7 +86,56 @@ def _clear_pending() -> None:
         os.remove(pending_path)
 
 
-def _run_import_gate(pending_files: list, project_root: str) -> None:
+def _regenerate_inventories(project_root: str) -> str:
+    """repo-state 인벤토리 3종을 재생성하고, 변경된 파일 목록 문자열을 반환한다.
+
+    스캐너 실패·timeout은 fail-open(로그만) — 게이트를 막지 않는다.
+
+    Args:
+        project_root: 스캐너를 실행할 저장소 루트(cwd).
+
+    Returns:
+        변경된 인벤토리 경로들의 요약 문자열 (변경 없으면 빈 문자열).
+    """
+    changed = []
+    for scanner_rel, inventory_rel in INVENTORY_SCANNERS:
+        scanner_path = os.path.join(project_root, scanner_rel)
+        inventory_path = os.path.join(project_root, inventory_rel)
+        if not os.path.exists(scanner_path):
+            continue
+        try:
+            with open(inventory_path, "rb") as f:
+                before = f.read()
+        except OSError:
+            before = b""
+        try:
+            result = subprocess.run(
+                [sys.executable, scanner_rel],
+                cwd=project_root,
+                capture_output=True,
+                text=True,
+                timeout=SCAN_TIMEOUT_SEC,
+            )
+        except (subprocess.TimeoutExpired, OSError) as exc:
+            _log_hook_error(f"인벤토리 스캐너 {scanner_rel} 실행 실패 (fail-open): {exc}")
+            continue
+        if result.returncode != 0:
+            tail = "\n".join((result.stderr or "").splitlines()[-5:])
+            _log_hook_error(
+                f"인벤토리 스캐너 {scanner_rel} exit {result.returncode} (fail-open): {tail}"
+            )
+            continue
+        try:
+            with open(inventory_path, "rb") as f:
+                after = f.read()
+        except OSError:
+            after = b""
+        if before != after:
+            changed.append(inventory_rel)
+    return ", ".join(changed)
+
+
+def _run_import_gate(pending_files: list, project_root: str, regen_note: str = "") -> None:
     """pending .py가 있으면 `import app`을 실행해 통과/차단을 결정한다.
 
     성공 시 pending 클리어 후 exit 0, 실패 시 stderr에 원인 기록 후 exit 2.
@@ -83,6 +143,7 @@ def _run_import_gate(pending_files: list, project_root: str) -> None:
     Args:
         pending_files: 검증 대상 .py 상대 경로 목록.
         project_root: `import app`을 실행할 저장소 루트(cwd).
+        regen_note: 자동 재생성으로 변경된 인벤토리 요약 (통과 메시지에 첨부).
     """
     result = subprocess.run(
         [sys.executable, "-c", "import app; print('APP_OK')"],
@@ -94,9 +155,12 @@ def _run_import_gate(pending_files: list, project_root: str) -> None:
     files_str = ", ".join(pending_files)
     if result.returncode == 0 and "APP_OK" in (result.stdout or ""):
         _clear_pending()
-        write_stdout_json(
-            {"message": f"[STOP GATE] app import 통과 (APP_OK) — 검증 파일: {files_str}"}
-        )
+        message = f"[STOP GATE] app import 통과 (APP_OK) — 검증 파일: {files_str}"
+        if regen_note:
+            message += (
+                f"\n[STOP GATE] 인벤토리 자동 재생성됨 — 커밋에 포함하라: {regen_note}"
+            )
+        write_stdout_json({"message": message})
         sys.exit(0)
 
     tail = "\n".join((result.stderr or "").splitlines()[-30:])
@@ -126,7 +190,13 @@ def main() -> None:
         return
 
     try:
-        _run_import_gate(pending_files, project_root)
+        regen_note = _regenerate_inventories(project_root)
+    except Exception as exc:  # failopen: intentional: 훅 보조 기능 — 게이트를 막지 않는다
+        _log_hook_error(f"인벤토리 자동 재생성 실패 (fail-open): {exc}")
+        regen_note = ""
+
+    try:
+        _run_import_gate(pending_files, project_root, regen_note)
     except subprocess.TimeoutExpired:
         _log_hook_error(
             f"import app 검증 timeout({IMPORT_TIMEOUT_SEC}s) (fail-open, 차단 아님)"
