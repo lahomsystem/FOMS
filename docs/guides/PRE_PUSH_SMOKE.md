@@ -140,6 +140,7 @@ python tools/harness/ci_watch.py --quick
 - 종료 코드(기본 `--until-final`): **0**=전부 green / **1**=코드 실패(로그 분석 → 근본 수정 → `pre_push_smoke` → 재푸시) / **2**=자동 재실행 발동(내부 재폴링해 0·1로 수렴) / **3**=gh CLI 미설치·미인증(설치·`gh auth login` 후 재시도).
 - **`--quick`(단발 조회)**: 폴링 없이 현재 상태만 1회 조회하고 즉시 종료합니다. **0**=green / **1**=코드 실패 / **3**=gh 불가 / **4**=진행 중(pending 워크플로명·경과 초 출력; perf-gate 자동 재실행을 트리거한 경우도 4, 재실행 중복은 `.ci_watch_rerun_state.json`으로 방지). 반응속도 개선으로 고정 초기 대기(구 30s)를 제거하고 즉시 조회합니다.
 - 자동 복구: perf-gate **배포 대기 타임아웃**(healthz commit==SHA 확인 후 재실행), **TTFB/render tail flaky**(1회 재실행). **bytes 초과**는 데이터 가변 탭 가능성 때문에 예산 보정값을 *제안*만 하고 자동 상향하지 않습니다.
+- **승격 후 RQ 실패 잡 확인**: `python tools/ops/rq_failed_jobs.py` (0=실패 잡 없음 / 1=실패 잡 존재 → 원인 수정 후 `--requeue <job_name> --apply` / 2=Redis 도달 실패 / 3=`REDIS_URL` 미설정). RQ는 실패 job을 자동 재시도하지 않고 `FailedJobRegistry`에 1년 쌓아두므로 썸네일·지오코딩·채널톡 인바운드·푸시 누락이 조용히 묻힙니다.
 - 이 게이트는 3-도구 공통입니다: Claude Code는 `PostToolUse:Bash` 훅(`post_push_watch.py`)이 논블로킹 안내를 주입하고, Cursor는 `afterShellExecution`이 기록한 마커를 `afterAgentResponse`(`post_task_quality_check.py`)가 소비해 **매 턴 `--quick`을 직접 실행**합니다(진행 중이면 마커 유지 → 다음 턴 자동 재확인, 종료 상태면 마커 삭제로 루프 종료). 로직 SSOT는 `tools/harness/ci_watch.py`이고 `scripts/ops/ci_watch_recover.sh`는 thin wrapper입니다.
 
 ## 실패 시
