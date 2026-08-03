@@ -111,9 +111,21 @@ def test_nested_marker_does_not_leak_to_outer():
 # Release gate
 # --------------------------------------------------------------------------
 
+def _lineno_free(records):
+    """Drop ``lineno`` and canonicalize ordering so pure line shifts don't gate.
+
+    An edit anywhere above a broad catch shifts every ``lineno`` below it; the
+    catch itself is unchanged. Comparing the multiset of lineno-free records
+    keeps the real gate (a new/removed/reclassified catch still turns red)
+    while making comment/whitespace-only shifts a non-event.
+    """
+    stripped = [{k: v for k, v in r.items() if k != "lineno"} for r in records]
+    return sorted(stripped, key=lambda r: json.dumps(r, sort_keys=True, ensure_ascii=False))
+
+
 def test_inventory_matches_fresh_scan(fresh_scan, inventory):
-    """Committed inventory == fresh scan. A new/moved broad catch turns this red."""
-    assert inventory["catches"] == fresh_scan, (
+    """Committed inventory == fresh scan (lineno-insensitive). A new/removed/reclassified broad catch turns this red."""
+    assert _lineno_free(inventory["catches"]) == _lineno_free(fresh_scan), (
         "inventory is stale; regenerate with "
         "`python tools/harness/failopen_scan.py`"
     )
