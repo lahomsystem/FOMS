@@ -2290,7 +2290,12 @@ async function erpSaveStructuredOnce(opts = {}) {
         const nameVal = (document.getElementById('erp-customer-name')?.value || '').trim();
         const phoneVal = (document.getElementById('erp-customer-phone')?.value || '').trim();
         const addrVal = (document.getElementById('erp-address')?.value || '').trim();
+        // 지방주문 체크 시 구분(하우드/협력사)은 서버가 400으로 강제하는 필수값 —
+        // 여기서 안 잡으면 alert 없이 저장만 조용히 막힌다.
+        const regionalChecked = document.getElementById('erp-regional-order')?.checked === true;
+        const regionalTypeMissing = regionalChecked && !erpGetRegionalConstructionType();
 
+        if (regionalTypeMissing) missing.push('지방주문 구분 (하우드/협력사)');
         if (!nameVal) missing.push('고객명');
         if (!phoneVal) missing.push('전화번호');
         if (!addrVal) missing.push('주소');
@@ -2304,9 +2309,12 @@ async function erpSaveStructuredOnce(opts = {}) {
         if (!hasProductName) missing.push('제품명 (최소 1개)');
 
         if (missing.length > 0) {
+            // 래퍼가 먼저 찍은 '저장 중...'이 남지 않게 실패 사유로 교체
+            erpSetStatus(`필수 항목 미입력: ${missing.join(', ')}`, true);
             alert(`다음 필수 항목을 입력해주세요:\n\n• ${missing.join('\n• ')}`);
-            // 첫 번째 누락 필드에 포커스
-            if (!nameVal) erpFocusWithoutScroll(document.getElementById('erp-customer-name'));
+            // 첫 번째 누락 필드에 포커스 (폼 상단 순서)
+            if (regionalTypeMissing) erpFocusWithoutScroll(document.getElementById('erp-regional-construction-type'));
+            else if (!nameVal) erpFocusWithoutScroll(document.getElementById('erp-customer-name'));
             else if (!phoneVal) erpFocusWithoutScroll(document.getElementById('erp-customer-phone'));
             else if (!addrVal) erpFocusWithoutScroll(document.getElementById('erp-address'));
             else {
@@ -2358,9 +2366,12 @@ async function erpSaveStructuredOnce(opts = {}) {
         const structured_data = erpCollectStructured();
         const isRegionalOrder = document.getElementById('erp-regional-order')?.checked === true;
         const regionalConstructionType = isRegionalOrder ? erpGetRegionalConstructionType() : '';
+        // _skipValidation(자동 저장) 경로 방어선 — 서버 400 왕복 전 차단.
+        // 사용자 저장은 위 필수값 검증(alert)이 먼저 잡는다. 맨 .focus()는
+        // 뷰포트를 폼 상단으로 튕겨 "저장 누르면 스크롤만 올라간다" 증상을 만들었다.
         if (isRegionalOrder && !regionalConstructionType) {
             erpSetStatus('지방주문 구분(하우드/협력사)을 선택해주세요.', true);
-            document.getElementById('erp-regional-construction-type')?.focus();
+            erpFocusWithoutScroll(document.getElementById('erp-regional-construction-type'));
             return { success: false, message: '지방주문 구분을 선택해주세요.' };
         }
 
