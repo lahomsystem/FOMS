@@ -52,6 +52,96 @@
 
 **승격 시 못 한 것**: WORKER 0 스케일. Railway CLI에 스케일 명령이 없다(`down`은 배포 제거라 비가역 위험). RQ 워커는 잡 단위 실패라 프로세스가 죽지 않는 구조라 진행했고, 결과적으로 에러 0.
 
+## 승격 후 후속 작업 진행 (2026-08-03)
+
+5-에이전트 분석 → 우선순위대로 착수. deploy `ac9a58c3`.
+
+| # | 항목 | 상태 |
+|---|---|---|
+| ① | RQ 실패 잡 관측 | **DONE** `ac9a58c3` |
+| ② | `/erp/history` 301 여분 홉 | **DONE** `b8f31bcb` |
+| ③ | CI PG 16 → 17 | **DONE** `b8f31bcb` |
+| ④ | construction 렌더 +22ms 분리 실험 | PENDING |
+
+### ① RQ 실패 잡 — 운영에 시체 2,544건 (실측)
+
+`tools/ops/rq_failed_jobs.py` 신규. **운영 Redis 읽기 전용 실조회 결과**:
+
+| 잡 | 건수 | 마지막 실패 | 에러 |
+|---|---|---|---|
+| `foms.services.jobs.tasks.push_order_to_channeltalk` | 2,213 | 2026-06-18 | ChannelTalk 403 `unauthorizedActionError` (group READ) |
+| `services.jobs.tasks.push_order_to_channeltalk` | 331 | 2026-04-20 | `issueToken 오류: token fetch fail from auth` |
+
+**살아있는 실패가 아니다** — 그 함수는 이미 retired(`foms/services/jobs/tasks.py:132`, 계약 테스트 `test_tasks_legacy_push_order_to_channeltalk_drains_without_dispatch`가 고정). 현재 채널 푸시는 RQ가 아니라 `sidefx_outbox`(DB 큐)로 간다. 두 변종은 모듈 경로 리팩터 전후 사본이다.
+
+**단 침묵 위험은 실증됐다**: 시체 2,544건이 Redis에 1년 상주하며 새 실패를 묻는다.
+
+**⚠️ `rq requeue --all`은 절대 쓰면 안 된다** — 퇴역 잡 2,544건을 전부 재실행한다. 그래서 도구는 이름 필터 + dry-run 기본(`--apply` 필요)으로 만들었고 `--all` 위임을 거부했다.
+
+**미결(사용자 승인 필요)**: 운영 Redis에서 이 2,544건을 비울지. `FailedJobRegistry` 정리는 운영 Redis **쓰기**라 승인 없이 안 했다.
+
+### ② `/erp/history` 301 — 진범은 `fragment_path()`
+
+원장 앞선 기록보다 상류였다. `tools/perf/staging_perf_gate.py`의
+```python
+return f"{primary_path.rstrip('/')}?view=fragment"   # SSOT 의 끝 슬래시를 깎았다
+```
+SSOT `ERP_PRIMARY_NAV_PATHS`는 `/erp/history/`(슬래시 있음)인데 `rstrip('/')`이 떼서 `/erp/history?view=fragment`를 만들었다. history blueprint만 `url_prefix='/erp/history' + route('/')` 구조라 Flask `strict_slashes`가 301을 냈고, `measure_path`가 `allow_redirects` 기본값으로 따라가 **여분 왕복이 TTFB에 통째로 섞였다**.
+
+나머지 8개 경로는 원래 슬래시가 없어 `rstrip`이 no-op — **history만 걸린 사각**이다. 실사용자는 영향 없다(앱 내부는 전부 `url_for`).
+
+수정 후 SSOT 생성 경로 9개 ↔ 예산 키가 정확히 일치(누락 0·잉여 0). **`ttfb_delta_min_ms` 재시드는 CI 관측 후 별도로** — 심판석은 CI 러너다.
+
+### ③ CI PG 17
+
+PG17 "Migration to Version 17" 비호환 17개 항목을 이 저장소가 쓰는 기능과 전수 대조 → **해당 0건**(`CREATE INDEX CONCURRENTLY`·`gin_trgm_ops`·partial unique index·`DISTINCT ON`·`FOR UPDATE SKIP LOCKED`). `MERGE`/`JSON_TABLE`/generated column/custom trigger 미사용.
+
+**검증**: 로컬 PG 17.9 클러스터에서 `tests/postgres` **659 passed**.
+
+마이너는 floating(메이저만 고정) — 운영 17.10과 패치 레벨이 정확히 같지는 않다.
+
+### ④ construction 렌더 +22ms — **미확정, 내 앞선 "환경 탓" 판단이 반증됨**
+
+A2가 내 가설을 확인해주지 않았다.
+
+| | 7/28 | 현재 스테이징 | 현재 운영 |
+|---|---|---|---|
+| construction 렌더 min | 16ms | 28.6 | **23.9** |
+| ms/KB 단가 | 0.211 | 0.373 | **0.336** |
+
+- **운영도 1.6배다.** 데이터가 더 많은데 스테이징보다 빠르다 → "스테이징 컨테이너 1대만 맛이 갔다"로 설명 안 됨.
+- **반증**: `shipment`는 같은 컨테이너에서 안 느려졌다(9~12 → 8.3). 균일 CPU 저하 모델은 ~19ms를 예측한다. "shipment 자체 최적화" 구원 가설도 로컬 A/B에서 old/new 1.30ms 동일로 실패.
+- **`render_ms`는 순수 Jinja CPU다** — `render_template()` 호출만 감싸고 창 내부 SQL 0건(`foms/web/construction/dashboard.py:215-239` 직접 확인). DB도 네트워크도 아니다.
+- 코드 무죄는 더 강해짐: 독립 A/B에서 construction **0.80→0.70ms**, 출력 **133,646B 완전 동일**.
+- 7/28의 16ms는 운 좋은 저점이 아니다 — 3개 런이 `(9,16,13,9,12,1)`을 자릿수까지 재현.
+
+**유일한 분리 실험**: 현 컨테이너에 `bb09d3fd`를 일시 배포 → 16이면 코드, 28이면 환경. 이것 없이는 원리적으로 못 가른다.
+
+### A3 부수 발견 (별도 트랙)
+
+- **CI에 Redis가 아예 없다** — 버전 갭이 아니라 커버리지 0. 5개 워크플로 전부 redis 서비스 컨테이너 없음. 2026-07-21 Redis 장애로 전 요청 500 난 사고를 재현할 CI가 지금도 없다.
+- **`requirements.txt`에 서버 무관 패키지 8줄** — `poetry`·`pyinstaller`·`PyQt5`(3줄)·`pywebview`. 145줄 중 8줄이 운영 이미지에 함께 설치된다. 21개가 `>=` floating이라 CI·스테이징·운영이 다른 버전을 설치할 수 있다(lockfile 없음).
+- **PG 레인은 마이그레이션 체인을 검증하지 않는다** — `Base.metadata.create_all`로 스키마를 만든다(첫 마이그레이션이 create-table 없이 `add_column`부터라 빈 DB에서 실행 불가). 승격 때 29개가 돈 건 내가 스테이징에서 실제 왕복을 돌려봤기 때문이지 CI 보장이 아니다.
+
+### A4 설계 결론 (T8)
+
+**"그냥 nullable"은 금지.** 실측: `sorted([None, 3])` → TypeError → before_request **500**. 단독 NULL이면 `[None]`이 truthy라 **STAFF 전원 403 락아웃**. `release_assignment`의 `user_id == user_id`는 SQL NULL 비교라 회수도 불가.
+
+**답**: `CHECK (user_id IS NOT NULL OR NOT active)` — NULL을 released 행에만 허용. 롤백 안전성의 핵심이기도 하다(구 코드가 팀 폴백만 보게 됨).
+
+**핵심 비대칭**: 삭제를 막는 건 `order_create.py:188`이 만드는 SALES `INITIAL_OWNER` 행인데, `assignment=` 지정 정책은 **CONSTRUCTION·DRAWING 둘뿐**이라 SALES 배정은 오늘 어떤 권한 경로도 안 읽는다(write-only).
+
+`assigned_by_user_id`는 읽는 코드 **0건** → `SET NULL` 안전. `FeatureCutoverMarker`는 **거부 유지가 정답**(family PK, 15개 고정, 트리거가 UPDATE·DELETE 둘 다 RAISE).
+
+**이 변경은 일방향**이다 — `downgrade()`가 `pass`일 수밖에 없다(NOT NULL 복구는 정의상 파괴적).
+
+### A5 잔여 결함
+
+- **`str(None)` 유령 휴무일**: 배차는 무사(`shipment_read_model.py:135`가 `'YYYY-MM-DD'`와만 비교 → inert). **UI 휴무일수만 틀리고 클릭으로 못 지운다.** 내 T1 수정은 신규만 막고, 기존 오염은 재저장 때마다 영속(이미 문자열이라 가드 통과). 과거 오염 여부 **미확정** — 확인 쿼리 설계됨(`@>` 멤버십), 미실행.
+- **정리 대상**: worktree 4개 삭제 가능(`as-delete-reapply`·`as-map-kakao`·`bugfix/full-system-remediation`·`promote/2026-08-01-full`, 전부 병합·clean). `fomstest`(5433 PG15 사용자 dev 인스턴스 위 빈 DB) — 가드로 Claude Code에선 못 지움. stash 41개는 타 세션 WIP 혼재로 손대지 않음.
+
+---
+
 ### 승격 후 후속 (차단 아님)
 
 1. **construction 대시보드 서버 렌더 +22ms** — 7/28 16ms → 8/1 38ms. dTTFB 판정값은 154(예산 147)지만 그중 실제 서버 몫은 +22ms고 나머지 +38은 healthz base가 260→222로 빨라져 생긴 착시다(절대 min 351→376). 코드 A/B에서 기여분 0, wire +399B. **예산 재시드 금지 — 원인 미규명.**
