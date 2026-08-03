@@ -2454,7 +2454,6 @@ _PAC_PARTIALS_SHARED_HTML_ALLOWLIST = frozenset(
         "foms_side_tab.html",
         "foms_split_shell.html",
         "foms_density_toggle.html",
-        "foms_legacy_password_banner.html",
         "foms_tablet_rail.html",
         "foms_theme_toggle.html",
         "htmx_layout.html",
