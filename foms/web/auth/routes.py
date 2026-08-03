@@ -72,22 +72,6 @@ def is_password_strong(password):
     return ok
 
 
-@auth_bp.app_context_processor
-def inject_legacy_password_banner():
-    """Expose the legacy-password WARN banner state to every template (3 surfaces).
-
-    Activates the persistent banner when the current user's password is legacy
-    (strength unverified) per the column SSOT — never by rehashing the stored
-    hash. WARN only: it nudges a password change and never blocks business use.
-    """
-    user = getattr(g, 'current_user', None)
-    return {
-        'legacy_password_banner': {
-            'active': bool(user) and is_password_legacy(user),
-            'change_url': url_for('auth.profile'),
-        }
-    }
-
 def get_user_by_username(username):
     """Retrieve user by username"""
     db = get_db()
@@ -218,10 +202,6 @@ def login():
         
         update_last_login(user.id)
         log_access(f"로그인 성공: 사용자 {user.username} (ID: {user.id})", user.id)
-
-        # WARN legacy: 업무는 차단하지 않고(가장 중요한 함정) 비밀번호 변경만 유도한다.
-        if is_password_legacy(user):
-            flash('보안 강화를 위해 비밀번호를 변경해주세요. 현재 비밀번호는 이전 강도 기준으로 설정되어 있습니다.', 'warning')
 
         flash(f'{user.name}님, 환영합니다!', 'success')
         next_url = resolve_post_login_redirect(request.values.get('next'), user_id=user.id, request=request)
