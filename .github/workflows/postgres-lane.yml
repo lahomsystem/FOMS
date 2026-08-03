@@ -8,7 +8,10 @@ on:
   push:
     branches: [ "main", "deploy" ]
   pull_request:
-    branches: [ "main", "deploy" ]
+    # production 포함: 승격 PR 이 바로 predeploy(`alembic upgrade head`)가 도는 지점이다.
+    # MIGCHAIN-01(test_migration_chain.py)이 여기서 돌아야 "마이그레이션이 실제로 실행되는지"
+    # 를 승격 전에 확인할 수 있다(perf-gate 와 동일한 블로킹 지점).
+    branches: [ "main", "deploy", "production" ]
 
 permissions:
   contents: read
