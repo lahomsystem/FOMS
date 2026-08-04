@@ -33,7 +33,10 @@
                 touchStartTime: 0,
                 lastTapTime: 0,
                 lastTapX: 0,
-                lastTapY: 0
+                lastTapY: 0,
+                // index → 로드된 <img> 요소 풀. /api/files/view 는 no-store 302(매번 새 presigned URL)라
+                // HTTP 캐시가 무력하므로, 디코드된 요소 자체를 보관해 재요청 없이 즉시 스왑한다.
+                imageEls: {}
             };
 
             let els = {};
@@ -51,7 +54,10 @@
                     stage: document.getElementById('global-viewer-stage'),
                     image: document.getElementById('global-viewer-image'),
                     video: document.getElementById('global-viewer-video'),
+                    counter: document.getElementById('global-viewer-counter'),
                 };
+                // 정적 기본 이미지 노드 — 닫힐 때 id 를 되돌려 외부 코드의 #global-viewer-image 조회를 보존.
+                els.baseImage = els.image;
 
                 if (!els.root) return;
 
@@ -142,6 +148,7 @@
                 }
 
                 state.index = Math.max(0, Math.min(state.files.length - 1, startIndex));
+                resetPool(); // 이전 목록의 이미지 풀 제거(연속 open 시 잘못된 인덱스 매칭 방지)
 
                 els.root.style.display = 'flex';
                 els.root.classList.add('d-flex');
@@ -166,13 +173,108 @@
                     els.video.pause();
                     els.video.src = '';
                 }
+                resetPool();
+                if (els.counter) els.counter.textContent = '';
+            }
+
+            /** 이미지 풀 전체 제거 + 정적 기본 노드로 #global-viewer-image id 복원. */
+            function resetPool() {
+                Object.keys(state.imageEls).forEach(function (k) {
+                    var node = state.imageEls[k];
+                    if (node && node !== els.baseImage && node.parentNode) node.parentNode.removeChild(node);
+                });
+                state.imageEls = {};
+                if (els.baseImage) {
+                    els.image = els.baseImage;
+                    els.baseImage.id = 'global-viewer-image';
+                    els.baseImage.style.display = 'none';
+                    els.baseImage.style.transform = '';
+                    els.baseImage.style.transition = '';
+                    els.baseImage.removeAttribute('src');
+                }
+            }
+
+            /** index 의 <img> 풀 노드를 (없으면 만들어 로드 시작 후) 반환 — 프리로드 겸용. */
+            function ensureImageEl(index) {
+                if (state.imageEls[index]) return state.imageEls[index];
+                var file = state.files[index];
+                if (!file || !els.stage) return null;
+                var img = document.createElement('img');
+                img.draggable = false;
+                img.decoding = 'async';
+                img.style.display = 'none';
+                img.alt = file.filename || '';
+                img.addEventListener('load', positionNavButtons);
+                img.addEventListener('wheel', handleWheel, { passive: false });
+                img.addEventListener('mousedown', startDrag);
+                img.src = file.url;
+                els.stage.insertBefore(img, els.video || null);
+                state.imageEls[index] = img;
+                return img;
+            }
+
+            /** 활성 이미지 교체 — id 를 넘겨 CSS(#global-viewer-image)와 외부 조회를 그대로 유지. */
+            function setActiveImage(img) {
+                if (!img) return;
+                if (els.image === img) {
+                    img.style.display = 'block';
+                    return;
+                }
+                if (els.image) {
+                    els.image.removeAttribute('id');
+                    els.image.style.display = 'none';
+                    els.image.style.transform = '';
+                    els.image.style.transition = '';
+                }
+                img.id = 'global-viewer-image';
+                img.style.display = 'block';
+                els.image = img;
+            }
+
+            function isVideoFile(file) {
+                if (!file) return false;
+                return /\.(mp4|webm|ogg)(\?|#|$)/i.test(file.url || '') ||
+                    /\.(mp4|webm|ogg)$/i.test(file.filename || '');
+            }
+
+            /** 채널톡식 즉시 넘김: 인접 ±2 를 미리 로드해 스와이프 순간 디코드된 노드로 스왑. */
+            function preloadNeighbors() {
+                [1, -1, 2, -2].forEach(function (offset) {
+                    var i = state.index + offset;
+                    if (i < 0 || i >= state.files.length) return;
+                    if (isVideoFile(state.files[i])) return;
+                    ensureImageEl(i);
+                });
+            }
+
+            /** 활성에서 4칸 초과로 먼 풀 노드 제거 — 대형 갤러리 메모리 캡. */
+            function prunePool() {
+                Object.keys(state.imageEls).forEach(function (k) {
+                    var i = Number(k);
+                    if (Math.abs(i - state.index) <= 4) return;
+                    var node = state.imageEls[i];
+                    if (node && node !== els.baseImage && node.parentNode) node.parentNode.removeChild(node);
+                    delete state.imageEls[i];
+                });
+            }
+
+            function updateCounter() {
+                if (!els.counter) return;
+                els.counter.textContent = state.files.length > 1
+                    ? (state.index + 1) + ' / ' + state.files.length
+                    : '';
+            }
+
+            function updateEdgeState() {
+                if (els.prevBtn) els.prevBtn.classList.toggle('at-edge', state.index <= 0);
+                if (els.nextBtn) els.nextBtn.classList.toggle('at-edge', state.index >= state.files.length - 1);
             }
 
             function render() {
                 const file = state.files[state.index];
                 if (!file) return;
 
-                // Reset transform + gesture state
+                // Reset gesture state
                 state.scale = 1;
                 state.tx = 0;
                 state.ty = 0;
@@ -180,24 +282,25 @@
                 state.panning = false;
                 state.touching = false;
                 state.dragging = false;
-                setGestureTransition(false);
-                updateTransform();
 
-                var isVideo = (file.url || '').match(/\.(mp4|webm|ogg)$/i) || (file.filename || '').match(/\.(mp4|webm|ogg)$/i);
-
-                if (isVideo) {
-                    els.image.style.display = 'none';
-                    els.image.src = '';
+                if (isVideoFile(file)) {
+                    if (els.image) els.image.style.display = 'none';
                     els.video.style.display = 'block';
                     els.video.src = file.url;
                 } else {
                     els.video.style.display = 'none';
                     els.video.pause();
                     els.video.src = '';
-                    els.image.style.display = 'block';
-                    els.image.src = file.url;
-                    els.image.alt = file.filename;
+                    // 풀 스왑: 프리로드된 노드면 네트워크 재요청 없이 즉시 표시.
+                    setActiveImage(ensureImageEl(state.index) || els.image);
+                    if (els.image) els.image.alt = file.filename;
                 }
+                setGestureTransition(false);
+                updateTransform();
+                preloadNeighbors();
+                prunePool();
+                updateCounter();
+                updateEdgeState();
 
                 if (els.downloadBtn) {
                     if (file.download_url) {
@@ -485,8 +588,11 @@
 
                 const dx = state.touchLastX - state.touchStartX;
                 const dy = state.touchLastY - state.touchStartY;
+                const dt = Date.now() - state.touchStartTime;
                 const horizontalSwipe = Math.abs(dx) > 56 && Math.abs(dx) > Math.abs(dy) * 1.2;
-                if (!horizontalSwipe) return;
+                // 짧고 빠른 플릭도 넘김(채널톡식) — 이동량 30px 대에서도 즉시 반응.
+                const fastFlick = dt < 250 && Math.abs(dx) > 30 && Math.abs(dx) > Math.abs(dy);
+                if (!horizontalSwipe && !fastFlick) return;
 
                 if (dx < 0) next();
                 else prev();

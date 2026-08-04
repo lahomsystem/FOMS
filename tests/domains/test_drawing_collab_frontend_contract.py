@@ -37,12 +37,12 @@ def test_detail_dom_confirmed_revision_entrypoint() -> None:
 
 
 def test_detail_dom_cachebuster_cascade_bumped() -> None:
-    """내용 변경 시 로드 전수 ?v 범프(SW staticCacheFirst 스테일 봉합): detail-dom 자식 +
-    entry 부모 둘 다 20260722a."""
+    """내용 변경 시 로드 전수 ?v 범프(SW staticCacheFirst 스테일 봉합): detail-dom 자식
+    20260722a + entry 부모 20260804a(2026-08-04 뷰어 스와이프 목록화 캐스케이드)."""
     entry = _read(ENTRY_JS)
     layout = _read(LAYOUT_SCRIPTS)
     assert "erp-dashboard-detail-dom.js?v=20260722a" in entry
-    assert "erp-dashboard-entry.js') }}?v=20260722a" in layout
+    assert "erp-dashboard-entry.js') }}?v=20260804a" in layout
 
 
 def test_workbench_include_confirmed_toggle() -> None:
