@@ -1184,8 +1184,9 @@
             display: none;
         }
 
-        /* Mobile: 스와이프 + 상시 표시 미니 화살표 (positionNavButtons 인라인 좌표 오버라이드) */
-        @media (max-width: 768px) {
+        /* Mobile·터치 태블릿: 스와이프 + 상시 표시 미니 화살표 (positionNavButtons 인라인
+           좌표 오버라이드). 게이트(fomsIsMobileImageViewer)와 동일하게 coarse pointer 포함. */
+        @media (max-width: 768px), (pointer: coarse) {
             .global-viewer-nav {
                 opacity: 1;
                 pointer-events: auto;
