@@ -14,7 +14,7 @@ Flask 2.3 + PostgreSQL + R2 + Railway (Web×2, Worker×1)
 - [2026-08-03] **타입 드리프트 3건 해소 (`typedrift_00`, deploy `b2dc9b83`)** — `shipment_reference_00`·`channel_inbound_00`이 ORM의 UUID/JSONB를 `sa.String(36)`/`sa.JSON()`으로 만든 작성 실수(형제 `order_mutation_receipts`는 rev_00에서 정확히 uuid/jsonb). 운영 실측 0행이라 ALTER 비용 없음. 두 알려진-드리프트 목록 모두 빈 집합 — 새로 생기면 즉시 red. **운영 적용은 다음 승격 predeploy 시점.**
 - [2026-08-01] **하네스 함정** — `ci_watch.py`는 워크플로 1개만 본다(7개 존재). 판정은 `gh run list --branch <b>`로 전수 나열. SQLite 레인은 FK 미강제 → FK 수정은 PG 레인 필수. PG 레인은 `create_all` 기반이라 마이그레이션 체인 미검증. CI에 Redis 없음.
 - 위 3건 상세·후속 목록·결재 기록: `docs/plans/2026-07-31-full-promotion-prep-ledger.md`
-- [2026-07-28] **124-packet remediation production 승격 대기** — deploy 반영 완료(CI 4/4 green), 사용자 명시 승인 후 승격. 정본: docs/harness/foms_bugfix_progress_ledger.md
+- [2026-08-04] **후속 13커밋 production 승격 (PR #40)** — 이번 세션 자기 커밋만 cherry-pick(전체 22 중 13, 나머지 9는 타 세션 몫으로 남김). `typedrift_00`은 이 승격의 predeploy에서 운영 적용된다. ~~124-packet 승격 대기~~는 **낡은 기록**이었다 — 8/1 전체 승격에 이미 포함돼 있었다(2026-08-04 확인).
 - [2026-04-17] **ERP fast-page `EPT-B8`:** run record `docs/plans/2026-04-17-ept-b8-verification-railway-evidence-run-record.md` — 로컬 게이트 완료; staging HTTP 하네스로 **§4 표·§5** 부분 채움; **closeout** 은 deploy ID·§6 모드·hard stop 조건 충족 후.
 - [2026-04-15] **`SFC-B11B`** (§6.16 `apps/` overlay retirement): **working tree 기준 `apps/` 디렉터리 없음** — 구현·계약은 batch11b·B11A run record·`pytest` strict 계약으로 동결. 원격/HEAD와 불일치 시 동기화만 확인.
 - [2026-04-15] active mainline 구조 tranche 없음. `WR-B1` / `WR-J1` / `WR-H1`는 explicit future batch 조건에서만 재개.
