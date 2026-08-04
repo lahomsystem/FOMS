@@ -215,7 +215,7 @@
       __currentAttachmentIndex = index;
       const a = __currentAttachmentList[index];
       if (typeof window.fomsOpenAttachmentPreviewFromRecord === 'function') {
-        window.fomsOpenAttachmentPreviewFromRecord(a);
+        window.fomsOpenAttachmentPreviewFromRecord(a, __currentAttachmentList, index);
         return;
       }
       if (window.GlobalImageViewer) {

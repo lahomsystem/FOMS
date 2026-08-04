@@ -74,37 +74,90 @@ function buildMainAttachThumbsHtml(orderId, aList) {
         return '<div class="text-muted small mt-2">첨부 없음</div>';
     }
 
-    let attachmentsHtml = '<div class="d-flex flex-wrap gap-1 mt-2">';
+    // 갤러리 마커 + data-* 로 형제 목록 컨텍스트 보존 — 클릭 시 이미지·영상 전체를
+    // GlobalImageViewer 목록으로 넘겨 좌우 스와이프/화살표 이동이 되게 한다(단일 열림이
+    // 대시보드별 "옆으로 안 넘어감"의 근본 원인). 문서 파일은 기존 단일 모달 유지.
+    let attachmentsHtml = '<div class="d-flex flex-wrap gap-1 mt-2" data-foms-attach-strip>';
     aList.forEach((a) => {
         const name = escapeHtml(a.filename || '');
         const viewUrl = sanitizeAttachmentUrl(a.view_url || '');
         const thumb = sanitizeAttachmentUrl(a.thumbnail_view_url || viewUrl);
         const downloadUrl = sanitizeAttachmentUrl(a.download_url || viewUrl);
         const fileType = a.file_type || 'image';
-        const safeViewUrl = String(viewUrl).split("'").join("\\'");
-        const safeDownloadUrl = String(downloadUrl).split("'").join("\\'");
-        const safeName = String(a.filename || '').split("'").join("\\'");
-        const q = String.fromCharCode(39);
-        const onclickAttach = 'openAttachmentPreviewModal(' + a.id + ', ' + q + safeViewUrl + q + ', ' + q + safeDownloadUrl + q + ', ' + q + safeName + q + ', ' + q + fileType + q + ')';
+        const dataAttrs = ' role="button" tabindex="0" data-att-id="' + Number(a.id || 0) + '"' +
+            ' data-view-url="' + escapeHtml(viewUrl) + '"' +
+            ' data-download-url="' + escapeHtml(downloadUrl) + '"' +
+            ' data-filename="' + name + '"' +
+            ' data-file-type="' + escapeHtml(String(fileType)) + '"';
         if (fileType === 'video' && viewUrl) {
-            attachmentsHtml += '<div class="erp-attach-thumb" onclick="' + onclickAttach + '">' +
+            attachmentsHtml += '<div class="erp-attach-thumb"' + dataAttrs + '>' +
                 '<div class="erp-attach-thumb-video-bg">' +
                 '<video src=\'' + escapeHtml(viewUrl) + '\' preload="metadata" class="erp-attach-thumb-media"></video>' +
                 '</div>' +
                 '<div class="erp-attach-thumb-play-badge"><i class="fas fa-play"></' + 'i></div>' +
                 '</div>';
         } else if (fileType === 'file' || !thumb) {
-            attachmentsHtml += '<div class="erp-attach-thumb erp-attach-thumb-file-bg d-flex align-items-center justify-content-center" onclick="' + onclickAttach + '">' +
+            attachmentsHtml += '<div class="erp-attach-thumb erp-attach-thumb-file-bg d-flex align-items-center justify-content-center"' + dataAttrs + '>' +
                 '<i class="fas fa-file-alt text-secondary"></' + 'i>' +
                 '</div>';
         } else {
-            attachmentsHtml += '<div class="erp-attach-thumb" onclick="' + onclickAttach + '">' +
+            attachmentsHtml += '<div class="erp-attach-thumb"' + dataAttrs + '>' +
                 '<img src=\'' + escapeHtml(thumb) + '\' class="erp-attach-thumb-img" alt=\'' + name + '\'>' +
                 '</div>';
         }
     });
     attachmentsHtml += '</div>';
     return attachmentsHtml;
+}
+
+// 첨부 스트립 클릭 위임(1회 바인딩): 이미지·영상 2개 이상이면 형제 전체를 GlobalImageViewer
+// 목록으로 열고(스와이프/화살표), 그 외(문서·단일)는 기존 단일 미리보기 경로 유지.
+if (!window.__FOMS_MAIN_ATTACH_STRIP_BOUND) {
+    window.__FOMS_MAIN_ATTACH_STRIP_BOUND = true;
+    document.addEventListener('click', function (e) {
+        const thumbEl = e.target.closest('[data-foms-attach-strip] .erp-attach-thumb[data-view-url]');
+        if (!thumbEl) return;
+        e.preventDefault();
+        const strip = thumbEl.closest('[data-foms-attach-strip]');
+        const thumbs = Array.prototype.slice.call(
+            strip.querySelectorAll('.erp-attach-thumb[data-view-url]')
+        );
+        const isViewerType = function (el) {
+            const t = String(el.getAttribute('data-file-type') || 'image').toLowerCase();
+            return t === 'image' || t === 'video';
+        };
+        const eligible = thumbs.filter(isViewerType);
+        if (
+            isViewerType(thumbEl) && eligible.length > 1 &&
+            window.GlobalImageViewer && window.GlobalImageViewer.open
+        ) {
+            const files = eligible.map(function (el) {
+                return {
+                    view_url: el.getAttribute('data-view-url') || '',
+                    download_url: el.getAttribute('data-download-url') || el.getAttribute('data-view-url') || '',
+                    filename: el.getAttribute('data-filename') || '이미지'
+                };
+            });
+            window.GlobalImageViewer.open(files, Math.max(0, eligible.indexOf(thumbEl)));
+            return;
+        }
+        if (typeof window.openAttachmentPreviewModal === 'function') {
+            window.openAttachmentPreviewModal(
+                Number(thumbEl.getAttribute('data-att-id') || 0),
+                thumbEl.getAttribute('data-view-url') || '',
+                thumbEl.getAttribute('data-download-url') || thumbEl.getAttribute('data-view-url') || '',
+                thumbEl.getAttribute('data-filename') || '',
+                thumbEl.getAttribute('data-file-type') || 'image'
+            );
+        }
+    });
+    document.addEventListener('keydown', function (e) {
+        if (e.key !== 'Enter' && e.key !== ' ') return;
+        const thumbEl = e.target.closest && e.target.closest('[data-foms-attach-strip] .erp-attach-thumb[data-view-url]');
+        if (!thumbEl) return;
+        e.preventDefault();
+        thumbEl.click();
+    });
 }
 
 function registerOrderDetailDrawingViewerGroups(orderId) {

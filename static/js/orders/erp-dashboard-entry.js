@@ -4,7 +4,7 @@
  */
 (function () {
   var CHAIN = [
-    '/static/js/orders/order-detail-fragment.js?v=20260630c',
+    '/static/js/orders/order-detail-fragment.js?v=20260804a',
     '/static/js/orders/dashboard/erp-dashboard-core.js',
     '/static/js/orders/dashboard/erp-dashboard-gateway.js',
     '/static/js/orders/dashboard/erp-dashboard-attachments.js',
