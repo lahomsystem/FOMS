@@ -8,6 +8,7 @@
 - **앱 import 검증 성공 문자열(표준)**: `APP_OK` — `python -c "import app; print('APP_OK')"`
 - **훅 fail-open**: 실패가 로그로 기록될 때만 허용. 묵시적 무시 금지.
 - **브라우저 QA**: 반복 가능한 QA·릴리스 스모크는 gstack browse 런타임.
+- **실서버 측정 계정 `claude_master`**: 기본=staging(전 활동 허용), production=사용자 명시 요청 시 측정만·실데이터 불가침(가상 주문 `CLAUDE-TEST-`로 테스트 후 정리). 정본: `docs/guides/REAL_SERVER_TEST_ACCOUNT.md`.
 
 ## 프로젝트 개요
 - **이름**: FOMS (Furniture Order Management System) - 가구 주문 관리 ERP
