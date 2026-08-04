@@ -231,9 +231,14 @@ def inject_foms_flags() -> dict[str, Any]:
         "flag_wizard": wizard_new_order_enabled(uid),
         "show_new_order_wizard": show_new_order_wizard,
         "flag_inline": env_bool("FOMS_INLINE_EDIT_ENABLED"),
-        # 현장 스펙 즉시견적(ERP order 안에서 WDC 가격엔진 재사용). 기본 on,
-        # 비활성화하려면 FOMS_ERP_SPEC_CALC_ENABLED=false.
-        "flag_spec_calc": env_bool("FOMS_ERP_SPEC_CALC_ENABLED", True),
+        # 현장 스펙 피커(ERP order 항목 ▾ 선택 UI + 저장 스냅샷). 기본 on,
+        # 비활성화하려면 FOMS_ERP_SPEC_PICKER_ENABLED=false.
+        # (2026-08-04 자동 가격계산 제거로 개명 — 구 FOMS_ERP_SPEC_CALC_ENABLED는
+        #  기존 배포 환경변수 호환을 위해 fallback으로만 읽는다.)
+        "flag_spec_picker": env_bool(
+            "FOMS_ERP_SPEC_PICKER_ENABLED",
+            env_bool("FOMS_ERP_SPEC_CALC_ENABLED", True),
+        ),
         "flag_split_view": split_flag,
         # split 셸 마크업은 v2 셸 전용: 그 스타일(foms-split-view.css 기본 은닉 포함)이
         # v2 전용 surfaces 번들(layout_head shell_variant=='v2' 게이트)로만 로드되므로,

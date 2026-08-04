@@ -84,7 +84,7 @@ def test_picker_module_exists_and_reuses_validated_patterns() -> None:
 
 def test_picker_assets_loaded_under_flag_gate() -> None:
     tpl = _read(ORDER_JS_TPL)
-    gated = tpl.split("{% if flag_spec_calc %}", 1)[1]
+    gated = tpl.split("{% if flag_spec_picker %}", 1)[1]
     assert "css/wdcalculator/category-picker.css" in gated
     assert "css/wdcalculator/multi-add-picker.css" in gated
     assert "js/orders/erp-spec-picker.js" in gated
