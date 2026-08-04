@@ -1584,7 +1584,7 @@ ${presetFieldsHtml}
         window.erpInitFlatpickrForItemRow(row);
     }
     // 현장 스펙 즉시견적(플래그 게이트): 드롭다운 부착·라이브 계산. off면 no-op.
-    if (window.ERP_SPEC_CALC_ENABLED && window.ErpSpecCalc) {
+    if (window.ERP_SPEC_PICKER_ENABLED && window.ErpSpecCalc) {
         try { window.ErpSpecCalc.enhanceItemRow(row, item); } catch (e) { console.warn('[erp-spec-calc] enhance 실패', e); }
     }
     return row;
@@ -1993,7 +1993,7 @@ function erpCollectStructured() {
             }
         }
         // 현장 스펙 즉시견적(플래그 게이트): 계산 활성 항목의 pricing 스냅샷 첨부. off면 no-op.
-        if (window.ERP_SPEC_CALC_ENABLED && window.ErpSpecCalc) {
+        if (window.ERP_SPEC_PICKER_ENABLED && window.ErpSpecCalc) {
             try { window.ErpSpecCalc.collectPricing(row, obj); } catch (e) { console.warn('[erp-spec-calc] collect 실패', e); }
         }
         items.push(obj);
@@ -2486,13 +2486,6 @@ async function erpSaveStructuredOnce(opts = {}) {
         if (typeof window.erpInvalidateEstimateCache === 'function') {
             window.erpInvalidateEstimateCache();
         }
-        // 현장 스펙 즉시견적: 저장 성공 후 WDC 견적 동기화+자동매칭(플래그 게이트, fail-open).
-        // 계산 항목이 없으면 내부에서 생략. 실패해도 저장 결과를 되돌리지 않는다.
-        if (window.ERP_SPEC_CALC_ENABLED && window.ErpSpecCalc && typeof window.ErpSpecCalc.syncEstimate === 'function') {
-            try { await window.ErpSpecCalc.syncEstimate(targetId, structured_data); }
-            catch (e) { console.warn('[erp-spec-calc] estimate sync 실패', e); }
-        }
-
         if (doRedirect) {
             if (redirectUrlOverride) {
                 window.location.href = redirectUrlOverride;
