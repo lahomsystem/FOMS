@@ -20,7 +20,7 @@ from foms.services.erp_display import _normalize_date_to_yyyymmdd
 from foms.services.erp_sync_columns import sync_erp_flat_columns
 from foms.services.orders.as_log import append_system_log
 from foms.services.orders.construction_type import normalize_regional_construction_type
-from models import Order, OrderEvent
+from models import Order
 
 ORDER_UPDATE_ALLOWED_FIELDS = [
     "manager_name",
@@ -453,15 +453,11 @@ def update_order_field_response(
                 ).get("date")
                 construction["date"] = value
                 structured_changed = True
-                # 근본수정: 빠른수정 경로도 구조화 PUT(erp_orders_structured.py)과 동일하게
-                # 시공일 변경 이벤트를 남긴다(생산 칸반 변경 감지 SSOT). payload 형태 동일.
+                # CONSTRUCTION_DATE_CHANGED OrderEvent 는 여기서 남기지 않는다 — 시공일
+                # 이벤트 SSOT 는 foms/services/order_date_sync.py 의 전역 before_flush 훅
+                # (모든 쓰기 경로가 통과하는 유일 지점). 여기 남은 비교는 생산팀 벨 알림
+                # 트리거 전용이다.
                 if old_cons != value:
-                    db.add(OrderEvent(
-                        order_id=order.id,
-                        event_type="CONSTRUCTION_DATE_CHANGED",
-                        payload={"from": old_cons, "to": value},
-                        created_by_user_id=getattr(user, "id", None),
-                    ))
                     _prod_cons_change = (old_cons, value)
             elif field == "as_visit_date":
                 trimmed = str(value or "").strip()

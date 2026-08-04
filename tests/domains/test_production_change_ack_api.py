@@ -160,7 +160,11 @@ def test_field_update_scheduled_date_records_construction_event(client):
         .all()
     )
     assert len(events) == 1
-    assert events[0].payload == {"from": "2026-07-20", "to": "2026-07-28"}
+    # 이벤트 SSOT 통합(T1) 후 emit 지점은 order_date_sync before_flush 훅이고, payload 에
+    # 쓰기 경로 힌트 source 가 붙는다. from/to 는 정규화된 값 그대로.
+    assert events[0].payload["from"] == "2026-07-20"
+    assert events[0].payload["to"] == "2026-07-28"
+    assert events[0].payload["source"] == "orders.update_order_field"
 
 
 def test_field_update_scheduled_date_no_event_when_unchanged(client):
