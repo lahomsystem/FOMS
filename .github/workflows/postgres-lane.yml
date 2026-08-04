@@ -8,7 +8,10 @@ on:
   push:
     branches: [ "main", "deploy" ]
   pull_request:
-    branches: [ "main", "deploy" ]
+    # production 포함: 승격 PR 이 바로 predeploy(`alembic upgrade head`)가 도는 지점이다.
+    # MIGCHAIN-01(test_migration_chain.py)이 여기서 돌아야 "마이그레이션이 실제로 실행되는지"
+    # 를 승격 전에 확인할 수 있다(perf-gate 와 동일한 블로킹 지점).
+    branches: [ "main", "deploy", "production" ]
 
 permissions:
   contents: read
@@ -19,7 +22,12 @@ jobs:
 
     services:
       postgres:
-        image: postgres:16
+        # 스테이징·운영이 PG 17.10 이므로 메이저를 맞춘다(2026-08-01). 이전 postgres:16 은
+        # 한 세대 낮아 17 전용 회귀를 CI 가 못 잡는 사각이었다. PG17 "Migration to Version 17"
+        # 비호환 17개 항목을 이 저장소가 쓰는 기능(CREATE INDEX CONCURRENTLY · gin_trgm_ops ·
+        # partial unique index · DISTINCT ON · FOR UPDATE SKIP LOCKED)과 전수 대조해 해당 0건
+        # 확인. 마이너는 floating 이라 운영 패치 레벨과 정확히 같지는 않다(메이저만 고정).
+        image: postgres:17
         env:
           POSTGRES_USER: postgres
           POSTGRES_PASSWORD: postgres

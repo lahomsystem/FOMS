@@ -236,7 +236,7 @@ def test_user_delete_refused_when_feature_cutover_marker_exists(pg_session) -> N
     )
     pg_session.flush()
 
-    with pytest.raises(UserDeletionBlockedError, match="cutover"):
+    with pytest.raises(UserDeletionBlockedError, match="되돌릴 수 없는 시스템 설정"):
         detach_user_references_for_delete(pg_session, user.id)
 
     assert pg_session.query(FeatureCutoverMarker).count() == 1

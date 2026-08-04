@@ -8,6 +8,12 @@ Flask 2.3 + PostgreSQL + R2 + Railway (Web×2, Worker×1)
 브랜치: deploy (스테이징) → production (운영)
 
 ## 진행 중
+- [2026-08-01] **deploy 전체 승격 완료 → production `0aae8d9f`** (PR #35, 356커밋·마이그레이션 29개, alembic `wiz_pending_00`, 테이블 45→84, 데이터 무손상, 스모크 11경로 200). **롤백은 DB 먼저→코드 나중**(반대면 `Can't locate revision`으로 이후 전 배포 파산). 백업 `/c/tmp/foms-backups/*.dump`.
+- [2026-08-03] **후속 완료 (deploy `04f0fc59`)** — RQ 실패 잡 관측 신설 후 **운영 Redis 2,544건 정리 완료**(백업 `/c/tmp/foms-backups/prod-rq-failed-jobs-backup.json`, 전부 퇴역 잡 `push_order_to_channeltalk`). `/erp/history` 301 제거(dTTFB 240→19ms). CI PG 16→17. **마이그레이션 체인 왕복 검증 신설**(CI가 처음으로 alembic 실행). CI Redis 커버리지. 패키지 10줄 제거. construction 렌더 +22ms는 **코드 무죄 확정·환경 미증명**으로 종결.
+- ⚠️ **`queue.py` 소켓 타임아웃 누락 수정** — `rate_limit.py`·`dashboard_cache.py`엔 2초 상한이 있는데 이 경로만 없었다(2026-07-21 Redis 장애 대응이 절반만 적용). blackhole 시 `enqueue()`가 웹 워커를 130초 붙잡던 잠복 결함. 못 잡은 이유=`queue.py` 내부 테스트 0건(기존 테스트가 `enqueue_*`를 monkeypatch로 치움).
+- [2026-08-03] **타입 드리프트 3건 해소 (`typedrift_00`, deploy `b2dc9b83`)** — `shipment_reference_00`·`channel_inbound_00`이 ORM의 UUID/JSONB를 `sa.String(36)`/`sa.JSON()`으로 만든 작성 실수(형제 `order_mutation_receipts`는 rev_00에서 정확히 uuid/jsonb). 운영 실측 0행이라 ALTER 비용 없음. 두 알려진-드리프트 목록 모두 빈 집합 — 새로 생기면 즉시 red. **운영 적용은 다음 승격 predeploy 시점.**
+- [2026-08-01] **하네스 함정** — `ci_watch.py`는 워크플로 1개만 본다(7개 존재). 판정은 `gh run list --branch <b>`로 전수 나열. SQLite 레인은 FK 미강제 → FK 수정은 PG 레인 필수. PG 레인은 `create_all` 기반이라 마이그레이션 체인 미검증. CI에 Redis 없음.
+- 위 3건 상세·후속 목록·결재 기록: `docs/plans/2026-07-31-full-promotion-prep-ledger.md`
 - [2026-07-28] **124-packet remediation production 승격 대기** — deploy 반영 완료(CI 4/4 green), 사용자 명시 승인 후 승격. 정본: docs/harness/foms_bugfix_progress_ledger.md
 - [2026-04-17] **ERP fast-page `EPT-B8`:** run record `docs/plans/2026-04-17-ept-b8-verification-railway-evidence-run-record.md` — 로컬 게이트 완료; staging HTTP 하네스로 **§4 표·§5** 부분 채움; **closeout** 은 deploy ID·§6 모드·hard stop 조건 충족 후.
 - [2026-04-15] **`SFC-B11B`** (§6.16 `apps/` overlay retirement): **working tree 기준 `apps/` 디렉터리 없음** — 구현·계약은 batch11b·B11A run record·`pytest` strict 계약으로 동결. 원격/HEAD와 불일치 시 동기화만 확인.

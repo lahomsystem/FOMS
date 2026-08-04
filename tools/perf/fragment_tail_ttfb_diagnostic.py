@@ -18,7 +18,7 @@ from tools.harness.ept_b8_staging_session_from_login import fetch_session_cookie
 KST = timezone(timedelta(hours=9))
 PATHS = [
     "/erp/construction/dashboard?view=fragment",
-    "/erp/history?view=fragment",
+    "/erp/history/?view=fragment",
 ]
 HEAD = {
     "X-FOMS-ERP-SHELL": "1",

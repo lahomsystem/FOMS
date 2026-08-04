@@ -94,8 +94,16 @@ FRAGMENT_HEADERS = {
 
 
 def fragment_path(primary_path: str) -> str:
-    """primary 경로 → shell fragment GET 경로(``?view=fragment``)."""
-    return f"{primary_path.rstrip('/')}?view=fragment"
+    """primary 경로 → shell fragment GET 경로(``?view=fragment``).
+
+    SSOT 의 trailing slash 를 **보존**한다. 예전 ``rstrip('/')`` 는 ``/erp/history/`` 를
+    ``/erp/history`` 로 깎았고, 그 blueprint 만 ``url_prefix='/erp/history' + route('/')``
+    구조라 Flask strict_slashes 가 301 을 냈다. :func:`measure_path` 는
+    ``allow_redirects`` 기본값으로 리다이렉트를 따라간 뒤 TTFB 를 찍으므로 그 여분 왕복이
+    측정에 통째로 섞였다(2026-08-01 실측: history dTTFB 261ms — payload 는 전 경로 중
+    최소인 9KB 인데 예산은 데이터 무거운 shipment 와 동급인 290ms 로 부풀어 있었다).
+    """
+    return f"{primary_path}?view=fragment"
 
 
 FRAGMENT_PATHS: tuple[str, ...] = tuple(fragment_path(p) for p in ERP_PRIMARY_NAV_PATHS)

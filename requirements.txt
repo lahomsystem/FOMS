@@ -64,8 +64,6 @@ Pillow==10.1.0
 pkginfo==1.12.1.2
 platformdirs==4.3.7
 pluggy==1.5.0
-poetry==2.1.2
-poetry-core==2.1.2
 proxy_tools==0.1.0
 
 psycopg2-binary==2.9.9
@@ -74,14 +72,7 @@ pycparser==2.22
 pydantic>=2.9.0,<3.0.0
 pydantic-settings>=2.3.0
 pydantic_core>=2.23.0
-pyinstaller==6.3.0
-pyinstaller-hooks-contrib==2025.3
 pyproject_hooks==1.2.0
-PyQt5==5.15.11
-PyQt5-Qt5==5.15.2
-PyQt5_sip==12.17.0
-PyQtWebEngine==5.15.7
-PyQtWebEngine-Qt5==5.15.2
 pytest==7.4.3
 pytest-playwright==0.5.2
 python-dateutil==2.9.0.post0
@@ -90,7 +81,6 @@ python-jose==3.3.0
 python-multipart==0.0.6
 pythonnet==3.0.5
 pytz==2025.2
-pywebview==5.4
 pywin32-ctypes==0.2.3
 RapidFuzz==3.13.0
 requests==2.32.3
