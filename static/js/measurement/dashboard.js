@@ -206,6 +206,24 @@
 
         applyMeasurementManagerSortAndColors();
 
+        // ── 2.5 저장 복귀 딥링크: ?focus_order=<주문id> 행으로 정렬 ──
+        // 편집 저장 후 실측 대시보드 복귀가 today 자동 스크롤로 작업 위치를 잃던
+        // 문제의 근본 수정(주문 대시보드 focus_order 와 동일 UX). today 스크롤·정렬
+        // 뒤에 실행해 우선하며, 행이 없으면(필터 밖) 아무것도 하지 않는다.
+        (function () {
+            var focusOrder = new URLSearchParams(window.location.search).get('focus_order');
+            if (!focusOrder || !/^\d+$/.test(focusOrder)) return;
+            var tr = document.querySelector('tr.measurement-row[data-order-id="' + focusOrder + '"]')
+                || document.querySelector('tr[data-order-id="' + focusOrder + '"]');
+            if (!tr) return;
+            setTimeout(function () {
+                if (!tr.isConnected) return;
+                tr.scrollIntoView({ block: 'center' });
+                tr.classList.add('table-info');
+                setTimeout(function () { tr.classList.remove('table-info'); }, 2500);
+            }, 300);
+        })();
+
         // ── 3. 주문 상세 chevron 토글 ──
 
         document.querySelectorAll('.measurement-chevron').forEach(function (chevron) {
