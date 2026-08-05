@@ -22,7 +22,11 @@ from foms.services.erp_policy import (
     STAGES_REQUIRING_TEAM,
 )
 from foms.services.erp_dashboard_search import erp_order_dashboard_search_predicate
-from foms.services.orders.dashboard_control_tower import build_risk_order_ids
+from foms.services.orders.dashboard_control_tower import (
+    _measure_on,
+    _sched_any,
+    build_risk_order_ids,
+)
 from foms.services.orders.dashboard_filters import OrdersDashboardFilters
 from foms.services.shipment_dashboard_helpers import AS_SHIPMENT_STATUSES
 
@@ -77,12 +81,14 @@ def build_orders_dashboard_queries(db, current_user, is_admin: bool, filters: Or
 
     today_date = get_today_kst()
     today_iso = today_date.isoformat()
+    # 날짜 착지 술어는 타워 카운트와 동일하게 order_schedule_dates SSOT(_measure_on/_sched_any)
+    # — 콤마 복수 실측/시공일 주문이 카드 카운트엔 잡히고 착지 리스트에선 빠지는 불일치 방지.
     if filters.today == '1':
         as_visit_ids = _as_visit_order_id_query(db, today_iso)
         _q = _q.filter(
             or_(
-                Order.erp_measurement_date == today_iso,
-                Order.erp_construction_date == today_iso,
+                _measure_on([today_iso]),
+                _sched_any('construction', [today_iso]),
                 Order.id.in_(as_visit_ids),
             )
         )
@@ -90,17 +96,17 @@ def build_orders_dashboard_queries(db, current_user, is_admin: bool, filters: Or
     # 특정 날짜 현장 큐 (주간 타일/현장 탭 '그날 전체'). field로 실측/시공/AS 한정.
     if filters.date:
         if filters.field == 'measure':
-            _q = _q.filter(Order.erp_measurement_date == filters.date)
+            _q = _q.filter(_measure_on([filters.date]))
         elif filters.field == 'construction':
-            _q = _q.filter(Order.erp_construction_date == filters.date)
+            _q = _q.filter(_sched_any('construction', [filters.date]))
         elif filters.field == 'as':
             _q = _q.filter(Order.id.in_(_as_visit_order_id_query(db, filters.date)))
         else:
             as_visit_ids = _as_visit_order_id_query(db, filters.date)
             _q = _q.filter(
                 or_(
-                    Order.erp_measurement_date == filters.date,
-                    Order.erp_construction_date == filters.date,
+                    _measure_on([filters.date]),
+                    _sched_any('construction', [filters.date]),
                     Order.id.in_(as_visit_ids),
                 )
             )
@@ -180,8 +186,8 @@ def build_orders_dashboard_queries(db, current_user, is_admin: bool, filters: Or
         as_visit_ids = _as_visit_order_id_query(db, today_iso)
         _q = _q.filter(
             or_(
-                Order.erp_measurement_date == today_iso,
-                Order.erp_construction_date == today_iso,
+                _measure_on([today_iso]),
+                _sched_any('construction', [today_iso]),
                 Order.received_date == today_iso,
                 Order.id.in_(as_visit_ids),
             )

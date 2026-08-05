@@ -301,6 +301,103 @@ def test_mobile_control_tower_exposes_today_as_count(app):
     assert tower["today_count"] == 1
 
 
+def test_tower_counts_multi_date_orders_on_each_date(app):
+    """콤마 복수 실측/시공일 주문은 주간 스트립·타입 카운트·일자 리스트 각 날짜에 모두 잡힌다.
+
+    운영 2026-08-06 사건 회귀 가드: erp_measurement_date 싱크 컬럼은 첫 날짜만 담아
+    2차 실측일이 모바일 홈에서 누락됐다(PC 25 vs 모바일 홈 23). 날짜 술어는
+    order_schedule_dates SSOT를 써야 한다.
+    """
+    import datetime
+
+    from db import db_session
+    from models import Order
+
+    today = datetime.date(2026, 6, 30)
+    meas2 = "2026-07-02"
+    cons1, cons2 = "2026-07-03", "2026-07-05"
+    order = Order(
+        received_date=today.isoformat(),
+        customer_name="복수일정 고객",
+        phone="010-1212-3434",
+        address="서울",
+        product="붙박이장",
+        status="MEASURE",
+        erp_stage_code="MEASURE",
+        is_erp_order=True,
+        structured_data={
+            "parties": {"customer": {"name": "복수일정 고객"}},
+            "schedule": {
+                "measurement": {"date": f"{today.isoformat()}, {meas2}"},
+                "construction": {"date": f"{cons1}, {cons2}"},
+            },
+        },
+    )
+    db_session.add(order)
+    db_session.commit()
+    # date-sync 리스너가 콤마 날짜를 order_schedule_dates 행으로 펼쳤는지 전제 확인.
+    assert {(d.kind, d.date) for d in order.schedule_dates} >= {
+        ("measurement", today.isoformat()),
+        ("measurement", meas2),
+        ("construction", cons1),
+        ("construction", cons2),
+    }
+
+    base = ct._tower_base_query(db_session, None)
+    week = ct._week_strip(base, today)
+    by_iso = {d["iso"]: d for d in week["days"]}
+    assert by_iso[today.isoformat()]["measure"] == 1
+    assert by_iso[meas2]["measure"] == 1  # 2차 실측일도 카운트 (구현 전 0)
+    assert by_iso[cons1]["construction"] == 1
+    assert by_iso[cons2]["construction"] == 1  # 2차 시공일도 카운트
+
+    measure, construction, as_count = ct._type_counts_for_date(base, meas2)
+    assert (measure, construction, as_count) == (1, 0, 0)
+
+    payload = ct.build_field_ops_for_day(db_session, None, meas2, field_type="all", today=today)
+    assert payload["measure_count"] == 1
+    assert [r["id"] for r in payload["rows"]] == [order.id]
+    assert payload["rows"][0]["type_code"] == "measure"
+
+    payload2 = ct.build_field_ops_for_day(db_session, None, cons2, field_type="all", today=today)
+    assert payload2["construction_count"] == 1
+    assert payload2["rows"][0]["type_code"] == "construction"
+
+
+def test_tower_measure_counts_exclude_self_measurement_done(app):
+    """자가실측 4체크 완료 주문은 실측 집계에서 제외(실측 대시보드 패널과 동일 제외)."""
+    import datetime
+
+    from db import db_session
+    from models import Order
+
+    today = datetime.date(2026, 6, 30)
+    order = Order(
+        received_date=today.isoformat(),
+        customer_name="자가실측 완료 고객",
+        phone="010-5656-7878",
+        address="전북",
+        product="붙박이장",
+        status="MEASURE",
+        erp_stage_code="MEASURE",
+        is_erp_order=True,
+        is_self_measurement=True,
+        measurement_completed=True,
+        regional_sales_order_upload=True,
+        regional_blueprint_sent=True,
+        regional_order_upload=True,
+        structured_data={"schedule": {"measurement": {"date": today.isoformat()}}},
+    )
+    db_session.add(order)
+    db_session.commit()
+
+    base = ct._tower_base_query(db_session, None)
+    measure, _construction, _as_count = ct._type_counts_for_date(base, today.isoformat())
+    assert measure == 0
+    week = ct._week_strip(base, today)
+    assert week["days"][0]["measure"] == 0
+
+
 def test_orders_dashboard_date_field_as_filters_as_visit_queue(app):
     """타워 AS 탭의 큐 링크는 as_visit 일정 주문으로 착지한다."""
     from db import db_session
@@ -388,3 +485,52 @@ def test_orders_dashboard_date_field_as_filters_as_visit_queue(app):
     )
 
     assert [o.id for o in query.all()] == [as_order.id]
+
+
+def test_orders_dashboard_date_field_measure_lands_second_measurement_date(app):
+    """?date=&field=measure 착지 큐도 콤마 2차 실측일 주문을 포함한다(타워 카운트=리스트 정합)."""
+    from db import db_session
+    from foms.services.orders.dashboard_filters import OrdersDashboardFilters
+    from foms.services.orders.dashboard_read_model import build_orders_dashboard_queries
+    from models import Order
+
+    first, second = "2026-06-30", "2026-07-02"
+    order = Order(
+        received_date=first,
+        customer_name="착지 복수실측 고객",
+        phone="010-8686-9797",
+        address="서울",
+        product="붙박이장",
+        status="MEASURE",
+        erp_stage_code="MEASURE",
+        is_erp_order=True,
+        structured_data={"schedule": {"measurement": {"date": f"{first}, {second}"}}},
+    )
+    db_session.add(order)
+    db_session.commit()
+
+    filters = OrdersDashboardFilters(
+        stage="",
+        urgent="",
+        has_alert="",
+        alert_type="",
+        q="",
+        effective_stage="",
+        team="",
+        sort="latest",
+        today="",
+        tower_mine=False,
+        mine=False,
+        date=second,
+        field="measure",
+        risk="",
+        focus_order_id=None,
+    )
+    query, _stats, _today_date, _today_iso = build_orders_dashboard_queries(
+        db_session,
+        None,
+        True,
+        filters,
+    )
+
+    assert [o.id for o in query.all()] == [order.id]
