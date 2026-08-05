@@ -214,6 +214,15 @@
                                 if (est.estimate_data.totalPrice) {
                                     totalPrice = est.estimate_data.totalPrice;
                                 }
+                                // 표시 금액 = 할인·배송 반영 최종가 (ERP 주문 계산기 탭과 동일 규칙).
+                                // 구버전 저장분은 coupon_discount 부재 → 0 → 기존 표시 불변.
+                                var couponDiscount = est.estimate_data.coupon_discount || 0;
+                                var shippingCost = est.estimate_data.shipping_cost || 0;
+                                var shippingIncluded = est.estimate_data.shipping_included || false;
+                                totalPrice = Math.max(0, totalPrice - couponDiscount);
+                                if (shippingIncluded) {
+                                    totalPrice += shippingCost;
+                                }
                                 if (
                                     est.estimate_data.estimates &&
                                     Array.isArray(est.estimate_data.estimates)
