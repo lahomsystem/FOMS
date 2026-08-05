@@ -45,7 +45,7 @@
     "foms/services/jobs/tasks.py:190",
     "foms/services/jobs/tasks.py:221",
     "foms/services/jobs/tasks.py:227",
-    "foms/services/notifications/push_sender.py:351",
+    "foms/services/notifications/push_sender.py:361",
     "foms/services/orders/order_import.py:167",
     "foms/services/orders/order_import.py:388",
     "foms/web/orders/trash.py:140",
@@ -1639,7 +1639,7 @@
     },
     {
       "path": "foms/api/notifications/__init__.py",
-      "lineno": 335,
+      "lineno": 347,
       "handler_type": "broad_exception",
       "disposition": "LOG_AND_CONTINUE",
       "owner": "telemetry",
@@ -1648,7 +1648,7 @@
     },
     {
       "path": "foms/api/notifications/__init__.py",
-      "lineno": 368,
+      "lineno": 380,
       "handler_type": "broad_exception",
       "disposition": "LOG_AND_CONTINUE",
       "owner": "telemetry",
@@ -1657,7 +1657,7 @@
     },
     {
       "path": "foms/api/notifications/__init__.py",
-      "lineno": 407,
+      "lineno": 419,
       "handler_type": "broad_exception",
       "disposition": "LOG_AND_CONTINUE",
       "owner": "telemetry",
@@ -1666,7 +1666,7 @@
     },
     {
       "path": "foms/api/notifications/__init__.py",
-      "lineno": 450,
+      "lineno": 462,
       "handler_type": "broad_exception",
       "disposition": "LOG_AND_CONTINUE",
       "owner": "telemetry",
@@ -1675,7 +1675,7 @@
     },
     {
       "path": "foms/api/notifications/__init__.py",
-      "lineno": 480,
+      "lineno": 492,
       "handler_type": "broad_exception",
       "disposition": "LOG_AND_CONTINUE",
       "owner": "telemetry",
@@ -1684,7 +1684,7 @@
     },
     {
       "path": "foms/api/notifications/__init__.py",
-      "lineno": 522,
+      "lineno": 534,
       "handler_type": "broad_exception",
       "disposition": "LOG_AND_CONTINUE",
       "owner": "telemetry",
@@ -1693,7 +1693,7 @@
     },
     {
       "path": "foms/api/notifications/__init__.py",
-      "lineno": 553,
+      "lineno": 565,
       "handler_type": "broad_exception",
       "disposition": "LOG_AND_CONTINUE",
       "owner": "telemetry",
@@ -1702,7 +1702,7 @@
     },
     {
       "path": "foms/api/notifications/__init__.py",
-      "lineno": 577,
+      "lineno": 589,
       "handler_type": "broad_exception",
       "disposition": "LOG_AND_CONTINUE",
       "owner": "telemetry",
@@ -1711,7 +1711,7 @@
     },
     {
       "path": "foms/api/notifications/__init__.py",
-      "lineno": 581,
+      "lineno": 593,
       "handler_type": "broad_exception",
       "disposition": "LOG_AND_CONTINUE",
       "owner": "telemetry",
@@ -1720,7 +1720,7 @@
     },
     {
       "path": "foms/api/notifications/__init__.py",
-      "lineno": 609,
+      "lineno": 621,
       "handler_type": "broad_exception",
       "disposition": "LOG_AND_CONTINUE",
       "owner": "telemetry",
@@ -1729,7 +1729,7 @@
     },
     {
       "path": "foms/api/notifications/__init__.py",
-      "lineno": 657,
+      "lineno": 669,
       "handler_type": "broad_exception",
       "disposition": "LOG_AND_CONTINUE",
       "owner": "telemetry",
@@ -1738,7 +1738,7 @@
     },
     {
       "path": "foms/api/notifications/__init__.py",
-      "lineno": 764,
+      "lineno": 776,
       "handler_type": "broad_exception",
       "disposition": "LOG_AND_CONTINUE",
       "owner": "telemetry",
@@ -1747,7 +1747,7 @@
     },
     {
       "path": "foms/api/notifications/__init__.py",
-      "lineno": 769,
+      "lineno": 781,
       "handler_type": "broad_exception",
       "disposition": "LOG_AND_CONTINUE",
       "owner": "telemetry",
@@ -1756,7 +1756,7 @@
     },
     {
       "path": "foms/api/notifications/__init__.py",
-      "lineno": 932,
+      "lineno": 944,
       "handler_type": "broad_exception",
       "disposition": "LOG_AND_CONTINUE",
       "owner": "telemetry",
@@ -1765,7 +1765,7 @@
     },
     {
       "path": "foms/api/notifications/__init__.py",
-      "lineno": 937,
+      "lineno": 949,
       "handler_type": "broad_exception",
       "disposition": "LOG_AND_CONTINUE",
       "owner": "telemetry",
@@ -3448,7 +3448,7 @@
     },
     {
       "path": "foms/services/notifications/push_sender.py",
-      "lineno": 277,
+      "lineno": 287,
       "handler_type": "broad_exception",
       "disposition": "LOG_AND_CONTINUE",
       "owner": "telemetry",
@@ -3457,7 +3457,7 @@
     },
     {
       "path": "foms/services/notifications/push_sender.py",
-      "lineno": 351,
+      "lineno": 361,
       "handler_type": "broad_exception",
       "disposition": "FAIL_CLOSED",
       "owner": "telemetry",
@@ -3466,7 +3466,7 @@
     },
     {
       "path": "foms/services/notifications/push_sender.py",
-      "lineno": 418,
+      "lineno": 428,
       "handler_type": "broad_exception",
       "disposition": "LOG_AND_CONTINUE",
       "owner": "telemetry",
@@ -3475,7 +3475,7 @@
     },
     {
       "path": "foms/services/notifications/push_sender.py",
-      "lineno": 472,
+      "lineno": 482,
       "handler_type": "broad_exception",
       "disposition": "LOG_AND_CONTINUE",
       "owner": "telemetry",
@@ -3511,7 +3511,7 @@
     },
     {
       "path": "foms/services/order_date_sync.py",
-      "lineno": 524,
+      "lineno": 553,
       "handler_type": "broad_exception",
       "disposition": "LOG_AND_CONTINUE",
       "owner": "services",
@@ -3574,7 +3574,7 @@
     },
     {
       "path": "foms/services/orders/dashboard_read_model.py",
-      "lineno": 377,
+      "lineno": 383,
       "handler_type": "broad_exception",
       "disposition": "LOG_AND_CONTINUE",
       "owner": "services",
