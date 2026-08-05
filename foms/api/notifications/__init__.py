@@ -142,6 +142,18 @@ def _resolve_notification_deep_link(notification, order_structured_data):
     n_type = str(getattr(notification, "notification_type", "") or "").upper()
     oid = getattr(notification, "order_id", None)
 
+    if n_type == "SHIPMENT_ORDER_CHANGED" and oid:
+        # Notification 모델에는 링크/날짜 컬럼이 없다 — 링크는 이미 로드한 주문
+        # structured_data 에서 읽는 시점에 파생한다(추가 쿼리 0).
+        from foms.services.notifications.shipment_change import shipment_change_deep_link
+
+        return {
+            "deep_tab": None,
+            "deep_event_id": None,
+            "deep_target_no": None,
+            "deep_link_url": shipment_change_deep_link(order_structured_data),
+        }
+
     if n_type not in ("DRAWING_TRANSFERRED", "DRAWING_REVISION", "ERP_ORDER_CHANGED") or not oid:
         return {
             "deep_tab": None,

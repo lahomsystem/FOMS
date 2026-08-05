@@ -11,7 +11,7 @@
 | T3 ack API | DONE | `POST /api/orders/<id>/shipment/change-ack`, 매니페스트 2종 등재, 9 passed |
 | T4 PC 대시보드 표시 | PENDING | |
 | T5 태블릿 표시(그리드·시트) | PENDING | |
-| T6 벨 알림 + 푸시 타입 등록 | PENDING | |
+| T6 벨 알림 + 푸시 타입 등록 | DONE(미커밋) | `shipment_change.py` 신규, `_DEFAULT_P1_TYPES` 등재, 신규 11 passed / 인접 4파일 59 passed / domains 전수 3866 passed / contracts 65 / performance 78 / APP_OK |
 | T7 성능 측정(TTFB·EXPLAIN) | PENDING | |
 | T8 최종 검증·커밋·푸시 | PENDING | |
 
@@ -64,8 +64,28 @@
 - 확인 버튼: **그 표시만 사라짐**(리로드 없음)
 - 노출 기간: **확인할 때까지 계속**(시간 상한 없음 — 생산의 14일 컷오프 미적용)
 
+### T6 (2026-08-05)
+
+- **`target_team` 확정 = `CONSTRUCTION`**(시공팀). 운영 DB 활성 사용자 실측(2026-08-05):
+  CONSTRUCTION 10 · SALES 8 · CS 6 · DRAWING 3 · ADMIN(팀 공란) 2 — **`SHIPMENT`(출고팀)은
+  enum 에만 있고 실사용자 0명**이다. `SHIPMENT` 를 고르면 `fan_out` 이 0건이 되어
+  `PRODUCTION_ORDER_CHANGED`(PRODUCTION 팀 0명, 운영 알림 1건이 아무에게도 안 감)와 같은
+  무음 알림이 된다. 출고 대시보드도 이미 `team == 'CONSTRUCTION'` 전용 모드를 가진다
+  (`shipment_dashboard_filters.py:58`).
+- **배선 = 전역 세션 이벤트**(`register_shipment_change_alert_listener`, `order_date_sync`
+  등록부에서 함께 호출). `before_commit` = apply(같은 트랜잭션 + fan_out),
+  `after_commit` = finalize(push·배지·realtime). 쓰기 경로별 명시 호출은 T1 이 없앤 구멍 6종을
+  알림 쪽에 되살리므로 채택하지 않았다.
+- **함정**: `before_commit` 은 커밋 flush 보다 **먼저** 돈다 → T1 의 pending 상태가 아직 비어
+  있다. apply 진입부에서 `session.flush()` 를 한 번 해 주지 않으면 알림이 통째로 무음이었다.
+- merge 시 최초 `from` 은 본문 정규식으로 되읽는다(Notification 모델에 구조화 필드가 없다).
+- 딥링크: 모델에 링크/날짜 컬럼이 **없어** 신설하지 않고, 벨 목록 API가 이미 로드한 주문
+  `structured_data` 에서 파생한다(`/erp/shipment?date=`). push payload 는 generic 규약이라
+  날짜 없이 `/erp/shipment`.
+- 미검증: `tests/postgres` 전수(T8), 스테이징 실브라우저 벨·푸시 수신.
+
 ## 미해결 / 대기
 
 - 스펙 **승인 완료**(2026-07-30). 감지 통합안 = **A**(단일 이벤트 SSOT, 생산 칸반 노출도 함께 증가).
-- 다음: T4(PC 표시) → T5(태블릿) → T6(벨·푸시) → T7(성능 측정) → T8(마감).
-- `target_team` 실제 코드값은 T6 착수 시 확인(현재 이 팀 대상 알림이 0건이라 미검증).
+- 다음: T7(성능 측정) → T8(마감). T6 은 커밋 전 상태다.
+- `target_team` = `CONSTRUCTION` 확정(위 T6 절 근거).
