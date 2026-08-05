@@ -1043,9 +1043,21 @@
 
             <div class="header-controls">
                 <div class="filters-row">
-                    <div class="filter-group">
+                    <div class="filter-group" id="date-filter-group">
                         <label class="filter-label">날짜:</label>
                         <input type="date" id="date-filter" class="form-select-sm">
+                    </div>
+
+                    {# AS 미완료 지도 전용 — 버킷 필터(AS 탭 요약 pill과 동일 백엔드 bucket) #}
+                    <div class="filter-group" id="as-bucket-filter-group" style="display: none;">
+                        <label class="filter-label">분류:</label>
+                        <select id="as-bucket-filter" class="form-select-sm">
+                            <option value="">전체</option>
+                            <option value="visit_confirmed">방문 확정</option>
+                            <option value="pending">미결</option>
+                            <option value="unassigned">아직 미정</option>
+                            <option value="paid_unconfirmed">유상 미확정</option>
+                        </select>
                     </div>
 
                     <div class="filter-group" id="status-filter-group">
@@ -1115,6 +1127,12 @@
                 <span id="geocode-poll-text">주소 변환 중... 잠시 후 자동 갱신됩니다.</span>
                 <button type="button" class="btn-close btn-sm" data-bs-dismiss="alert" aria-label="닫기"
                     onclick="clearGeocodePoll()"></button>
+            </div>
+
+            <div id="map-truncate-banner" class="alert alert-warning small py-2 mb-2" role="alert"
+                style="display: none; margin: 8px 12px 0;">
+                <i class="fas fa-exclamation-triangle me-1"></i>
+                표시 상한을 초과해 일부 주문이 지도에서 잘렸습니다. 분류/검색으로 좁혀서 확인하세요.
             </div>
 
             <div id="map-content" style="display: none;" data-kakao-js-key="{{ kakao_js_key }}">
@@ -1212,7 +1230,7 @@
     <script src="https://cdn.jsdelivr.net/npm/bootstrap@5.1.3/dist/js/bootstrap.bundle.min.js" defer></script>
     <script src="{{ url_for('static', filename='js/runtime/common_utils.js') }}?v=20260327" defer></script>
     <!-- 카카오 지도 클라이언트 렌더 모듈 (defer: DOMContentLoaded 전에 정의 완료) -->
-    <script src="{{ url_for('static', filename='js/measurement/map-view-kakao.js') }}?v=20260721a" defer></script>
+    <script src="{{ url_for('static', filename='js/measurement/map-view-kakao.js') }}?v=20260805a" defer></script>
     <!-- 모바일 바텀시트/상세 풀시트 컨트롤러. defer 라 아래 인라인 스크립트(파싱 중 실행)가
          전역(loadOrderDetail 등)을 정의한 뒤에 실행된다 — 감싸기 전제. -->
     <script src="{{ url_for('static', filename='js/measurement/map-mobile-sheet.js') }}?v=20260720a" defer></script>
@@ -1236,7 +1254,7 @@
 
         function configureStatusFilter() {
             const statusSelect = document.getElementById('status-filter');
-            if (dashboardParam === 'measurement') {
+            if (dashboardParam === 'measurement' || dashboardParam === 'as') {
                 statusSelect.innerHTML = '<option value="ALL">전체</option>';
                 statusSelect.value = 'ALL';
                 statusSelect.disabled = true;
@@ -1264,13 +1282,36 @@
         // 동선(route) 오버레이 opt-in + 내 주문(mine) 필터 파라미터 전파 (기본 지도 동작 무변경)
         const initialRoute = urlParams.get('route') || '';
         const initialMine = urlParams.get('mine') || '';
+        // AS 미완료 지도(dashboard=as): 날짜 무관 전체 표시 + 버킷 필터
+        const isAsMap = dashboardParam === 'as';
+        const initialBucket = isAsMap ? (urlParams.get('bucket') || '') : '';
+        // as 모드 팝업 [주문 상세 보기] → AS 대시보드 focus_order (새 탭, 지도 유지)
+        const asDetailHandler = isAsMap ? function (orderId) {
+            window.open('/erp/as?focus_order=' + encodeURIComponent(orderId), '_blank');
+        } : null;
+
+        // as 모드: limit 잘림(묵시 잘림 금지) 고지
+        function updateTruncateNotice(summary) {
+            const banner = document.getElementById('map-truncate-banner');
+            if (!banner) return;
+            const truncated = !!(summary && summary.limit_truncated);
+            banner.style.display = truncated ? 'block' : 'none';
+        }
 
         // 초기값 설정
         document.getElementById('date-filter').value = initialDate;
         document.getElementById('status-filter').value = initialStatus;
         const statusFilterGroup = document.getElementById('status-filter-group');
         if (statusFilterGroup) {
-            statusFilterGroup.style.display = (dashboardParam === 'measurement') ? 'none' : '';
+            statusFilterGroup.style.display = (dashboardParam === 'measurement' || isAsMap) ? 'none' : '';
+        }
+        // as 모드: 날짜 필터 숨김(미완료 전체가 대상) + 버킷 필터 표시
+        const dateFilterGroup = document.getElementById('date-filter-group');
+        if (dateFilterGroup && isAsMap) dateFilterGroup.style.display = 'none';
+        const asBucketGroup = document.getElementById('as-bucket-filter-group');
+        if (asBucketGroup && isAsMap) {
+            asBucketGroup.style.display = '';
+            document.getElementById('as-bucket-filter').value = initialBucket;
         }
         document.getElementById('manager-filter').value = initialManager;
         document.getElementById('map-search-input').value = initialSearch;
@@ -1336,6 +1377,25 @@
         // 필터 변경 시 자동 업데이트
         document.getElementById('date-filter').addEventListener('change', loadMap);
         document.getElementById('status-filter').addEventListener('change', loadMap);
+        document.getElementById('as-bucket-filter').addEventListener('change', loadMap);
+
+        // as 모드 현재 버킷 값 ('' = 전체)
+        function currentAsBucket() {
+            if (!isAsMap) return '';
+            return document.getElementById('as-bucket-filter').value || '';
+        }
+
+        // /api/map_data·generate_map 공통 파라미터 — as 모드는 날짜 제외 + 버킷 포함
+        function applyMapCommonParams(params, dateFilter, statusFilter) {
+            if (isAsMap) {
+                params.set('status', 'ALL');
+                const bucket = currentAsBucket();
+                if (bucket) params.set('bucket', bucket);
+            } else {
+                params.set('date', dateFilter);
+                params.set('status', statusFilter);
+            }
+        }
 
         function showLoading() {
             document.getElementById('loading-overlay').style.display = 'flex';
@@ -1431,7 +1491,8 @@
 
             // ── auto-poll: 지도 iframe 재로드 없이 목록만 조회 ──────────────────
             if (isAutoPoll) {
-                const pollParams = new URLSearchParams({ date: dateFilter, status: statusFilter });
+                const pollParams = new URLSearchParams();
+                applyMapCommonParams(pollParams, dateFilter, statusFilter);
                 if (managerFilter) pollParams.set('manager', managerFilter);
                 if (searchQuery) pollParams.set('q', searchQuery);
                 if (dashboardParam) pollParams.set('dashboard', dashboardParam);
@@ -1479,7 +1540,8 @@
                             const pollMarkers = Array.isArray(data.data) ? data.data : [];
                             window.FomsMapViewKakao.updateMarkers(
                                 document.getElementById('map-content'), pollMarkers, {
-                                    routeMode: !!initialRoute
+                                    routeMode: !!initialRoute,
+                                    onOpenDetail: asDetailHandler
                                 });
                         }
                         const stillPending = currentOrders.some(function (o) { return o.conversion_status === 'pending'; });
@@ -1536,7 +1598,8 @@
         // 카카오 클라 렌더: /api/map_data(enqueue=1 — generate_map과 동일 지오코딩 트리거)
         // → 마커·팝업·동선 JS 렌더. SDK 로드 실패 시 folium 경로 자동 폴백.
         function loadMapKakao(mapContentEl, dateFilter, statusFilter, managerFilter, searchQuery) {
-            const params = new URLSearchParams({ date: dateFilter, status: statusFilter, enqueue: '1' });
+            const params = new URLSearchParams({ enqueue: '1' });
+            applyMapCommonParams(params, dateFilter, statusFilter);
             if (managerFilter) params.set('manager', managerFilter);
             if (searchQuery) params.set('q', searchQuery);
             if (dashboardParam) params.set('dashboard', dashboardParam);
@@ -1556,8 +1619,10 @@
                     const orders = data.orders || [];
                     // 지도 컨테이너를 먼저 표시(display:none 상태 init = 0-사이즈 타일 공백 방지)
                     hideLoading();
+                    if (isAsMap) updateTruncateNotice(data.summary);
                     window.FomsMapViewKakao.render(mapContentEl, markers, {
-                        routeMode: !!initialRoute
+                        routeMode: !!initialRoute,
+                        onOpenDetail: asDetailHandler
                     }).then(function (ok) {
                         if (!ok) {
                             console.warn('카카오 지도 SDK 사용 불가 — folium 지도로 폴백합니다.');
@@ -1580,11 +1645,10 @@
         // folium 폴백: 기존 서버 생성 HTML 경로(동작 보존).
         function loadMapFolium(dateFilter, statusFilter, managerFilter, searchQuery) {
             const params = new URLSearchParams({
-                date: dateFilter,
-                status: statusFilter,
                 manager: managerFilter,
-                title: dateFilter + ' 주문 지도'
+                title: isAsMap ? 'AS 미완료 지도' : (dateFilter + ' 주문 지도')
             });
+            applyMapCommonParams(params, dateFilter, statusFilter);
             if (searchQuery) params.set('q', searchQuery);
             if (dashboardParam) params.set('dashboard', dashboardParam);
             if (initialRoute) params.set('route', initialRoute);
@@ -1599,6 +1663,7 @@
                         setTimeout(cleanupMapOverlays, 200);
                         setTimeout(cleanupMapOverlays, 800);
 
+                        if (isAsMap) updateTruncateNotice({ limit_truncated: data.limit_truncated });
                         applyOrdersAndPoll(data.orders || []);
                     } else {
                         clearGeocodePoll();
@@ -1631,6 +1696,7 @@
                 'SHIPPED_PENDING': '출고 예정',
                 'COMPLETED': '완료',
                 'AS_RECEIVED': 'AS 접수',
+                'AS': 'AS 처리중',
                 'AS_COMPLETED': 'AS 완료'
             };
 
@@ -1638,8 +1704,23 @@
             const headerTitle = document.querySelector('.header-title');
             const managerText = manager ? ` / 담당자: ${manager}` : '';
             const searchText = (searchQuery && searchQuery.length > 0) ? ` / 검색: "${escapeHtml(searchQuery)}"` : '';
+            if (isAsMap) {
+                const bucketLabels = {
+                    'visit_confirmed': '방문 확정',
+                    'pending': '미결',
+                    'unassigned': '아직 미정',
+                    'paid_unconfirmed': '유상 미확정'
+                };
+                const bucket = currentAsBucket();
+                const bucketText = bucket ? ` - ${bucketLabels[bucket] || bucket}` : '';
+                headerTitle.innerHTML = `
+                    <i class="fas fa-map-marked-alt"></i>
+                    AS 미완료 주문 지도${bucketText}${managerText}${searchText}
+                `;
+                return;
+            }
             headerTitle.innerHTML = `
-                <i class="fas fa-map-marked-alt"></i> 
+                <i class="fas fa-map-marked-alt"></i>
                 ${date} - ${statusName} 주문 지도${managerText}${searchText}
             `;
         }
@@ -1895,7 +1976,11 @@
                 // window.close()가 실패한 경우 (같은 탭에서 열린 경우)
             }
 
-            // 같은 탭에서 열린 경우 이전 페이지로 이동 또는 실측 대시보드로 이동
+            // 같은 탭에서 열린 경우 이전 페이지로 이동 또는 원 대시보드로 이동
+            if (isAsMap) {
+                window.location.href = '/erp/as?tab=incomplete';
+                return;
+            }
             const urlParams = new URLSearchParams(window.location.search);
             const date = urlParams.get('date');
 
@@ -1927,6 +2012,7 @@
                 'SHIPPED_PENDING': '출고 예정',
                 'COMPLETED': '완료',
                 'AS_RECEIVED': 'AS 접수',
+                'AS': 'AS 처리중',
                 'AS_COMPLETED': 'AS 완료'
             };
             return statusMap[status] || status;

@@ -68,6 +68,16 @@ def test_unique_marker_keeps_status_color():
     assert "x2" not in html
 
 
+def test_as_status_marker_colors_registered():
+    """AS 3종 상태는 회색 fallback이 아닌 전용 색 — JS STATUS_COLORS와 동기 계약."""
+    from foms.services.common.map_generator import FOMSMapGenerator
+
+    generator = FOMSMapGenerator()
+    assert generator._get_status_color('AS_RECEIVED') == '#dc3545'
+    assert generator._get_status_color('AS') == '#fd7e14'
+    assert generator._get_status_color('AS_COMPLETED') == '#6c757d'
+
+
 def test_measurement_marker_prefers_manager_color_theme():
     html = _render_map_html(
         [

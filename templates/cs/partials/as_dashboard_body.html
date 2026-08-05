@@ -147,13 +147,12 @@
             <i class="fas fa-search"></i>
             <span>조회</span>
           </button>
-          {% if selected_date %}
+          {# AS 지도는 날짜 무관(미완료 전체) — 항상 노출, 현재 버킷 전달 #}
           <a class="erp-pro-btn erp-pro-btn--secondary"
-            href="{{ url_for('erp_as_page.erp_as_dashboard', date=selected_date, tab=as_tab, status=status_filter or '', billing=billing_filter or '', q=search_q or '', sort_dir=sort_dir, mine='1' if erp_mine_only else '', open_map='1') }}">
+            href="{{ url_for('erp_as_page.erp_as_dashboard', tab=as_tab, bucket=as_bucket or none, status=status_filter or '', billing=billing_filter or '', q=search_q or '', sort_dir=sort_dir, mine='1' if erp_mine_only else '', open_map='1') }}">
             <i class="fas fa-map"></i>
             <span class="d-none d-sm-inline">지도</span>
           </a>
-          {% endif %}
           {# 컬럼 폭 초기화 — 드래그로 열을 뭉갠 뒤 되돌릴 길이 없으면 지원 요청이 된다.
              출고 대시보드의 #btn-reset-column-widths 와 같은 역할(저장분 삭제 → CSS 기본폭 복귀). #}
           <button type="button" class="erp-pro-btn erp-pro-btn--ghost" id="as-btn-reset-column-widths"

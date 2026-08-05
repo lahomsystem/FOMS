@@ -94,16 +94,14 @@
 
   {# 내 작업 토글은 공용 모바일 셸 헤더로 통합. 여기는 지도·상태 필터 등 맥락 칩만,
      있을 때만 렌더해서 빈 줄이 공간을 먹지 않게 한다. #}
-  {% if selected_date or status_filter %}
   <nav class="erp-as-mobile-controls__quick-actions chip-strip foms-chip-strip" aria-label="AS 빠른 필터">
-    {% if selected_date %}
+    {# AS 지도는 날짜 무관(미완료 전체) — 항상 노출, 현재 버킷 전달 #}
       <a
         class="erp-as-mobile-controls__quick-link chip foms-chip"
-        href="{{ url_for('erp_as_page.erp_as_dashboard', date=selected_date, tab=as_tab, status=status_filter or '', billing=billing_filter or '', q=search_q or '', sort_dir=sort_dir, mine='1' if erp_mine_only else '', open_map='1') }}">
+        href="{{ url_for('erp_as_page.erp_as_dashboard', tab=as_tab, bucket=as_bucket or none, status=status_filter or '', billing=billing_filter or '', q=search_q or '', sort_dir=sort_dir, mine='1' if erp_mine_only else '', open_map='1') }}">
         <i class="fas fa-map-marked-alt"></i>
         <span>지도</span>
       </a>
-    {% endif %}
     {% if status_filter %}
       <span class="erp-as-mobile-controls__quick-pill chip foms-chip is-active">
         <i class="fas fa-filter"></i>
@@ -111,7 +109,6 @@
       </span>
     {% endif %}
   </nav>
-  {% endif %}
 
   <div
     class="offcanvas offcanvas-bottom erp-as-mobile-controls__drawer"

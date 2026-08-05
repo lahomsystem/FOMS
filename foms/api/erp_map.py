@@ -440,8 +440,19 @@ def api_map_data():
         enqueue = (request.args.get('enqueue') or '').strip() == '1'
         limit = _resolve_map_limit(
             request.args.get('limit'),
-            default_limit=500 if dashboard == 'measurement' else 200
+            default_limit=500 if dashboard in ('measurement', 'as') else 200
         )
+
+        # as 모드: AS 탭 미완료 SSOT 쿼리, 날짜 무관 전체 (2026-08-05)
+        if dashboard == 'as':
+            from foms.api.cs.as_map import as_map_data_response
+            return as_map_data_response(
+                search_query=search_query,
+                manager_filter=manager_filter,
+                bucket=(request.args.get('bucket') or '').strip(),
+                limit=limit,
+                enqueue=enqueue,
+            )
 
         # measurement 모드: map_snapshot 사용, 전체 주문 반환 (2026-03-15)
         if dashboard == 'measurement' and date_filter:
@@ -535,9 +546,20 @@ def api_generate_map():
         title = request.args.get('title', '주문 위치 지도')
         limit = _resolve_map_limit(
             request.args.get('limit'),
-            default_limit=500 if dashboard == 'measurement' else 200
+            default_limit=500 if dashboard in ('measurement', 'as') else 200
         )
         scan_limit = _MAP_SCAN_MAX_LIMIT if date_filter else min(_MAP_SCAN_MAX_LIMIT, max(limit, limit * 3))
+
+        # as 모드: folium 폴백도 동일 SSOT 쿼리 파리티 (2026-08-05)
+        if dashboard == 'as':
+            from foms.api.cs.as_map import AS_MAP_DEFAULT_TITLE, as_generate_map_response
+            return as_generate_map_response(
+                search_query=search_query,
+                manager_filter=manager_filter,
+                bucket=(request.args.get('bucket') or '').strip(),
+                limit=limit,
+                title=request.args.get('title') or AS_MAP_DEFAULT_TITLE,
+            )
 
         # measurement 모드: shared query builder 사용 (2026-03-15)
         if dashboard == 'measurement' and date_filter:
