@@ -2247,7 +2247,8 @@ function erpAppendFocusOrderParam(targetUrl, orderId) {
     try {
         const u = new URL(targetUrl, window.location.origin);
         if (u.origin !== window.location.origin) return targetUrl;
-        if (u.pathname !== '/erp/dashboard') return targetUrl;
+        // focus_order 소비자가 배선된 복귀처만 부여(주문·실측 대시보드).
+        if (u.pathname !== '/erp/dashboard' && u.pathname !== '/erp/measurement') return targetUrl;
         u.searchParams.set('focus_order', String(orderId));
         return u.pathname + u.search + u.hash;
     } catch (e) {
