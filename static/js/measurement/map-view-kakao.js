@@ -25,7 +25,8 @@
     DRAWING: '#6f42c1', CONFIRM: '#0d6efd', PRODUCTION: '#fd7e14',
     CONSTRUCTION: '#20c997', CS: '#dc3545', CONFIRMED: '#28a745',
     IN_PRODUCTION: '#ffc107', COMPLETED: '#6c757d', SHIPPED: '#17a2b8',
-    DELIVERED: '#20c997', CANCELLED: '#dc3545', ON_HOLD: '#fd7e14'
+    DELIVERED: '#20c997', CANCELLED: '#dc3545', ON_HOLD: '#fd7e14',
+    AS_RECEIVED: '#dc3545', AS: '#fd7e14', AS_COMPLETED: '#6c757d'
   };
   var STATUS_FALLBACK_COLOR = '#6c757d';
   // 서버 정본 포팅: map_generator.OVERLAP_MARKER_COLOR / MAP_MARKER_NAME_MAX_LEN
@@ -54,6 +55,7 @@
     popup: null,
     active: false,
     everRendered: false, // 세션 내 카카오 성공 렌더 이력 — folium 강등 금지 가드
+    onOpenDetail: null,  // 팝업 [상세] 호출부 주입 핸들러(AS 지도 등) — 미주입 시 기존 폴백 체인
     // 주문↔주문 경로 계산(folium 파리티): 출발/도착 선택 + 실도로 폴리라인 + 결과 패널.
     // line/panel 은 마커 재렌더(clearOverlays)와 독립 수명 — 폴링에도 결과 유지.
     routeCalc: { start: null, end: null, line: null, panel: null }
@@ -72,8 +74,13 @@
     return !!(window.matchMedia && window.matchMedia(MOBILE_GATE).matches);
   }
 
-  // 팝업 [주문 상세 보기]: 모바일 시트 훅 우선, 없으면 기존 selectOrder 폴백.
+  // 팝업 [주문 상세 보기]: 호출부 주입 핸들러(onOpenDetail, AS 지도 등) 최우선,
+  // 없으면 모바일 시트 훅, 마지막으로 기존 selectOrder 폴백.
   function openOrderDetailFromPopup(orderId) {
+    if (typeof state.onOpenDetail === 'function') {
+      state.onOpenDetail(Number(orderId));
+      return;
+    }
     var sheet = window.FomsMapMobileSheet;
     if (sheet && typeof sheet.openDetail === 'function') {
       sheet.openDetail(Number(orderId));
@@ -731,6 +738,8 @@
   }
 
   function renderInto(container, markers, opts) {
+    // 팝업 상세 핸들러 주입(옵션 미지정 시 기존 폴백 체인 유지)
+    if (typeof opts.onOpenDetail === 'function') state.onOpenDetail = opts.onOpenDetail;
     ensureMap(container);
     var result = drawMarkers(markers || [], opts);
     if (result.count > 0) {
@@ -763,7 +772,7 @@
     },
     /**
      * 최초/필터 변경 렌더. resolve(false)면 호출부가 folium 폴백.
-     * opts: { routeMode }
+     * opts: { routeMode, onOpenDetail }
      */
     render: function (container, markers, opts) {
       return new Promise(function (resolve) {
