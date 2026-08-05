@@ -220,13 +220,25 @@ def register_http_bootstrap(
 
     @app.before_request
     def _erp_construction_team_restrict() -> Any | None:
-        """Restrict construction-team access to shipment/construction dashboards."""
+        """Restrict construction-team access to shipment/construction dashboards.
+
+        이 가드는 **페이지 이동 제한**이지 인가 경계가 아니다 — API 네임스페이스는 제외한다.
+        ``/api``·``/erp/api`` 는 권한 실패도 302 가 아니라 403 JSON 이어야 한다는 불변식이
+        이미 있고(P1-13/P1-18, :func:`~foms.services.orders.order_mutation_policy` 참조),
+        여기서 302 를 돌려주면 fetch 가 HTML 로그인/대시보드 문서를 받아 ``JSON.parse`` 로
+        죽는다. 실제로 CONSTRUCTION 팀은 벨 알림 목록·배지·읽음처리와 **웹 푸시 구독**
+        (``/erp/api/notifications/push/subscribe``)이 전부 이 302 에 막혀 무음이었다.
+        각 엔드포인트는 자체 권한 가드를 그대로 유지한다(send·users/list=ADMIN/MANAGER 403,
+        urgent-*=``user_can_read_order``, notifications=본인 ``user_states`` scope).
+        """
         path = (request.path or "").strip()
         if (
             path.startswith("/static/")
             or path.startswith("/login")
             or path.startswith("/logout")
             or path.startswith("/register")
+            or path.startswith("/api/")
+            or path.startswith("/erp/api/")
         ):
             return None
         user = getattr(g, "current_user", None)

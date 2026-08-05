@@ -312,6 +312,34 @@ def test_erp_api_namespace_denies_with_json_not_redirect(client, app, policy_on)
     assert resp.is_json and resp.get_json()["success"] is False
 
 
+def test_construction_team_reaches_erp_api_without_redirect(client, app):
+    """CONSTRUCTION 팀도 ``/erp/api`` 는 302 없이 도달한다(벨·푸시 무음 회귀 차단).
+
+    ``_erp_construction_team_restrict`` 는 시공팀을 출고/시공 화면에 묶는 **페이지 이동**
+    제한인데, 예전에는 ``/erp/`` 전체를 잡아 ``/erp/api/notifications`` 까지 출고 대시보드로
+    302 시켰다. fetch 가 HTML 을 받아 ``JSON.parse`` 로 죽고 배지가 0 에 고정되며, 같은
+    prefix 인 웹 푸시 구독까지 막혀 알림이 통째로 무음이었다(P1-13/P1-18 불변식 위반).
+    """
+    _login(client, _make_user("con-bell", role="STAFF", team="CONSTRUCTION"))
+    for url in (
+        "/erp/api/notifications?limit=5",
+        "/erp/api/notifications/badge",
+        "/erp/api/notifications/mobile-state",
+    ):
+        resp = client.get(url)
+        assert resp.status_code != 302, f"{url} 이 302 redirect 됐다(시공팀 알림 무음 회귀)"
+        assert "Location" not in resp.headers, f"{url} redirect 헤더 잔존"
+        assert resp.is_json, f"{url} 응답이 JSON 이 아니다(HTML 문서 = JSON.parse 파손)"
+
+
+def test_construction_team_page_restriction_still_holds(client, app):
+    """API 예외가 **페이지** 제한까지 풀지는 않는다 — /erp/dashboard 는 여전히 302."""
+    _login(client, _make_user("con-page", role="STAFF", team="CONSTRUCTION"))
+    resp = client.get("/erp/dashboard")
+    assert resp.status_code == 302
+    assert "/erp/shipment" in resp.headers.get("Location", "")
+
+
 def test_api_namespace_denies_with_json_not_redirect(client, app, policy_on):
     """/api 권한 실패는 403 JSON (P1-13)."""
     _login(client, _make_user("staff-noestimate", role="STAFF", team="PRODUCTION"))
