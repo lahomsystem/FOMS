@@ -1058,6 +1058,16 @@
   margin-top: 4px;
 }
 
+/* PC 표의 고객 셀에서는 배지를 **자기 줄**로 내린다.
+   그 셀은 전화번호 <small> 다음에 배지가 오는데 td 가 `white-space: nowrap; overflow: hidden`
+   이라, inline-flex 인 배지가 전화번호와 같은 줄에서 시작해 셀 오른쪽 밖으로 밀려 잘렸다
+   (실측 1600px: 배지 폭 113px 중 35px 만 보임). `max-width:100%` 는 **남은 줄 폭이 아니라
+   셀 폭** 기준이라 이 겹침을 막지 못한다 — 블록 레벨로 내려야 상한이 실제로 걸린다.
+   태블릿 클린 그리드(#foms-tablet-ship-grid)는 셀이 넓고 고객명 옆 배치가 의도라 제외한다. */
+#shipment-dashboard-table .erp-ship-change {
+  display: flex;
+}
+
 .erp-ship-change__badge {
   display: inline-flex;
   flex-wrap: wrap;

@@ -384,10 +384,10 @@ def test_ack_client_singleton_defensive_and_no_reload():
 # 6. 핀 동기 — 손댄 자산의 ?v 가 저장소 전체에서 일치해야 한다
 # --------------------------------------------------------------------------- #
 def test_extras_css_pin_bumped_and_unique():
-    """dashboard-table-extras.css 는 20260730d 로 범프되고 옛 핀이 남아 있지 않다."""
+    """dashboard-table-extras.css 는 20260805a 로 범프되고 옛 핀이 남아 있지 않다."""
     main = _read(DASHBOARD_MAIN)
-    assert "dashboard-table-extras.css') }}?v=20260730d" in main
-    assert "dashboard-table-extras.css') }}?v=20260730c" not in main
+    assert "dashboard-table-extras.css') }}?v=20260805a" in main
+    assert "dashboard-table-extras.css') }}?v=20260730d" not in main
     # 새 규칙이 실제로 그 시트에 있어야 한다(핀만 올리고 내용이 없으면 배지가 무스타일).
     css = _read(EXTRAS_CSS)
     for selector in (
@@ -400,6 +400,22 @@ def test_extras_css_pin_bumped_and_unique():
         assert selector in css, f"출고 컨텍스트 CSS 규칙 누락: {selector}"
     # AS 컨텍스트 시트를 끌어오지 않는다(페이지 경계 유지 — @import 0).
     assert "@import" not in css
+
+
+def test_pc_table_badge_is_block_level_not_inline():
+    """PC 표 고객 셀의 배지는 자기 줄로 내려야 한다(전화번호 옆 inline 배치 = 셀 밖 잘림).
+
+    스테이징 실측(2026-08-05, 1600px): 고객 열 기본 폭 122px, 배지 폭 113px 인데
+    inline-flex 라 전화번호 뒤에서 시작해 셀 오른쪽 밖으로 78px 밀렸고
+    ``td { overflow: hidden }`` 이 잘라 35px 만 보였다. 태블릿 클린 그리드는 셀이 넓어
+    고객명 옆 inline 배치가 의도이므로 이 규칙은 PC 표에만 건다.
+    """
+    css = _read(EXTRAS_CSS)
+    assert "#shipment-dashboard-table .erp-ship-change {" in css
+    block = css.split("#shipment-dashboard-table .erp-ship-change {", 1)[1].split("}", 1)[0]
+    assert "display: flex" in block, "PC 표 배지가 블록 레벨이 아니다(셀 밖 잘림 회귀)"
+    # 태블릿 그리드까지 블록으로 내리면 고객명 옆 배치가 깨진다.
+    assert "#foms-tablet-ship-grid .erp-ship-change {" not in css
 
 
 def test_touched_asset_pins_are_unique_repo_wide():
