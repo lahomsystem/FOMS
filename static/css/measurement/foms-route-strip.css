@@ -188,6 +188,10 @@
   box-shadow: 0 1px 3px rgba(32, 28, 23, 0.35);
 }
 .foms-route-pin--done { filter: saturate(0.4); opacity: 0.88; }
+/* 핀 → 큐 카드 이동: 카드 있는 표면(실측 모바일 대시보드)에서만 JS가 부여 */
+.foms-route-pin.is-linkable,
+.foms-route-node.is-linkable { cursor: pointer; }
+.foms-route-pin.is-linkable:active { transform: scale(0.92); }
 .foms-route-pin--current {
   min-width: 24px;
   height: 24px;

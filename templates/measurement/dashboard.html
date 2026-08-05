@@ -2,7 +2,7 @@
 
 {% block styles %}
 <link rel="stylesheet" href="{{ url_for('static', filename='css/components/foms-v2-domain-heroes.css') }}?v=20260712a">
-<link rel="stylesheet" href="{{ url_for('static', filename='css/measurement/foms-route-strip.css') }}?v=20260716a">
+<link rel="stylesheet" href="{{ url_for('static', filename='css/measurement/foms-route-strip.css') }}?v=20260805a">
 {% endblock %}
 
 {% block content %}
@@ -13,5 +13,5 @@
 {% if shell_variant != 'v3' %}
 {% include 'measurement/partials/dashboard_scripts.html' %}
 {% endif %}
-<script defer src="{{ url_for('static', filename='js/measurement/foms-route-strip.js') }}?v=20260720b"></script>
+<script defer src="{{ url_for('static', filename='js/measurement/foms-route-strip.js') }}?v=20260805b"></script>
 {% endblock %}
