@@ -67,7 +67,7 @@ def _assert_shared_form_script_contract(body: str) -> None:
     )
     assert "html2canvas.min.js" not in body
     assert "js/orders/erp-channel-push-confirm.js?v=20260703a" in body
-    assert "js/orders/erp-order-shared.js?v=20260804b" in body
+    assert "js/orders/erp-order-shared.js?v=20260804c" in body
     assert "js/orders/erp-stage-override.js?v=20260716b" in body
     assert "erp_stage_override_modal.html" not in body  # include renders modal markup, not path
     assert 'id="erpStageOverrideModal"' in body
@@ -1467,8 +1467,8 @@ def test_shared_erp_order_js_save_redirect_focuses_saved_row() -> None:
     helper_start = text.index("function erpAppendFocusOrderParam(targetUrl, orderId)")
     helper_end = text.index("function erpNavigateAfterStructuredSave(targetUrl)", helper_start)
     helper_block = text[helper_start:helper_end]
-    # 대시보드 경로에만 부여(측정/이력 등 focus_order 미지원 복귀처는 원본 유지)
-    assert "u.pathname !== '/erp/dashboard'" in helper_block
+    # 소비자 배선된 복귀처(주문·실측 대시보드)에만 부여 — 그 외는 원본 URL 유지
+    assert "u.pathname !== '/erp/dashboard' && u.pathname !== '/erp/measurement'" in helper_block
     assert "u.searchParams.set('focus_order', String(orderId))" in helper_block
 
     # 성공 리다이렉트 양 분기 모두 helper 를 통과한다
@@ -1479,3 +1479,24 @@ def test_shared_erp_order_js_save_redirect_focuses_saved_row() -> None:
     dash = (root / "static/js/orders/dashboard/erp-dashboard-detail-dom.js").read_text(encoding="utf-8")
     assert "urlParams.get('focus_order')" in dash
     assert "scrollIntoView" in dash
+
+
+def test_measurement_dashboard_consumes_focus_order_deeplink() -> None:
+    """실측 대시보드도 focus_order 딥링크를 소비한다(저장 복귀 행 정렬).
+
+    사고 재현(운영 4655 장상진): 실측 대시보드에서 편집 진입 → 저장 → 복귀 시
+    today 자동 스크롤이 작업 위치를 덮어 "저장 안 되고 위로 튕김"으로 보였다.
+    소비자는 today 스크롤 뒤에 실행돼 우선하고, 숫자 id만 허용한다.
+    """
+    root = Path(__file__).resolve().parents[2]
+    dash = (root / "static/js/measurement/dashboard.js").read_text(encoding="utf-8")
+
+    idx_today = dash.index("todayEl.scrollIntoView")
+    idx_focus = dash.index("focus_order")
+    assert idx_today < idx_focus  # today 스크롤보다 뒤 = 우선권
+    assert "/^\d+$/.test(focusOrder)" in dash
+    assert "tr.scrollIntoView({ block: 'center' })" in dash
+
+    # 헬퍼가 실측 복귀 URL에 focus_order 를 부여한다
+    shared = (root / "static/js/orders/erp-order-shared.js").read_text(encoding="utf-8")
+    assert "u.pathname !== '/erp/dashboard' && u.pathname !== '/erp/measurement'" in shared
