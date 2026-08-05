@@ -9,11 +9,11 @@
 | T1 시공일 변경 이벤트 SSOT 통합 | DONE | 커밋 `be817cc3`(+인벤토리 `2a3faad2`) → deploy. 실 라우트 7경로 각 1건·부정 4종 0건, domains 3799 passed, PG 147 passed, smoke exit 0 |
 | T2 출고 변경 수집 서비스 | DONE | `shipment_change_alerts.py` 신규(배치 1쿼리·쿼리수 단언), 17 passed |
 | T3 ack API | DONE | `POST /api/orders/<id>/shipment/change-ack`, 매니페스트 2종 등재, 9 passed |
-| T4 PC 대시보드 표시 | PENDING | |
-| T5 태블릿 표시(그리드·시트) | PENDING | |
+| T4 PC 대시보드 표시 | DONE | 배너+행 배지+확인, 캐시 밖 1쿼리(행 수 무관 단언), 172 passed |
+| T5 태블릿 표시(그리드·시트) | DONE | 공유 매크로 1개로 PC·그리드·시트, 태블릿 계약 green, 번들 무변경 |
 | T6 벨 알림 + 푸시 타입 등록 | DONE(미커밋) | `shipment_change.py` 신규, `_DEFAULT_P1_TYPES` 등재, 신규 11 passed / 인접 4파일 59 passed / domains 전수 3866 passed / contracts 65 / performance 78 / APP_OK |
-| T7 성능 측정(TTFB·EXPLAIN) | PENDING | |
-| T8 최종 검증·커밋·푸시 | PENDING | |
+| T7 성능 측정(TTFB·EXPLAIN) | DONE | 스테이징 dTTFB **74ms**/예산 291 PASS · 실데이터 EXPLAIN Seq Scan 없음(1.3ms) → 인덱스 불필요 |
+| T8 최종 검증·커밋·푸시 | DONE | domains 3870 passed(실패 3=로컬 인벤토리 드리프트, 원격 tip은 CI green) · PG 147 passed · smoke exit 0 · deploy `5286012c` CI ALL GREEN |
 
 ## 사용자 결정 (2026-07-30)
 
@@ -83,6 +83,25 @@
   `structured_data` 에서 파생한다(`/erp/shipment?date=`). push payload 는 generic 규약이라
   날짜 없이 `/erp/shipment`.
 - 미검증: `tests/postgres` 전수(T8), 스테이징 실브라우저 벨·푸시 수신.
+
+### T7 측정 기록 (2026-07-30)
+
+- perf-gate(스테이징, T6 포함 커밋 `4eed91a0`): `/erp/shipment?view=fragment`
+  **dTTFB 74ms / 예산 291ms PASS**, wire 19,068B / 예산 34,405B, 304 OK.
+- 실데이터 EXPLAIN(운영 읽기전용, `order_events` 11,177행 중
+  `CONSTRUCTION_DATE_CHANGED` 2,651건): 이벤트 보유 주문 300건 표본에서
+  `Bitmap Index Scan on ix_order_events_order_id` → **Seq Scan 없음**,
+  662행 반환 Execution **1.307ms**.
+- 따라서 복합 인덱스 `(order_id, event_type, created_at)` **추가하지 않는다**
+  (측정 전 인덱스 금지·효과 없으면 무변경 종료 원칙). 마이그레이션 0.
+
+## 남은 확인 (기능 구현은 종료)
+
+- 스테이징 실브라우저: 시공일 변경 → 출고 대시보드 배너·행 배지 → 확인 시 그 표시만 소멸 →
+  벨 알림 1건 → 모바일 푸시 수신.
+- production 승격(사용자 지시 시 세션 커밋만 cherry-pick).
+- `docs/AI_STATUS.md` 진행 중 항목은 워킹트리에만 있다 — 같은 파일에 타 세션 미커밋 변경이
+  섞여 있어 이 세션이 커밋하지 않았다.
 
 ## 미해결 / 대기
 
