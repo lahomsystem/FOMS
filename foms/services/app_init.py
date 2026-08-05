@@ -164,6 +164,8 @@ def run_auto_init(app) -> None:
       replica never serves against an unmigrated schema (and never self-heals).
     * ``register_date_sync_listener`` — pure SQLAlchemy listener wiring (no DB
       write) for KST date synchronization.
+    * ``register_payment_sync_listener`` — pure SQLAlchemy listener wiring (no
+      DB write) for the ``PAYMENT_CHANGED`` audit-event SSOT.
 
     Excluded on purpose: schema DDL (STARTUP-SCHEMA-01 → Alembic/predeploy),
     flat-column backfill (STARTUP-BACKFILL-01 → operator CLI), and admin
@@ -180,6 +182,10 @@ def run_auto_init(app) -> None:
             from foms.services.order_date_sync import register_date_sync_listener
 
             register_date_sync_listener()
+
+            from foms.services.order_payment_sync import register_payment_sync_listener
+
+            register_payment_sync_listener()
     except StartupReadinessError:
         raise
     except Exception as e:
