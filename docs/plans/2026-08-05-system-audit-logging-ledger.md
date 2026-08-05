@@ -7,9 +7,9 @@
 | Task | 상태 | 검증 결과 |
 |---|---|---|
 | T1 프로덕션 로깅 부트스트랩 (+request_id, 구 T7 흡수) — 파일럿 | DONE | 커밋 `a37a5445`. 위임→검증→커밋 흐름 정상. 계약 12건 신설 포함 31 passed + APP_OK(메인 세션 직접 재실행). 타 세션 소유 파일(order_date_sync·push_sender) 무접촉·미스테이징 확인 |
-| T2 PAYMENT_CHANGED before_flush SSOT | PENDING | |
-| T3 ERP 생성 ORDER_CREATED 배선 | PENDING | |
-| T-CP1 Phase 1 검증·커밋·푸시 | PENDING | |
+| T2 PAYMENT_CHANGED before_flush SSOT | DONE | 커밋 `16088409`. domains 23·PG 5·회귀 692·반증 2회. 빠른수정·레거시 폼·인라인 PATCH는 payment 미접촉 구조(전제 고정 테스트) — 상세 `docs/harness/runtime/OVERNIGHT_REPORT.md` |
+| T3 ERP 생성 ORDER_CREATED 배선 | DONE | 커밋 `48e38dda`. 신규 10·domains 전수 3915 passed. as_orders 승격 경로 동시 커버 |
+| T-CP1 Phase 1 검증·커밋·푸시 | DONE(부분) | smoke exit 0 + hygiene 15 passed. **push 미실행**(overnight 승인 범위 = 커밋까지) — push·스테이징 로그 확인은 아침 검수 |
 | T4 첨부 soft delete + 이벤트 | PENDING | |
 | T5 관리자 행위 구조화 + 접근거부 기록 | PENDING | |
 | T6 access_logs 부활 (파일 접근 3곳) | PENDING | |
