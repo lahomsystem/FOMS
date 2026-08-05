@@ -48,6 +48,16 @@ MIN_DAY_SAMPLES: Final[int] = 30
 # 회귀 창에서 KST 오늘(미완성)을 제외한다. rum-daily cron(07:30 KST) 오탐 근본 차단.
 SKIP_TODAY_FOR_REGRESSION: Final[bool] = True
 
+# 표본 구성 변화(sample shift) 가드: p95 회귀 판정이 떠도, 최근 구간의
+# p50 이 baseline 대비 안정(배수 이하)이고 표본량이 급감(배수 이하)했다면
+# "코드 회귀"가 아니라 "측정 모집단 변화"(예: 휴가로 사무실 데스크톱 이탈
+# → 느린 모바일 코호트만 잔존)로 보고 red 대신 ⚠️ 경고로 강등한다.
+# 근거: 2026-08-05 INP x1.96 오경보 — p50 은 12일간 52~60ms 로 불변,
+# 표본만 97% 증발(주말 저표본일의 고 p95 패턴과 동일). 진짜 전면 회귀는
+# p50 도 움직이고 표본량은 유지된다.
+SAMPLE_SHIFT_P50_STABLE_MAX: Final[float] = 1.25
+SAMPLE_SHIFT_VOLUME_MAX: Final[float] = 0.5
+
 _KST: Final[timezone] = timezone(timedelta(hours=9))
 
 
@@ -270,6 +280,51 @@ def detect_regression(
     return RegressionVerdict(sustained, recent_med, base_med, ratio)
 
 
+def detect_sample_shift(
+    recent_rows: list[dict[str, Any]],
+    baseline_rows: list[dict[str, Any]],
+) -> bool:
+    """p95 회귀가 표본 구성 변화(모집단 이동)로 설명되는지 판정한다.
+
+    조건(둘 다 충족 시 True):
+    - 최근 구간 p50 중앙값 <= baseline p50 중앙값 × SAMPLE_SHIFT_P50_STABLE_MAX
+      (typical 사용자 체감 불변 — 전면 회귀면 p50 도 움직인다)
+    - 최근 구간 일별 표본 중앙값 <= baseline 일별 표본 중앙값 × SAMPLE_SHIFT_VOLUME_MAX
+      (모집단 급감 — 빠른 코호트 이탈로 tail 이 저절로 상승하는 구도)
+
+    p50 데이터가 없으면 보수적으로 False(강등하지 않음).
+
+    Args:
+        recent_rows: 최근 구간 day_stats 행 목록.
+        baseline_rows: baseline 구간 day_stats 행 목록.
+
+    Returns:
+        표본 구성 변화로 설명 가능하면 True.
+    """
+    # p95 판정과 동일한 유효일 필터(samples >= MIN_DAY_SAMPLES)를 양쪽에 적용.
+    # baseline 창에 이미 붕괴된 저표본일이 섞이면(전환기) 원시 중앙값이 오염되어
+    # 가드가 미발동한다 — 2026-08-05 실데이터(08-02 n=21 혼입)로 확인된 함정.
+    recent_ok = [r for r in recent_rows if int(r["samples"]) >= MIN_DAY_SAMPLES]
+    base_ok = [r for r in baseline_rows if int(r["samples"]) >= MIN_DAY_SAMPLES]
+    recent_p50 = [r["p50"] for r in recent_ok if r["p50"] is not None]
+    base_p50 = [r["p50"] for r in base_ok if r["p50"] is not None]
+    recent_n = [int(r["samples"]) for r in recent_ok]
+    base_n = [int(r["samples"]) for r in base_ok]
+    if not recent_p50 or not base_p50 or not recent_n or not base_n:
+        return False
+    base_p50_med = statistics.median(base_p50)
+    base_n_med = statistics.median(base_n)
+    if base_p50_med <= 0 or base_n_med <= 0:
+        return False
+    p50_stable = (
+        statistics.median(recent_p50) <= base_p50_med * SAMPLE_SHIFT_P50_STABLE_MAX
+    )
+    volume_collapsed = (
+        statistics.median(recent_n) <= base_n_med * SAMPLE_SHIFT_VOLUME_MAX
+    )
+    return p50_stable and volume_collapsed
+
+
 def day_stats(redis_client: Any, date_str: str, metric: str) -> dict[str, Any]:
     """하루치 히스토그램 → ``{date, samples, p50, p95}``.
 
@@ -332,12 +387,20 @@ def build_rum_report(redis_client: Any, days: int = 7) -> dict[str, Any]:
             p95_for_regression(row["p95"], int(row["samples"])) for row in baseline_rows
         ]
         verdict = detect_regression(recent_p95, baseline_p95)
+        sample_shift = False
         if verdict.regressed:
-            any_regressed = True
-            warnings.append(
-                f"{metric}: recent p95 {verdict.recent_p95:.0f}ms vs baseline 중앙값 "
-                f"{verdict.baseline_p95:.0f}ms (x{verdict.ratio:.2f})"
-            )
+            sample_shift = detect_sample_shift(recent_rows, baseline_rows)
+            if sample_shift:
+                warnings.append(
+                    f"{metric}: ⚠️ 표본 구성 변화 의심 — p95 x{verdict.ratio:.2f} 상승했으나 "
+                    f"p50 안정·표본 급감(모집단 이동). red 아님, 표본 회복 후 재평가."
+                )
+            else:
+                any_regressed = True
+                warnings.append(
+                    f"{metric}: recent p95 {verdict.recent_p95:.0f}ms vs baseline 중앙값 "
+                    f"{verdict.baseline_p95:.0f}ms (x{verdict.ratio:.2f})"
+                )
         eligible_recent_n = sum(
             int(row["samples"])
             for row, p in zip(recent_rows, recent_p95)
@@ -354,6 +417,7 @@ def build_rum_report(redis_client: Any, days: int = 7) -> dict[str, Any]:
                 "daily": daily,
                 "regression": {
                     "regressed": verdict.regressed,
+                    "sample_shift": sample_shift,
                     "recent_p95": verdict.recent_p95,
                     "baseline_p95": verdict.baseline_p95,
                     "ratio": verdict.ratio,
