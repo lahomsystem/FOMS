@@ -6,7 +6,7 @@
 
 | Task | 상태 | 검증 결과 |
 |---|---|---|
-| T1 프로덕션 로깅 부트스트랩 (+request_id, 구 T7 흡수) — 파일럿 | PENDING | |
+| T1 프로덕션 로깅 부트스트랩 (+request_id, 구 T7 흡수) — 파일럿 | DONE | 커밋 `a37a5445`. 위임→검증→커밋 흐름 정상. 계약 12건 신설 포함 31 passed + APP_OK(메인 세션 직접 재실행). 타 세션 소유 파일(order_date_sync·push_sender) 무접촉·미스테이징 확인 |
 | T2 PAYMENT_CHANGED before_flush SSOT | PENDING | |
 | T3 ERP 생성 ORDER_CREATED 배선 | PENDING | |
 | T-CP1 Phase 1 검증·커밋·푸시 | PENDING | |
