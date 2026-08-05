@@ -67,7 +67,7 @@ def _assert_shared_form_script_contract(body: str) -> None:
     )
     assert "html2canvas.min.js" not in body
     assert "js/orders/erp-channel-push-confirm.js?v=20260703a" in body
-    assert "js/orders/erp-order-shared.js?v=20260804a" in body
+    assert "js/orders/erp-order-shared.js?v=20260804b" in body
     assert "js/orders/erp-stage-override.js?v=20260716b" in body
     assert "erp_stage_override_modal.html" not in body  # include renders modal markup, not path
     assert 'id="erpStageOverrideModal"' in body
@@ -645,7 +645,7 @@ def test_shared_erp_order_js_guards_duplicate_save_clicks_and_tokens_draft_creat
     assert "document.getElementById('erp-save-btn')?.addEventListener('click', erpSaveStructured);" in text
     assert "function erpNavigateAfterStructuredSave(targetUrl)" in text
     assert "window.history.back();" in text
-    assert "erpNavigateAfterStructuredSave(targetUrl);" in text
+    assert "erpNavigateAfterStructuredSave(erpAppendFocusOrderParam(targetUrl, targetId));" in text
     assert "fomsMountErpOrderSurface" in text
     dom_ready_start = text.index("document.addEventListener('DOMContentLoaded', function () {")
     dom_ready_end = text.index("// ============================================\n// ERP Order: Attachments", dom_ready_start)
@@ -1450,3 +1450,32 @@ def test_shared_erp_order_js_regional_type_gate_alerts_without_scroll_jump() -> 
         "document.getElementById('erp-regional-construction-type')?.focus()"
         not in text
     )
+
+
+def test_shared_erp_order_js_save_redirect_focuses_saved_row() -> None:
+    """저장 복귀는 focus_order 딥링크로 방금 저장한 행에 정렬된다.
+
+    사고 재현: 저장 성공 후 대시보드 복귀가 fresh load/reload 라
+    그리드(erp-grid-scroll-wrap) 스크롤이 0으로 초기화 — 사용자에겐
+    "저장 누르면 스크롤 업"으로 보였다. px 복원 대신 focus_order 파라미터를
+    붙여 기존 딥링크(스크롤+하이라이트)가 행 기준으로 복귀시킨다.
+    """
+    root = Path(__file__).resolve().parents[2]
+    text = (root / "static/js/orders/erp-order-shared.js").read_text(encoding="utf-8")
+
+    assert "function erpAppendFocusOrderParam(targetUrl, orderId)" in text
+    helper_start = text.index("function erpAppendFocusOrderParam(targetUrl, orderId)")
+    helper_end = text.index("function erpNavigateAfterStructuredSave(targetUrl)", helper_start)
+    helper_block = text[helper_start:helper_end]
+    # 대시보드 경로에만 부여(측정/이력 등 focus_order 미지원 복귀처는 원본 유지)
+    assert "u.pathname !== '/erp/dashboard'" in helper_block
+    assert "u.searchParams.set('focus_order', String(orderId))" in helper_block
+
+    # 성공 리다이렉트 양 분기 모두 helper 를 통과한다
+    assert "window.location.href = erpAppendFocusOrderParam('/erp/dashboard', targetId);" in text
+    assert "erpNavigateAfterStructuredSave(erpAppendFocusOrderParam(targetUrl, targetId));" in text
+
+    # 소비자(대시보드 focus_order 딥링크) 계약 유지
+    dash = (root / "static/js/orders/dashboard/erp-dashboard-detail-dom.js").read_text(encoding="utf-8")
+    assert "urlParams.get('focus_order')" in dash
+    assert "scrollIntoView" in dash
