@@ -95,11 +95,56 @@
 - 따라서 복합 인덱스 `(order_id, event_type, created_at)` **추가하지 않는다**
   (측정 전 인덱스 금지·효과 없으면 무변경 종료 원칙). 마이그레이션 0.
 
-## 남은 확인 (기능 구현은 종료)
+## T9 스테이징 실브라우저 검증 (2026-08-05, deploy `73320a30`)
 
-- 스테이징 실브라우저: 시공일 변경 → 출고 대시보드 배너·행 배지 → 확인 시 그 표시만 소멸 →
-  벨 알림 1건 → 모바일 푸시 수신.
-- production 승격(사용자 지시 시 세션 커밋만 cherry-pick).
+lahom-dev, claude_master(ADMIN) + 강민수(id 28, CONSTRUCTION) 전환. 5개 항목 중 4개 통과,
+결함 2건 발견·수정.
+
+| 항목 | 결과 |
+|---|---|
+| 배너 + 행 배지 | PASS (배지 잘림 결함 D1 동반 → 수정) |
+| 배너 칩 → 행 점프·하이라이트 | PASS — `#shipment-row-<id>` 해시 이동 + `tr:target > td` inset 2px 빨강 |
+| [확인] in-place 소멸 | PASS — ack POST 200, 배지·칩 전 표면 제거, 카운트 2→1→0, 배너 소멸, 리로드 0, 새로고침 후에도 유지 |
+| 태블릿(coarse landscape 1376) | PASS — PC표 `display:none`·클린 그리드 `table`·칩 코호트 교대(pc none/tablet flex)·그리드 배지 무잘림·배정 시트 fragment 에 배지+[확인] |
+| 종모양 벨 + 푸시 | **FAIL → D2 수정 후 PASS** |
+
+- 폐루프: 주문 4295 시공일 8/5→8/6 실변경 → 8/6 대시보드에 배너 4건·해당 행 배지
+  (`8/5 → 8/5, 8/6` — 품목별 일정이 남아 합집합이 되는 것이 정상) → 되돌리기까지 확인.
+- 콘솔 에러 0(출고 대시보드), ack 네트워크 200/159ms.
+
+### D1 — PC 행 배지가 고객 셀 밖으로 잘림 (수정 완료)
+
+고객 `td` 가 `white-space: nowrap; overflow: hidden` 인데 배지가 `inline-flex` 라 전화번호
+`<small>` 과 같은 줄에서 시작해 셀 오른쪽 밖으로 78px 밀렸다(1600px 실측: 폭 113px 중
+35px 만 노출). **`max-width:100%` 는 남은 줄 폭이 아니라 셀 폭 기준**이라 이 겹침을 막지
+못한다. `#shipment-dashboard-table .erp-ship-change{display:flex}` 로 PC 표에서만 자기 줄을
+준다(태블릿 그리드는 셀이 넓고 고객명 옆 inline 이 의도). `?v` 20260730d→20260805a.
+회귀 테스트 `test_pc_table_badge_is_block_level_not_inline`.
+
+### D2 — CONSTRUCTION 팀 벨·푸시가 통째로 무음 (수정 완료)
+
+`foms/platform/http.py` `_erp_construction_team_restrict` 가 시공팀의 `/erp/` **전체**를
+출고 대시보드로 302 시키는데 `/erp/api/` 예외가 없었다. T6 가 `target_team=CONSTRUCTION`
+으로 보낸 알림을 정작 대상 팀이 못 읽는다:
+
+```
+GET /erp/api/notifications → 302 → /erp/shipment?date=...   (배지 "0" hidden 고정)
+console: [foms-push] mobile-state error SyntaxError: Unexpected token '<'
+```
+
+같은 prefix 라 웹 푸시 **구독**(`push/subscribe`·`vapid-public-key`)까지 막혀 푸시도
+못 나갔다. 이 가드는 페이지 이동 제한이지 인가 경계가 아니고, `/api`·`/erp/api` 는 권한
+실패도 302 가 아니라 403 JSON 이어야 한다는 불변식(P1-13/P1-18)이 이미 있으므로 API
+네임스페이스를 예외로 뺐다. 엔드포인트별 권한 가드는 그대로, **페이지** 제한도 유지
+(계약 테스트 2종으로 고정).
+
+수정 후 재검증: 강민수 계정에서 `/erp/api/notifications` **200 JSON · unread 2건**
+(`[출고] 시공일 변경 — 최복근`) 수신, `vapid-public-key` 200. 알림 row 는 원래부터
+생성되고 있었고 **읽는 경로만 막혀 있었다.**
+
+## 남은 확인
+
+- production 승격 PR **#49** (base=production, cherry-pick 10커밋) — checks pass, 머지 대기.
 - `docs/AI_STATUS.md` 진행 중 항목은 워킹트리에만 있다 — 같은 파일에 타 세션 미커밋 변경이
   섞여 있어 이 세션이 커밋하지 않았다.
 
