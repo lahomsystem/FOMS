@@ -46,8 +46,10 @@ _DEFAULT_P1_TYPES = frozenset(
         "QUEST_ASSIGNED",
         "ERP_ORDER_CHANGED",
         # 시공일 이동은 상차·차량·팀 배정을 즉시 무효로 만든다 — 화면을 안 보고 있어도 알린다.
-        # (미등록이면 enqueue 해도 조용히 no-op 된다. PRODUCTION_ORDER_CHANGED 가 그 상태다.)
+        # (미등록이면 enqueue 해도 조용히 no-op 된다 — 등록 누락 = 무음 push 의 유일한 기전.)
         "SHIPMENT_ORDER_CHANGED",
+        # 생산 진행 중 주문의 시공일·도면 변경/취소도 같은 성질이다(재작업·자재 낭비 직결).
+        "PRODUCTION_ORDER_CHANGED",
         # 에스컬레이션 row 는 is_urgent=False(재진입 방지)이므로 P1 로 OS push 허용.
         "URGENT_ESCALATION",
     }
@@ -131,6 +133,10 @@ def _deep_link(notif: Notification) -> str:
             # 날짜 컬럼이 없다. 대시보드는 오늘로 열리며, 정확한 날짜 링크는 벨 목록 API
             # (`_resolve_notification_deep_link`)가 주문 현재 시공일에서 파생해 준다.
             return "/erp/shipment"
+        if ntype == "PRODUCTION_ORDER_CHANGED":
+            # 생산 칸반이 이 알림의 작업 화면이다(주문 상세가 아니라). 출고와 같은 이유로
+            # 파라미터는 붙이지 않는다 — payload 는 generic 규약.
+            return "/erp/production/dashboard"
         return f"/erp/orders/{oid}"
     return "/erp"
 
@@ -145,6 +151,9 @@ def _generic_title(urgent: bool, ntype: str) -> str:
         return "도면 알림"
     if ntype == "SHIPMENT_ORDER_CHANGED":
         return "출고 일정 변경"
+    if ntype == "PRODUCTION_ORDER_CHANGED":
+        # 시공일/도면/취소 세 종류를 묶는 제목 — 고객명·주문번호·사유는 넣지 않는다.
+        return "생산 주문 변경"
     if ntype == "QUEST_ASSIGNED":
         return "업무 배정 알림"
     if ntype == "URGENT_ESCALATION":
