@@ -120,6 +120,50 @@ def test_as_dashboard_open_map_redirects_to_as_map(client, login):
     assert 'bucket=' not in response.headers['Location']
 
 
+def test_as_map_query_availability_filters(app):
+    weekend_pm = _make_as_order(
+        '주말오후', schedule={'as_visit': {'availability': {'days': 'weekend', 'time': 'pm'}}})
+    weekday_am = _make_as_order(
+        '평일오전', schedule={'as_visit': {'availability': {'days': 'weekday', 'time': 'am'}}})
+    any_any = _make_as_order(
+        '무관메모', schedule={'as_visit': {'availability': {'days': 'any', 'time': 'any', 'note': '3시 이후'}}})
+    unknown = _make_as_order('미기입')
+    db_session.commit()
+
+    def ids(**kw):
+        return {r.id for r in build_as_incomplete_map_query(db_session, '', '', **kw).all()}
+
+    # '가능' 필터 = 명시적 무관(any) 포함, 미기입 제외
+    assert ids(avail_days='weekend') == {weekend_pm.id, any_any.id}
+    assert ids(avail_days='weekday') == {weekday_am.id, any_any.id}
+    assert ids(avail_days='unknown') == {unknown.id}
+    assert ids(avail_time='pm') == {weekend_pm.id, any_any.id}
+    assert ids(avail_time='am') == {weekday_am.id, any_any.id}
+    # 무효 값은 무시(전체)
+    assert ids(avail_days='fri') == {weekend_pm.id, weekday_am.id, any_any.id, unknown.id}
+
+
+def test_as_map_api_reports_unknown_excluded(client, login):
+    _make_as_order(
+        '주말가능', lat=37.5, lng=127.0,
+        schedule={'as_visit': {'availability': {'days': 'weekend', 'time': 'any'}}})
+    _make_as_order('미기입1')
+    _make_as_order('미기입2')
+    db_session.commit()
+
+    response = login.get('/api/map_data?dashboard=as&avail_days=weekend')
+    assert response.status_code == 200
+    payload = response.get_json()
+    assert payload['success'] is True
+    assert payload['summary']['availability_unknown_excluded'] == 2
+    labels = {o['customer_name']: o['as_availability_label'] for o in payload['orders']}
+    assert labels == {'주말가능': '주말·시간무관'}
+
+    # 필터 미사용 시 고지 0
+    response = login.get('/api/map_data?dashboard=as')
+    assert response.get_json()['summary']['availability_unknown_excluded'] == 0
+
+
 def test_map_view_renders_with_as_dashboard_param(client, login):
     response = login.get('/map_view?dashboard=as')
     assert response.status_code == 200

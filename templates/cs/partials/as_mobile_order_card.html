@@ -72,6 +72,15 @@
           data-order-id="{{ r.id }}" data-field="as_visit_date" aria-label="AS 방문일">
       </div>
       {{ render_as_schedule_drift_badge(r.schedule_link_drift, r.id) }}
+      {# 방문 가능시간 칩 — PC와 동일 팝오버 편집 #}
+      <button type="button" class="erp-as-avail-chip{% if r.as_availability %} erp-as-avail-chip--set{% endif %}"
+        data-order-id="{{ r.id }}"
+        data-avail-days="{{ r.as_availability.days if r.as_availability else '' }}"
+        data-avail-time="{{ r.as_availability.time if r.as_availability else '' }}"
+        data-avail-note="{{ r.as_availability.note if r.as_availability and r.as_availability.note else '' }}"
+        aria-label="방문 가능시간">
+        <i class="far fa-clock"></i><span class="erp-as-avail-chip__label">{{ r.as_availability_label or '가능시간' }}</span>
+      </button>
     </div>
     <div
       class="erp-as-mobile-card__date erp-as-mobile-card__date--complete {% if r.as_completed_date %}erp-as-complete-row--set{% endif %}">

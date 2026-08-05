@@ -56,6 +56,7 @@
     active: false,
     everRendered: false, // 세션 내 카카오 성공 렌더 이력 — folium 강등 금지 가드
     onOpenDetail: null,  // 팝업 [상세] 호출부 주입 핸들러(AS 지도 등) — 미주입 시 기존 폴백 체인
+    screenClusters: [],  // 스크린 겹침 클러스터 [{repMarker, markers[]}] — applyScreenClusters 소유
     // 주문↔주문 경로 계산(folium 파리티): 출발/도착 선택 + 실도로 폴리라인 + 결과 패널.
     // line/panel 은 마커 재렌더(clearOverlays)와 독립 수명 — 폴링에도 결과 유지.
     routeCalc: { start: null, end: null, line: null, panel: null }
@@ -370,6 +371,8 @@
         '<tr><th>주소</th><td>' + escapeHtml(m.address || '-') + '</td></tr>' +
         '<tr><th>제품</th><td>' + escapeHtml(m.product || '-') + '</td></tr>' +
         '<tr><th>상태</th><td style="color:' + statusColor + '">' + escapeHtml(m.status || '-') + '</td></tr>' +
+        (m.as_availability_label
+          ? '<tr><th>가능시간</th><td>' + escapeHtml(m.as_availability_label) + '</td></tr>' : '') +
         '<tr><th>접수일</th><td>' + escapeHtml(m.received_date || '-') + '</td></tr>' +
         '<tr><th>좌표</th><td>' + Number(m.latitude).toFixed(6) + ', ' + Number(m.longitude).toFixed(6) + '</td></tr>' +
         dupRow +
@@ -403,12 +406,16 @@
     });
   }
 
-  // 접힌 대표 마커 클릭 팝업: 그룹 내 주문 목록(+각 상세 보기) — folium 팝업 행 파리티 확장.
-  function openGroupPopup(markersInGroup, position) {
+  // 접힌 대표 마커/스크린 클러스터 클릭 팝업: 그룹 내 주문 목록(+각 상세 보기).
+  // opts: { title, fitBounds } — fitBounds=스크린 클러스터(주소 상이)용, 펼치면 bounds 줌인.
+  function openGroupPopup(markersInGroup, position, opts) {
+    opts = opts || {};
     closePopup();
     var rows = markersInGroup.map(function (m) {
+      var statusColor = STATUS_COLORS[String(m.status || '').toUpperCase()] || STATUS_FALLBACK_COLOR;
       return '<div class="foms-kmap-popup__group-row">' +
         '<span class="foms-kmap-popup__group-main">' +
+        '<span class="foms-kmap-popup__status-dot" style="background:' + statusColor + '"></span>' +
         '<strong>#' + escapeHtml(m.id) + '</strong> ' + escapeHtml(m.customer_name || '-') +
         (m.measurement_time ? ' · ' + escapeHtml(m.measurement_time) : '') +
         '</span>' +
@@ -419,11 +426,12 @@
     el.className = 'foms-kmap-popup';
     el.innerHTML =
       '<div class="foms-kmap-popup__head">' +
-      '<strong>같은 위치 ' + markersInGroup.length + '건</strong>' +
+      '<strong>' + escapeHtml(opts.title || ('같은 위치 ' + markersInGroup.length + '건')) + '</strong>' +
       '<button type="button" class="foms-kmap-popup__close" aria-label="닫기">&times;</button>' +
       '</div>' +
       '<div class="foms-kmap-popup__group">' +
-      '<div class="foms-kmap-popup__group-addr">' + escapeHtml(markersInGroup[0].address || '-') + '</div>' +
+      (opts.fitBounds ? '' :
+        '<div class="foms-kmap-popup__group-addr">' + escapeHtml(markersInGroup[0].address || '-') + '</div>') +
       rows +
       '</div>' +
       '<div class="foms-kmap-popup__actions' + (isMobileView() ? ' foms-kmap-popup__actions--m' : '') + '">' +
@@ -433,9 +441,25 @@
     el.querySelector('.foms-kmap-popup__close').addEventListener('click', closePopup);
     // 그룹 중심 확대: 임계 통과(격자 펼침)로 직행 — 중심 고정 줌으로 그룹이
     // 화면 밖으로 흘러나가는 문제를 앵커 지정으로 원천 회피.
+    // 스크린 클러스터(fitBounds)는 좌표가 서로 달라 bounds 줌인이 정본 —
+    // 단 좌표 스팬이 사실상 0이면(전원 같은 지점) 기존 앵커 줌으로 폴백.
     el.querySelector('.foms-kmap-popup__expand').addEventListener('click', function () {
       closePopup();
       try {
+        if (opts.fitBounds) {
+          var minLat = Infinity, maxLat = -Infinity, minLng = Infinity, maxLng = -Infinity;
+          markersInGroup.forEach(function (m) {
+            minLat = Math.min(minLat, m.latitude); maxLat = Math.max(maxLat, m.latitude);
+            minLng = Math.min(minLng, m.longitude); maxLng = Math.max(maxLng, m.longitude);
+          });
+          if ((maxLat - minLat) > 1e-6 || (maxLng - minLng) > 1e-6) {
+            var b = new window.kakao.maps.LatLngBounds(
+              new window.kakao.maps.LatLng(minLat, minLng),
+              new window.kakao.maps.LatLng(maxLat, maxLng));
+            state.map.setBounds(b, 60, 60, 60, 60);
+            return;
+          }
+        }
         state.map.setLevel(DUPLICATE_EXPAND_MAX_LEVEL, { anchor: position });
         state.map.panTo(position);
       } catch (e) { /* 지도 조작 실패 무해 */ }
@@ -531,6 +555,111 @@
     });
   }
 
+  // ---------- 스크린 겹침 클러스터 (원거리 pill 잘림 대응, 2026-08-06) ----------
+  // 같은 주소 그룹(x2 접기)과 별개로, 주소가 달라도 화면(px)상 pill이 겹치면
+  // 대표 1개 + xN 뱃지(동일 룩 재사용)로 묶는다. 접힘 뷰(level>=6)에서만 동작,
+  // route 모드 제외. 팬은 같은 줌에서 상대 위치를 바꾸지 않으므로 줌/재렌더 시에만 재계산.
+  var CLUSTER_PAD_PX = 4;
+
+  function resetScreenClusters() {
+    state.screenClusters = [];
+    state.markerItems.forEach(function (item) {
+      var badge = item.pill.querySelector('[data-cluster-badge]');
+      if (badge) badge.remove();
+      var dupBadge = item.pill.querySelector('.foms-kmap-pill__dup');
+      if (dupBadge) dupBadge.style.display = '';
+    });
+  }
+
+  function findScreenCluster(marker) {
+    for (var i = 0; i < state.screenClusters.length; i++) {
+      if (state.screenClusters[i].repMarker === marker) return state.screenClusters[i];
+    }
+    return null;
+  }
+
+  function setClusterBadge(item, total) {
+    var dupBadge = item.pill.querySelector('.foms-kmap-pill__dup');
+    if (dupBadge) dupBadge.style.display = 'none';
+    var badge = document.createElement('span');
+    badge.className = 'foms-kmap-pill__dup';
+    badge.setAttribute('data-cluster-badge', '1');
+    badge.textContent = 'x' + total;
+    item.pill.appendChild(badge);
+    item.pill.title = item.pill.title + ' · 주변 ' + total + '건';
+  }
+
+  function applyScreenClusters() {
+    resetScreenClusters();
+    if (!state.map || !state.markerItems.length) return;
+    if (state.routeMode || isExpandedView()) return;
+    var projection;
+    try { projection = state.map.getProjection(); } catch (e) { return; }
+    if (!projection || typeof projection.containerPointFromCoords !== 'function') return;
+
+    // 보이는 대표 pill들의 AABB 수집 (CustomOverlay xAnchor=0.5, yAnchor=1)
+    var boxes = [];
+    state.markerItems.forEach(function (item) {
+      if (!item.overlay.getMap()) return; // 동일주소 접기로 숨은 비대표 제외
+      var pt;
+      try {
+        pt = projection.containerPointFromCoords(
+          new window.kakao.maps.LatLng(item.marker.latitude, item.marker.longitude));
+      } catch (e) { return; }
+      var rect = item.pill.getBoundingClientRect();
+      var w = (rect.width || 96) + CLUSTER_PAD_PX * 2;
+      var h = (rect.height || 30) + CLUSTER_PAD_PX * 2;
+      boxes.push({ item: item, left: pt.x - w / 2, right: pt.x + w / 2, top: pt.y - h, bottom: pt.y });
+    });
+    if (boxes.length < 2) return;
+
+    // x 정렬 스윕 + union-find (마커 수백 규모, 프레임 내 처리)
+    boxes.sort(function (a, b) { return a.left - b.left; });
+    var parent = boxes.map(function (_, i) { return i; });
+    function findRoot(i) {
+      while (parent[i] !== i) { parent[i] = parent[parent[i]]; i = parent[i]; }
+      return i;
+    }
+    for (var i = 0; i < boxes.length; i++) {
+      for (var j = i + 1; j < boxes.length && boxes[j].left < boxes[i].right; j++) {
+        if (boxes[j].top < boxes[i].bottom && boxes[j].bottom > boxes[i].top) {
+          var ra = findRoot(i), rb = findRoot(j);
+          if (ra !== rb) parent[rb] = ra;
+        }
+      }
+    }
+    var clusters = {};
+    boxes.forEach(function (box, idx) {
+      var root = findRoot(idx);
+      (clusters[root] = clusters[root] || []).push(box.item);
+    });
+
+    Object.keys(clusters).forEach(function (rootKey) {
+      var items = clusters[rootKey];
+      if (items.length <= 1) return;
+      // 대표 = 최신 주문(id 큰 것) — 줌 변화에도 안정적인 명시 기준
+      items.sort(function (a, b) { return Number(b.marker.id) - Number(a.marker.id); });
+      var markers = [];
+      items.forEach(function (item) {
+        groupMarkersOf(item.marker).forEach(function (m) {
+          if (markers.indexOf(m) === -1) markers.push(m);
+        });
+      });
+      items.forEach(function (item, position) {
+        if (position === 0) { item.overlay.setZIndex(400); return; }
+        item.overlay.setMap(null);
+      });
+      setClusterBadge(items[0], markers.length);
+      state.screenClusters.push({ repMarker: items[0].marker, markers: markers });
+    });
+  }
+
+  // 접기/펼치기 + 스크린 클러스터 한 패스 — 호출부 공용 진입점
+  function applyMarkerLayout() {
+    applyDuplicateLayout();
+    applyScreenClusters();
+  }
+
   // 줌 후 보이는 마커가 0개면 최근접 마커로 팬 보정 — 근본 원인 대응:
   // 확대(중심 고정 줌)로 모든 마커가 뷰포트 밖으로 나가면 카카오는 화면 밖
   // CustomOverlay DOM을 분리해 사용자에게 "마커 전부 소실"로 보인다(스테이징
@@ -599,6 +728,10 @@
         (completedRoute ? ' foms-route-pin--done' : '') + '">' + m.__routeSeq + '</span>';
     }
     htmlParts += '<span class="foms-kmap-pill__name">' + escapeHtml(display) + '</span>';
+    // AS 지도: 주말 가능 건 표식(필터 안 켜도 훑어보며 인지) — 데이터 있을 때만
+    if (m.as_availability && m.as_availability.days === 'weekend') {
+      htmlParts += '<span class="foms-kmap-pill__wknd" title="주말 가능">주</span>';
+    }
     if (m.__dupSize > 1) {
       htmlParts += '<span class="foms-kmap-pill__dup">x' + m.__dupSize + '</span>';
     }
@@ -608,6 +741,15 @@
     pill.addEventListener('click', function (e) {
       e.stopPropagation();
       var pos = new window.kakao.maps.LatLng(m.latitude, m.longitude);
+      // 스크린 클러스터 대표: 주변 건 목록 팝업(펼치면 클러스터 bounds로 줌인).
+      var cluster = findScreenCluster(m);
+      if (cluster && !state.routeMode) {
+        openGroupPopup(cluster.markers, pos, {
+          title: '주변 ' + cluster.markers.length + '건',
+          fitBounds: true
+        });
+        return;
+      }
       var group = groupMarkersOf(m);
       // 접힌 대표 마커: 그룹 내 주문 목록 팝업. 펼침/route 모드: 개별 팝업.
       if (group.length > 1 && !isExpandedView() && !state.routeMode) {
@@ -647,8 +789,8 @@
       state.markerItems.push({ overlay: overlay, pill: pill, marker: m });
     });
 
-    // 현재 줌 기준 그룹 접기/펼치기 즉시 적용(폴링 재렌더 시 상태 보존).
-    applyDuplicateLayout();
+    // 현재 줌 기준 그룹 접기/펼치기 + 스크린 클러스터 즉시 적용(폴링 재렌더 시 상태 보존).
+    applyMarkerLayout();
 
     // 경로 계산 선택 보존: 재렌더 후 대상 주문이 사라졌으면 해제, 남았으면 강조 재적용.
     if (state.routeCalc.start) {
@@ -716,7 +858,7 @@
     // 1회(이 생성 분기에서만 부착). ensureMap 은 기존 인스턴스를 재사용하므로
     // 재렌더/폴링에서 누적되지 않는다.
     maps.event.addListener(map, 'zoom_changed', function () {
-      applyDuplicateLayout();
+      applyMarkerLayout();
     });
     // 팬 보정 이중화(Z8): idle(줌/팬 애니메이션 정착 후 1회)이 정본이나, 스테이징
     // 실측에서 idle 단독 배선이 미보정으로 남는 사례가 있어 bounds_changed

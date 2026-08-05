@@ -984,3 +984,98 @@
     display: none !important;
   }
 }
+
+/* ── 방문 가능시간 칩 + 편집 팝오버 (2026-08-06) ──
+   서버 SSOT: foms/services/orders/as_availability.py (라벨·허용값).
+   칩은 PC 방문일 셀·모바일 카드 방문 블록 공용, 팝오버는 as-dashboard.js가 body에 부착. */
+.erp-as-avail-chip {
+  display: inline-flex;
+  align-items: center;
+  gap: 4px;
+  margin-top: 4px;
+  padding: 2px 8px;
+  border: 1px dashed #adb5bd;
+  border-radius: 999px;
+  background: #fff;
+  color: #6c757d;
+  font-size: 0.75rem;
+  line-height: 1.4;
+  max-width: 100%;
+  cursor: pointer;
+}
+
+.erp-as-avail-chip__label {
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+
+.erp-as-avail-chip--set {
+  border-style: solid;
+  border-color: #6366f1;
+  background: #eef2ff;
+  color: #3730a3;
+}
+
+.erp-as-avail-chip:hover {
+  border-color: #6366f1;
+}
+
+.erp-as-avail-pop {
+  position: absolute;
+  z-index: 1080;
+  width: 248px;
+  padding: 10px;
+  border: 1px solid #dee2e6;
+  border-radius: 8px;
+  background: #fff;
+  box-shadow: 0 8px 24px rgba(15, 23, 42, 0.14);
+}
+
+.erp-as-avail-pop__row {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  margin-bottom: 8px;
+}
+
+.erp-as-avail-pop__label {
+  flex: none;
+  width: 30px;
+  color: #6c757d;
+  font-size: 0.75rem;
+}
+
+.erp-as-avail-pop__seg {
+  display: flex;
+  flex: 1;
+  gap: 4px;
+}
+
+.erp-as-avail-pop__opt {
+  flex: 1;
+  padding: 4px 0;
+  border: 1px solid #dee2e6;
+  border-radius: 6px;
+  background: #fff;
+  color: #495057;
+  font-size: 0.75rem;
+}
+
+.erp-as-avail-pop__opt.is-active {
+  border-color: #6366f1;
+  background: #6366f1;
+  color: #fff;
+}
+
+.erp-as-avail-pop__note {
+  width: 100%;
+  margin-bottom: 8px;
+  font-size: 0.8125rem;
+}
+
+.erp-as-avail-pop__actions {
+  display: flex;
+  justify-content: flex-end;
+  gap: 6px;
+}
