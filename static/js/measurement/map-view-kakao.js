@@ -559,7 +559,11 @@
   // 같은 주소 그룹(x2 접기)과 별개로, 주소가 달라도 화면(px)상 pill이 겹치면
   // 대표 1개 + xN 뱃지(동일 룩 재사용)로 묶는다. 접힘 뷰(level>=6)에서만 동작,
   // route 모드 제외. 팬은 같은 줌에서 상대 위치를 바꾸지 않으므로 줌/재렌더 시에만 재계산.
-  var CLUSTER_PAD_PX = 4;
+  // 그리드 셀 방식: AABB 겹침 union은 밀집 지역에서 사슬 병합(transitive chain)으로
+  // 전국 뷰가 클러스터 1개로 뭉개진다(스테이징 실측: 55건 → x53). 셀 경계가 사슬을
+  // 끊어 지역 단위 묶음을 보존한다. 셀 크기 ≈ pill 1개 박스.
+  var CLUSTER_CELL_W = 112;
+  var CLUSTER_CELL_H = 44;
 
   function resetScreenClusters() {
     state.screenClusters = [];
@@ -597,8 +601,9 @@
     try { projection = state.map.getProjection(); } catch (e) { return; }
     if (!projection || typeof projection.containerPointFromCoords !== 'function') return;
 
-    // 보이는 대표 pill들의 AABB 수집 (CustomOverlay xAnchor=0.5, yAnchor=1)
-    var boxes = [];
+    // 보이는 대표 pill들을 그리드 셀에 버킷팅 (CustomOverlay 앵커 기준)
+    var clusters = {};
+    var seen = 0;
     state.markerItems.forEach(function (item) {
       if (!item.overlay.getMap()) return; // 동일주소 접기로 숨은 비대표 제외
       var pt;
@@ -606,36 +611,14 @@
         pt = projection.containerPointFromCoords(
           new window.kakao.maps.LatLng(item.marker.latitude, item.marker.longitude));
       } catch (e) { return; }
-      var rect = item.pill.getBoundingClientRect();
-      var w = (rect.width || 96) + CLUSTER_PAD_PX * 2;
-      var h = (rect.height || 30) + CLUSTER_PAD_PX * 2;
-      boxes.push({ item: item, left: pt.x - w / 2, right: pt.x + w / 2, top: pt.y - h, bottom: pt.y });
+      seen++;
+      var key = Math.floor(pt.x / CLUSTER_CELL_W) + ':' + Math.floor(pt.y / CLUSTER_CELL_H);
+      (clusters[key] = clusters[key] || []).push(item);
     });
-    if (boxes.length < 2) return;
+    if (seen < 2) return;
 
-    // x 정렬 스윕 + union-find (마커 수백 규모, 프레임 내 처리)
-    boxes.sort(function (a, b) { return a.left - b.left; });
-    var parent = boxes.map(function (_, i) { return i; });
-    function findRoot(i) {
-      while (parent[i] !== i) { parent[i] = parent[parent[i]]; i = parent[i]; }
-      return i;
-    }
-    for (var i = 0; i < boxes.length; i++) {
-      for (var j = i + 1; j < boxes.length && boxes[j].left < boxes[i].right; j++) {
-        if (boxes[j].top < boxes[i].bottom && boxes[j].bottom > boxes[i].top) {
-          var ra = findRoot(i), rb = findRoot(j);
-          if (ra !== rb) parent[rb] = ra;
-        }
-      }
-    }
-    var clusters = {};
-    boxes.forEach(function (box, idx) {
-      var root = findRoot(idx);
-      (clusters[root] = clusters[root] || []).push(box.item);
-    });
-
-    Object.keys(clusters).forEach(function (rootKey) {
-      var items = clusters[rootKey];
+    Object.keys(clusters).forEach(function (cellKey) {
+      var items = clusters[cellKey];
       if (items.length <= 1) return;
       // 대표 = 최신 주문(id 큰 것) — 줌 변화에도 안정적인 명시 기준
       items.sort(function (a, b) { return Number(b.marker.id) - Number(a.marker.id); });
