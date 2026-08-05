@@ -22,6 +22,35 @@ from foms.services.as_dashboard_helpers import (
 )
 
 
+AS_INCOMPLETE_BUCKET_KEYS = ('visit_confirmed', 'pending', 'unassigned', 'paid_unconfirmed')
+
+
+def build_as_incomplete_bucket_conditions(
+    *,
+    incomplete_non_sales_condition,
+    as_pending_true,
+    as_visit_date_present,
+    paid_unconfirmed_condition,
+):
+    """미완료 하위 버킷 조건(SSOT) — 탭 카운트·목록 필터·지도 쿼리가 공유한다.
+
+    Args:
+        incomplete_non_sales_condition: 미완료(영업/택배 제외) 조건.
+        as_pending_true: `shipment.as_pending` true 조건.
+        as_visit_date_present: `schedule.as_visit.date` 존재 조건.
+        paid_unconfirmed_condition: 유상 미확정 조건.
+
+    Returns:
+        {bucket_key: SQLAlchemy 조건} — 키는 ``AS_INCOMPLETE_BUCKET_KEYS``.
+    """
+    return {
+        'visit_confirmed': and_(incomplete_non_sales_condition, ~as_pending_true, as_visit_date_present),
+        'pending': and_(incomplete_non_sales_condition, as_pending_true),
+        'unassigned': and_(incomplete_non_sales_condition, ~as_pending_true, ~as_visit_date_present),
+        'paid_unconfirmed': and_(incomplete_non_sales_condition, paid_unconfirmed_condition),
+    }
+
+
 def build_as_tab_query_conditions(*, dialect_name=''):
     """AS 탭 필터와 카운트가 공유하는 SQL 조건 context를 만든다."""
     sales_delivery = _sales_delivery_expr(dialect_name=dialect_name)
@@ -81,12 +110,12 @@ def build_as_tab_count_context(
     """
     # 미완료 stats 칩 → 버킷 필터(방문확정/미결/미정). 요약 집계와 필터가 같은 조건을
     # 단일 출처(SSOT)로 공유해 칩 카운트와 실제 목록 결과가 항상 일치하게 한다.
-    incomplete_buckets = {
-        'visit_confirmed': and_(incomplete_non_sales_condition, ~as_pending_true, as_visit_date_present),
-        'pending': and_(incomplete_non_sales_condition, as_pending_true),
-        'unassigned': and_(incomplete_non_sales_condition, ~as_pending_true, ~as_visit_date_present),
-        'paid_unconfirmed': and_(incomplete_non_sales_condition, paid_unconfirmed_condition),
-    }
+    incomplete_buckets = build_as_incomplete_bucket_conditions(
+        incomplete_non_sales_condition=incomplete_non_sales_condition,
+        as_pending_true=as_pending_true,
+        as_visit_date_present=as_visit_date_present,
+        paid_unconfirmed_condition=paid_unconfirmed_condition,
+    )
     as_bucket = (bucket or '').strip()
     if tab != 'incomplete' or as_bucket not in incomplete_buckets:
         as_bucket = ''  # 'total'·빈값·타 탭 → 버킷 필터 없음(전체 미완료)

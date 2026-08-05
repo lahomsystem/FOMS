@@ -14,7 +14,11 @@ from foms.services.measurement_manager_colors import (
 )
 from foms.services.measurement_read_model import apply_measurement_dashboard_order_scope
 
-__all__ = ["build_measurement_map_query", "build_measurement_snapshot"]
+__all__ = [
+    "build_measurement_map_query",
+    "build_measurement_snapshot",
+    "build_as_incomplete_map_query",
+]
 
 
 def _measurement_date_variants(yyyy_mm_dd):
@@ -85,6 +89,22 @@ def _measurement_date_prefix_expr(db, date_column):
     return func.substr(normalized, 1, 8)
 
 
+def _apply_map_manager_filter(query, manager):
+    """담당자 부분 일치 필터 (Order.manager_name + ERP structured_data)."""
+    if not (manager and manager.strip()):
+        return query
+    manager_term = f'%{manager.strip()}%'
+    return query.filter(
+        or_(
+            Order.manager_name.ilike(manager_term),  # perf-ok: ix_orders_manager_name_trgm
+            and_(
+                Order.is_erp_order == True,
+                cast(Order.structured_data, String).ilike(manager_term)  # perf-ok: ix_orders_structured_data_text_trgm
+            )
+        )
+    )
+
+
 def build_measurement_map_query(db, date, q, manager, dashboard, limit=500):
     """
     실측 지도/대시보드 공통 주문 검색 쿼리.
@@ -116,17 +136,7 @@ def build_measurement_map_query(db, date, q, manager, dashboard, limit=500):
             ~Order.status.in_(['SELF_MEASUREMENT', 'SELF_MEASURED'])
         )
 
-    if manager and manager.strip():
-        manager_term = f'%{manager.strip()}%'
-        query = query.filter(
-            or_(
-                Order.manager_name.ilike(manager_term),  # perf-ok: ix_orders_manager_name_trgm
-                and_(
-                    Order.is_erp_order == True,
-                    cast(Order.structured_data, String).ilike(manager_term)  # perf-ok: ix_orders_structured_data_text_trgm
-                )
-            )
-        )
+    query = _apply_map_manager_filter(query, manager)
 
     # measurement 모드: status는 ALL 고정
     if dashboard != 'measurement':
@@ -150,6 +160,55 @@ def build_measurement_map_query(db, date, q, manager, dashboard, limit=500):
     query = query.order_by(Order.id.desc()).limit(limit)
 
     return query
+
+
+def build_as_incomplete_map_query(db, q, manager, bucket=None, limit=500):
+    """AS 미완료 지도 주문 쿼리 — AS 탭 미완료 판정 SSOT를 그대로 공유한다.
+
+    탭(`/erp/as?tab=incomplete`)과 1:1 일치가 목표: 날짜 필터 없음(미완료 전체),
+    지방(is_regional) 주문 포함, `sales_delivery` 행 제외.
+
+    Args:
+        db: DB 세션
+        q: 검색어
+        manager: 담당자 필터 (부분 일치)
+        bucket: 미완료 하위 버킷 키 (``AS_INCOMPLETE_BUCKET_KEYS`` 외 값은 무시)
+        limit: 최대 주문 수
+
+    Returns:
+        SQLAlchemy query (아직 .all() 호출 전)
+    """
+    from foms.services.as_dashboard_read_model import (
+        build_as_incomplete_bucket_conditions,
+        build_as_tab_query_conditions,
+    )
+
+    dialect_name = ''
+    try:
+        bind = db.get_bind()
+        dialect_name = getattr(getattr(bind, 'dialect', None), 'name', '') or ''
+    except Exception:
+        dialect_name = ''
+
+    conditions = build_as_tab_query_conditions(dialect_name=dialect_name)
+    query = db.query(Order).filter(Order.active_filter())
+    # AS 탭 모집단과 동일한 status 선행 축소 (as_dashboard.py 목록 쿼리와 동형)
+    query = query.filter(Order.status.in_(['AS', 'AS_RECEIVED', 'AS_COMPLETED']))
+    query = query.filter(conditions['incomplete_non_sales_condition'])
+    query = _measurement_search_filter(query, q)
+    query = _apply_map_manager_filter(query, manager)
+
+    bucket_key = (bucket or '').strip()
+    buckets = build_as_incomplete_bucket_conditions(
+        incomplete_non_sales_condition=conditions['incomplete_non_sales_condition'],
+        as_pending_true=conditions['as_pending_true'],
+        as_visit_date_present=conditions['as_visit_date_present'],
+        paid_unconfirmed_condition=conditions['paid_unconfirmed_condition'],
+    )
+    if bucket_key in buckets:
+        query = query.filter(buckets[bucket_key])
+
+    return query.order_by(Order.id.desc()).limit(limit)
 
 
 def _extract_order_display_fields(order):
@@ -313,7 +372,8 @@ def _annotate_marker_metadata(orders_list, markers):
             item.setdefault('marker_render_hint', 'status')
 
 
-def build_measurement_snapshot(orders, manager_filter=None, measurement_manager_options=None):
+def build_measurement_snapshot(orders, manager_filter=None, measurement_manager_options=None,
+                               use_manager_colors=True):
     """
     주문 리스트에서 canonical DTO 조립 (목록 + 마커 + 요약).
 
@@ -321,6 +381,8 @@ def build_measurement_snapshot(orders, manager_filter=None, measurement_manager_
         orders: Order 객체 리스트 (self_measurement_four_checks_done 제외된 상태)
         manager_filter: 담당자 필터 (부분 일치, None이면 미적용)
         measurement_manager_options: 실측 담당자 설정 목록 (테스트/호출자 주입용)
+        use_manager_colors: False면 담당자 팔레트색 미부여(source='default') —
+            AS 지도처럼 마커를 상태색으로 칠하는 표면용(실측 담당자 설정과 무관한 모집단)
 
     Returns:
         {
@@ -364,21 +426,24 @@ def build_measurement_snapshot(orders, manager_filter=None, measurement_manager_
             'conversion_status': status,
         })
 
-    measurement_manager_options = (
-        measurement_manager_options
-        if measurement_manager_options is not None
-        else (load_erp_shipment_settings().get('measurement_manager') or [])
-    )
-    manager_color_map = build_measurement_manager_color_map(
-        [
-            {
-                'manager_name': item['ctx']['manager_name'],
-                'order_id': item['order'].id,
-            }
-            for item in prepared_orders
-        ],
-        measurement_manager_options,
-    )
+    if use_manager_colors:
+        measurement_manager_options = (
+            measurement_manager_options
+            if measurement_manager_options is not None
+            else (load_erp_shipment_settings().get('measurement_manager') or [])
+        )
+        manager_color_map = build_measurement_manager_color_map(
+            [
+                {
+                    'manager_name': item['ctx']['manager_name'],
+                    'order_id': item['order'].id,
+                }
+                for item in prepared_orders
+            ],
+            measurement_manager_options,
+        )
+    else:
+        manager_color_map = {}
 
     for item in prepared_orders:
         order = item['order']

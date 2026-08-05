@@ -196,9 +196,13 @@ def erp_as_dashboard():
     billing_filter = _af.billing
 
     if open_map:
-        date_val = selected_date or get_today_kst().strftime('%Y-%m-%d')
-        status_val = status_filter or 'ALL'
-        return redirect(url_for('erp_map.map_view', date=date_val, status=status_val))
+        # AS 전용 지도(dashboard=as): 미완료 전체(날짜 무관) — 현재 버킷만 전달
+        from foms.services.as_dashboard_read_model import AS_INCOMPLETE_BUCKET_KEYS
+        map_kwargs = {'dashboard': 'as'}
+        bucket_val = (request.args.get('bucket') or '').strip()
+        if bucket_val in AS_INCOMPLETE_BUCKET_KEYS:
+            map_kwargs['bucket'] = bucket_val
+        return redirect(url_for('erp_map.map_view', **map_kwargs))
 
     bind = db.get_bind() if hasattr(db, 'get_bind') else None
     dialect_name = ((bind.dialect.name or '') if bind and bind.dialect else '').lower()

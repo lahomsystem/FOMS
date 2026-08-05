@@ -139,6 +139,7 @@ def test_namespaced_map_snapshot_shim_preserves_canonical_functions() -> None:
     assert namespaced_map_snapshot.__all__ == [
         "build_measurement_map_query",
         "build_measurement_snapshot",
+        "build_as_incomplete_map_query",
     ]
 
 

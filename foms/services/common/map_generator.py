@@ -83,7 +83,10 @@ class FOMSMapGenerator:
             'SHIPPED': '#17a2b8',       # 청록색 - 배송
             'DELIVERED': '#20c997',     # 민트색 - 배송완료
             'CANCELLED': '#dc3545',     # 빨간색 - 취소
-            'ON_HOLD': '#fd7e14'        # 주황색 - 보류
+            'ON_HOLD': '#fd7e14',       # 주황색 - 보류
+            'AS_RECEIVED': '#dc3545',   # 빨간색 - AS 접수
+            'AS': '#fd7e14',            # 주황색 - AS 처리중
+            'AS_COMPLETED': '#6c757d'   # 회색 - AS 완료(미완료 탭엔 완료일 공란 행만)
         }
         return status_colors.get(status, '#6c757d')
 
