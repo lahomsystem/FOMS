@@ -2238,6 +2238,23 @@ function erpFocusWithoutScroll(el) {
     }
 }
 
+function erpAppendFocusOrderParam(targetUrl, orderId) {
+    // 저장 복귀를 방금 저장한 행으로 정렬(focus_order 딥링크 재사용: 스크롤+하이라이트).
+    // 대시보드 복귀가 그리드(erp-grid-scroll-wrap) 스크롤을 0으로 되돌려
+    // "저장 누르면 스크롤 업" 으로 보이던 문제의 근본 수정 — px 위치 복원 대신
+    // 행 기준 복귀라 저장 후 재정렬·필터 상태에도 안전하다.
+    if (!orderId || orderId <= 0) return targetUrl;
+    try {
+        const u = new URL(targetUrl, window.location.origin);
+        if (u.origin !== window.location.origin) return targetUrl;
+        if (u.pathname !== '/erp/dashboard') return targetUrl;
+        u.searchParams.set('focus_order', String(orderId));
+        return u.pathname + u.search + u.hash;
+    } catch (e) {
+        return targetUrl;
+    }
+}
+
 function erpNavigateAfterStructuredSave(targetUrl) {
     if (!targetUrl) {
         window.location.href = '/erp/dashboard';
@@ -2490,12 +2507,12 @@ async function erpSaveStructuredOnce(opts = {}) {
             if (redirectUrlOverride) {
                 window.location.href = redirectUrlOverride;
             } else if (isErpOrderDraftMode()) {
-                window.location.href = '/erp/dashboard';
+                window.location.href = erpAppendFocusOrderParam('/erp/dashboard', targetId);
             } else {
                 const referrerInput = document.querySelector('input[name="referrer"]');
                 let targetUrl = referrerInput ? referrerInput.value : document.referrer;
                 if (!targetUrl || targetUrl.includes(window.location.pathname)) targetUrl = '/erp/dashboard';
-                erpNavigateAfterStructuredSave(targetUrl);
+                erpNavigateAfterStructuredSave(erpAppendFocusOrderParam(targetUrl, targetId));
             }
         }
         return { success: true };
