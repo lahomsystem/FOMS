@@ -452,6 +452,8 @@ def api_map_data():
                 bucket=(request.args.get('bucket') or '').strip(),
                 limit=limit,
                 enqueue=enqueue,
+                avail_days=(request.args.get('avail_days') or '').strip(),
+                avail_time=(request.args.get('avail_time') or '').strip(),
             )
 
         # measurement 모드: map_snapshot 사용, 전체 주문 반환 (2026-03-15)
@@ -559,6 +561,8 @@ def api_generate_map():
                 bucket=(request.args.get('bucket') or '').strip(),
                 limit=limit,
                 title=request.args.get('title') or AS_MAP_DEFAULT_TITLE,
+                avail_days=(request.args.get('avail_days') or '').strip(),
+                avail_time=(request.args.get('avail_time') or '').strip(),
             )
 
         # measurement 모드: shared query builder 사용 (2026-03-15)

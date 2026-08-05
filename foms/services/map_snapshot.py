@@ -162,7 +162,8 @@ def build_measurement_map_query(db, date, q, manager, dashboard, limit=500):
     return query
 
 
-def build_as_incomplete_map_query(db, q, manager, bucket=None, limit=500):
+def build_as_incomplete_map_query(db, q, manager, bucket=None, avail_days=None,
+                                  avail_time=None, limit=500):
     """AS 미완료 지도 주문 쿼리 — AS 탭 미완료 판정 SSOT를 그대로 공유한다.
 
     탭(`/erp/as?tab=incomplete`)과 1:1 일치가 목표: 날짜 필터 없음(미완료 전체),
@@ -173,11 +174,18 @@ def build_as_incomplete_map_query(db, q, manager, bucket=None, limit=500):
         q: 검색어
         manager: 담당자 필터 (부분 일치)
         bucket: 미완료 하위 버킷 키 (``AS_INCOMPLETE_BUCKET_KEYS`` 외 값은 무시)
+        avail_days: 가능 요일 필터 — 'weekday'/'weekend'(무관 any 포함) 또는
+            'unknown'(미기입만). 그 외 값은 무시.
+        avail_time: 가능 시간대 필터 — 'am'/'pm'/'evening'(무관 any 포함). 그 외 무시.
         limit: 최대 주문 수
 
     Returns:
         SQLAlchemy query (아직 .all() 호출 전)
     """
+    from foms.services.as_dashboard_helpers import (
+        _as_availability_days_expr,
+        _as_availability_time_expr,
+    )
     from foms.services.as_dashboard_read_model import (
         build_as_incomplete_bucket_conditions,
         build_as_tab_query_conditions,
@@ -207,6 +215,19 @@ def build_as_incomplete_map_query(db, q, manager, bucket=None, limit=500):
     )
     if bucket_key in buckets:
         query = query.filter(buckets[bucket_key])
+
+    # 가능시간 필터 — '가능' 필터는 명시적 무관(any)을 포함하되 미기입('')은 제외
+    # (미기입 제외 건수 고지는 호출자 몫 — services/orders/as_availability.py 참조)
+    days_key = (avail_days or '').strip().lower()
+    if days_key in ('weekday', 'weekend'):
+        query = query.filter(
+            _as_availability_days_expr(dialect_name=dialect_name).in_((days_key, 'any')))
+    elif days_key == 'unknown':
+        query = query.filter(_as_availability_days_expr(dialect_name=dialect_name) == '')
+    time_key = (avail_time or '').strip().lower()
+    if time_key in ('am', 'pm', 'evening'):
+        query = query.filter(
+            _as_availability_time_expr(dialect_name=dialect_name).in_((time_key, 'any')))
 
     return query.order_by(Order.id.desc()).limit(limit)
 
@@ -445,6 +466,8 @@ def build_measurement_snapshot(orders, manager_filter=None, measurement_manager_
     else:
         manager_color_map = {}
 
+    from foms.services.orders.as_availability import as_availability_label, get_as_availability
+
     for item in prepared_orders:
         order = item['order']
         ctx = item['ctx']
@@ -455,6 +478,9 @@ def build_measurement_snapshot(orders, manager_filter=None, measurement_manager_
             ctx['manager_name'],
             manager_color_map,
         )
+        # AS 방문 가능시간(있을 때만 값) — AS 지도 필터·팝업용, 타 대시보드에선 None
+        avail = get_as_availability(getattr(order, 'structured_data', None))
+        avail_label = as_availability_label(avail)
 
         orders_list.append({
             'id': order.id,
@@ -476,6 +502,8 @@ def build_measurement_snapshot(orders, manager_filter=None, measurement_manager_
             'manager_bg_color': manager_color['background'],
             'manager_bg_source': manager_color['source'],
             'manager_text_color': manager_color['text'],
+            'as_availability': avail,
+            'as_availability_label': avail_label,
         })
 
         if lat is not None and lng is not None:
@@ -494,6 +522,8 @@ def build_measurement_snapshot(orders, manager_filter=None, measurement_manager_
                 'manager_bg_color': manager_color['background'],
                 'manager_bg_source': manager_color['source'],
                 'manager_text_color': manager_color['text'],
+                'as_availability': avail,
+                'as_availability_label': avail_label,
             })
 
     # 동일 주소/좌표 메타데이터만 부여하고, 실제 집계/분리 UX는 클라이언트 줌 상태에서 제어한다.

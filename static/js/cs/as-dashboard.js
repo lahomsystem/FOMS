@@ -522,6 +522,131 @@
       return data;
     }
 
+    // ── 방문 가능시간 팝오버 (칩 클릭 편집) ─────────────────────────────
+    // 서버 SSOT: foms/services/orders/as_availability.py (라벨·허용값 동기 필수)
+    (function initAsAvailabilityPopover() {
+      if (window.__asAvailPopoverWired) return; // fragment 재실행 가드
+      window.__asAvailPopoverWired = true;
+      const DAY_OPTS = [['any', '무관'], ['weekday', '평일'], ['weekend', '주말']];
+      const TIME_OPTS = [['any', '무관'], ['am', '오전'], ['pm', '오후'], ['evening', '저녁']];
+      const DAY_LABELS = { any: '요일무관', weekday: '평일', weekend: '주말' };
+      const TIME_LABELS = { any: '시간무관', am: '오전', pm: '오후', evening: '저녁' };
+      let pop = null;
+
+      function availLabel(v) {
+        if (!v) return '';
+        const parts = [DAY_LABELS[v.days] || '', TIME_LABELS[v.time] || ''].filter(Boolean);
+        let label = parts.join('·');
+        if (v.note) label = label ? `${label} (${v.note})` : `(${v.note})`;
+        return label;
+      }
+
+      function closePop() {
+        if (pop) { pop.remove(); pop = null; }
+      }
+
+      function segmentHtml(name, opts, current) {
+        return opts.map(([val, label]) =>
+          `<button type="button" class="erp-as-avail-pop__opt${val === current ? ' is-active' : ''}"
+             data-seg="${name}" data-val="${val}">${label}</button>`).join('');
+      }
+
+      function applyChipState(orderId, value) {
+        document.querySelectorAll(`.erp-as-avail-chip[data-order-id="${orderId}"]`).forEach((chip) => {
+          chip.dataset.availDays = value ? value.days : '';
+          chip.dataset.availTime = value ? value.time : '';
+          chip.dataset.availNote = value && value.note ? value.note : '';
+          chip.classList.toggle('erp-as-avail-chip--set', !!value);
+          const labelEl = chip.querySelector('.erp-as-avail-chip__label');
+          if (labelEl) labelEl.textContent = value ? availLabel(value) : '가능시간';
+        });
+      }
+
+      async function saveAvailability(orderId, value) {
+        const res = await fetch('/api/update_order_field', {
+          method: 'POST',
+          headers: { 'Content-Type': 'application/json' },
+          body: JSON.stringify({ order_id: orderId, field: 'as_visit_availability', value })
+        });
+        const data = await res.json();
+        if (!data.success) throw new Error(data.message || '가능시간 저장 실패');
+        return data;
+      }
+
+      function openPop(chip) {
+        closePop();
+        const orderId = chip.dataset.orderId;
+        const state = {
+          days: chip.dataset.availDays || 'any',
+          time: chip.dataset.availTime || 'any',
+          note: chip.dataset.availNote || ''
+        };
+        pop = document.createElement('div');
+        pop.className = 'erp-as-avail-pop';
+        pop.innerHTML =
+          `<div class="erp-as-avail-pop__row"><span class="erp-as-avail-pop__label">요일</span>
+             <div class="erp-as-avail-pop__seg">${segmentHtml('days', DAY_OPTS, state.days)}</div></div>
+           <div class="erp-as-avail-pop__row"><span class="erp-as-avail-pop__label">시간</span>
+             <div class="erp-as-avail-pop__seg">${segmentHtml('time', TIME_OPTS, state.time)}</div></div>
+           <input type="text" class="erp-pro-input erp-as-avail-pop__note" maxlength="80"
+             placeholder="메모 (예: 3시 이후, 경비실 경유)">
+           <div class="erp-as-avail-pop__actions">
+             <button type="button" class="erp-pro-btn erp-pro-btn--ghost" data-act="clear">초기화</button>
+             <button type="button" class="erp-pro-btn erp-pro-btn--primary" data-act="save">저장</button>
+           </div>`;
+        pop.querySelector('.erp-as-avail-pop__note').value = state.note;
+        document.body.appendChild(pop);
+        const rect = chip.getBoundingClientRect();
+        const popW = pop.offsetWidth || 240;
+        const left = Math.max(8, Math.min(window.scrollX + rect.left, window.scrollX + window.innerWidth - popW - 8));
+        pop.style.top = `${window.scrollY + rect.bottom + 4}px`;
+        pop.style.left = `${left}px`;
+
+        pop.addEventListener('click', async (e) => {
+          const seg = e.target.closest('[data-seg]');
+          if (seg) {
+            state[seg.dataset.seg] = seg.dataset.val;
+            seg.parentElement.querySelectorAll('.erp-as-avail-pop__opt').forEach((b) =>
+              b.classList.toggle('is-active', b === seg));
+            return;
+          }
+          const act = e.target.closest('[data-act]');
+          if (!act) return;
+          const isClear = act.dataset.act === 'clear';
+          const value = isClear ? null : {
+            days: state.days,
+            time: state.time,
+            note: pop.querySelector('.erp-as-avail-pop__note').value.trim()
+          };
+          try {
+            const data = await saveAvailability(orderId, value);
+            // 서버 에코 키는 normalized_value (초기화면 "")
+            const saved = (data.normalized_value && typeof data.normalized_value === 'object')
+              ? data.normalized_value : null;
+            applyChipState(orderId, saved);
+            showFeedback(isClear ? '가능시간을 초기화했습니다.' : '가능시간을 저장했습니다.');
+          } catch (err) {
+            showFeedback(err.message || '가능시간 저장 실패', true);
+          }
+          closePop();
+        });
+      }
+
+      document.addEventListener('click', (e) => {
+        const chip = e.target.closest('.erp-as-avail-chip');
+        if (chip) {
+          e.preventDefault();
+          e.stopPropagation();
+          if (pop && pop.dataset.forOrder === chip.dataset.orderId) { closePop(); return; }
+          openPop(chip);
+          if (pop) pop.dataset.forOrder = chip.dataset.orderId;
+          return;
+        }
+        if (pop && !pop.contains(e.target)) closePop();
+      });
+      document.addEventListener('keydown', (e) => { if (e.key === 'Escape') closePop(); });
+    })();
+
     function getDateFieldSaveState(input) {
       const key = `${input.dataset.orderId}:${input.dataset.field}`;
       let state = dateFieldSaveState.get(key);

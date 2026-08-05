@@ -42,6 +42,9 @@ ORDER_UPDATE_ALLOWED_FIELDS = [
     # (:func:`_bridge_as_completed_date`) — 직접 상태 쓰기는 이 파일에 없다.
     "as_completed_date",
     "as_visit_date",
+    # AS 방문 가능시간(평일/주말·시간대) — schedule.as_visit.availability (SSOT:
+    # foms/services/orders/as_availability.py)
+    "as_visit_availability",
     "as_pending",
     "as_blueprint",
     "sales_delivery",
@@ -58,6 +61,7 @@ ORDER_UPDATE_ALLOWED_FIELDS = [
 # 받는다. 두 필드는 legacy 읽기 전용으로 남아 최초 append 때 as_log 로 영구화된다.
 STRUCTURED_SYNC_FIELDS = {
     "as_visit_date",
+    "as_visit_availability",
     "as_pending",
     "as_blueprint",
     "sales_delivery",
@@ -384,6 +388,7 @@ def update_order_field_response(
         if field == "as_visit_date":
             pass
         elif field in (
+            "as_visit_availability",
             "as_pending",
             "as_blueprint",
             "sales_delivery",
@@ -413,6 +418,7 @@ def update_order_field_response(
 
         if is_erp_order or field in (
             "as_visit_date",
+            "as_visit_availability",
             "as_pending",
             "as_blueprint",
             "sales_delivery",
@@ -482,6 +488,29 @@ def update_order_field_response(
                     as_system_event = (
                         f"방문일 확정: {normalized_visit}" if trimmed else "방문일 취소"
                     )
+            elif field == "as_visit_availability":
+                from foms.services.orders.as_availability import (
+                    as_availability_label,
+                    normalize_as_availability,
+                )
+                # 값 오류는 ValueError → 409 경로(쓰기 전 차단)
+                normalized_avail = normalize_as_availability(value)
+                schedule = ensure_path(structured_data, "schedule")
+                as_visit = ensure_path(schedule, "as_visit")
+                old_avail = (
+                    (old_sd_snapshot.get("schedule") or {}).get("as_visit") or {}
+                ).get("availability")
+                if normalized_avail is None:
+                    as_visit.pop("availability", None)
+                else:
+                    as_visit["availability"] = normalized_avail
+                structured_changed = True
+                if (old_avail or None) != normalized_avail:
+                    as_system_event = (
+                        f"가능시간: {as_availability_label(normalized_avail)}"
+                        if normalized_avail else "가능시간 초기화"
+                    )
+                value = normalized_avail  # 응답/접근로그 에코를 정규화 값으로
 
         if is_erp_order and field in ("as_received_date", "as_visit_date"):
             if _clear_as_pending_if_both_as_dates_empty(order, structured_data):

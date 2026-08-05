@@ -213,6 +213,28 @@ def _as_visit_date_expr(*, dialect_name=''):
     )
 
 
+def _as_availability_days_expr(*, dialect_name: str = '') -> ColumnElement[str]:
+    """structured_data.schedule.as_visit.availability.days 추출(미기입='' 유지, 소문자).
+
+    미기입('')과 명시적 '무관'(any)을 구분해야 지도 필터가 "미기입 N건 제외"를
+    고지할 수 있다 — 기본값 주입 금지. SSOT: services/orders/as_availability.py.
+    """
+    return func.lower(func.coalesce(
+        cast(_json_text_expr('schedule', 'as_visit', 'availability', 'days',
+                             dialect_name=dialect_name), String),
+        '',
+    ))
+
+
+def _as_availability_time_expr(*, dialect_name: str = '') -> ColumnElement[str]:
+    """structured_data.schedule.as_visit.availability.time 추출(미기입='' 유지, 소문자)."""
+    return func.lower(func.coalesce(
+        cast(_json_text_expr('schedule', 'as_visit', 'availability', 'time',
+                             dialect_name=dialect_name), String),
+        '',
+    ))
+
+
 def _as_billing_type_expr(*, dialect_name: str = '') -> ColumnElement[str]:
     """structured_data.shipment.as_billing.type 추출(기본 'free', 소문자).
 
