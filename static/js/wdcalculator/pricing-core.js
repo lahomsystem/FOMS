@@ -996,10 +996,7 @@ var WdCalculatorCouponShippingWiring = window.WdCalculatorCouponShippingWiring |
     function bindCouponInput() {
         var couponInputField = document.getElementById("globalCouponValue");
         if (couponInputField) {
-            if (!couponInputField.value || couponInputField.value === "0") {
-                couponInputField.value = defaultCouponValue;
-                console.log("쿠폰 입력 필드 초기값 설정:", defaultCouponValue);
-            }
+            // 빈/0 입력을 기본값으로 되돌리지 않는다 — 빈 입력 = 할인 0 (사용자 입력 존중).
 
             couponInputField.addEventListener("input", function () {
                 var newValue = this.value;

@@ -156,26 +156,26 @@ function buildSandbox(spec = {}) {
     };
 }
 
-function scenarioCouponInitializesDefaultAndRunsInitialRecalc() {
+function scenarioEmptyCouponStaysEmptyAndRunsInitialRecalc() {
     const env = buildSandbox({
         couponValue: "",
         estimates: [{ id: 1 }],
     });
 
-    assertEq(env.ids.globalCouponValue.value, "11000", "empty coupon input is initialized to DEFAULT_COUPON_VALUE");
+    assertEq(env.ids.globalCouponValue.value, "", "empty coupon input stays empty (no default injection; empty = 0 discount)");
     assertEq(env.callLog.calculateEstimate, 1, "initial coupon wiring triggers calculateEstimate once");
     assertEq(env.callLog.calculateTotalEstimates, 1, "initial coupon wiring triggers aggregate recalc once when estimates exist");
     assertEq(env.callLog.timeouts.length, 1, "initial coupon wiring schedules one timeout");
     assertEq(env.callLog.timeouts[0], 500, "initial coupon wiring keeps 500ms timeout");
 }
 
-function scenarioZeroCouponInitializesDefaultAndSkipsInitialAggregateWithoutEstimates() {
+function scenarioZeroCouponStaysZeroAndSkipsInitialAggregateWithoutEstimates() {
     const env = buildSandbox({
         couponValue: "0",
         estimates: [],
     });
 
-    assertEq(env.ids.globalCouponValue.value, "11000", "zero coupon input is initialized to DEFAULT_COUPON_VALUE");
+    assertEq(env.ids.globalCouponValue.value, "0", "zero coupon input stays zero (user-entered 0 is respected)");
     assertEq(env.callLog.calculateEstimate, 1, "initial coupon wiring still triggers calculateEstimate once");
     assertEq(env.callLog.calculateTotalEstimates, 0, "initial coupon wiring skips aggregate recalc when estimates are empty");
     assertEq(env.callLog.timeouts.length, 1, "zero coupon path still schedules one timeout");
@@ -241,8 +241,8 @@ function scenarioMissingCouponInputLogsError() {
     assertIncludes(env.callLog.errors[0][0], "쿠폰 입력 필드를 찾을 수 없습니다", "missing coupon input preserves legacy error message");
 }
 
-scenarioCouponInitializesDefaultAndRunsInitialRecalc();
-scenarioZeroCouponInitializesDefaultAndSkipsInitialAggregateWithoutEstimates();
+scenarioEmptyCouponStaysEmptyAndRunsInitialRecalc();
+scenarioZeroCouponStaysZeroAndSkipsInitialAggregateWithoutEstimates();
 scenarioShippingListenersRecalcOnlyWhenEstimatesExist();
 scenarioShippingListenersSkipAggregateWithoutEstimates();
 scenarioCouponEventsTriggerExpectedRecalcPaths();
