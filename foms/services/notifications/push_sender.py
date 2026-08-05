@@ -45,6 +45,9 @@ _DEFAULT_P1_TYPES = frozenset(
         "DRAWING_REVISION",
         "QUEST_ASSIGNED",
         "ERP_ORDER_CHANGED",
+        # 시공일 이동은 상차·차량·팀 배정을 즉시 무효로 만든다 — 화면을 안 보고 있어도 알린다.
+        # (미등록이면 enqueue 해도 조용히 no-op 된다. PRODUCTION_ORDER_CHANGED 가 그 상태다.)
+        "SHIPMENT_ORDER_CHANGED",
         # 에스컬레이션 row 는 is_urgent=False(재진입 방지)이므로 P1 로 OS push 허용.
         "URGENT_ESCALATION",
     }
@@ -123,6 +126,11 @@ def _deep_link(notif: Notification) -> str:
         if ntype in ("DRAWING_TRANSFERRED", "DRAWING_REVISION"):
             tab = "timeline" if ntype == "DRAWING_TRANSFERRED" else "requests"
             return f"/erp/drawing-workbench/{oid}?tab={tab}"
+        if ntype == "SHIPMENT_ORDER_CHANGED":
+            # 날짜는 붙이지 않는다 — push payload 는 generic 규약이고 Notification 모델에도
+            # 날짜 컬럼이 없다. 대시보드는 오늘로 열리며, 정확한 날짜 링크는 벨 목록 API
+            # (`_resolve_notification_deep_link`)가 주문 현재 시공일에서 파생해 준다.
+            return "/erp/shipment"
         return f"/erp/orders/{oid}"
     return "/erp"
 
@@ -135,6 +143,8 @@ def _generic_title(urgent: bool, ntype: str) -> str:
         return "도면·주문 변경"
     if ntype in ("DRAWING_TRANSFERRED", "DRAWING_REVISION"):
         return "도면 알림"
+    if ntype == "SHIPMENT_ORDER_CHANGED":
+        return "출고 일정 변경"
     if ntype == "QUEST_ASSIGNED":
         return "업무 배정 알림"
     if ntype == "URGENT_ESCALATION":
