@@ -10,11 +10,11 @@ import logging
 import time
 from typing import Any, List, Mapping, Optional, Tuple
 
-from flask import Blueprint, request, jsonify, session
+from flask import Blueprint, has_request_context, request, jsonify, session
 
 logger = logging.getLogger(__name__)
 from sqlalchemy import text
-from sqlalchemy.orm import Session
+from sqlalchemy.orm import Session, object_session
 from sqlalchemy.orm.attributes import flag_modified
 
 from db import get_db
@@ -62,6 +62,14 @@ from foms.services.orders.structured_form_projection import project_structured_f
 #: structured PUT 저장의 mutation 정책 id(receipt policy_id·OrderEvent scope). AUTH-01 manifest
 #: 는 이 엔드포인트를 STAFF_MUTATION guard 로 이미 enforce 하므로 route 는 정책 id 만 공유한다.
 STRUCTURED_PUT_POLICY_ID = "ERP_STRUCTURED_PUT"
+
+#: ERP 주력 생성 경로(draft → 승격)가 남기는 정본 생성 이벤트. ``create_order()`` 가 쓰는
+#: 타입과 같고 payload ``via`` 로 경로를 구분한다(타임라인·감사 질의를 한 타입으로 통일).
+ORDER_CREATED_EVENT = "ORDER_CREATED"
+#: draft 행이 **처음 만들어진** 시점의 이벤트(설계 결정 ② — 승격 이벤트와 분리).
+ORDER_DRAFT_CREATED_EVENT = "ORDER_DRAFT_CREATED"
+#: 두 이벤트 payload 의 경로 표기 — 마법사/레거시 폼(``create_order`` 경유)과 구분한다.
+ERP_DRAFT_EVENT_VIA = "erp_draft"
 
 _CUSTOMER_PLACEHOLDERS = {ERP_DRAFT_PLACEHOLDER_CUSTOMER}
 _PRODUCT_PLACEHOLDERS = {ERP_DRAFT_PLACEHOLDER_PRODUCT}
@@ -530,14 +538,128 @@ def _emit_production_change_if_needed(
         return None, False
 
 
+def _event_actor_user_id() -> Optional[int]:
+    """생성 이벤트의 actor(세션 사용자 id).
+
+    요청 밖(백필 스크립트·워커)에서 호출돼도 예외를 던지지 않고 ``None`` 을 돌려준다 —
+    감사 기록의 부재가 주문 저장을 죽여선 안 된다.
+
+    Returns:
+        세션 사용자 id(요청 밖이거나 미로그인이면 ``None``).
+    """
+    if not has_request_context():
+        return None
+    raw = session.get('user_id')
+    return int(raw) if str(raw or '').strip().isdigit() else None
+
+
+def _emit_draft_created_event(db: Session, order_id: int, created_via: str) -> None:
+    """draft 행이 **새로 만들어진** 시점에 ``ORDER_DRAFT_CREATED`` 1건을 남긴다.
+
+    자동저장(기존 draft 재저장)에서는 부르지 않는다 — draft 는 수십 번 갱신되므로
+    "언제 누가 이 초안을 열었나"만이 감사 가치가 있다. 이벤트는 draft insert 와 같은
+    트랜잭션에 동승하므로 생성이 롤백되면 이벤트도 함께 사라진다.
+
+    Args:
+        db: draft 를 생성 중인 활성 세션(별도 commit 하지 않는다).
+        order_id: flush 로 확보한 draft 주문 id.
+        created_via: ``meta.created_via``(``ADD_ORDER`` · ``ADD_ORDER_AUTOSAVE``).
+
+    Returns:
+        None.
+    """
+    db.add(OrderEvent(
+        order_id=order_id,
+        event_type=ORDER_DRAFT_CREATED_EVENT,
+        payload={'via': ERP_DRAFT_EVENT_VIA, 'created_via': created_via},
+        created_by_user_id=_event_actor_user_id(),
+    ))
+
+
+def _emit_order_created_event(order: Order) -> None:
+    """draft → 실주문 승격이 확정된 지점에 ``ORDER_CREATED`` 1건을 남긴다.
+
+    ERP 주력 생성 경로(draft POST → 자동저장 → 전체저장 승격)는 ``create_order()`` 를
+    경유하지 않아 운영 대부분 주문에 "누가 만들었나" 기록이 0이었다. 승격이 곧 생성이므로
+    정본과 같은 타입을 쓰되 payload ``via`` 로 경로를 구분한다. 같은 주문에 생성 이벤트가
+    이미 있으면(레거시 ``create_order`` 경유 주문이 draft 플래그를 다시 통과하는 경우)
+    추가하지 않는다 — 주문당 정확히 1건이 계약이다.
+
+    Args:
+        order: 승격이 확정된 주문(활성 세션에 attach 된 상태여야 한다).
+
+    Returns:
+        None.
+    """
+    db = object_session(order)
+    if db is None or getattr(order, 'id', None) is None:
+        logger.warning("ORDER_CREATED emit skipped: order not attached to a session")
+        return
+    with db.no_autoflush:
+        already = (
+            db.query(OrderEvent.id)
+            .filter(
+                OrderEvent.order_id == order.id,
+                OrderEvent.event_type == ORDER_CREATED_EVENT,
+            )
+            .first()
+        )
+    if already is not None:
+        return
+    db.add(OrderEvent(
+        order_id=order.id,
+        event_type=ORDER_CREATED_EVENT,
+        payload={'via': ERP_DRAFT_EVENT_VIA, 'status': order.status},
+        created_by_user_id=_event_actor_user_id(),
+    ))
+
+
+def _sync_promoted_flat_columns(order: Order, structured_data: dict) -> None:
+    """승격 시 structured_data 의 실제 고객/제품 정보를 flat 컬럼에 반영한다.
+
+    draft 가 심어둔 플레이스홀더(고객명·전화·주소·제품)는 덮어쓰지 않는다 — 실제 값이
+    들어왔을 때만 승격한다.
+
+    Args:
+        order: 승격 중인 주문.
+        structured_data: 승격에 쓰이는 structured payload.
+
+    Returns:
+        None.
+    """
+    customer = ((structured_data.get('parties') or {}).get('customer') or {})
+    cust_name = (customer.get('name') or '').strip()
+    cust_phone = (customer.get('phone') or '').strip()
+    site = (structured_data.get('site') or {})
+    addr = (site.get('address_full') or site.get('address_main') or '').strip()
+    items = structured_data.get('items') or []
+    first_product = ''
+    if items and isinstance(items, list) and len(items) > 0:
+        first_product = (items[0].get('product_name') or '').strip()
+
+    if cust_name and cust_name not in _CUSTOMER_PLACEHOLDERS:
+        order.customer_name = cust_name
+    if cust_phone and cust_phone != '000-0000-0000':
+        order.phone = cust_phone
+    if addr and addr != '-':
+        order.address = addr
+    if first_product and first_product not in _PRODUCT_PLACEHOLDERS:
+        order.product = first_product
+
+
 def _finalize_draft_state(
     order: Order,
     structured_data: Optional[dict],
     now: datetime.datetime,
     old_structured_data: Optional[dict] = None,
 ) -> bool:
-    """draft 메타 정리, 플레이스홀더 → 실제 데이터로 flat 컬럼 동기화, session 정리. draft_cleared 여부 반환."""
+    """draft 메타 정리, 플레이스홀더 → 실제 데이터로 flat 컬럼 동기화, session 정리. draft_cleared 여부 반환.
+
+    승격이 실제로 일어난 경우(``meta.draft`` truthy → falsy)에만 ``ORDER_CREATED`` 를
+    남긴다. session 정리만으로 ``draft_cleared`` 가 True 가 되는 경로에서는 남기지 않는다.
+    """
     draft_cleared = False
+    promoted = False
     old_sd = old_structured_data if isinstance(old_structured_data, dict) else {}
     existing_draft = is_erp_order_draft(order) or is_erp_draft_structured_data(old_sd)
     if structured_data:
@@ -550,29 +672,12 @@ def _finalize_draft_state(
                 draft_cleared = True
                 stage = (structured_data.get('workflow') or {}).get('stage') or (old_sd.get('workflow') or {}).get('stage')
                 order.status = stage if stage in STATUS else 'RECEIVED'
-
-                # Draft finalize 시 structured_data 의 실제 고객 정보를 flat 컬럼에 동기화
-                parties = (structured_data.get('parties') or {})
-                customer = (parties.get('customer') or {})
-                cust_name = (customer.get('name') or '').strip()
-                cust_phone = (customer.get('phone') or '').strip()
-                site = (structured_data.get('site') or {})
-                addr = (site.get('address_full') or site.get('address_main') or '').strip()
-                items = structured_data.get('items') or []
-                first_product = ''
-                if items and isinstance(items, list) and len(items) > 0:
-                    first_product = (items[0].get('product_name') or '').strip()
-
-                if cust_name and cust_name not in _CUSTOMER_PLACEHOLDERS:
-                    order.customer_name = cust_name
-                if cust_phone and cust_phone != '000-0000-0000':
-                    order.phone = cust_phone
-                if addr and addr != '-':
-                    order.address = addr
-                if first_product and first_product not in _PRODUCT_PLACEHOLDERS:
-                    order.product = first_product
+                _sync_promoted_flat_columns(order, structured_data)
+                promoted = True
         except Exception as e:
             logger.warning("draft meta clear failed: %s", e, exc_info=True)
+    if promoted:
+        _emit_order_created_event(order)
     try:
         existing_id = session.get('erp_draft_order_id')
         if existing_id and int(existing_id) == order.id:
@@ -1229,6 +1334,8 @@ def api_erp_create_draft():
         db.add(order)
         db.flush()
         sync_erp_flat_columns(order, structured)
+        # draft 생성 감사(ORDER_DRAFT_CREATED): 같은 트랜잭션 동승 — 생성이 롤백되면 함께 사라진다.
+        _emit_draft_created_event(db, order.id, structured['meta']['created_via'])
         db.commit()
         # Tier A(broad): 신규 초안 생성은 새 주문이 목록/단계 집계에 진입 → 전체 무효화.
         from foms.services.common.dashboard_cache import invalidate_all_dashboard_slice_caches
@@ -1365,6 +1472,8 @@ def _create_session_draft(db: Session, draft_token: str = '') -> Order:
     db.add(order)
     db.flush()
     sync_erp_flat_columns(order, structured)
+    # 자동저장이 만든 draft 도 '생성'이다 — POST /orders/erp/draft 와 같은 1건을 남긴다.
+    _emit_draft_created_event(db, order.id, structured['meta']['created_via'])
     db.commit()
     db.refresh(order)
     session['erp_draft_order_id'] = order.id
