@@ -214,6 +214,15 @@
                                 if (est.estimate_data.totalPrice) {
                                     totalPrice = est.estimate_data.totalPrice;
                                 }
+                                // 표시 금액 = 할인·배송 반영 최종가 (ERP 주문 계산기 탭과 동일 규칙).
+                                // 구버전 저장분은 coupon_discount 부재 → 0 → 기존 표시 불변.
+                                var couponDiscount = est.estimate_data.coupon_discount || 0;
+                                var shippingCost = est.estimate_data.shipping_cost || 0;
+                                var shippingIncluded = est.estimate_data.shipping_included || false;
+                                totalPrice = Math.max(0, totalPrice - couponDiscount);
+                                if (shippingIncluded) {
+                                    totalPrice += shippingCost;
+                                }
                                 if (
                                     est.estimate_data.estimates &&
                                     Array.isArray(est.estimate_data.estimates)
@@ -827,7 +836,7 @@
                             ${buildNotesHtml(estimate)}
                             <hr class="my-3">
                             <div class="mt-3">
-                                <small class="text-muted d-block mb-1" style="font-size: 1.05rem !important;">총견적:</small>
+                                <small class="text-muted d-block mb-1" style="font-size: 1.05rem !important;">항목 합계:</small>
                                 <div class="estimate-total-price" style="font-size: 1.56rem !important; font-weight: 800 !important; color: #0d6efd !important; margin-top: 0.5rem !important;">${formatNumber(estimate.totalPrice)}원</div>
                             </div>
             `;
@@ -986,7 +995,7 @@
                                         </div>
                                         <hr>
                                         <div class="d-flex justify-content-between align-items-center">
-                                            <span class="h5 mb-0">총 견적 합계:</span>
+                                            <span class="h5 mb-0">소계 합계:</span>
                                             <strong class="h4 text-primary mb-0" id="totalAllPrice">0원</strong>
                                         </div>
                                     </div>

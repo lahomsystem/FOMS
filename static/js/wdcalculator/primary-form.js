@@ -917,14 +917,15 @@ var WdCalculatorCouponDisplayHelpers = window.WdCalculatorCouponDisplayHelpers |
             return defaultCouponValue;
         }
         var value = couponInput.value;
+        // 빈 입력 = 할인 0. 기본값(11,000) 몰래 대입 금지 — 보이는 값과 적용 값이 항상 일치해야 한다.
         if (!value || value === "") {
-            return defaultCouponValue;
+            return 0;
         }
         // 콤마 내성: "11,000" → parseInt 단독이면 11 로 오파싱(할인 침묵 축소) — strip 선행.
         var numValue = parseInt(String(value).replace(/,/g, ""), 10);
         if (isNaN(numValue) || numValue < 0) {
-            console.warn("잘못된 쿠폰 값:", value, "기본값 사용:", defaultCouponValue);
-            return defaultCouponValue;
+            console.warn("잘못된 쿠폰 값:", value, "→ 0원 처리");
+            return 0;
         }
         return numValue;
     }

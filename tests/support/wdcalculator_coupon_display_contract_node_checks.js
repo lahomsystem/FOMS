@@ -60,7 +60,7 @@ assertEq(warnLogs.length, 1, "missing coupon input warns once");
 
 ids.globalCouponValue = { value: "" };
 warnLogs.length = 0;
-assertEq(helpers.getCouponValue(), 11000, "empty coupon input falls back to default");
+assertEq(helpers.getCouponValue(), 0, "empty coupon input is treated as zero discount");
 assertEq(warnLogs.length, 0, "empty coupon input does not warn");
 
 ids.globalCouponValue.value = "0";
@@ -74,12 +74,12 @@ assertEq(helpers.getCouponValue(), 12345, "parseInt-style coupon parsing stays i
 
 ids.globalCouponValue.value = "-1";
 warnLogs.length = 0;
-assertEq(helpers.getCouponValue(), 11000, "negative coupon input falls back to default");
+assertEq(helpers.getCouponValue(), 0, "negative coupon input is treated as zero discount");
 assertEq(warnLogs.length, 1, "negative coupon input warns once");
 
 ids.globalCouponValue.value = "abc";
 warnLogs.length = 0;
-assertEq(helpers.getCouponValue(), 11000, "non-numeric coupon input falls back to default");
+assertEq(helpers.getCouponValue(), 0, "non-numeric coupon input is treated as zero discount");
 assertEq(warnLogs.length, 1, "non-numeric coupon input warns once");
 
 // --- applyFinalPriceStyle contract ---
