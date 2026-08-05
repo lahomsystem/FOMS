@@ -72,6 +72,8 @@ def render_summary(report: dict[str, Any]) -> str:
         ratio_s = "-" if ratio is None else f"x{ratio:.2f}"
         if reg["regressed"] is None:
             state = "skip"
+        elif reg["regressed"] and reg.get("sample_shift"):
+            state = "⚠️ 표본이동"
         elif reg["regressed"]:
             state = "WARN"
         else:

@@ -295,3 +295,91 @@ def test_build_rum_report_clamps_days_to_min_window():
     fake = _FakeRedis()
     report = ra.build_rum_report(fake, 1)
     assert report["days"] == 1 + ra.RECENT_WINDOW + ra.BASELINE_WINDOW
+
+
+# --- sample-shift 강등 가드 ----------------------------------------------------
+def _row(samples: int, p50: float | None, p95: float | None) -> dict:
+    return {"date": "2026-01-01", "samples": samples, "p50": p50, "p95": p95}
+
+
+def test_detect_sample_shift_true_when_p50_stable_and_volume_collapsed():
+    """p50 안정 + 표본 급감 = 모집단 이동 → True (2026-08-05 INP 오경보 재현)."""
+    recent = [_row(300, 55.0, 240.0), _row(400, 57.0, 220.0)]
+    baseline = [_row(6000, 52.0, 100.0) for _ in range(5)]
+    assert ra.detect_sample_shift(recent, baseline) is True
+
+
+def test_detect_sample_shift_false_when_p50_also_regressed():
+    """p50 도 움직였으면 진짜 회귀 → 강등 금지."""
+    recent = [_row(300, 90.0, 240.0), _row(400, 95.0, 220.0)]
+    baseline = [_row(6000, 52.0, 100.0) for _ in range(5)]
+    assert ra.detect_sample_shift(recent, baseline) is False
+
+
+def test_detect_sample_shift_false_when_volume_normal():
+    """표본량이 유지되면 tail 상승은 진짜 회귀 신호 → 강등 금지."""
+    recent = [_row(6000, 55.0, 240.0), _row(5500, 56.0, 220.0)]
+    baseline = [_row(6000, 52.0, 100.0) for _ in range(5)]
+    assert ra.detect_sample_shift(recent, baseline) is False
+
+
+def test_detect_sample_shift_false_when_p50_missing():
+    """p50 결측이면 보수적으로 강등하지 않는다."""
+    recent = [_row(300, None, 240.0), _row(400, None, 220.0)]
+    baseline = [_row(6000, 52.0, 100.0) for _ in range(5)]
+    assert ra.detect_sample_shift(recent, baseline) is False
+
+
+def test_build_rum_report_downgrades_sample_shift_to_warning():
+    """p95 회귀 + 표본 이동이면 red(regressed) 대신 ⚠️ 경고만 남는다."""
+    fake = _FakeRedis()
+    min_days = 1 + ra.RECENT_WINDOW + ra.BASELINE_WINDOW
+    dates = ra.recent_kst_dates(min_days)
+    # baseline 5일: 표본 6000, 전부 저버킷(0) → p50/p95 모두 낮음.
+    for d in dates[1 + ra.RECENT_WINDOW:]:
+        fake.store[ra.build_rum_key(d, "INP")] = {"0": "6000"}
+    # recent 2일: 표본 300(급감), p50 은 저버킷 유지 + tail 만 고버킷 → p95 만 급등.
+    for d in dates[1:1 + ra.RECENT_WINDOW]:
+        fake.store[ra.build_rum_key(d, "INP")] = {"0": "270", "4": "30"}
+
+    report = ra.build_rum_report(fake, 7)
+    inp = next(b for b in report["metrics"] if b["metric"] == "INP")
+    assert inp["regression"]["regressed"] is True  # 데이터 사실은 유지
+    assert inp["regression"]["sample_shift"] is True
+    assert report["regressed"] is False  # 게이트는 red 금지
+    assert any("표본 구성 변화" in w for w in report["warnings"])
+
+
+def test_build_rum_report_real_regression_still_red():
+    """표본량이 유지된 진짜 회귀는 여전히 red."""
+    fake = _FakeRedis()
+    min_days = 1 + ra.RECENT_WINDOW + ra.BASELINE_WINDOW
+    dates = ra.recent_kst_dates(min_days)
+    for d in dates[1 + ra.RECENT_WINDOW:]:
+        fake.store[ra.build_rum_key(d, "INP")] = {"0": "6000"}
+    # recent: 표본량 동일한데 분포가 통째로 위로 이동(p50·p95 모두 상승).
+    for d in dates[1:1 + ra.RECENT_WINDOW]:
+        fake.store[ra.build_rum_key(d, "INP")] = {"4": "6000"}
+
+    report = ra.build_rum_report(fake, 7)
+    inp = next(b for b in report["metrics"] if b["metric"] == "INP")
+    assert inp["regression"]["regressed"] is True
+    assert inp["regression"]["sample_shift"] is False
+    assert report["regressed"] is True
+
+
+def test_detect_sample_shift_survives_contaminated_baseline():
+    """전환기: baseline 에 붕괴된 저표본일이 섞여도 유효일 기준으로 판정한다.
+
+    2026-08-05 실데이터 재현 — baseline 5일 중 3일이 이미 붕괴(21·243·195),
+    정상 2일(5603·8050)이 p95 기준을 세운 상황. 원시 중앙값으론 미발동하던 함정.
+    """
+    recent = [_row(409, 56.0, 242.0), _row(323, 55.0, 203.0)]
+    baseline = [
+        _row(21, 66.0, 258.0),    # < MIN_DAY_SAMPLES → 제외
+        _row(243, 60.0, 299.0),
+        _row(195, 53.0, 128.0),
+        _row(5603, 52.0, 99.0),
+        _row(8050, 52.0, 98.0),
+    ]
+    assert ra.detect_sample_shift(recent, baseline) is True
