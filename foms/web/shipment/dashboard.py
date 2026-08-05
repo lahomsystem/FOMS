@@ -50,6 +50,10 @@ from foms.services.shipment_dashboard_display import (
     sort_shipment_rows,
     build_shipment_mobile_queue_rows,
 )
+from foms.services.shipment_change_alerts import (
+    build_shipment_change_banner,
+    collect_shipment_change_alerts,
+)
 from foms.services.erp_dashboard_search import (
     SHIPMENT_SEARCH_FOCUS_SCHEDULE_HALF_RANGE_DAYS,
     erp_order_dashboard_search_predicate,
@@ -587,6 +591,22 @@ def erp_shipment_dashboard():
 
     sort_shipment_rows(rows)
 
+    # ── 시공일 변경 알림(T4/T5) — 정렬 **후**, 캐시 **밖**.
+    # 캐시 밖인 이유: 위 두 슬라이스(panel_aggregates / shipment_panel_derived_template_payloads)
+    # 는 TTL 300s 라 여기에 넣으면 확인(ack) 직후에도 최대 5분간 stale 경고가 남는다
+    # (생산 칸반 선례가 명시적으로 캐시 밖에 뒀다 — 스펙 §4.1).
+    # 정렬 후인 이유: 배너 칩 순서가 화면 목록 순서와 같아야 점프가 자연스럽다.
+    # 비용은 렌더되는 행(≤300)에 대한 **배치 1쿼리**뿐이다(N+1 금지 · fragment TTFB 예산 291ms
+    # 상향 금지 — 스펙 §6). 배너는 그 결과에서 순수 파생이라 추가 쿼리가 없다.
+    _shipment_change_alerts = collect_shipment_change_alerts(
+        db, rows, getattr(current_user, 'id', None)
+    )
+    shipment_change_banner = build_shipment_change_banner(rows, _shipment_change_alerts)
+    for r in rows:
+        # 행 배지는 공유 매크로가 r.shipment_change_alerts 만 읽는다(shipment_visible_items 와
+        # 같은 행 부착 패턴 — PC 테이블·태블릿 그리드가 dict 조회 없이 같은 값을 본다).
+        r.shipment_change_alerts = (_shipment_change_alerts.get(r.id) or {}).get('alerts') or []
+
     tablet_ship_kpis = _compute_tablet_ship_kpis(rows)
     shipment_team_group_meta = _compute_shipment_team_group_meta(rows, worker_settings)
 
@@ -620,6 +640,8 @@ def erp_shipment_dashboard():
         is_construction_team=is_construction,
         tablet_ship_kpis=tablet_ship_kpis,
         shipment_team_group_meta=shipment_team_group_meta,
+        # 상단 배너 요약({count, chips, overflow}). 행 배지는 r.shipment_change_alerts.
+        shipment_change_banner=shipment_change_banner,
         # AS 일정추천 모달의 기준↔AS 지도(#scheduleMapContainer[data-kakao-js-key]).
         # fragment/full 두 템플릿이 같은 컨텍스트를 받으므로 여기 1곳이면 된다.
         kakao_js_key=KAKAO_JS_API_KEY,
@@ -642,12 +664,22 @@ def erp_shipment_tablet_sheet(order_id):
     조회용으로 렌더한다(GET이라 별도 권한 차단 없음). 주문 미존재 시 404.
     """
     db = get_db()
+    current_user = getattr(g, 'current_user', None)
     order = db.query(Order).filter(Order.id == order_id, Order.active_filter()).first()
     if not order:
         abort(404)
 
     order.structured_data = _ensure_dict(order.structured_data)  # type: ignore[assignment]
     apply_erp_display_fields_to_orders([order])
+
+    # 시공일 변경 스트립(T5) — 단건이라 배치 1쿼리가 곧 1행 조회다(생산 시트 선례와 동형).
+    # 대시보드와 같은 개인 윈도 판정을 쓰므로 목록 배지와 시트 스트립이 절대 어긋나지 않는다.
+    order.shipment_change_alerts = (
+        (collect_shipment_change_alerts(db, [order], getattr(current_user, 'id', None)).get(order.id) or {})
+        .get('alerts') or []
+    )
+    # 시공팀은 ack API 가 403 이라 확인 버튼을 내지 않는다(목록 행과 같은 판정식).
+    sheet_can_ack = bool(can_edit_erp(current_user)) and getattr(current_user, 'team', None) != 'CONSTRUCTION'
 
     sd = order.structured_data if isinstance(order.structured_data, dict) else {}
     shipment = sd.get('shipment') or {}
@@ -697,6 +729,7 @@ def erp_shipment_tablet_sheet(order_id):
         site_memo=site_memo,
         construction_date=target_date,
         teams=teams,
+        sheet_can_ack=sheet_can_ack,
     ))
     apply_erp_shell_fragment_headers(response, request)
     return response
