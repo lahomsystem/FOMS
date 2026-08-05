@@ -18,7 +18,7 @@ from __future__ import annotations
 import datetime
 from typing import Any
 
-from sqlalchemy import distinct, false, func, or_
+from sqlalchemy import and_, distinct, false, func, or_
 
 from models import Order, OrderScheduleDate
 from foms.services.orders.erp_policy_constants import STAGE_LABELS, STAGE_NAME_TO_CODE
@@ -48,6 +48,49 @@ _INSTALL_READY_CODES = ("CONSTRUCTION", "COMPLETED", "AS", "AS_RECEIVED", "AS_CO
 _DONE_CODES = ("COMPLETED", "AS_COMPLETED")
 # 'AS 출고' = AS 상태 주문의 as_visit 일정. 출고 대시보드(foms.web.shipment.dashboard)와
 # 동일 술어(status ∈ AS_* + OrderScheduleDate.kind=='as_visit')를 써서 두 화면 카운트를 정합시킨다.
+
+# 복수 일정 SSOT: 실측/시공일은 콤마 복수(예: '2026-07-24, 2026-08-12')일 수 있는데
+# erp_measurement_date/erp_construction_date 싱크 컬럼은 첫 날짜만 담는다.
+# 날짜 술어는 전 날짜를 행으로 펼친 order_schedule_dates EXISTS/조인이 정본 —
+# 실측 대시보드 패널과 날짜별 카운트가 정합된다(운영 8/6 25vs23 불일치 근본 수정).
+
+
+def _sched_any(kind: str, dates: list[str]):
+    """order_schedule_dates(kind)가 dates 중 하나에 걸리는 주문 EXISTS 술어.
+
+    Args:
+        kind: 일정 종류('measurement'|'construction' 등).
+        dates: 'YYYY-MM-DD' 문자열 목록.
+
+    Returns:
+        SQLAlchemy EXISTS 술어(복수 일정 주문도 각 날짜에 모두 걸린다).
+    """
+    return Order.schedule_dates.any(
+        and_(OrderScheduleDate.kind == kind, OrderScheduleDate.date.in_(list(dates)))
+    )
+
+
+# 자가실측 4체크 완료 = 실측 집계 제외/시공 집계 포함
+# (erp_display.self_measurement_four_checks_done의 SQL판 — 실측 대시보드 패널과 동일 제외).
+_SELF_MEASURE_DONE_SQL = and_(
+    Order.is_self_measurement.is_(True),
+    Order.measurement_completed.is_(True),
+    Order.regional_sales_order_upload.is_(True),
+    Order.regional_blueprint_sent.is_(True),
+    Order.regional_order_upload.is_(True),
+)
+
+
+def _measure_on(dates: list[str]):
+    """실측일 술어: 복수 일정 포함 + 자가실측 4체크 완료 주문 제외.
+
+    Args:
+        dates: 'YYYY-MM-DD' 문자열 목록.
+
+    Returns:
+        SQLAlchemy 술어(실측 대시보드 패널 카운트와 동일 모집단).
+    """
+    return and_(_sched_any('measurement', dates), ~_SELF_MEASURE_DONE_SQL)
 
 
 # ───────── 작은 순수 헬퍼 ─────────
@@ -149,28 +192,40 @@ def _tower_base_query(db: Any, current_user: Any):
 
 
 def _week_strip(base: Any, today: datetime.date) -> dict[str, Any]:
-    """오늘부터 7일: 일자별 실측/시공 건수 + 시공 미준비 위험 표시."""
+    """오늘부터 7일: 일자별 실측/시공 건수 + 시공 미준비 위험 표시.
+
+    복수 일정 대응: order_schedule_dates 조인으로 집계해 실측/시공일이 여러 개인
+    주문이 각 날짜 칸에 모두 잡힌다(as_by와 동일 패턴).
+    """
     dates = [today + datetime.timedelta(days=i) for i in range(7)]
     date_strs = [d.isoformat() for d in dates]
     meas_by = dict(
-        base.with_entities(Order.erp_measurement_date, func.count(Order.id))
-        .filter(Order.erp_measurement_date.in_(date_strs))
-        .group_by(Order.erp_measurement_date)
+        base.join(OrderScheduleDate, OrderScheduleDate.order_id == Order.id)
+        .filter(
+            OrderScheduleDate.kind == 'measurement',
+            OrderScheduleDate.date.in_(date_strs),
+            ~_SELF_MEASURE_DONE_SQL,
+        )
+        .with_entities(OrderScheduleDate.date, func.count(distinct(Order.id)))
+        .group_by(OrderScheduleDate.date)
         .all()
     )
     cons_by = dict(
-        base.with_entities(Order.erp_construction_date, func.count(Order.id))
-        .filter(Order.erp_construction_date.in_(date_strs))
-        .group_by(Order.erp_construction_date)
+        base.join(OrderScheduleDate, OrderScheduleDate.order_id == Order.id)
+        .filter(OrderScheduleDate.kind == 'construction', OrderScheduleDate.date.in_(date_strs))
+        .with_entities(OrderScheduleDate.date, func.count(distinct(Order.id)))
+        .group_by(OrderScheduleDate.date)
         .all()
     )
     risk_by = dict(
-        base.with_entities(Order.erp_construction_date, func.count(Order.id))
+        base.join(OrderScheduleDate, OrderScheduleDate.order_id == Order.id)
         .filter(
-            Order.erp_construction_date.in_(date_strs),
+            OrderScheduleDate.kind == 'construction',
+            OrderScheduleDate.date.in_(date_strs),
             or_(Order.erp_stage_code.is_(None), Order.erp_stage_code.notin_(_INSTALL_READY_CODES)),
         )
-        .group_by(Order.erp_construction_date)
+        .with_entities(OrderScheduleDate.date, func.count(distinct(Order.id)))
+        .group_by(OrderScheduleDate.date)
         .all()
     )
     as_by = dict(
@@ -228,17 +283,17 @@ def _field_ops_for_date(base: Any, date_iso: str, *, field_type: str = "all", li
     """
     as_ids: list[int] = []
     if field_type == "measure":
-        date_filter = Order.erp_measurement_date == date_iso
+        date_filter = _measure_on([date_iso])
     elif field_type == "construction":
-        date_filter = Order.erp_construction_date == date_iso
+        date_filter = _sched_any('construction', [date_iso])
     elif field_type == "as":
         as_ids = _as_visit_order_ids_for_date(base, date_iso)
         date_filter = Order.id.in_(as_ids)
     else:
         as_ids = _as_visit_order_ids_for_date(base, date_iso)
         date_filter = or_(
-            Order.erp_measurement_date == date_iso,
-            Order.erp_construction_date == date_iso,
+            _measure_on([date_iso]),
+            _sched_any('construction', [date_iso]),
             Order.id.in_(as_ids) if as_ids else false(),
         )
     rows = (
@@ -247,6 +302,13 @@ def _field_ops_for_date(base: Any, date_iso: str, *, field_type: str = "all", li
         .limit(limit)
         .all()
     )
+    # 'all' 행 분류용 시공 id 집합 — 복수 시공일도 당일 여부를 정확 판정(컬럼 첫 날짜 비교 금지).
+    cons_id_set: set[int] = set()
+    if field_type == "all":
+        cons_id_set = {
+            int(r[0])
+            for r in base.filter(_sched_any('construction', [date_iso])).with_entities(Order.id).all()
+        }
     as_id_set = set(as_ids)
     out: list[dict[str, Any]] = []
     for order in rows:
@@ -258,7 +320,7 @@ def _field_ops_for_date(base: Any, date_iso: str, *, field_type: str = "all", li
             or (
                 field_type == "all"
                 and is_as_visit
-                and getattr(order, "erp_construction_date", None) != date_iso
+                and order_id not in cons_id_set
             )
         )
         if field_type == "measure":
@@ -270,7 +332,7 @@ def _field_ops_for_date(base: Any, date_iso: str, *, field_type: str = "all", li
         elif is_as_only_visit:
             is_cons = True
         else:
-            is_cons = getattr(order, "erp_construction_date", None) == date_iso
+            is_cons = order_id in cons_id_set
         schedule_key = "as_visit" if is_as_only_visit else ("construction" if is_cons else "measurement")
         sched = (sd.get("schedule") or {}).get(schedule_key) or {}
         state, label = (_construction_readiness if is_cons else _measure_readiness)(order, sd)
@@ -294,9 +356,9 @@ def _field_ops_for_date(base: Any, date_iso: str, *, field_type: str = "all", li
 
 
 def _type_counts_for_date(base: Any, date_iso: str) -> tuple[int, int, int]:
-    """(실측 건수, 시공 건수, AS 방문 건수) — 표시 limit과 무관한 정확 카운트."""
-    measure = int(base.filter(Order.erp_measurement_date == date_iso).count() or 0)
-    construction = int(base.filter(Order.erp_construction_date == date_iso).count() or 0)
+    """(실측 건수, 시공 건수, AS 방문 건수) — 표시 limit과 무관한 정확 카운트(복수 일정 포함)."""
+    measure = int(base.filter(_measure_on([date_iso])).count() or 0)
+    construction = int(base.filter(_sched_any('construction', [date_iso])).count() or 0)
     as_count = len(_as_visit_order_ids_for_date(base, date_iso))
     return measure, construction, as_count
 
@@ -351,9 +413,9 @@ _RISK_CAND_LIMIT = 200
 # '카드=칩=리스트' 3숫자 일치를 구조적으로 보장한다(연구 §8.1).
 
 def _ids_construction_unready(base: Any, cons_dates: list[str]) -> list[int]:
-    """시공 임박(D-3)인데 설치단계 미도달인 order id (순수 SQL)."""
+    """시공 임박(D-3)인데 설치단계 미도달인 order id (순수 SQL, 복수 시공일 포함)."""
     rows = base.filter(
-        Order.erp_construction_date.in_(cons_dates),
+        _sched_any('construction', cons_dates),
         or_(Order.erp_stage_code.is_(None), Order.erp_stage_code.notin_(_INSTALL_READY_CODES)),
     ).with_entities(Order.id).all()
     return [int(r[0]) for r in rows]
@@ -371,14 +433,14 @@ def _ids_drawing_stalled(base: Any) -> list[int]:
 
 
 def _ids_measure_unassigned(base: Any, meas_dates: list[str]) -> list[int]:
-    """실측 임박(D-4)인데 담당 미배정 order id (JSONB는 후보 200캡 메모리 필터)."""
-    cand = base.filter(Order.erp_measurement_date.in_(meas_dates)).limit(_RISK_CAND_LIMIT).all()
+    """실측 임박(D-4)인데 담당 미배정 order id (JSONB는 후보 200캡 메모리 필터, 복수 실측일 포함)."""
+    cand = base.filter(_measure_on(meas_dates)).limit(_RISK_CAND_LIMIT).all()
     return [o.id for o in cand if not _measure_assigned(o, _ensure_dict(getattr(o, "structured_data", None)))]
 
 
 def _ids_balance_due(base: Any, cons_dates: list[str]) -> list[int]:
-    """잔금 미수 + 시공 임박 order id (JSONB는 후보 200캡 메모리 필터)."""
-    cand = base.filter(Order.erp_construction_date.in_(cons_dates)).limit(_RISK_CAND_LIMIT).all()
+    """잔금 미수 + 시공 임박 order id (JSONB는 후보 200캡 메모리 필터, 복수 시공일 포함)."""
+    cand = base.filter(_sched_any('construction', cons_dates)).limit(_RISK_CAND_LIMIT).all()
     return [o.id for o in cand if (_balance_remaining(_ensure_dict(getattr(o, "structured_data", None))) or 0) > 0]
 
 
@@ -506,13 +568,13 @@ def build_risk_frame(key: str, count: int, *, back_href: str = "/erp/dashboard")
 
 
 def _today_total(base: Any, today_iso: str) -> int:
-    """오늘 실측/시공/AS 약속 전체 건수 (표시 limit과 무관한 정확 카운트)."""
+    """오늘 실측/시공/AS 약속 전체 건수 (표시 limit과 무관한 정확 카운트, 복수 일정 포함)."""
     as_ids = _as_visit_order_ids_for_date(base, today_iso)
     return int(
         base.filter(
             or_(
-                Order.erp_measurement_date == today_iso,
-                Order.erp_construction_date == today_iso,
+                _measure_on([today_iso]),
+                _sched_any('construction', [today_iso]),
                 Order.id.in_(as_ids) if as_ids else false(),
             )
         ).count()

@@ -80,6 +80,37 @@
     return tokens.slice(0, 2).join(' ');
   }
 
+  // ---------- 핀 → 실측 큐 카드 스크롤 ----------
+  // 실측 모바일 대시보드(mobile_list.html)에서만 카드가 존재한다. 카드 없는 표면
+  // (v3 persona 홈 등)은 배선 자체를 생략해 no-op 유지. 존재 판정은 렌더 시점,
+  // 카드 재탐색은 클릭 시점(?focus_order= 딥링크와 동일 selector·하이라이트 계약).
+  function findQueueCard(orderId) {
+    if (orderId == null) return null;
+    return document.querySelector(
+      '.erp-measurement-mobile-card[data-measurement-mobile-order-id="' + orderId + '"]'
+    );
+  }
+
+  function focusQueueCard(orderId) {
+    var card = findQueueCard(orderId);
+    if (!card) return;
+    card.scrollIntoView({ behavior: 'smooth', block: 'center' });
+    card.classList.add('is-focused');
+    window.setTimeout(function () { card.classList.remove('is-focused'); }, 2400);
+  }
+
+  function bindPinToCard(node, point, seq) {
+    if (!point || point.id == null || !findQueueCard(point.id)) return;
+    node.classList.add('is-linkable');
+    node.setAttribute('role', 'button');
+    node.setAttribute('tabindex', '0');
+    node.setAttribute('aria-label', seq + '번 ' + (point.customer_name || '방문지') + ' 주문 카드로 이동');
+    node.addEventListener('click', function () { focusQueueCard(point.id); });
+    node.addEventListener('keydown', function (ev) {
+      if (ev.key === 'Enter' || ev.key === ' ') { ev.preventDefault(); focusQueueCard(point.id); }
+    });
+  }
+
   function renderSvg(pts, coords, currentIdx) {
     var svg = el('svg', {
       viewBox: '0 0 ' + VIEW_W + ' ' + VIEW_H,
@@ -113,6 +144,7 @@
         x: coords[i].x, y: coords[i].y, class: 'foms-route-node__label',
         'text-anchor': 'middle', 'dominant-baseline': 'central'
       }, glyph));
+      bindPinToCard(g, pts[i], i + 1);
       svg.appendChild(g);
     }
     return svg;
@@ -228,9 +260,12 @@
         var pin = document.createElement('span');
         pin.className = 'foms-route-pin foms-route-pin--' + mod + ' foms-route-c' + (i % 8);
         pin.textContent = done ? '✓' : String(i + 1);
+        bindPinToCard(pin, pts[i], i + 1);
+        // clickable: 핀 탭이 지도 pan/클릭으로 새지 않게 — 배선된 핀에만 적용.
         new maps.CustomOverlay({
           map: map, position: path[i], content: pin,
-          xAnchor: 0.5, yAnchor: 0.5, zIndex: isCurrent ? 10 : 1
+          xAnchor: 0.5, yAnchor: 0.5, zIndex: isCurrent ? 10 : 1,
+          clickable: pin.classList.contains('is-linkable')
         });
       }
 
