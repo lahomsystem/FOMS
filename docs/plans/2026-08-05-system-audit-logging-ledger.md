@@ -1,19 +1,19 @@
-# Progress Ledger — 시스템 전체 감사 로깅 (2026-08-05, `**C`)
+# Progress Ledger — 시스템 전체 감사 로깅 (2026-08-05, `**D`)
 
-스펙: `docs/specs/2026-08-05-system-audit-logging-design.md`
+스펙: `docs/specs/2026-08-05-system-audit-logging-design.md` (2차 개정판)
 플랜: `docs/plans/2026-08-05-system-audit-logging-plan.md`
 브랜치: `deploy` (푸시는 세션 커밋만, production 승격 금지 — 사용자 지시 대기)
 
 | Task | 상태 | 검증 결과 |
 |---|---|---|
-| T1 프로덕션 로깅 부트스트랩 | PENDING | |
+| T1 프로덕션 로깅 부트스트랩 (+request_id, 구 T7 흡수) — 파일럿 | PENDING | |
 | T2 PAYMENT_CHANGED before_flush SSOT | PENDING | |
 | T3 ERP 생성 ORDER_CREATED 배선 | PENDING | |
 | T-CP1 Phase 1 검증·커밋·푸시 | PENDING | |
 | T4 첨부 soft delete + 이벤트 | PENDING | |
 | T5 관리자 행위 구조화 + 접근거부 기록 | PENDING | |
-| T6 access_logs 부활 (presigned·download) | PENDING | |
-| T7 request_id 로그 주입 | PENDING | |
+| T6 access_logs 부활 (파일 접근 3곳) | PENDING | |
+| T7 — **T1에 흡수(결번)** | — | 단순화 심판 판정 |
 | T-CP2 Phase 2 검증·커밋·푸시 | PENDING | |
 | T8 security_logs 구조화 | PENDING | |
 | T9 감사 원장 수명주기 (retention + FK 분리) | PENDING | |
@@ -43,6 +43,23 @@
 - 리뷰어 핵심 주장 4건(무커밋 teardown·totals 파생·shipping_fee flat·root 로거
   필터)은 코드 직독 재확인함(`db.py:99`·`structured_form_projection.py:160`·
   `models.py:69`·`error_logging.py:96`).
+
+## `**D` 최종 점검 (2026-08-05, CEO 리뷰 + 3-agent 교차검수)
+
+- CEO 리뷰(HOLD SCOPE — 범위는 사용자 기결정이라 재협상 없이 엄격 검증):
+  파일럿 T1은 two-way door(되돌리기 쉬움)로 적격, one-way door는 T9 FK drop·
+  T11 삭제 의미 변경뿐(결정 ④⑤로 기승인, Phase 3 스테이징 선행). 승인.
+- 3-agent 교차검수(반증·단순화·사실검증) 주요 반영 — 상세 스펙 §9:
+  - **[실증] flag_modified가 history old 파괴**(SQLAlchemy 2.0.23 로컬 재현:
+    재할당만=old 잔존, flag 후=deleted=()) → T2 before = DB 배치 SELECT로 전면 교체.
+  - **[확정] 풀 5+5·timeout 10s**(db.py:52-55) → 독립 모드는 전용 소형 감사 engine.
+  - shipping_fee는 이미 SHIPPING_FEE_CHANGED 이벤트 있음(storage.py:292-296) → 캡처 제외.
+  - Alembic 체인은 빈 DB 실행 불가(tests/postgres/conftest.py:9-13) → T9 편입 삭제.
+  - 첨부 raw SQL 2곳·canonical 분기 tombstone 사각 → T4 편입.
+  - 동시 세션(출고 알림 잔여 T6)이 order_date_sync.py 수정 예정 → T2 무접촉 복제,
+    금지 파일 목록 플랜 명시.
+  - 구 T7은 T1에 흡수(결번).
+- 본진 진입 방식: 파일럿 T1 통과 후 `/overnight` 명령 제시(자동 진입 금지).
 
 ## 조사 확정 사실 (2026-08-05 deep research — 재조사 금지)
 
