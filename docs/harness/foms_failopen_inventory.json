@@ -5,16 +5,16 @@
   "overlap_api_error_01": "API-ERROR-01 owns response/stdout exposure (print_exc/str(e) -> log_handled_exception). This packet owns swallow classification. Sites that log via log_handled_exception are LOG_AND_CONTINUE here.",
   "marker_convention": "Silent-by-design catches carry an inline `# failopen: intentional: <reason>` (or `fail-closed`) marker; the scanner reads it as the justification. No bare allowlist, no lint-disable.",
   "baselines": {
-    "broad_total": 484,
+    "broad_total": 486,
     "unclassified": 0
   },
   "disposition_counts": {
     "FAIL_CLOSED": 22,
     "INTENTIONAL": 17,
-    "LOG_AND_CONTINUE": 445
+    "LOG_AND_CONTINUE": 447
   },
   "owner_counts": {
-    "api": 222,
+    "api": 224,
     "audit": 2,
     "auth": 11,
     "cache": 25,
@@ -2205,6 +2205,24 @@
       "justification": "logs via logger/log_handled_exception"
     },
     {
+      "path": "foms/api/shipment/change_ack.py",
+      "lineno": 203,
+      "handler_type": "broad_exception",
+      "disposition": "LOG_AND_CONTINUE",
+      "owner": "api",
+      "has_logging": true,
+      "justification": "logs via logger/log_handled_exception"
+    },
+    {
+      "path": "foms/api/shipment/change_ack.py",
+      "lineno": 251,
+      "handler_type": "broad_exception",
+      "disposition": "LOG_AND_CONTINUE",
+      "owner": "api",
+      "has_logging": true,
+      "justification": "logs via logger/log_handled_exception"
+    },
+    {
       "path": "foms/api/shipment/packing.py",
       "lineno": 385,
       "handler_type": "broad_exception",
@@ -3709,7 +3727,7 @@
     },
     {
       "path": "foms/services/rum_aggregate.py",
-      "lineno": 128,
+      "lineno": 138,
       "handler_type": "broad_exception",
       "disposition": "LOG_AND_CONTINUE",
       "owner": "telemetry",
@@ -3718,7 +3736,7 @@
     },
     {
       "path": "foms/services/rum_aggregate.py",
-      "lineno": 141,
+      "lineno": 151,
       "handler_type": "broad_exception",
       "disposition": "LOG_AND_CONTINUE",
       "owner": "telemetry",
