@@ -262,7 +262,24 @@ class OrderAttachment(Base):
     created_at = Column(DateTime, default=datetime.datetime.now, nullable=False)
     user_id = Column(Integer, ForeignKey('users.id', ondelete='SET NULL'), nullable=True, index=True)  # 업로더 (AS 재업로드 시 본인 것만 삭제)
 
+    # ATTACH-LIFE-01(T4): hard delete → tombstone(soft delete). 삭제는 이 두 컬럼만 채우고
+    # row/R2 object 는 남긴다 — R2 blob 은 STORAGE_DELETE outbox 가 유예 후 지운다.
+    # 84 파일 사용처는 수동 필터 대신 전역 do_orm_execute 필터
+    # (:mod:`foms.services.attachment_visibility`)가 ``deleted_at IS NULL`` 을 기본 적용한다.
+    deleted_at = Column(DateTime, nullable=True)
+    deleted_by_user_id = Column(
+        Integer, ForeignKey('users.id', ondelete='SET NULL'), nullable=True)
+
     order = relationship('Order', foreign_keys=[order_id])
+
+    __table_args__ = (
+        # ATTACH-LIFE-01: canonical 파일 라우트(/api/files/view|download/orders/...)가 요청
+        # key 로 tombstone 여부를 1쿼리 판정한다(매 파일 요청 = hot path). 조회는
+        # ``storage_key = :k OR thumbnail_key = :k`` 라 두 인덱스가 모두 있어야
+        # BitmapOr 로 풀리고 Seq Scan 을 피한다.
+        Index('ix_order_attachments_storage_key', 'storage_key'),
+        Index('ix_order_attachments_thumbnail_key', 'thumbnail_key'),
+    )
 
     def to_dict(self):
         return {
@@ -277,6 +294,7 @@ class OrderAttachment(Base):
             'thumbnail_key': self.thumbnail_key,
             'created_at': format_datetime_kst(self.created_at),
             'user_id': self.user_id,
+            'deleted_at': format_datetime_kst(self.deleted_at) if self.deleted_at else None,
         }
 
 

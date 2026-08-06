@@ -172,6 +172,8 @@ def translate_event_type_to_korean(event_type: str | None) -> str:
         "COMMENT_ADDED": "메모 추가",
         "ATTACHMENT_ADDED": "첨부파일 추가",
         "ATTACHMENT_DELETED": "첨부파일 삭제",
+        "ATTACHMENT_META_UPDATED": "첨부파일 정보 수정",
+        "ATTACHMENT_RESTORED": "첨부파일 복구",
         "URGENT_CHANGED": "긴급 여부 변경",
         "PAYMENT_CHANGED": "금액 변경",
         "manager_changed": "담당자 변경",

@@ -166,6 +166,9 @@ def run_auto_init(app) -> None:
       write) for KST date synchronization.
     * ``register_payment_sync_listener`` — pure SQLAlchemy listener wiring (no
       DB write) for the ``PAYMENT_CHANGED`` audit-event SSOT.
+    * ``register_attachment_visibility_listener`` — pure SQLAlchemy listener
+      wiring (no DB write) that excludes tombstoned ``OrderAttachment`` rows
+      from every ORM SELECT (ATTACH-LIFE-01 global default filter).
 
     Excluded on purpose: schema DDL (STARTUP-SCHEMA-01 → Alembic/predeploy),
     flat-column backfill (STARTUP-BACKFILL-01 → operator CLI), and admin
@@ -186,6 +189,12 @@ def run_auto_init(app) -> None:
             from foms.services.order_payment_sync import register_payment_sync_listener
 
             register_payment_sync_listener()
+
+            from foms.services.attachment_visibility import (
+                register_attachment_visibility_listener,
+            )
+
+            register_attachment_visibility_listener()
     except StartupReadinessError:
         raise
     except Exception as e:

@@ -33,6 +33,10 @@
       "mode": "guard",
       "rule": "/api/orders/<int:order_id>/attachments/<int:attachment_id>"
     },
+    "attachments.api_order_attachments_restore": {
+      "mode": "guard",
+      "rule": "/api/orders/<int:order_id>/attachments/<int:attachment_id>/restore"
+    },
     "attachments.api_order_attachments_patch": {
       "mode": "guard",
       "rule": "/api/orders/<int:order_id>/attachments/<int:attachment_id>"

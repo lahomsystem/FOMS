@@ -15,12 +15,14 @@ from sqlalchemy import or_
 from db import get_db
 from models import Order, OrderAttachment
 from foms.web.auth import login_required
+from foms.services.attachment_visibility import include_deleted
 from foms.services.orders.order_mutation_policy import user_can_read_order
 from foms.services.storage import get_storage
 
 logger = logging.getLogger(__name__)
 
 _ACCESS_DENIED_MSG = "이 파일에 접근할 권한이 없습니다."
+_FILE_NOT_FOUND_MSG = "파일을 찾을 수 없습니다."
 
 
 def _user_id(user) -> int | None:
@@ -44,6 +46,35 @@ def _deny_draft_scope(user, owner_id: int):
     if owner_id == _user_id(user) or role in ("ADMIN", "MANAGER"):
         return None
     return 403, _ACCESS_DENIED_MSG
+
+
+def _deny_deleted_attachment(storage_key: str):
+    """tombstone 된 첨부의 object key 면 404 로 막는다 (ATTACH-LIFE-01).
+
+    canonical key 경로(``orders/<id>/...``)는 :func:`_deny_order_scope` 만 타고
+    ``order_attachments`` 행을 **조회하지 않기 때문에**, 이 lookup 이 없으면 삭제된 첨부가
+    blob purge 유예 기간 내내 그대로 열람된다. 전역 tombstone 필터는 살아있는 행만
+    돌려주므로 여기서는 ``include_deleted`` opt-in 으로 삭제 행을 직접 찾는다.
+
+    Args:
+        storage_key: 요청된 object key 원문(본체 또는 썸네일 key).
+
+    Returns:
+        삭제된 첨부면 ``(404, message)``, 아니면 ``None``.
+    """
+    row = (
+        include_deleted(
+            get_db()
+            .query(OrderAttachment.id)
+            .filter(
+                OrderAttachment.deleted_at.isnot(None),
+                or_(OrderAttachment.storage_key == storage_key,
+                    OrderAttachment.thumbnail_key == storage_key),
+            )
+        )
+        .first()
+    )
+    return (404, _FILE_NOT_FOUND_MSG) if row is not None else None
 
 
 def _deny_file_access(storage_key: str):
@@ -71,11 +102,18 @@ def _deny_file_access(storage_key: str):
         parts = norm.split("/")
         if len(parts) >= 2 and parts[1].isdigit():
             if parts[0] == "orders":
-                return _deny_order_scope(user, int(parts[1]))
+                denied = _deny_order_scope(user, int(parts[1]))
+                if denied:
+                    return denied
+                # canonical 분기는 attachment row 를 안 보므로 tombstone 을 직접 판정한다.
+                # read scope 통과 뒤에 두어 비인가 사용자에게 "삭제됨"을 알리지 않는다.
+                return _deny_deleted_attachment(raw)
             if parts[0] == "order-drafts":
                 return _deny_draft_scope(user, int(parts[1]))
 
     # legacy coverage gate: 비정규/미지원 namespace 는 attachment row 가 cover 해야 허용.
+    # 이 조회는 전역 tombstone 필터를 그대로 받는다 — 삭제된 첨부는 여기서 안 잡히고
+    # ``att is None`` 으로 떨어져 403 이 된다(별도 분기 불필요).
     att = (
         get_db()
         .query(OrderAttachment)
