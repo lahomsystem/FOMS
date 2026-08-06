@@ -287,7 +287,7 @@ _AS_LOG_WRITE_CALL_SITES = {
     ("foms/services/orders/as_cycle_service.py", "append_system_log"),  # LEGACY_BRIDGE 전환 기록(서버 고정 리터럴)
     ("foms/services/orders/as_log.py", "build_as_log_entry"),  # append_client_log/append_system_log 내부
     ("foms/services/orders/as_log.py", "_legacy_entries_from_content"),  # migrate/lazy legacy
-    ("foms/services/orders/as_log.py", 'as_log"].append'),  # 원시 append = 정본 생성지점 2곳뿐
+    ("foms/services/orders/as_log.py", 'as_log"].append'),  # 원시 append = 정본 생성지점 3곳뿐(client/system/verdict)
 }
 
 

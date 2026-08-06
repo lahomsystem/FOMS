@@ -321,8 +321,8 @@ def _resolve_as_log_entry(
 ) -> tuple[dict | None, tuple[str, int] | None]:
     """as_log 단건 조회 + 수정/삭제 공통 권한 판정 (두 라우트가 공유하는 SSOT).
 
-    각 라우트가 따로 판정하면 한쪽만 손봤을 때 권한 매트릭스가 갈린다 — system/legacy
-    불가와 "작성자 본인 또는 관리자"는 수정·삭제가 같아야 한다. verb 만 문구로 주입한다.
+    각 라우트가 따로 판정하면 한쪽만 손봤을 때 권한 매트릭스가 갈린다 — system/legacy/
+    verdict 불가와 "작성자 본인 또는 관리자"는 수정·삭제가 같아야 한다. verb 만 문구로 주입한다.
 
     잠금 **전** 사본으로 미리 거른다(_run_sd_mutation 을 헛돌리지 않기 위해). 잠근 뒤
     항목이 사라지는 경쟁은 apply 안에서 다시 확인한다(patch·delete 공통 계약).
@@ -343,6 +343,10 @@ def _resolve_as_log_entry(
         return None, (f"이전 기록은 {verb}할 수 없습니다.", 400)
     if target.get("type") == "system":
         return None, (f"시스템 기록은 {verb}할 수 없습니다.", 400)
+    if target.get("type") == "verdict":
+        # 판정 수는 current_as_round 파생의 근거다 — 지우거나 고치면 이미 스탬프된
+        # 이후 항목들의 round 와 어긋난다. 정정은 새 판정 append(T15 회차 규약).
+        return None, (f"판정 기록은 {verb}할 수 없습니다. 정정은 새 판정으로 남겨주세요.", 400)
     is_admin = bool(user and (user.role or "").upper() == "ADMIN")
     if not is_admin and target.get("by_id") != (user.id if user else None):
         return None, (f"본인 또는 관리자만 {verb}할 수 있습니다.", 403)
