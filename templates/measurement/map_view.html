@@ -447,6 +447,67 @@
             font-size: 0.9rem;
         }
 
+        /* ── AS 지도 카드 AS 정보 표면 (v3) — as 모드에서만 렌더되는 클래스라 body 게이트 불요 ── */
+        .as-card-badges {
+            display: flex;
+            align-items: center;
+            gap: 6px;
+        }
+
+        .as-bucket-badge {
+            font-size: 0.78rem;
+            padding: 0.3em 0.6em;
+            border-radius: 6px;
+            font-weight: 700;
+            white-space: nowrap;
+        }
+
+        /* AS 탭 pill 의미색 동기: 확정=초록 / 미결=주황 / 미정=회색 / 유상미확정=보라 */
+        .as-bucket-badge--visit_confirmed { background: #d3f9d8; color: #2b8a3e; }
+        .as-bucket-badge--pending { background: #ffe8cc; color: #d9480f; }
+        .as-bucket-badge--unassigned { background: #e9ecef; color: #495057; }
+        .as-bucket-badge--paid_unconfirmed { background: #f3e8ff; color: #7048e8; }
+
+        /* 유상 확정 배지(as-dashboard erp-as-billing-badge--paid 색 동기) */
+        .as-billing-badge-paid {
+            background: #f59f00;
+            color: #fff;
+            font-size: 0.75rem;
+            padding: 0.25em 0.55em;
+            border-radius: 4px;
+            font-weight: 700;
+            white-space: nowrap;
+        }
+
+        .as-dday {
+            font-weight: 700;
+            color: #495057;
+        }
+
+        .as-dday--imminent,
+        .as-dday--overdue {
+            color: #e03131;
+        }
+
+        .as-visit-undecided {
+            color: #e8590c;
+            font-weight: 700;
+        }
+
+        .as-avail-chip {
+            display: inline-block;
+            padding: 0.15em 0.55em;
+            border-radius: 999px;
+            background: #e7f5ff;
+            color: #1971c2;
+            font-size: 0.8rem;
+            font-weight: 600;
+        }
+
+        .as-avail-unknown {
+            color: #adb5bd;
+        }
+
         .order-detail-panel {
             padding: 1.25rem;
             background-color: #fff;
@@ -1931,6 +1992,55 @@
             `;
         }
 
+        // AS 카드 방문일 값 — 미정=경고, 지남=빨강 "N일 지남", D-3 이내=빨강 강조 (v3 확정안)
+        function asVisitValueHtml(order) {
+            if (!order.as_visit_date) {
+                return '<span class="as-visit-undecided">미정</span>';
+            }
+            const dateText = escapeHtml(order.as_visit_date);
+            const dday = order.as_visit_dday;
+            if (dday === null || dday === undefined) return dateText;
+            if (dday < 0) return `${dateText} <span class="as-dday as-dday--overdue">${-dday}일 지남</span>`;
+            if (dday === 0) return `${dateText} <span class="as-dday as-dday--imminent">D-DAY</span>`;
+            if (dday <= 3) return `${dateText} <span class="as-dday as-dday--imminent">D-${dday}</span>`;
+            return `${dateText} <span class="as-dday">D-${dday}</span>`;
+        }
+
+        // AS 카드 본문 행(v3): 고객·연락처·주소(+수정)·AS 내용·방문일·가능시간.
+        // 실측 시간 행·담당자 행(지정 버튼 포함)은 AS와 무관해 제거 — 스펙 §F2.
+        function asOrderRowsHtml(order, editBtnClass, editBtnTitle) {
+            const availHtml = order.as_availability_label
+                ? `<span class="as-avail-chip">${escapeHtml(order.as_availability_label)}</span>`
+                : '<span class="as-avail-unknown">미기입</span>';
+            return `
+                <div class="order-info-row order-info-row--manager">
+                    <span class="order-info-label">고객:</span>
+                    <span class="order-info-value">${escapeHtml(order.customer_name || '-')}</span>
+                </div>
+                <div class="order-info-row">
+                    <span class="order-info-label">연락처:</span>
+                    <span class="order-info-value">${escapeHtml(order.phone || '-')}</span>
+                </div>
+                <div class="order-info-row">
+                    <span class="order-info-label">주소:</span>
+                    <span class="order-info-value">${escapeHtml(order.address || '-')}</span>
+                    <button class="btn btn-sm ${editBtnClass} btn-edit-address" onclick="event.stopPropagation(); openAddressEdit(${order.id}, '${escapeForJsString(order.address || '')}');" title="${editBtnTitle}"><i class="fas fa-edit"></i></button>
+                </div>
+                <div class="order-info-row">
+                    <span class="order-info-label">AS 내용:</span>
+                    <span class="order-info-value">${escapeHtml(order.as_content_preview || '-')}</span>
+                </div>
+                <div class="order-info-row">
+                    <span class="order-info-label">방문일:</span>
+                    <span class="order-info-value">${asVisitValueHtml(order)}</span>
+                </div>
+                <div class="order-info-row">
+                    <span class="order-info-label">가능시간:</span>
+                    <span class="order-info-value">${availHtml}</span>
+                </div>
+            `;
+        }
+
         function updateOrderList(orders) {
             const container = document.getElementById('order-list-content');
 
@@ -1971,16 +2081,13 @@
                     ? '<span class="geocode-failed-badge"><i class="fas fa-exclamation-triangle"></i> 주소오류</span>'
                     : '';
 
-                html += `
-                    <div class="order-item ${failedClass} ${selectedOrderId === order.id ? 'selected' : ''}" 
-                         onclick="selectOrder(${order.id})" 
-                         data-order-id="${order.id}">
-                        <div class="order-item-header">
-                            <span class="order-id">#${order.id}</span>
-                            ${badge}
-                            <span class="order-status status-badge ${statusClass}">${statusText}</span>
-                        </div>
-                        <div class="order-info">
+                // as 모드 헤더: 상태 배지 대신 버킷 배지(+유상 확정 배지) — AS 분류가 1차 판단 정보
+                const headerRight = isAsMap
+                    ? `<span class="as-card-badges">${order.as_billing_badge === 'paid' ? '<span class="as-billing-badge-paid">유상</span>' : ''}<span class="as-bucket-badge as-bucket-badge--${escapeHtml(order.as_bucket || 'unassigned')}">${escapeHtml(order.as_bucket_label || '-')}</span></span>`
+                    : `<span class="order-status status-badge ${statusClass}">${statusText}</span>`;
+                const bodyRows = isAsMap
+                    ? asOrderRowsHtml(order, editBtnClass, editBtnTitle)
+                    : `
                             <div class="order-info-row order-info-row--manager">
                                 <span class="order-info-label">고객:</span>
                                 <span class="order-info-value">${escapeHtml(order.customer_name || '-')}</span>
@@ -2007,7 +2114,18 @@
                                 <span class="order-info-value map-manager-name" data-order-id="${order.id}">${escapeHtml(order.manager_name || '-')}</span>
                                 <button class="btn btn-sm btn-outline-primary btn-map-assign-manager" data-order-id="${order.id}" title="담당자 지정"><i class="fas fa-user-edit"></i></button>
                             </div>
+                    `;
+
+                html += `
+                    <div class="order-item ${failedClass} ${selectedOrderId === order.id ? 'selected' : ''}"
+                         onclick="selectOrder(${order.id})"
+                         data-order-id="${order.id}">
+                        <div class="order-item-header">
+                            <span class="order-id">#${order.id}</span>
+                            ${badge}
+                            ${headerRight}
                         </div>
+                        <div class="order-info">${bodyRows}</div>
                     </div>
                 `;
             });
