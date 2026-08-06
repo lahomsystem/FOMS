@@ -1,7 +1,7 @@
 """ATTACH-LIFE-01: order_attachments tombstone(soft delete) 컬럼 + key 조회 인덱스
 
 Revision ID: attach_life_00
-Revises: account_self_00
+Revises: merge_acct_typedrift
 Create Date: 2026-08-06
 
 첨부 수명주기 전환(스펙: docs/specs/2026-08-05-system-audit-logging-design.md §4 T4)의
@@ -28,7 +28,7 @@ from alembic import op
 import sqlalchemy as sa
 
 revision: str = 'attach_life_00'
-down_revision: Union[str, None] = 'account_self_00'
+down_revision: Union[str, None] = 'merge_acct_typedrift'
 branch_labels: Union[str, Sequence[str], None] = None
 depends_on: Union[str, Sequence[str], None] = None
 
