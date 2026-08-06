@@ -15,12 +15,16 @@
 | T7 | 데모 피드백 2건 — ① 팝업이 클러스터 뱃지 뒤로 가림(zIndex 60→500 서열 정정) ② PC 필터 스킨 개편(흰 필드+쉐브론·활성 앰버 링·초기화 버튼, body.map-as-mode+≥891px 이중 게이트, 모바일·실측 지도 무변경) | 지도 계열 27+가용성 4 passed·JS 문법 OK·스테이징 실브라우저 QA(팝업 최상단, 필터 스킨·초기화 동작, 콘솔 0)+CI green | DONE — 로컬 `361ec121`→원격 `472dc818`. 스테이징 QA(claude_master·1440px): 팝업 z=500>핀 400 DOM+스크린샷 확인, 앰버 링·초기화(55건 복원) 동작, 실측 지도 회귀 0(콜론 라벨·반투명 유지), 지도 콘솔 에러 0. CI 4 워크플로 green(FOMS CI·PG Lane·Harness·perf-gate) |
 | T8 | 데모 피드백 2차 4건 — ① 그룹 팝업 다건 시 내용이 박스 밖 가로 넘침 ② 리스트 스크롤 불가 ③ 팝업 위 휠이 지도 줌으로 전파 ④ 단건 팝업 주소 한 줄 잘림. 근본 원인 2개: 카카오 CustomOverlay 래퍼 white-space:nowrap 상속(①④) + 팝업 이벤트 지도 전파(②③). 수정: .foms-kmap-popup white-space:normal + guardPopupEvents(stopPropagation, preventDefault 없음) + panPopupIntoView(PC, 화면 밖 잘림 픽셀 보정) + mountPopup 공통화, ?v=20260806d | 지도 27 passed·JS OK·스테이징 QA(주소 2줄 랩·행 넘침 0·scrollTop 동작·휠/드래그 전파 0 계측·오토팬 -25→93px·콘솔 무결)+CI green | DONE — 로컬 `40c77472`→원격 `c543a794`, CI green(FOMS CI 완주 확인 후 마감) |
 
-## v3 — AS 정보 중심 개편 (스펙: `docs/specs/2026-08-06-as-map-as-info-design.md`, **승인 대기**)
+## v3 — AS 정보 중심 개편 (스펙: `docs/specs/2026-08-06-as-map-as-info-design.md`, **2026-08-06 승인**)
+
+사용자 확정: 담당자 행 전체 숨김(지정 버튼+영업 담당 표기) · T6 승격은 v3 완료 후 deploy 테스트부터.
+진행 방식 확정(2026-08-06 2차): T9~T12 한번에 완주 · **단 T10 카드는 중간 시안 스크린샷 사용자 확인
+게이트 1회**(로컬/스테이징 렌더 캡처 제시 후 진행) · 지난 방문일 = 빨강 "N일 지남" · 새 세션에서 재개.
 
 | Task | 내용 | 완료 기준 | 상태 |
 |---|---|---|---|
-| T9 | F1 페이로드 — as 모드 point에 as_bucket(4쿼리 id-set)·as_visit_date/dday·as_content_preview·as_billing·as_received_date 보강 | test_as_map_snapshot 확장(as 필드 계약+measurement 무변경 가드) passed + APP_OK | PENDING(승인 대기) |
-| T10 | F2 우측 카드 as 분기 — 버킷 배지·AS 내용·방문일 D-day·가능시간 칩·유상 배지, 실측 시간 행/실측 담당자 버튼 제거 | 렌더 계약 테스트 + 스테이징 카드 표기 확인 | PENDING |
+| T9 | F1 페이로드 — as 모드 point에 as_bucket(4쿼리 id-set)·as_visit_date/dday·as_content_preview·as_billing·as_received_date 보강 | test_as_map_snapshot 확장(as 필드 계약+measurement 무변경 가드) passed + APP_OK | PENDING |
+| T10 | F2 우측 카드 as 분기 — 버킷 배지·AS 내용·방문일 D-day(지남=빨강 "N일 지남")·가능시간 칩·유상 배지, 실측 시간 행/담당자 행 전체 제거 | **중간 시안 스크린샷 사용자 확인 게이트** → 렌더 계약 테스트 + 스테이징 카드 표기 확인 | PENDING |
 | T11 | F3+F4 팝업 as 분기(버킷·방문일·내용·유무상·접수일, 좌표/실측시간 제거) + 그룹 행 방문일 표기 + 미정 pill 점선 + ?v 범프 | JS 문법 OK + 스테이징 팝업 표기 확인 | PENDING |
 | T12 | 스테이징 종합 QA(페르소나 2 시나리오) + 실측 지도 무회귀 + deploy push + CI green | QA 통과·CI 전 워크플로 green | PENDING |
 
