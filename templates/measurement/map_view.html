@@ -994,6 +994,9 @@
             box-shadow: 0 6px 24px rgba(0, 0, 0, 0.25);
             font-size: 13px;
             overflow: hidden;
+            /* 카카오 CustomOverlay 래퍼가 white-space:nowrap을 상속시킨다 — 리셋 없으면
+               주소가 한 줄로 잘리고 그룹 행이 300px 밖으로 가로 넘침(overflow:hidden에 클립) */
+            white-space: normal;
         }
 
         .foms-kmap-popup__head {
@@ -1359,7 +1362,7 @@
     <script src="https://cdn.jsdelivr.net/npm/bootstrap@5.1.3/dist/js/bootstrap.bundle.min.js" defer></script>
     <script src="{{ url_for('static', filename='js/runtime/common_utils.js') }}?v=20260327" defer></script>
     <!-- 카카오 지도 클라이언트 렌더 모듈 (defer: DOMContentLoaded 전에 정의 완료) -->
-    <script src="{{ url_for('static', filename='js/measurement/map-view-kakao.js') }}?v=20260806c" defer></script>
+    <script src="{{ url_for('static', filename='js/measurement/map-view-kakao.js') }}?v=20260806d" defer></script>
     <!-- 모바일 바텀시트/상세 풀시트 컨트롤러. defer 라 아래 인라인 스크립트(파싱 중 실행)가
          전역(loadOrderDetail 등)을 정의한 뒤에 실행된다 — 감싸기 전제. -->
     <script src="{{ url_for('static', filename='js/measurement/map-mobile-sheet.js') }}?v=20260720a" defer></script>
