@@ -5,16 +5,16 @@
   "overlap_api_error_01": "API-ERROR-01 owns response/stdout exposure (print_exc/str(e) -> log_handled_exception). This packet owns swallow classification. Sites that log via log_handled_exception are LOG_AND_CONTINUE here.",
   "marker_convention": "Silent-by-design catches carry an inline `# failopen: intentional: <reason>` (or `fail-closed`) marker; the scanner reads it as the justification. No bare allowlist, no lint-disable.",
   "baselines": {
-    "broad_total": 492,
+    "broad_total": 493,
     "unclassified": 0
   },
   "disposition_counts": {
     "FAIL_CLOSED": 22,
     "INTENTIONAL": 17,
-    "LOG_AND_CONTINUE": 453
+    "LOG_AND_CONTINUE": 454
   },
   "owner_counts": {
-    "api": 224,
+    "api": 225,
     "audit": 2,
     "auth": 15,
     "cache": 25,
@@ -1369,7 +1369,7 @@
     },
     {
       "path": "foms/api/files/direct_upload.py",
-      "lineno": 92,
+      "lineno": 93,
       "handler_type": "broad_exception",
       "disposition": "LOG_AND_CONTINUE",
       "owner": "storage",
@@ -1378,7 +1378,7 @@
     },
     {
       "path": "foms/api/files/direct_upload.py",
-      "lineno": 156,
+      "lineno": 157,
       "handler_type": "broad_exception",
       "disposition": "LOG_AND_CONTINUE",
       "owner": "storage",
@@ -1387,7 +1387,7 @@
     },
     {
       "path": "foms/api/files/direct_upload.py",
-      "lineno": 220,
+      "lineno": 221,
       "handler_type": "broad_exception",
       "disposition": "LOG_AND_CONTINUE",
       "owner": "storage",
@@ -1396,7 +1396,7 @@
     },
     {
       "path": "foms/api/files/direct_upload.py",
-      "lineno": 256,
+      "lineno": 259,
       "handler_type": "broad_exception",
       "disposition": "LOG_AND_CONTINUE",
       "owner": "storage",
@@ -1405,7 +1405,7 @@
     },
     {
       "path": "foms/api/files/direct_upload.py",
-      "lineno": 260,
+      "lineno": 263,
       "handler_type": "broad_exception",
       "disposition": "LOG_AND_CONTINUE",
       "owner": "storage",
@@ -1450,7 +1450,7 @@
     },
     {
       "path": "foms/api/files/order_routes.py",
-      "lineno": 83,
+      "lineno": 244,
       "handler_type": "broad_exception",
       "disposition": "LOG_AND_CONTINUE",
       "owner": "api",
@@ -1459,7 +1459,7 @@
     },
     {
       "path": "foms/api/files/order_routes.py",
-      "lineno": 152,
+      "lineno": 313,
       "handler_type": "broad_exception",
       "disposition": "LOG_AND_CONTINUE",
       "owner": "api",
@@ -1468,7 +1468,7 @@
     },
     {
       "path": "foms/api/files/order_routes.py",
-      "lineno": 186,
+      "lineno": 342,
       "handler_type": "broad_exception",
       "disposition": "LOG_AND_CONTINUE",
       "owner": "api",
@@ -1477,7 +1477,7 @@
     },
     {
       "path": "foms/api/files/order_routes.py",
-      "lineno": 190,
+      "lineno": 346,
       "handler_type": "broad_exception",
       "disposition": "LOG_AND_CONTINUE",
       "owner": "api",
@@ -1486,7 +1486,7 @@
     },
     {
       "path": "foms/api/files/order_routes.py",
-      "lineno": 245,
+      "lineno": 404,
       "handler_type": "broad_exception",
       "disposition": "LOG_AND_CONTINUE",
       "owner": "api",
@@ -1495,7 +1495,7 @@
     },
     {
       "path": "foms/api/files/order_routes.py",
-      "lineno": 249,
+      "lineno": 408,
       "handler_type": "broad_exception",
       "disposition": "LOG_AND_CONTINUE",
       "owner": "api",
@@ -1504,16 +1504,7 @@
     },
     {
       "path": "foms/api/files/order_routes.py",
-      "lineno": 295,
-      "handler_type": "broad_exception",
-      "disposition": "LOG_AND_CONTINUE",
-      "owner": "api",
-      "has_logging": false,
-      "justification": "print (weak; API-ERROR-01 owns stdout->logger migration)"
-    },
-    {
-      "path": "foms/api/files/order_routes.py",
-      "lineno": 308,
+      "lineno": 456,
       "handler_type": "broad_exception",
       "disposition": "LOG_AND_CONTINUE",
       "owner": "api",
@@ -1522,7 +1513,25 @@
     },
     {
       "path": "foms/api/files/order_routes.py",
-      "lineno": 312,
+      "lineno": 460,
+      "handler_type": "broad_exception",
+      "disposition": "LOG_AND_CONTINUE",
+      "owner": "api",
+      "has_logging": true,
+      "justification": "logs via logger/log_handled_exception"
+    },
+    {
+      "path": "foms/api/files/order_routes.py",
+      "lineno": 528,
+      "handler_type": "broad_exception",
+      "disposition": "LOG_AND_CONTINUE",
+      "owner": "api",
+      "has_logging": true,
+      "justification": "logs via logger/log_handled_exception"
+    },
+    {
+      "path": "foms/api/files/order_routes.py",
+      "lineno": 532,
       "handler_type": "broad_exception",
       "disposition": "LOG_AND_CONTINUE",
       "owner": "api",
@@ -1531,7 +1540,7 @@
     },
     {
       "path": "foms/api/files/routes.py",
-      "lineno": 142,
+      "lineno": 240,
       "handler_type": "broad_exception",
       "disposition": "LOG_AND_CONTINUE",
       "owner": "api",
@@ -1540,7 +1549,7 @@
     },
     {
       "path": "foms/api/files/routes.py",
-      "lineno": 182,
+      "lineno": 283,
       "handler_type": "broad_exception",
       "disposition": "LOG_AND_CONTINUE",
       "owner": "api",
@@ -1549,7 +1558,7 @@
     },
     {
       "path": "foms/api/files/routes.py",
-      "lineno": 228,
+      "lineno": 332,
       "handler_type": "broad_exception",
       "disposition": "LOG_AND_CONTINUE",
       "owner": "api",
@@ -2773,7 +2782,7 @@
     },
     {
       "path": "foms/services/app_init.py",
-      "lineno": 191,
+      "lineno": 200,
       "handler_type": "broad_exception",
       "disposition": "LOG_AND_CONTINUE",
       "owner": "services",
@@ -3016,7 +3025,7 @@
     },
     {
       "path": "foms/services/construction_read_model.py",
-      "lineno": 141,
+      "lineno": 143,
       "handler_type": "broad_exception",
       "disposition": "LOG_AND_CONTINUE",
       "owner": "services",
@@ -3709,7 +3718,7 @@
     },
     {
       "path": "foms/services/production_read_model.py",
-      "lineno": 214,
+      "lineno": 216,
       "handler_type": "broad_exception",
       "disposition": "LOG_AND_CONTINUE",
       "owner": "services",
@@ -3736,7 +3745,7 @@
     },
     {
       "path": "foms/services/request_write_guard.py",
-      "lineno": 84,
+      "lineno": 113,
       "handler_type": "broad_exception",
       "disposition": "INTENTIONAL",
       "owner": "services",
@@ -4123,7 +4132,7 @@
     },
     {
       "path": "foms/web/auth/routes.py",
-      "lineno": 69,
+      "lineno": 81,
       "handler_type": "broad_exception",
       "disposition": "LOG_AND_CONTINUE",
       "owner": "auth",
@@ -4132,7 +4141,7 @@
     },
     {
       "path": "foms/web/auth/routes.py",
-      "lineno": 73,
+      "lineno": 86,
       "handler_type": "broad_exception",
       "disposition": "LOG_AND_CONTINUE",
       "owner": "auth",
@@ -4141,7 +4150,7 @@
     },
     {
       "path": "foms/web/auth/routes.py",
-      "lineno": 104,
+      "lineno": 159,
       "handler_type": "broad_exception",
       "disposition": "LOG_AND_CONTINUE",
       "owner": "auth",
@@ -4150,7 +4159,7 @@
     },
     {
       "path": "foms/web/auth/routes.py",
-      "lineno": 112,
+      "lineno": 167,
       "handler_type": "broad_exception",
       "disposition": "LOG_AND_CONTINUE",
       "owner": "auth",
@@ -4159,7 +4168,7 @@
     },
     {
       "path": "foms/web/auth/routes.py",
-      "lineno": 173,
+      "lineno": 228,
       "handler_type": "broad_exception",
       "disposition": "LOG_AND_CONTINUE",
       "owner": "auth",
@@ -4168,7 +4177,7 @@
     },
     {
       "path": "foms/web/auth/routes.py",
-      "lineno": 400,
+      "lineno": 462,
       "handler_type": "broad_exception",
       "disposition": "LOG_AND_CONTINUE",
       "owner": "auth",
@@ -4177,7 +4186,7 @@
     },
     {
       "path": "foms/web/auth/routes.py",
-      "lineno": 434,
+      "lineno": 496,
       "handler_type": "broad_exception",
       "disposition": "LOG_AND_CONTINUE",
       "owner": "auth",
@@ -4186,7 +4195,7 @@
     },
     {
       "path": "foms/web/auth/routes.py",
-      "lineno": 550,
+      "lineno": 612,
       "handler_type": "broad_exception",
       "disposition": "LOG_AND_CONTINUE",
       "owner": "auth",
@@ -4195,7 +4204,7 @@
     },
     {
       "path": "foms/web/auth/routes.py",
-      "lineno": 645,
+      "lineno": 721,
       "handler_type": "broad_exception",
       "disposition": "LOG_AND_CONTINUE",
       "owner": "auth",
@@ -4204,7 +4213,7 @@
     },
     {
       "path": "foms/web/auth/routes.py",
-      "lineno": 697,
+      "lineno": 773,
       "handler_type": "broad_exception",
       "disposition": "LOG_AND_CONTINUE",
       "owner": "auth",
@@ -4213,7 +4222,7 @@
     },
     {
       "path": "foms/web/auth/routes.py",
-      "lineno": 740,
+      "lineno": 821,
       "handler_type": "broad_exception",
       "disposition": "LOG_AND_CONTINUE",
       "owner": "auth",
@@ -4222,7 +4231,7 @@
     },
     {
       "path": "foms/web/auth/routes.py",
-      "lineno": 776,
+      "lineno": 857,
       "handler_type": "broad_exception",
       "disposition": "LOG_AND_CONTINUE",
       "owner": "auth",
@@ -4231,7 +4240,7 @@
     },
     {
       "path": "foms/web/auth/routes.py",
-      "lineno": 817,
+      "lineno": 902,
       "handler_type": "broad_exception",
       "disposition": "LOG_AND_CONTINUE",
       "owner": "auth",
@@ -4240,7 +4249,7 @@
     },
     {
       "path": "foms/web/auth/routes.py",
-      "lineno": 874,
+      "lineno": 959,
       "handler_type": "broad_exception",
       "disposition": "LOG_AND_CONTINUE",
       "owner": "auth",
