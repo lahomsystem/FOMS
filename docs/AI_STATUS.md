@@ -8,6 +8,7 @@ Flask 2.3 + PostgreSQL + R2 + Railway (Web×2, Worker×1)
 브랜치: deploy (스테이징) → production (운영)
 
 ## 진행 중
+- [2026-08-06] **계정 셀프서비스 v1 production 반영** — 셀프 가입 신청(PENDING 승인)+비밀번호 재설정 요청 큐, 마이그레이션 `account_self_00`, 승인 UI=/admin/users, 스테이징 QA 통과. 스펙: `docs/specs/2026-08-06-account-self-service-design.md`
 - [2026-08-01] **deploy 전체 승격 완료 → production `0aae8d9f`** (PR #35, 356커밋·마이그레이션 29개, alembic `wiz_pending_00`, 테이블 45→84, 데이터 무손상, 스모크 11경로 200). **롤백은 DB 먼저→코드 나중**(반대면 `Can't locate revision`으로 이후 전 배포 파산). 백업 `/c/tmp/foms-backups/*.dump`.
 - [2026-08-03] **후속 완료 (deploy `04f0fc59`)** — RQ 실패 잡 관측 신설 후 **운영 Redis 2,544건 정리 완료**(백업 `/c/tmp/foms-backups/prod-rq-failed-jobs-backup.json`, 전부 퇴역 잡 `push_order_to_channeltalk`). `/erp/history` 301 제거(dTTFB 240→19ms). CI PG 16→17. **마이그레이션 체인 왕복 검증 신설**(CI가 처음으로 alembic 실행). CI Redis 커버리지. 패키지 10줄 제거. construction 렌더 +22ms는 **코드 무죄 확정·환경 미증명**으로 종결.
 - ⚠️ **`queue.py` 소켓 타임아웃 누락 수정** — `rate_limit.py`·`dashboard_cache.py`엔 2초 상한이 있는데 이 경로만 없었다(2026-07-21 Redis 장애 대응이 절반만 적용). blackhole 시 `enqueue()`가 웹 워커를 130초 붙잡던 잠복 결함. 못 잡은 이유=`queue.py` 내부 테스트 0건(기존 테스트가 `enqueue_*`를 monkeypatch로 치움).
