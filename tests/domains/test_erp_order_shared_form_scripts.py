@@ -67,7 +67,7 @@ def _assert_shared_form_script_contract(body: str) -> None:
     )
     assert "html2canvas.min.js" not in body
     assert "js/orders/erp-channel-push-confirm.js?v=20260703a" in body
-    assert "js/orders/erp-order-shared.js?v=20260804c" in body
+    assert "js/orders/erp-order-shared.js?v=20260806a" in body
     assert "js/orders/erp-stage-override.js?v=20260716b" in body
     assert "erp_stage_override_modal.html" not in body  # include renders modal markup, not path
     assert 'id="erpStageOverrideModal"' in body
@@ -1500,3 +1500,24 @@ def test_measurement_dashboard_consumes_focus_order_deeplink() -> None:
     # 헬퍼가 실측 복귀 URL에 focus_order 를 부여한다
     shared = (root / "static/js/orders/erp-order-shared.js").read_text(encoding="utf-8")
     assert "u.pathname !== '/erp/dashboard' && u.pathname !== '/erp/measurement'" in shared
+
+
+def test_save_button_does_not_steal_focus_on_mouse_pointerdown() -> None:
+    """저장 버튼 mousedown 이 입력 포커스를 뺏지 않는다(첫 클릭 무산 사고 방지).
+
+    사고 재현(운영 4660 양선민 외 다수): 텍스트 입력(한글 IME)에 포커스를 둔 채
+    아래로 스크롤해 저장을 누르면 mousedown→blur→IME 커밋의 네이티브 캐럿
+    스크롤(부트스트랩 :root smooth)로 버튼이 커서 밑에서 이동, click 이 무산돼
+    "저장 누르면 스크롤만 올라가고 저장 안 됨(재클릭은 됨)"이 됐다. 마우스
+    pointerdown 은 preventDefault 로 포커스 이동을 차단하고, 터치는 click 합성
+    억제 부작용이 있어 제외한다.
+    """
+    root = Path(__file__).resolve().parents[2]
+    text = (root / "static/js/orders/erp-order-shared.js").read_text(encoding="utf-8")
+
+    idx_pd = text.index("addEventListener('pointerdown'", text.index("document.getElementById('erp-save-btn')"))
+    idx_click = text.index("addEventListener('click', erpSaveStructured)")
+    assert idx_pd < idx_click  # pointerdown 가드가 click 배선보다 먼저
+    guard_block = text[idx_pd:idx_pd + 200]
+    assert "e.pointerType === 'mouse'" in guard_block
+    assert "e.preventDefault()" in guard_block
