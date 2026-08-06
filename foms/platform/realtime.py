@@ -176,6 +176,25 @@ def init_realtime_bootstrap(
         )(limited)
         app.view_functions["channel_wam_api.wam_telemetry"] = limited
 
+    # ACCOUNT-SELF-01: 셀프 가입 신청·비밀번호 재설정 요청(무인증 POST) rate limit.
+    # GET(폼 표시)은 제한하지 않는다. 버킷 키는 **canonical client IP**(remote_addr,
+    # PROXY-01) 고정 — 기본 rate_limit_key 는 세션 쿠키 hash 를 우선하는데 익명
+    # 엔드포인트에서 쿠키는 클라이언트 임의 값이라 버킷 회전으로 우회 가능하다.
+    from flask_limiter.util import get_remote_address as _account_request_rate_key
+
+    account_request_limit = os.environ.get(
+        "FOMS_ACCOUNT_REQUEST_RATE_LIMIT",
+        "5 per hour;20 per day",
+    )
+    for endpoint in ("auth.register", "auth.password_reset_request"):
+        view = app.view_functions.get(endpoint)
+        if view is not None:
+            app.view_functions[endpoint] = limiter.limit(
+                account_request_limit,
+                methods=["POST"],
+                key_func=_account_request_rate_key,
+            )(view)
+
     socketio = None
     if socketio_available:
         try:

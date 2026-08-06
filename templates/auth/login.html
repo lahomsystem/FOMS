@@ -55,6 +55,8 @@
 
     <div class="auth-links">
         <a href="{{ url_for('auth.register') }}">회원가입</a>
+        <span class="text-muted">|</span>
+        <a href="{{ url_for('auth.password_reset_request') }}">비밀번호 재설정 요청</a>
     </div>
 </div>
 {% endblock %}

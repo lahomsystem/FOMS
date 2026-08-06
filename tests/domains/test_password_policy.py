@@ -215,9 +215,12 @@ def test_admin_user_list_shows_legacy_badge_and_filter(client, app):
     full = client.get("/admin/users").get_data(as_text=True)
     assert "data-legacy-badge" in full  # 최소 1명 legacy 배지
 
+    # username 검사는 사용자 테이블 셀(<td>)로 한정한다 — 페이지 전체 검사는
+    # 상단 nav "다른 사용자로 전환" 드롭다운(60s 프로세스 캐시, 전 활성 유저 렌더)의
+    # 캐시 만료 타이밍에 따라 전체 활성 유저가 노출되어 flaky 해진다.
     filtered = client.get("/admin/users?policy=legacy").get_data(as_text=True)
-    assert "listleg" in filtered
-    assert "liststrong" not in filtered  # legacy 필터에는 strong 계정 미표시
+    assert "<td>listleg</td>" in filtered
+    assert "<td>liststrong</td>" not in filtered  # legacy 필터에는 strong 계정 미표시
 
 
 def test_inactive_legacy_blind_reactivate_forbidden(client, app):

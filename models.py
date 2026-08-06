@@ -907,6 +907,12 @@ class User(Base):
     role = Column(String, nullable=False, default='VIEWER')
     team = Column(String(50), nullable=True)  # cs/drawing/production/construction
     is_active = Column(Boolean, nullable=False, default=True)
+    # ACCOUNT-SELF-01: 셀프 가입 승인 상태. ACTIVE=정상, PENDING=가입 신청 후 관리자
+    # 승인 대기(로그인 차단). 거절은 상태 보존 없이 row 삭제(재신청 허용). 기존 행은
+    # 마이그레이션 server_default('ACTIVE') 로 backfill.
+    approval_status = Column(
+        String(20), nullable=False, server_default='ACTIVE', default='ACTIVE',
+    )
     # PASSWORD-POLICY-01: 비밀번호 강도 정책 버전(SSOT). 0=LEGACY(강도 미검증),
     # 1=STRONG. hash rehash 로 추정하지 않고 설정 시점에 이 컬럼으로 명시 기록한다.
     # 기존 행은 마이그레이션 server_default('0')=LEGACY 로 backfill 된다.
@@ -926,6 +932,7 @@ class User(Base):
             'role': self.role,
             'team': self.team,
             'is_active': self.is_active,
+            'approval_status': self.approval_status,
             'created_at': format_datetime_kst(self.created_at),
             'last_login': format_datetime_kst(self.last_login)
         }
@@ -959,7 +966,53 @@ class SecurityLog(Base):
     id = Column(Integer, primary_key=True)
     timestamp = Column(DateTime, server_default=func.now(), nullable=False)
     user_id = Column(Integer, ForeignKey('users.id'), nullable=True)
-    message = Column(String, nullable=False) 
+    message = Column(String, nullable=False)
+
+
+class PasswordResetRequest(Base):
+    """ACCOUNT-SELF-01: 비밀번호 재설정 요청 큐(관리자 처리형, 인증 채널 없음).
+
+    로그인 화면에서 접수된 재설정 요청을 기록한다. 계정 열거 방지를 위해 username 이
+    실존하지 않아도 row 를 만들며(``user_id`` NULL), 요청자에게는 항상 동일한 성공
+    메시지를 보여준다. 관리자가 기존 재설정 기능(edit_user)으로 처리한 뒤 상태를
+    DONE/DISMISSED 로 마감한다. DDL 은 migration(``account_self_00``)과 SSOT 를
+    공유한다(create_all 테스트 lane 동일 스키마).
+    """
+
+    __tablename__ = 'password_reset_requests'
+
+    id = Column(Integer, primary_key=True)
+    # 요청 폼에 입력된 원문(오타 감사용). 매칭 실패여도 보존한다.
+    username_submitted = Column(String(64), nullable=False)
+    # 접수 시점 username 매칭 결과(없으면 NULL). 사용자 삭제 시 요청은 감사로 보존.
+    user_id = Column(Integer, ForeignKey('users.id', ondelete='SET NULL'), nullable=True)
+    status = Column(String(20), nullable=False, server_default='PENDING', default='PENDING')
+    created_at = Column(DateTime, nullable=False, default=now_utc_naive, server_default=func.now())
+    handled_by_user_id = Column(Integer, ForeignKey('users.id', ondelete='SET NULL'), nullable=True)
+    handled_at = Column(DateTime, nullable=True)
+    request_ip = Column(String(64), nullable=True)
+
+    user = relationship('User', foreign_keys=[user_id])
+    handled_by = relationship('User', foreign_keys=[handled_by_user_id])
+
+    __table_args__ = (
+        CheckConstraint(
+            "status IN ('PENDING','DONE','DISMISSED')",
+            name='ck_password_reset_requests_status'),
+        # 관리자 대기 큐 조회 hot path(PENDING 을 최신순).
+        Index('ix_password_reset_requests_status_created', 'status', 'created_at'),
+    )
+
+    def to_dict(self):
+        return {
+            'id': self.id,
+            'username_submitted': self.username_submitted,
+            'user_id': self.user_id,
+            'status': self.status,
+            'created_at': format_datetime_kst(self.created_at),
+            'handled_by_user_id': self.handled_by_user_id,
+            'handled_at': format_datetime_kst(self.handled_at),
+        }
 
 
 # ============================================
