@@ -9,12 +9,12 @@
 | T1 프로덕션 로깅 부트스트랩 (+request_id, 구 T7 흡수) — 파일럿 | DONE | 커밋 `a37a5445`. 위임→검증→커밋 흐름 정상. 계약 12건 신설 포함 31 passed + APP_OK(메인 세션 직접 재실행). 타 세션 소유 파일(order_date_sync·push_sender) 무접촉·미스테이징 확인 |
 | T2 PAYMENT_CHANGED before_flush SSOT | DONE | 커밋 `16088409`. domains 23·PG 5·회귀 692·반증 2회. 빠른수정·레거시 폼·인라인 PATCH는 payment 미접촉 구조(전제 고정 테스트) — 상세 `docs/harness/runtime/OVERNIGHT_REPORT.md` |
 | T3 ERP 생성 ORDER_CREATED 배선 | DONE | 커밋 `48e38dda`. 신규 10·domains 전수 3915 passed. as_orders 승격 경로 동시 커버 |
-| T-CP1 Phase 1 검증·커밋·푸시 | DONE(부분) | smoke exit 0 + hygiene 15 passed. **push 미실행**(overnight 승인 범위 = 커밋까지) — push·스테이징 로그 확인은 아침 검수 |
-| T4 첨부 soft delete + 이벤트 | PENDING | |
-| T5 관리자 행위 구조화 + 접근거부 기록 | PENDING | |
-| T6 access_logs 부활 (파일 접근 3곳) | PENDING | |
+| T-CP1 Phase 1 검증·커밋·푸시 | DONE | smoke exit 0 + hygiene 15 passed. [08-06] 자기 몫 7커밋 cherry-pick push → origin/deploy `d7f0d9ea`, **CI 4/4 green**(FOMS·PG Lane·perf-gate·Harness). 스테이징 302/200·x-request-id 정상. 충돌은 state_writer 인벤토리 라인시프트만(원격 트리 재생성 40/24로 해소, 코드 의존 아님). Railway 로그 INFO 육안 1분만 잔여 |
+| T4 첨부 soft delete + 이벤트 | DONE | 커밋 `3ec9bfd2`. 신규 35+PG 6+첨부 856+PG 전수 652. tombstone 404·outbox 2행·전역 필터·raw SQL 사각 2곳·복구 API. ⚠ 마이그레이션 `attach_life_00`은 타 세션 `account_self_00` 위 체이닝 |
+| T5 관리자 행위 구조화 + 접근거부 기록 | DONE | 커밋 `9d02f0f5`. 신규 15+PG 7(독립 커밋 인과 증명)+연관 599. from→to·비번 값 부재·403/CSRF 독립 기록·dedupe |
+| T6 access_logs 부활 (파일 접근 3곳) | DONE | 커밋 `ea8a1abc`. 신규 32+PG 8. FILE_VIEW 10분 dedupe·PRESIGNED·DOWNLOAD, 인덱스 `access_log_00` |
 | T7 — **T1에 흡수(결번)** | — | 단순화 심판 판정 |
-| T-CP2 Phase 2 검증·커밋·푸시 | PENDING | |
+| T-CP2 Phase 2 검증·커밋·푸시 | DONE(push 제외) | smoke exit 0 + hygiene 15 passed. push는 아침(마이그레이션 의존 확인 필수 — OVERNIGHT_REPORT) |
 | T8 security_logs 구조화 | PENDING | |
 | T9 감사 원장 수명주기 (retention + FK 분리) | PENDING | |
 | T10 Sentry + gunicorn access log | PENDING | |

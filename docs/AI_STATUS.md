@@ -8,7 +8,12 @@ Flask 2.3 + PostgreSQL + R2 + Railway (Web×2, Worker×1)
 브랜치: deploy (스테이징) → production (운영)
 
 ## 진행 중
+<<<<<<< HEAD
 - [2026-08-06] **계정 셀프서비스 v1 deploy 반영** — 셀프 가입 신청(PENDING 승인 흐름)+비밀번호 재설정 요청 큐(관리자 처리형), 마이그레이션 `account_self_00`, 승인 UI=/admin/users, 신규 테스트 14 green. 스펙: `docs/specs/2026-08-06-account-self-service-design.md`
+=======
+- [2026-08-06] **계정 셀프서비스 v1 구현 완료(커밋 대기)** — 셀프 가입 신청(PENDING 승인 흐름)+비밀번호 재설정 요청 큐(관리자 처리형), 마이그레이션 `account_self_00`, 승인 UI=/admin/users, 신규 테스트 14 green. 스펙: `docs/specs/2026-08-06-account-self-service-design.md`
+- [2026-08-06] **시스템 감사 로깅 `**D` Phase 1+2 완료** — P1 push `d7f0d9ea` CI 4/4 green. P2 로컬 커밋: T4 첨부 soft delete `3ec9bfd2`·T5 관리자/접근거부 `9d02f0f5`·T6 파일 접근 `ea8a1abc`, smoke exit 0. **push 대기**(마이그레이션 2개가 타 세션 `account_self_00` 위 체이닝 — push 시 의존 확인). Phase 3(T8~) 대기. 원장: `docs/plans/2026-08-05-system-audit-logging-ledger.md`
+>>>>>>> 8565b2f0 (docs: 감사 로깅 야간 2차 런 마감 — T4·T5·T6·T-CP2 원장/보고서/상황판)
 - [2026-08-05] **출고 시공일 변경 알림 T1~T8 완료(deploy)** — 이벤트 SSOT(`order_date_sync` before_flush)로 무음 경로 6종 차단, 수신 팀 **CONSTRUCTION**(SHIPMENT·PRODUCTION 팀은 실사용자 0 — 보내면 무음). AS 매칭은 production 반영 완료. 원장: `docs/plans/2026-07-30-shipment-construction-date-change-alert-ledger.md`
 - [2026-08-01] **deploy 전체 승격 완료 → production `0aae8d9f`** (PR #35, 356커밋·마이그레이션 29개, alembic `wiz_pending_00`, 테이블 45→84, 데이터 무손상, 스모크 11경로 200). **롤백은 DB 먼저→코드 나중**(반대면 `Can't locate revision`으로 이후 전 배포 파산). 백업 `/c/tmp/foms-backups/*.dump`.
 - [2026-08-03] **후속 완료 (deploy `04f0fc59`)** — **운영 Redis 실패잡 2,544건 정리**(백업 `/c/tmp/foms-backups/prod-rq-failed-jobs-backup.json`, 전부 퇴역 잡). `/erp/history` 301 제거(dTTFB 240→19ms). CI PG 16→17. **마이그레이션 체인 왕복 검증 신설**(CI가 처음 alembic 실행). CI Redis 커버리지. construction 렌더 +22ms는 **코드 무죄·환경 미증명**으로 종결.

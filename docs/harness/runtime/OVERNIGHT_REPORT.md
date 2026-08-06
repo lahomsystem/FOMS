@@ -1,43 +1,43 @@
-# OVERNIGHT_REPORT — 감사 로깅 T2~T-CP1 (2026-08-05 야간)
+# OVERNIGHT_REPORT — 감사 로깅 T4~T-CP2 (2026-08-06 야간, 2차 런)
 
 플랜: `docs/plans/2026-08-05-system-audit-logging-plan.md` / 원장: `OVERNIGHT_LEDGER.md`
-승인: **커밋까지** (push 제외 — 사용자 선택). 시작 HEAD `bf6fd5b7`.
+승인: **커밋까지** (push 제외). 시작 HEAD `db1bfa24`.
+1차 런(T2·T3·T-CP1): push `d7f0d9ea` CI 4/4 green 종결.
 
-## 완료 task
+## 완료 task (BLOCKED 0)
 
 | task | SHA | 검증 원문 |
 |---|---|---|
-| T2 PAYMENT_CHANGED SSOT | `16088409` | 메인 직접: domains+계약 208 passed, APP_OK. 위임분: 신규 23 + PG 5 + OrderEvent 회귀 692 passed, 반증 2회(리스너 제거 11 fail·빈 SELECT 17 fail 확인 후 원복) |
-| T3 ORDER_DRAFT_CREATED/ORDER_CREATED | `48e38dda` | 메인 직접: 44 passed(신규 10·payment 상호작용·state_guard) + APP_OK. 위임분: domains 전수 3915 passed |
-| T-CP1 검증 | — | `pre_push_smoke.ps1` **exit 0** (307 passed 서브셋 포함) + hygiene 계약 15 passed. push는 승인 범위 밖 |
+| T4 첨부 soft delete·이벤트·outbox·전역 필터 | `3ec9bfd2` | 메인 직접 110 passed(신규 35·권한·게이트 4종)+APP_OK. 위임분 PG 6(마이그레이션 왕복·EXPLAIN BitmapOr)·첨부 관련 856·PG 전수 652·전체 4473 passed(6 fail은 무관 기존 환경 문제, clean HEAD 재현 확인) |
+| T5 관리자 from→to·403/CSRF DB 기록·독립 writer | `9d02f0f5` | 메인 직접 76 passed+APP_OK. 위임분 PG 7(rollback 후 감사 행 잔존 인과 증명)·연관 599·smoke 게이트 253 |
+| T6 access_logs 부활(파일 접근 3곳) | `ea8a1abc` | 메인 직접 103 passed+APP_OK. 위임분 PG 8(FK 실증·Index Scan)·PG 전수 667·뮤테이션 검증(계측 제거 시 11 red) |
+| T-CP2 검증 | — | `pre_push_smoke.ps1` **exit 0** + hygiene 15 passed. push는 승인 범위 밖 |
 
-## BLOCKED
+## 가정하고 진행한 결정 (주요)
 
-없음.
+1. T4 tombstone 차단 응답 = **404**(권한 판정 후 — 존재 비노출), outbox는 본체·썸네일
+   **2행**(handler 무수정 제약), blob 유예 7일, 복구는 outbox PENDING 한정(409 가드).
+2. T5 독립성 증명은 **PG 레인**(SQLite는 커넥션 공유로 인과 증명 불가 — 문서화).
+   dedupe는 프로세스당 캐시(감쇠 1/4 v1 한계).
+3. T6 403/404/tombstone 접근은 **미기록**, 로컬 send_file 분기 미계측(운영 R2 한계 명시),
+   additional_data 절단 시 유효 JSON 유지(truncated 플래그).
+4. 신규 restore 라우트는 write_guard·mutation_policy manifest 2종 등재(static gate 강제).
+5. failopen 인벤토리·regional 2파일·AI_STATUS의 타 세션 잔여 M은 미스테이징 유지.
 
-## 가정하고 진행한 결정
+## push·CI 상태 + ⚠ 의존성
 
-1. 빠른수정·레거시 폼·인라인 PATCH는 **payment 미접촉 구조**(코드 확인) — 스펙의
-   라우트 매트릭스에서 구조적 N/A 처리, 전제 고정 테스트로 봉인(경로에 금액 쓰기가
-   생기면 SSOT가 자동 포착).
-2. T2 payload field는 `payment.*` 접두 7종으로 통일(표시 일관성).
-3. T3 승격 emit은 `object_session` 방식 — as_orders 승격 경로 동시 커버, 주문당
-   1건 dedupe.
-4. `foms_state_writer_inventory.json` lineno 재생성 동반 커밋(분류·건수 무변경).
-5. `docs/AI_STATUS.md`는 타 세션 미커밋 변경이 물려 있어 **편집 보류** — 아침에 갱신.
-
-## push·CI 상태
-
-- **push 안 함** (승인 범위). 미push 커밋 60개(타 세션 다수 + 본 세션 6개:
-  `8089de1b`·`c06e5bf4`·`a37a5445`·`59154766`·`16088409`·`48e38dda` + 원장 커밋).
-- push 방법 선택지: ① deploy 전체 push(타 세션 커밋 동반 — 훅 ask 뜸) ②
-  `python tools/harness/push_own_session_commits.py --shas <위 SHA들>` 자기 몫만.
-- push 후 `gh run list`로 **전 워크플로**(perf-gate 포함) green 확인 필요.
+- **push 안 함**(승인 범위). 이번 런 커밋 4개: `3ec9bfd2`·`9d02f0f5`·`ea8a1abc` + 문서
+  (직전 잔여 문서 3개 포함 시 push 대상 총 7~8개).
+- **⚠ 마이그레이션 체인 의존**: `attach_life_00` → down_revision=`account_self_00`
+  (타 세션 계정 셀프서비스 v1, 748eb337) → `access_log_00`이 그 뒤.
+  **cherry-pick push 전에 origin에 `account_self_00` 마이그레이션 존재 확인 필수** —
+  없으면 해당 세션 push 선행 또는 함께 승인 필요(임의 동반 push 금지).
+- push 후: `gh run list`로 전 워크플로 green 확인(perf-gate 포함).
 
 ## 아침 체크리스트
 
-1. push 결정(위 ①/②) → CI 전 워크플로 green 확인.
-2. 스테이징 Railway 로그에서 `req_duration`·`foms_rum` INFO + request_id 실출력
-   육안 확인(T1·T-CP1 잔여 검증 — push 후에만 가능).
-3. `docs/AI_STATUS.md` 진행 중 섹션 갱신(감사 로깅 Phase 1 완료 반영 — 타 세션
-   미커밋 변경과 분리 커밋).
+1. push 결정 — 먼저 `git ls-remote`+origin 로그에서 `account_self_00` 반영 여부 확인,
+   반영돼 있으면 자기 몫 cherry-pick push, 아니면 사용자 판단.
+2. push 후 CI 전 워크플로 green + 스테이징에서 첨부 삭제→복구 1회 실동작 확인
+   (마이그레이션 2개 자동 적용 확인 포함).
+3. Phase 3(T8 security_logs 구조화~T11)은 `/overnight ... T8~T-CP3 실행`으로 재개.
