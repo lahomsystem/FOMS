@@ -3,7 +3,7 @@
   "policy_ssot": "foms/services/orders/order_mutation_policy.py",
   "description": "AUTH-01 URL-map inventory: 모든 cookie-auth state-changing route 의 policy_id. mode=guard 는 order_mutation_policy.evaluate_policy 로 §2.1 정책 enforce(before_request enforce_order_mutation_policy). mode=exempt 는 서명 검증 webhook/Function·anonymous RUM 처럼 쿠키 세션 미사용 자기 정책으로 우회. url_map 의 모든 POST/PUT/PATCH/DELETE endpoint 가 여기 등재되어야 하며 미분류=static gate fail(tests/domains/test_auth_enforcement.py).",
   "exempt_count": 4,
-  "guard_count": 162,
+  "guard_count": 166,
   "routes": {
     "admin.ops_approval_review": {
       "mode": "guard",
@@ -65,6 +65,11 @@
       "policy_id": "ACCOUNT_ADMIN",
       "rule": "/admin/users/add"
     },
+    "auth.approve_user": {
+      "mode": "guard",
+      "policy_id": "ACCOUNT_ADMIN",
+      "rule": "/admin/users/approve/<int:user_id>"
+    },
     "auth.delete_user": {
       "mode": "guard",
       "policy_id": "ACCOUNT_ADMIN",
@@ -74,6 +79,11 @@
       "mode": "guard",
       "policy_id": "ACCOUNT_ADMIN",
       "rule": "/admin/users/edit/<int:user_id>"
+    },
+    "auth.handle_reset_request": {
+      "mode": "guard",
+      "policy_id": "ACCOUNT_ADMIN",
+      "rule": "/admin/password-reset/<int:request_id>/handle"
     },
     "auth.login": {
       "mode": "guard",
@@ -85,6 +95,11 @@
       "policy_id": "ACCOUNT_SELF",
       "rule": "/logout"
     },
+    "auth.password_reset_request": {
+      "mode": "guard",
+      "policy_id": "ACCOUNT_ANON",
+      "rule": "/password-reset/request"
+    },
     "auth.profile": {
       "mode": "guard",
       "policy_id": "ACCOUNT_SELF",
@@ -94,6 +109,11 @@
       "mode": "guard",
       "policy_id": "ACCOUNT_ANON",
       "rule": "/register"
+    },
+    "auth.reject_user": {
+      "mode": "guard",
+      "policy_id": "ACCOUNT_ADMIN",
+      "rule": "/admin/users/reject/<int:user_id>"
     },
     "auth.switch_back": {
       "mode": "guard",

@@ -2,8 +2,8 @@
   "version": 1,
   "guard": "CSRF_TOKEN+ORIGIN",
   "description": "WRITE-GUARD-01 정본: 모든 cookie-auth state-changing route 의 write_guard metadata. mode=guard 는 공용 CSRF+Origin before_request 가드(enforce_csrf_origin) 적용, mode=exempt 는 자기 정책(서명/ingest/anon)으로 명시 우회. url_map 의 모든 POST/PUT/PATCH/DELETE endpoint 가 여기 등재되어야 하며 누락은 static gate fail(fail-safe: 미등재 endpoint 는 런타임에서 guard).",
-  "exempt_count": 6,
-  "guard_count": 160,
+  "exempt_count": 7,
+  "guard_count": 163,
   "routes": {
     "admin.ops_approval_review": {
       "mode": "guard",
@@ -53,6 +53,10 @@
       "mode": "guard",
       "rule": "/admin/users/add"
     },
+    "auth.approve_user": {
+      "mode": "guard",
+      "rule": "/admin/users/approve/<int:user_id>"
+    },
     "auth.delete_user": {
       "mode": "guard",
       "rule": "/admin/users/delete/<int:user_id>"
@@ -60,6 +64,10 @@
     "auth.edit_user": {
       "mode": "guard",
       "rule": "/admin/users/edit/<int:user_id>"
+    },
+    "auth.handle_reset_request": {
+      "mode": "guard",
+      "rule": "/admin/password-reset/<int:request_id>/handle"
     },
     "auth.login": {
       "mode": "exempt",
@@ -70,14 +78,23 @@
       "mode": "guard",
       "rule": "/logout"
     },
+    "auth.password_reset_request": {
+      "mode": "exempt",
+      "rule": "/password-reset/request",
+      "reason": "anonymous(pre-auth) 재설정 요청 접수 — 아직 세션 없음. 계정 열거 방지(항상 동일 응답)+전용 rate limit(FOMS_ACCOUNT_REQUEST_RATE_LIMIT)로 방어."
+    },
     "auth.profile": {
       "mode": "guard",
       "rule": "/profile"
     },
     "auth.register": {
       "mode": "exempt",
-      "reason": "anonymous bootstrap 최초 관리자 등록(user_count==0 에서만) — 세션 이전. account policy 로 방어.",
+      "reason": "anonymous(pre-auth) 등록 — bootstrap 최초 관리자(user_count==0) 및 셀프 가입 신청(PENDING 승인 대기, ACCOUNT-SELF-01). 세션 이전. 전용 rate limit(FOMS_ACCOUNT_REQUEST_RATE_LIMIT)+account policy 로 방어.",
       "rule": "/register"
+    },
+    "auth.reject_user": {
+      "mode": "guard",
+      "rule": "/admin/users/reject/<int:user_id>"
     },
     "auth.switch_back": {
       "mode": "guard",

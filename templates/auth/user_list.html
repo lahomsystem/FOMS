@@ -54,6 +54,115 @@
         </div>
     </div>
 
+    {# ACCOUNT-SELF-01: 가입 승인 대기 큐 #}
+    {% if pending_users %}
+    <div class="card mb-3 border-warning">
+        <div class="card-header bg-warning-subtle">
+            <strong>가입 승인 대기</strong>
+            <span class="badge bg-warning text-dark">{{ pending_users|length }}</span>
+        </div>
+        <div class="card-body p-0">
+            <div class="table-responsive">
+                <table class="table table-hover mb-0 align-middle">
+                    <thead class="table-light">
+                        <tr>
+                            <th>사용자명</th>
+                            <th>이름</th>
+                            <th>희망 팀</th>
+                            <th>신청일</th>
+                            <th>역할/팀 지정 후 승인</th>
+                        </tr>
+                    </thead>
+                    <tbody>
+                        {% for p in pending_users %}
+                        <tr>
+                            <td>{{ p.username }}</td>
+                            <td>{{ p.name }}</td>
+                            <td>{{ TEAMS.get(p.team, p.team or '-') }}</td>
+                            <td>{{ p.created_at|format_datetime_kst('%Y-%m-%d %H:%M') }}</td>
+                            <td class="user-actions">
+                                <form method="post" action="{{ url_for('auth.approve_user', user_id=p.id) }}"
+                                    class="d-inline-flex gap-1 align-items-center">
+                                    <select name="role" class="form-select form-select-sm w-auto">
+                                        {% for key, label in ROLES.items() %}
+                                        <option value="{{ key }}" {{ 'selected' if key == 'VIEWER' else '' }}>{{ label }}</option>
+                                        {% endfor %}
+                                    </select>
+                                    <select name="team" class="form-select form-select-sm w-auto">
+                                        <option value="">팀 없음</option>
+                                        {% for key, label in TEAMS.items() %}
+                                        <option value="{{ key }}" {{ 'selected' if key == p.team else '' }}>{{ label }}</option>
+                                        {% endfor %}
+                                    </select>
+                                    <button type="submit" class="btn btn-sm btn-success">승인</button>
+                                </form>
+                                <form method="post" action="{{ url_for('auth.reject_user', user_id=p.id) }}" class="d-inline">
+                                    <button type="submit" class="btn btn-sm btn-outline-danger"
+                                        onclick="return confirm('이 가입 신청을 거절(삭제)하시겠습니까?');">거절</button>
+                                </form>
+                            </td>
+                        </tr>
+                        {% endfor %}
+                    </tbody>
+                </table>
+            </div>
+        </div>
+    </div>
+    {% endif %}
+
+    {# ACCOUNT-SELF-01: 비밀번호 재설정 요청 큐 #}
+    {% if reset_requests %}
+    <div class="card mb-3 border-info">
+        <div class="card-header bg-info-subtle">
+            <strong>비밀번호 재설정 요청</strong>
+            <span class="badge bg-info text-dark">{{ reset_requests|length }}</span>
+        </div>
+        <div class="card-body p-0">
+            <div class="table-responsive">
+                <table class="table table-hover mb-0 align-middle">
+                    <thead class="table-light">
+                        <tr>
+                            <th>입력 아이디</th>
+                            <th>매칭 사용자</th>
+                            <th>요청일</th>
+                            <th>처리</th>
+                        </tr>
+                    </thead>
+                    <tbody>
+                        {% for r in reset_requests %}
+                        <tr>
+                            <td>{{ r.username_submitted }}</td>
+                            <td>
+                                {% if r.user %}
+                                {{ r.user.name }}({{ r.user.username }})
+                                {% else %}
+                                <span class="text-muted">일치 계정 없음</span>
+                                {% endif %}
+                            </td>
+                            <td>{{ r.created_at|format_datetime_kst('%Y-%m-%d %H:%M') }}</td>
+                            <td class="user-actions">
+                                {% if r.user %}
+                                <a href="{{ url_for('auth.edit_user', user_id=r.user.id) }}"
+                                    class="btn btn-sm btn-outline-primary">비밀번호 재설정</a>
+                                {% endif %}
+                                <form method="post" action="{{ url_for('auth.handle_reset_request', request_id=r.id) }}" class="d-inline">
+                                    <input type="hidden" name="action" value="done">
+                                    <button type="submit" class="btn btn-sm btn-success">처리 완료</button>
+                                </form>
+                                <form method="post" action="{{ url_for('auth.handle_reset_request', request_id=r.id) }}" class="d-inline">
+                                    <input type="hidden" name="action" value="dismiss">
+                                    <button type="submit" class="btn btn-sm btn-outline-secondary">기각</button>
+                                </form>
+                            </td>
+                        </tr>
+                        {% endfor %}
+                    </tbody>
+                </table>
+            </div>
+        </div>
+    </div>
+    {% endif %}
+
     <div class="card">
         <div class="card-body p-0">
             <div class="px-3 pt-3 text-muted small">

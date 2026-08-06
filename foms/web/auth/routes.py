@@ -8,7 +8,18 @@ from sqlalchemy.exc import IntegrityError
 from werkzeug.security import check_password_hash
 
 from db import get_db
-from models import User, SecurityLog
+from models import PasswordResetRequest, User, SecurityLog
+from foms.services.datetime_kst import now_utc_naive
+from foms.services.security.account_requests import (
+    APPROVAL_ACTIVE,
+    APPROVAL_PENDING,
+    NOTIF_ACCOUNT_SIGNUP,
+    RESET_DISMISSED,
+    RESET_DONE,
+    RESET_PENDING,
+    notify_admins_account_event,
+    submit_password_reset_request,
+)
 from foms.services.user_deletion import (
     UserDeletionBlockedError,
     detach_user_references_for_delete,
@@ -194,7 +205,14 @@ def login():
             log_access(f"로그인 실패: 사용자 {username} (ID: {user.id}) (비밀번호 오류)", user.id)
             flash('아이디 또는 비밀번호가 일치하지 않습니다.', 'error')
             return render_template('auth/login.html', next_url=next_url)
-        
+
+        # ACCOUNT-SELF-01: 승인 대기 계정 로그인 차단. 비밀번호 검증 **후**에만 상태를
+        # 노출해 계정 소유자에게만 대기 사실을 알린다(타인 열거 방지).
+        if (user.approval_status or APPROVAL_ACTIVE) == APPROVAL_PENDING:
+            log_access(f"로그인 거부: 승인 대기 계정 {username} (ID: {user.id})", user.id)
+            flash('가입 승인 대기 중입니다. 관리자 승인 후 로그인할 수 있습니다.', 'warning')
+            return render_template('auth/login.html', next_url=next_url)
+
         session['user_id'] = user.id
         session['username'] = user.username
         session['role'] = user.role
@@ -296,58 +314,132 @@ def switch_back():
 
 @auth_bp.route('/register', methods=['GET', 'POST'])
 def register():
+    """ACCOUNT-SELF-01: 셀프 가입 신청.
+
+    DB 에 사용자가 하나도 없으면 최초 관리자 부트스트랩(즉시 ADMIN·ACTIVE, 기존 동작
+    유지). 그 외에는 승인 대기(PENDING·VIEWER) 계정을 만들고 관리자에게 알림을 보낸다.
+    승인 전에는 로그인할 수 없다(login 게이트).
+
+    :return: GET 폼 렌더 또는 POST 처리 후 로그인 페이지로 redirect.
+    """
     if 'user_id' in session:
         return redirect(authenticated_home_url(user_id=session.get('user_id'), request=request))
-    
+
     db = get_db()
-    user_count = db.query(User).count()
-    
-    if user_count > 0:
-        flash('사용자 등록은 관리자를 통해서만 가능합니다.', 'error')
-        return redirect(url_for('auth.login'))
-    
+    is_bootstrap = db.query(User).count() == 0
+
     if request.method == 'POST':
-        username = request.form.get('username')
+        username = (request.form.get('username') or '').strip()
         password = request.form.get('password')
         confirm_password = request.form.get('confirm_password')
-        name = request.form.get('name', '관리자')
-        
-        if not username or not password or not confirm_password:
-            flash('모든 필드를 입력해주세요.', 'error')
-            return render_template('auth/register.html')
-        
+        name = (request.form.get('name') or '').strip()
+        team = request.form.get('team') or None
+
+        def _render_form():
+            return render_template(
+                'auth/register.html', teams=TEAMS, is_bootstrap=is_bootstrap)
+
+        if not username or not password or not confirm_password or not name:
+            flash('모든 필수 필드를 입력해주세요.', 'error')
+            return _render_form()
+
+        if len(username) < 2 or len(username) > 64:
+            flash('사용자 아이디는 2~64자여야 합니다.', 'error')
+            return _render_form()
+
         if password != confirm_password:
             flash('비밀번호가 일치하지 않습니다.', 'error')
-            return render_template('auth/register.html')
-        
+            return _render_form()
+
         strong_ok, strong_reason = validate_password_strength(password)
         if not strong_ok:
             flash(strong_reason, 'error')
-            return render_template('auth/register.html')
+            return _render_form()
+
+        if team is not None and team not in TEAMS:
+            flash('유효하지 않은 팀입니다.', 'error')
+            return _render_form()
 
         if get_user_by_username(username):
             flash('이미 존재하는 아이디입니다.', 'error')
-            return render_template('auth/register.html')
+            return _render_form()
 
         new_user = User(
             username=username,
             name=name,
-            role='ADMIN',
-            is_active=True
+            role='ADMIN' if is_bootstrap else 'VIEWER',
+            team=None if is_bootstrap else team,
+            is_active=True,
+            approval_status=APPROVAL_ACTIVE if is_bootstrap else APPROVAL_PENDING,
         )
         # 새 계정은 항상 strong: 검증 통과 hash 를 설정하며 STRONG 버전을 명시 기록한다.
         set_strong_password(new_user, password)
-        
+
         try:
             db.add(new_user)
+            db.flush()
+            if is_bootstrap:
+                db.commit()
+                flash('관리자 계정이 성공적으로 등록되었습니다. 로그인해주세요.', 'success')
+                return redirect(url_for('auth.login'))
+
+            team_label = TEAMS.get(team, '미지정')
+            notify_admins_account_event(
+                db,
+                notification_type=NOTIF_ACCOUNT_SIGNUP,
+                title='새 가입 신청',
+                message=(
+                    f'{name}({username}) 님이 가입을 신청했습니다. '
+                    f'희망 팀: {team_label}. 사용자 관리에서 승인/거절하세요.'
+                ),
+            )
             db.commit()
-            flash('관리자 계정이 성공적으로 등록되었습니다. 로그인해주세요.', 'success')
+            log_access(f"가입 신청 접수: {username} (ID: {new_user.id})", new_user.id)
+            flash('가입 신청이 접수되었습니다. 관리자 승인 후 로그인할 수 있습니다.', 'success')
             return redirect(url_for('auth.login'))
-        except Exception as e:
+        except Exception:
             db.rollback()
-            flash(f'등록 중 오류 발생: {e}', 'error')
-            
-    return render_template('auth/register.html')
+            log_handled_exception("auth register commit")
+            flash('가입 신청 처리 중 오류가 발생했습니다. 잠시 후 다시 시도해주세요.', 'error')
+            return _render_form()
+
+    return render_template('auth/register.html', teams=TEAMS, is_bootstrap=is_bootstrap)
+
+
+@auth_bp.route('/password-reset/request', methods=['GET', 'POST'])
+def password_reset_request():
+    """ACCOUNT-SELF-01: 비밀번호 재설정 요청 접수(관리자 처리형).
+
+    계정 열거 방지: username 실존 여부와 무관하게 항상 동일한 성공 메시지를 보여주고,
+    미매칭 입력도 감사용으로 기록한다. 실제 재설정은 관리자가 사용자 관리에서 수행한다.
+
+    :return: GET 폼 렌더 또는 POST 접수 후 로그인 페이지로 redirect.
+    """
+    if 'user_id' in session:
+        return redirect(url_for('auth.profile'))
+
+    if request.method == 'POST':
+        username = (request.form.get('username') or '').strip()
+        if not username:
+            flash('아이디를 입력해주세요.', 'error')
+            return render_template('auth/password_reset_request.html')
+
+        db = get_db()
+        try:
+            _row, created = submit_password_reset_request(
+                db, username, request_ip=request.remote_addr)
+            db.commit()
+            if created:
+                log_access(f"비밀번호 재설정 요청 접수: 입력 '{username}'")
+        except Exception:
+            db.rollback()
+            log_handled_exception("auth password_reset_request commit")
+
+        # 열거 방지: 매칭/중복/오류 여부와 무관하게 항상 동일 안내.
+        flash('재설정 요청이 접수되었습니다. 관리자가 확인 후 처리합니다.', 'success')
+        return redirect(url_for('auth.login'))
+
+    return render_template('auth/password_reset_request.html')
 
 # User Management Routes
 @auth_bp.route('/admin/users')
@@ -375,9 +467,21 @@ def user_list():
     if request.args.get('policy') == 'legacy':
         users = [u for u in users if u.id in legacy_user_ids]
 
+    # ACCOUNT-SELF-01: 가입 승인 대기·비밀번호 재설정 요청 큐.
+    pending_users = [u for u in users if (u.approval_status or APPROVAL_ACTIVE) == APPROVAL_PENDING]
+    users = [u for u in users if u.id not in {p.id for p in pending_users}]
+    reset_requests = (
+        db.query(PasswordResetRequest)
+        .filter(PasswordResetRequest.status == RESET_PENDING)
+        .order_by(PasswordResetRequest.created_at.desc())
+        .all()
+    )
+
     return render_template(
         'auth/user_list.html',
         users=users,
+        pending_users=pending_users,
+        reset_requests=reset_requests,
         count_admin=count_admin,
         ROLES=ROLES,
         TEAMS=TEAMS,
@@ -595,6 +699,125 @@ def delete_user(user_id):
         current_app.logger.exception("Unexpected user deletion failure: user_id=%s", user_id)
         flash('사용자 삭제 중 오류가 발생했습니다.', 'error')
     
+    return redirect(url_for('auth.user_list'))
+
+
+@auth_bp.route('/admin/users/approve/<int:user_id>', methods=['POST'])
+@login_required
+@role_required(['ADMIN'])
+def approve_user(user_id):
+    """ACCOUNT-SELF-01: 가입 신청 승인 — role·team 지정 후 ACTIVE 전환.
+
+    :param user_id: 승인할 PENDING 사용자 id.
+    :return: 사용자 목록으로 redirect.
+    """
+    db = get_db()
+    user = db.query(User).filter(User.id == user_id).first()
+
+    if not user or (user.approval_status or APPROVAL_ACTIVE) != APPROVAL_PENDING:
+        flash('승인 대기 상태의 사용자가 아닙니다.', 'error')
+        return redirect(url_for('auth.user_list'))
+
+    role = request.form.get('role') or 'VIEWER'
+    team = request.form.get('team') or None
+    if role not in ROLES:
+        flash('유효하지 않은 역할입니다.', 'error')
+        return redirect(url_for('auth.user_list'))
+    if team is not None and team not in TEAMS:
+        flash('유효하지 않은 팀입니다.', 'error')
+        return redirect(url_for('auth.user_list'))
+
+    try:
+        user.role = role
+        user.team = team
+        user.approval_status = APPROVAL_ACTIVE
+        db.commit()
+        log_access(
+            f"가입 승인: {user.username} (ID: {user.id}, 역할: {role}, 팀: {team or '미지정'})",
+            session.get('user_id'),
+        )
+        flash(f'{user.name}({user.username}) 님의 가입을 승인했습니다.', 'success')
+    except Exception:
+        db.rollback()
+        log_handled_exception("auth approve_user commit")
+        flash('가입 승인 처리 중 오류가 발생했습니다.', 'error')
+    return redirect(url_for('auth.user_list'))
+
+
+@auth_bp.route('/admin/users/reject/<int:user_id>', methods=['POST'])
+@login_required
+@role_required(['ADMIN'])
+def reject_user(user_id):
+    """ACCOUNT-SELF-01: 가입 신청 거절 — 상태 보존 없이 row 삭제(재신청 허용).
+
+    :param user_id: 거절할 PENDING 사용자 id.
+    :return: 사용자 목록으로 redirect.
+    """
+    db = get_db()
+    user = db.query(User).filter(User.id == user_id).first()
+
+    if not user or (user.approval_status or APPROVAL_ACTIVE) != APPROVAL_PENDING:
+        flash('승인 대기 상태의 사용자가 아닙니다.', 'error')
+        return redirect(url_for('auth.user_list'))
+
+    username = user.username
+    try:
+        detach_user_references_for_delete(db, user_id)
+        db.delete(user)
+        db.commit()
+        log_access(f"가입 거절(삭제): {username} (ID: {user_id})", session.get('user_id'))
+        flash(f'{username} 님의 가입 신청을 거절했습니다.', 'success')
+    except UserDeletionBlockedError as blocked:
+        db.rollback()
+        current_app.logger.warning(
+            "Signup rejection blocked by audit references: user_id=%s reason=%s",
+            user_id, blocked)
+        flash(str(blocked), 'error')
+    except Exception:
+        db.rollback()
+        log_handled_exception("auth reject_user commit")
+        flash('가입 거절 처리 중 오류가 발생했습니다.', 'error')
+    return redirect(url_for('auth.user_list'))
+
+
+@auth_bp.route('/admin/password-reset/<int:request_id>/handle', methods=['POST'])
+@login_required
+@role_required(['ADMIN'])
+def handle_reset_request(request_id):
+    """ACCOUNT-SELF-01: 재설정 요청 마감(action=done|dismiss).
+
+    실제 비밀번호 재설정은 edit_user 의 기존 기능으로 수행하고, 이 라우트는 큐 상태만
+    DONE/DISMISSED 로 전이한다.
+
+    :param request_id: 처리할 PasswordResetRequest id.
+    :return: 사용자 목록으로 redirect.
+    """
+    action = request.form.get('action')
+    status_by_action = {'done': RESET_DONE, 'dismiss': RESET_DISMISSED}
+    if action not in status_by_action:
+        flash('유효하지 않은 처리 유형입니다.', 'error')
+        return redirect(url_for('auth.user_list'))
+
+    db = get_db()
+    row = db.query(PasswordResetRequest).filter(PasswordResetRequest.id == request_id).first()
+    if not row or row.status != RESET_PENDING:
+        flash('대기 중인 재설정 요청이 아닙니다.', 'error')
+        return redirect(url_for('auth.user_list'))
+
+    try:
+        row.status = status_by_action[action]
+        row.handled_by_user_id = session.get('user_id')
+        row.handled_at = now_utc_naive()
+        db.commit()
+        log_access(
+            f"재설정 요청 #{request_id} 처리({row.status}): 입력 '{row.username_submitted}'",
+            session.get('user_id'),
+        )
+        flash('재설정 요청을 처리했습니다.', 'success')
+    except Exception:
+        db.rollback()
+        log_handled_exception("auth handle_reset_request commit")
+        flash('재설정 요청 처리 중 오류가 발생했습니다.', 'error')
     return redirect(url_for('auth.user_list'))
 
 
