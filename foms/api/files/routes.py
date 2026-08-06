@@ -9,12 +9,13 @@ import logging
 import os
 import posixpath
 
-from flask import Blueprint, g, jsonify, redirect, send_file
+from flask import Blueprint, g, jsonify, redirect, request, send_file
 from sqlalchemy import or_
 
 from db import get_db
 from models import Order, OrderAttachment
 from foms.web.auth import login_required
+from foms.services import audit_writer
 from foms.services.attachment_visibility import include_deleted
 from foms.services.orders.order_mutation_policy import user_can_read_order
 from foms.services.storage import get_storage
@@ -23,6 +24,11 @@ logger = logging.getLogger(__name__)
 
 _ACCESS_DENIED_MSG = "이 파일에 접근할 권한이 없습니다."
 _FILE_NOT_FOUND_MSG = "파일을 찾을 수 없습니다."
+
+#: ``access_logs.action`` 태그 (AUDIT-LOG T6). 조회 화면은 없다 — SQL 전용(스펙 §3-1).
+ACTION_FILE_VIEW = "FILE_VIEW"
+ACTION_FILE_PRESIGNED = "FILE_PRESIGNED"
+ACTION_FILE_DOWNLOAD = "FILE_DOWNLOAD"
 
 
 def _user_id(user) -> int | None:
@@ -126,6 +132,54 @@ def _deny_file_access(storage_key: str):
     return _deny_order_scope(user, att.order_id)
 
 
+def _order_id_from_key(storage_key: str) -> int | None:
+    """canonical ``orders/<id>/...`` key 에서 주문 id 를 뽑는다.
+
+    ``order-drafts/<user_id>/...`` 는 주문 id 가 아니므로 제외한다. 파싱 실패는 감사
+    보조 정보 부재일 뿐이라 조용히 ``None`` 이다.
+
+    Args:
+        storage_key: 요청된 object key 원문.
+
+    Returns:
+        주문 id, 또는 canonical order key 가 아니면 ``None``.
+    """
+    parts = (storage_key or "").split("/")
+    if len(parts) >= 2 and parts[0] == "orders" and parts[1].isdigit():
+        return int(parts[1])
+    return None
+
+
+def _record_file_access(
+    action: str, storage_key: str, *, dedupe_window_seconds: float | None = None
+) -> None:
+    """파일 접근 1건을 ``access_logs`` 에 독립 커밋한다 (AUDIT-LOG T6).
+
+    파일 라우트는 GET 이라 본 트랜잭션 commit 이 없다 — 동승 기록은 teardown 에서 소실되므로
+    전용 감사 engine 으로 즉시 커밋한다(:mod:`foms.services.audit_writer`). 기록 실패는
+    writer 안에서 로그 후 흡수되며 파일 응답에 **절대** 영향을 주지 않는다.
+
+    ``StorageAdapter.get_download_url`` 메서드 내부가 아니라 **라우트 호출부**에만 둔다 —
+    그 메서드는 채널·WAM·admin 헬스체크 등 14곳이 호출하므로 내부 계측은 감사 테이블을
+    비-사용자 트래픽으로 오염시킨다(스펙 §4 T6).
+
+    Args:
+        action: ``FILE_VIEW``/``FILE_PRESIGNED``/``FILE_DOWNLOAD``.
+        storage_key: 접근 대상 object key.
+        dedupe_window_seconds: dedupe 창(초). ``None`` 이면 매 건 기록.
+    """
+    user = getattr(g, "current_user", None)
+    audit_writer.record_file_access(
+        action,
+        storage_key=storage_key,
+        user_id=_user_id(user) if user is not None else None,
+        ip=request.remote_addr,
+        user_agent=request.headers.get("User-Agent"),
+        order_id=_order_id_from_key(storage_key),
+        dedupe_window_seconds=dedupe_window_seconds,
+    )
+
+
 def build_file_view_url(storage_key: str) -> str:
     """파일 미리보기 URL 생성 (files_bp /api/files/view 경로)"""
     return f"/api/files/view/{storage_key}"
@@ -171,8 +225,14 @@ def view(storage_key: str):
             url = storage.get_download_url(storage_key, expires_in=3600)
             if not url:
                 return jsonify({"success": False, "message": "파일을 찾을 수 없습니다."}), 404
+            # 302 를 실제로 발급할 때만 기록한다(권한 거부·404 는 접근이 아니다).
+            _record_file_access(
+                ACTION_FILE_VIEW, storage_key,
+                dedupe_window_seconds=audit_writer.ACCESS_VIEW_DEDUPE_WINDOW_SECONDS,
+            )
             return _with_no_store(redirect(url))
 
+        # 로컬 스토리지 send_file 경로는 미계측 — 운영은 R2 전용이라 스펙 §4 T6 이 한계로 수용.
         file_path = os.path.join(storage.upload_folder, storage_key)
         if not os.path.exists(file_path):
             return jsonify({"success": False, "message": "파일을 찾을 수 없습니다."}), 404
@@ -208,8 +268,11 @@ def presigned_urls(storage_key: str):
             url = storage.get_download_url(storage_key, expires_in=3600)
             if not url:
                 return _no_store_json({"success": False, "message": "파일을 찾을 수 없습니다."}, 404)
+            # 서명 URL 발급 = 앱 밖에서 열람 가능한 권한을 넘기는 것 — dedupe 없이 매 건 기록.
+            _record_file_access(ACTION_FILE_PRESIGNED, storage_key)
             return _no_store_json({"success": True, "view_url": url, "download_url": url})
 
+        # 로컬 모드는 서명 URL 을 발급하지 않고 앱 경유 URL 만 돌려준다(접근 아님 — 미계측).
         return _no_store_json(
             {
                 "success": True,
@@ -257,8 +320,11 @@ def download(storage_key: str):
             )
             if not url:
                 return jsonify({"success": False, "message": "파일을 찾을 수 없습니다."}), 404
+            # 다운로드는 의도적 1회 행위 — dedupe 하지 않는다(반복 = 반복 반출).
+            _record_file_access(ACTION_FILE_DOWNLOAD, storage_key)
             return _with_no_store(redirect(url))
 
+        # 로컬 스토리지 send_file 경로는 미계측(스펙 §4 T6 한계 — 운영은 R2).
         file_path = os.path.join(storage.upload_folder, storage_key)
         if not os.path.exists(file_path):
             return jsonify({"success": False, "message": "파일을 찾을 수 없습니다."}), 404
