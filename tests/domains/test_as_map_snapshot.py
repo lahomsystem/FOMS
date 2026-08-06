@@ -211,6 +211,14 @@ def test_as_map_payload_as_fields_contract(client, login):
         shipment_extra={
             'as_content': long_content,
             'as_billing': {'type': 'paid', 'confirmed': True, 'amount': 150000},
+            'as_log': [
+                {'id': 'al_1', 'ts': '2026-08-01T00:00:00', 'type': 'reception',
+                 'text': '접수 앵커', 'by': 'tester', 'by_id': None},
+                {'id': 'al_2', 'ts': '2026-08-02T00:00:00', 'type': 'material',
+                 'text': '18T 상부 선반 - 1ea', 'by': 'tester', 'by_id': None},
+                {'id': 'al_3', 'ts': '2026-08-03T00:00:00', 'type': 'memo',
+                 'text': '최신 방문 협의 메모', 'by': 'tester', 'by_id': None},
+            ],
         },
     )
     _make_as_order('미결건', shipment_extra={'as_pending': True})
@@ -238,6 +246,8 @@ def test_as_map_payload_as_fields_contract(client, login):
     assert row['as_billing_badge'] == 'paid'
     assert row['as_billing_text'] == '유상 확정 · 150,000원'
     assert row['as_received_date'] == '2026-08-01'
+    # 최근 기록 = as_log 최신 1건(접수 앵커 제외) — 카드/팝업 '최근 기록' 행 소스
+    assert row['as_recent_log_preview'] == '최신 방문 협의 메모'
 
     assert rows['미결건']['as_bucket'] == 'pending'
     assert rows['미결건']['as_bucket_label'] == '미결'
@@ -245,6 +255,7 @@ def test_as_map_payload_as_fields_contract(client, login):
     assert rows['미결건']['as_visit_dday'] is None
     assert rows['미결건']['as_billing_badge'] is None  # 무상 추정 = 무배지
     assert rows['미결건']['as_content_preview'] == ''
+    assert rows['미결건']['as_recent_log_preview'] == ''  # 기록 없으면 빈 값(행 미표시)
 
     assert rows['아직미정건']['as_bucket'] == 'unassigned'
     assert rows['아직미정건']['as_bucket_label'] == '아직 미정'
@@ -289,7 +300,8 @@ def test_measurement_map_payload_has_no_as_fields(client, login):
     payload = response.get_json()
     as_only_keys = {
         'as_bucket', 'as_bucket_label', 'as_visit_date', 'as_visit_dday',
-        'as_content_preview', 'as_billing_badge', 'as_billing_text', 'as_received_date',
+        'as_content_preview', 'as_recent_log_preview', 'as_billing_badge',
+        'as_billing_text', 'as_received_date',
     }
     row = next(o for o in payload['orders'] if o['id'] == order.id)
     assert not (as_only_keys & set(row.keys()))

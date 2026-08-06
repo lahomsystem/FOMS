@@ -461,6 +461,8 @@
         '<tr><th>방문일</th><td>' + asVisitHtml(m) + '</td></tr>' +
         (m.as_content_preview
           ? '<tr><th>AS 내용</th><td>' + escapeHtml(m.as_content_preview) + '</td></tr>' : '') +
+        (m.as_recent_log_preview
+          ? '<tr><th>최근 기록</th><td>' + escapeHtml(m.as_recent_log_preview) + '</td></tr>' : '') +
         '<tr><th>유무상</th><td>' + escapeHtml(m.as_billing_text || '-') + '</td></tr>' +
         (m.as_availability_label
           ? '<tr><th>가능시간</th><td>' + escapeHtml(m.as_availability_label) + '</td></tr>' : '') +
