@@ -84,7 +84,11 @@ def audit_engine_on_lane(pg_test_database, monkeypatch) -> Iterator[None]:
     """감사 헬퍼가 레인 DB 를 보도록 ``db.DB_URL`` 을 갈아끼운다(운영 코드 경로 그대로)."""
     audit_writer.reset_audit_engine()
     audit_writer.reset_dedupe_cache()
-    monkeypatch.setattr(db_module, "DB_URL", str(pg_test_database))
+    # str(URL)은 비밀번호를 ***로 마스킹한다(SQLAlchemy hide_password 기본) —
+    # CI 레인처럼 비번 있는 DSN에서 인증 실패하므로 원문 렌더가 필수다.
+    monkeypatch.setattr(
+        db_module, "DB_URL", pg_test_database.render_as_string(hide_password=False)
+    )
     yield
     audit_writer.reset_audit_engine()
     audit_writer.reset_dedupe_cache()
