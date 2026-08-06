@@ -16,7 +16,11 @@ from typing import Any
 
 from foms.services.as_content_safety import as_content_html_to_text
 from foms.services.orders.as_availability import as_availability_label
-from foms.services.orders.as_log import current_as_round, decorate_entry
+from foms.services.orders.as_log import (
+    _legacy_entries_from_content,
+    current_as_round,
+    decorate_entry,
+)
 
 # system 문구 접두어 → 상태 카드 필드 분류. 생성 지점 리터럴과 동일해야 한다
 # (tests/domains/test_as_round_chart.py 가 원본 소스에 핀).
@@ -32,6 +36,9 @@ _SLOT_DEFS = (
 
 _PREVIEW_MAX = 60
 _SUMMARY_MAX = 25
+# 회차당 기록 표 상한. as_log 는 append-only + 항목당 10,000자라 상한이 없으면 오래된
+# 주문 하나가 수 MB fragment 가 된다(구 타임라인 '더보기' 200 캡의 회차판 등가).
+_ROUND_ENTRY_LIMIT = 60
 
 
 def _preview_text(raw: Any, *, limit: int = _PREVIEW_MAX) -> str:
@@ -209,6 +216,11 @@ def build_as_round_chart_view(
     human_count = 0
 
     entries = shipment.get("as_log") if isinstance(shipment.get("as_log"), list) else []
+    if not entries:
+        # as_log 미생성(영구화 전) 주문: as_content 를 읽기 전용 legacy 로 lazy 변환 —
+        # 표시 시점 비파괴(build_as_timeline_view 와 같은 계약). 없으면 이전 기록이
+        # 차트에서 통째로 사라진다.
+        legacy = [decorate_entry(x) for x in _legacy_entries_from_content(shipment)]
     for idx, e in enumerate(entries):
         if not isinstance(e, dict) or e.get("deleted") is True:
             continue
@@ -253,7 +265,8 @@ def build_as_round_chart_view(
                 entries=people, has_verdict=False, today=today,
                 visit_date=_effective_round_visit(round_visit, visit_date, today),
             ) if is_open else [],
-            "entries": [decorate_entry(e) for e in people],
+            "entries": [decorate_entry(e) for e in people[:_ROUND_ENTRY_LIMIT]],
+            "hidden_count": max(len(people) - _ROUND_ENTRY_LIMIT, 0),
         })
 
     open_round = next((r for r in rounds if r["open"]), None)

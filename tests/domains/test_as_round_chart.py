@@ -104,6 +104,15 @@ def test_reception_anchor_and_count():
     assert view["count"] == 7
 
 
+def test_lazy_legacy_from_as_content_non_destructive():
+    """as_log 미생성 주문: as_content 가 legacy 로 lazy 표시되고 sd 는 불변(타임라인 뷰 계약 동일)."""
+    sd = {"shipment": {"as_content": "<div>옛 기록</div>"}}
+    view = build_as_round_chart_view(sd, today=_TODAY)
+    assert [e["id"] for e in view["legacy"]] == ["al_legacy_as_content"]
+    assert "as_log" not in sd["shipment"]  # 영구화는 최초 append 시점
+    assert view["count"] == 1
+
+
 def test_deleted_entries_hidden():
     sd = _scenario_sd()
     sd["shipment"]["as_log"][-1]["deleted"] = True  # 자재 삭제

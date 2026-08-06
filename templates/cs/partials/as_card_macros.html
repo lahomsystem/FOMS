@@ -112,10 +112,12 @@
      있어 초안 주입이 이득이 없고, 모바일 카드/상세 표면 자체가 같은 md 브레이크포인트로
      토글된다(.erp-pro-order-cards.d-md-none) — 노출 경계가 표면 경계와 일치한다. #}
   {% if can_edit %}
+  {# T15a: action/schedule 유형은 입력 퇴역(서버 400) — 프리셋도 허용 유형으로 재배정.
+     '조치 완료'는 판정 흐름(회차 차트)으로 이관됐지만 legacy 표면에서는 memo 로 남긴다. #}
   <div class="as-timeline__presets d-md-none" role="group" aria-label="빠른 기록">
     <button type="button" class="as-tl-preset" data-type="call" data-text="고객 부재중, 재연락 예정">부재중</button>
-    <button type="button" class="as-tl-preset" data-type="action" data-text="방문 조치 완료">조치 완료</button>
-    <button type="button" class="as-tl-preset" data-type="schedule" data-text="재방문 필요">재방문 필요</button>
+    <button type="button" class="as-tl-preset" data-type="memo" data-text="방문 조치 완료">조치 완료</button>
+    <button type="button" class="as-tl-preset" data-type="memo" data-text="재방문 필요">재방문 필요</button>
     <button type="button" class="as-tl-preset" data-type="material" data-text="자재 발주 필요">자재 필요</button>
   </div>
   {% endif %}
@@ -125,12 +127,13 @@
      (없으면 기록은 저장되지만 화면이 통째로 다시 그려져 낙관적 삽입·확장 행이 날아간다). #}
   <form class="as-timeline__quick-add" data-order-id="{{ order_id }}" data-foms-erp-no-shell>
     <div class="as-timeline__quick-row">
+      {# T15a: action(방문/조치)·schedule(일정) 입력 퇴역 — 방문은 회차 판정, 일정은
+         방문일 팝오버 소관. 신설 '방안'을 포함한 허용 4종만 남긴다(coerce 400 정합). #}
       <select class="as-timeline__type erp-pro-select" aria-label="유형">
         <option value="memo" selected>메모</option>
+        <option value="plan">방안</option>
         <option value="call">통화</option>
-        <option value="action">방문/조치</option>
         <option value="material">자재</option>
-        <option value="schedule">일정</option>
       </select>
     </div>
     <textarea class="as-timeline__text erp-pro-input" rows="2" aria-label="기록 내용" placeholder="기록 입력... (Ctrl/⌘+Enter로 추가)"></textarea>

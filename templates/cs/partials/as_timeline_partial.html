@@ -1,4 +1,5 @@
-{# AS 타임라인 단건 파셜 — PC 확장 행 lazy fetch가 이 파셜만 렌더.
+{# AS 단건 파셜 — PC 확장 행 lazy fetch + 차트 새로고침(refreshRoundChart)이 이 파셜만 렌더.
+   T15c: 구 render_as_timeline 표면을 ver7 회차 차트(render_as_round_chart)로 교체.
    비고(notes)·영업전달 상태는 lazy 표면에서만 싣는다(목록 payload 불변). #}
-{% from 'cs/partials/as_card_macros.html' import render_as_timeline %}
-{{ render_as_timeline(r.id, r.as_timeline_view, can_edit_erp|default(false), notes=r.notes or '', is_sales_delivery=r.is_sales_delivery, billing_state=r.as_billing_state_text|default(''), billing_type=r.as_billing_type|default('free')) }}
+{% from 'cs/partials/as_round_chart.html' import render_as_round_chart %}
+{{ render_as_round_chart(r.id, r.as_round_chart_view, can_edit_erp|default(false), notes=r.notes or '', is_sales_delivery=r.is_sales_delivery, billing_state=r.as_billing_state_text|default(''), billing_type=r.as_billing_type|default('free')) }}
