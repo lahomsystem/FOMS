@@ -152,7 +152,8 @@
             }
         }
 
-        var truncCells = tr.querySelectorAll('td.text-truncate');
+        // 주소·제품 셀 클래스: cell-wrap(현행)·text-truncate(과거) 둘 다 허용 — 클래스 개명에 export가 다시 깨지지 않게
+        var truncCells = tr.querySelectorAll('td.cell-wrap, td.text-truncate');
         var address = '';
         var product = '';
         if (truncCells[0]) {
