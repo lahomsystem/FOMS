@@ -138,6 +138,26 @@ def test_timeline_fragment_round_entries_are_capped(client):
     assert "이전 기록 145건 생략" in body  # 조용한 절단 금지
 
 
+def test_timeline_fragment_readonly_param_hides_write_ui(client):
+    """`?readonly=1`: 편집 권한자라도 입력 도크·판정·수정/삭제·판정변경 버튼이 없다(T15d 지도 표면).
+
+    쓰기 자체는 API 권한이 소유한다 — 이 파라미터는 열람 표면의 UI 계약이다.
+    """
+    _login_as_admin(client, username="as-timeline-readonly-admin")
+    order_id = _create_as_order(shipment_extra={"as_log": _reception_and_memos(2)})
+
+    body = client.get(f"/erp/as/timeline/{order_id}?readonly=1").get_data(as_text=True)
+    assert 'class="as-rchart"' in body and "기록1" in body  # 내용은 그대로 보인다
+    assert "as-timeline__quick-add" not in body
+    assert "as-rchart-verdict-btn" not in body
+    assert "as-tl-item__edit" not in body and "as-tl-item__delete" not in body
+    assert "as-billing-edit" not in body
+
+    # readonly 미지정이면 기존 동작(권한자에게 입력 도크 렌더) 그대로다.
+    default_body = client.get(f"/erp/as/timeline/{order_id}").get_data(as_text=True)
+    assert "as-timeline__quick-add" in default_body
+
+
 def test_timeline_fragment_gate_matches_card_detail(client):
     """비-AS 주문·없는 주문 404, 비로그인 리다이렉트 (card-detail 과 동일 게이트)."""
     _login_as_admin(client, username="as-timeline-gate-admin")
