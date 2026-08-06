@@ -131,6 +131,43 @@
     document.head.appendChild(s);
   }
 
+  // ---------- AS 지도 v3: as 모드 표시 분기 ----------
+  // 판정: 서버 as 페이로드에만 as_bucket 존재(foms/services/map_snapshot.py
+  // apply_as_map_display_fields) — 전역 플래그 불필요, folium 폴백 무영향.
+  // 버킷 색은 map_view.html 카드 .as-bucket-badge 팔레트와 동기(변경 시 양쪽).
+  var AS_BUCKET_COLORS = {
+    visit_confirmed: '#2b8a3e', pending: '#d9480f',
+    unassigned: '#495057', paid_unconfirmed: '#7048e8'
+  };
+
+  function isAsPoint(m) {
+    return !!m && m.as_bucket != null;
+  }
+
+  function asBucketColor(m) {
+    return AS_BUCKET_COLORS[String(m.as_bucket || '')] || '#495057';
+  }
+
+  // 방문일 표기(카드와 동일 규칙): 미정=주황, 지남=빨강 "N일 지남", D-3 이내=빨강 강조.
+  function asVisitHtml(m) {
+    if (!m.as_visit_date) return '<span class="foms-kmap-as-undecided">미정</span>';
+    var dateText = escapeHtml(m.as_visit_date);
+    var dday = m.as_visit_dday;
+    if (dday == null) return dateText;
+    if (dday < 0) return dateText + ' <span class="foms-kmap-as-danger">' + (-dday) + '일 지남</span>';
+    var label = dday === 0 ? 'D-DAY' : 'D-' + dday;
+    return dateText + ' <span class="' + (dday <= 3 ? 'foms-kmap-as-danger' : 'foms-kmap-as-dday') + '">' + label + '</span>';
+  }
+
+  // 그룹/클러스터 행용 축약: 'M/D' 또는 '미정'.
+  function asVisitShort(m) {
+    var parts = String(m.as_visit_date || '').slice(0, 10).split('-');
+    if (parts.length === 3 && parts[0].length === 4) {
+      return Number(parts[1]) + '/' + Number(parts[2]);
+    }
+    return m.as_visit_date ? String(m.as_visit_date) : '미정';
+  }
+
   // ---------- 마커 테마 (서버 _get_marker_theme 포팅) ----------
   function markerTheme(m) {
     var managerBg = String(m.manager_bg_color || '').trim();
@@ -390,21 +427,30 @@
     var dupRow = m.__dupSize > 1
       ? '<tr><th>중복</th><td>' + m.__dupSize + '건 같은 주소</td></tr>' : '';
     var mobile = isMobileView();
-    // 모바일: 좌표·접수일·중복 행을 걷어낸 컴팩트 카드(나머지는 상세 시트에서 확인).
-    // PC: 기존 folium 파리티 테이블 그대로.
-    var body = mobile
-      ? '<div class="foms-kmap-popup__m-body">' +
-        '<div class="foms-kmap-popup__m-name">' +
-        '<span class="foms-kmap-popup__m-cust">' + escapeHtml(m.customer_name || '-') + '</span>' +
-        '<span class="foms-kmap-popup__m-chip" style="color:' + statusColor + '">' + escapeHtml(m.status || '-') + '</span>' +
-        '</div>' +
-        '<div class="foms-kmap-popup__m-meta">' + escapeHtml(m.measurement_time || '실측 시간 미정') +
-        (m.__dupSize > 1 ? ' · 같은 주소 ' + m.__dupSize + '건' : '') + '</div>' +
-        '<div class="foms-kmap-popup__m-addr" title="' + escapeHtml(m.address || '-') + '">' +
-        escapeHtml(m.address || '-') + '</div>' +
-        '</div>'
-      : '<table class="foms-kmap-popup__table">' +
-        '<tr><th>고객명</th><td>' + escapeHtml(m.customer_name || '-') + '</td></tr>' +
+    var asMode = isAsPoint(m);
+    // 칩(모바일 헤더): as=버킷 분류(색 동기), measurement=상태 — 색은 데이터 주도라 동적.
+    var chipColor = asMode ? asBucketColor(m) : statusColor;
+    var chipText = asMode ? (m.as_bucket_label || '-') : (m.status || '-');
+    var metaLine = asMode
+      ? '방문일 ' + asVisitHtml(m)
+      : escapeHtml(m.measurement_time || '실측 시간 미정');
+    // PC 테이블: as 모드는 AS 정보 중심(스펙 F3) — 담당자·제품·상태·좌표 행 없음,
+    // 분류·방문일 D-day·AS 내용·유무상·AS 접수일 추가. measurement는 기존 그대로.
+    var tableRows = asMode
+      ? '<tr><th>고객명</th><td>' + escapeHtml(m.customer_name || '-') + '</td></tr>' +
+        '<tr><th>연락처</th><td>' + escapeHtml(m.phone || '-') + '</td></tr>' +
+        '<tr><th>주소</th><td>' + escapeHtml(m.address || '-') + '</td></tr>' +
+        '<tr><th>분류</th><td><span style="color:' + asBucketColor(m) + ';font-weight:700">' +
+        escapeHtml(m.as_bucket_label || '-') + '</span></td></tr>' +
+        '<tr><th>방문일</th><td>' + asVisitHtml(m) + '</td></tr>' +
+        (m.as_content_preview
+          ? '<tr><th>AS 내용</th><td>' + escapeHtml(m.as_content_preview) + '</td></tr>' : '') +
+        '<tr><th>유무상</th><td>' + escapeHtml(m.as_billing_text || '-') + '</td></tr>' +
+        (m.as_availability_label
+          ? '<tr><th>가능시간</th><td>' + escapeHtml(m.as_availability_label) + '</td></tr>' : '') +
+        '<tr><th>AS 접수일</th><td>' + escapeHtml(m.as_received_date || '-') + '</td></tr>' +
+        dupRow
+      : '<tr><th>고객명</th><td>' + escapeHtml(m.customer_name || '-') + '</td></tr>' +
         '<tr><th>담당자</th><td>' + escapeHtml(m.manager_name || '-') + '</td></tr>' +
         '<tr><th>연락처</th><td>' + escapeHtml(m.phone || '-') + '</td></tr>' +
         '<tr><th>주소</th><td>' + escapeHtml(m.address || '-') + '</td></tr>' +
@@ -414,8 +460,20 @@
           ? '<tr><th>가능시간</th><td>' + escapeHtml(m.as_availability_label) + '</td></tr>' : '') +
         '<tr><th>접수일</th><td>' + escapeHtml(m.received_date || '-') + '</td></tr>' +
         '<tr><th>좌표</th><td>' + Number(m.latitude).toFixed(6) + ', ' + Number(m.longitude).toFixed(6) + '</td></tr>' +
-        dupRow +
-        '</table>';
+        dupRow;
+    // 모바일: 컴팩트 카드(상세는 시트에서). PC: 테이블.
+    var body = mobile
+      ? '<div class="foms-kmap-popup__m-body">' +
+        '<div class="foms-kmap-popup__m-name">' +
+        '<span class="foms-kmap-popup__m-cust">' + escapeHtml(m.customer_name || '-') + '</span>' +
+        '<span class="foms-kmap-popup__m-chip" style="color:' + chipColor + '">' + escapeHtml(chipText) + '</span>' +
+        '</div>' +
+        '<div class="foms-kmap-popup__m-meta">' + metaLine +
+        (m.__dupSize > 1 ? ' · 같은 주소 ' + m.__dupSize + '건' : '') + '</div>' +
+        '<div class="foms-kmap-popup__m-addr" title="' + escapeHtml(m.address || '-') + '">' +
+        escapeHtml(m.address || '-') + '</div>' +
+        '</div>'
+      : '<table class="foms-kmap-popup__table">' + tableRows + '</table>';
     var el = document.createElement('div');
     el.className = 'foms-kmap-popup';
     el.innerHTML =
@@ -449,11 +507,15 @@
     closePopup();
     var rows = markersInGroup.map(function (m) {
       var statusColor = STATUS_COLORS[String(m.status || '').toUpperCase()] || STATUS_FALLBACK_COLOR;
+      // as 모드: 실측시간 자리에 방문일 M/D(미정 포함) — 동선 판단 1차 정보(스펙 F3).
+      var timePart = isAsPoint(m)
+        ? ' · ' + escapeHtml(asVisitShort(m))
+        : (m.measurement_time ? ' · ' + escapeHtml(m.measurement_time) : '');
       return '<div class="foms-kmap-popup__group-row">' +
         '<span class="foms-kmap-popup__group-main">' +
         '<span class="foms-kmap-popup__status-dot" style="background:' + statusColor + '"></span>' +
         '<strong>#' + escapeHtml(m.id) + '</strong> ' + escapeHtml(m.customer_name || '-') +
-        (m.measurement_time ? ' · ' + escapeHtml(m.measurement_time) : '') +
+        timePart +
         '</span>' +
         '<button type="button" class="btn btn-sm btn-outline-primary" data-order-id="' + escapeHtml(m.id) + '">상세</button>' +
         '</div>';
@@ -747,6 +809,11 @@
     // AS 지도: 주말 가능 건 표식(필터 안 켜도 훑어보며 인지) — 데이터 있을 때만
     if (m.as_availability && m.as_availability.days === 'weekend') {
       htmlParts += '<span class="foms-kmap-pill__wknd" title="주말 가능">주</span>';
+    }
+    // AS 지도 v3(F4): 방문일 미정 건은 테두리 점선 — 색 추가 없이 과밀 회피.
+    if (isAsPoint(m) && !m.as_visit_date) {
+      pill.classList.add('foms-kmap-pill--as-undecided');
+      pill.title += ' · 방문일 미정';
     }
     if (m.__dupSize > 1) {
       htmlParts += '<span class="foms-kmap-pill__dup">x' + m.__dupSize + '</span>';
