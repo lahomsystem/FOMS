@@ -130,13 +130,14 @@
      * 한 행(tr.construction-row)에서 캡처에 필요한 값만 추출.
      * 화면에 렌더된 실제 값(편집 중 미저장 날짜/메모 포함)을 읽는다.
      * @param {HTMLTableRowElement} tr
-     * @returns {{customer:string, phone:string, address:string, product:string, shipping_date:string, scheduled_date:string, memo:string, is_as_schedule:boolean}}
+     * @returns {{customer:string, phone:string, address:string, product:string, shipping_date:string, scheduled_date:string, memo:string, is_as_schedule:boolean, is_factory2:boolean}}
      */
     function extractRow(tr) {
         // 고객 셀 구조: td > .d-flex.align-items-center > div(outer) > [div(이름+아이콘), small(전화)]
         var customerWrap = tr.querySelector('td .d-flex.align-items-center');
         var customer = '';
         var phone = '';
+        var isFactory2 = false;
         if (customerWrap) {
             var outer = customerWrap.querySelector('div');
             if (outer) {
@@ -145,6 +146,9 @@
                     var nameClone = nameNode.cloneNode(true);
                     var asBadge = nameClone.querySelector('.regional-as-schedule-badge');
                     if (asBadge && asBadge.parentNode) asBadge.parentNode.removeChild(asBadge);
+                    var f2Badge = nameClone.querySelector('.badge.bg-warning');
+                    isFactory2 = !!f2Badge;
+                    if (f2Badge && f2Badge.parentNode) f2Badge.parentNode.removeChild(f2Badge);
                     customer = (nameClone.textContent || '').trim();
                 }
                 var phoneNode = outer.querySelector('small');
@@ -175,7 +179,8 @@
             shipping_date: shippingInput ? (shippingInput.value || '').trim() : '',
             scheduled_date: scheduledInput ? (scheduledInput.value || '').trim() : '',
             memo: memoInput ? (memoInput.value || '').trim() : '',
-            is_as_schedule: tr.getAttribute('data-as-shipping-schedule') === 'true'
+            is_as_schedule: tr.getAttribute('data-as-shipping-schedule') === 'true',
+            is_factory2: isFactory2
         };
     }
 
@@ -289,6 +294,22 @@
             nameDiv.appendChild(badge);
         }
         nameDiv.appendChild(doc.createTextNode(row.customer || '-'));
+        if (row.is_factory2) {
+            var f2 = doc.createElement('span');
+            f2.textContent = '라홈시스템';
+            f2.style.display = 'inline-block';
+            f2.style.padding = '3px 8px';
+            f2.style.marginLeft = '8px';
+            f2.style.borderRadius = '4px';
+            f2.style.border = '1px solid #d39e00';
+            f2.style.backgroundColor = '#ffc107';
+            f2.style.color = '#212529';
+            f2.style.fontSize = '16px';
+            f2.style.fontWeight = '800';
+            f2.style.lineHeight = '1.15';
+            f2.style.verticalAlign = 'middle';
+            nameDiv.appendChild(f2);
+        }
         td.appendChild(nameDiv);
         if (row.phone) {
             var phoneDiv = doc.createElement('div');
