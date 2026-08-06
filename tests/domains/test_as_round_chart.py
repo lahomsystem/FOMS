@@ -228,6 +228,19 @@ def test_render_verdict_prompt_buttons(app):
     assert 'data-verdict="resolved"' not in html2
 
 
+def test_map_card_inline_chart_wiring():
+    """T15d 지도 배선 소스 핀: 카드 클릭=인라인 확장(읽기 전용 fragment)·차트 CSS 로드.
+
+    사용자 확정 ①(카드 인라인 확장)·④(카드 요약 유지, '다음 할 일' 줄 없음)의 코드 증거.
+    """
+    tpl = (_ROOT / "templates/measurement/map_view.html").read_text(encoding="utf-8")
+    assert "toggleAsCardChart" in tpl
+    assert "/erp/as/timeline/" in tpl and "readonly=1" in tpl
+    assert "foms-as-round-chart.css" in tpl and "foms-as-timeline.css" in tpl
+    # 확정 ④: 지도 목록 카드에는 '다음 할 일' 줄을 내지 않는다(차트 안 next 표기와 별개).
+    assert "다음 할 일" not in tpl
+
+
 def test_render_can_edit_false_hides_dock(app):
     html = _render_chart(
         app, build_as_round_chart_view(_scenario_sd(), today=_TODAY), can_edit=False)

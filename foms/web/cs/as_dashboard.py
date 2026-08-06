@@ -147,13 +147,17 @@ def erp_as_card_detail(order_id: int):
 @erp_as_page_bp.route('/as/timeline/<int:order_id>')
 @login_required
 def erp_as_timeline(order_id: int):
-    """AS PC 확장 행용 타임라인 fragment lazy 렌더(모바일 card-detail 패턴 복제).
+    """AS 확장용 회차 차트 fragment lazy 렌더(모바일 card-detail 패턴 복제).
+
+    ``?readonly=1`` 이면 편집 권한과 무관하게 읽기 전용으로 렌더한다 — 지도 카드
+    인라인 확장(T15d)은 열람 표면이라 quick-add·판정·수정 버튼을 내지 않는다
+    (쓰기 자체는 API 권한이 소유하므로 이 파라미터는 보안 경계가 아니라 UI 계약).
 
     Args:
         order_id: 대상 주문 PK.
 
     Returns:
-        타임라인 파셜 HTML(text/html). AS 상태가 아니거나 없으면 404.
+        회차 차트 파셜 HTML(text/html). AS 상태가 아니거나 없으면 404.
     """
     db = get_db()
     order = (
@@ -170,10 +174,11 @@ def erp_as_timeline(order_id: int):
     # 차트는 회차별 전량을 내되 회차당 상한(_ROUND_ENTRY_LIMIT)이 fragment 폭증을 막는다.
     order.as_round_chart_view = build_as_round_chart_view(order.structured_data)
     current_user = getattr(g, 'current_user', None)
+    readonly = request.args.get('readonly') == '1'
     return render_template(
         'cs/partials/as_timeline_partial.html',
         r=order,
-        can_edit_erp=can_edit_erp(current_user),
+        can_edit_erp=False if readonly else can_edit_erp(current_user),
     )
 
 

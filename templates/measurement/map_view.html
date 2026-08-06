@@ -468,6 +468,21 @@
         .as-bucket-badge--unassigned { background: #e9ecef; color: #495057; }
         .as-bucket-badge--paid_unconfirmed { background: #f3e8ff; color: #7048e8; }
 
+        /* T15d: 카드 인라인 회차 차트 확장(읽기 전용 fragment). 골격은
+           foms-as-round-chart.css 소유 — 여기는 카드 안 배치 여백만. */
+        .as-card-chart {
+            margin-top: 8px;
+            cursor: default;
+        }
+
+        .as-card-chart__status {
+            padding: 8px 4px;
+            font-size: 0.82rem;
+            color: #868e96;
+        }
+
+        .as-card-chart__status--error { color: #e03131; }
+
         /* 유상 확정 배지(as-dashboard erp-as-billing-badge--paid 색 동기) */
         .as-billing-badge-paid {
             background: #f59f00;
@@ -1218,6 +1233,10 @@
     <!-- 모바일/태블릿 세로 스킨(바텀시트·컴팩트 팝업·상세 풀시트). 위 인라인 <style> 뒤에
          로드돼야 동일 특이성 규칙에서 이긴다 — 링크 순서 변경 금지. -->
     <link rel="stylesheet" href="{{ url_for('static', filename='css/measurement/map-mobile.css') }}?v=20260720a">
+    <!-- T15d: AS 카드 인라인 확장이 ver7 회차 차트 fragment 를 끼워 넣는다 — 칩 색은
+         foms-as-timeline.css, 차트 골격은 foms-as-round-chart.css 소유(대시보드와 동일 SSOT). -->
+    <link rel="stylesheet" href="{{ url_for('static', filename='css/components/foms-as-timeline.css') }}?v=20260806a">
+    <link rel="stylesheet" href="{{ url_for('static', filename='css/components/foms-as-round-chart.css') }}?v=20260806a">
 </head>
 
 <body>
@@ -2178,8 +2197,41 @@
                 }
             });
 
+            if (isAsMap) {
+                // T15d(사용자 확정 ①): AS 지도 카드 클릭 = 그 카드만 아래로 인라인 확장 —
+                // ver7 회차 차트를 읽기 전용 lazy fetch. 목록 카드 요약은 그대로 두고(확정 ④:
+                // 카드에 next 안내 줄 추가 금지), 기존 상세 패널은 AS 모드에서 열지 않는다.
+                toggleAsCardChart(orderId);
+                return;
+            }
+
             // 세부 정보 로드
             loadOrderDetail(orderId);
+        }
+
+        // AS 카드 인라인 회차 차트 토글. 재클릭=접기. 다른 카드 확장은 접는다(한 번에 1개 —
+        // 좁은 사이드 리스트에서 두 차트가 겹치면 스크롤 방향을 잃는다).
+        async function toggleAsCardChart(orderId) {
+            const card = document.querySelector(`.order-item[data-order-id="${orderId}"]`);
+            if (!card) return;
+            const existing = card.querySelector('.as-card-chart');
+            document.querySelectorAll('.as-card-chart').forEach(el => el.remove());
+            if (existing) return; // 재클릭 = 접기(위에서 이미 제거)
+            const holder = document.createElement('div');
+            holder.className = 'as-card-chart';
+            // 확장 내부 클릭이 카드 onclick(selectOrder 재진입=접힘)으로 새면 안 된다.
+            holder.addEventListener('click', e => e.stopPropagation());
+            holder.innerHTML = '<div class="as-card-chart__status">기록 불러오는 중...</div>';
+            card.appendChild(holder);
+            try {
+                const res = await fetch(`/erp/as/timeline/${orderId}?readonly=1`, {
+                    headers: { Accept: 'text/html' }, credentials: 'same-origin',
+                });
+                if (!res.ok) throw new Error('HTTP ' + res.status);
+                holder.innerHTML = await res.text();
+            } catch (e) {
+                holder.innerHTML = '<div class="as-card-chart__status as-card-chart__status--error">기록을 불러오지 못했습니다. 다시 눌러주세요.</div>';
+            }
         }
 
         async function loadOrderDetail(orderId) {
