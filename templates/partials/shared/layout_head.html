@@ -233,9 +233,9 @@
       }
     </style>
     <link rel="stylesheet" href="https://cdn.jsdelivr.net/gh/orioncactus/pretendard@v1.3.9/dist/web/variable/pretendardvariable-dynamic-subset.min.css" crossorigin="anonymous">
-    <link rel="stylesheet" href="{{ url_for('static', filename='css/foundation/foms-mobile-surfaces.css') }}?v=20260723i">
+    <link rel="stylesheet" href="{{ url_for('static', filename='css/foundation/foms-mobile-surfaces.css') }}?v=20260806a">
     {% elif erp_mobile_v2_enabled and request.endpoint == 'order_edit.edit_order' %}
-    <link rel="stylesheet" href="{{ url_for('static', filename='css/foundation/foms-mobile-surfaces.css') }}?v=20260723i">
+    <link rel="stylesheet" href="{{ url_for('static', filename='css/foundation/foms-mobile-surfaces.css') }}?v=20260806a">
     {% endif %}
     {# 태블릿 T2 융합 레이어는 셸 변형과 직교 — v2·v3 공통으로 로드(2026-07-12 v3 미로드 실사고 봉합).
        surfaces 와 별도 <link>·surfaces 직후 위치라 v2 캐스케이드 순변화 0.
@@ -270,6 +270,9 @@
     <link rel="stylesheet" href="{{ url_for('static', filename='css/foms/photo-capture.css') }}?v=20260529a">
     <link rel="stylesheet" href="{{ url_for('static', filename='css/components/foms-sticky-action-bar.css') }}?v=20260614a">
     <link rel="stylesheet" href="{{ url_for('static', filename='css/components/foms-mobile-select.css') }}?v=20260716a">
+    {# 알림 센터 시트 전역 스타일 — 시트 partial 이 layout_scripts 에서 전 페이지
+       include 되므로 CSS 도 셸 변형 무관 전역 로드(SSOT, foms-shell.css 에서 이관). #}
+    <link rel="stylesheet" href="{{ url_for('static', filename='css/components/foms-notification-center.css') }}?v=20260806a">
     <!-- Flatpickr (다중 실측일/시공일 선택) -->
     <link rel="stylesheet" href="https://cdn.jsdelivr.net/npm/flatpickr/dist/flatpickr.min.css">
     <link rel="stylesheet" href="{{ url_for('static', filename='css/components/foms-flatpickr-theme.css') }}?v=20260626a">
