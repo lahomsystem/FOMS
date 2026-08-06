@@ -40,6 +40,9 @@
   // level 3 ≈ Leaflet z16(≈100m 축척) 앵커 → Leaflet z14 ≈ 카카오 level 5.
   // 즉 level<=5 = 펼침(개별 분리), level>=6 = 접힘(대표 1개 + xN 뱃지).
   var DUPLICATE_EXPAND_MAX_LEVEL = 5;
+  // 팝업 zIndex 서열 정본: 개별 핀 2 < 겹침 그룹 대표 300대 < 스크린 클러스터 대표 400 < 팝업.
+  // (구값 60은 클러스터 xN 뱃지(400)가 팝업을 가리는 결함 — 항상 마커류 위여야 한다)
+  var POPUP_ZINDEX = 500;
 
   var SDK_IDLE = 0, SDK_LOADING = 1, SDK_READY = 2, SDK_FAILED = 3;
   var sdkState = SDK_IDLE;
@@ -402,7 +405,7 @@
     });
     state.popup = new window.kakao.maps.CustomOverlay({
       map: state.map, position: position, content: el,
-      xAnchor: 0.5, yAnchor: 1.15, zIndex: 60
+      xAnchor: 0.5, yAnchor: 1.15, zIndex: POPUP_ZINDEX
     });
   }
 
@@ -478,7 +481,7 @@
     });
     state.popup = new window.kakao.maps.CustomOverlay({
       map: state.map, position: position, content: el,
-      xAnchor: 0.5, yAnchor: 1.15, zIndex: 60
+      xAnchor: 0.5, yAnchor: 1.15, zIndex: POPUP_ZINDEX
     });
   }
 
