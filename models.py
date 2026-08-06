@@ -957,7 +957,13 @@ class User(Base):
 
 class AccessLog(Base):
     __tablename__ = 'access_logs'
-    
+    # ACCESS-LOG-00: 마이그레이션(access_log_00)과 이름까지 동일해야 한다 —
+    # create_all 부트스트랩 레인과 alembic 레인의 스키마 정합(체인 왕복 테스트가 강제).
+    __table_args__ = (
+        Index('ix_access_logs_user_id_timestamp', 'user_id', 'timestamp'),
+        Index('ix_access_logs_timestamp', 'timestamp'),
+    )
+
     id = Column(Integer, primary_key=True)
     user_id = Column(Integer, ForeignKey('users.id'))
     action = Column(String, nullable=False)
