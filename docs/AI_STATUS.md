@@ -1,6 +1,6 @@
 # FOMS 현재 상태
 > 자동 업데이트: 2026-07-28
-> 최신: AS 지도 v1(미완료 전체, production 반영 완료 PR #48) + v2(그리드 겹침 클러스터·방문 가능시간 필터, deploy·스테이징 QA·CI green — **운영 승격 승인 대기**, 원장: docs/plans/2026-08-06-as-map-cluster-availability-ledger.md). 직전: 시공 특이사항+출고 표시 스테이징 완결, 124-packet remediation 승격 대기.
+> 최신: AS 지도 v1(운영 반영 PR #48) + v2 클러스터·가능시간 + v3 AS 정보 중심 카드·팝업(T10 시안 사용자 승인, 스테이징 QA 완료 — **운영 승격 승인 대기**, 원장: docs/plans/2026-08-06-as-map-cluster-availability-ledger.md). 직전: 시공 특이사항+출고 표시 스테이징 완결, 124-packet remediation 승격 대기.
 > 이 파일 상단 40줄이 세션 시작 컨텍스트의 전부다(hygiene 계약 테스트로 강제). 상세 이력: "## 최근 완료"·"## 기록 보관", 과거 헤더 상세는 기록 보관에 이관.
 
 ## 스택

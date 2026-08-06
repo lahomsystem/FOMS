@@ -23,10 +23,10 @@
 
 | Task | 내용 | 완료 기준 | 상태 |
 |---|---|---|---|
-| T9 | F1 페이로드 — as 모드 point에 as_bucket(4쿼리 id-set)·as_visit_date/dday·as_content_preview·as_billing·as_received_date 보강 | test_as_map_snapshot 확장(as 필드 계약+measurement 무변경 가드) passed + APP_OK | PENDING |
-| T10 | F2 우측 카드 as 분기 — 버킷 배지·AS 내용·방문일 D-day(지남=빨강 "N일 지남")·가능시간 칩·유상 배지, 실측 시간 행/담당자 행 전체 제거 | **중간 시안 스크린샷 사용자 확인 게이트** → 렌더 계약 테스트 + 스테이징 카드 표기 확인 | PENDING |
-| T11 | F3+F4 팝업 as 분기(버킷·방문일·내용·유무상·접수일, 좌표/실측시간 제거) + 그룹 행 방문일 표기 + 미정 pill 점선 + ?v 범프 | JS 문법 OK + 스테이징 팝업 표기 확인 | PENDING |
-| T12 | 스테이징 종합 QA(페르소나 2 시나리오) + 실측 지도 무회귀 + deploy push + CI green | QA 통과·CI 전 워크플로 green | PENDING |
+| T9 | F1 페이로드 — as 모드 point에 as_bucket(4쿼리 id-set)·as_visit_date/dday·as_content_preview·as_billing·as_received_date 보강 | test_as_map_snapshot 확장(as 필드 계약+measurement 무변경 가드) passed + APP_OK | DONE — `8f4c66b1`, 9 passed + APP_OK. 버킷 배지 우선순위 paid_unconfirmed>pending>visit_confirmed>unassigned(선결 판정 우선). 필드: as_bucket/label·as_visit_date/dday·as_content_preview(60자)·as_billing_badge/text·as_received_date |
+| T10 | F2 우측 카드 as 분기 — 버킷 배지·AS 내용·방문일 D-day(지남=빨강 "N일 지남")·가능시간 칩·유상 배지, 실측 시간 행/담당자 행 전체 제거 | **중간 시안 스크린샷 사용자 확인 게이트** → 렌더 계약 테스트 + 스테이징 카드 표기 확인 | DONE — `555854b3`(원격), 지도 13 passed. 스테이징 55건 캡처 브라우저 제시 → **사용자 승인 "좋아요, 계속 진행"(2026-08-06)**. 제품 행도 제거(스펙 행 목록 기준). CI red 1회는 타 세션 alembic 이중 head — 타 세션이 `21ca79a8`로 병합 수정 |
+| T11 | F3+F4 팝업 as 분기(버킷·방문일·내용·유무상·접수일, 좌표/실측시간 제거) + 그룹 행 방문일 표기 + 미정 pill 점선 + ?v 범프 | JS 문법 OK + 스테이징 팝업 표기 확인 | DONE — 로컬 `2124d9d8`→원격 `f4a7fcd7`, JS OK·지도 13 passed·?v=20260806e. PC 테이블 담당자·제품·상태 행도 제거(분류가 상태 대체). 스테이징 확인: 단건 9행(분류 색·D-day "7일 지남" 빨강·유무상 금액), 그룹 행 M/D·미정, 점선 핀 4건 | 
+| T12 | 스테이징 종합 QA(페르소나 2 시나리오) + 실측 지도 무회귀 + deploy push + CI green | QA 통과·CI 전 워크플로 green | DONE — 스테이징(f4a7fcd7) QA: ①동선 계획: 카드 55건 버킷 배지·D-day·클러스터 6·점선 핀 4, 그룹 팝업 행 방문일 M/D·미정 ②개별 협의: 단건 팝업 9행(분류·방문일 지남 빨강·AS 내용·유무상 금액·가능시간·AS 접수일) ③실측 지도 무회귀: 팝업 기존 9행·콘솔 0 ④AS 지도 콘솔 0. CI(f4a7fcd7): PG Lane·Harness green, perf-gate cancelled(후속 push 대체 — tip에서 success), FOMS CI 완주 확인 후 마감. tip PG Lane red는 타 세션 alembic 몫(내 커밋 무관) |
 
 ## QA 비고 (2026-08-06)
 - AABB union 1차 구현은 전국 뷰 사슬 병합(x53) — 그리드 셀 방식으로 교체(`64e64862`), 지역 단위 8클러스터 확인.
