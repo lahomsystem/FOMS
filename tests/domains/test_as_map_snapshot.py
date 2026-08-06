@@ -218,6 +218,8 @@ def test_as_map_payload_as_fields_contract(client, login):
                  'text': '18T 상부 선반 - 1ea', 'by': 'tester', 'by_id': None},
                 {'id': 'al_3', 'ts': '2026-08-03T00:00:00', 'type': 'memo',
                  'text': '최신 방문 협의 메모', 'by': 'tester', 'by_id': None},
+                {'id': 'al_4', 'ts': '2026-08-04T00:00:00', 'type': 'system',
+                 'text': '가능시간: 주말·시간무관', 'by': '시스템', 'by_id': None},
             ],
         },
     )

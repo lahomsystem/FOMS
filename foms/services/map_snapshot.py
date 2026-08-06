@@ -319,8 +319,10 @@ def _as_recent_log_preview(sd):
     from foms.services.as_content_safety import as_content_html_to_text
     from foms.services.orders.as_log import build_as_timeline_view
 
-    view = build_as_timeline_view(sd, recent_limit=1)
-    recent = view['stream'][0] if view['stream'] else None
+    # system 자동 기록(가능시간·방문일 확정 등)은 제외 — 지도 카드/팝업의 전용 행과
+    # 중복되는 노이즈(스테이징 실증: 최근 기록 행 == 가능시간 행). 사람 기록만 추종.
+    view = build_as_timeline_view(sd, recent_limit=8)
+    recent = next((e for e in view['stream'] if e.get('type') != 'system'), None)
     if not recent:
         return ''
     # as_log 항목 text는 저장 시점에 이미 sanitize 통과(as_dashboard_display._timeline_cell_text 동형)
