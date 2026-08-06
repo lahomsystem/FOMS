@@ -2766,6 +2766,16 @@ ${escapeHtml(sub)}</div>` : ''}`;
             erpRenderAttachments();
         }
     });
+    // 저장 버튼은 포커스를 뺏지 않는다(마우스 pointerdown 기본동작 차단).
+    // 텍스트 입력(한글 IME)에 포커스를 둔 채 아래로 스크롤해 저장을 누르면
+    // mousedown→blur→IME 커밋이 화면 밖 입력칸으로 네이티브 캐럿 스크롤을
+    // 일으키고(부트스트랩 :root smooth 로 애니메이션), 버튼이 커서 밑에서
+    // 이동해 click 이 무산되던 사고("저장 누르면 스크롤만 올라가고 저장 안 됨,
+    // 재클릭은 됨")의 근본 수정. 터치는 제외 — pointerdown preventDefault 가
+    // 모바일에서 click 합성을 막을 수 있다.
+    document.getElementById('erp-save-btn')?.addEventListener('pointerdown', function (e) {
+        if (e.pointerType === 'mouse') e.preventDefault();
+    });
     document.getElementById('erp-save-btn')?.addEventListener('click', erpSaveStructured);
     document.getElementById('erp-load-btn')?.addEventListener('click', () => erpLoadStructured());
 
