@@ -282,8 +282,16 @@ def _load_as_bucket_id_sets(db, order_ids):
     }
 
 
+def _truncate_preview(text):
+    """개행을 공백으로 접고 60자 초과 시 말줄임."""
+    text = str(text or '').replace('\n', ' ').strip()
+    if len(text) > 60:
+        return text[:60].rstrip() + '…'
+    return text
+
+
 def _as_content_preview(shipment):
-    """AS 내용 HTML → 60자 plain text 요약(개행은 공백, 초과 시 말줄임).
+    """AS 내용 HTML → 60자 plain text 요약.
 
     Args:
         shipment: structured_data['shipment'] dict(비 dict 허용).
@@ -294,10 +302,29 @@ def _as_content_preview(shipment):
     from foms.services.as_content_safety import as_content_html_to_text
 
     raw = (shipment or {}).get('as_content') if isinstance(shipment, dict) else None
-    text = as_content_html_to_text(raw).replace('\n', ' ').strip()
-    if len(text) > 60:
-        return text[:60].rstrip() + '…'
-    return text
+    return _truncate_preview(as_content_html_to_text(raw))
+
+
+def _as_recent_log_preview(sd):
+    """as_log 최신 기록 1건 → 60자 요약 (AS 대시보드 cell_recent_text와 동일 소스).
+
+    접수 앵커·legacy 항목은 제외(as_content_preview가 담당) — 기록이 없으면 빈 문자열.
+
+    Args:
+        sd: 주문 structured_data dict.
+
+    Returns:
+        최신 기록 텍스트 요약 또는 ''.
+    """
+    from foms.services.as_content_safety import as_content_html_to_text
+    from foms.services.orders.as_log import build_as_timeline_view
+
+    view = build_as_timeline_view(sd, recent_limit=1)
+    recent = view['stream'][0] if view['stream'] else None
+    if not recent:
+        return ''
+    # as_log 항목 text는 저장 시점에 이미 sanitize 통과(as_dashboard_display._timeline_cell_text 동형)
+    return _truncate_preview(as_content_html_to_text(recent.get('text'), already_sanitized=True))
 
 
 def apply_as_map_display_fields(snapshot, orders, db):
@@ -326,27 +353,40 @@ def apply_as_map_display_fields(snapshot, orders, db):
     bucket_id_sets = _load_as_bucket_id_sets(db, list(order_map.keys()))
     today = get_today_kst()
 
-    for item in list(snapshot['orders']) + list(snapshot['markers']):
-        order = order_map.get(item['id'])
-        sd = getattr(order, 'structured_data', None) if order is not None else None
+    # 주문당 1회 계산(orders/markers에 같은 주문이 중복 등장 — 타임라인 파싱 이중 지불 방지)
+    per_order = {}
+    for oid, order in order_map.items():
+        sd = getattr(order, 'structured_data', None)
         sd = sd if isinstance(sd, dict) else {}
         shipment = sd.get('shipment') if isinstance(sd.get('shipment'), dict) else {}
         bucket = next(
-            (k for k in _AS_MAP_BUCKET_PRECEDENCE if item['id'] in bucket_id_sets.get(k, ())),
+            (k for k in _AS_MAP_BUCKET_PRECEDENCE if oid in bucket_id_sets.get(k, ())),
             'unassigned',
         )
         visit_date = read_as_visit_date(sd)
         billing = shipment.get('as_billing')
-        item['as_bucket'] = bucket
-        item['as_bucket_label'] = AS_MAP_BUCKET_LABELS[bucket]
-        item['as_visit_date'] = visit_date
-        item['as_visit_dday'] = _as_visit_dday(visit_date, today)
-        item['as_content_preview'] = _as_content_preview(shipment)
-        item['as_billing_badge'] = as_billing_badge_kind(billing)
-        item['as_billing_text'] = as_billing_state_text(billing)
-        item['as_received_date'] = _format_date(
-            getattr(order, 'as_received_date', None) if order is not None else None
-        )
+        per_order[oid] = {
+            'as_bucket': bucket,
+            'as_bucket_label': AS_MAP_BUCKET_LABELS[bucket],
+            'as_visit_date': visit_date,
+            'as_visit_dday': _as_visit_dday(visit_date, today),
+            'as_content_preview': _as_content_preview(shipment),
+            'as_recent_log_preview': _as_recent_log_preview(sd),
+            'as_billing_badge': as_billing_badge_kind(billing),
+            'as_billing_text': as_billing_state_text(billing),
+            'as_received_date': _format_date(getattr(order, 'as_received_date', None)),
+        }
+
+    empty = {
+        'as_bucket': 'unassigned',
+        'as_bucket_label': AS_MAP_BUCKET_LABELS['unassigned'],
+        'as_visit_date': None, 'as_visit_dday': None,
+        'as_content_preview': '', 'as_recent_log_preview': '',
+        'as_billing_badge': None, 'as_billing_text': as_billing_state_text(None),
+        'as_received_date': None,
+    }
+    for item in list(snapshot['orders']) + list(snapshot['markers']):
+        item.update(per_order.get(item['id'], empty))
 
 
 def _extract_order_display_fields(order):

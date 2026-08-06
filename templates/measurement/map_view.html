@@ -1443,7 +1443,7 @@
     <script src="https://cdn.jsdelivr.net/npm/bootstrap@5.1.3/dist/js/bootstrap.bundle.min.js" defer></script>
     <script src="{{ url_for('static', filename='js/runtime/common_utils.js') }}?v=20260327" defer></script>
     <!-- 카카오 지도 클라이언트 렌더 모듈 (defer: DOMContentLoaded 전에 정의 완료) -->
-    <script src="{{ url_for('static', filename='js/measurement/map-view-kakao.js') }}?v=20260806g" defer></script>
+    <script src="{{ url_for('static', filename='js/measurement/map-view-kakao.js') }}?v=20260806h" defer></script>
     <!-- 모바일 바텀시트/상세 풀시트 컨트롤러. defer 라 아래 인라인 스크립트(파싱 중 실행)가
          전역(loadOrderDetail 등)을 정의한 뒤에 실행된다 — 감싸기 전제. -->
     <script src="{{ url_for('static', filename='js/measurement/map-mobile-sheet.js') }}?v=20260720a" defer></script>
@@ -2050,6 +2050,11 @@
                     <span class="order-info-label">AS 내용:</span>
                     <span class="order-info-value">${escapeHtml(order.as_content_preview || '-')}</span>
                 </div>
+                ${order.as_recent_log_preview ? `
+                <div class="order-info-row">
+                    <span class="order-info-label">최근 기록:</span>
+                    <span class="order-info-value">${escapeHtml(order.as_recent_log_preview)}</span>
+                </div>` : ''}
                 <div class="order-info-row">
                     <span class="order-info-label">방문일:</span>
                     <span class="order-info-value">${asVisitValueHtml(order)}</span>
