@@ -140,6 +140,16 @@
     unassigned: '#495057', paid_unconfirmed: '#7048e8'
   };
 
+  // as 모드 핀(pill) 테마 — 버킷별 파스텔 배경 + 동계열 진한 글자/테두리(사용자 확정:
+  // 파스텔톤·상호 확실히 구별). 필터 select(#as-bucket-filter) 옵션과 1:1.
+  // 흰 테두리 대신 동계열 중간톤 — 밝은 지도 타일 위에서 파스텔끼리 뭉개지지 않게.
+  var AS_BUCKET_PILL_THEME = {
+    visit_confirmed: { bg: '#b2f2bb', border: '#69db7c', text: '#2b8a3e' },   // 초록
+    pending: { bg: '#ffd8a8', border: '#ffa94d', text: '#d9480f' },          // 주황
+    unassigned: { bg: '#dee2e6', border: '#adb5bd', text: '#495057' },       // 회색
+    paid_unconfirmed: { bg: '#d0bfff', border: '#9775fa', text: '#5f3dc4' }  // 보라
+  };
+
   function isAsPoint(m) {
     return !!m && m.as_bucket != null;
   }
@@ -170,6 +180,12 @@
 
   // ---------- 마커 테마 (서버 _get_marker_theme 포팅) ----------
   function markerTheme(m) {
+    // as 모드: 버킷 파스텔색 최우선 — 중복 핑크보다 앞(같은 주소 묶임은 xN 뱃지가
+    // 이미 표시하므로 색 채널은 버킷 분류에 양보. 사용자 확정 2026-08-06).
+    if (isAsPoint(m)) {
+      var asTheme = AS_BUCKET_PILL_THEME[String(m.as_bucket || '')];
+      if (asTheme) return asTheme;
+    }
     var managerBg = String(m.manager_bg_color || '').trim();
     var managerSource = String(m.manager_bg_source || '').trim();
     var managerText = String(m.manager_text_color || '#000000').trim() || '#000000';
