@@ -1,7 +1,7 @@
 """ACCOUNT-SELF-01: users.approval_status + password_reset_requests 테이블
 
 Revision ID: account_self_00
-Revises: wiz_pending_00
+Revises: typedrift_00
 Create Date: 2026-08-06
 
 계정 셀프서비스 v1(스펙: docs/specs/2026-08-06-account-self-service-design.md)의
@@ -23,7 +23,7 @@ from alembic import op
 import sqlalchemy as sa
 
 revision: str = 'account_self_00'
-down_revision: Union[str, None] = 'wiz_pending_00'
+down_revision: Union[str, None] = 'typedrift_00'
 branch_labels: Union[str, Sequence[str], None] = None
 depends_on: Union[str, Sequence[str], None] = None
 
