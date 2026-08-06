@@ -16,9 +16,19 @@ from foms.services.datetime_kst import format_datetime_kst, now_utc_naive, parse
 
 AS_LOG_TYPES = frozenset({
     "reception", "call", "action", "material", "schedule", "memo", "system",
+    "plan", "verdict",
 })
-_CLIENT_TYPES = AS_LOG_TYPES - {"system"}
+# T15 회차 개편으로 입력이 퇴역한 유형. _TYPE_LABELS 는 남긴다 — 기존 기록의 배지는
+# 계속 렌더돼야 한다. 조용히 memo 로 강등하면 구 클라이언트 입력이 무경고로 유형을
+# 잃으므로 coerce 가 명시적으로 거부한다(라우트에서 400).
+_RETIRED_CLIENT_TYPES = frozenset({"action", "schedule"})
+_CLIENT_TYPES = AS_LOG_TYPES - {"system", "verdict"} - _RETIRED_CLIENT_TYPES
 _DEFAULT_TYPE = "memo"
+# 회차 판정 값. 미결(unresolved) 판정 1건 = 다음 회차 개시(round+1 규약).
+AS_VERDICT_RESOLVED = "resolved"
+AS_VERDICT_UNRESOLVED = "unresolved"
+_AS_VERDICTS = frozenset({AS_VERDICT_RESOLVED, AS_VERDICT_UNRESOLVED})
+AS_VERDICT_LABELS = {AS_VERDICT_RESOLVED: "완결", AS_VERDICT_UNRESOLVED: "미결"}
 # 항목 본문 상한(문자). **생성 지점 봉인** — 클라 경로는 라우트가 400으로 거르지만, system
 # 문구는 사유·날짜 같은 무검증 입력을 서버가 조립하므로 여기서 자르지 않으면 append-only
 # JSONB 가 요청 한 번에 부풀 수 있다. 상한 근처에서 escape 엔티티가 잘릴 수는 있으나
@@ -27,6 +37,7 @@ AS_LOG_TEXT_MAX = 10000
 _TYPE_LABELS = {
     "reception": "접수", "call": "통화", "action": "방문/조치",
     "material": "자재", "schedule": "일정", "memo": "메모", "system": "시스템",
+    "plan": "방안", "verdict": "판정",
 }
 
 
@@ -36,15 +47,35 @@ def new_as_log_id() -> str:
 
 
 def coerce_client_log_type(raw: Any) -> str:
-    """클라이언트 유형을 허용 enum으로 정규화. 'system'은 거부(ValueError), 미허용은 memo."""
+    """클라이언트 유형을 허용 enum으로 정규화.
+
+    'system'·'verdict'·퇴역 유형(action/schedule)은 거부(ValueError → 라우트 400),
+    그 외 미허용 값은 memo 로 폴백한다. 판정(verdict)은 회차 전진(round+1)의 근거라
+    quick-add 로 끼어들면 안 되고, 퇴역 유형은 조용한 memo 강등 대신 명시 거부한다.
+    """
     value = str(raw or "").strip().lower()
     if value == "system":
         raise ValueError("system 유형은 서버만 생성할 수 있습니다.")
+    if value == "verdict":
+        raise ValueError("판정 기록은 회차 판정으로만 남길 수 있습니다.")
+    if value in _RETIRED_CLIENT_TYPES:
+        raise ValueError("방문/조치·일정 유형은 더 이상 입력할 수 없습니다.")
     return value if value in _CLIENT_TYPES else _DEFAULT_TYPE
 
 
-def build_as_log_entry(*, log_type: str, text: str, by: str, by_id: int | None) -> dict[str, Any]:
-    """as_log 항목 dict 생성. ts는 UTC naive ISO, 본문은 AS_LOG_TEXT_MAX 로 절단."""
+def build_as_log_entry(
+    *, log_type: str, text: str, by: str, by_id: int | None, round_no: int = 1
+) -> dict[str, Any]:
+    """as_log 항목 dict 생성. ts는 UTC naive ISO, 본문은 AS_LOG_TEXT_MAX 로 절단.
+
+    Args:
+        log_type: AS_LOG_TYPES 중 하나. text: 본문(호출자가 sanitize 완료).
+        by/by_id: 작성자 표기·id. round_no: 소속 회차(1 시작 — round 없는 구항목은
+            읽기 시점에 1로 간주하므로 기본값도 1).
+
+    Returns:
+        as_log 에 append 가능한 항목 dict.
+    """
     return {
         "id": new_as_log_id(),
         "ts": now_utc_naive().isoformat(),
@@ -52,6 +83,7 @@ def build_as_log_entry(*, log_type: str, text: str, by: str, by_id: int | None) 
         "by_id": by_id,
         "type": log_type,
         "text": (text or "")[:AS_LOG_TEXT_MAX],
+        "round": round_no,
         "edited_at": None,
         "edited_by": None,
     }
@@ -112,16 +144,42 @@ def migrate_legacy_into_log(sd: dict) -> bool:
     return bool(seeded)
 
 
+def current_as_round(sd: dict | None) -> int:
+    """진행 중 회차 번호(1 시작). 미결 판정 1건마다 다음 회차가 열린다.
+
+    저장 카운터가 아니라 as_log 파생값이다 — append-only 리스트에서 미결 verdict
+    항목 수가 회차 전진의 단일 근거가 된다(별도 상태를 두면 로그와 어긋날 수 있다).
+    판정 항목은 API 가 수정/삭제를 막지만, soft-delete 흔적이 있어도 세지 않는
+    동일 규칙을 방어적으로 유지한다.
+
+    Args:
+        sd: 주문 structured_data (None 허용).
+
+    Returns:
+        1 + 비삭제 미결 판정 수.
+    """
+    entries = ((sd or {}).get("shipment") or {}).get("as_log")
+    if not isinstance(entries, list):
+        return 1
+    opened = sum(
+        1 for e in entries
+        if isinstance(e, dict) and e.get("deleted") is not True
+        and e.get("type") == "verdict" and e.get("verdict") == AS_VERDICT_UNRESOLVED
+    )
+    return 1 + opened
+
+
 def append_client_log(sd: dict, *, log_type: str, text: str, by: str, by_id: int | None) -> dict:
-    """수기 항목 append(최초 append 시 legacy 영구화). 반환=append된 항목."""
+    """수기 항목 append(최초 append 시 legacy 영구화, 현재 회차 스탬프). 반환=append된 항목."""
     migrate_legacy_into_log(sd)
-    entry = build_as_log_entry(log_type=log_type, text=text, by=by, by_id=by_id)
+    entry = build_as_log_entry(
+        log_type=log_type, text=text, by=by, by_id=by_id, round_no=current_as_round(sd))
     sd["shipment"]["as_log"].append(entry)
     return entry
 
 
 def append_system_log(sd: dict, *, text: str) -> dict:
-    """시스템 이벤트 항목 append(서버 전용). 본문은 escape 후 저장.
+    """시스템 이벤트 항목 append(서버 전용, 현재 회차 스탬프). 본문은 escape 후 저장.
 
     system 문구는 상태·담당자·메모 같은 **사용자 입력을 문자열로 조립**해 만들어진다.
     항목 text는 렌더에서 `|safe`(sanitize 통과 rich HTML 전제)라 여기서 escape하지
@@ -130,8 +188,37 @@ def append_system_log(sd: dict, *, text: str) -> dict:
     """
     migrate_legacy_into_log(sd)
     entry = build_as_log_entry(
-        log_type="system", text=str(escape(text or "")), by="시스템", by_id=None
+        log_type="system", text=str(escape(text or "")), by="시스템", by_id=None,
+        round_no=current_as_round(sd),
     )
+    sd["shipment"]["as_log"].append(entry)
+    return entry
+
+
+def append_verdict_log(sd: dict, *, verdict: str, text: str, by: str, by_id: int | None) -> dict:
+    """회차 판정(완결/미결) append. 반환=append된 항목(round=판정 대상 회차).
+
+    미결 판정이 append 되는 순간 current_as_round 가 1 오른다 — 이후 append 는
+    자동으로 다음 회차 스탬프를 받는다(round+1 규약, 별도 상태 없음). 판정의 정정은
+    수정/삭제가 아니라 **새 판정 append** 다(수정·삭제를 허용하면 이미 스탬프된
+    이후 항목들의 round 와 파생 회차가 어긋난다 — API 가드와 같은 계약).
+
+    Args:
+        sd: 주문 structured_data.
+        verdict: ``'resolved'``(완결) | ``'unresolved'``(미결).
+        text: 판정 사유(호출 라우트가 sanitize 완료, 빈 값 허용).
+        by/by_id: 판정자 표기·id.
+
+    Raises:
+        ValueError: 허용되지 않은 verdict 값(호출부에서 400).
+    """
+    value = str(verdict or "").strip().lower()
+    if value not in _AS_VERDICTS:
+        raise ValueError("판정은 완결(resolved)/미결(unresolved)만 허용됩니다.")
+    migrate_legacy_into_log(sd)
+    entry = build_as_log_entry(
+        log_type="verdict", text=text, by=by, by_id=by_id, round_no=current_as_round(sd))
+    entry["verdict"] = value
     sd["shipment"]["as_log"].append(entry)
     return entry
 
@@ -164,6 +251,11 @@ def decorate_entry(entry: dict) -> dict:
     out["is_system"] = entry.get("type") == "system"
     out["is_legacy"] = entry.get("legacy") is True
     out["is_edited"] = bool(entry.get("edited_at"))
+    # round 없는 구항목은 1회차로 간주(T15 이전 기록 소급 스탬프 없음 — append-only).
+    raw_round = entry.get("round")
+    out["round"] = raw_round if isinstance(raw_round, int) and raw_round >= 1 else 1
+    out["is_verdict"] = entry.get("type") == "verdict"
+    out["verdict_label"] = AS_VERDICT_LABELS.get(entry.get("verdict"), "") if out["is_verdict"] else ""
     return out
 
 

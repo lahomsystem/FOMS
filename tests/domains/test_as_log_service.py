@@ -5,9 +5,12 @@ import pytest
 from foms.services.orders.as_log import (
     append_client_log,
     append_system_log,
+    append_verdict_log,
     build_as_log_entry,
     build_as_timeline_view,
     coerce_client_log_type,
+    current_as_round,
+    decorate_entry,
     latest_client_log_text,
     migrate_legacy_into_log,
 )
@@ -37,6 +40,95 @@ def test_client_type_rejects_system():
 def test_client_type_defaults_memo():
     assert coerce_client_log_type("bogus") == "memo"
     assert coerce_client_log_type("call") == "call"
+
+
+def test_client_type_allows_plan():
+    """T15 회차 개편 신설 유형 '방안'(plan)은 quick-add 허용."""
+    assert coerce_client_log_type("plan") == "plan"
+    assert coerce_client_log_type("  PLAN ") == "plan"
+
+
+def test_client_type_rejects_retired_action_and_schedule():
+    """퇴역 유형은 memo 강등 아닌 명시 거부 — 구 클라이언트가 유형을 조용히 잃지 않는다."""
+    with pytest.raises(ValueError):
+        coerce_client_log_type("action")
+    with pytest.raises(ValueError):
+        coerce_client_log_type("schedule")
+
+
+def test_client_type_rejects_verdict():
+    """판정은 회차 전진(round+1) 근거 — quick-add 로 끼어들 수 없다."""
+    with pytest.raises(ValueError):
+        coerce_client_log_type("verdict")
+
+
+# ---------------------------------------------------------------------------
+# 회차(round) 규약 — 부여·판정·전진
+# ---------------------------------------------------------------------------
+
+
+def test_round_stamped_from_current_round_and_advances_on_unresolved():
+    """append 는 현재 회차 스탬프, 미결 판정 후 append 는 다음 회차를 받는다."""
+    sd = {"shipment": {}}
+    first = append_client_log(sd, log_type="plan", text="경첩 조정", by="김", by_id=1)
+    sys_entry = append_system_log(sd, text="방문일 확정: 2026-08-10")
+    assert first["round"] == 1 and sys_entry["round"] == 1
+    assert current_as_round(sd) == 1
+
+    verdict = append_verdict_log(
+        sd, verdict="unresolved", text="부품 자체 불량", by="김", by_id=1)
+    assert verdict["round"] == 1  # 판정은 판정 대상 회차에 남는다
+    assert current_as_round(sd) == 2  # 미결 = 다음 회차 개시
+
+    second = append_client_log(sd, log_type="plan", text="부품 교체", by="김", by_id=1)
+    assert second["round"] == 2
+
+
+def test_resolved_verdict_does_not_advance_round():
+    """완결 판정은 회차를 닫을 뿐 전진시키지 않는다."""
+    sd = {"shipment": {}}
+    append_client_log(sd, log_type="memo", text="m", by="김", by_id=1)
+    entry = append_verdict_log(sd, verdict="resolved", text="정상 마감", by="김", by_id=1)
+    assert entry["round"] == 1
+    assert entry["type"] == "verdict" and entry["verdict"] == "resolved"
+    assert current_as_round(sd) == 1
+
+
+def test_append_verdict_log_rejects_unknown_value():
+    with pytest.raises(ValueError):
+        append_verdict_log(
+            {"shipment": {}}, verdict="maybe", text="", by="김", by_id=1)
+
+
+def test_current_as_round_ignores_deleted_verdicts():
+    """soft-delete 흔적이 있어도 판정 수 파생은 비삭제만 센다(뷰 감춤 규칙과 동일)."""
+    sd = {"shipment": {}}
+    gone = append_verdict_log(sd, verdict="unresolved", text="", by="김", by_id=1)
+    gone["deleted"] = True
+    assert current_as_round(sd) == 1
+    assert current_as_round(None) == 1
+    assert current_as_round({"shipment": {}}) == 1
+
+
+def test_decorate_entry_round_defaults_and_verdict_labels():
+    """round 없는 구항목은 1회차로 읽고, 판정 항목은 완결/미결 라벨이 붙는다."""
+    old = _entry(0, "2026-07-20 10:00:00")  # T15 이전 기록 — round 키 없음
+    assert decorate_entry(old)["round"] == 1
+    assert decorate_entry(old)["is_verdict"] is False
+
+    sd = {"shipment": {}}
+    verdict = append_verdict_log(sd, verdict="unresolved", text="재방문", by="김", by_id=1)
+    decorated = decorate_entry(verdict)
+    assert decorated["type_label"] == "판정"
+    assert decorated["is_verdict"] is True and decorated["verdict_label"] == "미결"
+
+    plan = append_client_log(sd, log_type="plan", text="p", by="김", by_id=1)
+    assert decorate_entry(plan)["type_label"] == "방안"
+    # 퇴역 유형 구기록의 배지는 유지된다(입력만 차단).
+    assert decorate_entry(_entry(1, "2026-07-20 10:00:00", log_type="action"))[
+        "type_label"] == "방문/조치"
+    assert decorate_entry(_entry(2, "2026-07-20 10:00:00", log_type="schedule"))[
+        "type_label"] == "일정"
 
 
 def test_migrate_legacy_seeds_from_as_content():

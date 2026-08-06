@@ -795,3 +795,55 @@ def test_log_delete_writes_only_flags_never_text(client):
     assert set(after) - set(before) == {"deleted", "deleted_at", "deleted_by"}
     for key, value in before.items():
         assert after[key] == value, key
+
+
+# ---------------------------------------------------------------------------
+# T15a 회차 규약 — 퇴역 유형 입력 차단 · 판정 항목 불변
+# ---------------------------------------------------------------------------
+
+
+def test_log_append_rejects_retired_and_verdict_types(client):
+    """action/schedule(퇴역)·verdict(회차 전진 근거)는 quick-add 400 — 저장 흔적 없음."""
+    _login_as_admin(client, username="as-log-retired-admin")
+    order_id = _create_as_order().id
+    for retired in ("action", "schedule", "verdict"):
+        res = client.post(
+            f"/api/orders/{order_id}/as/log", json={"type": retired, "text": "x"})
+        assert res.status_code == 400 and res.get_json()["success"] is False, retired
+    db_session.expire_all()
+    assert "as_log" not in db_session.get(Order, order_id).structured_data["shipment"]
+
+
+def test_log_append_stamps_current_round(client):
+    """quick-add 항목은 현재 회차 스탬프를 받는다(미결 판정 뒤 append = 2회차)."""
+    from foms.services.orders.as_log import append_verdict_log, build_as_log_entry
+
+    _login_as_admin(client, username="as-log-round-admin")
+    seed = build_as_log_entry(log_type="memo", text="1차 메모", by="김", by_id=1)
+    sd = {"shipment": {"as_log": [seed]}}
+    append_verdict_log(sd, verdict="unresolved", text="부품 불량", by="김", by_id=1)
+    order_id = _create_as_order(shipment_extra=sd["shipment"]).id
+
+    res = client.post(
+        f"/api/orders/{order_id}/as/log", json={"type": "plan", "text": "부품 교체"})
+    assert res.status_code == 200
+    assert res.get_json()["entry"]["round"] == 2
+    assert _as_log(order_id)[-1]["round"] == 2
+
+
+def test_log_patch_and_delete_reject_verdict_entry(client):
+    """판정 항목은 수정·삭제 불가(400) — 판정 수가 회차 파생의 근거라 불변이어야 한다."""
+    from foms.services.orders.as_log import append_verdict_log
+
+    _login_as_admin(client, username="as-log-verdict-admin")
+    sd = {"shipment": {}}
+    entry = append_verdict_log(sd, verdict="resolved", text="정상 마감", by="김", by_id=1)
+    order_id = _create_as_order(shipment_extra=sd["shipment"]).id
+
+    res = client.patch(
+        f"/api/orders/{order_id}/as/log/{entry['id']}", json={"text": "고친 판정"})
+    assert res.status_code == 400 and res.get_json()["success"] is False
+
+    res = _delete(client, order_id, entry["id"])
+    assert res.status_code == 400 and res.get_json()["success"] is False
+    assert _as_log(order_id)[-1].get("deleted") is not True
