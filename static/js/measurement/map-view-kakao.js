@@ -146,7 +146,7 @@
   var AS_BUCKET_PILL_THEME = {
     visit_confirmed: { bg: '#b2f2bb', border: '#69db7c', text: '#2b8a3e' },   // 초록
     pending: { bg: '#ffd8a8', border: '#ffa94d', text: '#d9480f' },          // 주황
-    unassigned: { bg: '#dee2e6', border: '#adb5bd', text: '#495057' },       // 회색
+    unassigned: { bg: '#a5d8ff', border: '#4dabf7', text: '#1971c2' },       // 파랑(회색은 지도 타일에 묻힘 — 사용자 피드백)
     paid_unconfirmed: { bg: '#d0bfff', border: '#9775fa', text: '#5f3dc4' }  // 보라
   };
 
