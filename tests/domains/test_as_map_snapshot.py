@@ -5,8 +5,10 @@
 - 버킷 필터는 탭 요약 pill과 동일 조건(build_as_incomplete_bucket_conditions)
 """
 
+import datetime
+
 from db import db_session
-from models import Order
+from models import Order, OrderScheduleDate
 from foms.services.map_snapshot import build_as_incomplete_map_query
 
 
@@ -192,3 +194,104 @@ def test_as_map_api_returns_incomplete_orders(client, login):
     # (markerTheme는 'palette'일 때만 담당자색을 쓴다)
     marker = next(m for m in payload['markers'] if m['id'] == with_coords.id)
     assert marker['manager_bg_source'] != 'palette'
+
+
+def test_as_map_payload_as_fields_contract(client, login):
+    """v3 F1: as 모드 orders/markers에 AS 표시 필드 계약(버킷·방문일 D-day·요약·유무상·접수일)."""
+    from foms.services.erp_display import get_today_kst
+
+    today = get_today_kst()
+    future = (today + datetime.timedelta(days=2)).isoformat()
+    past = (today - datetime.timedelta(days=3)).isoformat()
+    long_content = '<div>증상 첫 줄</div><div>' + ('가' * 70) + '</div>'
+
+    confirmed = _make_as_order(
+        '방문확정건', lat=37.501, lng=127.039,
+        schedule={'as_visit': {'date': future}},
+        shipment_extra={
+            'as_content': long_content,
+            'as_billing': {'type': 'paid', 'confirmed': True, 'amount': 150000},
+        },
+    )
+    _make_as_order('미결건', shipment_extra={'as_pending': True})
+    _make_as_order('아직미정건')
+    _make_as_order(
+        '유상미확정방문건',
+        schedule={'as_visit': {'date': past}},
+        shipment_extra={'as_billing': {'type': 'paid', 'confirmed': False}},
+    )
+    db_session.commit()
+
+    response = login.get('/api/map_data?dashboard=as')
+    assert response.status_code == 200
+    payload = response.get_json()
+    rows = {o['customer_name']: o for o in payload['orders']}
+
+    row = rows['방문확정건']
+    assert row['as_bucket'] == 'visit_confirmed'
+    assert row['as_bucket_label'] == '방문 확정'
+    assert row['as_visit_date'] == future
+    assert row['as_visit_dday'] == 2
+    assert row['as_content_preview'].startswith('증상 첫 줄 가')
+    assert row['as_content_preview'].endswith('…')
+    assert len(row['as_content_preview']) <= 61  # 60자 절단 + 말줄임
+    assert row['as_billing_badge'] == 'paid'
+    assert row['as_billing_text'] == '유상 확정 · 150,000원'
+    assert row['as_received_date'] == '2026-08-01'
+
+    assert rows['미결건']['as_bucket'] == 'pending'
+    assert rows['미결건']['as_bucket_label'] == '미결'
+    assert rows['미결건']['as_visit_date'] is None
+    assert rows['미결건']['as_visit_dday'] is None
+    assert rows['미결건']['as_billing_badge'] is None  # 무상 추정 = 무배지
+    assert rows['미결건']['as_content_preview'] == ''
+
+    assert rows['아직미정건']['as_bucket'] == 'unassigned'
+    assert rows['아직미정건']['as_bucket_label'] == '아직 미정'
+
+    # 유상 미확정은 방문일 있어도 배지 우선(방문 협의 전 선결 판정) + 지난 방문일 음수 D-day
+    row = rows['유상미확정방문건']
+    assert row['as_bucket'] == 'paid_unconfirmed'
+    assert row['as_bucket_label'] == '유상 미확정'
+    assert row['as_visit_dday'] == -3
+    assert row['as_billing_badge'] == 'paid_unconfirmed'
+
+    # 팝업이 소비하는 markers에도 동일 계약(좌표 있는 건)
+    marker = next(m for m in payload['markers'] if m['id'] == confirmed.id)
+    assert marker['as_bucket'] == 'visit_confirmed'
+    assert marker['as_visit_dday'] == 2
+    assert marker['as_received_date'] == '2026-08-01'
+
+
+def test_measurement_map_payload_has_no_as_fields(client, login):
+    """v3 가드: measurement 지도 페이로드에 as 전용 키 유출 금지(클라 as 분기 판정 보호)."""
+    order = Order(
+        received_date='2026-03-31',
+        customer_name='실측무변경가드',
+        phone='010-9999-0000',
+        address='서울시 강남구 테헤란로 100',
+        product='붙박이장',
+        status='MEASURE',
+        manager_name='이시영',
+        measurement_date='2026-03-31',
+        lat=37.501,
+        lng=127.039,
+        geocode_status='success',
+    )
+    db_session.add(order)
+    db_session.flush()
+    db_session.add(OrderScheduleDate(
+        order_id=order.id, kind='measurement', date='2026-03-31', source='as_map_v3_guard'))
+    db_session.commit()
+
+    response = login.get('/api/map_data?dashboard=measurement&date=2026-03-31')
+    assert response.status_code == 200
+    payload = response.get_json()
+    as_only_keys = {
+        'as_bucket', 'as_bucket_label', 'as_visit_date', 'as_visit_dday',
+        'as_content_preview', 'as_billing_badge', 'as_billing_text', 'as_received_date',
+    }
+    row = next(o for o in payload['orders'] if o['id'] == order.id)
+    assert not (as_only_keys & set(row.keys()))
+    marker = next(m for m in payload['markers'] if m['id'] == order.id)
+    assert not (as_only_keys & set(marker.keys()))

@@ -12,7 +12,11 @@ from db import get_db
 from foms.services.common.map_generator import FOMSMapGenerator
 # 지오코딩 트리거 계보 공유(measurement와 동일 헬퍼 — 좌표 소스는 orders.lat/lng 단일)
 from foms.api.measurement.map import _enqueue_missing_measurement_geocodes
-from foms.services.map_snapshot import build_as_incomplete_map_query, build_measurement_snapshot
+from foms.services.map_snapshot import (
+    apply_as_map_display_fields,
+    build_as_incomplete_map_query,
+    build_measurement_snapshot,
+)
 
 AS_MAP_DEFAULT_TITLE = 'AS 미완료 지도'
 
@@ -37,6 +41,8 @@ def _build_as_map_snapshot(db, *, search_query: str, manager_filter: str,
     snapshot = build_measurement_snapshot(
         orders, manager_filter, use_manager_colors=False
     )
+    # v3: AS 정보 표면(버킷·방문일 D-day·내용 요약·유무상·접수일) 보강 — as 모드 전용.
+    apply_as_map_display_fields(snapshot, orders, db)
     truncated = len(orders) >= limit
 
     # '가능' 필터가 켜졌을 때 미기입(availability 부재) 건수 — 초기엔 전건 미기입이라
