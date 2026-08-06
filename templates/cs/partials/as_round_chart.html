@@ -1,0 +1,189 @@
+{# AS 회차 차트(ver7) — [A] 상태 카드 + 증상 줄 + [B] 회차 아코디언 + [C] 세그먼트 입력.
+   view 는 foms/services/orders/as_round_chart.build_as_round_chart_view() 결과.
+   AS 대시보드 타임라인 대체 표면과 지도 카드 인라인 확장이 이 부품 하나를 공유한다(SSOT).
+
+   기존 as-dashboard.js 위임 배선을 그대로 받도록 계약 클래스를 유지한다:
+   - 기록 행 = .as-tl-item[data-log-id] + .as-tl-item__body (+ __edit/__delete 버튼)
+   - quick-add = form.as-timeline__quick-add + .as-timeline__type(select, 숨김) + .as-timeline__text
+     (세그먼트 버튼이 select 값을 세팅한다 — submit 핸들러는 무변경으로 동작)
+   - 비용 판정 = .as-billing-state / .as-billing-edit, 영업/전달 = .as-sales-delivery-btn
+   접힌 회차 토글은 <details> 네이티브 — JS 0줄.
+   text 는 저장 시점 sanitize 통과 HTML 이라 |safe (기존 타임라인과 동일 전제). #}
+
+{% macro render_as_rchart_entry_row(e, can_edit=true) -%}
+<div class="as-tl-item as-rchart-row{% if e.is_verdict %} as-rchart-row--verdict{% endif %}"
+     data-log-id="{{ e.id }}" data-log-type="{{ e.type }}">
+  <span class="as-rchart-row__date" title="{{ e.ts_abs }} KST">{{ e.ts_abs or '' }}</span>
+  <span class="as-rchart-row__type">
+    <span class="as-tl-chip as-tl-chip--{{ e.type }}">{{ e.type_label }}</span>
+  </span>
+  <div class="as-rchart-row__text">
+    {% if e.is_verdict %}<span class="as-rchart-verdict-flag as-rchart-verdict-flag--{{ e.verdict }}">{{ e.verdict_label }}</span> {% endif %}
+    <div class="as-tl-item__body">{{ e.text | safe }}</div>
+    {% if e.is_edited %}<span class="as-tl-item__edited" title="{{ e.edited_at }} · {{ e.edited_by }}">(수정됨)</span>{% endif %}
+  </div>
+  <span class="as-rchart-row__by">
+    {{ e.by or '' }}
+    {# verdict 는 서버가 수정/삭제를 400 으로 거부한다(회차 파생 근거) — 버튼 자체를 안 낸다. #}
+    {% if can_edit and not e.is_system and not e.is_legacy and not e.is_verdict %}
+    <button type="button" class="as-tl-item__edit" title="기록 수정" aria-label="기록 수정"><i class="fas fa-pen" aria-hidden="true"></i></button>
+    <button type="button" class="as-tl-item__delete" title="기록 삭제" aria-label="기록 삭제"><i class="fas fa-trash" aria-hidden="true"></i></button>
+    {% endif %}
+  </span>
+</div>
+{%- endmacro %}
+
+{% macro _rchart_history(entries) -%}
+{% for h in entries %}
+<div class="as-rchart-hist__line"><span class="as-rchart-hist__ts">{{ h.ts_abs }}</span> {{ h.text | safe }}</div>
+{% endfor %}
+{%- endmacro %}
+
+{% macro render_as_round_chart(order_id, view, can_edit=true, billing_state='', billing_type='free', is_sales_delivery=false, notes='') -%}
+{% set v = view or {} %}
+{% set sc = v.state_card or {} %}
+<div class="as-rchart" data-order-id="{{ order_id }}" data-current-round="{{ v.current_round }}">
+  {% if can_edit %}
+  <div class="as-rchart-head">
+    <span class="as-rchart-head__round">{{ v.current_round }}차{% if v.rounds and v.rounds[0].open %} · 진행 중{% else %} · 완결{% endif %}</span>
+    <span class="as-billing-state" data-order-id="{{ order_id }}" data-billing-type="{{ billing_type }}">비용 {{ billing_state }}</span>
+    <button type="button" class="btn btn-sm btn-outline-secondary as-billing-edit" data-order-id="{{ order_id }}" title="무상/유상 판정 변경">판정 변경</button>
+    <button type="button"
+      class="btn btn-sm as-sales-delivery-btn {{ 'btn-warning' if is_sales_delivery else 'btn-outline-warning' }}"
+      data-sales-delivery-active="{{ '1' if is_sales_delivery else '0' }}"
+      data-order-id="{{ order_id }}"
+      title="영업/전달 분류 토글 후 탭 이동">{{ '☑' if is_sales_delivery else '☐' }} 영업/전달</button>
+  </div>
+  {% endif %}
+
+  {# [A] 상태 카드 — 시스템 기록 전부 흡수(방문일·가능시간·비용 + 기타 이력). details 네이티브 토글. #}
+  <div class="as-rchart-state">
+    <details class="as-rchart-field as-rchart-field--visit">
+      <summary>
+        <span class="as-rchart-field__k">방문일</span>
+        <span class="as-rchart-field__v{% if sc.visit and sc.visit.overdue %} as-rchart-field__v--overdue{% endif %}">
+          {% if sc.visit and sc.visit.md %}{{ sc.visit.md }}{% if sc.visit.time %} {{ sc.visit.time }}{% endif %}{% if sc.visit.dday_label %} · {{ sc.visit.dday_label }}{% endif %}{% else %}미정{% endif %}
+        </span>
+      </summary>
+      <div class="as-rchart-hist">{{ _rchart_history(sc.visit.history if sc.visit else []) }}{% if not (sc.visit and sc.visit.history) %}<div class="as-rchart-hist__empty">이력 없음</div>{% endif %}</div>
+    </details>
+    <details class="as-rchart-field as-rchart-field--avail">
+      <summary>
+        <span class="as-rchart-field__k">가능시간</span>
+        <span class="as-rchart-field__v">{{ (sc.availability.label if sc.availability else '') or '미기입' }}</span>
+        {% if sc.availability and sc.availability.note %}<span class="as-rchart-field__m">{{ sc.availability.note }}</span>{% endif %}
+      </summary>
+      <div class="as-rchart-hist">{{ _rchart_history(sc.availability.history if sc.availability else []) }}{% if not (sc.availability and sc.availability.history) %}<div class="as-rchart-hist__empty">이력 없음</div>{% endif %}</div>
+    </details>
+    <details class="as-rchart-field as-rchart-field--billing">
+      <summary>
+        <span class="as-rchart-field__k">비용</span>
+        <span class="as-rchart-field__v">{{ (sc.billing.state_text if sc.billing else '') or '무상 추정' }}</span>
+      </summary>
+      <div class="as-rchart-hist">{{ _rchart_history(sc.billing.history if sc.billing else []) }}{% if not (sc.billing and sc.billing.history) %}<div class="as-rchart-hist__empty">이력 없음</div>{% endif %}</div>
+    </details>
+    {% if sc.other_history %}
+    <details class="as-rchart-field as-rchart-field--etc">
+      <summary><span class="as-rchart-field__k">기타 이력</span><span class="as-rchart-field__v">{{ sc.other_history | length }}건</span></summary>
+      <div class="as-rchart-hist">{{ _rchart_history(sc.other_history) }}</div>
+    </details>
+    {% endif %}
+  </div>
+
+  {# 증상 요약 — 전화 응대 즉답용 상단 고정(원문은 맨 아래 접수 줄). #}
+  {% if v.symptom_preview %}
+  <div class="as-rchart-symptom">증상: {{ v.symptom_preview }}</div>
+  {% endif %}
+
+  {# [B] 회차 아코디언 — 최신 회차 맨 위. 진행 회차=슬롯 칩+기록 표 펼침, 끝난 회차=details 접힘. #}
+  {% for r in v.rounds %}
+  {% if r.open %}
+  <div class="as-rchart-round as-rchart-round--open" data-round="{{ r.no }}">
+    <div class="as-rchart-round__head">
+      <span class="as-rchart-round__num as-rchart-round__num--on">{{ r.no }}차 · 진행 중</span>
+      {% set next_slot = (r.slots | selectattr('state', 'equalto', 'next') | list | first) %}
+      {% if next_slot %}<span class="as-rchart-round__next">다음: {{ next_slot.label }}</span>{% endif %}
+    </div>
+    <div class="as-rchart-slots">
+      {% for s in r.slots %}
+      <span class="as-rchart-slot as-rchart-slot--{{ s.state }}">{% if s.state == 'done' %}✓ {% elif s.state == 'next' %}! {% endif %}{{ s.label }}</span>
+      {% endfor %}
+    </div>
+    <div class="as-rchart-rows">
+      {% for e in r.entries %}{{ render_as_rchart_entry_row(e, can_edit) }}{% endfor %}
+      {% if not r.entries %}<div class="as-rchart-rows__empty text-muted small">이 회차 기록 없음 · 첫 기록을 남겨보세요.</div>{% endif %}
+    </div>
+  </div>
+  {% else %}
+  <details class="as-rchart-round as-rchart-round--closed" data-round="{{ r.no }}">
+    <summary class="as-rchart-round__head">
+      <span class="as-rchart-round__num">{{ r.no }}차</span>
+      {% if r.summary %}<span class="as-rchart-round__summary">{{ r.summary }}</span>{% endif %}
+      {% if r.verdict %}<span class="as-rchart-verdict-flag as-rchart-verdict-flag--{{ r.verdict.verdict }}">{{ r.verdict.verdict_label }}{% if r.verdict.reason_preview %} — {{ r.verdict.reason_preview }}{% endif %}</span>{% endif %}
+    </summary>
+    <div class="as-rchart-rows">
+      {% if r.verdict %}{{ render_as_rchart_entry_row(r.verdict, can_edit) }}{% endif %}
+      {% for e in r.entries %}{{ render_as_rchart_entry_row(e, can_edit) }}{% endfor %}
+    </div>
+  </details>
+  {% endif %}
+  {% endfor %}
+
+  {# 접수 원문 — 맨 아래 고정(시간상 시작점). legacy 는 그 아래(가장 오래된 본문). #}
+  {% if v.reception %}
+  <div class="as-rchart-reception">
+    <span class="as-rchart-reception__label">접수{% if v.reception.ts_abs %} {{ v.reception.ts_abs[:10] }}{% endif %}</span>
+    {{ render_as_rchart_entry_row(v.reception, can_edit) }}
+  </div>
+  {% endif %}
+  {% if v.legacy %}
+  <div class="as-rchart-reception as-rchart-reception--legacy">
+    {% for e in v.legacy %}
+    <span class="as-rchart-reception__label">{{ e.legacy_label }}</span>
+    {{ render_as_rchart_entry_row(e, false) }}
+    {% endfor %}
+  </div>
+  {% endif %}
+  {% if not v.rounds and not v.reception and not v.legacy %}
+  <div class="as-rchart-empty text-muted small">기록 없음 · 첫 기록을 남겨보세요.</div>
+  {% endif %}
+
+  {# [C] 세그먼트 입력 — 유형 4종(방안·통화·자재·메모), select 는 숨김 SSOT(기존 submit 핸들러 계약).
+     마지막 선택 기억·세그먼트 토글·판정 확인은 as-dashboard.js 배선. #}
+  {% if can_edit %}
+  <form class="as-timeline__quick-add as-rchart-dock" data-order-id="{{ order_id }}" data-foms-erp-no-shell>
+    <div class="as-rchart-seg" role="group" aria-label="기록 유형">
+      <button type="button" class="as-rchart-seg__btn" data-type="plan">방안</button>
+      <button type="button" class="as-rchart-seg__btn" data-type="call">통화</button>
+      <button type="button" class="as-rchart-seg__btn" data-type="material">자재</button>
+      <button type="button" class="as-rchart-seg__btn is-on" data-type="memo">메모</button>
+    </div>
+    <select class="as-timeline__type as-rchart-type-hidden" aria-hidden="true" tabindex="-1">
+      <option value="plan">방안</option>
+      <option value="call">통화</option>
+      <option value="material">자재</option>
+      <option value="memo" selected>메모</option>
+    </select>
+    <textarea class="as-timeline__text erp-pro-input" rows="2" aria-label="기록 내용" placeholder="기록 입력... (Ctrl/⌘+Enter로 추가 · {{ v.current_round }}차에 저장)"></textarea>
+    <div class="as-rchart-dock__actions">
+      <button type="submit" class="btn btn-sm btn-primary as-timeline__submit">기록 추가</button>
+      {% if v.verdict_prompt %}
+      <span class="as-rchart-verdict-prompt">
+        방문 후 판정:
+        <button type="button" class="btn btn-sm btn-outline-success as-rchart-verdict-btn" data-order-id="{{ order_id }}" data-verdict="resolved">완결</button>
+        <button type="button" class="btn btn-sm btn-outline-danger as-rchart-verdict-btn" data-order-id="{{ order_id }}" data-verdict="unresolved">미결 · 다음 회차</button>
+      </span>
+      {% endif %}
+    </div>
+  </form>
+  {% endif %}
+
+  {# 주문 비고 — AS 기록이 아니라 주문 속성. 평문이므로 |safe 금지(기존 타임라인 계약 동일). #}
+  {% if notes %}
+  <div class="as-timeline__notes">
+    <div class="as-timeline__notes-label">비고</div>
+    <div class="as-timeline__notes-body">{{ notes }}</div>
+  </div>
+  {% endif %}
+</div>
+{%- endmacro %}

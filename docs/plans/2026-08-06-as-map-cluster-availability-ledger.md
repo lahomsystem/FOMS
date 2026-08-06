@@ -90,7 +90,7 @@ ver6 목업(tmp_t15_mockup_v6.html, 실업무 루프 기반 — 회차 기록 �
 | Task | 내용 | 완료 기준 | 상태 |
 |---|---|---|---|
 | T15a | 데이터 — as_log에 round 번호(기본 1)·plan 유형 추가, 회차 판정(완결/미결) 기록 규약 + 미결 시 round+1, coerce에서 action/schedule 유형 입력 차단(구기록 배지는 유지) | 단위테스트(round 부여·판정·유형 차단) + APP_OK | DONE — as_log.py: plan/verdict 유형+`current_as_round`(미결 verdict 수 파생, 저장 카운터 없음)+`append_verdict_log`+전 append round 스탬프, 퇴역 유형(action/schedule)·verdict quick-add는 ValueError 400(배지 라벨 유지). as_orders.py `_resolve_as_log_entry`가 verdict 수정/삭제 차단(round 파생 근거 보호 — 정정=새 판정). 테스트: as_log 계열 93 + 인접 76 passed + APP_OK |
-| T15b | ver7 차트 부품(공용 fragment) — [A] 상태 카드(방문일·가능시간·비용, 클릭 이력) + 증상 요약 줄 + [B] 회차 아코디언(최신 위·끝난 회차 접힘·진행 회차 슬롯 칩+밀도 표·접수 원문 맨 아래) + [C] 세그먼트 입력(방안·통화·자재·메모, 마지막 선택 기억, 판정 버튼) | 렌더 계약 테스트 + 대시보드 타임라인 자리 교체 | PENDING |
+| T15b | ver7 차트 부품(공용 fragment) — [A] 상태 카드(방문일·가능시간·비용, 클릭 이력) + 증상 요약 줄 + [B] 회차 아코디언(최신 위·끝난 회차 접힘·진행 회차 슬롯 칩+밀도 표·접수 원문 맨 아래) + [C] 세그먼트 입력(방안·통화·자재·메모, 마지막 선택 기억, 판정 버튼) | 렌더 계약 테스트 + 대시보드 타임라인 자리 교체 | DONE(부품) — `as_round_chart.py`(뷰 빌더: 회차 그룹핑·슬롯 done/next/wait·system 접두어 분류 흡수·stale 방문일 오판 가드) + `as_round_chart.html`(기존 as-dashboard.js 위임 계약 클래스 유지: .as-tl-item[data-log-id]·form.as-timeline__quick-add+숨김 select·details 네이티브 접힘) + `foms-as-round-chart.css`+칩 2색(plan/verdict). 계약 테스트 13 passed(접두어 핀 포함)+APP_OK. **자리 교체는 T15c 배선과 불가분이라 T15c에서 수행** |
 | T15c | AS 대시보드 배선 — 기존 타임라인(as-timeline) 표면을 ver7 부품으로 교체, 기존 quick-add·수정/삭제·비용 판정 버튼 이관 | as_dashboard 계열 테스트 green + 스테이징 확인 | PENDING |
 | T15d | 지도 배선 — 카드 클릭 인라인 확장(lazy fetch·읽기 전용, "다음 할 일" 줄 없음), ?v 범프 | JS OK + 스테이징 확인 | PENDING |
 | T15e | 스테이징 종합 QA + 실측 지도·AS 탭 무회귀 + deploy push + CI green, 목업 임시 파일 7종(tmp_t15_mockup*.html) 삭제 | QA·CI green | PENDING |
