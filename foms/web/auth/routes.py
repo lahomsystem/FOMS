@@ -3,6 +3,7 @@
 from flask import Blueprint, render_template, request, redirect, url_for, flash, session, current_app, g, abort
 from functools import wraps
 from datetime import datetime, timezone
+import logging
 from sqlalchemy import case
 from sqlalchemy.exc import IntegrityError
 from werkzeug.security import check_password_hash
@@ -42,6 +43,8 @@ from foms.services.security.password_policy import (
 
 auth_bp = Blueprint('auth', __name__)
 
+logger = logging.getLogger(__name__)
+
 # User roles 
 ROLES = {
     'ADMIN': '관리자',         # Full access
@@ -60,18 +63,70 @@ TEAMS = {
 }
 
 def log_access(action, user_id=None, additional_data=None, auto_commit=True):
+    """SecurityLog 1건을 본 세션에 기록한다(이름과 달리 ``access_logs`` 가 아니다).
+
+    ``additional_data`` 는 현재 스키마에 격납할 곳이 없어 버려진다(T8 구조화 소관).
+
+    :param action: 기록할 메시지.
+    :param user_id: 행위 주체 user id(없으면 ``None``).
+    :param additional_data: (미사용 — 하위호환 인자).
+    :param auto_commit: True 면 즉시 commit.
+    """
     try:
         db = get_db()
         log = SecurityLog(user_id=user_id, message=action)
         db.add(log)
         if auto_commit:
             db.commit()
-    except Exception as e:
-        print(f"[LOG ERROR] Failed to log access: {e}")
+    except Exception:
+        # 감사 기록 실패가 원 요청을 죽이면 안 된다(fail-open) — 단 스택까지 반드시 로그.
+        logger.warning("[LOG ERROR] SecurityLog 기록 실패: action=%s", action, exc_info=True)
         try:
             db.rollback()
         except Exception:
             log_handled_exception("auth log_access rollback")
+
+# 관리자 사용자 수정에서 from→to 로 감사할 필드(권한·소속·활성·식별자).
+_AUDITED_USER_FIELDS = ('username', 'role', 'team', 'is_active')
+
+
+def _user_audit_snapshot(user):
+    """감사 대상 사용자 필드의 현재 값 스냅샷을 뜬다.
+
+    :param user: 대상 :class:`~models.User` 인스턴스.
+    :return: ``{필드명: 값}`` dict(변경 전/후 비교용).
+    """
+    return {field: getattr(user, field, None) for field in _AUDITED_USER_FIELDS}
+
+
+def _format_audit_value(value):
+    """감사 메시지용 값 표기(빈 값은 ``미지정``).
+
+    :param value: 원본 값.
+    :return: 사람이 읽는 문자열.
+    """
+    if value is None or value == '':
+        return '미지정'
+    return str(value)
+
+
+def _user_change_summary(before, after):
+    """변경된 필드만 ``field from→to`` 문자열 목록으로 만든다.
+
+    :param before: 변경 전 스냅샷(:func:`_user_audit_snapshot`).
+    :param after: 변경 후 스냅샷.
+    :return: ``['role STAFF→ADMIN', 'team CS→SALES']`` — 변경이 없으면 빈 리스트.
+    """
+    changes = []
+    for field in _AUDITED_USER_FIELDS:
+        old_value = before.get(field)
+        new_value = after.get(field)
+        if old_value != new_value:
+            changes.append(
+                f"{field} {_format_audit_value(old_value)}→{_format_audit_value(new_value)}"
+            )
+    return changes
+
 
 def is_password_strong(password):
     """Check if a password meets the current strong policy (PASSWORD-POLICY-01 SSOT).
@@ -378,8 +433,15 @@ def register():
         try:
             db.add(new_user)
             db.flush()
+            new_user_id = new_user.id
             if is_bootstrap:
                 db.commit()
+                # 최초 관리자 부트스트랩은 계정 0명 상태에서 ADMIN 을 만드는 특권 경로다 —
+                # 무기록으로 두면 "관리자가 어디서 왔는지" 추적이 불가능하다(스펙 §4 T5).
+                log_access(
+                    f"최초 관리자 부트스트랩 가입: {username} (ID: {new_user_id})",
+                    new_user_id,
+                )
                 flash('관리자 계정이 성공적으로 등록되었습니다. 로그인해주세요.', 'success')
                 return redirect(url_for('auth.login'))
 
@@ -394,7 +456,7 @@ def register():
                 ),
             )
             db.commit()
-            log_access(f"가입 신청 접수: {username} (ID: {new_user.id})", new_user.id)
+            log_access(f"가입 신청 접수: {username} (ID: {new_user_id})", new_user_id)
             flash('가입 신청이 접수되었습니다. 관리자 승인 후 로그인할 수 있습니다.', 'success')
             return redirect(url_for('auth.login'))
         except Exception:
@@ -576,6 +638,8 @@ def edit_user(user_id):
             return redirect(url_for('auth.edit_user', user_id=user_id))
     
     if request.method == 'POST':
+        # 어떤 필드도 아직 건드리기 전에 스냅샷 — username 은 아래에서 먼저 바뀐다.
+        audit_before = _user_audit_snapshot(user)
         name = request.form.get('name', '사용자')
         role = request.form.get('role')
         team = request.form.get('team')
@@ -634,10 +698,22 @@ def edit_user(user_id):
             user.team = team
             user.is_active = is_active
 
+            # commit 후에는 속성이 expire 되므로 커밋 전에 after 를 확정한다.
+            changes = _user_change_summary(audit_before, _user_audit_snapshot(user))
+            admin_id = session.get('user_id')
+
             db.commit()
 
-            # Log action
-            log_access(f"사용자 #{user_id} 정보 수정", session.get('user_id'))
+            # Log action — 권한·소속·활성·아이디 변경은 field 별 from→to 로 남긴다.
+            if changes:
+                log_access(f"사용자 #{user_id} 수정: {', '.join(changes)}", admin_id)
+            else:
+                log_access(f"사용자 #{user_id} 정보 수정", admin_id)
+
+            # 타인(및 본인) 비밀번호 관리자 재설정은 별도 행으로 분리 기록한다.
+            # 비밀번호 값은 원문·해시 어떤 형태로도 기록하지 않는다.
+            if password_set_strong:
+                log_access(f"사용자 #{user_id} 비밀번호 재설정(관리자 #{admin_id})", admin_id)
 
             flash('사용자 정보가 성공적으로 업데이트되었습니다.', 'success')
             return redirect(url_for('auth.user_list'))
@@ -727,13 +803,18 @@ def approve_user(user_id):
         flash('유효하지 않은 팀입니다.', 'error')
         return redirect(url_for('auth.user_list'))
 
+    audit_before = _user_audit_snapshot(user)
+    username = user.username
     try:
         user.role = role
         user.team = team
         user.approval_status = APPROVAL_ACTIVE
+        # 승인은 권한 부여 행위다 — 무엇이 무엇으로 바뀌었는지 field 별로 남긴다.
+        changes = _user_change_summary(audit_before, _user_audit_snapshot(user))
         db.commit()
+        detail = f", {', '.join(changes)}" if changes else ''
         log_access(
-            f"가입 승인: {user.username} (ID: {user.id}, 역할: {role}, 팀: {team or '미지정'})",
+            f"가입 승인: {username} (ID: {user_id}{detail})",
             session.get('user_id'),
         )
         flash(f'{user.name}({user.username}) 님의 가입을 승인했습니다.', 'success')
@@ -804,13 +885,17 @@ def handle_reset_request(request_id):
         flash('대기 중인 재설정 요청이 아닙니다.', 'error')
         return redirect(url_for('auth.user_list'))
 
+    submitted = row.username_submitted
+    status_before = row.status
     try:
         row.status = status_by_action[action]
+        status_after = row.status
         row.handled_by_user_id = session.get('user_id')
         row.handled_at = now_utc_naive()
         db.commit()
         log_access(
-            f"재설정 요청 #{request_id} 처리({row.status}): 입력 '{row.username_submitted}'",
+            f"재설정 요청 #{request_id} 처리: status {status_before}→{status_after}, "
+            f"입력 '{submitted}'",
             session.get('user_id'),
         )
         flash('재설정 요청을 처리했습니다.', 'success')

@@ -440,12 +440,28 @@ def _deny_response(decision: Decision) -> Any:
 
 
 def _audit(decision: Decision) -> None:
-    """거부 사유를 앱 로거로 기록(request context 내 호출이라 broad catch 불필요)."""
+    """거부 사유를 앱 로거 + ``security_logs`` 에 기록(request context 내 호출).
+
+    로거는 기존대로 유지하고, DB 감사는 **독립 커밋 헬퍼**를 쓴다 — 이 경로는 handler
+    실행 전 403 이라 본 트랜잭션 commit 이 없어(스펙 §3-3) 동승 insert 는 소실된다.
+    dedupe 는 헬퍼가 (user or IP, endpoint, action) 60초 창으로 처리한다.
+    """
     from flask import current_app
 
+    from foms.services.audit_writer import record_access_denied
+
+    user_id = _int_or_none(session.get("user_id"))
     current_app.logger.warning(
         "auth-policy blocked: endpoint=%s code=%s path=%s user=%s",
-        request.endpoint, decision.code, request.path, session.get("user_id"),
+        request.endpoint, decision.code, request.path, user_id,
+    )
+    record_access_denied(
+        f"권한 거부(주문 정책): {request.method} {request.path} "
+        f"endpoint={request.endpoint} code={decision.code}",
+        user_id=user_id,
+        ip=request.remote_addr,
+        endpoint=request.endpoint,
+        action=f"policy:{decision.code}",
     )
 
 
