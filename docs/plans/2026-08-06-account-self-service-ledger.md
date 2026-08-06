@@ -11,7 +11,7 @@
 | T4 | rate limit 배선 + write guard 정합 | 대상 엔드포인트 limit 적용 확인(테스트/코드) | DONE (IP 키 고정 — 세션 쿠키 키는 익명 엔드포인트에서 버킷 회전 우회 가능. manifest 2종 등재) |
 | T5 | 템플릿 (register·login 링크·reset 폼·user_list 섹션) | 렌더 테스트 통과 | DONE |
 | T6 | 테스트 신규+기존 회귀 | test_auth_self_service + bootstrap_admin/auth_enforcement/password_policy/user_delete 전부 green | DONE (신규 14 + 회귀 79 + namespace 계약 180 green) |
-| T7 | 검증·AI_STATUS·커밋 | pytest 대상 green + APP_OK + 커밋 SHA 기록 | DONE — pre_push_smoke exit 0(307 passed), 커밋 SHA는 커밋 후 기입 |
+| T7 | 검증·AI_STATUS·커밋 | pytest 대상 green + APP_OK + 커밋 SHA 기록 | DONE — pre_push_smoke exit 0(307 passed), 커밋 `d1c24390`(origin/deploy tip 재적용 — UserDeletionBlockedError 병합 포함, 원 세션 커밋 748eb337) |
 
 ## 비고
 - failopen 인벤토리 재생성(+4 auth, 전부 LOG_AND_CONTINUE·로그 있음).
