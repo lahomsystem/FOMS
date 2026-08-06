@@ -112,6 +112,7 @@
     <div class="as-rchart-rows">
       {% for e in r.entries %}{{ render_as_rchart_entry_row(e, can_edit) }}{% endfor %}
       {% if not r.entries %}<div class="as-rchart-rows__empty text-muted small">이 회차 기록 없음 · 첫 기록을 남겨보세요.</div>{% endif %}
+      {% if r.hidden_count %}<div class="as-rchart-rows__empty text-muted small">이전 기록 {{ r.hidden_count }}건 생략</div>{% endif %}
     </div>
   </div>
   {% else %}
@@ -124,6 +125,7 @@
     <div class="as-rchart-rows">
       {% if r.verdict %}{{ render_as_rchart_entry_row(r.verdict, can_edit) }}{% endif %}
       {% for e in r.entries %}{{ render_as_rchart_entry_row(e, can_edit) }}{% endfor %}
+      {% if r.hidden_count %}<div class="as-rchart-rows__empty text-muted small">이전 기록 {{ r.hidden_count }}건 생략</div>{% endif %}
     </div>
   </details>
   {% endif %}

@@ -162,8 +162,9 @@ def test_sales_delivery_toggle_moved_to_timeline_header(client):
     macros = _macros()
     assert "as-timeline__header" in macros
 
+    # T15c: PC 확장 표면은 ver7 회차 차트 — 토글·판정 버튼은 차트 헤더로 이관됐다.
     off_body = client.get(f"/erp/as/timeline/{off_id}").get_data(as_text=True)
-    assert "as-timeline__header" in off_body
+    assert "as-rchart-head" in off_body
     assert 'data-sales-delivery-active="0"' in off_body
     assert f'data-order-id="{off_id}"' in off_body
     assert "☐ 영업/전달" in off_body
@@ -279,7 +280,7 @@ def test_write_paths_do_not_leak_json_parse_errors():
     js = _js()
     block = _timeline_block(js)
     assert "async function readTimelineJson(res)" in block
-    assert block.count("await readTimelineJson(res)") == 4  # append + patch + billing + delete
+    assert block.count("await readTimelineJson(res)") == 5  # append + patch + billing + delete + verdict(T15c)
     assert block.count("await res.json()") == 1  # 원시 파싱은 헬퍼 안에서만
     assert "세션이 만료되었거나 서버 오류가 발생했습니다" in block
     assert "권한이 없거나 세션이 만료되었습니다" in block
@@ -317,7 +318,7 @@ def test_cell_summary_updates_locally_after_write():
     assert ".as-tl-cell[data-order-id=" in block
     # quick-add = 최근줄 교체 + 배지 +1 / 항목 수정 = 텍스트만(배지 불변)
     assert "updateAsCellSummary(orderId, data.html, { line: 'recent', countDelta: 1 });" in block
-    assert block.count("updateAsCellSummary(") == 4  # 정의 1 + append/patch/billing 호출 3
+    assert block.count("updateAsCellSummary(") == 5  # 정의 1 + append/patch/billing/verdict(T15c) 호출 4
     # 하이라이트 dataset 가드를 지우지 않으면 갱신된 줄에 검색어가 다시 안 칠해진다
     assert "delete line.dataset.highlightApplied;" in block
 
@@ -485,10 +486,13 @@ def test_edit_button_only_on_editable_entries(client):
     # legacy 앵커는 as_log 가 아직 없는(영구화 전) 주문에서만 나온다
     legacy_id = _create_as_order("legacy 앵커", shipment_extra={"as_content": "옛 기록"})
 
-    chunks = _entry_chunks(client.get(f"/erp/as/timeline/{order_id}").get_data(as_text=True))
-    assert set(chunks) == {"al_m", "al_s"}
+    body = client.get(f"/erp/as/timeline/{order_id}").get_data(as_text=True)
+    chunks = _entry_chunks(body)
+    # T15c: system 항목은 회차 표에 없다 — 상태 카드 '기타 이력' 줄로 흡수돼
+    # data-log-id 없이 렌더된다(수정/삭제 표적 자체가 없다).
+    assert set(chunks) == {"al_m"}
     assert "as-tl-item__edit" in chunks["al_m"]
-    assert "as-tl-item__edit" not in chunks["al_s"]
+    assert "AS 접수 처리" in body  # 흡수됐을 뿐 유실되지 않는다
 
     legacy_chunks = _entry_chunks(
         client.get(f"/erp/as/timeline/{legacy_id}").get_data(as_text=True)
@@ -603,6 +607,9 @@ def test_timeline_type_chip_colors_match_spec():
         "schedule": "#7c3aed",
         "memo": "#6b7280",
         "system": "#64748b",
+        # T15 회차 개편 신설 — 방안(진한 앰버)·판정(진한 슬레이트)
+        "plan": "#92400e",
+        "verdict": "#334155",
     }
 
 
@@ -745,22 +752,22 @@ def test_plain_text_entries_skip_html_parsing():
 
 _PRESETS = [
     ("call", "고객 부재중, 재연락 예정", "부재중"),
-    ("action", "방문 조치 완료", "조치 완료"),
-    ("schedule", "재방문 필요", "재방문 필요"),
+    # T15a: action/schedule 입력 퇴역 — 프리셋 문구는 유지하되 허용 유형(memo)으로 재배정.
+    ("memo", "방문 조치 완료", "조치 완료"),
+    ("memo", "재방문 필요", "재방문 필요"),
     ("material", "자재 발주 필요", "자재 필요"),
 ]
 
 
-def test_mobile_presets_render_above_quick_add(client):
-    """프리셋 4종은 모바일 표면(d-md-none)에서 quick-add 폼 **위**에 스펙 순서대로 나온다.
+def test_mobile_presets_render_above_quick_add():
+    """프리셋 4종은 legacy 모바일 표면(d-md-none)에서 quick-add 폼 **위**에 스펙 순서대로.
 
     부재중이 첫 버튼인 이유는 현장 빈도다(스펙 §5.5) — 순서가 뒤집히면 엄지 위치가 어긋난다.
+    T15c: 상세 lazy 표면(card-detail)은 ver7 차트(세그먼트 입력)로 교체됐으므로,
+    프리셋은 구 매크로(legacy eager 카드 전용)를 소스로 검증한다.
     """
-    _login_as_admin(client, username="as_preset_admin")
-    order_id = _create_as_order("프리셋")
-
-    body = client.get(f"/erp/as/card-detail/{order_id}").get_data(as_text=True)
-    presets = body.split('class="as-timeline__presets', 1)[1].split("</div>", 1)[0]
+    macros = _macros()
+    presets = macros.split('class="as-timeline__presets', 1)[1].split("</div>", 1)[0]
     assert "d-md-none" in presets
     # aria-label 은 role 없는 generic div 에서 무시된다 — 스크린리더에 묶음으로 읽히려면 둘 다
     assert 'role="group"' in presets
@@ -772,7 +779,7 @@ def test_mobile_presets_render_above_quick_add(client):
         for chunk in presets.split("<button")[1:]
     ] == _PRESETS
     # 초안 주입 대상(quick-add)보다 먼저 와야 엄지 동선이 위→아래로 이어진다
-    assert body.index("as-timeline__presets") < body.index("as-timeline__quick-add")
+    assert macros.index("as-timeline__presets") < macros.index("as-timeline__quick-add")
 
 
 def test_presets_hidden_without_edit_permission(client):

@@ -850,6 +850,11 @@
       "policy_id": "ERP_EDIT",
       "rule": "/api/orders/<int:order_id>/as/schedule-link"
     },
+    "erp_orders_as.api_as_verdict": {
+      "mode": "guard",
+      "policy_id": "ERP_EDIT",
+      "rule": "/api/orders/<int:order_id>/as/verdict"
+    },
     "erp_orders_production.api_production_cancel": {
       "mode": "guard",
       "policy_id": "PRODUCTION_EDIT",

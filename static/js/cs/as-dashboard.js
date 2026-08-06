@@ -942,6 +942,11 @@
           placeholder.innerHTML = html;
           placeholder.dataset.loaded = '1';
           placeholder.dataset.loading = '';
+          // ver7 차트 세그먼트 '마지막 유형 기억'. typeof 가드: 함수는 타임라인 위임
+          // 가드 블록 안에 선언돼 있어(중복 등록 방지) 스코프 정책에 따라 안 보일 수 있다.
+          if (typeof applyChartTypeMemory === 'function') {
+            applyChartTypeMemory(placeholder.querySelector('.as-rchart'));
+          }
           if (typeof window.__fomsAsRebindLazyCard === 'function') {
             window.__fomsAsRebindLazyCard(placeholder);
           }
@@ -1042,6 +1047,7 @@
             const body = tr.querySelector('.as-tl-expand-body');
             body.innerHTML = html;
             body.dataset.loading = '';
+            applyChartTypeMemory(body.querySelector('.as-rchart')); // ver7 마지막 유형 기억
             highlightTimelineStatic(body);
           })
           .catch(() => { tr.querySelector('.as-tl-expand-body').innerHTML =
@@ -1137,12 +1143,97 @@
         if (fresh) highlightTimelineStatic(fresh);
       }
 
+      /**
+       * ver7 회차 차트(T15c): 저장된 마지막 유형을 세그먼트 + 숨김 select 에 적용.
+       * ver7 확정 사양 "마지막 선택 기억" — fragment 재조회로 차트가 통째 교체될 때마다
+       * 다시 발라야 하므로 함수로 뺀다(초기 삽입·refresh 공용).
+       */
+      function applyChartTypeMemory(chart) {
+        if (!chart) return;
+        let saved = '';
+        try { saved = window.localStorage.getItem('fomsAsRchartType') || ''; } catch (err) { /* 프라이버시 모드 */ }
+        const btn = saved && chart.querySelector('.as-rchart-seg__btn[data-type="' + saved + '"]');
+        if (!btn) return;
+        chart.querySelectorAll('.as-rchart-seg__btn').forEach((b) => b.classList.toggle('is-on', b === btn));
+        const typeEl = chart.querySelector('.as-timeline__type');
+        if (typeEl) typeEl.value = saved;
+      }
+
+      /**
+       * 차트 표면 쓰기 성공 후 fragment 재조회로 통째 갱신.
+       *
+       * 구 타임라인은 항목 1건 낙관 삽입으로 충분했지만, 차트는 쓰기 한 번에 슬롯 칩·
+       * 회차 요약·상태 카드 이력·판정 버튼 노출이 함께 변한다 — 부분 갱신을 미러링하면
+       * 서버 파생 로직(as_round_chart)이 클라에 두 벌 생긴다. 저장은 이미 성공했으므로
+       * 재조회 실패는 조용히 삼킨다(다음 열기에서 회복).
+       */
+      async function refreshRoundChart(orderId) {
+        const chart = document.querySelector('.as-rchart[data-order-id="' + orderId + '"]');
+        if (!chart) return;
+        try {
+          const res = await fetch('/erp/as/timeline/' + encodeURIComponent(orderId), {
+            headers: { Accept: 'text/html' }, credentials: 'same-origin' });
+          if (!res.ok) return;
+          const holder = document.createElement('div');
+          holder.innerHTML = await res.text();
+          const fresh = holder.querySelector('.as-rchart');
+          if (!fresh) return;
+          chart.replaceWith(fresh);
+          applyChartTypeMemory(fresh);
+          highlightTimelineStatic(fresh);
+        } catch (err) { /* 네트워크 오류 — 저장 자체는 완료 */ }
+      }
+
+      // 세그먼트 유형 토글(ver7 [C]) — 숨김 select 가 값 SSOT, localStorage 가 기억 SSOT.
+      document.addEventListener('click', function (e) {
+        const seg = e.target.closest && e.target.closest('.as-rchart-seg__btn');
+        if (!seg) return;
+        e.preventDefault();
+        const chart = seg.closest('.as-rchart');
+        if (!chart) return;
+        chart.querySelectorAll('.as-rchart-seg__btn').forEach((b) => b.classList.toggle('is-on', b === seg));
+        const typeEl = chart.querySelector('.as-timeline__type');
+        if (typeEl) typeEl.value = seg.dataset.type || 'memo';
+        try { window.localStorage.setItem('fomsAsRchartType', seg.dataset.type || 'memo'); } catch (err) { /* no-op */ }
+        const textEl = chart.querySelector('.as-timeline__text');
+        if (textEl) textEl.focus();
+      });
+
+      // 회차 판정(완결/미결) — 전용 API. prompt 취소(null)=판정 중단(오클릭이 영구 기록이 되지 않게).
+      document.addEventListener('click', async function (e) {
+        const btn = e.target.closest && e.target.closest('.as-rchart-verdict-btn');
+        if (!btn || btn.dataset.busy === '1') return;
+        const orderId = btn.dataset.orderId;
+        const verdict = btn.dataset.verdict;
+        if (!orderId || !verdict) return;
+        const label = verdict === 'resolved' ? '완결' : '미결(다음 회차 시작)';
+        const reason = window.prompt('회차 판정: ' + label + '\n판정 사유를 입력하세요(비워도 됩니다). 취소를 누르면 판정하지 않습니다.', '');
+        if (reason === null) return;
+        btn.dataset.busy = '1';
+        btn.disabled = true;
+        try {
+          const res = await fetch('/api/orders/' + encodeURIComponent(orderId) + '/as/verdict', {
+            method: 'POST', headers: { 'Content-Type': 'application/json' }, credentials: 'same-origin',
+            body: JSON.stringify({ verdict: verdict, text: reason.trim() }),
+          });
+          const data = await readTimelineJson(res);
+          if (!data.success) throw new Error(data.message || '판정 저장 실패');
+          updateAsCellSummary(orderId, data.html, { line: 'recent', countDelta: 1 });
+          await refreshRoundChart(orderId); // 회차 구조가 통으로 변한다(미결=새 회차 개시)
+        } catch (err) {
+          window.alert(String(err && err.message || err || '판정 저장 중 오류'));
+        } finally {
+          btn.dataset.busy = '';
+          btn.disabled = false; // 재조회로 교체됐다면 detached 노드 — 무해한 no-op
+        }
+      });
+
       /** 기록 소프트 삭제: confirm 1회 → POST → 항목 DOM 제거 + 셀 요약 교체. */
       document.addEventListener('click', async function (e) {
         const btn = e.target.closest && e.target.closest('.as-tl-item__delete');
         if (!btn || btn.dataset.busy === '1') return;
         const item = btn.closest('.as-tl-item');
-        const timeline = btn.closest('.as-timeline');
+        const timeline = btn.closest('.as-timeline, .as-rchart');
         const logId = item && item.dataset.logId;
         const orderId = timeline && timeline.dataset.orderId;
         if (!item || !logId || !orderId) return;
@@ -1158,6 +1249,8 @@
           if (!data.success) throw new Error(data.message || '삭제하지 못했습니다.');
           item.remove(); // btn도 함께 사라지므로 아래 finally의 복구는 무해한 no-op
           replaceAsCellSummary(orderId, data.cell_html);
+          // 차트 표면: 삭제가 슬롯/요약에도 반영되도록 재조회(즉시 제거는 위에서 이미 끝).
+          if (timeline.classList.contains('as-rchart')) refreshRoundChart(orderId);
         } catch (err) {
           window.alert(err.message || '삭제하지 못했습니다.');
         } finally {
@@ -1176,6 +1269,7 @@
         const typeEl = form.querySelector('.as-timeline__type');
         const text = (textEl && textEl.value || '').trim();
         if (!orderId || !text) return;
+        const chart = form.closest('.as-rchart'); // ver7 차트 표면 분기(T15c)
         const stream = form.parentElement.querySelector('.as-timeline__stream');
         const submitBtn = form.querySelector('.as-timeline__submit');
         form.dataset.busy = '1';
@@ -1197,7 +1291,12 @@
           // 접힘 셀 요약도 같이 민다 — 확장 행을 닫는 순간 옛 요약만 남으면 안 된다.
           updateAsCellSummary(orderId, data.html, { line: 'recent', countDelta: 1 });
           textEl.value = '';
-          if (typeEl) typeEl.value = 'memo'; // 저장 후 memo 리셋(스펙 5.5)
+          if (chart) {
+            // 차트: 슬롯 칩·회차 표가 함께 변한다 — 재조회 1회로 정합(유형은 기억 유지).
+            await refreshRoundChart(orderId);
+          } else if (typeEl) {
+            typeEl.value = 'memo'; // 구 표면: 저장 후 memo 리셋(스펙 5.5)
+          }
         } catch (err) {
           // 입력 텍스트는 지우지 않는다 — 재시도 가능해야 한다.
           alert(String(err && err.message || err || '기록 추가 중 오류'));
@@ -1211,7 +1310,7 @@
       async function submitLogEdit(form) {
         if (!form || form.dataset.busy === '1') return;  // quick-add와 동일한 재진입 가드
         const item = form.closest('.as-tl-item');
-        const timeline = form.closest('.as-timeline');
+        const timeline = form.closest('.as-timeline, .as-rchart');
         const logId = item && item.dataset.logId;
         const orderId = timeline && timeline.dataset.orderId;
         const textEl = form.querySelector('.as-timeline__text');
@@ -1228,6 +1327,11 @@
           });
           const data = await readTimelineJson(res);
           if (!data.success) throw new Error(data.message || '기록 수정 실패');
+          if (timeline.classList.contains('as-rchart')) {
+            // 차트: 응답 html 은 구 타임라인 마크업이라 행에 못 끼운다 — 재조회로 통째 갱신.
+            await refreshRoundChart(orderId);
+            return;
+          }
           const parent = item.parentElement;
           // 셀 요약이 비추는 항목(앵커 = 접수/legacy, 최근 1건 = 스트림 첫 항목)을 고쳤을 때만
           // 셀을 민다. 판정은 교체 전에 — outerHTML 이후 item 참조는 DOM에서 떨어진다.
@@ -1262,7 +1366,7 @@
        */
       async function submitBillingDecision(form) {
         if (!form || form.dataset.busy === '1') return; // quick-add와 동일한 재진입 가드
-        const timeline = form.closest('.as-timeline');
+        const timeline = form.closest('.as-timeline, .as-rchart');
         const orderId = timeline && timeline.dataset.orderId;
         const typeEl = form.querySelector('.as-billing-type');
         const amountEl = form.querySelector('.as-billing-amount');
@@ -1301,6 +1405,8 @@
             updateAsCellSummary(orderId, data.html, { line: 'recent', countDelta: 1 });
           }
           form.remove();
+          // 차트: 비용 이벤트는 상태 카드 이력으로 흡수된다(스트림 없음) — 재조회로 반영.
+          if (timeline.classList.contains('as-rchart')) await refreshRoundChart(orderId);
         } catch (err) {
           // 400(사유 누락·금액 오류)·403에서 입력을 잃지 않는다 — 폼을 연 채로 둔다.
           alert(String(err && err.message || err || '판정 저장 중 오류'));
@@ -1314,8 +1420,8 @@
       document.addEventListener('click', function (e) {
         const btn = e.target.closest && e.target.closest('.as-billing-edit');
         if (!btn) return;
-        const timeline = btn.closest('.as-timeline');
-        const header = btn.closest('.as-timeline__header');
+        const timeline = btn.closest('.as-timeline, .as-rchart');
+        const header = btn.closest('.as-timeline__header, .as-rchart-head');
         if (!timeline || !header || timeline.querySelector('.as-billing-form')) return;
         const state = timeline.querySelector('.as-billing-state');
         const current = (state && state.dataset.billingType) || 'free';

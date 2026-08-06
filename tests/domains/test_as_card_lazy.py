@@ -104,8 +104,8 @@ def test_card_detail_endpoint_renders_timeline_markup(client, monkeypatch):
     resp = client.get(f"/erp/as/card-detail/{as_order_id}")
     assert resp.status_code == 200
     body = resp.get_data(as_text=True)
-    # 대시보드 카드와 동일한 타임라인/시공자 마크업(SSOT 매크로 재사용)
-    assert 'class="as-timeline"' in body
+    # T15c: 상세 표면 = ver7 회차 차트 + 시공자(PC 확장 fragment 와 같은 부품 SSOT)
+    assert 'class="as-rchart"' in body
     assert "as-timeline__quick-add" in body
     assert "as-construction-worker-list" in body
     assert "as-tabbed-editor" not in body  # T9: content-tabs 퇴역
@@ -142,9 +142,9 @@ def test_card_lazy_js_contract():
 
 
 def test_card_detail_partial_reuses_shared_macros():
-    """파셜 소스 계약: 타임라인·시공자 매크로를 대시보드 카드와 동일하게 재사용(SSOT)."""
+    """파셜 소스 계약: 회차 차트·시공자 매크로를 PC 확장 fragment 와 동일하게 재사용(SSOT)."""
     partial = (_ROOT / "templates/cs/partials/as_card_detail_partial.html").read_text(encoding="utf-8")
-    assert "render_as_timeline" in partial
+    assert "render_as_round_chart" in partial  # T15c: 타임라인 → ver7 회차 차트
     assert "render_as_construction_workers" in partial
     # 모바일 카드 파셜에는 <details> 안 eager 상세가 없어야 한다(placeholder만)
     card = (_ROOT / "templates/cs/partials/as_mobile_order_card.html").read_text(encoding="utf-8")

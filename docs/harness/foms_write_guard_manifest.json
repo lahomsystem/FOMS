@@ -688,6 +688,10 @@
       "mode": "guard",
       "rule": "/api/orders/<int:order_id>/as/schedule-link"
     },
+    "erp_orders_as.api_as_verdict": {
+      "mode": "guard",
+      "rule": "/api/orders/<int:order_id>/as/verdict"
+    },
     "erp_orders_production.api_production_cancel": {
       "mode": "guard",
       "rule": "/api/orders/<int:order_id>/production/cancel"

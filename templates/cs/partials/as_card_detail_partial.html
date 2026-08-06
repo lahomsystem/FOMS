@@ -1,8 +1,10 @@
-{# AS 모바일 카드 상세(시공자 + AS 타임라인) 단건 파셜 — D1c lazy 렌더.
+{# AS 모바일 카드 상세(시공자 + AS 회차 차트) 단건 파셜 — D1c lazy 렌더.
    닫힌 <details>가 열릴 때 GET /erp/as/card-detail/<id>가 이 파셜만 렌더해 반환한다.
-   대시보드 카드와 완전히 동일한 매크로(SSOT)를 재사용하므로 마크업/바인딩 계약이 동일하다.
-   변수: r(단건 Order, 표시필드 보강 완료 — as_timeline_view 포함), can_edit_erp. #}
-{% from 'cs/partials/as_card_macros.html' import render_as_construction_workers, render_as_timeline %}
+   T15c: 타임라인 표면을 ver7 회차 차트로 교체 — PC 확장 fragment 와 같은 부품(SSOT)이라
+   quick-add·수정/삭제·판정 배선 계약이 두 표면에서 동일하다.
+   변수: r(단건 Order, 표시필드 보강 완료 — as_round_chart_view 포함), can_edit_erp. #}
+{% from 'cs/partials/as_card_macros.html' import render_as_construction_workers %}
+{% from 'cs/partials/as_round_chart.html' import render_as_round_chart %}
 <div class="erp-as-mobile-card__detail-row erp-pro-order-card__row">
   <span class="erp-as-mobile-card__detail-label">시공자</span>
   <div class="erp-as-mobile-card__detail-value">
@@ -10,8 +12,8 @@
   </div>
 </div>
 <div class="erp-as-mobile-card__detail-row erp-pro-order-card__row erp-pro-order-card__row--full">
-  <span class="erp-as-mobile-card__detail-label">AS 타임라인</span>
+  <span class="erp-as-mobile-card__detail-label">AS 기록</span>
   <div class="erp-as-mobile-card__content">
-    {{ render_as_timeline(r.id, r.as_timeline_view, can_edit_erp|default(false), notes=r.notes or '', is_sales_delivery=r.is_sales_delivery, billing_state=r.as_billing_state_text|default(''), billing_type=r.as_billing_type|default('free')) }}
+    {{ render_as_round_chart(r.id, r.as_round_chart_view, can_edit_erp|default(false), notes=r.notes or '', is_sales_delivery=r.is_sales_delivery, billing_state=r.as_billing_state_text|default(''), billing_type=r.as_billing_type|default('free')) }}
   </div>
 </div>

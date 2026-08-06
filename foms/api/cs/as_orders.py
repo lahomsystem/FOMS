@@ -52,8 +52,10 @@ from foms.services.orders.as_log import (
     AS_LOG_TEXT_MAX,
     append_client_log,
     append_system_log,
+    append_verdict_log,
     build_as_timeline_view,
     coerce_client_log_type,
+    current_as_round,
     decorate_entry,
     migrate_legacy_into_log,
 )
@@ -81,6 +83,7 @@ erp_orders_as_bp = Blueprint(
 # 상태축을 건드리지 않는 sd 기록의 REV-00 receipt scope 문자열(AS cycle POLICY_* 와 대칭).
 POLICY_AS_BILLING = "STATE_AS_BILLING"
 POLICY_AS_LOG_APPEND = "STATE_AS_LOG_APPEND"
+POLICY_AS_VERDICT = "STATE_AS_VERDICT"
 POLICY_AS_LOG_PATCH = "STATE_AS_LOG_PATCH"
 POLICY_AS_LOG_DELETE = "STATE_AS_LOG_DELETE"
 POLICY_AS_REREGISTER = "STATE_AS_REREGISTER"
@@ -858,6 +861,72 @@ def api_as_log_append(order_id: int):
     return jsonify({"success": True, "entry": entry, "html": html})
 
 
+@erp_orders_as_bp.route("/<int:order_id>/as/verdict", methods=["POST"])
+@login_required
+@erp_edit_required
+def api_as_verdict(order_id: int):
+    """회차 판정(완결/미결) append. body {verdict, text?}.
+
+    T15 회차 규약 — 판정은 quick-add 가 아니라 이 전용 경로만 만든다(coerce 가 verdict
+    유형을 400 으로 거부). 미결 판정이 저장되는 순간 current_as_round 파생값이 1 올라
+    이후 기록이 자동으로 다음 회차 스탬프를 받는다(round+1, 별도 상태 없음). 판정의
+    정정은 수정/삭제가 아니라 새 판정 append 다(_resolve_as_log_entry 가드와 대칭).
+
+    Args:
+        order_id: 대상 주문 PK.
+
+    Returns:
+        200 ``{'success', 'entry', 'html', 'current_round'}`` /
+        400 검증 실패(verdict 값·본문 캡) / 404 주문 없음 / 409 낙관·무결성.
+    """
+    db = get_db()
+    order, err = _load_active_order(db, order_id)
+    if err:
+        return err
+    data = request.get_json(silent=True) or {}
+    verdict = str(data.get("verdict") or "").strip().lower()
+    try:
+        # 사유는 선택 — 빈 값 허용이라 _clean_as_log_text(빈 값 400)를 그대로 못 쓴다.
+        _guard_as_log_raw_size(data.get("text"))
+        text = sanitize_as_content_html(data.get("text"))
+        if text and len(text) > AS_LOG_TEXT_MAX:
+            raise ValueError("내용이 너무 깁니다.")
+        if verdict not in ("resolved", "unresolved"):
+            raise ValueError("판정은 완결(resolved)/미결(unresolved)만 허용됩니다.")
+    except ValueError as ve:
+        return jsonify({"success": False, "message": str(ve)}), 400
+
+    user_id = session.get("user_id")
+    user = get_user_by_id(user_id)
+    captured: dict[str, Any] = {}
+
+    def _append(sd: Dict[str, Any], _order: Order) -> None:
+        """append_verdict_log 가 판정 대상 회차 스탬프·값 검증을 소유한다."""
+        captured["entry"] = append_verdict_log(
+            sd, verdict=verdict, text=text,
+            by=(user.name if user else ""), by_id=(user.id if user else None))
+        captured["current_round"] = current_as_round(sd)
+
+    try:
+        _run_sd_mutation(
+            db, order_id=order_id, actor_user_id=user_id, policy_id=POLICY_AS_VERDICT,
+            command_id="AS_VERDICT", apply=_append, body=data,
+        )
+    except Exception as exc:  # noqa: BLE001
+        return _as_error_response(db, exc)
+
+    db.add(SecurityLog(
+        user_id=user_id, message=f"주문 #{order_id} AS 회차 판정: {verdict}"))
+    entry = captured["entry"]
+    html = _render_as_log_entry(entry)  # commit 앞 렌더(append 와 동일 이유)
+    db.commit()
+    _invalidate_shipment_asrec_caches("api_as_verdict")
+    return jsonify({
+        "success": True, "entry": entry, "html": html,
+        "current_round": captured["current_round"],
+    })
+
+
 @erp_orders_as_bp.route("/<int:order_id>/as/log/<log_id>", methods=["PATCH"])
 @login_required
 @erp_edit_required
@@ -1201,6 +1270,7 @@ __all__ = [
     "api_as_classification",
     "api_as_billing",
     "api_as_log_append",
+    "api_as_verdict",
     "api_as_log_patch",
     "api_as_log_delete",
     "api_as_schedule_link",

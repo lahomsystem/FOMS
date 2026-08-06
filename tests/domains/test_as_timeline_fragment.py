@@ -1,9 +1,10 @@
-"""AS 타임라인 fragment 라우트(GET /erp/as/timeline/<id>) + register 첫 reception 항목 계약.
+"""AS fragment 라우트(GET /erp/as/timeline/<id>) + register 첫 reception 항목 계약.
 
 세 가지를 고정한다.
-1) fragment 라우트: AS 상태 주문만 200(모바일 card-detail 과 동일한 권한·게이트), `?full=1` 은
-   recent_limit 을 200 까지 올려 렌더한다(무제한 아님, `?full=0` 은 미적용).
-2) 대시보드 display 보강이 행마다 `as_timeline_view` 를 세팅한다(셀 요약·fragment 공용 SSOT).
+1) fragment 라우트: AS 상태 주문만 200(모바일 card-detail 과 동일한 권한·게이트). T15c 부터
+   표면은 ver7 회차 차트 — 구 `?full=1` 더보기는 퇴역, 회차당 상한(60)이 폭증을 막는다.
+2) 대시보드 display 보강이 행마다 `as_timeline_view` 를 세팅한다(셀 요약 SSOT — fragment 는
+   `as_round_chart_view` 를 라우트에서 단건 조립).
 3) `POST /as/register` 가 접수 원문을 첫 `reception` 로그 항목으로 남기고, 이전 as_content 는
    legacy 항목으로 영구화한다(새 접수 원문이 legacy 로 중복 시드되지 않는다).
 """
@@ -105,13 +106,12 @@ def test_timeline_fragment_renders_legacy_alongside_reception(client):
     assert "새 접수 본문" in body
     assert "옛 기록 본문" in body
     assert 'data-log-id="al_legacy_as_content"' in body
-    # 상단 reception → 중간 스트림 → 하단 legacy
-    assert body.index("새 접수 본문") < body.index('class="as-timeline__stream"')
-    assert body.index('class="as-timeline__stream"') < body.index("as-timeline__anchor--legacy")
+    # ver7 배치: 회차 아코디언 → 접수 원문(시간상 시작점) → legacy(가장 오래된 본문)
+    assert body.index('class="as-rchart-reception"') < body.index("as-rchart-reception--legacy")
 
 
-def test_timeline_fragment_full_param_lifts_recent_limit(client):
-    """기본은 최근 8건만, `?full=1` 이면 전량. 절단된 오래된 항목으로 분기를 증명한다."""
+def test_timeline_fragment_renders_full_round_without_more_button(client):
+    """T15c 차트: 회차 기록은 상한 안에서 전량 렌더 — 구 8건 절단·더보기가 없다."""
     _login_as_admin(client, username="as-timeline-full-admin")
     logs = [
         _entry(f"al_{i}", f"2026-07-{10 + i:02d}T01:00:00", "memo", f"기록{i}")
@@ -119,21 +119,13 @@ def test_timeline_fragment_full_param_lifts_recent_limit(client):
     ]
     order_id = _create_as_order(shipment_extra={"as_log": logs})
 
-    default_body = client.get(f"/erp/as/timeline/{order_id}").get_data(as_text=True)
-    assert "기록11" in default_body  # 최신
-    assert "기록0" not in default_body  # 8건 절단으로 탈락
-
-    full_body = client.get(f"/erp/as/timeline/{order_id}?full=1").get_data(as_text=True)
-    assert "기록0" in full_body
-    assert "기록11" in full_body
-
-    # ?full=0 은 더보기가 아니다(truthy 판정 금지 — '1' 정확 비교)
-    off_body = client.get(f"/erp/as/timeline/{order_id}?full=0").get_data(as_text=True)
-    assert "기록0" not in off_body
+    body = client.get(f"/erp/as/timeline/{order_id}").get_data(as_text=True)
+    assert "기록11" in body and "기록0" in body  # 절단 없음(12 < 회차 상한 60)
+    assert "이전 기록 더보기" not in body
 
 
-def test_timeline_fragment_full_is_capped(client):
-    """`?full=1` 은 무제한이 아니라 200 캡. append-only as_log 가 fragment 를 폭증시키면 안 된다."""
+def test_timeline_fragment_round_entries_are_capped(client):
+    """회차당 60 캡 + 생략 안내. append-only as_log 가 fragment 를 폭증시키면 안 된다."""
     _login_as_admin(client, username="as-timeline-cap-admin")
     logs = [
         _entry(f"al_{i}", f"2026-01-01T00:00:{i % 60:02d}", "memo", f"항목{i}")
@@ -141,8 +133,9 @@ def test_timeline_fragment_full_is_capped(client):
     ]
     order_id = _create_as_order(shipment_extra={"as_log": logs})
 
-    body = client.get(f"/erp/as/timeline/{order_id}?full=1").get_data(as_text=True)
-    assert body.count("data-log-id=") == 200
+    body = client.get(f"/erp/as/timeline/{order_id}").get_data(as_text=True)
+    assert body.count("data-log-id=") == 60
+    assert "이전 기록 145건 생략" in body  # 조용한 절단 금지
 
 
 def test_timeline_fragment_gate_matches_card_detail(client):
@@ -381,7 +374,7 @@ def test_dashboard_cell_anchor_strips_legacy_html(client):
 
 
 def test_card_detail_renders_timeline(client):
-    """모바일 카드 상세: content-tabs 대신 타임라인(앵커+스트림+quick-add)."""
+    """모바일 카드 상세: T15c 부터 ver7 회차 차트(상태 카드+회차 표+세그먼트 입력)."""
     _login_as_admin(client, username="as-timeline-detail-admin")
     order_id = _create_as_order(shipment_extra={"as_log": _reception_and_memos(2)})
 
@@ -389,7 +382,7 @@ def test_card_detail_renders_timeline(client):
     assert res.status_code == 200
     body = res.get_data(as_text=True)
 
-    assert 'class="as-timeline"' in body
+    assert 'class="as-rchart"' in body
     assert "접수 원문" in body and "기록1" in body
     assert "as-timeline__quick-add" in body  # 편집 권한 → 입력기
     assert "as-construction-worker-list" in body  # 시공자 블록은 유지
@@ -397,7 +390,7 @@ def test_card_detail_renders_timeline(client):
 
 
 def test_timeline_fragment_entry_markup_contract(client):
-    """확장 fragment: 유형 칩(as-tl-chip--<type>) + 더보기 버튼(남은 수)."""
+    """확장 fragment: 유형 칩(as-tl-chip--<type>) 유지 + 회차 전량 렌더(더보기 퇴역)."""
     _login_as_admin(client, username="as-timeline-markup-admin")
     logs = _reception_and_memos(10)
     logs.append(_entry("al_c", "2026-07-24T20:00:00", "call", "고객 통화"))
@@ -408,8 +401,9 @@ def test_timeline_fragment_entry_markup_contract(client):
     assert "as-tl-item" in body
     assert "as-tl-chip--call" in body
     assert 'data-log-type="call"' in body
-    # 스트림 11건 중 8건 노출 → 남은 3건
-    assert "이전 기록 더보기 (3)" in body
+    # memo 10 + call 1 + 접수 앵커 행 1 = 12 전량(회차 상한 60 미만), 더보기 없음
+    assert body.count("data-log-id=") == 12
+    assert "이전 기록 더보기" not in body
 
 
 # ---------------------------------------------------------------------------
