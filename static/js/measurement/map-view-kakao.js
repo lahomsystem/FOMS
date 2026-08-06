@@ -348,6 +348,42 @@
     if (state.popup) { state.popup.setMap(null); state.popup = null; }
   }
 
+  // 팝업 DOM 이벤트가 지도 제스처로 새는 것 차단 — 휠은 리스트 스크롤 대신 줌,
+  // 드래그는 팬으로 먹히던 결함의 근본 수정. preventDefault는 하지 않는다
+  // (팝업 내부 네이티브 스크롤·클릭·버튼은 살아야 함).
+  function guardPopupEvents(el) {
+    ['wheel', 'mousedown', 'touchstart', 'dblclick'].forEach(function (type) {
+      el.addEventListener(type, function (e) { e.stopPropagation(); });
+    });
+  }
+
+  // 팝업이 지도 컨테이너 밖으로 잘리면 잘린 픽셀만큼만 팬(카카오 autopan 부재 보완).
+  // PC 전용 — 모바일 컴팩트 카드는 뷰포트 기준 스킨이라 보정 대상 아님.
+  function panPopupIntoView(el) {
+    if (isMobileView()) return;
+    if (!state.popup || !state.map || !state.mapEl || !el.isConnected) return;
+    try {
+      var p = el.getBoundingClientRect();
+      var c = state.mapEl.getBoundingClientRect();
+      var PAD = 8, dx = 0, dy = 0;
+      if (p.left < c.left + PAD) dx = p.left - (c.left + PAD);
+      else if (p.right > c.right - PAD) dx = p.right - (c.right - PAD);
+      if (p.top < c.top + PAD) dy = p.top - (c.top + PAD);
+      else if (p.bottom > c.bottom - PAD) dy = p.bottom - (c.bottom - PAD);
+      if (dx || dy) state.map.panBy(dx, dy);
+    } catch (e) { /* 팬 보정 실패 무해 */ }
+  }
+
+  // 팝업 공통 마운트: 이벤트 가드 + 오버레이 생성 + 화면 밖 잘림 보정.
+  function mountPopup(el, position) {
+    guardPopupEvents(el);
+    state.popup = new window.kakao.maps.CustomOverlay({
+      map: state.map, position: position, content: el,
+      xAnchor: 0.5, yAnchor: 1.15, zIndex: POPUP_ZINDEX
+    });
+    setTimeout(function () { panPopupIntoView(el); }, 0);
+  }
+
   function openPopup(m, position) {
     closePopup();
     var statusColor = STATUS_COLORS[String(m.status || '').toUpperCase()] || STATUS_FALLBACK_COLOR;
@@ -403,10 +439,7 @@
       closePopup();
       onRouteCalcAction(m);
     });
-    state.popup = new window.kakao.maps.CustomOverlay({
-      map: state.map, position: position, content: el,
-      xAnchor: 0.5, yAnchor: 1.15, zIndex: POPUP_ZINDEX
-    });
+    mountPopup(el, position);
   }
 
   // 접힌 대표 마커/스크린 클러스터 클릭 팝업: 그룹 내 주문 목록(+각 상세 보기).
@@ -479,10 +512,7 @@
         openOrderDetailFromPopup(btn.getAttribute('data-order-id'));
       });
     });
-    state.popup = new window.kakao.maps.CustomOverlay({
-      map: state.map, position: position, content: el,
-      xAnchor: 0.5, yAnchor: 1.15, zIndex: POPUP_ZINDEX
-    });
+    mountPopup(el, position);
   }
 
   // ---------- 줌 임계 그룹 접기/펼치기 (folium applyDuplicateMarkerLayout 포팅) ----------
