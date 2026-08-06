@@ -28,6 +28,8 @@ CS 6 · DRAWING 3 · ADMIN 2, ``PRODUCTION``·``SHIPMENT`` 행 자체가 없음)
 from __future__ import annotations
 
 import datetime as _dt
+
+from foms.services.datetime_kst import now_utc_naive
 import logging
 from typing import List, Optional, Tuple
 
@@ -123,7 +125,7 @@ def apply_production_change_alert(
 
     from foms.services.notifications.recipients import fan_out_new_notification
 
-    now = _dt.datetime.now()
+    now = now_utc_naive()
     notifications: List[Notification] = []
     created_any = False
     for team in TARGET_TEAMS:

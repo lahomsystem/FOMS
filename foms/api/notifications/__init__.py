@@ -15,7 +15,7 @@ from flask import Blueprint, g, jsonify, request, session
 from sqlalchemy import func, or_
 
 from foms.web.auth import login_required
-from foms.services.datetime_kst import format_datetime_kst
+from foms.services.datetime_kst import format_datetime_kst, now_utc_naive
 from foms.services.notifications.recipients import fan_out_new_notification
 from foms.services.request_write_guard import require_same_origin_write
 from foms.services.sidefx_outbox import enqueue_side_effect
@@ -396,7 +396,7 @@ def api_notification_mark_read(notification_id):
             return jsonify({"success": False, "message": "알림을 찾을 수 없습니다."}), 404
 
         if state.read_at is None:
-            now = dt_mod.datetime.now()
+            now = now_utc_naive()
             state.read_at = now
             _record_event(
                 db, notification_id, NotificationEventType.READ,
@@ -443,7 +443,7 @@ def api_notifications_mark_all_read():
             .order_by(NotificationUserState.notification_id.desc())
             .first()
         )
-        now = dt_mod.datetime.now()
+        now = now_utc_naive()
         updated = (
             db.query(NotificationUserState)
             .filter(*base_filter)
@@ -480,7 +480,7 @@ def api_notification_archive(notification_id):
             return jsonify({"success": False, "message": "알림을 찾을 수 없습니다."}), 404
 
         if state.archived_at is None:
-            state.archived_at = dt_mod.datetime.now()
+            state.archived_at = now_utc_naive()
             _record_event(
                 db, notification_id, NotificationEventType.ARCHIVE,
                 user_state_id=state.id, actor_user_id=user_id, recipient_user_id=user_id,
@@ -515,7 +515,7 @@ def api_notifications_archive_all():
             .order_by(NotificationUserState.notification_id.desc())
             .first()
         )
-        now = dt_mod.datetime.now()
+        now = now_utc_naive()
         updated = (
             db.query(NotificationUserState)
             .filter(*base_filter)
@@ -552,7 +552,7 @@ def api_notification_ack(notification_id):
             return jsonify({"success": False, "message": "알림을 찾을 수 없습니다."}), 404
 
         if state.ack_at is None:
-            state.ack_at = dt_mod.datetime.now()
+            state.ack_at = now_utc_naive()
             state.last_delivery_status = NotificationDeliveryStatus.ACK
             _record_event(
                 db, notification_id, NotificationEventType.ACK,
@@ -852,7 +852,7 @@ def api_order_urgent_mention(order_id):
             return jsonify({"success": False, "message": "비활성 사용자에게는 호출할 수 없습니다."}), 422
 
         # rate: actor+order 당 5회/시간(같은 sender·order 의 URGENT_MENTION 카운트).
-        window_start = dt_mod.datetime.now() - dt_mod.timedelta(hours=1)
+        window_start = now_utc_naive() - dt_mod.timedelta(hours=1)
         recent = (
             db.query(func.count(Notification.id))
             .filter(

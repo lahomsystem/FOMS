@@ -14,6 +14,8 @@ enqueue 하는 헬퍼를 제공한다. 설계 원칙:
 from __future__ import annotations
 
 import datetime as _dt
+
+from foms.services.datetime_kst import now_utc_naive
 import hashlib
 import json
 import logging
@@ -100,8 +102,8 @@ def _endpoint_hash(endpoint: str) -> str:
 
 
 def _now() -> _dt.datetime:
-    """현재 시각(naive local, 모델 기본값과 동일 규약)."""
-    return _dt.datetime.now()
+    """현재 시각(naive UTC — 모델 기본값 now_utc_naive 와 동일 규약)."""
+    return now_utc_naive()
 
 
 def _import_pywebpush() -> Tuple[Any, Any]:

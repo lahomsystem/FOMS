@@ -1193,8 +1193,8 @@ class Notification(Base):
     read_at = Column(DateTime, nullable=True)
     read_by_user_id = Column(Integer, ForeignKey('users.id'), nullable=True)
     
-    # 타임스탬프
-    created_at = Column(DateTime, default=datetime.datetime.now, nullable=False, index=True)
+    # 타임스탬프 (naive=UTC 규약 — format_datetime_kst 가 +9 표시 변환)
+    created_at = Column(DateTime, default=now_utc_naive, nullable=False, index=True)
     
     # 관계
     order = relationship('Order', foreign_keys=[order_id])
@@ -1300,11 +1300,11 @@ class NotificationUserState(Base):
         String(30), nullable=False, default='pending', server_default='pending'
     )
 
-    created_at = Column(DateTime, default=datetime.datetime.now, nullable=False)
+    created_at = Column(DateTime, default=now_utc_naive, nullable=False)
     updated_at = Column(
         DateTime,
-        default=datetime.datetime.now,
-        onupdate=datetime.datetime.now,
+        default=now_utc_naive,
+        onupdate=now_utc_naive,
         nullable=False,
     )
 
@@ -1349,7 +1349,7 @@ class NotificationEvent(Base):
     endpoint_hash = Column(String(64), nullable=True)
     request_id = Column(String(64), nullable=True)
     metadata_json = Column(JSONColumn, nullable=True)
-    created_at = Column(DateTime, default=datetime.datetime.now, nullable=False)
+    created_at = Column(DateTime, default=now_utc_naive, nullable=False)
 
     __table_args__ = (
         Index('ix_notification_events_notif_created', 'notification_id', 'created_at'),
@@ -1380,11 +1380,11 @@ class NotificationPushSubscription(Base):
     permission_state = Column(String(20), nullable=True)
     last_seen_at = Column(DateTime, nullable=True)
     revoked_at = Column(DateTime, nullable=True)
-    created_at = Column(DateTime, default=datetime.datetime.now, nullable=False)
+    created_at = Column(DateTime, default=now_utc_naive, nullable=False)
     updated_at = Column(
         DateTime,
-        default=datetime.datetime.now,
-        onupdate=datetime.datetime.now,
+        default=now_utc_naive,
+        onupdate=now_utc_naive,
         nullable=False,
     )
 

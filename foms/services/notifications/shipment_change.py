@@ -20,7 +20,7 @@
     한 지점**으로 모은 이유가 경로별 emit 의 구멍 6종이었다. 소비자인 이 알림도 같은 이유로
     경로에 손대지 않고 세션 이벤트에 붙는다(:func:`register_shipment_change_alert_listener`).
 
-시각 규약: ``Notification.created_at`` 모델 기본값은 ``datetime.now``(서버 로컬)이지만 이
+시각 규약: ``Notification.created_at`` 모델 기본값도 ``now_utc_naive``(2026-08-06 정합)이며 이
 모듈은 생성 시 ``now_utc_naive()`` 를 **명시 주입**한다. debounce 가 같은 축(UTC naive)끼리만
 비교되게 하려는 것이다 — 로컬 TZ 가 UTC 가 아닌 개발 머신에서 9시간 어긋나 merge 가 죽는 것을
 막는다.
