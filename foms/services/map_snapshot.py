@@ -18,7 +18,19 @@ __all__ = [
     "build_measurement_map_query",
     "build_measurement_snapshot",
     "build_as_incomplete_map_query",
+    "apply_as_map_display_fields",
 ]
+
+# AS 탭 요약 pill 라벨과 동일(as_dashboard_body.html) — 지도 카드/팝업 배지 표기 SSOT.
+AS_MAP_BUCKET_LABELS = {
+    'visit_confirmed': '방문 확정',
+    'pending': '미결',
+    'unassigned': '아직 미정',
+    'paid_unconfirmed': '유상 미확정',
+}
+# 카드 배지는 1개만 표기 — 유상 미확정(방문 협의 전 선결 판정)이 최우선,
+# 나머지 3키는 미완료 모집단을 상호배타로 3분할하므로 순서 무관하나 방어적으로 명시.
+_AS_MAP_BUCKET_PRECEDENCE = ('paid_unconfirmed', 'pending', 'visit_confirmed', 'unassigned')
 
 
 def _measurement_date_variants(yyyy_mm_dd):
@@ -230,6 +242,111 @@ def build_as_incomplete_map_query(db, q, manager, bucket=None, avail_days=None,
             _as_availability_time_expr(dialect_name=dialect_name).in_((time_key, 'any')))
 
     return query.order_by(Order.id.desc()).limit(limit)
+
+
+def _load_as_bucket_id_sets(db, order_ids):
+    """4버킷 조건별 주문 id 집합 배치 조회 (버킷당 1쿼리 = 총 4쿼리, N+1 금지).
+
+    AS 탭 pill과 같은 조건(build_as_incomplete_bucket_conditions SSOT)으로 판정한다.
+
+    Args:
+        db: DB 세션.
+        order_ids: 판정 대상 주문 id 리스트(스냅샷에 실린 행들).
+
+    Returns:
+        {bucket_key: set[int]} — 키는 AS_MAP_BUCKET_LABELS와 동일.
+    """
+    from foms.services.as_dashboard_read_model import (
+        build_as_incomplete_bucket_conditions,
+        build_as_tab_query_conditions,
+    )
+
+    if not order_ids:
+        return {}
+    dialect_name = ''
+    try:
+        bind = db.get_bind()
+        dialect_name = getattr(getattr(bind, 'dialect', None), 'name', '') or ''
+    except Exception:
+        dialect_name = ''
+    conditions = build_as_tab_query_conditions(dialect_name=dialect_name)
+    buckets = build_as_incomplete_bucket_conditions(
+        incomplete_non_sales_condition=conditions['incomplete_non_sales_condition'],
+        as_pending_true=conditions['as_pending_true'],
+        as_visit_date_present=conditions['as_visit_date_present'],
+        paid_unconfirmed_condition=conditions['paid_unconfirmed_condition'],
+    )
+    return {
+        key: {row[0] for row in db.query(Order.id).filter(Order.id.in_(order_ids), cond).all()}
+        for key, cond in buckets.items()
+    }
+
+
+def _as_content_preview(shipment):
+    """AS 내용 HTML → 60자 plain text 요약(개행은 공백, 초과 시 말줄임).
+
+    Args:
+        shipment: structured_data['shipment'] dict(비 dict 허용).
+
+    Returns:
+        요약 문자열. 내용 없으면 빈 문자열.
+    """
+    from foms.services.as_content_safety import as_content_html_to_text
+
+    raw = (shipment or {}).get('as_content') if isinstance(shipment, dict) else None
+    text = as_content_html_to_text(raw).replace('\n', ' ').strip()
+    if len(text) > 60:
+        return text[:60].rstrip() + '…'
+    return text
+
+
+def apply_as_map_display_fields(snapshot, orders, db):
+    """AS 지도 스냅샷의 orders/markers에 AS 표시 필드를 in-place 보강한다.
+
+    measurement 지도 페이로드는 이 함수를 타지 않는다(as 모드 전용 — 호출자는
+    foms/api/cs/as_map.py 한 곳). 클라이언트 as 분기 판정은 `as_bucket` 존재 여부.
+
+    Args:
+        snapshot: build_measurement_snapshot 결과 dict(orders/markers/summary).
+        orders: 스냅샷 조립에 쓴 Order 객체 리스트(structured_data 원본 접근용).
+        db: DB 세션(버킷 id-set 배치 조회용).
+
+    Returns:
+        None (snapshot 행 dict들을 직접 수정).
+    """
+    from foms.services.as_dashboard_display import (
+        _as_visit_dday,
+        as_billing_badge_kind,
+        as_billing_state_text,
+    )
+    from foms.services.erp_display import get_today_kst
+    from foms.services.orders.as_schedule_link import read_as_visit_date
+
+    order_map = {o.id: o for o in orders}
+    bucket_id_sets = _load_as_bucket_id_sets(db, list(order_map.keys()))
+    today = get_today_kst()
+
+    for item in list(snapshot['orders']) + list(snapshot['markers']):
+        order = order_map.get(item['id'])
+        sd = getattr(order, 'structured_data', None) if order is not None else None
+        sd = sd if isinstance(sd, dict) else {}
+        shipment = sd.get('shipment') if isinstance(sd.get('shipment'), dict) else {}
+        bucket = next(
+            (k for k in _AS_MAP_BUCKET_PRECEDENCE if item['id'] in bucket_id_sets.get(k, ())),
+            'unassigned',
+        )
+        visit_date = read_as_visit_date(sd)
+        billing = shipment.get('as_billing')
+        item['as_bucket'] = bucket
+        item['as_bucket_label'] = AS_MAP_BUCKET_LABELS[bucket]
+        item['as_visit_date'] = visit_date
+        item['as_visit_dday'] = _as_visit_dday(visit_date, today)
+        item['as_content_preview'] = _as_content_preview(shipment)
+        item['as_billing_badge'] = as_billing_badge_kind(billing)
+        item['as_billing_text'] = as_billing_state_text(billing)
+        item['as_received_date'] = _format_date(
+            getattr(order, 'as_received_date', None) if order is not None else None
+        )
 
 
 def _extract_order_display_fields(order):
