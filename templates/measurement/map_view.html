@@ -226,6 +226,87 @@
             box-shadow: 0 2px 6px rgba(220, 53, 69, 0.5);
         }
 
+        /* ── AS 지도 PC 필터 스킨 (body.map-as-mode · ≥891px 이중 게이트) ──
+           페르소나: AS 담당이 방문 동선을 짜며 분류·가능시간을 하루에도 수십 번 전환.
+           반투명 흰 글자 셀렉트는 값 판독이 느리다 → 흰 필드 + 진한 글자,
+           기본값이 아닌 필터엔 앰버 링(.filter-active)으로 "지금 걸린 조건" 즉시 식별,
+           하나라도 걸리면 초기화 버튼 노출. 모바일(≤890px)·실측 지도는 기존 스킨 유지. */
+        @media (min-width: 891px) {
+            body.map-as-mode .header-controls {
+                max-width: 620px;
+            }
+
+            body.map-as-mode .filters-row .filter-label,
+            body.map-as-mode .filters-row-search .filter-label {
+                color: rgba(255, 255, 255, 0.85);
+                font-size: 0.74rem;
+                font-weight: 600;
+                letter-spacing: 0.02em;
+                min-width: auto;
+            }
+
+            body.map-as-mode .form-select-sm {
+                background-color: #ffffff;
+                color: #212529;
+                border: 1px solid #ffffff;
+                border-radius: 7px;
+                box-shadow: 0 1px 2px rgba(0, 24, 64, 0.18);
+                font-weight: 500;
+            }
+
+            body.map-as-mode select.form-select-sm {
+                -webkit-appearance: none;
+                appearance: none;
+                padding-right: 24px;
+                background-image: url("data:image/svg+xml;charset=utf-8,%3Csvg xmlns='http://www.w3.org/2000/svg' width='10' height='6' viewBox='0 0 10 6'%3E%3Cpath d='M1 1l4 4 4-4' fill='none' stroke='%236c757d' stroke-width='1.6' stroke-linecap='round' stroke-linejoin='round'/%3E%3C/svg%3E");
+                background-repeat: no-repeat;
+                background-position: right 8px center;
+                background-size: 10px 6px;
+            }
+
+            body.map-as-mode .form-select-sm option {
+                background-color: #ffffff;
+                color: #212529;
+            }
+
+            body.map-as-mode #manager-filter,
+            body.map-as-mode #map-search-input {
+                color: #212529;
+            }
+
+            body.map-as-mode #manager-filter::placeholder,
+            body.map-as-mode #map-search-input::placeholder {
+                color: #94a3b8;
+            }
+
+            body.map-as-mode #map-search-input {
+                max-width: 260px;
+            }
+
+            body.map-as-mode .form-select-sm:hover {
+                border-color: #9ec5fe;
+            }
+
+            body.map-as-mode .form-select-sm:focus {
+                outline: none;
+                border-color: #66a3ff;
+                box-shadow: 0 0 0 3px rgba(255, 255, 255, 0.35);
+            }
+
+            body.map-as-mode .form-select-sm.filter-active {
+                border-color: #ffc107;
+                box-shadow: 0 0 0 2px rgba(255, 193, 7, 0.55);
+                font-weight: 700;
+            }
+        }
+
+        @media (max-width: 890px) {
+            /* 필터 초기화 버튼은 PC 스킨 전용 — 모바일 압축 바 무변경 */
+            #map-filter-reset {
+                display: none;
+            }
+        }
+
         .map-container {
             flex: 1 1 auto;
             min-height: 0;
@@ -1071,8 +1152,8 @@
 
                     {# AS 미완료 지도 전용 — 버킷 필터(AS 탭 요약 pill과 동일 백엔드 bucket) #}
                     <div class="filter-group" id="as-bucket-filter-group" style="display: none;">
-                        <label class="filter-label">분류:</label>
-                        <select id="as-bucket-filter" class="form-select-sm">
+                        <label class="filter-label">분류</label>
+                        <select id="as-bucket-filter" class="form-select-sm" title="AS 분류로 좁히기">
                             <option value="">전체</option>
                             <option value="visit_confirmed">방문 확정</option>
                             <option value="pending">미결</option>
@@ -1083,14 +1164,16 @@
 
                     {# AS 미완료 지도 전용 — 방문 가능시간 필터 (SSOT: services/orders/as_availability.py) #}
                     <div class="filter-group" id="as-avail-filter-group" style="display: none;">
-                        <label class="filter-label">가능:</label>
-                        <select id="as-avail-days-filter" class="form-select-sm" aria-label="가능 요일">
+                        <label class="filter-label">가능시간</label>
+                        <select id="as-avail-days-filter" class="form-select-sm" aria-label="가능 요일"
+                            title="고객이 방문 가능한 요일로 좁히기">
                             <option value="">요일 전체</option>
                             <option value="weekday">평일 가능</option>
                             <option value="weekend">주말 가능</option>
                             <option value="unknown">미기입만</option>
                         </select>
-                        <select id="as-avail-time-filter" class="form-select-sm" aria-label="가능 시간대">
+                        <select id="as-avail-time-filter" class="form-select-sm" aria-label="가능 시간대"
+                            title="고객이 방문 가능한 시간대로 좁히기">
                             <option value="">시간 전체</option>
                             <option value="am">오전</option>
                             <option value="pm">오후</option>
@@ -1121,6 +1204,11 @@
                         <label class="filter-label">담당자:</label>
                         <div class="manager-actions">
                             <input type="text" id="manager-filter" class="form-select-sm" placeholder="예: 정다슬">
+                            <button type="button" class="btn btn-header btn-header-icon" id="map-filter-reset"
+                                style="display: none;" onclick="resetMapFilters()" title="필터 초기화"
+                                aria-label="필터 초기화">
+                                <i class="fas fa-undo"></i>
+                            </button>
                             <button type="button" class="btn btn-header btn-header-icon" onclick="loadMap()"
                                 title="새로고침" aria-label="새로고침">
                                 <i class="fas fa-sync-alt"></i>
@@ -1271,7 +1359,7 @@
     <script src="https://cdn.jsdelivr.net/npm/bootstrap@5.1.3/dist/js/bootstrap.bundle.min.js" defer></script>
     <script src="{{ url_for('static', filename='js/runtime/common_utils.js') }}?v=20260327" defer></script>
     <!-- 카카오 지도 클라이언트 렌더 모듈 (defer: DOMContentLoaded 전에 정의 완료) -->
-    <script src="{{ url_for('static', filename='js/measurement/map-view-kakao.js') }}?v=20260806b" defer></script>
+    <script src="{{ url_for('static', filename='js/measurement/map-view-kakao.js') }}?v=20260806c" defer></script>
     <!-- 모바일 바텀시트/상세 풀시트 컨트롤러. defer 라 아래 인라인 스크립트(파싱 중 실행)가
          전역(loadOrderDetail 등)을 정의한 뒤에 실행된다 — 감싸기 전제. -->
     <script src="{{ url_for('static', filename='js/measurement/map-mobile-sheet.js') }}?v=20260720a" defer></script>
@@ -1375,6 +1463,49 @@
         }
         document.getElementById('manager-filter').value = initialManager;
         document.getElementById('map-search-input').value = initialSearch;
+
+        // ── AS 지도 PC 필터 스킨 배선 (모바일·실측 지도 무변경 — CSS 이중 게이트) ──
+        const AS_FILTER_IDS = ['as-bucket-filter', 'as-avail-days-filter', 'as-avail-time-filter',
+            'manager-filter', 'map-search-input'];
+        if (isAsMap) {
+            document.body.classList.add('map-as-mode');
+            // 캡션형 라벨: 콜론 제거 (모바일은 라벨 자체가 숨김이라 영향 없음)
+            document.querySelectorAll('.filter-label').forEach(function (l) {
+                l.textContent = l.textContent.replace(/:\s*$/, '');
+            });
+        }
+
+        // 기본값이 아닌 필터에 .filter-active 표시 + 하나라도 걸리면 초기화 버튼 노출
+        function syncAsFilterChips() {
+            if (!isAsMap) return;
+            let anyActive = false;
+            AS_FILTER_IDS.forEach(function (id) {
+                const el = document.getElementById(id);
+                if (!el) return;
+                const active = !!el.value;
+                el.classList.toggle('filter-active', active);
+                if (active) anyActive = true;
+            });
+            const resetBtn = document.getElementById('map-filter-reset');
+            if (resetBtn) resetBtn.style.display = anyActive ? '' : 'none';
+        }
+
+        // 걸린 필터 전부 해제 + 재조회 (초기화 버튼 onclick)
+        function resetMapFilters() {
+            AS_FILTER_IDS.forEach(function (id) {
+                const el = document.getElementById(id);
+                if (el) el.value = '';
+            });
+            syncAsFilterChips();
+            loadMap();
+        }
+
+        AS_FILTER_IDS.forEach(function (id) {
+            const el = document.getElementById(id);
+            if (!el) return;
+            el.addEventListener(el.tagName === 'SELECT' ? 'change' : 'input', syncAsFilterChips);
+        });
+        syncAsFilterChips();
 
         // ── 담당자 목록 (실측 담당자 지정용) ──
         var _mapManagerList = [];
