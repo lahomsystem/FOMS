@@ -25,3 +25,64 @@
   <option value="{{ code }}"{% if _cur == code %} selected{% endif %}>{{ name }}</option>
   {%- endfor -%}
 {%- endmacro -%}
+
+{#
+  STATE-CONTROLS-02 — canonical COMPLETE control.
+
+  STATE-CONTROLS-01 이 선택자에서 COMPLETED 를 제거하며 전제한 "정식 완료 컨트롤"의
+  구현체. 물류/실측 대시보드 행에서 confirm 후 field_update(status=COMPLETED)로
+  전이한다(백엔드 semantics 는 기존 선택자 경로와 동일). 이미 terminal 상태인 행
+  (완료·AS 계열·삭제)에는 렌더하지 않는다 — AS 전이는 STATE-AS 소관 유지.
+
+  배선: static/js/measurement/complete-order-btn.js (전역 위임, defer 로드 필수).
+#}
+{%- macro complete_order_control(order_id, current_status) -%}
+  {%- set _terminal = ['COMPLETED', 'AS', 'AS_RECEIVED', 'AS_COMPLETED', 'DELETED'] -%}
+  {%- set _cur = (current_status or '') | string -%}
+  {%- if _cur not in _terminal -%}
+  <button type="button" class="btn btn-sm btn-success mt-1 js-complete-order"
+          data-order-id="{{ order_id }}" data-field="status" data-value="COMPLETED"
+          data-confirm="이 주문을 완료 처리할까요? 완료된 주문 섹션으로 이동합니다."
+          title="이 주문을 완료 상태로 변경합니다">
+    <i class="fas fa-check-circle"></i> 완료
+  </button>
+  {%- endif -%}
+{%- endmacro -%}
+
+{#
+  STATE-CONTROLS-03 — AS 완료 컨트롤 (지방 대시보드 AS 섹션 전용).
+
+  AS 완료 탭의 정본 조건은 ``status == AS_COMPLETED and as_completed_date != ''``
+  (foms/services/as_dashboard_helpers.py:_erp_as_completed_condition) 이므로 status 를
+  직접 쓰면 안 되고, canonical AS cycle 로 위임되는 ``as_completed_date`` 필드를 써야
+  한다(field_update:_bridge_as_completed_date → complete_as_cycle). 그래야 AS 대시보드
+  '완료' 탭에 나타나고 AS 타임라인에도 system 이벤트가 남는다.
+
+  Args:
+    order_id: 대상 주문 id. current_status: 현재 상태 코드. today: 'YYYY-MM-DD' 완료일.
+#}
+{%- macro as_complete_control(order_id, current_status, today) -%}
+  {%- if (current_status or '') | string == 'AS_RECEIVED' -%}
+  <button type="button" class="btn btn-sm btn-success mt-1 js-complete-order"
+          data-order-id="{{ order_id }}" data-field="as_completed_date" data-value="{{ today }}"
+          data-confirm="AS를 완료 처리할까요? AS 대시보드 '완료' 탭으로 이동합니다."
+          title="AS를 완료 처리합니다 (AS 대시보드 완료 탭으로 이동)">
+    <i class="fas fa-check-circle"></i> AS완료
+  </button>
+  {%- endif -%}
+{%- endmacro -%}
+
+{#
+  STATE-CONTROLS-03 — 읽기 전용 상태 뱃지.
+
+  지방 대시보드(2026-08-07 개편)는 섹션이 곧 상태다. 행에서 임의 전이를 허용하던
+  드롭다운을 없애고, 섹션이 정하는 라벨을 뱃지로만 보여준다. 전이는 canonical
+  컨트롤(완료/AS완료 버튼)과 체크리스트 자동 승격만 담당한다.
+
+  Args:
+    label: 표시 문구(예: '설치예정'). tone: CSS 톤 키
+      (scheduled|shipped|progress|as|completed|hold).
+#}
+{%- macro board_status_badge(label, tone) -%}
+  <span class="foms-board-status-badge foms-board-status-badge--{{ tone }}">{{ label }}</span>
+{%- endmacro -%}

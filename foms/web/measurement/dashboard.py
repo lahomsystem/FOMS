@@ -29,7 +29,11 @@ from foms.services.erp_display import (
 from foms.services.erp_shipment_settings import load_erp_shipment_settings
 from foms.services.measurement_manager_colors import build_measurement_manager_color_map
 from foms.services.measurement_dates import extract_all_measurement_dates
-from foms.services.orders.status_constants import LOGISTICS_BOARD_STATUS, STATUS
+from foms.services.orders.status_constants import (
+    METRO_BOARD_STATUS,
+    SELF_BOARD_STATUS,
+    STATUS,
+)
 from foms.services.common.dashboard_cache import (
     TTL_PANEL_ROWS,
     TTL_PAYLOAD_ASSEMBLY,
@@ -525,60 +529,64 @@ def regional_dashboard():
     apply_erp_display_fields_to_orders(all_regional_orders)
     today = get_today_kst()
 
+    # 2026-08-07 개편(사용자 승인): 섹션=상태. 드롭다운 제거·뱃지 표기.
+    # 상차완료·보류 섹션 폐지 — 상차일 경과분은 설치 예정으로 흡수, 보류(ON_HOLD)는
+    # 진행 중으로 표시. AS접수는 전용 섹션(+재상차 시 상차 알림 병행 표시).
+    # AS완료는 ERP AS 대시보드 완료 탭 소관이라 이 보드에서 제외한다.
+    def _parse_shipping_date(order) -> datetime.date | None:
+        """상차예정일 문자열을 date로 파싱(빈값·형식 오류는 None)."""
+        raw = (order.shipping_scheduled_date or "").strip()
+        if not raw:
+            return None
+        try:
+            return datetime.datetime.strptime(raw, "%Y-%m-%d").date()
+        except (ValueError, TypeError):
+            return None
+
     completed_orders = [o for o in all_regional_orders if o.status == "COMPLETED"]
-    scheduled_orders = [o for o in all_regional_orders if o.status == "SCHEDULED"]
-    hold_orders = [o for o in all_regional_orders if o.status == "ON_HOLD"]
-    excluded_from_shipping_buckets = ["COMPLETED", "ON_HOLD", "SCHEDULED"]
-
-    shipping_alerts = []
-    for order in all_regional_orders:
-        is_as_rework_shipping = order.status == "AS_RECEIVED"
-        if (
-            (getattr(order, "measurement_completed", False) or is_as_rework_shipping)
-            and order.shipping_scheduled_date
-            and order.shipping_scheduled_date.strip()
-            and order.status not in excluded_from_shipping_buckets
-        ):
-            try:
-                shipping_date = datetime.datetime.strptime(
-                    order.shipping_scheduled_date, "%Y-%m-%d"
-                ).date()
-                if shipping_date >= today:
-                    shipping_alerts.append(order)
-            except (ValueError, TypeError):
-                pass
-
-    shipping_completed_orders = []
-    for order in all_regional_orders:
-        if (
-            order.shipping_scheduled_date
-            and order.shipping_scheduled_date.strip()
-            and order.status not in excluded_from_shipping_buckets
-        ):
-            try:
-                shipping_date = datetime.datetime.strptime(
-                    order.shipping_scheduled_date, "%Y-%m-%d"
-                ).date()
-                if shipping_date < today:
-                    shipping_completed_orders.append(order)
-            except (ValueError, TypeError):
-                pass
-
-    shipping_alert_ids = {o.id for o in shipping_alerts}
-    shipping_completed_ids = {o.id for o in shipping_completed_orders}
-    pending_orders = [
+    as_orders = [o for o in all_regional_orders if o.status == "AS_RECEIVED"]
+    board_actives = [
         o
         for o in all_regional_orders
-        if (
-            o.status not in excluded_from_shipping_buckets
-            and o.id not in shipping_alert_ids
-            and o.id not in shipping_completed_ids
-            and (
-                not getattr(o, "measurement_completed", False)
-                or not o.shipping_scheduled_date
-                or not o.shipping_scheduled_date.strip()
-            )
-        )
+        if o.status not in ("COMPLETED", "AS_RECEIVED", "AS_COMPLETED")
+    ]
+
+    # 설치 예정 = SCHEDULED 상태 ∪ 상차일 경과(보류 제외). 구 상차완료 섹션 흡수.
+    scheduled_orders = []
+    shipping_alerts = []
+    for order in board_actives:
+        if order.status == "SCHEDULED":
+            scheduled_orders.append(order)
+            continue
+        if order.status == "ON_HOLD":
+            continue
+        ship_date = _parse_shipping_date(order)
+        if ship_date is None:
+            continue
+        if ship_date < today:
+            scheduled_orders.append(order)
+        elif getattr(order, "measurement_completed", False):
+            shipping_alerts.append(order)
+
+    # AS 재상차(사용자 결정: 양쪽 표시 유지) — AS접수 전용 섹션에도 남기고, 미래 상차일이
+    # 잡힌 건은 상차 예정 알림에도 함께 띄운다. 상태는 AS_RECEIVED 로 보존(아래 sync 제외).
+    for order in as_orders:
+        ship_date = _parse_shipping_date(order)
+        if ship_date is not None and ship_date >= today:
+            shipping_alerts.append(order)
+
+    # 섹션 이동 시 상태 기록(사용자 결정)은 **읽기 경로에서 하지 않는다**. GET 렌더 중
+    # order.status 를 직접 쓰면 canonical 전이 엔진(transition_order/stage_override/
+    # as_cycle_service)을 우회하는 EXTERNAL state-writer 가 되어 감사·이벤트 없이 상태가
+    # 바뀐다(tests/domains/test_state_guard.py 가 차단). 대신 실제 사용자 행동인 상차일
+    # 변경 시점에 board JS 가 canonical 보드 경로(field_update status)로 기록한다.
+    # 화면 표기는 이 함수의 섹션 분류가 SSOT 이므로, 상태가 뒤처져도 뱃지는 틀리지 않는다.
+    scheduled_ids = {o.id for o in scheduled_orders}
+    shipping_alert_ids = {o.id for o in shipping_alerts}
+    pending_orders = [
+        o
+        for o in board_actives
+        if o.id not in scheduled_ids and o.id not in shipping_alert_ids
     ]
 
     def _shipping_alert_sort_key(order) -> tuple:
@@ -601,10 +609,12 @@ def regional_dashboard():
         )
 
     shipping_alerts.sort(key=_shipping_alert_sort_key)
-    shipping_completed_orders.sort(
-        key=lambda x: datetime.datetime.strptime(
-            x.shipping_scheduled_date, "%Y-%m-%d"
-        ).date()
+    # 설치 예정: 설치일 오름차순(빈 설치일은 뒤), 그다음 상차일.
+    scheduled_orders.sort(
+        key=lambda o: (
+            (o.scheduled_date or "").strip() or "9999-12-31",
+            (o.shipping_scheduled_date or "").strip() or "9999-12-31",
+        )
     )
 
     return render_template(
@@ -612,11 +622,9 @@ def regional_dashboard():
         pending_orders=pending_orders,
         scheduled_orders=scheduled_orders,
         completed_orders=completed_orders,
-        hold_orders=hold_orders,
+        as_orders=as_orders,
         shipping_alerts=shipping_alerts,
-        shipping_completed_orders=shipping_completed_orders,
         STATUS=STATUS,
-        LOGISTICS_BOARD_STATUS=LOGISTICS_BOARD_STATUS,
         search_query=search_query,
         today=today.strftime("%Y-%m-%d"),
         tomorrow=(today + timedelta(days=1)).strftime("%Y-%m-%d"),
@@ -809,6 +817,7 @@ def metropolitan_dashboard():
         normal_orders=normal_orders,
         completed_orders=completed_orders,
         STATUS=STATUS,
+        METRO_BOARD_STATUS=METRO_BOARD_STATUS,
         search_query=search_query,
     )
 
@@ -854,5 +863,5 @@ def self_measurement_dashboard():
         completed_orders=completed_orders,
         search_query=search_query,
         STATUS=STATUS,
-        LOGISTICS_BOARD_STATUS=LOGISTICS_BOARD_STATUS,
+        SELF_BOARD_STATUS=SELF_BOARD_STATUS,
     )

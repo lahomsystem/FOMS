@@ -1,0 +1,52 @@
+/* STATE-CONTROLS-02 완료 버튼(js-complete-order) 전용.
+   보드 테마의 전역 .btn 패딩(10px 20px)이 Bootstrap 유틸을 이겨 버튼이 2줄로
+   부풀던 문제 — 2클래스 특이도 + !important 로 고정한다. 치수는 아래 상태 뱃지와
+   동일 값으로 맞춰(같은 칩 크기) 한 셀 안에서 뱃지/버튼이 나란히 보이게 한다. */
+.js-complete-order.btn {
+    display: inline-block;
+    width: auto !important;
+    padding: 2px 10px !important;
+    border-radius: 12px !important;
+    border: none !important;
+    font-size: 0.8rem;
+    font-weight: 600;
+    line-height: 1.4;
+    white-space: nowrap;
+}
+
+/* 상태 셀 스택: 뱃지와 canonical 버튼을 가로로 흘리지 않고 세로로 쌓는다
+   (설치 예정 섹션과 AS 접수 섹션의 배치를 동일하게). */
+.foms-board-status-stack {
+    display: flex;
+    flex-direction: column;
+    align-items: flex-start;
+    gap: 4px;
+}
+
+/* 뱃지·버튼 공통 최소 폭 — 라벨 길이나 아이콘 유무로 칩 크기가 들쭉날쭉해 보이던
+   문제를 없앤다(같은 칩으로 인지되게 고정 폭·가운데 정렬). */
+.foms-board-status-badge,
+.js-complete-order.btn {
+    min-width: 78px;
+    text-align: center;
+}
+
+/* STATE-CONTROLS-03 읽기 전용 상태 뱃지 (지방 대시보드 섹션=상태 개편).
+   색은 구 status-dropdown 톤을 그대로 승계해 사용자 색 인지를 유지한다. */
+.foms-board-status-badge {
+    display: inline-block;
+    padding: 2px 10px;
+    border-radius: 12px;
+    font-size: 0.8rem;
+    font-weight: 600;
+    line-height: 1.4;
+    white-space: nowrap;
+    color: #fff;
+}
+
+.foms-board-status-badge--scheduled { background-color: #d32f2f; }
+.foms-board-status-badge--shipped   { background-color: #17a2b8; }
+.foms-board-status-badge--progress  { background-color: #616161; }
+.foms-board-status-badge--as        { background-color: #7b1fa2; }
+.foms-board-status-badge--completed { background-color: #2e7d32; }
+.foms-board-status-badge--hold      { background-color: #8d6e63; }
