@@ -20,7 +20,7 @@ from foms.services.erp_display import _normalize_date_to_yyyymmdd
 from foms.services.erp_sync_columns import sync_erp_flat_columns
 from foms.services.orders.as_log import append_system_log
 from foms.services.orders.construction_type import normalize_regional_construction_type
-from models import Order, OrderEvent
+from models import Order
 
 ORDER_UPDATE_ALLOWED_FIELDS = [
     "manager_name",
@@ -42,6 +42,9 @@ ORDER_UPDATE_ALLOWED_FIELDS = [
     # (:func:`_bridge_as_completed_date`) — 직접 상태 쓰기는 이 파일에 없다.
     "as_completed_date",
     "as_visit_date",
+    # AS 방문 가능시간(평일/주말·시간대) — schedule.as_visit.availability (SSOT:
+    # foms/services/orders/as_availability.py)
+    "as_visit_availability",
     "as_pending",
     "as_blueprint",
     "sales_delivery",
@@ -58,6 +61,7 @@ ORDER_UPDATE_ALLOWED_FIELDS = [
 # 받는다. 두 필드는 legacy 읽기 전용으로 남아 최초 append 때 as_log 로 영구화된다.
 STRUCTURED_SYNC_FIELDS = {
     "as_visit_date",
+    "as_visit_availability",
     "as_pending",
     "as_blueprint",
     "sales_delivery",
@@ -384,6 +388,7 @@ def update_order_field_response(
         if field == "as_visit_date":
             pass
         elif field in (
+            "as_visit_availability",
             "as_pending",
             "as_blueprint",
             "sales_delivery",
@@ -413,6 +418,7 @@ def update_order_field_response(
 
         if is_erp_order or field in (
             "as_visit_date",
+            "as_visit_availability",
             "as_pending",
             "as_blueprint",
             "sales_delivery",
@@ -453,15 +459,11 @@ def update_order_field_response(
                 ).get("date")
                 construction["date"] = value
                 structured_changed = True
-                # 근본수정: 빠른수정 경로도 구조화 PUT(erp_orders_structured.py)과 동일하게
-                # 시공일 변경 이벤트를 남긴다(생산 칸반 변경 감지 SSOT). payload 형태 동일.
+                # CONSTRUCTION_DATE_CHANGED OrderEvent 는 여기서 남기지 않는다 — 시공일
+                # 이벤트 SSOT 는 foms/services/order_date_sync.py 의 전역 before_flush 훅
+                # (모든 쓰기 경로가 통과하는 유일 지점). 여기 남은 비교는 생산팀 벨 알림
+                # 트리거 전용이다.
                 if old_cons != value:
-                    db.add(OrderEvent(
-                        order_id=order.id,
-                        event_type="CONSTRUCTION_DATE_CHANGED",
-                        payload={"from": old_cons, "to": value},
-                        created_by_user_id=getattr(user, "id", None),
-                    ))
                     _prod_cons_change = (old_cons, value)
             elif field == "as_visit_date":
                 trimmed = str(value or "").strip()
@@ -486,6 +488,29 @@ def update_order_field_response(
                     as_system_event = (
                         f"방문일 확정: {normalized_visit}" if trimmed else "방문일 취소"
                     )
+            elif field == "as_visit_availability":
+                from foms.services.orders.as_availability import (
+                    as_availability_label,
+                    normalize_as_availability,
+                )
+                # 값 오류는 ValueError → 409 경로(쓰기 전 차단)
+                normalized_avail = normalize_as_availability(value)
+                schedule = ensure_path(structured_data, "schedule")
+                as_visit = ensure_path(schedule, "as_visit")
+                old_avail = (
+                    (old_sd_snapshot.get("schedule") or {}).get("as_visit") or {}
+                ).get("availability")
+                if normalized_avail is None:
+                    as_visit.pop("availability", None)
+                else:
+                    as_visit["availability"] = normalized_avail
+                structured_changed = True
+                if (old_avail or None) != normalized_avail:
+                    as_system_event = (
+                        f"가능시간: {as_availability_label(normalized_avail)}"
+                        if normalized_avail else "가능시간 초기화"
+                    )
+                value = normalized_avail  # 응답/접근로그 에코를 정규화 값으로
 
         if is_erp_order and field in ("as_received_date", "as_visit_date"):
             if _clear_as_pending_if_both_as_dates_empty(order, structured_data):

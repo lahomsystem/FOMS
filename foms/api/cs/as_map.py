@@ -12,20 +12,27 @@ from db import get_db
 from foms.services.common.map_generator import FOMSMapGenerator
 # 지오코딩 트리거 계보 공유(measurement와 동일 헬퍼 — 좌표 소스는 orders.lat/lng 단일)
 from foms.api.measurement.map import _enqueue_missing_measurement_geocodes
-from foms.services.map_snapshot import build_as_incomplete_map_query, build_measurement_snapshot
+from foms.services.map_snapshot import (
+    apply_as_map_display_fields,
+    build_as_incomplete_map_query,
+    build_measurement_snapshot,
+)
 
 AS_MAP_DEFAULT_TITLE = 'AS 미완료 지도'
 
 
 def _build_as_map_snapshot(db, *, search_query: str, manager_filter: str,
-                           bucket: str, limit: int, enqueue: bool):
+                           bucket: str, limit: int, enqueue: bool,
+                           avail_days: str = '', avail_time: str = ''):
     """AS 미완료 주문 조회 + 지오코딩 트리거 + snapshot 조립 (공용 내부 헬퍼).
 
     Returns:
-        (snapshot, truncated): canonical DTO와 limit 잘림 여부.
+        (snapshot, truncated, unknown_excluded): canonical DTO, limit 잘림 여부,
+        가능시간 필터로 제외된 미기입 건수(필터 미사용 시 0 — 묵시 누락 금지 고지용).
     """
     query = build_as_incomplete_map_query(
-        db, search_query, manager_filter, bucket=bucket, limit=limit
+        db, search_query, manager_filter, bucket=bucket,
+        avail_days=avail_days, avail_time=avail_time, limit=limit
     )
     orders = query.all()
     if enqueue:
@@ -34,23 +41,39 @@ def _build_as_map_snapshot(db, *, search_query: str, manager_filter: str,
     snapshot = build_measurement_snapshot(
         orders, manager_filter, use_manager_colors=False
     )
+    # v3: AS 정보 표면(버킷·방문일 D-day·내용 요약·유무상·접수일) 보강 — as 모드 전용.
+    apply_as_map_display_fields(snapshot, orders, db)
     truncated = len(orders) >= limit
-    return snapshot, truncated
+
+    # '가능' 필터가 켜졌을 때 미기입(availability 부재) 건수 — 초기엔 전건 미기입이라
+    # 필터 결과가 비면 "없다"가 아니라 "아직 안 적었다"임을 화면에 고지해야 한다.
+    unknown_excluded = 0
+    filtering = (avail_days or '').strip().lower() in ('weekday', 'weekend') or \
+        (avail_time or '').strip().lower() in ('am', 'pm', 'evening')
+    if filtering:
+        unknown_excluded = build_as_incomplete_map_query(
+            db, search_query, manager_filter, bucket=bucket,
+            avail_days='unknown', limit=limit
+        ).count()
+    return snapshot, truncated, unknown_excluded
 
 
 def as_map_data_response(*, search_query: str, manager_filter: str,
-                         bucket: str, limit: int, enqueue: bool = False):
+                         bucket: str, limit: int, enqueue: bool = False,
+                         avail_days: str = '', avail_time: str = ''):
     """JSON response for `/api/map_data` when `dashboard=as`.
 
     ``enqueue``면 좌표 없는 주문의 지오코딩을 트리거한다(카카오 클라 렌더 최초 로드용).
     """
     db = get_db()
-    snapshot, truncated = _build_as_map_snapshot(
+    snapshot, truncated, unknown_excluded = _build_as_map_snapshot(
         db, search_query=search_query, manager_filter=manager_filter,
         bucket=bucket, limit=limit, enqueue=enqueue,
+        avail_days=avail_days, avail_time=avail_time,
     )
     summary = dict(snapshot['summary'])
     summary['limit_truncated'] = truncated  # 묵시 잘림 금지 — 클라 배너 노출용
+    summary['availability_unknown_excluded'] = unknown_excluded
     return jsonify({
         'success': True,
         'orders': snapshot['orders'],
@@ -61,12 +84,14 @@ def as_map_data_response(*, search_query: str, manager_filter: str,
 
 
 def as_generate_map_response(*, search_query: str, manager_filter: str,
-                             bucket: str, limit: int, title: str):
+                             bucket: str, limit: int, title: str,
+                             avail_days: str = '', avail_time: str = ''):
     """JSON response for `/api/generate_map` when `dashboard=as` (folium 폴백)."""
     db = get_db()
-    snapshot, truncated = _build_as_map_snapshot(
+    snapshot, truncated, _unknown = _build_as_map_snapshot(
         db, search_query=search_query, manager_filter=manager_filter,
         bucket=bucket, limit=limit, enqueue=True,
+        avail_days=avail_days, avail_time=avail_time,
     )
     map_generator = FOMSMapGenerator()
     map_data = snapshot['markers']

@@ -18,7 +18,19 @@ __all__ = [
     "build_measurement_map_query",
     "build_measurement_snapshot",
     "build_as_incomplete_map_query",
+    "apply_as_map_display_fields",
 ]
+
+# AS 탭 요약 pill 라벨과 동일(as_dashboard_body.html) — 지도 카드/팝업 배지 표기 SSOT.
+AS_MAP_BUCKET_LABELS = {
+    'visit_confirmed': '방문 확정',
+    'pending': '미결',
+    'unassigned': '아직 미정',
+    'paid_unconfirmed': '유상 미확정',
+}
+# 카드 배지는 1개만 표기 — 유상 미확정(방문 협의 전 선결 판정)이 최우선,
+# 나머지 3키는 미완료 모집단을 상호배타로 3분할하므로 순서 무관하나 방어적으로 명시.
+_AS_MAP_BUCKET_PRECEDENCE = ('paid_unconfirmed', 'pending', 'visit_confirmed', 'unassigned')
 
 
 def _measurement_date_variants(yyyy_mm_dd):
@@ -162,7 +174,8 @@ def build_measurement_map_query(db, date, q, manager, dashboard, limit=500):
     return query
 
 
-def build_as_incomplete_map_query(db, q, manager, bucket=None, limit=500):
+def build_as_incomplete_map_query(db, q, manager, bucket=None, avail_days=None,
+                                  avail_time=None, limit=500):
     """AS 미완료 지도 주문 쿼리 — AS 탭 미완료 판정 SSOT를 그대로 공유한다.
 
     탭(`/erp/as?tab=incomplete`)과 1:1 일치가 목표: 날짜 필터 없음(미완료 전체),
@@ -173,11 +186,18 @@ def build_as_incomplete_map_query(db, q, manager, bucket=None, limit=500):
         q: 검색어
         manager: 담당자 필터 (부분 일치)
         bucket: 미완료 하위 버킷 키 (``AS_INCOMPLETE_BUCKET_KEYS`` 외 값은 무시)
+        avail_days: 가능 요일 필터 — 'weekday'/'weekend'(무관 any 포함) 또는
+            'unknown'(미기입만). 그 외 값은 무시.
+        avail_time: 가능 시간대 필터 — 'am'/'pm'/'evening'(무관 any 포함). 그 외 무시.
         limit: 최대 주문 수
 
     Returns:
         SQLAlchemy query (아직 .all() 호출 전)
     """
+    from foms.services.as_dashboard_helpers import (
+        _as_availability_days_expr,
+        _as_availability_time_expr,
+    )
     from foms.services.as_dashboard_read_model import (
         build_as_incomplete_bucket_conditions,
         build_as_tab_query_conditions,
@@ -208,7 +228,167 @@ def build_as_incomplete_map_query(db, q, manager, bucket=None, limit=500):
     if bucket_key in buckets:
         query = query.filter(buckets[bucket_key])
 
+    # 가능시간 필터 — '가능' 필터는 명시적 무관(any)을 포함하되 미기입('')은 제외
+    # (미기입 제외 건수 고지는 호출자 몫 — services/orders/as_availability.py 참조)
+    days_key = (avail_days or '').strip().lower()
+    if days_key in ('weekday', 'weekend'):
+        query = query.filter(
+            _as_availability_days_expr(dialect_name=dialect_name).in_((days_key, 'any')))
+    elif days_key == 'unknown':
+        query = query.filter(_as_availability_days_expr(dialect_name=dialect_name) == '')
+    time_key = (avail_time or '').strip().lower()
+    if time_key in ('am', 'pm', 'evening'):
+        query = query.filter(
+            _as_availability_time_expr(dialect_name=dialect_name).in_((time_key, 'any')))
+
     return query.order_by(Order.id.desc()).limit(limit)
+
+
+def _load_as_bucket_id_sets(db, order_ids):
+    """4버킷 조건별 주문 id 집합 배치 조회 (버킷당 1쿼리 = 총 4쿼리, N+1 금지).
+
+    AS 탭 pill과 같은 조건(build_as_incomplete_bucket_conditions SSOT)으로 판정한다.
+
+    Args:
+        db: DB 세션.
+        order_ids: 판정 대상 주문 id 리스트(스냅샷에 실린 행들).
+
+    Returns:
+        {bucket_key: set[int]} — 키는 AS_MAP_BUCKET_LABELS와 동일.
+    """
+    from foms.services.as_dashboard_read_model import (
+        build_as_incomplete_bucket_conditions,
+        build_as_tab_query_conditions,
+    )
+
+    if not order_ids:
+        return {}
+    dialect_name = ''
+    try:
+        bind = db.get_bind()
+        dialect_name = getattr(getattr(bind, 'dialect', None), 'name', '') or ''
+    except Exception:
+        dialect_name = ''
+    conditions = build_as_tab_query_conditions(dialect_name=dialect_name)
+    buckets = build_as_incomplete_bucket_conditions(
+        incomplete_non_sales_condition=conditions['incomplete_non_sales_condition'],
+        as_pending_true=conditions['as_pending_true'],
+        as_visit_date_present=conditions['as_visit_date_present'],
+        paid_unconfirmed_condition=conditions['paid_unconfirmed_condition'],
+    )
+    return {
+        key: {row[0] for row in db.query(Order.id).filter(Order.id.in_(order_ids), cond).all()}
+        for key, cond in buckets.items()
+    }
+
+
+def _truncate_preview(text):
+    """개행을 공백으로 접고 60자 초과 시 말줄임."""
+    text = str(text or '').replace('\n', ' ').strip()
+    if len(text) > 60:
+        return text[:60].rstrip() + '…'
+    return text
+
+
+def _as_content_preview(shipment):
+    """AS 내용 HTML → 60자 plain text 요약.
+
+    Args:
+        shipment: structured_data['shipment'] dict(비 dict 허용).
+
+    Returns:
+        요약 문자열. 내용 없으면 빈 문자열.
+    """
+    from foms.services.as_content_safety import as_content_html_to_text
+
+    raw = (shipment or {}).get('as_content') if isinstance(shipment, dict) else None
+    return _truncate_preview(as_content_html_to_text(raw))
+
+
+def _as_recent_log_preview(sd):
+    """as_log 최신 기록 1건 → 60자 요약 (AS 대시보드 cell_recent_text와 동일 소스).
+
+    접수 앵커·legacy 항목은 제외(as_content_preview가 담당) — 기록이 없으면 빈 문자열.
+
+    Args:
+        sd: 주문 structured_data dict.
+
+    Returns:
+        최신 기록 텍스트 요약 또는 ''.
+    """
+    from foms.services.as_content_safety import as_content_html_to_text
+    from foms.services.orders.as_log import build_as_timeline_view
+
+    # system 자동 기록(가능시간·방문일 확정 등)은 제외 — 지도 카드/팝업의 전용 행과
+    # 중복되는 노이즈(스테이징 실증: 최근 기록 행 == 가능시간 행). 사람 기록만 추종.
+    view = build_as_timeline_view(sd, recent_limit=8)
+    recent = next((e for e in view['stream'] if e.get('type') != 'system'), None)
+    if not recent:
+        return ''
+    # as_log 항목 text는 저장 시점에 이미 sanitize 통과(as_dashboard_display._timeline_cell_text 동형)
+    return _truncate_preview(as_content_html_to_text(recent.get('text'), already_sanitized=True))
+
+
+def apply_as_map_display_fields(snapshot, orders, db):
+    """AS 지도 스냅샷의 orders/markers에 AS 표시 필드를 in-place 보강한다.
+
+    measurement 지도 페이로드는 이 함수를 타지 않는다(as 모드 전용 — 호출자는
+    foms/api/cs/as_map.py 한 곳). 클라이언트 as 분기 판정은 `as_bucket` 존재 여부.
+
+    Args:
+        snapshot: build_measurement_snapshot 결과 dict(orders/markers/summary).
+        orders: 스냅샷 조립에 쓴 Order 객체 리스트(structured_data 원본 접근용).
+        db: DB 세션(버킷 id-set 배치 조회용).
+
+    Returns:
+        None (snapshot 행 dict들을 직접 수정).
+    """
+    from foms.services.as_dashboard_display import (
+        _as_visit_dday,
+        as_billing_badge_kind,
+        as_billing_state_text,
+    )
+    from foms.services.erp_display import get_today_kst
+    from foms.services.orders.as_schedule_link import read_as_visit_date
+
+    order_map = {o.id: o for o in orders}
+    bucket_id_sets = _load_as_bucket_id_sets(db, list(order_map.keys()))
+    today = get_today_kst()
+
+    # 주문당 1회 계산(orders/markers에 같은 주문이 중복 등장 — 타임라인 파싱 이중 지불 방지)
+    per_order = {}
+    for oid, order in order_map.items():
+        sd = getattr(order, 'structured_data', None)
+        sd = sd if isinstance(sd, dict) else {}
+        shipment = sd.get('shipment') if isinstance(sd.get('shipment'), dict) else {}
+        bucket = next(
+            (k for k in _AS_MAP_BUCKET_PRECEDENCE if oid in bucket_id_sets.get(k, ())),
+            'unassigned',
+        )
+        visit_date = read_as_visit_date(sd)
+        billing = shipment.get('as_billing')
+        per_order[oid] = {
+            'as_bucket': bucket,
+            'as_bucket_label': AS_MAP_BUCKET_LABELS[bucket],
+            'as_visit_date': visit_date,
+            'as_visit_dday': _as_visit_dday(visit_date, today),
+            'as_content_preview': _as_content_preview(shipment),
+            'as_recent_log_preview': _as_recent_log_preview(sd),
+            'as_billing_badge': as_billing_badge_kind(billing),
+            'as_billing_text': as_billing_state_text(billing),
+            'as_received_date': _format_date(getattr(order, 'as_received_date', None)),
+        }
+
+    empty = {
+        'as_bucket': 'unassigned',
+        'as_bucket_label': AS_MAP_BUCKET_LABELS['unassigned'],
+        'as_visit_date': None, 'as_visit_dday': None,
+        'as_content_preview': '', 'as_recent_log_preview': '',
+        'as_billing_badge': None, 'as_billing_text': as_billing_state_text(None),
+        'as_received_date': None,
+    }
+    for item in list(snapshot['orders']) + list(snapshot['markers']):
+        item.update(per_order.get(item['id'], empty))
 
 
 def _extract_order_display_fields(order):
@@ -445,6 +625,8 @@ def build_measurement_snapshot(orders, manager_filter=None, measurement_manager_
     else:
         manager_color_map = {}
 
+    from foms.services.orders.as_availability import as_availability_label, get_as_availability
+
     for item in prepared_orders:
         order = item['order']
         ctx = item['ctx']
@@ -455,6 +637,9 @@ def build_measurement_snapshot(orders, manager_filter=None, measurement_manager_
             ctx['manager_name'],
             manager_color_map,
         )
+        # AS 방문 가능시간(있을 때만 값) — AS 지도 필터·팝업용, 타 대시보드에선 None
+        avail = get_as_availability(getattr(order, 'structured_data', None))
+        avail_label = as_availability_label(avail)
 
         orders_list.append({
             'id': order.id,
@@ -476,6 +661,8 @@ def build_measurement_snapshot(orders, manager_filter=None, measurement_manager_
             'manager_bg_color': manager_color['background'],
             'manager_bg_source': manager_color['source'],
             'manager_text_color': manager_color['text'],
+            'as_availability': avail,
+            'as_availability_label': avail_label,
         })
 
         if lat is not None and lng is not None:
@@ -494,6 +681,8 @@ def build_measurement_snapshot(orders, manager_filter=None, measurement_manager_
                 'manager_bg_color': manager_color['background'],
                 'manager_bg_source': manager_color['source'],
                 'manager_text_color': manager_color['text'],
+                'as_availability': avail,
+                'as_availability_label': avail_label,
             })
 
     # 동일 주소/좌표 메타데이터만 부여하고, 실제 집계/분리 UX는 클라이언트 줌 상태에서 제어한다.

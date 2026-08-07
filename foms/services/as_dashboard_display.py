@@ -13,6 +13,7 @@ from foms.services.erp_display import (
     get_today_kst,
 )
 from foms.services.as_content_safety import as_content_html_to_text, sanitize_as_content_html
+from foms.services.orders.as_availability import as_availability_label
 from foms.services.orders.as_log import build_as_timeline_view
 from foms.services.orders.as_schedule_link import (
     evaluate_drift,
@@ -609,6 +610,10 @@ def apply_as_dashboard_row_display_fields(rows, db, *, mobile_v2_active):
         _schedule = r.structured_data.get("schedule") or {}
         _as_visit_meta = (_schedule.get("as_visit") or {}) if isinstance(_schedule, dict) else {}
         r.as_visit_time = str(_as_visit_meta.get("time") or "").strip()
+        # 방문 가능시간(평일/주말·시간대) — SSOT: services/orders/as_availability.py
+        _avail = _as_visit_meta.get("availability")
+        r.as_availability = _avail if isinstance(_avail, dict) and _avail else None
+        r.as_availability_label = as_availability_label(r.as_availability)
         _cmp = compare_photos.get(r.id) or {"before": [], "after": []}
         r.as_before_photos = _cmp["before"]
         r.as_after_photos = _cmp["after"]

@@ -283,11 +283,15 @@ _AS_LOG_WRITE_CALL_SITES = {
     # T14 시스템 이벤트. 본문은 사용자 입력 조립본이라 append_system_log 가 생성 지점에서
     # escape + AS_LOG_TEXT_MAX 절단한다(별도 sanitize 불필요).
     ("foms/api/cs/as_orders.py", "append_system_log"),  # register·schedule·billing·complete
+    # T15c 회차 판정 전용 경로 — 사유는 라우트가 sanitize 후 전달, 값 검증은 서비스 소유.
+    ("foms/api/cs/as_orders.py", "append_verdict_log"),
     ("foms/api/orders/field_update.py", "append_system_log"),  # 방문일·완료일 정본 쓰기 경로
     ("foms/services/orders/as_cycle_service.py", "append_system_log"),  # LEGACY_BRIDGE 전환 기록(서버 고정 리터럴)
-    ("foms/services/orders/as_log.py", "build_as_log_entry"),  # append_client_log/append_system_log 내부
+    ("foms/services/orders/as_log.py", "build_as_log_entry"),  # append_client/system/verdict_log 내부
     ("foms/services/orders/as_log.py", "_legacy_entries_from_content"),  # migrate/lazy legacy
-    ("foms/services/orders/as_log.py", 'as_log"].append'),  # 원시 append = 정본 생성지점 2곳뿐
+    # 회차 차트 lazy legacy(읽기 전용·비파괴) — 쓰기가 아니라 표시 시점 변환이다.
+    ("foms/services/orders/as_round_chart.py", "_legacy_entries_from_content"),
+    ("foms/services/orders/as_log.py", 'as_log"].append'),  # 원시 append = 정본 생성지점 3곳뿐(client/system/verdict)
 }
 
 
@@ -298,7 +302,7 @@ def test_as_log_write_call_sites_are_the_known_set():
 
     root = Path(__file__).resolve().parents[2]
     pattern = re.compile(
-        r"(?<!def )\b(append_client_log|append_system_log|build_as_log_entry"
+        r"(?<!def )\b(append_client_log|append_system_log|append_verdict_log|build_as_log_entry"
         r"|_legacy_entries_from_content"
         r"|as_log[\"']\]\s*\.append)\s*\("  # 헬퍼 우회 원시 append 도 red
     )

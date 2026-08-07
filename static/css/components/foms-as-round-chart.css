@@ -1,0 +1,330 @@
+/* AS 회차 차트(ver7) 공용 컴포넌트 — AS 대시보드 타임라인 대체 + 지도 카드 인라인 확장 공유(SSOT).
+   render_as_round_chart (templates/cs/partials/as_round_chart.html) 가 그리는
+   .as-rchart* 마크업의 코어 스타일. 유형 칩(.as-tl-chip*)·수정/삭제 버튼·비고 블록은
+   foms-as-timeline.css 의 기존 규칙을 그대로 소비한다(중복 정의 금지).
+   색·간격 기준: tmp_t15_mockup_v7.html(2026-08-06 사용자 확정) → erp-pro 톤으로 정합. */
+
+.as-rchart {
+  background: #fff;
+  border: 1px solid #e2e8f0;
+  border-radius: 10px;
+  overflow: hidden;
+  font-size: 0.86rem;
+}
+
+.as-rchart-head {
+  display: flex;
+  align-items: center;
+  justify-content: flex-end;
+  gap: 6px;
+  padding: 8px 12px;
+  background: #f8fafc;
+  border-bottom: 1px solid #eef2f7;
+}
+
+.as-rchart-head__round {
+  margin-right: auto;
+  font-weight: 800;
+  color: #475569;
+}
+
+/* [A] 상태 카드 — 3필드 그리드, summary 클릭 = 이력 details 토글 */
+.as-rchart-state {
+  display: grid;
+  grid-template-columns: repeat(3, 1fr);
+  border-bottom: 1px solid #eef2f7;
+}
+
+.as-rchart-field {
+  border-right: 1px solid #f1f5f9;
+  min-width: 0;
+}
+
+.as-rchart-field:last-child { border-right: none; }
+
+/* 기타 이력(4번째 details)은 아래 줄 전체 폭 */
+.as-rchart-field--etc { grid-column: 1 / -1; border-top: 1px dashed #eef2f7; }
+
+.as-rchart-field > summary {
+  list-style: none;
+  cursor: pointer;
+  padding: 8px 12px;
+}
+
+.as-rchart-field > summary::-webkit-details-marker { display: none; }
+
+.as-rchart-field > summary:hover { background: #f8fafc; }
+
+.as-rchart-field__k {
+  display: block;
+  font-size: 0.72rem;
+  font-weight: 700;
+  color: #94a3b8;
+}
+
+.as-rchart-field__v {
+  display: block;
+  font-weight: 800;
+  color: #1f2937;
+  white-space: nowrap;
+  overflow: hidden;
+  text-overflow: ellipsis;
+}
+
+.as-rchart-field__v--overdue { color: #dc2626; }
+
+.as-rchart-field__m {
+  display: block;
+  font-size: 0.74rem;
+  color: #64748b;
+  white-space: nowrap;
+  overflow: hidden;
+  text-overflow: ellipsis;
+}
+
+.as-rchart-hist {
+  background: #f8fafc;
+  border-top: 1px dashed #e2e8f0;
+  padding: 6px 12px;
+  font-size: 0.78rem;
+  color: #64748b;
+}
+
+.as-rchart-hist__ts { color: #94a3b8; margin-right: 6px; }
+
+.as-rchart-hist__line { padding: 1px 0; }
+
+.as-rchart-hist__empty { color: #cbd5e1; }
+
+/* 증상 요약 줄 — 전화 응대 즉답용 상단 고정 */
+.as-rchart-symptom {
+  padding: 6px 12px;
+  background: #fbfdff;
+  border-bottom: 1px solid #eef2f7;
+  font-size: 0.8rem;
+  color: #64748b;
+}
+
+/* [B] 회차 아코디언 */
+.as-rchart-round--open {
+  background: #fffdf5;
+  border-left: 4px solid #facc15;
+  border-bottom: 1px solid #eef2f7;
+}
+
+.as-rchart-round__head {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  padding: 8px 12px;
+  min-width: 0;
+}
+
+.as-rchart-round--closed > .as-rchart-round__head {
+  list-style: none;
+  cursor: pointer;
+  color: #64748b;
+  border-bottom: 1px solid #eef2f7;
+}
+
+.as-rchart-round--closed > .as-rchart-round__head::-webkit-details-marker { display: none; }
+
+.as-rchart-round--closed > .as-rchart-round__head:hover { background: #f8fafc; }
+
+.as-rchart-round__num {
+  background: #e2e8f0;
+  color: #475569;
+  font-weight: 800;
+  font-size: 0.74rem;
+  border-radius: 6px;
+  padding: 2px 8px;
+  white-space: nowrap;
+}
+
+.as-rchart-round__num--on { background: #facc15; color: #713f12; }
+
+.as-rchart-round__next {
+  font-size: 0.78rem;
+  color: #a16207;
+  font-weight: 700;
+}
+
+.as-rchart-round__summary {
+  font-size: 0.8rem;
+  min-width: 0;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+
+.as-rchart-verdict-flag {
+  font-size: 0.74rem;
+  font-weight: 800;
+  border-radius: 6px;
+  padding: 1px 7px;
+  white-space: nowrap;
+}
+
+.as-rchart-verdict-flag--unresolved { background: #fee2e2; color: #b91c1c; }
+
+.as-rchart-verdict-flag--resolved { background: #dcfce7; color: #15803d; }
+
+/* 슬롯 칩 — done/next/wait */
+.as-rchart-slots {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 5px;
+  padding: 0 12px 8px;
+}
+
+.as-rchart-slot {
+  font-size: 0.76rem;
+  font-weight: 700;
+  border: 1px solid #e2e8f0;
+  border-radius: 7px;
+  padding: 2px 9px;
+  background: #f8fafc;
+  color: #94a3b8;
+}
+
+.as-rchart-slot--done { background: #f0fdf4; border-color: #bbf7d0; color: #15803d; }
+
+.as-rchart-slot--next {
+  background: #fef9c3;
+  border-color: #fde047;
+  color: #a16207;
+  box-shadow: 0 0 0 2px rgba(250, 204, 21, 0.25);
+}
+
+/* 기록 밀도 행 — .as-tl-item 계약 클래스를 겸해 기존 수정/삭제 위임을 받는다 */
+.as-rchart-rows { padding: 2px 0 6px; }
+
+.as-rchart-rows__empty, .as-rchart-empty { padding: 8px 12px; }
+
+.as-rchart-row {
+  display: grid;
+  grid-template-columns: 92px 64px 1fr auto;
+  gap: 6px;
+  align-items: start;
+  /* 우측 여백을 좌측보다 크게 — 마지막 열(수정/삭제 버튼)이 컨테이너 가장자리에
+     붙는 구조라, 환경별 몇 px 기하 오차(줌·OS 배율·셸 래퍼)의 첫 희생자가 휴지통
+     아이콘이었다(T15f 실사용 잘림 보고 2회). 끝단에서 한 발 안쪽으로 고정한다. */
+  padding: 5px 24px 5px 12px;
+  border-top: 1px solid #f6f8fa;
+  background: #fff;
+}
+
+.as-rchart-row:hover { background: #f8fafc; }
+
+.as-rchart-row__date {
+  font-size: 0.76rem;
+  color: #94a3b8;
+  white-space: nowrap;
+}
+
+.as-rchart-row__text { min-width: 0; }
+
+.as-rchart-row__text .as-tl-item__body { display: inline; }
+
+.as-rchart-row__by {
+  font-size: 0.78rem;
+  color: #64748b;
+  white-space: nowrap;
+  display: inline-flex;
+  align-items: center;
+  gap: 2px;
+}
+
+/* 긴 표시명(측정 계정 등)이 행 폭을 밀어 우측 버튼이 잘리는 것 방어 — 이름만 말줄임 */
+.as-rchart-row__name {
+  max-width: 6.5rem;
+  overflow: hidden;
+  text-overflow: ellipsis;
+}
+
+/* 상태 카드 가능시간 편집 칩 — 목록 칩(erp-as-avail-chip 컨텍스트 스타일)과 달리
+   카드 라벨 옆 소형 배치만 여기서 잡는다(팝오버 스타일은 기존 SSOT 그대로). */
+.as-rchart-avail-edit {
+  margin-left: 6px;
+  font-size: 0.7rem;
+  vertical-align: middle;
+}
+
+/* 접수 원문(맨 아래 고정) — 시간상 시작점. legacy 는 더 옅게 */
+.as-rchart-reception {
+  background: #f0f9ff;
+  border-top: 1px solid #e0f2fe;
+  padding: 4px 0;
+}
+
+.as-rchart-reception__label {
+  display: block;
+  padding: 4px 12px 0;
+  font-size: 0.74rem;
+  font-weight: 800;
+  color: #075985;
+}
+
+.as-rchart-reception--legacy { background: #f8fafc; border-top-color: #e2e8f0; }
+
+.as-rchart-reception--legacy .as-rchart-reception__label { color: #94a3b8; }
+
+.as-rchart-reception .as-rchart-row { background: transparent; border-top: none; }
+
+/* [C] 입력 도크 — 세그먼트 + 텍스트 + 판정 */
+.as-rchart-dock {
+  border-top: 1px solid #e2e8f0;
+  background: #f8fafc;
+  padding: 10px 12px;
+}
+
+.as-rchart-seg {
+  display: inline-flex;
+  border: 1px solid #cbd5e1;
+  border-radius: 8px;
+  overflow: hidden;
+  margin-bottom: 8px;
+  background: #fff;
+}
+
+.as-rchart-seg__btn {
+  border: none;
+  background: #fff;
+  padding: 5px 14px;
+  font-size: 0.82rem;
+  font-weight: 700;
+  color: #64748b;
+  cursor: pointer;
+  border-right: 1px solid #e2e8f0;
+}
+
+.as-rchart-seg__btn:last-child { border-right: none; }
+
+.as-rchart-seg__btn.is-on { background: #1d4ed8; color: #fff; }
+
+/* 유형 select 는 값 SSOT 로만 존재(세그먼트가 세팅) — 시각적으로 숨김.
+   display:none 을 쓰지 않는 이유: 일부 브라우저가 숨김 폼 컨트롤 값을 직렬화에서
+   제외하지는 않지만, 접근성 트리에서 세그먼트(role=group)와 이중 노출되는 것을 막는다. */
+.as-rchart-type-hidden {
+  position: absolute;
+  width: 1px;
+  height: 1px;
+  overflow: hidden;
+  clip: rect(0 0 0 0);
+}
+
+.as-rchart-dock__actions {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  margin-top: 8px;
+  flex-wrap: wrap;
+}
+
+.as-rchart-verdict-prompt {
+  display: inline-flex;
+  align-items: center;
+  gap: 6px;
+  font-size: 0.8rem;
+  color: #64748b;
+}

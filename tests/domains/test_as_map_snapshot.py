@@ -5,8 +5,10 @@
 - 버킷 필터는 탭 요약 pill과 동일 조건(build_as_incomplete_bucket_conditions)
 """
 
+import datetime
+
 from db import db_session
-from models import Order
+from models import Order, OrderScheduleDate
 from foms.services.map_snapshot import build_as_incomplete_map_query
 
 
@@ -120,6 +122,50 @@ def test_as_dashboard_open_map_redirects_to_as_map(client, login):
     assert 'bucket=' not in response.headers['Location']
 
 
+def test_as_map_query_availability_filters(app):
+    weekend_pm = _make_as_order(
+        '주말오후', schedule={'as_visit': {'availability': {'days': 'weekend', 'time': 'pm'}}})
+    weekday_am = _make_as_order(
+        '평일오전', schedule={'as_visit': {'availability': {'days': 'weekday', 'time': 'am'}}})
+    any_any = _make_as_order(
+        '무관메모', schedule={'as_visit': {'availability': {'days': 'any', 'time': 'any', 'note': '3시 이후'}}})
+    unknown = _make_as_order('미기입')
+    db_session.commit()
+
+    def ids(**kw):
+        return {r.id for r in build_as_incomplete_map_query(db_session, '', '', **kw).all()}
+
+    # '가능' 필터 = 명시적 무관(any) 포함, 미기입 제외
+    assert ids(avail_days='weekend') == {weekend_pm.id, any_any.id}
+    assert ids(avail_days='weekday') == {weekday_am.id, any_any.id}
+    assert ids(avail_days='unknown') == {unknown.id}
+    assert ids(avail_time='pm') == {weekend_pm.id, any_any.id}
+    assert ids(avail_time='am') == {weekday_am.id, any_any.id}
+    # 무효 값은 무시(전체)
+    assert ids(avail_days='fri') == {weekend_pm.id, weekday_am.id, any_any.id, unknown.id}
+
+
+def test_as_map_api_reports_unknown_excluded(client, login):
+    _make_as_order(
+        '주말가능', lat=37.5, lng=127.0,
+        schedule={'as_visit': {'availability': {'days': 'weekend', 'time': 'any'}}})
+    _make_as_order('미기입1')
+    _make_as_order('미기입2')
+    db_session.commit()
+
+    response = login.get('/api/map_data?dashboard=as&avail_days=weekend')
+    assert response.status_code == 200
+    payload = response.get_json()
+    assert payload['success'] is True
+    assert payload['summary']['availability_unknown_excluded'] == 2
+    labels = {o['customer_name']: o['as_availability_label'] for o in payload['orders']}
+    assert labels == {'주말가능': '주말·시간무관'}
+
+    # 필터 미사용 시 고지 0
+    response = login.get('/api/map_data?dashboard=as')
+    assert response.get_json()['summary']['availability_unknown_excluded'] == 0
+
+
 def test_map_view_renders_with_as_dashboard_param(client, login):
     response = login.get('/map_view?dashboard=as')
     assert response.status_code == 200
@@ -148,3 +194,118 @@ def test_as_map_api_returns_incomplete_orders(client, login):
     # (markerTheme는 'palette'일 때만 담당자색을 쓴다)
     marker = next(m for m in payload['markers'] if m['id'] == with_coords.id)
     assert marker['manager_bg_source'] != 'palette'
+
+
+def test_as_map_payload_as_fields_contract(client, login):
+    """v3 F1: as 모드 orders/markers에 AS 표시 필드 계약(버킷·방문일 D-day·요약·유무상·접수일)."""
+    from foms.services.erp_display import get_today_kst
+
+    today = get_today_kst()
+    future = (today + datetime.timedelta(days=2)).isoformat()
+    past = (today - datetime.timedelta(days=3)).isoformat()
+    long_content = '<div>증상 첫 줄</div><div>' + ('가' * 70) + '</div>'
+
+    confirmed = _make_as_order(
+        '방문확정건', lat=37.501, lng=127.039,
+        schedule={'as_visit': {'date': future}},
+        shipment_extra={
+            'as_content': long_content,
+            'as_billing': {'type': 'paid', 'confirmed': True, 'amount': 150000},
+            'as_log': [
+                {'id': 'al_1', 'ts': '2026-08-01T00:00:00', 'type': 'reception',
+                 'text': '접수 앵커', 'by': 'tester', 'by_id': None},
+                {'id': 'al_2', 'ts': '2026-08-02T00:00:00', 'type': 'material',
+                 'text': '18T 상부 선반 - 1ea', 'by': 'tester', 'by_id': None},
+                {'id': 'al_3', 'ts': '2026-08-03T00:00:00', 'type': 'memo',
+                 'text': '최신 방문 협의 메모', 'by': 'tester', 'by_id': None},
+                {'id': 'al_4', 'ts': '2026-08-04T00:00:00', 'type': 'system',
+                 'text': '가능시간: 주말·시간무관', 'by': '시스템', 'by_id': None},
+            ],
+        },
+    )
+    _make_as_order('미결건', shipment_extra={'as_pending': True})
+    _make_as_order('아직미정건')
+    _make_as_order(
+        '유상미확정방문건',
+        schedule={'as_visit': {'date': past}},
+        shipment_extra={'as_billing': {'type': 'paid', 'confirmed': False}},
+    )
+    db_session.commit()
+
+    response = login.get('/api/map_data?dashboard=as')
+    assert response.status_code == 200
+    payload = response.get_json()
+    rows = {o['customer_name']: o for o in payload['orders']}
+
+    row = rows['방문확정건']
+    assert row['as_bucket'] == 'visit_confirmed'
+    assert row['as_bucket_label'] == '방문 확정'
+    assert row['as_visit_date'] == future
+    assert row['as_visit_dday'] == 2
+    assert row['as_content_preview'].startswith('증상 첫 줄 가')
+    assert row['as_content_preview'].endswith('…')
+    assert len(row['as_content_preview']) <= 61  # 60자 절단 + 말줄임
+    assert row['as_billing_badge'] == 'paid'
+    assert row['as_billing_text'] == '유상 확정 · 150,000원'
+    assert row['as_received_date'] == '2026-08-01'
+    # 최근 기록 = as_log 최신 1건(접수 앵커 제외) — 카드/팝업 '최근 기록' 행 소스
+    assert row['as_recent_log_preview'] == '최신 방문 협의 메모'
+
+    assert rows['미결건']['as_bucket'] == 'pending'
+    assert rows['미결건']['as_bucket_label'] == '미결'
+    assert rows['미결건']['as_visit_date'] is None
+    assert rows['미결건']['as_visit_dday'] is None
+    assert rows['미결건']['as_billing_badge'] is None  # 무상 추정 = 무배지
+    assert rows['미결건']['as_content_preview'] == ''
+    assert rows['미결건']['as_recent_log_preview'] == ''  # 기록 없으면 빈 값(행 미표시)
+
+    assert rows['아직미정건']['as_bucket'] == 'unassigned'
+    assert rows['아직미정건']['as_bucket_label'] == '아직 미정'
+
+    # 유상 미확정은 방문일 있어도 배지 우선(방문 협의 전 선결 판정) + 지난 방문일 음수 D-day
+    row = rows['유상미확정방문건']
+    assert row['as_bucket'] == 'paid_unconfirmed'
+    assert row['as_bucket_label'] == '유상 미확정'
+    assert row['as_visit_dday'] == -3
+    assert row['as_billing_badge'] == 'paid_unconfirmed'
+
+    # 팝업이 소비하는 markers에도 동일 계약(좌표 있는 건)
+    marker = next(m for m in payload['markers'] if m['id'] == confirmed.id)
+    assert marker['as_bucket'] == 'visit_confirmed'
+    assert marker['as_visit_dday'] == 2
+    assert marker['as_received_date'] == '2026-08-01'
+
+
+def test_measurement_map_payload_has_no_as_fields(client, login):
+    """v3 가드: measurement 지도 페이로드에 as 전용 키 유출 금지(클라 as 분기 판정 보호)."""
+    order = Order(
+        received_date='2026-03-31',
+        customer_name='실측무변경가드',
+        phone='010-9999-0000',
+        address='서울시 강남구 테헤란로 100',
+        product='붙박이장',
+        status='MEASURE',
+        manager_name='이시영',
+        measurement_date='2026-03-31',
+        lat=37.501,
+        lng=127.039,
+        geocode_status='success',
+    )
+    db_session.add(order)
+    db_session.flush()
+    db_session.add(OrderScheduleDate(
+        order_id=order.id, kind='measurement', date='2026-03-31', source='as_map_v3_guard'))
+    db_session.commit()
+
+    response = login.get('/api/map_data?dashboard=measurement&date=2026-03-31')
+    assert response.status_code == 200
+    payload = response.get_json()
+    as_only_keys = {
+        'as_bucket', 'as_bucket_label', 'as_visit_date', 'as_visit_dday',
+        'as_content_preview', 'as_recent_log_preview', 'as_billing_badge',
+        'as_billing_text', 'as_received_date',
+    }
+    row = next(o for o in payload['orders'] if o['id'] == order.id)
+    assert not (as_only_keys & set(row.keys()))
+    marker = next(m for m in payload['markers'] if m['id'] == order.id)
+    assert not (as_only_keys & set(marker.keys()))

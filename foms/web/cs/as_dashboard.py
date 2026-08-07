@@ -34,13 +34,10 @@ from foms.services.as_dashboard_read_model import (
     build_as_tab_count_context,
     build_as_tab_query_conditions,
 )
-from foms.services.orders.as_log import build_as_timeline_view
+from foms.services.orders.as_round_chart import build_as_round_chart_view
 
 
 erp_as_page_bp = Blueprint('erp_as_page', __name__, url_prefix='/erp')
-
-# 타임라인 '더보기'(?full=1) 스트림 상한. 무제한이면 append-only as_log가 fragment를 폭증시킨다.
-_TIMELINE_FULL_LIMIT = 200
 
 
 def _compact_search_text(value):
@@ -136,6 +133,9 @@ def erp_as_card_detail(order_id: int):
         abort(404)
     # 대시보드와 동일한 표시필드 보강(시공자·AS 내용 HTML·영업택배). 썸네일은 상세에 없어 게이트 off.
     apply_as_dashboard_row_display_fields([order], db, mobile_v2_active=False)
+    # T15c: 상세 타임라인 표면은 ver7 회차 차트로 교체 — 단건 lazy 라우트에서만 조립한다
+    # (목록 hot path 는 기존 as_timeline_view 셀 요약 그대로).
+    order.as_round_chart_view = build_as_round_chart_view(order.structured_data)
     current_user = getattr(g, 'current_user', None)
     return render_template(
         'cs/partials/as_card_detail_partial.html',
@@ -147,13 +147,17 @@ def erp_as_card_detail(order_id: int):
 @erp_as_page_bp.route('/as/timeline/<int:order_id>')
 @login_required
 def erp_as_timeline(order_id: int):
-    """AS PC 확장 행용 타임라인 fragment lazy 렌더(모바일 card-detail 패턴 복제).
+    """AS 확장용 회차 차트 fragment lazy 렌더(모바일 card-detail 패턴 복제).
+
+    ``?readonly=1`` 이면 편집 권한과 무관하게 읽기 전용으로 렌더한다 — 지도 카드
+    인라인 확장(T15d)은 열람 표면이라 quick-add·판정·수정 버튼을 내지 않는다
+    (쓰기 자체는 API 권한이 소유하므로 이 파라미터는 보안 경계가 아니라 UI 계약).
 
     Args:
         order_id: 대상 주문 PK.
 
     Returns:
-        타임라인 파셜 HTML(text/html). AS 상태가 아니거나 없으면 404.
+        회차 차트 파셜 HTML(text/html). AS 상태가 아니거나 없으면 404.
     """
     db = get_db()
     order = (
@@ -166,18 +170,15 @@ def erp_as_timeline(order_id: int):
     if order is None:
         abort(404)
     apply_as_dashboard_row_display_fields([order], db, mobile_v2_active=False)
-    # 더보기(full=1)면 스트림 상한을 올려 뷰 재구성(display 기본 recent_limit=8을 덮어씀).
-    # 무제한이 아니라 200 캡 — as_log는 append-only + 항목당 10,000자라 상한이 없으면
-    # 오래된 주문 하나가 수 MB fragment가 된다. 200 초과 페이징은 T10 소관.
-    if request.args.get('full') == '1':
-        order.as_timeline_view = build_as_timeline_view(
-            order.structured_data, recent_limit=_TIMELINE_FULL_LIMIT
-        )
+    # T15c: PC 확장 표면 = ver7 회차 차트. 구 '더보기'(?full=1)는 표면과 함께 퇴역 —
+    # 차트는 회차별 전량을 내되 회차당 상한(_ROUND_ENTRY_LIMIT)이 fragment 폭증을 막는다.
+    order.as_round_chart_view = build_as_round_chart_view(order.structured_data)
     current_user = getattr(g, 'current_user', None)
+    readonly = request.args.get('readonly') == '1'
     return render_template(
         'cs/partials/as_timeline_partial.html',
         r=order,
-        can_edit_erp=can_edit_erp(current_user),
+        can_edit_erp=False if readonly else can_edit_erp(current_user),
     )
 
 

@@ -140,6 +140,7 @@ def test_namespaced_map_snapshot_shim_preserves_canonical_functions() -> None:
         "build_measurement_map_query",
         "build_measurement_snapshot",
         "build_as_incomplete_map_query",
+        "apply_as_map_display_fields",
     ]
 
 

@@ -398,7 +398,11 @@ def _record_structured_events(
     old_sd: dict,
     structured_data: dict,
 ) -> None:
-    """긴급/일정/오너팀 변경 이벤트 기록."""
+    """긴급/실측일/오너팀 변경 이벤트 기록.
+
+    시공일(``CONSTRUCTION_DATE_CHANGED``)은 제외 — ``order_date_sync`` before_flush 훅이
+    SSOT 다.
+    """
     try:
         new_urgent = bool((structured_data.get('flags') or {}).get('urgent'))
         old_urgent = bool((old_sd.get('flags') or {}).get('urgent'))
@@ -423,18 +427,9 @@ def _record_structured_events(
             ))
     except Exception as e:
         logger.warning("MEASUREMENT_DATE_CHANGED event record failed: %s", e, exc_info=True)
-    try:
-        new_cons = ((structured_data.get('schedule') or {}).get('construction') or {}).get('date')
-        old_cons = ((old_sd.get('schedule') or {}).get('construction') or {}).get('date')
-        if new_cons != old_cons:
-            db.add(OrderEvent(
-                order_id=order.id,
-                event_type='CONSTRUCTION_DATE_CHANGED',
-                payload={'from': old_cons, 'to': new_cons},
-                created_by_user_id=session.get('user_id')
-            ))
-    except Exception as e:
-        logger.warning("CONSTRUCTION_DATE_CHANGED event record failed: %s", e, exc_info=True)
+    # CONSTRUCTION_DATE_CHANGED 는 여기서 남기지 않는다 — 시공일 이벤트 SSOT 는
+    # foms/services/order_date_sync.py 의 전역 before_flush 훅이다(모든 쓰기 경로가
+    # 통과하는 유일 지점). 여기서도 add 하면 같은 변경이 2건으로 기록된다.
     try:
         new_team = (structured_data.get('assignments') or {}).get('owner_team')
         old_team = (old_sd.get('assignments') or {}).get('owner_team')

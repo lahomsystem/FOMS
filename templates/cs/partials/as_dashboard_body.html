@@ -3,8 +3,9 @@
 
 {# AS 타임라인 공용 컴포넌트(SSOT) — 컨텍스트 오버라이드(as-dashboard-body.css)보다 먼저 로드해
    캐스케이드 순서를 지킨다(컴포넌트 → 컨텍스트 오버라이드). #}
-<link rel="stylesheet" href="{{ url_for('static', filename='css/components/foms-as-timeline.css') }}?v=20260730c">
-<link rel="stylesheet" href="{{ url_for('static', filename='css/contexts/cs/as-dashboard-body.css') }}?v=20260730f">
+<link rel="stylesheet" href="{{ url_for('static', filename='css/components/foms-as-timeline.css') }}?v=20260806a">
+<link rel="stylesheet" href="{{ url_for('static', filename='css/components/foms-as-round-chart.css') }}?v=20260806c">
+<link rel="stylesheet" href="{{ url_for('static', filename='css/contexts/cs/as-dashboard-body.css') }}?v=20260806c">
 {# 카드 CSS는 body 파셜에 둔다 → fast-tab 프래그먼트 스왑(as_dashboard_fragment.html)에도
    함께 실려, 탭 이동 첫 진입에서 카드가 원시(미스타일)로 뜨는 FOUC를 막는다.
    (head_extra 전용이면 전체 새로고침 전까지 카드 CSS가 누락된다) #}
@@ -257,6 +258,15 @@
                     data-order-id="{{ r.id }}" data-field="as_visit_date" style="width: 100%;">
                 </div>
                 {{ render_as_schedule_drift_badge(r.schedule_link_drift, r.id) }}
+                {# 방문 가능시간 칩 — 클릭=팝오버 편집(as-dashboard.js 위임) #}
+                <button type="button" class="erp-as-avail-chip{% if r.as_availability %} erp-as-avail-chip--set{% endif %}"
+                  data-order-id="{{ r.id }}"
+                  data-avail-days="{{ r.as_availability.days if r.as_availability else '' }}"
+                  data-avail-time="{{ r.as_availability.time if r.as_availability else '' }}"
+                  data-avail-note="{{ r.as_availability.note if r.as_availability and r.as_availability.note else '' }}"
+                  title="방문 가능시간 {{ '수정' if r.as_availability else '입력' }}">
+                  <i class="far fa-clock"></i><span class="erp-as-avail-chip__label">{{ r.as_availability_label or '가능시간' }}</span>
+                </button>
                 {% if r.as_visit_date %}
                 <button type="button" class="erp-as-pending-btn as-pending-btn{% if r.as_pending %} erp-as-pending-btn--active{% endif %}" data-order-id="{{ r.id }}"
                   data-as-pending="{% if r.as_pending %}1{% else %}0{% endif %}"
@@ -552,7 +562,7 @@
 {# 기준↔시공지 지도 공용 모듈(출고 AS 일정추천 모달과 공유). 클릭 시점 호출이라 순서 의존은
    없지만 프래그먼트 경로에도 함께 실려야 지도 버튼이 죽지 않는다. #}
 <script src="{{ url_for('static', filename='js/common/foms-schedule-map.js') }}?v=20260730g" defer></script>
-<script src="{{ url_for('static', filename='js/cs/as-dashboard.js') }}?v=20260730i" defer></script>
+<script src="{{ url_for('static', filename='js/cs/as-dashboard.js') }}?v=20260806d" defer></script>
 {# PC 12열 컬럼 폭 조절(드래그 + localStorage). 모바일은 파일 자체가 조기 반환 —
    body 파셜에 두는 이유는 CSS 와 같다(fast-tab 프래그먼트 스왑에도 함께 실려야 재초기화된다). #}
 <script src="{{ url_for('static', filename='js/cs/as-dashboard-columns.js') }}?v=20260728b" defer></script>

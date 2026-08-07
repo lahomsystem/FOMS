@@ -316,7 +316,11 @@
     position: sticky;
     right: 0;
     margin-left: auto;
-    max-width: 720px;
+    /* 좁은 창(분할 화면 등)에서 720px 고정폭이 뷰포트를 넘어 우측이 잘리던 것 방어 —
+       뷰포트보다 넓어질 수 없게 상한을 이중으로 건다(T15f 실사용 피드백). 여유 72px:
+       100vw는 세로 스크롤바를 포함해 실제 가용폭보다 넓게 계산되고, 셸 래퍼·줌·OS 배율
+       오차까지 흡수해야 한다(48px로는 휴지통 아이콘이 잘린 실보고 1건). */
+    max-width: min(720px, calc(100vw - 72px));
   }
 
   /* 정보 위계: 판정 헤더 → 앵커 → 입력 → 스트림.
@@ -983,4 +987,99 @@
   .erp-as-dashboard .foms-as-camera-bar {
     display: none !important;
   }
+}
+
+/* ── 방문 가능시간 칩 + 편집 팝오버 (2026-08-06) ──
+   서버 SSOT: foms/services/orders/as_availability.py (라벨·허용값).
+   칩은 PC 방문일 셀·모바일 카드 방문 블록 공용, 팝오버는 as-dashboard.js가 body에 부착. */
+.erp-as-avail-chip {
+  display: inline-flex;
+  align-items: center;
+  gap: 4px;
+  margin-top: 4px;
+  padding: 2px 8px;
+  border: 1px dashed #adb5bd;
+  border-radius: 999px;
+  background: #fff;
+  color: #6c757d;
+  font-size: 0.75rem;
+  line-height: 1.4;
+  max-width: 100%;
+  cursor: pointer;
+}
+
+.erp-as-avail-chip__label {
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+
+.erp-as-avail-chip--set {
+  border-style: solid;
+  border-color: #6366f1;
+  background: #eef2ff;
+  color: #3730a3;
+}
+
+.erp-as-avail-chip:hover {
+  border-color: #6366f1;
+}
+
+.erp-as-avail-pop {
+  position: absolute;
+  z-index: 1080;
+  width: 248px;
+  padding: 10px;
+  border: 1px solid #dee2e6;
+  border-radius: 8px;
+  background: #fff;
+  box-shadow: 0 8px 24px rgba(15, 23, 42, 0.14);
+}
+
+.erp-as-avail-pop__row {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  margin-bottom: 8px;
+}
+
+.erp-as-avail-pop__label {
+  flex: none;
+  width: 30px;
+  color: #6c757d;
+  font-size: 0.75rem;
+}
+
+.erp-as-avail-pop__seg {
+  display: flex;
+  flex: 1;
+  gap: 4px;
+}
+
+.erp-as-avail-pop__opt {
+  flex: 1;
+  padding: 4px 0;
+  border: 1px solid #dee2e6;
+  border-radius: 6px;
+  background: #fff;
+  color: #495057;
+  font-size: 0.75rem;
+}
+
+.erp-as-avail-pop__opt.is-active {
+  border-color: #6366f1;
+  background: #6366f1;
+  color: #fff;
+}
+
+.erp-as-avail-pop__note {
+  width: 100%;
+  margin-bottom: 8px;
+  font-size: 0.8125rem;
+}
+
+.erp-as-avail-pop__actions {
+  display: flex;
+  justify-content: flex-end;
+  gap: 6px;
 }

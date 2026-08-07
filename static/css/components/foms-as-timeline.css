@@ -43,6 +43,9 @@
   .as-tl-chip--schedule { background: #7c3aed; }   /*  5.70:1 */
   .as-tl-chip--memo { background: #6b7280; }       /*  4.83:1 */
   .as-tl-chip--system { background: #64748b; }     /*  4.76:1 */
+  /* T15 회차 개편 신설 유형 — 방안(업무 핵심 단계)=진한 앰버, 판정=진한 슬레이트 */
+  .as-tl-chip--plan { background: #92400e; }       /*  8.05:1 */
+  .as-tl-chip--verdict { background: #334155; }    /* 10.35:1 */
 
   /* 앵커(접수 원문 고정 슬롯) — legacy 는 옅은 회색으로 "읽기 전용 이전 기록" 구분 */
   .as-timeline__anchor {

@@ -40,6 +40,9 @@
   // level 3 ≈ Leaflet z16(≈100m 축척) 앵커 → Leaflet z14 ≈ 카카오 level 5.
   // 즉 level<=5 = 펼침(개별 분리), level>=6 = 접힘(대표 1개 + xN 뱃지).
   var DUPLICATE_EXPAND_MAX_LEVEL = 5;
+  // 팝업 zIndex 서열 정본: 개별 핀 2 < 겹침 그룹 대표 300대 < 스크린 클러스터 대표 400 < 팝업.
+  // (구값 60은 클러스터 xN 뱃지(400)가 팝업을 가리는 결함 — 항상 마커류 위여야 한다)
+  var POPUP_ZINDEX = 500;
 
   var SDK_IDLE = 0, SDK_LOADING = 1, SDK_READY = 2, SDK_FAILED = 3;
   var sdkState = SDK_IDLE;
@@ -56,6 +59,7 @@
     active: false,
     everRendered: false, // 세션 내 카카오 성공 렌더 이력 — folium 강등 금지 가드
     onOpenDetail: null,  // 팝업 [상세] 호출부 주입 핸들러(AS 지도 등) — 미주입 시 기존 폴백 체인
+    screenClusters: [],  // 스크린 겹침 클러스터 [{repMarker, markers[]}] — applyScreenClusters 소유
     // 주문↔주문 경로 계산(folium 파리티): 출발/도착 선택 + 실도로 폴리라인 + 결과 패널.
     // line/panel 은 마커 재렌더(clearOverlays)와 독립 수명 — 폴링에도 결과 유지.
     routeCalc: { start: null, end: null, line: null, panel: null }
@@ -127,8 +131,61 @@
     document.head.appendChild(s);
   }
 
+  // ---------- AS 지도 v3: as 모드 표시 분기 ----------
+  // 판정: 서버 as 페이로드에만 as_bucket 존재(foms/services/map_snapshot.py
+  // apply_as_map_display_fields) — 전역 플래그 불필요, folium 폴백 무영향.
+  // 버킷 색은 map_view.html 카드 .as-bucket-badge 팔레트와 동기(변경 시 양쪽).
+  var AS_BUCKET_COLORS = {
+    visit_confirmed: '#2b8a3e', pending: '#d9480f',
+    unassigned: '#495057', paid_unconfirmed: '#7048e8'
+  };
+
+  // as 모드 핀(pill) 테마 — 버킷별 파스텔 배경 + 동계열 진한 글자/테두리(사용자 확정:
+  // 파스텔톤·상호 확실히 구별). 필터 select(#as-bucket-filter) 옵션과 1:1.
+  // 흰 테두리 대신 동계열 중간톤 — 밝은 지도 타일 위에서 파스텔끼리 뭉개지지 않게.
+  var AS_BUCKET_PILL_THEME = {
+    visit_confirmed: { bg: '#b2f2bb', border: '#69db7c', text: '#2b8a3e' },   // 초록
+    pending: { bg: '#ffd8a8', border: '#ffa94d', text: '#d9480f' },          // 주황
+    unassigned: { bg: '#a5d8ff', border: '#4dabf7', text: '#1971c2' },       // 파랑(회색은 지도 타일에 묻힘 — 사용자 피드백)
+    paid_unconfirmed: { bg: '#d0bfff', border: '#9775fa', text: '#5f3dc4' }  // 보라
+  };
+
+  function isAsPoint(m) {
+    return !!m && m.as_bucket != null;
+  }
+
+  function asBucketColor(m) {
+    return AS_BUCKET_COLORS[String(m.as_bucket || '')] || '#495057';
+  }
+
+  // 방문일 표기(카드와 동일 규칙): 미정=주황, 지남=빨강 "N일 지남", D-3 이내=빨강 강조.
+  function asVisitHtml(m) {
+    if (!m.as_visit_date) return '<span class="foms-kmap-as-undecided">미정</span>';
+    var dateText = escapeHtml(m.as_visit_date);
+    var dday = m.as_visit_dday;
+    if (dday == null) return dateText;
+    if (dday < 0) return dateText + ' <span class="foms-kmap-as-danger">' + (-dday) + '일 지남</span>';
+    var label = dday === 0 ? 'D-DAY' : 'D-' + dday;
+    return dateText + ' <span class="' + (dday <= 3 ? 'foms-kmap-as-danger' : 'foms-kmap-as-dday') + '">' + label + '</span>';
+  }
+
+  // 그룹/클러스터 행용 축약: 'M/D' 또는 '미정'.
+  function asVisitShort(m) {
+    var parts = String(m.as_visit_date || '').slice(0, 10).split('-');
+    if (parts.length === 3 && parts[0].length === 4) {
+      return Number(parts[1]) + '/' + Number(parts[2]);
+    }
+    return m.as_visit_date ? String(m.as_visit_date) : '미정';
+  }
+
   // ---------- 마커 테마 (서버 _get_marker_theme 포팅) ----------
   function markerTheme(m) {
+    // as 모드: 버킷 파스텔색 최우선 — 중복 핑크보다 앞(같은 주소 묶임은 xN 뱃지가
+    // 이미 표시하므로 색 채널은 버킷 분류에 양보. 사용자 확정 2026-08-06).
+    if (isAsPoint(m)) {
+      var asTheme = AS_BUCKET_PILL_THEME[String(m.as_bucket || '')];
+      if (asTheme) return asTheme;
+    }
     var managerBg = String(m.manager_bg_color || '').trim();
     var managerSource = String(m.manager_bg_source || '').trim();
     var managerText = String(m.manager_text_color || '#000000').trim() || '#000000';
@@ -344,36 +401,97 @@
     if (state.popup) { state.popup.setMap(null); state.popup = null; }
   }
 
+  // 팝업 DOM 이벤트가 지도 제스처로 새는 것 차단 — 휠은 리스트 스크롤 대신 줌,
+  // 드래그는 팬으로 먹히던 결함의 근본 수정. preventDefault는 하지 않는다
+  // (팝업 내부 네이티브 스크롤·클릭·버튼은 살아야 함).
+  function guardPopupEvents(el) {
+    ['wheel', 'mousedown', 'touchstart', 'dblclick'].forEach(function (type) {
+      el.addEventListener(type, function (e) { e.stopPropagation(); });
+    });
+  }
+
+  // 팝업이 지도 컨테이너 밖으로 잘리면 잘린 픽셀만큼만 팬(카카오 autopan 부재 보완).
+  // PC 전용 — 모바일 컴팩트 카드는 뷰포트 기준 스킨이라 보정 대상 아님.
+  function panPopupIntoView(el) {
+    if (isMobileView()) return;
+    if (!state.popup || !state.map || !state.mapEl || !el.isConnected) return;
+    try {
+      var p = el.getBoundingClientRect();
+      var c = state.mapEl.getBoundingClientRect();
+      var PAD = 8, dx = 0, dy = 0;
+      if (p.left < c.left + PAD) dx = p.left - (c.left + PAD);
+      else if (p.right > c.right - PAD) dx = p.right - (c.right - PAD);
+      if (p.top < c.top + PAD) dy = p.top - (c.top + PAD);
+      else if (p.bottom > c.bottom - PAD) dy = p.bottom - (c.bottom - PAD);
+      if (dx || dy) state.map.panBy(dx, dy);
+    } catch (e) { /* 팬 보정 실패 무해 */ }
+  }
+
+  // 팝업 공통 마운트: 이벤트 가드 + 오버레이 생성 + 화면 밖 잘림 보정.
+  function mountPopup(el, position) {
+    guardPopupEvents(el);
+    state.popup = new window.kakao.maps.CustomOverlay({
+      map: state.map, position: position, content: el,
+      xAnchor: 0.5, yAnchor: 1.15, zIndex: POPUP_ZINDEX
+    });
+    setTimeout(function () { panPopupIntoView(el); }, 0);
+  }
+
   function openPopup(m, position) {
     closePopup();
     var statusColor = STATUS_COLORS[String(m.status || '').toUpperCase()] || STATUS_FALLBACK_COLOR;
     var dupRow = m.__dupSize > 1
       ? '<tr><th>중복</th><td>' + m.__dupSize + '건 같은 주소</td></tr>' : '';
     var mobile = isMobileView();
-    // 모바일: 좌표·접수일·중복 행을 걷어낸 컴팩트 카드(나머지는 상세 시트에서 확인).
-    // PC: 기존 folium 파리티 테이블 그대로.
-    var body = mobile
-      ? '<div class="foms-kmap-popup__m-body">' +
-        '<div class="foms-kmap-popup__m-name">' +
-        '<span class="foms-kmap-popup__m-cust">' + escapeHtml(m.customer_name || '-') + '</span>' +
-        '<span class="foms-kmap-popup__m-chip" style="color:' + statusColor + '">' + escapeHtml(m.status || '-') + '</span>' +
-        '</div>' +
-        '<div class="foms-kmap-popup__m-meta">' + escapeHtml(m.measurement_time || '실측 시간 미정') +
-        (m.__dupSize > 1 ? ' · 같은 주소 ' + m.__dupSize + '건' : '') + '</div>' +
-        '<div class="foms-kmap-popup__m-addr" title="' + escapeHtml(m.address || '-') + '">' +
-        escapeHtml(m.address || '-') + '</div>' +
-        '</div>'
-      : '<table class="foms-kmap-popup__table">' +
-        '<tr><th>고객명</th><td>' + escapeHtml(m.customer_name || '-') + '</td></tr>' +
+    var asMode = isAsPoint(m);
+    // 칩(모바일 헤더): as=버킷 분류(색 동기), measurement=상태 — 색은 데이터 주도라 동적.
+    var chipColor = asMode ? asBucketColor(m) : statusColor;
+    var chipText = asMode ? (m.as_bucket_label || '-') : (m.status || '-');
+    var metaLine = asMode
+      ? '방문일 ' + asVisitHtml(m)
+      : escapeHtml(m.measurement_time || '실측 시간 미정');
+    // PC 테이블: as 모드는 AS 정보 중심(스펙 F3) — 담당자·제품·상태·좌표 행 없음,
+    // 분류·방문일 D-day·AS 내용·유무상·AS 접수일 추가. measurement는 기존 그대로.
+    var tableRows = asMode
+      ? '<tr><th>고객명</th><td>' + escapeHtml(m.customer_name || '-') + '</td></tr>' +
+        '<tr><th>연락처</th><td>' + escapeHtml(m.phone || '-') + '</td></tr>' +
+        '<tr><th>주소</th><td>' + escapeHtml(m.address || '-') + '</td></tr>' +
+        '<tr><th>분류</th><td><span style="color:' + asBucketColor(m) + ';font-weight:700">' +
+        escapeHtml(m.as_bucket_label || '-') + '</span></td></tr>' +
+        '<tr><th>방문일</th><td>' + asVisitHtml(m) + '</td></tr>' +
+        (m.as_content_preview
+          ? '<tr><th>AS 내용</th><td>' + escapeHtml(m.as_content_preview) + '</td></tr>' : '') +
+        (m.as_recent_log_preview
+          ? '<tr><th>최근 기록</th><td>' + escapeHtml(m.as_recent_log_preview) + '</td></tr>' : '') +
+        '<tr><th>유무상</th><td>' + escapeHtml(m.as_billing_text || '-') + '</td></tr>' +
+        (m.as_availability_label
+          ? '<tr><th>가능시간</th><td>' + escapeHtml(m.as_availability_label) + '</td></tr>' : '') +
+        '<tr><th>AS 접수일</th><td>' + escapeHtml(m.as_received_date || '-') + '</td></tr>' +
+        dupRow
+      : '<tr><th>고객명</th><td>' + escapeHtml(m.customer_name || '-') + '</td></tr>' +
         '<tr><th>담당자</th><td>' + escapeHtml(m.manager_name || '-') + '</td></tr>' +
         '<tr><th>연락처</th><td>' + escapeHtml(m.phone || '-') + '</td></tr>' +
         '<tr><th>주소</th><td>' + escapeHtml(m.address || '-') + '</td></tr>' +
         '<tr><th>제품</th><td>' + escapeHtml(m.product || '-') + '</td></tr>' +
         '<tr><th>상태</th><td style="color:' + statusColor + '">' + escapeHtml(m.status || '-') + '</td></tr>' +
+        (m.as_availability_label
+          ? '<tr><th>가능시간</th><td>' + escapeHtml(m.as_availability_label) + '</td></tr>' : '') +
         '<tr><th>접수일</th><td>' + escapeHtml(m.received_date || '-') + '</td></tr>' +
         '<tr><th>좌표</th><td>' + Number(m.latitude).toFixed(6) + ', ' + Number(m.longitude).toFixed(6) + '</td></tr>' +
-        dupRow +
-        '</table>';
+        dupRow;
+    // 모바일: 컴팩트 카드(상세는 시트에서). PC: 테이블.
+    var body = mobile
+      ? '<div class="foms-kmap-popup__m-body">' +
+        '<div class="foms-kmap-popup__m-name">' +
+        '<span class="foms-kmap-popup__m-cust">' + escapeHtml(m.customer_name || '-') + '</span>' +
+        '<span class="foms-kmap-popup__m-chip" style="color:' + chipColor + '">' + escapeHtml(chipText) + '</span>' +
+        '</div>' +
+        '<div class="foms-kmap-popup__m-meta">' + metaLine +
+        (m.__dupSize > 1 ? ' · 같은 주소 ' + m.__dupSize + '건' : '') + '</div>' +
+        '<div class="foms-kmap-popup__m-addr" title="' + escapeHtml(m.address || '-') + '">' +
+        escapeHtml(m.address || '-') + '</div>' +
+        '</div>'
+      : '<table class="foms-kmap-popup__table">' + tableRows + '</table>';
     var el = document.createElement('div');
     el.className = 'foms-kmap-popup';
     el.innerHTML =
@@ -397,20 +515,25 @@
       closePopup();
       onRouteCalcAction(m);
     });
-    state.popup = new window.kakao.maps.CustomOverlay({
-      map: state.map, position: position, content: el,
-      xAnchor: 0.5, yAnchor: 1.15, zIndex: 60
-    });
+    mountPopup(el, position);
   }
 
-  // 접힌 대표 마커 클릭 팝업: 그룹 내 주문 목록(+각 상세 보기) — folium 팝업 행 파리티 확장.
-  function openGroupPopup(markersInGroup, position) {
+  // 접힌 대표 마커/스크린 클러스터 클릭 팝업: 그룹 내 주문 목록(+각 상세 보기).
+  // opts: { title, fitBounds } — fitBounds=스크린 클러스터(주소 상이)용, 펼치면 bounds 줌인.
+  function openGroupPopup(markersInGroup, position, opts) {
+    opts = opts || {};
     closePopup();
     var rows = markersInGroup.map(function (m) {
+      var statusColor = STATUS_COLORS[String(m.status || '').toUpperCase()] || STATUS_FALLBACK_COLOR;
+      // as 모드: 실측시간 자리에 방문일 M/D(미정 포함) — 동선 판단 1차 정보(스펙 F3).
+      var timePart = isAsPoint(m)
+        ? ' · ' + escapeHtml(asVisitShort(m))
+        : (m.measurement_time ? ' · ' + escapeHtml(m.measurement_time) : '');
       return '<div class="foms-kmap-popup__group-row">' +
         '<span class="foms-kmap-popup__group-main">' +
+        '<span class="foms-kmap-popup__status-dot" style="background:' + statusColor + '"></span>' +
         '<strong>#' + escapeHtml(m.id) + '</strong> ' + escapeHtml(m.customer_name || '-') +
-        (m.measurement_time ? ' · ' + escapeHtml(m.measurement_time) : '') +
+        timePart +
         '</span>' +
         '<button type="button" class="btn btn-sm btn-outline-primary" data-order-id="' + escapeHtml(m.id) + '">상세</button>' +
         '</div>';
@@ -419,11 +542,12 @@
     el.className = 'foms-kmap-popup';
     el.innerHTML =
       '<div class="foms-kmap-popup__head">' +
-      '<strong>같은 위치 ' + markersInGroup.length + '건</strong>' +
+      '<strong>' + escapeHtml(opts.title || ('같은 위치 ' + markersInGroup.length + '건')) + '</strong>' +
       '<button type="button" class="foms-kmap-popup__close" aria-label="닫기">&times;</button>' +
       '</div>' +
       '<div class="foms-kmap-popup__group">' +
-      '<div class="foms-kmap-popup__group-addr">' + escapeHtml(markersInGroup[0].address || '-') + '</div>' +
+      (opts.fitBounds ? '' :
+        '<div class="foms-kmap-popup__group-addr">' + escapeHtml(markersInGroup[0].address || '-') + '</div>') +
       rows +
       '</div>' +
       '<div class="foms-kmap-popup__actions' + (isMobileView() ? ' foms-kmap-popup__actions--m' : '') + '">' +
@@ -433,9 +557,25 @@
     el.querySelector('.foms-kmap-popup__close').addEventListener('click', closePopup);
     // 그룹 중심 확대: 임계 통과(격자 펼침)로 직행 — 중심 고정 줌으로 그룹이
     // 화면 밖으로 흘러나가는 문제를 앵커 지정으로 원천 회피.
+    // 스크린 클러스터(fitBounds)는 좌표가 서로 달라 bounds 줌인이 정본 —
+    // 단 좌표 스팬이 사실상 0이면(전원 같은 지점) 기존 앵커 줌으로 폴백.
     el.querySelector('.foms-kmap-popup__expand').addEventListener('click', function () {
       closePopup();
       try {
+        if (opts.fitBounds) {
+          var minLat = Infinity, maxLat = -Infinity, minLng = Infinity, maxLng = -Infinity;
+          markersInGroup.forEach(function (m) {
+            minLat = Math.min(minLat, m.latitude); maxLat = Math.max(maxLat, m.latitude);
+            minLng = Math.min(minLng, m.longitude); maxLng = Math.max(maxLng, m.longitude);
+          });
+          if ((maxLat - minLat) > 1e-6 || (maxLng - minLng) > 1e-6) {
+            var b = new window.kakao.maps.LatLngBounds(
+              new window.kakao.maps.LatLng(minLat, minLng),
+              new window.kakao.maps.LatLng(maxLat, maxLng));
+            state.map.setBounds(b, 60, 60, 60, 60);
+            return;
+          }
+        }
         state.map.setLevel(DUPLICATE_EXPAND_MAX_LEVEL, { anchor: position });
         state.map.panTo(position);
       } catch (e) { /* 지도 조작 실패 무해 */ }
@@ -452,10 +592,7 @@
         openOrderDetailFromPopup(btn.getAttribute('data-order-id'));
       });
     });
-    state.popup = new window.kakao.maps.CustomOverlay({
-      map: state.map, position: position, content: el,
-      xAnchor: 0.5, yAnchor: 1.15, zIndex: 60
-    });
+    mountPopup(el, position);
   }
 
   // ---------- 줌 임계 그룹 접기/펼치기 (folium applyDuplicateMarkerLayout 포팅) ----------
@@ -531,6 +668,94 @@
     });
   }
 
+  // ---------- 스크린 겹침 클러스터 (원거리 pill 잘림 대응, 2026-08-06) ----------
+  // 같은 주소 그룹(x2 접기)과 별개로, 주소가 달라도 화면(px)상 pill이 겹치면
+  // 대표 1개 + xN 뱃지(동일 룩 재사용)로 묶는다. 접힘 뷰(level>=6)에서만 동작,
+  // route 모드 제외. 팬은 같은 줌에서 상대 위치를 바꾸지 않으므로 줌/재렌더 시에만 재계산.
+  // 그리드 셀 방식: AABB 겹침 union은 밀집 지역에서 사슬 병합(transitive chain)으로
+  // 전국 뷰가 클러스터 1개로 뭉개진다(스테이징 실측: 55건 → x53). 셀 경계가 사슬을
+  // 끊어 지역 단위 묶음을 보존한다. 셀 크기 ≈ pill 1개 박스.
+  var CLUSTER_CELL_W = 112;
+  var CLUSTER_CELL_H = 44;
+
+  function resetScreenClusters() {
+    state.screenClusters = [];
+    state.markerItems.forEach(function (item) {
+      var badge = item.pill.querySelector('[data-cluster-badge]');
+      if (badge) badge.remove();
+      var dupBadge = item.pill.querySelector('.foms-kmap-pill__dup');
+      if (dupBadge) dupBadge.style.display = '';
+    });
+  }
+
+  function findScreenCluster(marker) {
+    for (var i = 0; i < state.screenClusters.length; i++) {
+      if (state.screenClusters[i].repMarker === marker) return state.screenClusters[i];
+    }
+    return null;
+  }
+
+  function setClusterBadge(item, total) {
+    var dupBadge = item.pill.querySelector('.foms-kmap-pill__dup');
+    if (dupBadge) dupBadge.style.display = 'none';
+    var badge = document.createElement('span');
+    badge.className = 'foms-kmap-pill__dup';
+    badge.setAttribute('data-cluster-badge', '1');
+    badge.textContent = 'x' + total;
+    item.pill.appendChild(badge);
+    item.pill.title = item.pill.title + ' · 주변 ' + total + '건';
+  }
+
+  function applyScreenClusters() {
+    resetScreenClusters();
+    if (!state.map || !state.markerItems.length) return;
+    if (state.routeMode || isExpandedView()) return;
+    var projection;
+    try { projection = state.map.getProjection(); } catch (e) { return; }
+    if (!projection || typeof projection.containerPointFromCoords !== 'function') return;
+
+    // 보이는 대표 pill들을 그리드 셀에 버킷팅 (CustomOverlay 앵커 기준)
+    var clusters = {};
+    var seen = 0;
+    state.markerItems.forEach(function (item) {
+      if (!item.overlay.getMap()) return; // 동일주소 접기로 숨은 비대표 제외
+      var pt;
+      try {
+        pt = projection.containerPointFromCoords(
+          new window.kakao.maps.LatLng(item.marker.latitude, item.marker.longitude));
+      } catch (e) { return; }
+      seen++;
+      var key = Math.floor(pt.x / CLUSTER_CELL_W) + ':' + Math.floor(pt.y / CLUSTER_CELL_H);
+      (clusters[key] = clusters[key] || []).push(item);
+    });
+    if (seen < 2) return;
+
+    Object.keys(clusters).forEach(function (cellKey) {
+      var items = clusters[cellKey];
+      if (items.length <= 1) return;
+      // 대표 = 최신 주문(id 큰 것) — 줌 변화에도 안정적인 명시 기준
+      items.sort(function (a, b) { return Number(b.marker.id) - Number(a.marker.id); });
+      var markers = [];
+      items.forEach(function (item) {
+        groupMarkersOf(item.marker).forEach(function (m) {
+          if (markers.indexOf(m) === -1) markers.push(m);
+        });
+      });
+      items.forEach(function (item, position) {
+        if (position === 0) { item.overlay.setZIndex(400); return; }
+        item.overlay.setMap(null);
+      });
+      setClusterBadge(items[0], markers.length);
+      state.screenClusters.push({ repMarker: items[0].marker, markers: markers });
+    });
+  }
+
+  // 접기/펼치기 + 스크린 클러스터 한 패스 — 호출부 공용 진입점
+  function applyMarkerLayout() {
+    applyDuplicateLayout();
+    applyScreenClusters();
+  }
+
   // 줌 후 보이는 마커가 0개면 최근접 마커로 팬 보정 — 근본 원인 대응:
   // 확대(중심 고정 줌)로 모든 마커가 뷰포트 밖으로 나가면 카카오는 화면 밖
   // CustomOverlay DOM을 분리해 사용자에게 "마커 전부 소실"로 보인다(스테이징
@@ -599,6 +824,15 @@
         (completedRoute ? ' foms-route-pin--done' : '') + '">' + m.__routeSeq + '</span>';
     }
     htmlParts += '<span class="foms-kmap-pill__name">' + escapeHtml(display) + '</span>';
+    // AS 지도: 주말 가능 건 표식(필터 안 켜도 훑어보며 인지) — 데이터 있을 때만
+    if (m.as_availability && m.as_availability.days === 'weekend') {
+      htmlParts += '<span class="foms-kmap-pill__wknd" title="주말 가능">주</span>';
+    }
+    // AS 지도 v3(F4): 방문일 미정 건은 테두리 점선 — 색 추가 없이 과밀 회피.
+    if (isAsPoint(m) && !m.as_visit_date) {
+      pill.classList.add('foms-kmap-pill--as-undecided');
+      pill.title += ' · 방문일 미정';
+    }
     if (m.__dupSize > 1) {
       htmlParts += '<span class="foms-kmap-pill__dup">x' + m.__dupSize + '</span>';
     }
@@ -608,6 +842,15 @@
     pill.addEventListener('click', function (e) {
       e.stopPropagation();
       var pos = new window.kakao.maps.LatLng(m.latitude, m.longitude);
+      // 스크린 클러스터 대표: 주변 건 목록 팝업(펼치면 클러스터 bounds로 줌인).
+      var cluster = findScreenCluster(m);
+      if (cluster && !state.routeMode) {
+        openGroupPopup(cluster.markers, pos, {
+          title: '주변 ' + cluster.markers.length + '건',
+          fitBounds: true
+        });
+        return;
+      }
       var group = groupMarkersOf(m);
       // 접힌 대표 마커: 그룹 내 주문 목록 팝업. 펼침/route 모드: 개별 팝업.
       if (group.length > 1 && !isExpandedView() && !state.routeMode) {
@@ -647,8 +890,8 @@
       state.markerItems.push({ overlay: overlay, pill: pill, marker: m });
     });
 
-    // 현재 줌 기준 그룹 접기/펼치기 즉시 적용(폴링 재렌더 시 상태 보존).
-    applyDuplicateLayout();
+    // 현재 줌 기준 그룹 접기/펼치기 + 스크린 클러스터 즉시 적용(폴링 재렌더 시 상태 보존).
+    applyMarkerLayout();
 
     // 경로 계산 선택 보존: 재렌더 후 대상 주문이 사라졌으면 해제, 남았으면 강조 재적용.
     if (state.routeCalc.start) {
@@ -716,7 +959,7 @@
     // 1회(이 생성 분기에서만 부착). ensureMap 은 기존 인스턴스를 재사용하므로
     // 재렌더/폴링에서 누적되지 않는다.
     maps.event.addListener(map, 'zoom_changed', function () {
-      applyDuplicateLayout();
+      applyMarkerLayout();
     });
     // 팬 보정 이중화(Z8): idle(줌/팬 애니메이션 정착 후 1회)이 정본이나, 스테이징
     // 실측에서 idle 단독 배선이 미보정으로 남는 사례가 있어 bounds_changed

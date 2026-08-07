@@ -1,0 +1,108 @@
+# AS 지도 v2 (클러스터+가능시간) — Progress Ledger
+
+스펙: `docs/specs/2026-08-05-as-map-cluster-availability-design.md`
+사용자 확정(2026-08-06): 대상=AS 미완료 전체 · 둘 다 진행(클러스터 먼저) · 입력=방문일 옆 미니 버튼 팝오버.
+운영 반영은 스테이징 데모 → 사용자 승인 후.
+
+| Task | 내용 | 완료 기준 | 상태 |
+|---|---|---|---|
+| T1 | F1 스크린 겹침 클러스터 (map-view-kakao.js, route 모드 제외, 접힘 뷰에서만) + 그룹 팝업 확장(상태 점·fitBounds 펼침) + ?v 범프 | 코드 완료·JS 문법 OK — 실브라우저 검증은 T5 | DONE(코드) |
+| T2 | F2-a availability 스키마 + field_update `as_visit_availability` + as_log 기록 + 단위테스트 | test_as_availability.py 4 passed + APP_OK | DONE |
+| T3 | F2-b AS 탭 입력 UI — PC 방문일 셀 미니 버튼+팝오버, 모바일 v2 카드 칩 표기 | as_dashboard 계열 102 passed(렌더 포함), 실입력 검증은 T5 | DONE(코드) |
+| T4 | F2-c 지도 필터 — build_as_incomplete_map_query availability 파라미터 + 헤더 select(요일/시간) + 마커 주말 도트 + 팝업 행 + 미기입 N건 고지 | 지도·가능시간 테스트 24 passed | DONE |
+| T5 | 스테이징 종합 QA(페르소나 시나리오 2종) + deploy push + CI green → **사용자 데모·승인 대기** | DONE — 전국 뷰 55건→지역 클러스터 8개(xN 뱃지)·팝업 53행+상태점·펼침 줌인, 칩 팝오버 저장→새로고침 유지→타임라인 로그, 주말 필터=1건+미기입 54건 고지, 실측(8/5, 2건) 무회귀, 콘솔 0. deploy `ac58a6c4`+`146e27fe`(로컬)→원격 `1bac5aa0`·`1b87eba6`·`f6dc8cb9`, CI green(perf-gate는 후속 push 대체로 cancelled, tip `c50ac9ac`에서 success) | DONE |
+| T6 | (사용자 승인 후) production 승격 — cherry-pick PR | PR 체크 green + merge + 운영 신코드 확인 | PENDING(승인 대기) |
+| T7 | 데모 피드백 2건 — ① 팝업이 클러스터 뱃지 뒤로 가림(zIndex 60→500 서열 정정) ② PC 필터 스킨 개편(흰 필드+쉐브론·활성 앰버 링·초기화 버튼, body.map-as-mode+≥891px 이중 게이트, 모바일·실측 지도 무변경) | 지도 계열 27+가용성 4 passed·JS 문법 OK·스테이징 실브라우저 QA(팝업 최상단, 필터 스킨·초기화 동작, 콘솔 0)+CI green | DONE — 로컬 `361ec121`→원격 `472dc818`. 스테이징 QA(claude_master·1440px): 팝업 z=500>핀 400 DOM+스크린샷 확인, 앰버 링·초기화(55건 복원) 동작, 실측 지도 회귀 0(콜론 라벨·반투명 유지), 지도 콘솔 에러 0. CI 4 워크플로 green(FOMS CI·PG Lane·Harness·perf-gate) |
+| T8 | 데모 피드백 2차 4건 — ① 그룹 팝업 다건 시 내용이 박스 밖 가로 넘침 ② 리스트 스크롤 불가 ③ 팝업 위 휠이 지도 줌으로 전파 ④ 단건 팝업 주소 한 줄 잘림. 근본 원인 2개: 카카오 CustomOverlay 래퍼 white-space:nowrap 상속(①④) + 팝업 이벤트 지도 전파(②③). 수정: .foms-kmap-popup white-space:normal + guardPopupEvents(stopPropagation, preventDefault 없음) + panPopupIntoView(PC, 화면 밖 잘림 픽셀 보정) + mountPopup 공통화, ?v=20260806d | 지도 27 passed·JS OK·스테이징 QA(주소 2줄 랩·행 넘침 0·scrollTop 동작·휠/드래그 전파 0 계측·오토팬 -25→93px·콘솔 무결)+CI green | DONE — 로컬 `40c77472`→원격 `c543a794`, CI green(FOMS CI 완주 확인 후 마감) |
+
+## v3 — AS 정보 중심 개편 (스펙: `docs/specs/2026-08-06-as-map-as-info-design.md`, **2026-08-06 승인**)
+
+사용자 확정: 담당자 행 전체 숨김(지정 버튼+영업 담당 표기) · T6 승격은 v3 완료 후 deploy 테스트부터.
+진행 방식 확정(2026-08-06 2차): T9~T12 한번에 완주 · **단 T10 카드는 중간 시안 스크린샷 사용자 확인
+게이트 1회**(로컬/스테이징 렌더 캡처 제시 후 진행) · 지난 방문일 = 빨강 "N일 지남" · 새 세션에서 재개.
+
+| Task | 내용 | 완료 기준 | 상태 |
+|---|---|---|---|
+| T9 | F1 페이로드 — as 모드 point에 as_bucket(4쿼리 id-set)·as_visit_date/dday·as_content_preview·as_billing·as_received_date 보강 | test_as_map_snapshot 확장(as 필드 계약+measurement 무변경 가드) passed + APP_OK | DONE — `8f4c66b1`, 9 passed + APP_OK. 버킷 배지 우선순위 paid_unconfirmed>pending>visit_confirmed>unassigned(선결 판정 우선). 필드: as_bucket/label·as_visit_date/dday·as_content_preview(60자)·as_billing_badge/text·as_received_date |
+| T10 | F2 우측 카드 as 분기 — 버킷 배지·AS 내용·방문일 D-day(지남=빨강 "N일 지남")·가능시간 칩·유상 배지, 실측 시간 행/담당자 행 전체 제거 | **중간 시안 스크린샷 사용자 확인 게이트** → 렌더 계약 테스트 + 스테이징 카드 표기 확인 | DONE — `555854b3`(원격), 지도 13 passed. 스테이징 55건 캡처 브라우저 제시 → **사용자 승인 "좋아요, 계속 진행"(2026-08-06)**. 제품 행도 제거(스펙 행 목록 기준). CI red 1회는 타 세션 alembic 이중 head — 타 세션이 `21ca79a8`로 병합 수정 |
+| T11 | F3+F4 팝업 as 분기(버킷·방문일·내용·유무상·접수일, 좌표/실측시간 제거) + 그룹 행 방문일 표기 + 미정 pill 점선 + ?v 범프 | JS 문법 OK + 스테이징 팝업 표기 확인 | DONE — 로컬 `2124d9d8`→원격 `f4a7fcd7`, JS OK·지도 13 passed·?v=20260806e. PC 테이블 담당자·제품·상태 행도 제거(분류가 상태 대체). 스테이징 확인: 단건 9행(분류 색·D-day "7일 지남" 빨강·유무상 금액), 그룹 행 M/D·미정, 점선 핀 4건 | 
+| T13 | 핀 색 = 버킷별 파스텔(사용자 지시 2026-08-06) — 확정=초록 `#b2f2bb`/미결=주황 `#ffd8a8`/**미정=파랑 `#a5d8ff`**(회색은 지도에 묻힘 — 사용자 2차 피드백 반영)/유상미확정=보라 `#d0bfff` + 동계열 진한 테두리·글자, 버킷색이 중복 핑크 우선, ?v=20260806g | JS OK·지도 13 passed + 스테이징 색 확인 + CI green | DONE — 원격 `cb0b868e`+`70e9a927`, CI green(ci_watch exit 0 ×2), 스테이징 초록/파랑 렌더 확인(주황·보라는 실데이터 0건) |
+| T14 | 카드·팝업 '최근 기록' 행 병기(사용자 확정) — as_recent_log_preview: as_log 최신 **비-system** 사람 기록 1건 60자(system 자동 기록은 가능시간·방문일 전용 행과 중복이라 제외), 대시보드 cell_recent_text 동일 소스, ?v=20260806h | 계약 테스트(최신 비-system 추출·무기록 빈 값·measurement 가드) passed + 스테이징 표기 확인 + CI green | DONE — 원격 `de971c73`(CI green)+`539b0dc4`(CI 4 워크플로 green 확인 2026-08-06), 스테이징 팝업 "최근 기록 7월 21일" 확인·콘솔 0 |
+| T12 | 스테이징 종합 QA(페르소나 2 시나리오) + 실측 지도 무회귀 + deploy push + CI green | QA 통과·CI 전 워크플로 green | DONE — 스테이징(f4a7fcd7) QA: ①동선 계획: 카드 55건 버킷 배지·D-day·클러스터 6·점선 핀 4, 그룹 팝업 행 방문일 M/D·미정 ②개별 협의: 단건 팝업 9행(분류·방문일 지남 빨강·AS 내용·유무상 금액·가능시간·AS 접수일) ③실측 지도 무회귀: 팝업 기존 9행·콘솔 0 ④AS 지도 콘솔 0. CI(f4a7fcd7) 최종: FOMS CI(10m2s)·PG Lane·Harness success, perf-gate cancelled(후속 push 대체 — tip에서 success) = ALL GREEN. tip PG Lane red는 타 세션 alembic 몫(내 커밋 무관). **v3 전체 완료 — 사용자 스테이징 확인 후 T6 승격 결정 대기** |
+
+## T15 — 타임라인 표면 개선 연구 (2026-08-06 사용자 요청, 목업 검토 단계)
+
+사용자 요청 원문 3건: ① 지도 카드/모달 AS 내용이 legacy+최근 1건만 — 타임라인 전체를 볼 수
+있어야(접기/펼치기 등 깊은 연구) ② quick-add 유형 select에서 방문/조치·일정 제거 의견
+③ AS 대시보드 타임라인 시스템 기록 가독성 낮음. 절차: deep research → 목업 제시 → 사용자
+채택 결정 후 구현. 상태: 연구·목업 제시(구현 미착수).
+
+ver1 목업(tmp_t15_mockup.html): 카드 인라인 펼침 + select 3종 + 시스템 회색 캡션 강등.
+사용자 피드백: **시스템 기록 회색은 안 보임(강등 방향 오답)** + ver2를 완전히 다른 시각으로,
+PC 우선, AS 실사용자 페르소나. ver1 파일 유지 지시.
+ver2 목업(tmp_t15_mockup_v2.html): ① 지도 = 카드 [기록 전체 보기] → **우측 슬라이드 기록
+패널**(lazy fetch·읽기 전용·카드 높이 불변) + 날짜 구분선 스토리 ② 입력 = 드롭다운 대신
+**원클릭 유형 세그먼트**(메모·통화·자재, 마지막 선택 기억) ③ 시스템 기록 = **종류별 색 밴드**
+가운데 정렬(방문일=초록·가능시간=파랑·비용=노랑, 카톡 공지 스타일) + 동종 연타 최신만.
+지도 패널·대시보드 타임라인 같은 부품 공유.
+ver3 목업(tmp_t15_mockup_v3.html, CRM 차트 관점): ① 지도 = 카드 **호버 미리보기 말풍선**
+(최근 5건, 첫 호버 시 로드+캐시, PC 전용·모바일 기존 유지) ② 입력 = **자주 쓰는 문구 칩**
+(유형+문구 원클릭, 자유 입력 기본=메모) ③ 시스템 기록 = 스트림에서 제거하고 **상단 진행 현황
+카드로 승격**(방문일·가능시간·비용 3필드 최신값 고정, 클릭 시 변경 이력) + 기록은 순수 사람
+기록만 남은 밀도 표(엑셀식 스캔).
+ver4 목업(tmp_t15_mockup_v4.html, 여정 트랙 관점): ① 지도 = 카드 **5칸 미니 진행 바**
+(접수→협의→방문확정→조치→완료, 색으로 단계 스캔) ② 입력 = **단계 문맥 액션 버튼**(현재
+단계가 다음 행동 추천 — 지난 방문일이면 재협의 통화가 첫 버튼, 기존 팝오버·완료 처리 연결)
+③ 시스템 기록 = **단계 전환 마커**(보라 마커로 해당 단계 그룹에 부착) + 기록을 시간순 대신
+**단계별 묶음**. 단계 판정은 기존 데이터 자동 계산(신규 스키마 없음).
+ver5 목업(tmp_t15_mockup_v5.html, 콜 데스크 콕핏 관점 — "지도에서 업무 완결"): ① 지도 =
+핀 선택 시 우측이 **작업 스테이션**(헤더+전화 버튼 → 브리핑 → 사람 기록 타임라인 → 입력 도크,
+화면 이동 0회) ② 입력 = **통화 흐름 자체가 입력**(전화 걸기 → 통화 중 밴드 → 끊으면 결과
+원터치 3버튼: 방문일 잡음/부재중·재연락/직접 입력 — 통화 기록+후속 상태 동시 저장) ③ 시스템
+기록 = **자연어 브리핑 한 문단**으로 압축 상단 고정(증상→경고→가능시간→비용→자재 순 조립,
+스트림에서 제거).
+**사용자 업무 순서 공유(2026-08-06)**: 접수(채널/전화/영업)→ERP AS 탭 등록(증상·사진)→내역
+확인(AS 담당)→**AS 방안 입력**→일정 확인(**시공건 연동** or 별도)→고객 컨택→방문→완결 or
+**미결 시 내역 확인부터 반복(루프)**.
+ver6 목업(tmp_t15_mockup_v6.html, 실업무 루프 기반 — 회차 기록 관점): ① 지도 = 카드에
+**회차+다음 할 일** 노란 줄("2차 진행 중·다음: 고객 컨택") ② 입력 = **다음 빈 슬롯이 프롬프트**
++ 유형 **방안(신설)·컨택·자재·메모** 4종(방문/조치·일정 제거 — 방문은 회차 판정 버튼, 일정은
+팝오버·시공건 연동 담당, 미결 판정 시 다음 회차 자동 오픈) ③ 대시보드 = **회차 아코디언**(접수
+원문 상단 고정, 끝난 회차 1줄 접힘 "1차 방안:경첩 조정→7/30 방문→미결:부품 불량", 진행 회차만
+펼침: 방안→자재→일정→컨택→방문→판정 슬롯, 완료 ✓·다음 슬롯 노랑, 시스템 기록은 슬롯 속 흡수,
+일정 슬롯에 schedule_link 시공건 연동 표기). 데이터: as_log에 round 번호 필드만 추가.
+**ver7 = 사용자 지정 조합(2026-08-06)**: v3-③ 진행 현황 카드 + v6-③ 회차 아코디언 + v2-②
+세그먼트 입력. 목업 tmp_t15_mockup_v7.html — 한 화면: [A] 상태 카드(방문일·가능시간·비용,
+클릭 이력, 시스템 기록 전부 흡수) → 접수 원문 고정 줄 → [B] 회차 아코디언(끝난 회차 1줄
+접힘+클릭 시 그 회차 기록 표, 진행 회차 = 슬롯 칩(방안→자재→일정→컨택→방문→판정) + v3 밀도
+표) → [C] 세그먼트 입력(방안·통화·자재·메모 4종, 마지막 선택 기억, 방문 후 판정 버튼 → 미결
+시 다음 회차 자동). 데이터 변경: as_log round 번호 + plan 유형 추가. 미확정 잔여: 지도 카드
+표면(후보: v6 다음 할 일 줄(추천) / v3 호버 미리보기 / 병용). 상태: **ver7 조합 목업 제시,
+최종 채택·지도 표면 결정 대기**. 개정(사용자): 회차 역순 정렬 — 최신 회차 맨 위, 1차·접수 원문 아래, 증상 요약 1줄은 상단 유지(전화 응대 즉답용).
+
+**T15 최종 확정(2026-08-06 사용자 4결정)**: ① 지도에서 ver7 차트 열기 = **카드 인라인 확장**
+(카드 클릭 시 그 카드만 아래로 펼침, lazy fetch) ② **ver7 확정 — 구현 착수 승인** ③ T6 운영
+승격 = **보류**(스테이징 더 확인, ver7까지 완성 후 일괄 승격 가능) ④ 지도 카드 "다음 할 일" 줄
+= **제외**(카드는 현행 요약 유지). 역할 정의: ver7 차트 = AS 대시보드 타임라인 **대체** + 지도
+카드에서 **열리는 상세**(목록 카드 자체는 요약 유지).
+
+### T15 구현 태스크 (새 세션에서 재개 — 목업 정본: tmp_t15_mockup_v7.html)
+| Task | 내용 | 완료 기준 | 상태 |
+|---|---|---|---|
+| T15a | 데이터 — as_log에 round 번호(기본 1)·plan 유형 추가, 회차 판정(완결/미결) 기록 규약 + 미결 시 round+1, coerce에서 action/schedule 유형 입력 차단(구기록 배지는 유지) | 단위테스트(round 부여·판정·유형 차단) + APP_OK | DONE — as_log.py: plan/verdict 유형+`current_as_round`(미결 verdict 수 파생, 저장 카운터 없음)+`append_verdict_log`+전 append round 스탬프, 퇴역 유형(action/schedule)·verdict quick-add는 ValueError 400(배지 라벨 유지). as_orders.py `_resolve_as_log_entry`가 verdict 수정/삭제 차단(round 파생 근거 보호 — 정정=새 판정). 테스트: as_log 계열 93 + 인접 76 passed + APP_OK |
+| T15b | ver7 차트 부품(공용 fragment) — [A] 상태 카드(방문일·가능시간·비용, 클릭 이력) + 증상 요약 줄 + [B] 회차 아코디언(최신 위·끝난 회차 접힘·진행 회차 슬롯 칩+밀도 표·접수 원문 맨 아래) + [C] 세그먼트 입력(방안·통화·자재·메모, 마지막 선택 기억, 판정 버튼) | 렌더 계약 테스트 + 대시보드 타임라인 자리 교체 | DONE(부품) — `as_round_chart.py`(뷰 빌더: 회차 그룹핑·슬롯 done/next/wait·system 접두어 분류 흡수·stale 방문일 오판 가드) + `as_round_chart.html`(기존 as-dashboard.js 위임 계약 클래스 유지: .as-tl-item[data-log-id]·form.as-timeline__quick-add+숨김 select·details 네이티브 접힘) + `foms-as-round-chart.css`+칩 2색(plan/verdict). 계약 테스트 13 passed(접두어 핀 포함)+APP_OK. **자리 교체는 T15c 배선과 불가분이라 T15c에서 수행** |
+| T15c | AS 대시보드 배선 — 기존 타임라인(as-timeline) 표면을 ver7 부품으로 교체, 기존 quick-add·수정/삭제·비용 판정 버튼 이관 | as_dashboard 계열 테스트 green + 스테이징 확인 | DONE(코드) — PC 확장 fragment(`/erp/as/timeline`)+모바일 카드 상세(`/erp/as/card-detail`) 차트 교체(?full 더보기 퇴역·회차당 60캡+생략 안내), **verdict 전용 API** `POST /as/verdict`(REV-00 mutation·manifest 2종 등재), JS: 차트 표면=쓰기 후 fragment 재조회(refreshRoundChart — 슬롯·이력 파생 로직 클라 이중화 방지)·세그먼트 localStorage 기억·판정 prompt(취소=중단), legacy 카드 select/프리셋 퇴역 유형 제거(400 방지), lazy legacy 유실 버그 수정. 핀: as-dashboard.js v=20260806b·timeline css 3곳+round-chart css 링크. AS 계열 310+인접 42 passed·APP_OK. 스테이징 확인은 T15e 종합 QA에서 |
+| T15d | 지도 배선 — 카드 클릭 인라인 확장(lazy fetch·읽기 전용, "다음 할 일" 줄 없음), ?v 범프 | JS OK + 스테이징 확인 | DONE(코드) — AS 지도 카드 클릭=`toggleAsCardChart` 인라인 확장(한 번에 1개·재클릭 접기·확장 내부 클릭 전파 차단), fragment `?readonly=1`(입력 도크·판정·수정/삭제·판정변경 미렌더 — UI 계약, 쓰기 권한은 API 소유), AS 모드에서 구 상세 패널 미사용. map_view에 차트 CSS 2종 링크(?v=20260806a). 카드 요약 현행 유지(확정 ④). 테스트: readonly 계약+지도 배선 소스 핀, 38 passed·JS OK·APP_OK. 스테이징 확인은 T15e |
+| T15e | 스테이징 종합 QA + 실측 지도·AS 탭 무회귀 + deploy push + CI green, 목업 임시 파일 7종(tmp_t15_mockup*.html) 삭제 | QA·CI green | DONE(QA)/**CI=GitHub 장애 대기** — push `7880e0e5`(원격 tip 기준 c:/tmp worktree cherry-pick 14커밋: T15 문서 9(ledger 단독)+코드 4+인벤토리 재생성, CSS 핀 충돌 3건=?v 문자열 기계 해소·smoke 308 passed). 스테이징 QA(claude_master·1440px·#4264): ①PC 확장 차트=상태 카드 3필드(지남 빨강·가능시간·유상 145,000)+증상 줄+슬롯(방문 done→판정 next)+구기록 배지 유지 ②방안 quick-add→재조회→슬롯 done·셀 배지 갱신·유형 기억(localStorage) ③미결 판정→1차 접힘(미결+사유)+**2차 자동 개시**(stale 방문일 미인정 가드 실증) ④지도 카드 인라인 확장=읽기 전용(도크·판정·수정 0)·재클릭 접기·구 상세 패널 미사용 ⑤실측 지도 무회귀(상세 패널·담당자 버튼) ⑥모바일 상세 fragment 차트+시공자 ⑦삭제 배선(soft delete→재조회·배지 15 정합) ⑧콘솔 에러 0(3표면). 목업 7종 삭제. CI: GitHub Actions major_outage로 지연 생성(23:26Z) 후 **4 워크플로 전수 green**(FOMS CI·PG Lane·Harness·perf-gate, 00:00Z 확인) — **T15 전체 완료, 운영 승격(T6, v2+v3+T15 일괄)만 사용자 결정 대기** |
+
+| T15f | 데모 피드백 2건(2026-08-07) — ① 가능시간 입력란: 목록 방문일 셀 칩은 유지되나 차트에 편집 진입점 부재 → 상태 카드 가능시간 summary에 기존 `erp-as-avail-chip` 이식(팝오버 위임 재사용·저장 성공 시 `window.__fomsRefreshRoundChart`로 차트 재조회, readonly 미노출) ② 확장 차트 우측 잘림 → 작성자 이름 `.as-rchart-row__name` ellipsis(7.5rem)+`.as-tl-expand-body` max-width `min(720px, 100vw-48px)` 뷰포트 상한 | 렌더 계약 테스트 + JS OK + 스테이징 확인 + CI green | DONE — 원격 `4c559be1`, CI 4 워크플로 전수 green(00:41Z). 스테이징 실검증: 칩→팝오버→평일 저장→차트 현재값·이력·칩 자동 갱신→주말 원복, 이름 ellipsis 적용(120px), 콘솔 0. 107 passed·JS OK·핀 범프(as-dashboard.js c·round-chart css b·body css b) |
+
+## QA 비고 (2026-08-06)
+- AABB union 1차 구현은 전국 뷰 사슬 병합(x53) — 그리드 셀 방식으로 교체(`64e64862`), 지역 단위 8클러스터 확인.
+- cherry-pick 충돌 1건: as_dashboard_body.html CSS 핀 2줄(타 세션 timeline css 범프 vs 내 body css 범프) — 양쪽 핀 union으로 해소(기계적, 코드 의존 아님).
+- 인벤토리 3종(failopen·writer·state)은 원격 tip 기준 worktree에서 재생성 후 동승.
+
+## T7 QA 비고 (2026-08-06)
+- 스테이징에 `TESTCLR-` 시드 잔존(x26 클러스터·마포) — 지방 대시보드 세션 몫, 본 세션 미정리.
+- 분류=미결 0건은 실데이터 상태(visit_confirmed 버킷은 정상 반환 — 파이프라인 무회귀).
+- pre_push_smoke 1건 실패는 타 세션 미커밋 AI_STATUS.md 1줄(4015자/4000 예산)이 원인 — 본 커밋 미접촉·push 대상 클린 worktree 미포함, 나머지 306 passed.
