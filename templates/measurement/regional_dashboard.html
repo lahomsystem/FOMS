@@ -729,7 +729,7 @@
                                     </thead>
                                     <tbody id="as-orders-table">
                                         {% for order in as_orders %}
-                                        <tr data-order-id="{{ order.id }}" class="construction-row"
+                                        <tr data-order-id="{{ order.id }}" class="construction-row as-order-row"
                                             data-construction-type="{{ order.construction_type or '미지정' }}">
                                             <td>{{ order.id }}</td>
                                             <td>{{ order.customer_name }}{{ factory2_badge(order) }}</td>
@@ -1217,6 +1217,33 @@ document.addEventListener('DOMContentLoaded', function() {
         }
     }
 
+    /**
+     * 상차일 저장 직후 status 를 섹션과 맞춘다(섹션=상태 개편의 상태 기록 지점).
+     *
+     * 미래·오늘 상차일 → SHIPPED_PENDING(상차 예정 알림), 경과 → SCHEDULED(설치 예정).
+     * 빈 값이면 판정 근거가 없으므로 상태를 건드리지 않는다. AS 접수 행은 AS 축이라
+     * 제외한다. 저장은 완료 버튼과 같은 canonical 보드 경로(field_update status)다.
+     *
+     * @param {string} orderId 주문 id
+     * @param {string} shippingDate 저장된 상차일 (YYYY-MM-DD 또는 빈 문자열)
+     * @param {HTMLElement} input 변경된 날짜 input (행 판정용)
+     */
+    function syncStatusToShippingDate(orderId, shippingDate, input) {
+        const row = input && input.closest ? input.closest('tr') : null;
+        if (row && row.classList.contains('as-order-row')) {
+            setTimeout(() => location.reload(), 500);
+            return;
+        }
+        const value = (shippingDate || '').trim();
+        if (!value) {
+            setTimeout(() => location.reload(), 500);
+            return;
+        }
+        const today = '{{ today }}';
+        const target = value < today ? 'SCHEDULED' : 'SHIPPED_PENDING';
+        updateOrderStatus(orderId, target, target === 'SCHEDULED' ? '설치 예정' : '상차예정');
+    }
+
     function updateOrderStatus(orderId, newStatus, statusLabel) {
         fetch('/api/update_order_field', {
             method: 'POST',
@@ -1361,9 +1388,12 @@ document.addEventListener('DOMContentLoaded', function() {
                     e.target.style.backgroundColor = '#d4edda'; // 연한 녹색
 
                     if (field === 'shipping_scheduled_date') {
-                        setTimeout(() => {
-                            location.reload();
-                        }, 500);
+                        // 섹션 이동 = 상태 기록. 상차일이 곧 섹션을 정하므로(미래=상차 예정
+                        // 알림, 경과=설치 예정) 저장 직후 같은 canonical 보드 경로로 status 도
+                        // 맞춘다. 서버 GET 렌더에서 쓰지 않는 이유는 read 경로 직접 쓰기가
+                        // canonical 전이 엔진을 우회하기 때문(test_state_guard 차단).
+                        // AS 접수건은 AS 축이라 건드리지 않는다.
+                        syncStatusToShippingDate(orderId, value, e.target);
                         return;
                     }
 

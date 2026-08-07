@@ -120,9 +120,12 @@ def test_past_shipping_date_absorbed_into_scheduled_and_status_synced(client) ->
     body = response.get_data(as_text=True)
 
     assert _order_ids_in_section(body, "설치 예정 (1건)") == {str(order_id)}
-    # 섹션 이동 = 상태 기록 (전체 주문 리스트 필터와 일치)
+    # 표기 SSOT 는 섹션 분류다 — 저장된 status 가 뒤처져 있어도 뱃지는 설치예정.
+    chunk = _section_chunk(body, "설치 예정 (1건)")
+    assert "foms-board-status-badge--scheduled" in chunk
+    # 읽기 경로는 상태를 쓰지 않는다(canonical 전이 엔진 우회 금지 — test_state_guard).
     db_session.expire_all()
-    assert db_session.get(Order, order_id).status == "SCHEDULED"
+    assert db_session.get(Order, order_id).status == "PRODUCTION"
 
 
 def test_hold_order_renders_in_progress_section(client) -> None:
@@ -141,8 +144,8 @@ def test_hold_order_renders_in_progress_section(client) -> None:
     assert db_session.get(Order, order_id).status == "ON_HOLD"
 
 
-def test_future_shipping_alert_syncs_shipped_pending_status(client) -> None:
-    """상차 예정 알림 편입 시 status=SHIPPED_PENDING 으로 동기화된다."""
+def test_future_shipping_alert_renders_shipped_badge(client) -> None:
+    """상차 예정 알림 행은 상차예정 뱃지를 단다(상태 기록은 상차일 변경 시 JS 담당)."""
     _login_as_admin(client, "regional-alert-status-sync-admin")
     future_shipping_date = (get_today_kst() + timedelta(days=3)).strftime("%Y-%m-%d")
 
@@ -158,8 +161,9 @@ def test_future_shipping_alert_syncs_shipped_pending_status(client) -> None:
     body = response.get_data(as_text=True)
 
     assert _order_ids_in_card_class(body, "shipping-alert-card") == {str(order_id)}
+    assert "foms-board-status-badge--shipped" in body
     db_session.expire_all()
-    assert db_session.get(Order, order_id).status == "SHIPPED_PENDING"
+    assert db_session.get(Order, order_id).status == "PRODUCTION"
 
 
 def test_as_received_order_has_own_section_and_keeps_status(client) -> None:
@@ -352,3 +356,29 @@ def _install_date_input_html(row_html: str) -> str:
     )
     assert match is not None, "missing 설치일 date input in row"
     return match.group(0)
+
+
+def test_shipping_date_change_records_status_via_board_js() -> None:
+    """상태 기록은 상차일 변경 시점(canonical 보드 경로)에서 일어난다.
+
+    읽기 경로 직접 쓰기(EXTERNAL state-writer)를 금지한 대신, 상차일 저장 성공 후
+    같은 field_update status 경로로 섹션에 맞는 상태를 기록한다. AS 접수 행은 제외.
+    """
+    src = (ROOT / "templates/measurement/regional_dashboard.html").read_text(
+        encoding="utf-8"
+    )
+    assert "function syncStatusToShippingDate(" in src
+    assert "syncStatusToShippingDate(orderId, value, e.target)" in src
+    assert "'SCHEDULED' : 'SHIPPED_PENDING'" in src
+    assert "as-order-row" in src, "AS 행 제외 마커 누락"
+
+
+def test_regional_dashboard_read_path_has_no_direct_status_write() -> None:
+    """지방 대시보드 라우트는 렌더 중 order.status 를 직접 쓰지 않는다."""
+    src = (ROOT / "foms/web/measurement/dashboard.py").read_text(encoding="utf-8")
+    start = src.index("def regional_dashboard()")
+    end = src.index("def metropolitan_dashboard()")
+    body = src[start:end]
+    # 대입만 잡는다 — 비교(``order.status == "SCHEDULED"``)는 정상 분류 로직이다.
+    writes = re.findall(r"^\s*\w+\.status\s*=(?!=)", body, re.M)
+    assert writes == [], f"read 경로 status 직접 쓰기: {writes}"

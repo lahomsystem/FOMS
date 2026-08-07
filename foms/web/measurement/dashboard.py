@@ -2,7 +2,7 @@
 ERP 실측 대시보드 페이지 (canonical: foms.web.measurement.dashboard)
 erp.py에서 분리: /erp/measurement
 """
-from flask import Blueprint, current_app, make_response, render_template, request, redirect, url_for, g
+from flask import Blueprint, make_response, render_template, request, redirect, url_for, g
 from db import get_db
 from models import Order, OrderScheduleDate
 from foms.web.auth import login_required
@@ -575,29 +575,12 @@ def regional_dashboard():
         if ship_date is not None and ship_date >= today:
             shipping_alerts.append(order)
 
-    # 섹션 이동 시 상태 기록(사용자 결정): 섹션이 곧 상태이므로 화면 배치와 저장된
-    # status 를 lazy 동기화한다(전체 주문 리스트 필터와 일치시키는 목적). 물류 중간
-    # 상태라 workflow.stage 는 건드리지 않는다(LOGISTICS_STATUS_PRESERVE_WORKFLOW_STAGE
-    # 와 동일 의미론). AS_RECEIVED 는 AS 축이라 제외한다.
-    status_sync_rows = [
-        (o, "SCHEDULED") for o in scheduled_orders if o.status != "SCHEDULED"
-    ] + [
-        (o, "SHIPPED_PENDING")
-        for o in shipping_alerts
-        if o.status not in ("SHIPPED_PENDING", "AS_RECEIVED")
-    ]
-    if status_sync_rows:
-        try:
-            for order, target in status_sync_rows:
-                order.status = target
-            db.commit()
-        except Exception:
-            db.rollback()
-            current_app.logger.exception(
-                "regional_dashboard: section status lazy sync failed (rows=%s)",
-                [o.id for o, _ in status_sync_rows],
-            )
-
+    # 섹션 이동 시 상태 기록(사용자 결정)은 **읽기 경로에서 하지 않는다**. GET 렌더 중
+    # order.status 를 직접 쓰면 canonical 전이 엔진(transition_order/stage_override/
+    # as_cycle_service)을 우회하는 EXTERNAL state-writer 가 되어 감사·이벤트 없이 상태가
+    # 바뀐다(tests/domains/test_state_guard.py 가 차단). 대신 실제 사용자 행동인 상차일
+    # 변경 시점에 board JS 가 canonical 보드 경로(field_update status)로 기록한다.
+    # 화면 표기는 이 함수의 섹션 분류가 SSOT 이므로, 상태가 뒤처져도 뱃지는 틀리지 않는다.
     scheduled_ids = {o.id for o in scheduled_orders}
     shipping_alert_ids = {o.id for o in shipping_alerts}
     pending_orders = [
