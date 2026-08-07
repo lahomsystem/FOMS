@@ -93,6 +93,16 @@ CASES: list[tuple[str, str]] = [
     ("allow", "python -m pytest tests -q"),
     ("allow", 'rg "rm -rf" docs/'),
     ("allow", "grep -n 'git push --force' notes.txt"),
+    # --- 임시폴더 하위 Remove-Item 재귀 삭제 = 자동 허용 -----------------
+    ("allow", r"Remove-Item -Recurse -Force C:\tmp\foms-cbtn2"),
+    ("allow", r"Remove-Item -Recurse -Force 'C:\tmp\foms-cbtn2' -ErrorAction SilentlyContinue"),
+    ("allow", r"Remove-Item -Recurse -Force -Path C:\tmp\foms-s-abc"),
+    ("allow", r"Remove-Item -Recurse -Force C:\tmp\foms-cbtn, C:\tmp\foms-cbtn2"),
+    (
+        "allow",
+        'powershell -NoProfile -Command "Remove-Item -Recurse -Force'
+        " 'C:\\tmp\\foms-cbtn2' -ErrorAction SilentlyContinue\"",
+    ),
 ]
 
 _IDS = [f"{dec}:{cmd}".replace("\n", "\\n") for dec, cmd in CASES]
@@ -170,6 +180,21 @@ def test_classify_command(expected: str, command: str) -> None:
     policy = _load_policy()
     decision, _label = policy.classify_command(command)
     assert decision == expected, f"{command!r} → {decision} (기대: {expected})"
+
+
+def test_remove_item_temp_env_allow(monkeypatch: pytest.MonkeyPatch) -> None:
+    """%TEMP%/%TMP% 하위 Remove-Item 재귀 삭제는 allow, 루트 자체는 ask."""
+    policy = _load_policy()
+    monkeypatch.setenv("TEMP", r"C:\Users\u\AppData\Local\Temp")
+    monkeypatch.delenv("TMP", raising=False)
+    decision, _ = policy.classify_command(
+        r"Remove-Item -Recurse -Force C:\Users\u\AppData\Local\Temp\claude\x"
+    )
+    assert decision == "allow"
+    decision, _ = policy.classify_command(
+        r"Remove-Item -Recurse -Force C:\Users\u\AppData\Local\Temp"
+    )
+    assert decision == "ask"
 
 
 # ---------------------------------------------------------------------------

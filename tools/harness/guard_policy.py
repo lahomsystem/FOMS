@@ -439,13 +439,96 @@ def _classify_rm(tokens: list[str]) -> tuple[str, str]:
     return "allow", ""
 
 
+#: Remove-Item 파라미터 중 값이 삭제 대상 경로인 플래그.
+_PS_REMOVE_PATH_FLAGS: frozenset[str] = frozenset({"-path", "-literalpath"})
+
+#: Remove-Item 파라미터 중 다음 토큰을 값으로 소비하지만 경로가 아닌 플래그.
+_PS_REMOVE_VALUE_FLAGS: frozenset[str] = frozenset(
+    {
+        "-filter", "-include", "-exclude", "-stream",
+        "-erroraction", "-warningaction", "-informationaction",
+        "-errorvariable", "-warningvariable", "-informationvariable",
+        "-outvariable", "-outbuffer", "-pipelinevariable",
+    }
+)
+
+
+def _temp_roots() -> frozenset[str]:
+    """임시폴더 루트 집합(소문자·슬래시 정규화) — `c:/tmp` + %TEMP%/%TMP%.
+
+    반환: 정규화된 루트 경로 frozenset. 호출 시점 환경변수를 읽는다.
+    """
+    roots = {"c:/tmp"}
+    for var in ("TEMP", "TMP"):
+        val = os.environ.get(var, "")
+        if val:
+            roots.add(val.replace("\\", "/").rstrip("/").lower())
+    return frozenset(roots)
+
+
+def _is_temp_path(target: str) -> bool:
+    """대상 경로가 임시폴더 루트의 '하위'인지 판정한다.
+
+    파라미터:
+        target: 삭제 대상 경로 토큰(따옴표 포함 가능).
+    반환: 루트 하위면 True. 루트 자체·`..` 포함(상위 탈출)·미확정 경로는 False.
+    """
+    low = _strip_quotes(target).replace("\\", "/").rstrip("/").lower()
+    if ".." in low.split("/"):
+        return False
+    return any(low.startswith(root + "/") for root in _temp_roots())
+
+
+def _ps_remove_targets(tokens: list[str]) -> list[str]:
+    """Remove-Item argv 에서 삭제 대상 경로 토큰만 추출한다.
+
+    파라미터:
+        tokens: `Remove-Item ...` argv (첫 토큰 = 명령).
+    반환: 대상 경로 리스트(쉼표 다중 지정 분해·따옴표 제거). 스위치 플래그와
+        비경로 값 플래그(`-ErrorAction` 등)의 값은 제외한다.
+    """
+    targets: list[str] = []
+
+    def _add(value: str) -> None:
+        for part in value.split(","):
+            cleaned = _strip_quotes(part.strip())
+            if cleaned:
+                targets.append(cleaned)
+
+    i = 1
+    while i < len(tokens):
+        tok = _strip_quotes(tokens[i])
+        low = tok.lower()
+        if low in _PS_REMOVE_PATH_FLAGS:
+            if i + 1 < len(tokens):
+                _add(_strip_quotes(tokens[i + 1]))
+            i += 2
+            continue
+        if low in _PS_REMOVE_VALUE_FLAGS:
+            i += 2
+            continue
+        if tok.startswith("-"):
+            i += 1
+            continue
+        _add(tok)
+        i += 1
+    return targets
+
+
 def _classify_powershell_remove(tokens: list[str]) -> tuple[str, str]:
-    """PowerShell `Remove-Item -Recurse -Force` = ask, `del /s /q <drive>` = deny."""
+    """PowerShell `Remove-Item -Recurse -Force` = ask, `del /s /q <drive>` = deny.
+
+    예외: 삭제 대상 전부가 임시폴더(`c:/tmp`·%TEMP%·%TMP%) 하위면 allow
+    (세션 worktree 청소 등 반복 케이스 — 루트 자체 삭제는 여전히 ask).
+    """
     name = _command_name(tokens)
     if name in ("remove-item", "ri", "rmdir", "rd"):
         recurse = _has_flag(tokens, "-recurse", "-r")
         force = _has_flag(tokens, "-force")
         if recurse and force:
+            targets = _ps_remove_targets(tokens)
+            if targets and all(_is_temp_path(t) for t in targets):
+                return "allow", ""
             return "ask", "Remove-Item 재귀 강제 삭제"
         return "allow", ""
     if name in ("del", "erase"):
