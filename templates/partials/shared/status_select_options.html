@@ -40,7 +40,7 @@
   {%- set _terminal = ['COMPLETED', 'AS', 'AS_RECEIVED', 'AS_COMPLETED', 'DELETED'] -%}
   {%- set _cur = (current_status or '') | string -%}
   {%- if _cur not in _terminal -%}
-  <button type="button" class="btn btn-sm btn-success w-100 mt-1 js-complete-order"
+  <button type="button" class="btn btn-sm btn-success mt-1 js-complete-order"
           data-order-id="{{ order_id }}" data-field="status" data-value="COMPLETED"
           data-confirm="이 주문을 완료 처리할까요? 완료된 주문 섹션으로 이동합니다."
           title="이 주문을 완료 상태로 변경합니다">
@@ -63,7 +63,7 @@
 #}
 {%- macro as_complete_control(order_id, current_status, today) -%}
   {%- if (current_status or '') | string == 'AS_RECEIVED' -%}
-  <button type="button" class="btn btn-sm btn-success w-100 mt-1 js-complete-order"
+  <button type="button" class="btn btn-sm btn-success mt-1 js-complete-order"
           data-order-id="{{ order_id }}" data-field="as_completed_date" data-value="{{ today }}"
           data-confirm="AS를 완료 처리할까요? AS 대시보드 '완료' 탭으로 이동합니다."
           title="AS를 완료 처리합니다 (AS 대시보드 완료 탭으로 이동)">
