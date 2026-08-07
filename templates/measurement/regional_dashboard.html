@@ -185,16 +185,91 @@
 
     /* 헤더 통합 검색 (2026-08-07: 별도 검색 카드 → 제목 줄로 이동) */
     .regional-header-search {
-        flex: 1 1 360px;
-        min-width: 240px;
-        max-width: 560px;
+        flex: 1 1 380px;
+        min-width: 260px;
+        max-width: 580px;
     }
 
-    /* 요약 통계 1줄 스트립 (2026-08-07: 카드 2단 → 한 줄 칩) */
-    .regional-summary-item {
+    /* 검색 입력 대비 강화 — 전역 .form-control 은 배경 #F2F2F7 라
+       페이지 배경(#EEF0F3)과 구분이 거의 없다. 흰 배경 + 진한 테두리로 분리. */
+    .regional-search-group .form-control {
+        background-color: #fff !important;
+        border: 1.5px solid #868f9f !important;
+        border-left: 0 !important;
+        border-right: 0 !important;
+        box-shadow: none !important;
+        padding-left: 4px !important;
+    }
+    .regional-search-group .form-control::placeholder {
+        color: #6b7280;
+        opacity: 1;
+    }
+    .regional-search-group .regional-search-icon {
+        background-color: #fff;
+        border: 1.5px solid #868f9f;
+        border-right: 0;
+        color: #4b5563;
+        padding-right: 6px;
+    }
+    .regional-search-group {
+        box-shadow: 0 1px 2px rgba(16, 24, 40, 0.08);
+        border-radius: var(--radius-m, 10px);
+    }
+    .regional-search-group:focus-within {
+        box-shadow: 0 0 0 4px rgba(0, 122, 255, 0.18);
+    }
+    .regional-search-group:focus-within .form-control,
+    .regional-search-group:focus-within .regional-search-icon,
+    .regional-search-group:focus-within .regional-search-clear {
+        border-color: #0d6efd !important;
+    }
+    .regional-search-group .regional-search-clear {
+        border: 1.5px solid #868f9f;
+        border-left: 0;
+        border-right: 0;
+        color: #6b7280;
+        display: inline-flex;
+        align-items: center;
+    }
+    .regional-search-group .regional-search-clear:hover {
+        color: #b02a37;
+        background: #f8f9fa;
+    }
+
+    /* 섹션 점프바 (요약 1줄 = 스크롤 시 sticky) */
+    .regional-jumpbar {
+        position: sticky;
+        top: var(--regional-sticky-top, 0px);
+        z-index: 900;
+        margin-bottom: 1rem;
+        padding: 8px 0;
+        background: rgba(255, 255, 255, 0.94);
+        backdrop-filter: blur(10px);
+        -webkit-backdrop-filter: blur(10px);
+        border-radius: 12px;
+        transition: box-shadow 0.18s ease, padding 0.18s ease;
+    }
+    .regional-jumpbar.is-stuck {
+        box-shadow: 0 6px 18px rgba(16, 24, 40, 0.12);
+        border-bottom: 1px solid rgba(16, 24, 40, 0.08);
+        padding: 6px 8px;
+    }
+    .regional-jumpbar-inner {
+        display: flex;
+        align-items: center;
+        gap: 8px;
+        overflow-x: auto;
+        scrollbar-width: none;
+        padding: 2px 4px;
+    }
+    .regional-jumpbar-inner::-webkit-scrollbar {
+        display: none;
+    }
+    .regional-jump {
         display: inline-flex;
         align-items: center;
         gap: 6px;
+        flex: 0 0 auto;
         padding: 6px 14px;
         border-radius: 999px;
         border: 1px solid transparent;
@@ -202,19 +277,100 @@
         font-weight: 600;
         line-height: 1.2;
         white-space: nowrap;
+        text-decoration: none;
+        cursor: pointer;
+        transition: transform 0.12s ease, box-shadow 0.12s ease;
     }
-    .regional-summary-item strong {
+    .regional-jump:hover {
+        transform: translateY(-1px);
+        box-shadow: 0 2px 6px rgba(16, 24, 40, 0.15);
+        text-decoration: none;
+    }
+    .regional-jump:focus-visible {
+        outline: 3px solid rgba(13, 110, 253, 0.45);
+        outline-offset: 2px;
+    }
+    .regional-jump-count {
         font-weight: 800;
     }
-    .regional-summary-completed {
+    .regional-jump--shipping {
+        background: rgba(220, 53, 69, 0.10);
+        border-color: rgba(220, 53, 69, 0.38);
+        color: #b02a37;
+    }
+    .regional-jump--shipping.is-active {
+        background: #dc3545;
+        border-color: #b02a37;
+        color: #fff;
+    }
+    .regional-jump--pending {
+        background: rgba(255, 193, 7, 0.16);
+        border-color: rgba(255, 193, 7, 0.5);
+        color: #915907;
+    }
+    .regional-jump--pending.is-active {
+        background: #ffc107;
+        border-color: #d39e00;
+        color: #4d3200;
+    }
+    .regional-jump--as {
+        background: rgba(123, 31, 162, 0.10);
+        border-color: rgba(123, 31, 162, 0.35);
+        color: #6a1b9a;
+    }
+    .regional-jump--as.is-active {
+        background: #7b1fa2;
+        border-color: #5c1379;
+        color: #fff;
+    }
+    .regional-jump--scheduled {
+        background: rgba(13, 110, 253, 0.10);
+        border-color: rgba(13, 110, 253, 0.35);
+        color: #0a58ca;
+    }
+    .regional-jump--scheduled.is-active {
+        background: #0d6efd;
+        border-color: #0a58ca;
+        color: #fff;
+    }
+    .regional-jump--completed {
         background: rgba(25, 135, 84, 0.10);
         border-color: rgba(25, 135, 84, 0.35);
         color: #146c43;
     }
-    .regional-summary-pending {
-        background: rgba(255, 193, 7, 0.14);
-        border-color: rgba(255, 193, 7, 0.45);
-        color: #915907;
+    .regional-jump--completed.is-active {
+        background: #198754;
+        border-color: #146c43;
+        color: #fff;
+    }
+
+    /* 점프 대상 섹션: sticky 헤더(전역 nav + 점프바)에 가리지 않도록 여백 확보 */
+    .regional-section {
+        scroll-margin-top: calc(var(--regional-sticky-top, 0px) + var(--regional-jumpbar-height, 56px) + 12px);
+    }
+
+    @media (max-width: 575.98px) {
+        .regional-jump {
+            padding: 5px 10px;
+            font-size: 0.82rem;
+        }
+        .regional-jump-text {
+            display: none;
+        }
+        .regional-jump--active-label .regional-jump-text,
+        .regional-jump.is-active .regional-jump-text {
+            display: inline;
+        }
+    }
+
+    @media (prefers-reduced-motion: reduce) {
+        .regional-jump,
+        .regional-jumpbar {
+            transition: none;
+        }
+        .regional-jump:hover {
+            transform: none;
+        }
     }
 </style>
 {% endblock %}
@@ -231,21 +387,53 @@
     <!-- 제목 + 통합 검색 (한 줄) -->
     <div class="d-flex justify-content-between align-items-center flex-wrap gap-3 mb-3">
         <h1 class="h3 mb-0"><i class="fas fa-map-marked-alt text-success"></i> 지방 주문 관리 대시보드</h1>
-        <form method="get" action="{{ url_for('dashboards.regional_dashboard') }}" class="d-flex regional-header-search" role="search">
-            <input type="text" name="search_query" class="form-control me-2" placeholder="주문번호, 고객명, 연락처, 주소, 제품, 메모 등 통합 검색" value="{{ search_query or '' }}">
-            <button type="submit" class="btn btn-primary flex-shrink-0 text-nowrap"><i class="fas fa-search"></i> 검색</button>
+        <form method="get" action="{{ url_for('dashboards.regional_dashboard') }}" class="regional-header-search" role="search">
+            <div class="input-group regional-search-group">
+                <span class="input-group-text regional-search-icon" id="regional-search-icon"><i class="fas fa-search" aria-hidden="true"></i></span>
+                <input type="text" name="search_query" class="form-control" placeholder="주문번호, 고객명, 연락처, 주소, 제품, 메모 등 통합 검색" aria-label="지방 주문 통합 검색" aria-describedby="regional-search-icon" value="{{ search_query or '' }}">
+                {% if search_query %}
+                <a class="btn regional-search-clear" href="{{ url_for('dashboards.regional_dashboard') }}" title="검색 초기화" aria-label="검색 초기화"><i class="fas fa-times" aria-hidden="true"></i></a>
+                {% endif %}
+                <button type="submit" class="btn btn-primary flex-shrink-0 text-nowrap"><i class="fas fa-search" aria-hidden="true"></i> 검색</button>
+            </div>
         </form>
     </div>
 
-    <!-- 요약 통계 (한 줄) -->
-    <div class="d-flex flex-wrap align-items-center gap-2 mb-4">
-        <span class="regional-summary-item regional-summary-completed">
-            <i class="fas fa-check-circle"></i> 완료된 주문 <strong>{{ completed_orders|length }}건</strong>
-        </span>
-        <span class="regional-summary-item regional-summary-pending">
-            <i class="fas fa-clock"></i> 진행 중인 주문 <strong>{{ pending_orders|length }}건</strong>
-        </span>
-    </div>
+    <!-- 요약·섹션 점프바 (스크롤 시 sticky) -->
+    <div id="regional-jumpbar-sentinel" aria-hidden="true"></div>
+    <nav class="regional-jumpbar" id="regional-jumpbar" aria-label="섹션 바로가기">
+        <div class="regional-jumpbar-inner">
+            {% if shipping_alerts %}
+            <a class="regional-jump regional-jump--shipping" href="#section-shipping" data-jump-target="section-shipping" title="상차 예정 알림으로 이동">
+                <i class="fas fa-shipping-fast" aria-hidden="true"></i>
+                <span class="regional-jump-text">상차 예정</span>
+                <span class="regional-jump-count">{{ shipping_alerts|length }}건</span>
+            </a>
+            {% endif %}
+            <a class="regional-jump regional-jump--pending" href="#section-pending" data-jump-target="section-pending" title="진행 중인 주문으로 이동">
+                <i class="fas fa-clock" aria-hidden="true"></i>
+                <span class="regional-jump-text">진행 중</span>
+                <span class="regional-jump-count">{{ pending_orders|length }}건</span>
+            </a>
+            {% if as_orders %}
+            <a class="regional-jump regional-jump--as" href="#section-as" data-jump-target="section-as" title="AS 접수로 이동">
+                <i class="fas fa-tools" aria-hidden="true"></i>
+                <span class="regional-jump-text">AS 접수</span>
+                <span class="regional-jump-count">{{ as_orders|length }}건</span>
+            </a>
+            {% endif %}
+            <a class="regional-jump regional-jump--scheduled" href="#section-scheduled" data-jump-target="section-scheduled" title="설치 예정으로 이동">
+                <i class="fas fa-calendar-check" aria-hidden="true"></i>
+                <span class="regional-jump-text">설치 예정</span>
+                <span class="regional-jump-count">{{ scheduled_orders|length }}건</span>
+            </a>
+            <a class="regional-jump regional-jump--completed" href="#section-completed" data-jump-target="section-completed" title="완료된 주문으로 이동">
+                <i class="fas fa-check-circle" aria-hidden="true"></i>
+                <span class="regional-jump-text">완료</span>
+                <span class="regional-jump-count">{{ completed_orders|length }}건</span>
+            </a>
+        </div>
+    </nav>
 
     <!-- 상차 예정 알림 -->
     {% if shipping_alerts %}
@@ -259,7 +447,7 @@
         {% endif %}
     {% endfor %}
     
-    <div class="row mb-4">
+    <div class="row mb-4 regional-section" id="section-shipping">
         <div class="col-12">
             <div class="card shadow shipping-alert-card">
                 <div class="card-header py-3 d-flex justify-content-between align-items-center shipping-alert-header">
@@ -481,7 +669,7 @@
     {% endif %}
 
             <!-- 진행 중인 주문 -->
-            <div class="row mb-4">
+            <div class="row mb-4 regional-section" id="section-pending">
                 <div class="col-12">
                     <div class="card shadow border-left-pending">
                         <div class="card-header py-3 d-flex justify-content-between align-items-center header-pending">
@@ -698,7 +886,7 @@
 
             <!-- AS 접수 주문 (ERP AS 접수 → 이 섹션 → AS완료 시 AS 대시보드 완료 탭) -->
             {% if as_orders %}
-            <div class="row mb-4">
+            <div class="row mb-4 regional-section" id="section-as">
                 <div class="col-12">
                     <div class="card shadow border-left-as">
                         <div class="card-header py-3 d-flex justify-content-between align-items-center header-as">
@@ -766,7 +954,7 @@
             {% endif %}
 
             <!-- 설치 예정 주문 -->
-            <div class="row mb-4">
+            <div class="row mb-4 regional-section" id="section-scheduled">
                 <div class="col-12">
                     <div class="card shadow border-left-scheduled">
                         <div class="card-header py-3 d-flex justify-content-between align-items-center header-scheduled">
@@ -943,7 +1131,7 @@
             </div>
 
             <!-- 완료된 주문 -->
-            <div class="row">
+            <div class="row regional-section" id="section-completed">
                 <div class="col-12">
                     <div class="card shadow border-left-completed">
                         <div class="card-header py-3 d-flex justify-content-between align-items-center header-completed">
@@ -2009,4 +2197,5 @@ function toggleCompletedConstructionType(type) {
 <script src="{{ url_for('static', filename='js/orders/erp-stage-override.js') }}?v=20260723b" defer></script>
 <script src="{{ url_for('static', filename='js/measurement/regional-shipping-export.js') }}?v=20260807a" defer></script>
 <script src="{{ url_for('static', filename='js/measurement/complete-order-btn.js') }}?v=20260807b" defer></script>
+<script src="{{ url_for('static', filename='js/measurement/regional-jumpbar.js') }}?v=20260807a" defer></script>
 {% endblock %}
