@@ -4,7 +4,7 @@
 
 {% block styles %}
 {{ super() }}
-<link rel="stylesheet" href="{{ url_for('static', filename='css/measurement/complete-order-btn.css') }}?v=20260807c">
+<link rel="stylesheet" href="{{ url_for('static', filename='css/measurement/complete-order-btn.css') }}?v=20260807d">
 <style>
     @keyframes pulse-bg {
         0% { background: linear-gradient(135deg, var(--pastel-red-dark) 0%, var(--pastel-red) 100%); }
@@ -735,8 +735,10 @@
                                             <td class="cell-wrap" style="max-width: 200px;" title="{{ order.address }}">{{ order.address }}</td>
                                             <td class="cell-wrap" style="max-width: 150px;" title="{{ order.product }}">{{ order.product }}</td>
                                             <td>
-                                                {{ board_status_badge('AS접수', 'as') }}
-                                                {{ as_complete_control(order.id, order.status, today) }}
+                                                <div class="foms-board-status-stack">
+                                                    {{ board_status_badge('AS접수', 'as') }}
+                                                    {{ as_complete_control(order.id, order.status, today) }}
+                                                </div>
                                             </td>
                                             <td>{{ order.as_received_date or '-' }}</td>
                                             <td>
@@ -821,11 +823,13 @@
                                             <td class="cell-wrap" style="max-width: 200px;" title="{{ order.address }}">{{ order.address }}</td>
                                             <td class="cell-wrap" style="max-width: 150px;" title="{{ order.product }}">{{ order.product }}</td>
                                             <td>
-                                                {{ board_status_badge('설치예정', 'scheduled') }}
-                                                {{ complete_order_control(order.id, order.status) }}
+                                                <div class="foms-board-status-stack">
+                                                    {{ board_status_badge('설치예정', 'scheduled') }}
+                                                    {{ complete_order_control(order.id, order.status) }}
+                                                </div>
                                             </td>
                                             <td>
-                                                <div class="small">
+                                                <div class="d-flex flex-column" style="gap: 0.2rem;">
                                                     <div class="form-check">
                                                         <input class="form-check-input regional-checkbox"
                                                                type="checkbox"
