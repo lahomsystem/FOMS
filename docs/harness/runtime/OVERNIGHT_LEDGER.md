@@ -1,30 +1,31 @@
-# OVERNIGHT_LEDGER — 감사 로깅 T4~T-CP2 (2026-08-06 야간, 2차 런)
+# OVERNIGHT_LEDGER — 감사 로깅 T8~T-CP3 (2026-08-07 야간, 3차 런)
 
-플랜 정본: `docs/plans/2026-08-05-system-audit-logging-plan.md` (T4·T5·T6·T-CP2 완료 기준 명시)
-스펙: `docs/specs/2026-08-05-system-audit-logging-design.md` (2차 개정판)
+플랜 정본: `docs/plans/2026-08-05-system-audit-logging-plan.md` (T8~T-CP3 완료 기준 명시)
+스펙: `docs/specs/2026-08-05-system-audit-logging-design.md` §4 Phase 3
 상위 원장: `docs/plans/2026-08-05-system-audit-logging-ledger.md`
-브랜치: `deploy` / 시작 HEAD: `db1bfa24` / 1차 런(T2·T3·T-CP1): push `d7f0d9ea` CI 4/4 green 종결
+브랜치: `deploy` / 2차 런 종결: 원격 `156cb70c` CI 4/4 green + 스테이징 E2E 13/13
 
 | # | task | 상태 | 검증 결과 | 커밋 SHA |
 |---|---|---|---|---|
-| T4 | 첨부 soft delete + 이벤트 + 전역 필터 | DONE | 메인 직접 재실행 110 passed(신규 35·권한·게이트 4종) + APP_OK. 위임분: PG 6(왕복·EXPLAIN)·첨부 관련 856·PG 전수 652·전체 4473 passed(6 fail은 T4 무관 기존 환경 문제 — clean HEAD 재현 확인). 이탈 판단 4건 수용: 404(권한 후 판정)·outbox 2행·인덱스 2종·manifest 등재. **⚠ push 의존: 마이그레이션이 타 세션 `account_self_00` 위 체이닝** | `3ec9bfd2` |
-| T5 | 관리자 행위 구조화 + 접근거부 기록(독립 감사 헬퍼) | DONE | 메인 직접 재실행 76 passed(신규 15·셀프서비스·게이트) + APP_OK. 위임분: PG 7(독립 커밋 인과 증명)·연관 599·smoke 게이트 253. SQLite 독립성 한계는 PG 레인으로 증명(문서화). auth 겹침 없음(셀프서비스 커밋 위 작업) | `9d02f0f5` |
-| T6 | access_logs 부활 (파일 접근 3곳, T5 헬퍼 공유) | DONE | 메인 직접 재실행 103 passed(신규 32·T4/T5 공존·게이트) + APP_OK. 위임분: PG 8(FK 실증·EXPLAIN)·PG 전수 667·영향 영역 343, 뮤테이션 검증 확인. 403/404/tombstone 미기록 결정 | `ea8a1abc` |
-| T-CP2 | Phase 2 검증·커밋(push는 승인 범위 밖) | DONE | pre_push_smoke exit 0 + hygiene 15 passed. push·스테이징 확인은 아침(⚠ 마이그레이션 account_self_00 의존 — REPORT 참조) | — |
+| T8 | security_logs 구조화(action·target·detail JSONB) | DONE | 메인 직접 76+PG 8 passed+APP_OK. 위임분 domains 4077·PG 675. 우선 호출부 7종 액션 코드화, additional_data 유실 결함 해소, 감사 화면 필터 | `7a8bf528` |
+| T9 | 감사 원장 수명주기(FK drop·retention purge·cron 체이닝) | DONE | 메인 직접 47+PG 18 passed+APP_OK+EXPLAIN(소형 테이블 Seq Scan 정상·인덱스 유지). 위임분 PG 692·domains 4113. channel_delivery 자기참조 FK 재귀 가드(뮤테이션 확인) | `bac253cc` |
+| T10 | Sentry(no-op 경로까지) + gunicorn access log | DONE(사용자 액션 잔여) | 메인 직접 20 passed + `import app` 후 sentry_sdk 모듈 **0개** 실측(no-op 증명) + Procfile·start.sh access-logfile diff 확인. 잔여=DSN 발급·Railway env·실수신(사용자 몫) | `7519a416` |
+| T11 | 잔여 구멍(user_deletion·FAILOPEN·EXTERNAL) | DONE | 메인 직접 242 passed+APP_OK. 위임분 domains 4144·PG 47. 사용자 삭제→비활성화(감사 actor 보존), SWALLOW_BY_CONTROL_FLOW 180 무성장(인위 +1 red 실증). ③ EXTERNAL은 인벤토리 타 세션 미커밋으로 생략 | `a9b8ecb7` |
+| T-CP3 | 최종 검증·AI_STATUS·(push 제외) | DONE | smoke exit 0 + hygiene 15 + verify_result success:true + AI_STATUS 갱신. push는 아침 | — |
 
-## Phase 0 점검 (2026-08-06 야간)
+## Phase 0 (2026-08-07 야간)
 
-- APP_OK green. 워킹트리 타 세션 잔여 M 2파일(regional) — 스테이징 금지 목록.
-- 미push 80커밋(타 세션 다수 + 본 세션 문서 3개: 8e5169aa·bcdeebc7·757d2907).
-- ⚠️ 타 세션 "계정 셀프서비스 v1"(748eb337)이 auth 영역 커밋 + `test_auth_self_service.py`
-  실시간 편집 감지(30분 내) — **T5와 `foms/web/auth/routes.py` 겹침 위험**.
-  T5 착수 전 파일 최신 상태 재확인 + 겹치면 T5를 마지막으로 순연.
+- 워킹트리 clean(타 세션 잔여 M 소멸), APP_OK green, 미push 117(계보 분기 이중 계상 —
+  본 세션 잔여는 문서 커밋 `7e140151` 1개).
 
 ## 가정 (무인 중 질문 금지)
 
-- 실행 순서 T4 → T5 → T6 순차(공유 워킹트리 — 병렬 금지, T6은 T5 헬퍼 의존).
-- 커밋은 자기 몫 파일만 명시 스테이징. 재위임 2회 실패 시 BLOCKED 후 전진.
-- 마이그레이션(T4)은 로컬 PG에 upgrade/downgrade 왕복 검증까지, 스테이징 적용은
-  push(배포) 시 자동.
-- T5 auth 겹침 발생 시: 타 세션 커밋 위에서 작업(로컬 HEAD 기준), 실시간 동시 편집
-  감지되면 해당 파일만 BLOCKED 기록.
+- 순차 실행 T8→T9→T10→T11→T-CP3 (T9 마이그레이션이 T8 컬럼 뒤 체이닝).
+- T10 Sentry: **DSN 등록·실수신 확인은 사용자 몫** — no-op 경로·마스킹 워커·테스트까지
+  구현하고 BLOCKED 아닌 DONE(사용자 액션 잔여) 처리, 아침 안내.
+- T9 결정 ④⑤는 기승인(FK drop + models·runner 동기 / 사용자 삭제 의미 변경).
+  보존기간: security_logs 2년·notification_events/channel_delivery_logs/access_logs 1년
+  (스펙 제안값 — 원장 가정 기록으로 확정).
+- 마이그레이션 down_revision은 push 시점 origin head 재확인 후 필요 시 재부모화
+  (2차 런 함정 학습).
+- 커밋은 pathspec(`git commit -F msg -- <경로>`), 재위임 2회 실패 시 BLOCKED 전진.

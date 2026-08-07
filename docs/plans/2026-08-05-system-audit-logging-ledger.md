@@ -14,12 +14,12 @@
 | T5 관리자 행위 구조화 + 접근거부 기록 | DONE | 커밋 `9d02f0f5`. 신규 15+PG 7(독립 커밋 인과 증명)+연관 599. from→to·비번 값 부재·403/CSRF 독립 기록·dedupe |
 | T6 access_logs 부활 (파일 접근 3곳) | DONE | 커밋 `ea8a1abc`. 신규 32+PG 8. FILE_VIEW 10분 dedupe·PRESIGNED·DOWNLOAD, 인덱스 `access_log_00` |
 | T7 — **T1에 흡수(결번)** | — | 단순화 심판 판정 |
-| T-CP2 Phase 2 검증·커밋·푸시 | DONE(push 제외) | smoke exit 0 + hygiene 15 passed. push는 아침(마이그레이션 의존 확인 필수 — OVERNIGHT_REPORT) |
-| T8 security_logs 구조화 | PENDING | |
-| T9 감사 원장 수명주기 (retention + FK 분리) | PENDING | |
-| T10 Sentry + gunicorn access log | PENDING | |
-| T11 잔여 구멍 (user_deletion·FAILOPEN·EXTERNAL) | PENDING | |
-| T-CP3 최종 검증·AI_STATUS 갱신 | PENDING | |
+| T-CP2 Phase 2 검증·커밋·푸시 | DONE | smoke exit 0 + hygiene 15. [08-06 아침] push 완료 — 원격 최종 `156cb70c`, **CI 4/4 green**. CI red 2건 근본수정: ① PG DSN `str(URL)` 비번 마스킹(`***`) → render 원문 ② AccessLog 인덱스 모델↔마이그레이션 드리프트 → `__table_args__` 정합. `attach_life_00`은 origin `merge_acct_typedrift` 뒤 재부모화. **스테이징 E2E 13/13 PASS**(draft 생성→업로드→열람 302→삭제→목록 제외→404→복구→302, 주문 4399 CLAUDE-TEST) — 마이그레이션 2개 실적용 실증 |
+| T8 security_logs 구조화 | DONE | 커밋 `7a8bf528`. 신규 26+PG 8, action/target/detail JSONB·log_access 확장·감사 화면 필터 |
+| T9 감사 원장 수명주기 (retention + FK 분리) | DONE | 커밋 `bac253cc`. PG 18+체인 왕복, order_events FK 분리 3중 정합·purge_audit_logs·cron 체이닝 |
+| T10 Sentry + gunicorn access log | DONE(사용자 액션 잔여) | 커밋 `7519a416`. no-op 실증(sentry_sdk 0 로드)·재귀 마스킹 워커·access-logfile. 잔여=DSN 발급·Railway env |
+| T11 잔여 구멍 (user_deletion·FAILOPEN·EXTERNAL) | DONE(EXTERNAL 제외) | 커밋 `a9b8ecb7`. 사용자 비활성화 전환·FAILOPEN disposition 180 무성장. EXTERNAL 감축은 인벤토리 타 세션 점유로 별건 |
+| T-CP3 최종 검증·AI_STATUS 갱신 | DONE(push 제외) | smoke exit 0 + hygiene 15 + verify_result success:true + AI_STATUS 갱신. push는 아침(마이그레이션 3종 체인 — origin head 재확인) |
 
 ## 사용자 결정 (2026-08-05)
 
@@ -78,8 +78,12 @@
 - mutation writer EXTERNAL 22곳 baseline 핀.
 - 복제 패턴: `order_date_sync.py` before_flush SSOT(origin 기억·복귀 취소·재진입 가드).
 
-## 미해결 / 대기
+## 미해결 / 대기 (2026-08-07 갱신)
 
-- **스펙 승인 대기** — 승인 전 전 task 착수 금지.
-- 승인 시 §8 결정 4건 확정 필요(전부 권장안 있음 — "권장대로" 한마디면 충분).
-- T9 보존기간(security_logs 2년·나머지 1년 제안)은 T9 착수 전 사용자 확인.
+- **T1~T11 전 task DONE.** 스펙 §8 결정 5건 전부 권장안으로 확정·구현 완료.
+- **push 대기**: P3 커밋 4개(`7a8bf528`·`bac253cc`·`7519a416`·`a9b8ecb7`) + 문서.
+  마이그레이션 3종 체인(`seclog_struct_00`→`auditlife_00`) — push 전 origin head 재확인.
+- **사용자 액션 잔여**: Sentry 프로젝트·DSN 발급·Railway `SENTRY_DSN` env 등록·실수신 확인.
+- **운영 주의**: purge cron은 `--apply` 체이닝(dry-run 아님). 첫 실행 전 보존기간
+  730/365일 확정 여부 확인.
+- **별건 이월**: EXTERNAL mutation writer 22곳 감축(인벤토리 타 세션 점유로 이번 런 생략).
