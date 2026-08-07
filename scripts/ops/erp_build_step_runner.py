@@ -326,7 +326,10 @@ def step_6_events_tasks_tables(db):
         db.execute(text("""
         CREATE TABLE IF NOT EXISTS order_events (
             id SERIAL PRIMARY KEY,
-            order_id INTEGER NOT NULL REFERENCES orders(id) ON DELETE CASCADE,
+            -- AUDIT-LOG T9: orders FK 없음. 감사 원장이 감사 대상과 함께 CASCADE 로
+            -- 사라지지 않도록 auditlife_00 이 제약을 떼어냈다 — 이 재생성 경로가
+            -- CASCADE 를 되살리면 드리프트가 난다(models.OrderEvent 와 동일 형태 유지).
+            order_id INTEGER NOT NULL,
             event_type VARCHAR(50) NOT NULL,
             payload JSONB NULL,
             created_by_user_id INTEGER NULL REFERENCES users(id),

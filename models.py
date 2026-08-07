@@ -786,11 +786,20 @@ class OrderConstructionAttempt(Base):
 
 
 class OrderEvent(Base):
-    """ERP 이벤트 스트림(단계 변경/일정 변경/긴급 발주/컨펌 등)"""
+    """ERP 이벤트 스트림(단계 변경/일정 변경/긴급 발주/컨펌 등).
+
+    AUDIT-LOG T9: **감사 원장은 감사 대상과 생명주기를 공유하지 않는다.** ``order_id`` 는
+    과거 ``orders.id`` 를 ``ON DELETE CASCADE`` 로 참조해서, 주문 hard purge 가 그 주문의
+    이벤트 이력까지 통째로 지웠다(스펙 §4 T9·§8 결정 ④). 마이그레이션 ``auditlife_00`` 이
+    FK 를 떼어냈고 여기도 동기화한다 — ``order_id`` 는 NOT NULL + 인덱스 그대로이며,
+    ``orders`` 와의 조인은 아래 ``order`` relationship 의 명시 ``primaryjoin`` 이 담당한다.
+    같은 이유로 raw DDL 재생성 경로(``scripts/ops/erp_build_step_runner.py``)에도 FK 가 없다.
+    """
     __tablename__ = 'order_events'
 
     id = Column(Integer, primary_key=True)
-    order_id = Column(Integer, ForeignKey('orders.id', ondelete='CASCADE'), nullable=False, index=True)
+    # FK 없음(auditlife_00) — 참조 제약이 아니라 인덱스만 있는 감사 원장 컬럼.
+    order_id = Column(Integer, nullable=False, index=True)
     event_type = Column(String(50), nullable=False, index=True)  # e.g. STAGE_CHANGED, URGENT_SET
     payload = Column(JSONColumn, nullable=True)
     created_by_user_id = Column(Integer, ForeignKey('users.id'), nullable=True)
@@ -798,7 +807,9 @@ class OrderEvent(Base):
     # 변경감지 윈도(도면 이력 now_utc_naive 와 naive 비교)를 dev/운영 모두 정합시킨다.
     created_at = Column(DateTime, default=now_utc_naive, nullable=False, index=True)
 
-    order = relationship('Order', foreign_keys=[order_id])
+    # FK 가 없으므로 SQLAlchemy 가 조인 조건을 추론할 수 없다 — ``foreign()`` 로 참조 측을
+    # 명시한다(lazy 로드 유지, backref 없음: ``Order.events`` 는 존재한 적이 없다).
+    order = relationship('Order', primaryjoin='foreign(OrderEvent.order_id) == Order.id')
     created_by = relationship('User', foreign_keys=[created_by_user_id])
 
 
