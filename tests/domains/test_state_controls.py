@@ -222,3 +222,45 @@ def test_measurement_dashboards_wire_complete_control(rel: str) -> None:
 
 def test_complete_control_js_exists() -> None:
     assert (ROOT / "static/js/measurement/complete-order-btn.js").exists()
+
+
+# ---------------------------------------------------------------------------
+# 5) 보드별 드롭다운 SSOT (2026-08-07 사용자 결정): 자가실측 3종·수도권 물류 4종.
+#    화면 프로세스와 무관한 legacy 옵션(지방실측 등)·메인 파이프라인 유입 금지.
+# ---------------------------------------------------------------------------
+
+def test_board_status_maps_curated() -> None:
+    from foms.services.orders.status_constants import (
+        LOGISTICS_BOARD_CODES,
+        METRO_BOARD_STATUS,
+        REGIONAL_BOARD_STATUS,
+        SELF_BOARD_STATUS,
+    )
+
+    assert set(REGIONAL_BOARD_STATUS) == {"SCHEDULED", "ON_HOLD"}
+    assert set(SELF_BOARD_STATUS) == {"MEASURED", "SCHEDULED", "ON_HOLD"}
+    assert set(METRO_BOARD_STATUS) == {
+        "MEASURED", "SCHEDULED", "SHIPPED_PENDING", "ON_HOLD",
+    }
+    # 물류 상태의 부분집합이어야 field_update stage-override 가드를 그대로 탄다.
+    assert set(REGIONAL_BOARD_STATUS) <= LOGISTICS_BOARD_CODES
+    assert set(SELF_BOARD_STATUS) <= LOGISTICS_BOARD_CODES
+    assert set(METRO_BOARD_STATUS) <= LOGISTICS_BOARD_CODES
+
+
+def test_dashboards_use_curated_board_maps() -> None:
+    src_regional = (TEMPLATES / "measurement/regional_dashboard.html").read_text(
+        encoding="utf-8"
+    )
+    src_self = (TEMPLATES / "measurement/self_measurement_dashboard.html").read_text(
+        encoding="utf-8"
+    )
+    src_metro = (TEMPLATES / "measurement/metropolitan_dashboard.html").read_text(
+        encoding="utf-8"
+    )
+    assert "assignable_status_options(REGIONAL_BOARD_STATUS" in src_regional
+    assert "assignable_status_options(LOGISTICS_BOARD_STATUS" not in src_regional
+    assert "assignable_status_options(SELF_BOARD_STATUS" in src_self
+    assert "assignable_status_options(LOGISTICS_BOARD_STATUS" not in src_self
+    assert "assignable_status_options(METRO_BOARD_STATUS" in src_metro
+    assert "assignable_status_options(STATUS," not in src_metro

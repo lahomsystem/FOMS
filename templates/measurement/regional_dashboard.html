@@ -393,7 +393,7 @@
                                         <select class="form-select form-select-sm inline-edit status-dropdown" 
                                                 data-order-id="{{ order.id }}"
                                                 data-field="status">
-                                            {{ assignable_status_options(LOGISTICS_BOARD_STATUS, order.status) }}
+                                            {{ assignable_status_options(REGIONAL_BOARD_STATUS, order.status) }}
                                         </select>
                                     </td>
                                     <td>
@@ -599,7 +599,7 @@
                                                 <select class="form-select form-select-sm inline-edit status-dropdown" 
                                                         data-order-id="{{ order.id }}"
                                                         data-field="status">
-                                                    {{ assignable_status_options(LOGISTICS_BOARD_STATUS, order.status) }}
+                                                    {{ assignable_status_options(REGIONAL_BOARD_STATUS, order.status) }}
                                                 </select>
                                             </td>
                                     <td>
@@ -787,7 +787,7 @@
                                                 <select class="form-select form-select-sm inline-edit status-dropdown" 
                                                         data-order-id="{{ order.id }}"
                                                         data-field="status">
-                                                    {{ assignable_status_options(LOGISTICS_BOARD_STATUS, order.status) }}
+                                                    {{ assignable_status_options(REGIONAL_BOARD_STATUS, order.status) }}
                                                 </select>
                                             </td>
                                             <td>{{ order.measurement_date or '-' }}</td>
@@ -949,7 +949,7 @@
                                                 <select class="form-select form-select-sm inline-edit" 
                                                         data-order-id="{{ order.id }}"
                                                         data-field="status">
-                                                    {{ assignable_status_options(LOGISTICS_BOARD_STATUS, order.status) }}
+                                                    {{ assignable_status_options(REGIONAL_BOARD_STATUS, order.status) }}
                                                 </select>
                                             </td>
                                             <td style="width: 90px;">
@@ -1140,7 +1140,7 @@
                                             <td>
                                                 <select class="form-select form-select-sm inline-edit"
                                                         data-order-id="{{ order.id }}" data-field="status">
-                                                    {{ assignable_status_options(LOGISTICS_BOARD_STATUS, order.status) }}
+                                                    {{ assignable_status_options(REGIONAL_BOARD_STATUS, order.status) }}
                                                 </select>
                                                 {{ complete_order_control(order.id, order.status) }}
                                             </td>
@@ -1330,7 +1330,7 @@
                                                 <select class="form-select form-select-sm inline-edit status-dropdown" 
                                                         data-order-id="{{ order.id }}"
                                                         data-field="status">
-                                                    {{ assignable_status_options(LOGISTICS_BOARD_STATUS, order.status) }}
+                                                    {{ assignable_status_options(REGIONAL_BOARD_STATUS, order.status) }}
                                                 </select>
                                             </td>
                                     <td>

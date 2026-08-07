@@ -161,7 +161,7 @@
                                                 <select class="form-select form-select-sm status-dropdown status-{{ order.status|lower }}" 
                                                         data-order-id="{{ order.id }}" 
                                                         data-current-status="{{ order.status }}">
-                                                    {{ assignable_status_options(STATUS, order.status) }}
+                                                    {{ assignable_status_options(METRO_BOARD_STATUS, order.status) }}
                                                 </select>
                                             </td>
                                             <td class="text-danger">{{ order.measurement_date or '-' }}</td>
@@ -260,7 +260,7 @@
                                                 <select class="form-select form-select-sm status-dropdown status-{{ order.status|lower }}" 
                                                         data-order-id="{{ order.id }}" 
                                                         data-current-status="{{ order.status }}">
-                                                    {{ assignable_status_options(STATUS, order.status) }}
+                                                    {{ assignable_status_options(METRO_BOARD_STATUS, order.status) }}
                                                 </select>
                                             </td>
                                             <td>{{ order.measurement_date or '-' }}</td>
@@ -349,7 +349,7 @@
                                                 <select class="form-select form-select-sm status-dropdown status-{{ order.status|lower }}" 
                                                         data-order-id="{{ order.id }}" 
                                                         data-current-status="{{ order.status }}">
-                                                    {{ assignable_status_options(STATUS, order.status) }}
+                                                    {{ assignable_status_options(METRO_BOARD_STATUS, order.status) }}
                                                 </select>
                                             </td>
                                             <td class="text-info">{{ order.measurement_date or '-' }}</td>
@@ -438,7 +438,7 @@
                                                 <select class="form-select form-select-sm status-dropdown status-{{ order.status|lower }}" 
                                                         data-order-id="{{ order.id }}" 
                                                         data-current-status="{{ order.status }}">
-                                                    {{ assignable_status_options(STATUS, order.status) }}
+                                                    {{ assignable_status_options(METRO_BOARD_STATUS, order.status) }}
                                                 </select>
                                                 {{ complete_order_control(order.id, order.status) }}
                                             </td>
@@ -517,7 +517,7 @@
                                             <td>
                                                 <select class="form-select form-select-sm status-dropdown status-{{ order.status.lower() }}" 
                                                         data-order-id="{{ order.id }}" data-field="status">
-                                                    {{ assignable_status_options(STATUS, order.status) }}
+                                                    {{ assignable_status_options(METRO_BOARD_STATUS, order.status) }}
                                                 </select>
                                             </td>
                                             <td>
@@ -608,7 +608,7 @@
                                                 <select class="form-select form-select-sm status-dropdown status-{{ order.status|lower }}" 
                                                         data-order-id="{{ order.id }}" 
                                                         data-current-status="{{ order.status }}">
-                                                    {{ assignable_status_options(STATUS, order.status) }}
+                                                    {{ assignable_status_options(METRO_BOARD_STATUS, order.status) }}
                                                 </select>
                                             </td>
                                             <td style="width: 150px;">

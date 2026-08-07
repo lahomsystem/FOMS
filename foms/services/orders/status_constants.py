@@ -43,6 +43,32 @@ LOGISTICS_BOARD_STATUS = {
 
 LOGISTICS_BOARD_CODES = frozenset(LOGISTICS_BOARD_STATUS)
 
+# 지방 대시보드 드롭다운 SSOT (2026-08-07 사용자 결정).
+# 섹션을 실제로 움직이는 상태만 — 실측완료(체크박스 SSOT)·상차예정(상차일 SSOT)·
+# 지방실측(라벨용) 제거. 완료는 canonical 컨트롤(complete_order_control) 소관.
+REGIONAL_BOARD_STATUS = {
+    'SCHEDULED': '설치예정',
+    'ON_HOLD': '보류',
+}
+
+# 자가실측 대시보드 드롭다운 SSOT (2026-08-07 사용자 결정).
+# 화면 프로세스(대기→설치예정→AS→완료)와 무관한 지방실측·상차예정 legacy 제거.
+# 터미널 전이(완료)는 canonical 컨트롤(complete_order_control) 소관.
+SELF_BOARD_STATUS = {
+    'MEASURED': '실측완료',
+    'SCHEDULED': '설치예정',
+    'ON_HOLD': '보류',
+}
+
+# 수도권 대시보드 드롭다운 SSOT (2026-08-07 사용자 결정).
+# 메인 파이프라인(접수~CS)은 ERP 폼 전용 원칙 준수 — 보드는 물류 중간 상태만.
+METRO_BOARD_STATUS = {
+    'MEASURED': '실측완료',
+    'SCHEDULED': '설치예정',
+    'SHIPPED_PENDING': '상차예정',
+    'ON_HOLD': '보류',
+}
+
 # 물류 중간 상태: order.status만 바꾸고 workflow.stage는 보존(공정 오염 방지).
 LOGISTICS_STATUS_PRESERVE_WORKFLOW_STAGE = frozenset(
     {
