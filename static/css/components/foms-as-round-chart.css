@@ -227,6 +227,24 @@
   font-size: 0.78rem;
   color: #64748b;
   white-space: nowrap;
+  display: inline-flex;
+  align-items: center;
+  gap: 2px;
+}
+
+/* 긴 표시명(측정 계정 등)이 행 폭을 밀어 우측 버튼이 잘리는 것 방어 — 이름만 말줄임 */
+.as-rchart-row__name {
+  max-width: 7.5rem;
+  overflow: hidden;
+  text-overflow: ellipsis;
+}
+
+/* 상태 카드 가능시간 편집 칩 — 목록 칩(erp-as-avail-chip 컨텍스트 스타일)과 달리
+   카드 라벨 옆 소형 배치만 여기서 잡는다(팝오버 스타일은 기존 SSOT 그대로). */
+.as-rchart-avail-edit {
+  margin-left: 6px;
+  font-size: 0.7rem;
+  vertical-align: middle;
 }
 
 /* 접수 원문(맨 아래 고정) — 시간상 시작점. legacy 는 더 옅게 */

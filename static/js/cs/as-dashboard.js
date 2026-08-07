@@ -624,6 +624,10 @@
             const saved = (data.normalized_value && typeof data.normalized_value === 'object')
               ? data.normalized_value : null;
             applyChipState(orderId, saved);
+            // 회차 차트가 열려 있으면 상태 카드 현재값·이력(system 로그)도 함께 갱신.
+            if (typeof window.__fomsRefreshRoundChart === 'function') {
+              window.__fomsRefreshRoundChart(orderId);
+            }
             showFeedback(isClear ? '가능시간을 초기화했습니다.' : '가능시간을 저장했습니다.');
           } catch (err) {
             showFeedback(err.message || '가능시간 저장 실패', true);
@@ -1183,6 +1187,8 @@
           highlightTimelineStatic(fresh);
         } catch (err) { /* 네트워크 오류 — 저장 자체는 완료 */ }
       }
+      // 가능시간 팝오버 IIFE 등 이 가드 블록 밖 스코프에서도 차트 재조회를 부를 수 있게 노출.
+      window.__fomsRefreshRoundChart = refreshRoundChart;
 
       // 세그먼트 유형 토글(ver7 [C]) — 숨김 select 가 값 SSOT, localStorage 가 기억 SSOT.
       document.addEventListener('click', function (e) {
