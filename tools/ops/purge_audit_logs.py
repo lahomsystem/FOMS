@@ -8,10 +8,10 @@
 ===========================  ==================  ==============
 table                        시각 컬럼           기본 보존
 ===========================  ==================  ==============
-``security_logs``            ``timestamp``       730일(2년)
+``security_logs``            ``timestamp``       1095일(3년)
 ``notification_events``      ``created_at``      365일(1년)
-``channel_delivery_logs``    ``created_at``      365일(1년)
-``access_logs``              ``timestamp``       365일(1년)
+``channel_delivery_logs``    ``created_at``      1095일(3년)
+``access_logs``              ``timestamp``       730일(2년)
 ===========================  ==================  ==============
 
 **``order_events`` 는 대상이 아니다**(:data:`EXCLUDED_TABLES`). T9 가 방금 그 테이블을
@@ -122,16 +122,16 @@ _CHANNEL_DELIVERY_SURVIVOR_GUARD = (
 
 AUDIT_TABLES: tuple[AuditTableSpec, ...] = (
     # 보안 감사 원장 — 조사 요구가 가장 길다(2년).
-    AuditTableSpec("security_logs", "timestamp", 730),
+    AuditTableSpec("security_logs", "timestamp", 1095),
     # 알림 상태 전이 로그 — append-only, 운영 조사는 1년이면 충분.
     AuditTableSpec("notification_events", "created_at", 365),
     # ChannelTalk 전송 로그(Outbox 겸용) — 자기참조 FK 때문에 자식 우선 + survivor guard.
     AuditTableSpec(
-        "channel_delivery_logs", "created_at", 365,
+        "channel_delivery_logs", "created_at", 1095,
         children_first=True, survivor_guard_sql=_CHANNEL_DELIVERY_SURVIVOR_GUARD,
     ),
     # 파일 접근 기록(T6 에서 부활) — 1년.
-    AuditTableSpec("access_logs", "timestamp", 365),
+    AuditTableSpec("access_logs", "timestamp", 730),
 )
 
 # 계약: 제외 테이블이 대상 목록에 섞여 들어오면 import 시점에 죽는다(조용한 회귀 차단).

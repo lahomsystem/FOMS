@@ -21,10 +21,10 @@ from tools.ops import purge_audit_logs as pal
 
 
 EXPECTED_DEFAULTS = {
-    "security_logs": 730,
+    "security_logs": 1095,
     "notification_events": 365,
-    "channel_delivery_logs": 365,
-    "access_logs": 365,
+    "channel_delivery_logs": 1095,
+    "access_logs": 730,
 }
 
 
@@ -60,7 +60,13 @@ def test_target_and_excluded_sets_are_disjoint():
 # 2. 보존기간
 # --------------------------------------------------------------------------- #
 def test_default_retention_days_match_spec():
-    """security_logs 730일(2년), 나머지 365일(1년) — 스펙 §4 T9."""
+    """보존기간 계약(2026-08-07 실측 분석 반영): security_logs·channel_delivery_logs
+    1095일(3년), access_logs 730일(2년), notification_events 365일(1년).
+
+    근거: `docs/plans/2026-08-07-audit-retention-analysis.md` — 스토리지 부담은
+    10년 누적 월 $0.23 수준이라 제약이 아니고, 상한은 개인정보보호법 제21조
+    파기 의무(감사 로그에 연락처·주소 혼입 실측)가 규정한다.
+    """
     assert {s.table: s.default_retention_days for s in pal.AUDIT_TABLES} == EXPECTED_DEFAULTS
 
 
