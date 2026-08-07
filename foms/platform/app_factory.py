@@ -20,6 +20,7 @@ from .blueprints import register_blueprints
 from .http import register_http_bootstrap
 from .logging_setup import configure_logging
 from .realtime import init_realtime_bootstrap
+from .sentry_setup import init_sentry
 from .request_limits import FomsRequest, GLOBAL_BODY_CAP, register_request_limits
 
 from foms.services.context_processors import register_context_processors
@@ -160,6 +161,10 @@ def build_app(*, socketio_available: bool) -> AppFactoryResult:
     # AUDIT-LOG T1: gunicorn 경로(app.py → build_app)에는 지금까지 로깅 설정이
     # 없어 INFO가 전량 소실됐다. 멱등이라 run.py 선호출/재초기화와 안전하게 겹친다.
     configure_logging()
+    # AUDIT-LOG T10: SENTRY_DSN env가 있을 때만 초기화(없으면 sentry_sdk import조차
+    # 하지 않는 완전 no-op). FlaskIntegration은 Flask 시그널에 붙으므로 앱 생성 전
+    # 초기화로 충분하다.
+    init_sentry()
 
     app = Flask("app")
 
