@@ -193,7 +193,7 @@
 {% endblock %}
 
 {% block content %}
-{% from 'partials/shared/status_select_options.html' import assignable_status_options with context %}
+{% from 'partials/shared/status_select_options.html' import assignable_status_options, complete_order_control with context %}
 {# 라홈시스템(factory2) 뱃지: ERP 대시보드(orders/partials/dashboard_grid.html)와 동일한 flags.factory2 판정. #}
 {% macro factory2_badge(order) -%}
   {%- if order.is_erp_order and ((order.structured_data or {}).get('flags') or {}).get('factory2') %}
@@ -395,6 +395,7 @@
                                                 data-field="status">
                                             {{ assignable_status_options(LOGISTICS_BOARD_STATUS, order.status) }}
                                         </select>
+                                        {{ complete_order_control(order.id, order.status) }}
                                     </td>
                                     <td>
                                         <div class="d-flex flex-column" style="gap: 0.2rem;">
@@ -601,6 +602,7 @@
                                                         data-field="status">
                                                     {{ assignable_status_options(LOGISTICS_BOARD_STATUS, order.status) }}
                                                 </select>
+                                                {{ complete_order_control(order.id, order.status) }}
                                             </td>
                                     <td>
                                         <input type="date" class="form-control form-control-sm editable-date" 
@@ -789,6 +791,7 @@
                                                         data-field="status">
                                                     {{ assignable_status_options(LOGISTICS_BOARD_STATUS, order.status) }}
                                                 </select>
+                                                {{ complete_order_control(order.id, order.status) }}
                                             </td>
                                             <td>{{ order.measurement_date or '-' }}</td>
                                             <td>
@@ -951,6 +954,7 @@
                                                         data-field="status">
                                                     {{ assignable_status_options(LOGISTICS_BOARD_STATUS, order.status) }}
                                                 </select>
+                                                {{ complete_order_control(order.id, order.status) }}
                                             </td>
                                             <td style="width: 90px;">
                                                 <input type="date" 
@@ -1142,6 +1146,7 @@
                                                         data-order-id="{{ order.id }}" data-field="status">
                                                     {{ assignable_status_options(LOGISTICS_BOARD_STATUS, order.status) }}
                                                 </select>
+                                                {{ complete_order_control(order.id, order.status) }}
                                             </td>
                                             <td>
                                                 <div class="small">
@@ -1331,6 +1336,7 @@
                                                         data-field="status">
                                                     {{ assignable_status_options(LOGISTICS_BOARD_STATUS, order.status) }}
                                                 </select>
+                                                {{ complete_order_control(order.id, order.status) }}
                                             </td>
                                     <td>
                                         <input type="date" class="form-control form-control-sm editable-date" 
@@ -2311,4 +2317,5 @@ function toggleCompletedConstructionType(type) {
 <script>window.MY_ROLE = {{ (current_user.role if current_user is defined and current_user else '')|tojson }};</script>
 <script src="{{ url_for('static', filename='js/orders/erp-stage-override.js') }}?v=20260723b" defer></script>
 <script src="{{ url_for('static', filename='js/measurement/regional-shipping-export.js') }}?v=20260806b" defer></script>
+<script src="{{ url_for('static', filename='js/measurement/complete-order-btn.js') }}?v=20260807a" defer></script>
 {% endblock %}

@@ -3,7 +3,7 @@
 {% block title %}수도권 주문 관리 대시보드{% endblock %}
 
 {% block content %}
-{% from 'partials/shared/status_select_options.html' import assignable_status_options with context %}
+{% from 'partials/shared/status_select_options.html' import assignable_status_options, complete_order_control with context %}
 <div class="container-fluid metropolitan-dashboard">
     <div class="row">
         <div class="col-12">
@@ -163,6 +163,7 @@
                                                         data-current-status="{{ order.status }}">
                                                     {{ assignable_status_options(STATUS, order.status) }}
                                                 </select>
+                                                {{ complete_order_control(order.id, order.status) }}
                                             </td>
                                             <td class="text-danger">{{ order.measurement_date or '-' }}</td>
                                             <td>
@@ -262,6 +263,7 @@
                                                         data-current-status="{{ order.status }}">
                                                     {{ assignable_status_options(STATUS, order.status) }}
                                                 </select>
+                                                {{ complete_order_control(order.id, order.status) }}
                                             </td>
                                             <td>{{ order.measurement_date or '-' }}</td>
                                             <td style="width: 150px;">
@@ -351,6 +353,7 @@
                                                         data-current-status="{{ order.status }}">
                                                     {{ assignable_status_options(STATUS, order.status) }}
                                                 </select>
+                                                {{ complete_order_control(order.id, order.status) }}
                                             </td>
                                             <td class="text-info">{{ order.measurement_date or '-' }}</td>
                                             <td style="width: 150px;">
@@ -440,6 +443,7 @@
                                                         data-current-status="{{ order.status }}">
                                                     {{ assignable_status_options(STATUS, order.status) }}
                                                 </select>
+                                                {{ complete_order_control(order.id, order.status) }}
                                             </td>
                                             <td>{{ order.manager_name or '-' }}</td>
                                             <td>{{ order.measurement_date or '-' }}</td>
@@ -518,6 +522,7 @@
                                                         data-order-id="{{ order.id }}" data-field="status">
                                                     {{ assignable_status_options(STATUS, order.status) }}
                                                 </select>
+                                                {{ complete_order_control(order.id, order.status) }}
                                             </td>
                                             <td>
                                                 <input type="text" class="form-control form-control-sm inline-edit" 
@@ -609,6 +614,7 @@
                                                         data-current-status="{{ order.status }}">
                                                     {{ assignable_status_options(STATUS, order.status) }}
                                                 </select>
+                                                {{ complete_order_control(order.id, order.status) }}
                                             </td>
                                             <td style="width: 150px;">
                                                 <input type="text" 
@@ -1443,4 +1449,5 @@ function toggleCompletedOrders() {
 {% include "orders/partials/erp_stage_override_modal.html" %}
 <script>window.MY_ROLE = {{ (current_user.role if current_user is defined and current_user else '')|tojson }};</script>
 <script src="{{ url_for('static', filename='js/orders/erp-stage-override.js') }}?v=20260716b" defer></script>
+<script src="{{ url_for('static', filename='js/measurement/complete-order-btn.js') }}?v=20260807a" defer></script>
 {% endblock %}

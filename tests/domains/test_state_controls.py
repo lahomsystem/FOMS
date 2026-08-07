@@ -181,3 +181,39 @@ def test_orders_index_bulk_status_excludes_terminal() -> None:
     assert loops, "bulk status loop not found"
     for tail in loops:
         assert "if code not in" in tail, "bulk status loop missing terminal exclusion"
+
+
+# ---------------------------------------------------------------------------
+# 4) STATE-CONTROLS-02: canonical COMPLETE control — 선택자에서 제거한 COMPLETED
+#    전이의 정식 진입점(대시보드 행 완료 버튼). 없으면 보드에서 완료 처리 불가 회귀.
+# ---------------------------------------------------------------------------
+
+def _render_complete_control(current: str) -> str:
+    import app
+
+    tmpl = app.app.jinja_env.get_template("partials/shared/status_select_options.html")
+    return str(tmpl.module.complete_order_control(4552, current))
+
+
+def test_complete_control_renders_for_active_status() -> None:
+    html = _render_complete_control("MEASURE")
+    assert "js-complete-order" in html
+    assert 'data-order-id="4552"' in html
+
+
+@pytest.mark.parametrize("code", TERMINAL)
+def test_complete_control_hidden_for_terminal_status(code: str) -> None:
+    """이미 terminal(완료·AS 계열·삭제)인 행에는 완료 버튼을 렌더하지 않는다."""
+    assert _render_complete_control(code).strip() == ""
+
+
+@pytest.mark.parametrize("rel", MEASUREMENT_DASHBOARDS)
+def test_measurement_dashboards_wire_complete_control(rel: str) -> None:
+    """3개 measurement 대시보드 모두 완료 버튼 매크로 + 배선 JS 를 로드한다."""
+    src = (TEMPLATES / rel).read_text(encoding="utf-8")
+    assert "complete_order_control" in src, f"{rel}: complete control macro missing"
+    assert "complete-order-btn.js" in src, f"{rel}: complete control JS not loaded"
+
+
+def test_complete_control_js_exists() -> None:
+    assert (ROOT / "static/js/measurement/complete-order-btn.js").exists()

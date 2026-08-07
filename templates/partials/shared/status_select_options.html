@@ -25,3 +25,24 @@
   <option value="{{ code }}"{% if _cur == code %} selected{% endif %}>{{ name }}</option>
   {%- endfor -%}
 {%- endmacro -%}
+
+{#
+  STATE-CONTROLS-02 — canonical COMPLETE control.
+
+  STATE-CONTROLS-01 이 선택자에서 COMPLETED 를 제거하며 전제한 "정식 완료 컨트롤"의
+  구현체. 물류/실측 대시보드 행에서 confirm 후 field_update(status=COMPLETED)로
+  전이한다(백엔드 semantics 는 기존 선택자 경로와 동일). 이미 terminal 상태인 행
+  (완료·AS 계열·삭제)에는 렌더하지 않는다 — AS 전이는 STATE-AS 소관 유지.
+
+  배선: static/js/measurement/complete-order-btn.js (전역 위임, defer 로드 필수).
+#}
+{%- macro complete_order_control(order_id, current_status) -%}
+  {%- set _terminal = ['COMPLETED', 'AS', 'AS_RECEIVED', 'AS_COMPLETED', 'DELETED'] -%}
+  {%- set _cur = (current_status or '') | string -%}
+  {%- if _cur not in _terminal -%}
+  <button type="button" class="btn btn-sm btn-success w-100 mt-1 js-complete-order"
+          data-order-id="{{ order_id }}" title="이 주문을 완료 상태로 변경합니다">
+    <i class="fas fa-check-circle"></i> 완료
+  </button>
+  {%- endif -%}
+{%- endmacro -%}
