@@ -1,6 +1,6 @@
 # FOMS 현재 상태
 > 자동 업데이트: 2026-07-28
-> 최신: AS 회차 차트 ver7 T15a~e 구현 완료(deploy `7880e0e5`) — as_log round 규약·회차 아코디언·판정 API·대시보드/지도 표면 교체, 스테이징 QA 8항목 통과·콘솔 0. **CI는 GitHub Actions 장애로 미생성(회복 후 재확인)**·운영 승격은 v2/v3와 일괄 보류(사용자 결정 대기). 원장: docs/plans/2026-08-06-as-map-cluster-availability-ledger.md
+> 최신: AS 회차 차트 ver7 T15a~e 완료(deploy `7880e0e5`, CI 4 워크플로 전수 green) — as_log round 규약·회차 아코디언·판정 API·대시보드/지도 표면 교체, 스테이징 QA 8항목 통과·콘솔 0. 운영 승격(T6)은 v2+v3+T15 일괄, 사용자 결정 대기. 원장: docs/plans/2026-08-06-as-map-cluster-availability-ledger.md
 > 이 파일 상단 40줄이 세션 시작 컨텍스트의 전부다(hygiene 계약 테스트로 강제). 상세 이력: "## 최근 완료"·"## 기록 보관", 과거 헤더 상세는 기록 보관에 이관.
 
 ## 스택
