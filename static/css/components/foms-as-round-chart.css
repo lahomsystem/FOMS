@@ -4,7 +4,11 @@
    foms-as-timeline.css 의 기존 규칙을 그대로 소비한다(중복 정의 금지).
    색·간격 기준: tmp_t15_mockup_v7.html(2026-08-06 사용자 확정) → erp-pro 톤으로 정합. */
 
+/* 같은 부품이 폭이 전혀 다른 3표면에 실린다: PC 확장(~720px)·지도 우측 패널(358px)·
+   모바일 카드 상세. 좁은 표면 분기를 뷰포트 미디어쿼리로 잡으면 틀린다 — PC 1920px
+   에서도 지도 패널은 358px 다. 기준은 언제나 부품 자신의 폭이므로 컨테이너 쿼리를 쓴다. */
 .as-rchart {
+  container-type: inline-size;
   background: #fff;
   border: 1px solid #e2e8f0;
   border-radius: 10px;
@@ -240,6 +244,58 @@
   max-width: 6.5rem;
   overflow: hidden;
   text-overflow: ellipsis;
+}
+
+/* 좁은 표면(지도 우측 패널 358px·모바일 카드 상세): 한 줄 4열을 2줄로 접는다.
+   4열 그리드에서 본문은 유일한 1fr 이라 고정폭 3열(날짜 92 + 유형 64 + 작성자 최대 104)
+   과 간격·패딩 54 를 먼저 떼주고 남은 것만 갖는다. 358px 컨테이너에서 그 잔량은 42px —
+   본문이 글자당 한 줄로 세로로 서던 실보고의 정체다(2026-08-07). 폭을 늘려 해결할 수
+   없는 구조이므로(패널 폭은 지도가 소유) 메타 3종을 윗줄로 올리고 본문에 전폭을 준다.
+   분기점 560px: 고정 3열+간격 314px 위에 본문이 최소 220px 는 가져야 읽힌다. */
+@container (max-width: 560px) {
+  .as-rchart-row {
+    grid-template-columns: auto auto 1fr;
+    grid-template-areas:
+      "date type by"
+      "text text text";
+    row-gap: 3px;
+    align-items: center;
+  }
+
+  .as-rchart-row__date { grid-area: date; }
+
+  .as-rchart-row__type { grid-area: type; }
+
+  /* 작성자·수정/삭제는 메타 줄 오른쪽 끝(기존 4열 배치의 위치 감각 유지) */
+  .as-rchart-row__by {
+    grid-area: by;
+    justify-self: end;
+  }
+
+  /* 윗줄로 올라가면 이름이 본문 폭을 잠식하지 않는다 — 6.5rem 상한을 푼다 */
+  .as-rchart-row__name { max-width: 12rem; }
+
+  .as-rchart-row__text {
+    grid-area: text;
+    align-self: start;
+  }
+
+  /* 회차 헤더: 판정 플래그(nowrap)가 폭을 독점해 요약이 "테…" 한 글자로 뭉개지던 것.
+     flex-wrap 만으로는 안 접힌다 — 요약이 min-width:0 이라 0까지 줄어들며 "다 들어간"
+     상태가 되어 줄바꿈 조건이 성립하지 않는다. 그래서 요약에 basis 100% 를 줘 강제로
+     아랫줄로 내리고, 윗줄은 회차 번호 + 판정 결과(둘 다 nowrap 소형)로 고정한다. */
+  .as-rchart-round--closed > .as-rchart-round__head { flex-wrap: wrap; }
+
+  .as-rchart-round--closed > .as-rchart-round__head > .as-rchart-round__num { order: -2; }
+
+  .as-rchart-round--closed > .as-rchart-round__head > .as-rchart-verdict-flag { order: -1; }
+
+  .as-rchart-round--closed > .as-rchart-round__head > .as-rchart-round__summary {
+    flex: 1 1 100%;
+    white-space: normal;
+    overflow: visible;
+    text-overflow: clip;
+  }
 }
 
 /* 상태 카드 가능시간 편집 칩 — 목록 칩(erp-as-avail-chip 컨텍스트 스타일)과 달리
