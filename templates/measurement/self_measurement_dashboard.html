@@ -4,6 +4,7 @@
 
 {% block styles %}
 {{ super() }}
+<link rel="stylesheet" href="{{ url_for('static', filename='css/measurement/complete-order-btn.css') }}?v=20260807d">
 <style>
     @keyframes pulse-bg {
         0% { background: linear-gradient(135deg, var(--pastel-blue-dark) 0%, var(--pastel-blue) 100%); }
@@ -109,7 +110,7 @@
 {% endblock %}
 
 {% block content %}
-{% from 'partials/shared/status_select_options.html' import assignable_status_options with context %}
+{% from 'partials/shared/status_select_options.html' import assignable_status_options, complete_order_control with context %}
 <div class="erp-pro self-measurement-dashboard">
     <!-- Modern Header -->
     <header class="erp-pro-header">
@@ -251,7 +252,7 @@
                                         <select class="form-select form-select-sm inline-edit status-dropdown" 
                                                 data-order-id="{{ order.id }}"
                                                 data-field="status">
-                                            {{ assignable_status_options(LOGISTICS_BOARD_STATUS, order.status) }}
+                                            {{ assignable_status_options(SELF_BOARD_STATUS, order.status) }}
                                         </select>
                                     </td>
                                     <td>
@@ -420,8 +421,9 @@
                                         <select class="form-select form-select-sm inline-edit status-dropdown" 
                                                 data-order-id="{{ order.id }}"
                                                 data-field="status">
-                                            {{ assignable_status_options(LOGISTICS_BOARD_STATUS, order.status) }}
+                                            {{ assignable_status_options(SELF_BOARD_STATUS, order.status) }}
                                         </select>
+                                        {{ complete_order_control(order.id, order.status) }}
                                     </td>
                                     <td>
                                         <div class="d-flex flex-column" style="gap: 0.2rem;">
@@ -589,7 +591,7 @@
                                         <select class="form-select form-select-sm inline-edit status-dropdown" 
                                                 data-order-id="{{ order.id }}"
                                                 data-field="status">
-                                            {{ assignable_status_options(LOGISTICS_BOARD_STATUS, order.status) }}
+                                            {{ assignable_status_options(SELF_BOARD_STATUS, order.status) }}
                                         </select>
                                     </td>
                                     <td>
@@ -713,7 +715,7 @@
                                         <select class="form-select form-select-sm inline-edit status-dropdown" 
                                                 data-order-id="{{ order.id }}"
                                                 data-field="status">
-                                            {{ assignable_status_options(LOGISTICS_BOARD_STATUS, order.status) }}
+                                            {{ assignable_status_options(SELF_BOARD_STATUS, order.status) }}
                                         </select>
                                     </td>
                                     <td>
@@ -1371,4 +1373,5 @@ function restoreMemoStates() {
     });
 }
 </script>
+<script src="{{ url_for('static', filename='js/measurement/complete-order-btn.js') }}?v=20260807b" defer></script>
 {% endblock %} 
