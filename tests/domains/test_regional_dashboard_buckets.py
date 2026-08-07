@@ -316,6 +316,27 @@ def test_shipping_alerts_sort_by_install_date_within_same_ship_and_region(client
     ]
 
 
+def test_regional_shipping_export_cells_never_bleed_into_neighbors() -> None:
+    """Fixed-width export cells must clip and self-check (badge overflow regression).
+
+    2026-08-07: AS + 라홈시스템 배지가 200px 고객 셀을 넘겨 주소 칸 위에 그려졌다.
+    원인은 nowrap + overflow visible. 두 방어선이 코드에 남아 있는지 고정한다.
+    """
+    js = (ROOT / "static/js/measurement/regional-shipping-export.js").read_text(
+        encoding="utf-8"
+    )
+
+    # 1) 모든 본문 셀은 클립(옆 셀 침범 차단)
+    assert "td.style.overflow = 'hidden'" in js
+    # 2) 고객 컬럼은 줄바꿈 허용 컬럼
+    assert "wrap: true" in js
+    assert "col.align === 'left' || col.wrap" in js
+    # 3) 캡처 직전 오버플로 자기검사 게이트
+    assert "function relaxOverflowingCells(" in js
+    assert "cell.scrollWidth > cell.clientWidth" in js
+    assert "relaxOverflowingCells(table);" in js
+
+
 def test_regional_shipping_export_preserves_as_schedule_badge_contract() -> None:
     """PNG export must carry the AS schedule marker from the rendered row."""
     js = (ROOT / "static/js/measurement/regional-shipping-export.js").read_text(
