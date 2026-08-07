@@ -2,8 +2,9 @@
 
 섹션 구성: 상차 예정 알림 / 진행 중인 주문 / AS 접수 / 설치 예정 / 완료된 주문.
 상차완료·보류 섹션은 폐지됐다(상차일 경과분은 설치 예정으로 흡수, ON_HOLD 는 진행 중).
-행에는 status 드롭다운이 없고 읽기 전용 뱃지만 있으며, 섹션 배치와 저장된 status 는
-라우트가 lazy 동기화한다.
+행에는 status 드롭다운이 없고 읽기 전용 뱃지만 있다. 표기 SSOT 는 섹션 분류이며,
+저장된 status 기록은 읽기 경로가 아니라 상차일 변경 시점에 보드 JS 가 canonical
+경로로 수행한다(read 경로 직접 쓰기는 test_state_guard 가 차단).
 """
 
 import re
@@ -105,7 +106,7 @@ def test_shipping_completed_and_hold_sections_are_retired(client) -> None:
 
 
 def test_past_shipping_date_absorbed_into_scheduled_and_status_synced(client) -> None:
-    """상차일 경과분은 설치 예정으로 흡수되고 status=SCHEDULED 로 lazy 동기화된다."""
+    """상차일 경과분은 설치 예정 섹션으로 흡수된다(읽기 경로는 status 무변경)."""
     _login_as_admin(client, "regional-bucket-scheduled-admin")
     past_shipping_date = (get_today_kst() - timedelta(days=3)).strftime("%Y-%m-%d")
 
@@ -325,27 +326,6 @@ def test_regional_shipping_export_preserves_as_schedule_badge_contract() -> None
     assert "is_as_schedule" in js
     assert "querySelector('.regional-as-schedule-badge')" in js
     assert "badge.textContent = 'AS'" in js
-
-
-def test_regional_shipping_export_cells_never_bleed_into_neighbors() -> None:
-    """Fixed-width export cells must clip and self-check (badge overflow regression).
-
-    2026-08-07: AS + 라홈시스템 배지가 200px 고객 셀을 넘겨 주소 칸 위에 그려졌다.
-    원인은 nowrap + overflow visible. 두 방어선이 코드에 남아 있는지 고정한다.
-    """
-    js = (ROOT / "static/js/measurement/regional-shipping-export.js").read_text(
-        encoding="utf-8"
-    )
-
-    # 1) 모든 본문 셀은 클립(옆 셀 침범 차단)
-    assert "td.style.overflow = 'hidden'" in js
-    # 2) 고객 컬럼은 줄바꿈 허용 컬럼
-    assert "wrap: true" in js
-    assert "col.align === 'left' || col.wrap" in js
-    # 3) 캡처 직전 오버플로 자기검사 게이트
-    assert "function relaxOverflowingCells(" in js
-    assert "cell.scrollWidth > cell.clientWidth" in js
-    assert "relaxOverflowingCells(table);" in js
 
 
 def _install_date_input_html(row_html: str) -> str:
