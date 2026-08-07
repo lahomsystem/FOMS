@@ -28,7 +28,9 @@
     //  · 상차일 = 파스텔 블루(상차 알림 카드 테마색)  · 설치일 = 파스텔 앰버(웜 대비)
     var COLUMNS = [
         { key: 'no', label: '번호', width: 70, align: 'center' },
-        { key: 'customer', label: '고객', width: 200, align: 'center' },
+        // 고객 셀은 이름 + 배지(AS·라홈시스템)가 붙어 고정폭 200px를 넘길 수 있다.
+        // wrap:true = 넘치면 셀 안에서 줄바꿈(정보 손실 0). nowrap 유지 시 옆 셀 침범.
+        { key: 'customer', label: '고객', width: 200, align: 'center', wrap: true },
         { key: 'address', label: '주소', width: 0, align: 'left', flex: true },
         { key: 'product', label: '제품', width: 340, align: 'left' },
         { key: 'shipping_date', label: '상차일', width: 150, align: 'center', bg: '#d1ecf1', headBg: '#bee5eb', textColor: '#0c5460' },
@@ -258,13 +260,16 @@
         if (col.bg) td.style.backgroundColor = col.bg;
         td.style.verticalAlign = 'middle';
         td.style.textAlign = col.align;
-        if (col.align === 'left') {
+        if (col.align === 'left' || col.wrap) {
             td.style.whiteSpace = 'normal';
             td.style.wordBreak = 'break-word';
             td.style.lineHeight = '1.35';
         } else {
             td.style.whiteSpace = 'nowrap';
         }
+        // 고정폭(table-layout:fixed) 표에서 td 기본 overflow는 visible이라
+        // 폭 초과분이 옆 셀 위에 그려진다. 마지막 방어선으로 항상 클립.
+        td.style.overflow = 'hidden';
     }
 
     /**
@@ -292,9 +297,16 @@
             badge.style.lineHeight = '1.15';
             badge.style.verticalAlign = 'middle';
             nameDiv.appendChild(badge);
+            nameDiv.appendChild(doc.createElement('wbr'));
         }
-        nameDiv.appendChild(doc.createTextNode(row.customer || '-'));
+        // 이름은 통째로 유지(중간 음절 분리 방지). 줄바꿈은 배지 경계에서만 —
+        // <wbr>로 폭 0짜리 개행 기회를 명시해 배지가 통째로 다음 줄로 내려간다.
+        var nameSpan = doc.createElement('span');
+        nameSpan.textContent = row.customer || '-';
+        nameSpan.style.whiteSpace = 'nowrap';
+        nameDiv.appendChild(nameSpan);
         if (row.is_factory2) {
+            nameDiv.appendChild(doc.createElement('wbr'));
             var f2 = doc.createElement('span');
             f2.textContent = '라홈시스템';
             f2.style.display = 'inline-block';
@@ -468,6 +480,35 @@
         return table;
     }
 
+    /**
+     * 캡처 직전 셀 오버플로 자기검사.
+     * 고정폭(table-layout:fixed) 표는 내용이 넘쳐도 브라우저가 아무 신호를 주지 않고
+     * 옆 셀 위에 겹쳐 그릴 뿐이다(2026-08-07 '라홈시스템' 배지 침범 사고).
+     * 표가 문서에 붙은 뒤 실측해 넘친 셀만 줄바꿈 허용으로 되돌린다 — 클립(정보 손실)보다 우선.
+     * @param {HTMLTableElement} table 이미 문서에 붙어 레이아웃이 계산된 표
+     * @returns {number} 보정한 셀 수
+     */
+    function relaxOverflowingCells(table) {
+        var overflowed = [];
+        Array.prototype.forEach.call(table.querySelectorAll('td, th'), function (cell) {
+            if (cell.scrollWidth > cell.clientWidth + 1) overflowed.push(cell);
+        });
+        overflowed.forEach(function (cell) {
+            cell.style.whiteSpace = 'normal';
+            cell.style.wordBreak = 'break-word';
+            // 셀 안에서 nowrap을 걸어둔 조각(이름 span 등)도 함께 푼다.
+            Array.prototype.forEach.call(cell.querySelectorAll('*'), function (node) {
+                if (node.style && node.style.whiteSpace === 'nowrap') {
+                    node.style.whiteSpace = 'normal';
+                }
+            });
+        });
+        if (overflowed.length) {
+            console.warn('[shipping-export] 셀 폭 초과 ' + overflowed.length + '건 자동 보정');
+        }
+        return overflowed.length;
+    }
+
     function initRegionalShippingExport() {
         var exportBtn = document.getElementById('btn-export-shipping-image');
         if (!exportBtn) return;
@@ -502,6 +543,9 @@
                 container.style.backgroundColor = '#ffffff';
                 container.appendChild(table);
                 document.body.appendChild(container);
+
+                // 붙인 직후 실측 → 넘친 셀만 줄바꿈 허용(캡처 전 마지막 게이트).
+                relaxOverflowingCells(table);
 
                 var captureScale = Math.max(2, Math.min(window.devicePixelRatio || 1, 3));
                 var canvas = await html2canvas(table, {
