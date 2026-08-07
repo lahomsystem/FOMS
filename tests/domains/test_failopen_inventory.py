@@ -8,6 +8,10 @@ release gate:
 - the scanner detects every broad catch and ignores specific handlers;
 - every broad catch is classified (owner + disposition), so
   ``UNCLASSIFIED`` is 0;
+- ``LOG_AND_CONTINUE`` means a logger is actually wired, and the logger-less
+  swallows are split out as ``SWALLOW_BY_CONTROL_FLOW`` and pinned at a
+  **no-growth baseline** (AUDIT-LOG T11 -- before the split they rode inside
+  ``LOG_AND_CONTINUE`` and passed this gate wearing a logged handler's label);
 - the committed inventory matches a fresh scan, so a *new* or moved broad
   catch that has not been reviewed turns this suite red;
 - every silent ``except ...: pass`` is resolved (logging added or an inline
@@ -32,6 +36,12 @@ import pytest
 _REPO_ROOT = Path(__file__).resolve().parents[2]
 _SCANNER_PATH = _REPO_ROOT / "tools" / "harness" / "failopen_scan.py"
 _INVENTORY_PATH = _REPO_ROOT / "docs" / "harness" / "foms_failopen_inventory.json"
+
+#: AUDIT-LOG T11 무성장 게이트 기준선 — 로거가 배선되지 않은 채 실행을 이어가는
+#: broad catch 의 현재 총량. **줄이는 것은 언제나 허용**(줄었으면 이 상수를 새 값으로
+#: 내려 잠근다), 늘리는 것은 red 다. 새 broad catch 를 추가할 거면 그 자리에서
+#: ``logger.warning(..., exc_info=True)`` 나 ``log_handled_exception`` 을 함께 배선하라.
+_SWALLOW_BASELINE = 180
 
 
 def _load_scanner():
@@ -84,6 +94,24 @@ def test_disposition_logic():
     assert disp({"logs": False, "has_print": False, "flashes": False, "reraises": False, "aborts": False, "only_pass": True}, None) == "UNCLASSIFIED"
     # marker overrides
     assert disp({"logs": False, "has_print": False, "flashes": False, "reraises": False, "aborts": False, "only_pass": True}, "intentional") == "INTENTIONAL"
+
+
+def test_logger_less_swallow_is_not_labelled_log_and_continue():
+    """T11: continuing without a logger is SWALLOW_BY_CONTROL_FLOW, never LOG_AND_CONTINUE.
+
+    print/flash notify stdout or the end user; neither leaves an operator log
+    line, so neither may borrow the ``LOG_AND_CONTINUE`` label.
+    """
+    disp = scan_mod._disposition
+    base = {"logs": False, "has_print": False, "flashes": False, "reraises": False, "aborts": False, "only_pass": False}
+    assert disp(base, None) == "SWALLOW_BY_CONTROL_FLOW"
+    assert disp({**base, "has_print": True}, None) == "SWALLOW_BY_CONTROL_FLOW"
+    assert disp({**base, "flashes": True}, None) == "SWALLOW_BY_CONTROL_FLOW"
+    # 로거가 함께 있으면 관측 가능하므로 LOG_AND_CONTINUE 로 돌아온다.
+    assert disp({**base, "logs": True, "has_print": True}, None) == "LOG_AND_CONTINUE"
+    # fail-closed/marker 판정이 항상 우선한다(분리로 인한 강등 금지).
+    assert disp({**base, "reraises": True}, None) == "FAIL_CLOSED"
+    assert disp(base, "intentional") == "INTENTIONAL"
 
 
 def test_nested_marker_does_not_leak_to_outer():
@@ -140,10 +168,44 @@ def test_no_unclassified(fresh_scan, inventory):
 
 def test_every_catch_has_owner_and_disposition(fresh_scan):
     """100% classification: every catch carries an owner and a valid disposition."""
-    valid = {"LOG_AND_CONTINUE", "FAIL_CLOSED", "INTENTIONAL"}
+    valid = {"LOG_AND_CONTINUE", "SWALLOW_BY_CONTROL_FLOW", "FAIL_CLOSED", "INTENTIONAL"}
     for c in fresh_scan:
         assert c["owner"], f"missing owner: {c}"
         assert c["disposition"] in valid, f"bad disposition: {c}"
+
+
+def test_log_and_continue_entries_actually_wire_a_logger(fresh_scan):
+    """``LOG_AND_CONTINUE`` == 로거 배선 확인(라벨과 실제가 어긋나면 게이트가 거짓말한다)."""
+    for c in fresh_scan:
+        if c["disposition"] == "LOG_AND_CONTINUE":
+            assert c["has_logging"], (
+                f"LOG_AND_CONTINUE without a logger: {c['path']}:{c['lineno']} "
+                f"-- should be SWALLOW_BY_CONTROL_FLOW"
+            )
+        if c["disposition"] == "SWALLOW_BY_CONTROL_FLOW":
+            assert not c["has_logging"], (
+                f"SWALLOW_BY_CONTROL_FLOW but a logger is wired: "
+                f"{c['path']}:{c['lineno']} -- should be LOG_AND_CONTINUE"
+            )
+
+
+def test_swallow_by_control_flow_does_not_grow(fresh_scan, inventory):
+    """무성장 게이트: 로거 없는 swallow 는 늘 수 없다(줄이는 것은 언제나 허용).
+
+    T11 이전에는 이 179~180건이 ``LOG_AND_CONTINUE`` 안에 섞여 green 을 통과했다.
+    이제 총량이 상수로 잠겨 있어 **새 무로깅 broad catch 를 추가하면 red** 가 된다.
+    """
+    swallow = [c for c in fresh_scan if c["disposition"] == "SWALLOW_BY_CONTROL_FLOW"]
+    assert len(swallow) <= _SWALLOW_BASELINE, (
+        f"logger-less broad catches grew {_SWALLOW_BASELINE} -> {len(swallow)}. "
+        f"Wire a logger (logger.warning(..., exc_info=True) / log_handled_exception) "
+        f"in the new handler instead of raising the baseline."
+    )
+    assert len(swallow) == _SWALLOW_BASELINE, (
+        f"logger-less broad catches shrank {_SWALLOW_BASELINE} -> {len(swallow)}. "
+        f"Good -- lock the win in: set _SWALLOW_BASELINE = {len(swallow)}."
+    )
+    assert inventory["baselines"]["swallow_by_control_flow"] == len(swallow)
 
 
 def test_silent_pass_is_resolved(fresh_scan):
@@ -211,3 +273,7 @@ def test_baselines_present(inventory):
     assert inventory["packet"] == "FAILOPEN-01"
     assert inventory["baselines"]["broad_total"] == len(inventory["catches"])
     assert sum(inventory["disposition_counts"].values()) == len(inventory["catches"])
+    swallow = inventory["disposition_counts"].get("SWALLOW_BY_CONTROL_FLOW", 0)
+    assert inventory["baselines"]["swallow_by_control_flow"] == swallow
+    # owner 별 분포도 남긴다 — 어느 도메인부터 로거를 배선할지 고르는 근거.
+    assert sum(inventory["swallow_by_control_flow_owner_counts"].values()) == swallow

@@ -24,6 +24,8 @@ from foms.services.security.account_requests import (
 from foms.services.audit_writer import normalize_security_detail
 from foms.services.user_deletion import (
     UserDeletionBlockedError,
+    deactivate_user_preserving_audit,
+    detach_user_references_for_deactivate,
     detach_user_references_for_delete,
 )
 from foms.services.post_auth_navigation import (
@@ -819,51 +821,75 @@ def edit_user(user_id):
 @login_required
 @role_required(['ADMIN'])
 def delete_user(user_id):
-    # Prevent deleting self
+    """AUDIT-LOG T11(결정 ⑤): 사용자 "삭제" = 감사 actor 를 보존하는 비활성화 전환.
+
+    row 를 지우면 ``security_logs``·``order_events``·``access_logs``·
+    ``order_attachments`` 의 actor 가 함께 소멸해 "누가 했는가"를 사후에 물을 수 없다.
+    그래서 운영 참조(담당자·수신자)만 끊고 계정은 비활성화·익명화한다. 원본 아이디는
+    곧바로 재사용할 수 있고, 로그인은 ``is_active=False`` + 난수 비밀번호로 이중 차단된다.
+
+    row 를 남기므로 ``UserDeletionBlockedError``(주문 배정·cutover marker 등 끊을 수 없는
+    참조) 는 이 경로에서 발생하지 않는다 — 그 거부는 hard delete 인 ``reject_user`` 전용이고,
+    거부 메시지가 안내하는 "계정 비활성화"가 곧 이 라우트다.
+
+    :param user_id: 비활성화할 사용자 id.
+    :return: 사용자 목록으로 redirect.
+    """
+    # Prevent deactivating self
     if user_id == session.get('user_id'):
         flash('자신의 계정은 삭제할 수 없습니다.', 'error')
         return redirect(url_for('auth.user_list'))
-    
+
     db = get_db()
-    
+
     # Get the user from database
     user = db.query(User).filter(User.id == user_id).first()
-    
+
     if not user:
         flash('사용자를 찾을 수 없습니다.', 'error')
         return redirect(url_for('auth.user_list'))
-    
-    # Prevent deleting last admin
+
+    # Prevent deactivating last admin
     if user.role == 'ADMIN':
         admin_count = db.query(User).filter(User.role == 'ADMIN').count()
-        
+
         if admin_count == 1:
             flash('마지막 관리자는 삭제할 수 없습니다.', 'error')
             return redirect(url_for('auth.user_list'))
-    
+
     try:
-        cleanup_summary = detach_user_references_for_delete(db, user_id)
-        db.delete(user)
+        cleanup_summary = detach_user_references_for_deactivate(db, user_id)
+        deactivation = deactivate_user_preserving_audit(user)
         db.commit()
-        current_app.logger.info("Deleted user_id=%s cleanup=%s", user_id, cleanup_summary)
-        
-        # Log action
-        log_access(f"사용자 #{user_id} 삭제", session.get('user_id'))
-        
-        flash('사용자가 성공적으로 삭제되었습니다.', 'success')
-    except UserDeletionBlockedError as blocked:
-        db.rollback()
-        current_app.logger.warning("User deletion blocked by audit references: user_id=%s reason=%s", user_id, blocked)
-        flash(str(blocked), 'error')
+        current_app.logger.info(
+            "Deactivated user_id=%s cleanup=%s", user_id, cleanup_summary
+        )
+
+        # Log action — 감사 원장에는 "어떤 아이디였는지"가 남아야 추적이 끊기지 않는다.
+        log_access(
+            f"사용자 #{user_id} 비활성화(탈퇴 처리): {deactivation['username_before']}",
+            session.get('user_id'),
+            action='USER_DEACTIVATE',
+            target_type='user',
+            target_id=user_id,
+            detail={
+                'username_before': deactivation['username_before'],
+                'username_after': deactivation['username_after'],
+                'was_active': deactivation['was_active'],
+                'cleanup': cleanup_summary,
+            },
+        )
+
+        flash('사용자를 비활성화(탈퇴) 처리했습니다. 감사 기록은 보존됩니다.', 'success')
     except IntegrityError:
         db.rollback()
-        current_app.logger.exception("User deletion blocked by remaining references: user_id=%s", user_id)
+        current_app.logger.exception("User deactivation blocked by remaining references: user_id=%s", user_id)
         flash('사용자 삭제에 실패했습니다. 아직 정리되지 않은 참조 데이터가 있습니다.', 'error')
     except Exception:
         db.rollback()
-        current_app.logger.exception("Unexpected user deletion failure: user_id=%s", user_id)
+        current_app.logger.exception("Unexpected user deactivation failure: user_id=%s", user_id)
         flash('사용자 삭제 중 오류가 발생했습니다.', 'error')
-    
+
     return redirect(url_for('auth.user_list'))
 
 
