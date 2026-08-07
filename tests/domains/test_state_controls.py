@@ -209,9 +209,14 @@ def test_complete_control_hidden_for_terminal_status(code: str) -> None:
 
 @pytest.mark.parametrize("rel", MEASUREMENT_DASHBOARDS)
 def test_measurement_dashboards_wire_complete_control(rel: str) -> None:
-    """3개 measurement 대시보드 모두 완료 버튼 매크로 + 배선 JS 를 로드한다."""
+    """3개 measurement 대시보드 모두 완료 버튼 매크로 + 배선 JS 를 로드한다.
+
+    사용자 결정(2026-08-07): 완료 버튼은 '설치 예정' 계열 섹션 1곳에만 노출
+    (지방=설치예정, 자가실측=설치예정, 수도권=설치 알림). 전 섹션 확산 금지.
+    """
     src = (TEMPLATES / rel).read_text(encoding="utf-8")
-    assert "complete_order_control" in src, f"{rel}: complete control macro missing"
+    sites = src.count("complete_order_control(order.id")
+    assert sites == 1, f"{rel}: complete control sites {sites} != 1 (설치예정 전용)"
     assert "complete-order-btn.js" in src, f"{rel}: complete control JS not loaded"
 
 

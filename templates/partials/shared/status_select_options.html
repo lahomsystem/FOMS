@@ -40,7 +40,7 @@
   {%- set _terminal = ['COMPLETED', 'AS', 'AS_RECEIVED', 'AS_COMPLETED', 'DELETED'] -%}
   {%- set _cur = (current_status or '') | string -%}
   {%- if _cur not in _terminal -%}
-  <button type="button" class="btn btn-sm btn-success w-100 mt-1 js-complete-order"
+  <button type="button" class="btn btn-sm btn-success w-100 mt-1 py-0 js-complete-order"
           data-order-id="{{ order_id }}" title="이 주문을 완료 상태로 변경합니다">
     <i class="fas fa-check-circle"></i> 완료
   </button>

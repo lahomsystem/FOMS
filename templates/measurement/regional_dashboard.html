@@ -395,7 +395,6 @@
                                                 data-field="status">
                                             {{ assignable_status_options(LOGISTICS_BOARD_STATUS, order.status) }}
                                         </select>
-                                        {{ complete_order_control(order.id, order.status) }}
                                     </td>
                                     <td>
                                         <div class="d-flex flex-column" style="gap: 0.2rem;">
@@ -602,7 +601,6 @@
                                                         data-field="status">
                                                     {{ assignable_status_options(LOGISTICS_BOARD_STATUS, order.status) }}
                                                 </select>
-                                                {{ complete_order_control(order.id, order.status) }}
                                             </td>
                                     <td>
                                         <input type="date" class="form-control form-control-sm editable-date" 
@@ -791,7 +789,6 @@
                                                         data-field="status">
                                                     {{ assignable_status_options(LOGISTICS_BOARD_STATUS, order.status) }}
                                                 </select>
-                                                {{ complete_order_control(order.id, order.status) }}
                                             </td>
                                             <td>{{ order.measurement_date or '-' }}</td>
                                             <td>
@@ -954,7 +951,6 @@
                                                         data-field="status">
                                                     {{ assignable_status_options(LOGISTICS_BOARD_STATUS, order.status) }}
                                                 </select>
-                                                {{ complete_order_control(order.id, order.status) }}
                                             </td>
                                             <td style="width: 90px;">
                                                 <input type="date" 
@@ -1336,7 +1332,6 @@
                                                         data-field="status">
                                                     {{ assignable_status_options(LOGISTICS_BOARD_STATUS, order.status) }}
                                                 </select>
-                                                {{ complete_order_control(order.id, order.status) }}
                                             </td>
                                     <td>
                                         <input type="date" class="form-control form-control-sm editable-date" 

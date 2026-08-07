@@ -163,7 +163,6 @@
                                                         data-current-status="{{ order.status }}">
                                                     {{ assignable_status_options(STATUS, order.status) }}
                                                 </select>
-                                                {{ complete_order_control(order.id, order.status) }}
                                             </td>
                                             <td class="text-danger">{{ order.measurement_date or '-' }}</td>
                                             <td>
@@ -263,7 +262,6 @@
                                                         data-current-status="{{ order.status }}">
                                                     {{ assignable_status_options(STATUS, order.status) }}
                                                 </select>
-                                                {{ complete_order_control(order.id, order.status) }}
                                             </td>
                                             <td>{{ order.measurement_date or '-' }}</td>
                                             <td style="width: 150px;">
@@ -353,7 +351,6 @@
                                                         data-current-status="{{ order.status }}">
                                                     {{ assignable_status_options(STATUS, order.status) }}
                                                 </select>
-                                                {{ complete_order_control(order.id, order.status) }}
                                             </td>
                                             <td class="text-info">{{ order.measurement_date or '-' }}</td>
                                             <td style="width: 150px;">
@@ -522,7 +519,6 @@
                                                         data-order-id="{{ order.id }}" data-field="status">
                                                     {{ assignable_status_options(STATUS, order.status) }}
                                                 </select>
-                                                {{ complete_order_control(order.id, order.status) }}
                                             </td>
                                             <td>
                                                 <input type="text" class="form-control form-control-sm inline-edit" 
@@ -614,7 +610,6 @@
                                                         data-current-status="{{ order.status }}">
                                                     {{ assignable_status_options(STATUS, order.status) }}
                                                 </select>
-                                                {{ complete_order_control(order.id, order.status) }}
                                             </td>
                                             <td style="width: 150px;">
                                                 <input type="text" 
