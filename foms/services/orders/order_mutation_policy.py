@@ -462,6 +462,9 @@ def _audit(decision: Decision) -> None:
         ip=request.remote_addr,
         endpoint=request.endpoint,
         action=f"policy:{decision.code}",
+        # T8 구조화: 자유 텍스트 파싱 없이 "어느 endpoint 가 왜 막았나"를 SQL 로 묻는다.
+        structured_action="ACCESS_DENIED",
+        detail={"endpoint": request.endpoint, "reason": decision.code},
     )
 
 

@@ -109,6 +109,9 @@ def _audit_block(header_name: str, reason: str) -> None:
             ip=request.remote_addr,
             endpoint=request.endpoint,
             action=f"write-guard:{reason}",
+            # T8 구조화: 차단 endpoint·사유를 SQL 로 집계 가능하게 남긴다.
+            structured_action="WRITE_BLOCKED",
+            detail={"endpoint": request.endpoint, "reason": reason},
         )
     except Exception:  # noqa: BLE001 - 로깅 실패가 요청을 죽이면 안 됨
         pass  # failopen: intentional: 감사 로그 실패가 요청을 막지 않도록 fail-open (로그의 로그)

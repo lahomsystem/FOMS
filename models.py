@@ -986,11 +986,34 @@ class AccessLog(Base):
         }
 
 class SecurityLog(Base):
+    """감사 원장 — 사람용 요약(``message``) + SQL 질의용 구조화 컬럼(AUDIT-LOG T8).
+
+    T8 이전에는 자유 텍스트 ``message`` 1컬럼뿐이라 "누가 무엇을 바꿨나"를 ILIKE 로만
+    물을 수 있었다(스펙 §1-2). 구조화 컬럼 4개를 additive 로 붙여 SQL 질의가 가능해진다.
+    ``message`` 의 의미는 그대로 유지한다(사람이 읽는 요약) — 기존 행 백필은 하지 않으므로
+    구조화 컬럼은 T8 이후 기록에만 채워지고 그 이전 행은 전부 NULL 이다(스펙 §6).
+
+    * ``action`` — 행위 종류 태그(``USER_UPDATE``·``LOGIN_FAIL``·``ACCESS_DENIED`` 등).
+    * ``target_type``/``target_id`` — 행위 대상(``user`` / ``password_reset_request`` …).
+    * ``detail`` — 구조화 부가정보(from→to 변경 내역 등). **비밀번호·PII 원문 금지.**
+    """
+
     __tablename__ = 'security_logs'
+    # SEC-LOG-STRUCT-00: 마이그레이션(``seclog_struct_00``)과 인덱스 이름·컬럼 구성이
+    # 완전히 같아야 한다 — create_all 부트스트랩 레인과 alembic 레인의 스키마 정합
+    # (tests/postgres 체인 왕복 테스트가 강제). 기존 trgm 인덱스(phase_f)는 무접촉.
+    __table_args__ = (
+        Index('ix_security_logs_target', 'target_type', 'target_id', 'timestamp'),
+    )
+
     id = Column(Integer, primary_key=True)
     timestamp = Column(DateTime, server_default=func.now(), nullable=False)
     user_id = Column(Integer, ForeignKey('users.id'), nullable=True)
     message = Column(String, nullable=False)
+    action = Column(String(64), nullable=True)
+    target_type = Column(String(32), nullable=True)
+    target_id = Column(Integer, nullable=True)
+    detail = Column(JSONColumn, nullable=True)
 
 
 class PasswordResetRequest(Base):

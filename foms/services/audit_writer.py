@@ -67,6 +67,10 @@ ACCESS_VIEW_DEDUPE_WINDOW_SECONDS = 600.0
 # additional_data(Text) 격납 상한 — 감사 컬럼이 비정상 payload 로 부풀지 않게 자른다.
 ACCESS_ADDITIONAL_DATA_LIMIT = 2000
 
+# security_logs.detail(JSONB) 격납 상한(직렬화 문자 수) — T8. 감사 1건이 수 MB JSONB 로
+# 부푸는 것을 막는다. 초과분은 통째로 버리지 않고 ``truncated`` 플래그 dict 로 대체한다.
+SECURITY_DETAIL_LIMIT = 4000
+
 _engine: Engine | None = None
 _engine_lock = threading.Lock()
 
@@ -146,11 +150,56 @@ def reset_audit_engine() -> None:
             engine.dispose()
 
 
-def write_security_log_detached(message: str, user_id: int | None = None) -> bool:
+def normalize_security_detail(
+    payload: Mapping[str, Any] | None,
+) -> dict[str, Any] | None:
+    """``security_logs.detail``(JSONB) 에 넣어도 안전한 dict 로 정규화한다(T8 SSOT).
+
+    감사 payload 는 호출부가 만든 임의 dict 라 두 가지 사고를 낼 수 있다: ① JSON 직렬화
+    불가 값(``datetime``·모델 객체)이 섞여 **원 요청이 커밋에서 죽는 것**, ② 비정상적으로
+    큰 payload 가 JSONB 컬럼을 부풀리는 것. 둘 다 감사 부가정보 하나 때문에 업무를 죽이는
+    것이므로 여기서 흡수한다(스펙 §3 원칙 4).
+
+    직렬화는 ``json.dumps(default=str)`` 왕복으로 검증한다 — 통과한 결과만 돌려주므로
+    호출부는 "이 dict 는 반드시 저장 가능"을 보장받는다.
+
+    :param payload: 격납할 dict(``None``/빈 dict 면 ``None`` 반환 — 컬럼 NULL).
+    :return: JSON 직렬화가 보장된 dict, 또는 격납할 게 없으면 ``None``.
+    """
+    if not payload:
+        return None
+    limit = max(int(SECURITY_DETAIL_LIMIT), 1)
+    try:
+        encoded = json.dumps(dict(payload), ensure_ascii=False, default=str)
+        if len(encoded) > limit:
+            return {"truncated": True, "size": len(encoded)}
+        return json.loads(encoded)
+    except (TypeError, ValueError):
+        # 직렬화 자체가 불가능한 payload(순환 참조 등) — 감사행은 남기되 detail 만 표식으로.
+        logger.warning(
+            "[AuditWriter] security_logs detail 직렬화 실패 — detail 을 표식으로 대체.",
+            exc_info=True,
+        )
+        return {"unserializable": True}
+
+
+def write_security_log_detached(
+    message: str,
+    user_id: int | None = None,
+    *,
+    action: str | None = None,
+    target_type: str | None = None,
+    target_id: int | None = None,
+    detail: Mapping[str, Any] | None = None,
+) -> bool:
     """``security_logs`` 에 **본 요청 트랜잭션과 무관하게** 1건을 즉시 커밋한다.
 
-    :param message: 기록할 메시지(자유 텍스트 1컬럼 — 구조화는 T8 소관).
+    :param message: 기록할 메시지(사람이 읽는 요약 — 의미 불변).
     :param user_id: 행위 주체 user id(비로그인/미상이면 ``None``).
+    :param action: 행위 종류 태그(``ACCESS_DENIED``·``WRITE_BLOCKED`` 등, T8 구조화).
+    :param target_type: 행위 대상 종류(``user`` 등). 대상이 없으면 ``None``.
+    :param target_id: 행위 대상 PK. 대상이 없으면 ``None``.
+    :param detail: 구조화 부가정보 dict(**비밀번호·PII 원문 금지**).
     :return: 커밋에 성공했으면 True, 실패(로그 후 포기)면 False.
     """
     from foms.services.datetime_kst import now_utc_naive
@@ -161,6 +210,10 @@ def write_security_log_detached(message: str, user_id: int | None = None) -> boo
         stmt = SecurityLog.__table__.insert().values(
             user_id=user_id,
             message=message,
+            action=action,
+            target_type=target_type,
+            target_id=target_id,
+            detail=normalize_security_detail(detail),
             timestamp=now_utc_naive(),
         )
         with engine.begin() as conn:
@@ -230,6 +283,8 @@ def record_access_denied(
     ip: str | None = None,
     endpoint: str | None = None,
     action: str = "",
+    structured_action: str | None = None,
+    detail: Mapping[str, Any] | None = None,
 ) -> bool:
     """접근거부 1건을 dedupe 후 ``security_logs`` 에 독립 커밋한다.
 
@@ -240,7 +295,12 @@ def record_access_denied(
     :param user_id: 행위 주체 user id(없으면 ``ip`` 가 dedupe 주체가 된다).
     :param ip: 요청 IP(``user_id`` 부재 시 dedupe 주체).
     :param endpoint: Flask endpoint 이름(dedupe 축).
-    :param action: 거부 종류 태그(예: ``policy:...``·``write-guard:...``).
+    :param action: **dedupe 축** 태그(예: ``policy:CODE``·``write-guard:reason``).
+        열 이름과 겹치지만 의미가 다르다 — 저장되는 ``security_logs.action`` 은
+        ``structured_action`` 이다(기존 dedupe 계약을 깨지 않으려 이름을 분리했다).
+    :param structured_action: ``security_logs.action`` 에 저장할 행위 종류(T8 구조화).
+    :param detail: ``security_logs.detail`` 에 저장할 부가정보(endpoint·reason 등).
+        억제분이 있으면 ``suppressed`` 키가 **복사본에** 추가된다(호출부 dict 무변경).
     :return: 이번 호출로 실제 행을 기록했으면 True, 억제/실패면 False.
     """
     subject = str(user_id) if user_id is not None else (ip or "-")
@@ -248,7 +308,15 @@ def record_access_denied(
     if not should_write:
         return False
     text = f"{message} (억제 {suppressed}회)" if suppressed else message
-    return write_security_log_detached(text, user_id=user_id)
+    payload = dict(detail) if detail else {}
+    if suppressed:
+        payload["suppressed"] = suppressed
+    return write_security_log_detached(
+        text,
+        user_id=user_id,
+        action=structured_action,
+        detail=payload or None,
+    )
 
 
 def _encode_additional_data(payload: Mapping[str, Any] | None) -> str | None:
