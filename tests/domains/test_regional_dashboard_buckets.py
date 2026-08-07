@@ -68,12 +68,17 @@ def _order_ids_in_section(html: str, section_title: str) -> set[str]:
 
 
 def _section_chunk(html: str, section_title: str) -> str:
-    """Return HTML chunk for a regional dashboard section header."""
+    """Return HTML chunk for a regional dashboard section header.
+
+    섹션 경계는 점프바 앵커(``class="row ... regional-section"``)가 SSOT다.
+    (구 구현은 ``<div class="row mb-4">`` 리터럴에 묶여 클래스가 늘면 경계를 잃었다.)
+    """
     marker = f">{section_title}"
     start = html.find(marker)
     assert start != -1, f"missing section: {section_title}"
-    next_card = html.find('<div class="row mb-4">', start + len(marker))
-    return html[start:next_card] if next_card != -1 else html[start:]
+    rest_at = start + len(marker)
+    next_card = re.search(r'<div class="row[^"]*\bregional-section\b"', html[rest_at:])
+    return html[start:rest_at + next_card.start()] if next_card else html[start:]
 
 
 def _order_row_ids_in_section(html: str, section_title: str) -> list[str]:
