@@ -1,6 +1,6 @@
 # FOMS 현재 상태
 > 자동 업데이트: 2026-07-28
-> 최신: **AS 지도 v2+v3+T15 운영 승격 완료(T6)** — PR #54, production `0f67dffd`(39커밋·마이그레이션 0), 체크 green·smoke 253·운영 신코드 확인. 잘림 4차는 현행 코드 미재현(옛 빌드 탭 추정, 새로고침 재확인 대기). 원장: docs/plans/2026-08-06-as-map-cluster-availability-ledger.md
+> 최신: **AS 지도 v2+v3+T15 운영 승격(T6, PR #54 `0f67dffd`) + T15g 세로 글자 수정 승격(PR #56 `29acc3f5`)** — 좁은 표면 분기는 뷰포트 MQ가 아니라 container query(부품 자폭): 지도 패널 358px에서 행 그리드가 본문에 42px만 남기던 것이 근본. 3표면 실측 무회귀·CI green. 원장: docs/plans/2026-08-06-as-map-cluster-availability-ledger.md
 > 이 파일 상단 40줄이 세션 시작 컨텍스트의 전부다(hygiene 계약 테스트로 강제). 상세 이력: "## 최근 완료"·"## 기록 보관", 과거 헤더 상세는 기록 보관에 이관.
 
 ## 스택
