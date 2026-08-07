@@ -182,6 +182,40 @@
         margin-right: 4px;
         font-size: 0.68rem;
     }
+
+    /* 헤더 통합 검색 (2026-08-07: 별도 검색 카드 → 제목 줄로 이동) */
+    .regional-header-search {
+        flex: 1 1 360px;
+        min-width: 240px;
+        max-width: 560px;
+    }
+
+    /* 요약 통계 1줄 스트립 (2026-08-07: 카드 2단 → 한 줄 칩) */
+    .regional-summary-item {
+        display: inline-flex;
+        align-items: center;
+        gap: 6px;
+        padding: 6px 14px;
+        border-radius: 999px;
+        border: 1px solid transparent;
+        font-size: 0.9rem;
+        font-weight: 600;
+        line-height: 1.2;
+        white-space: nowrap;
+    }
+    .regional-summary-item strong {
+        font-weight: 800;
+    }
+    .regional-summary-completed {
+        background: rgba(25, 135, 84, 0.10);
+        border-color: rgba(25, 135, 84, 0.35);
+        color: #146c43;
+    }
+    .regional-summary-pending {
+        background: rgba(255, 193, 7, 0.14);
+        border-color: rgba(255, 193, 7, 0.45);
+        color: #915907;
+    }
 </style>
 {% endblock %}
 
@@ -194,60 +228,24 @@
   {%- endif %}
 {%- endmacro %}
 <div class="container-fluid regional-dashboard">
-            <div class="d-flex justify-content-between align-items-center mb-4">
+    <!-- 제목 + 통합 검색 (한 줄) -->
+    <div class="d-flex justify-content-between align-items-center flex-wrap gap-3 mb-3">
         <h1 class="h3 mb-0"><i class="fas fa-map-marked-alt text-success"></i> 지방 주문 관리 대시보드</h1>
-        <a href="{{ url_for('order_pages.add_order', is_regional='true') }}" class="btn btn-success">
-            <i class="fas fa-plus"></i> 새 지방 주문 추가
-                </a>
-            </div>
+        <form method="get" action="{{ url_for('dashboards.regional_dashboard') }}" class="d-flex regional-header-search" role="search">
+            <input type="text" name="search_query" class="form-control me-2" placeholder="주문번호, 고객명, 연락처, 주소, 제품, 메모 등 통합 검색" value="{{ search_query or '' }}">
+            <button type="submit" class="btn btn-primary flex-shrink-0 text-nowrap"><i class="fas fa-search"></i> 검색</button>
+        </form>
+    </div>
 
-    <!-- 검색 폼 -->
-    <div class="row mb-4">
-        <div class="col-12">
-            <div class="card shadow-sm">
-                <div class="card-body">
-                    <form method="get" action="{{ url_for('dashboards.regional_dashboard') }}" class="d-flex">
-                        <input type="text" name="search_query" class="form-control me-2 flex-grow-1" placeholder="주문번호, 고객명, 연락처, 주소, 제품, 메모 등 통합 검색" value="{{ search_query or '' }}">
-                        <button type="submit" class="btn btn-primary flex-shrink-0 text-nowrap"><i class="fas fa-search"></i> 검색</button>
-                    </form>
-                </div>
-            </div>
-        </div>
-            </div>
-
-            <!-- 요약 통계 -->
-            <div class="row mb-4">
-                <div class="col-md-6">
-                    <div class="card summary-card-completed shadow">
-                        <div class="card-body">
-                            <div class="row no-gutters align-items-center">
-                                <div class="col mr-2">
-                                    <div class="text-xs font-weight-bold text-uppercase mb-1 text-completed">완료된 주문</div>
-                                    <div class="h5 mb-0 font-weight-bold text-completed">{{ completed_orders|length }}건</div>
-                                </div>
-                                <div class="col-auto">
-                                    <i class="fas fa-check-circle fa-2x text-completed-icon"></i>
-                                </div>
-                            </div>
-                        </div>
-                    </div>
-                </div>
-                <div class="col-md-6">
-                    <div class="card summary-card-pending shadow">
-                        <div class="card-body">
-                            <div class="row no-gutters align-items-center">
-                                <div class="col mr-2">
-                                    <div class="text-xs font-weight-bold text-uppercase mb-1 text-pending">진행 중인 주문</div>
-                                    <div class="h5 mb-0 font-weight-bold text-pending">{{ pending_orders|length }}건</div>
-                                </div>
-                                <div class="col-auto">
-                                    <i class="fas fa-clock fa-2x text-pending-icon"></i>
-                                </div>
-                            </div>
-                        </div>
-                    </div>
-                </div>
-            </div>
+    <!-- 요약 통계 (한 줄) -->
+    <div class="d-flex flex-wrap align-items-center gap-2 mb-4">
+        <span class="regional-summary-item regional-summary-completed">
+            <i class="fas fa-check-circle"></i> 완료된 주문 <strong>{{ completed_orders|length }}건</strong>
+        </span>
+        <span class="regional-summary-item regional-summary-pending">
+            <i class="fas fa-clock"></i> 진행 중인 주문 <strong>{{ pending_orders|length }}건</strong>
+        </span>
+    </div>
 
     <!-- 상차 예정 알림 -->
     {% if shipping_alerts %}
