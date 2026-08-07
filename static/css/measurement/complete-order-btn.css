@@ -8,3 +8,23 @@
     line-height: 1.4;
     white-space: nowrap;
 }
+
+/* STATE-CONTROLS-03 읽기 전용 상태 뱃지 (지방 대시보드 섹션=상태 개편).
+   색은 구 status-dropdown 톤을 그대로 승계해 사용자 색 인지를 유지한다. */
+.foms-board-status-badge {
+    display: inline-block;
+    padding: 2px 10px;
+    border-radius: 12px;
+    font-size: 0.8rem;
+    font-weight: 600;
+    line-height: 1.4;
+    white-space: nowrap;
+    color: #fff;
+}
+
+.foms-board-status-badge--scheduled { background-color: #d32f2f; }
+.foms-board-status-badge--shipped   { background-color: #17a2b8; }
+.foms-board-status-badge--progress  { background-color: #616161; }
+.foms-board-status-badge--as        { background-color: #7b1fa2; }
+.foms-board-status-badge--completed { background-color: #2e7d32; }
+.foms-board-status-badge--hold      { background-color: #8d6e63; }

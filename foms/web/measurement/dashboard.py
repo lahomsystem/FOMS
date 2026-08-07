@@ -2,7 +2,7 @@
 ERP 실측 대시보드 페이지 (canonical: foms.web.measurement.dashboard)
 erp.py에서 분리: /erp/measurement
 """
-from flask import Blueprint, make_response, render_template, request, redirect, url_for, g
+from flask import Blueprint, current_app, make_response, render_template, request, redirect, url_for, g
 from db import get_db
 from models import Order, OrderScheduleDate
 from foms.web.auth import login_required
@@ -31,7 +31,6 @@ from foms.services.measurement_manager_colors import build_measurement_manager_c
 from foms.services.measurement_dates import extract_all_measurement_dates
 from foms.services.orders.status_constants import (
     METRO_BOARD_STATUS,
-    REGIONAL_BOARD_STATUS,
     SELF_BOARD_STATUS,
     STATUS,
 )
@@ -530,60 +529,81 @@ def regional_dashboard():
     apply_erp_display_fields_to_orders(all_regional_orders)
     today = get_today_kst()
 
+    # 2026-08-07 개편(사용자 승인): 섹션=상태. 드롭다운 제거·뱃지 표기.
+    # 상차완료·보류 섹션 폐지 — 상차일 경과분은 설치 예정으로 흡수, 보류(ON_HOLD)는
+    # 진행 중으로 표시. AS접수는 전용 섹션(+재상차 시 상차 알림 병행 표시).
+    # AS완료는 ERP AS 대시보드 완료 탭 소관이라 이 보드에서 제외한다.
+    def _parse_shipping_date(order) -> datetime.date | None:
+        """상차예정일 문자열을 date로 파싱(빈값·형식 오류는 None)."""
+        raw = (order.shipping_scheduled_date or "").strip()
+        if not raw:
+            return None
+        try:
+            return datetime.datetime.strptime(raw, "%Y-%m-%d").date()
+        except (ValueError, TypeError):
+            return None
+
     completed_orders = [o for o in all_regional_orders if o.status == "COMPLETED"]
-    scheduled_orders = [o for o in all_regional_orders if o.status == "SCHEDULED"]
-    hold_orders = [o for o in all_regional_orders if o.status == "ON_HOLD"]
-    excluded_from_shipping_buckets = ["COMPLETED", "ON_HOLD", "SCHEDULED"]
-
-    shipping_alerts = []
-    for order in all_regional_orders:
-        is_as_rework_shipping = order.status == "AS_RECEIVED"
-        if (
-            (getattr(order, "measurement_completed", False) or is_as_rework_shipping)
-            and order.shipping_scheduled_date
-            and order.shipping_scheduled_date.strip()
-            and order.status not in excluded_from_shipping_buckets
-        ):
-            try:
-                shipping_date = datetime.datetime.strptime(
-                    order.shipping_scheduled_date, "%Y-%m-%d"
-                ).date()
-                if shipping_date >= today:
-                    shipping_alerts.append(order)
-            except (ValueError, TypeError):
-                pass
-
-    shipping_completed_orders = []
-    for order in all_regional_orders:
-        if (
-            order.shipping_scheduled_date
-            and order.shipping_scheduled_date.strip()
-            and order.status not in excluded_from_shipping_buckets
-        ):
-            try:
-                shipping_date = datetime.datetime.strptime(
-                    order.shipping_scheduled_date, "%Y-%m-%d"
-                ).date()
-                if shipping_date < today:
-                    shipping_completed_orders.append(order)
-            except (ValueError, TypeError):
-                pass
-
-    shipping_alert_ids = {o.id for o in shipping_alerts}
-    shipping_completed_ids = {o.id for o in shipping_completed_orders}
-    pending_orders = [
+    as_orders = [o for o in all_regional_orders if o.status == "AS_RECEIVED"]
+    board_actives = [
         o
         for o in all_regional_orders
-        if (
-            o.status not in excluded_from_shipping_buckets
-            and o.id not in shipping_alert_ids
-            and o.id not in shipping_completed_ids
-            and (
-                not getattr(o, "measurement_completed", False)
-                or not o.shipping_scheduled_date
-                or not o.shipping_scheduled_date.strip()
+        if o.status not in ("COMPLETED", "AS_RECEIVED", "AS_COMPLETED")
+    ]
+
+    # 설치 예정 = SCHEDULED 상태 ∪ 상차일 경과(보류 제외). 구 상차완료 섹션 흡수.
+    scheduled_orders = []
+    shipping_alerts = []
+    for order in board_actives:
+        if order.status == "SCHEDULED":
+            scheduled_orders.append(order)
+            continue
+        if order.status == "ON_HOLD":
+            continue
+        ship_date = _parse_shipping_date(order)
+        if ship_date is None:
+            continue
+        if ship_date < today:
+            scheduled_orders.append(order)
+        elif getattr(order, "measurement_completed", False):
+            shipping_alerts.append(order)
+
+    # AS 재상차(사용자 결정: 양쪽 표시 유지) — AS접수 전용 섹션에도 남기고, 미래 상차일이
+    # 잡힌 건은 상차 예정 알림에도 함께 띄운다. 상태는 AS_RECEIVED 로 보존(아래 sync 제외).
+    for order in as_orders:
+        ship_date = _parse_shipping_date(order)
+        if ship_date is not None and ship_date >= today:
+            shipping_alerts.append(order)
+
+    # 섹션 이동 시 상태 기록(사용자 결정): 섹션이 곧 상태이므로 화면 배치와 저장된
+    # status 를 lazy 동기화한다(전체 주문 리스트 필터와 일치시키는 목적). 물류 중간
+    # 상태라 workflow.stage 는 건드리지 않는다(LOGISTICS_STATUS_PRESERVE_WORKFLOW_STAGE
+    # 와 동일 의미론). AS_RECEIVED 는 AS 축이라 제외한다.
+    status_sync_rows = [
+        (o, "SCHEDULED") for o in scheduled_orders if o.status != "SCHEDULED"
+    ] + [
+        (o, "SHIPPED_PENDING")
+        for o in shipping_alerts
+        if o.status not in ("SHIPPED_PENDING", "AS_RECEIVED")
+    ]
+    if status_sync_rows:
+        try:
+            for order, target in status_sync_rows:
+                order.status = target
+            db.commit()
+        except Exception:
+            db.rollback()
+            current_app.logger.exception(
+                "regional_dashboard: section status lazy sync failed (rows=%s)",
+                [o.id for o, _ in status_sync_rows],
             )
-        )
+
+    scheduled_ids = {o.id for o in scheduled_orders}
+    shipping_alert_ids = {o.id for o in shipping_alerts}
+    pending_orders = [
+        o
+        for o in board_actives
+        if o.id not in scheduled_ids and o.id not in shipping_alert_ids
     ]
 
     def _shipping_alert_sort_key(order) -> tuple:
@@ -606,10 +626,12 @@ def regional_dashboard():
         )
 
     shipping_alerts.sort(key=_shipping_alert_sort_key)
-    shipping_completed_orders.sort(
-        key=lambda x: datetime.datetime.strptime(
-            x.shipping_scheduled_date, "%Y-%m-%d"
-        ).date()
+    # 설치 예정: 설치일 오름차순(빈 설치일은 뒤), 그다음 상차일.
+    scheduled_orders.sort(
+        key=lambda o: (
+            (o.scheduled_date or "").strip() or "9999-12-31",
+            (o.shipping_scheduled_date or "").strip() or "9999-12-31",
+        )
     )
 
     return render_template(
@@ -617,11 +639,9 @@ def regional_dashboard():
         pending_orders=pending_orders,
         scheduled_orders=scheduled_orders,
         completed_orders=completed_orders,
-        hold_orders=hold_orders,
+        as_orders=as_orders,
         shipping_alerts=shipping_alerts,
-        shipping_completed_orders=shipping_completed_orders,
         STATUS=STATUS,
-        REGIONAL_BOARD_STATUS=REGIONAL_BOARD_STATUS,
         search_query=search_query,
         today=today.strftime("%Y-%m-%d"),
         tomorrow=(today + timedelta(days=1)).strftime("%Y-%m-%d"),

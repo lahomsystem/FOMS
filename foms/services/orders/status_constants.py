@@ -43,13 +43,9 @@ LOGISTICS_BOARD_STATUS = {
 
 LOGISTICS_BOARD_CODES = frozenset(LOGISTICS_BOARD_STATUS)
 
-# 지방 대시보드 드롭다운 SSOT (2026-08-07 사용자 결정).
-# 섹션을 실제로 움직이는 상태만 — 실측완료(체크박스 SSOT)·상차예정(상차일 SSOT)·
-# 지방실측(라벨용) 제거. 완료는 canonical 컨트롤(complete_order_control) 소관.
-REGIONAL_BOARD_STATUS = {
-    'SCHEDULED': '설치예정',
-    'ON_HOLD': '보류',
-}
+# 지방 대시보드(2026-08-07 개편)는 status 드롭다운을 쓰지 않는다 — 섹션=상태이며
+# 행에는 읽기 전용 뱃지만 표기한다. 전이는 canonical 컨트롤(완료/AS완료 버튼)과
+# 체크리스트 자동 승격이 담당한다. 그래서 REGIONAL_BOARD_STATUS 는 존재하지 않는다.
 
 # 자가실측 대시보드 드롭다운 SSOT (2026-08-07 사용자 결정).
 # 화면 프로세스(대기→설치예정→AS→완료)와 무관한 지방실측·상차예정 legacy 제거.

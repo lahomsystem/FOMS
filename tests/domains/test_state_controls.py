@@ -166,13 +166,27 @@ def test_measurement_dashboard_compiles(rel: str) -> None:
     app.app.jinja_env.get_template(rel)  # TemplateSyntaxError 면 실패
 
 
-@pytest.mark.parametrize("rel", MEASUREMENT_DASHBOARDS)
+# 지방 보드는 2026-08-07 개편에서 선택자를 전부 버리고 뱃지로 갔다(섹션=상태).
+SELECTOR_DASHBOARDS = (
+    "measurement/self_measurement_dashboard.html",
+    "measurement/metropolitan_dashboard.html",
+)
+
+
+@pytest.mark.parametrize("rel", SELECTOR_DASHBOARDS)
 def test_measurement_setters_use_canonical_macro(rel: str) -> None:
     src = (TEMPLATES / rel).read_text(encoding="utf-8")
     assert "assignable_status_options" in src
     # raw status-map setter loop(모든 status dump)이 남아있으면 안 된다.
     assert "LOGISTICS_BOARD_STATUS.items()" not in src
     assert "STATUS.items()" not in src
+
+
+def test_regional_board_has_no_status_selector_macro() -> None:
+    """지방 보드는 status 선택자 자체를 쓰지 않는다(뱃지 + canonical 버튼만)."""
+    src = (TEMPLATES / "measurement/regional_dashboard.html").read_text(encoding="utf-8")
+    assert "assignable_status_options" not in src
+    assert "board_status_badge" in src
 
 
 def test_orders_index_bulk_status_excludes_terminal() -> None:
@@ -220,6 +234,21 @@ def test_measurement_dashboards_wire_complete_control(rel: str) -> None:
     assert "complete-order-btn.js" in src, f"{rel}: complete control JS not loaded"
 
 
+def test_regional_board_wires_as_complete_control() -> None:
+    """지방 AS 섹션은 canonical AS 완료 컨트롤 1곳을 배선한다.
+
+    status 직접 쓰기가 아니라 as_completed_date(complete_as_cycle 브리지)여야 AS
+    대시보드 '완료' 탭 조건(status+as_completed_date 동시 충족)을 만족한다.
+    """
+    src = (TEMPLATES / "measurement/regional_dashboard.html").read_text(encoding="utf-8")
+    assert src.count("as_complete_control(order.id") == 1
+    macro = (TEMPLATES / "partials/shared/status_select_options.html").read_text(
+        encoding="utf-8"
+    )
+    assert 'data-field="as_completed_date"' in macro
+    assert 'data-value="AS_COMPLETED"' not in macro
+
+
 def test_complete_control_js_exists() -> None:
     assert (ROOT / "static/js/measurement/complete-order-btn.js").exists()
 
@@ -230,22 +259,22 @@ def test_complete_control_js_exists() -> None:
 # ---------------------------------------------------------------------------
 
 def test_board_status_maps_curated() -> None:
+    from foms.services.orders import status_constants
     from foms.services.orders.status_constants import (
         LOGISTICS_BOARD_CODES,
         METRO_BOARD_STATUS,
-        REGIONAL_BOARD_STATUS,
         SELF_BOARD_STATUS,
     )
 
-    assert set(REGIONAL_BOARD_STATUS) == {"SCHEDULED", "ON_HOLD"}
     assert set(SELF_BOARD_STATUS) == {"MEASURED", "SCHEDULED", "ON_HOLD"}
     assert set(METRO_BOARD_STATUS) == {
         "MEASURED", "SCHEDULED", "SHIPPED_PENDING", "ON_HOLD",
     }
     # 물류 상태의 부분집합이어야 field_update stage-override 가드를 그대로 탄다.
-    assert set(REGIONAL_BOARD_STATUS) <= LOGISTICS_BOARD_CODES
     assert set(SELF_BOARD_STATUS) <= LOGISTICS_BOARD_CODES
     assert set(METRO_BOARD_STATUS) <= LOGISTICS_BOARD_CODES
+    # 지방 보드는 드롭다운이 없으므로 전용 맵도 없어야 한다(부활 방지).
+    assert not hasattr(status_constants, "REGIONAL_BOARD_STATUS")
 
 
 def test_dashboards_use_curated_board_maps() -> None:
@@ -258,8 +287,7 @@ def test_dashboards_use_curated_board_maps() -> None:
     src_metro = (TEMPLATES / "measurement/metropolitan_dashboard.html").read_text(
         encoding="utf-8"
     )
-    assert "assignable_status_options(REGIONAL_BOARD_STATUS" in src_regional
-    assert "assignable_status_options(LOGISTICS_BOARD_STATUS" not in src_regional
+    assert "assignable_status_options" not in src_regional
     assert "assignable_status_options(SELF_BOARD_STATUS" in src_self
     assert "assignable_status_options(LOGISTICS_BOARD_STATUS" not in src_self
     assert "assignable_status_options(METRO_BOARD_STATUS" in src_metro
