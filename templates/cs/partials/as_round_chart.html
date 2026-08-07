@@ -23,7 +23,8 @@
     {% if e.is_edited %}<span class="as-tl-item__edited" title="{{ e.edited_at }} · {{ e.edited_by }}">(수정됨)</span>{% endif %}
   </div>
   <span class="as-rchart-row__by">
-    {{ e.by or '' }}
+    {# 이름은 ellipsis 대상(측정 계정 등 긴 표시명이 행 폭을 밀어 우측이 잘리는 것 방어) #}
+    <span class="as-rchart-row__name" title="{{ e.by or '' }}">{{ e.by or '' }}</span>
     {# verdict 는 서버가 수정/삭제를 400 으로 거부한다(회차 파생 근거) — 버튼 자체를 안 낸다. #}
     {% if can_edit and not e.is_system and not e.is_legacy and not e.is_verdict %}
     <button type="button" class="as-tl-item__edit" title="기록 수정" aria-label="기록 수정"><i class="fas fa-pen" aria-hidden="true"></i></button>
@@ -69,7 +70,21 @@
     </details>
     <details class="as-rchart-field as-rchart-field--avail">
       <summary>
-        <span class="as-rchart-field__k">가능시간</span>
+        <span class="as-rchart-field__k">가능시간
+          {# 편집 칩 — 목록 방문일 셀과 같은 클래스라 as-dashboard.js 팝오버 위임(요일/시간
+             세그먼트+메모)이 그대로 받는다. 칩 클릭은 stopPropagation 이라 details 토글과
+             안 겹친다. 저장 성공 시 applyChipState + 차트 재조회(window.__fomsRefreshRoundChart). #}
+          {% if can_edit %}
+          <button type="button" class="erp-as-avail-chip as-rchart-avail-edit{% if sc.availability and sc.availability.days %} erp-as-avail-chip--set{% endif %}"
+            data-order-id="{{ order_id }}"
+            data-avail-days="{{ sc.availability.days if sc.availability else '' }}"
+            data-avail-time="{{ sc.availability.time if sc.availability else '' }}"
+            data-avail-note="{{ sc.availability.note if sc.availability else '' }}"
+            title="방문 가능시간 {{ '수정' if sc.availability and sc.availability.days else '입력' }}">
+            <i class="far fa-clock"></i><span class="erp-as-avail-chip__label">{{ '수정' if sc.availability and sc.availability.days else '입력' }}</span>
+          </button>
+          {% endif %}
+        </span>
         <span class="as-rchart-field__v">{{ (sc.availability.label if sc.availability else '') or '미기입' }}</span>
         {% if sc.availability and sc.availability.note %}<span class="as-rchart-field__m">{{ sc.availability.note }}</span>{% endif %}
       </summary>

@@ -241,6 +241,36 @@ def test_map_card_inline_chart_wiring():
     assert "다음 할 일" not in tpl
 
 
+def test_render_availability_edit_chip(app):
+    """상태 카드 가능시간 필드에 편집 칩(erp-as-avail-chip) — 목록 팝오버 위임 재사용(T15f).
+
+    읽기 전용(can_edit=False, 지도 인라인)에서는 칩을 내지 않는다.
+    """
+    sd = _base_sd()
+    sd["schedule"] = {"as_visit": {"availability": {
+        "days": "weekend", "time": "pm", "note": "3시 이후"}}}
+    view = build_as_round_chart_view(sd, today=_TODAY)
+    assert view["state_card"]["availability"]["days"] == "weekend"
+    assert view["state_card"]["availability"]["time"] == "pm"
+
+    html = _render_chart(app, view)
+    assert "erp-as-avail-chip" in html
+    assert 'data-avail-days="weekend"' in html and 'data-avail-time="pm"' in html
+    assert 'data-avail-note="3시 이후"' in html
+
+    readonly = _render_chart(app, view, can_edit=False)
+    assert "erp-as-avail-chip" not in readonly
+
+
+def test_render_author_name_is_ellipsis_target(app):
+    """작성자 이름은 별도 span(.as-rchart-row__name) — 긴 표시명 우측 잘림 방어(T15f)."""
+    sd = _base_sd()
+    append_client_log(sd, log_type="memo", text="m", by="Claude 실서버 측정용 계정", by_id=1)
+    html = _render_chart(app, build_as_round_chart_view(sd, today=_TODAY))
+    assert 'class="as-rchart-row__name"' in html
+    assert 'title="Claude 실서버 측정용 계정"' in html
+
+
 def test_render_can_edit_false_hides_dock(app):
     html = _render_chart(
         app, build_as_round_chart_view(_scenario_sd(), today=_TODAY), can_edit=False)

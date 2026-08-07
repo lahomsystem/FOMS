@@ -288,6 +288,10 @@ def build_as_round_chart_view(
             "availability": {
                 "label": as_availability_label(availability),
                 "note": str((availability or {}).get("note") or "").strip(),
+                # 편집 칩(erp-as-avail-chip)의 data-avail-* 프리필용 raw 값 —
+                # 팝오버는 목록 칩과 같은 as-dashboard.js 위임을 그대로 탄다.
+                "days": str((availability or {}).get("days") or "").strip(),
+                "time": str((availability or {}).get("time") or "").strip(),
                 "history": histories["availability"],
             },
             "billing": {
