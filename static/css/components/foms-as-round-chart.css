@@ -206,7 +206,10 @@
   grid-template-columns: 92px 64px 1fr auto;
   gap: 6px;
   align-items: start;
-  padding: 5px 12px;
+  /* 우측 여백을 좌측보다 크게 — 마지막 열(수정/삭제 버튼)이 컨테이너 가장자리에
+     붙는 구조라, 환경별 몇 px 기하 오차(줌·OS 배율·셸 래퍼)의 첫 희생자가 휴지통
+     아이콘이었다(T15f 실사용 잘림 보고 2회). 끝단에서 한 발 안쪽으로 고정한다. */
+  padding: 5px 24px 5px 12px;
   border-top: 1px solid #f6f8fa;
   background: #fff;
 }
@@ -234,7 +237,7 @@
 
 /* 긴 표시명(측정 계정 등)이 행 폭을 밀어 우측 버튼이 잘리는 것 방어 — 이름만 말줄임 */
 .as-rchart-row__name {
-  max-width: 7.5rem;
+  max-width: 6.5rem;
   overflow: hidden;
   text-overflow: ellipsis;
 }
