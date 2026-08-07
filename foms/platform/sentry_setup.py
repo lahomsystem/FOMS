@@ -198,14 +198,28 @@ def _scrub_event(event: Any, hint: Any = None) -> Any:
 def resolve_environment() -> str:
     """Sentry ``environment`` 태그 값을 env에서 해석한다.
 
+    ``RAILWAY_ENVIRONMENT`` 만으로는 스테이징과 운영이 구분되지 않는다 —
+    FOMS-DEV 프로젝트의 Railway 환경 이름도 ``production`` 이라 두 서버의 이벤트가
+    한 태그로 섞인다(실측 확인). 그래서 **프로젝트 이름을 먼저** 본다.
+
     Returns:
-        ``RAILWAY_ENVIRONMENT`` → ``FOMS_ENV`` 순으로 처음 발견한 비어 있지 않은
-        값. 둘 다 없으면 ``"local"``.
+        ``FOMS_ENV``(명시 오버라이드) → ``RAILWAY_PROJECT_NAME`` 기반 판정
+        (``*-DEV`` → ``staging``, ``*-PRODUCTION`` → ``production``) →
+        ``RAILWAY_ENVIRONMENT`` 순. 아무것도 없으면 ``"local"``.
     """
-    for env_name in ("RAILWAY_ENVIRONMENT", "FOMS_ENV"):
-        value = (os.environ.get(env_name) or "").strip()
-        if value:
-            return value
+    explicit = (os.environ.get("FOMS_ENV") or "").strip()
+    if explicit:
+        return explicit
+
+    project = (os.environ.get("RAILWAY_PROJECT_NAME") or "").strip().upper()
+    if project.endswith("-DEV"):
+        return "staging"
+    if project.endswith("-PRODUCTION"):
+        return "production"
+
+    railway_env = (os.environ.get("RAILWAY_ENVIRONMENT") or "").strip()
+    if railway_env:
+        return railway_env
     return "local"
 
 

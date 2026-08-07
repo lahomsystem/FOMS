@@ -28,7 +28,12 @@ from foms.platform.sentry_setup import (
     resolve_environment,
 )
 
-_ENV_VARS = ("SENTRY_DSN", "RAILWAY_ENVIRONMENT", "FOMS_ENV")
+_ENV_VARS = (
+    "SENTRY_DSN",
+    "RAILWAY_ENVIRONMENT",
+    "RAILWAY_PROJECT_NAME",
+    "FOMS_ENV",
+)
 
 
 @pytest.fixture()
@@ -116,15 +121,33 @@ def test_init_sentry_passes_expected_options(clean_env):
     )
 
 
-def test_environment_falls_back_to_foms_env_then_local(clean_env):
-    """환경 태그는 RAILWAY_ENVIRONMENT → FOMS_ENV → 'local' 순으로 해석된다."""
+def test_environment_resolution_order(clean_env):
+    """환경 태그 우선순위: FOMS_ENV → 프로젝트명 판정 → RAILWAY_ENVIRONMENT → local."""
     assert resolve_environment() == "local"
+
+    clean_env.setenv("RAILWAY_ENVIRONMENT", "production")
+    assert resolve_environment() == "production"
 
     clean_env.setenv("FOMS_ENV", "dev")
     assert resolve_environment() == "dev"
 
+
+def test_dev_project_is_not_tagged_production(clean_env):
+    """스테이징 프로젝트는 Railway 환경 이름이 'production' 이어도 staging 이다.
+
+    FOMS-DEV 의 ``RAILWAY_ENVIRONMENT`` 가 실제로 ``production`` 이라(운영 로그
+    실측), 이 판정이 없으면 스테이징 오류가 운영 태그로 섞인다.
+    """
     clean_env.setenv("RAILWAY_ENVIRONMENT", "production")
+    clean_env.setenv("RAILWAY_PROJECT_NAME", "FOMS-DEV")
+    assert resolve_environment() == "staging"
+
+    clean_env.setenv("RAILWAY_PROJECT_NAME", "FOMS-PRODUCTION")
     assert resolve_environment() == "production"
+
+    # 명시 오버라이드가 프로젝트명 판정보다 우선한다.
+    clean_env.setenv("FOMS_ENV", "canary")
+    assert resolve_environment() == "canary"
 
 
 def test_init_sentry_survives_bad_dsn(clean_env):
