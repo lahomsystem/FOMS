@@ -8,7 +8,7 @@ Flask 2.3 + PostgreSQL + R2 + Railway (Web×2, Worker×1)
 브랜치: deploy (스테이징) → production (운영)
 
 ## 진행 중
-- [2026-08-07] **지방 대시보드 섹션=상태 개편 deploy(CI green)** — 드롭다운 0·뱃지만, 상차완료/보류 섹션 폐지, AS 섹션+AS완료(`as_completed_date` 필수). 읽기 경로 status 쓰기는 state_guard 차단(상차일 변경 시점 기록). 잔여=운영 승격 승인.
+- [2026-08-07] **지방 대시보드 섹션=상태 개편 운영 승격 완료(PR #59, production `95fb7826`)** — 드롭다운 0·뱃지만, 상차완료/보류 섹션 폐지, AS 섹션+AS완료(`as_completed_date` 필수). 읽기 경로 status 쓰기는 state_guard 차단(상차일 변경 시점 기록).
 - [2026-08-06] **감사 로깅 `**D` P1+P2 완료** — P1 push `d7f0d9ea` CI green. P2: T4 첨부 soft delete·T5 관리자/접근거부·T6 파일 접근. P3 대기. 원장: `docs/plans/2026-08-05-system-audit-logging-ledger.md`
 - [2026-08-06] **계정 셀프서비스 v1 deploy 반영** — 셀프 가입 신청(PENDING 승인 흐름)+비밀번호 재설정 요청 큐(관리자 처리형), 마이그레이션 `account_self_00`, 승인 UI=/admin/users, 신규 테스트 14 green. 스펙: `docs/specs/2026-08-06-account-self-service-design.md`
 - [2026-08-05] **출고 시공일 변경 알림 T1~T8 완료(deploy)** — 이벤트 SSOT(`order_date_sync` before_flush)로 무음 경로 6종 차단, 수신 팀 **CONSTRUCTION**(SHIPMENT·PRODUCTION 팀은 실사용자 0 — 보내면 무음). AS 매칭은 production 반영 완료. 원장: `docs/plans/2026-07-30-shipment-construction-date-change-alert-ledger.md`
