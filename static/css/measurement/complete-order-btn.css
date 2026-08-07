@@ -1,0 +1,10 @@
+/* STATE-CONTROLS-02 완료 버튼(js-complete-order) 전용.
+   보드 테마의 전역 .btn 패딩(10px 20px)이 Bootstrap py-0 유틸을 이겨
+   버튼이 2줄로 부풀던 문제 — 2클래스 특이도 + !important 로 행 내
+   form-select-sm 과 같은 높이의 슬림 칩으로 고정한다. */
+.js-complete-order.btn {
+    padding: 2px 8px !important;
+    font-size: 0.8rem;
+    line-height: 1.4;
+    white-space: nowrap;
+}
