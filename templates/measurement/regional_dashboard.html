@@ -195,21 +195,12 @@
     .regional-search-group .form-control {
         background-color: #fff !important;
         border: 1.5px solid #868f9f !important;
-        border-left: 0 !important;
         border-right: 0 !important;
         box-shadow: none !important;
-        padding-left: 4px !important;
     }
     .regional-search-group .form-control::placeholder {
         color: #6b7280;
         opacity: 1;
-    }
-    .regional-search-group .regional-search-icon {
-        background-color: #fff;
-        border: 1.5px solid #868f9f;
-        border-right: 0;
-        color: #4b5563;
-        padding-right: 6px;
     }
     .regional-search-group {
         box-shadow: 0 1px 2px rgba(16, 24, 40, 0.08);
@@ -219,7 +210,6 @@
         box-shadow: 0 0 0 4px rgba(0, 122, 255, 0.18);
     }
     .regional-search-group:focus-within .form-control,
-    .regional-search-group:focus-within .regional-search-icon,
     .regional-search-group:focus-within .regional-search-clear {
         border-color: #0d6efd !important;
     }
@@ -389,8 +379,7 @@
         <h1 class="h3 mb-0"><i class="fas fa-map-marked-alt text-success"></i> 지방 주문 관리 대시보드</h1>
         <form method="get" action="{{ url_for('dashboards.regional_dashboard') }}" class="regional-header-search" role="search">
             <div class="input-group regional-search-group">
-                <span class="input-group-text regional-search-icon" id="regional-search-icon"><i class="fas fa-search" aria-hidden="true"></i></span>
-                <input type="text" name="search_query" class="form-control" placeholder="주문번호, 고객명, 연락처, 주소, 제품, 메모 등 통합 검색" aria-label="지방 주문 통합 검색" aria-describedby="regional-search-icon" value="{{ search_query or '' }}">
+                <input type="text" name="search_query" class="form-control" placeholder="주문번호, 고객명, 연락처, 주소, 제품, 메모 등 통합 검색" aria-label="지방 주문 통합 검색" value="{{ search_query or '' }}">
                 {% if search_query %}
                 <a class="btn regional-search-clear" href="{{ url_for('dashboards.regional_dashboard') }}" title="검색 초기화" aria-label="검색 초기화"><i class="fas fa-times" aria-hidden="true"></i></a>
                 {% endif %}
