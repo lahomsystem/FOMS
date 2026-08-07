@@ -8,6 +8,7 @@ Flask 2.3 + PostgreSQL + R2 + Railway (Web×2, Worker×1)
 브랜치: deploy (스테이징) → production (운영)
 
 ## 진행 중
+- [2026-08-07] **지방 대시보드 섹션=상태 개편 deploy(CI green)** — 드롭다운 0·뱃지만, 상차완료/보류 섹션 폐지, AS 섹션+AS완료(`as_completed_date` 필수). 읽기 경로 status 쓰기는 state_guard 차단(상차일 변경 시점 기록). 잔여=운영 승격 승인.
 - [2026-08-06] **감사 로깅 `**D` P1+P2 완료** — P1 push `d7f0d9ea` CI green. P2: T4 첨부 soft delete·T5 관리자/접근거부·T6 파일 접근. P3 대기. 원장: `docs/plans/2026-08-05-system-audit-logging-ledger.md`
 - [2026-08-06] **계정 셀프서비스 v1 deploy 반영** — 셀프 가입 신청(PENDING 승인 흐름)+비밀번호 재설정 요청 큐(관리자 처리형), 마이그레이션 `account_self_00`, 승인 UI=/admin/users, 신규 테스트 14 green. 스펙: `docs/specs/2026-08-06-account-self-service-design.md`
 - [2026-08-05] **출고 시공일 변경 알림 T1~T8 완료(deploy)** — 이벤트 SSOT(`order_date_sync` before_flush)로 무음 경로 6종 차단, 수신 팀 **CONSTRUCTION**(SHIPMENT·PRODUCTION 팀은 실사용자 0 — 보내면 무음). AS 매칭은 production 반영 완료. 원장: `docs/plans/2026-07-30-shipment-construction-date-change-alert-ledger.md`
@@ -18,9 +19,7 @@ Flask 2.3 + PostgreSQL + R2 + Railway (Web×2, Worker×1)
 - 위 3건 상세·후속 목록·결재 기록: `docs/plans/2026-07-31-full-promotion-prep-ledger.md`
 - ⚠️ **미결: `as-delete-reapply`의 `8c1ef69a`**(삭제 라우트 WRITE-GUARD-01 manifest 등재) deploy 미반영. worktree 정리 중 발견, 타 세션 몫이라 미처리. 브랜치 ref 보존됨.
 - [2026-04-17] **ERP fast-page `EPT-B8`:** run record `docs/plans/2026-04-17-ept-b8-verification-railway-evidence-run-record.md` — 로컬 게이트 완료; staging HTTP 하네스로 **§4 표·§5** 부분 채움; **closeout** 은 deploy ID·§6 모드·hard stop 조건 충족 후.
-- [2026-04-15] **`SFC-B11B`** (§6.16 `apps/` overlay retirement): **working tree 기준 `apps/` 디렉터리 없음** — 구현·계약은 batch11b·B11A run record·`pytest` strict 계약으로 동결. 원격/HEAD와 불일치 시 동기화만 확인.
 - [2026-04-15] active mainline 구조 tranche 없음. `WR-B1` / `WR-J1` / `WR-H1`는 explicit future batch 조건에서만 재개.
-- [2026-03-26] 채널톡 연동 파일럿(Wave 0 ~ 5) 운영 모니터링 (실제 데이터 축적 대기 중)
 
 ## 알려진 이슈
 - 차단 이슈 없음. post-Wave9 endgame mainline은 종료되었고, 남은 구조 부채는 `WR-B1` / `WR-J1` / `WR-H1`처럼 explicit future-batch 조건으로만 존재한다. W5-B8의 로컬 authenticated browser smoke 환경 이탈은 run record에 residual로 문서화되어 있으며, `wdcalculator_scripts_config.html` Jinja 상단 변수 주입 구간의 JS lint false-positive는 기존과 동일하게 남아 있다.
