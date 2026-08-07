@@ -1044,6 +1044,16 @@
         tr.innerHTML = '<td colspan="12"><div class="as-tl-expand-body" data-loading="1">'
           + '<div class="text-muted small py-2">불러오는 중...</div></div></td>';
         row.after(tr);
+        // 가용폭 SSOT = 가로 스크롤 컨테이너(wrapper)의 실측 가시폭. CSS 100vw 기반 상한은
+        // 셸 레이아웃·사이드 패널·줌·OS 배율에서 실제 가용폭보다 넓게 계산돼 확장 박스
+        // 우측이 잘렸다(T15f 실보고 3회). sticky right:0 기준도 이 wrapper 스크롤포트라
+        // clientWidth 가 유일하게 정확한 값이다. 인라인 지정은 동적 기하 계산이라 CSS 로
+        // 표현 불가한 예외(resize 는 재열기로 회복 — 상시 리스너는 과설계).
+        const wrap = row.closest('.erp-pro-table-wrapper');
+        if (wrap && wrap.clientWidth) {
+          tr.querySelector('.as-tl-expand-body').style.maxWidth =
+            Math.min(720, wrap.clientWidth - 24) + 'px';
+        }
         fetch('/erp/as/timeline/' + encodeURIComponent(orderId), {
           headers: { Accept: 'text/html' }, credentials: 'same-origin',
         }).then((r) => { if (!r.ok) throw new Error('HTTP ' + r.status); return r.text(); })
