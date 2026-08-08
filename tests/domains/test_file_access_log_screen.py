@@ -271,6 +271,36 @@ def test_invalid_date_input_is_ignored_not_500(app):
     assert "any.jpg" in resp.get_data(as_text=True)
 
 
+def test_legacy_rows_are_hidden_by_default_and_reachable_on_demand(app):
+    """구 형식 행(파일 접근 이전 자유 텍스트 기록)은 기본 숨김, 체크 시에만 보인다.
+
+    실측(스테이징): ``access_logs`` 121행 중 119행이 T6 이전 구현이 남긴 행이고 그 payload
+    에는 고객명·연락처 변경 이력이 들어 있다. 파일 열람 화면이 기본으로 그것까지 보여주면
+    화면 이름과 내용이 어긋나고 파일 감사와 무관한 PII 가 노출된다. 다만 원장이 화면에서
+    영영 사라지면 안 되므로 스위치로 도달 가능해야 한다.
+    """
+    with app.app_context():
+        admin_id = _make_user()
+        _record("FILE_VIEW", storage_key="orders/71/attachments/current.jpg",
+                user_id=admin_id, order_id=71)
+        audit_writer.write_access_log_detached(
+            "Updated order #24", user_id=admin_id, ip=_IP, user_agent=_UA,
+            additional_data={"order_id": 24, "customer_name": "구형식고객"},
+        )
+
+        client = app.test_client()
+        _login(client, admin_id)
+        default_body = client.get(_PATH).get_data(as_text=True)
+        legacy_body = client.get(f"{_PATH}?include_legacy=1").get_data(as_text=True)
+
+    assert "current.jpg" in default_body
+    assert "구형식고객" not in default_body
+    assert "Updated order #24" not in default_body
+
+    assert "구형식고객" in legacy_body
+    assert "current.jpg" in legacy_body
+
+
 # --------------------------------------------------------------------------
 # 3. 페이지네이션
 # --------------------------------------------------------------------------
@@ -292,6 +322,9 @@ def test_pagination_preserves_filters(app):
 
     assert first.status_code == 200 and second.status_code == 200
     assert "page=2" in first_body and "action=FILE_DOWNLOAD" in first_body
+    # 꺼진 include_legacy 는 페이지 링크에 실리지 않는다(폼 체크박스 마크업은 제외).
+    pager = first_body.split('aria-label="파일 열람 기록 페이지"')[1]
+    assert "include_legacy" not in pager
     # 최신순 정렬 — 가장 오래된 000 행은 2페이지에 온다.
     assert "page-000.jpg" in second_body
     assert "page-000.jpg" not in first_body

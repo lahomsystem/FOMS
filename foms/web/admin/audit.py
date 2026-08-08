@@ -88,11 +88,19 @@ def _apply_access_log_filters(query: Query, filters: dict[str, Any]) -> Query:
     ``ix_access_logs_timestamp``)를 타는 동등/범위 비교다. 주문·파일 키만 문자열 매칭인데,
     ``additional_data`` 가 JSON **문자열** 컬럼이라 다른 수단이 없다(컬럼 승격은 별건).
 
+    ``access_logs`` 에는 T6 이전 구현이 남긴 **구 형식 행**이 섞여 있다(운영 실측: 스테이징
+    121행 중 119행). 그 행들은 ``action`` 컬럼에 문장을 통째로 넣었고 payload 에 고객명·연락처
+    변경 이력까지 담겨 있다 — 파일 열람 화면이 기본으로 그것까지 보여주면 화면 이름과 내용이
+    어긋나고 파일 감사와 무관한 PII 가 노출된다. 그래서 기본 범위는 파일 접근 3종이고,
+    ``include_legacy`` 를 켤 때만 전체를 본다(원장이 화면에서 사라지지는 않게).
+
     :param query: 필터를 얹을 ``AccessLog`` 쿼리.
     :param filters: ``{'user_id','action','timestamp_from','timestamp_to','order_id',
-        'storage_key'}`` 값 dict(빈 값/``None`` 은 미적용).
+        'storage_key','include_legacy'}`` 값 dict(빈 값/``None`` 은 미적용).
     :return: 필터가 적용된 쿼리.
     """
+    if not filters.get("include_legacy"):
+        query = query.filter(AccessLog.action.in_(_FILE_ACCESS_ACTIONS))
     if filters.get("user_id"):
         query = query.filter(AccessLog.user_id == filters["user_id"])
     if filters.get("action"):
@@ -230,6 +238,8 @@ def file_access_logs():
         "storage_key": (request.args.get("storage_key") or "").strip(),
         "date_from": (request.args.get("date_from") or "").strip(),
         "date_to": (request.args.get("date_to") or "").strip(),
+        # 구 형식 행(파일 접근 이전 자유 텍스트 기록)까지 볼지 — 기본 꺼짐(위 필터 주석).
+        "include_legacy": bool(request.args.get("include_legacy")),
     }
     filters["timestamp_from"] = _kst_date_bound_utc(filters["date_from"], next_day=False)
     filters["timestamp_to"] = _kst_date_bound_utc(filters["date_to"], next_day=True)

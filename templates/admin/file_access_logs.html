@@ -54,6 +54,17 @@
                     <input type="text" name="storage_key" id="storage_key" class="form-control"
                            value="{{ filters.storage_key or '' }}" placeholder="orders/1234/attachments/">
                 </div>
+                <div class="col-md-6 d-flex align-items-end">
+                    <div class="form-check">
+                        {# 구 형식 행은 action 에 문장이 들어 있고 payload 에 고객 정보가 섞여 있다.
+                           기본은 파일 접근 3종만 보여주고, 필요할 때만 켠다. #}
+                        <input class="form-check-input" type="checkbox" name="include_legacy" value="1"
+                               id="include_legacy" {% if filters.include_legacy %}checked{% endif %}>
+                        <label class="form-check-label" for="include_legacy">
+                            구 형식 기록 포함(파일 접근 이전 자유 텍스트 이력)
+                        </label>
+                    </div>
+                </div>
                 <div class="col-12">
                     <button type="submit" class="btn btn-primary">필터 적용</button>
                     <a href="{{ url_for('admin.file_access_logs') }}" class="btn btn-secondary">초기화</a>
@@ -125,14 +136,16 @@
                 <a class="page-link" href="{{ url_for('admin.file_access_logs', page=page-1,
                     user_id=filters.user_id, action=filters.action or None,
                     date_from=filters.date_from or None, date_to=filters.date_to or None,
-                    order_id=filters.order_id, storage_key=filters.storage_key or None) }}">이전</a>
+                    order_id=filters.order_id, storage_key=filters.storage_key or None,
+                    include_legacy=1 if filters.include_legacy else None) }}">이전</a>
             </li>
             <li class="page-item disabled"><span class="page-link">{{ page }} / {{ total_pages }}</span></li>
             <li class="page-item {% if page >= total_pages %}disabled{% endif %}">
                 <a class="page-link" href="{{ url_for('admin.file_access_logs', page=page+1,
                     user_id=filters.user_id, action=filters.action or None,
                     date_from=filters.date_from or None, date_to=filters.date_to or None,
-                    order_id=filters.order_id, storage_key=filters.storage_key or None) }}">다음</a>
+                    order_id=filters.order_id, storage_key=filters.storage_key or None,
+                    include_legacy=1 if filters.include_legacy else None) }}">다음</a>
             </li>
         </ul>
     </nav>
