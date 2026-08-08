@@ -1,0 +1,141 @@
+{% extends "admin/layout.html" %}
+
+{% block title %}파일 열람 기록{% endblock %}
+
+{% block content %}
+<div class="container mt-4">
+    <h1>파일 열람 기록</h1>
+    <p class="text-muted">첨부 파일 미리보기·서명 URL 발급·다운로드 이력입니다. 미리보기는 같은 사람·같은 파일 기준 10분 내 반복이 한 행으로 묶입니다(억제 횟수 표기).</p>
+
+    <div class="card mb-4">
+        <div class="card-header">
+            <h5>필터링</h5>
+        </div>
+        <div class="card-body">
+            {# 기간은 KST 날짜 입력 → 서버가 UTC 경계로 환산한다(_kst_date_bound_utc). #}
+            <form method="get" action="{{ url_for('admin.file_access_logs') }}" class="row g-3">
+                <div class="col-md-3">
+                    <label for="user_id" class="form-label">열람자</label>
+                    <select name="user_id" id="user_id" class="form-select">
+                        <option value="">모든 사용자</option>
+                        {% for u in users %}
+                        <option value="{{ u.id }}" {% if filters.user_id == u.id %}selected{% endif %}>
+                            {{ u.username }} ({{ u.name }})
+                        </option>
+                        {% endfor %}
+                    </select>
+                </div>
+                <div class="col-md-2">
+                    <label for="action" class="form-label">행위</label>
+                    <select name="action" id="action" class="form-select">
+                        <option value="">전체</option>
+                        {% for option in action_options %}
+                        <option value="{{ option }}" {% if filters.action == option %}selected{% endif %}>{{ option }}</option>
+                        {% endfor %}
+                    </select>
+                </div>
+                <div class="col-md-2">
+                    <label for="date_from" class="form-label">시작일(KST)</label>
+                    <input type="date" name="date_from" id="date_from" class="form-control"
+                           value="{{ filters.date_from or '' }}">
+                </div>
+                <div class="col-md-2">
+                    <label for="date_to" class="form-label">종료일(KST)</label>
+                    <input type="date" name="date_to" id="date_to" class="form-control"
+                           value="{{ filters.date_to or '' }}">
+                </div>
+                <div class="col-md-3">
+                    <label for="order_id" class="form-label">주문번호</label>
+                    <input type="number" name="order_id" id="order_id" class="form-control"
+                           value="{{ filters.order_id if filters.order_id is not none else '' }}">
+                </div>
+                <div class="col-md-6">
+                    <label for="storage_key" class="form-label">파일 키 검색</label>
+                    <input type="text" name="storage_key" id="storage_key" class="form-control"
+                           value="{{ filters.storage_key or '' }}" placeholder="orders/1234/attachments/">
+                </div>
+                <div class="col-12">
+                    <button type="submit" class="btn btn-primary">필터 적용</button>
+                    <a href="{{ url_for('admin.file_access_logs') }}" class="btn btn-secondary">초기화</a>
+                    <span class="ms-2 text-muted">총 {{ total_logs }}건</span>
+                </div>
+            </form>
+        </div>
+    </div>
+
+    <div class="table-responsive">
+        <table class="table table-striped table-hover">
+            <thead>
+                <tr>
+                    <th style="width: 14%;">시간</th>
+                    <th style="width: 12%;">행위</th>
+                    <th style="width: 13%;">열람자</th>
+                    <th style="width: 27%;">파일</th>
+                    <th style="width: 9%;">주문</th>
+                    <th style="width: 10%;">IP</th>
+                    <th style="width: 15%;">브라우저(UA)</th>
+                </tr>
+            </thead>
+            <tbody>
+                {% for row in rows %}
+                <tr>
+                    <td>{{ row.log.timestamp|format_datetime_kst }}</td>
+                    <td>
+                        <span class="badge bg-secondary">{{ row.log.action }}</span>
+                        {% if row.suppressed %}
+                        <span class="badge bg-light text-dark" title="10분 창에서 묶인 반복 열람 횟수">+{{ row.suppressed }}</span>
+                        {% endif %}
+                    </td>
+                    <td>
+                        {% set actor = user_map.get(row.log.user_id) %}
+                        {% if actor %}
+                            {{ actor.username }} ({{ actor.name }})
+                        {% elif row.log.user_id %}
+                            #{{ row.log.user_id }}
+                        {% else %}
+                            비로그인
+                        {% endif %}
+                    </td>
+                    <td>
+                        {# storage_key·raw 는 사용자 입력이 섞일 수 있다 — Jinja 자동 escape 로만 출력한다. #}
+                        {% if row.storage_key %}<code class="small">{{ row.storage_key }}</code>{% endif %}
+                        {% if row.raw %}<pre class="mb-0 small">{{ row.raw }}</pre>{% endif %}
+                    </td>
+                    <td>
+                        {% if row.order_id %}
+                        <a href="{{ url_for('order_edit.edit_order', order_id=row.order_id) }}">#{{ row.order_id }}</a>
+                        {% endif %}
+                    </td>
+                    <td class="small">{{ row.log.ip_address or '' }}</td>
+                    <td class="small text-break">{{ row.log.user_agent or '' }}</td>
+                </tr>
+                {% else %}
+                <tr>
+                    <td colspan="7" class="text-center">열람 기록이 없습니다.</td>
+                </tr>
+                {% endfor %}
+            </tbody>
+        </table>
+    </div>
+
+    {% if total_pages > 1 %}
+    <nav aria-label="파일 열람 기록 페이지">
+        <ul class="pagination">
+            <li class="page-item {% if page <= 1 %}disabled{% endif %}">
+                <a class="page-link" href="{{ url_for('admin.file_access_logs', page=page-1,
+                    user_id=filters.user_id, action=filters.action or None,
+                    date_from=filters.date_from or None, date_to=filters.date_to or None,
+                    order_id=filters.order_id, storage_key=filters.storage_key or None) }}">이전</a>
+            </li>
+            <li class="page-item disabled"><span class="page-link">{{ page }} / {{ total_pages }}</span></li>
+            <li class="page-item {% if page >= total_pages %}disabled{% endif %}">
+                <a class="page-link" href="{{ url_for('admin.file_access_logs', page=page+1,
+                    user_id=filters.user_id, action=filters.action or None,
+                    date_from=filters.date_from or None, date_to=filters.date_to or None,
+                    order_id=filters.order_id, storage_key=filters.storage_key or None) }}">다음</a>
+            </li>
+        </ul>
+    </nav>
+    {% endif %}
+</div>
+{% endblock %}
