@@ -1024,11 +1024,18 @@ class SecurityLog(Base):
     """
 
     __tablename__ = 'security_logs'
-    # SEC-LOG-STRUCT-00: 마이그레이션(``seclog_struct_00``)과 인덱스 이름·컬럼 구성이
-    # 완전히 같아야 한다 — create_all 부트스트랩 레인과 alembic 레인의 스키마 정합
-    # (tests/postgres 체인 왕복 테스트가 강제). 기존 trgm 인덱스(phase_f)는 무접촉.
+    # SEC-LOG-STRUCT-00: 마이그레이션(``seclog_struct_00``·``seclog_time_00``)과 인덱스
+    # 이름·컬럼 구성이 완전히 같아야 한다 — create_all 부트스트랩 레인과 alembic 레인의
+    # 스키마 정합(tests/postgres 체인 왕복 테스트가 강제). 기존 trgm 인덱스(phase_f)는 무접촉.
+    #
+    # SEC-LOG-TIME-00: ``ix_security_logs_timestamp_id`` 는 감사 화면의 **기본 조회**
+    # (``ORDER BY timestamp DESC, id DESC`` + count)용이다. ``ix_security_logs_target`` 은
+    # 선행 컬럼이 ``target_type`` 이라 이 정렬에 쓸 수 없고, trgm 은 ``message`` 전용이다.
+    # ``id`` 를 붙인 복합이라 tie-break 까지 인덱스 하나로 풀리고, DESC 는 PostgreSQL 이
+    # backward index scan 으로 처리하므로 별도 DESC 인덱스가 필요 없다.
     __table_args__ = (
         Index('ix_security_logs_target', 'target_type', 'target_id', 'timestamp'),
+        Index('ix_security_logs_timestamp_id', 'timestamp', 'id'),
     )
 
     id = Column(Integer, primary_key=True)

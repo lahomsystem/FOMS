@@ -547,3 +547,47 @@ def test_switch_user_action(client, app):
     assert rows[0].user_id == admin_id
     assert rows[0].target_type == "user" and rows[0].target_id == target_id
     assert rows[0].detail["target_username"] == "t8-imp-target"
+
+
+# --------------------------------------------------------------------------
+# SEC-LOG-TIME-00 — 감사 화면 정렬 인덱스
+# --------------------------------------------------------------------------
+def test_time_index_migration_contract():
+    """seclog_time_00 은 accesslog_detail_00 위에 얹히고 models.py 와 컬럼 구성이 같다."""
+    import ast
+    from pathlib import Path
+
+    from models import SecurityLog
+
+    repo_root = Path(__file__).resolve().parents[2]
+    path = repo_root / "migrations/versions/seclog_time_00_security_log_timestamp_index.py"
+    body = path.read_text(encoding="utf-8")
+    tree = ast.parse(body)
+    funcs = {n.name: ast.unparse(n) for n in ast.walk(tree)
+             if isinstance(n, ast.FunctionDef)}
+
+    assert "import models" not in body and "from models" not in body  # 상수 동결 원칙
+    assert "down_revision: Union[str, None] = 'accesslog_detail_00'" in body
+    assert "create_index" in funcs["upgrade"] and "drop_index" in funcs["downgrade"]
+    assert "'timestamp', 'id'" in funcs["upgrade"], "정렬 tie-break 컬럼(id)이 빠졌다"
+
+    model_index = next(ix for ix in SecurityLog.__table__.indexes
+                       if ix.name == "ix_security_logs_timestamp_id")
+    assert [c.name for c in model_index.columns] == ["timestamp", "id"]
+
+
+def test_audit_screen_orders_by_the_indexed_key():
+    """감사 화면 정렬 키가 인덱스 구성과 같다 — 한쪽만 바뀌면 인덱스가 조용히 무용지물이 된다."""
+    import ast
+    from pathlib import Path
+
+    repo_root = Path(__file__).resolve().parents[2]
+    body = (repo_root / "foms/web/admin/audit.py").read_text(encoding="utf-8")
+    tree = ast.parse(body)
+    ordered = [
+        ast.unparse(node) for node in ast.walk(tree)
+        if isinstance(node, ast.Call) and isinstance(node.func, ast.Attribute)
+        and node.func.attr == "order_by"
+    ]
+    assert any("SecurityLog.timestamp.desc()" in call and "SecurityLog.id.desc()" in call
+               for call in ordered), ordered
