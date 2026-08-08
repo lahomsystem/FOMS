@@ -20,6 +20,8 @@
 | T10 Sentry + gunicorn access log | DONE(사용자 액션 잔여) | 커밋 `7519a416`. no-op 실증(sentry_sdk 0 로드)·재귀 마스킹 워커·access-logfile. 잔여=DSN 발급·Railway env |
 | T11 잔여 구멍 (user_deletion·FAILOPEN·EXTERNAL) | DONE(EXTERNAL 제외) | 커밋 `a9b8ecb7`. 사용자 비활성화 전환·FAILOPEN disposition 180 무성장. EXTERNAL 감축은 인벤토리 타 세션 점유로 별건 |
 | T-CP3 최종 검증·AI_STATUS 갱신 | DONE(push 제외) | smoke exit 0 + hygiene 15 + verify_result success:true + AI_STATUS 갱신. push는 아침(마이그레이션 3종 체인 — origin head 재확인) |
+| T11 병합 (타 세션 가입거절 가드와 충돌 해결) | DONE | 원격 `e4aea16b`. 차단 검사·notification 상태 정리는 hard delete 전용 유지, 비활성화는 미적용. delete 라우트 거부 계약은 reject_user 테스트로 이전. domains 4179 passed |
+| T12 파일 열람 기록 화면 (access_logs 조회) | DONE | `GET /admin/file-access-logs` ADMIN 전용. KST 기간 경계·주문 접두 오탐 가드 계약 13건. domains 4193·PG 712 passed |
 
 ## 사용자 결정 (2026-08-05)
 

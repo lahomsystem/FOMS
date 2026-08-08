@@ -1,4 +1,4 @@
-# 인수인계 — 감사 로깅 (2026-08-07, 새 세션 재개용)
+# 인수인계 — 감사 로깅 (2026-08-08 갱신, 잔여 작업 A·B 완료)
 
 정본 문서: 스펙 `docs/specs/2026-08-05-system-audit-logging-design.md` /
 플랜 `docs/plans/2026-08-05-system-audit-logging-plan.md` /
@@ -6,8 +6,8 @@
 보존기간 분석 `docs/plans/2026-08-07-audit-retention-analysis.md`
 
 ## 현재 상태 (한 줄)
-T1~T11 전부 구현·검증 완료. **T8·T9·T10까지 원격 반영**(`ede72253`, CI green).
-T11 + 문서 일부가 로컬 커밋으로 남아 있고, 잔여 작업 2건이 지시 대기 중.
+T1~T12 전부 구현·검증·**원격 반영 완료**. 잔여는 사용자 액션(Sentry 로그 육안)과
+운영 승격 결정뿐 — 아래 "운영 주의"를 승격 전에 반드시 읽을 것.
 
 ## 원격 반영 완료
 | 범위 | 원격 SHA | 확인 |
@@ -15,40 +15,30 @@ T11 + 문서 일부가 로컬 커밋으로 남아 있고, 잔여 작업 2건이 
 | T1~T3 (로깅 부트스트랩·금액 이벤트·주문 생성) | `d7f0d9ea` | CI 4/4 green |
 | T4~T6 (첨부 soft delete·관리자 감사·파일 접근) | `156cb70c` | CI 4/4 green + 스테이징 E2E 13/13 |
 | T8~T10 (security_logs 구조화·수명주기·Sentry) | `ede72253` | FOMS CI·PG Lane·perf-gate green (Harness 1건은 타 세션 AI_STATUS 초과가 원인, 후속 커밋에서 해소 확인) |
+| T11 병합본 + 보존기간 권고안 + Sentry env 판정 | `e4aea16b` | Harness·perf-gate green, PG Lane red → 후속 커밋에서 근본 수정(아래) |
+| T12 파일 열람 기록 화면 + PG 레인 시드 수정 | 아래 push 참조 | domains 4193·PG 712·smoke exit 0 |
 
-## 미push 로컬 커밋 (자기 세션)
-- `a9b8ecb7` T11 — 사용자 삭제→비활성화 + FAILOPEN disposition 분리
-- `05ba41f1` 3차 런 문서 마감 (원장·보고서·AI_STATUS)
-- `82a1d752` 보존기간 정량 분석 문서
-- `67f95d45` 보존기간 권고안 반영(security 1095·channel 1095·access 730·notification 365)
+## 잔여 작업 2건 — 완료 (2026-08-08)
 
-## 잔여 작업 (사용자 지시 완료 — 새 세션에서 착수)
+### A. T11 병합 (사용자: "안전 판단 후 병합" 지시) — DONE
+- 타 세션이 원격에 넣은 `UserDeletionBlockedError`(가입 거절 가드)와 T11(삭제→비활성화)은
+  **의미상 공존 가능**으로 판정하고 병합했다. 판단 근거와 결과:
+  - 차단 검사·`_detach_notification_user_states` 는 **hard delete 경로에만** 남긴다.
+    비활성화는 `users` row 가 남아 FK 가 계속 유효하므로 차단할 이유가 없다
+    (그 거부 메시지가 안내하던 "계정 비활성화"가 곧 이 경로다).
+  - deploy 에서 뒤늦게 추가된 FK 컬럼 14종은 **운영 참조**로 분류(비활성화 시 NULL).
+  - delete 라우트의 `except UserDeletionBlockedError` 는 제거(비활성화는 던지지 않음),
+    거부 계약은 `reject_user` 라우트 테스트 2건으로 이전.
+- 원격 반영 `e4aea16b`(T11 병합본 + 문서 4커밋).
 
-### A. T11 cherry-pick 충돌 해결 (사용자: "내가 합쳐보기" 승인)
-- 증상: `push_own_session_commits.py`로 `a9b8ecb7` pick 시 5파일 충돌
-  (`foms/services/user_deletion.py`·`foms/web/auth/routes.py`·
-  `tests/domains/test_user_delete.py`·`test_user_deletion.py`·
-  `docs/harness/foms_failopen_inventory.json`).
-- 원인: 타 세션이 원격에 `UserDeletionBlockedError`(가입 거절 흐름) 도입 — 같은 함수군.
-- 지시: **충돌 내용을 먼저 분석해 "섞어도 안전한지" 판단 후, 안전하면 병합하고
-  테스트로 확인. 위험하면 병합하지 말고 사용자에게 보고.**
-- 판단 기준: T11은 `detach_user_references_for_deactivate`(신설, 운영 필드만 NULL)와
-  `detach_user_references_for_delete`(기존, 전 필드 NULL) 2종 분리가 핵심.
-  타 세션의 `UserDeletionBlockedError`는 삭제 차단 예외 — **의미상 충돌 없음**(공존 가능).
-  검증: `pytest tests/domains/test_user_delete.py test_user_deletion.py
-  test_failopen_inventory.py test_admin_audit_trail.py -q` + `APP_OK`.
-
-### B. 파일 열람 기록 화면 (사용자: "지금 바로" 승인)
-- 현재 `access_logs`는 writer만 있고 조회 UI 0 (설계상 "SQL 전용"이었음).
-- 만들 것: 관리자 감사 영역(`foms/web/admin/audit.py` + `templates/admin/`)에
-  **파일 열람 기록 탭** — 누가·언제·어떤 파일(storage_key)·어느 주문·IP·UA,
-  필터(사용자·기간·action FILE_VIEW/FILE_DOWNLOAD/FILE_PRESIGNED·주문번호),
-  페이지네이션. `security_logs.html` 최신 구조를 그대로 따를 것(같은 세션이 T8에서
-  필터·페이지네이션 패턴 완성).
-- 제약: ADMIN 전용(`role_required(["ADMIN"])`), 인덱스는 `(user_id, timestamp)`·
-  `(timestamp)` 기존 것 활용(신규 인덱스 불필요), 템플릿에 인라인 스타일 금지,
-  JS/CSS 신규 로드 시 `?v=` 범프, XSS 이스케이프 계약 테스트 필수.
-- 완료 기준: 신규 계약 테스트(필터 동작·권한 차단·XSS) + `APP_OK` + smoke exit 0.
+### B. 파일 열람 기록 화면 — DONE
+- `GET /admin/file-access-logs`(ADMIN 전용) + `templates/admin/file_access_logs.html`.
+  필터 = 열람자·행위·기간(KST)·주문번호·파일 키, 페이지네이션 50행, 신규 인덱스 0.
+- 함정 2개가 실제로 있었다(둘 다 계약 테스트로 고정):
+  1. `access_logs.timestamp` 는 naive=UTC 인데 화면 입력은 KST 날짜 — 그대로 비교하면
+     한국 오전 9시 이전 열람이 전날로 샌다(`_kst_date_bound_utc`).
+  2. 주문 필터는 `additional_data` JSON **문자열** 매칭이라 구분자 없이 LIKE 하면
+     주문 12 조회가 주문 123 을 끌고 온다(뮤테이션으로 red 실증 후 가드).
 
 ## 사용자 액션 대기
 - **Sentry**: dev(FOMS-DEV)에 `SENTRY_DSN` 등록 완료 상태. Railway 로그에
@@ -67,3 +57,6 @@ T11 + 문서 일부가 로컬 커밋으로 남아 있고, 잔여 작업 2건이 
 ## 이월 (별건)
 - EXTERNAL mutation writer 22곳 감축(T11 ③) — 인벤토리 타 세션 점유로 미착수.
 - `security_logs` PII 분리(연락처 12.6%·주소 11.8% 혼입 실측).
+- `access_logs.additional_data` 를 JSON 문자열 → JSONB 컬럼 승격(주문 축 조회가 지금은
+  문자열 LIKE 다 — 관리자 cold path 라 당장 문제는 아니나 원장이 커지면 Seq Scan).
+- `security_logs` `timestamp` 단독 인덱스 신설(아래 운영 주의 3번과 동일 건).
