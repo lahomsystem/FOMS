@@ -289,6 +289,33 @@ def _counts(pg_engine) -> dict[str, int]:
         }
 
 
+def _expired(now, table: str, *, extra_days: int = 5):
+    """``table`` 의 보존기간을 확실히 넘긴 시각.
+
+    보존기간 상수(``AUDIT_TABLES``)는 정책 결정이라 바뀐다 — 날짜를 리터럴로 박으면
+    정책을 조정할 때마다 이 스위트가 "아무것도 만료되지 않아" 조용히 0건을 세고 red 가
+    된다(실제 사고: 보존기간 3년 상향 후 PG 레인 5건 red). 항상 상수에서 파생시킨다.
+
+    :param now: 기준 시각.
+    :param table: 대상 테이블명.
+    :param extra_days: 보존기간을 넘기는 여유 일수(체인 순서를 만들 때 크게 준다).
+    :return: 만료 시각.
+    """
+    return now - timedelta(days=_AUDIT_TABLES[table].default_retention_days + extra_days)
+
+
+def _within(now, table: str, *, margin_days: int = 5):
+    """``table`` 의 보존기간 안쪽(삭제 대상이 아닌) 시각.
+
+    :param now: 기준 시각.
+    :param table: 대상 테이블명.
+    :param margin_days: 보존기간 경계에서 앞당길 일수.
+    :return: 보존 대상 시각.
+    """
+    days = max(_AUDIT_TABLES[table].default_retention_days - margin_days, 0)
+    return now - timedelta(days=days)
+
+
 def _seed_one_expired_and_one_fresh(pg_engine, now) -> None:
     """대상 4종 각각에 '보존기간 초과' 1건 + '보존기간 내' 1건을 심는다."""
     with pg_engine.begin() as conn:
@@ -382,8 +409,9 @@ def test_retention_override_applies_per_table(pg_engine):
     _clean_audit(pg_engine)
     now = now_utc_naive()
     with pg_engine.begin() as conn:
-        _insert_security_log(conn, now - timedelta(days=30))   # 기본 730일 → 대상 아님
-        _insert_access_log(conn, now - timedelta(days=30))     # 기본 365일 → 대상 아님
+        # 둘 다 기본 보존기간 안쪽 — override 를 받은 테이블만 지워져야 한다.
+        _insert_security_log(conn, _within(now, "security_logs"))
+        _insert_access_log(conn, _within(now, "access_logs"))
 
     with pg_engine.connect() as conn:
         result = pal.run(
@@ -393,7 +421,8 @@ def test_retention_override_applies_per_table(pg_engine):
     by_table = {t.table: t for t in result.tables}
     assert by_table["security_logs"].retention_days == 10
     assert by_table["security_logs"].deleted == 1
-    assert by_table["access_logs"].retention_days == 365
+    assert (by_table["access_logs"].retention_days
+            == _AUDIT_TABLES["access_logs"].default_retention_days)
     assert by_table["access_logs"].deleted == 0
 
 
@@ -402,8 +431,10 @@ def test_self_referencing_delivery_log_parent_survives_while_child_lives(pg_engi
     _clean_audit(pg_engine)
     now = now_utc_naive()
     with pg_engine.begin() as conn:
-        parent = _insert_delivery_log(conn, now - timedelta(days=400), key="p-1")
-        _insert_delivery_log(conn, now - timedelta(days=10), key="c-1", parent_id=parent)
+        parent = _insert_delivery_log(
+            conn, _expired(now, "channel_delivery_logs"), key="p-1")
+        _insert_delivery_log(
+            conn, _within(now, "channel_delivery_logs"), key="c-1", parent_id=parent)
 
     with pg_engine.connect() as conn:
         result = pal.run(conn, apply=True, now=now)
@@ -422,8 +453,11 @@ def test_self_referencing_delivery_chain_deletes_child_before_parent(pg_engine):
     _clean_audit(pg_engine)
     now = now_utc_naive()
     with pg_engine.begin() as conn:
-        parent = _insert_delivery_log(conn, now - timedelta(days=500), key="p-2")
-        _insert_delivery_log(conn, now - timedelta(days=400), key="c-2", parent_id=parent)
+        parent = _insert_delivery_log(
+            conn, _expired(now, "channel_delivery_logs", extra_days=100), key="p-2")
+        _insert_delivery_log(
+            conn, _expired(now, "channel_delivery_logs", extra_days=50), key="c-2",
+            parent_id=parent)
 
     with pg_engine.connect() as conn:
         result = pal.run(conn, apply=True, batch_size=1, now=now)
@@ -442,10 +476,13 @@ def test_survivor_guard_protects_grandparent_of_a_surviving_row(pg_engine):
     _clean_audit(pg_engine)
     now = now_utc_naive()
     with pg_engine.begin() as conn:
-        grandparent = _insert_delivery_log(conn, now - timedelta(days=500), key="gp")
+        grandparent = _insert_delivery_log(
+            conn, _expired(now, "channel_delivery_logs", extra_days=100), key="gp")
         parent = _insert_delivery_log(
-            conn, now - timedelta(days=450), key="pp", parent_id=grandparent)
-        _insert_delivery_log(conn, now - timedelta(days=10), key="cc", parent_id=parent)
+            conn, _expired(now, "channel_delivery_logs", extra_days=50), key="pp",
+            parent_id=grandparent)
+        _insert_delivery_log(
+            conn, _within(now, "channel_delivery_logs"), key="cc", parent_id=parent)
 
     with pg_engine.connect() as conn:
         result = pal.run(conn, apply=True, batch_size=1, now=now)
@@ -464,9 +501,14 @@ def test_deep_expired_chain_is_deleted_whole_across_batches(pg_engine):
     _clean_audit(pg_engine)
     now = now_utc_naive()
     with pg_engine.begin() as conn:
-        root = _insert_delivery_log(conn, now - timedelta(days=600), key="r")
-        mid = _insert_delivery_log(conn, now - timedelta(days=500), key="m", parent_id=root)
-        _insert_delivery_log(conn, now - timedelta(days=400), key="l", parent_id=mid)
+        root = _insert_delivery_log(
+            conn, _expired(now, "channel_delivery_logs", extra_days=150), key="r")
+        mid = _insert_delivery_log(
+            conn, _expired(now, "channel_delivery_logs", extra_days=100), key="m",
+            parent_id=root)
+        _insert_delivery_log(
+            conn, _expired(now, "channel_delivery_logs", extra_days=50), key="l",
+            parent_id=mid)
 
     with pg_engine.connect() as conn:
         result = pal.run(conn, apply=True, batch_size=1, now=now)
@@ -486,7 +528,8 @@ def test_keyset_batching_splits_deletes_and_resumes(pg_engine):
     now = now_utc_naive()
     with pg_engine.begin() as conn:
         for i in range(5):
-            _insert_security_log(conn, now - timedelta(days=800, seconds=i))
+            _insert_security_log(
+                conn, _expired(now, "security_logs") - timedelta(seconds=i))
 
     with pg_engine.connect() as conn:
         result = pal.run(conn, apply=True, batch_size=2, now=now)
@@ -505,7 +548,7 @@ def test_advisory_lock_skips_concurrent_run(pg_engine):
     _clean_audit(pg_engine)
     now = now_utc_naive()
     with pg_engine.begin() as conn:
-        _insert_security_log(conn, now - timedelta(days=800))
+        _insert_security_log(conn, _expired(now, "security_logs"))
 
     with pg_engine.connect() as locker:
         assert locker.execute(
