@@ -363,3 +363,46 @@ def test_storage_key_script_is_escaped(app):
 
     assert "<script>alert('key')</script>" not in body
     assert "alert(" in body
+
+
+# --------------------------------------------------------------------------
+# 6. ACCESS-LOG-DETAIL-00 — 구조화 컬럼 전환 후에도 화면 계약이 유지된다
+# --------------------------------------------------------------------------
+def test_order_filter_matches_via_detail_column(app):
+    """주문 필터는 detail(JSONB) 정수 비교로 행을 찾는다(문자열 LIKE 아님)."""
+    with app.app_context():
+        admin_id = _make_user()
+        _record("FILE_VIEW", storage_key="orders/41/attachments/a.jpg",
+                user_id=admin_id, order_id=41)
+        _record("FILE_VIEW", storage_key="orders/42/attachments/b.jpg",
+                user_id=admin_id, order_id=42)
+
+        db_session.expire_all()
+        rows = db_session.query(AccessLog).order_by(AccessLog.id).all()
+        assert [r.detail["order_id"] for r in rows] == [41, 42]
+
+        client = app.test_client()
+        _login(client, admin_id)
+        body = client.get(f"{_PATH}?order_id=41").get_data(as_text=True)
+
+        assert "orders/41/attachments/a.jpg" in body
+        assert "orders/42/attachments/b.jpg" not in body
+
+
+def test_row_without_detail_still_renders_from_raw_payload(app):
+    """detail 이 NULL 인 행(백필 전·배포 틈)도 원문 파싱으로 그대로 보인다."""
+    with app.app_context():
+        admin_id = _make_user()
+        _record("FILE_DOWNLOAD", storage_key="orders/55/attachments/legacy.pdf",
+                user_id=admin_id, order_id=55)
+
+        db_session.expire_all()
+        row = db_session.query(AccessLog).order_by(AccessLog.id.desc()).first()
+        row.detail = None  # 마이그레이션 백필 이전 행 재현(원문만 있는 상태)
+        db_session.commit()
+
+        client = app.test_client()
+        _login(client, admin_id)
+        body = client.get(_PATH).get_data(as_text=True)
+
+        assert "orders/55/attachments/legacy.pdf" in body, "원문 폴백이 끊겼다"

@@ -85,8 +85,11 @@ def _apply_access_log_filters(query: Query, filters: dict[str, Any]) -> Query:
     """파일 열람 기록 조회에 사용자·행위·기간·주문·파일 키 필터를 적용한다.
 
     ``user_id``·``action``·``timestamp`` 는 인덱스(``ix_access_logs_user_id_timestamp``·
-    ``ix_access_logs_timestamp``)를 타는 동등/범위 비교다. 주문·파일 키만 문자열 매칭인데,
-    ``additional_data`` 가 JSON **문자열** 컬럼이라 다른 수단이 없다(컬럼 승격은 별건).
+    ``ix_access_logs_timestamp``)를 타는 동등/범위 비교다. 주문 축도 ACCESS-LOG-DETAIL-00
+    이후로는 구조화 컬럼 ``detail``(JSONB) 위의 **정수 동등 비교**라
+    ``ix_access_logs_detail_order_id`` 표현식 인덱스를 탄다 — 예전처럼 JSON 문자열에
+    구분자를 붙여 LIKE 하지 않으므로 접두 오탐(주문 12 ↔ 123)이 구조적으로 불가능하다.
+    파일 키만 ``additional_data`` 원문 ILIKE 로 남는다(부분 문자열 검색이라 인덱스 대상 아님).
 
     ``access_logs`` 에는 T6 이전 구현이 남긴 **구 형식 행**이 섞여 있다(운영 실측: 스테이징
     121행 중 119행). 그 행들은 ``action`` 컬럼에 문장을 통째로 넣었고 payload 에 고객명·연락처
@@ -110,14 +113,11 @@ def _apply_access_log_filters(query: Query, filters: dict[str, Any]) -> Query:
     if filters.get("timestamp_to") is not None:
         query = query.filter(AccessLog.timestamp < filters["timestamp_to"])
     if filters.get("order_id"):
-        # 주문 축은 ``additional_data`` JSON 문자열 안에 있다. 구분자(``,``/``}``)까지 붙여
-        # 비교하지 않으면 주문 12 가 주문 123 의 행까지 끌고 온다(접두 오탐).
-        order_id = int(filters["order_id"])
+        # 주문 축은 구조화 컬럼 ``detail`` 의 정수 동등 비교다(ACCESS-LOG-DETAIL-00).
+        # PG 에서는 ``CAST((detail ->> 'order_id') AS INTEGER) = ?`` 로 나가
+        # ``ix_access_logs_detail_order_id`` 를 탄다.
         query = query.filter(
-            or_(
-                AccessLog.additional_data.like(f'%"order_id": {order_id},%'),  # perf-ok: bounded admin audit cold path
-                AccessLog.additional_data.like(f'%"order_id": {order_id}}}%'),  # perf-ok: bounded admin audit cold path
-            )
+            AccessLog.detail["order_id"].as_integer() == int(filters["order_id"])
         )
     if filters.get("storage_key"):
         pattern = f"%{filters['storage_key']}%"
@@ -126,7 +126,11 @@ def _apply_access_log_filters(query: Query, filters: dict[str, Any]) -> Query:
 
 
 def _access_log_row(log_entry: AccessLog) -> dict[str, Any]:
-    """행 1건을 화면 표시용 dict 로 편다(``additional_data`` JSON 해석).
+    """행 1건을 화면 표시용 dict 로 편다(``detail`` 우선, 없으면 ``additional_data`` 해석).
+
+    ACCESS-LOG-DETAIL-00 이후 writer 는 두 컬럼에 같은 값을 쓴다. 그래도 원문 파싱 경로를
+    남기는 이유는 **``detail`` 이 NULL 인 행**이 실제로 있기 때문이다 — 마이그레이션이
+    백필하지 않은 구 형식 행, 그리고 코드 배포와 마이그레이션 사이에 쓰인 행.
 
     파싱에 실패하거나 dict 가 아니면 원문을 그대로 넘긴다 — 감사 화면이 읽지 못한 값을
     조용히 감추면 "기록은 있는데 화면에 없다"가 되어 감사가 무력해진다.
@@ -134,9 +138,9 @@ def _access_log_row(log_entry: AccessLog) -> dict[str, Any]:
     :param log_entry: ``AccessLog`` 행.
     :return: ``{'log','storage_key','order_id','suppressed','raw'}`` dict.
     """
-    payload: Any = None
+    payload: Any = log_entry.detail
     raw = log_entry.additional_data or ""
-    if raw:
+    if not isinstance(payload, dict) and raw:
         try:
             payload = json.loads(raw)
         except (TypeError, ValueError):

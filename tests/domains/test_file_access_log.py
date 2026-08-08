@@ -573,11 +573,17 @@ def test_migration_defines_indexes_and_downgrade():
     assert "ix_access_logs_timestamp" in body
 
 
-def test_access_log_model_columns_are_unchanged():
-    """기존 스키마 그대로 사용한다(AccessLog 컬럼 추가 금지 — T6 파일 경계)."""
+def test_access_log_model_columns_match_audited_set():
+    """``AccessLog`` 컬럼 집합을 고정한다 — 감사 원장에 컬럼이 조용히 늘지 않게.
+
+    T6 때는 "컬럼 추가 금지"(파일 경계)였고, ACCESS-LOG-DETAIL-00 이 ``detail``(JSONB) 하나를
+    의도적으로 늘렸다. 이 테스트는 금지가 아니라 **집합 고정**이다 — 새 컬럼은 마이그레이션과
+    함께 여기 등재되어야 하며, 등재 없이 늘면 red 다. ``additional_data`` 원문은 계속 남는다
+    (승격 롤백 시 구버전 코드가 읽을 값 · 감사 원장은 형식 변경으로 값을 잃지 않는다).
+    """
     assert {c.key for c in AccessLog.__table__.columns} == {
         "id", "user_id", "action", "ip_address", "user_agent",
-        "additional_data", "timestamp",
+        "additional_data", "detail", "timestamp",
     }
 
 
@@ -667,3 +673,107 @@ def test_local_storage_branch_has_no_recording_call():
     # 모든 기록 호출은 R2 분기(각 send_file 보다 위)에 있다.
     for record_line in record_lines:
         assert any(record_line < sf for sf in send_file_lines)
+
+
+# --------------------------------------------------------------------------
+# 9. ACCESS-LOG-DETAIL-00 — 구조화 payload(detail) 이중 쓰기 계약
+# --------------------------------------------------------------------------
+def test_detail_column_mirrors_additional_data_payload(app):
+    """writer 는 같은 payload 를 원문(Text)과 구조화 사본(JSONB) 두 컬럼에 함께 쓴다."""
+    with app.app_context():
+        assert audit_writer.record_file_access(
+            "FILE_DOWNLOAD", storage_key="orders/9/attachments/한글.pdf",
+            ip=_IP, user_agent=_UA, order_id=9) is True
+
+        row = _rows("FILE_DOWNLOAD")[0]
+        assert row.detail == {"storage_key": "orders/9/attachments/한글.pdf", "order_id": 9}
+        assert json.loads(row.additional_data) == row.detail, "원문과 사본이 어긋났다"
+
+
+def test_detail_mirrors_truncated_payload_not_the_original(app, monkeypatch):
+    """상한 초과로 트림된 경우 detail 도 **트림된 값**이어야 한다(두 컬럼 불일치 금지)."""
+    monkeypatch.setattr(audit_writer, "ACCESS_ADDITIONAL_DATA_LIMIT", 80)
+    with app.app_context():
+        assert audit_writer.write_access_log_detached(
+            "FILE_VIEW", additional_data={"storage_key": "x" * 500}) is True
+
+        row = _rows("FILE_VIEW")[0]
+        assert row.detail["truncated"] is True
+        assert row.detail["storage_key"] == "x" * 32
+        assert json.loads(row.additional_data) == row.detail
+
+
+def test_detail_is_null_when_payload_is_unserialisable_but_row_survives(app):
+    """직렬화 불가 값이 섞여도 행은 남고, detail 은 원문과 같은 문자열화 결과를 갖는다."""
+    with app.app_context():
+        assert audit_writer.write_access_log_detached(
+            "FILE_VIEW", additional_data={"storage_key": object()}) is True
+
+        row = _rows("FILE_VIEW")[0]
+        # default=str 로 흡수된 값이라 detail 도 같은 문자열을 갖는다(원문과 동일).
+        assert json.loads(row.additional_data) == row.detail
+        assert "object object" in row.detail["storage_key"]
+
+
+def test_non_integer_order_id_is_dropped_from_payload(app, caplog):
+    """정수 아닌 order_id 는 payload 에서 빠진다 — 표현식 인덱스가 INSERT 를 죽이지 않게."""
+    with app.app_context(), caplog.at_level(logging.WARNING):
+        assert audit_writer.record_file_access(
+            "FILE_VIEW", storage_key="orders/x/a.jpg", ip=_IP, order_id="12abc") is True
+
+    row = _rows("FILE_VIEW")[0]
+    assert "order_id" not in row.detail
+    assert row.detail == {"storage_key": "orders/x/a.jpg"}
+    assert any("order_id" in rec.message for rec in caplog.records)
+
+
+def test_boolean_is_not_accepted_as_order_id(app):
+    """bool 은 int 의 하위형이지만 주문 id 가 아니다(True 가 주문 1로 새는 것 차단)."""
+    with app.app_context():
+        assert audit_writer.record_file_access(
+            "FILE_VIEW", storage_key="orders/y/a.jpg", ip=_IP, order_id=True) is True
+
+    assert "order_id" not in _rows("FILE_VIEW")[0].detail
+
+
+def test_detail_migration_contract():
+    """accesslog_detail_00 은 auditlife_00 위에 얹히고, 인덱스 표현식이 models.py 와 같다."""
+    path = _REPO_ROOT / "migrations/versions/accesslog_detail_00_access_log_detail_jsonb.py"
+    body = path.read_text(encoding="utf-8")
+    tree = ast.parse(body)
+    funcs = {n.name: ast.unparse(n) for n in ast.walk(tree)
+             if isinstance(n, ast.FunctionDef)}
+
+    assert "import models" not in body and "from models" not in body  # 상수 동결 원칙
+    assert "down_revision: Union[str, None] = 'auditlife_00'" in body
+    assert "add_column" in funcs["upgrade"] and "drop_column" in funcs["downgrade"]
+
+    # 인덱스 표현식이 models.py 와 문자 그대로 같아야 계획기가 매칭한다.
+    models_body = (_REPO_ROOT / "models.py").read_text(encoding="utf-8")
+    expression = "((detail ->> 'order_id')::integer)"
+    assert expression in body
+    assert expression in models_body
+
+    # 백필은 파일 접근 3종만 — 구 형식 행의 PII 를 질의 가능한 컬럼으로 옮기지 않는다.
+    assert "FILE_ACCESS_ACTIONS" in funcs["upgrade"] or "_backfill_detail" in funcs["upgrade"]
+    assert "('FILE_VIEW', 'FILE_PRESIGNED', 'FILE_DOWNLOAD')" in body
+
+
+def test_order_detail_index_is_skipped_on_sqlite_create_all():
+    """SQLite ``create_all`` 이 PG 표현식 인덱스를 만나 죽지 않는다(ddl_if 동작 실증).
+
+    private 속성이 아니라 **실제 DDL 발행**으로 검증한다 — ddl_if 가 빠지면 여기서
+    ``(detail ->> 'order_id')::integer`` 를 SQLite 가 파싱하다 OperationalError 로 죽는다.
+    """
+    import sqlalchemy as sa
+
+    engine = sa.create_engine("sqlite://")
+    emitted: list[str] = []
+    sa.event.listen(engine, "before_cursor_execute",
+                    lambda c, cur, stmt, *a: emitted.append(stmt))
+
+    AccessLog.__table__.create(engine, checkfirst=False)
+
+    created = " ".join(emitted)
+    assert "ix_access_logs_timestamp" in created, "일반 인덱스는 SQLite 에도 생겨야 한다"
+    assert "ix_access_logs_detail_order_id" not in created, "PG 전용 인덱스가 새어나갔다"

@@ -968,11 +968,21 @@ class User(Base):
 
 class AccessLog(Base):
     __tablename__ = 'access_logs'
-    # ACCESS-LOG-00: 마이그레이션(access_log_00)과 이름까지 동일해야 한다 —
-    # create_all 부트스트랩 레인과 alembic 레인의 스키마 정합(체인 왕복 테스트가 강제).
+    # ACCESS-LOG-00: 마이그레이션(access_log_00·accesslog_detail_00)과 이름까지 동일해야
+    # 한다 — create_all 부트스트랩 레인과 alembic 레인의 스키마 정합(체인 왕복 테스트가 강제).
+    #
+    # ACCESS-LOG-DETAIL-00: 주문 축 인덱스는 표현식 인덱스라 **PostgreSQL 전용**이다.
+    # ``detail['order_id'].as_integer()`` 가 PG 에서 내는 SQL 이
+    # ``CAST((detail ->> 'order_id') AS INTEGER)`` 이므로 인덱스 표현식도 같은 모양이어야
+    # 계획기가 매칭한다(다르면 인덱스가 있어도 Seq Scan — PG 레인이 EXPLAIN 으로 고정).
+    # SQLite 는 같은 비교를 ``JSON_EXTRACT`` 로 내므로 이 인덱스가 의미 없다 → ddl_if 로 제외.
     __table_args__ = (
         Index('ix_access_logs_user_id_timestamp', 'user_id', 'timestamp'),
         Index('ix_access_logs_timestamp', 'timestamp'),
+        Index(
+            'ix_access_logs_detail_order_id',
+            text("((detail ->> 'order_id')::integer)"),
+        ).ddl_if(dialect='postgresql'),
     )
 
     id = Column(Integer, primary_key=True)
@@ -981,10 +991,13 @@ class AccessLog(Base):
     ip_address = Column(String)
     user_agent = Column(String)
     additional_data = Column(Text)
+    # 구조화 payload(JSONB on PostgreSQL). ``additional_data`` 의 JSON **문자열** 원문은
+    # 그대로 두고 질의 가능한 사본을 따로 든다 — 감사 원장은 원문을 지우지 않는다.
+    detail = Column(JSONColumn, nullable=True)
     timestamp = Column(DateTime, default=datetime.datetime.now)
-    
+
     user = relationship("User", back_populates="access_logs")
-    
+
     def to_dict(self):
         return {
             'id': self.id,
@@ -993,6 +1006,7 @@ class AccessLog(Base):
             'ip_address': self.ip_address,
             'user_agent': self.user_agent,
             'additional_data': self.additional_data,
+            'detail': self.detail,
             'timestamp': format_datetime_kst(self.timestamp)
         }
 

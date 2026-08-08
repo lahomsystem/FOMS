@@ -331,6 +331,11 @@ def _encode_additional_data(payload: Mapping[str, Any] | None) -> str | None:
 
     :param payload: 격납할 dict(``None``/빈 dict 면 기록 생략).
     :return: JSON 문자열, 또는 격납할 게 없으면 ``None``.
+
+    .. note::
+       ``access_logs.detail``(JSONB) 사본은 이 함수의 **결과 문자열을 되읽어** 만든다
+       (:func:`_access_detail_from_encoded`). 그래야 트림·``default=str`` 흡수까지
+       두 컬럼이 정확히 같은 값이 된다 — 원문과 구조화 사본이 어긋나면 감사가 무너진다.
     """
     if not payload:
         return None
@@ -349,6 +354,24 @@ def _encode_additional_data(payload: Mapping[str, Any] | None) -> str | None:
     return encoded if len(encoded) <= limit else json.dumps({"truncated": True})
 
 
+def _access_detail_from_encoded(encoded: str | None) -> dict[str, Any] | None:
+    """``additional_data`` JSON 문자열을 ``detail``(JSONB) 격납용 dict 으로 되읽는다.
+
+    인코딩 결과를 되읽는 이유는 :func:`_encode_additional_data` 의 트림·``default=str``
+    흡수를 거친 **최종 값**을 그대로 쓰기 위해서다(두 컬럼 불일치 차단).
+
+    :param encoded: :func:`_encode_additional_data` 의 반환값(``None`` 허용).
+    :return: dict 이면 그대로, dict 이 아니거나 파싱 불가면 ``None``(원문은 Text 컬럼에 남는다).
+    """
+    if not encoded:
+        return None
+    try:
+        parsed = json.loads(encoded)
+    except (TypeError, ValueError):
+        return None
+    return parsed if isinstance(parsed, dict) else None
+
+
 def write_access_log_detached(
     action: str,
     *,
@@ -363,6 +386,10 @@ def write_access_log_detached(
     Core INSERT · ``SQLAlchemyError`` 만 catch · 실패는 로그 후 fail-open). 파일 라우트는
     GET 이라 본 트랜잭션 commit 이 없어 동승 기록이 소실되므로 독립 커밋이 필수다.
 
+    payload 는 **두 컬럼에 동시에** 들어간다: ``additional_data``(Text, JSON 문자열 원문)와
+    ``detail``(JSONB, 질의용 사본). 원문을 남기는 이유는 승격 롤백 시 구버전 코드가 읽을 값이
+    있어야 하고, 감사 원장이 형식 변경으로 값을 잃으면 안 되기 때문이다(ACCESS-LOG-DETAIL-00).
+
     :param action: 접근 종류 태그(``FILE_VIEW``·``FILE_PRESIGNED``·``FILE_DOWNLOAD``).
     :param user_id: 행위 주체 user id(비로그인/미상이면 ``None``).
     :param ip: 요청 IP(``request.remote_addr``).
@@ -375,12 +402,14 @@ def write_access_log_detached(
 
     try:
         engine = get_audit_engine()
+        encoded = _encode_additional_data(additional_data)
         stmt = AccessLog.__table__.insert().values(
             user_id=user_id,
             action=action,
             ip_address=ip,
             user_agent=user_agent,
-            additional_data=_encode_additional_data(additional_data),
+            additional_data=encoded,
+            detail=_access_detail_from_encoded(encoded),
             timestamp=now_utc_naive(),
         )
         with engine.begin() as conn:
@@ -430,8 +459,14 @@ def record_file_access(
             return False
 
     payload: dict[str, Any] = {"storage_key": storage_key}
-    if order_id is not None:
+    # 정수만 격납한다 — ``detail`` 의 주문 축 인덱스가 ``(detail->>'order_id')::integer``
+    # 표현식이라 숫자 아닌 값이 한 건이라도 들어가면 그 INSERT 가 통째로 실패한다
+    # (fail-open 이 삼켜서 "기록이 조용히 사라지는" 형태로 나타난다).
+    if isinstance(order_id, int) and not isinstance(order_id, bool):
         payload["order_id"] = order_id
+    elif order_id is not None:
+        logger.warning(
+            "[AuditWriter] order_id 가 정수가 아니라 감사 payload 에서 제외했다: %r", order_id)
     if suppressed:
         payload["suppressed"] = suppressed
     return write_access_log_detached(
