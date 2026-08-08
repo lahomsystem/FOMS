@@ -72,28 +72,26 @@ def _run_migration(conn, func) -> None:
 
 @pytest.fixture
 def migration_conn(pg_engine) -> Iterator:
-    """``detail`` 없는 baseline 에서 시작하고, teardown 으로 create_all 상태를 복원한다.
+    """``detail`` 없는 baseline 에서 시작하는 DDL 전용 커넥션(항상 rollback — 스키마 무오염).
 
     conftest 가 ``create_all`` 로 만든 스키마에는 이미 ``detail`` 과 표현식 인덱스가 있다
-    (models.py 정합). 마이그레이션을 진짜로 돌려보려면 그것을 먼저 걷어내야 한다 —
-    다른 테스트 모듈이 이 스키마를 공유하므로 teardown 복원이 필수다.
+    (models.py 정합). 마이그레이션을 진짜로 돌려보려면 그것을 먼저 걷어내야 하는데,
+    PostgreSQL 은 DDL 도 트랜잭션이므로 **rollback 하나로 원상복구**된다 — 수동 복원 코드를
+    두면 그 코드가 틀렸을 때 다른 모듈의 스키마를 조용히 망친다(테스트 순서 의존 사고).
     """
-    conn = pg_engine.connect().execution_options(isolation_level="AUTOCOMMIT")
+    connection = pg_engine.connect()
+    trans = connection.begin()
+    connection.execute(text("SET LOCAL lock_timeout = '10s'"))
     try:
-        conn.execute(text(f"DROP INDEX IF EXISTS {ORDER_INDEX}"))
-        conn.execute(text(f"ALTER TABLE {TABLE} DROP COLUMN IF EXISTS {DETAIL_COLUMN}"))
-        conn.execute(text(f"DELETE FROM {TABLE}"))
-        yield conn
+        connection.execute(text(f"DROP INDEX IF EXISTS {ORDER_INDEX}"))
+        connection.execute(
+            text(f"ALTER TABLE {TABLE} DROP COLUMN IF EXISTS {DETAIL_COLUMN}"))
+        connection.execute(text(f"DELETE FROM {TABLE}"))
+        yield connection
     finally:
-        conn.execute(text(f"DROP INDEX IF EXISTS {ORDER_INDEX}"))
-        conn.execute(text(f"ALTER TABLE {TABLE} DROP COLUMN IF EXISTS {DETAIL_COLUMN}"))
-        conn.execute(text(f"DELETE FROM {TABLE}"))
-        # create_all 이 만들어 두었던 형태로 되돌린다(다른 모듈이 공유하는 스키마).
-        conn.execute(text(
-            f"ALTER TABLE {TABLE} ADD COLUMN {DETAIL_COLUMN} JSONB"))
-        conn.execute(text(
-            f"CREATE INDEX {ORDER_INDEX} ON {TABLE} ({mig.ORDER_INDEX_EXPRESSION})"))
-        conn.close()
+        if trans.is_active:
+            trans.rollback()
+        connection.close()
 
 
 def _seed_raw(conn, action: str, additional_data: str | None) -> int:
