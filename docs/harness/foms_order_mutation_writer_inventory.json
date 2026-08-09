@@ -4,12 +4,12 @@
   "scope": "foms/**.py",
   "baselines": {
     "total": 63,
-    "external": 22
+    "external": 19
   },
   "classification_counts": {
-    "AUDITED_RECOVERY": 1,
-    "CANONICAL": 35,
-    "EXTERNAL": 22,
+    "AUDITED_RECOVERY": 2,
+    "CANONICAL": 37,
+    "EXTERNAL": 19,
     "VERSIONED_DIRECT": 5
   },
   "kind_counts": {
@@ -17,12 +17,6 @@
     "mutation_version_bump": 4
   },
   "external_sites": [
-    {
-      "path": "foms/api/cs/complete.py",
-      "lineno": 147,
-      "kind": "flag_modified_structured_data",
-      "owner": "STATE-CONST-CS-01"
-    },
     {
       "path": "foms/api/cs/confirm.py",
       "lineno": 65,
@@ -85,13 +79,13 @@
     },
     {
       "path": "foms/api/orders/field_update.py",
-      "lineno": 576,
+      "lineno": 583,
       "kind": "flag_modified_structured_data",
       "owner": "STATE-LEGACY-01"
     },
     {
       "path": "foms/api/orders/status.py",
-      "lineno": 216,
+      "lineno": 243,
       "kind": "flag_modified_structured_data",
       "owner": "STATE-LEGACY-01"
     },
@@ -109,21 +103,9 @@
     },
     {
       "path": "foms/services/notifications/drawing_order_change.py",
-      "lineno": 1017,
+      "lineno": 1019,
       "kind": "flag_modified_structured_data",
       "owner": "STATE-DRAWING-01"
-    },
-    {
-      "path": "foms/services/order_geocode.py",
-      "lineno": 87,
-      "kind": "flag_modified_structured_data",
-      "owner": "DATA-01"
-    },
-    {
-      "path": "foms/services/orders/backfill_order_quests.py",
-      "lineno": 145,
-      "kind": "flag_modified_structured_data",
-      "owner": "QUEST-BACKFILL-00"
     },
     {
       "path": "foms/services/orders/blueprint_projection.py",
@@ -145,7 +127,7 @@
     },
     {
       "path": "foms/web/orders/edit.py",
-      "lineno": 257,
+      "lineno": 258,
       "kind": "flag_modified_structured_data",
       "owner": "ORDER-CREATE-01"
     }
@@ -204,7 +186,7 @@
       "path": "foms/api/cs/complete.py",
       "lineno": 147,
       "kind": "flag_modified_structured_data",
-      "classification": "EXTERNAL",
+      "classification": "CANONICAL",
       "owner": "STATE-CONST-CS-01"
     },
     {
@@ -328,28 +310,28 @@
     },
     {
       "path": "foms/api/erp_orders_structured.py",
-      "lineno": 724,
+      "lineno": 829,
       "kind": "flag_modified_structured_data",
       "classification": "CANONICAL",
       "owner": "DATA-01"
     },
     {
       "path": "foms/api/erp_orders_structured.py",
-      "lineno": 949,
+      "lineno": 1054,
       "kind": "flag_modified_structured_data",
       "classification": "CANONICAL",
       "owner": "DATA-01"
     },
     {
       "path": "foms/api/erp_orders_structured.py",
-      "lineno": 1145,
+      "lineno": 1250,
       "kind": "flag_modified_structured_data",
       "classification": "CANONICAL",
       "owner": "DATA-01"
     },
     {
       "path": "foms/api/erp_orders_structured.py",
-      "lineno": 1570,
+      "lineno": 1679,
       "kind": "flag_modified_structured_data",
       "classification": "CANONICAL",
       "owner": "DATA-01"
@@ -377,14 +359,14 @@
     },
     {
       "path": "foms/api/orders/field_update.py",
-      "lineno": 576,
+      "lineno": 583,
       "kind": "flag_modified_structured_data",
       "classification": "EXTERNAL",
       "owner": "STATE-LEGACY-01"
     },
     {
       "path": "foms/api/orders/status.py",
-      "lineno": 216,
+      "lineno": 243,
       "kind": "flag_modified_structured_data",
       "classification": "EXTERNAL",
       "owner": "STATE-LEGACY-01"
@@ -475,7 +457,7 @@
     },
     {
       "path": "foms/services/notifications/drawing_order_change.py",
-      "lineno": 1017,
+      "lineno": 1019,
       "kind": "flag_modified_structured_data",
       "classification": "EXTERNAL",
       "owner": "STATE-DRAWING-01"
@@ -484,7 +466,7 @@
       "path": "foms/services/order_geocode.py",
       "lineno": 87,
       "kind": "flag_modified_structured_data",
-      "classification": "EXTERNAL",
+      "classification": "CANONICAL",
       "owner": "DATA-01"
     },
     {
@@ -498,7 +480,7 @@
       "path": "foms/services/orders/backfill_order_quests.py",
       "lineno": 145,
       "kind": "flag_modified_structured_data",
-      "classification": "EXTERNAL",
+      "classification": "AUDITED_RECOVERY",
       "owner": "QUEST-BACKFILL-00"
     },
     {
@@ -587,7 +569,7 @@
     },
     {
       "path": "foms/web/orders/edit.py",
-      "lineno": 257,
+      "lineno": 258,
       "kind": "flag_modified_structured_data",
       "classification": "EXTERNAL",
       "owner": "ORDER-CREATE-01"

@@ -221,13 +221,20 @@ def test_notifications_api_uses_canonical_realtime_notification_lazy_imports() -
 
 
 def test_namespaced_user_deletion_shim_preserves_canonical_contract() -> None:
-    """The legacy services path should re-export the canonical user deletion helpers."""
+    """The legacy services path should re-export the canonical user deletion helpers.
+
+    Contract revised by AUDIT-LOG T11 (design decision 5): admin "delete" became an
+    audit-preserving *deactivation*, so the module now also publishes the
+    deactivation helpers alongside the legacy hard-delete detacher.
+    """
     expected_public_names = [
+        "anonymized_deactivated_username",
+        "deactivate_user_preserving_audit",
+        "detach_user_references_for_deactivate",
         "detach_user_references_for_delete",
         "ensure_order_attachment_user_fk_set_null",
     ]
 
-    assert namespaced_user_deletion.__all__ == expected_public_names
     assert namespaced_user_deletion.__all__ == expected_public_names
 
 

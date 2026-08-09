@@ -1,3 +1,5 @@
+{# 시공일 변경 알림 매크로(PC 행·태블릿 그리드 행·배정 시트 공용 SSOT). #}
+{% from 'shipment/partials/shipment_change_macros.html' import render_shipment_change_badge, render_shipment_change_banner %}
 {% set _fos_desktop_body %}
 <link rel="stylesheet" href="{{ url_for('static', filename='css/contexts/shipment/shipment-dashboard-columns.css') }}?v=20260721a">
 {# foms-kv-rollout: erp_mobile_shell → kv-copy.js #}
@@ -204,6 +206,11 @@
     </div>
     {% endif %}
     <div class="card-body">
+      {# ── 시공일 변경 배너(T4): 다른 화면에서 시공일이 바뀐 건을 목록 최상단에서 호명하고
+         칩 클릭으로 그 행까지 데려다준다. 카드 상단인 이유 = 상차·팀 배정을 시작하기 전에
+         보이는 첫 정보여야 한다. 조상이 .erp-shipment-desktop-shell 이라 모바일 v2/v3
+         코호트에서는 통째로 은닉된다(모바일 표면은 이번 범위 밖 — 스펙 §4.2 · §7). #}
+      {{ render_shipment_change_banner(shipment_change_banner) }}
       {% if not erp_mobile_v2_enabled %}
       <div class="erp-shipment-mobile-summary d-lg-none" aria-label="출고 작업 요약">
         <span class="erp-shipment-mobile-summary__eyebrow">출고 큐</span>
@@ -343,7 +350,7 @@
              기존 별도 .foms-ship-grid-hint 는 제거(중복 제거). #}
           {% include 'shipment/partials/tablet_ship_grid.html' %}
           <div class="table-responsive shipment-table-wrapper">
-            <link rel="stylesheet" href="{{ url_for('static', filename='css/contexts/shipment/dashboard-table-extras.css') }}?v=20260730c">
+            <link rel="stylesheet" href="{{ url_for('static', filename='css/contexts/shipment/dashboard-table-extras.css') }}?v=20260805a">
             <table class="table table-sm table-hover align-middle shipment-table erp-mobile-card-table" id="shipment-dashboard-table">
               <colgroup>
                 <col data-col-key="detail">
@@ -478,7 +485,9 @@
                   </td>
                 </tr>
                 {% endif %}
-                <tr data-order-id="{{ r.id }}" class="shipment-row"
+                {# id: 배너 점프 칩(#shipment-row-<id>)의 착지점. 태블릿 그리드 행은 같은
+                   문서에 동시에 존재하므로 접두어를 달리해 중복 id 를 만들지 않는다. #}
+                <tr id="shipment-row-{{ r.id }}" data-order-id="{{ r.id }}" class="shipment-row"
                   data-foms-sheet-url="{{ url_for('erp_shipment_page.erp_shipment_tablet_sheet', order_id=r.id) }}"
                   data-as="{{ 1 if r.status in ('AS', 'AS_RECEIVED', 'AS_COMPLETED') else 0 }}"
                   data-team-color-index="{{ ns.worker_index }}"
@@ -509,6 +518,9 @@
                     {% if r.phone %}
                     <small class="text-muted">{{ r.phone|format_phone }}</small>
                     {% endif %}
+                    {# 시공일 변경 배지 + [확인]. 고객 셀에 두는 이유: PC 표에는 시공일 열이
+                       없고(페이지 자체가 날짜로 필터된다) 고객 셀이 행 신원을 읽는 자리다. #}
+                    {{ render_shipment_change_badge(r.id, r.shipment_change_alerts if r.shipment_change_alerts is defined else [], can_edit_shipment) }}
                   </td>
                   <td data-label="대리점(발주사)" style="border-right: 1px solid #e0e0e0;">
                     {{ orderer or '-' }}
@@ -724,6 +736,12 @@
      순서 의존은 없지만, 프래그먼트 경로에서도 함께 실려야 지도 버튼이 죽지 않는다. #}
   <script src="{{ url_for('static', filename='js/common/foms-schedule-map.js') }}?v=20260730g" defer></script>
   <script src="{{ url_for('static', filename='js/shipment/shipment-dashboard.js') }}?v=20260730g" defer></script>
+  {# 시공일 변경 [확인](ack) 클라이언트 — 여기(dashboard_main)에 두는 이유: 인접
+     dashboard_scripts.html 은 이미 <script src> 2개라 그 파일을 건드리면 perf_scan 의
+     fragment-multi-script 가 deploy veto 를 낸다(구조적 부채는 별건). 이 블록은 같은
+     프래그먼트 안 기존 defer 스크립트 자리이고, 모듈 자체가 문서 위임 + 싱글턴
+     가드(__FOMS_SHIPMENT_CHANGE_ALERT_BOUND)라 스왑 재실행이 무해하다(G1 defer · G4). #}
+  <script src="{{ url_for('static', filename='js/shipment/shipment-change-alert.js') }}?v=20260730g" defer></script>
   {% endif %}
 </div><!-- end erp-pro -->
 

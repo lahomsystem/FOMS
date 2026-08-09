@@ -7,6 +7,8 @@ from __future__ import annotations
 
 import copy
 import datetime as _dt
+
+from foms.services.datetime_kst import now_utc_naive
 import json
 import logging
 from typing import Any, Dict, List, Optional, Sequence, Tuple
@@ -65,8 +67,8 @@ _ITEM_COMPARE_KEYS = (
 
 
 def _now_str() -> str:
-    """타임라인 at 필드용 로컬 naive 시각 문자열."""
-    return _dt.datetime.now().strftime("%Y-%m-%d %H:%M:%S")
+    """타임라인 at 필드용 naive UTC 시각 문자열(프로젝트 naive=UTC 규약)."""
+    return now_utc_naive().strftime("%Y-%m-%d %H:%M:%S")
 
 
 def _parse_history_at(raw: Any) -> Optional[_dt.datetime]:
@@ -871,7 +873,7 @@ def apply_drawing_order_change_alert(
     if not should_alert_drawing_team(order, new_sd):
         return None, False
 
-    now = _dt.datetime.now()
+    now = now_utc_naive()
     note = summarize_changes(changes)
     # Form PUT may send a stale drawing_transfer_history snapshot — always base on DB old_sd.
     history = list(copy.deepcopy((old_sd or {}).get("drawing_transfer_history") or []))

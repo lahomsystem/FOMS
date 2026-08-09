@@ -8,6 +8,8 @@ from markupsafe import Markup, escape
 from sqlalchemy import or_, String
 
 from foms.web.auth import login_required, role_required, log_access, get_user_by_id
+from foms.services.audit_message_display import describe_field_change
+from foms.services.orders.audit_order_context import order_audit_context
 from db import get_db
 from models import Order, User
 from foms.services.orders.estimate_defaults import (
@@ -625,10 +627,17 @@ def bulk_action():
                     if order is not None and old_status_val != new_status:
                         setattr(order, 'status', new_status)
                         # AS 접수(AS_RECEIVED)로 바꿀 때도 scheduled_date(AS 방문일) 자동 입력하지 않음
-                        old_status_kr = STATUS.get(old_status_val, old_status_val) if old_status_val else str(old_status_val)
-                        new_status_kr = STATUS.get(new_status, new_status)
-                        log_access(f"주문 #{order_id} 상태 변경: {old_status_kr} => {new_status_kr} (일괄 작업)",
-                                   current_user_id, {"order_id": order_id, "old_status": str(old_status_val or ""), "new_status": new_status})
+                        bulk_context = order_audit_context(order)
+                        log_access(
+                            describe_field_change(
+                                order_id=order_id, field="status", before=old_status_val,
+                                after=new_status, has_before=True, **bulk_context,
+                            ) + " (일괄 작업)",
+                            current_user_id,
+                            action="ORDER_STATUS_CHANGED", target_type="order", target_id=int(order_id),
+                            detail={"field": "status", "before": old_status_val,
+                                    "after": new_status, "bulk": True, **bulk_context},
+                        )
                         processed_count += 1
                     elif not order:
                         failed_count += 1

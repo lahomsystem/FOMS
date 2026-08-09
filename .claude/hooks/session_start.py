@@ -177,24 +177,19 @@ def _parse_edit_rows(rows: list[str]) -> list[tuple[datetime, str]]:
 def _build_context(source: str) -> str:
     """SessionStart additionalContext 텍스트를 조립한다.
 
+    정적 RPI/AI_STATUS 안내는 CLAUDE.md와 중복이라 제거했다(2026-08-03 하네스
+    ablation). compact 재개 시점의 체크포인트 포인터만 조건부로 주입한다.
+
     파라미터:
         source: "startup"|"resume"|"clear"|"compact" 중 하나.
-    반환: 주입할 안내 문자열.
+    반환: 주입할 안내 문자열(없으면 빈 문자열).
     """
-    lines = [
-        "[SYSTEM] 새 Claude Code 세션입니다.",
-        "1. docs/AI_STATUS.md는 상단 40줄만 읽으세요(Read limit=40) — live 상태는 전부 상단에 있고, 아래는 상세 기록입니다(필요 시 grep).",
-        "2. 핵심 코어 변경(DB/Auth/API/배포/하네스)이면 RPI(조사→계획→실행)를 따르세요.",
-        "   - 조사: docs/harness/policy/DECISIONS.md, docs/ARCHIVE_INDEX.md에서 관련 기록 검색",
-        "   - 계획: docs/guides/SPEC_TEMPLATE.md 기반 Spec 작성 → 사용자 승인 대기",
-        "   - 실행: 승인 후 코딩 시작",
-    ]
     if source == "compact":
-        lines.append(
-            "3. 컨텍스트 압축 후 재개입니다 — 먼저 "
+        return (
+            "[SYSTEM] 컨텍스트 압축 후 재개입니다 — 먼저 "
             "docs/harness/runtime/COMPACT_CHECKPOINT.md를 읽어 직전 작업을 복원하세요."
         )
-    return "\n".join(lines)
+    return ""
 
 
 def main() -> None:

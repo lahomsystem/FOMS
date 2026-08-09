@@ -31,6 +31,8 @@ from db import get_db
 from foms.services.orders.order_mutation_policy import POLICY_REGISTRY, evaluate_policy
 from foms.services.orders.revision import RevisionError, execute_order_mutation
 from foms.web.auth import get_user_by_id, log_access
+from foms.services.audit_message_display import describe_field_change
+from foms.services.orders.audit_order_context import order_audit_context
 from models import Order, OrderEvent
 
 REGIONAL_ALLOWED_FIELDS = [
@@ -153,6 +155,8 @@ def update_regional_status_response():
     user_id = session.get("user_id")
     scope_hash, request_hash = _hashes(order_id, {"field": field, "value": value})
 
+    previous_value = getattr(order, field, None)
+
     def _mutate(sess: Session, orders: List[Order]) -> Mapping[int, List[str]]:
         """row lock 아래에서 단일 체크리스트 컬럼만 설정 + event parity(축 불변)."""
         o = orders[0]
@@ -186,9 +190,15 @@ def update_regional_status_response():
         logger.exception("[REGIONAL] 체크리스트 업데이트 오류 order=%s field=%s", order_id, field)
         return jsonify({"success": False, "message": f"오류 발생: {str(exc)}"}), 500
 
+    audit_context = order_audit_context(order)
     log_access(
-        f"{_order_type_label(order)} #{order_id}의 '{field}' 상태를 '{value}'(으)로 변경",
+        describe_field_change(
+            order_id=order_id, field=field, before=previous_value, after=value,
+            has_before=True, **audit_context,
+        ),
         session["user_id"],
+        action="ORDER_CHECKLIST_UPDATED", target_type="order", target_id=order_id,
+        detail={"field": field, "before": previous_value, "after": value, **audit_context},
     )
     resp = jsonify({
         "success": True,

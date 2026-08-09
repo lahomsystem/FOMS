@@ -115,9 +115,20 @@ def test_classify_site_allowlist_vs_external():
 # Inventory drift + classification completeness.
 # --------------------------------------------------------------------------- #
 
+def _lineno_free(records):
+    """Drop ``lineno`` and canonicalize ordering so pure line shifts don't gate.
+
+    Comparing the multiset of lineno-free records keeps the real gate (a
+    new/removed/reclassified writer still turns red) while making
+    comment/whitespace-only line shifts a non-event.
+    """
+    stripped = [{k: v for k, v in r.items() if k != "lineno"} for r in records]
+    return sorted(stripped, key=lambda r: json.dumps(r, sort_keys=True, ensure_ascii=False))
+
+
 def test_inventory_matches_fresh_scan(fresh_scan, inventory):
-    """Committed inventory == fresh scan. A new/moved direct writer turns this red."""
-    assert inventory["writers"] == fresh_scan, (
+    """Committed inventory == fresh scan (lineno-insensitive). A new/removed/reclassified writer turns this red."""
+    assert _lineno_free(inventory["writers"]) == _lineno_free(fresh_scan), (
         "inventory is stale; regenerate with "
         "`python tools/harness/state_writer_scan.py`"
     )

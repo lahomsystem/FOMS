@@ -11,11 +11,20 @@ if [ "$USE_RQ_WORKER" = "1" ]; then
   # 없으므로 worker 컨테이너에서 long-running 루프로 배선한다 (--loop = 앱 1회
   # 부팅 후 주기 스윕, AUTO-INIT 반복 없음). 백그라운드 서브셸이라 스윕 실패가
   # rq worker 본체에 영향 없고, 다중 replica여도 스윕은 idempotent라 안전.
+  # Redis 부팅 레이스 방어 (2026-08-07 운영 사고 근본 수정):
+  # Railway 프라이빗 네트워크/Redis 컨테이너가 워커보다 늦게 준비되면
+  # `rq worker`가 첫 명령(is_suspended)에서 redis TimeoutError로 즉사한다.
+  # 즉사 간격이 ~11초라 재시작 정책 ON_FAILURE(10회)가 2분 만에 소진되고
+  # 서비스가 CRASHED로 고착됐다. PING 성공까지 기다린 뒤 기동한다.
+  # (예산 초과 시 set -e 로 종료 → Railway 재시작 1회가 수 분을 커버)
+  python tools/ops/wait_for_redis.py --url "$REDIS_URL" \
+    --timeout "${FOMS_REDIS_WAIT_SECONDS:-300}"
+
   if [ "$FOMS_ESCALATION_LOOP_ENABLED" = "1" ]; then
     python scripts/maintenance/run_notification_escalation.py --loop \
       --interval "${FOMS_ESCALATION_INTERVAL_SECONDS:-60}" --json &
   fi
   exec rq worker default --url "$REDIS_URL"
 else
-  exec gunicorn -k gevent -w 2 --timeout 120 --graceful-timeout 30 --keep-alive 5 --bind "0.0.0.0:${PORT:-8080}" app:app
+  exec gunicorn -k gevent -w 2 --timeout 120 --graceful-timeout 30 --keep-alive 5 --access-logfile - --bind "0.0.0.0:${PORT:-8080}" app:app
 fi

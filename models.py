@@ -262,7 +262,24 @@ class OrderAttachment(Base):
     created_at = Column(DateTime, default=datetime.datetime.now, nullable=False)
     user_id = Column(Integer, ForeignKey('users.id', ondelete='SET NULL'), nullable=True, index=True)  # 업로더 (AS 재업로드 시 본인 것만 삭제)
 
+    # ATTACH-LIFE-01(T4): hard delete → tombstone(soft delete). 삭제는 이 두 컬럼만 채우고
+    # row/R2 object 는 남긴다 — R2 blob 은 STORAGE_DELETE outbox 가 유예 후 지운다.
+    # 84 파일 사용처는 수동 필터 대신 전역 do_orm_execute 필터
+    # (:mod:`foms.services.attachment_visibility`)가 ``deleted_at IS NULL`` 을 기본 적용한다.
+    deleted_at = Column(DateTime, nullable=True)
+    deleted_by_user_id = Column(
+        Integer, ForeignKey('users.id', ondelete='SET NULL'), nullable=True)
+
     order = relationship('Order', foreign_keys=[order_id])
+
+    __table_args__ = (
+        # ATTACH-LIFE-01: canonical 파일 라우트(/api/files/view|download/orders/...)가 요청
+        # key 로 tombstone 여부를 1쿼리 판정한다(매 파일 요청 = hot path). 조회는
+        # ``storage_key = :k OR thumbnail_key = :k`` 라 두 인덱스가 모두 있어야
+        # BitmapOr 로 풀리고 Seq Scan 을 피한다.
+        Index('ix_order_attachments_storage_key', 'storage_key'),
+        Index('ix_order_attachments_thumbnail_key', 'thumbnail_key'),
+    )
 
     def to_dict(self):
         return {
@@ -277,6 +294,7 @@ class OrderAttachment(Base):
             'thumbnail_key': self.thumbnail_key,
             'created_at': format_datetime_kst(self.created_at),
             'user_id': self.user_id,
+            'deleted_at': format_datetime_kst(self.deleted_at) if self.deleted_at else None,
         }
 
 
@@ -768,11 +786,20 @@ class OrderConstructionAttempt(Base):
 
 
 class OrderEvent(Base):
-    """ERP 이벤트 스트림(단계 변경/일정 변경/긴급 발주/컨펌 등)"""
+    """ERP 이벤트 스트림(단계 변경/일정 변경/긴급 발주/컨펌 등).
+
+    AUDIT-LOG T9: **감사 원장은 감사 대상과 생명주기를 공유하지 않는다.** ``order_id`` 는
+    과거 ``orders.id`` 를 ``ON DELETE CASCADE`` 로 참조해서, 주문 hard purge 가 그 주문의
+    이벤트 이력까지 통째로 지웠다(스펙 §4 T9·§8 결정 ④). 마이그레이션 ``auditlife_00`` 이
+    FK 를 떼어냈고 여기도 동기화한다 — ``order_id`` 는 NOT NULL + 인덱스 그대로이며,
+    ``orders`` 와의 조인은 아래 ``order`` relationship 의 명시 ``primaryjoin`` 이 담당한다.
+    같은 이유로 raw DDL 재생성 경로(``scripts/ops/erp_build_step_runner.py``)에도 FK 가 없다.
+    """
     __tablename__ = 'order_events'
 
     id = Column(Integer, primary_key=True)
-    order_id = Column(Integer, ForeignKey('orders.id', ondelete='CASCADE'), nullable=False, index=True)
+    # FK 없음(auditlife_00) — 참조 제약이 아니라 인덱스만 있는 감사 원장 컬럼.
+    order_id = Column(Integer, nullable=False, index=True)
     event_type = Column(String(50), nullable=False, index=True)  # e.g. STAGE_CHANGED, URGENT_SET
     payload = Column(JSONColumn, nullable=True)
     created_by_user_id = Column(Integer, ForeignKey('users.id'), nullable=True)
@@ -780,7 +807,9 @@ class OrderEvent(Base):
     # 변경감지 윈도(도면 이력 now_utc_naive 와 naive 비교)를 dev/운영 모두 정합시킨다.
     created_at = Column(DateTime, default=now_utc_naive, nullable=False, index=True)
 
-    order = relationship('Order', foreign_keys=[order_id])
+    # FK 가 없으므로 SQLAlchemy 가 조인 조건을 추론할 수 없다 — ``foreign()`` 로 참조 측을
+    # 명시한다(lazy 로드 유지, backref 없음: ``Order.events`` 는 존재한 적이 없다).
+    order = relationship('Order', primaryjoin='foreign(OrderEvent.order_id) == Order.id')
     created_by = relationship('User', foreign_keys=[created_by_user_id])
 
 
@@ -939,17 +968,36 @@ class User(Base):
 
 class AccessLog(Base):
     __tablename__ = 'access_logs'
-    
+    # ACCESS-LOG-00: 마이그레이션(access_log_00·accesslog_detail_00)과 이름까지 동일해야
+    # 한다 — create_all 부트스트랩 레인과 alembic 레인의 스키마 정합(체인 왕복 테스트가 강제).
+    #
+    # ACCESS-LOG-DETAIL-00: 주문 축 인덱스는 표현식 인덱스라 **PostgreSQL 전용**이다.
+    # ``detail['order_id'].as_integer()`` 가 PG 에서 내는 SQL 이
+    # ``CAST((detail ->> 'order_id') AS INTEGER)`` 이므로 인덱스 표현식도 같은 모양이어야
+    # 계획기가 매칭한다(다르면 인덱스가 있어도 Seq Scan — PG 레인이 EXPLAIN 으로 고정).
+    # SQLite 는 같은 비교를 ``JSON_EXTRACT`` 로 내므로 이 인덱스가 의미 없다 → ddl_if 로 제외.
+    __table_args__ = (
+        Index('ix_access_logs_user_id_timestamp', 'user_id', 'timestamp'),
+        Index('ix_access_logs_timestamp', 'timestamp'),
+        Index(
+            'ix_access_logs_detail_order_id',
+            text("((detail ->> 'order_id')::integer)"),
+        ).ddl_if(dialect='postgresql'),
+    )
+
     id = Column(Integer, primary_key=True)
     user_id = Column(Integer, ForeignKey('users.id'))
     action = Column(String, nullable=False)
     ip_address = Column(String)
     user_agent = Column(String)
     additional_data = Column(Text)
+    # 구조화 payload(JSONB on PostgreSQL). ``additional_data`` 의 JSON **문자열** 원문은
+    # 그대로 두고 질의 가능한 사본을 따로 든다 — 감사 원장은 원문을 지우지 않는다.
+    detail = Column(JSONColumn, nullable=True)
     timestamp = Column(DateTime, default=datetime.datetime.now)
-    
+
     user = relationship("User", back_populates="access_logs")
-    
+
     def to_dict(self):
         return {
             'id': self.id,
@@ -958,15 +1006,46 @@ class AccessLog(Base):
             'ip_address': self.ip_address,
             'user_agent': self.user_agent,
             'additional_data': self.additional_data,
+            'detail': self.detail,
             'timestamp': format_datetime_kst(self.timestamp)
         }
 
 class SecurityLog(Base):
+    """감사 원장 — 사람용 요약(``message``) + SQL 질의용 구조화 컬럼(AUDIT-LOG T8).
+
+    T8 이전에는 자유 텍스트 ``message`` 1컬럼뿐이라 "누가 무엇을 바꿨나"를 ILIKE 로만
+    물을 수 있었다(스펙 §1-2). 구조화 컬럼 4개를 additive 로 붙여 SQL 질의가 가능해진다.
+    ``message`` 의 의미는 그대로 유지한다(사람이 읽는 요약) — 기존 행 백필은 하지 않으므로
+    구조화 컬럼은 T8 이후 기록에만 채워지고 그 이전 행은 전부 NULL 이다(스펙 §6).
+
+    * ``action`` — 행위 종류 태그(``USER_UPDATE``·``LOGIN_FAIL``·``ACCESS_DENIED`` 등).
+    * ``target_type``/``target_id`` — 행위 대상(``user`` / ``password_reset_request`` …).
+    * ``detail`` — 구조화 부가정보(from→to 변경 내역 등). **비밀번호·PII 원문 금지.**
+    """
+
     __tablename__ = 'security_logs'
+    # SEC-LOG-STRUCT-00: 마이그레이션(``seclog_struct_00``·``seclog_time_00``)과 인덱스
+    # 이름·컬럼 구성이 완전히 같아야 한다 — create_all 부트스트랩 레인과 alembic 레인의
+    # 스키마 정합(tests/postgres 체인 왕복 테스트가 강제). 기존 trgm 인덱스(phase_f)는 무접촉.
+    #
+    # SEC-LOG-TIME-00: ``ix_security_logs_timestamp_id`` 는 감사 화면의 **기본 조회**
+    # (``ORDER BY timestamp DESC, id DESC`` + count)용이다. ``ix_security_logs_target`` 은
+    # 선행 컬럼이 ``target_type`` 이라 이 정렬에 쓸 수 없고, trgm 은 ``message`` 전용이다.
+    # ``id`` 를 붙인 복합이라 tie-break 까지 인덱스 하나로 풀리고, DESC 는 PostgreSQL 이
+    # backward index scan 으로 처리하므로 별도 DESC 인덱스가 필요 없다.
+    __table_args__ = (
+        Index('ix_security_logs_target', 'target_type', 'target_id', 'timestamp'),
+        Index('ix_security_logs_timestamp_id', 'timestamp', 'id'),
+    )
+
     id = Column(Integer, primary_key=True)
     timestamp = Column(DateTime, server_default=func.now(), nullable=False)
     user_id = Column(Integer, ForeignKey('users.id'), nullable=True)
     message = Column(String, nullable=False)
+    action = Column(String(64), nullable=True)
+    target_type = Column(String(32), nullable=True)
+    target_id = Column(Integer, nullable=True)
+    detail = Column(JSONColumn, nullable=True)
 
 
 class PasswordResetRequest(Base):
@@ -1175,8 +1254,8 @@ class Notification(Base):
     read_at = Column(DateTime, nullable=True)
     read_by_user_id = Column(Integer, ForeignKey('users.id'), nullable=True)
     
-    # 타임스탬프
-    created_at = Column(DateTime, default=datetime.datetime.now, nullable=False, index=True)
+    # 타임스탬프 (naive=UTC 규약 — format_datetime_kst 가 +9 표시 변환)
+    created_at = Column(DateTime, default=now_utc_naive, nullable=False, index=True)
     
     # 관계
     order = relationship('Order', foreign_keys=[order_id])
@@ -1282,11 +1361,11 @@ class NotificationUserState(Base):
         String(30), nullable=False, default='pending', server_default='pending'
     )
 
-    created_at = Column(DateTime, default=datetime.datetime.now, nullable=False)
+    created_at = Column(DateTime, default=now_utc_naive, nullable=False)
     updated_at = Column(
         DateTime,
-        default=datetime.datetime.now,
-        onupdate=datetime.datetime.now,
+        default=now_utc_naive,
+        onupdate=now_utc_naive,
         nullable=False,
     )
 
@@ -1331,7 +1410,7 @@ class NotificationEvent(Base):
     endpoint_hash = Column(String(64), nullable=True)
     request_id = Column(String(64), nullable=True)
     metadata_json = Column(JSONColumn, nullable=True)
-    created_at = Column(DateTime, default=datetime.datetime.now, nullable=False)
+    created_at = Column(DateTime, default=now_utc_naive, nullable=False)
 
     __table_args__ = (
         Index('ix_notification_events_notif_created', 'notification_id', 'created_at'),
@@ -1362,11 +1441,11 @@ class NotificationPushSubscription(Base):
     permission_state = Column(String(20), nullable=True)
     last_seen_at = Column(DateTime, nullable=True)
     revoked_at = Column(DateTime, nullable=True)
-    created_at = Column(DateTime, default=datetime.datetime.now, nullable=False)
+    created_at = Column(DateTime, default=now_utc_naive, nullable=False)
     updated_at = Column(
         DateTime,
-        default=datetime.datetime.now,
-        onupdate=datetime.datetime.now,
+        default=now_utc_naive,
+        onupdate=now_utc_naive,
         nullable=False,
     )
 

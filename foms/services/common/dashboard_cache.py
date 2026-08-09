@@ -18,40 +18,10 @@ import threading
 import time
 from typing import Any, Callable, Final, TypeVar
 
+# AUDIT-LOG T1: 과거 이 자리에 있던 모듈 전용 stderr 핸들러(국소 우회)는 제거됐다.
+# root 로깅은 foms.platform.logging_setup.configure_logging이 전역으로 구성하므로
+# 모듈 로거는 기본 propagate(True)로 root 핸들러에 전파되면 충분하다.
 logger = logging.getLogger(__name__)
-
-
-def _ensure_dashcache_log_to_stderr() -> None:
-    """
-    Gunicorn 등에서 run.py의 basicConfig가 없을 때, [DashCache] INFO가 루트 WARNING에 막혀
-    Deploy Logs에 안 보이는 문제를 막는다. 모듈 로거에만 stderr 핸들러를 한 번 붙인다.
-
-    pytest(caplog)는 동일 로거에 핸들러가 있으면 캡처가 어긋나므로 테스트 세션에서는 생략한다.
-    """
-    if (os.environ.get("PYTEST_CURRENT_TEST") or "").strip():
-        return
-    if logger.handlers:
-        return
-    handler = logging.StreamHandler()
-    handler.setLevel(logging.INFO)
-    handler.setFormatter(
-        logging.Formatter("%(asctime)s %(levelname)s [%(name)s] %(message)s")
-    )
-    logger.addHandler(handler)
-    logger.setLevel(logging.INFO)
-    logger.propagate = False
-
-
-_dashcache_stderr_configured = False
-
-
-def _lazy_ensure_dashcache_log_to_stderr() -> None:
-    """import 시점이 아니라 첫 요청 시점에 설정(pytest 환경변수가 그때 확실함)."""
-    global _dashcache_stderr_configured
-    if _dashcache_stderr_configured:
-        return
-    _dashcache_stderr_configured = True
-    _ensure_dashcache_log_to_stderr()
 
 
 T = TypeVar("T")
@@ -315,7 +285,6 @@ def get_or_compute_dashboard_slice(
     - 저장 값은 JSON으로 round-trip 가능한 DTO여야 함 (그렇지 않으면 저장 생략 + 경고).
     - 계획 §1.2.9: hit/miss 외 **compute_ms**를 info 로그로 남긴다 (관측용).
     """
-    _lazy_ensure_dashcache_log_to_stderr()
     key_suffix = cache_key.rsplit(":", 1)[-1]
 
     def _run_compute_and_log(result: str, used_cache: bool) -> T:

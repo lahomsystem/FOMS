@@ -927,3 +927,234 @@
                   width: 100%;
                 }
               }
+
+/* =============================================================
+   시공일 변경 알림 — 배너 · 점프 칩 · 행 배지 (2026-07-30 T4/T5)
+   ------------------------------------------------------------
+   톤 규약은 오늘 배포한 AS 기준일정 알림과 **같다**: 파스텔 채움 + 좌측 진한 띠 배너,
+   흰 알약 점프 칩, 단색 채움 행 배지. 두 화면이 한 시스템으로 읽혀야 하기 때문이다.
+   그런데도 cs/as-dashboard-body.css 를 import 하지 않는 이유: 컨텍스트 CSS 는 페이지
+   경계를 넘지 않는다(AS 시트를 출고 페이지에 실으면 AS 전용 셀/행 배경 규칙까지 따라와
+   출고 표를 오염시킨다). 같은 토큰으로 여기서 다시 쓴다.
+   단색 빨강 블록을 쓰지 않는 이유도 AS 와 같다 — 목록 상단을 통째로 덮어 "너무 빨갛다"는
+   신고를 받았고, 눈에 띄는 역할은 띠·아이콘·굵은 제목이 가져가고 면적은 순하게 둔다.
+   마크업 SSOT = templates/shipment/partials/shipment_change_macros.html.
+   ============================================================= */
+
+.erp-ship-change-banner {
+  margin-bottom: 1rem;
+  padding: 12px 14px;
+  border: 1px solid var(--erp-danger, #ef4444);
+  border-left: 5px solid var(--erp-danger-dark, #dc2626);
+  border-radius: var(--erp-radius-lg, 0.75rem);
+  background: var(--erp-danger-light, #fee2e2);
+  color: var(--erp-danger-dark, #dc2626);
+}
+
+.erp-ship-change-banner__head {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+}
+
+.erp-ship-change-banner__icon {
+  flex: none;
+  font-size: 1.05rem;
+}
+
+.erp-ship-change-banner__title {
+  font-size: 1rem;
+  font-weight: 800;
+  line-height: 1.35;
+}
+
+/* 칩 줄 — 좁은 폭에서도 가로 스크롤 없이 배너 안에서 접힌다(wrap). */
+.erp-ship-change-banner__chips {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: center;
+  gap: 6px;
+  margin-top: 8px;
+}
+
+.erp-ship-change-banner__overflow {
+  font-size: 0.86rem;
+  font-weight: 700;
+  opacity: 0.9;
+}
+
+/* 점프 칩 = 흰 알약 + 빨간 글자. 파스텔 배너 위에서는 흰 배경만으로 경계가 흐려지므로
+   테두리를 줘 "누를 수 있는 것"으로 읽히게 한다. */
+.erp-ship-change-chip {
+  align-items: center;
+  gap: 4px;
+  max-width: 100%;
+  padding: 4px 10px;
+  border: 1px solid var(--erp-danger-dark, #dc2626);
+  border-radius: 999px;
+  background: var(--erp-text-white, #fff);
+  color: var(--erp-danger-dark, #dc2626);
+  font-size: 0.86rem;
+  font-weight: 700;
+  line-height: 1.3;
+  text-decoration: none;
+  overflow-wrap: anywhere;
+}
+
+.erp-ship-change-chip:hover,
+.erp-ship-change-chip:focus-visible {
+  color: var(--erp-danger-dark, #dc2626);
+  filter: brightness(0.94);
+}
+
+.erp-ship-change-chip__id {
+  opacity: 0.75;
+  font-weight: 600;
+}
+
+.erp-ship-change-chip__old,
+.erp-ship-change-chip__arrow {
+  font-weight: 500;
+  opacity: 0.7;
+}
+
+.erp-ship-change-chip__new {
+  font-weight: 800;
+}
+
+/* 표면별 칩: 기본(PC/폰)은 PC 표 행을 가리키는 칩만 보인다. 태블릿 가로 코호트에서는
+   PC 표가 래퍼째 은닉되므로(shipment-dashboard-columns.css) 클린 그리드 행을 가리키는
+   칩으로 교대한다 — 같은 코호트 게이트를 그대로 쓴다(신규 게이트 없음). */
+.erp-ship-change-chip--pc {
+  display: inline-flex;
+}
+
+.erp-ship-change-chip--tablet {
+  display: none;
+}
+
+/* 점프 착지 하이라이트 — 칩은 순수 해시 링크라 JS 가 없다. `:target` 이 그 자리를 대신한다.
+   배경색 대신 inset box-shadow 를 쓰는 이유: 출고 표는 시공팀 파스텔·완료 배경이 셀에 이미
+   깔려 있어 배경 애니메이션이 묻힌다(AS 와 같은 처방). sticky thead 높이만큼 스크롤 여백. */
+#shipment-dashboard-table tbody tr[id^='shipment-row-'],
+#foms-tablet-ship-grid tbody tr[id^='shipment-tgrid-row-'] {
+  scroll-margin-top: 56px;
+}
+
+#shipment-dashboard-table tbody tr:target > td,
+#foms-tablet-ship-grid tbody tr:target > td {
+  box-shadow: inset 0 0 0 2px var(--erp-danger-dark, #dc2626);
+}
+
+/* ── 행 배지 + [확인] --------------------------------------------------------
+   inline-flex + wrap: 좁은 셀(고객 열)에서 아이콘·날짜가 옆으로 넘치지 않고 배지 안에서
+   줄바꿈한다(max-width:100% 로 열 폭을 절대 넘지 않는다). */
+.erp-ship-change {
+  display: inline-flex;
+  flex-wrap: wrap;
+  align-items: center;
+  gap: 4px;
+  max-width: 100%;
+  margin-top: 4px;
+}
+
+/* PC 표의 고객 셀에서는 배지를 **자기 줄**로 내린다.
+   그 셀은 전화번호 <small> 다음에 배지가 오는데 td 가 `white-space: nowrap; overflow: hidden`
+   이라, inline-flex 인 배지가 전화번호와 같은 줄에서 시작해 셀 오른쪽 밖으로 밀려 잘렸다
+   (실측 1600px: 배지 폭 113px 중 35px 만 보임). `max-width:100%` 는 **남은 줄 폭이 아니라
+   셀 폭** 기준이라 이 겹침을 막지 못한다 — 블록 레벨로 내려야 상한이 실제로 걸린다.
+   태블릿 클린 그리드(#foms-tablet-ship-grid)는 셀이 넓고 고객명 옆 배치가 의도라 제외한다. */
+#shipment-dashboard-table .erp-ship-change {
+  display: flex;
+}
+
+.erp-ship-change__badge {
+  display: inline-flex;
+  flex-wrap: wrap;
+  align-items: center;
+  gap: 2px 5px;
+  max-width: 100%;
+  padding: 4px 10px;
+  border-radius: 8px;
+  background: var(--erp-danger-dark, #dc2626);
+  color: var(--erp-text-white, #fff);
+  font-size: 0.86rem;
+  font-weight: 700;
+  line-height: 1.3;
+  overflow-wrap: anywhere;
+}
+
+.erp-ship-change__icon {
+  font-size: 0.92em;
+}
+
+/* 옛 시공일 = 더 이상 유효하지 않음 → 취소선 + 낮춘 명도로 시선에서 물러나게. */
+.erp-ship-change__old,
+.erp-ship-change__arrow {
+  font-weight: 500;
+  opacity: 0.85;
+}
+
+/* 새 시공일 = 지금 맞춰야 할 값 → 굵게. */
+.erp-ship-change__new {
+  font-weight: 800;
+}
+
+/* 여러 번 옮겨진 건: 배지는 최초→최신만 내고 중간 경유는 횟수로만 알린다. */
+.erp-ship-change__count {
+  padding-left: 4px;
+  font-size: 0.78rem;
+  font-weight: 600;
+  opacity: 0.9;
+}
+
+.erp-ship-change__ack {
+  padding: 2px 8px;
+  border: 1px solid #ced4da;
+  border-radius: 6px;
+  background: #fff;
+  color: #495057;
+  font-size: 0.76rem;
+  font-weight: 600;
+  line-height: 1.5;
+  white-space: nowrap;
+  cursor: pointer;
+}
+
+.erp-ship-change__ack:hover:not(:disabled) {
+  background: #f1f3f5;
+}
+
+.erp-ship-change__ack:disabled {
+  opacity: 0.55;
+  cursor: progress;
+}
+
+/* 실패 메시지 — 무음 실패 금지. 비어 있을 때만 접는다(성공 시엔 노드째 사라진다). */
+.erp-ship-change__msg {
+  color: var(--erp-danger-dark, #dc2626);
+  font-size: 0.76rem;
+  font-weight: 600;
+}
+
+.erp-ship-change__msg:empty {
+  display: none;
+}
+
+/* 배정 시트 스트립 — 팀 라디오 카드 위, 헤더 바로 아래. */
+.foms-ship-sheet__change {
+  margin: 8px 0 4px;
+}
+
+@media (min-width: 992px) and (orientation: landscape) and (pointer: coarse) {
+  /* 태블릿 가로 코호트: PC 표가 은닉되므로 점프 칩을 클린 그리드 행 앵커로 교대한다.
+     게이트 문자열은 shipment-dashboard-columns.css 의 코어 코호트 MQ 와 동일(신규 게이트
+     아님) — 표시 전환이 PC 표 은닉과 반드시 같은 조건에서 일어나야 하기 때문이다. */
+  body.erp-mobile-v2-layout .erp-ship-change-chip--pc {
+    display: none;
+  }
+
+  body.erp-mobile-v2-layout .erp-ship-change-chip--tablet {
+    display: inline-flex;
+  }
+}

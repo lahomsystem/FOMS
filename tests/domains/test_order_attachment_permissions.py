@@ -6,6 +6,7 @@ from types import SimpleNamespace
 from werkzeug.security import generate_password_hash
 
 from db import db_session
+from foms.services.attachment_visibility import include_deleted
 from foms.services.order_attachment_permissions import (
     can_delete_order_attachment,
     can_manage_order_attachments,
@@ -125,6 +126,7 @@ def test_attachment_delete_api_allows_order_manager_for_others_upload(client, mo
 
     order = _sales_order(manager_name="영업담당")
     attachment = _attachment(order, user_id=uploader.id)
+    attachment_id = attachment.id
 
     class DummyStorage:
         def delete_file(self, key):
@@ -133,11 +135,16 @@ def test_attachment_delete_api_allows_order_manager_for_others_upload(client, mo
     monkeypatch.setattr("foms.api.files.order_routes.get_storage", lambda: DummyStorage())
 
     _login(client, manager)
-    response = client.delete(f"/api/orders/{order.id}/attachments/{attachment.id}")
+    response = client.delete(f"/api/orders/{order.id}/attachments/{attachment_id}")
 
     assert response.status_code == 200
     assert response.get_json()["success"] is True
-    assert db_session.get(OrderAttachment, attachment.id) is None
+    # ATTACH-LIFE-01: 삭제는 hard delete 가 아니라 tombstone 이다 — 조회에서 사라지되
+    # row 는 남아 감사·복구가 가능하다(수명주기 계약은 test_attachment_lifecycle.py).
+    assert db_session.query(OrderAttachment).filter_by(id=attachment_id).first() is None
+    assert include_deleted(
+        db_session.query(OrderAttachment).filter_by(id=attachment_id)
+    ).one().deleted_at is not None
 
 
 def test_attachment_delete_api_denies_unrelated_user(client) -> None:

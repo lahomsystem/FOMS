@@ -1,0 +1,89 @@
+{# 출고 대시보드 시공일 변경 알림 — 배너·점프 칩·행 배지 공용 매크로 (SSOT, T4/T5).
+
+   PC 테이블 행(dashboard_main.html tr.shipment-row) · 태블릿 클린 그리드 행
+   (tablet_ship_grid.html) · 태블릿 배정 시트(tablet_sheet.html) **세 표면이 이 파일의
+   매크로 하나를 공유**한다. 표면별로 마크업을 포크하면 톤·data 속성·ack 배선이 셋으로
+   갈라지므로(AS 드리프트 배지가 as_card_macros.html 하나로 수렴한 것과 같은 이유) 여기서만
+   낸다. 표면차는 호출부가 넘기는 인자(can_ack)와 CSS 로만 낸다.
+
+   데이터 계약 = foms/services/shipment_change_alerts.py 반환값 그대로다(파생 금지):
+     alerts 항목 = {kind, label, from_md, to_md, detail}  ← collect_shipment_change_alerts
+     banner     = {count, chips, overflow}                ← build_shipment_change_banner
+     chip       = {order_id, customer_name, from_md, to_md, count}
+   여러 번 옮겨진 건은 **최초 from → 최신 to** 로 이동 폭 전체를 한 줄에 낸다(배너 칩과 동일
+   규칙 — 중간 경유 날짜는 변경 횟수 칩으로만 알린다).
+
+   톤은 오늘 배포한 AS 기준일정 배너와 같은 규약이다: 파스텔 채움 + 좌측 진한 띠 배너,
+   흰 알약 점프 칩, 단색 채움 행 배지. 다만 **AS 컨텍스트 CSS(cs/as-dashboard-body.css)를
+   가져오지 않는다** — 출고 컨텍스트 시트(css/contexts/shipment/dashboard-table-extras.css)에
+   같은 값으로 다시 쓴다(컨텍스트 CSS 는 페이지 경계를 넘지 않는다는 프로젝트 규약).
+
+   ack 는 리로드 없이 in-place 다: 확인 성공 시 shipment-change-alert.js 가
+   [data-shipment-change][data-order-id] 와 [data-shipment-change-chip][data-order-id] 를
+   세 표면에서 동시에 지우고 배너 카운트를 응답 banner_count_hint 만큼 줄인다. 그래서 배지
+   래퍼와 칩 양쪽에 order_id 를 data 속성으로 반드시 싣는다. #}
+
+{# 행 배지 + [확인] — PC 행·태블릿 행·배정 시트 공용.
+   order_id: 대상 주문 id / alerts: 그 주문의 미확인 변경 목록(비면 아무것도 안 낸다)
+   can_ack : 확인 버튼 노출 여부. 시공팀은 ack API 가 403 이라 죽은 버튼을 내지 않는다
+             (은닉은 보안 경계가 아니다 — 권한 판정은 API 가 소유). #}
+{% macro render_shipment_change_badge(order_id, alerts, can_ack=true) -%}
+{%- set items = alerts or [] -%}
+{%- if order_id and items -%}
+<span class="erp-ship-change" data-shipment-change data-order-id="{{ order_id }}">
+  <span class="erp-ship-change__badge" title="다른 화면에서 시공일이 변경되었습니다">
+    <i class="fas fa-calendar-day erp-ship-change__icon" aria-hidden="true"></i>
+    <span class="erp-ship-change__label">시공일</span>
+    <s class="erp-ship-change__old">{{ items[0].from_md }}</s>
+    <span class="erp-ship-change__arrow" aria-hidden="true">→</span>
+    <strong class="erp-ship-change__new">{{ items[-1].to_md }}</strong>
+    {%- if items|length > 1 %}<span class="erp-ship-change__count">변경 {{ items|length }}회</span>{% endif -%}
+  </span>
+  {%- if can_ack %}
+  <button type="button" class="erp-ship-change__ack js-shipment-change-ack" data-order-id="{{ order_id }}"
+    title="이 변경을 확인 처리합니다 (내 화면에서만 사라집니다)">확인</button>
+  {%- endif %}
+  {# 실패 메시지 슬롯 — 무음 실패 금지(플랜 함정 #10). 비어 있으면 CSS 가 접는다. #}
+  <span class="erp-ship-change__msg" role="status" aria-live="polite"></span>
+</span>
+{%- endif -%}
+{%- endmacro %}
+
+{# 배너 점프 칩 — 순수 해시 링크(JS 0줄). erp-shell.js 는 href 가 '#' 로 시작하면 프래그먼트
+   스왑을 건너뛰므로 그냥 그 행으로 스크롤된다.
+   anchor_prefix 를 인자로 받는 이유: PC 테이블 행과 태블릿 그리드 행은 **동시에 DOM 에
+   존재**한다(한쪽만 CSS 로 숨김). 같은 id 를 양쪽에 붙이면 중복 id 라 브라우저가 문서 순서상
+   첫 요소(=숨은 PC 행)만 잡아 태블릿에서 점프가 죽는다 — AS 배너가 PC 행/모바일 카드용 칩을
+   따로 낸 것과 같은 처방이다. 그래서 칩을 표면별로 두 개 내고 CSS 코호트 게이트로 가른다. #}
+{% macro render_shipment_change_chip(chip, anchor_prefix, visibility_class) -%}
+<a class="erp-ship-change-chip {{ visibility_class }}" href="#{{ anchor_prefix }}{{ chip.order_id }}"
+  data-shipment-change-chip data-order-id="{{ chip.order_id }}" title="목록에서 이 주문으로 이동">
+{%- if chip.customer_name %}<span class="erp-ship-change-chip__name">{{ chip.customer_name }}</span>{% endif -%}
+<span class="erp-ship-change-chip__id">#{{ chip.order_id }}</span>
+<s class="erp-ship-change-chip__old">{{ chip.from_md }}</s><span class="erp-ship-change-chip__arrow" aria-hidden="true">→</span><strong class="erp-ship-change-chip__new">{{ chip.to_md }}</strong>
+</a>
+{%- endmacro %}
+
+{# 상단 배너 — 렌더된 행 집합 기준이라(전체 스캔 아님) 문구도 "현재 목록에서" 로 정직하게 쓴다.
+   count 는 **미확인 변경이 있는 주문 수**(변경 건수가 아니다 — 서비스 계약). 칩 상한 초과분은
+   반드시 "외 N건" 으로 밝힌다(조용한 절단 금지). #}
+{% macro render_shipment_change_banner(banner) -%}
+{%- set b = banner or {} -%}
+{%- if b.count -%}
+<div class="erp-ship-change-banner" id="shipment-change-banner" role="alert" data-shipment-change-banner>
+  <div class="erp-ship-change-banner__head">
+    <i class="fas fa-calendar-day erp-ship-change-banner__icon" aria-hidden="true"></i>
+    <span class="erp-ship-change-banner__title">현재 목록에서 시공일이 변경된 건 <span data-shipment-change-count>{{ b.count }}</span>건</span>
+  </div>
+  <div class="erp-ship-change-banner__chips">
+    {% for chip in b.chips %}
+    {{ render_shipment_change_chip(chip, 'shipment-row-', 'erp-ship-change-chip--pc') }}
+    {{ render_shipment_change_chip(chip, 'shipment-tgrid-row-', 'erp-ship-change-chip--tablet') }}
+    {% endfor %}
+    {%- if b.overflow %}
+    <span class="erp-ship-change-banner__overflow">외 {{ b.overflow }}건</span>
+    {%- endif %}
+  </div>
+</div>
+{%- endif -%}
+{%- endmacro %}
