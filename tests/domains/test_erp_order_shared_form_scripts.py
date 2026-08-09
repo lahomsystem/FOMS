@@ -802,8 +802,9 @@ def test_shared_erp_order_js_persists_deposit_adjusted_final_totals() -> None:
     assert conversion_block.index("if (factory2Checked) text += '★★\\n';") < conversion_block.index(
         "erpAppendConversionTextLine(text, '실측일', measurementDate)"
     )
-    # 특이사항 3종: 부모 필드 바로 아래 (빈 값이면 helper가 스킵)
+    # 특이사항 4종: 부모 필드 바로 아래 (빈 값이면 helper가 스킵)
     assert "getVal('erp-measurement-note')" in conversion_block
+    assert "getVal('erp-construction-note')" in conversion_block
     assert "getVal('erp-address-note')" in conversion_block
     assert "getVal('erp-phone-note')" in conversion_block
     assert conversion_block.index(
@@ -815,6 +816,16 @@ def test_shared_erp_order_js_persists_deposit_adjusted_final_totals() -> None:
         "erpAppendConversionTextLine(text, '실측 특이사항', getVal('erp-measurement-note'))"
     ) < conversion_block.index(
         "erpAppendConversionTextLine(text, '고객명', customerName)"
+    )
+    assert conversion_block.index(
+        "erpAppendConversionTextLine(text, '시공일', constructionDate)"
+    ) < conversion_block.index(
+        "erpAppendConversionTextLine(text, '시공 특이사항', getVal('erp-construction-note'))"
+    )
+    assert conversion_block.index(
+        "erpAppendConversionTextLine(text, '시공 특이사항', getVal('erp-construction-note'))"
+    ) < conversion_block.index(
+        "erpAppendConversionTextLine(text, '시공시간', constructionTime)"
     )
     assert conversion_block.index(
         "erpAppendConversionTextLine(text, '주  소', address)"
@@ -842,6 +853,12 @@ def test_shared_erp_order_js_persists_deposit_adjusted_final_totals() -> None:
     assert tablet_block.index(
         'convAppendLine(text, "실측 특이사항", notesValue("measurement_note"))'
     ) < tablet_block.index('convAppendLine(text, "고객명", customerName)')
+    assert tablet_block.index('convAppendLine(text, "시공일", constructionDate)') < tablet_block.index(
+        'convAppendLine(text, "시공 특이사항", notesValue("construction_note"))'
+    )
+    assert tablet_block.index(
+        'convAppendLine(text, "시공 특이사항", notesValue("construction_note"))'
+    ) < tablet_block.index('convAppendLine(text, "시공시간", constructionTime)')
     assert tablet_block.index('convAppendLine(text, "주  소", address)') < tablet_block.index(
         'convAppendLine(text, "주소 특이사항", notesValue("address_note"))'
     )
