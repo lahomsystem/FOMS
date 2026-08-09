@@ -450,11 +450,8 @@ ERP Order mobile-v2 tab pane.
                 <button class="foms-btn foms-btn--primary" type="button" id="erp-save-btn">
                     <i class="fas fa-save"></i> 저장
                 </button>
-                <button class="foms-btn foms-btn--secondary erp-mobile-push-btn" type="button" id="erp-channeltalk-push-btn">
-                    <i class="fas fa-paper-plane"></i> 영발 PUSH
-                </button>
-                <button class="foms-btn foms-btn--warning erp-mobile-push-btn" type="button" id="erp-channeltalk-push-drawing-btn">
-                    <i class="fas fa-paper-plane"></i> 발주 PUSH
+                <button class="foms-btn foms-btn--secondary erp-mobile-push-btn" type="button" id="erp-channeltalk-push-picker-btn">
+                    <i class="fas fa-paper-plane"></i> PUSH
                 </button>
             </footer>
             {% endif %}
@@ -463,6 +460,7 @@ ERP Order mobile-v2 tab pane.
 </div>
 
 {% include 'orders/partials/erp_channel_push_resend_modal.html' %}
+{% include 'orders/partials/erp_channel_push_picker_modal.html' %}
 
 <!-- ERP 주소 검색 모달 -->
 <div class="modal fade" id="erpAddressSearchModal" tabindex="-1" aria-hidden="true">

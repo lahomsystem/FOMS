@@ -10,15 +10,19 @@
         measurement: 'channeltalk_push',
         drawing: 'channeltalk_push_drawing',
         estimate: 'channeltalk_push_estimate',
+        as: 'channeltalk_push_as',
     };
     const PUSH_LABELS = {
         measurement: '영발 PUSH',
         drawing: '발주 PUSH',
         estimate: '견적서 PUSH',
+        as: 'AS PUSH',
     };
     const PUSH_BUTTON_IDS = [
         'erp-channeltalk-push-btn',
         'erp-channeltalk-push-drawing-btn',
+        'erp-channeltalk-push-as-btn',
+        'erp-channeltalk-push-picker-btn',
     ];
 
     /** @returns {string} structured_data 이력 키 */
@@ -151,10 +155,81 @@
         });
     }
 
+    // --- PUSH 종류 선택 시트 (모바일 하단 액션바 전용) ---------------------------------
+    // 모바일 액션바에 PUSH 버튼 3개를 나란히 두면 좁은 폭에서 라벨이 깨지므로,
+    // 버튼 1개 → 시트에서 영발/발주/AS 중 선택으로 바꾼다. 재전송 note modal 과
+    // 겹치지 않도록 선택 결과는 시트가 완전히 닫힌 뒤(hidden.bs.modal) 반환한다.
+    let _pendingKindResolve = null;
+    let _pickedKind = null;
+
+    function _finishPendingKind(value) {
+        if (typeof _pendingKindResolve !== 'function') return;
+        const resolve = _pendingKindResolve;
+        _pendingKindResolve = null;
+        resolve(value);
+    }
+
+    /** 선택 시트 버튼/닫힘 이벤트 singleton bind. */
+    function erpMountChannelPushPickerModal() {
+        if (window.__ERP_CHANNEL_PUSH_PICKER_BOUND) return;
+        const modalEl = document.getElementById('erpChannelPushPickerModal');
+        if (!modalEl) return;
+        window.__ERP_CHANNEL_PUSH_PICKER_BOUND = true;
+
+        modalEl.querySelectorAll('[data-erp-push-kind]').forEach(function (btn) {
+            btn.addEventListener('click', function () {
+                _pickedKind = btn.getAttribute('data-erp-push-kind') || null;
+                const bsModal = window.bootstrap && window.bootstrap.Modal
+                    ? window.bootstrap.Modal.getInstance(modalEl)
+                    : null;
+                if (bsModal) {
+                    bsModal.hide();
+                    return;
+                }
+                _finishPendingKind(_pickedKind);
+                _pickedKind = null;
+            });
+        });
+
+        modalEl.addEventListener('hidden.bs.modal', function () {
+            const picked = _pickedKind;
+            _pickedKind = null;
+            _finishPendingKind(picked);
+        });
+    }
+
+    /**
+     * PUSH 종류 선택 시트.
+     * @returns {Promise<string|null>} 선택 시 push_kind, 취소/닫힘 시 null
+     */
+    function erpPromptChannelPushKind() {
+        erpMountChannelPushPickerModal();
+
+        const modalEl = document.getElementById('erpChannelPushPickerModal');
+        if (!modalEl || typeof _pendingKindResolve === 'function') {
+            return Promise.resolve(null);
+        }
+
+        const bsModal = window.bootstrap && window.bootstrap.Modal
+            ? window.bootstrap.Modal.getOrCreateInstance(modalEl)
+            : null;
+        if (!bsModal) {
+            return Promise.resolve(null);
+        }
+
+        _pickedKind = null;
+        return new Promise(function (resolve) {
+            _pendingKindResolve = resolve;
+            bsModal.show();
+        });
+    }
+
     window.erpChannelPushHistoryKey = erpChannelPushHistoryKey;
     window.erpHasPriorChannelPush = erpHasPriorChannelPush;
     window.erpIsChannelPushResendNoteRequired = erpIsChannelPushResendNoteRequired;
     window.erpMarkChannelPushSent = erpMarkChannelPushSent;
     window.erpMountChannelPushResendModal = erpMountChannelPushResendModal;
+    window.erpMountChannelPushPickerModal = erpMountChannelPushPickerModal;
     window.erpPromptChannelPushResendNote = erpPromptChannelPushResendNote;
+    window.erpPromptChannelPushKind = erpPromptChannelPushKind;
 })();

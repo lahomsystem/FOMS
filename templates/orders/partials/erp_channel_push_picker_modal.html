@@ -1,0 +1,32 @@
+<!-- 채널톡 PUSH 종류 선택 (모바일 bottom-sheet) -->
+<div class="modal fade erp-channel-push-picker-modal" id="erpChannelPushPickerModal" tabindex="-1"
+    aria-labelledby="erp-channel-push-picker-title" aria-hidden="true">
+    <div class="modal-dialog modal-dialog-scrollable">
+        <div class="modal-content">
+            <div class="modal-header">
+                <h5 class="modal-title" id="erp-channel-push-picker-title">어디로 PUSH 할까요?</h5>
+                <button type="button" class="btn-close" data-bs-dismiss="modal" aria-label="닫기"></button>
+            </div>
+            <div class="modal-body">
+                <div class="erp-channel-push-picker-options" role="group" aria-label="채널톡 PUSH 종류">
+                    <button type="button" class="foms-btn foms-btn--secondary" data-erp-push-kind="measurement">
+                        <i class="fas fa-paper-plane"></i> 영발 PUSH
+                        <span class="erp-channel-push-picker-hint">실측 첨부 → 영발방</span>
+                    </button>
+                    <button type="button" class="foms-btn foms-btn--warning" data-erp-push-kind="drawing">
+                        <i class="fas fa-paper-plane"></i> 발주 PUSH
+                        <span class="erp-channel-push-picker-hint">도면 첨부 → 발주방</span>
+                    </button>
+                    <button type="button" class="foms-btn foms-btn--primary" data-erp-push-kind="as">
+                        <i class="fas fa-wrench"></i> AS PUSH
+                        <span class="erp-channel-push-picker-hint">AS 접수 내용 + AS 첨부 → AS방</span>
+                    </button>
+                </div>
+            </div>
+            <div class="modal-footer">
+                <button type="button" class="btn btn-secondary" data-bs-dismiss="modal"
+                    data-erp-channel-push-picker-cancel>취소</button>
+            </div>
+        </div>
+    </div>
+</div>

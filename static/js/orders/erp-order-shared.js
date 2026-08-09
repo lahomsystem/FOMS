@@ -2037,6 +2037,7 @@ function erpCollectStructured() {
         'channeltalk_push',
         'channeltalk_push_drawing',
         'channeltalk_push_estimate',
+        'channeltalk_push_as',
     ];
 
     // DATA-01: provenance(schema_version/confidence)는 서버 소유다. 폼은 전송하지 않는다
@@ -4365,27 +4366,73 @@ function erpSliceConversionTextForChannelPush(text) {
     return `★★\n${body}`;
 }
 
+/**
+ * ISO 날짜(YYYY-MM-DD, 콤마 다중 허용)를 변환/푸시 공통 한글 포맷으로 바꾼다.
+ * 변환 텍스트와 AS PUSH 본문이 같은 표기(`8월 14일`)를 쓰도록 하는 SSOT.
+ *
+ * @param {string} dateStr 'YYYY-MM-DD' 또는 콤마로 이어진 다중 날짜
+ * @returns {string} '8월 14일' 형태(파싱 실패 시 원문 그대로)
+ */
+function erpFormatConversionDateToKorean(dateStr) {
+    if (!dateStr) return '';
+    const single = (s) => {
+        const t = String(s).trim();
+        const match = t.match(/^(\d{4})-(\d{2})-(\d{2})$/);
+        if (match) {
+            const m = parseInt(match[2], 10);
+            const d = parseInt(match[3], 10);
+            return `${m}월 ${d}일`;
+        }
+        return t || '';
+    };
+    const parts = String(dateStr).split(',').map(s => single(s)).filter(Boolean);
+    return parts.length ? parts.join(', ') : dateStr;
+}
+
+/**
+ * AS PUSH 본문 조립 — 고객/발주사/시공일/주소/연락처 + AS 접수 내용.
+ *
+ * 영발·발주 PUSH가 쓰는 전체 변환 텍스트(품목·금액 포함)와 달리, AS 방에는 식별 정보와
+ * 접수 내용만 보낸다. 내용은 최신 AS 접수 내용(`structured_data.shipment.as_content`)이며
+ * 저장된 값이므로 폼 DOM이 아니라 마지막 서버 스냅샷에서 읽는다.
+ *
+ * @returns {string} 전송 본문(내용이 없으면 빈 문자열)
+ */
+function erpBuildAsPushText() {
+    const getVal = (id) => {
+        const el = document.getElementById(id);
+        return el ? (el.value || '').trim() : '';
+    };
+
+    const asContent = String(
+        window.__erpLastStructuredData?.shipment?.as_content || ''
+    ).trim();
+    if (!asContent) return '';
+
+    let orderer = typeof getOrdererValue === 'function' ? getOrdererValue() : getVal('erp-orderer');
+    if (!orderer) orderer = '라홈';
+
+    let constructionDate = getVal('erp-construction-date');
+    constructionDate = constructionDate ? erpFormatConversionDateToKorean(constructionDate) : '상담';
+
+    let text = '';
+    text = erpAppendConversionTextLine(text, '고객명', getVal('erp-customer-name'));
+    text = erpAppendConversionTextLine(text, '발주사', orderer);
+    text = erpAppendConversionTextLine(text, '시공일', constructionDate);
+    text = erpAppendConversionTextLine(text, '주  소', getVal('erp-address'));
+    text = erpAppendConversionTextLine(text, '연락처', getVal('erp-customer-phone'));
+    if (text) text += '\n';
+    text = erpAppendConversionTextLine(text, '내용', asContent);
+    return text.trim();
+}
+
 function erpGenerateConversionText() {
     const getVal = (id) => {
         const el = document.getElementById(id);
         return el ? (el.value || '').trim() : '';
     };
 
-    const formatDateToKorean = (dateStr) => {
-        if (!dateStr) return '';
-        const single = (s) => {
-            const t = String(s).trim();
-            const match = t.match(/^(\d{4})-(\d{2})-(\d{2})$/);
-            if (match) {
-                const m = parseInt(match[2], 10);
-                const d = parseInt(match[3], 10);
-                return `${m}월 ${d}일`;
-            }
-            return t || '';
-        };
-        const parts = String(dateStr).split(',').map(s => single(s)).filter(Boolean);
-        return parts.length ? parts.join(', ') : dateStr;
-    };
+    const formatDateToKorean = erpFormatConversionDateToKorean;
 
     let measurementDate = getVal('erp-measurement-date');
     measurementDate = formatDateToKorean(measurementDate);
@@ -4876,8 +4923,20 @@ function fomsMountErpOrderSurface() {
     document.getElementById('erp-channeltalk-push-drawing-btn')?.addEventListener('click', function() {
         return erpRunChannelPush(this, 'drawing');
     });
+    document.getElementById('erp-channeltalk-push-as-btn')?.addEventListener('click', function() {
+        return erpRunChannelPush(this, 'as');
+    });
 
-    // 영발(measurement)/발주(drawing) PUSH 공용 핸들러.
+    // 모바일 하단 액션바는 폭이 좁아 PUSH 버튼 3개를 나란히 두면 정렬이 무너진다.
+    // 대신 PUSH 버튼 하나로 종류 선택 시트를 띄우고, 고른 종류로 공용 핸들러를 실행한다.
+    document.getElementById('erp-channeltalk-push-picker-btn')?.addEventListener('click', async function() {
+        if (typeof erpPromptChannelPushKind !== 'function') return;
+        const pushKind = await erpPromptChannelPushKind();
+        if (!pushKind) return;
+        return erpRunChannelPush(this, pushKind);
+    });
+
+    // 영발(measurement)/발주(drawing)/AS(as) PUSH 공용 핸들러.
     // pushKind에 따라 백엔드가 해당 분류 첨부만 골라 별도 채널톡 그룹으로 전송한다.
     // 재전송(prev push) 시 modal/sheet에서 change_note 입력 후 전송.
     // 서버 400(재전송 note 필수) 시 클라 상태 동기화 후 modal 1회 재시도(M1).
@@ -4900,15 +4959,25 @@ function fomsMountErpOrderSurface() {
             }
         }
 
-        if (typeof erpGenerateConversionText === 'function') {
-            erpGenerateConversionText();
-        }
-        const text = erpSliceConversionTextForChannelPush(
-            document.getElementById('erp-conversion-text')?.value || ''
-        );
-        if (!text) {
-            alert('변환할 내용이 없습니다. 주문 정보를 입력해주세요.');
-            return;
+        // AS PUSH 본문은 변환 텍스트(품목·금액 포함)가 아니라 AS 전용 축약 포맷이다.
+        let text;
+        if (pushKind === 'as') {
+            text = erpBuildAsPushText();
+            if (!text) {
+                alert('AS 접수 내용이 없습니다.\nAS 접수를 먼저 등록한 뒤 다시 시도해주세요.');
+                return;
+            }
+        } else {
+            if (typeof erpGenerateConversionText === 'function') {
+                erpGenerateConversionText();
+            }
+            text = erpSliceConversionTextForChannelPush(
+                document.getElementById('erp-conversion-text')?.value || ''
+            );
+            if (!text) {
+                alert('변환할 내용이 없습니다. 주문 정보를 입력해주세요.');
+                return;
+            }
         }
 
         let orderId = (typeof ORDER_ID !== 'undefined' && ORDER_ID > 0) ? ORDER_ID : 0;
@@ -4931,8 +5000,10 @@ function fomsMountErpOrderSurface() {
 
         const activeClass = btn.classList.contains('btn-warning') ? 'btn-warning'
             : btn.classList.contains('btn-primary') ? 'btn-primary'
+            : btn.classList.contains('btn-info') ? 'btn-info'
             : btn.classList.contains('foms-btn--warning') ? 'foms-btn--warning'
             : btn.classList.contains('foms-btn--primary') ? 'foms-btn--primary'
+            : btn.classList.contains('foms-btn--secondary') ? 'foms-btn--secondary'
             : null;
         const successClass = btn.classList.contains('foms-btn') ? 'foms-btn--success' : 'btn-success';
 

@@ -66,12 +66,12 @@ def _assert_shared_form_script_contract(body: str) -> None:
         < estimate_columns_idx
     )
     assert "html2canvas.min.js" not in body
-    assert "js/orders/erp-channel-push-confirm.js?v=20260703a" in body
-    assert "js/orders/erp-order-shared.js?v=20260806a" in body
+    assert "js/orders/erp-channel-push-confirm.js?v=20260810a" in body
+    assert "js/orders/erp-order-shared.js?v=20260810a" in body
     assert "js/orders/erp-stage-override.js?v=20260716b" in body
     assert "erp_stage_override_modal.html" not in body  # include renders modal markup, not path
     assert 'id="erpStageOverrideModal"' in body
-    assert "css/orders/erp-channel-push.css?v=20260701a" in body
+    assert "css/orders/erp-channel-push.css?v=20260810a" in body
     assert "css/orders/erp-items-master-detail.css?v=20260701f" in body
     assert "js/orders/erp-items-master-detail.js?v=20260630c" in body
     assert "erp-items-master-detail-shell" in body
@@ -493,6 +493,7 @@ def test_shared_erp_order_js_preserves_drawing_operational_state() -> None:
         "channeltalk_push",
         "channeltalk_push_drawing",
         "channeltalk_push_estimate",
+        "channeltalk_push_as",
     ):
         assert f"'{key}'" in collect_block
 
@@ -518,6 +519,7 @@ def test_structured_put_preserves_estimate_preview_state() -> None:
     assert "'channeltalk_push'" in keys_block
     assert "'channeltalk_push_drawing'" in keys_block
     assert "'channeltalk_push_estimate'" in keys_block
+    assert "'channeltalk_push_as'" in keys_block
 
 
 def test_shared_erp_order_js_does_not_auto_save_before_user_save() -> None:
@@ -579,6 +581,54 @@ def test_channel_push_confirm_js_resend_recovery_contract() -> None:
     assert "const MIN_NOTE_LEN = 1" in text
     assert "_resolvedBySend" in text
     assert "내부 변경" not in text
+
+
+def test_channel_push_kind_picker_contract() -> None:
+    """모바일 PUSH 선택 시트: 3종 제공 + 재전송 modal 중첩 회피(hidden 후 resolve)."""
+    root = Path(__file__).resolve().parents[2]
+    js = (root / "static/js/orders/erp-channel-push-confirm.js").read_text(encoding="utf-8")
+    picker = (
+        root / "templates/orders/partials/erp_channel_push_picker_modal.html"
+    ).read_text(encoding="utf-8")
+    shared = (root / "static/js/orders/erp-order-shared.js").read_text(encoding="utf-8")
+
+    assert "as: 'channeltalk_push_as'" in js
+    assert "as: 'AS PUSH'" in js
+    assert "erp-channeltalk-push-picker-btn" in js
+    assert "erp-channeltalk-push-as-btn" in js
+    assert "function erpPromptChannelPushKind()" in js
+    # 선택 결과는 시트가 완전히 닫힌 뒤 반환해야 재전송 modal 과 겹치지 않는다.
+    picker_mount = js[js.index("function erpMountChannelPushPickerModal()"):]
+    assert "hidden.bs.modal" in picker_mount
+
+    for kind in ("measurement", "drawing", "as"):
+        assert f'data-erp-push-kind="{kind}"' in picker
+
+    assert "window.erpPromptChannelPushKind = erpPromptChannelPushKind;" in js
+    assert "erpPromptChannelPushKind()" in shared
+
+
+def test_as_push_text_uses_as_content_and_short_header() -> None:
+    """AS PUSH 본문: 고객/발주사/시공일/주소/연락처 + 저장된 AS 접수 내용."""
+    root = Path(__file__).resolve().parents[2]
+    text = (root / "static/js/orders/erp-order-shared.js").read_text(encoding="utf-8")
+
+    start = text.index("function erpBuildAsPushText()")
+    end = text.index("function erpGenerateConversionText()", start)
+    block = text[start:end]
+
+    assert "shipment?.as_content" in block
+    for label in ("'고객명'", "'발주사'", "'시공일'", "'주  소'", "'연락처'", "'내용'"):
+        assert label in block
+    # 품목/금액은 AS 방으로 보내지 않는다.
+    assert "erpGetItemRows" not in block
+    assert "erpBuildTotals" not in block
+
+    push_start = text.index("document.getElementById('erp-channeltalk-push-btn')")
+    push_end = text.index("initErpMainDatePickers();", push_start)
+    push_block = text[push_start:push_end]
+    assert "if (pushKind === 'as')" in push_block
+    assert "erpBuildAsPushText()" in push_block
 
 
 def test_shared_erp_order_supports_scoped_clipboard_image_upload() -> None:

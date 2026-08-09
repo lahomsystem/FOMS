@@ -72,6 +72,7 @@ CRITICAL_ERP_IDS = {
     "erp-status-text",
     "erp-channeltalk-push-btn",
     "erp-channeltalk-push-drawing-btn",
+    "erp-channeltalk-push-as-btn",
     "erp-gen-text-btn",
     "erp-conversion-text",
     "erp-copy-text-btn",
@@ -109,6 +110,11 @@ MOBILE_OMITTED_ERP_IDS = {
     "erp-gen-text-btn",
     "erp-copy-text-btn",
     "erp-order-measurement-panel",
+    # 모바일 하단 액션바는 폭이 좁아 PUSH 버튼을 종류별로 두지 않는다.
+    # 대신 erp-channeltalk-push-picker-btn 하나로 선택 시트를 띄운다.
+    "erp-channeltalk-push-btn",
+    "erp-channeltalk-push-drawing-btn",
+    "erp-channeltalk-push-as-btn",
 }
 
 DESKTOP_OMITTED_ERP_IDS = {
@@ -132,6 +138,7 @@ MOBILE_ONLY_ERP_IDS = {
     "erp-attachment-preview-item-select",
     "erp-attachment-preview-unlink",
     "erp-attachment-preview-delete",
+    "erp-channeltalk-push-picker-btn",
 }
 
 PARENT_ERP_IDS = {"erp-order-config", "erp-order-bootstrap", "erp-order-tab"}
@@ -288,10 +295,12 @@ def test_edit_erp_order_ships_responsive_form_mounts_for_cohort(
     # 섹션 이동 칩 네비 + 항목 추가 버튼(리스트 끝)
     assert 'id="erp-mobile-secnav"' in mobile_form
     assert 'id="erp-add-item-btn"' in mobile_form
-    # 영발/발주 PUSH는 하단 액션바로 이동
-    assert 'id="erp-channeltalk-push-btn"' in mobile_form
-    assert 'id="erp-channeltalk-push-drawing-btn"' in mobile_form
+    # PUSH는 하단 액션바 버튼 1개 → 종류 선택 시트(영발/발주/AS)
+    assert 'id="erp-channeltalk-push-picker-btn"' in mobile_form
+    assert 'id="erp-channeltalk-push-btn"' not in mobile_form
+    assert 'id="erp-channeltalk-push-drawing-btn"' not in mobile_form
     assert 'id="erpChannelPushResendModal"' in mobile_form
+    assert 'id="erpChannelPushPickerModal"' in mobile_form
     assert "erp-mobile-pre-sticky-footer" in mobile_form
 
 

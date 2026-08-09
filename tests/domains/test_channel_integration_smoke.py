@@ -349,6 +349,81 @@ def test_push_manual_drawing_kind_filters_drawing_attachments_and_routes_drawing
     assert "channeltalk_push" not in saved.structured_data
 
 
+def test_push_manual_as_kind_filters_as_attachments_and_routes_as_group(client, monkeypatch):
+    """AS PUSH(push_kind=as)는 AS 첨부만 골라 AS 그룹으로 dispatch하고 별도 이력 키에 기록한다."""
+    _login_admin(client)
+    monkeypatch.setenv("CHANNEL_GROUP_MEASUREMENT", "group-measure")
+    monkeypatch.setenv("CHANNEL_GROUP_AS", "group-as")
+    monkeypatch.setattr(channel_integration, "is_configured", lambda: True)
+    monkeypatch.setattr(channel_integration, "get_storage", lambda: _FakeStorage())
+
+    captured = {}
+
+    def _fake_dispatch(event_type, data, raise_on_error=False):
+        captured["data"] = data
+        return {"success": True, "message_id": "msg-as-1"}
+
+    monkeypatch.setattr(channel_integration, "dispatch_order_event", _fake_dispatch)
+
+    order = Order(
+        received_date="2026-03-27",
+        customer_name="AS Push",
+        phone="010-0000-0000",
+        address="Seoul",
+        product="Wardrobe",
+    )
+    db_session.add(order)
+    db_session.flush()
+    db_session.add_all(
+        [
+            OrderAttachment(
+                order_id=order.id,
+                filename="measure.jpg",
+                file_type="image",
+                category="measurement",
+                storage_key="orders/2/measure.jpg",
+            ),
+            OrderAttachment(
+                order_id=order.id,
+                filename="as-defect.jpg",
+                file_type="image",
+                category="as",
+                storage_key="orders/2/as-defect.jpg",
+            ),
+        ]
+    )
+    db_session.commit()
+    order_id = order.id
+
+    response = client.post(
+        "/api/channel/push-manual",
+        json={"order_id": order_id, "text": "고객명 : AS Push\n\n내용 : 문짝 처짐", "push_kind": "as"},
+    )
+
+    assert response.status_code == 200
+    body = response.get_json()
+    assert body["success"] is True
+    assert body["files_count"] == 1
+    assert captured["data"]["push_kind"] == "as"
+    assert len(captured["data"]["files"]) == 1
+    assert captured["data"]["files"][0]["url"].endswith("orders/2/as-defect.jpg?e=3600")
+
+    db_session.expire_all()
+    saved = db_session.get(Order, order_id)
+    assert saved.structured_data["channeltalk_push_as"]["pushed"] is True
+    assert "channeltalk_push" not in saved.structured_data
+    assert "channeltalk_push_drawing" not in saved.structured_data
+
+
+def test_routing_group_as_kind_uses_as_env(monkeypatch):
+    """push_kind='as'는 CHANNEL_GROUP_AS(미설정 시 230351)로 라우팅된다."""
+    monkeypatch.delenv("CHANNEL_GROUP_AS", raising=False)
+    assert channel_policy.get_routing_group_id("manual", {"push_kind": "as"}) == "230351"
+
+    monkeypatch.setenv("CHANNEL_GROUP_AS", "group-as")
+    assert channel_policy.get_routing_group_id("manual", {"push_kind": "as"}) == "group-as"
+
+
 def test_push_manual_rejects_unknown_push_kind(client, monkeypatch):
     _login_admin(client)
     monkeypatch.setattr(channel_integration, "is_configured", lambda: True)
