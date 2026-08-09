@@ -11,6 +11,8 @@ from flask import current_app, jsonify, request, session
 from sqlalchemy.orm.attributes import flag_modified
 
 from foms.web.auth import get_user_by_id, log_access
+from foms.services.audit_message_display import describe_field_change
+from foms.services.orders.audit_order_context import order_audit_context
 from foms.services.orders.status_constants import STATUS
 from db import get_db
 from foms.services.as_content_safety import load_structured_data_dict_or_raise
@@ -269,9 +271,14 @@ def _bridge_as_completed_date(db, order: Order, user: Any, value: Any, body: dic
     except Exception as exc:  # noqa: BLE001 — 계약 위반은 409, 그 외 500 으로 분기
         return _as_error_response(db, exc)
 
+    _as_audit = order_audit_context(order)
     log_access(
-        f"주문 #{order.id}의 'as_completed_date' 필드를 '{value}'(으)로 변경",
+        describe_field_change(
+            order_id=order.id, field="as_completed_date", after=value, **_as_audit
+        ),
         session["user_id"], auto_commit=False,
+        action="ORDER_FIELD_UPDATED", target_type="order", target_id=order.id,
+        detail={"field": "as_completed_date", "after": value, **_as_audit},
     )
     db.commit()
     _invalidate_shipment_asrec_caches("field_update:as_completed_date")
@@ -579,18 +586,26 @@ def update_order_field_response(
             drawing_notif = None
             drawing_notif_created = False
 
-        if field == "status":
-            log_access(
-                f"자가실측 주문 #{order.id} 상태 변경: '{old_value}' → '{value}'",
-                session["user_id"],
-                auto_commit=False,
-            )
-        else:
-            log_access(
-                f"주문 #{order.id}의 '{field}' 필드를 '{value}'(으)로 변경",
-                session["user_id"],
-                auto_commit=False,
-            )
+        # 변경 전 값을 함께 남긴다 — "무엇에서 무엇으로"가 없으면 되돌릴 수도 따질 수도 없다
+        # (운영 실측: as_completed_date 를 ''로 바꾼 97건이 '원래 언제였는지' 없이 남았다).
+        audit_context = order_audit_context(order)
+        audit_detail = {
+            "field": field,
+            "before": old_value,
+            "after": value,
+            **audit_context,
+        }
+        log_access(
+            describe_field_change(
+                order_id=order.id, field=field, before=old_value, after=value,
+                has_before=True, **audit_context,
+            ),
+            session["user_id"],
+            auto_commit=False,
+            action="ORDER_STATUS_CHANGED" if field == "status" else "ORDER_FIELD_UPDATED",
+            target_type="order", target_id=order.id,
+            detail=audit_detail,
+        )
 
         db.commit()
 
