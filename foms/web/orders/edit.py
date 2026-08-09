@@ -22,6 +22,7 @@ from foms.services.erp_order_flags import is_erp_order_record
 from foms.services.erp_sync_columns import sync_erp_flat_columns
 from db import get_db
 from models import Order
+from foms.services.audit_message_display import FIELD_LABELS as AUDIT_FIELD_LABELS
 from foms.services.orders.status_constants import STATUS
 from foms.services.erp_order_deeplink import resolve_edit_return_back_endpoint
 from foms.services.request_utils import get_preserved_filter_args, redirect_if_legacy_open_erp_beta
@@ -267,17 +268,9 @@ def edit_order(order_id):
             if 'address' in changes or site_address_jsonb_changed:
                 enqueue_geocode_order_address(order_id)
 
-            field_labels = {
-                'received_date': '접수일', 'received_time': '접수시간', 'customer_name': '고객명', 'phone': '전화번호',
-                'address': '주소', 'product': '제품', 'options': '옵션 상세', 'notes': '비고', 'status': '상태',
-                'measurement_date': '실측일', 'measurement_time': '실측시간', 'completion_date': '설치완료일',
-                'manager_name': '담당자', 'payment_amount': '결제금액', 'is_regional': '지방 주문',
-                'is_self_measurement': '자가실측', 'is_cabinet': '수납장', 'measurement_completed': '실측완료',
-                'construction_type': '시공 구분', 'regional_sales_order_upload': '영업발주 업로드',
-                'regional_blueprint_sent': '도면 발송', 'regional_order_upload': '발주 업로드',
-                'regional_cargo_sent': '화물 발송', 'regional_construction_info_sent': '시공정보 발송',
-                'shipping_scheduled_date': '상차 예정일'
-            }
+            # 라벨 사전 SSOT: foms/services/audit_message_display.FIELD_LABELS.
+            # (여기 지역 dict 로 두던 시절, 다른 저장 경로는 영문 필드명을 그대로 기록했다.)
+            field_labels = AUDIT_FIELD_LABELS
             change_descriptions = []
             for field, values in changes.items():
                 if field not in field_labels:
