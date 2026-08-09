@@ -15,6 +15,7 @@ from foms.api.files.common import (
     resolve_attachment_category,
     serialize_attachment,
 )
+from foms.api.files.order_routes import ATTACHMENT_ADDED, emit_attachment_event
 from foms.api.files.routes import build_file_view_url
 from foms.services.files.upload_authz import (
     category_upload_allowed,
@@ -232,6 +233,8 @@ def api_order_attachments_complete(order_id):
             user_id=session.get("user_id"),
         )
         db.add(attachment)
+        # ATTACH-LIFE-01: direct upload 도 업로드 API 와 동일하게 ATTACHMENT_ADDED 를 남긴다.
+        emit_attachment_event(db, attachment, ATTACHMENT_ADDED)
         db.commit()
         # Tier B(첨부): 첨부를 읽는 도메인 family만 무효화(history 제외).
         from foms.services.common.dashboard_cache import (

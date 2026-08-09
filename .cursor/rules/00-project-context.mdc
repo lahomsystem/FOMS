@@ -3,62 +3,30 @@ description: FOMS 프로젝트 컨텍스트. 새 세션 시작 시 AI_STATUS.md�
 alwaysApply: true
 ---
 
-# FOMS 프로젝트 컨텍스트
+# FOMS 프로젝트 컨텍스트 (Cursor 보강 — 공통 정책 정본은 루트 AGENTS.md)
 
-## 하네스 정책 단일 기준 (Cursor · Claude · Codex)
-
-- **공통 기준선**: 루트 `AGENTS.md`가 이식 가능한 단일 기준이다. Codex·기타 도구는 우선 `AGENTS.md`를 따른다.
-- **Cursor(본 규칙)**: IDE 컨텍스트·워크플로 보강; **기준선과 모순되면 안 된다.**
-- **Claude Code**: `CLAUDE.md`가 세션 규칙. **bash/Unix 예시는 “Claude Code 전용”으로 명시된 경우에만** 적용한다.
-- **앱 import 검증 성공 문자열(표준)**: `APP_OK` — `python -c "import app; print('APP_OK')"` (`/verify-result`와 동일).
-- **브라우저**: 탐색·수동 재현·디버깅은 **Cursor browser MCP**. 반복 가능한 QA·릴리스 스모크는 setup 완료된 **gstack browse** 런타임을 사용한다.
-- **훅 fail-open**: 세션 차단을 피하려면 **실패가 로그 등에 남는 경우에만** 허용. **묵시적 무시는 금지.**
-
-## 프로젝트 개요
-- **이름**: FOMS (Furniture Order Management System) - 가구 주문 관리 ERP
-- **스택**: Flask 2.3 + SQLAlchemy 2.0 + PostgreSQL + Jinja2 + Bootstrap 5 + Vanilla JS
-- **배포**: Railway (PostgreSQL + R2 스토리지)
-- **운영 환경**: Windows 11 (PowerShell 5.x, `\` 경로, `;` 명령 구분 — `.cursor/rules/50-win11-shell.mdc`)
-- **워크플로우**: RECEIVED → HAPPYCALL → MEASURE → DRAWING → CONFIRM → PRODUCTION → CONSTRUCTION → CS → COMPLETED
+공통 정책(문제 수정·성능 가드·git 브랜치/승격 절차·프로젝트 개요)은 **루트 `AGENTS.md`가 SSOT**다. 본 파일은 Cursor 전용 보강만 담는다. 충돌 시 AGENTS.md 우선.
 
 ## 새 세션 시작 시 + 작업 프로토콜 (RPI — 필수 준수)
-1. `docs/AI_STATUS.md` 읽기 → **50줄로 전체 상황 파악**
-2. **핵심 코어 변경(DB/Auth/API, 배포 인프라, 하네스 인프라) 포함 작업** → RPI 프로토콜 필수:
-   - Research: `docs/harness/policy/DECISIONS.md` + `docs/ARCHIVE_INDEX.md`에서 관련 과거 기록 조사
+1. `docs/AI_STATUS.md` 상단 40줄 읽기 → 전체 상황 파악
+2. **핵심 코어 변경(DB/Auth/API, 배포 인프라, 하네스 인프라)** → RPI 필수:
+   - Research: `docs/harness/policy/DECISIONS.md` + `docs/ARCHIVE_INDEX.md` 조사
    - Plan: `docs/guides/SPEC_TEMPLATE.md` 기반 Spec 작성 → 사용자 승인 대기
    - Implement: 승인 후 코딩 → `/verify-result` → `/auto-status-update` 실행
 3. **단순 UI 변경/타이포** → 바로 코딩 허용
 4. **대화가 길어지면** → 핵심 요약 후 새 세션 권유 (Dumb Zone 회피)
 
 ## Cursor 내 Runner 라우팅
-- **Cursor 기본 에이전트**: `AGENTS.md` + 본 `.mdc` 규칙을 기준으로 동작한다 (Cursor가 `.mdc`를 네이티브 로드).
-- **Claude 확장 in Cursor**: `AGENTS.md` + `CLAUDE.md`(Claude 전용 세션 규칙)를 기준으로 한다.
-- **Codex 확장/CLI in Cursor**: `AGENTS.md`를 이식 기준으로 따른다. Codex 세컨드 오피니언은 on-demand `gstack-codex` 스킬 경로를 사용한다.
-- **컨텍스트 번들**: 상시 커밋 컨텍스트 번들은 2026-07-08 재설계 Phase 1b에서 폐기됐다. 온디맨드로 묶음 컨텍스트가 필요하면 `python tools/harness/build_context_bundle.py --all`로 생성한다(커밋하지 않음).
-- **작업 레벨·RPI 판단**: 문서 규칙(새 세션 시작 프로토콜, 위 RPI 절)을 따른다. 코어 변경 게이트는 Stop 훅·pre_push_smoke·branch protection이 코드로 강제한다. (구 task_classifier 자동 분류기·Codex 래퍼는 2026-07-08 퇴역 — `docs/harness/policy/DECISIONS.md` 참조)
-- **브라우저 역할**: Cursor browser MCP는 탐색·수동 재현·디버깅, gstack browse는 setup 완료 후 반복 가능한 smoke/QA 자동화 전용이다.
-- **세션 worktree 격리 (선택 표준)**: 동시 2+창 코드 편집 시 `python tools/harness/session_worktree.py create`로 `c:/tmp/foms-s-*`를 만들어 그 폴더를 열어 작업한다(Cursor=폴더 열기, Codex=`codex exec` cwd). push는 `git push origin HEAD:deploy`(ledger union 판정), 종료 시 `cleanup --remove`. 단일 창·핫파일 작업은 공유 트리 유지. 세션 worktree에서 alembic·startup DDL은 코드 차단. 상세: `docs/plans/2026-07-27-session-worktree-isolation-phase1.md`.
-
-## 문제 해결 및 디버깅 원칙 (Occam's Razor & Clean Code) - 필수 준수
-프론트엔드(브라우저)에서 SyntaxError 등 라인 번호가 명시된 에러 발생을 포함한 모든 버그 해결 시:
-1. **임시 방편 금지**: 코드 수정이나 문제 해결 시, 임시적인 방법(우회, 기존 코드 덮어쓰기 등)이나 근본 문제 해결 없는 수정은 절대 금지합니다. (훅의 로그 없는 실패 삼킴 포함)
-2. **근본적 해결 (클린코드 입각)**: 무조건 근본적인 원인을 파악하고 클린코드 원칙에 입각하여 해결해야 합니다.
-3. **가설 기반 대규모 리팩토링 금지**: 원인이 100% 규명되기 전에 구조적 결함 등을 핑계로 대규모 리팩토링을 선행하지 마세요.
-4. **정확한 라인 매핑 우선**: 템플릿 렌더링 환경이라도 렌더링된 소스 확인, 스크립트 분리 테스트 등을 통해 에러가 지목한 정확한 코드 라인의 문자열(오타, 괄호 누락 등)을 반드시 먼저 확보하세요.
-5. **국소적 근본 수정 우선**: 단순 오타/문법 오류가 확인되면 국소적/근본적 수정으로 먼저 해결한 뒤, 리팩토링이 필요하다면 별도 태스크로 제안만 하세요.
+- **Cursor 기본 에이전트**: `AGENTS.md` + 본 `.mdc` 규칙 기준 (Cursor가 `.mdc`를 네이티브 로드).
+- **Claude 확장 in Cursor**: `AGENTS.md` + `CLAUDE.md`. **Codex**: `AGENTS.md` 기준, 세컨드 오피니언은 on-demand `gstack-codex` 스킬.
+- **브라우저 역할**: Cursor browser MCP=탐색·수동 재현·디버깅, gstack browse=반복 가능한 smoke/QA 자동화.
+- **온디맨드 컨텍스트 번들**: `python tools/harness/build_context_bundle.py --all` (상시 커밋 번들은 2026-07-08 폐기).
+- **세션 worktree 격리 (선택 표준)**: 동시 2+창 코드 편집 시 `python tools/harness/session_worktree.py create` → `c:/tmp/foms-s-*` 폴더 열어 작업, push는 `git push origin HEAD:deploy`, 종료 시 `cleanup --remove`. 단일 창·핫파일 작업은 공유 트리 유지. 상세: AGENTS.md §브랜치·푸시.
 
 ## 작업 완료 시 (자동)
 - Cursor: Hook(session_stop)이 자동으로 AI_STATUS.md + AI_CHANGELOG.md 갱신
 - 수동: `/auto-status-update` 워크플로우 실행
 
 ## 디렉토리 구조 핵심
-- `app.py`: 플라스크 앱 초기화 (최소화)
-- `apps/api/`: 도메인별 API Blueprint
-- `services/`: 비즈니스 로직 및 정책 엔진
-- `templates/`: 화면 구성 HTML
-- `static/`: JS, CSS 자원
-
-## Git 커밋 규칙
-- **항상 한글 사용**, 무엇을 왜 수정했는지 명확하게 기록
-- 변경 후 항상 Origin에 Push (**기본 대상은 `deploy` 스테이징**)
-- **운영(production) 푸시는 사용자 명시 요청 시에만 (절대 규칙)**: `production` 브랜치 push·force-push·reset은 사용자가 명시적으로 "production 푸시/배포"를 요청한 경우에만 수행한다. **"deploy 푸쉬"는 `production`을 포함하지 않는다.** force-push·history reset은 `deploy`/`production` 모두 고위험 — 정확한 타깃·영향 보고 후 명시 승인·`--force-with-lease`로만 진행.
+- `app.py`: Flask 앱 초기화(최소화, 라우트 추가 금지 — 새 API는 `apps/api/` Blueprint)
+- `services/`: 비즈니스 로직·정책 엔진, `templates/`: HTML, `static/`: JS·CSS

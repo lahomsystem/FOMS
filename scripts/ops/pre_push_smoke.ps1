@@ -214,6 +214,14 @@ if ($Full) {
         "tests/domains/test_foms_namespace_imports.py",
         "tests/domains/test_foms_search_overlay.py::test_search_overlay_template_contract",
         "tests/domains/test_p2_htmx_fragment.py",
+        # repo-state sync gates: CI red 최다 원인 (2026-08-03 조사 — 18건 중 8건).
+        # 인벤토리/manifest 드리프트는 로컬에서 초 단위로 잡힌다.
+        "tests/domains/test_alembic_single_head.py",
+        "tests/domains/test_failopen_inventory.py",
+        "tests/domains/test_rev_99.py",
+        "tests/domains/test_state_guard.py",
+        "tests/domains/test_write_guard.py",
+        "tests/harness/test_hook_log_hygiene.py::test_ai_status_head_budget",
         "tests/visual/test_staging_mobile_v2_assets.py",
         "tests/visual/test_p1_mockup_structure.py",
         "tests/visual/test_p1_mockup_png_baseline.py",

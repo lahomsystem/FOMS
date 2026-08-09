@@ -23,6 +23,7 @@ from flask import Blueprint, current_app, g, jsonify, request, session
 from sqlalchemy import func
 
 from foms.web.auth import login_required
+from foms.services.datetime_kst import now_utc_naive
 from foms.services.request_write_guard import require_same_origin_write
 from db import get_db
 from models import NotificationPushSubscription, NotificationUserState
@@ -218,7 +219,7 @@ def _handle_subscribe() -> Any:
                 {"success": False, "data": None, "error": "endpoint_owned_by_another_user"}
             ), 403
 
-        now = dt_mod.datetime.now()
+        now = now_utc_naive()
         sub = existing or NotificationPushSubscription(user_id=user_id, endpoint=endpoint)
         _apply_subscription_fields(sub, keys, data, now)
         if existing is None:
@@ -254,7 +255,7 @@ def _handle_unsubscribe() -> Any:
                 {"success": False, "data": None, "error": "subscription_not_found"}
             ), 404
         if sub.revoked_at is None:
-            sub.revoked_at = dt_mod.datetime.now()
+            sub.revoked_at = now_utc_naive()
         db.commit()
         return jsonify({"success": True, "data": {"revoked": True}})
     except Exception as e:  # noqa: BLE001 - 롤백 후 표준 에러 응답
@@ -380,7 +381,7 @@ def push_event() -> Any:
                 {"success": False, "data": None, "error": "notification_not_found"}
             ), 404
 
-        now = dt_mod.datetime.now()
+        now = now_utc_naive()
         if event == "opened":
             event_type = NotificationEventType.OPENED
             state.last_opened_at = now

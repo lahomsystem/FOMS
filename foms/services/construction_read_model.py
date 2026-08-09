@@ -130,9 +130,11 @@ def fetch_construction_attachment_counts(db: Any, orders: list[Any]) -> dict[int
         return att_counts
     try:
         order_ids = [order.id for order in orders]
+        # ATTACH-LIFE-01: raw SQL 은 ORM 전역 tombstone 필터를 안 받는다 — 삭제된 첨부가
+        # 카운트에 남지 않도록 여기서 명시적으로 제외한다(allowlist 대상, 계약 테스트가 고정).
         stmt = text(
             "SELECT order_id, COUNT(*) AS cnt FROM order_attachments "
-            "WHERE order_id = ANY(:order_ids) GROUP BY order_id"
+            "WHERE order_id = ANY(:order_ids) AND deleted_at IS NULL GROUP BY order_id"
         )
         stmt = stmt.bindparams(bindparam("order_ids", value=order_ids))
         rows = db.execute(stmt).fetchall()

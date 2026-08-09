@@ -37,6 +37,8 @@ from urllib.parse import urlparse
 from flask import Flask, current_app, jsonify, request, session
 from itsdangerous import BadSignature, URLSafeSerializer
 
+from foms.services.audit_writer import record_access_denied
+
 F = TypeVar("F", bound=Callable[..., object])
 
 _WRITE_METHODS = frozenset({"POST", "PUT", "PATCH", "DELETE"})
@@ -71,8 +73,27 @@ def _same_origin(value: str) -> bool:
     return f"{parsed.scheme}://{parsed.netloc}" == request_origin
 
 
+def _session_user_id() -> int | None:
+    """현재 세션의 user id 를 정수로 반환한다.
+
+    :return: 로그인 상태면 user id, 비로그인/비정상 값이면 ``None``.
+    """
+    try:
+        return int(session.get("user_id"))
+    except (TypeError, ValueError):
+        return None
+
+
 def _audit_block(header_name: str, reason: str) -> None:
-    """차단 사유를 앱 로거로 기록(fail-open 이 아니라 항상 로그로 남김)."""
+    """차단 사유를 앱 로거 + ``security_logs`` 에 기록(fail-open 이 아니라 항상 남김).
+
+    DB 감사는 **독립 커밋 헬퍼**(:func:`foms.services.audit_writer.record_access_denied`)를
+    쓴다 — CSRF/Origin 차단은 ``before_request`` 단계라 본 트랜잭션 commit 이 없고
+    (스펙 §3-3), 헬퍼가 (user or IP, endpoint, action) 60초 dedupe 까지 담당한다.
+
+    :param header_name: 위반이 감지된 가드 축(헤더 이름 또는 ``csrf-origin``).
+    :param reason: 차단 사유 태그(예: ``invalid_csrf_token``).
+    """
     try:
         current_app.logger.warning(
             "write-guard blocked: header=%s reason=%s path=%s ip=%s",
@@ -80,6 +101,17 @@ def _audit_block(header_name: str, reason: str) -> None:
             reason,
             request.path,
             request.remote_addr,
+        )
+        record_access_denied(
+            f"요청 차단(write-guard): {request.method} {request.path} "
+            f"guard={header_name} reason={reason}",
+            user_id=_session_user_id(),
+            ip=request.remote_addr,
+            endpoint=request.endpoint,
+            action=f"write-guard:{reason}",
+            # T8 구조화: 차단 endpoint·사유를 SQL 로 집계 가능하게 남긴다.
+            structured_action="WRITE_BLOCKED",
+            detail={"endpoint": request.endpoint, "reason": reason},
         )
     except Exception:  # noqa: BLE001 - 로깅 실패가 요청을 죽이면 안 됨
         pass  # failopen: intentional: 감사 로그 실패가 요청을 막지 않도록 fail-open (로그의 로그)

@@ -163,6 +163,7 @@ def translate_event_type_to_korean(event_type: str | None) -> str:
         "SHIPMENT_COMPLETED": "출고 완료",
         "CHANGE_REVERTED": "변경 되돌림",
         "ORDER_CREATED": "주문 생성",
+        "ORDER_DRAFT_CREATED": "임시 주문 생성",
         "ORDER_UPDATED": "주문 수정",
         "ORDER_DELETED": "주문 삭제",
         "ASSIGNMENT_CHANGED": "담당자 변경",
@@ -171,7 +172,10 @@ def translate_event_type_to_korean(event_type: str | None) -> str:
         "COMMENT_ADDED": "메모 추가",
         "ATTACHMENT_ADDED": "첨부파일 추가",
         "ATTACHMENT_DELETED": "첨부파일 삭제",
+        "ATTACHMENT_META_UPDATED": "첨부파일 정보 수정",
+        "ATTACHMENT_RESTORED": "첨부파일 복구",
         "URGENT_CHANGED": "긴급 여부 변경",
+        "PAYMENT_CHANGED": "금액 변경",
         "manager_changed": "담당자 변경",
         "order_updated": "주문 수정",
     }
@@ -373,6 +377,8 @@ def generate_change_description(
 
     if event_type == "ORDER_CREATED":
         return "주문을 생성했습니다"
+    if event_type == "ORDER_DRAFT_CREATED":
+        return "임시 주문(초안)을 생성했습니다"
     if event_type in ("ORDER_UPDATED", "order_updated"):
         return "주문 정보를 수정했습니다"
     if event_type == "ORDER_DELETED":

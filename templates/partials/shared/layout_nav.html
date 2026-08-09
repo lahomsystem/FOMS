@@ -77,6 +77,9 @@
                         <li><a class="dropdown-item" href="{{ url_for('admin.security_logs') }}"><i
                                     class="fas fa-shield-alt"></i>
                                 보안 로그</a></li>
+                        <li><a class="dropdown-item" href="{{ url_for('admin.file_access_logs') }}"><i
+                                    class="fas fa-file-signature"></i>
+                                파일 열람 기록</a></li>
                         {% if not impersonating_from_id and admin_switch_users %}
                         <li>
                             <h6 class="dropdown-header">다른 사용자로 전환</h6>

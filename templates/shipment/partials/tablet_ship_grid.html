@@ -26,6 +26,8 @@
    안 걸림), wrap 에 코드베이스 공용 클린-그리드 훅 클래스 .foms-tablet-workqueue-wrap 를 병기해
    행 탭 계약을 만족시킨다(JS 무수정). 각 행 data-foms-sheet-url 이 출고 배정 fragment 를 가리킨다.
    컨텍스트: rows(Order 리스트), shipment_team_group_meta, 필터/템플릿 필터(item_spec_w300 등). #}
+{# 시공일 변경 배지 — PC 행·배정 시트와 **같은 매크로**(표면별 포크 금지, 플랜 T5). #}
+{% from 'shipment/partials/shipment_change_macros.html' import render_shipment_change_badge %}
 {% set _sg_worker_list = [] %}
 {% for r in rows %}
 {%- set _sd = r.structured_data or {} %}
@@ -96,7 +98,9 @@
         </td>
       </tr>
       {% endif %}
-      <tr class="erp-main-row foms-tablet-shipgrid__row" data-order-id="{{ r.id }}"
+      {# id: 배너 점프 칩(#shipment-tgrid-row-<id>) 착지점. PC 행(#shipment-row-<id>)과 같은
+         문서에 공존하므로 접두어가 다르다(중복 id 면 숨은 PC 행이 점프를 가로챈다). #}
+      <tr id="shipment-tgrid-row-{{ r.id }}" class="erp-main-row foms-tablet-shipgrid__row" data-order-id="{{ r.id }}"
         data-foms-sheet-url="{{ url_for('erp_shipment_page.erp_shipment_tablet_sheet', order_id=r.id) }}">
         <td class="foms-tablet-shipgrid__time">
           {%- if construction_date or construction_time -%}
@@ -110,7 +114,7 @@
           </span>
           {%- else -%}-{%- endif -%}
         </td>
-        <td class="foms-tablet-shipgrid__customer">{{ r.customer_name or '-' }}</td>
+        <td class="foms-tablet-shipgrid__customer">{{ r.customer_name or '-' }}{{ render_shipment_change_badge(r.id, r.shipment_change_alerts if r.shipment_change_alerts is defined else [], can_edit_shipment|default(false, true)) }}</td>
         <td>{{ r.orderer_name or '-' }}</td>
         <td class="foms-tablet-shipgrid__product">
           {%- if _is_as %}{{ r.as_content_text or 'AS' }}

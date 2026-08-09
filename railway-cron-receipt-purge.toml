@@ -3,9 +3,14 @@
 #   Config Path: railway-cron-receipt-purge.toml
 # railway-cron.toml(cleanup_order_drafts, UTC 17:00) 와 같은 패턴을 재사용하되
 # 30분 뒤로 어긋내 리소스 겹침을 피한다. 서비스 provisioning/등록은 오케스트레이터 몫.
+#
+# AUDIT-LOG T9: 감사 원장 retention purge(purge_audit_logs)를 신규 Cron 서비스 증설 없이
+# 이 서비스에 `&&` 로 체이닝한다(스펙 §4 T9 — Railway 서비스 증설 없음). 트레이드오프는
+# 명시 수용: 앞 단계(receipt purge)가 실패하면 뒤 단계가 아예 실행되지 않는다(실패 커플링
+# 1건). 둘 다 배치마다 commit 하는 resume 형이라 다음 날 실행이 곧 복구다.
 [build]
 builder = "nixpacks"
 
 [deploy]
-startCommand = "python tools/ops/purge_order_mutation_receipts.py --retention-days 7 --batch-size 1000 --apply"
+startCommand = "python tools/ops/purge_order_mutation_receipts.py --retention-days 7 --batch-size 1000 --apply && python tools/ops/purge_audit_logs.py --apply"
 cronSchedule = "30 17 * * *"  # UTC 17:30 = KST 02:30 (daily)

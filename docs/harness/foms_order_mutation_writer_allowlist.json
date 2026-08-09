@@ -117,6 +117,24 @@
       "reason": "도면 전달 취소 — OrderEvent 를 source 로 outbox 예약하는 business tx 안에서 mutation_version 을 직접 bump 한다(REV-00 계약 동등 metadata)."
     },
     {
+      "path": "foms/services/order_geocode.py",
+      "classification": "CANONICAL",
+      "owner": "DATA-01",
+      "reason": "주소 변경 helper — 자체 트랜잭션을 열지 않고 호출자 소유 세션에서만 동작한다. 주소 축 호출자 3곳(api/erp_map.py:793·api/erp_orders_structured.py:1074·api/measurement/routes.py:245)이 모두 execute_order_mutation 의 mutation 콜러블 내부라 FOR UPDATE + version bump 아래에서 실행된다(C3-a 트리아지 18번). 무lock 문맥의 유일한 호출자 web/orders/edit.py 는 그 파일 자체가 EXTERNAL 로 남아 별도 계수된다."
+    },
+    {
+      "path": "foms/api/cs/complete.py",
+      "classification": "CANONICAL",
+      "owner": "STATE-CONST-CS-01",
+      "reason": "CS 완료 부수효과 — transition_order(→ execute_order_mutation) 반환 직후 같은 트랜잭션에서만 쓴다(:204). FOR UPDATE row lock 이 commit 까지 유지되고 mutation_version 은 이미 bump 된 상태라 stale If-Match 요청은 거부된다(C3-a 트리아지 19번). replay 인 경우 부수효과를 건너뛴다."
+    },
+    {
+      "path": "foms/services/orders/backfill_order_quests.py",
+      "classification": "AUDITED_RECOVERY",
+      "owner": "QUEST-BACKFILL-00",
+      "reason": "quest 백필 배치 — _apply_batch_write 는 runs.write_batch 에 batch_business_write 로 주입되어 기대/실측 fingerprint 비교·run token·checkpoint 하네스를 거친 뒤에만 실행된다(:219). 드리프트 감지 시 STOPPED_DRIFT 로 중단한다. 자동 replay 없는 승인형 오프라인 적용(C3-a 트리아지 21번)."
+    },
+    {
       "path": "foms/services/orders/offline_recovery.py",
       "classification": "AUDITED_RECOVERY",
       "owner": "OFFLINE-01",

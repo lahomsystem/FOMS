@@ -1,0 +1,358 @@
+/**
+ * 알림 센터 시트 — 전 셸 공통 SSOT (2026-08-06).
+ *
+ * WHY(이관): 원래 foms-shell.css 의 body.erp-mobile-v2-layout 스코프(모바일 미디어
+ * 게이트 내부)에만 있어서 PC 데스크톱·태블릿 가로·v3 셸에서는 시트가 맨 Bootstrap
+ * offcanvas-bottom(아래에서 올라오는 무스타일 30vh 패널)으로 렌더됐다. 알림 시트는
+ * layout_scripts 가 로그인 전 페이지에 include 하는 전역 컴포넌트이므로 스타일도
+ * 전역(layout_head 무조건 로드)이어야 한다. 클래스가 erp-mobile-notif-* 로 유일해
+ * 무스코프 적용이 안전하다.
+ *
+ * 배치 매트릭스:
+ *  - 기본(폰 <992 · 태블릿 세로): bottom sheet 85vh, 상단 라운드 — 기존 모바일 모습 유지.
+ *  - 비모바일(≥992 가로 / fine / none — foms-shell.css:11 반대편 열거와 동일):
+ *    우상단 드롭다운 패널. 위에서 내려오도록 transform 을 위쪽으로 뒤집는다
+ *    (.offcanvas.show 의 transform:none 전환은 Bootstrap 원 규칙 재사용).
+ */
+
+/* ---- 기본 배치: bottom sheet (모바일 기존 모습) ---------------------------- */
+.erp-mobile-notif-sheet.offcanvas-bottom {
+  height: 85vh;
+  max-height: 85vh;
+  border-top-left-radius: var(--foms-radius-lg);
+  border-top-right-radius: var(--foms-radius-lg);
+  background: var(--foms-surface-base);
+}
+
+/* ---- 헤더 ------------------------------------------------------------------ */
+.erp-mobile-notif-sheet__header {
+  border-bottom: 1px solid var(--foms-border-subtle);
+  padding: var(--foms-space-3) var(--foms-space-4);
+}
+
+.erp-mobile-notif-sheet__title {
+  font-size: var(--foms-font-size-lg);
+  font-weight: var(--foms-font-weight-semibold);
+  margin: 0;
+  color: var(--foms-text-primary);
+}
+
+/* 헤더 액션(1B): 모두 읽음 / 모두 보관. */
+.erp-mobile-notif-sheet__actions {
+  display: flex;
+  align-items: center;
+  gap: var(--foms-space-2);
+}
+
+.erp-mobile-notif-sheet__action {
+  display: inline-flex;
+  align-items: center;
+  gap: 4px;
+  padding: 4px 10px;
+  min-height: 36px;
+  border: 1px solid var(--foms-border-subtle);
+  border-radius: var(--foms-radius-sm);
+  background: transparent;
+  color: var(--foms-text-secondary);
+  font-size: var(--foms-font-size-xs);
+  white-space: nowrap;
+  cursor: pointer;
+}
+
+/* ---- 본문 ------------------------------------------------------------------ */
+.erp-mobile-notif-sheet__body {
+  padding: var(--foms-space-2) var(--foms-space-3) var(--foms-space-6);
+  display: flex;
+  flex-direction: column;
+  gap: var(--foms-space-2);
+  overflow-y: auto;
+  -webkit-overflow-scrolling: touch;
+}
+
+.erp-mobile-notif-sheet__urgent[hidden] {
+  display: none;
+}
+
+.erp-mobile-notif-sheet__urgent {
+  display: flex;
+  flex-direction: column;
+  gap: var(--foms-space-2);
+  padding: var(--foms-space-2);
+  border: 1px solid var(--foms-status-danger, #dc3545);
+  border-radius: var(--foms-radius-md);
+  background: var(--foms-status-danger-subtle, #fff5f5);
+}
+
+.erp-mobile-notif-sheet__urgent-label {
+  font-size: var(--foms-font-size-xs);
+  font-weight: var(--foms-font-weight-bold);
+  color: var(--foms-status-danger, #dc3545);
+}
+
+.erp-mobile-notif-sheet__list {
+  display: flex;
+  flex-direction: column;
+  gap: var(--foms-space-2);
+}
+
+/* ---- 알림 항목 ------------------------------------------------------------- */
+.erp-mobile-notif-item {
+  display: flex;
+  align-items: stretch;
+  gap: var(--foms-space-2);
+  padding: var(--foms-space-3);
+  border: 1px solid var(--foms-border-subtle);
+  border-left: 3px solid transparent;
+  border-radius: var(--foms-radius-md);
+  background: var(--foms-surface-base);
+  color: var(--foms-text-primary);
+  text-decoration: none;
+  min-height: var(--foms-touch-target-min, 44px);
+}
+
+.erp-mobile-notif-item__body {
+  flex: 1 1 auto;
+  min-width: 0;
+  display: block;
+  color: inherit;
+  text-decoration: none;
+}
+
+.erp-mobile-notif-item__actions {
+  flex: 0 0 auto;
+  display: flex;
+  flex-direction: column;
+  align-items: stretch;
+  justify-content: center;
+  gap: var(--foms-space-1);
+}
+
+.erp-mobile-notif-item__act {
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  gap: 4px;
+  padding: 4px 8px;
+  min-height: 32px;
+  border: 1px solid var(--foms-border-subtle);
+  border-radius: var(--foms-radius-sm);
+  background: transparent;
+  color: var(--foms-text-tertiary);
+  font-size: var(--foms-font-size-xs);
+  white-space: nowrap;
+  cursor: pointer;
+}
+
+.erp-mobile-notif-item__act--ack {
+  border-color: var(--foms-status-danger, #dc3545);
+  color: var(--foms-status-danger, #dc3545);
+  font-weight: var(--foms-font-weight-bold);
+}
+
+.erp-mobile-notif-item.is-unread {
+  border-left-color: var(--foms-interactive-primary);
+  background: var(--foms-interactive-primary-subtle, #f0f7ff);
+}
+
+.erp-mobile-notif-item.is-urgent {
+  border-left-color: var(--foms-status-danger, #dc3545);
+}
+
+.erp-mobile-notif-item__head {
+  display: flex;
+  align-items: baseline;
+  justify-content: space-between;
+  gap: var(--foms-space-2);
+}
+
+.erp-mobile-notif-item__title {
+  font-size: var(--foms-font-size-sm);
+  font-weight: var(--foms-font-weight-semibold);
+  line-height: var(--foms-line-height-tight);
+  min-width: 0;
+}
+
+.erp-mobile-notif-item__flag {
+  display: inline-block;
+  padding: 0 6px;
+  border-radius: var(--foms-radius-full);
+  background: var(--foms-status-danger, #dc3545);
+  color: #fff;
+  font-size: 10px;
+  font-weight: var(--foms-font-weight-bold);
+  vertical-align: middle;
+}
+
+.erp-mobile-notif-item__time {
+  flex-shrink: 0;
+  font-size: var(--foms-font-size-xs);
+  color: var(--foms-text-tertiary);
+}
+
+.erp-mobile-notif-item__msg {
+  margin: var(--foms-space-1) 0 0;
+  font-size: var(--foms-font-size-sm);
+  color: var(--foms-text-secondary);
+  word-break: break-word;
+}
+
+/* ---- 빈/로딩/에러 상태 ----------------------------------------------------- */
+.erp-mobile-notif-empty,
+.erp-mobile-notif-sheet__placeholder,
+.erp-mobile-notif-error {
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  justify-content: center;
+  gap: var(--foms-space-2);
+  padding: var(--foms-space-8) var(--foms-space-4);
+  color: var(--foms-text-tertiary);
+  text-align: center;
+}
+
+.erp-mobile-notif-empty i {
+  font-size: 2rem;
+  opacity: 0.5;
+}
+
+/* ---- 기기(Web Push) 알림 CTA — 시트 하단 고정 (3B) -------------------------- */
+.erp-mobile-push-cta[hidden] {
+  display: none;
+}
+
+.erp-mobile-push-cta {
+  display: flex;
+  flex-direction: column;
+  gap: var(--foms-space-1);
+  padding: var(--foms-space-3) var(--foms-space-4);
+  border-top: 1px solid var(--foms-border-subtle);
+  background: var(--foms-surface-base);
+}
+
+.erp-mobile-push-cta__msg {
+  margin: 0;
+  font-size: var(--foms-font-size-sm);
+  color: var(--foms-text-secondary);
+}
+
+.erp-mobile-push-cta__hint {
+  margin: 0;
+  font-size: var(--foms-font-size-xs);
+  color: var(--foms-text-tertiary);
+}
+
+.erp-mobile-push-cta__btn {
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  gap: 6px;
+  width: 100%;
+  min-height: var(--foms-touch-target-min, 44px);
+  padding: var(--foms-space-2) var(--foms-space-4);
+  border: 1px solid var(--foms-interactive-primary);
+  border-radius: var(--foms-radius-md);
+  background: var(--foms-interactive-primary);
+  color: #fff;
+  font-size: var(--foms-font-size-sm);
+  font-weight: var(--foms-font-weight-semibold);
+  cursor: pointer;
+}
+
+.erp-mobile-push-cta__btn[data-foms-push-toggle="disable"] {
+  background: transparent;
+  color: var(--foms-text-secondary);
+  border-color: var(--foms-border-subtle);
+}
+
+.erp-mobile-push-cta__btn:disabled {
+  opacity: 0.6;
+  cursor: default;
+}
+
+/* '허용 방법 보기' 토글 — 차단 안내의 보조(secondary) 버튼. */
+.erp-mobile-push-cta__btn--guide {
+  background: transparent;
+  color: var(--foms-text-secondary);
+  border-color: var(--foms-border-subtle);
+  font-weight: var(--foms-font-weight-medium);
+}
+
+/* 인라인 가이드 패널 — 알림 시트 안에서 확장/접기(별도 offcanvas 없음). */
+.erp-mobile-push-cta__guide[hidden] {
+  display: none;
+}
+
+.erp-mobile-push-cta__guide {
+  display: flex;
+  flex-direction: column;
+  gap: var(--foms-space-2);
+  padding: var(--foms-space-3);
+  border: 1px solid var(--foms-border-subtle);
+  border-radius: var(--foms-radius-md);
+  background: var(--foms-surface-subtle, var(--foms-surface-base));
+}
+
+.erp-mobile-push-cta__guide-title {
+  margin: 0;
+  font-size: var(--foms-font-size-sm);
+  font-weight: var(--foms-font-weight-semibold);
+  color: var(--foms-text-primary);
+}
+
+.erp-mobile-push-cta__guide-steps {
+  margin: 0;
+  padding-left: var(--foms-space-4);
+  display: flex;
+  flex-direction: column;
+  gap: var(--foms-space-1);
+  font-size: var(--foms-font-size-sm);
+  color: var(--foms-text-secondary);
+  line-height: 1.5;
+}
+
+/* ---- 비모바일 배치: 우상단 드롭다운 패널 ------------------------------------
+   열거(no `not`)는 foms-shell.css:11 모바일 opt-in 의 반대편 매트릭스와 동일
+   (cf. foms-drawing-mobile-card.css non-mobile hide). PC 벨은 topnav 우측이므로
+   패널을 우상단에 붙이고, 숨김 transform 을 위쪽으로 뒤집어 Bootstrap 의
+   .offcanvas.show { transform: none } 전환으로 위에서 아래로 내려오게 한다. */
+@media
+  ((min-width: 992px) and (orientation: landscape)),
+  ((min-width: 992px) and (pointer: fine)),
+  ((min-width: 992px) and (pointer: none)) {
+  .erp-mobile-notif-sheet.offcanvas-bottom {
+    top: var(--foms-space-3, 12px);
+    right: var(--foms-space-3, 12px);
+    bottom: auto;
+    left: auto;
+    width: min(430px, calc(100vw - 24px));
+    height: auto;
+    max-height: min(720px, calc(100vh - 24px));
+    border: 1px solid var(--foms-border-subtle);
+    border-radius: var(--foms-radius-lg);
+    box-shadow: var(--foms-shadow-xl);
+    transform: translateY(calc(-100% - var(--foms-space-6, 24px)));
+  }
+
+  /* 드롭다운 패널에 전면 암전 backdrop 은 과함 — 살짝만 어둡게(클릭-외부 닫기 유지).
+     :has 미지원 브라우저는 Bootstrap 기본 backdrop 으로 우아하게 후퇴한다. */
+  body:has(.erp-mobile-notif-sheet.offcanvas.show) .offcanvas-backdrop.show {
+    opacity: 0.12;
+  }
+
+  /* 데스크톱 hover 어포던스 (터치에는 없음). */
+  .erp-mobile-notif-item:hover {
+    border-color: var(--foms-interactive-primary);
+  }
+
+  .erp-mobile-notif-sheet__action:hover,
+  .erp-mobile-notif-item__act:hover {
+    background: var(--foms-interactive-secondary, rgba(0, 0, 0, 0.05));
+    color: var(--foms-text-primary);
+  }
+
+  /* 하단 CTA 는 패널 라운드에 맞춰 하단 라운드 상속. */
+  .erp-mobile-push-cta {
+    border-bottom-left-radius: var(--foms-radius-lg);
+    border-bottom-right-radius: var(--foms-radius-lg);
+  }
+}

@@ -14,58 +14,26 @@ if str(_MIGRATIONS_DIR) not in sys.path:
     sys.path.insert(0, str(_MIGRATIONS_DIR))
 
 
-def _get_startup_log_path() -> str | None:
-    """Return optional absolute path for dev startup file logging."""
-    raw_path = os.environ.get(STARTUP_LOG_PATH_ENV, "").strip()
-    if not raw_path:
-        return None
+def _configure_startup_logging() -> tuple[logging.Logger, str | None]:
+    """프로세스 로깅을 SSOT(``configure_logging``)로 구성하고 시작 로거를 돌려준다.
 
-    path = Path(raw_path).expanduser()
-    if not path.is_absolute():
-        path = Path.cwd() / path
-    return str(path.resolve())
+    로깅 구성(핸들러·포맷·필터·``FOMS_STARTUP_LOG_PATH`` 파일 로그)은 전부
+    ``foms.platform.logging_setup.configure_logging``이 소유한다(AUDIT-LOG T1).
+    여기서는 호출 + 파일 로그 경로 안내만 남긴다.
 
+    Returns:
+        (시작 로거, 파일 로그 절대경로 또는 ``None``) 튜플.
+    """
+    # foms.platform 패키지 import는 앱 모듈 체인을 끌고 오므로 호출 시점까지 지연
+    # (main()의 try 블록 안에서 실패가 사용자 친화 메시지로 보고되게 유지).
+    from foms.platform.logging_setup import configure_logging, get_startup_log_path
 
-def _build_startup_logging_handlers(
-    enable_file_logging: bool = True,
-) -> tuple[list[logging.Handler], str | None]:
-    """Build stdout-first handlers for the local dev startup path."""
-    handlers: list[logging.Handler] = [logging.StreamHandler(sys.stdout)]
-    if not enable_file_logging:
-        return handlers, None
-
-    log_path = _get_startup_log_path()
-    if not log_path:
-        return handlers, None
-
-    Path(log_path).parent.mkdir(parents=True, exist_ok=True)
-    handlers.append(logging.FileHandler(log_path, encoding="utf-8"))
-    return handlers, log_path
-
-
-def _configure_startup_logging(
-    enable_file_logging: bool,
-) -> tuple[logging.Logger, str | None]:
-    """Configure deterministic logging for the local dev startup path."""
-    requested_startup_log_path = _get_startup_log_path()
-    handlers, startup_log_path = _build_startup_logging_handlers(
-        enable_file_logging=enable_file_logging,
-    )
-    logging.basicConfig(
-        level=logging.INFO,
-        format='%(asctime)s - %(name)s - %(levelname)s - %(message)s',
-        handlers=handlers,
-        force=True,
-    )
+    configure_logging()
     logger = logging.getLogger('FOMS_Startup')
 
+    startup_log_path = get_startup_log_path()
     if startup_log_path:
         logger.info("[INFO] Startup file logging enabled: %s", startup_log_path)
-    elif requested_startup_log_path:
-        logger.info(
-            "[INFO] Startup file logging is configured and will be enabled in the reloader child: %s",
-            requested_startup_log_path,
-        )
     else:
         logger.info(
             "[INFO] Startup file logging disabled. Set %s to enable file logging.",
@@ -196,7 +164,7 @@ def main() -> None:
     startup_log_path: str | None = None
 
     try:
-        logger, startup_log_path = _configure_startup_logging(_should_run_startup_tasks)
+        logger, startup_log_path = _configure_startup_logging()
         from app import app, socketio, SOCKETIO_AVAILABLE
 
         if _should_run_startup_tasks:

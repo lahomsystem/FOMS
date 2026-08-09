@@ -364,6 +364,31 @@ def _pending_event_state(session: Any) -> dict[Any, dict[str, Any]]:
     return state
 
 
+def pending_construction_date_changes(session: Any) -> dict[int, dict[str, str]]:
+    """이번 트랜잭션에서 **아직 커밋되지 않은** 주문별 시공일 변경을 읽기 전용으로 노출한다.
+
+    :data:`_CONSTRUCTION_EVENT_STATE` 의 뷰다. 소비자(출고 벨 알림 등)가 내부 상태 구조나
+    아직 flush 중일 수 있는 ``OrderEvent`` 객체에 직접 손대지 않게 하려고 값만 복사해 준다.
+    ``__all__`` 에는 넣지 않는다 — 공개 계약은 네임스페이스 표면 테스트가 3개로 고정한다.
+
+    Args:
+        session: 현재 세션.
+
+    Returns:
+        ``{order_id: {"from": "...", "to": "..."}}``. 변경이 없으면 빈 dict.
+    """
+    changes: dict[int, dict[str, str]] = {}
+    for order_id, entry in (session.info.get(_CONSTRUCTION_EVENT_STATE) or {}).items():
+        payload = getattr(entry.get("event"), "payload", None)
+        if not isinstance(payload, dict):
+            continue
+        changes[int(order_id)] = {
+            "from": str(payload.get("from") or ""),
+            "to": str(payload.get("to") or ""),
+        }
+    return changes
+
+
 def _discard_pending_event(session: Any, event: Any) -> None:
     """트랜잭션 중 값이 원래대로 되돌아왔을 때 이미 만든 이벤트를 취소한다.
 
@@ -496,6 +521,10 @@ def register_date_sync_listener() -> None:
     이 훅은 **모든 쓰기가 통과하는 유일 지점**이라, 시공일 변경 이벤트
     (``CONSTRUCTION_DATE_CHANGED``)의 SSOT 도 여기다. 라우트/서비스별 emit 은 두지 않는다
     (경로가 늘어날 때마다 구멍이 생기고 중복 기록이 난다).
+
+    같은 이유로 그 이벤트의 소비자인 **출고 벨 알림 리스너도 여기서 함께 등록**한다
+    (:func:`foms.services.notifications.shipment_change.register_shipment_change_alert_listener`).
+    등록 지점이 갈리면 "이벤트는 나는데 알림만 안 오는" 반쪽 배선이 생긴다.
     """
     from sqlalchemy import event
     from sqlalchemy.orm import Session
@@ -527,3 +556,11 @@ def register_date_sync_listener() -> None:
                 exc,
                 exc_info=True,
             )
+
+    # 소비자 배선: 시공일 변경 이벤트를 벨/푸시로 내보내는 before_commit·after_commit 리스너.
+    # (자체 중복 등록 가드가 있어 이 함수가 여러 번 불려도 알림이 2배로 나지 않는다.)
+    from foms.services.notifications.shipment_change import (
+        register_shipment_change_alert_listener,
+    )
+
+    register_shipment_change_alert_listener()

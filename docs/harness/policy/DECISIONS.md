@@ -6,6 +6,12 @@
 
 ---
 
+### [2026-08-03] 하네스 전면 ablation (Boris Cherny 6개월 삭제 주기 도입)
+- **키워드**: harness, ablation, claude-md, hooks, skills, plugins, ssot, token
+- **결정**: 유튜브 3편(Boris Cherny YC 인터뷰 원본 포함)+Anthropic 공식 문서+병렬 감사 4기 기반 전면 정리. (1) 확정 쓰레기 삭제 — `.git-broken-144553/`(OneDrive 사고 잔해), `tools/harness/` DEAD 3종(`ept_b8_staging_session_from_login.py`·`import_gstack_source_slice.py`·`strict_canonical_b12_clean_room.ps1`, 참조 0건), `.superpowers/`(완료 SDD 산출물), 훅 중복 문구 2곳(`session_start.py` 정적 RPI 안내·`quality_check.py` 체크리스트 — 둘 다 CLAUDE.md 재진술 확인). (2) 규칙 SSOT화 — `AGENTS.md`=공통 정책 전문, `CLAUDE.md` 181→108줄(포인터화), `.cursor/rules/00·01` 중복 절 제거. (3) MEMORY.md 다이어트. (4) 전역 SDD → 위임·검증 프로토콜(위임=독립 3+/파일 10+/다task만, 검증 무신뢰·파일 핸드오프 유지). (5) ponytail 비활성·superpowers SessionStart 훅 무력화(스킬은 온디맨드 유지)·범용 발췌 스킬 7종 삭제(프로젝트 특화 5종 유지). **생존 판정 기준**: 결정적 안전·검증(guard_policy·Stop import 게이트·ci_watch·pre_push_smoke·정적 스캐너)과 멀티세션 환경 보완(세션 레저·worktree 격리·동시편집 감지)은 모델 지능과 무관하므로 전량 보존. 다음 ablation: 2027-02.
+- **이유**: 상시 로드 컨텍스트 실측 ~26k 토큰/세션 중 절반이 정책 다중 사본(근본원인 정책 4벌·git 규칙 3벌)+구형 모델 보정 장치. 훅 주입은 400~600토큰으로 무해 실측. Anthropic 공식: CLAUDE.md 200줄 이하, "절대 금지 규칙엔 instruction이 아니라 hook", 재추가는 같은 지점 반복 실패 시에만.
+- **영향**: `CLAUDE.md`, `AGENTS.md`(불변·SSOT 승격), `.cursor/rules/{00,01}`, `.claude/hooks/{session_start,quality_check}.py`, `.claude/skills/`(12→5종), `~/.claude/CLAUDE.md`, `~/.claude/settings.json`(ponytail off), superpowers cache hooks.json, 메모리 3건 갱신+1건 신규.
+
 ### [2026-07-27] 세션 worktree 격리 Phase 1 (선택 표준 + ledger union 소유 판정)
 - **키워드**: harness, worktree, session-isolation, deploy, union, sync, cleanup, multi-agent
 - **결정**: 2026-07-16 스펙 §2.6 Phase 1 집행. 동시 2+창 코드 편집 시 `session_worktree.py create`로 `c:/tmp/foms-s-*` + `session/*` 브랜치 분리(**선택 표준, 강제 아님**). 소유 판정은 세션별 ledger 키가 아니라 **worktree-로컬 ledger union**(`deploy_push_scope` 분기) — worktree는 며칠 살며 세션 키가 누적되므로(실측 35세션/11일) 단일 세션 전제가 거짓이기 때문. `sync`는 rebase 전 union 부분집합 검증으로 cherry-pick 유입 세탁 차단, `cleanup`은 dry-run 기본. 공유 DB 보호는 코드 3중(startup DDL 자동 생략·alembic env.py 차단·문서). 핫파일 4종은 공유 트리 직렬화. kill criteria: 4주 create<3이면 CLI 삭제. **ledger 승계는 post-rewrite 훅**(`record_rewrite_ledger.py`)이 전담 — `create`가 공유 `.git/hooks`(git-common-dir)에 설치하므로 **메인 트리를 포함한 전 worktree**의 rebase/amend에서 발화해 old→new SHA를 세션별로 승계한다(`sync`는 소유 검증·rebase만, ledger를 통째로 재기록하지 않는다 — 한 세션으로 소유가 붕괴되기 때문). squash는 new_sha 그룹의 old가 전부 단일 세션 소유일 때만 승계(세탁 차단), 나머지는 사유를 런타임 로그에 기록.

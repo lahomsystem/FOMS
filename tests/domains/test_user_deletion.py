@@ -1,6 +1,17 @@
+"""user_deletion 서비스 단위 계약 — AUDIT-LOG T11 개정판.
+
+**계약 개정 사유(T11 / 스펙 §8 결정 ⑤)**: 감사 actor(``security_logs``·``order_events``·
+``access_logs``·``order_attachments``)를 사용자 삭제 시 일괄 NULL 로 미는 설계를 폐기하고,
+관리자 "삭제"를 비활성화 전환으로 바꿨다. 그래서 참조 분류(감사 보존 / 운영 NULL /
+동반 삭제)와 비활성화 헬퍼 계약을 추가로 고정한다. hard delete 경로
+(:func:`~foms.services.user_deletion.detach_user_references_for_delete`)는 가입 신청
+거절 전용으로 남아 종전 의미(전 필드 NULL)를 유지한다.
+"""
+
 from types import SimpleNamespace
 
 import pytest
+from werkzeug.security import check_password_hash
 
 from foms.services import user_deletion
 
@@ -265,6 +276,189 @@ def test_blocking_reference_fields_cover_non_detachable_audit_columns():
     assert ("feature_cutover_markers", "approved_by_admin_user_id") in covered
     assert ("order_assignments", "user_id") in covered
     assert ("order_assignments", "assigned_by_user_id") in covered
+
+
+def test_detach_user_references_for_deactivate_skips_blocking_check(monkeypatch):
+    """비활성화는 차단 검사를 통과할 필요가 없다 — row 가 남아 FK 가 계속 유효하다."""
+    monkeypatch.setattr(user_deletion, "ChatRoom", _FakeChatRoom)
+    monkeypatch.setattr(user_deletion, "ChatMessage", _FakeChatMessage)
+    monkeypatch.setattr(user_deletion, "ChatRoomMember", _FakeChatRoomMember)
+    monkeypatch.setattr(
+        user_deletion,
+        "_BLOCKING_USER_REFERENCE_FIELDS",
+        ((_FakeOrderAssignment, "user_id", "주문 배정"),),
+    )
+    monkeypatch.setattr(user_deletion, "_OPERATIONAL_USER_REFERENCE_FIELDS", ())
+    monkeypatch.setattr(user_deletion, "_AUDIT_ACTOR_USER_REFERENCE_FIELDS", ())
+    monkeypatch.setattr(user_deletion, "_DELETE_USER_REFERENCE_FIELDS", ())
+
+    db = _FakeReferenceDb(counts={("order_assignments", "user_id", "eq"): 1}, room_ids=[])
+
+    assert user_deletion.detach_user_references_for_deactivate(db, user_id=55) == {}
+
+
+def test_detach_user_references_for_deactivate_skips_audit_actor_columns(monkeypatch):
+    """비활성화 경로는 운영 참조만 끊는다 — 감사 actor 컬럼은 UPDATE 대상이 아니다."""
+    monkeypatch.setattr(user_deletion, "ChatRoom", _FakeChatRoom)
+    monkeypatch.setattr(user_deletion, "ChatMessage", _FakeChatMessage)
+    monkeypatch.setattr(user_deletion, "ChatRoomMember", _FakeChatRoomMember)
+    monkeypatch.setattr(
+        user_deletion,
+        "_OPERATIONAL_USER_REFERENCE_FIELDS",
+        ((_FakeNotification, "created_by_user_id"),),
+    )
+    monkeypatch.setattr(
+        user_deletion,
+        "_AUDIT_ACTOR_USER_REFERENCE_FIELDS",
+        ((_FakeAttachment, "user_id"),),
+    )
+    monkeypatch.setattr(
+        user_deletion,
+        "_DELETE_USER_REFERENCE_FIELDS",
+        ((_FakeChatMessage, "user_id"),),
+    )
+
+    db = _FakeReferenceDb(
+        counts={
+            ("chat_messages", "room_id", "in"): 2,
+            ("chat_room_members", "room_id", "in"): 3,
+            ("notifications", "created_by_user_id", "eq"): 4,
+            ("order_attachments", "user_id", "eq"): 6,
+            ("chat_messages", "user_id", "eq"): 7,
+        },
+        room_ids=[101],
+    )
+
+    summary = user_deletion.detach_user_references_for_deactivate(db, user_id=55)
+
+    assert summary == {
+        "chat_messages.room_id": 2,
+        "chat_room_members.room_id": 3,
+        "notifications.created_by_user_id": 4,
+        "chat_messages.user_id": 7,
+    }
+    assert "order_attachments.user_id" not in summary
+
+
+def test_reference_classification_splits_audit_actor_from_operational():
+    """재분류 고정: 감사 actor 4 / 나머지는 운영, hard delete 경로만 둘을 합쳐 끊는다.
+
+    감사 4종은 스펙 §8 결정 ⑤가 지목한 원장(``security_logs``·``order_events``·
+    ``access_logs``·``order_attachments``)이다. deploy 에서 뒤늦게 추가된 FK 컬럼은
+    전부 운영 참조로 둔다 — 비활성화 시 종전 삭제 동작(NULL)을 유지한다.
+    """
+    from models import (
+        AccessLog,
+        AddressLearningRequest,
+        AuthRateKeyState,
+        ChannelCreateFlag,
+        ChannelInboundKeyState,
+        ChannelManagerLink,
+        InstallationWorker,
+        Notification,
+        NotificationEvent,
+        OpsApprovalRequest,
+        OrderAssignment,
+        OrderAttachment,
+        OrderEstimate,
+        OrderEvent,
+        OrderInstallationAssignment,
+        OrderTask,
+        SecurityLog,
+        SecuritySigningState,
+        UploadDraft,
+        WDCLinkRuntimeState,
+    )
+
+    audit = set(user_deletion._AUDIT_ACTOR_USER_REFERENCE_FIELDS)
+    operational = set(user_deletion._OPERATIONAL_USER_REFERENCE_FIELDS)
+
+    assert audit == {
+        (SecurityLog, "user_id"),
+        (OrderEvent, "created_by_user_id"),
+        (AccessLog, "user_id"),
+        (OrderAttachment, "user_id"),
+    }
+    assert operational == {
+        (OrderTask, "owner_user_id"),
+        (Notification, "created_by_user_id"),
+        (Notification, "read_by_user_id"),
+        (Notification, "target_user_id"),
+        (OrderEstimate, "created_by_user_id"),
+        (ChannelManagerLink, "user_id"),
+        (ChannelManagerLink, "deactivated_by_user_id"),
+        (NotificationEvent, "actor_user_id"),
+        (NotificationEvent, "recipient_user_id"),
+        (OpsApprovalRequest, "approved_by_user_id"),
+        (OrderAssignment, "released_by_user_id"),
+        (AddressLearningRequest, "requested_by_user_id"),
+        (UploadDraft, "created_by_user_id"),
+        (WDCLinkRuntimeState, "updated_by_admin_user_id"),
+        (SecuritySigningState, "updated_by_admin_user_id"),
+        (AuthRateKeyState, "updated_by_admin_user_id"),
+        (ChannelInboundKeyState, "updated_by_admin_user_id"),
+        (ChannelCreateFlag, "updated_by_admin_user_id"),
+        (InstallationWorker, "user_id"),
+        (OrderInstallationAssignment, "assigned_by_user_id"),
+        (OrderInstallationAssignment, "released_by_user_id"),
+    }
+    assert audit.isdisjoint(operational)
+    # hard delete(가입 거절)는 row 가 사라지므로 FK 충족을 위해 감사 컬럼까지 끊는다.
+    assert set(user_deletion._NULLABLE_USER_REFERENCE_FIELDS) == audit | operational
+
+
+def _fake_user(user_id: int = 7, username: str = "hong", name: str = "홍길동"):
+    return SimpleNamespace(
+        id=user_id,
+        username=username,
+        name=name,
+        is_active=True,
+        password="old-hash",
+        password_policy_version=0,
+    )
+
+
+def test_deactivate_user_preserving_audit_anonymizes_and_blocks_login():
+    """비활성화는 익명화·표기 변경·비밀번호 무효화를 한 번에 수행한다."""
+    user = _fake_user()
+
+    summary = user_deletion.deactivate_user_preserving_audit(user)
+
+    assert user.is_active is False
+    assert user.username == "deleted_7_hong"
+    assert user.name == "탈퇴 사용자"
+    assert user.password != "old-hash"
+    # 아무도 모르는 난수로 덮였으므로 어떤 기존 비밀번호로도 통과할 수 없다.
+    assert not check_password_hash(user.password, "old-hash")
+    assert summary == {
+        "user_id": 7,
+        "username_before": "hong",
+        "username_after": "deleted_7_hong",
+        "name_before": "홍길동",
+        "was_active": True,
+    }
+
+
+def test_deactivate_user_preserving_audit_is_idempotent():
+    """이미 익명화된 계정에 다시 적용해도 접두어가 중첩되지 않는다."""
+    user = _fake_user()
+    user_deletion.deactivate_user_preserving_audit(user)
+    first_hash = user.password
+
+    summary = user_deletion.deactivate_user_preserving_audit(user)
+
+    assert user.username == "deleted_7_hong"
+    assert summary["username_before"] == "deleted_7_hong"
+    assert summary["was_active"] is False
+    assert user.password != first_hash
+
+
+def test_anonymized_deactivated_username_respects_length_cap():
+    """긴 원본 username 은 상한에 맞춰 꼬리가 잘린다(접두어는 항상 보존)."""
+    result = user_deletion.anonymized_deactivated_username(12, "u" * 500)
+
+    assert result.startswith("deleted_12_")
+    assert len(result) == user_deletion._DEACTIVATED_USERNAME_MAX_LENGTH
 
 
 def test_ensure_order_attachment_user_fk_set_null_returns_false_outside_postgres():

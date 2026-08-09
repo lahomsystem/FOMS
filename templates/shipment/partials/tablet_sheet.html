@@ -1,10 +1,19 @@
 {# 출고 배정 사이드 시트 본문 (태블릿 가로). tablet-domain-sheets.js가 필드를 읽어
    /api/erp/shipment/update/<id>로 저장한다. 레이아웃 extends 없는 순수 본문 fragment. #}
+{# 시공일 변경 스트립 — PC 행·태블릿 그리드 행과 **같은 매크로**(생산 시트 선례와 같은 자리). #}
+{% from 'shipment/partials/shipment_change_macros.html' import render_shipment_change_badge %}
 <div class="foms-ship-sheet">
   <div class="foms-ship-sheet__head">{{ customer_name }} 배정</div>
   <div class="foms-ship-sheet__count">{{ product_label }} · 자수 {{ units }}</div>
   {# 현장주소: 태블릿 가로 그리드에서 저우선 열로 숨기므로 배정 시트에서 노출한다. #}
   <div class="foms-ship-sheet__count"><i class="fas fa-map-marker-alt" aria-hidden="true"></i> {{ order.address or '-' }}</div>
+  {# 배정 전에 "이 건 시공일이 바뀌었다"를 먼저 보게 한다 — 팀/시간 입력 아래로 밀면 못 본다.
+     시트는 대시보드 문서 안으로 주입되므로 확인 클릭은 같은 위임 핸들러가 받고, 성공 시 이
+     스트립과 목록 행 배지·배너 칩이 함께 사라진다(리로드 없음). #}
+  {% set _sheet_alerts = order.shipment_change_alerts if order.shipment_change_alerts is defined else [] %}
+  {% if _sheet_alerts %}
+  <div class="foms-ship-sheet__change">{{ render_shipment_change_badge(order.id, _sheet_alerts, sheet_can_ack|default(false, true)) }}</div>
+  {% endif %}
 
   <div class="foms-ship-sheet__card">
     <div class="foms-ship-sheet__card-title">시공팀{% if construction_date %} · {{ construction_date }}{% endif %}</div>

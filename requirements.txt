@@ -133,3 +133,6 @@ whitenoise>=6.6.0
 
 # FOMS Brain AI provider (PG-B0A)
 google-genai>=2.2.0
+
+# 외부 오류 관측 (AUDIT-LOG T10). SENTRY_DSN env 가 없으면 import 조차 하지 않는다.
+sentry-sdk[flask]>=2.66.1,<3

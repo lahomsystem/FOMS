@@ -3,6 +3,7 @@
 from flask import Blueprint, render_template, request, redirect, url_for, flash, session, current_app, g, abort
 from functools import wraps
 from datetime import datetime, timezone
+import logging
 from sqlalchemy import case
 from sqlalchemy.exc import IntegrityError
 from werkzeug.security import check_password_hash
@@ -20,8 +21,11 @@ from foms.services.security.account_requests import (
     notify_admins_account_event,
     submit_password_reset_request,
 )
+from foms.services.audit_writer import normalize_security_detail
 from foms.services.user_deletion import (
     UserDeletionBlockedError,
+    deactivate_user_preserving_audit,
+    detach_user_references_for_deactivate,
     detach_user_references_for_delete,
 )
 from foms.services.post_auth_navigation import (
@@ -42,6 +46,8 @@ from foms.services.security.password_policy import (
 
 auth_bp = Blueprint('auth', __name__)
 
+logger = logging.getLogger(__name__)
+
 # User roles 
 ROLES = {
     'ADMIN': '관리자',         # Full access
@@ -59,19 +65,131 @@ TEAMS = {
     'SHIPMENT': '출고팀'
 }
 
-def log_access(action, user_id=None, additional_data=None, auto_commit=True):
+def log_access(action_message, user_id=None, additional_data=None, auto_commit=True,
+               *, action=None, target_type=None, target_id=None, detail=None):
+    """SecurityLog 1건을 본 세션에 기록한다(이름과 달리 ``access_logs`` 가 아니다).
+
+    AUDIT-LOG T8: 자유 텍스트 ``message`` 외에 SQL 로 물을 수 있는 구조화 컬럼
+    (``action``·``target_type``·``target_id``·``detail``)을 함께 남길 수 있다. 구조화
+    인자는 전부 keyword-only 이며 생략 시 NULL 이므로 **기존 호출부는 무변경으로 동작**한다.
+
+    ``additional_data`` 는 T8 이전에는 격납할 컬럼이 없어 **버려졌다** — 이제 ``detail``
+    에 격납된다(dict 이 아니면 ``additional_data`` 키에 담는다). ``detail`` 을 함께 주면
+    같은 키는 ``detail`` 이 이긴다(호출부가 명시한 구조화 값이 우선).
+
+    :param action_message: 기록할 메시지(사람이 읽는 요약 — 첫 positional, 의미 불변).
+    :param user_id: 행위 주체 user id(없으면 ``None``).
+    :param additional_data: 부가 정보(dict 권장) — ``detail`` 에 병합 격납된다.
+    :param auto_commit: True 면 즉시 commit.
+    :param action: 행위 종류 태그(``USER_UPDATE``·``LOGIN_OK`` 등).
+    :param target_type: 행위 대상 종류(``user`` 등). 대상이 없으면 ``None``.
+    :param target_id: 행위 대상 PK. 대상이 없으면 ``None``.
+    :param detail: 구조화 부가정보 dict(**비밀번호·PII 원문 금지**).
+    """
     try:
         db = get_db()
-        log = SecurityLog(user_id=user_id, message=action)
+        log = SecurityLog(
+            user_id=user_id,
+            message=action_message,
+            action=action,
+            target_type=target_type,
+            target_id=target_id,
+            detail=normalize_security_detail(_merge_audit_detail(additional_data, detail)),
+        )
         db.add(log)
         if auto_commit:
             db.commit()
-    except Exception as e:
-        print(f"[LOG ERROR] Failed to log access: {e}")
+    except Exception:
+        # 감사 기록 실패가 원 요청을 죽이면 안 된다(fail-open) — 단 스택까지 반드시 로그.
+        logger.warning("[LOG ERROR] SecurityLog 기록 실패: action=%s", action_message, exc_info=True)
         try:
             db.rollback()
         except Exception:
             log_handled_exception("auth log_access rollback")
+
+
+def _merge_audit_detail(additional_data: object, detail: dict | None) -> dict | None:
+    """``additional_data`` 와 ``detail`` 을 하나의 감사 detail dict 으로 합친다.
+
+    T8 이전에 버려지던 ``additional_data`` 를 살리는 지점이다. dict 이 아닌 값(레거시
+    호출부가 문자열/리스트를 넘길 수 있다)은 ``additional_data`` 키에 그대로 담아
+    정보를 잃지 않는다. 충돌 시 명시 인자인 ``detail`` 이 이긴다.
+
+    :param additional_data: 레거시 부가 정보(dict 또는 임의 값, ``None`` 허용).
+    :param detail: 호출부가 명시한 구조화 detail dict(``None`` 허용).
+    :return: 병합 dict, 또는 담을 게 없으면 ``None``.
+    """
+    merged = {}
+    if isinstance(additional_data, dict):
+        merged.update(additional_data)
+    elif additional_data is not None:
+        merged['additional_data'] = additional_data
+    if detail:
+        merged.update(detail)
+    return merged or None
+
+
+# 관리자 사용자 수정에서 from→to 로 감사할 필드(권한·소속·활성·식별자).
+_AUDITED_USER_FIELDS = ('username', 'role', 'team', 'is_active')
+
+
+def _user_audit_snapshot(user):
+    """감사 대상 사용자 필드의 현재 값 스냅샷을 뜬다.
+
+    :param user: 대상 :class:`~models.User` 인스턴스.
+    :return: ``{필드명: 값}`` dict(변경 전/후 비교용).
+    """
+    return {field: getattr(user, field, None) for field in _AUDITED_USER_FIELDS}
+
+
+def _format_audit_value(value):
+    """감사 메시지용 값 표기(빈 값은 ``미지정``).
+
+    :param value: 원본 값.
+    :return: 사람이 읽는 문자열.
+    """
+    if value is None or value == '':
+        return '미지정'
+    return str(value)
+
+
+def _user_change_summary(before, after):
+    """변경된 필드만 ``field from→to`` 문자열 목록으로 만든다.
+
+    :param before: 변경 전 스냅샷(:func:`_user_audit_snapshot`).
+    :param after: 변경 후 스냅샷.
+    :return: ``['role STAFF→ADMIN', 'team CS→SALES']`` — 변경이 없으면 빈 리스트.
+    """
+    changes = []
+    for field in _AUDITED_USER_FIELDS:
+        old_value = before.get(field)
+        new_value = after.get(field)
+        if old_value != new_value:
+            changes.append(
+                f"{field} {_format_audit_value(old_value)}→{_format_audit_value(new_value)}"
+            )
+    return changes
+
+
+def _user_change_detail(before: dict, after: dict) -> dict:
+    """변경된 필드만 ``{field: {'from': old, 'to': new}}`` 구조로 만든다(T8 detail 격납용).
+
+    :func:`_user_change_summary` 의 구조화 쌍이다 — 사람용 요약은 message 로, SQL 질의용
+    from→to 는 ``security_logs.detail`` 로 각각 간다. 감사 대상 필드는 str/bool/None 뿐이라
+    값을 그대로 싣는다(JSON 직렬화 보증은 ``normalize_security_detail`` 이 담당).
+
+    :param before: 변경 전 스냅샷(:func:`_user_audit_snapshot`).
+    :param after: 변경 후 스냅샷.
+    :return: ``{'role': {'from': 'STAFF', 'to': 'ADMIN'}}`` — 변경이 없으면 빈 dict.
+    """
+    changes = {}
+    for field in _AUDITED_USER_FIELDS:
+        old_value = before.get(field)
+        new_value = after.get(field)
+        if old_value != new_value:
+            changes[field] = {'from': old_value, 'to': new_value}
+    return changes
+
 
 def is_password_strong(password):
     """Check if a password meets the current strong policy (PASSWORD-POLICY-01 SSOT).
@@ -191,25 +309,35 @@ def login():
         
         user = get_user_by_username(username)
         
+        # T8: 로그인 감사는 대상(target)이 없는 행위다 — action + 실패 사유만 구조화한다.
+        # 비밀번호는 원문·해시 어떤 형태로도 detail 에 넣지 않는다.
         if not user:
-            log_access(f"로그인 실패: 사용자 {username} (계정 없음)")
+            log_access(f"로그인 실패: 사용자 {username} (계정 없음)",
+                       action='LOGIN_FAIL',
+                       detail={'reason': 'unknown_username', 'username': username})
             flash('아이디 또는 비밀번호가 일치하지 않습니다.', 'error')
             return render_template('auth/login.html', next_url=next_url)
-        
+
         if not user.is_active:
-            log_access(f"로그인 실패: 비활성화된 계정 {username} (ID: {user.id})", user.id)
+            log_access(f"로그인 실패: 비활성화된 계정 {username} (ID: {user.id})", user.id,
+                       action='LOGIN_FAIL',
+                       detail={'reason': 'inactive_account', 'username': username})
             flash('비활성화된 계정입니다. 관리자에게 문의하세요.', 'error')
             return render_template('auth/login.html', next_url=next_url)
-        
+
         if not check_password_hash(user.password, password):
-            log_access(f"로그인 실패: 사용자 {username} (ID: {user.id}) (비밀번호 오류)", user.id)
+            log_access(f"로그인 실패: 사용자 {username} (ID: {user.id}) (비밀번호 오류)", user.id,
+                       action='LOGIN_FAIL',
+                       detail={'reason': 'bad_password', 'username': username})
             flash('아이디 또는 비밀번호가 일치하지 않습니다.', 'error')
             return render_template('auth/login.html', next_url=next_url)
 
         # ACCOUNT-SELF-01: 승인 대기 계정 로그인 차단. 비밀번호 검증 **후**에만 상태를
         # 노출해 계정 소유자에게만 대기 사실을 알린다(타인 열거 방지).
         if (user.approval_status or APPROVAL_ACTIVE) == APPROVAL_PENDING:
-            log_access(f"로그인 거부: 승인 대기 계정 {username} (ID: {user.id})", user.id)
+            log_access(f"로그인 거부: 승인 대기 계정 {username} (ID: {user.id})", user.id,
+                       action='LOGIN_FAIL',
+                       detail={'reason': 'pending_approval', 'username': username})
             flash('가입 승인 대기 중입니다. 관리자 승인 후 로그인할 수 있습니다.', 'warning')
             return render_template('auth/login.html', next_url=next_url)
 
@@ -219,7 +347,8 @@ def login():
         session.permanent = True
         
         update_last_login(user.id)
-        log_access(f"로그인 성공: 사용자 {user.username} (ID: {user.id})", user.id)
+        log_access(f"로그인 성공: 사용자 {user.username} (ID: {user.id})", user.id,
+                   action='LOGIN_OK', detail={'username': user.username})
 
         flash(f'{user.name}님, 환영합니다!', 'success')
         next_url = resolve_post_login_redirect(request.values.get('next'), user_id=user.id, request=request)
@@ -278,7 +407,10 @@ def switch_user(target_user_id):
     session['user_id'] = target.id
     session['username'] = target.username
     session['role'] = target.role
-    log_access(f"관리자(ID:{admin_id})가 사용자로 전환: {target.username} (ID:{target.id})", admin_id)
+    # T8: 계정 전환은 "관리자(actor)가 대상 계정(target)의 권한을 빌리는" 특권 행위다.
+    log_access(f"관리자(ID:{admin_id})가 사용자로 전환: {target.username} (ID:{target.id})", admin_id,
+               action='IMPERSONATE', target_type='user', target_id=target.id,
+               detail={'target_username': target.username})
     flash(f'{target.name}({target.username})님으로 전환되었습니다.', 'success')
     # 시공팀 전환 시 출고 대시보드로 직접 이동 (이중 리다이렉트 방지)
     if target.team == 'CONSTRUCTION':
@@ -378,8 +510,19 @@ def register():
         try:
             db.add(new_user)
             db.flush()
+            new_user_id = new_user.id
             if is_bootstrap:
                 db.commit()
+                # 최초 관리자 부트스트랩은 계정 0명 상태에서 ADMIN 을 만드는 특권 경로다 —
+                # 무기록으로 두면 "관리자가 어디서 왔는지" 추적이 불가능하다(스펙 §4 T5).
+                log_access(
+                    f"최초 관리자 부트스트랩 가입: {username} (ID: {new_user_id})",
+                    new_user_id,
+                    action='USER_BOOTSTRAP',
+                    target_type='user',
+                    target_id=new_user_id,
+                    detail={'username': username, 'role': 'ADMIN'},
+                )
                 flash('관리자 계정이 성공적으로 등록되었습니다. 로그인해주세요.', 'success')
                 return redirect(url_for('auth.login'))
 
@@ -394,7 +537,7 @@ def register():
                 ),
             )
             db.commit()
-            log_access(f"가입 신청 접수: {username} (ID: {new_user.id})", new_user.id)
+            log_access(f"가입 신청 접수: {username} (ID: {new_user_id})", new_user_id)
             flash('가입 신청이 접수되었습니다. 관리자 승인 후 로그인할 수 있습니다.', 'success')
             return redirect(url_for('auth.login'))
         except Exception:
@@ -576,6 +719,8 @@ def edit_user(user_id):
             return redirect(url_for('auth.edit_user', user_id=user_id))
     
     if request.method == 'POST':
+        # 어떤 필드도 아직 건드리기 전에 스냅샷 — username 은 아래에서 먼저 바뀐다.
+        audit_before = _user_audit_snapshot(user)
         name = request.form.get('name', '사용자')
         role = request.form.get('role')
         team = request.form.get('team')
@@ -634,10 +779,32 @@ def edit_user(user_id):
             user.team = team
             user.is_active = is_active
 
+            # commit 후에는 속성이 expire 되므로 커밋 전에 after 를 확정한다.
+            audit_after = _user_audit_snapshot(user)
+            changes = _user_change_summary(audit_before, audit_after)
+            change_detail = _user_change_detail(audit_before, audit_after)
+            admin_id = session.get('user_id')
+
             db.commit()
 
-            # Log action
-            log_access(f"사용자 #{user_id} 정보 수정", session.get('user_id'))
+            # Log action — 권한·소속·활성·아이디 변경은 field 별 from→to 로 남긴다.
+            # T8: 같은 from→to 를 detail.changes 에 구조화해 SQL 질의를 가능하게 한다.
+            log_access(
+                f"사용자 #{user_id} 수정: {', '.join(changes)}" if changes
+                else f"사용자 #{user_id} 정보 수정",
+                admin_id,
+                action='USER_UPDATE',
+                target_type='user',
+                target_id=user_id,
+                detail={'changes': change_detail} if change_detail else None,
+            )
+
+            # 타인(및 본인) 비밀번호 관리자 재설정은 별도 행으로 분리 기록한다.
+            # 비밀번호 값은 원문·해시 어떤 형태로도 기록하지 않는다(detail 포함).
+            if password_set_strong:
+                log_access(f"사용자 #{user_id} 비밀번호 재설정(관리자 #{admin_id})", admin_id,
+                           action='USER_PASSWORD_RESET',
+                           target_type='user', target_id=user_id)
 
             flash('사용자 정보가 성공적으로 업데이트되었습니다.', 'success')
             return redirect(url_for('auth.user_list'))
@@ -654,51 +821,75 @@ def edit_user(user_id):
 @login_required
 @role_required(['ADMIN'])
 def delete_user(user_id):
-    # Prevent deleting self
+    """AUDIT-LOG T11(결정 ⑤): 사용자 "삭제" = 감사 actor 를 보존하는 비활성화 전환.
+
+    row 를 지우면 ``security_logs``·``order_events``·``access_logs``·
+    ``order_attachments`` 의 actor 가 함께 소멸해 "누가 했는가"를 사후에 물을 수 없다.
+    그래서 운영 참조(담당자·수신자)만 끊고 계정은 비활성화·익명화한다. 원본 아이디는
+    곧바로 재사용할 수 있고, 로그인은 ``is_active=False`` + 난수 비밀번호로 이중 차단된다.
+
+    row 를 남기므로 ``UserDeletionBlockedError``(주문 배정·cutover marker 등 끊을 수 없는
+    참조) 는 이 경로에서 발생하지 않는다 — 그 거부는 hard delete 인 ``reject_user`` 전용이고,
+    거부 메시지가 안내하는 "계정 비활성화"가 곧 이 라우트다.
+
+    :param user_id: 비활성화할 사용자 id.
+    :return: 사용자 목록으로 redirect.
+    """
+    # Prevent deactivating self
     if user_id == session.get('user_id'):
         flash('자신의 계정은 삭제할 수 없습니다.', 'error')
         return redirect(url_for('auth.user_list'))
-    
+
     db = get_db()
-    
+
     # Get the user from database
     user = db.query(User).filter(User.id == user_id).first()
-    
+
     if not user:
         flash('사용자를 찾을 수 없습니다.', 'error')
         return redirect(url_for('auth.user_list'))
-    
-    # Prevent deleting last admin
+
+    # Prevent deactivating last admin
     if user.role == 'ADMIN':
         admin_count = db.query(User).filter(User.role == 'ADMIN').count()
-        
+
         if admin_count == 1:
             flash('마지막 관리자는 삭제할 수 없습니다.', 'error')
             return redirect(url_for('auth.user_list'))
-    
+
     try:
-        cleanup_summary = detach_user_references_for_delete(db, user_id)
-        db.delete(user)
+        cleanup_summary = detach_user_references_for_deactivate(db, user_id)
+        deactivation = deactivate_user_preserving_audit(user)
         db.commit()
-        current_app.logger.info("Deleted user_id=%s cleanup=%s", user_id, cleanup_summary)
-        
-        # Log action
-        log_access(f"사용자 #{user_id} 삭제", session.get('user_id'))
-        
-        flash('사용자가 성공적으로 삭제되었습니다.', 'success')
-    except UserDeletionBlockedError as blocked:
-        db.rollback()
-        current_app.logger.warning("User deletion blocked by audit references: user_id=%s reason=%s", user_id, blocked)
-        flash(str(blocked), 'error')
+        current_app.logger.info(
+            "Deactivated user_id=%s cleanup=%s", user_id, cleanup_summary
+        )
+
+        # Log action — 감사 원장에는 "어떤 아이디였는지"가 남아야 추적이 끊기지 않는다.
+        log_access(
+            f"사용자 #{user_id} 비활성화(탈퇴 처리): {deactivation['username_before']}",
+            session.get('user_id'),
+            action='USER_DEACTIVATE',
+            target_type='user',
+            target_id=user_id,
+            detail={
+                'username_before': deactivation['username_before'],
+                'username_after': deactivation['username_after'],
+                'was_active': deactivation['was_active'],
+                'cleanup': cleanup_summary,
+            },
+        )
+
+        flash('사용자를 비활성화(탈퇴) 처리했습니다. 감사 기록은 보존됩니다.', 'success')
     except IntegrityError:
         db.rollback()
-        current_app.logger.exception("User deletion blocked by remaining references: user_id=%s", user_id)
+        current_app.logger.exception("User deactivation blocked by remaining references: user_id=%s", user_id)
         flash('사용자 삭제에 실패했습니다. 아직 정리되지 않은 참조 데이터가 있습니다.', 'error')
     except Exception:
         db.rollback()
-        current_app.logger.exception("Unexpected user deletion failure: user_id=%s", user_id)
+        current_app.logger.exception("Unexpected user deactivation failure: user_id=%s", user_id)
         flash('사용자 삭제 중 오류가 발생했습니다.', 'error')
-    
+
     return redirect(url_for('auth.user_list'))
 
 
@@ -727,14 +918,25 @@ def approve_user(user_id):
         flash('유효하지 않은 팀입니다.', 'error')
         return redirect(url_for('auth.user_list'))
 
+    audit_before = _user_audit_snapshot(user)
+    username = user.username
     try:
         user.role = role
         user.team = team
         user.approval_status = APPROVAL_ACTIVE
+        # 승인은 권한 부여 행위다 — 무엇이 무엇으로 바뀌었는지 field 별로 남긴다.
+        audit_after = _user_audit_snapshot(user)
+        changes = _user_change_summary(audit_before, audit_after)
+        change_detail = _user_change_detail(audit_before, audit_after)
         db.commit()
+        summary = f", {', '.join(changes)}" if changes else ''
         log_access(
-            f"가입 승인: {user.username} (ID: {user.id}, 역할: {role}, 팀: {team or '미지정'})",
+            f"가입 승인: {username} (ID: {user_id}{summary})",
             session.get('user_id'),
+            action='USER_APPROVE',
+            target_type='user',
+            target_id=user_id,
+            detail={'username': username, 'changes': change_detail},
         )
         flash(f'{user.name}({user.username}) 님의 가입을 승인했습니다.', 'success')
     except Exception:
@@ -804,14 +1006,22 @@ def handle_reset_request(request_id):
         flash('대기 중인 재설정 요청이 아닙니다.', 'error')
         return redirect(url_for('auth.user_list'))
 
+    submitted = row.username_submitted
+    status_before = row.status
     try:
         row.status = status_by_action[action]
+        status_after = row.status
         row.handled_by_user_id = session.get('user_id')
         row.handled_at = now_utc_naive()
         db.commit()
         log_access(
-            f"재설정 요청 #{request_id} 처리({row.status}): 입력 '{row.username_submitted}'",
+            f"재설정 요청 #{request_id} 처리: status {status_before}→{status_after}, "
+            f"입력 '{submitted}'",
             session.get('user_id'),
+            action='RESET_REQUEST_HANDLE',
+            target_type='password_reset_request',
+            target_id=request_id,
+            detail={'changes': {'status': {'from': status_before, 'to': status_after}}},
         )
         flash('재설정 요청을 처리했습니다.', 'success')
     except Exception:

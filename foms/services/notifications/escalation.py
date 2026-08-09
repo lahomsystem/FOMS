@@ -17,6 +17,8 @@
 from __future__ import annotations
 
 import datetime as _dt
+
+from foms.services.datetime_kst import now_utc_naive
 import logging
 import os
 from typing import Any, Dict, List, Optional
@@ -148,7 +150,7 @@ def escalate_overdue_urgent(
     :return: {escalated, operator_escalated, checked, created_notification_ids,
               recipient_user_ids}
     """
-    now = now or _dt.datetime.now()
+    now = now or now_utc_naive()
     minutes = _stage_minutes()
     stage1_cutoff = now - _dt.timedelta(minutes=minutes)
     stage2_cutoff = now - _dt.timedelta(minutes=minutes)

@@ -4,10 +4,18 @@ Single source of truth for the fail-open inventory. Walks ``foms/`` plus the
 root runtime modules, finds every *broad* catch, and assigns a disposition
 from the handler body:
 
-- ``LOG_AND_CONTINUE`` -- the handler makes the failure observable (a logger
-  call, :func:`foms.services.error_logging.log_handled_exception`, or a
-  ``print``) and continues, *or* swallows-and-continues via explicit control
-  flow (``has_logging`` records whether a logger is actually wired).
+- ``LOG_AND_CONTINUE`` -- the handler wires a real logger (a logger call or
+  :func:`foms.services.error_logging.log_handled_exception`) and continues, so
+  the failure is observable to an operator.
+- ``SWALLOW_BY_CONTROL_FLOW`` -- the handler continues **with no logger wired**
+  (``has_logging=False``): it swallows via explicit control flow
+  (``return``/``continue``/fallback value), or only surfaces the failure through
+  ``print``/``flash``, which are not operator log sinks. AUDIT-LOG T11 split
+  these out of ``LOG_AND_CONTINUE``: folded together, a logger-less swallow
+  passed the release gate wearing the label of a logged one. They are now
+  pinned at a **no-growth baseline** (see
+  :mod:`tests.domains.test_failopen_inventory`) -- shrinking is always allowed,
+  growing is red.
 - ``FAIL_CLOSED`` -- the handler re-raises or ``abort()``s (fails closed).
 - ``INTENTIONAL`` -- silent by design, justified with an inline
   ``# failopen: intentional: <reason>`` marker.
@@ -54,7 +62,13 @@ _LOG_FUNCS = {"log_handled_exception", "capture_exception"}
 _MARKER_INTENTIONAL = "failopen: intentional"
 _MARKER_FAIL_CLOSED = "failopen: fail-closed"
 
-DISPOSITIONS = ("LOG_AND_CONTINUE", "FAIL_CLOSED", "INTENTIONAL", "UNCLASSIFIED")
+DISPOSITIONS = (
+    "LOG_AND_CONTINUE",
+    "SWALLOW_BY_CONTROL_FLOW",
+    "FAIL_CLOSED",
+    "INTENTIONAL",
+    "UNCLASSIFIED",
+)
 
 
 def _type_names(node: ast.expr | None) -> set[str]:
@@ -198,21 +212,31 @@ def _owner(rel_path: str) -> str:
 
 
 def _disposition(facts: dict[str, bool], marker: str | None) -> str:
-    """Assign a disposition from body facts and any inline marker."""
+    """Assign a disposition from body facts and any inline marker.
+
+    ``LOG_AND_CONTINUE`` is reserved for handlers that actually wire a logger
+    (``facts["logs"]``). Everything else that keeps running is
+    ``SWALLOW_BY_CONTROL_FLOW`` -- including ``print``/``flash``-only handlers,
+    which notify stdout or the end user but leave no operator log line.
+
+    :param facts: body facts from :func:`_body_facts`.
+    :param marker: inline ``# failopen:`` marker token, or ``None``.
+    :return: one of :data:`DISPOSITIONS`.
+    """
     if marker == "intentional":
         return "INTENTIONAL"
     if marker == "fail-closed":
         return "FAIL_CLOSED"
     if facts["reraises"] or facts["aborts"]:
         return "FAIL_CLOSED"
-    if facts["logs"] or facts["has_print"] or facts["flashes"]:
+    if facts["logs"]:
         return "LOG_AND_CONTINUE"
     # Truly silent: no observability, no explicit close, no marker.
     if facts["only_pass"]:
         return "UNCLASSIFIED"
-    # Swallow-and-continue via control flow (return/continue/fallback). Continues
-    # execution; a logger is recommended (has_logging=False flags the gap).
-    return "LOG_AND_CONTINUE"
+    # Continues without a logger: control-flow swallow (return/continue/fallback)
+    # or print/flash-only. Pinned at a no-growth baseline by the release gate.
+    return "SWALLOW_BY_CONTROL_FLOW"
 
 
 def _justification(facts: dict[str, bool], marker: str | None, reason: str) -> str:
@@ -226,12 +250,12 @@ def _justification(facts: dict[str, bool], marker: str | None, reason: str) -> s
     if facts["logs"]:
         return "logs via logger/log_handled_exception"
     if facts["has_print"]:
-        return "print (weak; API-ERROR-01 owns stdout->logger migration)"
+        return "print only, no logger (API-ERROR-01 owns stdout->logger migration)"
     if facts["flashes"]:
-        return "flash() user notice"
+        return "flash() user notice only, no operator log line"
     if facts["only_pass"]:
         return "silent pass -- no logging, no marker (RESOLVE)"
-    return "swallow-and-continue via control flow; logging recommended"
+    return "swallow-and-continue via control flow; no logger wired"
 
 
 def _iter_files() -> list[Path]:
@@ -306,13 +330,16 @@ def build_inventory() -> dict[str, Any]:
         for r in records
         if r["disposition"] == "FAIL_CLOSED"
     ]
+    swallow = [r for r in records if r["disposition"] == "SWALLOW_BY_CONTROL_FLOW"]
     return {
         "packet": "FAILOPEN-01",
         "summary": (
             "P1-29 broad/silent exception-handler inventory for foms/ + root "
             "runtime. Every broad catch (except Exception/BaseException/bare) is "
-            "classified LOG_AND_CONTINUE / FAIL_CLOSED / INTENTIONAL. "
-            "UNCLASSIFIED (silent `pass`, no logging, no marker) must be 0."
+            "classified LOG_AND_CONTINUE / SWALLOW_BY_CONTROL_FLOW / FAIL_CLOSED "
+            "/ INTENTIONAL. UNCLASSIFIED (silent `pass`, no logging, no marker) "
+            "must be 0; SWALLOW_BY_CONTROL_FLOW (continues with no logger wired) "
+            "is pinned at a no-growth baseline (AUDIT-LOG T11)."
         ),
         "scope": "foms/**.py + root runtime (" + ", ".join(ROOT_RUNTIME) + ")",
         "overlap_api_error_01": (
@@ -328,9 +355,13 @@ def build_inventory() -> dict[str, Any]:
         "baselines": {
             "broad_total": len(records),
             "unclassified": disposition_counts.get("UNCLASSIFIED", 0),
+            "swallow_by_control_flow": len(swallow),
         },
         "disposition_counts": dict(sorted(disposition_counts.items())),
         "owner_counts": dict(sorted(owner_counts.items())),
+        "swallow_by_control_flow_owner_counts": dict(
+            sorted(Counter(r["owner"] for r in swallow).items())
+        ),
         "fail_closed_sites": fail_closed,
         "unclassified_sites": silent_pass,
         "catches": records,

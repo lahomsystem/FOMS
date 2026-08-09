@@ -14,6 +14,8 @@ enqueue 하는 헬퍼를 제공한다. 설계 원칙:
 from __future__ import annotations
 
 import datetime as _dt
+
+from foms.services.datetime_kst import now_utc_naive
 import hashlib
 import json
 import logging
@@ -45,6 +47,11 @@ _DEFAULT_P1_TYPES = frozenset(
         "DRAWING_REVISION",
         "QUEST_ASSIGNED",
         "ERP_ORDER_CHANGED",
+        # 시공일 이동은 상차·차량·팀 배정을 즉시 무효로 만든다 — 화면을 안 보고 있어도 알린다.
+        # (미등록이면 enqueue 해도 조용히 no-op 된다 — 등록 누락 = 무음 push 의 유일한 기전.)
+        "SHIPMENT_ORDER_CHANGED",
+        # 생산 진행 중 주문의 시공일·도면 변경/취소도 같은 성질이다(재작업·자재 낭비 직결).
+        "PRODUCTION_ORDER_CHANGED",
         # 에스컬레이션 row 는 is_urgent=False(재진입 방지)이므로 P1 로 OS push 허용.
         "URGENT_ESCALATION",
     }
@@ -95,8 +102,8 @@ def _endpoint_hash(endpoint: str) -> str:
 
 
 def _now() -> _dt.datetime:
-    """현재 시각(naive local, 모델 기본값과 동일 규약)."""
-    return _dt.datetime.now()
+    """현재 시각(naive UTC — 모델 기본값 now_utc_naive 와 동일 규약)."""
+    return now_utc_naive()
 
 
 def _import_pywebpush() -> Tuple[Any, Any]:
@@ -123,6 +130,15 @@ def _deep_link(notif: Notification) -> str:
         if ntype in ("DRAWING_TRANSFERRED", "DRAWING_REVISION"):
             tab = "timeline" if ntype == "DRAWING_TRANSFERRED" else "requests"
             return f"/erp/drawing-workbench/{oid}?tab={tab}"
+        if ntype == "SHIPMENT_ORDER_CHANGED":
+            # 날짜는 붙이지 않는다 — push payload 는 generic 규약이고 Notification 모델에도
+            # 날짜 컬럼이 없다. 대시보드는 오늘로 열리며, 정확한 날짜 링크는 벨 목록 API
+            # (`_resolve_notification_deep_link`)가 주문 현재 시공일에서 파생해 준다.
+            return "/erp/shipment"
+        if ntype == "PRODUCTION_ORDER_CHANGED":
+            # 생산 칸반이 이 알림의 작업 화면이다(주문 상세가 아니라). 출고와 같은 이유로
+            # 파라미터는 붙이지 않는다 — payload 는 generic 규약.
+            return "/erp/production/dashboard"
         return f"/erp/orders/{oid}"
     return "/erp"
 
@@ -135,6 +151,11 @@ def _generic_title(urgent: bool, ntype: str) -> str:
         return "도면·주문 변경"
     if ntype in ("DRAWING_TRANSFERRED", "DRAWING_REVISION"):
         return "도면 알림"
+    if ntype == "SHIPMENT_ORDER_CHANGED":
+        return "출고 일정 변경"
+    if ntype == "PRODUCTION_ORDER_CHANGED":
+        # 시공일/도면/취소 세 종류를 묶는 제목 — 고객명·주문번호·사유는 넣지 않는다.
+        return "생산 주문 변경"
     if ntype == "QUEST_ASSIGNED":
         return "업무 배정 알림"
     if ntype == "URGENT_ESCALATION":

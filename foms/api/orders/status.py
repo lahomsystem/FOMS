@@ -25,6 +25,8 @@ from flask import current_app, jsonify, request, session
 from sqlalchemy.orm.attributes import flag_modified
 
 from foms.web.auth import get_user_by_id, log_access
+from foms.services.audit_message_display import describe_field_change
+from foms.services.orders.audit_order_context import order_audit_context
 from foms.services.orders.status_constants import (
     BULK_ACTION_STATUS,
     STATUS,
@@ -78,6 +80,31 @@ COMMAND_REGISTRY.setdefault(
         effect_type="STAGE_NOTIFICATION",
     ),
 )
+
+
+
+def _bulk_audit(order, old_status, new_status, user_id) -> None:
+    """벌크 상태 변경 1건을 구조화 감사로 남긴다(문장은 표시 SSOT 가 만든다).
+
+    벌크 경로는 커밋을 한 번에 하므로 ``auto_commit=False`` 로 같은 트랜잭션에 싣는다.
+
+    :param order: 대상 :class:`~models.Order`.
+    :param old_status: 변경 전 상태 코드.
+    :param new_status: 변경 후 상태 코드.
+    :param user_id: 행위자 user id.
+    """
+    context = order_audit_context(order)
+    log_access(
+        describe_field_change(
+            order_id=order.id, field="status", before=old_status, after=new_status,
+            has_before=True, **context,
+        ) + " (일괄 작업)",
+        user_id,
+        auto_commit=False,
+        action="ORDER_STATUS_CHANGED", target_type="order", target_id=int(order.id),
+        detail={"field": "status", "before": old_status, "after": new_status,
+                "bulk": True, **context},
+    )
 
 
 def _idempotency_key(body: dict[str, Any]) -> str | None:
@@ -274,9 +301,17 @@ def update_order_status_response(
 
         db.commit()
 
-        old_status_name = STATUS.get(old_status, old_status)
-        new_status_name = STATUS.get(new_status, new_status)
-        log_access(f"주문 #{order_id} 상태 변경: {old_status_name} → {new_status_name}", user_id)
+        audit_context = order_audit_context(order)
+        log_access(
+            describe_field_change(
+                order_id=order_id, field="status", before=old_status, after=new_status,
+                has_before=True, **audit_context,
+            ),
+            user_id,
+            action="ORDER_STATUS_CHANGED", target_type="order", target_id=order_id,
+            detail={"field": "status", "before": old_status, "after": new_status,
+                    **audit_context},
+        )
 
         return jsonify(
             {
@@ -377,10 +412,19 @@ def _bulk_soft_delete_response(
             if order is not None and getattr(order, "status", None) != "DELETED":
                 order.original_status = order.status or "RECEIVED"
                 order.status = "DELETED"
+            # original_status 에 방금 보존한 값이 곧 '이전 상태'다(덮어쓰기 전 값).
+            trash_context = order_audit_context(order)
+            previous_status = getattr(order, "original_status", None)
             log_access(
-                f"주문 #{order_id} 휴지통 이동 (bulk): → DELETED",
+                describe_field_change(
+                    order_id=order_id, field="status", before=previous_status,
+                    after="DELETED", has_before=True, **trash_context,
+                ),
                 actor_user_id,
                 auto_commit=False,
+                action="ORDER_SOFT_DELETED", target_type="order", target_id=order_id,
+                detail={"field": "status", "before": previous_status, "after": "DELETED",
+                        "bulk": True, **trash_context},
             )
         db.commit()
     except RevisionError as exc:
@@ -468,11 +512,7 @@ def bulk_update_order_status_response(
                 )
                 if err is not None:
                     return err
-                log_access(
-                    f"주문 #{order.id} 상태 변경: {old_status} → {new_status}",
-                    user_id,
-                    auto_commit=False,
-                )
+                _bulk_audit(order, old_status, new_status, user_id)
                 updated += 1
                 continue
 
@@ -486,11 +526,7 @@ def bulk_update_order_status_response(
                 continue
             _sync_erp_stage(order, new_status, user_id, db, bulk=True)
 
-            log_access(
-                f"주문 #{order.id} 상태 변경: {old_status} → {new_status}",
-                user_id,
-                auto_commit=False,
-            )
+            _bulk_audit(order, old_status, new_status, user_id)
             updated += 1
 
         db.commit()

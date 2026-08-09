@@ -63,6 +63,7 @@
 - **스택**: Flask 2.3 + SQLAlchemy 2.0 + PostgreSQL + Jinja2 + Bootstrap 5 + Vanilla JS
 - **운영 환경**: Windows 11 — **저장소 문서·예시 명령의 기본 셸은 PowerShell 5.x**(`.cursor/rules/50-win11-shell.mdc` 참고). bash/`&&` 등은 **Claude Code 전용**으로 문서에 명시된 때만 적용한다.
 - **Git 커밋**: 한글, 무엇을 왜 수정했는지 명확히 기록
+- **실서버 측정 계정 `claude_master` (전 에이전트 공통 구속)**: 기본 테스트=staging(전 활동 허용), production=사용자 명시 요청 1건당 1회·관측만·기본 잠금(`is_active=false`)·실데이터 불가침(가상 주문 `CLAUDE-TEST-`+더미 연락처, 부하 테스트 금지). 정본: [`docs/guides/REAL_SERVER_TEST_ACCOUNT.md`](docs/guides/REAL_SERVER_TEST_ACCOUNT.md).
 
 ## 푸시 전 로컬 검증 (deploy/main)
 
