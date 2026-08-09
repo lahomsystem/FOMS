@@ -4419,6 +4419,8 @@ function erpGenerateConversionText() {
     text = erpAppendConversionTextLine(text, '고객명', customerName);
     text = erpAppendConversionTextLine(text, '발주사', orderer);
     text = erpAppendConversionTextLine(text, '시공일', constructionDate);
+    // 시공 특이사항 → 시공일 바로 아래 (변환·채널톡 PUSH 공통 텍스트)
+    text = erpAppendConversionTextLine(text, '시공 특이사항', getVal('erp-construction-note'));
     text = erpAppendConversionTextLine(text, '시공시간', constructionTime);
     text = erpAppendConversionTextLine(text, '주  소', address);
     // 주소 특이사항 → 주소 바로 아래

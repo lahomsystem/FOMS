@@ -1775,6 +1775,8 @@
     text = convAppendLine(text, "고객명", customerName);
     text = convAppendLine(text, "발주사", orderer);
     text = convAppendLine(text, "시공일", constructionDate);
+    // 시공 특이사항 → 시공일 바로 아래 (PC 변환·채널톡 PUSH 흐름 미러)
+    text = convAppendLine(text, "시공 특이사항", notesValue("construction_note"));
     text = convAppendLine(text, "시공시간", constructionTime);
     text = convAppendLine(text, "주  소", address);
     // 주소 특이사항 → 주소 바로 아래
