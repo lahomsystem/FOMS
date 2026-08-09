@@ -112,6 +112,15 @@ _LEGACY_FIELD_CHANGE_RE = re.compile(
     re.S,
 )
 
+#: 상태 전이 구 형식. 예) ``자가실측 주문 #4679 상태 변경: 'MEASURE' → 'SHIPPED_PENDING'``
+#: · ``주문 #4183 휴지통 이동 (bulk): MEASURE → DELETED``. 코드가 그대로 남아 있어
+#: 운영자가 단계 이름을 외워야 읽힌다.
+_LEGACY_STATUS_CHANGE_RE = re.compile(
+    r"^(?P<prefix>지방 주문|자가실측 주문|자가실측|주문)\s*#(?P<order_id>\d+)\s*"
+    r"(?P<verb>상태 변경|휴지통 이동(?:\s*\(bulk\))?)\s*:\s*"
+    r"'?(?P<before>[^'→]*?)'?\s*→\s*'?(?P<after>[^']*?)'?$"
+)
+
 #: 문장 안의 주문 언급(고객명 병기 대상). **접두 라벨을 필수로 둔다** — 맨 숫자까지 받으면
 #: ``사용자 #58 삭제`` 의 58 을 주문 58 로 착각해 엉뚱한 고객명을 붙인다(감사 로그에서는
 #: 그런 오표기가 곧 오판이다).
@@ -307,7 +316,26 @@ def humanize_message(message: str | None, customer_names: Mapping[int, str] | No
         return ""
     names = customer_names or {}
 
-    match = _LEGACY_FIELD_CHANGE_RE.match(message.strip())
+    text = message.strip()
+
+    status_match = _LEGACY_STATUS_CHANGE_RE.match(text)
+    if status_match:
+        order_id = int(status_match.group("order_id"))
+        head = order_label(
+            order_id,
+            customer_name=names.get(order_id),
+            order_type=status_match.group("prefix"),
+        )
+        verb = "휴지통으로 이동" if "휴지통" in status_match.group("verb") else "상태"
+        after = format_value("status", status_match.group("after"))
+        raw_before = status_match.group("before").strip()
+        if not raw_before:
+            # 구 bulk 기록은 이전 상태를 안 남긴 건이 있다. "(지움) → 삭제됨"은 사실과 다르다
+            # (지운 게 아니라 애초에 기록이 없다) — 화살표 없이 결과만 적는다.
+            return f"{head} — {verb}: {after}"
+        return f"{head} — {verb}: {format_value('status', raw_before)} → {after}"
+
+    match = _LEGACY_FIELD_CHANGE_RE.match(text)
     if match:
         order_id = int(match.group("order_id"))
         return describe_field_change(

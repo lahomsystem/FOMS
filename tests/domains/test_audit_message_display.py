@@ -143,6 +143,24 @@ def test_humanize_rewrites_production_legacy_messages():
     assert "<div>" not in html_line and "AS 내용" in html_line
 
 
+def test_humanize_rewrites_status_transitions_with_korean_stage_names():
+    """상태 전이 구 형식의 영문 코드를 단계 이름으로 옮긴다(운영 최근 30일 66건 유형)."""
+    assert amd.humanize_message(
+        "자가실측 주문 #4679 상태 변경: 'MEASURE' → 'SHIPPED_PENDING'", {4679: "최옥희"}
+    ) == "자가실측 주문 #4679 (최옥희) — 상태: 실측 → 상차예정"
+
+    assert amd.humanize_message(
+        "주문 #4183 휴지통 이동 (bulk): MEASURE → DELETED", {4183: "조혜리"}
+    ) == "주문 #4183 (조혜리) — 휴지통으로 이동: 실측 → 삭제됨"
+
+
+def test_status_transition_without_before_omits_arrow():
+    """이전 상태가 기록되지 않은 구 bulk 행은 '(지움) →' 로 쓰지 않는다(사실과 다르다)."""
+    assert amd.humanize_message("주문 #4183 휴지통 이동 (bulk): → DELETED", {}) == (
+        "주문 #4183 — 휴지통으로 이동: 삭제됨"
+    )
+
+
 def test_humanize_annotates_readable_messages_with_customer_name():
     """이미 읽을 만한 문장은 고쳐 쓰지 않고 고객명만 덧붙인다."""
     out = amd.humanize_message("주문 #4109 AS 접수 등록 (접수일: 2026-07-01)", {4109: "최영수"})

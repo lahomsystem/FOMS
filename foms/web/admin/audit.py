@@ -9,8 +9,13 @@ from sqlalchemy import or_
 from sqlalchemy.orm import Query
 
 from db import get_db
+from foms.services.audit_message_display import (
+    collect_order_ids,
+    describe_field_change,
+    humanize_message,
+)
 from foms.services.datetime_kst import to_utc_naive
-from models import AccessLog, SecurityLog, User
+from models import AccessLog, Order, SecurityLog, User
 from foms.web.admin.routes import admin_bp
 from foms.web.auth import login_required, role_required
 
@@ -20,6 +25,13 @@ _PER_PAGE = 50
 # 파일 접근 종류 — writer(:func:`foms.services.audit_writer.record_file_access`)가 쓰는
 # 3종이 전부다. security_logs 의 action 과 달리 폐집합이라 datalist 가 아닌 select 로 낸다.
 _FILE_ACCESS_ACTIONS = ("FILE_VIEW", "FILE_PRESIGNED", "FILE_DOWNLOAD")
+
+# 권한 거부 기록 — 구조화 action 과 T8 이전 자유 텍스트 두 형태가 공존한다.
+# 운영 실측(최근 30일): 1,471건 중 474건(32%)이 거부 로그이고 그 중 282건이 한 사람의
+# `/trash` 반복 클릭이었다. 기본 목록에 섞으면 첫 페이지가 거부로 덮여 정작 "누가 무엇을
+# 했는가"가 안 보인다 — 기본은 빼고 스위치로 본다(값을 지우는 게 아니라 분리다).
+_DENIED_ACTIONS = ("ACCESS_DENIED", "CSRF_BLOCKED")
+_DENIED_MESSAGE_PREFIX = "권한 없는 접근 시도"
 
 # action 자동완성 후보를 뽑을 때 훑는 최근 행 수 상한. ``SELECT DISTINCT action`` 을
 # 테이블 전체에 돌리면 감사 원장이 커질수록 매 페이지 로드가 Seq Scan 이 된다 —
@@ -35,11 +47,22 @@ def _apply_security_log_filters(query: Query, filters: dict[str, Any]) -> Query:
     인덱스를 타고, 자유 검색만 기존처럼 ILIKE 로 남긴다 — "누가 무엇을"을 SQL 로 묻는 게
     T8 의 목적이므로 자유 텍스트 파싱에 의존하지 않는다.
 
+    거부 기록(:data:`_DENIED_ACTIONS`·구형식 "권한 없는 접근 시도")은 ``include_denied``
+    를 켤 때만 포함한다(위 상수 주석의 실측 근거).
+
     :param query: 필터를 얹을 ``SecurityLog`` 쿼리.
-    :param filters: ``{'search','action','target_type','target_id','user_id'}`` 값 dict
-        (빈 문자열/``None`` 은 미적용).
+    :param filters: ``{'search','action','target_type','target_id','user_id','include_denied'}``
+        값 dict(빈 문자열/``None`` 은 미적용).
     :return: 필터가 적용된 쿼리.
     """
+    if not filters.get("include_denied") and not filters.get("action"):
+        query = query.filter(
+            or_(SecurityLog.action.is_(None), SecurityLog.action.notin_(_DENIED_ACTIONS)),
+            or_(
+                SecurityLog.message.is_(None),
+                SecurityLog.message.notlike(f"{_DENIED_MESSAGE_PREFIX}%"),
+            ),
+        )
     if filters.get("user_id"):
         query = query.filter(SecurityLog.user_id == filters["user_id"])
     if filters.get("action"):
@@ -160,6 +183,69 @@ def _access_log_row(log_entry: AccessLog) -> dict[str, Any]:
     }
 
 
+def _order_display_names(db: Any, logs: list[SecurityLog]) -> dict[int, str]:
+    """이 페이지가 언급하는 주문들의 고객명을 **한 번에** 읽는다(N+1 금지).
+
+    로그 문장은 주문번호만 담고 있어 "누구 건인지"를 알 수 없다. 행마다 주문을 조회하면
+    페이지당 50회가 되므로, 문장에서 id 를 모아 ``in_()`` 1회로 끝낸다.
+
+    :param db: 활성 세션.
+    :param logs: 이번 페이지에 그릴 로그 행들.
+    :return: ``{주문 id: 고객명}`` (없는 주문은 키 자체가 없다).
+    """
+    order_ids = set(collect_order_ids(entry.message for entry in logs))
+    # 구조화 행은 문장이 아니라 target_id 로 주문을 가리킨다.
+    order_ids.update(
+        entry.target_id for entry in logs
+        if entry.target_type == "order" and entry.target_id
+    )
+    if not order_ids:
+        return {}
+    rows = (
+        db.query(Order.id, Order.customer_name)
+        .filter(Order.id.in_(order_ids))
+        .all()  # perf-ok: bounded by page size, single batched lookup
+    )
+    return {row[0]: row[1] for row in rows if row[1]}
+
+
+def _security_log_row(entry: SecurityLog, customer_names: dict[int, str]) -> dict[str, Any]:
+    """보안 로그 1행을 화면 표시용 dict 로 편다(문장 한글화 + 원문 보존).
+
+    구조화 detail 이 있으면 그것으로 문장을 다시 만들고(``before → after`` 까지 보인다),
+    없으면 저장된 자유 텍스트를 역파싱한다. **원문은 항상 함께 넘긴다** — 화면이 "원문 보기"
+    로 되짚을 수 있어야 감사 기록을 신뢰할 수 있다.
+
+    :param entry: ``SecurityLog`` 행.
+    :param customer_names: ``{주문 id: 고객명}`` 배치 조회 결과.
+    :return: ``{'log','display','raw_message','changed'}`` dict.
+    """
+    detail = entry.detail if isinstance(entry.detail, dict) else {}
+    field = detail.get("field")
+    display: str | None = None
+
+    if field and entry.target_type == "order" and entry.target_id:
+        order_id = entry.target_id
+        display = describe_field_change(
+            order_id=order_id,
+            field=str(field),
+            after=detail.get("after"),
+            before=detail.get("before"),
+            has_before="before" in detail,
+            customer_name=detail.get("customer_name") or customer_names.get(order_id),
+            order_type=detail.get("order_type"),
+        )
+    if display is None:
+        display = humanize_message(entry.message, customer_names)
+
+    return {
+        "log": entry,
+        "display": display,
+        "raw_message": entry.message or "",
+        "changed": display != (entry.message or ""),
+    }
+
+
 @admin_bp.route("/change-logs")
 @login_required
 def change_logs():
@@ -184,6 +270,8 @@ def security_logs():
         "target_type": (request.args.get("target_type") or "").strip(),
         "target_id": request.args.get("target_id", type=int),
         "user_id": request.args.get("user_id", type=int),
+        # 권한 거부 기록 포함 여부 — 기본 꺼짐(위 _DENIED_ACTIONS 주석).
+        "include_denied": bool(request.args.get("include_denied")),
     }
 
     query = _apply_security_log_filters(
@@ -206,8 +294,11 @@ def security_logs():
     action_options = sorted({row[0] for row in recent_actions})
     users = db.query(User).order_by(User.name, User.username).all()
 
+    customer_names = _order_display_names(db, logs)
+
     return render_template(
         "admin/security_logs.html",
+        rows=[_security_log_row(entry, customer_names) for entry in logs],
         logs=logs,
         page=page,
         total_pages=total_pages,
