@@ -23,7 +23,9 @@ from flask import Blueprint, jsonify, render_template, request, session
 from sqlalchemy.orm import Session
 from sqlalchemy.orm.attributes import flag_modified
 
-from foms.web.auth import get_user_by_id, login_required
+from foms.web.auth import get_user_by_id, log_access, login_required
+from foms.services.audit_message_display import describe_order_action
+from foms.services.orders.audit_order_context import order_audit_context
 from db import get_db
 from foms.services.as_content_safety import (
     load_structured_data_dict_or_raise,
@@ -70,7 +72,7 @@ from foms.services.orders.as_schedule_link import (
     write_link,
 )
 from foms.services.orders.revision import RevisionError, execute_order_mutation
-from models import Order, SecurityLog
+from models import Order
 
 logger = logging.getLogger(__name__)
 
@@ -155,6 +157,34 @@ def _load_active_order(db, order_id):
     if not order or order.status == "DELETED" or order.deleted_at is not None:
         return None, (jsonify({"success": False, "message": "주문을 찾을 수 없습니다."}), 404)
     return order, None
+
+
+def _audit_as(
+    order: Order,
+    action: str,
+    user_id: Any,
+    note: str | None = None,
+    extra: Dict[str, Any] | None = None,
+) -> None:
+    """AS 행위 1건을 구조화 감사로 남긴다(문장은 표시 SSOT 가 만든다).
+
+    라우트가 뒤에서 ``db.commit()`` 하므로 같은 트랜잭션에 싣는다(``auto_commit=False``) —
+    AS 상태 변경과 감사 기록이 함께 커밋되거나 함께 사라진다.
+
+    :param order: 대상 :class:`~models.Order`.
+    :param action: 행위 코드(``AS_STARTED`` 등).
+    :param user_id: 행위자 user id.
+    :param note: 문장 뒤에 붙일 짧은 부연(사유·판정값 등). 장문은 표시 SSOT 가 요약한다.
+    :param extra: ``detail`` 에 추가로 담을 구조화 값.
+    """
+    context = order_audit_context(order)
+    log_access(
+        describe_order_action(order_id=order.id, action=action, note=note, **context),
+        user_id,
+        auto_commit=False,
+        action=action, target_type="order", target_id=int(order.id),
+        detail={**(extra or {}), **context},
+    )
 
 
 def _as_error_response(db, exc: Exception):
@@ -502,7 +532,7 @@ def api_as_register(order_id):
     except Exception as exc:  # noqa: BLE001 — 계약 위반은 409, 그 외 500 으로 분기
         return _as_error_response(db, exc)
 
-    db.add(SecurityLog(user_id=user_id, message=f"주문 #{order_id} AS 접수 등록 (접수일: {today})"))
+    _audit_as(order, "AS_RECEIVED", user_id, note=f"접수일 {today}", extra={"received_date": str(today)})
     db.commit()
     _invalidate_shipment_asrec_caches("api_as_register")
 
@@ -565,7 +595,8 @@ def api_as_schedule(order_id):
     except Exception as exc:  # noqa: BLE001
         return _as_error_response(db, exc)
 
-    db.add(SecurityLog(user_id=user_id, message=f"주문 #{order_id} AS 방문일: {result_date or '취소'}"))
+    _audit_as(order, "AS_SCHEDULED" if result_date else "AS_SCHEDULE_CANCELED", user_id,
+              note=str(result_date or ""), extra={"visit_date": result_date})
     db.commit()
     _invalidate_shipment_asrec_caches("api_as_schedule")
     return jsonify({"success": True, "message": message, "visit_date": result_date})
@@ -593,7 +624,7 @@ def api_as_unschedule(order_id):
         )
     except Exception as exc:  # noqa: BLE001
         return _as_error_response(db, exc)
-    db.add(SecurityLog(user_id=user_id, message=f"주문 #{order_id} AS 방문일 취소"))
+    _audit_as(order, "AS_SCHEDULE_CANCELED", user_id)
     db.commit()
     _invalidate_shipment_asrec_caches("api_as_unschedule")
     return jsonify({"success": True, "message": "AS 방문일이 취소되었습니다."})
@@ -619,7 +650,8 @@ def api_as_start(order_id):
         )
     except Exception as exc:  # noqa: BLE001
         return _as_error_response(db, exc)
-    db.add(SecurityLog(user_id=user_id, message=f"주문 #{order_id} AS 시작"))
+    _audit_as(order, "AS_STARTED", user_id, note=str(data.get("reason") or "") or None,
+              extra={"reason": str(data.get("reason") or "") or None})
     db.commit()
     _invalidate_shipment_asrec_caches("api_as_start")
     return jsonify({"success": True, "message": "AS가 시작되었습니다.", "new_status": order.status})
@@ -646,7 +678,7 @@ def api_as_complete(order_id):
         )
     except Exception as exc:  # noqa: BLE001
         return _as_error_response(db, exc)
-    db.add(SecurityLog(user_id=user_id, message=f"주문 #{order_id} AS 완료"))
+    _audit_as(order, "AS_COMPLETED", user_id, note=str(data.get("note") or "") or None)
     db.commit()
     _invalidate_shipment_asrec_caches("api_as_complete")
     return jsonify({"success": True, "message": "AS가 완료되었습니다.", "new_status": order.status})
@@ -673,7 +705,8 @@ def api_as_reopen(order_id):
         )
     except Exception as exc:  # noqa: BLE001
         return _as_error_response(db, exc)
-    db.add(SecurityLog(user_id=user_id, message=f"주문 #{order_id} AS 재개봉"))
+    _audit_as(order, "AS_REOPENED", user_id, note=str(data.get("reason") or "") or None,
+              extra={"reason": str(data.get("reason") or "") or None})
     db.commit()
     _invalidate_shipment_asrec_caches("api_as_reopen")
     return jsonify({"success": True, "message": "AS가 재개봉되었습니다.", "new_status": order.status})
@@ -700,7 +733,8 @@ def api_as_classification(order_id):
         )
     except Exception as exc:  # noqa: BLE001
         return _as_error_response(db, exc)
-    db.add(SecurityLog(user_id=user_id, message=f"주문 #{order_id} AS 분류 {field}={value}"))
+    _audit_as(order, "AS_CATEGORY_CHANGED", user_id, note=f"{field}: {value}",
+              extra={"field": field, "value": value})
     db.commit()
     _invalidate_shipment_asrec_caches("api_as_classification")
     shipment = (order.structured_data or {}).get("shipment") or {}
@@ -804,7 +838,8 @@ def api_as_billing(order_id: int):
     billing = captured["billing"]
     # 응답 html은 낙관적 DOM 삽입용(재조회 금지). 렌더는 commit 앞 — append/patch와 같은 이유.
     entry_html = _render_as_log_entry(captured["entry"]) if captured.get("entry") else ""
-    db.add(SecurityLog(user_id=user_id, message=f"주문 #{order_id} AS 비용 판정: {new_type}"))
+    _audit_as(order, "AS_BILLING_DECIDED", user_id, note=new_type,
+              extra={"billing_type": new_type, "reason": reason or None})
     db.commit()
     _invalidate_shipment_asrec_caches("api_as_billing")
     return jsonify({
@@ -851,7 +886,7 @@ def api_as_log_append(order_id: int):
     except Exception as exc:  # noqa: BLE001
         return _as_error_response(db, exc)
 
-    db.add(SecurityLog(user_id=user_id, message=f"주문 #{order_id} AS 기록 추가"))
+    _audit_as(order, "AS_LOG_ADDED", user_id, extra={"log_type": log_type})
     # 렌더는 commit 앞에서 — 템플릿 오류가 "저장은 됐는데 500"이 되면
     # 클라 재시도가 append-only 리스트에 중복 항목을 남긴다.
     entry = captured["entry"]
@@ -915,8 +950,7 @@ def api_as_verdict(order_id: int):
     except Exception as exc:  # noqa: BLE001
         return _as_error_response(db, exc)
 
-    db.add(SecurityLog(
-        user_id=user_id, message=f"주문 #{order_id} AS 회차 판정: {verdict}"))
+    _audit_as(order, "AS_ROUND_VERDICT", user_id, note=verdict, extra={"verdict": verdict})
     entry = captured["entry"]
     html = _render_as_log_entry(entry)  # commit 앞 렌더(append 와 동일 이유)
     db.commit()
@@ -974,7 +1008,7 @@ def api_as_log_patch(order_id: int, log_id: str):
     except Exception as exc:  # noqa: BLE001
         return _as_error_response(db, exc)
 
-    db.add(SecurityLog(user_id=user_id, message=f"주문 #{order_id} AS 기록 수정({log_id})"))
+    _audit_as(order, "AS_LOG_UPDATED", user_id, extra={"log_id": str(log_id)})
     entry = captured["entry"]
     html = _render_as_log_entry(entry)  # commit 앞 렌더(append와 동일 이유)
     db.commit()
@@ -1046,7 +1080,7 @@ def api_as_log_delete(order_id: int, log_id: str):
     except Exception as exc:  # noqa: BLE001
         return _as_error_response(db, exc)
 
-    db.add(SecurityLog(user_id=user_id, message=f"주문 #{order_id} AS 기록 삭제({log_id})"))
+    _audit_as(order, "AS_LOG_DELETED", user_id, extra={"log_id": str(log_id)})
     cell_html = _render_as_timeline_cell(order_id, captured["sd"])  # commit 앞 렌더
     db.commit()
     _invalidate_shipment_asrec_caches("api_as_log_delete")
@@ -1249,9 +1283,9 @@ def api_as_schedule_link(order_id: int):
     except Exception as exc:  # noqa: BLE001
         return _as_error_response(db, exc)
 
-    db.add(SecurityLog(
-        user_id=user_id,
-        message=f"주문 #{order_id} AS 기준 일정 {_SCHEDULE_LINK_ACTION_LABELS[action]}"))
+    _audit_as(order, "AS_SCHEDULE_LINK_CHANGED", user_id,
+              note=_SCHEDULE_LINK_ACTION_LABELS[action],
+              extra={"link_action": action, "ref_order_id": ref_id, "ref_date": ref_date})
     db.commit()
     _invalidate_shipment_asrec_caches("api_as_schedule_link")
     return jsonify(_schedule_link_payload(

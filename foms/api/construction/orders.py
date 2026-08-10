@@ -31,7 +31,9 @@ from foms.services.datetime_kst import now_utc_naive
 from flask import Blueprint, jsonify, request, session
 from sqlalchemy.orm.attributes import flag_modified
 
-from foms.web.auth import get_user_by_id, login_required
+from foms.web.auth import get_user_by_id, log_access, login_required
+from foms.services.audit_message_display import describe_order_action
+from foms.services.orders.audit_order_context import order_audit_context
 from foms.services.erp_display import _ensure_dict
 from foms.services.feature_flags import env_bool
 from db import get_db
@@ -52,7 +54,6 @@ from models import (
     OrderConstructionAttempt,
     OrderEvent,
     OrderMutationReceipt,
-    SecurityLog,
 )
 
 erp_orders_construction_bp = Blueprint("erp_orders_construction", __name__, url_prefix="/api/orders")
@@ -256,13 +257,41 @@ def api_construction_start(order_id):
             db.rollback()
             return jsonify({"success": False, "error": str(exc), "code": exc.error_code}), exc.status_code
 
-        db.add(SecurityLog(user_id=user_id, message=f"주문 #{order_id} 시공 시작"))
+        _audit_construction(order, "CONSTRUCTION_STARTED", user_id)
         db.commit()
         return jsonify({"success": True, "message": "시공이 시작되었습니다.",
                         "attempt_id": captured.get("attempt_id")})
     except Exception as exc:
         db.rollback()
         return jsonify({"success": False, "message": str(exc)}), 500
+
+
+def _audit_construction(
+    order: Order,
+    action: str,
+    user_id: Any,
+    note: str | None = None,
+    extra: dict[str, Any] | None = None,
+) -> None:
+    """시공 행위 1건을 구조화 감사로 남긴다(문장은 표시 SSOT 가 만든다).
+
+    라우트가 뒤에서 ``db.commit()`` 하므로 같은 트랜잭션에 싣는다(``auto_commit=False``) —
+    시공 상태 전이와 감사 기록이 함께 커밋되거나 함께 사라진다.
+
+    :param order: 대상 :class:`~models.Order`.
+    :param action: 행위 코드(``CONSTRUCTION_STARTED`` 등).
+    :param user_id: 행위자 user id.
+    :param note: 문장 뒤에 붙일 짧은 부연(완료 코멘트·재작업 사유 등).
+    :param extra: ``detail`` 에 추가로 담을 구조화 값.
+    """
+    context = order_audit_context(order)
+    log_access(
+        describe_order_action(order_id=order.id, action=action, note=note, **context),
+        user_id,
+        auto_commit=False,
+        action=action, target_type="order", target_id=int(order.id),
+        detail={**(extra or {}), **context},
+    )
 
 
 def _apply_complete_side_effects(db: Any, order: Order, user: Any, user_id: Any, completion_note: str) -> None:
@@ -286,7 +315,11 @@ def _apply_complete_side_effects(db: Any, order: Order, user: Any, user_id: Any,
     order.structured_data = sd
     flag_modified(order, "structured_data")
     sync_erp_flat_columns(order, sd)
-    db.add(SecurityLog(user_id=user_id, message=f"주문 #{order.id} 시공 완료 → CS"))
+    _audit_construction(
+        order, "CONSTRUCTION_COMPLETED", user_id,
+        note=completion_note or None,
+        extra={"new_stage": "CS", "completion_note": completion_note or None},
+    )
 
 
 @erp_orders_construction_bp.route("/<int:order_id>/construction/complete", methods=["POST"])
@@ -561,10 +594,11 @@ def api_construction_fail(order_id):
             db.rollback()
             return jsonify({"success": False, "error": str(exc), "code": exc.error_code}), exc.status_code
 
-        db.add(SecurityLog(
-            user_id=user_id,
-            message=f"주문 #{order_id} 시공 불가: {_REWORK_LABELS.get(reason, reason)}",
-        ))
+        _audit_construction(
+            order, "CONSTRUCTION_REWORK_REQUESTED", user_id,
+            note=_REWORK_LABELS.get(reason, reason),
+            extra={"reason": reason, "detail": detail or None, "new_stage": new_stage},
+        )
         db.commit()
         return jsonify({
             "success": True,

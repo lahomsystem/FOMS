@@ -191,3 +191,55 @@ def test_order_label_without_customer_name_keeps_number_only():
     """고객명을 모르면(삭제된 주문 등) 번호만 낸다 — 없는 이름을 지어내지 않는다."""
     assert amd.order_label(4382) == "주문 #4382"
     assert amd.order_label(4382, order_type="자가실측") == "자가실측 #4382"
+
+
+# --- AUDIT-LOG P4 C1: 행위 문장 SSOT -------------------------------------------------
+
+
+def test_action_label_translates_known_codes():
+    """행위 코드는 업무 라벨로 나온다(``CONSTRUCTION_COMPLETED`` 를 외우게 하지 않는다)."""
+    assert amd.action_label("CONSTRUCTION_COMPLETED") == "시공 완료"
+    assert amd.action_label("AS_BILLING_DECIDED") == "AS 비용 판정"
+    assert amd.action_label("FILE_DELETED") == "파일 삭제"
+
+
+def test_unknown_action_falls_back_to_the_raw_code():
+    """사전에 없는 코드는 코드 그대로 — 배선이 라벨을 빠뜨려도 기록은 읽힌다."""
+    assert amd.action_label("BRAND_NEW_ACTION") == "BRAND_NEW_ACTION"
+    assert amd.action_label(None) == ""
+
+
+def test_describe_order_action_puts_customer_name_next_to_the_order():
+    """행위 문장도 필드 변경과 같은 주문 표기를 쓴다(화면에서 한 줄로 섞여 읽힌다)."""
+    assert amd.describe_order_action(
+        order_id=4109, action="CONSTRUCTION_COMPLETED",
+        customer_name="홍길동", order_type="주문",
+    ) == "주문 #4109 (홍길동) — 시공 완료"
+    assert amd.describe_order_action(
+        order_id=4183, action="AS_STARTED",
+        customer_name="김철수", order_type="지방 주문",
+    ) == "지방 주문 #4183 (김철수) — AS 시작"
+
+
+def test_describe_order_action_appends_note_when_present():
+    """전달 메모·결제 종류 같은 부연은 뒤에 붙는다."""
+    assert amd.describe_order_action(
+        order_id=4382, action="DRAWING_DELIVERED", customer_name="박민수", note="3차 수정본",
+    ) == "주문 #4382 (박민수) — 도면 전달 완료: 3차 수정본"
+
+
+def test_describe_order_action_summarizes_long_or_markup_notes():
+    """부연이 HTML·장문이어도 로그 한 줄을 넘기지 않는다(원장 도배 방지)."""
+    out = amd.describe_order_action(
+        order_id=1, action="AS_LOG_ADDED", note="<div>" + ("가" * 90) + "</div>",
+    )
+    assert out.startswith("주문 #1 — AS 기록 추가: ")
+    assert "<div>" not in out
+    assert out.endswith("…")
+
+
+def test_describe_order_action_without_note_has_no_dangling_colon():
+    """부연이 없으면 콜론을 남기지 않는다."""
+    assert amd.describe_order_action(order_id=7, action="AS_COMPLETED", note="") == (
+        "주문 #7 — AS 완료"
+    )
