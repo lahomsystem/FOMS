@@ -51,6 +51,12 @@ _SINGLEFLIGHT_POLL_S: Final[float] = 0.05
 _ENV_FLAG: Final[str] = "FOMS_DASHBOARD_MICRO_CACHE_ENABLED"
 _REDIS_URL_ENV: Final[str] = "REDIS_URL"
 
+# 슬라이스 관측(진단) — 요청 하나가 어떤 슬라이스를 hit/miss 했고 재계산에 몇 ms 를
+# 썼는지 모은다. 로그만으로는 배포 환경별 로그 접근 권한에 막혀 확인이 어려워, 라우트가
+# 이 값을 진단 헤더로 노출할 수 있게 한다(EPT-B7 render_ms 와 같은 성격: 진단용이며
+# 권한 판정에 쓰지 않는다). 값은 슬라이스명·결과·ms 뿐이라 업무 데이터가 없다.
+_SLICE_OBS_KEY: Final[str] = "_foms_dash_slice_obs"
+
 # --- 무효화 스코프 상수 (Wave 2) ------------------------------------------------
 # family 문자열 = build_dashboard_cache_key(page=...) 의 page 인자와 1:1. 오타 시
 # 무효화 누락 → stale 버그이므로 항상 이 상수를 통해서만 참조한다.
@@ -138,8 +144,10 @@ __all__ = [
     "TTL_PAYLOAD_ASSEMBLY",
     "is_dashboard_micro_cache_enabled",
     "build_dashboard_cache_key",
+    "format_slice_observations",
     "get_dashboard_redis",
     "get_or_compute_dashboard_slice",
+    "record_slice_observation",
     "invalidate_dashboard_family",
     "invalidate_dashboard_families",
     "invalidate_order_dashboard_families",
@@ -270,6 +278,49 @@ def _release_singleflight_lock(r: Any, lock_key: str, lock_token: str) -> None:
         pass  # failopen: intentional: 분산 락 해제 best-effort; Redis 오류 시 TTL 만료
 
 
+def record_slice_observation(slice_name: str, result: str, compute_ms: int) -> None:
+    """요청 컨텍스트에 슬라이스 관측을 누적한다(진단 전용, 실패 무시).
+
+    요청 밖(잡·스크립트)에서 호출되면 Flask 컨텍스트가 없으므로 조용히 건너뛴다 —
+    관측 실패가 대시보드 응답을 깨뜨려선 안 된다.
+
+    Args:
+        slice_name: summary_counts 등 슬라이스 이름.
+        result: hit | miss | bypass | ...
+        compute_ms: 재계산에 쓴 밀리초(hit 은 0).
+    """
+    try:
+        from flask import g, has_request_context
+
+        if not has_request_context():
+            return
+        observations = getattr(g, _SLICE_OBS_KEY, None)
+        if observations is None:
+            observations = []
+            setattr(g, _SLICE_OBS_KEY, observations)
+        observations.append((slice_name, result, int(compute_ms)))
+    except Exception:  # noqa: BLE001 - 진단 실패는 응답에 영향을 주지 않는다
+        logger.debug("[DashCache] slice observation skipped", exc_info=True)
+
+
+def format_slice_observations() -> str:
+    """이번 요청의 슬라이스 관측을 헤더 값 한 줄로 만든다.
+
+    Returns:
+        ``summary_counts=miss:87;attachment_counts=hit:0`` 형태. 관측이 없으면 빈 문자열.
+    """
+    try:
+        from flask import g, has_request_context
+
+        if not has_request_context():
+            return ""
+        observations = getattr(g, _SLICE_OBS_KEY, None) or []
+        return ";".join(f"{name}={result}:{ms}" for name, result, ms in observations)
+    except Exception:  # noqa: BLE001 - 진단 실패는 응답에 영향을 주지 않는다
+        logger.debug("[DashCache] slice observation format skipped", exc_info=True)
+        return ""
+
+
 def get_or_compute_dashboard_slice(
     cache_key: str,
     ttl_seconds: int,
@@ -300,6 +351,7 @@ def get_or_compute_dashboard_slice(
             key_suffix,
             "on" if used_cache else "off",
         )
+        record_slice_observation(slice_name, result, elapsed_ms)
         return out
 
     if not is_dashboard_micro_cache_enabled():
@@ -322,6 +374,7 @@ def get_or_compute_dashboard_slice(
                     slice_name,
                     key_suffix,
                 )
+                record_slice_observation(slice_name, "hit", 0)
                 return out  # type: ignore[return-value]
             except Exception as exc:
                 logger.warning(
@@ -366,6 +419,7 @@ def get_or_compute_dashboard_slice(
                         slice_name,
                         key_suffix,
                     )
+                    record_slice_observation(slice_name, "hit_sf", 0)
                     return out  # type: ignore[return-value]
                 except Exception:
                     break
@@ -381,6 +435,7 @@ def get_or_compute_dashboard_slice(
         compute_ms,
         key_suffix,
     )
+    record_slice_observation(slice_name, "miss", compute_ms)
 
     try:
         payload = _json_dumps_dto(computed)

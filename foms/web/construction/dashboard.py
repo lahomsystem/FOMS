@@ -4,6 +4,7 @@ erp.py에서 분리: /erp/construction/dashboard
 """
 
 import time
+from typing import Any
 
 from flask import Blueprint, g, make_response, render_template, request
 from sqlalchemy import or_
@@ -16,6 +17,7 @@ from foms.services.common.dashboard_cache import (
     TTL_ATTACHMENT_COUNT_MAP,
     TTL_SUMMARY_COUNTS,
     build_dashboard_cache_key,
+    format_slice_observations,
     get_or_compute_dashboard_slice,
 )
 from foms.services.common.ept_b7_profile import apply_ept_b7_render_headers
@@ -89,17 +91,29 @@ def erp_construction_dashboard():
         else:
             query = query.filter(Order.id == -1)
 
-    _summary_fp = {
+    # 요약(KPI/step_stats)은 위 ``query`` 만 읽는다. 그 query 는 mine_only 일 때만 사용자
+    # 조건을 얹으므로, 공용(mine=False) 결과는 누가 열어도 값이 같다. 그런데도 키에 uid/role 을
+    # 넣으면 같은 숫자를 사용자 수만큼 따로 계산·저장하게 되어(캐시 미스 = 60일 주문 전량 순회
+    # ≈ 88ms 실측) 만료 직후 사용자마다 그 비용을 다시 떠안았다. 공용 결과는 키를 공유한다.
+    _summary_fp: dict[str, Any] = {
+        # 스캔 스코프가 바뀌면 숫자의 의미도 바뀐다 — 구 스코프로 계산된 캐시 값을
+        # 그대로 이어 쓰지 않도록 키에 스코프 표식을 남긴다(배포 즉시 자연 무효화).
         "v": KEY_VERSION,
-        "uid": user.id if user else None,
-        "role": getattr(user, "role", None) if user else None,
+        "scope": "construction_stage",
         "mine": bool(mine_only),
     }
+    if mine_only:
+        _summary_fp["uid"] = user.id if user else None
+        _summary_fp["role"] = getattr(user, "role", None) if user else None
     _summary_key = build_dashboard_cache_key("construction", "summary_counts", _summary_fp)
+    # 숫자판(긴급 발주·시공 D-3·단계별 건수)은 시공 대시보드의 것이므로 시공 표시단계
+    # 주문만 센다. 목록과 같은 스코프(apply_construction_list_scope_filter)를 써서
+    # "위 숫자와 아래 목록이 다른 모집단" 이던 어긋남도 함께 사라진다.
+    _summary_query = apply_construction_list_scope_filter(query, "")
     _summary_blob = get_or_compute_dashboard_slice(
         _summary_key,
         TTL_SUMMARY_COUNTS,
-        lambda: compute_construction_summary_blob(query),
+        lambda: compute_construction_summary_blob(_summary_query),
         page="construction",
         slice_name="summary_counts",
     )
@@ -153,13 +167,11 @@ def erp_construction_dashboard():
             total_cap=CONSTRUCTION_BROWSE_CAP,
         )
 
+    # 첨부 개수는 주문 id 집합에만 의존한다(fetch_construction_attachment_counts 는 ids 로만
+    # 집계). uid/mine/stage/q/page 는 그 ids 를 **고르는** 축일 뿐이라 키에 함께 넣으면
+    # 같은 주문 묶음을 화면·사용자별로 다시 집계한다. 결과를 결정하는 축(ids)만 키로 쓴다.
     _att_fp = {
         "v": KEY_VERSION,
-        "uid": user.id if user else None,
-        "mine": bool(mine_only),
-        "stage": f_stage or "",
-        "q": f_q or "",
-        "page": page,
         "ids": sorted(o.id for o in orders),
     }
     _att_key = build_dashboard_cache_key("construction", "attachment_counts", _att_fp)
@@ -237,5 +249,10 @@ def erp_construction_dashboard():
         route_id="erp_construction_dashboard",
         render_ms=(time.perf_counter() - _t0) * 1000,
     )
+    # 슬라이스 진단: 이번 요청이 어떤 read-model 조각을 hit/miss 했고 재계산에 몇 ms 를
+    # 썼는지. render_ms 는 템플릿 시간만 담아 "캐시 만료 순간의 재계산 비용"이 안 보였다.
+    _slice_obs = format_slice_observations()
+    if _slice_obs:
+        response.headers["X-FOMS-DASH-SLICES"] = _slice_obs
     apply_erp_shell_fragment_headers(response, request)
     return response

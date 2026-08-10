@@ -2288,6 +2288,53 @@
         }
       });
 
+      // AS PUSH: 본문은 서버가 저장된 주문으로 조립한다(SSOT) — 이 화면에는 주문 폼이 없다.
+      // 재전송(이미 보낸 이력 있음)이면 서버가 400 으로 변경 내용을 요구하므로 prompt 후 1회 재시도.
+      var asChannelPushBtn = document.getElementById('as-modal-channel-push-btn');
+      if (asChannelPushBtn) {
+        addAsDashboardListener(asChannelPushBtn, 'click', async function () {
+          var orderId = __currentAsModalOrderId;
+          if (!orderId) return;
+          if (!confirm('AS 접수 내용과 AS 첨부를 채널톡 AS방으로 전송할까요?')) return;
+
+          async function send(changeNote) {
+            var payload = { order_id: Number(orderId), push_kind: 'as' };
+            if (changeNote) payload.change_note = changeNote;
+            var resp = await fetch('/api/channel/push-manual', {
+              method: 'POST',
+              headers: { 'Content-Type': 'application/json' },
+              body: JSON.stringify(payload),
+            });
+            return resp.json();
+          }
+
+          asChannelPushBtn.disabled = true;
+          var originalHtml = asChannelPushBtn.innerHTML;
+          asChannelPushBtn.innerHTML = '<i class="fas fa-spinner fa-spin"></i> 전송중...';
+          try {
+            var data = await send(null);
+            if (!data.success) {
+              var msg = data.error || data.message || '알 수 없는 오류';
+              if (msg.indexOf('재전송 시 변경 내용') >= 0) {
+                var note = (window.prompt('이미 전송한 주문입니다. 변경 내용을 입력해주세요.') || '').trim();
+                if (!note) return;
+                data = await send(note);
+              }
+            }
+            if (data.success) {
+              showFeedback('AS방으로 전송했습니다. (첨부 ' + (data.files_count || 0) + '건)');
+            } else {
+              showFeedback('전송 실패: ' + (data.error || data.message || '알 수 없는 오류'), true);
+            }
+          } catch (err) {
+            showFeedback('네트워크 오류: ' + String((err && err.message) || err || ''), true);
+          } finally {
+            asChannelPushBtn.disabled = false;
+            asChannelPushBtn.innerHTML = originalHtml;
+          }
+        });
+      }
+
       var asUploadInput = document.getElementById('as-modal-upload-input');
       var asUploadBtn = document.getElementById('as-modal-upload-btn');
       var asUploadStatus = document.getElementById('as-modal-upload-status');
