@@ -153,6 +153,7 @@ __all__ = [
     "invalidate_order_dashboard_families",
     "stage_code_to_dashboard_family",
     "invalidate_all_dashboard_slice_caches",
+    "invalidate_dashboard_caches_after_delete_transition",
     "reset_dashboard_cache_runtime_for_tests",
     "ALL_DASHBOARD_FAMILIES",
     "ATTACHMENT_DASHBOARD_FAMILIES",
@@ -582,4 +583,31 @@ def invalidate_all_dashboard_slice_caches() -> int:
     total = 0
     for fam in ALL_DASHBOARD_FAMILIES:
         total += invalidate_dashboard_family(fam)
+    return total
+
+
+def invalidate_dashboard_caches_after_delete_transition(reason: str) -> int:
+    """주문 soft delete/복원 직후 대시보드 read-slice + AS 추천 캐시를 무효화한다.
+
+    삭제/복원은 주문이 **모든** 탭에서 사라지거나 다시 나타나는 전이다. stage family로
+    좁히면 다른 대시보드(실측 패널 카운트 등)에 유령 행이 TTL(최대 300초) 동안 남는다
+    — 2026-08-10 운영 사고(삭제한 주문이 실측 날짜별 집계에 계속 잡힘)의 원인이다.
+    그래서 status 변경과 동일하게 broad 무효화로 처리한다(삭제/복원은 저빈도 이벤트라
+    재계산 비용보다 stale 비용이 크다).
+
+    DB commit이 성공한 뒤에만 호출할 것.
+
+    Args:
+        reason: AS 추천 캐시 무효화 로그에 남길 사유(예: ``"order_delete"``).
+
+    Returns:
+        삭제한 대시보드 슬라이스 키 개수(대략치).
+    """
+    total = invalidate_all_dashboard_slice_caches()
+    # lazy import: shipment_as_recommendation_cache가 이 모듈을 import하므로 순환 회피.
+    from foms.services.shipment_as_recommendation_cache import (
+        invalidate_shipment_as_recommendation_cache,
+    )
+
+    invalidate_shipment_as_recommendation_cache(reason=reason)
     return total
