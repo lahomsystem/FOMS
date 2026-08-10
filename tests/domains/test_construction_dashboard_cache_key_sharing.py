@@ -187,3 +187,23 @@ def test_summary_counts_only_construction_stage_orders(client, monkeypatch) -> N
 
     # 실측 단계 긴급 1건은 제외, 시공 단계 긴급 1건만 계수된다.
     assert captured["urgent_count"] == 1
+
+
+def test_response_exposes_slice_diagnostics_header(client, monkeypatch) -> None:
+    """슬라이스 진단 헤더: 어떤 조각이 hit/miss 였고 재계산에 몇 ms 썼는지 노출한다."""
+    _seed_order(4)
+    admin = _make_user("slice_header_admin", "ADMIN")
+    _login(client, admin)
+
+    resp = client.get("/erp/construction/dashboard?view=fragment")
+    assert resp.status_code == 200
+
+    header = resp.headers.get("X-FOMS-DASH-SLICES", "")
+    assert "summary_counts=" in header
+    assert "attachment_counts=" in header
+    # 형식: <slice>=<result>:<ms> — ms 는 정수여야 파싱이 안전하다.
+    for entry in header.split(";"):
+        name, _, rest = entry.partition("=")
+        result, _, ms = rest.partition(":")
+        assert name and result
+        assert ms.isdigit()
