@@ -4,6 +4,10 @@
 
 | 날짜 | 작업 | 수정 파일 | 커밋 |
 |------|------|-----------|------|
+| 2026-08-10 | 채널톡 AS PUSH 신설(AS 접수 내용+AS 첨부 → AS방 230351): ERP 탭·모바일 PUSH 선택 시트·AS 대시보드 3경로, 본문 조립 서버 SSOT(channel_as_message.py)로 통일 + 모바일 선택 시트 풀스크린 눌림 근본 수정(erp-pro 전역 !important 특이도) + 시공 대시보드 캐시 키 정규화·숫자판 모집단 일치(‘긴급 발주’=시공 기준) + 진단 헤더 2종 신설(EPT-B7-PHASES·DASH-SLICES). 실측: 요약 재계산 추정 88ms vs 실측 27ms — 추정 기반 SQL 이관 중단 판단. production 승격 PR #64·#65·#67·#68 | foms/services/channel_as_message.py, foms/api/channel/channel_integration.py, foms/services/common/{dashboard_cache,ept_b7_profile}.py, foms/web/construction/dashboard.py, static/js/cs/as-dashboard.js, templates/orders/partials/erp_channel_push_picker_modal.html 외 | 340b0064 |
+| 2026-08-10 | 세션 자동 기록 | dashboard_cache.py, layout_scripts.html, photo-capture.js 외 2개 | f94f534d |
+| 2026-08-10 | 세션 자동 기록 | dashboard.py, test_construction_dashboard_cache_key_sharing.py, test_as_dashboard_attachment_modal.py 외 2개 | 2dc54772 |
+| 2026-08-09 | 세션 자동 기록 | tablet-measure-form.js, erp-order-shared.js, test_erp_order_shared_form_scripts.py 외 2개 | 45c53c90 |
 | 2026-07-27 | AS 대시보드 타임라인 개편(T1~T16): as_log append-only 타임라인 + 무상/유상 2단계 판정, 구 contenteditable 2탭 에디터 퇴역, PC/모바일/태블릿 3표면 매크로 SSOT, 시스템 이벤트 실흐름 배선, 검색 as_log 확장, sanitize 미종결 태그 XSS 봉합·2단 상한, lost-update/clobber 서버 보존 가드 — 태스크별 리뷰 루프 + 최종 whole-branch 리뷰 + pre_push_smoke exit 0(253 passed) | foms/services/orders/as_log.py, foms/api/cs/as_orders.py, templates/cs/partials/as_card_macros.html, static/js/cs/as-dashboard.js, foms/services/as_dashboard_display.py 외 | 6473d3b3~876836e1 |
 | 2026-07-27 | 세션 자동 기록 | regional_dashboard.html, test_tablet_rail_contract.py, test_tablet_as_compare_contract.py 외 2개 | abddac61 |
 | 2026-07-24 | 생산 보드 5차: 필터 바 단순화 — [필터] 토글·필터 접기·상태 select 제거, 공장 select를 검색 앞, 변경 버튼 상시 노출(검색=전체 조건) — pytest 212 passed + 필터 바 렌더 동작검증 | tablet_kanban_body.html, tablet-domain-sheets.js, foms-tablet-production-kanban.css 외 | (미커밋) |
@@ -21,6 +25,3 @@
 | 2026-07-23 | 세션 자동 기록 | mobile.css, final-review.md, erp_order_js.html 외 2개 | 78872888 |
 | 2026-07-23 | 세션 자동 기록 | erp_order_js.html, wizard_shell.html, layout_head.html 외 2개 | 78872888 |
 | 2026-07-23 | 세션 자동 기록 | test_p1_mockup_structure.py, test_tablet_t2_contract.py, layout_head.html 외 2개 | bae12980 |
-| 2026-07-23 | 세션 자동 기록 | test_erp_spec_calc_followup.py, test_p1_mockup_structure.py, test_erp_order_shared_form_scripts.py 외 2개 | 08b7ad25 |
-| 2026-07-23 | 세션 자동 기록 | test_production_kanban_full_window.py, tablet_kanban_body.html, dashboard.py 외 2개 | 08b7ad25 |
-| 2026-07-23 | 세션 자동 기록 | test_wdcalculator_product_settings.py, wdcalculator_body.html, blueprint.py 외 2개 | 36f97651 |
