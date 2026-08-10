@@ -14,6 +14,11 @@ from sqlalchemy import String, cast, or_, and_, func
 from foms.services.common.erp_mine_filter import erp_mine_only_from_request
 from foms.services.common.geocode_config import KAKAO_JS_API_KEY
 from foms.services.measurement_route import build_inline_route_strip_payload
+from foms.services.measurement_time import (
+    format_minutes_hm,
+    measurement_time_minutes_of,
+    measurement_time_sort_key,
+)
 from foms.services.erp_permissions import (
     build_mine_sql_filter,
     can_edit_erp,
@@ -105,6 +110,16 @@ def erp_measurement_dashboard():
     range_start_str = _mf.range_start_str
     range_end_str = _mf.range_end_str
     manager_filter = _mf.manager_filter
+
+    if open_map:
+        # 지도 버튼은 대시보드를 렌더하지 않고 곧장 지도로 넘긴다. 이 분기가 아래
+        # 패널/메인행/제품 슬라이스 계산 뒤에 있던 동안, 지도 한 번 여는 데 버려질
+        # 대시보드 렌더가 통째로 한 번 더 돌았다(모바일 지도 진입 지연의 절반).
+        # 실측 대시보드 지도는 항상 실측 주문만 표시한다.
+        return redirect(url_for(
+            'erp_map.map_view',
+            date=selected_date, status='ALL', dashboard='measurement', q=search_q,
+        ))
 
     # Phase H: 대시보드 운영 화면은 최근 활성 데이터만 조회 (과거 완료건 제외)
     def _build_measurement_base(days: int):
@@ -325,10 +340,6 @@ def erp_measurement_dashboard():
         measurement_manager_options,
     )
 
-    if open_map:
-        # 실측 대시보드 지도는 항상 실측 주문만 표시한다.
-        return redirect(url_for('erp_map.map_view', date=selected_date, status='ALL', dashboard='measurement', q=search_q))
-
     # 모바일 v2 큐: 홈과 동일한 깔끔한 queue-card-v2용 view-model (cohort에서만 계산)
     from foms.services.feature_flags import (
         is_mobile_v2_shell,
@@ -357,6 +368,23 @@ def erp_measurement_dashboard():
             if _mgr:
                 _row['manager_name'] = _mgr
             mobile_queue_rows.append(_row)
+
+    # '다음 방문' 히어로: 동선 스트립과 같은 정렬 SSOT(measurement_time_sort_key)로
+    # 첫 미완료 건을 고른다. 템플릿이 자유 텍스트를 사전순 비교하던 예전 방식은
+    # "10시" < "4시" 같은 오판을 내 스트립 풋 캡션과 다른 사람을 가리켰다(ROUTE-02).
+    mobile_hero_row = None
+    mobile_hero_time_hm = None
+    if mobile_queue_rows:
+        _paired = sorted(
+            zip(rows, mobile_queue_rows),
+            key=lambda pair: measurement_time_sort_key(pair[0]),
+        )
+        _hero_pair = next(
+            (p for p in _paired if not getattr(p[0], 'measurement_completed', False)),
+            _paired[0],
+        )
+        mobile_hero_row = _hero_pair[1]
+        mobile_hero_time_hm = format_minutes_hm(measurement_time_minutes_of(_hero_pair[0]))
 
     # 동선 스트립 서버 인라인: HTML 렌더 hot path 에서는 저장 좌표만 사용한다.
     # 좌표 없는 주문의 주소 변환/외부 지오코딩은 API·백그라운드 계보가 담당한다.
@@ -432,6 +460,8 @@ def erp_measurement_dashboard():
             manager_filter=manager_filter,
             rows=rows,
             mobile_queue_rows=mobile_queue_rows,
+            mobile_hero_row=mobile_hero_row,
+            mobile_hero_time_hm=mobile_hero_time_hm,
             tablet_card_view=tablet_card_view,
             tablet_bucket_counts=tablet_bucket_counts,
             measurement_panel_dates=measurement_panel_dates,

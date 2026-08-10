@@ -85,7 +85,10 @@ def test_inline_route_strip_empty_for_missing_coords_without_geocoding(app, monk
 
         payload = build_inline_route_strip_payload(db_session, date_filter=MEASURE_DATE)
 
-    assert payload == {"route": []}
+    assert payload["route"] == []
+    # 빠진 건수는 조용히 삼키지 않고 보고한다(스트립 캡션 "좌표 없는 N곳 제외").
+    assert payload["missing_coords"] == 2
+    assert payload["total_scheduled"] == 2
     assert calls["n"] == 0
 
 

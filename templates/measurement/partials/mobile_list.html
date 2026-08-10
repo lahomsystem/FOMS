@@ -1,18 +1,16 @@
 {% from 'partials/shared/erp_mobile_queue_card_v2.html' import render_queue_card_v2 %}
 
-{# A5: 오늘 동선 히어로 — 기본 진입 시 mobile_queue_rows = 당일(today_date) 실측 큐이므로
-   그중 가장 이른(측정 시각) 1건을 파생한다(신규 쿼리 없음). v3 persona_home_sales의 _rows[0]
-   패턴과 동형. 태블릿 split(tablet_split_body.html) 블록은 무터치 — 이 partial 상단만 최소 추가. #}
+{# A5: 오늘 동선 히어로 — 기본 진입 시 mobile_queue_rows = 당일(today_date) 실측 큐.
+   '다음 방문' 판정은 뷰(dashboard.py)가 동선 스트립과 같은 정렬 SSOT
+   (measurement_time_sort_key)로 계산해 mobile_hero_row 로 내려준다. 여기서 시간
+   문자열을 사전순 비교하면 "10시" < "4시" 처럼 뒤집혀 스트립 캡션과 다른 사람을
+   가리킨다(ROUTE-02). 뷰가 못 내려준 표면은 기존대로 첫 행 폴백. #}
 {% set _mrows = mobile_queue_rows or [] %}
-{% set _mhero_ns = namespace(row=None, tk='99:99') %}
 {% set _mdone_ns = namespace(n=0) %}
 {% for _o in _mrows %}
-  {% set _mt = ((_o.structured_data.get('schedule') or {}).get('measurement') or {}).get('time') %}
-  {% set _tk = _mt if _mt else '99:99' %}
-  {% if _mhero_ns.row is none or _tk < _mhero_ns.tk %}{% set _mhero_ns.row = _o %}{% set _mhero_ns.tk = _tk %}{% endif %}
   {% if _o.measurement_completed %}{% set _mdone_ns.n = _mdone_ns.n + 1 %}{% endif %}
 {% endfor %}
-{% set _mhero = _mhero_ns.row %}
+{% set _mhero = mobile_hero_row if mobile_hero_row else (_mrows[0] if _mrows else None) %}
 
 {% if _mrows %}
 <div class="foms-visit-summary" aria-label="오늘 실측 진행 요약">
@@ -42,7 +40,7 @@
     {% set _mh_nav = '' %}
   {% endif %}
   <div class="foms-v2dh-hero" data-st="measure" aria-label="오늘 동선 다음 실측">
-    <div class="foms-v2dh-hero__eyebrow"><i class="fas fa-location-dot" aria-hidden="true"></i> 다음 방문{% if _mh_time %} · <span class="foms-visit-countdown" data-foms-visit-time="{{ _mh_time }}">{{ _mh_time }} 방문</span>{% endif %}</div>
+    <div class="foms-v2dh-hero__eyebrow"><i class="fas fa-location-dot" aria-hidden="true"></i> 다음 방문{% if _mh_time %} · <span class="foms-visit-countdown" data-foms-visit-time="{{ mobile_hero_time_hm or _mh_time }}" data-foms-visit-label="{{ _mh_time }}">{{ _mh_time }} 방문</span>{% endif %}</div>
     <div class="foms-v2dh-hero__title">{{ _mhero.customer_name or '-' }}</div>
     {% if _mh_pn or _mh_w or _mh_d or _mh_h or _mh_color %}
     <div class="foms-hero-spec" aria-label="제품 규격">
