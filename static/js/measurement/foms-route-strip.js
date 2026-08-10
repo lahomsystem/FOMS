@@ -308,7 +308,7 @@
     var truncated = (data && data.truncated) || 0;
     var parts = [];
     if (missing > 0) parts.push('좌표 없는 ' + missing + '곳');
-    if (truncated > 0) parts.push(truncated + '곳 더');
+    if (truncated > 0) parts.push('상한 초과 ' + truncated + '곳');
     return parts.length ? '(' + parts.join(' · ') + ' 제외)' : '';
   }
 
@@ -381,6 +381,9 @@
     }
   }
 
+  // 마운트가 둘 이상인 표면(v3 셸: 홈 스트립 + desktop-fallback 안의 v2 대시보드
+  // 스트립)에서는 문서 순서 첫 마운트만 초기화한다 — fallback 쪽은 화면에 없어
+  // 초기화하면 보이지 않는 카카오 지도 인스턴스만 하나 더 만든다.
   function initRouteStrip() {
     var strip = document.querySelector('[data-foms-route-strip]');
     if (!strip) return;
