@@ -225,3 +225,24 @@ def test_slice_diagnostics_cover_every_return_path() -> None:
     for result in ('"hit", 0', '"hit_sf", 0', '"miss", compute_ms'):
         assert f"record_slice_observation(slice_name, {result})" in body
     assert "record_slice_observation(slice_name, result, elapsed_ms)" in body
+
+
+def test_response_exposes_route_phase_timings(client, monkeypatch) -> None:
+    """구간 계측 헤더: 렌더 밖 시간이 어디로 가는지(목록 쿼리·행 조립·payload) 보여준다.
+
+    render_ms 만으로는 "렌더 30ms 인데 응답 250ms" 의 나머지를 알 수 없어 최적화 대상을
+    추정으로 고르게 된다 — 실제로 초기 추정(요약 88ms)이 계측값(27ms)과 크게 어긋났다.
+    """
+    _seed_order(5)
+    admin = _make_user("phase_header_admin", "ADMIN")
+    _login(client, admin)
+
+    resp = client.get("/erp/construction/dashboard?view=fragment")
+    assert resp.status_code == 200
+
+    header = resp.headers.get("X-FOMS-EPT-B7-PHASES", "")
+    for name in ("summary_slice", "list_query", "attachment_slice", "row_dtos", "detail_payloads"):
+        assert f"{name}=" in header, header
+    for entry in header.split(";"):
+        name, _, ms = entry.partition("=")
+        assert name and ms.isdigit()
