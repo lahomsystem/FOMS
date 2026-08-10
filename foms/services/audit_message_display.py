@@ -382,9 +382,12 @@ def describe_field_change(
 
     if has_before:
         before_text = format_value(field, before)
+        # 빈 값 두 종류(``(없음)``/``(지움)``)는 표기만 다를 뿐 같은 상태다. 텍스트로만 비교하면
+        # "없던 값을 지웠다"는 화살표가 생겨 사실과 다르게 읽힌다(2026-08-10 운영 실측).
+        both_empty = before_text == _EMPTY_DISPLAY and after_text == _EMPTY_DISPLAY
         if before_text == _EMPTY_DISPLAY:
             before_text = _EMPTY_BEFORE_DISPLAY
-        if before_text != after_text:
+        if not both_empty and before_text != after_text:
             return f"{head} — {label}: {before_text} → {after_text}"
     if field in _CHECKLIST_FIELDS:
         return f"{head} — {label}: {after_text}로 표시"
@@ -467,12 +470,20 @@ def extract_order_ids(message: str | None) -> list[int]:
 
 
 def _annotate_order_mentions(message: str, customer_names: Mapping[int, str]) -> str:
-    """이미 읽을 만한 문장의 ``#주문번호`` 뒤에 고객명만 덧붙인다."""
+    """이미 읽을 만한 문장의 ``#주문번호`` 뒤에 고객명만 덧붙인다.
+
+    **이미 이름이 병기된 문장은 건드리지 않는다** — P4 C 이후 쓰기 경로가 만드는 문장은
+    ``주문 #4704 (황인영) — …`` 처럼 이름을 이미 포함한다. 무조건 덧붙이면 운영 화면에
+    ``(황인영) (황인영)`` 이 찍힌다(2026-08-10 운영 실측).
+    """
 
     def _repl(match: re.Match[str]) -> str:
         order_id = int(match.group("order_id"))
         name = (customer_names.get(order_id) or "").strip()
         if not name:
+            return match.group(0)
+        tail = message[match.end():]
+        if tail.lstrip().startswith("("):  # 이미 (이름) 이 붙어 있다.
             return match.group(0)
         return f"{match.group(0)} ({name})"
 
