@@ -336,3 +336,66 @@ def test_wired_paths_record_structured_target():
         assert 'target_type="order"' in source or "target_type='order'" in source, (
             f"{path}: target_type 미기록"
         )
+
+
+# --------------------------------------------------------------------------- #
+# 7. C1-b 확장 배선 — 남아 있던 미기록 라우트
+
+
+# --------------------------------------------------------------------------- #
+# 7. C1-b 확장 배선 — 남아 있던 미기록 라우트
+#
+# 단가표(wdcalculator)·채널톡 발송은 별도 DB/외부 연동이라 도메인 레인에서 HTTP 로 태울 수
+# 없다. 그 경로들은 커버리지 인벤토리 게이트(test_audit_coverage_inventory.py)가 지킨다.
+# --------------------------------------------------------------------------- #
+def test_production_hold_and_release_are_distinct_actions(client):
+    """생산 보류/해제가 사유와 함께 각각 남는다(왜 멈췄는지가 핵심 정보)."""
+    user_id = _make_user(role="STAFF", team="PRODUCTION")
+    _login(client, user_id)
+    order_id = _make_order(stage="PRODUCTION", customer_name="정다은").id
+
+    held = client.post(f"/api/orders/{order_id}/production/hold",
+                       json={"active": True, "reason": "자재 지연"})
+    assert held.status_code == 200, held.get_data(as_text=True)
+    row = _only_log("PRODUCTION_HOLD_SET", order_id)
+    _assert_structured(row, action="PRODUCTION_HOLD_SET", order_id=order_id,
+                       user_id=user_id, customer_name="정다은")
+    assert row.detail["reason"] == "자재 지연"
+    assert "생산 보류: 자재 지연" in row.message
+
+    released = client.post(f"/api/orders/{order_id}/production/hold", json={"active": False})
+    assert released.status_code == 200, released.get_data(as_text=True)
+    assert _only_log("PRODUCTION_HOLD_RELEASED", order_id).detail["active"] is False
+
+
+def test_order_task_create_is_recorded_with_title(client):
+    """업무(팔로업) 추가가 제목과 함께 남는다."""
+    user_id = _make_user()
+    _login(client, user_id)
+    order_id = _make_order(customer_name="오세훈").id
+
+    resp = client.post(f"/api/orders/{order_id}/tasks",
+                       json={"title": "고객 재연락", "owner_team": "CS"})
+    assert resp.status_code in (200, 201), resp.get_data(as_text=True)
+
+    row = _only_log("ORDER_TASK_CREATED", order_id)
+    _assert_structured(row, action="ORDER_TASK_CREATED", order_id=order_id,
+                       user_id=user_id, customer_name="오세훈")
+    assert row.detail["title"] == "고객 재연락"
+    assert "업무 추가: 고객 재연락" in row.message
+
+
+def test_quest_create_is_recorded(client):
+    """퀘스트 생성이 단계와 함께 남는다."""
+    user_id = _make_user()
+    _login(client, user_id)
+    order_id = _make_order(stage="MEASURE", customer_name="임하늘").id
+
+    resp = client.post(f"/api/orders/{order_id}/quest", json={"stage": "MEASURE"})
+    assert resp.status_code == 200, resp.get_data(as_text=True)
+    if not (resp.get_json() or {}).get("success"):
+        return  # 템플릿이 없는 단계는 success=False — 기록 대상 자체가 없다.
+
+    row = _only_log("QUEST_CREATED", order_id)
+    _assert_structured(row, action="QUEST_CREATED", order_id=order_id,
+                       user_id=user_id, customer_name="임하늘")

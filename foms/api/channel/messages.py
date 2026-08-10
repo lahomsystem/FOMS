@@ -6,7 +6,8 @@ from foms.services.error_logging import log_handled_exception
 from flask import jsonify, request, session
 from sqlalchemy import or_
 
-from foms.web.auth import login_required
+from foms.web.auth import log_access, login_required
+from foms.services.audit_message_display import describe_action
 from foms.api.channel.blueprint import chat_bp
 from foms.api.channel.utils import schedule_chat_thumbnail_generation
 from foms.services.datetime_kst import format_datetime_kst
@@ -234,6 +235,17 @@ def api_chat_send_message():
         if attachments:
             message_data["attachments"] = [attachment.to_dict() for attachment in attachments]
         setattr(room, "updated_at", datetime.datetime.now())
+        # 본문은 남기지 않는다 — 채팅에는 고객 정보가 섞인다(원장 PII 최소화). 누가 어느 방에
+        # 무엇(형식)을 보냈는지까지가 감사 대상이다.
+        log_access(
+            describe_action("CHAT_MESSAGE_SENT",
+                            target_label=f"채팅방 #{room_id}", note=message_type),
+            user_id,
+            auto_commit=False,
+            action="CHAT_MESSAGE_SENT", target_type="chat_room", target_id=int(room_id),
+            detail={"message_id": int(new_message.id), "message_type": message_type,
+                    "has_attachment": bool(file_info)},
+        )
         db.commit()
         return jsonify({"success": True, "message": message_data})
     except Exception as e:

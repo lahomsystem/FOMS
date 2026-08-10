@@ -26,7 +26,9 @@ from sqlalchemy.orm.attributes import flag_modified
 from db import get_db
 from foms.services.orders.order_mutation_policy import POLICY_REGISTRY, evaluate_policy
 from foms.services.orders.revision import RevisionError, execute_order_mutation
-from foms.web.auth import get_user_by_id
+from foms.web.auth import get_user_by_id, log_access
+from foms.services.audit_message_display import describe_order_action
+from foms.services.orders.audit_order_context import order_audit_context
 from models import Order, OrderEvent, User
 
 logger = logging.getLogger(__name__)
@@ -203,6 +205,15 @@ def log_call_response(order_id: int) -> Any:
             scope_hash=scope_hash,
             request_hash=request_hash,
             mutation=_mutate,
+        )
+        call_context = order_audit_context(order)
+        log_access(
+            describe_order_action(order_id=order_id, action="ORDER_CALL_LOGGED",
+                                  note=result, **call_context),
+            user_id,
+            auto_commit=False,
+            action="ORDER_CALL_LOGGED", target_type="order", target_id=int(order_id),
+            detail={"result": result, **call_context},
         )
         db.commit()
     except RevisionError as rev:

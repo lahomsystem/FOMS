@@ -18,6 +18,8 @@ from sqlalchemy.orm import Session
 from db import get_db
 from models import Order, OrderEvent
 from foms.web.auth import login_required, role_required, log_access, get_user_by_id
+from foms.services.audit_message_display import describe_order_action
+from foms.services.orders.audit_order_context import order_audit_context
 from foms.services.orders.status_constants import CABINET_STATUS, STATUS
 from foms.services.orders.order_mutation_policy import POLICY_REGISTRY, evaluate_policy, Decision
 from foms.services.orders.revision import RevisionError, execute_order_mutation
@@ -301,6 +303,16 @@ def _commit_storage_field(
             db, actor_user_id=user_id, policy_id=command, order_ids=[order_id],
             expected_versions=expected_versions, idempotency_key=idempotency_key,
             scope_hash=scope_hash, request_hash=request_hash, mutation=_mutate,
+        )
+        order = db.get(Order, order_id)
+        storage_context = order_audit_context(order)
+        log_access(
+            describe_order_action(order_id=order_id, action="STORAGE_SETTING_UPDATED",
+                                  note=field, **storage_context),
+            user_id,
+            auto_commit=False,
+            action="STORAGE_SETTING_UPDATED", target_type="order", target_id=int(order_id),
+            detail={"field": field, "after": typed_value, **storage_context},
         )
         db.commit()
     except RevisionError as rev:

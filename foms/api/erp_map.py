@@ -15,7 +15,9 @@ from sqlalchemy.orm import Session
 
 from db import get_db
 from models import Order, User
-from foms.web.auth import login_required
+from foms.web.auth import log_access, login_required
+from foms.services.audit_message_display import describe_action, describe_order_action
+from foms.services.orders.audit_order_context import order_audit_context
 from foms.services.erp_permissions import erp_edit_required
 from foms.services.erp_display import _normalize_for_search
 from foms.services.common.address_converter import FOMSAddressConverter
@@ -716,6 +718,14 @@ def api_add_address_learning():
                 lng=longitude,
                 requested_by_user_id=user_id,
             )
+            # 주소 원문은 남기지 않는다(고객 주소 = PII) — 학습 요청이 있었다는 사실만.
+            log_access(
+                describe_action("ADDRESS_LEARNING_ADDED", target_label="주소 학습"),
+                user_id,
+                auto_commit=False,
+                action="ADDRESS_LEARNING_ADDED", target_type="address_learning",
+                target_id=None, detail={"has_correction": True},
+            )
             db.commit()
         except AddressLearningRateLimited as exc:
             db.rollback()
@@ -805,6 +815,16 @@ def api_update_order_address(order_id):
                 scope_hash=scope_hash,
                 request_hash=request_hash,
                 mutation=_mutate,
+            )
+            # 주소 값 자체는 원장에 남기지 않는다(PII) — "주소를 고쳤다"는 사실만 남긴다.
+            address_context = order_audit_context(order)
+            log_access(
+                describe_order_action(order_id=order_id, action="ORDER_ADDRESS_UPDATED",
+                                      **address_context),
+                user_id,
+                auto_commit=False,
+                action="ORDER_ADDRESS_UPDATED", target_type="order", target_id=int(order_id),
+                detail=address_context,
             )
             db.commit()
         except RevisionError as rev:

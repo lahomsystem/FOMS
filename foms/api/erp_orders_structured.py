@@ -835,6 +835,15 @@ def api_patch_order_structured_fields(order_id: int):
         flag_modified(order, 'structured_data')
         sync_erp_flat_columns(order, structured_data)
         setattr(order, 'structured_updated_at', now)
+        patch_context = order_audit_context(order)
+        log_access(
+            describe_order_action(order_id=order_id, action='ORDER_STRUCTURED_SAVED',
+                                  note='인라인 수정', **patch_context),
+            session.get('user_id'),
+            auto_commit=False,
+            action='ORDER_STRUCTURED_SAVED', target_type='order', target_id=int(order_id),
+            detail={'mode': 'inline', 'field': field, **patch_context},
+        )
         db.commit()
 
         # Tier A(broad): 주문 구조(structured_data) 수정은 workflow.stage/order.status를
@@ -1092,6 +1101,15 @@ def api_put_order_structured(order_id):
                 scope_hash=scope_hash,
                 request_hash=request_hash,
                 mutation=_mutate,
+            )
+            put_context = order_audit_context(order)
+            log_access(
+                describe_order_action(order_id=order_id, action='ORDER_STRUCTURED_SAVED',
+                                      note='전체 저장', **put_context),
+                actor_user_id,
+                auto_commit=False,
+                action='ORDER_STRUCTURED_SAVED', target_type='order', target_id=int(order_id),
+                detail={'mode': 'full', **put_context},
             )
             db.commit()
         except RevisionConflictError as conflict:

@@ -14,7 +14,9 @@ from urllib.parse import quote
 from flask import Blueprint, g, jsonify, request, session
 from sqlalchemy import func, or_
 
-from foms.web.auth import login_required
+from foms.web.auth import log_access, login_required
+from foms.services.audit_message_display import describe_action, describe_order_action
+from foms.services.orders.audit_order_context import order_audit_context
 from foms.services.datetime_kst import format_datetime_kst, now_utc_naive
 from foms.services.notifications.recipients import fan_out_new_notification
 from foms.services.request_write_guard import require_same_origin_write
@@ -486,6 +488,13 @@ def api_notification_archive(notification_id):
                 user_state_id=state.id, actor_user_id=user_id, recipient_user_id=user_id,
             )
 
+        log_access(
+            describe_action("NOTIFICATION_ARCHIVED", target_label=f"알림 #{notification_id}"),
+            user_id,
+            auto_commit=False,
+            action="NOTIFICATION_ARCHIVED", target_type="notification",
+            target_id=int(notification_id), detail={"bulk": False},
+        )
         db.commit()
         _invalidate_badge_cache(user_id)
         return jsonify({"success": True, "message": "알림을 보관했습니다."})
@@ -528,6 +537,13 @@ def api_notifications_archive_all():
                 metadata={"bulk": True, "count": int(updated)},
             )
 
+        log_access(
+            describe_action("NOTIFICATION_ARCHIVED", target_label="알림", note=f"{updated}건 일괄"),
+            user_id,
+            auto_commit=False,
+            action="NOTIFICATION_ARCHIVED", target_type="notification", target_id=None,
+            detail={"bulk": True, "count": int(updated)},
+        )
         db.commit()
         _invalidate_badge_cache(user_id)
         return jsonify({"success": True, "message": f"{updated}개 알림을 보관했습니다.", "count": updated})
@@ -583,6 +599,14 @@ def api_notifications_delete_all():
             return jsonify({"success": False, "message": "권한이 없습니다."}), 403
 
         deleted = db.query(Notification).delete(synchronize_session="fetch")
+        log_access(
+            describe_action("NOTIFICATIONS_DELETED", target_label="알림",
+                            note=f"{deleted}건 하드 삭제"),
+            user_id,
+            auto_commit=False,
+            action="NOTIFICATIONS_DELETED", target_type="notification", target_id=None,
+            detail={"count": int(deleted)},
+        )
         db.commit()
         _badge_cache.clear()
         return jsonify({"success": True, "message": f"{deleted}개 알림을 삭제했습니다.", "count": deleted})
@@ -743,6 +767,14 @@ def api_notifications_send():
             fan_out_new_notification(db, notif, actor_user_id=user_id)
             created_notif_ids.append(notif.id)
 
+        log_access(
+            describe_action("NOTIFICATION_SENT", target_label="알림 발송", note=title),
+            user_id,
+            auto_commit=False,
+            action="NOTIFICATION_SENT", target_type="notification", target_id=None,
+            detail={"title": title, "target_type": target_type,
+                    "target_team": target_team_val, "recipients": len(created_notif_ids)},
+        )
         db.commit()
 
         # 커밋 후 Web Push enqueue(worker 가 커밋된 row 를 재조회하도록 commit 이후 실행).
@@ -920,6 +952,15 @@ def api_order_urgent_mention(order_id):
                 "kind": "URGENT_MENTION",
             },
             dedupe_key=f"urgent_mention:{notif.id}",
+        )
+        log_access(
+            describe_order_action(order_id=order_id, action="URGENT_MENTION_SENT",
+                                  **order_audit_context(order)),
+            sender_id,
+            auto_commit=False,
+            action="URGENT_MENTION_SENT", target_type="order", target_id=int(order_id),
+            detail={"target_user_id": int(target_uid), "notification_id": int(notif.id),
+                    **order_audit_context(order)},
         )
         db.commit()  # 원자 커밋: notification+state+event+outbox(부분 배달 0)
 

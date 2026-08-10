@@ -8,13 +8,14 @@ import os
 import json
 import logging
 import re
-from flask import Blueprint, request, jsonify, render_template
+from flask import Blueprint, request, jsonify, render_template, session
 from sqlalchemy import String, or_
 from sqlalchemy.exc import IntegrityError
 from db import get_db
 from models import Order
 from foms.services.erp_display import _ensure_dict, _normalize_for_search
-from foms.web.auth import login_required
+from foms.web.auth import log_access, login_required
+from foms.services.audit_message_display import describe_action
 from wdcalculator_db import get_wdcalculator_db
 from wdcalculator_models import (
     Estimate,
@@ -545,6 +546,40 @@ def wdcalculator_product_settings():
     )
 
 
+
+#: 단가표 편집 라우트 → 감사 detail 의 항목 종류.
+_CATALOG_KINDS = {
+    "product": "제품",
+    "category": "카테고리",
+    "option": "옵션",
+    "notes_category": "비고 카테고리",
+    "notes_option": "비고 옵션",
+    "spec_field_preset": "규격 프리셋",
+}
+
+
+def _audit_catalog(kind: str, deleted: bool, item_id=None, name: str | None = None) -> None:
+    """단가표(마스터데이터) 편집 1건을 구조화 감사로 남긴다.
+
+    단가표는 견적·매출로 직결되는데 지금까지 누가 바꿨는지 기록이 없었다. 값 전체는 남기지
+    않는다(항목 스냅샷이 원장을 부풀린다) — 종류·식별자·이름까지가 추적에 필요한 최소다.
+
+    :param kind: 항목 종류 키(:data:`_CATALOG_KINDS`).
+    :param deleted: 삭제면 True, 저장이면 False.
+    :param item_id: 항목 식별자(있으면).
+    :param name: 항목 이름(있으면 문장에 붙는다).
+    """
+    action = "CATALOG_ITEM_DELETED" if deleted else "CATALOG_ITEM_SAVED"
+    label = _CATALOG_KINDS.get(kind, kind)
+    log_access(
+        describe_action(action, target_label=f"단가표 {label}", note=name),
+        session.get("user_id"),
+        action=action, target_type="wdc_catalog",
+        target_id=(int(item_id) if isinstance(item_id, int) else None),
+        detail={"kind": kind, "item_id": item_id, "name": name},
+    )
+
+
 # ==================== API 라우트 ====================
 
 @wdcalculator_bp.route('/api/wdcalculator/products', methods=['GET'])
@@ -571,6 +606,7 @@ def api_wdcalculator_save_product():
             data['id'] = new_id
             products.append(data)
         if save_products(products):
+            _audit_catalog("product", False, item_id=data.get('id'), name=data.get('name'))
             return jsonify({'success': True, 'message': '제품이 저장되었습니다.'})
         return jsonify({'success': False, 'message': '제품 저장에 실패했습니다.'})
     except Exception:
@@ -584,6 +620,7 @@ def api_wdcalculator_delete_product(product_id):
     try:
         products = [p for p in load_products() if p['id'] != product_id]
         if save_products(products):
+            _audit_catalog("product", True, item_id=product_id)
             return jsonify({'success': True, 'message': '제품이 삭제되었습니다.'})
         return jsonify({'success': False, 'message': '제품 삭제에 실패했습니다.'})
     except Exception:
@@ -675,6 +712,8 @@ def api_wdcalculator_save_category():
                 categories.append(category_data)
         cleaned = clean_categories_data(categories)
         if save_additional_option_categories(cleaned):
+            _audit_catalog("category", False, item_id=category_id,
+                           name=(category_data or {}).get('name'))
             if category_id:
                 updated = next((c for c in cleaned if c.get('id') == category_id), None)
                 if updated:
@@ -695,6 +734,7 @@ def api_wdcalculator_delete_category(category_id):
     try:
         categories = [c for c in load_additional_option_categories() if c['id'] != category_id]
         if save_additional_option_categories(categories):
+            _audit_catalog("category", True, item_id=category_id)
             return jsonify({'success': True, 'message': '카테고리가 삭제되었습니다.'})
         return jsonify({'success': False, 'message': '카테고리 삭제에 실패했습니다.'})
     except Exception:
@@ -733,6 +773,7 @@ def api_wdcalculator_save_option(category_id):
             category['options'].append(option_data)
         cleaned = clean_categories_data(categories)
         if save_additional_option_categories(cleaned):
+            _audit_catalog("option", False, item_id=option_id, name=(data or {}).get('name'))
             return jsonify({'success': True, 'message': '옵션이 저장되었습니다.'})
         return jsonify({'success': False, 'message': '옵션 저장에 실패했습니다.'})
     except Exception:
@@ -750,6 +791,7 @@ def api_wdcalculator_delete_option(category_id, option_id):
             return jsonify({'success': False, 'message': '카테고리를 찾을 수 없습니다.'})
         category['options'] = [o for o in category['options'] if o.get('id') != option_id]
         if save_additional_option_categories(categories):
+            _audit_catalog("option", True, item_id=option_id)
             return jsonify({'success': True, 'message': '옵션이 삭제되었습니다.'})
         return jsonify({'success': False, 'message': '옵션 삭제에 실패했습니다.'})
     except Exception:
@@ -791,6 +833,8 @@ def api_wdcalculator_save_notes_category():
                     'success': True, 'message': '비고 카테고리가 저장되었습니다.',
                     'category': {'id': return_category.get('id'), 'name': return_category.get('name'), 'options': (return_category.get('options') or [])[:]}
                 })
+            _audit_catalog("notes_category", False, item_id=category_id,
+                           name=(category_data or {}).get('name'))
             return jsonify({'success': True, 'message': '비고 카테고리가 저장되었습니다.'})
         return jsonify({'success': False, 'message': '비고 카테고리 저장에 실패했습니다.'})
     except Exception:
@@ -804,6 +848,7 @@ def api_wdcalculator_delete_notes_category(category_id):
     try:
         categories = [c for c in load_notes_categories() if c.get('id') != category_id]
         if save_notes_categories(categories):
+            _audit_catalog("notes_category", True, item_id=category_id)
             return jsonify({'success': True, 'message': '비고 카테고리가 삭제되었습니다.'})
         return jsonify({'success': False, 'message': '비고 카테고리 삭제에 실패했습니다.'})
     except Exception:
@@ -835,6 +880,8 @@ def api_wdcalculator_save_notes_option(category_id):
             option_data['id'] = max(existing_ids + [0]) + 1
             category['options'].append(option_data)
         if save_notes_categories(categories):
+            _audit_catalog("notes_option", False, item_id=(option_data or {}).get('id'),
+                           name=(option_data or {}).get('name'))
             return jsonify({'success': True, 'message': '비고 옵션이 저장되었습니다.', 'option': option_data})
         return jsonify({'success': False, 'message': '비고 옵션 저장에 실패했습니다.'})
     except Exception:
@@ -871,6 +918,7 @@ def api_wdcalculator_delete_notes_option(category_id, option_id):
             return jsonify({'success': False, 'message': f'삭제할 옵션을 찾을 수 없습니다. (option_id: {option_id})'})
         category['options'] = remaining
         if save_notes_categories(categories):
+            _audit_catalog("notes_option", True, item_id=option_id)
             return jsonify({'success': True, 'message': '비고 옵션이 삭제되었습니다.'})
         return jsonify({'success': False, 'message': '비고 옵션 삭제에 실패했습니다.'})
     except Exception:
@@ -903,6 +951,7 @@ def api_wdcalculator_save_spec_field_preset():
         if isinstance(data.get('values'), list):
             presets[field] = [{'name': str(v or '').strip()} for v in data['values']]
             if save_spec_field_presets(presets):
+                _audit_catalog("spec_field_preset", False, name=f"{field} 일괄 저장")
                 return jsonify({
                     'success': True, 'message': '프리셋이 저장되었습니다.',
                     'spec_field_presets': load_spec_field_presets(),
@@ -924,6 +973,7 @@ def api_wdcalculator_save_spec_field_preset():
             field_items.append({'id': max(existing_ids + [0]) + 1, 'name': name})
             presets[field] = field_items
         if save_spec_field_presets(presets):
+            _audit_catalog("spec_field_preset", False, item_id=preset_id, name=name)
             saved_field = load_spec_field_presets().get(field, [])
             saved = next((p for p in saved_field if p.get('name') == name), None)
             return jsonify({
@@ -947,6 +997,7 @@ def api_wdcalculator_delete_spec_field_preset(field, preset_id):
         presets = load_spec_field_presets()
         presets[field] = [p for p in presets.get(field, []) if p.get('id') != preset_id]
         if save_spec_field_presets(presets):
+            _audit_catalog("spec_field_preset", True, item_id=preset_id)
             return jsonify({'success': True, 'message': '프리셋이 삭제되었습니다.'})
         return jsonify({'success': False, 'message': '프리셋 삭제에 실패했습니다.'})
     except Exception:
@@ -996,6 +1047,13 @@ def api_wdcalculator_save_estimate():
             message = '견적이 저장되었습니다.'
         matched = False
         db.commit()
+        log_access(
+            describe_action("ESTIMATE_SAVED", target_label=f"견적 #{estimate.id}",
+                            note=customer_name),
+            session.get('user_id'),
+            action="ESTIMATE_SAVED", target_type="wdc_estimate", target_id=int(estimate.id),
+            detail={"estimate_id": int(estimate.id), "order_id": order_id},
+        )
         return jsonify({
             'success': True,
             'message': message,
@@ -1104,6 +1162,12 @@ def api_wdcalculator_estimate(estimate_id):
         if request.method == 'DELETE':
             db.delete(estimate)
             db.commit()
+            log_access(
+                describe_action("ESTIMATE_DELETED", target_label=f"견적 #{estimate_id}"),
+                session.get('user_id'),
+                action="ESTIMATE_DELETED", target_type="wdc_estimate",
+                target_id=int(estimate_id), detail={"estimate_id": int(estimate_id)},
+            )
             return jsonify({'success': True, 'message': '견적이 삭제되었습니다.'})
         return jsonify({'success': True, 'estimate': estimate.to_dict()})
     except Exception:
@@ -1138,6 +1202,13 @@ def api_wdcalculator_match_order():
         match = EstimateOrderMatch(estimate_id=estimate_id, order_id=order_id)
         wd_db.add(match)
         wd_db.commit()
+        log_access(
+            describe_action("ESTIMATE_ORDER_MATCHED",
+                            target_label=f"견적 #{estimate_id}", note=f"주문 #{order_id}"),
+            session.get('user_id'),
+            action="ESTIMATE_ORDER_MATCHED", target_type="order",
+            target_id=int(order_id), detail={"estimate_id": estimate_id, "order_id": order_id},
+        )
         return jsonify({'success': True, 'message': '견적과 주문이 매칭되었습니다.', 'match_id': match.id})
     except Exception:
         wd_db = get_wdcalculator_db()
@@ -1221,6 +1292,13 @@ def api_wdcalculator_unmatch_order():
                 _clear_wdc_estimate_meta_link(foms_db, order, None)
             except Exception:
                 logger.warning("[unmatch-order] meta.wdc_estimate_id 제거 실패(계속 진행)", exc_info=True)
+        log_access(
+            describe_action("ESTIMATE_ORDER_UNMATCHED", target_label=f"주문 #{order_id}",
+                            note=f"{removed}건 해제"),
+            session.get('user_id'),
+            action="ESTIMATE_ORDER_UNMATCHED", target_type="order",
+            target_id=int(order_id), detail={"order_id": order_id, "removed": removed},
+        )
         return jsonify({
             'success': True,
             'message': '견적 매칭이 해제되었습니다.',
@@ -1279,6 +1357,13 @@ def api_orders_wdc_estimate_sync(order_id):
             wd_db.add(estimate)
         wd_db.flush()  # estimate.id 확보
         wd_db.commit()
+        log_access(
+            describe_action("ESTIMATE_SYNCED_TO_ORDER", target_label=f"주문 #{order_id}",
+                            note=f"견적 #{estimate.id}"),
+            session.get('user_id'),
+            action="ESTIMATE_SYNCED_TO_ORDER", target_type="order",
+            target_id=int(order_id), detail={"estimate_id": int(estimate.id), "order_id": order_id},
+        )
         return jsonify({'success': True, 'estimate_id': estimate.id, 'matched': False})
     except Exception:
         wd_db = get_wdcalculator_db()
