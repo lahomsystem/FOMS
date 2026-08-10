@@ -13,7 +13,9 @@ from foms.services.error_logging import log_handled_exception
 
 from flask import has_request_context, jsonify, request, session
 
-from foms.web.auth import get_user_by_id, login_required
+from foms.web.auth import get_user_by_id, log_access, login_required
+from foms.services.audit_message_display import describe_order_action
+from foms.services.orders.audit_order_context import order_audit_context
 from foms.api.files.blueprint import (
     ASYNC_ATTACHMENT_THUMBNAIL,
     attachments_bp,
@@ -109,7 +111,48 @@ def emit_attachment_event(
     )
     db.add(event)
     db.flush()
+    _audit_attachment_event(db, attachment, event_type)
     return event
+
+
+#: 첨부 수명주기 이벤트 → 감사 행위 코드. ``META_UPDATED`` 는 매핑하지 않는다 —
+#: 항목 재배치는 ``order_events`` 로 충분하고 보안 원장까지 도배할 가치가 없다
+#: (스펙 §3-3 "물어볼 수 있는 행위만 기록").
+_ATTACHMENT_AUDIT_ACTIONS = {
+    ATTACHMENT_ADDED: "FILE_UPLOADED",
+    ATTACHMENT_DELETED: "FILE_DELETED",
+    ATTACHMENT_RESTORED: "FILE_RESTORED",
+}
+
+
+def _audit_attachment_event(db: Any, attachment: OrderAttachment, event_type: str) -> None:
+    """첨부 업로드/삭제/복구를 구조화 감사로 남긴다(AUDIT-LOG P4 C1).
+
+    ``order_events`` 는 주문 타임라인이고 ``security_logs`` 는 "누가 무엇을 했는가"의
+    원장이다. 파일은 사고 시 가장 먼저 묻는 대상이라 양쪽에 남긴다. 호출자의 트랜잭션에
+    실으므로(``auto_commit=False``) 업로드가 롤백되면 감사 행도 함께 사라진다.
+
+    :param db: 호출자가 소유한 세션.
+    :param attachment: 대상 첨부.
+    :param event_type: 첨부 수명주기 이벤트 타입.
+    """
+    action = _ATTACHMENT_AUDIT_ACTIONS.get(event_type)
+    if not action:
+        return
+    order = db.get(Order, attachment.order_id)
+    context = order_audit_context(order)
+    log_access(
+        describe_order_action(
+            order_id=attachment.order_id, action=action,
+            note=attachment.filename, **context,
+        ),
+        _actor_user_id(),
+        auto_commit=False,
+        action=action, target_type="order", target_id=int(attachment.order_id),
+        detail={"attachment_id": attachment.id, "filename": attachment.filename,
+                "category": attachment.category, "storage_key": attachment.storage_key,
+                **context},
+    )
 
 
 def _attachment_object_keys(attachment: OrderAttachment) -> list[str]:

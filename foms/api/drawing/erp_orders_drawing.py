@@ -13,8 +13,10 @@ from sqlalchemy.orm.attributes import flag_modified
 logger = logging.getLogger(__name__)
 
 from db import get_db
-from models import Order, OrderAttachment, Notification, OrderEvent, SecurityLog
-from foms.web.auth import login_required, get_user_by_id
+from models import Order, OrderAttachment, Notification, OrderEvent
+from foms.web.auth import login_required, get_user_by_id, log_access
+from foms.services.audit_message_display import describe_order_action
+from foms.services.orders.audit_order_context import order_audit_context
 from foms.services.datetime_kst import now_utc_naive
 from foms.api.notifications import (
     resolve_notification_recipient_user_ids,
@@ -256,7 +258,16 @@ def perform_drawing_transfer(
         )
     except Exception as e:
         logger.warning("production change alert (transfer) failed: %s", e, exc_info=True)
-    db.add(SecurityLog(user_id=user_id, message=f"주문 #{order_id} 도면 전달 완료: {note}"))
+    context = order_audit_context(order)
+    log_access(
+        describe_order_action(order_id=order_id, action="DRAWING_DELIVERED", note=note or None, **context),
+        user_id,
+        auto_commit=False,
+        action="DRAWING_DELIVERED", target_type="order", target_id=int(order_id),
+        detail={"note": note or None, "target_team": target_team,
+                "target_manager_name": target_manager_name, **context},
+        db=db,  # 호출자 소유 세션 — get_db() 를 부르면 teardown 이 호출자 인스턴스를 detach 한다.
+    )
     db.commit()
     # 도메인-스코프: 도면 전달 완료는 workflow.stage를 바꾸지 않고 drawing_status만
     # 변경 → 도면 대시보드/워크벤치와 주문 목록만 무효화(생산 read-model은 도면
@@ -497,14 +508,20 @@ def api_order_cancel_transfer(order_id):
         s_data['drawing_transfer_history'] = history
         order.structured_data = s_data
         flag_modified(order, 'structured_data')
-        db.add(SecurityLog(
-            user_id=session.get('user_id'),
-            message=(
-                f"주문 #{order_id} 도면 전달 취소 → {restore_status} 복귀 "
-                f"(신규 파일 {deleted_files_count}개 삭제예약, 보존 {len(restored_files)}개, "
-                f"히스토리 정리: {'Y' if removed_transfer else 'N'})"
-            )
-        ))
+        cancel_context = order_audit_context(order)
+        log_access(
+            describe_order_action(
+                order_id=order_id, action="DRAWING_DELIVERY_CANCELED",
+                note=f"{restore_status} 복귀", **cancel_context,
+            ),
+            session.get('user_id'),
+            auto_commit=False,
+            action="DRAWING_DELIVERY_CANCELED", target_type="order", target_id=int(order_id),
+            detail={"restore_status": restore_status,
+                    "deleted_files": deleted_files_count,
+                    "restored_files": len(restored_files),
+                    "history_cleaned": bool(removed_transfer), **cancel_context},
+        )
 
         # ── 6.5 회수 파일 R2 blob 삭제를 STORAGE_DELETE outbox 로 예약 ────────────
         # 동기 R2 삭제 금지 — sidefx worker/handler 가 소비한다(이 핸들러는 enqueue 만).
@@ -606,6 +623,29 @@ def api_order_cancel_transfer(order_id):
             db.rollback()
         return jsonify({'success': False, 'message': str(e)}), 500
 
+
+def _audit_drawing_gateway_upload(order, filename: str, key: str) -> None:
+    """도면 창구 파일 업로드 1건을 구조화 감사로 남긴다.
+
+    이 경로는 업무 트랜잭션이 없으므로(파일만 R2 로 올리고 메타를 돌려준다) 감사 기록은
+    자기 커밋으로 남긴다.
+
+    :param order: 대상 :class:`~models.Order`.
+    :param filename: 업로드된 원본 파일명.
+    :param key: R2 storage key.
+    """
+    context = order_audit_context(order)
+    log_access(
+        describe_order_action(
+            order_id=order.id, action="DRAWING_GATEWAY_FILE_UPLOADED",
+            note=filename, **context,
+        ),
+        session.get('user_id'),
+        action="DRAWING_GATEWAY_FILE_UPLOADED", target_type="order", target_id=int(order.id),
+        detail={"filename": filename, "storage_key": key, **context},
+    )
+
+
 @erp_orders_drawing_bp.route('/<int:order_id>/drawing-gateway-upload', methods=['POST'])
 @login_required
 @erp_edit_required
@@ -634,6 +674,8 @@ def api_drawing_gateway_upload(order_id):
         file_type = storage.get_file_type(filename)
         if file_type not in ('image', 'video'):
             file_type = 'file'
+
+        _audit_drawing_gateway_upload(order, filename, key)
 
         return jsonify({
             'success': True,
@@ -677,6 +719,8 @@ def api_drawing_gateway_complete(order_id):
         file_type = storage.get_file_type(filename)
         if file_type not in ('image', 'video'):
             file_type = 'file'
+
+        _audit_drawing_gateway_upload(order, filename, key)
 
         return jsonify({
             'success': True,

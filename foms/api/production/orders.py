@@ -16,10 +16,12 @@ from flask import Blueprint, jsonify, request, session
 from sqlalchemy.exc import IntegrityError
 from sqlalchemy.orm.attributes import flag_modified
 
-from foms.web.auth import get_user_by_id, login_required
+from foms.web.auth import get_user_by_id, log_access, login_required
+from foms.services.audit_message_display import describe_order_action
+from foms.services.orders.audit_order_context import order_audit_context
 from foms.services.erp_permissions import erp_edit_required  # noqa: F401  # AUTH-01(P0-9): start/complete/rework 는 _production_steps_edit_required 로 전환됐으나 namespace surface 계약이 재노출을 요구해 유지
 from db import get_db
-from models import Order, OrderEvent, OrderMutationReceipt, ProductionRun, SecurityLog
+from models import Order, OrderEvent, OrderMutationReceipt, ProductionRun
 from foms.services.erp_display import _ensure_dict
 from foms.services.erp_sync_columns import sync_erp_flat_columns
 from foms.services.orders.order_transition_service import (
@@ -470,9 +472,36 @@ def _append_stage_history(sd: dict[str, Any], stage: str, note: str, user: Any) 
     wf["history"] = history
 
 
+def _audit_production(
+    order: Order,
+    action: str,
+    user_id: Any,
+    note: str | None = None,
+    extra: dict[str, Any] | None = None,
+) -> None:
+    """생산 행위 1건을 구조화 감사로 남긴다(문장은 표시 SSOT 가 만든다).
+
+    라우트가 뒤에서 ``db.commit()`` 하므로 같은 트랜잭션에 싣는다(``auto_commit=False``).
+
+    :param order: 대상 :class:`~models.Order`.
+    :param action: 행위 코드(``PRODUCTION_STARTED`` 등).
+    :param user_id: 행위자 user id.
+    :param note: 문장 뒤에 붙일 짧은 부연(재제작 사유 등).
+    :param extra: ``detail`` 에 추가로 담을 구조화 값.
+    """
+    context = order_audit_context(order)
+    log_access(
+        describe_order_action(order_id=order.id, action=action, note=note, **context),
+        user_id,
+        auto_commit=False,
+        action=action, target_type="order", target_id=int(order.id),
+        detail={**(extra or {}), **context},
+    )
+
+
 def _apply_start_side_effects(db: Any, order: Order, user: Any, user_id: Any,
                               release_hold: bool, hold_was_active: bool) -> None:
-    """PRODUCTION_START 전이 후 same-tx side-effect: history·보류해제·run 발급·SecurityLog."""
+    """PRODUCTION_START 전이 후 same-tx side-effect: history·보류해제·run 발급·감사 기록."""
     sd = copy.deepcopy(_ensure_dict(order.structured_data))
     _append_stage_history(sd, "PRODUCTION", "제작 시작", user)
     if release_hold and hold_was_active:
@@ -482,7 +511,8 @@ def _apply_start_side_effects(db: Any, order: Order, user: Any, user_id: Any,
     flag_modified(order, "structured_data")
     sync_erp_flat_columns(order, sd)
     _mint_current_production_run(db, order.id, sd)
-    db.add(SecurityLog(user_id=user_id, message=f"주문 #{order.id} 제작 시작 (PRODUCTION)"))
+    _audit_production(order, "PRODUCTION_STARTED", user_id,
+                      extra={"hold_released": bool(release_hold and hold_was_active)})
 
 
 def _apply_complete_side_effects(db: Any, order: Order, user: Any, user_id: Any, release_hold: bool,
@@ -507,7 +537,8 @@ def _apply_complete_side_effects(db: Any, order: Order, user: Any, user_id: Any,
     sync_erp_flat_columns(order, sd)
     _enrich_production_completed_event(db, event_id, is_rework)
     _close_current_production_run(db, order.id)
-    db.add(SecurityLog(user_id=user_id, message=f"주문 #{order.id} 제작 완료 (CONSTRUCTION)"))
+    _audit_production(order, "PRODUCTION_COMPLETED", user_id,
+                      extra={"is_rework": bool(is_rework), "new_stage": "CONSTRUCTION"})
 
 
 def _apply_cancel_side_effects(db: Any, order: Order, user: Any, user_id: Any,
@@ -548,7 +579,9 @@ def _apply_cancel_side_effects(db: Any, order: Order, user: Any, user_id: Any,
     # production run 은 건드리지 않는다 — 재시작 시 _mint_current_production_run 이 기존 current
     # run 을 그대로 재사용(멱등)하므로 중복 발급이 없고, 취소된 run 을 COMPLETED 로 종결하는
     # 의미 왜곡도 피한다(rework 경로와 동일 관례).
-    db.add(SecurityLog(user_id=user_id, message=f"주문 #{order.id} 제작 취소 (제작대기 복귀)"))
+    _audit_production(order, "PRODUCTION_START_CANCELED", user_id,
+                      extra={"reason": reason or None, "rework_cleared": rework_cleared,
+                             "hold_released": hold_released})
 
 
 def _apply_uncomplete_side_effects(db: Any, order: Order, user: Any, user_id: Any,
@@ -577,7 +610,8 @@ def _apply_uncomplete_side_effects(db: Any, order: Order, user: Any, user_id: An
         "domain": "PRODUCTION_DOMAIN", "action": "PRODUCTION_COMPLETE_REVERTED",
         "rework_restored": rework_restored,
     })
-    db.add(SecurityLog(user_id=user_id, message=f"주문 #{order.id} 완료 취소 (제작중 복귀)"))
+    _audit_production(order, "PRODUCTION_COMPLETE_CANCELED", user_id,
+                      extra={"rework_restored": rework_restored})
 
 
 def _merge_event_payload(db: Any, event_id: Any, extra: dict[str, Any]) -> None:
@@ -843,7 +877,8 @@ def api_production_rework(order_id: int):
                 created_by_user_id=user_id,
             )
         )
-        db.add(SecurityLog(user_id=user_id, message=f"주문 #{order_id} 수정 제작 시작 (PRODUCTION)"))
+        _audit_production(order, "PRODUCTION_REWORK_STARTED", user_id,
+                          note=reason or None, extra={"reason": reason or None, "count": count})
         db.commit()
         return jsonify(
             {"success": True, "message": "수정 제작을 시작했습니다.", "new_status": "PRODUCTION"}
@@ -1038,6 +1073,8 @@ def api_production_change_ack(order_id: int):
             except IntegrityError:
                 db.rollback()  # 동시 same-token → event/receipt 0, replay 로 수렴.
                 return jsonify(response_body)
+        _audit_production(order, "PRODUCTION_CHANGE_ACKNOWLEDGED", user_id,
+                          extra={"source": "tablet_kanban"})
         db.commit()
         return jsonify(response_body)
     except Exception as exc:
@@ -1155,6 +1192,9 @@ def api_production_steps(order_id: int):
             db.rollback()
             return jsonify({"success": False, "error": str(exc), "code": exc.error_code}), exc.status_code
 
+        _audit_production(order, "PRODUCTION_STEP_CHECKED", user_id,
+                          note=f"{key}: {'완료' if done else '해제'}",
+                          extra={"step": key, "done": bool(done)})
         db.commit()
         steps = captured["steps"]
         done_count = sum(1 for s in steps if s.get("done"))
@@ -1246,6 +1286,8 @@ def api_production_defect(order_id: int):
             db.rollback()
             return jsonify({"success": False, "error": str(exc), "code": exc.error_code}), exc.status_code
 
+        _audit_production(order, "PRODUCTION_DEFECT_REPORTED", user_id,
+                          note=reason, extra={"reason": reason})
         db.commit()
         defects = captured["defects"]
         return jsonify(
@@ -1359,6 +1401,11 @@ def api_production_hold(order_id: int):
             }
         else:
             hold = _mirror_workflow_hold_to_production(order, active, reason, user)
+        _audit_production(
+            order,
+            "PRODUCTION_HOLD_SET" if active else "PRODUCTION_HOLD_RELEASED",
+            user_id, note=reason or None, extra={"active": bool(active), "reason": reason or None},
+        )
         db.commit()
         return jsonify({"success": True, "data": {"hold": hold}})
     except Exception as exc:
@@ -1416,6 +1463,8 @@ def api_set_logistics_status(order_id: int):
             db.rollback()
             return _transition_error_response(exc)
 
+        _audit_production(order, "LOGISTICS_STATUS_CHANGED", user_id, note=target,
+                          extra={"logistics_status": target})
         db.commit()
         return jsonify({"success": True, "data": {"logistics_status": target}})
     except Exception as exc:

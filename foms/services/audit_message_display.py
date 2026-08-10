@@ -28,9 +28,13 @@ from foms.services.orders.as_availability import (
 from foms.services.orders.status_constants import STATUS
 
 __all__ = [
+    "ACTION_LABELS",
     "FIELD_LABELS",
+    "action_label",
+    "describe_action",
     "collect_order_ids",
     "describe_field_change",
+    "describe_order_action",
     "extract_order_ids",
     "field_label",
     "format_value",
@@ -50,6 +54,7 @@ FIELD_LABELS: dict[str, str] = {
     "product": "제품",
     "options": "옵션 상세",
     "notes": "비고",
+    "regional_memo": "메모",
     "status": "상태",
     "manager_name": "담당자",
     "manager": "담당자",
@@ -92,11 +97,111 @@ _CHECKLIST_FIELDS = frozenset({
     "regional_construction_info_sent",
 })
 
+#: 행위 코드 → 업무 라벨 (AUDIT-LOG P4 C1). 필드 변경이 아닌 **행위**(시공 시작·결제 확인
+#: ·도면 전달 등)를 남길 때 쓴다. 코드는 ``security_logs.action`` 에 그대로 들어가므로
+#: SQL 로 물을 수 있고, 화면에는 여기 라벨로 나온다. 사전에 없는 코드는 코드 자체를
+#: 보여준다(감추지 않는다 — 새 배선이 라벨을 빠뜨려도 로그는 남는다).
+ACTION_LABELS: dict[str, str] = {
+    # --- 결제 ---
+    "PAYMENT_CONFIRMED": "결제 확인",
+    "PAYMENT_CONFIRM_CLEARED": "결제 확인 해제",
+    # --- 시공 ---
+    "CONSTRUCTION_STARTED": "시공 시작",
+    "CONSTRUCTION_COMPLETED": "시공 완료",
+    "CONSTRUCTION_REWORK_REQUESTED": "시공 불가(재작업 요청)",
+    "CONSTRUCTION_EVIDENCE_UPDATED": "시공 증빙 등록",
+    # --- 생산 ---
+    "PRODUCTION_STARTED": "제작 시작",
+    "PRODUCTION_COMPLETED": "제작 완료",
+    "PRODUCTION_START_CANCELED": "제작 시작 취소",
+    "PRODUCTION_COMPLETE_CANCELED": "제작 완료 취소",
+    "PRODUCTION_REWORK_STARTED": "수정 제작 시작",
+    "PRODUCTION_STEP_CHECKED": "생산 공정 체크",
+    "PRODUCTION_DEFECT_REPORTED": "생산 불량 보고",
+    "PRODUCTION_HOLD_SET": "생산 보류",
+    "PRODUCTION_HOLD_RELEASED": "생산 보류 해제",
+    "PRODUCTION_CHANGE_ACKNOWLEDGED": "생산 변경 확인",
+    "LOGISTICS_STATUS_CHANGED": "물류 상태 변경",
+    # --- AS ---
+    "AS_RECEIVED": "AS 접수",
+    "AS_SCHEDULED": "AS 방문일 지정",
+    "AS_SCHEDULE_CANCELED": "AS 방문일 취소",
+    "AS_STARTED": "AS 시작",
+    "AS_COMPLETED": "AS 완료",
+    "AS_REOPENED": "AS 재개봉",
+    "AS_CATEGORY_CHANGED": "AS 분류 변경",
+    "AS_BILLING_DECIDED": "AS 비용 판정",
+    "AS_ROUND_VERDICT": "AS 회차 판정",
+    "AS_SCHEDULE_LINK_CHANGED": "AS 기준 일정",
+    "AS_LOG_ADDED": "AS 기록 추가",
+    "AS_LOG_UPDATED": "AS 기록 수정",
+    "AS_LOG_DELETED": "AS 기록 삭제",
+    # --- 도면 ---
+    "DRAWING_DELIVERED": "도면 전달 완료",
+    "DRAWING_DELIVERY_CANCELED": "도면 전달 취소",
+    "DRAWING_GATEWAY_FILE_UPLOADED": "도면 창구 파일 업로드",
+    "BLUEPRINT_UPLOAD_ISSUED": "도면 업로드 발급",
+    "BLUEPRINT_UPLOADED": "도면 업로드",
+    # --- 실측·출고·업무 ---
+    "MEASUREMENT_UPDATED": "실측 정보 수정",
+    "SHIPMENT_UPDATED": "출고 정보 수정",
+    "SHIPMENT_PACKING_SAVED": "출고 포장 저장",
+    "SHIPMENT_CHANGE_ACKNOWLEDGED": "출고 변경 확인",
+    "DRAWING_CHANGE_ACKNOWLEDGED": "도면 변경 확인",
+    "DRAFTSMAN_ASSIGNED": "도면 담당자 배정",
+    "QUEST_CREATED": "퀘스트 생성",
+    "QUEST_STATUS_CHANGED": "퀘스트 상태 변경",
+    "QUEST_APPROVED": "퀘스트 승인",
+    "ORDER_TASK_CREATED": "업무 추가",
+    "ORDER_TASK_UPDATED": "업무 수정",
+    "ORDER_TASK_DELETED": "업무 삭제",
+    "ORDER_CALL_LOGGED": "통화 기록",
+    # --- 파일 ---
+    "FILE_UPLOADED": "파일 업로드",
+    "FILE_DELETED": "파일 삭제",
+    "FILE_RESTORED": "파일 복구",
+    "FILE_UPLOAD_FINALIZED": "파일 업로드 확정",
+    "CHAT_MESSAGE_SENT": "채팅 메시지 발송",
+    # --- 단가표·견적 마스터데이터 ---
+    "CATALOG_ITEM_SAVED": "단가표 항목 저장",
+    "CATALOG_ITEM_DELETED": "단가표 항목 삭제",
+    "ESTIMATE_SAVED": "견적 저장",
+    "ESTIMATE_DELETED": "견적 삭제",
+    "ESTIMATE_ORDER_MATCHED": "견적-주문 연결",
+    "ESTIMATE_ORDER_UNMATCHED": "견적-주문 연결 해제",
+    "ESTIMATE_SYNCED_TO_ORDER": "견적 주문 반영",
+    "ORDER_ESTIMATE_CREATED": "주문 견적 생성",
+    "ORDER_ESTIMATE_UPDATED": "주문 견적 수정",
+    "ORDER_ESTIMATE_DELETED": "주문 견적 삭제",
+    "ORDER_STRUCTURED_SAVED": "주문 저장",
+    "ORDER_ADDRESS_UPDATED": "주소 수정",
+    "ADDRESS_LEARNING_ADDED": "주소 학습 등록",
+    "STORAGE_SETTING_UPDATED": "스토리지 설정 변경",
+    "NOTIFICATION_SENT": "알림 발송",
+    "NOTIFICATION_ARCHIVED": "알림 보관",
+    "NOTIFICATIONS_DELETED": "알림 일괄 삭제",
+    "URGENT_MENTION_SENT": "긴급 호출",
+    "CHANNEL_PUSH_SENT": "채널톡 발송",
+    "BLUEPRINT_DELETED": "도면 삭제",
+    "DRAWING_WIZARD_SAVED": "도면 마법사 저장",
+    "DRAWING_WIZARD_ASSET_ADDED": "도면 마법사 자산 추가",
+    "DRAWING_WIZARD_SHEET_SAVED": "도면 마법사 시트 저장",
+    "DRAWING_WIZARD_SNAPSHOT_SAVED": "도면 마법사 버전 저장",
+    "DRAWING_WIZARD_PENDING_DELETED": "도면 마법사 임시본 삭제",
+    "ORDER_DRAFT_SAVED": "임시 주문 저장",
+    "ORDER_DRAFT_SUBMITTED": "임시 주문 제출",
+    "ORDER_DRAFT_DELETED": "임시 주문 삭제",
+}
+
 #: 비어 있음을 뜻하는 원시 값들(문자열 비교는 소문자로 한다).
 _EMPTY_TOKENS = frozenset({"", "none", "null", "-"})
 
-#: 지운 값·없던 값 표기.
+#: 값을 비운 결과 표기(after 쪽).
 _EMPTY_DISPLAY = "(지움)"
+
+#: 원래 비어 있던 값 표기(before 쪽). "(지움) → 새 값"은 사실과 다르다 —
+#: 지운 게 아니라 처음부터 없던 것이다.
+_EMPTY_BEFORE_DISPLAY = "(없음)"
 
 #: AS 내용처럼 긴 본문을 줄일 상한.
 _LONG_TEXT_LIMIT = 60
@@ -141,6 +246,20 @@ def field_label(field: str | None) -> str:
 def _strip_markup(text: str) -> str:
     """HTML 태그를 지우고 공백을 접어 한 줄 텍스트로 만든다."""
     return _WS_RE.sub(" ", _TAG_RE.sub(" ", text)).strip()
+
+
+def _summarize_text(value: Any) -> str:
+    """자유 텍스트를 한 줄 요약으로 만든다(태그 제거 + 상한 초과 시 말줄임).
+
+    :param value: 원시 값(HTML 이 섞여 있을 수 있다).
+    :return: 한 줄 요약 문자열(빈 문자열 가능).
+    """
+    text = str(value).strip()
+    if "<" in text and ">" in text:
+        text = _strip_markup(text)
+    if len(text) > _LONG_TEXT_LIMIT:
+        return f"{text[:_LONG_TEXT_LIMIT]}…"
+    return text
 
 
 def _format_availability(value: Any) -> str | None:
@@ -209,11 +328,7 @@ def format_value(field: str | None, value: Any) -> str:
     if field == "status":
         return STATUS.get(text, text)
 
-    if "<" in text and ">" in text:
-        text = _strip_markup(text)
-    if len(text) > _LONG_TEXT_LIMIT:
-        return f"{text[:_LONG_TEXT_LIMIT]}…"
-    return text or _EMPTY_DISPLAY
+    return _summarize_text(text) or _EMPTY_DISPLAY
 
 
 def order_label(
@@ -267,11 +382,74 @@ def describe_field_change(
 
     if has_before:
         before_text = format_value(field, before)
+        if before_text == _EMPTY_DISPLAY:
+            before_text = _EMPTY_BEFORE_DISPLAY
         if before_text != after_text:
             return f"{head} — {label}: {before_text} → {after_text}"
     if field in _CHECKLIST_FIELDS:
         return f"{head} — {label}: {after_text}로 표시"
     return f"{head} — {label}: {after_text}"
+
+
+def action_label(action: str | None) -> str:
+    """행위 코드를 업무 라벨로 옮긴다.
+
+    :param action: 행위 코드(``CONSTRUCTION_COMPLETED`` 등). ``None``/빈값 허용.
+    :return: 사전에 있으면 한글 라벨, 없으면 원문(감추지 않는다).
+    """
+    if not action:
+        return ""
+    return ACTION_LABELS.get(action, action)
+
+
+def describe_action(
+    action: str,
+    *,
+    target_label: str | None = None,
+    note: str | None = None,
+) -> str:
+    """주문이 아닌 대상(채팅방·단가표·견적 등)의 행위 문장을 만든다.
+
+    주문 대상은 :func:`describe_order_action` 이 담당한다. 여기서는 대상 표기를 호출부가
+    문자열로 넘긴다(대상 종류가 제각각이라 공통 스키마가 없다).
+
+    :param action: 행위 코드(:data:`ACTION_LABELS` 키).
+    :param target_label: 대상 표기(``단가표 '상판'``·``채팅방 #3``). 없으면 생략.
+    :param note: 짧은 부연. 길면 잘라 요약한다.
+    :return: ``단가표 '상판' — 단가 항목 저장`` 형태 문장.
+    """
+    label = action_label(action)
+    head = (target_label or "").strip()
+    line = f"{head} — {label}" if head else label
+    tail = _summarize_text(note) if note else ""
+    return f"{line}: {tail}" if tail else line
+
+
+def describe_order_action(
+    *,
+    order_id: int | str,
+    action: str,
+    customer_name: str | None = None,
+    order_type: str | None = None,
+    note: str | None = None,
+) -> str:
+    """주문에 대한 **행위** 1건을 사람 문장으로 만든다(쓰기 경로 공용).
+
+    필드 변경은 :func:`describe_field_change` 가, "시공을 시작했다"처럼 값이 아니라
+    행위 자체가 기록 대상인 경우는 이 함수가 문장을 만든다. 두 경로 모두 같은 주문 표기
+    (``지방 주문 #4183 (김철수)``)를 쓰므로 화면에서 한 줄로 섞여 읽힌다.
+
+    :param order_id: 대상 주문 id.
+    :param action: 행위 코드(:data:`ACTION_LABELS` 키).
+    :param customer_name: 고객명(있으면 병기).
+    :param order_type: 주문 성격 접두(``지방 주문``·``자가실측 주문``).
+    :param note: 행위에 딸린 짧은 부연(전달 메모·결제 종류 등). 길면 잘라 요약한다.
+    :return: ``주문 #4109 (홍길동) — 시공 완료`` 형태 문장.
+    """
+    head = order_label(order_id, customer_name=customer_name, order_type=order_type)
+    label = action_label(action)
+    tail = _summarize_text(note) if note else ""
+    return f"{head} — {label}: {tail}" if tail else f"{head} — {label}"
 
 
 def extract_order_ids(message: str | None) -> list[int]:

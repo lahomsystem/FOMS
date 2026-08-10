@@ -6,8 +6,10 @@
 보존기간 분석 `docs/plans/2026-08-07-audit-retention-analysis.md`
 
 ## 현재 상태 (한 줄)
-T1~T12 전부 구현·검증·**원격 반영 완료**. 잔여는 사용자 액션(Sentry 로그 육안)과
-운영 승격 결정뿐 — 아래 "운영 주의"를 승격 전에 반드시 읽을 것.
+T1~T12 + 가독성 P4 A·B **운영 승격 완료**(2026-08-10, production `47f270e6`, PR #63),
+**P4 C 완료 deploy 반영**(`6d840c52`·`414e2664`) — 쓰기 라우트 감사 커버리지 **100%**
+(AUDITED 142·EXEMPT 30·UNAUDITED 0, 게이트가 0 유지를 강제). 잔여는 사용자 액션(Sentry 로그
+육안)·C 승격 승인·D 단계(열람 기록 여부 결정)뿐.
 
 ## 원격 반영 완료
 | 범위 | 원격 SHA | 확인 |
@@ -49,10 +51,10 @@ T1~T12 전부 구현·검증·**원격 반영 완료**. 잔여는 사용자 액�
 ## 운영 주의 (승격 전 필수)
 1. purge cron은 미리보기가 아니라 **실삭제**(`--apply`가 receipt-purge cron에 체이닝됨).
    운영 반영 전 보존기간 최종 확인 — 현재 보안/발송 3년·파일열람 2년·알림 1년.
-2. **운영 DB는 아직 T4~T11 마이그레이션 전** — `order_events`가 여전히 CASCADE라
-   주문 hard purge가 감사 이력을 함께 지운다. T9 승격이 이 문제의 해소 조건.
-3. `security_logs`에 `timestamp` 단독 인덱스 부재(실측) — 감사 화면이 전체 스캔.
-   7년 규모에서 급격히 악화. 인덱스 1개로 해소 가능(별건 이월).
+2. ~~운영 DB 마이그레이션 전~~ → **2026-08-10 해소**. 7종 적용(alembic `seclog_time_00`),
+   `order_events` CASCADE FK 제거 확인 — 주문 hard purge 가 더 이상 감사 이력을 지우지 않는다.
+3. ~~`security_logs` timestamp 인덱스 부재~~ → **2026-08-10 해소**
+   (`ix_security_logs_timestamp_id`, SEC-LOG-TIME-00).
 
 ## 이월 (별건)
 - EXTERNAL mutation writer 22곳 감축(T11 ③) — 인벤토리 타 세션 점유로 미착수.

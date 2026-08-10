@@ -10,7 +10,9 @@ from sqlalchemy.orm.attributes import flag_modified
 
 from db import get_db
 from models import Order, User, OrderEvent
-from foms.web.auth import login_required, role_required
+from foms.web.auth import log_access, login_required, role_required
+from foms.services.audit_message_display import describe_order_action
+from foms.services.orders.audit_order_context import order_audit_context
 from foms.services.erp_sync_columns import sync_erp_flat_columns
 from foms.services.orders.erp_policy_constants import DEFAULT_OWNER_TEAM_BY_STAGE
 from foms.services.orders.order_mutation_policy import normalize_team
@@ -26,6 +28,28 @@ from foms.services.erp_policy import (
 
 
 quest_bp = Blueprint('quest', __name__, url_prefix='/api')
+
+
+
+def _audit_quest(order, action, user_id, note=None, extra=None) -> None:
+    """퀘스트 행위 1건을 구조화 감사로 남긴다(문장은 표시 SSOT 가 만든다).
+
+    라우트가 뒤에서 ``db.commit()`` 하므로 같은 트랜잭션에 싣는다(``auto_commit=False``).
+
+    :param order: 대상 :class:`~models.Order`.
+    :param action: 행위 코드(``QUEST_CREATED`` 등).
+    :param user_id: 행위자 user id.
+    :param note: 문장 뒤에 붙일 짧은 부연(단계·팀·상태).
+    :param extra: ``detail`` 에 추가로 담을 구조화 값.
+    """
+    context = order_audit_context(order)
+    log_access(
+        describe_order_action(order_id=order.id, action=action, note=note, **context),
+        user_id,
+        auto_commit=False,
+        action=action, target_type="order", target_id=int(order.id),
+        detail={**(extra or {}), **context},
+    )
 
 
 @quest_bp.route('/orders/<int:order_id>/quest', methods=['GET'])
@@ -133,6 +157,8 @@ def api_order_quest_create(order_id):
         sd["quests"].append(new_quest)
         order.structured_data = sd
         order.updated_at = datetime.datetime.now()
+        _audit_quest(order, "QUEST_CREATED", session.get('user_id'), note=stage,
+                     extra={"stage": stage, "owner": owner_person})
         db.commit()
         # Tier A(broad): quest 생성/전환은 stage 전환을 유발해 탭 간 이동이 일어남.
         from foms.services.common.dashboard_cache import invalidate_all_dashboard_slice_caches
@@ -417,6 +443,7 @@ def api_order_quest_approve(order_id):
         flag_modified(order, "structured_data")
         order.updated_at = now
         sync_erp_flat_columns(order, sd)
+        _audit_quest(order, "QUEST_APPROVED", user_id, note=team, extra={"team": team})
         db.commit()
         # quest 승인 기록은 배지/카운트에 반영되므로 대시보드 슬라이스 캐시를 무효화한다.
         from foms.services.common.dashboard_cache import invalidate_all_dashboard_slice_caches
@@ -495,6 +522,8 @@ def api_order_quest_update_status(order_id):
         sd["quests"] = quests
         order.structured_data = sd
         order.updated_at = now
+        _audit_quest(order, "QUEST_STATUS_CHANGED", session.get('user_id'), note=status,
+                     extra={"status": status})
         db.commit()
         # Tier A(broad): quest 상태 변경은 stage 전환으로 이어질 수 있어 탭 간 이동 발생.
         from foms.services.common.dashboard_cache import invalidate_all_dashboard_slice_caches

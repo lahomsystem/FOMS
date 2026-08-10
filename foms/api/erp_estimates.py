@@ -29,7 +29,9 @@ from flask import Blueprint, request, jsonify, session
 
 from db import get_db
 from models import Order, OrderEstimate, OrderEvent
-from foms.web.auth import login_required, get_user_by_id
+from foms.web.auth import login_required, get_user_by_id, log_access
+from foms.services.audit_message_display import describe_order_action
+from foms.services.orders.audit_order_context import order_audit_context
 from foms.services.orders.estimate_defaults import (
     ESTIMATE_LEGAL_NOTICE,
     resolve_estimate_company_info,
@@ -121,6 +123,9 @@ def _run_estimate_mutation(
     scope_extra: str,
     request_payload: dict,
     mutate: Callable,
+    audit_action: Optional[str] = None,
+    audit_note: Optional[str] = None,
+    audit_extra: Optional[dict] = None,
 ) -> Tuple[Optional[Any], Optional[Any]]:
     """estimate CRUD 를 REV-00 one-tx 로 감싼다. ``(outcome, error_response)`` 반환.
 
@@ -157,6 +162,17 @@ def _run_estimate_mutation(
             mutation=mutate,
             response_status=response_status,
         )
+        if audit_action:
+            order = db.get(Order, order_id)
+            context = order_audit_context(order)
+            log_access(
+                describe_order_action(order_id=order_id, action=audit_action,
+                                      note=audit_note, **context),
+                user_id,
+                auto_commit=False,
+                action=audit_action, target_type="order", target_id=int(order_id),
+                detail={**(audit_extra or {}), **context},
+            )
         db.commit()
         return outcome, None
     except RevisionError as rev:
@@ -234,6 +250,7 @@ def create_order_estimate(order_id: int):
         policy_id=CMD_ESTIMATE_CREATE,
         response_status=201,
         scope_extra='create',
+        audit_action='ORDER_ESTIMATE_CREATED',
         request_payload={'override_data': override_data},
         mutate=_mutate,
     )
@@ -338,6 +355,8 @@ def update_estimate_api(estimate_id: int):
     outcome, err = _run_estimate_mutation(
         db, order_id,
         policy_id=CMD_ESTIMATE_UPDATE,
+        audit_action='ORDER_ESTIMATE_UPDATED',
+        audit_extra={'estimate_id': estimate_id},
         response_status=200,
         scope_extra=f'update:{estimate_id}',
         request_payload=payload,
@@ -397,6 +416,9 @@ def delete_estimate(estimate_id: int):
     outcome, err = _run_estimate_mutation(
         db, order_id,
         policy_id=command,
+        audit_action='ORDER_ESTIMATE_DELETED',
+        audit_note=estimate_number,
+        audit_extra={'estimate_id': estimate_id, 'soft_cancel': not is_draft},
         response_status=200,
         scope_extra=f'delete:{estimate_id}',
         request_payload={'estimate_id': estimate_id, 'status': estimate.status},

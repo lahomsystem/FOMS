@@ -1,0 +1,126 @@
+{
+  "packet": "AUDIT-LOG-P4-C2",
+  "summary": "쓰기 라우트 중 감사 원장에 기록하지 않기로 판단한 것들. 기준은 스펙 §3-3 — '운영자가 나중에 \"누가 이거 했어?\" 라고 물을 수 있는 행위'만 기록한다. 계산 프리뷰·자동저장 draft·텔레메트리처럼 물어볼 일이 없는 것을 남기면 원장이 도배돼 진짜 신호가 묻힌다(운영 실측: 거부 로그 32%가 첫 페이지를 덮었다). 여기 없는 미기록 라우트는 인벤토리에 UNAUDITED 로 핀 되고, 집합이 커지면 게이트가 red 다.",
+  "exempt": [
+    {
+      "key": "foms/api/erp_orders_structured.py::api_erp_draft_autosave",
+      "reason": "자동저장 — 사용자가 한 '행위'가 아니라 타이머가 부르는 저장이다. 한 주문 작성에 수십 행이 쌓인다."
+    },
+    {
+      "key": "foms/api/erp_orders_structured.py::api_erp_create_draft",
+      "reason": "draft 발급(주문번호 선점) — 실제 생성은 승격 시점에 ORDER_CREATED 로 기록된다(T3)."
+    },
+    {
+      "key": "foms/api/erp_orders_structured.py::api_erp_discard_draft",
+      "reason": "승격 전 draft 폐기 — 업무 대상이 아직 존재하지 않는다(ORDER_DRAFT_CREATED 로만 남는다)."
+    },
+    {
+      "key": "foms/api/erp_orders_structured.py::api_parse_order_text",
+      "reason": "붙여넣기 텍스트 파싱 프리뷰 — DB 를 바꾸지 않는다(POST 인 이유는 본문 길이)."
+    },
+    {
+      "key": "foms/api/wdcalculator/blueprint.py::api_wdcalculator_calculate",
+      "reason": "계산기 계산 — 저장 없는 프리뷰."
+    },
+    {
+      "key": "foms/api/wdcalculator/blueprint.py::api_wdcalculator_estimate",
+      "reason": "견적 계산 프리뷰 — 저장은 save_estimate 소관."
+    },
+    {
+      "key": "foms/api/foms_rum.py::ingest_rum_event",
+      "reason": "브라우저 성능 텔레메트리 수집 — 사람의 업무 행위가 아니다."
+    },
+    {
+      "key": "foms/api/channel/channel_wam.py::wam_telemetry",
+      "reason": "채널톡 위젯 텔레메트리 — 업무 행위가 아니다."
+    },
+    {
+      "key": "foms/api/channel/channel_webhooks.py::handle_webhook",
+      "reason": "외부 시스템(채널톡) 인바운드 훅 — 행위자가 FOMS 사용자가 아니다. 배달 이력은 channel_delivery_logs 소관."
+    },
+    {
+      "key": "foms/api/channel/channel_functions.py::handle_function",
+      "reason": "채널톡 함수 호출 인바운드 — 위 훅과 같은 이유."
+    },
+    {
+      "key": "foms/api/notifications/__init__.py::api_notification_mark_read",
+      "reason": "알림 읽음 표시 — 본인 화면 상태이고 notification_user_states 가 이미 SSOT 다."
+    },
+    {
+      "key": "foms/api/notifications/__init__.py::api_notifications_mark_all_read",
+      "reason": "알림 일괄 읽음 — 위와 같은 이유."
+    },
+    {
+      "key": "foms/api/notifications/__init__.py::api_notification_ack",
+      "reason": "알림 확인 응답 — notification_events 가 이미 시각·행위자를 남긴다."
+    },
+    {
+      "key": "foms/api/notifications/push.py::subscribe",
+      "reason": "웹푸시 구독 등록 — 기기 등록이지 업무 행위가 아니다."
+    },
+    {
+      "key": "foms/api/notifications/push.py::push_test",
+      "reason": "푸시 발송 테스트 — 진단용."
+    },
+    {
+      "key": "foms/api/notifications/push.py::push_event",
+      "reason": "푸시 전달 결과 콜백 — 브라우저가 부른다."
+    },
+    {
+      "key": "foms/api/channel/messages.py::api_chat_mark_read",
+      "reason": "채팅 읽음 표시 — 화면 상태."
+    },
+    {
+      "key": "foms/api/shipment/recommendations.py::api_shipment_as_recommendations",
+      "reason": "AS 추천 조회(POST 는 필터 본문 때문) — 읽기 경로다."
+    },
+    {
+      "key": "foms/api/shipment/recommendations.py::api_shipment_as_recommendations_prewarm",
+      "reason": "추천 캐시 예열 — 데이터를 바꾸지 않는다."
+    },
+    {
+      "key": "foms/api/files/direct_upload.py::api_upload_session",
+      "reason": "presigned PUT 세션 발급 — 아직 아무것도 등록되지 않았다. 실제 등록은 attachments complete 가 FILE_UPLOADED 로 기록한다(준비 단계까지 남기면 파일 1건당 2~3행)."
+    },
+    {
+      "key": "foms/api/files/direct_upload.py::api_upload_session_batch",
+      "reason": "다중 업로드 세션 발급 — 위와 같은 이유(등록 시점에 파일별로 기록된다)."
+    },
+    {
+      "key": "foms/api/files/upload_intent.py::api_create_upload_draft",
+      "reason": "업로드 DRAFT id 발급(멱등, Order 불변) — 확정(finalize)만 기록한다."
+    },
+    {
+      "key": "foms/api/files/upload_intent.py::api_cancel_upload_draft",
+      "reason": "DRAFT 취소(Order 불변·첨부 미생성) — 취소된 준비 단계는 물어볼 대상이 아니다."
+    },
+    {
+      "key": "foms/api/files/upload_ticket_routes.py::api_issue_upload_ticket",
+      "reason": "업로드 ticket 발급 — 확정(complete)에서 첨부가 생기고 그때 FILE_UPLOADED 가 남는다."
+    },
+    {
+      "key": "foms/api/erp_orders_blueprint.py::api_upload_blueprint",
+      "reason": "도면 업로드 ticket 발급 — 확정(blueprint/complete)이 BLUEPRINT_UPLOADED 로 기록한다."
+    },
+    {
+      "key": "foms/api/erp_order_draft.py::api_put_order_draft",
+      "reason": "주문 마법사 자동저장(idempotent autosave) — 타이머가 부르는 저장이라 한 주문에 수십 행이 쌓인다. 제출(submit)만 기록한다."
+    },
+    {
+      "key": "foms/api/erp_order_draft.py::api_delete_order_draft",
+      "reason": "제출 전 마법사 draft 폐기 — 주문이 아직 존재하지 않는다(첨부 정리는 STORAGE_DELETE outbox 가 남긴다)."
+    },
+    {
+      "key": "foms/api/erp_order_draft.py::api_upload_order_draft_attachment",
+      "reason": "제출 전 임시 첨부 업로드 — 제출 시 실제 첨부로 승격되며 그때 기록된다."
+    },
+    {
+      "key": "foms/api/channel/files.py::api_chat_upload_session",
+      "reason": "채팅 첨부 presigned 세션 발급 — 실제 발송은 메시지 전송 경로가 기록한다."
+    },
+    {
+      "key": "foms/api/drawing/wizard.py::api_post_drawing_wizard_import_attachment",
+      "reason": "실측 첨부를 마법사 에셋 폴더로 복사(원본 불변·OrderAttachment 미생성) — 저장 시 마법사 기록이 남는다."
+    }
+  ]
+}

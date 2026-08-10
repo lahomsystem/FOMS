@@ -27,7 +27,9 @@ from foms.services.orders.estimate_defaults import (
 from foms.services.orders.construction_type import normalize_regional_construction_type
 from foms.services.orders.stage_override import normalize_main_stage
 from foms.services.orders.status_constants import STATUS
-from foms.web.auth import login_required, role_required
+from foms.web.auth import log_access, login_required, role_required
+from foms.services.audit_message_display import describe_order_action
+from foms.services.orders.audit_order_context import order_audit_context
 from foms.services.datetime_kst import now_kst
 from foms.services.erp_order_flags import (
     is_erp_draft_structured_data,
@@ -74,6 +76,9 @@ ERP_DRAFT_EVENT_VIA = "erp_draft"
 _CUSTOMER_PLACEHOLDERS = {ERP_DRAFT_PLACEHOLDER_CUSTOMER}
 _PRODUCT_PLACEHOLDERS = {ERP_DRAFT_PLACEHOLDER_PRODUCT}
 _ERP_DRAFT_TOKEN_MAX_LENGTH = 128
+
+#: 결제 확인 토글 대상 라벨(감사 문장 부연).
+_PAYMENT_TYPE_LABELS = {'deposit': '예약금', 'balance': '잔금'}
 
 erp_orders_structured_bp = Blueprint('erp_orders_structured', __name__, url_prefix='/api')
 
@@ -830,6 +835,15 @@ def api_patch_order_structured_fields(order_id: int):
         flag_modified(order, 'structured_data')
         sync_erp_flat_columns(order, structured_data)
         setattr(order, 'structured_updated_at', now)
+        patch_context = order_audit_context(order)
+        log_access(
+            describe_order_action(order_id=order_id, action='ORDER_STRUCTURED_SAVED',
+                                  note='인라인 수정', **patch_context),
+            session.get('user_id'),
+            auto_commit=False,
+            action='ORDER_STRUCTURED_SAVED', target_type='order', target_id=int(order_id),
+            detail={'mode': 'inline', 'field': field, **patch_context},
+        )
         db.commit()
 
         # Tier A(broad): 주문 구조(structured_data) 수정은 workflow.stage/order.status를
@@ -1088,6 +1102,15 @@ def api_put_order_structured(order_id):
                 request_hash=request_hash,
                 mutation=_mutate,
             )
+            put_context = order_audit_context(order)
+            log_access(
+                describe_order_action(order_id=order_id, action='ORDER_STRUCTURED_SAVED',
+                                      note='전체 저장', **put_context),
+                actor_user_id,
+                auto_commit=False,
+                action='ORDER_STRUCTURED_SAVED', target_type='order', target_id=int(order_id),
+                detail={'mode': 'full', **put_context},
+            )
             db.commit()
         except RevisionConflictError as conflict:
             # 동시편집 충돌은 정상 운영 흐름이므로 exception 이 아니라 info 로 남긴다.
@@ -1249,6 +1272,19 @@ def api_payment_confirm(order_id):
 
         order.structured_data = structured_data
         flag_modified(order, 'structured_data')
+
+        audit_context = order_audit_context(order)
+        audit_action = 'PAYMENT_CONFIRMED' if confirmed else 'PAYMENT_CONFIRM_CLEARED'
+        log_access(
+            describe_order_action(
+                order_id=order_id, action=audit_action,
+                note=_PAYMENT_TYPE_LABELS.get(payment_type, payment_type), **audit_context,
+            ),
+            user_id,
+            auto_commit=False,
+            action=audit_action, target_type='order', target_id=int(order_id),
+            detail={'payment_type': payment_type, 'confirmed': bool(confirmed), **audit_context},
+        )
 
         db.commit()
         # Tier A(broad): 결제/구조 필드 patch도 structured_data 전반을 갱신 → 탭 이동 가능.

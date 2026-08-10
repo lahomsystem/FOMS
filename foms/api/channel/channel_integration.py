@@ -16,7 +16,9 @@ from sqlalchemy.orm.attributes import flag_modified
 
 from db import get_db
 from models import Order, OrderAttachment, OrderEvent
-from foms.web.auth import login_required, role_required
+from foms.web.auth import log_access, login_required, role_required
+from foms.services.audit_message_display import describe_order_action
+from foms.services.orders.audit_order_context import order_audit_context
 from foms.services.channel_as_message import build_as_push_text
 from foms.services.channel_client import is_configured
 from foms.services.channel_dispatch import dispatch_order_event
@@ -262,6 +264,31 @@ def _record_push_metadata(
     return outcome
 
 
+
+def _audit_channel_push(order, push_kind: str, is_resend: bool, *,
+                        actor_user_id, files_count: int | None = None) -> None:
+    """채널톡 발송 1건을 구조화 감사로 남긴다(고객에게 나간 것은 반드시 추적 가능해야 한다).
+
+    본문은 남기지 않는다 — 발송 텍스트에는 고객 정보가 섞인다(원장 PII 최소화).
+    발송 본문 이력은 ``channel_delivery_logs`` 가 이미 소유한다.
+
+    :param order: 대상 :class:`~models.Order`.
+    :param push_kind: 발송 종류(``as``·``estimate`` 등).
+    :param is_resend: 재발송 여부.
+    :param actor_user_id: 발송자 user id.
+    :param files_count: 함께 보낸 파일 수(있으면).
+    """
+    context = order_audit_context(order)
+    log_access(
+        describe_order_action(order_id=order.id, action="CHANNEL_PUSH_SENT",
+                              note=f"{push_kind}{' 재발송' if is_resend else ''}", **context),
+        actor_user_id,
+        action="CHANNEL_PUSH_SENT", target_type="order", target_id=int(order.id),
+        detail={"push_kind": push_kind, "is_resend": bool(is_resend),
+                "files_count": files_count, **context},
+    )
+
+
 @channel_integration_bp.route('/push-manual', methods=['POST'])
 @login_required
 @role_required(['ADMIN', 'MANAGER', 'STAFF'])
@@ -420,6 +447,9 @@ def api_channel_push_manual():
             actor_user_id=current_user.id if current_user else None,
         )
 
+        _audit_channel_push(order, push_kind, is_resend,
+                            actor_user_id=current_user.id if current_user else None,
+                            files_count=len(files))
         return jsonify({'success': True, 'files_count': len(files)})
 
     except RuntimeError as e:
@@ -604,6 +634,8 @@ def api_channel_push_estimate():
             actor_user_id=current_user.id if current_user else None,
         )
 
+        _audit_channel_push(order, 'estimate', is_resend,
+                            actor_user_id=current_user.id if current_user else None)
         return jsonify({'success': True})
 
     except RuntimeError as e:
