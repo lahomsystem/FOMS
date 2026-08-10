@@ -19,6 +19,7 @@ projection/version/event 는 Python 수준이라 그대로 성립한다(test_del
 """
 
 import os
+from unittest.mock import patch
 
 import pytest
 from itsdangerous import URLSafeSerializer
@@ -321,3 +322,63 @@ def test_web_hard_delete_routes_removed(client, path):
     resp = client.post(path, data={"selected_order": str(oid)})
     assert resp.status_code == 404, f"{path} 가 아직 살아있음(web hard-delete 미제거)"
     assert _fresh(oid) is not None  # 물리 삭제되지 않고 잔존
+
+
+# --------------------------------------------------------------------------
+# 5. 삭제/복원 직후 대시보드 캐시 무효화 (즉시 반영)
+# --------------------------------------------------------------------------
+def test_single_delete_invalidates_dashboard_caches(client):
+    """POST /delete/<id> commit 뒤 대시보드 read-slice 캐시를 무효화한다.
+
+    2026-08-10 운영 사고: 무효화가 없어 삭제한 주문이 실측 날짜별 집계에 TTL(300초)
+    동안 남았다(좌측 집계 23 vs 우측 리스트 22).
+    """
+    _login(client, _make_user("trash_admin_inv1"))
+    order = _make_order(customer_name="INVDEL", status="MEASURE")
+    oid = order.id
+
+    with patch(
+        "foms.services.common.dashboard_cache."
+        "invalidate_dashboard_caches_after_delete_transition"
+    ) as inv:
+        resp = client.post(f"/delete/{oid}", follow_redirects=False)
+
+    assert resp.status_code in (302, 303)
+    assert _fresh(oid).deleted_at is not None
+    inv.assert_called_once_with("order_delete")
+
+
+def test_single_delete_survives_cache_invalidate_failure(client):
+    """캐시 무효화가 터져도 삭제(이미 commit)는 롤백되지 않는다 — fail-open."""
+    _login(client, _make_user("trash_admin_inv2"))
+    order = _make_order(customer_name="INVDELFAIL", status="MEASURE")
+    oid = order.id
+
+    with patch(
+        "foms.services.common.dashboard_cache."
+        "invalidate_dashboard_caches_after_delete_transition",
+        side_effect=RuntimeError("redis down"),
+    ):
+        resp = client.post(f"/delete/{oid}", follow_redirects=False)
+
+    assert resp.status_code in (302, 303)
+    assert _fresh(oid).deleted_at is not None
+
+
+def test_restore_invalidates_dashboard_caches(client):
+    """복원도 전 탭에 다시 나타나는 전이 → 같은 무효화를 태운다."""
+    _login(client, _make_user("trash_admin_inv3"))
+    order = _make_order(customer_name="INVRESTORE", deleted_at="2026-07-24 09:00:00")
+    oid = order.id
+
+    with patch(
+        "foms.services.common.dashboard_cache."
+        "invalidate_dashboard_caches_after_delete_transition"
+    ) as inv:
+        resp = client.post(
+            "/restore_orders", data={"selected_order": str(oid)}, follow_redirects=False
+        )
+
+    assert resp.status_code in (302, 303)
+    assert _fresh(oid).deleted_at is None
+    inv.assert_called_once_with("order_restore")

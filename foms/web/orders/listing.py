@@ -648,6 +648,20 @@ def bulk_action():
 
         db.commit()
 
+        # 삭제/복사/상태변경 모두 대시보드에 즉시 반영돼야 한다. read-slice 캐시
+        # (TTL 최대 300초)를 비우지 않으면 삭제한 주문이 실측 날짜별 집계 등에 최대 5분
+        # 잔존한다(2026-08-10 운영 사고). commit 성공 뒤에만 호출하며 실패는 로그만 남긴다.
+        try:
+            from foms.services.common.dashboard_cache import (
+                invalidate_dashboard_caches_after_delete_transition,
+            )
+
+            invalidate_dashboard_caches_after_delete_transition(f"order_bulk_action:{action}")
+        except Exception:
+            current_app.logger.warning(
+                "post bulk_action dashboard cache invalidate failed", exc_info=True
+            )
+
         if action.startswith('status_'):
             status_code = action.split('_', 1)[1]
             status_name = STATUS.get(status_code, status_code)

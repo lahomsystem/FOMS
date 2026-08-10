@@ -146,6 +146,25 @@ def reset_order_ids(db):
         raise exc
 
 
+def _invalidate_dashboard_caches_after_delete(reason: str) -> None:
+    """삭제/복원 commit 뒤 대시보드 캐시를 무효화한다(실패는 로그만 남기고 무시).
+
+    캐시 무효화 실패가 삭제 자체(이미 commit 됨)를 실패로 만들면 안 되므로 fail-open이며,
+    묵시적 무시가 아니라 warning 로그로 남긴다.
+
+    Args:
+        reason: 무효화 사유(AS 추천 캐시 로그용).
+    """
+    try:
+        from foms.services.common.dashboard_cache import (
+            invalidate_dashboard_caches_after_delete_transition,
+        )
+
+        invalidate_dashboard_caches_after_delete_transition(reason)
+    except Exception:
+        logger.warning("post %s dashboard cache invalidate failed", reason, exc_info=True)
+
+
 @order_trash_bp.route("/delete/<int:order_id>", methods=["POST"])
 @login_required
 @role_required(["ADMIN", "MANAGER"])
@@ -183,6 +202,10 @@ def delete_order(order_id):
         # event(hard delete 없음·status/overlay 축 보존). commit 은 이 route 가 소유한다.
         soft_delete_order(db, order_id=order_id, actor_user_id=session.get("user_id"))
         db.commit()
+
+        # 삭제 즉시 반영: 대시보드 read-slice 캐시(TTL 최대 300초)를 무효화하지 않으면
+        # 삭제한 주문이 실측 날짜별 집계 등에 최대 5분 잔존한다(2026-08-10 운영 사고).
+        _invalidate_dashboard_caches_after_delete("order_delete")
 
         try:
             from foms.services.notifications.production_change import finalize_production_change_alert
@@ -271,6 +294,8 @@ def restore_orders():
                 # main/logistics/hold/AS overlay 보존.
                 restore_order(db, order_id=order.id, actor_user_id=actor_user_id)
         db.commit()
+        # 복원도 주문이 모든 탭에 다시 나타나는 전이 → 삭제와 동일하게 즉시 무효화.
+        _invalidate_dashboard_caches_after_delete("order_restore")
         log_access(f"주문 {len(orders)}개 복원", session.get("user_id"), {"count": len(orders)})
         flash(f"{len(orders)}개 주문이 성공적으로 복원되었습니다.", "success")
     except Exception as exc:
