@@ -51,6 +51,10 @@ REGIONAL_CHECKLIST_EVENT = "REGIONAL_CHECKLIST_UPDATED"
 REGIONAL_MEMO_EVENT = "REGIONAL_MEMO_UPDATED"
 _MEMO_MAX = 2000
 
+#: 감사 detail 에 남길 메모 발췌 상한. 원장은 본문 저장소가 아니다 — 무엇이 바뀌었는지
+#: 알아볼 만큼만 남기고, 전문은 주문 화면이 정본이다.
+_MEMO_AUDIT_MAX = 200
+
 
 def _coerce_checklist_bool(value: Any) -> bool:
     """체크리스트 값을 불리언으로 강제한다(임의 타입 거부).
@@ -228,6 +232,17 @@ def update_regional_memo_response():
         return resp
     order_id = order.id
 
+    previous_memo = getattr(order, "regional_memo", None) or ""
+    if previous_memo == memo:
+        # 무변경 저장은 쓰지 않는다. 대시보드 자동저장이 **디바운스(1초)와 blur 즉시저장으로
+        # 두 번** 발사해(운영 실측: 09:34:35·09:34:36 동일 메모 2건) 감사 원장이 같은 내용으로
+        # 겹쳐 쌓였다. 버전 bump·이벤트·감사 기록을 모두 건너뛴다(멱등 no-op).
+        return jsonify({
+            "success": True,
+            "message": "메모가 저장되었습니다.",
+            "unchanged": True,
+        })
+
     expected_versions, if_match_err = _parse_if_match(order_id)
     if if_match_err:
         return if_match_err
@@ -268,7 +283,25 @@ def update_regional_memo_response():
         logger.exception("[REGIONAL] 메모 업데이트 오류 order=%s", order_id)
         return jsonify({"success": False, "message": f"오류 발생: {str(exc)}"}), 500
 
-    log_access(f"{_order_type_label(order)} #{order_id}의 메모를 업데이트", session["user_id"])
+    memo_context = order_audit_context(order)
+    log_access(
+        describe_field_change(
+            order_id=order_id, field="regional_memo", before=previous_memo, after=memo,
+            has_before=True, **memo_context,
+        ),
+        session["user_id"],
+        action="ORDER_MEMO_UPDATED", target_type="order", target_id=order_id,
+        detail={
+            "field": "regional_memo",
+            # 원문 전량은 담지 않는다 — 메모는 길이 제한만 있는 자유 텍스트라
+            # 감사 원장이 본문 저장소가 되면 안 된다(요약으로 무엇이 바뀌었는지만 남긴다).
+            "before": previous_memo[:_MEMO_AUDIT_MAX],
+            "after": memo[:_MEMO_AUDIT_MAX],
+            "before_len": len(previous_memo),
+            "after_len": len(memo),
+            **memo_context,
+        },
+    )
     resp = jsonify({
         "success": True,
         "message": "메모가 저장되었습니다.",
