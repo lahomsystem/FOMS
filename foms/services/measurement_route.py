@@ -13,6 +13,11 @@ ROUTE-01: `route`(양쪽 빌더 공통 키)는 항상 예약 순서(측정 시�
 화면의 히어로 위젯과 일치한다. 최근접 이웃(NN) 재배열은
 `build_measurement_route_payload`의 `optimized_route`/`optimized_total_distance_km`로만
 별도 제공한다(데스크톱 "경로 계획" 근사 직선거리 참고용 — hero/next 판정 금지).
+
+ROUTE-02(2026-08-10 운영 확인): 예약 순서 정렬 키는 SQL 컬럼이 아니라
+`measurement_time.measurement_time_sort_key`(structured_data 우선 파서)다.
+ERP 주문은 `orders.measurement_time` 컬럼이 전부 NULL 이라 SQL `ORDER BY`가
+사실상 `id ASC`(접수순)로 떨어져 동선이 방문 순서와 무관해진다.
 """
 from __future__ import annotations
 
@@ -28,8 +33,17 @@ from models import Order, OrderScheduleDate
 from foms.services.common.address_converter import FOMSAddressConverter
 from foms.services.erp_permissions import build_mine_sql_filter
 from foms.services.measurement_dates import extract_all_measurement_dates
+from foms.services.measurement_time import (
+    measurement_time_sort_key,
+    measurement_time_text,
+)
 
 logger = logging.getLogger(__name__)
+
+# 대시보드 서버 인라인 동선의 지점 상한. 실측 큐가 하루 20건을 넘는 날이 흔해
+# (운영 2026-08-11 = 22건) 예전 20 고정은 카드 수와 스트립 곳수를 상시 어긋나게 했다.
+# 인라인 경로는 저장 좌표만 읽어 지오코딩 왕복이 없으므로 상한을 큐 규모에 맞춘다.
+INLINE_ROUTE_LIMIT = 60
 
 # 인라인 페이로드 최소 필드(전송 절제): 스트립 렌더(헤드/풋 캡션·순번·현재 판정)와
 # route-eta 요청(id)에 필요한 것만 남긴다. phone/manager_name/status/geo_status 제외.
@@ -44,26 +58,29 @@ INLINE_POINT_FIELDS = (
 )
 
 
-def _query_route_orders(
+def _collect_route_orders(
     db,
     date_filter: str,
     manager_filter: str,
     limit: int,
     current_user,
     mine_active: bool,
-) -> list[Order]:
+) -> tuple[list[Order], int]:
     """동선 대상 주문 조회 (API `/route`와 동일 predicate·정렬·limit).
+
+    정렬은 SQL 이 아니라 파이썬에서 `measurement_time_sort_key`로 한다(ROUTE-02).
+    limit 절단 전에 정렬해야 "이른 시각인데 id가 커서 잘리는" 역전이 없다.
 
     Args:
         db: SQLAlchemy 세션.
         date_filter: 실측일(YYYY-MM-DD). 빈 값이면 날짜 필터 없이 limit 만 적용.
         manager_filter: 담당자 부분일치 필터(trigram 인덱스 사용).
-        limit: 최대 지점 수(호출부에서 1~30으로 클램프).
+        limit: 최대 지점 수(호출부에서 클램프).
         current_user: '내 주문' 필터 대상 사용자.
         mine_active: '내 주문' 필터 활성 여부.
 
     Returns:
-        측정 시각 오름차순 주문 리스트.
+        `(방문시각 오름차순 주문 리스트[:limit], limit 적용 전 총 건수)`.
     """
     query = db.query(Order).filter(Order.active_filter())
 
@@ -82,18 +99,33 @@ def _query_route_orders(
         if mine_conds:
             query = query.filter(or_(*mine_conds))
 
-    ordered_query = query.order_by(
-        Order.measurement_time.asc().nullslast(),
-        Order.id.asc(),
-    )
+    # SQL 정렬은 id 로 결정론만 확보하고(페이지 고정), 방문 순서는 파이썬 파서가 잡는다.
+    ordered_query = query.order_by(Order.id.asc())
     if date_filter:
-        candidate_orders = ordered_query.all()
-        return [
+        candidates = [
             order
-            for order in candidate_orders
+            for order in ordered_query.all()
             if date_filter in extract_all_measurement_dates(order)
-        ][:limit]
-    return ordered_query.limit(limit).all()
+        ]
+    else:
+        candidates = ordered_query.limit(limit).all()
+    candidates.sort(key=measurement_time_sort_key)
+    return candidates[:limit], len(candidates)
+
+
+def _query_route_orders(
+    db,
+    date_filter: str,
+    manager_filter: str,
+    limit: int,
+    current_user,
+    mine_active: bool,
+) -> list[Order]:
+    """`_collect_route_orders`의 주문 리스트만 (총 건수 불필요한 호출부용)."""
+    orders, _total = _collect_route_orders(
+        db, date_filter, manager_filter, limit, current_user, mine_active
+    )
+    return orders
 
 
 def _route_order_display_fields(o: Order) -> dict[str, Any]:
@@ -150,7 +182,8 @@ def _point_from_order(
         "customer_name": fields["customer_name"],
         "phone": fields["phone"],
         "address": fields["address"],
-        "measurement_time": o.measurement_time,
+        # flat 컬럼은 ERP 주문에서 비어 있다 — structured_data 우선 SSOT 경유(ROUTE-02).
+        "measurement_time": measurement_time_text(o),
         "manager_name": fields["manager_name"],
         "status": o.status,
         "measurement_completed": bool(o.measurement_completed),
@@ -292,25 +325,33 @@ def build_measurement_route_payload(
         current_user / mine_active: '내 주문' 필터 계보.
 
     Returns:
-        {date, manager, total_points, route, optimized_route, optimized_total_distance_km}
+        {date, manager, total_points, total_scheduled, missing_coords, truncated,
+         route, optimized_route, optimized_total_distance_km}
     """
     limit = max(1, min(int(limit), 30))
-    orders = _query_route_orders(db, date_filter, manager_filter, limit, current_user, mine_active)
+    orders, total_scheduled = _collect_route_orders(
+        db, date_filter, manager_filter, limit, current_user, mine_active
+    )
     points = _build_route_points(orders, db)
+    meta = {
+        "date": date_filter,
+        "manager": manager_filter,
+        "total_points": len(points),
+        # 화면이 "실측 N곳"과 "동선 M곳"의 차이를 설명할 수 있도록 탈락 사유를 분리해 내린다.
+        "total_scheduled": total_scheduled,
+        "missing_coords": max(0, len(orders) - len(points)),
+        "truncated": max(0, total_scheduled - len(orders)),
+    }
     if len(points) <= 1:
         return {
-            "date": date_filter,
-            "manager": manager_filter,
-            "total_points": len(points),
+            **meta,
             "route": points,
             "optimized_route": points,
             "optimized_total_distance_km": 0,
         }
     optimized_route, optimized_total_km = _order_nearest_neighbor(points)
     return {
-        "date": date_filter,
-        "manager": manager_filter,
-        "total_points": len(points),
+        **meta,
         "route": points,
         "optimized_route": optimized_route,
         "optimized_total_distance_km": optimized_total_km,
@@ -323,6 +364,7 @@ def build_inline_route_strip_payload(
     date_filter: str,
     current_user=None,
     mine_active: bool = False,
+    limit: int = INLINE_ROUTE_LIMIT,
 ) -> dict[str, Any]:
     """대시보드 서버 인라인용 최소 페이로드.
 
@@ -336,16 +378,28 @@ def build_inline_route_strip_payload(
     어긋난다. 최적 동선(최근접 이웃)이 필요하면 `build_measurement_route_payload`의
     `optimized_route`를 쓴다.
 
+    좌표가 없어 빠진 건수(`missing_coords`)와 상한에 잘린 건수(`truncated`)를 함께
+    내려 스트립이 "좌표 없는 N곳 제외"를 표기한다 — 조용히 사라지면 사용자는 동선
+    곳수와 실측 건수가 왜 다른지 알 수 없다.
+
     Args:
         db: SQLAlchemy 세션.
         date_filter: 실측일(YYYY-MM-DD).
         current_user / mine_active: '내 주문' 필터 계보(대시보드 뷰와 동일).
+        limit: 최대 지점 수(기본 `INLINE_ROUTE_LIMIT`).
 
     Returns:
-        {"route": [{INLINE_POINT_FIELDS...}]}. 2지점 미만이면 JS가 스트립을 숨긴다.
+        {"route": [{INLINE_POINT_FIELDS...}], "total_scheduled", "missing_coords",
+         "truncated"}. 2지점 미만이면 JS가 스트립을 숨긴다.
     """
-    orders = _query_route_orders(
-        db, date_filter, "", 20, current_user, mine_active,
+    limit = max(1, int(limit))
+    orders, total_scheduled = _collect_route_orders(
+        db, date_filter, "", limit, current_user, mine_active,
     )
     pts = _build_route_points_from_stored_coords(orders)
-    return {"route": [{k: p.get(k) for k in INLINE_POINT_FIELDS} for p in pts]}
+    return {
+        "route": [{k: p.get(k) for k in INLINE_POINT_FIELDS} for p in pts],
+        "total_scheduled": total_scheduled,
+        "missing_coords": max(0, len(orders) - len(pts)),
+        "truncated": max(0, total_scheduled - len(orders)),
+    }
