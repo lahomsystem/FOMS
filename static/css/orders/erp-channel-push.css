@@ -1,20 +1,43 @@
-/* 채널톡 재전송 확인: mobile bottom-sheet */
+/* 채널톡 재전송 확인 / PUSH 종류 선택: mobile bottom-sheet */
 @media (max-width: 767.98px) {
-  .erp-channel-push-resend-modal .modal-dialog {
+  .erp-channel-push-resend-modal .modal-dialog,
+  .erp-channel-push-picker-modal .modal-dialog {
     align-items: flex-end;
     margin: 0;
     min-height: 100%;
     max-width: 100%;
   }
 
-  .erp-channel-push-resend-modal .modal-content {
+  .erp-channel-push-resend-modal .modal-content,
+  .erp-channel-push-picker-modal .modal-content {
     border-bottom-left-radius: 0;
     border-bottom-right-radius: 0;
     border-top-left-radius: 1rem;
     border-top-right-radius: 1rem;
   }
 
-  .erp-channel-push-resend-modal .modal-footer {
+  .erp-channel-push-resend-modal .modal-footer,
+  .erp-channel-push-picker-modal .modal-footer {
     padding-bottom: calc(0.75rem + env(safe-area-inset-bottom, 0px));
   }
+}
+
+/* 선택지는 좁은 폭에서도 라벨이 접히지 않도록 세로 1열 full-width */
+.erp-channel-push-picker-options {
+  display: flex;
+  flex-direction: column;
+  gap: 0.5rem;
+}
+
+.erp-channel-push-picker-options .foms-btn {
+  width: 100%;
+  flex-wrap: wrap;
+  min-height: 56px;
+}
+
+.erp-channel-push-picker-hint {
+  flex-basis: 100%;
+  font-size: 0.75rem;
+  font-weight: 400;
+  opacity: 0.75;
 }

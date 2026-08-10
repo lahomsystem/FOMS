@@ -130,6 +130,8 @@ def get_routing_group_id(event_type: str, order_info: Dict[str, Any] = None) -> 
           미설정 시 운영 그룹 229625로 폴백).
         - ``estimate`` (견적서 PUSH): 견적서 그룹(``CHANNEL_GROUP_ESTIMATE``,
           미설정 시 운영 그룹 230395로 폴백).
+        - ``as`` (AS PUSH): AS 그룹(``CHANNEL_GROUP_AS``,
+          미설정 시 운영 그룹 230351로 폴백).
         - 그 외(영발 PUSH, 기본): 실측 그룹(``CHANNEL_GROUP_MEASUREMENT``,
           미설정 시 운영 그룹 209990으로 폴백).
 
@@ -149,6 +151,8 @@ def get_routing_group_id(event_type: str, order_info: Dict[str, Any] = None) -> 
         group_id = os.environ.get("CHANNEL_GROUP_DRAWING", "229625")
     elif push_kind == "estimate":
         group_id = os.environ.get("CHANNEL_GROUP_ESTIMATE", "230395")
+    elif push_kind == "as":
+        group_id = os.environ.get("CHANNEL_GROUP_AS", "230351")
     else:
         group_id = os.environ.get("CHANNEL_GROUP_MEASUREMENT", "209990")
 

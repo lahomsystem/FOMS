@@ -48,10 +48,23 @@ _PUSH_EFFECT_TYPE = 'CHANNEL_PUSH_RECORDED'  # side-effect outbox effect_type
 _PUSH_SIDEFX_DOMAIN = 'ORDER_EVENT'          # outbox one-of FK 매트릭스 도메인
 _PUSH_CHANGE_LOG_CAP = 20                    # structured_data 이력 change_log 보존 개수
 
-# push_kind → (첨부 category, structured_data 이력 키)
+# push_kind → (첨부 category, structured_data 이력 키, 그룹 환경변수명)
 _PUSH_KIND_CONFIG = {
-    'measurement': {'category': 'measurement', 'history_key': 'channeltalk_push'},
-    'drawing': {'category': 'drawing', 'history_key': 'channeltalk_push_drawing'},
+    'measurement': {
+        'category': 'measurement',
+        'history_key': 'channeltalk_push',
+        'group_env': 'CHANNEL_GROUP_MEASUREMENT',
+    },
+    'drawing': {
+        'category': 'drawing',
+        'history_key': 'channeltalk_push_drawing',
+        'group_env': 'CHANNEL_GROUP_DRAWING',
+    },
+    'as': {
+        'category': 'as',
+        'history_key': 'channeltalk_push_as',
+        'group_env': 'CHANNEL_GROUP_AS',
+    },
 }
 
 channel_integration_bp = Blueprint('channel_integration', __name__, url_prefix='/api/channel')
@@ -258,11 +271,12 @@ def api_channel_push_manual():
     push_kind에 따라 변환 텍스트 + 해당 분류 첨부파일만 채널톡 그룹으로 전송합니다.
         - measurement(영발 PUSH): 실측 첨부 → 실측 그룹
         - drawing(발주 PUSH): 도면 첨부 → 도면 그룹(229625)
+        - as(AS PUSH): AS 첨부 → AS 그룹(230351)
 
     Request JSON:
         order_id (int): 주문 ID
         text (str): 전송할 텍스트 (변환된 내용)
-        push_kind (str): 'measurement'(기본) 또는 'drawing'
+        push_kind (str): 'measurement'(기본) / 'drawing' / 'as'
         change_note (str, optional): 재전송 시 변경 내용 (1~500자, 필수)
 
     Returns:
@@ -301,7 +315,7 @@ def api_channel_push_manual():
                 'error': _RETIRED_GROUP_MESSAGE,
             }), 410
         if not group_id:
-            env_name = 'CHANNEL_GROUP_DRAWING' if push_kind == 'drawing' else 'CHANNEL_GROUP_MEASUREMENT'
+            env_name = kind_config['group_env']
             msg = f'{env_name} 환경변수가 설정되지 않았습니다.'
             return jsonify({'success': False, 'message': msg, 'error': msg}), 503
 
