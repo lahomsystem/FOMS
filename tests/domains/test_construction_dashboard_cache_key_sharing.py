@@ -133,3 +133,57 @@ def test_attachment_cache_key_depends_only_on_order_ids(client, monkeypatch) -> 
     staff_keys = _capture_keys(client, monkeypatch, "?view=fragment")
 
     assert admin_keys["attachment_counts"] == staff_keys["attachment_counts"]
+
+
+def _seed_non_construction_urgent_order() -> None:
+    """시공 단계가 아닌 긴급 주문(실측 단계) — 시공 숫자판에는 잡히면 안 된다."""
+    order = Order(
+        received_date="2026-06-01",
+        customer_name="실측단계긴급",
+        phone="010-4999-0001",
+        address="서울시 실측구",
+        product="실측 제품",
+        is_erp_order=True,
+        erp_stage_code="MEASURE",
+        structured_data={"workflow": {"stage": "MEASURE"}, "flags": {"urgent": True}},
+    )
+    db_session.add(order)
+    db_session.commit()
+
+
+def _seed_construction_urgent_order() -> None:
+    order = Order(
+        received_date="2026-06-01",
+        customer_name="시공단계긴급",
+        phone="010-4999-0002",
+        address="서울시 시공구",
+        product="시공 제품",
+        is_erp_order=True,
+        erp_stage_code="CONSTRUCTION",
+        structured_data={"workflow": {"stage": "CONSTRUCTION"}, "flags": {"urgent": True}},
+    )
+    db_session.add(order)
+    db_session.commit()
+
+
+def test_summary_counts_only_construction_stage_orders(client, monkeypatch) -> None:
+    """숫자판은 시공 대시보드의 것 — 긴급 발주도 시공 단계 주문만 센다(목록과 같은 모집단)."""
+    _seed_non_construction_urgent_order()
+    _seed_construction_urgent_order()
+    admin = _make_user("summary_scope_admin", "ADMIN")
+    _login(client, admin)
+
+    captured: dict[str, int] = {}
+    original = construction_dashboard.compute_construction_summary_blob
+
+    def _spy(query):
+        blob = original(query)
+        captured.update(blob["kpis"])
+        return blob
+
+    monkeypatch.setattr(construction_dashboard, "compute_construction_summary_blob", _spy)
+    resp = client.get("/erp/construction/dashboard?view=fragment")
+    assert resp.status_code == 200
+
+    # 실측 단계 긴급 1건은 제외, 시공 단계 긴급 1건만 계수된다.
+    assert captured["urgent_count"] == 1

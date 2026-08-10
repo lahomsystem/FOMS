@@ -95,17 +95,24 @@ def erp_construction_dashboard():
     # 넣으면 같은 숫자를 사용자 수만큼 따로 계산·저장하게 되어(캐시 미스 = 60일 주문 전량 순회
     # ≈ 88ms 실측) 만료 직후 사용자마다 그 비용을 다시 떠안았다. 공용 결과는 키를 공유한다.
     _summary_fp: dict[str, Any] = {
+        # 스캔 스코프가 바뀌면 숫자의 의미도 바뀐다 — 구 스코프로 계산된 캐시 값을
+        # 그대로 이어 쓰지 않도록 키에 스코프 표식을 남긴다(배포 즉시 자연 무효화).
         "v": KEY_VERSION,
+        "scope": "construction_stage",
         "mine": bool(mine_only),
     }
     if mine_only:
         _summary_fp["uid"] = user.id if user else None
         _summary_fp["role"] = getattr(user, "role", None) if user else None
     _summary_key = build_dashboard_cache_key("construction", "summary_counts", _summary_fp)
+    # 숫자판(긴급 발주·시공 D-3·단계별 건수)은 시공 대시보드의 것이므로 시공 표시단계
+    # 주문만 센다. 목록과 같은 스코프(apply_construction_list_scope_filter)를 써서
+    # "위 숫자와 아래 목록이 다른 모집단" 이던 어긋남도 함께 사라진다.
+    _summary_query = apply_construction_list_scope_filter(query, "")
     _summary_blob = get_or_compute_dashboard_slice(
         _summary_key,
         TTL_SUMMARY_COUNTS,
-        lambda: compute_construction_summary_blob(query),
+        lambda: compute_construction_summary_blob(_summary_query),
         page="construction",
         slice_name="summary_counts",
     )
