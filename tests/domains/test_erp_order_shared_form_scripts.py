@@ -67,7 +67,7 @@ def _assert_shared_form_script_contract(body: str) -> None:
     )
     assert "html2canvas.min.js" not in body
     assert "js/orders/erp-channel-push-confirm.js?v=20260810a" in body
-    assert "js/orders/erp-order-shared.js?v=20260810c" in body
+    assert "js/orders/erp-order-shared.js?v=20260810d" in body
     assert "js/orders/erp-stage-override.js?v=20260716b" in body
     assert "erp_stage_override_modal.html" not in body  # include renders modal markup, not path
     assert 'id="erpStageOverrideModal"' in body
@@ -428,6 +428,28 @@ def test_as_modal_shipping_date_js_wiring_contract() -> None:
     assert "regPayload.shipping_scheduled_date = shipDateVal;" in text
     assert "body: JSON.stringify(regPayload)" in text
     assert "window.__erpShippingScheduledDate = shipDateVal;" in text
+
+
+def test_active_as_reregister_button_opens_prefilled_modal_without_stage_mutation() -> None:
+    """진행 중 AS 수정은 본공정 단계 재선택 없이 같은 접수 모달을 연다."""
+    root = Path(__file__).resolve().parents[2]
+    text = (root / "static/js/orders/erp-order-shared.js").read_text(encoding="utf-8")
+
+    helper_start = text.index("function erpOpenAsReceiveModal(")
+    helper_end = text.index("async function erpSaveStructuredOnce", helper_start)
+    helper = text[helper_start:helper_end]
+    assert "window.__erpLastStructuredData?.shipment?.as_content" in helper
+    assert "options.reregister === true" in helper
+    assert "AS 접수 수정" in helper
+    assert "수정 내용 저장" in helper
+    assert "erp-workflow-stage" not in helper
+
+    binding_start = text.index("document.querySelectorAll('[data-erp-as-reregister-open]')")
+    binding_end = text.index("if (modalEl) {", binding_start)
+    binding = text[binding_start:binding_end]
+    assert "erpAsReregisterBound" in binding
+    assert "erpOpenAsReceiveModal(targetId, previousStage, { reregister: true })" in binding
+    assert "주문 정보를 불러온 뒤 다시 시도해주세요." in binding
 
 
 def test_shared_erp_order_js_has_no_beta_runtime_mirror() -> None:

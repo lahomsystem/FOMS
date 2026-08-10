@@ -518,6 +518,9 @@ def test_erp_order_construction_worker_input_contract_is_wired():
 def test_erp_order_party_workflow_notes_layout_is_two_rows():
     root = Path(__file__).resolve().parents[2]
     tpl = (root / "templates/orders/partials/erp_order_tab.html").read_text(encoding="utf-8")
+    mobile_tpl = (
+        root / "templates/orders/partials/erp_order_tab_mobile.html"
+    ).read_text(encoding="utf-8")
 
     orderer_idx = tpl.index('id="erp-orderer-select"')
     manager_idx = tpl.index('id="erp-manager"')
@@ -528,8 +531,42 @@ def test_erp_order_party_workflow_notes_layout_is_two_rows():
     assert orderer_idx < manager_idx < construction_idx < stage_idx < notes_idx
     assert '<div class="col-md-4">\n                            <label class="form-label mb-1">담당자</label>' in tpl
     assert '<div class="col-md-4">\n                            <label class="form-label mb-1">시공 담당자</label>' in tpl
-    assert '<div class="col-md-4">\n                            <label class="form-label mb-1">단계(Workflow)</label>' in tpl
+    assert 'for="erp-workflow-stage">본공정 단계</label>' in tpl
+    assert 'for="erp-workflow-stage">본공정 단계</label>' in mobile_tpl
+    assert 'data-erp-as-status="{{ order.status }}">AS: {{ erp_as_status_label }}' in tpl
+    assert 'data-erp-as-status="{{ order.status }}">AS: {{ erp_as_status_label }}' in mobile_tpl
+    assert "data-erp-as-reregister-open" in tpl
+    assert "data-erp-as-reregister-open" in mobile_tpl
     assert '<div class="col-md-8">\n                            <label class="form-label mb-1">비고</label>' in tpl
+
+
+def test_erp_order_edit_displays_main_stage_and_as_status_separately(client):
+    _login_as_admin(client, username="erp-as-stage-display-admin")
+    structured_data = _structured_payload("서울 테헤란로 123")
+    structured_data["workflow"]["stage"] = "MEASURE"
+    order = _create_order(structured_data=structured_data)
+    order.status = "AS_RECEIVED"
+    order_id = order.id
+    db_session.commit()
+
+    response = client.get(f"/edit/{order_id}")
+
+    assert response.status_code == 200
+    body = response.get_data(as_text=True)
+    assert "본공정 단계" in body
+    assert 'data-erp-as-status="AS_RECEIVED"' in body
+    assert "AS: 접수" in body
+    assert "data-erp-as-reregister-open" in body
+
+    completed = db_session.get(Order, order_id)
+    completed.status = "AS_COMPLETED"
+    db_session.commit()
+
+    completed_response = client.get(f"/edit/{order_id}")
+    completed_body = completed_response.get_data(as_text=True)
+    assert 'data-erp-as-status="AS_COMPLETED"' in completed_body
+    assert "AS: 완료" in completed_body
+    assert "data-erp-as-reregister-open" not in completed_body
 
 
 def test_structured_put_rejects_address_clear_before_geocode_reset(client, monkeypatch):

@@ -2316,7 +2316,9 @@
             if (!data.success) {
               var msg = data.error || data.message || '알 수 없는 오류';
               if (msg.indexOf('재전송 시 변경 내용') >= 0) {
-                var note = (window.prompt('이미 전송한 주문입니다. 변경 내용을 입력해주세요.') || '').trim();
+                var note = (window.prompt(
+                  '이미 전송한 AS PUSH입니다. 변경 내용을 입력하면 채널톡 메시지 상단에 [수정]으로 표시됩니다.'
+                ) || '').trim();
                 if (!note) return;
                 data = await send(note);
               }

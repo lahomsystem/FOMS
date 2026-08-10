@@ -2299,6 +2299,52 @@ function erpNavigateAfterStructuredSave(targetUrl) {
     window.location.href = target.href;
 }
 
+/**
+ * Open the shared AS reception modal without mutating the main workflow stage.
+ * Active AS corrections reuse the same endpoint, which preserves the cycle and history.
+ */
+function erpOpenAsReceiveModal(targetId, previousStage, options = {}) {
+    const modalEl = document.getElementById('asReceiveModal');
+    if (!modalEl || !targetId || targetId <= 0) return false;
+
+    window.__erpAsReceivePreviousStage = (previousStage || '').trim();
+    window.__erpAsReceiveTargetId = targetId;
+    window.__erpAsReceiveSubmitted = false;
+
+    const contentEl = document.getElementById('as-receive-content');
+    const filesEl = document.getElementById('as-receive-files');
+    const previewEl = document.getElementById('as-receive-preview');
+    const titleEl = document.getElementById('asReceiveModalLabel');
+    const submitBtn = document.getElementById('as-receive-submit-btn');
+    const isReregister = options.reregister === true;
+
+    if (contentEl) {
+        contentEl.value = (window.__erpLastStructuredData?.shipment?.as_content || '').trim();
+    }
+    if (filesEl) filesEl.value = '';
+    window.__erpAsReceiveClipboardFiles = [];
+    if (previewEl) previewEl.innerHTML = '';
+    if (titleEl) {
+        titleEl.innerHTML = '<i class="fas fa-exclamation-circle text-warning"></i> '
+            + (isReregister ? 'AS 접수 수정' : 'AS 접수');
+    }
+    if (submitBtn) {
+        submitBtn.innerHTML = '<i class="fas fa-check"></i> '
+            + (isReregister ? '수정 내용 저장' : 'AS 접수 확인');
+    }
+
+    const shipWrapEl = document.getElementById('as-receive-shipping-wrap');
+    const shipDateEl = document.getElementById('as-receive-shipping-date');
+    const isRegionalNow = document.getElementById('erp-regional-order')?.checked === true;
+    if (shipWrapEl) shipWrapEl.classList.toggle('d-none', !isRegionalNow);
+    if (shipDateEl) {
+        shipDateEl.value = isRegionalNow ? (window.__erpShippingScheduledDate || '') : '';
+    }
+
+    bootstrap.Modal.getOrCreateInstance(modalEl).show();
+    return true;
+}
+
 async function erpSaveStructuredOnce(opts = {}) {
     const doRedirect = opts.redirect !== false;
     const redirectUrlOverride = typeof opts.redirectUrl === 'string' ? opts.redirectUrl.trim() : '';
@@ -2407,26 +2453,7 @@ async function erpSaveStructuredOnce(opts = {}) {
                 return { success: false, message: '주문 정보를 불러온 뒤 다시 시도해주세요.' };
             }
             // redirect: false(채널톡 자동 저장 등)에서도 모달을 띄워 저장 실패만 나오는 상황 방지
-            window.__erpAsReceivePreviousStage = prevStage;
-            window.__erpAsReceiveTargetId = targetId;
-            window.__erpAsReceiveSubmitted = false;
-            const modalEl = document.getElementById('asReceiveModal');
-            if (modalEl) {
-                const contentEl = document.getElementById('as-receive-content');
-                const filesEl = document.getElementById('as-receive-files');
-                const previewEl = document.getElementById('as-receive-preview');
-                if (contentEl) contentEl.value = (window.__erpLastStructuredData?.shipment?.as_content || '').trim();
-                if (filesEl) filesEl.value = '';
-                window.__erpAsReceiveClipboardFiles = [];
-                if (previewEl) previewEl.innerHTML = '';
-                // 지방주문 AS 재상차: 상차일 필드는 지방주문일 때만 노출·prefill(오픈마다 재평가).
-                const shipWrapEl = document.getElementById('as-receive-shipping-wrap');
-                const shipDateEl = document.getElementById('as-receive-shipping-date');
-                const isRegionalNow = document.getElementById('erp-regional-order')?.checked === true;
-                if (shipWrapEl) shipWrapEl.classList.toggle('d-none', !isRegionalNow);
-                if (shipDateEl) shipDateEl.value = isRegionalNow ? (window.__erpShippingScheduledDate || '') : '';
-                bootstrap.Modal.getOrCreateInstance(modalEl).show();
-            }
+            erpOpenAsReceiveModal(targetId, prevStage);
             erpSetStatus('AS 접수 내용을 입력해주세요.');
             return { success: false, message: 'AS 접수 단계로 변경 시 내용 입력 후 접수를 완료해주세요.' };
         }
@@ -2919,6 +2946,26 @@ ${escapeHtml(sub)}</div>` : ''}`;
                 erpRenderAsReceiveFilePreview(files);
             });
         }
+
+        document.querySelectorAll('[data-erp-as-reregister-open]').forEach(function (button) {
+            if (button.dataset.erpAsReregisterBound === '1') return;
+            button.dataset.erpAsReregisterBound = '1';
+            button.addEventListener('click', function () {
+                if (!window.__erpStructuredLoadSucceeded) {
+                    alert('주문 정보를 불러온 뒤 다시 시도해주세요.');
+                    return;
+                }
+                const targetId = parseInt(button.dataset.orderId || '', 10)
+                    || erpResolveCurrentOrderId();
+                const previousStage =
+                    (window.__erpLastStructuredData?.workflow?.stage || '').trim();
+                if (!erpOpenAsReceiveModal(targetId, previousStage, { reregister: true })) {
+                    alert('AS 접수 수정 화면을 열 수 없습니다.');
+                    return;
+                }
+                erpSetStatus('수정할 AS 접수 내용을 확인해주세요.');
+            });
+        });
 
         if (modalEl) {
             // 오픈마다 재평가(상차일 wrap과 동일 원칙): 판정 잠금 → 세그먼트 → 경과 배지 순.
