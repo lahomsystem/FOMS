@@ -4,6 +4,7 @@ erp.py에서 분리: /erp/construction/dashboard
 """
 
 import time
+from typing import Any
 
 from flask import Blueprint, g, make_response, render_template, request
 from sqlalchemy import or_
@@ -89,12 +90,17 @@ def erp_construction_dashboard():
         else:
             query = query.filter(Order.id == -1)
 
-    _summary_fp = {
+    # 요약(KPI/step_stats)은 위 ``query`` 만 읽는다. 그 query 는 mine_only 일 때만 사용자
+    # 조건을 얹으므로, 공용(mine=False) 결과는 누가 열어도 값이 같다. 그런데도 키에 uid/role 을
+    # 넣으면 같은 숫자를 사용자 수만큼 따로 계산·저장하게 되어(캐시 미스 = 60일 주문 전량 순회
+    # ≈ 88ms 실측) 만료 직후 사용자마다 그 비용을 다시 떠안았다. 공용 결과는 키를 공유한다.
+    _summary_fp: dict[str, Any] = {
         "v": KEY_VERSION,
-        "uid": user.id if user else None,
-        "role": getattr(user, "role", None) if user else None,
         "mine": bool(mine_only),
     }
+    if mine_only:
+        _summary_fp["uid"] = user.id if user else None
+        _summary_fp["role"] = getattr(user, "role", None) if user else None
     _summary_key = build_dashboard_cache_key("construction", "summary_counts", _summary_fp)
     _summary_blob = get_or_compute_dashboard_slice(
         _summary_key,
@@ -153,13 +159,11 @@ def erp_construction_dashboard():
             total_cap=CONSTRUCTION_BROWSE_CAP,
         )
 
+    # 첨부 개수는 주문 id 집합에만 의존한다(fetch_construction_attachment_counts 는 ids 로만
+    # 집계). uid/mine/stage/q/page 는 그 ids 를 **고르는** 축일 뿐이라 키에 함께 넣으면
+    # 같은 주문 묶음을 화면·사용자별로 다시 집계한다. 결과를 결정하는 축(ids)만 키로 쓴다.
     _att_fp = {
         "v": KEY_VERSION,
-        "uid": user.id if user else None,
-        "mine": bool(mine_only),
-        "stage": f_stage or "",
-        "q": f_q or "",
-        "page": page,
         "ids": sorted(o.id for o in orders),
     }
     _att_key = build_dashboard_cache_key("construction", "attachment_counts", _att_fp)
