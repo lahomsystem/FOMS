@@ -428,6 +428,60 @@ def test_push_manual_as_kind_filters_as_attachments_and_routes_as_group(client, 
     assert "channeltalk_push_drawing" not in saved.structured_data
 
 
+def test_push_manual_as_resend_marks_corrected_reception_as_modified(client, monkeypatch):
+    """AS 재접수 후 재전송은 공통 [수정] 헤더와 AS 전용 변경 이력을 남긴다."""
+    _login_admin(client)
+    monkeypatch.setenv("CHANNEL_GROUP_AS", "group-as")
+    monkeypatch.setattr(channel_integration, "is_configured", lambda: True)
+    monkeypatch.setattr(channel_integration, "get_storage", lambda: _FakeStorage())
+
+    captured = {}
+
+    def _fake_dispatch(event_type, data, raise_on_error=False):
+        captured["data"] = data
+        return {"success": True, "message_id": "msg-as-corrected"}
+
+    monkeypatch.setattr(channel_integration, "dispatch_order_event", _fake_dispatch)
+
+    order = Order(
+        received_date="2026-03-27",
+        customer_name="AS Corrected",
+        phone="010-0000-0000",
+        address="Seoul",
+        product="Wardrobe",
+        structured_data={
+            "shipment": {"as_content": "문짝 처짐 위치를 우측 문으로 정정"},
+            "channeltalk_push_as": {"pushed": True, "message_id": "msg-as-original"},
+        },
+    )
+    db_session.add(order)
+    db_session.commit()
+    order_id = order.id
+
+    response = client.post(
+        "/api/channel/push-manual",
+        json={
+            "order_id": order_id,
+            "push_kind": "as",
+            "change_note": "AS 접수 위치 오기재 정정",
+        },
+    )
+
+    assert response.status_code == 200
+    assert captured["data"]["is_retry"] is True
+    assert captured["data"]["change_note"] == "AS 접수 위치 오기재 정정"
+    message = channel_policy.build_message_template("manual", captured["data"])
+    assert message.startswith("[수정]\nAS 접수 위치 오기재 정정\n\n")
+    assert "내용 : 문짝 처짐 위치를 우측 문으로 정정" in message
+
+    db_session.expire_all()
+    saved = db_session.get(Order, order_id)
+    push_history = saved.structured_data["channeltalk_push_as"]
+    assert push_history["is_modified"] is True
+    assert push_history["change_log"][0]["note"] == "AS 접수 위치 오기재 정정"
+    assert push_history["change_log"][0]["message_id"] == "msg-as-corrected"
+
+
 def test_push_manual_as_kind_rejects_order_without_as_content(client, monkeypatch):
     """AS 접수 내용이 없으면 전송을 거부한다(내용 없는 AS 알림 방지)."""
     _login_admin(client)

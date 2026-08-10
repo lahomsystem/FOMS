@@ -37,3 +37,4 @@ def test_as_attachment_modal_offers_as_channel_push() -> None:
     # 재전송이면 서버가 변경 내용을 요구한다 → prompt 후 1회 재시도.
     assert "재전송 시 변경 내용" in block
     assert "change_note" in block
+    assert "채널톡 메시지 상단에 [수정]으로 표시됩니다." in block

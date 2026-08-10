@@ -9,6 +9,7 @@ ERP Order Tab Pane (shared between add_order and edit_order)
 {% set erp_order_default_stage_received = erp_order_default_stage_received if erp_order_default_stage_received is defined else false %}
 {% set erp_order_active = erp_order_active or false %}
 {% set erp_as_status_label = {'AS_RECEIVED': '접수', 'AS': '처리', 'AS_COMPLETED': '완료'}.get(order.status) if order is defined and order else none %}
+{% set erp_as_can_reregister = order is defined and order and order.status in ['AS_RECEIVED', 'AS'] %}
 <div class="tab-pane fade{% if erp_order_active %} show active{% endif %}" id="erp-order" role="tabpanel" lang="ko" data-erp-surface="1"{% if erp_order_active %} data-erp-ready="1"{% endif %}>
     <div class="card border-secondary" data-erp-order-id="{{ order.id if order is defined and order else 0 }}">
         <div class="card-header d-flex justify-content-between align-items-center">
@@ -178,6 +179,10 @@ ERP Order Tab Pane (shared between add_order and edit_order)
                                 <label class="form-label mb-0" for="erp-workflow-stage">본공정 단계</label>
                                 {% if erp_as_status_label %}
                                 <span class="badge text-bg-info" data-erp-as-status="{{ order.status }}">AS: {{ erp_as_status_label }}</span>
+                                {% endif %}
+                                {% if erp_as_can_reregister %}
+                                <button type="button" class="btn btn-sm btn-outline-info py-0"
+                                    data-erp-as-reregister-open data-order-id="{{ order.id }}">AS 접수 수정</button>
                                 {% endif %}
                             </div>
                             <div class="d-flex gap-1 align-items-start">
