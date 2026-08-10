@@ -2,7 +2,8 @@
 
 - 스펙: `docs/specs/2026-08-08-audit-log-readability-coverage-design.md`
 - 플랜: `docs/plans/2026-08-08-audit-log-readability-coverage-plan.md`
-- 상태: **A·B 완료 + 운영 승격 완료**(2026-08-10, production `47f270e6`). C·D 는 미착수.
+- 상태: **A·B 운영 승격 완료**(2026-08-10, production `47f270e6`) + **C 완료**(deploy `6d840c52`).
+  D 는 사용자 결정 대기(D1 계측 미착수·D2 BLOCKED).
 
 | Task | 상태 | 완료 기준(통과할 명령/판정) | 커밋 |
 |---|---|---|---|
@@ -11,10 +12,29 @@
 | A3 거부 로그 분리 | DONE | 기본 숨김·스위치·페이지링크 계약 green(구조화·구형식 둘 다). 스테이징 실측은 push 후 | (A2·A3 커밋) |
 | B1 주문 변경 구조화(before→after) | DONE | 4경로(field_update·regional·status·listing) 계약 5 passed + PII 최소성 계약 + 관련 170 passed | (B1·B2 커밋) |
 | B2 문장 조립 SSOT 통일 | DONE | grep 계약 3 passed. 벌크 상태 로그 영문 코드 2곳 해소 | (B1·B2 커밋) |
-| C1 커버리지 배선(묶음별) | PENDING | 묶음별 계약(행위 1건=원장 1행) + domains 전수 | — |
-| C2 커버리지 게이트 | PENDING | 인벤토리 생성 + 인위 red 실증 + smoke 편입 | — |
+| C1 커버리지 배선(묶음별) | DONE | 신규 계약 12 passed(행위 1건=원장 1행·행위자·대상·PII 부재) + 표시 SSOT 25 + domains 전수 4275 passed + APP_OK | `0a2c098e` |
+| C2 커버리지 게이트 | DONE | 게이트 11 passed(인위 red 실증 2종 포함) + 인벤토리 3종 정합 44 passed + pre_push_smoke exit 0 | `6d840c52` |
 | D1 열람 규모 계측 | PENDING | 1주 수집 후 수치 보고 → 사용자 결정 | — |
 | D2 열람 기록 배선 | BLOCKED | D1 결과에 대한 사용자 결정 필요 | — |
+
+## Phase C 완료 (2026-08-10, deploy `0a2c098e`·`6d840c52`)
+
+- **C1 배선 6묶음** — 결제 확인/해제, 시공 시작·완료·재작업, 생산 5종, AS 13경로,
+  도면 전달·전달취소·창구 업로드 2종·blueprint 확정, 첨부 업로드·삭제·복구.
+  첨부는 `emit_attachment_event` chokepoint 1곳에 배선(업로드 API·direct upload·삭제·복구가
+  한 지점을 지난다). `META_UPDATED` 는 의도적 제외(원장 도배 방지).
+- **표시 SSOT 확장** — `ACTION_LABELS` + `describe_order_action()`. 값 요약은
+  `_summarize_text` 로 뽑아 `format_value` 와 공유(사전 이중화 금지 계약 유지).
+- **근본 수정 1건**: `log_access` 가 항상 `get_db()` 를 부르던 탓에, 호출자 소유 세션을 쓰는
+  함수(도면 전달)에서 `g.db` 가 새로 붙어 요청 teardown 이 세션을 닫고 호출자 ORM 인스턴스가
+  detach 됐다(`test_hook_drawing_transfer` red 로 검출). `log_access(db=...)` 세션 주입 신설.
+- **C2 게이트** — `tools/harness/audit_coverage_scan.py`(AST, 같은 모듈 고정점 + `foms/` import
+  4단계 추적으로 얇은 위임 래퍼 오판 방지) + 인벤토리/allowlist + 계약 11건 + smoke 편입.
+- **커버리지 실측**: total 172 / AUDITED 91 / EXEMPT 19 / UNAUDITED 72 → **52.9%**
+  (C1 배선 전 41.3%). 면제 19건은 자동저장 draft·계산 프리뷰·텔레메트리·읽음 표시 등
+  전부 사유 기재(빈 사유는 계약 red).
+- 잔여 UNAUDITED 72건은 baseline 핀 — 게이트가 **증가만** 막는다(감소는 항상 허용).
+  다음 후보: 생산 보류/불량/공정, ERP 구조화 저장(PUT/PATCH), 도면 마법사 8종, 견적 3종.
 
 ## 운영 승격 (2026-08-10, PR #63)
 
