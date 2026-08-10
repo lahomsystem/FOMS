@@ -243,3 +243,41 @@ def test_describe_order_action_without_note_has_no_dangling_colon():
     assert amd.describe_order_action(order_id=7, action="AS_COMPLETED", note="") == (
         "주문 #7 — AS 완료"
     )
+
+
+# --- 2026-08-10 운영 실측 결함 2건 ---------------------------------------------------
+
+
+def test_message_that_already_names_the_customer_is_not_annotated_twice():
+    """쓰기 경로가 만든 문장은 이미 고객명을 품고 있다 — 화면이 또 붙이면 안 된다.
+
+    운영 실측: ``주문 #4704 (황인영) (황인영) — 주문 저장: 전체 저장``.
+    """
+    written = "주문 #4704 (황인영) — 주문 저장: 전체 저장"
+    assert amd.humanize_message(written, {4704: "황인영"}) == written
+
+
+def test_legacy_message_without_a_name_still_gets_one():
+    """반대로 이름이 없는 구 형식 문장에는 그대로 덧붙인다(기능 유지)."""
+    assert amd.humanize_message("주문 #4373의 메모를 업데이트", {4373: "김재민"}) == (
+        "주문 #4373 (김재민)의 메모를 업데이트"
+    )
+
+
+def test_empty_before_and_empty_after_is_not_rendered_as_a_change():
+    """원래 없던 값을 비운 것은 변화가 아니다 — ``(없음) → (지움)`` 로 쓰지 않는다.
+
+    운영 실측: ``AS 방문일: (없음) → (지움)`` (기록 원문은 ``AS 방문일: (지움)``).
+    """
+    assert amd.describe_field_change(
+        order_id=4243, field="as_visit_date", before=None, after="", has_before=True,
+        customer_name="박인영 AS",
+    ) == "주문 #4243 (박인영 AS) — AS 방문일: (지움)"
+
+
+def test_real_clear_still_shows_the_value_that_was_erased():
+    """값이 있던 것을 지운 경우는 그대로 ``이전 → (지움)`` 이다(되돌림 근거 보존)."""
+    assert amd.describe_field_change(
+        order_id=3210, field="as_completed_date", before="2026-07-02", after="",
+        has_before=True, customer_name="이영희",
+    ) == "주문 #3210 (이영희) — AS 완료일: 2026-07-02 → (지움)"
