@@ -17,6 +17,7 @@ from sqlalchemy.orm.attributes import flag_modified
 from db import get_db
 from models import Order, OrderAttachment, OrderEvent
 from foms.web.auth import login_required, role_required
+from foms.services.channel_as_message import build_as_push_text
 from foms.services.channel_client import is_configured
 from foms.services.channel_dispatch import dispatch_order_event
 from foms.services.channel_policy import ChannelGroupRetiredError, get_routing_group_id
@@ -296,10 +297,13 @@ def api_channel_push_manual():
 
         if not order_id:
             return jsonify({'success': False, 'message': 'order_id가 없습니다.'}), 400
-        if not text:
-            return jsonify({'success': False, 'message': '전송할 텍스트가 없습니다. 변환 버튼을 먼저 누르거나 내용을 입력해주세요.'}), 400
-        if len(text) > _MAX_TEXT_LENGTH:
-            return jsonify({'success': False, 'message': f'텍스트가 너무 깁니다 (최대 {_MAX_TEXT_LENGTH}자).'}), 400
+        # AS 본문은 서버가 저장된 주문으로 조립한다(SSOT). ERP 폼·AS 대시보드 어느 쪽에서
+        # 쏘든 같은 문구가 나가야 하므로 클라이언트가 보낸 text 는 이 경로에서 신뢰하지 않는다.
+        if push_kind != 'as':
+            if not text:
+                return jsonify({'success': False, 'message': '전송할 텍스트가 없습니다. 변환 버튼을 먼저 누르거나 내용을 입력해주세요.'}), 400
+            if len(text) > _MAX_TEXT_LENGTH:
+                return jsonify({'success': False, 'message': f'텍스트가 너무 깁니다 (최대 {_MAX_TEXT_LENGTH}자).'}), 400
 
         if not is_configured():
             msg = '채널톡 환경변수(CHANNEL_APP_SECRET, CHANNEL_ID)가 서버에 설정되지 않았습니다.'
@@ -322,6 +326,19 @@ def api_channel_push_manual():
         order = db.query(Order).filter(Order.id == int(order_id), Order.active_filter()).first()
         if not order:
             return jsonify({'success': False, 'message': f'주문 #{order_id}을 찾을 수 없습니다.'}), 404
+
+        if push_kind == 'as':
+            text = build_as_push_text(order)
+            if not text:
+                return jsonify({
+                    'success': False,
+                    'message': 'AS 접수 내용이 없습니다. AS 접수를 먼저 등록한 뒤 다시 시도해주세요.',
+                }), 400
+            if len(text) > _MAX_TEXT_LENGTH:
+                return jsonify({
+                    'success': False,
+                    'message': f'AS 접수 내용이 너무 깁니다 (최대 {_MAX_TEXT_LENGTH}자).',
+                }), 400
 
         # 이전 푸쉬 이력 확인 (push_kind별 분리)
         sd = copy.deepcopy(order.structured_data or {})

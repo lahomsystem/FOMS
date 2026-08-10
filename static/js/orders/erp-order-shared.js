@@ -4389,43 +4389,6 @@ function erpFormatConversionDateToKorean(dateStr) {
     return parts.length ? parts.join(', ') : dateStr;
 }
 
-/**
- * AS PUSH 본문 조립 — 고객/발주사/시공일/주소/연락처 + AS 접수 내용.
- *
- * 영발·발주 PUSH가 쓰는 전체 변환 텍스트(품목·금액 포함)와 달리, AS 방에는 식별 정보와
- * 접수 내용만 보낸다. 내용은 최신 AS 접수 내용(`structured_data.shipment.as_content`)이며
- * 저장된 값이므로 폼 DOM이 아니라 마지막 서버 스냅샷에서 읽는다.
- *
- * @returns {string} 전송 본문(내용이 없으면 빈 문자열)
- */
-function erpBuildAsPushText() {
-    const getVal = (id) => {
-        const el = document.getElementById(id);
-        return el ? (el.value || '').trim() : '';
-    };
-
-    const asContent = String(
-        window.__erpLastStructuredData?.shipment?.as_content || ''
-    ).trim();
-    if (!asContent) return '';
-
-    let orderer = typeof getOrdererValue === 'function' ? getOrdererValue() : getVal('erp-orderer');
-    if (!orderer) orderer = '라홈';
-
-    let constructionDate = getVal('erp-construction-date');
-    constructionDate = constructionDate ? erpFormatConversionDateToKorean(constructionDate) : '상담';
-
-    let text = '';
-    text = erpAppendConversionTextLine(text, '고객명', getVal('erp-customer-name'));
-    text = erpAppendConversionTextLine(text, '발주사', orderer);
-    text = erpAppendConversionTextLine(text, '시공일', constructionDate);
-    text = erpAppendConversionTextLine(text, '주  소', getVal('erp-address'));
-    text = erpAppendConversionTextLine(text, '연락처', getVal('erp-customer-phone'));
-    if (text) text += '\n';
-    text = erpAppendConversionTextLine(text, '내용', asContent);
-    return text.trim();
-}
-
 function erpGenerateConversionText() {
     const getVal = (id) => {
         const el = document.getElementById(id);
@@ -4959,15 +4922,10 @@ function fomsMountErpOrderSurface() {
             }
         }
 
-        // AS PUSH 본문은 변환 텍스트(품목·금액 포함)가 아니라 AS 전용 축약 포맷이다.
-        let text;
-        if (pushKind === 'as') {
-            text = erpBuildAsPushText();
-            if (!text) {
-                alert('AS 접수 내용이 없습니다.\nAS 접수를 먼저 등록한 뒤 다시 시도해주세요.');
-                return;
-            }
-        } else {
+        // AS PUSH 본문은 서버가 저장된 주문으로 조립한다(SSOT) — AS 대시보드처럼 폼 DOM이
+        // 없는 화면과 같은 문구를 보장하기 위해 여기서는 text를 만들지 않는다.
+        let text = '';
+        if (pushKind !== 'as') {
             if (typeof erpGenerateConversionText === 'function') {
                 erpGenerateConversionText();
             }
