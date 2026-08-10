@@ -147,3 +147,23 @@ def test_order_families_missing_attribute_falls_back_to_broad():
         lambda: dc.invalidate_order_dashboard_families(order)
     )
     assert seen == list(dc.ALL_DASHBOARD_FAMILIES)
+
+
+# --- invalidate_dashboard_caches_after_delete_transition ---------------------
+
+
+def test_delete_transition_invalidates_all_families_and_as_recommendation_cache():
+    """삭제/복원은 전 탭에서 사라지거나 다시 나타나는 전이 → broad + AS 추천 캐시까지.
+
+    2026-08-10 운영 사고: 삭제 경로에 무효화가 아예 없어 실측 날짜별 집계에 삭제한
+    주문이 TTL(300초) 동안 잔존했다. stage family로 좁히면 같은 사고가 재발한다.
+    """
+    import foms.services.shipment_as_recommendation_cache as asrec
+
+    with patch.object(asrec, "invalidate_shipment_as_recommendation_cache") as as_mock:
+        seen = _capture_invalidated_families(
+            lambda: dc.invalidate_dashboard_caches_after_delete_transition("order_delete")
+        )
+
+    assert seen == list(dc.ALL_DASHBOARD_FAMILIES)
+    as_mock.assert_called_once_with(reason="order_delete")

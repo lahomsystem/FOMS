@@ -14,6 +14,8 @@ DB lane 은 root ``client``/``app`` 픽스처의 SQLite in-memory(``db_session``
 Python 수준이라 그대로 성립한다(test_soft_delete_core 와 동일 lane).
 """
 
+from unittest.mock import patch
+
 import pytest
 from werkzeug.security import generate_password_hash
 
@@ -276,3 +278,25 @@ def test_bulk_delete_admin_and_manager_allowed(client, app):
         assert resp.status_code == 200, (role, resp.get_data(as_text=True))
         db_session.expire_all()
         assert db_session.get(Order, oid).deleted_at is not None
+
+
+def test_bulk_delete_invalidates_dashboard_caches(client, app):
+    """대량 삭제도 commit 뒤 대시보드 read-slice 캐시를 무효화한다(즉시 반영).
+
+    무효화가 없으면 삭제한 주문이 실측 날짜별 집계 등에 TTL(300초)까지 잔존한다
+    (2026-08-10 운영 사고와 동일 원인).
+    """
+    _login(client, _make_user("mgr-del-inv", role="MANAGER"))
+    order = _make_order("MEASURE")
+    oid = order.id
+
+    with patch(
+        "foms.services.common.dashboard_cache."
+        "invalidate_dashboard_caches_after_delete_transition"
+    ) as inv:
+        resp = _bulk_delete(client, [oid])
+
+    assert resp.status_code == 200, resp.get_data(as_text=True)
+    db_session.expire_all()
+    assert db_session.get(Order, oid).deleted_at is not None
+    inv.assert_called_once_with("order_bulk_delete")

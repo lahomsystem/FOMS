@@ -427,6 +427,18 @@ def _bulk_soft_delete_response(
                         "bulk": True, **trash_context},
             )
         db.commit()
+        # 삭제 즉시 반영: 대시보드 read-slice 캐시(TTL 최대 300초) 무효화가 없으면 삭제한
+        # 주문이 실측 날짜별 집계 등에 최대 5분 잔존한다(2026-08-10 운영 사고). commit 뒤에만.
+        try:
+            from foms.services.common.dashboard_cache import (
+                invalidate_dashboard_caches_after_delete_transition,
+            )
+
+            invalidate_dashboard_caches_after_delete_transition("order_bulk_delete")
+        except Exception:
+            current_app.logger.warning(
+                "post bulk delete dashboard cache invalidate failed", exc_info=True
+            )
     except RevisionError as exc:
         # version 충돌/미존재 등 → 전체 롤백(부분 삭제 0). exc.status_code 로 HTTP 매핑.
         db.rollback()
