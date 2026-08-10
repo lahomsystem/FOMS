@@ -1,6 +1,6 @@
 # FOMS 현재 상태
 > 자동 업데이트: 2026-08-10
-> 최신: **감사 로깅 P4 Phase C 운영 승격(PR #69 `7ceedde4`)** — 쓰기 라우트 감사 커버리지 41.3%→**100%**(AUDITED 142·EXEMPT 30·UNAUDITED 0). 새 쓰기 라우트는 기록하거나 사유를 적어 면제해야 머지된다(게이트가 0 유지 강제). 원장: docs/plans/2026-08-08-audit-log-readability-coverage-ledger.md
+> 최신: **감사 로깅 P4 Phase C 운영 승격(PR #69 `7ceedde4`) + 표시 결함 2건 승격(PR #71 `c2b4d00f`)** — 쓰기 라우트 감사 커버리지 41.3%→**100%**(AUDITED 142·EXEMPT 30·UNAUDITED 0). 새 쓰기 라우트는 기록하거나 사유를 적어 면제해야 머지된다(게이트가 0 유지 강제). 원장: docs/plans/2026-08-08-audit-log-readability-coverage-ledger.md
 > 이 파일 상단 40줄이 세션 시작 컨텍스트의 전부다(hygiene 계약 테스트로 강제). 상세 이력: "## 최근 완료"·"## 기록 보관", 과거 헤더 상세는 기록 보관에 이관.
 
 ## 스택
@@ -8,12 +8,11 @@ Flask 2.3 + PostgreSQL + R2 + Railway (Web×2, Worker×1)
 브랜치: deploy (스테이징) → production (운영)
 
 ## 진행 중
+- [2026-08-10] **감사 표 컬럼 폭 조절 deploy 반영(`456864df`) — 운영 승격 대기.** 헤더 경계 드래그 + localStorage 폭 기억(표별), 보안 로그·파일 열람 두 화면. 실브라우저 실증(손잡이 6개·143→249px·새로고침 유지). 함정: 공용 ColumnResizer 는 UMD 라 `window.ColumnResizer.default` fallback 없으면 **에러 없이 조용히 미부착**.
+- [2026-08-10] **Sentry 운영 전환 완료** — DSN 을 dev→production 으로 이동(운영만 감시). 운영 로그 `Sentry initialized environment=production` 확인, dev 는 no-op. 잔여=Sentry 알림 규칙에 `environment:production` 필터·기존 staging 이슈 정리(사용자).
 - [2026-08-10] **감사 로깅 P4 Phase C 운영 승격 완료(PR #69, production `7ceedde4`)** — 쓰기 라우트 172개 전부 감사 기록(주문·단가표·견적·채팅·알림 등), 문장은 표시 SSOT 생성, PII는 고객명까지만. 게이트=`tools/harness/audit_coverage_scan.py`+인벤토리+allowlist(면제 30건 사유 필수), pre_push_smoke 편입. 마이그레이션 없음. 잔여=P4 D(열람 기록 여부 사용자 결정)·Sentry 로그 육안.
 - [2026-08-10] **채널톡 AS PUSH·시공 계측 승격**(`340b0064`) — AS 본문 서버 SSOT(AS방 230351), 시공 숫자판=시공 단계만, 진단 헤더 2종.
-- [2026-08-07] **지방 대시보드 섹션=상태 개편 운영 승격 완료(PR #59, production `95fb7826`)** — 드롭다운 0·뱃지만, 상차완료/보류 섹션 폐지, AS 섹션+AS완료(`as_completed_date` 필수). 읽기 경로 status 쓰기는 state_guard 차단(상차일 변경 시점 기록).
-- [2026-08-10] **감사 로깅 T1~T12 + 로그 가독성 P4 운영 승격 완료(PR #63, production `47f270e6`)** — 마이그레이션 7종 적용(alembic `seclog_time_00`), 데이터 무손실·order_events CASCADE 해소·감사 화면 인덱스. 로그가 업무 언어로 표시(운영 30일 1,438건 실검증). 백업 `c:/tmp/foms-backups/prod-pre-audit-promote-20260810.dump`
 - [2026-08-06] **계정 셀프서비스 v1 deploy 반영** — 셀프 가입 신청(PENDING 승인 흐름)+비밀번호 재설정 요청 큐(관리자 처리형), 마이그레이션 `account_self_00`, 승인 UI=/admin/users, 신규 테스트 14 green. 스펙: `docs/specs/2026-08-06-account-self-service-design.md`
-- [2026-08-05] **출고 시공일 변경 알림 T1~T8 완료(deploy)** — 이벤트 SSOT(`order_date_sync` before_flush)로 무음 경로 6종 차단, 수신 팀 **CONSTRUCTION**(SHIPMENT·PRODUCTION 팀은 실사용자 0 — 보내면 무음). AS 매칭은 production 반영 완료. 원장: `docs/plans/2026-07-30-shipment-construction-date-change-alert-ledger.md`
 - ⚠️ **`queue.py` 소켓 타임아웃 누락 수정**(운영 반영됨) — `rate_limit.py`·`dashboard_cache.py`엔 2초 상한이 있는데 이 경로만 없었다(2026-07-21 Redis 장애 대응이 절반만 적용). blackhole 시 `enqueue()`가 웹 워커를 130초 붙잡던 잠복 결함. 못 잡은 이유=`queue.py` 내부 테스트 0건.
 - [2026-08-01] **하네스 함정** — `ci_watch.py`는 워크플로 1개만 본다(7개 존재). 판정은 `gh run list --branch <b>`로 전수 나열. SQLite 레인은 FK 미강제 → FK 수정은 PG 레인 필수. PG 레인은 `create_all` 기반이라 마이그레이션 체인 미검증. CI에 Redis 없음.
 - 위 3건 상세·후속 목록·결재 기록: `docs/plans/2026-07-31-full-promotion-prep-ledger.md`
@@ -46,6 +45,9 @@ Flask 2.3 + PostgreSQL + R2 + Railway (Web×2, Worker×1)
 
 
 ## 최근 완료 (최대 5개)
+- [2026-08-07] **지방 대시보드 섹션=상태 개편 운영 승격 완료(PR #59, production `95fb7826`)** — 드롭다운 0·뱃지만, 상차완료/보류 섹션 폐지, AS 섹션+AS완료(`as_completed_date` 필수). 읽기 경로 status 쓰기는 state_guard 차단(상차일 변경 시점 기록).
+- [2026-08-10] **감사 로깅 T1~T12 + 로그 가독성 P4 운영 승격 완료(PR #63, production `47f270e6`)** — 마이그레이션 7종 적용(alembic `seclog_time_00`), 데이터 무손실·order_events CASCADE 해소·감사 화면 인덱스. 로그가 업무 언어로 표시(운영 30일 1,438건 실검증). 백업 `c:/tmp/foms-backups/prod-pre-audit-promote-20260810.dump`
+- [2026-08-05] **출고 시공일 변경 알림 T1~T8 완료(deploy)** — 이벤트 SSOT(`order_date_sync` before_flush)로 무음 경로 6종 차단, 수신 팀 **CONSTRUCTION**(SHIPMENT·PRODUCTION 팀은 실사용자 0 — 보내면 무음). AS 매칭은 production 반영 완료. 원장: `docs/plans/2026-07-30-shipment-construction-date-change-alert-ledger.md`
 - [2026-08-01] **deploy 전체 승격 완료 → production `0aae8d9f`** (PR #35, 356커밋·마이그레이션 29개, alembic `wiz_pending_00`, 테이블 45→84, 데이터 무손상, 스모크 11경로 200). **롤백은 DB 먼저→코드 나중**(반대면 `Can't locate revision`으로 이후 전 배포 파산). 백업 `/c/tmp/foms-backups/*.dump`.
 - [2026-08-03] **후속 완료 (deploy `04f0fc59`)** — **운영 Redis 실패잡 2,544건 정리**(백업 `/c/tmp/foms-backups/prod-rq-failed-jobs-backup.json`, 전부 퇴역 잡). `/erp/history` 301 제거(dTTFB 240→19ms). CI PG 16→17. **마이그레이션 체인 왕복 검증 신설**(CI가 처음 alembic 실행). CI Redis 커버리지. construction 렌더 +22ms는 **코드 무죄·환경 미증명**으로 종결.
 - [2026-08-04] ✅ **PR #40 승격 완료 → production `2648d389`** — 자기 커밋 13개 cherry-pick(전체 22 중, 나머지 9는 타 세션 몫). **`typedrift_00` 운영 적용 실측 확인**(alembic head=typedrift_00, 3컬럼 uuid/jsonb 전환 확인), 서빙 커밋·6경로 200. 드리프트 원인=`shipment_reference_00`·`channel_inbound_00`이 ORM의 UUID/JSONB를 `sa.String(36)`/`sa.JSON()`으로 만든 작성 실수(형제 `order_mutation_receipts`는 rev_00에서 정확히 uuid/jsonb). 알려진-드리프트 목록 2종 모두 빈 집합 — 늘면 즉시 red. **perf-gate blocking red는 사용자 승인으로 admin 우회** — 코드 무죄 근거: 어제 동일 코드 79/98/96 → 오늘 151/182/152, 재측정 135/190/150, `/healthz` 기준선 223→244→272ms 동반 상승(전 경로 min +80~100ms). **스테이징 저하 원인 미규명 — 예산 재시드 금지(원장 A5) 유효.** 124-packet 승격 대기는 낡은 기록(8/1에 이미 포함).
