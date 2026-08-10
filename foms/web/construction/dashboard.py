@@ -20,7 +20,7 @@ from foms.services.common.dashboard_cache import (
     format_slice_observations,
     get_or_compute_dashboard_slice,
 )
-from foms.services.common.ept_b7_profile import apply_ept_b7_render_headers
+from foms.services.common.ept_b7_profile import apply_ept_b7_render_headers, phase
 from foms.services.common.erp_shell_http import apply_erp_shell_fragment_headers, wants_erp_shell_tab_body
 from foms.services.erp_permissions import (
     build_mine_sql_filter,
@@ -110,13 +110,14 @@ def erp_construction_dashboard():
     # 주문만 센다. 목록과 같은 스코프(apply_construction_list_scope_filter)를 써서
     # "위 숫자와 아래 목록이 다른 모집단" 이던 어긋남도 함께 사라진다.
     _summary_query = apply_construction_list_scope_filter(query, "")
-    _summary_blob = get_or_compute_dashboard_slice(
-        _summary_key,
-        TTL_SUMMARY_COUNTS,
-        lambda: compute_construction_summary_blob(_summary_query),
-        page="construction",
-        slice_name="summary_counts",
-    )
+    with phase("summary_slice"):
+        _summary_blob = get_or_compute_dashboard_slice(
+            _summary_key,
+            TTL_SUMMARY_COUNTS,
+            lambda: compute_construction_summary_blob(_summary_query),
+            page="construction",
+            slice_name="summary_counts",
+        )
     step_stats = _summary_blob["step_stats"]
     kpis = _summary_blob["kpis"]
 
@@ -149,23 +150,25 @@ def erp_construction_dashboard():
         # 검색도 시공 단계로 선스코프(전 단계) 후 검색 — 페이지네이션이 시공 주문 위에서 동작.
         list_query = apply_construction_list_scope_filter(query, f_stage)
         list_query = apply_construction_search_filter(list_query, f_q)
-        page, total_pages, total_orders, orders = paginate_construction_orders(
-            list_query,
-            page=page,
-            per_page=per_page,
-            total_cap=CONSTRUCTION_SEARCH_CAP,
-        )
+        with phase("list_query"):
+            page, total_pages, total_orders, orders = paginate_construction_orders(
+                list_query,
+                page=page,
+                per_page=per_page,
+                total_cap=CONSTRUCTION_SEARCH_CAP,
+            )
     else:
         # 브라우즈 기본 뷰: 단계 미선택 시 전 시공 단계(대기+중+완료)로 SQL 선스코프 →
         # 페이지네이션이 시공 주문 위에서 동작(전체 60일 활성 리스트 newest-N에 시공 주문이
         # 없어 board가 0건 되던 회귀의 근본 차단). 단계 칩 선택 시 해당 단계로 좁혀진다.
         list_query = apply_construction_list_scope_filter(query, f_stage)
-        page, total_pages, total_orders, orders = paginate_construction_orders(
-            list_query,
-            page=page,
-            per_page=per_page,
-            total_cap=CONSTRUCTION_BROWSE_CAP,
-        )
+        with phase("list_query"):
+            page, total_pages, total_orders, orders = paginate_construction_orders(
+                list_query,
+                page=page,
+                per_page=per_page,
+                total_cap=CONSTRUCTION_BROWSE_CAP,
+            )
 
     # 첨부 개수는 주문 id 집합에만 의존한다(fetch_construction_attachment_counts 는 ids 로만
     # 집계). uid/mine/stage/q/page 는 그 ids 를 **고르는** 축일 뿐이라 키에 함께 넣으면
@@ -180,16 +183,18 @@ def erp_construction_dashboard():
         raw = fetch_construction_attachment_counts(db, orders)
         return {str(k): int(v) for k, v in raw.items()}
 
-    _att_blob = get_or_compute_dashboard_slice(
-        _att_key,
-        TTL_ATTACHMENT_COUNT_MAP,
-        _compute_att_counts,
-        page="construction",
-        slice_name="attachment_counts",
-    )
+    with phase("attachment_slice"):
+        _att_blob = get_or_compute_dashboard_slice(
+            _att_key,
+            TTL_ATTACHMENT_COUNT_MAP,
+            _compute_att_counts,
+            page="construction",
+            slice_name="attachment_counts",
+        )
     att_counts = {int(k): int(v) for k, v in (_att_blob or {}).items()}
 
-    enriched = build_construction_row_dtos(orders, att_counts, f_stage)
+    with phase("row_dtos"):
+        enriched = build_construction_row_dtos(orders, att_counts, f_stage)
 
     if f_q or focus_order_id:
         step_stats = {
@@ -211,13 +216,15 @@ def erp_construction_dashboard():
     mobile_v2_active = is_mobile_v2_shell(
         resolve_shell_variant_cached(current_user.id if current_user else None)
     )
-    enrich_construction_mobile_rows(
-        enriched,
-        db,
-        mobile_v2_active=mobile_v2_active,
-        drawing_only=True,
-    )
-    attach_order_detail_payloads(db, enriched)
+    with phase("mobile_enrich"):
+        enrich_construction_mobile_rows(
+            enriched,
+            db,
+            mobile_v2_active=mobile_v2_active,
+            drawing_only=True,
+        )
+    with phase("detail_payloads"):
+        attach_order_detail_payloads(db, enriched)
 
     template_name = (
         "construction/partials/dashboard_fragment.html"
