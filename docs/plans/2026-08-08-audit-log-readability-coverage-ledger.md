@@ -2,7 +2,7 @@
 
 - 스펙: `docs/specs/2026-08-08-audit-log-readability-coverage-design.md`
 - 플랜: `docs/plans/2026-08-08-audit-log-readability-coverage-plan.md`
-- 상태: **A·B 진행 중** (2026-08-09 사용자 A+B 승인). C·D 는 미착수.
+- 상태: **A·B 완료 + 운영 승격 완료**(2026-08-10, production `47f270e6`). C·D 는 미착수.
 
 | Task | 상태 | 완료 기준(통과할 명령/판정) | 커밋 |
 |---|---|---|---|
@@ -15,6 +15,18 @@
 | C2 커버리지 게이트 | PENDING | 인벤토리 생성 + 인위 red 실증 + smoke 편입 | — |
 | D1 열람 규모 계측 | PENDING | 1주 수집 후 수치 보고 → 사용자 결정 | — |
 | D2 열람 기록 배선 | BLOCKED | D1 결과에 대한 사용자 결정 필요 | — |
+
+## 운영 승격 (2026-08-10, PR #63)
+
+- 사용자 명시 승인으로 **deploy 전체 승격**. 승격 커밋 `47f270e6`(병합 트리는 deploy 와 동일).
+- 마이그레이션 7종 적용(alembic head `seclog_time_00`), `security_logs` 구조화 컬럼 4/4.
+- 데이터 무손실 실측(7개 원장 전부 승격 전 이상), order_events CASCADE FK 제거 확인,
+  `ix_security_logs_timestamp_id` 생성 확인, purge 즉시 삭제 0건, healthz 200.
+- 백업 `c:/tmp/foms-backups/prod-pre-audit-promote-20260810.dump`(4.4MB·89테이블 검증).
+- 함정: `-X theirs` 병합이 `auth/routes.py` 에 승인·거절 라우트를 **중복 정의**로 남겼다
+  (옛 위치+새 위치) — Flask 엔드포인트 충돌 직전이었고, 트리를 deploy 기준으로 정정해 해소.
+  전체 승격 시 `git checkout origin/deploy -- .` 로 트리 동일성을 강제 확인할 것.
+- 미포함: 승격 직후 deploy 에 올라온 타 세션 커밋 `967097ac`(채널톡 AS PUSH).
 
 ## 결정 기록
 
