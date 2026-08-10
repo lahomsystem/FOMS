@@ -5003,6 +5003,7 @@ function fomsMountErpOrderSurface() {
             : btn.classList.contains('btn-info') ? 'btn-info'
             : btn.classList.contains('foms-btn--warning') ? 'foms-btn--warning'
             : btn.classList.contains('foms-btn--primary') ? 'foms-btn--primary'
+            : btn.classList.contains('erp-mobile-push-btn--pastel') ? 'erp-mobile-push-btn--pastel'
             : btn.classList.contains('foms-btn--secondary') ? 'foms-btn--secondary'
             : null;
         const successClass = btn.classList.contains('foms-btn') ? 'foms-btn--success' : 'btn-success';

@@ -1,25 +1,33 @@
-/* 채널톡 재전송 확인 / PUSH 종류 선택: mobile bottom-sheet */
+/* 채널톡 재전송 확인: mobile bottom-sheet */
 @media (max-width: 767.98px) {
-  .erp-channel-push-resend-modal .modal-dialog,
-  .erp-channel-push-picker-modal .modal-dialog {
+  .erp-channel-push-resend-modal .modal-dialog {
     align-items: flex-end;
     margin: 0;
     min-height: 100%;
     max-width: 100%;
   }
 
-  .erp-channel-push-resend-modal .modal-content,
-  .erp-channel-push-picker-modal .modal-content {
+  .erp-channel-push-resend-modal .modal-content {
     border-bottom-left-radius: 0;
     border-bottom-right-radius: 0;
     border-top-left-radius: 1rem;
     border-top-right-radius: 1rem;
   }
 
-  .erp-channel-push-resend-modal .modal-footer,
-  .erp-channel-push-picker-modal .modal-footer {
+  .erp-channel-push-resend-modal .modal-footer {
     padding-bottom: calc(0.75rem + env(safe-area-inset-bottom, 0px));
   }
+}
+
+/* PUSH 종류 선택: 화면 중앙에 내용 높이만큼만(시트 아님) */
+.erp-channel-push-picker-modal .modal-dialog {
+  max-width: 22rem;
+  margin-left: auto;
+  margin-right: auto;
+}
+
+.erp-channel-push-picker-modal .modal-content {
+  border-radius: 1rem;
 }
 
 /* 선택지는 좁은 폭에서도 라벨이 접히지 않도록 세로 1열 full-width */
@@ -40,4 +48,16 @@
   font-size: 0.75rem;
   font-weight: 400;
   opacity: 0.75;
+}
+
+/* 모바일 액션바 PUSH 트리거: 회색(secondary) 대신 파스텔 하늘색.
+   저장(primary)과 구분되면서 전송 액션임을 색으로 알린다. */
+.erp-mobile-push-btn--pastel {
+  background: var(--foms-color-info-50, #eff6ff);
+  color: var(--foms-color-info-600, #2563eb);
+  border-color: color-mix(in srgb, var(--foms-color-info-500, #3b82f6) 35%, transparent);
+}
+
+.erp-mobile-push-btn--pastel:hover {
+  background: color-mix(in srgb, var(--foms-color-info-500, #3b82f6) 16%, #fff);
 }

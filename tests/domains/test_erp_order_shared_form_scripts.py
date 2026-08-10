@@ -67,11 +67,11 @@ def _assert_shared_form_script_contract(body: str) -> None:
     )
     assert "html2canvas.min.js" not in body
     assert "js/orders/erp-channel-push-confirm.js?v=20260810a" in body
-    assert "js/orders/erp-order-shared.js?v=20260810a" in body
+    assert "js/orders/erp-order-shared.js?v=20260810b" in body
     assert "js/orders/erp-stage-override.js?v=20260716b" in body
     assert "erp_stage_override_modal.html" not in body  # include renders modal markup, not path
     assert 'id="erpStageOverrideModal"' in body
-    assert "css/orders/erp-channel-push.css?v=20260810a" in body
+    assert "css/orders/erp-channel-push.css?v=20260810b" in body
     assert "css/orders/erp-items-master-detail.css?v=20260701f" in body
     assert "js/orders/erp-items-master-detail.js?v=20260630c" in body
     assert "erp-items-master-detail-shell" in body
@@ -606,6 +606,24 @@ def test_channel_push_kind_picker_contract() -> None:
 
     assert "window.erpPromptChannelPushKind = erpPromptChannelPushKind;" in js
     assert "erpPromptChannelPushKind()" in shared
+
+    # 선택 시트는 화면 중앙에 내용 높이만큼만 — 전체 페이지 bottom-sheet 아님.
+    assert "modal-dialog-centered" in picker
+    assert "modal-dialog-scrollable" not in picker
+    css = (root / "static/css/orders/erp-channel-push.css").read_text(encoding="utf-8")
+    sheet_block = css[css.index("@media (max-width: 767.98px)"):css.index("/* PUSH 종류 선택")]
+    assert "erp-channel-push-picker-modal" not in sheet_block
+
+    # 액션바 PUSH 트리거는 회색(secondary)이 아니라 파스텔 색.
+    mobile = (
+        root / "templates/orders/partials/erp_order_tab_mobile.html"
+    ).read_text(encoding="utf-8")
+    trigger_line = next(
+        line for line in mobile.splitlines() if "erp-channeltalk-push-picker-btn" in line
+    )
+    assert "erp-mobile-push-btn--pastel" in trigger_line
+    assert "foms-btn--secondary" not in trigger_line
+    assert ".erp-mobile-push-btn--pastel {" in css
 
 
 def test_as_push_text_uses_as_content_and_short_header() -> None:
