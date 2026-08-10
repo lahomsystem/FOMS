@@ -371,6 +371,12 @@ def test_push_manual_as_kind_filters_as_attachments_and_routes_as_group(client, 
         phone="010-0000-0000",
         address="Seoul",
         product="Wardrobe",
+        structured_data={
+            "parties": {"customer": {"name": "AS Push", "phone": "010-0000-0000"}, "orderer": {"name": "숨고"}},
+            "site": {"address_full": "Seoul"},
+            "schedule": {"construction": {"date": "2026-08-14"}},
+            "shipment": {"as_content": "문짝 처짐"},
+        },
     )
     db_session.add(order)
     db_session.flush()
@@ -395,9 +401,10 @@ def test_push_manual_as_kind_filters_as_attachments_and_routes_as_group(client, 
     db_session.commit()
     order_id = order.id
 
+    # 본문은 서버가 조립한다 — 클라이언트가 보낸 text 는 이 경로에서 무시된다.
     response = client.post(
         "/api/channel/push-manual",
-        json={"order_id": order_id, "text": "고객명 : AS Push\n\n내용 : 문짝 처짐", "push_kind": "as"},
+        json={"order_id": order_id, "text": "무시되어야 하는 클라 본문", "push_kind": "as"},
     )
 
     assert response.status_code == 200
@@ -405,6 +412,12 @@ def test_push_manual_as_kind_filters_as_attachments_and_routes_as_group(client, 
     assert body["success"] is True
     assert body["files_count"] == 1
     assert captured["data"]["push_kind"] == "as"
+    sent_text = captured["data"]["text"]
+    assert "무시되어야 하는" not in sent_text
+    assert "고객명 : AS Push" in sent_text
+    assert "발주사 : 숨고" in sent_text
+    assert "시공일 : 8월 14일" in sent_text
+    assert "내용 : 문짝 처짐" in sent_text
     assert len(captured["data"]["files"]) == 1
     assert captured["data"]["files"][0]["url"].endswith("orders/2/as-defect.jpg?e=3600")
 
@@ -413,6 +426,38 @@ def test_push_manual_as_kind_filters_as_attachments_and_routes_as_group(client, 
     assert saved.structured_data["channeltalk_push_as"]["pushed"] is True
     assert "channeltalk_push" not in saved.structured_data
     assert "channeltalk_push_drawing" not in saved.structured_data
+
+
+def test_push_manual_as_kind_rejects_order_without_as_content(client, monkeypatch):
+    """AS 접수 내용이 없으면 전송을 거부한다(내용 없는 AS 알림 방지)."""
+    _login_admin(client)
+    monkeypatch.setenv("CHANNEL_GROUP_AS", "group-as")
+    monkeypatch.setattr(channel_integration, "is_configured", lambda: True)
+    monkeypatch.setattr(channel_integration, "get_storage", lambda: _FakeStorage())
+
+    def _fail_dispatch(event_type, data, raise_on_error=False):
+        raise AssertionError("dispatch must not run without AS content")
+
+    monkeypatch.setattr(channel_integration, "dispatch_order_event", _fail_dispatch)
+
+    order = Order(
+        received_date="2026-03-27",
+        customer_name="No AS Content",
+        phone="010-0000-0000",
+        address="Seoul",
+        product="Wardrobe",
+        structured_data={"parties": {"customer": {"name": "No AS Content"}}},
+    )
+    db_session.add(order)
+    db_session.commit()
+
+    response = client.post(
+        "/api/channel/push-manual",
+        json={"order_id": order.id, "push_kind": "as"},
+    )
+
+    assert response.status_code == 400
+    assert "AS 접수 내용이 없습니다" in response.get_json()["message"]
 
 
 def test_routing_group_as_kind_uses_as_env(monkeypatch):

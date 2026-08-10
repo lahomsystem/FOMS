@@ -67,11 +67,11 @@ def _assert_shared_form_script_contract(body: str) -> None:
     )
     assert "html2canvas.min.js" not in body
     assert "js/orders/erp-channel-push-confirm.js?v=20260810a" in body
-    assert "js/orders/erp-order-shared.js?v=20260810b" in body
+    assert "js/orders/erp-order-shared.js?v=20260810c" in body
     assert "js/orders/erp-stage-override.js?v=20260716b" in body
     assert "erp_stage_override_modal.html" not in body  # include renders modal markup, not path
     assert 'id="erpStageOverrideModal"' in body
-    assert "css/orders/erp-channel-push.css?v=20260810b" in body
+    assert "css/orders/erp-channel-push.css?v=20260810c" in body
     assert "css/orders/erp-items-master-detail.css?v=20260701f" in body
     assert "js/orders/erp-items-master-detail.js?v=20260630c" in body
     assert "erp-items-master-detail-shell" in body
@@ -613,6 +613,11 @@ def test_channel_push_kind_picker_contract() -> None:
     css = (root / "static/css/orders/erp-channel-push.css").read_text(encoding="utf-8")
     sheet_block = css[css.index("@media (max-width: 767.98px)"):css.index("/* PUSH 종류 선택")]
     assert "erp-channel-push-picker-modal" not in sheet_block
+    # erp-pro 모바일 전역이 모든 모달을 max-width:100vw !important 로 풀스크린 강제하므로
+    # 선택 시트는 .erp-pro 를 포함한 같은 특이도 + !important 로 되돌려야 눌리지 않는다.
+    assert ".erp-pro .erp-channel-push-picker-modal .modal-dialog" in css
+    assert "max-width: 22rem !important" in css
+    assert ".erp-pro .erp-channel-push-picker-modal .modal-content" in css
 
     # 액션바 PUSH 트리거는 회색(secondary)이 아니라 파스텔 색.
     mobile = (
@@ -626,27 +631,20 @@ def test_channel_push_kind_picker_contract() -> None:
     assert ".erp-mobile-push-btn--pastel {" in css
 
 
-def test_as_push_text_uses_as_content_and_short_header() -> None:
-    """AS PUSH 본문: 고객/발주사/시공일/주소/연락처 + 저장된 AS 접수 내용."""
+def test_as_push_text_is_server_built_not_client_built() -> None:
+    """AS 본문은 서버 SSOT — 폼이 없는 AS 대시보드와 같은 문구를 보장한다."""
     root = Path(__file__).resolve().parents[2]
     text = (root / "static/js/orders/erp-order-shared.js").read_text(encoding="utf-8")
 
-    start = text.index("function erpBuildAsPushText()")
-    end = text.index("function erpGenerateConversionText()", start)
-    block = text[start:end]
-
-    assert "shipment?.as_content" in block
-    for label in ("'고객명'", "'발주사'", "'시공일'", "'주  소'", "'연락처'", "'내용'"):
-        assert label in block
-    # 품목/금액은 AS 방으로 보내지 않는다.
-    assert "erpGetItemRows" not in block
-    assert "erpBuildTotals" not in block
+    # 클라이언트 조립기는 제거됐다(두 벌이면 화면마다 문구가 갈린다).
+    assert "erpBuildAsPushText" not in text
 
     push_start = text.index("document.getElementById('erp-channeltalk-push-btn')")
     push_end = text.index("initErpMainDatePickers();", push_start)
     push_block = text[push_start:push_end]
-    assert "if (pushKind === 'as')" in push_block
-    assert "erpBuildAsPushText()" in push_block
+    assert "if (pushKind !== 'as')" in push_block
+    # 변환 텍스트 경로는 AS 가 아닐 때만 탄다.
+    assert "erpSliceConversionTextForChannelPush(" in push_block
 
 
 def test_shared_erp_order_supports_scoped_clipboard_image_upload() -> None:
