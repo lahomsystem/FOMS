@@ -9,6 +9,7 @@
 from __future__ import annotations
 
 import datetime
+import pathlib
 
 import pytest
 from werkzeug.security import generate_password_hash
@@ -207,3 +208,20 @@ def test_response_exposes_slice_diagnostics_header(client, monkeypatch) -> None:
         result, _, ms = rest.partition(":")
         assert name and result
         assert ms.isdigit()
+
+
+def test_slice_diagnostics_cover_every_return_path() -> None:
+    """계측 사각 금지: 캐시 슬라이스의 모든 반환 경로가 관측을 남긴다.
+
+    처음 배선했을 때 miss 본 경로와 singleflight 팔로워(hit_sf)에 관측이 없어,
+    스테이징에서 정작 재계산 비용을 못 재는 사각이 있었다.
+    """
+    root = pathlib.Path(__file__).resolve().parents[2]
+    src = (root / "foms/services/common/dashboard_cache.py").read_text(encoding="utf-8")
+
+    start = src.index("def get_or_compute_dashboard_slice(")
+    body = src[start:]
+    # bypass/hit/hit_sf/miss 네 결과가 모두 관측된다(bypass 는 공용 헬퍼 1곳에서 처리).
+    for result in ('"hit", 0', '"hit_sf", 0', '"miss", compute_ms'):
+        assert f"record_slice_observation(slice_name, {result})" in body
+    assert "record_slice_observation(slice_name, result, elapsed_ms)" in body

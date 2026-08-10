@@ -419,6 +419,7 @@ def get_or_compute_dashboard_slice(
                         slice_name,
                         key_suffix,
                     )
+                    record_slice_observation(slice_name, "hit_sf", 0)
                     return out  # type: ignore[return-value]
                 except Exception:
                     break
@@ -434,6 +435,7 @@ def get_or_compute_dashboard_slice(
         compute_ms,
         key_suffix,
     )
+    record_slice_observation(slice_name, "miss", compute_ms)
 
     try:
         payload = _json_dumps_dto(computed)
