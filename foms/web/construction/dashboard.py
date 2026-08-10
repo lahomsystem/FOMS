@@ -17,6 +17,7 @@ from foms.services.common.dashboard_cache import (
     TTL_ATTACHMENT_COUNT_MAP,
     TTL_SUMMARY_COUNTS,
     build_dashboard_cache_key,
+    format_slice_observations,
     get_or_compute_dashboard_slice,
 )
 from foms.services.common.ept_b7_profile import apply_ept_b7_render_headers
@@ -248,5 +249,10 @@ def erp_construction_dashboard():
         route_id="erp_construction_dashboard",
         render_ms=(time.perf_counter() - _t0) * 1000,
     )
+    # 슬라이스 진단: 이번 요청이 어떤 read-model 조각을 hit/miss 했고 재계산에 몇 ms 를
+    # 썼는지. render_ms 는 템플릿 시간만 담아 "캐시 만료 순간의 재계산 비용"이 안 보였다.
+    _slice_obs = format_slice_observations()
+    if _slice_obs:
+        response.headers["X-FOMS-DASH-SLICES"] = _slice_obs
     apply_erp_shell_fragment_headers(response, request)
     return response
