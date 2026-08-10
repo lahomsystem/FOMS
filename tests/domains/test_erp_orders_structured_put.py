@@ -535,6 +535,8 @@ def test_erp_order_party_workflow_notes_layout_is_two_rows():
     assert 'for="erp-workflow-stage">본공정 단계</label>' in mobile_tpl
     assert 'data-erp-as-status="{{ order.status }}">AS: {{ erp_as_status_label }}' in tpl
     assert 'data-erp-as-status="{{ order.status }}">AS: {{ erp_as_status_label }}' in mobile_tpl
+    assert "data-erp-as-reregister-open" in tpl
+    assert "data-erp-as-reregister-open" in mobile_tpl
     assert '<div class="col-md-8">\n                            <label class="form-label mb-1">비고</label>' in tpl
 
 
@@ -554,6 +556,17 @@ def test_erp_order_edit_displays_main_stage_and_as_status_separately(client):
     assert "본공정 단계" in body
     assert 'data-erp-as-status="AS_RECEIVED"' in body
     assert "AS: 접수" in body
+    assert "data-erp-as-reregister-open" in body
+
+    completed = db_session.get(Order, order_id)
+    completed.status = "AS_COMPLETED"
+    db_session.commit()
+
+    completed_response = client.get(f"/edit/{order_id}")
+    completed_body = completed_response.get_data(as_text=True)
+    assert 'data-erp-as-status="AS_COMPLETED"' in completed_body
+    assert "AS: 완료" in completed_body
+    assert "data-erp-as-reregister-open" not in completed_body
 
 
 def test_structured_put_rejects_address_clear_before_geocode_reset(client, monkeypatch):
