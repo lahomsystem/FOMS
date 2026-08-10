@@ -42,7 +42,9 @@ from foms.services.orders.upload_ticket import (
     issue_ticket,
 )
 from foms.services.storage import get_storage
-from foms.web.auth import get_user_by_id, login_required
+from foms.web.auth import get_user_by_id, log_access, login_required
+from foms.services.audit_message_display import describe_order_action
+from foms.services.orders.audit_order_context import order_audit_context
 from models import Order
 
 logger = logging.getLogger(__name__)
@@ -149,6 +151,18 @@ def api_blueprint_complete(order_id):
         order = db.query(Order).filter(Order.id == order_id).first()
         current = set_current_blueprint(
             db, order, attachment=attachment, actor_user_id=getattr(user, "id", None))
+        context = order_audit_context(order)
+        log_access(
+            describe_order_action(
+                order_id=order_id, action="BLUEPRINT_UPLOADED",
+                note=getattr(attachment, "filename", None), **context,
+            ),
+            getattr(user, "id", None),
+            auto_commit=False,
+            action="BLUEPRINT_UPLOADED", target_type="order", target_id=int(order_id),
+            detail={"attachment_id": int(attachment.id), "ticket_id": int(ticket.id),
+                    "storage_key": key, **context},
+        )
         db.commit()
         return jsonify({"success": True, "error": None, "url": current["view_url"], "data": {
             "url": current["view_url"], "attachment_id": attachment.id, "ticket_id": ticket.id,

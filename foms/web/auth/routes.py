@@ -66,7 +66,7 @@ TEAMS = {
 }
 
 def log_access(action_message, user_id=None, additional_data=None, auto_commit=True,
-               *, action=None, target_type=None, target_id=None, detail=None):
+               *, action=None, target_type=None, target_id=None, detail=None, db=None):
     """SecurityLog 1건을 본 세션에 기록한다(이름과 달리 ``access_logs`` 가 아니다).
 
     AUDIT-LOG T8: 자유 텍스트 ``message`` 외에 SQL 로 물을 수 있는 구조화 컬럼
@@ -85,9 +85,13 @@ def log_access(action_message, user_id=None, additional_data=None, auto_commit=T
     :param target_type: 행위 대상 종류(``user`` 등). 대상이 없으면 ``None``.
     :param target_id: 행위 대상 PK. 대상이 없으면 ``None``.
     :param detail: 구조화 부가정보 dict(**비밀번호·PII 원문 금지**).
+    :param db: 감사 행을 실을 세션. 생략하면 요청 세션(:func:`get_db`)을 쓴다.
+        **호출자가 세션을 인자로 받아 쓰는 함수**(도면 전달 등)는 반드시 그 세션을 넘겨라 —
+        여기서 :func:`get_db` 를 부르면 ``g.db`` 가 새로 붙어 요청 teardown 이 세션을 닫고,
+        호출자가 들고 있던 ORM 인스턴스가 detach 된다(수명주기 오염).
     """
     try:
-        db = get_db()
+        db = db if db is not None else get_db()
         log = SecurityLog(
             user_id=user_id,
             message=action_message,

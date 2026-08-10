@@ -28,9 +28,12 @@ from foms.services.orders.as_availability import (
 from foms.services.orders.status_constants import STATUS
 
 __all__ = [
+    "ACTION_LABELS",
     "FIELD_LABELS",
+    "action_label",
     "collect_order_ids",
     "describe_field_change",
+    "describe_order_action",
     "extract_order_ids",
     "field_label",
     "format_value",
@@ -93,6 +96,50 @@ _CHECKLIST_FIELDS = frozenset({
     "regional_construction_info_sent",
 })
 
+#: 행위 코드 → 업무 라벨 (AUDIT-LOG P4 C1). 필드 변경이 아닌 **행위**(시공 시작·결제 확인
+#: ·도면 전달 등)를 남길 때 쓴다. 코드는 ``security_logs.action`` 에 그대로 들어가므로
+#: SQL 로 물을 수 있고, 화면에는 여기 라벨로 나온다. 사전에 없는 코드는 코드 자체를
+#: 보여준다(감추지 않는다 — 새 배선이 라벨을 빠뜨려도 로그는 남는다).
+ACTION_LABELS: dict[str, str] = {
+    # --- 결제 ---
+    "PAYMENT_CONFIRMED": "결제 확인",
+    "PAYMENT_CONFIRM_CLEARED": "결제 확인 해제",
+    # --- 시공 ---
+    "CONSTRUCTION_STARTED": "시공 시작",
+    "CONSTRUCTION_COMPLETED": "시공 완료",
+    "CONSTRUCTION_REWORK_REQUESTED": "시공 불가(재작업 요청)",
+    # --- 생산 ---
+    "PRODUCTION_STARTED": "제작 시작",
+    "PRODUCTION_COMPLETED": "제작 완료",
+    "PRODUCTION_START_CANCELED": "제작 시작 취소",
+    "PRODUCTION_COMPLETE_CANCELED": "제작 완료 취소",
+    "PRODUCTION_REWORK_STARTED": "수정 제작 시작",
+    # --- AS ---
+    "AS_RECEIVED": "AS 접수",
+    "AS_SCHEDULED": "AS 방문일 지정",
+    "AS_SCHEDULE_CANCELED": "AS 방문일 취소",
+    "AS_STARTED": "AS 시작",
+    "AS_COMPLETED": "AS 완료",
+    "AS_REOPENED": "AS 재개봉",
+    "AS_CATEGORY_CHANGED": "AS 분류 변경",
+    "AS_BILLING_DECIDED": "AS 비용 판정",
+    "AS_ROUND_VERDICT": "AS 회차 판정",
+    "AS_SCHEDULE_LINK_CHANGED": "AS 기준 일정",
+    "AS_LOG_ADDED": "AS 기록 추가",
+    "AS_LOG_UPDATED": "AS 기록 수정",
+    "AS_LOG_DELETED": "AS 기록 삭제",
+    # --- 도면 ---
+    "DRAWING_DELIVERED": "도면 전달 완료",
+    "DRAWING_DELIVERY_CANCELED": "도면 전달 취소",
+    "DRAWING_GATEWAY_FILE_UPLOADED": "도면 창구 파일 업로드",
+    "BLUEPRINT_UPLOAD_ISSUED": "도면 업로드 발급",
+    "BLUEPRINT_UPLOADED": "도면 업로드",
+    # --- 파일 ---
+    "FILE_UPLOADED": "파일 업로드",
+    "FILE_DELETED": "파일 삭제",
+    "FILE_RESTORED": "파일 복구",
+}
+
 #: 비어 있음을 뜻하는 원시 값들(문자열 비교는 소문자로 한다).
 _EMPTY_TOKENS = frozenset({"", "none", "null", "-"})
 
@@ -146,6 +193,20 @@ def field_label(field: str | None) -> str:
 def _strip_markup(text: str) -> str:
     """HTML 태그를 지우고 공백을 접어 한 줄 텍스트로 만든다."""
     return _WS_RE.sub(" ", _TAG_RE.sub(" ", text)).strip()
+
+
+def _summarize_text(value: Any) -> str:
+    """자유 텍스트를 한 줄 요약으로 만든다(태그 제거 + 상한 초과 시 말줄임).
+
+    :param value: 원시 값(HTML 이 섞여 있을 수 있다).
+    :return: 한 줄 요약 문자열(빈 문자열 가능).
+    """
+    text = str(value).strip()
+    if "<" in text and ">" in text:
+        text = _strip_markup(text)
+    if len(text) > _LONG_TEXT_LIMIT:
+        return f"{text[:_LONG_TEXT_LIMIT]}…"
+    return text
 
 
 def _format_availability(value: Any) -> str | None:
@@ -214,11 +275,7 @@ def format_value(field: str | None, value: Any) -> str:
     if field == "status":
         return STATUS.get(text, text)
 
-    if "<" in text and ">" in text:
-        text = _strip_markup(text)
-    if len(text) > _LONG_TEXT_LIMIT:
-        return f"{text[:_LONG_TEXT_LIMIT]}…"
-    return text or _EMPTY_DISPLAY
+    return _summarize_text(text) or _EMPTY_DISPLAY
 
 
 def order_label(
@@ -279,6 +336,44 @@ def describe_field_change(
     if field in _CHECKLIST_FIELDS:
         return f"{head} — {label}: {after_text}로 표시"
     return f"{head} — {label}: {after_text}"
+
+
+def action_label(action: str | None) -> str:
+    """행위 코드를 업무 라벨로 옮긴다.
+
+    :param action: 행위 코드(``CONSTRUCTION_COMPLETED`` 등). ``None``/빈값 허용.
+    :return: 사전에 있으면 한글 라벨, 없으면 원문(감추지 않는다).
+    """
+    if not action:
+        return ""
+    return ACTION_LABELS.get(action, action)
+
+
+def describe_order_action(
+    *,
+    order_id: int | str,
+    action: str,
+    customer_name: str | None = None,
+    order_type: str | None = None,
+    note: str | None = None,
+) -> str:
+    """주문에 대한 **행위** 1건을 사람 문장으로 만든다(쓰기 경로 공용).
+
+    필드 변경은 :func:`describe_field_change` 가, "시공을 시작했다"처럼 값이 아니라
+    행위 자체가 기록 대상인 경우는 이 함수가 문장을 만든다. 두 경로 모두 같은 주문 표기
+    (``지방 주문 #4183 (김철수)``)를 쓰므로 화면에서 한 줄로 섞여 읽힌다.
+
+    :param order_id: 대상 주문 id.
+    :param action: 행위 코드(:data:`ACTION_LABELS` 키).
+    :param customer_name: 고객명(있으면 병기).
+    :param order_type: 주문 성격 접두(``지방 주문``·``자가실측 주문``).
+    :param note: 행위에 딸린 짧은 부연(전달 메모·결제 종류 등). 길면 잘라 요약한다.
+    :return: ``주문 #4109 (홍길동) — 시공 완료`` 형태 문장.
+    """
+    head = order_label(order_id, customer_name=customer_name, order_type=order_type)
+    label = action_label(action)
+    tail = _summarize_text(note) if note else ""
+    return f"{head} — {label}: {tail}" if tail else f"{head} — {label}"
 
 
 def extract_order_ids(message: str | None) -> list[int]:
