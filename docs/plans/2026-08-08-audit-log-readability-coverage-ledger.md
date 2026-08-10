@@ -2,8 +2,8 @@
 
 - 스펙: `docs/specs/2026-08-08-audit-log-readability-coverage-design.md`
 - 플랜: `docs/plans/2026-08-08-audit-log-readability-coverage-plan.md`
-- 상태: **A·B 운영 승격 완료**(2026-08-10, production `47f270e6`) + **C 완료**(deploy `6d840c52`).
-  D 는 사용자 결정 대기(D1 계측 미착수·D2 BLOCKED).
+- 상태: **A·B·C 전부 운영 승격 완료** (A·B=production `47f270e6`, C=production `7ceedde4` PR #69).
+  D 만 사용자 결정 대기(D1 계측 미착수·D2 BLOCKED).
 
 | Task | 상태 | 완료 기준(통과할 명령/판정) | 커밋 |
 |---|---|---|---|
@@ -43,6 +43,17 @@
     텔레메트리·읽음 표시 등). 사유가 부실하면 계약 테스트가 red.
   - 게이트는 이제 "UNAUDITED 증가 금지"가 아니라 **0 유지**를 강제한다 — 새 쓰기 라우트는
     기록하거나 사유를 적어 면제해야 머지된다.
+
+## Phase C 운영 승격 (2026-08-10, PR #69 — production `7ceedde4`)
+
+- **세션 커밋 cherry-pick 승격**(deploy 전체 merge 아님): 7커밋 + 인벤토리 재생성 1.
+  `675bb288`·`2c13f3f3`·`0a2c098e`·`6d840c52`·`209234bc`·`414e2664`·`90b94a96`.
+- 시공 대시보드 계측 커밋 2건(`7f442490`·`74b9878a`)은 **failopen 인벤토리 파일로만** 얽혀
+  있었다 → 그 커밋을 끌고 오는 대신 **승격 트리 기준으로 인벤토리를 재생성**해 의존을 끊었다
+  (미검증 perf 기능을 운영에 반입하지 않음). 이 방법을 다음 승격에서도 쓸 것.
+- 검증: cherry-pick 충돌 0, 승격 브랜치 domains 전수 **4294 passed**, 게이트 103 passed,
+  `pre_push_smoke` exit 0, PR 체크 2/2 green(pg-lane·perf-gate), 머지 후 운영 healthz 200·login 200.
+- **마이그레이션 없음**(스키마 변경 0) — 운영 DB 작업 불필요.
 
 ## 운영 승격 (2026-08-10, PR #63)
 
