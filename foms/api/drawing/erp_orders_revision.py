@@ -12,7 +12,9 @@ from sqlalchemy.orm.attributes import flag_modified
 
 from db import get_db
 from models import Order, OrderAttachment, Notification, SecurityLog
-from foms.web.auth import login_required, get_user_by_id
+from foms.web.auth import login_required, get_user_by_id, log_access
+from foms.services.audit_message_display import describe_order_action
+from foms.services.orders.audit_order_context import order_audit_context
 from foms.services.datetime_kst import now_utc_naive
 from foms.services.storage import get_storage
 from foms.api.notifications import (
@@ -518,6 +520,15 @@ def api_ack_drawing_order_change(order_id):
             actor_name=current_user.name or '',
         )
         if changed:
+            ack_context = order_audit_context(order)
+            log_access(
+                describe_order_action(order_id=order_id, action="DRAWING_CHANGE_ACKNOWLEDGED",
+                                      **ack_context),
+                session.get('user_id'),
+                auto_commit=False,
+                action="DRAWING_CHANGE_ACKNOWLEDGED", target_type="order",
+                target_id=int(order_id), detail=ack_context,
+            )
             db.commit()
             from foms.services.common.dashboard_cache import (
                 DASHBOARD_FAMILY_DRAWING,

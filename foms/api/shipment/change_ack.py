@@ -36,6 +36,9 @@ from flask import jsonify, request
 from sqlalchemy.exc import IntegrityError
 
 from db import get_db
+from foms.web.auth import log_access
+from foms.services.audit_message_display import describe_order_action
+from foms.services.orders.audit_order_context import order_audit_context
 from foms.api.shipment.recommendations import _construction_team_forbidden
 from foms.api.shipment.settings import _shipment_edit_decision, erp_shipment_bp
 from foms.services.common.dashboard_cache import (
@@ -247,6 +250,15 @@ def api_shipment_change_ack(order_id: int):
             except IntegrityError:
                 db.rollback()  # 동시 same-token → event/receipt 0, replay 로 수렴.
                 return jsonify(_ack_response(order_id, 0))
+        ack_context = order_audit_context(order)
+        log_access(
+            describe_order_action(order_id=order_id, action="SHIPMENT_CHANGE_ACKNOWLEDGED",
+                                  **ack_context),
+            user_id,
+            auto_commit=False,
+            action="SHIPMENT_CHANGE_ACKNOWLEDGED", target_type="order", target_id=int(order_id),
+            detail={"source": _ACK_SOURCE, **ack_context},
+        )
         db.commit()
     except Exception as exc:  # noqa: BLE001 - 롤백 후 500(경계에서 본문은 컨테이너가 정리)
         db.rollback()

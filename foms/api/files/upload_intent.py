@@ -21,7 +21,9 @@ from foms.services.orders.upload_intent import (
     effective_state,
     finalize_upload_draft,
 )
-from foms.web.auth import get_user_by_id, login_required
+from foms.web.auth import get_user_by_id, log_access, login_required
+from foms.services.audit_message_display import describe_order_action
+from foms.services.orders.audit_order_context import order_audit_context
 from models import UPLOAD_DRAFT_KINDS, Order, UploadDraft
 
 #: kind → upload_authz category(권한 재사용). drawing_revision=도면, as_cycle=시공/AS.
@@ -122,6 +124,16 @@ def api_finalize_upload_draft(draft_id):
         if denied is not None:
             return denied
         draft = finalize_upload_draft(db, draft_id)
+        order = db.get(Order, draft.order_id)
+        draft_context = order_audit_context(order)
+        log_access(
+            describe_order_action(order_id=draft.order_id, action="FILE_UPLOAD_FINALIZED",
+                                  note=draft.kind, **draft_context),
+            session.get("user_id"),
+            auto_commit=False,
+            action="FILE_UPLOAD_FINALIZED", target_type="order", target_id=int(draft.order_id),
+            detail={"draft_id": int(draft_id), "kind": draft.kind, **draft_context},
+        )
         db.commit()
         return jsonify({"success": True, "data": _serialize(draft), "error": None})
     except UploadDraftError as e:

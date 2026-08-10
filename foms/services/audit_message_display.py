@@ -31,6 +31,7 @@ __all__ = [
     "ACTION_LABELS",
     "FIELD_LABELS",
     "action_label",
+    "describe_action",
     "collect_order_ids",
     "describe_field_change",
     "describe_order_action",
@@ -108,12 +109,19 @@ ACTION_LABELS: dict[str, str] = {
     "CONSTRUCTION_STARTED": "시공 시작",
     "CONSTRUCTION_COMPLETED": "시공 완료",
     "CONSTRUCTION_REWORK_REQUESTED": "시공 불가(재작업 요청)",
+    "CONSTRUCTION_EVIDENCE_UPDATED": "시공 증빙 등록",
     # --- 생산 ---
     "PRODUCTION_STARTED": "제작 시작",
     "PRODUCTION_COMPLETED": "제작 완료",
     "PRODUCTION_START_CANCELED": "제작 시작 취소",
     "PRODUCTION_COMPLETE_CANCELED": "제작 완료 취소",
     "PRODUCTION_REWORK_STARTED": "수정 제작 시작",
+    "PRODUCTION_STEP_CHECKED": "생산 공정 체크",
+    "PRODUCTION_DEFECT_REPORTED": "생산 불량 보고",
+    "PRODUCTION_HOLD_SET": "생산 보류",
+    "PRODUCTION_HOLD_RELEASED": "생산 보류 해제",
+    "PRODUCTION_CHANGE_ACKNOWLEDGED": "생산 변경 확인",
+    "LOGISTICS_STATUS_CHANGED": "물류 상태 변경",
     # --- AS ---
     "AS_RECEIVED": "AS 접수",
     "AS_SCHEDULED": "AS 방문일 지정",
@@ -134,10 +142,55 @@ ACTION_LABELS: dict[str, str] = {
     "DRAWING_GATEWAY_FILE_UPLOADED": "도면 창구 파일 업로드",
     "BLUEPRINT_UPLOAD_ISSUED": "도면 업로드 발급",
     "BLUEPRINT_UPLOADED": "도면 업로드",
+    # --- 실측·출고·업무 ---
+    "MEASUREMENT_UPDATED": "실측 정보 수정",
+    "SHIPMENT_UPDATED": "출고 정보 수정",
+    "SHIPMENT_PACKING_SAVED": "출고 포장 저장",
+    "SHIPMENT_CHANGE_ACKNOWLEDGED": "출고 변경 확인",
+    "DRAWING_CHANGE_ACKNOWLEDGED": "도면 변경 확인",
+    "DRAFTSMAN_ASSIGNED": "도면 담당자 배정",
+    "QUEST_CREATED": "퀘스트 생성",
+    "QUEST_STATUS_CHANGED": "퀘스트 상태 변경",
+    "QUEST_APPROVED": "퀘스트 승인",
+    "ORDER_TASK_CREATED": "업무 추가",
+    "ORDER_TASK_UPDATED": "업무 수정",
+    "ORDER_TASK_DELETED": "업무 삭제",
+    "ORDER_CALL_LOGGED": "통화 기록",
     # --- 파일 ---
     "FILE_UPLOADED": "파일 업로드",
     "FILE_DELETED": "파일 삭제",
     "FILE_RESTORED": "파일 복구",
+    "FILE_UPLOAD_FINALIZED": "파일 업로드 확정",
+    "CHAT_MESSAGE_SENT": "채팅 메시지 발송",
+    # --- 단가표·견적 마스터데이터 ---
+    "CATALOG_ITEM_SAVED": "단가표 항목 저장",
+    "CATALOG_ITEM_DELETED": "단가표 항목 삭제",
+    "ESTIMATE_SAVED": "견적 저장",
+    "ESTIMATE_DELETED": "견적 삭제",
+    "ESTIMATE_ORDER_MATCHED": "견적-주문 연결",
+    "ESTIMATE_ORDER_UNMATCHED": "견적-주문 연결 해제",
+    "ESTIMATE_SYNCED_TO_ORDER": "견적 주문 반영",
+    "ORDER_ESTIMATE_CREATED": "주문 견적 생성",
+    "ORDER_ESTIMATE_UPDATED": "주문 견적 수정",
+    "ORDER_ESTIMATE_DELETED": "주문 견적 삭제",
+    "ORDER_STRUCTURED_SAVED": "주문 저장",
+    "ORDER_ADDRESS_UPDATED": "주소 수정",
+    "ADDRESS_LEARNING_ADDED": "주소 학습 등록",
+    "STORAGE_SETTING_UPDATED": "스토리지 설정 변경",
+    "NOTIFICATION_SENT": "알림 발송",
+    "NOTIFICATION_ARCHIVED": "알림 보관",
+    "NOTIFICATIONS_DELETED": "알림 일괄 삭제",
+    "URGENT_MENTION_SENT": "긴급 호출",
+    "CHANNEL_PUSH_SENT": "채널톡 발송",
+    "BLUEPRINT_DELETED": "도면 삭제",
+    "DRAWING_WIZARD_SAVED": "도면 마법사 저장",
+    "DRAWING_WIZARD_ASSET_ADDED": "도면 마법사 자산 추가",
+    "DRAWING_WIZARD_SHEET_SAVED": "도면 마법사 시트 저장",
+    "DRAWING_WIZARD_SNAPSHOT_SAVED": "도면 마법사 버전 저장",
+    "DRAWING_WIZARD_PENDING_DELETED": "도면 마법사 임시본 삭제",
+    "ORDER_DRAFT_SAVED": "임시 주문 저장",
+    "ORDER_DRAFT_SUBMITTED": "임시 주문 제출",
+    "ORDER_DRAFT_DELETED": "임시 주문 삭제",
 }
 
 #: 비어 있음을 뜻하는 원시 값들(문자열 비교는 소문자로 한다).
@@ -347,6 +400,29 @@ def action_label(action: str | None) -> str:
     if not action:
         return ""
     return ACTION_LABELS.get(action, action)
+
+
+def describe_action(
+    action: str,
+    *,
+    target_label: str | None = None,
+    note: str | None = None,
+) -> str:
+    """주문이 아닌 대상(채팅방·단가표·견적 등)의 행위 문장을 만든다.
+
+    주문 대상은 :func:`describe_order_action` 이 담당한다. 여기서는 대상 표기를 호출부가
+    문자열로 넘긴다(대상 종류가 제각각이라 공통 스키마가 없다).
+
+    :param action: 행위 코드(:data:`ACTION_LABELS` 키).
+    :param target_label: 대상 표기(``단가표 '상판'``·``채팅방 #3``). 없으면 생략.
+    :param note: 짧은 부연. 길면 잘라 요약한다.
+    :return: ``단가표 '상판' — 단가 항목 저장`` 형태 문장.
+    """
+    label = action_label(action)
+    head = (target_label or "").strip()
+    line = f"{head} — {label}" if head else label
+    tail = _summarize_text(note) if note else ""
+    return f"{line}: {tail}" if tail else line
 
 
 def describe_order_action(

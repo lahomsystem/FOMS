@@ -11,7 +11,9 @@ from typing import Any, Optional
 from flask import Blueprint, g, jsonify, make_response, render_template, request, session
 from sqlalchemy.orm.attributes import flag_modified
 
-from foms.web.auth import get_user_by_id, login_required, role_required
+from foms.web.auth import get_user_by_id, log_access, login_required, role_required
+from foms.services.audit_message_display import describe_order_action
+from foms.services.orders.audit_order_context import order_audit_context
 from db import get_db
 from foms.services.datetime_kst import now_utc_naive
 from foms.services.erp_permissions import can_edit_erp, erp_edit_required
@@ -248,6 +250,14 @@ def api_erp_shipment_update(order_id: int):
                 json.dumps(payload, sort_keys=True, ensure_ascii=False, default=str).encode()
             ).hexdigest(),
             mutation=_mutate,
+        )
+        settings_context = order_audit_context(order)
+        log_access(
+            describe_order_action(order_id=order_id, action="SHIPMENT_UPDATED", **settings_context),
+            actor_id,
+            auto_commit=False,
+            action="SHIPMENT_UPDATED", target_type="order", target_id=int(order_id),
+            detail={"fields": sorted(payload.keys()), **settings_context},
         )
         db.commit()
     except RevisionError as err:

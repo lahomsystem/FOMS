@@ -471,6 +471,8 @@ def api_construction_evidence(order_id):
                 created_by_user_id=user_id,
             )
         )
+        _audit_construction(order, "CONSTRUCTION_EVIDENCE_UPDATED", user_id, note=kind,
+                            extra={"kind": kind, "attachment_id": attachment_id})
         db.commit()
         return jsonify({"success": True, "data": evidence})
     except Exception as exc:

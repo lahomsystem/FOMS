@@ -1073,6 +1073,8 @@ def api_production_change_ack(order_id: int):
             except IntegrityError:
                 db.rollback()  # 동시 same-token → event/receipt 0, replay 로 수렴.
                 return jsonify(response_body)
+        _audit_production(order, "PRODUCTION_CHANGE_ACKNOWLEDGED", user_id,
+                          extra={"source": "tablet_kanban"})
         db.commit()
         return jsonify(response_body)
     except Exception as exc:
@@ -1190,6 +1192,9 @@ def api_production_steps(order_id: int):
             db.rollback()
             return jsonify({"success": False, "error": str(exc), "code": exc.error_code}), exc.status_code
 
+        _audit_production(order, "PRODUCTION_STEP_CHECKED", user_id,
+                          note=f"{key}: {'완료' if done else '해제'}",
+                          extra={"step": key, "done": bool(done)})
         db.commit()
         steps = captured["steps"]
         done_count = sum(1 for s in steps if s.get("done"))
@@ -1281,6 +1286,8 @@ def api_production_defect(order_id: int):
             db.rollback()
             return jsonify({"success": False, "error": str(exc), "code": exc.error_code}), exc.status_code
 
+        _audit_production(order, "PRODUCTION_DEFECT_REPORTED", user_id,
+                          note=reason, extra={"reason": reason})
         db.commit()
         defects = captured["defects"]
         return jsonify(
@@ -1394,6 +1401,11 @@ def api_production_hold(order_id: int):
             }
         else:
             hold = _mirror_workflow_hold_to_production(order, active, reason, user)
+        _audit_production(
+            order,
+            "PRODUCTION_HOLD_SET" if active else "PRODUCTION_HOLD_RELEASED",
+            user_id, note=reason or None, extra={"active": bool(active), "reason": reason or None},
+        )
         db.commit()
         return jsonify({"success": True, "data": {"hold": hold}})
     except Exception as exc:
@@ -1451,6 +1463,8 @@ def api_set_logistics_status(order_id: int):
             db.rollback()
             return _transition_error_response(exc)
 
+        _audit_production(order, "LOGISTICS_STATUS_CHANGED", user_id, note=target,
+                          extra={"logistics_status": target})
         db.commit()
         return jsonify({"success": True, "data": {"logistics_status": target}})
     except Exception as exc:

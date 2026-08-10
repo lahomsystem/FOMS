@@ -12,7 +12,9 @@ from sqlalchemy.orm.attributes import flag_modified
 
 from db import get_db
 from models import Order, User, OrderEvent, SecurityLog
-from foms.web.auth import login_required, get_user_by_id
+from foms.web.auth import login_required, get_user_by_id, log_access
+from foms.services.audit_message_display import describe_order_action
+from foms.services.orders.audit_order_context import order_audit_context
 from foms.services.datetime_kst import now_utc_naive
 from foms.services.erp_permissions import erp_edit_required
 from foms.services.erp_sync_columns import sync_erp_flat_columns
@@ -26,6 +28,31 @@ erp_orders_draftsman_bp = Blueprint(
     __name__,
     url_prefix='/api/orders',
 )
+
+
+
+def _audit_draftsman_assign(order, assignee_user_ids, actor_user_id, *, bulk: bool = False) -> None:
+    """도면 담당자 배정 1건을 구조화 감사로 남긴다.
+
+    라우트가 뒤에서 ``db.commit()`` 하므로 같은 트랜잭션에 싣는다(``auto_commit=False``).
+
+    :param order: 대상 :class:`~models.Order`.
+    :param assignee_user_ids: 배정된 담당자 user id 목록.
+    :param actor_user_id: 배정을 한 사람의 user id.
+    :param bulk: 일괄 배정 여부(문장·detail 에 표시).
+    """
+    context = order_audit_context(order)
+    ids = [int(uid) for uid in (assignee_user_ids or [])]
+    log_access(
+        describe_order_action(
+            order_id=order.id, action="DRAFTSMAN_ASSIGNED",
+            note=(f"{len(ids)}명 배정" + (" (일괄)" if bulk else "")), **context,
+        ),
+        actor_user_id,
+        auto_commit=False,
+        action="DRAFTSMAN_ASSIGNED", target_type="order", target_id=int(order.id),
+        detail={"assignee_user_ids": ids, "bulk": bool(bulk), **context},
+    )
 
 
 @erp_orders_draftsman_bp.route('/batch-assign-draftsman', methods=['POST'])
@@ -124,6 +151,7 @@ def api_orders_batch_assign_draftsman():
                     created_by_user_id=user_id
                 )
                 db.add(drawing_event)
+                _audit_draftsman_assign(order, user_ids, user_id, bulk=True)
                 success_count += 1
 
             except Exception as e:
@@ -266,6 +294,7 @@ def api_order_assign_draftsman(order_id):
             created_by_user_id=user_id
         )
         db.add(drawing_event)
+        _audit_draftsman_assign(order, user_ids, user_id)
         db.commit()
         # 도메인-스코프: 도면 담당자 단건 지정도 stage 무변경 → 도면·주문 목록만.
         from foms.services.common.dashboard_cache import (

@@ -77,6 +77,50 @@
     {
       "key": "foms/api/shipment/recommendations.py::api_shipment_as_recommendations_prewarm",
       "reason": "추천 캐시 예열 — 데이터를 바꾸지 않는다."
+    },
+    {
+      "key": "foms/api/files/direct_upload.py::api_upload_session",
+      "reason": "presigned PUT 세션 발급 — 아직 아무것도 등록되지 않았다. 실제 등록은 attachments complete 가 FILE_UPLOADED 로 기록한다(준비 단계까지 남기면 파일 1건당 2~3행)."
+    },
+    {
+      "key": "foms/api/files/direct_upload.py::api_upload_session_batch",
+      "reason": "다중 업로드 세션 발급 — 위와 같은 이유(등록 시점에 파일별로 기록된다)."
+    },
+    {
+      "key": "foms/api/files/upload_intent.py::api_create_upload_draft",
+      "reason": "업로드 DRAFT id 발급(멱등, Order 불변) — 확정(finalize)만 기록한다."
+    },
+    {
+      "key": "foms/api/files/upload_intent.py::api_cancel_upload_draft",
+      "reason": "DRAFT 취소(Order 불변·첨부 미생성) — 취소된 준비 단계는 물어볼 대상이 아니다."
+    },
+    {
+      "key": "foms/api/files/upload_ticket_routes.py::api_issue_upload_ticket",
+      "reason": "업로드 ticket 발급 — 확정(complete)에서 첨부가 생기고 그때 FILE_UPLOADED 가 남는다."
+    },
+    {
+      "key": "foms/api/erp_orders_blueprint.py::api_upload_blueprint",
+      "reason": "도면 업로드 ticket 발급 — 확정(blueprint/complete)이 BLUEPRINT_UPLOADED 로 기록한다."
+    },
+    {
+      "key": "foms/api/erp_order_draft.py::api_put_order_draft",
+      "reason": "주문 마법사 자동저장(idempotent autosave) — 타이머가 부르는 저장이라 한 주문에 수십 행이 쌓인다. 제출(submit)만 기록한다."
+    },
+    {
+      "key": "foms/api/erp_order_draft.py::api_delete_order_draft",
+      "reason": "제출 전 마법사 draft 폐기 — 주문이 아직 존재하지 않는다(첨부 정리는 STORAGE_DELETE outbox 가 남긴다)."
+    },
+    {
+      "key": "foms/api/erp_order_draft.py::api_upload_order_draft_attachment",
+      "reason": "제출 전 임시 첨부 업로드 — 제출 시 실제 첨부로 승격되며 그때 기록된다."
+    },
+    {
+      "key": "foms/api/channel/files.py::api_chat_upload_session",
+      "reason": "채팅 첨부 presigned 세션 발급 — 실제 발송은 메시지 전송 경로가 기록한다."
+    },
+    {
+      "key": "foms/api/drawing/wizard.py::api_post_drawing_wizard_import_attachment",
+      "reason": "실측 첨부를 마법사 에셋 폴더로 복사(원본 불변·OrderAttachment 미생성) — 저장 시 마법사 기록이 남는다."
     }
   ]
 }

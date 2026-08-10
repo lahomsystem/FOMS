@@ -36,7 +36,9 @@ from foms.services.orders.drawing_wizard_pending import (
     record_pending,
 )
 from foms.services.sidefx_outbox import enqueue_side_effect
-from foms.web.auth import login_required, get_user_by_id
+from foms.web.auth import login_required, get_user_by_id, log_access
+from foms.services.audit_message_display import describe_order_action
+from foms.services.orders.audit_order_context import order_audit_context
 from foms.services.datetime_kst import now_kst, now_utc_naive
 from foms.services.erp_policy import is_drawing_workbench_participant
 from foms.services.storage import get_storage
@@ -694,6 +696,7 @@ def api_put_drawing_wizard(order_id):
 
         try:
             outcome = _run_wizard_mutation(db, order_id, current_user, data, _mutate)
+            _audit_wizard(order, "DRAWING_WIZARD_SAVED")
             db.commit()
         except _WizardStaleError as stale:
             db.rollback()
@@ -732,6 +735,27 @@ def api_put_drawing_wizard(order_id):
         return jsonify({'success': False, 'message': f'오류 발생: {str(e)}'}), 500
 
 
+
+def _audit_wizard(order, action: str, note: str | None = None, extra: dict | None = None,
+                  *, auto_commit: bool = False) -> None:
+    """도면 마법사 행위 1건을 구조화 감사로 남긴다(문장은 표시 SSOT 가 만든다).
+
+    :param order: 대상 :class:`~models.Order`.
+    :param action: 행위 코드(``DRAWING_WIZARD_SAVED`` 등).
+    :param note: 문장 뒤에 붙일 짧은 부연(시트명·파일명).
+    :param extra: ``detail`` 에 추가로 담을 구조화 값.
+    :param auto_commit: 라우트가 뒤에서 커밋하지 않는 경로(에셋 업로드)만 True.
+    """
+    context = order_audit_context(order)
+    log_access(
+        describe_order_action(order_id=order.id, action=action, note=note, **context),
+        session.get('user_id'),
+        auto_commit=auto_commit,
+        action=action, target_type="order", target_id=int(order.id),
+        detail={**(extra or {}), **context},
+    )
+
+
 @erp_orders_drawing_wizard_bp.route('/<int:order_id>/drawing-wizard/asset', methods=['POST'])
 @login_required
 def api_post_drawing_wizard_asset(order_id):
@@ -767,6 +791,8 @@ def api_post_drawing_wizard_asset(order_id):
             return jsonify({'success': False, 'message': '파일 업로드에 실패했습니다.'}), 500
 
         key = result.get('key')
+        _audit_wizard(order, "DRAWING_WIZARD_ASSET_ADDED", note=file.filename,
+                      extra={"filename": file.filename, "storage_key": key}, auto_commit=True)
         return jsonify({
             'success': True,
             'data': {
@@ -919,6 +945,8 @@ def api_post_drawing_wizard_sheet_png(order_id):
         }
         order.structured_data = sd
         flag_modified(order, 'structured_data')
+        _audit_wizard(order, "DRAWING_WIZARD_SHEET_SAVED", note=sheet_name,
+                      extra={"sheet_name": sheet_name, "storage_key": key})
         db.commit()
 
         if old_key and old_key != key:
@@ -1220,6 +1248,8 @@ def api_delete_drawing_wizard_pending(order_id: int, sheet_id: str):
         sd['drawing_wizard'] = dw
         order.structured_data = sd
         flag_modified(order, 'structured_data')
+        _audit_wizard(order, "DRAWING_WIZARD_PENDING_DELETED", note=str(sheet_id),
+                      extra={"sheet_id": str(sheet_id), "deleted_key": deleted_key})
         db.commit()
 
         return jsonify({'success': True, 'data': {
@@ -1352,6 +1382,8 @@ def api_post_drawing_wizard_version_snapshot(order_id):
         sd['drawing_wizard'] = dw
         order.structured_data = sd
         flag_modified(order, 'structured_data')
+        _audit_wizard(order, "DRAWING_WIZARD_SNAPSHOT_SAVED", note=f"v{next_v}",
+                      extra={"version": next_v})
         db.commit()
 
         return jsonify({'success': True, 'data': {'v': next_v}})

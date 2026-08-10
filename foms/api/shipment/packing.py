@@ -33,7 +33,9 @@ from db import get_db
 from foms.api.shipment.settings import erp_shipment_bp
 from foms.services.orders.order_mutation_policy import POLICY_REGISTRY, evaluate_policy
 from foms.services.orders.revision import RevisionError, execute_order_mutation
-from foms.web.auth import get_user_by_id
+from foms.web.auth import get_user_by_id, log_access
+from foms.services.audit_message_display import describe_order_action
+from foms.services.orders.audit_order_context import order_audit_context
 from models import Order, OrderEvent
 
 logger = logging.getLogger(__name__)
@@ -374,6 +376,15 @@ def api_shipment_packing_save(order_id: int):
             scope_hash=scope_hash,
             request_hash=request_hash,
             mutation=_mutate,
+        )
+        packing_context = order_audit_context(order)
+        log_access(
+            describe_order_action(order_id=order_id, action="SHIPMENT_PACKING_SAVED",
+                                  **packing_context),
+            getattr(user, "id", None),
+            auto_commit=False,
+            action="SHIPMENT_PACKING_SAVED", target_type="order", target_id=int(order_id),
+            detail=packing_context,
         )
         db.commit()
     except _PackingGateError as gate:

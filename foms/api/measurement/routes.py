@@ -16,7 +16,9 @@ from sqlalchemy.orm.attributes import flag_modified
 
 from db import get_db
 from models import Order, OrderEvent
-from foms.web.auth import login_required, role_required
+from foms.web.auth import log_access, login_required, role_required
+from foms.services.audit_message_display import describe_order_action, field_label
+from foms.services.orders.audit_order_context import order_audit_context
 import foms.api.measurement as measurement_api
 from foms.services.erp_order_flags import is_erp_order_record
 from foms.services.common.erp_mine_filter import erp_mine_only_from_request
@@ -278,6 +280,21 @@ def api_erp_measurement_update(order_id):
             scope_hash=scope_hash,
             request_hash=request_hash,
             mutation=_mutate,
+        )
+        # 실측 typed 필드는 연락처·주소를 포함한다 — 값은 원장에 남기지 않고 "무엇을 고쳤는지"만
+        # 남긴다(담당자만 예외: 사람 이름이라 PII 최소성 경계 안이다).
+        audit_context = order_audit_context(order)
+        log_access(
+            describe_order_action(
+                order_id=order_id, action="MEASUREMENT_UPDATED",
+                note=field_label(field), **audit_context,
+            ),
+            user_id,
+            auto_commit=False,
+            action="MEASUREMENT_UPDATED", target_type="order", target_id=int(order_id),
+            detail={"field": field,
+                    **({"after": value} if field == "manager" else {}),
+                    **audit_context},
         )
         db.commit()
     except RevisionError as rev:

@@ -26,7 +26,9 @@ from foms.services.orders.upload_ticket import (
     complete_ticket,
     issue_ticket,
 )
-from foms.web.auth import get_user_by_id, login_required
+from foms.web.auth import get_user_by_id, log_access, login_required
+from foms.services.audit_message_display import describe_order_action
+from foms.services.orders.audit_order_context import order_audit_context
 from models import Order, UploadTicket
 
 
@@ -117,6 +119,18 @@ def api_complete_upload_ticket(ticket_id):
         ticket, attachment = complete_ticket(
             db, ticket_id=ticket_id, object_key=object_key,
             user=_current_user(), file_size=file_size,
+        )
+        order = db.get(Order, ticket.order_id)
+        ticket_context = order_audit_context(order)
+        log_access(
+            describe_order_action(order_id=ticket.order_id, action="FILE_UPLOADED",
+                                  note=attachment.filename, **ticket_context),
+            getattr(_current_user(), "id", None),
+            auto_commit=False,
+            action="FILE_UPLOADED", target_type="order", target_id=int(ticket.order_id),
+            detail={"attachment_id": int(attachment.id), "ticket_id": int(ticket.id),
+                    "filename": attachment.filename, "storage_key": object_key,
+                    **ticket_context},
         )
         db.commit()
         return jsonify({

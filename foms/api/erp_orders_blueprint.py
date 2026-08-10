@@ -222,6 +222,14 @@ def api_delete_blueprint(order_id):
             db, actor_user_id=uid, policy_id="STAFF_MUTATION", order_ids=[order_id],
             scope_hash=scope, request_hash=scope, mutation=_mutate,
         )
+        delete_context = order_audit_context(order)
+        log_access(
+            describe_order_action(order_id=order_id, action="BLUEPRINT_DELETED", **delete_context),
+            uid,
+            auto_commit=False,
+            action="BLUEPRINT_DELETED", target_type="order", target_id=int(order_id),
+            detail=delete_context,
+        )
         db.commit()
         resp = jsonify({"success": True, "error": None, "data": {
             "removed": True, "mutation_receipt": result.read_receipt_id}})

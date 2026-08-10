@@ -36,7 +36,9 @@ from foms.services.orders.initial_workflow_stage import resolve_initial_workflow
 from foms.services.orders.order_create import create_order
 from foms.services.orders.status_constants import STATUS
 from foms.services.sidefx_outbox import enqueue_side_effect
-from foms.web.auth import login_required, role_required
+from foms.web.auth import log_access, login_required, role_required
+from foms.services.audit_message_display import describe_order_action
+from foms.services.orders.audit_order_context import order_audit_context
 
 erp_order_draft_bp = Blueprint("erp_order_draft", __name__, url_prefix="/api/erp")
 
@@ -535,5 +537,14 @@ def api_submit_order_draft() -> tuple[Any, int]:
         user_id=uid,
     )
     delete_draft(db, uid, draft_key)
+    submit_context = order_audit_context(new_order)
+    log_access(
+        describe_order_action(order_id=new_order.id, action="ORDER_DRAFT_SUBMITTED",
+                              **submit_context),
+        uid,
+        auto_commit=False,
+        action="ORDER_DRAFT_SUBMITTED", target_type="order", target_id=int(new_order.id),
+        detail={"draft_key": draft_key, "items": len(items_in), **submit_context},
+    )
     db.commit()
     return jsonify({"success": True, "data": {"order_id": new_order.id}}), 200

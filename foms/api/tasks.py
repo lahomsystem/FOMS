@@ -24,7 +24,9 @@ from flask import Blueprint, request, jsonify, session
 
 from db import get_db
 from models import Order, OrderEvent, OrderTask, User
-from foms.web.auth import TEAMS, get_user_by_id, login_required
+from foms.web.auth import TEAMS, get_user_by_id, log_access, login_required
+from foms.services.audit_message_display import describe_order_action
+from foms.services.orders.audit_order_context import order_audit_context
 from foms.services.datetime_kst import format_datetime_kst, now_utc_naive
 from foms.services.orders.order_mutation_policy import (
     POLICY_REGISTRY,
@@ -128,12 +130,20 @@ def _run_task_mutation(
     scope_extra: str,
     request_payload: dict,
     mutate: Callable,
+    audit_action: Optional[str] = None,
+    audit_note: Optional[str] = None,
+    audit_extra: Optional[dict] = None,
 ) -> Tuple[Optional[Any], Optional[Any]]:
     """task CRUD 를 REV-00 one-tx 로 감싼다. ``(outcome, error_response)`` 반환.
 
     order_id 는 **언제나 task 의 진짜 부모**여야 한다(parent scope). optional 헤더
     ``If-Match``(Order.mutation_version 낙관 잠금)·``Idempotency-Key``(재요청 replay)
     를 파싱한다.
+
+    :param audit_action: 감사 원장에 남길 행위 코드(``ORDER_TASK_CREATED`` 등).
+        ``None`` 이면 기록하지 않는다. replay 요청은 business write 가 없으므로 기록도 없다.
+    :param audit_note: 감사 문장 뒤에 붙일 부연(업무 제목).
+    :param audit_extra: ``detail`` 에 추가로 담을 구조화 값.
     """
     if_match_raw = (request.headers.get('If-Match') or '').strip().strip('"')
     expected_versions: Optional[dict] = None
@@ -162,6 +172,17 @@ def _run_task_mutation(
             request_hash=request_hash,
             mutation=mutate,
         )
+        if audit_action and not outcome.replayed:
+            order = db.get(Order, order_id)
+            context = order_audit_context(order)
+            log_access(
+                describe_order_action(order_id=order_id, action=audit_action,
+                                      note=audit_note, **context),
+                user_id,
+                auto_commit=False,
+                action=audit_action, target_type="order", target_id=int(order_id),
+                detail={**(audit_extra or {}), **context},
+            )
         db.commit()
         return outcome, None
     except RevisionError as rev:
@@ -284,6 +305,8 @@ def api_order_tasks_create(order_id):
         db, order_id,
         policy_id=CMD_TASK_CREATE,
         scope_extra='create',
+        audit_action='ORDER_TASK_CREATED', audit_note=title,
+        audit_extra={'title': title, 'status': status, 'owner_team': owner_team},
         request_payload={'title': title, 'status': status, 'owner_team': owner_team,
                          'owner_user_id': owner_user_id, 'due_date': due_date},
         mutate=_mutate,
@@ -363,6 +386,8 @@ def api_order_tasks_update(order_id, task_id):
         db, order_id,
         policy_id=CMD_TASK_UPDATE,
         scope_extra=f'update:{task_id}',
+        audit_action='ORDER_TASK_UPDATED', audit_note=task.title,
+        audit_extra={'task_id': task_id, 'fields': sorted(updates.keys())},
         request_payload={'task_id': task_id, **updates},
         mutate=_mutate,
     )
@@ -410,6 +435,8 @@ def api_order_tasks_delete(order_id, task_id):
         db, order_id,
         policy_id=CMD_TASK_CANCEL,
         scope_extra=f'cancel:{task_id}',
+        audit_action='ORDER_TASK_DELETED', audit_note=task.title,
+        audit_extra={'task_id': task_id},
         request_payload={'task_id': task_id},
         mutate=_mutate,
     )
