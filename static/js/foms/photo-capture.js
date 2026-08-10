@@ -83,8 +83,9 @@
             });
             galleryInput.addEventListener('change', function () {
                 if (!galleryInput.files || !galleryInput.files.length) return;
+                const selectedFiles = Array.from(galleryInput.files);
                 if (typeof global.erpAppendAsReceiveFiles === 'function') {
-                    global.erpAppendAsReceiveFiles(galleryInput.files);
+                    global.erpAppendAsReceiveFiles(selectedFiles);
                 } else if (targetInput) {
                     targetInput.files = galleryInput.files;
                     targetInput.dispatchEvent(new Event('change', { bubbles: true }));

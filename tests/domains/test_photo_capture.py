@@ -39,6 +39,9 @@ def test_photo_capture_js_exports_helpers() -> None:
     assert "data-foms-no-capture" in text
     assert "data-foms-photo-capture" in text
     assert "global.erpAppendAsReceiveFiles" in text
+    # FileList를 그대로 concat하면 [FileList]가 되어 DataTransfer.items.add가 TypeError를 낸다.
+    assert "const selectedFiles = Array.from(galleryInput.files);" in text
+    assert "global.erpAppendAsReceiveFiles(selectedFiles);" in text
     assert "initAsReceiveModalFocus" in text
 
 
@@ -56,7 +59,7 @@ def test_layout_includes_photo_capture_assets() -> None:
         encoding="utf-8"
     )
     assert "css/foms/photo-capture.css" in head
-    assert "js/foms/photo-capture.js" in scripts
+    assert "js/foms/photo-capture.js') }}?v=20260810a" in scripts
 
 
 def test_erp_order_tab_as_modal_camera_first_markup(erp_editor_client) -> None:
