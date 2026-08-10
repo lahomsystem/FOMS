@@ -2,6 +2,10 @@
 
 {% block title %}보안 로그{% endblock %}
 
+{% block styles %}
+<link rel="stylesheet" href="{{ url_for('static', filename='css/contexts/admin/audit-tables.css') }}?v=20260810a">
+{% endblock %}
+
 {% block content %}
 <div class="container mt-4">
     <h1>보안 로그 기록</h1>
@@ -71,22 +75,24 @@
     </div>
 
     <div class="table-responsive">
-        <table class="table table-striped table-hover">
+        {# 폭은 CSS 기본값 + 헤더 경계 드래그(js/admin/audit-table-columns.js)로 조절한다. #}
+        <table class="table table-striped table-hover admin-audit-table admin-audit-table--security"
+               data-foms-resizable-table="security-logs">
             <thead>
                 <tr>
-                    <th style="width: 14%;">시간</th>
-                    <th style="width: 12%;">행위</th>
-                    <th style="width: 10%;">대상</th>
-                    <th style="width: 34%;">상세 내용</th>
-                    <th style="width: 18%;">부가정보</th>
-                    <th style="width: 12%;">사용자</th>
+                    <th>시간</th>
+                    <th>행위</th>
+                    <th>대상</th>
+                    <th>상세 내용</th>
+                    <th>부가정보</th>
+                    <th>사용자</th>
                 </tr>
             </thead>
             <tbody>
                 {% for row in rows %}
                 {% set log_entry = row.log %}
                 <tr>
-                    <td>{{ log_entry.timestamp|format_datetime_kst }}</td>
+                    <td class="audit-cell-time">{{ log_entry.timestamp|format_datetime_kst }}</td>
                     <td>{% if log_entry.action %}<span class="badge bg-secondary">{{ log_entry.action }}</span>{% endif %}</td>
                     <td>
                         {% if log_entry.target_type %}{{ log_entry.target_type }}{% if log_entry.target_id is not none %} #{{ log_entry.target_id }}{% endif %}{% endif %}
@@ -102,7 +108,7 @@
                         </details>
                         {% endif %}
                     </td>
-                    <td>
+                    <td class="audit-cell-detail">
                         {# detail 은 사용자 입력이 섞일 수 있다 — tojson 이 <, >, &, ' 를
                            \uXXXX 로 escape 하므로 <pre> 안에서도 스크립트가 되지 않는다. #}
                         {% if log_entry.detail %}<pre class="mb-0 small">{{ log_entry.detail | tojson(indent=2) }}</pre>{% endif %}
@@ -156,4 +162,10 @@
     text-decoration: underline;
 }
 </style>
+{% endblock %}
+
+{% block scripts %}
+{# 헤더 경계를 끌어 컬럼 폭 조절(런타임은 대시보드들과 공용). 넓은 화면에서만 켜진다. #}
+<script src="{{ url_for('static', filename='js/runtime/column-resizer.js') }}?v=20260615a" defer></script>
+<script src="{{ url_for('static', filename='js/admin/audit-table-columns.js') }}?v=20260810b" defer></script>
 {% endblock %}
