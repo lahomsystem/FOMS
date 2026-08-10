@@ -50,6 +50,7 @@ FIELD_LABELS: dict[str, str] = {
     "product": "제품",
     "options": "옵션 상세",
     "notes": "비고",
+    "regional_memo": "메모",
     "status": "상태",
     "manager_name": "담당자",
     "manager": "담당자",
@@ -95,8 +96,12 @@ _CHECKLIST_FIELDS = frozenset({
 #: 비어 있음을 뜻하는 원시 값들(문자열 비교는 소문자로 한다).
 _EMPTY_TOKENS = frozenset({"", "none", "null", "-"})
 
-#: 지운 값·없던 값 표기.
+#: 값을 비운 결과 표기(after 쪽).
 _EMPTY_DISPLAY = "(지움)"
+
+#: 원래 비어 있던 값 표기(before 쪽). "(지움) → 새 값"은 사실과 다르다 —
+#: 지운 게 아니라 처음부터 없던 것이다.
+_EMPTY_BEFORE_DISPLAY = "(없음)"
 
 #: AS 내용처럼 긴 본문을 줄일 상한.
 _LONG_TEXT_LIMIT = 60
@@ -267,6 +272,8 @@ def describe_field_change(
 
     if has_before:
         before_text = format_value(field, before)
+        if before_text == _EMPTY_DISPLAY:
+            before_text = _EMPTY_BEFORE_DISPLAY
         if before_text != after_text:
             return f"{head} — {label}: {before_text} → {after_text}"
     if field in _CHECKLIST_FIELDS:

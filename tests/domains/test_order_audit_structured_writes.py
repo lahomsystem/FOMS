@@ -193,3 +193,85 @@ def test_status_route_records_structured_transition(app):
         assert row.detail["after"] == "MEASURE"
         assert "상태: 접수 → 실측" in row.message
         _assert_no_pii(row)
+
+
+# --------------------------------------------------------------------------
+# 4. 지방 메모 경로 — 내용 기록 + 무변경 중복 차단
+# --------------------------------------------------------------------------
+def test_regional_memo_records_content_change(app):
+    """메모 변경이 '무엇에서 무엇으로'를 남긴다(운영 지적: 내용 표기 없음)."""
+    with app.app_context():
+        user_id = _make_user()
+        order = _make_order(customer_name="김재민", is_regional=True)
+        order_id = order.id
+        client = _client(app, user_id)
+
+        resp = client.post(
+            "/api/update_regional_memo",
+            json={"order_id": order_id, "memo": "7/22 해피콜 완료, 8/1 시공 예정"},
+        )
+        assert resp.status_code == 200, resp.get_data(as_text=True)
+
+        row = _latest_log("ORDER_MEMO_UPDATED")
+        assert row.target_id == order_id
+        assert row.detail["after"] == "7/22 해피콜 완료, 8/1 시공 예정"
+        assert row.detail["before"] == ""
+        assert "메모: (없음) → 7/22 해피콜 완료, 8/1 시공 예정" in row.message
+        assert f"지방 주문 #{order_id} (김재민)" in row.message
+        _assert_no_pii(row)
+
+
+def test_regional_memo_unchanged_save_writes_nothing(app):
+    """같은 메모 재저장은 원장에 남기지 않는다.
+
+    대시보드 자동저장이 디바운스(1초)와 blur 즉시저장으로 **두 번** 발사한다
+    (운영 실측: 09:34:35·09:34:36 동일 내용 2건). 무변경 쓰기를 막아 원장 중복을 끊는다.
+    """
+    with app.app_context():
+        user_id = _make_user()
+        order = _make_order(customer_name="김재민", is_regional=True)
+        order_id = order.id
+        client = _client(app, user_id)
+
+        first = client.post("/api/update_regional_memo",
+                            json={"order_id": order_id, "memo": "중복 검증 메모"})
+        assert first.status_code == 200
+
+        db_session.expire_all()
+        before_count = (
+            db_session.query(SecurityLog)
+            .filter(SecurityLog.action == "ORDER_MEMO_UPDATED")
+            .count()
+        )
+
+        second = client.post("/api/update_regional_memo",
+                             json={"order_id": order_id, "memo": "중복 검증 메모"})
+        assert second.status_code == 200
+        assert second.get_json().get("unchanged") is True
+
+        db_session.expire_all()
+        after_count = (
+            db_session.query(SecurityLog)
+            .filter(SecurityLog.action == "ORDER_MEMO_UPDATED")
+            .count()
+        )
+
+    assert after_count == before_count, "무변경 재저장이 감사 원장에 또 쌓였다"
+
+
+def test_regional_memo_audit_detail_is_capped(app):
+    """긴 메모 원문 전량을 원장에 담지 않는다(원장은 본문 저장소가 아니다)."""
+    with app.app_context():
+        user_id = _make_user()
+        order = _make_order(customer_name="김재민", is_regional=True)
+        order_id = order.id
+        client = _client(app, user_id)
+
+        long_memo = "가" * 900
+        resp = client.post("/api/update_regional_memo",
+                           json={"order_id": order_id, "memo": long_memo})
+        assert resp.status_code == 200
+
+        row = _latest_log("ORDER_MEMO_UPDATED")
+        assert len(row.detail["after"]) <= 200
+        assert row.detail["after_len"] == 900
