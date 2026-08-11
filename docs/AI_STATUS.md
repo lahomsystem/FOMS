@@ -8,7 +8,7 @@ Flask 2.3 + PostgreSQL + R2 + Railway (Web×2, Worker×1)
 브랜치: deploy (스테이징) → production (운영)
 
 ## 진행 중
-- [2026-08-10] **주문 삭제 즉시 반영 production 승격(PR #72 `76b9086c`)** — 삭제 경로 3곳에 대시보드 캐시 무효화가 없어 실측 집계가 300초 stale(운영 #4717). **신규 mutation 경로엔 캐시 무효화 동반이 계약**(테스트 6종 고정).
+- [2026-08-11] **대시보드 캐시 무효화 엔진화 MUT-CACHE-01 운영 승격(PR #79 `24675249`)** — 라우트별 수동 무효화가 원인(빠진 경로 6, 단계 강제 변경 310초 지연 재현). `execute_order_mutation` 이 전/후 stage·삭제 표식을 session.info intent 로 남기고 `after_commit` 이 소비 → 엔진 경유 20개 모듈 자동 커버, 미경유 2곳(`/edit`·date_sync)은 직접 보강. 선행 삭제 수정 PR #72.
 - [2026-08-11] **실측 동선 ROUTE-02 + 프래그먼트 다이어트** — 동선 3원인(`orders.measurement_time` 전부 NULL→정렬 접수순 추락·인라인 limit 20·좌표 없는 건 무표시 제외) 수정, 파서 SSOT `foms/services/measurement_time.py`. 운영 좌표 백필 122건. 시공 인라인 JS·CSS 분리로 dTTFB 155→85ms. (production `0e3e3ede`·`f0e57f4a`) HTML 들여쓰기 트림(전 탭 18~38%)=deploy `e18b69b4`, 잔여=승격.
 - [2026-08-11] **감사 화면 개선 3라운드 운영 승격 완료 — PR #74 `8d44c468`·#76 `fbb200e6`·#77 `ede486f7`.** 헤더 드래그 폭 기억(표별 localStorage), 시간 칸 rem 고정(%폭은 좁은 화면에서 초 자리 잘림), 부가정보 ensure_ascii=False + 접이식(행 높이 153→65px), 보안 로그 기간 필터(KST 경계), 배지 한글 라벨(코드는 title), UA 요약. 함정: ColumnResizer 는 UMD 라 `.default` fallback 없으면 조용히 미부착 / 기록되는 action 코드는 `ACTION_LABELS` 등재 필수(커버리지 계약 red).
 - [2026-08-10] **Sentry 운영 전환 완료** — DSN 을 dev→production 으로 이동(운영만 감시). 운영 로그 `Sentry initialized environment=production` 확인, dev 는 no-op. 잔여=Sentry 알림 규칙에 `environment:production` 필터·기존 staging 이슈 정리(사용자).
