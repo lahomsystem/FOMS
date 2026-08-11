@@ -235,9 +235,6 @@ def api_share_create(order_id: int):
         ``data = {'share_id', 'kind', 'token', 'url', 'expires_at'}``.
     """
     kind = (request.get_json(silent=True) or {}).get('kind') or 'drawing'
-    if kind == 'estimate':
-        # T6(스냅샷 빌더) 전까지는 발급 자체를 막는다 — 스냅샷 없는 견적 링크 금지(D6).
-        return _envelope(None, 'estimate_not_available', 400)
     if kind not in share_service.SHARE_KINDS:
         return _envelope(None, 'unknown_kind', 400)
 
@@ -249,9 +246,18 @@ def api_share_create(order_id: int):
     if order is None:
         return _envelope(None, 'order_not_found', 404)
 
+    snapshot = None
+    if kind == 'estimate':
+        # D6: 발송 시점 동결 — 스냅샷 없는 견적 링크는 존재하지 않는다.
+        try:
+            snapshot = share_service.build_estimate_snapshot(order)
+        except share_service.SnapshotTooLargeError as exc:
+            return _envelope(None, str(exc), 400)
+
     actor_user_id = session.get('user_id')
     row, token = share_service.create_share_token(
-        db_session, order.id, kind, created_by_user_id=actor_user_id)
+        db_session, order.id, kind, created_by_user_id=actor_user_id,
+        snapshot=snapshot)
     db_session.commit()
 
     url = url_for('share_view.view_shared_order', token=token, _external=True)

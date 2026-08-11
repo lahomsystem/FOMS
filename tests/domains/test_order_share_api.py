@@ -103,12 +103,15 @@ def test_create_default_kind_is_drawing(client, db):
     assert resp.get_json()['data']['kind'] == 'drawing'
 
 
-def test_create_estimate_blocked_until_t6(client, db):
+def test_create_estimate_returns_token_with_snapshot(client, db):
+    """T6 해금: estimate 발급은 동결 스냅샷을 동반한다(D6 — 스냅샷 없는 견적 링크 금지)."""
     order = _mk_order()
     _login(client, 'staff3')
     resp = client.post(f'{_CREATE}/{order.id}', json={'kind': 'estimate'})
-    assert resp.status_code == 400
-    assert resp.get_json()['error'] == 'estimate_not_available'
+    assert resp.status_code == 200
+    data = resp.get_json()['data']
+    row = db_session.get(OrderShareToken, data['share_id'])
+    assert row.snapshot is not None
 
 
 def test_create_unknown_kind_400(client, db):
