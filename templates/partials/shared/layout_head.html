@@ -135,6 +135,27 @@
       }
     })();
     </script>
+    {# Pointer-hint boot: inline before paint (SSOT copy lives in static/js/runtime/,
+       src 아님이라 G1 렌더차단 가드와 무관). `(pointer: coarse)` 매치 여부만 쿠키
+       `foms_ptr` 로 남겨, 다음 요청부터 서버가 터치 전용 표면(시공 태블릿 작업 모드,
+       스테이징 실측 241.8KB = fragment 의 32.4%)을 마우스 기기에 안 보낼 수 있게 한다.
+       pointer 는 기기 고정 특성이라 창 크기·회전으로 바뀌지 않는다 — 뷰포트 폭 기반
+       표면(모바일 셸)은 이 쿠키로 판정하면 안 된다. 쿠키 없음/이상값 = 전부 렌더(현행). #}
+    <script>
+    (function () {
+      var NAME = 'foms_ptr';
+      try {
+        if (!window.matchMedia) return;
+        var value = window.matchMedia('(pointer: coarse)').matches ? 'coarse' : 'fine';
+        if (document.cookie.indexOf(NAME + '=' + value) !== -1) return;
+        document.cookie =
+          NAME + '=' + value + ';path=/;max-age=31536000;SameSite=Lax' +
+          (location.protocol === 'https:' ? ';Secure' : '');
+      } catch (e) {
+        console.warn('[foms-pointer-hint-boot] pointer hint unavailable:', e);
+      }
+    })();
+    </script>
     {# SW 밖 최후 방어(pre-paint 인라인 부트, 테마·shell-mode 부트와 동일 지위 — src 아님이라
        G1 렌더차단 스크립트 가드와 무관). render-blocking CSS <link> 로드 실패를 1회 자동
        재시도한다. 근거: 최초 무스타일 렌더가 SW 수정 2회(53f10872 v9 캐시 purge,
