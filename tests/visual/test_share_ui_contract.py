@@ -1,8 +1,8 @@
-"""고객 공유 UI 2표면 배선 계약 (Phase A T4).
+"""고객 공유 UI 3표면 배선 계약 (Phase A T4·T9).
 
-PC/모바일 한쪽만 배선하고 다른 쪽을 빠뜨리는 회귀를 소스 문자열로 고정한다
-(test_alimtalk_ui_contract.py 선례 — 렌더 파이프라인이 아니라 파일 내용을 보므로
-DB/브라우저 없이 즉시 실패한다). 태블릿 표면은 T9 에서 이 파일에 추가된다.
+PC/모바일/태블릿 어느 한 표면만 배선하고 나머지를 빠뜨리는 회귀를 소스 문자열로
+고정한다(test_alimtalk_ui_contract.py 선례 — 렌더 파이프라인이 아니라 파일 내용을
+보므로 DB/브라우저 없이 즉시 실패한다).
 """
 
 from __future__ import annotations
@@ -54,6 +54,19 @@ def test_modal_partial_included_on_both_surfaces() -> None:
     # T7 해금: 견적서 kind 는 활성 radio 로 노출된다(disabled 회귀 금지).
     assert 'value="estimate"' in modal
     assert 'value="estimate" disabled' not in modal
+
+
+def test_tablet_measure_form_renders_share_button_and_handler() -> None:
+    """태블릿(T9): 채널톡 섹션에 data-tmf-share-open 버튼 + 위임 핸들러 분기(알림톡 선례)."""
+    js = _read("static/js/foms/tablet-measure-form.js")
+    assert "data-tmf-share-open" in js
+    assert BUTTON_CLASS in js
+    assert 'closest("[data-tmf-share-open]")' in js
+    assert "/api/share/create/" in js
+    assert "/api/share/send-sms/" in js
+    # 토큰 원문은 발급 응답 지역변수에만 — 저장 금지(해시-온리).
+    assert "localStorage" not in js
+    assert "sessionStorage" not in js
 
 
 def test_share_js_wired_in_erp_order_script_chain_with_version() -> None:

@@ -1141,6 +1141,8 @@
       '<i class="fas fa-compass-drafting" aria-hidden="true"></i><span>도면 PUSH (발주)</span></button>' +
       '<button type="button" class="foms-btn foms-btn--secondary foms-btn--sm erp-alimtalk-send-btn" data-tmf-alimtalk-send>' +
       '<i class="fas fa-comment-dots" aria-hidden="true"></i><span>알림톡 발송</span></button>' +
+      '<button type="button" class="foms-btn foms-btn--secondary foms-btn--sm erp-share-open-btn" data-tmf-share-open>' +
+      '<i class="fas fa-link" aria-hidden="true"></i><span>고객 공유</span></button>' +
       "</div>" +
       '<textarea class="foms-tmf__textarea foms-tmf__convo-text" data-tmf-conversion rows="6" readonly ' +
       'placeholder="[변환 텍스트 생성]을 누르면 현재 원장 내용이 채널톡용 텍스트로 만들어집니다.">' +
@@ -2027,6 +2029,104 @@
       });
   }
 
+  // ── 고객 공유 링크 (Phase A T9) ─────────────────────────────────────
+  // erp-share.js 미러 — 태블릿엔 공유 모달 마크업이 없으므로(알림톡 선례) confirm/
+  // setStatus 로 같은 흐름을 자체 구현한다. 발급 → URL 복사 → (선택) 문자 발송.
+  // 토큰 원문은 발급 응답 지역변수에만 존재한다(§1 해시-온리 — 저장·재표시 불가).
+  var SHARE_REASONS = {
+    order_not_found: "주문을 찾을 수 없습니다",
+    token_mismatch: "링크 정보가 맞지 않습니다 — 다시 발급해 주세요",
+    share_expired: "만료된 링크입니다 — 다시 발급해 주세요",
+    share_revoked: "회수된 링크입니다 — 다시 발급해 주세요",
+    no_valid_phone: "고객 휴대폰 번호가 올바르지 않습니다",
+    not_configured: "문자 발신 설정이 없습니다",
+    duplicate_send: "방금 발송을 시도했습니다 — 잠시 후 다시 시도해 주세요",
+    network: "네트워크 오류가 발생했습니다",
+  };
+
+  function shareReason(code) {
+    return SHARE_REASONS[code] || String(code || "알 수 없는 오류");
+  }
+
+  function copyShareUrl(url) {
+    if (navigator.clipboard && navigator.clipboard.writeText) {
+      navigator.clipboard.writeText(url).then(
+        function () {
+          setStatus("공유 링크 복사됨 (30일 유효)", "saved");
+        },
+        function () {
+          setStatus("복사 실패 — 문자 발송으로 전달해 주세요.", "error");
+        }
+      );
+      return;
+    }
+    setStatus("복사 실패 — 문자 발송으로 전달해 주세요.", "error");
+  }
+
+  function sendShareSms(shareId, token, orderId) {
+    setStatus("공유 링크 문자 발송 중…", "saving");
+    fetch("/api/share/send-sms/" + shareId, {
+      method: "POST",
+      credentials: "same-origin",
+      headers: { "Content-Type": "application/json" },
+      body: JSON.stringify({ token: token }),
+    })
+      .then(function (res) {
+        return res.json();
+      })
+      .then(function (body) {
+        if (!state || state.orderId !== orderId) return;
+        var sent = !!(body && body.success && body.data && body.data.sent);
+        if (sent) {
+          setStatus("공유 링크 문자 발송 완료", "saved");
+          return;
+        }
+        var code = (body && (body.error || (body.data && body.data.error))) || "network";
+        setStatus("문자 발송 실패 · " + shareReason(code), "error");
+      })
+      .catch(function () {
+        if (state && state.orderId === orderId) {
+          setStatus("문자 발송 실패 · " + shareReason("network"), "error");
+        }
+      });
+  }
+
+  function requestShare() {
+    if (!state) return;
+    var orderId = state.orderId;
+    if (!window.confirm("고객이 로그인 없이 볼 수 있는 도면 열람 링크를 발급할까요?\n(링크는 30일간 유효합니다)")) {
+      return;
+    }
+    setStatus("공유 링크 발급 중…", "saving");
+    fetch("/api/share/create/" + orderId, {
+      method: "POST",
+      credentials: "same-origin",
+      headers: { "Content-Type": "application/json" },
+      body: JSON.stringify({ kind: "drawing" }),
+    })
+      .then(function (res) {
+        return res.json();
+      })
+      .then(function (body) {
+        if (!state || state.orderId !== orderId) return;
+        if (!body || !body.success || !body.data) {
+          setStatus("공유 링크 발급 실패 · " + shareReason(body && body.error), "error");
+          return;
+        }
+        var d = body.data;
+        copyShareUrl(d.url);
+        // 문자는 발급 직후에만 가능(§1 — 토큰 원문은 이 응답에만 존재).
+        if (window.confirm("고객 휴대폰으로 링크를 문자로도 보낼까요?")) {
+          sendShareSms(d.share_id, d.token, orderId);
+        }
+      })
+      .catch(function () {
+        if (state && state.orderId === orderId) {
+          setStatus("공유 링크 발급 실패 · " + shareReason("network"), "error");
+        }
+      });
+  }
+
   function requestPush(pushKind) {
     if (!state || !isEditable()) return;
     var text = sliceConversionTextForChannelPush(buildConversionText());
@@ -2621,6 +2721,12 @@
     if (alimtalk) {
       ev.preventDefault();
       requestAlimtalk();
+      return;
+    }
+    var shareOpen = t.closest("[data-tmf-share-open]");
+    if (shareOpen) {
+      ev.preventDefault();
+      requestShare();
       return;
     }
 
