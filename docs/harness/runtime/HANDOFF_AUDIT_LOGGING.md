@@ -44,8 +44,9 @@ T1~T12 + 가독성 P4 A·B **운영 승격 완료**(2026-08-10, production `47f2
 
 ## 새 세션 재개 지점 (2026-08-10 저녁 기준)
 
-1. **감사 표 컬럼 폭 조절 운영 승격** — deploy `456864df`(CI 확인 후). 화면 표시만 바뀌고
-   DB 변경 0. 승격은 세션 커밋 cherry-pick + `gh pr create --base production`.
+1. ~~감사 표 컬럼 폭 조절 운영 승격~~ — **완료**(2026-08-11, PR #74, production `8d44c468`).
+   `456864df` 단독 cherry-pick, DB 변경 0. 운영 실화면 실증: 손잡이 6개(`/security_logs`)·
+   7개(`/admin/file-access-logs`), 첫 컬럼 143→249px 드래그·새로고침 유지·시간 칸 nowrap.
    구현: `static/js/admin/audit-table-columns.js`(opt-in `data-foms-resizable-table`) +
    `static/css/contexts/admin/audit-tables.css`, 계약 `tests/domains/test_admin_audit_table_columns.py`.
    **함정**: 공용 리사이저는 UMD 라 `window.ColumnResizer.default || window.ColumnResizer`
