@@ -3,6 +3,7 @@ from types import SimpleNamespace
 from models import Order
 
 import foms.services.order_date_sync as order_date_sync
+from foms.services.common.dashboard_cache import ALL_DASHBOARD_FAMILIES
 from foms.services.measurement_dates import extract_all_measurement_dates
 
 
@@ -171,7 +172,7 @@ def test_register_date_sync_listener_syncs_only_changed_orders(monkeypatch):
     assert sync_calls == [(order, session)]
 
 
-def test_date_sync_listener_invalidates_only_schedule_dashboards_on_real_change(monkeypatch):
+def test_date_sync_listener_invalidates_every_dashboard_on_real_change(monkeypatch):
     captured = {"listeners": {}}
     invalidated = []
 
@@ -198,4 +199,6 @@ def test_date_sync_listener_invalidates_only_schedule_dashboards_on_real_change(
     captured["listeners"]["before_flush"](session, None, None)
     captured["listeners"]["after_commit"](session)
 
-    assert invalidated == ["measurement", "shipment"]
+    # 날짜 변경은 실측·출고만의 축이 아니다: 시공일은 시공 숫자판·도면 SLA, 완료일은
+    # 완료(이력) 목록을 바꾼다. 좁게 잡아 두면 나머지 탭이 TTL(300초)만큼 stale 이었다.
+    assert invalidated == list(ALL_DASHBOARD_FAMILIES)

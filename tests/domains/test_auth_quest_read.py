@@ -78,6 +78,9 @@ def test_quest_get_never_creates_quest_or_commits(client, monkeypatch):
     order = _create_order(stage="RECEIVED")
     order_id = order.id
     original_mutation_version = order.mutation_version
+    # 주문 **생성** 커밋은 정당한 무효화다(MUT-CACHE-01 날짜 동기 훅). 이 테스트가 보는
+    # 것은 그 뒤 GET 이 write 분기를 타는지뿐이므로 여기서 계수기를 0으로 맞춘다.
+    invalidate_calls.clear()
 
     for _ in range(2):
         response = client.get(f"/api/orders/{order_id}/quest")

@@ -16,6 +16,7 @@ import logging
 import os
 import threading
 import time
+from collections.abc import Mapping
 from typing import Any, Callable, Final, TypeVar
 
 # AUDIT-LOG T1: 과거 이 자리에 있던 모듈 전용 stderr 핸들러(국소 우회)는 제거됐다.
@@ -154,6 +155,9 @@ __all__ = [
     "stage_code_to_dashboard_family",
     "invalidate_all_dashboard_slice_caches",
     "invalidate_dashboard_caches_after_delete_transition",
+    "dashboard_families_for_mutation_intent",
+    "register_dashboard_cache_invalidation_listener",
+    "MUTATION_CACHE_INTENT_KEY",
     "reset_dashboard_cache_runtime_for_tests",
     "ALL_DASHBOARD_FAMILIES",
     "ATTACHMENT_DASHBOARD_FAMILIES",
@@ -611,3 +615,76 @@ def invalidate_dashboard_caches_after_delete_transition(reason: str) -> int:
 
     invalidate_shipment_as_recommendation_cache(reason=reason)
     return total
+
+
+# --- canonical mutation 자동 무효화 (MUT-CACHE-01) --------------------------------
+# session.info 에 쌓는 intent 키. revision.execute_order_mutation 이 채우고,
+# after_commit 리스너가 소비(pop)한다. 커밋 실패/롤백 시 소비자가 돌지 않으므로
+# 무효화도 일어나지 않는다(정확한 시점 = commit 성공 직후).
+MUTATION_CACHE_INTENT_KEY: Final[str] = "foms_dashcache_mutation_intent"
+
+
+def dashboard_families_for_mutation_intent(intent: Mapping[str, Any]) -> tuple[str, ...]:
+    """mutation intent → 무효화할 dashboard family 튜플.
+
+    intent 형태: ``{"broad": bool, "stages": [stage_code|None, ...]}``.
+
+    규칙(과소무효화보다 과무효화가 안전):
+      * ``broad`` 표식(삭제/복원 등 전 탭 전이) → 전체 family.
+      * 단계가 **바뀐** mutation 인데 before/after 중 매핑 없는 stage가 있으면 → 전체
+        (어느 탭으로 갔는지 모르면 stale 이 최악).
+      * 그 외 → ``orders`` + 관련된 stage family.
+
+    Args:
+        intent: ``execute_order_mutation`` 이 session.info 에 쌓은 intent.
+
+    Returns:
+        무효화 대상 family 튜플(중복 제거, 정의 순서 유지).
+    """
+    if intent.get("broad"):
+        return ALL_DASHBOARD_FAMILIES
+    stages = list(intent.get("stages") or [])
+    mapped = {stage_code_to_dashboard_family(s) for s in stages}
+    changed = len({(s or "") for s in stages}) > 1
+    if changed and None in mapped:
+        return ALL_DASHBOARD_FAMILIES
+    families = {DASHBOARD_FAMILY_ORDERS} | {m for m in mapped if m}
+    return tuple(f for f in ALL_DASHBOARD_FAMILIES if f in families)
+
+
+def register_dashboard_cache_invalidation_listener() -> None:
+    """canonical order mutation commit 직후 dashboard 캐시를 자동 무효화하도록 배선한다.
+
+    MUT-CACHE-01: 지금까지는 라우트마다 손으로 ``invalidate_*`` 를 호출해야 했고, 빠뜨리면
+    삭제/단계 이동이 최대 TTL(300초)만큼 숫자판에 남았다(2026-08-10 운영 사고 #4717,
+    단계 강제 변경 스테이징 재현 310초). ``revision.execute_order_mutation`` 이 남긴
+    intent 를 ``after_commit`` 에서 소비하므로, 엔진을 경유하는 **모든** 경로가 경로별
+    배선 없이 커버된다.
+
+    ``after_soft_rollback`` 에서 intent 를 폐기해 롤백된 트랜잭션의 의도가 다음
+    트랜잭션으로 새지 않게 한다.
+    """
+    from sqlalchemy import event
+    from sqlalchemy.orm import Session
+
+    @event.listens_for(Session, "after_commit")
+    def _dashcache_after_order_mutation(session):  # pragma: no cover - 배선은 통합 테스트로 검증
+        intent = session.info.pop(MUTATION_CACHE_INTENT_KEY, None)
+        if not intent:
+            return
+        try:
+            families = dashboard_families_for_mutation_intent(intent)
+            invalidate_dashboard_families(*families)
+            if intent.get("broad"):
+                from foms.services.shipment_as_recommendation_cache import (
+                    invalidate_shipment_as_recommendation_cache,
+                )
+
+                invalidate_shipment_as_recommendation_cache(reason="order_mutation")
+        except Exception:
+            # fail-open: 캐시 무효화 실패가 이미 커밋된 업무 변경을 되돌릴 수는 없다.
+            logger.warning("[DashCache] mutation invalidate failed", exc_info=True)
+
+    @event.listens_for(Session, "after_soft_rollback")
+    def _dashcache_drop_intent(session, previous_transaction):  # pragma: no cover
+        session.info.pop(MUTATION_CACHE_INTENT_KEY, None)

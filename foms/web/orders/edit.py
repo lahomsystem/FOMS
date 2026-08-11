@@ -265,6 +265,20 @@ def edit_order(order_id):
                     setattr(order, f, f in request.form)
             db.commit()
 
+            # MUT-CACHE-01: 이 폼 저장은 canonical mutation 엔진을 경유하지 않으므로
+            # after_commit 자동 무효화가 걸리지 않는다. 상태·일정·완료일을 한 번에 바꾸는
+            # 경로라 어느 탭 숫자판이든 흔들 수 있어 broad 로 비운다(저빈도 경로).
+            try:
+                from foms.services.common.dashboard_cache import (
+                    invalidate_dashboard_caches_after_delete_transition,
+                )
+
+                invalidate_dashboard_caches_after_delete_transition("order_edit_form")
+            except Exception:
+                current_app.logger.warning(
+                    "post order edit dashboard cache invalidate failed", exc_info=True
+                )
+
             if 'address' in changes or site_address_jsonb_changed:
                 enqueue_geocode_order_address(order_id)
 
