@@ -1,0 +1,25 @@
+<!-- 알림톡 수동 발송 확인: 서버 렌더 본문 read-only 미리보기 (PC modal / mobile bottom-sheet) -->
+<div class="modal fade erp-channel-push-resend-modal" id="erpAlimtalkModal" tabindex="-1"
+    aria-labelledby="erp-alimtalk-title" aria-hidden="true">
+    <div class="modal-dialog modal-dialog-scrollable">
+        <div class="modal-content">
+            <div class="modal-header">
+                <h5 class="modal-title" id="erp-alimtalk-title">알림톡 발송 확인</h5>
+                <button type="button" class="btn-close" data-bs-dismiss="modal" aria-label="닫기"></button>
+            </div>
+            <div class="modal-body">
+                <div class="alert alert-warning py-2 px-2 mb-2 small d-none" id="erp-alimtalk-notice" role="alert"></div>
+                <div class="small text-muted mb-2 d-none" id="erp-alimtalk-last"></div>
+                <pre class="erp-alimtalk-preview" id="erp-alimtalk-preview" aria-label="알림톡 본문 미리보기"></pre>
+                <div class="form-text">서버에 저장된 주문 내용으로 만든 본문입니다. 이 화면에서는 수정할 수 없습니다.</div>
+            </div>
+            <div class="modal-footer">
+                <button type="button" class="btn btn-secondary" data-bs-dismiss="modal"
+                    data-erp-alimtalk-cancel>취소</button>
+                <button type="button" class="btn btn-primary" id="erp-alimtalk-confirm-btn">
+                    <i class="fas fa-paper-plane"></i> 발송
+                </button>
+            </div>
+        </div>
+    </div>
+</div>

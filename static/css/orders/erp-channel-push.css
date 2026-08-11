@@ -67,3 +67,19 @@
 .erp-mobile-push-btn--pastel:hover {
   background: color-mix(in srgb, var(--foms-color-info-500, #3b82f6) 16%, #fff);
 }
+
+/* 알림톡 미리보기: 서버 렌더 본문 read-only 표시(줄바꿈 보존 + 긴 줄 접기). */
+.erp-alimtalk-preview {
+  margin: 0;
+  padding: 0.75rem;
+  max-height: 22rem;
+  overflow-y: auto;
+  white-space: pre-wrap;
+  word-break: break-word;
+  font-family: inherit;
+  font-size: 0.875rem;
+  line-height: 1.6;
+  background: var(--foms-surface-muted, #f8f9fa);
+  border: 1px solid var(--foms-border-subtle, #dee2e6);
+  border-radius: 0.5rem;
+}
