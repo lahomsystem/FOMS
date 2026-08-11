@@ -96,6 +96,7 @@ _PTC_FOMS_SERVICES_COMMON_ALLOWLIST: frozenset[str] = frozenset(
         "erp_navigation_contract.py",
         "erp_shell_http.py",
         "geocode_config.py",
+        "html_whitespace.py",
         "map_generator.py",
     }
 )

@@ -23,6 +23,7 @@ from .realtime import init_realtime_bootstrap
 from .sentry_setup import init_sentry
 from .request_limits import FomsRequest, GLOBAL_BODY_CAP, register_request_limits
 
+from foms.services.common.html_whitespace import install_html_indentation_trimmer
 from foms.services.context_processors import register_context_processors
 from foms.services.rate_limit import init_limiter
 from foms.services.request_write_guard import register_write_guard
@@ -174,6 +175,9 @@ def build_app(*, socketio_available: bool) -> AppFactoryResult:
     # 퇴화하므로 명시 고정한다.
     app.config["COMPRESS_EVALUATE_CONDITIONAL_REQUEST"] = True
     Compress(app)
+    # HTML 줄 앞 들여쓰기 제거 — Flask 는 after_request 를 등록 역순으로 돌리므로
+    # Compress 뒤에 등록해야 "트림 → 압축" 순서가 된다(압축 대상이 이미 줄어든다).
+    install_html_indentation_trimmer(app)
 
     is_production = (
         os.environ.get("FLASK_ENV") == "production"
