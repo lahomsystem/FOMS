@@ -14,7 +14,9 @@ _CONTRACT_DOC = _REPO_ROOT / "docs" / "harness" / "policy" / "order-detail-2phas
 _PRODUCTION_BODY = _REPO_ROOT / "templates" / "production" / "partials" / "dashboard_body.html"
 _CONSTRUCTION_BODY = _REPO_ROOT / "templates" / "construction" / "partials" / "dashboard_body.html"
 _PRODUCTION_SCRIPTS = _REPO_ROOT / "templates" / "production" / "partials" / "scripts.html"
-_CONSTRUCTION_SCRIPTS = _REPO_ROOT / "templates" / "construction" / "partials" / "scripts.html"
+# 시공 스크립트는 2026-08-11 외부 .js 로 분리됐다(프래그먼트 전송량 감축).
+# 계약은 코드가 있는 곳을 봐야 하므로 경로를 정적 파일로 옮긴다.
+_CONSTRUCTION_SCRIPTS = _REPO_ROOT / "static" / "js" / "construction" / "dashboard.js"
 
 
 def test_dashboard_scripts_load_fragment_module_before_detail_dom() -> None:

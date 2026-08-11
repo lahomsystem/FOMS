@@ -460,7 +460,7 @@ def test_p1_fragment_scripts_are_redeclaration_safe() -> None:
     """ERP shell fragment scripts may run more than once; top-level labels/state must not use lexical declarations."""
     for rel in (
         "templates/production/partials/scripts.html",
-        "templates/construction/partials/scripts.html",
+        "static/js/construction/dashboard.js",  # 2026-08-11 외부 .js 분리(재실행 계약 동일)
     ):
         src = (ROOT / rel).read_text(encoding="utf-8")
         for forbidden in (
