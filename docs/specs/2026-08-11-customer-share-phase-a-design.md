@@ -1,57 +1,63 @@
-# 고객 공유 채널 Phase A — 확정 설계 (v2)
+# 고객 공유 채널 Phase A — 확정 설계 (v3, 사용자 결정 반영 최종)
 
-> 상태: REVIEWED — 3-agent 교차검수(반증 HIGH4·MED6·LOW3 / 단순화 / 사실검증 5항목) 전량 반영. CEO 리뷰·사용자 승인 대기.
-> v1 대비: **범위 = 도면 공유만**(견적서 v1.1로 연기), 문자 발송 삭제, flat 모듈, sendDefault, 보안 3건 보강.
+> 상태: USER-DECIDED — 3-agent 교차검수(v2) 후 사용자 상세 결정 8건 반영. 플랜 작성 대기.
+> 사용자 결정(2026-08-11): **풀스코프 v1**(도면+견적서+문자+태블릿, 리뷰 권고안 축소를 전부 기각) + 도면 먼저 단계 배포.
 
-## 1. 목표 (v1)
+## 1. 목표·범위 (v1 확정)
 
-영업·CS가 고객에게 **도면을 로그인 없이 열람 가능한 링크**로 전달. 전달 = ① 링크 복사(채널톡 상담창 포함 어디든) ② 영업 본인 카톡 공유(Kakao.Share sendDefault — 개인 명의).
+고객에게 로그인 없는 열람 링크로 도면·견적서 전달. 전달 수단: ① 링크 복사 ② 영업 본인 카톡 공유(sendDefault) ③ 문자(자동 폴백 발신). 표면: PC·모바일·**태블릿 실측 폼 포함**.
+**배포는 단계**: Stage-1 도면(빠름, 기존 부품 재사용) 먼저 스테이징→검증, Stage-2 견적서·문자·태블릿 순차 후속. 범위는 전부 v1.
 
-## 2. 리뷰 반영 핵심 결정
+## 2. 사용자 확정 결정
 
-| # | 결정 | 근거 |
-|---|---|---|
-| R1 | **견적서 열람 = v1.1 연기** | 도면=기존 부품 3종 재사용(미사용 갤러리 partial 25줄·lightbox.js·`_collect_preview_items`)으로 거의 공짜 vs 견적서=estimate-preview.js 1,475줄 IIFE hoist 리팩터+가격 화이트리스트 정책 미결. 채널톡 push-estimate는 내부 그룹용이라 중복 아님 — 연기지 폐기 아님 |
-| R2 | **문자(send-sms) 삭제** | `User.phone` 컬럼 부재(models.py:929-967 확인) — 마이그레이션+관리UI+전원 발신번호 온보딩(재직증명) 전부 유발. 카톡 공유·링크 복사도 동일하게 개인 경로라 문자만 추적하는 일관성 없음. 필요 시 ~10줄로 후일 추가 |
-| R3 | **flat 모듈** — `foms/api/share.py`(Blueprint 2개: 비로그인 `/s` + 직원 `/api/share`), 템플릿은 `templates/orders/` | 닫힌집합 게이트 3종(namespace_surface_tests :2229·:2247·:2263)이 디렉토리만 열거 — flat이면 계약 테스트 수정 0 (선례 foms/api/address.py) |
-| R4 | **sendCustom → sendDefault(feed)** | 콘솔 템플릿 제작·template_id env·드리프트 제거. 도메인 등록 요건은 동일(사실검증 확인). 버튼 최대 2개. 문구 수정=배포 트레이드오프 수용 |
-| R5 | `kind` 컬럼 제거 (v1 도면 전용, v1.1에서 추가) | 단순화 |
+| # | 결정 |
+|---|---|
+| D1 | v1 = 도면+**견적서 포함** (v1.1 연기안 기각) |
+| D2 | 문자 = **회사 대표번호 + 개인 번호(필요 인원만)** 하이브리드. 발신 선택 = **자동 폴백**(본인 번호 등록 시 개인 명의, 미등록 시 `SOLAPI_SENDER_PHONE`) |
+| D3 | 토큰 만료 **30일** (env `FOMS_SHARE_TOKEN_DAYS=30`) |
+| D4 | **태블릿 실측 폼에도 공유 버튼** (+별도 구현 ~100줄, tablet-measure-form.js 패턴) |
+| D5 | 견적 노출: **계좌 = 해당 브랜드 것만**(발주사 판정 재사용, 타 법인 계좌 차단) + **할인액 표시** + **담당자 연락처 표시** + **예약금/잔금 표시**. 내부 공장 정보(factory2 등)·타 브랜드 정보는 차단 — 화이트리스트 렌더 |
+| D6 | 견적 기준 = **발송 시점 스냅샷 고정** (링크 생성 시 렌더 데이터 동결 저장, 수정 시 재발급) |
+| D7 | 배포 = 도면 먼저 단계 배포 |
+| D8 | (v2 계승) sendDefault(feed)·flat 모듈·30일 외 v2 보안 결정 전부 유지 |
 
 ## 3. 아키텍처
 
-### 3.1 토큰 (신규 테이블 — 무상태 서명으로 대체 불가: revoke·열람 카운트 요건)
-`order_share_tokens`: id, order_id(FK), token_hash(UNIQUE, sha256 — 원문 미저장), created_by_user_id, expires_at(기본 14일, env `FOMS_SHARE_TOKEN_DAYS`), revoked_at, created_at(now_utc_naive), view_count, last_viewed_at. 토큰 원문 = `secrets.token_urlsafe(32)`(256bit — **실질 방어선**). models.py + alembic 마이그레이션 이름 동일(migration_chain 게이트), **worktree에서 alembic 실행 금지 — 파일만**.
+### 3.1 토큰·스냅샷
+- `order_share_tokens`: id, order_id(FK), **kind('drawing'|'estimate')**, token_hash(UNIQUE sha256), created_by_user_id, expires_at(+30d), revoked_at, created_at(now_utc_naive), view_count, last_viewed_at, **snapshot(JSONB, nullable — estimate만 사용, D6)**.
+- estimate 링크 생성 시: 화이트리스트 필터 통과한 렌더 데이터를 snapshot에 동결 저장 → 열람은 스냅샷만 렌더(라이브 재조회 없음). drawing은 snapshot 없이 라이브 수집(도면 자체가 전달 확정본).
+- 토큰 원문 `secrets.token_urlsafe(32)` — 실질 방어선. models.py+alembic 이름 동일(migration_chain), worktree에서 alembic 실행 금지(파일만).
 
-### 3.2 열람 `GET /s/<token>` (비로그인)
-- 검증: 해시 대조→만료→회수. 실패 = 기존 `templates/channel/wam_error.html` 재사용(존재 계약 테스트 있음), 410/404.
-- **도면 수집 = DB 행 스코프 우선**: `OrderAttachment(order_id, category='drawing')` + sd `drawing_current_files`는 **`_is_drawing_key(order_id, key)` allow-list**(drawing_transfer.py:83 — order_id 포함 프리픽스)로만 통과. deny-list(`/attachments/`) 단독 사용 금지 — **주문 격리 안 됨(반증 HIGH-3)**. 렌더 = `drawing_mobile_v2_gallery.html`(25줄 미사용 부품) + `lightbox.js`.
-- 파일 URL = `storage.get_download_url(key, expires_in=300)` (presigned, WAM 선례 channel_wam_attachments.py:178). **fail-closed: storage_type이 r2/s3 아니면 파일 링크 발급 거부**(로컬 `/static/uploads` 무서명 폴백 차단 — storage.py:392).
-- 응답 헤더: `X-Robots-Tag: noindex, nofollow` + `Referrer-Policy: no-referrer`(토큰 Referer 유출 차단). 외부 리소스 로드 최소화.
-- 열람 기록: view_count·last_viewed_at UPDATE + `access_logs` `FILE_VIEW`(share_id 기준, 고객 PII 없음 — AUDIT-LOG T6 취지, 반증 MED-1). rate limit은 **보조**(fail-open 규약 인지 — Redis 다운 시 토큰 엔트로피가 방어).
-- 주문 상태 필터: `Order.active_filter()` + draft 제외 (반증 MED-2 계열 — 삭제·draft 주문 링크 차단).
+### 3.2 열람 `GET /s/<token>` (비로그인, flat `foms/api/share.py` 내 별도 Blueprint)
+- 검증: 해시→만료→회수→`Order.active_filter()`+draft 제외. 실패 = wam_error.html 재사용(410/404).
+- **drawing**: `OrderAttachment(order_id, category='drawing')` + sd `drawing_current_files`는 `_is_drawing_key(order_id, key)` allow-list만 통과(주문 격리 — deny-list 단독 금지). 렌더 = drawing_mobile_v2_gallery.html(25줄)+lightbox.js. 파일 URL = `get_download_url(key, expires_in=300)` presigned, **storage r2/s3 아니면 fail-closed**.
+- **estimate**: snapshot 렌더 전용 신규 템플릿(templates/orders/ 배치, estimate_pane.html 마크업 발췌·모바일 우선). 화이트리스트(D5): 품목·규격·수량·금액·할인액·합계·예약금·잔금·해당 브랜드 계좌·담당자 이름/연락처·고객센터. 차단: 타 브랜드 계좌·factory2·내부 라우팅 필드.
+- 헤더: `X-Robots-Tag: noindex, nofollow` + `Referrer-Policy: no-referrer`. 열람 기록 = count·last_viewed_at + access_logs FILE_VIEW(share_id, PII 무). rate limit 보조(fail-open 인지).
 
-### 3.3 직원 API (`/api/share`, 같은 flat 모듈)
-- `POST /api/share/create/<order_id>` — 토큰 발급, URL 반환. `role_required(['ADMIN','MANAGER','STAFF'])`. 감사 `log_access(SHARE_LINK_CREATED)` + `ACTION_LABELS` 등재(하드 계약 — test_admin_audit_screen_readability_3).
-- `POST /api/share/revoke/<share_id>` — 회수. `SHARE_LINK_REVOKED` + 라벨.
-- manifest: write_guard 2행 + auth-policy(POLICY_REGISTRY 신규 policy_id 또는 STAFF_MUTATION 선례 — 구현 시 test_auth_enforcement.py:125 규약 확인) + audit coverage 재생성. `GET /s/`는 3종 게이트 전부 범위 밖(실측 확인).
+### 3.3 직원 API (`/api/share/*`)
+- `POST create/<order_id>` (body: kind) / `POST revoke/<share_id>` / `POST send-sms/<share_id>`.
+- 권한 `role_required(['ADMIN','MANAGER','STAFF'])`. manifest 3종(write_guard·auth-policy·audit) 등재 + `log_access` 3종(`SHARE_LINK_CREATED`/`SHARE_LINK_REVOKED`/`SHARE_SMS_SENT`) + `ACTION_LABELS` 등재.
+- **send-sms (D2)**: `User.sender_phone` 컬럼 신설(nullable, 마이그레이션) + 관리자 편집 UI(기존 /admin/users 표면에 필드 추가). 발신 = sender_phone 있으면 그것(솔라피 등록 전제 — 벤더 오류 표면화 "발신번호 미등록"), 없으면 `SOLAPI_SENDER_PHONE` 폴백. 본문 = 고정 문구+공유 URL(자사 도메인 그대로 — **단축 URL 금지**, `[Web 발신]` 강제 표기 전제 문구 설계). LMS 발송 = 신규 `_solapi_send_text`(kakao_alimtalk의 `_env`·`_classify_error`·`_mask_phone` 재사용, KakaoOption 없음). **멱등: OrderEvent 앵커 + `enqueue_side_effect(effect_type='SHARE_SMS', dedupe_key=share_id+uuid아님—더블클릭 방지용 클라 버튼 잠금+서버 5초 중복 억제)** — 정확 규칙은 플랜 단계 확정(반증 HIGH-4).
 
 ### 3.4 공유 UI
-- 주문 상세 공유 모달: [링크 복사] [카톡 공유] 2버튼. 알림톡 T5 패턴 — 단 실측 반영: PC·모바일 = 공용 partial+JS, **태블릿은 tablet-measure-form.js 별도 구현(+~100줄) — v1은 PC·모바일만, 태블릿은 사용자 확인 후**(그 표면이 실측 폼이라 공유 버튼 필요성 불명 — 반증 MED-4).
-- 카톡 공유: `Kakao.Share.sendDefault({objectType:'feed', content:{title,description,imageUrl,link}, buttons:[≤2]})` — SDK lazy 로드(모달 열 때), 기존 지도 lazy 패턴. **앱 키: 지도 앱과 동일 앱인지 확인 필요(§5) — 같으면 쿼터 공유(일 30,000건, 실사용 대비 무해)**.
-- 기존 파일 수정 시 `?v=` 범프 + 핀 전수 규약.
+- 주문 상세 공유 모달(PC·모바일 공용 partial+JS, 알림톡 T5 패턴): [링크 복사] [카톡 공유] [문자 발송] + kind 선택(도면/견적서) + 최근 발급 링크 목록·revoke 버튼(만료·회수 가시성 — bearer 통제).
+- 태블릿(D4): tablet-measure-form.js 자체 구현(+~100줄, 알림톡 선례 미러 주석 규약).
+- 카톡: `Kakao.Share.sendDefault(feed)` — SDK lazy 로드, 버튼≤2. 기존 JS 수정 시 ?v 범프+핀 전수.
 
 ### 3.5 검증
-- pytest: 토큰 수명주기·열람(비로그인·만료 410·회수·타 주문 파일 격리·draft/삭제 주문 차단·fail-closed 스토리지)·create/revoke(권한·manifest·감사)·헤더 2종.
-- 게이트: write_guard·auth_enforcement·audit_coverage(재생성)·namespace(수정 0 확인)·migration_chain.
-- 스테이징 E2E: 링크 생성→시크릿 창 열람→lightbox→만료 조작 410→revoke 즉시 차단, 카톡 공유 실기기 1회.
+- pytest: 토큰 수명주기·열람 격리(타 주문·draft·삭제·만료·회수·fail-closed)·견적 화이트리스트(타 브랜드 계좌 부재 assert)·스냅샷 동결(주문 수정 후 렌더 불변)·send-sms 폴백/멱등·manifest·감사 라벨·헤더.
+- 게이트: write_guard·auth_enforcement·audit_coverage 재생성·namespace(수정 0)·migration_chain.
+- 스테이징 E2E(Stage별): 링크 생성→시크릿 창→lightbox→만료 410→revoke 즉시 차단 / 견적 스냅샷 불변 / 문자 3사 실수신(개인·회사 폴백 각 1회) / 카톡 공유 실기기.
 
 ## 4. v1 제외 (백로그)
-견적서 열람(v1.1 — estimate_pane 816줄 재사용 리팩터+가격 화이트리스트 정책 결정 선행) / 문자 발송(~10줄, 발신번호 온보딩 후) / 태블릿 표면 / 계약서(기능 자체 부재 — "계약서" 정의 확인 필요: OrderEstimate docstring이 "견적서(계약서)"로 표기, 반증 MED-3) / 결제링크(Phase C — 이니시스 확인 대기) / 열람 통계 대시보드 / 고객 본인확인.
+계약서(기능 부재 — "계약서" 정의 확인 필요: OrderEstimate docstring "견적서(계약서)" 혼용) / 결제링크(Phase C — 이니시스 링크페이 계약 확인 대기) / 열람 통계 대시보드 / 고객 본인확인.
 
-## 5. 사용자 준비 액션 (1건로 축소)
-1. **카카오 개발자 앱**: FOMS 스테이징·운영 도메인을 [JavaScript SDK 도메인] + [제품 링크 관리 > 웹 도메인]에 등록, [카카오링크/메시지] 기능 활성. **지도용 앱(JS 키 geocode_config)과 같은 앱인지 회신** — 다르면 Share용 앱 키 별도 전달.
+## 5. 사용자 준비 액션
+1. 카카오 개발자 앱: 도메인 2종 등록([JS SDK 도메인]+[제품 링크 관리]) + 지도 앱과 동일 앱 여부 회신 (쿼터 일 30,000건 공유 — 실사용 무해)
+2. 문자 쓰는 영업 인원: Solapi 발신번호 등록(본인인증+재직증명서) → 등록 번호 목록 전달 (관리자 UI에 입력)
 
 ## 6. 잔여 리스크
-- bearer-link 성격(2026-03 채널톡 플랜 :400에서 기제기) — 통제 = 14일 만료+revoke UI 가시성+256bit. 만료 기간은 사용자 조정 가능.
-- 견적서 라이브 vs `OrderEstimate` 스냅샷 논점(반증 MED-3)은 v1.1 결정 사항으로 이월.
-- law.go.kr 안전조치 기준 §6③ 원문은 교차 일치 확보(직접 fetch 실패) — 인용 시 재확인.
+- bearer 링크 30일(사용자 선택 — 통제: revoke UI 가시성+256bit+noindex/no-referrer). 
+- 견적 스냅샷 JSONB 크기(품목 다수) — 64KB 캡 검토(플랜 단계).
+- send-sms 멱등 정확 규칙 플랜 단계 확정.
+- law.go.kr 안전조치 기준 원문 재확인 항목 유지.
