@@ -274,6 +274,50 @@ def api_share_create(order_id: int):
     }, None)
 
 
+@share_api_bp.route('/list/<int:order_id>', methods=['GET'])
+@login_required
+@role_required(_SHARE_ROLES)
+def api_share_list(order_id: int):
+    """주문의 발급 이력(메타만) — URL·토큰·해시는 절대 포함하지 않는다.
+
+    해시-온리 저장이라 과거 링크의 URL 재표시는 원천 불가하다(플랜 §1) — UI 는
+    "회수 후 재발급" 을 유도한다. 최신순 20건.
+
+    Args:
+        order_id: 대상 주문 id (URL).
+
+    Returns:
+        ``data = {'items': [{share_id, kind, status, created_at, expires_at,
+        view_count, last_viewed_at}]}``. status = active|expired|revoked.
+    """
+    rows = (
+        db_session.query(OrderShareToken)
+        .filter(OrderShareToken.order_id == order_id)
+        .order_by(OrderShareToken.id.desc())
+        .limit(20)
+        .all()
+    )
+    now = share_service.now_utc_naive()
+    items = []
+    for row in rows:
+        if row.revoked_at is not None:
+            status = 'revoked'
+        elif row.expires_at <= now:
+            status = 'expired'
+        else:
+            status = 'active'
+        items.append({
+            'share_id': row.id,
+            'kind': row.kind,
+            'status': status,
+            'created_at': row.created_at.isoformat() if row.created_at else None,
+            'expires_at': row.expires_at.isoformat() if row.expires_at else None,
+            'view_count': row.view_count or 0,
+            'last_viewed_at': row.last_viewed_at.isoformat() if row.last_viewed_at else None,
+        })
+    return _envelope({'items': items}, None)
+
+
 @share_api_bp.route('/revoke/<int:share_id>', methods=['POST'])
 @login_required
 @role_required(_SHARE_ROLES)

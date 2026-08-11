@@ -145,6 +145,36 @@ def test_create_viewer_role_redirects(client, db):
     assert resp.status_code == 302
 
 
+# --- list -----------------------------------------------------------------------
+
+
+def test_list_returns_meta_only_no_bearer(client, db):
+    """목록엔 URL·토큰·해시가 절대 없다 — 해시-온리 저장이라 재표시 자체가 불가."""
+    order_id = _mk_order().id
+    _login(client, 'staff11')
+    active, _ = osvc.create_share_token(db_session, order_id, 'drawing')
+    expired, _ = osvc.create_share_token(db_session, order_id, 'drawing')
+    expired.expires_at = now_utc_naive() - datetime.timedelta(days=1)
+    revoked, _ = osvc.create_share_token(db_session, order_id, 'drawing')
+    osvc.revoke_token(revoked)
+    db_session.commit()
+    expected = {active.id: 'active', expired.id: 'expired', revoked.id: 'revoked'}
+
+    resp = client.get(f'/api/share/list/{order_id}')
+    assert resp.status_code == 200
+    items = resp.get_json()['data']['items']
+    assert {i['share_id']: i['status'] for i in items} == expected
+    for item in items:
+        assert 'token' not in item
+        assert 'url' not in item
+        assert 'token_hash' not in item
+
+
+def test_list_requires_login(client, db):
+    order_id = _mk_order().id
+    assert client.get(f'/api/share/list/{order_id}').status_code == 302
+
+
 # --- revoke ---------------------------------------------------------------------
 
 

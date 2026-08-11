@@ -12,7 +12,7 @@
 | T1 | 토큰 모델·마이그레이션·서비스 코어 (파일럿) | `pytest tests/domains/test_order_share_service.py tests/domains/test_alembic_single_head.py -q` PASS + APP_OK | DONE | 073b89b3 | 14 passed. head=seclog_time_00 뒤 단일 연결. 지문 정합 위해 양쪽 server_default 無, snapshot=JSON+JSONB variant |
 | T2 | 비로그인 열람 `GET /s/<token>` (drawing) | `pytest tests/domains/test_order_share_view.py -q` PASS(격리·410·fail-closed 503 표면·헤더·FILE_VIEW 1행) + APP_OK | DONE | 84319e30 | 12 passed + namespace 게이트 358 passed. presign 전멸=503, onerror 새로고침 안내 |
 | T3 | 직원 API create/revoke + manifest·감사 | `pytest tests/domains/test_order_share_api.py tests/domains/test_write_guard.py tests/domains/test_auth_enforcement.py -q` PASS + audit 인벤토리 재생성 + APP_OK | DONE | 93b0e142 | 49 passed + audit 게이트 11 passed(coverage 100%). 감사에 토큰·URL 미격납 assert |
-| T4 | 공유 UI 모달 (PC·모바일) + list API | 계약 테스트 PASS + browse 2뷰포트 스모크(모달·복사·목록) + APP_OK | PENDING | | baa0fee8 패턴 미러, 견적서 옵션 비활성, URL은 발급 직후 1회만 |
+| T4 | 공유 UI 모달 (PC·모바일) + list API | 계약 테스트 PASS + browse 2뷰포트 스모크(모달·복사·목록) + APP_OK | DONE | (커밋 직후 기입) | 110 passed(계약+게이트). browse 스모크는 T5 통합 실행(알림톡 T5 선례). 카톡 키=지도 앱 키 fallback+env 오버라이드 |
 | T5 | Stage-1 통합 검증·스테이징 배포 | pre_push_smoke exit 0 + `gh run list` 전 워크플로 green + E2E 기록 | PENDING | | 카톡 실공유는 도메인 등록 후(미완=BLOCKED 기록 후 전진) |
 
 ## Stage-2 — 견적서·문자·태블릿

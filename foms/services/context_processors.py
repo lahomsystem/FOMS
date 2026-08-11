@@ -3,6 +3,7 @@
 from __future__ import annotations
 
 import json
+import os
 import time
 from collections import namedtuple
 from typing import Any
@@ -21,6 +22,7 @@ from foms.services.feature_flags import (
 from foms.services.datetime_kst import format_datetime_kst
 from foms.services.dashboard_counts import get_nav_badge_counts
 from foms.services.common.erp_mine_filter import erp_mine_only_from_request
+from foms.services.common.geocode_config import KAKAO_JS_API_KEY
 from foms.web.auth import ROLES
 from foms.services.orders.status_constants import BULK_ACTION_STATUS, STATUS
 from foms.persistence.main.db import get_db
@@ -248,6 +250,11 @@ def inject_foms_flags() -> dict[str, Any]:
         "flag_rum_baseline": env_bool("FOMS_RUM_BASELINE_ENABLED", True),
         "flag_offline_sw": env_bool("FOMS_OFFLINE_SW_ENABLED"),
         "flag_bottom_nav_htmx": env_bool("FOMS_BOTTOM_NAV_HTMX_ENABLED"),
+        # 고객 공유 모달 카톡 공유(Kakao JS SDK v2) 키. 공유 전용 앱을 분리하면
+        # KAKAO_SHARE_JS_KEY 로 덮어쓰고, 기본은 지도와 같은 앱 키(스펙 §5 사용자
+        # 확인 대기 — 도메인 등록 전에는 SDK init 이 실패하고 버튼이 비활성으로 표면화).
+        "foms_kakao_share_js_key": os.environ.get("KAKAO_SHARE_JS_KEY", "")
+        or KAKAO_JS_API_KEY,
     }
 
 
