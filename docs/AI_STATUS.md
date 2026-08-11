@@ -8,6 +8,7 @@ Flask 2.3 + PostgreSQL + R2 + Railway (Web×2, Worker×1)
 브랜치: deploy (스테이징) → production (운영)
 
 ## 진행 중
+- [2026-08-10] **주문 삭제 즉시 반영 production 승격(PR #72 `76b9086c`)** — 삭제 경로 3곳에 대시보드 캐시 무효화가 없어 실측 집계가 300초 stale(운영 #4717). **신규 mutation 경로엔 캐시 무효화 동반이 계약**(테스트 6종 고정).
 - [2026-08-10] **실측 동선 ROUTE-02 deploy 완료(CI 4/4 green, `5e84a440`+`b0552a3f`)** — 운영 재현으로 원인 3개 확정: ① ERP 주문은 `orders.measurement_time` 컬럼이 전부 NULL(실시각=`structured_data.schedule.measurement.time`)이라 SQL 정렬이 사실상 접수순(id) ② 인라인 빌더 limit 20 고정(실측 22곳/동선 20곳) ③ 좌표 없는 건 무표시 제외(운영 `lat IS NULL` 217건 = 미시도 182·failed 34). 수정=방문시각 파서 SSOT(`foms/services/measurement_time.py`)로 동선·히어로·카운트다운 통일, 상한 60+제외 건수 캡션, `open_map` 리다이렉트를 라우트 최상단으로. 잔여=**production 승격 승인 + 좌표 백필 실행**(`tools/ops/backfill_geocode_missing.py`).
 - [2026-08-10] **감사 표 컬럼 폭 조절 deploy 반영(`456864df`) — 운영 승격 대기.** 헤더 경계 드래그 + localStorage 폭 기억(표별), 보안 로그·파일 열람 두 화면. 실브라우저 실증(손잡이 6개·143→249px·새로고침 유지). 함정: 공용 ColumnResizer 는 UMD 라 `window.ColumnResizer.default` fallback 없으면 **에러 없이 조용히 미부착**.
 - [2026-08-10] **Sentry 운영 전환 완료** — DSN 을 dev→production 으로 이동(운영만 감시). 운영 로그 `Sentry initialized environment=production` 확인, dev 는 no-op. 잔여=Sentry 알림 규칙에 `environment:production` 필터·기존 staging 이슈 정리(사용자).
@@ -18,8 +19,6 @@ Flask 2.3 + PostgreSQL + R2 + Railway (Web×2, Worker×1)
 - [2026-08-01] **하네스 함정** — `ci_watch.py`는 워크플로 1개만 본다(7개 존재). 판정은 `gh run list --branch <b>`로 전수 나열. SQLite 레인은 FK 미강제 → FK 수정은 PG 레인 필수. PG 레인은 `create_all` 기반이라 마이그레이션 체인 미검증. CI에 Redis 없음.
 - 위 3건 상세·후속 목록·결재 기록: `docs/plans/2026-07-31-full-promotion-prep-ledger.md`
 - ⚠️ **미결: `as-delete-reapply`의 `8c1ef69a`**(삭제 라우트 WRITE-GUARD-01 manifest 등재) deploy 미반영. worktree 정리 중 발견, 타 세션 몫이라 미처리. 브랜치 ref 보존됨.
-- [2026-04-17] **ERP fast-page `EPT-B8`:** run record `docs/plans/2026-04-17-ept-b8-verification-railway-evidence-run-record.md` — 로컬 게이트 완료; staging HTTP 하네스로 **§4 표·§5** 부분 채움; **closeout** 은 deploy ID·§6 모드·hard stop 조건 충족 후.
-- [2026-04-15] active mainline 구조 tranche 없음. `WR-B1` / `WR-J1` / `WR-H1`는 explicit future batch 조건에서만 재개.
 
 ## 알려진 이슈
 - 차단 이슈 없음. post-Wave9 endgame mainline은 종료되었고, 남은 구조 부채는 `WR-B1` / `WR-J1` / `WR-H1`처럼 explicit future-batch 조건으로만 존재한다. W5-B8의 로컬 authenticated browser smoke 환경 이탈은 run record에 residual로 문서화되어 있으며, `wdcalculator_scripts_config.html` Jinja 상단 변수 주입 구간의 JS lint false-positive는 기존과 동일하게 남아 있다.
@@ -92,6 +91,8 @@ Flask 2.3 + PostgreSQL + R2 + Railway (Web×2, Worker×1)
 - [2026-04-15] **Strict final canonical tree `SFC-B11B` slice 2 (`dashboards`, §6.16):** 구현을 `foms/web/dashboards/routes.py`로 이전; `foms/web/dashboards/__init__.py`는 `routes`만 import; `apps/dashboards.py`는 `foms.web.dashboards` 재노출 shim. 검증: `APP_OK`, `verify_result.py --json`, `pytest tests` **586 passed**. 근거: batch11b **§Slice B11B-2**.
 
 ## 기록 보관 (strict canonical / 이전 배치 요약)
+- [2026-04-17] **ERP fast-page `EPT-B8`:** run record `docs/plans/2026-04-17-ept-b8-verification-railway-evidence-run-record.md` — 로컬 게이트 완료; staging HTTP 하네스로 **§4 표·§5** 부분 채움; **closeout** 은 deploy ID·§6 모드·hard stop 조건 충족 후.
+- [2026-04-15] active mainline 구조 tranche 없음. `WR-B1` / `WR-J1` / `WR-H1`는 explicit future batch 조건에서만 재개.
 - [2026-04-15] **Strict final canonical tree `SFC-B11B` slice 1 (`auth`, §6.16):** 구현 `foms/web/auth/routes.py`; `apps/auth.py` shim; `log_access` 예외 명시화. 검증: **586 passed**. 근거: batch11b **§Slice B11B-1**.
 - [2026-04-15] **Strict final canonical tree `SFC-B11A` (§6.15 sign-off + slice 20):** 실행 계획 §**6.15** 대조표를 batch11a run record에 기록(인벤토리 동결·child family 계약·`blueprints` 정본 경로). `test_b11a_apps_api_package_init_empty_strict_canonical` 포함. 검증: `APP_OK`, `verify_result.py --json`, `pytest tests` **586 passed**.
 - [2026-04-15] **Strict final canonical tree `SFC-B11A` (slice 19 — `erp_shipment_settings` re-export):** `test_wr_h1_erp_shipment_settings_shim_strict_canonical` — 루트 `apps/api/erp_shipment_settings.py`가 `foms.api.shipment.settings`에서 재노출·`@erp_shipment_bp.route` 없음·Blueprint·뷰 함수 동일 객체. 검증: **585 passed**. 근거: batch11a **§Slice 19**.

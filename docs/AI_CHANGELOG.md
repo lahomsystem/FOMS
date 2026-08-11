@@ -4,6 +4,7 @@
 
 | 날짜 | 작업 | 수정 파일 | 커밋 |
 |------|------|-----------|------|
+| 2026-08-10 | 주문 삭제·복원 대시보드 즉시 반영(운영 #4717): 삭제 경로 3곳(단건 delete·벌크 삭제 API·legacy bulk_action)에 대시보드 read-slice 캐시 무효화가 없어 TTL 300초 동안 실측 날짜별 집계에 삭제된 주문이 잔존(패널/리스트 캐시 키가 달라 좌우 숫자 불일치). helper `invalidate_dashboard_caches_after_delete_transition`(broad 7 family + AS 추천 캐시)를 commit 직후 호출, 계약 테스트 6종 추가. 스테이징 E2E 삭제 즉시 집계 2→1·복원 복귀 PASS, CI 4/4 green, production 승격 PR #72 머지(`76b9086c`) | foms/services/common/dashboard_cache.py, foms/web/orders/{trash,listing}.py, foms/api/orders/status.py, tests/domains/{test_delete_trash,test_delete_bulk,test_dashboard_cache_invalidation_scope}.py | aa0b788e |
 | 2026-08-10 | 채널톡 AS PUSH 신설(AS 접수 내용+AS 첨부 → AS방 230351): ERP 탭·모바일 PUSH 선택 시트·AS 대시보드 3경로, 본문 조립 서버 SSOT(channel_as_message.py)로 통일 + 모바일 선택 시트 풀스크린 눌림 근본 수정(erp-pro 전역 !important 특이도) + 시공 대시보드 캐시 키 정규화·숫자판 모집단 일치(‘긴급 발주’=시공 기준) + 진단 헤더 2종 신설(EPT-B7-PHASES·DASH-SLICES). 실측: 요약 재계산 추정 88ms vs 실측 27ms — 추정 기반 SQL 이관 중단 판단. production 승격 PR #64·#65·#67·#68 | foms/services/channel_as_message.py, foms/api/channel/channel_integration.py, foms/services/common/{dashboard_cache,ept_b7_profile}.py, foms/web/construction/dashboard.py, static/js/cs/as-dashboard.js, templates/orders/partials/erp_channel_push_picker_modal.html 외 | 340b0064 |
 | 2026-08-10 | 세션 자동 기록 | dashboard_cache.py, layout_scripts.html, photo-capture.js 외 2개 | f94f534d |
 | 2026-08-10 | 세션 자동 기록 | dashboard.py, test_construction_dashboard_cache_key_sharing.py, test_as_dashboard_attachment_modal.py 외 2개 | 2dc54772 |
