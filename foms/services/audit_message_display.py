@@ -191,6 +191,30 @@ ACTION_LABELS: dict[str, str] = {
     "ORDER_DRAFT_SAVED": "임시 주문 저장",
     "ORDER_DRAFT_SUBMITTED": "임시 주문 제출",
     "ORDER_DRAFT_DELETED": "임시 주문 삭제",
+    # --- 주문 편집·상태 (2026-08-11: 운영 감사 화면에서 가장 자주 보이는데 라벨이 없었다) ---
+    "ORDER_FIELD_UPDATED": "주문 항목 변경",
+    "ORDER_MEMO_UPDATED": "메모 변경",
+    "ORDER_CHECKLIST_UPDATED": "체크리스트 변경",
+    "ORDER_STATUS_CHANGED": "상태 변경",
+    "ORDER_SOFT_DELETED": "주문 휴지통 이동",
+    # --- 파일 열람(access_logs 화면과 같은 코드를 쓴다) ---
+    "FILE_VIEW": "파일 열람",
+    "FILE_DOWNLOAD": "파일 다운로드",
+    "FILE_PRESIGNED": "서명 URL 발급",
+    # --- 계정·인증 ---
+    "LOGIN_OK": "로그인 성공",
+    "LOGIN_FAIL": "로그인 실패",
+    "IMPERSONATE": "계정 전환(대리 로그인)",
+    "USER_UPDATE": "사용자 정보 변경",
+    "USER_APPROVE": "가입 승인",
+    "USER_DEACTIVATE": "사용자 비활성화",
+    "USER_PASSWORD_RESET": "비밀번호 재설정",
+    "USER_BOOTSTRAP": "최초 관리자 생성",
+    "RESET_REQUEST_HANDLE": "재설정 요청 처리",
+    # --- 차단(거부 기록) ---
+    "ACCESS_DENIED": "권한 거부",
+    "CSRF_BLOCKED": "CSRF 차단",
+    "WRITE_BLOCKED": "쓰기 차단",
 }
 
 #: 비어 있음을 뜻하는 원시 값들(문자열 비교는 소문자로 한다).

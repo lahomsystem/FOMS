@@ -41,6 +41,12 @@
   word-break: break-all;
 }
 
+/* 접힘 상태의 부가정보는 한 줄만 차지한다(펼치면 위 pre 규칙이 적용된다). */
+.admin-audit-table .audit-detail-toggle > summary {
+  cursor: pointer;
+  white-space: nowrap;
+}
+
 /* 폭 조절이 켜진 표는 헤더 경계에 손잡이가 붙는다(런타임이 grip 요소를 넣는다). */
 .admin-audit-table--resizable > thead > tr > th {
   position: relative;
