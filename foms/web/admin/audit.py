@@ -12,8 +12,10 @@ from db import get_db
 from foms.services.audit_message_display import (
     action_label,
     collect_order_ids,
+    describe_change,
     describe_field_change,
     humanize_message,
+    path_label,
 )
 from foms.services.datetime_kst import to_utc_naive
 from models import AccessLog, Order, SecurityLog, User
@@ -281,7 +283,11 @@ def _security_log_row(entry: SecurityLog, customer_names: dict[int, str]) -> dic
     field = detail.get("field")
     display: str | None = None
 
-    if field and entry.target_type == "order" and entry.target_id:
+    # ``field`` 만 있고 값이 없는 detail(ORDER-DIFF-00 이전 인라인 저장)은 이 분기로 오면
+    # ``after=None`` 이 "(지움)"으로 찍혀 **바꾼 적 없는 값을 지웠다고** 읽힌다. 값이 실제로
+    # 실려 있을 때만 문장을 재구성하고, 변경 목록(``changes``)이 있는 행은 저장 시점 문장을 쓴다.
+    has_values = "after" in detail or "before" in detail
+    if field and has_values and "changes" not in detail and entry.target_type == "order" and entry.target_id:
         order_id = entry.target_id
         display = describe_field_change(
             order_id=order_id,
@@ -295,6 +301,7 @@ def _security_log_row(entry: SecurityLog, customer_names: dict[int, str]) -> dic
     if display is None:
         display = humanize_message(entry.message, customer_names)
 
+    changes = _display_changes(detail)
     return {
         "log": entry,
         "display": display,
@@ -304,7 +311,39 @@ def _security_log_row(entry: SecurityLog, customer_names: dict[int, str]) -> dic
         # 배지는 업무 라벨로 낸다(코드는 화면이 title 로 보존) — 표시 SSOT 재사용.
         "action_label": action_label(entry.action),
         "detail_keys": len(entry.detail) if isinstance(entry.detail, dict) else 0,
+        # ORDER-DIFF-00: 필드 단위 변경표. 라벨은 여기(읽기 시점)에서 붙는다.
+        "changes": changes,
+        "change_total": int(detail.get("change_count") or len(changes)),
+        "change_truncated": int(detail.get("truncated") or 0),
     }
+
+
+def _display_changes(detail: Any) -> list[dict[str, Any]]:
+    """``detail['changes']`` 를 화면용 행으로 편다 (ORDER-DIFF-00).
+
+    기록에는 경로만 남는다(``schedule.measurement.date``). 사람 라벨과 값 표기는 표시 SSOT
+    (:mod:`foms.services.audit_message_display`)가 **읽는 시점에** 붙이므로, 라벨을 고치면
+    과거 기록까지 함께 고쳐진다. 라벨 미등재 경로는 경로 자체를 낸다(감사 은닉 금지).
+
+    :param detail: ``SecurityLog.detail``.
+    :return: ``{'label','text','item'}`` 목록(형식이 아니면 빈 목록).
+    """
+    if not isinstance(detail, dict):
+        return []
+    raw = detail.get("changes")
+    if not isinstance(raw, list):
+        return []
+
+    rows: list[dict[str, Any]] = []
+    for change in raw:
+        if not isinstance(change, dict):
+            continue
+        rows.append({
+            "label": path_label(str(change.get("path") or "")),
+            "text": describe_change(change),
+            "item": change.get("item"),
+        })
+    return rows
 
 
 def _detail_text(detail: Any) -> str:
