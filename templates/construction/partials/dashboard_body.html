@@ -133,7 +133,11 @@
   <div class="foms-construction-legacy-queue">
     {% include 'construction/partials/filters_grid.html' %}
   </div>
-  {% if erp_mobile_v2_enabled %}
+  {# 태블릿 작업 모드는 (pointer: coarse) 미디어쿼리로만 표시된다(foms-tablet-construction.css,
+     data-foms-shell 강제 해치 없음) — 마우스 기기에서는 어떤 뷰포트·방향에서도 표시 불가능한
+     죽은 마크업이라 렌더하지 않는다(스테이징 실측 241.8KB = fragment 의 32.4%).
+     coarse_pointer_surfaces 는 쿠키 미설정 시 True(현행대로 전부 렌더)라 blank 위험 없음. #}
+  {% if erp_mobile_v2_enabled and coarse_pointer_surfaces %}
     {% include 'construction/partials/tablet_workmode_body.html' %}
   {% endif %}
   {% if erp_mobile_v2_enabled %}
