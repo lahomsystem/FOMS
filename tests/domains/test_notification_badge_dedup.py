@@ -52,17 +52,24 @@ def test_erp_pages_use_single_notification_badge_fetch(client):
 
     # Orders ERP dashboard: no inline `loadNotificationBadge(true);` — badge UI is wired from
     # `erp-dashboard-entry.js`, which loads `dashboard-notifications.js` (not a literal script
-    # tag in HTML). Production/construction dashboards still inline two eager refreshes.
+    # tag in HTML). Production still inlines two eager refreshes; construction moved the same
+    # two calls into an external bundle (2026-08-11 프래그먼트 전송량 감축) — 세는 곳만 옮긴다.
     expected_badge_refresh_calls = {
         "/erp/dashboard": 0,
-        "/erp/construction/dashboard": 2,
         "/erp/production/dashboard": 2,
     }
+    construction_js = (ROOT / "static/js/construction/dashboard.js").read_text(encoding="utf-8")
+    assert construction_js.count("loadNotificationBadge(true);") == 2
 
     for path in ("/erp/dashboard", "/erp/construction/dashboard", "/erp/production/dashboard"):
         response = client.get(path)
         assert response.status_code == 200
         body = response.get_data(as_text=True)
+        if path == "/erp/construction/dashboard":
+            # 인라인 호출은 0이어야 한다(외부 번들이 유일한 호출처 = 중복 폴링 차단 계약).
+            assert body.count("loadNotificationBadge(true);") == 0
+            assert "js/construction/dashboard.js" in body
+            continue
         assert body.count("loadNotificationBadge(true);") == expected_badge_refresh_calls[path]
         if path == "/erp/dashboard":
             assert "js/orders/erp-dashboard-entry.js" in body

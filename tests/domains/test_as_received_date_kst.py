@@ -183,7 +183,7 @@ def test_as_register_matches_confirmed_construction_worker(client, monkeypatch):
 
 def test_construction_dashboard_as_register_marks_source_screen():
     src = (
-        Path(__file__).resolve().parents[2] / "templates/construction/partials/scripts.html"
+        Path(__file__).resolve().parents[2] / "static/js/construction/dashboard.js"
     ).read_text(encoding="utf-8")
     assert "source_screen: 'erp_construction_dashboard'" in src
 
