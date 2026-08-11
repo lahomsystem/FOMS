@@ -3,7 +3,7 @@
 {% block title %}보안 로그{% endblock %}
 
 {% block styles %}
-<link rel="stylesheet" href="{{ url_for('static', filename='css/contexts/admin/audit-tables.css') }}?v=20260811a">
+<link rel="stylesheet" href="{{ url_for('static', filename='css/contexts/admin/audit-tables.css') }}?v=20260811b">
 {% endblock %}
 
 {% block content %}
@@ -104,7 +104,7 @@
                 {% set log_entry = row.log %}
                 <tr>
                     <td class="audit-cell-time">{{ log_entry.timestamp|format_datetime_kst }}</td>
-                    <td>{% if log_entry.action %}<span class="badge bg-secondary">{{ log_entry.action }}</span>{% endif %}</td>
+                    <td>{% if log_entry.action %}{# 배지는 업무 라벨, 원문 코드는 title(필터 입력값이 코드다). #}<span class="badge bg-secondary" title="{{ log_entry.action }}">{{ row.action_label }}</span>{% endif %}</td>
                     <td>
                         {% if log_entry.target_type %}{{ log_entry.target_type }}{% if log_entry.target_id is not none %} #{{ log_entry.target_id }}{% endif %}{% endif %}
                     </td>
@@ -121,8 +121,15 @@
                     </td>
                     <td class="audit-cell-detail">
                         {# 한글이 \uXXXX 로 보이지 않도록 서버가 ensure_ascii=False 로 만든 문자열이다.
-                           사용자 입력이 섞이지만 {{ }} 자동 escape 가 <, >, & 를 엔티티로 바꾼다. #}
-                        {% if row.detail_text %}<pre class="mb-0 small">{{ row.detail_text }}</pre>{% endif %}
+                           사용자 입력이 섞이지만 {{ }} 자동 escape 가 <, >, & 를 엔티티로 바꾼다.
+                           기본은 접어 둔다 — 펼친 JSON 이 행 높이를 153px 로 만들어 한 화면에
+                           6행밖에 안 들어갔다(2026-08-11 운영 실측). 기록을 지우는 게 아니라 접는 것이다. #}
+                        {% if row.detail_text %}
+                        <details class="audit-detail-toggle">
+                            <summary class="small text-muted">부가정보 {{ row.detail_keys }}개</summary>
+                            <pre class="mb-0 small">{{ row.detail_text }}</pre>
+                        </details>
+                        {% endif %}
                     </td>
                     <td>
                         {% set actor = user_map.get(log_entry.user_id) %}

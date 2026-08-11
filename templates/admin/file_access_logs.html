@@ -3,7 +3,7 @@
 {% block title %}파일 열람 기록{% endblock %}
 
 {% block styles %}
-<link rel="stylesheet" href="{{ url_for('static', filename='css/contexts/admin/audit-tables.css') }}?v=20260811a">
+<link rel="stylesheet" href="{{ url_for('static', filename='css/contexts/admin/audit-tables.css') }}?v=20260811b">
 {% endblock %}
 
 {% block content %}
@@ -98,7 +98,8 @@
                 <tr>
                     <td class="audit-cell-time">{{ row.log.timestamp|format_datetime_kst }}</td>
                     <td>
-                        <span class="badge bg-secondary">{{ row.log.action }}</span>
+                        {# 배지는 업무 라벨, 원문 코드는 title(필터 select 값이 코드다). #}
+                        <span class="badge bg-secondary" title="{{ row.log.action }}">{{ row.action_label }}</span>
                         {% if row.suppressed %}
                         <span class="badge bg-light text-dark" title="10분 창에서 묶인 반복 열람 횟수">+{{ row.suppressed }}</span>
                         {% endif %}

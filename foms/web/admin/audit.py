@@ -10,6 +10,7 @@ from sqlalchemy.orm import Query
 
 from db import get_db
 from foms.services.audit_message_display import (
+    action_label,
     collect_order_ids,
     describe_field_change,
     humanize_message,
@@ -189,6 +190,7 @@ def _access_log_row(log_entry: AccessLog) -> dict[str, Any]:
         # 계약 외 키(향후 writer 확장분)는 버리지 않고 원문으로 함께 보여준다.
         "raw": raw if set(payload) - {"storage_key", "order_id", "suppressed"} else None,
         "user_agent_short": summarize_user_agent(log_entry.user_agent),
+        "action_label": action_label(log_entry.action),
     }
 
 
@@ -299,6 +301,9 @@ def _security_log_row(entry: SecurityLog, customer_names: dict[int, str]) -> dic
         "raw_message": entry.message or "",
         "changed": display != (entry.message or ""),
         "detail_text": _detail_text(entry.detail),
+        # 배지는 업무 라벨로 낸다(코드는 화면이 title 로 보존) — 표시 SSOT 재사용.
+        "action_label": action_label(entry.action),
+        "detail_keys": len(entry.detail) if isinstance(entry.detail, dict) else 0,
     }
 
 
