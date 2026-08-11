@@ -125,7 +125,7 @@ def test_variables_orderer_and_address_fallbacks():
     v = build_variables(_sd())
     assert v['#{발주사}'] == '라홈'
     assert v['#{주소}'] == '상담'
-    assert v['#{예약금}'] == '상담'
+    assert v['#{예약금}'] == '없음'
 
     sd = _sd(parties={'customer': {'name': '임다슬', 'phone': '010-2473-6730'}, 'orderer': {'name': '한샘'}},
              site={'address_full': '서울시 강남구 1'})
