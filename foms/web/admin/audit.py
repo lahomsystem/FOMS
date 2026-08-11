@@ -47,14 +47,22 @@ def _apply_security_log_filters(query: Query, filters: dict[str, Any]) -> Query:
     인덱스를 타고, 자유 검색만 기존처럼 ILIKE 로 남긴다 — "누가 무엇을"을 SQL 로 묻는 게
     T8 의 목적이므로 자유 텍스트 파싱에 의존하지 않는다.
 
+    기간(``timestamp_from``/``timestamp_to``)은 ``ix_security_logs_timestamp_id``
+    범위 비교다(SEC-LOG-TIME-00). 운영 원장이 2만 건을 넘어 "그날 무슨 일이 있었나"를
+    페이지를 넘겨 찾을 수 없었다 — 파일 열람 화면과 같은 KST 경계 규약을 쓴다.
+
     거부 기록(:data:`_DENIED_ACTIONS`·구형식 "권한 없는 접근 시도")은 ``include_denied``
     를 켤 때만 포함한다(위 상수 주석의 실측 근거).
 
     :param query: 필터를 얹을 ``SecurityLog`` 쿼리.
-    :param filters: ``{'search','action','target_type','target_id','user_id','include_denied'}``
-        값 dict(빈 문자열/``None`` 은 미적용).
+    :param filters: ``{'search','action','target_type','target_id','user_id',
+        'timestamp_from','timestamp_to','include_denied'}`` 값 dict(빈 문자열/``None`` 은 미적용).
     :return: 필터가 적용된 쿼리.
     """
+    if filters.get("timestamp_from") is not None:
+        query = query.filter(SecurityLog.timestamp >= filters["timestamp_from"])
+    if filters.get("timestamp_to") is not None:
+        query = query.filter(SecurityLog.timestamp < filters["timestamp_to"])
     if not filters.get("include_denied") and not filters.get("action"):
         query = query.filter(
             or_(SecurityLog.action.is_(None), SecurityLog.action.notin_(_DENIED_ACTIONS)),
@@ -180,7 +188,54 @@ def _access_log_row(log_entry: AccessLog) -> dict[str, Any]:
         "suppressed": payload.get("suppressed"),
         # 계약 외 키(향후 writer 확장분)는 버리지 않고 원문으로 함께 보여준다.
         "raw": raw if set(payload) - {"storage_key", "order_id", "suppressed"} else None,
+        "user_agent_short": summarize_user_agent(log_entry.user_agent),
     }
+
+
+def summarize_user_agent(raw: str | None) -> str:
+    """UA 원문을 ``Chrome 150 · Windows`` 형태로 줄인다(원문은 화면이 ``title`` 로 보존).
+
+    UA 전문은 한 줄이 120자를 넘어 표에서 4줄을 차지했다 — 7칸짜리 감사 표가 UA 로 덮여
+    정작 "누가 어떤 파일을" 이 안 보였다(2026-08-11 운영 실측). 조사에 실제로 쓰이는 축은
+    브라우저와 OS 두 개뿐이라 그 둘만 남긴다. **원문을 지우지는 않는다** — 알 수 없는 UA 는
+    앞부분을 그대로 보여줘 감사 기록이 화면에서 사라지지 않게 한다.
+
+    :param raw: ``AccessLog.user_agent`` 원문(``None``·빈 값 허용).
+    :return: 요약 문자열. 값이 없으면 ``""``.
+    """
+    if not raw:
+        return ""
+    ua = raw.strip()
+    browser = ""
+    # 순서가 규칙이다 — Edge·Samsung·Chrome 은 UA 에 "Chrome" 을 함께 달고,
+    # Chrome 은 "Safari" 를 함께 단다. 더 구체적인 것부터 본다.
+    for token, label in (("Edg/", "Edge"), ("SamsungBrowser/", "Samsung Internet"),
+                         ("OPR/", "Opera"), ("Chrome/", "Chrome"),
+                         ("Firefox/", "Firefox"), ("Version/", "Safari")):
+        index = ua.find(token)
+        if index < 0:
+            continue
+        major = ""
+        for char in ua[index + len(token):]:
+            if not char.isdigit():
+                break
+            major += char
+        browser = f"{label} {major}".strip()
+        break
+
+    platform = ""
+    for token, label in (("Windows NT", "Windows"), ("Android", "Android"),
+                         ("iPhone", "iPhone"), ("iPad", "iPad"),
+                         ("Mac OS X", "macOS"), ("Linux", "Linux")):
+        if token in ua:
+            platform = label
+            break
+
+    if browser and platform:
+        return f"{browser} · {platform}"
+    if browser or platform:
+        return browser or platform
+    return ua[:40]
 
 
 def _order_display_names(db: Any, logs: list[SecurityLog]) -> dict[int, str]:
@@ -243,7 +298,28 @@ def _security_log_row(entry: SecurityLog, customer_names: dict[int, str]) -> dic
         "display": display,
         "raw_message": entry.message or "",
         "changed": display != (entry.message or ""),
+        "detail_text": _detail_text(entry.detail),
     }
+
+
+def _detail_text(detail: Any) -> str:
+    """부가정보(JSONB)를 사람이 읽는 문자열로 만든다.
+
+    Jinja ``tojson`` 은 Flask 기본 provider 를 타서 ``ensure_ascii=True`` 다 — 고객명이
+    화면에 ``"\\uc774\\uac00\\uc5b8"`` 로 나와 감사 화면이 읽히지 않았다(2026-08-11 운영 실측).
+    HTML 안전은 이스케이프가 아니라 **Jinja 자동 escape** 가 책임진다(템플릿이 ``{{ }}`` 로
+    출력하므로 ``<``·``&`` 는 엔티티가 된다) — 그러니 여기서는 한글을 그대로 둔다.
+
+    :param detail: ``SecurityLog.detail`` 값(dict 가 아니면 빈 문자열).
+    :return: 들여쓴 JSON 문자열. 값이 없으면 ``""``.
+    """
+    if not isinstance(detail, dict) or not detail:
+        return ""
+    try:
+        return json.dumps(detail, ensure_ascii=False, indent=2, sort_keys=True)
+    except (TypeError, ValueError):
+        # 직렬화 불가 값이 섞여도 화면은 살아야 한다 — 원문 repr 로 낸다(감사 기록 은닉 금지).
+        return repr(detail)
 
 
 @admin_bp.route("/change-logs")
@@ -270,9 +346,13 @@ def security_logs():
         "target_type": (request.args.get("target_type") or "").strip(),
         "target_id": request.args.get("target_id", type=int),
         "user_id": request.args.get("user_id", type=int),
+        "date_from": (request.args.get("date_from") or "").strip(),
+        "date_to": (request.args.get("date_to") or "").strip(),
         # 권한 거부 기록 포함 여부 — 기본 꺼짐(위 _DENIED_ACTIONS 주석).
         "include_denied": bool(request.args.get("include_denied")),
     }
+    filters["timestamp_from"] = _kst_date_bound_utc(filters["date_from"], next_day=False)
+    filters["timestamp_to"] = _kst_date_bound_utc(filters["date_to"], next_day=True)
 
     query = _apply_security_log_filters(
         db.query(SecurityLog).order_by(SecurityLog.timestamp.desc(), SecurityLog.id.desc()),
