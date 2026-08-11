@@ -23,6 +23,21 @@ from models import OrderShareToken
 SHARE_KINDS = ('drawing', 'estimate')
 _DEFAULT_TOKEN_DAYS = 30
 
+#: estimate 스냅샷 직렬화 상한 — drawing_wizard 64KB 캡 선례(플랜 §1).
+SNAPSHOT_MAX_BYTES = 65_536
+
+SNAPSHOT_TOO_LARGE_MSG = '견적 항목이 너무 많아 공유 스냅샷을 만들 수 없습니다'
+
+#: 스냅샷 품목 행에 허용되는 키 — 그 외는 구성 단계에서 소거된다(D5 화이트리스트).
+_SNAPSHOT_ITEM_KEYS = (
+    'product_name', 'spec', 'color', 'option_detail',
+    'quantity', 'unit_price', 'amount',
+)
+
+
+class SnapshotTooLargeError(ValueError):
+    """estimate 스냅샷이 64KB 캡을 넘었다 — 절단 없이 발급을 거절한다(금액 문서)."""
+
 # verify_token 상태코드 — 열람 라우트(T2)가 410/404 매핑에 사용한다.
 VERIFY_OK = 'ok'
 VERIFY_NOT_FOUND = 'not_found'
@@ -53,6 +68,90 @@ def hash_token(token: str) -> str:
         64자 hex 문자열.
     """
     return hashlib.sha256(token.encode('utf-8')).hexdigest()
+
+
+def build_estimate_snapshot(order: 'Order') -> dict[str, Any]:
+    """견적 공유용 **동결 스냅샷**을 화이트리스트로 구성한다(D5·D6).
+
+    렌더 SSOT(:func:`extract_estimate_data_from_order`)에서 허용 필드만 **새 dict 로
+    복사**한다 — 차단 대상(타 브랜드 계좌·factory2/is_lahom 내부 플래그·variants)은
+    키 자체가 존재하지 않는다. 계좌·공급자 정보는 발주사 판정(factory2)에 따른
+    **해당 브랜드 1벌만** 담는다.
+
+    Args:
+        order: 대상 주문(활성 검증은 호출자 소관).
+
+    Returns:
+        스냅샷 dict(snapshot_version=1). 열람(T7)은 이 dict 만 렌더한다.
+
+    Raises:
+        SnapshotTooLargeError: 직렬화가 ``SNAPSHOT_MAX_BYTES`` 를 넘을 때.
+    """
+    import json
+
+    from foms.services.datetime_kst import get_today_kst
+    from foms.services.estimate_service import extract_estimate_data_from_order
+    from foms.services.orders.estimate_defaults import (
+        resolve_estimate_company_info,
+        resolve_estimate_payment_info,
+    )
+
+    data = extract_estimate_data_from_order(order)
+    factory2 = bool(data.get('factory2'))
+    company = resolve_estimate_company_info(factory2)
+    payment = resolve_estimate_payment_info(factory2)
+
+    items = []
+    for item in data.get('items') or []:
+        if not isinstance(item, dict):
+            continue
+        items.append({key: item.get(key) for key in _SNAPSHOT_ITEM_KEYS})
+
+    snapshot: dict[str, Any] = {
+        'snapshot_version': 1,
+        'issued_date': get_today_kst().strftime('%Y-%m-%d'),
+        'customer_name': data.get('customer_name') or '',
+        'customer_phone': data.get('customer_phone') or '',
+        'site_address': data.get('site_address') or '',
+        'construction_date': data.get('construction_date'),
+        'manager_name': data.get('manager_name') or '',
+        'manager_phone': data.get('manager_phone') or '',
+        'items': items,
+        'items_subtotal': int(data.get('items_subtotal') or 0),
+        'free_input_lines': [
+            {'label': str(row.get('label') or ''), 'amount': int(row.get('amount') or 0)}
+            for row in (data.get('free_input_lines') or [])
+            if isinstance(row, dict)
+        ],
+        'free_input_amount': int(data.get('free_input_amount') or 0),
+        'shipping_price': int(data.get('shipping_price') or 0),
+        'discount_amount': int(data.get('discount_amount') or 0),
+        'deposit_amount': int(data.get('deposit_amount') or 0),
+        'balance_amount': int(data.get('balance_amount') or 0),
+        'company_info': {
+            'name': company.get('name') or '',
+            'ceo': company.get('ceo') or '',
+            'business_number': company.get('business_number') or '',
+            'address': company.get('address') or '',
+            'industry': company.get('industry') or '',
+            'phone': company.get('phone') or '',
+            'customer_center': company.get('customer_center') or '',
+            'website': company.get('website') or '',
+        },
+        'payment_info': {
+            'notice': payment.get('notice') or '',
+            'accounts': [
+                {'bank': acc.get('bank') or '', 'account': acc.get('account') or '',
+                 'holder': acc.get('holder') or ''}
+                for acc in (payment.get('accounts') or [])
+                if isinstance(acc, dict)
+            ],
+        },
+    }
+    size = len(json.dumps(snapshot, ensure_ascii=False).encode('utf-8'))
+    if size > SNAPSHOT_MAX_BYTES:
+        raise SnapshotTooLargeError(SNAPSHOT_TOO_LARGE_MSG)
+    return snapshot
 
 
 def create_share_token(
