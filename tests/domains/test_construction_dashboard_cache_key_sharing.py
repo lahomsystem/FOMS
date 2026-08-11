@@ -241,8 +241,39 @@ def test_response_exposes_route_phase_timings(client, monkeypatch) -> None:
     assert resp.status_code == 200
 
     header = resp.headers.get("X-FOMS-EPT-B7-PHASES", "")
-    for name in ("summary_slice", "list_query", "attachment_slice", "row_dtos", "detail_payloads"):
+    # detail_payloads 구간은 preload 폐지(lazy fetch 전환)로 사라졌다 — 계측 대상 아님.
+    for name in ("summary_slice", "list_query", "attachment_slice", "row_dtos"):
         assert f"{name}=" in header, header
     for entry in header.split(";"):
         name, _, ms = entry.partition("=")
         assert name and ms.isdigit()
+
+
+def test_construction_fragment_no_longer_preloads_order_detail_payload(client) -> None:
+    """시공 fragment는 행별 상세 payload를 선적재하지 않는다(주문·생산 대시보드와 동일 계약).
+
+    50행분 detail_payload JSON 선적재가 스테이징 실측 174KB(전체 923KB의 18.9%)였다.
+    상세 패널을 처음 열 때 /api/orders/<id>/detail-payload 로 lazy fetch 한다.
+    """
+    _seed_order(11)
+    admin = _make_user("constr_preload_admin", "ADMIN")
+    _login(client, admin)
+
+    resp = client.get("/erp/construction/dashboard?view=fragment")
+    assert resp.status_code == 200
+
+    body = resp.get_data(as_text=True)
+    assert "order-detail-preload-" not in body
+    # 패널 컨테이너 자체는 남아야 한다(lazy fetch 결과를 여기에 렌더).
+    assert "order-detail-content-" in body
+
+
+def test_construction_dashboard_js_uses_lazy_detail_payload_endpoint() -> None:
+    """시공 대시보드 JS는 preload <script> 파싱이 아니라 lazy fetch 경로를 쓴다."""
+    js = (
+        pathlib.Path(__file__).resolve().parents[2]
+        / "static/js/construction/dashboard.js"
+    ).read_text(encoding="utf-8")
+
+    assert "/detail-payload`" in js
+    assert "order-detail-preload-" not in js
