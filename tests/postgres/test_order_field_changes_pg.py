@@ -109,8 +109,11 @@ def test_migration_schema_matches_models(migration_conn):
     """alembic 스키마와 ``models`` 정의가 컬럼·인덱스 구성까지 같다.
 
     두 레인(create_all·alembic)이 갈라지면 테스트에서 통과한 질의가 운영에서 다르게 돈다.
+    이 표에 걸린 마이그레이션을 **체인 순서대로 전부** 적용한 뒤 비교해야 한다 — 하나라도
+    빠뜨리면 "models 가 앞서갔다"가 아니라 "체인이 덜 적용됐다"를 red 로 보게 된다.
     """
     _run_migration(migration_conn, mig.upgrade)
+    _run_migration(migration_conn, uid_mig.upgrade)
 
     columns = {row[0] for row in migration_conn.execute(text(
         "SELECT column_name FROM information_schema.columns WHERE table_name = :t"
@@ -142,3 +145,38 @@ def test_template_filter_uses_index(migration_conn):
     )).fetchall())
 
     assert "Seq Scan" not in plan, plan
+
+
+# --------------------------------------------------------------------------- #
+# ORDER-ITEM-UID: item_uid 컬럼 마이그레이션
+# --------------------------------------------------------------------------- #
+_UID_MIGRATION_PATH = (
+    pathlib.Path(__file__).resolve().parents[2]
+    / "migrations" / "versions" / "itemuid_00_order_field_change_item_uid.py"
+)
+_uid_spec = importlib.util.spec_from_file_location(
+    "itemuid_00_order_field_change_item_uid", _UID_MIGRATION_PATH)
+uid_mig = importlib.util.module_from_spec(_uid_spec)
+_uid_spec.loader.exec_module(uid_mig)
+
+
+def _columns(conn) -> set[str]:
+    return {row[0] for row in conn.execute(text(
+        "SELECT column_name FROM information_schema.columns WHERE table_name = :t"
+    ), {"t": TABLE}).fetchall()}
+
+
+def test_item_uid_migration_round_trip(migration_conn):
+    """``itemuid_00`` 이 품목 식별자 컬럼을 붙였다 뗐다 해도 원장 테이블은 살아 있다."""
+    _run_migration(migration_conn, mig.upgrade)
+    assert uid_mig.COLUMN not in _columns(migration_conn)
+
+    _run_migration(migration_conn, uid_mig.upgrade)
+    assert uid_mig.COLUMN in _columns(migration_conn)
+
+    _run_migration(migration_conn, uid_mig.downgrade)
+    assert uid_mig.COLUMN not in _columns(migration_conn)
+    assert _table_exists(migration_conn)  # 컬럼만 빠지고 원장 행 구조는 남는다
+
+    _run_migration(migration_conn, uid_mig.upgrade)
+    assert _columns(migration_conn) == {c.name for c in OrderFieldChange.__table__.columns}

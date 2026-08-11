@@ -31,6 +31,7 @@ from foms.services.orders.status_constants import STATUS
 from foms.web.auth import log_access, login_required, role_required
 from foms.services.audit_message_display import describe_order_action, summarize_changes
 from foms.services.orders.audit_order_context import order_audit_context
+from foms.services.orders.structured_item_uid import ensure_item_uids
 from foms.services.orders.order_field_change_writer import record_field_changes
 from foms.services.orders.structured_diff import MAX_CHANGES, DiffResult, diff_structured
 from foms.services.datetime_kst import now_kst
@@ -410,6 +411,12 @@ def _preserve_operational_structured_state(old_sd: dict, structured_data: dict) 
     _force_preserve_as_server_state(old_sd, structured_data)
 
 
+#: 화면용 변경 목록이 쓸 수 있는 직렬화 예산(자). ``SECURITY_DETAIL_LIMIT``(4,000)에서
+#: 맥락 키(mode·customer_name·order_type·change_set·카운터)와 JSON 구두점 몫을 빼고 잡았다.
+#: 이 예산을 넘기면 detail 전체가 표식으로 대체돼 맥락까지 사라진다.
+_DETAIL_CHANGES_BUDGET = 3200
+
+
 def _new_change_set_id() -> str:
     """저장 1회 묶음 id 를 만든다 (ORDER-DIFF-01).
 
@@ -438,15 +445,33 @@ def _save_note(base: str, diff: DiffResult) -> str:
 def _diff_detail(diff: DiffResult, change_set_id: str) -> dict:
     """변경 비교 결과를 ``security_logs.detail`` 조각으로 만든다 (ORDER-DIFF-00·01).
 
-    detail 은 **화면용**이라 :data:`~foms.services.orders.structured_diff.MAX_CHANGES` 건까지만
-    담는다. 넘친 분량은 사라지지 않는다 — ``order_field_changes`` 원장에 전량이 있고, 여기서는
-    ``truncated`` 개수로 그 사실을 표시한다(화면이 "원장에 전량 보관"으로 안내한다).
+    detail 은 **화면용**이라 두 겹으로 줄인다:
+
+    1. 건수 상한(:data:`~foms.services.orders.structured_diff.MAX_CHANGES`)
+    2. **바이트 예산** — ``normalize_security_detail`` 은 4,000자를 넘는 detail 을 통째로
+       ``{'truncated': True, 'size': N}`` 표식으로 바꾼다. 그러면 변경 목록만이 아니라
+       ``mode``·``customer_name`` 같은 맥락까지 사라진다. 건수만 세다가 그 한도를 넘긴 실사고가
+       있었다(품목 46개 일괄 변경, 2026-08-11).
+
+    품목 식별자(``uid``)는 화면이 쓰지 않으므로 여기서 뺀다 — 그 값은 질의용이라
+    ``order_field_changes`` 원장에만 실린다(같은 값을 두 곳에 두면 예산만 먹는다).
+
+    넘친 분량은 사라지지 않는다: 원장에 전량이 있고 여기서는 ``truncated`` 개수로 표시한다.
 
     :param diff: 변경 비교 결과(상한 없이 계산된 전량).
     :param change_set_id: 저장 1회 묶음 id — 항목 원장과 잇는 유일한 열쇠다.
     :return: ``{'change_set','change_count','truncated','changes'}``.
     """
-    shown = diff.changes[:MAX_CHANGES]
+    shown: list[dict] = []
+    budget = _DETAIL_CHANGES_BUDGET
+    for change in diff.changes[:MAX_CHANGES]:
+        display = {key: value for key, value in change.items() if key != 'uid'}
+        cost = len(json.dumps(display, ensure_ascii=False, default=str))
+        if budget - cost < 0:
+            break
+        budget -= cost
+        shown.append(display)
+
     return {
         'change_set': change_set_id,
         'change_count': diff.total,
@@ -1146,6 +1171,10 @@ def api_put_order_structured(order_id):
 
                 # ORDER-DIFF-00: 보존·projection 까지 끝난 최종본과 비교해야 실제로 저장된
                 # 변경만 남는다(중간 상태로 비교하면 서버가 되돌린 값까지 변경으로 찍힌다).
+                # ORDER-ITEM-UID: 품목 식별자를 **비교 직전에** 보장한다. 클라이언트가 uid 를
+                # 빠뜨렸어도 위치로 물려받으므로 저장 한 번이 "전 품목 재생성"으로 기록되지 않는다.
+                ensure_item_uids(audit_old_sd, structured_data)
+
                 # ORDER-DIFF-01: 상한 없이 계산한다 — 원장에는 전량, 화면 detail 에만 상한.
                 captured['diff'] = diff_structured(audit_old_sd, structured_data, max_changes=-1)
 

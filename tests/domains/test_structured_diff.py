@@ -8,6 +8,12 @@ from foms.services.audit_message_display import describe_change, path_label
 from foms.services.orders.structured_diff import MAX_CHANGES, diff_structured
 
 
+#: 고정 uid 3개 — 테스트가 identity 짝짓기를 확인하려면 값이 예측 가능해야 한다.
+_UID_A = "aaaaaaaa-1111-4111-8111-aaaaaaaaaaaa"
+_UID_B = "bbbbbbbb-2222-4222-8222-bbbbbbbbbbbb"
+_UID_C = "cccccccc-3333-4333-8333-cccccccccccc"
+
+
 def _sd(**overrides):
     """비교 기준이 되는 최소 주문 문서를 만든다."""
     base = {
@@ -95,11 +101,64 @@ def test_item_append_and_remove_are_single_entries():
     assert [(c["path"], c["op"], c["before"]) for c in removed.changes] == [("items.0", "remove", "붙박이장")]
 
 
-def test_item_insert_at_head_reports_shifted_fields():
-    """**알려진 한계**: 품목 배열에 안정 identity 가 없어 맨 앞 삽입이 "여러 품목 변경"으로 읽힌다.
+def test_item_insert_at_head_is_a_single_add_with_uid():
+    """uid 가 있으면 맨 앞 삽입이 **품목 1건 추가**로만 기록된다 (ORDER-ITEM-UID).
 
-    위치 인덱스로 짝짓기 때문이며(ITEM-ID-00 이후 해소 대상), 지금은 이 동작을 숨기지 않고
-    문서화한다 — 감사 화면을 읽는 사람이 품목명(``item``)으로 판별할 수 있어야 한다.
+    ORDER-DIFF-00 시절에는 위치로 짝지어 "붙박이장이 수납장으로 바뀌었다"는 사실과 다른 기록이
+    남았다(NetSuite 서브리스트 사각지대와 같은 계열). identity 로 짝지으면 사라진다.
+    """
+    old = _sd(items=[{"uid": _UID_A, "product_name": "붙박이장", "price": "500000"}])
+    new = _sd(items=[
+        {"uid": _UID_B, "product_name": "수납장", "price": "100000"},
+        {"uid": _UID_A, "product_name": "붙박이장", "price": "500000"},
+    ])
+
+    result = diff_structured(old, new)
+
+    assert [(c["path"], c["op"], c["after"]) for c in result.changes] == [
+        ("items.0", "add", "수납장"),
+    ]
+    assert result.changes[0]["uid"] == _UID_B
+
+
+def test_item_reorder_is_not_a_change():
+    """순서만 바뀐 품목은 기록하지 않는다(값이 그대로면 변경이 아니다 — 사용자 결정)."""
+    old = _sd(items=[
+        {"uid": _UID_A, "product_name": "붙박이장", "price": "500000"},
+        {"uid": _UID_B, "product_name": "수납장", "price": "100000"},
+    ])
+    new = _sd(items=[
+        {"uid": _UID_B, "product_name": "수납장", "price": "100000"},
+        {"uid": _UID_A, "product_name": "붙박이장", "price": "500000"},
+    ])
+
+    assert diff_structured(old, new).changes == []
+
+
+def test_item_removal_in_middle_is_a_single_remove():
+    """가운데 품목을 지우면 그 1건만 삭제로 남는다(뒤 품목이 바뀐 것처럼 번지지 않는다)."""
+    old = _sd(items=[
+        {"uid": _UID_A, "product_name": "붙박이장", "price": "500000"},
+        {"uid": _UID_B, "product_name": "수납장", "price": "100000"},
+        {"uid": _UID_C, "product_name": "선반", "price": "50000"},
+    ])
+    new = _sd(items=[
+        {"uid": _UID_A, "product_name": "붙박이장", "price": "500000"},
+        {"uid": _UID_C, "product_name": "선반", "price": "50000"},
+    ])
+
+    result = diff_structured(old, new)
+
+    assert [(c["path"], c["op"], c["before"]) for c in result.changes] == [
+        ("items.1", "remove", "수납장"),
+    ]
+
+
+def test_legacy_documents_without_uid_fall_back_to_index():
+    """uid 가 없던 시절 문서는 예전처럼 위치로 짝짓는다(회귀 없이 호환).
+
+    이 폴백에서는 맨 앞 삽입이 여전히 여러 품목 변경으로 읽힌다 — 그 문서에는 identity 자체가
+    없어 알 방법이 없다. 숨기지 않고 이 동작을 고정한다.
     """
     new = _sd(items=[
         {"product_name": "수납장", "price": "100000"},
@@ -109,8 +168,8 @@ def test_item_insert_at_head_reports_shifted_fields():
     result = diff_structured(_sd(), new)
     paths = [change["path"] for change in result.changes]
 
-    assert "items.0.product_name" in paths  # 붙박이장 → 수납장 으로 보인다(실제는 삽입)
-    assert "items.1" in paths               # 밀려난 붙박이장이 "추가"로 보인다
+    assert "items.0.product_name" in paths
+    assert "items.1" in paths
 
 
 def test_spec_rows_summarized_by_row_count():
