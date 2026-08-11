@@ -58,3 +58,41 @@ body.foms-edit-embedded .erp-est-viewport-inner {
   margin-left: auto;
   margin-right: auto;
 }
+
+/* --- 변경 이력 탭(ORDER-DIFF-02) ------------------------------------------
+   저장 1회 = 카드 1장, 그 안에 바뀐 필드가 줄로 선다. 값에 고객 입력이 섞이므로
+   줄바꿈은 anywhere 로 둔다(긴 주소·비고가 카드를 넘치게 하지 않는다). */
+.foms-change-history {
+  display: flex;
+  flex-direction: column;
+  gap: 0.75rem;
+}
+
+.foms-change-set {
+  border: 1px solid var(--bs-border-color, #dee2e6);
+  border-radius: 0.5rem;
+  padding: 0.75rem 0.875rem;
+}
+
+.foms-change-set-head {
+  font-size: 0.8125rem;
+  font-weight: 600;
+  color: var(--bs-secondary-color, #6c757d);
+  margin-bottom: 0.375rem;
+}
+
+.foms-change-set-list {
+  margin: 0;
+  padding-left: 1.1rem;
+  font-size: 0.875rem;
+  line-height: 1.6;
+}
+
+.foms-change-set-list > li {
+  overflow-wrap: anywhere;
+}
+
+/* 품목명은 인덱스만으로 헤매지 않게 붙이는 보조 표기라 본문보다 흐리게. */
+.foms-change-item-tag {
+  color: var(--bs-secondary-color, #6c757d);
+}
