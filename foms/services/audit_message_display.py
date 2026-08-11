@@ -189,6 +189,7 @@ ACTION_LABELS: dict[str, str] = {
     "ALIMTALK_MANUAL_SENT": "알림톡 수동 발송",
     "SHARE_LINK_CREATED": "고객 공유 링크 발급",
     "SHARE_LINK_REVOKED": "고객 공유 링크 회수",
+    "SHARE_SMS_SENT": "고객 공유 링크 문자 발송",
     "BLUEPRINT_DELETED": "도면 삭제",
     "DRAWING_WIZARD_SAVED": "도면 마법사 저장",
     "DRAWING_WIZARD_ASSET_ADDED": "도면 마법사 자산 추가",

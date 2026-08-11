@@ -11,19 +11,25 @@ flat 모듈이다 — namespace 닫힌집합 게이트는 디렉토리만 검사
 from __future__ import annotations
 
 import logging
+import time
 from typing import Any, Optional
 
 from flask import Blueprint, Response, jsonify, render_template, request, session, url_for
+from sqlalchemy.exc import IntegrityError
+from sqlalchemy.orm.attributes import flag_modified
 
 from db import db_session
+from foms.services import kakao_alimtalk as ka
 from foms.services import order_share as share_service
 from foms.services.audit_message_display import describe_order_action
 from foms.services.audit_writer import record_file_access
+from foms.services.datetime_kst import now_utc_naive
 from foms.services.orders.audit_order_context import order_audit_context
 from foms.services.orders.drawing_transfer import _is_drawing_key
+from foms.services.sidefx_outbox import enqueue_side_effect
 from foms.services.storage import get_storage
 from foms.web.auth import log_access, login_required, role_required
-from models import Order, OrderAttachment, OrderShareToken
+from models import Order, OrderAttachment, OrderEvent, OrderShareToken, User
 
 logger = logging.getLogger(__name__)
 
@@ -338,6 +344,129 @@ def api_share_list(order_id: int):
             'last_viewed_at': row.last_viewed_at.isoformat() if row.last_viewed_at else None,
         })
     return _envelope({'items': items}, None)
+
+
+#: send-sms 멱등 시간버킷(초) — 같은 버킷 내 재요청은 outbox UNIQUE 가 DB 로 차단(플랜 §1).
+_SMS_BUCKET_SECONDS = 5
+
+_SMS_KIND_LABEL = {'drawing': '도면', 'estimate': '견적서'}
+
+
+@share_api_bp.route('/send-sms/<int:share_id>', methods=['POST'])
+@login_required
+@role_required(_SHARE_ROLES)
+def api_share_send_sms(share_id: int):
+    """공유 링크 문자 발송(LMS) — 발급 직후 화면에서만 가능(D2·플랜 §1).
+
+    body ``{'token': <원문>}``. 서버는 재해시가 저장 해시와 일치할 때만 URL 을
+    조립한다(클라 본문·URL 불신). 멱등 = **발송 전 앵커 선점 insert**: OrderEvent+
+    outbox 행을 벤더 호출 전에 commit, ``(effect_type, dedupe_key)`` UNIQUE 로 5초
+    버킷 중복을 DB 가 차단(IntegrityError→409). 발신 = 직원 sender_phone 우선,
+    없으면 ``SOLAPI_SENDER_PHONE`` 폴백.
+
+    Args:
+        share_id: 대상 공유 row id (URL).
+
+    Returns:
+        성공/벤더 실패 모두 200 + ``data={'sent', 'error'}``. 중복 409,
+        토큰 불일치 400, 죽은 링크 410, 미설정 503.
+    """
+    row = db_session.get(OrderShareToken, share_id)
+    if row is None:
+        return _envelope(None, 'share_not_found', 404)
+
+    token = str((request.get_json(silent=True) or {}).get('token') or '')
+    if not token or share_service.hash_token(token) != row.token_hash:
+        # 해시-온리 저장 — 원문 없이는 URL 재구성 불가. 목록의 과거 항목은 재발급 유도.
+        return _envelope(None, 'token_mismatch', 400)
+
+    _, code = share_service.verify_token(db_session, token)
+    if code != share_service.VERIFY_OK:
+        # 만료·회수 링크의 문자 발송 금지(죽은 링크 문자 차단 — 플랜 T8 계약).
+        return _envelope(None, f'share_{code}', 410)
+
+    order = (
+        db_session.query(Order)
+        .filter(Order.id == row.order_id, Order.active_filter())
+        .one_or_none()
+    )
+    if order is None:
+        return _envelope(None, 'order_not_found', 404)
+
+    to_phone = ka.extract_valid_phone(order.structured_data or {})
+    if not to_phone:
+        return _envelope(None, 'no_valid_phone', 400)
+
+    actor_user_id = session.get('user_id')
+    actor = db_session.get(User, actor_user_id) if actor_user_id else None
+    from_phone = ((actor.sender_phone if actor else None) or '').strip() \
+        or (ka._env('SOLAPI_SENDER_PHONE') or '')
+    if not from_phone:
+        return _envelope(None, 'not_configured', 503)
+
+    kind_label = _SMS_KIND_LABEL.get(row.kind, '문서')
+    url = url_for('share_view.view_shared_order', token=token, _external=True)
+    text = (
+        f'안녕하세요. 요청하신 {kind_label} 열람 링크를 보내드립니다.\n'
+        f'{url}\n'
+        f'링크는 {share_service.token_days()}일간 유효합니다.'
+    )
+
+    # --- 선점 insert (벤더 호출 전 commit — check-then-act 레이스 봉쇄) ---
+    bucket = int(time.time()) // _SMS_BUCKET_SECONDS
+    event = OrderEvent(
+        order_id=order.id,
+        event_type='SHARE_SMS',
+        payload={'share_id': row.id, 'kind': row.kind, 'status': 'in_flight',
+                 'sent_by': actor_user_id},
+        created_by_user_id=actor_user_id,
+    )
+    try:
+        db_session.add(event)
+        db_session.flush()
+        outbox_row = enqueue_side_effect(
+            db_session,
+            source_domain='ORDER_EVENT',
+            source_id=event.id,
+            effect_type='SHARE_SMS',
+            # 계약: 토큰 원문은 payload 에 절대 격납하지 않는다(bearer). URL 재구성이
+            # 불가하므로 이 효과는 동기 전용이다 — 향후 워커는 이 행을 재발송하지 말고,
+            # 소비 시 반드시 토큰 유효성(만료·회수)을 재검증해야 한다.
+            payload={'share_id': row.id, 'order_id': order.id, 'sync_only': True},
+            dedupe_key=f'share_sms:{row.id}:{bucket}',
+        )
+        db_session.commit()
+    except IntegrityError:
+        db_session.rollback()
+        return _envelope(None, 'duplicate_send', 409)
+
+    # --- 동기 발송 (WORKER_OFF — 알림톡 T0.decision 계승) ---
+    error: Optional[str] = None
+    try:
+        ka._solapi_send_text(to=to_phone, from_=from_phone, text=text)
+    except Exception as exc:  # 벤더/네트워크 실패 분류 — 조용한 실패 금지
+        error = ka._classify_error(exc)
+        logger.warning('공유 문자 발송 실패: share_id=%s error=%s', row.id, error)
+
+    # 앵커 결과 기록 + outbox 종결(동기 전용 — 워커 재소비 방지, 성공·실패 무관 DONE).
+    event.payload = {**(event.payload or {}), 'status': 'sent' if error is None else 'failed',
+                     'error': error}
+    flag_modified(event, 'payload')
+    outbox_row.status = 'DONE'
+    outbox_row.completed_at = now_utc_naive()
+    db_session.commit()
+
+    context = order_audit_context(order)
+    log_access(
+        describe_order_action(order_id=order.id, action='SHARE_SMS_SENT',
+                              note=None if error is None else f'실패: {error}', **context),
+        actor_user_id,
+        action='SHARE_SMS_SENT', target_type='order', target_id=int(order.id),
+        detail={'share_id': row.id, 'kind': row.kind, 'sent': error is None,
+                'error': error, 'to': ka._mask_phone(to_phone),
+                'personal_sender': bool(actor and actor.sender_phone), **context},
+    )
+    return _envelope({'sent': error is None, 'error': error}, error)
 
 
 @share_api_bp.route('/revoke/<int:share_id>', methods=['POST'])

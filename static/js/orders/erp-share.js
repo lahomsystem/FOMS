@@ -25,9 +25,17 @@
     var KIND_LABELS = { drawing: '도면', estimate: '견적서' };
     var ERROR_LABELS = {
         order_not_found: '주문을 찾을 수 없습니다',
-        estimate_not_available: '견적서 공유는 아직 준비 중입니다',
         unknown_kind: '알 수 없는 공유 종류입니다',
         share_not_found: '공유 링크를 찾을 수 없습니다',
+        token_mismatch: '링크 정보가 맞지 않습니다 — 회수 후 다시 발급해 주세요',
+        share_expired: '만료된 링크입니다 — 다시 발급해 주세요',
+        share_revoked: '회수된 링크입니다 — 다시 발급해 주세요',
+        no_valid_phone: '고객 휴대폰 번호가 올바르지 않습니다',
+        not_configured: '문자 발신 설정이 없습니다 — 관리자에게 문의하세요',
+        duplicate_send: '방금 발송을 시도했습니다 — 잠시 후 다시 시도해 주세요',
+        invalid_phone: '수신 번호가 올바르지 않습니다',
+        auth: '문자 인증 정보가 올바르지 않습니다',
+        balance: '문자 잔액이 부족합니다',
         network: '네트워크 오류가 발생했습니다',
     };
 
@@ -158,7 +166,8 @@
                     _setNotice('발급 실패 — ' + _label(body && body.error));
                     return;
                 }
-                _issued = { shareId: body.data.share_id, url: body.data.url, kind: body.data.kind };
+                _issued = { shareId: body.data.share_id, url: body.data.url,
+                    kind: body.data.kind, token: body.data.token };
                 _setNotice('');
                 _showIssued(body.data.url);
                 return _refreshList();
@@ -265,6 +274,45 @@
             });
     }
 
+    /** POST send-sms — 발급 직후에만 가능(토큰 원문은 메모리에만 존재, §1 재해시 검증). */
+    function _sendSms() {
+        if (!_issued || !_issued.token) {
+            _setNotice('먼저 링크를 발급하세요 — 문자는 발급 직후에만 보낼 수 있습니다.');
+            return;
+        }
+        var btn = document.getElementById('erp-share-sms-btn');
+        if (btn && btn.disabled) return;
+        if (btn) btn.disabled = true; // §1 클라 버튼 잠금(발송 중)
+        fetch('/api/share/send-sms/' + _issued.shareId, {
+            method: 'POST',
+            credentials: 'same-origin',
+            headers: { 'Content-Type': 'application/json' },
+            body: JSON.stringify({ token: _issued.token }),
+        })
+            .then(function (res) { return res.json(); })
+            .then(function (body) {
+                var sent = !!(body && body.success && body.data && body.data.sent);
+                if (sent) {
+                    _setNotice('');
+                    _flashSmsSent();
+                    return;
+                }
+                var code = (body && (body.error || (body.data && body.data.error))) || 'network';
+                _setNotice('문자 발송 실패 — ' + _label(code));
+            })
+            .catch(function () { _setNotice('문자 발송 실패 — ' + _label('network')); })
+            .finally(function () { if (btn) btn.disabled = false; });
+    }
+
+    /** 문자 버튼 라벨 1.5초 피드백. */
+    function _flashSmsSent() {
+        var btn = document.getElementById('erp-share-sms-btn');
+        if (!btn) return;
+        var original = btn.innerHTML;
+        btn.innerHTML = '<i class="fas fa-check"></i> 발송됨';
+        window.setTimeout(function () { btn.innerHTML = original; }, 1500);
+    }
+
     /** POST revoke — 목록의 활성 링크를 즉시 죽인다. */
     function _revoke(shareId) {
         if (!window.confirm('이 공유 링크를 회수할까요? 고객은 즉시 열람할 수 없게 됩니다.')) return;
@@ -321,6 +369,11 @@
         if (target.closest('#erp-share-kakao-btn')) {
             ev.preventDefault();
             _shareKakao();
+            return;
+        }
+        if (target.closest('#erp-share-sms-btn')) {
+            ev.preventDefault();
+            _sendSms();
             return;
         }
         var revokeBtn = target.closest('[data-share-revoke]');

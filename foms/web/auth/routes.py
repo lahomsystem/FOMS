@@ -134,7 +134,7 @@ def _merge_audit_detail(additional_data: object, detail: dict | None) -> dict | 
 
 
 # 관리자 사용자 수정에서 from→to 로 감사할 필드(권한·소속·활성·식별자).
-_AUDITED_USER_FIELDS = ('username', 'role', 'team', 'is_active')
+_AUDITED_USER_FIELDS = ('username', 'role', 'team', 'is_active', 'sender_phone')
 
 
 def _user_audit_snapshot(user):
@@ -782,6 +782,10 @@ def edit_user(user_id):
             user.role = role
             user.team = team
             user.is_active = is_active
+            # SHARE-SMS(D2): 개인 발신번호 — 숫자만 격납(하이픈 제거), 빈 값은 NULL(대표번호 폴백).
+            sender_phone_raw = (request.form.get('sender_phone') or '').strip()
+            sender_phone_digits = re.sub(r'\D', '', sender_phone_raw)
+            user.sender_phone = sender_phone_digits or None
 
             # commit 후에는 속성이 expire 되므로 커밋 전에 after 를 확정한다.
             audit_after = _user_audit_snapshot(user)
