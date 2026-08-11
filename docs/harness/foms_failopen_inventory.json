@@ -5,18 +5,18 @@
   "overlap_api_error_01": "API-ERROR-01 owns response/stdout exposure (print_exc/str(e) -> log_handled_exception). This packet owns swallow classification. Sites that log via log_handled_exception are LOG_AND_CONTINUE here.",
   "marker_convention": "Silent-by-design catches carry an inline `# failopen: intentional: <reason>` (or `fail-closed`) marker; the scanner reads it as the justification. No bare allowlist, no lint-disable.",
   "baselines": {
-    "broad_total": 507,
+    "broad_total": 508,
     "unclassified": 0,
     "swallow_by_control_flow": 180
   },
   "disposition_counts": {
     "FAIL_CLOSED": 22,
     "INTENTIONAL": 17,
-    "LOG_AND_CONTINUE": 288,
+    "LOG_AND_CONTINUE": 289,
     "SWALLOW_BY_CONTROL_FLOW": 180
   },
   "owner_counts": {
-    "api": 228,
+    "api": 229,
     "audit": 2,
     "auth": 15,
     "cache": 28,
@@ -2255,6 +2255,15 @@
       "justification": "logs via logger/log_handled_exception"
     },
     {
+      "path": "foms/api/share.py",
+      "lineno": 447,
+      "handler_type": "broad_exception",
+      "disposition": "LOG_AND_CONTINUE",
+      "owner": "api",
+      "has_logging": true,
+      "justification": "logs via logger/log_handled_exception"
+    },
+    {
       "path": "foms/api/shipment/change_ack.py",
       "lineno": 206,
       "handler_type": "broad_exception",
@@ -3507,7 +3516,7 @@
     },
     {
       "path": "foms/services/kakao_alimtalk.py",
-      "lineno": 447,
+      "lineno": 472,
       "handler_type": "broad_exception",
       "disposition": "LOG_AND_CONTINUE",
       "owner": "services",
@@ -3516,7 +3525,7 @@
     },
     {
       "path": "foms/services/kakao_alimtalk.py",
-      "lineno": 652,
+      "lineno": 677,
       "handler_type": "broad_exception",
       "disposition": "LOG_AND_CONTINUE",
       "owner": "services",
@@ -4317,7 +4326,7 @@
     },
     {
       "path": "foms/web/auth/routes.py",
-      "lineno": 816,
+      "lineno": 820,
       "handler_type": "broad_exception",
       "disposition": "SWALLOW_BY_CONTROL_FLOW",
       "owner": "auth",
@@ -4326,7 +4335,7 @@
     },
     {
       "path": "foms/web/auth/routes.py",
-      "lineno": 892,
+      "lineno": 896,
       "handler_type": "broad_exception",
       "disposition": "LOG_AND_CONTINUE",
       "owner": "auth",
@@ -4335,7 +4344,7 @@
     },
     {
       "path": "foms/web/auth/routes.py",
-      "lineno": 946,
+      "lineno": 950,
       "handler_type": "broad_exception",
       "disposition": "LOG_AND_CONTINUE",
       "owner": "auth",
@@ -4344,7 +4353,7 @@
     },
     {
       "path": "foms/web/auth/routes.py",
-      "lineno": 982,
+      "lineno": 986,
       "handler_type": "broad_exception",
       "disposition": "LOG_AND_CONTINUE",
       "owner": "auth",
@@ -4353,7 +4362,7 @@
     },
     {
       "path": "foms/web/auth/routes.py",
-      "lineno": 1031,
+      "lineno": 1035,
       "handler_type": "broad_exception",
       "disposition": "LOG_AND_CONTINUE",
       "owner": "auth",
@@ -4362,7 +4371,7 @@
     },
     {
       "path": "foms/web/auth/routes.py",
-      "lineno": 1088,
+      "lineno": 1092,
       "handler_type": "broad_exception",
       "disposition": "SWALLOW_BY_CONTROL_FLOW",
       "owner": "auth",
