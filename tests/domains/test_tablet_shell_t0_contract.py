@@ -24,6 +24,8 @@ from __future__ import annotations
 import re
 from pathlib import Path
 
+import pytest
+
 ROOT = Path(__file__).resolve().parents[2]
 
 SPLIT_CSS = "static/css/foundation/foms-split-view.css"
@@ -590,3 +592,58 @@ def test_workmode_css_has_no_shell_override_hatch() -> None:
     css = _read(TABLET_CONSTRUCTION_CSS)
     assert "data-foms-shell" not in css
     assert "(pointer: coarse)" in css
+
+
+# --- 포인터 힌트: 나머지 4탭 태블릿 표면도 동일 게이트 ------------------------
+
+COARSE_ONLY_SURFACES = (
+    # (대시보드 body 템플릿, 태블릿 파티셜, 그 표면의 CSS)
+    (
+        "templates/production/partials/dashboard_body.html",
+        "production/partials/tablet_kanban_body.html",
+        "static/css/foundation/foms-tablet-production-kanban.css",
+    ),
+    (
+        "templates/cs/partials/as_dashboard_body.html",
+        "cs/partials/tablet_as_compare_body.html",
+        "static/css/foundation/foms-tablet-as-compare.css",
+    ),
+    (
+        "templates/cs/partials/completion_dashboard_body.html",
+        "cs/partials/tablet_completion_grid_body.html",
+        "static/css/foundation/foms-tablet-completion-grid.css",
+    ),
+    (
+        "templates/drawing/partials/workbench_dashboard_body.html",
+        "drawing/partials/tablet_gallery_body.html",
+        "static/css/foundation/foms-tablet-drawing-gallery.css",
+    ),
+)
+
+
+@pytest.mark.parametrize("body_tpl,partial,_css", COARSE_ONLY_SURFACES)
+def test_coarse_only_surfaces_are_render_gated(body_tpl, partial, _css) -> None:
+    """태블릿 전용 파티셜 include 는 coarse 판정과 AND 로 묶인다.
+
+    스테이징 실측 합계 728.0KB(5탭 fragment 합의 24.5%)가 마우스 기기에서는
+    표시 불가능한 마크업이었다.
+    """
+    body = _read(body_tpl)
+    assert partial in body, f"{partial} include 가 사라졌다"
+    include_line = next(ln for ln in body.splitlines() if partial in ln)
+    # include 를 감싼 조건이 같은 줄이거나 바로 위 줄이어야 한다.
+    idx = body.splitlines().index(include_line)
+    window = "\n".join(body.splitlines()[max(0, idx - 1) : idx + 1])
+    assert "coarse_pointer_surfaces" in window, window
+
+
+@pytest.mark.parametrize("_body_tpl,_partial,css", COARSE_ONLY_SURFACES)
+def test_coarse_only_surface_css_keeps_pointer_gate(_body_tpl, _partial, css) -> None:
+    """게이트 전제: 표시 조건이 (pointer: coarse) 이고 강제 해치가 없어야 한다.
+
+    ``data-foms-shell`` 해치가 생기면 마우스 기기에서도 표면이 표시될 수 있어
+    서버 스킵이 빈 화면을 만든다 — 해치를 추가하려면 서버 게이트를 함께 고쳐야 한다.
+    """
+    text = _read(css)
+    assert "(pointer: coarse)" in text
+    assert "data-foms-shell" not in text

@@ -135,7 +135,11 @@
   <div class="foms-production-legacy-queue">
     {% include 'production/partials/filters_grid.html' %}
   </div>
-  {% if erp_mobile_v2_enabled %}
+  {# 태블릿 칸반은 (pointer: coarse) 미디어쿼리로만 표시된다(foms-tablet-production-kanban.css,
+     data-foms-shell 강제 해치 없음) — 마우스 기기엔 죽은 마크업이라 렌더하지 않는다(실측 123.8KB).
+     동봉된 tablet-domain-sheets.js 도 함께 빠지지만 출고는 dashboard_scripts.html 에서 자기
+     몫을 따로 싣고, 생산 태블릿 시트는 이 칸반을 통해서만 열리므로 진입 경로가 없다. #}
+  {% if erp_mobile_v2_enabled and coarse_pointer_surfaces %}
     {% include 'production/partials/tablet_kanban_body.html' %}
   {% endif %}
   {% include 'production/partials/modals.html' %}
