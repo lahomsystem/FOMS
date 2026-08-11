@@ -186,6 +186,7 @@ ACTION_LABELS: dict[str, str] = {
     "NOTIFICATIONS_DELETED": "알림 일괄 삭제",
     "URGENT_MENTION_SENT": "긴급 호출",
     "CHANNEL_PUSH_SENT": "채널톡 발송",
+    "ALIMTALK_MANUAL_SENT": "알림톡 수동 발송",
     "BLUEPRINT_DELETED": "도면 삭제",
     "DRAWING_WIZARD_SAVED": "도면 마법사 저장",
     "DRAWING_WIZARD_ASSET_ADDED": "도면 마법사 자산 추가",
