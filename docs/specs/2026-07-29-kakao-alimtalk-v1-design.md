@@ -70,7 +70,7 @@ FOMS 주문에서 고객에게 카카오 알림톡을 자동/수동 발송한다
 
 ### 6.1 영속화 — 기존 인프라 3종 재사용 (채널톡 `_record_push_metadata` 선례)
 - **멱등**: `domain_side_effect_outbox` 행 insert — `effect_type='ALIMTALK_SEND'`, partial UNIQUE `(effect_type, dedupe_key)`가 DB 제약으로 중복 차단. `provider_idempotency_key`로 벤더 멱등 전달.
-- **멱등키(자동)**: `order:{id}:measure_reserve:{dates}:{time}` — dates = `_normalize_date_str` 적용·정렬·중복제거한 날짜 리스트(콤마 다중일자 지원, [order_date_sync.py:60-77](../../foms/services/order_date_sync.py) 규약), time = strip. 수동 발송 키 = `...:manual:{uuid4}` (항상 신규 — D2, 중복 방지는 서버 렌더 확인 모달이 담당).
+- **멱등키(자동)**: `alimtalk:measure:{order_id}:{dates}:{time}` (T1 구현 기준 정정 — 수동 키와 접두어 일관) — dates = `_normalize_date_str` 적용·정렬·중복제거한 날짜 리스트(콤마 다중일자 지원, [order_date_sync.py:60-77](../../foms/services/order_date_sync.py) 규약), time = strip. 수동 발송 키 = `...:manual:{uuid4}` (항상 신규 — D2, 중복 방지는 서버 렌더 확인 모달이 담당).
 - **이력**: `structured_data['alimtalk_measurement']` 키(sent_at/message_id/dedupe/실패 사유) + `OrderEvent(event_type='ALIMTALK_SENT'|'ALIMTALK_FAILED')` — 타임라인 자동 표시([order_event_display.py](../../foms/services/order_event_display.py) 라벨 맵 1줄 추가).
 - **삽입 위치(M2)**: 주문 저장 tx **커밋 후** 별도 tx (geocode enqueue 자리 선례, [erp_orders_structured.py:953-954](../../foms/api/erp_orders_structured.py)). `IntegrityError` = 정상 중복으로 흡수(로그), 그 외 예외 = 로그+표면화. 주문 저장 절대 비차단.
 - 타임스탬프 = `now_utc_naive` (프로젝트 규약. 주변 일부 레거시 naive-local 혼재 인지 — 신규 기록은 UTC 고정).
@@ -83,7 +83,7 @@ FOMS 주문에서 고객에게 카카오 알림톡을 자동/수동 발송한다
   - 예약금 = `erp_deposit_amount_from_structured(sd)` SSOT 헬퍼 (H4 — `payment` 단수 우선, int) → `"100,000원"` 포맷
   - 발주사 비면 `'라홈'`, 기타 빈값 `'상담'`
   - 1,000자 하드 가드(§5)
-- **전화 검증(M4)**: 숫자만 추출 → 10~11자리·`01` 시작 검증. 다중번호(`/` 구분 등)는 첫 번째만, 이력에 명시. 실패 = 발송 스킵 + `ALIMTALK_FAILED(no_valid_phone)` 이력.
+- **전화 검증(M4)**: 숫자만 추출 → 10~11자리·`01` 시작 검증. 다중번호(`/` 구분 등)는 **첫 번째 유효 번호** 사용(무효 토큰 건너뜀 — T1 테스트 고정), 이력에 명시. 실패 = 발송 스킵 + `ALIMTALK_FAILED(no_valid_phone)` 이력.
 - **Solapi 호출**: 공식 SDK 채택(HMAC 서명 직접 구현 리스크 > 핀 1건 관리 비용 — requirements.txt 추가 명시). `KakaoOption(pf_id, template_id, variables={"#{이름}": 값})` + **`from_`=등록 발신번호 필수**(failover 활성 전제). `disableSms` 기본값 유지(대체발송 on). `text` 파라미터는 스테이징 실계정 확인 전 미사용(§8).
 - **오류 분류** → 이력 error 코드: `auth`/`balance`(잔액 부족)/`template_mismatch`(변수 불일치)/`invalid_phone`/`length_exceeded`/`network`. bare except 금지, 실패는 전부 이력+구조화 로그.
 
