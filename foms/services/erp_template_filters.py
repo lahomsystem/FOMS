@@ -3,6 +3,13 @@
 import re
 
 from foms.services.erp_mobile_order_display import resolve_queue_card_schedule
+# 실측 시간 자유 텍스트 판정 경계·정규식 SSOT (동선 정렬 파서와 같은 규약을 써야
+# 오전/오후 판정이 갈리지 않는다). 재노출은 기존 import 경로 호환용.
+from foms.services.measurement_time import (
+    MEAS_AM_END_HOUR,
+    MEAS_AM_START_HOUR,
+    MEAS_HOUR_RE,
+)
 
 __all__ = [
     "split_count_filter",
@@ -272,10 +279,7 @@ def queue_card_schedule_filter(order) -> dict[str, str | None]:
     )
 
 
-# 실측 시간 자유 텍스트 → 오전/오후 판정 경계 (매직넘버 금지, meas_daypart 전용)
-MEAS_AM_START_HOUR = 7
-MEAS_AM_END_HOUR = 11
-MEAS_HOUR_RE = re.compile(r'(\d{1,2})\s*(?::|시)')
+# 오전/오후 판정 경계·시각 정규식은 measurement_time(SSOT)에서 import 한다(상단).
 
 
 def meas_daypart(value: str | None) -> str | None:

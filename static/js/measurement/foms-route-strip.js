@@ -32,10 +32,13 @@
     var now = new Date();
     var diff = target - (now.getHours() * 60 + now.getMinutes());
     el.classList.remove('is-soon', 'is-passed');
+    // 표시는 항상 원문 라벨("4시") 우선 — data-foms-visit-time 은 서버가 정규화한
+    // HH:MM 정렬/계산용 값이라 그대로 보여주면 사용자가 쓰는 표현과 달라진다.
+    var label = el.getAttribute('data-foms-visit-label') || el.getAttribute('data-foms-visit-time');
     if (diff < 0) { el.textContent = '방문 시간 지남'; el.classList.add('is-passed'); }
     else if (diff === 0) { el.textContent = '지금 출발'; el.classList.add('is-soon'); }
     else if (diff < 60) { el.textContent = diff + '분 후 출발'; el.classList.add('is-soon'); }
-    else { el.textContent = el.getAttribute('data-foms-visit-time') + ' 방문'; }
+    else { el.textContent = label + ' 방문'; }
   }
 
   // 라이브 DOM 재조회 → 스왑 후 새 히어로도 즉시 반영(스크립트 실행마다 호출해도 안전).
@@ -298,10 +301,21 @@
     });
   }
 
-  function headCaption(pts) {
+  // 지도에서 빠진 건수는 반드시 캡션에 남긴다 — 조용히 사라지면 "실측 10곳"과
+  // "동선 4곳"의 차이를 사용자가 설명할 수 없다(좌표 미변환/상한 절단).
+  function excludedNote(data) {
+    var missing = (data && data.missing_coords) || 0;
+    var truncated = (data && data.truncated) || 0;
+    var parts = [];
+    if (missing > 0) parts.push('좌표 없는 ' + missing + '곳');
+    if (truncated > 0) parts.push('상한 초과 ' + truncated + '곳');
+    return parts.length ? '(' + parts.join(' · ') + ' 제외)' : '';
+  }
+
+  function headCaption(pts, data) {
     var first = regionOf(pts[0].address), last = regionOf(pts[pts.length - 1].address);
     var route = (first && last && first !== last) ? (first + ' → ' + last) : (first || last || '');
-    return '오늘 동선 · ' + pts.length + '곳' + (route ? ' · ' + route : '');
+    return '오늘 동선 · ' + pts.length + '곳' + excludedNote(data) + (route ? ' · ' + route : '');
   }
 
   function footCaption(pts, currentIdx) {
@@ -337,7 +351,7 @@
     strip.textContent = '';
     var head = document.createElement('div');
     head.className = 'foms-route-strip__head';
-    head.textContent = headCaption(pts);
+    head.textContent = headCaption(pts, data);
     strip.appendChild(head);
 
     var slot = document.createElement('div');
@@ -367,6 +381,9 @@
     }
   }
 
+  // 마운트가 둘 이상인 표면(v3 셸: 홈 스트립 + desktop-fallback 안의 v2 대시보드
+  // 스트립)에서는 문서 순서 첫 마운트만 초기화한다 — fallback 쪽은 화면에 없어
+  // 초기화하면 보이지 않는 카카오 지도 인스턴스만 하나 더 만든다.
   function initRouteStrip() {
     var strip = document.querySelector('[data-foms-route-strip]');
     if (!strip) return;
