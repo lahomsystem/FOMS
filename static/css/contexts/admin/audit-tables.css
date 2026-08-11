@@ -24,6 +24,15 @@
   white-space: nowrap;
 }
 
+/* 행위 배지는 칸 안에서 줄바꿈한다 — ``ORDER_CHECKLIST_UPDATED`` 처럼 긴 action 이
+   기본 폭(≈168px)을 넘어 잘리고 옆 칸 글자와 붙어 보였다(2026-08-11 운영 실측).
+   폭을 더 주면 문장 칸을 빼앗기므로 접어서 보여준다. */
+.admin-audit-table > tbody > tr > td .badge {
+  white-space: normal;
+  word-break: break-all;
+  text-align: left;
+}
+
 /* 부가정보 JSON은 칸을 넘기지 않고 자체 스크롤한다. */
 .admin-audit-table .audit-cell-detail pre {
   max-height: 8.5rem;
@@ -38,22 +47,28 @@
   user-select: none;
 }
 
+/* 시간 칸만 고정 폭(rem)인 이유: 내용 길이가 "2026-08-11 11:36:12"로 항상 같은데 %로 주면
+   화면이 좁아질수록 폭이 같이 줄어 초 자리가 잘렸다(운영 실측: 필요 152px, 11%=143px).
+   나머지 칸은 화면 폭에 비례해야 하므로 %를 유지한다 — 합이 100%가 아닌 것은 의도다. */
+.admin-audit-table .audit-cell-time,
+.admin-audit-table > thead > tr > th:nth-child(1) {
+  width: 10rem;
+}
+
 /* --- 기본 폭: 보안 로그 --------------------------------------------------- */
-.admin-audit-table--security > thead > tr > th:nth-child(1) { width: 11%; }  /* 시간 */
 .admin-audit-table--security > thead > tr > th:nth-child(2) { width: 13%; }  /* 행위 */
 .admin-audit-table--security > thead > tr > th:nth-child(3) { width: 9%; }   /* 대상 */
-.admin-audit-table--security > thead > tr > th:nth-child(4) { width: 34%; }  /* 상세 내용 */
-.admin-audit-table--security > thead > tr > th:nth-child(5) { width: 20%; }  /* 부가정보 */
-.admin-audit-table--security > thead > tr > th:nth-child(6) { width: 13%; }  /* 사용자 */
+.admin-audit-table--security > thead > tr > th:nth-child(4) { width: 32%; }  /* 상세 내용 */
+.admin-audit-table--security > thead > tr > th:nth-child(5) { width: 19%; }  /* 부가정보 */
+.admin-audit-table--security > thead > tr > th:nth-child(6) { width: 12%; }  /* 사용자 */
 
 /* --- 기본 폭: 파일 열람 기록 ---------------------------------------------- */
-.admin-audit-table--file > thead > tr > th:nth-child(1) { width: 11%; }  /* 시간 */
-.admin-audit-table--file > thead > tr > th:nth-child(2) { width: 13%; }  /* 행위 */
-.admin-audit-table--file > thead > tr > th:nth-child(3) { width: 13%; }  /* 열람자 */
-.admin-audit-table--file > thead > tr > th:nth-child(4) { width: 28%; }  /* 파일 */
-.admin-audit-table--file > thead > tr > th:nth-child(5) { width: 8%; }   /* 주문 */
-.admin-audit-table--file > thead > tr > th:nth-child(6) { width: 11%; }  /* IP */
-.admin-audit-table--file > thead > tr > th:nth-child(7) { width: 16%; }  /* 브라우저(UA) */
+.admin-audit-table--file > thead > tr > th:nth-child(2) { width: 11%; }  /* 행위 */
+.admin-audit-table--file > thead > tr > th:nth-child(3) { width: 12%; }  /* 열람자 */
+.admin-audit-table--file > thead > tr > th:nth-child(4) { width: 27%; }  /* 파일 */
+.admin-audit-table--file > thead > tr > th:nth-child(5) { width: 7%; }   /* 주문 */
+.admin-audit-table--file > thead > tr > th:nth-child(6) { width: 10%; }  /* IP */
+.admin-audit-table--file > thead > tr > th:nth-child(7) { width: 18%; }  /* 브라우저(UA) */
 
 /* 좁은 화면에서는 폭 조절을 켜지 않는다(손잡이가 방해). 표는 가로 스크롤로 본다. */
 @media (max-width: 991.98px) {

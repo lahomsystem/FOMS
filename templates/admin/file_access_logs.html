@@ -3,7 +3,7 @@
 {% block title %}파일 열람 기록{% endblock %}
 
 {% block styles %}
-<link rel="stylesheet" href="{{ url_for('static', filename='css/contexts/admin/audit-tables.css') }}?v=20260810a">
+<link rel="stylesheet" href="{{ url_for('static', filename='css/contexts/admin/audit-tables.css') }}?v=20260811a">
 {% endblock %}
 
 {% block content %}
@@ -124,7 +124,12 @@
                         {% endif %}
                     </td>
                     <td class="small">{{ row.log.ip_address or '' }}</td>
-                    <td class="small text-break">{{ row.log.user_agent or '' }}</td>
+                    <td class="small text-break">
+                        {# 요약만 보여주고 원문은 title 로 남긴다 — UA 전문이 표를 4줄씩 덮었다. #}
+                        {% if row.log.user_agent %}
+                        <span title="{{ row.log.user_agent }}">{{ row.user_agent_short }}</span>
+                        {% endif %}
+                    </td>
                 </tr>
                 {% else %}
                 <tr>
