@@ -3,7 +3,7 @@
   "guard": "CSRF_TOKEN+ORIGIN",
   "description": "WRITE-GUARD-01 정본: 모든 cookie-auth state-changing route 의 write_guard metadata. mode=guard 는 공용 CSRF+Origin before_request 가드(enforce_csrf_origin) 적용, mode=exempt 는 자기 정책(서명/ingest/anon)으로 명시 우회. url_map 의 모든 POST/PUT/PATCH/DELETE endpoint 가 여기 등재되어야 하며 누락은 static gate fail(fail-safe: 미등재 endpoint 는 런타임에서 guard).",
   "exempt_count": 7,
-  "guard_count": 163,
+  "guard_count": 165,
   "routes": {
     "admin.ops_approval_review": {
       "mode": "guard",
@@ -455,6 +455,14 @@
     "kakao.api_alimtalk_send_manual": {
       "mode": "guard",
       "rule": "/api/kakao/alimtalk/send-manual/<int:order_id>"
+    },
+    "share_api.api_share_create": {
+      "mode": "guard",
+      "rule": "/api/share/create/<int:order_id>"
+    },
+    "share_api.api_share_revoke": {
+      "mode": "guard",
+      "rule": "/api/share/revoke/<int:share_id>"
     },
     "notifications.api_notification_ack": {
       "mode": "guard",
