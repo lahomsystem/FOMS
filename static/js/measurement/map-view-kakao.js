@@ -111,6 +111,17 @@
     if (sdkState === SDK_FAILED) { cb(false); return; }
     sdkWaiters.push(cb);
     if (sdkState === SDK_LOADING) return;
+    // head 조기 부팅(map_view.html)이 이미 SDK 주입을 시작했으면 그 약속을 소비한다.
+    // 여기서 또 주입하면 같은 SDK 를 두 번 평가하게 되므로 중복 주입 금지.
+    var earlySdk = window.__FOMS_KAKAO_SDK;
+    if (earlySdk && typeof earlySdk.then === 'function') {
+      sdkState = SDK_LOADING;
+      earlySdk.then(function (ok) {
+        sdkState = (ok && sdkReady()) ? SDK_READY : SDK_FAILED;
+        flushSdkWaiters(sdkState === SDK_READY);
+      });
+      return;
+    }
     if (!jsKey) { sdkState = SDK_FAILED; flushSdkWaiters(false); return; }
     sdkState = SDK_LOADING;
     var s = document.createElement('script');
