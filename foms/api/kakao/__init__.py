@@ -22,7 +22,9 @@ from flask import Blueprint, jsonify, session
 
 from db import get_db
 from models import Order
-from foms.web.auth import login_required, role_required
+from foms.web.auth import log_access, login_required, role_required
+from foms.services.audit_message_display import describe_order_action
+from foms.services.orders.audit_order_context import order_audit_context
 from foms.services.kakao_alimtalk import (
     _ineligible_reason,  # 자격 판정 SSOT — API 에서 재구현하면 발송/표시 판정이 갈린다
     is_configured,
@@ -104,14 +106,30 @@ def api_alimtalk_send_manual(order_id: int):
     """
     if not is_configured():
         return _envelope(None, 'not_configured', 503)
-    if _load_order(order_id) is None:
+    order = _load_order(order_id)
+    if order is None:
         return _envelope(None, 'order_not_found', 404)
 
+    actor_user_id = session.get('user_id')
     result = send_alimtalk(
         order_id,
-        manual_by=session.get('user_id'),
+        manual_by=actor_user_id,
         dedupe_key=f'alimtalk:measure:{order_id}:manual:{uuid.uuid4()}',
     )
     logger.info("알림톡 수동 발송 (order_id=%s, sent=%s, error=%s)",
                 order_id, result.get('sent'), result.get('error'))
-    return _envelope(result, result.get('error'))
+
+    # 고객에게 나간 발송은 성공·실패 모두 감사에 남긴다(채널톡 발송 선례와 동일 계약).
+    # 본문은 남기지 않는다 — 치환 텍스트에 고객 정보가 섞인다(원장 PII 최소화). 본문
+    # 이력은 structured_data 의 alimtalk_measurement 가 이미 소유한다.
+    sent = bool(result.get('sent'))
+    error = result.get('error')
+    context = order_audit_context(order)
+    log_access(
+        describe_order_action(order_id=order_id, action='ALIMTALK_MANUAL_SENT',
+                              note=None if sent else f'실패: {error}', **context),
+        actor_user_id,
+        action='ALIMTALK_MANUAL_SENT', target_type='order', target_id=int(order_id),
+        detail={'sent': sent, 'error': error, 'template': 'measure', **context},
+    )
+    return _envelope(result, error)
