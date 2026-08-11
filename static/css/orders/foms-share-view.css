@@ -1,0 +1,57 @@
+/* 고객 공유 열람 페이지 (비로그인 독립 문서, Phase A T2).
+   ERP 셸 밖이라 자체 최소 레이아웃만 정의한다 — 갤러리 카드/라이트박스는
+   foms-drawing-mobile.css / foms-lightbox.css 소관. */
+.foms-share-view {
+  margin: 0;
+  padding: 0 16px 48px;
+  max-width: 720px;
+  margin-inline: auto;
+  font-family: -apple-system, BlinkMacSystemFont, "Segoe UI", "Malgun Gothic", sans-serif;
+  color: #1f2937;
+  background: #f9fafb;
+}
+
+.foms-share-view__header {
+  padding: 24px 0 8px;
+}
+
+.foms-share-view__title {
+  margin: 0;
+  font-size: 1.25rem;
+  font-weight: 700;
+}
+
+.foms-share-view__hint {
+  margin: 4px 0 0;
+  font-size: 0.85rem;
+  color: #6b7280;
+}
+
+.foms-share-view__file-list {
+  margin: 16px 0 0;
+  padding-left: 20px;
+}
+
+.foms-share-view__file-list li {
+  margin: 6px 0;
+  word-break: break-all;
+}
+
+.foms-share-view__empty {
+  margin: 40px 0;
+  text-align: center;
+  color: #6b7280;
+}
+
+.foms-share-view__expiry-note {
+  margin: 16px 0 0;
+  padding: 10px 12px;
+  border-radius: 8px;
+  background: #fef2f2;
+  color: #b91c1c;
+  font-size: 0.9rem;
+}
+
+.foms-share-view__expiry-note[hidden] {
+  display: none;
+}
