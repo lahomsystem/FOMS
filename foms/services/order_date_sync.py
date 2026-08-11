@@ -546,10 +546,14 @@ def register_date_sync_listener() -> None:
         if not session.info.pop("foms_dashcache_order_dates", None):
             return
         try:
-            from foms.services.common.dashboard_cache import invalidate_dashboard_family
+            # 날짜는 실측/출고만의 축이 아니다: 시공일은 시공 숫자판·도면 SLA, 완료일은
+            # 완료(이력) 목록, 단계 이동을 동반하면 주문 단계별 건수까지 흔든다. 실측·출고만
+            # 비우면 나머지 탭이 TTL(300초)만큼 옛 숫자를 보여준다(2026-08-10 조사).
+            from foms.services.common.dashboard_cache import (
+                invalidate_all_dashboard_slice_caches,
+            )
 
-            invalidate_dashboard_family("measurement")
-            invalidate_dashboard_family("shipment")
+            invalidate_all_dashboard_slice_caches()
         except Exception as exc:
             logger.warning(
                 "[DashCache] after_commit invalidate failed (non-fatal): %s",

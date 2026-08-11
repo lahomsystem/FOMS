@@ -167,3 +167,47 @@ def test_delete_transition_invalidates_all_families_and_as_recommendation_cache(
 
     assert seen == list(dc.ALL_DASHBOARD_FAMILIES)
     as_mock.assert_called_once_with(reason="order_delete")
+
+
+# --- MUT-CACHE-01: canonical mutation intent → family 매핑 --------------------
+
+
+def test_mutation_intent_broad_marker_invalidates_every_family():
+    """삭제/복원(TRASH_INDEX)은 전 탭 전이 → broad."""
+    families = dc.dashboard_families_for_mutation_intent({"broad": True, "stages": ["MEASURE"]})
+    assert families == dc.ALL_DASHBOARD_FAMILIES
+
+
+def test_mutation_intent_same_stage_scopes_orders_plus_stage_family():
+    """단계가 그대로면 orders + 그 단계 탭만(과무효화로 캐시 히트율을 깎지 않는다)."""
+    families = dc.dashboard_families_for_mutation_intent(
+        {"broad": False, "stages": ["MEASURE", "MEASURE"]}
+    )
+    assert set(families) == {"orders", "measurement"}
+
+
+def test_mutation_intent_stage_move_scopes_both_sides():
+    """단계 이동은 떠난 탭과 도착 탭 둘 다 숫자가 바뀐다 → 양쪽 모두 무효화."""
+    families = dc.dashboard_families_for_mutation_intent(
+        {"broad": False, "stages": ["MEASURE", "CONSTRUCTION"]}
+    )
+    assert set(families) == {"orders", "measurement", "construction"}
+
+
+def test_mutation_intent_stage_move_with_unmapped_side_is_broad():
+    """RECEIVED 처럼 도메인 탭이 없는 단계로/에서 이동하면 어느 탭이 바뀔지 모른다 → broad.
+
+    2026-08-10 스테이징 재현(접수→도면 후 310초 지연)이 정확히 이 경우였다.
+    """
+    families = dc.dashboard_families_for_mutation_intent(
+        {"broad": False, "stages": ["RECEIVED", "DRAWING"]}
+    )
+    assert families == dc.ALL_DASHBOARD_FAMILIES
+
+
+def test_mutation_intent_unmapped_stage_without_move_stays_narrow():
+    """단계가 안 바뀌었으면 매핑이 없어도 broad 로 번지지 않는다(무효화 폭주 방지)."""
+    families = dc.dashboard_families_for_mutation_intent(
+        {"broad": False, "stages": ["RECEIVED", "RECEIVED"]}
+    )
+    assert families == ("orders",)

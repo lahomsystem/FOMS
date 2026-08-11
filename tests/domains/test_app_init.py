@@ -237,12 +237,22 @@ def test_run_auto_init_uses_internal_startup_policy(monkeypatch):
         "register_date_sync_listener",
         lambda: calls.append("register_date_sync_listener"),
     )
+    # MUT-CACHE-01: canonical mutation 자동 무효화 리스너도 startup 배선이다.
+    # 배선이 빠지면 삭제·단계 이동이 TTL(300초)만큼 숫자판에 남는다(2026-08-10 사고).
+    import foms.services.common.dashboard_cache as dashboard_cache_module
+
+    monkeypatch.setattr(
+        dashboard_cache_module,
+        "register_dashboard_cache_invalidation_listener",
+        lambda: calls.append("register_dashboard_cache_invalidation_listener"),
+    )
     app_init.run_auto_init(_FakeApp())
 
     assert calls == [
         "enter_app_context",
         "verify_erp_flat_columns_ready",
         "register_date_sync_listener",
+        "register_dashboard_cache_invalidation_listener",
         "exit_app_context",
     ]
     # Purity guarantees: no create_all baseline, no startup backfill.

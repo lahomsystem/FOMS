@@ -174,6 +174,52 @@ def if_match_enforced() -> bool:
         return False
 
 
+def _record_dashboard_cache_intent(
+    session: Session,
+    locked: Sequence[Order],
+    families: Mapping[int, Sequence[str]],
+    stages_before: Sequence[Optional[str]],
+) -> None:
+    """MUT-CACHE-01: 이 mutation 이 무효화해야 할 dashboard 범위를 session.info 에 남긴다.
+
+    실제 무효화는 ``after_commit`` 리스너
+    (:func:`foms.services.common.dashboard_cache.register_dashboard_cache_invalidation_listener`)
+    가 커밋 성공 뒤에 수행한다 — 여기서 바로 지우면 롤백된 트랜잭션이 캐시를 날린다.
+    같은 트랜잭션에 mutation 이 여러 번 실행되면 intent 는 누적(합집합)된다.
+
+    ``TRASH_INDEX`` family(삭제·복원)는 주문이 전 탭에서 사라지거나 다시 나타나는 전이라
+    broad 로 표시한다. 나머지는 변경 전/후 stage 를 그대로 넘겨 소비자가 매핑한다.
+
+    Args:
+        session: 진행 중인 business 세션.
+        locked: 이 mutation 이 잠근 Order 목록(변경 후 상태).
+        families: mutation 콜러블이 돌려준 order_id → cache family 목록.
+        stages_before: ``locked`` 와 같은 순서의 변경 **전** ``erp_stage_code``.
+    """
+    from foms.services.common.dashboard_cache import MUTATION_CACHE_INTENT_KEY
+
+    intent = session.info.get(MUTATION_CACHE_INTENT_KEY)
+    if not isinstance(intent, dict):
+        intent = {"broad": False, "stages": []}
+        session.info[MUTATION_CACHE_INTENT_KEY] = intent
+
+    flat_families = {str(f) for fams in families.values() for f in fams}
+    if "TRASH_INDEX" in flat_families:
+        intent["broad"] = True
+
+    stages = intent["stages"]
+    stages.extend(stages_before)
+    for order in locked:
+        # flat 컬럼(erp_stage_code)은 라우트가 mutation 밖에서 동기화하는 경우가 있어
+        # structured workflow.stage 도 함께 넣는다(좁게 잡아 놓치는 것보다 넓게).
+        stages.append(getattr(order, "erp_stage_code", None))
+        sd = getattr(order, "structured_data", None)
+        workflow = (sd or {}).get("workflow") if isinstance(sd, dict) else None
+        stage = (workflow or {}).get("stage") if isinstance(workflow, dict) else None
+        if isinstance(stage, str) and stage.strip():
+            stages.append(stage.strip())
+
+
 def execute_order_mutation(
     session: Session,
     *,
@@ -273,10 +319,13 @@ def execute_order_mutation(
         raise RevisionConflictError({o.id: o.mutation_version for o in locked})
 
     # 4) 업무 변경 → family 수집 → version bump.
+    #    stage 는 변경 전/후를 모두 모아 dashboard 캐시 무효화 intent 로 넘긴다(아래 5-b).
+    stages_before = [getattr(o, "erp_stage_code", None) for o in locked]
     families_raw = mutation(session, locked) or {}
     families = {oid: list(fams) for oid, fams in families_raw.items()}
     for order in locked:
         order.mutation_version = (order.mutation_version or 0) + 1
+    _record_dashboard_cache_intent(session, locked, families, stages_before)
 
     resulting_versions = {o.id: o.mutation_version for o in locked}
     resources = [
