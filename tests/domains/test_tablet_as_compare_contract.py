@@ -96,7 +96,7 @@ def test_as_dashboard_body_includes_compare_cohort_gated() -> None:
     """as_dashboard_body 가 대조 파샬을 erp_mobile_v2_enabled 게이트 안에서 include(전례)."""
     body = _norm(_read(AS_DASHBOARD_BODY))
     assert (
-        "{% if erp_mobile_v2_enabled %}"
+        "{% if erp_mobile_v2_enabled and coarse_pointer_surfaces %}"
         "{% include 'cs/partials/tablet_as_compare_body.html' %}"
         "{% endif %}"
     ) in body

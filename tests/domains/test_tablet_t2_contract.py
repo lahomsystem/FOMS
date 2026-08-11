@@ -855,7 +855,7 @@ def test_dashboard_body_includes_gallery_cohort_gated_with_legacy_wrapper() -> N
     assert "foms-drawing-legacy-table" in body
     norm = _norm(body)
     assert (
-        "{% if erp_mobile_v2_enabled %} "
+        "{% if erp_mobile_v2_enabled and coarse_pointer_surfaces %} "
         "{% include 'drawing/partials/tablet_gallery_body.html' %}"
     ) in norm
 
@@ -951,7 +951,7 @@ def test_completion_grid_wired_into_body_cohort_gated_with_wrapper() -> None:
     body = _norm(_read(COMPLETION_DASHBOARD_BODY))
     assert "cs/partials/tablet_completion_grid_body.html" in body
     assert (
-        "{% if erp_mobile_v2_enabled %} "
+        "{% if erp_mobile_v2_enabled and coarse_pointer_surfaces %} "
         "{% include 'cs/partials/tablet_completion_grid_body.html' %}"
     ) in body
     assert "foms-completion-photo-review" in body
