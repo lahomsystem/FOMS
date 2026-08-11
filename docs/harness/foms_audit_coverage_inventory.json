@@ -8,11 +8,11 @@
     "log_access"
   ],
   "baselines": {
-    "total": 173,
+    "total": 175,
     "unaudited": 0
   },
   "classification_counts": {
-    "AUDITED": 143,
+    "AUDITED": 145,
     "EXEMPT": 30,
     "UNAUDITED": 0
   },
@@ -1116,6 +1116,24 @@
       "lineno": 481,
       "methods": [
         "PUT"
+      ],
+      "classification": "AUDITED"
+    },
+    {
+      "path": "foms/api/share.py",
+      "endpoint": "api_share_create",
+      "lineno": 225,
+      "methods": [
+        "POST"
+      ],
+      "classification": "AUDITED"
+    },
+    {
+      "path": "foms/api/share.py",
+      "endpoint": "api_share_revoke",
+      "lineno": 280,
+      "methods": [
+        "POST"
       ],
       "classification": "AUDITED"
     },

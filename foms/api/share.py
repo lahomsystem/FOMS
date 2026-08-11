@@ -11,15 +11,19 @@ flat 모듈이다 — namespace 닫힌집합 게이트는 디렉토리만 검사
 from __future__ import annotations
 
 import logging
+from typing import Any, Optional
 
-from flask import Blueprint, Response, render_template, request
+from flask import Blueprint, Response, jsonify, render_template, request, session, url_for
 
 from db import db_session
 from foms.services import order_share as share_service
+from foms.services.audit_message_display import describe_order_action
 from foms.services.audit_writer import record_file_access
+from foms.services.orders.audit_order_context import order_audit_context
 from foms.services.orders.drawing_transfer import _is_drawing_key
 from foms.services.storage import get_storage
-from models import Order, OrderAttachment
+from foms.web.auth import log_access, login_required, role_required
+from models import Order, OrderAttachment, OrderShareToken
 
 logger = logging.getLogger(__name__)
 
@@ -188,3 +192,118 @@ def view_shared_order(token: str):
         drawing_preview_cards=cards,
         share_extra_files=extra_files,
     )
+
+
+# ---------------------------------------------------------------------------
+# 직원 API (T3) — CSRF/Origin 은 공용 write guard before_request 가 담당하므로
+# 라우트에 별도 데코레이터를 두지 않는다(manifest 등재가 그 계약, kakao 선례).
+# ---------------------------------------------------------------------------
+
+share_api_bp = Blueprint('share_api', __name__, url_prefix='/api/share')
+
+#: 알림톡 수동 발송 선례와 동일 권한(스펙 §3.3). VIEWER 는 제외.
+_SHARE_ROLES = ['ADMIN', 'MANAGER', 'STAFF']
+
+
+def _envelope(data: Any, error: Optional[str], status: int = 200):
+    """프로젝트 표준 응답 ``{success, data, error}`` 를 만든다.
+
+    Args:
+        data: 성공 payload.
+        error: 오류 코드(성공이면 ``None``).
+        status: HTTP 상태코드.
+
+    Returns:
+        (jsonify 응답, 상태코드) 튜플.
+    """
+    return jsonify({'success': error is None, 'data': data, 'error': error}), status
+
+
+@share_api_bp.route('/create/<int:order_id>', methods=['POST'])
+@login_required
+@role_required(_SHARE_ROLES)
+def api_share_create(order_id: int):
+    """공유 링크 발급 — 토큰 원문은 이 응답에서 **1회만** 노출된다(해시-온리 저장).
+
+    body ``{'kind': 'drawing'}``. Stage-1 은 drawing 만 허용 — 'estimate' 는 T6
+    해금까지 400. URL 은 서버가 조립한다(자사 도메인, 단축 금지).
+
+    Args:
+        order_id: 대상 주문 id (URL).
+
+    Returns:
+        ``data = {'share_id', 'kind', 'token', 'url', 'expires_at'}``.
+    """
+    kind = (request.get_json(silent=True) or {}).get('kind') or 'drawing'
+    if kind == 'estimate':
+        # T6(스냅샷 빌더) 전까지는 발급 자체를 막는다 — 스냅샷 없는 견적 링크 금지(D6).
+        return _envelope(None, 'estimate_not_available', 400)
+    if kind not in share_service.SHARE_KINDS:
+        return _envelope(None, 'unknown_kind', 400)
+
+    order = (
+        db_session.query(Order)
+        .filter(Order.id == order_id, Order.active_filter())
+        .one_or_none()
+    )
+    if order is None:
+        return _envelope(None, 'order_not_found', 404)
+
+    actor_user_id = session.get('user_id')
+    row, token = share_service.create_share_token(
+        db_session, order.id, kind, created_by_user_id=actor_user_id)
+    db_session.commit()
+
+    url = url_for('share_view.view_shared_order', token=token, _external=True)
+    expires_iso = row.expires_at.isoformat()
+    context = order_audit_context(order)
+    # 감사에는 토큰 원문·URL 을 남기지 않는다(감사 원장에 bearer 자격 축적 금지).
+    log_access(
+        describe_order_action(order_id=order.id, action='SHARE_LINK_CREATED',
+                              note=kind, **context),
+        actor_user_id,
+        action='SHARE_LINK_CREATED', target_type='order', target_id=int(order.id),
+        detail={'share_id': row.id, 'kind': kind, 'expires_at': expires_iso, **context},
+    )
+    return _envelope({
+        'share_id': row.id,
+        'kind': kind,
+        'token': token,
+        'url': url,
+        'expires_at': expires_iso,
+    }, None)
+
+
+@share_api_bp.route('/revoke/<int:share_id>', methods=['POST'])
+@login_required
+@role_required(_SHARE_ROLES)
+def api_share_revoke(share_id: int):
+    """공유 링크 회수 — 즉시 열람 차단(410). 멱등(재호출도 200).
+
+    주문이 삭제됐어도 회수는 허용한다(잔존 링크를 죽이는 안전 방향 조작).
+
+    Args:
+        share_id: 대상 공유 row id (URL).
+
+    Returns:
+        ``data = {'share_id', 'revoked_at'}``.
+    """
+    row = db_session.get(OrderShareToken, share_id)
+    if row is None:
+        return _envelope(None, 'share_not_found', 404)
+
+    share_service.revoke_token(row)
+    db_session.commit()
+
+    actor_user_id = session.get('user_id')
+    order = db_session.get(Order, row.order_id)
+    context = order_audit_context(order) if order is not None else {}
+    log_access(
+        describe_order_action(order_id=row.order_id, action='SHARE_LINK_REVOKED',
+                              note=row.kind, **context),
+        actor_user_id,
+        action='SHARE_LINK_REVOKED', target_type='order', target_id=int(row.order_id),
+        detail={'share_id': row.id, 'kind': row.kind,
+                'revoked_at': row.revoked_at.isoformat(), **context},
+    )
+    return _envelope({'share_id': row.id, 'revoked_at': row.revoked_at.isoformat()}, None)

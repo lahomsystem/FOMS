@@ -183,6 +183,8 @@ ACTION_LABELS: dict[str, str] = {
     "URGENT_MENTION_SENT": "긴급 호출",
     "CHANNEL_PUSH_SENT": "채널톡 발송",
     "ALIMTALK_MANUAL_SENT": "알림톡 수동 발송",
+    "SHARE_LINK_CREATED": "고객 공유 링크 발급",
+    "SHARE_LINK_REVOKED": "고객 공유 링크 회수",
     "BLUEPRINT_DELETED": "도면 삭제",
     "DRAWING_WIZARD_SAVED": "도면 마법사 저장",
     "DRAWING_WIZARD_ASSET_ADDED": "도면 마법사 자산 추가",
