@@ -200,10 +200,66 @@ def test_view_deleted_order_404(client, db, r2):
     assert client.get(f'/s/{token}').status_code == 404
 
 
-def test_view_estimate_kind_404_until_t7(client, db, r2):
+# --- estimate 열람 (T7) ----------------------------------------------------------
+
+
+def _mk_estimate_share(order) -> tuple[OrderShareToken, str]:
+    from foms.services.order_share import build_estimate_snapshot
+    snap = build_estimate_snapshot(order)
+    row, token = osvc.create_share_token(db_session, order.id, 'estimate', snapshot=snap)
+    db_session.commit()
+    return row, token
+
+
+_EST_SD = {
+    'parties': {'customer': {'name': '임다슬', 'phone': '010-2473-6730'},
+                'manager': {'name': '김담당'}},
+    'site': {'address_full': '서울시 강남구'},
+    'items': [{'product_name': '무몰딩 여닫이', 'quantity': 2, 'price': 500000,
+               'color': '화이트'}],
+    'payment': {'deposit': 100000},
+}
+
+
+def test_view_estimate_renders_snapshot_only(client, db, r2):
+    """스냅샷만 렌더 — 발급 후 주문 수정은 열람에 반영되지 않는다(D6)."""
+    import copy as _copy
+    order = _mk_order(structured_data=_copy.deepcopy(_EST_SD))
+    _, token = _mk_estimate_share(order)
+
+    # 발급 후 가격 변경
+    from sqlalchemy.orm.attributes import flag_modified
+    sd = _copy.deepcopy(order.structured_data)
+    sd['items'][0]['price'] = 9_999_999
+    order.structured_data = sd
+    flag_modified(order, 'structured_data')
+    db.commit()
+
+    resp = client.get(f'/s/{token}')
+    body = resp.get_data(as_text=True)
+    assert resp.status_code == 200
+    assert '견적서' in body
+    assert '임다슬' in body
+    assert '1,000,000' in body      # 동결 시점 품목합
+    assert '9,999,999' not in body  # 수정분 미반영
+    assert '461-082990-04-011' in body  # 하우드 기본 계좌
+    assert resp.headers['X-Robots-Tag'] == 'noindex, nofollow'
+
+
+def test_view_estimate_missing_snapshot_503(client, db, r2):
     order = _mk_order()
-    _, token = _mk_share(order, kind='estimate')
-    assert client.get(f'/s/{token}').status_code == 404
+    row, token = osvc.create_share_token(db_session, order.id, 'estimate')
+    db_session.commit()
+    assert client.get(f'/s/{token}').status_code == 503
+
+
+def test_view_estimate_revoked_410(client, db, r2):
+    import copy as _copy
+    order = _mk_order(structured_data=_copy.deepcopy(_EST_SD))
+    row, token = _mk_estimate_share(order)
+    osvc.revoke_token(row)
+    db.commit()
+    assert client.get(f'/s/{token}').status_code == 410
 
 
 # --- fail-closed ---------------------------------------------------------------

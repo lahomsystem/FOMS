@@ -146,9 +146,25 @@ def view_shared_order(token: str):
     )
     if order is None:
         return _error_page(_MSG_NOT_FOUND, 404)
-    if row.kind != 'drawing':
-        # estimate 열람 렌더는 T7 해금 — 그때까지 존재 자체를 숨긴다.
-        return _error_page(_MSG_NOT_FOUND, 404)
+
+    if row.kind == 'estimate':
+        # D6: 스냅샷만 렌더 — 라이브 재조회 없음(발급 이후 주문 수정은 반영되지 않는다).
+        snap = row.snapshot
+        if not isinstance(snap, dict) or not snap:
+            # 스냅샷 없는 estimate 링크는 존재하면 안 되는 상태(생성 시 강제) — 명시 503.
+            logger.error('estimate 공유 스냅샷 부재: share_id=%s', row.id)
+            return _error_page(_MSG_UNAVAILABLE, 503)
+        share_service.record_view(row)
+        db_session.commit()
+        record_file_access(
+            'FILE_VIEW',
+            storage_key=f'share/{row.id}',
+            user_id=None,
+            ip=request.remote_addr,
+            user_agent=request.headers.get('User-Agent'),
+            order_id=order.id,
+        )
+        return render_template('orders/share_estimate_view.html', snap=snap)
 
     storage = get_storage()
     if storage.storage_type not in ('r2', 's3'):
