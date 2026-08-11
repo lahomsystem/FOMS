@@ -1,0 +1,80 @@
+"""고객 공유 UI 2표면 배선 계약 (Phase A T4).
+
+PC/모바일 한쪽만 배선하고 다른 쪽을 빠뜨리는 회귀를 소스 문자열로 고정한다
+(test_alimtalk_ui_contract.py 선례 — 렌더 파이프라인이 아니라 파일 내용을 보므로
+DB/브라우저 없이 즉시 실패한다). 태블릿 표면은 T9 에서 이 파일에 추가된다.
+"""
+
+from __future__ import annotations
+
+from pathlib import Path
+
+ROOT = Path(__file__).resolve().parents[2]
+
+BUTTON_CLASS = "erp-share-open-btn"
+MODAL_PARTIAL = "orders/partials/erp_share_modal.html"
+SHARE_JS = "js/orders/erp-share.js"
+
+
+def _read(rel: str) -> str:
+    return (ROOT / rel).read_text(encoding="utf-8")
+
+
+def test_pc_tab_has_share_button_next_to_alimtalk() -> None:
+    """PC: 알림톡 버튼 옆 고객 공유 버튼."""
+    html = _read("templates/orders/partials/erp_order_tab.html")
+    assert BUTTON_CLASS in html
+    assert 'id="erp-share-open-btn"' in html
+    assert html.index("erp-alimtalk-send-btn") < html.index(BUTTON_CLASS)
+
+
+def test_mobile_tab_has_share_button_in_sticky_footer() -> None:
+    """모바일: sticky action bar 에 foms-btn 체계로 노출."""
+    html = _read("templates/orders/partials/erp_order_tab_mobile.html")
+    footer = html[html.index("erp-mobile-sticky-action-bar"):]
+    button = footer[: footer.index("</footer>")]
+    assert BUTTON_CLASS in button, "공유 버튼이 sticky footer 밖에 있다"
+    assert "foms-btn" in button
+
+
+def test_modal_partial_included_on_both_surfaces() -> None:
+    """공유 모달 partial 은 PC/모바일 두 표면 모두에 include 된다."""
+    assert MODAL_PARTIAL in _read("templates/orders/partials/erp_order_tab.html")
+    assert MODAL_PARTIAL in _read("templates/orders/partials/erp_order_tab_mobile.html")
+
+    modal = _read("templates/orders/partials/erp_share_modal.html")
+    assert 'id="erpShareModal"' in modal
+    assert 'id="erp-share-create-btn"' in modal
+    assert 'id="erp-share-copy-btn"' in modal
+    assert 'id="erp-share-kakao-btn"' in modal
+    assert 'id="erp-share-list"' in modal
+    assert "data-kakao-js-key" in modal
+    assert "style=" not in modal, "인라인 스타일 금지 — bootstrap/erp-pro.css 사용"
+    # 견적서 kind 는 T7 해금까지 비활성으로만 노출된다.
+    assert 'value="estimate" disabled' in modal
+
+
+def test_share_js_wired_in_erp_order_script_chain_with_version() -> None:
+    """알림톡 JS 와 같은 체인에서 defer + ?v 로 로드된다(perf G1)."""
+    chain = _read("templates/orders/partials/erp_order_js.html")
+    line = next(ln for ln in chain.splitlines() if SHARE_JS in ln)
+    assert "defer" in line
+    assert "?v=" in line
+    assert chain.index("js/orders/erp-alimtalk-send.js") < chain.index(SHARE_JS)
+
+
+def test_share_js_singleton_lazy_sdk_and_endpoints() -> None:
+    """전역 리스너 싱글톤(perf G4) + API 3종 + Kakao SDK 는 클릭 시점 lazy 로드."""
+    js = _read("static/js/orders/erp-share.js")
+    assert "window.__FOMS_SHARE_BOUND" in js
+    assert "document.addEventListener('click'" in js
+    assert "/api/share/list/" in js
+    assert "/api/share/create/" in js
+    assert "/api/share/revoke/" in js
+    assert "kakao_js_sdk" in js  # lazy 로드 URL — eager <script> 태그 금지
+    assert "sendDefault" in js
+    # 태블릿 버튼은 자체 핸들러 소유(T9) — 이중 처리 방지 제외 선택자.
+    assert ":not([data-tmf-share-open])" in js
+    # 토큰·URL 은 발급 응답 메모리에만 — localStorage/sessionStorage 격납 금지.
+    assert "localStorage" not in js
+    assert "sessionStorage" not in js
