@@ -18,6 +18,7 @@ FOMS 주문에서 고객에게 카카오 알림톡을 자동/수동 발송한다
 | 재발송 | 자동 | 실측일/시간 변경 시 자동 재발송 (멱등키에 일정값 포함) |
 | D2 | 수동 재발송 | 자동만 멱등키 차단. 수동은 기존 발송 이력 확인 모달 후 허용 |
 | 버튼 | WL 확정 | "문의하기" 웹링크 → 채널 1:1 채팅 URL (§5). 상담톡(BC)은 별도 계약+기존 1:1 채팅 상실이라 기각 |
+| D3 | 브랜드 2프로필 | (2026-08-11) 라홈·하우드 각 카카오 채널을 **한 Solapi 계정**에 연동, 발신프로필·템플릿 2벌. 브랜드 판정 = 발주사명 '라홈' 포함 여부(기존 로고 규칙 `drawing_wizard_defaults._resolve_logo`와 동일). 미구성 브랜드 건은 자동 스킵+이력 — 단계 가동 |
 
 ## 3. 외부 전제 (사실검증 정정판)
 
@@ -117,8 +118,8 @@ FOMS 주문에서 고객에게 카카오 알림톡을 자동/수동 발송한다
 - 이력 표시 = 버튼 옆 텍스트 한 줄(마지막 발송 시각/실패 사유) + OrderEvent 타임라인. 뱃지 컴포넌트 없음(F6).
 - 기존 JS 수정 파일은 `?v=` 범프 + 핀 전수 grep (SW staticCacheFirst 규약).
 
-### 6.6 env (Railway, FOMS-DEV/PRODUCTION 각각)
-`SOLAPI_API_KEY` / `SOLAPI_API_SECRET` / `SOLAPI_PF_ID` / `SOLAPI_TEMPLATE_MEASURE_ID` / `SOLAPI_SENDER_PHONE`(등록 발신번호 — failover 전제) / `FOMS_ALIMTALK_AUTO_ENABLED`
+### 6.6 env (Railway, FOMS-DEV/PRODUCTION 각각) — D3 브랜드 2프로필
+`SOLAPI_API_KEY` / `SOLAPI_API_SECRET` / `SOLAPI_SENDER_PHONE`(등록 발신번호 — failover 전제) / `FOMS_ALIMTALK_AUTO_ENABLED` + 브랜드별: `SOLAPI_PF_ID_LAHOM` / `SOLAPI_TEMPLATE_MEASURE_ID_LAHOM` / `SOLAPI_PF_ID_HAUD` / `SOLAPI_TEMPLATE_MEASURE_ID_HAUD`. 브랜드의 PF/TEMPLATE 쌍이 미설정이면 해당 브랜드 건은 발송 스킵 + `ALIMTALK_FAILED(brand_profile_missing)` 이력.
 
 ### 6.7 오류 지도 (요약)
 | 경로 | 실패 | 처리 | 사용자/이력 |
