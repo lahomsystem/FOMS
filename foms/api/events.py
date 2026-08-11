@@ -8,7 +8,8 @@ from flask import Blueprint, request, jsonify, session
 from sqlalchemy.orm.attributes import flag_modified
 
 from db import get_db
-from models import Order, OrderEvent, User, SecurityLog
+from models import Order, OrderEvent, OrderFieldChange, User, SecurityLog
+from foms.services.audit_message_display import describe_change, path_label
 from foms.services.datetime_kst import format_datetime_kst
 from foms.services.order_event_display import (
     generate_change_description,
@@ -99,6 +100,114 @@ def api_order_events(order_id):
     except Exception as e:
         log_handled_exception()
         return jsonify({'success': False, 'message': str(e)}), 500
+
+
+#: 한 번에 돌려줄 change set(저장 묶음) 상한. 주문 하나의 이력이라 페이지네이션 없이도
+#: 충분하지만, 오래 산 주문은 저장이 수백 번이라 상한은 필요하다.
+_FIELD_CHANGE_SET_LIMIT = 50
+
+#: change set 하나가 담을 수 있는 변경 행 상한(대량 저장이 응답을 덮지 않게).
+_FIELD_CHANGE_ROW_LIMIT = 200
+
+
+@events_bp.route('/orders/<int:order_id>/field-changes', methods=['GET'])
+@login_required
+def api_order_field_changes(order_id: int):
+    """주문 1건의 필드 변경 이력을 저장 묶음(change set)별로 돌려준다 (ORDER-DIFF-02).
+
+    원장(:class:`~models.OrderFieldChange`)에는 경로와 값만 있고 사람 라벨은 없다 —
+    라벨·문장은 표시 SSOT(:mod:`foms.services.audit_message_display`)가 **읽는 시점에** 붙인다
+    (라벨을 고치면 과거 이력까지 함께 고쳐진다).
+
+    가시성은 기존 ``/change-events`` 규약을 그대로 따른다: **ADMIN 은 전체, 그 외는 본인이
+    바꾼 것만**. 감사 화면(ADMIN 전용)과 달리 이 탭은 현장 직원도 여는 화면이다.
+
+    :param order_id: 대상 주문 id.
+    :return: ``{'success': True, 'data': {'change_sets': [...], 'truncated': bool}}``.
+    """
+    try:
+        db = get_db()
+        order = db.query(Order).filter(Order.id == order_id).first()
+        if not order:
+            return jsonify({'success': False, 'error': '주문을 찾을 수 없습니다.'}), 404
+
+        user = db.query(User).filter(User.id == session.get('user_id')).first()
+        if not user:
+            return jsonify({'success': False, 'error': '사용자를 찾을 수 없습니다.'}), 401
+
+        # 최신 change set 부터 상한만큼 고른다(원장 전체를 읽지 않는다).
+        set_query = (
+            db.query(OrderFieldChange.change_set_id, OrderFieldChange.created_at)
+            .filter(OrderFieldChange.order_id == order_id)
+        )
+        if user.role != 'ADMIN':
+            set_query = set_query.filter(OrderFieldChange.actor_user_id == user.id)
+
+        ordered_sets: list[str] = []
+        seen: set[str] = set()
+        for change_set_id, _created_at in (
+            set_query.order_by(OrderFieldChange.id.desc())
+            .limit(_FIELD_CHANGE_SET_LIMIT * _FIELD_CHANGE_ROW_LIMIT)
+            .all()
+        ):
+            if change_set_id in seen:
+                continue
+            seen.add(change_set_id)
+            ordered_sets.append(change_set_id)
+            if len(ordered_sets) >= _FIELD_CHANGE_SET_LIMIT:
+                break
+
+        if not ordered_sets:
+            return jsonify({'success': True, 'data': {'change_sets': [], 'truncated': False}})
+
+        rows = (
+            db.query(OrderFieldChange)
+            .filter(OrderFieldChange.order_id == order_id)
+            .filter(OrderFieldChange.change_set_id.in_(ordered_sets))
+            .order_by(OrderFieldChange.id)
+            .all()  # perf-ok: bounded by change set limit above
+        )
+        actor_ids = {row.actor_user_id for row in rows if row.actor_user_id}
+        actors = {}
+        if actor_ids:
+            actors = {
+                u.id: {'name': u.name, 'username': u.username}
+                for u in db.query(User).filter(User.id.in_(actor_ids)).all()  # perf-ok: batched
+            }
+
+        grouped: dict[str, dict] = {}
+        for row in rows:
+            bucket = grouped.setdefault(row.change_set_id, {
+                'change_set': row.change_set_id,
+                'at': format_datetime_kst(row.created_at) if row.created_at else None,
+                'actor': actors.get(row.actor_user_id),
+                'changes': [],
+                'truncated': 0,
+            })
+            if len(bucket['changes']) >= _FIELD_CHANGE_ROW_LIMIT:
+                bucket['truncated'] += 1
+                continue
+            payload = {
+                'path': row.path,
+                'before': row.before_value,
+                'after': row.after_value,
+                'op': row.op,
+                'item': row.item_name,
+            }
+            bucket['changes'].append({
+                'label': path_label(row.path),
+                'text': describe_change(payload),
+                'item': row.item_name,
+            })
+
+        return jsonify({'success': True, 'data': {
+            'change_sets': [grouped[key] for key in ordered_sets if key in grouped],
+            # 상한에 걸렸다면 더 오래된 이력이 남아 있다는 뜻이다(화면이 그 사실을 표시한다).
+            'truncated': len(ordered_sets) >= _FIELD_CHANGE_SET_LIMIT,
+        }})
+    except Exception as e:
+        log_handled_exception()
+        return jsonify({'success': False, 'error': str(e)}), 500
 
 
 @events_bp.route('/orders/<int:order_id>/change-events', methods=['GET'])

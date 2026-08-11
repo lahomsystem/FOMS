@@ -241,8 +241,90 @@ def test_response_exposes_route_phase_timings(client, monkeypatch) -> None:
     assert resp.status_code == 200
 
     header = resp.headers.get("X-FOMS-EPT-B7-PHASES", "")
-    for name in ("summary_slice", "list_query", "attachment_slice", "row_dtos", "detail_payloads"):
+    # detail_payloads 구간은 preload 폐지(lazy fetch 전환)로 사라졌다 — 계측 대상 아님.
+    for name in ("summary_slice", "list_query", "attachment_slice", "row_dtos"):
         assert f"{name}=" in header, header
     for entry in header.split(";"):
         name, _, ms = entry.partition("=")
         assert name and ms.isdigit()
+
+
+def test_construction_fragment_no_longer_preloads_order_detail_payload(client) -> None:
+    """시공 fragment는 행별 상세 payload를 선적재하지 않는다(주문·생산 대시보드와 동일 계약).
+
+    50행분 detail_payload JSON 선적재가 스테이징 실측 174KB(전체 923KB의 18.9%)였다.
+    상세 패널을 처음 열 때 /api/orders/<id>/detail-payload 로 lazy fetch 한다.
+    """
+    _seed_order(11)
+    admin = _make_user("constr_preload_admin", "ADMIN")
+    _login(client, admin)
+
+    resp = client.get("/erp/construction/dashboard?view=fragment")
+    assert resp.status_code == 200
+
+    body = resp.get_data(as_text=True)
+    assert "order-detail-preload-" not in body
+    # 패널 컨테이너 자체는 남아야 한다(lazy fetch 결과를 여기에 렌더).
+    assert "order-detail-content-" in body
+
+
+def test_construction_dashboard_js_uses_lazy_detail_payload_endpoint() -> None:
+    """시공 대시보드 JS는 preload <script> 파싱이 아니라 lazy fetch 경로를 쓴다."""
+    js = (
+        pathlib.Path(__file__).resolve().parents[2]
+        / "static/js/construction/dashboard.js"
+    ).read_text(encoding="utf-8")
+
+    assert "/detail-payload`" in js
+    assert "order-detail-preload-" not in js
+
+
+def _set_ptr_cookie(client, value: str) -> None:
+    client.set_cookie("foms_ptr", value, domain="localhost")
+
+
+def _login_v2_cohort(client, monkeypatch, username: str) -> None:
+    """v2 셸 코호트가 켜진 상태로 로그인한다(workmode 렌더 전제)."""
+    monkeypatch.setenv("ERP_MOBILE_V2_ENABLED", "true")
+    user = _make_user(username, "ADMIN")
+    monkeypatch.setenv("FOMS_V3_SHELL_COHORT", str(user["id"]))
+    _login(client, user)
+
+
+def test_workmode_skipped_for_fine_pointer_devices(client, monkeypatch) -> None:
+    """마우스 기기(foms_ptr=fine)에는 태블릿 작업 모드를 렌더하지 않는다.
+
+    workmode 는 (pointer: coarse) 미디어쿼리로만 표시되고 강제 해치가 없어서
+    마우스 기기에서는 어떤 뷰포트·방향에서도 표시될 수 없다 — 스테이징 실측
+    241.8KB(시공 fragment 의 32.4%)가 통째로 죽은 마크업이었다.
+    """
+    _seed_order(21)
+    _login_v2_cohort(client, monkeypatch, "ptr_fine_admin")
+    _set_ptr_cookie(client, "fine")
+
+    body = client.get("/erp/construction/dashboard?view=fragment").get_data(as_text=True)
+    assert "foms-construction-workmode" not in body
+    # 데스크톱 표는 그대로 남아야 한다(빈 화면 금지).
+    assert "foms-construction-legacy-queue" in body
+
+
+def test_workmode_rendered_for_coarse_pointer_devices(client, monkeypatch) -> None:
+    """터치 기기(foms_ptr=coarse)에는 기존대로 렌더한다."""
+    _seed_order(22)
+    _login_v2_cohort(client, monkeypatch, "ptr_coarse_admin")
+    _set_ptr_cookie(client, "coarse")
+
+    body = client.get("/erp/construction/dashboard?view=fragment").get_data(as_text=True)
+    assert "foms-construction-workmode" in body
+
+
+def test_workmode_rendered_when_pointer_cookie_absent(client, monkeypatch) -> None:
+    """안전 폴백: 쿠키가 없으면(첫 요청·쿠키 차단) 현행대로 전부 렌더한다.
+
+    판정 불가일 때 화면이 비는 대신 느려지기만 하도록 기울인 계약이다.
+    """
+    _seed_order(23)
+    _login_v2_cohort(client, monkeypatch, "ptr_absent_admin")
+
+    body = client.get("/erp/construction/dashboard?view=fragment").get_data(as_text=True)
+    assert "foms-construction-workmode" in body

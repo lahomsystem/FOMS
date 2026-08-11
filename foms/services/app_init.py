@@ -166,6 +166,9 @@ def run_auto_init(app) -> None:
       write) for KST date synchronization.
     * ``register_payment_sync_listener`` — pure SQLAlchemy listener wiring (no
       DB write) for the ``PAYMENT_CHANGED`` audit-event SSOT.
+    * ``register_dashboard_cache_invalidation_listener`` — pure SQLAlchemy listener
+      wiring (no DB write) that drops dashboard read-slice caches after a canonical
+      order mutation commits (MUT-CACHE-01).
     * ``register_attachment_visibility_listener`` — pure SQLAlchemy listener
       wiring (no DB write) that excludes tombstoned ``OrderAttachment`` rows
       from every ORM SELECT (ATTACH-LIFE-01 global default filter).
@@ -189,6 +192,12 @@ def run_auto_init(app) -> None:
             from foms.services.order_payment_sync import register_payment_sync_listener
 
             register_payment_sync_listener()
+
+            from foms.services.common.dashboard_cache import (
+                register_dashboard_cache_invalidation_listener,
+            )
+
+            register_dashboard_cache_invalidation_listener()
 
             from foms.services.attachment_visibility import (
                 register_attachment_visibility_listener,

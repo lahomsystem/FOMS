@@ -11,7 +11,6 @@ from sqlalchemy import or_
 
 from foms.web.auth import login_required
 from db import get_db
-from foms.services.erp_order_detail import attach_order_detail_payloads
 from foms.services.common.dashboard_cache import (
     KEY_VERSION,
     TTL_ATTACHMENT_COUNT_MAP,
@@ -223,8 +222,8 @@ def erp_construction_dashboard():
             mobile_v2_active=mobile_v2_active,
             drawing_only=True,
         )
-    with phase("detail_payloads"):
-        attach_order_detail_payloads(db, enriched)
+    # detail_payload eager 조립 제거: 템플릿 preload가 lazy fetch(/api/orders/<id>/
+    # detail-payload)로 전환되어 이 서버측 계산은 미사용이다(매 요청 50행 낭비 + fragment 174KB).
 
     template_name = (
         "construction/partials/dashboard_fragment.html"

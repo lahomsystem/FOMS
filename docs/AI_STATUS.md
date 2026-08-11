@@ -8,8 +8,8 @@ Flask 2.3 + PostgreSQL + R2 + Railway (Web×2, Worker×1)
 브랜치: deploy (스테이징) → production (운영)
 
 ## 진행 중
-- [2026-08-10] **주문 삭제 즉시 반영 production 승격(PR #72 `76b9086c`)** — 삭제 경로 3곳에 대시보드 캐시 무효화가 없어 실측 집계가 300초 stale(운영 #4717). **신규 mutation 경로엔 캐시 무효화 동반이 계약**(테스트 6종 고정).
-- [2026-08-11] **실측 동선 ROUTE-02 + 프래그먼트 다이어트** — 동선 3원인(`orders.measurement_time` 전부 NULL→정렬 접수순 추락·인라인 limit 20·좌표 없는 건 무표시 제외) 수정, 파서 SSOT `foms/services/measurement_time.py`. 운영 좌표 백필 122건. 시공 인라인 JS·CSS 분리로 dTTFB 155→85ms. (production `0e3e3ede`·`f0e57f4a`) HTML 들여쓰기 트림(전 탭 18~38%)=deploy `e18b69b4`, 잔여=승격.
+- [2026-08-11] **대시보드 캐시 무효화 엔진화 MUT-CACHE-01 운영 승격(PR #79 `24675249`)** — 라우트별 수동 무효화가 원인(빠진 경로 6, 단계 강제 변경 310초 지연 재현). `execute_order_mutation` 이 전/후 stage·삭제 표식을 session.info intent 로 남기고 `after_commit` 이 소비 → 엔진 경유 20개 모듈 자동 커버, 미경유 2곳(`/edit`·date_sync)은 직접 보강. 선행 삭제 수정 PR #72.
+- [2026-08-11] **프래그먼트 다이어트(시공 923→504KB)** — 승격분: JS·CSS 분리·들여쓰기 트림·상세 lazy화(PR #78·#81). **구조: fragment가 같은 50건을 3표면(표 150.7·태블릿 workmode 241.8·모바일 128.6KB)에 중복 렌더**하고 CSS가 하나만 남긴다(`FOMS_V3_SHELL_COHORT=all`=전 직원). workmode는 `pointer: coarse` 전용+해치 없음 → 힌트 쿠키 `foms_ptr`로 마우스 기기 미전송(-32.4%), deploy `ed4412d0` CI 4/4·검증 완료. 잔여=승격 + 모바일 128.6KB(뷰포트 폭 기반 → 리사이즈 재요청 선행).
 - [2026-08-11] **감사 화면 개선 3라운드 운영 승격 완료 — PR #74 `8d44c468`·#76 `fbb200e6`·#77 `ede486f7`.** 헤더 드래그 폭 기억(표별 localStorage), 시간 칸 rem 고정(%폭은 좁은 화면에서 초 자리 잘림), 부가정보 ensure_ascii=False + 접이식(행 높이 153→65px), 보안 로그 기간 필터(KST 경계), 배지 한글 라벨(코드는 title), UA 요약. 함정: ColumnResizer 는 UMD 라 `.default` fallback 없으면 조용히 미부착 / 기록되는 action 코드는 `ACTION_LABELS` 등재 필수(커버리지 계약 red).
 - [2026-08-10] **Sentry 운영 전환 완료** — DSN 을 dev→production 으로 이동(운영만 감시). 운영 로그 `Sentry initialized environment=production` 확인, dev 는 no-op. 잔여=Sentry 알림 규칙에 `environment:production` 필터·기존 staging 이슈 정리(사용자).
 - [2026-08-11] **카카오 알림톡 v1 deploy push 완료(9ecbe9e4, CI 4/4 green)** — 자동(3경로 트리거·outbox 멱등)+수동(모달, 3표면), 브랜드 2프로필. 잔여=템플릿 심사 2벌(진행 중)·SMS 발신번호·스테이징 E2E(T6). **Phase A(고객 도면 공유 링크) 스펙 v2 승인 대기** — docs/specs/2026-08-11-customer-share-phase-a-design.md (3-agent 검수 반영: 도면만·문자 삭제·flat 모듈). 다음=CEO 리뷰→플랜. 원장: docs/plans/2026-07-29-kakao-alimtalk-v1-ledger.md
@@ -26,7 +26,7 @@ Flask 2.3 + PostgreSQL + R2 + Railway (Web×2, Worker×1)
 ## 아키텍처 요약
 - 파일 업로드: 브라우저→R2 Presigned PUT 직접 (배치+병렬, UUID키)
 - 도면 생명주기: 발송(보존)→취소(신규만삭제)→확정(구버전정리)
-- 지도: Folium iframe + `/api/map_data` 경량 폴링 (15s×5회)
+- 지도: 카카오 SDK 클라 렌더(head 조기 부팅)+folium 폴백, pending만 계단 폴링
 - 성능/조회: `OrderScheduleDate`(날짜정규화), Partial Indexes, `Order.active_filter()` / `dashboard_active_filter(days=60)` 병행 계약 존재
 - 권한: CONSTRUCTION팀 출고/시공만, 도면팀 발송/취소
 - 하네스 문서 자산: Step 7에서 `docs/harness/{policy,bundles,runtime,logs}` canonical taxonomy로 분리됐고, `docs/context`는 incident/reference 기록만 유지한다
@@ -45,6 +45,7 @@ Flask 2.3 + PostgreSQL + R2 + Railway (Web×2, Worker×1)
 
 
 ## 최근 완료 (최대 5개)
+- [2026-08-11] **실측 지도 조기 부팅 승격 완료(PR #80, production `a68a8952`)** — 느림 정체는 지오코딩(좌표 결측 22/2982)도 서버(map_data 150ms)도 아닌 **SDK·map_data 요청의 DOMContentLoaded 대기**. `map_view.html` head 에서 카카오 SDK 선주입(`__FOMS_KAKAO_SDK`)+`/api/map_data` 선요청(`__FOMS_MAP_EARLY`, URL 완전일치 시 1회 소비), `loadSdk` 는 중복 주입 금지. 운영 실측: 문서도착→첫마커 844→262ms, 요청 중복 0, 콘솔 에러 0.
 - [2026-08-10] **감사 로깅 P4 Phase C 운영 승격 완료(PR #69, production `7ceedde4`)** — 쓰기 라우트 172개 전부 감사 기록(주문·단가표·견적·채팅·알림 등), 문장은 표시 SSOT 생성, PII는 고객명까지만. 게이트=`tools/harness/audit_coverage_scan.py`+인벤토리+allowlist(면제 30건 사유 필수), pre_push_smoke 편입. 마이그레이션 없음. 잔여=P4 D(열람 기록 여부 사용자 결정)·Sentry 로그 육안.
 - [2026-08-07] **지방 대시보드 섹션=상태 개편 운영 승격 완료(PR #59, production `95fb7826`)** — 드롭다운 0·뱃지만, 상차완료/보류 섹션 폐지, AS 섹션+AS완료(`as_completed_date` 필수). 읽기 경로 status 쓰기는 state_guard 차단(상차일 변경 시점 기록).
 - [2026-08-10] **감사 로깅 T1~T12 + 로그 가독성 P4 운영 승격 완료(PR #63, production `47f270e6`)** — 마이그레이션 7종 적용(alembic `seclog_time_00`), 데이터 무손실·order_events CASCADE 해소·감사 화면 인덱스. 로그가 업무 언어로 표시(운영 30일 1,438건 실검증). 백업 `c:/tmp/foms-backups/prod-pre-audit-promote-20260810.dump`

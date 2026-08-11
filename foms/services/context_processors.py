@@ -17,6 +17,7 @@ from foms.services.feature_flags import (
     is_shell_v3_eligible,
     resolve_shell_variant_cached,
     should_render_new_order_wizard,
+    wants_coarse_pointer_surfaces,
     wizard_new_order_enabled,
 )
 from foms.services.datetime_kst import format_datetime_kst
@@ -166,6 +167,7 @@ def inject_status_list() -> dict[str, Any]:
         "impersonating_from_id": impersonating_from_id,
         "erp_order_enabled": erp_order_enabled,
         "erp_mobile_v2_enabled": erp_mobile_v2_enabled,
+        "coarse_pointer_surfaces": wants_coarse_pointer_surfaces(),
         "shell_variant": shell_variant,
         "use_direct_upload": use_direct_upload,
     }

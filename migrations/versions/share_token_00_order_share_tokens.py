@@ -1,7 +1,7 @@
 """SHARE-TOKEN-00: order_share_tokens 테이블 (고객 공유 열람 토큰)
 
 Revision ID: share_token_00
-Revises: seclog_time_00
+Revises: orderdiff_01
 Create Date: 2026-08-11
 
 고객 공유 채널 Phase A(스펙: docs/specs/2026-08-11-customer-share-phase-a-design.md
@@ -25,7 +25,8 @@ import sqlalchemy as sa
 from sqlalchemy.dialects.postgresql import JSONB
 
 revision: str = 'share_token_00'
-down_revision: Union[str, None] = 'seclog_time_00'
+# deploy 병합 시 orderdiff_01 과 이중 head 발생 → 미푸시 리비전이라 재부모화(단일 head 게이트).
+down_revision: Union[str, None] = 'orderdiff_01'
 branch_labels: Union[str, Sequence[str], None] = None
 depends_on: Union[str, Sequence[str], None] = None
 

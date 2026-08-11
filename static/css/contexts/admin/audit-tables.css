@@ -83,3 +83,22 @@
     min-width: 56rem;
   }
 }
+
+/* --- 변경표(ORDER-DIFF-00) ------------------------------------------------
+   저장 1건이 필드 N개를 바꾼다. 목록을 기본 노출하면 표 한 행이 화면을 덮으므로 접어 두고,
+   펼쳤을 때만 줄 단위로 읽는다. 값은 서버가 절단(120자)해 오므로 여기서 또 자르지 않는다. */
+.audit-change-list {
+  margin: 0.25rem 0 0;
+  padding-left: 1.1rem;
+  font-size: 0.8125rem;
+  line-height: 1.5;
+}
+
+.audit-change-list > li {
+  overflow-wrap: anywhere;
+}
+
+/* 품목명은 인덱스만으로 헤매지 않게 붙이는 보조 표기라 본문보다 흐리게 둔다. */
+.audit-change-item {
+  color: var(--bs-secondary-color, #6c757d);
+}

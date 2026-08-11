@@ -30,7 +30,11 @@ from foms.services.orders.status_constants import STATUS
 __all__ = [
     "ACTION_LABELS",
     "FIELD_LABELS",
+    "PATH_LABELS",
     "action_label",
+    "describe_change",
+    "path_label",
+    "summarize_changes",
     "describe_action",
     "collect_order_ids",
     "describe_field_change",
@@ -219,6 +223,81 @@ ACTION_LABELS: dict[str, str] = {
     "CSRF_BLOCKED": "CSRF 차단",
     "WRITE_BLOCKED": "쓰기 차단",
 }
+
+#: 구조화 경로(``structured_data`` 점 경로) → 업무 라벨 (ORDER-DIFF-00).
+#: :data:`FIELD_LABELS` 와 사전을 나눈 이유는 문법이 다르기 때문이다 — 저쪽은 평면 컬럼명
+#: (``measurement_date``), 이쪽은 중첩 경로(``schedule.measurement.date``)다. 품목은 인덱스가
+#: 변하므로 ``items.*.<필드>`` 로 등재하고 :func:`path_label` 이 번호를 붙인다.
+#: **라벨은 읽기 시점에 붙인다** — 기록에는 경로만 남기므로 여기를 고치면 과거 기록도 함께 고쳐진다.
+PATH_LABELS: dict[str, str] = {
+    # --- 일정 ---
+    "schedule.measurement.date": "실측일",
+    "schedule.measurement.time": "실측시간",
+    "schedule.construction.date": "시공일",
+    "schedule.construction.time": "시공시간",
+    "schedule.as_visit.date": "AS 방문일",
+    "schedule.as_visit.time": "AS 방문시간",
+    # --- 당사자 ---
+    "parties.customer.name": "고객명",
+    "parties.customer.phone": "전화번호",
+    "parties.orderer.name": "주문자명",
+    "parties.orderer.phone": "주문자 연락처",
+    "parties.manager.name": "담당자",
+    # --- 현장 ---
+    "site.address_full": "주소",
+    "site.address_detail": "상세주소",
+    # --- 단계/플래그/배정 ---
+    "workflow.stage": "단계",
+    "flags.urgent": "긴급",
+    "flags.urgent_reason": "긴급 사유",
+    "assignments.owner_team": "담당 팀",
+    "assignments.drawing_assignee_user_ids": "도면 배정자",
+    # --- 금액 ---
+    "totals.items_total": "품목 합계",
+    "totals.deposit_amount": "예약금",
+    "totals.balance_amount": "잔금",
+    "totals.final_amount": "최종 금액",
+    "totals.discount_amount": "할인",
+    "totals.free_input_amount": "자유입력 금액",
+    "totals.contract_total": "계약 총액",
+    "totals.shipping_price": "출고가",
+    # --- 결제 입력 ---
+    "payment.deposit": "예약금 입력",
+    "payment.discount": "할인 입력",
+    "payment.free_input": "자유입력",
+    "payment.cash_receipt": "현금영수증",
+    # --- 출고/시공 ---
+    "shipment.sales_delivery": "영업 배송",
+    "shipment.construction_time": "시공 시간",
+    "shipment.construction_workers": "시공 인원",
+    "shipment.trip": "출장",
+    "shipment.as_billing": "AS 비용 구분",
+    "shipment.as_pending": "AS 보류",
+    # --- 비고 ---
+    "notes": "비고",
+    # --- 품목(인덱스는 path_label 이 붙인다) ---
+    "items.*.product_name": "품목명",
+    "items.*.price": "단가",
+    "items.*.spec": "규격",
+    "items.*.spec_width": "규격(가로)",
+    "items.*.spec_height": "규격(세로)",
+    "items.*.spec_depth": "규격(깊이)",
+    "items.*.color": "색상",
+    "items.*.handle": "손잡이",
+    "items.*.option_detail": "옵션 상세",
+    "items.*.extra_input": "추가 입력",
+    "items.*.misc": "기타",
+    "items.*.internal": "내부 메모",
+    "items.*.measurement_date": "실측일",
+    "items.*.construction_date": "시공일",
+    "items.*.spec_rows": "규격표",
+}
+
+#: 품목 경로 분해용. ``items.2`` (품목 자체 추가/삭제)와 ``items.2.price`` 를 모두 받는다.
+_ITEM_PATH_RE = re.compile(r"^items\.(?P<index>\d+)(?:\.(?P<field>[A-Za-z0-9_]+))?$")
+
+#: 경로별 **값 표기 규칙** 위임. 단계 코드는 :func:`format_value` 의 ``status`` 규칙을 그대로 쓴다.
+_PATH_VALUE_FIELD: dict[str, str] = {"workflow.stage": "status"}
 
 #: 비어 있음을 뜻하는 원시 값들(문자열 비교는 소문자로 한다).
 _EMPTY_TOKENS = frozenset({"", "none", "null", "-"})
@@ -480,6 +559,81 @@ def describe_order_action(
     label = action_label(action)
     tail = _summarize_text(note) if note else ""
     return f"{head} — {label}: {tail}" if tail else f"{head} — {label}"
+
+
+def path_label(path: str | None) -> str:
+    """구조화 경로를 업무 라벨로 옮긴다 (ORDER-DIFF-00).
+
+    품목 경로는 인덱스를 사람 번호로 바꿔 앞에 붙인다(``items.1.price`` → ``2번 품목 단가``).
+    사전에 없는 경로는 **경로 자체**를 낸다 — 새 필드가 라벨 등재를 빠뜨려도 변경 사실은 보인다.
+
+    :param path: ``structured_data`` 점 경로.
+    :return: 표시 라벨.
+    """
+    if not path:
+        return ""
+    known = PATH_LABELS.get(path)
+    if known:
+        return known
+
+    match = _ITEM_PATH_RE.match(path)
+    if not match:
+        return path
+    head = f"{int(match.group('index')) + 1}번 품목"
+    field = match.group("field")
+    if not field:
+        return head
+    return f"{head} {PATH_LABELS.get(f'items.*.{field}', field)}"
+
+
+def describe_change(change: Mapping[str, Any]) -> str:
+    """변경 1건을 ``라벨: 이전 → 이후`` 한 줄로 옮긴다 (ORDER-DIFF-00).
+
+    :param change: :func:`foms.services.orders.structured_diff.diff_structured` 가 만든 dict
+        (``path``·``before``·``after``·``op``, 품목이면 ``item``).
+    :return: 사람이 읽는 한 줄. 품목 추가/삭제는 화살표 대신 ``추가``/``삭제`` 로 적는다.
+    """
+    path = str(change.get("path") or "")
+    label = path_label(path)
+    op = change.get("op")
+
+    item_match = _ITEM_PATH_RE.match(path)
+    if item_match and not item_match.group("field"):
+        name = change.get("after") if op == "add" else change.get("before")
+        verb = "추가" if op == "add" else "삭제"
+        return f"{label} {verb}({name})" if name else f"{label} {verb}"
+
+    value_field = _PATH_VALUE_FIELD.get(path)
+    before_text = format_value(value_field, change.get("before"))
+    after_text = format_value(value_field, change.get("after"))
+    if before_text == _EMPTY_DISPLAY:
+        before_text = _EMPTY_BEFORE_DISPLAY
+    return f"{label} {before_text} → {after_text}"
+
+
+def summarize_changes(
+    changes: Iterable[Mapping[str, Any]],
+    *,
+    total: int | None = None,
+    head_count: int = 1,
+) -> str:
+    """변경 목록을 한 줄 요약으로 만든다 (ORDER-DIFF-00).
+
+    목록 전체를 문장에 넣으면 감사 표의 한 행이 화면을 덮는다. 앞 몇 건만 적고 나머지는
+    개수로 남긴다 — 전체 내역은 ``detail`` 원문에 그대로 있다(요약은 은닉이 아니다).
+
+    :param changes: 변경 dict 목록.
+    :param total: 상한 절단 전 실제 건수(없으면 목록 길이).
+    :param head_count: 문장에 풀어 쓸 앞쪽 건수.
+    :return: ``실측일 2026-08-12 → 2026-08-14 외 3건`` 형태. 변경이 없으면 빈 문자열.
+    """
+    listed = list(changes)
+    if not listed:
+        return ""
+    real_total = total if total is not None else len(listed)
+    head = " · ".join(describe_change(change) for change in listed[:head_count])
+    rest = real_total - min(head_count, len(listed))
+    return f"{head} 외 {rest}건" if rest > 0 else head
 
 
 def extract_order_ids(message: str | None) -> list[int]:

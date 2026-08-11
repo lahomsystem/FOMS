@@ -19,6 +19,91 @@
     <link rel="preconnect" href="https://mts.daumcdn.net" crossorigin>
     <link rel="preconnect" href="https://t1.daumcdn.net" crossorigin>
 
+    <!-- 지도 조기 부팅(EARLY BOOT) — 2026-08-11 실측 계측 기반.
+         계측(production, 25건): 첫 마커까지 콜드 1904ms 중 지도 자체는 650ms뿐이고
+         나머지 1254ms 는 "문서+CSS/JS 다 받고 DOMContentLoaded 가 뜰 때까지" 였다.
+         SDK 다운로드와 /api/map_data 가 DCL 콜백 안에서 출발했기 때문(구 warm 위치).
+         여기서 head 파싱 시점에 둘 다 출발시켜 그 대기를 걷어낸다.
+           - SDK: script 주입 소유권을 head 가 가져간다(map-view-kakao.js loadSdk 는
+                  window.__FOMS_KAKAO_SDK 가 있으면 중복 주입 없이 이 약속을 소비).
+           - 주문 데이터: loadMapKakao 와 **완전히 동일한 규칙**으로 URL 을 만들어 미리 fetch.
+                  URL 이 한 글자라도 다르면 소비되지 않고 평소대로 재요청 — 오조회 위험 없음.
+         G1/G2 무영향: 렌더 차단 <script src> 를 추가하지 않는다(async 주입). -->
+    <script>
+        (function () {
+            'use strict';
+            // Jinja→JS: tojson 이 JS 문자열 리터럴을 직접 생성(JSON.parse 문자열 파싱 금지 규칙 준수)
+            var KAKAO_KEY = {{ kakao_js_key | tojson }};
+
+            // ── 1) 카카오 SDK 선주입 ─────────────────────────────────────────
+            // autoload=false 라 sdk.js 수신 후 kakao.maps.load() 로 본체 청크를 한 번 더
+            // 받아야 한다(2홉). 그 2홉을 문서 파싱과 겹치게 앞당긴다.
+            window.__FOMS_KAKAO_SDK = new Promise(function (resolve) {
+                if (!KAKAO_KEY) { resolve(false); return; }
+                var s = document.createElement('script');
+                s.id = 'foms-kakao-maps-sdk';
+                s.async = true;
+                s.src = 'https://dapi.kakao.com/v2/maps/sdk.js?appkey=' +
+                    encodeURIComponent(KAKAO_KEY) + '&autoload=false';
+                s.onload = function () {
+                    if (!(window.kakao && window.kakao.maps && window.kakao.maps.load)) { resolve(false); return; }
+                    window.kakao.maps.load(function () {
+                        resolve(!!(window.kakao.maps && window.kakao.maps.Map));
+                    });
+                };
+                s.onerror = function () { resolve(false); };
+                document.head.appendChild(s);
+            });
+
+            // ── 2) /api/map_data 선요청 ──────────────────────────────────────
+            // loadMapKakao(아래 인라인)의 파라미터 조립 순서와 1:1 동일해야 한다. 초기값은
+            // 전부 URL 쿼리에서 나오므로(DOM 입력값은 그 URL 값으로 초기화됨) head 에서 재현 가능.
+            try {
+                var qs = new URLSearchParams(window.location.search);
+                var dashboard = qs.get('dashboard') || '';
+                var isAs = dashboard === 'as';
+                var d = new Date();
+                var todayIso = [
+                    d.getFullYear(),
+                    String(d.getMonth() + 1).padStart(2, '0'),
+                    String(d.getDate()).padStart(2, '0')
+                ].join('-');
+                var date = qs.get('date') || todayIso;
+                var status = (dashboard === 'measurement') ? 'ALL' : (qs.get('status') || 'ALL');
+                var manager = (qs.get('manager') || '').trim();
+                var q = (qs.get('q') || qs.get('search') || '').trim();
+                var mine = qs.get('mine') || '';
+
+                var params = new URLSearchParams({ enqueue: '1' });
+                if (isAs) {
+                    params.set('status', 'ALL');
+                    var bucket = qs.get('bucket') || '';
+                    if (bucket) params.set('bucket', bucket);
+                    var availDays = qs.get('avail_days') || '';
+                    var availTime = qs.get('avail_time') || '';
+                    if (availDays) params.set('avail_days', availDays);
+                    if (availTime) params.set('avail_time', availTime);
+                } else {
+                    params.set('date', date);
+                    params.set('status', status);
+                }
+                if (manager) params.set('manager', manager);
+                if (q) params.set('q', q);
+                if (dashboard) params.set('dashboard', dashboard);
+                if (mine) params.set('mine', mine);
+
+                var url = '/api/map_data?' + params;
+                var promise = fetch(url).then(function (r) { return r.json(); });
+                // 소비자가 붙기 전 거부되면 unhandledrejection 이 뜨므로 별도 핸들로 흡수
+                // (소비 측 .catch 는 그대로 동작 — 같은 promise 를 각자 체이닝한다).
+                promise.catch(function () { });
+                window.__FOMS_MAP_EARLY = { url: url, promise: promise, used: false };
+            } catch (e) {
+                // 선요청 실패는 무해 — loadMapKakao 가 평소대로 직접 요청한다.
+            }
+        })();
+    </script>
+
     <!-- Bootstrap CSS -->
     <link href="https://cdn.jsdelivr.net/npm/bootstrap@5.1.3/dist/css/bootstrap.min.css" rel="stylesheet">
 
@@ -1462,7 +1547,7 @@
     <script src="https://cdn.jsdelivr.net/npm/bootstrap@5.1.3/dist/js/bootstrap.bundle.min.js" defer></script>
     <script src="{{ url_for('static', filename='js/runtime/common_utils.js') }}?v=20260327" defer></script>
     <!-- 카카오 지도 클라이언트 렌더 모듈 (defer: DOMContentLoaded 전에 정의 완료) -->
-    <script src="{{ url_for('static', filename='js/measurement/map-view-kakao.js') }}?v=20260806h" defer></script>
+    <script src="{{ url_for('static', filename='js/measurement/map-view-kakao.js') }}?v=20260811a" defer></script>
     <!-- 모바일 바텀시트/상세 풀시트 컨트롤러. defer 라 아래 인라인 스크립트(파싱 중 실행)가
          전역(loadOrderDetail 등)을 정의한 뒤에 실행된다 — 감싸기 전제. -->
     <script src="{{ url_for('static', filename='js/measurement/map-mobile-sheet.js') }}?v=20260720a" defer></script>
@@ -1639,9 +1724,9 @@
 
             configureStatusFilter();
 
-            // 카카오 SDK 선로드(워밍): loadMap()의 /api/map_data fetch 전에 SDK 다운로드를
-            // 미리 시작해 직렬 워터폴을 제거한다. map-view-kakao.js 는 defer 라 DOMContentLoaded
-            // 시점엔 이미 정의 완료 — 그래도 존재 체크 없이 바로 호출하면 로드 실패 시 TypeError.
+            // 카카오 SDK 워밍(2차 안전망): 정상 경로는 head 조기 부팅(__FOMS_KAKAO_SDK)이
+            // 이미 SDK 를 받아오는 중이고, 이 호출은 그 약속에 합류만 한다(중복 주입 없음).
+            // head 부팅이 어떤 이유로든 없었을 때만 여기서 실제 주입이 일어난다.
             const warmMapContentEl = document.getElementById('map-content');
             const warmKakaoKey = warmMapContentEl ? warmMapContentEl.getAttribute('data-kakao-js-key') : '';
             if (warmKakaoKey && window.FomsMapViewKakao) window.FomsMapViewKakao.warm(warmKakaoKey);
@@ -1905,8 +1990,19 @@
             if (dashboardParam) params.set('dashboard', dashboardParam);
             if (initialMine) params.set('mine', initialMine);
 
-            fetch('/api/map_data?' + params)
-                .then(function (r) { return r.json(); })
+            // head 조기 부팅이 **같은 URL**로 이미 쏜 요청이 있으면 그것을 소비(1회 한정).
+            // 다르면(필터 변경 등) 평소대로 새로 요청 — 조기 응답이 필터를 앞지를 수 없다.
+            const mapDataUrl = '/api/map_data?' + params;
+            const early = window.__FOMS_MAP_EARLY;
+            let mapDataPromise;
+            if (early && !early.used && early.url === mapDataUrl) {
+                early.used = true;
+                mapDataPromise = early.promise;
+            } else {
+                mapDataPromise = fetch(mapDataUrl).then(function (r) { return r.json(); });
+            }
+
+            mapDataPromise
                 .then(function (data) {
                     if (!data.success) {
                         clearGeocodePoll();

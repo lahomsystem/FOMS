@@ -3,7 +3,7 @@
 {% block title %}보안 로그{% endblock %}
 
 {% block styles %}
-<link rel="stylesheet" href="{{ url_for('static', filename='css/contexts/admin/audit-tables.css') }}?v=20260811b">
+<link rel="stylesheet" href="{{ url_for('static', filename='css/contexts/admin/audit-tables.css') }}?v=20260811c">
 {% endblock %}
 
 {% block content %}
@@ -54,6 +54,23 @@
                     <label for="search" class="form-label">검색(메시지·이름)</label>
                     <input type="text" name="search" id="search" class="form-control"
                            value="{{ filters.search or '' }}">
+                </div>
+                {# ORDER-DIFF-01: 변경 원장 기준 좁히기. 필드는 동등 비교(인덱스), 값은 보조 검색. #}
+                <div class="col-md-3">
+                    <label for="changed_field" class="form-label">변경 필드</label>
+                    <input type="text" name="changed_field" id="changed_field" class="form-control"
+                           list="changed-field-options" value="{{ filters.changed_field or '' }}"
+                           placeholder="schedule.measurement.date">
+                    <datalist id="changed-field-options">
+                        {% for option in changed_field_options %}
+                        <option value="{{ option.value }}">{{ option.label }}</option>
+                        {% endfor %}
+                    </datalist>
+                </div>
+                <div class="col-md-3">
+                    <label for="changed_value" class="form-label">변경 값(이전/이후)</label>
+                    <input type="text" name="changed_value" id="changed_value" class="form-control"
+                           value="{{ filters.changed_value or '' }}">
                 </div>
                 {# 기간은 KST 날짜로 받고 서버가 UTC 경계로 바꾼다(파일 열람 화면과 같은 규약). #}
                 <div class="col-md-2">
@@ -112,6 +129,22 @@
                         {# order_link 는 escape-first 필터다(저장형 XSS 방지) — 한글화한 문장에도
                            그대로 태워 '주문 #N' 만 서버 생성 링크로 바꾼다. #}
                         {{ row.display | order_link | safe }}
+                        {# ORDER-DIFF-00: 필드 단위 변경표. 문장에는 앞 1건만 요약돼 있으므로
+                           전체는 여기서 편다(기본은 접어 둔다 — 표 행 높이를 지키는 게 우선). #}
+                        {% if row.changes %}
+                        <details class="audit-detail-toggle mt-1">
+                            <summary class="small text-muted">변경 {{ row.change_total }}건</summary>
+                            <ul class="audit-change-list">
+                                {% for change in row.changes %}
+                                <li>{{ change.text }}{% if change.item %} <span class="audit-change-item">— {{ change.item }}</span>{% endif %}</li>
+                                {% endfor %}
+                            </ul>
+                            {% if row.change_truncated %}
+                            {# 화면 상한일 뿐이다 — 나머지 {{ n }}건은 order_field_changes 원장에 남아 있다. #}
+                            <div class="small text-muted">나머지 {{ row.change_truncated }}건은 변경 원장에 보관되어 있습니다(목록은 {{ row.changes|length }}건까지).</div>
+                            {% endif %}
+                        </details>
+                        {% endif %}
                         {% if row.changed %}
                         <details class="small text-muted mt-1">
                             <summary>기록 원문</summary>
