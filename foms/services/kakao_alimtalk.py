@@ -213,7 +213,7 @@ def build_variables(sd: dict | None) -> dict[str, str]:
         "#{주소}": str(site.get("address_full") or site.get("address_main") or "").strip() or _CONSULT,
         "#{연락처}": str(customer.get("phone") or "").strip() or _CONSULT,
         "#{품목내역}": _items_text(items),
-        "#{예약금}": f"{deposit:,}원" if deposit is not None else _CONSULT,
+        "#{예약금}": f"{deposit:,}원" if deposit is not None else "없음",
     }
 
     if len(_substitute(variables)) > ALIMTALK_MAX_BODY_LEN:
