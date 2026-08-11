@@ -20,7 +20,7 @@
 | Task | 내용 | 완료 기준 | 상태 | 커밋 SHA | 비고 |
 |---|---|---|---|---|---|
 | T6 | 견적 스냅샷 빌더 (화이트리스트+동결+64KB 캡) | `pytest tests/domains/test_order_share_estimate.py -q` PASS(타 브랜드 계좌 부재·불변·400) + APP_OK | DONE | c871807e | 8+14 passed. 브랜드 교차 계좌 유출 0·내부 키 차단·grand total 공식·동결·캡 400 전부 assert |
-| T7 | 견적 열람 렌더 + kind UI 해금 | view 테스트 PASS + browse 모바일 렌더(옵션 해금·64KB 400 표시) + APP_OK | DONE | PENDING_SHA | 27 passed. 스냅샷-온리 렌더(수정 미반영 assert)·스냅샷 부재 503·카톡 문구 kind 분기·?v 20260812a 범프+핀 전수. browse는 T10 통합 |
+| T7 | 견적 열람 렌더 + kind UI 해금 | view 테스트 PASS + browse 모바일 렌더(옵션 해금·64KB 400 표시) + APP_OK | DONE | db6f23af | 27 passed. 스냅샷-온리 렌더(수정 미반영 assert)·스냅샷 부재 503·카톡 문구 kind 분기·?v 20260812a 범프+핀 전수. browse는 T10 통합 |
 | T8 | 문자 발송 (sender_phone·_solapi_send_text·멱등·버튼 배선) | `pytest tests/domains/test_order_share_sms.py tests/domains/test_write_guard.py tests/domains/test_auth_enforcement.py -q` PASS + audit 인벤토리 재생성 + APP_OK | PENDING | | 실발신은 T10, §1 선점 insert+토큰 원문 검증 |
 | T9 | 태블릿 공유 버튼 (tablet-measure-form.js) | 태블릿 계약 테스트 PASS + browse coarse 스모크 + APP_OK | PENDING | | 핫파일 규칙 확인 |
 | T10 | Stage-2 통합 검증·스테이징 E2E | pre_push_smoke exit 0 + CI green + E2E(스냅샷 불변·문자 3사·카톡 실기기) | PENDING | | 발신번호 미등록=문자만 BLOCKED |
