@@ -82,6 +82,13 @@
                     %}checked{% endif %} autocomplete="off">
                 <label class="form-check-label" for="is_active">계정 활성 상태</label>
             </div>
+            <div class="mb-3">
+                <label for="sender_phone" class="form-label">문자 발신번호 (선택)</label>
+                <input type="text" class="form-control" id="sender_phone" name="sender_phone"
+                    value="{{ user.sender_phone or '' }}" placeholder="예: 01012345678" autocomplete="off">
+                <div class="form-text">고객 공유 링크 문자를 개인 명의로 보낼 때 씁니다. Solapi에 등록된 번호만 발신되며,
+                    비워두면 회사 대표번호로 발송됩니다.</div>
+            </div>
             <hr>
             <h6 class="mb-3">비밀번호 변경 (선택 사항)</h6>
             <div class="mb-3">

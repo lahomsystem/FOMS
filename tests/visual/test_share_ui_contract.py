@@ -47,6 +47,7 @@ def test_modal_partial_included_on_both_surfaces() -> None:
     assert 'id="erp-share-create-btn"' in modal
     assert 'id="erp-share-copy-btn"' in modal
     assert 'id="erp-share-kakao-btn"' in modal
+    assert 'id="erp-share-sms-btn"' in modal  # T8: 문자 발송(발급 직후 화면 한정)
     assert 'id="erp-share-list"' in modal
     assert "data-kakao-js-key" in modal
     assert "style=" not in modal, "인라인 스타일 금지 — bootstrap/erp-pro.css 사용"
@@ -72,6 +73,7 @@ def test_share_js_singleton_lazy_sdk_and_endpoints() -> None:
     assert "/api/share/list/" in js
     assert "/api/share/create/" in js
     assert "/api/share/revoke/" in js
+    assert "/api/share/send-sms/" in js  # T8 — 발송 중 버튼 잠금(§1 ①)은 disabled 로 구현
     assert "kakao_js_sdk" in js  # lazy 로드 URL — eager <script> 태그 금지
     assert "sendDefault" in js
     # 카톡 공유 문구는 kind 를 따라간다(T7 — 견적 링크에 "도면 확인" 회귀 금지).

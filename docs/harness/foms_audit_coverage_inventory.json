@@ -8,11 +8,11 @@
     "log_access"
   ],
   "baselines": {
-    "total": 175,
+    "total": 176,
     "unaudited": 0
   },
   "classification_counts": {
-    "AUDITED": 145,
+    "AUDITED": 146,
     "EXEMPT": 30,
     "UNAUDITED": 0
   },
@@ -1122,7 +1122,7 @@
     {
       "path": "foms/api/share.py",
       "endpoint": "api_share_create",
-      "lineno": 225,
+      "lineno": 247,
       "methods": [
         "POST"
       ],
@@ -1131,7 +1131,16 @@
     {
       "path": "foms/api/share.py",
       "endpoint": "api_share_revoke",
-      "lineno": 324,
+      "lineno": 475,
+      "methods": [
+        "POST"
+      ],
+      "classification": "AUDITED"
+    },
+    {
+      "path": "foms/api/share.py",
+      "endpoint": "api_share_send_sms",
+      "lineno": 358,
       "methods": [
         "POST"
       ],
@@ -1446,7 +1455,7 @@
     {
       "path": "foms/web/auth/routes.py",
       "endpoint": "approve_user",
-      "lineno": 903,
+      "lineno": 907,
       "methods": [
         "POST"
       ],
@@ -1455,7 +1464,7 @@
     {
       "path": "foms/web/auth/routes.py",
       "endpoint": "delete_user",
-      "lineno": 827,
+      "lineno": 831,
       "methods": [
         "POST"
       ],
@@ -1473,7 +1482,7 @@
     {
       "path": "foms/web/auth/routes.py",
       "endpoint": "handle_reset_request",
-      "lineno": 992,
+      "lineno": 996,
       "methods": [
         "POST"
       ],
@@ -1509,7 +1518,7 @@
     {
       "path": "foms/web/auth/routes.py",
       "endpoint": "profile",
-      "lineno": 1040,
+      "lineno": 1044,
       "methods": [
         "POST"
       ],
@@ -1527,7 +1536,7 @@
     {
       "path": "foms/web/auth/routes.py",
       "endpoint": "reject_user",
-      "lineno": 956,
+      "lineno": 960,
       "methods": [
         "POST"
       ],

@@ -389,6 +389,31 @@ def _solapi_send(
     return str(getattr(getattr(response, "group_info", None), "group_id", "") or "") or None
 
 
+def _solapi_send_text(*, to: str, from_: str, text: str) -> str | None:
+    """Solapi 순수 문자(SMS/LMS) 호출부 — 공유 링크 발송(Phase A T8, 테스트 격리 지점).
+
+    KakaoOption 없음. 발신번호는 Solapi 사전 등록 전제 — 미등록 번호는 벤더 예외로
+    올라와 ``_classify_error`` 가 표면화한다(조용한 실패 없음).
+
+    Args:
+        to: 수신 휴대폰(숫자만).
+        from_: 발신번호(개인 등록 번호 또는 회사 대표번호).
+        text: 발송 본문(고정 문구 + 공유 URL — 단축 URL 금지).
+
+    Returns:
+        벤더 message id(없으면 group id). 실패는 예외로 올라온다.
+    """
+    from solapi import SolapiMessageService
+    from solapi.model import RequestMessage
+
+    service = SolapiMessageService(_env("SOLAPI_API_KEY"), _env("SOLAPI_API_SECRET"))
+    response = service.send(RequestMessage(from_=from_, to=to, text=text))
+    for item in getattr(response, "message_list", None) or []:
+        if getattr(item, "message_id", None):
+            return str(item.message_id)
+    return str(getattr(getattr(response, "group_info", None), "group_id", "") or "") or None
+
+
 def _classify_error(exc: BaseException) -> str:
     """벤더 예외를 이력 error 코드로 분류한다(스펙 §6.7, 미분류는 ``unknown``)."""
     if isinstance(exc, (TimeoutError, OSError)):  # ConnectionError 포함

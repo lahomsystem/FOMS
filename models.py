@@ -1028,9 +1028,13 @@ class User(Base):
     password_policy_version = Column(
         Integer, nullable=False, server_default='0', default=0,
     )
+    # SHARE-SMS(D2): 공유 링크 문자 개인 명의 발신번호(Solapi 사전 등록 전제).
+    # NULL이면 회사 대표번호(SOLAPI_SENDER_PHONE) 폴백. server_default 없음 —
+    # migration_chain 지문 정합(senderphone_00 과 컬럼 단위 동일).
+    sender_phone = Column(String(20), nullable=True)
     created_at = Column(DateTime, default=datetime.datetime.now)
     last_login = Column(DateTime)
-    
+
     access_logs = relationship("AccessLog", back_populates="user")
     
     def to_dict(self):
