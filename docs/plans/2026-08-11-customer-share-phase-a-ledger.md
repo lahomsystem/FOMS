@@ -13,7 +13,7 @@
 | T2 | 비로그인 열람 `GET /s/<token>` (drawing) | `pytest tests/domains/test_order_share_view.py -q` PASS(격리·410·fail-closed 503 표면·헤더·FILE_VIEW 1행) + APP_OK | DONE | 84319e30 | 12 passed + namespace 게이트 358 passed. presign 전멸=503, onerror 새로고침 안내 |
 | T3 | 직원 API create/revoke + manifest·감사 | `pytest tests/domains/test_order_share_api.py tests/domains/test_write_guard.py tests/domains/test_auth_enforcement.py -q` PASS + audit 인벤토리 재생성 + APP_OK | DONE | 93b0e142 | 49 passed + audit 게이트 11 passed(coverage 100%). 감사에 토큰·URL 미격납 assert |
 | T4 | 공유 UI 모달 (PC·모바일) + list API | 계약 테스트 PASS + browse 2뷰포트 스모크(모달·복사·목록) + APP_OK | DONE | bef517a5 | 110 passed(계약+게이트). browse 스모크는 T5 통합 실행(알림톡 T5 선례). 카톡 키=지도 앱 키 fallback+env 오버라이드 |
-| T5 | Stage-1 통합 검증·스테이징 배포 | pre_push_smoke exit 0 + `gh run list` 전 워크플로 green + E2E 기록 | PENDING | | 카톡 실공유는 도메인 등록 후(미완=BLOCKED 기록 후 전진) |
+| T5 | Stage-1 통합 검증·스테이징 배포 | pre_push_smoke exit 0 + `gh run list` 전 워크플로 green + E2E 기록 | DONE | 1f7999e4 | smoke 0·CI 4/4 green(Harness/PG Lane/perf-gate/FOMS). E2E 13항목 PASS: 로그인→발급→시크릿 열람 200+헤더 2종→열람수 반영→revoke 410→불량토큰 404→estimate 400. 주문 4287 카드·presigned·lightbox 렌더 확인. **주의**: 스테이징 이미지 실바이트는 전 키 NoSuchKey — 스테이징 DB(운영 복제)↔R2 버킷 드리프트(환경 이슈, presign 서명·경로 정상, onerror 안내 표면화). 실객체 검증=T10 업로드 흐름 동반. 카톡 실공유=**BLOCKED**(카카오 도메인 등록 사용자 액션 대기) |
 
 ## Stage-2 — 견적서·문자·태블릿
 
