@@ -10,9 +10,9 @@ Flask 2.3 + PostgreSQL + R2 + Railway (Web×2, Worker×1)
 ## 진행 중
 - [2026-08-11] **대시보드 캐시 무효화 엔진화 MUT-CACHE-01 운영 승격(PR #79 `24675249`)** — 라우트별 수동 무효화가 원인(빠진 경로 6, 단계 강제 변경 310초 지연 재현). `execute_order_mutation` 이 전/후 stage·삭제 표식을 session.info intent 로 남기고 `after_commit` 이 소비 → 엔진 경유 20개 모듈 자동 커버, 미경유 2곳(`/edit`·date_sync)은 직접 보강. 선행 삭제 수정 PR #72.
 - [2026-08-11] **프래그먼트 다이어트(시공 923→504KB)** — 승격분: JS·CSS 분리·들여쓰기 트림·상세 lazy화(PR #78·#81). **구조: fragment가 같은 50건을 3표면(표 150.7·태블릿 workmode 241.8·모바일 128.6KB)에 중복 렌더**하고 CSS가 하나만 남긴다(`FOMS_V3_SHELL_COHORT=all`=전 직원). workmode는 `pointer: coarse` 전용+해치 없음 → 힌트 쿠키 `foms_ptr`로 마우스 기기 미전송(-32.4%), deploy `ed4412d0` CI 4/4·검증 완료. 잔여=승격 + 모바일 128.6KB(뷰포트 폭 기반 → 리사이즈 재요청 선행).
-- [2026-08-11] **감사 화면 개선 3라운드 운영 승격 완료 — PR #74 `8d44c468`·#76 `fbb200e6`·#77 `ede486f7`.** 헤더 드래그 폭 기억(표별 localStorage), 시간 칸 rem 고정(%폭은 좁은 화면에서 초 자리 잘림), 부가정보 ensure_ascii=False + 접이식(행 높이 153→65px), 보안 로그 기간 필터(KST 경계), 배지 한글 라벨(코드는 title), UA 요약. 함정: ColumnResizer 는 UMD 라 `.default` fallback 없으면 조용히 미부착 / 기록되는 action 코드는 `ACTION_LABELS` 등재 필수(커버리지 계약 red).
+- [2026-08-11] **감사 화면 개선 3라운드 운영 승격 완료** — PR #74·#76·#77. 함정: 기록되는 action 코드는 `ACTION_LABELS` 등재 필수(커버리지 계약 red). 상세는 기록 보관.
 - [2026-08-10] **Sentry 운영 전환 완료** — DSN 을 dev→production 으로 이동(운영만 감시). 운영 로그 `Sentry initialized environment=production` 확인, dev 는 no-op. 잔여=Sentry 알림 규칙에 `environment:production` 필터·기존 staging 이슈 정리(사용자).
-- [2026-08-11] **카카오 알림톡 v1 deploy push 완료(9ecbe9e4, CI 4/4 green)** — 자동(3경로 트리거·outbox 멱등)+수동(모달, 3표면), 브랜드 2프로필. 잔여=템플릿 심사 2벌(진행 중)·SMS 발신번호·스테이징 E2E(T6). **Phase A(고객 도면 공유 링크) 스펙 v2 승인 대기** — docs/specs/2026-08-11-customer-share-phase-a-design.md (3-agent 검수 반영: 도면만·문자 삭제·flat 모듈). 다음=CEO 리뷰→플랜. 원장: docs/plans/2026-07-29-kakao-alimtalk-v1-ledger.md
+- [2026-08-11] **고객 공유 Phase A Stage-1(도면) 구현 완료, deploy push 진행** — 토큰 해시-온리(`order_share_tokens`)·비로그인 열람 `/s/<token>`·직원 API 3종·모달 UI 2표면. 스펙 v3(사용자 결정 8건)+CEO 2-agent 리뷰 반영. Stage-2(견적·문자·태블릿)=T6~T10. 원장: docs/plans/2026-08-11-customer-share-phase-a-ledger.md. 알림톡 v1 잔여=템플릿 심사·발신번호·E2E(원장: docs/plans/2026-07-29-kakao-alimtalk-v1-ledger.md)
 - [2026-08-10] **채널톡 AS PUSH·시공 계측 승격**(`340b0064`) — AS 본문 서버 SSOT(AS방 230351), 시공 숫자판=시공 단계만, 진단 헤더 2종.
 - [2026-08-06] **계정 셀프서비스 v1 deploy 반영** — 셀프 가입 신청(PENDING 승인 흐름)+비밀번호 재설정 요청 큐(관리자 처리형), 마이그레이션 `account_self_00`, 승인 UI=/admin/users, 신규 테스트 14 green. 스펙: `docs/specs/2026-08-06-account-self-service-design.md`
 - ⚠️ **`queue.py` 소켓 타임아웃 누락 수정**(운영 반영됨) — `rate_limit.py`·`dashboard_cache.py`엔 2초 상한이 있는데 이 경로만 없었다(2026-07-21 Redis 장애 대응이 절반만 적용). blackhole 시 `enqueue()`가 웹 워커를 130초 붙잡던 잠복 결함. 못 잡은 이유=`queue.py` 내부 테스트 0건.
@@ -93,6 +93,7 @@ Flask 2.3 + PostgreSQL + R2 + Railway (Web×2, Worker×1)
 - [2026-04-15] **Strict final canonical tree `SFC-B11B` slice 2 (`dashboards`, §6.16):** 구현을 `foms/web/dashboards/routes.py`로 이전; `foms/web/dashboards/__init__.py`는 `routes`만 import; `apps/dashboards.py`는 `foms.web.dashboards` 재노출 shim. 검증: `APP_OK`, `verify_result.py --json`, `pytest tests` **586 passed**. 근거: batch11b **§Slice B11B-2**.
 
 ## 기록 보관 (strict canonical / 이전 배치 요약)
+- [2026-08-11] 감사 화면 3라운드 상세: 헤더 드래그 폭 기억(표별 localStorage), 시간 칸 rem 고정(%폭은 좁은 화면에서 초 자리 잘림), 부가정보 ensure_ascii=False+접이식(행 153→65px), 보안 로그 기간 필터(KST 경계), 배지 한글 라벨(코드는 title), UA 요약. ColumnResizer 는 UMD 라 `.default` fallback 없으면 조용히 미부착.
 - [2026-04-17] **ERP fast-page `EPT-B8`:** run record `docs/plans/2026-04-17-ept-b8-verification-railway-evidence-run-record.md` — 로컬 게이트 완료; staging HTTP 하네스로 **§4 표·§5** 부분 채움; **closeout** 은 deploy ID·§6 모드·hard stop 조건 충족 후.
 - [2026-04-15] active mainline 구조 tranche 없음. `WR-B1` / `WR-J1` / `WR-H1`는 explicit future batch 조건에서만 재개.
 - [2026-04-15] **Strict final canonical tree `SFC-B11B` slice 1 (`auth`, §6.16):** 구현 `foms/web/auth/routes.py`; `apps/auth.py` shim; `log_access` 예외 명시화. 검증: **586 passed**. 근거: batch11b **§Slice B11B-1**.
