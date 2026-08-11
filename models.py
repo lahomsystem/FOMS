@@ -813,6 +813,54 @@ class OrderEvent(Base):
     created_by = relationship('User', foreign_keys=[created_by_user_id])
 
 
+class OrderFieldChange(Base):
+    """주문 필드 변경 원장 — 저장 1회가 바꾼 값들을 **질의 가능한 행**으로 편다 (ORDER-DIFF-01).
+
+    ORDER-DIFF-00 이 같은 내용을 ``security_logs.detail['changes']`` JSONB 로 남겼지만,
+    감사의 핵심 질문("최근 한 달에 실측일이 바뀐 주문 전부", "출고가를 내린 사람")이
+    JSONB 배열 해체를 요구해 인덱스를 타지 못했다. SAP 이 ``CDHDR``(헤더)/``CDPOS``(항목)로
+    나눈 것과 같은 분리이며, 여기가 항목 쪽이다. 헤더는 여전히 ``security_logs`` 행이다.
+
+    * ``change_set_id`` — 저장 1회 묶음(UUID4). 헤더의 ``detail['change_set']`` 과 같은 값이라
+      **FK 없이** 헤더↔항목이 이어진다.
+    * ``path_template`` — 품목 인덱스를 지운 질의 키(``items.*.price``). 품목 번호와 무관하게
+      "단가가 바뀐 것 전부"를 인덱스로 물을 수 있다(``path`` 는 원본 경로 그대로 보존).
+    * **FK 없음** — ``OrderEvent`` 와 같은 이유다(AUDIT-LOG T9 / ``auditlife_00``): 감사 원장이
+      감사 대상과 생명주기를 공유하면 주문 hard purge 가 이력까지 지운다.
+
+    ``__table_args__`` 의 인덱스 이름·컬럼 순서는 마이그레이션 ``orderdiff_01`` 과 **완전히**
+    같아야 한다(create_all 부트스트랩 레인과 alembic 레인의 스키마 정합 — PG 왕복 테스트가 강제).
+    """
+
+    __tablename__ = 'order_field_changes'
+    __table_args__ = (
+        # "이 필드가 바뀐 것 전부" — 감사의 1순위 질문. 선행 컬럼이 path_template 이어야 한다.
+        Index('ix_order_field_changes_template_time', 'path_template', 'created_at'),
+        # "이 주문의 변경 역사" — 주문별 이력 조회.
+        Index('ix_order_field_changes_order_time', 'order_id', 'created_at'),
+        # 헤더(security_logs) ↔ 항목 연결.
+        Index('ix_order_field_changes_change_set', 'change_set_id'),
+    )
+
+    # 저장 1건이 필드 N개를 낳는 원장이라 32bit 상한을 남겨두지 않는다.
+    # SQLite 는 ``BIGINT PRIMARY KEY`` 를 rowid 별칭으로 보지 않아 자동증가가 죽는다
+    # (테스트 레인이 NOT NULL 로 터진다) — 그 레인에서만 INTEGER 로 낮춘다.
+    id = Column(BigInteger().with_variant(Integer, 'sqlite'), primary_key=True)
+    change_set_id = Column(String(36), nullable=False)
+    # FK 없음(위 docstring) — 인덱스만 있는 감사 원장 컬럼.
+    order_id = Column(Integer, nullable=False)
+    path = Column(String(120), nullable=False)
+    path_template = Column(String(120), nullable=False)
+    item_index = Column(Integer, nullable=True)
+    item_name = Column(String(120), nullable=True)
+    op = Column(String(8), nullable=False)
+    before_value = Column(Text, nullable=True)
+    after_value = Column(Text, nullable=True)
+    actor_user_id = Column(Integer, nullable=True)
+    # naive DB timestamp = UTC 규약(datetime_kst).
+    created_at = Column(DateTime, default=now_utc_naive, nullable=False)
+
+
 class OrderTask(Base):
     """팔로업/이슈 추적(Task).
 

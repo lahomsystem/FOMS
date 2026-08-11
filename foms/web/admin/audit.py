@@ -18,7 +18,7 @@ from foms.services.audit_message_display import (
     path_label,
 )
 from foms.services.datetime_kst import to_utc_naive
-from models import AccessLog, Order, SecurityLog, User
+from models import AccessLog, Order, OrderFieldChange, SecurityLog, User
 from foms.web.admin.routes import admin_bp
 from foms.web.auth import login_required, role_required
 
@@ -41,6 +41,10 @@ _DENIED_MESSAGE_PREFIX = "권한 없는 접근 시도"
 # PK 역순 N행만 본다. 그래서 후보는 "최근에 실제로 쓰인 action" 이며, 화면은 select 가
 # 아니라 datalist 라 목록에 없는 값도 직접 입력해 조회할 수 있다.
 _ACTION_SAMPLE_ROWS = 5000
+
+# 변경 원장 필터가 헤더로 넘길 change set 상한(ORDER-DIFF-01). 감사 화면은 최신순이라
+# 최신 change set 부터 채운다 — 조건이 지나치게 넓을 때 IN 목록이 무한정 커지는 것을 막는다.
+_CHANGE_SET_MATCH_LIMIT = 2000
 
 
 def _apply_security_log_filters(query: Query, filters: dict[str, Any]) -> Query:
@@ -91,6 +95,69 @@ def _apply_security_log_filters(query: Query, filters: dict[str, Any]) -> Query:
             )
         )
     return query
+
+
+def _apply_change_ledger_filters(db: Any, query: Query, filters: dict[str, Any]) -> Query:
+    """변경 원장(``order_field_changes``) 기준으로 감사 행을 좁힌다 (ORDER-DIFF-01).
+
+    "실측일이 바뀐 저장만" 같은 질문은 헤더(``security_logs``)만 봐서는 답할 수 없다. 원장에서
+    조건에 맞는 ``change_set_id`` 를 뽑아 헤더의 ``detail->>'change_set'`` 과 맞춘다.
+    필드 조건은 ``path_template`` **동등 비교**라 인덱스를 탄다(값 검색만 ILIKE 보조).
+
+    change set 후보는 :data:`_CHANGE_SET_MATCH_LIMIT` 개로 끊는다 — 조건이 너무 넓으면
+    IN 목록이 무한정 커지므로, 최신 것부터 채우고 넘치면 그만큼만 본다(감사 화면은 최신순이다).
+
+    :param db: 활성 세션.
+    :param query: 지금까지 필터가 걸린 ``SecurityLog`` 쿼리.
+    :param filters: ``changed_field``/``changed_value`` 를 포함한 필터 dict.
+    :return: 좁혀진 쿼리(두 필터가 모두 비어 있으면 원본 그대로).
+    """
+    field = (filters.get("changed_field") or "").strip()
+    value = (filters.get("changed_value") or "").strip()
+    if not field and not value:
+        return query
+
+    ledger = db.query(OrderFieldChange.change_set_id)
+    if field:
+        ledger = ledger.filter(OrderFieldChange.path_template == field)
+    if value:
+        pattern = f"%{value}%"
+        ledger = ledger.filter(or_(
+            OrderFieldChange.before_value.ilike(pattern),
+            OrderFieldChange.after_value.ilike(pattern),
+        ))
+    change_sets = {
+        row[0] for row in
+        ledger.order_by(OrderFieldChange.id.desc()).limit(_CHANGE_SET_MATCH_LIMIT).all()
+    }
+    if not change_sets:
+        # 조건에 맞는 변경이 없다 = 결과 없음. 필터를 조용히 무시하면 거짓 목록이 나온다.
+        return query.filter(SecurityLog.id < 0)
+    # ``as_string()`` 은 방언 중립이다 — JSONB 전용 ``astext`` 를 쓰면 SQLite 테스트 레인이 깨진다.
+    return query.filter(SecurityLog.detail["change_set"].as_string().in_(change_sets))
+
+
+def _recent_change_templates(db: Any) -> list[dict[str, str]]:
+    """변경 필드 필터의 자동완성 후보(최근 원장 행에서 실제로 쓰인 경로).
+
+    ``SELECT DISTINCT`` 를 원장 전체에 돌리면 원장이 커질수록 매 페이지 로드가 Seq Scan 이
+    된다 — ``action`` 후보와 같은 규칙으로 PK 역순 N행만 본다. 라벨은 표시 SSOT 가 붙인다
+    (등재되지 않은 경로는 경로 그대로 — 감사 화면은 모르는 값을 감추지 않는다).
+
+    :param db: 활성 세션.
+    :return: ``{'value','label'}`` 목록(라벨 기준 정렬).
+    """
+    rows = (
+        db.query(OrderFieldChange.path_template)
+        .order_by(OrderFieldChange.id.desc())
+        .limit(_ACTION_SAMPLE_ROWS)
+        .all()
+    )
+    options = [
+        {"value": value, "label": path_label(value)}
+        for value in sorted({row[0] for row in rows if row[0]})
+    ]
+    return sorted(options, key=lambda option: option["label"])
 
 
 def _kst_date_bound_utc(raw: str, *, next_day: bool) -> datetime.datetime | None:
@@ -394,6 +461,9 @@ def security_logs():
         "date_to": (request.args.get("date_to") or "").strip(),
         # 권한 거부 기록 포함 여부 — 기본 꺼짐(위 _DENIED_ACTIONS 주석).
         "include_denied": bool(request.args.get("include_denied")),
+        # ORDER-DIFF-01: 변경 원장 기준 좁히기(어느 필드가 / 어떤 값으로 바뀐 저장인가).
+        "changed_field": (request.args.get("changed_field") or "").strip(),
+        "changed_value": (request.args.get("changed_value") or "").strip(),
     }
     filters["timestamp_from"] = _kst_date_bound_utc(filters["date_from"], next_day=False)
     filters["timestamp_to"] = _kst_date_bound_utc(filters["date_to"], next_day=True)
@@ -402,6 +472,7 @@ def security_logs():
         db.query(SecurityLog).order_by(SecurityLog.timestamp.desc(), SecurityLog.id.desc()),
         filters,
     )
+    query = _apply_change_ledger_filters(db, query, filters)
 
     total_logs = query.count()
     logs = query.offset((page - 1) * _PER_PAGE).limit(_PER_PAGE).all()
@@ -416,6 +487,7 @@ def security_logs():
         .all()
     )
     action_options = sorted({row[0] for row in recent_actions})
+    changed_field_options = _recent_change_templates(db)
     users = db.query(User).order_by(User.name, User.username).all()
 
     customer_names = _order_display_names(db, logs)
@@ -429,6 +501,7 @@ def security_logs():
         total_logs=total_logs,
         filters=filters,
         action_options=action_options,
+        changed_field_options=changed_field_options,
         users=users,
         # 행위자 표기용 map — SecurityLog 에 relationship 이 없어 행마다 조회하면 N+1 이다.
         user_map={u.id: u for u in users},

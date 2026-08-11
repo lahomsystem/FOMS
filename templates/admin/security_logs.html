@@ -55,6 +55,23 @@
                     <input type="text" name="search" id="search" class="form-control"
                            value="{{ filters.search or '' }}">
                 </div>
+                {# ORDER-DIFF-01: 변경 원장 기준 좁히기. 필드는 동등 비교(인덱스), 값은 보조 검색. #}
+                <div class="col-md-3">
+                    <label for="changed_field" class="form-label">변경 필드</label>
+                    <input type="text" name="changed_field" id="changed_field" class="form-control"
+                           list="changed-field-options" value="{{ filters.changed_field or '' }}"
+                           placeholder="schedule.measurement.date">
+                    <datalist id="changed-field-options">
+                        {% for option in changed_field_options %}
+                        <option value="{{ option.value }}">{{ option.label }}</option>
+                        {% endfor %}
+                    </datalist>
+                </div>
+                <div class="col-md-3">
+                    <label for="changed_value" class="form-label">변경 값(이전/이후)</label>
+                    <input type="text" name="changed_value" id="changed_value" class="form-control"
+                           value="{{ filters.changed_value or '' }}">
+                </div>
                 {# 기간은 KST 날짜로 받고 서버가 UTC 경계로 바꾼다(파일 열람 화면과 같은 규약). #}
                 <div class="col-md-2">
                     <label for="date_from" class="form-label">시작일(KST)</label>
@@ -123,7 +140,8 @@
                                 {% endfor %}
                             </ul>
                             {% if row.change_truncated %}
-                            <div class="small text-muted">상한 초과로 {{ row.change_truncated }}건은 기록되지 않았습니다.</div>
+                            {# 화면 상한일 뿐이다 — 나머지 {{ n }}건은 order_field_changes 원장에 남아 있다. #}
+                            <div class="small text-muted">나머지 {{ row.change_truncated }}건은 변경 원장에 보관되어 있습니다(목록은 {{ row.changes|length }}건까지).</div>
                             {% endif %}
                         </details>
                         {% endif %}

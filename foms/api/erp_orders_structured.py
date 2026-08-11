@@ -8,6 +8,7 @@ import hashlib
 import json
 import logging
 import time
+import uuid
 from typing import Any, List, Mapping, Optional, Tuple
 
 from flask import Blueprint, has_request_context, request, jsonify, session
@@ -30,7 +31,8 @@ from foms.services.orders.status_constants import STATUS
 from foms.web.auth import log_access, login_required, role_required
 from foms.services.audit_message_display import describe_order_action, summarize_changes
 from foms.services.orders.audit_order_context import order_audit_context
-from foms.services.orders.structured_diff import DiffResult, diff_structured
+from foms.services.orders.order_field_change_writer import record_field_changes
+from foms.services.orders.structured_diff import MAX_CHANGES, DiffResult, diff_structured
 from foms.services.datetime_kst import now_kst
 from foms.services.erp_order_flags import (
     is_erp_draft_structured_data,
@@ -407,6 +409,17 @@ def _preserve_operational_structured_state(old_sd: dict, structured_data: dict) 
     _force_preserve_as_server_state(old_sd, structured_data)
 
 
+def _new_change_set_id() -> str:
+    """저장 1회 묶음 id 를 만든다 (ORDER-DIFF-01).
+
+    같은 값이 감사 헤더(``security_logs.detail['change_set']``)와 항목 원장
+    (``order_field_changes.change_set_id``) 양쪽에 들어가 **FK 없이** 둘을 잇는다.
+
+    :return: UUID4 문자열.
+    """
+    return str(uuid.uuid4())
+
+
 def _save_note(base: str, diff: DiffResult) -> str:
     """저장 로그 문장의 꼬리말을 만든다 (ORDER-DIFF-00).
 
@@ -421,19 +434,23 @@ def _save_note(base: str, diff: DiffResult) -> str:
     return f"{base} · {summary}" if summary else base
 
 
-def _diff_detail(diff: DiffResult) -> dict:
-    """변경 비교 결과를 ``security_logs.detail`` 조각으로 만든다 (ORDER-DIFF-00).
+def _diff_detail(diff: DiffResult, change_set_id: str) -> dict:
+    """변경 비교 결과를 ``security_logs.detail`` 조각으로 만든다 (ORDER-DIFF-00·01).
 
-    상한(:data:`~foms.services.orders.structured_diff.MAX_CHANGES`)을 넘긴 분량은 버리지 않고
-    ``truncated`` 개수로 남긴다 — 화면이 "외 N건"으로 절단 사실을 표시한다.
+    detail 은 **화면용**이라 :data:`~foms.services.orders.structured_diff.MAX_CHANGES` 건까지만
+    담는다. 넘친 분량은 사라지지 않는다 — ``order_field_changes`` 원장에 전량이 있고, 여기서는
+    ``truncated`` 개수로 그 사실을 표시한다(화면이 "원장에 전량 보관"으로 안내한다).
 
-    :param diff: 변경 비교 결과.
-    :return: ``{'change_count','truncated','changes'}``.
+    :param diff: 변경 비교 결과(상한 없이 계산된 전량).
+    :param change_set_id: 저장 1회 묶음 id — 항목 원장과 잇는 유일한 열쇠다.
+    :return: ``{'change_set','change_count','truncated','changes'}``.
     """
+    shown = diff.changes[:MAX_CHANGES]
     return {
+        'change_set': change_set_id,
         'change_count': diff.total,
-        'truncated': diff.truncated,
-        'changes': diff.changes,
+        'truncated': max(0, diff.total - len(shown)),
+        'changes': shown,
     }
 
 
@@ -868,7 +885,15 @@ def api_patch_order_structured_fields(order_id: int):
         setattr(order, 'structured_updated_at', now)
         patch_context = order_audit_context(order)
         # ORDER-DIFF-00: 경로만 남기던 인라인 로그에 이전값→새값을 채운다.
-        patch_diff = diff_structured(old_sd, structured_data)
+        # ORDER-DIFF-01: 원장에는 전량을 싣는다(상한은 화면용 detail 에만 건다).
+        patch_diff = diff_structured(old_sd, structured_data, max_changes=-1)
+        patch_change_set = _new_change_set_id()
+        record_field_changes(
+            db, patch_diff.changes,
+            order_id=int(order_id),
+            actor_user_id=session.get('user_id'),
+            change_set_id=patch_change_set,
+        )
         log_access(
             describe_order_action(order_id=order_id, action='ORDER_STRUCTURED_SAVED',
                                   note=_save_note('인라인 수정', patch_diff), **patch_context),
@@ -878,7 +903,7 @@ def api_patch_order_structured_fields(order_id: int):
             detail={
                 'mode': 'inline',
                 'field': field,
-                **_diff_detail(patch_diff),
+                **_diff_detail(patch_diff, patch_change_set),
                 **patch_context,
             },
         )
@@ -1110,7 +1135,8 @@ def api_put_order_structured(order_id):
 
                 # ORDER-DIFF-00: 보존·projection 까지 끝난 최종본과 비교해야 실제로 저장된
                 # 변경만 남는다(중간 상태로 비교하면 서버가 되돌린 값까지 변경으로 찍힌다).
-                captured['diff'] = diff_structured(audit_old_sd, structured_data)
+                # ORDER-DIFF-01: 상한 없이 계산한다 — 원장에는 전량, 화면 detail 에만 상한.
+                captured['diff'] = diff_structured(audit_old_sd, structured_data, max_changes=-1)
 
                 o.structured_data = copy.deepcopy(structured_data)
                 flag_modified(o, 'structured_data')
@@ -1151,13 +1177,21 @@ def api_put_order_structured(order_id):
             )
             put_context = order_audit_context(order)
             put_diff = captured['diff'] or DiffResult([], 0, 0)
+            put_change_set = _new_change_set_id()
+            # 원장 행은 저장과 같은 트랜잭션에 실린다(아래 db.commit() 이 함께 커밋한다).
+            record_field_changes(
+                db, put_diff.changes,
+                order_id=int(order_id),
+                actor_user_id=actor_user_id,
+                change_set_id=put_change_set,
+            )
             log_access(
                 describe_order_action(order_id=order_id, action='ORDER_STRUCTURED_SAVED',
                                       note=_save_note('전체 저장', put_diff), **put_context),
                 actor_user_id,
                 auto_commit=False,
                 action='ORDER_STRUCTURED_SAVED', target_type='order', target_id=int(order_id),
-                detail={'mode': 'full', **_diff_detail(put_diff), **put_context},
+                detail={'mode': 'full', **_diff_detail(put_diff, put_change_set), **put_context},
             )
             db.commit()
         except RevisionConflictError as conflict:
