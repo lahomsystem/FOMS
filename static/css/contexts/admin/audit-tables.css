@@ -1,0 +1,64 @@
+/*
+ * 관리자 감사 표(보안 로그·파일 열람 기록) 표시 규칙.
+ *
+ * 한 행에 시간·행위·대상·문장·JSON이 함께 들어가서 기본 폭으로는 시간이 세 줄로 접히고
+ * 문장 칸이 좁았다(2026-08-10 운영 실측). 기본 폭을 업무 축에 맞게 주고, 폭 조절은
+ * js/admin/audit-table-columns.js 가 헤더 경계 드래그로 제공한다.
+ */
+
+.admin-audit-table {
+  table-layout: fixed;
+  width: 100%;
+}
+
+/* 폭이 좁아져도 표가 깨지지 않게 셀 내용은 칸 안에서 처리한다. */
+.admin-audit-table > thead > tr > th,
+.admin-audit-table > tbody > tr > td {
+  overflow: hidden;
+  vertical-align: top;
+  word-break: break-word;
+}
+
+/* 시간은 한 줄로 — "2026-08-10 15:51:52"가 세 줄로 접히면 표가 세로로 늘어난다. */
+.admin-audit-table .audit-cell-time {
+  white-space: nowrap;
+}
+
+/* 부가정보 JSON은 칸을 넘기지 않고 자체 스크롤한다. */
+.admin-audit-table .audit-cell-detail pre {
+  max-height: 8.5rem;
+  overflow: auto;
+  white-space: pre-wrap;
+  word-break: break-all;
+}
+
+/* 폭 조절이 켜진 표는 헤더 경계에 손잡이가 붙는다(런타임이 grip 요소를 넣는다). */
+.admin-audit-table--resizable > thead > tr > th {
+  position: relative;
+  user-select: none;
+}
+
+/* --- 기본 폭: 보안 로그 --------------------------------------------------- */
+.admin-audit-table--security > thead > tr > th:nth-child(1) { width: 11%; }  /* 시간 */
+.admin-audit-table--security > thead > tr > th:nth-child(2) { width: 13%; }  /* 행위 */
+.admin-audit-table--security > thead > tr > th:nth-child(3) { width: 9%; }   /* 대상 */
+.admin-audit-table--security > thead > tr > th:nth-child(4) { width: 34%; }  /* 상세 내용 */
+.admin-audit-table--security > thead > tr > th:nth-child(5) { width: 20%; }  /* 부가정보 */
+.admin-audit-table--security > thead > tr > th:nth-child(6) { width: 13%; }  /* 사용자 */
+
+/* --- 기본 폭: 파일 열람 기록 ---------------------------------------------- */
+.admin-audit-table--file > thead > tr > th:nth-child(1) { width: 11%; }  /* 시간 */
+.admin-audit-table--file > thead > tr > th:nth-child(2) { width: 13%; }  /* 행위 */
+.admin-audit-table--file > thead > tr > th:nth-child(3) { width: 13%; }  /* 열람자 */
+.admin-audit-table--file > thead > tr > th:nth-child(4) { width: 28%; }  /* 파일 */
+.admin-audit-table--file > thead > tr > th:nth-child(5) { width: 8%; }   /* 주문 */
+.admin-audit-table--file > thead > tr > th:nth-child(6) { width: 11%; }  /* IP */
+.admin-audit-table--file > thead > tr > th:nth-child(7) { width: 16%; }  /* 브라우저(UA) */
+
+/* 좁은 화면에서는 폭 조절을 켜지 않는다(손잡이가 방해). 표는 가로 스크롤로 본다. */
+@media (max-width: 991.98px) {
+  .admin-audit-table {
+    table-layout: auto;
+    min-width: 56rem;
+  }
+}
