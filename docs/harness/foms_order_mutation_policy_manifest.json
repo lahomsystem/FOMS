@@ -555,6 +555,11 @@
       "reason": "anonymous RUM/Web-Vitals ingest - 무인증·부작용 없음(ingest policy).",
       "rule": "/api/foms/rum"
     },
+    "kakao.api_alimtalk_send_manual": {
+      "mode": "guard",
+      "policy_id": "STAFF_MUTATION",
+      "rule": "/api/kakao/alimtalk/send-manual/<int:order_id>"
+    },
     "notifications.api_notification_ack": {
       "mode": "guard",
       "policy_id": "ACK_OWN_NOTIFICATION",
