@@ -41,6 +41,7 @@ from foms.services.orders.erp_automation import apply_auto_tasks
 from foms.services.orders.order_text_parser import parse_order_text
 from foms.services.geocode_helpers import extract_address_from_structured_data
 from foms.services.jobs.queue import enqueue_geocode_order_address
+from foms.services.kakao_alimtalk import maybe_send_measure_alimtalk
 from foms.services.notifications.drawing_order_change import (
     apply_drawing_order_change_alert,
     finalize_drawing_order_change_alert,
@@ -412,7 +413,7 @@ def _record_structured_events(
     old_sd: dict,
     structured_data: dict,
 ) -> None:
-    """긴급/실측일/오너팀 변경 이벤트 기록.
+    """긴급/실측일/실측시간/오너팀 변경 이벤트 기록.
 
     시공일(``CONSTRUCTION_DATE_CHANGED``)은 제외 — ``order_date_sync`` before_flush 훅이
     SSOT 다.
@@ -430,17 +431,23 @@ def _record_structured_events(
     except Exception as e:
         logger.warning("URGENT_CHANGED event record failed: %s", e, exc_info=True)
     try:
-        new_meas = ((structured_data.get('schedule') or {}).get('measurement') or {}).get('date')
-        old_meas = ((old_sd.get('schedule') or {}).get('measurement') or {}).get('date')
-        if new_meas != old_meas:
-            db.add(OrderEvent(
-                order_id=order.id,
-                event_type='MEASUREMENT_DATE_CHANGED',
-                payload={'from': old_meas, 'to': new_meas},
-                created_by_user_id=session.get('user_id')
-            ))
+        new_meas = (structured_data.get('schedule') or {}).get('measurement') or {}
+        old_meas = (old_sd.get('schedule') or {}).get('measurement') or {}
+        # 알림톡 실측 안내는 날짜와 시간을 같이 싣는다 — 시간만 바뀌어도 타임라인에 남아야
+        # 재발송 근거를 추적할 수 있다(같은 try: 새 broad catch 를 늘리지 않는다).
+        for key, event_type in (
+            ('date', 'MEASUREMENT_DATE_CHANGED'),
+            ('time', 'MEASUREMENT_TIME_CHANGED'),
+        ):
+            if new_meas.get(key) != old_meas.get(key):
+                db.add(OrderEvent(
+                    order_id=order.id,
+                    event_type=event_type,
+                    payload={'from': old_meas.get(key), 'to': new_meas.get(key)},
+                    created_by_user_id=session.get('user_id')
+                ))
     except Exception as e:
-        logger.warning("MEASUREMENT_DATE_CHANGED event record failed: %s", e, exc_info=True)
+        logger.warning("MEASUREMENT_DATE/TIME_CHANGED event record failed: %s", e, exc_info=True)
     # CONSTRUCTION_DATE_CHANGED 는 여기서 남기지 않는다 — 시공일 이벤트 SSOT 는
     # foms/services/order_date_sync.py 의 전역 before_flush 훅이다(모든 쓰기 경로가
     # 통과하는 유일 지점). 여기서도 add 하면 같은 변경이 2건으로 기록된다.
@@ -856,6 +863,10 @@ def api_patch_order_structured_fields(order_id: int):
         except Exception as e:
             logger.warning("[ERP_ORDER] production change finalize failed: %s", e, exc_info=True)
 
+        # 실측 예약 알림톡 자동 발송 — 커밋 성공 이후에만. 자격 판정·멱등은 서비스가
+        # 담당하고 내부에서 모든 예외를 흡수한다(저장 트랜잭션 비차단 계약).
+        maybe_send_measure_alimtalk(order_id)
+
         return jsonify({
             'success': True,
             'structured_updated_at': format_updated_at(now),
@@ -1184,6 +1195,10 @@ def api_put_order_structured(order_id):
 
         if captured['address_changed']:
             enqueue_geocode_order_address(order_id)
+
+        # 실측 예약 알림톡 자동 발송 — 커밋 성공 이후에만. 자격 판정·멱등은 서비스가
+        # 담당하고 내부에서 모든 예외를 흡수한다(저장 트랜잭션 비차단 계약).
+        maybe_send_measure_alimtalk(order_id)
 
         total_time = (time.perf_counter() - start_time) * 1000
         logger.info(f"save latency - TOTAL: {total_time:.1f}ms")

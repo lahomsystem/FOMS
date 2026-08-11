@@ -609,6 +609,16 @@ def update_order_field_response(
 
         db.commit()
 
+        # 실측 예약 알림톡 자동 발송 — 커밋 성공 이후에만. 여기서 실측 일정을 건드리는
+        # 필드는 measurement_date 하나뿐이라 그때만 부른다(다른 필드는 자격 판정이 어차피
+        # 거르므로 무해하지만 DB 왕복만 늘린다). 서비스가 내부에서 예외를 흡수한다.
+        # import 는 이 파일의 다른 부수효과들과 같은 함수 로컬 방식 — 모듈 상단에 넣으면
+        # REV-99 writer 인벤토리가 핀한 EXTERNAL writer 라인번호가 밀린다.
+        if field == "measurement_date":
+            from foms.services.kakao_alimtalk import maybe_send_measure_alimtalk
+
+            maybe_send_measure_alimtalk(order.id)
+
         if structured_changed:
             try:
                 from foms.services.notifications.drawing_order_change import (

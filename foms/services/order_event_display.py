@@ -154,6 +154,7 @@ def translate_event_type_to_korean(event_type: str | None) -> str:
         "MEASUREMENT_SCHEDULED": "실측 예약",
         "MEASUREMENT_COMPLETED": "실측 완료",
         "MEASUREMENT_DATE_CHANGED": "실측 일정 변경",
+        "MEASUREMENT_TIME_CHANGED": "실측 시간 변경",
         "CONSTRUCTION_DATE_CHANGED": "시공 일정 변경",
         "OWNER_TEAM_CHANGED": "담당팀 변경",
         "AS_RECOMMENDATION_APPLIED": "AS 권고 적용",
