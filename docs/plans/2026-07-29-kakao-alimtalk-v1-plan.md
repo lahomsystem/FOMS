@@ -130,7 +130,21 @@ def maybe_send_measure_alimtalk(order_id: int) -> None:
     모든 예외 내부 처리(로그) — 호출부로 전파 금지."""
 ```
 
-**구현 규칙:** Solapi 오류 분류 `auth/balance/template_mismatch/invalid_phone/length_exceeded/network`(스펙 §6.7). `from_`=`SOLAPI_SENDER_PHONE` 필수(failover 전제). `text` 파라미터 미사용. outbox insert는 `foms/services/sidefx_outbox.py`의 `enqueue_side_effect` 사용하되 **주문 저장 tx 밖 별도 세션**. 로그에 전화번호 마스킹. OrderEvent 라벨: `ALIMTALK_SENT`='알림톡 발송', `ALIMTALK_FAILED`='알림톡 실패'.
+**D3 보강 (스펙 §2 D3·§6.6 — 브랜드 2프로필):**
+```python
+def resolve_brand(sd: dict | None) -> str:
+    """발주사명(parties.orderer.name)에 '라홈' 포함 → 'LAHOM', 그 외 전부 'HAUD'.
+    기존 로고 규칙(drawing_wizard_defaults._resolve_logo)과 동일 판정."""
+
+def brand_config(brand: str) -> dict | None:
+    """env에서 {'pf_id': SOLAPI_PF_ID_{brand}, 'template_id': SOLAPI_TEMPLATE_MEASURE_ID_{brand}}.
+    쌍 중 하나라도 없으면 None."""
+```
+- `is_configured()`는 공통 키(API_KEY/SECRET/SENDER_PHONE)만 본다. 발송 시 `brand_config(resolve_brand(sd))`가 None이면 발송 스킵 + `ALIMTALK_FAILED(brand_profile_missing)` 이력 (단계 가동 — 하우드 템플릿 승인 전 하우드 건 안전 스킵).
+- 멱등키·이력 키는 브랜드 무관 동일(주문당 실측 안내 1종).
+- 테스트 추가: `resolve_brand` 판정('라홈시스템'→LAHOM, '제이큐브이앤씨'→HAUD, 빈값→HAUD), brand_profile_missing 스킵 이력.
+
+**구현 규칙:** Solapi 오류 분류 `auth/balance/template_mismatch/invalid_phone/length_exceeded/network/brand_profile_missing`(스펙 §6.7). `from_`=`SOLAPI_SENDER_PHONE` 필수(failover 전제). `text` 파라미터 미사용. outbox insert는 `foms/services/sidefx_outbox.py`의 `enqueue_side_effect` 사용하되 **주문 저장 tx 밖 별도 세션**. 로그에 전화번호 마스킹. OrderEvent 라벨: `ALIMTALK_SENT`='알림톡 발송', `ALIMTALK_FAILED`='알림톡 실패'.
 
 - [ ] **2-1** 실패 테스트: SDK를 `monkeypatch`로 스텁 —
 ```python

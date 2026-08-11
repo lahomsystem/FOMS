@@ -8,7 +8,7 @@
 |---|---|---|---|---|---|
 | T0 | 선결 확인 (sidefx worker·solapi 의존) | `SOLAPI_OK` + T0.decision 기록 | DONE | 0e373534 | T0.decision: **WORKER_OFF** (2026-08-11 railway status — 서비스 web·WORKER·FOMS-cron·Postgres·Redis뿐, sidefx 미가동 → 동기 폴백 경로). SOLAPI_OK 확인. 키는 로컬 .env(gitignore) 저장 |
 | T1 | 변수 빌더·자격 판정 | `pytest tests/domains/test_kakao_alimtalk_service.py -q` PASS + APP_OK | DONE | 1e84ce58 | 24 passed 오케스트레이터 재검증. 멱등키=`alimtalk:measure:` 포맷으로 스펙 정정. 전화=첫 유효 토큰. 길이 가드 2단(축약+절단) |
-| T2 | Solapi 발송·이력 기록 | `pytest tests/domains/test_kakao_alimtalk_send.py -q` PASS + APP_OK | PENDING | | T0.decision 의존 |
+| T2 | Solapi 발송·이력 기록 | `pytest tests/domains/test_kakao_alimtalk_send.py -q` PASS + APP_OK | DONE | (T2 커밋) | 47 passed+회귀 208 재검증. WORKER_OFF 동기 경로, D3 브랜드 분기, 앵커 이벤트 승격 패턴, 슬롯 미소진 스킵(원인 해소 후 자동 재개) |
 | T3 | 자동 트리거 3경로 배선 | `pytest tests/domains/test_kakao_alimtalk_trigger.py tests/domains/test_erp_orders_structured*.py -q` PASS | PENDING | | |
 | T4 | 수동 API + manifest 등재 | `pytest tests/domains/test_kakao_alimtalk_api.py tests/domains/test_write_guard.py -q` PASS | PENDING | | |
 | T5 | UI 3표면 | 계약 테스트 PASS + gstack browse 3뷰포트 스모크 | PENDING | | ?v 범프 핀 전수 커밋 확인 |

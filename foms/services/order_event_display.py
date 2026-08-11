@@ -169,6 +169,8 @@ def translate_event_type_to_korean(event_type: str | None) -> str:
         "ASSIGNMENT_CHANGED": "담당자 변경",
         "STATUS_CHANGED": "상태 변경",
         "FIELD_UPDATED": "필드 수정",
+        "ALIMTALK_SENT": "알림톡 발송",
+        "ALIMTALK_FAILED": "알림톡 실패",
         "COMMENT_ADDED": "메모 추가",
         "ATTACHMENT_ADDED": "첨부파일 추가",
         "ATTACHMENT_DELETED": "첨부파일 삭제",
