@@ -2269,6 +2269,7 @@ _SLG_FOMS_API_TOP_LEVEL_ALLOWED = frozenset(
         "cs",
         "drawing",
         "files",
+        "kakao",
         "measurement",
         "notifications",
         "orders",
