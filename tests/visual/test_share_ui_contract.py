@@ -50,8 +50,9 @@ def test_modal_partial_included_on_both_surfaces() -> None:
     assert 'id="erp-share-list"' in modal
     assert "data-kakao-js-key" in modal
     assert "style=" not in modal, "인라인 스타일 금지 — bootstrap/erp-pro.css 사용"
-    # 견적서 kind 는 T7 해금까지 비활성으로만 노출된다.
-    assert 'value="estimate" disabled' in modal
+    # T7 해금: 견적서 kind 는 활성 radio 로 노출된다(disabled 회귀 금지).
+    assert 'value="estimate"' in modal
+    assert 'value="estimate" disabled' not in modal
 
 
 def test_share_js_wired_in_erp_order_script_chain_with_version() -> None:
@@ -73,6 +74,8 @@ def test_share_js_singleton_lazy_sdk_and_endpoints() -> None:
     assert "/api/share/revoke/" in js
     assert "kakao_js_sdk" in js  # lazy 로드 URL — eager <script> 태그 금지
     assert "sendDefault" in js
+    # 카톡 공유 문구는 kind 를 따라간다(T7 — 견적 링크에 "도면 확인" 회귀 금지).
+    assert "견적서 확인" in js
     # 태블릿 버튼은 자체 핸들러 소유(T9) — 이중 처리 방지 제외 선택자.
     assert ":not([data-tmf-share-open])" in js
     # 토큰·URL 은 발급 응답 메모리에만 — localStorage/sessionStorage 격납 금지.

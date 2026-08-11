@@ -158,7 +158,7 @@
                     _setNotice('발급 실패 — ' + _label(body && body.error));
                     return;
                 }
-                _issued = { shareId: body.data.share_id, url: body.data.url };
+                _issued = { shareId: body.data.share_id, url: body.data.url, kind: body.data.kind };
                 _setNotice('');
                 _showIssued(body.data.url);
                 return _refreshList();
@@ -236,18 +236,22 @@
         var key = el ? (el.getAttribute('data-kakao-js-key') || '') : '';
         var logo = el ? (el.getAttribute('data-share-logo-url') || '') : '';
         var url = _issued.url;
+        var isEstimate = _issued.kind === 'estimate';
+        var title = isEstimate ? '견적서 확인' : '도면 확인';
+        var description = isEstimate ? '견적서를 확인해 주세요.' : '도면을 확인해 주세요.';
         _ensureKakao(key)
             .then(function (Kakao) {
                 Kakao.Share.sendDefault({
                     objectType: 'feed',
                     content: {
-                        title: '도면 확인',
-                        description: '도면을 확인해 주세요.',
+                        title: title,
+                        description: description,
                         imageUrl: logo,
                         link: { mobileWebUrl: url, webUrl: url },
                     },
                     buttons: [
-                        { title: '도면 보기', link: { mobileWebUrl: url, webUrl: url } },
+                        { title: isEstimate ? '견적서 보기' : '도면 보기',
+                          link: { mobileWebUrl: url, webUrl: url } },
                     ],
                 });
             })

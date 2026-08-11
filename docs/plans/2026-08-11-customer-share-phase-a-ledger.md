@@ -12,15 +12,15 @@
 | T1 | 토큰 모델·마이그레이션·서비스 코어 (파일럿) | `pytest tests/domains/test_order_share_service.py tests/domains/test_alembic_single_head.py -q` PASS + APP_OK | DONE | 073b89b3 | 14 passed. head=seclog_time_00 뒤 단일 연결. 지문 정합 위해 양쪽 server_default 無, snapshot=JSON+JSONB variant |
 | T2 | 비로그인 열람 `GET /s/<token>` (drawing) | `pytest tests/domains/test_order_share_view.py -q` PASS(격리·410·fail-closed 503 표면·헤더·FILE_VIEW 1행) + APP_OK | DONE | 84319e30 | 12 passed + namespace 게이트 358 passed. presign 전멸=503, onerror 새로고침 안내 |
 | T3 | 직원 API create/revoke + manifest·감사 | `pytest tests/domains/test_order_share_api.py tests/domains/test_write_guard.py tests/domains/test_auth_enforcement.py -q` PASS + audit 인벤토리 재생성 + APP_OK | DONE | 93b0e142 | 49 passed + audit 게이트 11 passed(coverage 100%). 감사에 토큰·URL 미격납 assert |
-| T4 | 공유 UI 모달 (PC·모바일) + list API | 계약 테스트 PASS + browse 2뷰포트 스모크(모달·복사·목록) + APP_OK | DONE | (커밋 직후 기입) | 110 passed(계약+게이트). browse 스모크는 T5 통합 실행(알림톡 T5 선례). 카톡 키=지도 앱 키 fallback+env 오버라이드 |
-| T5 | Stage-1 통합 검증·스테이징 배포 | pre_push_smoke exit 0 + `gh run list` 전 워크플로 green + E2E 기록 | PENDING | | 카톡 실공유는 도메인 등록 후(미완=BLOCKED 기록 후 전진) |
+| T4 | 공유 UI 모달 (PC·모바일) + list API | 계약 테스트 PASS + browse 2뷰포트 스모크(모달·복사·목록) + APP_OK | DONE | bef517a5 | 110 passed(계약+게이트). browse 스모크는 T5 통합 실행(알림톡 T5 선례). 카톡 키=지도 앱 키 fallback+env 오버라이드 |
+| T5 | Stage-1 통합 검증·스테이징 배포 | pre_push_smoke exit 0 + `gh run list` 전 워크플로 green + E2E 기록 | DONE | 1f7999e4 | smoke 0·CI 4/4 green(Harness/PG Lane/perf-gate/FOMS). E2E 13항목 PASS: 로그인→발급→시크릿 열람 200+헤더 2종→열람수 반영→revoke 410→불량토큰 404→estimate 400. 주문 4287 카드·presigned·lightbox 렌더 확인. **주의**: 스테이징 이미지 실바이트는 전 키 NoSuchKey — 스테이징 DB(운영 복제)↔R2 버킷 드리프트(환경 이슈, presign 서명·경로 정상, onerror 안내 표면화). 실객체 검증=T10 업로드 흐름 동반. 카톡 실공유=**BLOCKED**(카카오 도메인 등록 사용자 액션 대기) |
 
 ## Stage-2 — 견적서·문자·태블릿
 
 | Task | 내용 | 완료 기준 | 상태 | 커밋 SHA | 비고 |
 |---|---|---|---|---|---|
-| T6 | 견적 스냅샷 빌더 (화이트리스트+동결+64KB 캡) | `pytest tests/domains/test_order_share_estimate.py -q` PASS(타 브랜드 계좌 부재·불변·400) + APP_OK | DONE | PENDING_SHA | 8+14 passed. 브랜드 교차 계좌 유출 0·내부 키 차단·grand total 공식·동결·캡 400 전부 assert |
-| T7 | 견적 열람 렌더 + kind UI 해금 | view 테스트 PASS + browse 모바일 렌더(옵션 해금·64KB 400 표시) + APP_OK | PENDING | | erp-share.js ?v 범프 |
+| T6 | 견적 스냅샷 빌더 (화이트리스트+동결+64KB 캡) | `pytest tests/domains/test_order_share_estimate.py -q` PASS(타 브랜드 계좌 부재·불변·400) + APP_OK | DONE | c871807e | 8+14 passed. 브랜드 교차 계좌 유출 0·내부 키 차단·grand total 공식·동결·캡 400 전부 assert |
+| T7 | 견적 열람 렌더 + kind UI 해금 | view 테스트 PASS + browse 모바일 렌더(옵션 해금·64KB 400 표시) + APP_OK | DONE | PENDING_SHA | 27 passed. 스냅샷-온리 렌더(수정 미반영 assert)·스냅샷 부재 503·카톡 문구 kind 분기·?v 20260812a 범프+핀 전수. browse는 T10 통합 |
 | T8 | 문자 발송 (sender_phone·_solapi_send_text·멱등·버튼 배선) | `pytest tests/domains/test_order_share_sms.py tests/domains/test_write_guard.py tests/domains/test_auth_enforcement.py -q` PASS + audit 인벤토리 재생성 + APP_OK | PENDING | | 실발신은 T10, §1 선점 insert+토큰 원문 검증 |
 | T9 | 태블릿 공유 버튼 (tablet-measure-form.js) | 태블릿 계약 테스트 PASS + browse coarse 스모크 + APP_OK | PENDING | | 핫파일 규칙 확인 |
 | T10 | Stage-2 통합 검증·스테이징 E2E | pre_push_smoke exit 0 + CI green + E2E(스냅샷 불변·문자 3사·카톡 실기기) | PENDING | | 발신번호 미등록=문자만 BLOCKED |
