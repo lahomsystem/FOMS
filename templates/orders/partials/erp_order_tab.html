@@ -444,6 +444,10 @@ ERP Order Tab Pane (shared between add_order and edit_order)
                                 <button class="btn btn-sm btn-info" type="button" id="erp-channeltalk-push-as-btn" title="AS 접수 내용 + AS 첨부만 AS방으로 전송">
                                     <i class="fas fa-wrench"></i> AS PUSH
                                 </button>
+                                <button class="btn btn-sm btn-outline-primary erp-alimtalk-send-btn" type="button" id="erp-alimtalk-send-btn" title="실측 예약 안내를 고객에게 카카오 알림톡으로 발송">
+                                    <i class="fas fa-comment-dots"></i> 알림톡 발송
+                                </button>
+                                <span class="erp-alimtalk-status small text-muted ms-1"></span>
                                 <button class="btn btn-sm btn-secondary" type="button" id="erp-gen-text-btn">
                                     <i class="fas fa-sync"></i> 변환
                                 </button>
@@ -502,6 +506,7 @@ ERP Order Tab Pane (shared between add_order and edit_order)
 </div>
 
 {% include 'orders/partials/erp_channel_push_resend_modal.html' %}
+{% include 'orders/partials/erp_alimtalk_modal.html' %}
 
 <!-- ERP 주소 검색 모달 -->
 <div class="modal fade" id="erpAddressSearchModal" tabindex="-1" aria-hidden="true">

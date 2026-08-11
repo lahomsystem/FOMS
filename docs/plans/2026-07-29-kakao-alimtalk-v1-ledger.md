@@ -10,8 +10,8 @@
 | T1 | 변수 빌더·자격 판정 | `pytest tests/domains/test_kakao_alimtalk_service.py -q` PASS + APP_OK | DONE | 1e84ce58 | 24 passed 오케스트레이터 재검증. 멱등키=`alimtalk:measure:` 포맷으로 스펙 정정. 전화=첫 유효 토큰. 길이 가드 2단(축약+절단) |
 | T2 | Solapi 발송·이력 기록 | `pytest tests/domains/test_kakao_alimtalk_send.py -q` PASS + APP_OK | DONE | 9f9f5c86 | 47 passed+회귀 208 재검증. WORKER_OFF 동기 경로, D3 브랜드 분기, 앵커 이벤트 승격 패턴, 슬롯 미소진 스킵(원인 해소 후 자동 재개) |
 | T3 | 자동 트리거 3경로 배선 | `pytest tests/domains/test_kakao_alimtalk_trigger.py tests/domains/test_erp_orders_structured*.py -q` PASS | DONE | 377934fa | 배선 3곳(PUT :1159·PATCH :849·field_update :597 measurement_date 가드)+MEASUREMENT_TIME_CHANGED 이벤트. 재검증 74 passed. red 확인 완료 |
-| T4 | 수동 API + manifest 등재 | `pytest tests/domains/test_kakao_alimtalk_api.py tests/domains/test_write_guard.py -q` PASS | DONE | (T4 커밋) | 45 passed 재검증. preview GET+send-manual POST, manifest 2종 등재, body 전면 무시. 후속 후보: _ineligible_reason public 승격 |
-| T5 | UI 3표면 | 계약 테스트 PASS + gstack browse 3뷰포트 스모크 | PENDING | | ?v 범프 핀 전수 커밋 확인 |
+| T4 | 수동 API + manifest 등재 | `pytest tests/domains/test_kakao_alimtalk_api.py tests/domains/test_write_guard.py -q` PASS | DONE | e50e4366 | 45 passed 재검증. preview GET+send-manual POST, manifest 2종 등재, body 전면 무시. 후속 후보: _ineligible_reason public 승격 |
+| T5 | UI 3표면 | 계약 테스트 PASS + gstack browse 3뷰포트 스모크 | DONE | (T5 커밋) | 117 passed 재검증(게이트 포함). 태블릿=자체 흐름(선례 준수), 상태 한 줄+모달. browse 스모크는 T6에 통합 실행 예정 |
 | T6 | 통합 검증·스테이징 | pre_push_smoke exit 0 + CI green + E2E 기록 | PENDING | | env 등록은 Solapi 키 발급 후 |
 
 ## 외부 준비 (사용자 액션 — 코드와 병행, 스펙 §4)
