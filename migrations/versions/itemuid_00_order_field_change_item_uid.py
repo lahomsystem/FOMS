@@ -1,7 +1,7 @@
 """ORDER-ITEM-UID: order_field_changes 에 품목 안정 식별자 컬럼 추가
 
 Revision ID: itemuid_00
-Revises: orderdiff_01
+Revises: share_token_00
 Create Date: 2026-08-11
 
 품목 변경은 지금까지 위치 인덱스(``item_index``)로만 식별됐다. 인덱스는 저장마다 밀리므로
@@ -21,7 +21,9 @@ from alembic import op
 import sqlalchemy as sa
 
 revision: str = 'itemuid_00'
-down_revision: Union[str, None] = 'orderdiff_01'
+# 같은 시기에 ``share_token_00`` 도 orderdiff_01 에서 갈라져 head 가 둘이 됐다 —
+# 먼저 배포된 그쪽 뒤로 재부모화해 단일 head 를 지킨다(체인 순서만 바뀌고 DDL 은 무관).
+down_revision: Union[str, None] = 'share_token_00'
 branch_labels: Union[str, Sequence[str], None] = None
 depends_on: Union[str, Sequence[str], None] = None
 
