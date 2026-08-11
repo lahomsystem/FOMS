@@ -1262,6 +1262,9 @@ function erpNewItemRow(item = {}) {
     const row = document.createElement('div');
     row.className = 'border rounded p-2 mb-2 erp-item-row';
     row.dataset.itemIndex = '-1';
+    // ORDER-ITEM-UID: 서버가 발급한 품목 식별자를 행에 실어 저장 때 되돌려 보낸다.
+    // 이게 없으면 서버는 위치로 추측할 수밖에 없어 중간 삽입이 "여러 품목 변경"으로 기록된다.
+    if (item && item.uid) row.dataset.itemUid = String(item.uid);
 
     const defaultConsult = (v) => {
         const s = String(v ?? '').trim();
@@ -1951,6 +1954,9 @@ function erpCollectStructured() {
     let itemsTotal = 0;
     itemsWrap.querySelectorAll('.erp-item-row').forEach(row => {
         const obj = {};
+        // ORDER-ITEM-UID: 렌더 때 실어둔 식별자를 그대로 돌려보낸다(서버가 이 값의 진위를
+        // 검증한다 — 이 주문에 없던 uid 는 서버가 버리고 새로 발급한다).
+        if (row.dataset.itemUid) obj.uid = row.dataset.itemUid;
         row.querySelectorAll('[data-erp]').forEach(inp => {
             if (inp.closest('.erp-spec-row')) return;
             obj[inp.dataset.erp] = inp.value;

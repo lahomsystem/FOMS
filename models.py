@@ -852,6 +852,10 @@ class OrderFieldChange(Base):
     path = Column(String(120), nullable=False)
     path_template = Column(String(120), nullable=False)
     item_index = Column(Integer, nullable=True)
+    # 품목 안정 식별자(ORDER-ITEM-UID). 인덱스는 저장마다 밀릴 수 있어도 이 값은 같은 품목을
+    # 계속 가리킨다 — "이 품목이 어떻게 바뀌어 왔나"를 물을 수 있는 열쇠다. 그 질의를 하는
+    # 화면이 아직 없어 인덱스는 붙이지 않는다(필요해질 때 붙인다).
+    item_uid = Column(String(36), nullable=True)
     item_name = Column(String(120), nullable=True)
     op = Column(String(8), nullable=False)
     before_value = Column(Text, nullable=True)
