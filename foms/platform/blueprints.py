@@ -96,6 +96,7 @@ def register_blueprints(app: Flask) -> BlueprintBindings:
         register_chat_socketio_handlers,
     )
     from foms.web.channel import channel_chat_pages_bp
+    from foms.api.kakao import kakao_bp
     from foms.api.erp_estimates import erp_estimates_bp
     from foms.api.foms_rum import foms_rum_bp
     from foms.api.foms_search import foms_search_bp
@@ -160,6 +161,8 @@ def register_blueprints(app: Flask) -> BlueprintBindings:
     app.register_blueprint(channel_shortlink_bp)
     app.register_blueprint(channel_wam_bp)
     app.register_blueprint(channel_wam_api_bp)
+    # Kakao: 알림톡 수동 발송(미리보기 + 발송) — 채널톡과 독립된 얇은 계층
+    app.register_blueprint(kakao_bp)
     app.register_blueprint(erp_estimates_bp)
     app.register_blueprint(foms_rum_bp)
     app.register_blueprint(foms_search_bp)

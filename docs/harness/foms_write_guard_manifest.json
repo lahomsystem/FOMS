@@ -452,6 +452,10 @@
       "reason": "anonymous RUM/Web-Vitals ingest — sendBeacon 무인증 수집. ingest policy(무인증·부작용 없음)로만 방어, CSRF 대상 아님.",
       "rule": "/api/foms/rum"
     },
+    "kakao.api_alimtalk_send_manual": {
+      "mode": "guard",
+      "rule": "/api/kakao/alimtalk/send-manual/<int:order_id>"
+    },
     "notifications.api_notification_ack": {
       "mode": "guard",
       "rule": "/erp/api/notifications/<int:notification_id>/ack"
