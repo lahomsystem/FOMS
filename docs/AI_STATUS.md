@@ -26,7 +26,7 @@ Flask 2.3 + PostgreSQL + R2 + Railway (Web×2, Worker×1)
 ## 아키텍처 요약
 - 파일 업로드: 브라우저→R2 Presigned PUT 직접 (배치+병렬, UUID키)
 - 도면 생명주기: 발송(보존)→취소(신규만삭제)→확정(구버전정리)
-- 지도: Folium iframe + `/api/map_data` 경량 폴링 (15s×5회)
+- 지도: 카카오 SDK 클라 렌더(head 조기 부팅)+folium 폴백, pending만 계단 폴링
 - 성능/조회: `OrderScheduleDate`(날짜정규화), Partial Indexes, `Order.active_filter()` / `dashboard_active_filter(days=60)` 병행 계약 존재
 - 권한: CONSTRUCTION팀 출고/시공만, 도면팀 발송/취소
 - 하네스 문서 자산: Step 7에서 `docs/harness/{policy,bundles,runtime,logs}` canonical taxonomy로 분리됐고, `docs/context`는 incident/reference 기록만 유지한다
@@ -45,6 +45,7 @@ Flask 2.3 + PostgreSQL + R2 + Railway (Web×2, Worker×1)
 
 
 ## 최근 완료 (최대 5개)
+- [2026-08-11] **실측 지도 조기 부팅 승격 완료(PR #80, production `a68a8952`)** — 느림 정체는 지오코딩(좌표 결측 22/2982)도 서버(map_data 150ms)도 아닌 **SDK·map_data 요청의 DOMContentLoaded 대기**. `map_view.html` head 에서 카카오 SDK 선주입(`__FOMS_KAKAO_SDK`)+`/api/map_data` 선요청(`__FOMS_MAP_EARLY`, URL 완전일치 시 1회 소비), `loadSdk` 는 중복 주입 금지. 운영 실측: 문서도착→첫마커 844→262ms, 요청 중복 0, 콘솔 에러 0.
 - [2026-08-10] **감사 로깅 P4 Phase C 운영 승격 완료(PR #69, production `7ceedde4`)** — 쓰기 라우트 172개 전부 감사 기록(주문·단가표·견적·채팅·알림 등), 문장은 표시 SSOT 생성, PII는 고객명까지만. 게이트=`tools/harness/audit_coverage_scan.py`+인벤토리+allowlist(면제 30건 사유 필수), pre_push_smoke 편입. 마이그레이션 없음. 잔여=P4 D(열람 기록 여부 사용자 결정)·Sentry 로그 육안.
 - [2026-08-07] **지방 대시보드 섹션=상태 개편 운영 승격 완료(PR #59, production `95fb7826`)** — 드롭다운 0·뱃지만, 상차완료/보류 섹션 폐지, AS 섹션+AS완료(`as_completed_date` 필수). 읽기 경로 status 쓰기는 state_guard 차단(상차일 변경 시점 기록).
 - [2026-08-10] **감사 로깅 T1~T12 + 로그 가독성 P4 운영 승격 완료(PR #63, production `47f270e6`)** — 마이그레이션 7종 적용(alembic `seclog_time_00`), 데이터 무손실·order_events CASCADE 해소·감사 화면 인덱스. 로그가 업무 언어로 표시(운영 30일 1,438건 실검증). 백업 `c:/tmp/foms-backups/prod-pre-audit-promote-20260810.dump`
