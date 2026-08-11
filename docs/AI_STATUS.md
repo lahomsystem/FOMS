@@ -10,9 +10,8 @@ Flask 2.3 + PostgreSQL + R2 + Railway (Web×2, Worker×1)
 ## 진행 중
 - [2026-08-10] **주문 삭제 즉시 반영 production 승격(PR #72 `76b9086c`)** — 삭제 경로 3곳에 대시보드 캐시 무효화가 없어 실측 집계가 300초 stale(운영 #4717). **신규 mutation 경로엔 캐시 무효화 동반이 계약**(테스트 6종 고정).
 - [2026-08-10] **실측 동선 ROUTE-02 deploy 완료(CI 4/4 green, `5e84a440`+`b0552a3f`)** — 운영 재현으로 원인 3개 확정: ① ERP 주문은 `orders.measurement_time` 컬럼이 전부 NULL(실시각=`structured_data.schedule.measurement.time`)이라 SQL 정렬이 사실상 접수순(id) ② 인라인 빌더 limit 20 고정(실측 22곳/동선 20곳) ③ 좌표 없는 건 무표시 제외(운영 `lat IS NULL` 217건 = 미시도 182·failed 34). 수정=방문시각 파서 SSOT(`foms/services/measurement_time.py`)로 동선·히어로·카운트다운 통일, 상한 60+제외 건수 캡션, `open_map` 리다이렉트를 라우트 최상단으로. 잔여=**production 승격 승인 + 좌표 백필 실행**(`tools/ops/backfill_geocode_missing.py`).
-- [2026-08-11] **감사 표 컬럼 폭 조절 운영 승격 완료(PR #74, production `8d44c468`)** — 헤더 경계 드래그 + localStorage 폭 기억(표별), 보안 로그·파일 열람 두 화면. 운영 실화면 실증(손잡이 6/7개·143→249px·새로고침 유지·시간 칸 nowrap). 함정: 공용 ColumnResizer 는 UMD 라 `window.ColumnResizer.default` fallback 없으면 **에러 없이 조용히 미부착**.
+- [2026-08-11] **감사 화면 개선 3라운드 — 컬럼 폭·가독성 4건 운영 승격 완료(PR #74 `8d44c468`·PR #76 `fbb200e6`), 배지 한글화+부가정보 접이식 deploy `0eb51757`(CI 4/4 green) 승격 대기.** 헤더 드래그 폭 기억, 시간 칸 rem 고정(%폭은 좁은 화면에서 잘림), 부가정보 ensure_ascii=False, 보안 로그 기간 필터(KST 경계), UA 요약(원문 title), 행 높이 153→65px. 함정: ColumnResizer 는 UMD 라 `.default` fallback 없으면 조용히 미부착 / 기록되는 action 코드는 `ACTION_LABELS` 등재 필수(커버리지 계약 red).
 - [2026-08-10] **Sentry 운영 전환 완료** — DSN 을 dev→production 으로 이동(운영만 감시). 운영 로그 `Sentry initialized environment=production` 확인, dev 는 no-op. 잔여=Sentry 알림 규칙에 `environment:production` 필터·기존 staging 이슈 정리(사용자).
-- [2026-08-10] **감사 로깅 P4 Phase C 운영 승격 완료(PR #69, production `7ceedde4`)** — 쓰기 라우트 172개 전부 감사 기록(주문·단가표·견적·채팅·알림 등), 문장은 표시 SSOT 생성, PII는 고객명까지만. 게이트=`tools/harness/audit_coverage_scan.py`+인벤토리+allowlist(면제 30건 사유 필수), pre_push_smoke 편입. 마이그레이션 없음. 잔여=P4 D(열람 기록 여부 사용자 결정)·Sentry 로그 육안.
 - [2026-08-10] **채널톡 AS PUSH·시공 계측 승격**(`340b0064`) — AS 본문 서버 SSOT(AS방 230351), 시공 숫자판=시공 단계만, 진단 헤더 2종.
 - [2026-08-06] **계정 셀프서비스 v1 deploy 반영** — 셀프 가입 신청(PENDING 승인 흐름)+비밀번호 재설정 요청 큐(관리자 처리형), 마이그레이션 `account_self_00`, 승인 UI=/admin/users, 신규 테스트 14 green. 스펙: `docs/specs/2026-08-06-account-self-service-design.md`
 - ⚠️ **`queue.py` 소켓 타임아웃 누락 수정**(운영 반영됨) — `rate_limit.py`·`dashboard_cache.py`엔 2초 상한이 있는데 이 경로만 없었다(2026-07-21 Redis 장애 대응이 절반만 적용). blackhole 시 `enqueue()`가 웹 워커를 130초 붙잡던 잠복 결함. 못 잡은 이유=`queue.py` 내부 테스트 0건.
@@ -45,6 +44,7 @@ Flask 2.3 + PostgreSQL + R2 + Railway (Web×2, Worker×1)
 
 
 ## 최근 완료 (최대 5개)
+- [2026-08-10] **감사 로깅 P4 Phase C 운영 승격 완료(PR #69, production `7ceedde4`)** — 쓰기 라우트 172개 전부 감사 기록(주문·단가표·견적·채팅·알림 등), 문장은 표시 SSOT 생성, PII는 고객명까지만. 게이트=`tools/harness/audit_coverage_scan.py`+인벤토리+allowlist(면제 30건 사유 필수), pre_push_smoke 편입. 마이그레이션 없음. 잔여=P4 D(열람 기록 여부 사용자 결정)·Sentry 로그 육안.
 - [2026-08-07] **지방 대시보드 섹션=상태 개편 운영 승격 완료(PR #59, production `95fb7826`)** — 드롭다운 0·뱃지만, 상차완료/보류 섹션 폐지, AS 섹션+AS완료(`as_completed_date` 필수). 읽기 경로 status 쓰기는 state_guard 차단(상차일 변경 시점 기록).
 - [2026-08-10] **감사 로깅 T1~T12 + 로그 가독성 P4 운영 승격 완료(PR #63, production `47f270e6`)** — 마이그레이션 7종 적용(alembic `seclog_time_00`), 데이터 무손실·order_events CASCADE 해소·감사 화면 인덱스. 로그가 업무 언어로 표시(운영 30일 1,438건 실검증). 백업 `c:/tmp/foms-backups/prod-pre-audit-promote-20260810.dump`
 - [2026-08-05] **출고 시공일 변경 알림 T1~T8 완료(deploy)** — 이벤트 SSOT(`order_date_sync` before_flush)로 무음 경로 6종 차단, 수신 팀 **CONSTRUCTION**(SHIPMENT·PRODUCTION 팀은 실사용자 0 — 보내면 무음). AS 매칭은 production 반영 완료. 원장: `docs/plans/2026-07-30-shipment-construction-date-change-alert-ledger.md`
