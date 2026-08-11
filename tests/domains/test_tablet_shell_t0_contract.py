@@ -541,3 +541,52 @@ def test_construction_is_split_unwired_so_fallback_holds() -> None:
         assert "foms-split-enabled" not in body, f"{rel} unexpectedly has split markup"
         # …but each fallback page DOES ship a mobile surface, so tablet portrait is safe.
         assert "erp_mobile_shell.html" in body, f"{rel} missing mobile shell chrome"
+
+
+# --- 포인터 힌트 쿠키: coarse 전용 표면 서버 스킵 계약 ------------------------
+
+PTR_BOOT_JS = "static/js/runtime/foms-pointer-hint-boot.js"
+CONSTRUCTION_BODY = "templates/construction/partials/dashboard_body.html"
+TABLET_CONSTRUCTION_CSS = "static/css/foundation/foms-tablet-construction.css"
+
+
+def test_pointer_hint_boot_records_only_pointer_coarse() -> None:
+    """부트는 ``(pointer: coarse)`` 매치 여부만 쿠키에 남긴다.
+
+    뷰포트 폭·방향을 기록하면 창 크기 조절·회전으로 값이 낡아 서버가 오판한다.
+    pointer 는 기기 고정 특성이라 그 사고가 구조적으로 불가능하다.
+    """
+    boot = _read(PTR_BOOT_JS)
+    assert "'(pointer: coarse)'" in boot
+    assert "foms_ptr" in boot
+    # 주석은 근거를 설명하느라 뷰포트 조건을 언급한다 — 실행 코드만 검사한다.
+    code = re.sub(r"/\*.*?\*/", "", boot, flags=re.S)
+    code = re.sub(r"//[^\n]*", "", code)
+    assert "max-width" not in code
+    assert "orientation" not in code
+
+
+def test_pointer_hint_boot_is_inlined_not_render_blocking_src() -> None:
+    """layout_head 는 pre-paint 인라인 사본을 싣는다(G1: 신규 동기 head script 금지)."""
+    head = _read(LAYOUT_HEAD)
+    assert "foms_ptr" in head
+    assert "'(pointer: coarse)'" in head
+    assert "foms-pointer-hint-boot.js" not in head
+
+
+def test_construction_workmode_render_gated_on_coarse_pointer() -> None:
+    """시공 태블릿 작업 모드 include 는 coarse 판정과 AND 로 묶인다."""
+    body = _read(CONSTRUCTION_BODY)
+    assert "erp_mobile_v2_enabled and coarse_pointer_surfaces" in body
+    assert "construction/partials/tablet_workmode_body.html" in body
+
+
+def test_workmode_css_has_no_shell_override_hatch() -> None:
+    """게이트 전제: workmode 를 강제 표시하는 ``data-foms-shell`` 해치가 없어야 한다.
+
+    해치가 생기면 마우스 기기에서도 workmode 가 표시될 수 있어 서버 스킵이 blank 를
+    만든다. 해치를 추가하려면 이 테스트와 서버 게이트를 함께 고쳐야 한다.
+    """
+    css = _read(TABLET_CONSTRUCTION_CSS)
+    assert "data-foms-shell" not in css
+    assert "(pointer: coarse)" in css

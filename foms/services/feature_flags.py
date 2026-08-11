@@ -162,6 +162,41 @@ def _read_shell_pref_cookie(request: "Request | None" = None) -> str | None:
     return cookies.get("foms_shell_pref")
 
 
+def wants_coarse_pointer_surfaces(request: "Request | None" = None) -> bool:
+    """터치 전용(``pointer: coarse``) 표면을 이 요청에 렌더해야 하는지 판정한다.
+
+    ``foms_ptr`` 쿠키는 pre-paint 부트(layout_head.html 인라인 + SSOT 사본
+    ``static/js/runtime/foms-pointer-hint-boot.js``)가 ``matchMedia('(pointer: coarse)')``
+    결과로 심는다. 마우스 기기(``fine``)에서는 시공 태블릿 작업 모드처럼 coarse 전용
+    미디어쿼리로만 표시되는 표면이 **구조적으로 표시 불가능**하므로 렌더를 생략한다
+    (스테이징 실측 241.8KB = 시공 fragment 의 32.4%).
+
+    안전 폴백: 쿠키 미설정(첫 요청·쿠키 차단)이나 미지의 값이면 True — 즉 현행대로
+    전부 렌더한다. 판정을 못 할 때 화면이 비는 대신 느려지기만 하도록 기울인다.
+
+    뷰포트 폭 기반 표면(모바일 셸 ``max-width: 991.98px``)에는 쓰면 안 된다. 그쪽은
+    PC 창을 좁히는 것만으로 필요해지는데 pointer 값은 그대로라 오판한다.
+
+    Args:
+        request: Flask/Werkzeug request 또는 None(활성 request context 사용).
+
+    Returns:
+        coarse 전용 표면을 렌더해야 하면 True.
+    """
+    req = request
+    if req is None:
+        from flask import has_request_context
+        from flask import request as flask_request
+
+        if not has_request_context():
+            return True
+        req = flask_request
+    cookies = getattr(req, "cookies", None)
+    if cookies is None:
+        return True
+    return cookies.get("foms_ptr") != "fine"
+
+
 def resolve_shell_variant(
     user_id: int | None,
     request: "Request | None" = None,
