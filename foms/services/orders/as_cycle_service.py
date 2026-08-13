@@ -68,7 +68,12 @@ POLICY_AS_UNSCHEDULE = "STATE_AS_UNSCHEDULE"
 POLICY_AS_START = "STATE_AS_START"
 POLICY_AS_COMPLETE = "STATE_AS_COMPLETE"
 POLICY_AS_REOPEN = "STATE_AS_REOPEN"
+POLICY_AS_CLEAR_COMPLETED_DATE = "STATE_AS_CLEAR_COMPLETED_DATE"
 POLICY_AS_CLASSIFICATION = "STATE_AS_CLASSIFICATION"
+
+# 레거시로 workflow.stage 에 박힌 AS overlay. 본공정이 이미 오염된 주문만 overlay 와
+# 동기화하고, CS/COMPLETED 같은 깨끗한 main 은 건드리지 않는다(STATE-AS-01).
+_AS_STAGE_OVERLAY = frozenset({"AS_RECEIVED", "AS", "AS_COMPLETED"})
 
 
 class ASCycleError(ValueError):
@@ -275,12 +280,29 @@ def _open_legacy_bridge_cycle(
 # execute_order_mutation 조립(정책·이벤트·version·idempotency·row lock)
 # --------------------------------------------------------------------------- #
 def _reproject_and_sync(order: Order, sd: Dict[str, Any]) -> None:
-    """as_lifecycle overlay 반영 후 legacy ``order.status`` projection + flat 컬럼을 재계산한다."""
+    """as_lifecycle overlay 반영 후 legacy ``order.status`` projection + flat 컬럼을 재계산한다.
+
+    ``workflow.stage`` 가 이미 AS_* 로 오염된 주문만 overlay 와 맞춘다. 본공정(CS 등)은
+    그대로 둔다 — ERP 드롭다운이 stage 를 보여 레거시 AS완료 주문이 접수 후에도
+    AS완료로 남는 드리프트를 막기 위함이다.
+    """
     from foms.services.erp_sync_columns import sync_erp_flat_columns
 
     projection = legacy_status_projection(read_state_axes(order))
     if projection:
         order.status = projection
+    workflow = sd.get("workflow")
+    if isinstance(workflow, dict):
+        stage = str(workflow.get("stage") or "").strip()
+        # 접수/진행으로 되돌릴 때만 오염된 AS_* stage 를 overlay 에 맞춘다.
+        # 완료 전이는 stage 를 쓰지 않는다(STATE-AS-01, test_field_update_as_completed_date).
+        if (
+            projection in ("AS_RECEIVED", "AS")
+            and stage in _AS_STAGE_OVERLAY
+            and stage != projection
+        ):
+            workflow["stage"] = projection
+            flag_modified(order, "structured_data")
     sync_erp_flat_columns(order, sd)
 
 
@@ -380,6 +402,9 @@ def register_as_cycle(
             shipment["construction_workers"] = [construction_worker_name]
         _apply_classification_projection(sd, cycle)
         order.as_received_date = received_date or _today_str()
+        # 새 RECEIVED cycle 은 이전 완료일의 잔존을 허용하지 않는다. 남기면 AS 대시보드
+        # 완료일 삭제가 reopen(COMPLETED 전용)으로 가 409 RECEIVED 가 된다.
+        order.as_completed_date = None
         if shipping:
             order.shipping_scheduled_date = shipping
         return {"command": "AS_REGISTER", "cycle_id": cycle_id, "to": AS_RECEIVED,
@@ -539,6 +564,35 @@ def reopen_as_cycle(
     )
 
 
+def clear_as_completed_date(
+    session: Session, *, order_id: int, actor_user_id: int,
+    cycle_id: Optional[str] = None, scope_hash: str, request_hash: str,
+    now: Optional[datetime.datetime] = None, idempotency_key: Optional[str] = None,
+    sd_hook: Optional[Callable[[Dict[str, Any]], None]] = None,
+    legacy_bridge: bool = False,
+) -> MutationResult:
+    """열린 RECEIVED/IN_PROGRESS cycle 에 남은 ``as_completed_date`` 만 제거한다(상태 불변).
+
+    reopen 은 COMPLETED→RECEIVED 전이라, 이미 접수 상태인데 완료일만 남은 드리프트를
+    고치지 못한다. AS 대시보드 완료일 삭제가 그 드리프트에서 409 가 되지 않게 한다.
+    """
+    now = now or now_utc_naive()
+
+    def _apply(sd: Dict[str, Any], order: Order) -> Dict[str, Any]:
+        cycle = _require_open_cycle(sd, cycle_id, allow=(AS_RECEIVED, AS_IN_PROGRESS))
+        order.as_completed_date = None
+        return {"command": "AS_CLEAR_COMPLETED_DATE", "cycle_id": cycle.get("cycle_id"),
+                "to": cycle_status(cycle)}
+
+    return _run_as_command(
+        session, order_id=order_id, actor_user_id=actor_user_id,
+        policy_id=POLICY_AS_CLEAR_COMPLETED_DATE, event_type="AS_COMPLETED_DATE_CLEARED",
+        apply=_apply, scope_hash=scope_hash, request_hash=request_hash,
+        idempotency_key=idempotency_key, now=now, sd_hook=sd_hook,
+        legacy_bridge=legacy_bridge,
+    )
+
+
 def set_as_classification(
     session: Session, *, order_id: int, actor_user_id: int, field: str, value: bool,
     cycle_id: Optional[str] = None, scope_hash: str, request_hash: str,
@@ -645,5 +699,6 @@ __all__ = [
     "start_as_cycle",
     "complete_as_cycle",
     "reopen_as_cycle",
+    "clear_as_completed_date",
     "set_as_classification",
 ]

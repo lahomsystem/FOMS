@@ -3028,6 +3028,9 @@ ${escapeHtml(sub)}</div>` : ''}`;
                     if (!regData.success) {
                         throw new Error(regData.message || 'AS 접수 등록 실패');
                     }
+                    if (typeof regData.mutation_version === 'number') {
+                        window.__erpLastMutationVersion = regData.mutation_version;
+                    }
                     if (isRegionalNow && shipDateVal) {
                         window.__erpShippingScheduledDate = shipDateVal;
                     }

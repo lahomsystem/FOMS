@@ -232,7 +232,10 @@ def _bridge_as_completed_date(db, order: Order, user: Any, value: Any, body: dic
     from foms.services.orders.as_cycle_service import (
         AS_IN_PROGRESS,
         AS_RECEIVED,
+        clear_as_completed_date,
         complete_as_cycle,
+        current_cycle,
+        cycle_status,
         reopen_as_cycle,
     )
 
@@ -261,13 +264,24 @@ def _bridge_as_completed_date(db, order: Order, user: Any, value: Any, body: dic
                 request_hash=_request_hash(body), idempotency_key=_idempotency_key(body),
             )
         else:
-            reopen_as_cycle(
-                db, order_id=order.id, actor_user_id=actor_user_id, reason="AS 완료 취소",
-                sd_hook=lambda sd: append_system_log(sd, text="AS 완료 취소"),
-                legacy_bridge=True,
-                scope_hash=_scope_hash("AS_REOPEN", order.id),
-                request_hash=_request_hash(body), idempotency_key=_idempotency_key(body),
-            )
+            open_status = cycle_status(current_cycle(getattr(order, "structured_data", None) or {}))
+            if open_status in (AS_RECEIVED, AS_IN_PROGRESS):
+                # 이미 열린 cycle 인데 완료일만 남은 드리프트(재접수 후 잔존).
+                clear_as_completed_date(
+                    db, order_id=order.id, actor_user_id=actor_user_id,
+                    sd_hook=lambda sd: append_system_log(sd, text="AS 완료 취소"),
+                    legacy_bridge=True,
+                    scope_hash=_scope_hash("AS_CLEAR_COMPLETED_DATE", order.id),
+                    request_hash=_request_hash(body), idempotency_key=_idempotency_key(body),
+                )
+            else:
+                reopen_as_cycle(
+                    db, order_id=order.id, actor_user_id=actor_user_id, reason="AS 완료 취소",
+                    sd_hook=lambda sd: append_system_log(sd, text="AS 완료 취소"),
+                    legacy_bridge=True,
+                    scope_hash=_scope_hash("AS_REOPEN", order.id),
+                    request_hash=_request_hash(body), idempotency_key=_idempotency_key(body),
+                )
     except Exception as exc:  # noqa: BLE001 — 계약 위반은 409, 그 외 500 으로 분기
         return _as_error_response(db, exc)
 

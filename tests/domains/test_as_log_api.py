@@ -593,6 +593,34 @@ def test_register_then_form_save_keeps_new_entries(client):
     assert [e["type"] for e in _as_log(order_id)] == ["memo", "reception", "system"]
 
 
+def test_register_then_form_save_keeps_as_lifecycle(client):
+    """접수 직후 폼 PUT 이 as_lifecycle 을 빼거나 stale cycle 로 덮지 못한다.
+
+    as_lifecycle 은 폼 allowlist/운영키에 없어, register 직후 erpSaveStructured() 가
+    페이지 로드 스냅샷으로 JSONB 를 갈아끼우면 방금 연 RECEIVED cycle 이 사라진다.
+    """
+    from foms.services.orders.state_axes import read_as_status
+
+    _login_as_admin(client, username="as-lifecycle-stale-put-admin")
+    order_id = _create_as_order(status="CS").id
+    assert client.post(f"/api/orders/{order_id}/as/register",
+                       json={"as_content": "문짝 처짐"}).status_code == 200
+    db_session.expire_all()
+    before = db_session.get(Order, order_id)
+    cycle_id = before.structured_data["as_lifecycle"]["current_cycle_id"]
+
+    res = client.put(
+        f"/api/orders/{order_id}/structured",
+        json={"structured_data": _erp_form_structured({"as_content": "문짝 처짐"})},
+    )
+    assert res.status_code == 200 and res.get_json()["success"] is True
+    db_session.expire_all()
+    saved = db_session.get(Order, order_id)
+    assert saved.structured_data["as_lifecycle"]["current_cycle_id"] == cycle_id
+    assert read_as_status(saved) == "RECEIVED"
+    assert saved.status == "AS_RECEIVED"
+
+
 # ---------------------------------------------------------------------------
 # 재접수 중복 reception 방지 · 원문 크기 선가드
 # ---------------------------------------------------------------------------
