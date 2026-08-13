@@ -124,6 +124,32 @@ def test_dto_carries_the_flag_to_the_template(app):
     assert by_id[plain.id]["is_unassigned_intake"] is False
 
 
+def test_dashboard_html_shows_the_badge_instead_of_the_holding_account_name(client):
+    """실제 대시보드 응답 HTML 에 뱃지가 나온다(템플릿 배선까지 고정).
+
+    DTO 플래그만 검사하면 템플릿에서 안 읽어도 green 이라, 라우트를 실제로 렌더한다.
+    """
+    from werkzeug.security import generate_password_hash
+
+    admin = User(username="badge_admin", password=generate_password_hash("admin"),
+                 role="ADMIN", team="CS", name="뱃지 관리자", is_active=True)
+    db_session.add(admin)
+    db_session.commit()
+    with client.session_transaction() as sess:
+        sess["user_id"] = admin.id
+        sess["username"] = admin.username
+        sess["role"] = admin.role
+
+    holding = _user(OWNER_USERNAME, "미배정")
+    _order(_naver_sd(), owner=holding)
+
+    html = client.get("/erp/dashboard").get_data(as_text=True)
+
+    assert "담당 미지정" in html
+    # 보류함 계정 이름이 담당자처럼 보이면 안 된다.
+    assert "미배정</strong>" not in html
+
+
 def test_dto_default_keeps_existing_callers_unflagged(app):
     """인자를 안 주면 뱃지 없음 — 기존 호출자 동작 보존."""
     from foms.services.orders.dashboard_dto import build_orders_row_dtos
