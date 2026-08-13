@@ -62,6 +62,9 @@
 | T1 | Railway WORKER static IP 실검증 (`--once --dry-run`) | T0, T3 | PENDING | — |
 | T6 | 관리 화면 (수집 이력·수동 실행·원본 스냅샷) | T4, T5 | DONE(부분) | 테스트 13 green |
 | T7 | 앱 인증 만료 D-7 알림 | — | DONE | 테스트 11 green |
+| T8 | 트리아지 상태 컬럼 2개 + 마이그레이션 | T2 | PENDING | — |
+| T9 | 트리아지 작업대 화면 | T8 | PENDING | — |
+| T10 | 담당자 지정(`set_sales_assignee`) + "담당 미지정" 뱃지 | T8 | PENDING | — |
 
 > 순서 주의: 스펙의 T1(인프라 실검증)은 T0 사람 작업과 코드(T3)가 모두 있어야 가능하므로
 > 실행 순서에서는 T3 뒤로 내렸다. 스펙 번호는 그대로 둔다(대조 가능하게).
@@ -309,3 +312,47 @@ write guard manifest 와 **별개 파일**이라 둘 다 등재해야 한다.
 4. UTF-8 파일로 커밋 메시지 작성 → `git commit -F <파일> -- <경로들>` (동시 세션 레이스 방어)
 5. 이 원장 Task 표 상태·커밋 SHA 갱신
 6. push 는 `deploy` 만. push 후 `gh run list --branch deploy` 로 전 워크플로 green 확인
+
+---
+
+## T8 — 트리아지 상태 컬럼 (스펙 §8.3)
+
+**범위**: `ExternalOrderLink` 에 `reviewed_at`(DateTime, nullable)·`reviewed_by_user_id`
+(FK → users.id, ON DELETE SET NULL) 추가 + 마이그레이션(`down_revision` = 그 시점 원격 head).
+
+`sync_status` 에 값을 더하지 않는다 — 그건 수집 결과 축이고 트리아지는 사람 처리 축이라
+섞으면 "수집 성공했지만 사람이 아직 안 본" 상태를 표현할 수 없다.
+
+**완료 기준**
+- 일회용 `foms_test_*` DB 에서 `stamp head` → `downgrade -1` → `upgrade head` 왕복 성공
+- `alembic heads` 단일 head / ORM↔마이그레이션 parity(컬럼·제약·인덱스)
+- 확인 대기 큐 조회용 인덱스: `(channel, sync_status, reviewed_at)` 부분 인덱스 검토
+- `APP_OK` + `pre_push_smoke` exit 0
+
+## T9 — 트리아지 작업대 (스펙 §8.2)
+
+**범위**: `/admin/naver-ingest/triage` (또는 기존 화면의 탭). 좌=확인 대기 큐, 우=네이버 원본
+(옵션 원문·주문자·수취인·주소)과 FOMS 현재 값 대조 + 주문 편집기 링크 + "확인 완료".
+
+**규격 입력은 이 화면에서 하지 않는다** — `spec_rows` 는 W 가 출고가·시공비와 결합돼 있어
+(`eval_spec_width_mm` 가 총폭 SSOT) 두 번째 입력 UI 를 만들면 계산 규칙이 갈라진다.
+
+**완료 기준**
+- `reviewed_at IS NULL` 인 `LINKED` 건만 큐에 뜬다(확인 완료는 사라진다)
+- "확인 완료" POST → `reviewed_at`/`reviewed_by_user_id` 기록 → 큐에서 빠짐
+- 원본 열람은 관리자 전용 + `SecurityLog` 기록(기존 스냅샷 라우트 재사용)
+- **신규 mutation route 는 게이트 3곳 등재**: write guard manifest · auth policy manifest ·
+  `ACTION_LABELS`(위 게이트 표 참조 — 뒤 2개는 `pre_push_smoke` 서브셋 밖이다)
+
+## T10 — 담당자 지정 + "담당 미지정" 뱃지 (스펙 §8.4)
+
+**범위**: 작업대에서 SALES 담당자 지정 → `foms/services/orders/assignment.py::set_sales_assignee()`
+경유(`OrderAssignment` 직접 생성 금지 — REV-00 version bump·receipt·`SALES_ASSIGNEE_SET` 이벤트가
+따라온다). 보류함에서 실제 담당자로 옮기는 것은 **교체**라 `reason` 이 필수 — 화면이 기본 사유를 보낸다.
+대시보드의 "담당 미지정" 뱃지(T6 에서 미룬 잔여)도 여기서 함께 처리한다.
+
+**완료 기준**
+- 지정 후 active SALES owner 가 교체되고 `SALES_ASSIGNEE_SET` 이벤트 1건
+- 같은 요청 재전송 시 주문 version 이 두 번 오르지 않는다(멱등 키)
+- `naver_unassigned` 가 owner 인 주문에만 뱃지가 뜬다(다른 주문에 오염 없음)
+- 뱃지는 공유 대시보드 템플릿 변경이라 `?v=` 범프·기존 대시보드 계약 테스트 확인 필수
