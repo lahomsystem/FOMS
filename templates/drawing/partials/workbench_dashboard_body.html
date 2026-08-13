@@ -80,7 +80,15 @@
     </div>
   </div>
 
-  {% if erp_mobile_v2_enabled %}
+  {# v3 셸에서 이 모바일 큐는 어떤 뷰포트·방향·포인터에서도 픽셀을 차지하지 않는 죽은 마크업이다.
+     .fos-v3-desktop-fallback 이 보이는 조건(foms-mobile-v3.css 결함G 게이트)은 광폭(≥992
+     landscape|fine|none)과 정확히 일치하는데, 광폭에선 내부 큐(.mobile-card-list.d-lg-none)와
+     필터바가 모두 숨어 섹션 높이가 0 이다(스테이징 computed style 실측: h=0, 자식 전부 norect).
+     소유 스타일시트 foms-drawing-mobile-card.css 는 v2 전용 번들이라 v3 엔 애초에 미로드.
+     좁은 폭·세로 coarse 에선 fallback 자체가 display:none 이라 내부도 미렌더 — 뷰포트가 식에서
+     소거되므로 리사이즈 재요청 배선 없이 안전하다(64.0KB = fragment 의 19.7%).
+     v2 코호트엔 이 wrapper 자체가 없어 영향 없음. #}
+  {% if erp_mobile_v2_enabled and shell_variant != 'v3' %}
   <section class="foms-shell-body foms-drawing-mobile-dashboard" aria-label="도면 작업 큐">
     {% include 'drawing/partials/drawing_mobile_controls.html' %}
     {% include 'drawing/partials/workbench_mobile_queue.html' %}
