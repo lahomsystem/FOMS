@@ -10,6 +10,7 @@ from __future__ import annotations
 
 import datetime
 import pathlib
+import re
 
 import pytest
 from werkzeug.security import generate_password_hash
@@ -328,3 +329,35 @@ def test_workmode_rendered_when_pointer_cookie_absent(client, monkeypatch) -> No
 
     body = client.get("/erp/construction/dashboard?view=fragment").get_data(as_text=True)
     assert "foms-construction-workmode" in body
+
+
+def test_grid_row_markup_has_no_repeated_inline_styles(client, monkeypatch) -> None:
+    """작업 큐 행 마크업에 행마다 반복되는 인라인 style 이 없어야 한다.
+
+    filters_grid.html 이 행마다 같은 style="" 를 붙여 스테이징 실측 552회 31.3KB
+    (주 행 마크업의 24.1%)를 차지했다. 값이 9종뿐이라 전부 CSS 클래스로 이관했다.
+    인라인 스타일 금지 정책(CLAUDE.md)의 코드 강제이기도 하다.
+    """
+    for i in (31, 32, 33):
+        _seed_order(i)
+    _login_v2_cohort(client, monkeypatch, "inline_style_admin")
+
+    body = client.get("/erp/construction/dashboard?view=fragment").get_data(as_text=True)
+    rows = re.findall(r'<tr class="erp-main-row".*?</tr>', body, re.S)
+    assert rows, "주 행이 렌더되지 않았다"
+
+    offenders = [s for row in rows for s in re.findall(r'style="[^"]*"', row)]
+    assert not offenders, f"행 마크업에 인라인 style 잔존: {offenders[:5]}"
+
+
+def test_grid_row_uses_extracted_style_classes(client, monkeypatch) -> None:
+    """이관한 클래스가 실제 행에 실려야 한다(치환 누락 = 스타일 유실)."""
+    _seed_order(34)
+    _login_v2_cohort(client, monkeypatch, "style_class_admin")
+
+    body = client.get("/erp/construction/dashboard?view=fragment").get_data(as_text=True)
+    row = re.search(r'<tr class="erp-main-row".*?</tr>', body, re.S)
+    assert row, "주 행이 렌더되지 않았다"
+    markup = row.group(0)
+    for cls in ("erp-c-cell", "erp-c-cell--strong", "erp-c-stage-badge"):
+        assert cls in markup, f"{cls} 누락"
