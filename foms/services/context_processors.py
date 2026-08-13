@@ -22,6 +22,7 @@ from foms.services.feature_flags import (
 )
 from foms.services.datetime_kst import format_datetime_kst
 from foms.services.dashboard_counts import get_nav_badge_counts
+from foms.services.integrations.naver_commerce.triage_count import get_triage_pending_count
 from foms.services.common.erp_mine_filter import erp_mine_only_from_request
 from foms.services.common.geocode_config import KAKAO_JS_API_KEY
 from foms.web.auth import ROLES
@@ -141,9 +142,12 @@ def inject_status_list() -> dict[str, Any]:
 
     admin_switch_users: list[AdminSwitchUser] = []
     impersonating_from_id = session.get("impersonating_from")
+    # 수집 확인 대기 뱃지는 ADMIN 메뉴에만 뜬다 — 다른 역할에서는 쿼리조차 내지 않는다.
+    naver_triage_pending = 0
     if current_user and current_user.role == "ADMIN":
         db = get_db()
         admin_switch_users = _get_admin_switch_users(db, current_user.id)
+        naver_triage_pending = get_triage_pending_count(db)
 
     erp_order_enabled = env_bool("ERP_ORDER_ENABLED", default=True)
     shell_variant = _current_shell_variant()
@@ -165,6 +169,7 @@ def inject_status_list() -> dict[str, Any]:
         "current_user": current_user,
         "admin_switch_users": admin_switch_users,
         "impersonating_from_id": impersonating_from_id,
+        "naver_triage_pending": naver_triage_pending,
         "erp_order_enabled": erp_order_enabled,
         "erp_mobile_v2_enabled": erp_mobile_v2_enabled,
         "coarse_pointer_surfaces": wants_coarse_pointer_surfaces(),

@@ -6,9 +6,15 @@
 <div class="container-fluid">
     <div class="d-flex justify-content-between align-items-center mb-4">
         <h1 class="h3 mb-0"><i class="fas fa-store text-success"></i> 네이버 주문 수집</h1>
-        <button type="button" id="naver-run-now" class="btn btn-success">
-            <i class="fas fa-rotate"></i> 지금 수집
-        </button>
+        <div class="d-flex gap-2">
+            <a href="{{ url_for('admin.naver_ingest_triage') }}" class="btn btn-outline-primary">
+                <i class="fas fa-clipboard-check"></i> 수집 확인
+                {% if naver_triage_pending %}<span class="badge bg-danger ms-1">{{ naver_triage_pending }}</span>{% endif %}
+            </a>
+            <button type="button" id="naver-run-now" class="btn btn-success">
+                <i class="fas fa-rotate"></i> 지금 수집
+            </button>
+        </div>
     </div>
 
     <div id="naver-run-result" class="alert d-none" role="status"></div>
