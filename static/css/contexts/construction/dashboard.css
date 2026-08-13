@@ -1416,3 +1416,60 @@
     text-align: center;
     color: #999;
   }
+
+/* ── 작업 큐 표 셀·뱃지 타이포 (인라인 style 대체) ─────────────────────────
+   filters_grid.html 이 행마다 같은 style="" 를 반복해 붙이고 있었다(스테이징 실측
+   552회 31.3KB = 주 행 마크업의 24.1%). 값은 9종뿐이라 클래스로 이관한다.
+   인라인 style 은 클래스보다 특이도가 높으므로, Bootstrap 유틸(.badge/.text-muted)에
+   밀리지 않도록 표 스코프(.erp-main-row / .erp-dashboard-orders)를 선택자에 둔다.
+   인라인 금지 정책(CLAUDE.md) 준수이기도 하다. */
+
+.erp-main-row .erp-c-alert-badge {
+  font-size: 1.1rem;
+  padding: 0.5em 0.8em;
+}
+
+.erp-main-row .erp-c-stage-badge {
+  font-size: 1.1rem;
+  padding: 0.5em 0.7em;
+}
+
+.erp-main-row .erp-c-cell {
+  font-size: 1.1rem;
+  color: #495057;
+}
+
+.erp-main-row .erp-c-cell--wrap {
+  word-break: break-word;
+}
+
+.erp-main-row .erp-c-cell--strong {
+  font-size: 1.1rem;
+  color: #212529;
+}
+
+.erp-main-row .erp-c-muted {
+  font-size: 1.1rem;
+}
+
+/* 첨부/상세 진입 배지: 원본이 !important 로 Bootstrap .badge 를 눌렀다 —
+   표 스코프 선택자로 특이도를 확보해 !important 없이 같은 결과를 낸다. */
+.erp-main-row .erp-c-openbadge {
+  cursor: pointer;
+  font-size: 1rem;
+  padding: 0.4em 0.7em;
+  text-align: center;
+  display: inline-block;
+}
+
+.erp-main-row a.erp-c-openbadge {
+  text-decoration: none;
+}
+
+.erp-main-row .erp-c-openbadge .fas {
+  font-size: 1rem;
+}
+
+.erp-main-row .erp-c-selfmeasure {
+  width: fit-content;
+}
