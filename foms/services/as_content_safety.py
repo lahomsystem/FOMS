@@ -10,8 +10,10 @@ from typing import Any
 
 from bs4 import BeautifulSoup, Comment
 
-# sanitize 메모이제이션 한도. 4096칸 × 입력 8KB 상한 = 최악 수십 MB 이내로 묶인다.
-_SANITIZE_CACHE_SIZE = 4096
+# sanitize 메모이제이션 한도. 최악 = 2048칸 × 8KB ≈ 16MB/워커로 묶인다(실입력은 대개
+# 수백 바이트라 실제 점유는 그 훨씬 아래). AS 목록 한 페이지가 100행이라 2048칸이면
+# 활성 작업집합 여러 페이지를 덮는다.
+_SANITIZE_CACHE_SIZE = 2048
 _SANITIZE_CACHE_MAX_INPUT = 8192
 
 __all__ = [

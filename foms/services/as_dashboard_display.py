@@ -576,7 +576,10 @@ def apply_as_dashboard_row_display_fields(rows, db, *, mobile_v2_active):
         else {}
     )
     _today = get_today_kst()
-    # 진단(EPT-B7): 행 루프 안의 두 무거운 후보(HTML sanitize·타임라인 조립)를 누적 계측한다.
+    # 진단(EPT-B7): 행 루프의 두 축(HTML sanitize·타임라인 조립)을 누적 계측한다.
+    # sanitize 는 LRU 메모이즈라 웜에서 rd_sanitize=0 이 정상 — 0 이 아니면 캐시가
+    # 식었거나(재배포·워커 교체) 내용이 자주 바뀐다는 신호다. 행당 perf_counter 2회로
+    # 비용은 요청당 0.05ms 미만이라 상시 유지한다.
     _t_sanitize = 0.0
     _t_timeline = 0.0
     _t_loop0 = time.perf_counter()
