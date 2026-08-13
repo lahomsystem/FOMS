@@ -58,7 +58,7 @@
 | T2 | `ExternalOrderLink` 모델 + alembic 마이그레이션 | — | DONE | `naver_link_00` (`down_revision=senderphone_00`) |
 | T3 | `naver_commerce/client.py` (토큰 캐시·조회·재시도·백오프) | — | DONE | 테스트 24 green |
 | T4 | 매핑 + `create_order()` 연동 (좌표 주입 없음) | T2, T3 | DONE | 테스트 20 green |
-| T5 | WORKER 폴링 루프 + 게이트 + rq enqueue 경로 | T4 | PENDING | — |
+| T5 | WORKER 폴링 루프 + 게이트 + rq enqueue 경로 | T4 | DONE | 테스트 15 green |
 | T1 | Railway WORKER static IP 실검증 (`--once --dry-run`) | T0, T3 | PENDING | — |
 | T6 | 관리 화면 (수집 이력·수동 실행·배지) | T4, T5 | PENDING | — |
 | T7 | 앱 인증 만료 D-7 알림 | T2 | PENDING | — |
@@ -197,11 +197,23 @@ itemuid_00 → senderphone_00 → naver_link_00` 이다.
 - 워터마크: 성공한 구간 끝까지만 전진(유실 방지). 실패는 구간 단위 재시도.
 - web "지금 수집" = `foms/services/jobs/queue.py` 경유 `default` 큐 enqueue **만**.
 
-**완료 기준**
-- 게이트 off → 루프 미기동 / on → 주기 실행 (`--once --dry-run` 로컬 확인).
-- **web 경로에서 `api.commerce.naver.com` 으로 직접 나가지 않음을 테스트로 고정**
-  (web blueprint 임포트 그래프에 naver client HTTP 호출 없음 — 계약 테스트).
-- `bash -n start.sh` 통과.
+**검증 결과 (2026-08-13 실행)**
+- `python -m pytest tests/services/integrations/test_naver_sync_wiring.py -q` → **15 passed** ✅
+- **web 경계 계약 고정**: `foms/web`·`foms/api` 전 파일에 `naver_commerce` 문자열이 없어야 통과.
+  enqueue 헬퍼 본문에도 클라이언트 생성이 없음을 별도 검사 ✅
+- `start.sh` 게이트: WORKER 분기 안 + 기본 off + `&` 백그라운드 + 기본 간격 300초 ✅,
+  gunicorn(web) 분기에는 없음 ✅, `bash -n start.sh` 통과 ✅
+- 워터마크: 전진은 성공 시에만·역행 불가·실패 시 사유만 기록(구간 재시도)·깨진 값이면 기본 구간 ✅
+- `pre_push_smoke` exit 0 (322 passed) ✅
+
+**추가로 밟은 게이트**: `services/jobs/{queue,tasks}` 의 `__all__` 은 닫힌집합 계약이다
+(`foms_namespace_surface_tests.py`). 새 public 이름(`enqueue_naver_order_sync`·
+`run_naver_order_sync_task`)을 그 pinned 리스트에 등재해야 green.
+
+**워터마크 저장소**: `system_settings` 의 `naver_sync_watermark` 행
+(`foms/services/integrations/naver_commerce/watermark.py`). 값 =
+`last_success_to`·`last_run_at`·`last_error`·`last_summary`. 조회 끝은 현재보다 1분 앞당긴다
+(네이버 인덱싱 지연으로 경계 변경이 양쪽 구간에서 다 빠지는 것 방지).
 
 ---
 

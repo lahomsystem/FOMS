@@ -286,6 +286,57 @@ def sync_naver_orders(
     return result
 
 
+def run_sweep(
+    session: Session, *, client: Any = None, dry_run: bool = False,
+    now: Optional[datetime] = None,
+) -> dict[str, Any]:
+    """워터마크 구간을 1회 수집하고 결과 dict 를 돌려준다(러너·rq job 공용 진입점).
+
+    성공하면 워터마크를 구간 끝으로 전진시키고, 실패하면 **전진시키지 않고** 사유만
+    기록한다 — 다음 실행이 같은 구간을 다시 훑는다(유실 방지). 커밋은 이 함수가 한다
+    (러너/워커가 tx 를 소유하지 않는 단발 실행이라).
+
+    Args:
+        session: DB 세션.
+        client: 미지정이면 환경변수로 클라이언트를 만든다(WORKER 전용).
+        dry_run: True 면 조회까지만 하고 아무것도 만들지 않으며 워터마크도 안 움직인다.
+        now: 테스트용 시각 주입(KST aware).
+
+    Returns:
+        집계 dict(``window`` 구간 + :meth:`SyncResult.as_dict`).
+    """
+    from foms.services.integrations.naver_commerce import watermark as wm
+    from foms.services.integrations.naver_commerce.client import KST, NaverCommerceClient
+
+    current = now or datetime.now(KST)
+    start, end = wm.resolve_window(session, now=current)
+    payload: dict[str, Any] = {
+        "window": {"from": start.isoformat(), "to": end.isoformat()},
+        "dry_run": bool(dry_run),
+    }
+    if start >= end:
+        payload.update(SyncResult().as_dict())
+        payload["note"] = "구간 없음(워터마크가 최신)"
+        return payload
+
+    client = client if client is not None else NaverCommerceClient()
+    try:
+        result = sync_naver_orders(session, client=client, start=start, end=end,
+                                   dry_run=dry_run)
+    except Exception as exc:
+        session.rollback()
+        wm.record_failure(session, error=str(exc), now=current)
+        session.commit()
+        payload.update(SyncResult().as_dict())
+        payload["failed"] = str(exc)
+        raise
+    payload.update(result.as_dict())
+    if not dry_run:
+        wm.advance(session, success_to=end, summary=result.as_dict(), now=current)
+    session.commit()
+    return payload
+
+
 __all__ = [
     "ACTOR_USERNAME",
     "CHANNEL",
@@ -295,5 +346,6 @@ __all__ = [
     "existing_external_ids",
     "ingest_detail",
     "resolve_ingest_accounts",
+    "run_sweep",
     "sync_naver_orders",
 ]

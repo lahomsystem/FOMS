@@ -25,6 +25,7 @@ __all__ = [
     "process_channeltalk_inbound",
     "send_push_for_notification_task",
     "run_notification_escalation_task",
+    "run_naver_order_sync_task",
 ]
 
 
@@ -226,4 +227,28 @@ def run_notification_escalation_task():
             db_session.remove()
     except Exception as e:
         logger.error(f"[RQ] run_notification_escalation_task error: {e}", exc_info=True)
+        raise
+
+
+def run_naver_order_sync_task(dry_run: bool = False):
+    """네이버 스마트스토어 주문 수집 1회 실행 (NAVER-INGEST-01, WORKER 전용).
+
+    화면의 "지금 수집" 버튼이 이 job 을 enqueue 한다. **web 프로세스에서 직접 호출하면
+    안 된다** — 커머스API센터에 등록된 호출 IP 는 WORKER 것뿐이라 web 에서 나가면 차단된다.
+    """
+    try:
+        from db import db_session
+        from foms.services.integrations.naver_commerce.ingest import run_sweep
+
+        db = db_session()
+        try:
+            return run_sweep(db, dry_run=bool(dry_run))
+        except Exception:
+            db.rollback()
+            raise
+        finally:
+            db.close()
+            db_session.remove()
+    except Exception as e:
+        logger.error(f"[RQ] run_naver_order_sync_task error: {e}", exc_info=True)
         raise
