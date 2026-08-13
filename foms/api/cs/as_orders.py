@@ -521,6 +521,7 @@ def api_as_register(order_id):
         if cw_name:
             shipment["construction_workers"] = [cw_name]
         locked.as_received_date = today
+        locked.as_completed_date = None
         if shipping:
             locked.shipping_scheduled_date = shipping
 
@@ -547,6 +548,7 @@ def api_as_register(order_id):
     _audit_as(order, "AS_RECEIVED", user_id, note=f"접수일 {today}", extra={"received_date": str(today)})
     db.commit()
     _invalidate_shipment_asrec_caches("api_as_register")
+    db.refresh(order)
 
     shipment = (order.structured_data or {}).get("shipment") or {}
     return jsonify({
@@ -558,6 +560,7 @@ def api_as_register(order_id):
         "construction_workers": shipment.get("construction_workers") or [],
         "draft_cleared": draft_cleared,
         "reception_log_id": captured_register.get("reception_log_id") or "",
+        "mutation_version": getattr(order, "mutation_version", None),
     })
 
 
