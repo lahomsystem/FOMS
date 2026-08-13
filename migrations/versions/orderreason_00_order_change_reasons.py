@@ -1,7 +1,7 @@
 """ORDER-REASON-00: 주문 변경 사유(order_change_reasons) 테이블
 
 Revision ID: orderreason_00
-Revises: senderphone_00
+Revises: naver_link_00
 Create Date: 2026-08-13
 
 ORDER-DIFF-00/01 이 "무엇이 어떻게 바뀌었나"를 남긴다. 남은 공백이 **"왜"** 다 — 금액·일정
@@ -28,7 +28,7 @@ from alembic import op
 import sqlalchemy as sa
 
 revision: str = 'orderreason_00'
-down_revision: Union[str, None] = 'senderphone_00'
+down_revision: Union[str, None] = 'naver_link_00'
 branch_labels: Union[str, Sequence[str], None] = None
 depends_on: Union[str, Sequence[str], None] = None
 
