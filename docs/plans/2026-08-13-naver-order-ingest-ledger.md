@@ -32,9 +32,12 @@
 
 1. **네이버로 나가는 HTTP 는 WORKER 서비스에서만.** 커머스API센터 IP 한도 3 = Railway static IP 3, 여유 0.
    web 의 "지금 수집" 은 `default` 큐 rq enqueue 만 한다. web 에서 직접 호출하면 IP 불일치로 차단.
-2. **`create_order()` 는 주소가 있으면 GEOCODE outbox 를 무조건 예약한다**
-   (`foms/services/orders/order_create.py:203-207`). production 에 SIDEFX 서비스가 없어 행이 쌓인다.
-   → `skip_geocode: bool = False` 파라미터 추가 + 수집 경로는 True + 네이버 좌표 직접 주입.
+2. **네이버 좌표를 `Order.lat/lng` 에 주입하지 않는다** (2026-08-13 사용자 정정으로 설계 변경).
+   네이버 좌표는 주문서 주소 기준이고 실제 고객(시공) 주소와 다른 경우가 많다. 주입하면
+   `geocode_status='success'` 라 재지오코딩에서도 빠져 **틀린 좌표가 조용히 굳는다**.
+   → 수집 주문도 기존 경로 그대로 지오코딩한다. `create_order()` 를 기본값으로 호출해 GEOCODE
+   outbox 를 정상 예약하고, 네이버 좌표는 `raw_snapshot` 에만 남긴다.
+   **`skip_geocode` 파라미터는 만들지 않는다**(초안에 있었으나 폐기 — `create_order()` 시그니처 불변).
 3. **raw `Order(...)` 생성 금지** (ORDER-CREATE-01). 반드시 `create_order()` 경유.
    신규 mutation 경로는 `docs/harness/foms_order_mutation_writer_allowlist.json` +
    `docs/harness/foms_order_mutation_policy_manifest.json` 2종 등재 필수(미등재 시 CI red).
@@ -54,7 +57,7 @@
 | T0 | 선행(사람 손): 시크릿 재발급 · 시스템 계정 2개 · WORKER static IP 등록 | — | BLOCKED | — |
 | T2 | `ExternalOrderLink` 모델 + alembic 마이그레이션 | — | DONE | `naver_link_00` (`down_revision=senderphone_00`) |
 | T3 | `naver_commerce/client.py` (토큰 캐시·조회·재시도·백오프) | — | DONE | 테스트 24 green |
-| T4 | 매핑 + `create_order()` 연동 + `skip_geocode` | T2, T3 | PENDING | — |
+| T4 | 매핑 + `create_order()` 연동 (좌표 주입 없음) | T2, T3 | DONE | 테스트 20 green |
 | T5 | WORKER 폴링 루프 + 게이트 + rq enqueue 경로 | T4 | PENDING | — |
 | T1 | Railway WORKER static IP 실검증 (`--once --dry-run`) | T0, T3 | PENDING | — |
 | T6 | 관리 화면 (수집 이력·수동 실행·배지) | T4, T5 | PENDING | — |
@@ -150,23 +153,37 @@ itemuid_00 → senderphone_00 → naver_link_00` 이다.
 
 ---
 
-## T4 — 매핑 + `create_order()` 연동 + `skip_geocode`
+## T4 — 매핑 + `create_order()` 연동 (좌표 주입 없음)
 
 **범위**
-- `create_order()` 에 `skip_geocode: bool = False` 추가 (기본값 False = 기존 호출자 무변경).
 - 수집 매핑 모듈: 스펙 §3.6 표 그대로. `takingAddress` 는 버린다(반품 수거지).
   `status='RECEIVED'` 고정, `structured_data['source']='NAVER_SMARTSTORE'`,
   `structured_data['orderer']` 에 주문자 보존(주문자≠수취인 실재).
-- 좌표 직접 주입: `lat`/`lng`/`geocode_status='success'`/`geocoded_at`/`address_hash`.
+- **좌표는 주입하지 않는다.** `create_order()` 를 기본 인자로 호출해 GEOCODE outbox 가
+  기존 주문과 똑같이 예약되게 둔다(함정 표 2번 참조).
 - 매핑 실패는 **주문을 만들지 않고** `ExternalOrderLink.sync_status='PENDING_REVIEW'` 로 남긴다.
 - mutation manifest 2종 등재.
 
 **완료 기준**
-- fixture(네이버 실응답 구조 스냅샷) → 주문 1건 생성 테스트 green.
-- **같은 fixture 재실행 시 주문 0건 추가**(멱등) — UNIQUE 위반이 아니라 정상 skip.
-- `geocode_outbox` 행 0건 (skip_geocode 경로).
-- 기존 `create_order` 호출자 회귀 없음: `python -m pytest tests/ -k "order_create or order_import" -q` green.
-- manifest 게이트: `python -m pytest tests/ -k "mutation_writer or mutation_policy" -q` green.
+**검증 결과 (2026-08-13 실행)**
+- `python -m pytest tests/services/integrations/test_naver_ingest.py -q` → **20 passed** ✅
+  (순수 매핑 9 · 계정 정책 2 · 파이프라인 9)
+- 멱등: 같은 fixture 3회 실행 → 주문 1건 고정, 2회차부터 상세 조회 자체를 안 함(`fetched=0`) ✅
+- UNIQUE backstop: 선체크를 우회시켜도 `IntegrityError` 를 잡아 skip 으로 센다 ✅
+- GEOCODE outbox 1건 예약 확인 — 좌표 미주입이라 기존 주문과 동일 경로 ✅
+- 회귀: `-k "order_create or order_import or rev_99 or write_guard or state_guard"` → 65 passed ✅
+- `pre_push_smoke` exit 0 (322 passed) ✅
+
+**구현 메모 (재개 시 알아야 할 결정)**
+- 수집 주문은 **`is_erp_order=True`** 로 만든다. ERP 대시보드·통합검색·CS·도면 마법사가 전부
+  `Order.is_erp_order.is_(True)` 로 거른다 — False 로 만들면 수집 주문이 현대 UI 에서 **안 보인다**.
+  선례: `foms/services/security/channel_order/creation.py`(채널톡 수신 주문도 ERP=True).
+- `structured_data` 는 ERP canonical 키 위치를 쓴다: 고객 `parties.customer`, 주문자
+  `parties.orderer`, 주소 `site.*`, 품목 `items[]`, 네이버 고유값은 `naver.*` 아래로 격리.
+  (`erp_dashboard_search.py` 가 읽는 자리와 동일해야 검색에 걸린다)
+- **manifest 2종 등재 불필요**로 판명: 수집 경로는 `create_order()` 만 부르고 자체적으로
+  `flag_modified`/`mutation_version` 을 건드리지 않아 REV-99 스캐너가 writer 로 잡지 않는다.
+  (`rev_99`·`write_guard`·`state_guard` 게이트 전부 green 으로 확인)
 
 ---
 
