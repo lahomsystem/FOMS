@@ -5,14 +5,14 @@
   "overlap_api_error_01": "API-ERROR-01 owns response/stdout exposure (print_exc/str(e) -> log_handled_exception). This packet owns swallow classification. Sites that log via log_handled_exception are LOG_AND_CONTINUE here.",
   "marker_convention": "Silent-by-design catches carry an inline `# failopen: intentional: <reason>` (or `fail-closed`) marker; the scanner reads it as the justification. No bare allowlist, no lint-disable.",
   "baselines": {
-    "broad_total": 514,
+    "broad_total": 515,
     "unclassified": 0,
     "swallow_by_control_flow": 180
   },
   "disposition_counts": {
     "FAIL_CLOSED": 24,
     "INTENTIONAL": 17,
-    "LOG_AND_CONTINUE": 293,
+    "LOG_AND_CONTINUE": 294,
     "SWALLOW_BY_CONTROL_FLOW": 180
   },
   "owner_counts": {
@@ -24,7 +24,7 @@
     "persistence": 3,
     "platform": 5,
     "runtime": 3,
-    "services": 112,
+    "services": 113,
     "storage": 20,
     "telemetry": 30,
     "web": 31
@@ -3438,6 +3438,15 @@
     {
       "path": "foms/services/integrations/naver_commerce/client.py",
       "lineno": 450,
+      "handler_type": "broad_exception",
+      "disposition": "LOG_AND_CONTINUE",
+      "owner": "services",
+      "has_logging": true,
+      "justification": "logs via logger/log_handled_exception"
+    },
+    {
+      "path": "foms/services/integrations/naver_commerce/ingest.py",
+      "lineno": 143,
       "handler_type": "broad_exception",
       "disposition": "LOG_AND_CONTINUE",
       "owner": "services",

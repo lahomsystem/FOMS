@@ -20,8 +20,9 @@
 - **연락처는 실번호다.** `order.ordererTel`, `shippingAddress.tel1` 모두 `010-XXXX-XXXX`(len=13).
   050 안심번호가 아니다 → **해피콜·실측 연락 워크플로가 그대로 성립**한다. 이 프로젝트의
   존폐를 가르는 관문이었고 통과했다.
-- **위경도가 응답에 있다.** `shippingAddress.longitude/latitude` → 수집 주문은 지오코딩
-  단계를 건너뛴다(FOMS `Order.lat/lng/geocode_status` 에 직접 주입).
+- **위경도가 응답에 있다.** `shippingAddress.longitude/latitude`. 다만 **주문서 주소와 실제
+  고객(시공) 주소가 다른 경우가 많아** 이 좌표는 신뢰할 수 없다 → 2026-08-13 결정으로
+  **주입하지 않고 기존 지오코딩을 그대로 태운다**(§3.5). 원본은 `raw_snapshot` 에만 남긴다.
 - **주문자 ≠ 수취인 케이스가 실재한다.** 표본 3건 중 2건에서 `ordererName` 과
   `shippingAddress.name` 이 달랐다(대리주문). 둘 다 보존해야 한다.
 - 변경분 조회는 **상태 변경 이벤트 전부**를 준다(3일에 163건). 신규 주문만 뽑으려면 필터가 필요하다.
@@ -44,7 +45,7 @@
 **목표**
 1. 스마트스토어 신규 결제완료 주문을 주기 폴링으로 수집해 FOMS 주문 **초안**을 만든다.
 2. 같은 주문을 두 번 만들지 않는다(`productOrderId` 멱등).
-3. 수집 주문은 지오코딩 없이 지도에 뜬다(네이버 좌표 주입).
+3. 수집 주문도 기존 주문과 동일한 지오코딩 경로를 탄다(네이버 좌표 주입 안 함 — §3.5).
 4. 네이버 원본 응답을 보존해, 매핑을 나중에 고쳐도 재처리할 수 있다.
 
 **비목표 (v1에서 안 한다)**
@@ -143,12 +144,19 @@ ADMIN/MANAGER=명시된 **활성 SALES** 사용자를 요구한다. owner 없는
 > 불변식(모든 주문에 owner row 1개)이 깨진다. 보류함 계정은 불변식을 유지하면서 미배정을
 > 표현하는 방법이다.
 
-**좌표 주입**: `create_order()` 는 주소가 있으면 GEOCODE outbox를 예약한다. 네이버가 좌표를
-주므로 불필요한 지오코딩이다. 그런데 **production에 SIDEFX 서비스가 없다**(서비스 목록:
-Postgres/WORKER/Redis/web/FOMS-cron). 예약된 outbox 행이 소비되지 않고 쌓인다.
-→ `create_order()` 에 `skip_geocode: bool = False` 파라미터를 추가하고, 수집 경로는 True로
-부른 뒤 `lat/lng/geocode_status='success'/geocoded_at/address_hash` 를 직접 채운다.
-(기존 호출자 동작은 기본값 False로 그대로 유지)
+**좌표 — 네이버 좌표를 주입하지 않는다 (2026-08-13 사용자 결정으로 변경)**
+
+당초 설계는 `create_order()` 에 `skip_geocode` 를 추가하고 네이버의
+`shippingAddress.longitude/latitude` 를 `Order.lat/lng` 에 직접 넣는 것이었다. **폐기한다.**
+
+이유: 네이버 좌표는 **주문서에 적힌 주소** 기준인데, 실제 고객(시공) 주소와 다른 경우가 많다.
+그 좌표를 그대로 넣으면 실측 동선·지도가 틀린 위치를 가리키고, `geocode_status='success'` 라
+재지오코딩 대상에서도 빠진다 — 틀린 값이 조용히 굳는다.
+
+→ 수집 주문도 **기존 주문과 똑같이 지오코딩한다**. `create_order()` 를 기본값으로 호출해
+GEOCODE outbox 를 정상 예약하고(다른 모든 주문 생성 경로와 동일), 네이버 좌표는
+`raw_snapshot` 안에 원본으로만 남긴다(나중 대조용). **`create_order()` 시그니처는 건드리지
+않는다.**
 
 ### 3.6 필드 매핑
 
@@ -159,7 +167,7 @@ Postgres/WORKER/Redis/web/FOMS-cron). 예약된 outbox 행이 소비되지 않�
 | `ordererName` / `ordererTel` | `structured_data['orderer']` | 주문자≠수취인 보존 |
 | `baseAddress` + `detailedAddress` | `address` | 결합 |
 | `zipCode` | `structured_data['zip_code']` | |
-| `longitude` / `latitude` | `lng` / `lat` | `geocode_status='success'` |
+| `longitude` / `latitude` | — (`raw_snapshot` 에만) | 주문서 주소 기준이라 실주소와 상이. 주입 금지 |
 | `productName` | `product` | |
 | `productOption` | `options` (원문 그대로) | v1 파싱 없음 |
 | `orderDate` | `received_date` / `received_time` | KST 변환 |
@@ -184,7 +192,7 @@ Postgres/WORKER/Redis/web/FOMS-cron). 예약된 outbox 행이 소비되지 않�
 | T1 | Railway WORKER static outbound IP 활성화 → IPv4 3개 확보 → 커머스API센터 등록 교체 | WORKER에서 `run_naver_order_sync.py --once --dry-run` 이 토큰 발급 + 변경분 조회 성공 |
 | T2 | `ExternalOrderLink` 모델 + alembic 마이그레이션(`downgrade()` 포함) | `alembic upgrade head` → `downgrade` → `upgrade` 왕복 성공, 단일 head 유지 |
 | T3 | `naver_commerce/client.py` (토큰 캐시·조회·재시도·rate limit 백오프) | 유닛 테스트: 서명 생성, 토큰 캐시 만료, 24h 구간 분할, HTTP 오류 재시도 |
-| T4 | 매핑 + `create_order()` 연동 + `skip_geocode` 파라미터 | 저장된 fixture 응답 → 주문 생성 테스트, 같은 fixture 재실행 시 **주문 0건 추가**(멱등), 기존 create_order 호출자 회귀 없음 |
+| T4 | 매핑 + `create_order()` 연동 | 저장된 fixture 응답 → 주문 생성 테스트, 같은 fixture 재실행 시 **주문 0건 추가**(멱등), 기존 create_order 호출자 회귀 없음 |
 | T5 | WORKER 폴링 루프 + `FOMS_NAVER_SYNC_ENABLED` 게이트 + rq enqueue 경로 | 게이트 off면 루프 미기동, on이면 주기 실행. web 경로에서 직접 HTTP 나가지 않음을 테스트로 고정 |
 | T6 | 관리 화면(수집 이력·수동 실행·배지) | 스테이징에서 실주문 1건 수집 → 화면 확인 → 재실행 시 중복 없음 |
 | T7 | 앱 인증 만료 알림 | 만료 D-7 알림 발송 확인 |
@@ -210,7 +218,7 @@ T0(선행, 코드 아님): 커머스API센터에서 **시크릿 재발급**(2026
 
 - 스테이징: 가상 주문 대신 **실주문 읽기만**(수집은 읽기 전용이라 실데이터 오염 없음).
 - 멱등: 같은 구간 3회 연속 실행 → 주문 수 불변.
-- 좌표: 수집 주문이 지도에 즉시 표시되고 `geocode_status='success'`.
+- 좌표: 수집 주문이 기존 주문과 같은 지오코딩 경로를 타고(outbox 예약 확인) 완료 후 지도에 표시.
 - 성능: 수집 루프는 대시보드 hot path와 무관(WORKER 프로세스). TTFB 영향 없음을 확인.
 
 ## 7. 결정 사항 (2026-08-13 사용자 확정)
