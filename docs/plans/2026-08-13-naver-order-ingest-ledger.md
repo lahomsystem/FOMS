@@ -63,8 +63,8 @@
 | T6 | 관리 화면 (수집 이력·수동 실행·원본 스냅샷) | T4, T5 | DONE(부분) | 테스트 13 green |
 | T7 | 앱 인증 만료 D-7 알림 | — | DONE | 테스트 11 green |
 | T8 | 트리아지 상태 컬럼 2개 + 마이그레이션 | T2 | DONE | `naver_triage_00` |
-| T9 | 트리아지 작업대 화면 | T8 | PENDING | — |
-| T10 | 담당자 지정(`set_sales_assignee`) + "담당 미지정" 뱃지 | T8 | PENDING | — |
+| T9 | 트리아지 작업대 화면 | T8 | DONE | 테스트 15 green |
+| T10 | 담당자 지정(`set_sales_assignee`) | T8 | DONE(부분) | PG 레인 3 green |
 
 > 순서 주의: 스펙의 T1(인프라 실검증)은 T0 사람 작업과 코드(T3)가 모두 있어야 가능하므로
 > 실행 순서에서는 T3 뒤로 내렸다. 스펙 번호는 그대로 둔다(대조 가능하게).
@@ -346,12 +346,13 @@ write guard manifest 와 **별개 파일**이라 둘 다 등재해야 한다.
 **규격 입력은 이 화면에서 하지 않는다** — `spec_rows` 는 W 가 출고가·시공비와 결합돼 있어
 (`eval_spec_width_mm` 가 총폭 SSOT) 두 번째 입력 UI 를 만들면 계산 규칙이 갈라진다.
 
-**완료 기준**
-- `reviewed_at IS NULL` 인 `LINKED` 건만 큐에 뜬다(확인 완료는 사라진다)
-- "확인 완료" POST → `reviewed_at`/`reviewed_by_user_id` 기록 → 큐에서 빠짐
-- 원본 열람은 관리자 전용 + `SecurityLog` 기록(기존 스냅샷 라우트 재사용)
-- **신규 mutation route 는 게이트 3곳 등재**: write guard manifest · auth policy manifest ·
-  `ACTION_LABELS`(위 게이트 표 참조 — 뒤 2개는 `pre_push_smoke` 서브셋 밖이다)
+**검증 결과 (2026-08-13 실행)** — `/admin/naver-ingest/triage`
+- `python -m pytest tests/services/integrations/test_naver_triage.py -q` → **15 passed** ✅
+- `reviewed_at IS NULL` 인 `LINKED` 건만 큐에 뜬다(확인 완료·보류·실패 제외) ✅
+- "확인 완료" → `reviewed_at`/`reviewed_by_user_id` 기록 → 큐에서 빠짐 ✅
+  **재요청이 첫 확인 시각을 덮지 않는다**(첫 확인이 기록이다) ✅
+- 옵션 원문 노출 + 원본↔FOMS 대조표(주문자·상품코드 포함) + 편집기 링크 ✅
+- 게이트 3곳 등재 완료: write guard manifest · auth policy manifest · `ACTION_LABELS` ✅
 
 ## T10 — 담당자 지정 + "담당 미지정" 뱃지 (스펙 §8.4)
 
@@ -360,8 +361,20 @@ write guard manifest 와 **별개 파일**이라 둘 다 등재해야 한다.
 따라온다). 보류함에서 실제 담당자로 옮기는 것은 **교체**라 `reason` 이 필수 — 화면이 기본 사유를 보낸다.
 대시보드의 "담당 미지정" 뱃지(T6 에서 미룬 잔여)도 여기서 함께 처리한다.
 
-**완료 기준**
-- 지정 후 active SALES owner 가 교체되고 `SALES_ASSIGNEE_SET` 이벤트 1건
-- 같은 요청 재전송 시 주문 version 이 두 번 오르지 않는다(멱등 키)
-- `naver_unassigned` 가 owner 인 주문에만 뱃지가 뜬다(다른 주문에 오염 없음)
-- 뱃지는 공유 대시보드 템플릿 변경이라 `?v=` 범프·기존 대시보드 계약 테스트 확인 필수
+**검증 결과 (2026-08-13 실행)**
+- **PG 레인** `tests/postgres/test_naver_triage_assignment.py` → **3 passed** ✅
+  (보류함 owner 교체 후 active SALES 정확히 1명 / `SALES_ASSIGNEE_SET` 이벤트 + version bump /
+  사유 없는 교체 거부)
+- SQLite 레인은 라우트 배선만 고정(서비스 호출 인자·감사 기록) ✅
+
+**레인 함정(중요)**: SALES active-owner 유일성은 `postgresql_where` 부분 유니크라
+**SQLite create_all 에서는 predicate 없는 전체 유니크**가 된다. 그래서 owner 교체는 SQLite
+레인에서 `UNIQUE constraint failed: order_assignments.order_id` 로 반드시 실패한다 —
+배정 교체 계약은 PG 레인에만 둔다.
+
+**구조 변경**: 채널 코드·시스템 계정 username 을 `naver_commerce/constants.py`(의존성 없는
+모듈)로 분리했다. web 화면이 `ingest` 에서 상수를 당겨오면 web 이 수집 파이프라인을 import 하게
+되어 WORKER 단일 출구 계약 테스트가 red 가 된다(실제로 잡혔다).
+
+**잔여**: 대시보드 "담당 미지정" 뱃지. 공유 `edit_order.html`·`erp_order_tab.html` 회귀 핫스팟과
+같은 표면이라 별도 패스로 남긴다(T6 잔여와 동일 사유).
