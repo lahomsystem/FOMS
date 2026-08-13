@@ -15,7 +15,7 @@ from db import db_session
 from foms.services.audit_message_display import ACTION_LABELS
 from foms.services.audit_writer import SECURITY_DETAIL_LIMIT
 from foms.services.datetime_kst import now_utc_naive
-from foms.services.orders.change_reason import REASON_ATTACH_WINDOW
+from foms.services.orders.change_reason import REASON_ATTACH_WINDOW, REASON_CODES
 from models import Order, OrderChangeReason, OrderFieldChange, SecurityLog, User
 
 
@@ -301,3 +301,51 @@ def test_reason_window_expires(client):
 
     expired = _attach(client, order.id, change_set)
     assert expired.status_code == 410
+
+
+# ---------------------------------------------------------------------------
+# T6~T7: 화면 표면 — 이력 탭이 "왜"를 보여주고, 사유 입력 자산이 실려 있다.
+# ---------------------------------------------------------------------------
+
+def test_history_tab_exposes_reason(client):
+    """이력 탭 응답이 저장 묶음마다 사유를 함께 준다(없으면 명시적으로 null)."""
+    _login_as_admin(client, "reason-tab-1")
+    order = _create_order()
+    order_id = order.id
+    with_reason = _sensitive_save(client, order_id)
+    assert _attach(client, order_id, with_reason, code="site_condition").status_code == 200
+
+    # 사유를 붙이지 않은 저장도 한 건 만든다.
+    _save(client, order_id, lambda sd: sd["items"][0].update({"price": "888000"}))
+
+    response = client.get(f"/api/orders/{order_id}/field-changes")
+    assert response.status_code == 200
+    sets = {entry["change_set"]: entry for entry in response.get_json()["data"]["change_sets"]}
+
+    assert sets[with_reason]["reason"]["label"] == "현장 사정"
+    assert sets[with_reason]["reason"]["code"] == "site_condition"
+    others = [entry for key, entry in sets.items() if key != with_reason]
+    assert others and all(entry["reason"] is None for entry in others)
+
+
+def test_reason_codes_endpoint_is_the_single_source(client):
+    """화면은 사유 목록을 서버에서 받는다 — JS 에 복사본을 두지 않는다."""
+    _login_as_admin(client, "reason-tab-2")
+
+    payload = client.get("/api/orders/change-reason-codes").get_json()
+    codes = payload["data"]["codes"]
+
+    assert [entry["code"] for entry in codes] == list(REASON_CODES)
+    assert [entry for entry in codes if entry["note_required"]] == [
+        {"code": "other", "label": "기타", "note_required": True}
+    ]
+
+
+def test_edit_page_loads_reason_surface(client):
+    """사유 입력 자산이 주문 편집 화면에 실려야 화면이 실제로 뜬다."""
+    _login_as_admin(client, "reason-tab-3")
+    order = _create_order()
+
+    body = client.get(f"/edit/{order.id}").get_data(as_text=True)
+
+    assert "js/orders/order-change-reason.js" in body

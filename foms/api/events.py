@@ -17,6 +17,8 @@ from foms.services.audit_message_display import (
 from foms.services.datetime_kst import format_datetime_kst
 from foms.services.orders.audit_order_context import order_audit_context
 from foms.services.orders.change_reason import (
+    REASON_CODES,
+    REASON_OTHER,
     ReasonAttachError,
     attach_reason,
     reason_label,
@@ -212,6 +214,11 @@ def api_order_field_changes(order_id: int):
                 'item': row.item_name,
             })
 
+        # ORDER-REASON-00: "왜" 는 별도 원장에 있다 — change set 단위로 한 번에 붙인다.
+        reasons = reasons_for_change_sets(db, grouped.keys())
+        for change_set_id, bucket in grouped.items():
+            bucket['reason'] = reasons.get(change_set_id)
+
         return jsonify({'success': True, 'data': {
             'change_sets': [grouped[key] for key in ordered_sets if key in grouped],
             # 상한에 걸렸다면 더 오래된 이력이 남아 있다는 뜻이다(화면이 그 사실을 표시한다).
@@ -220,6 +227,22 @@ def api_order_field_changes(order_id: int):
     except Exception as e:
         log_handled_exception()
         return jsonify({'success': False, 'error': str(e)}), 500
+
+
+@events_bp.route('/orders/change-reason-codes', methods=['GET'])
+@login_required
+def api_change_reason_codes():
+    """사유 목록을 화면에 내려준다 (ORDER-REASON-00).
+
+    목록을 JS 에 복사해 두면 서버·클라 2벌이 되고, 코드가 하나 늘 때 화면만 옛 목록을 보인다.
+    화면은 처음 사유를 물을 때 한 번만 부른다(정적 상수라 캐시해도 된다).
+
+    :return: ``{'success': True, 'data': {'codes': [{'code','label','note_required'}]}}``.
+    """
+    return jsonify({'success': True, 'data': {'codes': [
+        {'code': code, 'label': reason_label(code), 'note_required': code == REASON_OTHER}
+        for code in REASON_CODES
+    ]}})
 
 
 @events_bp.route('/orders/<int:order_id>/change-reason', methods=['POST'])

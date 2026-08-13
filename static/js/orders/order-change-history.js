@@ -38,6 +38,15 @@
     head.textContent = (entry.at || '') + ' · ' + actor + ' · ' + entry.changes.length + '건';
     card.appendChild(head);
 
+    // ORDER-REASON-00: "왜" 는 변경 목록보다 위에 온다 — 분쟁 조회에서 먼저 읽는 값이다.
+    if (entry.reason) {
+      var reason = document.createElement('div');
+      reason.className = 'foms-change-set-reason';
+      reason.textContent = '사유: ' + entry.reason.label
+        + (entry.reason.note ? ' — ' + entry.reason.note : '');
+      card.appendChild(reason);
+    }
+
     var list = document.createElement('ul');
     list.className = 'foms-change-set-list';
     entry.changes.forEach(function (change) {

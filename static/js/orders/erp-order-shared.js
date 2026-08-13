@@ -2521,6 +2521,15 @@ async function erpSaveStructuredOnce(opts = {}) {
         erpSetStatus(doRedirect ? '저장 완료! 이동합니다...' : '저장 완료');
         // 명시 저장(승격) 성공 → 자동저장 모듈이 로컬/세션 draft 흔적을 정리하도록 알림.
         try { document.dispatchEvent(new Event('erp:order-saved')); } catch (_e) {}
+        // ORDER-REASON-00: 금액·일정·단계가 바뀐 저장이면 서버가 표시해서 보낸다. 판정은
+        // 서버에만 있고, 화면은 저장이 끝난 뒤 사유를 받는다(저장을 막지 않는다).
+        if (data.change_reason_required === true && data.change_set) {
+            try {
+                document.dispatchEvent(new CustomEvent('foms:change-reason-required', {
+                    detail: { orderId: targetId, changeSet: data.change_set, mode: 'full' }
+                }));
+            } catch (_e) {}
+        }
         // 저장 성공 후 Draft 모드 해제 → beforeunload 경고 비활성
         const wasDraftMode = isErpOrderDraftMode();
         if (wasDraftMode) {
