@@ -175,3 +175,38 @@ def test_schedule_has_no_threshold():
         "path": "schedule.construction.date", "before": "2026-08-20",
         "after": "2026-08-21", "op": "set",
     }]) is True
+
+
+# ---------------------------------------------------------------------------
+# 시공 일정 — 확정(고객 컨펌) 이후에만 묻는다 (사용자 결정 2026-08-13)
+# ---------------------------------------------------------------------------
+
+def _construction(path="schedule.construction.date"):
+    return {"path": path, "before": "2026-08-20", "after": "2026-08-27", "op": "set"}
+
+
+def test_construction_date_before_confirm_is_not_asked():
+    """접수·실측·도면 단계의 시공일은 아직 "잡는 중"이라 바뀌는 게 정상이다."""
+    for stage in ("RECEIVED", "MEASURE", "DRAWING"):
+        assert is_reason_required([_construction()], stage=stage) is False
+
+
+def test_construction_date_after_confirm_is_asked():
+    """고객 컨펌 뒤의 시공일은 고객과 약속된 날짜다 — 바꾸면 사유가 남아야 한다."""
+    for stage in ("CONFIRM", "PRODUCTION", "CONSTRUCTION", "COMPLETED"):
+        assert is_reason_required([_construction()], stage=stage) is True
+
+    assert is_reason_required([_construction("items.0.construction_date")], stage="CONFIRM") is True
+
+
+def test_unknown_stage_falls_back_to_asking():
+    """단계를 못 읽었다는 이유로 기록이 비면 안 된다 — 모르면 묻는다."""
+    assert is_reason_required([_construction()]) is True
+    assert is_reason_required([_construction()], stage="") is True
+
+
+def test_measurement_schedule_ignores_stage():
+    """실측일·AS 방문은 단계와 무관하게 묻는다(확정 개념이 없는 일정)."""
+    change = {"path": "schedule.measurement.date", "before": "2026-08-14",
+              "after": "2026-08-16", "op": "set"}
+    assert is_reason_required([change], stage="RECEIVED") is True

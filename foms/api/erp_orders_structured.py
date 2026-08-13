@@ -933,7 +933,11 @@ def api_patch_order_structured_fields(order_id: int):
         patch_change_set = _new_change_set_id()
         # ORDER-REASON-00: 판정은 서버가 사후에 한다(클라 사전 판정은 경로 목록이 2벌이 된다).
         # 인라인은 blur 자동저장이라 모달을 띄우지 않는다 — 화면은 응답을 보고 배너를 띄운다.
-        patch_reason_required = is_reason_required(patch_diff.changes)
+        patch_reason_required = is_reason_required(
+            patch_diff.changes,
+            stage=((structured_data.get('workflow') or {}).get('stage')
+                   if isinstance(structured_data, dict) else None),
+        )
         record_field_changes(
             db, patch_diff.changes,
             order_id=int(order_id),
@@ -1237,7 +1241,11 @@ def api_put_order_structured(order_id):
             put_change_set = _new_change_set_id()
             # ORDER-REASON-00: 금액·일정·단계가 바뀐 저장이면 화면이 저장 성공 뒤에 사유를
             # 묻는다. 판정은 여기(서버)에만 있고, 응답으로 내려보낸다.
-            put_reason_required = is_reason_required(put_diff.changes)
+            put_reason_required = is_reason_required(
+                put_diff.changes,
+                stage=((structured_data.get('workflow') or {}).get('stage')
+                       if isinstance(structured_data, dict) else None),
+            )
             # 원장 행은 저장과 같은 트랜잭션에 실린다(아래 db.commit() 이 함께 커밋한다).
             record_field_changes(
                 db, put_diff.changes,

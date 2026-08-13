@@ -626,7 +626,7 @@
     {
       "path": "foms/api/erp_orders_structured.py",
       "endpoint": "api_erp_create_draft",
-      "lineno": 1472,
+      "lineno": 1480,
       "methods": [
         "POST"
       ],
@@ -635,7 +635,7 @@
     {
       "path": "foms/api/erp_orders_structured.py",
       "endpoint": "api_erp_discard_draft",
-      "lineno": 1932,
+      "lineno": 1940,
       "methods": [
         "POST"
       ],
@@ -644,7 +644,7 @@
     {
       "path": "foms/api/erp_orders_structured.py",
       "endpoint": "api_erp_draft_autosave",
-      "lineno": 1805,
+      "lineno": 1813,
       "methods": [
         "POST"
       ],
@@ -653,7 +653,7 @@
     {
       "path": "foms/api/erp_orders_structured.py",
       "endpoint": "api_parse_order_text",
-      "lineno": 1367,
+      "lineno": 1375,
       "methods": [
         "POST"
       ],
@@ -671,7 +671,7 @@
     {
       "path": "foms/api/erp_orders_structured.py",
       "endpoint": "api_payment_confirm",
-      "lineno": 1389,
+      "lineno": 1397,
       "methods": [
         "POST"
       ],
@@ -680,7 +680,7 @@
     {
       "path": "foms/api/erp_orders_structured.py",
       "endpoint": "api_put_order_structured",
-      "lineno": 992,
+      "lineno": 996,
       "methods": [
         "PUT"
       ],

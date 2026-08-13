@@ -28,6 +28,8 @@ from foms.services.datetime_kst import now_utc_naive
 from foms.services.orders.order_field_change_writer import path_template_of
 from foms.services.orders.structured_diff import (
     AMOUNT_PATH_TEMPLATES,
+    CONFIRMED_STAGES,
+    CONSTRUCTION_SCHEDULE_TEMPLATES,
     SENSITIVE_ITEM_OPS,
     SENSITIVE_ITEM_TEMPLATE,
     SENSITIVE_PATH_TEMPLATES,
@@ -148,12 +150,20 @@ def is_material_amount_change(change: Mapping[str, Any]) -> bool:
     return bool(before) and delta >= abs(before) * AMOUNT_MATERIAL_RATIO
 
 
-def is_reason_required(changes: Iterable[Mapping[str, Any]]) -> bool:
+def is_reason_required(
+    changes: Iterable[Mapping[str, Any]],
+    *,
+    stage: str | None = None,
+) -> bool:
     """이 저장이 변경 사유를 물어야 하는지 판정한다.
 
 축은 셋이고 규칙이 서로 다르다:
 
-    * 일정·단계(:data:`~foms.services.orders.structured_diff.SENSITIVE_PATH_TEMPLATES`) — 바뀌면 묻는다.
+    * 실측·AS 일정·단계(:data:`~foms.services.orders.structured_diff.SENSITIVE_PATH_TEMPLATES`)
+      — 바뀌면 묻는다.
+    * **시공 일정** — 고객 컨펌(:data:`~foms.services.orders.structured_diff.CONFIRMED_STAGES`)
+      이후에만 묻는다. 접수·실측·도면 단계의 시공일은 아직 잡는 중인 값이라 바뀌는 게 정상이고,
+      운영 실측에서 사유 요구의 단일 최대 기여(27%)였다(사용자 결정 2026-08-13).
     * 금액(:data:`~foms.services.orders.structured_diff.AMOUNT_PATH_TEMPLATES`) — **크게**
       바뀌어야 묻는다(:func:`is_material_amount_change`). 잔돈 조정까지 물으면 창이 아무 때나
       뜨고, 그러면 목록에서 아무거나 고르게 된다.
@@ -163,14 +173,22 @@ def is_reason_required(changes: Iterable[Mapping[str, Any]]) -> bool:
     않는다(ORDER-DIFF-01 의 ``path_template`` 과 같은 열쇠).
 
     :param changes: ``diff_structured`` 결과의 ``changes`` 목록.
+    :param stage: 저장 후 ``workflow.stage``. 모르면(``None``·빈 값) 시공 일정도 묻는 쪽으로 본다 —
+        단계를 못 읽었다는 이유로 기록이 비는 것보다 낫다.
     :return: 사유를 물어야 하면 ``True``.
     """
+    stage_code = str(stage or "").strip().upper()
+    # 빈 값·미상 단계는 "확정된 것으로" 본다 — 못 읽었다는 이유로 기록이 비면 안 된다.
+    confirmed = not stage_code or stage_code in CONFIRMED_STAGES
     for change in changes or ():
         path = str((change or {}).get("path") or "")
         if not path:
             continue
         template = path_template_of(path)
         if template in SENSITIVE_PATH_TEMPLATES:
+            return True
+        # 시공 일정: 고객과 약속이 선 뒤(확정 이후)의 변경만 사유 대상이다.
+        if template in CONSTRUCTION_SCHEDULE_TEMPLATES and confirmed:
             return True
         # 금액은 "바뀌었나"가 아니라 "크게 바뀌었나"로 본다(잔돈 조정 제외).
         if template in AMOUNT_PATH_TEMPLATES and is_material_amount_change(change or {}):

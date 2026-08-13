@@ -42,8 +42,12 @@
 - **금액(입력 경로만, 임계 초과분만)**: `payment.deposit` · `payment.discount` ·
   `payment.free_input` · `items.*.price` — **|변화| ≥ 50,000원 또는 이전 값의 5% 이상**일 때만
   묻는다(사용자 결정 2026-08-13). 숫자로 못 읽는 값은 묻는 쪽으로 본다.
-- **일정**: `schedule.measurement.date/time` · `schedule.construction.date/time` ·
-  `schedule.as_visit.date/time` · `items.*.measurement_date` · `items.*.construction_date`
+- **일정(실측·AS)**: `schedule.measurement.date/time` · `schedule.as_visit.date/time` ·
+  `items.*.measurement_date` — 단계와 무관하게 묻는다.
+- **일정(시공)**: `schedule.construction.date/time` · `items.*.construction_date` — **고객 컨펌
+  이후**(`CONFIRM`·`PRODUCTION`·`CONSTRUCTION`·`CS`·`COMPLETED`)에만 묻는다. 접수·실측·도면
+  단계의 시공일은 아직 잡는 중인 값이라 바뀌는 게 정상이다(사용자 결정 2026-08-13).
+  단계를 못 읽으면 묻는 쪽으로 본다.
 - **단계/취소**: `workflow.stage`
 - **품목 구성**: `items.*` 의 `op ∈ {add, remove}`
 
@@ -121,6 +125,7 @@
 | **금액 임계 5%/5만원(채택)** | **63%** |
 | 금액 10만원 이상 | 61% |
 | 금액 축 제외(일정·단계·품목만) | 40% |
+| **최종(금액 임계 + 시공일 확정 이후)** | **57%** (하루 약 30회) |
 
 축별 기여: 금액 49% · 일정 34%(시공일 27%가 최대) · 품목 추가삭제 13% · 단계 0%.
 

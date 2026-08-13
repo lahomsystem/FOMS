@@ -31,6 +31,8 @@ __all__ = [
     "NUMERIC_PATH_SUFFIXES",
     "SCALAR_PATHS",
     "AMOUNT_PATH_TEMPLATES",
+    "CONFIRMED_STAGES",
+    "CONSTRUCTION_SCHEDULE_TEMPLATES",
     "SENSITIVE_ITEM_OPS",
     "SENSITIVE_ITEM_TEMPLATE",
     "SENSITIVE_PATH_TEMPLATES",
@@ -126,17 +128,28 @@ MAX_CHANGES = 40
 #: 전화번호만 고친 저장이 "금액 변경"으로 판정돼 사유를 묻는다(2026-08-13 실측으로 확인).
 #: 파생값은 그 값을 만든 **입력 경로**가 대신 대표한다.
 SENSITIVE_PATH_TEMPLATES: frozenset[str] = frozenset({
-    # --- 일정 ---
+    # --- 일정(시공 일정은 CONSTRUCTION_SCHEDULE_TEMPLATES 에서 단계 조건과 함께 본다) ---
     "schedule.measurement.date",
     "schedule.measurement.time",
-    "schedule.construction.date",
-    "schedule.construction.time",
     "schedule.as_visit.date",
     "schedule.as_visit.time",
     "items.*.measurement_date",
-    "items.*.construction_date",
     # --- 단계/취소 ---
     "workflow.stage",
+})
+
+#: 시공 일정 경로. 다른 일정과 달리 **확정(CONFIRM) 이후**에만 사유를 묻는다 —
+#: 접수·실측·도면 단계의 시공일은 아직 "잡는 중"인 값이라 바뀌는 게 정상이다.
+#: 운영 실측(2026-08-13): 시공일 변경이 전체 사유 요구의 27% 로 단일 최대 기여였다.
+CONSTRUCTION_SCHEDULE_TEMPLATES: frozenset[str] = frozenset({
+    "schedule.construction.date",
+    "schedule.construction.time",
+    "items.*.construction_date",
+})
+
+#: 시공일 변경에 사유를 묻기 시작하는 단계(고객 컨펌 이후 = 고객과 약속된 날짜).
+CONFIRMED_STAGES: frozenset[str] = frozenset({
+    "CONFIRM", "PRODUCTION", "CONSTRUCTION", "CS", "COMPLETED",
 })
 
 #: 금액 **입력** 경로. 사유 판정은 여기만 금액 임계(잔돈 변경 제외)를 함께 본다 —

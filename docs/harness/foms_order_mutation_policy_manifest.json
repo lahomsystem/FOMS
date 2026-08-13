@@ -615,6 +615,11 @@
       "policy_id": "STAFF_MUTATION",
       "rule": "/api/orders/<int:order_id>/change-events/<int:event_id>/compensate"
     },
+    "events.api_set_order_change_reason": {
+      "mode": "guard",
+      "policy_id": "STAFF_MUTATION",
+      "rule": "/api/orders/<int:order_id>/change-reason"
+    },
     "excel.upload_excel": {
       "mode": "guard",
       "policy_id": "MANAGER_MUTATION",
