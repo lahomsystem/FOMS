@@ -1,6 +1,6 @@
 # FOMS 현재 상태
-> 자동 업데이트: 2026-08-10
-> 최신: **AS dTTFB 근본 해소(181→96, deploy)** + 프래그먼트 다이어트 시공 -48% 운영 반영. 쓰기 라우트 감사 커버리지 100% 유지(PR #69·#71, 게이트가 UNAUDITED 0 강제).
+> 자동 업데이트: 2026-08-13
+> 최신: **네이버 스마트스토어 주문 자동 수집 T2~T5·T7 deploy** — 링크 테이블(UNIQUE 멱등)·API 클라이언트·매핑·WORKER 폴링(기본 off)·앱 만료 알림. **네이버 HTTP 는 WORKER 단일 출구**(IP 한도 3=static 3) — web 은 rq enqueue 만. 잔여=T0 사람 작업·T1 실검증·T6 화면. 원장: docs/plans/2026-08-13-naver-order-ingest-ledger.md
 > 이 파일 상단 40줄이 세션 시작 컨텍스트의 전부다(hygiene 계약 테스트로 강제). 상세 이력: "## 최근 완료"·"## 기록 보관", 과거 헤더 상세는 기록 보관에 이관.
 
 ## 스택
@@ -15,7 +15,6 @@ Flask 2.3 + PostgreSQL + R2 + Railway (Web×2, Worker×1)
 - [2026-08-10] **Sentry 운영 전환 완료** — DSN 을 dev→production 으로 이동(운영만 감시). 운영 로그 `Sentry initialized environment=production` 확인, dev 는 no-op. 잔여=Sentry 알림 규칙에 `environment:production` 필터·기존 staging 이슈 정리(사용자).
 - [2026-08-12] **고객 공유 Phase A T1~T10 전 완료(deploy `59e12874`, CI 4/4·E2E 25항목)** — 도면+견적 비로그인 열람 `/s/<token>`(해시-온리 토큰·동결 스냅샷·브랜드 계좌 격리)+문자 발송(선점 멱등), UI 3표면. 잔여=**production 승격 승인**+사용자 액션(카카오 도메인·Solapi 발신번호·운영 env). 원장: docs/plans/2026-08-11-customer-share-phase-a-ledger.md (알림톡 v1 잔여 동일 문서군)
 - [2026-08-10] **채널톡 AS PUSH·시공 계측 승격**(`340b0064`) — AS 본문 서버 SSOT(AS방 230351), 시공 숫자판=시공 단계만, 진단 헤더 2종.
-- [2026-08-06] **계정 셀프서비스 v1 deploy 반영** — 셀프 가입 신청(PENDING 승인 흐름)+비밀번호 재설정 요청 큐(관리자 처리형), 마이그레이션 `account_self_00`, 승인 UI=/admin/users, 신규 테스트 14 green. 스펙: `docs/specs/2026-08-06-account-self-service-design.md`
 - ⚠️ **`queue.py` 소켓 타임아웃 누락 수정**(운영 반영됨) — `rate_limit.py`·`dashboard_cache.py`엔 2초 상한이 있는데 이 경로만 없었다(2026-07-21 Redis 장애 대응이 절반만 적용). blackhole 시 `enqueue()`가 웹 워커를 130초 붙잡던 잠복 결함. 못 잡은 이유=`queue.py` 내부 테스트 0건.
 - [2026-08-01] **하네스 함정** — `ci_watch.py`는 워크플로 1개만 본다(7개 존재). 판정은 `gh run list --branch <b>`로 전수 나열. SQLite 레인은 FK 미강제 → FK 수정은 PG 레인 필수. PG 레인은 `create_all` 기반이라 마이그레이션 체인 미검증. CI에 Redis 없음.
 - 위 3건 상세·후속 목록·결재 기록: `docs/plans/2026-07-31-full-promotion-prep-ledger.md`
@@ -35,6 +34,8 @@ Flask 2.3 + PostgreSQL + R2 + Railway (Web×2, Worker×1)
 - 대형 파일 분해: Step 6에서 inventory와 separate governance spec이 분리됐고, 실제 split은 future batch에서 contract freeze 후 실행한다
 
 <!-- 이하 상세 기록. 세션 시작 시에는 상단 40줄만 읽는다(hygiene 계약) -->
+
+
 
 
 
@@ -94,6 +95,8 @@ Flask 2.3 + PostgreSQL + R2 + Railway (Web×2, Worker×1)
 - [2026-04-15] **Strict final canonical tree `SFC-B11B` slice 2 (`dashboards`, §6.16):** 구현을 `foms/web/dashboards/routes.py`로 이전; `foms/web/dashboards/__init__.py`는 `routes`만 import; `apps/dashboards.py`는 `foms.web.dashboards` 재노출 shim. 검증: `APP_OK`, `verify_result.py --json`, `pytest tests` **586 passed**. 근거: batch11b **§Slice B11B-2**.
 
 ## 기록 보관 (strict canonical / 이전 배치 요약)
+
+- [2026-08-06] **계정 셀프서비스 v1 deploy 반영** — 셀프 가입 신청(PENDING 승인 흐름)+비밀번호 재설정 요청 큐(관리자 처리형), 마이그레이션 `account_self_00`, 승인 UI=/admin/users, 신규 테스트 14 green. 스펙: `docs/specs/2026-08-06-account-self-service-design.md`
 - [2026-08-11] 감사 화면 3라운드 상세: 헤더 드래그 폭 기억(표별 localStorage), 시간 칸 rem 고정(%폭은 좁은 화면에서 초 자리 잘림), 부가정보 ensure_ascii=False+접이식(행 153→65px), 보안 로그 기간 필터(KST 경계), 배지 한글 라벨(코드는 title), UA 요약. ColumnResizer 는 UMD 라 `.default` fallback 없으면 조용히 미부착.
 - [2026-04-17] **ERP fast-page `EPT-B8`:** run record `docs/plans/2026-04-17-ept-b8-verification-railway-evidence-run-record.md` — 로컬 게이트 완료; staging HTTP 하네스로 **§4 표·§5** 부분 채움; **closeout** 은 deploy ID·§6 모드·hard stop 조건 충족 후.
 - [2026-04-15] active mainline 구조 tranche 없음. `WR-B1` / `WR-J1` / `WR-H1`는 explicit future batch 조건에서만 재개.
