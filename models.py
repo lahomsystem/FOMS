@@ -893,6 +893,51 @@ class OrderFieldChange(Base):
     created_at = Column(DateTime, default=now_utc_naive, nullable=False)
 
 
+class OrderChangeReason(Base):
+    """주문 변경 사유 — 저장 1회가 **왜** 일어났는지 (ORDER-REASON-00).
+
+    ``OrderFieldChange`` 가 "무엇이 어떻게" 를 답한다면 여기는 "왜" 다. 금액·일정 분쟁에서
+    "고객이 요청한 변경"과 "우리 입력 실수"는 책임 소재가 정반대인데, 값만 남은 원장에서는
+    구별되지 않는다.
+
+    * ``change_set_id`` — 저장 1회 묶음이자 **unique** 키. 사유는 저장 1회에 하나뿐이고,
+      감사 원장이므로 나중에 덮어쓰지 않는다(중복 첨부는 API 가 409 로 막는다).
+    * ``reason_code`` — 자유 문자열이 아니라 목록 코드다(``change_reason.REASON_CODES``).
+      "입력 오류 정정이 이번 달 몇 건" 같은 질문이 인덱스를 타야 하기 때문이다.
+      라벨은 굽지 않는다 — 읽는 시점에 붙인다.
+    * **FK 없음** — ``OrderFieldChange``·``OrderEvent`` 와 같은 이유(감사 원장이 감사 대상과
+      생명주기를 공유하면 주문 hard purge 가 이력까지 지운다).
+
+    사유를 ``order_field_changes`` 의 컬럼으로 두지 않는 이유: 같은 문자열이 변경 필드 수만큼
+    복제되고 집계가 ``DISTINCT`` 를 타야 한다.
+
+    ``__table_args__`` 의 인덱스 이름·컬럼 순서는 마이그레이션 ``orderreason_00`` 과 **완전히**
+    같아야 한다(create_all 부트스트랩 레인과 alembic 레인의 스키마 정합).
+    """
+
+    __tablename__ = 'order_change_reasons'
+    __table_args__ = (
+        # 저장 1회 = 사유 1행(중복 첨부 차단은 DB 에서도 강제한다).
+        Index('ux_order_change_reasons_change_set', 'change_set_id', unique=True),
+        # "입력 오류 정정 월 몇 건" — 사유 기준 집계.
+        Index('ix_order_change_reasons_code_time', 'reason_code', 'created_at'),
+        # 주문별 이력 탭 조인.
+        Index('ix_order_change_reasons_order_time', 'order_id', 'created_at'),
+    )
+
+    # 원장 계열 공통(OrderFieldChange 와 같은 variant — SQLite 자동증가 보존).
+    id = Column(BigInteger().with_variant(Integer, 'sqlite'), primary_key=True)
+    change_set_id = Column(String(36), nullable=False)
+    # FK 없음(위 docstring).
+    order_id = Column(Integer, nullable=False)
+    reason_code = Column(String(32), nullable=False)
+    reason_note = Column(String(200), nullable=True)
+    # 사유를 적은 사람 — 저장한 사람과 다를 수 있다(관리자 대리 입력).
+    actor_user_id = Column(Integer, nullable=True)
+    # naive DB timestamp = UTC 규약(datetime_kst).
+    created_at = Column(DateTime, default=now_utc_naive, nullable=False)
+
+
 class OrderTask(Base):
     """팔로업/이슈 추적(Task).
 
