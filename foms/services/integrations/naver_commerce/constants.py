@@ -11,6 +11,10 @@ from __future__ import annotations
 #: 판매채널 코드. v1 은 네이버 하나뿐이지만 링크 테이블은 채널 확장을 막지 않는다.
 CHANNEL = "NAVER"
 
+#: 수집 주문임을 표시하는 ``structured_data['source']`` 마커.
+#: 대시보드(‘담당 미지정’ 뱃지)도 이 값을 읽으므로 매핑 모듈이 아니라 여기에 둔다.
+SOURCE_MARKER = "NAVER_SMARTSTORE"
+
 #: 수집 주문의 이벤트 author·``assigned_by`` 로 쓰는 봇 계정(role=MANAGER).
 ACTOR_USERNAME = "naver_ingest_bot"
 
@@ -18,4 +22,4 @@ ACTOR_USERNAME = "naver_ingest_bot"
 #: ``create_order`` 가 owner 없는 주문을 허용하지 않기 때문에 필요하다(ASSIGNMENT-00).
 OWNER_USERNAME = "naver_unassigned"
 
-__all__ = ["ACTOR_USERNAME", "CHANNEL", "OWNER_USERNAME"]
+__all__ = ["ACTOR_USERNAME", "CHANNEL", "OWNER_USERNAME", "SOURCE_MARKER"]

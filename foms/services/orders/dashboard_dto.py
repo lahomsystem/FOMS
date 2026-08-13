@@ -22,7 +22,8 @@ from foms.services.erp_mobile_order_display import (
 from foms.services.estimate_service import build_measurement_manager_phone_map
 
 
-def build_orders_row_dtos(page_orders, page_sds, att_counts, user_map, current_user):
+def build_orders_row_dtos(page_orders, page_sds, att_counts, user_map, current_user,
+                          unassigned_intake_ids=None):
     """page_orders를 템플릿 표시용 row dict 리스트로 조립 (구 route enriched 루프).
 
     Args:
@@ -31,10 +32,14 @@ def build_orders_row_dtos(page_orders, page_sds, att_counts, user_map, current_u
         att_counts: order_id -> 첨부 수.
         user_map: user_id -> name (담당자명 해석).
         current_user: 퀘스트 페이로드용 현재 사용자.
+        unassigned_intake_ids: 미배정 보류함이 아직 owner 인 주문 id 집합
+            (:func:`~foms.services.orders.dashboard_read_model.compute_unassigned_intake_order_ids`).
+            미지정이면 뱃지 없음 — 기존 호출자 동작 보존.
 
     Returns:
-        list[dict]: 원본 enriched와 동일 구조.
+        list[dict]: 원본 enriched와 동일 구조 + ``is_unassigned_intake``.
     """
+    unassigned_ids = unassigned_intake_ids or set()
     # N+1 제거: 행마다 resolve_manager_phone_for_queue가 load_erp_shipment_settings를
     # 재조회(=행당 SELECT system_settings)하던 것을, 출고 설정 실측담당자 연락처 map을
     # 요청당 1회 로드해 전달한다(construction/production DTO와 동일 배치 패턴).
@@ -80,6 +85,8 @@ def build_orders_row_dtos(page_orders, page_sds, att_counts, user_map, current_u
             'measurement_date': (schedule.get('measurement') or {}).get('date'),
             'construction_date': (schedule.get('construction') or {}).get('date'),
             'manager_name': (parties.get('manager') or {}).get('name') or '-',
+            # 수집 주문이 보류함 owner 를 그대로 달고 있는 상태(사람 배정 전).
+            'is_unassigned_intake': o.id in unassigned_ids,
             'manager_phone': resolve_manager_phone_for_queue(
                 parties, order=o, manager_phone_map=manager_phone_map
             ),
