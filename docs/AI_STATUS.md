@@ -10,13 +10,12 @@ Flask 2.3 + PostgreSQL + R2 + Railway (Web×2, Worker×1)
 ## 진행 중
 - [2026-08-14] **주문 변경 사유 deploy** — 축=시공일·금액·단계·취소(제품세부=기록만). docs/specs/2026-08-13-order-change-reason_SPEC.md
 - [2026-08-11] **대시보드 캐시 무효화 엔진화 MUT-CACHE-01 운영 승격(PR #79 `24675249`)** — 라우트별 수동 무효화가 원인(빠진 경로 6, 단계 강제 변경 310초 지연 재현). `execute_order_mutation` 이 전/후 stage·삭제 표식을 session.info intent 로 남기고 `after_commit` 이 소비 → 엔진 경유 20개 모듈 자동 커버, 미경유 2곳(`/edit`·date_sync)은 직접 보강. 선행 삭제 수정 PR #72.
-- [2026-08-12] **프래그먼트 다이어트 시공 923→481KB(-48%) 운영 반영**(PR #78·#81·#84~#86) — 같은 50건을 3표면에 중복 렌더(`FOMS_V3_SHELL_COHORT=all`)하고 CSS가 하나만 남긴다. 태블릿 표면=`pointer: coarse` 전용 → 쿠키 `foms_ptr`로 마우스 기기 미전송(5탭 -25%). **함정: 인라인 style→클래스 이관은 같은 ID 스코프 필수.** 잔여=모바일 128.6KB(타 세션 진행 중).
+- [2026-08-13] **프래그먼트 다이어트 시공 923→353KB, v3 죽은 표면 6탭 제거**(운영 PR #78~#86 + deploy `4819c280`) — 같은 50건을 3표면에 중복 렌더하고 CSS가 하나만 남긴다(`FOMS_V3_SHELL_COHORT=all`). 태블릿 표면=쿠키 `foms_ptr`. **모바일 v2 표면은 v3 에서 영구 불가시**(fallback 가시조건 == 광폭 == v2 hide 조건 → 폭 소거, 리사이즈 배선 불요) → 6대시보드 435.8KB 미전송(생산178·시공128·도면67 외 3탭), 계약=Contract 11. **함정: 인라인 style→클래스는 같은 ID 스코프 필수.** 잔여=AS 모바일 238.6KB(`max-width` 게이트 → 리사이즈 재요청 선행).
 - [2026-08-13] **AS 근본 최적화 2건(deploy)** — ① dTTFB 181→96(예산 168 불변, 공식 176보다 엄격): 지출처=같은 모집단 집계 2회 + 행100×2필드 sanitize 재파싱 → 단일 스캔 + sanitize LRU 메모이즈. ② data-order-id 1271→228(행 컨테이너 일원화, 자손은 closest 역참조) → wire 51.1→46.3KB. **함정: 표면간 상태동기화가 `.cls[data-order-id=x]` 전역 선택자였다** — 스코프 조회로 치환 후에야 자손 제거 가능.
 - [2026-08-11] **주문 변경내역 감사 ORDER-DIFF 00~02 운영 승격**(PR #82·#83) — 저장 로그 before/after 0건 → 필드 diff + `order_field_changes` 원장 + 변경 이력 탭. 품목 uid(`itemuid_00`)는 deploy+스테이징 검증 완료, 운영 승격만 **타 세션 `share_token_00` 선행 대기**. 함정: detail 4,000자 초과 시 통째 표식. 스펙 docs/specs/2026-08-11-order-*.md
 - [2026-08-10] **Sentry 운영 전환 완료** — DSN 을 dev→production 으로 이동(운영만 감시). 운영 로그 `Sentry initialized environment=production` 확인, dev 는 no-op. 잔여=Sentry 알림 규칙에 `environment:production` 필터·기존 staging 이슈 정리(사용자).
 - [2026-08-13] **고객 공유 Phase A 운영 승격 완료(PR #89, production `a59c0d7d`)** — T1~T10+T8.1(발신 3단 우선순위) + 사용자 승인으로 itemuid_00·알림톡 v1 코드 동반 승격(발송은 이중 잠금 — killswitch off·PF/템플릿 env 미설정). 카톡 스테이징 검증 PASS. Solapi 발신번호 활성(라홈 백업 `01083277282`만 증빙 반려)·알림톡 템플릿 2건 등록(심사 승인 확인 필요). 잔여=문자 실수신 검증·실기기 카톡 전송(사용자)·운영 스모크 확인. 원장: docs/plans/2026-08-11-customer-share-phase-a-ledger.md
 - [2026-08-10] **채널톡 AS PUSH·시공 계측 승격**(`340b0064`) — AS 본문 서버 SSOT(AS방 230351), 시공 숫자판=시공 단계만, 진단 헤더 2종.
-- ⚠️ **`queue.py` 소켓 타임아웃 누락 수정**(운영 반영됨) — `rate_limit.py`·`dashboard_cache.py`엔 2초 상한이 있는데 이 경로만 없었다(2026-07-21 Redis 장애 대응이 절반만 적용). blackhole 시 `enqueue()`가 웹 워커를 130초 붙잡던 잠복 결함. 못 잡은 이유=`queue.py` 내부 테스트 0건.
 - [2026-08-01] **하네스 함정** — `ci_watch.py`는 워크플로 1개만 본다(7개 존재). 판정은 `gh run list --branch <b>`로 전수 나열. SQLite 레인은 FK 미강제 → FK 수정은 PG 레인 필수. PG 레인은 `create_all` 기반이라 마이그레이션 체인 미검증. CI에 Redis 없음.
 - 위 3건 상세·후속 목록·결재 기록: `docs/plans/2026-07-31-full-promotion-prep-ledger.md`
 - ⚠️ **미결: `as-delete-reapply`의 `8c1ef69a`**(삭제 라우트 WRITE-GUARD-01 manifest 등재) deploy 미반영. worktree 정리 중 발견, 타 세션 몫이라 미처리. 브랜치 ref 보존됨.
@@ -48,6 +47,7 @@ Flask 2.3 + PostgreSQL + R2 + Railway (Web×2, Worker×1)
 
 
 ## 최근 완료 (최대 5개)
+- ⚠️ **`queue.py` 소켓 타임아웃 누락 수정**(운영 반영됨) — `rate_limit.py`·`dashboard_cache.py`엔 2초 상한이 있는데 이 경로만 없었다(2026-07-21 Redis 장애 대응이 절반만 적용). blackhole 시 `enqueue()`가 웹 워커를 130초 붙잡던 잠복 결함. 못 잡은 이유=`queue.py` 내부 테스트 0건.
 - [2026-08-11] **실측 지도 조기 부팅 승격 완료(PR #80, production `a68a8952`)** — 느림 정체는 지오코딩(좌표 결측 22/2982)도 서버(map_data 150ms)도 아닌 **SDK·map_data 요청의 DOMContentLoaded 대기**. `map_view.html` head 에서 카카오 SDK 선주입(`__FOMS_KAKAO_SDK`)+`/api/map_data` 선요청(`__FOMS_MAP_EARLY`, URL 완전일치 시 1회 소비), `loadSdk` 는 중복 주입 금지. 운영 실측: 문서도착→첫마커 844→262ms, 요청 중복 0, 콘솔 에러 0.
 - [2026-08-10] **감사 로깅 P4 Phase C 운영 승격 완료(PR #69, production `7ceedde4`)** — 쓰기 라우트 172개 전부 감사 기록(주문·단가표·견적·채팅·알림 등), 문장은 표시 SSOT 생성, PII는 고객명까지만. 게이트=`tools/harness/audit_coverage_scan.py`+인벤토리+allowlist(면제 30건 사유 필수), pre_push_smoke 편입. 마이그레이션 없음. 잔여=P4 D(열람 기록 여부 사용자 결정)·Sentry 로그 육안.
 - [2026-08-07] **지방 대시보드 섹션=상태 개편 운영 승격 완료(PR #59, production `95fb7826`)** — 드롭다운 0·뱃지만, 상차완료/보류 섹션 폐지, AS 섹션+AS완료(`as_completed_date` 필수). 읽기 경로 status 쓰기는 state_guard 차단(상차일 변경 시점 기록).
