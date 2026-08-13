@@ -21,10 +21,9 @@ import re
 from datetime import datetime, timedelta, timezone
 from typing import Any, Optional
 
-KST = timezone(timedelta(hours=9))
+from foms.services.integrations.naver_commerce.constants import SOURCE_MARKER
 
-#: 수집 주문임을 표시하는 structured_data 마커.
-SOURCE_MARKER = "NAVER_SMARTSTORE"
+KST = timezone(timedelta(hours=9))
 
 #: 주문 생성에 반드시 있어야 하는 값(없으면 쓰레기 주문 대신 PENDING_REVIEW).
 REQUIRED_FIELDS = ("external_id", "customer_name", "phone", "address", "product")
