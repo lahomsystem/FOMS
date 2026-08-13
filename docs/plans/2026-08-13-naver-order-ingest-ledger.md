@@ -253,6 +253,23 @@ itemuid_00 → senderphone_00 → naver_link_00` 이다.
   (권한 2 · 목록/필터 3 · 워터마크·만료 표시 3 · enqueue 경계 3 · 스냅샷 2)
 - `pre_push_smoke` exit 0 (322 passed) ✅
 
+**스테이징 실검증 (2026-08-13, `lahom-dev.up.railway.app`, claude_master 로그인)**
+- `/admin/naver-ingest` 200 렌더 — 카드 3장·이력표 문구 전부 확인 ✅
+- "지금 수집" POST → `{"success": true, "queued": true}` → **WORKER 가 rq job 을 실제로 소비**해
+  `run_sweep` 실행 → 자격증명 미설정으로 실패 → 화면에 그대로 표출:
+  "실패 / NAVER_COMMERCE_CLIENT_ID / NAVER_COMMERCE_CLIENT_SECRET 가 설정되지 않았다. /
+  워터마크는 전진하지 않았습니다" ✅
+  → **web enqueue → WORKER 실행 → 실패 기록 → 화면 표출 전 구간이 실배선으로 증명됐다.**
+  남은 것은 자격증명(T0)뿐이며, 실패가 조용하지 않고 정확한 원인 문장으로 뜨는 것까지 확인됐다.
+- 스테이징 스키마: `external_order_links` 존재 ✅, alembic head `orderreason_00`
+  (타 세션이 `naver_link_00` 위에 쌓음 — 체인 정상, 단일 head)
+
+**추가 게이트(하네스 사각 — 재개 시 주의)**: 새 mutation route 는 auth policy manifest
+(`docs/harness/foms_order_mutation_policy_manifest.json`)에도 등재해야 한다
+(`tests/domains/test_auth_enforcement.py::test_static_gate_every_mutation_route_classified`).
+**이 테스트는 `pre_push_smoke` 서브셋에 없어 로컬에서 안 잡힌다** — CI 전수 확인에서 발견했다.
+write guard manifest 와 **별개 파일**이라 둘 다 등재해야 한다.
+
 **남은 T6 잔여(의도적으로 손대지 않음)**
 - 주문 상세의 "네이버 수집" 배지, 대시보드의 "담당 미지정" 뱃지 2표면.
   `templates/orders/edit_order.html`(1,300줄)·공유 `erp_order_tab.html` 은 알려진 회귀
