@@ -9,8 +9,7 @@ Flask 2.3 + PostgreSQL + R2 + Railway (Web×2, Worker×1)
 
 ## 진행 중
 - [2026-08-14] **주문 변경 사유 deploy** — 축=시공일·금액·단계·취소(제품세부=기록만). docs/specs/2026-08-13-order-change-reason_SPEC.md
-- [2026-08-11] **대시보드 캐시 무효화 엔진화 MUT-CACHE-01 운영 승격(PR #79 `24675249`)** — 라우트별 수동 무효화가 원인(빠진 경로 6, 단계 강제 변경 310초 지연 재현). `execute_order_mutation` 이 전/후 stage·삭제 표식을 session.info intent 로 남기고 `after_commit` 이 소비 → 엔진 경유 20개 모듈 자동 커버, 미경유 2곳(`/edit`·date_sync)은 직접 보강. 선행 삭제 수정 PR #72.
-- [2026-08-13] **프래그먼트 다이어트 시공 923→353KB, v3 죽은 표면 6탭 제거**(운영 PR #78~#86 + deploy `4819c280`) — 같은 50건을 3표면에 중복 렌더하고 CSS가 하나만 남긴다(`FOMS_V3_SHELL_COHORT=all`). 태블릿 표면=쿠키 `foms_ptr`. **모바일 v2 표면은 v3 에서 영구 불가시**(fallback 가시조건 == 광폭 == v2 hide 조건 → 폭 소거, 리사이즈 배선 불요) → 6대시보드 435.8KB 미전송(생산178·시공128·도면67 외 3탭), 계약=Contract 11. **함정: 인라인 style→클래스는 같은 ID 스코프 필수.** 잔여=AS 모바일 238.6KB(`max-width` 게이트 → 리사이즈 재요청 선행).
+- [2026-08-13] **프래그먼트 다이어트 시공 923→353KB, v3 죽은 표면 6탭 제거**(운영 PR #78~#86·#90 `5b73eb46`) — **모바일 v2 표면은 v3 에서 영구 불가시**(fallback 가시조건 == 광폭 == v2 hide 조건 → 폭 소거, 리사이즈 배선 불요) → 스테이징 6대시보드 435.8KB 미전송, 계약=Contract 11. **⚠️ 운영은 `FOMS_SHELL_V3_ENABLED` 미설정 = 전원 v2 → 절감은 스테이징 전용(운영 no-op — `FOMS_V3_SHELL_COHORT` 는 이름과 달리 v2 자격 플래그)**. 함정=인라인 style→클래스는 같은 ID 스코프 필수. 잔여=AS 모바일 238.6KB(`max-width` 게이트라 리사이즈 재요청 선행).
 - [2026-08-13] **AS 근본 최적화 2건(deploy)** — ① dTTFB 181→96(예산 168 불변, 공식 176보다 엄격): 지출처=같은 모집단 집계 2회 + 행100×2필드 sanitize 재파싱 → 단일 스캔 + sanitize LRU 메모이즈. ② data-order-id 1271→228(행 컨테이너 일원화, 자손은 closest 역참조) → wire 51.1→46.3KB. **함정: 표면간 상태동기화가 `.cls[data-order-id=x]` 전역 선택자였다** — 스코프 조회로 치환 후에야 자손 제거 가능.
 - [2026-08-11] **주문 변경내역 감사 ORDER-DIFF 00~02 운영 승격**(PR #82·#83) — 저장 로그 before/after 0건 → 필드 diff + `order_field_changes` 원장 + 변경 이력 탭. 품목 uid(`itemuid_00`)는 deploy+스테이징 검증 완료, 운영 승격만 **타 세션 `share_token_00` 선행 대기**. 함정: detail 4,000자 초과 시 통째 표식. 스펙 docs/specs/2026-08-11-order-*.md
 - [2026-08-10] **Sentry 운영 전환 완료** — DSN 을 dev→production 으로 이동(운영만 감시). 운영 로그 `Sentry initialized environment=production` 확인, dev 는 no-op. 잔여=Sentry 알림 규칙에 `environment:production` 필터·기존 staging 이슈 정리(사용자).
@@ -47,6 +46,7 @@ Flask 2.3 + PostgreSQL + R2 + Railway (Web×2, Worker×1)
 
 
 ## 최근 완료 (최대 5개)
+- [2026-08-11] **대시보드 캐시 무효화 엔진화 MUT-CACHE-01 운영 승격(PR #79 `24675249`)** — 라우트별 수동 무효화가 원인(빠진 경로 6, 단계 강제 변경 310초 지연 재현). `execute_order_mutation` 이 전/후 stage·삭제 표식을 session.info intent 로 남기고 `after_commit` 이 소비 → 엔진 경유 20개 모듈 자동 커버, 미경유 2곳(`/edit`·date_sync)은 직접 보강. 선행 삭제 수정 PR #72.
 - ⚠️ **`queue.py` 소켓 타임아웃 누락 수정**(운영 반영됨) — `rate_limit.py`·`dashboard_cache.py`엔 2초 상한이 있는데 이 경로만 없었다(2026-07-21 Redis 장애 대응이 절반만 적용). blackhole 시 `enqueue()`가 웹 워커를 130초 붙잡던 잠복 결함. 못 잡은 이유=`queue.py` 내부 테스트 0건.
 - [2026-08-11] **실측 지도 조기 부팅 승격 완료(PR #80, production `a68a8952`)** — 느림 정체는 지오코딩(좌표 결측 22/2982)도 서버(map_data 150ms)도 아닌 **SDK·map_data 요청의 DOMContentLoaded 대기**. `map_view.html` head 에서 카카오 SDK 선주입(`__FOMS_KAKAO_SDK`)+`/api/map_data` 선요청(`__FOMS_MAP_EARLY`, URL 완전일치 시 1회 소비), `loadSdk` 는 중복 주입 금지. 운영 실측: 문서도착→첫마커 844→262ms, 요청 중복 0, 콘솔 에러 0.
 - [2026-08-10] **감사 로깅 P4 Phase C 운영 승격 완료(PR #69, production `7ceedde4`)** — 쓰기 라우트 172개 전부 감사 기록(주문·단가표·견적·채팅·알림 등), 문장은 표시 SSOT 생성, PII는 고객명까지만. 게이트=`tools/harness/audit_coverage_scan.py`+인벤토리+allowlist(면제 30건 사유 필수), pre_push_smoke 편입. 마이그레이션 없음. 잔여=P4 D(열람 기록 여부 사용자 결정)·Sentry 로그 육안.
