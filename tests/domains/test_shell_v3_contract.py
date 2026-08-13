@@ -358,3 +358,59 @@ def test_v3_css_has_dual_render_gates_and_fixed_bottomnav() -> None:
     # [H] bottom nav pinned to the viewport bottom
     assert ".fos-shell-v3 .fos-bottomnav" in css
     assert "position: fixed" in css
+
+
+# --- Dead mobile-v2 surface elision (fragment diet) ------------------------
+# The desktop fallback is visible EXACTLY on 광폭 (≥992 landscape|fine|none) —
+# the complement of its own hide rule — and 광폭 is precisely where
+# foms-mobile-v2-surfaces-hide.css kills .foms-mobile-v2-dashboard. So for v3
+# users the mobile-v2 surface nested in the fallback can never paint at any
+# viewport/orientation/pointer, and the server stops emitting it. Markers are
+# the section aria-labels (unique per domain, inside the gated block only).
+DEAD_V2_SURFACE_MARKERS = [
+    ("/erp/dashboard", ("모바일 홈 대시보드", "모바일 홈 컨트롤 타워")),
+    ("/erp/measurement", ("실측 모바일 대시보드",)),
+    ("/erp/drawing-workbench", ("도면 작업 큐",)),
+    ("/erp/production/dashboard", ("생산 모바일 대시보드",)),
+    ("/erp/construction/dashboard", ("시공 모바일 대시보드",)),
+    ("/erp/shipment", ("출고 모바일 대시보드",)),
+]
+
+
+@pytest.mark.parametrize(("path", "markers"), DEAD_V2_SURFACE_MARKERS)
+def test_v3_omits_dead_mobile_v2_surface(client, monkeypatch, path, markers) -> None:
+    """Contract 11: v3 responses carry ZERO mobile-v2 dashboard markup.
+
+    Guards the fragment-diet elision from silently regressing when a domain body
+    is refactored (the surface is invisible, so a regression costs bytes without
+    showing on screen).
+    """
+    username = "shell_v3_dead_" + path.strip("/").replace("/", "_")
+    user = _login_admin(client, username=username)
+    _enable_v3(monkeypatch, user.id)
+
+    response = client.get(path)
+
+    assert response.status_code == 200, f"{path} -> {response.status_code}"
+    body = response.get_data(as_text=True)
+    # 전제: v3 듀얼 렌더 경로를 실제로 탔는지 (아니면 아래 부재 단언이 공허하게 통과한다)
+    assert V3_DESKTOP_FALLBACK in body, f"{path} not on the v3 dual-render path"
+    for marker in markers:
+        assert marker not in body, f"{path} still emits dead v2 surface {marker!r}"
+
+
+@pytest.mark.parametrize(("path", "markers"), DEAD_V2_SURFACE_MARKERS)
+def test_v2_still_renders_mobile_v2_surface(client, monkeypatch, path, markers) -> None:
+    """Contract 11 (대칭): the v2 cohort keeps the surface — the elision is
+    scoped to v3, not a global deletion."""
+    username = "shell_v2_keep_" + path.strip("/").replace("/", "_")
+    user = _login_admin(client, username=username)
+    _enable_v2_only(monkeypatch, user.id)
+
+    response = client.get(path)
+
+    assert response.status_code == 200, f"{path} -> {response.status_code}"
+    body = response.get_data(as_text=True)
+    assert any(m in body for m in markers), (
+        f"{path} lost the v2 mobile surface (expected one of {markers})"
+    )
