@@ -44,6 +44,41 @@ def parse_attachment_item_index(raw_item_index):
     return True, parsed, None
 
 
+def resolve_as_log_ref(order: Any, category, raw_as_log_id):
+    """AS 첨부를 타임라인 기록에 결합할 ``as_log_id`` 검증 (AS-FRESH-01 T2).
+
+    form 업로드와 direct 업로드 완료 두 경로가 공유한다 — 한쪽만 손보면 같은 파일이
+    올라온 경로에 따라 결합되기도 안 되기도 한다.
+
+    Args:
+        order: 대상 ``Order``(structured_data 로 항목 존재를 확인).
+        category: 정규화된 첨부 카테고리.
+        raw_as_log_id: 요청이 보낸 원값(없으면 None/빈 문자열).
+
+    Returns:
+        ``(ok, as_log_id | None, 오류문구 | None)``. 값이 없으면 ``(True, None, None)``.
+    """
+    log_id = str(raw_as_log_id or "").strip()
+    if not log_id:
+        return True, None, None
+    if len(log_id) > 64:
+        return False, None, "as_log_id 형식이 올바르지 않습니다."
+    if category != "as":
+        # 결합 축은 AS 첨부 전용이다. 다른 분류에 붙으면 회차 필터·기록별 렌더가
+        # 조용히 오작동한다(조용한 무시 대신 명시 거부).
+        return False, None, "as_log_id 는 AS 첨부에만 지정할 수 있습니다."
+    structured = getattr(order, "structured_data", None)
+    entries = ((structured or {}).get("shipment") or {}).get("as_log")
+    if not isinstance(entries, list):
+        entries = []
+    for entry in entries:
+        if not isinstance(entry, dict) or entry.get("deleted") is True:
+            continue
+        if str(entry.get("id") or "") == log_id:
+            return True, log_id, None
+    return False, None, "결합할 AS 기록을 찾을 수 없습니다."
+
+
 def allowed_erp_attachment_file(filename, category="measurement"):
     """ERP Beta 첨부 확장자 검증 (카테고리별 정책)."""
     if "." not in filename:
@@ -111,6 +146,7 @@ __all__ = [
     "get_erp_media_max_size",
     "normalize_attachment_category",
     "parse_attachment_item_index",
+    "resolve_as_log_ref",
     "resolve_attachment_category",
     "serialize_attachment",
 ]

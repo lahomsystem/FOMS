@@ -21,12 +21,30 @@
     {% if e.is_verdict %}<span class="as-rchart-verdict-flag as-rchart-verdict-flag--{{ e.verdict }}">{{ e.verdict_label }}</span> {% endif %}
     <div class="as-tl-item__body">{{ e.text | safe }}</div>
     {% if e.is_edited %}<span class="as-tl-item__edited" title="{{ e.edited_at }} · {{ e.edited_by }}">(수정됨)</span>{% endif %}
+    {# 기록별 첨부(AS-FRESH-01) — 결합된 파일만. 미결합 첨부는 첨부 모달 소관이라 여기 없다.
+       이미지 클릭은 as-dashboard.js 가 GlobalImageViewer 로 위임한다(뷰어 SSOT). #}
+    {% if e.files %}
+    <div class="as-rchart-row__files">
+      {% for f in e.files %}
+      <button type="button" class="as-rchart-file" data-file-url="{{ f.view_url }}"
+        data-file-name="{{ f.filename }}" data-file-image="{{ '1' if f.is_image else '0' }}"
+        title="{{ f.filename }}">
+        {% if f.is_image %}
+        <img class="as-rchart-file__thumb" src="{{ f.thumb_url }}" alt="{{ f.filename }}" loading="lazy">
+        {% else %}
+        <span class="as-rchart-file__doc"><i class="fas fa-file" aria-hidden="true"></i></span>
+        {% endif %}
+      </button>
+      {% endfor %}
+    </div>
+    {% endif %}
   </div>
   <span class="as-rchart-row__by">
     {# 이름은 ellipsis 대상(측정 계정 등 긴 표시명이 행 폭을 밀어 우측이 잘리는 것 방어) #}
     <span class="as-rchart-row__name" title="{{ e.by or '' }}">{{ e.by or '' }}</span>
     {# verdict 는 서버가 수정/삭제를 400 으로 거부한다(회차 파생 근거) — 버튼 자체를 안 낸다. #}
     {% if can_edit and not e.is_system and not e.is_legacy and not e.is_verdict %}
+    <button type="button" class="as-tl-item__attach" title="이 기록에 파일 추가" aria-label="이 기록에 파일 추가"><i class="fas fa-paperclip" aria-hidden="true"></i></button>
     <button type="button" class="as-tl-item__edit" title="기록 수정" aria-label="기록 수정"><i class="fas fa-pen" aria-hidden="true"></i></button>
     <button type="button" class="as-tl-item__delete" title="기록 삭제" aria-label="기록 삭제"><i class="fas fa-trash" aria-hidden="true"></i></button>
     {% endif %}
@@ -182,7 +200,15 @@
       <option value="memo" selected>메모</option>
     </select>
     <textarea class="as-timeline__text erp-pro-input" rows="2" aria-label="기록 내용" placeholder="기록 입력... (Ctrl/⌘+Enter로 추가 · {{ v.current_round }}차에 저장)"></textarea>
+    {# 입력과 함께 올리는 파일(AS-FRESH-01 T5) — 저장 후 그 기록에 결합된다.
+       제출 전 미리보기는 로컬 objectURL 이라 업로드 왕복 없이 보인다. #}
+    <input type="file" class="as-rchart-dock__file" accept="image/*,video/*,.pdf,.doc,.docx" multiple hidden>
+    <div class="as-rchart-dock__preview" hidden></div>
+    <div class="as-rchart-dock__status as-rchart-dock__busy" hidden></div>
     <div class="as-rchart-dock__actions">
+      <button type="button" class="btn btn-sm btn-outline-secondary as-rchart-dock__pick" title="파일 첨부">
+        <i class="fas fa-paperclip" aria-hidden="true"></i> 파일
+      </button>
       <button type="submit" class="btn btn-sm btn-primary as-timeline__submit">기록 추가</button>
       {% if v.verdict_prompt %}
       <span class="as-rchart-verdict-prompt">

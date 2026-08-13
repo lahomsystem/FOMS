@@ -384,6 +384,9 @@
     var orderId = options.orderId;
     var category = options.category || 'measurement';
     var itemIndex = options.itemIndex == null ? null : options.itemIndex;
+    // AS-FRESH-01: 어느 AS 기록의 파일인지(선택). direct/fallback 두 경로에 같이 실어야
+    // 업로드 경로에 따라 결합되기도 안 되기도 하는 갈림이 생기지 않는다.
+    var asLogId = options.asLogId || null;
     var folder = options.folder || ('orders/' + orderId + '/attachments');
     var total = files.length;
     var ok = 0;
@@ -396,6 +399,7 @@
       formData.append('file', entry.file);
       formData.append('category', category);
       if (itemIndex != null) formData.append('item_index', String(itemIndex));
+      if (asLogId) formData.append('as_log_id', asLogId);
       if (typeof uploadWithProgress !== 'undefined') {
         return uploadWithProgress('/api/orders/' + orderId + '/attachments', formData, {
           onProgress: function (p) {
@@ -451,6 +455,7 @@
                   filename: entry.file.name,
                   category: category,
                   item_index: itemIndex,
+                  as_log_id: asLogId,
                   size: entry.file.size
                 })
               });

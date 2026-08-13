@@ -3046,6 +3046,9 @@ ${escapeHtml(sub)}</div>` : ''}`;
                         : [];
                     const nativeFiles = filesEl?.files ? Array.from(filesEl.files) : [];
                     const files = fallbackFiles.length ? fallbackFiles : nativeFiles;
+                    // AS-FRESH-01: 접수 첨부를 접수 기록에 결합한다. 무편집 재접수는 서버가
+                    // 직전 동일 본문 항목 id 를 돌려주므로 그 파일도 고아가 되지 않는다.
+                    const receptionLogId = regData.reception_log_id || '';
                     if (files.length > 0) {
                         if (typeof window.fomsUploadOrderAttachmentsBatch === 'function') {
                             await window.fomsUploadOrderAttachmentsBatch({
@@ -3053,6 +3056,7 @@ ${escapeHtml(sub)}</div>` : ''}`;
                                 files: files,
                                 folder: `orders/${targetId}/attachments`,
                                 category: 'as',
+                                asLogId: receptionLogId || null,
                                 useDirectUpload: (typeof USE_DIRECT_UPLOAD !== 'undefined' && USE_DIRECT_UPLOAD),
                                 onPrepareProgress: function (info) {
                                     erpSetStatus(`이미지 최적화 중... (${info.done}/${info.total})`);
@@ -3067,6 +3071,7 @@ ${escapeHtml(sub)}</div>` : ''}`;
                                 const fd = new FormData();
                                 fd.append('file', files[i]);
                                 fd.append('category', 'as');
+                                if (receptionLogId) fd.append('as_log_id', receptionLogId);
                                 const res = await fetch(`/api/orders/${targetId}/attachments`, { method: 'POST', body: fd });
                                 const data = await res.json();
                                 if (data && data.success) uploaded += 1;
