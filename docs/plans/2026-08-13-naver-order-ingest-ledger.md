@@ -54,13 +54,13 @@
 
 | T | 내용 | 의존 | 상태 | 커밋 |
 |---|---|---|---|---|
-| T0 | 선행(사람 손): 시크릿 재발급 · 시스템 계정 2개 · WORKER static IP 등록 | — | BLOCKED | — |
+| T0 | 선행: 시크릿 재발급(사람) · 시스템 계정 2개(**완료**) · WORKER static IP(사람) | — | PARTIAL | 계정 스크립트+스테이징 반영 |
 | T2 | `ExternalOrderLink` 모델 + alembic 마이그레이션 | — | DONE | `naver_link_00` (`down_revision=senderphone_00`) |
 | T3 | `naver_commerce/client.py` (토큰 캐시·조회·재시도·백오프) | — | DONE | 테스트 24 green |
 | T4 | 매핑 + `create_order()` 연동 (좌표 주입 없음) | T2, T3 | DONE | 테스트 20 green |
 | T5 | WORKER 폴링 루프 + 게이트 + rq enqueue 경로 | T4 | DONE | 테스트 15 green |
 | T1 | Railway WORKER static IP 실검증 (`--once --dry-run`) | T0, T3 | PENDING | — |
-| T6 | 관리 화면 (수집 이력·수동 실행·배지) | T4, T5 | PENDING | — |
+| T6 | 관리 화면 (수집 이력·수동 실행·원본 스냅샷) | T4, T5 | DONE(부분) | 테스트 13 green |
 | T7 | 앱 인증 만료 D-7 알림 | — | DONE | 테스트 11 green |
 
 > 순서 주의: 스펙의 T1(인프라 실검증)은 T0 사람 작업과 코드(T3)가 모두 있어야 가능하므로
@@ -83,8 +83,14 @@
 - `SELECT id, username, role, team, is_active FROM users WHERE username IN ('naver_ingest_bot','naver_unassigned');` 2행.
 - Railway WORKER `egressGateways` 에 IPv4 3개, 커머스API센터 등록 IP 와 정확히 일치.
 
-**진행 메모**: 2026-08-13 사용자 확인 — **셋 다 미완료**. 코드 task 는 T0 없이 진행 가능하므로
-T2 부터 착수했다. T1(실 API 검증)은 T0 완료 후에만 가능하므로 그때까지 BLOCKED.
+**진행 메모 (2026-08-13)**
+- 시스템 계정 2개: **완료**. 정책은 `foms/services/integrations/naver_commerce/accounts.py`,
+  실행은 `python scripts/maintenance/create_naver_ingest_accounts.py`(멱등).
+  **스테이징(FOMS-DEV) 반영됨** — `naver_ingest_bot` id=62, `naver_unassigned` id=63.
+  **운영 DB 는 미반영**(사용자 명시 요청 시에만). 로그인은 난수 비밀번호로 잠갔다
+  (`is_active=False` 로는 못 잠근다 — owner 계약이 활성 SALES 를 요구한다).
+- 시크릿 재발급 · Railway WORKER static IP 3개 발급/등록: **사람 손 필요, 미완료**.
+- T1(실 API 검증)은 위 둘이 끝나야 가능하다.
 
 ---
 
@@ -227,12 +233,31 @@ itemuid_00 → senderphone_00 → naver_link_00` 이다.
 
 ## T6 — 관리 화면
 
-**범위**: 수집 이력 목록(성공/보류/실패 필터) · "지금 수집" 버튼(enqueue) · 워터마크·마지막 성공 시각 표시 ·
-주문 상세 "네이버 수집" 배지 + 원본 스냅샷 보기(**관리자 전용**) · `naver_unassigned` owner 주문의 "담당 미지정" 뱃지.
-인라인 스타일 금지(`erp-pro.css`), jQuery 금지, `fetch` + `data.success` 검증.
+**구현 완료** (`foms/web/admin/naver_ingest.py` + `templates/admin/naver_ingest.html`)
 
-**완료 기준**: 스테이징 실주문 1건 수집 → 화면에서 확인 → 재실행 시 중복 0건.
-CSS/JS 수정 시 `?v=` 범프(SW staticCacheFirst 함정).
+- `/admin/naver-ingest` (ADMIN 전용): 워터마크·마지막 실행 결과·앱 만료일 카드 3장 +
+  상태 필터(전체/수집됨/확인 필요/실패) + 이력 표 + 페이지네이션.
+- "지금 수집" = `POST /admin/naver-ingest/run` → **rq enqueue 만**. 큐가 없으면 503 으로
+  실패를 알린다(직접 호출 폴백은 존재하지 않는다 — IP 제약).
+- 원본 스냅샷 = `GET /admin/naver-ingest/<id>/snapshot` (ADMIN 전용). 개인정보라 **열람 자체를
+  `SecurityLog` 에 기록**한다. 목록에 미리 실어 보내지 않는다(보는 사람만 받아간다).
+- 새 CSS 파일 없음(Bootstrap 유틸리티만) → `?v=` 범프 불필요. CSRF 는 공용 레이아웃의
+  fetch 래퍼가 자동 부착한다.
+
+**추가로 밟은 게이트**: 새 mutation route 는 `docs/harness/foms_write_guard_manifest.json` 에
+등재해야 한다(미등재 = static fail). `admin.naver_ingest_run_now` → `mode: guard` 로 등재.
+감사 커버리지 인벤토리도 재생성(UNAUDITED 0 유지, 총 177 라우트).
+
+**검증 결과 (2026-08-13 실행)**
+- `python -m pytest tests/services/integrations/test_naver_admin_surface.py -q` → **13 passed** ✅
+  (권한 2 · 목록/필터 3 · 워터마크·만료 표시 3 · enqueue 경계 3 · 스냅샷 2)
+- `pre_push_smoke` exit 0 (322 passed) ✅
+
+**남은 T6 잔여(의도적으로 손대지 않음)**
+- 주문 상세의 "네이버 수집" 배지, 대시보드의 "담당 미지정" 뱃지 2표면.
+  `templates/orders/edit_order.html`(1,300줄)·공유 `erp_order_tab.html` 은 알려진 회귀
+  핫스팟이라(outer/inner 탭 분기 함정) 별도 패스로 다뤄야 한다. 수집 여부 자체는
+  관리 화면과 `structured_data.source == 'NAVER_SMARTSTORE'` 로 이미 식별 가능하다.
 
 ---
 

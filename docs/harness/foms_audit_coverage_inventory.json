@@ -1426,6 +1426,15 @@
       "classification": "AUDITED"
     },
     {
+      "path": "foms/web/admin/naver_ingest.py",
+      "endpoint": "naver_ingest_run_now",
+      "lineno": 169,
+      "methods": [
+        "POST"
+      ],
+      "classification": "AUDITED"
+    },
+    {
       "path": "foms/web/admin/ops_approvals.py",
       "endpoint": "ops_approval_review",
       "lineno": 47,
