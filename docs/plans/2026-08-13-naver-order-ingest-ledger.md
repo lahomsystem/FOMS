@@ -60,11 +60,12 @@
 | T4 | 매핑 + `create_order()` 연동 (좌표 주입 없음) | T2, T3 | DONE | 테스트 20 green |
 | T5 | WORKER 폴링 루프 + 게이트 + rq enqueue 경로 | T4 | DONE | 테스트 15 green |
 | T1 | Railway WORKER static IP 실검증 (`--once --dry-run`) | T0, T3 | PENDING | — |
-| T6 | 관리 화면 (수집 이력·수동 실행·원본 스냅샷) | T4, T5 | DONE(부분) | 테스트 13 green |
+| T6 | 관리 화면 (수집 이력·수동 실행·원본 스냅샷) | T4, T5 | DONE | 테스트 13 green |
 | T7 | 앱 인증 만료 D-7 알림 | — | DONE | 테스트 11 green |
 | T8 | 트리아지 상태 컬럼 2개 + 마이그레이션 | T2 | DONE | `naver_triage_00` |
 | T9 | 트리아지 작업대 화면 | T8 | DONE | 테스트 15 green |
-| T10 | 담당자 지정(`set_sales_assignee`) | T8 | DONE(부분) | PG 레인 3 green |
+| T10 | 담당자 지정(`set_sales_assignee`) | T8 | DONE | PG 레인 3 green |
+| T11 | 대시보드 '담당 미지정' 뱃지 + T0 준비 안내서 | T10 | DONE | 테스트 7 green |
 
 > 순서 주의: 스펙의 T1(인프라 실검증)은 T0 사람 작업과 코드(T3)가 모두 있어야 가능하므로
 > 실행 순서에서는 T3 뒤로 내렸다. 스펙 번호는 그대로 둔다(대조 가능하게).
@@ -387,5 +388,30 @@ write guard manifest 와 **별개 파일**이라 둘 다 등재해야 한다.
 모듈)로 분리했다. web 화면이 `ingest` 에서 상수를 당겨오면 web 이 수집 파이프라인을 import 하게
 되어 WORKER 단일 출구 계약 테스트가 red 가 된다(실제로 잡혔다).
 
-**잔여**: 대시보드 "담당 미지정" 뱃지. 공유 `edit_order.html`·`erp_order_tab.html` 회귀 핫스팟과
-같은 표면이라 별도 패스로 남긴다(T6 잔여와 동일 사유).
+**잔여**: 대시보드 "담당 미지정" 뱃지 → **T11 에서 완료**.
+
+## T11 — 대시보드 '담당 미지정' 뱃지 + T0 준비 안내서
+
+**범위**
+- `compute_unassigned_intake_order_ids()`(`dashboard_read_model.py`) — 보류함이 아직 owner 인
+  수집 주문 id 집합. owner SSOT 는 `OrderAssignment`(active SALES), `structured_data` 투영 아님.
+- DTO `is_unassigned_intake` → `dashboard_grid.html` 표 '담당' 칸 + 도면 창구 카드 '주문 담당'.
+- `SOURCE_MARKER` 를 `mapping.py` 에서 `constants.py` 로 이동(대시보드도 읽는 값).
+- `docs/guides/NAVER_INGEST_SETUP.md` — 시크릿 재발급·static IP·환경변수·확인을 클릭 단위로.
+
+**설계 결정 2개(재개 시 되돌리지 말 것)**
+1. **캐시 blob 밖에서 계산한다.** `compute_orders_attachment_assignee_maps` 는 TTL 120초
+   캐시라 거기 넣으면 배정 후에도 뱃지가 최대 2분 남는다. 배정 즉시 사라져야 하는 표시다.
+2. **수집 주문이 없는 페이지는 쿼리 0개.** `structured_data['source']` 선필터가 먼저라
+   평상시 대시보드에 추가 비용이 없다(hot path 규칙).
+
+**검증 결과 (2026-08-13 실행)**
+- `python -m pytest tests/services/integrations/test_naver_unassigned_badge.py -q` → **7 passed** ✅
+  (보류함 owner=뱃지 · 실담당자=뱃지 없음 · 일반 주문 제외 · 계정 부재 무해 · 수집 0건이면
+  세션 `query` 호출 자체 없음(폭발 세션으로 실증) · DTO 전달 · 기본값 회귀 없음)
+- `python -m pytest tests/services/integrations -q` → 112 passed ✅ /
+  `-k "dashboard"` → 457 passed(에러 7건은 visual 레인 env 전제, 이 변경과 무관) ✅
+- `APP_OK` ✅ / `pre_push_smoke` exit 0 (322 passed) ✅
+
+**레인 함정**: SQLite 레인은 SALES 부분 유니크가 전체 유니크로 굳어 **owner 교체가 불가능**하다
+(T10 함정과 동일). 그래서 테스트는 교체 대신 주문마다 최종 owner 로 만들어 비교한다.
