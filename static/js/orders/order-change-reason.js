@@ -18,6 +18,16 @@
   var CODES_ENDPOINT = '/api/orders/change-reason-codes';
   var codesPromise = null;
   var activeHost = null;
+  //: 표면이 닫힐 때(사유 입력·건너뛰기) 호출한다. 저장 후 화면 이동을 여기까지 붙잡아 두는
+  //: 쪽이 전체 저장 경로다 — 이동해 버리면 시트가 뜨자마자 사라진다(2026-08-13 스테이징에서
+  //: 실제로 그렇게 사라졌다).
+  var pendingResolve = null;
+
+  function settle() {
+    var resolve = pendingResolve;
+    pendingResolve = null;
+    if (resolve) resolve();
+  }
 
   /** 사유 목록을 한 번만 받아 캐시한다(정적 상수라 세션 내 재조회 불필요). */
   function loadCodes() {
@@ -39,6 +49,7 @@
   function dismiss() {
     if (activeHost && activeHost.parentNode) activeHost.parentNode.removeChild(activeHost);
     activeHost = null;
+    settle();
   }
 
   /**
@@ -59,7 +70,7 @@
           if (statusEl) statusEl.textContent = message;
           return false;
         }
-        dismiss();
+        dismiss();   // settle() 로 저장 경로의 대기를 푼다.
         return true;
       })
       .catch(function (error) {
@@ -179,18 +190,37 @@
     activeHost = host;
   }
 
-  document.addEventListener('foms:change-reason-required', function (event) {
-    var detail = (event && event.detail) || {};
-    if (!detail.orderId || !detail.changeSet) return;
-    loadCodes()
+  /**
+   * 사유 표면을 열고, 닫힐 때까지의 약속을 돌려준다.
+   *
+   * 저장 경로가 이 약속을 기다렸다가 화면을 이동한다(전체 저장은 저장 직후 대시보드로
+   * 이동한다 — 기다리지 않으면 시트가 뜨자마자 사라진다).
+   *
+   * @param {{orderId:(number|string), changeSet:string, mode:(string|undefined)}} detail
+   * @returns {Promise<void>} 사유를 남겼거나 사용자가 닫으면 resolve.
+   */
+  function prompt(detail) {
+    if (!detail || !detail.orderId || !detail.changeSet) return Promise.resolve();
+    return loadCodes()
       .then(function (codes) {
         if (!codes.length) return;
-        if (detail.mode === 'inline') openBanner(detail, codes);
-        else openModal(detail, codes);
+        return new Promise(function (resolve) {
+          // 여는 함수가 먼저 dismiss() 로 이전 표면을 치운다 — 그 dismiss 가 settle() 을
+          // 부르므로, 대기 약속은 **연 뒤에** 걸어야 한다(먼저 걸면 즉시 풀린다).
+          if (detail.mode === 'inline') openBanner(detail, codes);
+          else openModal(detail, codes);
+          pendingResolve = resolve;
+        });
       })
       .catch(function () {
         // 목록을 못 받으면 조용히 지나간다 — 저장은 이미 성공했고, 사유는 감사 화면에서
         // 나중에 채울 수 있다. 여기서 alert 를 띄우면 저장 실패로 오해된다.
       });
+  }
+
+  document.addEventListener('foms:change-reason-required', function (event) {
+    prompt((event && event.detail) || {});
   });
+
+  window.FomsChangeReason = { prompt: prompt };
 })();
