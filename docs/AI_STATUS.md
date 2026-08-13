@@ -1,6 +1,6 @@
 # FOMS 현재 상태
 > 자동 업데이트: 2026-08-13
-> 최신: **네이버 스마트스토어 주문 자동 수집 T2~T5·T7 deploy** — 링크 테이블(UNIQUE 멱등)·API 클라이언트·매핑·WORKER 폴링(기본 off)·앱 만료 알림. **네이버 HTTP 는 WORKER 단일 출구**(IP 한도 3=static 3) — web 은 rq enqueue 만. 잔여=T0 사람 작업·T1 실검증·T6 화면. 원장: docs/plans/2026-08-13-naver-order-ingest-ledger.md
+> 최신: **네이버 스마트스토어 주문 자동 수집 T2~T7 deploy** — 링크 테이블(UNIQUE 멱등)·클라이언트·매핑·WORKER 폴링(기본 off)·만료 알림·관리 화면. **네이버 HTTP 는 WORKER 단일 출구**(IP 한도 3=static 3) — web 은 enqueue 만. 계정 2개 스테이징 반영. 잔여=시크릿 재발급·static IP(사람). 원장: docs/plans/2026-08-13-naver-order-ingest-ledger.md
 > 이 파일 상단 40줄이 세션 시작 컨텍스트의 전부다(hygiene 계약 테스트로 강제). 상세 이력: "## 최근 완료"·"## 기록 보관", 과거 헤더 상세는 기록 보관에 이관.
 
 ## 스택
