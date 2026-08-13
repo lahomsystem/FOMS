@@ -8,11 +8,11 @@
     "log_access"
   ],
   "baselines": {
-    "total": 172,
+    "total": 176,
     "unaudited": 0
   },
   "classification_counts": {
-    "AUDITED": 142,
+    "AUDITED": 146,
     "EXEMPT": 30,
     "UNAUDITED": 0
   },
@@ -194,7 +194,7 @@
     {
       "path": "foms/api/cs/as_orders.py",
       "endpoint": "api_as_billing",
-      "lineno": 797,
+      "lineno": 800,
       "methods": [
         "POST"
       ],
@@ -203,7 +203,7 @@
     {
       "path": "foms/api/cs/as_orders.py",
       "endpoint": "api_as_classification",
-      "lineno": 718,
+      "lineno": 721,
       "methods": [
         "POST"
       ],
@@ -212,7 +212,7 @@
     {
       "path": "foms/api/cs/as_orders.py",
       "endpoint": "api_as_complete",
-      "lineno": 663,
+      "lineno": 666,
       "methods": [
         "POST"
       ],
@@ -221,7 +221,7 @@
     {
       "path": "foms/api/cs/as_orders.py",
       "endpoint": "api_as_log_append",
-      "lineno": 857,
+      "lineno": 860,
       "methods": [
         "POST"
       ],
@@ -230,7 +230,7 @@
     {
       "path": "foms/api/cs/as_orders.py",
       "endpoint": "api_as_log_delete",
-      "lineno": 1022,
+      "lineno": 1025,
       "methods": [
         "POST"
       ],
@@ -239,7 +239,7 @@
     {
       "path": "foms/api/cs/as_orders.py",
       "endpoint": "api_as_log_patch",
-      "lineno": 967,
+      "lineno": 970,
       "methods": [
         "PATCH"
       ],
@@ -257,7 +257,7 @@
     {
       "path": "foms/api/cs/as_orders.py",
       "endpoint": "api_as_reopen",
-      "lineno": 690,
+      "lineno": 693,
       "methods": [
         "POST"
       ],
@@ -266,7 +266,7 @@
     {
       "path": "foms/api/cs/as_orders.py",
       "endpoint": "api_as_schedule",
-      "lineno": 554,
+      "lineno": 557,
       "methods": [
         "POST"
       ],
@@ -275,7 +275,7 @@
     {
       "path": "foms/api/cs/as_orders.py",
       "endpoint": "api_as_schedule_link",
-      "lineno": 1244,
+      "lineno": 1247,
       "methods": [
         "POST"
       ],
@@ -284,7 +284,7 @@
     {
       "path": "foms/api/cs/as_orders.py",
       "endpoint": "api_as_start",
-      "lineno": 636,
+      "lineno": 639,
       "methods": [
         "POST"
       ],
@@ -293,7 +293,7 @@
     {
       "path": "foms/api/cs/as_orders.py",
       "endpoint": "api_as_unschedule",
-      "lineno": 608,
+      "lineno": 611,
       "methods": [
         "POST"
       ],
@@ -302,7 +302,7 @@
     {
       "path": "foms/api/cs/as_orders.py",
       "endpoint": "api_as_verdict",
-      "lineno": 902,
+      "lineno": 905,
       "methods": [
         "POST"
       ],
@@ -626,7 +626,7 @@
     {
       "path": "foms/api/erp_orders_structured.py",
       "endpoint": "api_erp_create_draft",
-      "lineno": 1401,
+      "lineno": 1462,
       "methods": [
         "POST"
       ],
@@ -635,7 +635,7 @@
     {
       "path": "foms/api/erp_orders_structured.py",
       "endpoint": "api_erp_discard_draft",
-      "lineno": 1861,
+      "lineno": 1922,
       "methods": [
         "POST"
       ],
@@ -644,7 +644,7 @@
     {
       "path": "foms/api/erp_orders_structured.py",
       "endpoint": "api_erp_draft_autosave",
-      "lineno": 1734,
+      "lineno": 1795,
       "methods": [
         "POST"
       ],
@@ -653,7 +653,7 @@
     {
       "path": "foms/api/erp_orders_structured.py",
       "endpoint": "api_parse_order_text",
-      "lineno": 1296,
+      "lineno": 1357,
       "methods": [
         "POST"
       ],
@@ -662,7 +662,7 @@
     {
       "path": "foms/api/erp_orders_structured.py",
       "endpoint": "api_patch_order_structured_fields",
-      "lineno": 814,
+      "lineno": 863,
       "methods": [
         "PATCH"
       ],
@@ -671,7 +671,7 @@
     {
       "path": "foms/api/erp_orders_structured.py",
       "endpoint": "api_payment_confirm",
-      "lineno": 1318,
+      "lineno": 1379,
       "methods": [
         "POST"
       ],
@@ -680,7 +680,7 @@
     {
       "path": "foms/api/erp_orders_structured.py",
       "endpoint": "api_put_order_structured",
-      "lineno": 939,
+      "lineno": 992,
       "methods": [
         "PUT"
       ],
@@ -811,6 +811,15 @@
         "POST"
       ],
       "classification": "EXEMPT"
+    },
+    {
+      "path": "foms/api/kakao/__init__.py",
+      "endpoint": "api_alimtalk_send_manual",
+      "lineno": 93,
+      "methods": [
+        "POST"
+      ],
+      "classification": "AUDITED"
     },
     {
       "path": "foms/api/measurement/routes.py",
@@ -1107,6 +1116,33 @@
       "lineno": 481,
       "methods": [
         "PUT"
+      ],
+      "classification": "AUDITED"
+    },
+    {
+      "path": "foms/api/share.py",
+      "endpoint": "api_share_create",
+      "lineno": 247,
+      "methods": [
+        "POST"
+      ],
+      "classification": "AUDITED"
+    },
+    {
+      "path": "foms/api/share.py",
+      "endpoint": "api_share_revoke",
+      "lineno": 558,
+      "methods": [
+        "POST"
+      ],
+      "classification": "AUDITED"
+    },
+    {
+      "path": "foms/api/share.py",
+      "endpoint": "api_share_send_sms",
+      "lineno": 443,
+      "methods": [
+        "POST"
       ],
       "classification": "AUDITED"
     },
@@ -1419,7 +1455,7 @@
     {
       "path": "foms/web/auth/routes.py",
       "endpoint": "approve_user",
-      "lineno": 903,
+      "lineno": 907,
       "methods": [
         "POST"
       ],
@@ -1428,7 +1464,7 @@
     {
       "path": "foms/web/auth/routes.py",
       "endpoint": "delete_user",
-      "lineno": 827,
+      "lineno": 831,
       "methods": [
         "POST"
       ],
@@ -1446,7 +1482,7 @@
     {
       "path": "foms/web/auth/routes.py",
       "endpoint": "handle_reset_request",
-      "lineno": 992,
+      "lineno": 996,
       "methods": [
         "POST"
       ],
@@ -1482,7 +1518,7 @@
     {
       "path": "foms/web/auth/routes.py",
       "endpoint": "profile",
-      "lineno": 1040,
+      "lineno": 1044,
       "methods": [
         "POST"
       ],
@@ -1500,7 +1536,7 @@
     {
       "path": "foms/web/auth/routes.py",
       "endpoint": "reject_user",
-      "lineno": 956,
+      "lineno": 960,
       "methods": [
         "POST"
       ],
