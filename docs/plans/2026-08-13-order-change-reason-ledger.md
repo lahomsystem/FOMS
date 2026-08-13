@@ -16,7 +16,8 @@
 | T6 | 프론트(PC 모달 · 인라인 배너) | `?v=` 범프 + 전수 grep 일치 · 로컬 스모크 | PENDING | |
 | T7 | 이력 탭 표시 | field-changes 응답 reason · 탭 테스트 green | PENDING | |
 | T8 | 보존 실측 리포트(운영 읽기전용) | 일평균 행수·90일 추정·크기·분포 표 + 보존안 3개 | PENDING | |
-| T9 | 최종 검증·푸시 | pre_push_smoke exit 0 · deploy push · 전 워크플로 green | PENDING | |
+| T9 | 최종 검증·푸시 | pre_push_smoke exit 0 · deploy push · 전 워크플로 green | **DONE** | `ab4e2d44`(1차) |
+| T10 | 금액 임계(사용자 추가 결정) | 5%/5만원 판정 + 빈도 실측 정정 | **DONE** | `b820f0c6`(2차) |
 
 ## 기준선 (T0 실측, 2026-08-13)
 

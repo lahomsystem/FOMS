@@ -8,6 +8,7 @@ Flask 2.3 + PostgreSQL + R2 + Railway (Web×2, Worker×1)
 브랜치: deploy (스테이징) → production (운영)
 
 ## 진행 중
+- [2026-08-13] **주문 변경 사유 deploy** — docs/specs/2026-08-13-order-change-reason_SPEC.md
 - [2026-08-11] **대시보드 캐시 무효화 엔진화 MUT-CACHE-01 운영 승격(PR #79 `24675249`)** — 라우트별 수동 무효화가 원인(빠진 경로 6, 단계 강제 변경 310초 지연 재현). `execute_order_mutation` 이 전/후 stage·삭제 표식을 session.info intent 로 남기고 `after_commit` 이 소비 → 엔진 경유 20개 모듈 자동 커버, 미경유 2곳(`/edit`·date_sync)은 직접 보강. 선행 삭제 수정 PR #72.
 - [2026-08-12] **프래그먼트 다이어트 시공 923→481KB(-48%) 운영 반영**(PR #78·#81·#84~#86) — fragment가 같은 50건을 3표면에 중복 렌더(`FOMS_V3_SHELL_COHORT=all`)하고 CSS가 하나만 남긴다. 태블릿 표면=`pointer: coarse` 전용 → 쿠키 `foms_ptr`로 마우스 기기 미전송(5탭 -25%). **함정: 인라인 style→클래스 이관은 같은 ID 스코프 필수.** 잔여=모바일 128.6KB(리사이즈 재요청 배선 선행).
 - [2026-08-13] **AS dTTFB 근본 해소 181→96(예산 168, deploy)** — wire 고정=페이로드 무죄. `phase()` 계측이 지출처 확정: tab_counts 27(같은 모집단 집계 2회)·rd_sanitize 18(행100×2필드 BeautifulSoup). 수정=단일 스캔+sanitize LRU 메모이즈. **예산 168 불변**(공식 176보다 엄격).
