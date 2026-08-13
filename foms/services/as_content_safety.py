@@ -5,9 +5,16 @@ from __future__ import annotations
 import copy
 import json
 import re
+from functools import lru_cache
 from typing import Any
 
 from bs4 import BeautifulSoup, Comment
+
+# sanitize 메모이제이션 한도. 최악 = 2048칸 × 8KB ≈ 16MB/워커로 묶인다(실입력은 대개
+# 수백 바이트라 실제 점유는 그 훨씬 아래). AS 목록 한 페이지가 100행이라 2048칸이면
+# 활성 작업집합 여러 페이지를 덮는다.
+_SANITIZE_CACHE_SIZE = 2048
+_SANITIZE_CACHE_MAX_INPUT = 8192
 
 __all__ = [
     "sanitize_as_content_html",
@@ -66,11 +73,24 @@ def _extract_style_color(style_value: Any) -> str | None:
 
 
 def sanitize_as_content_html(value: Any) -> str:
-    """AS 내용 rich HTML을 최소 허용 포맷만 남기고 정리."""
+    """AS 내용 rich HTML을 최소 허용 포맷만 남기고 정리.
+
+    같은 입력 문자열은 항상 같은 결과를 내는 순수 함수라 프로세스 로컬 LRU로
+    메모이즈한다(:func:`_sanitize_as_content_html_cached`). AS 대시보드는 한 요청에
+    행 100개 × 2필드를 정리하는데 저장된 내용은 거의 안 바뀌므로, 웜 상태에서
+    BeautifulSoup 파싱이 사실상 사라진다(2026-08-13 스테이징 실측 rd_sanitize 18ms).
+    """
     raw_html = '' if value is None else str(value)
     if not raw_html.strip():
         return ''
+    if len(raw_html) <= _SANITIZE_CACHE_MAX_INPUT:
+        return _sanitize_as_content_html_cached(raw_html)
+    # 비정상적으로 큰 입력은 캐시에 담지 않는다 — LRU 4096칸이 메모리를 삼키지 않게.
+    return _sanitize_as_content_html_uncached(raw_html)
 
+
+def _sanitize_as_content_html_uncached(raw_html: str) -> str:
+    """sanitize 본체(캐시 없음). ``raw_html`` 은 비어있지 않은 문자열."""
     # html.parser의 EOF 미종결 태그 처리는 Python 패치 버전마다 다르다
     # (3.12.10=데이터로 유지 / 3.12.13=태그로 취급 → 허용 태그가 아니면 통째 소실 = 사용자 텍스트 유실).
     # 파서에 넘기기 전에 닫히지 않는 `<` 조각을 이스케이프해 런타임 무관 동일 입력을 만든다.
@@ -113,6 +133,12 @@ def sanitize_as_content_html(value: Any) -> str:
     # (`hi <img src=x onerror=...`)가 살아남았고, 렌더 측 |safe + 뒤따르는 마크업이
     # 태그를 완성해 실행됐다. 허용 태그는 이미 attrs가 정리된 Tag라 그대로 보존된다.
     return root.decode_contents().strip()
+
+
+@lru_cache(maxsize=_SANITIZE_CACHE_SIZE)
+def _sanitize_as_content_html_cached(raw_html: str) -> str:
+    """LRU 메모이즈된 sanitize. 순수 함수라 프로세스 로컬 캐시가 안전하다."""
+    return _sanitize_as_content_html_uncached(raw_html)
 
 
 def as_content_html_to_text(value: Any, *, already_sanitized: bool = False) -> str:

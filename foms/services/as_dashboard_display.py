@@ -3,9 +3,11 @@
 from __future__ import annotations
 
 import datetime
+import time
 from typing import Any
 
 from foms.api.files import build_file_view_url
+from foms.services.common.ept_b7_profile import phase, record_phase
 from foms.services.feature_flags import env_bool_or_mobile_v2
 from foms.services.erp_display import (
     _ensure_dict,
@@ -550,20 +552,23 @@ def apply_as_dashboard_row_display_fields(rows, db, *, mobile_v2_active):
         `count`/`chips`/`overflow`). 단건 렌더 호출부(카드 상세·타임라인 fragment)는
         배너를 그리지 않으므로 이 값을 버려도 된다.
     """
-    for r in rows:
-        r.structured_data = _ensure_dict(r.structured_data)  # type: ignore[assignment]
-    apply_erp_display_fields_to_orders(rows)
+    with phase("rd_normalize"):
+        for r in rows:
+            r.structured_data = _ensure_dict(r.structured_data)  # type: ignore[assignment]
+        apply_erp_display_fields_to_orders(rows)
     # AS 카테고리 첨부가 있는 주문 ID 집합 (버튼 색상: 있음=파란색, 없음=분홍 파스텔)
     order_ids = [r.id for r in rows]
     as_photo_order_ids = set()
-    if order_ids:
-        as_with_photos = db.query(OrderAttachment.order_id).filter(
-            OrderAttachment.order_id.in_(order_ids),
-            OrderAttachment.category == 'as'
-        ).distinct().all()
-        as_photo_order_ids = {x[0] for x in as_with_photos}
+    with phase("rd_attach_q"):
+        if order_ids:
+            as_with_photos = db.query(OrderAttachment.order_id).filter(
+                OrderAttachment.order_id.in_(order_ids),
+                OrderAttachment.category == 'as'
+            ).distinct().all()
+            as_photo_order_ids = {x[0] for x in as_with_photos}
     thumb_flag = as_thumb_enabled(mobile_v2_active=mobile_v2_active)
-    thumb_urls = batch_resolve_as_thumbnail_urls(order_ids, db) if order_ids else {}
+    with phase("rd_thumbs"):
+        thumb_urls = batch_resolve_as_thumbnail_urls(order_ids, db) if order_ids else {}
     # 태블릿 가로 대조 표면(전/후 사진)은 코호트(v2/v3)에서만 렌더 → 코호트일 때만 추가 배치 쿼리.
     compare_photos = (
         batch_resolve_as_compare_photos(rows, db)
@@ -571,6 +576,13 @@ def apply_as_dashboard_row_display_fields(rows, db, *, mobile_v2_active):
         else {}
     )
     _today = get_today_kst()
+    # 진단(EPT-B7): 행 루프의 두 축(HTML sanitize·타임라인 조립)을 누적 계측한다.
+    # sanitize 는 LRU 메모이즈라 웜에서 rd_sanitize=0 이 정상 — 0 이 아니면 캐시가
+    # 식었거나(재배포·워커 교체) 내용이 자주 바뀐다는 신호다. 행당 perf_counter 2회로
+    # 비용은 요청당 0.05ms 미만이라 상시 유지한다.
+    _t_sanitize = 0.0
+    _t_timeline = 0.0
+    _t_loop0 = time.perf_counter()
     for r in rows:
         r.has_as_photos = r.id in as_photo_order_ids
         shipment = r.structured_data.get('shipment') or {}
@@ -590,7 +602,9 @@ def apply_as_dashboard_row_display_fields(rows, db, *, mobile_v2_active):
         # as_content_html은 태블릿 가로 대조 표면(tablet_as_compare_body)이 소비하므로 유지한다.
         # T10: 2번 탭 표시필드(as_content_2_html)와 그 notes 폴백은 퇴역했다 — 탭 에디터가 사라져
         # 소비자가 0이고, 비고는 타임라인 확장/상세의 읽기 전용 '비고' 블록이 직접 렌더한다.
+        _s0 = time.perf_counter()
         r.as_content_html = sanitize_as_content_html(shipment.get('as_content'))
+        _s1 = time.perf_counter()
         # 타임라인 뷰(셀 요약·확장 fragment 공용). 방금 정리한 두 값을 주입해
         # legacy 앵커용 재-sanitize(행당 BeautifulSoup 파싱 2회)를 없앤다.
         r.as_timeline_view = build_as_timeline_view(
@@ -598,6 +612,8 @@ def apply_as_dashboard_row_display_fields(rows, db, *, mobile_v2_active):
             sanitized=(r.as_content_html, sanitize_as_content_html(shipment.get('as_content_2'))),
         )
         apply_timeline_cell_text(r.as_timeline_view)
+        _t_sanitize += _s1 - _s0
+        _t_timeline += time.perf_counter() - _s1
         r.as_thumb_enabled = thumb_flag
         r.thumbnail_url = thumb_urls.get(r.id) if thumb_flag else None
         r.stage_badge_modifier = as_stage_badge_modifier(
@@ -617,4 +633,8 @@ def apply_as_dashboard_row_display_fields(rows, db, *, mobile_v2_active):
         _cmp = compare_photos.get(r.id) or {"before": [], "after": []}
         r.as_before_photos = _cmp["before"]
         r.as_after_photos = _cmp["after"]
-    return apply_schedule_link_drift_fields(rows, db)
+    record_phase("rd_loop", (time.perf_counter() - _t_loop0) * 1000)
+    record_phase("rd_sanitize", _t_sanitize * 1000)
+    record_phase("rd_timeline", _t_timeline * 1000)
+    with phase("rd_drift"):
+        return apply_schedule_link_drift_fields(rows, db)
