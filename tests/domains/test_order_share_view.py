@@ -24,7 +24,9 @@ class FakeR2Storage:
 
     def get_download_url(self, key: str, expires_in: int = 3600,
                          response_content_disposition=None) -> str:
-        return f'https://r2.example/{key}?sig=1&exp={expires_in}'
+        # attachment presign 은 &dl=1 마커로 구분 — 다운로드 섹션 어서션용.
+        suffix = '&dl=1' if response_content_disposition else ''
+        return f'https://r2.example/{key}?sig=1&exp={expires_in}{suffix}'
 
 
 class LocalStorage(FakeR2Storage):
@@ -121,6 +123,26 @@ def test_view_renders_attachment_and_sd_keys_with_isolation(client, db, r2):
     assert 'leak.png' not in body
     assert 'measure.png' not in body
     assert 'passwd' not in body
+
+
+def test_view_renders_download_section_with_attachment_presign(client, db, r2):
+    # 고객 다운로드 요구 — 모든 파일에 attachment presign(&dl=1) 링크가 나와야 한다.
+    order = _mk_order()
+    _add_drawing_attachment(order, 'plan-a.png')
+    _, token = _mk_share(order)
+    body = client.get(f'/s/{token}').get_data(as_text=True)
+    assert '파일 다운로드' in body
+    assert '&amp;dl=1' in body or '&dl=1' in body
+    assert 'plan-a.png 내려받기' in body
+
+
+def test_view_estimate_has_print_button(client, db, r2):
+    # 견적서(계약서) 저장·인쇄 버튼 — 다운로드 요구의 estimate 측 표면.
+    import copy as _copy
+    order = _mk_order(structured_data=_copy.deepcopy(_EST_SD))
+    _, token = _mk_estimate_share(order)
+    body = client.get(f'/s/{token}').get_data(as_text=True)
+    assert 'data-share-print' in body
 
 
 def test_view_sets_noindex_and_no_referrer_headers(client, db, r2):
