@@ -21,6 +21,8 @@
 | T11 | 시공일은 확정 이후만 + CI red 해소(policy 매니페스트) | test_auth_enforcement green · 재측정 57% | **DONE** | `4b791879` |
 | T12 | 사유 집계 화면 + 우회율 | ADMIN API·화면·PG 질의 테스트 green | **DONE** | `23f7123d` |
 | T13 | 스테이징 E2E QA | 비민감 False·금액 True·첨부 200·재첨부 409·이력 사유 표시 | **DONE** | 주문 4400(생성→검증→soft delete) |
+| T14 | 실화면 QA + 리다이렉트 결함 수정 | 브라우저에서 시트 유지·사유 기록 후 이동 | **DONE** | `e82fa777` |
+| T15 | 태블릿·모바일 사유 표면 | 자산 전역화 계약 테스트·태블릿 명시 저장 배선 | **DONE** | `ec8e1d03` |
 
 ## 기준선 (T0 실측, 2026-08-13)
 
@@ -53,3 +55,12 @@ pytest        : tests/domains/test_{structured_diff,order_field_changes_ledger,
 
 `structured_diff` 가 `item_uid_of` 를 import 하므로 ITEM-UID 없이 올리면 운영에서 import 가
 깨진다. **선행 승격이 정리되기 전에는 임의 진행 금지**(타 세션 커밋 혼입 = 프로젝트 규칙 위반).
+
+## 실화면 QA 가 잡은 것 (T14, 2026-08-13)
+
+브라우저로 실제 저장해 보기 전에는 서버 계약·유닛 테스트가 전부 green 이었다. 그런데
+전체 저장은 성공 직후 대시보드로 **이동**한다 — 사유 시트가 뜨자마자 화면과 함께 사라졌다.
+네트워크 로그(`PUT 200` → `change-reason-codes 200`)가 없었으면 "시트가 안 뜬다"로 오진했을
+자리다. 수정은 `FomsChangeReason.prompt()` 가 돌려주는 약속을 저장 경로가 기다린 뒤 이동하는 것.
+
+교훈: **저장 후 화면 전환이 있는 경로에서는, UI 를 띄우는 것과 UI 가 살아 있는 것이 다르다.**
