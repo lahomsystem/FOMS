@@ -36,7 +36,13 @@
     </div>
   </div>
   {% else %}
-  {% if erp_mobile_v2_enabled %}
+  {# v3 셸에서 이 모바일 v2 표면은 어떤 뷰포트·방향·포인터에서도 표시되지 않는 죽은 마크업이다.
+     .fos-v3-desktop-fallback 이 보이는 조건(foms-mobile-v3.css 결함G 게이트)은 광폭(≥992
+     landscape|fine|none)과 정확히 일치하고, 그 광폭에서 .foms-mobile-v2-dashboard 는
+     foms-mobile-v2-surfaces-hide.css 가 display:none !important 로 끈다. 좁은 폭·세로 coarse
+     에선 fallback 자체가 display:none 이라 내부도 미렌더 — 뷰포트가 식에서 소거되므로 리사이즈
+     재요청 배선 없이 안전하다. v2 코호트엔 이 wrapper 자체가 없어 영향 없음. #}
+  {% if erp_mobile_v2_enabled and shell_variant != 'v3' %}
     <section class="foms-shell-body foms-mobile-v2-dashboard erp-measurement-mobile-v2" aria-label="실측 모바일 대시보드">
       {% include 'measurement/partials/mobile_filters.html' %}
       {% include 'measurement/partials/mobile_dates.html' %}
