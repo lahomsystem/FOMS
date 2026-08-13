@@ -27,6 +27,7 @@ _ITEM_PATH_RE = re.compile(r"^items\.(?P<index>\d+)(?:\.(?P<field>[A-Za-z0-9_]+)
 #: 길이 초과로 실패해 **저장 트랜잭션을 죽이는 일**이 없다.
 _PATH_LIMIT = 120
 _NAME_LIMIT = 120
+_UID_LIMIT = 36
 
 
 def path_template_of(path: str) -> str:
@@ -89,12 +90,15 @@ def build_change_rows(
         if not path:
             continue
         item_name = change.get("item")
+        item_uid = change.get("uid")
         rows.append(OrderFieldChange(
             change_set_id=change_set_id,
             order_id=int(order_id),
             path=path,
             path_template=path_template_of(path)[:_PATH_LIMIT],
             item_index=_item_index_of(path),
+            # 인덱스는 저장마다 밀리므로, 품목 축 이력의 열쇠는 이 값이다(ORDER-ITEM-UID).
+            item_uid=(str(item_uid)[:_UID_LIMIT] if item_uid else None),
             item_name=(str(item_name)[:_NAME_LIMIT] if item_name else None),
             op=str(change.get("op") or "set")[:8],
             before_value=_text(change.get("before")),

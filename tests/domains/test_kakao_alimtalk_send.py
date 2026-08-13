@@ -1,0 +1,365 @@
+"""카카오 알림톡 v1 — 발송 계층·이력 기록 테스트 (T2).
+
+DB 픽스처는 tests/conftest.py 의 ``app``(in-memory sqlite) + ``db_session`` 을 쓴다
+(tests/domains/test_urgent_call.py 선례). Solapi SDK 는 격리된 호출부
+``kakao_alimtalk._solapi_send`` 를 monkeypatch 해 스텁한다 — 네트워크 호출 없음.
+"""
+import copy
+import datetime
+
+import pytest
+
+from db import db_session
+from foms.services import kakao_alimtalk as ka
+from models import DomainSideEffectOutbox, Order, OrderEvent
+
+_MEASURE_SD = {
+    "parties": {"customer": {"name": "임다슬", "phone": "010-2473-6730"},
+                "orderer": {"name": "라홈시스템"}},
+    "schedule": {"measurement": {"date": "2026-08-14", "time": "3시 30분"}},
+    "items": [{"product_name": "무몰딩 여닫이"}],
+}
+
+
+def _sd(**overrides) -> dict:
+    """실측 예약이 잡힌 유효 sd 사본(부분 덮어쓰기 지원)."""
+    sd = copy.deepcopy(_MEASURE_SD)
+    sd.update(overrides)
+    return sd
+
+
+def _mk_order(structured_data=None, status="ERPORDER") -> Order:
+    """ERP 주문 1건을 커밋한다(별도 세션이 읽어야 하므로 commit 필수)."""
+    order = Order(
+        received_date=datetime.date(2026, 7, 4),
+        customer_name="임다슬",
+        phone="010-2473-6730",
+        address="Seoul",
+        product="가구",
+        status=status,
+        is_erp_order=True,
+        structured_data=structured_data if structured_data is not None else _sd(),
+    )
+    db_session.add(order)
+    db_session.commit()
+    return order
+
+
+def _events(order_id: int) -> list[OrderEvent]:
+    db_session.expire_all()
+    return (
+        db_session.query(OrderEvent)
+        .filter(OrderEvent.order_id == order_id)
+        .order_by(OrderEvent.id.asc())
+        .all()
+    )
+
+
+def _history(order_id: int) -> dict:
+    db_session.expire_all()
+    order = db_session.get(Order, order_id)
+    return (order.structured_data or {}).get("alimtalk_measurement") or {}
+
+
+def _outbox() -> list[DomainSideEffectOutbox]:
+    db_session.expire_all()
+    return db_session.query(DomainSideEffectOutbox).all()
+
+
+@pytest.fixture
+def db(app):
+    yield db_session
+    db_session.rollback()
+
+
+@pytest.fixture
+def solapi_env(monkeypatch):
+    """공통 자격증명 + 라홈 프로필만 구성(하우드는 미구성 — D3 단계 가동 재현)."""
+    monkeypatch.setenv("SOLAPI_API_KEY", "key")
+    monkeypatch.setenv("SOLAPI_API_SECRET", "secret")
+    monkeypatch.setenv("SOLAPI_SENDER_PHONE", "0212345678")
+    monkeypatch.setenv("SOLAPI_PF_ID_LAHOM", "PF-LAHOM")
+    monkeypatch.setenv("SOLAPI_TEMPLATE_MEASURE_ID_LAHOM", "TPL-LAHOM")
+    monkeypatch.delenv("SOLAPI_PF_ID_HAUD", raising=False)
+    monkeypatch.delenv("SOLAPI_TEMPLATE_MEASURE_ID_HAUD", raising=False)
+
+
+@pytest.fixture
+def auto_on(monkeypatch):
+    monkeypatch.setenv("FOMS_ALIMTALK_AUTO_ENABLED", "1")
+
+
+@pytest.fixture
+def stub_solapi_ok(monkeypatch):
+    """성공 스텁 — 호출 인자를 수집한다."""
+    calls: list[dict] = []
+
+    def _fake(**kwargs) -> str:
+        calls.append(kwargs)
+        return "MSG-1"
+
+    monkeypatch.setattr(ka, "_solapi_send", _fake)
+    return calls
+
+
+@pytest.fixture
+def stub_solapi_never(monkeypatch):
+    """호출되면 실패시키는 스텁(발송 스킵 검증용)."""
+
+    def _fake(**kwargs):
+        raise AssertionError("Solapi 를 호출하면 안 된다")
+
+    monkeypatch.setattr(ka, "_solapi_send", _fake)
+
+
+# --- 설정·브랜드 판정 (D3) ------------------------------------------------------
+
+
+def test_is_configured_requires_common_keys(monkeypatch):
+    monkeypatch.delenv("SOLAPI_API_KEY", raising=False)
+    monkeypatch.setenv("SOLAPI_API_SECRET", "secret")
+    monkeypatch.setenv("SOLAPI_SENDER_PHONE", "0212345678")
+    assert ka.is_configured() is False
+    monkeypatch.setenv("SOLAPI_API_KEY", "key")
+    assert ka.is_configured() is True
+
+
+def test_is_configured_ignores_brand_keys(solapi_env, monkeypatch):
+    """브랜드 프로필 미구성은 공통 설정 판정에 영향 없다(단계 가동)."""
+    monkeypatch.delenv("SOLAPI_PF_ID_LAHOM", raising=False)
+    assert ka.is_configured() is True
+
+
+def test_resolve_brand_lahom_by_orderer_name():
+    assert ka.resolve_brand({"parties": {"orderer": {"name": "라홈시스템"}}}) == "LAHOM"
+
+
+def test_resolve_brand_defaults_to_haud():
+    assert ka.resolve_brand({"parties": {"orderer": {"name": "제이큐브이앤씨"}}}) == "HAUD"
+    assert ka.resolve_brand({"parties": {"orderer": {"name": ""}}}) == "HAUD"
+    assert ka.resolve_brand(None) == "HAUD"
+
+
+def test_brand_config_none_when_pair_incomplete(solapi_env, monkeypatch):
+    assert ka.brand_config("LAHOM") == {"pf_id": "PF-LAHOM", "template_id": "TPL-LAHOM"}
+    assert ka.brand_config("HAUD") is None
+    monkeypatch.setenv("SOLAPI_PF_ID_HAUD", "PF-HAUD")  # 템플릿 키 없음 → 여전히 None
+    assert ka.brand_config("HAUD") is None
+
+
+# --- send_alimtalk --------------------------------------------------------------
+
+
+def test_send_records_history_and_event(db, solapi_env, stub_solapi_ok):
+    order = _mk_order()
+    result = ka.send_alimtalk(order.id)
+
+    assert result == {"sent": True, "error": None}
+    assert stub_solapi_ok[0]["to"] == "01024736730"
+    assert stub_solapi_ok[0]["pf_id"] == "PF-LAHOM"
+    assert stub_solapi_ok[0]["template_id"] == "TPL-LAHOM"
+    assert stub_solapi_ok[0]["from_"] == "0212345678"
+    assert stub_solapi_ok[0]["variables"]["#{고객명}"] == "임다슬"
+
+    history = _history(order.id)
+    assert history["message_id"] == "MSG-1"
+    assert history["error"] is None and history["sent_at"]
+    assert history["dedupe_key"] == f"alimtalk:measure:{order.id}:2026-08-14:3시 30분"
+
+    events = _events(order.id)
+    assert [e.event_type for e in events] == ["ALIMTALK_SENT"]
+
+
+def test_send_manual_records_sent_by(db, solapi_env, stub_solapi_ok):
+    order = _mk_order()
+    ka.send_alimtalk(order.id, manual_by=7, dedupe_key="alimtalk:measure:x:manual:abc")
+
+    history = _history(order.id)
+    assert history["sent_by"] == 7
+    assert history["dedupe_key"] == "alimtalk:measure:x:manual:abc"
+    assert _events(order.id)[0].created_by_user_id == 7
+
+
+def test_send_no_phone_records_failed(db, solapi_env, stub_solapi_never):
+    order = _mk_order(_sd(parties={"customer": {"name": "임다슬", "phone": "1234"},
+                                  "orderer": {"name": "라홈시스템"}}))
+    result = ka.send_alimtalk(order.id)
+
+    assert result == {"sent": False, "error": "no_valid_phone"}
+    assert _history(order.id)["error"] == "no_valid_phone"
+    assert [e.event_type for e in _events(order.id)] == ["ALIMTALK_FAILED"]
+
+
+def test_send_without_measure_date_is_not_eligible(db, solapi_env, stub_solapi_never):
+    order = _mk_order(_sd(schedule={"measurement": {"date": "상담", "time": ""}}))
+    assert ka.send_alimtalk(order.id)["error"] == "not_eligible"
+
+
+def test_send_brand_profile_missing_skips(db, solapi_env, stub_solapi_never):
+    """하우드 발주사 + 하우드 프로필 미구성 → 발송 스킵 + 실패 이력(D3 단계 가동)."""
+    order = _mk_order(_sd(parties={"customer": {"name": "임다슬", "phone": "010-2473-6730"},
+                                   "orderer": {"name": "제이큐브이앤씨"}}))
+    result = ka.send_alimtalk(order.id)
+
+    assert result == {"sent": False, "error": "brand_profile_missing"}
+    assert _history(order.id)["error"] == "brand_profile_missing"
+    assert [e.event_type for e in _events(order.id)] == ["ALIMTALK_FAILED"]
+
+
+def test_send_classifies_vendor_error(db, solapi_env, monkeypatch):
+    def _boom(**kwargs):
+        raise Exception("InsufficientBalance", "잔액이 부족합니다")
+
+    monkeypatch.setattr(ka, "_solapi_send", _boom)
+    order = _mk_order()
+    assert ka.send_alimtalk(order.id) == {"sent": False, "error": "balance"}
+    assert [e.event_type for e in _events(order.id)] == ["ALIMTALK_FAILED"]
+
+
+def test_send_classifies_network_error(db, solapi_env, monkeypatch):
+    def _boom(**kwargs):
+        raise ConnectionError("connection reset")
+
+    monkeypatch.setattr(ka, "_solapi_send", _boom)
+    order = _mk_order()
+    assert ka.send_alimtalk(order.id)["error"] == "network"
+
+
+def test_send_not_configured_skips(db, monkeypatch, stub_solapi_never):
+    monkeypatch.delenv("SOLAPI_API_KEY", raising=False)
+    order = _mk_order()
+    assert ka.send_alimtalk(order.id) == {"sent": False, "error": "not_configured"}
+
+
+# --- maybe_send_measure_alimtalk (자동 트리거) ----------------------------------
+
+
+def test_maybe_send_dedupe_second_call_noop(db, solapi_env, auto_on, stub_solapi_ok):
+    order = _mk_order()
+    ka.maybe_send_measure_alimtalk(order.id)
+    ka.maybe_send_measure_alimtalk(order.id)
+
+    assert len(stub_solapi_ok) == 1
+    rows = _outbox()
+    assert len(rows) == 1
+    assert rows[0].effect_type == "ALIMTALK_SEND"
+    assert rows[0].dedupe_key == f"alimtalk:measure:{order.id}:2026-08-14:3시 30분"
+    assert rows[0].status == "DONE" and rows[0].completed_at is not None
+    assert rows[0].source_domain == "ORDER_EVENT" and rows[0].order_event_id
+    # 앵커 이벤트가 최종 이벤트로 승격 — 주문당 이벤트 1건.
+    assert [e.event_type for e in _events(order.id)] == ["ALIMTALK_SENT"]
+
+
+def test_maybe_send_new_schedule_sends_again(db, solapi_env, auto_on, stub_solapi_ok):
+    """일정 변경 = 새 멱등키 → 재발송."""
+    order = _mk_order()
+    ka.maybe_send_measure_alimtalk(order.id)
+
+    changed = _sd()
+    changed["schedule"]["measurement"]["date"] = "2026-08-20"
+    order = db_session.get(Order, order.id)
+    order.structured_data = changed
+    db_session.commit()
+    ka.maybe_send_measure_alimtalk(order.id)
+
+    assert len(stub_solapi_ok) == 2
+    assert len(_outbox()) == 2
+
+
+def test_maybe_send_flag_off_noop(db, solapi_env, monkeypatch, stub_solapi_never):
+    monkeypatch.delenv("FOMS_ALIMTALK_AUTO_ENABLED", raising=False)
+    order = _mk_order()
+    ka.maybe_send_measure_alimtalk(order.id)
+    assert _outbox() == [] and _events(order.id) == []
+
+
+def test_maybe_send_draft_order_noop(db, solapi_env, auto_on, stub_solapi_never):
+    order = _mk_order(status="DRAFT")
+    ka.maybe_send_measure_alimtalk(order.id)
+    assert _outbox() == [] and _events(order.id) == []
+
+
+def test_maybe_send_meta_draft_noop(db, solapi_env, auto_on, stub_solapi_never):
+    sd = _sd()
+    sd["meta"] = {"draft": True}
+    order = _mk_order(sd)
+    ka.maybe_send_measure_alimtalk(order.id)
+    assert _outbox() == [] and _events(order.id) == []
+
+
+def test_maybe_send_without_measure_date_noop(db, solapi_env, auto_on, stub_solapi_never):
+    order = _mk_order(_sd(schedule={"measurement": {"date": "", "time": ""}}))
+    ka.maybe_send_measure_alimtalk(order.id)
+    assert _outbox() == [] and _events(order.id) == []
+
+
+def test_maybe_send_brand_missing_keeps_slot_open(
+    db, solapi_env, auto_on, stub_solapi_ok, monkeypatch
+):
+    """브랜드 프로필 미구성은 슬롯을 소진하지 않는다 — env 설정 후 같은 일정이 발송된다."""
+    order = _mk_order(_sd(parties={"customer": {"name": "임다슬", "phone": "010-2473-6730"},
+                                   "orderer": {"name": "제이큐브이앤씨"}}))
+    ka.maybe_send_measure_alimtalk(order.id)
+    ka.maybe_send_measure_alimtalk(order.id)
+
+    assert stub_solapi_ok == []
+    assert _outbox() == []  # 멱등 슬롯 미소진
+    assert [e.event_type for e in _events(order.id)] == ["ALIMTALK_FAILED"]  # 반복 저장 스팸 억제
+    assert _history(order.id)["error"] == "brand_profile_missing"
+
+    monkeypatch.setenv("SOLAPI_PF_ID_HAUD", "PF-HAUD")
+    monkeypatch.setenv("SOLAPI_TEMPLATE_MEASURE_ID_HAUD", "TPL-HAUD")
+    ka.maybe_send_measure_alimtalk(order.id)
+
+    assert len(stub_solapi_ok) == 1 and stub_solapi_ok[0]["pf_id"] == "PF-HAUD"
+    rows = _outbox()
+    assert len(rows) == 1 and rows[0].status == "DONE"
+    assert _history(order.id)["error"] is None
+    assert [e.event_type for e in _events(order.id)] == ["ALIMTALK_FAILED", "ALIMTALK_SENT"]
+
+
+def test_maybe_send_invalid_phone_keeps_slot_open(db, solapi_env, auto_on, stub_solapi_ok):
+    """전화 불량도 슬롯 미소진 — 번호를 고치면 같은 일정으로 자동 발송된다."""
+    order = _mk_order(_sd(parties={"customer": {"name": "임다슬", "phone": "1234"},
+                                   "orderer": {"name": "라홈시스템"}}))
+    ka.maybe_send_measure_alimtalk(order.id)
+
+    assert stub_solapi_ok == [] and _outbox() == []
+    assert _history(order.id)["error"] == "no_valid_phone"
+
+    db_session.expire_all()
+    stored = db_session.get(Order, order.id)
+    fixed = copy.deepcopy(stored.structured_data)
+    fixed["parties"]["customer"]["phone"] = "010-2473-6730"
+    stored.structured_data = fixed
+    db_session.commit()
+    ka.maybe_send_measure_alimtalk(order.id)
+
+    assert len(stub_solapi_ok) == 1
+    rows = _outbox()
+    assert len(rows) == 1 and rows[0].status == "DONE"
+    assert _history(order.id)["error"] is None
+
+
+def test_maybe_send_never_raises(db, solapi_env, auto_on, monkeypatch, stub_solapi_never):
+    def _boom(*args, **kwargs):
+        raise RuntimeError("outbox down")
+
+    monkeypatch.setattr(ka, "enqueue_side_effect", _boom)
+    order = _mk_order()
+    ka.maybe_send_measure_alimtalk(order.id)  # 예외 전파 없음
+
+
+def test_maybe_send_failure_keeps_outbox_pending(db, solapi_env, auto_on, monkeypatch):
+    """발송 실패면 DONE 마킹하지 않는다(worker 승격 시 재시도 여지)."""
+    def _boom(**kwargs):
+        raise ConnectionError("timeout")
+
+    monkeypatch.setattr(ka, "_solapi_send", _boom)
+    order = _mk_order()
+    ka.maybe_send_measure_alimtalk(order.id)
+
+    rows = _outbox()
+    assert len(rows) == 1 and rows[0].status == "PENDING"
+    assert [e.event_type for e in _events(order.id)] == ["ALIMTALK_FAILED"]
+    assert _history(order.id)["error"] == "network"

@@ -71,7 +71,7 @@ def _assert_shared_form_script_contract(body: str) -> None:
     assert "js/orders/erp-stage-override.js?v=20260716b" in body
     assert "erp_stage_override_modal.html" not in body  # include renders modal markup, not path
     assert 'id="erpStageOverrideModal"' in body
-    assert "css/orders/erp-channel-push.css?v=20260810c" in body
+    assert "css/orders/erp-channel-push.css?v=20260811b" in body
     assert "css/orders/erp-items-master-detail.css?v=20260701f" in body
     assert "js/orders/erp-items-master-detail.js?v=20260630c" in body
     assert "erp-items-master-detail-shell" in body

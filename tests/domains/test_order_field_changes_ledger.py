@@ -147,8 +147,16 @@ def test_ledger_keeps_everything_when_detail_is_capped(client):
     rows = _ledger(order_id)
     name_rows = [row for row in rows if row.path_template == "items.*.product_name"]
 
-    assert len(header.detail["changes"]) == MAX_CHANGES
-    assert header.detail["truncated"] == header.detail["change_count"] - MAX_CHANGES
+    shown = header.detail["changes"]
+    # 화면 detail 은 건수 상한 + 바이트 예산 두 겹으로 줄어든다(둘 중 먼저 걸리는 쪽).
+    assert 0 < len(shown) <= MAX_CHANGES
+    assert header.detail["truncated"] == header.detail["change_count"] - len(shown)
+    # 맥락 키가 살아 있어야 한다 — detail 이 통째로 표식({'truncated':True,'size':N})으로
+    # 대체되면 무엇이 바뀌었는지는 물론 누구 주문인지도 사라진다(2026-08-11 실사고).
+    assert header.detail["mode"] == "full"
+    assert "customer_name" in header.detail
+    # 질의용 uid 는 화면 detail 에 넣지 않는다(예산만 먹는다 — 원장에 있다).
+    assert all("uid" not in change for change in shown)
     assert len(name_rows) == MAX_CHANGES + 6  # 원장에는 전부
 
 
@@ -205,3 +213,36 @@ def test_ledger_failure_does_not_break_save(client, monkeypatch):
     # 헤더(사람용 요약 + 화면 detail)는 원장과 독립적으로 남아야 한다.
     assert header is not None
     assert header.detail["change_count"] >= 1
+
+
+def test_item_uid_is_recorded_and_insert_is_single_add(client):
+    """품목 식별자가 원장에 실리고, 저장 왕복 뒤 중간 삽입이 **1건 추가**로만 기록된다.
+
+    ORDER-ITEM-UID 의 실전 계약이다 — 서버가 uid 를 발급(1차 저장)하고, 클라이언트가 그것을
+    돌려보내면(2차 저장) identity 로 짝지어 "앞 품목이 바뀐 것처럼" 번지지 않는다.
+    """
+    _login_as_admin(client, username="ledger-item-uid")
+    order = _create_order(items=[{"product_name": "붙박이장", "price": "500000"}])
+    order_id = order.id
+
+    # 1차 저장 — 서버가 uid 를 발급한다.
+    _save(client, order_id, lambda sd: sd["items"][0].__setitem__("price", "520000"))
+    saved = db_session.get(Order, order_id)
+    issued_uid = saved.structured_data["items"][0]["uid"]
+    assert issued_uid
+
+    price_rows = [row for row in _ledger(order_id) if row.path_template == "items.*.price"]
+    assert price_rows and price_rows[-1].item_uid == issued_uid
+
+    # 2차 저장 — 맨 앞에 새 품목을 끼운다(기존 품목은 uid 를 그대로 들고 간다).
+    def insert_head(sd):
+        sd["items"].insert(0, {"product_name": "수납장", "price": "100000"})
+
+    before = len(_ledger(order_id))
+    _save(client, order_id, insert_head)
+    fresh = _ledger(order_id)[before:]
+    # 금액 재계산(totals.*)은 진짜 변경이므로 함께 남는다 — 여기서 보는 것은 품목 축이다.
+    item_rows = [row for row in fresh if row.path.startswith("items")]
+
+    assert [(row.path, row.op) for row in item_rows] == [("items.0", "add")]
+    assert item_rows[0].item_uid and item_rows[0].item_uid != issued_uid

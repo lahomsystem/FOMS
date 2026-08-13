@@ -852,6 +852,10 @@ class OrderFieldChange(Base):
     path = Column(String(120), nullable=False)
     path_template = Column(String(120), nullable=False)
     item_index = Column(Integer, nullable=True)
+    # 품목 안정 식별자(ORDER-ITEM-UID). 인덱스는 저장마다 밀릴 수 있어도 이 값은 같은 품목을
+    # 계속 가리킨다 — "이 품목이 어떻게 바뀌어 왔나"를 물을 수 있는 열쇠다. 그 질의를 하는
+    # 화면이 아직 없어 인덱스는 붙이지 않는다(필요해질 때 붙인다).
+    item_uid = Column(String(36), nullable=True)
     item_name = Column(String(120), nullable=True)
     op = Column(String(8), nullable=False)
     before_value = Column(Text, nullable=True)
@@ -859,6 +863,34 @@ class OrderFieldChange(Base):
     actor_user_id = Column(Integer, nullable=True)
     # naive DB timestamp = UTC 규약(datetime_kst).
     created_at = Column(DateTime, default=now_utc_naive, nullable=False)
+
+
+class OrderShareToken(Base):
+    """고객 공유 열람 토큰(로그인 없는 링크) — 스펙 2026-08-11 §3.1.
+
+    토큰 원문은 저장하지 않는다 — sha256 해시(``token_hash``)만 UNIQUE 로 보관하며
+    256bit 원문(``secrets.token_urlsafe(32)``)이 실질 방어선이다. ``snapshot`` 은
+    kind='estimate' 전용 동결 렌더 데이터(D6 — 발송 시점 스냅샷 고정), drawing 은
+    NULL(라이브 수집). server_default 는 의도적으로 없다 — 모든 insert 가 ORM 경로라
+    클라이언트 default 만 두어 migration_chain 지문(모델↔마이그레이션)을 정합시킨다.
+    """
+    __tablename__ = 'order_share_tokens'
+
+    id = Column(Integer, primary_key=True)
+    order_id = Column(Integer, ForeignKey('orders.id', ondelete='CASCADE'),
+                      nullable=False, index=True)
+    kind = Column(String(20), nullable=False)  # 'drawing' | 'estimate'
+    token_hash = Column(String(64), nullable=False, unique=True)  # sha256 hex
+    created_by_user_id = Column(Integer, ForeignKey('users.id'), nullable=True)
+    expires_at = Column(DateTime, nullable=False)  # 발급 +FOMS_SHARE_TOKEN_DAYS(기본 30)d
+    revoked_at = Column(DateTime, nullable=True)
+    created_at = Column(DateTime, default=now_utc_naive, nullable=False)
+    view_count = Column(Integer, nullable=False, default=0)
+    last_viewed_at = Column(DateTime, nullable=True)
+    snapshot = Column(JSONColumn, nullable=True)  # estimate 전용 동결 렌더(64KB 캡)
+
+    order = relationship('Order')
+    created_by = relationship('User', foreign_keys=[created_by_user_id])
 
 
 class OrderTask(Base):
@@ -996,9 +1028,13 @@ class User(Base):
     password_policy_version = Column(
         Integer, nullable=False, server_default='0', default=0,
     )
+    # SHARE-SMS(D2): 공유 링크 문자 개인 명의 발신번호(Solapi 사전 등록 전제).
+    # NULL이면 회사 대표번호(SOLAPI_SENDER_PHONE) 폴백. server_default 없음 —
+    # migration_chain 지문 정합(senderphone_00 과 컬럼 단위 동일).
+    sender_phone = Column(String(20), nullable=True)
     created_at = Column(DateTime, default=datetime.datetime.now)
     last_login = Column(DateTime)
-    
+
     access_logs = relationship("AccessLog", back_populates="user")
     
     def to_dict(self):

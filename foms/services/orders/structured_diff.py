@@ -23,6 +23,8 @@ import json
 import re
 from typing import Any, Iterable, NamedTuple
 
+from foms.services.orders.structured_item_uid import item_uid_of
+
 __all__ = [
     "ITEM_FIELDS",
     "MAX_CHANGES",
@@ -220,6 +222,7 @@ def _change(
     *,
     item: str | None = None,
     op: str | None = None,
+    uid: str | None = None,
 ) -> dict[str, Any]:
     """변경 1건 dict 를 만든다.
 
@@ -229,6 +232,8 @@ def _change(
     :param item: 품목 경로면 저장 시점 품목명(읽는 사람이 인덱스만으로 헤매지 않게).
     :param op: 변경 종류 강제 지정. 품목 자체의 추가/삭제(``add``/``remove``)는 값 유무로
         추론한 ``add``/``clear`` 와 뜻이 다르므로 호출부가 명시한다.
+    :param uid: 품목 안정 식별자(ORDER-ITEM-UID). 인덱스는 저장마다 바뀔 수 있어도 이 값은
+        같은 품목을 계속 가리킨다 — 원장이 품목 축으로 이력을 모을 수 있는 유일한 열쇠다.
     :return: ``security_logs.detail['changes']`` 에 들어갈 dict.
     """
     entry: dict[str, Any] = {
@@ -239,6 +244,8 @@ def _change(
     }
     if item:
         entry["item"] = _clip(item)
+    if uid:
+        entry["uid"] = uid
     return entry
 
 
@@ -284,13 +291,72 @@ def _spec_rows_summary(item: dict[str, Any]) -> tuple[Any, str | None]:
     return key, f"{len(rows)}행"
 
 
-def _diff_items(old_sd: Any, new_sd: Any) -> Iterable[dict[str, Any]]:
-    """품목 배열 변경을 훑는다(위치 인덱스 매칭 — 알려진 한계).
+def _diff_item_pair(
+    index: int,
+    old_item: dict[str, Any],
+    new_item: dict[str, Any],
+) -> Iterable[dict[str, Any]]:
+    """짝지어진 품목 1쌍의 필드 변경을 낸다.
 
-    ``structured_data['items']`` 는 안정 identity 가 없는 **위치 배열**이다(ITEM-ID-00 진행 중).
-    그래서 중간 삽입·순서 변경은 "여러 품목이 동시에 바뀐 것"으로 읽힌다. NetSuite 서브리스트
-    사각지대와 같은 계열의 한계이며, 읽는 사람이 판별할 수 있도록 각 변경에 저장 시점
-    품목명(``item``)을 함께 남긴다. 근본 해결은 안정 UUID 도입 이후다.
+    :param index: 표시·경로에 쓸 **새 문서 기준** 위치(사람이 보는 "N번 품목").
+    :param old_item: 이전 품목 dict.
+    :param new_item: 이후 품목 dict.
+    :yield: 변경 dict.
+    """
+    name = _item_name(new_item) or _item_name(old_item)
+    for field in ITEM_FIELDS:
+        path = f"items.{index}.{field}"
+        numeric = _is_numeric_path(path)
+        before = _normalize(old_item.get(field), numeric=numeric)
+        after = _normalize(new_item.get(field), numeric=numeric)
+        if before != after:
+            yield _change(path, before, after, item=name, uid=item_uid_of(new_item))
+    old_key, old_display = _spec_rows_summary(old_item)
+    new_key, new_display = _spec_rows_summary(new_item)
+    if old_key != new_key:
+        yield _change(f"items.{index}.spec_rows", old_display, new_display,
+                      item=name, uid=item_uid_of(new_item))
+
+
+def _diff_items_by_uid(
+    old_items: list[dict[str, Any]],
+    new_items: list[dict[str, Any]],
+) -> Iterable[dict[str, Any]]:
+    """uid 로 짝지어 품목 변경을 낸다 (ORDER-ITEM-UID).
+
+    위치가 아니라 identity 로 맞추므로 중간 삽입·순서 변경이 "여러 품목 변경"으로 번지지 않는다.
+    **순서만 바뀐 품목은 기록하지 않는다** — 값이 그대로면 변경이 아니다(사용자 결정 2026-08-11).
+
+    :param old_items: 이전 품목 목록(전부 uid 보유).
+    :param new_items: 이후 품목 목록(전부 uid 보유).
+    :yield: 변경 dict.
+    """
+    old_by_uid = {item_uid_of(item): item for item in old_items}
+    new_uids = {item_uid_of(item) for item in new_items}
+
+    for index, new_item in enumerate(new_items):
+        uid = item_uid_of(new_item)
+        old_item = old_by_uid.get(uid)
+        if old_item is None:
+            yield _change(f"items.{index}", None, _item_name(new_item) or "(이름 없음)",
+                          op="add", uid=uid)
+            continue
+        yield from _diff_item_pair(index, old_item, new_item)
+
+    for index, old_item in enumerate(old_items):
+        uid = item_uid_of(old_item)
+        if uid not in new_uids:
+            yield _change(f"items.{index}", _item_name(old_item) or "(이름 없음)", None,
+                          op="remove", uid=uid)
+
+
+def _diff_items(old_sd: Any, new_sd: Any) -> Iterable[dict[str, Any]]:
+    """품목 배열 변경을 훑는다(uid 우선, 없으면 위치 인덱스).
+
+    양쪽 품목이 모두 uid 를 갖고 있으면 identity 로 짝짓는다(ORDER-ITEM-UID). 하나라도 없으면
+    — uid 도입 이전에 저장된 문서다 — 예전처럼 위치로 짝짓는다. 이 폴백에서는 중간 삽입이
+    "여러 품목이 동시에 바뀐 것"으로 읽히며(NetSuite 서브리스트 사각지대와 같은 계열),
+    읽는 사람이 판별할 수 있도록 각 변경에 저장 시점 품목명(``item``)을 함께 남긴다.
 
     :param old_sd: 이전 ``structured_data``.
     :param new_sd: 이후 ``structured_data``.
@@ -298,27 +364,28 @@ def _diff_items(old_sd: Any, new_sd: Any) -> Iterable[dict[str, Any]]:
     """
     old_items = _items_of(old_sd)
     new_items = _items_of(new_sd)
-    common = min(len(old_items), len(new_items))
 
+    if _all_have_uid(old_items) and _all_have_uid(new_items):
+        yield from _diff_items_by_uid(old_items, new_items)
+        return
+
+    common = min(len(old_items), len(new_items))
     for index in range(common):
-        old_item, new_item = old_items[index], new_items[index]
-        name = _item_name(new_item) or _item_name(old_item)
-        for field in ITEM_FIELDS:
-            path = f"items.{index}.{field}"
-            numeric = _is_numeric_path(path)
-            before = _normalize(old_item.get(field), numeric=numeric)
-            after = _normalize(new_item.get(field), numeric=numeric)
-            if before != after:
-                yield _change(path, before, after, item=name)
-        old_key, old_display = _spec_rows_summary(old_item)
-        new_key, new_display = _spec_rows_summary(new_item)
-        if old_key != new_key:
-            yield _change(f"items.{index}.spec_rows", old_display, new_display, item=name)
+        yield from _diff_item_pair(index, old_items[index], new_items[index])
 
     for index in range(common, len(new_items)):
         yield _change(f"items.{index}", None, _item_name(new_items[index]) or "(이름 없음)", op="add")
     for index in range(common, len(old_items)):
         yield _change(f"items.{index}", _item_name(old_items[index]) or "(이름 없음)", None, op="remove")
+
+
+def _all_have_uid(items: list[dict[str, Any]]) -> bool:
+    """목록의 모든 품목이 uid 를 갖고 있는지(빈 목록은 참).
+
+    :param items: 품목 목록.
+    :return: 전부 uid 를 가지면 ``True``.
+    """
+    return all(item_uid_of(item) for item in items)
 
 
 def diff_structured(

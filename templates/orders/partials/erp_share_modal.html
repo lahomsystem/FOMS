@@ -1,0 +1,56 @@
+<!-- 고객 공유 링크 모달 (Phase A T4): 발급·복사·카톡 공유·발급 이력·회수.
+     토큰은 해시-온리 저장이라 URL 은 발급 직후 이 화면에서만 노출된다(플랜 §1). -->
+<div class="modal fade" id="erpShareModal" tabindex="-1" aria-labelledby="erp-share-title"
+    aria-hidden="true" data-kakao-js-key="{{ foms_kakao_share_js_key|default('') }}"
+    data-share-logo-url="{{ url_for('static', filename='images/lahom-logo.png', _external=True) }}">
+    <div class="modal-dialog modal-dialog-scrollable">
+        <div class="modal-content">
+            <div class="modal-header">
+                <h5 class="modal-title" id="erp-share-title">고객 공유 링크</h5>
+                <button type="button" class="btn-close" data-bs-dismiss="modal" aria-label="닫기"></button>
+            </div>
+            <div class="modal-body">
+                <div class="alert alert-warning py-2 px-2 mb-2 small d-none" id="erp-share-notice" role="alert"></div>
+                <fieldset class="mb-2" id="erp-share-kind-group">
+                    <legend class="visually-hidden">공유 종류</legend>
+                    <div class="form-check form-check-inline">
+                        <input class="form-check-input" type="radio" name="erp-share-kind"
+                            id="erp-share-kind-drawing" value="drawing" checked>
+                        <label class="form-check-label" for="erp-share-kind-drawing">도면</label>
+                    </div>
+                    <div class="form-check form-check-inline">
+                        <input class="form-check-input" type="radio" name="erp-share-kind"
+                            id="erp-share-kind-estimate" value="estimate">
+                        <label class="form-check-label" for="erp-share-kind-estimate">견적서</label>
+                    </div>
+                </fieldset>
+                <button type="button" class="btn btn-primary btn-sm" id="erp-share-create-btn">
+                    <i class="fas fa-link"></i> 링크 발급
+                </button>
+                <div class="mt-3 d-none" id="erp-share-issued">
+                    <label class="form-label small mb-1" for="erp-share-url">공유 주소 (지금만 복사 가능)</label>
+                    <input type="text" class="form-control form-control-sm" id="erp-share-url" readonly>
+                    <div class="mt-2 d-flex gap-2">
+                        <button type="button" class="btn btn-success btn-sm" id="erp-share-copy-btn">
+                            <i class="fas fa-copy"></i> 링크 복사
+                        </button>
+                        <button type="button" class="btn btn-warning btn-sm" id="erp-share-kakao-btn">
+                            <i class="fas fa-comment"></i> 카톡 공유
+                        </button>
+                        <button type="button" class="btn btn-primary btn-sm" id="erp-share-sms-btn"
+                            title="고객 휴대폰으로 열람 링크를 문자(LMS)로 보냅니다">
+                            <i class="fas fa-sms"></i> 문자 발송
+                        </button>
+                    </div>
+                    <div class="form-text">창을 닫으면 이 주소는 다시 볼 수 없습니다 — 필요하면 회수 후 재발급하세요.</div>
+                </div>
+                <hr>
+                <div class="small text-muted mb-1">최근 발급 이력</div>
+                <div id="erp-share-list" aria-live="polite"></div>
+            </div>
+            <div class="modal-footer">
+                <button type="button" class="btn btn-secondary" data-bs-dismiss="modal">닫기</button>
+            </div>
+        </div>
+    </div>
+</div>
