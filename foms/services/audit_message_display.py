@@ -106,6 +106,9 @@ _CHECKLIST_FIELDS = frozenset({
 #: SQL 로 물을 수 있고, 화면에는 여기 라벨로 나온다. 사전에 없는 코드는 코드 자체를
 #: 보여준다(감추지 않는다 — 새 배선이 라벨을 빠뜨려도 로그는 남는다).
 ACTION_LABELS: dict[str, str] = {
+    # --- 네이버 스마트스토어 수집 (NAVER-INGEST-01) ---
+    "NAVER_INGEST_RUN_NOW": "네이버 수집 수동 실행",
+    "NAVER_INGEST_SNAPSHOT_VIEW": "네이버 수집 원본 열람",
     # --- 결제 ---
     "PAYMENT_CONFIRMED": "결제 확인",
     "PAYMENT_CONFIRM_CLEARED": "결제 확인 해제",
