@@ -54,12 +54,12 @@
 
 | T | 내용 | 의존 | 상태 | 커밋 |
 |---|---|---|---|---|
-| T0 | 선행: 시크릿 재발급(사람) · 시스템 계정 2개(**완료**) · WORKER static IP(사람) | — | PARTIAL | 계정 스크립트+스테이징 반영 |
+| T0 | 선행: 시크릿 재발급 · 시스템 계정 2개 · static IP 등록 | — | DONE(스테이징) | 운영은 승격 후 재등록 필요 |
 | T2 | `ExternalOrderLink` 모델 + alembic 마이그레이션 | — | DONE | `naver_link_00` (`down_revision=senderphone_00`) |
 | T3 | `naver_commerce/client.py` (토큰 캐시·조회·재시도·백오프) | — | DONE | 테스트 24 green |
 | T4 | 매핑 + `create_order()` 연동 (좌표 주입 없음) | T2, T3 | DONE | 테스트 20 green |
 | T5 | WORKER 폴링 루프 + 게이트 + rq enqueue 경로 | T4 | DONE | 테스트 15 green |
-| T1 | Railway WORKER static IP 실검증 (`--once --dry-run`) | T0, T3 | PENDING | — |
+| T1 | Railway WORKER static IP 실검증 → 스테이징 실수집 30건 | T0, T3 | DONE | 2026-08-13 실 API |
 | T6 | 관리 화면 (수집 이력·수동 실행·원본 스냅샷) | T4, T5 | DONE | 테스트 13 green |
 | T7 | 앱 인증 만료 D-7 알림 | — | DONE | 테스트 11 green |
 | T8 | 트리아지 상태 컬럼 2개 + 마이그레이션 | T2 | DONE | `naver_triage_00` |
@@ -93,8 +93,10 @@
   **스테이징(FOMS-DEV) 반영됨** — `naver_ingest_bot` id=62, `naver_unassigned` id=63.
   **운영 DB 는 미반영**(사용자 명시 요청 시에만). 로그인은 난수 비밀번호로 잠갔다
   (`is_active=False` 로는 못 잠근다 — owner 계약이 활성 SALES 를 요구한다).
-- 시크릿 재발급 · Railway WORKER static IP 3개 발급/등록: **사람 손 필요, 미완료**.
-- T1(실 API 검증)은 위 둘이 끝나야 가능하다.
+- 시크릿 재발급 · static IP 3개 등록: **2026-08-13 사용자 완료**. 등록된 IP 는 **dev worker** 것이라
+  실검증(T1)도 스테이징에서 했다. 자격증명 5종은 FOMS-DEV `worker` 에만 둔다
+  (운영 `WORKER` 에 잘못 들어갔던 5개는 삭제 완료).
+- **운영 승격 시**: 커머스API센터 IP 한도 3 = dev 가 다 쓰고 있으므로 운영 WORKER IP 로 **교체**해야 한다.
 
 ---
 
@@ -227,11 +229,30 @@ itemuid_00 → senderphone_00 → naver_link_00` 이다.
 
 ---
 
-## T1 — Railway static IP 실검증 (T0·T3 이후)
+## T1 — Railway static IP 실검증 — **DONE (2026-08-13, 스테이징 실 API)**
 
-**완료 기준**: WORKER 컨테이너에서
-`python scripts/maintenance/run_naver_order_sync.py --once --dry-run --json`
-→ 토큰 발급 성공 + 변경분 조회 성공(HTTP 200, 건수 로그). 주문 생성 없음(dry-run).
+**검증 결과**: dev worker 에 자격증명 5종 주입 후 수집 루프 기동 → **실주문 30건 수집**.
+토큰 발급·변경분 조회·상세 조회 전부 성공, `last_error: null`,
+워터마크 `last_success_to 2026-08-13T20:53:29+09:00` 정상 전진.
+"지금 수집" 재실행 → `fetched 0 / created 0 / skipped 0` = 멱등 정상.
+
+**실데이터 화면 점검(전부 PASS)**: 대시보드 '담당 미지정' 30건(보류함 이름 노출 0) ·
+관리 화면 이력 30행 · 트리아지 큐 30건(대조표·편집기 링크·확인 완료 버튼) · 주문 상세 표식 ·
+원본 스냅샷 200 · 담당자 지정 왕복(30 → 29 → 30).
+매핑 실물 확인: 수취인=고객·주문자 별도 보존·품목/옵션 원문·금액·`naver.product_order_id`·
+접수 퀘스트 생성, **좌표 미주입(lat 0건) + GEOCODE outbox 30건 예약** = 설계대로.
+
+**변수 배치**: 자격증명은 **FOMS-DEV `worker`** 에만 있다. 운영(FOMS-PRODUCTION `WORKER`)에
+잘못 들어갔던 5개는 삭제했다(남은 키 0).
+
+**재개 시 반드시 알 것 2가지**
+
+1. **IP 슬롯 3개는 지금 dev worker 가 쓰고 있다.** 커머스API센터 한도가 3이라
+   운영 승격 후 수집을 운영 WORKER 로 옮기려면 **등록 IP 교체가 필요**하다 —
+   dev·운영 동시 운용은 불가능하다.
+2. **스테이징 GEOCODE outbox 가 소비되지 않는다**(전체 33건 PENDING, 완료 이력 0 —
+   수집 이전 3건 포함). `tools/ops/run_domain_side_effect_outbox.py` 가 스테이징에서
+   안 도는 것으로 보인다. 수집 주문의 지도 좌표가 안 잡힌다. 원인 조사는 미착수(사용자 보류).
 
 ---
 
