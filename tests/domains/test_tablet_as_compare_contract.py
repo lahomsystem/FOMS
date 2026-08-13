@@ -93,10 +93,15 @@ def test_compare_partial_no_inline_style_or_script() -> None:
 
 
 def test_as_dashboard_body_includes_compare_cohort_gated() -> None:
-    """as_dashboard_body 가 대조 파샬을 erp_mobile_v2_enabled 게이트 안에서 include(전례)."""
+    """as_dashboard_body 가 대조 파샬을 코호트 + coarse 게이트 안에서 include.
+
+    코호트 게이트(erp_mobile_v2_enabled)에 coarse_pointer_surfaces 가 AND 로 더해졌다:
+    이 표면은 (pointer: coarse) 미디어쿼리로만 표시되므로 마우스 기기엔 서버가 아예
+    렌더하지 않는다(스테이징 실측 277.6KB = AS fragment 의 31.2%).
+    """
     body = _norm(_read(AS_DASHBOARD_BODY))
     assert (
-        "{% if erp_mobile_v2_enabled %}"
+        "{% if erp_mobile_v2_enabled and coarse_pointer_surfaces %}"
         "{% include 'cs/partials/tablet_as_compare_body.html' %}"
         "{% endif %}"
     ) in body

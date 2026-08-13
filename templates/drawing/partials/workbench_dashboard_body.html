@@ -376,7 +376,11 @@
       {% endif %}
     </div>
   </div>
-  {% if erp_mobile_v2_enabled %}
+  {# 태블릿 도면 작업실은 (pointer: coarse) 미디어쿼리 전용(foms-tablet-drawing-gallery.css,
+     강제 해치 없음) — 마우스 기기엔 죽은 마크업이라 렌더하지 않는다(실측 48.4KB).
+     동봉된 tablet-drawing-gallery.js·tablet-drawing-review.js 도 함께 빠지지만 두 스크립트의
+     소비처는 이 작업실과 태블릿 시트뿐이라 진입 경로가 없다. #}
+  {% if erp_mobile_v2_enabled and coarse_pointer_surfaces %}
     {% include 'drawing/partials/tablet_gallery_body.html' %}
   {% endif %}
   {% if erp_mobile_v2_enabled %}

@@ -190,7 +190,9 @@
       {# 태블릿 가로(코호트) 전/후 대조 표면. 표시/은닉·배타(대조 표시 + 아래 데스크톱 테이블
          은닉)는 foms-tablet-as-compare.css 코호트 @media 소유. 코호트 밖에선 base display:none
          으로 완전 무동작 → 폰/세로/데스크톱 동작 불변(데스크톱 테이블 그대로). #}
-      {% if erp_mobile_v2_enabled %}{% include 'cs/partials/tablet_as_compare_body.html' %}{% endif %}
+      {# coarse_pointer_surfaces: 위 @media 는 (pointer: coarse) 필수라 마우스 기기엔 표시
+         불가능한 죽은 마크업(실측 277.6KB = AS fragment 의 31.2%) — 아예 렌더하지 않는다. #}
+      {% if erp_mobile_v2_enabled and coarse_pointer_surfaces %}{% include 'cs/partials/tablet_as_compare_body.html' %}{% endif %}
       <!-- PC Table View -->
       {# 컬럼 폭의 SSOT = colgroup(기본값은 as-dashboard-body.css 의 col[data-col-key] 규칙,
          사용자 조정분은 as-dashboard-columns.js 가 인라인으로 덮어씀). 구 <th style="width:">

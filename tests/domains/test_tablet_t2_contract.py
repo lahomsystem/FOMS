@@ -854,8 +854,10 @@ def test_dashboard_body_includes_gallery_cohort_gated_with_legacy_wrapper() -> N
     body = _read(DRAWING_DASHBOARD_BODY)
     assert "foms-drawing-legacy-table" in body
     norm = _norm(body)
+    # 코호트 게이트에 coarse_pointer_surfaces 가 AND 로 더해졌다 — 이 표면은
+    # (pointer: coarse) 로만 표시되므로 마우스 기기엔 서버가 렌더하지 않는다(실측 48.4KB).
     assert (
-        "{% if erp_mobile_v2_enabled %} "
+        "{% if erp_mobile_v2_enabled and coarse_pointer_surfaces %} "
         "{% include 'drawing/partials/tablet_gallery_body.html' %}"
     ) in norm
 
@@ -950,8 +952,9 @@ def test_completion_grid_wired_into_body_cohort_gated_with_wrapper() -> None:
     (.foms-completion-photo-review)."""
     body = _norm(_read(COMPLETION_DASHBOARD_BODY))
     assert "cs/partials/tablet_completion_grid_body.html" in body
+    # 코호트 게이트에 coarse_pointer_surfaces 가 AND 로 더해졌다(실측 36.4KB).
     assert (
-        "{% if erp_mobile_v2_enabled %} "
+        "{% if erp_mobile_v2_enabled and coarse_pointer_surfaces %} "
         "{% include 'cs/partials/tablet_completion_grid_body.html' %}"
     ) in body
     assert "foms-completion-photo-review" in body
