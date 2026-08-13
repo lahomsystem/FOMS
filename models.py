@@ -254,6 +254,11 @@ class OrderAttachment(Base):
         UUIDColumn, ForeignKey('order_item_identities.id', ondelete='SET NULL'),
         nullable=True, index=True,
     )
+    # AS-FRESH-01: AS 첨부 ↔ 타임라인 기록(structured_data.shipment.as_log 항목 id) 결합.
+    # JSONB 안의 항목을 가리키므로 FK 가 아니라 약한 참조다 — 존재 검증은 등록 라우트 소관.
+    # 이 축이 "이 기록의 사진" 렌더와 PUSH 회차 필터의 근거이며, 기존 첨부는 NULL 로 남는다
+    # (소급 배정 금지 — 추정 배정은 오귀속을 만든다).
+    as_log_id = Column(String(64), nullable=True)
     file_size = Column(Integer, nullable=False, default=0)
 
     storage_key = Column(String(500), nullable=False)  # static/uploads 기준 key 또는 R2 key
@@ -279,6 +284,9 @@ class OrderAttachment(Base):
         # BitmapOr 로 풀리고 Seq Scan 을 피한다.
         Index('ix_order_attachments_storage_key', 'storage_key'),
         Index('ix_order_attachments_thumbnail_key', 'thumbnail_key'),
+        # AS 회차 차트가 "이 주문 첨부를 기록별로" 1쿼리 배치 조회한다(N+1 금지) —
+        # order_id 선행 복합이어야 그 조회가 인덱스로 풀린다.
+        Index('ix_order_attachments_as_log_id', 'order_id', 'as_log_id'),
     )
 
     def to_dict(self):
@@ -289,6 +297,7 @@ class OrderAttachment(Base):
             'file_type': self.file_type,
             'category': self.category or 'measurement',
             'item_index': self.item_index,
+            'as_log_id': self.as_log_id,
             'file_size': self.file_size,
             'storage_key': self.storage_key,
             'thumbnail_key': self.thumbnail_key,
@@ -3453,6 +3462,14 @@ class ExternalOrderLink(Base):
     sync_status = Column(String(20), nullable=False, server_default='LINKED')
     # PENDING_REVIEW/FAILED 의 사유(사람이 읽는 문장).
     failure_reason = Column(Text, nullable=True)
+    # --- 트리아지(사람 처리) 축 — NAVER-INGEST-01 §8.3 ---
+    # ``sync_status`` 에 값을 더하지 않는 이유: 그건 **수집 결과**(LINKED/PENDING_REVIEW/
+    # FAILED) 축이고 이건 **사람이 확인했는가** 축이다. 섞으면 "수집은 성공했지만 사람이
+    # 아직 안 본" 상태를 표현할 수 없다.
+    # NULL = 확인 대기(트리아지 큐에 뜬다). 값이 있으면 큐에서 빠진다.
+    reviewed_at = Column(DateTime, nullable=True)
+    reviewed_by_user_id = Column(
+        Integer, ForeignKey('users.id', ondelete='SET NULL'), nullable=True)
     created_at = Column(DateTime, nullable=False, default=now_utc_naive,
                         server_default=func.now())
     updated_at = Column(DateTime, nullable=False, default=now_utc_naive,
@@ -3466,6 +3483,9 @@ class ExternalOrderLink(Base):
             name='ck_external_order_link_status'),
         # 관리 화면: 보류/실패 목록을 최신순으로 훑는 경로.
         Index('ix_external_order_link_status_created', 'sync_status', 'created_at'),
+        # 트리아지 큐 hot path: 확인 대기 건만 최신순으로 훑는다(확인 완료분은 인덱스에서 빠진다).
+        Index('ix_external_order_link_pending_review', 'channel', 'created_at',
+              postgresql_where=text('reviewed_at IS NULL')),
         # 주문 상세에서 "이 주문이 어느 채널 수집분인가" 역조회.
         Index('ix_external_order_link_order', 'order_id'),
     )

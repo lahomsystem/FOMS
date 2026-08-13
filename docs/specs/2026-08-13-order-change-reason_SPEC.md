@@ -44,6 +44,7 @@
 | 시공일 | `schedule.construction.date/time` · `items.*.construction_date` | 고객 컨펌 이후 단계 |
 | 금액 | `items.*.price` · `payment.deposit/discount/free_input` | \|변화\| ≥ 50,000원 또는 이전 값의 5% |
 | 제품 세부 | `items.*.{product_name,spec,spec_rows,spec_width,spec_height,spec_depth,color,handle,option_detail,extra_input,misc}` | — |
+| 단계 이동 | `workflow.stage` | — (취소·보류 포함, 2026-08-14 재추가) |
 
 품목 **삭제**(`items.*` + `remove`)도 제품 세부 변경으로 본다. 품목 **추가**는 최초 입력이라 제외.
 
@@ -51,9 +52,15 @@
 규격·금액을 채우는 것까지 물으면 신규 주문 한 건에 창이 여러 번 뜨고, 분쟁이 나는 **재조정**과
 구별되지 않는다(`_is_edit_of_existing_value`).
 
-**축에서 빠진 것**: 실측일 · AS 방문일 · **단계(`workflow.stage`, 취소 포함)** · 연락처 · 주소 ·
-비고 · 품목 내부 메모(`internal`). 취소가 빠지면 "왜 취소했나"는 원장에 안 남는다 —
-사용자 결정이며, 필요해지면 축 하나를 되살리는 것으로 끝난다.
+**축에서 빠진 것**: 실측일 · AS 방문일 · 연락처 · 주소 · 비고 · 품목 내부 메모(`internal`).
+
+> **축에서 빠져도 변경 기록 자체는 남는다.** `order_field_changes` 원장은 화이트리스트 경로
+> 전체(`ITEM_FIELDS`·`SCALAR_PATHS`)를 `before → after` 로 계속 적는다. 축 선택이 정하는 것은
+> **"직원에게 왜냐고 묻는지"** 뿐이고, "무엇이 어떻게 바뀌었나"는 100% 보존된다.
+
+> **주문 취소 주의**: FOMS 의 취소는 구조화 저장이 아니라 **휴지통 이동**
+> (`ORDER_SOFT_DELETED`, `/delete/<id>`)이다. `workflow.stage` 축은 저장으로 일어나는 단계
+> 이동만 잡는다 — 휴지통 이동에 사유를 받으려면 그 경로에 별도 배선이 필요하다(미구현).
 
 > **`totals.*` 를 뺀 이유 (2026-08-13 실측)**: `totals` 는 전부 서버 파생값이다 —
 > `structured_form_projection` 이 매 저장마다 품목 단가·`payment` 입력에서 재계산한다.

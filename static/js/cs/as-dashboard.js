@@ -1335,6 +1335,15 @@
           });
           const data = await readTimelineJson(res);
           if (!data.success) throw new Error(data.message || '기록 추가 실패');
+          // 첨부는 기록 저장 성공 뒤에만 올린다 — 먼저 올리면 결합할 항목 id 가 없다.
+          const pending = dockFiles(form);
+          if (pending.length && data.entry && data.entry.id) {
+            await uploadAsLogFiles(
+              orderId, data.entry.id, pending, form.querySelector('.as-rchart-dock__status'));
+            const fileInput = form.querySelector('.as-rchart-dock__file');
+            if (fileInput) fileInput.value = '';
+            renderDockPreview(form);
+          }
           if (stream) {
             stream.insertAdjacentHTML('afterbegin', data.html); // optimistic prepend
             highlightTimelineStatic(stream);
@@ -1540,6 +1549,129 @@
         form.remove();
         const body = item.querySelector('.as-tl-item__body');
         if (body) body.hidden = false;
+      });
+
+      // ── 기록별 첨부(AS-FRESH-01 T5) ────────────────────────────────────────
+      // 업로드는 기록 저장 **뒤**에 as_log_id 로 결합한다. 업로드만 실패해도 기록은
+      // 되돌리지 않는다 — as_log 는 append-only 라 롤백이 소프트 삭제 흔적을 남기고,
+      // 사용자가 쓴 문장이 사라지는 쪽이 훨씬 나쁘다. 재시도는 행의 클립 버튼.
+      async function uploadAsLogFiles(orderId, logId, files, statusEl) {
+        if (!orderId || !logId || !files || !files.length) return { ok: 0, total: 0 };
+        if (typeof window.fomsUploadOrderAttachmentsBatch !== 'function') {
+          showFeedback('업로드 모듈을 불러오지 못했습니다.', true);
+          return { ok: 0, total: files.length };
+        }
+        if (statusEl) {
+          statusEl.hidden = false;
+          statusEl.textContent = '첨부 업로드 중... (0/' + files.length + ')';
+        }
+        const result = await window.fomsUploadOrderAttachmentsBatch({
+          orderId: orderId,
+          files: files,
+          folder: 'orders/' + orderId + '/attachments',
+          category: 'as',
+          asLogId: logId,
+          useDirectUpload: true,
+          onUploadProgress: function (info) {
+            if (statusEl) {
+              statusEl.textContent = '첨부 업로드 중... (' + Math.round(info.done) + '/' + info.total + ')';
+            }
+          },
+        });
+        if (statusEl) statusEl.hidden = true;
+        if (result.ok !== result.total) {
+          showFeedback('첨부 ' + (result.total - result.ok) + '건 업로드 실패 — 기록의 클립 버튼으로 다시 올릴 수 있습니다.', true);
+        }
+        return result;
+      }
+
+      /** quick-add 폼에 담긴 파일 목록(제출 전). 미리보기는 로컬 objectURL. */
+      function dockFiles(form) {
+        const input = form && form.querySelector('.as-rchart-dock__file');
+        return input && input.files ? Array.from(input.files) : [];
+      }
+
+      function renderDockPreview(form) {
+        const box = form && form.querySelector('.as-rchart-dock__preview');
+        if (!box) return;
+        const files = dockFiles(form);
+        if (!files.length) {
+          box.innerHTML = '';
+          box.hidden = true;
+          return;
+        }
+        box.hidden = false;
+        box.innerHTML = files.map(function (f) {
+          const name = typeof escapeHtml === 'function' ? escapeHtml(f.name) : f.name;
+          let inner = '<span class="as-rchart-dock__preview-name">' + name + '</span>';
+          if (f.type && f.type.indexOf('image/') === 0) {
+            try {
+              inner = '<img src="' + URL.createObjectURL(f) + '" alt="' + name + '">';
+            } catch (err) { /* objectURL 미지원 브라우저는 파일명 표기로 남는다 */ }
+          }
+          return '<div class="as-rchart-dock__preview-item" title="' + name + '">' + inner + '</div>';
+        }).join('');
+      }
+
+      document.addEventListener('click', function (e) {
+        const pick = e.target.closest && e.target.closest('.as-rchart-dock__pick');
+        if (!pick) return;
+        const input = pick.closest('.as-timeline__quick-add')?.querySelector('.as-rchart-dock__file');
+        if (input) input.click();
+      });
+
+      document.addEventListener('change', function (e) {
+        const input = e.target.closest && e.target.closest('.as-rchart-dock__file');
+        if (!input) return;
+        renderDockPreview(input.closest('.as-timeline__quick-add'));
+      });
+
+      // 이미 저장된 기록에 파일 추가(행 클립 버튼) — 업로드 실패 재시도 경로이기도 하다.
+      document.addEventListener('click', function (e) {
+        const attach = e.target.closest && e.target.closest('.as-tl-item__attach');
+        if (!attach) return;
+        const item = attach.closest('.as-tl-item');
+        const chart = attach.closest('.as-rchart');
+        const logId = item && item.dataset.logId;
+        const orderId = chart && chart.dataset.orderId;
+        if (!logId || !orderId) return;
+        const picker = document.createElement('input');
+        picker.type = 'file';
+        picker.multiple = true;
+        picker.accept = 'image/*,video/*,.pdf,.doc,.docx';
+        picker.addEventListener('change', async function () {
+          const files = this.files ? Array.from(this.files) : [];
+          if (!files.length) return;
+          attach.disabled = true;
+          try {
+            await uploadAsLogFiles(orderId, logId, files, null);
+            await refreshRoundChart(orderId);
+          } finally {
+            attach.disabled = false;
+          }
+        });
+        picker.click();
+      });
+
+      // 기록 줄 썸네일 클릭 — 이미지 뷰어 SSOT(GlobalImageViewer)로 위임.
+      document.addEventListener('click', function (e) {
+        const fileBtn = e.target.closest && e.target.closest('.as-rchart-file');
+        if (!fileBtn) return;
+        const row = fileBtn.closest('.as-rchart-row__files');
+        const buttons = row ? Array.from(row.querySelectorAll('.as-rchart-file')) : [fileBtn];
+        const index = buttons.indexOf(fileBtn);
+        const images = buttons
+          .filter(function (b) { return b.dataset.fileImage === '1'; })
+          .map(function (b) { return { url: b.dataset.fileUrl, name: b.dataset.fileName, type: 'image' }; });
+        if (fileBtn.dataset.fileImage === '1' && window.GlobalImageViewer && images.length) {
+          const imageIndex = buttons
+            .filter(function (b) { return b.dataset.fileImage === '1'; })
+            .indexOf(fileBtn);
+          window.GlobalImageViewer.open(images, imageIndex < 0 ? 0 : imageIndex);
+          return;
+        }
+        if (fileBtn.dataset.fileUrl) window.open(fileBtn.dataset.fileUrl, '_blank', 'noopener');
+        void index;
       });
 
       document.addEventListener('submit', function (e) {
@@ -2327,52 +2459,141 @@
       });
 
       // AS PUSH: 본문은 서버가 저장된 주문으로 조립한다(SSOT) — 이 화면에는 주문 폼이 없다.
-      // 재전송(이미 보낸 이력 있음)이면 서버가 400 으로 변경 내용을 요구하므로 prompt 후 1회 재시도.
+      // 전송 전 확인창(AS-FRESH-01 T7)에서 나갈 본문·파일을 보여주고 선택을 고칠 수 있게 한다.
+      // 기본 선택은 서버가 정한다(select_as_push_attachments) — 클라가 따로 판정하면
+      // 미리보기와 실제 전송이 갈린다. 재전송이면 서버가 400 으로 변경 내용을 요구하므로
+      // prompt 후 1회 재시도.
       var asChannelPushBtn = document.getElementById('as-modal-channel-push-btn');
       if (asChannelPushBtn) {
+        var pushConfirmEl = document.getElementById('asPushConfirmModal');
+        var pushTextEl = document.getElementById('as-push-confirm-text');
+        var pushFilesEl = document.getElementById('as-push-confirm-files');
+        var pushCountEl = document.getElementById('as-push-confirm-count');
+        var pushSendBtn = document.getElementById('as-push-confirm-send');
+        var __pushConfirmOrderId = null;
+
+        function selectedPushIds() {
+          if (!pushFilesEl) return [];
+          return Array.from(pushFilesEl.querySelectorAll('input[type="checkbox"]:checked'))
+            .map(function (el) { return Number(el.value); })
+            .filter(function (n) { return Number.isFinite(n); });
+        }
+
+        function syncPushCount() {
+          if (!pushCountEl) return;
+          var total = pushFilesEl ? pushFilesEl.querySelectorAll('input[type="checkbox"]').length : 0;
+          pushCountEl.textContent = total ? selectedPushIds().length + ' / ' + total + '건' : '';
+        }
+
+        function renderPushFiles(files) {
+          if (!pushFilesEl) return;
+          if (!files.length) {
+            pushFilesEl.innerHTML = '<div class="as-push-confirm__empty">보낼 AS 첨부가 없습니다. 본문만 전송됩니다.</div>';
+            syncPushCount();
+            return;
+          }
+          pushFilesEl.innerHTML = files.map(function (f) {
+            var name = typeof escapeHtml === 'function' ? escapeHtml(f.filename || '') : (f.filename || '');
+            var source = typeof escapeHtml === 'function' ? escapeHtml(f.source || '') : (f.source || '');
+            var media = f.is_image
+              ? '<img class="as-push-confirm__thumb" src="' + f.url + '" alt="' + name + '" loading="lazy">'
+              : '<div class="as-push-confirm__doc"><i class="fas fa-file"></i></div>';
+            return '<label class="as-push-confirm__file' + (f.selected ? ' is-on' : '') + '">'
+              + '<input type="checkbox" value="' + f.id + '"' + (f.selected ? ' checked' : '') + '>'
+              + media
+              + '<span class="as-push-confirm__name" title="' + name + '">' + name + '</span>'
+              + '<span class="as-push-confirm__source">' + source + '</span>'
+              + '</label>';
+          }).join('');
+          syncPushCount();
+        }
+
+        if (pushFilesEl) {
+          addAsDashboardListener(pushFilesEl, 'change', function (e) {
+            var box = e.target.closest && e.target.closest('input[type="checkbox"]');
+            if (!box) return;
+            var label = box.closest('.as-push-confirm__file');
+            if (label) label.classList.toggle('is-on', box.checked);
+            syncPushCount();
+          });
+        }
+
         addAsDashboardListener(asChannelPushBtn, 'click', async function () {
           var orderId = __currentAsModalOrderId;
           if (!orderId) return;
-          if (!confirm('AS 접수 내용과 AS 첨부를 채널톡 AS방으로 전송할까요?')) return;
-
-          async function send(changeNote) {
-            var payload = { order_id: Number(orderId), push_kind: 'as' };
-            if (changeNote) payload.change_note = changeNote;
-            var resp = await fetch('/api/channel/push-manual', {
-              method: 'POST',
-              headers: { 'Content-Type': 'application/json' },
-              body: JSON.stringify(payload),
-            });
-            return resp.json();
-          }
-
           asChannelPushBtn.disabled = true;
-          var originalHtml = asChannelPushBtn.innerHTML;
-          asChannelPushBtn.innerHTML = '<i class="fas fa-spinner fa-spin"></i> 전송중...';
           try {
-            var data = await send(null);
-            if (!data.success) {
-              var msg = data.error || data.message || '알 수 없는 오류';
-              if (msg.indexOf('재전송 시 변경 내용') >= 0) {
-                var note = (window.prompt(
-                  '이미 전송한 AS PUSH입니다. 변경 내용을 입력하면 채널톡 메시지 상단에 [수정]으로 표시됩니다.'
-                ) || '').trim();
-                if (!note) return;
-                data = await send(note);
-              }
+            var res = await fetch(
+              '/api/channel/push-preview?order_id=' + encodeURIComponent(orderId) + '&push_kind=as',
+              { credentials: 'same-origin' }
+            );
+            var preview = await res.json();
+            if (!preview.success) {
+              showFeedback('미리보기 실패: ' + (preview.message || '알 수 없는 오류'), true);
+              return;
             }
-            if (data.success) {
-              showFeedback('AS방으로 전송했습니다. (첨부 ' + (data.files_count || 0) + '건)');
-            } else {
-              showFeedback('전송 실패: ' + (data.error || data.message || '알 수 없는 오류'), true);
-            }
+            __pushConfirmOrderId = orderId;
+            if (pushTextEl) pushTextEl.textContent = preview.text || '';
+            renderPushFiles(preview.files || []);
+            if (pushConfirmEl) bootstrap.Modal.getOrCreateInstance(pushConfirmEl).show();
           } catch (err) {
             showFeedback('네트워크 오류: ' + String((err && err.message) || err || ''), true);
           } finally {
             asChannelPushBtn.disabled = false;
-            asChannelPushBtn.innerHTML = originalHtml;
           }
         });
+
+        if (pushSendBtn) {
+          addAsDashboardListener(pushSendBtn, 'click', async function () {
+            var orderId = __pushConfirmOrderId;
+            if (!orderId) return;
+            var attachmentIds = selectedPushIds();
+
+            async function send(changeNote) {
+              var payload = {
+                order_id: Number(orderId),
+                push_kind: 'as',
+                attachment_ids: attachmentIds,
+              };
+              if (changeNote) payload.change_note = changeNote;
+              var resp = await fetch('/api/channel/push-manual', {
+                method: 'POST',
+                headers: { 'Content-Type': 'application/json' },
+                credentials: 'same-origin',
+                body: JSON.stringify(payload),
+              });
+              return resp.json();
+            }
+
+            pushSendBtn.disabled = true;
+            var originalHtml = pushSendBtn.innerHTML;
+            pushSendBtn.innerHTML = '<i class="fas fa-spinner fa-spin"></i> 전송중...';
+            try {
+              var data = await send(null);
+              if (!data.success) {
+                var msg = data.error || data.message || '알 수 없는 오류';
+                if (msg.indexOf('재전송 시 변경 내용') >= 0) {
+                  var note = (window.prompt(
+                    '이미 전송한 AS PUSH입니다. 변경 내용을 입력하면 채널톡 메시지 상단에 [수정]으로 표시됩니다.'
+                  ) || '').trim();
+                  if (!note) return;
+                  data = await send(note);
+                }
+              }
+              if (data.success) {
+                if (pushConfirmEl) bootstrap.Modal.getInstance(pushConfirmEl)?.hide();
+                showFeedback('AS방으로 전송했습니다. (첨부 ' + (data.files_count || 0) + '건)');
+              } else {
+                showFeedback('전송 실패: ' + (data.error || data.message || '알 수 없는 오류'), true);
+              }
+            } catch (err) {
+              showFeedback('네트워크 오류: ' + String((err && err.message) || err || ''), true);
+            } finally {
+              pushSendBtn.disabled = false;
+              pushSendBtn.innerHTML = originalHtml;
+            }
+          });
+        }
       }
 
       var asUploadInput = document.getElementById('as-modal-upload-input');

@@ -33,6 +33,7 @@ __all__ = [
     "AMOUNT_PATH_TEMPLATES",
     "CONFIRMED_STAGES",
     "ITEM_DETAIL_TEMPLATES",
+    "STAGE_TEMPLATES",
     "CONSTRUCTION_SCHEDULE_TEMPLATES",
     "SENSITIVE_ITEM_OPS",
     "SENSITIVE_ITEM_TEMPLATE",
@@ -144,6 +145,14 @@ ITEM_DETAIL_TEMPLATES: frozenset[str] = frozenset({
 #: 저장마다 품목 price·payment 입력에서 재계산한다). 넣으면 저장된 totals 가 낡은 주문에서
 #: 전화번호만 고친 저장이 "금액 변경"으로 판정돼 사유를 묻는다(2026-08-13 실측으로 확인).
 #: 파생값은 그 값을 만든 **입력 경로**가 대신 대표한다.
+
+#: 단계 이동(취소·보류 포함) — 사용자 결정(2026-08-14)으로 축에 되살렸다. "왜 취소했나"는
+#: 분쟁에서 가장 자주 묻는 질문이고, 운영 실측상 단계 변경은 2일간 0건이라 빈도 비용도 없다.
+#:
+#: **주의**: FOMS 의 "주문 취소"는 구조화 저장이 아니라 **휴지통 이동**(``ORDER_SOFT_DELETED``,
+#: ``/delete/<id>``)이다. 여기서 잡는 것은 구조화 저장으로 일어나는 단계 이동뿐이고, 휴지통
+#: 이동 사유는 별도 경로가 필요하다.
+STAGE_TEMPLATES: frozenset[str] = frozenset({"workflow.stage"})
 
 #: 시공 일정 경로. 다른 일정과 달리 **확정(CONFIRM) 이후**에만 사유를 묻는다 —
 #: 접수·실측·도면 단계의 시공일은 아직 "잡는 중"인 값이라 바뀌는 게 정상이다.

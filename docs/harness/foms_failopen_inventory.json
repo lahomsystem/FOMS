@@ -5,14 +5,14 @@
   "overlap_api_error_01": "API-ERROR-01 owns response/stdout exposure (print_exc/str(e) -> log_handled_exception). This packet owns swallow classification. Sites that log via log_handled_exception are LOG_AND_CONTINUE here.",
   "marker_convention": "Silent-by-design catches carry an inline `# failopen: intentional: <reason>` (or `fail-closed`) marker; the scanner reads it as the justification. No bare allowlist, no lint-disable.",
   "baselines": {
-    "broad_total": 522,
+    "broad_total": 523,
     "unclassified": 0,
     "swallow_by_control_flow": 180
   },
   "disposition_counts": {
     "FAIL_CLOSED": 27,
     "INTENTIONAL": 17,
-    "LOG_AND_CONTINUE": 298,
+    "LOG_AND_CONTINUE": 299,
     "SWALLOW_BY_CONTROL_FLOW": 180
   },
   "owner_counts": {
@@ -27,7 +27,7 @@
     "services": 118,
     "storage": 20,
     "telemetry": 30,
-    "web": 31
+    "web": 32
   },
   "swallow_by_control_flow_owner_counts": {
     "api": 59,
@@ -55,7 +55,7 @@
     "foms/services/common/business_calendar.py:39",
     "foms/services/integrations/naver_commerce/client.py:403",
     "foms/services/integrations/naver_commerce/client.py:439",
-    "foms/services/integrations/naver_commerce/ingest.py:326",
+    "foms/services/integrations/naver_commerce/ingest.py:331",
     "foms/services/jobs/tasks.py:61",
     "foms/services/jobs/tasks.py:120",
     "foms/services/jobs/tasks.py:174",
@@ -3467,7 +3467,7 @@
     },
     {
       "path": "foms/services/integrations/naver_commerce/ingest.py",
-      "lineno": 143,
+      "lineno": 148,
       "handler_type": "broad_exception",
       "disposition": "LOG_AND_CONTINUE",
       "owner": "services",
@@ -3476,7 +3476,7 @@
     },
     {
       "path": "foms/services/integrations/naver_commerce/ingest.py",
-      "lineno": 326,
+      "lineno": 331,
       "handler_type": "broad_exception",
       "disposition": "FAIL_CLOSED",
       "owner": "services",
@@ -3485,7 +3485,7 @@
     },
     {
       "path": "foms/services/integrations/naver_commerce/ingest.py",
-      "lineno": 351,
+      "lineno": 356,
       "handler_type": "broad_exception",
       "disposition": "LOG_AND_CONTINUE",
       "owner": "services",
@@ -4337,6 +4337,15 @@
       "owner": "storage",
       "has_logging": false,
       "justification": "print only, no logger (API-ERROR-01 owns stdout->logger migration)"
+    },
+    {
+      "path": "foms/web/admin/naver_ingest.py",
+      "lineno": 312,
+      "handler_type": "broad_exception",
+      "disposition": "LOG_AND_CONTINUE",
+      "owner": "web",
+      "has_logging": true,
+      "justification": "logs via logger/log_handled_exception"
     },
     {
       "path": "foms/web/admin/routes.py",

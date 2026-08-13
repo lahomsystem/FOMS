@@ -8,11 +8,11 @@
     "log_access"
   ],
   "baselines": {
-    "total": 178,
+    "total": 180,
     "unaudited": 0
   },
   "classification_counts": {
-    "AUDITED": 148,
+    "AUDITED": 150,
     "EXEMPT": 30,
     "UNAUDITED": 0
   },
@@ -1427,8 +1427,26 @@
     },
     {
       "path": "foms/web/admin/naver_ingest.py",
+      "endpoint": "naver_ingest_mark_reviewed",
+      "lineno": 244,
+      "methods": [
+        "POST"
+      ],
+      "classification": "AUDITED"
+    },
+    {
+      "path": "foms/web/admin/naver_ingest.py",
       "endpoint": "naver_ingest_run_now",
-      "lineno": 169,
+      "lineno": 364,
+      "methods": [
+        "POST"
+      ],
+      "classification": "AUDITED"
+    },
+    {
+      "path": "foms/web/admin/naver_ingest.py",
+      "endpoint": "naver_ingest_set_assignee",
+      "lineno": 273,
       "methods": [
         "POST"
       ],

@@ -1,0 +1,217 @@
+{% extends "admin/layout.html" %}
+
+{% block title %}수집 주문 확인{% endblock %}
+
+{% block content %}
+<div class="container-fluid">
+    <div class="d-flex justify-content-between align-items-center mb-3">
+        <h1 class="h3 mb-0">
+            <i class="fas fa-clipboard-check text-primary"></i> 수집 주문 확인
+            <span class="badge bg-primary align-middle">{{ pending_count }}</span>
+        </h1>
+        <a href="{{ url_for('admin.naver_ingest_dashboard') }}" class="btn btn-outline-secondary btn-sm">
+            수집 상태 화면으로
+        </a>
+    </div>
+
+    <p class="text-muted small">
+        수집 주문은 담당자와 규격이 비어 있는 초안입니다. 아래 원본을 보고 편집기에서 채운 뒤
+        "확인 완료"를 누르면 목록에서 빠집니다.
+    </p>
+
+    <div id="triage-result" class="alert d-none" role="status"></div>
+
+    <div class="row g-3">
+        {# 좌: 확인 대기 큐 #}
+        <div class="col-lg-4">
+            <div class="card shadow-sm">
+                <div class="card-header py-2 small fw-semibold">확인 대기</div>
+                <div class="list-group list-group-flush">
+                    {% for row in queue %}
+                    <a class="list-group-item list-group-item-action {{ 'active' if selected and selected.link_id == row.id }}"
+                       href="{{ url_for('admin.naver_ingest_triage', link_id=row.id) }}">
+                        <div class="d-flex justify-content-between">
+                            <span class="fw-semibold">{{ row.customer_name or '(고객명 없음)' }}</span>
+                            <small>{{ row.created_at }}</small>
+                        </div>
+                        <div class="small text-truncate">{{ row.product or '(제품 없음)' }}</div>
+                    </a>
+                    {% else %}
+                    <div class="list-group-item text-center text-muted py-4">확인할 주문이 없습니다.</div>
+                    {% endfor %}
+                </div>
+            </div>
+        </div>
+
+        {# 우: 네이버 원본 ↔ FOMS 현재 값 대조 #}
+        <div class="col-lg-8">
+            {% if selected %}
+            <div class="card shadow-sm">
+                <div class="card-header d-flex justify-content-between align-items-center py-2">
+                    <span class="small text-muted">상품주문번호 {{ selected.external_id }}</span>
+                    {% if selected.order_id %}
+                    <a class="btn btn-sm btn-primary" target="_blank" rel="noopener"
+                       href="{{ url_for('order_edit.edit_order', order_id=selected.order_id, open='erp-order') }}">
+                        <i class="fas fa-pen"></i> 주문 열어서 규격 채우기
+                    </a>
+                    {% endif %}
+                </div>
+                <div class="card-body">
+                    {# 옵션 원문이 이 화면의 핵심이다 — v1 은 규격을 파싱하지 않는다 #}
+                    <div class="mb-3">
+                        <div class="text-muted small">네이버 옵션 원문 (이걸 보고 규격을 채웁니다)</div>
+                        <div class="p-3 bg-light rounded fs-5">{{ selected.naver.option or '(옵션 없음)' }}</div>
+                    </div>
+
+                    <div class="table-responsive">
+                        <table class="table table-sm align-middle">
+                            <thead class="table-light">
+                                <tr>
+                                    <th style="width: 22%">항목</th>
+                                    <th style="width: 39%">네이버 원본</th>
+                                    <th style="width: 39%">FOMS 현재 값</th>
+                                </tr>
+                            </thead>
+                            <tbody>
+                                <tr>
+                                    <td class="text-muted small">수취인</td>
+                                    <td>{{ selected.naver.recipient_name or '-' }}</td>
+                                    <td>{{ selected.foms.customer_name or '-' }}</td>
+                                </tr>
+                                <tr>
+                                    <td class="text-muted small">연락처</td>
+                                    <td>{{ selected.naver.recipient_tel or '-' }}</td>
+                                    <td>{{ selected.foms.phone or '-' }}</td>
+                                </tr>
+                                <tr>
+                                    <td class="text-muted small">주소</td>
+                                    <td>{{ selected.naver.address or '-' }}</td>
+                                    <td>{{ selected.foms.address or '-' }}</td>
+                                </tr>
+                                <tr>
+                                    <td class="text-muted small">제품</td>
+                                    <td>{{ selected.naver.product_name or '-' }}</td>
+                                    <td>{{ selected.foms.product or '-' }}</td>
+                                </tr>
+                                <tr>
+                                    <td class="text-muted small">금액</td>
+                                    <td>{{ selected.naver.amount or '-' }}</td>
+                                    <td>{{ selected.foms.payment_amount or '-' }}</td>
+                                </tr>
+                                <tr>
+                                    <td class="text-muted small">주문자<br><span class="small">(수취인과 다르면 확인)</span></td>
+                                    <td colspan="2">
+                                        {{ selected.naver.orderer_name or '-' }}
+                                        / {{ selected.naver.orderer_tel or '-' }}
+                                    </td>
+                                </tr>
+                                <tr>
+                                    <td class="text-muted small">발송기한 / 상품코드</td>
+                                    <td colspan="2">
+                                        {{ selected.naver.shipping_due_date or '-' }}
+                                        / {{ selected.naver.seller_product_code or '-' }}
+                                    </td>
+                                </tr>
+                                {% if selected.naver.shipping_memo %}
+                                <tr>
+                                    <td class="text-muted small">배송 메모</td>
+                                    <td colspan="2">{{ selected.naver.shipping_memo }}</td>
+                                </tr>
+                                {% endif %}
+                            </tbody>
+                        </table>
+                    </div>
+                </div>
+
+                <div class="card-footer d-flex flex-wrap gap-2 align-items-center">
+                    <label class="small text-muted mb-0" for="triage-assignee">담당 영업</label>
+                    <select id="triage-assignee" class="form-select form-select-sm" style="width: 12rem;">
+                        <option value="">담당자 선택</option>
+                        {% for user in sales_users %}
+                        <option value="{{ user.id }}">{{ user.name }}</option>
+                        {% endfor %}
+                    </select>
+                    <button type="button" id="triage-assign" class="btn btn-sm btn-outline-primary"
+                            data-order-id="{{ selected.order_id or '' }}">담당자 지정</button>
+                    <div class="ms-auto">
+                        <button type="button" id="triage-done" class="btn btn-success"
+                                data-link-id="{{ selected.link_id }}">
+                            <i class="fas fa-check"></i> 확인 완료
+                        </button>
+                    </div>
+                </div>
+            </div>
+            {% else %}
+            <div class="card shadow-sm">
+                <div class="card-body text-center text-muted py-5">확인할 주문이 없습니다.</div>
+            </div>
+            {% endif %}
+        </div>
+    </div>
+</div>
+
+<script>
+// 확인 완료 / 담당자 지정. CSRF 는 공용 레이아웃의 fetch 래퍼가 붙인다.
+(function () {
+    var box = document.getElementById('triage-result');
+    function show(kind, text) {
+        box.className = 'alert alert-' + kind;
+        box.textContent = text;
+    }
+
+    var doneBtn = document.getElementById('triage-done');
+    if (doneBtn) {
+        doneBtn.addEventListener('click', async function () {
+            doneBtn.disabled = true;
+            try {
+                const response = await fetch('/admin/naver-ingest/' + doneBtn.dataset.linkId + '/review', {
+                    method: 'POST',
+                    headers: { 'Content-Type': 'application/json' },
+                    body: '{}'
+                });
+                const data = await response.json();
+                if (!data.success) {
+                    show('danger', data.error || '확인 처리에 실패했습니다.');
+                    doneBtn.disabled = false;
+                    return;
+                }
+                window.location.href = '{{ url_for("admin.naver_ingest_triage") }}';
+            } catch (error) {
+                show('danger', '요청 중 오류가 발생했습니다: ' + error);
+                doneBtn.disabled = false;
+            }
+        });
+    }
+
+    var assignBtn = document.getElementById('triage-assign');
+    if (assignBtn) {
+        assignBtn.addEventListener('click', async function () {
+            var select = document.getElementById('triage-assignee');
+            var orderId = assignBtn.dataset.orderId;
+            if (!select.value || !orderId) {
+                show('warning', '담당자를 먼저 선택하세요.');
+                return;
+            }
+            assignBtn.disabled = true;
+            try {
+                const response = await fetch('/admin/naver-ingest/' + orderId + '/assignee', {
+                    method: 'POST',
+                    headers: { 'Content-Type': 'application/json' },
+                    body: JSON.stringify({ user_id: Number(select.value) })
+                });
+                const data = await response.json();
+                if (!data.success) {
+                    show('danger', data.error || '담당자 지정에 실패했습니다.');
+                    return;
+                }
+                show('success', '담당자를 지정했습니다.');
+            } catch (error) {
+                show('danger', '요청 중 오류가 발생했습니다: ' + error);
+            } finally {
+                assignBtn.disabled = false;
+            }
+        });
+    }
+})();
+</script>
+{% endblock %}

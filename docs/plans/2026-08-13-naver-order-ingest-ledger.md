@@ -62,6 +62,9 @@
 | T1 | Railway WORKER static IP 실검증 (`--once --dry-run`) | T0, T3 | PENDING | — |
 | T6 | 관리 화면 (수집 이력·수동 실행·원본 스냅샷) | T4, T5 | DONE(부분) | 테스트 13 green |
 | T7 | 앱 인증 만료 D-7 알림 | — | DONE | 테스트 11 green |
+| T8 | 트리아지 상태 컬럼 2개 + 마이그레이션 | T2 | DONE | `naver_triage_00` |
+| T9 | 트리아지 작업대 화면 | T8 | DONE | 테스트 15 green |
+| T10 | 담당자 지정(`set_sales_assignee`) | T8 | DONE(부분) | PG 레인 3 green |
 
 > 순서 주의: 스펙의 T1(인프라 실검증)은 T0 사람 작업과 코드(T3)가 모두 있어야 가능하므로
 > 실행 순서에서는 T3 뒤로 내렸다. 스펙 번호는 그대로 둔다(대조 가능하게).
@@ -309,3 +312,69 @@ write guard manifest 와 **별개 파일**이라 둘 다 등재해야 한다.
 4. UTF-8 파일로 커밋 메시지 작성 → `git commit -F <파일> -- <경로들>` (동시 세션 레이스 방어)
 5. 이 원장 Task 표 상태·커밋 SHA 갱신
 6. push 는 `deploy` 만. push 후 `gh run list --branch deploy` 로 전 워크플로 green 확인
+
+---
+
+## T8 — 트리아지 상태 컬럼 (스펙 §8.3)
+
+**범위**: `ExternalOrderLink` 에 `reviewed_at`(DateTime, nullable)·`reviewed_by_user_id`
+(FK → users.id, ON DELETE SET NULL) 추가 + 마이그레이션(`down_revision` = 그 시점 원격 head).
+
+`sync_status` 에 값을 더하지 않는다 — 그건 수집 결과 축이고 트리아지는 사람 처리 축이라
+섞으면 "수집 성공했지만 사람이 아직 안 본" 상태를 표현할 수 없다.
+
+**검증 결과 (2026-08-13 실행)** — `down_revision = orderreason_00`
+- 왕복: `foms_test_naver_t8` 에서 `create_all`+`stamp head` → `downgrade -1`(컬럼 소멸 확인) →
+  `upgrade head`(재생성) ✅
+- `alembic heads` → `naver_triage_00` 단일 head ✅
+- ORM↔마이그레이션 parity: 제약·인덱스 일치 ✅ / 컬럼은 **순서만 다름**(ALTER TABLE ADD COLUMN 은
+  항상 뒤에 붙는다 — 불가피하며 체인 지문 테스트는 `(table, column)` 키라 순서 무관)
+- PG 레인 체인 왕복 `tests/postgres/test_migration_chain.py` 1 passed ✅
+- 부분 인덱스 확인: `btree (channel, created_at) WHERE (reviewed_at IS NULL)` ✅
+- `APP_OK` + `pre_push_smoke` exit 0 (322 passed) ✅
+
+**밟은 함정**: FK 이름을 마이그레이션에서 임의로 지으면(`fk_external_order_link_reviewed_by`)
+`downgrade` 가 `UndefinedObject` 로 죽는다 — ORM `ForeignKey` 는 이름을 안 주므로 create_all
+레인이 **PostgreSQL 기본명**(`external_order_links_reviewed_by_user_id_fkey`)으로 만든다.
+같은 테이블 `order_id` FK 도 같은 규칙. 마이그레이션은 기본명을 그대로 써야 한다.
+
+## T9 — 트리아지 작업대 (스펙 §8.2)
+
+**범위**: `/admin/naver-ingest/triage` (또는 기존 화면의 탭). 좌=확인 대기 큐, 우=네이버 원본
+(옵션 원문·주문자·수취인·주소)과 FOMS 현재 값 대조 + 주문 편집기 링크 + "확인 완료".
+
+**규격 입력은 이 화면에서 하지 않는다** — `spec_rows` 는 W 가 출고가·시공비와 결합돼 있어
+(`eval_spec_width_mm` 가 총폭 SSOT) 두 번째 입력 UI 를 만들면 계산 규칙이 갈라진다.
+
+**검증 결과 (2026-08-13 실행)** — `/admin/naver-ingest/triage`
+- `python -m pytest tests/services/integrations/test_naver_triage.py -q` → **15 passed** ✅
+- `reviewed_at IS NULL` 인 `LINKED` 건만 큐에 뜬다(확인 완료·보류·실패 제외) ✅
+- "확인 완료" → `reviewed_at`/`reviewed_by_user_id` 기록 → 큐에서 빠짐 ✅
+  **재요청이 첫 확인 시각을 덮지 않는다**(첫 확인이 기록이다) ✅
+- 옵션 원문 노출 + 원본↔FOMS 대조표(주문자·상품코드 포함) + 편집기 링크 ✅
+- 게이트 3곳 등재 완료: write guard manifest · auth policy manifest · `ACTION_LABELS` ✅
+
+## T10 — 담당자 지정 + "담당 미지정" 뱃지 (스펙 §8.4)
+
+**범위**: 작업대에서 SALES 담당자 지정 → `foms/services/orders/assignment.py::set_sales_assignee()`
+경유(`OrderAssignment` 직접 생성 금지 — REV-00 version bump·receipt·`SALES_ASSIGNEE_SET` 이벤트가
+따라온다). 보류함에서 실제 담당자로 옮기는 것은 **교체**라 `reason` 이 필수 — 화면이 기본 사유를 보낸다.
+대시보드의 "담당 미지정" 뱃지(T6 에서 미룬 잔여)도 여기서 함께 처리한다.
+
+**검증 결과 (2026-08-13 실행)**
+- **PG 레인** `tests/postgres/test_naver_triage_assignment.py` → **3 passed** ✅
+  (보류함 owner 교체 후 active SALES 정확히 1명 / `SALES_ASSIGNEE_SET` 이벤트 + version bump /
+  사유 없는 교체 거부)
+- SQLite 레인은 라우트 배선만 고정(서비스 호출 인자·감사 기록) ✅
+
+**레인 함정(중요)**: SALES active-owner 유일성은 `postgresql_where` 부분 유니크라
+**SQLite create_all 에서는 predicate 없는 전체 유니크**가 된다. 그래서 owner 교체는 SQLite
+레인에서 `UNIQUE constraint failed: order_assignments.order_id` 로 반드시 실패한다 —
+배정 교체 계약은 PG 레인에만 둔다.
+
+**구조 변경**: 채널 코드·시스템 계정 username 을 `naver_commerce/constants.py`(의존성 없는
+모듈)로 분리했다. web 화면이 `ingest` 에서 상수를 당겨오면 web 이 수집 파이프라인을 import 하게
+되어 WORKER 단일 출구 계약 테스트가 red 가 된다(실제로 잡혔다).
+
+**잔여**: 대시보드 "담당 미지정" 뱃지. 공유 `edit_order.html`·`erp_order_tab.html` 회귀 핫스팟과
+같은 표면이라 별도 패스로 남긴다(T6 잔여와 동일 사유).

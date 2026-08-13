@@ -24,6 +24,11 @@ from sqlalchemy.exc import IntegrityError
 from sqlalchemy.orm import Session
 
 from foms.services.datetime_kst import get_today_kst, now_utc_naive
+from foms.services.integrations.naver_commerce.constants import (
+    ACTOR_USERNAME as _ACTOR_USERNAME,
+    CHANNEL as _CHANNEL,
+    OWNER_USERNAME as _OWNER_USERNAME,
+)
 from foms.services.integrations.naver_commerce.mapping import (
     NaverMappingError,
     extract_external_id,
@@ -36,11 +41,11 @@ from models import ExternalOrderLink, User
 
 logger = logging.getLogger(__name__)
 
-CHANNEL = "NAVER"
-
-#: 시스템 계정 username (스펙 §3.5 — T0 에서 사람이 만든다).
-ACTOR_USERNAME = "naver_ingest_bot"
-OWNER_USERNAME = "naver_unassigned"
+# 상수 정본은 constants.py 다(의존성 없는 모듈). web 화면도 같은 값을 알아야 하는데 이 모듈을
+# import 하면 web 이 수집 파이프라인을 끌어오게 되어 WORKER 단일 출구 계약이 흐려진다.
+CHANNEL = _CHANNEL
+ACTOR_USERNAME = _ACTOR_USERNAME
+OWNER_USERNAME = _OWNER_USERNAME
 
 
 class IngestAccountError(RuntimeError):

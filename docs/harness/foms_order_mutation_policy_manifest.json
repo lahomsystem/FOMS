@@ -5,10 +5,20 @@
   "exempt_count": 4,
   "guard_count": 169,
   "routes": {
+    "admin.naver_ingest_mark_reviewed": {
+      "mode": "guard",
+      "policy_id": "ADMIN_OPS",
+      "rule": "/admin/naver-ingest/<int:link_id>/review"
+    },
     "admin.naver_ingest_run_now": {
       "mode": "guard",
       "policy_id": "ADMIN_OPS",
       "rule": "/admin/naver-ingest/run"
+    },
+    "admin.naver_ingest_set_assignee": {
+      "mode": "guard",
+      "policy_id": "ADMIN_OPS",
+      "rule": "/admin/naver-ingest/<int:order_id>/assignee"
     },
     "admin.ops_approval_review": {
       "mode": "guard",

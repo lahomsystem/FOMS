@@ -20,7 +20,10 @@ from typing import Any
 from sqlalchemy.orm import Session
 from werkzeug.security import generate_password_hash
 
-from foms.services.integrations.naver_commerce.ingest import ACTOR_USERNAME, OWNER_USERNAME
+from foms.services.integrations.naver_commerce.constants import (
+    ACTOR_USERNAME,
+    OWNER_USERNAME,
+)
 from models import User
 
 #: 계정별 목표 상태. 여기서 벗어나면 :func:`ensure_account` 가 바로잡는다.
