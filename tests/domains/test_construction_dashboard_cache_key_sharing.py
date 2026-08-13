@@ -361,3 +361,30 @@ def test_grid_row_uses_extracted_style_classes(client, monkeypatch) -> None:
     markup = row.group(0)
     for cls in ("erp-c-cell", "erp-c-cell--strong", "erp-c-stage-badge"):
         assert cls in markup, f"{cls} 누락"
+
+
+def test_extracted_style_classes_outrank_grid_td_rule() -> None:
+    """이관 클래스는 `#erp-grid tbody td` 규칙을 이길 특이도로 선언돼야 한다.
+
+    인라인 style 은 특이도가 최상이라 무엇이든 이겼지만 클래스는 아니다. 첫 배포에서
+    `.erp-main-row .erp-c-cell`([0,2,0])이 `#erp-grid tbody td { font-size: 1rem }`
+    ([1,0,2])에 밀려 셀 글자가 17.6px → 14.4px 로 작아지는 회귀가 났다.
+    같은 `#erp-grid tbody` 스코프로 선언하면 [1,1,1] 로 이긴다.
+    """
+    root = pathlib.Path(__file__).resolve().parents[2]
+    css = (root / "static/css/contexts/construction/dashboard.css").read_text(encoding="utf-8")
+
+    for cls in (
+        "erp-c-cell",
+        "erp-c-cell--strong",
+        "erp-c-stage-badge",
+        "erp-c-alert-badge",
+        "erp-c-openbadge",
+        "erp-c-muted",
+    ):
+        selectors = re.findall(rf"^([^\n{{]*\.{re.escape(cls)}[^\n{{]*)\{{", css, re.M)
+        assert selectors, f"{cls} 규칙이 없다"
+        for sel in selectors:
+            assert "#erp-grid" in sel, (
+                f"{cls} 규칙이 ID 스코프 밖이라 `#erp-grid tbody td` 에 밀린다: {sel.strip()}"
+            )

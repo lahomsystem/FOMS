@@ -1420,41 +1420,45 @@
 /* ── 작업 큐 표 셀·뱃지 타이포 (인라인 style 대체) ─────────────────────────
    filters_grid.html 이 행마다 같은 style="" 를 반복해 붙이고 있었다(스테이징 실측
    552회 31.3KB = 주 행 마크업의 24.1%). 값은 9종뿐이라 클래스로 이관한다.
-   인라인 style 은 클래스보다 특이도가 높으므로, Bootstrap 유틸(.badge/.text-muted)에
-   밀리지 않도록 표 스코프(.erp-main-row / .erp-dashboard-orders)를 선택자에 둔다.
-   인라인 금지 정책(CLAUDE.md) 준수이기도 하다. */
+   인라인 금지 정책(CLAUDE.md) 준수이기도 하다.
 
-.erp-main-row .erp-c-alert-badge {
+   특이도 주의: 인라인 style 은 특이도가 최상이라 무엇이든 이겼지만, 클래스는 그렇지
+   않다. 같은 표에 `#erp-grid tbody td { font-size: 1rem }`(특이도 [1,0,2])이 있어
+   `.erp-main-row .erp-c-cell`([0,2,0])로는 진다 — 실제로 첫 배포에서 셀 글자가
+   17.6px → 14.4px 로 작아지는 회귀가 났다. 그래서 같은 `#erp-grid tbody` 스코프
+   ([1,1,1])로 선언해 !important 없이 이긴다. 이 스코프를 지우면 회귀가 재발한다. */
+
+#erp-grid tbody .erp-c-alert-badge {
   font-size: 1.1rem;
   padding: 0.5em 0.8em;
 }
 
-.erp-main-row .erp-c-stage-badge {
+#erp-grid tbody .erp-c-stage-badge {
   font-size: 1.1rem;
   padding: 0.5em 0.7em;
 }
 
-.erp-main-row .erp-c-cell {
+#erp-grid tbody .erp-c-cell {
   font-size: 1.1rem;
   color: #495057;
 }
 
-.erp-main-row .erp-c-cell--wrap {
+#erp-grid tbody .erp-c-cell--wrap {
   word-break: break-word;
 }
 
-.erp-main-row .erp-c-cell--strong {
+#erp-grid tbody .erp-c-cell--strong {
   font-size: 1.1rem;
   color: #212529;
 }
 
-.erp-main-row .erp-c-muted {
+#erp-grid tbody .erp-c-muted {
   font-size: 1.1rem;
 }
 
 /* 첨부/상세 진입 배지: 원본이 !important 로 Bootstrap .badge 를 눌렀다 —
-   표 스코프 선택자로 특이도를 확보해 !important 없이 같은 결과를 낸다. */
-.erp-main-row .erp-c-openbadge {
+   ID 스코프로 특이도를 확보해 !important 없이 같은 결과를 낸다. */
+#erp-grid tbody .erp-c-openbadge {
   cursor: pointer;
   font-size: 1rem;
   padding: 0.4em 0.7em;
@@ -1462,14 +1466,14 @@
   display: inline-block;
 }
 
-.erp-main-row a.erp-c-openbadge {
+#erp-grid tbody a.erp-c-openbadge {
   text-decoration: none;
 }
 
-.erp-main-row .erp-c-openbadge .fas {
+#erp-grid tbody .erp-c-openbadge .fas {
   font-size: 1rem;
 }
 
-.erp-main-row .erp-c-selfmeasure {
+#erp-grid tbody .erp-c-selfmeasure {
   width: fit-content;
 }
