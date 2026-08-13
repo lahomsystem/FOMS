@@ -182,8 +182,6 @@ ACTION_LABELS: dict[str, str] = {
     "ORDER_ESTIMATE_DELETED": "주문 견적 삭제",
     "ORDER_STRUCTURED_SAVED": "주문 저장",
     "ORDER_CHANGE_REASON_SET": "변경 사유 입력",
-    "NAVER_INGEST_RUN_NOW": "네이버 수집 수동 실행",
-    "NAVER_INGEST_SNAPSHOT_VIEW": "네이버 수집 원본 열람",
     "ORDER_ADDRESS_UPDATED": "주소 수정",
     "ADDRESS_LEARNING_ADDED": "주소 학습 등록",
     "STORAGE_SETTING_UPDATED": "스토리지 설정 변경",
