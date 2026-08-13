@@ -53,7 +53,6 @@
     </div>
     <span
       class="foms-stage-badge foms-stage-badge{{ r.stage_badge_modifier }} erp-as-status-badge"
-      data-order-id="{{ r.id }}"
       role="status">
       {% if r.as_pending %}미결{% else %}{{ STATUS.get(r.status, r.status) }}{% endif %}
     </span>
@@ -69,12 +68,11 @@
       <span class="erp-as-mobile-card__date-label">방문</span>
       <div class="erp-as-visit-cell-wrap">
         <input type="date" class="erp-pro-input editable-date-as" value="{{ r.as_visit_date or '' }}"
-          data-order-id="{{ r.id }}" data-field="as_visit_date" aria-label="AS 방문일">
+          data-field="as_visit_date" aria-label="AS 방문일">
       </div>
       {{ render_as_schedule_drift_badge(r.schedule_link_drift, r.id) }}
       {# 방문 가능시간 칩 — PC와 동일 팝오버 편집 #}
       <button type="button" class="erp-as-avail-chip{% if r.as_availability %} erp-as-avail-chip--set{% endif %}"
-        data-order-id="{{ r.id }}"
         data-avail-days="{{ r.as_availability.days if r.as_availability else '' }}"
         data-avail-time="{{ r.as_availability.time if r.as_availability else '' }}"
         data-avail-note="{{ r.as_availability.note if r.as_availability and r.as_availability.note else '' }}"
@@ -86,7 +84,7 @@
       class="erp-as-mobile-card__date erp-as-mobile-card__date--complete {% if r.as_completed_date %}erp-as-complete-row--set{% endif %}">
       <span class="erp-as-mobile-card__date-label">완료</span>
       <input type="date" class="erp-pro-input editable-date-as" value="{{ r.as_completed_date or '' }}"
-        data-order-id="{{ r.id }}" data-field="as_completed_date" aria-label="AS 완료일">
+        data-field="as_completed_date" aria-label="AS 완료일">
     </div>
   </div>
 
@@ -95,7 +93,6 @@
     {% if r.address %}
     <button type="button" class="erp-as-mobile-card__schedule-btn find-schedule-btn"
       data-address="{{ r.address }}"
-      data-order-id="{{ r.id }}"
       data-lat="{{ r.lat or '' }}"
       data-lng="{{ r.lng or '' }}"
       data-linked-ref-order-id="{{ r.schedule_link_drift.ref_order_id or '' }}"
@@ -110,13 +107,13 @@
     {% if can_view_as_photos %}
     <button type="button"
       class="erp-as-mobile-card__action as-photos-btn{% if not r.has_as_photos %} as-photos-btn--no-photos{% endif %}"
-      data-order-id="{{ r.id }}" title="AS 사진 보기">
+      title="AS 사진 보기">
       <i class="fas fa-paperclip" aria-hidden="true"></i>
       <span>사진</span>
     </button>
     {% endif %}
     {% if r.as_visit_date %}
-    <button type="button" class="erp-as-mobile-card__action erp-as-mobile-card__action--pending erp-as-pending-btn as-pending-btn{% if r.as_pending %} erp-as-pending-btn--active{% endif %}" data-order-id="{{ r.id }}"
+    <button type="button" class="erp-as-mobile-card__action erp-as-mobile-card__action--pending erp-as-pending-btn as-pending-btn{% if r.as_pending %} erp-as-pending-btn--active{% endif %}"
       data-as-pending="{% if r.as_pending %}1{% else %}0{% endif %}"
       title="{% if r.as_pending %}미결 표시 해제{% else %}미결 표시{% endif %}">
       <i class="fas fa-circle-exclamation" aria-hidden="true"></i>
@@ -143,7 +140,7 @@
      (100행 × 2패널 폼 = fragment 비만의 잔여 최대 덩어리). 주입/재배선은 as-dashboard.js. #}
   <details class="erp-as-mobile-card__detail">
     <summary class="erp-as-mobile-card__detail-toggle">시공·AS 내용</summary>
-    <div class="erp-as-mobile-card__detail-body" data-as-card-lazy data-order-id="{{ r.id }}">
+    <div class="erp-as-mobile-card__detail-body" data-as-card-lazy>
       <div class="erp-as-card-lazy__status text-muted small py-2">여는 중...</div>
     </div>
   </details>
@@ -160,8 +157,7 @@
     <span class="erp-pro-order-card__id">#{{ r.id }} <span class="text-muted small">(권한없음)</span></span>
     {% endif %}
     <span
-      class="erp-pro-badge erp-as-status-badge {% if r.as_pending %}erp-pro-badge--pending{% elif r.status == 'AS_COMPLETED' %}erp-pro-badge--success{% else %}erp-pro-badge--info{% endif %}"
-      data-order-id="{{ r.id }}">
+      class="erp-pro-badge erp-as-status-badge {% if r.as_pending %}erp-pro-badge--pending{% elif r.status == 'AS_COMPLETED' %}erp-pro-badge--success{% else %}erp-pro-badge--info{% endif %}">
       {% if r.as_pending %}미결{% else %}{{ STATUS.get(r.status, r.status) }}{% endif %}
     </span>
   </div>
@@ -194,11 +190,11 @@
       <span class="erp-pro-order-card__label">AS 방문일</span>
       <div class="erp-as-visit-cell-wrap">
         <input type="date" class="erp-pro-input editable-date-as" value="{{ r.as_visit_date or '' }}"
-          data-order-id="{{ r.id }}" data-field="as_visit_date">
+          data-field="as_visit_date">
       </div>
       {{ render_as_schedule_drift_badge(r.schedule_link_drift, r.id) }}
       {% if r.as_visit_date %}
-      <button type="button" class="erp-as-pending-btn as-pending-btn{% if r.as_pending %} erp-as-pending-btn--active{% endif %}" data-order-id="{{ r.id }}"
+      <button type="button" class="erp-as-pending-btn as-pending-btn{% if r.as_pending %} erp-as-pending-btn--active{% endif %}"
         data-as-pending="{% if r.as_pending %}1{% else %}0{% endif %}"
         title="{% if r.as_pending %}미결 표시 해제{% else %}미결 표시{% endif %}">{% if r.as_pending %}미결 해제{% else %}미결{% endif %}</button>
       {% endif %}
@@ -206,7 +202,7 @@
     <div class="erp-pro-order-card__row {% if r.as_completed_date %}erp-as-complete-row--set{% endif %}">
       <span class="erp-pro-order-card__label">AS 완료</span>
       <input type="date" class="erp-pro-input editable-date-as" value="{{ r.as_completed_date or '' }}"
-        data-order-id="{{ r.id }}" data-field="as_completed_date">
+        data-field="as_completed_date">
     </div>
     <div class="erp-pro-order-card__row erp-pro-order-card__row--full">
       <span class="erp-pro-order-card__label">주소</span>
@@ -215,7 +211,6 @@
         {% if r.address %}
         <button type="button" class="btn btn-sm btn-outline-secondary find-schedule-btn ms-2 p-0 px-2"
           data-address="{{ r.address }}"
-          data-order-id="{{ r.id }}"
           data-lat="{{ r.lat or '' }}"
           data-lng="{{ r.lng or '' }}"
           data-linked-ref-order-id="{{ r.schedule_link_drift.ref_order_id or '' }}"
@@ -230,14 +225,14 @@
       <span class="erp-pro-order-card__label">AS 사진</span>
       <button type="button"
         class="btn btn-sm as-photos-btn {{ 'btn-outline-primary' if r.has_as_photos else 'as-photos-btn--no-photos' }}"
-        data-order-id="{{ r.id }}" title="AS 사진 보기">
+        title="AS 사진 보기">
         <i class="fas fa-paperclip"></i> 보기
       </button>
     </div>
     {% endif %}
     <div class="erp-pro-order-card__row">
       <span class="erp-pro-order-card__label">AS도면</span>
-      <input type="checkbox" class="form-check-input as-blueprint-checkbox" data-order-id="{{ r.id }}"
+      <input type="checkbox" class="form-check-input as-blueprint-checkbox"
         {% if r.has_as_blueprint %}checked{% endif %} aria-label="주문 #{{ r.id }} AS도면 여부">
     </div>
     <div class="erp-pro-order-card__row erp-pro-order-card__row--full">
