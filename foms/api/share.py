@@ -352,6 +352,91 @@ _SMS_BUCKET_SECONDS = 5
 _SMS_KIND_LABEL = {'drawing': '도면', 'estimate': '견적서'}
 
 
+def _resolve_sender(order: Order, brand: str) -> tuple[Optional[str], Optional[str]]:
+    """발신번호 3단 우선순위 결정(T8.1 — 원장 '문자 발신번호 확정' 섹션이 정본).
+
+    ① 주문 담당자(``manager_name``)와 이름이 일치하는 활성 사용자의 ``sender_phone``
+    (발송 버튼 누른 직원 기준 아님 — 동명이인은 id 오름차순 첫 등록자) ② 브랜드
+    대표번호 ``SOLAPI_SENDER_PHONE_{brand}`` ③ 구 ``SOLAPI_SENDER_PHONE`` 최후 폴백.
+    ② 벤더 실패 시 백업 재시도는 :func:`_send_sms_with_fallback` 가 담당한다.
+
+    Args:
+        order: 대상 주문(담당자명 조회).
+        brand: :func:`ka.resolve_brand` 결과(``LAHOM``/``HAUD``).
+
+    Returns:
+        ``(발신번호, 출처)`` — 출처는 ``manager``/``brand``/``legacy``.
+        결정 불가면 ``(None, None)`` (호출자가 503 처리).
+    """
+    manager = (order.manager_name or '').strip()
+    if manager:
+        matched = (
+            db_session.query(User)
+            .filter(User.name == manager, User.is_active.is_(True),
+                    User.sender_phone.isnot(None))
+            .order_by(User.id.asc())
+            .first()
+        )
+        phone = ((matched.sender_phone if matched else None) or '').strip()
+        if phone:
+            return phone, 'manager'
+    phone = ka._env(f'SOLAPI_SENDER_PHONE_{brand}')
+    if phone:
+        return phone, 'brand'
+    phone = ka._env('SOLAPI_SENDER_PHONE')
+    if phone:
+        return phone, 'legacy'
+    return None, None
+
+
+def _send_sms_with_fallback(
+    share_id: int,
+    *,
+    to_phone: str,
+    text: str,
+    from_phone: str,
+    sender_source: str,
+    brand: str,
+) -> tuple[Optional[str], list[dict[str, Any]]]:
+    """벤더 발송 실행 — ② 브랜드 대표번호 실패 시에만 백업번호로 1회 재시도(T8.1).
+
+    재시도는 같은 요청 내 동기 수행이며 멱등 앵커(선점 insert)는 호출자의 1개를
+    공유한다 — 시도 이력은 attempts 로 반환해 이벤트 payload 에 기록한다.
+    ``manager``/``legacy`` 출처 실패는 재시도하지 않는다(백업번호는 브랜드 전용).
+
+    Args:
+        share_id: 로그용 공유 row id.
+        to_phone: 수신 휴대폰(숫자만).
+        text: 발송 본문.
+        from_phone: 1차 발신번호(:func:`_resolve_sender` 결과).
+        sender_source: 1차 발신 출처(``manager``/``brand``/``legacy``).
+        brand: 브랜드 판정(백업 env 키 ``SOLAPI_SENDER_FALLBACK_{brand}`` 결정).
+
+    Returns:
+        ``(최종 error, attempts)`` — attempts 는 시도별(최대 2건)
+        ``{'from': 마스킹 번호, 'source': ..., 'error': ...}``.
+    """
+    attempts: list[dict[str, Any]] = []
+
+    def _attempt(phone: str, source: str) -> Optional[str]:
+        try:
+            ka._solapi_send_text(to=to_phone, from_=phone, text=text)
+            code: Optional[str] = None
+        except Exception as exc:  # 벤더/네트워크 실패 분류 — 조용한 실패 금지
+            code = ka._classify_error(exc)
+            logger.warning('공유 문자 발송 실패: share_id=%s source=%s error=%s (%s)',
+                           share_id, source, code, exc)
+        attempts.append({'from': ka._mask_phone(phone), 'source': source, 'error': code})
+        return code
+
+    error = _attempt(from_phone, sender_source)
+    if error is not None and sender_source == 'brand':
+        backup = ka._env(f'SOLAPI_SENDER_FALLBACK_{brand}')
+        if backup:
+            error = _attempt(backup, 'brand_fallback')
+    return error, attempts
+
+
 @share_api_bp.route('/send-sms/<int:share_id>', methods=['POST'])
 @login_required
 @role_required(_SHARE_ROLES)
@@ -361,8 +446,10 @@ def api_share_send_sms(share_id: int):
     body ``{'token': <원문>}``. 서버는 재해시가 저장 해시와 일치할 때만 URL 을
     조립한다(클라 본문·URL 불신). 멱등 = **발송 전 앵커 선점 insert**: OrderEvent+
     outbox 행을 벤더 호출 전에 commit, ``(effect_type, dedupe_key)`` UNIQUE 로 5초
-    버킷 중복을 DB 가 차단(IntegrityError→409). 발신 = 직원 sender_phone 우선,
-    없으면 ``SOLAPI_SENDER_PHONE`` 폴백.
+    버킷 중복을 DB 가 차단(IntegrityError→409). 발신 = 3단 우선순위
+    (:func:`_resolve_sender` — 담당자 개인번호 → 브랜드 대표번호 → 구
+    ``SOLAPI_SENDER_PHONE``), 브랜드 대표번호 벤더 실패 시 백업번호 1회 재시도
+    (:func:`_send_sms_with_fallback`).
 
     Args:
         share_id: 대상 공유 row id (URL).
@@ -398,9 +485,8 @@ def api_share_send_sms(share_id: int):
         return _envelope(None, 'no_valid_phone', 400)
 
     actor_user_id = session.get('user_id')
-    actor = db_session.get(User, actor_user_id) if actor_user_id else None
-    from_phone = ((actor.sender_phone if actor else None) or '').strip() \
-        or (ka._env('SOLAPI_SENDER_PHONE') or '')
+    brand = ka.resolve_brand(order.structured_data or {})
+    from_phone, sender_source = _resolve_sender(order, brand)
     if not from_phone:
         return _envelope(None, 'not_configured', 503)
 
@@ -441,16 +527,13 @@ def api_share_send_sms(share_id: int):
         return _envelope(None, 'duplicate_send', 409)
 
     # --- 동기 발송 (WORKER_OFF — 알림톡 T0.decision 계승) ---
-    error: Optional[str] = None
-    try:
-        ka._solapi_send_text(to=to_phone, from_=from_phone, text=text)
-    except Exception as exc:  # 벤더/네트워크 실패 분류 — 조용한 실패 금지
-        error = ka._classify_error(exc)
-        logger.warning('공유 문자 발송 실패: share_id=%s error=%s', row.id, error)
+    error, attempts = _send_sms_with_fallback(
+        row.id, to_phone=to_phone, text=text,
+        from_phone=from_phone, sender_source=sender_source, brand=brand)
 
     # 앵커 결과 기록 + outbox 종결(동기 전용 — 워커 재소비 방지, 성공·실패 무관 DONE).
     event.payload = {**(event.payload or {}), 'status': 'sent' if error is None else 'failed',
-                     'error': error}
+                     'error': error, 'attempts': attempts}
     flag_modified(event, 'payload')
     outbox_row.status = 'DONE'
     outbox_row.completed_at = now_utc_naive()
@@ -464,7 +547,7 @@ def api_share_send_sms(share_id: int):
         action='SHARE_SMS_SENT', target_type='order', target_id=int(order.id),
         detail={'share_id': row.id, 'kind': row.kind, 'sent': error is None,
                 'error': error, 'to': ka._mask_phone(to_phone),
-                'personal_sender': bool(actor and actor.sender_phone), **context},
+                'sender_source': attempts[-1]['source'] if attempts else None, **context},
     )
     return _envelope({'sent': error is None, 'error': error}, error)
 
