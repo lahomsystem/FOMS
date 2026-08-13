@@ -18,7 +18,7 @@ from foms.services.common.erp_shell_http import (
     apply_erp_shell_fragment_headers,
     wants_erp_shell_tab_body,
 )
-from foms.services.common.ept_b7_profile import apply_ept_b7_render_headers
+from foms.services.common.ept_b7_profile import apply_ept_b7_render_headers, phase
 from foms.services.common.geocode_config import KAKAO_JS_API_KEY
 from foms.services.as_dashboard_filters import parse_as_dashboard_filters
 from foms.services.as_dashboard_helpers import (
@@ -304,16 +304,17 @@ def erp_as_dashboard():
     if billing_filter in billing_filters:
         filtered_base_query = filtered_base_query.filter(billing_filters[billing_filter])
 
-    as_count_context = build_as_tab_count_context(
-        filtered_base_query,
-        tab=tab,
-        bucket=request.args.get('bucket'),
-        incomplete_non_sales_condition=incomplete_non_sales_condition,
-        sales_delivery_condition=sales_delivery_condition,
-        as_pending_true=as_pending_true,
-        as_visit_date_present=as_visit_date_present,
-        paid_unconfirmed_condition=paid_unconfirmed_condition,
-    )
+    with phase("tab_counts"):
+        as_count_context = build_as_tab_count_context(
+            filtered_base_query,
+            tab=tab,
+            bucket=request.args.get('bucket'),
+            incomplete_non_sales_condition=incomplete_non_sales_condition,
+            sales_delivery_condition=sales_delivery_condition,
+            as_pending_true=as_pending_true,
+            as_visit_date_present=as_visit_date_present,
+            paid_unconfirmed_condition=paid_unconfirmed_condition,
+        )
     incomplete_buckets = as_count_context["incomplete_buckets"]
     as_bucket = as_count_context["as_bucket"]
     as_tab_counts = as_count_context["as_tab_counts"]
@@ -358,7 +359,8 @@ def erp_as_dashboard():
     if total_pages and page > total_pages:
         page = total_pages
 
-    rows = query.offset((page - 1) * per_page).limit(per_page).all()
+    with phase("list_query"):
+        rows = query.offset((page - 1) * per_page).limit(per_page).all()
 
     mobile_v2_active = is_mobile_v2_shell(
         resolve_shell_variant_cached(current_user.id if current_user else None)
@@ -366,7 +368,8 @@ def erp_as_dashboard():
     # Batch 5: rows 표시 필드 보강은 apply_as_dashboard_row_display_fields(display 모듈)로 분리(동작 보존, 캐시 아님).
     # T4: 반환값 = 렌더된 행 중 기준 일정 드리프트(ref_moved/both_moved) 배너 요약
     # (count + 점프 칩 + 초과 건수). 같은 행 루프에서 모으므로 추가 쿼리·재평가 없음.
-    drift_banner = apply_as_dashboard_row_display_fields(rows, db, mobile_v2_active=mobile_v2_active)
+    with phase("row_display"):
+        drift_banner = apply_as_dashboard_row_display_fields(rows, db, mobile_v2_active=mobile_v2_active)
     # 시공자가 아닌 사용자만 AS 카테고리 사진 조회 가능 (관리자 등)
     can_view_as_photos = not (current_user and (current_user.team or '').strip() == 'CONSTRUCTION')
 
