@@ -35,11 +35,14 @@
 - 영업 개인번호는 각자 Solapi 등록 후 /admin/users "문자 발신번호"에 입력. 위 4개 번호도 전부 Solapi 발신번호 등록 필요(법인 서류). 구 `SOLAPI_SENDER_PHONE`은 최후 폴백으로 유지.
 - [x] Railway env 등록 완료 (2026-08-12, `--skip-deploys` — 다음 배포 때 적용): 스테이징=FOMS-DEV/서비스 `FOMS`, 운영=FOMS-PRODUCTION/서비스 `web`, 각 6종(발신 4 + 회전된 `SOLAPI_API_KEY`/`SECRET`). 로컬 .env도 새 키로 갱신됨. env 잔여 없음 — 실발송 검증 잔여는 Solapi 발신번호 등록(대표2·백업2·개인)과 카카오 도메인 등록뿐.
 - [x] 카카오 개발자 앱 도메인 등록 완료 (2026-08-12 사용자) — 카톡 공유 검증 가능
-- [~] Solapi 발신번호 등록 진행 중 (2026-08-12 — 대표2·백업2·영업 개인, 완료 시 문자 실수신 검증 가능)
+- [x] Solapi 발신번호 등록 (2026-08-13 사용자 확인): 대표 2(`15660703`·`15660792`)·하우드 백업(`01044644260`) **활성** / 라홈 백업(`01083277282`) **증빙 반려 — 재인증 필요**(그때까지 라홈 ③ 백업 재시도는 벤더 오류로 표면화). 문자 실수신 검증 가능 상태.
+- [x] 알림톡 템플릿 등록 (2026-08-13 사용자 확인, 라홈시스템·하우드 채널 각 1건) — **심사(검수) 승인 여부는 별도 확인 필요**. 승인 후 PF/템플릿 env 등록해야 알림톡 발송 활성.
 
-## production 승격 (2026-08-13 — 중단)
+## production 승격 (2026-08-13 — 완료, PR #89 → production `a59c0d7d`)
 
-- 선행 점검 결과 **중단**: 마이그레이션 체인 `orderdiff_01 → share_token_00 → itemuid_00 → senderphone_00` 에서 production 에 `itemuid_00`(타 세션 ORDER-ITEM-UID, aa366a81·재부모화 3acbc766) 부재. `share_token_00`+`senderphone_00` 승격 시 체인 단절 — 지시대로 멈추고 사용자 선택지 보고. production 정본 ls-remote = d733dd35, orderdiff_01 존재 확인.
+- 1차 선행 점검 중단: production 에 `itemuid_00` 부재(체인 `share_token_00→itemuid_00→senderphone_00` 단절) → **사용자 승인 ①** itemuid 포함. 2차 promote_completeness INCOMPLETE: share.py 가 `kakao_alimtalk.py` 하드 의존(production 에 파일 부재) → **사용자 승인 ②** 알림톡 v1 코드 포함(발송은 이중 잠금 — killswitch off·PF/템플릿 env 미설정, 수동 버튼만 노출).
+- 세트 21커밋 = 알림톡 v1 8(인벤토리 전용 95c982aa 는 재생성 대체) + 고객 공유 10(T1~T9·T8.1, docs-only T5·merge T10 제외) + itemuid 2 + 정리 2(인벤토리 4종 재생성·`erp-order-shared.js` ?v=20260813d 범프·share_token_00 재부모화 deploy 정본 동기화 — bc810a9a 병합 해결분은 cherry-pick 불가라 파일 동기화).
+- 충돌 해소: erp_order_js.html ?v 드리프트(기계적 병합)·models.py OrderFieldChange/OrderShareToken 병치·ledger=승격분·AI_STATUS=production 유지·인벤토리 JSON=재생성. 검증: 단일 head·APP_OK·도메인 82 passed·pre_push_smoke 322 passed·PR 체크 perf-gate/pg-lane pass.
 
 ## 결정 기록
 - 플랜 확정 3건(CEO 2-agent 리뷰 반영): 스냅샷 64KB 캡=초과 시 400(절단 금지) / send-sms 멱등=**발송 전 앵커 선점 insert**+시간버킷 dedupe_key(`share_sms:{share_id}:{floor(epoch/5)}`) — DB UNIQUE로 동시 중복 차단, 감사 조회식 check-then-act 폐기 / send-sms URL=body 토큰 원문 재해시 검증 후 서버 조립(해시-온리 저장과 충돌 해소, 문자 발송은 발급 직후만)
