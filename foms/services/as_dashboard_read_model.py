@@ -120,20 +120,32 @@ def build_as_tab_count_context(
     if tab != 'incomplete' or as_bucket not in incomplete_buckets:
         as_bucket = ''  # 'total'·빈값·타 탭 → 버킷 필터 없음(전체 미완료)
 
-    as_tab_counts = _count_cases(
+    # 탭 카운트와 미완료 summary 는 **같은 모집단(filtered_base_query)** 을 센다. 예전엔
+    # _count_cases 를 두 번 불러 같은 스캔을 2회 반복했다(스테이징 실측 tab_counts 27ms).
+    # SUM(CASE) 컬럼을 한 쿼리로 합치면 스캔 1회로 같은 값이 나온다. 'total' 은
+    # 'incomplete' 과 조건이 동일하므로 컬럼을 늘리지 않고 결과에서 이어 붙인다.
+    counts = _count_cases(
         filtered_base_query,
         ('sales_delivery', sales_delivery_condition),
         ('incomplete', incomplete_non_sales_condition),
         ('completed', _erp_as_completed_condition()),
-    )
-    as_incomplete_summary = _count_cases(
-        filtered_base_query,
-        ('total', incomplete_non_sales_condition),
         ('visit_confirmed', incomplete_buckets['visit_confirmed']),
         ('pending', incomplete_buckets['pending']),
         ('unassigned', incomplete_buckets['unassigned']),
         ('paid_unconfirmed', incomplete_buckets['paid_unconfirmed']),
     )
+    as_tab_counts = {
+        'sales_delivery': counts['sales_delivery'],
+        'incomplete': counts['incomplete'],
+        'completed': counts['completed'],
+    }
+    as_incomplete_summary = {
+        'total': counts['incomplete'],
+        'visit_confirmed': counts['visit_confirmed'],
+        'pending': counts['pending'],
+        'unassigned': counts['unassigned'],
+        'paid_unconfirmed': counts['paid_unconfirmed'],
+    }
     return {
         "incomplete_buckets": incomplete_buckets,
         "as_bucket": as_bucket,

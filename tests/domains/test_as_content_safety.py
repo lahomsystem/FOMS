@@ -108,3 +108,23 @@ def test_load_structured_data_dict_or_raise_rejects_non_object_json() -> None:
 def test_load_structured_data_dict_or_raise_propagates_invalid_json_error() -> None:
     with pytest.raises(ValueError):
         load_structured_data_dict_or_raise("{broken")
+
+
+def test_sanitize_memoized_and_oversized_input_bypasses_cache() -> None:
+    """LRU 메모이제이션이 결과를 바꾸지 않고, 상한 초과 입력도 같은 결과를 낸다.
+
+    sanitize 는 순수 함수라 캐시가 안전하다는 전제를 계약으로 고정한다. 캐시 경로
+    (<=8KB)와 우회 경로(>8KB)가 동일 규칙으로 정리돼야 한다.
+    """
+    from foms.services.as_content_safety import _SANITIZE_CACHE_MAX_INPUT
+
+    small = '<div>메모<script>alert(1)</script></div>'
+    first = sanitize_as_content_html(small)
+    assert first == sanitize_as_content_html(small)  # 캐시 히트도 같은 값
+    assert 'script' not in first
+
+    filler = '가' * (_SANITIZE_CACHE_MAX_INPUT + 100)
+    oversized = f'<div>{filler}<script>alert(1)</script></div>'
+    sanitized_big = sanitize_as_content_html(oversized)
+    assert 'script' not in sanitized_big
+    assert filler in sanitized_big
