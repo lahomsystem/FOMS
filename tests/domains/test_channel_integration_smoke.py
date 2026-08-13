@@ -950,3 +950,224 @@ def test_payment_confirm_does_not_create_channel_delivery_log(client):
         .count()
         == 0
     )
+
+
+def _as_order_with_attachments(count: int, *, structured_extra=None):
+    """AS 접수 내용이 있는 주문 + AS 첨부 count장(업로드 순 id 증가)을 만든다."""
+    sd = {
+        "parties": {"customer": {"name": "AS Fresh", "phone": "010-0000-0000"}},
+        "site": {"address_full": "Seoul"},
+        "shipment": {"as_content": "문짝 처짐"},
+    }
+    if structured_extra:
+        sd.update(structured_extra)
+    order = Order(
+        received_date="2026-08-13",
+        customer_name="AS Fresh",
+        phone="010-0000-0000",
+        address="Seoul",
+        product="Wardrobe",
+        structured_data=sd,
+    )
+    db_session.add(order)
+    db_session.flush()
+    db_session.add_all(
+        [
+            OrderAttachment(
+                order_id=order.id,
+                filename=f"as-{i}.jpg",
+                file_type="image",
+                category="as",
+                storage_key=f"orders/{order.id}/as-{i}.jpg",
+            )
+            for i in range(1, count + 1)
+        ]
+    )
+    db_session.commit()
+    return order
+
+
+def _capture_as_push(monkeypatch):
+    """AS PUSH 전송을 가로채는 공통 배선. 반환 dict 의 'data' 에 dispatch payload."""
+    monkeypatch.setenv("CHANNEL_GROUP_AS", "group-as")
+    monkeypatch.setattr(channel_integration, "is_configured", lambda: True)
+    monkeypatch.setattr(channel_integration, "get_storage", lambda: _FakeStorage())
+    captured = {"calls": 0}
+
+    def _fake_dispatch(event_type, data, raise_on_error=False):
+        captured["calls"] += 1
+        captured["data"] = data
+        return {"success": True, "message_id": f"msg-fresh-{captured['calls']}"}
+
+    monkeypatch.setattr(channel_integration, "dispatch_order_event", _fake_dispatch)
+    return captured
+
+
+def test_push_manual_as_keeps_newest_attachments_when_over_cap(client, monkeypatch):
+    """첨부가 상한을 넘으면 잘리는 쪽은 **오래된** 파일이다.
+
+    기존 구현은 id 오름차순으로 앞 20장을 보내 21번째(방금 올린) 사진을 통째로 빠뜨렸다 —
+    AS-FRESH-01 이 고친 '최신 탈락' 회귀의 핀.
+    """
+    _login_admin(client)
+    captured = _capture_as_push(monkeypatch)
+    order = _as_order_with_attachments(21)
+    order_id = order.id
+
+    response = client.post(
+        "/api/channel/push-manual", json={"order_id": order_id, "push_kind": "as"}
+    )
+
+    assert response.status_code == 200
+    assert response.get_json()["files_count"] == channel_policy.MAX_MANUAL_ATTACHMENTS
+    names = [f["fileName"] for f in captured["data"]["files"]]
+    assert "as-21.jpg" in names  # 최신 보존
+    assert "as-1.jpg" not in names  # 가장 오래된 것만 탈락
+
+
+def test_push_manual_as_resend_sends_only_new_attachments(client, monkeypatch):
+    """재전송은 마지막 발송 이후 올라온 첨부만 보낸다(옛 파일 혼입 차단)."""
+    _login_admin(client)
+    captured = _capture_as_push(monkeypatch)
+    order = _as_order_with_attachments(2)
+    order_id = order.id
+
+    first = client.post(
+        "/api/channel/push-manual", json={"order_id": order_id, "push_kind": "as"}
+    )
+    assert first.status_code == 200
+    assert first.get_json()["files_count"] == 2
+
+    db_session.expire_all()
+    saved = db_session.get(Order, order_id)
+    history = saved.structured_data["channeltalk_push_as"]
+    assert len(history["attachment_ids"]) == 2
+    assert history["max_attachment_id"] == max(history["attachment_ids"])
+
+    db_session.add(
+        OrderAttachment(
+            order_id=order_id,
+            filename="as-new.jpg",
+            file_type="image",
+            category="as",
+            storage_key=f"orders/{order_id}/as-new.jpg",
+        )
+    )
+    db_session.commit()
+
+    second = client.post(
+        "/api/channel/push-manual",
+        json={"order_id": order_id, "push_kind": "as", "change_note": "사진 추가"},
+    )
+
+    assert second.status_code == 200
+    assert second.get_json()["files_count"] == 1
+    assert [f["fileName"] for f in captured["data"]["files"]] == ["as-new.jpg"]
+
+
+def test_push_manual_as_honors_explicit_attachment_ids(client, monkeypatch):
+    """전송 확인창이 고른 첨부가 기본 선정을 이긴다(사용자 최종 판단 우선)."""
+    _login_admin(client)
+    captured = _capture_as_push(monkeypatch)
+    order = _as_order_with_attachments(3)
+    order_id = order.id
+    ids = [
+        a.id
+        for a in db_session.query(OrderAttachment)
+        .filter(OrderAttachment.order_id == order_id)
+        .order_by(OrderAttachment.id.asc())
+        .all()
+    ]
+
+    response = client.post(
+        "/api/channel/push-manual",
+        json={"order_id": order_id, "push_kind": "as", "attachment_ids": [ids[0]]},
+    )
+
+    assert response.status_code == 200
+    assert [f["fileName"] for f in captured["data"]["files"]] == ["as-1.jpg"]
+
+
+def test_push_manual_as_rejects_foreign_attachment_ids(client, monkeypatch):
+    """다른 주문/분류 첨부 id 는 400 — 지정 경로가 소속 검증 우회로가 되면 안 된다."""
+    _login_admin(client)
+    _capture_as_push(monkeypatch)
+    order = _as_order_with_attachments(1)
+    order_id = order.id
+    other = _as_order_with_attachments(1)
+    foreign_id = (
+        db_session.query(OrderAttachment)
+        .filter(OrderAttachment.order_id == other.id)
+        .first()
+        .id
+    )
+
+    response = client.post(
+        "/api/channel/push-manual",
+        json={"order_id": order_id, "push_kind": "as", "attachment_ids": [foreign_id]},
+    )
+
+    assert response.status_code == 400
+    assert "AS 첨부가 아닌" in response.get_json()["message"]
+
+
+def test_push_manual_as_rejects_malformed_attachment_ids(client, monkeypatch):
+    _login_admin(client)
+    _capture_as_push(monkeypatch)
+    order = _as_order_with_attachments(1)
+
+    response = client.post(
+        "/api/channel/push-manual",
+        json={"order_id": order.id, "push_kind": "as", "attachment_ids": "1,2"},
+    )
+
+    assert response.status_code == 400
+
+
+def test_push_preview_returns_body_and_default_selection(client, monkeypatch):
+    """확인창 미리보기는 실제 전송과 **같은 선정 함수**를 써야 한다(규칙 갈림 방지)."""
+    _login_admin(client)
+    _capture_as_push(monkeypatch)
+    order = _as_order_with_attachments(3)
+    order_id = order.id
+
+    # 1·2번을 이미 보낸 상태로 만들어 델타 판정을 태운다.
+    ids = [
+        a.id
+        for a in db_session.query(OrderAttachment)
+        .filter(OrderAttachment.order_id == order_id)
+        .order_by(OrderAttachment.id.asc())
+        .all()
+    ]
+    sd = dict(order.structured_data)
+    sd["channeltalk_push_as"] = {"pushed": True, "max_attachment_id": ids[1]}
+    order.structured_data = sd
+    from sqlalchemy.orm.attributes import flag_modified
+
+    flag_modified(order, "structured_data")
+    db_session.commit()
+
+    response = client.get(
+        f"/api/channel/push-preview?order_id={order_id}&push_kind=as"
+    )
+
+    assert response.status_code == 200
+    body = response.get_json()
+    assert body["success"] is True
+    assert "내용 : 문짝 처짐" in body["text"]
+    by_id = {f["id"]: f for f in body["files"]}
+    assert by_id[ids[2]]["selected"] is True  # 마지막 발송 이후 = 기본 선택
+    assert by_id[ids[0]]["selected"] is False  # 옛 파일도 후보로는 내려온다(되살리기용)
+    assert by_id[ids[1]]["selected"] is False
+
+
+def test_push_preview_rejects_non_as_kind(client, monkeypatch):
+    _login_admin(client)
+    _capture_as_push(monkeypatch)
+    order = _as_order_with_attachments(1)
+
+    response = client.get(
+        f"/api/channel/push-preview?order_id={order.id}&push_kind=drawing"
+    )
+
+    assert response.status_code == 400
