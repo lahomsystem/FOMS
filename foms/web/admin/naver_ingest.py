@@ -15,16 +15,19 @@ web 에서 부르면 등록되지 않은 IP 라 차단된다. 취향이 아니�
 from __future__ import annotations
 
 import datetime
+import logging
 from typing import Any, Optional
 
-from flask import jsonify, render_template, request
+from flask import jsonify, render_template, request, session
 
 from db import get_db
-from foms.services.datetime_kst import format_datetime_kst
+from foms.services.datetime_kst import format_datetime_kst, now_utc_naive
 from foms.services.jobs.queue import enqueue_naver_order_sync
 from foms.web.admin.routes import admin_bp
 from foms.web.auth import log_access, login_required, role_required
 from models import ExternalOrderLink, Order
+
+logger = logging.getLogger(__name__)
 
 #: 한 페이지에 보여줄 수집 이력 행 수(관리자 cold path 라 페이지네이션으로 충분).
 PAGE_SIZE = 50
@@ -129,6 +132,198 @@ def naver_ingest_dashboard():
     )
 
 
+def _triage_pane(db, link: ExternalOrderLink) -> dict[str, Any]:
+    """한 건의 원본 ↔ FOMS 현재 값 대조 데이터를 만든다.
+
+    옵션 원문을 크게 보여주는 것이 이 화면의 존재 이유다 — v1 은 규격을 파싱하지 않으므로
+    사람이 이 문자열을 읽고 편집기에서 채운다.
+    """
+    from foms.services.integrations.naver_commerce.mapping import unwrap_detail
+
+    order = db.get(Order, int(link.order_id)) if link.order_id else None
+    naver_order, product_order, shipping = unwrap_detail(link.raw_snapshot or {})
+    return {
+        "link_id": link.id,
+        "external_id": link.external_id,
+        "created_at": format_datetime_kst(link.created_at),
+        "order_id": link.order_id,
+        "naver": {
+            "product_name": product_order.get("productName"),
+            "option": product_order.get("productOption"),
+            "quantity": product_order.get("quantity"),
+            "amount": product_order.get("totalPaymentAmount"),
+            "seller_product_code": product_order.get("sellerProductCode"),
+            "shipping_due_date": product_order.get("shippingDueDate"),
+            "orderer_name": naver_order.get("ordererName"),
+            "orderer_tel": naver_order.get("ordererTel"),
+            "recipient_name": shipping.get("name"),
+            "recipient_tel": shipping.get("tel1"),
+            "address": " ".join(
+                part for part in (shipping.get("baseAddress"), shipping.get("detailedAddress"))
+                if part
+            ).strip(),
+            "shipping_memo": shipping.get("shippingMemo"),
+        },
+        "foms": {
+            "customer_name": getattr(order, "customer_name", None),
+            "phone": getattr(order, "phone", None),
+            "address": getattr(order, "address", None),
+            "product": getattr(order, "product", None),
+            "options": getattr(order, "options", None),
+            "payment_amount": getattr(order, "payment_amount", None),
+        },
+    }
+
+
+@admin_bp.route("/admin/naver-ingest/triage")
+@login_required
+@role_required(["ADMIN"])
+def naver_ingest_triage():
+    """수집 주문 트리아지 작업대 (스펙 §8.2).
+
+    좌=확인 대기 큐, 우=네이버 원본 ↔ FOMS 현재 값 대조. **규격 입력은 여기서 하지 않는다** —
+    ``spec_rows`` 는 폭(W)이 출고가·시공비와 결합돼 있어 두 번째 입력 UI 를 만들면 계산
+    규칙이 갈라진다. 편집기가 규격 입력의 SSOT 로 남고 여기서는 링크만 건넨다.
+    """
+    db = get_db()
+    pending = (
+        db.query(ExternalOrderLink)
+        .filter(
+            ExternalOrderLink.channel == "NAVER",
+            ExternalOrderLink.sync_status == "LINKED",
+            ExternalOrderLink.reviewed_at.is_(None),
+        )
+        .order_by(ExternalOrderLink.created_at.desc(), ExternalOrderLink.id.desc())
+        .limit(PAGE_SIZE)
+        .all()
+    )
+    selected_id = request.args.get("link_id", type=int)
+    selected = next((row for row in pending if row.id == selected_id), None)
+    if selected is None and pending:
+        selected = pending[0]
+
+    order_ids = [int(row.order_id) for row in pending if row.order_id]
+    orders = {}
+    if order_ids:
+        orders = {o.id: o for o in db.query(Order).filter(Order.id.in_(order_ids)).all()}
+    queue = [{
+        "id": row.id,
+        "external_id": row.external_id,
+        "created_at": format_datetime_kst(row.created_at),
+        "customer_name": getattr(orders.get(int(row.order_id or 0)), "customer_name", None),
+        "product": getattr(orders.get(int(row.order_id or 0)), "product", None),
+        "order_id": row.order_id,
+    } for row in pending]
+
+    return render_template(
+        "admin/naver_triage.html",
+        queue=queue,
+        pending_count=len(queue),
+        selected=_triage_pane(db, selected) if selected is not None else None,
+        sales_users=_active_sales_users(db),
+    )
+
+
+def _active_sales_users(db) -> list[dict[str, Any]]:
+    """담당자로 지정 가능한 활성 SALES 사용자(보류함 계정 제외)."""
+    from foms.services.integrations.naver_commerce.constants import OWNER_USERNAME
+    from foms.services.orders.order_mutation_policy import normalize_team
+    from models import User
+
+    rows = db.query(User).filter(User.is_active.is_(True)).all()
+    return [
+        {"id": u.id, "name": u.name or u.username}
+        for u in rows
+        if normalize_team(u.team) == "SALES" and u.username != OWNER_USERNAME
+    ]
+
+
+@admin_bp.route("/admin/naver-ingest/<int:link_id>/review", methods=["POST"])
+@login_required
+@role_required(["ADMIN"])
+def naver_ingest_mark_reviewed(link_id: int):
+    """"확인 완료" — 사람이 처리했다고 표시해 큐에서 뺀다 (스펙 §8.3).
+
+    시스템이 "다 채웠는지"를 추측하지 않는다. 추측 규칙을 코드로 정하면 오판 여지가 생기고
+    업무 기준이 바뀔 때마다 규칙을 고쳐야 한다. 사람이 누른 사실만 기록한다.
+    """
+    db = get_db()
+    link = (
+        db.query(ExternalOrderLink)
+        .filter(ExternalOrderLink.id == link_id, ExternalOrderLink.channel == "NAVER")
+        .first()
+    )
+    if link is None:
+        return jsonify({"success": False, "data": None, "error": "수집 이력을 찾을 수 없습니다."}), 404
+    if link.reviewed_at is None:  # 이미 확인된 건은 시각을 덮지 않는다(첫 확인이 기록이다).
+        link.reviewed_at = now_utc_naive()
+        link.reviewed_by_user_id = session.get("user_id")
+        db.commit()
+    log_access(
+        f"네이버 수집 확인 완료 (link {link_id})",
+        action="NAVER_INGEST_MARK_REVIEWED",
+        detail={"link_id": link_id, "external_id": link.external_id},
+    )
+    return jsonify({"success": True, "data": {"link_id": link_id}, "error": None})
+
+
+@admin_bp.route("/admin/naver-ingest/<int:order_id>/assignee", methods=["POST"])
+@login_required
+@role_required(["ADMIN"])
+def naver_ingest_set_assignee(order_id: int):
+    """수집 주문의 SALES 담당자를 지정한다 (스펙 §8.4).
+
+    ``OrderAssignment`` 를 직접 만들지 않고 canonical
+    :func:`~foms.services.orders.assignment.set_sales_assignee` 를 부른다 — 그래야 REV-00
+    version bump·receipt·``SALES_ASSIGNEE_SET`` 이벤트·주문당 active owner 1명 제약이
+    전부 따라온다.
+
+    보류함(``naver_unassigned``)에서 실제 담당자로 옮기는 것도 **교체**라 사유가 필수다.
+    화면이 사유를 보내지 않으므로 여기서 기본 사유를 채운다.
+    """
+    import hashlib
+    import json as _json
+
+    from foms.services.orders.assignment import set_sales_assignee
+    from foms.services.orders.revision import RevisionError
+
+    body = request.get_json(silent=True) or {}
+    try:
+        user_id = int(body.get("user_id"))
+    except (TypeError, ValueError):
+        return jsonify({"success": False, "data": None,
+                        "error": "담당자(user_id)가 필요합니다."}), 400
+
+    db = get_db()
+    scope_hash = hashlib.sha256(f"SET_SALES_ASSIGNEE:{order_id}".encode("utf-8")).hexdigest()
+    request_hash = hashlib.sha256(
+        _json.dumps({"user_id": user_id}, sort_keys=True).encode("utf-8")
+    ).hexdigest()
+    try:
+        set_sales_assignee(
+            db, actor_user_id=int(session.get("user_id")), order_id=order_id,
+            user_id=user_id, reason="네이버 수집 주문 담당자 지정",
+            scope_hash=scope_hash, request_hash=request_hash,
+        )
+        db.commit()
+    except RevisionError as exc:
+        db.rollback()
+        return jsonify({"success": False, "data": None, "error": str(exc)}), exc.status_code
+    except Exception as exc:  # noqa: BLE001 - 사용자에게 사유를 돌려주고 tx 는 되돌린다
+        db.rollback()
+        logger.warning("[NAVER] 담당자 지정 실패 order=%s: %s", order_id, exc, exc_info=True)
+        return jsonify({"success": False, "data": None, "error": str(exc)}), 400
+
+    log_access(
+        f"네이버 수집 주문 담당자 지정 (order {order_id})",
+        action="NAVER_INGEST_SET_ASSIGNEE",
+        target_type="order", target_id=order_id,
+        detail={"order_id": order_id, "user_id": user_id},
+    )
+    return jsonify({"success": True, "data": {"order_id": order_id, "user_id": user_id},
+                    "error": None})
+
+
 @admin_bp.route("/admin/naver-ingest/<int:link_id>/snapshot")
 @login_required
 @role_required(["ADMIN"])
@@ -189,6 +384,9 @@ def naver_ingest_run_now():
 
 __all__ = [
     "naver_ingest_dashboard",
+    "naver_ingest_mark_reviewed",
+    "naver_ingest_set_assignee",
+    "naver_ingest_triage",
     "naver_ingest_run_now",
     "naver_ingest_snapshot",
     "PAGE_SIZE",
