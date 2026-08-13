@@ -27,10 +27,24 @@ _RUNNER = _REPO_ROOT / "scripts" / "maintenance" / "run_naver_order_sync.py"
 # WORKER 단일 출구 (IP 제약)
 # --------------------------------------------------------------------------- #
 
-def test_web_layer_never_imports_the_naver_http_client():
-    """web/api 계층은 네이버 클라이언트·수집 파이프라인을 직접 import 하지 않는다.
+#: web/api 에서 등장하면 안 되는 심볼 — HTTP 를 내거나 수집을 직접 도는 것들.
+#: 워터마크·만료일 같은 **DB 전용 조회 헬퍼는 금지 대상이 아니다**(관리 화면이 읽어야 한다).
+_WEB_FORBIDDEN = (
+    "naver_commerce.client",
+    "naver_commerce import client",
+    "naver_commerce.ingest",
+    "naver_commerce import ingest",
+    "NaverCommerceClient",
+    "run_sweep",
+    "sync_naver_orders",
+)
 
-    허용되는 유일한 경로는 rq enqueue 헬퍼다(실행은 WORKER 가 한다).
+
+def test_web_layer_never_runs_the_naver_http_client():
+    """web/api 계층은 네이버 HTTP 클라이언트·수집 파이프라인을 직접 쓰지 않는다.
+
+    허용되는 유일한 실행 경로는 rq enqueue 헬퍼다(실행은 WORKER 가 한다). 관리 화면이
+    워터마크·만료일 같은 **DB 상태**를 읽는 것은 HTTP 가 아니므로 금지 대상이 아니다.
     """
     offenders: list[str] = []
     for base in ("foms/web", "foms/api"):
@@ -39,10 +53,11 @@ def test_web_layer_never_imports_the_naver_http_client():
             continue
         for path in root.rglob("*.py"):
             source = path.read_text(encoding="utf-8", errors="replace")
-            if "naver_commerce" in source:
-                offenders.append(str(path.relative_to(_REPO_ROOT)))
+            hits = [symbol for symbol in _WEB_FORBIDDEN if symbol in source]
+            if hits:
+                offenders.append(f"{path.relative_to(_REPO_ROOT)} -> {hits}")
     assert offenders == [], (
-        "web/api 는 네이버 클라이언트를 직접 쓰면 안 된다(WORKER 단일 출구). "
+        "web/api 는 네이버 클라이언트·수집 파이프라인을 직접 쓰면 안 된다(WORKER 단일 출구). "
         f"위반: {offenders}. enqueue_naver_order_sync() 를 쓸 것."
     )
 
