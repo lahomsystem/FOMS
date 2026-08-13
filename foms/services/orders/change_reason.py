@@ -34,6 +34,7 @@ from foms.services.orders.structured_diff import (
     CONSTRUCTION_SCHEDULE_TEMPLATES,
     ITEM_DETAIL_TEMPLATES,
     SENSITIVE_ITEM_OPS,
+    STAGE_TEMPLATES,
     SENSITIVE_ITEM_TEMPLATE,
 )
 from models import OrderChangeReason, OrderFieldChange, SecurityLog
@@ -227,6 +228,10 @@ def is_reason_required(
 
         # 제품 세부 내역(규격·색상·손잡이·옵션 등).
         if template in ITEM_DETAIL_TEMPLATES:
+            return True
+
+        # 단계 이동(취소·보류 포함).
+        if template in STAGE_TEMPLATES:
             return True
     return False
 

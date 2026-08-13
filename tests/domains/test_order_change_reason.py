@@ -49,16 +49,24 @@ def test_derived_totals_alone_do_not_require_reason():
     assert is_reason_required(derived + [_change("items.0.price")]) is True
 
 
-def test_only_three_axes_are_asked():
-    """묻는 축은 셋뿐이다 — 시공일·금액·제품 세부(사용자 결정 2026-08-14).
+def test_axis_scope_is_narrow():
+    """묻는 축은 시공일·금액·제품 세부·단계뿐이다(사용자 결정 2026-08-14).
 
-    실측일·AS 방문일·단계(취소 포함)는 **일부러** 뺐다. 축을 넓히면 사유 창이 아무 때나
-    떠서 직원이 목록에서 아무거나 고르게 된다.
+    실측일·AS 방문일은 **일부러** 뺐다. 축을 넓히면 사유 창이 아무 때나 떠서 직원이 목록에서
+    아무거나 고르게 된다.
     """
     assert is_reason_required([_change("schedule.measurement.date")]) is False
     assert is_reason_required([_change("schedule.as_visit.date")]) is False
-    assert is_reason_required([_change("workflow.stage")]) is False
     assert is_reason_required([_change("schedule.construction.time")], stage="CONFIRM") is True
+
+
+def test_stage_move_is_asked_again():
+    """단계 이동(취소·보류 포함)은 축으로 되살렸다 — "왜 취소했나"가 분쟁 1순위 질문이다.
+
+    다만 FOMS 의 주문 취소는 구조화 저장이 아니라 휴지통 이동(``ORDER_SOFT_DELETED``)이라
+    여기서 잡히는 것은 저장으로 일어나는 단계 이동뿐이다.
+    """
+    assert is_reason_required([_change("workflow.stage")]) is True
 
 
 def test_item_detail_change_requires_reason():
