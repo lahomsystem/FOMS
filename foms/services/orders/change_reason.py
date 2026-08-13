@@ -32,7 +32,6 @@ from foms.services.orders.structured_diff import (
     AMOUNT_PATH_TEMPLATES,
     CONFIRMED_STAGES,
     CONSTRUCTION_SCHEDULE_TEMPLATES,
-    ITEM_DETAIL_TEMPLATES,
     SENSITIVE_ITEM_OPS,
     STAGE_TEMPLATES,
     SENSITIVE_ITEM_TEMPLATE,
@@ -52,6 +51,7 @@ __all__ = [
     "REASON_UNSPECIFIED",
     "ReasonAttachError",
     "attach_reason",
+    "record_action_reason",
     "is_material_amount_change",
     "is_reason_required",
     "normalize_reason",
@@ -186,8 +186,10 @@ def is_reason_required(
     * 금액(:data:`~foms.services.orders.structured_diff.AMOUNT_PATH_TEMPLATES`) — **크게**
       바뀌어야 묻는다(:func:`is_material_amount_change`). 잔돈 조정까지 물으면 창이 아무 때나
       뜨고, 그러면 목록에서 아무거나 고르게 된다.
-    * **제품 세부 내역**(:data:`~foms.services.orders.structured_diff.ITEM_DETAIL_TEMPLATES`)
-      — 규격·색상·손잡이·옵션 등. 품목 **삭제**도 여기 속한다(추가는 최초 입력이라 제외).
+    **제품 세부 내역은 축이 아니다**(사용자 결정 2026-08-14, 실측 근거). 규격·색상·손잡이·
+    옵션 변경은 :class:`~models.OrderFieldChange` 원장에 ``before → after`` 로 계속 남지만
+    사유는 묻지 않는다 — 축에 넣으면 사유 창이 저장의 60% 에서 뜨고(빼면 16%), 그 대부분이
+    손잡이·색상 같은 잦은 실무 수정이었다.
 
     품목 경로는 인덱스를 지운 템플릿으로 대조하므로 품목 번호가 밀려도 판정이 흔들리지
     않는다(ORDER-DIFF-01 의 ``path_template`` 과 같은 열쇠).
@@ -207,10 +209,9 @@ def is_reason_required(
         template = path_template_of(path)
         op = (change or {}).get("op")
 
-        # 품목 삭제: 있던 품목이 빠지는 것은 제품 세부 내역이 바뀐 것이다(추가는 최초 입력).
+        # 품목 추가·삭제는 제품 세부 축과 함께 기록 전용이 됐다(2026-08-14) — 원장에는
+        # 남지만 사유는 묻지 않는다.
         if template == SENSITIVE_ITEM_TEMPLATE:
-            if op == "remove":
-                return True
             continue
 
         if not _is_edit_of_existing_value(change or {}):
@@ -224,10 +225,6 @@ def is_reason_required(
 
         # 금액은 "바뀌었나"가 아니라 "크게 바뀌었나"로 본다(잔돈 조정 제외).
         if template in AMOUNT_PATH_TEMPLATES and is_material_amount_change(change or {}):
-            return True
-
-        # 제품 세부 내역(규격·색상·손잡이·옵션 등).
-        if template in ITEM_DETAIL_TEMPLATES:
             return True
 
         # 단계 이동(취소·보류 포함).
@@ -326,15 +323,83 @@ def attach_reason(
     if existing is not None:
         raise ReasonAttachError("이미 사유가 기록된 저장입니다.", 409)
 
+    return _insert_reason(
+        session, order_id=order_id, change_set_id=change_set_id,
+        code=normalized_code, note=normalized_note, actor_user_id=actor_user_id,
+    )
+
+
+def _insert_reason(
+    session: Any,
+    *,
+    order_id: int,
+    change_set_id: str,
+    code: str,
+    note: str | None,
+    actor_user_id: int | None,
+) -> OrderChangeReason:
+    """사유 행 1건을 세션에 싣는다(커밋은 호출부 몫).
+
+    :param session: 트랜잭션 세션.
+    :param order_id: 대상 주문 id.
+    :param change_set_id: 저장·행위 1회 묶음 id.
+    :param code: 정규화된 사유 코드.
+    :param note: 정규화된 메모.
+    :param actor_user_id: 행위자.
+    :return: 만들어진 행.
+    """
     reason = OrderChangeReason(
         change_set_id=str(change_set_id),
         order_id=int(order_id),
-        reason_code=normalized_code,
-        reason_note=normalized_note,
+        reason_code=code,
+        reason_note=note,
         actor_user_id=actor_user_id,
     )
     session.add(reason)
     return reason
+
+
+def record_action_reason(
+    session: Any,
+    *,
+    order_id: int,
+    change_set_id: str,
+    code: Any,
+    note: Any,
+    actor_user_id: int | None,
+) -> tuple[str, str | None]:
+    """저장이 아닌 **행위**(주문 취소=휴지통 이동)의 사유를 남긴다.
+
+    :func:`attach_reason` 과 달리 change set 검증을 하지 않는다 — 삭제는 필드 변경을 남기지
+    않으므로 대조할 ``order_field_changes`` 행이 없다. 대신 호출부가 그 행위의 묶음 id 를
+    만들어 감사 헤더(``security_logs.detail['change_set']``)와 같은 값으로 넘긴다.
+
+    사유가 없거나 형식이 틀리면 :data:`REASON_UNSPECIFIED` 로 남긴다 — **삭제 자체를 막지
+    않는다**(저장 경로와 같은 fail-open 원칙). 기록 실패도 삭제를 죽이지 않는다.
+
+    :param session: 삭제 트랜잭션 세션(여기서 commit 하지 않는다).
+    :param order_id: 대상 주문 id.
+    :param change_set_id: 행위 묶음 id.
+    :param code: 사용자가 고른 사유 코드.
+    :param note: 메모(``other`` 필수).
+    :param actor_user_id: 행위자.
+    :return: 실제로 기록된 ``(code, note)``.
+    """
+    try:
+        normalized_code, normalized_note = normalize_reason(code, note)
+    except ValueError:
+        normalized_code, normalized_note = REASON_UNSPECIFIED, None
+    try:
+        _insert_reason(
+            session, order_id=order_id, change_set_id=change_set_id,
+            code=normalized_code, note=normalized_note, actor_user_id=actor_user_id,
+        )
+    except Exception:
+        logger.warning(
+            "[ORDER-REASON] 삭제 사유 기록 실패: order=%s change_set=%s",
+            order_id, change_set_id, exc_info=True,
+        )
+    return normalized_code, normalized_note
 
 
 def reasons_for_change_sets(session: Any, change_set_ids: Iterable[str]) -> dict[str, dict]:

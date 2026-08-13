@@ -403,3 +403,63 @@ def test_reason_surface_assets_are_global(client):
 
     assert "js/orders/order-change-reason.js" in body
     assert "css/components/foms-change-reason.css" in body
+
+
+# ---------------------------------------------------------------------------
+# 주문 취소(휴지통 이동) 사유 — 저장이 아니라 행위라 요청 전에 받는다
+# ---------------------------------------------------------------------------
+
+def test_delete_records_reason(client):
+    """휴지통 이동이 사유를 원장·감사 헤더에 남긴다."""
+    _login_as_admin(client, "reason-delete-1")
+    order_id = _create_order().id
+
+    response = client.post(f"/delete/{order_id}",
+                           data={"reason_code": "customer_request", "reason_note": ""})
+    assert response.status_code in (200, 302), response.status_code
+
+    db_session.expire_all()
+    row = (
+        db_session.query(OrderChangeReason)
+        .filter(OrderChangeReason.order_id == order_id)
+        .one()
+    )
+    assert row.reason_code == "customer_request"
+
+    audit = (
+        db_session.query(SecurityLog)
+        .filter(SecurityLog.action == "ORDER_SOFT_DELETED", SecurityLog.target_id == order_id)
+        .order_by(SecurityLog.id.desc())
+        .first()
+    )
+    assert audit.detail["reason_code"] == "customer_request"
+    assert audit.detail["change_set"] == row.change_set_id
+
+
+def test_delete_without_reason_still_deletes(client):
+    """사유가 없어도 삭제는 진행된다 — 사유 때문에 취소가 막히면 현장이 멈춘다."""
+    _login_as_admin(client, "reason-delete-2")
+    order_id = _create_order().id
+
+    response = client.post(f"/delete/{order_id}", data={})
+    assert response.status_code in (200, 302)
+
+    db_session.expire_all()
+    row = (
+        db_session.query(OrderChangeReason)
+        .filter(OrderChangeReason.order_id == order_id)
+        .one()
+    )
+    assert row.reason_code == "unspecified"
+    assert db_session.get(Order, order_id).deleted_at is not None
+
+
+def test_delete_button_carries_reason_hook(client):
+    """목록 화면 삭제 버튼이 사유 훅과 스크립트를 달고 있어야 시트가 뜬다."""
+    _login_as_admin(client, "reason-delete-3")
+    order = _create_order()
+
+    body = client.get("/").get_data(as_text=True)
+
+    assert f'data-foms-delete-reason="{order.id}"' in body
+    assert "js/orders/order-delete-reason.js" in body
