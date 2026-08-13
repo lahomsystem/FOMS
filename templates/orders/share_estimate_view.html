@@ -8,7 +8,7 @@
   <meta name="viewport" content="width=device-width, initial-scale=1">
   <meta name="robots" content="noindex, nofollow">
   <title>견적서 확인</title>
-  <link rel="stylesheet" href="{{ url_for('static', filename='css/orders/foms-share-view.css') }}?v=20260812a">
+  <link rel="stylesheet" href="{{ url_for('static', filename='css/orders/foms-share-view.css') }}?v=20260813a">
 </head>
 <body class="foms-share-view foms-share-est">
   <header class="foms-share-view__header">
@@ -93,6 +93,18 @@
       <p>{{ company.address }}</p>
       <p>전화 {{ company.phone }} · 고객센터 {{ company.customer_center }} · {{ company.website }}</p>
     </footer>
+
+    <div class="foms-share-est__actions">
+      <button type="button" class="foms-share-est__print-btn" data-share-print>
+        견적서 저장·인쇄 (PDF)
+      </button>
+    </div>
   </main>
+  {# 페이지 로컬 스크립트 — 브라우저 인쇄 다이얼로그로 PDF 저장을 연다(다운로드 요구). #}
+  <script>
+    document.querySelector('[data-share-print]').addEventListener('click', function () {
+      window.print();
+    });
+  </script>
 </body>
 </html>

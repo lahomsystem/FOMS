@@ -12,6 +12,7 @@ from __future__ import annotations
 
 import logging
 import time
+import urllib.parse
 from typing import Any, Optional
 
 from flask import Blueprint, Response, jsonify, render_template, request, session, url_for
@@ -72,6 +73,20 @@ def _error_page(message: str, status: int) -> tuple[str, int]:
         (렌더된 본문, 상태코드) 튜플.
     """
     return render_template('channel/wam_error.html', message=message), status
+
+
+def _attachment_disposition(filename: str) -> str:
+    """다운로드 강제용 Content-Disposition 값(한글 파일명 RFC 5987 인코딩).
+
+    Args:
+        filename: 원본 파일명.
+
+    Returns:
+        ``attachment; filename*=UTF-8''<인코딩>`` — R2/S3 presign 의
+        ResponseContentDisposition 파라미터로 쓰면 브라우저가 열지 않고 저장한다.
+    """
+    quoted = urllib.parse.quote(filename, safe='')
+    return f"attachment; filename*=UTF-8''{quoted}"
 
 
 def _is_image(filename: str) -> bool:
@@ -181,6 +196,7 @@ def view_shared_order(token: str):
 
     cards: list[dict[str, str]] = []
     extra_files: list[dict[str, str]] = []
+    download_files: list[dict[str, str]] = []
     presign_failures = 0
     collected = _collect_drawing_files(order)
     for entry in collected:
@@ -191,6 +207,12 @@ def view_shared_order(token: str):
             continue
         item = {'url': url, 'label': entry['filename']}
         (cards if _is_image(entry['filename']) else extra_files).append(item)
+        # 고객 다운로드용 attachment presign — 열람 URL 과 별개(브라우저 저장 강제).
+        dl_url = storage.get_download_url(
+            entry['key'], expires_in=_PRESIGN_SECONDS,
+            response_content_disposition=_attachment_disposition(entry['filename']))
+        if dl_url:
+            download_files.append({'url': dl_url, 'label': entry['filename']})
     if collected and not cards and not extra_files:
         # 파일이 있는데 전부 presign 실패 — 조용한 빈 갤러리 금지, 명시 503.
         logger.error('공유 열람 presign 전멸: share_id=%s (%d건)', row.id, presign_failures)
@@ -213,6 +235,7 @@ def view_shared_order(token: str):
         share_kind=row.kind,
         drawing_preview_cards=cards,
         share_extra_files=extra_files,
+        share_download_files=download_files,
     )
 
 

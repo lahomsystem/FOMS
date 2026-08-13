@@ -147,3 +147,38 @@
 .foms-share-est__company p {
   margin: 2px 0;
 }
+
+/* --- 파일 다운로드 섹션 (Phase A 후속 — 고객 다운로드) --- */
+.foms-share-view__files-title {
+  margin: 0 0 8px;
+  font-size: 0.95rem;
+  font-weight: 700;
+  color: #111827;
+}
+
+.foms-share-view__downloads {
+  margin-top: 16px;
+}
+
+/* --- 견적서 저장·인쇄 버튼 --- */
+.foms-share-est__actions {
+  margin-top: 20px;
+  text-align: center;
+}
+
+.foms-share-est__print-btn {
+  padding: 10px 24px;
+  border: 1px solid #d1d5db;
+  border-radius: 8px;
+  background: #111827;
+  color: #fff;
+  font-size: 0.9rem;
+  font-weight: 600;
+  cursor: pointer;
+}
+
+@media print {
+  .foms-share-est__actions {
+    display: none;
+  }
+}

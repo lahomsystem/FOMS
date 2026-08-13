@@ -11,7 +11,7 @@
   <title>도면 확인</title>
   <link rel="stylesheet" href="{{ url_for('static', filename='css/components/foms-drawing-mobile.css') }}?v=20260811a">
   <link rel="stylesheet" href="{{ url_for('static', filename='css/components/foms-lightbox.css') }}?v=20260811a">
-  <link rel="stylesheet" href="{{ url_for('static', filename='css/orders/foms-share-view.css') }}?v=20260812a">
+  <link rel="stylesheet" href="{{ url_for('static', filename='css/orders/foms-share-view.css') }}?v=20260813a">
 </head>
 <body class="foms-share-view">
   <header class="foms-share-view__header">
@@ -26,6 +26,16 @@
           <ul class="foms-share-view__file-list">
             {% for f in share_extra_files %}
               <li><a href="{{ f.url }}" rel="noreferrer">{{ f.label }}</a></li>
+            {% endfor %}
+          </ul>
+        </section>
+      {% endif %}
+      {% if share_download_files %}
+        <section class="foms-share-view__files foms-share-view__downloads" aria-label="파일 다운로드">
+          <h2 class="foms-share-view__files-title">파일 다운로드</h2>
+          <ul class="foms-share-view__file-list">
+            {% for f in share_download_files %}
+              <li><a href="{{ f.url }}" rel="noreferrer" download>{{ f.label }} 내려받기</a></li>
             {% endfor %}
           </ul>
         </section>
