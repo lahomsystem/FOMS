@@ -1,7 +1,7 @@
 """NAVER-INGEST-01 T8: external_order_links 트리아지(사람 확인) 컬럼
 
 Revision ID: naver_triage_00
-Revises: orderreason_00
+Revises: asfresh_00
 Create Date: 2026-08-13
 
 수집 주문은 담당자 없고 규격도 안 채워진 **반쪽 초안**으로 들어온다(v1 은 옵션을 파싱하지
@@ -29,7 +29,7 @@ from alembic import op
 import sqlalchemy as sa
 
 revision: str = 'naver_triage_00'
-down_revision: Union[str, None] = 'orderreason_00'
+down_revision: Union[str, None] = 'asfresh_00'
 branch_labels: Union[str, Sequence[str], None] = None
 depends_on: Union[str, Sequence[str], None] = None
 
