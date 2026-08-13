@@ -67,7 +67,7 @@ def _assert_shared_form_script_contract(body: str) -> None:
     )
     assert "html2canvas.min.js" not in body
     assert "js/orders/erp-channel-push-confirm.js?v=20260810a" in body
-    assert "js/orders/erp-order-shared.js?v=20260810d" in body
+    assert "js/orders/erp-order-shared.js?v=20260813c" in body
     assert "js/orders/erp-stage-override.js?v=20260716b" in body
     assert "erp_stage_override_modal.html" not in body  # include renders modal markup, not path
     assert 'id="erpStageOverrideModal"' in body
@@ -450,6 +450,17 @@ def test_active_as_reregister_button_opens_prefilled_modal_without_stage_mutatio
     assert "erpAsReregisterBound" in binding
     assert "erpOpenAsReceiveModal(targetId, previousStage, { reregister: true })" in binding
     assert "주문 정보를 불러온 뒤 다시 시도해주세요." in binding
+
+
+def test_as_register_success_refreshes_mutation_version_before_followup_save() -> None:
+    """접수 API가 version 을 올린 뒤 폼 저장이 stale If-Match 로 409 가 나면 안 된다."""
+    root = Path(__file__).resolve().parents[2]
+    text = (root / "static/js/orders/erp-order-shared.js").read_text(encoding="utf-8")
+    start = text.index("const regRes = await fetch(`/api/orders/${targetId}/as/register`")
+    end = text.index("const saveResult = await erpSaveStructured({", start)
+    block = text[start:end]
+    assert "typeof regData.mutation_version === 'number'" in block
+    assert "window.__erpLastMutationVersion = regData.mutation_version" in block
 
 
 def test_shared_erp_order_js_has_no_beta_runtime_mirror() -> None:

@@ -3,19 +3,19 @@
   "summary": "Order main-stage / overlay direct-writer inventory for foms/. Every direct assignment to order.status / workflow.stage(+erp_stage_code mirror) / shipment.logistics_status / workflow.hold is classified CANONICAL / CONSTRUCTOR / AUDITED_BACKFILL / EXTERNAL. Release target: EXTERNAL == 0 (every write routes through the canonical engine). EXTERNAL sites below are pinned residual writers reported to their owner STATE packet — the drift gate keeps the set from growing.",
   "scope": "foms/**.py",
   "baselines": {
-    "total": 40,
+    "total": 41,
     "external": 24
   },
   "classification_counts": {
     "AUDITED_BACKFILL": 1,
-    "CANONICAL": 14,
+    "CANONICAL": 15,
     "CONSTRUCTOR": 1,
     "EXTERNAL": 24
   },
   "axis_counts": {
     "HOLD": 2,
     "LOGISTICS": 1,
-    "MAIN": 37
+    "MAIN": 38
   },
   "external_sites": [
     {
@@ -69,35 +69,35 @@
     },
     {
       "path": "foms/api/erp_orders_structured.py",
-      "lineno": 728,
+      "lineno": 745,
       "axis": "MAIN",
       "kind": "attr_status",
       "owner": "STATE-FORM"
     },
     {
       "path": "foms/api/erp_orders_structured.py",
-      "lineno": 1802,
+      "lineno": 1819,
       "axis": "MAIN",
       "kind": "attr_status",
       "owner": "STATE-FORM"
     },
     {
       "path": "foms/api/erp_orders_structured.py",
-      "lineno": 1875,
+      "lineno": 1892,
       "axis": "MAIN",
       "kind": "attr_status",
       "owner": "STATE-FORM"
     },
     {
       "path": "foms/api/orders/field_update.py",
-      "lineno": 422,
+      "lineno": 436,
       "axis": "MAIN",
       "kind": "subscript_stage",
       "owner": "STATE-LEGACY"
     },
     {
       "path": "foms/api/orders/field_update.py",
-      "lineno": 423,
+      "lineno": 437,
       "axis": "MAIN",
       "kind": "subscript_stage",
       "owner": "STATE-LEGACY"
@@ -246,7 +246,7 @@
     },
     {
       "path": "foms/api/erp_orders_structured.py",
-      "lineno": 728,
+      "lineno": 745,
       "kind": "attr_status",
       "axis": "MAIN",
       "classification": "EXTERNAL",
@@ -254,7 +254,7 @@
     },
     {
       "path": "foms/api/erp_orders_structured.py",
-      "lineno": 1802,
+      "lineno": 1819,
       "kind": "attr_status",
       "axis": "MAIN",
       "classification": "EXTERNAL",
@@ -262,7 +262,7 @@
     },
     {
       "path": "foms/api/erp_orders_structured.py",
-      "lineno": 1875,
+      "lineno": 1892,
       "kind": "attr_status",
       "axis": "MAIN",
       "classification": "EXTERNAL",
@@ -270,7 +270,7 @@
     },
     {
       "path": "foms/api/orders/field_update.py",
-      "lineno": 422,
+      "lineno": 436,
       "kind": "subscript_stage",
       "axis": "MAIN",
       "classification": "EXTERNAL",
@@ -278,7 +278,7 @@
     },
     {
       "path": "foms/api/orders/field_update.py",
-      "lineno": 423,
+      "lineno": 437,
       "kind": "subscript_stage",
       "axis": "MAIN",
       "classification": "EXTERNAL",
@@ -366,8 +366,16 @@
     },
     {
       "path": "foms/services/orders/as_cycle_service.py",
-      "lineno": 283,
+      "lineno": 293,
       "kind": "attr_status",
+      "axis": "MAIN",
+      "classification": "CANONICAL",
+      "owner": "STATE-AS"
+    },
+    {
+      "path": "foms/services/orders/as_cycle_service.py",
+      "lineno": 304,
+      "kind": "subscript_stage",
       "axis": "MAIN",
       "classification": "CANONICAL",
       "owner": "STATE-AS"

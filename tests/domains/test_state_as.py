@@ -272,3 +272,73 @@ def test_field_update_as_completed_date_uses_canonical_bridge(client):
     cycle = _current_cycle(saved)
     assert cycle["origin"] == "LEGACY_BRIDGE"  # provenance 태그
     assert [t["command"] for t in cycle["transitions"]] == ["AS_LEGACY_BRIDGE", "AS_COMPLETE"]
+
+
+def test_register_after_complete_clears_date_and_projects_received(client):
+    """완료된 AS 를 ERP에서 다시 접수로 바꾸면 완료일이 남아 대시보드 삭제가 409 가 되면 안 된다.
+
+    운영 재현(주문 3731): 본공정 드롭다운 AS접수 → register 가 새 RECEIVED cycle 을 연 뒤에도
+    ``as_completed_date`` 가 남고, 대시보드 완료일 삭제는 reopen(COMPLETED 전용)이라
+    「현재 AS 상태(RECEIVED)에서 수행할 수 없는 작업」으로 거절됐다.
+    """
+    _login_as_admin(client, "state-as-reregister-date")
+    order = _create_cs_order()
+    oid = order.id
+    client.post(f"/api/orders/{oid}/as/register", json={"as_content": "1차"})
+    client.post(f"/api/orders/{oid}/as/start", json={"reason": "r", "description": "d"})
+    client.post(f"/api/orders/{oid}/as/complete", json={"note": "완료"})
+    assert _reload(oid).as_completed_date
+
+    r = client.post(f"/api/orders/{oid}/as/register", json={"as_content": "2차 재접수"})
+    assert r.status_code == 200 and r.get_json()["success"] is True
+    saved = _reload(oid)
+    assert read_as_status(saved) == "RECEIVED"
+    assert saved.status == "AS_RECEIVED"
+    assert saved.as_completed_date is None
+    assert r.get_json()["new_status"] == "AS_RECEIVED"
+    assert isinstance(r.get_json().get("mutation_version"), int)
+
+
+def test_field_update_can_clear_stale_completed_date_on_received_cycle(client):
+    """이미 RECEIVED 인데 완료일만 남은 드리프트는 대시보드 삭제로 정리된다."""
+    _login_as_admin(client, "state-as-stale-date")
+    order = _create_cs_order()
+    oid = order.id
+    client.post(f"/api/orders/{oid}/as/register", json={"as_content": "접수"})
+    saved = _reload(oid)
+    saved.as_completed_date = "2026-08-01"
+    db_session.commit()
+
+    r = client.post("/api/update_order_field", json={
+        "order_id": oid, "field_name": "as_completed_date", "new_value": "",
+    })
+    assert r.status_code == 200 and r.get_json()["success"] is True
+    saved = _reload(oid)
+    assert saved.as_completed_date in (None, "")
+    assert read_as_status(saved) == "RECEIVED"
+    assert saved.status == "AS_RECEIVED"
+
+
+def test_register_syncs_polluted_as_stage_but_keeps_clean_main_stage(client):
+    """레거시로 workflow.stage 가 AS_* 이면 overlay 와 맞추고, 본공정 CS 는 건드리지 않는다."""
+    _login_as_admin(client, "state-as-stage-sync")
+    polluted = _create_cs_order(status="AS_COMPLETED")
+    polluted.structured_data = {
+        "workflow": {"stage": "AS_COMPLETED"}, "shipment": {},
+    }
+    polluted.as_completed_date = "2026-08-01"
+    db_session.commit()
+    pid = polluted.id
+    r = client.post(f"/api/orders/{pid}/as/register", json={"as_content": "재접수"})
+    assert r.status_code == 200
+    saved = _reload(pid)
+    assert saved.status == "AS_RECEIVED"
+    assert saved.structured_data["workflow"]["stage"] == "AS_RECEIVED"
+    assert saved.as_completed_date is None
+
+    clean = _create_cs_order(status="CS")
+    cid = clean.id
+    client.post(f"/api/orders/{cid}/as/register", json={"as_content": "신규"})
+    saved = _reload(cid)
+    assert saved.structured_data["workflow"]["stage"] == "CS"
+    assert saved.status == "AS_RECEIVED"
