@@ -26,6 +26,12 @@
 | T10 | Stage-2 통합 검증·스테이징 E2E | pre_push_smoke exit 0 + CI green + E2E(스냅샷 불변·문자 3사·카톡 실기기) | DONE | 59e12874 | smoke 0·CI 4/4 green. E2E 12항목 PASS(주문 4389): 견적 발급→비로그인 열람(계좌·출고가·잔금 렌더·헤더 2종·내부 키 부재)→revoke 410, send-sms 503 not_configured 표면(스테이징 Solapi env 無 — 정상 fail-visible)·토큰 불일치 400. 스냅샷 동결은 pytest 5건이 정본 검증. **BLOCKED 3건**: 문자 3사 실수신(발신번호+Solapi env)·카톡 실기기(도메인 등록)·도면 이미지 실객체(스테이징 R2 드리프트, T5 참조) |
 
 ## 외부 준비 (사용자 액션)
+
+### 문자 발신번호 확정 (사용자 결정 2026-08-12 — T8.1 발신 규칙의 정본)
+- 발신 우선순위: ① 주문 담당자의 등록 개인번호(`users.sender_phone`, 담당자 기준 — 발송 버튼 누른 사람 아님) ② 브랜드 대표번호 ③ ② 벤더 실패 시 브랜드별 백업번호로 같은 요청 내 1회 재시도
+- 하우드: 대표 `15660703` / 백업 `01044644260` → env `SOLAPI_SENDER_PHONE_HAUD` / `SOLAPI_SENDER_FALLBACK_HAUD`
+- 라홈: 대표 `15660792` / 백업 `01083277282` → env `SOLAPI_SENDER_PHONE_LAHOM` / `SOLAPI_SENDER_FALLBACK_LAHOM`
+- 영업 개인번호는 각자 Solapi 등록 후 /admin/users "문자 발신번호"에 입력. 위 4개 번호도 전부 Solapi 발신번호 등록 필요(법인 서류). 구 `SOLAPI_SENDER_PHONE`은 최후 폴백으로 유지.
 - [ ] 카카오 개발자 앱 도메인 2종 등록 + 지도 앱과 동일 앱 여부 회신 (T5 카톡 E2E 전제)
 - [ ] 영업 인원 Solapi 발신번호 등록 → 번호 목록 전달 (T10 실수신 전제)
 
