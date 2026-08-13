@@ -1,0 +1,239 @@
+{% extends "admin/layout.html" %}
+
+{% block title %}네이버 주문 수집{% endblock %}
+
+{% block content %}
+<div class="container-fluid">
+    <div class="d-flex justify-content-between align-items-center mb-4">
+        <h1 class="h3 mb-0"><i class="fas fa-store text-success"></i> 네이버 주문 수집</h1>
+        <button type="button" id="naver-run-now" class="btn btn-success">
+            <i class="fas fa-rotate"></i> 지금 수집
+        </button>
+    </div>
+
+    <div id="naver-run-result" class="alert d-none" role="status"></div>
+
+    {# 수집이 지금 잘 돌고 있는지 — 이 화면의 첫 질문 #}
+    <div class="row g-3 mb-4">
+        <div class="col-md-4">
+            <div class="card shadow-sm h-100">
+                <div class="card-body">
+                    <div class="text-muted small">마지막 성공 구간 끝(워터마크)</div>
+                    <div class="fs-6 fw-semibold">{{ watermark.last_success_to or '아직 없음' }}</div>
+                    <div class="text-muted small mt-2">마지막 실행</div>
+                    <div>{{ watermark.last_run_at or '아직 없음' }}</div>
+                </div>
+            </div>
+        </div>
+        <div class="col-md-4">
+            <div class="card shadow-sm h-100">
+                <div class="card-body">
+                    <div class="text-muted small">마지막 실행 결과</div>
+                    {% if watermark.last_error %}
+                    <div class="text-danger fw-semibold">실패</div>
+                    <div class="small text-danger">{{ watermark.last_error }}</div>
+                    <div class="small text-muted mt-1">워터마크는 전진하지 않았습니다 — 다음 실행이 같은 구간을 다시 수집합니다.</div>
+                    {% else %}
+                    <div class="text-success fw-semibold">정상</div>
+                    <div class="small text-muted">
+                        생성 {{ watermark.last_summary.get('created', 0) }} ·
+                        건너뜀 {{ watermark.last_summary.get('skipped', 0) }} ·
+                        보류 {{ watermark.last_summary.get('pending_review', 0) }}
+                    </div>
+                    {% endif %}
+                </div>
+            </div>
+        </div>
+        <div class="col-md-4">
+            {# 만료되면 앱이 자동 휴면돼 수집이 조용히 멈춘다 — 화면에 상시 노출한다 #}
+            <div class="card shadow-sm h-100">
+                <div class="card-body">
+                    <div class="text-muted small">커머스API 인증 만료일</div>
+                    {% if expiry.expires_on %}
+                    <div class="fs-6 fw-semibold">{{ expiry.expires_on }}</div>
+                    {% if expiry.days_left is not none and expiry.days_left <= 7 %}
+                    <div class="badge bg-danger mt-1">D-{{ expiry.days_left if expiry.days_left > 0 else 0 }} — 갱신 필요</div>
+                    <div class="small text-danger mt-1">만료되면 앱이 자동 휴면되어 수집이 전면 중단됩니다.</div>
+                    {% else %}
+                    <div class="small text-muted">{{ expiry.days_left }}일 남음</div>
+                    {% endif %}
+                    {% else %}
+                    <div class="text-warning fw-semibold">미등록</div>
+                    <div class="small text-muted">만료일을 모르면 만료 경고를 보낼 수 없습니다.</div>
+                    {% endif %}
+                </div>
+            </div>
+        </div>
+    </div>
+
+    {# 사람 손이 필요한 건 — 이 화면의 두 번째 질문 #}
+    <div class="mb-3">
+        <a href="{{ url_for('admin.naver_ingest_dashboard') }}"
+           class="btn btn-sm {{ 'btn-dark' if not status else 'btn-outline-dark' }}">전체 {{ total if not status else '' }}</a>
+        <a href="{{ url_for('admin.naver_ingest_dashboard', status='LINKED') }}"
+           class="btn btn-sm {{ 'btn-success' if status == 'LINKED' else 'btn-outline-success' }}">수집됨 {{ counts.LINKED }}</a>
+        <a href="{{ url_for('admin.naver_ingest_dashboard', status='PENDING_REVIEW') }}"
+           class="btn btn-sm {{ 'btn-warning' if status == 'PENDING_REVIEW' else 'btn-outline-warning' }}">확인 필요 {{ counts.PENDING_REVIEW }}</a>
+        <a href="{{ url_for('admin.naver_ingest_dashboard', status='FAILED') }}"
+           class="btn btn-sm {{ 'btn-danger' if status == 'FAILED' else 'btn-outline-danger' }}">실패 {{ counts.FAILED }}</a>
+    </div>
+
+    <div class="card shadow-sm">
+        <div class="table-responsive">
+            <table class="table table-sm table-hover align-middle mb-0">
+                <thead class="table-light">
+                    <tr>
+                        <th>수집 시각</th>
+                        <th>상품주문번호</th>
+                        <th>주문번호</th>
+                        <th>상태</th>
+                        <th>고객</th>
+                        <th>제품</th>
+                        <th>FOMS 주문</th>
+                        <th>사유</th>
+                        <th>원본</th>
+                    </tr>
+                </thead>
+                <tbody>
+                    {% for row in rows %}
+                    <tr>
+                        <td class="text-nowrap small">{{ row.created_at }}</td>
+                        <td class="small">{{ row.external_id }}</td>
+                        <td class="small text-muted">{{ row.external_order_no or '-' }}</td>
+                        <td>
+                            {% if row.sync_status == 'LINKED' %}
+                            <span class="badge bg-success">수집됨</span>
+                            {% elif row.sync_status == 'PENDING_REVIEW' %}
+                            <span class="badge bg-warning text-dark">확인 필요</span>
+                            {% else %}
+                            <span class="badge bg-danger">실패</span>
+                            {% endif %}
+                        </td>
+                        <td class="small">{{ row.customer_name or '-' }}</td>
+                        <td class="small">{{ row.product or '-' }}</td>
+                        <td>
+                            {% if row.order_id %}
+                            <a href="{{ url_for('order_edit.edit_order', order_id=row.order_id, open='erp-order') }}"
+                               class="small">#{{ row.order_id }}</a>
+                            {% else %}
+                            <span class="text-muted small">없음</span>
+                            {% endif %}
+                        </td>
+                        <td class="small text-danger">{{ row.failure_reason or '' }}</td>
+                        <td>
+                            <button type="button" class="btn btn-sm btn-outline-secondary naver-snapshot-btn"
+                                    data-link-id="{{ row.id }}">원본</button>
+                        </td>
+                    </tr>
+                    {% else %}
+                    <tr>
+                        <td colspan="9" class="text-center text-muted py-4">수집 이력이 없습니다.</td>
+                    </tr>
+                    {% endfor %}
+                </tbody>
+            </table>
+        </div>
+    </div>
+
+    {% if total > page_size %}
+    <nav class="mt-3">
+        <ul class="pagination pagination-sm">
+            {% if page > 1 %}
+            <li class="page-item">
+                <a class="page-link"
+                   href="{{ url_for('admin.naver_ingest_dashboard', status=status or None, page=page - 1) }}">이전</a>
+            </li>
+            {% endif %}
+            <li class="page-item disabled">
+                <span class="page-link">{{ page }} / {{ ((total - 1) // page_size) + 1 }}</span>
+            </li>
+            {% if page * page_size < total %}
+            <li class="page-item">
+                <a class="page-link"
+                   href="{{ url_for('admin.naver_ingest_dashboard', status=status or None, page=page + 1) }}">다음</a>
+            </li>
+            {% endif %}
+        </ul>
+    </nav>
+    {% endif %}
+</div>
+
+{# 원본 스냅샷 — 실번호·주소가 그대로 들어 있어 관리자만 볼 수 있다(열람도 감사 기록된다) #}
+<div class="modal fade" id="naver-snapshot-modal" tabindex="-1" aria-hidden="true">
+    <div class="modal-dialog modal-lg modal-dialog-scrollable">
+        <div class="modal-content">
+            <div class="modal-header">
+                <h5 class="modal-title">네이버 원본 응답 <span id="naver-snapshot-id" class="text-muted small"></span></h5>
+                <button type="button" class="btn-close" data-bs-dismiss="modal" aria-label="닫기"></button>
+            </div>
+            <div class="modal-body">
+                <p class="small text-muted">개인정보가 포함된 원본입니다. 열람 기록이 남습니다.</p>
+                <pre id="naver-snapshot-body" class="small bg-light p-3 rounded overflow-auto"></pre>
+            </div>
+        </div>
+    </div>
+</div>
+
+<script>
+// "지금 수집" 은 큐에 넣기만 한다. 네이버 HTTP 는 WORKER 에서만 나가므로(호출 IP 한도 3)
+// 여기서 결과를 기다리지 않는다 — 잠시 뒤 새로고침하면 이력에 뜬다.
+(function () {
+    var button = document.getElementById('naver-run-now');
+    var box = document.getElementById('naver-run-result');
+    if (!button || !box) return;
+
+    function show(kind, text) {
+        box.className = 'alert alert-' + kind;
+        box.textContent = text;
+    }
+
+    // 원본 스냅샷 열람(관리자 전용). 목록에 미리 실어 보내지 않는다 — 개인정보를
+    // 보는 사람만 받아가게 하고, 열람 자체를 서버가 감사 원장에 남긴다.
+    document.querySelectorAll('.naver-snapshot-btn').forEach(function (btn) {
+        btn.addEventListener('click', async function () {
+            var modalEl = document.getElementById('naver-snapshot-modal');
+            var body = document.getElementById('naver-snapshot-body');
+            var label = document.getElementById('naver-snapshot-id');
+            body.textContent = '불러오는 중…';
+            label.textContent = '';
+            var modal = bootstrap.Modal.getOrCreateInstance(modalEl);
+            modal.show();
+            try {
+                const response = await fetch('/admin/naver-ingest/' + btn.dataset.linkId + '/snapshot');
+                const data = await response.json();
+                if (!data.success) {
+                    body.textContent = data.error || '원본을 불러오지 못했습니다.';
+                    return;
+                }
+                label.textContent = data.data.external_id;
+                body.textContent = JSON.stringify(data.data.snapshot, null, 2);
+            } catch (error) {
+                body.textContent = '요청 중 오류가 발생했습니다: ' + error;
+            }
+        });
+    });
+
+    button.addEventListener('click', async function () {
+        button.disabled = true;
+        show('info', '작업 큐에 넣는 중…');
+        try {
+            const response = await fetch('{{ url_for("admin.naver_ingest_run_now") }}', {
+                method: 'POST',
+                headers: { 'Content-Type': 'application/json' },
+                body: '{}'
+            });
+            const data = await response.json();
+            if (!data.success) {
+                show('danger', data.error || '수집 요청에 실패했습니다.');
+                return;
+            }
+            show('success', '수집 작업을 큐에 넣었습니다. 잠시 뒤 새로고침하면 결과가 이력에 나타납니다.');
+        } catch (error) {
+            show('danger', '요청 중 오류가 발생했습니다: ' + error);
+        } finally {
+            button.disabled = false;
+        }
+    });
+})();
+</script>
+{% endblock %}
