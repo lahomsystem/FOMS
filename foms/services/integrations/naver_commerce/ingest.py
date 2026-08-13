@@ -333,8 +333,24 @@ def run_sweep(
     payload.update(result.as_dict())
     if not dry_run:
         wm.advance(session, success_to=end, summary=result.as_dict(), now=current)
+        payload["expiry_alert"] = _check_app_expiry(session, current)
     session.commit()
     return payload
+
+
+def _check_app_expiry(session: Session, current: datetime) -> Optional[int]:
+    """앱 인증 만료 임박 알림을 태운다. 여기서 나는 오류가 수집을 되돌리면 안 된다.
+
+    수집은 이미 성공했고 워터마크도 전진했다. 부가 알림 실패로 예외를 올리면 호출자가
+    tx 를 롤백해 **성공한 수집이 통째로 사라진다** — 부가 기능이 본체를 죽이는 구조는 금지.
+    """
+    from foms.services.integrations.naver_commerce import app_expiry
+
+    try:
+        return app_expiry.check_and_notify(session, today=current.date(), now=now_utc_naive())
+    except Exception as exc:  # noqa: BLE001 - 부가 알림 실패가 수집을 되돌리지 않게
+        logger.warning("[NAVER] 앱 만료 알림 실패(수집은 유지): %s", exc, exc_info=True)
+        return None
 
 
 __all__ = [
