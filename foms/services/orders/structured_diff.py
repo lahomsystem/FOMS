@@ -30,6 +30,7 @@ __all__ = [
     "MAX_CHANGES",
     "NUMERIC_PATH_SUFFIXES",
     "SCALAR_PATHS",
+    "AMOUNT_PATH_TEMPLATES",
     "SENSITIVE_ITEM_OPS",
     "SENSITIVE_ITEM_TEMPLATE",
     "SENSITIVE_PATH_TEMPLATES",
@@ -125,11 +126,6 @@ MAX_CHANGES = 40
 #: 전화번호만 고친 저장이 "금액 변경"으로 판정돼 사유를 묻는다(2026-08-13 실측으로 확인).
 #: 파생값은 그 값을 만든 **입력 경로**가 대신 대표한다.
 SENSITIVE_PATH_TEMPLATES: frozenset[str] = frozenset({
-    # --- 금액(사용자 입력 경로만) ---
-    "payment.deposit",
-    "payment.discount",
-    "payment.free_input",
-    "items.*.price",
     # --- 일정 ---
     "schedule.measurement.date",
     "schedule.measurement.time",
@@ -141,6 +137,15 @@ SENSITIVE_PATH_TEMPLATES: frozenset[str] = frozenset({
     "items.*.construction_date",
     # --- 단계/취소 ---
     "workflow.stage",
+})
+
+#: 금액 **입력** 경로. 사유 판정은 여기만 금액 임계(잔돈 변경 제외)를 함께 본다 —
+#: 목록 자체는 :data:`SENSITIVE_PATH_TEMPLATES` 와 분리해 둔다(판정 규칙이 다르다).
+AMOUNT_PATH_TEMPLATES: frozenset[str] = frozenset({
+    "payment.deposit",
+    "payment.discount",
+    "payment.free_input",
+    "items.*.price",
 })
 
 #: 품목 구성 변경(``items.*`` 의 추가·삭제)도 사유 대상이다. 품목 하나가 통째로 들고 나면

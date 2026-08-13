@@ -21,11 +21,13 @@ from __future__ import annotations
 
 import datetime
 import logging
+import re
 from typing import Any, Iterable, Mapping
 
 from foms.services.datetime_kst import now_utc_naive
 from foms.services.orders.order_field_change_writer import path_template_of
 from foms.services.orders.structured_diff import (
+    AMOUNT_PATH_TEMPLATES,
     SENSITIVE_ITEM_OPS,
     SENSITIVE_ITEM_TEMPLATE,
     SENSITIVE_PATH_TEMPLATES,
@@ -35,6 +37,8 @@ from models import OrderChangeReason, OrderFieldChange
 logger = logging.getLogger(__name__)
 
 __all__ = [
+    "AMOUNT_MATERIAL_ABSOLUTE",
+    "AMOUNT_MATERIAL_RATIO",
     "REASON_ATTACH_WINDOW",
     "REASON_CODES",
     "REASON_LABELS",
@@ -43,11 +47,19 @@ __all__ = [
     "REASON_UNSPECIFIED",
     "ReasonAttachError",
     "attach_reason",
+    "is_material_amount_change",
     "is_reason_required",
     "normalize_reason",
     "reason_label",
     "reasons_for_change_sets",
 ]
+
+#: 금액 변경을 "물어볼 만큼 큰 변경"으로 볼 절대 기준(원). 잔돈 조정까지 사유를 물으면
+#: 창이 아무 때나 뜨고, 그러면 직원이 목록에서 아무거나 고른다(사용자 결정 2026-08-13).
+AMOUNT_MATERIAL_ABSOLUTE = 50_000
+
+#: 같은 판정의 상대 기준. 작은 금액에서는 5% 가 5만원보다 먼저 걸린다(둘 중 하나만 넘으면 된다).
+AMOUNT_MATERIAL_RATIO = 0.05
 
 #: 사유를 붙일 수 있는 기간. 감사 기록이라 무한 소급 입력은 허용하지 않는다 —
 #: 한참 뒤에 적는 사유는 기억이 아니라 재구성이다.
@@ -94,12 +106,61 @@ def reason_label(code: str | None) -> str:
     return REASON_LABELS.get(code, str(code))
 
 
+def _as_amount(value: Any) -> float | None:
+    """원장에 실린 금액 문자열을 숫자로 읽는다(읽을 수 없으면 ``None``).
+
+    ``"1,300,000"``·``1300000``·``"130만"`` 같은 값이 섞여 들어온다. 숫자로 못 읽는 값은
+    비교하지 않고 **변경으로 인정**한다(모르면 묻는 쪽이 안전하다 — 아래 호출부 참고).
+
+    :param value: 원장 값.
+    :return: 숫자 또는 ``None``.
+    """
+    if value is None:
+        return None
+    if isinstance(value, (int, float)) and not isinstance(value, bool):
+        return float(value)
+    digits = re.sub(r"[^0-9.\-]", "", str(value))
+    if digits in ("", "-", ".", "-."):
+        return None
+    try:
+        return float(digits)
+    except ValueError:
+        return None
+
+
+def is_material_amount_change(change: Mapping[str, Any]) -> bool:
+    """금액 변경이 사유를 물어야 할 만큼 큰지 판정한다 (ORDER-REASON-00).
+
+    기준은 **절대·상대 둘 중 하나**다: :data:`AMOUNT_MATERIAL_ABSOLUTE` 이상이거나
+    이전 값의 :data:`AMOUNT_MATERIAL_RATIO` 이상. 값을 숫자로 못 읽으면 참으로 본다 —
+    감사 원장에서 "몰라서 안 물었다"보다 "물었다"가 낫다.
+
+    :param change: ``diff_structured`` 가 만든 변경 dict.
+    :return: 사유를 물어야 하면 ``True``.
+    """
+    before = _as_amount(change.get("before"))
+    after = _as_amount(change.get("after"))
+    if before is None and after is None:
+        return True
+    delta = abs((after or 0.0) - (before or 0.0))
+    if delta >= AMOUNT_MATERIAL_ABSOLUTE:
+        return True
+    return bool(before) and delta >= abs(before) * AMOUNT_MATERIAL_RATIO
+
+
 def is_reason_required(changes: Iterable[Mapping[str, Any]]) -> bool:
     """이 저장이 변경 사유를 물어야 하는지 판정한다.
 
-    :data:`~foms.services.orders.structured_diff.SENSITIVE_PATH_TEMPLATES` 에 걸리는 변경이
-    하나라도 있으면 참이다. 품목 경로는 인덱스를 지운 템플릿으로 대조하므로 품목 번호가
-    밀려도 판정이 흔들리지 않는다(ORDER-DIFF-01 의 ``path_template`` 과 같은 열쇠).
+축은 셋이고 규칙이 서로 다르다:
+
+    * 일정·단계(:data:`~foms.services.orders.structured_diff.SENSITIVE_PATH_TEMPLATES`) — 바뀌면 묻는다.
+    * 금액(:data:`~foms.services.orders.structured_diff.AMOUNT_PATH_TEMPLATES`) — **크게**
+      바뀌어야 묻는다(:func:`is_material_amount_change`). 잔돈 조정까지 물으면 창이 아무 때나
+      뜨고, 그러면 목록에서 아무거나 고르게 된다.
+    * 품목 추가·삭제 — 한 건으로만 남아 단가 경로에 안 걸리므로 따로 본다.
+
+    품목 경로는 인덱스를 지운 템플릿으로 대조하므로 품목 번호가 밀려도 판정이 흔들리지
+    않는다(ORDER-DIFF-01 의 ``path_template`` 과 같은 열쇠).
 
     :param changes: ``diff_structured`` 결과의 ``changes`` 목록.
     :return: 사유를 물어야 하면 ``True``.
@@ -110,6 +171,9 @@ def is_reason_required(changes: Iterable[Mapping[str, Any]]) -> bool:
             continue
         template = path_template_of(path)
         if template in SENSITIVE_PATH_TEMPLATES:
+            return True
+        # 금액은 "바뀌었나"가 아니라 "크게 바뀌었나"로 본다(잔돈 조정 제외).
+        if template in AMOUNT_PATH_TEMPLATES and is_material_amount_change(change or {}):
             return True
         # 품목 추가·삭제는 필드 변경이 아니라 한 건으로만 남아 items.*.price 에 안 걸린다.
         if template == SENSITIVE_ITEM_TEMPLATE and (change or {}).get("op") in SENSITIVE_ITEM_OPS:

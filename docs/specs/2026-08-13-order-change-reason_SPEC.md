@@ -39,8 +39,9 @@
 `structured_diff` 가 만든 `path` 를 `path_template_of` 로 정규화해 이 집합과 대조한다
 (품목 인덱스 무관).
 
-- **금액(입력 경로만)**: `payment.deposit` · `payment.discount` · `payment.free_input` ·
-  `items.*.price`
+- **금액(입력 경로만, 임계 초과분만)**: `payment.deposit` · `payment.discount` ·
+  `payment.free_input` · `items.*.price` — **|변화| ≥ 50,000원 또는 이전 값의 5% 이상**일 때만
+  묻는다(사용자 결정 2026-08-13). 숫자로 못 읽는 값은 묻는 쪽으로 본다.
 - **일정**: `schedule.measurement.date/time` · `schedule.construction.date/time` ·
   `schedule.as_visit.date/time` · `items.*.measurement_date` · `items.*.construction_date`
 - **단계/취소**: `workflow.stage`
@@ -70,7 +71,7 @@
 
 ### 3.4 스키마 — `order_change_reasons`
 
-마이그레이션 `orderreason_00_order_change_reasons` (down_revision = `senderphone_00`).
+마이그레이션 `orderreason_00_order_change_reasons` (down_revision = `naver_link_00`).
 
 | 컬럼 | 타입 | 설명 |
 |---|---|---|
@@ -111,6 +112,21 @@
 
 `security_logs.detail` 에는 `reason_code` 만 넣는다(≈40바이트). `_DETAIL_CHANGES_BUDGET`
 3,200 을 건드리지 않도록 **변경 목록보다 먼저** 예산에서 뺀다.
+
+## 3.7 빈도 실측 (2026-08-13, 운영 데이터 83개 저장 묶음)
+
+| 규칙 | 사유를 묻는 비율 |
+|---|---|
+| 금액 무조건(초안) | 67% |
+| **금액 임계 5%/5만원(채택)** | **63%** |
+| 금액 10만원 이상 | 61% |
+| 금액 축 제외(일정·단계·품목만) | 40% |
+
+축별 기여: 금액 49% · 일정 34%(시공일 27%가 최대) · 품목 추가삭제 13% · 단계 0%.
+
+> **금액 임계로는 빈도가 거의 안 줄어든다**(67 → 63%). 대부분의 저장이 일정도 함께 건드리기
+> 때문이다. 빈도를 실제로 줄이려면 **일정 축**(특히 시공일)을 손봐야 한다 — 초안 리포트의
+> "C안 30~40% 추정"은 실측으로 반증됐다. 임계 자체는 잔돈 조정을 걸러내는 값이므로 유지한다.
 
 ## 4. 비목표
 

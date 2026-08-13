@@ -13,6 +13,7 @@ from foms.services.orders.change_reason import (
     REASON_NOTE_LIMIT,
     REASON_OTHER,
     REASON_UNSPECIFIED,
+    is_material_amount_change,
     is_reason_required,
     normalize_reason,
     reason_label,
@@ -129,3 +130,48 @@ def test_listed_codes_have_labels():
     for code in REASON_CODES:
         assert reason_label(code) != code
     assert reason_label(None) == reason_label(REASON_UNSPECIFIED)
+
+
+# ---------------------------------------------------------------------------
+# 금액 임계 — "바뀌었나"가 아니라 "크게 바뀌었나" (사용자 결정 2026-08-13)
+# ---------------------------------------------------------------------------
+
+def _amount(before, after, path="items.0.price"):
+    return {"path": path, "before": before, "after": after, "op": "set"}
+
+
+def test_small_amount_change_does_not_require_reason():
+    """50만원짜리의 2만원(4%) 조정은 묻지 않는다 — 잔돈까지 물으면 창이 아무 때나 뜬다."""
+    assert is_reason_required([_amount("500000", "520000")]) is False
+    assert is_reason_required([_amount("1,000,000", "1,030,000")]) is False
+
+
+def test_absolute_threshold_triggers():
+    """5만원 이상 움직이면 비율과 무관하게 묻는다."""
+    assert is_reason_required([_amount("1000000", "1060000")]) is True
+    assert is_reason_required([_amount("500000", "450000")]) is True     # 인하도 같다
+
+
+def test_ratio_threshold_triggers_on_small_base():
+    """작은 금액에서는 5% 가 5만원보다 먼저 걸린다."""
+    assert is_reason_required([_amount("10000", "11000")]) is True
+    assert is_material_amount_change({"before": "10000", "after": "10100"}) is False
+
+
+def test_unreadable_amount_is_treated_as_material():
+    """숫자로 못 읽는 값은 묻는 쪽으로 — 감사에서 "몰라서 안 물었다"는 변명이 안 된다."""
+    assert is_material_amount_change({"before": "협의", "after": "미정"}) is True
+
+
+def test_payment_inputs_use_the_same_threshold():
+    """계약금·할인도 금액 축이라 같은 기준을 쓴다."""
+    assert is_reason_required([_amount("300000", "310000", path="payment.deposit")]) is False
+    assert is_reason_required([_amount("300000", "380000", path="payment.deposit")]) is True
+
+
+def test_schedule_has_no_threshold():
+    """일정은 하루만 밀려도 분쟁 축이다 — 임계 없이 묻는다."""
+    assert is_reason_required([{
+        "path": "schedule.construction.date", "before": "2026-08-20",
+        "after": "2026-08-21", "op": "set",
+    }]) is True
