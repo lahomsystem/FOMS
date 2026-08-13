@@ -1552,6 +1552,21 @@
           setStatus(isDraft ? "임시 저장됨" : "저장됨", "saved");
           showAutosaveBadge((isDraft || !explicit ? "자동저장됨" : "저장됨") + " · 방금");
           refreshBaseline(orderId);
+          // ORDER-REASON-00: 금액·일정이 바뀐 저장이면 서버가 표시해서 보낸다. 태블릿은
+          // 현장에서 한 손으로 쓰는 화면이라 모달이 아니라 배너(1탭)로 받는다. 임시/자동
+          // 저장은 아직 값을 만지는 중이므로 묻지 않는다(explicit 저장만).
+          if (explicit && !isDraft
+              && result.data.change_reason_required === true && result.data.change_set) {
+            var reasonDetail = {
+              orderId: orderId, changeSet: result.data.change_set, mode: "inline",
+            };
+            if (window.FomsChangeReason && typeof window.FomsChangeReason.prompt === "function") {
+              window.FomsChangeReason.prompt(reasonDetail);
+            } else {
+              document.dispatchEvent(new CustomEvent("foms:change-reason-required",
+                                                     { detail: reasonDetail }));
+            }
+          }
         } else {
           var msg = (result.data && result.data.message) || "저장 실패";
           setStatus(msg, "error");

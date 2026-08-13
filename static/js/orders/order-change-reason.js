@@ -15,6 +15,10 @@
 (function () {
   'use strict';
 
+  // 전역 레이아웃(태블릿·모바일)과 ERP 편집 번들 양쪽에서 실릴 수 있다. 두 번 실행되면
+  // 리스너가 둘이 되어 시트가 두 장 뜬다.
+  if (window.FomsChangeReason) return;
+
   var CODES_ENDPOINT = '/api/orders/change-reason-codes';
   var codesPromise = null;
   var activeHost = null;

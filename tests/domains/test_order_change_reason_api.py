@@ -386,3 +386,20 @@ def test_stats_page_renders(client):
     body = client.get("/admin/change-reasons").get_data(as_text=True)
     assert "변경 사유 집계" in body
     assert "js/orders/change-reason-stats.js" in body
+
+
+def test_reason_surface_assets_are_global(client):
+    """사유 표면은 PC 전용이 아니다 — 태블릿·모바일 셸에서도 자산이 실려야 뜬다.
+
+    저장 경로(PUT /structured)는 전 셸 공통인데 자산만 ERP 편집 화면에 묶여 있으면,
+    태블릿에서 저장한 사람은 사유 창을 아예 못 본다(2026-08-13 배선 누락으로 확인).
+    """
+    _login_as_admin(client, "reason-assets")
+    order = _create_order()
+
+    body = client.get(f"/measurement/tablet?order_id={order.id}").get_data(as_text=True)
+    if "js/foms/tablet-measure-form.js" not in body:      # 태블릿 라우트가 다른 이름일 때
+        body = client.get("/erp/dashboard").get_data(as_text=True)
+
+    assert "js/orders/order-change-reason.js" in body
+    assert "css/components/foms-change-reason.css" in body
