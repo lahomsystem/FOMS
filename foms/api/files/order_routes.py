@@ -26,6 +26,7 @@ from foms.api.files.common import (
     get_erp_media_max_size,
     normalize_attachment_category,
     parse_attachment_item_index,
+    resolve_as_log_ref,
     serialize_attachment,
 )
 from db import get_db
@@ -330,6 +331,14 @@ def api_order_attachments_upload(order_id):
         if not order:
             return jsonify({"success": False, "message": "주문을 찾을 수 없습니다."}), 404
 
+        # AS-FRESH-01: 어느 AS 기록의 파일인지(선택). 주문 로드 후에 검증한다 —
+        # 항목 존재 확인이 structured_data 를 필요로 한다.
+        ok_log, as_log_id, log_err = resolve_as_log_ref(
+            order, category, request.form.get("as_log_id")
+        )
+        if not ok_log:
+            return jsonify({"success": False, "message": log_err}), 400
+
         storage = get_storage()
         folder = f"orders/{order_id}/attachments"
         result = storage.upload_file(file, file.filename, folder)
@@ -362,6 +371,7 @@ def api_order_attachments_upload(order_id):
             file_type=file_type,
             category=category,
             item_index=item_index,
+            as_log_id=as_log_id,
             file_size=file_size,
             storage_key=storage_key,
             thumbnail_key=thumbnail_key,
