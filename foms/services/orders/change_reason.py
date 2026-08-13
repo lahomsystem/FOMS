@@ -24,6 +24,8 @@ import logging
 import re
 from typing import Any, Iterable, Mapping
 
+from sqlalchemy import func
+
 from foms.services.datetime_kst import now_utc_naive
 from foms.services.orders.order_field_change_writer import path_template_of
 from foms.services.orders.structured_diff import (
@@ -34,7 +36,7 @@ from foms.services.orders.structured_diff import (
     SENSITIVE_ITEM_TEMPLATE,
     SENSITIVE_PATH_TEMPLATES,
 )
-from models import OrderChangeReason, OrderFieldChange
+from models import OrderChangeReason, OrderFieldChange, SecurityLog
 
 logger = logging.getLogger(__name__)
 
@@ -53,6 +55,7 @@ __all__ = [
     "is_reason_required",
     "normalize_reason",
     "reason_label",
+    "reason_stats",
     "reasons_for_change_sets",
 ]
 
@@ -322,4 +325,52 @@ def reasons_for_change_sets(session: Any, change_set_ids: Iterable[str]) -> dict
             'note': row.reason_note,
         }
         for row in rows
+    }
+
+
+def reason_stats(session: Any, *, days: int = 30) -> dict[str, Any]:
+    """최근 N일 사유 분포와 **미입력 비율**을 센다 (ORDER-REASON-00).
+
+    "입력 오류 정정이 이번 달 몇 건" 이 목록형 사유를 택한 이유였다. 여기가 그 질문을 받는
+    자리이고, 함께 세는 것이 **우회율**이다 — 사유를 물어야 했던 저장(감사 헤더
+    ``detail.reason_required``) 대비 실제로 붙은 사유 수. 이 값이 높으면 규칙이 잘못됐거나
+    화면이 불편하다는 뜻이다(어느 쪽이든 숫자 없이는 알 수 없다).
+
+    :param session: 조회 세션.
+    :param days: 집계 기간(일).
+    :return: ``{'days','since','by_code':[{code,label,count}],'attached','required','skipped'}``.
+    """
+    since = now_utc_naive() - datetime.timedelta(days=max(int(days), 1))
+
+    rows = (
+        session.query(OrderChangeReason.reason_code, func.count(OrderChangeReason.id))
+        .filter(OrderChangeReason.created_at >= since)
+        .group_by(OrderChangeReason.reason_code)
+        .all()  # perf-ok: ix_order_change_reasons_code_time
+    )
+    counts = {code: int(total) for code, total in rows}
+    attached = sum(counts.values())
+
+    # 사유를 물어야 했던 저장 수 — 헤더(security_logs)가 저장 시점에 남긴 표식으로 센다.
+    required = (
+        session.query(func.count(SecurityLog.id))
+        .filter(SecurityLog.action == 'ORDER_STRUCTURED_SAVED')
+        .filter(SecurityLog.timestamp >= since)
+        # ``as_boolean`` 은 PG(JSONB)·SQLite(JSON) 양쪽에서 같은 의미로 컴파일된다
+        # (``astext`` 는 PG 전용이라 테스트 레인에서 죽는다).
+        .filter(SecurityLog.detail['reason_required'].as_boolean().is_(True))
+        .scalar()
+    ) or 0
+
+    return {
+        'days': int(days),
+        'since': since.isoformat(),
+        'by_code': [
+            {'code': code, 'label': reason_label(code), 'count': counts.get(code, 0)}
+            for code in REASON_CODES
+        ],
+        'attached': attached,
+        'required': int(required),
+        # 물었는데 안 붙은 저장. 음수가 나오지 않도록 하한을 둔다(사후 첨부가 기간을 넘나든다).
+        'skipped': max(0, int(required) - attached),
     }

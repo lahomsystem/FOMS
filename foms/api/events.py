@@ -22,6 +22,7 @@ from foms.services.orders.change_reason import (
     ReasonAttachError,
     attach_reason,
     reason_label,
+    reason_stats,
     reasons_for_change_sets,
 )
 from foms.web.auth.routes import log_access
@@ -32,7 +33,7 @@ from foms.services.order_event_display import (
     translate_target_to_korean,
     translate_value_to_korean,
 )
-from foms.web.auth import login_required
+from foms.web.auth import login_required, role_required
 
 
 def get_order_display_name(order):
@@ -224,6 +225,26 @@ def api_order_field_changes(order_id: int):
             # 상한에 걸렸다면 더 오래된 이력이 남아 있다는 뜻이다(화면이 그 사실을 표시한다).
             'truncated': len(ordered_sets) >= _FIELD_CHANGE_SET_LIMIT,
         }})
+    except Exception as e:
+        log_handled_exception()
+        return jsonify({'success': False, 'error': str(e)}), 500
+
+
+@events_bp.route('/orders/change-reason-stats', methods=['GET'])
+@login_required
+@role_required(['ADMIN'])
+def api_change_reason_stats():
+    """최근 N일 사유 분포와 미입력(우회) 건수를 돌려준다 (ORDER-REASON-00).
+
+    목록형 사유를 택한 이유가 "입력 오류 정정이 이번 달 몇 건"을 묻기 위해서였다. 함께
+    돌려주는 ``skipped`` 는 **물었는데 안 붙은 저장** 수다 — 규칙이 과하거나 화면이 불편하면
+    이 값이 먼저 커진다.
+
+    :return: ``{'success': True, 'data': {...}}`` (:func:`~foms.services.orders.change_reason.reason_stats`).
+    """
+    try:
+        days = max(1, min(request.args.get('days', 30, type=int) or 30, 365))
+        return jsonify({'success': True, 'data': reason_stats(get_db(), days=days)})
     except Exception as e:
         log_handled_exception()
         return jsonify({'success': False, 'error': str(e)}), 500

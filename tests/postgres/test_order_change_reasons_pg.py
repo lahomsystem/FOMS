@@ -148,3 +148,17 @@ def test_code_aggregation_uses_index(migration_conn):
         f"EXPLAIN SELECT count(*) FROM {TABLE} WHERE reason_code = 'input_correction'"
     )).fetchall())
     assert "Seq Scan" not in plan, plan
+
+
+def test_reason_stats_query_runs_on_postgres(pg_session):
+    """집계 질의가 실 PostgreSQL 에서 돈다.
+
+    ``detail['reason_required']`` 판정은 JSON 연산자라 방언마다 다르게 컴파일된다 —
+    SQLite 레인만 통과한 질의가 운영에서 죽는 자리다(``astext`` 로 짰다가 실제로 겪었다).
+    """
+    from foms.services.orders.change_reason import reason_stats
+
+    stats = reason_stats(pg_session, days=30)
+
+    assert set(stats) >= {"days", "since", "by_code", "attached", "required", "skipped"}
+    assert [entry["code"] for entry in stats["by_code"]]

@@ -349,3 +349,40 @@ def test_edit_page_loads_reason_surface(client):
     body = client.get(f"/edit/{order.id}").get_data(as_text=True)
 
     assert "js/orders/order-change-reason.js" in body
+
+
+# ---------------------------------------------------------------------------
+# 사유 집계 — "입력 오류 정정 이번 달 몇 건" + 우회율
+# ---------------------------------------------------------------------------
+
+def test_stats_counts_by_code_and_skipped(client):
+    """붙은 사유는 코드별로 세고, 물었는데 안 붙은 저장은 미입력으로 센다."""
+    _login_as_admin(client, "reason-stats-1")
+    order_id = _create_order().id
+
+    attached_set = _sensitive_save(client, order_id)
+    assert _attach(client, order_id, attached_set, code="input_correction").status_code == 200
+    _save(client, order_id, lambda sd: sd["items"][0].update({"price": "999000"}))  # 사유 미입력
+
+    data = client.get("/api/orders/change-reason-stats?days=30").get_json()["data"]
+    by_code = {entry["code"]: entry["count"] for entry in data["by_code"]}
+
+    assert by_code["input_correction"] == 1
+    assert by_code["customer_request"] == 0
+    assert data["attached"] == 1
+    assert data["required"] == 2
+    assert data["skipped"] == 1
+
+
+def test_stats_is_admin_only(client):
+    """사유 집계는 감사 지표라 ADMIN 전용이다."""
+    _login_as_staff(client, "reason-stats-staff")
+    assert client.get("/api/orders/change-reason-stats").status_code in (302, 403)
+
+
+def test_stats_page_renders(client):
+    """관리자 화면이 뜨고 집계 스크립트를 싣는다."""
+    _login_as_admin(client, "reason-stats-2")
+    body = client.get("/admin/change-reasons").get_data(as_text=True)
+    assert "변경 사유 집계" in body
+    assert "js/orders/change-reason-stats.js" in body

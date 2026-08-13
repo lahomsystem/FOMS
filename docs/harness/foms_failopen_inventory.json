@@ -5,18 +5,18 @@
   "overlap_api_error_01": "API-ERROR-01 owns response/stdout exposure (print_exc/str(e) -> log_handled_exception). This packet owns swallow classification. Sites that log via log_handled_exception are LOG_AND_CONTINUE here.",
   "marker_convention": "Silent-by-design catches carry an inline `# failopen: intentional: <reason>` (or `fail-closed`) marker; the scanner reads it as the justification. No bare allowlist, no lint-disable.",
   "baselines": {
-    "broad_total": 521,
+    "broad_total": 522,
     "unclassified": 0,
     "swallow_by_control_flow": 180
   },
   "disposition_counts": {
     "FAIL_CLOSED": 27,
     "INTENTIONAL": 17,
-    "LOG_AND_CONTINUE": 297,
+    "LOG_AND_CONTINUE": 298,
     "SWALLOW_BY_CONTROL_FLOW": 180
   },
   "owner_counts": {
-    "api": 230,
+    "api": 231,
     "audit": 2,
     "auth": 15,
     "cache": 28,
@@ -1361,7 +1361,7 @@
     },
     {
       "path": "foms/api/events.py",
-      "lineno": 114,
+      "lineno": 115,
       "handler_type": "broad_exception",
       "disposition": "LOG_AND_CONTINUE",
       "owner": "api",
@@ -1370,7 +1370,7 @@
     },
     {
       "path": "foms/api/events.py",
-      "lineno": 227,
+      "lineno": 228,
       "handler_type": "broad_exception",
       "disposition": "LOG_AND_CONTINUE",
       "owner": "api",
@@ -1379,7 +1379,7 @@
     },
     {
       "path": "foms/api/events.py",
-      "lineno": 313,
+      "lineno": 248,
       "handler_type": "broad_exception",
       "disposition": "LOG_AND_CONTINUE",
       "owner": "api",
@@ -1388,7 +1388,7 @@
     },
     {
       "path": "foms/api/events.py",
-      "lineno": 385,
+      "lineno": 334,
       "handler_type": "broad_exception",
       "disposition": "LOG_AND_CONTINUE",
       "owner": "api",
@@ -1397,7 +1397,7 @@
     },
     {
       "path": "foms/api/events.py",
-      "lineno": 452,
+      "lineno": 406,
       "handler_type": "broad_exception",
       "disposition": "LOG_AND_CONTINUE",
       "owner": "api",
@@ -1406,7 +1406,16 @@
     },
     {
       "path": "foms/api/events.py",
-      "lineno": 666,
+      "lineno": 473,
+      "handler_type": "broad_exception",
+      "disposition": "LOG_AND_CONTINUE",
+      "owner": "api",
+      "has_logging": true,
+      "justification": "logs via logger/log_handled_exception"
+    },
+    {
+      "path": "foms/api/events.py",
+      "lineno": 687,
       "handler_type": "broad_exception",
       "disposition": "LOG_AND_CONTINUE",
       "owner": "api",
