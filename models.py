@@ -3462,6 +3462,14 @@ class ExternalOrderLink(Base):
     sync_status = Column(String(20), nullable=False, server_default='LINKED')
     # PENDING_REVIEW/FAILED 의 사유(사람이 읽는 문장).
     failure_reason = Column(Text, nullable=True)
+    # --- 트리아지(사람 처리) 축 — NAVER-INGEST-01 §8.3 ---
+    # ``sync_status`` 에 값을 더하지 않는 이유: 그건 **수집 결과**(LINKED/PENDING_REVIEW/
+    # FAILED) 축이고 이건 **사람이 확인했는가** 축이다. 섞으면 "수집은 성공했지만 사람이
+    # 아직 안 본" 상태를 표현할 수 없다.
+    # NULL = 확인 대기(트리아지 큐에 뜬다). 값이 있으면 큐에서 빠진다.
+    reviewed_at = Column(DateTime, nullable=True)
+    reviewed_by_user_id = Column(
+        Integer, ForeignKey('users.id', ondelete='SET NULL'), nullable=True)
     created_at = Column(DateTime, nullable=False, default=now_utc_naive,
                         server_default=func.now())
     updated_at = Column(DateTime, nullable=False, default=now_utc_naive,
@@ -3475,6 +3483,9 @@ class ExternalOrderLink(Base):
             name='ck_external_order_link_status'),
         # 관리 화면: 보류/실패 목록을 최신순으로 훑는 경로.
         Index('ix_external_order_link_status_created', 'sync_status', 'created_at'),
+        # 트리아지 큐 hot path: 확인 대기 건만 최신순으로 훑는다(확인 완료분은 인덱스에서 빠진다).
+        Index('ix_external_order_link_pending_review', 'channel', 'created_at',
+              postgresql_where=text('reviewed_at IS NULL')),
         # 주문 상세에서 "이 주문이 어느 채널 수집분인가" 역조회.
         Index('ix_external_order_link_order', 'order_id'),
     )

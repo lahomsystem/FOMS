@@ -62,7 +62,7 @@
 | T1 | Railway WORKER static IP 실검증 (`--once --dry-run`) | T0, T3 | PENDING | — |
 | T6 | 관리 화면 (수집 이력·수동 실행·원본 스냅샷) | T4, T5 | DONE(부분) | 테스트 13 green |
 | T7 | 앱 인증 만료 D-7 알림 | — | DONE | 테스트 11 green |
-| T8 | 트리아지 상태 컬럼 2개 + 마이그레이션 | T2 | PENDING | — |
+| T8 | 트리아지 상태 컬럼 2개 + 마이그레이션 | T2 | DONE | `naver_triage_00` |
 | T9 | 트리아지 작업대 화면 | T8 | PENDING | — |
 | T10 | 담당자 지정(`set_sales_assignee`) + "담당 미지정" 뱃지 | T8 | PENDING | — |
 
@@ -323,11 +323,20 @@ write guard manifest 와 **별개 파일**이라 둘 다 등재해야 한다.
 `sync_status` 에 값을 더하지 않는다 — 그건 수집 결과 축이고 트리아지는 사람 처리 축이라
 섞으면 "수집 성공했지만 사람이 아직 안 본" 상태를 표현할 수 없다.
 
-**완료 기준**
-- 일회용 `foms_test_*` DB 에서 `stamp head` → `downgrade -1` → `upgrade head` 왕복 성공
-- `alembic heads` 단일 head / ORM↔마이그레이션 parity(컬럼·제약·인덱스)
-- 확인 대기 큐 조회용 인덱스: `(channel, sync_status, reviewed_at)` 부분 인덱스 검토
-- `APP_OK` + `pre_push_smoke` exit 0
+**검증 결과 (2026-08-13 실행)** — `down_revision = orderreason_00`
+- 왕복: `foms_test_naver_t8` 에서 `create_all`+`stamp head` → `downgrade -1`(컬럼 소멸 확인) →
+  `upgrade head`(재생성) ✅
+- `alembic heads` → `naver_triage_00` 단일 head ✅
+- ORM↔마이그레이션 parity: 제약·인덱스 일치 ✅ / 컬럼은 **순서만 다름**(ALTER TABLE ADD COLUMN 은
+  항상 뒤에 붙는다 — 불가피하며 체인 지문 테스트는 `(table, column)` 키라 순서 무관)
+- PG 레인 체인 왕복 `tests/postgres/test_migration_chain.py` 1 passed ✅
+- 부분 인덱스 확인: `btree (channel, created_at) WHERE (reviewed_at IS NULL)` ✅
+- `APP_OK` + `pre_push_smoke` exit 0 (322 passed) ✅
+
+**밟은 함정**: FK 이름을 마이그레이션에서 임의로 지으면(`fk_external_order_link_reviewed_by`)
+`downgrade` 가 `UndefinedObject` 로 죽는다 — ORM `ForeignKey` 는 이름을 안 주므로 create_all
+레인이 **PostgreSQL 기본명**(`external_order_links_reviewed_by_user_id_fkey`)으로 만든다.
+같은 테이블 `order_id` FK 도 같은 규칙. 마이그레이션은 기본명을 그대로 써야 한다.
 
 ## T9 — 트리아지 작업대 (스펙 §8.2)
 
