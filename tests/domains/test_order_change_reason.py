@@ -49,15 +49,23 @@ def test_derived_totals_alone_do_not_require_reason():
     assert is_reason_required(derived + [_change("items.0.price")]) is True
 
 
-def test_schedule_change_requires_reason():
-    """일정 변경도 사유 대상 — 누가 옮겼는지가 아니라 왜 옮겼는지가 분쟁에서 쓰인다."""
-    assert is_reason_required([_change("schedule.measurement.date")]) is True
-    assert is_reason_required([_change("schedule.construction.time")]) is True
+def test_only_three_axes_are_asked():
+    """묻는 축은 셋뿐이다 — 시공일·금액·제품 세부(사용자 결정 2026-08-14).
+
+    실측일·AS 방문일·단계(취소 포함)는 **일부러** 뺐다. 축을 넓히면 사유 창이 아무 때나
+    떠서 직원이 목록에서 아무거나 고르게 된다.
+    """
+    assert is_reason_required([_change("schedule.measurement.date")]) is False
+    assert is_reason_required([_change("schedule.as_visit.date")]) is False
+    assert is_reason_required([_change("workflow.stage")]) is False
+    assert is_reason_required([_change("schedule.construction.time")], stage="CONFIRM") is True
 
 
-def test_stage_change_requires_reason():
-    """단계 이동(취소 포함)."""
-    assert is_reason_required([_change("workflow.stage")]) is True
+def test_item_detail_change_requires_reason():
+    """제품 세부 내역(규격·색상·손잡이·옵션)은 사유 대상이다."""
+    for field in ("spec", "spec_width", "color", "handle", "option_detail", "product_name"):
+        assert is_reason_required([_change(f"items.0.{field}")]) is True, field
+    assert is_reason_required([_change("items.0.internal")]) is False   # 내부 메모는 제품 사양이 아니다
 
 
 def test_item_price_requires_reason_regardless_of_index():
@@ -66,10 +74,27 @@ def test_item_price_requires_reason_regardless_of_index():
     assert is_reason_required([_change("items.7.price")]) is True
 
 
-def test_item_composition_change_requires_reason():
-    """품목이 통째로 들고 나면 ``add``/``remove`` 1건으로만 남아 단가 경로에 안 걸린다."""
+def test_item_removal_asked_but_addition_is_not():
+    """있던 품목이 빠지는 것은 변경, 새로 다는 것은 최초 입력이다."""
     assert is_reason_required([_change("items.2", op="remove")]) is True
-    assert is_reason_required([_change("items.3", op="add")]) is True
+    assert is_reason_required([_change("items.3", op="add")]) is False
+
+
+def test_first_entry_is_not_a_change():
+    """빈칸을 처음 채우는 입력은 묻지 않는다 (사용자 결정 2026-08-14).
+
+    접수 직후 규격·금액을 채우는 것까지 사유를 물으면 신규 주문 한 건에 창이 여러 번 뜨고,
+    정작 분쟁이 나는 **재조정**과 구별되지 않는다.
+    """
+    first_entry = [
+        {"path": "items.0.price", "before": None, "after": "500000", "op": "add"},
+        {"path": "items.0.spec", "before": "", "after": "W1200", "op": "set"},
+        {"path": "schedule.construction.date", "before": None, "after": "2026-08-27", "op": "add"},
+    ]
+    assert is_reason_required(first_entry, stage="CONFIRM") is False
+
+    edited = [{"path": "items.0.spec", "before": "W1200", "after": "W1500", "op": "set"}]
+    assert is_reason_required(edited) is True
 
 
 def test_non_sensitive_changes_do_not_require_reason():
@@ -78,7 +103,7 @@ def test_non_sensitive_changes_do_not_require_reason():
         _change("parties.customer.phone"),
         _change("site.address_detail"),
         _change("notes"),
-        _change("items.0.color"),
+        _change("flags.urgent"),
     ]
     assert is_reason_required(changes) is False
 
@@ -205,8 +230,9 @@ def test_unknown_stage_falls_back_to_asking():
     assert is_reason_required([_construction()], stage="") is True
 
 
-def test_measurement_schedule_ignores_stage():
-    """실측일·AS 방문은 단계와 무관하게 묻는다(확정 개념이 없는 일정)."""
+def test_measurement_schedule_is_out_of_scope():
+    """실측일은 축에서 빠졌다 — 단계와 무관하게 묻지 않는다(사용자 결정 2026-08-14)."""
     change = {"path": "schedule.measurement.date", "before": "2026-08-14",
               "after": "2026-08-16", "op": "set"}
-    assert is_reason_required([change], stage="RECEIVED") is True
+    assert is_reason_required([change], stage="RECEIVED") is False
+    assert is_reason_required([change], stage="CONFIRM") is False

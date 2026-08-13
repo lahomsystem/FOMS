@@ -121,13 +121,12 @@ def test_save_succeeds_without_any_reason(client):
     _login_as_admin(client, "reason-admin-3")
     order = _create_order()
 
-    response = _save(client, order.id,
-                     lambda sd: sd["schedule"]["measurement"].update({"date": "2026-08-20"}))
+    response = _save(client, order.id, lambda sd: sd["items"][0].update({"price": "720000"}))
 
     assert response.status_code == 200
     assert response.get_json()["change_reason_required"] is True
     db_session.expire_all()
-    assert db_session.get(Order, order.id).structured_data["schedule"]["measurement"]["date"] == "2026-08-20"
+    assert db_session.get(Order, order.id).structured_data["items"][0]["price"] == "720000"
 
 
 def test_reason_flag_does_not_blow_detail_budget(client):
@@ -161,9 +160,10 @@ def test_inline_save_reports_reason_requirement(client, monkeypatch):
     _login_as_admin(client, "reason-admin-5")
     order = _create_order()
 
+    # 실측일은 축에서 빠졌다(2026-08-14) — 금액 재조정으로 확인한다.
     response = client.patch(
         f"/api/orders/{order.id}/structured/fields",
-        json={"field": "schedule.measurement.date", "value": "2026-08-25"},
+        json={"field": "items.0.price", "value": "900000"},
     )
     assert response.status_code == 200, response.get_data(as_text=True)[:300]
     payload = response.get_json()
