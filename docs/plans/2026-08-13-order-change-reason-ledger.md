@@ -17,7 +17,10 @@
 | T7 | 이력 탭 표시 | field-changes 응답 reason · 탭 테스트 green | PENDING | |
 | T8 | 보존 실측 리포트(운영 읽기전용) | 일평균 행수·90일 추정·크기·분포 표 + 보존안 3개 | PENDING | |
 | T9 | 최종 검증·푸시 | pre_push_smoke exit 0 · deploy push · 전 워크플로 green | **DONE** | `ab4e2d44`(1차) |
-| T10 | 금액 임계(사용자 추가 결정) | 5%/5만원 판정 + 빈도 실측 정정 | **DONE** | `b820f0c6`(2차) |
+| T10 | 금액 임계(사용자 추가 결정) | 5%/5만원 판정 + 빈도 실측 정정 | **DONE** | `b820f0c6` |
+| T11 | 시공일은 확정 이후만 + CI red 해소(policy 매니페스트) | test_auth_enforcement green · 재측정 57% | **DONE** | `4b791879` |
+| T12 | 사유 집계 화면 + 우회율 | ADMIN API·화면·PG 질의 테스트 green | **DONE** | `23f7123d` |
+| T13 | 스테이징 E2E QA | 비민감 False·금액 True·첨부 200·재첨부 409·이력 사유 표시 | **DONE** | 주문 4400(생성→검증→soft delete) |
 
 ## 기준선 (T0 실측, 2026-08-13)
 
@@ -37,3 +40,16 @@ pytest        : tests/domains/test_{structured_diff,order_field_changes_ledger,
   `tests/domains/test_order_change_history_tab.py:149`).
 - `tests/domains` 전체 실행 시 태블릿 계약 3건 red = 타 세션(`8a76c938`) 몫.
 - 원장 쓰기 fail-open + `logger.warning(exc_info=True)`.
+
+## production 승격 차단 사유 (2026-08-13 확인)
+
+운영 브랜치에는 `structured_item_uid.py` 가 **없다**. 마이그레이션 사슬도
+`share_token_00 → itemuid_00 → senderphone_00 → naver_link_00 → orderreason_00` 이라
+이번 작업만 떼어 승격할 수 없다:
+
+- `share_token_00` — 타 세션(운영 미반영, 이번 세션 시작 시점부터 계속 확인 중)
+- `itemuid_00` — ORDER-ITEM-UID(승격 대기)
+- `senderphone_00` · `naver_link_00` — 타 세션
+
+`structured_diff` 가 `item_uid_of` 를 import 하므로 ITEM-UID 없이 올리면 운영에서 import 가
+깨진다. **선행 승격이 정리되기 전에는 임의 진행 금지**(타 세션 커밋 혼입 = 프로젝트 규칙 위반).
