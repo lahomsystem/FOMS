@@ -30,6 +30,8 @@ __all__ = [
     "MAX_CHANGES",
     "NUMERIC_PATH_SUFFIXES",
     "SCALAR_PATHS",
+    "SENSITIVE_ITEM_REMOVE_TEMPLATE",
+    "SENSITIVE_PATH_TEMPLATES",
     "DiffResult",
     "diff_structured",
 ]
@@ -110,6 +112,43 @@ NUMERIC_PATH_SUFFIXES: tuple[str, ...] = (".price", ".amount", ".deposit", ".dis
 
 #: 한 저장에 담을 변경 상한. 초과분은 버리지 않고 개수(:attr:`DiffResult.truncated`)로 남긴다.
 MAX_CHANGES = 40
+
+#: 변경 사유를 물어야 하는 경로(ORDER-REASON-00). 값은 **경로 템플릿**이라
+#: ``path_template_of`` 로 정규화한 뒤 대조한다(품목 번호와 무관하게 판정된다).
+#:
+#: 고르는 기준은 "분쟁이 실제로 나는 축" 하나다 — 금액·일정·단계. 전 경로에 사유를 물으면
+#: 직원이 귀찮아서 아무 값이나 고르고, 그 순간 기록의 가치가 0 이 된다(사용자 결정 2026-08-13).
+#: 품목 **추가**는 여기 없지만 ``totals.items_total`` 이 함께 바뀌므로 결국 사유 대상이 된다.
+SENSITIVE_PATH_TEMPLATES: frozenset[str] = frozenset({
+    # --- 금액 ---
+    "totals.items_total",
+    "totals.deposit_amount",
+    "totals.balance_amount",
+    "totals.final_amount",
+    "totals.discount_amount",
+    "totals.free_input_amount",
+    "totals.contract_total",
+    "totals.shipping_price",
+    "payment.deposit",
+    "payment.discount",
+    "payment.free_input",
+    "items.*.price",
+    # --- 일정 ---
+    "schedule.measurement.date",
+    "schedule.measurement.time",
+    "schedule.construction.date",
+    "schedule.construction.time",
+    "schedule.as_visit.date",
+    "schedule.as_visit.time",
+    "items.*.measurement_date",
+    "items.*.construction_date",
+    # --- 단계/취소 ---
+    "workflow.stage",
+})
+
+#: 품목 자체가 사라진 변경(``items.*`` + ``op='remove'``)도 사유 대상이다.
+#: 품목 교체처럼 총액이 그대로인 삭제는 금액 경로에 안 걸리기 때문이다.
+SENSITIVE_ITEM_REMOVE_TEMPLATE = "items.*"
 
 _EMPTY_TOKENS = frozenset({"", "none", "null", "-"})
 _VALUE_LIMIT = 120
