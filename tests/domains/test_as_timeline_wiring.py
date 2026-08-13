@@ -315,7 +315,9 @@ def test_cell_summary_updates_locally_after_write():
     """
     block = _timeline_block(_js())
     assert "function updateAsCellSummary(orderId, html, opts)" in block
-    assert ".as-tl-cell[data-order-id=" in block
+    # 2026-08-13: 주문 id 는 행 컨테이너에만 실린다. 셀은 전역 속성 선택자가 아니라
+    # 행 스코프 조회로 찾는다(findOneInOrderScopes) — 같은 집합, 마크업만 가볍다.
+    assert "findOneInOrderScopes(orderId, '.as-tl-cell')" in block
     # quick-add = 최근줄 교체 + 배지 +1 / 항목 수정 = 텍스트만(배지 불변)
     assert "updateAsCellSummary(orderId, data.html, { line: 'recent', countDelta: 1 });" in block
     assert block.count("updateAsCellSummary(") == 5  # 정의 1 + append/patch/billing/verdict(T15c) 호출 4
@@ -911,13 +913,14 @@ def test_sales_delivery_handler_uses_order_id_dataset():
     """핸들러는 contenteditable 대신 버튼 dataset 의 order_id 로 동작한다(계약 보존).
 
     구 경로는 `.as-rich-editor` 안 contenteditable 에서 order_id 를 캐냈다. 버튼이 타임라인
-    헤더로 옮겨져 그 조상이 사라졌으므로, 핸들러 블록 안에서 dataset 을 직접 읽어야 한다.
+    헤더로 옮겨져 그 조상이 사라졌고, 2026-08-13 부터는 버튼 자신도 data-order-id 를 들지
+    않는다 — 행 컨테이너에서 역참조한다(orderIdOf).
     """
     js = _js()
     anchor = js.find("e.target.closest('.as-sales-delivery-btn')")
     assert anchor != -1
     handler = js[anchor:anchor + 1600]
-    assert "const orderId = btn.dataset.orderId" in handler
+    assert "const orderId = orderIdOf(btn)" in handler
     assert "saveOrderFieldDirect(orderId, 'sales_delivery', nextActive)" in handler
     assert "btn.dataset.salesDeliveryActive === '1'" in handler
     assert "getDateInputsForOrder(orderId, 'as_completed_date')" in handler
@@ -1171,7 +1174,7 @@ def test_whole_content_cell_is_the_expand_target():
     guard = handler[1].split("const orderId", 1)[0]
     assert "e.target.closest('a, input, select, textarea')" in guard
     assert ".as-tl-cell__expand, .as-tl-cell__empty" in guard  # 두 버튼은 통과시킨다
-    assert "cell.dataset.orderId" in handler[1] or "const orderId = cell.dataset.orderId" in js
+    assert "orderIdOf(cell)" in handler[1] or "const orderId = orderIdOf(cell)" in js
     css = _css(_BODY_CSS)
     cursor = css.split(".as-tl-cell {", 1)[1].split("}", 1)[0]
     assert "cursor: pointer" in cursor

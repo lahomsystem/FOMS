@@ -32,9 +32,9 @@ from foms.services.orders.structured_diff import (
     AMOUNT_PATH_TEMPLATES,
     CONFIRMED_STAGES,
     CONSTRUCTION_SCHEDULE_TEMPLATES,
+    ITEM_DETAIL_TEMPLATES,
     SENSITIVE_ITEM_OPS,
     SENSITIVE_ITEM_TEMPLATE,
-    SENSITIVE_PATH_TEMPLATES,
 )
 from models import OrderChangeReason, OrderFieldChange, SecurityLog
 
@@ -133,6 +133,24 @@ def _as_amount(value: Any) -> float | None:
         return None
 
 
+def _is_edit_of_existing_value(change: Mapping[str, Any]) -> bool:
+    """이미 값이 있던 항목을 **고친** 변경인지 판정한다 (사용자 결정 2026-08-14).
+
+    빈칸을 처음 채우는 것(접수 직후 규격·금액 입력)은 "변경"이 아니라 입력이다. 그때까지
+    사유를 물으면 신규 주문 한 건에 사유 창이 여러 번 뜨고, 정작 분쟁이 나는 **재조정**과
+    구별되지 않는다.
+
+    :param change: ``diff_structured`` 가 만든 변경 dict.
+    :return: 이전 값이 있었으면 ``True``.
+    """
+    if change.get("op") in ("add", "remove"):
+        return change.get("op") == "remove"
+    before = change.get("before")
+    if before is None:
+        return False
+    return str(before).strip() != ""
+
+
 def is_material_amount_change(change: Mapping[str, Any]) -> bool:
     """금액 변경이 사유를 물어야 할 만큼 큰지 판정한다 (ORDER-REASON-00).
 
@@ -162,15 +180,13 @@ def is_reason_required(
 
 축은 셋이고 규칙이 서로 다르다:
 
-    * 실측·AS 일정·단계(:data:`~foms.services.orders.structured_diff.SENSITIVE_PATH_TEMPLATES`)
-      — 바뀌면 묻는다.
     * **시공 일정** — 고객 컨펌(:data:`~foms.services.orders.structured_diff.CONFIRMED_STAGES`)
-      이후에만 묻는다. 접수·실측·도면 단계의 시공일은 아직 잡는 중인 값이라 바뀌는 게 정상이고,
-      운영 실측에서 사유 요구의 단일 최대 기여(27%)였다(사용자 결정 2026-08-13).
+      이후에만 묻는다. 접수·실측·도면 단계의 시공일은 아직 잡는 중인 값이라 바뀌는 게 정상이다.
     * 금액(:data:`~foms.services.orders.structured_diff.AMOUNT_PATH_TEMPLATES`) — **크게**
       바뀌어야 묻는다(:func:`is_material_amount_change`). 잔돈 조정까지 물으면 창이 아무 때나
       뜨고, 그러면 목록에서 아무거나 고르게 된다.
-    * 품목 추가·삭제 — 한 건으로만 남아 단가 경로에 안 걸리므로 따로 본다.
+    * **제품 세부 내역**(:data:`~foms.services.orders.structured_diff.ITEM_DETAIL_TEMPLATES`)
+      — 규격·색상·손잡이·옵션 등. 품목 **삭제**도 여기 속한다(추가는 최초 입력이라 제외).
 
     품목 경로는 인덱스를 지운 템플릿으로 대조하므로 품목 번호가 밀려도 판정이 흔들리지
     않는다(ORDER-DIFF-01 의 ``path_template`` 과 같은 열쇠).
@@ -188,16 +204,29 @@ def is_reason_required(
         if not path:
             continue
         template = path_template_of(path)
-        if template in SENSITIVE_PATH_TEMPLATES:
-            return True
+        op = (change or {}).get("op")
+
+        # 품목 삭제: 있던 품목이 빠지는 것은 제품 세부 내역이 바뀐 것이다(추가는 최초 입력).
+        if template == SENSITIVE_ITEM_TEMPLATE:
+            if op == "remove":
+                return True
+            continue
+
+        if not _is_edit_of_existing_value(change or {}):
+            continue   # 최초 입력(빈칸 → 값)은 묻지 않는다.
+
         # 시공 일정: 고객과 약속이 선 뒤(확정 이후)의 변경만 사유 대상이다.
-        if template in CONSTRUCTION_SCHEDULE_TEMPLATES and confirmed:
-            return True
+        if template in CONSTRUCTION_SCHEDULE_TEMPLATES:
+            if confirmed:
+                return True
+            continue
+
         # 금액은 "바뀌었나"가 아니라 "크게 바뀌었나"로 본다(잔돈 조정 제외).
         if template in AMOUNT_PATH_TEMPLATES and is_material_amount_change(change or {}):
             return True
-        # 품목 추가·삭제는 필드 변경이 아니라 한 건으로만 남아 items.*.price 에 안 걸린다.
-        if template == SENSITIVE_ITEM_TEMPLATE and (change or {}).get("op") in SENSITIVE_ITEM_OPS:
+
+        # 제품 세부 내역(규격·색상·손잡이·옵션 등).
+        if template in ITEM_DETAIL_TEMPLATES:
             return True
     return False
 

@@ -32,10 +32,10 @@ __all__ = [
     "SCALAR_PATHS",
     "AMOUNT_PATH_TEMPLATES",
     "CONFIRMED_STAGES",
+    "ITEM_DETAIL_TEMPLATES",
     "CONSTRUCTION_SCHEDULE_TEMPLATES",
     "SENSITIVE_ITEM_OPS",
     "SENSITIVE_ITEM_TEMPLATE",
-    "SENSITIVE_PATH_TEMPLATES",
     "DiffResult",
     "diff_structured",
 ]
@@ -117,26 +117,33 @@ NUMERIC_PATH_SUFFIXES: tuple[str, ...] = (".price", ".amount", ".deposit", ".dis
 #: 한 저장에 담을 변경 상한. 초과분은 버리지 않고 개수(:attr:`DiffResult.truncated`)로 남긴다.
 MAX_CHANGES = 40
 
-#: 변경 사유를 물어야 하는 경로(ORDER-REASON-00). 값은 **경로 템플릿**이라
+#: 변경 사유를 물어야 하는 **제품 세부 내역** 경로(ORDER-REASON-00). 값은 경로 템플릿이라
 #: ``path_template_of`` 로 정규화한 뒤 대조한다(품목 번호와 무관하게 판정된다).
 #:
-#: 고르는 기준은 "분쟁이 실제로 나는 축" 하나다 — 금액·일정·단계. 전 경로에 사유를 물으면
-#: 직원이 귀찮아서 아무 값이나 고르고, 그 순간 기록의 가치가 0 이 된다(사용자 결정 2026-08-13).
+#: 축을 셋(시공일·금액·제품 세부)으로 좁힌 것은 사용자 결정(2026-08-14)이다. 전 경로에
+#: 사유를 물으면 직원이 귀찮아서 아무 값이나 고르고, 그 순간 기록의 가치가 0 이 된다.
+#: 여기서 빠지는 것: 실측일·AS 방문일·단계(``workflow.stage``)·연락처·주소·비고.
 #:
+#: ``internal`` 은 내부 메모라 제품 사양이 아니고, ``price`` 는 금액 축
+#: (:data:`AMOUNT_PATH_TEMPLATES`)이 임계와 함께 따로 본다.
+ITEM_DETAIL_TEMPLATES: frozenset[str] = frozenset({
+    "items.*.product_name",
+    "items.*.spec",
+    "items.*.spec_rows",
+    "items.*.spec_width",
+    "items.*.spec_height",
+    "items.*.spec_depth",
+    "items.*.color",
+    "items.*.handle",
+    "items.*.option_detail",
+    "items.*.extra_input",
+    "items.*.misc",
+})
+
 #: **``totals.*`` 는 일부러 뺐다** — 전부 서버 파생값이다(``structured_form_projection`` 이 매
 #: 저장마다 품목 price·payment 입력에서 재계산한다). 넣으면 저장된 totals 가 낡은 주문에서
 #: 전화번호만 고친 저장이 "금액 변경"으로 판정돼 사유를 묻는다(2026-08-13 실측으로 확인).
 #: 파생값은 그 값을 만든 **입력 경로**가 대신 대표한다.
-SENSITIVE_PATH_TEMPLATES: frozenset[str] = frozenset({
-    # --- 일정(시공 일정은 CONSTRUCTION_SCHEDULE_TEMPLATES 에서 단계 조건과 함께 본다) ---
-    "schedule.measurement.date",
-    "schedule.measurement.time",
-    "schedule.as_visit.date",
-    "schedule.as_visit.time",
-    "items.*.measurement_date",
-    # --- 단계/취소 ---
-    "workflow.stage",
-})
 
 #: 시공 일정 경로. 다른 일정과 달리 **확정(CONFIRM) 이후**에만 사유를 묻는다 —
 #: 접수·실측·도면 단계의 시공일은 아직 "잡는 중"인 값이라 바뀌는 게 정상이다.
@@ -153,7 +160,7 @@ CONFIRMED_STAGES: frozenset[str] = frozenset({
 })
 
 #: 금액 **입력** 경로. 사유 판정은 여기만 금액 임계(잔돈 변경 제외)를 함께 본다 —
-#: 목록 자체는 :data:`SENSITIVE_PATH_TEMPLATES` 와 분리해 둔다(판정 규칙이 다르다).
+#: 목록 자체는 :data:`ITEM_DETAIL_TEMPLATES` 와 분리해 둔다(금액만 임계를 함께 본다).
 AMOUNT_PATH_TEMPLATES: frozenset[str] = frozenset({
     "payment.deposit",
     "payment.discount",
