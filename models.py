@@ -3362,3 +3362,65 @@ class ChannelWebhookJob(Base):
             name='ck_channel_webhook_job_status',
         ),
     )
+
+
+# --------------------------------------------------------------------------- #
+# NAVER-INGEST-01: 외부 채널(스마트스토어 등) 주문 수집 링크
+# --------------------------------------------------------------------------- #
+EXTERNAL_ORDER_CHANNELS = ('NAVER',)
+EXTERNAL_ORDER_SYNC_STATUSES = ('LINKED', 'PENDING_REVIEW', 'FAILED')
+
+
+class ExternalOrderLink(Base):
+    """외부 판매채널 주문 ↔ FOMS 주문의 링크 + 원본 스냅샷 (NAVER-INGEST-01 §3.4).
+
+    수집 파이프라인의 **멱등 정본**이다. ``UNIQUE (channel, external_id)`` 가 같은
+    ``productOrderId`` 를 두 번 주문으로 만드는 것을 DB 레벨에서 막는다 — 앱 선체크만으로는
+    다중 replica 동시 스윕 레이스를 못 막는다(체크와 INSERT 사이에 창이 있다).
+
+    ``Order`` 에 컬럼을 붙이지 않는 이유(설계 결정):
+
+    * 채널이 늘 때마다 ``orders`` 에 컬럼이 늘어난다.
+    * 네이버 원본 응답을 보존할 자리가 없다 — 매핑을 나중에 고쳐 **재처리**하려면 원본이 필요하다.
+    * 주문 soft delete 수명과 수집 이력 수명이 다르다(주문이 지워져도 "이미 수집함"은 남아야
+      재수집으로 되살아나지 않는다). 그래서 ``order_id`` 는 FK 지만 ``ON DELETE SET NULL``.
+
+    ``order_id`` 가 nullable 인 것은 **매핑 실패 보류 상태**(``PENDING_REVIEW``) 때문이다.
+    필수 필드가 없거나 형식이 깨진 응답은 쓰레기 주문을 만드는 대신 주문 없이 이 행만 남기고,
+    사람이 관리 화면에서 확인 후 수동 연결하거나 폐기한다.
+
+    ``raw_snapshot`` 은 개인정보(실번호·주소)를 그대로 담으므로 **관리자 전용**으로만 노출한다.
+    """
+
+    __tablename__ = 'external_order_links'
+
+    id = Column(Integer, primary_key=True)
+    # 판매채널 코드. v1 은 'NAVER' 뿐이지만 컬럼으로 둬 채널 확장을 막지 않는다.
+    channel = Column(String(20), nullable=False, server_default='NAVER')
+    # 채널의 상품주문 단위 고유 id(네이버 productOrderId) — 멱등 키.
+    external_id = Column(String(64), nullable=False)
+    # 매핑 성공 시 생성된 FOMS 주문. 주문이 hard delete 돼도 수집 이력은 남긴다(SET NULL).
+    order_id = Column(Integer, ForeignKey('orders.id', ondelete='SET NULL'), nullable=True)
+    # 묶음 주문번호(네이버 orderId). 한 주문에 상품주문이 여럿일 수 있어 참조용으로만 둔다.
+    external_order_no = Column(String(64), nullable=True)
+    # 채널 원본 응답 그대로(매핑 재처리·감사용). 관리자 전용 노출.
+    raw_snapshot = Column(JSONColumn, nullable=True)
+    sync_status = Column(String(20), nullable=False, server_default='LINKED')
+    # PENDING_REVIEW/FAILED 의 사유(사람이 읽는 문장).
+    failure_reason = Column(Text, nullable=True)
+    created_at = Column(DateTime, nullable=False, default=now_utc_naive,
+                        server_default=func.now())
+    updated_at = Column(DateTime, nullable=False, default=now_utc_naive,
+                        onupdate=now_utc_naive, server_default=func.now())
+
+    __table_args__ = (
+        # 중복 수집 차단의 본체. 앱 체크가 아니라 이 제약이 정본이다.
+        UniqueConstraint('channel', 'external_id', name='uq_external_order_link_channel_ext'),
+        CheckConstraint(
+            "sync_status IN ('LINKED','PENDING_REVIEW','FAILED')",
+            name='ck_external_order_link_status'),
+        # 관리 화면: 보류/실패 목록을 최신순으로 훑는 경로.
+        Index('ix_external_order_link_status_created', 'sync_status', 'created_at'),
+        # 주문 상세에서 "이 주문이 어느 채널 수집분인가" 역조회.
+        Index('ix_external_order_link_order', 'order_id'),
+    )
