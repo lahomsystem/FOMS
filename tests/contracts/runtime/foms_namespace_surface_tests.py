@@ -2290,6 +2290,9 @@ _SLG_FOMS_SERVICES_TOP_LEVEL_ALLOWED = frozenset(
         "cs",
         "drawing",
         "files",
+        # NAVER-INGEST-01 §3.2: 외부 판매채널 API 클라이언트 경계(네이버 커머스API 등).
+        # 도메인 규칙이 아니라 인증·전송·재시도만 담는 자리라 orders/ 와 분리한다.
+        "integrations",
         "jobs",
         "measurement",
         "notifications",
