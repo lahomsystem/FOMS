@@ -24,7 +24,7 @@
 | T8 | 문자 발송 (sender_phone·_solapi_send_text·멱등·버튼 배선) | `pytest tests/domains/test_order_share_sms.py tests/domains/test_write_guard.py tests/domains/test_auth_enforcement.py -q` PASS + audit 인벤토리 재생성 + APP_OK | DONE | 6fd32f3c | 64 passed(게이트 포함)·coverage 100%. 선점 insert 멱등=벤더 호출 1회 assert, 감사=수신번호 마스킹·토큰 미격납, 발신 폴백 2분기, senderphone_00 마이그레이션 |
 | T9 | 태블릿 공유 버튼 (tablet-measure-form.js) | 태블릿 계약 테스트 PASS + browse coarse 스모크 + APP_OK | DONE | cb9feef1 | 117 passed. 발급→URL 복사→(선택) 문자 confirm 흐름, ?v 20260812a 범프. browse coarse는 T10 통합 |
 | T8.1 | 발신번호 3단 우선순위(담당자→브랜드 대표→구 폴백)+②실패 시 브랜드 백업 1회 재시도 | `pytest tests/domains/test_order_share_sms.py tests/domains/test_write_guard.py tests/domains/test_auth_enforcement.py tests/domains/test_audit_action_coverage.py tests/domains/test_audit_coverage_inventory.py -q` PASS + APP_OK + CI 전 워크플로 green | DONE | ad6dd47e | 17+63 passed. 구 규칙(버튼 누른 직원) 폐기, resolve_brand SSOT 재사용, 멱등 앵커 1개 유지·payload attempts 2회 기록(마스킹), 감사 sender_source 기록 |
-| T10 | Stage-2 통합 검증·스테이징 E2E | pre_push_smoke exit 0 + CI green + E2E(스냅샷 불변·문자 3사·카톡 실기기) | DONE | 59e12874 | smoke 0·CI 4/4 green. E2E 12항목 PASS(주문 4389): 견적 발급→비로그인 열람(계좌·출고가·잔금 렌더·헤더 2종·내부 키 부재)→revoke 410, send-sms 503 not_configured 표면(스테이징 Solapi env 無 — 정상 fail-visible)·토큰 불일치 400. 스냅샷 동결은 pytest 5건이 정본 검증. **BLOCKED 3건**: 문자 3사 실수신(발신번호+Solapi env)·카톡 실기기(도메인 등록)·도면 이미지 실객체(스테이징 R2 드리프트, T5 참조) |
+| T10 | Stage-2 통합 검증·스테이징 E2E | pre_push_smoke exit 0 + CI green + E2E(스냅샷 불변·문자 3사·카톡 실기기) | DONE | 59e12874 | smoke 0·CI 4/4 green. E2E 12항목 PASS(주문 4389): 견적 발급→비로그인 열람(계좌·출고가·잔금 렌더·헤더 2종·내부 키 부재)→revoke 410, send-sms 503 not_configured 표면(스테이징 Solapi env 無 — 정상 fail-visible)·토큰 불일치 400. 스냅샷 동결은 pytest 5건이 정본 검증. **BLOCKED 2건**: 문자 3사 실수신(Solapi 발신번호 등록 대기)·도면 이미지 실객체(스테이징 R2 드리프트, T5 참조). 카톡: 도메인 등록 후 스테이징 검증 PASS(2026-08-13 — 버튼 활성·SDK init 성공·콘솔 에러 0·SDK 200, 주문 4389 발급→회수 정리), 실기기 전송만 사용자 확인 잔여 |
 
 ## 외부 준비 (사용자 액션)
 
@@ -36,6 +36,10 @@
 - [x] Railway env 등록 완료 (2026-08-12, `--skip-deploys` — 다음 배포 때 적용): 스테이징=FOMS-DEV/서비스 `FOMS`, 운영=FOMS-PRODUCTION/서비스 `web`, 각 6종(발신 4 + 회전된 `SOLAPI_API_KEY`/`SECRET`). 로컬 .env도 새 키로 갱신됨. env 잔여 없음 — 실발송 검증 잔여는 Solapi 발신번호 등록(대표2·백업2·개인)과 카카오 도메인 등록뿐.
 - [x] 카카오 개발자 앱 도메인 등록 완료 (2026-08-12 사용자) — 카톡 공유 검증 가능
 - [~] Solapi 발신번호 등록 진행 중 (2026-08-12 — 대표2·백업2·영업 개인, 완료 시 문자 실수신 검증 가능)
+
+## production 승격 (2026-08-13 — 중단)
+
+- 선행 점검 결과 **중단**: 마이그레이션 체인 `orderdiff_01 → share_token_00 → itemuid_00 → senderphone_00` 에서 production 에 `itemuid_00`(타 세션 ORDER-ITEM-UID, aa366a81·재부모화 3acbc766) 부재. `share_token_00`+`senderphone_00` 승격 시 체인 단절 — 지시대로 멈추고 사용자 선택지 보고. production 정본 ls-remote = d733dd35, orderdiff_01 존재 확인.
 
 ## 결정 기록
 - 플랜 확정 3건(CEO 2-agent 리뷰 반영): 스냅샷 64KB 캡=초과 시 400(절단 금지) / send-sms 멱등=**발송 전 앵커 선점 insert**+시간버킷 dedupe_key(`share_sms:{share_id}:{floor(epoch/5)}`) — DB UNIQUE로 동시 중복 차단, 감사 조회식 check-then-act 폐기 / send-sms URL=body 토큰 원문 재해시 검증 후 서버 조립(해시-온리 저장과 충돌 해소, 문자 발송은 발급 직후만)
