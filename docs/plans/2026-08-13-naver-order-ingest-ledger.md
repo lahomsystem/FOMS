@@ -61,7 +61,7 @@
 | T5 | WORKER 폴링 루프 + 게이트 + rq enqueue 경로 | T4 | DONE | 테스트 15 green |
 | T1 | Railway WORKER static IP 실검증 (`--once --dry-run`) | T0, T3 | PENDING | — |
 | T6 | 관리 화면 (수집 이력·수동 실행·배지) | T4, T5 | PENDING | — |
-| T7 | 앱 인증 만료 D-7 알림 | T2 | PENDING | — |
+| T7 | 앱 인증 만료 D-7 알림 | — | DONE | 테스트 11 green |
 
 > 순서 주의: 스펙의 T1(인프라 실검증)은 T0 사람 작업과 코드(T3)가 모두 있어야 가능하므로
 > 실행 순서에서는 T3 뒤로 내렸다. 스펙 번호는 그대로 둔다(대조 가능하게).
@@ -238,7 +238,24 @@ CSS/JS 수정 시 `?v=` 범프(SW staticCacheFirst 함정).
 
 ## T7 — 앱 인증 만료 알림
 
-**완료 기준**: 만료 D-7 시점 알림 1건 발송 확인(테스트로 시각 주입). 알림 미발송 시 API 가 조용히 죽는다 — 리스크 표 1순위.
+**구현**: `foms/services/integrations/naver_commerce/app_expiry.py`
+
+- 만료일은 API 로 못 읽는다(커머스API센터 화면 값). `system_settings.naver_app_expiry` 에
+  사람이 적거나 환경변수 `NAVER_COMMERCE_APP_EXPIRES_ON` 으로 준다. **모르면 알리지 않는다** —
+  모름을 임박으로 오해해 매 스윕 알림을 쏘면 잡음이 되고 진짜 경고를 놓친다.
+- 임계값 D-7 / D-3 / D-1 / D-0, **임계값당 1회**(5분 폴링이라 중복 방지가 필수).
+- ADMIN 은 role 이라 팀 타깃으로 못 고른다 → 활성 ADMIN **사용자별 1건**(`target_user_id`),
+  `fan_out_new_notification` 훅 경유(공유 state row 직접 생성 금지 규약).
+- `push_sender._DEFAULT_P1_TYPES` 에 `NAVER_APP_EXPIRY` 등재 — 미등재면 enqueue 해도
+  push 가 조용히 no-op 된다(무음 알림의 유일한 기전).
+- 인증을 갱신하면(만료일 변경) 발송 이력을 초기화한다.
+- 스윕에 붙이되 **실패해도 수집을 롤백하지 않는다**. 부가 알림이 본체를 죽이면 안 된다.
+
+**검증 결과 (2026-08-13 실행)**
+- `python -m pytest tests/services/integrations/test_naver_app_expiry.py -q` → **11 passed** ✅
+  (D-7 발송·중복 방지·근접 임계값 재발송·만료 후 제목·ADMIN 다중/비활성 제외·갱신 시 이력 초기화·
+  깨진 값 무시·알림 실패가 성공한 수집을 롤백하지 않음)
+- `pre_push_smoke` exit 0 (322 passed) ✅
 
 ---
 

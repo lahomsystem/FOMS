@@ -54,6 +54,9 @@ _DEFAULT_P1_TYPES = frozenset(
         "PRODUCTION_ORDER_CHANGED",
         # 에스컬레이션 row 는 is_urgent=False(재진입 방지)이므로 P1 로 OS push 허용.
         "URGENT_ESCALATION",
+        # 앱 인증 만료는 화면을 안 보고 있어도 알려야 한다 — 만료되면 주문 수집이
+        # 조용히 전면 중단되고 우리 화면엔 아무 에러도 안 뜬다(NAVER-INGEST-01 §5).
+        "NAVER_APP_EXPIRY",
     }
 )
 
