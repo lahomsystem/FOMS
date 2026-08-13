@@ -1,7 +1,7 @@
 """AS-FRESH-01 T1: order_attachments.as_log_id (AS 첨부 ↔ 타임라인 기록 결합)
 
 Revision ID: asfresh_00
-Revises: orderreason_00
+Revises: senderphone_00
 Create Date: 2026-08-13
 
 AS 첨부는 지금까지 ``category='as'`` 하나로만 묶여 있었다. 그래서 "이 기록의 사진"이라는
@@ -24,7 +24,7 @@ from alembic import op
 import sqlalchemy as sa
 
 revision: str = 'asfresh_00'
-down_revision: Union[str, None] = 'orderreason_00'
+down_revision: Union[str, None] = 'senderphone_00'
 branch_labels: Union[str, Sequence[str], None] = None
 depends_on: Union[str, Sequence[str], None] = None
 
