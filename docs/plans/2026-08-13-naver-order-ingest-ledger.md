@@ -305,6 +305,31 @@ write guard manifest 와 **별개 파일**이라 둘 다 등재해야 한다.
 
 ---
 
+## 운영 승격 (PR #92 — 머지 대기)
+
+- 브랜치 `promote/naver-ingest`(승격 트리 `c:\tmp\foms-pnav`), production HEAD 위 **21커밋**.
+  PR: https://github.com/lahomsystem/FOMS/pull/92 — perf-gate pass · pg-lane pass · CLEAN.
+- 운영은 **잠든 상태로** 올라간다: `FOMS_NAVER_SYNC_ENABLED` 미설정(off) · 자격증명 없음 ·
+  시스템 계정 2개 미생성(머지 후 `create_naver_ingest_accounts.py`).
+
+**체인 의존과 그 처리(재개 시 그대로 따라갈 것)**
+
+운영 head `senderphone_00` → `naver_link_00` → **`orderreason_00`** → **`asfresh_00`** →
+`naver_triage_00`. 굵은 둘은 타 세션 기능의 마이그레이션이라 빼면 체인이 끊긴다.
+→ **마이그레이션 파일 2개 + 대응 모델 정의만** 동반하고 기능 코드는 두고 왔다
+(둘 다 additive: `order_change_reasons` 테이블 신설 · `order_attachments.as_log_id` 컬럼).
+
+**밟은 함정 3개**
+
+| 증상 | 원인 | 대응 |
+|---|---|---|
+| cherry-pick 충돌 (인벤토리 JSON 3종) | 생성물이라 트리마다 내용이 다르다 | `--theirs` 로 받고 승격 트리에서 재생성(failopen·audit_coverage·mutation/state writer) |
+| `test_manifest_covers_every_mutation_route` red | write guard manifest 에 운영에 없는 라우트(`events.api_set_order_change_reason`) = stale | 그 항목만 제거(같이 딸려온 `erp_orders_as.api_as_log_*` 는 운영에 실재하므로 **지우면 안 된다**) |
+| **pg-lane red**: `index ix_order_attachments_as_log_id does not exist` | 체인 왕복 테스트 베이스라인이 alembic 이 아니라 **models 의 `create_all`** 이다. 마이그레이션만 가져오면 create_all 이 그 객체를 안 만들어 downgrade 가 죽는다 | 동반 마이그레이션에 **대응하는 모델 정의도 함께** 가져온다(컬럼 1·클래스 1, 라우트·서비스는 그대로 두고) |
+
+**머지 후 순서**: ① 운영 DB 계정 2개 생성 ② 시크릿·static IP·env (`docs/guides/NAVER_INGEST_SETUP.md`)
+③ `/admin/naver-ingest` "지금 수집" 1회 성공 확인.
+
 ## 공통 종료 절차 (매 task)
 
 1. `python -c "import app; print('APP_OK')"`
