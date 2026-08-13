@@ -19,28 +19,39 @@
 
 from __future__ import annotations
 
+import datetime
 import logging
 from typing import Any, Iterable, Mapping
 
+from foms.services.datetime_kst import now_utc_naive
 from foms.services.orders.order_field_change_writer import path_template_of
 from foms.services.orders.structured_diff import (
     SENSITIVE_ITEM_OPS,
     SENSITIVE_ITEM_TEMPLATE,
     SENSITIVE_PATH_TEMPLATES,
 )
+from models import OrderChangeReason, OrderFieldChange
 
 logger = logging.getLogger(__name__)
 
 __all__ = [
+    "REASON_ATTACH_WINDOW",
     "REASON_CODES",
     "REASON_LABELS",
     "REASON_NOTE_LIMIT",
     "REASON_OTHER",
     "REASON_UNSPECIFIED",
+    "ReasonAttachError",
+    "attach_reason",
     "is_reason_required",
     "normalize_reason",
     "reason_label",
+    "reasons_for_change_sets",
 ]
+
+#: 사유를 붙일 수 있는 기간. 감사 기록이라 무한 소급 입력은 허용하지 않는다 —
+#: 한참 뒤에 적는 사유는 기억이 아니라 재구성이다.
+REASON_ATTACH_WINDOW = datetime.timedelta(hours=24)
 
 #: 메모 컬럼 상한(마이그레이션 ``orderreason_00`` 과 같은 값).
 REASON_NOTE_LIMIT = 200
@@ -123,3 +134,110 @@ def normalize_reason(code: Any, note: Any) -> tuple[str, str | None]:
     if normalized_code == REASON_OTHER and not normalized_note:
         raise ValueError("기타 사유는 메모를 입력해야 합니다.")
     return normalized_code, normalized_note
+
+
+class ReasonAttachError(Exception):
+    """사유 첨부 거절 — ``status`` 로 HTTP 코드를 함께 나른다.
+
+    :param message: 사용자에게 보여줄 한글 사유.
+    :param status: 응답 상태 코드(404 없음 · 403 권한 · 409 중복 · 410 기간 만료).
+    """
+
+    def __init__(self, message: str, status: int) -> None:
+        super().__init__(message)
+        self.status = status
+
+
+def attach_reason(
+    session: Any,
+    *,
+    order_id: int,
+    change_set_id: str,
+    code: str,
+    note: str | None,
+    actor_user_id: int | None,
+    is_admin: bool = False,
+) -> OrderChangeReason:
+    """저장 1회(change set)에 사유를 붙인다.
+
+    저장 경로와 달리 여기는 **fail-open 이 아니다** — 사유 첨부가 실패했는데 성공한 척하면
+    화면이 "기록됐다"고 말하고 원장에는 없다. 거절 사유는 그대로 사용자에게 보인다.
+
+    규칙 4개:
+
+    1. change set 이 **이 주문의 것**이어야 한다(다른 주문 이력에 사유를 심을 수 없다).
+    2. 저장 후 :data:`REASON_ATTACH_WINDOW` 안에만 붙일 수 있다.
+    3. 본인이 한 저장만. ADMIN 은 전체(대리 입력).
+    4. **이미 사유가 있으면 409** — 감사 원장은 덮어쓰지 않는다.
+
+    :param session: 호출부 트랜잭션 세션(여기서 commit 하지 않는다).
+    :param order_id: 대상 주문 id.
+    :param change_set_id: 저장 1회 묶음 id.
+    :param code: 사유 코드(:data:`REASON_CODES`).
+    :param note: 메모(``other`` 필수).
+    :param actor_user_id: 사유를 적는 사람.
+    :param is_admin: ADMIN 여부(타인 저장 대리 입력 허용).
+    :return: 만들어진 원장 행(세션에 add 된 상태).
+    :raises ValueError: 코드·메모가 규칙에 안 맞을 때.
+    :raises ReasonAttachError: 위 규칙 1~4 위반.
+    """
+    normalized_code, normalized_note = normalize_reason(code, note)
+
+    rows = (
+        session.query(OrderFieldChange)
+        .filter(OrderFieldChange.change_set_id == str(change_set_id or ""))
+        .limit(200)
+        .all()  # perf-ok: change set 은 저장 1회분이라 유계
+    )
+    if not rows or any(row.order_id != int(order_id) for row in rows):
+        raise ReasonAttachError("해당 저장 기록을 찾을 수 없습니다.", 404)
+
+    if not is_admin and any(row.actor_user_id != actor_user_id for row in rows):
+        raise ReasonAttachError("본인이 저장한 변경에만 사유를 남길 수 있습니다.", 403)
+
+    saved_at = min((row.created_at for row in rows if row.created_at), default=None)
+    if saved_at is not None and now_utc_naive() - saved_at > REASON_ATTACH_WINDOW:
+        raise ReasonAttachError("사유 입력 기간(24시간)이 지났습니다.", 410)
+
+    existing = (
+        session.query(OrderChangeReason)
+        .filter(OrderChangeReason.change_set_id == str(change_set_id))
+        .first()
+    )
+    if existing is not None:
+        raise ReasonAttachError("이미 사유가 기록된 저장입니다.", 409)
+
+    reason = OrderChangeReason(
+        change_set_id=str(change_set_id),
+        order_id=int(order_id),
+        reason_code=normalized_code,
+        reason_note=normalized_note,
+        actor_user_id=actor_user_id,
+    )
+    session.add(reason)
+    return reason
+
+
+def reasons_for_change_sets(session: Any, change_set_ids: Iterable[str]) -> dict[str, dict]:
+    """change set 별 사유를 읽기용 dict 로 모은다(이력 탭·감사 화면).
+
+    :param session: 조회 세션.
+    :param change_set_ids: 대상 change set id 목록.
+    :return: ``{change_set_id: {'code','label','note'}}`` — 사유 없는 묶음은 키가 없다.
+    """
+    ids = [str(value) for value in change_set_ids if value]
+    if not ids:
+        return {}
+    rows = (
+        session.query(OrderChangeReason)
+        .filter(OrderChangeReason.change_set_id.in_(ids))
+        .all()  # perf-ok: batched by change set id
+    )
+    return {
+        row.change_set_id: {
+            'code': row.reason_code,
+            'label': reason_label(row.reason_code),
+            'note': row.reason_note,
+        }
+        for row in rows
+    }

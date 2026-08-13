@@ -7,12 +7,16 @@
 """
 
 import copy
+import datetime
 
 from werkzeug.security import generate_password_hash
 
 from db import db_session
+from foms.services.audit_message_display import ACTION_LABELS
 from foms.services.audit_writer import SECURITY_DETAIL_LIMIT
-from models import Order, SecurityLog, User
+from foms.services.datetime_kst import now_utc_naive
+from foms.services.orders.change_reason import REASON_ATTACH_WINDOW
+from models import Order, OrderChangeReason, OrderFieldChange, SecurityLog, User
 
 
 def _login_as_admin(client, username="reason-admin"):
@@ -166,3 +170,134 @@ def test_inline_save_reports_reason_requirement(client, monkeypatch):
 
     assert payload["change_reason_required"] is True
     assert payload["change_set"]
+
+
+# ---------------------------------------------------------------------------
+# T5: 사유 첨부 API — 저장은 이미 끝났고, 여기서 "왜"를 붙인다.
+# ---------------------------------------------------------------------------
+
+def _login_as_staff(client, username="reason-staff"):
+    user = User(
+        username=username,
+        password=generate_password_hash("staff"),
+        role="STAFF",
+        team="CS",
+        name="Reason Staff",
+        is_active=True,
+    )
+    db_session.add(user)
+    db_session.commit()
+    with client.session_transaction() as sess:
+        sess["user_id"] = user.id
+        sess["username"] = user.username
+        sess["role"] = user.role
+    return user
+
+
+def _attach(client, order_id, change_set, code="customer_request", note=""):
+    return client.post(
+        f"/api/orders/{order_id}/change-reason",
+        json={"change_set": change_set, "code": code, "note": note},
+    )
+
+
+def _sensitive_save(client, order_id):
+    """사유를 물어야 하는 저장 1회(품목 단가 변경)."""
+    response = _save(client, order_id, lambda sd: sd["items"][0].update({"price": "777000"}))
+    payload = response.get_json()
+    assert payload["change_reason_required"] is True
+    return payload["change_set"]
+
+
+def test_attach_reason_records_ledger_row_and_audit(client):
+    """사유가 원장에 남고, 그 행위 자체도 감사 로그가 된다."""
+    _login_as_admin(client, "reason-attach-1")
+    order = _create_order()
+    change_set = _sensitive_save(client, order.id)
+
+    response = _attach(client, order.id, change_set, code="input_correction")
+    assert response.status_code == 200, response.get_data(as_text=True)[:300]
+    assert response.get_json()["data"]["reason"]["label"] == "입력 오류 정정"
+
+    db_session.expire_all()
+    row = (
+        db_session.query(OrderChangeReason)
+        .filter(OrderChangeReason.change_set_id == change_set)
+        .one()
+    )
+    assert (row.order_id, row.reason_code, row.reason_note) == (order.id, "input_correction", None)
+
+    audit = (
+        db_session.query(SecurityLog)
+        .filter(SecurityLog.action == "ORDER_CHANGE_REASON_SET", SecurityLog.target_id == order.id)
+        .one()
+    )
+    assert audit.detail["change_set"] == change_set
+    assert audit.detail["reason_code"] == "input_correction"
+    # 새 action 은 표시 SSOT 에 등재돼 있어야 감사 화면이 코드가 아니라 라벨을 보여준다.
+    assert ACTION_LABELS["ORDER_CHANGE_REASON_SET"] == "변경 사유 입력"
+
+
+def test_reason_cannot_be_overwritten(client):
+    """감사 원장은 덮어쓰지 않는다 — 두 번째 첨부는 409."""
+    _login_as_admin(client, "reason-attach-2")
+    order = _create_order()
+    change_set = _sensitive_save(client, order.id)
+
+    assert _attach(client, order.id, change_set).status_code == 200
+    second = _attach(client, order.id, change_set, code="site_condition")
+    assert second.status_code == 409
+    assert "이미" in second.get_json()["error"]
+
+
+def test_other_code_requires_note(client):
+    """`기타` 는 메모가 있어야 집계에서 "그 밖"이 뭉개지지 않는다."""
+    _login_as_admin(client, "reason-attach-3")
+    order = _create_order()
+    change_set = _sensitive_save(client, order.id)
+
+    assert _attach(client, order.id, change_set, code="other").status_code == 400
+    assert _attach(client, order.id, change_set, code="unknown_code").status_code == 400
+    assert _attach(client, order.id, change_set, code="other", note="현장 요청").status_code == 200
+
+
+def test_change_set_of_another_order_is_rejected(client):
+    """다른 주문의 저장 묶음에 사유를 심을 수 없다."""
+    _login_as_admin(client, "reason-attach-4")
+    order_id = _create_order().id
+    other_id = _create_order().id
+    change_set = _sensitive_save(client, order_id)
+
+    assert _attach(client, other_id, change_set).status_code == 404
+    assert _attach(client, order_id, "not-a-real-change-set").status_code == 404
+
+
+def test_staff_cannot_attach_reason_to_someone_elses_save(client):
+    """본인이 한 저장에만 — 남의 저장에 사유를 붙이면 기록이 거짓이 된다(ADMIN 은 대리 가능)."""
+    _login_as_admin(client, "reason-attach-5")
+    order = _create_order()
+    change_set = _sensitive_save(client, order.id)
+
+    _login_as_staff(client, "reason-staff-1")
+    refused = _attach(client, order.id, change_set)
+    assert refused.status_code == 403
+
+    db_session.expire_all()
+    assert db_session.query(OrderChangeReason).filter(
+        OrderChangeReason.change_set_id == change_set).first() is None
+
+
+def test_reason_window_expires(client):
+    """24시간이 지난 저장에는 못 붙인다 — 한참 뒤에 적는 사유는 기억이 아니라 재구성이다."""
+    _login_as_admin(client, "reason-attach-6")
+    order = _create_order()
+    change_set = _sensitive_save(client, order.id)
+
+    stale = now_utc_naive() - REASON_ATTACH_WINDOW - datetime.timedelta(minutes=1)
+    for row in db_session.query(OrderFieldChange).filter(
+            OrderFieldChange.change_set_id == change_set).all():
+        row.created_at = stale
+    db_session.commit()
+
+    expired = _attach(client, order.id, change_set)
+    assert expired.status_code == 410

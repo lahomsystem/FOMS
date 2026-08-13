@@ -9,8 +9,20 @@ from sqlalchemy.orm.attributes import flag_modified
 
 from db import get_db
 from models import Order, OrderEvent, OrderFieldChange, User, SecurityLog
-from foms.services.audit_message_display import describe_change, path_label
+from foms.services.audit_message_display import (
+    describe_change,
+    describe_order_action,
+    path_label,
+)
 from foms.services.datetime_kst import format_datetime_kst
+from foms.services.orders.audit_order_context import order_audit_context
+from foms.services.orders.change_reason import (
+    ReasonAttachError,
+    attach_reason,
+    reason_label,
+    reasons_for_change_sets,
+)
+from foms.web.auth.routes import log_access
 from foms.services.order_event_display import (
     generate_change_description,
     translate_event_type_to_korean,
@@ -205,6 +217,76 @@ def api_order_field_changes(order_id: int):
             # 상한에 걸렸다면 더 오래된 이력이 남아 있다는 뜻이다(화면이 그 사실을 표시한다).
             'truncated': len(ordered_sets) >= _FIELD_CHANGE_SET_LIMIT,
         }})
+    except Exception as e:
+        log_handled_exception()
+        return jsonify({'success': False, 'error': str(e)}), 500
+
+
+@events_bp.route('/orders/<int:order_id>/change-reason', methods=['POST'])
+@login_required
+def api_set_order_change_reason(order_id: int):
+    """저장 1회(change set)에 **변경 사유**를 붙인다 (ORDER-REASON-00).
+
+    저장 자체는 이미 성공했다 — 사유는 저장을 막지 않는다(막으면 사유 때문에 주문 저장이
+    실패한다). 화면은 저장 응답의 ``change_reason_required``·``change_set`` 을 보고 이
+    엔드포인트를 부른다(PC=모달, 인라인=배너).
+
+    거절 규칙과 근거는 :func:`~foms.services.orders.change_reason.attach_reason` 에 있다
+    (남의 주문·기간 만료·타인 저장·중복 첨부).
+
+    :param order_id: 대상 주문 id.
+    :return: ``{'success': True, 'data': {'reason': {...}}}``.
+    """
+    try:
+        db = get_db()
+        order = db.query(Order).filter(Order.id == order_id).first()
+        if not order:
+            return jsonify({'success': False, 'error': '주문을 찾을 수 없습니다.'}), 404
+
+        user = db.query(User).filter(User.id == session.get('user_id')).first()
+        if not user:
+            return jsonify({'success': False, 'error': '사용자를 찾을 수 없습니다.'}), 401
+
+        payload = request.get_json(silent=True) or {}
+        try:
+            reason = attach_reason(
+                db,
+                order_id=order_id,
+                change_set_id=str(payload.get('change_set') or ''),
+                code=payload.get('code'),
+                note=payload.get('note'),
+                actor_user_id=user.id,
+                is_admin=(user.role == 'ADMIN'),
+            )
+        except ValueError as invalid:
+            return jsonify({'success': False, 'error': str(invalid)}), 400
+        except ReasonAttachError as refused:
+            return jsonify({'success': False, 'error': str(refused)}), refused.status
+
+        log_access(
+            describe_order_action(
+                order_id=order_id,
+                action='ORDER_CHANGE_REASON_SET',
+                note=reason_label(reason.reason_code),
+                **order_audit_context(order),
+            ),
+            user.id,
+            auto_commit=False,
+            action='ORDER_CHANGE_REASON_SET', target_type='order', target_id=int(order_id),
+            detail={
+                'change_set': reason.change_set_id,
+                'reason_code': reason.reason_code,
+                # 메모는 사람이 쓴 짧은 문장이라 그대로 싣는다(컬럼 상한 200자).
+                'reason_note': reason.reason_note,
+            },
+        )
+        db.commit()
+
+        return jsonify({'success': True, 'data': {'reason': {
+            'code': reason.reason_code,
+            'label': reason_label(reason.reason_code),
+            'note': reason.reason_note,
+        }}})
     except Exception as e:
         log_handled_exception()
         return jsonify({'success': False, 'error': str(e)}), 500
