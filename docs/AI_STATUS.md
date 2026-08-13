@@ -1,6 +1,6 @@
 # FOMS 현재 상태
 > 자동 업데이트: 2026-08-13
-> 최신: **네이버 스마트스토어 주문 자동 수집 T2~T7 deploy** — 링크 테이블(UNIQUE 멱등)·클라이언트·매핑·WORKER 폴링(기본 off)·만료 알림·관리 화면. **네이버 HTTP 는 WORKER 단일 출구**(IP 한도 3=static 3) — web 은 enqueue 만. 계정 2개 스테이징 반영. 잔여=시크릿 재발급·static IP(사람). 원장: docs/plans/2026-08-13-naver-order-ingest-ledger.md
+> 최신: **네이버 스마트스토어 주문 자동 수집 T2~T10 deploy** — 링크 테이블(UNIQUE 멱등)·클라이언트·매핑·폴링(기본 off)·만료 알림·관리 화면·트리아지. **네이버 HTTP 는 WORKER 단일 출구**(IP 한도 3=static 3) — web 은 enqueue 만. 계정 2개 스테이징 반영. 잔여=시크릿 재발급·static IP(사람). 원장: docs/plans/2026-08-13-naver-order-ingest-ledger.md
 > 이 파일 상단 40줄이 세션 시작 컨텍스트의 전부다(hygiene 계약 테스트로 강제). 상세 이력: "## 최근 완료"·"## 기록 보관", 과거 헤더 상세는 기록 보관에 이관.
 
 ## 스택
@@ -8,7 +8,7 @@ Flask 2.3 + PostgreSQL + R2 + Railway (Web×2, Worker×1)
 브랜치: deploy (스테이징) → production (운영)
 
 ## 진행 중
-- [2026-08-13] **주문 변경 사유 deploy** — docs/specs/2026-08-13-order-change-reason_SPEC.md
+- [2026-08-14] **주문 변경 사유 deploy** — 축=시공일·금액·단계·취소(제품세부=기록만). docs/specs/2026-08-13-order-change-reason_SPEC.md
 - [2026-08-11] **대시보드 캐시 무효화 엔진화 MUT-CACHE-01 운영 승격(PR #79 `24675249`)** — 라우트별 수동 무효화가 원인(빠진 경로 6, 단계 강제 변경 310초 지연 재현). `execute_order_mutation` 이 전/후 stage·삭제 표식을 session.info intent 로 남기고 `after_commit` 이 소비 → 엔진 경유 20개 모듈 자동 커버, 미경유 2곳(`/edit`·date_sync)은 직접 보강. 선행 삭제 수정 PR #72.
 - [2026-08-12] **프래그먼트 다이어트 시공 923→481KB(-48%) 운영 반영**(PR #78·#81·#84~#86) — 같은 50건을 3표면에 중복 렌더(`FOMS_V3_SHELL_COHORT=all`)하고 CSS가 하나만 남긴다. 태블릿 표면=`pointer: coarse` 전용 → 쿠키 `foms_ptr`로 마우스 기기 미전송(5탭 -25%). **함정: 인라인 style→클래스 이관은 같은 ID 스코프 필수.** 잔여=모바일 128.6KB(타 세션 진행 중).
 - [2026-08-13] **AS 근본 최적화 2건(deploy)** — ① dTTFB 181→96(예산 168 불변, 공식 176보다 엄격): 지출처=같은 모집단 집계 2회 + 행100×2필드 sanitize 재파싱 → 단일 스캔 + sanitize LRU 메모이즈. ② data-order-id 1271→228(행 컨테이너 일원화, 자손은 closest 역참조) → wire 51.1→46.3KB. **함정: 표면간 상태동기화가 `.cls[data-order-id=x]` 전역 선택자였다** — 스코프 조회로 치환 후에야 자손 제거 가능.
