@@ -8,11 +8,11 @@
     "log_access"
   ],
   "baselines": {
-    "total": 176,
+    "total": 178,
     "unaudited": 0
   },
   "classification_counts": {
-    "AUDITED": 146,
+    "AUDITED": 148,
     "EXEMPT": 30,
     "UNAUDITED": 0
   },
@@ -194,7 +194,7 @@
     {
       "path": "foms/api/cs/as_orders.py",
       "endpoint": "api_as_billing",
-      "lineno": 800,
+      "lineno": 797,
       "methods": [
         "POST"
       ],
@@ -203,7 +203,7 @@
     {
       "path": "foms/api/cs/as_orders.py",
       "endpoint": "api_as_classification",
-      "lineno": 721,
+      "lineno": 718,
       "methods": [
         "POST"
       ],
@@ -212,7 +212,7 @@
     {
       "path": "foms/api/cs/as_orders.py",
       "endpoint": "api_as_complete",
-      "lineno": 666,
+      "lineno": 663,
       "methods": [
         "POST"
       ],
@@ -221,7 +221,7 @@
     {
       "path": "foms/api/cs/as_orders.py",
       "endpoint": "api_as_log_append",
-      "lineno": 860,
+      "lineno": 857,
       "methods": [
         "POST"
       ],
@@ -230,7 +230,7 @@
     {
       "path": "foms/api/cs/as_orders.py",
       "endpoint": "api_as_log_delete",
-      "lineno": 1025,
+      "lineno": 1022,
       "methods": [
         "POST"
       ],
@@ -239,7 +239,7 @@
     {
       "path": "foms/api/cs/as_orders.py",
       "endpoint": "api_as_log_patch",
-      "lineno": 970,
+      "lineno": 967,
       "methods": [
         "PATCH"
       ],
@@ -257,7 +257,7 @@
     {
       "path": "foms/api/cs/as_orders.py",
       "endpoint": "api_as_reopen",
-      "lineno": 693,
+      "lineno": 690,
       "methods": [
         "POST"
       ],
@@ -266,7 +266,7 @@
     {
       "path": "foms/api/cs/as_orders.py",
       "endpoint": "api_as_schedule",
-      "lineno": 557,
+      "lineno": 554,
       "methods": [
         "POST"
       ],
@@ -275,7 +275,7 @@
     {
       "path": "foms/api/cs/as_orders.py",
       "endpoint": "api_as_schedule_link",
-      "lineno": 1247,
+      "lineno": 1244,
       "methods": [
         "POST"
       ],
@@ -284,7 +284,7 @@
     {
       "path": "foms/api/cs/as_orders.py",
       "endpoint": "api_as_start",
-      "lineno": 639,
+      "lineno": 636,
       "methods": [
         "POST"
       ],
@@ -293,7 +293,7 @@
     {
       "path": "foms/api/cs/as_orders.py",
       "endpoint": "api_as_unschedule",
-      "lineno": 611,
+      "lineno": 608,
       "methods": [
         "POST"
       ],
@@ -302,7 +302,7 @@
     {
       "path": "foms/api/cs/as_orders.py",
       "endpoint": "api_as_verdict",
-      "lineno": 905,
+      "lineno": 902,
       "methods": [
         "POST"
       ],
@@ -626,7 +626,7 @@
     {
       "path": "foms/api/erp_orders_structured.py",
       "endpoint": "api_erp_create_draft",
-      "lineno": 1462,
+      "lineno": 1472,
       "methods": [
         "POST"
       ],
@@ -635,7 +635,7 @@
     {
       "path": "foms/api/erp_orders_structured.py",
       "endpoint": "api_erp_discard_draft",
-      "lineno": 1922,
+      "lineno": 1932,
       "methods": [
         "POST"
       ],
@@ -644,7 +644,7 @@
     {
       "path": "foms/api/erp_orders_structured.py",
       "endpoint": "api_erp_draft_autosave",
-      "lineno": 1795,
+      "lineno": 1805,
       "methods": [
         "POST"
       ],
@@ -653,7 +653,7 @@
     {
       "path": "foms/api/erp_orders_structured.py",
       "endpoint": "api_parse_order_text",
-      "lineno": 1357,
+      "lineno": 1367,
       "methods": [
         "POST"
       ],
@@ -662,7 +662,7 @@
     {
       "path": "foms/api/erp_orders_structured.py",
       "endpoint": "api_patch_order_structured_fields",
-      "lineno": 863,
+      "lineno": 857,
       "methods": [
         "PATCH"
       ],
@@ -671,7 +671,7 @@
     {
       "path": "foms/api/erp_orders_structured.py",
       "endpoint": "api_payment_confirm",
-      "lineno": 1379,
+      "lineno": 1389,
       "methods": [
         "POST"
       ],
@@ -689,7 +689,16 @@
     {
       "path": "foms/api/events.py",
       "endpoint": "api_compensate_change_event",
-      "lineno": 473,
+      "lineno": 578,
+      "methods": [
+        "POST"
+      ],
+      "classification": "AUDITED"
+    },
+    {
+      "path": "foms/api/events.py",
+      "endpoint": "api_set_order_change_reason",
+      "lineno": 250,
       "methods": [
         "POST"
       ],
@@ -1131,7 +1140,7 @@
     {
       "path": "foms/api/share.py",
       "endpoint": "api_share_revoke",
-      "lineno": 558,
+      "lineno": 475,
       "methods": [
         "POST"
       ],
@@ -1140,7 +1149,7 @@
     {
       "path": "foms/api/share.py",
       "endpoint": "api_share_send_sms",
-      "lineno": 443,
+      "lineno": 358,
       "methods": [
         "POST"
       ],
@@ -1455,7 +1464,7 @@
     {
       "path": "foms/web/auth/routes.py",
       "endpoint": "add_user",
-      "lineno": 645,
+      "lineno": 646,
       "methods": [
         "POST"
       ],
@@ -1464,7 +1473,7 @@
     {
       "path": "foms/web/auth/routes.py",
       "endpoint": "approve_user",
-      "lineno": 907,
+      "lineno": 908,
       "methods": [
         "POST"
       ],
@@ -1473,7 +1482,7 @@
     {
       "path": "foms/web/auth/routes.py",
       "endpoint": "delete_user",
-      "lineno": 831,
+      "lineno": 832,
       "methods": [
         "POST"
       ],
@@ -1482,7 +1491,7 @@
     {
       "path": "foms/web/auth/routes.py",
       "endpoint": "edit_user",
-      "lineno": 707,
+      "lineno": 708,
       "methods": [
         "POST"
       ],
@@ -1491,7 +1500,7 @@
     {
       "path": "foms/web/auth/routes.py",
       "endpoint": "handle_reset_request",
-      "lineno": 996,
+      "lineno": 997,
       "methods": [
         "POST"
       ],
@@ -1500,7 +1509,7 @@
     {
       "path": "foms/web/auth/routes.py",
       "endpoint": "login",
-      "lineno": 290,
+      "lineno": 291,
       "methods": [
         "POST"
       ],
@@ -1509,7 +1518,7 @@
     {
       "path": "foms/web/auth/routes.py",
       "endpoint": "logout",
-      "lineno": 364,
+      "lineno": 365,
       "methods": [
         "POST"
       ],
@@ -1518,7 +1527,7 @@
     {
       "path": "foms/web/auth/routes.py",
       "endpoint": "password_reset_request",
-      "lineno": 557,
+      "lineno": 558,
       "methods": [
         "POST"
       ],
@@ -1527,7 +1536,7 @@
     {
       "path": "foms/web/auth/routes.py",
       "endpoint": "profile",
-      "lineno": 1044,
+      "lineno": 1045,
       "methods": [
         "POST"
       ],
@@ -1536,7 +1545,7 @@
     {
       "path": "foms/web/auth/routes.py",
       "endpoint": "register",
-      "lineno": 452,
+      "lineno": 453,
       "methods": [
         "POST"
       ],
@@ -1545,7 +1554,7 @@
     {
       "path": "foms/web/auth/routes.py",
       "endpoint": "reject_user",
-      "lineno": 960,
+      "lineno": 961,
       "methods": [
         "POST"
       ],
@@ -1554,7 +1563,7 @@
     {
       "path": "foms/web/auth/routes.py",
       "endpoint": "switch_back",
-      "lineno": 427,
+      "lineno": 428,
       "methods": [
         "POST"
       ],
@@ -1563,7 +1572,7 @@
     {
       "path": "foms/web/auth/routes.py",
       "endpoint": "switch_user",
-      "lineno": 379,
+      "lineno": 380,
       "methods": [
         "POST"
       ],
