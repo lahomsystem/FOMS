@@ -383,6 +383,23 @@ def _force_preserve_as_server_state(old_sd: dict, structured_data: dict) -> None
             new_shipment.pop(key, None)
 
 
+def _force_preserve_as_lifecycle(old_sd: dict, structured_data: dict) -> None:
+    """as_lifecycle 은 AS cycle API 소관 — 폼 stale 스냅샷으로 덮거나 빼지 않는다.
+
+    접수 모달은 register 직후 erpSaveStructured() 를 호출한다. 폼 payload 는 페이지 로드
+    시점 JSONB 라 as_lifecycle 이 없거나 이전 COMPLETED cycle 이다. allowlist 에 없는
+    최상위 키는 incoming 에 없으면 그대로 탈락하므로, 가드가 없으면 방금 연 RECEIVED
+    cycle 이 한 번의 폼 저장으로 사라진다.
+    """
+    if not isinstance(old_sd, dict) or not isinstance(structured_data, dict):
+        return
+    old_life = old_sd.get("as_lifecycle")
+    if isinstance(old_life, dict):
+        structured_data["as_lifecycle"] = copy.deepcopy(old_life)
+    else:
+        structured_data.pop("as_lifecycle", None)
+
+
 def _preserve_operational_structured_state(old_sd: dict, structured_data: dict) -> None:
     """Preserve non-form operational state during ERP order full-form saves."""
     if not isinstance(old_sd, dict) or not isinstance(structured_data, dict):
@@ -406,10 +423,10 @@ def _preserve_operational_structured_state(old_sd: dict, structured_data: dict) 
 
     _force_preserve_drawing_transfer_history(old_sd, structured_data)
     # 폼 저장의 암묵 전이 0(STATE-FORM-01): 단계는 서버값으로 고정하고, AS 전용 API 소관
-    # 키(as_billing·as_log)는 폼 스냅샷이 되돌리지 못하게 서버값으로 되돌린다. 전자가
-    # 단계를, 후자가 AS 서버 상태를 지키므로 둘 다 필요하다.
+    # 키(as_billing·as_log·as_lifecycle)는 폼 스냅샷이 되돌리지 못하게 서버값으로 되돌린다.
     _pin_form_stage_to_server(old_sd, structured_data)
     _force_preserve_as_server_state(old_sd, structured_data)
+    _force_preserve_as_lifecycle(old_sd, structured_data)
 
 
 #: 화면용 변경 목록이 쓸 수 있는 직렬화 예산(자). ``SECURITY_DETAIL_LIMIT``(4,000)에서
