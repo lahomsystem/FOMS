@@ -107,7 +107,7 @@
 **`UNIQUE (channel, external_id)`** — 동시 실행 레이스 방어의 본체(앱 체크로는 못 막음).
 워터마크 저장 위치도 이 task 에서 확정(기존 `system_setting` 계열 재사용 여부 조사 후 결정).
 
-**체인**: `down_revision = 'senderphone_00'` (원격 tip 기준). 원격 체인은
+**체인**: `down_revision = 'senderphone_00'` (작성 시점 원격 tip). 원격 체인은
 `auditlife_00 → accesslog_detail_00 → seclog_time_00 → orderdiff_01 → share_token_00 →
 itemuid_00 → senderphone_00 → naver_link_00` 이다.
 
@@ -314,6 +314,17 @@ write guard manifest 와 **별개 파일**이라 둘 다 등재해야 한다.
 6. push 는 `deploy` 만. push 후 `gh run list --branch deploy` 로 전 워크플로 green 확인
 
 ---
+
+## 마이그레이션 체인 함정 (2026-08-13 실사고 — 재개 시 반드시 확인)
+
+동시 세션이 **같은 부모에 마이그레이션을 붙이면 alembic head 가 둘이 되고 배포가 파산한다.**
+이번에 실제로 났다: 리베이스 시점에 타 세션이 `orderreason_00` 위에 `asfresh_00` 을 붙였는데
+내 `naver_triage_00` 도 같은 부모를 보고 있었다 → head 2개.
+
+**규칙**: `git rebase origin/deploy` 직후 **반드시** `python -m alembic heads` 로 단일 head 를
+확인하고, 둘이면 내 마이그레이션의 `down_revision` 을 상대 head 뒤로 재연결한 뒤 왕복을
+다시 검증한다. `tests/domains/test_alembic_single_head.py` 가 잡아주지만
+**`pre_push_smoke` 서브셋에는 들어 있으므로 smoke 를 리베이스 후에도 다시 돌려야 한다.**
 
 ## T8 — 트리아지 상태 컬럼 (스펙 §8.3)
 
