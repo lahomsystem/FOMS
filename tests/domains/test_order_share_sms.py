@@ -66,9 +66,13 @@ def db(app):
     db_session.rollback()
 
 
+_BRAND_ENVS = ('SOLAPI_SENDER_PHONE_LAHOM', 'SOLAPI_SENDER_PHONE_HAUD',
+               'SOLAPI_SENDER_FALLBACK_LAHOM', 'SOLAPI_SENDER_FALLBACK_HAUD')
+
+
 @pytest.fixture
 def sms_stub(monkeypatch):
-    """성공 스텁 — 호출 인자 수집."""
+    """성공 스텁 — 호출 인자 수집. 브랜드 env 는 비워 legacy 폴백 경로를 격리한다."""
     calls = []
 
     def _fake(**kwargs):
@@ -76,6 +80,8 @@ def sms_stub(monkeypatch):
         return 'SMS-1'
 
     monkeypatch.setattr(ka, '_solapi_send_text', _fake)
+    for name in _BRAND_ENVS:
+        monkeypatch.delenv(name, raising=False)
     monkeypatch.setenv('SOLAPI_SENDER_PHONE', '0212345678')
     return calls
 
@@ -92,10 +98,10 @@ def _send(client, share_id, token):
     return client.post(f'/api/share/send-sms/{share_id}', json={'token': token})
 
 
-# --- 발신 폴백 (D2) --------------------------------------------------------------
+# --- 발신 3단 우선순위 (T8.1 — 담당자 → 브랜드 대표번호 → 구 SOLAPI_SENDER_PHONE) ---
 
 
-def test_send_uses_company_number_when_no_personal(client, db, sms_stub, clock):
+def test_send_legacy_fallback_when_no_manager_no_brand_env(client, db, sms_stub, clock):
     order_id = _mk_order().id
     _login(client, 'sms1')
     share_id, token = _mk_share(order_id)
@@ -107,20 +113,151 @@ def test_send_uses_company_number_when_no_personal(client, db, sms_stub, clock):
     assert '도면' in sms_stub[0]['text']
 
 
-def test_send_prefers_personal_sender_phone(client, db, sms_stub, clock):
+def test_send_ignores_actor_sender_phone(client, db, sms_stub, clock):
+    # 구 규칙 폐기 확인: 발송 버튼 누른 직원의 sender_phone 은 더 이상 안 쓴다.
     order_id = _mk_order().id
     _login(client, 'sms2', sender_phone='01099998888')
     share_id, token = _mk_share(order_id)
     _send(client, share_id, token)
-    assert sms_stub[0]['from_'] == '01099998888'
+    assert sms_stub[0]['from_'] == '0212345678'  # legacy 폴백 (actor 번호 아님)
+
+
+def test_send_uses_order_manager_sender_phone(client, db, sms_stub, clock):
+    # ① 담당자 개인번호 — 버튼 누른 사람(actor)이 아니라 주문 담당자 기준.
+    manager = User(username='mgr1', password=generate_password_hash('pw'),
+                   role='STAFF', team='CS', name='김담당', is_active=True,
+                   sender_phone='01011112222')
+    db_session.add(manager)
+    db_session.commit()
+    order_id = _mk_order(manager_name='김담당').id
+    _login(client, 'sms21', sender_phone='01099998888')
+    share_id, token = _mk_share(order_id)
+    resp = _send(client, share_id, token)
+    assert resp.get_json()['data']['sent'] is True
+    assert sms_stub[0]['from_'] == '01011112222'
+
+
+def test_send_manager_without_registration_falls_to_brand(client, db, sms_stub,
+                                                          monkeypatch, clock):
+    # 담당자는 있으나 sender_phone 미등록 — ② 브랜드 대표번호로 폴백(기본 HAUD).
+    monkeypatch.setenv('SOLAPI_SENDER_PHONE_HAUD', '15660703')
+    manager = User(username='mgr2', password=generate_password_hash('pw'),
+                   role='STAFF', team='CS', name='박미등록', is_active=True)
+    db_session.add(manager)
+    db_session.commit()
+    order_id = _mk_order(manager_name='박미등록').id
+    _login(client, 'sms22')
+    share_id, token = _mk_share(order_id)
+    _send(client, share_id, token)
+    assert sms_stub[0]['from_'] == '15660703'
+
+
+def test_send_brand_branch_lahom(client, db, sms_stub, monkeypatch, clock):
+    # ② 브랜드 분기 — 발주사명에 '라홈' 포함 시 LAHOM 대표번호(resolve_brand SSOT).
+    monkeypatch.setenv('SOLAPI_SENDER_PHONE_LAHOM', '15660792')
+    monkeypatch.setenv('SOLAPI_SENDER_PHONE_HAUD', '15660703')
+    sd = {**_SD, 'parties': {**_SD['parties'], 'orderer': {'name': '라홈퍼니처'}}}
+    order_id = _mk_order(structured_data=sd).id
+    _login(client, 'sms23')
+    share_id, token = _mk_share(order_id)
+    _send(client, share_id, token)
+    assert sms_stub[0]['from_'] == '15660792'
+
+
+def test_send_brand_branch_haud_default(client, db, sms_stub, monkeypatch, clock):
+    # ② 발주사에 '라홈' 없으면 전부 HAUD (알림톡 브랜드 분기와 동일 판정).
+    monkeypatch.setenv('SOLAPI_SENDER_PHONE_LAHOM', '15660792')
+    monkeypatch.setenv('SOLAPI_SENDER_PHONE_HAUD', '15660703')
+    sd = {**_SD, 'parties': {**_SD['parties'], 'orderer': {'name': '한샘몰'}}}
+    order_id = _mk_order(structured_data=sd).id
+    _login(client, 'sms24')
+    share_id, token = _mk_share(order_id)
+    _send(client, share_id, token)
+    assert sms_stub[0]['from_'] == '15660703'
 
 
 def test_send_not_configured_503(client, db, monkeypatch, clock):
     monkeypatch.delenv('SOLAPI_SENDER_PHONE', raising=False)
+    for name in _BRAND_ENVS:
+        monkeypatch.delenv(name, raising=False)
     order_id = _mk_order().id
-    _login(client, 'sms3')
+    _login(client, 'sms25')
     share_id, token = _mk_share(order_id)
     assert _send(client, share_id, token).status_code == 503
+
+
+# --- ② 실패 → ③ 브랜드 백업번호 1회 재시도 (T8.1) ----------------------------------
+
+
+def _flaky_stub(monkeypatch, fail_from: set[str]):
+    """지정 발신번호만 실패하는 스텁 — (from_, to) 호출 기록 반환."""
+    calls = []
+
+    def _fake(**kwargs):
+        calls.append(kwargs)
+        if kwargs['from_'] in fail_from:
+            raise TimeoutError('vendor down')
+        return 'SMS-1'
+
+    monkeypatch.setattr(ka, '_solapi_send_text', _fake)
+    return calls
+
+
+def test_send_brand_failure_retries_backup_once(client, db, monkeypatch, clock):
+    # ② 대표번호 벤더 실패 → ③ 백업번호 같은 요청 내 1회 재시도, 앵커 1개 유지.
+    for name in _BRAND_ENVS:
+        monkeypatch.delenv(name, raising=False)
+    monkeypatch.setenv('SOLAPI_SENDER_PHONE_HAUD', '15660703')
+    monkeypatch.setenv('SOLAPI_SENDER_FALLBACK_HAUD', '01044644260')
+    calls = _flaky_stub(monkeypatch, fail_from={'15660703'})
+    order_id = _mk_order().id
+    _login(client, 'sms26')
+    share_id, token = _mk_share(order_id)
+    resp = _send(client, share_id, token)
+    body = resp.get_json()
+    assert resp.status_code == 200 and body['data']['sent'] is True
+    assert [c['from_'] for c in calls] == ['15660703', '01044644260']
+    db_session.expire_all()
+    rows = db_session.query(DomainSideEffectOutbox).filter_by(effect_type='SHARE_SMS').all()
+    assert len(rows) == 1 and rows[0].status == 'DONE'  # 멱등 앵커 1개 그대로
+    events = db_session.query(OrderEvent).filter_by(event_type='SHARE_SMS').all()
+    assert len(events) == 1 and events[0].payload['status'] == 'sent'
+    attempts = events[0].payload['attempts']  # 시도 2회 payload 기록
+    assert [a['source'] for a in attempts] == ['brand', 'brand_fallback']
+    assert attempts[0]['error'] == 'network' and attempts[1]['error'] is None
+    assert '15660703' not in str(attempts)  # 발신번호 원문 미격납(마스킹)
+
+
+def test_send_brand_failure_without_backup_surfaces_error(client, db, monkeypatch, clock):
+    for name in _BRAND_ENVS:
+        monkeypatch.delenv(name, raising=False)
+    monkeypatch.setenv('SOLAPI_SENDER_PHONE_HAUD', '15660703')
+    calls = _flaky_stub(monkeypatch, fail_from={'15660703'})
+    order_id = _mk_order().id
+    _login(client, 'sms27')
+    share_id, token = _mk_share(order_id)
+    body = _send(client, share_id, token).get_json()
+    assert body['data']['sent'] is False and body['data']['error'] == 'network'
+    assert len(calls) == 1  # 백업 미설정 — 재시도 없음
+
+
+def test_send_manager_failure_no_retry(client, db, monkeypatch, clock):
+    # ① 담당자 개인번호 실패는 재시도 대상 아님(백업번호는 브랜드 전용).
+    for name in _BRAND_ENVS:
+        monkeypatch.delenv(name, raising=False)
+    monkeypatch.setenv('SOLAPI_SENDER_FALLBACK_HAUD', '01044644260')
+    calls = _flaky_stub(monkeypatch, fail_from={'01011113333'})
+    manager = User(username='mgr3', password=generate_password_hash('pw'),
+                   role='STAFF', team='CS', name='이실패', is_active=True,
+                   sender_phone='01011113333')
+    db_session.add(manager)
+    db_session.commit()
+    order_id = _mk_order(manager_name='이실패').id
+    _login(client, 'sms28')
+    share_id, token = _mk_share(order_id)
+    body = _send(client, share_id, token).get_json()
+    assert body['data']['sent'] is False and body['data']['error'] == 'network'
+    assert len(calls) == 1  # manager 출처 — 브랜드 백업 재시도 없음
 
 
 # --- 토큰 원문 재해시 검증 (§1) ----------------------------------------------------
@@ -192,6 +329,8 @@ def test_send_outbox_anchor_done_and_event_recorded(client, db, sms_stub, clock)
 
 def test_send_vendor_error_surfaced_not_silent(client, db, monkeypatch, clock):
     monkeypatch.setenv('SOLAPI_SENDER_PHONE', '0212345678')
+    for name in _BRAND_ENVS:
+        monkeypatch.delenv(name, raising=False)
 
     def _boom(**kwargs):
         raise TimeoutError('vendor down')
@@ -225,3 +364,4 @@ def test_send_audit_masked_phone_no_token(client, db, sms_stub, clock):
     assert token not in detail
     assert '01024736730' not in detail  # 원문 수신번호 미격납(마스킹)
     assert logs[0].detail['sent'] is True
+    assert logs[0].detail['sender_source'] == 'legacy'  # T8.1 최종 시도 출처 기록
