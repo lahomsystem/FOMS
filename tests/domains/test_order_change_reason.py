@@ -69,11 +69,15 @@ def test_stage_move_is_asked_again():
     assert is_reason_required([_change("workflow.stage")]) is True
 
 
-def test_item_detail_change_requires_reason():
-    """제품 세부 내역(규격·색상·손잡이·옵션)은 사유 대상이다."""
+def test_item_detail_is_recorded_but_not_asked():
+    """제품 세부 내역은 **기록만** 한다 (사용자 결정 2026-08-14).
+
+    규격·색상·손잡이·옵션 변경은 ``order_field_changes`` 원장에 before→after 로 계속 남는다.
+    사유를 안 묻는 것뿐이다 — 축에 넣으면 사유 창이 저장의 60% 에서 뜨고(빼면 16%),
+    그 대부분이 손잡이·색상 같은 잦은 실무 수정이었다(운영 실측).
+    """
     for field in ("spec", "spec_width", "color", "handle", "option_detail", "product_name"):
-        assert is_reason_required([_change(f"items.0.{field}")]) is True, field
-    assert is_reason_required([_change("items.0.internal")]) is False   # 내부 메모는 제품 사양이 아니다
+        assert is_reason_required([_change(f"items.0.{field}")]) is False, field
 
 
 def test_item_price_requires_reason_regardless_of_index():
@@ -82,9 +86,9 @@ def test_item_price_requires_reason_regardless_of_index():
     assert is_reason_required([_change("items.7.price")]) is True
 
 
-def test_item_removal_asked_but_addition_is_not():
-    """있던 품목이 빠지는 것은 변경, 새로 다는 것은 최초 입력이다."""
-    assert is_reason_required([_change("items.2", op="remove")]) is True
+def test_item_composition_is_recorded_but_not_asked():
+    """품목 추가·삭제도 제품 세부와 함께 기록 전용이다(2026-08-14)."""
+    assert is_reason_required([_change("items.2", op="remove")]) is False
     assert is_reason_required([_change("items.3", op="add")]) is False
 
 
@@ -96,12 +100,12 @@ def test_first_entry_is_not_a_change():
     """
     first_entry = [
         {"path": "items.0.price", "before": None, "after": "500000", "op": "add"},
-        {"path": "items.0.spec", "before": "", "after": "W1200", "op": "set"},
+        {"path": "payment.deposit", "before": "", "after": "300000", "op": "set"},
         {"path": "schedule.construction.date", "before": None, "after": "2026-08-27", "op": "add"},
     ]
     assert is_reason_required(first_entry, stage="CONFIRM") is False
 
-    edited = [{"path": "items.0.spec", "before": "W1200", "after": "W1500", "op": "set"}]
+    edited = [{"path": "items.0.price", "before": "500000", "after": "900000", "op": "set"}]
     assert is_reason_required(edited) is True
 
 

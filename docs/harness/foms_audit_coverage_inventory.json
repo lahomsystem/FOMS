@@ -1626,7 +1626,7 @@
     {
       "path": "foms/web/orders/trash.py",
       "endpoint": "delete_order",
-      "lineno": 171,
+      "lineno": 174,
       "methods": [
         "POST"
       ],
@@ -1635,7 +1635,7 @@
     {
       "path": "foms/web/orders/trash.py",
       "endpoint": "restore_orders",
-      "lineno": 266,
+      "lineno": 289,
       "methods": [
         "POST"
       ],

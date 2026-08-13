@@ -98,6 +98,15 @@
     return wrap;
   }
 
+  /** 고른 값을 그대로 돌려주고 닫는다(collect 모드 — 아직 서버 요청 전인 행위). */
+  function resolveCollected(detail, code, note) {
+    var resolve = pendingResolve;
+    pendingResolve = null;
+    if (activeHost && activeHost.parentNode) activeHost.parentNode.removeChild(activeHost);
+    activeHost = null;
+    if (resolve) resolve({ code: code, note: note || '' });
+  }
+
   /** 전체 저장용 시트 모달. */
   function openModal(detail, codes) {
     dismiss();
@@ -111,12 +120,13 @@
 
     var title = document.createElement('div');
     title.className = 'foms-reason-title';
-    title.textContent = '이 변경을 한 이유를 골라주세요';
+    title.textContent = detail.title || '이 변경을 한 이유를 골라주세요';
     card.appendChild(title);
 
     var hint = document.createElement('div');
     hint.className = 'foms-reason-hint';
-    hint.textContent = '금액·일정·단계가 바뀐 저장입니다. 나중에 분쟁이 생기면 이 기록이 근거가 됩니다.';
+    hint.textContent = detail.hint
+      || '금액·일정·단계가 바뀐 저장입니다. 나중에 분쟁이 생기면 이 기록이 근거가 됩니다.';
     card.appendChild(hint);
 
     var status = document.createElement('div');
@@ -130,6 +140,10 @@
     noteBox.hidden = true;
 
     card.appendChild(buildChoices(codes, function (entry) {
+      if (detail.collect && !entry.note_required) {
+        resolveCollected(detail, entry.code, '');
+        return;
+      }
       if (entry.note_required && noteBox.hidden) {
         // 기타는 메모가 있어야 집계에서 "그 밖"이 뭉개지지 않는다.
         noteBox.hidden = false;
@@ -137,7 +151,8 @@
         status.textContent = '기타 사유를 적고 Enter 를 눌러주세요.';
         noteBox.onkeydown = function (event) {
           if (event.key !== 'Enter') return;
-          submit(detail, entry.code, noteBox.value, status);
+          if (detail.collect) resolveCollected(detail, entry.code, noteBox.value);
+          else submit(detail, entry.code, noteBox.value, status);
         };
         return;
       }
@@ -149,7 +164,7 @@
     var later = document.createElement('button');
     later.type = 'button';
     later.className = 'foms-reason-later';
-    later.textContent = '나중에 입력';
+    later.textContent = detail.collect ? '취소' : '나중에 입력';
     later.addEventListener('click', dismiss);
     card.appendChild(later);
 
@@ -201,10 +216,16 @@
    * 이동한다 — 기다리지 않으면 시트가 뜨자마자 사라진다).
    *
    * @param {{orderId:(number|string), changeSet:string, mode:(string|undefined)}} detail
-   * @returns {Promise<void>} 사유를 남겼거나 사용자가 닫으면 resolve.
+   * ``detail.collect`` 가 참이면 서버로 보내지 않고 고른 값
+   * (``{code, note}``)을 돌려준다 — 삭제처럼 **요청 전에** 사유를 받아 함께 실어야 하는 행위용.
+   *
+   * @returns {Promise<void|{code:string,note:string}>} 사유를 남겼거나 사용자가 닫으면 resolve.
    */
   function prompt(detail) {
-    if (!detail || !detail.orderId || !detail.changeSet) return Promise.resolve();
+    // collect 모드는 아직 change set 이 없다(삭제처럼 요청 자체가 아직 안 나갔다).
+    if (!detail || !detail.orderId || (!detail.collect && !detail.changeSet)) {
+      return Promise.resolve();
+    }
     return loadCodes()
       .then(function (codes) {
         if (!codes.length) return;

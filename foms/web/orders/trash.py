@@ -12,6 +12,8 @@ cleanup_order_drafts)은 원상태(``original_status``)로 되돌리고, canonic
 import copy
 import logging
 
+import uuid
+
 from flask import Blueprint, flash, make_response, redirect, render_template, request, session, url_for
 from sqlalchemy import String, text
 
@@ -20,6 +22,7 @@ from db import get_db
 from foms.services.erp_display import _ensure_dict, apply_erp_display_fields
 from foms.services.erp_order_flags import is_erp_order_record
 from foms.services.order_display_utils import format_options_for_display
+from foms.services.orders.change_reason import reason_label, record_action_reason
 from foms.services.orders.soft_delete import restore_order, soft_delete_order
 from foms.services.request_utils import get_preserved_filter_args
 from foms.services.gnav_contract import gnav_orders_layout_parent, wants_gnav_fragment
@@ -201,6 +204,19 @@ def delete_order(order_id):
         # canonical soft delete: deleted_at projection + version bump + ORDER_SOFT_DELETED
         # event(hard delete 없음·status/overlay 축 보존). commit 은 이 route 가 소유한다.
         soft_delete_order(db, order_id=order_id, actor_user_id=session.get("user_id"))
+
+        # ORDER-REASON-00: 주문 취소(=휴지통 이동) 사유. 폼이 고른 코드를 같은 트랜잭션에
+        # 싣는다. 사유가 비었거나 형식이 틀려도 삭제는 진행된다(unspecified 로 남는다) —
+        # 사유 때문에 취소가 막히면 현장이 멈춘다.
+        delete_change_set = str(uuid.uuid4())
+        delete_reason_code, delete_reason_note = record_action_reason(
+            db,
+            order_id=order_id,
+            change_set_id=delete_change_set,
+            code=(request.form.get("reason_code") or "").strip(),
+            note=(request.form.get("reason_note") or "").strip(),
+            actor_user_id=session.get("user_id"),
+        )
         db.commit()
 
         # 삭제 즉시 반영: 대시보드 read-slice 캐시(TTL 최대 300초)를 무효화하지 않으면
@@ -213,8 +229,15 @@ def delete_order(order_id):
         except Exception as exc_notif:
             logger.warning("production change finalize (delete) failed: %s", exc_notif, exc_info=True)
         log_access(
-            f"주문 #{order_id} ({customer_name_for_log}) 삭제 - 담당자: {user_name_for_log}",
+            f"주문 #{order_id} ({customer_name_for_log}) 삭제 - 담당자: {user_name_for_log}"
+            f" · 사유: {reason_label(delete_reason_code)}",
             session.get("user_id"),
+            action="ORDER_SOFT_DELETED", target_type="order", target_id=int(order_id),
+            detail={
+                "change_set": delete_change_set,
+                "reason_code": delete_reason_code,
+                "reason_note": delete_reason_note,
+            },
         )
         flash("주문이 휴지통으로 이동되었습니다.", "success")
     except Exception as exc:
