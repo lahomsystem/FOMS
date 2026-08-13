@@ -19,10 +19,19 @@ from models import Order, OrderAttachment, OrderEvent
 from foms.web.auth import log_access, login_required, role_required
 from foms.services.audit_message_display import describe_order_action
 from foms.services.orders.audit_order_context import order_audit_context
+from foms.services.channel_as_attachments import (
+    last_pushed_max_attachment_id,
+    select_as_push_attachments,
+)
 from foms.services.channel_as_message import build_as_push_text
+from foms.services.orders.as_log import decorate_entry
 from foms.services.channel_client import is_configured
 from foms.services.channel_dispatch import dispatch_order_event
-from foms.services.channel_policy import ChannelGroupRetiredError, get_routing_group_id
+from foms.services.channel_policy import (
+    MAX_MANUAL_ATTACHMENTS,
+    ChannelGroupRetiredError,
+    get_routing_group_id,
+)
 from foms.services.orders.revision import execute_order_mutation
 from foms.services.sidefx_outbox import enqueue_side_effect
 from foms.services.storage import get_storage
@@ -39,6 +48,9 @@ _MAX_TEXT_LENGTH = 4000
 _MIN_CHANGE_NOTE_LEN = 1
 _MAX_CHANGE_NOTE_LEN = 500
 _RETIRED_GROUP_MESSAGE = '이 채널톡 방(554075)으로의 PUSH 기능은 삭제되었습니다.'
+# 전송 확인창에 내려보내는 첨부 후보 상한(미선택분 포함). 전송 상한(20)보다 넉넉해야
+# 사용자가 기본 선정 밖의 파일을 되살릴 수 있다.
+_PREVIEW_CANDIDATE_MAX = 40
 
 # CHANNEL-WRITER-01: push 전송 결과 metadata 를 기록하는 typed command 상수.
 # 전송(transport provider: dispatch_order_event/channel_functions)은 무변경 — 아래 이름들은
@@ -98,6 +110,34 @@ def _infer_mime(filename: str, file_type: str) -> str:
     return 'video/mp4' if file_type == 'video' else 'image/jpeg'
 
 
+def _parse_attachment_ids(raw) -> tuple:
+    """전송 확인창이 지정한 첨부 id 목록 파싱 → ``(ids | None, 오류문구 | None)``.
+
+    ``None`` 반환은 "지정 없음"(서버 기본 선정 규칙 사용)이고, 빈 리스트는 "첨부 없이
+    본문만 전송"이라는 명시적 선택이라 서로 구분한다.
+
+    Args:
+        raw: 요청 payload 의 ``attachment_ids`` 원값.
+
+    Returns:
+        (첨부 id 리스트 또는 None, 사용자 문구 또는 None).
+    """
+    if raw is None:
+        return None, None
+    if not isinstance(raw, list):
+        return None, 'attachment_ids 는 배열이어야 합니다.'
+    if len(raw) > MAX_MANUAL_ATTACHMENTS:
+        return None, f'첨부는 최대 {MAX_MANUAL_ATTACHMENTS}개까지 전송할 수 있습니다.'
+    ids = []
+    for item in raw:
+        # bool 은 int 의 하위형이라 명시적으로 배제한다(True 가 1번 첨부로 통과하는 것 방지).
+        if isinstance(item, bool) or not isinstance(item, int):
+            return None, 'attachment_ids 는 첨부 id(정수) 배열이어야 합니다.'
+        if item not in ids:
+            ids.append(item)
+    return ids, None
+
+
 def _push_mutation_hashes(
     order_id: int, push_kind: str, send_ref, is_resend: bool, change_note: str, group_id
 ) -> tuple:
@@ -142,6 +182,7 @@ def _record_push_metadata(
     change_note: str,
     pushed_by_name,
     actor_user_id,
+    attachment_ids=None,
 ):
     """채널톡 push 전송 결과·metadata 를 typed command 로 원자 기록한다 (CHANNEL-WRITER-01).
 
@@ -164,6 +205,7 @@ def _record_push_metadata(
         change_note: 재전송 변경 메모(재전송이 아니면 '').
         pushed_by_name: 전송자 표시명(change_log 기록).
         actor_user_id: receipt/OrderEvent actor(로그인 사용자 id).
+        attachment_ids: 이번에 실제로 전송한 첨부 id 목록(AS-FRESH-01 provenance).
 
     Returns:
         MutationResult: ``replayed`` 여부 포함. 호출자는 성공 응답만 만들면 된다.
@@ -215,6 +257,14 @@ def _record_push_metadata(
                 'message_id': msg_id,
             })
             next_push['change_log'] = change_log[-_PUSH_CHANGE_LOG_CAP:]
+        # 발송 provenance(AS-FRESH-01 T9): 다음 PUSH 의 "미발송분" 판정 근거.
+        # attachment_ids 는 **최신 1회분만** 둔다(누적하면 append-only JSONB 가 부푼다).
+        # max_attachment_id 만 단조 유지 — 첨부를 0건 보낸 재전송이 기준선을 되돌리면
+        # 이미 보낸 파일이 "미발송"으로 되살아난다.
+        if attachment_ids is not None:
+            ids = [int(i) for i in attachment_ids if isinstance(i, int)]
+            next_push['attachment_ids'] = ids
+            next_push['max_attachment_id'] = max([*ids, last_pushed_max_attachment_id(prev)])
         sd[history_key] = next_push
         o.structured_data = sd
         flag_modified(o, 'structured_data')
@@ -398,8 +448,30 @@ def api_channel_push_manual():
             .all()
         )
 
+        # AS 는 "이번 건의 최신 첨부"만 보낸다(AS-FRESH-01). 전량 발사는 옛 사진 혼입 +
+        # 상한 20장을 오래된 것부터 채우는 최신 탈락을 함께 일으켰다. 클라이언트가
+        # attachment_ids 를 지정하면(전송 확인창) 그 선택이 우선하되, 소속은 서버가 재검증한다.
+        if push_kind == 'as':
+            explicit_ids, id_error = _parse_attachment_ids(payload.get('attachment_ids'))
+            if id_error:
+                return jsonify({'success': False, 'message': id_error}), 400
+            if explicit_ids is not None:
+                allowed = {att.id: att for att in attachments}
+                unknown = [i for i in explicit_ids if i not in allowed]
+                if unknown:
+                    return jsonify({
+                        'success': False,
+                        'message': '이 주문의 AS 첨부가 아닌 파일이 포함됐습니다.',
+                    }), 400
+                attachments = [allowed[i] for i in sorted(explicit_ids)]
+            else:
+                attachments = select_as_push_attachments(
+                    sd, attachments, sd.get(kind_config['history_key'])
+                )
+
         storage = get_storage()
         files = []
+        sent_attachment_ids = []
         for att in attachments:
             if not att.storage_key:
                 continue
@@ -410,6 +482,10 @@ def api_channel_push_manual():
                     'url': url,
                     'mime': _infer_mime(att.filename or '', att.file_type or 'image'),
                 })
+                sent_attachment_ids.append(att.id)
+        # 전송 단(apply_attachment_policy)이 files[:20] 로 자르므로 provenance 도 같은 자리에서
+        # 자른다 — 안 자르면 "보냈다고 기록됐지만 실제로는 안 나간" 첨부가 생긴다.
+        sent_attachment_ids = sent_attachment_ids[:MAX_MANUAL_ATTACHMENTS]
 
         current_user = getattr(g, "current_user", None)
         pushed_by_name = current_user.name if current_user else None
@@ -445,6 +521,7 @@ def api_channel_push_manual():
             change_note=change_note,
             pushed_by_name=pushed_by_name,
             actor_user_id=current_user.id if current_user else None,
+            attachment_ids=sent_attachment_ids,
         )
 
         _audit_channel_push(order, push_kind, is_resend,
@@ -462,6 +539,99 @@ def api_channel_push_manual():
         err_msg = str(e)
         logger.error("[채널톡 수동푸쉬] 예외: %s\n%s", err_msg, traceback.format_exc())
         return jsonify({'success': False, 'message': f'서버 오류: {err_msg}', 'error': err_msg}), 500
+
+
+def _as_log_labels(sd: dict) -> dict:
+    """as_log 항목 id → ``1차 · 방안 8/13`` 출처 표기. 확인창에서 파일 출처를 보여준다."""
+    entries = (sd.get('shipment') or {}).get('as_log')
+    if not isinstance(entries, list):
+        return {}
+    labels = {}
+    for entry in entries:
+        if not isinstance(entry, dict):
+            continue
+        log_id = str(entry.get('id') or '')
+        if not log_id:
+            continue
+        decorated = decorate_entry(entry)
+        stamp = str(decorated.get('ts_abs') or '')[:10]
+        month_day = ''
+        if len(stamp) == 10 and stamp[4] == '-':
+            month_day = f" {int(stamp[5:7])}/{int(stamp[8:10])}"
+        labels[log_id] = f"{decorated['round']}차 · {decorated['type_label']}{month_day}"
+    return labels
+
+
+@channel_integration_bp.route('/push-preview', methods=['GET'])
+@login_required
+@role_required(['ADMIN', 'MANAGER', 'STAFF'])
+def api_channel_push_preview():
+    """AS PUSH 전송 확인창 미리보기 — 나갈 본문 + 첨부 후보(기본 선정 표시).
+
+    전송 직전에 "무엇이 나가는지"를 사람이 눈으로 확인하는 표면이다. 기본 선정은
+    ``select_as_push_attachments`` 와 **같은 함수**를 쓴다 — 미리보기와 실제 전송이 다른
+    규칙을 쓰면 확인창이 오히려 오해를 만든다.
+
+    Query Args:
+        order_id: 대상 주문 PK.
+        push_kind: 현재는 ``as`` 만 지원(다른 값은 400).
+
+    Returns:
+        200 ``{success, text, files:[{id, filename, url, is_image, selected, source}]}`` /
+        400 잘못된 인자 / 404 주문 없음.
+    """
+    db = get_db()
+    push_kind = (request.args.get('push_kind') or 'as').strip()
+    if push_kind != 'as':
+        return jsonify({'success': False, 'message': 'AS PUSH 만 미리보기를 지원합니다.'}), 400
+    try:
+        order_id = int(request.args.get('order_id') or 0)
+    except (TypeError, ValueError):
+        order_id = 0
+    if order_id <= 0:
+        return jsonify({'success': False, 'message': 'order_id 가 없습니다.'}), 400
+
+    order = db.query(Order).filter(Order.id == order_id, Order.active_filter()).first()
+    if not order:
+        return jsonify({'success': False, 'message': f'주문 #{order_id}을 찾을 수 없습니다.'}), 404
+
+    sd = order.structured_data if isinstance(order.structured_data, dict) else {}
+    attachments = (
+        db.query(OrderAttachment)
+        .filter(OrderAttachment.order_id == order.id, OrderAttachment.category == 'as')
+        .order_by(OrderAttachment.id.asc())
+        .all()
+    )
+    selected = select_as_push_attachments(sd, attachments, sd.get('channeltalk_push_as'))
+    selected_ids = {att.id for att in selected}
+
+    # 후보 = 최신 _PREVIEW_CANDIDATE_MAX 장 + 기본 선정분(회차 결합으로 더 오래된 것이
+    # 뽑혔을 수 있다). 사용자가 옛 파일을 되살릴 수 있어야 하므로 미선택분도 함께 내린다.
+    pool = {att.id: att for att in attachments[-_PREVIEW_CANDIDATE_MAX:]}
+    pool.update({att.id: att for att in selected})
+
+    labels = _as_log_labels(sd)
+    storage = get_storage()
+    files = []
+    for att in sorted(pool.values(), key=lambda a: a.id, reverse=True):
+        if not att.storage_key:
+            continue
+        preview_key = att.thumbnail_key or att.storage_key
+        files.append({
+            'id': att.id,
+            'filename': att.filename or 'file',
+            'url': storage.get_download_url(preview_key, expires_in=3600),
+            'is_image': (att.file_type or 'image') == 'image',
+            'selected': att.id in selected_ids,
+            'source': labels.get(str(getattr(att, 'as_log_id', None) or ''), '이전 첨부'),
+        })
+
+    return jsonify({
+        'success': True,
+        'text': build_as_push_text(order),
+        'files': files,
+    })
+
 
 _ESTIMATE_PUSH_HISTORY_KEY = 'channeltalk_push_estimate'
 _MAX_ESTIMATE_IMAGE_BYTES = 15 * 1024 * 1024  # 15MB (견적서 PNG는 보통 수 MB 이내)
