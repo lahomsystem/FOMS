@@ -33,6 +33,7 @@ from foms.services.audit_message_display import describe_order_action, summarize
 from foms.services.orders.audit_order_context import order_audit_context
 from foms.services.orders.structured_item_uid import ensure_item_uids
 from foms.services.orders.order_field_change_writer import record_field_changes
+from foms.services.orders.change_reason import is_reason_required
 from foms.services.orders.structured_diff import MAX_CHANGES, DiffResult, diff_structured
 from foms.services.datetime_kst import now_kst
 from foms.services.erp_order_flags import (
@@ -442,7 +443,7 @@ def _save_note(base: str, diff: DiffResult) -> str:
     return f"{base} · {summary}" if summary else base
 
 
-def _diff_detail(diff: DiffResult, change_set_id: str) -> dict:
+def _diff_detail(diff: DiffResult, change_set_id: str, reason_required: bool = False) -> dict:
     """변경 비교 결과를 ``security_logs.detail`` 조각으로 만든다 (ORDER-DIFF-00·01).
 
     detail 은 **화면용**이라 두 겹으로 줄인다:
@@ -460,10 +461,15 @@ def _diff_detail(diff: DiffResult, change_set_id: str) -> dict:
 
     :param diff: 변경 비교 결과(상한 없이 계산된 전량).
     :param change_set_id: 저장 1회 묶음 id — 항목 원장과 잇는 유일한 열쇠다.
-    :return: ``{'change_set','change_count','truncated','changes'}``.
+    :param reason_required: 사유를 물어야 하는 저장인지(ORDER-REASON-00). 참일 때만 키를 넣고
+        그 몫을 예산에서 **먼저** 뺀다 — 변경 목록이 예산을 다 쓴 뒤 이 키를 얹으면 detail
+        전체가 표식으로 바뀐다.
+    :return: ``{'change_set','change_count','truncated','changes'[,'reason_required']}``.
     """
     shown: list[dict] = []
     budget = _DETAIL_CHANGES_BUDGET
+    if reason_required:
+        budget -= len('"reason_required": true, ')
     for change in diff.changes[:MAX_CHANGES]:
         display = {key: value for key, value in change.items() if key != 'uid'}
         cost = len(json.dumps(display, ensure_ascii=False, default=str))
@@ -472,12 +478,17 @@ def _diff_detail(diff: DiffResult, change_set_id: str) -> dict:
         budget -= cost
         shown.append(display)
 
-    return {
+    detail = {
         'change_set': change_set_id,
         'change_count': diff.total,
         'truncated': max(0, diff.total - len(shown)),
         'changes': shown,
     }
+    if reason_required:
+        # 사유가 실제로 붙었는지는 order_change_reasons 가 답한다. 여기 표식은 "물어야 했던
+        # 저장"을 감사 화면에서 바로 구분하기 위한 것이다(미입력 저장 추적).
+        detail['reason_required'] = True
+    return detail
 
 
 def _record_structured_events(
@@ -920,6 +931,9 @@ def api_patch_order_structured_fields(order_id: int):
         # ORDER-DIFF-01: 원장에는 전량을 싣는다(상한은 화면용 detail 에만 건다).
         patch_diff = diff_structured(old_sd, structured_data, max_changes=-1)
         patch_change_set = _new_change_set_id()
+        # ORDER-REASON-00: 판정은 서버가 사후에 한다(클라 사전 판정은 경로 목록이 2벌이 된다).
+        # 인라인은 blur 자동저장이라 모달을 띄우지 않는다 — 화면은 응답을 보고 배너를 띄운다.
+        patch_reason_required = is_reason_required(patch_diff.changes)
         record_field_changes(
             db, patch_diff.changes,
             order_id=int(order_id),
@@ -935,7 +949,7 @@ def api_patch_order_structured_fields(order_id: int):
             detail={
                 'mode': 'inline',
                 'field': field,
-                **_diff_detail(patch_diff, patch_change_set),
+                **_diff_detail(patch_diff, patch_change_set, patch_reason_required),
                 **patch_context,
             },
         )
@@ -959,6 +973,9 @@ def api_patch_order_structured_fields(order_id: int):
             'success': True,
             'structured_updated_at': format_updated_at(now),
             'critical': is_critical_field(field),
+            # ORDER-REASON-00: 사유는 저장을 막지 않는다 — 저장 성공 뒤에 붙인다.
+            'change_reason_required': patch_reason_required,
+            'change_set': patch_change_set,
         }), 200
     except ValueError as exc:
         db.rollback()
@@ -1218,6 +1235,9 @@ def api_put_order_structured(order_id):
             put_context = order_audit_context(order)
             put_diff = captured['diff'] or DiffResult([], 0, 0)
             put_change_set = _new_change_set_id()
+            # ORDER-REASON-00: 금액·일정·단계가 바뀐 저장이면 화면이 저장 성공 뒤에 사유를
+            # 묻는다. 판정은 여기(서버)에만 있고, 응답으로 내려보낸다.
+            put_reason_required = is_reason_required(put_diff.changes)
             # 원장 행은 저장과 같은 트랜잭션에 실린다(아래 db.commit() 이 함께 커밋한다).
             record_field_changes(
                 db, put_diff.changes,
@@ -1231,7 +1251,11 @@ def api_put_order_structured(order_id):
                 actor_user_id,
                 auto_commit=False,
                 action='ORDER_STRUCTURED_SAVED', target_type='order', target_id=int(order_id),
-                detail={'mode': 'full', **_diff_detail(put_diff, put_change_set), **put_context},
+                detail={
+                    'mode': 'full',
+                    **_diff_detail(put_diff, put_change_set, put_reason_required),
+                    **put_context,
+                },
             )
             db.commit()
         except RevisionConflictError as conflict:
@@ -1324,6 +1348,9 @@ def api_put_order_structured(order_id):
             'draft_cleared': captured['draft_cleared'],
             'mutation_receipt': outcome.read_receipt_id,
             'mutation_version': final_version,
+            # ORDER-REASON-00: 저장은 이미 성공했다. 화면은 이 두 값으로 사유를 붙인다.
+            'change_reason_required': put_reason_required,
+            'change_set': put_change_set,
         })
         for header, value in outcome.headers.items():
             resp.headers[header] = value

@@ -24,10 +24,28 @@ def _change(path, op="set"):
     return {"path": path, "before": "1", "after": "2", "op": op}
 
 
-def test_amount_change_requires_reason():
-    """금액은 분쟁 1순위 축이다."""
-    assert is_reason_required([_change("totals.final_amount")]) is True
+def test_amount_input_change_requires_reason():
+    """금액은 분쟁 1순위 축이다 — 단 **입력 경로**로 본다."""
     assert is_reason_required([_change("payment.deposit")]) is True
+    assert is_reason_required([_change("payment.discount")]) is True
+    assert is_reason_required([_change("items.0.price")]) is True
+
+
+def test_derived_totals_alone_do_not_require_reason():
+    """``totals.*`` 는 서버가 매 저장마다 재계산하는 파생값이다.
+
+    저장된 totals 가 낡은 주문(=운영에 흔하다)에서 전화번호만 고쳐도 재계산 차이가 생기는데,
+    그것까지 "금액 변경"으로 보면 사유 창이 아무 때나 뜬다(2026-08-13 실측으로 확인).
+    진짜 금액 변경은 그 값을 만든 입력 경로가 함께 바뀌므로 놓치지 않는다.
+    """
+    derived = [
+        _change("totals.items_total"),
+        _change("totals.final_amount"),
+        _change("totals.balance_amount"),
+        _change("totals.shipping_price"),
+    ]
+    assert is_reason_required(derived) is False
+    assert is_reason_required(derived + [_change("items.0.price")]) is True
 
 
 def test_schedule_change_requires_reason():
@@ -47,14 +65,10 @@ def test_item_price_requires_reason_regardless_of_index():
     assert is_reason_required([_change("items.7.price")]) is True
 
 
-def test_item_removal_requires_reason():
-    """품목 교체는 총액이 그대로일 수 있어 금액 경로에 안 걸린다 — 삭제 자체를 본다."""
+def test_item_composition_change_requires_reason():
+    """품목이 통째로 들고 나면 ``add``/``remove`` 1건으로만 남아 단가 경로에 안 걸린다."""
     assert is_reason_required([_change("items.2", op="remove")]) is True
-
-
-def test_item_addition_alone_does_not_require_reason():
-    """추가는 ``totals.items_total`` 이 함께 바뀌어 결국 잡힌다 — 여기서 중복으로 잡지 않는다."""
-    assert is_reason_required([_change("items.3", op="add")]) is False
+    assert is_reason_required([_change("items.3", op="add")]) is True
 
 
 def test_non_sensitive_changes_do_not_require_reason():
@@ -75,12 +89,12 @@ def test_empty_diff_does_not_require_reason():
 
 def test_required_judgement_runs_on_real_diff_output():
     """실제 ``diff_structured`` 출력 형태로도 판정된다(경로 문법이 어긋나면 여기서 깨진다)."""
-    old = {"totals": {"final_amount": "1,000,000"}, "items": [{"product_name": "장", "price": "10"}]}
-    new = {"totals": {"final_amount": "1,200,000"}, "items": [{"product_name": "장", "price": "10"}]}
+    old = {"items": [{"product_name": "장", "price": "500000"}]}
+    new = {"items": [{"product_name": "장", "price": "620000"}]}
 
     result = diff_structured(old, new, max_changes=-1)
 
-    assert result.total == 1
+    assert [change["path"] for change in result.changes] == ["items.0.price"]
     assert is_reason_required(result.changes) is True
 
 

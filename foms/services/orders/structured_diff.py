@@ -30,7 +30,8 @@ __all__ = [
     "MAX_CHANGES",
     "NUMERIC_PATH_SUFFIXES",
     "SCALAR_PATHS",
-    "SENSITIVE_ITEM_REMOVE_TEMPLATE",
+    "SENSITIVE_ITEM_OPS",
+    "SENSITIVE_ITEM_TEMPLATE",
     "SENSITIVE_PATH_TEMPLATES",
     "DiffResult",
     "diff_structured",
@@ -118,17 +119,13 @@ MAX_CHANGES = 40
 #:
 #: 고르는 기준은 "분쟁이 실제로 나는 축" 하나다 — 금액·일정·단계. 전 경로에 사유를 물으면
 #: 직원이 귀찮아서 아무 값이나 고르고, 그 순간 기록의 가치가 0 이 된다(사용자 결정 2026-08-13).
-#: 품목 **추가**는 여기 없지만 ``totals.items_total`` 이 함께 바뀌므로 결국 사유 대상이 된다.
+#:
+#: **``totals.*`` 는 일부러 뺐다** — 전부 서버 파생값이다(``structured_form_projection`` 이 매
+#: 저장마다 품목 price·payment 입력에서 재계산한다). 넣으면 저장된 totals 가 낡은 주문에서
+#: 전화번호만 고친 저장이 "금액 변경"으로 판정돼 사유를 묻는다(2026-08-13 실측으로 확인).
+#: 파생값은 그 값을 만든 **입력 경로**가 대신 대표한다.
 SENSITIVE_PATH_TEMPLATES: frozenset[str] = frozenset({
-    # --- 금액 ---
-    "totals.items_total",
-    "totals.deposit_amount",
-    "totals.balance_amount",
-    "totals.final_amount",
-    "totals.discount_amount",
-    "totals.free_input_amount",
-    "totals.contract_total",
-    "totals.shipping_price",
+    # --- 금액(사용자 입력 경로만) ---
     "payment.deposit",
     "payment.discount",
     "payment.free_input",
@@ -146,9 +143,12 @@ SENSITIVE_PATH_TEMPLATES: frozenset[str] = frozenset({
     "workflow.stage",
 })
 
-#: 품목 자체가 사라진 변경(``items.*`` + ``op='remove'``)도 사유 대상이다.
-#: 품목 교체처럼 총액이 그대로인 삭제는 금액 경로에 안 걸리기 때문이다.
-SENSITIVE_ITEM_REMOVE_TEMPLATE = "items.*"
+#: 품목 구성 변경(``items.*`` 의 추가·삭제)도 사유 대상이다. 품목 하나가 통째로 들고 나면
+#: 개별 필드 변경이 아니라 ``add``/``remove`` 1건으로만 남아 ``items.*.price`` 에 걸리지 않는다.
+SENSITIVE_ITEM_TEMPLATE = "items.*"
+
+#: 위 템플릿에서 사유를 요구하는 연산.
+SENSITIVE_ITEM_OPS: frozenset[str] = frozenset({"add", "remove"})
 
 _EMPTY_TOKENS = frozenset({"", "none", "null", "-"})
 _VALUE_LIMIT = 120

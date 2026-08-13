@@ -24,7 +24,8 @@ from typing import Any, Iterable, Mapping
 
 from foms.services.orders.order_field_change_writer import path_template_of
 from foms.services.orders.structured_diff import (
-    SENSITIVE_ITEM_REMOVE_TEMPLATE,
+    SENSITIVE_ITEM_OPS,
+    SENSITIVE_ITEM_TEMPLATE,
     SENSITIVE_PATH_TEMPLATES,
 )
 
@@ -99,8 +100,8 @@ def is_reason_required(changes: Iterable[Mapping[str, Any]]) -> bool:
         template = path_template_of(path)
         if template in SENSITIVE_PATH_TEMPLATES:
             return True
-        # 품목 삭제: 총액이 그대로인 품목 교체는 금액 경로에 안 걸린다.
-        if template == SENSITIVE_ITEM_REMOVE_TEMPLATE and (change or {}).get("op") == "remove":
+        # 품목 추가·삭제는 필드 변경이 아니라 한 건으로만 남아 items.*.price 에 안 걸린다.
+        if template == SENSITIVE_ITEM_TEMPLATE and (change or {}).get("op") in SENSITIVE_ITEM_OPS:
             return True
     return False
 

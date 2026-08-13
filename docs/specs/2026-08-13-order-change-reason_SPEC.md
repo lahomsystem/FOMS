@@ -39,14 +39,19 @@
 `structured_diff` 가 만든 `path` 를 `path_template_of` 로 정규화해 이 집합과 대조한다
 (품목 인덱스 무관).
 
-- **금액**: `totals.items_total` · `totals.deposit_amount` · `totals.balance_amount` ·
-  `totals.final_amount` · `totals.discount_amount` · `totals.free_input_amount` ·
-  `totals.contract_total` · `totals.shipping_price` · `payment.deposit` · `payment.discount` ·
-  `payment.free_input` · `items.*.price`
+- **금액(입력 경로만)**: `payment.deposit` · `payment.discount` · `payment.free_input` ·
+  `items.*.price`
 - **일정**: `schedule.measurement.date/time` · `schedule.construction.date/time` ·
   `schedule.as_visit.date/time` · `items.*.measurement_date` · `items.*.construction_date`
 - **단계/취소**: `workflow.stage`
-- **품목 삭제**: `items.*` 의 `op == 'remove'`
+- **품목 구성**: `items.*` 의 `op ∈ {add, remove}`
+
+> **`totals.*` 를 뺀 이유 (2026-08-13 구현 중 실측)**: `totals` 는 전부 서버 파생값이다 —
+> `structured_form_projection` 이 매 저장마다 품목 단가·`payment` 입력에서 재계산한다
+> (`final_amount = balance = contract_total - deposit - discount`). 넣어 두면 저장된 totals 가
+> 낡은 주문에서 **전화번호만 고친 저장이 "금액 변경"으로 판정**돼 사유 창이 아무 때나 뜬다
+> (테스트로 재현). 진짜 금액 변경은 그 값을 만든 입력 경로가 함께 바뀌므로 놓치지 않는다.
+> 품목 통째 추가·삭제는 개별 필드 변경이 아니라 `add`/`remove` 1건으로만 남아 별도로 잡는다.
 
 여기 없는 경로만 바뀐 저장은 사유를 묻지 않는다(기록은 기존대로 남는다).
 
