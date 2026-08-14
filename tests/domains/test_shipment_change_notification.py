@@ -8,7 +8,7 @@
 * 60초 안의 두 번째 변경은 새 row 를 만들지 않고 **merge** 한다. 이때 최초 ``from`` 을
   보존하고 ``to`` 만 최신으로 올린다(생산 emitter 가 이전 ``from`` 을 덮어써 잃는 결함의
   회귀 방지).
-* **주문 생성은 0건** — 생성에는 "이전 값"이 없다(T1 이 ``session.new`` 를 제외한다).
+* **주문 생성·최초 지정은 0건** — 생성에는 "이전 값"이 없고, 미정 → 날짜는 정상 배정이다.
 * ``SHIPMENT_ORDER_CHANGED`` 가 ``push_sender._DEFAULT_P1_TYPES`` 에 있다. 미등록이면
   enqueue 해도 조용히 발송되지 않는다 — 운영의 ``PRODUCTION_ORDER_CHANGED`` 가 그 상태다.
 * 팬아웃은 대상 팀 사용자에게만 ``notification_user_states`` 를 만든다(무관 팀 제외).
@@ -75,6 +75,26 @@ def _make_order(construction_date: str = "2026-08-05", customer_name: str = "출
         structured_data=_sd(construction_date, customer_name),
         erp_stage_code="SHIPMENT",
         scheduled_date=construction_date,
+    )
+    db_session.add(order)
+    db_session.commit()
+    return order
+
+
+def _make_undated_order(customer_name: str = "출고 고객") -> Order:
+    """시공일이 비어 있는 주문 1건(커밋 포함). 이후 최초 지정 경로를 검증한다."""
+    order = Order(
+        received_date="2026-07-01",
+        customer_name=customer_name,
+        phone="010-3333-4444",
+        address="서울 출고로 1",
+        product="붙박이장",
+        status="IN_CONSTRUCTION",
+        manager_name="담당",
+        is_erp_order=True,
+        structured_data=_sd("", customer_name),
+        erp_stage_code="SHIPMENT",
+        scheduled_date=None,
     )
     db_session.add(order)
     db_session.commit()
@@ -181,6 +201,13 @@ def test_unchanged_save_creates_no_notification(app):
     """시공일이 그대로면 저장을 반복해도 알림 0건(허위 알림 금지)."""
     order = _make_order("2026-08-05")
     _move_construction_date(order, "2026-08-05")
+    assert _notifs(order.id) == []
+
+
+def test_first_date_assignment_creates_no_notification(app):
+    """미정 → 날짜 지정은 정상 최초 배정이라 벨/푸시 0건."""
+    order = _make_undated_order()
+    _move_construction_date(order, "2026-08-20")
     assert _notifs(order.id) == []
 
 

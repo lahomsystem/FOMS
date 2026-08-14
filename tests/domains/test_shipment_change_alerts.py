@@ -7,6 +7,8 @@
 * **시간 상한 없음**: 생산 선례의 entry 윈도·14일 컷오프를 답습하지 않는다 — 2년 전 변경도
   확인 전이면 계속 alert 다(사용자 결정).
 * **다중값 표기**: 콤마 연결 시공일은 ``"7/20, 7/22"``, 3개 초과는 ``"... 외 N"``.
+* **최초 지정 제외**: ``from`` 이 비었거나 못 읽으면(표시상 ``미정``) alert/history/배너
+  모두 제외. ``8/20 → 8/22`` 만 알림. 지정일을 지우는 ``8/14 → 미정`` 은 변경이므로 포함.
 * **손상 payload 내성**: dict 아님 / 키 없음 / 정규화 안 된 ``2026/07/20`` / 숫자·리스트에도
   예외 없이 degrade.
 * **배너**: ``{count, chips, overflow}`` (AS 배너와 동일 계약), 칩 상한 5.
@@ -273,9 +275,8 @@ def test_malformed_payloads_are_tolerated(app):
     _add_event(order.id, _CHANGE, {"from": ["2026-08-05"], "to": ["2026-08-09", "bad"]},
                _T0 + datetime.timedelta(days=6))
 
-    cc = _cc(order, _UID)  # 정보가 0인 4건은 제외, 살릴 수 있는 2건만 남는다.
+    cc = _cc(order, _UID)  # 정보가 0인 건·최초 지정(from 공란)은 제외, 날짜→날짜만 남긴다.
     assert [(a["from_md"], a["to_md"]) for a in cc["alerts"]] == [
-        ("미정", "8/5"),
         ("8/5", "8/9"),
     ]
 
@@ -328,6 +329,44 @@ def test_banner_chip_cap_and_overflow(app):
     assert banner["count"] == 7
     assert len(banner["chips"]) == 5
     assert banner["overflow"] == 2
+
+
+def test_first_date_assignment_is_not_an_alert(app):
+    """미정 → 날짜 지정은 정상 최초 배정이라 배지·배너에 올리지 않는다."""
+    order = _make_order()
+    _change(order.id, "", "2026-08-14", days=1)
+    _add_event(
+        order.id, _CHANGE, {"to": "2026-08-20"},
+        _T0 + datetime.timedelta(days=2),
+    )
+
+    cc = _cc(order, _UID)
+    assert cc["alerts"] == []
+    assert cc["history"] == []
+
+    banner = build_shipment_change_banner(
+        [order], collect_shipment_change_alerts(db_session, [order], _UID)
+    )
+    assert banner["count"] == 0
+    assert banner["chips"] == []
+
+
+def test_assigned_date_change_is_an_alert(app):
+    """이미 지정된 시공일이 다른 날짜로 바뀌면 알림이다."""
+    order = _make_order()
+    _change(order.id, "2026-08-20", "2026-08-22", days=1)
+
+    cc = _cc(order, _UID)
+    assert [(a["from_md"], a["to_md"]) for a in cc["alerts"]] == [("8/20", "8/22")]
+
+
+def test_clearing_assigned_date_is_an_alert(app):
+    """지정된 시공일을 지우는 것(날짜 → 미정)은 변경이므로 알림이다."""
+    order = _make_order()
+    _change(order.id, "2026-08-14", "", days=1)
+
+    cc = _cc(order, _UID)
+    assert [(a["from_md"], a["to_md"]) for a in cc["alerts"]] == [("8/14", "미정")]
 
 
 def test_banner_skips_acked_and_clean_orders(app):
