@@ -294,7 +294,11 @@ def map_group(details: list[dict], *, today: str) -> tuple[dict[str, Any], dict]
 
     items = []
     option_lines = []
-    for detail in details:
+    # 품목은 **대표 본품이 1번**이어야 한다 — 사람이 편집기에서 처음 보는 행이 33,200원짜리
+    # 길이추가 옵션이면 본품을 찾아 헤맨다(2026-08-14 실사용 피드백). 대표 먼저, 나머지는
+    # 원래 순서 유지.
+    display_order = [lead] + [d for i, d in enumerate(details) if i != lead_index]
+    for detail in display_order:
         _order, product_order, _shipping = unwrap_detail(detail)
         name = _text(product_order.get("productName"))
         option = _text(product_order.get("productOption"))
@@ -305,6 +309,8 @@ def map_group(details: list[dict], *, today: str) -> tuple[dict[str, Any], dict]
             "quantity": _int(product_order.get("quantity")) or 1,
             "price": _int(product_order.get("totalPaymentAmount")),
             "naver_product_order_id": _text(product_order.get("productOrderId")),
+            # 편집기·목록이 본품/추가옵션을 구분해 보여줄 근거(대표 = 본품).
+            "naver_role": "main" if detail is lead else "addon",
         })
         if option:
             option_lines.append(f"{name}: {option}" if len(details) > 1 else option)
