@@ -213,23 +213,33 @@ def test_route_creates_order_and_is_idempotent(client):
     assert db_session.query(Order).count() == 1
 
 
-def test_route_requires_admin(client):
-    """STAFF 는 주문을 만들 수 없다."""
+def test_route_allows_staff_and_blocks_viewer(client):
+    """T14-A 권한 개방: STAFF 는 주문을 만들 수 있고, VIEWER 는 여전히 차단된다."""
     staff = User(username="promo_staff", password=generate_password_hash("pw"),
                  role="STAFF", team="SALES", name="영업", is_active=True)
-    db_session.add(staff)
+    viewer = User(username="promo_viewer", password=generate_password_hash("pw"),
+                  role="VIEWER", team="CS", name="뷰어", is_active=True)
+    db_session.add_all([staff, viewer])
     db_session.commit()
-    with client.session_transaction() as sess:
-        sess["user_id"] = staff.id
-        sess["username"] = staff.username
-        sess["role"] = staff.role
+    staff_id, viewer_id = staff.id, viewer.id
     _accounts()
     link_id = _link().id
 
-    response = client.post(f"/admin/naver-ingest/{link_id}/create-order")
-
-    assert response.status_code in (302, 403)
+    with client.session_transaction() as sess:
+        sess["user_id"] = viewer_id
+        sess["username"] = "promo_viewer"
+        sess["role"] = "VIEWER"
+    denied = client.post(f"/admin/naver-ingest/{link_id}/create-order")
+    assert denied.status_code in (302, 403)
     assert db_session.query(Order).count() == 0
+
+    with client.session_transaction() as sess:
+        sess["user_id"] = staff_id
+        sess["username"] = "promo_staff"
+        sess["role"] = "STAFF"
+    allowed = client.post(f"/admin/naver-ingest/{link_id}/create-order")
+    assert allowed.status_code == 200 and allowed.get_json()["success"] is True
+    assert db_session.query(Order).count() == 1
 
 
 def test_route_reports_missing_accounts_instead_of_500(client):
