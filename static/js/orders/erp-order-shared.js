@@ -4809,7 +4809,10 @@ async function loadMeasurementPanel() {
                     const scope = c.scope_label || '수도권';
                     if (scope !== lastScope) {
                         lastScope = scope;
-                        html += '<div class="erp-measure-day-scope">' + escapeHtml(scope) +
+                        // 권역 색점은 패널 건수 뱃지 범례(지방=주황, 수도권=초록)와 같은 규약.
+                        const scopeMod = scope === '지방' ? 'regional' : 'metro';
+                        html += '<div class="erp-measure-day-scope erp-measure-day-scope--' + scopeMod + '">' +
+                            escapeHtml(scope) +
                             '<span class="erp-measure-day-scope__count">' + scopeCounts[scope] + '건</span></div>';
                     }
                     const region = c.region_label || '주소 미입력';

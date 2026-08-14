@@ -245,16 +245,31 @@ body.erp-measure-day-modal-open {
    대비를 넣어 훑어볼 때 구분선이 먼저 읽히게 한다. */
 .erp-measure-day-modal .erp-measure-day-scope {
   display: inline-flex;
-  align-items: baseline;
+  align-items: center;
   gap: 6px;
-  margin: 18px 0 8px;
-  padding: 3px 10px;
+  margin: 16px 0 6px;
+  padding: 3px 11px;
+  border: 1px solid #d7dee9;
   border-radius: 999px;
-  background: #111827;
-  color: #fff;
+  background: #eef2f7;
+  color: #334155;
   font-size: 0.74rem;
   font-weight: 700;
-  letter-spacing: 0.04em;
+  letter-spacing: 0.03em;
+}
+
+/* 색점은 패널 건수 뱃지 범례와 같은 색(수도권=초록, 지방=주황) — 칩은 밝게 두고
+   의미만 점으로 실어 목록 위에서 무게가 튀지 않게 한다. */
+.erp-measure-day-modal .erp-measure-day-scope::before {
+  content: "";
+  width: 7px;
+  height: 7px;
+  border-radius: 50%;
+  background: #198754;
+}
+
+.erp-measure-day-modal .erp-measure-day-scope--regional::before {
+  background: #fd7e14;
 }
 
 .erp-measure-day-modal .erp-measure-day-scope:first-child {
@@ -262,9 +277,9 @@ body.erp-measure-day-modal-open {
 }
 
 .erp-measure-day-modal .erp-measure-day-scope__count {
-  font-weight: 500;
+  font-weight: 600;
   font-size: 0.7rem;
-  color: #cbd5e1;
+  color: #475569;
 }
 
 .erp-measure-day-modal .erp-measure-day-region {
@@ -312,8 +327,9 @@ body.erp-measure-day-modal-open {
   padding: 3px 6px;
   border: 1px solid transparent;
   border-radius: 6px;
-  background: #1f2937;
-  color: #fff;
+  border-color: #c8d8f2;
+  background: #e9f1fd;
+  color: #17427a;
   font-size: 0.76rem;
   font-weight: 700;
   font-variant-numeric: tabular-nums;
