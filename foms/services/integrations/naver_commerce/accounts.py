@@ -103,4 +103,43 @@ def ensure_ingest_accounts(session: Session, *, reset_password: bool = False) ->
     return [ensure_account(session, spec, reset_password=reset_password) for spec in SPECS]
 
 
-__all__ = ["SPECS", "ensure_account", "ensure_ingest_accounts", "locked_password_hash"]
+class IngestAccountError(RuntimeError):
+    """수집용 시스템 계정이 없거나 정책에 맞지 않는다 — 주문을 만들지 않는다."""
+
+
+def resolve_ingest_account_ids(session: Session) -> tuple[int, int]:
+    """actor(봇)·owner(미배정 보류함) user id 를 확정한다.
+
+    owner 는 ``create_order`` 의 owner 계약(활성 SALES)을 그대로 만족해야 한다. 아니면
+    주문을 만들지 않는다 — 계정이 잘못된 채로 만들면 엉뚱한 사람에게 배정된다.
+
+    이 함수가 ``ingest`` 가 아니라 여기 있는 이유: 주문 생성은 web 에서도 일어나는데
+    (관리 화면 "주문 만들기") web 이 ``ingest`` 를 import 하면 "네이버 HTTP 는 WORKER
+    단일 출구" 계약 테스트가 red 가 된다. 이 모듈은 DB 만 본다.
+
+    Args:
+        session: DB 세션.
+
+    Returns:
+        ``(actor_user_id, owner_user_id)``.
+
+    Raises:
+        IngestAccountError: 계정 부재·비활성·비SALES owner.
+    """
+    from foms.services.orders.order_mutation_policy import normalize_team
+
+    actor = session.query(User).filter(User.username == ACTOR_USERNAME).first()
+    owner = session.query(User).filter(User.username == OWNER_USERNAME).first()
+    if actor is None:
+        raise IngestAccountError(f"수집 actor 계정이 없다: {ACTOR_USERNAME} (T0 선행 작업)")
+    if owner is None:
+        raise IngestAccountError(f"미배정 보류함 계정이 없다: {OWNER_USERNAME} (T0 선행 작업)")
+    if not owner.is_active or normalize_team(owner.team) != "SALES":
+        raise IngestAccountError(
+            f"{OWNER_USERNAME} 는 활성 SALES 여야 한다(현재 active={owner.is_active}, team={owner.team})."
+        )
+    return (int(actor.id), int(owner.id))
+
+
+__all__ = ["IngestAccountError", "SPECS", "ensure_account", "ensure_ingest_accounts",
+           "locked_password_hash", "resolve_ingest_account_ids"]

@@ -5,6 +5,10 @@
   "exempt_count": 7,
   "guard_count": 173,
   "routes": {
+    "admin.naver_ingest_create_order": {
+      "mode": "guard",
+      "rule": "/admin/naver-ingest/<int:link_id>/create-order"
+    },
     "admin.naver_ingest_mark_reviewed": {
       "mode": "guard",
       "rule": "/admin/naver-ingest/<int:link_id>/review"

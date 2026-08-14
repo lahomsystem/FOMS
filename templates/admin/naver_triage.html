@@ -124,6 +124,18 @@
                 </div>
 
                 <div class="card-footer d-flex flex-wrap gap-2 align-items-center">
+                    {% if not selected.order_id %}
+                    <div class="w-100 d-flex align-items-center gap-2">
+                        <button type="button" id="triage-create-order" class="btn btn-primary"
+                                data-link-id="{{ selected.link_id }}">
+                            <i class="fas fa-plus"></i> 주문 만들기
+                        </button>
+                        <span class="small text-muted">
+                            수집만 된 상태입니다. 위 원본을 확인한 뒤 주문을 만드세요 —
+                            만들면 담당자 지정·편집이 열립니다.
+                        </span>
+                    </div>
+                    {% else %}
                     <label class="small text-muted mb-0" for="triage-assignee">담당 영업</label>
                     <select id="triage-assignee" class="form-select form-select-sm" style="width: 12rem;">
                         <option value="">담당자 선택</option>
@@ -139,6 +151,7 @@
                             <i class="fas fa-check"></i> 확인 완료
                         </button>
                     </div>
+                    {% endif %}
                 </div>
             </div>
             {% else %}
@@ -157,6 +170,32 @@
     function show(kind, text) {
         box.className = 'alert alert-' + kind;
         box.textContent = text;
+    }
+
+    var createBtn = document.getElementById('triage-create-order');
+    if (createBtn) {
+        createBtn.addEventListener('click', async function () {
+            createBtn.disabled = true;
+            createBtn.textContent = '만드는 중…';
+            try {
+                const response = await fetch('/admin/naver-ingest/' + createBtn.dataset.linkId + '/create-order', {
+                    method: 'POST',
+                    headers: { 'Content-Type': 'application/json' }
+                });
+                const data = await response.json();
+                if (!data.success) {
+                    show('danger', data.error || '주문을 만들지 못했습니다.');
+                    createBtn.disabled = false;
+                    createBtn.textContent = '주문 만들기';
+                    return;
+                }
+                window.location.reload();
+            } catch (error) {
+                show('danger', '요청 중 오류가 발생했습니다: ' + error);
+                createBtn.disabled = false;
+                createBtn.textContent = '주문 만들기';
+            }
+        });
     }
 
     var doneBtn = document.getElementById('triage-done');

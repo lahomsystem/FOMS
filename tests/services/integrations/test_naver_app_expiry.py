@@ -11,7 +11,8 @@ from datetime import date, timedelta
 from db import db_session
 from foms.services.integrations.naver_commerce import app_expiry
 from foms.services.notifications.push_sender import _DEFAULT_P1_TYPES
-from models import Notification, NotificationUserState, SystemSetting, User
+from models import (ExternalOrderLink, Notification, NotificationUserState,
+                    SystemSetting, User)
 
 TODAY = date(2026, 8, 13)
 
@@ -177,6 +178,6 @@ def test_expiry_alert_failure_never_rolls_back_a_successful_sweep(app, monkeypat
 
     payload = ingest_mod.run_sweep(db_session, client=_Stub(),
                                    now=datetime(2026, 8, 13, 12, 0, tzinfo=KST))
-    assert payload["created"] == 1
-    assert db_session.query(Order).count() == 1
+    assert payload["collected"] == 1
+    assert db_session.query(ExternalOrderLink).count() == 1, "수집분은 살아남아야 한다"
     assert payload["expiry_alert"] is None

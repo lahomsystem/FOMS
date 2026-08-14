@@ -42,9 +42,10 @@
                     {% else %}
                     <div class="text-success fw-semibold">정상</div>
                     <div class="small text-muted">
-                        생성 {{ watermark.last_summary.get('created', 0) }} ·
+                        수집 {{ watermark.last_summary.get('collected', 0) }} ·
                         건너뜀 {{ watermark.last_summary.get('skipped', 0) }} ·
                         보류 {{ watermark.last_summary.get('pending_review', 0) }}
+                        <div class="mt-1">수집은 주문을 만들지 않습니다 — 목록에서 "주문 만들기"를 눌러야 생성됩니다.</div>
                     </div>
                     {% endif %}
                 </div>
@@ -76,8 +77,10 @@
     <div class="mb-3">
         <a href="{{ url_for('admin.naver_ingest_dashboard') }}"
            class="btn btn-sm {{ 'btn-dark' if not status else 'btn-outline-dark' }}">전체 {{ total if not status else '' }}</a>
+        <a href="{{ url_for('admin.naver_ingest_dashboard', status='COLLECTED') }}"
+           class="btn btn-sm {{ 'btn-primary' if status == 'COLLECTED' else 'btn-outline-primary' }}">수집됨(주문 전) {{ counts.COLLECTED }}</a>
         <a href="{{ url_for('admin.naver_ingest_dashboard', status='LINKED') }}"
-           class="btn btn-sm {{ 'btn-success' if status == 'LINKED' else 'btn-outline-success' }}">수집됨 {{ counts.LINKED }}</a>
+           class="btn btn-sm {{ 'btn-success' if status == 'LINKED' else 'btn-outline-success' }}">주문 생성됨 {{ counts.LINKED }}</a>
         <a href="{{ url_for('admin.naver_ingest_dashboard', status='PENDING_REVIEW') }}"
            class="btn btn-sm {{ 'btn-warning' if status == 'PENDING_REVIEW' else 'btn-outline-warning' }}">확인 필요 {{ counts.PENDING_REVIEW }}</a>
         <a href="{{ url_for('admin.naver_ingest_dashboard', status='FAILED') }}"
@@ -95,6 +98,9 @@
                         <th>상태</th>
                         <th>고객</th>
                         <th>제품</th>
+                        <th class="text-end">수량</th>
+                        <th class="text-end">금액</th>
+                        <th>옵션 원문</th>
                         <th>FOMS 주문</th>
                         <th>사유</th>
                         <th>원본</th>
@@ -107,8 +113,10 @@
                         <td class="small">{{ row.external_id }}</td>
                         <td class="small text-muted">{{ row.external_order_no or '-' }}</td>
                         <td>
-                            {% if row.sync_status == 'LINKED' %}
-                            <span class="badge bg-success">수집됨</span>
+                            {% if row.sync_status == 'COLLECTED' %}
+                            <span class="badge bg-primary">수집됨(주문 전)</span>
+                            {% elif row.sync_status == 'LINKED' %}
+                            <span class="badge bg-success">주문 생성됨</span>
                             {% elif row.sync_status == 'PENDING_REVIEW' %}
                             <span class="badge bg-warning text-dark">확인 필요</span>
                             {% else %}
@@ -117,10 +125,16 @@
                         </td>
                         <td class="small">{{ row.customer_name or '-' }}</td>
                         <td class="small">{{ row.product or '-' }}</td>
+                        <td class="small text-end">{{ row.quantity if row.quantity is not none else '-' }}</td>
+                        <td class="small text-end">{{ '{:,}'.format(row.amount) if row.amount is not none else '-' }}</td>
+                        <td class="small text-muted" style="max-width: 22rem;">{{ row.options or '-' }}</td>
                         <td>
                             {% if row.order_id %}
                             <a href="{{ url_for('order_edit.edit_order', order_id=row.order_id, open='erp-order') }}"
                                class="small">#{{ row.order_id }}</a>
+                            {% elif row.sync_status in ('COLLECTED', 'PENDING_REVIEW') %}
+                            <button type="button" class="btn btn-sm btn-primary naver-create-order-btn"
+                                    data-link-id="{{ row.id }}">주문 만들기</button>
                             {% else %}
                             <span class="text-muted small">없음</span>
                             {% endif %}
@@ -133,7 +147,7 @@
                     </tr>
                     {% else %}
                     <tr>
-                        <td colspan="9" class="text-center text-muted py-4">수집 이력이 없습니다.</td>
+                        <td colspan="12" class="text-center text-muted py-4">수집 이력이 없습니다.</td>
                     </tr>
                     {% endfor %}
                 </tbody>
@@ -192,6 +206,35 @@
         box.className = 'alert alert-' + kind;
         box.textContent = text;
     }
+
+    // "주문 만들기" — 수집분을 FOMS 주문으로 승격한다(T12). 수집은 자동, 생성은 사람 판단이다.
+    // 서버가 멱등을 보장하지만 이중 클릭으로 요청 두 번 나가는 것 자체를 버튼 비활성화로 막는다.
+    document.querySelectorAll('.naver-create-order-btn').forEach(function (btn) {
+        btn.addEventListener('click', async function () {
+            btn.disabled = true;
+            var original = btn.textContent;
+            btn.textContent = '만드는 중…';
+            try {
+                const response = await fetch('/admin/naver-ingest/' + btn.dataset.linkId + '/create-order', {
+                    method: 'POST',
+                    headers: { 'Content-Type': 'application/json' }
+                });
+                const data = await response.json();
+                if (!data.success) {
+                    show('danger', data.error || '주문을 만들지 못했습니다.');
+                    btn.disabled = false;
+                    btn.textContent = original;
+                    return;
+                }
+                show('success', '주문 #' + data.data.order_id + ' 을(를) 만들었습니다.');
+                window.location.reload();
+            } catch (error) {
+                show('danger', '요청 중 오류가 발생했습니다: ' + error);
+                btn.disabled = false;
+                btn.textContent = original;
+            }
+        });
+    });
 
     // 원본 스냅샷 열람(관리자 전용). 목록에 미리 실어 보내지 않는다 — 개인정보를
     // 보는 사람만 받아가게 하고, 열람 자체를 서버가 감사 원장에 남긴다.
