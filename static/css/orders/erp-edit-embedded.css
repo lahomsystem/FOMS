@@ -35,7 +35,10 @@ body.foms-edit-embedded .card {
   box-shadow: none;
 }
 
-body.foms-edit-embedded .tab-content > .tab-pane {
+/* 자손 선택자여야 한다 — ERP pane 은 코호트 래퍼(#erp-order-form-legacy/-mobile) 안에
+   들어 있어 `.tab-content > .tab-pane` 로는 잡히지 않는다(임베드 화면 하단에 ERP 카드가
+   89px 삐져나오던 원인). #orderTabContent 하위로 한정해 견적서 pane 만 남긴다. */
+body.foms-edit-embedded #orderTabContent .tab-pane {
   display: none !important;
 }
 
@@ -57,6 +60,17 @@ body.foms-edit-embedded html {
 body.foms-edit-embedded .erp-est-viewport-inner {
   margin-left: auto;
   margin-right: auto;
+}
+
+/* --- outer 탭 pane 가시성(TAB-PANE-NEST-01) ---------------------------------
+   부트스트랩은 `.tab-content > .tab-pane { display:none }` 로만 비활성 pane 을 접는다.
+   ERP pane 은 모바일 코호트 래퍼(#erp-order-form-legacy / #erp-order-form-mobile)
+   안에 들어 있어 이 선택자에 걸리지 않았고, 비활성일 때 `.fade`(opacity:0)만 남아
+   3,500px 넘는 자리를 그대로 차지했다 — 계산기·견적서·변경 이력 탭 내용이 화면 맨 아래로
+   밀리고, 안 보이는 ERP 입력칸이 클릭을 가로챈다.
+   중첩 깊이와 무관하게 비활성 pane 을 접는다(부트스트랩과 같은 판정 기준 = .active). */
+#orderTabContent .tab-pane:not(.active) {
+  display: none;
 }
 
 /* --- 변경 이력 탭(ORDER-DIFF-02) ------------------------------------------
