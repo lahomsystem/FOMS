@@ -33,6 +33,10 @@
   position: fixed;
   right: 22px;
   bottom: 22px;
+  /* .row 직계 자식이라 Bootstrap `.row > * { width:100% }` 가 걸린다 — fixed 여도
+     지정 너비는 적용되므로 반드시 auto 로 되돌린다(실사고: 1366px 풀폭 바). */
+  width: auto;
+  max-width: none;
   z-index: 1055;
   display: inline-flex;
   align-items: center;
@@ -57,6 +61,8 @@
   right: 0;
   bottom: 0;
   width: min(390px, 86vw);
+  max-width: none;
+  padding: 0; /* .row > * 거터 패딩 무효화 */
   background: #fff;
   border-left: 1px solid #059a54;
   box-shadow: -12px 0 30px rgba(15, 23, 42, 0.18);
@@ -256,12 +262,19 @@
 
 .naver-dock-assign {
   font-size: 11px;
-  border: 1px solid #d97706;
+  border: 1px solid #cbd5e1;
   border-radius: 6px;
   padding: 1px 5px;
+  color: #475569;
+  background: #fff;
+  max-width: 100%;
+}
+
+/* 귀속 미정만 경고색 — 지정/추정된 행까지 노랗게 하면 신호가 죽는다. */
+.naver-dock-assign.is-unset {
+  border-color: #d97706;
   color: #d97706;
   background: #fef3c7;
-  max-width: 100%;
 }
 
 .naver-dock-ft {

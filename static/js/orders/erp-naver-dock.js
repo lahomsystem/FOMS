@@ -94,7 +94,7 @@
         });
         if (row.role === 'addon') {
             var select = document.createElement('select');
-            select.className = 'naver-dock-assign';
+            select.className = 'naver-dock-assign' + (effectiveMain(row) ? '' : ' is-unset');
             select.setAttribute('data-naver-dock-assign', String(row.link_id));
             var placeholder = el('option', null, '⚠ 본품 선택…');
             placeholder.value = '';
