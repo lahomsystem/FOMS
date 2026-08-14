@@ -181,6 +181,34 @@ def test_edit_user_records_field_level_from_to(client, app):
     assert saved.team == "SALES"
 
 
+def test_edit_user_role_change_normalizes_sender_phone(client, app):
+    """역할 변경 POST 가 sender_phone 숫자 정규화(re.sub)를 통과해 302 로 성공한다.
+
+    production 회귀: ``import re`` 누락 시 NameError 가 except 에 삼켜져
+    flash ``name 're' is not defined`` + HTTP 200 으로 역할 변경이 실패한다.
+    """
+    admin_id = _make_user("re-fix-admin", role="ADMIN")
+    target_id = _make_user("re-fix-target", role="STAFF", team="CS")
+    _login(client, admin_id)
+
+    resp = client.post(f"/admin/users/edit/{target_id}", data={
+        "username": "re-fix-target",
+        "name": "re-fix-target-name",
+        "role": "ADMIN",
+        "team": "CS",
+        "is_active": "on",
+        "sender_phone": "010-1234-5678",
+    }, follow_redirects=False)
+    body = resp.get_data(as_text=True)
+    assert resp.status_code == 302, body[:400]
+    assert "is not defined" not in body
+
+    db_session.expire_all()
+    saved = db_session.get(User, target_id)
+    assert saved.role == "ADMIN"
+    assert saved.sender_phone == "01012345678"
+
+
 def test_edit_user_deactivation_records_is_active_transition(client, app):
     """비활성 전환은 ``is_active True→False`` 로 남는다."""
     admin_id = _make_user("audit-admin2", role="ADMIN")
