@@ -297,6 +297,95 @@ def test_override_does_not_mutate_quests(client):
     assert "STAGE_CHANGED" not in types
 
 
+def test_bulk_override_skip_two_orders(client):
+    """선택 2건 건너뛰기 → 일괄 STAGE_OVERRIDE, 사유 공유."""
+    _login(client, "ov_bulk_ok", role="MANAGER")
+    first_id = _make_erp_order(status="MEASURE").id
+    second_id = _make_erp_order(status="MEASURE").id
+    resp = client.post(
+        "/api/orders/workflow/stage-override/bulk",
+        json={
+            "order_ids": [first_id, second_id],
+            "to_stage": "CONFIRM",
+            "reason": "실측 생략 — 셀프 치수 확정 일괄",
+            "confirm": True,
+        },
+    )
+    assert resp.status_code == 200, resp.get_json()
+    data = resp.get_json()["data"]
+    assert data["updated"] == 2
+    assert data["to"] == "CONFIRM"
+    db_session.expire_all()
+    assert db_session.get(Order, first_id).status == "CONFIRM"
+    assert db_session.get(Order, second_id).status == "CONFIRM"
+    events = (
+        db_session.query(OrderEvent)
+        .filter(
+            OrderEvent.event_type == "STAGE_OVERRIDE",
+            OrderEvent.order_id.in_([first_id, second_id]),
+        )
+        .all()
+    )
+    assert len(events) == 2
+
+
+def test_bulk_override_staff_forbidden(client):
+    """STAFF 일괄 강제 변경 → 403."""
+    _login(client, "ov_bulk_staff", role="STAFF")
+    order_id = _make_erp_order(status="MEASURE").id
+    resp = client.post(
+        "/api/orders/workflow/stage-override/bulk",
+        json={
+            "order_ids": [order_id],
+            "to_stage": "CONFIRM",
+            "reason": "충분한 사유입니다",
+            "confirm": True,
+        },
+    )
+    assert resp.status_code == 403
+    db_session.expire_all()
+    assert db_session.get(Order, order_id).status == "MEASURE"
+
+
+def test_bulk_override_skips_same_updates_rest(client):
+    """동일 단계는 건너뛰고 나머지 건만 강제 변경."""
+    _login(client, "ov_bulk_same", role="ADMIN")
+    same_id = _make_erp_order(status="CONFIRM").id
+    skip_id = _make_erp_order(status="MEASURE").id
+    resp = client.post(
+        "/api/orders/workflow/stage-override/bulk",
+        json={
+            "order_ids": [same_id, skip_id],
+            "to_stage": "CONFIRM",
+            "reason": "혼합 선택 일괄 강제 변경",
+            "confirm": True,
+        },
+    )
+    assert resp.status_code == 200, resp.get_json()
+    data = resp.get_json()["data"]
+    assert data["updated"] == 1
+    assert same_id in data["skipped_same"]
+    db_session.expire_all()
+    assert db_session.get(Order, same_id).status == "CONFIRM"
+    assert db_session.get(Order, skip_id).status == "CONFIRM"
+
+
+def test_bulk_override_requires_confirm(client):
+    """일괄 강제 변경도 confirm true 필수."""
+    _login(client, "ov_bulk_c", role="ADMIN")
+    order_id = _make_erp_order(status="MEASURE").id
+    resp = client.post(
+        "/api/orders/workflow/stage-override/bulk",
+        json={
+            "order_ids": [order_id],
+            "to_stage": "CONFIRM",
+            "reason": "충분한 사유입니다",
+            "confirm": False,
+        },
+    )
+    assert resp.status_code == 400
+
+
 def test_override_completed_to_past_manager(client):
     """COMPLETED → 과거 단계: MANAGER+사유 허용(스펙 B)."""
     _login(client, "ov_done", role="MANAGER")
@@ -321,7 +410,9 @@ def test_js_contract_defer_and_api_path():
     js = (root / "static/js/orders/erp-stage-override.js").read_text(encoding="utf-8")
     assert "__FOMS_STAGE_OVERRIDE_BOUND" in js
     assert "/workflow/stage-override" in js
+    assert "/workflow/stage-override/bulk" in js
     assert "needsOverride" in js
+    assert "interceptBulkStatusChange" in js
     assert "hide.bs.modal" in js
     assert "settlePendingCancel" in js or "onCancel" in js
     assert "confirmForceMove" in js
@@ -329,6 +420,11 @@ def test_js_contract_defer_and_api_path():
     assert "사유를 입력하세요." in js
     assert "reason.length < 8" not in js
     assert "8자 이상" not in js
+
+    dash = (root / "static/js/orders/dashboard/erp-dashboard-detail-dom.js").read_text(
+        encoding="utf-8"
+    )
+    assert "interceptBulkStatusChange" in dash
 
     erp_js = (root / "templates/orders/partials/erp_order_js.html").read_text(encoding="utf-8")
     assert "erp-stage-override.js" in erp_js

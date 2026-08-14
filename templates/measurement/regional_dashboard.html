@@ -2183,7 +2183,7 @@ function toggleCompletedConstructionType(type) {
 {% block scripts %}
 {% include "orders/partials/erp_stage_override_modal.html" %}
 <script>window.MY_ROLE = {{ (current_user.role if current_user is defined and current_user else '')|tojson }};</script>
-<script src="{{ url_for('static', filename='js/orders/erp-stage-override.js') }}?v=20260814a" defer></script>
+<script src="{{ url_for('static', filename='js/orders/erp-stage-override.js') }}?v=20260814c" defer></script>
 <script src="{{ url_for('static', filename='js/measurement/regional-shipping-export.js') }}?v=20260807a" defer></script>
 <script src="{{ url_for('static', filename='js/measurement/complete-order-btn.js') }}?v=20260807b" defer></script>
 <script src="{{ url_for('static', filename='js/measurement/regional-jumpbar.js') }}?v=20260807a" defer></script>

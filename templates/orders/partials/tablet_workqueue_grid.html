@@ -44,7 +44,7 @@
            (PC 그리드·벌크 바와 동일 — 읽기 전용 사용자에겐 무의미). #}
         <td class="foms-tqgrid__chk">
           {% if can_edit_erp|default(false) %}<input type="checkbox" class="form-check-input erp-grid-order-check"
-            data-order-id="{{ o.id }}" aria-label="주문 선택">{% endif %}
+            data-order-id="{{ o.id }}" data-stage="{{ o.stage_code }}" aria-label="주문 선택">{% endif %}
         </td>
         {# 단계: SSOT 색 배지(무채 접수 ~ 유채 단계별). #}
         <td class="foms-tqcell-stage">
