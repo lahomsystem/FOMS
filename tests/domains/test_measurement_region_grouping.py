@@ -32,8 +32,8 @@ def test_sido_inferred_from_sibling_case():
     annotate_measurement_case_groups(cases)
     assert cases[0]["region_label"] == "경기 수원시"
     assert cases[1]["region_label"] == "경기 수원시"
-    # 시/도 붙은 형제가 없으면 시군구 단독 라벨 유지
-    assert cases[2]["region_label"] == "안산시"
+    # 형제가 없어도 복원표로 시/도가 채워진다
+    assert cases[2]["region_label"] == "경기 안산시"
 
 
 def test_ambiguous_sigungu_not_merged():
@@ -65,3 +65,42 @@ def test_scope_mixed_region_defaults_to_metro():
     ]
     annotate_measurement_case_groups(cases)
     assert {c["scope_label"] for c in cases} == {"수도권"}
+
+
+def test_sido_restored_from_table_and_grouped_by_sido():
+    """시/도 생략형도 복원표로 채워 서울/경기/인천이 각각 뭉친다."""
+    cases = [
+        _case("강동구 아리수로97길 20", "강동"),
+        _case("경기 광주시 송정동 산 28-4", "광주"),
+        _case("서울 광진구 천호대로 716", "광진"),
+        _case("인천 검단구 동화지로 157", "검단"),
+        _case("안양시 동안구 경수대로 430", "안양"),
+        _case("서울 강북구 삼양로19길 25", "강북"),
+        _case("수원시 영통구 덕영대로 1410", "수원"),
+    ]
+    annotate_measurement_case_groups(cases)
+    cases.sort(key=measurement_case_sort_key)
+    assert [c["region_label"] for c in cases] == [
+        "서울 강동구",
+        "서울 강북구",
+        "서울 광진구",
+        "경기 광주시",
+        "경기 수원시",
+        "경기 안양시",
+        "인천 검단구",
+    ]
+
+
+def test_suffixless_alias_restored():
+    assert measurement_region_key("서초 3차 현대 301-207") == ("", "서초구")
+    cases = [_case("서초 3차 현대 301-207", "a")]
+    annotate_measurement_case_groups(cases)
+    assert cases[0]["region_label"] == "서울 서초구"
+
+
+def test_ambiguous_gu_not_restored_by_table():
+    """중구·서구처럼 여러 시/도에 있는 이름은 복원표에 없어야 한다."""
+    assert measurement_region_key("중구 세종대로 110") == ("", "중구")
+    cases = [_case("중구 세종대로 110", "a")]
+    annotate_measurement_case_groups(cases)
+    assert cases[0]["region_label"] == "중구"
