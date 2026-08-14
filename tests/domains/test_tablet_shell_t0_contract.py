@@ -647,3 +647,71 @@ def test_coarse_only_surface_css_keeps_pointer_gate(_body_tpl, _partial, css) ->
     text = _read(css)
     assert "(pointer: coarse)" in text
     assert "data-foms-shell" not in text
+
+
+# --- 화면 힌트 쿠키: 광폭(≥992) 전용 표면 서버 스킵 계약 ----------------------
+
+SCR_BOOT_JS = "static/js/runtime/foms-screen-hint-boot.js"
+
+#: (대시보드 body 템플릿, 광폭 전용 표면 마커)
+WIDE_ONLY_SURFACES = (
+    ("templates/construction/partials/dashboard_body.html",
+     "construction/partials/filters_grid.html"),
+    ("templates/production/partials/dashboard_body.html",
+     "production/partials/filters_grid.html"),
+    ("templates/orders/partials/dashboard_main.html",
+     "orders/partials/dashboard_grid.html"),
+)
+
+
+def test_screen_hint_boot_records_only_physical_screen() -> None:
+    """부트는 물리 화면 크기만 기록한다 — 뷰포트(innerWidth)를 쓰면 안 된다.
+
+    screen 은 기기 고정 특성이라 창 조절·회전으로 최댓값이 바뀌지 않는다. innerWidth
+    를 기록하면 PC 창을 좁히는 순간 값이 낡아 서버가 오판하고 화면이 빈다.
+    """
+    boot = _read(SCR_BOOT_JS)
+    assert "foms_scr" in boot
+    # 주석은 근거를 설명하느라 뷰포트 조건을 언급한다 — 실행 코드만 검사한다.
+    code = re.sub(r"/\*.*?\*/", "", boot, flags=re.S)
+    code = re.sub(r"//[^\n]*", "", code)
+    assert "screen.width" in code and "screen.height" in code
+    assert "innerWidth" not in code
+    assert "matchMedia" not in code
+
+
+def test_screen_hint_boot_is_inlined_not_render_blocking_src() -> None:
+    """layout_head 는 pre-paint 인라인 사본을 싣는다(G1: 신규 동기 head script 금지)."""
+    head = _read(LAYOUT_HEAD)
+    assert "foms_scr" in head
+    assert "screen.width" in head
+    assert "foms-screen-hint-boot.js" not in head
+
+
+@pytest.mark.parametrize(("body_tpl", "marker"), WIDE_ONLY_SURFACES)
+def test_wide_only_surface_render_gated_on_screen_hint(body_tpl, marker) -> None:
+    """광폭 전용 데스크톱 큐 include 는 ``wide_only_surfaces`` 와 AND 로 묶인다."""
+    body = _read(body_tpl)
+    assert marker in body, f"{marker} include 가 사라졌다"
+    lines = body.splitlines()
+    idx = next(i for i, ln in enumerate(lines) if marker in ln)
+    window = "\n".join(lines[max(0, idx - 3) : idx + 1])
+    assert "wide_only_surfaces" in window, window
+
+
+def test_as_desktop_table_is_not_screen_gated() -> None:
+    """AS 데스크톱 표는 이 게이트 대상이 **아니다**.
+
+    AS 표는 ``d-md-block``(768 기준)이라 폰 가로(예: 844px)에서 실제로 표시된다
+    (스테이징 computed style 실측: 390 → none, 844 → block h=240). 여기에
+    ``wide_only_surfaces`` 를 붙이면 폰을 가로로 돌리는 순간 화면이 빈다.
+    같은 패턴을 복사해 오는 사고를 막으려고 부재를 계약으로 고정한다.
+    """
+    body = _read("templates/cs/partials/as_dashboard_body.html")
+    assert "erp-as-table-wrapper" in body, "AS 표 마커가 사라졌다 — 계약 갱신 필요"
+    lines = body.splitlines()
+    idx = next(i for i, ln in enumerate(lines) if "erp-as-table-wrapper" in ln)
+    window = "\n".join(lines[max(0, idx - 4) : idx + 1])
+    assert "wide_only_surfaces" not in window, (
+        "AS 표에 광폭 게이트가 붙었다 — 폰 가로에서 blank 가 된다"
+    )
