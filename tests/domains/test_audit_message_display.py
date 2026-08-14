@@ -281,3 +281,28 @@ def test_real_clear_still_shows_the_value_that_was_erased():
         order_id=3210, field="as_completed_date", before="2026-07-02", after="",
         has_before=True, customer_name="이영희",
     ) == "주문 #3210 (이영희) — AS 완료일: 2026-07-02 → (지움)"
+
+
+def test_object_values_read_as_korean_not_json():
+    """비고 객체는 JSON 원문이 아니라 사람 말로 읽힌다(표기 SSOT 재사용).
+
+    원장은 값을 문자열 한 칸에 담으므로 객체·목록은 직렬화된 채 남는다. 운영 실측
+    (2026-08-14): ``비고 (없음) → {"address_note": "", "construction_note": …``.
+    """
+    rendered = amd.format_value(None, '{"address_note": "경비실 호출", "construction_note": "오전만"}')
+
+    assert "주소 특이사항 경비실 호출" in rendered
+    assert "시공 특이사항 오전만" in rendered
+    assert "{" not in rendered
+
+
+def test_list_values_read_as_a_comma_list():
+    """목록 값(시공 인원 등)도 대괄호가 아니라 쉼표 나열로 읽힌다."""
+    assert amd.format_value(None, '["홍", "시공자"]') == "홍, 시공자"
+
+
+def test_non_json_text_is_left_alone():
+    """중괄호로 시작하지 않는 평범한 문자열은 손대지 않는다."""
+    assert amd.format_value(None, "경기도 용인시 수지구 광교마을로 134") == (
+        "경기도 용인시 수지구 광교마을로 134"
+    )

@@ -200,6 +200,7 @@ _STRUCT_FIELD_LABELS: Dict[str, str] = {
     "phone_note": "연락처 특이사항",
     "address_note": "주소 특이사항",
     "measurement_note": "실측 특이사항",
+    "construction_note": "시공 특이사항",
     "urgent": "긴급",
     "urgent_reason": "긴급사유",
     "factory2": "2공장",

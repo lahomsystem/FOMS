@@ -222,3 +222,42 @@ def test_stage_change_reads_as_korean_stage_name():
     assert text.startswith("단계 ")
     assert "RECEIVED" not in text
     assert "MEASURE" not in text
+
+
+def test_form_defaults_on_first_save_are_not_changes():
+    """미지정 → 기본값(체크 안 함·0원·빈 목록·빈 비고 객체)은 변경이 아니다.
+
+    운영 실측(2026-08-14, 주문 4461): 저장 한 번에 ``긴급 (없음) → 아니오`` ·
+    ``예약금 입력 (없음) → 0`` · ``시공 인원 (없음) → []`` ·
+    ``비고 (없음) → {"address_note": "", …}`` 4줄이 쌓여 진짜 변경을 덮었다.
+    """
+    result = diff_structured({}, {
+        "flags": {"urgent": False},
+        "payment": {"deposit": 0, "discount": 0},
+        "shipment": {"construction_workers": []},
+        "notes": {"address_note": "", "construction_note": "", "measurement_note": ""},
+    })
+
+    assert result.changes == []
+    assert result.total == 0
+
+
+def test_real_transitions_out_of_the_default_are_still_recorded():
+    """반대로 기본값에서 **벗어나는** 변경과 값→0 은 그대로 남는다(억제는 소음에만)."""
+    result = diff_structured(
+        {"flags": {"urgent": True}, "payment": {"deposit": 500000}},
+        {"flags": {"urgent": False}, "payment": {"deposit": 0}},
+    )
+
+    paths = {change["path"] for change in result.changes}
+    assert paths == {"flags.urgent", "payment.deposit"}
+
+
+def test_object_values_keep_only_the_keys_that_have_content():
+    """내용이 있는 키만 남겨 비교·저장한다 — 빈 칸 유무가 변경으로 읽히지 않는다."""
+    result = diff_structured(
+        {"notes": {"address_note": "경비실 호출"}},
+        {"notes": {"address_note": "경비실 호출", "construction_note": ""}},
+    )
+
+    assert result.changes == []

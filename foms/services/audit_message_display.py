@@ -18,6 +18,7 @@
 from __future__ import annotations
 
 import ast
+import json
 import re
 from typing import Any, Iterable, Mapping
 
@@ -398,6 +399,29 @@ def _format_availability(value: Any) -> str | None:
     return " · ".join(shown) if shown else None
 
 
+def _format_structured_text(text: str) -> str:
+    """JSON 으로 저장된 값(비고 객체·배정자 목록 등)을 사람 표기로 옮긴다.
+
+    원장에는 값이 문자열 한 칸으로 들어가므로, 객체·목록은 직렬화된 채 남는다. 그대로 내면
+    화면에 ``{"address_note": "", "construction_note": …`` 가 뜬다(2026-08-14 운영 실측).
+    표기 규칙은 채널톡 변경 알림이 쓰는 것과 **같은 SSOT** 를 쓴다 — 사전을 두 벌 두면
+    한쪽만 고쳐진다. import 는 함수 안에서 한다(표시 모듈이 알림·모델 의존을 로드 시점에
+    끌고 오지 않게).
+
+    :param text: 값 문자열. JSON 객체·배열 형태가 아니면 빈 문자열을 낸다.
+    :return: 사람 표기(``주소 특이사항 잠금장치, 실측 특이사항 오전만``) 또는 빈 문자열.
+    """
+    if not (text.startswith("{") or text.startswith("[")):
+        return ""
+    from foms.services.notifications.drawing_order_change import format_value_for_display
+
+    try:
+        parsed = json.loads(text)
+    except (TypeError, ValueError):
+        return ""
+    return format_value_for_display(parsed).strip()
+
+
 def format_value(field: str | None, value: Any) -> str:
     """원시 값을 사람이 읽는 표기로 옮긴다.
 
@@ -434,6 +458,10 @@ def format_value(field: str | None, value: Any) -> str:
     text = str(value).strip()
     if field == "status":
         return STATUS.get(text, text)
+
+    structured = _format_structured_text(text)
+    if structured:
+        return _summarize_text(structured)
 
     return _summarize_text(text) or _EMPTY_DISPLAY
 
