@@ -28,6 +28,9 @@ class ProductionDashboardFilters:
     erp_mine_only: bool
     focus_order_id: Optional[int]
     page: int
+    # 실측일/시공일 컬럼 헤더 정렬. ''(기본)이면 기존 시공일 빠른 순 정렬을 유지한다.
+    sort: str = ''
+    sort_dir: str = 'asc'
 
 
 def parse_production_dashboard_filters(request) -> ProductionDashboardFilters:
@@ -44,6 +47,13 @@ def parse_production_dashboard_filters(request) -> ProductionDashboardFilters:
     erp_mine_only = erp_mine_only_from_request(request)
     focus_order_id = request.args.get('focus_order', type=int)
     page = request.args.get('page', 1, type=int)
+    # 컬럼 헤더 정렬(실측일/시공일). 화이트리스트 밖이면 기본 정렬로 되돌린다.
+    f_sort = (request.args.get('sort') or '').strip()
+    if f_sort not in ('measure_date', 'construction_date'):
+        f_sort = ''
+    f_sort_dir = (request.args.get('dir') or 'asc').strip().lower()
+    if f_sort_dir not in ('asc', 'desc'):
+        f_sort_dir = 'asc'
 
     return ProductionDashboardFilters(
         stage=f_stage,
@@ -51,4 +61,6 @@ def parse_production_dashboard_filters(request) -> ProductionDashboardFilters:
         erp_mine_only=erp_mine_only,
         focus_order_id=focus_order_id,
         page=page,
+        sort=f_sort,
+        sort_dir=f_sort_dir,
     )

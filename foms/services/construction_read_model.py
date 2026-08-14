@@ -8,7 +8,7 @@ from __future__ import annotations
 import logging
 from typing import Any
 
-from sqlalchemy import bindparam, text
+from sqlalchemy import bindparam, case as sql_case, text
 from sqlalchemy.orm import Query
 
 from models import Order
@@ -150,12 +150,36 @@ def capped_list_total(list_query: Query, *, cap: int) -> int:
     return min(int(list_query.order_by(None).count()), cap)
 
 
+def construction_list_order_clauses(sort: str = '', sort_dir: str = 'asc') -> list[Any]:
+    """시공 리스트 정렬 절을 만든다.
+
+    Args:
+        sort: 컬럼 헤더 정렬 키(``measure_date``/``construction_date``). 빈 값이면 기본.
+        sort_dir: ``asc``/``desc``. 날짜 정렬일 때만 의미가 있다.
+
+    Returns:
+        `order_by`에 그대로 펼칠 절 목록. 기본은 기존과 같은 접수 최신순이고,
+        날짜 정렬이면 빈 날짜를 항상 뒤로 보낸 뒤 방향을 적용한다.
+    """
+    column = {
+        'measure_date': Order.erp_measurement_date,
+        'construction_date': Order.erp_construction_date,
+    }.get(sort)
+    if column is None:
+        return [Order.created_at.desc()]
+    blank_last = sql_case((column.is_(None), 1), ((column == ''), 1), else_=0)
+    direction = column.desc() if sort_dir == 'desc' else column.asc()
+    return [blank_last.asc(), direction, Order.created_at.desc()]
+
+
 def paginate_construction_orders(
     list_query: Query,
     *,
     page: int,
     per_page: int = CONSTRUCTION_DASHBOARD_PAGE_SIZE,
     total_cap: int,
+    sort: str = '',
+    sort_dir: str = 'asc',
 ) -> tuple[int, int, int, list[Any]]:
     """SQL page fetch; total_orders uses cap for browse/search windows."""
     if page < 1:
@@ -166,7 +190,7 @@ def paginate_construction_orders(
         page = total_pages
     offset = (page - 1) * per_page
     page_rows = (
-        list_query.order_by(Order.created_at.desc())
+        list_query.order_by(*construction_list_order_clauses(sort, sort_dir))
         .offset(offset)
         .limit(per_page)
         .all()
