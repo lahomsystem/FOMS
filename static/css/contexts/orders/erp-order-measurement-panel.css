@@ -145,3 +145,98 @@
 .erp-order-mobile-form #erp-order-measurement-panel.measurement-panel-list {
   max-height: 340px;
 }
+
+/* ── 날짜별 실측 건 목록 모달 (화면 정중앙 · 주변 블러) ─────────────────────── */
+.erp-measure-day-modal[hidden] {
+  display: none;
+}
+
+.erp-measure-day-modal {
+  position: fixed;
+  inset: 0;
+  z-index: 1085; /* Bootstrap modal(1055) 위 */
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  padding: 16px;
+}
+
+.erp-measure-day-modal__backdrop {
+  position: absolute;
+  inset: 0;
+  background: rgba(15, 23, 42, 0.45);
+  -webkit-backdrop-filter: blur(6px);
+  backdrop-filter: blur(6px);
+  cursor: pointer;
+}
+
+.erp-measure-day-modal__dialog {
+  position: relative;
+  display: flex;
+  flex-direction: column;
+  width: min(720px, 100%);
+  max-height: min(80vh, 720px);
+  overflow: hidden;
+  background: #fff;
+  border: 1px solid #dee2e6;
+  border-radius: 12px;
+  box-shadow: 0 24px 60px rgba(15, 23, 42, 0.28);
+}
+
+.erp-measure-day-modal__header {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  padding: 10px 14px;
+  border-bottom: 1px solid #e9ecef;
+  background: #f8f9fa;
+}
+
+.erp-measure-day-modal__title {
+  display: flex;
+  align-items: center;
+  gap: 6px;
+  flex: 1 1 auto;
+  min-width: 0;
+  font-weight: 600;
+  font-size: 0.95rem;
+  color: #212529;
+}
+
+.erp-measure-day-modal__day {
+  color: #6c757d;
+  font-weight: 500;
+}
+
+.erp-measure-day-modal__body {
+  padding: 12px 14px;
+  overflow-y: auto;
+  overscroll-behavior: contain;
+}
+
+.erp-measure-day-modal .erp-scheduler-count-group {
+  display: inline-flex;
+  align-items: center;
+  gap: 2px;
+  margin-left: auto;
+  flex: 0 0 auto;
+}
+
+.erp-measure-day-modal .erp-scheduler-count--total {
+  background-color: #0d6efd;
+  color: #fff;
+}
+
+.erp-measure-day-modal .erp-scheduler-count--regional {
+  background-color: #fd7e14;
+  color: #fff;
+}
+
+.erp-measure-day-modal .erp-scheduler-count--metro {
+  background-color: #198754;
+  color: #fff;
+}
+
+body.erp-measure-day-modal-open {
+  overflow: hidden;
+}
