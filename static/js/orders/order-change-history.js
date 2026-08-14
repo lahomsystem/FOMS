@@ -49,15 +49,19 @@
 
     var list = document.createElement('ul');
     list.className = 'foms-change-set-list';
+    // 같은 품목이 연달아 나오면 이름표는 첫 줄에만 붙인다 — 한 품목의 5개 필드를 고치면
+    // 같은 이름이 5번 반복돼 정작 바뀐 값이 눈에 안 들어온다(2026-08-14 운영 실측).
+    var lastItem = null;
     entry.changes.forEach(function (change) {
       var item = document.createElement('li');
       item.textContent = change.text;
-      if (change.item) {
+      if (change.item && change.item !== lastItem) {
         var tag = document.createElement('span');
         tag.className = 'foms-change-item-tag';
         tag.textContent = ' — ' + change.item;
         item.appendChild(tag);
       }
+      lastItem = change.item || null;
       list.appendChild(item);
     });
     card.appendChild(list);

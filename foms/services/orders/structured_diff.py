@@ -214,6 +214,52 @@ def _is_numeric_path(path: str) -> bool:
     return any(path.endswith(suffix) for suffix in NUMERIC_PATH_SUFFIXES)
 
 
+def _prune_empty(value: Any) -> Any:
+    """빈 잎을 걷어낸 값을 낸다(남는 게 없으면 ``None``).
+
+    ``{"address_note": "", "construction_note": ""}`` 처럼 **키만 있고 내용이 없는** 객체는
+    "비고를 입력했다"가 아니라 폼이 빈 칸을 그대로 저장한 흔적이다. 걷어내지 않으면
+    저장 버튼만 눌러도 원장에 ``비고 (없음) → {"address_note": "", …}`` 가 쌓인다
+    (2026-08-14 운영 실측).
+
+    :param value: 원시 값(중첩 dict/list 허용).
+    :return: 내용이 남으면 걷어낸 값, 전부 비었으면 ``None``. ``False``·``0`` 은 값으로 본다
+        (빈값 여부는 :func:`_is_unset` 이 경로 성격과 함께 판정한다).
+    """
+    if isinstance(value, dict):
+        pruned_map = {key: pruned for key, item in value.items()
+                      if (pruned := _prune_empty(item)) is not None}
+        return pruned_map or None
+    if isinstance(value, list):
+        pruned_list = [pruned for item in value if (pruned := _prune_empty(item)) is not None]
+        return pruned_list or None
+    if value is None:
+        return None
+    if isinstance(value, bool):
+        return value
+    if isinstance(value, str):
+        text = value.strip()
+        return None if text.lower() in _EMPTY_TOKENS else text
+    return value
+
+
+def _is_unset(normalized: Any, *, numeric: bool) -> bool:
+    """정규 값이 "지정하지 않음"과 같은 뜻인지 판정한다.
+
+    폼이 처음 저장될 때 미지정 키가 기본값으로 채워진다(체크 안 한 체크박스 → ``False``,
+    빈 금액 칸 → ``0``, 빈 목록 → ``[]``). 이것을 변경으로 적으면 원장이 소음으로 덮여
+    **진짜 변경이 묻힌다** — 양쪽이 모두 이 상태일 때만 기록에서 뺀다(값→0 은 실제 변경이라 남긴다).
+
+    :param normalized: :func:`_normalize` 를 거친 값.
+    :param numeric: 금액류 경로면 ``True`` — 이때만 ``0`` 을 미지정과 같게 본다
+        (``"0900"`` 같은 시각·코드 값을 훼손하지 않기 위해 경로를 가린다).
+    :return: 미지정과 같은 뜻이면 ``True``.
+    """
+    if normalized is None or normalized is False:
+        return True
+    return bool(numeric and normalized == "0")
+
+
 def _normalize(value: Any, *, numeric: bool) -> Any:
     """비교용 정규 값으로 옮긴다(빈값 동치 + 금액 숫자 동치).
 
@@ -227,10 +273,14 @@ def _normalize(value: Any, *, numeric: bool) -> Any:
         return value
     if isinstance(value, (list, dict)):
         # 목록/객체(도면 배정자 등)는 안정 직렬화로 비교한다 — 키 순서 차이를 변경으로 읽지 않는다.
+        # 내용 없는 키는 걷어낸 뒤 비교·저장한다(빈 칸 저장이 변경으로 남지 않는다).
+        pruned = _prune_empty(value)
+        if pruned is None:
+            return None
         try:
-            return json.dumps(value, sort_keys=True, ensure_ascii=False)
+            return json.dumps(pruned, sort_keys=True, ensure_ascii=False)
         except (TypeError, ValueError):
-            return repr(value)
+            return repr(pruned)
     if isinstance(value, (int, float)):
         number = float(value)
         return str(int(number)) if number.is_integer() else str(number)
@@ -382,8 +432,11 @@ def _diff_item_pair(
         numeric = _is_numeric_path(path)
         before = _normalize(old_item.get(field), numeric=numeric)
         after = _normalize(new_item.get(field), numeric=numeric)
-        if before != after:
-            yield _change(path, before, after, item=name, uid=item_uid_of(new_item))
+        if before == after:
+            continue
+        if _is_unset(before, numeric=numeric) and _is_unset(after, numeric=numeric):
+            continue  # 미지정 ↔ 기본값(0·False·빈 목록)은 변경이 아니다.
+        yield _change(path, before, after, item=name, uid=item_uid_of(new_item))
     old_key, old_display = _spec_rows_summary(old_item)
     new_key, new_display = _spec_rows_summary(new_item)
     if old_key != new_key:
@@ -485,8 +538,11 @@ def diff_structured(
         numeric = _is_numeric_path(path)
         before = _normalize(_get_path(old_doc, path), numeric=numeric)
         after = _normalize(_get_path(new_doc, path), numeric=numeric)
-        if before != after:
-            collected.append(_change(path, before, after))
+        if before == after:
+            continue
+        if _is_unset(before, numeric=numeric) and _is_unset(after, numeric=numeric):
+            continue  # 미지정 ↔ 기본값(0·False·빈 목록)은 변경이 아니다.
+        collected.append(_change(path, before, after))
 
     collected.extend(_diff_items(old_doc, new_doc))
 
