@@ -42,8 +42,12 @@
   {% include 'partials/shared/erp_sub_nav.html' %}
 
   {# 태블릿 가로 코호트: 목업 01 상단 바(pcbar+KPI 5타일)로 PC 프로세스맵/작업큐 헤더 교체.
-     표시 자체는 CSS 코호트 게이트(foms-tablet-landscape.css)가 소유 — PC/폰 무영향. #}
-  {% if erp_mobile_v2_enabled %}
+     표시 자체는 CSS 코호트 게이트(foms-tablet-landscape.css)가 소유 — PC/폰 무영향.
+     `.foms-tdash-top` 은 base `display:none` 이고 표시 규칙은 `(min-width:992px) and
+     (orientation:landscape) and (pointer:coarse)` 한 곳뿐(강제 해치 0건) → 마우스 기기엔
+     어떤 뷰포트·방향에서도 표시 불가능한 죽은 마크업이라 렌더하지 않는다.
+     coarse_pointer_surfaces 는 쿠키 미설정 시 True(현행대로 전부 렌더)라 blank 위험 없음. #}
+  {% if erp_mobile_v2_enabled and coarse_pointer_surfaces %}
     {% include 'orders/partials/tablet_dashboard_topbar.html' %}
   {% endif %}
 
@@ -135,9 +139,14 @@
 
   <div class="erp-dashboard-layout">
     {% include 'orders/partials/dashboard_grid.html' %}
-    {# 태블릿 가로 코호트 클린 작업 큐 그리드(목업 프레임 01). 서버는 v2∪v3 공통으로 렌더하고,
-       표시/PC 그리드 은닉은 CSS 코호트 게이트(foms-tablet-landscape.css)가 소유한다(PC/폰 무영향). #}
-    {% if erp_mobile_v2_enabled %}
+    {# 태블릿 가로 코호트 클린 작업 큐 그리드(목업 프레임 01). 표시/PC 그리드 은닉은 CSS
+       코호트 게이트(foms-tablet-landscape.css)가 소유한다(PC/폰 무영향).
+       `.foms-tablet-workqueue-wrap` 은 base `display:none` 이고 표시 규칙은 `(min-width:992px)
+       and (orientation:landscape) and (pointer:coarse)` 한 곳뿐(강제 해치 0건) → 마우스 기기엔
+       죽은 마크업이라 렌더하지 않는다(스테이징 실측 45.1KB = 주문 fragment 의 11.2%).
+       PC 그리드 은닉도 같은 coarse MQ 소속이라 마우스 기기에선 애초에 발화하지 않는다(blank 불가).
+       coarse_pointer_surfaces 는 쿠키 미설정 시 True(현행대로 전부 렌더)라 blank 위험 없음. #}
+    {% if erp_mobile_v2_enabled and coarse_pointer_surfaces %}
     {% include 'orders/partials/tablet_workqueue_grid.html' %}
     {% endif %}
   </div>
