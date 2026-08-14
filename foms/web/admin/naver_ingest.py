@@ -33,6 +33,10 @@ logger = logging.getLogger(__name__)
 #: 한 페이지에 보여줄 수집 이력 행 수(관리자 cold path 라 페이지네이션으로 충분).
 PAGE_SIZE = 50
 
+#: 트리아지 큐가 한 번에 읽는 링크 수. 한 집이 상품주문 여러 건으로 오므로 묶음 PAGE_SIZE
+#: 개를 채우려면 링크는 그보다 많이 필요하다(실측 평균 3건/집, 여유 배수 5).
+QUEUE_LINK_FETCH_LIMIT = PAGE_SIZE * 5
+
 #: 상태 필터 닫힌집합. 임의 문자열이 그대로 쿼리에 들어가지 않게 한다.
 VALID_STATUSES = ("COLLECTED", "LINKED", "PENDING_REVIEW", "FAILED")
 
@@ -231,9 +235,10 @@ def naver_ingest_triage():
             ExternalOrderLink.reviewed_at.is_(None),
         )
         .order_by(ExternalOrderLink.created_at.desc(), ExternalOrderLink.id.desc())
-        .limit(PAGE_SIZE)
+        .limit(QUEUE_LINK_FETCH_LIMIT)
         .all()
     )
+    truncated = len(pending) == QUEUE_LINK_FETCH_LIMIT
     selected_id = request.args.get("link_id", type=int)
     selected = next((row for row in pending if row.id == selected_id), None)
     if selected is None and pending:
@@ -243,27 +248,91 @@ def naver_ingest_triage():
     orders = {}
     if order_ids:
         orders = {o.id: o for o in db.query(Order).filter(Order.id.in_(order_ids)).all()}
-    queue = []
-    for row in pending:
-        order = orders.get(int(row.order_id or 0))
-        summary = summarize_snapshot(row.raw_snapshot)
-        queue.append({
-            "id": row.id,
-            "external_id": row.external_id,
-            "created_at": format_datetime_kst(row.created_at),
-            "customer_name": getattr(order, "customer_name", None) or summary["customer_name"],
-            "product": getattr(order, "product", None) or summary["product"],
-            "order_id": row.order_id,
-            "sync_status": row.sync_status,
-        })
+    queue = _group_queue(pending, orders, truncated=truncated)
+    selected_group = next(
+        (group for group in queue if selected is not None and selected.id in group["link_ids"]),
+        None,
+    )
 
     return render_template(
         "admin/naver_triage.html",
         queue=queue,
-        pending_count=len(queue),
+        pending_count=sum(len(group["link_ids"]) for group in queue),
+        group_count=len(queue),
         selected=_triage_pane(db, selected) if selected is not None else None,
+        selected_group=selected_group,
         sales_users=_active_sales_users(db),
     )
+
+
+def _group_queue(links: list[ExternalOrderLink], orders: dict,
+                 *, truncated: bool) -> list[dict[str, Any]]:
+    """확인 대기 링크를 **한 집 = 한 줄**로 묶는다 (T14-C).
+
+    네이버는 본품과 구성 옵션을 각각 다른 상품주문으로 준다. 링크 1건 = 1행으로 두면
+    같은 사람 이름이 3~4번 반복돼 몇 집이 밀렸는지 세지 못한다. 묶음 판정은 주문 생성과
+    **같은 키**(:func:`mapping.group_key`)를 쓴다 — 화면과 실제 생성 결과가 갈리면
+    "한 줄인데 주문 2건" 같은 사고가 난다.
+
+    대표(본품)는 금액 최대 건이다(``map_group`` 규칙과 동일 — 0원 구성이 대표가 되면
+    목록에 길이추가 옵션이 제목으로 뜬다).
+
+    Args:
+        links: 확인 대기 링크(최신순).
+        orders: ``{order_id: Order}`` — FOMS 현재 값 우선 표시용.
+        truncated: 조회 상한에 걸렸는지. 걸렸으면 마지막 묶음은 잘렸을 수 있어 버린다.
+
+    Returns:
+        묶음 목록(최신 수집순). 각 항목은 대표 정보 + 구성 링크 목록.
+    """
+    from foms.services.integrations.naver_commerce.mapping import group_key
+
+    groups: dict[tuple, list[ExternalOrderLink]] = {}
+    order_of_key: list[tuple] = []
+    for link in links:
+        try:
+            key = group_key(link.raw_snapshot or {})
+        except (ValueError, TypeError, AttributeError, KeyError) as exc:
+            # 원본이 깨진 건은 묶지 않고 홀로 남긴다(큐에서 사라지면 사람이 못 본다).
+            logger.warning("[NAVER] 큐 묶음 키 계산 실패(link %s): %s", link.id, exc)
+            key = ("__ungrouped__", str(link.id), "")
+        if key not in groups:
+            groups[key] = []
+            order_of_key.append(key)
+        groups[key].append(link)
+
+    if truncated and order_of_key:
+        # 상한에 걸리면 마지막 묶음은 구성 일부만 실려 왔을 수 있다 — 반쪽을 보여주느니 뺀다.
+        order_of_key.pop()
+
+    queue: list[dict[str, Any]] = []
+    for key in order_of_key[:PAGE_SIZE]:
+        members = groups[key]
+        lead = max(members, key=lambda row: (summarize_snapshot(row.raw_snapshot)["amount"] or 0,
+                                             -row.id))
+        order = orders.get(int(lead.order_id or 0))
+        lead_summary = summarize_snapshot(lead.raw_snapshot)
+        rest = [row for row in members if row.id != lead.id]
+        queue.append({
+            "id": lead.id,
+            "external_id": lead.external_id,
+            "created_at": format_datetime_kst(lead.created_at),
+            "customer_name": (getattr(order, "customer_name", None)
+                              or lead_summary["customer_name"]),
+            "product": lead_summary["product"],
+            "order_id": lead.order_id,
+            "sync_status": lead.sync_status,
+            "count": len(members),
+            "extra_count": len(rest),
+            "link_ids": [row.id for row in members],
+            "members": [
+                {"id": row.id,
+                 "product": summarize_snapshot(row.raw_snapshot)["product"],
+                 "is_lead": row.id == lead.id}
+                for row in members
+            ],
+        })
+    return queue
 
 
 def _active_sales_users(db) -> list[dict[str, Any]]:

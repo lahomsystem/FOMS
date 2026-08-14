@@ -30,6 +30,29 @@ def _sales(name: str = "영업") -> User:
     return user
 
 
+def _collected_link(*, order_no: str, product: str, amount: int,
+                    tel: str = "010-3333-4444", address: str = "서울 강남구 1",
+                    detail: str = "101호", recipient: str = "이수취") -> ExternalOrderLink:
+    """주문 없이 수집만 된 링크(COLLECTED) 1건 — 묶음 표시 테스트용."""
+    link = ExternalOrderLink(
+        channel="NAVER", external_id=f"PO-{_uid()}", sync_status="COLLECTED",
+        external_order_no=order_no,
+        raw_snapshot={
+            "order": {"orderId": order_no, "ordererName": "김주문",
+                      "ordererTel": "010-1111-2222"},
+            "productOrder": {
+                "productOrderId": f"PO-{_uid()}", "productName": product,
+                "productOption": "", "totalPaymentAmount": amount,
+                "shippingAddress": {"name": recipient, "tel1": tel,
+                                    "baseAddress": address, "detailedAddress": detail},
+            },
+        },
+    )
+    db_session.add(link)
+    db_session.commit()
+    return link
+
+
 def _ingested_order(owner: User, *, reviewed: bool = False,
                     memo: str = "") -> ExternalOrderLink:
     """수집 주문 1건 + 링크를 만든다(수집 파이프라인이 만드는 모양)."""
@@ -108,6 +131,65 @@ def test_pane_compares_naver_original_with_foms_values(auth_client):
     assert "네이버 원본" in body and "FOMS 현재 값" in body
     assert "김주문" in body  # 주문자(수취인과 다름)도 보여야 한다
     assert "LAHOM-1" in body
+
+
+def test_queue_groups_one_household_into_one_row(auth_client):
+    """T14-C: 같은 (주문번호·수취인 전화·주소)는 큐에서 한 줄이다.
+
+    상품주문 1건 = 1행이면 같은 사람 이름이 3~4번 반복돼 몇 집이 밀렸는지 셀 수 없다.
+    """
+    _collected_link(order_no="N-100", product="붙박이장 본품", amount=800000)
+    _collected_link(order_no="N-100", product="TYPE A (반옷장)", amount=30000)
+    _collected_link(order_no="N-100", product="길이추가(1cm)", amount=0)
+    body = auth_client.get("/admin/naver-ingest/triage").get_data(as_text=True)
+    assert "외 2건" in body          # 대표 + 나머지 2건
+    assert "1집" in body             # 묶음 수
+    assert "상품주문 3건" in body     # 실제 링크 수
+
+
+def test_queue_lead_is_the_expensive_main_product(auth_client):
+    """대표는 금액 최대(본품)다 — 0원 구성이 제목이 되면 본품을 찾아 헤맨다."""
+    _collected_link(order_no="N-101", product="길이추가(1cm)", amount=0)
+    _collected_link(order_no="N-101", product="라홈 붙박이장 본품", amount=496000)
+    body = auth_client.get("/admin/naver-ingest/triage").get_data(as_text=True)
+    lead_pos = body.index("라홈 붙박이장 본품")
+    addon_pos = body.index("길이추가(1cm)")
+    assert lead_pos < addon_pos      # 대표가 먼저 나온다
+
+
+def test_queue_splits_groups_by_address(auth_client):
+    """주소가 다르면 분리한다 — 합치면 남의 집으로 시공을 나간다."""
+    _collected_link(order_no="N-102", product="본품 A", amount=500000, detail="101호")
+    _collected_link(order_no="N-102", product="본품 B", amount=400000, detail="202호")
+    body = auth_client.get("/admin/naver-ingest/triage").get_data(as_text=True)
+    assert "2집" in body
+    assert "외 1건" not in body
+
+
+def test_create_order_button_targets_the_group_lead(auth_client):
+    """묶음당 버튼 1개: '주문 만들기'는 대표(본품) 링크로 부른다 — 형제는 서비스가 묶는다."""
+    _collected_link(order_no="N-103", product="옵션", amount=10000)
+    lead = _collected_link(order_no="N-103", product="본품", amount=700000)
+    body = auth_client.get("/admin/naver-ingest/triage").get_data(as_text=True)
+    assert f'data-link-id="{lead.id}"' in body
+
+
+def test_done_button_carries_every_link_in_the_group(auth_client):
+    """'확인 완료'는 구성 전체 id 를 싣는다 — 한 건이 남으면 같은 집이 큐에 다시 뜬다."""
+    first = _ingested_order(_sales())
+    second = ExternalOrderLink(
+        channel="NAVER", external_id=f"PO-{_uid()}", order_id=first.order_id,
+        sync_status="LINKED", raw_snapshot=first.raw_snapshot,
+    )
+    db_session.add(second)
+    db_session.commit()
+    first_id, second_id = first.id, second.id
+
+    body = auth_client.get("/admin/naver-ingest/triage").get_data(as_text=True)
+    marker = 'data-link-ids="'
+    assert marker in body
+    ids = set(body.split(marker)[1].split('"')[0].split(","))
+    assert {str(first_id), str(second_id)} <= ids
 
 
 def test_pane_shows_shipping_memo_from_product_order(auth_client):

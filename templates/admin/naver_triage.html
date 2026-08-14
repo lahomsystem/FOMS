@@ -7,7 +7,8 @@
     <div class="d-flex justify-content-between align-items-center mb-3">
         <h1 class="h3 mb-0">
             <i class="fas fa-clipboard-check text-primary"></i> 수집 주문 확인
-            <span class="badge bg-primary align-middle">{{ pending_count }}</span>
+            <span class="badge bg-primary align-middle">{{ group_count }}집</span>
+            <span class="small text-muted align-middle">상품주문 {{ pending_count }}건</span>
         </h1>
         {# 수집 운영 화면은 관리자 전용 — 전 직원 개방(T14-A) 후에도 링크는 ADMIN 에게만. #}
         {% if current_user and current_user.role == 'ADMIN' %}
@@ -28,17 +29,54 @@
         {# 좌: 확인 대기 큐 #}
         <div class="col-lg-4">
             <div class="card shadow-sm">
-                <div class="card-header py-2 small fw-semibold">확인 대기</div>
+                <div class="card-header py-2 small fw-semibold">확인 대기 — 한 집이 한 줄</div>
+                {# T14-C: 한 집 = 한 줄. 구성 상품주문은 접어 두고 펼쳐서 본다
+                   (묶음 판정은 주문 생성과 같은 키 — 화면과 생성 결과가 갈리면 안 된다). #}
                 <div class="list-group list-group-flush">
                     {% for row in queue %}
-                    <a class="list-group-item list-group-item-action {{ 'active' if selected and selected.link_id == row.id }}"
-                       href="{{ url_for('admin.naver_ingest_triage', link_id=row.id) }}">
-                        <div class="d-flex justify-content-between">
-                            <span class="fw-semibold">{{ row.customer_name or '(고객명 없음)' }}</span>
-                            <small>{{ row.created_at }}</small>
+                    {% set is_open = selected_group and selected_group.id == row.id %}
+                    <div class="list-group-item {{ 'active' if is_open }}">
+                        <div class="d-flex align-items-start gap-2">
+                            {% if row.extra_count %}
+                            <button class="btn btn-sm btn-link p-0 text-decoration-none {{ 'text-white' if is_open }}"
+                                    type="button" data-bs-toggle="collapse"
+                                    data-bs-target="#naver-grp-{{ row.id }}"
+                                    aria-expanded="{{ 'true' if is_open else 'false' }}"
+                                    aria-controls="naver-grp-{{ row.id }}"
+                                    aria-label="구성 상품 펼치기">
+                                <i class="fas fa-caret-down"></i>
+                            </button>
+                            {% else %}
+                            <span class="text-muted small">·</span>
+                            {% endif %}
+                            <a class="flex-grow-1 text-decoration-none {{ 'text-white' if is_open else 'text-body' }}"
+                               href="{{ url_for('admin.naver_ingest_triage', link_id=row.id) }}">
+                                <div class="d-flex justify-content-between">
+                                    <span class="fw-semibold">{{ row.customer_name or '(고객명 없음)' }}</span>
+                                    <small>{{ row.created_at }}</small>
+                                </div>
+                                <div class="small text-truncate">
+                                    {{ row.product or '(제품 없음)' }}
+                                    {% if row.extra_count %}
+                                    <span class="badge bg-secondary">외 {{ row.extra_count }}건</span>
+                                    {% endif %}
+                                </div>
+                            </a>
                         </div>
-                        <div class="small text-truncate">{{ row.product or '(제품 없음)' }}</div>
-                    </a>
+                        {% if row.extra_count %}
+                        <div class="collapse {{ 'show' if is_open }}" id="naver-grp-{{ row.id }}">
+                            <div class="ps-4 pt-1">
+                                {% for member in row.members %}
+                                <a class="d-block small text-truncate text-decoration-none {{ 'text-white' if is_open else 'text-muted' }}"
+                                   href="{{ url_for('admin.naver_ingest_triage', link_id=member.id) }}">
+                                    {{ '■' if member.is_lead else '·' }}
+                                    {{ member.product or '(제품 없음)' }}
+                                </a>
+                                {% endfor %}
+                            </div>
+                        </div>
+                        {% endif %}
+                    </div>
                     {% else %}
                     <div class="list-group-item text-center text-muted py-4">확인할 주문이 없습니다.</div>
                     {% endfor %}
@@ -129,13 +167,22 @@
                 <div class="card-footer d-flex flex-wrap gap-2 align-items-center">
                     {% if not selected.order_id %}
                     <div class="w-100 d-flex align-items-center gap-2">
+                        {# 묶음당 버튼 1개 — 대표(본품) 링크로 부르면 형제 상품주문이 함께 묶여
+                           주문 1건이 된다(promote_link_to_order 가 group_key 로 형제를 모은다). #}
                         <button type="button" id="triage-create-order" class="btn btn-primary"
-                                data-link-id="{{ selected.link_id }}">
+                                data-link-id="{{ (selected_group.id if selected_group else selected.link_id) }}">
                             <i class="fas fa-plus"></i> 주문 만들기
+                            {% if selected_group and selected_group.count > 1 %}
+                            <span class="badge bg-light text-dark">{{ selected_group.count }}건 묶음</span>
+                            {% endif %}
                         </button>
                         <span class="small text-muted">
                             수집만 된 상태입니다. 위 원본을 확인한 뒤 주문을 만드세요 —
+                            {% if selected_group and selected_group.count > 1 %}
+                            이 집의 상품주문 {{ selected_group.count }}건이 주문 1건으로 묶입니다.
+                            {% else %}
                             만들면 담당자 지정·편집이 열립니다.
+                            {% endif %}
                         </span>
                     </div>
                     {% else %}
@@ -149,9 +196,14 @@
                     <button type="button" id="triage-assign" class="btn btn-sm btn-outline-primary"
                             data-order-id="{{ selected.order_id or '' }}">담당자 지정</button>
                     <div class="ms-auto">
+                        {# 확인 완료도 묶음 단위 — 한 줄로 보이는데 형제 한 건이 큐에 남으면
+                           같은 집이 두 번 뜬다. 링크마다 기존 review 라우트를 순차 호출한다. #}
                         <button type="button" id="triage-done" class="btn btn-success"
-                                data-link-id="{{ selected.link_id }}">
+                                data-link-ids="{{ (selected_group.link_ids if selected_group else [selected.link_id]) | join(',') }}">
                             <i class="fas fa-check"></i> 확인 완료
+                            {% if selected_group and selected_group.count > 1 %}
+                            <span class="badge bg-light text-dark">{{ selected_group.count }}건</span>
+                            {% endif %}
                         </button>
                     </div>
                     {% endif %}
@@ -205,13 +257,20 @@
     if (doneBtn) {
         doneBtn.addEventListener('click', async function () {
             doneBtn.disabled = true;
+            // 묶음 전체를 확인 처리한다 — 한 건이라도 남으면 같은 집이 큐에 다시 뜬다.
+            var ids = (doneBtn.dataset.linkIds || '').split(',').filter(Boolean);
             try {
-                const response = await fetch('/admin/naver-ingest/' + doneBtn.dataset.linkId + '/review', {
-                    method: 'POST',
-                    headers: { 'Content-Type': 'application/json' },
-                    body: '{}'
-                });
-                const data = await response.json();
+                let failure = null;
+                for (const id of ids) {
+                    const response = await fetch('/admin/naver-ingest/' + id + '/review', {
+                        method: 'POST',
+                        headers: { 'Content-Type': 'application/json' },
+                        body: '{}'
+                    });
+                    const result = await response.json();
+                    if (!result.success) { failure = result.error; break; }
+                }
+                const data = failure ? { success: false, error: failure } : { success: true };
                 if (!data.success) {
                     show('danger', data.error || '확인 처리에 실패했습니다.');
                     doneBtn.disabled = false;
