@@ -1118,12 +1118,17 @@ def test_ctower_topbar_partial_exists_with_pcbar_and_five_tiles() -> None:
 
 
 def test_ctower_topbar_wired_into_dashboard_main_cohort_gated() -> None:
-    """dashboard_main.html 이 상단 바를 erp_mobile_v2_enabled 게이트 안에서 include + orders
-    페이지 스코프 클래스(.erp-dashboard-orders)를 컨테이너에 부여."""
+    """dashboard_main.html 이 상단 바를 코호트 게이트 안에서 include + orders 페이지 스코프
+    클래스(.erp-dashboard-orders)를 컨테이너에 부여.
+
+    코호트 게이트(erp_mobile_v2_enabled)에 coarse_pointer_surfaces 가 AND 로 더해졌다:
+    `.foms-tdash-top` 은 base display:none 이고 표시 규칙이 (pointer: coarse) 코호트 MQ
+    한 곳뿐이라 마우스 기기엔 죽은 마크업이다(강제 해치 0건).
+    """
     body = _norm(_read(ORDERS_DASHBOARD_MAIN))
     assert "erp-dashboard-orders" in body, "orders 컨테이너 페이지 스코프 클래스 부재"
     assert (
-        "{% if erp_mobile_v2_enabled %} "
+        "{% if erp_mobile_v2_enabled and coarse_pointer_surfaces %} "
         "{% include 'orders/partials/tablet_dashboard_topbar.html' %}"
     ) in body
 
@@ -1239,11 +1244,16 @@ def test_tqgrid_row_exposes_side_sheet_source_and_stage_badge() -> None:
 
 
 def test_tqgrid_wired_into_dashboard_main_cohort_gated() -> None:
-    """dashboard_main.html 이 클린 그리드를 erp_mobile_v2_enabled 게이트 안에서 PC 그리드
-    직후에 include(서버 v2∪v3 공통 렌더 — 표시/은닉은 CSS 게이트 소유)."""
+    """dashboard_main.html 이 클린 그리드를 코호트 게이트 안에서 PC 그리드 직후에 include
+    (표시/은닉은 CSS 게이트 소유).
+
+    코호트 게이트에 coarse_pointer_surfaces 가 AND 로 더해졌다(실측 45.1KB = 주문
+    fragment 의 11.2%). PC 그리드 은닉도 같은 coarse MQ 소속이라 마우스 기기에선 발화하지
+    않는다 — 서버 스킵이 blank 를 만들 수 없다.
+    """
     body = _norm(_read(ORDERS_DASHBOARD_MAIN))
     assert (
-        "{% if erp_mobile_v2_enabled %} "
+        "{% if erp_mobile_v2_enabled and coarse_pointer_surfaces %} "
         "{% include 'orders/partials/tablet_workqueue_grid.html' %}"
     ) in body
 
