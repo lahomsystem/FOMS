@@ -305,6 +305,9 @@ def test_edit_page_bootstrap_carries_naver_origin(app, client):
     html = client.get(f"/edit/{order_id}").get_data(as_text=True)
 
     assert "naver_origin" in html
+    # 도크 전용 JSON — #erp-order-bootstrap 은 erp-order-shared.js 가 소비 후 제거하므로
+    # 도크는 자기 데이터 태그가 반드시 따로 있어야 한다(스테이징 실사고 2026-08-14).
+    assert 'id="naver-origin-data"' in html
     assert 'id="erpNaverDockPane"' in html
     assert "erp-naver-dock.js" in html
 

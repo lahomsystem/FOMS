@@ -19,11 +19,12 @@
     var completing = false;
 
     function readBootstrap() {
-        var node = document.getElementById('erp-order-bootstrap');
+        // 전용 태그를 읽는다 — #erp-order-bootstrap 은 erp-order-shared.js 가
+        // 1회 소비 후 DOM 에서 제거하므로(_erpConsumeBootstrap) 의존하면 레이스가 난다.
+        var node = document.getElementById('naver-origin-data');
         if (!node) return null;
         try {
-            var payload = JSON.parse(node.textContent || 'null');
-            return payload && payload.naver_origin ? payload.naver_origin : null;
+            return JSON.parse(node.textContent || 'null');
         } catch (error) {
             return null;
         }

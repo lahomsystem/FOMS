@@ -4,6 +4,9 @@
    넓은 셸 = 우측 도킹 pane, 좁은 셸 = FAB + 슬라이드 서랍(전환은 JS ResizeObserver 가
    셸 폭 기준으로 판정 — 뷰포트 MQ 금지, 공용 부품 규칙). #}
 {% if erp_bootstrap and erp_bootstrap.naver_origin %}
+{# 전용 JSON: #erp-order-bootstrap 은 erp-order-shared.js 가 1회 소비 후 DOM 에서
+   제거하므로(_erpConsumeBootstrap) 도크는 자기 데이터 태그를 따로 갖는다. #}
+<script type="application/json" id="naver-origin-data">{{ erp_bootstrap.naver_origin | tojson }}</script>
 <div class="erp-naver-dock-pane d-none" id="erpNaverDockPane" aria-label="네이버 원본 도크">
     <div class="card erp-naver-dock-card">
         <div class="erp-naver-dock-mount" data-naver-dock-mount="pane"></div>
