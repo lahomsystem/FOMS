@@ -31,6 +31,13 @@ from foms.services.orders.dashboard_filters import OrdersDashboardFilters
 from foms.services.shipment_dashboard_helpers import AS_SHIPMENT_STATUSES
 
 
+# 그리드 컬럼 헤더 정렬(실측일/시공일) → 정렬 대상 싱크 컬럼.
+_DATE_HEADER_SORT_COLUMNS = {
+    'measure_date': Order.erp_measurement_date,
+    'construction_date': Order.erp_construction_date,
+}
+
+
 def _as_visit_order_id_query(db, date_iso: str):
     as_order = aliased(Order)
     return (
@@ -194,7 +201,16 @@ def build_orders_dashboard_queries(db, current_user, is_admin: bool, filters: Or
         )
 
     # 순수 DB 정렬: 실측/시공 단계 진입 시 해당 날짜 내림차순 정렬 우선
-    if filters.risk:
+    # 컬럼 헤더 정렬(실측일/시공일)은 사용자가 명시로 누른 것이라 risk/stage 기본 정렬보다 우선한다.
+    # 정렬 키는 싱크 컬럼(erp_*_date, String 'YYYY-MM-DD')이라 복수 일정 주문은 첫 날짜 기준이다
+    # (risk 트리아지 정렬과 동일 규약). 빈 값은 항상 뒤로 보낸다.
+    _header_sort_column = _DATE_HEADER_SORT_COLUMNS.get(filters.sort)
+    if _header_sort_column is not None:
+        _is_desc = getattr(filters, 'sort_dir', 'asc') == 'desc'
+        _blank_last = sql_case((_header_sort_column.is_(None), 1), ((_header_sort_column == ''), 1), else_=0)
+        _direction = _header_sort_column.desc() if _is_desc else _header_sort_column.asc()
+        _q = _q.order_by(_blank_last.asc(), _direction, Order.created_at.desc())
+    elif filters.risk:
         # P1 트리아지: 위험 착지는 마감/정체 오름차순(가장 급한 게 위). 페이지 경계도 동일 순서.
         if filters.risk in ('construction_unready', 'balance_due'):
             _q = _q.order_by(Order.erp_construction_date.asc().nullslast(), Order.created_at.desc())
