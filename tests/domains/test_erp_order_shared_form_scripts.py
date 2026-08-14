@@ -67,10 +67,11 @@ def _assert_shared_form_script_contract(body: str) -> None:
     )
     assert "html2canvas.min.js" not in body
     assert "js/orders/erp-channel-push-confirm.js?v=20260810a" in body
-    assert "js/orders/erp-order-shared.js?v=20260813c" in body
-    assert "js/orders/erp-stage-override.js?v=20260716b" in body
+    assert "js/orders/erp-order-shared.js?v=20260814a" in body
+    assert "js/orders/erp-stage-override.js?v=20260814a" in body
     assert "erp_stage_override_modal.html" not in body  # include renders modal markup, not path
     assert 'id="erpStageOverrideModal"' in body
+    assert "(8자 이상)" not in body
     assert "css/orders/erp-channel-push.css?v=20260811b" in body
     assert "css/orders/erp-items-master-detail.css?v=20260701f" in body
     assert "js/orders/erp-items-master-detail.js?v=20260630c" in body
@@ -839,6 +840,10 @@ def test_shared_erp_order_js_syncs_stage_from_measurement_date() -> None:
     assert 'document.getElementById("erp-workflow-stage")' in sync_block
     assert 'stageEl.value = "MEASURE";' in sync_block
     assert 'stageEl.value = "RECEIVED";' in sync_block
+    assert 'current === "RECEIVED"' in sync_block
+    assert 'current === "MEASURE"' in sync_block
+    assert 'isLahomLike' in sync_block
+    assert "window.FOMS_STAGE_OVERRIDE.noteCurrentStage" in sync_block
     assert "window.syncWorkflowStageByMeasurementDate = syncWorkflowStageByMeasurementDate;" in sync_block
     assert "onChange: function ()" in text
     assert "syncWorkflowStageByMeasurementDate();" in text

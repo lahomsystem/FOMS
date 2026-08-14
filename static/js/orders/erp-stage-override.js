@@ -30,6 +30,26 @@
   var BLOCK_MSG =
     '단계 역행/건너뛰기는 「단계 강제 변경」에서 사유·확인 후 진행하세요.';
 
+  var _guardLastOk = '';
+
+  function noteCurrentStage(code) {
+    var next = String(code || '').trim();
+    if (next) _guardLastOk = next;
+  }
+
+  function forceMoveNotice(from, to) {
+    var fromLabel = LABELS[from] || from || '현재 단계';
+    var toLabel = LABELS[to] || to || '목표 단계';
+    return (
+      '「' + fromLabel + '」에서 「' + toLabel + '」(으)로는 바로 이동할 수 없습니다.\n' +
+      '단계 강제 변경이 필요합니다.'
+    );
+  }
+
+  function confirmForceMove(from, to) {
+    return window.confirm(forceMoveNotice(from, to) + '\n계속할까요?');
+  }
+
   function rankOf(code) {
     var c = String(code || '').trim();
     return Object.prototype.hasOwnProperty.call(RANK, c) ? RANK[c] : -1;
@@ -224,8 +244,8 @@
       showError('목표 단계를 선택하세요.');
       return;
     }
-    if (reason.length < 8) {
-      showError('사유는 8자 이상 입력하세요.');
+    if (!reason) {
+      showError('사유를 입력하세요.');
       return;
     }
     if (!confirm) {
@@ -330,27 +350,31 @@
     var stageEl = document.getElementById('erp-workflow-stage');
     if (stageEl && stageEl.getAttribute('data-override-guard') !== '1') {
       stageEl.setAttribute('data-override-guard', '1');
-      var lastOk = stageEl.value;
+      _guardLastOk = stageEl.value;
       stageEl.addEventListener('focus', function () {
-        lastOk = stageEl.value;
+        _guardLastOk = stageEl.value;
       });
       stageEl.addEventListener('change', function () {
+        var from = _guardLastOk || stageEl.value;
         var next = stageEl.value;
         // AS 경로는 기존 asReceiveModal 이 담당
         if (next === 'AS_RECEIVED' || next === 'AS_COMPLETED' || next === 'AS') {
-          lastOk = next;
+          _guardLastOk = next;
           return;
         }
-        if (needsOverride(lastOk, next)) {
-          stageEl.value = lastOk;
-          if (canOverride()) {
-            openModal({ fromStage: lastOk, toStage: next, skipReload: false });
-          } else {
-            window.alert(BLOCK_MSG);
+        if (needsOverride(from, next)) {
+          stageEl.value = from;
+          if (!canOverride()) {
+            window.alert(forceMoveNotice(from, next) + '\n관리자만 강제 변경할 수 있습니다.');
+            return;
           }
+          if (!confirmForceMove(from, next)) {
+            return;
+          }
+          openModal({ fromStage: from, toStage: next, skipReload: false });
           return;
         }
-        lastOk = next;
+        _guardLastOk = next;
       });
     }
   }
@@ -362,7 +386,11 @@
   function interceptStatusChange(orderId, fromStatus, toStatus, onDone) {
     if (!needsOverride(fromStatus, toStatus)) return false;
     if (!canOverride()) {
-      window.alert(BLOCK_MSG);
+      window.alert(forceMoveNotice(fromStatus, toStatus) + '\n관리자만 강제 변경할 수 있습니다.');
+      if (typeof onDone === 'function') onDone(false);
+      return true;
+    }
+    if (!confirmForceMove(fromStatus, toStatus)) {
       if (typeof onDone === 'function') onDone(false);
       return true;
     }
@@ -395,6 +423,8 @@
     canOverride: canOverride,
     openModal: openModal,
     interceptStatusChange: interceptStatusChange,
+    noteCurrentStage: noteCurrentStage,
+    confirmForceMove: confirmForceMove,
     wireUi: wireUi
   };
 

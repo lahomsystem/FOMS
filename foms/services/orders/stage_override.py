@@ -51,7 +51,6 @@ MAIN_PIPELINE_CODES: tuple[str, ...] = (
 )
 
 OVERRIDE_ALLOWED_ROLES: frozenset[str] = frozenset({"ADMIN", "MANAGER"})
-REASON_MIN_LEN = 8
 OVERRIDE_BLOCK_MESSAGE = (
     "단계 역행/건너뛰기는 「단계 강제 변경」에서 사유·확인 후 진행하세요."
 )
@@ -158,8 +157,8 @@ def apply_stage_override(
         raise ValueError("메인 파이프라인 단계만 강제 변경할 수 있습니다. (AS/삭제는 기존 경로 사용)")
 
     reason_clean = str(reason or "").strip()
-    if len(reason_clean) < REASON_MIN_LEN:
-        raise ValueError(f"사유는 {REASON_MIN_LEN}자 이상 입력하세요.")
+    if not reason_clean:
+        raise ValueError("사유를 입력하세요.")
 
     from_raw = current_stage_for_order(order)
     from_code = normalize_main_stage(from_raw) or str(from_raw or "").strip()
@@ -207,7 +206,6 @@ __all__ = [
     "MAIN_PIPELINE_CODES",
     "OVERRIDE_ALLOWED_ROLES",
     "OVERRIDE_BLOCK_MESSAGE",
-    "REASON_MIN_LEN",
     "STAGE_FORWARD_RANK",
     "apply_stage_override",
     "classify_stage_move",

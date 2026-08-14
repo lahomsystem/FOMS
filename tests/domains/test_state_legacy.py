@@ -220,7 +220,7 @@ def test_admin_override_records_reason_and_event(client):
 
 
 def test_override_requires_reason_and_confirm(client):
-    """emergency override 는 confirm+충분한 reason 없으면 거부(감사 추적 강제)."""
+    """emergency override 는 confirm+비어 있지 않은 reason 없으면 거부(감사 추적 강제)."""
     _login(client, _make_user("leg_ov_guard", role="ADMIN"))
     order_id = _make_order("DRAWING").id
     # confirm 누락
@@ -228,10 +228,10 @@ def test_override_requires_reason_and_confirm(client):
         f"/api/orders/{order_id}/workflow/stage-override",
         json={"to_stage": "MEASURE", "reason": "충분한 사유입니다", "confirm": False},
     ).status_code == 400
-    # reason 부족
+    # reason 공란
     assert client.post(
         f"/api/orders/{order_id}/workflow/stage-override",
-        json={"to_stage": "MEASURE", "reason": "짧음", "confirm": True},
+        json={"to_stage": "MEASURE", "reason": "  ", "confirm": True},
     ).status_code == 400
 
 

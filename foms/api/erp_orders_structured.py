@@ -294,6 +294,40 @@ def _pin_form_stage_to_server(old_sd: dict, structured_data: dict) -> None:
 
 #: 실측일이 잡히면 자동 전진하는 출발 단계(전진 1칸만 — RECEIVED → MEASURE).
 _AUTO_MEASURE_FROM_STAGES = ('RECEIVED', '주문접수')
+#: 실측일 삭제 시 자동 복귀하는 출발 단계(역행 1칸만 — MEASURE → RECEIVED).
+_AUTO_RECEIVED_FROM_STAGES = ('MEASURE', '실측')
+
+
+def _structured_measurement_date(structured_data: dict) -> str:
+    """schedule.measurement.date 원문을 공백 제거해 반환한다(없으면 빈 문자열)."""
+    if not isinstance(structured_data, dict):
+        return ''
+    schedule = structured_data.get('schedule')
+    measurement = schedule.get('measurement') if isinstance(schedule, dict) else None
+    if not isinstance(measurement, dict):
+        return ''
+    return str(measurement.get('date') or '').strip()
+
+
+def _structured_orderer_name(structured_data: dict) -> str:
+    """parties.orderer.name 원문을 공백 제거해 반환한다(없으면 빈 문자열)."""
+    if not isinstance(structured_data, dict):
+        return ''
+    parties = structured_data.get('parties')
+    if not isinstance(parties, dict):
+        return ''
+    orderer = parties.get('orderer')
+    if isinstance(orderer, dict):
+        return str(orderer.get('name') or '').strip()
+    if isinstance(orderer, str):
+        return orderer.strip()
+    return ''
+
+
+def _is_lahom_like_orderer(structured_data: dict) -> bool:
+    """라홈(또는 미지정)만 실측일 삭제로 접수 복귀. 하우드·직접입력은 MEASURE 가 기본."""
+    name = _structured_orderer_name(structured_data)
+    return (not name) or name == '라홈'
 
 
 def _should_auto_advance_to_measure(order: Order, requested_stage: str = '') -> bool:
@@ -328,13 +362,40 @@ def _should_auto_advance_to_measure(order: Order, requested_stage: str = '') -> 
     workflow = sd.get('workflow') if isinstance(sd.get('workflow'), dict) else {}
     if str(workflow.get('stage') or '').strip() not in _AUTO_MEASURE_FROM_STAGES:
         return False
-    schedule = sd.get('schedule') if isinstance(sd.get('schedule'), dict) else {}
-    measurement = schedule.get('measurement') if isinstance(schedule.get('measurement'), dict) else {}
-    if str(measurement.get('date') or '').strip():
+    if _structured_measurement_date(sd):
         return True
     if normalize_main_stage(requested_stage) != 'MEASURE':
         return False
     return bool(getattr(order, 'is_regional', False) or getattr(order, 'is_self_measurement', False))
+
+
+def _should_auto_regress_to_received(order: Order, had_measurement_date: bool) -> bool:
+    """실측일이 지워진 실측 주문을 접수로 되돌릴지 판정한다(상태는 쓰지 않는다).
+
+    자동 전진의 대칭. 이전에 실측일이 있었고 이번 저장에서 비워진 MEASURE 만
+    1칸 복귀한다. 실제 전이는 커밋 뒤 canonical 엔진(``SET_MAIN_STAGE``)이 수행한다.
+    도면 이후 단계·하우드(실측일 없이 MEASURE 가 정상)는 건드리지 않는다.
+
+    Args:
+        order: 폼 저장이 커밋된 뒤의 대상 Order.
+        had_measurement_date: 저장 직전 서버에 실측일이 있었는지.
+
+    Returns:
+        RECEIVED 로 복귀해야 하면 True.
+    """
+    if not had_measurement_date:
+        return False
+    if not is_erp_order_record(order):
+        return False
+    sd = order.structured_data if isinstance(order.structured_data, dict) else {}
+    if not _is_lahom_like_orderer(sd):
+        return False
+    workflow = sd.get('workflow') if isinstance(sd.get('workflow'), dict) else {}
+    if str(workflow.get('stage') or '').strip() not in _AUTO_RECEIVED_FROM_STAGES:
+        return False
+    if _structured_measurement_date(sd):
+        return False
+    return True
 
 
 def _force_preserve_drawing_transfer_history(old_sd: dict, structured_data: dict) -> None:
@@ -1048,6 +1109,9 @@ def api_put_order_structured(order_id):
         # (실측일 없는 지방주문/자가실측의 실측 단계 이동 판정에만 쓰인다).
         _wf_in = (structured_data or {}).get('workflow') if isinstance(structured_data, dict) else None
         requested_stage = str((_wf_in or {}).get('stage') or '').strip() if isinstance(_wf_in, dict) else ''
+        had_measurement_date = bool(_structured_measurement_date(
+            order.structured_data if isinstance(order.structured_data, dict) else {}
+        ))
 
         if structured_data is not None and not isinstance(structured_data, dict):
             return jsonify({'success': False, 'message': 'structured_data는 JSON 객체여야 합니다.'}), 400
@@ -1177,7 +1241,8 @@ def api_put_order_structured(order_id):
                 # STATE-FORM-01: 폼 저장은 단계를 바꾸지 않는다. workflow.stage 는
                 # _pin_form_stage_to_server 가 이미 서버값으로 고정했고, 단계 전이는
                 # 명시적 stage-override(STATE-CORE transition) 경로 전용이다.
-                # 실측일 지정 자동 전진도 여기서 쓰지 않고, 커밋 뒤 canonical 엔진이 맡는다.
+                # 실측일 지정 자동 전진·실측일 삭제 자동 복귀도 여기서 쓰지 않고,
+                # 커밋 뒤 canonical 엔진이 맡는다.
 
                 t0 = time.perf_counter()
                 _record_structured_events(sess, o, old_sd, structured_data)
@@ -1314,27 +1379,34 @@ def api_put_order_structured(order_id):
                 {'success': False, 'message': str(rev), 'code': rev.error_code}
             ), rev.status_code
 
-        # 실측일이 지정된 접수 건은 canonical 엔진(SET_MAIN_STAGE)으로 실측 단계에 올린다.
+        # 실측일 지정 → MEASURE 전진, 실측일 삭제 → RECEIVED 복귀.
         # 폼 트랜잭션 밖에서 별도 전이로 수행해야 STAGE_CHANGED·outbox·receipt 가 다른
         # 전이와 같은 경로로 남는다. 전이 실패는 폼 저장을 되돌리지 않는다(저장은 이미 성공).
         auto_stage_error = None
+        auto_target = None
         if _should_auto_advance_to_measure(order, requested_stage):
+            auto_target = 'MEASURE'
+            auto_body = {'auto': 'MEASUREMENT_DATE_SET', 'order_id': order_id}
+        elif _should_auto_regress_to_received(order, had_measurement_date):
+            auto_target = 'RECEIVED'
+            auto_body = {'auto': 'MEASUREMENT_DATE_CLEARED', 'order_id': order_id}
+        if auto_target is not None:
             from foms.api.orders.status import apply_canonical_main_stage
 
             auto_stage_error = apply_canonical_main_stage(
                 db,
                 order,
-                'MEASURE',
+                auto_target,
                 actor_user_id=actor_user_id,
-                body={'auto': 'MEASUREMENT_DATE_SET', 'order_id': order_id},
+                body=auto_body,
                 idempotency_key=None,
             )
             if auto_stage_error is None:
                 db.commit()
             else:
                 logger.warning(
-                    "[ERP_ORDER] 실측일 자동 단계전진 실패: order=%s status=%s",
-                    order_id, auto_stage_error[1],
+                    "[ERP_ORDER] 실측일 자동 단계 이동 실패: order=%s to=%s status=%s",
+                    order_id, auto_target, auto_stage_error[1],
                 )
 
         # Tier A(broad): 주문 저장(PUT structured)은 stage/status 변경을 포함 → 탭 이동.
