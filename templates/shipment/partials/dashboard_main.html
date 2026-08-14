@@ -356,7 +356,7 @@
              기존 별도 .foms-ship-grid-hint 는 제거(중복 제거). #}
           {% include 'shipment/partials/tablet_ship_grid.html' %}
           <div class="table-responsive shipment-table-wrapper">
-            <link rel="stylesheet" href="{{ url_for('static', filename='css/contexts/shipment/dashboard-table-extras.css') }}?v=20260805a">
+            <link rel="stylesheet" href="{{ url_for('static', filename='css/contexts/shipment/dashboard-table-extras.css') }}?v=20260814a">
             <table class="table table-sm table-hover align-middle shipment-table erp-mobile-card-table" id="shipment-dashboard-table">
               <colgroup>
                 <col data-col-key="detail">
@@ -747,7 +747,7 @@
      fragment-multi-script 가 deploy veto 를 낸다(구조적 부채는 별건). 이 블록은 같은
      프래그먼트 안 기존 defer 스크립트 자리이고, 모듈 자체가 문서 위임 + 싱글턴
      가드(__FOMS_SHIPMENT_CHANGE_ALERT_BOUND)라 스왑 재실행이 무해하다(G1 defer · G4). #}
-  <script src="{{ url_for('static', filename='js/shipment/shipment-change-alert.js') }}?v=20260730g" defer></script>
+  <script src="{{ url_for('static', filename='js/shipment/shipment-change-alert.js') }}?v=20260814a" defer></script>
   {% endif %}
 </div><!-- end erp-pro -->
 
