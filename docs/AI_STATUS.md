@@ -1,6 +1,6 @@
 # FOMS 현재 상태
-> 자동 업데이트: 2026-08-13
-> 최신: **네이버 스마트스토어 주문 자동 수집 T2~T11 deploy(코드 완료)** — 링크 테이블(UNIQUE 멱등)·클라이언트·매핑·폴링(기본 off)·만료 알림·관리 화면·트리아지·대시보드 '담당 미지정' 뱃지. **네이버 HTTP 는 WORKER 단일 출구**(IP 한도 3=static 3) — web 은 enqueue 만. 계정 2개 스테이징 반영. 잔여=**사람 손 3가지뿐**(시크릿 재발급·static IP 등록·env 설정) → 안내서 docs/guides/NAVER_INGEST_SETUP.md, 원장 docs/plans/2026-08-13-naver-order-ingest-ledger.md
+> 자동 업데이트: 2026-08-14
+> 최신: **네이버 수집 T14-A·T14-B deploy(스테이징 실검증 완료)** — 주 메뉴 '네이버 주문' 탭+대기 뱃지·주문 목록 인박스 스트립·트리아지 전 직원 개방(운영 화면·지금 수집·raw 는 ADMIN 유지), 뱃지 카운트 COLLECTED 포함 수정. **편집 화면 네이버 원본 도크**(폼 무참조 additive): productClass 로 본품/추가옵션 판정·복사 칩·귀속 추정+사람 지정·체크 즉시 저장(`triage_state` JSONB, 마이그레이션 `naverdock_00`). 잔여=T14-C(목록 본품 묶음 표시)·운영 승격. 원장 docs/plans/2026-08-13-naver-order-ingest-ledger.md §T14
 > 이 파일 상단 40줄이 세션 시작 컨텍스트의 전부다(hygiene 계약 테스트로 강제). 상세 이력: "## 최근 완료"·"## 기록 보관", 과거 헤더 상세는 기록 보관에 이관.
 
 ## 스택

@@ -67,7 +67,7 @@
 | T10 | 담당자 지정(`set_sales_assignee`) | T8 | DONE | PG 레인 3 green |
 | T11 | 대시보드 '담당 미지정' 뱃지 + T0 준비 안내서 | T10 | DONE | 테스트 7 green |
 | T14-A | 진입구: 주 메뉴 '네이버 주문' 탭+뱃지 · '/' 인박스 스트립 · 전 직원 권한 개방 | T9 | DONE | `51e0894a` (deploy) · 스테이징 눈 확인 완료 |
-| T14-B | 네이버 원본 도크 (편집 셸 우측 독립 마운트) | T14-A | DONE | 테스트 15 green + PG 737 + smoke 322 |
+| T14-B | 네이버 원본 도크 (편집 셸 우측 독립 마운트) | T14-A | DONE | `0bc5fc04`+`e7157b5b`+`291085bc` (deploy) · 스테이징 #4462 실검증 |
 | T14-C | 수집 목록/트리아지 본품별 묶음 표시 | T13 | PENDING | — |
 
 > 순서 주의: 스펙의 T1(인프라 실검증)은 T0 사람 작업과 코드(T3)가 모두 있어야 가능하므로
@@ -458,6 +458,17 @@ exit 0 (322 passed) + APP_OK. 신규 계약: COLLECTED 포함 카운트·STAFF �
 
 **밟은 함정**: audit coverage 인벤토리 드리프트(새 mutation route) —
 `tools/harness/audit_coverage_scan.py` 재생성으로 해소.
+
+**스테이징 실검증에서 잡은 버그 2개 (테스트가 못 잡는 부류 — 후속 도크류 작업 시 주의)**
+1. `#erp-order-bootstrap` 은 `erp-order-shared.js` `_erpConsumeBootstrap` 이 **파싱 직후
+   DOM 에서 제거**한다 — 다른 스크립트가 그걸 읽으면 레이스. 도크는 전용
+   `#naver-origin-data` 태그를 따로 심는다(`e7157b5b`).
+2. `#erpEditShell` 은 Bootstrap `.row` — 직계 자식에 `.row > * { width:100% }` 가 걸려
+   position:fixed FAB 이 풀폭이 된다. `width:auto` 명시 필수(`291085bc`).
+
+**스테이징 실검증(#4462, 2026-08-14)**: 1920 도킹(본품 묶음·복사 칩·체크 취소선) ·
+체크 즉시 저장+새로고침 잔존 · 1366 FAB(우하단)+서랍 열림 · 귀속 드롭다운 경고색=미정만 ·
+콘솔/네트워크/다이얼로그 무결. 검증용 체크는 원복(0/4).
 
 ## PR #92 상태 (2026-08-14)
 
