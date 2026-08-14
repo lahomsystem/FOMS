@@ -231,8 +231,99 @@ def map_detail(detail: dict, *, today: str) -> tuple[str, dict[str, Any], dict]:
     return (external_id, order_fields, build_structured_data(detail))
 
 
+
+def group_key(detail: dict) -> tuple[str, str, str]:
+    """묶음 판정 키 — ``(네이버 주문번호, 수취인 전화, 주소)``.
+
+    같은 주문번호라도 **분할배송**이면 수취인·주소가 다를 수 있다. 그때 하나로 합치면
+    남의 주소로 시공을 나가는 사고가 된다. 주문번호만으로 묶지 않는 이유다.
+
+    Args:
+        detail: 상품주문 상세 1건.
+
+    Returns:
+        같은 값이면 한 주문으로 묶어도 되는 키.
+    """
+    order, _product_order, shipping = unwrap_detail(detail)
+    return (
+        _text(order.get("orderId")),
+        _text(shipping.get("tel1")),
+        build_address(shipping),
+    )
+
+
+def map_group(details: list[dict], *, today: str) -> tuple[dict[str, Any], dict]:
+    """같은 묶음의 상품주문 여러 건을 **주문 1건**으로 매핑한다 (T13).
+
+    네이버는 붙박이장 본품과 구성 옵션(반옷장·긴옷장 등, 금액 0원 포함)을 각각 다른
+    ``productOrderId`` 로 준다. 상품주문 1건 = FOMS 주문 1건으로 두면 한 집 시공이
+    주문 3~4건으로 쪼개져 일정·정산이 어긋난다(2026-08-14 실데이터: 12개 주문번호 → 34건).
+
+    대표값 규칙:
+
+    * 고객·주소·접수일시 — **금액이 가장 큰** 상품주문 기준(본품이 대표가 된다).
+      금액이 같으면 입력 순서를 유지해 안정적으로 고른다.
+    * ``product`` — 대표 제품명, 2건 이상이면 ``외 N건`` 을 덧붙인다.
+    * ``payment_amount`` — 묶음 **합계**.
+    * ``items[]`` — 상품주문마다 1행(0원 구성도 그대로 남긴다 — 뭘 받았는지가 정보다).
+
+    Args:
+        details: 같은 :func:`group_key` 를 가진 상세 목록(1건 이상).
+        today: 접수일 대체값.
+
+    Returns:
+        ``(order_fields, structured_data)``.
+
+    Raises:
+        NaverMappingError: 비어 있거나 대표 건의 필수 값이 없을 때.
+    """
+    if not details:
+        raise NaverMappingError("묶을 상세가 없다")
+
+    ordered = sorted(
+        enumerate(details),
+        key=lambda pair: (-_int(unwrap_detail(pair[1])[1].get("totalPaymentAmount")), pair[0]),
+    )
+    lead_index, lead = ordered[0]
+    _external_id, order_fields, structured = map_detail(lead, today=today)
+
+    total = sum(_int(unwrap_detail(d)[1].get("totalPaymentAmount")) for d in details)
+    order_fields["payment_amount"] = total
+    if len(details) > 1:
+        order_fields["product"] = f"{order_fields['product']} 외 {len(details) - 1}건"
+
+    items = []
+    option_lines = []
+    for detail in details:
+        _order, product_order, _shipping = unwrap_detail(detail)
+        name = _text(product_order.get("productName"))
+        option = _text(product_order.get("productOption"))
+        items.append({
+            "product_name": name,
+            "name": name,
+            "options": option,
+            "quantity": _int(product_order.get("quantity")) or 1,
+            "price": _int(product_order.get("totalPaymentAmount")),
+            "naver_product_order_id": _text(product_order.get("productOrderId")),
+        })
+        if option:
+            option_lines.append(f"{name}: {option}" if len(details) > 1 else option)
+
+    structured["items"] = items
+    structured["totals"] = {"items_total": total}
+    # 옵션 원문은 사람이 규격을 채우는 근거다 — 묶으면 건별로 구분해 이어 붙인다.
+    order_fields["options"] = "\n".join(option_lines) or None
+    structured["naver"]["product_order_ids"] = [
+        _text(unwrap_detail(d)[1].get("productOrderId")) for d in details
+    ]
+    structured["naver"]["grouped_count"] = len(details)
+    return (order_fields, structured)
+
+
 __all__ = [
     "COLLECTIBLE_STATUS",
+    "group_key",
+    "map_group",
     "KST",
     "NaverMappingError",
     "REQUIRED_FIELDS",

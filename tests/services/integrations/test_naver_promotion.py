@@ -241,3 +241,106 @@ def test_route_reports_missing_accounts_instead_of_500(client):
 
     assert response.status_code == 400
     assert "계정" in response.get_json()["error"]
+
+
+# --------------------------------------------------------------------------- #
+# T13: 같은 네이버 주문번호는 한 FOMS 주문으로 묶는다
+# --------------------------------------------------------------------------- #
+
+def _sibling(product_order_id: str, *, order_no: str = "2026081412345",
+             name: str = "구성 옵션", amount: int = 0, quantity: int = 1,
+             tel: str = "010-3333-4444", base: str = "서울특별시 강남구 테헤란로 1",
+             detail_addr: str = "101동 1001호") -> ExternalOrderLink:
+    """같은 묶음(또는 다른 묶음)의 상품주문 링크 1건."""
+    payload = copy.deepcopy(DETAIL)
+    payload["order"]["orderId"] = order_no
+    po = payload["productOrder"]
+    po["productOrderId"] = product_order_id
+    po["productName"] = name
+    po["totalPaymentAmount"] = amount
+    po["quantity"] = quantity
+    po["shippingAddress"]["tel1"] = tel
+    po["shippingAddress"]["baseAddress"] = base
+    po["shippingAddress"]["detailedAddress"] = detail_addr
+    link = ExternalOrderLink(channel="NAVER", external_id=product_order_id,
+                             external_order_no=order_no, raw_snapshot=payload,
+                             sync_status="COLLECTED")
+    db_session.add(link)
+    db_session.commit()
+    return link
+
+
+def test_same_naver_order_becomes_one_foms_order(app):
+    """본품 + 0원 구성 2건 = 주문 1건, 품목 3행, 금액은 합계."""
+    actor, owner = _accounts()
+    main = _sibling("PO-G1", name="붙박이장 본품", amount=1200000, quantity=5)
+    _sibling("PO-G2", name="TYPE A (반옷장)", amount=0, quantity=2)
+    _sibling("PO-G3", name="TYPE I (긴옷장)", amount=50000, quantity=1)
+
+    order_id, created = promote_link_to_order(
+        db_session, link_id=main.id, actor_user_id=actor.id, owner_user_id=owner.id)
+    db_session.commit()
+
+    assert created is True
+    assert db_session.query(Order).count() == 1, "상품주문마다 주문이 생기면 안 된다"
+    order = db_session.get(Order, order_id)
+    assert order.payment_amount == 1250000, "묶음 합계여야 한다"
+    assert "외 2건" in order.product
+    items = (order.structured_data or {}).get("items") or []
+    assert len(items) == 3
+    assert {i["price"] for i in items} == {1200000, 0, 50000}
+    links = db_session.query(ExternalOrderLink).all()
+    assert {l.order_id for l in links} == {order_id}
+    assert {l.sync_status for l in links} == {"LINKED"}
+
+
+def test_split_delivery_is_not_merged(app):
+    """같은 주문번호라도 수취인 주소가 다르면 묶지 않는다(분할배송)."""
+    actor, owner = _accounts()
+    here = _sibling("PO-S1", name="붙박이장", amount=900000)
+    _sibling("PO-S2", name="붙박이장", amount=800000,
+             tel="010-9999-8888", base="부산광역시 해운대구 2", detail_addr="202호")
+
+    order_id, _ = promote_link_to_order(
+        db_session, link_id=here.id, actor_user_id=actor.id, owner_user_id=owner.id)
+    db_session.commit()
+
+    order = db_session.get(Order, order_id)
+    assert len(order.structured_data["items"]) == 1
+    other = db_session.query(ExternalOrderLink).filter(
+        ExternalOrderLink.external_id == "PO-S2").one()
+    assert other.order_id is None, "다른 주소 건은 남의 주문에 들어가면 안 된다"
+
+
+def test_already_promoted_sibling_is_not_pulled_in_twice(app):
+    """이미 주문이 붙은 형제는 다시 묶지 않는다."""
+    actor, owner = _accounts()
+    first = _sibling("PO-D1", name="붙박이장", amount=1000000)
+    second = _sibling("PO-D2", name="구성", amount=0)
+    second_id = second.id
+
+    promote_link_to_order(db_session, link_id=first.id,
+                          actor_user_id=actor.id, owner_user_id=owner.id)
+    db_session.commit()
+    # 형제가 이미 첫 주문에 들어갔으므로 두 번째 호출은 그 주문을 그대로 돌려준다.
+    order_id, created = promote_link_to_order(
+        db_session, link_id=second_id, actor_user_id=actor.id, owner_user_id=owner.id)
+    db_session.commit()
+
+    assert created is False
+    assert db_session.query(Order).count() == 1
+    assert order_id == db_session.get(ExternalOrderLink, second_id).order_id
+
+
+def test_lead_is_the_highest_amount_item(app):
+    """대표(고객·주소·제품명)는 금액이 가장 큰 상품주문이다 — 0원 구성이 대표가 되면 안 된다."""
+    actor, owner = _accounts()
+    cheap = _sibling("PO-L1", name="TYPE A (반옷장)", amount=0)
+    _sibling("PO-L2", name="라홈 붙박이장 본품", amount=1500000)
+
+    order_id, _ = promote_link_to_order(
+        db_session, link_id=cheap.id, actor_user_id=actor.id, owner_user_id=owner.id)
+    db_session.commit()
+
+    order = db_session.get(Order, order_id)
+    assert order.product.startswith("라홈 붙박이장 본품")

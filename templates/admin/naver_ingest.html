@@ -135,6 +135,11 @@
                             {% elif row.sync_status in ('COLLECTED', 'PENDING_REVIEW') %}
                             <button type="button" class="btn btn-sm btn-primary naver-create-order-btn"
                                     data-link-id="{{ row.id }}">주문 만들기</button>
+                            {% if row.group_size and row.group_size > 1 %}
+                            <div class="small text-muted mt-1" title="같은 네이버 주문번호·같은 수취인 주소">
+                                같은 주문 {{ row.group_size }}건이 하나로 묶입니다
+                            </div>
+                            {% endif %}
                             {% else %}
                             <span class="text-muted small">없음</span>
                             {% endif %}

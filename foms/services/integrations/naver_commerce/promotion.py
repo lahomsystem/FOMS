@@ -25,7 +25,8 @@ from foms.services.datetime_kst import get_today_kst, now_utc_naive
 from foms.services.integrations.naver_commerce.constants import CHANNEL
 from foms.services.integrations.naver_commerce.mapping import (
     NaverMappingError,
-    map_detail,
+    group_key,
+    map_group,
 )
 from foms.services.orders.order_create import create_order
 from models import ExternalOrderLink
@@ -77,9 +78,12 @@ def promote_link_to_order(
     if not isinstance(link.raw_snapshot, dict) or not link.raw_snapshot:
         raise PromotionError("원본 스냅샷이 없어 주문을 만들 수 없습니다.")
 
+    # 한 네이버 주문(본품 + 구성 옵션)을 한 FOMS 주문으로 묶는다 — T13.
+    siblings = _group_siblings(session, link)
     today = get_today_kst().strftime("%Y-%m-%d")
     try:
-        _external_id, order_fields, structured = map_detail(link.raw_snapshot, today=today)
+        order_fields, structured = map_group(
+            [row.raw_snapshot for row in siblings], today=today)
     except NaverMappingError as exc:
         link.sync_status = "PENDING_REVIEW"
         link.failure_reason = str(exc)[:2000]
@@ -94,12 +98,55 @@ def promote_link_to_order(
         is_erp_order=True,
         now=now or now_utc_naive(),
     )
-    link.order_id = order.id
-    link.sync_status = "LINKED"
-    link.failure_reason = None
+    for row in siblings:
+        row.order_id = order.id
+        row.sync_status = "LINKED"
+        row.failure_reason = None
     session.flush()
-    logger.info("[NAVER] 수집분 주문 생성 link=%s order=%s", link_id, order.id)
+    logger.info("[NAVER] 수집분 주문 생성 link=%s(+%d) order=%s",
+                link_id, len(siblings) - 1, order.id)
     return (int(order.id), True)
+
+
+def _group_siblings(session: Session, link: ExternalOrderLink) -> list[ExternalOrderLink]:
+    """같은 묶음(주문번호·수취인 전화·주소)의 **주문 미생성** 링크들을 모은다.
+
+    묶음 키에 전화·주소가 들어가는 이유는 분할배송이다 — 같은 주문번호라도 수취인이 다르면
+    합치면 안 된다(남의 주소로 시공 나가는 사고).
+
+    이미 주문이 붙은 형제는 제외한다. 사람이 부분적으로 먼저 만들었을 수 있고, 그때 다시
+    묶으면 같은 상품주문이 두 주문에 들어간다.
+
+    Args:
+        session: DB 세션.
+        link: 기준 링크(반드시 결과에 포함된다).
+
+    Returns:
+        묶을 링크 목록(기준 링크 우선, 나머지는 id 순).
+    """
+    key = group_key(link.raw_snapshot or {})
+    order_no = key[0]
+    if not order_no:
+        return [link]
+
+    candidates = (
+        session.query(ExternalOrderLink)
+        .filter(
+            ExternalOrderLink.channel == CHANNEL,
+            ExternalOrderLink.external_order_no == order_no,
+            ExternalOrderLink.order_id.is_(None),
+            ExternalOrderLink.sync_status.in_(("COLLECTED", "PENDING_REVIEW")),
+            ExternalOrderLink.id != link.id,
+        )
+        .with_for_update()
+        .order_by(ExternalOrderLink.id)
+        .all()
+    )
+    siblings = [link]
+    for row in candidates:
+        if isinstance(row.raw_snapshot, dict) and group_key(row.raw_snapshot) == key:
+            siblings.append(row)
+    return siblings
 
 
 def summarize_snapshot(raw_snapshot: Any) -> dict[str, Any]:

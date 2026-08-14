@@ -83,6 +83,22 @@ def _link_rows(db, *, status: Optional[str], page: int) -> tuple[list[dict], int
             order.id: order
             for order in db.query(Order).filter(Order.id.in_(order_ids)).all()
         }
+    # 같은 네이버 주문번호로 함께 묶일 미생성 건수(사람이 버튼 누르기 전에 알아야 한다).
+    pending_group_counts: dict[str, int] = {}
+    order_nos = [link.external_order_no for link in links
+                 if link.external_order_no and not link.order_id]
+    if order_nos:
+        from sqlalchemy import func as _func
+        rows_group = (
+            db.query(ExternalOrderLink.external_order_no, _func.count(ExternalOrderLink.id))
+            .filter(ExternalOrderLink.channel == "NAVER",
+                    ExternalOrderLink.external_order_no.in_(order_nos),  # perf-ok: 페이지 주문번호 batch
+                    ExternalOrderLink.order_id.is_(None))
+            .group_by(ExternalOrderLink.external_order_no)
+            .all()
+        )
+        pending_group_counts = {no: int(cnt) for no, cnt in rows_group}
+
     rows = []
     for link in links:
         order = orders.get(int(link.order_id)) if link.order_id else None
@@ -103,6 +119,7 @@ def _link_rows(db, *, status: Optional[str], page: int) -> tuple[list[dict], int
             "quantity": summary["quantity"],
             "amount": summary["amount"],
             "order_date": summary["order_date"],
+            "group_size": pending_group_counts.get(link.external_order_no or "", 1),
         })
     return (rows, total)
 
