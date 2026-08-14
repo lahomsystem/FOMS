@@ -4777,7 +4777,21 @@ async function loadMeasurementPanel() {
             
             if (item.cases && item.cases.length > 0) {
                 html += '<div class="measurement-cases-list d-none mt-2 pt-2 border-top">';
+                // 서버가 지역(시/도·시군구) 묶음 → 방문시각 이른 순으로 내려준다.
+                // 같은 지역 구간의 첫 건 앞에 지역 제목을 넣어 묶음이 눈에 보이게 한다.
+                const regionCounts = {};
+                item.cases.forEach(function (c) {
+                    const key = c.region_label || '주소 미입력';
+                    regionCounts[key] = (regionCounts[key] || 0) + 1;
+                });
+                let lastRegion = null;
                 item.cases.forEach(function(c) {
+                    const region = c.region_label || '주소 미입력';
+                    if (region !== lastRegion) {
+                        lastRegion = region;
+                        html += '<div class="erp-measure-day-region">' + escapeHtml(region) +
+                            '<span class="erp-measure-day-region__count">' + regionCounts[region] + '건</span></div>';
+                    }
                     const t = escapeHtml(c.time || '');
                     const n = escapeHtml(c.customer_name || '이름없음');
                     const a = escapeHtml(c.address || '-');
