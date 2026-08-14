@@ -369,6 +369,34 @@ write guard manifest 와 **별개 파일**이라 둘 다 등재해야 한다.
    업무 프로세스 개선안 deep research + 목업.
 3. 진입구가 사용자 드롭다운 안이라 안 보임 — ERP 주문 흐름 안에서 쓰기 쉬운 배치 연구 + 목업.
 
+## T14 구현 계획 (2026-08-15 목업 승인 대기 후 착수 — 새 세션 릴레이용)
+
+**확정 결정 (재논의 금지)**
+1. **기존 erporder 폼 UX/UI 불가침** — 제안 요소는 전부 폼 바깥. 도크 패널은 폼 DOM 을
+   참조하지 않는 독립 부품, 값 전달은 클립보드 복사 버튼만(WDCalculator additive 패턴).
+2. 본품 여러 개여도 주소·수취인 같으면 **FOMS 주문 1건**(group_key 가 주소 다르면 이미 분리).
+   본품↔옵션 짝짓기는 네이버 API 에 부모 링크가 없어 **추정 표시 + 사람 확정**(귀속 미정은
+   드롭다운, 선택 전 확인 완료 잠금). 짝짓기는 표시/체크리스트용 — items 데이터 구조 불변.
+3. 파싱 자동 기입 금지 — 힌트/복사까지만(규격 SSOT `spec_rows`·`eval_spec_width_mm` 보호).
+
+**목업 (사용자 검토 중)**
+- v2.1(실화면 통합·폼 불가침·시나리오 A/B): https://claude.ai/code/artifact/215d75b1-8fea-4da4-afbb-9fb4f6d9dcea
+- v1(개념·페르소나): https://claude.ai/code/artifact/d1b30d4b-f2e4-4fd5-b867-11abf14bd229
+
+**구현 덩이 3개 (예상 순서, 착수 전 사용자에게 순서·범위 확인 필수)**
+- **T14-A 진입구**: ① 주문 대시보드 인박스 스트립(대기>0 일 때만 렌더, `naver_triage_pending`
+  30초 캐시 재사용) ② 주 메뉴 '네이버' 탭 승격(`menu_config` + 뱃지). 반나절.
+- **T14-B 네이버 원본 도크**: `erp-edit-shell--split-ready` 빈 우측에 독립 마운트(기존 폼
+  템플릿·JS 무수정 — 회귀 핫스팟 주의: edit_order.html 1,300줄·erp_order_tab 공유).
+  데이터 = `erp-order-bootstrap` JSON 에 원본 요약 동봉(추가 fetch 0, 관리자 외 마스킹 검토).
+  체크·귀속 상태 = `ExternalOrderLink` 트리아지 축 저장. 좁은 폭 = 컨테이너 폭 기준 서랍 전환
+  (뷰포트 MQ 금지 — 공용 부품 규칙). 제일 큰 덩이.
+- **T14-C 잔여**: 수집 목록/트리아지 화면을 본품별 묶음 표시로 정렬(naver_role 활용).
+
+**하네스 주의(이 작업에서 이미 밟은 것)**: 새 mutation route 는 write guard + auth policy
+manifest 2종 + ACTION_LABELS 등재 / fail-open 인벤토리 재생성 / CSS·JS 수정 시 `?v=` 범프 /
+services/jobs `__all__` 닫힌집합 / pre_push_smoke 는 리베이스 후 재실행.
+
 ## PR #92 상태 (2026-08-14)
 
 새 운영 head(asfresh_00, PR #93) 기준으로 재구성 — 체인 `asfresh_00 → naver_link_00 →
