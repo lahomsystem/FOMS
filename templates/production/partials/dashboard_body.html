@@ -139,9 +139,15 @@
   {% endif %}
   {# 작업 큐: 태블릿 가로 코호트에서만 칸반으로 대체(배타·은닉은
      foms-tablet-production-kanban.css 소유 — legacy 은닉과 칸반 표시가 동일 게이트 결합). #}
+  {# 데스크톱 작업 큐는 광폭(≥992)에서만 픽셀을 차지한다 — 폰(긴 변 <992)에서는 세로·가로
+     어느 방향에서도 높이 0 이다(스테이징 computed style 실측: 390·844 둘 다 h=0).
+     screen 긴 변은 기기 고정 특성이라 창 조절·회전으로 안 바뀌므로 쿠키 판정이 안전하다
+     (실측 119.6KB). 쿠키 없음/파싱 실패 = True(현행대로 전부 렌더). #}
+  {% if wide_only_surfaces %}
   <div class="foms-production-legacy-queue">
     {% include 'production/partials/filters_grid.html' %}
   </div>
+  {% endif %}
   {# 태블릿 칸반은 (pointer: coarse) 미디어쿼리로만 표시된다(foms-tablet-production-kanban.css,
      data-foms-shell 강제 해치 없음) — 마우스 기기엔 죽은 마크업이라 렌더하지 않는다(실측 123.8KB).
      동봉된 tablet-domain-sheets.js 도 함께 빠지지만 출고는 dashboard_scripts.html 에서 자기

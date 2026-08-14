@@ -137,9 +137,15 @@
       </a>
     </section>
   {% endif %}
+  {# 데스크톱 작업 큐는 광폭(≥992)에서만 픽셀을 차지한다 — 폰(긴 변 <992)에서는 세로·가로
+     어느 방향에서도 높이 0 이다(스테이징 computed style 실측: 390·844 둘 다 h=0).
+     screen 긴 변은 기기 고정 특성이라 창 조절·회전으로 안 바뀌므로 쿠키 판정이 안전하다
+     (실측 127.8KB). 쿠키 없음/파싱 실패 = True(현행대로 전부 렌더). #}
+  {% if wide_only_surfaces %}
   <div class="foms-construction-legacy-queue">
     {% include 'construction/partials/filters_grid.html' %}
   </div>
+  {% endif %}
   {# 태블릿 작업 모드는 (pointer: coarse) 미디어쿼리로만 표시된다(foms-tablet-construction.css,
      data-foms-shell 강제 해치 없음) — 마우스 기기에서는 어떤 뷰포트·방향에서도 표시 불가능한
      죽은 마크업이라 렌더하지 않는다(스테이징 실측 241.8KB = fragment 의 32.4%).

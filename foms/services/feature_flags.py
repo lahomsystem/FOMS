@@ -21,6 +21,7 @@ __all__ = [
     "resolve_shell_variant",
     "resolve_shell_variant_cached",
     "should_render_new_order_wizard",
+    "wants_wide_only_surfaces",
     "wizard_new_order_enabled",
 ]
 
@@ -195,6 +196,60 @@ def wants_coarse_pointer_surfaces(request: "Request | None" = None) -> bool:
     if cookies is None:
         return True
     return cookies.get("foms_ptr") != "fine"
+
+
+#: 광폭 전용 표면이 처음 나타나는 브레이크포인트(px). 물리 화면의 긴 변이 이 값
+#: 미만인 기기는 어떤 방향으로도 해당 미디어쿼리에 도달할 수 없다.
+WIDE_SURFACE_MIN_PX: int = 992
+
+
+def wants_wide_only_surfaces(request: "Request | None" = None) -> bool:
+    """``min-width: 992px`` 전용 표면을 이 요청에 렌더해야 하는지 판정한다.
+
+    ``foms_scr`` 쿠키는 pre-paint 부트(layout_head.html 인라인 + SSOT 사본
+    ``static/js/runtime/foms-screen-hint-boot.js``)가 ``max(screen.width,
+    screen.height)``로 심는다. 긴 변이 992 미만인 기기(=폰)는 세로든 가로든
+    ``min-width: 992px`` 미디어쿼리에 **구조적으로 도달할 수 없으므로**, 그 조건에서만
+    보이는 데스크톱 작업 큐를 보내는 것은 순수 낭비다(스테이징 실측 주문 280.0KB ·
+    시공 127.8KB · 생산 119.6KB).
+
+    ``screen``은 기기 고정 특성이다 — 창 크기 조절로 바뀌지 않고, 회전하면 width/height
+    가 서로 바뀔 뿐 최댓값은 그대로다. 그래서 :func:`wants_coarse_pointer_surfaces` 와
+    같은 계열의 안전한 판정이며, 뷰포트(``innerWidth``) 기반 판정과 달리 값이 낡지 않는다.
+
+    **768 기준 표면에는 쓰면 안 된다.** AS 데스크톱 표(``d-md-block``)는 폰 가로
+    (예: 844px)에서 실제로 표시되므로 이 게이트로 스킵하면 화면이 빈다(실측 확인).
+
+    안전 폴백: 쿠키 미설정(첫 요청·쿠키 차단)·숫자 아님·음수/0 이면 True — 현행대로
+    전부 렌더한다. 판정을 못 할 때 화면이 비는 대신 느려지기만 하도록 기울인다.
+
+    Args:
+        request: Flask/Werkzeug request 또는 None(활성 request context 사용).
+
+    Returns:
+        광폭 전용 표면을 렌더해야 하면 True.
+    """
+    req = request
+    if req is None:
+        from flask import has_request_context
+        from flask import request as flask_request
+
+        if not has_request_context():
+            return True
+        req = flask_request
+    cookies = getattr(req, "cookies", None)
+    if cookies is None:
+        return True
+    raw = cookies.get("foms_scr")
+    if not raw:
+        return True
+    try:
+        longest_px = int(raw)
+    except (TypeError, ValueError):
+        return True
+    if longest_px <= 0:
+        return True
+    return longest_px >= WIDE_SURFACE_MIN_PX
 
 
 def resolve_shell_variant(
