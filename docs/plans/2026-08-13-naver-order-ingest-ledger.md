@@ -66,6 +66,9 @@
 | T9 | 트리아지 작업대 화면 | T8 | DONE | 테스트 15 green |
 | T10 | 담당자 지정(`set_sales_assignee`) | T8 | DONE | PG 레인 3 green |
 | T11 | 대시보드 '담당 미지정' 뱃지 + T0 준비 안내서 | T10 | DONE | 테스트 7 green |
+| T14-A | 진입구: 주 메뉴 '네이버 주문' 탭+뱃지 · '/' 인박스 스트립 · 전 직원 권한 개방 | T9 | DONE | 테스트 29 green + smoke 322 |
+| T14-B | 네이버 원본 도크 (편집 셸 우측 독립 마운트) | T14-A | PENDING | — |
+| T14-C | 수집 목록/트리아지 본품별 묶음 표시 | T13 | PENDING | — |
 
 > 순서 주의: 스펙의 T1(인프라 실검증)은 T0 사람 작업과 코드(T3)가 모두 있어야 가능하므로
 > 실행 순서에서는 T3 뒤로 내렸다. 스펙 번호는 그대로 둔다(대조 가능하게).
@@ -396,6 +399,34 @@ write guard manifest 와 **별개 파일**이라 둘 다 등재해야 한다.
 **하네스 주의(이 작업에서 이미 밟은 것)**: 새 mutation route 는 write guard + auth policy
 manifest 2종 + ACTION_LABELS 등재 / fail-open 인벤토리 재생성 / CSS·JS 수정 시 `?v=` 범프 /
 services/jobs `__all__` 닫힌집합 / pre_push_smoke 는 리베이스 후 재실행.
+
+### T14-A 구현 기록 (2026-08-14 완료)
+
+**사용자 확정(AskUserQuestion)**: 시작=T14-A, 탭+스트립 한 task, 메뉴 라벨=**'네이버 주문'**,
+완료 기준=커밋+deploy push+스테이징 눈 확인. T14-B 선결정: 도크=**전 직원**·**마스킹 안 함**·
+**체크 즉시 저장**. 진입구 권한=**전 직원 + 권한 개방**(트리아지 화면·확인·주문 만들기·담당
+지정을 STAFF 이상으로, 운영 화면·지금 수집·raw 스냅샷은 ADMIN 유지).
+
+**변경**
+- 뱃지 카운트 불일치 수정: `triage_count.py` 가 `LINKED` 만 세던 것을 큐 정의와 동일하게
+  `COLLECTED+LINKED`(미확인)로 — COLLECTED(주문 만들기 대기)가 뱃지 0 으로 보이던 버그.
+- `context_processors.py`: 뱃지 계산을 ADMIN→ADMIN/MANAGER/STAFF 로(30초 전역 캐시 그대로).
+- `naver_ingest.py`: triage·create_order·mark_reviewed·set_assignee 를
+  `role_required(["ADMIN","MANAGER","STAFF"])` 로. 정책 manifest 3건 ADMIN_OPS→STAFF_MUTATION.
+- 메뉴: `menu_config.py` 기본값 + `data/admin/menu_config.json` 에
+  `naver_orders`('네이버 주문', `/admin/naver-ingest/triage`) — 실측 다음 위치.
+  `layout_nav.html` 주 메뉴 루프에 해당 탭만 대기 뱃지. CONSTRUCTION 팀은 inject_menu 가
+  main_menu 를 통째 교체하므로 자동 제외.
+- `orders/index.html`: 대기>0 일 때만 렌더되는 `.naver-inbox-strip`(로컬 style 블록,
+  기존 페이지 인라인 스타일 관례) + '확인하기'→트리아지.
+- `naver_triage.html`: '수집 상태 화면으로' 버튼 ADMIN 게이트.
+
+**검증**: 대상 테스트 29 passed (nav_entry 9·triage 16·menu_config 4) + pre_push_smoke
+exit 0 (322 passed) + APP_OK. 신규 계약: COLLECTED 포함 카운트·STAFF 탭/뱃지·STAFF 트리아지
+200·STAFF 확인 완료 기록·VIEWER 차단·스트립 대기>0 조건.
+
+**범위 밖(미룸)**: 모바일 v2/v3 셸 nav 의 네이버 탭(3곳 분산 배선 — 별도 task 필요 시),
+스트립의 '마지막 수집 시각' 표기(워터마크 추가 조회라 제외, 목업 대비 축소).
 
 ## PR #92 상태 (2026-08-14)
 

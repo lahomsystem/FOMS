@@ -143,12 +143,16 @@ def inject_status_list() -> dict[str, Any]:
 
     admin_switch_users: list[AdminSwitchUser] = []
     impersonating_from_id = session.get("impersonating_from")
-    # 수집 확인 대기 뱃지는 ADMIN 메뉴에만 뜬다 — 다른 역할에서는 쿼리조차 내지 않는다.
+    # 수집 확인 대기 뱃지: 트리아지 화면을 쓸 수 있는 역할(T14-A 전 직원 개방)에만 계산.
+    # VIEWER 는 화면 접근이 막혀 있으므로 쿼리를 내지 않는다. 30초 전역 캐시라
+    # 역할이 늘어도 nav 렌더 비용은 그대로다.
     naver_triage_pending = 0
-    if current_user and current_user.role == "ADMIN":
+    if current_user:
         db = get_db()
-        admin_switch_users = _get_admin_switch_users(db, current_user.id)
-        naver_triage_pending = get_triage_pending_count(db)
+        if current_user.role == "ADMIN":
+            admin_switch_users = _get_admin_switch_users(db, current_user.id)
+        if current_user.role in ("ADMIN", "MANAGER", "STAFF"):
+            naver_triage_pending = get_triage_pending_count(db)
 
     erp_order_enabled = env_bool("ERP_ORDER_ENABLED", default=True)
     shell_variant = _current_shell_variant()

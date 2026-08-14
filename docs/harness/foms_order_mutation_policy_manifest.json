@@ -7,12 +7,12 @@
   "routes": {
     "admin.naver_ingest_create_order": {
       "mode": "guard",
-      "policy_id": "ADMIN_OPS",
+      "policy_id": "STAFF_MUTATION",
       "rule": "/admin/naver-ingest/<int:link_id>/create-order"
     },
     "admin.naver_ingest_mark_reviewed": {
       "mode": "guard",
-      "policy_id": "ADMIN_OPS",
+      "policy_id": "STAFF_MUTATION",
       "rule": "/admin/naver-ingest/<int:link_id>/review"
     },
     "admin.naver_ingest_run_now": {
@@ -22,7 +22,7 @@
     },
     "admin.naver_ingest_set_assignee": {
       "mode": "guard",
-      "policy_id": "ADMIN_OPS",
+      "policy_id": "STAFF_MUTATION",
       "rule": "/admin/naver-ingest/<int:order_id>/assignee"
     },
     "admin.ops_approval_review": {

@@ -16,6 +16,11 @@
       "url": "/?status=MEASURE"
     },
     {
+      "id": "naver_orders",
+      "name": "네이버 주문",
+      "url": "/admin/naver-ingest/triage"
+    },
+    {
       "id": "self_measurement_dashboard",
       "name": "자가실측 대시보드",
       "url": "/self_measurement_dashboard"

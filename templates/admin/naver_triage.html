@@ -9,9 +9,12 @@
             <i class="fas fa-clipboard-check text-primary"></i> 수집 주문 확인
             <span class="badge bg-primary align-middle">{{ pending_count }}</span>
         </h1>
+        {# 수집 운영 화면은 관리자 전용 — 전 직원 개방(T14-A) 후에도 링크는 ADMIN 에게만. #}
+        {% if current_user and current_user.role == 'ADMIN' %}
         <a href="{{ url_for('admin.naver_ingest_dashboard') }}" class="btn btn-outline-secondary btn-sm">
             수집 상태 화면으로
         </a>
+        {% endif %}
     </div>
 
     <p class="text-muted small">

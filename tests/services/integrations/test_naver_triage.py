@@ -172,6 +172,28 @@ def test_review_404_for_unknown_link(auth_client):
     assert auth_client.post("/admin/naver-ingest/999999/review", json={}).status_code == 404
 
 
+def test_staff_can_mark_reviewed(app, client):
+    """T14-A: 규격을 실제로 입력하는 STAFF 가 확인 완료를 직접 누를 수 있다."""
+    from werkzeug.security import generate_password_hash
+
+    staff = User(username=f"triage_staff_{_uid()}", password=generate_password_hash("pw"),
+                 role="STAFF", team="CS", name="접수 담당", is_active=True)
+    db_session.add(staff)
+    db_session.commit()
+    staff_id = staff.id
+    with client.session_transaction() as sess:
+        sess["user_id"] = staff_id
+        sess["username"] = staff.username
+        sess["role"] = staff.role
+
+    link_id = _ingested_order(_sales()).id
+    response = client.post(f"/admin/naver-ingest/{link_id}/review", json={})
+
+    assert response.status_code == 200 and response.get_json()["success"] is True
+    db_session.expire_all()
+    assert db_session.get(ExternalOrderLink, link_id).reviewed_by_user_id == staff_id
+
+
 # --------------------------------------------------------------------------- #
 # 담당자 지정 (T10)
 # --------------------------------------------------------------------------- #

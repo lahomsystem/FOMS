@@ -28,7 +28,12 @@ _cache: dict[str, tuple[float, int]] = {}
 
 
 def compute_triage_pending_count(db: Any) -> int:
-    """확인 대기(``LINKED`` + ``reviewed_at IS NULL``) 링크 수를 센다.
+    """확인 대기 링크 수를 센다 — 트리아지 큐 정의와 같은 술어여야 한다.
+
+    큐(``naver_ingest_triage``)에는 두 종류가 온다: 아직 주문이 없는 수집분
+    (``COLLECTED`` — "주문 만들기" 대기)과 주문은 생겼지만 사람이 안 본 건
+    (``LINKED``). 뱃지가 ``LINKED`` 만 세면 주문 만들기 대기가 0 으로 보인다
+    (T14-A 에서 실제로 났던 불일치).
 
     Args:
         db: 요청 스코프 DB 세션.
@@ -43,7 +48,7 @@ def compute_triage_pending_count(db: Any) -> int:
             db.query(ExternalOrderLink.id)
             .filter(
                 ExternalOrderLink.channel == CHANNEL,
-                ExternalOrderLink.sync_status == "LINKED",
+                ExternalOrderLink.sync_status.in_(("COLLECTED", "LINKED")),
                 ExternalOrderLink.reviewed_at.is_(None),
             )
             .count()

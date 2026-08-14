@@ -168,7 +168,10 @@
                 <ul class="navbar-nav">
                     {% for item in menu.main_menu %}
                     <li class="nav-item">
-                        <a class="nav-link" href="{{ item.url }}">{{ item.name }}</a>
+                        {# '네이버 주문' 탭(T14-A)만 확인 대기 뱃지를 단다 — 카운트는
+                           naver_triage_pending 30초 전역 캐시라 nav 렌더 비용 불변. #}
+                        <a class="nav-link" href="{{ item.url }}">{{ item.name }}{% if item.id == 'naver_orders' and naver_triage_pending %}
+                            <span class="badge rounded-pill bg-danger">{{ naver_triage_pending }}</span>{% endif %}</a>
                     </li>
                     {% endfor %}
                     {% if current_user.role == 'ADMIN' %}

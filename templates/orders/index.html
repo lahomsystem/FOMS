@@ -566,11 +566,62 @@
     tbody tr.selected {
         background-color: #e3f2fd !important;
     }
+
+    /* 네이버 수집 인박스 스트립 (T14-A) — 대기>0 일 때만 렌더 */
+    .naver-inbox-strip {
+        display: flex;
+        align-items: center;
+        gap: 12px;
+        background-color: #e4f6ec;
+        border: 1px solid #059a54;
+        border-radius: 10px;
+        padding: 9px 16px;
+        margin-bottom: 12px;
+    }
+
+    .naver-inbox-strip__count {
+        font-size: 19px;
+        font-weight: 800;
+        color: #059a54;
+    }
+
+    .naver-inbox-strip__text {
+        flex: 1;
+        min-width: 0;
+    }
+
+    .naver-inbox-strip__title {
+        font-weight: 700;
+        font-size: 13.5px;
+    }
+
+    .naver-inbox-strip__sub {
+        font-size: 12px;
+        color: #475569;
+    }
+
+    .naver-inbox-strip__btn {
+        white-space: nowrap;
+    }
 </style>
 {% endblock %}
 
 {% block content %}
 <div class="erp-pro order-list-container">
+    {# === 네이버 수집 인박스 스트립 (T14-A) — 확인 대기>0 일 때만. 카운트는
+       naver_triage_pending 30초 전역 캐시 재사용이라 목록 렌더 비용 불변. === #}
+    {% if naver_triage_pending %}
+    <div class="naver-inbox-strip" role="status">
+        <span class="naver-inbox-strip__count">{{ naver_triage_pending }}</span>
+        <div class="naver-inbox-strip__text">
+            <div class="naver-inbox-strip__title">네이버 새 수집</div>
+            <div class="naver-inbox-strip__sub">주문 만들기·확인 대기 {{ naver_triage_pending }}건</div>
+        </div>
+        <a href="{{ url_for('admin.naver_ingest_triage') }}"
+           class="btn btn-success btn-sm naver-inbox-strip__btn">확인하기</a>
+    </div>
+    {% endif %}
+
     {# === 페이지 헤더 === #}
     <header class="order-list-page-header">
         <h1 class="order-list-page-header__title">

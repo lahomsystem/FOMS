@@ -203,13 +203,17 @@ def _triage_pane(db, link: ExternalOrderLink) -> dict[str, Any]:
 
 @admin_bp.route("/admin/naver-ingest/triage")
 @login_required
-@role_required(["ADMIN"])
+@role_required(["ADMIN", "MANAGER", "STAFF"])
 def naver_ingest_triage():
     """수집 주문 트리아지 작업대 (스펙 §8.2).
 
     좌=확인 대기 큐, 우=네이버 원본 ↔ FOMS 현재 값 대조. **규격 입력은 여기서 하지 않는다** —
     ``spec_rows`` 는 폭(W)이 출고가·시공비와 결합돼 있어 두 번째 입력 UI 를 만들면 계산
     규칙이 갈라진다. 편집기가 규격 입력의 SSOT 로 남고 여기서는 링크만 건넨다.
+
+    T14-A: 규격을 실제로 입력하는 사람이 CS 접수 담당이라 전 직원(STAFF 이상)에게
+    개방한다. 수집 운영 화면(``naver_ingest_dashboard``)·"지금 수집"·raw 스냅샷은
+    관리자 전용으로 남는다.
     """
     db = get_db()
     # 큐에는 두 종류가 같이 온다: 아직 주문이 없는 수집분(COLLECTED — 여기서 "주문 만들기")과
@@ -273,7 +277,7 @@ def _active_sales_users(db) -> list[dict[str, Any]]:
 
 @admin_bp.route("/admin/naver-ingest/<int:link_id>/create-order", methods=["POST"])
 @login_required
-@role_required(["ADMIN"])
+@role_required(["ADMIN", "MANAGER", "STAFF"])
 def naver_ingest_create_order(link_id: int):
     """수집분 1건을 FOMS 주문으로 만든다 (T12 — 수집과 생성 분리).
 
@@ -324,7 +328,7 @@ def naver_ingest_create_order(link_id: int):
 
 @admin_bp.route("/admin/naver-ingest/<int:link_id>/review", methods=["POST"])
 @login_required
-@role_required(["ADMIN"])
+@role_required(["ADMIN", "MANAGER", "STAFF"])
 def naver_ingest_mark_reviewed(link_id: int):
     """"확인 완료" — 사람이 처리했다고 표시해 큐에서 뺀다 (스펙 §8.3).
 
@@ -353,7 +357,7 @@ def naver_ingest_mark_reviewed(link_id: int):
 
 @admin_bp.route("/admin/naver-ingest/<int:order_id>/assignee", methods=["POST"])
 @login_required
-@role_required(["ADMIN"])
+@role_required(["ADMIN", "MANAGER", "STAFF"])
 def naver_ingest_set_assignee(order_id: int):
     """수집 주문의 SALES 담당자를 지정한다 (스펙 §8.4).
 
