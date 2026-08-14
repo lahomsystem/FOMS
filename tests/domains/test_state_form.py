@@ -4,7 +4,7 @@
 - structured 폼 save 는 단계를 바꾸지 않는다(암묵 단계전이 0 — form save ≠ stage change).
 - 단계 변경은 오직 명시적 stage-override 만: REV-00 mutation core(version/receipt)를 경유해
   ``STAGE_OVERRIDE`` audit 이벤트를 남긴다(STATE-CORE 정합 경로).
-- 무효 override(비-메인 목표/짧은 사유/동일 단계)는 거부(400).
+- 무효 override(비-메인 목표/빈 사유/동일 단계)는 거부(400).
 - stale tab(If-Match 불일치)은 폼·override 양쪽에서 409(오래된 탭이 상태를 덮어쓰지 못함).
 """
 from __future__ import annotations
@@ -16,6 +16,7 @@ from werkzeug.security import generate_password_hash
 
 from db import db_session
 from models import Order, OrderEvent, User
+from sqlalchemy.orm.attributes import flag_modified
 
 
 def _login(client, username: str, role: str = "ADMIN") -> User:
@@ -127,7 +128,7 @@ def test_form_save_ignores_backward_stage_change(client):
 def test_form_save_auto_advances_to_measure_when_measurement_date_set(client):
     """실측일을 지정한 접수 주문은 폼 저장으로 실측(MEASURE) 단계에 자동 전진한다.
 
-    STATE-FORM-01 의 유일한 예외. 판정은 서버가 schedule.measurement.date 로만 한다.
+    STATE-FORM-01 의 실측일 자동 전진 예외. 판정은 서버가 schedule.measurement.date 로만 한다.
     """
     _login(client, "sf_auto_measure")
     order = _make_erp_order(stage="RECEIVED")
@@ -235,6 +236,110 @@ def test_form_save_measurement_date_never_regresses_later_stage(client):
     assert saved.structured_data["workflow"]["stage"] == "DRAWING"
 
 
+def test_form_save_auto_regresses_to_received_when_measurement_date_cleared(client):
+    """실측일을 지운 실측 주문은 폼 저장으로 접수(RECEIVED) 단계에 자동 복귀한다."""
+    _login(client, "sf_auto_received")
+    order = _make_erp_order(stage="MEASURE")
+    sd0 = copy.deepcopy(order.structured_data)
+    sd0["schedule"] = {"measurement": {"date": "2026-08-10"}}
+    sd0.setdefault("parties", {})["orderer"] = {"name": "라홈"}
+    order.structured_data = sd0
+    flag_modified(order, "structured_data")
+    db_session.commit()
+    order_id = order.id
+
+    sd = copy.deepcopy(sd0)
+    sd["schedule"] = {"measurement": {"date": ""}}
+    resp = client.put(
+        f"/api/orders/{order_id}/structured",
+        json={"structured_data": sd, "structured_schema_version": 1},
+    )
+    assert resp.status_code == 200, resp.get_json()
+
+    db_session.expire_all()
+    saved = db_session.get(Order, order_id)
+    assert saved.status == "RECEIVED"
+    assert saved.structured_data["workflow"]["stage"] == "RECEIVED"
+    events = [
+        e.payload
+        for e in db_session.query(OrderEvent).filter_by(
+            order_id=order_id, event_type="STAGE_CHANGED"
+        ).all()
+    ]
+    assert any(p.get("to") == "RECEIVED" for p in events)
+
+
+def test_form_save_cleared_measurement_date_does_not_regress_drawing(client):
+    """도면 이후 단계는 실측일을 지워도 접수로 되돌아가지 않는다."""
+    _login(client, "sf_auto_received_norollback")
+    order = _make_erp_order(stage="DRAWING")
+    sd0 = copy.deepcopy(order.structured_data)
+    sd0["schedule"] = {"measurement": {"date": "2026-08-10"}}
+    order.structured_data = sd0
+    flag_modified(order, "structured_data")
+    db_session.commit()
+    order_id = order.id
+
+    sd = copy.deepcopy(sd0)
+    sd["schedule"] = {"measurement": {"date": ""}}
+    resp = client.put(
+        f"/api/orders/{order_id}/structured",
+        json={"structured_data": sd, "structured_schema_version": 1},
+    )
+    assert resp.status_code == 200, resp.get_json()
+
+    db_session.expire_all()
+    saved = db_session.get(Order, order_id)
+    assert saved.status == "DRAWING"
+    assert saved.structured_data["workflow"]["stage"] == "DRAWING"
+
+
+def test_form_save_cleared_measurement_date_keeps_haud_measure(client):
+    """하우드는 실측일 없이 MEASURE 가 정상이라 실측일 삭제해도 접수로 되돌리지 않는다."""
+    _login(client, "sf_auto_received_haud")
+    order = _make_erp_order(stage="MEASURE")
+    sd0 = copy.deepcopy(order.structured_data)
+    sd0["schedule"] = {"measurement": {"date": "2026-08-10"}}
+    sd0.setdefault("parties", {})["orderer"] = {"name": "하우드"}
+    order.structured_data = sd0
+    flag_modified(order, "structured_data")
+    db_session.commit()
+    order_id = order.id
+
+    sd = copy.deepcopy(sd0)
+    sd["schedule"] = {"measurement": {"date": ""}}
+    resp = client.put(
+        f"/api/orders/{order_id}/structured",
+        json={"structured_data": sd, "structured_schema_version": 1},
+    )
+    assert resp.status_code == 200, resp.get_json()
+
+    db_session.expire_all()
+    saved = db_session.get(Order, order_id)
+    assert saved.status == "MEASURE"
+    assert saved.structured_data["workflow"]["stage"] == "MEASURE"
+
+
+def test_form_save_measure_without_prior_date_does_not_regress(client):
+    """실측일이 원래 없던 MEASURE 주문은 저장만으로 접수로 되돌아가지 않는다."""
+    _login(client, "sf_auto_received_nodate")
+    order = _make_erp_order(stage="MEASURE")
+    order_id = order.id
+
+    sd = copy.deepcopy(order.structured_data)
+    sd["schedule"] = {"measurement": {"date": ""}}
+    resp = client.put(
+        f"/api/orders/{order_id}/structured",
+        json={"structured_data": sd, "structured_schema_version": 1},
+    )
+    assert resp.status_code == 200, resp.get_json()
+
+    db_session.expire_all()
+    saved = db_session.get(Order, order_id)
+    assert saved.status == "MEASURE"
+    assert saved.structured_data["workflow"]["stage"] == "MEASURE"
+
+
 # --- 2) 명시 override → REV core(version/receipt) + STAGE_OVERRIDE audit ------
 def test_explicit_override_routes_through_rev_core_with_audit(client):
     """단계 변경은 override 만: REV-00 version/receipt 경유 + STAGE_OVERRIDE 감사 기록."""
@@ -275,7 +380,7 @@ def test_explicit_override_routes_through_rev_core_with_audit(client):
 
 # --- 3) 무효 override 거부 ----------------------------------------------------
 def test_invalid_override_rejected(client):
-    """비-메인 목표·짧은 사유·동일 단계는 400, 상태·감사 불변."""
+    """비-메인 목표·빈 사유·동일 단계는 400, 상태·감사 불변."""
     _login(client, "sf_invalid")
     order = _make_erp_order(stage="DRAWING")
     order_id = order.id
@@ -286,11 +391,11 @@ def test_invalid_override_rejected(client):
     )
     assert bad_target.status_code == 400
 
-    short_reason = client.post(
+    empty_reason = client.post(
         f"/api/orders/{order_id}/workflow/stage-override",
-        json={"to_stage": "MEASURE", "reason": "짧음", "confirm": True},
+        json={"to_stage": "MEASURE", "reason": "  ", "confirm": True},
     )
-    assert short_reason.status_code == 400
+    assert empty_reason.status_code == 400
 
     same_stage = client.post(
         f"/api/orders/{order_id}/workflow/stage-override",

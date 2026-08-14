@@ -500,10 +500,20 @@ var syncWorkflowStageByMeasurementDate =
         var stageEl = document.getElementById("erp-workflow-stage");
         if (!measurementDateEl || !stageEl) return;
         var hasMeasurementDate = (measurementDateEl.value || "").trim() !== "";
-        if (hasMeasurementDate && stageEl.querySelector('option[value="MEASURE"]')) {
+        var current = String(stageEl.value || "").trim();
+        var orderer = (typeof getOrdererValue === "function" ? getOrdererValue() : "").trim();
+        var isLahomLike = !orderer || orderer === "라홈";
+        // 서버 자동 전진/복귀와 동일: RECEIVED↔MEASURE 1칸만. 도면 이후는 유지.
+        if (hasMeasurementDate && (!current || current === "RECEIVED") &&
+                stageEl.querySelector('option[value="MEASURE"]')) {
             stageEl.value = "MEASURE";
-        } else if (!hasMeasurementDate && stageEl.querySelector('option[value="RECEIVED"]')) {
+        } else if (!hasMeasurementDate && current === "MEASURE" && isLahomLike &&
+                stageEl.querySelector('option[value="RECEIVED"]')) {
             stageEl.value = "RECEIVED";
+        }
+        if (window.FOMS_STAGE_OVERRIDE &&
+                typeof window.FOMS_STAGE_OVERRIDE.noteCurrentStage === "function") {
+            window.FOMS_STAGE_OVERRIDE.noteCurrentStage(stageEl.value);
         }
     };
 window.syncWorkflowStageByMeasurementDate = syncWorkflowStageByMeasurementDate;

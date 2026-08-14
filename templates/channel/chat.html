@@ -234,6 +234,6 @@
 
 {% include "orders/partials/erp_stage_override_modal.html" %}
 <script>window.MY_ROLE = {{ (current_user.role if current_user is defined and current_user else '')|tojson }};</script>
-<script src="{{ url_for('static', filename='js/orders/erp-stage-override.js') }}?v=20260716b" defer></script>
+<script src="{{ url_for('static', filename='js/orders/erp-stage-override.js') }}?v=20260814a" defer></script>
 <script src="{{ url_for('channel_chat_pages.chat_scripts_js', t=range(1, 1000000) | random) }}" defer></script>
 {% endblock %}
