@@ -382,7 +382,17 @@ def erp_as_dashboard():
     sort_dir = (request.args.get('sort_dir') or 'desc').strip().lower()
     if sort_dir != 'asc':
         sort_dir = 'desc'
-    order_col = Order.as_received_date
+    # 날짜 컬럼 헤더 정렬. 기본은 기존과 같은 AS 접수일이고, 방문일/완료일 헤더를 누르면
+    # 그 컬럼으로 갈아탄다. 방문일은 컬럼이 없고 schedule.as_visit.date(JSONB)가 SSOT다
+    # (표시 셀 r.as_visit_date와 같은 경로 — 표시값과 정렬 기준이 갈리지 않게).
+    sort_key = (request.args.get('sort_key') or 'received').strip().lower()
+    if sort_key not in ('received', 'visit', 'completed'):
+        sort_key = 'received'
+    order_col = {
+        'received': Order.as_received_date,
+        'completed': Order.as_completed_date,
+        'visit': Order.structured_data[('schedule', 'as_visit', 'date')].as_string(),
+    }[sort_key]
     total_orders = int(as_tab_counts.get(tab, 0))
     if as_bucket:
         # 버킷 필터 시 헤더 건수·페이지 수도 좁혀진 결과 기준으로
@@ -390,10 +400,14 @@ def erp_as_dashboard():
     sort_clauses = []
     if focus_order_id:
         sort_clauses.append(case((Order.id == focus_order_id, 0), else_=1))
+    # 날짜 미정은 방향과 무관하게 항상 뒤로 — 방문일/완료일은 빈 값이 흔해서 오름차순에
+    # 빈 행부터 깔리면 1페이지가 통째로 무의미해진다(다른 대시보드 정렬과 같은 규약).
+    blank_last = case((order_col.is_(None), 1), ((order_col == ''), 1), else_=0)
+    sort_clauses.append(blank_last.asc())
     if sort_dir == 'desc':
         sort_clauses.extend([order_col.desc().nullslast(), Order.id.desc()])
     else:
-        sort_clauses.extend([order_col.asc().nullsfirst(), Order.id.desc()])
+        sort_clauses.extend([order_col.asc().nullslast(), Order.id.desc()])
     query = query.order_by(*sort_clauses)
 
     # Pagination
@@ -435,6 +449,7 @@ def erp_as_dashboard():
         erp_mine_only=erp_mine_only,
         can_view_as_photos=can_view_as_photos,
         sort_dir=sort_dir,
+        sort_key=sort_key,
         as_tab=tab,
         as_tab_counts=as_tab_counts,
         as_incomplete_summary=as_incomplete_summary,

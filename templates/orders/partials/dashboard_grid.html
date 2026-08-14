@@ -41,38 +41,7 @@
             </div>
           </div>
           <!-- 스크롤 영역: 일괄 적용 바 sticky가 이 컨테이너 기준으로 동작하도록 함 -->
-          {# 실측일/시공일 헤더 정렬. 3단 토글(기본 → 오름차순 → 내림차순 → 기본)이고
-             서버 정렬(sort/dir)이라 페이지 경계를 넘어 전체가 정렬된다. 정렬 링크는
-             현재 필터를 그대로 물려주고 page만 1로 되돌린다. #}
-          {% set _sort_cur = filters.get('sort') or 'latest' %}
-          {% set _sort_dir_cur = filters.get('dir') or 'asc' %}
-          {% set _sort_keep = {
-               'stage': filters.get('stage') or '',
-               'q': filters.get('q') or '',
-               'urgent': filters.get('urgent') or '',
-               'has_alert': filters.get('has_alert') or '',
-               'alert_type': filters.get('alert_type') or '',
-               'team': filters.get('team') or '',
-               'mine': filters.get('mine') or '',
-               'today': filters.get('today') or '',
-               'date': filters.get('date') or '',
-               'field': filters.get('field') or '',
-               'risk': filters.get('risk') or '',
-             } %}
-          {% macro erp_sort_header(col_key, label) %}
-            {% set _active = (_sort_cur == col_key) %}
-            {% set _next_dir = 'asc' if not _active else ('desc' if _sort_dir_cur == 'asc' else '') %}
-            {% if _next_dir %}
-              {% set _href = url_for('erp_dashboard.erp_dashboard', sort=col_key, dir=_next_dir, **_sort_keep) %}
-            {% else %}
-              {% set _href = url_for('erp_dashboard.erp_dashboard', **_sort_keep) %}
-            {% endif %}
-            <a class="erp-col-sort{% if _active %} is-active{% endif %}" href="{{ _href }}"
-               title="{{ label }} 정렬 ({{ '오름차순' if not _active else ('내림차순' if _sort_dir_cur == 'asc' else '정렬 해제') }})">
-              <span>{{ label }}</span>
-              <span class="erp-col-sort-arrow" aria-hidden="true">{% if _active %}{{ '▲' if _sort_dir_cur == 'asc' else '▼' }}{% else %}⇅{% endif %}</span>
-            </a>
-          {% endmacro %}
+          {% from 'orders/partials/sort_header_macro.html' import erp_sort_header with context %}
           <div class="erp-grid-scroll-wrap">
           <div class="table-responsive">
             <table class="table table-sm table-hover align-middle erp-dashboard-grid-resizable" id="erp-grid">

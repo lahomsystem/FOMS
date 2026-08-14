@@ -1201,7 +1201,10 @@ def test_tqgrid_partial_exists_with_mockup_columns_in_order() -> None:
     body = _read(WORKQUEUE_GRID_PARTIAL)
     # 헤더 라벨은 순서대로(>LABEL</th> 는 헤더에만 매치 — 상단 주석/셀 주석 불매치).
     order = ["단계", "고객", "다음 할 일", "제품", "실측일", "시공일", "담당", "첨부"]
-    idxs = [body.index(">" + label + "</th>") for label in order]
+    # 실측일/시공일은 정렬 헤더 매크로 호출로 렌더되므로 `>라벨</th>` 리터럴이 아니다.
+    # 계약의 본질은 thead 안 컬럼 순서이므로 thead 구간에서 라벨 위치만 비교한다.
+    thead = body[body.index("<thead>"):body.index("</thead>")]
+    idxs = [thead.index(label) for label in order]
     assert idxs == sorted(idxs), "목업 컬럼 순서 불일치(단계·고객·다음할일·제품·실측일·시공일·담당·첨부)"
     # 경보 열 없음(PC 그리드 data-col-key/경보 th 부재).
     assert ">경보</th>" not in body

@@ -1,3 +1,15 @@
+{# AS 날짜 컬럼 헤더 정렬 링크. 활성 열은 방향을 뒤집고, 비활성 열은 오름차순부터 시작한다
+   (sort_key/sort_dir 서버 정렬이라 페이지 경계를 넘어 전체가 정렬된다). #}
+{% macro as_sort_link(key, label) %}
+  {% set _active = (sort_key|default('received')) == key %}
+  {% set _next_dir = ('asc' if sort_dir == 'desc' else 'desc') if _active else 'asc' %}
+  <a href="{{ url_for('erp_as_page.erp_as_dashboard', tab=as_tab, status=status_filter or '', billing=billing_filter or '', q=search_q or '', sort_key=key, sort_dir=_next_dir, mine='1' if erp_mine_only else '') }}"
+    class="text-decoration-none text-dark" title="클릭 시 {{ label }} 기준 정렬">
+    {{ label }}
+    {%- if _active %} {% if sort_dir == 'desc' %}<i class="fas fa-sort-down ms-1"></i>{% else %}<i class="fas fa-sort-up ms-1"></i>{% endif %}
+    {%- else %} <i class="fas fa-sort ms-1 text-muted"></i>{% endif %}
+  </a>
+{% endmacro %}
 {# foms-kv-rollout: erp_mobile_shell → kv-copy.js + queue card foms_order_contact_kv #}
 {% from 'cs/partials/as_card_macros.html' import render_as_orderer_line, render_as_construction_workers, render_as_timeline_cell, render_as_billing_badge, render_as_schedule_drift_badge, render_as_drift_jump_chip %}
 
@@ -218,15 +230,17 @@
           <thead>
             <tr>
               <th data-col-key="order">주문<button type="button" class="col-resize-handle" aria-label="주문 열 너비 조절"></button></th>
+              {# 날짜 3열(접수일/방문일/완료일) 모두 정렬 토글. 같은 열을 다시 누르면 방향이
+                 뒤집히고, 다른 열을 누르면 그 열 오름차순부터 시작한다. #}
               <th data-col-key="received" class="erp-as-sort-th">
-                <a href="{{ url_for('erp_as_page.erp_as_dashboard', tab=as_tab, status=status_filter or '', billing=billing_filter or '', q=search_q or '', sort_dir='asc' if sort_dir == 'desc' else 'desc', mine='1' if erp_mine_only else '') }}"
-                  class="text-decoration-none text-dark" title="클릭 시 접수일 정렬 방향 변경">
-                  AS 접수일 {% if sort_dir == 'desc' %}<i class="fas fa-sort-down ms-1"></i>{% else %}<i
-                    class="fas fa-sort-up ms-1"></i>{% endif %}
-                </a><button type="button" class="col-resize-handle" aria-label="AS 접수일 열 너비 조절"></button>
+                {{ as_sort_link('received', 'AS 접수일') }}<button type="button" class="col-resize-handle" aria-label="AS 접수일 열 너비 조절"></button>
               </th>
-              <th data-col-key="visit">AS 방문일<button type="button" class="col-resize-handle" aria-label="AS 방문일 열 너비 조절"></button></th>
-              <th data-col-key="completed">AS 완료일<button type="button" class="col-resize-handle" aria-label="AS 완료일 열 너비 조절"></button></th>
+              <th data-col-key="visit" class="erp-as-sort-th">
+                {{ as_sort_link('visit', 'AS 방문일') }}<button type="button" class="col-resize-handle" aria-label="AS 방문일 열 너비 조절"></button>
+              </th>
+              <th data-col-key="completed" class="erp-as-sort-th">
+                {{ as_sort_link('completed', 'AS 완료일') }}<button type="button" class="col-resize-handle" aria-label="AS 완료일 열 너비 조절"></button>
+              </th>
               <th data-col-key="manager">담당자<button type="button" class="col-resize-handle" aria-label="담당자 열 너비 조절"></button></th>
               <th data-col-key="workers">시공자<button type="button" class="col-resize-handle" aria-label="시공자 열 너비 조절"></button></th>
               <th data-col-key="customer">고객<button type="button" class="col-resize-handle" aria-label="고객 열 너비 조절"></button></th>
@@ -389,7 +403,7 @@
         <nav aria-label="Page navigation">
           <ul class="pagination pagination-sm mb-1">
             <li class="page-item {% if page <= 1 %}disabled{% endif %}">
-              <a class="page-link" href="{{ url_for('erp_as_page.erp_as_dashboard', page=page-1, tab=as_tab, status=status_filter or '', billing=billing_filter or '', q=search_q or '', sort_dir=sort_dir, mine='1' if erp_mine_only else '') }}" aria-label="Previous">
+              <a class="page-link" href="{{ url_for('erp_as_page.erp_as_dashboard', page=page-1, tab=as_tab, status=status_filter or '', billing=billing_filter or '', q=search_q or '', sort_key=sort_key|default('received'), sort_dir=sort_dir, mine='1' if erp_mine_only else '') }}" aria-label="Previous">
                 <span aria-hidden="true">&laquo;</span>
               </a>
             </li>
@@ -408,12 +422,12 @@
 
             {% for p in range(start_page, end_page + 1) %}
             <li class="page-item {% if p == page %}active{% endif %}">
-              <a class="page-link" href="{{ url_for('erp_as_page.erp_as_dashboard', page=p, tab=as_tab, status=status_filter or '', billing=billing_filter or '', q=search_q or '', sort_dir=sort_dir, mine='1' if erp_mine_only else '') }}">{{ p }}</a>
+              <a class="page-link" href="{{ url_for('erp_as_page.erp_as_dashboard', page=p, tab=as_tab, status=status_filter or '', billing=billing_filter or '', q=search_q or '', sort_key=sort_key|default('received'), sort_dir=sort_dir, mine='1' if erp_mine_only else '') }}">{{ p }}</a>
             </li>
             {% endfor %}
 
             <li class="page-item {% if page >= total_pages %}disabled{% endif %}">
-              <a class="page-link" href="{{ url_for('erp_as_page.erp_as_dashboard', page=page+1, tab=as_tab, status=status_filter or '', billing=billing_filter or '', q=search_q or '', sort_dir=sort_dir, mine='1' if erp_mine_only else '') }}" aria-label="Next">
+              <a class="page-link" href="{{ url_for('erp_as_page.erp_as_dashboard', page=page+1, tab=as_tab, status=status_filter or '', billing=billing_filter or '', q=search_q or '', sort_key=sort_key|default('received'), sort_dir=sort_dir, mine='1' if erp_mine_only else '') }}" aria-label="Next">
                 <span aria-hidden="true">&raquo;</span>
               </a>
             </li>

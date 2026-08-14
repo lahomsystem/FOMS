@@ -155,6 +155,8 @@ def erp_construction_dashboard():
                 page=page,
                 per_page=per_page,
                 total_cap=CONSTRUCTION_SEARCH_CAP,
+                sort=_cf.sort,
+                sort_dir=_cf.sort_dir,
             )
     else:
         # 브라우즈 기본 뷰: 단계 미선택 시 전 시공 단계(대기+중+완료)로 SQL 선스코프 →
@@ -167,6 +169,8 @@ def erp_construction_dashboard():
                 page=page,
                 per_page=per_page,
                 total_cap=CONSTRUCTION_BROWSE_CAP,
+                sort=_cf.sort,
+                sort_dir=_cf.sort_dir,
             )
 
     # 첨부 개수는 주문 id 집합에만 의존한다(fetch_construction_attachment_counts 는 ids 로만
@@ -237,7 +241,7 @@ def erp_construction_dashboard():
             orders=enriched,
             kpis=kpis,
             process_steps=process_steps,
-            filters={"stage": f_stage, "q": f_q},
+            filters={"stage": f_stage, "q": f_q, "sort": _cf.sort, "dir": _cf.sort_dir},
             team_labels=TEAM_LABELS,
             stage_labels=STAGE_LABELS,
             is_admin=is_admin,
