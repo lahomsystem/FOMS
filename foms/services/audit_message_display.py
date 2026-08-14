@@ -311,6 +311,10 @@ _EMPTY_DISPLAY = "(지움)"
 #: 지운 게 아니라 처음부터 없던 것이다.
 _EMPTY_BEFORE_DISPLAY = "(없음)"
 
+#: 객체·목록이 저장돼 있으나 안에 내용이 하나도 없을 때 표기. 빈 칸만 담긴 비고 객체가
+#: 화면에 JSON 원문으로 남지 않게 한다(값이 없다는 사실 자체는 감추지 않는다).
+_EMPTY_CONTENT_DISPLAY = "(내용 없음)"
+
 #: AS 내용처럼 긴 본문을 줄일 상한.
 _LONG_TEXT_LIMIT = 60
 
@@ -408,6 +412,10 @@ def _format_structured_text(text: str) -> str:
     한쪽만 고쳐진다. import 는 함수 안에서 한다(표시 모듈이 알림·모델 의존을 로드 시점에
     끌고 오지 않게).
 
+    이미 쌓인 이력에는 **저장 상한(120자)에서 잘린** 객체가 섞여 있다
+    (``{"address_note": "", "construction_n…``). 그대로 두면 과거 행만 JSON 원문으로 남으므로,
+    잘린 조각은 마지막으로 온전한 항목까지 되살려 읽고 ``…`` 로 잘렸음을 밝힌다(무성 복원 금지).
+
     :param text: 값 문자열. JSON 객체·배열 형태가 아니면 빈 문자열을 낸다.
     :return: 사람 표기(``주소 특이사항 잠금장치, 실측 특이사항 오전만``) 또는 빈 문자열.
     """
@@ -418,8 +426,33 @@ def _format_structured_text(text: str) -> str:
     try:
         parsed = json.loads(text)
     except (TypeError, ValueError):
-        return ""
-    return format_value_for_display(parsed).strip()
+        salvaged = _salvage_clipped_json(text)
+        if salvaged is None:
+            return ""
+        rendered = format_value_for_display(salvaged).strip()
+        return f"{rendered} …" if rendered else _EMPTY_CONTENT_DISPLAY
+    return format_value_for_display(parsed).strip() or _EMPTY_CONTENT_DISPLAY
+
+
+def _salvage_clipped_json(text: str) -> Any | None:
+    """상한에서 잘린 JSON 조각을 마지막 온전한 항목까지 되살린다.
+
+    ``_clip`` 은 값이 120자를 넘으면 뒤를 자르고 ``…`` 를 붙인다 — 객체·배열이 잘리면
+    ``json.loads`` 가 실패하고 화면에 원문이 남는다. 마지막 쉼표까지 되돌린 뒤 괄호를 닫아
+    다시 읽는다. **되살린 부분만** 쓰고, 잘린 사실은 호출부가 ``…`` 로 표기한다.
+
+    :param text: 잘린 JSON 문자열.
+    :return: 파싱된 값. 되살릴 수 없으면 ``None``.
+    """
+    closer = "}" if text.startswith("{") else "]"
+    body = text.rstrip("…").rstrip()
+    cut = body.rfind(",")
+    while cut > 0:
+        try:
+            return json.loads(body[:cut] + closer)
+        except (TypeError, ValueError):
+            cut = body.rfind(",", 0, cut)
+    return None
 
 
 def format_value(field: str | None, value: Any) -> str:
