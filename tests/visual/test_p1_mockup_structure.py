@@ -813,8 +813,13 @@ def test_p1_history_mobile_v2_home_ia_parity() -> None:
         "history_mobile_filters.html",
         "foms-mobile-queue-list",
         "foms-shell-fab",
+        "render_queue_card_v2",
+        "shared/erp_mobile_queue_card_v2.html",
+        "edit_return_to='erp_history_dashboard'",
+        "detail_return_to='erp_history_dashboard'",
     ):
         assert selector in body, selector
+    assert "erp-history-mobile-card__toggle" not in body
     filters = (ROOT / "templates/orders/partials/history_mobile_filters.html").read_text(encoding="utf-8")
     for selector in ("chip-strip", "foms-chip-strip"):
         assert selector in filters, selector
@@ -858,8 +863,56 @@ def test_p1_history_dashboard_renders_home_ia(
         "foms-chip-strip",
         "foms-mobile-queue-list",
         "foms-shell-fab",
+        "foms-queue-card-v2",
     ):
         assert selector in html, selector
+
+
+def test_p1_history_search_renders_measure_queue_card(
+    client,
+    monkeypatch: pytest.MonkeyPatch,
+) -> None:
+    """검색 결과 모바일이 실측 탭과 같은 queue-card-v2(실측일)를 렌더한다."""
+    import datetime
+
+    from models import Order
+
+    user = _login_admin(client)
+    monkeypatch.setenv("ERP_MOBILE_V2_ENABLED", "true")
+    monkeypatch.setenv("FOMS_V3_SHELL_COHORT", str(user.id))
+
+    order = Order(
+        received_date="2026-08-10",
+        customer_name="김길은",
+        phone="010-8920-1468",
+        address="서울 성동구 금호산8길 14",
+        product="리라 TV 월플렉스",
+        status="MEASURE",
+        manager_name="강민경",
+        is_erp_order=True,
+        erp_stage_code="MEASURE",
+        structured_data={
+            "workflow": {"stage": "MEASURE"},
+            "parties": {
+                "customer": {"name": "김길은", "phone": "010-8920-1468"},
+                "manager": {"name": "강민경"},
+            },
+            "site": {"address_full": "서울 성동구 금호산8길 14"},
+            "schedule": {"measurement": {"date": "2026-08-12"}},
+            "items": [{"product_name": "리라 TV 월플렉스"}],
+        },
+    )
+    db_session.add(order)
+    db_session.commit()
+
+    resp = client.get("/erp/history/?q=%EA%B9%80%EA%B8%B8%EC%9D%80")
+    assert resp.status_code == 200
+    html = resp.get_data(as_text=True)
+    assert "foms-queue-card-v2" in html
+    assert "김길은" in html
+    assert "2026-08-12" in html
+    assert ">실측<" in html or "실측" in html
+    assert "erp-history-mobile-card__toggle" not in html
 
 
 def test_p1_workflow_tabs_use_clean_queue_card_v2() -> None:
@@ -872,6 +925,7 @@ def test_p1_workflow_tabs_use_clean_queue_card_v2() -> None:
         "templates/production/partials/mobile_queue.html",
         "templates/construction/partials/mobile_queue.html",
         "templates/shipment/partials/shipment_mobile_queue.html",
+        "templates/orders/partials/history_dashboard_body.html",
     ):
         src = (ROOT / rel).read_text(encoding="utf-8")
         assert "shared/erp_mobile_queue_card_v2.html" in src, rel

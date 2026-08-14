@@ -38,6 +38,10 @@ def test_resolve_edit_return_back_endpoint_drawing_workbench() -> None:
         == "erp_drawing_workbench.erp_drawing_workbench_dashboard"
     )
     assert resolve_edit_return_back_endpoint("") == "erp_dashboard.erp_dashboard"
+    assert (
+        resolve_edit_return_back_endpoint("erp_history_dashboard")
+        == "erp_history.history_dashboard"
+    )
 
 
 def test_queue_focus_href_drawing_stage_uses_workbench(app) -> None:
