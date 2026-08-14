@@ -138,7 +138,14 @@
   {% include 'orders/partials/dashboard_styles.html' %}
 
   <div class="erp-dashboard-layout">
+    {# PC 작업 큐 그리드는 광폭(≥992)에서만 픽셀을 차지한다 — 폰(긴 변 <992)에서는 세로·가로
+       어느 방향에서도 부모 `.foms-shell-desktop-only` 가 display:none 이다(스테이징 computed
+       style 실측: 390·844 둘 다 h=0, 1600 에서 h=1146). screen 긴 변은 기기 고정 특성이라
+       창 조절·회전으로 안 바뀌므로 쿠키 판정이 안전하다(실측 280.0KB).
+       쿠키 없음/파싱 실패 = True(현행대로 전부 렌더). #}
+    {% if wide_only_surfaces %}
     {% include 'orders/partials/dashboard_grid.html' %}
+    {% endif %}
     {# 태블릿 가로 코호트 클린 작업 큐 그리드(목업 프레임 01). 표시/PC 그리드 은닉은 CSS
        코호트 게이트(foms-tablet-landscape.css)가 소유한다(PC/폰 무영향).
        `.foms-tablet-workqueue-wrap` 은 base `display:none` 이고 표시 규칙은 `(min-width:992px)

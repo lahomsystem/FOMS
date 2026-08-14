@@ -267,3 +267,48 @@ def test_resolve_shell_variant_v3_without_request_context(monkeypatch) -> None:
     _set_v2_cohort(monkeypatch, enabled=True, cohort="3")
     _set_v3_cohort(monkeypatch, enabled=True, cohort="3")
     assert feature_flags.resolve_shell_variant(3) == "v3"
+
+
+# --- 화면 힌트 쿠키(foms_scr): 광폭 전용 표면 판정 ---------------------------
+
+
+class _StubRequest:
+    """cookies 만 갖는 최소 request 스텁."""
+
+    def __init__(self, cookies: dict[str, str] | None) -> None:
+        self.cookies = cookies
+
+
+@pytest.mark.parametrize(
+    ("cookies", "expected", "why"),
+    [
+        ({"foms_scr": "1920"}, True, "데스크톱 — 광폭 도달 가능"),
+        ({"foms_scr": "1366"}, True, "노트북 — 광폭 도달 가능"),
+        ({"foms_scr": "1024"}, True, "아이패드 세로(긴 변 1366 이 정상이나 경계 위)"),
+        ({"foms_scr": "992"}, True, "경계값 — 992 는 도달 가능(>=)"),
+        ({"foms_scr": "991"}, False, "경계 바로 아래 — 폰"),
+        ({"foms_scr": "844"}, False, "아이폰 긴 변 — 어느 방향도 992 미도달"),
+        ({"foms_scr": "915"}, False, "안드로이드 폰 긴 변"),
+        # --- 안전 폴백: 판정 불가 = 전부 렌더(True) ---
+        ({}, True, "쿠키 미설정(첫 요청·쿠키 차단)"),
+        ({"foms_scr": ""}, True, "빈 값"),
+        ({"foms_scr": "abc"}, True, "숫자 아님"),
+        ({"foms_scr": "0"}, True, "0 — 비정상"),
+        ({"foms_scr": "-500"}, True, "음수 — 비정상"),
+        ({"foms_scr": "844.5"}, True, "정수 아님 — 파싱 실패"),
+    ],
+)
+def test_wants_wide_only_surfaces(cookies, expected: bool, why: str) -> None:
+    """폰(긴 변 <992)만 False. 판정 불가는 전부 True(현행 렌더 유지)."""
+    got = feature_flags.wants_wide_only_surfaces(_StubRequest(cookies))
+    assert got is expected, f"{why}: {cookies} -> {got}"
+
+
+def test_wants_wide_only_surfaces_without_cookies_attr() -> None:
+    """cookies 가 없는 객체여도 안전 폴백(True)."""
+    assert feature_flags.wants_wide_only_surfaces(_StubRequest(None)) is True
+
+
+def test_wants_wide_only_surfaces_outside_request_context() -> None:
+    """request context 밖(백그라운드 작업)에서도 안전 폴백(True)."""
+    assert feature_flags.wants_wide_only_surfaces() is True
