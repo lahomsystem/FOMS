@@ -401,7 +401,7 @@
         <nav aria-label="Page navigation">
           <ul class="pagination pagination-sm mb-1">
             <li class="page-item {% if page <= 1 %}disabled{% endif %}">
-              <a class="page-link" href="{{ url_for('erp_as_page.erp_as_dashboard', page=page-1, tab=as_tab, status=status_filter or '', billing=billing_filter or '', q=search_q or '', sort_dir=sort_dir, mine='1' if erp_mine_only else '') }}" aria-label="Previous">
+              <a class="page-link" href="{{ url_for('erp_as_page.erp_as_dashboard', page=page-1, tab=as_tab, status=status_filter or '', billing=billing_filter or '', q=search_q or '', sort_key=sort_key|default('received'), sort_dir=sort_dir, mine='1' if erp_mine_only else '') }}" aria-label="Previous">
                 <span aria-hidden="true">&laquo;</span>
               </a>
             </li>
@@ -420,12 +420,12 @@
 
             {% for p in range(start_page, end_page + 1) %}
             <li class="page-item {% if p == page %}active{% endif %}">
-              <a class="page-link" href="{{ url_for('erp_as_page.erp_as_dashboard', page=p, tab=as_tab, status=status_filter or '', billing=billing_filter or '', q=search_q or '', sort_dir=sort_dir, mine='1' if erp_mine_only else '') }}">{{ p }}</a>
+              <a class="page-link" href="{{ url_for('erp_as_page.erp_as_dashboard', page=p, tab=as_tab, status=status_filter or '', billing=billing_filter or '', q=search_q or '', sort_key=sort_key|default('received'), sort_dir=sort_dir, mine='1' if erp_mine_only else '') }}">{{ p }}</a>
             </li>
             {% endfor %}
 
             <li class="page-item {% if page >= total_pages %}disabled{% endif %}">
-              <a class="page-link" href="{{ url_for('erp_as_page.erp_as_dashboard', page=page+1, tab=as_tab, status=status_filter or '', billing=billing_filter or '', q=search_q or '', sort_dir=sort_dir, mine='1' if erp_mine_only else '') }}" aria-label="Next">
+              <a class="page-link" href="{{ url_for('erp_as_page.erp_as_dashboard', page=page+1, tab=as_tab, status=status_filter or '', billing=billing_filter or '', q=search_q or '', sort_key=sort_key|default('received'), sort_dir=sort_dir, mine='1' if erp_mine_only else '') }}" aria-label="Next">
                 <span aria-hidden="true">&raquo;</span>
               </a>
             </li>

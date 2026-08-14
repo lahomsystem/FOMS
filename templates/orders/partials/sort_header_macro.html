@@ -14,13 +14,15 @@
 
    `with context` 임포트 필수 — filters/url_for를 호출 템플릿 스코프에서 읽는다. #}
 {% macro erp_sort_header(col_key, label, endpoint='erp_dashboard.erp_dashboard', keep_keys=None) %}
-  {% set _sort_cur = filters.get('sort') or 'latest' %}
-  {% set _sort_dir_cur = filters.get('dir') or 'asc' %}
+  {# filters 없이 파셜만 단독 렌더하는 호출자(계약 테스트 등)도 있으므로 기본값을 둔다. #}
+  {% set _filters = filters if filters is defined and filters else {} %}
+  {% set _sort_cur = _filters.get('sort') or 'latest' %}
+  {% set _sort_dir_cur = _filters.get('dir') or 'asc' %}
   {% set _active = (_sort_cur == col_key) %}
   {% set _next_dir = 'asc' if not _active else ('desc' if _sort_dir_cur == 'asc' else '') %}
   {% set _keys = keep_keys or ['stage', 'q', 'urgent', 'has_alert', 'alert_type', 'team', 'mine', 'today', 'date', 'field', 'risk'] %}
   {% set _sort_keep = {} %}
-  {% for _k in _keys %}{% set _ = _sort_keep.update({_k: filters.get(_k) or ''}) %}{% endfor %}
+  {% for _k in _keys %}{% set _ = _sort_keep.update({_k: _filters.get(_k) or ''}) %}{% endfor %}
   {% if _next_dir %}
     {% set _href = url_for(endpoint, sort=col_key, dir=_next_dir, **_sort_keep) %}
   {% else %}
