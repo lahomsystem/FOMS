@@ -23,7 +23,9 @@ from foms.services.integrations.naver_commerce.mapping import (
     NaverMappingError,
     SOURCE_MARKER,
     build_order_fields,
+    build_payment_info,
     build_structured_data,
+    extract_claim,
     extract_shipping_memo,
     is_collectible,
     map_detail,
@@ -197,6 +199,82 @@ def test_group_keeps_every_distinct_shipping_memo():
     _fields, structured = map_group([addon, lead, same], today="2026-08-14")
     # 대표(금액 최대) 메모가 먼저, 중복은 제거.
     assert structured["naver"]["shipping_memo"] == "문 앞에 놓아주세요\n부재 시 경비실"
+
+
+def test_claim_is_detected_even_when_status_is_payed():
+    """취소 요청은 productOrderStatus 로 안 보인다 — claimStatus 가 정본이다.
+
+    2026-08-14 스테이징 실물: status=PAYED · claimStatus=CANCEL_REQUEST 인 건이 있었다.
+    """
+    detail = _detail(claimStatus="CANCEL_REQUEST", claimType="CANCEL")
+    detail["cancel"] = {"cancelReason": "SIMPLE_INTENT_CHANGED",
+                        "claimRequestDate": "2026-08-13T19:20:18.219+09:00"}
+    claim = extract_claim(detail)
+    assert claim["status"] == "CANCEL_REQUEST"
+    assert claim["label"] == "취소 요청"
+    assert claim["blocking"] is True
+    assert claim["reason"] == "SIMPLE_INTENT_CHANGED"
+    # structured_data 에도 남는다(신규 수집분).
+    assert build_structured_data(detail)["naver"]["claim"]["blocking"] is True
+
+
+def test_claim_from_current_claim_block():
+    """cancel 이 없고 currentClaim.cancel 로만 오는 형태도 읽는다."""
+    detail = _detail()
+    detail["currentClaim"] = {"cancel": {"claimStatus": "RETURN_REQUEST",
+                                         "cancelReason": "BROKEN"}}
+    claim = extract_claim(detail)
+    assert claim["status"] == "RETURN_REQUEST" and claim["blocking"] is True
+
+
+def test_no_claim_is_not_blocking():
+    """평범한 주문은 클레임이 없다 — 빈 상태가 경고로 둔갑하면 안 된다."""
+    claim = extract_claim(_detail())
+    assert claim["status"] == "" and claim["blocking"] is False and claim["label"] == ""
+
+
+def test_claim_reject_does_not_block():
+    """취소 거부는 정상 진행 건이다 — 막으면 진짜 주문을 못 만든다."""
+    assert extract_claim(_detail(claimStatus="CANCEL_REJECT"))["blocking"] is False
+
+
+def test_secondary_phone_is_preserved():
+    """보조 연락처(tel2)는 첫 번호가 안 될 때 유일한 단서다 — 버리면 못 구한다."""
+    detail = _detail()
+    detail["productOrder"]["shippingAddress"]["tel2"] = "010-9999-8888"
+    sd = build_structured_data(detail)
+    assert sd["parties"]["customer"]["phone2"] == "010-9999-8888"
+    # Order.phone 은 여전히 tel1 이다(대표 연락처 규칙 불변).
+    assert build_order_fields(detail, today="2026-08-13")["phone"] == "010-3333-4444"
+
+
+def test_payment_details_are_captured():
+    """결제일·수단·단가·할인·쿠폰·정산예정액 — 지금까지 결제금액 하나만 쓰고 버렸다."""
+    detail = _detail(unitPrice=50000, optionPrice=4500, productDiscountAmount=11000,
+                     expectedSettlementAmount=46686,
+                     appliedCoupons=[{"couponClassCode": "NMP_PRD_DUP_DCNT",
+                                      "couponDiscountAmount": 11000}])
+    detail["order"]["paymentDate"] = "2026-08-14T16:27:12.156+09:00"
+    detail["order"]["paymentMeans"] = "신용카드"
+    payment = build_payment_info(detail)
+    assert payment["means"] == "신용카드"
+    assert payment["unit_price"] == 50000 and payment["option_price"] == 4500
+    assert payment["product_discount_amount"] == 11000
+    assert payment["expected_settlement_amount"] == 46686
+    assert payment["coupons"] == [{"class_code": "NMP_PRD_DUP_DCNT",
+                                   "discount_amount": 11000}]
+
+
+def test_product_identifiers_are_kept():
+    """상품 식별자·유입경로는 나중 자동화의 기초다(당장 업무엔 안 쓴다)."""
+    naver = build_structured_data(_detail(productId="11839531137",
+                                          originalProductId="11784768368",
+                                          itemNo="3773410379",
+                                          inflowPath="검색>쇼핑검색"))["naver"]
+    assert naver["product_id"] == "11839531137"
+    assert naver["original_product_id"] == "11784768368"
+    assert naver["item_no"] == "3773410379"
+    assert naver["inflow_path"] == "검색>쇼핑검색"
 
 
 def test_source_marker_is_stamped():

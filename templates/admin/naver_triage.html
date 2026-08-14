@@ -60,6 +60,9 @@
                                     {% if row.extra_count %}
                                     <span class="badge bg-secondary">외 {{ row.extra_count }}건</span>
                                     {% endif %}
+                                    {% if row.claim_label %}
+                                    <span class="badge bg-danger">{{ row.claim_label }}</span>
+                                    {% endif %}
                                 </div>
                             </a>
                         </div>
@@ -98,6 +101,22 @@
                     {% endif %}
                 </div>
                 <div class="card-body">
+                    {% if selected.claim.status %}
+                    {# 취소·반품은 productOrderStatus(PAYED)로는 안 보인다 — 실물 1건 확인(2026-08-14) #}
+                    <div class="alert alert-danger py-2">
+                        <i class="fas fa-triangle-exclamation"></i>
+                        <b>네이버 {{ selected.claim.label }}</b>
+                        {% if selected.claim.reason %} · 사유 {{ selected.claim.reason }}{% endif %}
+                        {% if selected.claim.requested_at %} · {{ selected.claim.requested_at[:16] }}{% endif %}
+                        <div class="small">
+                            {% if selected.claim.blocking %}
+                            주문을 만들 수 없습니다. 네이버 판매자센터에서 상태를 확인하세요.
+                            {% else %}
+                            상태를 확인한 뒤 진행하세요.
+                            {% endif %}
+                        </div>
+                    </div>
+                    {% endif %}
                     {# 옵션 원문이 이 화면의 핵심이다 — v1 은 규격을 파싱하지 않는다 #}
                     <div class="mb-3">
                         <div class="text-muted small">네이버 옵션 원문 (이걸 보고 규격을 채웁니다)</div>
@@ -153,6 +172,47 @@
                                         / {{ selected.naver.seller_product_code or '-' }}
                                     </td>
                                 </tr>
+                                {% if selected.naver.recipient_tel2 %}
+                                <tr>
+                                    <td class="text-muted small">보조 연락처</td>
+                                    <td colspan="2">{{ selected.naver.recipient_tel2 }}</td>
+                                </tr>
+                                {% endif %}
+                                {% if selected.payment.paid_at or selected.payment.means %}
+                                <tr>
+                                    <td class="text-muted small">결제</td>
+                                    <td colspan="2">
+                                        {{ selected.payment.paid_at[:16] or '-' }}
+                                        / {{ selected.payment.means or '-' }}
+                                        {% if selected.payment.location_type %}
+                                        ({{ selected.payment.location_type }})
+                                        {% endif %}
+                                    </td>
+                                </tr>
+                                {% endif %}
+                                {% if selected.payment.product_discount_amount or selected.payment.coupons %}
+                                <tr>
+                                    <td class="text-muted small">할인 / 쿠폰</td>
+                                    <td colspan="2">
+                                        할인 {{ '{:,}'.format(selected.payment.product_discount_amount) }}원
+                                        {% for coupon in selected.payment.coupons %}
+                                        · 쿠폰 {{ '{:,}'.format(coupon.discount_amount) }}원
+                                        {% endfor %}
+                                        {% if selected.payment.expected_settlement_amount %}
+                                        · 정산예정 {{ '{:,}'.format(selected.payment.expected_settlement_amount) }}원
+                                        {% endif %}
+                                    </td>
+                                </tr>
+                                {% endif %}
+                                {% if selected.naver.product_id or selected.naver.inflow_path %}
+                                <tr>
+                                    <td class="text-muted small">상품ID / 유입</td>
+                                    <td colspan="2" class="small text-muted">
+                                        {{ selected.naver.product_id or '-' }}
+                                        / {{ selected.naver.inflow_path or '-' }}
+                                    </td>
+                                </tr>
+                                {% endif %}
                                 {% if selected.naver.shipping_memo %}
                                 <tr>
                                     <td class="text-muted small">배송 메모</td>
@@ -170,6 +230,8 @@
                         {# 묶음당 버튼 1개 — 대표(본품) 링크로 부르면 형제 상품주문이 함께 묶여
                            주문 1건이 된다(promote_link_to_order 가 group_key 로 형제를 모은다). #}
                         <button type="button" id="triage-create-order" class="btn btn-primary"
+                                {% if selected.claim.blocking %}disabled
+                                title="네이버에서 취소·반품이 진행 중입니다"{% endif %}
                                 data-link-id="{{ (selected_group.id if selected_group else selected.link_id) }}">
                             <i class="fas fa-plus"></i> 주문 만들기
                             {% if selected_group and selected_group.count > 1 %}

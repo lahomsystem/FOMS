@@ -151,6 +151,92 @@ def extract_shipping_memo(detail: dict) -> str:
     )
 
 
+#: 사람이 읽는 클레임 상태 라벨. 없는 값은 원문 그대로 보여준다(모르는 상태를 숨기지 않는다).
+CLAIM_STATUS_LABELS = {
+    "CANCEL_REQUEST": "취소 요청",
+    "CANCEL_DONE": "취소 완료",
+    "CANCEL_REJECT": "취소 거부",
+    "RETURN_REQUEST": "반품 요청",
+    "RETURN_DONE": "반품 완료",
+    "EXCHANGE_REQUEST": "교환 요청",
+    "EXCHANGE_DONE": "교환 완료",
+    "PURCHASE_DECISION_HOLDBACK": "구매확정 보류",
+}
+
+#: 주문을 만들면 안 되는 클레임 상태(취소·반품 진행/완료). 거부·철회는 정상 진행이라 뺀다.
+BLOCKING_CLAIM_STATUSES = frozenset({
+    "CANCEL_REQUEST", "CANCEL_REQUESTED", "CANCELING", "CANCEL_DONE",
+    "RETURN_REQUEST", "RETURN_REQUESTED", "RETURN_DONE", "COLLECTING", "COLLECT_DONE",
+})
+
+
+def extract_claim(detail: dict) -> dict:
+    """취소·반품·교환(클레임) 상태를 뽑는다.
+
+    **``productOrderStatus`` 만 봐서는 취소를 알 수 없다** — 2026-08-14 스테이징 실측:
+    상태가 ``PAYED`` 인데 ``claimStatus = CANCEL_REQUEST`` 인 건이 실재했다(수집 필터가
+    PAYED 하나뿐이라 취소 요청 건도 그대로 수집된다). 그 값을 아무도 읽지 않아 화면에
+    표시되지 않았고, 사람이 "주문 만들기"를 누르면 취소 건이 정상 주문이 됐다.
+
+    Args:
+        detail: 상품주문 상세 1건.
+
+    Returns:
+        ``{"status", "type", "reason", "requested_at", "label", "blocking"}``.
+        클레임이 없으면 ``status`` 가 빈 문자열이고 ``blocking`` 은 False.
+    """
+    order, product_order, _shipping = unwrap_detail(detail)
+    cancel = detail.get("cancel") if isinstance(detail.get("cancel"), dict) else {}
+    current = detail.get("currentClaim") if isinstance(detail.get("currentClaim"), dict) else {}
+    current_cancel = current.get("cancel") if isinstance(current.get("cancel"), dict) else {}
+    source = cancel or current_cancel or {}
+
+    status = (_text(product_order.get("claimStatus"))
+              or _text(source.get("claimStatus"))
+              or _text(order.get("claimStatus")))
+    upper = status.upper()
+    return {
+        "status": status,
+        "type": _text(product_order.get("claimType")) or _text(source.get("claimType")),
+        "reason": _text(source.get("cancelReason")) or _text(source.get("returnReason")),
+        "requested_at": _text(source.get("claimRequestDate")),
+        "label": CLAIM_STATUS_LABELS.get(upper, status),
+        "blocking": upper in BLOCKING_CLAIM_STATUSES,
+    }
+
+
+def build_payment_info(detail: dict) -> dict:
+    """결제·금액 상세. 지금까지 ``totalPaymentAmount`` 하나만 쓰고 나머지를 버렸다.
+
+    Args:
+        detail: 상품주문 상세 1건.
+
+    Returns:
+        결제 시각·수단·단가·할인·쿠폰·정산예정액 dict(없으면 빈 값/0).
+    """
+    order, product_order, _shipping = unwrap_detail(detail)
+    coupons = product_order.get("appliedCoupons")
+    coupon_rows = []
+    if isinstance(coupons, list):
+        for coupon in coupons:
+            if not isinstance(coupon, dict):
+                continue
+            coupon_rows.append({
+                "class_code": _text(coupon.get("couponClassCode")),
+                "discount_amount": _int(coupon.get("couponDiscountAmount")),
+            })
+    return {
+        "paid_at": _text(order.get("paymentDate")),
+        "means": _text(order.get("paymentMeans")),
+        "location_type": _text(order.get("payLocationType")),
+        "unit_price": _int(product_order.get("unitPrice")),
+        "option_price": _int(product_order.get("optionPrice")),
+        "product_discount_amount": _int(product_order.get("productDiscountAmount")),
+        "expected_settlement_amount": _int(product_order.get("expectedSettlementAmount")),
+        "coupons": coupon_rows,
+    }
+
+
 def build_structured_data(detail: dict) -> dict:
     """ERP structured_data 를 만든다(canonical 키 위치 사용).
 
@@ -167,6 +253,9 @@ def build_structured_data(detail: dict) -> dict:
             "customer": {
                 "name": _text(shipping.get("name")) or _text(order.get("ordererName")),
                 "phone": _text(shipping.get("tel1")) or _text(order.get("ordererTel")),
+                # 보조 연락처(실측 47건 중 6건). 첫 번호로 연락이 안 될 때 쓰는 값이라
+                # 버리면 다시 구할 방법이 없다. Order.phone 은 그대로 tel1 이다.
+                "phone2": _text(shipping.get("tel2")),
             },
             # 대리주문이면 주문자와 수취인이 다르다 — 해피콜 대상 판단에 필요해 보존한다.
             "orderer": {
@@ -203,6 +292,14 @@ def build_structured_data(detail: dict) -> dict:
             "shipping_due_date": _text(product_order.get("shippingDueDate")),
             "seller_product_code": _text(product_order.get("sellerProductCode")),
             "shipping_memo": extract_shipping_memo(detail),
+            # 상품 식별자 — 나중에 "이 상품은 규격이 이렇다"를 자동화할 때 기초가 된다.
+            "product_id": _text(product_order.get("productId")),
+            "original_product_id": _text(product_order.get("originalProductId")),
+            "item_no": _text(product_order.get("itemNo")),
+            "inflow_path": _text(product_order.get("inflowPath")),
+            # 취소·반품 상태. 없으면 status 가 빈 문자열이다(정상 주문).
+            "claim": extract_claim(detail),
+            "payment": build_payment_info(detail),
             # 참고용 좌표. Order.lat/lng 에 넣지 않는다(모듈 docstring 참조).
             "longitude": shipping.get("longitude"),
             "latitude": shipping.get("latitude"),
@@ -373,6 +470,10 @@ __all__ = [
     "build_address",
     "build_order_fields",
     "build_structured_data",
+    "BLOCKING_CLAIM_STATUSES",
+    "CLAIM_STATUS_LABELS",
+    "build_payment_info",
+    "extract_claim",
     "extract_external_id",
     "extract_shipping_memo",
     "is_collectible",

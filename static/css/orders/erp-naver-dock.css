@@ -127,6 +127,18 @@
   flex-shrink: 0;
 }
 
+/* 취소·반품 표식 — 규격 입력 전에 반드시 걸려야 하는 경고라 가장 강한 색을 쓴다. */
+.naver-dock-claim {
+  background: #fee2e2;
+  border: 1px solid #fca5a5;
+  color: #b91c1c;
+  border-radius: 6px;
+  padding: 4px 8px;
+  font-size: 12px;
+  font-weight: 800;
+  margin-bottom: 6px;
+}
+
 .naver-dock-who {
   display: flex;
   flex-wrap: wrap;

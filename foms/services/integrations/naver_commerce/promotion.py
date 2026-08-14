@@ -25,6 +25,7 @@ from foms.services.datetime_kst import get_today_kst, now_utc_naive
 from foms.services.integrations.naver_commerce.constants import CHANNEL
 from foms.services.integrations.naver_commerce.mapping import (
     NaverMappingError,
+    extract_claim,
     group_key,
     map_group,
 )
@@ -80,6 +81,20 @@ def promote_link_to_order(
 
     # 한 네이버 주문(본품 + 구성 옵션)을 한 FOMS 주문으로 묶는다 — T13.
     siblings = _group_siblings(session, link)
+
+    # 취소·반품 건은 주문으로 만들지 않는다. 수집 필터가 productOrderStatus == PAYED
+    # 하나뿐이라 **취소 요청 상태도 PAYED 로 수집된다**(2026-08-14 스테이징 실물 1건).
+    # 화면 버튼만 잠그면 API 직접 호출로 뚫리므로 서비스에서 막는다.
+    blocked = [row for row in siblings if extract_claim(row.raw_snapshot or {})["blocking"]]
+    if blocked:
+        claim = extract_claim(blocked[0].raw_snapshot or {})
+        detail = f"{claim['label']}" + (f" · 사유 {claim['reason']}" if claim["reason"] else "")
+        logger.warning("[NAVER] 클레임 건 주문 생성 차단 link=%s status=%s",
+                       link_id, claim["status"])
+        raise PromotionError(
+            f"네이버에서 취소·반품이 진행 중인 주문입니다 ({detail}). "
+            "네이버 판매자센터에서 상태를 확인한 뒤 진행하세요."
+        )
     today = get_today_kst().strftime("%Y-%m-%d")
     try:
         order_fields, structured = map_group(
@@ -162,7 +177,8 @@ def summarize_snapshot(raw_snapshot: Any) -> dict[str, Any]:
         dict: ``customer_name``·``product``·``options``·``quantity``·``amount``·``order_date``.
     """
     empty = {"customer_name": "", "product": "", "options": "",
-             "quantity": None, "amount": None, "order_date": ""}
+             "quantity": None, "amount": None, "order_date": "",
+             "claim_label": "", "claim_blocking": False}
     if not isinstance(raw_snapshot, dict) or not raw_snapshot:
         return empty
     try:
@@ -177,6 +193,7 @@ def summarize_snapshot(raw_snapshot: Any) -> dict[str, Any]:
     shipping = shipping or {}
     quantity = product_order.get("quantity")
     amount = product_order.get("totalPaymentAmount")
+    claim = extract_claim(raw_snapshot)
     return {
         "customer_name": str(shipping.get("name") or "").strip(),
         "product": str(product_order.get("productName") or "").strip(),
@@ -184,6 +201,9 @@ def summarize_snapshot(raw_snapshot: Any) -> dict[str, Any]:
         "quantity": int(quantity) if isinstance(quantity, int) else None,
         "amount": int(amount) if isinstance(amount, int) else None,
         "order_date": str((_order or {}).get("orderDate") or "")[:10],
+        # 목록에서도 취소 건을 알아볼 수 있어야 한다(빈 문자열이면 정상 주문).
+        "claim_label": claim["label"],
+        "claim_blocking": claim["blocking"],
     }
 
 

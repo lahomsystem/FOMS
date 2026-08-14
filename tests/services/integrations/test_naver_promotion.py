@@ -70,6 +70,49 @@ def _link(detail: dict | None = DETAIL, *, status: str = "COLLECTED",
     return link
 
 
+def test_cancelled_link_cannot_become_an_order(app):
+    """네이버에서 취소·반품 진행 중이면 주문을 만들지 않는다.
+
+    수집 필터는 ``productOrderStatus == PAYED`` 하나뿐이라 **취소 요청 건도 PAYED 로
+    수집된다**(2026-08-14 스테이징 실물 1건). 화면 버튼만 잠그면 API 직접 호출로 뚫리므로
+    서비스에서 막는다.
+    """
+    actor, owner = _accounts()
+    detail = copy.deepcopy(DETAIL)
+    detail["productOrder"]["claimStatus"] = "CANCEL_REQUEST"
+    detail["cancel"] = {"cancelReason": "SIMPLE_INTENT_CHANGED"}
+    link = _link(detail, external_id="PO-CANCEL")
+
+    before = db_session.query(Order).count()
+    with pytest.raises(PromotionError) as exc:
+        promote_link_to_order(db_session, link_id=link.id,
+                              actor_user_id=actor.id, owner_user_id=owner.id)
+    assert "취소" in str(exc.value)
+    assert db_session.query(Order).count() == before  # 주문이 만들어지지 않았다
+    assert link.order_id is None
+
+
+def test_cancel_reject_still_creates_order(app):
+    """취소 '거부'는 정상 진행 건이다 — 막으면 진짜 주문을 못 만든다."""
+    actor, owner = _accounts()
+    detail = copy.deepcopy(DETAIL)
+    detail["productOrder"]["claimStatus"] = "CANCEL_REJECT"
+    link = _link(detail, external_id="PO-REJECT")
+    order_id, created = promote_link_to_order(
+        db_session, link_id=link.id, actor_user_id=actor.id, owner_user_id=owner.id)
+    db_session.commit()
+    assert created is True and order_id
+
+
+def test_summary_exposes_claim_label(app):
+    """목록 요약도 취소 표식을 싣는다(큐에서 알아볼 수 있어야 한다)."""
+    detail = copy.deepcopy(DETAIL)
+    detail["productOrder"]["claimStatus"] = "CANCEL_REQUEST"
+    summary = summarize_snapshot(detail)
+    assert summary["claim_label"] == "취소 요청" and summary["claim_blocking"] is True
+    assert summarize_snapshot(DETAIL)["claim_label"] == ""
+
+
 def test_promotion_creates_exactly_one_order(app):
     """수집분 1건 → 주문 1건, 링크가 LINKED 로 바뀐다."""
     actor, owner = _accounts()

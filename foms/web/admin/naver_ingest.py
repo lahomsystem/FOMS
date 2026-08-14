@@ -168,6 +168,8 @@ def _triage_pane(db, link: ExternalOrderLink) -> dict[str, Any]:
     사람이 이 문자열을 읽고 편집기에서 채운다.
     """
     from foms.services.integrations.naver_commerce.mapping import (
+        build_payment_info,
+        extract_claim,
         extract_shipping_memo,
         unwrap_detail,
     )
@@ -198,7 +200,13 @@ def _triage_pane(db, link: ExternalOrderLink) -> dict[str, Any]:
             # 실위치는 productOrder.shippingMemo (mapping.extract_shipping_memo 참조).
             # 원본 스냅샷에서 읽으므로 과거 수집분도 재처리 없이 그대로 보인다.
             "shipping_memo": extract_shipping_memo(link.raw_snapshot or {}),
+            "recipient_tel2": shipping.get("tel2"),
+            "product_id": product_order.get("productId"),
+            "inflow_path": product_order.get("inflowPath"),
         },
+        # 취소·반품은 productOrderStatus 로는 안 보인다 — 별도 축으로 싣는다.
+        "claim": extract_claim(link.raw_snapshot or {}),
+        "payment": build_payment_info(link.raw_snapshot or {}),
         "foms": {
             "customer_name": getattr(order, "customer_name", None),
             "phone": getattr(order, "phone", None),
@@ -324,6 +332,12 @@ def _group_queue(links: list[ExternalOrderLink], orders: dict,
             "sync_status": lead.sync_status,
             "count": len(members),
             "extra_count": len(rest),
+            # 묶음 안 어느 한 건이라도 취소·반품이면 줄 전체에 표식을 단다.
+            "claim_label": next(
+                (summarize_snapshot(row.raw_snapshot)["claim_label"] for row in members
+                 if summarize_snapshot(row.raw_snapshot)["claim_label"]), ""),
+            "claim_blocking": any(summarize_snapshot(row.raw_snapshot)["claim_blocking"]
+                                  for row in members),
             "link_ids": [row.id for row in members],
             # 펼침 목록도 **대표 먼저** — 사람이 처음 보는 줄이 0원 구성 옵션이면 본품을
             # 찾아 헤맨다(map_group·도크와 같은 순서 규칙).

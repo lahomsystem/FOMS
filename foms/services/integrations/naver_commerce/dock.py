@@ -74,19 +74,22 @@ def _row_source(link: Any) -> dict[str, Any]:
     """링크의 원본에서 도크 표시에 필요한 필드만 뽑는다(실패 시 빈 값)."""
     from foms.services.integrations.naver_commerce.mapping import (
         NaverMappingError,
+        extract_claim,
         extract_shipping_memo,
         unwrap_detail,
     )
 
     empty = {"product_name": "", "option_text": "", "quantity": None,
              "amount": None, "product_class": "", "seller_product_code": "",
-             "recipient_name": "", "orderer_name": "", "shipping_memo": ""}
+             "recipient_name": "", "orderer_name": "", "shipping_memo": "",
+             "claim_label": ""}
     snapshot = link.raw_snapshot
     if not isinstance(snapshot, dict) or not snapshot:
         return empty
     try:
         order, product_order, shipping = unwrap_detail(snapshot)
         shipping_memo = extract_shipping_memo(snapshot)
+        claim = extract_claim(snapshot)
     except (NaverMappingError, ValueError, TypeError, AttributeError, KeyError) as exc:
         # 원본 파손은 행 하나의 문제 — 도크 전체를 죽이지 않는다(원문 없이 행만 남긴다).
         logger.warning("[NAVER] 도크 행 원본 파싱 실패(link %s): %s", link.id, exc)
@@ -106,6 +109,8 @@ def _row_source(link: Any) -> dict[str, Any]:
         "recipient_name": _text((shipping or {}).get("name")),
         "orderer_name": _text((order or {}).get("ordererName")),
         "shipping_memo": shipping_memo,
+        # 주문을 만든 뒤 취소되는 건도 있다 — 규격을 채우기 전에 눈에 걸려야 한다.
+        "claim_label": claim["label"],
     }
 
 
@@ -163,11 +168,13 @@ def build_dock_payload(db: Any, order: Any) -> Optional[dict[str, Any]]:
     rows: list[dict[str, Any]] = []
     recipient_name = ""
     orderer_name = ""
+    claim_label = ""
     memos: list[str] = []
     for link in links:
         source = _row_source(link)
         recipient_name = recipient_name or source["recipient_name"]
         orderer_name = orderer_name or source["orderer_name"]
+        claim_label = claim_label or source["claim_label"]
         # 상품주문마다 메모가 다를 수 있다 — 다른 값은 전부 보존한다(중복만 제거).
         if source["shipping_memo"] and source["shipping_memo"] not in memos:
             memos.append(source["shipping_memo"])
@@ -222,6 +229,7 @@ def build_dock_payload(db: Any, order: Any) -> Optional[dict[str, Any]]:
         "orderer_differs": bool(recipient_name and orderer_name
                                 and recipient_name != orderer_name),
         "shipping_memo": "\n".join(memos),
+        "claim_label": claim_label,
     }
 
 

@@ -127,8 +127,13 @@
     function buildInfo() {
         var hasWho = !!state.recipientName;
         var hasMemo = !!state.shippingMemo;
-        if (!hasWho && !hasMemo) return null;
+        var hasClaim = !!state.claimLabel;
+        if (!hasWho && !hasMemo && !hasClaim) return null;
         var info = el('div', 'naver-dock-info');
+        if (hasClaim) {
+            // 취소·반품은 productOrderStatus 로는 안 보인다 — 규격을 채우기 전에 걸려야 한다.
+            info.appendChild(el('div', 'naver-dock-claim', '⚠ 네이버 ' + state.claimLabel));
+        }
         if (hasWho) {
             var who = el('div', 'naver-dock-who');
             who.appendChild(el('span', 'naver-dock-who-name', '수취인 ' + state.recipientName));
@@ -403,7 +408,8 @@
             recipientName: payload.recipient_name || '',
             ordererName: payload.orderer_name || '',
             ordererDiffers: !!payload.orderer_differs,
-            shippingMemo: payload.shipping_memo || ''
+            shippingMemo: payload.shipping_memo || '',
+            claimLabel: payload.claim_label || ''
         };
         render();
         applyLayout();

@@ -32,7 +32,8 @@ def _sales(name: str = "영업") -> User:
 
 def _collected_link(*, order_no: str, product: str, amount: int,
                     tel: str = "010-3333-4444", address: str = "서울 강남구 1",
-                    detail: str = "101호", recipient: str = "이수취") -> ExternalOrderLink:
+                    detail: str = "101호", recipient: str = "이수취",
+                    claim_status: str = "") -> ExternalOrderLink:
     """주문 없이 수집만 된 링크(COLLECTED) 1건 — 묶음 표시 테스트용."""
     link = ExternalOrderLink(
         channel="NAVER", external_id=f"PO-{_uid()}", sync_status="COLLECTED",
@@ -43,6 +44,7 @@ def _collected_link(*, order_no: str, product: str, amount: int,
             "productOrder": {
                 "productOrderId": f"PO-{_uid()}", "productName": product,
                 "productOption": "", "totalPaymentAmount": amount,
+                "claimStatus": claim_status or None,
                 "shippingAddress": {"name": recipient, "tel1": tel,
                                     "baseAddress": address, "detailedAddress": detail},
             },
@@ -131,6 +133,26 @@ def test_pane_compares_naver_original_with_foms_values(auth_client):
     assert "네이버 원본" in body and "FOMS 현재 값" in body
     assert "김주문" in body  # 주문자(수취인과 다름)도 보여야 한다
     assert "LAHOM-1" in body
+
+
+def test_cancelled_link_shows_badge_and_locks_create_button(auth_client):
+    """취소 요청 건은 큐에 빨간 배지가 뜨고 '주문 만들기'가 잠긴다.
+
+    productOrderStatus 는 PAYED 라 상태만 보면 정상 주문과 구분되지 않는다.
+    """
+    link = _collected_link(order_no="N-200", product="취소된 붙박이장", amount=500000,
+                           claim_status="CANCEL_REQUEST")
+    body = auth_client.get(f"/admin/naver-ingest/triage?link_id={link.id}").get_data(as_text=True)
+    assert "취소 요청" in body
+    assert "disabled" in body.split('id="triage-create-order"')[1].split(">")[0]
+
+
+def test_normal_link_keeps_create_button_enabled(auth_client):
+    """정상 건은 잠그지 않는다 — 경고가 남발되면 아무도 안 본다."""
+    link = _collected_link(order_no="N-201", product="정상 붙박이장", amount=500000)
+    body = auth_client.get(f"/admin/naver-ingest/triage?link_id={link.id}").get_data(as_text=True)
+    button = body.split('id="triage-create-order"')[1].split(">")[0]
+    assert "disabled" not in button
 
 
 def test_queue_groups_one_household_into_one_row(auth_client):

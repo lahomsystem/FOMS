@@ -42,7 +42,7 @@ def _staff() -> User:
 def _snapshot(*, product_name: str, option: str = "", product_class: str = "조합형옵션상품",
               amount: int = 100000, quantity: int = 1, order_no: str = "N-1",
               memo: str = "", orderer_name: str = "김주문",
-              recipient_name: str = "이수취") -> dict:
+              recipient_name: str = "이수취", claim_status: str = "") -> dict:
     return {
         "order": {"orderId": order_no, "ordererName": orderer_name,
                   "ordererTel": "010-1111-2222"},
@@ -54,6 +54,7 @@ def _snapshot(*, product_name: str, option: str = "", product_class: str = "조�
             "totalPaymentAmount": amount,
             "quantity": quantity,
             "shippingMemo": memo,
+            "claimStatus": claim_status or None,
             "shippingAddress": {"name": recipient_name, "tel1": "010-3333-4444",
                                 "baseAddress": "서울 강남구 1", "detailedAddress": "101호"},
         },
@@ -115,6 +116,21 @@ def test_split_option_copies_empty_input():
 # --------------------------------------------------------------------------- #
 # 도크 payload — 본품/추가옵션 판정·귀속 추정
 # --------------------------------------------------------------------------- #
+
+def test_payload_flags_cancelled_orders(app):
+    """주문을 만든 뒤 취소되는 건도 있다 — 도크가 규격 입력 전에 알려야 한다."""
+    order = _naver_order(_staff())
+    _link(order, _snapshot(product_name="본품", amount=500000,
+                           claim_status="CANCEL_REQUEST"))
+    assert build_dock_payload(db_session, order)["claim_label"] == "취소 요청"
+
+
+def test_payload_has_no_claim_label_for_normal_order(app):
+    """정상 주문에 경고를 띄우면 신호가 죽는다."""
+    order = _naver_order(_staff())
+    _link(order, _snapshot(product_name="본품", amount=500000))
+    assert build_dock_payload(db_session, order)["claim_label"] == ""
+
 
 def test_payload_carries_shipping_memo_and_names(app):
     """도크 머리말: 수취인 이름·대리주문 표식·배송메모(상품주문별 서로 다른 값 전부)."""
