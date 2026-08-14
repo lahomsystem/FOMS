@@ -2,6 +2,7 @@
 
 import time
 from copy import deepcopy
+from typing import Any
 
 from flask import Blueprint, abort, make_response, redirect, render_template, request, g, url_for
 from db import get_db
@@ -20,7 +21,11 @@ from foms.services.common.dashboard_cache import (
 from foms.services.common.ept_b7_profile import apply_ept_b7_render_headers
 from foms.services.common.erp_mine_filter import erp_mine_only_for_construction
 from foms.services.common.erp_shell_http import apply_erp_shell_fragment_headers, wants_erp_shell_tab_body
-from foms.services.erp_permissions import build_mine_sql_filter, is_order_related_to_user
+from foms.services.erp_permissions import (
+    build_mine_sql_filter,
+    can_edit_erp,
+    is_order_related_to_user,
+)
 from foms.services.history_read_model import (
     HISTORY_DASHBOARD_PAGE_SIZE,
     compute_history_page_blob,
@@ -31,6 +36,58 @@ from foms.services.request_utils import get_search_query_arg
 erp_history_bp = Blueprint('erp_history', __name__, url_prefix='/erp/history')
 
 _HISTORY_DASHBOARD_DAYS = 60
+_QUEUE_BLANK = ("", "-", None)
+
+
+def _fill_queue_row_column_fallbacks(row: dict[str, Any], order: Order) -> dict[str, Any]:
+    """Fill queue-card blanks from Order columns when structured_data has no parties/site.
+
+    History search includes legacy rows whose name/phone/address live on columns only.
+    Mobile queue rows otherwise read structured_data and would render '-'.
+
+    Args:
+        row: Dict from ``build_mobile_queue_order_row``.
+        order: ORM (or display) order used to fill blanks.
+
+    Returns:
+        The same ``row`` dict, mutated in place.
+    """
+    if row.get("customer_name") in _QUEUE_BLANK and getattr(order, "customer_name", None):
+        row["customer_name"] = order.customer_name
+    if row.get("phone") in _QUEUE_BLANK and getattr(order, "phone", None):
+        row["phone"] = order.phone
+    if row.get("address") in _QUEUE_BLANK and getattr(order, "address", None):
+        row["address"] = order.address
+    if row.get("manager_name") in _QUEUE_BLANK and getattr(order, "manager_name", None):
+        row["manager_name"] = order.manager_name
+    return row
+
+
+def _build_history_queue_rows(db, orders: list[Order], user) -> dict[int, dict[str, Any]]:
+    """Build mobile v2 queue-card rows for history search (batch, no N+1).
+
+    Args:
+        db: SQLAlchemy session.
+        orders: Page of Order rows already fetched for the history list.
+        user: Current user (quest assignee / can-approve).
+
+    Returns:
+        Mapping of order id → queue-card view-model dict.
+    """
+    if not orders:
+        return {}
+    from foms.services.erp_mobile_order_display import (
+        build_mobile_queue_batch_context,
+        build_mobile_queue_order_row,
+    )
+
+    batch_ctx = build_mobile_queue_batch_context(db, orders)
+    out: dict[int, dict[str, Any]] = {}
+    for order in orders:
+        row = build_mobile_queue_order_row(db, order, user, batch_ctx=batch_ctx)
+        out[int(order.id)] = _fill_queue_row_column_fallbacks(row, order)
+    return out
+
 
 @erp_history_bp.route('/')
 @login_required
@@ -171,6 +228,10 @@ def history_dashboard():
     # N+1 방지를 위해 1번의 쿼리로 전체 표시 주문들의 첨부/제품 항목 매핑
     build_product_items_for_orders(db, display_orders)
 
+    queue_rows = _build_history_queue_rows(db, orders, user)
+    for item in enriched:
+        item['queue_row'] = queue_rows.get(int(item['_order'].id))
+
     template_name = (
         'orders/partials/history_dashboard_fragment.html'
         if wants_erp_shell_tab_body(request)
@@ -189,6 +250,7 @@ def history_dashboard():
             from_dashboard=from_dashboard,
             from_search=from_search,
             is_construction_team=is_construction_team,
+            can_edit_erp=can_edit_erp(user),
             auto_browse_mine=auto_browse_mine,
             erp_mine_only=mine_only,
         )

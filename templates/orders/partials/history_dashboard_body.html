@@ -75,6 +75,7 @@
 </style>
 
 {% from 'partials/shared/mobile_queue_pager.html' import render_mobile_pager %}
+{% from 'partials/shared/erp_mobile_queue_card_v2.html' import render_queue_card_v2 %}
 {% set _pager_qs = [] %}
 {% if request.args.get('q') %}{% set _ = _pager_qs.append('q=' ~ request.args.get('q')|urlencode) %}{% endif %}
 {% if request.args.get('stage') %}{% set _ = _pager_qs.append('stage=' ~ request.args.get('stage')|urlencode) %}{% endif %}
@@ -324,58 +325,10 @@
           <span class="erp-history-mobile-list__count">{{ total_orders }}건</span>
         </div>
         {% for item in orders %}
-        {% set o = item._order %}
-        {% set d = item.display_o %}
-        {% set phone_href = (d.phone or '')|replace('-', '')|replace(' ', '') %}
-        {% set detail_id = 'history-mobile-detail-' ~ o.id %}
-        <article class="erp-history-mobile-card" data-history-mobile-card data-order-id="{{ o.id }}">
-          <button type="button" class="erp-history-mobile-card__toggle" data-history-toggle aria-expanded="false" aria-controls="{{ detail_id }}">
-            <span class="erp-history-mobile-card__topline">
-              <span class="erp-history-mobile-card__badge">{{ item.stage }}</span>
-              <i class="fas fa-chevron-down erp-history-mobile-card__chevron" aria-hidden="true"></i>
-            </span>
-            <span class="erp-history-mobile-card__title-row">
-              <span class="erp-history-mobile-card__customer">{{ d.customer_name }}</span>
-              <span class="erp-history-mobile-card__order-id">#{{ o.id }}</span>
-            </span>
-          </button>
-          <dl class="erp-history-mobile-card__meta">
-            <div class="erp-history-mobile-card__meta-row">
-              <dt>제품</dt>
-              <dd>{{ d.product }}</dd>
-            </div>
-            {% from 'partials/shared/foms_order_contact_kv.html' import foms_order_contact_kv %}
-            {{ foms_order_contact_kv({'phone': d.phone, 'address': d.address, 'manager_name': d.manager_name}) }}
-            <div class="erp-history-mobile-card__meta-row">
-              <dt>생성</dt>
-              <dd>{{ (o.created_at|format_datetime_kst('%Y-%m-%d')) if o.created_at else '-' }}</dd>
-            </div>
-          </dl>
-          <div class="erp-history-mobile-card__actions">
-            {% if phone_href %}
-            <a class="erp-history-mobile-card__action" href="tel:{{ phone_href }}">
-              <i class="fas fa-phone"></i>
-              <span>전화</span>
-            </a>
-            {% else %}
-            <span class="erp-history-mobile-card__action text-muted" aria-disabled="true">
-              <i class="fas fa-phone-slash"></i>
-              <span>전화 없음</span>
-            </span>
-            {% endif %}
-            {% if not is_construction_team|default(false) %}
-            <a class="erp-history-mobile-card__action is-primary" href="{{ url_for('order_edit.edit_order', order_id=o.id) }}{% if o.is_erp_order %}?open=erp-order{% endif %}" target="_blank">
-              <i class="fas fa-up-right-from-square"></i>
-              <span>주문 상세</span>
-            </a>
-            {% endif %}
-          </div>
-          <div class="erp-history-mobile-card__detail" id="{{ detail_id }}" hidden aria-hidden="true">
-            <div class="erp-history-mobile-card__detail-body">
-              {% include 'orders/partials/history_detail_content.html' %}
-            </div>
-          </div>
-        </article>
+        {% set queue_row = item.queue_row %}
+        {% if queue_row %}
+          {{ render_queue_card_v2(queue_row, can_edit_erp|default(false), None, None, None, edit_return_to='erp_history_dashboard', detail_return_to='erp_history_dashboard') }}
+        {% endif %}
         {% endfor %}
       </div>
       {{ render_mobile_pager(_history_base, _pager_prefix, page, total_pages) }}
@@ -440,5 +393,5 @@
   }
 })();
 </script>
-<script src="{{ url_for('static', filename='js/orders/history-mobile.js') }}?v=20260724a" defer></script>
+<script src="{{ url_for('static', filename='js/orders/history-mobile.js') }}?v=20260814a" defer></script>
 <script src="{{ url_for('static', filename='js/foms/history-mobile.js') }}?v=20260724a" defer></script>
