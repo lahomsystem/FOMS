@@ -4796,12 +4796,22 @@ async function loadMeasurementPanel() {
                 // 서버가 지역(시/도·시군구) 묶음 → 방문시각 이른 순으로 내려준다.
                 // 같은 지역 구간의 첫 건 앞에 지역 제목을 넣어 묶음이 눈에 보이게 한다.
                 const regionCounts = {};
+                const scopeCounts = {};
                 item.cases.forEach(function (c) {
                     const key = c.region_label || '주소 미입력';
                     regionCounts[key] = (regionCounts[key] || 0) + 1;
+                    const scope = c.scope_label || '수도권';
+                    scopeCounts[scope] = (scopeCounts[scope] || 0) + 1;
                 });
                 let lastRegion = null;
+                let lastScope = null;
                 item.cases.forEach(function(c) {
+                    const scope = c.scope_label || '수도권';
+                    if (scope !== lastScope) {
+                        lastScope = scope;
+                        html += '<div class="erp-measure-day-scope">' + escapeHtml(scope) +
+                            '<span class="erp-measure-day-scope__count">' + scopeCounts[scope] + '건</span></div>';
+                    }
                     const region = c.region_label || '주소 미입력';
                     if (region !== lastRegion) {
                         lastRegion = region;
@@ -4811,8 +4821,15 @@ async function loadMeasurementPanel() {
                     const t = escapeHtml(c.time || '');
                     const n = escapeHtml(c.customer_name || '이름없음');
                     const a = escapeHtml(c.address || '-');
-                    const timeBadge = t ? `<span class="badge bg-secondary me-1" style="font-size:0.7rem;">${t}</span>` : `<span class="badge bg-light text-secondary border me-1" style="font-size:0.7rem;">시간미정</span>`;
-                    html += `<div class="small mb-1 text-muted"><div class="fw-semibold text-dark d-flex align-items-center">${timeBadge} ${n}</div><div style="padding-left:0.5rem; font-size:0.8rem; line-height:1.2;">- ${a}</div></div>`;
+                    const timeBadge = t
+                        ? `<span class="erp-measure-day-time">${t}</span>`
+                        : '<span class="erp-measure-day-time erp-measure-day-time--unknown">시간미정</span>';
+                    // 시각 뱃지 폭이 문구마다 달라도 이름·주소 왼쪽선이 흔들리지 않도록
+                    // 래퍼 없이 grid 셀 3개로 배치한다(CSS: auto 1fr 2행).
+                    html += `<div class="erp-measure-day-case">${timeBadge}` +
+                        `<span class="erp-measure-day-case__name">${n}</span>` +
+                        `<span class="erp-measure-day-case__addr">${a}</span>` +
+                        `</div>`;
                 });
                 html += '</div>';
             }
