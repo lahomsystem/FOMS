@@ -28,6 +28,9 @@ class ConstructionDashboardFilters:
     focus_order_id: Optional[int]
     is_construction: object  # 원본 보존: user and (team=='CONSTRUCTION') → None/bool
     mine_only: bool
+    # 실측일/시공일 컬럼 헤더 정렬. ''(기본)이면 기존 접수 최신순을 유지한다.
+    sort: str = ''
+    sort_dir: str = 'asc'
 
 
 def parse_construction_dashboard_filters(request, user) -> ConstructionDashboardFilters:
@@ -46,10 +49,20 @@ def parse_construction_dashboard_filters(request, user) -> ConstructionDashboard
     is_construction = user and getattr(user, "team", None) == "CONSTRUCTION"
     mine_only = erp_mine_only_for_construction(request, user)
 
+    # 컬럼 헤더 정렬(실측일/시공일). 화이트리스트 밖이면 기본 정렬로 되돌린다.
+    f_sort = (request.args.get("sort") or "").strip()
+    if f_sort not in ("measure_date", "construction_date"):
+        f_sort = ""
+    f_sort_dir = (request.args.get("dir") or "asc").strip().lower()
+    if f_sort_dir not in ("asc", "desc"):
+        f_sort_dir = "asc"
+
     return ConstructionDashboardFilters(
         stage=f_stage,
         q=f_q,
         focus_order_id=focus_order_id,
         is_construction=is_construction,
         mine_only=mine_only,
+        sort=f_sort,
+        sort_dir=f_sort_dir,
     )

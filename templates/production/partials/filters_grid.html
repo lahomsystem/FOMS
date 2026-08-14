@@ -1,3 +1,6 @@
+{# 실측일/시공일 헤더 정렬: ERP 작업 큐와 같은 매크로·같은 sort/dir 규약.
+   sort 미지정(기본)이면 기존 '시공일 빠른 순' 정렬을 그대로 쓴다. #}
+{% from 'orders/partials/sort_header_macro.html' import erp_sort_header with context %}
   <div class="erp-dashboard-layout px-3 pt-3">
     <!-- Middle: Grid -->
     <div class="erp-dashboard-workqueue">
@@ -24,8 +27,8 @@
                   <th class="erp-grid-th">연락처<div class="erp-col-resizer"></div></th>
                   <th class="erp-grid-th">주소<div class="erp-col-resizer"></div></th>
                   <th class="erp-grid-th">제품<div class="erp-col-resizer"></div></th>
-                  <th class="erp-grid-th">실측일<div class="erp-col-resizer"></div></th>
-                  <th class="erp-grid-th">시공일<div class="erp-col-resizer"></div></th>
+                  <th class="erp-grid-th">{{ erp_sort_header('measure_date', '실측일', endpoint='erp_production_page.erp_production_dashboard', keep_keys=['stage', 'q', 'mine']) }}<div class="erp-col-resizer"></div></th>
+                  <th class="erp-grid-th">{{ erp_sort_header('construction_date', '시공일', endpoint='erp_production_page.erp_production_dashboard', keep_keys=['stage', 'q', 'mine']) }}<div class="erp-col-resizer"></div></th>
                   <th class="erp-grid-th">담당<div class="erp-col-resizer"></div></th>
                   <th class="erp-grid-th">첨부<div class="erp-col-resizer"></div></th>
                   <th class="erp-grid-th">상세<div class="erp-col-resizer"></div></th>
@@ -183,7 +186,7 @@
             <nav aria-label="Page navigation">
               <ul class="pagination pagination-sm mb-1">
                 <li class="page-item {% if page <= 1 %}disabled{% endif %}">
-                  <a class="page-link" href="{{ url_for('erp_production_page.erp_production_dashboard', page=page-1, stage=filters.get('stage') or '', q=filters.get('q') or '', urgent=filters.get('urgent') or '', has_alert=filters.get('has_alert') or '', alert_type=filters.get('alert_type') or '', team=filters.get('team') or '', mine=filters.get('mine') or '') }}" aria-label="Previous">
+                  <a class="page-link" href="{{ url_for('erp_production_page.erp_production_dashboard', page=page-1, stage=filters.get('stage') or '', q=filters.get('q') or '', urgent=filters.get('urgent') or '', has_alert=filters.get('has_alert') or '', alert_type=filters.get('alert_type') or '', team=filters.get('team') or '', mine=filters.get('mine') or '', sort=filters.get('sort') or '', dir=filters.get('dir') or '') }}" aria-label="Previous">
                     <span aria-hidden="true">&laquo;</span>
                   </a>
                 </li>
@@ -202,12 +205,12 @@
 
                 {% for p in range(start_page, end_page + 1) %}
                 <li class="page-item {% if p == page %}active{% endif %}">
-                  <a class="page-link" href="{{ url_for('erp_production_page.erp_production_dashboard', page=p, stage=filters.get('stage') or '', q=filters.get('q') or '', urgent=filters.get('urgent') or '', has_alert=filters.get('has_alert') or '', alert_type=filters.get('alert_type') or '', team=filters.get('team') or '', mine=filters.get('mine') or '') }}">{{ p }}</a>
+                  <a class="page-link" href="{{ url_for('erp_production_page.erp_production_dashboard', page=p, stage=filters.get('stage') or '', q=filters.get('q') or '', urgent=filters.get('urgent') or '', has_alert=filters.get('has_alert') or '', alert_type=filters.get('alert_type') or '', team=filters.get('team') or '', mine=filters.get('mine') or '', sort=filters.get('sort') or '', dir=filters.get('dir') or '') }}">{{ p }}</a>
                 </li>
                 {% endfor %}
 
                 <li class="page-item {% if page >= total_pages %}disabled{% endif %}">
-                  <a class="page-link" href="{{ url_for('erp_production_page.erp_production_dashboard', page=page+1, stage=filters.get('stage') or '', q=filters.get('q') or '', urgent=filters.get('urgent') or '', has_alert=filters.get('has_alert') or '', alert_type=filters.get('alert_type') or '', team=filters.get('team') or '', mine=filters.get('mine') or '') }}" aria-label="Next">
+                  <a class="page-link" href="{{ url_for('erp_production_page.erp_production_dashboard', page=page+1, stage=filters.get('stage') or '', q=filters.get('q') or '', urgent=filters.get('urgent') or '', has_alert=filters.get('has_alert') or '', alert_type=filters.get('alert_type') or '', team=filters.get('team') or '', mine=filters.get('mine') or '', sort=filters.get('sort') or '', dir=filters.get('dir') or '') }}" aria-label="Next">
                     <span aria-hidden="true">&raquo;</span>
                   </a>
                 </li>

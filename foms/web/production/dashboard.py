@@ -11,6 +11,7 @@ import time
 from typing import Any
 
 from flask import Blueprint, abort, make_response, render_template, request, g
+from sqlalchemy import case as sql_case
 
 from db import get_db
 from models import Order
@@ -126,10 +127,24 @@ def erp_production_dashboard():
     total_orders = int(_summary_blob["total_orders"])
     # 시공일 빠른 순 정렬(YYYY-MM-DD String(10) 사전순=시간순, index 있음). 미정(NULL)은
     # 뒤로, 동률/미정은 created_at 최신 순. PC 리스트에도 동일 적용(의도됨).
-    _q = _q.order_by(
-        Order.erp_construction_date.asc().nulls_last(),
-        Order.created_at.desc(),
-    )
+    # 사용자가 실측일/시공일 헤더를 눌렀을 때만 그 컬럼·방향으로 갈아탄다(ERP 작업 큐와
+    # 동일한 sort/dir 규약). 빈 문자열도 미정 취급이라 항상 뒤로 보낸다.
+    _sort_column = {
+        'measure_date': Order.erp_measurement_date,
+        'construction_date': Order.erp_construction_date,
+    }.get(_pf.sort)
+    if _sort_column is not None:
+        _blank_last = sql_case((_sort_column.is_(None), 1), ((_sort_column == ''), 1), else_=0)
+        _q = _q.order_by(
+            _blank_last.asc(),
+            _sort_column.desc() if _pf.sort_dir == 'desc' else _sort_column.asc(),
+            Order.created_at.desc(),
+        )
+    else:
+        _q = _q.order_by(
+            Order.erp_construction_date.asc().nulls_last(),
+            Order.created_at.desc(),
+        )
 
     # 태블릿 칸반은 페이지 윈도가 아니라 정렬된 전량(캡 PRODUCTION_KANBAN_MAX_ROWS)을 렌더한다.
     # R1 시공일 정렬 도입 후 시공일 변경으로 rank>page_size 가 된 카드가 page1 윈도에서
@@ -254,7 +269,7 @@ def erp_production_dashboard():
             kpis=kpis,
             process_steps=process_steps,
             step_stats=step_stats,
-            filters={'stage': f_stage, 'q': f_q},
+            filters={'stage': f_stage, 'q': f_q, 'sort': _pf.sort, 'dir': _pf.sort_dir},
             team_labels=TEAM_LABELS,
             stage_labels=STAGE_LABELS,
             is_admin=is_admin,

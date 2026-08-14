@@ -21,6 +21,9 @@
    기존 위임 셀렉터·파이프라인(data-foms-stage-catalog)이 그대로 이 그리드를 선택한다.
    컨텍스트: orders(DTO 리스트), can_edit_erp, filters, page/total_pages/total_orders,
    foms_stage_catalog(컨텍스트 프로세서). #}
+{# 실측일/시공일 헤더 정렬은 PC 작업 큐와 같은 매크로·같은 sort/dir 쿼리 파라미터를 쓴다
+   (동일 라우트라 서버 정렬 규칙이 그대로 적용된다). #}
+{% from 'orders/partials/sort_header_macro.html' import erp_sort_header with context %}
 <div class="foms-tablet-workqueue-wrap" data-foms-stage-catalog='{{ foms_stage_catalog|tojson }}'>
   <table class="foms-tqgrid">
     <thead>
@@ -30,8 +33,8 @@
         <th scope="col">고객</th>
         <th scope="col">다음 할 일</th>
         <th scope="col">제품</th>
-        <th scope="col">실측일</th>
-        <th scope="col">시공일</th>
+        <th scope="col">{{ erp_sort_header('measure_date', '실측일') }}</th>
+        <th scope="col">{{ erp_sort_header('construction_date', '시공일') }}</th>
         <th scope="col">담당</th>
         <th scope="col" class="foms-tqgrid__attach">첨부</th>
       </tr>

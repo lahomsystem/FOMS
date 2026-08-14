@@ -131,3 +131,18 @@ def test_header_sort_link_preserves_active_filters(login):
     assert "stage=MEASURE" in link
     assert "team=MEASURE" in link
     assert "mine=1" in link
+
+
+def test_tablet_workqueue_grid_shares_the_same_sort_header(login, monkeypatch):
+    """태블릿 가로 작업 큐도 PC와 같은 매크로·같은 sort/dir 링크를 쓴다."""
+    monkeypatch.setenv("ERP_MOBILE_V2_ENABLED", "true")
+    monkeypatch.setenv("FOMS_V3_SHELL_COHORT", "all")
+    _add_erp_order("SORTA middle", measure="2026-06-10", construction="2026-07-10")
+
+    body = login.get("/erp/dashboard").get_data(as_text=True)
+
+    assert "foms-tablet-workqueue-wrap" in body, "태블릿 작업 큐가 렌더되지 않았다"
+    tablet = body[body.index("foms-tablet-workqueue-wrap"):]
+    head = tablet[: tablet.index("</thead>")]
+    assert "sort=measure_date&amp;dir=asc" in head
+    assert "sort=construction_date&amp;dir=asc" in head
