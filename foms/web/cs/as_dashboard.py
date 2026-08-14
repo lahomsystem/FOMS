@@ -400,10 +400,14 @@ def erp_as_dashboard():
     sort_clauses = []
     if focus_order_id:
         sort_clauses.append(case((Order.id == focus_order_id, 0), else_=1))
+    # 날짜 미정은 방향과 무관하게 항상 뒤로 — 방문일/완료일은 빈 값이 흔해서 오름차순에
+    # 빈 행부터 깔리면 1페이지가 통째로 무의미해진다(다른 대시보드 정렬과 같은 규약).
+    blank_last = case((order_col.is_(None), 1), ((order_col == ''), 1), else_=0)
+    sort_clauses.append(blank_last.asc())
     if sort_dir == 'desc':
         sort_clauses.extend([order_col.desc().nullslast(), Order.id.desc()])
     else:
-        sort_clauses.extend([order_col.asc().nullsfirst(), Order.id.desc()])
+        sort_clauses.extend([order_col.asc().nullslast(), Order.id.desc()])
     query = query.order_by(*sort_clauses)
 
     # Pagination
