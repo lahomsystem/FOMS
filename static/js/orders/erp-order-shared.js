@@ -4782,7 +4782,7 @@ async function loadMeasurementPanel() {
                 const regionCounts = {};
                 const scopeCounts = {};
                 item.cases.forEach(function (c) {
-                    const key = c.region_label || '주소 미입력';
+                    const key = c.region_label || '지역 미상';
                     regionCounts[key] = (regionCounts[key] || 0) + 1;
                     const scope = c.scope_label || '수도권';
                     scopeCounts[scope] = (scopeCounts[scope] || 0) + 1;
@@ -4799,7 +4799,7 @@ async function loadMeasurementPanel() {
                             escapeHtml(scope) +
                             '<span class="erp-measure-day-scope__count">' + scopeCounts[scope] + '건</span></div>';
                     }
-                    const region = c.region_label || '주소 미입력';
+                    const region = c.region_label || '지역 미상';
                     if (region !== lastRegion) {
                         lastRegion = region;
                         html += '<div class="erp-measure-day-region">' + escapeHtml(region) +
