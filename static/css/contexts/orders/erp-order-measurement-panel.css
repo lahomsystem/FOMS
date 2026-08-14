@@ -240,3 +240,25 @@
 body.erp-measure-day-modal-open {
   overflow: hidden;
 }
+
+.erp-measure-day-modal .erp-measure-day-region {
+  display: flex;
+  align-items: center;
+  gap: 6px;
+  margin: 10px 0 6px;
+  padding-bottom: 3px;
+  border-bottom: 1px solid #e9ecef;
+  font-size: 0.8rem;
+  font-weight: 600;
+  color: #495057;
+}
+
+.erp-measure-day-modal .erp-measure-day-region:first-child {
+  margin-top: 0;
+}
+
+.erp-measure-day-modal .erp-measure-day-region__count {
+  font-weight: 500;
+  font-size: 0.75rem;
+  color: #6c757d;
+}

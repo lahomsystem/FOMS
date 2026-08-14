@@ -7,6 +7,7 @@ import datetime
 import hashlib
 import json
 import logging
+from typing import Any
 
 logger = logging.getLogger(__name__)
 
@@ -31,6 +32,7 @@ from foms.services.orders.revision import RevisionError, execute_order_mutation
 from foms.services.measurement_dates import extract_all_measurement_dates
 from foms.services.measurement_read_model import apply_measurement_dashboard_order_scope
 from foms.services.measurement_route import build_measurement_route_payload
+from foms.services.measurement_time import parse_measurement_time_minutes
 from foms.services.common.business_calendar import get_holidays_kr
 
 
@@ -58,6 +60,43 @@ def normalize_address_for_sort(address):
     if parts and parts[0] in replacements:
         parts[0] = replacements[parts[0]]
     return " ".join(parts)
+
+
+def measurement_region_key(address: Any) -> tuple[str, str]:
+    """
+    실측 건을 묶을 지역 키(시/도, 시·군·구).
+
+    :param address: 주소 원문(정규화 전)
+    :return: (시/도, 시·군·구) — 주소가 비면 ('', '')로 맨 앞에 모인다.
+    """
+    normalized = normalize_address_for_sort(address)
+    if not normalized:
+        return ('', '')
+    tokens = normalized.split(' ')
+    sido = tokens[0] if tokens else ''
+    sigungu = tokens[1] if len(tokens) > 1 else ''
+    return (sido, sigungu)
+
+
+def measurement_case_sort_key(case: dict) -> tuple:
+    """
+    패널·모달 실측 목록 정렬 키: 지역 묶음 → 방문시각 이른 순 → 시각 미상 뒤.
+
+    시각은 자유 텍스트("오전", "2시30분", "오후 3시이후")라 문자열 비교로는
+    시간순이 되지 않는다. 정렬 SSOT인 `parse_measurement_time_minutes`로
+    분 단위 정수로 환산해 쓴다(파서 실패=시각 미상 → 지역 안에서 맨 뒤).
+
+    :param case: panel_dates[].cases 항목(address·time·customer_name)
+    :return: 정렬 튜플
+    """
+    minutes = parse_measurement_time_minutes(case.get('time'))
+    return (
+        measurement_region_key(case.get('address')),
+        1 if minutes is None else 0,
+        minutes if minutes is not None else 0,
+        normalize_address_for_sort(case.get('address')),
+        str(case.get('customer_name') or ''),
+    )
 
 erp_measurement_bp = Blueprint(
     'erp_measurement',
@@ -143,12 +182,14 @@ def api_erp_measurement_summary():
             if key not in measurement_info:
                 measurement_info[key] = []
 
+            region_sido, region_sigungu = measurement_region_key(address_to_use)
             measurement_info[key].append({
                 'id': order.id,
                 'customer_name': customer_name or '이름없음',
                 'address': address_to_use or '-',
                 'time': time_to_use,
                 'is_regional': order.is_regional is True,
+                'region_label': (region_sido + ' ' + region_sigungu).strip() or '주소 미입력',
             })
 
     day_labels = ['월', '화', '수', '목', '금', '토', '일']
@@ -160,8 +201,8 @@ def api_erp_measurement_summary():
         is_weekend = current.weekday() >= 5
         is_holiday = date_str in holiday_dates
         cases = measurement_info.get(date_str, [])
-        # 가까운 주소 끼리 정렬(시, 군, 구) 후 시간순 정렬
-        cases.sort(key=lambda x: (normalize_address_for_sort(x.get('address')), str(x.get('time') or '')))
+        # 지역(시/도·시군구) 끼리 묶고, 그 안에서 방문시각 이른 순(시각 미상은 뒤)
+        cases.sort(key=measurement_case_sort_key)
         count_regional = sum(1 for c in cases if c.get('is_regional'))
         count_metro = len(cases) - count_regional
 
