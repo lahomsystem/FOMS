@@ -384,6 +384,27 @@ var erpFormatConstructionWorkers =
     };
 window.erpFormatConstructionWorkers = erpFormatConstructionWorkers;
 
+/**
+ * 주소와 상세주소를 편집용 한 칸 문자열로 합친다 (ADDR-DUP-01).
+ *
+ * FOMS 정본 형태는 address_full 이 이미 상세주소를 품고 address_detail 은 빈 값이지만,
+ * 외부 수집분·옛 문서에는 둘 다 들어 있는 행이 있다. 그대로 이어 붙이면 같은 동·호수가
+ * 두 번 붙고, 저장 시 그 문자열이 주소로 굳는다(2026-08-14 운영 실측:
+ * "… 103동 605호 103동 605호"). full 이 이미 detail 로 끝나면 붙이지 않는다.
+ *
+ * @param {string} full 전체 주소(address_full 또는 address_main).
+ * @param {string} detail 상세주소(address_detail).
+ * @returns {string} 편집 칸에 넣을 주소 문자열.
+ */
+function erpJoinSiteAddress(full, detail) {
+    var base = (full || '').trim();
+    var extra = (detail || '').trim();
+    if (!extra) return base;
+    if (!base) return extra;
+    return base.endsWith(extra) ? base : (base + ' ' + extra);
+}
+window.erpJoinSiteAddress = erpJoinSiteAddress;
+
 function erpConstructionWorkersEqual(left, right) {
     var a = erpNormalizeConstructionWorkers(left);
     var b = erpNormalizeConstructionWorkers(right);
@@ -1876,7 +1897,7 @@ async function erpLoadStructured(bootstrapData, options) {
     const site = sd?.site || {};
     const addressFull = site.address_full || site.address_main || '';
     const addressDetail = site.address_detail || '';
-    document.getElementById('erp-address').value = addressDetail ? `${addressFull} ${addressDetail}`.trim() : addressFull;
+    document.getElementById('erp-address').value = erpJoinSiteAddress(addressFull, addressDetail);
     document.getElementById('erp-address-note').value = sd?.notes?.address_note || '';
     const measurementDateVal = sd?.schedule?.measurement?.date || '';
     document.getElementById('erp-measurement-date').value = measurementDateVal;
