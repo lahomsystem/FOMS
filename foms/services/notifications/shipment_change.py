@@ -41,7 +41,11 @@ from sqlalchemy.orm import Session
 
 from foms.services.datetime_kst import now_utc_naive
 from foms.services.erp_display import _normalize_date_to_yyyymmdd
-from foms.services.shipment_change_alerts import _chip_customer_name, _dates_to_md
+from foms.services.shipment_change_alerts import (
+    _chip_customer_name,
+    _dates_to_md,
+    _is_initial_date_assignment,
+)
 from models import Notification, Order, User
 
 logger = logging.getLogger(__name__)
@@ -342,10 +346,11 @@ def apply_shipment_change_alert(
     to_dates: Any,
     actor_user_id: Optional[int] = None,
     actor_name: str = "",
-) -> ShipmentAlertDispatch:
+) -> Optional[ShipmentAlertDispatch]:
     """커밋 **전** 호출: 알림을 생성하거나 60초 debounce merge 한다.
 
     연속 이동(``8/5 → 8/12`` 뒤 ``8/12 → 8/20``)은 ``8/5 → 8/20`` 한 줄로 남는다.
+    **최초 지정**(``미정 → 날짜``)은 변경이 아니라서 ``None`` 을 돌려 알림을 만들지 않는다.
 
     Args:
         db: 활성 세션(호출자 트랜잭션, 커밋하지 않는다).
@@ -357,7 +362,16 @@ def apply_shipment_change_alert(
 
     Returns:
         커밋 후 :func:`finalize_shipment_change_alert` 에 그대로 넘길 dispatch.
+        최초 지정이면 ``None``.
     """
+    if _is_initial_date_assignment(from_dates):
+        logger.debug(
+            "[SHIPMENT_BELL] 최초 시공일 지정은 알림 제외: order=%s from=%r to=%r",
+            getattr(order, "id", None),
+            from_dates,
+            to_dates,
+        )
+        return None
     order_id = int(order.id)
     notif, created_new = _upsert_alert_notification(
         db,
@@ -480,6 +494,8 @@ def _apply_pending_alerts(session: Session) -> None:
             actor_user_id=actor_user_id,
             actor_name=actor_name,
         )
+        if dispatch is None:
+            continue
         previous = pending.get(order_id)
         if previous is not None and previous.created_new:
             dispatch = replace(dispatch, created_new=True)

@@ -28,7 +28,9 @@ fragment TTFB 예산 291ms).
 잇고, :data:`_MULTI_DATE_DISPLAY_CAP` 개를 넘으면 ``"7/20, 7/22, 7/25 외 2"`` 로 줄인다.
 **손상·레거시 payload 에 절대 예외를 던지지 않는다** — dict 가 아니거나 키가 없거나 정규화
 안 된 ``2026/07/20`` 이 와도 살릴 수 있는 만큼만 표시하고(전부 실패 시 ``미정``) 사유는
-debug 로그로 남긴다. 양쪽이 모두 ``미정`` 인 이벤트는 정보가 0이라 표시에서 제외한다.
+debug 로그로 남긴다. **이전 시공일을 읽지 못하면(표시상 ``미정``) 최초 지정**이므로
+표시에서 제외한다 — ``미정 → 8/14`` 는 정상 배정이고, ``8/12 → 8/14`` 만 변경 알림이다.
+양쪽이 모두 ``미정`` 인 이벤트도 정보가 0이라 제외한다.
 
 배너 요약은 :func:`build_shipment_change_banner` 가 **추가 쿼리 없이**
 :func:`collect_shipment_change_alerts` 결과에서 파생한다(AS 배너 선례
@@ -112,6 +114,21 @@ def _token_to_md(token: str) -> str | None:
     return f"{parsed.month}/{parsed.day}"
 
 
+def _is_initial_date_assignment(from_value: Any) -> bool:
+    """이전 시공일이 없으면 최초 지정이다(배지·벨 알림 대상 아님).
+
+    빈 값·파싱 불가(표시상 ``미정``)는 "아직 날짜가 없었다"와 같다. 이미 잡힌 날짜를
+    지우는 경우(``8/14 → 미정``)는 ``from`` 이 읽히므로 여기 해당하지 않는다.
+
+    Args:
+        from_value: 이벤트 payload ``from`` 원본.
+
+    Returns:
+        최초 지정이면 True.
+    """
+    return _dates_to_md(from_value) == _UNKNOWN_DATE
+
+
 def _dates_to_md(value: Any) -> str:
     """콤마 연결 다중 시공일 → 읽을 수 있는 ``M/D`` 표기(상한 초과분은 ``외 N``).
 
@@ -146,17 +163,18 @@ def _build_change_item(payload: Any) -> dict[str, str] | None:
         payload: 이벤트 payload(dict 가 아니어도 죽지 않는다).
 
     Returns:
-        ``{"kind", "label", "from_md", "to_md", "detail"}``. 양쪽 날짜를 모두 못 읽어
-        정보가 0인 이벤트는 ``None``(표시 제외).
+        ``{"kind", "label", "from_md", "to_md", "detail"}``. 최초 지정(``미정 → 날짜``)이거나
+        이전 시공일을 못 읽은 이벤트는 ``None``(표시 제외).
     """
     if payload is not None and not isinstance(payload, dict):
         logger.debug("[SHIPMENT_ALERT] dict 아닌 payload 무시: %s", type(payload).__name__)
     data = payload if isinstance(payload, dict) else {}
-    from_md = _dates_to_md(data.get("from"))
-    to_md = _dates_to_md(data.get("to"))
-    if from_md == _UNKNOWN_DATE and to_md == _UNKNOWN_DATE:
-        logger.debug("[SHIPMENT_ALERT] 날짜를 못 읽은 변경 이벤트 제외: %r", data)
+    from_raw = data.get("from")
+    if _is_initial_date_assignment(from_raw):
+        logger.debug("[SHIPMENT_ALERT] 최초 시공일 지정(또는 날짜 없음) 제외: %r", data)
         return None
+    from_md = _dates_to_md(from_raw)
+    to_md = _dates_to_md(data.get("to"))
     return {
         "kind": "construction_date",
         "label": "시공일 변경",
