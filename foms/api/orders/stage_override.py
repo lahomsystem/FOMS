@@ -137,7 +137,7 @@ def stage_override_response(order_id: int):
             )
             db.commit()
         except ValueError as exc:
-            # apply_stage_override 검증 실패(무효 전이/짧은 사유/동일 단계)는 400.
+            # apply_stage_override 검증 실패(무효 전이/빈 사유/동일 단계)는 400.
             db.rollback()
             return jsonify({"success": False, "error": str(exc)}), 400
         except RevisionError as rev:

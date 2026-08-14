@@ -130,7 +130,7 @@ def test_override_api_requires_confirm_and_reason(client):
 
     r2 = client.post(
         f"/api/orders/{order_id}/workflow/stage-override",
-        json={"to_stage": "MEASURE", "reason": "짧음", "confirm": True},
+        json={"to_stage": "MEASURE", "reason": "  ", "confirm": True},
     )
     assert r2.status_code == 400
 
@@ -139,6 +139,18 @@ def test_override_api_requires_confirm_and_reason(client):
         json={"to_stage": "DRAWING", "reason": "충분한 사유입니다", "confirm": True},
     )
     assert r3.status_code == 400  # same stage
+
+
+def test_override_api_accepts_short_reason(client):
+    """강제 변경 사유는 비어 있지 않으면 글자 수 하한이 없다."""
+    _login(client, "ov_short_ok", role="ADMIN")
+    order_id = _make_erp_order(status="DRAWING").id
+    resp = client.post(
+        f"/api/orders/{order_id}/workflow/stage-override",
+        json={"to_stage": "MEASURE", "reason": "짧음", "confirm": True},
+    )
+    assert resp.status_code == 200, resp.get_json()
+    assert resp.get_json()["data"]["to"] == "MEASURE"
 
 
 def test_override_api_skip_forward(client):
@@ -312,6 +324,11 @@ def test_js_contract_defer_and_api_path():
     assert "needsOverride" in js
     assert "hide.bs.modal" in js
     assert "settlePendingCancel" in js or "onCancel" in js
+    assert "confirmForceMove" in js
+    assert "noteCurrentStage" in js
+    assert "사유를 입력하세요." in js
+    assert "reason.length < 8" not in js
+    assert "8자 이상" not in js
 
     erp_js = (root / "templates/orders/partials/erp_order_js.html").read_text(encoding="utf-8")
     assert "erp-stage-override.js" in erp_js
