@@ -988,9 +988,19 @@
             if (!grid || !bulkBar || !countEl || !selectEl || !applyBtn) return;
 
             function selectedOrderIds() {
+              return selectedItems().map(function (it) { return it.orderId; });
+            }
+
+            function selectedItems() {
               return Array.from(grid.querySelectorAll('.erp-grid-order-check:checked'))
-                .map(cb => cb.getAttribute('data-order-id'))
-                .filter(Boolean);
+                .map(function (cb) {
+                  var tr = cb.closest('tr');
+                  return {
+                    orderId: cb.getAttribute('data-order-id') || (tr && tr.getAttribute('data-order-id')) || '',
+                    fromStage: cb.getAttribute('data-stage') || (tr && tr.getAttribute('data-stage')) || ''
+                  };
+                })
+                .filter(function (it) { return it.orderId; });
             }
 
             function updateSelectedCount() {
@@ -1028,37 +1038,53 @@
               updateSelectedCount();
             });
 
+            if (applyBtn.getAttribute('data-bound') !== '1') {
+              applyBtn.setAttribute('data-bound', '1');
               applyBtn.addEventListener('click', function () {
               const status = (selectEl.value || '').trim();
               if (!status) {
                 alert('변경할 상태를 선택하세요.');
                 return;
               }
-              const orderIds = selectedOrderIds();
-              if (orderIds.length === 0) {
+              const items = selectedItems();
+              if (items.length === 0) {
                 alert('주문을 선택하세요.');
                 return;
               }
-              applyBtn.disabled = true;
-              fetch('/api/bulk_update_order_status', {
-                method: 'POST',
-                headers: { 'Content-Type': 'application/json', 'X-Requested-With': 'XMLHttpRequest' },
-                body: JSON.stringify({ order_ids: orderIds, status: status })
-              })
-                .then(r => r.json().then(data => ({ ok: r.ok, status: r.status, data })))
-                .then(({ data }) => {
-                  if (data.success) {
-                    if (data.blocked_override_required && data.blocked_override_required.length) {
-                      alert((data.message || '') + '\n차단 ID: ' + data.blocked_override_required.join(', '));
-                    }
-                    window.location.reload();
-                  } else {
-                    alert(data.message || '상태 변경에 실패했습니다.');
-                  }
+              function postBulkStatus(ids) {
+                return fetch('/api/bulk_update_order_status', {
+                  method: 'POST',
+                  headers: { 'Content-Type': 'application/json', 'X-Requested-With': 'XMLHttpRequest' },
+                  body: JSON.stringify({ order_ids: ids, status: status })
                 })
-                .catch(() => alert('요청 중 오류가 발생했습니다.'))
+                  .then(r => r.json().then(data => ({ ok: r.ok, status: r.status, data })))
+                  .then(({ data }) => {
+                    if (data.success) {
+                      if (data.blocked_override_required && data.blocked_override_required.length) {
+                        alert((data.message || '') + '\n차단 ID: ' + data.blocked_override_required.join(', '));
+                      }
+                      window.location.reload();
+                    } else {
+                      alert(data.message || '상태 변경에 실패했습니다.');
+                    }
+                  })
+                  .catch(() => alert('요청 중 오류가 발생했습니다.'));
+              }
+              applyBtn.disabled = true;
+              const ov = window.FOMS_STAGE_OVERRIDE;
+              if (ov && typeof ov.interceptBulkStatusChange === 'function') {
+                const taken = ov.interceptBulkStatusChange(items, status, {
+                  applyNormal: function (normalIds) {
+                    postBulkStatus(normalIds).finally(() => { applyBtn.disabled = false; });
+                  },
+                  onDone: function () { applyBtn.disabled = false; }
+                });
+                if (taken) return;
+              }
+              postBulkStatus(items.map(function (it) { return it.orderId; }))
                 .finally(() => { applyBtn.disabled = false; });
             });
+            }
 
             if (copyBtn) {
               copyBtn.addEventListener('click', function () {

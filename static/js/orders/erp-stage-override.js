@@ -50,6 +50,28 @@
     return window.confirm(forceMoveNotice(from, to) + '\n계속할까요?');
   }
 
+  function confirmForceMoveBulk(count, to) {
+    var toLabel = LABELS[to] || to || '목표 단계';
+    return window.confirm(
+      '선택한 ' + count + '건은 「' + toLabel + '」(으)로 바로 이동할 수 없습니다.\n' +
+      '단계 강제 변경이 필요합니다.\n계속할까요?'
+    );
+  }
+
+  function formatFromStages(fromStages) {
+    var seen = {};
+    var labels = [];
+    (fromStages || []).forEach(function (code) {
+      var c = String(code || '').trim();
+      if (!c || seen[c]) return;
+      seen[c] = 1;
+      labels.push((LABELS[c] || c) + ' (' + c + ')');
+    });
+    if (!labels.length) return '—';
+    if (labels.length === 1) return labels[0];
+    return '여러 단계: ' + labels.join(', ');
+  }
+
   function rankOf(code) {
     var c = String(code || '').trim();
     return Object.prototype.hasOwnProperty.call(RANK, c) ? RANK[c] : -1;
@@ -171,31 +193,53 @@
       window.alert(BLOCK_MSG);
       return Promise.reject(new Error('forbidden'));
     }
-    var orderId = resolveOrderId(opts.orderId);
-    if (!orderId) {
+    var orderIds = [];
+    if (opts.orderIds && opts.orderIds.length) {
+      opts.orderIds.forEach(function (raw) {
+        var n = Number(raw);
+        if (n > 0) orderIds.push(n);
+      });
+    } else {
+      var one = resolveOrderId(opts.orderId);
+      if (one) orderIds = [one];
+    }
+    if (!orderIds.length) {
       window.alert('저장 후 주문번호가 생긴 뒤 단계 강제 변경을 사용할 수 있습니다.');
       return Promise.reject(new Error('no-order'));
     }
-    var from = String(opts.fromStage || currentStageFromUi() || '').trim();
+    var fromStages = (opts.fromStages && opts.fromStages.length)
+      ? opts.fromStages
+      : [String(opts.fromStage || currentStageFromUi() || '').trim()];
+    var from = String(fromStages[0] || '').trim();
     var to = String(opts.toStage || '').trim();
 
     var fromEl = document.getElementById('erp-stage-override-from');
     var toEl = document.getElementById('erp-stage-override-to');
     var reasonEl = document.getElementById('erp-stage-override-reason');
     var confirmEl = document.getElementById('erp-stage-override-confirm');
+    var bulkHint = document.getElementById('erp-stage-override-bulk-hint');
     var modalEl = document.getElementById('erpStageOverrideModal');
     if (!modalEl || !fromEl || !toEl) {
       window.alert('단계 강제 변경 UI를 찾을 수 없습니다.');
       return Promise.reject(new Error('no-ui'));
     }
 
-    fromEl.textContent = (LABELS[from] || from || '—') + (from ? ' (' + from + ')' : '');
+    fromEl.textContent = formatFromStages(fromStages);
     fromEl.setAttribute('data-stage-code', from);
     if (to && Object.prototype.hasOwnProperty.call(RANK, to)) {
       toEl.value = to;
     }
     if (reasonEl) reasonEl.value = '';
     if (confirmEl) confirmEl.checked = false;
+    if (bulkHint) {
+      if (orderIds.length > 1) {
+        bulkHint.textContent = '선택한 ' + orderIds.length + '건을 같은 사유로 일괄 변경합니다.';
+        bulkHint.classList.remove('d-none');
+      } else {
+        bulkHint.textContent = '';
+        bulkHint.classList.add('d-none');
+      }
+    }
     showError('');
     syncModeHint();
 
@@ -203,7 +247,9 @@
       // 이전 미완료 pending 있으면 취소로 정리(드롭다운 revert)
       settlePendingCancel();
       _pending = {
-        orderId: orderId,
+        orderId: orderIds[0],
+        orderIds: orderIds,
+        bulk: !!opts.bulk || orderIds.length > 1,
         resolve: resolve,
         reject: reject,
         opts: opts,
@@ -252,7 +298,10 @@
       showError('확인 체크가 필요합니다.');
       return;
     }
-    var orderId = _pending.orderId;
+    var orderIds = (_pending.orderIds && _pending.orderIds.length)
+      ? _pending.orderIds
+      : [_pending.orderId];
+    var isBulk = !!_pending.bulk;
     var btn = document.getElementById('erp-stage-override-submit');
     if (btn) btn.disabled = true;
     showError('');
@@ -261,13 +310,22 @@
       'Content-Type': 'application/json',
       'X-Requested-With': 'XMLHttpRequest'
     };
-    var ifMatch = currentMutationVersion();
-    if (ifMatch !== null) headers['If-Match'] = String(ifMatch);
+    if (!isBulk) {
+      var ifMatch = currentMutationVersion();
+      if (ifMatch !== null) headers['If-Match'] = String(ifMatch);
+    }
 
-    fetch('/api/orders/' + orderId + '/workflow/stage-override', {
+    var url = isBulk
+      ? '/api/orders/workflow/stage-override/bulk'
+      : '/api/orders/' + orderIds[0] + '/workflow/stage-override';
+    var body = isBulk
+      ? { order_ids: orderIds, to_stage: to, reason: reason, confirm: true }
+      : { to_stage: to, reason: reason, confirm: true };
+
+    fetch(url, {
       method: 'POST',
       headers: headers,
-      body: JSON.stringify({ to_stage: to, reason: reason, confirm: true })
+      body: JSON.stringify(body)
     })
       .then(function (r) {
         return r.json().then(function (data) {
@@ -414,6 +472,65 @@
     return true;
   }
 
+  /**
+   * 그리드 일괄 적용: 역행/스킵 대상은 강제 변경 모달, 인접 전진은 호출측 bulk_update.
+   * @returns {boolean} true면 호출측이 일반 bulk_update 를 건너뛴다.
+   */
+  function interceptBulkStatusChange(items, toStatus, handlers) {
+    handlers = handlers || {};
+    var to = String(toStatus || '').trim();
+    if (!to || !Object.prototype.hasOwnProperty.call(RANK, to)) return false;
+    var list = Array.isArray(items) ? items : [];
+    var overrideItems = [];
+    var normalIds = [];
+    list.forEach(function (it) {
+      var id = it && it.orderId != null ? String(it.orderId) : '';
+      if (!id) return;
+      var from = String((it && it.fromStage) || '').trim();
+      if (!from || needsOverride(from, to)) overrideItems.push(it);
+      else normalIds.push(id);
+    });
+    if (!overrideItems.length) return false;
+
+    function done(ok) {
+      if (typeof handlers.onDone === 'function') handlers.onDone(ok);
+    }
+
+    if (!canOverride()) {
+      window.alert(forceMoveNotice(overrideItems[0].fromStage, to) + '\n관리자만 강제 변경할 수 있습니다.');
+      done(false);
+      return true;
+    }
+    if (!confirmForceMoveBulk(overrideItems.length, to)) {
+      done(false);
+      return true;
+    }
+    var overrideIds = overrideItems.map(function (it) { return it.orderId; });
+    var fromStages = overrideItems.map(function (it) { return it.fromStage; });
+    openModal({
+      orderIds: overrideIds,
+      fromStages: fromStages,
+      toStage: to,
+      bulk: true,
+      skipReload: true,
+      onSuccess: function () {
+        if (normalIds.length && typeof handlers.applyNormal === 'function') {
+          handlers.applyNormal(normalIds);
+        } else {
+          done(true);
+          window.location.reload();
+        }
+      },
+      onCancel: function () {
+        done(false);
+      }
+    }).catch(function (err) {
+      if (err && String(err.message || '') === 'cancelled') return;
+      done(false);
+    });
+    return true;
+  }
+
   window.FOMS_STAGE_OVERRIDE = {
     RANK: RANK,
     LABELS: LABELS,
@@ -423,6 +540,7 @@
     canOverride: canOverride,
     openModal: openModal,
     interceptStatusChange: interceptStatusChange,
+    interceptBulkStatusChange: interceptBulkStatusChange,
     noteCurrentStage: noteCurrentStage,
     confirmForceMove: confirmForceMove,
     wireUi: wireUi
