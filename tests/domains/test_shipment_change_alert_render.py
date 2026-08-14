@@ -380,14 +380,45 @@ def test_ack_client_singleton_defensive_and_no_reload():
     assert "$(" not in js and "jQuery" not in js
 
 
+def test_jump_landing_has_flash_animation_not_static_ring_only():
+    """칩 점프 착지는 AS 드리프트와 같이 빨간 플래시 애니메이션이어야 한다.
+
+    정적 ``inset 2px`` 테두리만 있으면 이미 화면에 보이는 행(오아영 #4606 같은)을
+    눌렀을 때 스크롤이 없어 '애니메이션이 안 나온다'로 보인다. AS 키프레임을
+    import 하지 않고 출고 시트에 같은 처방을 둔다(페이지 경계).
+    """
+    css = _read(EXTRAS_CSS)
+    assert "@keyframes erp-ship-change-target-flash" in css
+    assert "animation: erp-ship-change-target-flash" in css
+    assert "tr:target > td" in css
+    assert "erp-ship-change-flash" in css
+    assert "as-drift-target-flash" not in css
+    assert "@import" not in css
+    # 출고 표 td 는 overflow:hidden 이라 착지 순간에 visible 이 아니면 플래시가 잘린다.
+    target_block = css.split("tr:target > td", 1)[1]
+    assert "overflow: visible" in target_block.split("@keyframes", 1)[0]
+
+
+def test_chip_click_replays_landing_flash_even_on_same_hash():
+    """같은 칩을 다시 눌러도 플래시가 재생되어야 한다(:target 은 재클릭 no-op)."""
+    js = _read(CHANGE_ALERT_JS)
+    assert "closest(CHIP)" in js
+    assert "erp-ship-change-flash" in js
+    assert "scrollIntoView" in js
+    assert "event.preventDefault()" in js
+    assert "getElementById" in js
+    assert "foms:erp-shell-fragment-swapped" in js
+    assert "$(" not in js and "jQuery" not in js
+
+
 # --------------------------------------------------------------------------- #
 # 6. 핀 동기 — 손댄 자산의 ?v 가 저장소 전체에서 일치해야 한다
 # --------------------------------------------------------------------------- #
 def test_extras_css_pin_bumped_and_unique():
-    """dashboard-table-extras.css 는 20260805a 로 범프되고 옛 핀이 남아 있지 않다."""
+    """dashboard-table-extras.css 는 20260814a 로 범프되고 옛 핀이 남아 있지 않다."""
     main = _read(DASHBOARD_MAIN)
-    assert "dashboard-table-extras.css') }}?v=20260805a" in main
-    assert "dashboard-table-extras.css') }}?v=20260730d" not in main
+    assert "dashboard-table-extras.css') }}?v=20260814a" in main
+    assert "dashboard-table-extras.css') }}?v=20260805a" not in main
     # 새 규칙이 실제로 그 시트에 있어야 한다(핀만 올리고 내용이 없으면 배지가 무스타일).
     css = _read(EXTRAS_CSS)
     for selector in (
