@@ -13,6 +13,10 @@
  *   2) 배너의 그 주문 점프 칩 제거(PC용·태블릿용 2개)
  *   3) 배너 카운트를 banner_count_hint 만큼 증감, 0 이하가 되면 배너를 통째로 제거
  *
+ * 배너 점프 칩은 해시 링크이지만 착지 플래시는 JS 가 심는다. CSS `:target` 만으로는
+ * 같은 칩 재클릭이 no-op 이고, 이미 화면에 있는 행은 스크롤이 없어 정적 테두리가
+ * '애니메이션이 안 나온 것'처럼 보인다. 클릭마다 `.erp-ship-change-flash` 를 재부여한다.
+ *
  * 실패는 절대 무음이 아니다(플랜 함정 #10): 응답 본문을 텍스트로 받아 방어적으로 파싱하고
  * (HTML 오류 페이지·빈 본문도 죽지 않는다), 실패하면 버튼을 되살린 뒤 배지 옆 메시지 슬롯에
  * 사유를 띄우고 console.error 로도 남긴다. 슬롯이 없으면 alert 로 폴백한다.
@@ -105,6 +109,82 @@
     }
   }
 
+  var FLASH_CLASS = 'erp-ship-change-flash';
+  var FLASH_MS = 1800;
+  var flashTimer = null;
+
+  function prefersReducedMotion() {
+    return window.matchMedia &&
+      window.matchMedia('(prefers-reduced-motion: reduce)').matches;
+  }
+
+  /** 착지 행에 플래시 클래스를 다시 심어 애니메이션을 처음부터 재생한다. */
+  function flashRow(row) {
+    var nodes = document.querySelectorAll('.' + FLASH_CLASS);
+    var i;
+    for (i = 0; i < nodes.length; i++) {
+      nodes[i].classList.remove(FLASH_CLASS);
+    }
+    void row.offsetWidth;
+    row.classList.add(FLASH_CLASS);
+    if (flashTimer) {
+      window.clearTimeout(flashTimer);
+    }
+    flashTimer = window.setTimeout(function () {
+      row.classList.remove(FLASH_CLASS);
+      flashTimer = null;
+    }, FLASH_MS);
+  }
+
+  /** 칩 href(#shipment-row-N / #shipment-tgrid-row-N)에 대응하는 행을 찾는다. */
+  function rowFromChip(chip) {
+    var href = chip.getAttribute('href') || '';
+    if (href.charAt(0) !== '#') {
+      return null;
+    }
+    var id = href.slice(1);
+    if (!id) {
+      return null;
+    }
+    return document.getElementById(id);
+  }
+
+  /** 배너 칩 클릭 — 해당 행으로 스크롤하고 플래시를 재생한다. */
+  function onChipClick(event, chip) {
+    var row = rowFromChip(chip);
+    if (!row) {
+      return;
+    }
+    event.preventDefault();
+    var reduce = prefersReducedMotion();
+    if (window.location.hash !== '#' + row.id) {
+      window.location.hash = row.id;
+    }
+    row.scrollIntoView({
+      behavior: reduce ? 'auto' : 'smooth',
+      block: 'center'
+    });
+    if (!reduce) {
+      flashRow(row);
+    }
+  }
+
+  /** 주소 해시에 해당하는 출고 행이 있으면 플래시한다(첫 로드·셸 스왑). */
+  function flashHashTarget() {
+    var hash = window.location.hash;
+    if (!hash || hash.length < 2 || prefersReducedMotion()) {
+      return;
+    }
+    var row = document.getElementById(hash.slice(1));
+    if (!row) {
+      return;
+    }
+    if (!row.closest('#shipment-dashboard-table, #foms-tablet-ship-grid')) {
+      return;
+    }
+    flashRow(row);
+  }
+
   function onAckClick(btn) {
     var orderId = btn.getAttribute('data-order-id');
     if (!orderId || btn.disabled) {
@@ -148,14 +228,20 @@
     if (!target || !target.closest) {
       return;
     }
+    var chip = target.closest(CHIP);
+    if (chip) {
+      onChipClick(event, chip);
+      return;
+    }
     var btn = target.closest(ACK_BTN);
     if (!btn) {
       return;
     }
-    // preventDefault/stopPropagation 을 쓰지 않는다: 버튼은 type="button" 이라 기본 동작이
-    // 없고, 행 탭 → 배정 시트 위임(tablet-side-sheet.js)은 INTERACTIVE 셀렉터('button' 포함)
-    // 로 이미 스스로 비켜난다. 같은 document 노드의 리스너끼리는 stopPropagation 이 무의미
-    // 하기도 하다(막으려면 stopImmediatePropagation 이어야 하는데 그건 남의 배선을 끊는다).
+    // ack 버튼은 type="button" 이라 preventDefault 가 필요 없고, 행 탭 → 배정 시트
+    // 위임(tablet-side-sheet.js)은 INTERACTIVE 셀렉터('button' 포함)로 이미 스스로 비켜난다.
     onAckClick(btn);
   });
+
+  window.addEventListener('foms:erp-shell-fragment-swapped', flashHashTarget);
+  flashHashTarget();
 })();
