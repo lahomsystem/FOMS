@@ -182,13 +182,19 @@ def _sort_desc(entries: list[tuple[str, int, dict]]) -> list[dict]:
 
 
 def build_as_round_chart_view(
-    sd: dict | None, *, today: datetime.date | None = None,
+    sd: dict | None,
+    *,
+    today: datetime.date | None = None,
+    attachments_by_log_id: dict[str, list[dict]] | None = None,
 ) -> dict[str, Any]:
     """ver7 회차 차트 뷰 조립(표시 시점 비파괴 — sd 를 변경하지 않는다).
 
     Args:
         sd: 주문 structured_data (None 허용).
         today: 기준일(KST date). 미지정이면 get_today_kst().
+        attachments_by_log_id: as_log 항목 id → 첨부 표시 dict 목록(AS-FRESH-01 T4).
+            호출 라우트가 **1쿼리로 묶어** 주입한다 — 여기서 조회하면 항목마다 쿼리가
+            도는 N+1 이 된다. 미주입이면 기록 줄에 썸네일이 붙지 않는다.
 
     Returns:
         ``{state_card, symptom_preview, rounds(최신 회차 먼저), reception, legacy,
@@ -200,6 +206,16 @@ def build_as_round_chart_view(
 
     today = today or get_today_kst()
     sd = sd if isinstance(sd, dict) else {}
+    files_map = attachments_by_log_id if isinstance(attachments_by_log_id, dict) else {}
+
+    def _decorate(entry: dict) -> dict[str, Any]:
+        """decorate_entry + 그 기록에 결합된 첨부(files)."""
+        out = decorate_entry(entry)
+        files = files_map.get(str(entry.get("id") or ""))
+        if files:
+            out["files"] = list(files)
+        return out
+
     shipment = sd.get("shipment") or {}
     schedule = sd.get("schedule") if isinstance(sd.get("schedule"), dict) else {}
     as_visit = schedule.get("as_visit") if isinstance(schedule.get("as_visit"), dict) else {}
@@ -220,19 +236,19 @@ def build_as_round_chart_view(
         # as_log 미생성(영구화 전) 주문: as_content 를 읽기 전용 legacy 로 lazy 변환 —
         # 표시 시점 비파괴(build_as_timeline_view 와 같은 계약). 없으면 이전 기록이
         # 차트에서 통째로 사라진다.
-        legacy = [decorate_entry(x) for x in _legacy_entries_from_content(shipment)]
+        legacy = [_decorate(x) for x in _legacy_entries_from_content(shipment)]
     for idx, e in enumerate(entries):
         if not isinstance(e, dict) or e.get("deleted") is True:
             continue
         no = _entry_round(e)
         etype = e.get("type")
         if e.get("legacy") is True:
-            legacy.append(decorate_entry(e))
+            legacy.append(_decorate(e))
         elif etype == "system":
-            histories[_classify_system_entry(str(e.get("text") or ""))].append(decorate_entry(e))
+            histories[_classify_system_entry(str(e.get("text") or ""))].append(_decorate(e))
             round_systems.setdefault(no, []).append(e)
         elif etype == "reception" and reception is None:
-            reception = decorate_entry(e)
+            reception = _decorate(e)
         elif etype == "verdict":
             human_count += 1
             # 같은 회차 재판정(정정)은 마지막 판정이 이긴다 — 이전 판정은 기록 표에 남는다.
@@ -265,7 +281,7 @@ def build_as_round_chart_view(
                 entries=people, has_verdict=False, today=today,
                 visit_date=_effective_round_visit(round_visit, visit_date, today),
             ) if is_open else [],
-            "entries": [decorate_entry(e) for e in people[:_ROUND_ENTRY_LIMIT]],
+            "entries": [_decorate(e) for e in people[:_ROUND_ENTRY_LIMIT]],
             "hidden_count": max(len(people) - _ROUND_ENTRY_LIMIT, 0),
         })
 

@@ -32,7 +32,7 @@
     {
       "path": "foms/api/channel/channel_integration.py",
       "endpoint": "api_channel_push_estimate",
-      "lineno": 494,
+      "lineno": 664,
       "methods": [
         "POST"
       ],
@@ -41,7 +41,7 @@
     {
       "path": "foms/api/channel/channel_integration.py",
       "endpoint": "api_channel_push_manual",
-      "lineno": 295,
+      "lineno": 345,
       "methods": [
         "POST"
       ],
@@ -194,7 +194,7 @@
     {
       "path": "foms/api/cs/as_orders.py",
       "endpoint": "api_as_billing",
-      "lineno": 800,
+      "lineno": 813,
       "methods": [
         "POST"
       ],
@@ -203,7 +203,7 @@
     {
       "path": "foms/api/cs/as_orders.py",
       "endpoint": "api_as_classification",
-      "lineno": 721,
+      "lineno": 734,
       "methods": [
         "POST"
       ],
@@ -212,7 +212,7 @@
     {
       "path": "foms/api/cs/as_orders.py",
       "endpoint": "api_as_complete",
-      "lineno": 666,
+      "lineno": 679,
       "methods": [
         "POST"
       ],
@@ -221,7 +221,7 @@
     {
       "path": "foms/api/cs/as_orders.py",
       "endpoint": "api_as_log_append",
-      "lineno": 860,
+      "lineno": 873,
       "methods": [
         "POST"
       ],
@@ -230,7 +230,7 @@
     {
       "path": "foms/api/cs/as_orders.py",
       "endpoint": "api_as_log_delete",
-      "lineno": 1025,
+      "lineno": 1038,
       "methods": [
         "POST"
       ],
@@ -239,7 +239,7 @@
     {
       "path": "foms/api/cs/as_orders.py",
       "endpoint": "api_as_log_patch",
-      "lineno": 970,
+      "lineno": 983,
       "methods": [
         "PATCH"
       ],
@@ -257,7 +257,7 @@
     {
       "path": "foms/api/cs/as_orders.py",
       "endpoint": "api_as_reopen",
-      "lineno": 693,
+      "lineno": 706,
       "methods": [
         "POST"
       ],
@@ -266,7 +266,7 @@
     {
       "path": "foms/api/cs/as_orders.py",
       "endpoint": "api_as_schedule",
-      "lineno": 557,
+      "lineno": 570,
       "methods": [
         "POST"
       ],
@@ -275,7 +275,7 @@
     {
       "path": "foms/api/cs/as_orders.py",
       "endpoint": "api_as_schedule_link",
-      "lineno": 1247,
+      "lineno": 1260,
       "methods": [
         "POST"
       ],
@@ -284,7 +284,7 @@
     {
       "path": "foms/api/cs/as_orders.py",
       "endpoint": "api_as_start",
-      "lineno": 639,
+      "lineno": 652,
       "methods": [
         "POST"
       ],
@@ -293,7 +293,7 @@
     {
       "path": "foms/api/cs/as_orders.py",
       "endpoint": "api_as_unschedule",
-      "lineno": 611,
+      "lineno": 624,
       "methods": [
         "POST"
       ],
@@ -302,7 +302,7 @@
     {
       "path": "foms/api/cs/as_orders.py",
       "endpoint": "api_as_verdict",
-      "lineno": 905,
+      "lineno": 918,
       "methods": [
         "POST"
       ],
@@ -698,7 +698,7 @@
     {
       "path": "foms/api/files/direct_upload.py",
       "endpoint": "api_order_attachments_complete",
-      "lineno": 164,
+      "lineno": 165,
       "methods": [
         "POST"
       ],
@@ -707,7 +707,7 @@
     {
       "path": "foms/api/files/direct_upload.py",
       "endpoint": "api_upload_session",
-      "lineno": 42,
+      "lineno": 43,
       "methods": [
         "POST"
       ],
@@ -716,7 +716,7 @@
     {
       "path": "foms/api/files/direct_upload.py",
       "endpoint": "api_upload_session_batch",
-      "lineno": 100,
+      "lineno": 101,
       "methods": [
         "POST"
       ],
@@ -725,7 +725,7 @@
     {
       "path": "foms/api/files/order_routes.py",
       "endpoint": "api_order_attachments_delete",
-      "lineno": 459,
+      "lineno": 469,
       "methods": [
         "DELETE"
       ],
@@ -734,7 +734,7 @@
     {
       "path": "foms/api/files/order_routes.py",
       "endpoint": "api_order_attachments_patch",
-      "lineno": 397,
+      "lineno": 407,
       "methods": [
         "PATCH"
       ],
@@ -743,7 +743,7 @@
     {
       "path": "foms/api/files/order_routes.py",
       "endpoint": "api_order_attachments_restore",
-      "lineno": 513,
+      "lineno": 523,
       "methods": [
         "POST"
       ],
@@ -752,7 +752,7 @@
     {
       "path": "foms/api/files/order_routes.py",
       "endpoint": "api_order_attachments_upload",
-      "lineno": 294,
+      "lineno": 295,
       "methods": [
         "POST"
       ],

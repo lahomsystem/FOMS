@@ -40,6 +40,46 @@ from foms.services.orders.as_round_chart import build_as_round_chart_view
 erp_as_page_bp = Blueprint('erp_as_page', __name__, url_prefix='/erp')
 
 
+def _as_attachments_by_log_id(db, order_id: int) -> dict:
+    """AS 첨부를 as_log 항목 id 로 묶어 돌려준다 (AS-FRESH-01 T4).
+
+    회차 차트가 기록 줄마다 썸네일을 그리려면 항목별 첨부가 필요한데, 항목마다 조회하면
+    N+1 이다. 주문 단위 **1쿼리**로 읽어 메모리에서 묶는다(hot path 규칙).
+    결합되지 않은 첨부(as_log_id NULL, T1 이전 업로드)는 기존 첨부 모달 소관이라 제외한다.
+
+    Args:
+        db: 세션. order_id: 대상 주문 PK.
+
+    Returns:
+        ``{as_log_id: [{id, filename, is_image, view_url, thumb_url}, ...]}``.
+    """
+    from foms.api.files.routes import build_file_view_url
+    from models import OrderAttachment
+
+    rows = (
+        db.query(OrderAttachment)
+        .filter(
+            OrderAttachment.order_id == order_id,
+            OrderAttachment.category == 'as',
+            OrderAttachment.as_log_id.isnot(None),
+        )
+        .order_by(OrderAttachment.id.asc())
+        .all()
+    )
+    grouped: dict = {}
+    for att in rows:
+        if not att.storage_key:
+            continue
+        grouped.setdefault(str(att.as_log_id), []).append({
+            'id': att.id,
+            'filename': att.filename or 'file',
+            'is_image': (att.file_type or 'image') == 'image',
+            'view_url': build_file_view_url(att.storage_key),
+            'thumb_url': build_file_view_url(att.thumbnail_key or att.storage_key),
+        })
+    return grouped
+
+
 def _compact_search_text(value):
     """검색 비교용 문자열 정규화 (NFC + 공백 제거 + 소문자)."""
     normalized = _normalize_for_search(value)
@@ -135,7 +175,10 @@ def erp_as_card_detail(order_id: int):
     apply_as_dashboard_row_display_fields([order], db, mobile_v2_active=False)
     # T15c: 상세 타임라인 표면은 ver7 회차 차트로 교체 — 단건 lazy 라우트에서만 조립한다
     # (목록 hot path 는 기존 as_timeline_view 셀 요약 그대로).
-    order.as_round_chart_view = build_as_round_chart_view(order.structured_data)
+    order.as_round_chart_view = build_as_round_chart_view(
+        order.structured_data,
+        attachments_by_log_id=_as_attachments_by_log_id(db, order.id),
+    )
     current_user = getattr(g, 'current_user', None)
     return render_template(
         'cs/partials/as_card_detail_partial.html',
@@ -172,7 +215,10 @@ def erp_as_timeline(order_id: int):
     apply_as_dashboard_row_display_fields([order], db, mobile_v2_active=False)
     # T15c: PC 확장 표면 = ver7 회차 차트. 구 '더보기'(?full=1)는 표면과 함께 퇴역 —
     # 차트는 회차별 전량을 내되 회차당 상한(_ROUND_ENTRY_LIMIT)이 fragment 폭증을 막는다.
-    order.as_round_chart_view = build_as_round_chart_view(order.structured_data)
+    order.as_round_chart_view = build_as_round_chart_view(
+        order.structured_data,
+        attachments_by_log_id=_as_attachments_by_log_id(db, order.id),
+    )
     current_user = getattr(g, 'current_user', None)
     readonly = request.args.get('readonly') == '1'
     return render_template(

@@ -464,6 +464,10 @@ def api_as_register(order_id):
     if draft_cleared:
         flag_modified(order, "structured_data")
 
+    # AS-FRESH-01 T3: 접수 모달이 올린 첨부를 접수 기록에 결합하려면 항목 id 가 필요하다.
+    # append 를 건너뛴 무편집 재접수에서도 **기존 항목 id** 를 돌려줘야 그 파일이 고아가 되지 않는다.
+    captured_register: Dict[str, Any] = {}
+
     def _register_side_records(sd: Dict[str, Any]) -> None:
         """cycle 전이와 같은 sd 사본에 접수 기록(reception·system·billing 시드)을 남긴다."""
         shipment = ensure_path(sd, "shipment")
@@ -476,14 +480,22 @@ def api_as_register(order_id):
         # 로그에 있으므로 append 하면 append-only 리스트에 영구 중복이 남는다. "as_content 가
         # 그대로 + 같은 본문이 로그에 이미 존재" 둘 다일 때만 건너뛴다. 접수 "사실"은 아래
         # system 이벤트가 계속 남긴다.
-        already_logged = bool(as_content) and as_content == shipment.get("as_content") and any(
-            isinstance(e, dict) and e.get("text") == as_content
+        same_text_ids = [
+            str(e.get("id") or "")
             for e in (shipment.get("as_log") or [])
+            if isinstance(e, dict) and e.get("text") == as_content and e.get("id")
+        ]
+        already_logged = bool(as_content) and as_content == shipment.get("as_content") and bool(
+            same_text_ids
         )
         if as_content and not already_logged:
-            append_client_log(
+            entry = append_client_log(
                 sd, log_type="reception", text=as_content,
                 by=(user.name if user else ""), by_id=(user.id if user else None))
+            captured_register["reception_log_id"] = entry["id"]
+        elif same_text_ids:
+            # 무편집 재접수: 방금 올린 첨부는 직전 동일 본문 항목에 붙인다.
+            captured_register["reception_log_id"] = same_text_ids[-1]
         # 접수 원문(수기 reception)과 별개로 접수 "사실"을 이벤트로 남긴다 — 원문 없이
         # 접수만 하는 흐름에서도 타임라인 첫 줄이 비지 않는다.
         append_system_log(sd, text="AS 접수됨")
@@ -548,6 +560,7 @@ def api_as_register(order_id):
         "construction_workers": shipment.get("construction_workers") or [],
         "draft_cleared": draft_cleared,
         "mutation_version": getattr(order, "mutation_version", None),
+        "reception_log_id": captured_register.get("reception_log_id") or "",
     })
 
 
