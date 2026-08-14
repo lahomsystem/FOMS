@@ -4658,6 +4658,84 @@ function renderMeasurementSchedulerCountBadges(item) {
 }
 window.renderMeasurementSchedulerCountBadges = renderMeasurementSchedulerCountBadges;
 
+/**
+ * 실측 일정 패널의 날짜별 건 목록 모달을 생성(최초 1회)하고 반환한다.
+ * 패널 카드 안에서 펼치면 컨테이너 폭에 눌려 읽기 어려워 body 직속 모달로 띄운다.
+ * @returns {HTMLElement} 모달 루트 엘리먼트
+ */
+function getMeasurementDayModal() {
+    let modal = document.getElementById('erp-measurement-day-modal');
+    if (modal) return modal;
+    modal = document.createElement('div');
+    modal.id = 'erp-measurement-day-modal';
+    modal.className = 'erp-measure-day-modal';
+    modal.hidden = true;
+    modal.innerHTML =
+        '<div class="erp-measure-day-modal__backdrop" data-erp-measure-day-close="1"></div>' +
+        '<div class="erp-measure-day-modal__dialog" role="dialog" aria-modal="true" aria-labelledby="erp-measure-day-modal-title">' +
+        '<div class="erp-measure-day-modal__header">' +
+        '<div class="erp-measure-day-modal__title" id="erp-measure-day-modal-title"></div>' +
+        '<button type="button" class="btn-close" aria-label="닫기" data-erp-measure-day-close="1"></button>' +
+        '</div>' +
+        '<div class="erp-measure-day-modal__body"></div>' +
+        '</div>';
+    document.body.appendChild(modal);
+    modal.addEventListener('click', function (e) {
+        // 빈 곳(백드롭) 또는 닫기 버튼 클릭 시 닫는다.
+        if (e.target.closest('[data-erp-measure-day-close]')) closeMeasurementDayModal();
+    });
+    return modal;
+}
+
+/**
+ * 실측 일정 모달을 닫는다.
+ * @returns {void}
+ */
+function closeMeasurementDayModal() {
+    const modal = document.getElementById('erp-measurement-day-modal');
+    if (!modal || modal.hidden) return;
+    modal.hidden = true;
+    document.body.classList.remove('erp-measure-day-modal-open');
+    document.removeEventListener('keydown', handleMeasurementDayModalKeydown, true);
+}
+window.closeMeasurementDayModal = closeMeasurementDayModal;
+
+/**
+ * 모달 열림 중 ESC 키 처리.
+ * @param {KeyboardEvent} e 키 이벤트
+ * @returns {void}
+ */
+function handleMeasurementDayModalKeydown(e) {
+    if (e.key === 'Escape' || e.key === 'Esc') {
+        e.stopPropagation();
+        closeMeasurementDayModal();
+    }
+}
+
+/**
+ * 실측 일정 모달을 화면 정중앙에 띄운다(주변은 블러 처리).
+ * @param {{date: string, dayLabel: string, countsHtml: string, bodyHtml: string}} payload 표시 내용
+ * @returns {void}
+ */
+function openMeasurementDayModal(payload) {
+    const modal = getMeasurementDayModal();
+    const title = modal.querySelector('.erp-measure-day-modal__title');
+    const body = modal.querySelector('.erp-measure-day-modal__body');
+    if (title) {
+        title.innerHTML =
+            '<span class="erp-measure-day-modal__date">' + escapeHtml(payload.date || '') + '</span>' +
+            '<span class="erp-measure-day-modal__day">' + escapeHtml(payload.dayLabel || '') + '</span>' +
+            (payload.countsHtml || '');
+    }
+    if (body) body.innerHTML = payload.bodyHtml || '';
+    modal.hidden = false;
+    document.body.classList.add('erp-measure-day-modal-open');
+    document.addEventListener('keydown', handleMeasurementDayModalKeydown, true);
+    const closeBtn = modal.querySelector('.btn-close');
+    if (closeBtn) closeBtn.focus();
+}
+window.openMeasurementDayModal = openMeasurementDayModal;
+
 async function loadMeasurementPanel() {
     const panel = document.getElementById('erp-order-measurement-panel');
     if (!panel) return;
@@ -4711,22 +4789,32 @@ async function loadMeasurementPanel() {
         panel.querySelectorAll('.measurement-panel-item').forEach(function (el) {
             const header = el.querySelector('.erp-scheduler-panel-row');
             if (header) {
-                header.addEventListener('click', function (e) {
+                const openDay = function () {
                     const dateStr = el.dataset.date;
                     if (!dateStr) return;
-                    
-                    // 날짜 스타일 토글 여부는 주소 목록을 토글하는 것으로 대체, 
-                    // 하지만 시각적으로 어느 것을 눌렀는지 표시하기 위해 active 상태 토글 추가
-                    if (el.classList.contains('is-selected')) {
-                        el.classList.remove('is-selected');
-                    } else {
-                        panel.querySelectorAll('.measurement-panel-item').forEach(function (x) { x.classList.remove('is-selected'); });
-                        el.classList.add('is-selected');
-                    }
-                    
+
+                    // 어느 날짜를 눌렀는지 패널에서도 보이도록 선택 표시를 유지한다.
+                    panel.querySelectorAll('.measurement-panel-item').forEach(function (x) { x.classList.remove('is-selected'); });
+                    el.classList.add('is-selected');
+
+                    // 목록은 카드 폭에 눌리지 않도록 화면 정중앙 모달로 띄운다.
                     const casesList = el.querySelector('.measurement-cases-list');
-                    if (casesList) {
-                        casesList.classList.toggle('d-none');
+                    const dayEl = el.querySelector('.measurement-panel-day');
+                    const countsEl = el.querySelector('.erp-scheduler-count-group');
+                    openMeasurementDayModal({
+                        date: dateStr,
+                        dayLabel: dayEl ? dayEl.textContent.trim() : '',
+                        countsHtml: countsEl ? countsEl.outerHTML : '',
+                        bodyHtml: casesList
+                            ? casesList.innerHTML
+                            : '<div class="small text-muted py-2 text-center">해당 날짜에 실측 건이 없습니다.</div>'
+                    });
+                };
+                header.addEventListener('click', openDay);
+                header.addEventListener('keydown', function (e) {
+                    if (e.key === 'Enter' || e.key === ' ') {
+                        e.preventDefault();
+                        openDay();
                     }
                 });
             }
