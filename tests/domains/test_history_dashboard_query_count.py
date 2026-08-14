@@ -32,11 +32,12 @@ from models import Order, OrderAttachment, OrderEvent, User
 
 _SEED_BASE = datetime.datetime(2026, 6, 1, 9, 0, 0)
 
-# warmup 후 격리 실측: small(4건)=5, big(12건)=5 → delta=0 (완전 배치, per-row 없음).
+# warmup 후 격리 실측: small(4건)=10, big(12건)=10 → delta=0 (완전 배치, per-row 없음).
+# 모바일 queue-card-v2 행 조립(첨부/미리보기/타임라인 배치)이 상수 쿼리를 더한다.
 # 여유 +2로 예산 2.
 ALLOWED_DELTA = 2
-# 절대 상한: 현 실측 big(5) + 30% ≈ 7.
-ABS_QUERY_CAP = 7
+# 절대 상한: 현 실측 big(10) + 30% ≈ 13.
+ABS_QUERY_CAP = 13
 
 
 @pytest.fixture(autouse=True)

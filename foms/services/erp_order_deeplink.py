@@ -31,6 +31,7 @@ RETURN_TO_BACK_ENDPOINT: dict[str, str] = {
     "erp_production_dashboard": "erp_production_page.erp_production_dashboard",
     "erp_construction_dashboard": "erp_construction_page.erp_construction_dashboard",
     "erp_drawing_workbench_dashboard": "erp_drawing_workbench.erp_drawing_workbench_dashboard",
+    "erp_history_dashboard": "erp_history.history_dashboard",
 }
 
 
