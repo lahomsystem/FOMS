@@ -3470,6 +3470,10 @@ class ExternalOrderLink(Base):
     reviewed_at = Column(DateTime, nullable=True)
     reviewed_by_user_id = Column(
         Integer, ForeignKey('users.id', ondelete='SET NULL'), nullable=True)
+    # 도크(주문 편집 옆 네이버 원본 패널) 반영 상태 — T14-B.
+    # {checked, checked_by, checked_at, assigned_main, assigned_by, assigned_at}.
+    # reviewed_at 과 다른 축: 저건 큐 이탈(첫 확인 시각 불변), 이건 토글 가능한 표시용.
+    triage_state = Column(JSONColumn, nullable=True)
     created_at = Column(DateTime, nullable=False, default=now_utc_naive,
                         server_default=func.now())
     updated_at = Column(DateTime, nullable=False, default=now_utc_naive,

@@ -67,7 +67,7 @@
 | T10 | 담당자 지정(`set_sales_assignee`) | T8 | DONE | PG 레인 3 green |
 | T11 | 대시보드 '담당 미지정' 뱃지 + T0 준비 안내서 | T10 | DONE | 테스트 7 green |
 | T14-A | 진입구: 주 메뉴 '네이버 주문' 탭+뱃지 · '/' 인박스 스트립 · 전 직원 권한 개방 | T9 | DONE | `51e0894a` (deploy) · 스테이징 눈 확인 완료 |
-| T14-B | 네이버 원본 도크 (편집 셸 우측 독립 마운트) | T14-A | PENDING | — |
+| T14-B | 네이버 원본 도크 (편집 셸 우측 독립 마운트) | T14-A | DONE | 테스트 15 green + PG 737 + smoke 322 |
 | T14-C | 수집 목록/트리아지 본품별 묶음 표시 | T13 | PENDING | — |
 
 > 순서 주의: 스펙의 T1(인프라 실검증)은 T0 사람 작업과 코드(T3)가 모두 있어야 가능하므로
@@ -427,6 +427,37 @@ exit 0 (322 passed) + APP_OK. 신규 계약: COLLECTED 포함 카운트·STAFF �
 
 **범위 밖(미룸)**: 모바일 v2/v3 셸 nav 의 네이버 탭(3곳 분산 배선 — 별도 task 필요 시),
 스트립의 '마지막 수집 시각' 표기(워터마크 추가 조회라 제외, 목업 대비 축소).
+
+### T14-B 구현 기록 (2026-08-14 완료)
+
+**핵심 발견**: 본품/추가옵션 판정은 원본 ``productClass`` 가 정본이다(스테이징 실데이터
+42건 실측 — ``조합형옵션상품`` = 본품, ``추가구성상품`` = 추가옵션). 이름 휴리스틱은
+귀속 추정(어느 본품의 옵션인가)에만 쓴다.
+
+**구현**
+- 마이그레이션 `naverdock_00`(← navercollect_00): `external_order_links.triage_state`
+  JSONB 1개 — 체크(반영 표시)·귀속 상태. **reviewed_at 재사용 안 함**(그건 큐 이탈·첫
+  확인 시각 불변 축, 도크 체크는 토글 가능한 표시 축). 모델 컬럼 동반(create_all parity).
+- `naver_commerce/dock.py`: `build_dock_payload`(본품/추가옵션 판정·귀속 추정·복사 칩
+  분해·저장 상태 반영, productClass 부재 시 금액 최대=본품 폴백), web-safe(DB만).
+- 라우트 `POST /admin/naver-ingest/<link_id>/dock-state`(STAFF↑): checked/assigned_main
+  부분 갱신, 귀속은 형제 본품 external_id·COMMON·null 만 허용(임의 문자열 거부).
+  manifest 2종(STAFF_MUTATION) + ACTION_LABELS(`NAVER_DOCK_STATE_SET`) + audit coverage
+  인벤토리 재생성.
+- bootstrap 동봉: `_build_erp_order_bootstrap` 이 `structured_data.source ==
+  NAVER_SMARTSTORE` 일 때만 `naver_origin` 을 실는다(일반 주문 링크 쿼리 0).
+- 프론트(폼 무참조 additive): `naver_origin_dock.html`(pane+FAB+서랍 스켈레톤) ·
+  `erp-naver-dock.css` · `erp-naver-dock.js`(문서 위임+싱글톤+마운트 감시 — fragment
+  재실행 안전, 원본 문자열 전부 textContent 주입, 셸 폭 ResizeObserver 로 도킹↔서랍
+  전환 — 뷰포트 MQ 금지, WDC split 열리면 서랍 모드 강제). 체크 즉시 저장, 실패 시
+  화면 롤백. '확인 완료'=미확인 링크 전건 순차 review(기존 라우트 재사용).
+
+**검증**: test_naver_dock.py 15 passed(판정·추정·폴백·저장·검증·감사·권한·bootstrap
+동봉·비네이버 무렌더·**주문 mutation_version 불변**=폼 불가침 증거) + PG 레인 737 passed
+(체인 왕복 포함, 로컬 5440 클러스터) + `alembic heads` 단일(`naverdock_00`) + smoke 322.
+
+**밟은 함정**: audit coverage 인벤토리 드리프트(새 mutation route) —
+`tools/harness/audit_coverage_scan.py` 재생성으로 해소.
 
 ## PR #92 상태 (2026-08-14)
 

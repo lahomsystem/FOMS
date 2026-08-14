@@ -1,0 +1,279 @@
+/* 네이버 원본 도크 (T14-B) — 주문 편집 셸 우측 독립 패널.
+   폼 불가침: 기존 폼 셀렉터를 일절 건드리지 않는다. 셸 좁은 폭에서는 pane 대신
+   FAB + 슬라이드 서랍으로 전환하며, 판정은 JS(ResizeObserver, 셸 폭 기준)가 한다
+   — 뷰포트 미디어쿼리 금지(공용 부품 규칙: 같은 부품이 다른 폭 컨테이너에 실린다). */
+
+/* ── 도킹 pane (셸 넓을 때, is-naver-dock-open 이 form col 을 좁힌다) ── */
+.erp-edit-shell--erp-order.is-naver-dock-open .erp-edit-col--split-ready {
+  flex: 1 1 auto;
+  max-width: calc(100% - 376px);
+  margin-left: 0 !important;
+  margin-right: 0 !important;
+}
+
+.erp-naver-dock-pane {
+  flex: 0 0 360px;
+  max-width: 360px;
+  width: 360px;
+}
+
+.erp-naver-dock-card {
+  position: sticky;
+  top: 14px;
+  border: 1px solid #059a54;
+  border-radius: 12px;
+  overflow: hidden;
+  max-height: calc(100vh - 40px);
+  display: flex;
+  flex-direction: column;
+}
+
+/* ── FAB (좁은 셸) ── */
+.erp-naver-dock-fab {
+  position: fixed;
+  right: 22px;
+  bottom: 22px;
+  z-index: 1055;
+  display: inline-flex;
+  align-items: center;
+  gap: 7px;
+  background: #059669;
+  border-color: #059669;
+  color: #fff;
+  font-weight: 600;
+  box-shadow: 0 6px 20px rgba(15, 23, 42, 0.25);
+}
+
+.erp-naver-dock-fab:hover,
+.erp-naver-dock-fab:focus {
+  background: #047857;
+  color: #fff;
+}
+
+/* ── 슬라이드 서랍 ── */
+.erp-naver-dock-drawer {
+  position: fixed;
+  top: 0;
+  right: 0;
+  bottom: 0;
+  width: min(390px, 86vw);
+  background: #fff;
+  border-left: 1px solid #059a54;
+  box-shadow: -12px 0 30px rgba(15, 23, 42, 0.18);
+  transform: translateX(105%);
+  transition: transform 0.28s;
+  z-index: 1056;
+  display: flex;
+  flex-direction: column;
+}
+
+.erp-naver-dock-drawer.is-open {
+  transform: none;
+}
+
+@media (prefers-reduced-motion: reduce) {
+  .erp-naver-dock-drawer {
+    transition: none;
+  }
+}
+
+/* ── 패널 내부 (pane·서랍 공용 — JS 가 같은 마크업을 양쪽에 렌더) ── */
+.erp-naver-dock-mount {
+  display: flex;
+  flex-direction: column;
+  min-height: 0;
+  flex: 1 1 auto;
+  overflow: hidden;
+}
+
+.naver-dock-hd {
+  background: #e4f6ec;
+  padding: 10px 14px;
+  border-bottom: 1px solid #059a54;
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  flex-wrap: wrap;
+}
+
+.naver-dock-hd .naver-dock-title {
+  font-size: 13px;
+  font-weight: 700;
+  color: #059a54;
+}
+
+.naver-dock-hd .naver-dock-orderno {
+  font-size: 11px;
+  color: #94a3b8;
+}
+
+.naver-dock-hd .naver-dock-prog {
+  margin-left: auto;
+  font-size: 11.5px;
+  font-weight: 700;
+  color: #475569;
+}
+
+.naver-dock-pbar {
+  height: 5px;
+  background: #e2e8f0;
+  flex-shrink: 0;
+}
+
+.naver-dock-pbar i {
+  display: block;
+  height: 100%;
+  background: #059669;
+  width: 0;
+  transition: width 0.25s;
+}
+
+@media (prefers-reduced-motion: reduce) {
+  .naver-dock-pbar i {
+    transition: none;
+  }
+}
+
+.naver-dock-bd {
+  overflow-y: auto;
+  padding: 2px 0 4px;
+  flex: 1 1 auto;
+  min-height: 0;
+}
+
+.naver-dock-grp {
+  padding: 8px 14px 2px;
+  font-size: 11.5px;
+  font-weight: 800;
+  color: #2563eb;
+  letter-spacing: 0.03em;
+  border-top: 1px solid #e2e8f0;
+  margin-top: 4px;
+  display: flex;
+  align-items: center;
+  gap: 6px;
+}
+
+.naver-dock-grp:first-child {
+  border-top: 0;
+  margin-top: 0;
+}
+
+.naver-dock-grp .naver-dock-grp-sub {
+  font-weight: 600;
+  color: #94a3b8;
+  font-variant-numeric: tabular-nums;
+}
+
+.naver-dock-row {
+  display: flex;
+  gap: 9px;
+  padding: 9px 14px;
+  border-bottom: 1px solid #e2e8f0;
+}
+
+.naver-dock-row:last-child {
+  border-bottom: 0;
+}
+
+.naver-dock-row input[type="checkbox"] {
+  margin-top: 2px;
+  width: 15px;
+  height: 15px;
+  accent-color: #059669;
+  cursor: pointer;
+  flex-shrink: 0;
+}
+
+.naver-dock-row .naver-dock-row-body {
+  flex: 1;
+  min-width: 0;
+}
+
+.naver-dock-row .naver-dock-row-title {
+  font-size: 12.5px;
+  font-weight: 700;
+}
+
+.naver-dock-row .naver-dock-zero {
+  font-size: 10px;
+  font-weight: 800;
+  background: #fef3c7;
+  color: #d97706;
+  border-radius: 4px;
+  padding: 0 5px;
+  margin-left: 4px;
+}
+
+.naver-dock-row .naver-dock-src {
+  font-size: 11.8px;
+  color: #475569;
+  background: #f8fafc;
+  border-radius: 6px;
+  padding: 4px 8px;
+  margin-top: 4px;
+  word-break: break-all;
+}
+
+.naver-dock-row.is-checked .naver-dock-src {
+  opacity: 0.5;
+  text-decoration: line-through;
+}
+
+.naver-dock-acts {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 5px;
+  margin-top: 6px;
+  align-items: center;
+}
+
+.naver-dock-copy {
+  font-size: 11px;
+  font-weight: 600;
+  border: 1px solid #cbd5e1;
+  border-radius: 6px;
+  padding: 1px 8px;
+  color: #475569;
+  background: #fff;
+  cursor: pointer;
+}
+
+.naver-dock-copy:hover {
+  border-color: #059a54;
+  color: #059a54;
+}
+
+.naver-dock-copy.is-copied {
+  border-color: #059669;
+  color: #059669;
+}
+
+.naver-dock-guess {
+  font-size: 10.5px;
+  color: #94a3b8;
+}
+
+.naver-dock-assign {
+  font-size: 11px;
+  border: 1px solid #d97706;
+  border-radius: 6px;
+  padding: 1px 5px;
+  color: #d97706;
+  background: #fef3c7;
+  max-width: 100%;
+}
+
+.naver-dock-ft {
+  border-top: 1px solid #e2e8f0;
+  padding: 10px 14px;
+  display: flex;
+  gap: 8px;
+  align-items: center;
+  flex-shrink: 0;
+}
+
+.naver-dock-ft .naver-dock-hint {
+  font-size: 11.5px;
+  color: #94a3b8;
+}

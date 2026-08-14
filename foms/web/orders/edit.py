@@ -443,4 +443,10 @@ def _build_erp_order_bootstrap(order, user=None):
             'is_admin': getattr(user, 'role', None) == 'ADMIN',
             'is_order_manager': can_manage_order_attachments(user, order),
         }
+    # 네이버 수집 주문이면 원본 도크 데이터를 동봉한다(T14-B — 추가 fetch 0).
+    # source 게이트로 일반 주문은 링크 쿼리조차 내지 않는다(hot path 비용 0).
+    if (order.structured_data or {}).get('source') == 'NAVER_SMARTSTORE':
+        from foms.services.integrations.naver_commerce.dock import build_dock_payload
+
+        payload['naver_origin'] = build_dock_payload(get_db(), order)
     return payload

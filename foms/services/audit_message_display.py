@@ -113,6 +113,7 @@ ACTION_LABELS: dict[str, str] = {
     "NAVER_INGEST_MARK_REVIEWED": "네이버 수집 확인 완료",
     "NAVER_INGEST_SET_ASSIGNEE": "네이버 수집 담당자 지정",
     "NAVER_INGEST_CREATE_ORDER": "네이버 수집분 주문 생성",
+    "NAVER_DOCK_STATE_SET": "네이버 도크 반영 상태 저장",
     # --- 결제 ---
     "PAYMENT_CONFIRMED": "결제 확인",
     "PAYMENT_CONFIRM_CLEARED": "결제 확인 해제",

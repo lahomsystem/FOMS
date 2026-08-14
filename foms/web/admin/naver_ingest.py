@@ -355,6 +355,87 @@ def naver_ingest_mark_reviewed(link_id: int):
     return jsonify({"success": True, "data": {"link_id": link_id}, "error": None})
 
 
+@admin_bp.route("/admin/naver-ingest/<int:link_id>/dock-state", methods=["POST"])
+@login_required
+@role_required(["ADMIN", "MANAGER", "STAFF"])
+def naver_ingest_dock_state(link_id: int):
+    """도크 항목의 체크(반영 표시)·귀속(추가옵션→본품)을 저장한다 (T14-B).
+
+    체크는 즉시 저장(팀 공유)이며 토글 가능하다 — ``reviewed_at`` 과 다른 축이다
+    (저건 큐 이탈·첫 확인 시각 불변). 귀속은 **표시/체크리스트용**일 뿐 주문 데이터
+    (items·spec_rows)는 절대 건드리지 않는다(폼 불가침 계약).
+
+    Body(JSON, 부분 갱신): ``checked``(bool) / ``assigned_main``(str|null —
+    형제 본품 external_id, ``"COMMON"``(주문 전체), 또는 null=미정).
+    """
+    import copy as copy_module
+
+    from sqlalchemy.orm.attributes import flag_modified
+
+    from foms.services.integrations.naver_commerce.dock import ASSIGN_COMMON
+
+    db = get_db()
+    link = (
+        db.query(ExternalOrderLink)
+        .filter(ExternalOrderLink.id == link_id, ExternalOrderLink.channel == "NAVER")
+        .first()
+    )
+    if link is None:
+        return jsonify({"success": False, "data": None, "error": "수집 이력을 찾을 수 없습니다."}), 404
+
+    body = request.get_json(silent=True) or {}
+    if "checked" not in body and "assigned_main" not in body:
+        return jsonify({"success": False, "data": None,
+                        "error": "checked 또는 assigned_main 이 필요합니다."}), 400
+
+    state = copy_module.deepcopy(link.triage_state) if isinstance(link.triage_state, dict) else {}
+    user_id = session.get("user_id")
+    now_str = now_utc_naive().strftime("%Y-%m-%d %H:%M:%S")
+
+    if "checked" in body:
+        if not isinstance(body["checked"], bool):
+            return jsonify({"success": False, "data": None,
+                            "error": "checked 는 true/false 여야 합니다."}), 400
+        state["checked"] = body["checked"]
+        state["checked_by"] = user_id
+        state["checked_at"] = now_str
+
+    if "assigned_main" in body:
+        assigned = body["assigned_main"]
+        if assigned is not None:
+            assigned = str(assigned).strip()
+            if assigned != ASSIGN_COMMON:
+                # 같은 주문의 형제 링크 external_id 만 허용 — 임의 문자열 저장 금지.
+                sibling_ids = {
+                    row.external_id
+                    for row in db.query(ExternalOrderLink.external_id)
+                    .filter(ExternalOrderLink.channel == "NAVER",
+                            ExternalOrderLink.order_id == link.order_id)
+                    .all()
+                } if link.order_id else set()
+                if assigned not in sibling_ids:
+                    return jsonify({"success": False, "data": None,
+                                    "error": "귀속 대상이 이 주문의 본품이 아닙니다."}), 400
+        state["assigned_main"] = assigned
+        state["assigned_by"] = user_id
+        state["assigned_at"] = now_str
+
+    link.triage_state = state
+    flag_modified(link, "triage_state")
+    db.commit()
+    log_access(
+        f"네이버 도크 상태 저장 (link {link_id})",
+        action="NAVER_DOCK_STATE_SET",
+        detail={"link_id": link_id, "external_id": link.external_id,
+                "checked": state.get("checked"), "assigned_main": state.get("assigned_main")},
+    )
+    return jsonify({"success": True,
+                    "data": {"link_id": link_id,
+                             "checked": bool(state.get("checked")),
+                             "assigned_main": state.get("assigned_main")},
+                    "error": None})
+
+
 @admin_bp.route("/admin/naver-ingest/<int:order_id>/assignee", methods=["POST"])
 @login_required
 @role_required(["ADMIN", "MANAGER", "STAFF"])
@@ -472,6 +553,7 @@ def naver_ingest_run_now():
 
 __all__ = [
     "naver_ingest_dashboard",
+    "naver_ingest_dock_state",
     "naver_ingest_mark_reviewed",
     "naver_ingest_set_assignee",
     "naver_ingest_triage",

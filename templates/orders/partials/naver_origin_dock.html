@@ -1,0 +1,21 @@
+{# 네이버 원본 도크 (T14-B) — 폼 불가침: 기존 폼 DOM 을 참조하지 않는 독립 부품.
+   데이터는 #erp-order-bootstrap JSON 의 naver_origin (추가 fetch 0), 행 렌더는
+   erp-naver-dock.js 가 한다(원본 문자열은 전부 textContent 로만 주입 — XSS 방어).
+   넓은 셸 = 우측 도킹 pane, 좁은 셸 = FAB + 슬라이드 서랍(전환은 JS ResizeObserver 가
+   셸 폭 기준으로 판정 — 뷰포트 MQ 금지, 공용 부품 규칙). #}
+{% if erp_bootstrap and erp_bootstrap.naver_origin %}
+<div class="erp-naver-dock-pane d-none" id="erpNaverDockPane" aria-label="네이버 원본 도크">
+    <div class="card erp-naver-dock-card">
+        <div class="erp-naver-dock-mount" data-naver-dock-mount="pane"></div>
+    </div>
+</div>
+<button type="button" class="btn erp-naver-dock-fab d-none" id="erpNaverDockFab"
+        aria-controls="erpNaverDockDrawer" aria-expanded="false">
+    <i class="fas fa-store"></i> 네이버 원본
+    <span class="badge rounded-pill bg-danger erp-naver-dock-fab-badge d-none"></span>
+</button>
+<div class="erp-naver-dock-drawer" id="erpNaverDockDrawer" role="dialog"
+     aria-label="네이버 원본" aria-hidden="true">
+    <div class="erp-naver-dock-mount" data-naver-dock-mount="drawer"></div>
+</div>
+{% endif %}
