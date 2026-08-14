@@ -4782,7 +4782,7 @@ async function loadMeasurementPanel() {
                 const regionCounts = {};
                 const scopeCounts = {};
                 item.cases.forEach(function (c) {
-                    const key = c.region_label || '주소 미입력';
+                    const key = c.region_label || '지역 미상';
                     regionCounts[key] = (regionCounts[key] || 0) + 1;
                     const scope = c.scope_label || '수도권';
                     scopeCounts[scope] = (scopeCounts[scope] || 0) + 1;
@@ -4793,10 +4793,13 @@ async function loadMeasurementPanel() {
                     const scope = c.scope_label || '수도권';
                     if (scope !== lastScope) {
                         lastScope = scope;
-                        html += '<div class="erp-measure-day-scope">' + escapeHtml(scope) +
+                        // 권역 색점은 패널 건수 뱃지 범례(지방=주황, 수도권=초록)와 같은 규약.
+                        const scopeMod = scope === '지방' ? 'regional' : 'metro';
+                        html += '<div class="erp-measure-day-scope erp-measure-day-scope--' + scopeMod + '">' +
+                            escapeHtml(scope) +
                             '<span class="erp-measure-day-scope__count">' + scopeCounts[scope] + '건</span></div>';
                     }
-                    const region = c.region_label || '주소 미입력';
+                    const region = c.region_label || '지역 미상';
                     if (region !== lastRegion) {
                         lastRegion = region;
                         html += '<div class="erp-measure-day-region">' + escapeHtml(region) +

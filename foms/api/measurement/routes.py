@@ -62,6 +62,9 @@ def normalize_address_for_sort(address):
     return " ".join(parts)
 
 
+#: 시·군·구 토큰 판정용 접미사("수원시", "양평군", "권선구").
+MEASUREMENT_SIGUNGU_SUFFIXES = ('시', '군', '구')
+
 #: 주소 첫 토큰이 시/도인지 판정하는 집합(normalize_address_for_sort 정규화 후 값).
 MEASUREMENT_SIDO_NAMES = frozenset({
     '서울', '경기', '인천', '부산', '대구', '대전', '광주', '울산',
@@ -73,41 +76,73 @@ def measurement_region_key(address: Any) -> tuple[str, str]:
     """
     실측 건을 묶을 지역 키(시/도, 시·군·구).
 
+    실무 주소는 시/도를 자주 생략한다("수원시 권선구 …" vs "경기 수원시 …").
+    첫 토큰이 시/도면 둘째 토큰을, 아니면 첫 토큰을 시·군·구 후보로 본다.
+    시·군·구로 볼 수 없으면 ('', '') — 호출부에서 '지역 미상'으로 묶는다.
+
     :param address: 주소 원문(정규화 전)
-    :return: (시/도, 시·군·구) — 주소가 비면 ('', '')로 맨 앞에 모인다.
+    :return: (시/도, 시·군·구)
     """
     normalized = normalize_address_for_sort(address)
     if not normalized:
         return ('', '')
-    tokens = normalized.split(' ')
-    sido = tokens[0] if tokens else ''
-    # 시/도가 생략된 주소("강동구 아리수로97길 20")는 첫 토큰이 이미 시·군·구라
-    # 두 토큰을 붙이면 도로명까지 지역명이 되어 묶음이 1건씩 쪼개진다.
-    if sido not in MEASUREMENT_SIDO_NAMES:
-        return ('', sido)
-    sigungu = tokens[1] if len(tokens) > 1 else ''
-    return (sido, sigungu)
+    tokens = [t for t in normalized.split(' ') if t]
+    if not tokens:
+        return ('', '')
+    if tokens[0] in MEASUREMENT_SIDO_NAMES:
+        sido = tokens[0]
+        candidate = tokens[1] if len(tokens) > 1 else ''
+        # 세종처럼 시·군·구가 없는 시/도는 시/도 자체가 묶음이다.
+        if not candidate or not candidate.endswith(MEASUREMENT_SIGUNGU_SUFFIXES):
+            return (sido, '')
+        return (sido, candidate)
+    if tokens[0].endswith(MEASUREMENT_SIGUNGU_SUFFIXES):
+        # 시/도 생략형 — 시/도는 같은 날짜의 다른 건에서 역추론한다.
+        return ('', tokens[0])
+    # "경수대로 한일타운아파트 …"처럼 지역 토큰이 아예 없는 주소.
+    return ('', '')
 
 
 def annotate_measurement_case_groups(cases: list[dict]) -> None:
     """
-    같은 지역 묶음의 수도권/지방 구분을 확정해 각 건에 `scope_label`로 심는다.
+    지역 묶음(region_label)과 권역(scope_label)을 확정해 각 건에 심는다.
 
-    구분 SSOT는 주문의 `is_regional`이다. 한 지역(시/도·시군구) 안에서 값이 섞이면
-    묶음이 쪼개지지 않도록 **전부 지방일 때만** 지방으로 본다.
+    ① 시/도 생략형("수원시 …")은 같은 날짜에 시/도가 붙은 같은 시·군·구
+       ("경기 수원시 …")가 있으면 그 시/도를 물려받아 한 묶음이 된다.
+       후보 시/도가 둘 이상이면(중구 등 동명 시군구) 합치지 않는다.
+    ② 권역 구분 SSOT는 주문의 `is_regional`. 한 지역 안에서 값이 섞이면
+       묶음이 쪼개지지 않도록 **전부 지방일 때만** 지방으로 본다.
 
     :param cases: panel_dates[].cases (제자리 변경)
     :return: None
     """
-    region_regional: dict[str, bool] = {}
-    for case in cases:
-        label = case.get('region_label') or '주소 미입력'
-        current = region_regional.get(label)
+    keys = [measurement_region_key(case.get('address')) for case in cases]
+
+    sido_by_sigungu: dict[str, set[str]] = {}
+    for sido, sigungu in keys:
+        if sigungu and sido:
+            sido_by_sigungu.setdefault(sigungu, set()).add(sido)
+
+    resolved: list[tuple[str, str]] = []
+    for sido, sigungu in keys:
+        if not sido and sigungu:
+            candidates = sido_by_sigungu.get(sigungu, set())
+            if len(candidates) == 1:
+                sido = next(iter(candidates))
+        resolved.append((sido, sigungu))
+
+    region_regional: dict[tuple[str, str], bool] = {}
+    for case, key in zip(cases, resolved):
+        current = region_regional.get(key)
         is_regional = bool(case.get('is_regional'))
-        region_regional[label] = is_regional if current is None else (current and is_regional)
-    for case in cases:
-        label = case.get('region_label') or '주소 미입력'
-        case['scope_label'] = '지방' if region_regional.get(label) else '수도권'
+        region_regional[key] = is_regional if current is None else (current and is_regional)
+
+    for case, key in zip(cases, resolved):
+        sido, sigungu = key
+        case['region_sido'] = sido
+        case['region_sigungu'] = sigungu
+        case['region_label'] = (sido + ' ' + sigungu).strip() or '지역 미상'
+        case['scope_label'] = '지방' if region_regional.get(key) else '수도권'
 
 
 def measurement_case_sort_key(case: dict) -> tuple:
@@ -117,14 +152,19 @@ def measurement_case_sort_key(case: dict) -> tuple:
     시각은 자유 텍스트("오전", "2시30분", "오후 3시이후")라 문자열 비교로는
     시간순이 되지 않는다. 정렬 SSOT인 `parse_measurement_time_minutes`로
     분 단위 정수로 환산해 쓴다(파서 실패=시각 미상 → 지역 안에서 맨 뒤).
+    지역을 판정할 수 없는 건('지역 미상')은 권역 안에서 맨 뒤로 보낸다.
 
-    :param case: panel_dates[].cases 항목(scope_label·address·time·customer_name)
+    :param case: panel_dates[].cases 항목(annotate_measurement_case_groups 선행 필요)
     :return: 정렬 튜플
     """
     minutes = parse_measurement_time_minutes(case.get('time'))
+    sigungu = str(case.get('region_sigungu') or '')
     return (
         1 if case.get('scope_label') == '지방' else 0,
-        measurement_region_key(case.get('address')),
+        0 if sigungu else 1,
+        # 시/도 생략형이 섞여도 같은 이름끼리 붙도록 시·군·구를 먼저 본다.
+        sigungu,
+        str(case.get('region_sido') or ''),
         1 if minutes is None else 0,
         minutes if minutes is not None else 0,
         normalize_address_for_sort(case.get('address')),
@@ -215,14 +255,12 @@ def api_erp_measurement_summary():
             if key not in measurement_info:
                 measurement_info[key] = []
 
-            region_sido, region_sigungu = measurement_region_key(address_to_use)
             measurement_info[key].append({
                 'id': order.id,
                 'customer_name': customer_name or '이름없음',
                 'address': address_to_use or '-',
                 'time': time_to_use,
                 'is_regional': order.is_regional is True,
-                'region_label': (region_sido + ' ' + region_sigungu).strip() or '주소 미입력',
             })
 
     day_labels = ['월', '화', '수', '목', '금', '토', '일']
