@@ -13,7 +13,7 @@ from .field_update import update_order_field_response
 from .nearby import nearby_orders_response
 from .qr import render_order_qr_svg
 from .regional import update_regional_memo_response, update_regional_status_response
-from .stage_override import stage_override_response
+from .stage_override import bulk_stage_override_response, stage_override_response
 from .status import bulk_update_order_status_response, update_order_status_response
 
 orders_bp = Blueprint("orders", __name__, url_prefix="/api")
@@ -74,6 +74,13 @@ def bulk_update_order_status():
     return bulk_update_order_status_response(get_today_kst_func=get_today_kst)
 
 
+@orders_bp.route("/orders/workflow/stage-override/bulk", methods=["POST"])
+@login_required
+def api_bulk_stage_override():
+    """선택 주문 일괄 단계 역행·건너뛰기 (사유·confirm 필수). ADMIN/MANAGER만 성공."""
+    return bulk_stage_override_response()
+
+
 @orders_bp.route("/orders/<int:order_id>/workflow/stage-override", methods=["POST"])
 @login_required
 def api_order_stage_override(order_id: int):
@@ -104,9 +111,11 @@ def api_order_qr_svg(order_id):
 
 
 __all__ = [
+    "api_bulk_stage_override",
     "api_order_call_log",
     "api_orders",
     "api_orders_nearby",
+    "bulk_stage_override_response",
     "bulk_update_order_status_response",
     "bulk_update_order_status",
     "calendar_orders_response",

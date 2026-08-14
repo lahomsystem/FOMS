@@ -69,7 +69,7 @@
                 <tr class="erp-main-row" data-order-id="{{ o.id }}" data-stage="{{ o.stage_code }}" data-foms-sheet-url="{{ url_for('erp_dashboard.erp_dashboard_tablet_sheet', order_id=o.id) }}">
                   <td data-col-key="alert" data-label="경보">
                     <div class="d-flex align-items-center gap-1 erp-grid-alert-cell">
-                      {% if can_edit_erp %}<input type="checkbox" class="form-check-input erp-grid-order-check mt-0 flex-shrink-0" data-order-id="{{ o.id }}" aria-label="주문 선택">{% endif %}
+                      {% if can_edit_erp %}<input type="checkbox" class="form-check-input erp-grid-order-check mt-0 flex-shrink-0" data-order-id="{{ o.id }}" data-stage="{{ o.stage_code }}" aria-label="주문 선택">{% endif %}
                       <div class="erp-grid-alert-badges">
                         {% if o.alerts.urgent %}<span class="badge bg-danger fw-bold"
                           style="font-size: 1.1rem; padding: 0.5em 0.8em;">긴급</span>{% endif %}

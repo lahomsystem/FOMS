@@ -322,6 +322,7 @@ def test_canonical_command_registered_no_new_endpoint(client):
     assert "/api/bulk_update_order_status" in rules
     assert "/api/update_order_field" in rules
     assert "/api/orders/<int:order_id>/workflow/stage-override" in rules
+    assert "/api/orders/workflow/stage-override/bulk" in rules
     # 새 generic stage 우회 엔드포인트가 추가되지 않았다.
     lowered = " ".join(rules).lower()
     assert "set-stage" not in lowered
