@@ -129,6 +129,7 @@ def erp_dashboard():
     effective_stage = _filters.effective_stage
     f_team = _filters.team
     f_sort = _filters.sort
+    f_sort_dir = _filters.sort_dir
     f_today = _filters.today
     f_tower_mine = _filters.tower_mine
     f_mine = _filters.mine
@@ -240,7 +241,22 @@ def erp_dashboard():
             'alerts': alerts,
         })
 
-    if f_risk:
+    _header_sort_attr = {
+        'measure_date': 'erp_measurement_date',
+        'construction_date': 'erp_construction_date',
+    }.get(f_sort)
+    if _header_sort_attr:
+        # 컬럼 헤더 정렬(실측일/시공일): 페이지 내 표시 순서를 SQL order_by와 동일하게 맞춘다
+        # (빈 날짜는 항상 뒤, 동률은 최신 주문 먼저).
+        def _header_sort_value(item: dict) -> str:
+            return str(getattr(item['_order'], _header_sort_attr, None) or '')
+
+        filtered.sort(key=lambda item: -item['_order'].id)
+        dated = [item for item in filtered if _header_sort_value(item)]
+        undated = [item for item in filtered if not _header_sort_value(item)]
+        dated.sort(key=_header_sort_value, reverse=(f_sort_dir == 'desc'))
+        filtered = dated + undated
+    elif f_risk:
         # P1 트리아지: 페이지 내 표시도 마감/정체 오름차순으로 고정(SQL 정렬과 일치).
         def _risk_triage_key(item: dict):
             o = item['_order']
@@ -440,6 +456,7 @@ def erp_dashboard():
             'team': f_team,
             'mine': '1' if f_mine else '',
             'sort': f_sort,
+            'dir': f_sort_dir,
             'today': f_today,
             'date': f_date,
             'field': f_field,
@@ -496,6 +513,7 @@ def erp_dashboard():
             'team': f_team,
             'mine': '1' if f_mine else '',
             'sort': f_sort,
+            'dir': f_sort_dir,
             'today': f_today,
             'date': f_date,
             'field': f_field,

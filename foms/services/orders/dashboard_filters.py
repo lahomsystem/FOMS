@@ -3,7 +3,8 @@
 `erp_dashboard()` 라우트의 `request.args` 파싱/정규화 책임만 분리한다.
 값·검증 규칙은 기존 라우트와 1:1 동일:
 - 레거시 호환 `MEASURED` -> `MEASURE`
-- `sort` 화이트리스트(`latest`/`schedule`/`amount`, 그 외 `latest`)
+- `sort` 화이트리스트(`latest`/`schedule`/`amount`/`measure_date`/`construction_date`, 그 외 `latest`)
+- `dir` 화이트리스트(`asc`/`desc`, 그 외 `asc`) — 컬럼 헤더 정렬 토글용
 - `date` ISO 유효성(`fromisoformat` 실패 시 무시)
 - `risk` 키 화이트리스트(`RISK_KEYS` 밖이면 무시)
 - `focus_order` int 파싱(실패 시 None)
@@ -46,6 +47,8 @@ class OrdersDashboardFilters:
     focus_order_id: Optional[int]
     # v3→v2 이식(A4): 접수 상태 칩 필터. 기본 ''(미적용) — 직접 생성하는 기존 콜사이트 하위호환.
     status: str = ''
+    # 컬럼 헤더 정렬 방향(실측일/시공일 헤더 토글). sort가 날짜 키일 때만 의미가 있다.
+    sort_dir: str = 'asc'
 
 
 def parse_orders_dashboard_filters(request) -> OrdersDashboardFilters:
@@ -68,8 +71,12 @@ def parse_orders_dashboard_filters(request) -> OrdersDashboardFilters:
     effective_stage = '' if f_q else f_stage
     f_team = (request.args.get('team') or '').strip()
     f_sort = (request.args.get('sort') or 'latest').strip()
-    if f_sort not in ('latest', 'schedule', 'amount'):
+    if f_sort not in ('latest', 'schedule', 'amount', 'measure_date', 'construction_date'):
         f_sort = 'latest'
+    # 컬럼 헤더 정렬(실측일/시공일) 방향 토글. 날짜 정렬이 아닐 땐 무시된다.
+    f_sort_dir = (request.args.get('dir') or 'asc').strip().lower()
+    if f_sort_dir not in ('asc', 'desc'):
+        f_sort_dir = 'asc'
     f_today = (request.args.get('today') or '').strip()
     # 내작업 토글(타워 전용): drill을 발동시키지 않고 타워 페이로드만 내 담당분으로 축소.
     f_tower_mine = erp_tower_mine_from_request(request)
@@ -110,4 +117,5 @@ def parse_orders_dashboard_filters(request) -> OrdersDashboardFilters:
         risk=f_risk,
         focus_order_id=focus_order_id,
         status=f_status,
+        sort_dir=f_sort_dir,
     )
