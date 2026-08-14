@@ -40,9 +40,12 @@ def _staff() -> User:
 
 
 def _snapshot(*, product_name: str, option: str = "", product_class: str = "조합형옵션상품",
-              amount: int = 100000, quantity: int = 1, order_no: str = "N-1") -> dict:
+              amount: int = 100000, quantity: int = 1, order_no: str = "N-1",
+              memo: str = "", orderer_name: str = "김주문",
+              recipient_name: str = "이수취") -> dict:
     return {
-        "order": {"orderId": order_no, "ordererName": "김주문", "ordererTel": "010-1111-2222"},
+        "order": {"orderId": order_no, "ordererName": orderer_name,
+                  "ordererTel": "010-1111-2222"},
         "productOrder": {
             "productOrderId": f"PO-{_uid()}",
             "productName": product_name,
@@ -50,7 +53,8 @@ def _snapshot(*, product_name: str, option: str = "", product_class: str = "조�
             "productClass": product_class,
             "totalPaymentAmount": amount,
             "quantity": quantity,
-            "shippingAddress": {"name": "이수취", "tel1": "010-3333-4444",
+            "shippingMemo": memo,
+            "shippingAddress": {"name": recipient_name, "tel1": "010-3333-4444",
                                 "baseAddress": "서울 강남구 1", "detailedAddress": "101호"},
         },
     }
@@ -111,6 +115,38 @@ def test_split_option_copies_empty_input():
 # --------------------------------------------------------------------------- #
 # 도크 payload — 본품/추가옵션 판정·귀속 추정
 # --------------------------------------------------------------------------- #
+
+def test_payload_carries_shipping_memo_and_names(app):
+    """도크 머리말: 수취인 이름·대리주문 표식·배송메모(상품주문별 서로 다른 값 전부)."""
+    order = _naver_order(_staff())
+    _link(order, _snapshot(product_name="본품", amount=800000, memo="문 앞에 놓아주세요"))
+    _link(order, _snapshot(product_name="옵션", product_class="추가구성상품",
+                           amount=30000, memo="부재 시 경비실"))
+    payload = build_dock_payload(db_session, order)
+    assert payload["recipient_name"] == "이수취"
+    assert payload["orderer_name"] == "김주문"
+    assert payload["orderer_differs"] is True
+    assert payload["shipping_memo"] == "문 앞에 놓아주세요\n부재 시 경비실"
+
+
+def test_payload_dedupes_identical_memo(app):
+    """같은 메모가 상품주문마다 복사돼 오면 한 번만 보여준다."""
+    order = _naver_order(_staff())
+    _link(order, _snapshot(product_name="본품", amount=800000, memo="문 앞에 놓아주세요"))
+    _link(order, _snapshot(product_name="옵션", product_class="추가구성상품",
+                           amount=0, memo="문 앞에 놓아주세요"))
+    assert build_dock_payload(db_session, order)["shipping_memo"] == "문 앞에 놓아주세요"
+
+
+def test_payload_no_orderer_diff_when_same_person(app):
+    """주문자=수취인이면 '다름' 표식을 켜지 않는다(대부분의 주문이 이 경우다)."""
+    order = _naver_order(_staff())
+    _link(order, _snapshot(product_name="본품", amount=500000,
+                           orderer_name="이수취", recipient_name="이수취"))
+    payload = build_dock_payload(db_session, order)
+    assert payload["orderer_differs"] is False
+    assert payload["shipping_memo"] == ""
+
 
 def test_payload_roles_follow_product_class(app):
     """조합형옵션상품 = 본품, 추가구성상품 = 추가옵션."""

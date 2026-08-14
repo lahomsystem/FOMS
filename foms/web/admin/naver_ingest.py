@@ -163,7 +163,10 @@ def _triage_pane(db, link: ExternalOrderLink) -> dict[str, Any]:
     옵션 원문을 크게 보여주는 것이 이 화면의 존재 이유다 — v1 은 규격을 파싱하지 않으므로
     사람이 이 문자열을 읽고 편집기에서 채운다.
     """
-    from foms.services.integrations.naver_commerce.mapping import unwrap_detail
+    from foms.services.integrations.naver_commerce.mapping import (
+        extract_shipping_memo,
+        unwrap_detail,
+    )
 
     order = db.get(Order, int(link.order_id)) if link.order_id else None
     naver_order, product_order, shipping = unwrap_detail(link.raw_snapshot or {})
@@ -188,7 +191,9 @@ def _triage_pane(db, link: ExternalOrderLink) -> dict[str, Any]:
                 part for part in (shipping.get("baseAddress"), shipping.get("detailedAddress"))
                 if part
             ).strip(),
-            "shipping_memo": shipping.get("shippingMemo"),
+            # 실위치는 productOrder.shippingMemo (mapping.extract_shipping_memo 참조).
+            # 원본 스냅샷에서 읽으므로 과거 수집분도 재처리 없이 그대로 보인다.
+            "shipping_memo": extract_shipping_memo(link.raw_snapshot or {}),
         },
         "foms": {
             "customer_name": getattr(order, "customer_name", None),

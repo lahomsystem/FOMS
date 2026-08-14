@@ -118,6 +118,40 @@
         return wrap;
     }
 
+    /**
+     * 머리말 정보 블록 — 수취인/주문자 이름과 배송메모.
+     * 주문 대표 이름은 수취인이다. 주문자는 **다를 때만** 보조로 띄운다(대리주문 표식).
+     * 배송메모는 원문 그대로 보여주고 복사만 제공한다 — 폼에 자동 기입하지 않는다.
+     * @returns {Element|null} 보여줄 것이 없으면 null.
+     */
+    function buildInfo() {
+        var hasWho = !!state.recipientName;
+        var hasMemo = !!state.shippingMemo;
+        if (!hasWho && !hasMemo) return null;
+        var info = el('div', 'naver-dock-info');
+        if (hasWho) {
+            var who = el('div', 'naver-dock-who');
+            who.appendChild(el('span', 'naver-dock-who-name', '수취인 ' + state.recipientName));
+            if (state.ordererDiffers) {
+                who.appendChild(el('span', 'naver-dock-who-diff',
+                    '주문자 다름 · ' + state.ordererName));
+            }
+            info.appendChild(who);
+        }
+        if (hasMemo) {
+            var memo = el('div', 'naver-dock-memo');
+            var memoHead = el('div', 'naver-dock-memo-hd', '📮 배송메모');
+            var copy = el('button', 'naver-dock-copy', '📋 복사');
+            copy.type = 'button';
+            copy.setAttribute('data-naver-dock-copy', state.shippingMemo);
+            memoHead.appendChild(copy);
+            memo.appendChild(memoHead);
+            memo.appendChild(el('div', 'naver-dock-memo-body', state.shippingMemo));
+            info.appendChild(memo);
+        }
+        return info;
+    }
+
     function buildPanel(withClose) {
         var frag = document.createDocumentFragment();
 
@@ -132,6 +166,8 @@
             head.appendChild(close);
         }
         frag.appendChild(head);
+        var info = buildInfo();
+        if (info) frag.appendChild(info);
 
         var pbar = el('div', 'naver-dock-pbar');
         pbar.appendChild(document.createElement('i'));
@@ -363,7 +399,11 @@
             orderNo: payload.order_no || '',
             rows: payload.rows,
             mains: payload.mains || [],
-            assignCommon: payload.assign_common || 'COMMON'
+            assignCommon: payload.assign_common || 'COMMON',
+            recipientName: payload.recipient_name || '',
+            ordererName: payload.orderer_name || '',
+            ordererDiffers: !!payload.orderer_differs,
+            shippingMemo: payload.shipping_memo || ''
         };
         render();
         applyLayout();

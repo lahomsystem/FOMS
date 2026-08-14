@@ -30,7 +30,8 @@ def _sales(name: str = "영업") -> User:
     return user
 
 
-def _ingested_order(owner: User, *, reviewed: bool = False) -> ExternalOrderLink:
+def _ingested_order(owner: User, *, reviewed: bool = False,
+                    memo: str = "") -> ExternalOrderLink:
     """수집 주문 1건 + 링크를 만든다(수집 파이프라인이 만드는 모양)."""
     order = create_order(
         db_session,
@@ -52,6 +53,7 @@ def _ingested_order(owner: User, *, reviewed: bool = False) -> ExternalOrderLink
                 "productOrderId": "PO-1", "productName": "붙박이장",
                 "productOption": "색상: 화이트 / 폭: 2400", "totalPaymentAmount": 1250000,
                 "sellerProductCode": "LAHOM-1", "shippingDueDate": "2026-08-20",
+                "shippingMemo": memo,
                 "shippingAddress": {"name": "이수취", "tel1": "010-3333-4444",
                                     "baseAddress": "서울 강남구 1", "detailedAddress": "101호"},
             },
@@ -106,6 +108,14 @@ def test_pane_compares_naver_original_with_foms_values(auth_client):
     assert "네이버 원본" in body and "FOMS 현재 값" in body
     assert "김주문" in body  # 주문자(수취인과 다름)도 보여야 한다
     assert "LAHOM-1" in body
+
+
+def test_pane_shows_shipping_memo_from_product_order(auth_client):
+    """배송메모는 productOrder.shippingMemo 에 있다 — 원본에서 읽으므로 과거 수집분도
+    재처리 없이 그대로 보인다(2026-08-14 실필드 확인)."""
+    _ingested_order(_sales(), memo="문 앞에 놓아주세요")
+    body = auth_client.get("/admin/naver-ingest/triage").get_data(as_text=True)
+    assert "배송 메모" in body and "문 앞에 놓아주세요" in body
 
 
 def test_pane_links_to_the_order_editor_not_a_second_spec_form(auth_client):

@@ -129,6 +129,28 @@ def build_address(shipping: dict) -> str:
     return " ".join(part for part in (base, detail) if part).strip()
 
 
+def extract_shipping_memo(detail: dict) -> str:
+    """배송 요청사항(배송메모) 원문을 뽑는다.
+
+    **실위치는 ``productOrder.shippingMemo`` 다** — 2026-08-14 스테이징 실수집 42건 전수
+    조사로 확인했다(13건 비어 있지 않음). 초기 구현은 ``shippingAddress.shippingMemo`` 를
+    읽었는데 그 키는 응답에 아예 없어서 **항상 빈 값**이었다(조용한 유실). 폴백 2개는
+    응답이 평평하게 오는 경로와 주문 단위로 오는 변형 대비로 남긴다.
+
+    Args:
+        detail: 상품주문 상세 1건.
+
+    Returns:
+        메모 원문(없으면 빈 문자열).
+    """
+    order, product_order, shipping = unwrap_detail(detail)
+    return (
+        _text(product_order.get("shippingMemo"))
+        or _text(shipping.get("shippingMemo"))
+        or _text(order.get("shippingMemo"))
+    )
+
+
 def build_structured_data(detail: dict) -> dict:
     """ERP structured_data 를 만든다(canonical 키 위치 사용).
 
@@ -180,7 +202,7 @@ def build_structured_data(detail: dict) -> dict:
             "product_order_status": _text(product_order.get("productOrderStatus")),
             "shipping_due_date": _text(product_order.get("shippingDueDate")),
             "seller_product_code": _text(product_order.get("sellerProductCode")),
-            "shipping_memo": _text(shipping.get("shippingMemo")),
+            "shipping_memo": extract_shipping_memo(detail),
             # 참고용 좌표. Order.lat/lng 에 넣지 않는다(모듈 docstring 참조).
             "longitude": shipping.get("longitude"),
             "latitude": shipping.get("latitude"),
@@ -329,6 +351,14 @@ def map_group(details: list[dict], *, today: str) -> tuple[dict[str, Any], dict]
         _text(unwrap_detail(d)[1].get("productOrderId")) for d in details
     ]
     structured["naver"]["grouped_count"] = len(details)
+    # 배송메모는 상품주문마다 따로 달린다. 대표 것만 쓰면 다른 줄에 적힌 요청이 조용히
+    # 사라지므로 **서로 다른 값은 전부** 남긴다(중복은 제거, 표시 순서는 대표 먼저).
+    memos: list[str] = []
+    for detail in display_order:
+        memo = extract_shipping_memo(detail)
+        if memo and memo not in memos:
+            memos.append(memo)
+    structured["naver"]["shipping_memo"] = "\n".join(memos)
     return (order_fields, structured)
 
 
@@ -344,6 +374,7 @@ __all__ = [
     "build_order_fields",
     "build_structured_data",
     "extract_external_id",
+    "extract_shipping_memo",
     "is_collectible",
     "map_detail",
     "parse_order_datetime",

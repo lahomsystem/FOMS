@@ -24,8 +24,10 @@ from foms.services.integrations.naver_commerce.mapping import (
     SOURCE_MARKER,
     build_order_fields,
     build_structured_data,
+    extract_shipping_memo,
     is_collectible,
     map_detail,
+    map_group,
     parse_order_datetime,
 )
 from models import DomainSideEffectOutbox, ExternalOrderLink, Order, OrderAssignment, User
@@ -168,6 +170,33 @@ def test_order_date_becomes_kst_date_and_time():
     assert parse_order_datetime("2026-08-12T23:30:00.000Z") == ("2026-08-13", "08:30")
     # 파싱 실패는 빈 값(호출자가 오늘 날짜로 대체).
     assert parse_order_datetime("이상한값") == ("", None)
+
+
+def test_shipping_memo_comes_from_product_order():
+    """배송메모 실위치는 productOrder.shippingMemo 다.
+
+    실측(2026-08-14 스테이징 42건): shippingAddress 에는 그 키가 아예 없다. 그 자리만
+    읽던 초기 구현은 메모를 통째로 잃고 있었다(빈 값이라 화면에도 안 떴다).
+    """
+    detail = _detail(shippingMemo="문 앞에 놓아주세요")
+    assert extract_shipping_memo(detail) == "문 앞에 놓아주세요"
+    assert build_structured_data(detail)["naver"]["shipping_memo"] == "문 앞에 놓아주세요"
+
+
+def test_shipping_memo_absent_is_empty_not_error():
+    """메모 없는 주문이 다수다 — 없으면 빈 문자열이고 매핑은 정상 진행된다."""
+    assert extract_shipping_memo(_detail()) == ""
+    assert build_structured_data(_detail())["naver"]["shipping_memo"] == ""
+
+
+def test_group_keeps_every_distinct_shipping_memo():
+    """묶음 안에서 메모가 다르면 전부 남긴다(대표 것만 쓰면 조용히 유실된다)."""
+    lead = _detail("PO-G1", shippingMemo="문 앞에 놓아주세요", totalPaymentAmount=900000)
+    addon = _detail("PO-G2", shippingMemo="부재 시 경비실", totalPaymentAmount=30000)
+    same = _detail("PO-G3", shippingMemo="문 앞에 놓아주세요", totalPaymentAmount=10000)
+    _fields, structured = map_group([addon, lead, same], today="2026-08-14")
+    # 대표(금액 최대) 메모가 먼저, 중복은 제거.
+    assert structured["naver"]["shipping_memo"] == "문 앞에 놓아주세요\n부재 시 경비실"
 
 
 def test_source_marker_is_stamped():

@@ -74,16 +74,19 @@ def _row_source(link: Any) -> dict[str, Any]:
     """링크의 원본에서 도크 표시에 필요한 필드만 뽑는다(실패 시 빈 값)."""
     from foms.services.integrations.naver_commerce.mapping import (
         NaverMappingError,
+        extract_shipping_memo,
         unwrap_detail,
     )
 
     empty = {"product_name": "", "option_text": "", "quantity": None,
-             "amount": None, "product_class": "", "seller_product_code": ""}
+             "amount": None, "product_class": "", "seller_product_code": "",
+             "recipient_name": "", "orderer_name": "", "shipping_memo": ""}
     snapshot = link.raw_snapshot
     if not isinstance(snapshot, dict) or not snapshot:
         return empty
     try:
-        _order, product_order, _shipping = unwrap_detail(snapshot)
+        order, product_order, shipping = unwrap_detail(snapshot)
+        shipping_memo = extract_shipping_memo(snapshot)
     except (NaverMappingError, ValueError, TypeError, AttributeError, KeyError) as exc:
         # 원본 파손은 행 하나의 문제 — 도크 전체를 죽이지 않는다(원문 없이 행만 남긴다).
         logger.warning("[NAVER] 도크 행 원본 파싱 실패(link %s): %s", link.id, exc)
@@ -98,6 +101,11 @@ def _row_source(link: Any) -> dict[str, Any]:
         "amount": int(amount) if isinstance(amount, int) else None,
         "product_class": _text(product_order.get("productClass")),
         "seller_product_code": _text(product_order.get("sellerProductCode")),
+        # 주문 머리말용 — 수취인이 주문 대표 이름이고, 주문자는 다를 때만 보조로 띄운다
+        # (실측 42건 중 9건이 대리주문). 배송메모는 상품주문마다 따로 달린다.
+        "recipient_name": _text((shipping or {}).get("name")),
+        "orderer_name": _text((order or {}).get("ordererName")),
+        "shipping_memo": shipping_memo,
     }
 
 
@@ -153,8 +161,16 @@ def build_dock_payload(db: Any, order: Any) -> Optional[dict[str, Any]]:
         return None
 
     rows: list[dict[str, Any]] = []
+    recipient_name = ""
+    orderer_name = ""
+    memos: list[str] = []
     for link in links:
         source = _row_source(link)
+        recipient_name = recipient_name or source["recipient_name"]
+        orderer_name = orderer_name or source["orderer_name"]
+        # 상품주문마다 메모가 다를 수 있다 — 다른 값은 전부 보존한다(중복만 제거).
+        if source["shipping_memo"] and source["shipping_memo"] not in memos:
+            memos.append(source["shipping_memo"])
         is_addon = source["product_class"] == ADDON_PRODUCT_CLASS
         state = link.triage_state if isinstance(link.triage_state, dict) else {}
         quantity = source["quantity"]
@@ -200,6 +216,12 @@ def build_dock_payload(db: Any, order: Any) -> Optional[dict[str, Any]]:
         "mains": [{"external_id": row["external_id"],
                    "label": row["product_name"] or row["external_id"]} for row in mains],
         "assign_common": ASSIGN_COMMON,
+        "recipient_name": recipient_name,
+        "orderer_name": orderer_name,
+        # 대리주문 표식. 둘 다 값이 있고 다를 때만 참 — 빈 값은 "다름"이 아니다.
+        "orderer_differs": bool(recipient_name and orderer_name
+                                and recipient_name != orderer_name),
+        "shipping_memo": "\n".join(memos),
     }
 
 
