@@ -71,6 +71,47 @@ MEASUREMENT_SIDO_NAMES = frozenset({
     '제주', '세종', '강원', '충북', '충남', '전북', '전남', '경북', '경남',
 })
 
+#: 목록에서 시/도 묶음을 보여줄 순서(수도권 업무 비중 순 → 나머지는 가나다).
+MEASUREMENT_SIDO_ORDER = ('서울', '경기', '인천')
+
+#: 시/도가 생략된 주소("강동구 …", "안양시 …")의 시/도 복원표(수도권 한정).
+#: 중구·동구·서구·남구·북구처럼 여러 시/도에 같은 이름이 있는 자치구는 넣지 않는다
+#: (오병합 방지 — 그런 건은 같은 날짜 형제 건에서만 시/도를 물려받는다).
+MEASUREMENT_SIGUNGU_TO_SIDO = {
+    name: '서울'
+    for name in (
+        '강남구', '강동구', '강북구', '강서구', '관악구', '광진구', '구로구', '금천구',
+        '노원구', '도봉구', '동대문구', '동작구', '마포구', '서대문구', '서초구',
+        '성동구', '성북구', '송파구', '양천구', '영등포구', '용산구', '은평구',
+        '종로구', '중랑구',
+    )
+}
+MEASUREMENT_SIGUNGU_TO_SIDO.update({
+    name: '경기'
+    for name in (
+        '수원시', '성남시', '고양시', '용인시', '부천시', '안산시', '안양시', '남양주시',
+        '화성시', '평택시', '의정부시', '시흥시', '파주시', '광명시', '김포시', '군포시',
+        '광주시', '이천시', '양주시', '오산시', '구리시', '안성시', '포천시', '의왕시',
+        '하남시', '여주시', '동두천시', '과천시', '양평군', '가평군', '연천군',
+    )
+})
+MEASUREMENT_SIGUNGU_TO_SIDO.update({
+    name: '인천'
+    for name in ('미추홀구', '연수구', '남동구', '부평구', '계양구', '검단구', '강화군', '옹진군')
+})
+
+#: 접미사 없이 쓰는 관행 표기("서초 3차 …", "수원 영통 …") 복원용 별칭.
+MEASUREMENT_SIGUNGU_ALIASES = {}
+for _full in MEASUREMENT_SIGUNGU_TO_SIDO:
+    _base = _full[:-1]
+    if _base in MEASUREMENT_SIDO_NAMES or _base in MEASUREMENT_SIGUNGU_TO_SIDO:
+        continue
+    if _base in MEASUREMENT_SIGUNGU_ALIASES:
+        MEASUREMENT_SIGUNGU_ALIASES[_base] = ''  # 동명 → 복원 포기
+        continue
+    MEASUREMENT_SIGUNGU_ALIASES[_base] = _full
+MEASUREMENT_SIGUNGU_ALIASES = {k: v for k, v in MEASUREMENT_SIGUNGU_ALIASES.items() if v}
+
 
 def measurement_region_key(address: Any) -> tuple[str, str]:
     """
@@ -93,14 +134,24 @@ def measurement_region_key(address: Any) -> tuple[str, str]:
         sido = tokens[0]
         candidate = tokens[1] if len(tokens) > 1 else ''
         # 세종처럼 시·군·구가 없는 시/도는 시/도 자체가 묶음이다.
-        if not candidate or not candidate.endswith(MEASUREMENT_SIGUNGU_SUFFIXES):
-            return (sido, '')
-        return (sido, candidate)
-    if tokens[0].endswith(MEASUREMENT_SIGUNGU_SUFFIXES):
-        # 시/도 생략형 — 시/도는 같은 날짜의 다른 건에서 역추론한다.
-        return ('', tokens[0])
-    # "경수대로 한일타운아파트 …"처럼 지역 토큰이 아예 없는 주소.
-    return ('', '')
+        return (sido, _measurement_sigungu_token(candidate))
+    sigungu = _measurement_sigungu_token(tokens[0])
+    # 시/도 생략형 — 시/도는 복원표·형제 건에서 채운다(annotate 단계).
+    return ('', sigungu)
+
+
+def _measurement_sigungu_token(token: str) -> str:
+    """
+    토큰이 시·군·구면 정규 이름으로, 아니면 빈 문자열.
+
+    :param token: 주소 토큰("수원시", "서초", "한일타운아파트")
+    :return: 시·군·구 이름 또는 ''
+    """
+    if not token:
+        return ''
+    if token.endswith(MEASUREMENT_SIGUNGU_SUFFIXES):
+        return token
+    return MEASUREMENT_SIGUNGU_ALIASES.get(token, '')
 
 
 def annotate_measurement_case_groups(cases: list[dict]) -> None:
@@ -126,6 +177,8 @@ def annotate_measurement_case_groups(cases: list[dict]) -> None:
     resolved: list[tuple[str, str]] = []
     for sido, sigungu in keys:
         if not sido and sigungu:
+            sido = MEASUREMENT_SIGUNGU_TO_SIDO.get(sigungu, '')
+        if not sido and sigungu:
             candidates = sido_by_sigungu.get(sigungu, set())
             if len(candidates) == 1:
                 sido = next(iter(candidates))
@@ -145,6 +198,20 @@ def annotate_measurement_case_groups(cases: list[dict]) -> None:
         case['scope_label'] = '지방' if region_regional.get(key) else '수도권'
 
 
+def measurement_sido_rank(sido: str) -> int:
+    """
+    시/도 정렬 순위(서울·경기·인천 먼저, 나머지는 이름 가나다, 미상은 맨 뒤).
+
+    :param sido: 시/도 이름('' 가능)
+    :return: 정렬용 정수
+    """
+    if not sido:
+        return len(MEASUREMENT_SIDO_ORDER) + 1
+    if sido in MEASUREMENT_SIDO_ORDER:
+        return MEASUREMENT_SIDO_ORDER.index(sido)
+    return len(MEASUREMENT_SIDO_ORDER)
+
+
 def measurement_case_sort_key(case: dict) -> tuple:
     """
     패널·모달 실측 목록 정렬 키: 수도권 먼저 → 지역 묶음 → 방문시각 이른 순.
@@ -162,9 +229,10 @@ def measurement_case_sort_key(case: dict) -> tuple:
     return (
         1 if case.get('scope_label') == '지방' else 0,
         0 if sigungu else 1,
-        # 시/도 생략형이 섞여도 같은 이름끼리 붙도록 시·군·구를 먼저 본다.
-        sigungu,
+        # 같은 시/도끼리 먼저 모으고(서울·경기·인천 순), 그 안에서 시·군·구 가나다.
+        measurement_sido_rank(str(case.get('region_sido') or '')),
         str(case.get('region_sido') or ''),
+        sigungu,
         1 if minutes is None else 0,
         minutes if minutes is not None else 0,
         normalize_address_for_sort(case.get('address')),
