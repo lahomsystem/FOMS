@@ -318,3 +318,21 @@ def test_batch_of_mixed_details(app):
     assert (result.collected, result.pending_review) == (2, 1)
     assert db_session.query(Order).count() == 0
     assert db_session.query(ExternalOrderLink).count() == 3
+
+
+def test_site_keeps_the_foms_shape_so_the_erp_form_cannot_duplicate_the_detail():
+    """``address_detail`` 을 따로 남기면 ERP 편집 화면이 주소를 두 번 붙인다.
+
+    FOMS 정본 형태는 ``address_full == address_main`` · ``address_detail == ''`` 이다
+    (``order_geocode.sync_site_address`` 가 모든 저장에서 그렇게 맞춘다). 수집이 detail 을
+    따로 남기면, ERP 편집 폼은 로드할 때 ``full + ' ' + detail`` 로 한 칸에 합치므로
+    이미 detail 을 품은 full 뒤에 detail 이 한 번 더 붙는다 — 저장하면 그대로 굳는다
+    (2026-08-14 운영 실측: ``… 103동 605호 103동 605호``).
+    """
+    site = build_structured_data(_detail())["site"]
+
+    assert site["address_full"] == "서울특별시 강남구 테헤란로 1 101동 1001호"
+    assert site["address_main"] == site["address_full"]
+    assert site["address_detail"] == ""
+    # 우편번호는 주소 문자열이 아니라 별도 값이라 그대로 보존한다.
+    assert site["zip_code"] == "06232"

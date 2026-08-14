@@ -429,9 +429,13 @@
   function siteAddress() {
     var s = state.structured.site;
     if (!s || typeof s !== "object") return "";
-    var full = s.address_full || s.address_main || "";
-    var detail = s.address_detail || "";
-    return detail ? (full + " " + detail).trim() : full;
+    var full = (s.address_full || s.address_main || "").trim();
+    var detail = (s.address_detail || "").trim();
+    // ADDR-DUP-01: full 이 이미 상세주소를 품은 행(외부 수집분·옛 문서)이 있다. 그대로 붙이면
+    // 같은 동·호수가 두 번 붙고, 이 화면의 저장이 그 문자열을 주소로 굳힌다.
+    if (!detail) return full;
+    if (!full) return detail;
+    return full.endsWith(detail) ? full : full + " " + detail;
   }
   function scheduleValue(group, key) {
     var g = state.structured.schedule && state.structured.schedule[group];

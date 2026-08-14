@@ -152,10 +152,16 @@ def build_structured_data(detail: dict) -> dict:
                 "phone": _text(order.get("ordererTel")),
             },
         },
+        # FOMS 정본 주소 형태: full == main(합본 문자열) · detail 은 빈 값.
+        # ``order_geocode.sync_site_address`` 가 모든 저장에서 그렇게 맞추고, ERP 편집 폼은
+        # 로드할 때 full 뒤에 detail 을 이어 붙여 한 칸에 보여준다. 수집이 detail 을 따로
+        # 남기면 이미 detail 을 품은 full 뒤에 detail 이 한 번 더 붙어 저장된다
+        # (2026-08-14 운영 실측: ``… 103동 605호 103동 605호``).
+        # 상세주소 원문이 필요하면 아래 ``naver`` 원본 필드가 아니라 주소 문자열을 쓴다.
         "site": {
             "address_full": address,
-            "address_main": _text(shipping.get("baseAddress")),
-            "address_detail": _text(shipping.get("detailedAddress")),
+            "address_main": address,
+            "address_detail": "",
             "zip_code": _text(shipping.get("zipCode")),
         },
         "items": [

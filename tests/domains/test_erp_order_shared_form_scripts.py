@@ -67,7 +67,7 @@ def _assert_shared_form_script_contract(body: str) -> None:
     )
     assert "html2canvas.min.js" not in body
     assert "js/orders/erp-channel-push-confirm.js?v=20260810a" in body
-    assert "js/orders/erp-order-shared.js?v=20260814a" in body
+    assert "js/orders/erp-order-shared.js?v=20260814b" in body
     assert "js/orders/erp-stage-override.js?v=20260814a" in body
     assert "erp_stage_override_modal.html" not in body  # include renders modal markup, not path
     assert 'id="erpStageOverrideModal"' in body
@@ -1642,3 +1642,21 @@ def test_save_button_does_not_steal_focus_on_mouse_pointerdown() -> None:
     guard_block = text[idx_pd:idx_pd + 200]
     assert "e.pointerType === 'mouse'" in guard_block
     assert "e.preventDefault()" in guard_block
+
+
+def test_site_address_join_guards_against_duplicated_detail():
+    """주소 합치기는 full 이 이미 상세주소로 끝나면 다시 붙이지 않는다 (ADDR-DUP-01).
+
+    외부 수집분·옛 문서에는 ``address_full`` 이 상세주소를 품은 채 ``address_detail`` 도
+    남아 있는 행이 있다. 편집 폼은 로드 시 둘을 한 칸에 합쳐 보여주고 저장 시 그 문자열을
+    주소로 굳히므로, 무방비로 이어 붙이면 같은 동·호수가 두 번 들어간 주소가 저장된다
+    (2026-08-14 운영 실측: ``… 103동 605호 103동 605호``). JS 테스트 러너가 없어 소스 계약으로 고정한다.
+    """
+    root = Path(__file__).resolve().parents[2]
+    source = (root / "static/js/orders/erp-order-shared.js").read_text(encoding="utf-8")
+
+    assert "function erpJoinSiteAddress(" in source
+    assert "base.endsWith(extra) ? base" in source
+    # 편집 폼 로드가 그 함수를 거치는지(무방비 결합이 남아 있지 않은지) 함께 고정한다.
+    assert "erpJoinSiteAddress(addressFull, addressDetail)" in source
+    assert "`${addressFull} ${addressDetail}`" not in source
