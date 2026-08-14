@@ -62,6 +62,13 @@ def normalize_address_for_sort(address):
     return " ".join(parts)
 
 
+#: 주소 첫 토큰이 시/도인지 판정하는 집합(normalize_address_for_sort 정규화 후 값).
+MEASUREMENT_SIDO_NAMES = frozenset({
+    '서울', '경기', '인천', '부산', '대구', '대전', '광주', '울산',
+    '제주', '세종', '강원', '충북', '충남', '전북', '전남', '경북', '경남',
+})
+
+
 def measurement_region_key(address: Any) -> tuple[str, str]:
     """
     실측 건을 묶을 지역 키(시/도, 시·군·구).
@@ -74,23 +81,49 @@ def measurement_region_key(address: Any) -> tuple[str, str]:
         return ('', '')
     tokens = normalized.split(' ')
     sido = tokens[0] if tokens else ''
+    # 시/도가 생략된 주소("강동구 아리수로97길 20")는 첫 토큰이 이미 시·군·구라
+    # 두 토큰을 붙이면 도로명까지 지역명이 되어 묶음이 1건씩 쪼개진다.
+    if sido not in MEASUREMENT_SIDO_NAMES:
+        return ('', sido)
     sigungu = tokens[1] if len(tokens) > 1 else ''
     return (sido, sigungu)
 
 
+def annotate_measurement_case_groups(cases: list[dict]) -> None:
+    """
+    같은 지역 묶음의 수도권/지방 구분을 확정해 각 건에 `scope_label`로 심는다.
+
+    구분 SSOT는 주문의 `is_regional`이다. 한 지역(시/도·시군구) 안에서 값이 섞이면
+    묶음이 쪼개지지 않도록 **전부 지방일 때만** 지방으로 본다.
+
+    :param cases: panel_dates[].cases (제자리 변경)
+    :return: None
+    """
+    region_regional: dict[str, bool] = {}
+    for case in cases:
+        label = case.get('region_label') or '주소 미입력'
+        current = region_regional.get(label)
+        is_regional = bool(case.get('is_regional'))
+        region_regional[label] = is_regional if current is None else (current and is_regional)
+    for case in cases:
+        label = case.get('region_label') or '주소 미입력'
+        case['scope_label'] = '지방' if region_regional.get(label) else '수도권'
+
+
 def measurement_case_sort_key(case: dict) -> tuple:
     """
-    패널·모달 실측 목록 정렬 키: 지역 묶음 → 방문시각 이른 순 → 시각 미상 뒤.
+    패널·모달 실측 목록 정렬 키: 수도권 먼저 → 지역 묶음 → 방문시각 이른 순.
 
     시각은 자유 텍스트("오전", "2시30분", "오후 3시이후")라 문자열 비교로는
     시간순이 되지 않는다. 정렬 SSOT인 `parse_measurement_time_minutes`로
     분 단위 정수로 환산해 쓴다(파서 실패=시각 미상 → 지역 안에서 맨 뒤).
 
-    :param case: panel_dates[].cases 항목(address·time·customer_name)
+    :param case: panel_dates[].cases 항목(scope_label·address·time·customer_name)
     :return: 정렬 튜플
     """
     minutes = parse_measurement_time_minutes(case.get('time'))
     return (
+        1 if case.get('scope_label') == '지방' else 0,
         measurement_region_key(case.get('address')),
         1 if minutes is None else 0,
         minutes if minutes is not None else 0,
@@ -201,7 +234,9 @@ def api_erp_measurement_summary():
         is_weekend = current.weekday() >= 5
         is_holiday = date_str in holiday_dates
         cases = measurement_info.get(date_str, [])
-        # 지역(시/도·시군구) 끼리 묶고, 그 안에서 방문시각 이른 순(시각 미상은 뒤)
+        # 수도권 묶음 먼저·지방 나중, 그 안에서 지역(시/도·시군구)별로 묶고
+        # 다시 방문시각 이른 순(시각 미상은 지역 안 맨 뒤)
+        annotate_measurement_case_groups(cases)
         cases.sort(key=measurement_case_sort_key)
         count_regional = sum(1 for c in cases if c.get('is_regional'))
         count_metro = len(cases) - count_regional
