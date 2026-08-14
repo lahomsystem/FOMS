@@ -325,11 +325,13 @@ def _group_queue(links: list[ExternalOrderLink], orders: dict,
             "count": len(members),
             "extra_count": len(rest),
             "link_ids": [row.id for row in members],
+            # 펼침 목록도 **대표 먼저** — 사람이 처음 보는 줄이 0원 구성 옵션이면 본품을
+            # 찾아 헤맨다(map_group·도크와 같은 순서 규칙).
             "members": [
                 {"id": row.id,
                  "product": summarize_snapshot(row.raw_snapshot)["product"],
                  "is_lead": row.id == lead.id}
-                for row in members
+                for row in [lead, *rest]
             ],
         })
     return queue

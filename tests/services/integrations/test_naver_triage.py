@@ -157,6 +157,16 @@ def test_queue_lead_is_the_expensive_main_product(auth_client):
     assert lead_pos < addon_pos      # 대표가 먼저 나온다
 
 
+def test_group_members_list_lead_first(auth_client):
+    """펼침 목록도 대표(본품) 먼저 — 0원 구성이 첫 줄이면 본품을 찾아 헤맨다."""
+    _collected_link(order_no="N-104", product="구성 옵션 A", amount=0)
+    _collected_link(order_no="N-104", product="구성 옵션 B", amount=20000)
+    _collected_link(order_no="N-104", product="대표 본품", amount=900000)
+    body = auth_client.get("/admin/naver-ingest/triage").get_data(as_text=True)
+    members = body.split('id="naver-grp-')[1]
+    assert members.index("대표 본품") < members.index("구성 옵션 A")
+
+
 def test_queue_splits_groups_by_address(auth_client):
     """주소가 다르면 분리한다 — 합치면 남의 집으로 시공을 나간다."""
     _collected_link(order_no="N-102", product="본품 A", amount=500000, detail="101호")
