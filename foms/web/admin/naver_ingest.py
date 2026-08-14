@@ -22,6 +22,7 @@ from flask import jsonify, render_template, request, session
 
 from db import get_db
 from foms.services.datetime_kst import format_datetime_kst, now_utc_naive
+from foms.services.integrations.naver_commerce.promotion import summarize_snapshot
 from foms.services.jobs.queue import enqueue_naver_order_sync
 from foms.web.admin.routes import admin_bp
 from foms.web.auth import log_access, login_required, role_required
@@ -33,7 +34,7 @@ logger = logging.getLogger(__name__)
 PAGE_SIZE = 50
 
 #: 상태 필터 닫힌집합. 임의 문자열이 그대로 쿼리에 들어가지 않게 한다.
-VALID_STATUSES = ("LINKED", "PENDING_REVIEW", "FAILED")
+VALID_STATUSES = ("COLLECTED", "LINKED", "PENDING_REVIEW", "FAILED")
 
 
 def _watermark_view(db) -> dict[str, Any]:
@@ -85,6 +86,9 @@ def _link_rows(db, *, status: Optional[str], page: int) -> tuple[list[dict], int
     rows = []
     for link in links:
         order = orders.get(int(link.order_id)) if link.order_id else None
+        # 주문이 아직 없는 수집분(COLLECTED)은 원본 스냅샷에서 표시값을 뽑는다 —
+        # 사람이 무엇을 받았는지 보고 "주문 만들기"를 누를지 판단해야 하기 때문이다.
+        summary = summarize_snapshot(link.raw_snapshot)
         rows.append({
             "id": link.id,
             "external_id": link.external_id,
@@ -93,8 +97,12 @@ def _link_rows(db, *, status: Optional[str], page: int) -> tuple[list[dict], int
             "failure_reason": link.failure_reason,
             "created_at": format_datetime_kst(link.created_at),
             "order_id": link.order_id,
-            "customer_name": getattr(order, "customer_name", None),
-            "product": getattr(order, "product", None),
+            "customer_name": getattr(order, "customer_name", None) or summary["customer_name"],
+            "product": getattr(order, "product", None) or summary["product"],
+            "options": summary["options"],
+            "quantity": summary["quantity"],
+            "amount": summary["amount"],
+            "order_date": summary["order_date"],
         })
     return (rows, total)
 
@@ -147,6 +155,7 @@ def _triage_pane(db, link: ExternalOrderLink) -> dict[str, Any]:
         "external_id": link.external_id,
         "created_at": format_datetime_kst(link.created_at),
         "order_id": link.order_id,
+        "sync_status": link.sync_status,
         "naver": {
             "product_name": product_order.get("productName"),
             "option": product_order.get("productOption"),
@@ -186,11 +195,13 @@ def naver_ingest_triage():
     규칙이 갈라진다. 편집기가 규격 입력의 SSOT 로 남고 여기서는 링크만 건넨다.
     """
     db = get_db()
+    # 큐에는 두 종류가 같이 온다: 아직 주문이 없는 수집분(COLLECTED — 여기서 "주문 만들기")과
+    # 주문은 생겼지만 사람이 아직 안 본 건(LINKED + reviewed_at NULL).
     pending = (
         db.query(ExternalOrderLink)
         .filter(
             ExternalOrderLink.channel == "NAVER",
-            ExternalOrderLink.sync_status == "LINKED",
+            ExternalOrderLink.sync_status.in_(("COLLECTED", "LINKED")),
             ExternalOrderLink.reviewed_at.is_(None),
         )
         .order_by(ExternalOrderLink.created_at.desc(), ExternalOrderLink.id.desc())
@@ -206,14 +217,19 @@ def naver_ingest_triage():
     orders = {}
     if order_ids:
         orders = {o.id: o for o in db.query(Order).filter(Order.id.in_(order_ids)).all()}
-    queue = [{
-        "id": row.id,
-        "external_id": row.external_id,
-        "created_at": format_datetime_kst(row.created_at),
-        "customer_name": getattr(orders.get(int(row.order_id or 0)), "customer_name", None),
-        "product": getattr(orders.get(int(row.order_id or 0)), "product", None),
-        "order_id": row.order_id,
-    } for row in pending]
+    queue = []
+    for row in pending:
+        order = orders.get(int(row.order_id or 0))
+        summary = summarize_snapshot(row.raw_snapshot)
+        queue.append({
+            "id": row.id,
+            "external_id": row.external_id,
+            "created_at": format_datetime_kst(row.created_at),
+            "customer_name": getattr(order, "customer_name", None) or summary["customer_name"],
+            "product": getattr(order, "product", None) or summary["product"],
+            "order_id": row.order_id,
+            "sync_status": row.sync_status,
+        })
 
     return render_template(
         "admin/naver_triage.html",
@@ -236,6 +252,57 @@ def _active_sales_users(db) -> list[dict[str, Any]]:
         for u in rows
         if normalize_team(u.team) == "SALES" and u.username != OWNER_USERNAME
     ]
+
+
+@admin_bp.route("/admin/naver-ingest/<int:link_id>/create-order", methods=["POST"])
+@login_required
+@role_required(["ADMIN"])
+def naver_ingest_create_order(link_id: int):
+    """수집분 1건을 FOMS 주문으로 만든다 (T12 — 수집과 생성 분리).
+
+    수집은 자동이지만 생성은 사람의 판단이다. 이 버튼이 그 판단 지점이다.
+    ``promote_link_to_order`` 는 ``create_order()`` 만 경유하므로 owner 배정·quest seed·
+    ``ORDER_CREATED`` 이벤트·GEOCODE outbox 예약이 기존 주문과 동일하게 붙는다.
+
+    멱등: 이미 주문이 붙은 링크는 새로 만들지 않고 그 주문 id 를 그대로 돌려준다
+    (버튼 두 번 클릭·새로고침 재전송 방어).
+    """
+    from foms.services.integrations.naver_commerce.promotion import (
+        PromotionError,
+        promote_link_to_order,
+    )
+
+    db = get_db()
+    try:
+        from foms.services.integrations.naver_commerce.accounts import resolve_ingest_account_ids
+
+        actor_user_id, owner_user_id = resolve_ingest_account_ids(db)
+    except Exception as exc:  # noqa: BLE001 - 계정 문제는 사용자에게 사유를 그대로 보여준다
+        logger.warning("[NAVER] 수집 계정 확인 실패 link=%s: %s", link_id, exc)
+        return jsonify({"success": False, "data": None, "error": str(exc)}), 400
+
+    try:
+        order_id, created = promote_link_to_order(
+            db, link_id=link_id, actor_user_id=actor_user_id, owner_user_id=owner_user_id,
+        )
+        db.commit()
+    except PromotionError as exc:
+        db.commit()  # 매핑 실패 시 PENDING_REVIEW 기록은 남긴다(원인 추적).
+        return jsonify({"success": False, "data": None, "error": str(exc)}), 400
+    except Exception as exc:  # noqa: BLE001 - 생성 실패 전체를 tx 되돌리고 사유 반환
+        db.rollback()
+        logger.warning("[NAVER] 수집분 주문 생성 실패 link=%s: %s", link_id, exc, exc_info=True)
+        return jsonify({"success": False, "data": None, "error": str(exc)}), 400
+
+    log_access(
+        f"네이버 수집분 주문 생성 (link {link_id} → order {order_id})",
+        action="NAVER_INGEST_CREATE_ORDER",
+        target_type="order", target_id=order_id,
+        detail={"link_id": link_id, "order_id": order_id, "created": created},
+    )
+    return jsonify({"success": True,
+                    "data": {"link_id": link_id, "order_id": order_id, "created": created},
+                    "error": None})
 
 
 @admin_bp.route("/admin/naver-ingest/<int:link_id>/review", methods=["POST"])

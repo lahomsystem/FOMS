@@ -1,4 +1,12 @@
-"""네이버 수집 파이프라인 — 변경분 조회 → 필터 → 상세 → 주문 생성 (NAVER-INGEST-01 §3.3).
+"""네이버 수집 파이프라인 — 변경분 조회 → 필터 → 상세 → **링크 보관** (NAVER-INGEST-01 §3.3, T12).
+
+**주문을 만들지 않는다.** 스윕의 결과물은 ``ExternalOrderLink`` 행(원본 스냅샷 포함)이고,
+FOMS 주문은 사람이 관리 화면에서 "주문 만들기"를 눌렀을 때
+:mod:`~foms.services.integrations.naver_commerce.promotion` 이 만든다.
+
+왜 나눴나(2026-08-14 사용자 결정): 결제완료가 곧 FOMS 주문은 아니다. 자동 생성은 사람이
+보기도 전에 대시보드·퀘스트·지오코딩 큐를 채우고, 되돌리려면 주문 삭제까지 해야 한다.
+수집은 놓치면 복구가 어렵고(그래서 자동), 생성은 판단이다(그래서 수동).
 
 **WORKER 프로세스 전용**이다. web 에서 부르면 커머스API센터에 등록되지 않은 IP 라 차단된다
 (IP 슬롯 3개를 WORKER 가 전부 쓴다 — 스펙 §3.1). web 의 "지금 수집" 은 rq enqueue 만 한다.
@@ -9,8 +17,8 @@
 2. 그래도 동시 실행이 겹치면 ``UNIQUE (channel, external_id)`` 가 DB 에서 막는다. 그때는
    실패가 아니라 **정상 skip** 으로 센다. 앱 선체크만으로는 체크와 INSERT 사이 창을 못 막는다.
 
-매핑 실패는 주문을 만들지 않는다. 링크 행만 ``PENDING_REVIEW`` 로 남기고 사람이 관리 화면에서
-확인한다(쓰레기 주문 생성 방지 — 스펙 §5).
+매핑은 수집 시점에도 1회 돌려 필수값을 검증한다. 실패하면 ``PENDING_REVIEW`` 로 남긴다 —
+"주문 만들기를 눌렀는데 그제서야 실패"를 막는다(쓰레기 주문 생성 방지 — 스펙 §5).
 """
 
 from __future__ import annotations
@@ -24,6 +32,10 @@ from sqlalchemy.exc import IntegrityError
 from sqlalchemy.orm import Session
 
 from foms.services.datetime_kst import get_today_kst, now_utc_naive
+from foms.services.integrations.naver_commerce.accounts import (
+    IngestAccountError as _IngestAccountError,
+    resolve_ingest_account_ids as _resolve_ingest_account_ids,
+)
 from foms.services.integrations.naver_commerce.constants import (
     ACTOR_USERNAME as _ACTOR_USERNAME,
     CHANNEL as _CHANNEL,
@@ -35,9 +47,7 @@ from foms.services.integrations.naver_commerce.mapping import (
     is_collectible,
     map_detail,
 )
-from foms.services.orders.order_create import create_order
-from foms.services.orders.order_mutation_policy import normalize_team
-from models import ExternalOrderLink, User
+from models import ExternalOrderLink
 
 logger = logging.getLogger(__name__)
 
@@ -48,10 +58,6 @@ ACTOR_USERNAME = _ACTOR_USERNAME
 OWNER_USERNAME = _OWNER_USERNAME
 
 
-class IngestAccountError(RuntimeError):
-    """수집용 시스템 계정이 없거나 정책에 맞지 않는다 — 수집을 시작하지 않는다."""
-
-
 @dataclass
 class SyncResult:
     """한 번의 수집 실행 결과(운영 로그·관리 화면 표시용)."""
@@ -59,52 +65,35 @@ class SyncResult:
     changed: int = 0            # 변경분 이벤트 총건수
     candidates: int = 0         # 그중 결제완료(PAYED) 후보
     fetched: int = 0            # 상세를 실제로 받아온 건수
-    created: int = 0            # 주문을 만든 건수
+    collected: int = 0          # 링크로 보관한 건수(T12 — 주문은 만들지 않는다)
     skipped: int = 0            # 이미 수집된 건(멱등 skip)
     pending_review: int = 0     # 매핑 실패로 보류한 건
-    order_ids: list[int] = field(default_factory=list)
+    link_ids: list[int] = field(default_factory=list)
     errors: list[str] = field(default_factory=list)
 
     def as_dict(self) -> dict[str, Any]:
-        """JSON 출력용 dict(runner --json 이 그대로 찍는다)."""
+        """JSON 출력용 dict(runner --json 이 그대로 찍는다).
+
+        ``created`` 는 **항상 0** 으로 함께 싣는다 — 워터마크에 남은 옛 요약과 관리 화면이
+        같은 키를 읽어 오므로 키를 없애면 과거 실행 기록 표시가 깨진다.
+        """
         return {
             "changed": self.changed,
             "candidates": self.candidates,
             "fetched": self.fetched,
-            "created": self.created,
+            "collected": self.collected,
+            "created": 0,
             "skipped": self.skipped,
             "pending_review": self.pending_review,
-            "order_ids": list(self.order_ids),
+            "link_ids": list(self.link_ids),
             "errors": list(self.errors),
         }
 
 
-def resolve_ingest_accounts(session: Session) -> tuple[int, int]:
-    """actor(봇)·owner(미배정 보류함) user id 를 확정한다.
-
-    owner 는 ``create_order`` 의 owner 계약(활성 SALES)을 그대로 만족해야 한다. 아니면
-    수집을 시작하지 않는다 — 계정이 잘못된 채로 돌면 주문이 엉뚱한 사람에게 배정된다.
-
-    Args:
-        session: DB 세션.
-
-    Returns:
-        ``(actor_user_id, owner_user_id)``.
-
-    Raises:
-        IngestAccountError: 계정 부재·비활성·비SALES owner.
-    """
-    actor = session.query(User).filter(User.username == ACTOR_USERNAME).first()
-    owner = session.query(User).filter(User.username == OWNER_USERNAME).first()
-    if actor is None:
-        raise IngestAccountError(f"수집 actor 계정이 없다: {ACTOR_USERNAME} (T0 선행 작업)")
-    if owner is None:
-        raise IngestAccountError(f"미배정 보류함 계정이 없다: {OWNER_USERNAME} (T0 선행 작업)")
-    if not owner.is_active or normalize_team(owner.team) != "SALES":
-        raise IngestAccountError(
-            f"{OWNER_USERNAME} 는 활성 SALES 여야 한다(현재 active={owner.is_active}, team={owner.team})."
-        )
-    return (int(actor.id), int(owner.id))
+# 계정 해석기는 ``accounts`` 로 옮겼다(주문 생성이 web 에서도 일어나므로 — WORKER 단일 출구
+# 계약 때문에 web 이 이 모듈을 import 하면 안 된다). 기존 호출자·테스트를 위해 이름만 남긴다.
+IngestAccountError = _IngestAccountError
+resolve_ingest_accounts = _resolve_ingest_account_ids
 
 
 def existing_external_ids(session: Session, external_ids: list[str]) -> set[str]:
@@ -151,25 +140,28 @@ def _safe_unwrap(detail: dict) -> tuple[dict, dict, dict]:
 
 
 def ingest_detail(
-    session: Session, detail: dict, *, actor_user_id: int, owner_user_id: int,
-    today: str, now: Optional[datetime] = None,
+    session: Session, detail: dict, *, today: str, now: Optional[datetime] = None,
 ) -> str:
-    """상세 1건을 주문 + 링크로 반영한다. 결과 코드를 돌려준다.
+    """상세 1건을 **링크로만** 보관한다(주문은 만들지 않는다). 결과 코드를 돌려준다.
 
-    ``create_order()`` 를 경유하므로 mutation_version·owner 배정·``ORDER_CREATED`` 이벤트·
-    quest seed·GEOCODE outbox 예약이 함께 붙는다(raw ``Order(...)`` 금지 — ORDER-CREATE-01).
-    **좌표는 주입하지 않는다** — 기존 주문과 똑같이 지오코딩한다.
+    T12 에서 수집과 주문 생성을 분리했다. 스윕은 원본을 그대로 남기고(``COLLECTED``),
+    ``create_order()`` 는 사람이 관리 화면에서 "주문 만들기"를 누를 때
+    :mod:`~foms.services.integrations.naver_commerce.promotion` 이 부른다.
+
+    왜: 결제완료가 곧 FOMS 주문은 아니다. 자동 생성은 사람이 보기도 전에 대시보드·퀘스트·
+    지오코딩 큐를 채워 되돌리기가 비싸다. 수집은 놓치면 안 되고(자동), 생성은 판단이다(수동).
+
+    매핑은 이 시점에도 한 번 돌린다 — 필수값이 없으면 ``PENDING_REVIEW`` 로 남겨
+    "나중에 주문 만들기를 눌렀는데 그제서야 실패"하는 상황을 막는다.
 
     Args:
         session: 호출자 소유 세션(커밋은 호출자).
         detail: 상품주문 상세 1건.
-        actor_user_id: 봇 계정 id(이벤트 author).
-        owner_user_id: 미배정 보류함 계정 id.
-        today: 접수일 대체값.
+        today: 접수일 대체값(매핑 검증용).
         now: 테스트용 시각 주입.
 
     Returns:
-        ``"created"`` / ``"skipped"`` / ``"pending_review"``.
+        ``"collected"`` / ``"skipped"`` / ``"pending_review"``.
     """
     external_id = extract_external_id(detail)
     if not external_id:
@@ -177,7 +169,7 @@ def ingest_detail(
         raise NaverMappingError("productOrderId 가 없어 링크를 만들 수 없다")
 
     try:
-        _external_id, order_fields, structured = map_detail(detail, today=today)
+        map_detail(detail, today=today)
     except NaverMappingError as exc:
         _record_pending(session, external_id=external_id, detail=detail, reason=str(exc))
         return "pending_review"
@@ -185,23 +177,14 @@ def ingest_detail(
     order_no = str((_safe_unwrap(detail)[0] or {}).get("orderId") or "") or None
     savepoint = session.begin_nested()
     try:
-        order = create_order(
-            session,
-            actor_user_id=actor_user_id,
-            owner_user_id=owner_user_id,
-            order_fields=order_fields,
-            structured_data=structured,
-            is_erp_order=True,
-            now=now or now_utc_naive(),
-        )
         session.add(
             ExternalOrderLink(
                 channel=CHANNEL,
                 external_id=external_id,
-                order_id=order.id,
+                order_id=None,
                 external_order_no=order_no,
                 raw_snapshot=detail,
-                sync_status="LINKED",
+                sync_status="COLLECTED",
             )
         )
         session.flush()
@@ -211,12 +194,11 @@ def ingest_detail(
         savepoint.rollback()
         logger.info("[NAVER] 중복 수집 차단(UNIQUE) — productOrderId=%s", external_id)
         return "skipped"
-    return "created"
+    return "collected"
 
 
 def sync_naver_orders(
     session: Session, *, client: Any, start: datetime, end: datetime,
-    actor_user_id: Optional[int] = None, owner_user_id: Optional[int] = None,
     dry_run: bool = False, now: Optional[datetime] = None,
 ) -> SyncResult:
     """한 구간을 수집한다(호출자가 commit 을 소유한다).
@@ -226,9 +208,7 @@ def sync_naver_orders(
         client: :class:`~foms.services.integrations.naver_commerce.client.NaverCommerceClient`.
         start: 구간 시작(워터마크).
         end: 구간 끝(보통 지금).
-        actor_user_id: 미지정이면 :func:`resolve_ingest_accounts` 로 확정.
-        owner_user_id: 미지정이면 :func:`resolve_ingest_accounts` 로 확정.
-        dry_run: True 면 조회까지만 하고 주문·링크를 만들지 않는다.
+        dry_run: True 면 조회까지만 하고 링크를 만들지 않는다.
         now: 테스트용 시각 주입.
 
     Returns:
@@ -258,32 +238,28 @@ def sync_naver_orders(
     details = client.get_product_orders(fresh_ids)
     result.fetched = len(details)
     if dry_run:
-        logger.info("[NAVER] dry-run — 상세 %d건 조회, 주문 생성 없음", len(details))
+        logger.info("[NAVER] dry-run — 상세 %d건 조회, 저장 없음", len(details))
         return result
 
-    if actor_user_id is None or owner_user_id is None:
-        actor_user_id, owner_user_id = resolve_ingest_accounts(session)
-
+    # 시스템 계정은 **주문 생성 시점**에만 필요하다(promotion). 수집은 계정이 없어도
+    # 멈추면 안 된다 — 못 받은 주문은 되돌릴 수 없고, 계정 문제는 나중에 고칠 수 있다.
     today = get_today_kst().strftime("%Y-%m-%d")
     for detail in details:
         try:
-            outcome = ingest_detail(
-                session, detail, actor_user_id=actor_user_id,
-                owner_user_id=owner_user_id, today=today, now=now,
-            )
+            outcome = ingest_detail(session, detail, today=today, now=now)
         except NaverMappingError as exc:
             result.errors.append(str(exc))
             continue
-        if outcome == "created":
-            result.created += 1
+        if outcome == "collected":
+            result.collected += 1
             link = (
                 session.query(ExternalOrderLink)
                 .filter(ExternalOrderLink.channel == CHANNEL,
                         ExternalOrderLink.external_id == extract_external_id(detail))
                 .first()
             )
-            if link and link.order_id:
-                result.order_ids.append(int(link.order_id))
+            if link:
+                result.link_ids.append(int(link.id))
         elif outcome == "skipped":
             result.skipped += 1
         else:

@@ -3474,8 +3474,9 @@ class ExternalOrderLink(Base):
     __table_args__ = (
         # 중복 수집 차단의 본체. 앱 체크가 아니라 이 제약이 정본이다.
         UniqueConstraint('channel', 'external_id', name='uq_external_order_link_channel_ext'),
+        # COLLECTED = 수집만 됨(주문 미생성, 사람이 "주문 만들기"를 누르면 LINKED 로 간다).
         CheckConstraint(
-            "sync_status IN ('LINKED','PENDING_REVIEW','FAILED')",
+            "sync_status IN ('COLLECTED','LINKED','PENDING_REVIEW','FAILED')",
             name='ck_external_order_link_status'),
         # 관리 화면: 보류/실패 목록을 최신순으로 훑는 경로.
         Index('ix_external_order_link_status_created', 'sync_status', 'created_at'),

@@ -216,16 +216,17 @@ def _changed(pid: str = "PO-1") -> dict:
     return {"productOrderId": pid, "productOrderStatus": "PAYED"}
 
 
-def test_sweep_creates_order_and_advances_watermark(app):
-    """성공 스윕은 주문을 만들고 워터마크를 구간 끝으로 옮긴다."""
+def test_sweep_collects_and_advances_watermark(app):
+    """성공 스윕은 수집분을 남기고 워터마크를 구간 끝으로 옮긴다(주문은 안 만든다 — T12)."""
     _accounts()
     client = _StubClient([_changed()], [_detail()])
     payload = run_sweep(db_session, client=client, now=_now())
 
-    assert payload["created"] == 1
-    assert db_session.query(Order).count() == 1
+    assert payload["collected"] == 1
+    assert payload["created"] == 0, "수집이 주문을 만들면 안 된다"
+    assert db_session.query(Order).count() == 0
     assert wm.read_watermark(db_session) == _now() - wm.END_SAFETY_MARGIN
-    assert wm.read_state(db_session)["last_summary"]["created"] == 1
+    assert wm.read_state(db_session)["last_summary"]["collected"] == 1
 
 
 def test_failed_sweep_keeps_watermark_so_window_is_retried(app):

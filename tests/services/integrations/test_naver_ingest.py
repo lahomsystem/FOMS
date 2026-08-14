@@ -2,10 +2,10 @@
 
 네트워크 없이 저장된 fixture 응답으로 돈다. 고정하는 계약:
 
-* fixture → 주문 1건 생성(canonical create_order 경유, raw ``Order(...)`` 없음).
-* **같은 fixture 재실행 시 주문 0건 추가**(멱등) — 앱 선체크와 DB UNIQUE 양쪽.
-* **좌표를 주입하지 않는다** — GEOCODE outbox 가 기존 주문과 똑같이 예약된다.
-* 매핑 실패는 주문 대신 ``PENDING_REVIEW`` 링크로 남는다.
+* fixture → **링크만** 생성(``COLLECTED``). 주문은 이 단계에서 만들지 않는다(T12).
+* **같은 fixture 재실행 시 링크 0건 추가**(멱등) — 앱 선체크와 DB UNIQUE 양쪽.
+* 계정이 없어도 수집은 돈다(계정은 주문 생성 시점 계약).
+* 매핑 실패는 ``PENDING_REVIEW`` 링크로 남는다(주문 없음은 동일).
 """
 
 from __future__ import annotations
@@ -215,56 +215,42 @@ def test_inactive_owner_blocks_ingest(app):
 # 수집 파이프라인
 # --------------------------------------------------------------------------- #
 
-def test_fixture_creates_one_order_with_link(app):
-    """fixture 1건 → 주문 1건 + LINKED 링크 1건."""
-    actor, owner = _accounts()
+def test_sweep_collects_without_creating_any_order(app):
+    """T12: 수집은 링크만 남긴다 — 주문은 만들지 않는다."""
+    _accounts()
     client = FakeClient([_changed_entry()], [_detail()])
     result = _run(client)
 
-    assert (result.changed, result.candidates, result.created) == (1, 1, 1)
-    order = db_session.query(Order).one()
-    assert order.customer_name == "이수취"
-    assert order.status == "RECEIVED"
-    assert order.payment_amount == 1250000
-    assert order.is_erp_order is True
-    assert order.mutation_version == 1
+    assert (result.changed, result.candidates, result.collected) == (1, 1, 1)
+    assert db_session.query(Order).count() == 0, "수집 단계에서 주문이 생기면 안 된다"
     link = db_session.query(ExternalOrderLink).one()
-    assert (link.channel, link.external_id, link.sync_status) == ("NAVER", "PO-1", "LINKED")
-    assert link.order_id == order.id
+    assert (link.channel, link.external_id, link.sync_status) == ("NAVER", "PO-1", "COLLECTED")
+    assert link.order_id is None
     assert link.raw_snapshot["productOrder"]["sellerProductCode"] == "LAHOM-BIB-2400"
 
 
-def test_order_is_owned_by_unassigned_holding_account(app):
-    """수집 주문의 SALES owner 는 미배정 보류함 계정이다(스펙 §7 Q1)."""
-    actor, owner = _accounts()
-    _run(FakeClient([_changed_entry()], [_detail()]))
-    order = db_session.query(Order).one()
-    assignment = (db_session.query(OrderAssignment)
-                  .filter(OrderAssignment.order_id == order.id,
-                          OrderAssignment.domain == "SALES").one())
-    assert assignment.user_id == owner.id
-    assert assignment.assigned_by_user_id == actor.id
-    assert assignment.source == "INITIAL_OWNER"
+def test_collection_works_without_system_accounts(app):
+    """계정이 아직 없어도 수집은 멈추지 않는다(계정은 주문 생성 시점에만 필요)."""
+    result = _run(FakeClient([_changed_entry()], [_detail()]))
+
+    assert result.collected == 1
+    assert db_session.query(ExternalOrderLink).one().sync_status == "COLLECTED"
 
 
-def test_geocode_outbox_is_enqueued_like_any_other_order(app):
-    """좌표 주입을 하지 않으므로 지오코딩 예약이 정상적으로 걸려야 한다."""
+def test_no_geocode_outbox_until_an_order_exists(app):
+    """주문이 없으니 지오코딩 예약도 없다(큐를 미리 채우지 않는다)."""
     _accounts()
     _run(FakeClient([_changed_entry()], [_detail()]))
-    order = db_session.query(Order).one()
-    assert order.lat is None and order.lng is None
-    assert order.geocode_status in (None, "pending")
-    outbox = db_session.query(DomainSideEffectOutbox).all()
-    assert len(outbox) == 1, "수집 주문도 기존 주문과 같은 GEOCODE outbox 를 예약해야 한다"
+    assert db_session.query(DomainSideEffectOutbox).count() == 0
 
 
-def test_rerun_with_same_fixture_adds_no_order(app):
-    """멱등: 같은 구간·같은 fixture 를 3회 돌려도 주문은 1건이다."""
+def test_rerun_with_same_fixture_adds_no_link(app):
+    """멱등: 같은 구간·같은 fixture 를 3회 돌려도 링크는 1건이다."""
     _accounts()
     for _ in range(3):
         client = FakeClient([_changed_entry()], [_detail()])
         result = _run(client)
-    assert db_session.query(Order).count() == 1
+    assert db_session.query(Order).count() == 0
     assert db_session.query(ExternalOrderLink).count() == 1
     # 2회차부터는 상세 조회 자체를 하지 않는다(호출 절약).
     assert result.skipped == 1 and result.fetched == 0
@@ -277,18 +263,18 @@ def test_unique_constraint_backstops_concurrent_duplicate(app):
     # 선체크를 우회하도록 링크만 지우고(주문은 남김) 같은 건을 다시 넣는다 =
     # 동시 실행이 같은 창에서 겹친 상황과 동치.
     db_session.query(ExternalOrderLink).delete()
-    db_session.add(ExternalOrderLink(channel="NAVER", external_id="PO-1", sync_status="LINKED"))
+    db_session.add(ExternalOrderLink(channel="NAVER", external_id="PO-1", sync_status="COLLECTED"))
     db_session.commit()
     result = _run(FakeClient([_changed_entry()], [_detail()]))
-    assert db_session.query(Order).count() == 1
-    assert result.created == 0
+    assert db_session.query(ExternalOrderLink).count() == 1
+    assert result.collected == 0
 
 
 def test_non_payed_changes_are_ignored(app):
     """결제완료가 아닌 상태 변경은 후보가 아니다."""
     _accounts()
     result = _run(FakeClient([_changed_entry(status="DELIVERED")], [_detail()]))
-    assert (result.candidates, result.created) == (0, 0)
+    assert (result.candidates, result.collected) == (0, 0)
     assert db_session.query(Order).count() == 0
 
 
@@ -300,7 +286,7 @@ def test_mapping_failure_records_pending_review_without_order(app):
     broken["productOrder"]["shippingAddress"]["detailedAddress"] = ""
     result = _run(FakeClient([_changed_entry("PO-BAD")], [broken]))
 
-    assert result.pending_review == 1 and result.created == 0
+    assert result.pending_review == 1 and result.collected == 0
     assert db_session.query(Order).count() == 0
     link = db_session.query(ExternalOrderLink).one()
     assert link.sync_status == "PENDING_REVIEW"
@@ -313,7 +299,7 @@ def test_dry_run_touches_nothing(app):
     """dry-run 은 조회까지만 하고 주문·링크를 만들지 않는다."""
     _accounts()
     result = _run(FakeClient([_changed_entry()], [_detail()]), dry_run=True)
-    assert result.fetched == 1 and result.created == 0
+    assert result.fetched == 1 and result.collected == 0
     assert db_session.query(Order).count() == 0
     assert db_session.query(ExternalOrderLink).count() == 0
 
@@ -329,6 +315,6 @@ def test_batch_of_mixed_details(app):
         [good, other, broken],
     )
     result = _run(client)
-    assert (result.created, result.pending_review) == (2, 1)
-    assert db_session.query(Order).count() == 2
+    assert (result.collected, result.pending_review) == (2, 1)
+    assert db_session.query(Order).count() == 0
     assert db_session.query(ExternalOrderLink).count() == 3
