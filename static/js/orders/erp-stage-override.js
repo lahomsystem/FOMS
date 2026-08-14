@@ -352,6 +352,13 @@
             window.__erpLastStructuredData.workflow || {};
           window.__erpLastStructuredData.workflow.stage = to;
         }
+        // AS 접수/완료 주문은 일괄 강제 변경에서 제외된다(AS 대시보드 증발 방지).
+        var skippedAs = (res.data.data && res.data.data.skipped_as) || [];
+        if (skippedAs.length) {
+          alert('AS 상태라 제외한 주문 ' + skippedAs.length + '건: '
+            + skippedAs.map(function (it) { return '#' + it.order_id; }).join(', ')
+            + '\n' + (res.data.data.warning || ''));
+        }
         var pending = _pending;
         _pending = null; // hide.bs.modal 이 cancel로 취급하지 않도록 선제 클리어
         closeModal();

@@ -33,8 +33,11 @@ from foms.services.orders.status_constants import (
     is_logistics_board_status,
 )
 from foms.services.orders.stage_override import (
+    AS_OVERLAY_BLOCK_MESSAGE,
+    AS_OVERLAY_STATUSES,
     MAIN_PIPELINE_CODES,
     OVERRIDE_BLOCK_MESSAGE,
+    as_overlay_status,
     current_stage_for_order,
     normalize_main_stage,
     requires_privileged_override,
@@ -484,6 +487,7 @@ def bulk_update_order_status_response(
         user_id = session.get("user_id")
         updated = 0
         blocked_override_required: list[int] = []
+        blocked_as_orders: list[dict[str, Any]] = []
 
         valid_ids = []
         for order_id in order_ids:
@@ -505,9 +509,16 @@ def bulk_update_order_status_response(
                 actor_user=get_user_by_id(user_id),
             )
 
+        include_as = data.get("include_as") is True
         orders = db.query(Order).filter(Order.id.in_(valid_ids)).all()  # perf-ok: request bulk order id batch
         for order in orders:
             old_status = getattr(order, "status", None) or ""
+            overlay = as_overlay_status(order)
+            if overlay and not include_as and new_status not in AS_OVERLAY_STATUSES:
+                # AS 접수/완료를 비AS 상태로 일괄 변경하면 AS 대시보드에서 통째로 사라진다
+                # (2026-08-14 사고). 일괄 경로는 기본 제외하고 include_as 로만 명시 포함.
+                blocked_as_orders.append({"order_id": int(order.id), "status": overlay})
+                continue
             from_stage = current_stage_for_order(order)
             if is_erp_order_record(order) and requires_privileged_override(from_stage, new_status):
                 blocked_override_required.append(int(order.id))
@@ -542,7 +553,7 @@ def bulk_update_order_status_response(
             updated += 1
 
         db.commit()
-        success = updated > 0 or not blocked_override_required
+        success = updated > 0 or not (blocked_override_required or blocked_as_orders)
         message = None
         if blocked_override_required and updated == 0:
             success = False
@@ -552,12 +563,16 @@ def bulk_update_order_status_response(
                 f"{len(blocked_override_required)}건은 역행/건너뛰기로 차단됨. "
                 "「단계 강제 변경」을 사용하세요."
             )
+        if blocked_as_orders:
+            as_note = f"AS 상태 {len(blocked_as_orders)}건 제외 — " + AS_OVERLAY_BLOCK_MESSAGE
+            message = f"{message} {as_note}" if message else as_note
         payload: dict[str, Any] = {
             "success": success,
             "updated": updated,
             "new_status": new_status,
             "status_display": STATUS.get(new_status, new_status),
             "blocked_override_required": blocked_override_required,
+            "blocked_as_orders": blocked_as_orders,
         }
         if message:
             payload["message"] = message

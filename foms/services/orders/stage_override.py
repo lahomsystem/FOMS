@@ -55,6 +55,33 @@ OVERRIDE_BLOCK_MESSAGE = (
     "단계 역행/건너뛰기는 「단계 강제 변경」에서 사유·확인 후 진행하세요."
 )
 
+#: AS overlay 상태 집합. AS 대시보드(미완료/완료 탭)는 이 status 로만 주문을 찾으므로,
+#: 메인 파이프라인 코드(COMPLETED 등)로 덮어쓰면 AS 접수·기록이 살아 있어도 목록에서
+#: 사라진다(2026-08-14 운영 사고: 일괄 완료처리 55건이 AS 대시보드에서 증발).
+AS_OVERLAY_STATUSES: frozenset[str] = frozenset({"AS", "AS_RECEIVED", "AS_COMPLETED"})
+
+AS_OVERLAY_BLOCK_MESSAGE = (
+    "AS 접수/완료 상태 주문은 일괄 변경에서 제외했습니다. "
+    "AS 대시보드에서 사라지므로 정말 바꾸려면 주문별로 진행하세요."
+)
+
+
+def as_overlay_status(order: Order) -> str:
+    """주문이 AS overlay 상태면 그 status 코드, 아니면 빈 문자열.
+
+    ``workflow.stage`` 가 아니라 **``order.status``** 를 본다 — AS 접수된 주문의
+    workflow.stage 는 MEASURE 등 메인 코드로 남아 있어(두 축 분리) stage 만 보면
+    AS overlay 를 놓친다.
+
+    Args:
+        order: 대상 주문(ORM 또는 status 속성을 가진 객체).
+
+    Returns:
+        ``'AS'``/``'AS_RECEIVED'``/``'AS_COMPLETED'`` 중 하나, 아니면 ``''``.
+    """
+    status = str(getattr(order, "status", None) or "").strip()
+    return status if status in AS_OVERLAY_STATUSES else ""
+
 
 def stage_forward_rank(raw: Any) -> int:
     """workflow.stage / status 전방 순위. 메인 파이프라인 외·미지 = -1."""
@@ -149,7 +176,7 @@ def apply_stage_override(
     퀘스트/_handle_stage_transition 부수효과는 호출하지 않는다.
     drawing_transfer_history 등 운영 JSON은 건드리지 않는다.
 
-    :returns: {from, to, mode, reason}
+    :returns: {from, to, mode, reason, from_status[, as_overlay_cleared]}
     :raises ValueError: 검증 실패(메시지 한글)
     """
     to_code = normalize_main_stage(to_stage)
@@ -165,6 +192,12 @@ def apply_stage_override(
     mode = classify_stage_move(from_code, to_code)
     if mode == "same":
         raise ValueError("현재와 동일한 단계로는 변경할 수 없습니다.")
+
+    # 덮어쓰기 전 **실제 status** 를 잡아 payload 에 싣는다. from(=workflow.stage) 만
+    # 남기면 AS overlay(AS_RECEIVED 등)가 흔적 없이 사라져 사고 후 복구 근거가 없다
+    # (2026-08-14: payload from 이 MEASURE 라 AS 상태를 이벤트로 되짚을 수 없었다).
+    status_before = str(getattr(order, "status", None) or "").strip()
+    overlay_cleared = as_overlay_status(order)
 
     order.status = to_code
 
@@ -190,7 +223,10 @@ def apply_stage_override(
         "mode": mode,
         "reason": reason_clean,
         "manual": True,
+        "from_status": status_before,
     }
+    if overlay_cleared:
+        payload["as_overlay_cleared"] = overlay_cleared
     db.add(
         OrderEvent(
             order_id=order.id,
@@ -203,11 +239,14 @@ def apply_stage_override(
 
 
 __all__ = [
+    "AS_OVERLAY_BLOCK_MESSAGE",
+    "AS_OVERLAY_STATUSES",
     "MAIN_PIPELINE_CODES",
     "OVERRIDE_ALLOWED_ROLES",
     "OVERRIDE_BLOCK_MESSAGE",
     "STAGE_FORWARD_RANK",
     "apply_stage_override",
+    "as_overlay_status",
     "classify_stage_move",
     "current_stage_for_order",
     "normalize_main_stage",

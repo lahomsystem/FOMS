@@ -21,9 +21,13 @@ from foms.services.orders.revision import (
     RevisionError,
     execute_order_mutation,
 )
+from foms.services.audit_message_display import describe_field_change
+from foms.services.orders.audit_order_context import order_audit_context
 from foms.services.orders.stage_override import (
+    AS_OVERLAY_BLOCK_MESSAGE,
     OVERRIDE_ALLOWED_ROLES,
     apply_stage_override,
+    as_overlay_status,
     classify_stage_move,
     current_stage_for_order,
 )
@@ -128,6 +132,7 @@ def stage_override_response(order_id: int):
             )
             captured["payload"] = payload
             captured["status"] = o.status
+            captured["order"] = o
             return {o.id: [f"ORDER_DETAIL:{o.id}", "ORDERS_INDEX"]}
 
         try:
@@ -140,6 +145,10 @@ def stage_override_response(order_id: int):
                 scope_hash=scope_hash,
                 request_hash=request_hash,
                 mutation=_mutate,
+            )
+            _audit_stage_override_status(
+                [{"order_id": order_id, "order": captured.get("order"), **captured["payload"]}],
+                user_id,
             )
             db.commit()
         except ValueError as exc:
@@ -231,17 +240,70 @@ def _parse_bulk_ids(raw: Any) -> list[int]:
 
 
 def _split_override_targets(
-    orders: List[Order], to_stage: str
-) -> tuple[list[Order], list[int]]:
-    """동일 단계는 건너뛰고 실제 변경 대상만 남긴다."""
+    orders: List[Order], to_stage: str, *, include_as: bool = False
+) -> tuple[list[Order], list[int], list[dict[str, Any]]]:
+    """동일 단계·AS overlay 를 걸러 실제 변경 대상만 남긴다.
+
+    AS 접수/완료 상태 주문을 메인 단계로 덮으면 AS 대시보드에서 통째로 사라진다
+    (기록은 남지만 목록 술어가 status 기반). 일괄 경로는 사람이 건건이 확인하지 않으므로
+    기본 제외하고 호출부가 ``include_as=True`` 로만 명시 포함할 수 있다.
+
+    Args:
+        orders: 요청 순서대로 정렬된 대상 주문 목록.
+        to_stage: 목표 단계.
+        include_as: True 면 AS overlay 주문도 변경 대상에 넣는다(명시 opt-in).
+
+    Returns:
+        (변경 대상, 동일 단계로 건너뛴 id, AS 로 제외한 ``{order_id, status}`` 목록).
+    """
     change: list[Order] = []
     skipped: list[int] = []
+    skipped_as: list[dict[str, Any]] = []
     for order in orders:
         if classify_stage_move(current_stage_for_order(order), to_stage) == "same":
             skipped.append(int(order.id))
-        else:
-            change.append(order)
-    return change, skipped
+            continue
+        overlay = as_overlay_status(order)
+        if overlay and not include_as:
+            skipped_as.append({"order_id": int(order.id), "status": overlay})
+            continue
+        change.append(order)
+    return change, skipped, skipped_as
+
+
+def _audit_stage_override_status(results: list[dict[str, Any]], user_id: Any) -> None:
+    """단계 강제 변경으로 바뀐 status 를 SQL 조회 가능한 감사행으로 남긴다.
+
+    ``STAGE_OVERRIDE`` 이벤트만으로는 ``payload.from`` 이 workflow.stage 라 실제 status
+    이전값이 남지 않았다(2026-08-14 사고에서 복구 근거가 부족했던 지점). 호출부의
+    ``db.commit()`` 에 함께 실린다(``auto_commit=False``).
+
+    Args:
+        results: :func:`apply_stage_override` payload + ``order_id``/``order`` 목록.
+        user_id: 행위자 user id.
+    """
+    for item in results:
+        order = item.get("order")
+        before = str(item.get("from_status") or "")
+        after = str(getattr(order, "status", "") or item.get("to") or "")
+        context = order_audit_context(order) if order is not None else {}
+        detail = {
+            "field": "status", "before": before, "after": after,
+            "stage_override": True, "mode": item.get("mode"),
+            "reason": item.get("reason"), **context,
+        }
+        if item.get("as_overlay_cleared"):
+            detail["as_overlay_cleared"] = item["as_overlay_cleared"]
+        log_access(
+            describe_field_change(
+                order_id=item["order_id"], field="status", before=before, after=after,
+                has_before=True, **context,
+            ) + " (단계 강제 변경)",
+            user_id,
+            auto_commit=False,
+            action="ORDER_STATUS_CHANGED", target_type="order",
+            target_id=int(item["order_id"]), detail=detail,
+        )
 
 
 def _apply_locked_overrides(
@@ -260,7 +322,7 @@ def _apply_locked_overrides(
         payload = apply_stage_override(
             order=order, to_stage=to_stage, reason=reason, user_id=user_id, db=sess,
         )
-        results.append({"order_id": int(order.id), **payload})
+        results.append({"order_id": int(order.id), "order": order, **payload})
         families[int(order.id)] = [f"ORDER_DETAIL:{order.id}", "ORDERS_INDEX"]
     captured["results"] = results
     return families
@@ -295,6 +357,7 @@ def _execute_bulk_override(
                 user_id=user_id, captured=captured,
             ),
         )
+        _audit_stage_override_status(captured.get("results") or [], user_id)
         db.commit()
     except ValueError as exc:
         db.rollback()
@@ -310,28 +373,30 @@ def _execute_bulk_override(
 
 def _bulk_override_success(
     outcome, results: list[dict[str, Any]], skipped_same: list[int], not_found: list[int],
-    reason: str, user_id: int,
+    reason: str, user_id: int, skipped_as: list[dict[str, Any]] | None = None,
 ):
     """일괄 강제 변경 성공 JSON + no-store 헤더."""
     to_code = results[0]["to"] if results else ""
+    skipped_as = skipped_as or []
     log_access(
-        f"주문 {len(results)}건 단계 강제 변경: → {to_code} ({str(reason or '').strip()})",
+        f"주문 {len(results)}건 단계 강제 변경: → {to_code} ({str(reason or '').strip()})"
+        + (f" · AS 상태 {len(skipped_as)}건 제외" if skipped_as else ""),
         user_id,
     )
-    resp = jsonify(
-        {
-            "success": True,
-            "data": {
-                "updated": len(results),
-                "to": to_code,
-                "reason": str(reason or "").strip(),
-                "results": results,
-                "skipped_same": skipped_same,
-                "not_found": not_found,
-                "mutation_receipt": outcome.read_receipt_id,
-            },
-        }
-    )
+    body: dict[str, Any] = {
+        "updated": len(results),
+        "to": to_code,
+        "reason": str(reason or "").strip(),
+        # order ORM 은 응답에 싣지 않는다(감사용 내부 참조).
+        "results": [{k: v for k, v in item.items() if k != "order"} for item in results],
+        "skipped_same": skipped_same,
+        "skipped_as": skipped_as,
+        "not_found": not_found,
+        "mutation_receipt": outcome.read_receipt_id,
+    }
+    if skipped_as:
+        body["warning"] = AS_OVERLAY_BLOCK_MESSAGE
+    resp = jsonify({"success": True, "data": body})
     for header, value in outcome.headers.items():
         resp.headers[header] = value
     return resp
@@ -355,11 +420,14 @@ def bulk_stage_override_response():
     found = db.query(Order).filter(Order.id.in_(order_ids)).all()  # perf-ok: request bulk id batch
     found_map = {int(order.id): order for order in found}
     not_found = [oid for oid in order_ids if oid not in found_map]
-    change, skipped_same = _split_override_targets(
+    change, skipped_same, skipped_as = _split_override_targets(
         [found_map[oid] for oid in order_ids if oid in found_map],
         to_stage,
+        include_as=data.get("include_as") is True,
     )
     if not change:
+        if skipped_as:
+            return _json_error(AS_OVERLAY_BLOCK_MESSAGE, 400)
         if skipped_same and not not_found:
             return _json_error("현재와 동일한 단계로는 변경할 수 없습니다.", 400)
         return _json_error("주문을 찾을 수 없습니다.", 404)
@@ -378,6 +446,7 @@ def bulk_stage_override_response():
         return mut_err
     return _bulk_override_success(
         outcome, captured["results"], skipped_same, not_found, reason, user_id,
+        skipped_as=skipped_as,
     )
 
 
