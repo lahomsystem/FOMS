@@ -70,6 +70,7 @@
 | T14-B | 네이버 원본 도크 (편집 셸 우측 독립 마운트) | T14-A | DONE | `0bc5fc04`+`e7157b5b`+`291085bc` (deploy) · 스테이징 #4462 실검증 |
 | T14-D | 배송메모 유실 수정(실필드 productOrder.shippingMemo) + 도크 수취인·메모 머리말 | T14-B | DONE | `3fedff20` |
 | T14-C | 확인 대기 큐 묶음 표시(한 집 한 줄) | T13 | DONE | `4d179161`+`21ef7d5c` (deploy) · 스테이징 14집/42건 확인 |
+| T14-E | 네이버 원본 필드 전수 점검 → 취소·반품 차단 + 필드 4종 수집 | T14-C | DONE | `12660909` (deploy) · 스테이징 link 20 실검증 |
 
 > 순서 주의: 스펙의 T1(인프라 실검증)은 T0 사람 작업과 코드(T3)가 모두 있어야 가능하므로
 > 실행 순서에서는 T3 뒤로 내렸다. 스펙 번호는 그대로 둔다(대조 가능하게).
@@ -441,6 +442,38 @@ write guard manifest 와 **별개 파일**이라 둘 다 등재해야 한다.
 **CI 주의(이 세션 아님)**: `4d179161` 의 FOMS CI red 는 타 세션 정렬 헤더 작업 회귀
 (`test_production_transition_guard_api` 'filters' undefined · `test_tablet_t2_contract`)로,
 그 세션이 `27a46486` 에서 수정했다. 리베이스 후 `21ef7d5c` 로 재검증.
+
+### T14-E 원본 필드 전수 점검 (2026-08-14~15 완료)
+
+**조사**: FOMS-DEV `raw_snapshot` 47건을 필드 단위로 전수 나열 → 코드가 읽는 이름과 대조.
+**필드 120개 중 코드가 읽던 건 26개**. 조사 스크립트 방식(재사용): JSON 리프 경로 전수 수집 +
+`naver_commerce` 패키지·web 화면의 따옴표 토큰 집합과 교차. (경로에 백슬래시를 쓰면 grep 이
+전부 miss 하므로 forward slash 로 쓸 것 — 1차 시도가 그렇게 전수 "미사용"으로 잘못 나왔다.)
+
+**최대 구멍 — 취소가 안 보였다**: 수집 필터가 `productOrderStatus == PAYED` 하나뿐이라
+**`claimStatus = CANCEL_REQUEST` 인 건도 PAYED 로 수집된다**(실물 `link 20`). 그 값을 아무도
+읽지 않아 화면에 표시조차 없었고, "주문 만들기"를 누르면 취소 건이 정상 주문이 됐다.
+
+**사용자 확정**: 취소 처리 = **경고 + 주문 만들기 막기**. 추가 필드 = **4종 전부**
+(보조 연락처·결제일/수단·금액 상세·상품 식별자/유입경로).
+
+**구현**
+- `mapping.extract_claim()` — `productOrder.claimStatus` + `cancel.*` + `currentClaim.cancel.*`
+  3경로. `BLOCKING_CLAIM_STATUSES`(취소·반품 진행/완료)만 차단, `CANCEL_REJECT`(=정상 진행)는 통과.
+- `promote_link_to_order()` 가 묶음 형제까지 검사해 `PromotionError`. **화면 버튼만 잠그면 API
+  직접 호출로 뚫리므로 서비스에서 막는다**(스테이징에서 실제로 fetch 로 뚫어 봤고 400 으로 막혔다).
+- 화면: 큐 빨간 배지 · pane 경고 배너(사유·요청시각) · 버튼 `disabled` · 도크 상단 취소 배너.
+- 신규 수집 값: `parties.customer.phone2`(tel2) · `naver.payment`(결제일·수단·위치·단가·옵션가·
+  할인·쿠폰·정산예정액) · `naver.product_id`/`original_product_id`/`item_no`/`inflow_path`.
+  **Order 스칼라 필드는 불변** — structured_data 와 화면 표시만 늘렸다.
+
+**검증**: integrations **183 passed**(신규 12) · `pre_push_smoke` exit 0 · APP_OK ·
+CI 폴링. 스테이징 실검증(`?link_id=20`): 경고 배너 "네이버 취소 요청 · 사유
+SIMPLE_INTENT_CHANGED · 2026-08-13T19:20" + 버튼 `disabled=true`, **API 직접 호출 400**
+(`order_id` 여전히 NULL).
+
+**남은 관찰(미구현)**: 수집 **이후** 취소되는 건은 재조회를 안 해서 여전히 모른다. 사용자
+선택으로 자동 추적은 제외했다 — 필요해지면 5분 스윕에 상태 재조회를 붙이는 것이 다음 수순.
 
 ## T14-C 착수 전 미해결 요청 (2026-08-14 사용자, **확인 없이 구현 금지**)
 
