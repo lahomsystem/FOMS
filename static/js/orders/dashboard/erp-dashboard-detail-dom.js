@@ -1063,6 +1063,13 @@
                       if (data.blocked_override_required && data.blocked_override_required.length) {
                         alert((data.message || '') + '\n차단 ID: ' + data.blocked_override_required.join(', '));
                       }
+                      // AS 접수/완료 주문은 일괄 변경에서 제외된다 — 조용히 넘기면
+                      // "바꿨는데 왜 그대로냐"가 되므로 제외 ID를 반드시 알린다.
+                      if (data.blocked_as_orders && data.blocked_as_orders.length) {
+                        alert('AS 상태라 제외한 주문 ' + data.blocked_as_orders.length + '건: '
+                          + data.blocked_as_orders.map(function (it) { return '#' + it.order_id; }).join(', ')
+                          + '\nAS 대시보드에서 사라지지 않도록 제외했습니다. 필요하면 주문별로 변경하세요.');
+                      }
                       window.location.reload();
                     } else {
                       alert(data.message || '상태 변경에 실패했습니다.');
