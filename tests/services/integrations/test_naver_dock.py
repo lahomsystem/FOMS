@@ -42,10 +42,13 @@ def _staff() -> User:
 def _snapshot(*, product_name: str, option: str = "", product_class: str = "조합형옵션상품",
               amount: int = 100000, quantity: int = 1, order_no: str = "N-1",
               memo: str = "", orderer_name: str = "김주문",
-              recipient_name: str = "이수취", claim_status: str = "") -> dict:
+              recipient_name: str = "이수취", claim_status: str = "",
+              tel2: str = "", paid_at: str = "", pay_means: str = "",
+              discount: int = 0) -> dict:
     return {
         "order": {"orderId": order_no, "ordererName": orderer_name,
-                  "ordererTel": "010-1111-2222"},
+                  "ordererTel": "010-1111-2222",
+                  "paymentDate": paid_at, "paymentMeans": pay_means},
         "productOrder": {
             "productOrderId": f"PO-{_uid()}",
             "productName": product_name,
@@ -55,7 +58,10 @@ def _snapshot(*, product_name: str, option: str = "", product_class: str = "조�
             "quantity": quantity,
             "shippingMemo": memo,
             "claimStatus": claim_status or None,
+            "unitPrice": amount,
+            "productDiscountAmount": discount,
             "shippingAddress": {"name": recipient_name, "tel1": "010-3333-4444",
+                                "tel2": tel2,
                                 "baseAddress": "서울 강남구 1", "detailedAddress": "101호"},
         },
     }
@@ -130,6 +136,21 @@ def test_payload_has_no_claim_label_for_normal_order(app):
     order = _naver_order(_staff())
     _link(order, _snapshot(product_name="본품", amount=500000))
     assert build_dock_payload(db_session, order)["claim_label"] == ""
+
+
+def test_payload_carries_contact_and_payment_facts(app):
+    """도크에 보조 연락처·결제·할인을 싣는다(T14-F). 묶음이면 할인은 합계다."""
+    order = _naver_order(_staff())
+    _link(order, _snapshot(product_name="본품", amount=800000, tel2="010-9999-8888",
+                           paid_at="2026-08-14T16:27:12.156+09:00", pay_means="신용카드",
+                           discount=11000))
+    _link(order, _snapshot(product_name="옵션", product_class="추가구성상품",
+                           amount=30000, discount=1000))
+    payload = build_dock_payload(db_session, order)
+    assert payload["recipient_tel2"] == "010-9999-8888"
+    assert payload["paid_at"] == "2026-08-14T16:27"
+    assert payload["pay_means"] == "신용카드"
+    assert payload["discount"] == 12000
 
 
 def test_payload_carries_shipping_memo_and_names(app):

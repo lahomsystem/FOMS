@@ -41,6 +41,24 @@ def test_dashboard_lists_links_with_status_counts(auth_client):
     assert "필수 값 누락: address" in body
 
 
+def test_history_shows_payment_and_claim(auth_client):
+    """정산 확인용 결제·할인 칸과 취소 표식(T14-F). 원본에서 읽으니 과거분도 보인다."""
+    _link("PO-PAY").raw_snapshot = {
+        "order": {"orderId": "N-9", "paymentDate": "2026-08-14T16:27:12.156+09:00",
+                  "paymentMeans": "신용카드"},
+        "productOrder": {"productOrderId": "PO-PAY", "productName": "붙박이장",
+                         "productDiscountAmount": 11000,
+                         "claimStatus": "CANCEL_REQUEST"},
+    }
+    db_session.commit()
+
+    body = auth_client.get("/admin/naver-ingest").get_data(as_text=True)
+    assert "2026-08-14T16:27" in body
+    assert "신용카드" in body
+    assert "11,000" in body
+    assert "취소 요청" in body
+
+
 def test_status_filter_narrows_the_list(auth_client):
     """보류만 골라 보는 경로가 있어야 사람이 처리할 큐가 된다."""
     _link("PO-OK", "LINKED")

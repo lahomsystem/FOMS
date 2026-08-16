@@ -41,6 +41,26 @@ QUEUE_LINK_FETCH_LIMIT = PAGE_SIZE * 5
 VALID_STATUSES = ("COLLECTED", "LINKED", "PENDING_REVIEW", "FAILED")
 
 
+def _payment_summary(raw_snapshot: Any) -> dict[str, Any]:
+    """이력 표에 실을 결제 요약(결제일·수단·할인 합계).
+
+    Args:
+        raw_snapshot: ``ExternalOrderLink.raw_snapshot``.
+
+    Returns:
+        ``{"paid_at", "means", "discount"}`` — 원본이 없으면 빈 값.
+    """
+    from foms.services.integrations.naver_commerce.mapping import build_payment_info
+
+    if not isinstance(raw_snapshot, dict) or not raw_snapshot:
+        return {"paid_at": "", "means": "", "discount": 0}
+    payment = build_payment_info(raw_snapshot)
+    discount = payment["product_discount_amount"] + sum(
+        coupon["discount_amount"] for coupon in payment["coupons"])
+    return {"paid_at": payment["paid_at"][:16], "means": payment["means"],
+            "discount": discount}
+
+
 def _watermark_view(db) -> dict[str, Any]:
     """워터마크 상태를 화면 표시용으로 편다."""
     from foms.services.integrations.naver_commerce import watermark as wm
@@ -124,6 +144,10 @@ def _link_rows(db, *, status: Optional[str], page: int) -> tuple[list[dict], int
             "amount": summary["amount"],
             "order_date": summary["order_date"],
             "group_size": pending_group_counts.get(link.external_order_no or "", 1),
+            # 정산 확인용(T14-F) — 결제일·수단과 할인/쿠폰 합계. 원본에서 읽으므로
+            # 과거 수집분도 재처리 없이 보인다.
+            "payment": _payment_summary(link.raw_snapshot),
+            "claim_label": summary["claim_label"],
         })
     return (rows, total)
 

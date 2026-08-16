@@ -74,6 +74,7 @@ def _row_source(link: Any) -> dict[str, Any]:
     """링크의 원본에서 도크 표시에 필요한 필드만 뽑는다(실패 시 빈 값)."""
     from foms.services.integrations.naver_commerce.mapping import (
         NaverMappingError,
+        build_payment_info,
         extract_claim,
         extract_shipping_memo,
         unwrap_detail,
@@ -82,7 +83,8 @@ def _row_source(link: Any) -> dict[str, Any]:
     empty = {"product_name": "", "option_text": "", "quantity": None,
              "amount": None, "product_class": "", "seller_product_code": "",
              "recipient_name": "", "orderer_name": "", "shipping_memo": "",
-             "claim_label": ""}
+             "claim_label": "", "recipient_tel2": "", "paid_at": "", "pay_means": "",
+             "discount": 0}
     snapshot = link.raw_snapshot
     if not isinstance(snapshot, dict) or not snapshot:
         return empty
@@ -90,6 +92,7 @@ def _row_source(link: Any) -> dict[str, Any]:
         order, product_order, shipping = unwrap_detail(snapshot)
         shipping_memo = extract_shipping_memo(snapshot)
         claim = extract_claim(snapshot)
+        payment = build_payment_info(snapshot)
     except (NaverMappingError, ValueError, TypeError, AttributeError, KeyError) as exc:
         # 원본 파손은 행 하나의 문제 — 도크 전체를 죽이지 않는다(원문 없이 행만 남긴다).
         logger.warning("[NAVER] 도크 행 원본 파싱 실패(link %s): %s", link.id, exc)
@@ -111,6 +114,12 @@ def _row_source(link: Any) -> dict[str, Any]:
         "shipping_memo": shipping_memo,
         # 주문을 만든 뒤 취소되는 건도 있다 — 규격을 채우기 전에 눈에 걸려야 한다.
         "claim_label": claim["label"],
+        # 연락·정산 확인용(T14-F). 폼에 자동 기입하지 않는다 — 복사 버튼까지다.
+        "recipient_tel2": _text((shipping or {}).get("tel2")),
+        "paid_at": payment["paid_at"][:16],
+        "pay_means": payment["means"],
+        "discount": payment["product_discount_amount"] + sum(
+            coupon["discount_amount"] for coupon in payment["coupons"]),
     }
 
 
@@ -169,12 +178,20 @@ def build_dock_payload(db: Any, order: Any) -> Optional[dict[str, Any]]:
     recipient_name = ""
     orderer_name = ""
     claim_label = ""
+    recipient_tel2 = ""
+    paid_at = ""
+    pay_means = ""
+    discount = 0
     memos: list[str] = []
     for link in links:
         source = _row_source(link)
         recipient_name = recipient_name or source["recipient_name"]
         orderer_name = orderer_name or source["orderer_name"]
         claim_label = claim_label or source["claim_label"]
+        recipient_tel2 = recipient_tel2 or source["recipient_tel2"]
+        paid_at = paid_at or source["paid_at"]
+        pay_means = pay_means or source["pay_means"]
+        discount += source["discount"]
         # 상품주문마다 메모가 다를 수 있다 — 다른 값은 전부 보존한다(중복만 제거).
         if source["shipping_memo"] and source["shipping_memo"] not in memos:
             memos.append(source["shipping_memo"])
@@ -230,6 +247,11 @@ def build_dock_payload(db: Any, order: Any) -> Optional[dict[str, Any]]:
                                 and recipient_name != orderer_name),
         "shipping_memo": "\n".join(memos),
         "claim_label": claim_label,
+        "recipient_tel2": recipient_tel2,
+        "paid_at": paid_at,
+        "pay_means": pay_means,
+        # 묶음이면 상품주문별 할인의 합이 그 집의 총 할인이다.
+        "discount": discount,
     }
 
 

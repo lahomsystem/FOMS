@@ -41,6 +41,7 @@ from foms.services.integrations.naver_commerce.constants import (
     CHANNEL as _CHANNEL,
     OWNER_USERNAME as _OWNER_USERNAME,
 )
+from foms.services.integrations.naver_commerce.claim_watch import refresh_claims
 from foms.services.integrations.naver_commerce.mapping import (
     NaverMappingError,
     extract_external_id,
@@ -68,6 +69,9 @@ class SyncResult:
     collected: int = 0          # 링크로 보관한 건수(T12 — 주문은 만들지 않는다)
     skipped: int = 0            # 이미 수집된 건(멱등 skip)
     pending_review: int = 0     # 매핑 실패로 보류한 건
+    claims_refreshed: int = 0   # 수집 후 변경분 재조회로 원본을 갱신한 건 (T14-F)
+    claims_flagged: int = 0     # 그중 취소·반품 상태인 건
+    claims_notified: int = 0    # 그로 인해 보낸 알림 건수
     link_ids: list[int] = field(default_factory=list)
     errors: list[str] = field(default_factory=list)
 
@@ -85,6 +89,9 @@ class SyncResult:
             "created": 0,
             "skipped": self.skipped,
             "pending_review": self.pending_review,
+            "claims_refreshed": self.claims_refreshed,
+            "claims_flagged": self.claims_flagged,
+            "claims_notified": self.claims_notified,
             "link_ids": list(self.link_ids),
             "errors": list(self.errors),
         }
@@ -217,6 +224,14 @@ def sync_naver_orders(
     result = SyncResult()
     changed = client.get_last_changed_statuses(start, end)
     result.changed = len(changed)
+
+    # 수집 **이후** 생긴 취소·반품 반영 (T14-F). 같은 변경 목록을 재사용하므로
+    # 바뀐 게 없으면 추가 호출도 0회다. dry-run 은 읽기만 하는 모드라 건너뛴다.
+    if not dry_run:
+        claim_stats = refresh_claims(session, client=client, changed=changed, now=now)
+        result.claims_refreshed = claim_stats["refreshed"]
+        result.claims_flagged = claim_stats["claimed"]
+        result.claims_notified = claim_stats["notified"]
 
     candidate_ids: list[str] = []
     seen: set[str] = set()

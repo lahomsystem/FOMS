@@ -159,6 +159,25 @@
   padding: 1px 6px;
 }
 
+.naver-dock-fact {
+  display: flex;
+  align-items: center;
+  gap: 6px;
+  margin-top: 4px;
+  font-size: 11.5px;
+}
+
+.naver-dock-fact .naver-dock-fact-k {
+  color: #94a3b8;
+  font-weight: 700;
+  min-width: 4.4rem;
+}
+
+.naver-dock-fact .naver-dock-fact-v {
+  color: #334155;
+  font-variant-numeric: tabular-nums;
+}
+
 .naver-dock-memo {
   margin-top: 7px;
 }

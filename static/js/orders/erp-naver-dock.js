@@ -128,7 +128,8 @@
         var hasWho = !!state.recipientName;
         var hasMemo = !!state.shippingMemo;
         var hasClaim = !!state.claimLabel;
-        if (!hasWho && !hasMemo && !hasClaim) return null;
+        var hasFacts = !!(state.recipientTel2 || state.paidAt || state.payMeans || state.discount);
+        if (!hasWho && !hasMemo && !hasClaim && !hasFacts) return null;
         var info = el('div', 'naver-dock-info');
         if (hasClaim) {
             // 취소·반품은 productOrderStatus 로는 안 보인다 — 규격을 채우기 전에 걸려야 한다.
@@ -143,6 +144,27 @@
             }
             info.appendChild(who);
         }
+        // 연락·정산 보조 정보 — 값이 있는 것만 줄로 나온다(빈 라벨이 자리를 먹지 않게).
+        var facts = [];
+        if (state.recipientTel2) facts.push(['보조 연락처', state.recipientTel2, true]);
+        if (state.paidAt || state.payMeans) {
+            facts.push(['결제', [state.paidAt, state.payMeans].filter(Boolean).join(' · '), false]);
+        }
+        if (state.discount) {
+            facts.push(['할인', state.discount.toLocaleString('ko-KR') + '원', false]);
+        }
+        facts.forEach(function (fact) {
+            var row = el('div', 'naver-dock-fact');
+            row.appendChild(el('span', 'naver-dock-fact-k', fact[0]));
+            row.appendChild(el('span', 'naver-dock-fact-v', fact[1]));
+            if (fact[2]) {
+                var copyFact = el('button', 'naver-dock-copy', '📋');
+                copyFact.type = 'button';
+                copyFact.setAttribute('data-naver-dock-copy', fact[1]);
+                row.appendChild(copyFact);
+            }
+            info.appendChild(row);
+        });
         if (hasMemo) {
             var memo = el('div', 'naver-dock-memo');
             var memoHead = el('div', 'naver-dock-memo-hd', '📮 배송메모');
@@ -409,7 +431,11 @@
             ordererName: payload.orderer_name || '',
             ordererDiffers: !!payload.orderer_differs,
             shippingMemo: payload.shipping_memo || '',
-            claimLabel: payload.claim_label || ''
+            claimLabel: payload.claim_label || '',
+            recipientTel2: payload.recipient_tel2 || '',
+            paidAt: payload.paid_at || '',
+            payMeans: payload.pay_means || '',
+            discount: payload.discount || 0
         };
         render();
         applyLayout();

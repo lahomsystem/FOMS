@@ -100,6 +100,8 @@
                         <th>제품</th>
                         <th class="text-end">수량</th>
                         <th class="text-end">금액</th>
+                        <th>결제</th>
+                        <th class="text-end">할인</th>
                         <th>옵션 원문</th>
                         <th>FOMS 주문</th>
                         <th>사유</th>
@@ -122,11 +124,21 @@
                             {% else %}
                             <span class="badge bg-danger">실패</span>
                             {% endif %}
+                            {% if row.claim_label %}
+                            <span class="badge bg-danger">{{ row.claim_label }}</span>
+                            {% endif %}
                         </td>
                         <td class="small">{{ row.customer_name or '-' }}</td>
                         <td class="small">{{ row.product or '-' }}</td>
                         <td class="small text-end">{{ row.quantity if row.quantity is not none else '-' }}</td>
                         <td class="small text-end">{{ '{:,}'.format(row.amount) if row.amount is not none else '-' }}</td>
+                        <td class="small text-muted">
+                            {{ row.payment.paid_at or '-' }}
+                            {% if row.payment.means %}<br>{{ row.payment.means }}{% endif %}
+                        </td>
+                        <td class="small text-end">
+                            {{ '{:,}'.format(row.payment.discount) if row.payment.discount else '-' }}
+                        </td>
                         <td class="small text-muted" style="max-width: 22rem;">{{ row.options or '-' }}</td>
                         <td>
                             {% if row.order_id %}
