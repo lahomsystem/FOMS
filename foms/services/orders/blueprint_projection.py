@@ -33,7 +33,7 @@ import datetime
 from dataclasses import dataclass
 from typing import Any, Optional, Tuple
 
-from sqlalchemy.orm import Session
+from sqlalchemy.orm import Session, load_only
 from sqlalchemy.orm.attributes import flag_modified
 
 from foms.services.datetime_kst import now_utc_naive
@@ -340,9 +340,17 @@ def classify_blueprint_scalar(order_id: int, url: str, now_iso: str) -> Tuple[st
 
 
 def _legacy_orders(session: Session) -> list[Order]:
-    """blueprint_image_url 이 비어있지 않은 order 를 조회한다(backfill 대상)."""
+    """blueprint_image_url 이 비어있지 않은 order 를 조회한다(backfill 대상).
+
+    **필요한 컬럼만 SELECT 한다**(``load_only``). 이 함수는 alembic 리비전
+    ``blueprint_00`` 의 upgrade/downgrade 가 호출하는데, 전체 컬럼을 SELECT 하면
+    그 리비전보다 **나중에 추가된 컬럼**이 SQL 에 섞여 "column does not exist" 로
+    체인 왕복이 깨진다(2026-08-17 AS-AXIS-01 컬럼 추가에서 실제 발생). 마이그레이션이
+    앱 서비스를 재사용하는 한 이 쿼리는 그 시점 스키마에만 의존해야 한다.
+    """
     return (
         session.query(Order)
+        .options(load_only(Order.id, Order.blueprint_image_url, Order.structured_data))
         .filter(Order.blueprint_image_url.isnot(None), Order.blueprint_image_url != "")
         .all()
     )

@@ -185,6 +185,43 @@ def _current_cycle_status(as_lifecycle: Dict[str, Any]) -> Optional[str]:
     return "RECEIVED"  # cycle은 열려 있으나 transition 없음 = 접수 상태
 
 
+def derive_as_axis_status(order: Any, structured_data: Optional[Dict[str, Any]] = None) -> Optional[str]:
+    """``orders.as_axis_status`` 플랫 투영값을 유도한다(AS-AXIS-01 SSOT).
+
+    AS 목록·카운트가 SQL 로 물어볼 수 있는 값을 만든다. 판정 순서는 읽기 SSOT 와 같다:
+
+    1. ``as_lifecycle`` 이 있으면 :func:`read_as_status` (canonical 축)
+    2. 없으면 legacy 유도 — ``status`` 가 AS 계열이면 그 매핑, 아니면 완료일/접수일 흔적
+
+    2번이 필요한 이유: 운영에는 ``as_lifecycle`` 없이 legacy 컬럼만 가진 AS 주문이
+    다수다(2026-08-17 실측 566건 중 506건). 백필·동기화·테스트가 이 한 함수를 공유한다.
+
+    Args:
+        order: 대상 주문(ORM 또는 같은 속성을 가진 객체).
+        structured_data: 커밋 전 최신 structured_data(쓰기 경로가 ORM 에 아직 배정하지
+            않았을 수 있어 명시 전달을 허용한다). 생략하면 주문에서 읽는다.
+
+    Returns:
+        ``'RECEIVED'``/``'IN_PROGRESS'``/``'COMPLETED'``, AS 이력이 없으면 ``None``.
+    """
+    if isinstance(structured_data, dict):
+        lifecycle = structured_data.get("as_lifecycle")
+        if isinstance(lifecycle, dict):
+            cycle_status = _current_cycle_status(lifecycle)
+            if cycle_status is not None and cycle_status != "NONE":
+                return cycle_status
+    status = read_as_status(order)
+    if status != "NONE":
+        return status
+    completed = str(getattr(order, "as_completed_date", None) or "").strip()
+    if completed:
+        return "COMPLETED"
+    received = str(getattr(order, "as_received_date", None) or "").strip()
+    if received:
+        return "RECEIVED"
+    return None
+
+
 def read_as_status(order: Any) -> str:
     """AS 축 canonical 값. ``as_lifecycle`` 현재 cycle 우선, 없으면 legacy status."""
     sd = _structured(order)
@@ -390,6 +427,7 @@ __all__ = [
     "read_logistics",
     "read_hold",
     "read_as_status",
+    "derive_as_axis_status",
     "read_deleted",
     "read_construction",
     "legacy_status_projection",

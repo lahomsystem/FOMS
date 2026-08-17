@@ -106,6 +106,10 @@ class Order(Base):
     erp_stage_updated_at = Column(DateTime, nullable=True, index=True)     # workflow.stage_updated_at (stage transition truth)
     erp_owner_team_code = Column(String(20), nullable=True, index=True)    # assignments.owner_team
     erp_phone_digits = Column(String(20), nullable=True, index=True)       # customer phone digits-only (P1-02 search)
+    # AS-AXIS-01: AS 축(as_lifecycle) 의 SQL 조회용 플랫 투영. NULL = AS 이력 없음.
+    # 값 도메인은 state_axes.AS_VALUES 와 같다(RECEIVED/IN_PROGRESS/COMPLETED).
+    # status 컬럼은 overlay projection 이라 외부 write 로 덮이면 AS 목록이 증발했다(2026-08-14 사고).
+    as_axis_status = Column(String(16), nullable=True)                     # as_lifecycle 현재 cycle 상태
 
     # ============================================
     # ChannelTalk 연동 (Phase 0)
@@ -121,6 +125,8 @@ class Order(Base):
         Index('ix_orders_regional_active', 'id', postgresql_where=(and_(status != 'DELETED', deleted_at.is_(None), is_regional == True))),
         Index('ix_orders_self_measurement_active', 'id', postgresql_where=(and_(status != 'DELETED', deleted_at.is_(None), is_self_measurement == True))),
         Index('ix_orders_erp_order_active', 'id', postgresql_where=(and_(status != 'DELETED', deleted_at.is_(None), is_erp_order == True))),
+        # AS 행만 담는 부분 인덱스(AS 이력 없는 대다수 행은 NULL 이라 인덱스에 안 들어간다).
+        Index('ix_orders_as_axis_status', 'as_axis_status', postgresql_where=(as_axis_status.isnot(None))),
     )
 
     @classmethod

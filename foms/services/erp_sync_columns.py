@@ -38,6 +38,11 @@ def sync_erp_flat_columns(order, structured_data: dict) -> None:
     stage = workflow.get('stage')
     order.erp_stage_code = stage if isinstance(stage, str) else None
 
+    # AS-AXIS-01: AS 축을 SQL 로 물을 수 있게 플랫 투영한다. status 컬럼은 overlay
+    # projection 이라 외부 write 에 덮이면 AS 목록이 통째로 사라졌다(2026-08-14 사고).
+    from foms.services.orders.state_axes import derive_as_axis_status
+    order.as_axis_status = derive_as_axis_status(order, structured_data)
+
     flags = (structured_data.get('flags') or {})
     order.erp_urgent = str(flags.get('urgent')).lower() == 'true' or flags.get('urgent') is True
 
