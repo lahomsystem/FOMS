@@ -3500,3 +3500,21 @@ class ExternalOrderLink(Base):
         # 주문 상세에서 "이 주문이 어느 채널 수집분인가" 역조회.
         Index('ix_external_order_link_order', 'order_id'),
     )
+
+
+@event.listens_for(Order, 'before_insert')
+def _fill_as_axis_status_on_insert(mapper, connection, target) -> None:
+    """새 주문 row 의 AS 축 투영(``as_axis_status``)을 채운다 (AS-AXIS-01).
+
+    AS 대시보드 술어가 이 컬럼을 보므로 **생성 시점부터 stale 이면 안 된다**. 갱신은
+    ``sync_erp_flat_columns`` 가 담당하지만, 주문을 만드는 경로는 그 함수를 안 지나는 것도
+    있다(엑셀 임포트·테스트 픽스처 등). 명시로 값을 준 경우는 존중한다(백필·복구 도구).
+
+    갱신(before_update)에는 붙이지 않는다 — status 를 덮는 외부 write 가 투영까지 지우면
+    2026-08-14 사고가 그대로 재현된다. 투영은 AS 쓰기 경로에서만 바뀐다.
+    """
+    if getattr(target, 'as_axis_status', None) is not None:
+        return
+    from foms.services.orders.state_axes import derive_as_axis_status
+
+    target.as_axis_status = derive_as_axis_status(target)

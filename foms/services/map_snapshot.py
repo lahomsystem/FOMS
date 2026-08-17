@@ -198,6 +198,7 @@ def build_as_incomplete_map_query(db, q, manager, bucket=None, avail_days=None,
         _as_availability_days_expr,
         _as_availability_time_expr,
     )
+    from foms.services.as_dashboard_helpers import erp_as_scope_condition
     from foms.services.as_dashboard_read_model import (
         build_as_incomplete_bucket_conditions,
         build_as_tab_query_conditions,
@@ -212,8 +213,9 @@ def build_as_incomplete_map_query(db, q, manager, bucket=None, avail_days=None,
 
     conditions = build_as_tab_query_conditions(dialect_name=dialect_name)
     query = db.query(Order).filter(Order.active_filter())
-    # AS 탭 모집단과 동일한 status 선행 축소 (as_dashboard.py 목록 쿼리와 동형)
-    query = query.filter(Order.status.in_(['AS', 'AS_RECEIVED', 'AS_COMPLETED']))
+    # AS 탭 모집단과 동일한 선행 축소 (as_dashboard.py 목록 쿼리와 동형).
+    # AS-AXIS-01: status 가 아니라 AS 축 투영을 본다 — 탭↔지도 건수 1:1 계약 유지.
+    query = query.filter(erp_as_scope_condition())
     query = query.filter(conditions['incomplete_non_sales_condition'])
     query = _measurement_search_filter(query, q)
     query = _apply_map_manager_filter(query, manager)

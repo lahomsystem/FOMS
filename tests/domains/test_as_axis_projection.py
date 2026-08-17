@@ -59,14 +59,21 @@ def test_derive_prefers_as_lifecycle(client):
     assert derive_as_axis_status(order) == "COMPLETED"
 
 
-def test_derive_legacy_fallbacks(client):
-    """lifecycle 이 없는 레거시 주문도 유도된다(운영 566건 중 506건이 이 경우)."""
+def test_derive_legacy_status_fallback(client):
+    """lifecycle 이 없는 레거시 주문은 status 로 유도된다(운영 566건 중 506건이 이 경우)."""
     assert derive_as_axis_status(_order(status="AS_RECEIVED")) == "RECEIVED"
     assert derive_as_axis_status(_order(status="AS")) == "IN_PROGRESS"
     assert derive_as_axis_status(_order(status="AS_COMPLETED")) == "COMPLETED"
-    # status 는 이미 덮였지만 legacy 날짜 흔적이 남은 경우(2026-08-14 사고 형태)
-    assert derive_as_axis_status(_order(status="COMPLETED", as_completed_date="2026-08-10")) == "COMPLETED"
-    assert derive_as_axis_status(_order(status="COMPLETED", as_received_date="2026-08-10")) == "RECEIVED"
+
+
+def test_derive_ignores_date_only_traces(client):
+    """날짜 흔적만 있는 레거시 주문은 AS 축으로 보지 않는다(화면 무변동 계약).
+
+    ``as_received_date`` 만 남고 status 는 완료로 운영되던 옛 주문이 운영에 18건 있다.
+    날짜로 유도하면 그 시절 종결된 건이 AS 대시보드에 되살아난다(2026-08-17 결정).
+    """
+    assert derive_as_axis_status(_order(status="COMPLETED", as_received_date="2026-04-13")) is None
+    assert derive_as_axis_status(_order(status="COMPLETED", as_completed_date="2026-04-16")) is None
 
 
 def test_derive_none_when_no_as_history(client):
@@ -128,3 +135,27 @@ def test_projection_survives_status_overwrite(client):
     assert after.status == "COMPLETED"
     assert after.as_axis_status == "RECEIVED"  # AS 축은 그대로
     assert derive_as_axis_status(after) == "RECEIVED"
+
+
+def test_as_dashboard_still_lists_order_after_status_overwrite(client):
+    """**2단 스위치 회귀** — status 를 덮어도 AS 대시보드 목록에 그대로 남는다.
+
+    2026-08-14 사고의 결과(목록 증발)를 화면 레벨에서 잠근다. 술어가 status 로 되돌아가면
+    이 테스트가 red 다.
+    """
+    _login(client, "axis_admin3")
+    order = _order(status="CS", customer_name="AXISKEEP 고객",
+                   structured_data={"workflow": {"stage": "CS"}})
+    order_id = order.id
+    client.post(f"/api/orders/{order_id}/as/register", json={"as_content": "AS 접수"})
+
+    before_body = client.get("/erp/as").get_data(as_text=True)
+    assert "AXISKEEP" in before_body
+
+    db_session.expire_all()
+    saved = db_session.get(Order, order_id)
+    saved.status = "COMPLETED"  # 사고 재현: overlay projection 만 덮인다
+    db_session.commit()
+
+    after_body = client.get("/erp/as").get_data(as_text=True)
+    assert "AXISKEEP" in after_body, "status 를 덮었다고 AS 대시보드에서 사라지면 안 된다"

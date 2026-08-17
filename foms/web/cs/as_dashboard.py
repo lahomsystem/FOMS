@@ -29,6 +29,8 @@ from foms.services.as_dashboard_helpers import (
     _display_phone_expr,
     _erp_as_completed_condition,
     _sql_compact,
+    erp_as_scope_condition,
+    erp_as_status_filter_condition,
 )
 from foms.services.as_dashboard_read_model import (
     build_as_tab_count_context,
@@ -165,7 +167,7 @@ def erp_as_card_detail(order_id: int):
     order = (
         db.query(Order)
         .filter(Order.active_filter())
-        .filter(Order.status.in_(['AS', 'AS_RECEIVED', 'AS_COMPLETED']))
+        .filter(erp_as_scope_condition())
         .filter(Order.id == order_id)
         .first()
     )
@@ -206,7 +208,7 @@ def erp_as_timeline(order_id: int):
     order = (
         db.query(Order)
         .filter(Order.active_filter())
-        .filter(Order.status.in_(['AS', 'AS_RECEIVED', 'AS_COMPLETED']))
+        .filter(erp_as_scope_condition())
         .filter(Order.id == order_id)
         .first()
     )
@@ -257,10 +259,12 @@ def erp_as_dashboard():
     customer_name_expr = _display_customer_name_expr(dialect_name=dialect_name)
 
     base_query = db.query(Order).filter(Order.active_filter())
-    base_query = base_query.filter(Order.status.in_(['AS', 'AS_RECEIVED', 'AS_COMPLETED']))
+    base_query = base_query.filter(erp_as_scope_condition())
 
     if status_filter:
-        base_query = base_query.filter(Order.status == status_filter)
+        status_condition = erp_as_status_filter_condition(status_filter)
+        if status_condition is not None:
+            base_query = base_query.filter(status_condition)
 
     current_user = getattr(g, 'current_user', None)
     erp_mine_only = erp_mine_only_from_request(request)
