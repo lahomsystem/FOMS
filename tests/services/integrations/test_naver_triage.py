@@ -135,6 +135,82 @@ def test_pane_compares_naver_original_with_foms_values(auth_client):
     assert "LAHOM-1" in body
 
 
+def test_pane_shows_cs_two_steps_not_assignment(auth_client):
+    """CS 흐름은 ① 주문 만들기 ② 규격 입력 두 단계다.
+
+    담당자 지정은 접수 단계가 아니라 고객 통화 → 실측일 지정 → 실측 스케줄링 시점에 한다
+    (2026-08-17 사용자 확정) — 화면이 그 순서를 강요하면 안 된다.
+    """
+    _ingested_order(_sales())
+    body = auth_client.get("/admin/naver-ingest/triage").get_data(as_text=True)
+    assert "주문 만들기" in body and "ERP 규격 입력" in body
+    assert "담당자 지정은 실측 일정 잡을 때" in body
+    # 규격이 비었으면 지금 할 일을 짚어 준다.
+    assert "편집기에서 제품 규격을 채우세요" in body
+
+
+def test_done_button_is_not_locked_by_missing_spec_or_assignee(auth_client):
+    """규격·담당자가 비어도 '확인 완료'를 막지 않는다 — 경고만 띄운다."""
+    _ingested_order(_sales())
+    body = auth_client.get("/admin/naver-ingest/triage").get_data(as_text=True)
+    done = body.split('id="triage-done"')[1].split(">")[0]
+    assert "disabled" not in done
+    assert "규격이 아직 비어 있습니다" in body
+
+
+def test_spec_filled_order_shows_done_state(auth_client):
+    """규격이 들어간 주문은 2단계까지 완료로 보이고 경고가 사라진다."""
+    from db import db_session as sess
+    from models import Order
+    from sqlalchemy.orm.attributes import flag_modified
+    import copy
+
+    link = _ingested_order(_sales())
+    order = sess.get(Order, int(link.order_id))
+    data = copy.deepcopy(order.structured_data or {})
+    data["items"] = [{"product_name": "붙박이장", "spec_rows": [{"w": 2400, "h": 2400}]}]
+    order.structured_data = data
+    flag_modified(order, "structured_data")
+    sess.commit()
+
+    body = auth_client.get(f"/admin/naver-ingest/triage?link_id={link.id}").get_data(as_text=True)
+    assert "규격 입력됨" in body
+    assert "규격이 아직 비어 있습니다" not in body
+
+
+def test_queue_badge_shows_next_step(auth_client):
+    """목록에서도 다음 할 일이 보인다(주문 만들기 / 규격 입력)."""
+    _collected_link(order_no="N-300", product="아직 주문 전", amount=100000)
+    _ingested_order(_sales())
+    body = auth_client.get("/admin/naver-ingest/triage").get_data(as_text=True)
+    assert '<span class="badge bg-primary">주문 만들기</span>' in body
+    assert '<span class="badge bg-primary">규격 입력</span>' in body
+
+
+def test_create_order_response_carries_edit_url(auth_client):
+    """'주문 만들기' 응답에 편집 화면 주소가 실린다 — 화면이 새 탭으로 연다."""
+    from foms.services.integrations.naver_commerce.constants import (
+        ACTOR_USERNAME, OWNER_USERNAME,
+    )
+    from models import User
+
+    db_session.add_all([
+        User(username=ACTOR_USERNAME, password="pw-not-committed", name="봇",
+             role="MANAGER", team="CS", is_active=True),
+        User(username=OWNER_USERNAME, password="pw-not-committed", name="미배정",
+             role="STAFF", team="SALES", is_active=True),
+    ])
+    db_session.commit()
+    link = _collected_link(order_no="N-301", product="본품", amount=300000)
+
+    response = auth_client.post(f"/admin/naver-ingest/{link.id}/create-order",
+                                json={})
+    payload = response.get_json()
+    assert payload["success"] is True
+    assert payload["data"]["edit_url"].endswith("open=erp-order")
+    assert str(payload["data"]["order_id"]) in payload["data"]["edit_url"]
+
+
 def test_cancelled_link_shows_badge_and_locks_create_button(auth_client):
     """취소 요청 건은 큐에 빨간 배지가 뜨고 '주문 만들기'가 잠긴다.
 

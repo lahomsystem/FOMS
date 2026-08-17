@@ -18,7 +18,7 @@ import datetime
 import logging
 from typing import Any, Optional
 
-from flask import jsonify, render_template, request, session
+from flask import jsonify, render_template, request, session, url_for
 
 from db import get_db
 from foms.services.datetime_kst import format_datetime_kst, now_utc_naive
@@ -39,6 +39,31 @@ QUEUE_LINK_FETCH_LIMIT = PAGE_SIZE * 5
 
 #: 상태 필터 닫힌집합. 임의 문자열이 그대로 쿼리에 들어가지 않게 한다.
 VALID_STATUSES = ("COLLECTED", "LINKED", "PENDING_REVIEW", "FAILED")
+
+
+def order_has_spec_rows(order: Any) -> bool:
+    """주문에 규격표가 한 행이라도 입력됐는지 (CS 완료 판정용).
+
+    규격 SSOT 는 ``structured_data['items'][*]['spec_rows']`` 다(품목 안에 있다 —
+    최상위 ``spec_rows`` 를 보면 항상 비어 있는 것으로 잘못 읽는다).
+
+    Args:
+        order: :class:`models.Order` 또는 None.
+
+    Returns:
+        규격 행이 하나라도 있으면 True.
+    """
+    data = getattr(order, "structured_data", None)
+    if not isinstance(data, dict):
+        return False
+    items = data.get("items")
+    if not isinstance(items, list):
+        return False
+    for item in items:
+        rows = item.get("spec_rows") if isinstance(item, dict) else None
+        if isinstance(rows, list) and rows:
+            return True
+    return False
 
 
 def _payment_summary(raw_snapshot: Any) -> dict[str, Any]:
@@ -228,6 +253,14 @@ def _triage_pane(db, link: ExternalOrderLink) -> dict[str, Any]:
             "product_id": product_order.get("productId"),
             "inflow_path": product_order.get("inflowPath"),
         },
+        # CS 흐름은 ① 주문 만들기 ② ERP 규격 입력까지다. 담당자 지정은 이 단계가 아니라
+        # 고객 통화 → 실측일 지정 → 실측 스케줄링 시점에 한다(2026-08-17 사용자 확정).
+        "steps": {
+            "order_created": bool(link.order_id),
+            "spec_filled": order_has_spec_rows(order),
+        },
+        "edit_url": (url_for("order_edit.edit_order", order_id=int(link.order_id),
+                             open="erp-order") if link.order_id else ""),
         # 취소·반품은 productOrderStatus 로는 안 보인다 — 별도 축으로 싣는다.
         "claim": extract_claim(link.raw_snapshot or {}),
         "payment": build_payment_info(link.raw_snapshot or {}),
@@ -362,6 +395,9 @@ def _group_queue(links: list[ExternalOrderLink], orders: dict,
                  if summarize_snapshot(row.raw_snapshot)["claim_label"]), ""),
             "claim_blocking": any(summarize_snapshot(row.raw_snapshot)["claim_blocking"]
                                   for row in members),
+            # CS 가 다음에 할 일을 목록에서 바로 알아보게 한다.
+            "next_step": ("주문 만들기" if not lead.order_id
+                          else ("규격 입력" if not order_has_spec_rows(order) else "")),
             "link_ids": [row.id for row in members],
             # 펼침 목록도 **대표 먼저** — 사람이 처음 보는 줄이 0원 구성 옵션이면 본품을
             # 찾아 헤맨다(map_group·도크와 같은 순서 규칙).
@@ -436,7 +472,10 @@ def naver_ingest_create_order(link_id: int):
         detail={"link_id": link_id, "order_id": order_id, "created": created},
     )
     return jsonify({"success": True,
-                    "data": {"link_id": link_id, "order_id": order_id, "created": created},
+                    "data": {"link_id": link_id, "order_id": order_id, "created": created,
+                             # CS 는 만들자마자 규격을 넣으러 간다 — 화면이 새 탭으로 열어준다.
+                             "edit_url": url_for("order_edit.edit_order",
+                                                 order_id=order_id, open="erp-order")},
                     "error": None})
 
 

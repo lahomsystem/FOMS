@@ -62,6 +62,8 @@
                                     {% endif %}
                                     {% if row.claim_label %}
                                     <span class="badge bg-danger">{{ row.claim_label }}</span>
+                                    {% elif row.next_step %}
+                                    <span class="badge bg-primary">{{ row.next_step }}</span>
                                     {% endif %}
                                 </div>
                             </a>
@@ -101,6 +103,24 @@
                     {% endif %}
                 </div>
                 <div class="card-body">
+                    {# CS 흐름은 두 단계다: ① 주문 만들기 ② ERP 규격 입력.
+                       담당자 지정은 여기가 아니라 고객 통화 → 실측일 지정 → 실측 스케줄링
+                       시점에 한다(2026-08-17 사용자 확정). #}
+                    <div class="d-flex flex-wrap align-items-center gap-2 mb-3">
+                        <span class="badge {{ 'bg-success' if selected.steps.order_created else 'bg-secondary' }}">
+                            {{ '✓' if selected.steps.order_created else '1' }} 주문 만들기
+                        </span>
+                        <span class="text-muted">→</span>
+                        <span class="badge {{ 'bg-success' if selected.steps.spec_filled else ('bg-primary' if selected.steps.order_created else 'bg-secondary') }}">
+                            {{ '✓' if selected.steps.spec_filled else '2' }} ERP 규격 입력
+                        </span>
+                        {% if selected.steps.order_created and not selected.steps.spec_filled %}
+                        <span class="small text-primary">지금 할 일 — 편집기에서 제품 규격을 채우세요.</span>
+                        {% elif selected.steps.spec_filled %}
+                        <span class="small text-success">규격 입력됨 — 확인 완료를 누르면 목록에서 빠집니다.</span>
+                        {% endif %}
+                        <span class="small text-muted ms-auto">담당자 지정은 실측 일정 잡을 때</span>
+                    </div>
                     {% if selected.claim.status %}
                     {# 취소·반품은 productOrderStatus(PAYED)로는 안 보인다 — 실물 1건 확인(2026-08-14) #}
                     <div class="alert alert-danger py-2">
@@ -248,7 +268,10 @@
                         </span>
                     </div>
                     {% else %}
-                    <label class="small text-muted mb-0" for="triage-assignee">담당 영업</label>
+                    <label class="small text-muted mb-0" for="triage-assignee"
+                           title="접수 단계에서는 필요 없습니다 — 실측 일정 잡을 때 지정하세요">
+                        담당 영업 <span class="text-muted">(실측 일정 잡을 때)</span>
+                    </label>
                     <select id="triage-assignee" class="form-select form-select-sm" style="width: 12rem;">
                         <option value="">담당자 선택</option>
                         {% for user in sales_users %}
@@ -267,6 +290,11 @@
                             <span class="badge bg-light text-dark">{{ selected_group.count }}건</span>
                             {% endif %}
                         </button>
+                        {% if not selected.steps.spec_filled %}
+                        <div class="small text-warning mt-1">
+                            규격이 아직 비어 있습니다 — 닫아도 되지만 나중에 다시 찾아야 합니다.
+                        </div>
+                        {% endif %}
                     </div>
                     {% endif %}
                 </div>
@@ -305,6 +333,16 @@
                     createBtn.disabled = false;
                     createBtn.textContent = '주문 만들기';
                     return;
+                }
+                // CS 는 만들자마자 규격을 넣으러 간다 — 편집 화면을 새 탭으로 열고
+                // 이 목록은 그대로 둔다(다음 건을 이어서 처리). 팝업이 막히면 링크를 남긴다.
+                var editUrl = (data.data || {}).edit_url;
+                if (editUrl) {
+                    var opened = window.open(editUrl, '_blank');
+                    if (!opened) {
+                        show('warning', '주문을 만들었습니다. 팝업이 차단되어 새 탭을 열지 못했습니다 — ' +
+                             '아래 링크로 이동하세요: ' + editUrl);
+                    }
                 }
                 window.location.reload();
             } catch (error) {
