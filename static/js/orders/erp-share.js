@@ -306,11 +306,46 @@
 
     /** 문자 버튼 라벨 1.5초 피드백. */
     function _flashSmsSent() {
-        var btn = document.getElementById('erp-share-sms-btn');
+        _flashSent('erp-share-sms-btn');
+    }
+
+    /** 발송 버튼 라벨 1.5초 피드백 (문자·알림톡 공용). */
+    function _flashSent(btnId) {
+        var btn = document.getElementById(btnId);
         if (!btn) return;
         var original = btn.innerHTML;
         btn.innerHTML = '<i class="fas fa-check"></i> 발송됨';
         window.setTimeout(function () { btn.innerHTML = original; }, 1500);
+    }
+
+    /** POST send-alimtalk — 문자와 대칭, 실패 시 Solapi 가 문자로 자동 대체발송. */
+    function _sendAlimtalk() {
+        if (!_issued || !_issued.token) {
+            _setNotice('먼저 링크를 발급하세요 — 알림톡은 발급 직후에만 보낼 수 있습니다.');
+            return;
+        }
+        var btn = document.getElementById('erp-share-alimtalk-btn');
+        if (btn && btn.disabled) return;
+        if (btn) btn.disabled = true;
+        fetch('/api/share/send-alimtalk/' + _issued.shareId, {
+            method: 'POST',
+            credentials: 'same-origin',
+            headers: { 'Content-Type': 'application/json' },
+            body: JSON.stringify({ token: _issued.token }),
+        })
+            .then(function (res) { return res.json(); })
+            .then(function (body) {
+                var sent = !!(body && body.success && body.data && body.data.sent);
+                if (sent) {
+                    _setNotice('');
+                    _flashSent('erp-share-alimtalk-btn');
+                    return;
+                }
+                var code = (body && (body.error || (body.data && body.data.error))) || 'network';
+                _setNotice('알림톡 발송 실패 — ' + _label(code));
+            })
+            .catch(function () { _setNotice('알림톡 발송 실패 — ' + _label('network')); })
+            .finally(function () { if (btn) btn.disabled = false; });
     }
 
     /** POST revoke — 목록의 활성 링크를 즉시 죽인다. */
@@ -374,6 +409,11 @@
         if (target.closest('#erp-share-sms-btn')) {
             ev.preventDefault();
             _sendSms();
+            return;
+        }
+        if (target.closest('#erp-share-alimtalk-btn')) {
+            ev.preventDefault();
+            _sendAlimtalk();
             return;
         }
         var revokeBtn = target.closest('[data-share-revoke]');

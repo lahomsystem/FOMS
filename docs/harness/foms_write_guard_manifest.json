@@ -652,6 +652,10 @@
       "mode": "guard",
       "rule": "/api/share/revoke/<int:share_id>"
     },
+    "share_api.api_share_send_alimtalk": {
+      "mode": "guard",
+      "rule": "/api/share/send-alimtalk/<int:share_id>"
+    },
     "share_api.api_share_send_sms": {
       "mode": "guard",
       "rule": "/api/share/send-sms/<int:share_id>"

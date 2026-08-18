@@ -8,11 +8,11 @@
     "log_access"
   ],
   "baselines": {
-    "total": 183,
+    "total": 184,
     "unaudited": 0
   },
   "classification_counts": {
-    "AUDITED": 153,
+    "AUDITED": 154,
     "EXEMPT": 30,
     "UNAUDITED": 0
   },
@@ -1149,7 +1149,16 @@
     {
       "path": "foms/api/share.py",
       "endpoint": "api_share_revoke",
-      "lineno": 581,
+      "lineno": 741,
+      "methods": [
+        "POST"
+      ],
+      "classification": "AUDITED"
+    },
+    {
+      "path": "foms/api/share.py",
+      "endpoint": "api_share_send_alimtalk",
+      "lineno": 632,
       "methods": [
         "POST"
       ],
@@ -1158,7 +1167,7 @@
     {
       "path": "foms/api/share.py",
       "endpoint": "api_share_send_sms",
-      "lineno": 466,
+      "lineno": 482,
       "methods": [
         "POST"
       ],
