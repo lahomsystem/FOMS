@@ -145,6 +145,7 @@ def _evidence_from_logs(conn, ids: list[int], since: str, until: str) -> dict[in
           FROM security_logs l
          WHERE l.action = 'ORDER_STATUS_CHANGED' AND l.target_id = ANY(%(ids)s)
            AND l.timestamp >= %(since)s AND l.timestamp <= %(until)s
+           AND coalesce(l.detail->>'restore', '') <> 'true'
          ORDER BY l.target_id, l.timestamp ASC
     """, {"ids": ids, "since": since, "until": until})
     out: dict[int, dict[str, Any]] = {}
@@ -180,6 +181,7 @@ def _evidence_from_events(conn, ids: list[int], since: str, until: str) -> dict[
           FROM order_events e
          WHERE e.event_type IN ('STAGE_OVERRIDE','STAGE_CHANGED') AND e.order_id = ANY(%(ids)s)
            AND e.created_at >= %(since)s AND e.created_at <= %(until)s
+           AND coalesce(e.payload->>'mode', '') <> 'restore'
          ORDER BY e.order_id, e.created_at ASC
     """, {"ids": ids, "since": since, "until": until})
     out: dict[int, dict[str, Any]] = {}
