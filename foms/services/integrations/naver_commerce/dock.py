@@ -116,6 +116,26 @@ def _axis_value(text: str) -> dict[str, str]:
     return found
 
 
+def _row_axes(row: dict[str, Any]) -> dict[str, str]:
+    """행의 사양 축 값 — **옵션 원문 우선**, 그 축이 옵션에 없을 때만 상품명으로 보완.
+
+    상품명과 옵션을 한 문자열로 합쳐 읽으면 안 된다(2026-08-18 스테이징 실측으로 확인):
+    라홈 상품명은 라인 이름으로 ``무몰딩`` 을 달고 있는데 고객은 옵션에서 ``몰딩`` 을 고른다.
+    합쳐 읽으면 ``무몰딩`` 이 먼저 잡혀(부분문자열 방어 순서) 본품이 무몰딩으로 판정되고,
+    몰딩 1cm 추가와 비교해 **없는 불일치**를 경고했다 — 본품류 링크 100건 중 9건이 이 조합.
+    축 값의 정본은 **고객이 고른 옵션 원문**이다.
+
+    Args:
+        row: ``product_name``·``option_text`` 를 가진 도크 행.
+
+    Returns:
+        축 이름 → 값 dict (읽히지 않은 축은 없음).
+    """
+    axes = _axis_value(row.get("product_name") or "")
+    axes.update(_axis_value(row.get("option_text") or ""))
+    return axes
+
+
 def build_width_hint(main: dict[str, Any], addons: list[dict[str, Any]]) -> Optional[dict[str, Any]]:
     """본품 + 길이추가 옵션으로 **총폭 후보**를 계산한다 (T14-I).
 
@@ -138,7 +158,7 @@ def build_width_hint(main: dict[str, Any], addons: list[dict[str, Any]]) -> Opti
     total = module_mm * main_qty
 
     mismatch: list[str] = []
-    main_axes = _axis_value(f"{main['product_name']} {main['option_text']}")
+    main_axes = _row_axes(main)
     for addon in addons:
         blob = f"{addon['product_name']} {addon['option_text']}"
         if not any(hint in blob for hint in _LENGTH_ADDON_HINTS):
@@ -150,7 +170,7 @@ def build_width_hint(main: dict[str, Any], addons: list[dict[str, Any]]) -> Opti
         parts.append({"label": addon["product_name"][:24] or "길이추가",
                       "unit_mm": unit_mm, "quantity": quantity})
         total += unit_mm * quantity
-        addon_axes = _axis_value(blob)
+        addon_axes = _row_axes(addon)
         for axis, main_value in main_axes.items():
             addon_value = addon_axes.get(axis)
             if addon_value and addon_value != main_value:
