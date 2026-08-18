@@ -40,8 +40,16 @@ def sync_erp_flat_columns(order, structured_data: dict) -> None:
 
     # AS-AXIS-01: AS 축을 SQL 로 물을 수 있게 플랫 투영한다. status 컬럼은 overlay
     # projection 이라 외부 write 에 덮이면 AS 목록이 통째로 사라졌다(2026-08-14 사고).
+    #
+    # **값이 나오면 갱신하고, 안 나오면 기존 값을 지우지 않는다.** as_lifecycle 이 없는
+    # 레거시 AS 주문(운영 566건 중 506건)은 유도 근거가 status 뿐이라, status 를 COMPLETED 로
+    # 덮는 write 가 이 동기화를 지나면 투영까지 지워져 사고가 그대로 재현된다(2026-08-18
+    # 스테이징 실측으로 확인). AS 이력은 한번 생기면 사라지지 않는 축이므로(종료도 COMPLETED
+    # 라는 값이다) 암묵적 삭제는 규약 위반이다.
     from foms.services.orders.state_axes import derive_as_axis_status
-    order.as_axis_status = derive_as_axis_status(order, structured_data)
+    derived_as_axis = derive_as_axis_status(order, structured_data)
+    if derived_as_axis is not None:
+        order.as_axis_status = derived_as_axis
 
     flags = (structured_data.get('flags') or {})
     order.erp_urgent = str(flags.get('urgent')).lower() == 'true' or flags.get('urgent') is True

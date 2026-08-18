@@ -137,6 +137,22 @@ def test_projection_survives_status_overwrite(client):
     assert derive_as_axis_status(after) == "RECEIVED"
 
 
+def test_sync_never_clears_existing_projection(client):
+    """레거시 AS 주문(as_lifecycle 없음)의 status 를 덮어도 투영은 지워지지 않는다.
+
+    2026-08-18 스테이징 실측에서 잡은 구멍: 일괄 상태변경이 ``sync_erp_flat_columns`` 를
+    지나는데, lifecycle 없는 행은 유도 근거가 status 뿐이라 재유도하면 None 이 되어
+    투영까지 지워졌다(= 사고 재현). AS 축은 한번 생기면 사라지지 않는다.
+    """
+    order = _order(status="AS_COMPLETED", as_completed_date="2026-06-24")
+    sync_erp_flat_columns(order, order.structured_data)
+    assert order.as_axis_status == "COMPLETED"
+
+    order.status = "COMPLETED"  # 사고 형태의 외부 write
+    sync_erp_flat_columns(order, order.structured_data)
+    assert order.as_axis_status == "COMPLETED", "투영이 암묵적으로 지워지면 AS 목록이 증발한다"
+
+
 def test_as_dashboard_still_lists_order_after_status_overwrite(client):
     """**2단 스위치 회귀** — status 를 덮어도 AS 대시보드 목록에 그대로 남는다.
 
@@ -159,3 +175,32 @@ def test_as_dashboard_still_lists_order_after_status_overwrite(client):
 
     after_body = client.get("/erp/as").get_data(as_text=True)
     assert "AXISKEEP" in after_body, "status 를 덮었다고 AS 대시보드에서 사라지면 안 된다"
+
+
+def test_legacy_as_order_survives_bulk_complete_api(client):
+    """**2026-08-14 사고 전체 재현** — lifecycle 없는 레거시 AS 주문을 일괄 완료해도 남는다.
+
+    가드(AS 제외)를 명시로 우회(``include_as``)해 status 를 덮는, 사고와 동일한 경로다.
+    술어·투영·동기화 셋 중 하나라도 되돌아가면 red.
+    """
+    _login(client, "axis_admin4")
+    order = _order(status="AS_COMPLETED", customer_name="AXISLEGACY 고객",
+                   as_received_date="2026-06-01", as_completed_date="2026-06-24",
+                   structured_data={"workflow": {"stage": "CS"}})  # CS→COMPLETED = advance
+    order_id = order.id
+
+    completed_before = client.get("/erp/as?tab=completed").get_data(as_text=True)
+    assert "AXISLEGACY" in completed_before
+
+    resp = client.post("/api/bulk_update_order_status",
+                       json={"order_ids": [order_id], "status": "COMPLETED", "include_as": True})
+    assert resp.status_code == 200, resp.get_json()
+    assert resp.get_json()["updated"] == 1
+
+    db_session.expire_all()
+    saved = db_session.get(Order, order_id)
+    assert saved.status == "COMPLETED"
+    assert saved.as_axis_status == "COMPLETED"
+
+    completed_after = client.get("/erp/as?tab=completed").get_data(as_text=True)
+    assert "AXISLEGACY" in completed_after, "레거시 AS 주문이 일괄 완료로 목록에서 사라졌다"
