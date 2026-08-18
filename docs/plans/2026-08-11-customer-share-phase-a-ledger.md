@@ -47,6 +47,12 @@
 - 1차 선행 점검 중단: production 에 `itemuid_00` 부재(체인 `share_token_00→itemuid_00→senderphone_00` 단절) → **사용자 승인 ①** itemuid 포함. 2차 promote_completeness INCOMPLETE: share.py 가 `kakao_alimtalk.py` 하드 의존(production 에 파일 부재) → **사용자 승인 ②** 알림톡 v1 코드 포함(발송은 이중 잠금 — killswitch off·PF/템플릿 env 미설정, 수동 버튼만 노출).
 - 세트 21커밋 = 알림톡 v1 8(인벤토리 전용 95c982aa 는 재생성 대체) + 고객 공유 10(T1~T9·T8.1, docs-only T5·merge T10 제외) + itemuid 2 + 정리 2(인벤토리 4종 재생성·`erp-order-shared.js` ?v=20260813d 범프·share_token_00 재부모화 deploy 정본 동기화 — bc810a9a 병합 해결분은 cherry-pick 불가라 파일 동기화).
 - 충돌 해소: erp_order_js.html ?v 드리프트(기계적 병합)·models.py OrderFieldChange/OrderShareToken 병치·ledger=승격분·AI_STATUS=production 유지·인벤토리 JSON=재생성. 검증: 단일 head·APP_OK·도메인 82 passed·pre_push_smoke 322 passed·PR 체크 perf-gate/pg-lane pass.
+| T9 | 태블릿 공유 버튼 (tablet-measure-form.js) | 태블릿 계약 테스트 PASS + browse coarse 스모크 + APP_OK | DONE | PENDING_SHA | 117 passed. 발급→URL 복사→(선택) 문자 confirm 흐름, ?v 20260812a 범프. browse coarse는 T10 통합 |
+| T10 | Stage-2 통합 검증·스테이징 E2E | pre_push_smoke exit 0 + CI green + E2E(스냅샷 불변·문자 3사·카톡 실기기) | PENDING | | 발신번호 미등록=문자만 BLOCKED |
+
+## 외부 준비 (사용자 액션)
+- [ ] 카카오 개발자 앱 도메인 2종 등록 + 지도 앱과 동일 앱 여부 회신 (T5 카톡 E2E 전제)
+- [ ] 영업 인원 Solapi 발신번호 등록 → 번호 목록 전달 (T10 실수신 전제)
 
 ## 결정 기록
 - 플랜 확정 3건(CEO 2-agent 리뷰 반영): 스냅샷 64KB 캡=초과 시 400(절단 금지) / send-sms 멱등=**발송 전 앵커 선점 insert**+시간버킷 dedupe_key(`share_sms:{share_id}:{floor(epoch/5)}`) — DB UNIQUE로 동시 중복 차단, 감사 조회식 check-then-act 폐기 / send-sms URL=body 토큰 원문 재해시 검증 후 서버 조립(해시-온리 저장과 충돌 해소, 문자 발송은 발급 직후만)

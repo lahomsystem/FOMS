@@ -4,6 +4,8 @@
 - 플랜: `docs/plans/2026-08-08-audit-log-readability-coverage-plan.md`
 - 상태: **A·B·C 전부 운영 승격 완료** (A·B=production `47f270e6`, C=production `7ceedde4` PR #69).
   D 만 사용자 결정 대기(D1 계측 미착수·D2 BLOCKED).
+- 상태: **A·B 운영 승격 완료**(2026-08-10, production `47f270e6`) + **C 완료**(deploy `6d840c52`).
+  D 는 사용자 결정 대기(D1 계측 미착수·D2 BLOCKED).
 
 | Task | 상태 | 완료 기준(통과할 명령/판정) | 커밋 |
 |---|---|---|---|

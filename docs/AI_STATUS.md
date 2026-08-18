@@ -271,3 +271,8 @@ Flask 2.3 + PostgreSQL + R2 + Railway (Web×2, Worker×1)
 | `tests/test_wdcalculator_base_components_contract_node.py` | `primary-form.js`에서 추출한 base-components row DOM/selectors·hook contract를 Node로 검증 |
 | `tests/test_wdcalculator_estimate_totals_node.py` | `estimate-totals.js` 수식을 Node로 검증하는 focused regression test |
 | `tests/test_wdcalculator_notes_contract_node.py` | `primary-form.js`에서 추출한 notes load/collect·formatting contract를 Node로 검증 |
+
+- [2026-08-13] **AS dTTFB 근본 해소 181→96(예산 168 불변)** — 지출처=같은 모집단 집계 2회 스캔 + 행100×2필드 sanitize 재파싱(`phase()` 계측). 수정=단일 스캔 + sanitize LRU 메모이즈.
+- [2026-08-08] **감사 로깅 `**D` T1~T12 완료(deploy 반영·CI 4/4 green)** — 삭제→비활성화(감사 actor 보존)·보존기간 3년/2년·**파일 열람 기록 화면**(`/admin/file-access-logs`, ADMIN 전용). 운영 승격 전 주의 3건: `docs/harness/runtime/HANDOFF_AUDIT_LOGGING.md`
+- [2026-08-01] **deploy 전체 승격 완료 → production `0aae8d9f`** (PR #35, 356커밋·마이그레이션 29개, 테이블 45→84, 데이터 무손상). **롤백은 DB 먼저→코드 나중**(반대면 `Can't locate revision`으로 전 배포 파산). 백업 `/c/tmp/foms-backups/*.dump`.
+- [2026-08-03] **후속 완료 (deploy `04f0fc59`)** — 운영 Redis 실패잡 2,544건 정리(전부 퇴역 잡). `/erp/history` 301 제거(dTTFB 240→19ms). CI PG 16→17. **마이그레이션 체인 왕복 검증 신설**(CI가 처음 alembic 실행). construction 렌더 +22ms는 코드 무죄로 종결.

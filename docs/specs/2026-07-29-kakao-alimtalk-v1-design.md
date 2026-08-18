@@ -120,6 +120,8 @@ FOMS 주문에서 고객에게 카카오 알림톡을 자동/수동 발송한다
 
 ### 6.6 env (Railway, FOMS-DEV/PRODUCTION 각각) — D3 브랜드 2프로필
 `SOLAPI_API_KEY` / `SOLAPI_API_SECRET` / `SOLAPI_SENDER_PHONE`(등록 발신번호 — failover 전제) / `FOMS_ALIMTALK_AUTO_ENABLED` + 브랜드별: `SOLAPI_PF_ID_LAHOM` / `SOLAPI_TEMPLATE_MEASURE_ID_LAHOM` / `SOLAPI_PF_ID_HAUD` / `SOLAPI_TEMPLATE_MEASURE_ID_HAUD`. 브랜드의 PF/TEMPLATE 쌍이 미설정이면 해당 브랜드 건은 발송 스킵 + `ALIMTALK_FAILED(brand_profile_missing)` 이력.
+### 6.6 env (Railway, FOMS-DEV/PRODUCTION 각각)
+`SOLAPI_API_KEY` / `SOLAPI_API_SECRET` / `SOLAPI_PF_ID` / `SOLAPI_TEMPLATE_MEASURE_ID` / `SOLAPI_SENDER_PHONE`(등록 발신번호 — failover 전제) / `FOMS_ALIMTALK_AUTO_ENABLED`
 
 ### 6.7 오류 지도 (요약)
 | 경로 | 실패 | 처리 | 사용자/이력 |
