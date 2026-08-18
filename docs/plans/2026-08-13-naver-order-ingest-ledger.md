@@ -691,6 +691,26 @@ exit 0 (322 passed) + APP_OK. 신규 계약: COLLECTED 포함 카운트·STAFF �
 체크 즉시 저장+새로고침 잔존 · 1366 FAB(우하단)+서랍 열림 · 귀속 드롭다운 경고색=미정만 ·
 콘솔/네트워크/다이얼로그 무결. 검증용 체크는 원복(0/4).
 
+## 운영 승격 (2026-08-18) — **PR #113 로 전환**
+
+사용자 지시 **"전체 푸쉬"**: `deploy` 스냅샷 브랜치 `promo/full-2026-08-18`(= `fadb5ebc`)를
+`production` 대상으로 올렸다 — https://github.com/lahomsystem/FOMS/pull/113
+(production 대비 **256커밋 / 358파일**). 머지는 **사용자가 직접** 한다(내가 하지 않는다).
+
+**왜 전체 푸쉬가 오히려 정합적인가**: 타 세션이 남긴 "AS-AXIS-01 운영 승격 차단" 사유는
+*"`asaxis_00` 부모가 미승격 `naverdock_00` 이라 단독 cherry-pick 시 체인이 끊긴다"* 였다.
+전체 푸쉬면 네이버 마이그레이션 4종이 함께 올라가 그 조건이 해소된다.
+
+**체인**: 운영 계보 끝 `asfresh_00` → `naver_link_00` → `naver_triage_00` → `navercollect_00`
+→ `naverdock_00` → `asaxis_00` (+ `orderreason_00`). 스냅샷 브랜치 `alembic heads` = 단일
+`asaxis_00`. 스냅샷에서 `pre_push_smoke` exit 0 · APP_OK 확인.
+
+**머지 후 사람 작업(순서 그대로)**: ① 운영 DB 계정 2개 생성(`create_naver_ingest_accounts.py`)
+② 운영 `WORKER` 에 자격증명 5종 ③ **커머스API센터 IP 3개를 운영 WORKER static IP 로 교체**
+(한도 3 = dev·운영 동시 운용 불가) ④ `FOMS_NAVER_SYNC_ENABLED=1` 후 "지금 수집" 1회 확인.
+
+**PR #92 는 이 PR 로 대체**(예전 스냅샷). 닫는 것은 사용자 판단.
+
 ## PR #92 상태 (2026-08-14)
 
 새 운영 head(asfresh_00, PR #93) 기준으로 재구성 — 체인 `asfresh_00 → naver_link_00 →
