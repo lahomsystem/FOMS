@@ -8,7 +8,7 @@ Flask 2.3 + PostgreSQL + R2 + Railway (Web×2, Worker×1)
 브랜치: deploy (스테이징) → production (운영)
 
 ## 진행 중
-- [2026-08-18] **AS 증발 사고 종결 + 구조 제거** — 운영 55/55 복구 + 일괄 경로 AS 제외 가드(운영 `63737e91`) + **AS-AXIS-01** AS 대시보드 술어 status→`as_axis_status` 투영 교체(deploy `e061beb7`, 스테이징 검증 완료·운영 승격 대기). **AS 판정=status 기준·투영 암묵삭제 금지**(레거시 506건 lifecycle 없음). 복구 절차 `docs/guides/DATA_INCIDENT_RECOVERY.md`, 스펙 §11에 실측 조정 기록
+- [2026-08-18] **AS 증발 사고 종결 + 구조 제거** — 운영 55/55 복구 + 일괄 경로 AS 제외 가드(운영 `63737e91`) + **AS-AXIS-01** AS 대시보드 술어 status→`as_axis_status` 투영 교체(deploy `e061beb7`, 스테이징 검증 완료·운영 승격 대기). **AS 판정=status 기준·투영 암묵삭제 금지**(레거시 506건 lifecycle 없음). 복구 절차 `docs/guides/DATA_INCIDENT_RECOVERY.md`, 스펙 §11에 실측 조정 기록. **운영 승격 차단: `asaxis_00` 부모가 미승격 `naverdock_00`** — 네이버·변경사유 승격 후 진행(2026-08-18 사용자 결정)
 - [2026-08-14] **주문 변경 사유 deploy** — 축=시공일·금액·단계·취소(제품세부=기록만). docs/specs/2026-08-13-order-change-reason_SPEC.md
 - [2026-08-13] **프래그먼트 다이어트**(운영 PR #78~#86·#90 `5b73eb46`, 주문 태블릿 PR #95 `9f9b1ade`) — v3 죽은 v2 표면 6탭 435.8KB(**운영은 전원 v2 = no-op**, `FOMS_V3_SHELL_COHORT`는 v2 자격 플래그)·`pointer:coarse` 주문 표면 47.2KB(운영 실효)·폰 광폭표면 526.9KB(쿠키 `foms_scr`, deploy `61af5bd8`). **AS 표는 제외**(`d-md-block` 768 → 폰 가로에서 실제 표시, 계약으로 부재 고정). **측정은 `?view=fragment` 필수**(헤더만이면 전체 페이지). 잔여=AS 모바일 229.5KB(리사이즈 재요청 선행)·폰 건 운영 승격. 상세는 AI_CHANGELOG 2026-08-14
 - [2026-08-13] **AS 근본 최적화 2건(deploy)** — ① dTTFB 181→96(예산 168 불변, 공식 176보다 엄격): 지출처=같은 모집단 집계 2회 + 행100×2필드 sanitize 재파싱 → 단일 스캔 + sanitize LRU 메모이즈. ② data-order-id 1271→228(행 컨테이너 일원화, 자손은 closest 역참조) → wire 51.1→46.3KB. **함정: 표면간 상태동기화가 `.cls[data-order-id=x]` 전역 선택자였다** — 스코프 조회로 치환 후에야 자손 제거 가능.
