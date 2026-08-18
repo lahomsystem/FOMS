@@ -70,6 +70,101 @@ def split_option_copies(option_text: str) -> list[str]:
     return copies
 
 
+#: 원문에서 길이를 읽는다. ``30cm``·``2400mm``·``2.4m`` 를 모두 mm 로 환산한다.
+_LENGTH_RE = re.compile(r"(\d+(?:\.\d+)?)\s*(mm|cm|m)\b", re.I)
+_LENGTH_UNIT_MM = {"mm": 1.0, "cm": 10.0, "m": 1000.0}
+
+#: 길이추가(1cm 단위) 옵션 판별 힌트. 이 옵션만 총폭에 더한다 —
+#: 수납구성(TYPE A 등)·거울도어 같은 구성 옵션은 폭과 무관하다.
+_LENGTH_ADDON_HINTS = ("길이추가", "길이 추가")
+
+#: 본품과 길이추가 옵션의 사양이 갈리는 축(2026-08-18 사용자: 고객이 몰딩/무몰딩을 섞어
+#: 주문하는 사고가 실제로 있다). **부분문자열 함정** 때문에 긴 값을 먼저 검사한다
+#: ('몰딩' 은 '무몰딩' 안에도 있다).
+SPEC_AXES = (
+    ("몰딩", ("무몰딩", "몰딩")),
+    ("문 방식", ("슬라이딩", "미닫이", "여닫이")),
+    ("손잡이", ("피닉스바", "푸쉬")),
+)
+
+
+def parse_length_mm(text: str) -> Optional[int]:
+    """원문에서 첫 길이를 mm 정수로 뽑는다(없으면 None).
+
+    Args:
+        text: 상품명·옵션 원문.
+
+    Returns:
+        mm 값. ``240cm`` → 2400, ``1cm`` → 10, ``2400mm`` → 2400.
+    """
+    match = _LENGTH_RE.search(_text(text))
+    if not match:
+        return None
+    value, unit = match.group(1), match.group(2).lower()
+    return int(round(float(value) * _LENGTH_UNIT_MM[unit]))
+
+
+def _axis_value(text: str) -> dict[str, str]:
+    """사양 축별 값(몰딩/문 방식/손잡이)을 원문에서 읽는다."""
+    lowered = _text(text)
+    found: dict[str, str] = {}
+    for axis, values in SPEC_AXES:
+        for value in values:
+            if value in lowered:
+                found[axis] = value
+                break
+    return found
+
+
+def build_width_hint(main: dict[str, Any], addons: list[dict[str, Any]]) -> Optional[dict[str, Any]]:
+    """본품 + 길이추가 옵션으로 **총폭 후보**를 계산한다 (T14-I).
+
+    CS 는 지금 이 계산을 손으로 한다: 30cm 모듈 12개 + 1cm 추가 12개 = 3,600 + 120 = 3,720.
+    자동 기입은 하지 않는다(규격 SSOT 보호) — 계산식과 복사 버튼까지가 이 기능의 끝이다.
+
+    Args:
+        main: 본품 행.
+        addons: 그 본품에 귀속된 추가옵션 행 목록.
+
+    Returns:
+        ``{"total_mm", "formula", "parts", "mismatch"}``. 길이를 못 읽으면 None.
+    """
+    module_mm = parse_length_mm(f"{main['product_name']} {main['option_text']}")
+    if not module_mm:
+        return None
+    main_qty = main["quantity"] or 1
+    parts = [{"label": main["product_name"][:24] or "본품",
+              "unit_mm": module_mm, "quantity": main_qty}]
+    total = module_mm * main_qty
+
+    mismatch: list[str] = []
+    main_axes = _axis_value(f"{main['product_name']} {main['option_text']}")
+    for addon in addons:
+        blob = f"{addon['product_name']} {addon['option_text']}"
+        if not any(hint in blob for hint in _LENGTH_ADDON_HINTS):
+            continue
+        unit_mm = parse_length_mm(blob)
+        if not unit_mm:
+            continue
+        quantity = addon["quantity"] or 1
+        parts.append({"label": addon["product_name"][:24] or "길이추가",
+                      "unit_mm": unit_mm, "quantity": quantity})
+        total += unit_mm * quantity
+        addon_axes = _axis_value(blob)
+        for axis, main_value in main_axes.items():
+            addon_value = addon_axes.get(axis)
+            if addon_value and addon_value != main_value:
+                mismatch.append(f"{axis}: 본품 {main_value} · 추가 {addon_value}")
+
+    if len(parts) == 1:
+        # 길이추가 옵션이 없으면 계산이랄 게 없다 — 단순 환산은 칩으로 따로 준다.
+        return {"total_mm": total, "formula": f"{module_mm:,}mm × {main_qty}",
+                "parts": parts, "mismatch": []}
+    formula = " + ".join(f"{part['unit_mm']:,}mm × {part['quantity']}" for part in parts)
+    return {"total_mm": total, "formula": formula, "parts": parts,
+            "mismatch": list(dict.fromkeys(mismatch))}
+
+
 def _row_source(link: Any) -> dict[str, Any]:
     """링크의 원본에서 도크 표시에 필요한 필드만 뽑는다(실패 시 빈 값)."""
     from foms.services.integrations.naver_commerce.mapping import (
@@ -232,6 +327,16 @@ def build_dock_payload(db: Any, order: Any) -> Optional[dict[str, Any]]:
             continue
         row["guess_main"], row["guess_reason"] = _guess_main(row, mains)
 
+    # 본품별 총폭 힌트(T14-I) — 귀속은 사람 지정 > 추정 순으로 본다(화면과 같은 규칙).
+    width_hints: dict[str, Any] = {}
+    for main in mains:
+        addons = [row for row in rows
+                  if row["role"] == "addon"
+                  and (row["assigned_main"] or row.get("guess_main")) == main["external_id"]]
+        hint = build_width_hint(main, addons)
+        if hint:
+            width_hints[main["external_id"]] = hint
+
     order_no = next((_text(link.external_order_no) for link in links
                      if _text(link.external_order_no)), "")
     return {
@@ -247,6 +352,7 @@ def build_dock_payload(db: Any, order: Any) -> Optional[dict[str, Any]]:
                                 and recipient_name != orderer_name),
         "shipping_memo": "\n".join(memos),
         "claim_label": claim_label,
+        "width_hints": width_hints,
         "recipient_tel2": recipient_tel2,
         "paid_at": paid_at,
         "pay_means": pay_means,
@@ -258,6 +364,9 @@ def build_dock_payload(db: Any, order: Any) -> Optional[dict[str, Any]]:
 __all__ = [
     "ADDON_PRODUCT_CLASS",
     "ASSIGN_COMMON",
+    "SPEC_AXES",
     "build_dock_payload",
+    "build_width_hint",
+    "parse_length_mm",
     "split_option_copies",
 ]

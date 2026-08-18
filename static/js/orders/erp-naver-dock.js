@@ -179,6 +179,29 @@
         return info;
     }
 
+    /**
+     * 총폭 힌트 박스 — 본품 모듈 폭 × 수량 + 길이추가(1cm) × 수량.
+     * 규격 SSOT 를 지키기 위해 **값을 폼에 넣지 않는다**. 계산식과 복사 버튼까지다.
+     * @param {Object} hint 서버가 계산한 {total_mm, formula, mismatch}.
+     * @returns {Element} 힌트 박스.
+     */
+    function buildWidthHint(hint) {
+        var box = el('div', 'naver-dock-width');
+        var head = el('div', 'naver-dock-width-hd');
+        head.appendChild(el('span', null, '총폭 ' + hint.total_mm.toLocaleString('ko-KR') + 'mm'));
+        var copy = el('button', 'naver-dock-copy', '📋 ' + hint.total_mm);
+        copy.type = 'button';
+        copy.setAttribute('data-naver-dock-copy', String(hint.total_mm));
+        head.appendChild(copy);
+        box.appendChild(head);
+        box.appendChild(el('div', 'naver-dock-width-formula', hint.formula));
+        (hint.mismatch || []).forEach(function (line) {
+            // 고객이 몰딩/무몰딩을 섞어 주문하는 사고가 실제로 있다 — 사람이 확인해야 한다.
+            box.appendChild(el('div', 'naver-dock-width-warn', '⚠ 사양 불일치 — ' + line));
+        });
+        return box;
+    }
+
     function buildPanel(withClose) {
         var frag = document.createDocumentFragment();
 
@@ -223,6 +246,8 @@
                 header.appendChild(el('span', 'naver-dock-grp-sub', formatAmount(mainRow.amount)));
             }
             bd.appendChild(header);
+            var hint = state.widthHints[group.key];
+            if (hint) bd.appendChild(buildWidthHint(hint));
             rows.forEach(function (row) { bd.appendChild(buildRow(row)); });
         });
         frag.appendChild(bd);
@@ -435,7 +460,8 @@
             recipientTel2: payload.recipient_tel2 || '',
             paidAt: payload.paid_at || '',
             payMeans: payload.pay_means || '',
-            discount: payload.discount || 0
+            discount: payload.discount || 0,
+            widthHints: payload.width_hints || {}
         };
         render();
         applyLayout();

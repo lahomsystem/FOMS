@@ -18,6 +18,8 @@ from db import db_session
 from foms.services.integrations.naver_commerce.dock import (
     ASSIGN_COMMON,
     build_dock_payload,
+    build_width_hint,
+    parse_length_mm,
     split_option_copies,
 )
 from foms.services.orders.order_create import create_order
@@ -122,6 +124,70 @@ def test_split_option_copies_empty_input():
 # --------------------------------------------------------------------------- #
 # 도크 payload — 본품/추가옵션 판정·귀속 추정
 # --------------------------------------------------------------------------- #
+
+# --------------------------------------------------------------------------- #
+# 총폭 힌트 (T14-I) — CS 가 손으로 하던 계산
+# --------------------------------------------------------------------------- #
+
+def test_parse_length_mm_handles_cm_mm_m():
+    """240cm → 2400, 1cm → 10 — 사람이 손으로 하던 환산을 없앤다."""
+    assert parse_length_mm("로라 무몰딩 여닫이 30cm") == 300
+    assert parse_length_mm("240cm") == 2400
+    assert parse_length_mm("길이추가(1cm): 로라 1cm") == 10
+    assert parse_length_mm("2400mm") == 2400
+    assert parse_length_mm("색상 화이트") is None
+
+
+def _row(name, *, option="", quantity=1, role="main", assigned=None):
+    return {"product_name": name, "option_text": option, "quantity": quantity,
+            "role": role, "assigned_main": assigned, "external_id": name}
+
+
+def test_width_hint_sums_modules_and_length_addons():
+    """실사례: 30cm 모듈 12개 + 1cm 추가 12개 = 3,600 + 120 = 3,720."""
+    main = _row("로라 무몰딩 여닫이 30cm", quantity=12)
+    addon = _row("로라 무몰딩 여닫이(푸쉬) 1cm", option="길이추가(1cm)",
+                 quantity=12, role="addon")
+    hint = build_width_hint(main, [addon])
+    assert hint["total_mm"] == 3720
+    assert "300mm × 12" in hint["formula"] and "10mm × 12" in hint["formula"]
+    assert hint["mismatch"] == []
+
+
+def test_width_hint_ignores_non_length_addons():
+    """수납구성(TYPE A)·거울도어는 폭과 무관하다 — 더하면 틀린 총폭이 나온다."""
+    main = _row("로라 무몰딩 여닫이 30cm", quantity=10)
+    addon = _row("TYPE A (반옷장)", option="수납구성: TYPE A", quantity=2, role="addon")
+    hint = build_width_hint(main, [addon])
+    assert hint["total_mm"] == 3000
+
+
+def test_width_hint_flags_spec_mismatch():
+    """고객이 본품은 무몰딩, 1cm 추가는 몰딩으로 주문하는 사고가 실재한다."""
+    main = _row("로라 무몰딩 여닫이 30cm(푸쉬)", quantity=12)
+    addon = _row("로라 몰딩 여닫이 (푸쉬) 1cm", option="길이추가(1cm)",
+                 quantity=12, role="addon")
+    hint = build_width_hint(main, [addon])
+    assert hint["total_mm"] == 3720
+    assert any("몰딩" in line for line in hint["mismatch"])
+
+
+def test_width_hint_none_when_no_length_in_source():
+    """길이를 못 읽으면 틀린 숫자를 만들지 않는다 — 힌트 자체를 안 준다."""
+    assert build_width_hint(_row("붙박이장 세트", option="색상: 화이트"), []) is None
+
+
+def test_payload_carries_width_hint_per_main(app):
+    """도크 payload 는 본품별로 총폭 힌트를 싣는다."""
+    order = _naver_order(_staff())
+    main = _link(order, _snapshot(product_name="로라 무몰딩 여닫이 30cm",
+                                  amount=800000, quantity=12))
+    _link(order, _snapshot(product_name="로라 무몰딩 여닫이(푸쉬) 1cm",
+                           option="길이추가(1cm)", product_class="추가구성상품",
+                           amount=33200, quantity=12))
+    payload = build_dock_payload(db_session, order)
+    assert payload["width_hints"][main.external_id]["total_mm"] == 3720
+
 
 def test_payload_flags_cancelled_orders(app):
     """주문을 만든 뒤 취소되는 건도 있다 — 도크가 규격 입력 전에 알려야 한다."""
