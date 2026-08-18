@@ -443,3 +443,82 @@ def test_site_keeps_the_foms_shape_so_the_erp_form_cannot_duplicate_the_detail()
     assert site["address_detail"] == ""
     # 우편번호는 주소 문자열이 아니라 별도 값이라 그대로 보존한다.
     assert site["zip_code"] == "06232"
+
+
+# --------------------------------------------------------------------------- #
+# 본품만 품목으로 만든다 + 귀속은 수집 순서 (2026-08-18 사용자 확정)
+# --------------------------------------------------------------------------- #
+
+def _main(pid: str, name: str, *, amount: int, quantity: int = 1, option: str = "") -> dict:
+    """본품 상세(추가구성상품이 아닌 productClass)."""
+    detail = _detail(pid, productName=name, totalPaymentAmount=amount, quantity=quantity,
+                     productOption=option)
+    detail["productOrder"]["productClass"] = "조합형옵션상품"
+    return detail
+
+
+def _addon(pid: str, name: str, *, amount: int, quantity: int = 1, option: str = "") -> dict:
+    """추가옵션 상세(수납구성·EP마감·길이추가 등)."""
+    detail = _detail(pid, productName=name, totalPaymentAmount=amount, quantity=quantity,
+                     productOption=option)
+    detail["productOrder"]["productClass"] = "추가구성상품"
+    return detail
+
+
+def test_items_are_mains_only_and_keep_group_total():
+    """추가옵션은 항목이 되지 않는다 — 항목은 본품 수만큼, 금액은 잃지 않는다.
+
+    실사례(2026-08-18 스테이징 `2026081822487841`): 상품주문 14건이 항목 14행이 돼
+    규격을 채울 본품 행을 찾기 어려웠다. 본품 2행 + 나머지는 본품에 귀속.
+    """
+    main1 = _main("PO-M1", "로라 무몰딩 180cm", amount=1_115_800, quantity=2,
+                  option="사이즈: 180（몰딩）")
+    addon1 = _addon("PO-A1", "TYPE C", amount=60_000, quantity=2, option="수납구성: TYPE C")
+    addon2 = _addon("PO-A2", "로라 몰딩 1cm", amount=6_260, quantity=2,
+                    option="길이추가(1cm): 로라 몰딩 여닫이 1cm")
+    main2 = _main("PO-M2", "로라 무몰딩 30cm", amount=1_314_600, quantity=14,
+                  option="제품: 로라 몰딩 여닫이 30cm")
+    addon3 = _addon("PO-A3", "TYPE F", amount=20_000, option="수납구성: TYPE F")
+
+    details = [main1, addon1, addon2, main2, addon3]
+    fields, structured = map_group(details, today="2026-08-18")
+
+    items = structured["items"]
+    assert [i["naver_product_order_id"] for i in items] == ["PO-M2", "PO-M1"], \
+        "대표(금액 최대 본품)가 1번, 본품만 항목"
+    assert all(i["naver_role"] == "main" for i in items)
+    # 금액 보존: 본품 + 귀속 옵션 합계
+    by_id = {i["naver_product_order_id"]: i for i in items}
+    assert by_id["PO-M1"]["price"] == 1_115_800 + 60_000 + 6_260
+    assert by_id["PO-M2"]["price"] == 1_314_600 + 20_000
+    assert sum(i["price"] for i in items) == fields["payment_amount"]
+    assert structured["totals"]["items_total"] == fields["payment_amount"]
+
+
+def test_addons_attach_to_the_preceding_main_in_collection_order():
+    """귀속 정본은 **수집 순서**다 — 본품 다음 줄부터 다음 본품 전까지가 그 본품 옵션."""
+    details = [
+        _main("PO-M1", "본품 A", amount=1_000_000),
+        _addon("PO-A1", "옵션 A1", amount=10_000),
+        _addon("PO-A2", "옵션 A2", amount=20_000),
+        _main("PO-M2", "본품 B", amount=900_000),
+        _addon("PO-B1", "옵션 B1", amount=30_000),
+    ]
+    _fields, structured = map_group(details, today="2026-08-18")
+    by_id = {i["naver_product_order_id"]: i for i in structured["items"]}
+    assert [a["naver_product_order_id"] for a in by_id["PO-M1"]["naver_addons"]] == \
+        ["PO-A1", "PO-A2"]
+    assert [a["naver_product_order_id"] for a in by_id["PO-M2"]["naver_addons"]] == ["PO-B1"]
+
+
+def test_addon_before_any_main_is_not_lost():
+    """본품보다 먼저 온 추가옵션도 항목을 만들지 않고 첫 본품에 붙는다."""
+    details = [
+        _addon("PO-A0", "먼저 온 옵션", amount=5_000),
+        _main("PO-M1", "본품", amount=800_000),
+    ]
+    _fields, structured = map_group(details, today="2026-08-18")
+    items = structured["items"]
+    assert len(items) == 1 and items[0]["naver_product_order_id"] == "PO-M1"
+    assert [a["naver_product_order_id"] for a in items[0]["naver_addons"]] == ["PO-A0"]
+    assert items[0]["price"] == 805_000

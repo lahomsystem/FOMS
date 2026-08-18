@@ -22,4 +22,10 @@ ACTOR_USERNAME = "naver_ingest_bot"
 #: ``create_order`` 가 owner 없는 주문을 허용하지 않기 때문에 필요하다(ASSIGNMENT-00).
 OWNER_USERNAME = "naver_unassigned"
 
-__all__ = ["ACTOR_USERNAME", "CHANNEL", "OWNER_USERNAME", "SOURCE_MARKER"]
+#: 네이버 ``productClass`` 값 — 추가옵션(부모 링크 없는 독립 productOrder).
+#: 본품은 ``조합형옵션상품`` 으로 온다(2026-08-14 실측). 매핑과 도크가 같은 값을 봐야 해서
+#: 여기에 둔다 — 한쪽만 바뀌면 품목 생성과 화면 표시가 어긋난다.
+ADDON_PRODUCT_CLASS = "추가구성상품"
+
+__all__ = ["ACTOR_USERNAME", "ADDON_PRODUCT_CLASS", "CHANNEL", "OWNER_USERNAME",
+           "SOURCE_MARKER"]
