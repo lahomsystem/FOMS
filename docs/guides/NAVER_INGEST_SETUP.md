@@ -20,10 +20,12 @@ Railway 프로젝트 이름만 **FOMS**(운영)인지 매번 눈으로 확인한
 - [ ] **② 자격증명** — Railway **FOMS → worker → Variables** 에 `NAVER_COMMERCE_CLIENT_ID` ·
       `NAVER_COMMERCE_CLIENT_SECRET`(`$2` 로 시작) · `NAVER_COMMERCE_APP_EXPIRES_ON`.
       **web 아님, worker 다.** (상세 = 4단계)
-- [ ] **③ IP 교체** — FOMS worker 의 Static Outbound IP 를 켜고 나온 **IPv4 3개**를
-      커머스API센터 호출 IP 목록에 **전부 교체 등록**. (상세 = 2·3단계)
-      ⚠️ **네이버 IP 칸은 3개뿐이다 = 스테이징과 동시 운용 불가.** 이걸 바꾸는 순간
-      스테이징(FOMS-DEV) 수집은 403 으로 죽는다. 되돌리려면 IP 를 다시 갈아야 한다.
+- [x] **③ IP — 할 일 없음(2026-08-18 실측 확인)**. 운영 `WORKER` 와 스테이징 `worker` 의
+      static egress IP 가 **똑같다**: `208.77.246.240` · `.241` · `.242` (region `sin`,
+      zone `eqsg3a`). 이미 네이버에 등록된 3개가 그대로 운영에도 맞는다 —
+      **교체 불필요 · 스테이징과 동시 운용 가능**.
+      확인법: Railway GraphQL `egressGateways(environmentId, serviceId)` 를 두 worker 로 각각 조회.
+      ⚠️ 단, 운영 worker 의 **지역(region)이 바뀌면 IP 도 바뀐다.** 그때는 2·3단계로 재등록.
 - [ ] **④ 수집 켜기** — 같은 worker 에 `FOMS_NAVER_SYNC_ENABLED=1`. 저장하면 재시작 1~2분.
 - [ ] **확인** — 운영 `/admin/naver-ingest` 에서 **"지금 수집"** 1회 → "마지막 실행" 성공 표시.
       새 주문이 있으면 `/admin/naver-ingest/triage` 확인 큐에 뜬다.
