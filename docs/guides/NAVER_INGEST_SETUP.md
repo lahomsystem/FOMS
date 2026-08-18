@@ -10,6 +10,28 @@
 
 ---
 
+## 운영(production) 켜기 체크리스트 — PR #113 머지 직후 (2026-08-18)
+
+**순서대로**. 아래 상세 단계(1~5단계)는 스테이징 기준으로 쓰였고, 운영도 화면은 같다.
+Railway 프로젝트 이름만 **FOMS**(운영)인지 매번 눈으로 확인한다.
+
+- [ ] **① 계정 2개** — 운영 DB 로 `python scripts/maintenance/create_naver_ingest_accounts.py` 1회
+      (여러 번 돌려도 안전). 확인: `naver_ingest_bot` · `naver_unassigned` 2행.
+- [ ] **② 자격증명** — Railway **FOMS → worker → Variables** 에 `NAVER_COMMERCE_CLIENT_ID` ·
+      `NAVER_COMMERCE_CLIENT_SECRET`(`$2` 로 시작) · `NAVER_COMMERCE_APP_EXPIRES_ON`.
+      **web 아님, worker 다.** (상세 = 4단계)
+- [ ] **③ IP 교체** — FOMS worker 의 Static Outbound IP 를 켜고 나온 **IPv4 3개**를
+      커머스API센터 호출 IP 목록에 **전부 교체 등록**. (상세 = 2·3단계)
+      ⚠️ **네이버 IP 칸은 3개뿐이다 = 스테이징과 동시 운용 불가.** 이걸 바꾸는 순간
+      스테이징(FOMS-DEV) 수집은 403 으로 죽는다. 되돌리려면 IP 를 다시 갈아야 한다.
+- [ ] **④ 수집 켜기** — 같은 worker 에 `FOMS_NAVER_SYNC_ENABLED=1`. 저장하면 재시작 1~2분.
+- [ ] **확인** — 운영 `/admin/naver-ingest` 에서 **"지금 수집"** 1회 → "마지막 실행" 성공 표시.
+      새 주문이 있으면 `/admin/naver-ingest/triage` 확인 큐에 뜬다.
+
+**멈추고 싶으면** `FOMS_NAVER_SYNC_ENABLED=0` (배포 불필요, "지금 수집" 버튼은 계속 동작).
+
+---
+
 ## 왜 이 4가지가 필요한가 (1분 요약)
 
 네이버는 "**등록된 IP 에서, 맞는 열쇠로**" 부르는 요청만 받아 준다.
