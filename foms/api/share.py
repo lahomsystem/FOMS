@@ -375,6 +375,31 @@ _SMS_BUCKET_SECONDS = 5
 _SMS_KIND_LABEL = {'drawing': '도면', 'estimate': '견적서'}
 
 
+def _manager_sender_phone(order: Order) -> Optional[str]:
+    """주문 담당자(``manager_name``)와 이름이 일치하는 활성 사용자의 sender_phone.
+
+    동명이인은 id 오름차순 첫 등록자. 담당자 없음·미등록이면 ``None``.
+
+    Args:
+        order: 대상 주문.
+
+    Returns:
+        등록 발신번호 또는 ``None``.
+    """
+    manager = (order.manager_name or '').strip()
+    if not manager:
+        return None
+    matched = (
+        db_session.query(User)
+        .filter(User.name == manager, User.is_active.is_(True),
+                User.sender_phone.isnot(None))
+        .order_by(User.id.asc())
+        .first()
+    )
+    phone = ((matched.sender_phone if matched else None) or '').strip()
+    return phone or None
+
+
 def _resolve_sender(order: Order, brand: str) -> tuple[Optional[str], Optional[str]]:
     """발신번호 3단 우선순위 결정(T8.1 — 원장 '문자 발신번호 확정' 섹션이 정본).
 
@@ -391,18 +416,9 @@ def _resolve_sender(order: Order, brand: str) -> tuple[Optional[str], Optional[s
         ``(발신번호, 출처)`` — 출처는 ``manager``/``brand``/``legacy``.
         결정 불가면 ``(None, None)`` (호출자가 503 처리).
     """
-    manager = (order.manager_name or '').strip()
-    if manager:
-        matched = (
-            db_session.query(User)
-            .filter(User.name == manager, User.is_active.is_(True),
-                    User.sender_phone.isnot(None))
-            .order_by(User.id.asc())
-            .first()
-        )
-        phone = ((matched.sender_phone if matched else None) or '').strip()
-        if phone:
-            return phone, 'manager'
+    phone = _manager_sender_phone(order)
+    if phone:
+        return phone, 'manager'
     phone = ka._env(f'SOLAPI_SENDER_PHONE_{brand}')
     if phone:
         return phone, 'brand'
@@ -571,6 +587,150 @@ def api_share_send_sms(share_id: int):
         detail={'share_id': row.id, 'kind': row.kind, 'sent': error is None,
                 'error': error, 'to': ka._mask_phone(to_phone),
                 'sender_source': attempts[-1]['source'] if attempts else None, **context},
+    )
+    return _envelope({'sent': error is None, 'error': error}, error)
+
+
+def _share_alimtalk_variables(order: Order, *, kind: str, token: str,
+                              brand: str) -> dict[str, str]:
+    """공유 알림톡 템플릿 변수(심사 승인 템플릿과 1:1 — 빈값 금지 폴백 포함).
+
+    담당자/연락처 폴백 = "고객센터"/브랜드 대표번호(원장 결정 2026-08-13). 토큰은
+    버튼 WL ``https://<운영 도메인>/s/#{토큰}`` 의 경로 변수다.
+
+    Args:
+        order: 대상 주문.
+        kind: 공유 종류(drawing/estimate).
+        token: 토큰 원문(재해시 검증 완료 전제).
+        brand: :func:`ka.resolve_brand` 결과.
+
+    Returns:
+        ``{'#{고객명}': ..., ...}`` 치환 dict.
+    """
+    sd = order.structured_data or {}
+    customer = str(ka._node(sd, 'parties', 'customer').get('name') or '').strip() or '고객'
+    manager = (order.manager_name or '').strip() or '고객센터'
+    manager_phone = (
+        _manager_sender_phone(order)
+        or ka._env(f'SOLAPI_SENDER_PHONE_{brand}')
+        or ka._env('SOLAPI_SENDER_PHONE')
+        or '고객센터'
+    )
+    return {
+        '#{고객명}': customer,
+        '#{문서종류}': _SMS_KIND_LABEL.get(kind, '문서'),
+        '#{유효기간}': str(share_service.token_days()),
+        '#{담당자}': manager,
+        '#{담당자연락처}': manager_phone,
+        '#{토큰}': token,
+    }
+
+
+@share_api_bp.route('/send-alimtalk/<int:share_id>', methods=['POST'])
+@login_required
+@role_required(_SHARE_ROLES)
+def api_share_send_alimtalk(share_id: int):
+    """공유 링크 알림톡 발송 — 발급 직후 화면에서만 가능(send-sms 와 대칭).
+
+    body ``{'token': <원문>}`` 재해시 검증 후 심사 승인 템플릿
+    (``SOLAPI_TEMPLATE_SHARE_ID_{brand}``)으로 발송한다. 발신번호는 T8.1 3단
+    우선순위(:func:`_resolve_sender`) — Solapi 가 알림톡 실패 시 이 번호로 SMS
+    대체발송(failover)한다(담당자 번호 발신 요구). 멱등 = 선점 insert +
+    ``share_alimtalk:{share_id}:{bucket}`` UNIQUE(409).
+
+    Args:
+        share_id: 대상 공유 row id (URL).
+
+    Returns:
+        성공/벤더 실패 모두 200 + ``data={'sent', 'error'}``. 중복 409,
+        토큰 불일치 400, 죽은 링크 410, 미설정 503.
+    """
+    row = db_session.get(OrderShareToken, share_id)
+    if row is None:
+        return _envelope(None, 'share_not_found', 404)
+
+    token = str((request.get_json(silent=True) or {}).get('token') or '')
+    if not token or share_service.hash_token(token) != row.token_hash:
+        return _envelope(None, 'token_mismatch', 400)
+
+    _, code = share_service.verify_token(db_session, token)
+    if code != share_service.VERIFY_OK:
+        return _envelope(None, f'share_{code}', 410)
+
+    order = (
+        db_session.query(Order)
+        .filter(Order.id == row.order_id, Order.active_filter())
+        .one_or_none()
+    )
+    if order is None:
+        return _envelope(None, 'order_not_found', 404)
+
+    to_phone = ka.extract_valid_phone(order.structured_data or {})
+    if not to_phone:
+        return _envelope(None, 'no_valid_phone', 400)
+
+    actor_user_id = session.get('user_id')
+    brand = ka.resolve_brand(order.structured_data or {})
+    pf_id = ka._env(f'SOLAPI_PF_ID_{brand}')
+    template_id = ka._env(f'SOLAPI_TEMPLATE_SHARE_ID_{brand}')
+    from_phone, sender_source = _resolve_sender(order, brand)
+    if not (pf_id and template_id and from_phone):
+        return _envelope(None, 'not_configured', 503)
+
+    variables = _share_alimtalk_variables(order, kind=row.kind, token=token, brand=brand)
+
+    # --- 선점 insert (send-sms 와 동일 계약 — 벤더 호출 전 commit) ---
+    bucket = int(time.time()) // _SMS_BUCKET_SECONDS
+    event = OrderEvent(
+        order_id=order.id,
+        event_type='SHARE_ALIMTALK',
+        payload={'share_id': row.id, 'kind': row.kind, 'status': 'in_flight',
+                 'sent_by': actor_user_id},
+        created_by_user_id=actor_user_id,
+    )
+    try:
+        db_session.add(event)
+        db_session.flush()
+        outbox_row = enqueue_side_effect(
+            db_session,
+            source_domain='ORDER_EVENT',
+            source_id=event.id,
+            effect_type='SHARE_ALIMTALK',
+            # 토큰 원문 미격납(bearer) — 동기 전용, 워커 재발송 금지(send-sms 계약 동일).
+            payload={'share_id': row.id, 'order_id': order.id, 'sync_only': True},
+            dedupe_key=f'share_alimtalk:{row.id}:{bucket}',
+        )
+        db_session.commit()
+    except IntegrityError:
+        db_session.rollback()
+        return _envelope(None, 'duplicate_send', 409)
+
+    # --- 동기 발송 — 알림톡 실패 시 Solapi failover 가 from_ 번호로 SMS 대체발송 ---
+    error: Optional[str] = None
+    try:
+        ka._solapi_send(to=to_phone, from_=from_phone, pf_id=pf_id,
+                        template_id=template_id, variables=variables)
+    except Exception as exc:  # 벤더/네트워크 실패 분류 — 조용한 실패 금지
+        error = ka._classify_error(exc)
+        logger.warning('공유 알림톡 발송 실패: share_id=%s source=%s error=%s (%s)',
+                       row.id, sender_source, error, exc)
+
+    event.payload = {**(event.payload or {}), 'status': 'sent' if error is None else 'failed',
+                     'error': error, 'sender_source': sender_source}
+    flag_modified(event, 'payload')
+    outbox_row.status = 'DONE'
+    outbox_row.completed_at = now_utc_naive()
+    db_session.commit()
+
+    context = order_audit_context(order)
+    log_access(
+        describe_order_action(order_id=order.id, action='SHARE_ALIMTALK_SENT',
+                              note=None if error is None else f'실패: {error}', **context),
+        actor_user_id,
+        action='SHARE_ALIMTALK_SENT', target_type='order', target_id=int(order.id),
+        detail={'share_id': row.id, 'kind': row.kind, 'sent': error is None,
+                'error': error, 'to': ka._mask_phone(to_phone),
+                'sender_source': sender_source, **context},
     )
     return _envelope({'sent': error is None, 'error': error}, error)
 

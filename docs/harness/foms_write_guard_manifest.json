@@ -3,7 +3,7 @@
   "guard": "CSRF_TOKEN+ORIGIN",
   "description": "WRITE-GUARD-01 정본: 모든 cookie-auth state-changing route 의 write_guard metadata. mode=guard 는 공용 CSRF+Origin before_request 가드(enforce_csrf_origin) 적용, mode=exempt 는 자기 정책(서명/ingest/anon)으로 명시 우회. url_map 의 모든 POST/PUT/PATCH/DELETE endpoint 가 여기 등재되어야 하며 누락은 static gate fail(fail-safe: 미등재 endpoint 는 런타임에서 guard).",
   "exempt_count": 7,
-  "guard_count": 170,
+  "guard_count": 171,
   "routes": {
     "admin.ops_approval_review": {
       "mode": "guard",
@@ -17,6 +17,10 @@
       "mode": "guard",
       "rule": "/api/upload-drafts/<int:draft_id>/cancel"
     },
+    "attachments.api_complete_upload_ticket": {
+      "mode": "guard",
+      "rule": "/api/upload-tickets/<int:ticket_id>/complete"
+    },
     "attachments.api_create_upload_draft": {
       "mode": "guard",
       "rule": "/api/orders/<int:order_id>/upload-drafts"
@@ -24,6 +28,10 @@
     "attachments.api_finalize_upload_draft": {
       "mode": "guard",
       "rule": "/api/upload-drafts/<int:draft_id>/finalize"
+    },
+    "attachments.api_issue_upload_ticket": {
+      "mode": "guard",
+      "rule": "/api/orders/<int:order_id>/upload-tickets"
     },
     "attachments.api_order_attachments_complete": {
       "mode": "guard",
@@ -33,13 +41,13 @@
       "mode": "guard",
       "rule": "/api/orders/<int:order_id>/attachments/<int:attachment_id>"
     },
-    "attachments.api_order_attachments_restore": {
-      "mode": "guard",
-      "rule": "/api/orders/<int:order_id>/attachments/<int:attachment_id>/restore"
-    },
     "attachments.api_order_attachments_patch": {
       "mode": "guard",
       "rule": "/api/orders/<int:order_id>/attachments/<int:attachment_id>"
+    },
+    "attachments.api_order_attachments_restore": {
+      "mode": "guard",
+      "rule": "/api/orders/<int:order_id>/attachments/<int:attachment_id>/restore"
     },
     "attachments.api_order_attachments_upload": {
       "mode": "guard",
@@ -211,21 +219,57 @@
       "mode": "guard",
       "rule": "/api/erp/order-draft/attachments"
     },
+    "erp_orders_as.api_as_billing": {
+      "mode": "guard",
+      "rule": "/api/orders/<int:order_id>/as/billing"
+    },
+    "erp_orders_as.api_as_classification": {
+      "mode": "guard",
+      "rule": "/api/orders/<int:order_id>/as/classification"
+    },
     "erp_orders_as.api_as_complete": {
       "mode": "guard",
       "rule": "/api/orders/<int:order_id>/as/complete"
+    },
+    "erp_orders_as.api_as_log_append": {
+      "mode": "guard",
+      "rule": "/api/orders/<int:order_id>/as/log"
+    },
+    "erp_orders_as.api_as_log_delete": {
+      "mode": "guard",
+      "rule": "/api/orders/<int:order_id>/as/log/<log_id>/delete"
+    },
+    "erp_orders_as.api_as_log_patch": {
+      "mode": "guard",
+      "rule": "/api/orders/<int:order_id>/as/log/<log_id>"
     },
     "erp_orders_as.api_as_register": {
       "mode": "guard",
       "rule": "/api/orders/<int:order_id>/as/register"
     },
+    "erp_orders_as.api_as_reopen": {
+      "mode": "guard",
+      "rule": "/api/orders/<int:order_id>/as/reopen"
+    },
     "erp_orders_as.api_as_schedule": {
       "mode": "guard",
       "rule": "/api/orders/<int:order_id>/as/schedule"
     },
+    "erp_orders_as.api_as_schedule_link": {
+      "mode": "guard",
+      "rule": "/api/orders/<int:order_id>/as/schedule-link"
+    },
     "erp_orders_as.api_as_start": {
       "mode": "guard",
       "rule": "/api/orders/<int:order_id>/as/start"
+    },
+    "erp_orders_as.api_as_unschedule": {
+      "mode": "guard",
+      "rule": "/api/orders/<int:order_id>/as/unschedule"
+    },
+    "erp_orders_as.api_as_verdict": {
+      "mode": "guard",
+      "rule": "/api/orders/<int:order_id>/as/verdict"
     },
     "erp_orders_blueprint.api_blueprint_complete": {
       "mode": "guard",
@@ -331,6 +375,10 @@
       "mode": "guard",
       "rule": "/api/orders/<int:order_id>/drawing-wizard"
     },
+    "erp_orders_production.api_production_cancel": {
+      "mode": "guard",
+      "rule": "/api/orders/<int:order_id>/production/cancel"
+    },
     "erp_orders_production.api_production_change_ack": {
       "mode": "guard",
       "rule": "/api/orders/<int:order_id>/production/change-ack"
@@ -358,6 +406,10 @@
     "erp_orders_production.api_production_steps": {
       "mode": "guard",
       "rule": "/api/orders/<int:order_id>/production/steps"
+    },
+    "erp_orders_production.api_production_uncomplete": {
+      "mode": "guard",
+      "rule": "/api/orders/<int:order_id>/production/uncomplete"
     },
     "erp_orders_production.api_set_logistics_status": {
       "mode": "guard",
@@ -455,18 +507,6 @@
     "kakao.api_alimtalk_send_manual": {
       "mode": "guard",
       "rule": "/api/kakao/alimtalk/send-manual/<int:order_id>"
-    },
-    "share_api.api_share_create": {
-      "mode": "guard",
-      "rule": "/api/share/create/<int:order_id>"
-    },
-    "share_api.api_share_revoke": {
-      "mode": "guard",
-      "rule": "/api/share/revoke/<int:share_id>"
-    },
-    "share_api.api_share_send_sms": {
-      "mode": "guard",
-      "rule": "/api/share/send-sms/<int:share_id>"
     },
     "notifications.api_notification_ack": {
       "mode": "guard",
@@ -580,6 +620,26 @@
       "mode": "guard",
       "rule": "/api/orders/<int:order_id>/quest/status"
     },
+    "share_api.api_share_create": {
+      "mode": "guard",
+      "rule": "/api/share/create/<int:order_id>"
+    },
+    "share_api.api_share_revoke": {
+      "mode": "guard",
+      "rule": "/api/share/revoke/<int:share_id>"
+    },
+    "share_api.api_share_send_alimtalk": {
+      "mode": "guard",
+      "rule": "/api/share/send-alimtalk/<int:share_id>"
+    },
+    "share_api.api_share_send_sms": {
+      "mode": "guard",
+      "rule": "/api/share/send-sms/<int:share_id>"
+    },
+    "storage_dashboard.update_storage_field": {
+      "mode": "guard",
+      "rule": "/api/storage_dashboard/order/<int:order_id>/field"
+    },
     "tasks.api_order_tasks_create": {
       "mode": "guard",
       "rule": "/api/orders/<int:order_id>/tasks"
@@ -663,62 +723,6 @@
     "wdcalculator.api_wdcalculator_unmatch_order": {
       "mode": "guard",
       "rule": "/api/wdcalculator/unmatch-order"
-    },
-    "storage_dashboard.update_storage_field": {
-      "mode": "guard",
-      "rule": "/api/storage_dashboard/order/<int:order_id>/field"
-    },
-    "attachments.api_issue_upload_ticket": {
-      "mode": "guard",
-      "rule": "/api/orders/<int:order_id>/upload-tickets"
-    },
-    "attachments.api_complete_upload_ticket": {
-      "mode": "guard",
-      "rule": "/api/upload-tickets/<int:ticket_id>/complete"
-    },
-    "erp_orders_as.api_as_unschedule": {
-      "mode": "guard",
-      "rule": "/api/orders/<int:order_id>/as/unschedule"
-    },
-    "erp_orders_as.api_as_reopen": {
-      "mode": "guard",
-      "rule": "/api/orders/<int:order_id>/as/reopen"
-    },
-    "erp_orders_as.api_as_classification": {
-      "mode": "guard",
-      "rule": "/api/orders/<int:order_id>/as/classification"
-    },
-    "erp_orders_as.api_as_billing": {
-      "mode": "guard",
-      "rule": "/api/orders/<int:order_id>/as/billing"
-    },
-    "erp_orders_as.api_as_log_append": {
-      "mode": "guard",
-      "rule": "/api/orders/<int:order_id>/as/log"
-    },
-    "erp_orders_as.api_as_log_delete": {
-      "mode": "guard",
-      "rule": "/api/orders/<int:order_id>/as/log/<log_id>/delete"
-    },
-    "erp_orders_as.api_as_log_patch": {
-      "mode": "guard",
-      "rule": "/api/orders/<int:order_id>/as/log/<log_id>"
-    },
-    "erp_orders_as.api_as_schedule_link": {
-      "mode": "guard",
-      "rule": "/api/orders/<int:order_id>/as/schedule-link"
-    },
-    "erp_orders_as.api_as_verdict": {
-      "mode": "guard",
-      "rule": "/api/orders/<int:order_id>/as/verdict"
-    },
-    "erp_orders_production.api_production_cancel": {
-      "mode": "guard",
-      "rule": "/api/orders/<int:order_id>/production/cancel"
-    },
-    "erp_orders_production.api_production_uncomplete": {
-      "mode": "guard",
-      "rule": "/api/orders/<int:order_id>/production/uncomplete"
     }
   }
 }
