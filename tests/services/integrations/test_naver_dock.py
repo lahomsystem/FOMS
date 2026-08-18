@@ -172,6 +172,33 @@ def test_width_hint_flags_spec_mismatch():
     assert any("몰딩" in line for line in hint["mismatch"])
 
 
+def test_width_hint_axis_reads_option_over_product_line_name():
+    """상품 라인 이름의 '무몰딩' 이 고객이 고른 옵션 '몰딩' 을 이기면 안 된다.
+
+    2026-08-18 스테이징 실측: 본품 상품명은 '라홈 무몰딩 붙박이장 ...' 인데 옵션은
+    '제품: 로라 몰딩 여닫이 30cm' 다. 본품·추가가 둘 다 몰딩인데 경고가 떴다(오탐).
+    """
+    main = _row("라홈 무몰딩 붙박이장 로라 시리즈 30cm 푸쉬타입 친환경 E0",
+                option="제품: 로라 몰딩 여닫이 30cm / 컬러: 화이트 / 손잡이: 푸쉬타입",
+                quantity=10)
+    addon = _row("로라 몰딩 여닫이 (푸쉬) 1cm",
+                 option="길이추가(1cm): 로라 몰딩 여닫이 (푸쉬) 1cm",
+                 quantity=24, role="addon")
+    hint = build_width_hint(main, [addon])
+    assert hint["total_mm"] == 3240
+    assert hint["mismatch"] == []
+
+
+def test_width_hint_still_flags_real_axis_mismatch_from_option():
+    """진짜 불일치는 옵션 원문에서 그대로 검출된다(문 방식 축)."""
+    main = _row("라홈 로라 붙박이장 30cm",
+                option="제품: 로라 무몰딩 여닫이 30cm / 손잡이: 푸쉬타입", quantity=10)
+    addon = _row("보테가 슬라이딩 1cm",
+                 option="길이추가(1cm): 보테가 슬라이딩 1cm", quantity=5, role="addon")
+    hint = build_width_hint(main, [addon])
+    assert any("문 방식" in line for line in hint["mismatch"])
+
+
 def test_width_hint_none_when_no_length_in_source():
     """길이를 못 읽으면 틀린 숫자를 만들지 않는다 — 힌트 자체를 안 준다."""
     assert build_width_hint(_row("붙박이장 세트", option="색상: 화이트"), []) is None
