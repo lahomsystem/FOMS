@@ -15,8 +15,8 @@ from models import ExternalOrderLink, SecurityLog
 
 
 def _link(external_id: str = "PO-1", status: str = "LINKED", **kwargs) -> ExternalOrderLink:
+    kwargs.setdefault("raw_snapshot", {"productOrder": {"productOrderId": external_id}})
     link = ExternalOrderLink(channel="NAVER", external_id=external_id, sync_status=status,
-                             raw_snapshot={"productOrder": {"productOrderId": external_id}},
                              **kwargs)
     db_session.add(link)
     db_session.commit()
@@ -72,6 +72,42 @@ def test_unknown_status_filter_is_ignored_not_queried(auth_client):
     _link("PO-1", "LINKED")
     body = auth_client.get("/admin/naver-ingest?status=DROP%20TABLE").get_data(as_text=True)
     assert "PO-1" in body
+
+
+def test_history_groups_one_household_into_one_row(auth_client):
+    """T14-H: 같은 네이버 주문번호는 이력에서도 한 줄로 묶인다."""
+    _link("PO-G1", "COLLECTED", external_order_no="N-500",
+          raw_snapshot={"order": {"orderId": "N-500"},
+                        "productOrder": {"productOrderId": "PO-G1", "productName": "본품",
+                                         "totalPaymentAmount": 900000}})
+    _link("PO-G2", "COLLECTED", external_order_no="N-500",
+          raw_snapshot={"order": {"orderId": "N-500"},
+                        "productOrder": {"productOrderId": "PO-G2", "productName": "옵션",
+                                         "totalPaymentAmount": 10000}})
+
+    body = auth_client.get("/admin/naver-ingest").get_data(as_text=True)
+    assert "외 1건" in body
+    # 대표(금액 최대)가 제목이고, 구성은 펼침 영역에 들어간다.
+    assert "본품" in body and 'id="naver-hist-' in body
+    # 금액은 묶음 합계.
+    assert "910,000" in body
+
+
+def test_history_filter_keeps_sibling_rows_of_the_group(auth_client):
+    """상태 필터는 묶음 선정에만 쓴다 — 문제 난 집의 다른 줄도 함께 보여야 맥락이 산다."""
+    _link("PO-OK", "LINKED", external_order_no="N-501",
+          raw_snapshot={"order": {"orderId": "N-501"},
+                        "productOrder": {"productOrderId": "PO-OK", "productName": "정상 본품",
+                                         "totalPaymentAmount": 500000}})
+    _link("PO-BAD", "FAILED", external_order_no="N-501", failure_reason="HTTP 500",
+          raw_snapshot={"order": {"orderId": "N-501"},
+                        "productOrder": {"productOrderId": "PO-BAD", "productName": "실패 구성",
+                                         "totalPaymentAmount": 1000}})
+
+    body = auth_client.get("/admin/naver-ingest?status=FAILED").get_data(as_text=True)
+    assert "PO-BAD" in body
+    assert "PO-OK" in body          # 같은 집의 정상 줄도 보인다
+    assert "HTTP 500" in body
 
 
 def test_watermark_and_last_error_are_visible(auth_client):

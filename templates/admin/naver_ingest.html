@@ -92,8 +92,8 @@
             <table class="table table-sm table-hover align-middle mb-0">
                 <thead class="table-light">
                     <tr>
+                        <th style="width: 2rem;"></th>
                         <th>수집 시각</th>
-                        <th>상품주문번호</th>
                         <th>주문번호</th>
                         <th>상태</th>
                         <th>고객</th>
@@ -102,34 +102,54 @@
                         <th class="text-end">금액</th>
                         <th>결제</th>
                         <th class="text-end">할인</th>
-                        <th>옵션 원문</th>
                         <th>FOMS 주문</th>
                         <th>사유</th>
-                        <th>원본</th>
                     </tr>
                 </thead>
+                {# T14-H: 한 집 = 한 줄. 상품주문별 상세는 접어 두고 눌러서 편다.
+                   페이지는 묶음 단위로 세므로 페이지 끝에서 한 집이 쪼개지지 않는다. #}
                 <tbody>
                     {% for row in rows %}
                     <tr>
-                        <td class="text-nowrap small">{{ row.created_at }}</td>
-                        <td class="small">{{ row.external_id }}</td>
-                        <td class="small text-muted">{{ row.external_order_no or '-' }}</td>
                         <td>
-                            {% if row.sync_status == 'COLLECTED' %}
+                            {% if row.extra_count %}
+                            <button class="btn btn-sm btn-link p-0 text-decoration-none" type="button"
+                                    data-bs-toggle="collapse" data-bs-target="#naver-hist-{{ row.id }}"
+                                    aria-expanded="false" aria-controls="naver-hist-{{ row.id }}"
+                                    aria-label="상품주문 펼치기">
+                                <i class="fas fa-caret-down"></i>
+                            </button>
+                            {% endif %}
+                        </td>
+                        <td class="text-nowrap small">{{ row.created_at }}</td>
+                        <td class="small text-muted">
+                            {{ row.external_order_no or '-' }}
+                            {# 단독 묶음(주문번호 없는 실패 건 포함)도 추적할 수 있게 대표 상품주문번호를 남긴다. #}
+                            <div class="text-muted" style="font-size: .72rem;">{{ row.external_id }}</div>
+                        </td>
+                        <td>
+                            {% for st in row.statuses %}
+                            {% if st == 'COLLECTED' %}
                             <span class="badge bg-primary">수집됨(주문 전)</span>
-                            {% elif row.sync_status == 'LINKED' %}
+                            {% elif st == 'LINKED' %}
                             <span class="badge bg-success">주문 생성됨</span>
-                            {% elif row.sync_status == 'PENDING_REVIEW' %}
+                            {% elif st == 'PENDING_REVIEW' %}
                             <span class="badge bg-warning text-dark">확인 필요</span>
                             {% else %}
                             <span class="badge bg-danger">실패</span>
                             {% endif %}
+                            {% endfor %}
                             {% if row.claim_label %}
                             <span class="badge bg-danger">{{ row.claim_label }}</span>
                             {% endif %}
                         </td>
                         <td class="small">{{ row.customer_name or '-' }}</td>
-                        <td class="small">{{ row.product or '-' }}</td>
+                        <td class="small">
+                            {{ row.product or '-' }}
+                            {% if row.extra_count %}
+                            <span class="badge bg-secondary">외 {{ row.extra_count }}건</span>
+                            {% endif %}
+                        </td>
                         <td class="small text-end">{{ row.quantity if row.quantity is not none else '-' }}</td>
                         <td class="small text-end">{{ '{:,}'.format(row.amount) if row.amount is not none else '-' }}</td>
                         <td class="small text-muted">
@@ -137,19 +157,21 @@
                             {% if row.payment.means %}<br>{{ row.payment.means }}{% endif %}
                         </td>
                         <td class="small text-end">
-                            {{ '{:,}'.format(row.payment.discount) if row.payment.discount else '-' }}
+                            {{ '{:,}'.format(row.discount_total) if row.discount_total else '-' }}
                         </td>
-                        <td class="small text-muted" style="max-width: 22rem;">{{ row.options or '-' }}</td>
                         <td>
                             {% if row.order_id %}
                             <a href="{{ url_for('order_edit.edit_order', order_id=row.order_id, open='erp-order') }}"
                                class="small">#{{ row.order_id }}</a>
-                            {% elif row.sync_status in ('COLLECTED', 'PENDING_REVIEW') %}
+                            {% if row.next_step == '규격 입력' %}
+                            <div class="small text-primary">규격 입력</div>
+                            {% endif %}
+                            {% elif row.pending_link_id %}
                             <button type="button" class="btn btn-sm btn-primary naver-create-order-btn"
-                                    data-link-id="{{ row.id }}">주문 만들기</button>
-                            {% if row.group_size and row.group_size > 1 %}
-                            <div class="small text-muted mt-1" title="같은 네이버 주문번호·같은 수취인 주소">
-                                같은 주문 {{ row.group_size }}건이 하나로 묶입니다
+                                    data-link-id="{{ row.pending_link_id }}">주문 만들기</button>
+                            {% if row.pending_count > 1 %}
+                            <div class="small text-muted mt-1" title="같은 네이버 주문번호로 함께 묶입니다">
+                                상품주문 {{ row.pending_count }}건이 하나로 묶입니다
                             </div>
                             {% endif %}
                             {% else %}
@@ -157,11 +179,36 @@
                             {% endif %}
                         </td>
                         <td class="small text-danger">{{ row.failure_reason or '' }}</td>
-                        <td>
-                            <button type="button" class="btn btn-sm btn-outline-secondary naver-snapshot-btn"
-                                    data-link-id="{{ row.id }}">원본</button>
+                    </tr>
+                    {% if row.extra_count %}
+                    <tr class="collapse" id="naver-hist-{{ row.id }}">
+                        <td colspan="12" class="bg-light">
+                            <table class="table table-sm mb-0">
+                                <tbody>
+                                    {% for member in row.members %}
+                                    <tr>
+                                        <td class="small text-muted" style="width: 12rem;">{{ member.external_id }}</td>
+                                        <td class="small">{{ member.product or '-' }}</td>
+                                        <td class="small text-muted" style="max-width: 20rem;">{{ member.options or '-' }}</td>
+                                        <td class="small text-end" style="width: 5rem;">
+                                            {{ member.quantity if member.quantity is not none else '-' }}
+                                        </td>
+                                        <td class="small text-end" style="width: 8rem;">
+                                            {{ '{:,}'.format(member.amount) if member.amount is not none else '-' }}
+                                        </td>
+                                        <td class="small text-danger">{{ member.failure_reason or '' }}</td>
+                                        <td style="width: 5rem;">
+                                            <button type="button" class="btn btn-sm btn-outline-secondary naver-snapshot-btn"
+                                                    data-link-id="{{ member.id }}">원본</button>
+                                        </td>
+                                    </tr>
+                                    {% endfor %}
+                                </tbody>
+                            </table>
                         </td>
                     </tr>
+                    {% else %}
+                    {% endif %}
                     {% else %}
                     <tr>
                         <td colspan="12" class="text-center text-muted py-4">수집 이력이 없습니다.</td>

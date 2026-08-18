@@ -112,16 +112,57 @@ def _expiry_view(db) -> dict[str, Any]:
     }
 
 
+def _history_group_key(link: ExternalOrderLink) -> str:
+    """이력 표의 페이지·묶음 키 — 네이버 주문번호(없으면 링크 단독).
+
+    확인 화면(:func:`_group_queue`)은 분할배송까지 갈라내는 세밀한 키를 쓰지만, 이력은
+    **페이지 경계에서 한 집이 쪼개지지 않는 것**이 목적이라 SQL 로 셀 수 있는 주문번호를 쓴다.
+    """
+    return (link.external_order_no or "").strip() or f"link:{link.id}"
+
+
 def _link_rows(db, *, status: Optional[str], page: int) -> tuple[list[dict], int]:
-    """수집 이력 페이지와 전체 건수를 준다(주문 조인은 필요한 것만)."""
-    query = db.query(ExternalOrderLink).filter(ExternalOrderLink.channel == "NAVER")
+    """수집 이력을 **한 집 = 한 줄**로 묶어 돌려준다(T14-H).
+
+    페이지는 묶음(네이버 주문번호) 단위로 센다 — 상품주문 단위로 자르면 페이지 끝에서 한
+    집의 일부만 보인다. 상태 필터는 **묶음 선정에만** 쓰고, 뽑힌 묶음의 상품주문은 상태와
+    무관하게 전부 싣는다(2026-08-18 사용자 확정: "해당 줄이 하나라도 있으면 보이기" —
+    문제가 어느 집에서 났는지 맥락까지 보여야 한다).
+
+    Returns:
+        ``(묶음 목록, 묶음 총 개수)``.
+    """
+    from sqlalchemy import String, cast, func, literal
+
+    key_col = func.coalesce(
+        func.nullif(ExternalOrderLink.external_order_no, ""),
+        literal("link:") + cast(ExternalOrderLink.id, String),
+    ).label("gk")
+
+    key_query = (
+        db.query(key_col, func.max(ExternalOrderLink.created_at).label("last_at"))
+        .filter(ExternalOrderLink.channel == "NAVER")
+    )
     if status in VALID_STATUSES:
-        query = query.filter(ExternalOrderLink.sync_status == status)
-    total = query.count()
-    links = (
-        query.order_by(ExternalOrderLink.created_at.desc(), ExternalOrderLink.id.desc())
+        key_query = key_query.filter(ExternalOrderLink.sync_status == status)
+    key_query = key_query.group_by(key_col)
+
+    total = key_query.count()
+    page_keys = [
+        row[0] for row in key_query.order_by(func.max(ExternalOrderLink.created_at).desc(),
+                                             key_col.desc())
         .offset((page - 1) * PAGE_SIZE)
         .limit(PAGE_SIZE)
+        .all()
+    ]
+    if not page_keys:
+        return ([], total)
+
+    links = (
+        db.query(ExternalOrderLink)
+        .filter(ExternalOrderLink.channel == "NAVER",
+                key_col.in_(page_keys))  # perf-ok: 페이지 키 batch(최대 PAGE_SIZE)
+        .order_by(ExternalOrderLink.created_at.desc(), ExternalOrderLink.id.desc())
         .all()
     )
     order_ids = [int(link.order_id) for link in links if link.order_id]
@@ -148,13 +189,18 @@ def _link_rows(db, *, status: Optional[str], page: int) -> tuple[list[dict], int
         )
         pending_group_counts = {no: int(cnt) for no, cnt in rows_group}
 
-    rows = []
+    members: dict[str, list[dict]] = {}
+    order_of_key: list[str] = []
     for link in links:
         order = orders.get(int(link.order_id)) if link.order_id else None
         # 주문이 아직 없는 수집분(COLLECTED)은 원본 스냅샷에서 표시값을 뽑는다 —
         # 사람이 무엇을 받았는지 보고 "주문 만들기"를 누를지 판단해야 하기 때문이다.
         summary = summarize_snapshot(link.raw_snapshot)
-        rows.append({
+        key = _history_group_key(link)
+        if key not in members:
+            members[key] = []
+            order_of_key.append(key)
+        members[key].append({
             "id": link.id,
             "external_id": link.external_id,
             "external_order_no": link.external_order_no,
@@ -168,11 +214,49 @@ def _link_rows(db, *, status: Optional[str], page: int) -> tuple[list[dict], int
             "quantity": summary["quantity"],
             "amount": summary["amount"],
             "order_date": summary["order_date"],
-            "group_size": pending_group_counts.get(link.external_order_no or "", 1),
-            # 정산 확인용(T14-F) — 결제일·수단과 할인/쿠폰 합계. 원본에서 읽으므로
-            # 과거 수집분도 재처리 없이 보인다.
             "payment": _payment_summary(link.raw_snapshot),
             "claim_label": summary["claim_label"],
+            "_order": order,
+        })
+
+    rows = []
+    for key in order_of_key:
+        group = members[key]
+        # 대표(본품) = 금액 최대. 0원 구성이 제목이 되면 무슨 주문인지 알 수 없다.
+        lead = max(group, key=lambda row: (row["amount"] or 0, -row["id"]))
+        rest = [row for row in group if row["id"] != lead["id"]]
+        amounts = [row["amount"] for row in group if row["amount"] is not None]
+        quantities = [row["quantity"] for row in group if row["quantity"] is not None]
+        pending = [row for row in group if not row["order_id"]
+                   and row["sync_status"] in ("COLLECTED", "PENDING_REVIEW")]
+        lead_order = lead["_order"]
+        rows.append({
+            "id": lead["id"],
+            "external_id": lead["external_id"],
+            "external_order_no": lead["external_order_no"],
+            "sync_status": lead["sync_status"],
+            "created_at": lead["created_at"],
+            "order_id": lead["order_id"],
+            "customer_name": lead["customer_name"],
+            "product": lead["product"],
+            "quantity": sum(quantities) if quantities else None,
+            "amount": sum(amounts) if amounts else None,
+            "payment": lead["payment"],
+            "discount_total": sum(row["payment"]["discount"] for row in group),
+            "claim_label": next((row["claim_label"] for row in group if row["claim_label"]), ""),
+            "failure_reason": next((row["failure_reason"] for row in group
+                                    if row["failure_reason"]), ""),
+            "count": len(group),
+            "extra_count": len(rest),
+            # 묶음 안 상태를 중복 없이(표시 순서 유지) — 한 집에 성공/실패가 섞일 수 있다.
+            "statuses": list(dict.fromkeys(row["sync_status"] for row in group)),
+            "pending_link_id": pending[0]["id"] if pending else None,
+            "pending_count": len(pending),
+            "next_step": ("주문 만들기" if pending
+                          else ("규격 입력" if lead["order_id"]
+                                and not order_has_spec_rows(lead_order) else "")),
+            # 펼침 목록도 대표 먼저(map_group·도크·확인 화면과 같은 순서 규칙).
+            "members": [lead, *rest],
         })
     return (rows, total)
 
