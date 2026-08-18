@@ -35,7 +35,6 @@ from foms.services.request_utils import get_search_query_arg
 
 erp_history_bp = Blueprint('erp_history', __name__, url_prefix='/erp/history')
 
-_HISTORY_DASHBOARD_DAYS = 60
 _QUEUE_BLANK = ("", "-", None)
 
 
@@ -112,7 +111,12 @@ def history_dashboard():
     # soft-delete 제외한 활성 주문 전체 (레거시 + ERP Order).
     # ERP Order는 DB 컬럼이 초안 플레이스홀더('ERP Order', 000-…)인 채로 두고 실제 값이 structured_data에만
     # 있는 경우가 많음 → 목록 표시 시 apply_erp_display_fields로 동기화(메인 주문 목록과 동일).
-    _q = db.query(Order).filter(Order.dashboard_active_filter(days=_HISTORY_DASHBOARD_DAYS))
+    #
+    # 스코프 = active_filter (전기간). 이력 화면은 "과거 이력 조회"가 목적이므로 운영 대시보드용
+    # dashboard_active_filter(완료 후 60일 경과 주문 제외)를 쓰면 안 된다 — 8ffc9c4a(tail latency
+    # 수정)에서 잘못 적용돼 오래 전 완료된 주문이 이력 검색에서만 사라지는 회귀가 있었다
+    # (전체 주문 목록 listing.py는 active_filter라 거기선 검색됨). Full Scan은 has_filter 게이트가 막는다.
+    _q = db.query(Order).filter(Order.active_filter())
 
     if mine_only and user:
         mine_conds = build_mine_sql_filter(user)
@@ -166,7 +170,8 @@ def history_dashboard():
             "role": getattr(user, "role", None) if user else None,
             "team": getattr(user, "team", None) if user else None,
             "mine": bool(mine_only),
-            "days": _HISTORY_DASHBOARD_DAYS,
+            "scope": "active_all",  # 60일 창 제거 — 옛 캐시 blob 무효화 겸 스코프 표식
+
             "q": f_q or "",
             "stage": f_stage or "",
             "from": f_date_from or "",
