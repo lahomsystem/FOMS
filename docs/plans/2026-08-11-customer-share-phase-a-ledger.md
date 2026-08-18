@@ -40,20 +40,14 @@
 - [x] 실측 예약 알림톡 템플릿 2건 **APPROVED** (2026-08-13 카카오 검수 승인 — 라홈 `KA01TP260811082027608jiKgfLV0q0O`·하우드 `KA01TP260811075557060ljaBmPYcckr`). 알림톡 v1 가동 잔여 = PF/템플릿 env 등록 + `FOMS_ALIMTALK_AUTO_ENABLED` 결정.
 - [~] **공유 링크 알림톡 템플릿 2건 심사 제출** (2026-08-13 Solapi API로 등록·INSPECTING — 라홈 `KA01TP260813084939252sAF8ck1asOu`·하우드 `KA01TP260813084949809PEw5FMEvNmR`, 카테고리 005003 계약/견적): 변수 고객명·문서종류·유효기간·담당자·담당자연락처·토큰, WL 버튼 `https://lahom-production.up.railway.app/s/#{토큰}` + 상담톡 BC. 채널별 고정 인사말(라홈/하우드입니다)로 브랜드 분기(코드는 resolve_brand로 채널 선택). **승인 후 잔여**: 공유 모달 알림톡 발송 배선 — 반나절. **폴백 규칙(사용자 결정 2026-08-13)**: 알림톡 발송 실패 시 SMS 폴백은 기존 send-sms 경로(T8.1 발신 3단 — ①담당자 sender_phone → ②브랜드 대표 → ③백업) 재사용 = 담당자 지정 시 담당자 번호 발신. 영업 개인번호 Solapi 등록 전까지는 ①이 항상 스킵돼 브랜드 대표로 나감(등록 즉시 자동 전환, 코드 무변경). 템플릿 변수 담당자/연락처 폴백 = "고객센터"/브랜드 대표번호.
 - [x] 공유 열람 고객 다운로드 (2026-08-13, `120ce5ca`): 도면 전 파일 attachment presign '내려받기' 섹션(한글 파일명 RFC 5987) + 견적서(계약서) 저장·인쇄(PDF) 버튼. 테스트 16 passed. **운영 승격 완료** — PR #91 머지, production `cee28d4e` (perf-gate·pg-lane pass).
-- [~] 공유 템플릿 심사 감시 가동 (2026-08-13 세션 Monitor, 30분 주기 — 세션 종료 시 소멸): 상태 변화·승인/반려 시 통지. 다음 세션 재개 시 `scratchpad/check_tpl.py` 1회 실행으로 상태 확인 가능. 승인 확인 후 = 공유 모달 알림톡 발송 배선(위 폴백 규칙 참조).
+- [x] 공유 링크 알림톡 템플릿 2건 **APPROVED** (2026-08-18 감시 포착 — 심사 5일). 감시 종료.
+- [x] **T11 공유 알림톡 발송 배선** (2026-08-18, `28ebc429`): `POST /api/share/send-alimtalk/<id>` — 브랜드별 PF/템플릿 env(`SOLAPI_PF_ID_*`·`SOLAPI_TEMPLATE_SHARE_ID_*`, 스테이징·운영·로컬 .env 등록 완료 `--skip-deploys`)·발신 T8.1 3단(알림톡 실패 시 Solapi failover 가 그 번호로 SMS 대체발송 = 담당자 번호 요구 충족)·변수 6종(담당자 폴백 고객센터/브랜드 대표)·선점 멱등 `share_alimtalk` 버킷·감사 SHARE_ALIMTALK_SENT·manifest 2종·audit 인벤토리 184 재생성·모달 알림톡 버튼(erp-share.js ?v=20260818a). 테스트 10+17+63 passed. **주의: 템플릿 WL 버튼이 운영 도메인 고정** — 스테이징 발송 시 버튼 링크는 운영 /s/로 가서 404(스테이징 검증 한계, 발송 성공 여부만 확인).
 
 ## production 승격 (2026-08-13 — 완료, PR #89 → production `a59c0d7d`)
 
 - 1차 선행 점검 중단: production 에 `itemuid_00` 부재(체인 `share_token_00→itemuid_00→senderphone_00` 단절) → **사용자 승인 ①** itemuid 포함. 2차 promote_completeness INCOMPLETE: share.py 가 `kakao_alimtalk.py` 하드 의존(production 에 파일 부재) → **사용자 승인 ②** 알림톡 v1 코드 포함(발송은 이중 잠금 — killswitch off·PF/템플릿 env 미설정, 수동 버튼만 노출).
 - 세트 21커밋 = 알림톡 v1 8(인벤토리 전용 95c982aa 는 재생성 대체) + 고객 공유 10(T1~T9·T8.1, docs-only T5·merge T10 제외) + itemuid 2 + 정리 2(인벤토리 4종 재생성·`erp-order-shared.js` ?v=20260813d 범프·share_token_00 재부모화 deploy 정본 동기화 — bc810a9a 병합 해결분은 cherry-pick 불가라 파일 동기화).
 - 충돌 해소: erp_order_js.html ?v 드리프트(기계적 병합)·models.py OrderFieldChange/OrderShareToken 병치·ledger=승격분·AI_STATUS=production 유지·인벤토리 JSON=재생성. 검증: 단일 head·APP_OK·도메인 82 passed·pre_push_smoke 322 passed·PR 체크 perf-gate/pg-lane pass.
-| T9 | 태블릿 공유 버튼 (tablet-measure-form.js) | 태블릿 계약 테스트 PASS + browse coarse 스모크 + APP_OK | DONE | PENDING_SHA | 117 passed. 발급→URL 복사→(선택) 문자 confirm 흐름, ?v 20260812a 범프. browse coarse는 T10 통합 |
-| T10 | Stage-2 통합 검증·스테이징 E2E | pre_push_smoke exit 0 + CI green + E2E(스냅샷 불변·문자 3사·카톡 실기기) | PENDING | | 발신번호 미등록=문자만 BLOCKED |
-
-## 외부 준비 (사용자 액션)
-- [ ] 카카오 개발자 앱 도메인 2종 등록 + 지도 앱과 동일 앱 여부 회신 (T5 카톡 E2E 전제)
-- [ ] 영업 인원 Solapi 발신번호 등록 → 번호 목록 전달 (T10 실수신 전제)
-
 ## 결정 기록
 - 플랜 확정 3건(CEO 2-agent 리뷰 반영): 스냅샷 64KB 캡=초과 시 400(절단 금지) / send-sms 멱등=**발송 전 앵커 선점 insert**+시간버킷 dedupe_key(`share_sms:{share_id}:{floor(epoch/5)}`) — DB UNIQUE로 동시 중복 차단, 감사 조회식 check-then-act 폐기 / send-sms URL=body 토큰 원문 재해시 검증 후 서버 조립(해시-온리 저장과 충돌 해소, 문자 발송은 발급 직후만)
 - CEO 2-agent 리뷰(2026-08-11): HIGH 3건(T1 가짜 테스트 경로·URL 재구성 충돌·멱등 레이스)+MED 6건 플랜 반영 완료, 수용 리스크는 플랜 §4 기록
