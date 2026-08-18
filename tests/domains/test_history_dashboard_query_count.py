@@ -15,7 +15,7 @@ warmup: 콜드스타트 1회성 쿼리(feature flag 등)를 측정에서 제외�
   요청해야 308 리다이렉트를 피한다.
 - history는 필수 필터가 있어야 목록을 로드한다(무차별 Full Scan 방지). 여기선 stage 필터를
   주어(?stage=CONSTRUCTION) has_filter=True → 실제 per-row 조립 경로가 돈다.
-- dashboard_active_filter(days=60) + stage(erp_stage_code==f_stage OR status==f_stage) 스코프.
+- active_filter(전기간) + stage(erp_stage_code==f_stage OR status==f_stage) 스코프.
   erp_stage_code는 sync(명시 호출)가 아니라 raw seed로 직접 세팅한다.
 """
 from __future__ import annotations
@@ -231,6 +231,44 @@ def test_history_tablet_sheet_renders_readonly_snapshot(client):
     assert "<input" not in body
     assert "<textarea" not in body
     assert "<select" not in body
+
+
+def test_history_search_finds_long_completed_order(client):
+    """회귀 차단: 완료된 지 60일 넘은 주문도 이력 검색에 나온다.
+
+    8ffc9c4a에서 history 스코프가 dashboard_active_filter(days=60)로 바뀌어, 완료
+    (erp_stage_code=COMPLETED)+erp_stage_updated_at이 60일 이전인 주문이 이력 검색에서만
+    사라졌다(운영 '성봉희' 사례 — 전체 주문 목록에서는 검색됨). 스코프는 active_filter(전기간).
+    """
+    _login_admin(client)
+    old = datetime.datetime.now() - datetime.timedelta(days=180)
+    order = Order(
+        received_date="2026-01-05",
+        customer_name="옛완료고객",
+        phone="010-8888-0001",
+        address="서울시 이력구 99",
+        product="붙박이장",
+        status="COMPLETED",
+        manager_name="이력담당",
+        is_erp_order=True,
+        erp_stage_code="COMPLETED",
+        erp_stage_updated_at=old,
+        created_at=old,
+        structured_data={
+            "workflow": {"stage": "COMPLETED"},
+            "parties": {"customer": {"name": "옛완료고객", "phone": "010-8888-0001"}},
+        },
+    )
+    db_session.add(order)
+    db_session.commit()
+
+    resp = client.get(
+        "/erp/history/?view=fragment&q=옛완료고객",
+        headers={"X-FOMS-ERP-SHELL": "1"},
+    )
+    assert resp.status_code == 200
+    body = resp.get_data(as_text=True)
+    assert f'data-order-id="{order.id}"' in body, "60일 초과 완료 주문이 이력 검색에서 누락됨"
 
 
 def test_history_tablet_sheet_document_nav_redirects_to_edit(client):
