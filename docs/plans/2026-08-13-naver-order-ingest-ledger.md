@@ -711,6 +711,30 @@ exit 0 (322 passed) + APP_OK. 신규 계약: COLLECTED 포함 카운트·STAFF �
 
 **PR #92 는 이 PR 로 대체**(예전 스냅샷). 닫는 것은 사용자 판단.
 
+### 승격 충돌 해소 (2026-08-18, `08e5211e`)
+
+PR #113 이 처음에 `CONFLICTING` 이었다 — 운영과 deploy 가 27곳 어긋나 있었다(같은 수정이
+cherry-pick 사본으로 양쪽에 다른 SHA 로 들어온 탓). **사용자 지시: deploy 에 운영을 먼저
+병합하고 운영 핫픽스는 무조건 보존**.
+
+- 코드·템플릿 충돌 13건 — 운영 고유 변경은 전부 **구버전 시그니처**(deploy 가 상위 집합)임을
+  파일별로 대조 확인 후 deploy 채택. 두 트리 실제 차이는 134파일 / +543 −16,592 였다.
+- **마이그레이션 체인 재배열(이번 승격의 진짜 함정)**: 운영 DB 는 `asfresh_00` 에서 멈춰
+  있는데 deploy 는 `asfresh_00` 을 `orderreason_00` **아래**에 두고 있었다. 그대로 올리면
+  alembic 이 `asfresh_00` 위쪽만 실행하므로 **`orderreason_00`(주문 변경 사유 테이블)이
+  운영에 영영 생성되지 않는다**. 운영 파일(`asfresh_00.down = senderphone_00`)을 채택하고
+  `naver_link_00.down → asfresh_00`, `naver_triage_00.down → orderreason_00` 으로 재연결.
+  최종 체인: `senderphone_00 → asfresh_00 → naver_link_00 → orderreason_00 → naver_triage_00
+  → navercollect_00 → naverdock_00 → asaxis_00` (단일 head).
+  **다음 승격에서도 같은 검사를 할 것** — "deploy 체인 순서 ≠ 운영이 실행할 순서".
+- 하네스 인벤토리 4종 재생성(failopen 526·audit 183/미감사 0·mutation 65·state 41).
+- 문서 충돌 7건은 양쪽 보존. 그 결과 `AI_STATUS` 상단 40줄이 5,440자로 불어 예산(4,000자)
+  게이트가 red → 중복 4줄 제거 + 고유 4줄을 '## 최근 완료' 로 이관해 3,957자로 맞췄다.
+
+**검증**: `alembic heads` 단일 · APP_OK · `pre_push_smoke` exit 0 · alembic/failopen/auth
+게이트 39 passed. deploy 와 승격 브랜치를 같은 커밋(`08e5211e`)으로 맞췄고 PR #113 은
+**MERGEABLE** 로 전환됐다.
+
 ## PR #92 상태 (2026-08-14)
 
 새 운영 head(asfresh_00, PR #93) 기준으로 재구성 — 체인 `asfresh_00 → naver_link_00 →
