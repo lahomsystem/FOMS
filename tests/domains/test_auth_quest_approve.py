@@ -7,7 +7,8 @@ quest approve route 는 승인 **권한만** 판정하고 order 상태를 직접
 * DRAWING/CONFIRM 단독 승인은 전용 command 로만 → command-required 409.
 * 시공 승인은 ASSIGNMENT-00 ``order_assignments`` user-ID row 기반(팀 자격만으로는 불가).
 * 관리자 override 승인은 사유(override_reason) 필수(감사) — STAFF 는 override 불가.
-* approve 는 order.status/workflow.stage 를 직접 바꾸지 않고 다음 단계 quest 도 만들지 않는다.
+* approve 는 stage 를 **직접** 쓰지 않는다. 최종 승인 시 전이는 STATE-QUEST-01
+  (quest_transition_service → order_transition_service) 정본 경로로만 일어난다.
 """
 
 from __future__ import annotations
@@ -253,10 +254,10 @@ def test_staff_cannot_override(client):
 
 
 # --------------------------------------------------------------------------- #
-# transition 직접 쓰기 0 (STATE-QUEST-01 하류)
+# 최종 승인 → 전이는 정본 경로(STATE-QUEST-01)로만
 # --------------------------------------------------------------------------- #
-def test_approve_does_not_transition_order_state(client):
-    """승인이 완료돼도 approve 는 order.status/stage 를 직접 전이시키지 않는다."""
+def test_final_approval_advances_stage_via_canonical_engine(client):
+    """RECEIVED 최종 승인은 정본 엔진 경유로 MEASURE 전이 + fresh MEASURE quest 를 만든다."""
     user = _make_user(role="STAFF", team="CS", username="cs-staff")
     _login(client, user)
     order = _create_order(stage="RECEIVED", quests=[_team_quest("RECEIVED", ["CS"])], status="RECEIVED")
@@ -267,17 +268,31 @@ def test_approve_does_not_transition_order_state(client):
     assert resp.status_code == 200, resp.get_json()
     data = resp.get_json()
     assert data["all_approved"] is True
-    assert data["auto_transitioned"] is False
+    assert data["auto_transitioned"] is True
 
     db_session.expire_all()
     saved = db_session.get(Order, order_id)
     assert saved is not None
-    # order.status·workflow.stage 직접 전이 없음.
-    assert saved.status == "RECEIVED"
-    assert (saved.structured_data or {}).get("workflow", {}).get("stage") == "RECEIVED"
-    # 다음 단계 quest 미생성(전이 없음) — quest 개수 불변.
-    assert len(saved.structured_data.get("quests") or []) == 1
-    # 자동 전이 이벤트 미발생.
+    assert (saved.structured_data or {}).get("workflow", {}).get("stage") == "MEASURE"
+    assert saved.erp_stage_code == "MEASURE"
+    # 승인 기록과 전이가 같은 commit 에 남는다(한쪽만 남지 않는다).
+    receiv_quest = [
+        q for q in (saved.structured_data.get("quests") or []) if q.get("stage") == "RECEIVED"
+    ][0]
+    assert receiv_quest["team_approvals"]["CS"]["approved"] is True
+    assert receiv_quest["status"] == "COMPLETED"
+    # 다음 단계(MEASURE) quest 가 생성된다.
+    assert any(q.get("stage") == "MEASURE" for q in saved.structured_data.get("quests") or [])
+    # 전이는 정본 엔진 이벤트로 기록된다(라우트의 legacy 직접-쓰기 마커는 사용하지 않는다).
+    assert (
+        db_session.query(OrderEvent)
+        .filter(
+            OrderEvent.order_id == order_id,
+            OrderEvent.event_type == "MEASUREMENT_REQUESTED",
+        )
+        .count()
+        == 1
+    )
     assert (
         db_session.query(OrderEvent)
         .filter(
@@ -286,4 +301,112 @@ def test_approve_does_not_transition_order_state(client):
         )
         .count()
         == 0
+    )
+
+
+def test_measure_assignee_approval_advances_to_drawing(client):
+    """실측 담당자 승인('실측 완료 → 도면 전달')은 MEASURE→DRAWING 전이를 일으킨다."""
+    user = _make_user(role="STAFF", team="SALES", username="sales-measure")
+    _login(client, user)
+    order = _create_order(stage="MEASURE", quests=[_assignee_quest("MEASURE")], status="MEASURE")
+    order_id = order.id
+
+    resp = client.post(f"/api/orders/{order_id}/quest/approve", json={})
+
+    assert resp.status_code == 200, resp.get_json()
+    data = resp.get_json()
+    assert data["all_approved"] is True
+    assert data["auto_transitioned"] is True
+    assert data["next_stage"] in ("도면", "DRAWING")
+
+    db_session.expire_all()
+    saved = db_session.get(Order, order_id)
+    assert (saved.structured_data or {}).get("workflow", {}).get("stage") == "DRAWING"
+    assert saved.erp_stage_code == "DRAWING"
+    measure_quest = [
+        q for q in (saved.structured_data.get("quests") or []) if q.get("stage") == "MEASURE"
+    ][0]
+    assert measure_quest["assignee_approval"]["approved"] is True
+    # DRAWING quest 는 만들지 않는다(도면은 전용 command 소관).
+    assert not any(q.get("stage") == "DRAWING" for q in saved.structured_data.get("quests") or [])
+    assert (
+        db_session.query(OrderEvent)
+        .filter(
+            OrderEvent.order_id == order_id,
+            OrderEvent.event_type == "MEASUREMENT_COMPLETED",
+        )
+        .count()
+        == 1
+    )
+
+
+def test_partial_team_approval_does_not_transition(client):
+    """필수 팀이 둘인데 하나만 승인하면 전이하지 않는다(stage 불변)."""
+    user = _make_user(role="STAFF", team="CS", username="cs-partial")
+    _login(client, user)
+    order = _create_order(
+        stage="RECEIVED", quests=[_team_quest("RECEIVED", ["CS", "SALES"])], status="RECEIVED"
+    )
+    order_id = order.id
+
+    resp = client.post(f"/api/orders/{order_id}/quest/approve", json={"team": "CS"})
+
+    assert resp.status_code == 200, resp.get_json()
+    data = resp.get_json()
+    assert data["all_approved"] is False
+    assert data["auto_transitioned"] is False
+
+    db_session.expire_all()
+    saved = db_session.get(Order, order_id)
+    assert (saved.structured_data or {}).get("workflow", {}).get("stage") == "RECEIVED"
+    assert saved.erp_stage_code in (None, "RECEIVED")
+
+
+def test_prerequisite_only_stage_approval_does_not_transition(client):
+    """PRODUCTION 등 prerequisite-only 단계는 승인해도 stage 를 쓰지 않는다."""
+    user = _make_user(role="STAFF", team="PRODUCTION", username="prod-noadvance")
+    _login(client, user)
+    order = _create_order(
+        stage="PRODUCTION", quests=[_team_quest("PRODUCTION", ["PRODUCTION"])], status="PRODUCTION"
+    )
+    order_id = order.id
+
+    resp = client.post(f"/api/orders/{order_id}/quest/approve", json={"team": "PRODUCTION"})
+
+    assert resp.status_code == 200, resp.get_json()
+    assert resp.get_json()["auto_transitioned"] is False
+
+    db_session.expire_all()
+    saved = db_session.get(Order, order_id)
+    assert (saved.structured_data or {}).get("workflow", {}).get("stage") == "PRODUCTION"
+
+
+def test_double_submit_after_transition_is_rejected_without_second_transition(client):
+    """전이 후 같은 버튼 재요청은 전용-command 가드(409)에 막혀 두 번 전이하지 않는다.
+
+    stage 가 이미 DRAWING 이라 라우트 선행 가드가 먼저 걸린다(전이 진입 자체가 없음).
+    이중 클릭 방어의 실질 계약이며, 전이 이벤트는 1건으로 유지된다.
+    """
+    user = _make_user(role="STAFF", team="SALES", username="sales-idem")
+    _login(client, user)
+    order = _create_order(stage="MEASURE", quests=[_assignee_quest("MEASURE")], status="MEASURE")
+    order_id = order.id
+    headers = {"Idempotency-Key": "quest-approve-idem-1"}
+
+    first = client.post(f"/api/orders/{order_id}/quest/approve", json={}, headers=headers)
+    second = client.post(f"/api/orders/{order_id}/quest/approve", json={}, headers=headers)
+
+    assert first.status_code == 200, first.get_json()
+    assert second.status_code == 409, second.get_json()
+    assert second.get_json()["code"] == "COMMAND_REQUIRED"
+
+    db_session.expire_all()
+    assert (
+        db_session.query(OrderEvent)
+        .filter(
+            OrderEvent.order_id == order_id,
+            OrderEvent.event_type == "MEASUREMENT_COMPLETED",
+        )
+        .count()
+        == 1
     )

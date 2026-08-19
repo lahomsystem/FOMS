@@ -91,7 +91,7 @@
     },
     {
       "path": "foms/api/quest.py",
-      "lineno": 443,
+      "lineno": 505,
       "kind": "flag_modified_structured_data",
       "owner": "STATE-QUEST-01"
     },
@@ -141,7 +141,7 @@
   "writers": [
     {
       "path": "foms/api/channel/channel_integration.py",
-      "lineno": 270,
+      "lineno": 274,
       "kind": "flag_modified_structured_data",
       "classification": "CANONICAL",
       "owner": "CHANNEL-WRITER-01"
@@ -435,7 +435,7 @@
     },
     {
       "path": "foms/api/quest.py",
-      "lineno": 443,
+      "lineno": 505,
       "kind": "flag_modified_structured_data",
       "classification": "EXTERNAL",
       "owner": "STATE-QUEST-01"

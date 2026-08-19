@@ -1596,9 +1596,11 @@
     if (card) card.classList.add("is-completed");
   }
 
-  // 실측 완료 = MEASURE 퀘스트 승인(POST /quest/approve) 단일 경로. 서버가 승인자·시각 기록 →
-  // workflow.stage MEASURE→DRAWING 전환 → order.status 동기화 → DRAWING 퀘스트 생성까지 처리한다.
-  // (클라이언트가 stage 를 직접 세팅하던 반쪽 전환 폐기 — 단계 전환 SSOT 는 서버 quest 로직 하나.)
+  // 실측 완료 = MEASURE 퀘스트 승인(POST /quest/approve) 단일 경로. 서버가 승인자·시각을 기록하고,
+  // 최종 승인이면 같은 트랜잭션에서 정본 전이 엔진(quest_transition_service → order_transition_service)
+  // 으로 workflow.stage MEASURE→DRAWING + order.status projection 까지 처리한다. DRAWING 퀘스트는
+  // 만들지 않는다(도면은 전용 command 소관).
+  // (클라이언트가 stage 를 직접 세팅하던 반쪽 전환 폐기 — 단계 전환 SSOT 는 서버 하나.)
   function approveMeasureQuest(orderId) {
     setStatus("도면 전달 중…", "saving");
     // MEASURE 는 approval_mode="assignee" → 팀 지정 없는 빈 body.
