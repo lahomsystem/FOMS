@@ -399,7 +399,9 @@
       });
       const data = await res.json();
       if (!data.success) {
-        throw new Error(data.message || data.error || '승인 실패');
+        // 서버 code(COMMAND_REQUIRED·QUEST_INCOMPLETE·전이 충돌)까지 노출해야 원인 파악이 된다.
+        const detail = data.code ? ` (${data.code})` : '';
+        throw new Error((data.message || data.error || '승인 실패') + detail);
       }
       if (window.FOMS_ERP_SHELL && typeof window.FOMS_ERP_SHELL.invalidatePrimaryNavFragmentCache === 'function') {
         window.FOMS_ERP_SHELL.invalidatePrimaryNavFragmentCache();

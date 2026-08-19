@@ -4,6 +4,8 @@ GET/POST /api/orders/<id>/quest, POST /approve, PUT /status
 """
 
 import datetime
+import hashlib
+import json
 from foms.services.error_logging import log_handled_exception
 from flask import Blueprint, request, jsonify, session
 from sqlalchemy.orm.attributes import flag_modified
@@ -25,6 +27,11 @@ from foms.services.erp_policy import (
     check_quest_approvals_complete,
     get_next_stage_for_completed_quest,
 )
+from foms.services.orders.order_transition_service import TransitionError
+from foms.services.orders.quest_transition_service import (
+    advance_stage_on_quest_completion,
+)
+from foms.services.orders.revision import RevisionError
 
 
 quest_bp = Blueprint('quest', __name__, url_prefix='/api')
@@ -178,6 +185,64 @@ def api_order_quest_create(order_id):
 
 # DRAWING/CONFIRM 은 전용 command(도면 전달·고객 컨펌)로만 진행 — 단독 quest 승인 거부.
 _COMMAND_REQUIRED_STAGES = frozenset({"DRAWING", "CONFIRM"})
+
+#: 전이 receipt scope 구성용 command 식별자(라우트 단일 진입점 — 실제 stage command 는
+#: quest_transition_service 의 _STAGE_ADVANCE 가 고른다).
+_QUEST_APPROVE_COMMAND = "QUEST_APPROVE"
+
+
+def _idempotency_key(body):
+    """요청 idempotency key(헤더 우선, body fallback, ≤64자). 없으면 None(중복제거 안 함).
+
+    Args:
+        body: 요청 JSON dict.
+
+    Returns:
+        idempotency key 문자열 또는 None.
+    """
+    key = request.headers.get("Idempotency-Key") or (body or {}).get("idempotency_key")
+    key = str(key).strip() if key is not None else ""
+    return key[:64] if key else None
+
+
+def _scope_hash(command_id: str, order_id: int) -> str:
+    """전이 scope 의 sha256 hex(receipt 저장용).
+
+    Args:
+        command_id: 전이 scope 식별자.
+        order_id: 대상 주문 id.
+
+    Returns:
+        sha256 hex 문자열.
+    """
+    return hashlib.sha256(f"{command_id}:{order_id}".encode("utf-8")).hexdigest()
+
+
+def _request_hash(body) -> str:
+    """요청 payload 의 sha256 hex(same-key/different-hash 감지용).
+
+    Args:
+        body: 요청 JSON dict.
+
+    Returns:
+        sha256 hex 문자열.
+    """
+    canonical = json.dumps(body or {}, sort_keys=True, ensure_ascii=False, default=str)
+    return hashlib.sha256(canonical.encode("utf-8")).hexdigest()
+
+
+def _transition_error_response(exc):
+    """전이 엔진/REV helper 예외를 route JSON 오류로 매핑한다.
+
+    Args:
+        exc: TransitionError/RevisionError 계열 예외.
+
+    Returns:
+        (flask response, status code) 튜플.
+    """
+    code = getattr(exc, "error_code", "TRANSITION_ERROR")
+    status = getattr(exc, "status_code", 409)
+    return jsonify({"success": False, "code": code, "message": str(exc)}), status
 
 
 def _int_or_none(value):
@@ -430,20 +495,42 @@ def api_order_quest_approve(order_id):
 
         sd["quests"][quest_index] = current_quest
 
-        # 승인 완료 시 quest 를 COMPLETED 로 마킹만 한다(승인 bookkeeping). 실제 상태 전이
-        # (workflow.stage·order.status 변경·다음 quest 생성)는 STATE-QUEST-01 하류 몫 —
-        # AUTH-QUEST-01 은 권한 게이트 + 승인 기록만 하고 order 상태를 직접 바꾸지 않는다.
+        # 승인 완료 시 quest 를 COMPLETED 로 마킹한다(승인 bookkeeping).
         if is_complete:
             current_quest["status"] = "COMPLETED"
             current_quest["completed_at"] = now.isoformat()
             sd["quests"][quest_index] = current_quest
-        auto_transitioned = False
 
         order.structured_data = sd
         flag_modified(order, "structured_data")
         order.updated_at = now
         sync_erp_flat_columns(order, sd)
         _audit_quest(order, "QUEST_APPROVED", user_id, note=team, extra={"team": team})
+
+        # 최종 승인 → stage 전이(STATE-QUEST-01). 라우트는 stage 를 직접 쓰지 않고 정본 서비스에
+        # 위임한다. 승인 기록을 먼저 order 에 반영해 두어야 전이 엔진의 structured_data 스냅샷에
+        # 승인이 포함된다(승인·전이가 한 tx·한 commit 에 원자적으로 남는다).
+        # RECEIVED→MEASURE, MEASURE→DRAWING 만 advance 하고 그 밖의 stage 는 None(no-op).
+        auto_transitioned = False
+        transition_result = None
+        if is_complete:
+            try:
+                transition_result = advance_stage_on_quest_completion(
+                    db,
+                    order_id=order.id,
+                    actor_user_id=user_id,
+                    scope_hash=_scope_hash(_QUEST_APPROVE_COMMAND, order.id),
+                    request_hash=_request_hash(payload),
+                    idempotency_key=_idempotency_key(payload),
+                    reason=f'{current_stage_name} 최종 승인',
+                    source_screen='erp_dashboard',
+                    now=now,
+                )
+            except (TransitionError, RevisionError) as exc:
+                db.rollback()
+                return _transition_error_response(exc)
+            auto_transitioned = transition_result is not None and not transition_result.replayed
+
         db.commit()
         # quest 승인 기록은 배지/카운트에 반영되므로 대시보드 슬라이스 캐시를 무효화한다.
         from foms.services.common.dashboard_cache import invalidate_all_dashboard_slice_caches
@@ -452,9 +539,13 @@ def api_order_quest_approve(order_id):
 
         next_stage_for_response = None
         if is_complete:
-            next_stage_code = get_next_stage_for_completed_quest(current_stage_name)
+            CODE_TO_STAGE_NAME = {v: k for k, v in STAGE_NAME_TO_CODE.items()}
+            if transition_result is not None:
+                # 전이가 실제로 일어났으면 엔진이 쓴 현재 stage 가 정답(추정값 금지).
+                next_stage_code = order.erp_stage_code
+            else:
+                next_stage_code = get_next_stage_for_completed_quest(current_stage_name)
             if next_stage_code:
-                CODE_TO_STAGE_NAME = {v: k for k, v in STAGE_NAME_TO_CODE.items()}
                 next_stage_for_response = CODE_TO_STAGE_NAME.get(next_stage_code, next_stage_code)
 
         return jsonify({
