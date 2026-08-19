@@ -102,8 +102,28 @@
     border-top: 1px solid var(--foms-border-subtle);
     box-shadow: var(--foms-shadow-md);
     z-index: var(--foms-z-action-bar);
-    display: grid;
+    /* 한 줄 배치 — 버튼이 세로로 쌓이면 바 높이가 두 배가 되어 본문을 더 가린다. */
+    display: flex;
+    align-items: stretch;
     gap: var(--foms-space-2);
+  }
+
+  body.erp-mobile-v2-layout .foms-detail-sticky-cta > .foms-btn {
+    flex: 1 1 0;
+    min-width: 0;
+    padding: 0 var(--foms-space-3);
+    font-size: var(--foms-font-size-sm);
+    white-space: nowrap;
+  }
+
+  /* 승인 CTA 라벨('실측 완료 → 도면 전달')이 편집 링크보다 길어 폭을 더 준다. */
+  body.erp-mobile-v2-layout
+    .foms-detail-sticky-cta
+    > .erp-mobile-quest-approve-assignee,
+  body.erp-mobile-v2-layout
+    .foms-detail-sticky-cta
+    > .erp-mobile-quest-approve-team {
+    flex-grow: 1.6;
   }
 
   body.erp-mobile-v2-layout .quick-action--button,
@@ -251,11 +271,15 @@
      box (nested container-fluid on orders/layout). Fixed chrome + body padding. */
   body.erp-mobile-v2-layout
     .foms-detail-page-wrap.erp-mobile-shell[data-erp-mobile-v2='true'] {
+    /* 고정 CTA 바 높이(실측 75px) = 세로 패딩(12*2) + 버튼(50) + 상단 보더(1) + 여유 */
+    --foms-detail-cta-h: 78px;
     padding-top: calc(
       var(--foms-shell-header-h, 56px) + var(--foms-safe-area-top, 0px)
     );
+    /* 하단 네비 + 고정 CTA 바 높이만큼 비워야 마지막 섹션(주문 진행)이 안 가린다. */
     padding-bottom: calc(
-      var(--foms-shell-bottom-nav-h, 72px) + var(--foms-safe-area-bottom, 0px)
+      var(--foms-shell-bottom-nav-h, 72px) + var(--foms-safe-area-bottom, 0px) +
+        var(--foms-detail-cta-h, 78px)
     );
   }
 
