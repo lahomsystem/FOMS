@@ -31,7 +31,7 @@ from foms.services.integrations.naver_commerce.mapping import (
     map_group,
 )
 from foms.services.orders.order_create import create_order
-from models import ExternalOrderLink
+from models import ExternalOrderLink, Order
 
 logger = logging.getLogger(__name__)
 
@@ -122,6 +122,134 @@ def promote_link_to_order(
     logger.info("[NAVER] 수집분 주문 생성 link=%s(+%d) order=%s",
                 link_id, len(siblings) - 1, order.id)
     return (int(order.id), True)
+
+
+#: 기존 주문에 붙일 수 있는 관계. ``NEW`` 는 붙이기가 아니라 주문 생성 경로다.
+ATTACHABLE_RELATIONS = ("ADDON", "REPAY")
+
+
+def attach_link_to_order(session: Session, *, link_id: int, order_id: int,
+                         relation: str) -> tuple[int, int]:
+    """수집분을 **기존 주문에 붙인다** — 새 주문을 만들지 않는다 (T16-E).
+
+    차액 결제(ADDON)와 취소 후 재결제(REPAY)가 여기로 온다. 둘 다 새 집이 아니라 이미 있는
+    집의 후속이라, 주문을 하나 더 만들면 같은 고객의 시공 건이 둘로 갈린다.
+
+    묶음(집) 단위로 붙인다 — 네이버는 본품과 구성 옵션을 각각 다른 상품주문으로 주므로
+    한 건만 붙이면 나머지가 미아가 된다(:func:`_group_siblings` 와 같은 규칙).
+
+    Args:
+        session: DB 세션(호출자가 commit 을 소유한다).
+        link_id: 기준 수집 링크 id.
+        order_id: 붙일 기존 FOMS 주문 id.
+        relation: ``ADDON`` 또는 ``REPAY``.
+
+    Returns:
+        ``(붙인 링크 수, 주문 id)``.
+
+    Raises:
+        PromotionError: 관계값·링크·주문이 잘못됐거나, 취소·반품 건을 ADDON 으로 붙이려 할 때,
+            또는 이미 **다른** 주문에 붙어 있을 때.
+    """
+    if relation not in ATTACHABLE_RELATIONS:
+        raise PromotionError(f"붙일 수 없는 관계입니다 ({relation}).")
+
+    link = (
+        session.query(ExternalOrderLink)
+        .filter(ExternalOrderLink.id == link_id, ExternalOrderLink.channel == CHANNEL)
+        .first()
+    )
+    if link is None:
+        raise PromotionError(f"수집 기록을 찾을 수 없습니다 (link {link_id}).")
+
+    order = session.get(Order, int(order_id))
+    if order is None or order.deleted_at is not None or order.status == "DELETED":
+        raise PromotionError(f"붙일 주문을 찾을 수 없습니다 (order {order_id}).")
+
+    siblings = _group_siblings_for_attach(session, link)
+    # 취소·반품 건은 추가결제로 붙이지 않는다 — 재결제(REPAY)는 원 주문이 취소된 경우라 허용.
+    if relation == "ADDON":
+        blocked = [row for row in siblings if extract_claim(row.raw_snapshot or {})["blocking"]]
+        if blocked:
+            claim = extract_claim(blocked[0].raw_snapshot or {})
+            raise PromotionError(
+                f"네이버에서 취소·반품이 진행 중인 주문입니다 ({claim['label']}). "
+                "추가결제로 붙일 수 없습니다."
+            )
+
+    attached = 0
+    for row in siblings:
+        if row.order_id and int(row.order_id) != int(order_id):
+            raise PromotionError(
+                f"이미 다른 주문(#{row.order_id})에 붙어 있습니다. 먼저 되돌린 뒤 다시 붙이세요."
+            )
+        row.order_id = int(order_id)
+        row.relation = relation
+        row.sync_status = "LINKED"
+        row.failure_reason = None
+        attached += 1
+    session.flush()
+    logger.info("[NAVER] 수집분 기존 주문 연결 link=%s(+%d) order=%s relation=%s",
+                link_id, attached - 1, order_id, relation)
+    return (attached, int(order_id))
+
+
+def detach_link_from_order(session: Session, *, link_id: int) -> tuple[int, Optional[int]]:
+    """붙이기를 되돌린다 (T16-E) — 사람이 관계를 잘못 골랐을 때.
+
+    ``NEW`` 로 만든 주문(승격)은 되돌리지 않는다. 그건 주문 삭제 문제라 이 경로의 일이 아니다.
+
+    Args:
+        session: DB 세션(호출자가 commit 을 소유한다).
+        link_id: 기준 수집 링크 id.
+
+    Returns:
+        ``(되돌린 링크 수, 원래 붙어 있던 주문 id)``.
+
+    Raises:
+        PromotionError: 링크가 없거나, 붙이기로 연결된 건이 아닐 때.
+    """
+    link = (
+        session.query(ExternalOrderLink)
+        .filter(ExternalOrderLink.id == link_id, ExternalOrderLink.channel == CHANNEL)
+        .first()
+    )
+    if link is None:
+        raise PromotionError(f"수집 기록을 찾을 수 없습니다 (link {link_id}).")
+    if link.relation not in ATTACHABLE_RELATIONS:
+        raise PromotionError("붙이기로 연결된 건이 아닙니다(주문 생성분은 되돌릴 수 없습니다).")
+
+    previous_order_id = int(link.order_id) if link.order_id else None
+    siblings = [row for row in _group_siblings_for_attach(session, link)
+                if row.relation in ATTACHABLE_RELATIONS]
+    for row in siblings:
+        row.order_id = None
+        row.relation = "NEW"
+        row.sync_status = "COLLECTED"
+    session.flush()
+    logger.info("[NAVER] 붙이기 되돌림 link=%s(+%d) order=%s",
+                link_id, len(siblings) - 1, previous_order_id)
+    return (len(siblings), previous_order_id)
+
+
+def _group_siblings_for_attach(session: Session,
+                               link: ExternalOrderLink) -> list[ExternalOrderLink]:
+    """붙이기·되돌리기 대상 묶음 — 같은 네이버 주문번호의 링크 전부.
+
+    승격용 :func:`_group_siblings` 는 **주문이 없는** 링크만 모은다(부분 생성 방어). 붙이기는
+    반대로 이미 같은 주문에 붙은 형제까지 함께 다뤄야 되돌리기가 반쪽이 되지 않는다.
+    """
+    order_no = (link.external_order_no or "").strip()
+    if not order_no:
+        return [link]
+    rows = (
+        session.query(ExternalOrderLink)
+        .filter(ExternalOrderLink.channel == CHANNEL,
+                ExternalOrderLink.external_order_no == order_no)
+        .order_by(ExternalOrderLink.id.asc())
+        .all()
+    )
+    return rows or [link]
 
 
 def _group_siblings(session: Session, link: ExternalOrderLink) -> list[ExternalOrderLink]:
@@ -223,4 +351,5 @@ def summarize_snapshot(raw_snapshot: Any) -> dict[str, Any]:
     }
 
 
-__all__ = ["PromotionError", "promote_link_to_order", "summarize_snapshot"]
+__all__ = ["PromotionError", "promote_link_to_order", "summarize_snapshot",
+           "attach_link_to_order", "detach_link_from_order", "ATTACHABLE_RELATIONS"]

@@ -657,6 +657,98 @@ def naver_ingest_create_order(link_id: int):
                     "error": None})
 
 
+@admin_bp.route("/admin/naver-ingest/<int:link_id>/attach", methods=["POST"])
+@login_required
+@role_required(["ADMIN", "MANAGER", "STAFF"])
+def naver_ingest_attach_order(link_id: int):
+    """수집분을 **기존 주문에 붙인다** (T16-E) — 차액 결제·재결제.
+
+    새 주문을 만들지 않는다. 수집 판정이 결제완료 하나뿐이라 재결제·차액 결제도 새 집으로
+    들어오는데, 그대로 "주문 만들기"를 누르면 같은 고객의 시공 건이 둘로 갈린다.
+
+    관계 판정은 **사람이** 한다(후보 제시는 :mod:`order_candidates`). 이 라우트는 사람이
+    고른 결과를 받아 적을 뿐이다.
+    """
+    from foms.services.integrations.naver_commerce.promotion import (
+        PromotionError,
+        attach_link_to_order,
+    )
+
+    payload = request.get_json(silent=True) or {}
+    try:
+        order_id = int(payload.get("order_id") or 0)
+    except (TypeError, ValueError):
+        order_id = 0
+    relation = str(payload.get("relation") or "").strip().upper()
+    if order_id <= 0:
+        return jsonify({"success": False, "data": None, "error": "붙일 주문을 지정하세요."}), 400
+
+    db = get_db()
+    try:
+        attached, target_order_id = attach_link_to_order(
+            db, link_id=link_id, order_id=order_id, relation=relation)
+        db.commit()
+    except PromotionError as exc:
+        db.rollback()
+        return jsonify({"success": False, "data": None, "error": str(exc)}), 400
+    except Exception as exc:  # noqa: BLE001 - 실패 사유를 사람에게 그대로 보여준다
+        db.rollback()
+        logger.warning("[NAVER] 기존 주문 연결 실패 link=%s order=%s: %s",
+                       link_id, order_id, exc, exc_info=True)
+        return jsonify({"success": False, "data": None, "error": str(exc)}), 400
+
+    log_access(
+        f"네이버 수집분 기존 주문 연결 (link {link_id} → order {target_order_id}, {relation})",
+        action="NAVER_INGEST_ATTACH_ORDER",
+        target_type="order", target_id=target_order_id,
+        detail={"link_id": link_id, "order_id": target_order_id,
+                "relation": relation, "attached": attached},
+    )
+    return jsonify({"success": True,
+                    "data": {"link_id": link_id, "order_id": target_order_id,
+                             "relation": relation, "attached": attached,
+                             "edit_url": url_for("order_edit.edit_order",
+                                                 order_id=target_order_id, open="erp-order")},
+                    "error": None})
+
+
+@admin_bp.route("/admin/naver-ingest/<int:link_id>/detach", methods=["POST"])
+@login_required
+@role_required(["ADMIN", "MANAGER", "STAFF"])
+def naver_ingest_detach_order(link_id: int):
+    """붙이기를 되돌린다 (T16-E) — 관계를 잘못 골랐을 때.
+
+    주문 생성분(``NEW``)은 되돌릴 수 없다. 그건 주문 삭제 문제라 이 경로의 일이 아니다.
+    """
+    from foms.services.integrations.naver_commerce.promotion import (
+        PromotionError,
+        detach_link_from_order,
+    )
+
+    db = get_db()
+    try:
+        detached, previous_order_id = detach_link_from_order(db, link_id=link_id)
+        db.commit()
+    except PromotionError as exc:
+        db.rollback()
+        return jsonify({"success": False, "data": None, "error": str(exc)}), 400
+    except Exception as exc:  # noqa: BLE001
+        db.rollback()
+        logger.warning("[NAVER] 연결 되돌리기 실패 link=%s: %s", link_id, exc, exc_info=True)
+        return jsonify({"success": False, "data": None, "error": str(exc)}), 400
+
+    log_access(
+        f"네이버 수집분 연결 되돌림 (link {link_id} ← order {previous_order_id})",
+        action="NAVER_INGEST_DETACH_ORDER",
+        target_type="order", target_id=previous_order_id,
+        detail={"link_id": link_id, "order_id": previous_order_id, "detached": detached},
+    )
+    return jsonify({"success": True,
+                    "data": {"link_id": link_id, "order_id": previous_order_id,
+                             "detached": detached},
+                    "error": None})
+
+
 @admin_bp.route("/admin/naver-ingest/<int:link_id>/review", methods=["POST"])
 @login_required
 @role_required(["ADMIN", "MANAGER", "STAFF"])

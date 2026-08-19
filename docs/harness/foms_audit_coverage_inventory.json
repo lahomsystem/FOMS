@@ -8,11 +8,11 @@
     "log_access"
   ],
   "baselines": {
-    "total": 185,
+    "total": 187,
     "unaudited": 0
   },
   "classification_counts": {
-    "AUDITED": 155,
+    "AUDITED": 157,
     "EXEMPT": 30,
     "UNAUDITED": 0
   },
@@ -1122,7 +1122,7 @@
     {
       "path": "foms/api/quest.py",
       "endpoint": "api_order_quest_approve",
-      "lineno": 271,
+      "lineno": 336,
       "methods": [
         "POST"
       ],
@@ -1131,7 +1131,7 @@
     {
       "path": "foms/api/quest.py",
       "endpoint": "api_order_quest_create",
-      "lineno": 117,
+      "lineno": 124,
       "methods": [
         "POST"
       ],
@@ -1140,7 +1140,7 @@
     {
       "path": "foms/api/quest.py",
       "endpoint": "api_order_quest_update_status",
-      "lineno": 481,
+      "lineno": 572,
       "methods": [
         "PUT"
       ],
@@ -1454,8 +1454,26 @@
     },
     {
       "path": "foms/web/admin/naver_ingest.py",
+      "endpoint": "naver_ingest_attach_order",
+      "lineno": 663,
+      "methods": [
+        "POST"
+      ],
+      "classification": "AUDITED"
+    },
+    {
+      "path": "foms/web/admin/naver_ingest.py",
       "endpoint": "naver_ingest_create_order",
-      "lineno": 515,
+      "lineno": 609,
+      "methods": [
+        "POST"
+      ],
+      "classification": "AUDITED"
+    },
+    {
+      "path": "foms/web/admin/naver_ingest.py",
+      "endpoint": "naver_ingest_detach_order",
+      "lineno": 718,
       "methods": [
         "POST"
       ],
@@ -1464,7 +1482,7 @@
     {
       "path": "foms/web/admin/naver_ingest.py",
       "endpoint": "naver_ingest_dock_state",
-      "lineno": 598,
+      "lineno": 784,
       "methods": [
         "POST"
       ],
@@ -1473,7 +1491,7 @@
     {
       "path": "foms/web/admin/naver_ingest.py",
       "endpoint": "naver_ingest_mark_reviewed",
-      "lineno": 569,
+      "lineno": 755,
       "methods": [
         "POST"
       ],
@@ -1482,7 +1500,7 @@
     {
       "path": "foms/web/admin/naver_ingest.py",
       "endpoint": "naver_ingest_run_now",
-      "lineno": 770,
+      "lineno": 956,
       "methods": [
         "POST"
       ],
@@ -1491,7 +1509,7 @@
     {
       "path": "foms/web/admin/naver_ingest.py",
       "endpoint": "naver_ingest_set_assignee",
-      "lineno": 679,
+      "lineno": 865,
       "methods": [
         "POST"
       ],
