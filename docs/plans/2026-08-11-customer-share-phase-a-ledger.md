@@ -47,6 +47,12 @@
 - [x] **T13 미저장 입력 자동 저장 후 발송** (2026-08-19, `d83854c2`): 알림톡 버튼 클릭 시 dirty 감지 → 기존 통합 저장(`erpSaveStructured({redirect:false})`) 실행 후 preview 조회 — 저장본 SSOT 유지(화면값 직접 조립 배제). 저장 실패 시 발송 중단+문구 표면화, draft 백업 주문은 클릭만으로 승격되지 않게 저장 스킵(draft 부활 레이스 회피). 공유 링크 발급·원클릭 알림톡도 같은 가드 재사용(`window.fomsErpEnsureSavedForSend`). erp-alimtalk-send.js·erp-share.js `?v=20260819c`. 계약 테스트 3건 추가(78 passed)·smoke exit 0. **스테이징 E2E 완료**: 주문 4479 에 실측시간 '16시 30분' 미저장 입력 → 알림톡 클릭 → 자동 저장 후 미리보기 본문에 `시  간 : 16시 30분` 반영(dirty=false·발송 버튼 활성). 공유 링크도 dirty 상태에서 발급 → 자동 저장 확인. 잔여물 정리(share 회수·주문 soft delete·로그아웃).
 - [x] **T14 실측 알림톡 발신 브랜드 분기** (2026-08-19, `f40a72f2`): `sender_phone(brand)` 신설 — `SOLAPI_SENDER_PHONE_{brand}`(라홈 15660792·하우드 15660703) 우선 + 구 `SOLAPI_SENDER_PHONE` 폴백. `is_configured(brand=None)` 은 공통 판정을 (구 ∨ 브랜드 중 하나)로 완화하고 brand 지정 시 그 브랜드 발신 가능 여부까지 판정(`_ineligible_reason` 이 빈 `from_` 발송을 not_configured 로 사전 차단). 테스트 6건 추가(75 passed)·mutation writer 인벤토리 재생성·smoke exit 0·CI green. **스테이징 실발송 검증 완료**: 라홈 발주사 주문 4479 실측 알림톡 → Solapi ATA `status=COMPLETE·statusCode=4000`, **from=15660792**(직전 08-19 02:57 발송은 15660703 — 분기 전후 대비 확인), to=01083277287, 라홈 템플릿 `KA01TP2608110820...`. 주의: 템플릿 WL 버튼은 운영 도메인 고정이라 스테이징 링크는 404(발송 성공 여부만 검증 가능).
 
+### 운영 검증에서 드러난 진짜 장애: `solapi` SDK 의존 누락 (2026-08-19 — PR #118 → production `aca8cfa7`)
+- 증상: 운영 실측 알림톡 수동 발송이 `error=unknown` 으로 실패. 운영 web 로그 `알림톡 발송 실패 (to=010****7282, error=unknown): No module named 'solapi'`.
+- 원인: `requirements.txt` 의 `solapi==5.0.3` 이 deploy(`57ee6e5e`)에만 있고 production 브랜치에 한 번도 승격되지 않았다 — **T11·T12 승격 이후에도 운영 알림톡/문자 벤더 호출은 전부 import 단계에서 실패**하고 있었다(Solapi 벤더 로그에 운영발 ATA 기록 없음이 방증).
+- 수정: production 브랜치 `requirements.txt` 에 한 줄 추가(두 브랜치 diff 는 이 줄뿐) → 재배포 빌드에 `solapi-5.0.3` 설치 확인.
+- **운영 실검증 완료**: 주문 4870(CLAUDE-TEST-PROD-T13, 라홈 발주사) 미저장 실측시간 `11시 20분` → 알림톡 클릭 → 자동 저장 후 본문 반영(T13) → 발송 성공. Solapi ATA `status=COMPLETE·수신 완료`, **from=15660792**(T14 라홈 분기), to=010-8327-7282(사용자 변경 번호). 정리 완료: 주문 soft delete·로그아웃·`claude_master`(id57) 재잠금.
+
 ### T13·T14 운영 승격 (2026-08-19 — 완료, PR #117 → production `40248a45`)
 - 승격 커밋: `f40a72f2`(T14) → `0fc0770d`, `d83854c2`(T13) → `4a4d1928` (자기 세션 커밋만 cherry-pick, docs 제외).
 - 충돌 해소: `erp_order_js.html` = production 줄 유지 + 본인 핀 2개만 `?v=20260819c` 범프 / `test_erp_order_shared_form_scripts.py` = production 핀 유지 + 본인 assertion 2줄 추가 / mutation writer 인벤토리 = 승격 트리 재생성.
