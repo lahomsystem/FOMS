@@ -483,3 +483,60 @@
   color: #6c757d;
   font-size: 0.75rem;
 }
+
+.as-rchart-file-wrap {
+  position: relative;
+  display: inline-flex;
+  flex-direction: column;
+  align-items: center;
+  gap: 2px;
+}
+
+.as-rchart-file-wrap[draggable="true"] {
+  cursor: grab;
+}
+
+.as-rchart-file__nudge-row {
+  display: flex;
+  gap: 2px;
+}
+
+.as-attach-ord {
+  position: absolute;
+  top: 2px;
+  left: 2px;
+  z-index: 1;
+  min-width: 1rem;
+  padding: 0 3px;
+  border-radius: 8px;
+  background: rgba(17, 24, 39, 0.72);
+  color: #fff;
+  font-size: 0.625rem;
+  font-weight: 700;
+  line-height: 1.2;
+  pointer-events: none;
+}
+
+.as-attach-nudge {
+  padding: 0 4px;
+  border: 0;
+  background: none;
+  color: #868e96;
+  font-size: 0.625rem;
+  line-height: 1;
+  cursor: pointer;
+}
+
+.as-attach-nudge:hover,
+.as-attach-nudge:focus {
+  color: #4f46e5;
+}
+
+.as-rchart-row__stage {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 6px;
+  align-items: center;
+  margin-top: 6px;
+}
+

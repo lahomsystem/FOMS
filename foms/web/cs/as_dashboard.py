@@ -34,6 +34,7 @@ from foms.services.as_dashboard_read_model import (
     build_as_tab_count_context,
     build_as_tab_query_conditions,
 )
+from foms.services.attachment_sort import attachment_sort_key
 from foms.services.orders.as_round_chart import build_as_round_chart_view
 
 
@@ -63,9 +64,9 @@ def _as_attachments_by_log_id(db, order_id: int) -> dict:
             OrderAttachment.category == 'as',
             OrderAttachment.as_log_id.isnot(None),
         )
-        .order_by(OrderAttachment.id.asc())
         .all()
     )
+    rows.sort(key=attachment_sort_key)
     grouped: dict = {}
     for att in rows:
         if not att.storage_key:
