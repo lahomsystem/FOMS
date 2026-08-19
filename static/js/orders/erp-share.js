@@ -140,8 +140,23 @@
             });
     }
 
+    /**
+     * 미저장 편집이 있으면 기존 통합 저장을 먼저 돌린다(T13, erp-alimtalk-send.js 공용 헬퍼).
+     *
+     * 공유 링크는 열람 시점의 저장본을 보여주므로, 저장 없이 발급하면 고객이 화면과
+     * 다른 내용을 본다. 헬퍼가 없으면(로드 실패) 기존 동작대로 그대로 진행한다.
+     *
+     * @param {function(string):void} say 상태/오류 문구 표시.
+     * @returns {Promise<boolean>} 계속 진행해도 되는지.
+     */
+    function _ensureSaved(say) {
+        var ensure = window.fomsErpEnsureSavedForSend;
+        if (typeof ensure !== 'function') return Promise.resolve(true);
+        return ensure(say).catch(function () { return false; });
+    }
+
     /** POST create — 토큰 원문은 이 응답에서만 존재한다. */
-    function _create() {
+    async function _create() {
         if (_busy) return;
         var orderId = _orderId();
         if (!orderId) {
@@ -151,10 +166,14 @@
         var kindInput = document.querySelector('input[name="erp-share-kind"]:checked');
         var kind = kindInput ? kindInput.value : 'drawing';
         _busy = true;
+        if (!(await _ensureSaved(_setNotice))) {
+            _busy = false;
+            return;
+        }
         var btn = document.getElementById('erp-share-create-btn');
         if (btn) btn.disabled = true;
 
-        fetch('/api/share/create/' + orderId, {
+        return fetch('/api/share/create/' + orderId, {
             method: 'POST',
             credentials: 'same-origin',
             headers: { 'Content-Type': 'application/json' },
@@ -319,14 +338,19 @@
     }
 
     /** 원클릭 알림톡 — 모달 없이 링크 자동 발급 후 즉시 알림톡 발송(도면/견적서). */
-    function _quickAlimtalk(btn) {
+    async function _quickAlimtalk(btn) {
         if (_busy || (btn && btn.disabled)) return;
         var kind = (btn && btn.getAttribute('data-share-kind')) || 'drawing';
         var kindLabel = KIND_LABELS[kind] || '문서';
         if (!window.confirm('고객에게 ' + kindLabel + ' 열람 링크를 알림톡으로 보낼까요?')) return;
         _busy = true;
         if (btn) btn.disabled = true;
-        fetch('/api/share/create/' + _orderId(), {
+        if (!(await _ensureSaved(function (msg) { window.alert(msg); }))) {
+            _busy = false;
+            if (btn) btn.disabled = false;
+            return;
+        }
+        return fetch('/api/share/create/' + _orderId(), {
             method: 'POST',
             credentials: 'same-origin',
             headers: { 'Content-Type': 'application/json' },
