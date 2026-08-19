@@ -8,13 +8,14 @@ Flask 2.3 + PostgreSQL + R2 + Railway (Web×2, Worker×1)
 브랜치: deploy (스테이징) → production (운영)
 
 ## 진행 중
+- [2026-08-19] **네이버 수집 T15(deploy)** — 취소 추적 드릴·운영 켜기 체크리스트·CS 흐름 시연 2집 PASS. 수정 5건: 규격 도우미 몰딩 오탐(축=옵션 원문 우선)·**품목=본품만**(옵션은 본품 귀속, 금액 보존)·귀속=수집 순서+사양 보정(`attribution.py`)·승격이 순서를 깨뜨리던 버그·도크 폭 2배+글자 14px. 운영 IP 교체는 **불필요 확정**. 잔여=PR #113 머지(사용자)·재생성 눈 확인. 원장: `docs/plans/2026-08-13-naver-order-ingest-ledger.md`
 - [2026-08-18] **네이버 수집 T14-C~I deploy 완료 + 운영 승격 PR #113 대기** — 배송메모 유실 수정(실필드 `productOrder.shippingMemo`)·큐/이력 한 집 한 줄 묶음·취소 주문 생성 차단(서비스 레벨, API 우회 400)·수집 후 취소 추적+담당자 알림·CS 2단계 흐름(담당자 지정은 실측 스케줄링 단계)·규격 입력 도우미(총폭 계산·cm→mm·본품↔1cm 사양 불일치). **PR #113 = deploy 전체 승격, MERGEABLE·검사 9종 green, 머지는 사용자**. 승격 함정: **deploy 체인 순서 ≠ 운영 실행 순서**(운영 DB 는 `asfresh_00` 정지 — 그 아래 리비전은 영영 안 돈다). 원장 `docs/plans/2026-08-13-naver-order-ingest-ledger.md`
 - [2026-08-18] **AS 증발 사고 종결 + 구조 제거** — 운영 55/55 복구 + 일괄 경로 AS 제외 가드(운영 `63737e91`) + **AS-AXIS-01** AS 대시보드 술어 status→`as_axis_status` 투영 교체(deploy `e061beb7`, 스테이징 검증 완료·운영 승격 대기). **AS 판정=status 기준·투영 암묵삭제 금지**(레거시 506건 lifecycle 없음). 복구 절차 `docs/guides/DATA_INCIDENT_RECOVERY.md`, 스펙 §11에 실측 조정 기록. **운영 승격 차단: `asaxis_00` 부모가 미승격 `naverdock_00`** — 네이버·변경사유 승격 후 진행(2026-08-18 사용자 결정)
 - [2026-08-14] **주문 변경 사유 deploy** — 축=시공일·금액·단계·취소(제품세부=기록만). docs/specs/2026-08-13-order-change-reason_SPEC.md
 - [2026-08-13] **프래그먼트 다이어트**(운영 PR #78~#86·#90 `5b73eb46`, 주문 태블릿 PR #95 `9f9b1ade`) — v3 죽은 v2 표면 6탭 435.8KB(**운영은 전원 v2 = no-op**, `FOMS_V3_SHELL_COHORT`는 v2 자격 플래그)·`pointer:coarse` 주문 표면 47.2KB(운영 실효)·폰 광폭표면 526.9KB(쿠키 `foms_scr`, deploy `61af5bd8`). **AS 표는 제외**(`d-md-block` 768 → 폰 가로에서 실제 표시, 계약으로 부재 고정). **측정은 `?view=fragment` 필수**(헤더만이면 전체 페이지). 잔여=AS 모바일 229.5KB(리사이즈 재요청 선행)·폰 건 운영 승격. 상세는 AI_CHANGELOG 2026-08-14
 - [2026-08-13] **AS 근본 최적화 2건(deploy)** — ① dTTFB 181→96(예산 168 불변, 공식 176보다 엄격): 지출처=같은 모집단 집계 2회 + 행100×2필드 sanitize 재파싱 → 단일 스캔 + sanitize LRU 메모이즈. ② data-order-id 1271→228(행 컨테이너 일원화, 자손은 closest 역참조) → wire 51.1→46.3KB. **함정: 표면간 상태동기화가 `.cls[data-order-id=x]` 전역 선택자였다** — 스코프 조회로 치환 후에야 자손 제거 가능.
 - [2026-08-10] **채널톡 AS PUSH·시공 계측 승격**(`340b0064`) — AS 본문 서버 SSOT(AS방 230351), 시공 숫자판=시공 단계만, 진단 헤더 2종.
-- [2026-08-01] **하네스 함정** — `ci_watch.py`는 워크플로 1개만 본다(7개 존재). 판정은 `gh run list --branch <b>`로 전수 나열. SQLite 레인은 FK 미강제 → FK 수정은 PG 레인 필수. PG 레인은 `create_all` 기반이라 마이그레이션 체인 미검증. CI에 Redis 없음.
+- [2026-08-01] **하네스 함정** — `ci_watch.py`는 워크플로 1개만 본다. 판정은 `gh run list --branch <b>` 전수. SQLite 레인 FK 미강제·PG 레인 마이그레이션 미검증·CI Redis 없음.
 - 위 3건 상세·후속 목록·결재 기록: `docs/plans/2026-07-31-full-promotion-prep-ledger.md`
 - ⚠️ **미결: `as-delete-reapply`의 `8c1ef69a`**(삭제 라우트 WRITE-GUARD-01 manifest 등재) deploy 미반영. worktree 정리 중 발견, 타 세션 몫이라 미처리. 브랜치 ref 보존됨.
 
