@@ -453,13 +453,17 @@ ERP Order Tab Pane (shared between add_order and edit_order)
                                 <button class="btn btn-sm btn-info" type="button" id="erp-channeltalk-push-as-btn" title="AS 접수 내용 + AS 첨부만 AS방으로 전송">
                                     <i class="fas fa-wrench"></i> AS PUSH
                                 </button>
-                                <button class="btn btn-sm btn-outline-primary erp-alimtalk-send-btn" type="button" id="erp-alimtalk-send-btn" title="실측 예약 안내를 고객에게 카카오 알림톡으로 발송">
-                                    <i class="fas fa-comment-dots"></i> 알림톡 발송
-                                </button>
-                                <button class="btn btn-sm btn-outline-info erp-share-alimtalk-quick-btn" type="button" id="erp-share-alimtalk-quick-btn" title="클릭 한 번으로 도면 열람 링크를 발급해 고객에게 알림톡으로 보냅니다 (실패 시 문자 대체발송)">
-                                    <i class="fas fa-paper-plane"></i> 알림톡 발송
-                                </button>
-                                <button class="btn btn-sm btn-outline-secondary erp-share-open-btn" type="button" id="erp-share-open-btn" title="고객에게 로그인 없는 도면 열람 링크를 공유">
+                                <div class="btn-group" id="erp-alimtalk-menu">
+                                    <button class="btn btn-sm btn-outline-primary dropdown-toggle" type="button" data-bs-toggle="dropdown" aria-expanded="false" title="고객에게 카카오 알림톡 발송 (실패 시 문자 대체발송)">
+                                        <i class="fas fa-comment-dots"></i> 알림톡
+                                    </button>
+                                    <ul class="dropdown-menu">
+                                        <li><button class="dropdown-item erp-alimtalk-send-btn" type="button" id="erp-alimtalk-send-btn">예약 내역 (실측 예약 안내)</button></li>
+                                        <li><button class="dropdown-item erp-share-alimtalk-quick-btn" type="button" id="erp-share-alimtalk-quick-btn" data-share-kind="drawing">도면 열람 링크</button></li>
+                                        <li><button class="dropdown-item erp-share-alimtalk-quick-btn" type="button" id="erp-share-alimtalk-quick-est-btn" data-share-kind="estimate">계약서(견적서) 열람 링크</button></li>
+                                    </ul>
+                                </div>
+                                <button class="btn btn-sm btn-outline-secondary erp-share-open-btn" type="button" id="erp-share-open-btn" title="링크 복사·문자·카톡 공유·발급 이력·회수">
                                     <i class="fas fa-link"></i> 고객 공유
                                 </button>
                                 <span class="erp-alimtalk-status small text-muted ms-1"></span>
