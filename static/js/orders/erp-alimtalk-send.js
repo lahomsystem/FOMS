@@ -2,6 +2,8 @@
  * ERP 알림톡 수동 발송 — 미리보기 확인 modal/sheet (PC·모바일 표면).
  *
  * 버튼 클릭 시점에만 GET preview 를 호출한다(전역 프리페치 없음, perf G1).
+ * 본문은 저장본 SSOT 라 미저장 입력이 있으면 preview 전에 기존 통합 저장을 먼저 돌린다
+ * (T13 — 화면값 직접 조립은 저장본 불일치 발송 사고 위험이라 하지 않는다).
  * document 위임 + window.__FOMS_ALIMTALK_BOUND 싱글톤으로 fragment 재실행에도
  * 리스너가 중복 등록되지 않는다(perf G4).
  *
@@ -40,6 +42,41 @@
     function erpAlimtalkIsDirty() {
         const autosave = window.fomsErpAutosave;
         return !!(autosave && typeof autosave.isDirty === 'function' && autosave.isDirty());
+    }
+
+    /**
+     * 미저장 편집이 있으면 기존 ERP 통합 저장(erpSaveStructured)을 먼저 실행한다(T13).
+     *
+     * 알림톡 본문은 서버가 저장된 structured_data 로 조립하므로, 저장 없이 발송하면
+     * 화면에 보이는 값과 다른 본문이 고객에게 나간다. 저장 실패 시 발송을 중단한다.
+     *
+     * @param {function(string):void} [setStatus] 상태 문구 표시(기본: 알림톡 상태 줄).
+     * @returns {Promise<boolean>} 발송 흐름을 계속해도 되는지(저장 실패면 false).
+     */
+    async function erpAlimtalkEnsureSaved(setStatus) {
+        const say = typeof setStatus === 'function' ? setStatus : erpAlimtalkSetStatus;
+        if (!erpAlimtalkIsDirty()) return true;
+        // draft 백업 주문은 아직 승격 전 — 여기서 저장하면 클릭만으로 draft 가 승격된다.
+        // 저장하지 않고 진행해 서버 자격 판정(not_eligible)을 그대로 보여준다.
+        if (typeof window.erpIsDraftBackedOrder === 'function' && window.erpIsDraftBackedOrder()) {
+            return true;
+        }
+        if (typeof window.erpSaveStructured !== 'function') {
+            say('저장되지 않은 변경이 있습니다. 저장 후 발송해주세요.');
+            return false;
+        }
+        say('저장 중…');
+        let result = null;
+        try {
+            result = await window.erpSaveStructured({ redirect: false });
+        } catch (e) {
+            result = null;
+        }
+        if (!result || result.success !== true) {
+            say('저장 실패 — 저장 후 다시 시도해주세요.');
+            return false;
+        }
+        return true;
     }
 
     /** 버튼 옆 상태 한 줄(있는 표면에서만) 갱신. */
@@ -140,39 +177,44 @@
             });
     }
 
-    /** 버튼 클릭 진입점: preview 조회 → 모달 표시. */
-    function erpOpenAlimtalkModal() {
+    /** 버튼 클릭 진입점: (미저장이면) 자동 저장 → preview 조회 → 모달 표시. */
+    async function erpOpenAlimtalkModal() {
         if (_busy) return;
-        const orderId = parseInt(String(window.ORDER_ID || '0'), 10) || 0;
+        let orderId = parseInt(String(window.ORDER_ID || '0'), 10) || 0;
         if (!orderId) {
             erpAlimtalkSetStatus('저장 후 발송할 수 있습니다.');
             return;
         }
         _busy = true;
-        erpAlimtalkSetStatus('미리보기 불러오는 중…');
+        try {
+            if (!(await erpAlimtalkEnsureSaved())) return;
+            // 저장이 주문을 승격했으면 ORDER_ID 가 갱신될 수 있어 다시 읽는다.
+            orderId = parseInt(String(window.ORDER_ID || '0'), 10) || orderId;
+            erpAlimtalkSetStatus('미리보기 불러오는 중…');
 
-        fetch('/api/kakao/alimtalk/preview/' + orderId, { credentials: 'same-origin' })
-            .then(function (res) { return res.json(); })
-            .then(function (body) {
-                if (!body || !body.success || !body.data) {
-                    const code = (body && body.error) || 'network';
-                    erpAlimtalkSetStatus('미리보기 실패 · ' + erpAlimtalkReasonLabel(code));
-                    return;
-                }
-                erpAlimtalkSetStatus('');
-                _fillModal(body.data);
-                const modal = _modal();
-                if (modal) {
-                    modal.show();
-                    return;
-                }
-                // bootstrap 미로드 폴백 — 본문 확인 후 즉시 발송 여부만 묻는다.
-                if (window.confirm(body.data.text || '')) void _send(orderId);
-            })
-            .catch(function () {
-                erpAlimtalkSetStatus('미리보기 실패 · ' + erpAlimtalkReasonLabel('network'));
-            })
-            .finally(function () { _busy = false; });
+            const res = await fetch('/api/kakao/alimtalk/preview/' + orderId, {
+                credentials: 'same-origin',
+            });
+            const body = await res.json();
+            if (!body || !body.success || !body.data) {
+                const code = (body && body.error) || 'network';
+                erpAlimtalkSetStatus('미리보기 실패 · ' + erpAlimtalkReasonLabel(code));
+                return;
+            }
+            erpAlimtalkSetStatus('');
+            _fillModal(body.data);
+            const modal = _modal();
+            if (modal) {
+                modal.show();
+                return;
+            }
+            // bootstrap 미로드 폴백 — 본문 확인 후 즉시 발송 여부만 묻는다.
+            if (window.confirm(body.data.text || '')) void _send(orderId);
+        } catch (e) {
+            erpAlimtalkSetStatus('미리보기 실패 · ' + erpAlimtalkReasonLabel('network'));
+        } finally {
+            _busy = false;
+        }
     }
 
     // 위임 바인딩 — 클릭 시점에 요소를 조회하므로 fragment swap 후에도 유효하다.
@@ -196,5 +238,7 @@
     });
 
     window.erpOpenAlimtalkModal = erpOpenAlimtalkModal;
+    // 공유 링크(erp-share.js)도 같은 dirty 가드를 쓴다 — 로드 순서상 이 파일이 먼저다.
+    window.fomsErpEnsureSavedForSend = erpAlimtalkEnsureSaved;
     window.erpAlimtalkReasonLabel = erpAlimtalkReasonLabel;
 })();
