@@ -144,6 +144,11 @@
                             {% if row.claim_label %}
                             <span class="badge bg-danger">{{ row.claim_label }}</span>
                             {% endif %}
+                            {# 발주확인은 네이버 판매자센터 쪽 처리다. 수집 원본에 이미 오는 값이라
+                               네이버 호출 없이 보여준다(T16-A). #}
+                            {% if row.place_pending %}
+                            <span class="badge bg-warning text-dark" title="네이버 판매자센터에서 발주확인이 아직 안 된 상품주문이 있습니다">발주확인 전</span>
+                            {% endif %}
                         </td>
                         <td class="small">{{ row.customer_name or '-' }}</td>
                         <td class="small">

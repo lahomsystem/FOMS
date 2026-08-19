@@ -208,6 +208,46 @@ def extract_claim(detail: dict) -> dict:
     }
 
 
+#: 사람이 읽는 발주 상태 라벨. 모르는 값은 원문을 그대로 보여준다(숨기지 않는다).
+PLACE_STATUS_LABELS = {
+    "NOT_YET": "발주확인 전",
+    "OK": "발주확인 완료",
+}
+
+#: 발주확인이 끝난 것으로 보는 값. 여기 없으면 "아직"으로 취급한다 —
+#: 모르는 값을 완료로 읽으면 처리해야 할 건이 화면에서 사라진다(안전한 쪽으로 틀린다).
+CONFIRMED_PLACE_STATUSES = frozenset({"OK"})
+
+
+def extract_place_status(detail: dict) -> dict:
+    """발주(발주확인) 상태를 뽑는다 — NAVER-INGEST-02 T16-A.
+
+    ``placeOrderStatus`` 는 수집 시점 원본에 이미 들어온다(2026-08-19 스테이징 실측:
+    ``"NOT_YET"``). 네이버에 아무것도 쓰지 않고 "발주확인이 아직인 건"을 화면에서 가려낼 수
+    있다는 뜻이다. 판매자센터나 API 로 발주확인을 하면 이 값이 바뀐다.
+
+    ``shipping_due`` 를 같이 싣는 이유: 발송기한이 곧인데 발주확인 전이면 그게 급한 건이다.
+
+    Args:
+        detail: 상품주문 상세 1건(``{"order":…, "productOrder":…}`` 또는 평평한 형태).
+
+    Returns:
+        ``{"status", "label", "confirmed", "placed_at", "shipping_due"}``.
+        값이 없으면 ``status`` 는 빈 문자열이고 ``confirmed`` 는 False(=아직으로 취급).
+    """
+    order, product_order, _shipping = unwrap_detail(detail)
+    status = (_text(product_order.get("placeOrderStatus"))
+              or _text(order.get("placeOrderStatus")))
+    upper = status.upper()
+    return {
+        "status": status,
+        "label": PLACE_STATUS_LABELS.get(upper, status),
+        "confirmed": upper in CONFIRMED_PLACE_STATUSES,
+        "placed_at": _text(product_order.get("placeOrderDate")),
+        "shipping_due": _text(product_order.get("shippingDueDate")),
+    }
+
+
 def build_payment_info(detail: dict) -> dict:
     """결제·금액 상세. 지금까지 ``totalPaymentAmount`` 하나만 쓰고 나머지를 버렸다.
 
@@ -567,6 +607,9 @@ __all__ = [
     "CLAIM_STATUS_LABELS",
     "build_payment_info",
     "extract_claim",
+    "extract_place_status",
+    "PLACE_STATUS_LABELS",
+    "CONFIRMED_PLACE_STATUSES",
     "extract_external_id",
     "extract_shipping_memo",
     "is_collectible",

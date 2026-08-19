@@ -28,8 +28,8 @@ G2 는 문서만으로 끝내지 않는다 — 직접 전달은 배송 추적이
 
 | Task | 내용 | 의존 | 상태 | 완료 기준(검증 명령/관찰) |
 |---|---|---|---|---|
-| T16-A | `placeOrderStatus` 읽기 표시 + '발주확인 전' 필터 | — | PENDING | 단위 테스트(상태 추출·미상값 무해) + 스테이징에서 배지·필터 눈 확인, 네이버 호출 0회 |
-| T16-B | `relation` 컬럼(NEW/ADDON/REPAY) + 마이그레이션 | — | PENDING | `alembic upgrade head` → `downgrade -1` → 재 upgrade green, `alembic heads` 단일 |
+| T16-A | `placeOrderStatus` 읽기 표시(이력·확인 큐·대조 pane) | — | IN_PROGRESS | 단위 4 + 화면 2 green, 스테이징 배지 눈 확인, 네이버 호출 0회 |
+| T16-B | `relation`(NEW/ADDON/REPAY) + `place_order_status` 컬럼 + 마이그레이션 + 백필 + '발주확인 전' 필터 | T16-A | PENDING | `alembic upgrade head` → `downgrade -1` → 재 upgrade green · 백필 후 화면 값 일치 · 필터가 인덱스로 풀림 |
 | T16-C | 기존 주문 후보 조회(전화 digits·이름·주소, 180일·5건) | T16-B | PENDING | 테스트: 수취인 전화 일치·주문자 전화 일치(대리주문)·무관 주문 제외·soft delete 제외 |
 | T16-D | 확인 큐/도크에 후보 표시 + '이 주문에 붙이기' UI | T16-C | PENDING | 스테이징 실건(소액 단독 집)으로 붙이기 눈 확인, erporder 폼 무변경 |
 | T16-E | attach 라우트(멱등·취소 가드·감사·되돌리기) | T16-B | PENDING | 계약 테스트: 2회 호출 동일 결과 · blocking ADDON 차단 · 권한 · 감사 이벤트 · 되돌리기 |
@@ -59,3 +59,8 @@ G2 는 문서만으로 끝내지 않는다 — 직접 전달은 배송 추적이
 - 2026-08-19: 스펙 작성. Q1(추가결제=기록만) 확정. 진행 순서 = 권한 확인 → 스펙 수정 → 계획서 검토 → 구현.
 - 2026-08-19: **G1 권한 게이트 통과** — 앱 API그룹 `주문 판매자 · 모든 리소스 유형` 확인(발주/발송처리 포함).
   G2 배송코드는 `DIRECT_DELIVERY` 로 좁혔고 실호출 검증만 남았다.
+- 2026-08-19: **T16-A 범위 조정** — '발주확인 전' **필터**는 T16-B 로 옮긴다.
+  `placeOrderStatus` 는 `raw_snapshot`(JSONB) 안이라 SQL 필터를 걸려면 인덱스 없는 JSONB
+  스캔이 된다(hot path 규칙 위반). T16-B 마이그레이션에 `place_order_status` 컬럼을
+  `relation` 과 함께 넣고 인덱스로 필터를 건다. 표시는 이미 원본을 푸는 경로에 얹으므로
+  추가 비용 0.

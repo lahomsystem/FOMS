@@ -258,6 +258,8 @@ def _link_rows(db, *, status: Optional[str], page: int) -> tuple[list[dict], int
             "payment": _payment_summary(link.raw_snapshot),
             "claim_label": summary["claim_label"],
             "claim_blocking": summary["claim_blocking"],
+            "place_confirmed": summary["place_confirmed"],
+            "place_label": summary["place_label"],
             "_order": order,
         })
 
@@ -289,6 +291,8 @@ def _link_rows(db, *, status: Optional[str], page: int) -> tuple[list[dict], int
             # 승격은 집 단위다 — 한 건이라도 취소·반품이면 promote_link_to_order 가 막는다
             # (promotion.py). 화면도 같은 판정으로 버튼을 잠가야 헛클릭이 안 난다.
             "claim_blocking": any(row["claim_blocking"] for row in group),
+            # 발주확인은 상품주문 단위라 한 건만 남아도 그 집은 아직 끝난 게 아니다(T16-A).
+            "place_pending": any(not row["place_confirmed"] for row in group),
             "failure_reason": next((row["failure_reason"] for row in group
                                     if row["failure_reason"]), ""),
             "count": len(group),
@@ -342,6 +346,7 @@ def _triage_pane(db, link: ExternalOrderLink) -> dict[str, Any]:
     from foms.services.integrations.naver_commerce.mapping import (
         build_payment_info,
         extract_claim,
+        extract_place_status,
         extract_shipping_memo,
         unwrap_detail,
     )
@@ -386,6 +391,8 @@ def _triage_pane(db, link: ExternalOrderLink) -> dict[str, Any]:
                              open="erp-order") if link.order_id else ""),
         # 취소·반품은 productOrderStatus 로는 안 보인다 — 별도 축으로 싣는다.
         "claim": extract_claim(link.raw_snapshot or {}),
+        # 발주확인 여부(네이버 판매자센터 처리 상태). 수집 원본에 이미 들어온다 — T16-A.
+        "place": extract_place_status(link.raw_snapshot or {}),
         "payment": build_payment_info(link.raw_snapshot or {}),
         "foms": {
             "customer_name": getattr(order, "customer_name", None),
@@ -501,6 +508,10 @@ def _group_queue(links: list[ExternalOrderLink], orders: dict,
         order = orders.get(int(lead.order_id or 0))
         lead_summary = summarize_snapshot(lead.raw_snapshot)
         rest = [row for row in members if row.id != lead.id]
+        # summarize_snapshot 은 원본 JSON 을 푸는 일이라 공짜가 아니다 — 멤버당 1회만 부르고
+        # 아래 표식(클레임·발주)들이 같은 결과를 나눠 쓴다.
+        ordered_summaries = [summarize_snapshot(row.raw_snapshot) for row in [lead, *rest]]
+        member_summaries = ordered_summaries
         queue.append({
             "id": lead.id,
             "external_id": lead.external_id,
@@ -513,11 +524,11 @@ def _group_queue(links: list[ExternalOrderLink], orders: dict,
             "count": len(members),
             "extra_count": len(rest),
             # 묶음 안 어느 한 건이라도 취소·반품이면 줄 전체에 표식을 단다.
-            "claim_label": next(
-                (summarize_snapshot(row.raw_snapshot)["claim_label"] for row in members
-                 if summarize_snapshot(row.raw_snapshot)["claim_label"]), ""),
-            "claim_blocking": any(summarize_snapshot(row.raw_snapshot)["claim_blocking"]
-                                  for row in members),
+            "claim_label": next((s["claim_label"] for s in member_summaries if s["claim_label"]), ""),
+            "claim_blocking": any(s["claim_blocking"] for s in member_summaries),
+            # 발주확인은 상품주문 단위다 — 하나라도 남아 있으면 그 집은 "발주확인 전"이다(T16-A).
+            "place_pending": any(not s["place_confirmed"] for s in member_summaries),
+            "shipping_due": next((s["shipping_due"] for s in member_summaries if s["shipping_due"]), ""),
             # CS 가 다음에 할 일을 목록에서 바로 알아보게 한다.
             "next_step": ("주문 만들기" if not lead.order_id
                           else ("규격 입력" if not order_has_spec_rows(order) else "")),
@@ -526,9 +537,10 @@ def _group_queue(links: list[ExternalOrderLink], orders: dict,
             # 찾아 헤맨다(map_group·도크와 같은 순서 규칙).
             "members": [
                 {"id": row.id,
-                 "product": summarize_snapshot(row.raw_snapshot)["product"],
+                 "product": summary["product"],
+                 "place_confirmed": summary["place_confirmed"],
                  "is_lead": row.id == lead.id}
-                for row in [lead, *rest]
+                for row, summary in zip([lead, *rest], ordered_summaries)
             ],
         })
     return queue

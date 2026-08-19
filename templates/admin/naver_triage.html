@@ -60,6 +60,9 @@
                                     {% if row.extra_count %}
                                     <span class="badge bg-secondary">외 {{ row.extra_count }}건</span>
                                     {% endif %}
+                                    {% if row.place_pending %}
+                                    <span class="badge bg-warning text-dark" title="네이버 발주확인이 아직입니다">발주확인 전</span>
+                                    {% endif %}
                                     {% if row.claim_label %}
                                     <span class="badge bg-danger">{{ row.claim_label }}</span>
                                     {% elif row.next_step %}
@@ -121,6 +124,17 @@
                         {% endif %}
                         <span class="small text-muted ms-auto">담당자 지정은 실측 일정 잡을 때</span>
                     </div>
+                    {# 발주확인 상태 — 네이버 판매자센터 쪽 처리 여부. 수집 원본 값이라 호출 0회(T16-A). #}
+                    {% if selected.place.status %}
+                    <div class="alert {{ 'alert-secondary' if selected.place.confirmed else 'alert-warning' }} py-2">
+                        <i class="fas fa-clipboard-list"></i>
+                        <b>네이버 {{ selected.place.label }}</b>
+                        {% if selected.place.shipping_due %} · 발송기한 {{ selected.place.shipping_due[:10] }}{% endif %}
+                        {% if not selected.place.confirmed %}
+                        <div class="small">판매자센터에서 발주확인을 해야 발송 단계로 넘어갑니다.</div>
+                        {% endif %}
+                    </div>
+                    {% endif %}
                     {% if selected.claim.status %}
                     {# 취소·반품은 productOrderStatus(PAYED)로는 안 보인다 — 실물 1건 확인(2026-08-14) #}
                     <div class="alert alert-danger py-2">

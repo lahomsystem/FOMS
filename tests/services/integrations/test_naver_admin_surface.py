@@ -237,3 +237,35 @@ def test_normal_collected_group_keeps_create_button_enabled(auth_client):
     button = body.split('naver-create-order-btn')[1].split('</button>')[0]
     assert "disabled" not in button
     assert "취소·반품 진행 중" not in body
+
+
+def test_place_order_status_shows_pending_badge(auth_client):
+    """발주확인 전인 집은 목록에서 바로 알아볼 수 있어야 한다 (T16-A).
+
+    ``placeOrderStatus`` 는 수집 원본에 이미 들어온다 — 네이버에 아무것도 쓰지 않고 표시한다.
+    """
+    link = _link("PO-PLACE", "COLLECTED", external_order_no="N-PLACE")
+    link.raw_snapshot = {
+        "order": {"orderId": "N-PLACE"},
+        "productOrder": {"productOrderId": "PO-PLACE", "productName": "붙박이장",
+                         "placeOrderStatus": "NOT_YET",
+                         "shippingDueDate": "2026-09-08T23:59:59.000+09:00"},
+    }
+    db_session.commit()
+
+    body = auth_client.get("/admin/naver-ingest").get_data(as_text=True)
+    assert "발주확인 전" in body
+
+
+def test_confirmed_place_order_has_no_pending_badge(auth_client):
+    """발주확인이 끝난 집에는 표식이 없어야 한다(과표시 금지)."""
+    link = _link("PO-PLACE-OK", "COLLECTED", external_order_no="N-PLACE-OK")
+    link.raw_snapshot = {
+        "order": {"orderId": "N-PLACE-OK"},
+        "productOrder": {"productOrderId": "PO-PLACE-OK", "productName": "붙박이장",
+                         "placeOrderStatus": "OK"},
+    }
+    db_session.commit()
+
+    body = auth_client.get("/admin/naver-ingest").get_data(as_text=True)
+    assert "발주확인 전" not in body

@@ -26,6 +26,7 @@ from foms.services.integrations.naver_commerce.constants import CHANNEL
 from foms.services.integrations.naver_commerce.mapping import (
     NaverMappingError,
     extract_claim,
+    extract_place_status,
     group_key,
     map_group,
 )
@@ -179,11 +180,15 @@ def summarize_snapshot(raw_snapshot: Any) -> dict[str, Any]:
         raw_snapshot: ``ExternalOrderLink.raw_snapshot``.
 
     Returns:
-        dict: ``customer_name``·``product``·``options``·``quantity``·``amount``·``order_date``.
+        dict: ``customer_name``·``product``·``options``·``quantity``·``amount``·``order_date``
+        + 클레임 표시(``claim_*``) + 발주 상태(``place_*`` — T16-A).
     """
     empty = {"customer_name": "", "product": "", "options": "",
              "quantity": None, "amount": None, "order_date": "",
-             "claim_label": "", "claim_blocking": False}
+             "claim_label": "", "claim_blocking": False,
+             # 원본이 없거나 깨졌으면 "발주확인 여부를 모른다" — 완료로 읽지 않는다.
+             "place_status": "", "place_label": "", "place_confirmed": False,
+             "shipping_due": ""}
     if not isinstance(raw_snapshot, dict) or not raw_snapshot:
         return empty
     try:
@@ -199,6 +204,7 @@ def summarize_snapshot(raw_snapshot: Any) -> dict[str, Any]:
     quantity = product_order.get("quantity")
     amount = product_order.get("totalPaymentAmount")
     claim = extract_claim(raw_snapshot)
+    place = extract_place_status(raw_snapshot)
     return {
         "customer_name": str(shipping.get("name") or "").strip(),
         "product": str(product_order.get("productName") or "").strip(),
@@ -209,6 +215,11 @@ def summarize_snapshot(raw_snapshot: Any) -> dict[str, Any]:
         # 목록에서도 취소 건을 알아볼 수 있어야 한다(빈 문자열이면 정상 주문).
         "claim_label": claim["label"],
         "claim_blocking": claim["blocking"],
+        # 발주확인 여부는 수집 시점 원본에 이미 들어온다 — 네이버 호출 0회로 표시한다(T16-A).
+        "place_status": place["status"],
+        "place_label": place["label"],
+        "place_confirmed": place["confirmed"],
+        "shipping_due": place["shipping_due"][:10],
     }
 
 
