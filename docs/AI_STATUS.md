@@ -1,6 +1,7 @@
 # FOMS 현재 상태
 > 자동 업데이트: 2026-08-14
 > 최신: **오프사이트 백업 전면 실패 복구(foms-ops-backup)** — 개설 후 6회 전부 실패(성공 0)를 pg_dump 17 경로 고정 + R2 시크릿 등록으로 해소, 첫 성공. 침묵 차단 3종 배선.
+> 최신: **네이버 NAVER-INGEST-02 T16-A~H deploy(코드 완료·실호출 미실행)** — 재결제/차액결제/신규를 사람이 구분해 붙이는 관계 축(`relation` NEW/ADDON/REPAY) + 기존 주문 후보 제시(전화·이름·주소) + attach/detach(멱등·취소 가드·되돌리기) + 추가결제 기록(`pricing.extra_payments`, **출고가·잔금 불변**, REV-00 경유) + 발주확인·발송처리 실행 경로(WORKER enqueue, `DIRECT_DELIVERY`). **네이버 실호출은 사용자가 직접 검증**(2026-08-20 결정). 스펙 `docs/specs/2026-08-19-naver-order-relation-and-fulfillment_SPEC.md` · 원장 `docs/plans/2026-08-19-naver-relation-fulfillment-ledger.md`
 > 이 파일 상단 40줄이 세션 시작 컨텍스트의 전부다(hygiene 계약 테스트로 강제). 상세 이력: "## 최근 완료"·"## 기록 보관", 과거 헤더 상세는 기록 보관에 이관.
 
 ## 스택
@@ -8,6 +9,10 @@ Flask 2.3 + PostgreSQL + R2 + Railway (Web×2, Worker×1)
 브랜치: deploy (스테이징) → production (운영)
 
 ## 진행 중
+- [2026-08-20] **네이버 관계 판별 + 발주확인·발송처리(NAVER-INGEST-02, deploy)** — T16-A~H 코드 완료. 수집 판정이 `PAYED` 하나뿐이라 재결제·차액결제가 전부 새 집으로 들어오던 문제를 **사람이 고르는 붙이기**로 닫았다(자동 확정 없음). 스테이징 실물 왕복 검증(강재상 1cm 집 → #4466 붙임 → 도크 "추가결제 3건 · 517,550원(반영은 수동)" → 되돌림 → 원복). **잔여=네이버 실호출 검증(사용자 직접)**, G3(재결제 시 원 주문 취소 표시) 미확정. 권한 게이트 통과(API그룹 `주문 판매자`=발주/발송처리 포함), 배송코드 `DIRECT_DELIVERY`(구매확정·정산 시점 변동 주의). 함정: `.alert` 5초 자동닫힘이 상시 안내를 지운다(`data-foms-no-autodismiss` 필요, 취소 경고도 이 버그였음) · 주문 JSONB 직접쓰기는 REV-99 게이트 → `execute_order_mutation` 경유 · 새 감사 행위는 `audit_message_display` 라벨 필수(pre_push_smoke 사각).
+- [2026-08-19] **네이버 수집 관리 화면 수정 2건(deploy `3c4e8243`)** — 필터 카운트 단위 통일(전체=묶음인데 상태별은 행이라 부분>전체로 보였다) + 취소·반품 건 "주문 만들기" 버튼 잠금(서버는 이미 400 차단, 화면만 열려 있었다). 지도 좌표 미갱신 원인 확정: **GEOCODE outbox handler 미배포**(전 주문 공통, 네이버 밖 과제).
+- ⚠️ [2026-08-20] **deploy FOMS CI red = 타 세션 몫** — `3d3c2f61`(RESTORE-GUI-01 T1)의 `ORDER_FIELD_RESTORED` 라벨 누락 + `events.api_restore_field_change` 정책 미분류. Harness CI·PG Lane·perf-gate 는 green.
+- [2026-08-19] **네이버 수집 T15 완료(deploy)** — 품목=본품만·귀속=수집순서+사양 보정·승격 순서 버그·규격 도우미 오탐·도크 폭2배. 운영 IP 교체 불필요 확정. 잔여=PR #113 머지(사용자)·폰 탭 보류 유지. 원장 `docs/plans/2026-08-13-naver-order-ingest-ledger.md`
 - [2026-08-19] **오프사이트 백업 복구(`foms-ops-backup`)** — 6회 전부 실패 원인 ① `which(pg_dump)`=16(pgdg 17 경로 미고정) ② R2 시크릿 미등록. 해소 후 첫 성공(`59b377f`). 침묵 차단 3종(preflight·`LATEST.json` 심박·실패 이슈). Railway 스케줄 D6+W27+M89·dev D 신설(redis 제외=캐시/큐)·사고 스냅샷 2건 잠금. 잔여=복원 리허설(분기 수동)·첨부 R2·`/admin/backup-status`
 - [2026-08-19] **네이버 수집 T15(deploy)** — 품목=본품만(옵션은 본품 귀속·금액 보존)·귀속=수집순서+사양 보정(`attribution.py`)·승격 순서 버그 수정·규격 도우미 몰딩 오탐 수정·도크 폭2배+14px. 운영 IP 교체 불필요 확정. 잔여=PR #113 머지(사용자). 원장: `docs/plans/2026-08-13-naver-order-ingest-ledger.md`
 - [2026-08-18] **네이버 수집 T14-C~I deploy 완료 + 운영 승격 PR #113 대기** — 배송메모 유실 수정(실필드 `productOrder.shippingMemo`)·큐/이력 한 집 한 줄 묶음·취소 주문 생성 차단(서비스 레벨, API 우회 400)·수집 후 취소 추적+담당자 알림·CS 2단계 흐름(담당자 지정은 실측 스케줄링 단계)·규격 입력 도우미(총폭 계산·cm→mm·본품↔1cm 사양 불일치). **PR #113 = deploy 전체 승격, MERGEABLE·검사 9종 green, 머지는 사용자**. 승격 함정: **deploy 체인 순서 ≠ 운영 실행 순서**(운영 DB 는 `asfresh_00` 정지 — 그 아래 리비전은 영영 안 돈다). 원장 `docs/plans/2026-08-13-naver-order-ingest-ledger.md`
