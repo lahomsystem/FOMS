@@ -136,8 +136,13 @@ def _group_siblings(session: Session, link: ExternalOrderLink) -> list[ExternalO
         session: DB 세션.
         link: 기준 링크(반드시 결과에 포함된다).
 
+    **순서가 의미를 갖는다**: 추가옵션 귀속(:mod:`attribution`)이 수집 순서를 읽으므로
+    기준 링크를 앞으로 끌어내면 안 된다 — 그러면 본품 2개짜리 집이 ``M M a a`` 배치로
+    보여 옵션이 한 본품에 몰린다(2026-08-19 스테이징 실사고: 12건이 180cm 본품에 몰림).
+    그래서 **기준 링크를 포함한 전체를 id(수집) 순으로** 돌려준다.
+
     Returns:
-        묶을 링크 목록(기준 링크 우선, 나머지는 id 순).
+        묶을 링크 목록 — **수집 순서(id 오름차순)**.
     """
     key = group_key(link.raw_snapshot or {})
     order_no = key[0]
@@ -161,7 +166,7 @@ def _group_siblings(session: Session, link: ExternalOrderLink) -> list[ExternalO
     for row in candidates:
         if isinstance(row.raw_snapshot, dict) and group_key(row.raw_snapshot) == key:
             siblings.append(row)
-    return siblings
+    return sorted(siblings, key=lambda row: row.id)
 
 
 def summarize_snapshot(raw_snapshot: Any) -> dict[str, Any]:
