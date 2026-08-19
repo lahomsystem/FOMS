@@ -556,6 +556,13 @@ def api_order_attachments_reorder(order_id):
 
         for index, att_id in enumerate(ids):
             live_by_id[att_id].sort_order = index
+        if ids:
+            emit_attachment_event(
+                db,
+                live_by_id[ids[0]],
+                ATTACHMENT_META_UPDATED,
+                extra={"field": "sort_order", "ids": ids, "as_log_id": group_id},
+            )
         db.commit()
         _invalidate_attachment_caches()
         ordered = [live_by_id[att_id] for att_id in ids]
