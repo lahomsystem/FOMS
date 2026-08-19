@@ -516,3 +516,30 @@ def test_edit_page_without_naver_source_has_no_dock(app, client):
     html = client.get(f"/edit/{order_id}").get_data(as_text=True)
 
     assert 'id="erpNaverDockPane"' not in html
+
+
+def test_payload_block_layout_uses_spec_axis_and_leaves_ambiguous_unset(app):
+    """본품이 앞에 몰려 온 집 — 사양이 갈리면 그 본품에, 단서가 없으면 사람이 선택.
+
+    순서만 쓰면 옵션이 전부 마지막 본품에 몰린다(2026-08-19 실데이터 3집).
+    """
+    order = _naver_order(_staff())
+    molding = _link(order, _snapshot(product_name="라홈 무몰딩 붙박이장 30cm",
+                                     option="제품: 로라 몰딩 여닫이 30cm", amount=600000))
+    plain = _link(order, _snapshot(product_name="라홈 무몰딩 붙박이장 30cm",
+                                   option="제품: 로라 무몰딩 여닫이 30cm", amount=1300000))
+    molding_addon = _link(order, _snapshot(product_name="로라 몰딩 여닫이 1cm",
+                                           option="길이추가(1cm): 로라 몰딩 여닫이 1cm",
+                                           product_class="추가구성상품", amount=11000))
+    neutral = _link(order, _snapshot(product_name="제로조인트 추가 (상담)",
+                                     option="제로조인트: 제로조인트 추가 (상담)",
+                                     product_class="추가구성상품", amount=0))
+
+    payload = build_dock_payload(db_session, order)
+
+    by_ext = {row["external_id"]: row for row in payload["rows"]}
+    assert by_ext[molding_addon.external_id]["guess_main"] == molding.external_id
+    assert "사양 일치" in by_ext[molding_addon.external_id]["guess_reason"]
+    assert by_ext[neutral.external_id]["guess_main"] is None
+    assert "선택" in by_ext[neutral.external_id]["guess_reason"]
+    assert plain.external_id in {r["external_id"] for r in payload["rows"]}
