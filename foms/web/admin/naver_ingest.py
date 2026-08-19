@@ -509,6 +509,15 @@ def naver_ingest_triage():
     truncated = len(pending) == QUEUE_LINK_FETCH_LIMIT
     selected_id = request.args.get("link_id", type=int)
     selected = next((row for row in pending if row.id == selected_id), None)
+    if selected is None and selected_id:
+        # 확인 완료된 건은 큐에서 빠지지만 **대조 pane 은 열 수 있어야 한다** — 발주확인·
+        # 발송처리 버튼이 거기 있고, 확인을 끝낸 뒤에 처리할 일도 있다(T16-H).
+        selected = (
+            db.query(ExternalOrderLink)
+            .filter(ExternalOrderLink.id == selected_id,
+                    ExternalOrderLink.channel == "NAVER")
+            .first()
+        )
     if selected is None and pending:
         selected = pending[0]
 

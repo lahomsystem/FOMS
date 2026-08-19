@@ -266,3 +266,23 @@ def test_last_error_is_shown_not_swallowed(auth_client):
 
     body = auth_client.get(f"/admin/naver-ingest/triage?link_id={link_id}").get_data(as_text=True)
     assert "HTTP 400 처리권한 없음" in body
+
+
+def test_reviewed_link_pane_is_still_reachable(auth_client):
+    """확인 완료된 건도 link_id 로 대조 pane 을 열 수 있어야 한다.
+
+    큐에서는 빠지지만 발주확인·발송처리 버튼이 그 화면에 있다 — 열 수 없으면 처리 경로가
+    사라진다(2026-08-20 스테이징에서 실제로 막혔다).
+    """
+    from foms.services.datetime_kst import now_utc_naive
+
+    order_id = _order_row("확인끝난건")
+    link_id = _link("PO-H-REVIEWED", order_no="N-H-REVIEWED", place="NOT_YET")
+    _attach_link(link_id, order_id, "NEW")
+    link = db_session.get(ExternalOrderLink, link_id)
+    link.reviewed_at = now_utc_naive()
+    db_session.commit()
+
+    body = auth_client.get(f"/admin/naver-ingest/triage?link_id={link_id}").get_data(as_text=True)
+    assert "PO-H-REVIEWED" in body
+    assert 'data-action="confirm"' in body
