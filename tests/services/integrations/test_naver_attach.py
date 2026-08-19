@@ -176,3 +176,44 @@ def test_attach_requires_login(client):
     response = client.post("/admin/naver-ingest/1/attach",
                            json={"order_id": 1, "relation": "ADDON"})
     assert response.status_code in (301, 302, 401, 403)
+
+
+def test_triage_pane_offers_existing_order_candidates(auth_client):
+    """확인 화면이 기존 주문 후보와 붙이기 버튼을 보여준다 (T16-D)."""
+    order = Order(received_date="2026-08-01", customer_name="후보고객",
+                  phone="010-2222-3333", erp_phone_digits="01022223333",
+                  address="서울시 송파구 올림픽로 300", product="붙박이장", status="RECEIVED")
+    db_session.add(order)
+    db_session.commit()
+    order_id = int(order.id)
+
+    link = ExternalOrderLink(
+        channel="NAVER", external_id="PO-UI-CAND", external_order_no="N-UI-CAND",
+        sync_status="COLLECTED",
+        raw_snapshot={"order": {"orderId": "N-UI-CAND", "ordererTel": "010-2222-3333"},
+                      "productOrder": {"productOrderId": "PO-UI-CAND",
+                                       "productName": "로라 무몰딩 1cm",
+                                       "shippingAddress": {"name": "후보고객",
+                                                           "tel1": "010-2222-3333",
+                                                           "baseAddress": "서울시 송파구 올림픽로 300",
+                                                           "detailedAddress": ""}}},
+    )
+    db_session.add(link)
+    db_session.commit()
+
+    body = auth_client.get(f"/admin/naver-ingest/triage?link_id={link.id}").get_data(as_text=True)
+    assert "이 고객의 기존 주문" in body
+    assert "추가결제로 붙이기" in body
+    assert f'data-order-id="{order_id}"' in body
+
+
+def test_attached_link_shows_undo_control(auth_client):
+    """붙인 뒤에는 무엇에 붙었는지와 되돌리기가 보인다."""
+    order_id = _order(name="되돌림고객", phone="010-4444-5555")
+    link_id = _link("PO-UI-UNDO", order_no="N-UI-UNDO")
+    auth_client.post(f"/admin/naver-ingest/{link_id}/attach",
+                     json={"order_id": order_id, "relation": "ADDON"})
+
+    body = auth_client.get(f"/admin/naver-ingest/triage?link_id={link_id}").get_data(as_text=True)
+    assert "되돌리기" in body
+    assert f"주문 #{order_id}" in body

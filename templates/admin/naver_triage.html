@@ -135,6 +135,65 @@
                         {% endif %}
                     </div>
                     {% endif %}
+                    {# 기존 주문 후보 — 재결제·차액 결제 판별(T16-D). 자동으로 붙이지 않는다:
+                       금액·시공이 걸린 판단이라 근거만 보여주고 사람이 고른다. #}
+                    {% if selected.candidates and not selected.order_id %}
+                    <div class="alert alert-info py-2">
+                        <div class="fw-semibold mb-1">
+                            <i class="fas fa-link"></i> 이 고객의 기존 주문 {{ selected.candidates|length }}건
+                        </div>
+                        <div class="small text-muted mb-2">
+                            새 주문이 아니라 <b>기존 주문의 추가결제(차액)</b>거나 <b>취소 후 재결제</b>일 수 있습니다.
+                            맞으면 아래에서 붙이세요 — 새 주문을 만들지 않습니다.
+                        </div>
+                        <div class="table-responsive">
+                            <table class="table table-sm align-middle mb-0">
+                                <tbody>
+                                    {% for cand in selected.candidates %}
+                                    <tr>
+                                        <td class="small">
+                                            <a href="{{ url_for('order_edit.edit_order', order_id=cand.order_id, open='erp-order') }}"
+                                               target="_blank" rel="noopener">#{{ cand.order_id }}</a>
+                                            <div class="text-muted">{{ cand.reason }}</div>
+                                        </td>
+                                        <td class="small">
+                                            {{ cand.customer_name }}
+                                            <div class="text-muted">{{ cand.address[:24] }}</div>
+                                        </td>
+                                        <td class="small text-muted">
+                                            {{ cand.received_date }}
+                                            {% if cand.naver_link_count %}
+                                            <div>네이버 수집 {{ cand.naver_link_count }}건</div>
+                                            {% endif %}
+                                        </td>
+                                        <td class="text-end">
+                                            <button type="button" class="btn btn-sm btn-outline-primary naver-attach-btn"
+                                                    data-link-id="{{ selected.link_id }}"
+                                                    data-order-id="{{ cand.order_id }}"
+                                                    data-relation="ADDON">추가결제로 붙이기</button>
+                                            <button type="button" class="btn btn-sm btn-outline-secondary naver-attach-btn"
+                                                    data-link-id="{{ selected.link_id }}"
+                                                    data-order-id="{{ cand.order_id }}"
+                                                    data-relation="REPAY">재결제로 붙이기</button>
+                                        </td>
+                                    </tr>
+                                    {% endfor %}
+                                </tbody>
+                            </table>
+                        </div>
+                    </div>
+                    {% endif %}
+                    {% if selected.relation in ('ADDON', 'REPAY') %}
+                    <div class="alert alert-secondary py-2 d-flex flex-wrap align-items-center gap-2">
+                        <span>
+                            <i class="fas fa-link"></i>
+                            <b>{{ '추가결제' if selected.relation == 'ADDON' else '재결제' }}</b> 로
+                            주문 #{{ selected.order_id }} 에 붙어 있습니다(새 주문을 만들지 않았습니다).
+                        </span>
+                        <button type="button" id="triage-detach" class="btn btn-sm btn-outline-danger ms-auto"
+                                data-link-id="{{ selected.link_id }}">되돌리기</button>
+                    </div>
+                    {% endif %}
                     {% if selected.claim.status %}
                     {# 취소·반품은 productOrderStatus(PAYED)로는 안 보인다 — 실물 1건 확인(2026-08-14) #}
                     <div class="alert alert-danger py-2">
@@ -329,6 +388,63 @@
     function show(kind, text) {
         box.className = 'alert alert-' + kind;
         box.textContent = text;
+    }
+
+    // 기존 주문에 붙이기 / 되돌리기 (T16-D). 관계 판정은 사람이 하고, 화면은 그 선택만 보낸다.
+    async function postJson(url, body) {
+        const response = await fetch(url, {
+            method: 'POST',
+            headers: { 'Content-Type': 'application/json' },
+            body: body ? JSON.stringify(body) : undefined
+        });
+        return response.json();
+    }
+
+    document.querySelectorAll('.naver-attach-btn').forEach(function (btn) {
+        btn.addEventListener('click', async function () {
+            var relationLabel = btn.dataset.relation === 'ADDON' ? '추가결제' : '재결제';
+            if (!window.confirm('주문 #' + btn.dataset.orderId + ' 에 ' + relationLabel + ' 로 붙입니다. 계속할까요?')) {
+                return;
+            }
+            btn.disabled = true;
+            try {
+                const data = await postJson('/admin/naver-ingest/' + btn.dataset.linkId + '/attach', {
+                    order_id: Number(btn.dataset.orderId),
+                    relation: btn.dataset.relation
+                });
+                if (!data.success) {
+                    show('danger', data.error || '붙이지 못했습니다.');
+                    btn.disabled = false;
+                    return;
+                }
+                show('success', '주문 #' + data.data.order_id + ' 에 붙였습니다(' + data.data.attached + '건).');
+                window.setTimeout(function () { window.location.reload(); }, 800);
+            } catch (err) {
+                show('danger', '붙이기 실패: ' + err);
+                btn.disabled = false;
+            }
+        });
+    });
+
+    var detachBtn = document.getElementById('triage-detach');
+    if (detachBtn) {
+        detachBtn.addEventListener('click', async function () {
+            if (!window.confirm('붙이기를 되돌립니다. 수집 직후 상태로 돌아갑니다.')) { return; }
+            detachBtn.disabled = true;
+            try {
+                const data = await postJson('/admin/naver-ingest/' + detachBtn.dataset.linkId + '/detach');
+                if (!data.success) {
+                    show('danger', data.error || '되돌리지 못했습니다.');
+                    detachBtn.disabled = false;
+                    return;
+                }
+                show('success', '되돌렸습니다.');
+                window.setTimeout(function () { window.location.reload(); }, 800);
+            } catch (err) {
+                show('danger', '되돌리기 실패: ' + err);
+                detachBtn.disabled = false;
+            }
+        });
     }
 
     var createBtn = document.getElementById('triage-create-order');

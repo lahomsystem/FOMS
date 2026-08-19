@@ -31,7 +31,7 @@ G2 는 문서만으로 끝내지 않는다 — 직접 전달은 배송 추적이
 | T16-A | `placeOrderStatus` 읽기 표시(이력·확인 큐·대조 pane) | — | **DONE** `1d7b6056` | 단위 4 + 화면 2 green · 스테이징 눈 확인(39집 중 21집 '발주확인 전', 완료건 무배지, pane '발주확인 완료 · 발송기한') · 콘솔 0 |
 | T16-B | `relation`(NEW/ADDON/REPAY) + `place_order_status` 컬럼 + 마이그레이션 + 백필 + '발주확인 전' 필터 | T16-A | **DONE** `6f9724d0` | PG17 왕복 green · PG 레인 737 green · 필터 계약 4 green · 스테이징 눈 확인(버튼 21집, 필터 시 21행 전부 배지, status×place 조합 3행) |
 | T16-C | 기존 주문 후보 조회(전화 digits·이름·주소, 180일·5건) | T16-B | **DONE** | 계약 9 green(수취인/주문자 전화·이름+주소·무관 제외·soft delete·기간 밖·자기 자신·깨진 원본·기존 링크 수) |
-| T16-D | 확인 큐/도크에 후보 표시 + '이 주문에 붙이기' UI | T16-C | PENDING | 스테이징 실건(소액 단독 집)으로 붙이기 눈 확인, erporder 폼 무변경 |
+| T16-D | 확인 화면에 후보 표시 + '이 주문에 붙이기'/되돌리기 UI | T16-C, T16-E | **IN_PROGRESS** | 계약 2 green · 스테이징 실건 붙이기 눈 확인 대기 · erporder 폼 무변경 |
 | T16-E | attach·detach 라우트(멱등·취소 가드·감사·되돌리기) | T16-B | **DONE** | 계약 11 green(묶음 전체 이동·멱등·ADDON 취소 차단·REPAY 허용·관계 닫힌집합·삭제주문 거부·타 주문 이동 거부·되돌리기·승격분 거부·감사·비로그인) · manifest 2종 등재 |
 | T16-F | 추가결제 `extra_payments` 기록 + 표시 | T16-E | PENDING | 기록 후 출고가·잔금 계산 불변(계약 테스트), 되돌리기 시 항목 제거 |
 | T16-G | 발주확인·발송처리 client + WORKER enqueue | G2 | PENDING | 스텁 테스트(멱등·실패 사유 노출) + 스테이징 `DIRECT_DELIVERY` 실호출 1건 성공 + 판매자센터 표시·구매확정 예정일 확인 |

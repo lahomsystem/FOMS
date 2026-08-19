@@ -22,6 +22,7 @@ from flask import jsonify, render_template, request, session, url_for
 
 from db import get_db
 from foms.services.datetime_kst import format_datetime_kst, now_utc_naive
+from foms.services.integrations.naver_commerce.order_candidates import find_order_candidates
 from foms.services.integrations.naver_commerce.promotion import summarize_snapshot
 from foms.services.jobs.queue import enqueue_naver_order_sync
 from foms.web.admin.routes import admin_bp
@@ -436,6 +437,10 @@ def _triage_pane(db, link: ExternalOrderLink) -> dict[str, Any]:
         "claim": extract_claim(link.raw_snapshot or {}),
         # 발주확인 여부(네이버 판매자센터 처리 상태). 수집 원본에 이미 들어온다 — T16-A.
         "place": extract_place_status(link.raw_snapshot or {}),
+        # 이 수집분이 붙을 만한 기존 주문 후보 — 재결제·차액 결제 판별용(T16-C/D).
+        # **자동으로 붙이지 않는다.** 근거와 함께 늘어놓고 사람이 고른다.
+        "relation": link.relation,
+        "candidates": find_order_candidates(db, link),
         "payment": build_payment_info(link.raw_snapshot or {}),
         "foms": {
             "customer_name": getattr(order, "customer_name", None),
