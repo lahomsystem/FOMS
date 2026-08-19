@@ -8,11 +8,11 @@
     "log_access"
   ],
   "baselines": {
-    "total": 177,
+    "total": 178,
     "unaudited": 0
   },
   "classification_counts": {
-    "AUDITED": 147,
+    "AUDITED": 148,
     "EXEMPT": 30,
     "UNAUDITED": 0
   },
@@ -824,7 +824,7 @@
     {
       "path": "foms/api/measurement/routes.py",
       "endpoint": "api_erp_measurement_update",
-      "lineno": 273,
+      "lineno": 379,
       "methods": [
         "POST"
       ],
@@ -1140,7 +1140,16 @@
     {
       "path": "foms/api/share.py",
       "endpoint": "api_share_revoke",
-      "lineno": 581,
+      "lineno": 741,
+      "methods": [
+        "POST"
+      ],
+      "classification": "AUDITED"
+    },
+    {
+      "path": "foms/api/share.py",
+      "endpoint": "api_share_send_alimtalk",
+      "lineno": 632,
       "methods": [
         "POST"
       ],
@@ -1149,7 +1158,7 @@
     {
       "path": "foms/api/share.py",
       "endpoint": "api_share_send_sms",
-      "lineno": 466,
+      "lineno": 482,
       "methods": [
         "POST"
       ],
