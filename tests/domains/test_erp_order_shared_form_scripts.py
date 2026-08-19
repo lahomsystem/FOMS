@@ -67,7 +67,8 @@ def _assert_shared_form_script_contract(body: str) -> None:
     )
     assert "html2canvas.min.js" not in body
     assert "js/orders/erp-channel-push-confirm.js?v=20260810a" in body
-    assert "js/orders/erp-order-shared.js?v=20260814e" in body
+    assert "js/orders/erp-order-shared.js?v=20260819a" in body
+    assert "js/cs/as-attachment-order.js?v=20260819a" in body
     assert "js/orders/erp-alimtalk-send.js?v=20260819c" in body
     assert "js/orders/erp-share.js?v=20260819c" in body
     assert "js/orders/erp-stage-override.js?v=20260814d" in body
