@@ -47,7 +47,7 @@ Flask 2.3 + PostgreSQL + R2 + Railway (Web×2, Worker×1)
 ## 최근 완료 (최대 5개)
 
 - [2026-08-11] **주문 변경내역 감사 ORDER-DIFF 00~02 운영 승격**(PR #82·#83) — 저장 로그 before/after 0건 → 필드 diff + `order_field_changes` 원장 + 변경 이력 탭. 품목 uid(`itemuid_00`)는 deploy+스테이징 검증 완료, 운영 승격만 **타 세션 `share_token_00` 선행 대기**. 함정: detail 4,000자 초과 시 통째 표식. 스펙 docs/specs/2026-08-11-order-*.md
-- [2026-08-13] **고객 공유 Phase A 운영 승격 완료(PR #89, production `a59c0d7d`)** — T1~T10+T8.1 + 승인 하에 itemuid_00·알림톡 v1 코드 동반 승격(발송 이중 잠금). 실측 알림톡 템플릿 2건 APPROVED·공유 링크 템플릿 2건 심사 중·문자 실발송 2통 검증(브랜드 분기·재시도 실증)·카톡 SDK PASS·고객 다운로드 추가. 잔여=Solapi IP 원복·실기기 카톡(사용자)·공유 템플릿 승인 후 알림톡 발송 배선. 원장: docs/plans/2026-08-11-customer-share-phase-a-ledger.md
+- [2026-08-13] **고객 공유 Phase A 운영 승격 완료(PR #89, production `a59c0d7d`)** — T1~T10+T8.1 + 승인 하에 itemuid_00·알림톡 v1 코드 동반 승격(발송 이중 잠금). 실측 알림톡 템플릿 2건 APPROVED·공유 링크 템플릿 2건 심사 중·문자 실발송 2통 검증(브랜드 분기·재시도 실증)·카톡 SDK PASS·고객 다운로드 추가. T11 알림톡 배선+스테이징 실발송 검증 완료(08-19). 잔여=T11 운영 승격·Solapi IP 원복·실기기 카톡(사용자). 원장: docs/plans/2026-08-11-customer-share-phase-a-ledger.md
 - [2026-08-10] **Sentry 운영 전환 완료** — DSN 을 dev→production 으로 이동(운영만 감시). 운영 로그 `Sentry initialized environment=production` 확인, dev 는 no-op. 잔여=Sentry 알림 규칙에 `environment:production` 필터·기존 staging 이슈 정리(사용자).
 - [2026-08-11] **대시보드 캐시 무효화 엔진화 MUT-CACHE-01 운영 승격(PR #79 `24675249`)** — 라우트별 수동 무효화가 원인(빠진 경로 6, 단계 강제 변경 310초 지연 재현). `execute_order_mutation` 이 전/후 stage·삭제 표식을 session.info intent 로 남기고 `after_commit` 이 소비 → 엔진 경유 20개 모듈 자동 커버, 미경유 2곳(`/edit`·date_sync)은 직접 보강. 선행 삭제 수정 PR #72.
 - ⚠️ **`queue.py` 소켓 타임아웃 누락 수정**(운영 반영됨) — `rate_limit.py`·`dashboard_cache.py`엔 2초 상한이 있는데 이 경로만 없었다(2026-07-21 Redis 장애 대응이 절반만 적용). blackhole 시 `enqueue()`가 웹 워커를 130초 붙잡던 잠복 결함. 못 잡은 이유=`queue.py` 내부 테스트 0건.
