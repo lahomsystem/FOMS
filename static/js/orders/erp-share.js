@@ -318,17 +318,19 @@
         window.setTimeout(function () { btn.innerHTML = original; }, 1500);
     }
 
-    /** 원클릭 알림톡 — 모달 없이 도면 링크 자동 발급 후 즉시 알림톡 발송. */
+    /** 원클릭 알림톡 — 모달 없이 링크 자동 발급 후 즉시 알림톡 발송(도면/견적서). */
     function _quickAlimtalk(btn) {
         if (_busy || (btn && btn.disabled)) return;
-        if (!window.confirm('고객에게 도면 열람 링크를 알림톡으로 보낼까요?')) return;
+        var kind = (btn && btn.getAttribute('data-share-kind')) || 'drawing';
+        var kindLabel = KIND_LABELS[kind] || '문서';
+        if (!window.confirm('고객에게 ' + kindLabel + ' 열람 링크를 알림톡으로 보낼까요?')) return;
         _busy = true;
         if (btn) btn.disabled = true;
         fetch('/api/share/create/' + _orderId(), {
             method: 'POST',
             credentials: 'same-origin',
             headers: { 'Content-Type': 'application/json' },
-            body: JSON.stringify({ kind: 'drawing' }),
+            body: JSON.stringify({ kind: kind }),
         })
             .then(function (res) { return res.json(); })
             .then(function (body) {
