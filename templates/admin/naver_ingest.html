@@ -77,16 +77,20 @@
        숫자는 전부 **묶음(집)** 단위다(_status_group_counts). 상품주문 행으로 세면
        "전체 36 · 수집됨 102" 처럼 부분이 전체보다 커 보인다. #}
     <div class="mb-3">
-        <a href="{{ url_for('admin.naver_ingest_dashboard') }}"
+        <a href="{{ url_for('admin.naver_ingest_dashboard', place='PENDING' if place_pending else None) }}"
            class="btn btn-sm {{ 'btn-dark' if not status else 'btn-outline-dark' }}">전체 {{ total ~ '집' if not status else '' }}</a>
-        <a href="{{ url_for('admin.naver_ingest_dashboard', status='COLLECTED') }}"
+        <a href="{{ url_for('admin.naver_ingest_dashboard', status='COLLECTED', place='PENDING' if place_pending else None) }}"
            class="btn btn-sm {{ 'btn-primary' if status == 'COLLECTED' else 'btn-outline-primary' }}">수집됨(주문 전) {{ counts.COLLECTED }}집</a>
-        <a href="{{ url_for('admin.naver_ingest_dashboard', status='LINKED') }}"
+        <a href="{{ url_for('admin.naver_ingest_dashboard', status='LINKED', place='PENDING' if place_pending else None) }}"
            class="btn btn-sm {{ 'btn-success' if status == 'LINKED' else 'btn-outline-success' }}">주문 생성됨 {{ counts.LINKED }}집</a>
-        <a href="{{ url_for('admin.naver_ingest_dashboard', status='PENDING_REVIEW') }}"
+        <a href="{{ url_for('admin.naver_ingest_dashboard', status='PENDING_REVIEW', place='PENDING' if place_pending else None) }}"
            class="btn btn-sm {{ 'btn-warning' if status == 'PENDING_REVIEW' else 'btn-outline-warning' }}">확인 필요 {{ counts.PENDING_REVIEW }}집</a>
-        <a href="{{ url_for('admin.naver_ingest_dashboard', status='FAILED') }}"
+        <a href="{{ url_for('admin.naver_ingest_dashboard', status='FAILED', place='PENDING' if place_pending else None) }}"
            class="btn btn-sm {{ 'btn-danger' if status == 'FAILED' else 'btn-outline-danger' }}">실패 {{ counts.FAILED }}집</a>
+        {# 발주확인은 수집 상태와 다른 축이라 따로 둔다(겹쳐 걸 수 있다) — T16-B. #}
+        <a href="{{ url_for('admin.naver_ingest_dashboard', status=status or None, place='PENDING' if not place_pending else None) }}"
+           class="btn btn-sm ms-2 {{ 'btn-warning' if place_pending else 'btn-outline-warning' }}"
+           title="네이버 판매자센터에서 발주확인이 아직인 집만 봅니다">발주확인 전 {{ place_pending_count }}집</a>
     </div>
 
     <div class="card shadow-sm">

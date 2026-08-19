@@ -14,6 +14,10 @@ from foms.services.integrations.naver_commerce import watermark as wm
 from models import ExternalOrderLink, SecurityLog
 
 
+#: 행 배지 식별자. 필터 버튼과 문구가 같아 title 로 가른다.
+PENDING_BADGE_TITLE = "네이버 판매자센터에서 발주확인이 아직 안 된 상품주문이 있습니다"
+
+
 def _link(external_id: str = "PO-1", status: str = "LINKED", **kwargs) -> ExternalOrderLink:
     kwargs.setdefault("raw_snapshot", {"productOrder": {"productOrderId": external_id}})
     link = ExternalOrderLink(channel="NAVER", external_id=external_id, sync_status=status,
@@ -254,7 +258,8 @@ def test_place_order_status_shows_pending_badge(auth_client):
     db_session.commit()
 
     body = auth_client.get("/admin/naver-ingest").get_data(as_text=True)
-    assert "발주확인 전" in body
+    # 필터 버튼에도 같은 문구가 있으므로 **행 배지**(title 로 구분)를 본다.
+    assert PENDING_BADGE_TITLE in body
 
 
 def test_confirmed_place_order_has_no_pending_badge(auth_client):
@@ -268,4 +273,55 @@ def test_confirmed_place_order_has_no_pending_badge(auth_client):
     db_session.commit()
 
     body = auth_client.get("/admin/naver-ingest").get_data(as_text=True)
-    assert "발주확인 전" not in body
+    assert PENDING_BADGE_TITLE not in body
+
+
+def test_place_pending_filter_narrows_to_unconfirmed_groups(auth_client):
+    """'발주확인 전' 필터는 컬럼으로 건다 — JSONB 스캔 금지(T16-B)."""
+    done = _link("PO-PF-OK", "COLLECTED", external_order_no="N-PF-OK",
+                 place_order_status="OK")
+    done.raw_snapshot = {"order": {"orderId": "N-PF-OK"},
+                         "productOrder": {"productOrderId": "PO-PF-OK",
+                                          "productName": "확인된집",
+                                          "placeOrderStatus": "OK"}}
+    todo = _link("PO-PF-NY", "COLLECTED", external_order_no="N-PF-NY",
+                 place_order_status="NOT_YET")
+    todo.raw_snapshot = {"order": {"orderId": "N-PF-NY"},
+                         "productOrder": {"productOrderId": "PO-PF-NY",
+                                          "productName": "아직인집",
+                                          "placeOrderStatus": "NOT_YET"}}
+    db_session.commit()
+
+    body = auth_client.get("/admin/naver-ingest?place=PENDING").get_data(as_text=True)
+    assert "PO-PF-NY" in body
+    assert "PO-PF-OK" not in body
+
+
+def test_place_pending_filter_counts_unknown_as_pending(auth_client):
+    """발주 상태를 모르는(NULL) 건은 '아직'으로 센다 — 놓치는 쪽보다 낫다."""
+    _link("PO-PF-NULL", "COLLECTED", external_order_no="N-PF-NULL")
+    db_session.commit()
+
+    body = auth_client.get("/admin/naver-ingest?place=PENDING").get_data(as_text=True)
+    assert "PO-PF-NULL" in body
+
+
+def test_place_filter_combines_with_status_filter(auth_client):
+    """두 축은 겹쳐 걸 수 있어야 한다(수집 상태 × 발주 상태)."""
+    _link("PO-PF-MIX", "PENDING_REVIEW", external_order_no="N-PF-MIX",
+          place_order_status="NOT_YET")
+    _link("PO-PF-OTHER", "COLLECTED", external_order_no="N-PF-OTHER",
+          place_order_status="NOT_YET")
+    db_session.commit()
+
+    body = auth_client.get(
+        "/admin/naver-ingest?status=PENDING_REVIEW&place=PENDING").get_data(as_text=True)
+    assert "PO-PF-MIX" in body
+    assert "PO-PF-OTHER" not in body
+
+
+def test_relation_defaults_to_new(auth_client):
+    """관계 축 기본값은 NEW — 기존 흐름이 그대로 새 주문 경로를 탄다."""
+    link = _link("PO-REL", "COLLECTED", external_order_no="N-REL")
+    db_session.refresh(link)
+    assert link.relation == "NEW"

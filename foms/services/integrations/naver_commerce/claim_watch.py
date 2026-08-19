@@ -27,6 +27,7 @@ from foms.services.integrations.naver_commerce.constants import CHANNEL
 from foms.services.integrations.naver_commerce.mapping import (
     extract_claim,
     extract_external_id,
+    extract_place_status,
 )
 from models import ExternalOrderLink, Notification, Order, OrderAssignment, User
 
@@ -183,6 +184,10 @@ def refresh_claims(
         # 이것만으로 표시가 최신이 된다.
         link.raw_snapshot = copy.deepcopy(detail)
         flag_modified(link, "raw_snapshot")
+        # 발주 상태 사본도 같이 갱신한다 — 판매자센터에서 발주확인을 하면 이 스윕이 첫
+        # 목격자다. 안 갱신하면 목록 필터만 옛 값에 머문다(T16-B).
+        place = extract_place_status(detail)
+        link.place_order_status = (place["status"] or "")[:20] or None
         state = copy.deepcopy(link.triage_state) if isinstance(link.triage_state, dict) else {}
         sync = dict(state.get(STATE_KEY) or {})
         sync["last_status"] = claim["status"]

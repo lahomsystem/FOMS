@@ -29,7 +29,7 @@ G2 는 문서만으로 끝내지 않는다 — 직접 전달은 배송 추적이
 | Task | 내용 | 의존 | 상태 | 완료 기준(검증 명령/관찰) |
 |---|---|---|---|---|
 | T16-A | `placeOrderStatus` 읽기 표시(이력·확인 큐·대조 pane) | — | **DONE** `1d7b6056` | 단위 4 + 화면 2 green · 스테이징 눈 확인(39집 중 21집 '발주확인 전', 완료건 무배지, pane '발주확인 완료 · 발송기한') · 콘솔 0 |
-| T16-B | `relation`(NEW/ADDON/REPAY) + `place_order_status` 컬럼 + 마이그레이션 + 백필 + '발주확인 전' 필터 | T16-A | PENDING | `alembic upgrade head` → `downgrade -1` → 재 upgrade green · 백필 후 화면 값 일치 · 필터가 인덱스로 풀림 |
+| T16-B | `relation`(NEW/ADDON/REPAY) + `place_order_status` 컬럼 + 마이그레이션 + 백필 + '발주확인 전' 필터 | T16-A | **IN_PROGRESS** | PG17 왕복 green(체인 테스트가 `naver_relation_00` 실행 확인) · PG 레인 737 green · 필터 계약 4 green · 스테이징 눈 확인 대기 |
 | T16-C | 기존 주문 후보 조회(전화 digits·이름·주소, 180일·5건) | T16-B | PENDING | 테스트: 수취인 전화 일치·주문자 전화 일치(대리주문)·무관 주문 제외·soft delete 제외 |
 | T16-D | 확인 큐/도크에 후보 표시 + '이 주문에 붙이기' UI | T16-C | PENDING | 스테이징 실건(소액 단독 집)으로 붙이기 눈 확인, erporder 폼 무변경 |
 | T16-E | attach 라우트(멱등·취소 가드·감사·되돌리기) | T16-B | PENDING | 계약 테스트: 2회 호출 동일 결과 · blocking ADDON 차단 · 권한 · 감사 이벤트 · 되돌리기 |

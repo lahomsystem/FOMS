@@ -3481,6 +3481,15 @@ class ExternalOrderLink(Base):
     reviewed_at = Column(DateTime, nullable=True)
     reviewed_by_user_id = Column(
         Integer, ForeignKey('users.id', ondelete='SET NULL'), nullable=True)
+    # --- 관계 축 — NAVER-INGEST-02 T16-B ---
+    # 이 수집분이 **새 주문**인지, 기존 주문의 **추가결제(차액)** 인지, 취소 뒤 **재결제**인지.
+    # sync_status(수집 결과)·reviewed_at(사람 확인)과 또 다른 축이다. ADDON/REPAY 는 주문을
+    # 새로 만들지 않고 order_id 에 기존 주문을 넣는다(스펙 §3.1).
+    relation = Column(String(10), nullable=False, server_default='NEW')
+    # 네이버 발주(발주확인) 상태 — 원본 placeOrderStatus 의 사본. raw_snapshot(JSONB) 안에도
+    # 있지만 그걸로 필터하면 인덱스 없는 JSONB 스캔이 된다. 목록 필터 전용 사본이다.
+    # 정본은 여전히 raw_snapshot 이며, 재수집·클레임 갱신 때 함께 덮어쓴다.
+    place_order_status = Column(String(20), nullable=True)
     # 도크(주문 편집 옆 네이버 원본 패널) 반영 상태 — T14-B.
     # {checked, checked_by, checked_at, assigned_main, assigned_by, assigned_at}.
     # reviewed_at 과 다른 축: 저건 큐 이탈(첫 확인 시각 불변), 이건 토글 가능한 표시용.
@@ -3497,6 +3506,10 @@ class ExternalOrderLink(Base):
         CheckConstraint(
             "sync_status IN ('COLLECTED','LINKED','PENDING_REVIEW','FAILED')",
             name='ck_external_order_link_status'),
+        # 관계 축 닫힌집합. 오타 값이 들어가면 화면 분기가 조용히 새 주문 경로로 떨어진다.
+        CheckConstraint(
+            "relation IN ('NEW','ADDON','REPAY')",
+            name='ck_external_order_link_relation'),
         # 관리 화면: 보류/실패 목록을 최신순으로 훑는 경로.
         Index('ix_external_order_link_status_created', 'sync_status', 'created_at'),
         # 트리아지 큐 hot path: 확인 대기 건만 최신순으로 훑는다(확인 완료분은 인덱스에서 빠진다).
@@ -3504,6 +3517,8 @@ class ExternalOrderLink(Base):
               postgresql_where=text('reviewed_at IS NULL')),
         # 주문 상세에서 "이 주문이 어느 채널 수집분인가" 역조회.
         Index('ix_external_order_link_order', 'order_id'),
+        # '발주확인 전' 목록 필터 경로(채널 + 발주상태 + 최신순).
+        Index('ix_external_order_link_place', 'channel', 'place_order_status', 'created_at'),
     )
 
 

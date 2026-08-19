@@ -129,10 +129,33 @@ def _record_pending(session: Session, *, external_id: str, detail: dict, reason:
             external_order_no=str((_order or {}).get("orderId") or "") or None,
             raw_snapshot=detail,
             sync_status="PENDING_REVIEW",
+            place_order_status=_place_status_value(detail),
             failure_reason=reason[:2000],
         )
     )
     session.flush()
+
+
+def _place_status_value(detail: dict) -> Optional[str]:
+    """원본에서 발주 상태를 뽑아 컬럼에 넣을 값으로 만든다(없으면 None).
+
+    정본은 ``raw_snapshot`` 이고 이 컬럼은 필터 전용 사본이다 — 추출이 실패해도 수집은
+    막지 않는다(못 받은 주문은 되돌릴 수 없다).
+
+    Args:
+        detail: 상품주문 상세 1건.
+
+    Returns:
+        상태 문자열(최대 20자) 또는 None.
+    """
+    try:
+        from foms.services.integrations.naver_commerce.mapping import extract_place_status
+
+        status = extract_place_status(detail)["status"]
+    except (ValueError, TypeError, AttributeError, KeyError) as exc:  # 표시용 값이라 흐름을 막지 않는다
+        logger.warning("[NAVER] 발주 상태 추출 실패(무시): %s", exc)
+        return None
+    return status[:20] or None
 
 
 def _safe_unwrap(detail: dict) -> tuple[dict, dict, dict]:
@@ -192,6 +215,8 @@ def ingest_detail(
                 external_order_no=order_no,
                 raw_snapshot=detail,
                 sync_status="COLLECTED",
+                # 발주 상태 사본 — 목록 필터가 JSONB 를 스캔하지 않게 한다(T16-B).
+                place_order_status=_place_status_value(detail),
             )
         )
         session.flush()

@@ -40,6 +40,10 @@ QUEUE_LINK_FETCH_LIMIT = PAGE_SIZE * 5
 #: 상태 필터 닫힌집합. 임의 문자열이 그대로 쿼리에 들어가지 않게 한다.
 VALID_STATUSES = ("COLLECTED", "LINKED", "PENDING_REVIEW", "FAILED")
 
+#: 발주확인이 끝난 것으로 보는 컬럼 값(mapping.CONFIRMED_PLACE_STATUSES 와 같은 집합).
+#: 이 값이 아니면 전부 "아직"이다 — NULL(모름)도 아직으로 본다(놓치는 쪽보다 낫다).
+CONFIRMED_PLACE_VALUES = ("OK",)
+
 
 def order_has_spec_rows(order: Any) -> bool:
     """주문에 규격표가 한 행이라도 입력됐는지 (CS 완료 판정용).
@@ -165,7 +169,38 @@ def _status_group_counts(db) -> dict[str, int]:
     return counts
 
 
-def _link_rows(db, *, status: Optional[str], page: int) -> tuple[list[dict], int]:
+def _place_pending_clause():
+    """'발주확인 전' 조건 — 완료값이 아니거나 아직 모르는(NULL) 링크.
+
+    ``raw_snapshot`` (JSONB) 대신 ``place_order_status`` 컬럼을 본다. JSONB 로 필터하면
+    인덱스 없는 스캔이 되고, 그건 이 저장소의 hot path 금지 규칙이다(T16-B).
+    """
+    from sqlalchemy import or_
+
+    return or_(ExternalOrderLink.place_order_status.is_(None),
+               ExternalOrderLink.place_order_status.notin_(CONFIRMED_PLACE_VALUES))
+
+
+def _place_pending_group_count(db) -> int:
+    """'발주확인 전' 묶음 수 — 필터 버튼 숫자(다른 버튼과 같은 집 단위).
+
+    Args:
+        db: 요청 스코프 DB 세션.
+
+    Returns:
+        발주확인이 아직인 링크를 하나 이상 가진 묶음 수.
+    """
+    key_col = _group_key_col()
+    return (
+        db.query(key_col)
+        .filter(ExternalOrderLink.channel == "NAVER", _place_pending_clause())
+        .group_by(key_col)
+        .count()
+    )
+
+
+def _link_rows(db, *, status: Optional[str], page: int,
+               place_pending: bool = False) -> tuple[list[dict], int]:
     """수집 이력을 **한 집 = 한 줄**로 묶어 돌려준다(T14-H).
 
     페이지는 묶음(네이버 주문번호) 단위로 센다 — 상품주문 단위로 자르면 페이지 끝에서 한
@@ -186,6 +221,9 @@ def _link_rows(db, *, status: Optional[str], page: int) -> tuple[list[dict], int
     )
     if status in VALID_STATUSES:
         key_query = key_query.filter(ExternalOrderLink.sync_status == status)
+    if place_pending:
+        # 상태 필터와 같은 규약: "해당 링크가 하나라도 있는 집"을 고른다.
+        key_query = key_query.filter(_place_pending_clause())
     key_query = key_query.group_by(key_col)
 
     total = key_query.count()
@@ -322,8 +360,11 @@ def naver_ingest_dashboard():
     except (TypeError, ValueError):
         page = 1
 
-    rows, total = _link_rows(db, status=status if status in VALID_STATUSES else None, page=page)
+    place_pending = (request.args.get("place") or "").strip().upper() == "PENDING"
+    rows, total = _link_rows(db, status=status if status in VALID_STATUSES else None,
+                             page=page, place_pending=place_pending)
     counts = _status_group_counts(db)
+    place_pending_count = _place_pending_group_count(db)
     return render_template(
         "admin/naver_ingest.html",
         rows=rows,
@@ -332,6 +373,8 @@ def naver_ingest_dashboard():
         page_size=PAGE_SIZE,
         status=status if status in VALID_STATUSES else "",
         counts=counts,
+        place_pending=place_pending,
+        place_pending_count=place_pending_count,
         watermark=_watermark_view(db),
         expiry=_expiry_view(db),
     )
