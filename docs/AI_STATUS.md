@@ -8,7 +8,7 @@ Flask 2.3 + PostgreSQL + R2 + Railway (Web×2, Worker×1)
 브랜치: deploy (스테이징) → production (운영)
 
 ## 진행 중
-- [2026-08-19] **네이버 수집 T15(deploy)** — 취소 추적 드릴·운영 켜기 체크리스트·CS 흐름 시연 2집 PASS. 수정 5건: 규격 도우미 몰딩 오탐(축=옵션 원문 우선)·**품목=본품만**(옵션은 본품 귀속, 금액 보존)·귀속=수집 순서+사양 보정(`attribution.py`)·승격이 순서를 깨뜨리던 버그·도크 폭 2배+글자 14px. 운영 IP 교체는 **불필요 확정**. 잔여=PR #113 머지(사용자)·재생성 눈 확인. 원장: `docs/plans/2026-08-13-naver-order-ingest-ledger.md`
+- [2026-08-19] **네이버 수집 T15(deploy)** — 품목=본품만(옵션은 본품 귀속·금액 보존)·귀속=수집순서+사양 보정(`attribution.py`)·승격 순서 버그 수정·규격 도우미 몰딩 오탐 수정·도크 폭2배+14px. 운영 IP 교체 불필요 확정. 잔여=PR #113 머지(사용자). 원장: `docs/plans/2026-08-13-naver-order-ingest-ledger.md`
 - [2026-08-18] **네이버 수집 T14-C~I deploy 완료 + 운영 승격 PR #113 대기** — 배송메모 유실 수정(실필드 `productOrder.shippingMemo`)·큐/이력 한 집 한 줄 묶음·취소 주문 생성 차단(서비스 레벨, API 우회 400)·수집 후 취소 추적+담당자 알림·CS 2단계 흐름(담당자 지정은 실측 스케줄링 단계)·규격 입력 도우미(총폭 계산·cm→mm·본품↔1cm 사양 불일치). **PR #113 = deploy 전체 승격, MERGEABLE·검사 9종 green, 머지는 사용자**. 승격 함정: **deploy 체인 순서 ≠ 운영 실행 순서**(운영 DB 는 `asfresh_00` 정지 — 그 아래 리비전은 영영 안 돈다). 원장 `docs/plans/2026-08-13-naver-order-ingest-ledger.md`
 - [2026-08-18] **AS 증발 사고 종결 + 구조 제거** — 운영 55/55 복구 + 일괄 경로 AS 제외 가드(운영 `63737e91`) + **AS-AXIS-01** AS 대시보드 술어 status→`as_axis_status` 투영 교체(deploy `e061beb7`, 스테이징 검증 완료·운영 승격 대기). **AS 판정=status 기준·투영 암묵삭제 금지**(레거시 506건 lifecycle 없음). 복구 절차 `docs/guides/DATA_INCIDENT_RECOVERY.md`, 스펙 §11에 실측 조정 기록. **운영 승격 차단: `asaxis_00` 부모가 미승격 `naverdock_00`** — 네이버·변경사유 승격 후 진행(2026-08-18 사용자 결정)
 - [2026-08-14] **주문 변경 사유 deploy** — 축=시공일·금액·단계·취소(제품세부=기록만). docs/specs/2026-08-13-order-change-reason_SPEC.md
