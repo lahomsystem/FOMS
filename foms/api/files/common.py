@@ -5,6 +5,10 @@ from __future__ import annotations
 from typing import Any
 
 from foms.api.files.routes import build_file_download_url, build_file_view_url
+from foms.services.attachment_sort import (
+    next_attachment_sort_order,
+    parse_attachment_sort_order,
+)
 from foms.services.files.upload_policy import ERP_MEDIA_ALLOWED_EXTENSIONS
 from foms.services.order_attachment_permissions import can_delete_order_attachment
 from models import OrderAttachment
@@ -79,6 +83,29 @@ def resolve_as_log_ref(order: Any, category, raw_as_log_id):
     return False, None, "결합할 AS 기록을 찾을 수 없습니다."
 
 
+def resolve_as_sort_order(db, order_id, category, as_log_id, raw):
+    """업로드 요청의 sort_order 를 확정한다 (AS-SORT-01).
+
+    AS 첨부가 값을 안 보내면 같은 기록 그룹의 max+1. 다른 분류는 NULL 유지.
+
+    Args:
+        db: 세션.
+        order_id: 주문 PK.
+        category: 정규화된 분류.
+        as_log_id: 결합된 기록 id(없으면 None).
+        raw: 요청 원값.
+
+    Returns:
+        ``(ok, sort_order|None, 오류문구|None)``.
+    """
+    ok, sort_order, err = parse_attachment_sort_order(raw)
+    if not ok:
+        return False, None, err
+    if sort_order is None and category == "as":
+        sort_order = next_attachment_sort_order(db, order_id, as_log_id)
+    return True, sort_order, None
+
+
 def allowed_erp_attachment_file(filename, category="measurement"):
     """ERP Beta 첨부 확장자 검증 (카테고리별 정책)."""
     if "." not in filename:
@@ -144,9 +171,12 @@ __all__ = [
     "_att_key",
     "allowed_erp_attachment_file",
     "get_erp_media_max_size",
+    "next_attachment_sort_order",
     "normalize_attachment_category",
     "parse_attachment_item_index",
+    "parse_attachment_sort_order",
     "resolve_as_log_ref",
+    "resolve_as_sort_order",
     "resolve_attachment_category",
     "serialize_attachment",
 ]

@@ -13,6 +13,7 @@ from foms.api.files.common import (
     get_erp_media_max_size,
     parse_attachment_item_index,
     resolve_as_log_ref,
+    resolve_as_sort_order,
     resolve_attachment_category,
     serialize_attachment,
 )
@@ -208,6 +209,11 @@ def api_order_attachments_complete(order_id):
         )
         if not ok_log:
             return jsonify({"success": False, "message": log_err}), 400
+        ok_sort, sort_order, sort_err = resolve_as_sort_order(
+            db, order_id, category, as_log_id, data.get("sort_order")
+        )
+        if not ok_sort:
+            return jsonify({"success": False, "message": sort_err}), 400
 
         file_type = storage.get_file_type(filename)
         file_size = 0
@@ -236,6 +242,7 @@ def api_order_attachments_complete(order_id):
             category=category,
             item_index=item_index,
             as_log_id=as_log_id,
+            sort_order=sort_order,
             file_size=file_size,
             storage_key=key,
             thumbnail_key=None,

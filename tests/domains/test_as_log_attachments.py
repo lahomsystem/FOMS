@@ -14,6 +14,7 @@ from werkzeug.security import generate_password_hash
 
 from db import db_session
 from foms.api.files.common import resolve_as_log_ref
+from foms.services.attachment_sort import parse_attachment_sort_order
 from foms.services.orders.as_round_chart import build_as_round_chart_view
 from models import Order, OrderAttachment, User
 
@@ -102,6 +103,17 @@ def test_resolve_as_log_ref_rejects_non_as_category() -> None:
     assert "AS 첨부에만" in err
 
 
+def test_parse_attachment_sort_order_accepts_zero() -> None:
+    assert parse_attachment_sort_order(0) == (True, 0, None)
+    assert parse_attachment_sort_order("0") == (True, 0, None)
+    assert parse_attachment_sort_order(None) == (True, None, None)
+
+
+def test_parse_attachment_sort_order_rejects_bool_and_overflow() -> None:
+    assert parse_attachment_sort_order(True)[0] is False
+    assert parse_attachment_sort_order(10000)[0] is False
+
+
 def test_attachment_upload_binds_as_log_id(client) -> None:
     _login_admin(client)
     order = _as_order(as_log=[{"id": "al_up", "type": "memo", "text": "현장 사진"}])
@@ -123,6 +135,103 @@ def test_attachment_upload_binds_as_log_id(client) -> None:
 
     saved = db_session.get(OrderAttachment, body["attachment"]["id"])
     assert saved.as_log_id == "al_up"
+    assert saved.sort_order == 0
+    assert body["attachment"]["sort_order"] == 0
+
+
+def test_attachment_upload_stores_explicit_sort_order(client) -> None:
+    _login_admin(client, username="as-attach-admin-sort")
+    order = _as_order(as_log=[{"id": "al_up", "type": "memo", "text": "현장 사진"}])
+
+    response = client.post(
+        f"/api/orders/{order.id}/attachments",
+        data={
+            "file": (io.BytesIO(b"fake-image-bytes"), "as-photo.jpg"),
+            "category": "as",
+            "as_log_id": "al_up",
+            "sort_order": "2",
+        },
+        content_type="multipart/form-data",
+    )
+
+    assert response.status_code == 200
+    saved = db_session.get(OrderAttachment, response.get_json()["attachment"]["id"])
+    assert saved.sort_order == 2
+
+
+def test_attachment_upload_rejects_bad_sort_order(client) -> None:
+    _login_admin(client, username="as-attach-admin-sort-bad")
+    order = _as_order(as_log=[{"id": "al_up", "type": "memo"}])
+
+    response = client.post(
+        f"/api/orders/{order.id}/attachments",
+        data={
+            "file": (io.BytesIO(b"fake-image-bytes"), "as-photo.jpg"),
+            "category": "as",
+            "as_log_id": "al_up",
+            "sort_order": "nope",
+        },
+        content_type="multipart/form-data",
+    )
+
+    assert response.status_code == 400
+    assert db_session.query(OrderAttachment).filter(
+        OrderAttachment.order_id == order.id).count() == 0
+
+
+def test_attachment_reorder_writes_dense_sort_order(client) -> None:
+    _login_admin(client, username="as-attach-admin-reorder")
+    order = _as_order(as_log=[{"id": "al_up", "type": "memo", "text": "사진"}])
+    rows = [
+        OrderAttachment(
+            order_id=order.id, filename=f"as-{i}.jpg", file_type="image",
+            category="as", as_log_id="al_up", sort_order=i,
+            storage_key=f"orders/{order.id}/as-{i}.jpg",
+        )
+        for i in range(3)
+    ]
+    db_session.add_all(rows)
+    db_session.commit()
+    ids = [row.id for row in rows]
+    order_id = order.id
+
+    response = client.post(
+        f"/api/orders/{order_id}/attachments/reorder",
+        json={"as_log_id": "al_up", "ids": [ids[2], ids[0], ids[1]]},
+    )
+
+    assert response.status_code == 200
+    body_ids = [item["id"] for item in response.get_json()["attachments"]]
+    assert body_ids == [ids[2], ids[0], ids[1]]
+    db_session.expire_all()
+    by_id = {row.id: row for row in db_session.query(OrderAttachment).filter(
+        OrderAttachment.order_id == order_id).all()}
+    assert by_id[ids[2]].sort_order == 0
+    assert by_id[ids[0]].sort_order == 1
+    assert by_id[ids[1]].sort_order == 2
+
+
+def test_attachment_reorder_rejects_partial_list(client) -> None:
+    _login_admin(client, username="as-attach-admin-reorder-bad")
+    order = _as_order(as_log=[{"id": "al_up", "type": "memo"}])
+    db_session.add_all([
+        OrderAttachment(
+            order_id=order.id, filename=f"as-{i}.jpg", file_type="image",
+            category="as", as_log_id="al_up",
+            storage_key=f"orders/{order.id}/as-{i}.jpg",
+        )
+        for i in range(2)
+    ])
+    db_session.commit()
+    first_id = db_session.query(OrderAttachment).filter(
+        OrderAttachment.order_id == order.id).first().id
+
+    response = client.post(
+        f"/api/orders/{order.id}/attachments/reorder",
+        json={"as_log_id": "al_up", "ids": [first_id]},
+    )
+
+    assert response.status_code == 400
 
 
 def test_attachment_upload_rejects_unknown_as_log_id(client) -> None:
@@ -257,3 +366,36 @@ def test_as_timeline_fragment_loads_attachments_in_one_query(client) -> None:
     assert calls["n"] == 1
     html = response.get_data(as_text=True)
     assert html.count('class="as-rchart-file"') == 3
+
+
+def test_round_chart_html_follows_sort_order_not_id(client) -> None:
+    """차트 썸네일은 sort_order 순. id 삽입 순과 달라도 된다."""
+    _login_admin(client, username="as-attach-admin-sort-html")
+    order = _as_order(
+        as_log=[{
+            "id": "al_up", "type": "memo", "text": "사진",
+            "ts": "2026-08-13T01:00:00", "round": 1,
+        }]
+    )
+    db_session.add_all([
+        OrderAttachment(
+            order_id=order.id, filename="late.jpg", file_type="image",
+            category="as", as_log_id="al_up", sort_order=2,
+            storage_key=f"orders/{order.id}/late.jpg",
+        ),
+        OrderAttachment(
+            order_id=order.id, filename="first.jpg", file_type="image",
+            category="as", as_log_id="al_up", sort_order=0,
+            storage_key=f"orders/{order.id}/first.jpg",
+        ),
+        OrderAttachment(
+            order_id=order.id, filename="mid.jpg", file_type="image",
+            category="as", as_log_id="al_up", sort_order=1,
+            storage_key=f"orders/{order.id}/mid.jpg",
+        ),
+    ])
+    db_session.commit()
+
+    response = client.get(f"/erp/as/timeline/{order.id}")
+    html = response.get_data(as_text=True)
+    assert html.find("first.jpg") < html.find("mid.jpg") < html.find("late.jpg")

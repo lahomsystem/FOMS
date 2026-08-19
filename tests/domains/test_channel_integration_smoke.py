@@ -1088,6 +1088,73 @@ def test_push_manual_as_honors_explicit_attachment_ids(client, monkeypatch):
     assert [f["fileName"] for f in captured["data"]["files"]] == ["as-1.jpg"]
 
 
+def test_push_manual_as_explicit_ids_cap_keeps_front_of_specified_order(client, monkeypatch):
+    """지정 순서가 21장이면 앞 20장만. 기본 선정처럼 시퀀스 끝을 남기면 안 된다."""
+    _login_admin(client)
+    captured = _capture_as_push(monkeypatch)
+    order = _as_order_with_attachments(21)
+    order_id = order.id
+    ids = [
+        a.id
+        for a in db_session.query(OrderAttachment)
+        .filter(OrderAttachment.order_id == order_id)
+        .order_by(OrderAttachment.id.asc())
+        .all()
+    ]
+    specified = list(reversed(ids))
+
+    response = client.post(
+        "/api/channel/push-manual",
+        json={
+            "order_id": order_id,
+            "push_kind": "as",
+            "attachment_ids": specified,
+        },
+    )
+
+    assert response.status_code == 200
+    names = [f["fileName"] for f in captured["data"]["files"]]
+    assert names == [f"as-{i}.jpg" for i in range(21, 1, -1)]
+    assert "as-1.jpg" not in names
+    db_session.expire_all()
+    history = db_session.get(Order, order_id).structured_data["channeltalk_push_as"]
+    assert history["attachment_ids"] == specified[: channel_policy.MAX_MANUAL_ATTACHMENTS]
+
+
+def test_push_manual_as_preserves_explicit_attachment_id_order(client, monkeypatch):
+    """확인창 배열 순서 = 채널톡 files 순서. id 재정렬 금지 (AS-SORT-01)."""
+    _login_admin(client)
+    captured = _capture_as_push(monkeypatch)
+    order = _as_order_with_attachments(3)
+    order_id = order.id
+    ids = [
+        a.id
+        for a in db_session.query(OrderAttachment)
+        .filter(OrderAttachment.order_id == order_id)
+        .order_by(OrderAttachment.id.asc())
+        .all()
+    ]
+
+    response = client.post(
+        "/api/channel/push-manual",
+        json={
+            "order_id": order_id,
+            "push_kind": "as",
+            "attachment_ids": [ids[2], ids[0], ids[1]],
+        },
+    )
+
+    assert response.status_code == 200
+    assert [f["fileName"] for f in captured["data"]["files"]] == [
+        "as-3.jpg",
+        "as-1.jpg",
+        "as-2.jpg",
+    ]
+    db_session.expire_all()
+    history = db_session.get(Order, order_id).structured_data["channeltalk_push_as"]
+    assert history["attachment_ids"] == [ids[2], ids[0], ids[1]]
+
+
 def test_push_manual_as_rejects_foreign_attachment_ids(client, monkeypatch):
     """다른 주문/분류 첨부 id 는 400 — 지정 경로가 소속 검증 우회로가 되면 안 된다."""
     _login_admin(client)

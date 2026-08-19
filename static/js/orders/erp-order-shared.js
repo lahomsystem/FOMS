@@ -2360,7 +2360,8 @@ function erpOpenAsReceiveModal(targetId, previousStage, options = {}) {
     }
     if (filesEl) filesEl.value = '';
     window.__erpAsReceiveClipboardFiles = [];
-    if (previewEl) previewEl.innerHTML = '';
+    if (previewEl && previewEl._asOrder) previewEl._asOrder.clear();
+    else if (previewEl) previewEl.innerHTML = '';
     if (titleEl) {
         titleEl.innerHTML = '<i class="fas fa-exclamation-circle text-warning"></i> '
             + (isReregister ? 'AS 접수 수정' : 'AS 접수');
@@ -3088,11 +3089,15 @@ ${escapeHtml(sub)}</div>` : ''}`;
                         window.__erpShippingScheduledDate = shipDateVal;
                     }
 
+                    const previewCtl = document.getElementById('as-receive-preview')
+                        && document.getElementById('as-receive-preview')._asOrder;
                     const fallbackFiles = Array.isArray(window.__erpAsReceiveClipboardFiles)
                         ? window.__erpAsReceiveClipboardFiles
                         : [];
                     const nativeFiles = filesEl?.files ? Array.from(filesEl.files) : [];
-                    const files = fallbackFiles.length ? fallbackFiles : nativeFiles;
+                    const files = previewCtl
+                        ? previewCtl.getFiles()
+                        : (fallbackFiles.length ? fallbackFiles : nativeFiles);
                     // AS-FRESH-01: 접수 첨부를 접수 기록에 결합한다. 무편집 재접수는 서버가
                     // 직전 동일 본문 항목 id 를 돌려주므로 그 파일도 고아가 되지 않는다.
                     const receptionLogId = regData.reception_log_id || '';
@@ -3104,6 +3109,7 @@ ${escapeHtml(sub)}</div>` : ''}`;
                                 folder: `orders/${targetId}/attachments`,
                                 category: 'as',
                                 asLogId: receptionLogId || null,
+                                sortOrders: files.map(function (_file, index) { return index; }),
                                 useDirectUpload: (typeof USE_DIRECT_UPLOAD !== 'undefined' && USE_DIRECT_UPLOAD),
                                 onPrepareProgress: function (info) {
                                     erpSetStatus(`이미지 최적화 중... (${info.done}/${info.total})`);
@@ -3119,6 +3125,7 @@ ${escapeHtml(sub)}</div>` : ''}`;
                                 fd.append('file', files[i]);
                                 fd.append('category', 'as');
                                 if (receptionLogId) fd.append('as_log_id', receptionLogId);
+                                fd.append('sort_order', String(i));
                                 const res = await fetch(`/api/orders/${targetId}/attachments`, { method: 'POST', body: fd });
                                 const data = await res.json();
                                 if (data && data.success) uploaded += 1;
@@ -4165,7 +4172,29 @@ function erpSetAttachmentPasteZoneActive(zone, isActive) {
     zone.style.backgroundColor = isActive ? '#eef6ff' : '';
 }
 
+function erpAsReceiveOrderCtl() {
+    const previewEl = document.getElementById('as-receive-preview');
+    if (!previewEl || !window.fomsAsAttachmentOrder) return null;
+    if (!previewEl._asOrder) {
+        previewEl._asOrder = window.fomsAsAttachmentOrder.mount(previewEl, {
+            onChange: function (files) {
+                const filesEl = document.getElementById('as-receive-files');
+                erpSetFileInputFiles(filesEl, files);
+                window.__erpAsReceiveClipboardFiles = files.slice();
+            }
+        });
+    }
+    return previewEl._asOrder;
+}
+
 function erpRemoveAsReceiveFile(idx) {
+    const ctl = erpAsReceiveOrderCtl();
+    if (ctl) {
+        const files = ctl.getFiles();
+        files.splice(idx, 1);
+        ctl.setFiles(files);
+        return;
+    }
     const filesEl = document.getElementById('as-receive-files');
     if (!filesEl) return;
     const files = Array.from(filesEl.files || []);
@@ -4175,6 +4204,11 @@ function erpRemoveAsReceiveFile(idx) {
 }
 
 function erpRenderAsReceiveFilePreview(files) {
+    const ctl = erpAsReceiveOrderCtl();
+    if (ctl) {
+        ctl.setFiles(Array.isArray(files) ? files : []);
+        return;
+    }
     const previewEl = document.getElementById('as-receive-preview');
     if (!previewEl) return;
     const AS_VIDEO_SIZE_WARN = 10 * 1024 * 1024;
@@ -4189,13 +4223,13 @@ function erpRenderAsReceiveFilePreview(files) {
         if (isImage) {
             const objUrl = URL.createObjectURL(f);
             previewEl._objectUrls.push(objUrl);
-            thumbHtml = `<img src="${objUrl}" class="img-fluid rounded" style="max-height:90px;object-fit:cover;width:100%;">`;
+            thumbHtml = `<img src="${objUrl}" class="img-fluid rounded as-attach-order-fallback-img" alt="">`;
         } else if (isVideo) {
-            thumbHtml = `<div class="d-flex align-items-center justify-content-center bg-dark rounded" style="height:70px;">
-                <i class="fas fa-video text-white" style="font-size:1.3rem;"></i></div>`;
+            thumbHtml = `<div class="d-flex align-items-center justify-content-center bg-dark rounded as-attach-order-fallback-box">
+                <i class="fas fa-video text-white"></i></div>`;
         } else {
-            thumbHtml = `<div class="d-flex align-items-center justify-content-center bg-light rounded" style="height:70px;">
-                <i class="fas fa-file text-secondary" style="font-size:1.3rem;"></i></div>`;
+            thumbHtml = `<div class="d-flex align-items-center justify-content-center bg-light rounded as-attach-order-fallback-box">
+                <i class="fas fa-file text-secondary"></i></div>`;
         }
         const col = document.createElement('div');
         col.className = 'col-6 col-sm-4 col-md-3';
@@ -4204,7 +4238,7 @@ function erpRenderAsReceiveFilePreview(files) {
                 ${thumbHtml}
                 ${isSizeWarn ? '<div class="small text-warning mt-1">10MB 초과 - 지연 가능</div>' : ''}
                 <div class="d-flex justify-content-between align-items-center mt-1">
-                    <div class="small text-truncate" style="max-width:70%;" title="${escapeHtml(f.name)}">${escapeHtml(f.name)}</div>
+                    <div class="small text-truncate" title="${escapeHtml(f.name)}">${escapeHtml(f.name)}</div>
                     <button type="button" class="btn btn-outline-danger btn-sm py-0 px-1" data-idx="${idx}" title="삭제">
                         <i class="fas fa-trash"></i>
                     </button>
@@ -4230,6 +4264,11 @@ function erpSetFileInputFiles(input, files) {
 window.erpAppendAsReceiveFiles = erpAppendAsReceiveFiles;
 
 function erpAppendAsReceiveFiles(files) {
+    const ctl = erpAsReceiveOrderCtl();
+    if (ctl) {
+        ctl.addFiles(files || []);
+        return;
+    }
     const filesEl = document.getElementById('as-receive-files');
     if (!filesEl) {
         erpAttachmentsSetStatus('AS 첨부 입력 영역을 찾지 못했습니다.', true);

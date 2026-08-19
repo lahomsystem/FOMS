@@ -280,7 +280,7 @@ def test_write_paths_do_not_leak_json_parse_errors():
     js = _js()
     block = _timeline_block(js)
     assert "async function readTimelineJson(res)" in block
-    assert block.count("await readTimelineJson(res)") == 5  # append + patch + billing + delete + verdict(T15c)
+    assert block.count("await readTimelineJson(res)") == 6  # append + patch + billing + delete + verdict + reorder
     assert block.count("await res.json()") == 1  # 원시 파싱은 헬퍼 안에서만
     assert "세션이 만료되었거나 서버 오류가 발생했습니다" in block
     assert "권한이 없거나 세션이 만료되었습니다" in block
@@ -901,12 +901,29 @@ def test_preset_and_banner_styles_exist():
     assert "#as-timeline-hint" not in css
 
 
+def test_round_chart_file_reorder_is_wired():
+    """올린 뒤 썸네일 ▲▼·드래그가 reorder API 로 간다."""
+    block = _timeline_block(_js())
+    assert "/attachments/reorder" in block
+    assert ".as-rchart-file-wrap[draggable=\"true\"]" in block
+    assert "persistFileOrder(row)" in block
+
+
 def test_dashboard_js_link_is_version_pinned():
     """SW staticCacheFirst — as-dashboard.js 링크도 `?v=` 없이는 실기기가 구버전을 계속 쓴다."""
     body = (_ROOT / "templates/cs/partials/as_dashboard_body.html").read_text(encoding="utf-8")
     link = [line for line in body.splitlines() if "js/cs/as-dashboard.js" in line]
     assert len(link) == 1
     assert "?v=" in link[0]
+
+
+def test_as_attachment_order_script_is_version_pinned_and_deferred():
+    """순서 지정 헬퍼도 SW 캐시 무효화 + 렌더 비차단(defer)이 필요하다."""
+    body = (_ROOT / "templates/cs/partials/as_dashboard_body.html").read_text(encoding="utf-8")
+    link = [line for line in body.splitlines() if "js/cs/as-attachment-order.js" in line]
+    assert len(link) == 1
+    assert "?v=" in link[0]
+    assert "defer" in link[0]
 
 
 def test_sales_delivery_handler_uses_order_id_dataset():

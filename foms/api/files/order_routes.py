@@ -27,6 +27,7 @@ from foms.api.files.common import (
     normalize_attachment_category,
     parse_attachment_item_index,
     resolve_as_log_ref,
+    resolve_as_sort_order,
     serialize_attachment,
 )
 from db import get_db
@@ -338,6 +339,11 @@ def api_order_attachments_upload(order_id):
         )
         if not ok_log:
             return jsonify({"success": False, "message": log_err}), 400
+        ok_sort, sort_order, sort_err = resolve_as_sort_order(
+            db, order_id, category, as_log_id, request.form.get("sort_order")
+        )
+        if not ok_sort:
+            return jsonify({"success": False, "message": sort_err}), 400
 
         storage = get_storage()
         folder = f"orders/{order_id}/attachments"
@@ -372,6 +378,7 @@ def api_order_attachments_upload(order_id):
             category=category,
             item_index=item_index,
             as_log_id=as_log_id,
+            sort_order=sort_order,
             file_size=file_size,
             storage_key=storage_key,
             thumbnail_key=thumbnail_key,
@@ -460,6 +467,111 @@ def api_order_attachments_patch(order_id, attachment_id):
             db.rollback()
         except Exception:
             log_handled_exception("order_routes rollback")
+        log_handled_exception()
+        return jsonify({"success": False, "message": str(e)}), 500
+
+
+def _parse_reorder_as_log_id(payload: dict) -> tuple:
+    """reorder 요청의 as_log_id 필드. 생략 금지, JSON null 은 미결합 그룹.
+
+    Returns:
+        ``(ok, group_id|None, 오류문구|None)``.
+    """
+    if not isinstance(payload, dict) or "as_log_id" not in payload:
+        return False, None, "as_log_id 필드가 필요합니다."
+    raw = payload.get("as_log_id")
+    if raw is None:
+        return True, None, None
+    if not isinstance(raw, str) or not raw.strip():
+        return False, None, "as_log_id 가 올바르지 않습니다."
+    group_id = raw.strip()
+    if len(group_id) > 64:
+        return False, None, "as_log_id 가 올바르지 않습니다."
+    return True, group_id, None
+
+
+def _parse_reorder_ids(raw) -> tuple:
+    """reorder 요청의 ids 배열(중복 없는 int).
+
+    Returns:
+        ``(ids|None, 오류문구|None)``.
+    """
+    if not isinstance(raw, list):
+        return None, "ids 는 배열이어야 합니다."
+    ids: list[int] = []
+    for item in raw:
+        if isinstance(item, bool) or not isinstance(item, int):
+            return None, "ids 는 첨부 id(정수) 배열이어야 합니다."
+        if item in ids:
+            return None, "ids 에 중복이 있습니다."
+        ids.append(item)
+    return ids, None
+
+
+@attachments_bp.route("/orders/<int:order_id>/attachments/reorder", methods=["POST"])
+@login_required
+def api_order_attachments_reorder(order_id):
+    """같은 AS 기록 그룹의 첨부 순서를 저장한다 (AS-SORT-01).
+
+    ``ids`` 는 그 그룹의 살아 있는 AS 첨부 전부의 순열이어야 한다. 빠진 id·다른
+    그룹·다른 주문은 400. 하나라도 수정 권한이 없으면 403(부분 저장 없음).
+    """
+    try:
+        payload = request.get_json(silent=True) or {}
+        ok_log, group_id, log_err = _parse_reorder_as_log_id(payload)
+        if not ok_log:
+            return jsonify({"success": False, "message": log_err}), 400
+        ids, id_err = _parse_reorder_ids(payload.get("ids"))
+        if id_err:
+            return jsonify({"success": False, "message": id_err}), 400
+
+        db = get_db()
+        order = db.query(Order).filter(Order.id == order_id).first()
+        if not order:
+            return jsonify({"success": False, "message": "주문을 찾을 수 없습니다."}), 404
+
+        query = db.query(OrderAttachment).filter(
+            OrderAttachment.order_id == order_id,
+            OrderAttachment.category == "as",
+        )
+        if group_id is None:
+            query = query.filter(OrderAttachment.as_log_id.is_(None))
+        else:
+            query = query.filter(OrderAttachment.as_log_id == group_id)
+        live = query.all()
+        live_by_id = {att.id: att for att in live}
+        if set(ids) != set(live_by_id):
+            return jsonify({
+                "success": False,
+                "message": "이 기록의 첨부 목록과 일치하지 않습니다.",
+            }), 400
+
+        current_user = _current_user()
+        for att in live:
+            if not can_modify_order_attachment(current_user, order, att):
+                return jsonify({
+                    "success": False,
+                    "message": "첨부파일 수정 권한이 없습니다.",
+                }), 403
+
+        for index, att_id in enumerate(ids):
+            live_by_id[att_id].sort_order = index
+        db.commit()
+        _invalidate_attachment_caches()
+        ordered = [live_by_id[att_id] for att_id in ids]
+        return jsonify({
+            "success": True,
+            "attachments": [
+                serialize_attachment(att, order=order, user=current_user)
+                for att in ordered
+            ],
+        })
+    except Exception as e:
+        db = get_db()
+        try:
+            db.rollback()
+        except Exception:
+            log_handled_exception("order_routes reorder rollback")
         log_handled_exception()
         return jsonify({"success": False, "message": str(e)}), 500
 
