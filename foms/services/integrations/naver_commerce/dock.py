@@ -19,6 +19,11 @@ import logging
 import re
 from typing import Any, Optional
 
+from foms.services.integrations.naver_commerce.attribution import (
+    SPEC_AXES,
+    attribute_addons,
+    axis_values,
+)
 from foms.services.integrations.naver_commerce.constants import (
     ADDON_PRODUCT_CLASS,
     CHANNEL,
@@ -65,16 +70,6 @@ _LENGTH_UNIT_MM = {"mm": 1.0, "cm": 10.0, "m": 1000.0}
 #: 수납구성(TYPE A 등)·거울도어 같은 구성 옵션은 폭과 무관하다.
 _LENGTH_ADDON_HINTS = ("길이추가", "길이 추가")
 
-#: 본품과 길이추가 옵션의 사양이 갈리는 축(2026-08-18 사용자: 고객이 몰딩/무몰딩을 섞어
-#: 주문하는 사고가 실제로 있다). **부분문자열 함정** 때문에 긴 값을 먼저 검사한다
-#: ('몰딩' 은 '무몰딩' 안에도 있다).
-SPEC_AXES = (
-    ("몰딩", ("무몰딩", "몰딩")),
-    ("문 방식", ("슬라이딩", "미닫이", "여닫이")),
-    ("손잡이", ("피닉스바", "푸쉬")),
-)
-
-
 def parse_length_mm(text: str) -> Optional[int]:
     """원문에서 첫 길이를 mm 정수로 뽑는다(없으면 None).
 
@@ -91,36 +86,9 @@ def parse_length_mm(text: str) -> Optional[int]:
     return int(round(float(value) * _LENGTH_UNIT_MM[unit]))
 
 
-def _axis_value(text: str) -> dict[str, str]:
-    """사양 축별 값(몰딩/문 방식/손잡이)을 원문에서 읽는다."""
-    lowered = _text(text)
-    found: dict[str, str] = {}
-    for axis, values in SPEC_AXES:
-        for value in values:
-            if value in lowered:
-                found[axis] = value
-                break
-    return found
-
-
 def _row_axes(row: dict[str, Any]) -> dict[str, str]:
-    """행의 사양 축 값 — **옵션 원문 우선**, 그 축이 옵션에 없을 때만 상품명으로 보완.
-
-    상품명과 옵션을 한 문자열로 합쳐 읽으면 안 된다(2026-08-18 스테이징 실측으로 확인):
-    라홈 상품명은 라인 이름으로 ``무몰딩`` 을 달고 있는데 고객은 옵션에서 ``몰딩`` 을 고른다.
-    합쳐 읽으면 ``무몰딩`` 이 먼저 잡혀(부분문자열 방어 순서) 본품이 무몰딩으로 판정되고,
-    몰딩 1cm 추가와 비교해 **없는 불일치**를 경고했다 — 본품류 링크 100건 중 9건이 이 조합.
-    축 값의 정본은 **고객이 고른 옵션 원문**이다.
-
-    Args:
-        row: ``product_name``·``option_text`` 를 가진 도크 행.
-
-    Returns:
-        축 이름 → 값 dict (읽히지 않은 축은 없음).
-    """
-    axes = _axis_value(row.get("product_name") or "")
-    axes.update(_axis_value(row.get("option_text") or ""))
-    return axes
+    """행의 사양 축 값 — 판정은 :func:`attribution.axis_values` 가 한다(옵션 원문 우선)."""
+    return axis_values(row.get("product_name") or "", row.get("option_text") or "")
 
 
 def build_width_hint(main: dict[str, Any], addons: list[dict[str, Any]]) -> Optional[dict[str, Any]]:
@@ -225,36 +193,27 @@ def _row_source(link: Any) -> dict[str, Any]:
     }
 
 
-def _guess_by_sequence(rows: list[dict[str, Any]], mains: list[dict[str, Any]]) -> None:
-    """추가옵션의 귀속을 **수집 순서**로 정한다(각 행에 guess_main/guess_reason 기록).
+def _apply_attribution(rows: list[dict[str, Any]]) -> None:
+    """각 추가옵션 행에 ``guess_main``/``guess_reason`` 을 채운다(제자리 수정).
 
-    네이버는 부모 링크를 주지 않지만 응답 순서가 **본품 → 그 본품의 옵션들** 이다
-    (2026-08-18 사용자 확인 + 실데이터 검증). 이름 토큰 유사도로 추정하던 옛 방식은
-    본품 2종이 비슷한 이름일 때 엉뚱한 짝을 만들었다(2026-08-18 제거).
-    사람이 지정한 ``assigned_main`` 은 언제나 이 추정을 이긴다(호출측에서 우선).
+    판정은 :func:`attribution.attribute_addons` — 수집 순서가 본품/옵션을 섞어 주는 집은
+    순서로, 본품이 앞에 몰려 온 집은 사양 축 일치로 본다. 사람이 고른 ``assigned_main`` 은
+    언제나 이 추정을 이긴다(호출측에서 우선).
 
     Args:
-        rows: 수집 순서(link.id 오름차순)로 정렬된 도크 행 목록. **제자리 수정**한다.
-        mains: 본품 행 목록.
+        rows: 수집 순서(link.id 오름차순)로 정렬된 도크 행 목록.
     """
-    current: Optional[str] = None
-    pending: list[dict[str, Any]] = []
-    first_main = mains[0]["external_id"] if mains else None
-    for row in rows:
+    signals = [{"is_main": row["role"] != "addon",
+                "product_name": row["product_name"],
+                "option_text": row["option_text"]} for row in rows]
+    owners = attribute_addons(signals)
+    for index, row in enumerate(rows):
         if row["role"] != "addon":
             row["guess_main"], row["guess_reason"] = (None, "")
-            current = row["external_id"]
             continue
-        if current:
-            row["guess_main"] = current
-            row["guess_reason"] = "수집 순서 — 바로 위 본품의 구성"
-        else:
-            # 본품보다 먼저 온 옵션 — 첫 본품이 정해지면 그쪽으로 붙인다.
-            pending.append(row)
-    for row in pending:
-        row["guess_main"] = first_main
-        row["guess_reason"] = ("수집 순서 — 첫 본품의 구성" if first_main
-                               else "본품 없음")
+        owner, reason = owners[index]
+        row["guess_main"] = rows[owner]["external_id"] if owner is not None else None
+        row["guess_reason"] = reason
 
 
 def build_dock_payload(db: Any, order: Any) -> Optional[dict[str, Any]]:
@@ -333,7 +292,7 @@ def build_dock_payload(db: Any, order: Any) -> Optional[dict[str, Any]]:
         lead["role"] = "main"
         mains = [lead]
 
-    _guess_by_sequence(rows, mains)
+    _apply_attribution(rows)
 
     # 본품별 총폭 힌트(T14-I) — 귀속은 사람 지정 > 추정 순으로 본다(화면과 같은 규칙).
     width_hints: dict[str, Any] = {}

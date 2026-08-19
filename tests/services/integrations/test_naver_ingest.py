@@ -522,3 +522,31 @@ def test_addon_before_any_main_is_not_lost():
     assert len(items) == 1 and items[0]["naver_product_order_id"] == "PO-M1"
     assert [a["naver_product_order_id"] for a in items[0]["naver_addons"]] == ["PO-A0"]
     assert items[0]["price"] == 805_000
+
+
+def test_block_layout_attributes_addons_by_spec_axis():
+    """본품이 앞에 몰려 온 집(`M M a a`)은 순서로 못 가른다 — 사양 축으로 붙인다.
+
+    실데이터 `2026081435531421`: 몰딩 본품 + 무몰딩 본품 뒤에 1cm 두 종류가 온다.
+    순서만 보면 몰딩 1cm 이 무몰딩 본품에 붙어 총폭·경고가 함께 틀어졌다.
+    """
+    molding = _main("PO-M1", "라홈 무몰딩 붙박이장 로라 30cm", amount=600_000, quantity=6,
+                    option="제품: 로라 몰딩 여닫이 30cm / 손잡이: 푸쉬타입")
+    plain = _main("PO-M2", "라홈 무몰딩 붙박이장 로라 30cm", amount=1_300_000, quantity=13,
+                  option="제품: 로라 무몰딩 여닫이 30cm / 손잡이: 푸쉬타입")
+    molding_addon = _addon("PO-A1", "로라 몰딩 여닫이 (푸쉬) 1cm", amount=11_000, quantity=11,
+                           option="길이추가(1cm): 로라 몰딩 여닫이 (푸쉬) 1cm")
+    plain_addon = _addon("PO-A2", "로라 무몰딩 여닫이(푸쉬) 1cm", amount=10_000, quantity=10,
+                         option="길이추가(1cm): 로라 무몰딩 여닫이(푸쉬) 1cm")
+    neutral = _addon("PO-A3", "제로조인트 추가 (상담)", amount=0,
+                     option="제로조인트: 제로조인트 추가 (상담)")
+
+    fields, structured = map_group([molding, plain, molding_addon, plain_addon, neutral],
+                                   today="2026-08-19")
+
+    by_id = {i["naver_product_order_id"]: i for i in structured["items"]}
+    assert [a["naver_product_order_id"] for a in by_id["PO-M1"]["naver_addons"]] == \
+        ["PO-A1", "PO-A3"], "몰딩 1cm 은 몰딩 본품에 · 축 없는 옵션은 첫 본품에"
+    assert [a["naver_product_order_id"] for a in by_id["PO-M2"]["naver_addons"]] == ["PO-A2"]
+    assert sum(i["price"] for i in structured["items"]) == fields["payment_amount"], \
+        "귀속이 미정이어도 금액은 어딘가에 붙어 합계가 보존된다"

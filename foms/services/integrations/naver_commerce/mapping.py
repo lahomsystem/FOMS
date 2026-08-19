@@ -399,34 +399,47 @@ def is_addon_detail(detail: dict) -> bool:
     return _text(product_order.get("productClass")) == ADDON_PRODUCT_CLASS
 
 
-def split_main_groups(details: list[dict]) -> list[tuple[dict, list[dict]]]:
-    """수집(응답) 순서대로 **본품 → 그 본품의 추가옵션**을 묶는다.
+def split_main_groups(details: list[dict], *,
+                      fallback_index: int = 0) -> list[tuple[dict, list[dict]]]:
+    """상세 목록을 **본품 → 그 본품의 추가옵션** 으로 묶는다.
 
-    네이버 API 는 추가옵션에 부모 링크를 주지 않는다. 대신 **응답 순서가 본품 다음에 그
-    본품의 옵션들**이다 — 2026-08-18 사용자 확인 + 실데이터 검증(주문 `2026081822487841`:
-    180cm 본품 → TYPE C·TYPE B·EP마감·1cm·제로조인트, 그다음 30cm 본품 → 나머지 7건).
-    이름 토큰 유사도 추정보다 이 순서가 정확하다.
+    귀속 판정은 :func:`attribution.attribute_addons` 가 한다(수집 순서 우선, 본품이 앞에
+    몰려 온 배치는 사양 축 일치). 화면(도크)과 **같은 함수**를 쓴다 — 한쪽만 바뀌면 품목
+    금액과 화면 귀속이 어긋난다.
 
     Args:
         details: 같은 묶음의 상세 목록(수집 순서 그대로).
+        fallback_index: 귀속이 미정인 옵션을 붙일 본품의 인덱스(기본 = 첫 본품).
+            금액을 잃지 않으려면 어딘가에는 붙여야 한다. 화면에서는 여전히 "선택 필요"로 뜬다.
 
     Returns:
-        ``[(본품 detail, [추가옵션 detail, ...]), ...]`` — 입력 순서 보존.
+        ``[(본품 detail, [추가옵션 detail, ...]), ...]`` — 본품 등장 순서 보존.
         본품이 하나도 없으면 첫 건을 본품으로 삼는다(빈 묶음 방지).
     """
-    groups: list[tuple[dict, list[dict]]] = []
+    from foms.services.integrations.naver_commerce.attribution import attribute_addons
+
+    rows = []
     for detail in details:
-        if not is_addon_detail(detail):
-            groups.append((detail, []))
-        elif groups:
-            groups[-1][1].append(detail)
-        else:
-            # 본품보다 먼저 온 추가옵션 — 뒤에 올 첫 본품에 붙인다(임시 보관).
-            groups.append((detail, []))
-    if groups and is_addon_detail(groups[0][0]) and len(groups) > 1:
-        orphan, _ = groups.pop(0)
-        groups[0][1].insert(0, orphan)
-    return groups
+        _order, product_order, _shipping = unwrap_detail(detail)
+        rows.append({
+            "is_main": not is_addon_detail(detail),
+            "product_name": _text(product_order.get("productName")),
+            "option_text": _text(product_order.get("productOption")),
+        })
+    main_indexes = [i for i, row in enumerate(rows) if row["is_main"]]
+    if not main_indexes:
+        # 전부 추가옵션으로 온 비정상 원본 — 첫 건을 본품으로 세운다.
+        return [(details[0], list(details[1:]))] if details else []
+
+    owners = attribute_addons(rows)
+    buckets: dict[int, list[dict]] = {index: [] for index in main_indexes}
+    default_main = main_indexes[min(fallback_index, len(main_indexes) - 1)]
+    for index, detail in enumerate(details):
+        if rows[index]["is_main"]:
+            continue
+        owner, _reason = owners[index]
+        buckets[owner if owner in buckets else default_main].append(detail)
+    return [(details[index], buckets[index]) for index in main_indexes]
 
 
 def map_group(details: list[dict], *, today: str) -> tuple[dict[str, Any], dict]:
