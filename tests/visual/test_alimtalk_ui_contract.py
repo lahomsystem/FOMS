@@ -83,3 +83,26 @@ def test_send_js_singleton_guard_and_click_time_fetch() -> None:
     assert "fomsErpAutosave" in js and "isDirty" in js
     # 태블릿 버튼은 자체 핸들러 소유 — 이중 처리 방지 제외 선택자.
     assert ":not([data-tmf-alimtalk-send])" in js
+
+
+def test_send_js_autosaves_dirty_form_before_preview() -> None:
+    """T13: 미저장 입력은 preview 전에 기존 통합 저장으로 반영한다(화면값 직접 조립 금지)."""
+    js = _read("static/js/orders/erp-alimtalk-send.js")
+    assert "erpAlimtalkEnsureSaved" in js
+    # 저장 SSOT = 기존 ERP 통합 저장(리다이렉트 없이 호출).
+    assert "window.erpSaveStructured" in js
+    assert "redirect: false" in js
+    # draft 백업 주문은 알림톡 클릭만으로 승격되면 안 된다(draft 부활 레이스 회피).
+    assert "erpIsDraftBackedOrder" in js
+    # 저장 실패 시 발송 중단 + 문구 표면화(조용한 통과 금지).
+    assert "저장 실패 — 저장 후 다시 시도해주세요." in js
+    # 공유 링크(erp-share.js)가 재사용하는 전역 헬퍼.
+    assert "window.fomsErpEnsureSavedForSend" in js
+
+
+def test_share_js_reuses_alimtalk_autosave_guard() -> None:
+    """T13(공유): 링크 발급·원클릭 알림톡도 저장본을 보여주므로 같은 dirty 가드를 탄다."""
+    js = _read("static/js/orders/erp-share.js")
+    assert "fomsErpEnsureSavedForSend" in js
+    # 헬퍼 정의 1 + 발급/원클릭 호출 2.
+    assert js.count("_ensureSaved(") >= 3

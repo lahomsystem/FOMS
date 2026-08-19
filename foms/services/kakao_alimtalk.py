@@ -45,6 +45,7 @@ __all__ = [
     "is_configured",
     "resolve_brand",
     "brand_config",
+    "sender_phone",
     "send_alimtalk",
     "maybe_send_measure_alimtalk",
 ]
@@ -289,6 +290,9 @@ _ERROR_SIGNATURES: tuple[tuple[str, tuple[str, ...]], ...] = (
 #: 때문이다(D3 단계 가동). 나머지 사유(미설정·draft·일정없음)는 이력도 남기지 않는다.
 _RECORDED_SKIP_REASONS = frozenset({"no_valid_phone", "brand_profile_missing"})
 
+#: 발신번호·발신프로필 env 접미사로 쓰는 브랜드 코드(:func:`resolve_brand` 반환값).
+_BRANDS = ("LAHOM", "HAUD")
+
 _session_factory = sessionmaker(bind=engine)
 
 
@@ -307,13 +311,36 @@ def _mask_phone(digits: str) -> str:
     return f"{digits[:3]}****{digits[-4:]}" if len(digits) >= 7 else "***"
 
 
-def is_configured() -> bool:
-    """Solapi 공통 자격증명(API 키·시크릿·발신번호)이 전부 설정됐는지 반환한다.
+def sender_phone(brand: str) -> str:
+    """브랜드 발신번호를 결정한다(T14 — 라홈 1566-0792 / 하우드 1566-0703).
 
-    브랜드 발신프로필/템플릿은 여기서 보지 않는다 — 브랜드별 단계 가동(D3)을 위해
-    :func:`brand_config` 가 따로 판정한다.
+    Args:
+        brand: :func:`resolve_brand` 결과(``LAHOM``/``HAUD``).
+
+    Returns:
+        ``SOLAPI_SENDER_PHONE_{brand}`` 우선, 없으면 구 단일 env ``SOLAPI_SENDER_PHONE``
+        폴백(둘 다 없으면 빈 문자열). SMS/LMS 대체발송의 발신번호로 쓰인다.
+        문자 공유(:mod:`foms.api.share`)는 담당자 개인번호가 ①순위라 규칙이 다르다.
     """
-    return all(_env(k) for k in ("SOLAPI_API_KEY", "SOLAPI_API_SECRET", "SOLAPI_SENDER_PHONE"))
+    return _env(f"SOLAPI_SENDER_PHONE_{brand}") or _env("SOLAPI_SENDER_PHONE")
+
+
+def is_configured(brand: str | None = None) -> bool:
+    """Solapi 공통 자격증명(API 키·시크릿·발신번호)이 설정됐는지 반환한다.
+
+    Args:
+        brand: 지정하면 그 브랜드로 실제 발신 가능한지까지 본다(브랜드 전용 번호 ∨
+            구 폴백). 생략하면 브랜드 무관 공통 판정(구 env ∨ 브랜드 번호 중 하나).
+
+    Returns:
+        설정 완료 여부. 브랜드 발신프로필/템플릿은 여기서 보지 않는다 — 브랜드별
+        단계 가동(D3)을 위해 :func:`brand_config` 가 따로 판정한다.
+    """
+    if not (_env("SOLAPI_API_KEY") and _env("SOLAPI_API_SECRET")):
+        return False
+    if brand:
+        return bool(sender_phone(brand))
+    return bool(_env("SOLAPI_SENDER_PHONE") or any(sender_phone(b) for b in _BRANDS))
 
 
 def resolve_brand(sd: dict | None) -> str:
@@ -440,7 +467,7 @@ def _ineligible_reason(order: Order | None, sd: dict) -> str | None:
     """
     if order is None:
         return "order_not_found"
-    if not is_configured():
+    if not is_configured(resolve_brand(sd)):
         return "not_configured"
     if _is_draft_order(order, sd):
         return "not_eligible"
@@ -460,11 +487,12 @@ def _dispatch(sd: dict) -> tuple[str | None, str | None]:
         ``(message_id, error)`` — 성공이면 error 가 None, 실패면 message_id 가 None.
     """
     phone = extract_valid_phone(sd) or ""
-    config = brand_config(resolve_brand(sd)) or {}
+    brand = resolve_brand(sd)
+    config = brand_config(brand) or {}
     try:
         message_id = _solapi_send(
             to=phone,
-            from_=_env("SOLAPI_SENDER_PHONE"),
+            from_=sender_phone(brand),
             pf_id=config["pf_id"],
             template_id=config["template_id"],
             variables=build_variables(sd),

@@ -82,6 +82,8 @@ def solapi_env(monkeypatch):
     monkeypatch.setenv("SOLAPI_TEMPLATE_MEASURE_ID_LAHOM", "TPL-LAHOM")
     monkeypatch.delenv("SOLAPI_PF_ID_HAUD", raising=False)
     monkeypatch.delenv("SOLAPI_TEMPLATE_MEASURE_ID_HAUD", raising=False)
+    monkeypatch.delenv("SOLAPI_SENDER_PHONE_LAHOM", raising=False)
+    monkeypatch.delenv("SOLAPI_SENDER_PHONE_HAUD", raising=False)
 
 
 @pytest.fixture
@@ -145,6 +147,65 @@ def test_brand_config_none_when_pair_incomplete(solapi_env, monkeypatch):
     assert ka.brand_config("HAUD") is None
     monkeypatch.setenv("SOLAPI_PF_ID_HAUD", "PF-HAUD")  # 템플릿 키 없음 → 여전히 None
     assert ka.brand_config("HAUD") is None
+
+
+# --- 발신번호 브랜드 분기 (T14) --------------------------------------------------
+
+
+def test_sender_phone_prefers_brand_env(solapi_env, monkeypatch):
+    monkeypatch.setenv("SOLAPI_SENDER_PHONE_LAHOM", "15660792")
+    monkeypatch.setenv("SOLAPI_SENDER_PHONE_HAUD", "15660703")
+    assert ka.sender_phone("LAHOM") == "15660792"
+    assert ka.sender_phone("HAUD") == "15660703"
+
+
+def test_sender_phone_falls_back_to_legacy_env(solapi_env):
+    """브랜드 전용 번호 미등록 → 구 단일 env 로 폴백(기존 동작 보존)."""
+    assert ka.sender_phone("LAHOM") == "0212345678"
+    assert ka.sender_phone("HAUD") == "0212345678"
+
+
+def test_is_configured_accepts_brand_only_sender(solapi_env, monkeypatch):
+    """구 env 없이 브랜드 번호만 있어도 공통 설정은 완료로 본다."""
+    monkeypatch.delenv("SOLAPI_SENDER_PHONE", raising=False)
+    assert ka.is_configured() is False
+    monkeypatch.setenv("SOLAPI_SENDER_PHONE_LAHOM", "15660792")
+    assert ka.is_configured() is True
+    assert ka.is_configured("LAHOM") is True
+    assert ka.is_configured("HAUD") is False  # 그 브랜드로는 아직 발송 불가
+
+
+def test_send_uses_brand_sender_phone(db, solapi_env, monkeypatch, stub_solapi_ok):
+    """라홈 발주사 주문은 라홈 대표번호로 발신한다(T14)."""
+    monkeypatch.setenv("SOLAPI_SENDER_PHONE_LAHOM", "15660792")
+    monkeypatch.setenv("SOLAPI_SENDER_PHONE_HAUD", "15660703")
+    order = _mk_order()
+
+    assert ka.send_alimtalk(order.id) == {"sent": True, "error": None}
+    assert stub_solapi_ok[0]["from_"] == "15660792"
+
+
+def test_send_uses_haud_sender_phone(db, solapi_env, monkeypatch, stub_solapi_ok):
+    """하우드 발주사 주문은 하우드 대표번호로 발신한다(T14)."""
+    monkeypatch.setenv("SOLAPI_PF_ID_HAUD", "PF-HAUD")
+    monkeypatch.setenv("SOLAPI_TEMPLATE_MEASURE_ID_HAUD", "TPL-HAUD")
+    monkeypatch.setenv("SOLAPI_SENDER_PHONE_LAHOM", "15660792")
+    monkeypatch.setenv("SOLAPI_SENDER_PHONE_HAUD", "15660703")
+    order = _mk_order(_sd(parties={"customer": {"name": "임다슬", "phone": "010-2473-6730"},
+                                   "orderer": {"name": "제이큐브이앤씨"}}))
+
+    assert ka.send_alimtalk(order.id) == {"sent": True, "error": None}
+    assert stub_solapi_ok[0]["from_"] == "15660703"
+    assert stub_solapi_ok[0]["pf_id"] == "PF-HAUD"
+
+
+def test_send_skips_when_brand_sender_missing(db, solapi_env, monkeypatch, stub_solapi_never):
+    """해당 브랜드로 쓸 발신번호가 하나도 없으면 발송하지 않는다(빈 from_ 방지)."""
+    monkeypatch.delenv("SOLAPI_SENDER_PHONE", raising=False)
+    monkeypatch.setenv("SOLAPI_SENDER_PHONE_HAUD", "15660703")
+    order = _mk_order()
+
+    assert ka.send_alimtalk(order.id) == {"sent": False, "error": "not_configured"}
 
 
 # --- send_alimtalk --------------------------------------------------------------
