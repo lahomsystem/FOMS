@@ -47,6 +47,11 @@
 - [x] **T13 미저장 입력 자동 저장 후 발송** (2026-08-19, `d83854c2`): 알림톡 버튼 클릭 시 dirty 감지 → 기존 통합 저장(`erpSaveStructured({redirect:false})`) 실행 후 preview 조회 — 저장본 SSOT 유지(화면값 직접 조립 배제). 저장 실패 시 발송 중단+문구 표면화, draft 백업 주문은 클릭만으로 승격되지 않게 저장 스킵(draft 부활 레이스 회피). 공유 링크 발급·원클릭 알림톡도 같은 가드 재사용(`window.fomsErpEnsureSavedForSend`). erp-alimtalk-send.js·erp-share.js `?v=20260819c`. 계약 테스트 3건 추가(78 passed)·smoke exit 0. **스테이징 E2E 완료**: 주문 4479 에 실측시간 '16시 30분' 미저장 입력 → 알림톡 클릭 → 자동 저장 후 미리보기 본문에 `시  간 : 16시 30분` 반영(dirty=false·발송 버튼 활성). 공유 링크도 dirty 상태에서 발급 → 자동 저장 확인. 잔여물 정리(share 회수·주문 soft delete·로그아웃).
 - [x] **T14 실측 알림톡 발신 브랜드 분기** (2026-08-19, `f40a72f2`): `sender_phone(brand)` 신설 — `SOLAPI_SENDER_PHONE_{brand}`(라홈 15660792·하우드 15660703) 우선 + 구 `SOLAPI_SENDER_PHONE` 폴백. `is_configured(brand=None)` 은 공통 판정을 (구 ∨ 브랜드 중 하나)로 완화하고 brand 지정 시 그 브랜드 발신 가능 여부까지 판정(`_ineligible_reason` 이 빈 `from_` 발송을 not_configured 로 사전 차단). 테스트 6건 추가(75 passed)·mutation writer 인벤토리 재생성·smoke exit 0·CI green. **스테이징 실발송 검증 완료**: 라홈 발주사 주문 4479 실측 알림톡 → Solapi ATA `status=COMPLETE·statusCode=4000`, **from=15660792**(직전 08-19 02:57 발송은 15660703 — 분기 전후 대비 확인), to=01083277287, 라홈 템플릿 `KA01TP2608110820...`. 주의: 템플릿 WL 버튼은 운영 도메인 고정이라 스테이징 링크는 404(발송 성공 여부만 검증 가능).
 
+### T13·T14 운영 승격 (2026-08-19 — 완료, PR #117 → production `40248a45`)
+- 승격 커밋: `f40a72f2`(T14) → `0fc0770d`, `d83854c2`(T13) → `4a4d1928` (자기 세션 커밋만 cherry-pick, docs 제외).
+- 충돌 해소: `erp_order_js.html` = production 줄 유지 + 본인 핀 2개만 `?v=20260819c` 범프 / `test_erp_order_shared_form_scripts.py` = production 핀 유지 + 본인 assertion 2줄 추가 / mutation writer 인벤토리 = 승격 트리 재생성.
+- 검증: 승격 트리 pre_push_smoke exit 0 · 관련 스위트 127 passed · APP_OK, PR 체크 perf-gate·pg-lane pass.
+
 ## production 승격 (2026-08-13 — 완료, PR #89 → production `a59c0d7d`)
 
 - 1차 선행 점검 중단: production 에 `itemuid_00` 부재(체인 `share_token_00→itemuid_00→senderphone_00` 단절) → **사용자 승인 ①** itemuid 포함. 2차 promote_completeness INCOMPLETE: share.py 가 `kakao_alimtalk.py` 하드 의존(production 에 파일 부재) → **사용자 승인 ②** 알림톡 v1 코드 포함(발송은 이중 잠금 — killswitch off·PF/템플릿 env 미설정, 수동 버튼만 노출).
