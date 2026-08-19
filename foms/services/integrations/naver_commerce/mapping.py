@@ -219,6 +219,28 @@ PLACE_STATUS_LABELS = {
 CONFIRMED_PLACE_STATUSES = frozenset({"OK"})
 
 
+def place_status_view(status: str) -> dict:
+    """발주 상태 문자열 하나를 표시용 dict 로 편다.
+
+    ``ExternalOrderLink.place_order_status`` 컬럼(수집·스윕·우리 발주확인이 갱신)과
+    원본 스냅샷을 **같은 규칙**으로 읽기 위한 공용 변환이다. 컬럼이 표시 SSOT 이고
+    스냅샷은 컬럼이 비었을 때의 폴백이다 — 둘이 갈리면 버튼이 사라지지 않는다.
+
+    Args:
+        status: 원문 상태값(빈 문자열 허용).
+
+    Returns:
+        ``{"status", "label", "confirmed"}``.
+    """
+    text = _text(status)
+    upper = text.upper()
+    return {
+        "status": text,
+        "label": PLACE_STATUS_LABELS.get(upper, text),
+        "confirmed": upper in CONFIRMED_PLACE_STATUSES,
+    }
+
+
 def extract_place_status(detail: dict) -> dict:
     """발주(발주확인) 상태를 뽑는다 — NAVER-INGEST-02 T16-A.
 
@@ -608,6 +630,7 @@ __all__ = [
     "build_payment_info",
     "extract_claim",
     "extract_place_status",
+    "place_status_view",
     "PLACE_STATUS_LABELS",
     "CONFIRMED_PLACE_STATUSES",
     "extract_external_id",

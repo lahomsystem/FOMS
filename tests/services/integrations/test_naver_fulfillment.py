@@ -184,3 +184,85 @@ def test_route_rejects_unknown_action(auth_client):
     response = auth_client.post(f"/admin/naver-ingest/{link_id}/fulfillment",
                                 json={"action": "cancel_everything"})
     assert response.status_code == 400
+
+
+def _order_row(name: str = "처리고객") -> int:
+    from models import Order
+
+    order = Order(received_date="2026-08-01", customer_name=name, phone="010-1212-3434",
+                  address="서울시 강남구 테헤란로 152", product="붙박이장", status="RECEIVED")
+    db_session.add(order)
+    db_session.commit()
+    return int(order.id)
+
+
+def _attach_link(link_id: int, order_id: int, relation: str) -> None:
+    link = db_session.get(ExternalOrderLink, link_id)
+    link.order_id = order_id
+    link.relation = relation
+    link.sync_status = "LINKED"
+    db_session.commit()
+
+
+def test_confirm_button_shows_for_new_order_before_place_confirm(auth_client):
+    """신규는 주문을 만든 뒤 발주확인 버튼이 뜬다 (T16-H)."""
+    order_id = _order_row()
+    link_id = _link("PO-H-NEW", order_no="N-H-NEW", place="NOT_YET")
+    _attach_link(link_id, order_id, "NEW")
+
+    body = auth_client.get(f"/admin/naver-ingest/triage?link_id={link_id}").get_data(as_text=True)
+    assert 'data-action="confirm"' in body
+    assert 'data-action="dispatch"' not in body
+
+
+def test_confirm_button_hidden_once_confirmed(auth_client):
+    """발주확인이 끝났으면 버튼 대신 완료 표시만 남는다(중복 호출 차단)."""
+    order_id = _order_row("확인끝")
+    link_id = _link("PO-H-DONE", order_no="N-H-DONE", place="OK")
+    _attach_link(link_id, order_id, "NEW")
+
+    body = auth_client.get(f"/admin/naver-ingest/triage?link_id={link_id}").get_data(as_text=True)
+    assert 'data-action="confirm"' not in body
+    assert "발주확인 완료" in body
+
+
+def test_addon_dispatch_button_appears_only_after_place_confirm(auth_client):
+    """추가결제는 **발주확인 뒤** 발송처리 버튼이 뜬다(네이버가 그 순서를 강제한다)."""
+    order_id = _order_row("추가결제")
+    link_id = _link("PO-H-ADDON", order_no="N-H-ADDON", place="NOT_YET")
+    _attach_link(link_id, order_id, "ADDON")
+
+    body = auth_client.get(f"/admin/naver-ingest/triage?link_id={link_id}").get_data(as_text=True)
+    assert 'data-action="confirm"' in body
+    assert 'data-action="dispatch"' not in body
+
+    link = db_session.get(ExternalOrderLink, link_id)
+    link.place_order_status = "OK"
+    db_session.commit()
+
+    body = auth_client.get(f"/admin/naver-ingest/triage?link_id={link_id}").get_data(as_text=True)
+    assert 'data-action="dispatch"' in body
+
+
+def test_new_order_does_not_get_a_dispatch_button(auth_client):
+    """신규 주문의 발송처리는 실제 출고·시공 시점 일이라 여기서 누르지 않는다."""
+    order_id = _order_row("신규발송")
+    link_id = _link("PO-H-NEWDISP", order_no="N-H-NEWDISP", place="OK")
+    _attach_link(link_id, order_id, "NEW")
+
+    body = auth_client.get(f"/admin/naver-ingest/triage?link_id={link_id}").get_data(as_text=True)
+    assert 'data-action="dispatch"' not in body
+    assert "실제 출고·시공 시점" in body
+
+
+def test_last_error_is_shown_not_swallowed(auth_client):
+    """실패 사유는 화면에 그대로 남는다."""
+    order_id = _order_row("실패표시")
+    link_id = _link("PO-H-ERR", order_no="N-H-ERR", place="NOT_YET")
+    _attach_link(link_id, order_id, "NEW")
+    link = db_session.get(ExternalOrderLink, link_id)
+    link.triage_state = {"fulfillment": {"last_error": "HTTP 400 처리권한 없음"}}
+    db_session.commit()
+
+    body = auth_client.get(f"/admin/naver-ingest/triage?link_id={link_id}").get_data(as_text=True)
+    assert "HTTP 400 처리권한 없음" in body

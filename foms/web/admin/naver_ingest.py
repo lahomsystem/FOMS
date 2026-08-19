@@ -297,8 +297,8 @@ def _link_rows(db, *, status: Optional[str], page: int,
             "payment": _payment_summary(link.raw_snapshot),
             "claim_label": summary["claim_label"],
             "claim_blocking": summary["claim_blocking"],
-            "place_confirmed": summary["place_confirmed"],
-            "place_label": summary["place_label"],
+            "place_confirmed": _place_view(link)["confirmed"],
+            "place_label": _place_view(link)["label"],
             "_order": order,
         })
 
@@ -381,6 +381,26 @@ def naver_ingest_dashboard():
     )
 
 
+def _place_view(link: ExternalOrderLink) -> dict[str, Any]:
+    """링크의 발주 상태 표시값 — 컬럼 우선, 없으면 원본 스냅샷.
+
+    컬럼만 보면 백필 전 데이터가 빈칸이 되고, 스냅샷만 보면 우리가 발주확인을 보낸 뒤에도
+    "발주확인 전"으로 남는다(버튼이 사라지지 않는다). 둘을 이 순서로 합친다.
+    """
+    from foms.services.integrations.naver_commerce.mapping import (
+        extract_place_status,
+        place_status_view,
+    )
+
+    column = (link.place_order_status or "").strip()
+    if column:
+        view = place_status_view(column)
+    else:
+        view = extract_place_status(link.raw_snapshot or {})
+    shipping_due = extract_place_status(link.raw_snapshot or {})["shipping_due"]
+    return {**view, "shipping_due": shipping_due}
+
+
 def _triage_pane(db, link: ExternalOrderLink) -> dict[str, Any]:
     """한 건의 원본 ↔ FOMS 현재 값 대조 데이터를 만든다.
 
@@ -430,13 +450,18 @@ def _triage_pane(db, link: ExternalOrderLink) -> dict[str, Any]:
         "steps": {
             "order_created": bool(link.order_id),
             "spec_filled": order_has_spec_rows(order),
+            # 추가결제는 사람이 확인을 끝낸 뒤에 발송처리한다(업무 규칙 T16-H).
+            "reviewed": link.reviewed_at is not None,
         },
+        # 발주확인·발송처리 처리 이력(멱등 기록). 값이 있으면 다시 부르지 않는다 — T16-G.
+        "fulfillment": (link.triage_state or {}).get("fulfillment") or {},
         "edit_url": (url_for("order_edit.edit_order", order_id=int(link.order_id),
                              open="erp-order") if link.order_id else ""),
         # 취소·반품은 productOrderStatus 로는 안 보인다 — 별도 축으로 싣는다.
         "claim": extract_claim(link.raw_snapshot or {}),
-        # 발주확인 여부(네이버 판매자센터 처리 상태). 수집 원본에 이미 들어온다 — T16-A.
-        "place": extract_place_status(link.raw_snapshot or {}),
+        # 발주확인 여부(네이버 판매자센터 처리 상태). 표시 SSOT 는 컬럼이고(수집·스윕·우리
+        # 발주확인이 갱신), 컬럼이 비면 원본 스냅샷으로 폴백한다 — T16-A/T16-G.
+        "place": _place_view(link),
         # 이 수집분이 붙을 만한 기존 주문 후보 — 재결제·차액 결제 판별용(T16-C/D).
         # **자동으로 붙이지 않는다.** 근거와 함께 늘어놓고 사람이 고른다.
         "relation": link.relation,
@@ -575,7 +600,7 @@ def _group_queue(links: list[ExternalOrderLink], orders: dict,
             "claim_label": next((s["claim_label"] for s in member_summaries if s["claim_label"]), ""),
             "claim_blocking": any(s["claim_blocking"] for s in member_summaries),
             # 발주확인은 상품주문 단위다 — 하나라도 남아 있으면 그 집은 "발주확인 전"이다(T16-A).
-            "place_pending": any(not s["place_confirmed"] for s in member_summaries),
+            "place_pending": any(not _place_view(row)["confirmed"] for row in members),
             "shipping_due": next((s["shipping_due"] for s in member_summaries if s["shipping_due"]), ""),
             # CS 가 다음에 할 일을 목록에서 바로 알아보게 한다.
             "next_step": ("주문 만들기" if not lead.order_id

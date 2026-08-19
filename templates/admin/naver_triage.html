@@ -194,6 +194,50 @@
                                 data-link-id="{{ selected.link_id }}">되돌리기</button>
                     </div>
                     {% endif %}
+                    {# 발주확인·발송처리 (T16-H). 업무 규칙: 신규는 주문을 만든 뒤 발주확인,
+                       추가결제는 사람이 확인을 끝낸 뒤 발송처리. 실제 호출은 WORKER 가 낸다. #}
+                    {% if selected.order_id %}
+                    <div class="alert alert-light border py-2" data-foms-no-autodismiss>
+                        <div class="d-flex flex-wrap align-items-center gap-2">
+                            <span class="fw-semibold"><i class="fas fa-truck"></i> 네이버 처리</span>
+                            {% if selected.fulfillment.place_confirmed_at or selected.place.confirmed %}
+                            <span class="badge bg-success">발주확인 완료</span>
+                            {% else %}
+                            <span class="badge bg-warning text-dark">발주확인 전</span>
+                            {% endif %}
+                            {% if selected.fulfillment.dispatched_at %}
+                            <span class="badge bg-success">발송처리 완료</span>
+                            {% endif %}
+
+                            {% set place_done = selected.fulfillment.place_confirmed_at or selected.place.confirmed %}
+                            {% if not place_done %}
+                            {# 신규·재결제·추가결제 모두 발주확인이 먼저다(네이버가 발송 단계를 막는다). #}
+                            <button type="button" class="btn btn-sm btn-primary naver-fulfill-btn ms-auto"
+                                    data-link-id="{{ selected.link_id }}" data-action="confirm">
+                                발주확인 보내기
+                            </button>
+                            {% elif selected.relation == 'ADDON' and not selected.fulfillment.dispatched_at %}
+                            {# 추가결제(차액)는 물건이 따로 나가지 않는다 — 발주확인 뒤 바로 발송처리로 닫는다. #}
+                            <button type="button" class="btn btn-sm btn-primary naver-fulfill-btn ms-auto"
+                                    data-link-id="{{ selected.link_id }}" data-action="dispatch">
+                                발송처리 보내기
+                            </button>
+                            {% elif not selected.fulfillment.dispatched_at %}
+                            <span class="small text-muted ms-auto">
+                                발송처리는 실제 출고·시공 시점에 합니다(추가결제 건만 여기서 바로 닫습니다).
+                            </span>
+                            {% endif %}
+                        </div>
+                        {% if selected.fulfillment.last_error %}
+                        <div class="small text-danger mt-1">
+                            마지막 실패: {{ selected.fulfillment.last_error }}
+                        </div>
+                        {% endif %}
+                        <div class="small text-muted mt-1">
+                            네이버로 보내는 조작이라 되돌릴 수 없습니다. 한 집의 상품주문 전부가 함께 처리됩니다.
+                        </div>
+                    </div>
+                    {% endif %}
                     {% if selected.claim.status %}
                     {# 취소·반품은 productOrderStatus(PAYED)로는 안 보인다 — 실물 1건 확인(2026-08-14) #}
                     <div class="alert alert-danger py-2" data-foms-no-autodismiss>
@@ -446,6 +490,31 @@
             }
         });
     }
+
+    // 발주확인·발송처리 (T16-H). web 은 큐에 넣기만 한다 — 실제 호출은 WORKER.
+    document.querySelectorAll('.naver-fulfill-btn').forEach(function (btn) {
+        btn.addEventListener('click', async function () {
+            var label = btn.dataset.action === 'confirm' ? '발주확인' : '발송처리';
+            if (!window.confirm('네이버에 ' + label + '을 보냅니다. 되돌릴 수 없습니다. 계속할까요?')) {
+                return;
+            }
+            btn.disabled = true;
+            try {
+                const data = await postJson('/admin/naver-ingest/' + btn.dataset.linkId + '/fulfillment', {
+                    action: btn.dataset.action
+                });
+                if (!data.success) {
+                    show('danger', data.error || (label + '을 보내지 못했습니다.'));
+                    btn.disabled = false;
+                    return;
+                }
+                show('success', label + ' 요청을 보냈습니다. 처리되면 상태가 바뀝니다(새로고침).');
+            } catch (err) {
+                show('danger', label + ' 실패: ' + err);
+                btn.disabled = false;
+            }
+        });
+    });
 
     var createBtn = document.getElementById('triage-create-order');
     if (createBtn) {
