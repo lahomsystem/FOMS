@@ -691,7 +691,8 @@ def naver_ingest_attach_order(link_id: int):
     db = get_db()
     try:
         attached, target_order_id = attach_link_to_order(
-            db, link_id=link_id, order_id=order_id, relation=relation)
+            db, link_id=link_id, order_id=order_id, relation=relation,
+            actor_user_id=session.get("user_id"))
         db.commit()
     except PromotionError as exc:
         db.rollback()
@@ -732,7 +733,8 @@ def naver_ingest_detach_order(link_id: int):
 
     db = get_db()
     try:
-        detached, previous_order_id = detach_link_from_order(db, link_id=link_id)
+        detached, previous_order_id = detach_link_from_order(
+            db, link_id=link_id, actor_user_id=session.get("user_id"))
         db.commit()
     except PromotionError as exc:
         db.rollback()

@@ -128,7 +128,7 @@
         var hasWho = !!state.recipientName;
         var hasMemo = !!state.shippingMemo;
         var hasClaim = !!state.claimLabel;
-        var hasFacts = !!(state.recipientTel2 || state.paidAt || state.payMeans || state.discount);
+        var hasFacts = !!(state.recipientTel2 || state.paidAt || state.payMeans || state.discount || state.extraPaymentCount);
         if (!hasWho && !hasMemo && !hasClaim && !hasFacts) return null;
         var info = el('div', 'naver-dock-info');
         if (hasClaim) {
@@ -152,6 +152,13 @@
         }
         if (state.discount) {
             facts.push(['할인', state.discount.toLocaleString('ko-KR') + '원', false]);
+        }
+        // 추가결제(차액)·재결제 기록. 금액은 기록만이라 출고가·잔금에는 반영돼 있지 않다 —
+        // 사람이 보고 판단하라고 여기서 알려준다(T16-F).
+        if (state.extraPaymentCount) {
+            facts.push(['추가결제',
+                state.extraPaymentCount + '건 · ' +
+                state.extraPaymentTotal.toLocaleString('ko-KR') + '원 (반영은 수동)', false]);
         }
         facts.forEach(function (fact) {
             var row = el('div', 'naver-dock-fact');
@@ -459,6 +466,8 @@
             claimLabel: payload.claim_label || '',
             recipientTel2: payload.recipient_tel2 || '',
             paidAt: payload.paid_at || '',
+            extraPaymentCount: payload.extra_payment_count || 0,
+            extraPaymentTotal: payload.extra_payment_total || 0,
             payMeans: payload.pay_means || '',
             discount: payload.discount || 0,
             widthHints: payload.width_hints || {}

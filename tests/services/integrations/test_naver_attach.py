@@ -234,3 +234,62 @@ def test_persistent_pane_alerts_opt_out_of_autodismiss(auth_client):
     body = auth_client.get(f"/admin/naver-ingest/triage?link_id={link_id}").get_data(as_text=True)
     pane = body[body.index("붙어 있습니다") - 800:body.index("붙어 있습니다")]
     assert "data-foms-no-autodismiss" in pane
+
+
+def _pricing(order_id: int) -> dict:
+    db_session.expire_all()
+    data = db_session.get(Order, order_id).structured_data or {}
+    return data.get("pricing") or {}
+
+
+def test_attach_records_payment_without_touching_totals(auth_client):
+    """추가결제는 **기록만** 한다 — 출고가·잔금·계약금을 자동으로 바꾸지 않는다 (T16-F)."""
+    order_id = _order(name="기록고객", phone="010-6666-1111")
+    order = db_session.get(Order, order_id)
+    order.structured_data = {"pricing": {"deposit": 100000, "balance": 400000},
+                             "totals": {"items_total": 500000}}
+    db_session.commit()
+
+    link_id = _link("PO-PAY-REC", order_no="N-PAY-REC")
+    link = db_session.get(ExternalOrderLink, link_id)
+    link.raw_snapshot = {
+        "order": {"orderId": "N-PAY-REC", "paymentDate": "2026-08-19T10:16:00.000+09:00"},
+        "productOrder": {"productOrderId": "PO-PAY-REC", "productName": "로라 1cm",
+                         "totalPaymentAmount": 94900},
+    }
+    db_session.commit()
+
+    auth_client.post(f"/admin/naver-ingest/{link_id}/attach",
+                     json={"order_id": order_id, "relation": "ADDON"})
+
+    pricing = _pricing(order_id)
+    assert pricing["deposit"] == 100000, "계약금이 바뀌면 안 된다"
+    assert pricing["balance"] == 400000, "잔금이 바뀌면 안 된다"
+    entries = pricing["extra_payments"]
+    assert len(entries) == 1
+    assert entries[0]["amount"] == 94900
+    assert entries[0]["relation"] == "ADDON"
+    assert entries[0]["external_id"] == "PO-PAY-REC"
+
+
+def test_attach_twice_does_not_double_record(auth_client):
+    """두 번 눌러도 금액이 두 번 쌓이면 안 된다."""
+    order_id = _order(name="멱등고객", phone="010-6666-2222")
+    link_id = _link("PO-PAY-IDEM", order_no="N-PAY-IDEM")
+    body = {"order_id": order_id, "relation": "ADDON"}
+    auth_client.post(f"/admin/naver-ingest/{link_id}/attach", json=body)
+    auth_client.post(f"/admin/naver-ingest/{link_id}/attach", json=body)
+
+    assert len(_pricing(order_id)["extra_payments"]) == 1
+
+
+def test_detach_removes_the_payment_record(auth_client):
+    """되돌리면 기록도 걷어낸다 — 안 지우면 되돌린 금액이 주문에 남는다."""
+    order_id = _order(name="되돌림기록", phone="010-6666-3333")
+    link_id = _link("PO-PAY-UNDO", order_no="N-PAY-UNDO")
+    auth_client.post(f"/admin/naver-ingest/{link_id}/attach",
+                     json={"order_id": order_id, "relation": "ADDON"})
+    assert _pricing(order_id)["extra_payments"]
+
+    auth_client.post(f"/admin/naver-ingest/{link_id}/detach")
+    assert _pricing(order_id)["extra_payments"] == []

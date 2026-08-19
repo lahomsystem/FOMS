@@ -216,6 +216,35 @@ def _apply_attribution(rows: list[dict[str, Any]]) -> None:
         row["guess_reason"] = reason
 
 
+def _extra_payment_summary(order: Any) -> dict[str, int]:
+    """주문에 기록된 추가결제(차액·재결제) 건수와 합계.
+
+    출고가·잔금을 바꾸지 않고 기록만 하기로 했으므로(2026-08-19 사용자 확정), 사람이
+    "얼마가 더 들어왔는지"를 볼 자리가 필요하다.
+
+    Args:
+        order: :class:`models.Order`.
+
+    Returns:
+        ``{"count", "total"}`` — 기록이 없으면 둘 다 0.
+    """
+    data = getattr(order, "structured_data", None)
+    pricing = data.get("pricing") if isinstance(data, dict) else None
+    rows = pricing.get("extra_payments") if isinstance(pricing, dict) else None
+    if not isinstance(rows, list):
+        return {"count": 0, "total": 0}
+    total = 0
+    count = 0
+    for row in rows:
+        if not isinstance(row, dict):
+            continue
+        count += 1
+        amount = row.get("amount")
+        if isinstance(amount, int):
+            total += amount
+    return {"count": count, "total": total}
+
+
 def build_dock_payload(db: Any, order: Any) -> Optional[dict[str, Any]]:
     """주문의 네이버 수집 링크들을 도크 표시용 payload 로 만든다.
 
@@ -306,7 +335,11 @@ def build_dock_payload(db: Any, order: Any) -> Optional[dict[str, Any]]:
 
     order_no = next((_text(link.external_order_no) for link in links
                      if _text(link.external_order_no)), "")
+    extra = _extra_payment_summary(order)
     return {
+        # 추가결제(차액)·재결제 기록 — 금액은 기록만 하고 출고가·잔금은 사람이 반영한다(T16-F).
+        "extra_payment_count": extra["count"],
+        "extra_payment_total": extra["total"],
         "order_no": order_no,
         "rows": rows,
         "mains": [{"external_id": row["external_id"],

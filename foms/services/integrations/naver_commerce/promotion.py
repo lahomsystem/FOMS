@@ -25,6 +25,7 @@ from foms.services.datetime_kst import get_today_kst, now_utc_naive
 from foms.services.integrations.naver_commerce.constants import CHANNEL
 from foms.services.integrations.naver_commerce.mapping import (
     NaverMappingError,
+    build_payment_info,
     extract_claim,
     extract_place_status,
     group_key,
@@ -128,8 +129,222 @@ def promote_link_to_order(
 ATTACHABLE_RELATIONS = ("ADDON", "REPAY")
 
 
+#: 추가결제 기록이 사는 자리. 출고가·잔금 계산식은 건드리지 않는다(2026-08-19 사용자 확정).
+EXTRA_PAYMENTS_KEY = "extra_payments"
+
+
+def _extra_payment_entry(link: ExternalOrderLink, *, relation: str,
+                         actor_user_id: Optional[int], now: datetime) -> dict[str, Any]:
+    """링크 1건을 추가결제 기록 항목으로 만든다.
+
+    Args:
+        link: 붙이는 수집 링크.
+        relation: ``ADDON`` 또는 ``REPAY``.
+        actor_user_id: 누른 사람.
+        now: 기록 시각(UTC naive).
+
+    Returns:
+        ``pricing.extra_payments`` 에 append 할 dict.
+    """
+    summary = summarize_snapshot(link.raw_snapshot)
+    payment = build_payment_info(link.raw_snapshot or {})
+    return {
+        "external_id": link.external_id,
+        "external_order_no": link.external_order_no,
+        "relation": relation,
+        "amount": summary["amount"] or 0,
+        "product": summary["product"],
+        "paid_at": payment["paid_at"][:16],
+        "recorded_by": actor_user_id,
+        "recorded_at": now.isoformat(),
+    }
+
+
+def _apply_extra_payments(order: Order, links: list[ExternalOrderLink], *, relation: str,
+                          actor_user_id: Optional[int], now: datetime) -> int:
+    """붙인 상품주문들의 결제 금액을 주문에 **기록**한다 (T16-F).
+
+    **출고가·잔금·계약금을 자동으로 바꾸지 않는다.** 출고가는 규격 W·시공비와 얽혀 있어
+    자동 가산이 다른 숫자까지 틀어놓는다(2026-08-19 사용자 확정: 기록만, 반영은 사람이).
+
+    같은 ``external_id`` 가 이미 기록돼 있으면 건너뛴다(멱등 — 붙이기 두 번 눌러도 금액이
+    두 번 쌓이면 안 된다).
+
+    Args:
+        order: 붙일 대상 주문.
+        links: 붙는 링크들.
+        relation: 관계값.
+        actor_user_id: 누른 사람.
+        now: 기록 시각.
+
+    Returns:
+        새로 기록한 항목 수.
+    """
+    import copy
+
+    from sqlalchemy.orm.attributes import flag_modified
+
+    data = copy.deepcopy(order.structured_data or {})
+    pricing = data.get("pricing")
+    if not isinstance(pricing, dict):
+        pricing = {}
+    existing = pricing.get(EXTRA_PAYMENTS_KEY)
+    if not isinstance(existing, list):
+        existing = []
+    known = {str(row.get("external_id")) for row in existing if isinstance(row, dict)}
+
+    added = 0
+    for link in links:
+        if str(link.external_id) in known:
+            continue
+        existing.append(_extra_payment_entry(link, relation=relation,
+                                             actor_user_id=actor_user_id, now=now))
+        known.add(str(link.external_id))
+        added += 1
+    if not added:
+        return 0
+
+    pricing[EXTRA_PAYMENTS_KEY] = existing
+    data["pricing"] = pricing
+    order.structured_data = data
+    flag_modified(order, "structured_data")
+    return added
+
+
+def _drop_extra_payments(order: Optional[Order], links: list[ExternalOrderLink]) -> int:
+    """되돌리기 때 기록도 같이 걷어낸다 (T16-F).
+
+    Args:
+        order: 붙어 있던 주문(없으면 아무것도 하지 않는다).
+        links: 되돌리는 링크들.
+
+    Returns:
+        지운 항목 수.
+    """
+    import copy
+
+    from sqlalchemy.orm.attributes import flag_modified
+
+    if order is None:
+        return 0
+    data = copy.deepcopy(order.structured_data or {})
+    pricing = data.get("pricing")
+    if not isinstance(pricing, dict):
+        return 0
+    rows = pricing.get(EXTRA_PAYMENTS_KEY)
+    if not isinstance(rows, list) or not rows:
+        return 0
+
+    drop = {str(link.external_id) for link in links}
+    kept = [row for row in rows
+            if not (isinstance(row, dict) and str(row.get("external_id")) in drop)]
+    removed = len(rows) - len(kept)
+    if not removed:
+        return 0
+
+    pricing[EXTRA_PAYMENTS_KEY] = kept
+    data["pricing"] = pricing
+    order.structured_data = data
+    flag_modified(order, "structured_data")
+    return removed
+
+
+def _mutation_hashes(*parts: Any) -> str:
+    """scope/request hash — REV-00 receipt 용 sha256 hex."""
+    import hashlib
+
+    raw = "|".join(str(part) for part in parts)
+    return hashlib.sha256(raw.encode("utf-8")).hexdigest()
+
+
+def _record_extra_payments(session: Session, *, order_id: int,
+                           links: list[ExternalOrderLink], relation: str,
+                           actor_user_id: Optional[int], now: datetime) -> int:
+    """추가결제 기록을 REV-00 mutation 계약(row lock·version bump·receipt)으로 남긴다.
+
+    주문 JSONB 를 직접 쓰면 REV-99 writer 게이트에 걸린다 — 동시 편집과 부딪히면 남의 저장을
+    덮어쓰기 때문이다. 기록도 같은 계약을 탄다.
+
+    Args:
+        session: DB 세션(호출자가 commit 을 소유한다).
+        order_id: 붙인 주문 id.
+        links: 붙은 링크들.
+        relation: ``ADDON``/``REPAY``.
+        actor_user_id: 누른 사람(없으면 기록만 남기고 actor 는 0).
+        now: 기록 시각.
+
+    Returns:
+        새로 기록한 항목 수.
+    """
+    from foms.services.orders.revision import execute_order_mutation
+
+    recorded = 0
+
+    def _mutate(sess: Session, orders: list[Order]) -> dict[int, list[str]]:
+        nonlocal recorded
+        target = orders[0]
+        recorded = _apply_extra_payments(target, links, relation=relation,
+                                         actor_user_id=actor_user_id, now=now)
+        sess.flush()
+        return {target.id: [f"ORDER_DETAIL:{target.id}", "ORDERS_INDEX"]}
+
+    external_ids = ",".join(sorted(str(row.external_id) for row in links))
+    execute_order_mutation(
+        session,
+        actor_user_id=int(actor_user_id or 0),
+        policy_id="NAVER_EXTRA_PAYMENT_RECORD",
+        order_ids=[int(order_id)],
+        scope_hash=_mutation_hashes("naver-attach", order_id),
+        request_hash=_mutation_hashes(order_id, relation, external_ids),
+        mutation=_mutate,
+    )
+    return recorded
+
+
+def _erase_extra_payments(session: Session, *, order_id: Optional[int],
+                          links: list[ExternalOrderLink],
+                          actor_user_id: Optional[int]) -> int:
+    """되돌리기 때 기록 제거도 같은 계약으로 한다.
+
+    Args:
+        session: DB 세션.
+        order_id: 붙어 있던 주문 id(없으면 아무것도 하지 않는다).
+        links: 되돌리는 링크들.
+        actor_user_id: 누른 사람.
+
+    Returns:
+        지운 항목 수.
+    """
+    if not order_id:
+        return 0
+
+    from foms.services.orders.revision import execute_order_mutation
+
+    removed = 0
+
+    def _mutate(sess: Session, orders: list[Order]) -> dict[int, list[str]]:
+        nonlocal removed
+        target = orders[0]
+        removed = _drop_extra_payments(target, links)
+        sess.flush()
+        return {target.id: [f"ORDER_DETAIL:{target.id}", "ORDERS_INDEX"]}
+
+    external_ids = ",".join(sorted(str(row.external_id) for row in links))
+    execute_order_mutation(
+        session,
+        actor_user_id=int(actor_user_id or 0),
+        policy_id="NAVER_EXTRA_PAYMENT_ERASE",
+        order_ids=[int(order_id)],
+        scope_hash=_mutation_hashes("naver-detach", order_id),
+        request_hash=_mutation_hashes(order_id, external_ids),
+        mutation=_mutate,
+    )
+    return removed
+
+
 def attach_link_to_order(session: Session, *, link_id: int, order_id: int,
-                         relation: str) -> tuple[int, int]:
+                         relation: str, actor_user_id: Optional[int] = None,
+                         now: Optional[datetime] = None) -> tuple[int, int]:
     """수집분을 **기존 주문에 붙인다** — 새 주문을 만들지 않는다 (T16-E).
 
     차액 결제(ADDON)와 취소 후 재결제(REPAY)가 여기로 온다. 둘 다 새 집이 아니라 이미 있는
@@ -189,12 +404,18 @@ def attach_link_to_order(session: Session, *, link_id: int, order_id: int,
         row.failure_reason = None
         attached += 1
     session.flush()
-    logger.info("[NAVER] 수집분 기존 주문 연결 link=%s(+%d) order=%s relation=%s",
-                link_id, attached - 1, order_id, relation)
+    # 금액은 **기록만** 한다 — 출고가·잔금 계산식은 그대로다(T16-F).
+    # 기록 자체는 REV-00 mutation 계약(row lock·version bump·receipt)을 탄다.
+    recorded = _record_extra_payments(session, order_id=int(order_id), links=siblings,
+                                      relation=relation, actor_user_id=actor_user_id,
+                                      now=now or now_utc_naive())
+    logger.info("[NAVER] 수집분 기존 주문 연결 link=%s(+%d) order=%s relation=%s 결제기록 %d건",
+                link_id, attached - 1, order_id, relation, recorded)
     return (attached, int(order_id))
 
 
-def detach_link_from_order(session: Session, *, link_id: int) -> tuple[int, Optional[int]]:
+def detach_link_from_order(session: Session, *, link_id: int,
+                           actor_user_id: Optional[int] = None) -> tuple[int, Optional[int]]:
     """붙이기를 되돌린다 (T16-E) — 사람이 관계를 잘못 골랐을 때.
 
     ``NEW`` 로 만든 주문(승격)은 되돌리지 않는다. 그건 주문 삭제 문제라 이 경로의 일이 아니다.
@@ -222,6 +443,9 @@ def detach_link_from_order(session: Session, *, link_id: int) -> tuple[int, Opti
     previous_order_id = int(link.order_id) if link.order_id else None
     siblings = [row for row in _group_siblings_for_attach(session, link)
                 if row.relation in ATTACHABLE_RELATIONS]
+    # 붙일 때 남긴 결제 기록도 함께 걷어낸다 — 안 지우면 되돌린 금액이 주문에 남는다(T16-F).
+    _erase_extra_payments(session, order_id=previous_order_id, links=siblings,
+                          actor_user_id=actor_user_id)
     for row in siblings:
         row.order_id = None
         row.relation = "NEW"
@@ -352,4 +576,5 @@ def summarize_snapshot(raw_snapshot: Any) -> dict[str, Any]:
 
 
 __all__ = ["PromotionError", "promote_link_to_order", "summarize_snapshot",
-           "attach_link_to_order", "detach_link_from_order", "ATTACHABLE_RELATIONS"]
+           "attach_link_to_order", "detach_link_from_order", "ATTACHABLE_RELATIONS",
+           "EXTRA_PAYMENTS_KEY"]

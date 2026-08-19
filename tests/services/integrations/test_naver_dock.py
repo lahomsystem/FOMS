@@ -543,3 +543,21 @@ def test_payload_block_layout_uses_spec_axis_and_leaves_ambiguous_unset(app):
     assert by_ext[neutral.external_id]["guess_main"] is None
     assert "선택" in by_ext[neutral.external_id]["guess_reason"]
     assert plain.external_id in {r["external_id"] for r in payload["rows"]}
+
+
+def test_dock_payload_reports_extra_payment_summary(app):
+    """도크가 추가결제 기록(건수·합계)을 싣는다 — 출고가에는 반영돼 있지 않다(T16-F)."""
+    from foms.services.integrations.naver_commerce.dock import build_dock_payload
+
+    order = _naver_order(_staff())
+    order.structured_data = dict(order.structured_data or {},
+                                 pricing={"extra_payments": [
+                                     {"external_id": "PO-X1", "amount": 94900},
+                                     {"external_id": "PO-X2", "amount": 150000},
+                                 ]})
+    db_session.commit()
+    _link(order, _snapshot(product_name="붙박이장"), order_no="N-DOCK-EXTRA")
+
+    payload = build_dock_payload(db_session, order)
+    assert payload["extra_payment_count"] == 2
+    assert payload["extra_payment_total"] == 244900
