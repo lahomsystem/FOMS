@@ -126,7 +126,7 @@
                     </div>
                     {# 발주확인 상태 — 네이버 판매자센터 쪽 처리 여부. 수집 원본 값이라 호출 0회(T16-A). #}
                     {% if selected.place.status %}
-                    <div class="alert {{ 'alert-secondary' if selected.place.confirmed else 'alert-warning' }} py-2">
+                    <div class="alert {{ 'alert-secondary' if selected.place.confirmed else 'alert-warning' }} py-2" data-foms-no-autodismiss>
                         <i class="fas fa-clipboard-list"></i>
                         <b>네이버 {{ selected.place.label }}</b>
                         {% if selected.place.shipping_due %} · 발송기한 {{ selected.place.shipping_due[:10] }}{% endif %}
@@ -138,7 +138,7 @@
                     {# 기존 주문 후보 — 재결제·차액 결제 판별(T16-D). 자동으로 붙이지 않는다:
                        금액·시공이 걸린 판단이라 근거만 보여주고 사람이 고른다. #}
                     {% if selected.candidates and not selected.order_id %}
-                    <div class="alert alert-info py-2">
+                    <div class="alert alert-info py-2" data-foms-no-autodismiss>
                         <div class="fw-semibold mb-1">
                             <i class="fas fa-link"></i> 이 고객의 기존 주문 {{ selected.candidates|length }}건
                         </div>
@@ -184,7 +184,7 @@
                     </div>
                     {% endif %}
                     {% if selected.relation in ('ADDON', 'REPAY') %}
-                    <div class="alert alert-secondary py-2 d-flex flex-wrap align-items-center gap-2">
+                    <div class="alert alert-secondary py-2 d-flex flex-wrap align-items-center gap-2" data-foms-no-autodismiss>
                         <span>
                             <i class="fas fa-link"></i>
                             <b>{{ '추가결제' if selected.relation == 'ADDON' else '재결제' }}</b> 로
@@ -196,7 +196,7 @@
                     {% endif %}
                     {% if selected.claim.status %}
                     {# 취소·반품은 productOrderStatus(PAYED)로는 안 보인다 — 실물 1건 확인(2026-08-14) #}
-                    <div class="alert alert-danger py-2">
+                    <div class="alert alert-danger py-2" data-foms-no-autodismiss>
                         <i class="fas fa-triangle-exclamation"></i>
                         <b>네이버 {{ selected.claim.label }}</b>
                         {% if selected.claim.reason %} · 사유 {{ selected.claim.reason }}{% endif %}

@@ -217,3 +217,20 @@ def test_attached_link_shows_undo_control(auth_client):
     body = auth_client.get(f"/admin/naver-ingest/triage?link_id={link_id}").get_data(as_text=True)
     assert "되돌리기" in body
     assert f"주문 #{order_id}" in body
+
+
+def test_persistent_pane_alerts_opt_out_of_autodismiss(auth_client):
+    """확인 화면의 상시 안내는 5초 자동 닫힘에서 빠져야 한다.
+
+    ``static/js/runtime/script.js`` 가 로드 5초 뒤 모든 ``.alert`` 를 닫는다. 후보·붙임 상태·
+    발주 상태·취소 경고는 사용자가 보고 판단해야 하는 정보라 사라지면 안 된다
+    (2026-08-19 스테이징 실측: 후보 블록이 통째로 증발했다).
+    """
+    order_id = _order(name="상시안내", phone="010-8888-7777")
+    link_id = _link("PO-PERSIST", order_no="N-PERSIST")
+    auth_client.post(f"/admin/naver-ingest/{link_id}/attach",
+                     json={"order_id": order_id, "relation": "ADDON"})
+
+    body = auth_client.get(f"/admin/naver-ingest/triage?link_id={link_id}").get_data(as_text=True)
+    pane = body[body.index("붙어 있습니다") - 800:body.index("붙어 있습니다")]
+    assert "data-foms-no-autodismiss" in pane
