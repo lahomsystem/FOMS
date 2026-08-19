@@ -662,6 +662,40 @@ def naver_ingest_create_order(link_id: int):
                     "error": None})
 
 
+@admin_bp.route("/admin/naver-ingest/<int:link_id>/fulfillment", methods=["POST"])
+@login_required
+@role_required(["ADMIN", "MANAGER", "STAFF"])
+def naver_ingest_fulfillment(link_id: int):
+    """발주확인·발송처리를 **큐에 넣는다** (T16-G).
+
+    네이버 HTTP 는 WORKER 에서만 나간다(커머스API 호출 IP 3슬롯 계약). 여기서 직접 부르면
+    등록되지 않은 IP 라 차단된다. 되돌릴 수 없는 조작이라 멱등은 WORKER 쪽 서비스가 맡는다.
+    """
+    payload = request.get_json(silent=True) or {}
+    action = str(payload.get("action") or "").strip().lower()
+    if action not in ("confirm", "dispatch"):
+        return jsonify({"success": False, "data": None,
+                        "error": "작업을 지정하세요(발주확인 또는 발송처리)."}), 400
+
+    from foms.services.jobs.queue import enqueue_naver_fulfillment
+
+    queued = enqueue_naver_fulfillment(link_id, action, session.get("user_id"))
+    if not queued:
+        return jsonify({"success": False, "data": None,
+                        "error": "작업 큐를 쓸 수 없습니다(REDIS_URL 미설정 또는 큐 장애). "
+                                 "지금은 판매자센터에서 처리하세요."}), 503
+
+    label = "발주확인" if action == "confirm" else "발송처리"
+    log_access(
+        f"네이버 {label} 요청 (link {link_id})",
+        action="NAVER_INGEST_FULFILLMENT_ENQUEUE",
+        detail={"link_id": link_id, "action": action},
+    )
+    return jsonify({"success": True,
+                    "data": {"link_id": link_id, "action": action, "queued": True},
+                    "error": None})
+
+
 @admin_bp.route("/admin/naver-ingest/<int:link_id>/attach", methods=["POST"])
 @login_required
 @role_required(["ADMIN", "MANAGER", "STAFF"])

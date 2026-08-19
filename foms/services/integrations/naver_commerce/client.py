@@ -365,6 +365,63 @@ class NaverCommerceClient:
             details.extend(payload.get("data") or [])
         return details
 
+    # -- 쓰기 (T16-G) — WORKER 에서만 호출된다 -------------------------------- #
+
+    def confirm_place_orders(self, product_order_ids: Sequence[str]) -> dict:
+        """발주확인 처리 — ``placeOrderStatus`` 를 확인 완료로 올린다.
+
+        결제완료 뒤 판매자가 "이 주문 받았다"를 네이버에 알리는 단계다. 이걸 안 하면 발송
+        단계로 넘어가지 않는다.
+
+        Args:
+            product_order_ids: 발주확인할 ``productOrderId`` 목록.
+
+        Returns:
+            응답 payload(원본). 실패는 :class:`NaverCommerceHTTPError` 로 던진다.
+
+        Raises:
+            ValueError: 상품주문번호가 비었을 때(빈 요청으로 API 를 때리지 않는다).
+        """
+        ids = [str(x) for x in product_order_ids if x]
+        if not ids:
+            raise ValueError("발주확인할 상품주문번호가 없습니다.")
+        return self._request(
+            "POST", "/v1/pay-order/seller/product-orders/confirm",
+            json_body={"productOrderIds": ids},
+            headers={"Content-Type": "application/json"},
+        )
+
+    def dispatch_product_orders(self, dispatches: Sequence[dict]) -> dict:
+        """발송처리 — 배송 시작을 네이버에 기록한다.
+
+        가구는 자사 배송·시공이라 택배사·송장번호가 없다. 그 경우 배송방법은
+        ``DIRECT_DELIVERY``(직접 전달)를 쓴다 — 구매자 배송추적은 없고, 자동 구매확정
+        기준이 택배와 달라 **정산 시점이 달라진다**(운영 반영 전 실건 1회로 확인할 것).
+
+        Args:
+            dispatches: ``{"productOrderId", "deliveryMethod", "dispatchDate", ...}`` 목록.
+                ``dispatchDate`` 는 ISO8601(밀리초 + 타임존) 이어야 한다.
+
+        Returns:
+            응답 payload(원본).
+
+        Raises:
+            ValueError: 목록이 비었거나 필수 키가 없을 때.
+        """
+        rows = [row for row in (dispatches or []) if isinstance(row, dict)]
+        if not rows:
+            raise ValueError("발송처리할 항목이 없습니다.")
+        for row in rows:
+            if not str(row.get("productOrderId") or "").strip():
+                raise ValueError("발송처리 항목에 상품주문번호가 없습니다.")
+            if not str(row.get("deliveryMethod") or "").strip():
+                raise ValueError("발송처리 항목에 배송방법이 없습니다.")
+        return self._request(
+            "POST", "/v1/pay-order/seller/product-orders/dispatch",
+            json_body={"dispatchProductOrders": rows},
+            headers={"Content-Type": "application/json"},
+        )
+
     # -- HTTP ------------------------------------------------------------- #
 
     def _session(self) -> Any:
