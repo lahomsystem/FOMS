@@ -197,3 +197,43 @@ def test_snapshot_requires_admin(app, client):
     link = _link("PO-PRIV")
     response = client.get(f"/admin/naver-ingest/{link.id}/snapshot")
     assert response.status_code in (301, 302, 401, 403)
+
+
+def test_status_counts_are_group_units_not_link_rows(auth_client):
+    """필터 숫자는 표 총계와 같은 **묶음(집)** 단위여야 한다.
+
+    링크 행으로 세면 "전체 2집 · 수집됨 4" 처럼 부분이 전체보다 커 보인다
+    (2026-08-19 스테이징 실화면: 전체 36 · 수집됨 102).
+    """
+    for idx in range(3):
+        _link(f"PO-G1-{idx}", "COLLECTED", external_order_no="N-G1")
+    _link("PO-G2", "COLLECTED", external_order_no="N-G2")
+
+    body = auth_client.get("/admin/naver-ingest").get_data(as_text=True)
+    assert "수집됨(주문 전) 2집" in body
+    assert "전체 2집" in body
+
+
+def test_cancelled_group_cannot_be_promoted_from_history(auth_client):
+    """취소·반품 건은 서버가 400 으로 막는다 — 목록 버튼도 같이 잠근다(헛클릭 제거)."""
+    link = _link("PO-CLAIM", "COLLECTED", external_order_no="N-CLAIM")
+    link.raw_snapshot = {
+        "order": {"orderId": "N-CLAIM"},
+        "productOrder": {"productOrderId": "PO-CLAIM", "productName": "붙박이장",
+                         "claimStatus": "CANCEL_DONE"},
+    }
+    db_session.commit()
+
+    body = auth_client.get("/admin/naver-ingest").get_data(as_text=True)
+    assert "취소·반품 진행 중 — 주문을 만들 수 없습니다." in body
+    assert "disabled" in body.split('naver-create-order-btn')[1].split('</button>')[0]
+
+
+def test_normal_collected_group_keeps_create_button_enabled(auth_client):
+    """정상 수집분은 그대로 만들 수 있어야 한다(차단이 과녁을 넘지 않는다)."""
+    _link("PO-OKBTN", "COLLECTED", external_order_no="N-OKBTN")
+
+    body = auth_client.get("/admin/naver-ingest").get_data(as_text=True)
+    button = body.split('naver-create-order-btn')[1].split('</button>')[0]
+    assert "disabled" not in button
+    assert "취소·반품 진행 중" not in body

@@ -121,6 +121,50 @@ def _history_group_key(link: ExternalOrderLink) -> str:
     return (link.external_order_no or "").strip() or f"link:{link.id}"
 
 
+def _group_key_col():
+    """이력 표의 묶음 키 SQL 식 — 파이썬 :func:`_history_group_key` 와 같은 규칙.
+
+    총계·상태별 건수·페이지 키가 **모두 같은 식**을 써야 숫자가 갈리지 않는다.
+
+    Returns:
+        네이버 주문번호(없으면 ``link:<id>``) 라벨 ``gk`` 컬럼 식.
+    """
+    from sqlalchemy import String, cast, func, literal
+
+    return func.coalesce(
+        func.nullif(ExternalOrderLink.external_order_no, ""),
+        literal("link:") + cast(ExternalOrderLink.id, String),
+    ).label("gk")
+
+
+def _status_group_counts(db) -> dict[str, int]:
+    """상태별 **묶음 수**를 센다 — 필터 버튼 숫자를 표 총계와 같은 단위로 맞춘다.
+
+    링크 행으로 세면 "전체 36 · 수집됨(주문 전) 102" 처럼 부분이 전체보다 커 보인다
+    (2026-08-19 스테이징 실화면). 필터는 "그 상태 링크가 하나라도 있는 집"을 고르므로
+    (:func:`_link_rows`), 숫자도 같은 술어로 세야 한다 — ``(묶음키, 상태)`` 쌍을 한 번씩만
+    세면 정확히 그 값이다.
+
+    Args:
+        db: 요청 스코프 DB 세션.
+
+    Returns:
+        ``{상태: 그 상태 링크를 하나 이상 가진 묶음 수}`` (VALID_STATUSES 전 키 포함).
+    """
+    key_col = _group_key_col()
+    pairs = (
+        db.query(key_col, ExternalOrderLink.sync_status)
+        .filter(ExternalOrderLink.channel == "NAVER")
+        .group_by(key_col, ExternalOrderLink.sync_status)
+        .all()
+    )
+    counts = {name: 0 for name in VALID_STATUSES}
+    for _key, link_status in pairs:
+        if link_status in counts:
+            counts[link_status] += 1
+    return counts
+
+
 def _link_rows(db, *, status: Optional[str], page: int) -> tuple[list[dict], int]:
     """수집 이력을 **한 집 = 한 줄**로 묶어 돌려준다(T14-H).
 
@@ -132,12 +176,9 @@ def _link_rows(db, *, status: Optional[str], page: int) -> tuple[list[dict], int
     Returns:
         ``(묶음 목록, 묶음 총 개수)``.
     """
-    from sqlalchemy import String, cast, func, literal
+    from sqlalchemy import func
 
-    key_col = func.coalesce(
-        func.nullif(ExternalOrderLink.external_order_no, ""),
-        literal("link:") + cast(ExternalOrderLink.id, String),
-    ).label("gk")
+    key_col = _group_key_col()
 
     key_query = (
         db.query(key_col, func.max(ExternalOrderLink.created_at).label("last_at"))
@@ -216,6 +257,7 @@ def _link_rows(db, *, status: Optional[str], page: int) -> tuple[list[dict], int
             "order_date": summary["order_date"],
             "payment": _payment_summary(link.raw_snapshot),
             "claim_label": summary["claim_label"],
+            "claim_blocking": summary["claim_blocking"],
             "_order": order,
         })
 
@@ -244,6 +286,9 @@ def _link_rows(db, *, status: Optional[str], page: int) -> tuple[list[dict], int
             "payment": lead["payment"],
             "discount_total": sum(row["payment"]["discount"] for row in group),
             "claim_label": next((row["claim_label"] for row in group if row["claim_label"]), ""),
+            # 승격은 집 단위다 — 한 건이라도 취소·반품이면 promote_link_to_order 가 막는다
+            # (promotion.py). 화면도 같은 판정으로 버튼을 잠가야 헛클릭이 안 난다.
+            "claim_blocking": any(row["claim_blocking"] for row in group),
             "failure_reason": next((row["failure_reason"] for row in group
                                     if row["failure_reason"]), ""),
             "count": len(group),
@@ -274,13 +319,7 @@ def naver_ingest_dashboard():
         page = 1
 
     rows, total = _link_rows(db, status=status if status in VALID_STATUSES else None, page=page)
-    counts = {
-        name: db.query(ExternalOrderLink)
-        .filter(ExternalOrderLink.channel == "NAVER",
-                ExternalOrderLink.sync_status == name)
-        .count()
-        for name in VALID_STATUSES
-    }
+    counts = _status_group_counts(db)
     return render_template(
         "admin/naver_ingest.html",
         rows=rows,
