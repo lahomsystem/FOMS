@@ -16,6 +16,8 @@ import copy
 import pytest
 from werkzeug.security import generate_password_hash
 
+from sqlalchemy.orm.attributes import flag_modified
+
 from db import db_session
 from foms.services.integrations.naver_commerce.accounts import resolve_ingest_account_ids
 from foms.services.integrations.naver_commerce.constants import (
@@ -397,3 +399,28 @@ def test_lead_is_the_highest_amount_item(app):
 
     order = db_session.get(Order, order_id)
     assert order.product.startswith("라홈 붙박이장 본품")
+
+def test_promotion_keeps_collection_order_for_attribution(app):
+    """어느 형제를 눌러 만들어도 **수집 순서**가 유지돼야 귀속이 맞는다.
+
+    2026-08-19 스테이징 실사고: 기준 링크를 앞으로 끌어내던 탓에 본품 2개짜리 집이
+    ``M M a a`` 로 보여 추가옵션 12건이 한 본품에 몰렸다.
+    """
+    actor, owner = _accounts()
+    first_main = _sibling("PO-ORD1", name="붙박이장 180cm", amount=1_115_800)
+    addon = _sibling("PO-ORD2", name="TYPE C", amount=60_000)
+    addon.raw_snapshot["productOrder"]["productClass"] = "추가구성상품"
+    flag_modified(addon, "raw_snapshot")
+    second_main = _sibling("PO-ORD3", name="붙박이장 30cm", amount=1_314_600)
+    db_session.commit()
+
+    # 대표(금액 최대)인 두 번째 본품을 눌러 만든다 — 옛 코드는 이 링크를 맨 앞으로 옮겼다.
+    order_id, _ = promote_link_to_order(
+        db_session, link_id=second_main.id, actor_user_id=actor.id, owner_user_id=owner.id)
+    db_session.commit()
+
+    order = db_session.get(Order, order_id)
+    ids = [item["naver_product_order_id"] for item in order.structured_data["items"]]
+    assert ids == ["PO-ORD3", "PO-ORD1"], "대표가 1번, 본품만 항목"
+    assert order.payment_amount == 1_115_800 + 60_000 + 1_314_600
+    assert {l.order_id for l in db_session.query(ExternalOrderLink).all()} == {order_id}
