@@ -4,17 +4,21 @@
    — 뷰포트 미디어쿼리 금지(공용 부품 규칙: 같은 부품이 다른 폭 컨테이너에 실린다). */
 
 /* ── 도킹 pane (셸 넓을 때, is-naver-dock-open 이 form col 을 좁힌다) ── */
+/* 폭: 2026-08-19 사용자 요청으로 종전 360px 의 약 2배까지 넓힌다. 고정 720px 로 두면
+   1400px 셸(도킹 최소 폭)에서 폼이 굶으므로 셸 폭에 비례시키고 상한만 720px 로 잡는다
+   — 1565px 이상이면 720px(=2배), 1400px 에서도 644px 로 종전보다 훨씬 넓다.
+   뷰포트 미디어쿼리는 쓰지 않는다(공용 부품 규칙 — 판정은 셸 폭). */
 .erp-edit-shell--erp-order.is-naver-dock-open .erp-edit-col--split-ready {
   flex: 1 1 auto;
-  max-width: calc(100% - 376px);
+  max-width: calc(100% - clamp(436px, 46%, 736px));
   margin-left: 0 !important;
   margin-right: 0 !important;
 }
 
 .erp-naver-dock-pane {
-  flex: 0 0 360px;
-  max-width: 360px;
-  width: 360px;
+  flex: 0 0 clamp(420px, 46%, 720px);
+  max-width: 720px;
+  width: auto;
 }
 
 .erp-naver-dock-card {
@@ -60,7 +64,7 @@
   top: 0;
   right: 0;
   bottom: 0;
-  width: min(390px, 86vw);
+  width: min(720px, 92vw);
   max-width: none;
   padding: 0; /* .row > * 거터 패딩 무효화 */
   background: #fff;

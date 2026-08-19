@@ -24,17 +24,28 @@
     {# 기록별 첨부(AS-FRESH-01) — 결합된 파일만. 미결합 첨부는 첨부 모달 소관이라 여기 없다.
        이미지 클릭은 as-dashboard.js 가 GlobalImageViewer 로 위임한다(뷰어 SSOT). #}
     {% if e.files %}
-    <div class="as-rchart-row__files">
+    <div class="as-rchart-row__files" data-as-log-id="{{ e.id }}">
       {% for f in e.files %}
-      <button type="button" class="as-rchart-file" data-file-url="{{ f.view_url }}"
-        data-file-name="{{ f.filename }}" data-file-image="{{ '1' if f.is_image else '0' }}"
-        title="{{ f.filename }}">
-        {% if f.is_image %}
-        <img class="as-rchart-file__thumb" src="{{ f.thumb_url }}" alt="{{ f.filename }}" loading="lazy">
-        {% else %}
-        <span class="as-rchart-file__doc"><i class="fas fa-file" aria-hidden="true"></i></span>
+      <div class="as-rchart-file-wrap"{% if can_edit %} draggable="true"{% endif %} data-attachment-id="{{ f.id }}">
+        {% if can_edit %}
+        <span class="as-attach-ord">{{ loop.index }}</span>
         {% endif %}
-      </button>
+        <button type="button" class="as-rchart-file" draggable="false" data-file-url="{{ f.view_url }}"
+          data-file-name="{{ f.filename }}" data-file-image="{{ '1' if f.is_image else '0' }}"
+          title="{{ f.filename }}">
+          {% if f.is_image %}
+          <img class="as-rchart-file__thumb" src="{{ f.thumb_url }}" alt="{{ f.filename }}" loading="lazy">
+          {% else %}
+          <span class="as-rchart-file__doc"><i class="fas fa-file" aria-hidden="true"></i></span>
+          {% endif %}
+        </button>
+        {% if can_edit %}
+        <span class="as-rchart-file__nudge-row">
+          <button type="button" class="as-attach-nudge" data-dir="-1" aria-label="앞으로">▲</button>
+          <button type="button" class="as-attach-nudge" data-dir="1" aria-label="뒤로">▼</button>
+        </span>
+        {% endif %}
+      </div>
       {% endfor %}
     </div>
     {% endif %}
@@ -201,7 +212,7 @@
     {# 입력과 함께 올리는 파일(AS-FRESH-01 T5) — 저장 후 그 기록에 결합된다.
        제출 전 미리보기는 로컬 objectURL 이라 업로드 왕복 없이 보인다. #}
     <input type="file" class="as-rchart-dock__file" accept="image/*,video/*,.pdf,.doc,.docx" multiple hidden>
-    <div class="as-rchart-dock__preview" hidden></div>
+    <div class="as-rchart-dock__preview as-attach-order" hidden></div>
     <div class="as-rchart-dock__status as-rchart-dock__busy" hidden></div>
     <div class="as-rchart-dock__actions">
       <button type="button" class="btn btn-sm btn-outline-secondary as-rchart-dock__pick" title="파일 첨부">

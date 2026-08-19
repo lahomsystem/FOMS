@@ -21,7 +21,10 @@ import re
 from datetime import datetime, timedelta, timezone
 from typing import Any, Optional
 
-from foms.services.integrations.naver_commerce.constants import SOURCE_MARKER
+from foms.services.integrations.naver_commerce.constants import (
+    ADDON_PRODUCT_CLASS,
+    SOURCE_MARKER,
+)
 
 KST = timezone(timedelta(hours=9))
 
@@ -377,6 +380,55 @@ def group_key(detail: dict) -> tuple[str, str, str]:
     )
 
 
+def _join_options(main_option: str, addon_options: list[str]) -> str:
+    """본품 옵션 원문 + 추가옵션 원문들을 한 칸에 이어 붙인다(줄바꿈 구분)."""
+    parts = [line for line in ([main_option] + list(addon_options)) if line]
+    return "\n".join(parts)
+
+
+def is_addon_detail(detail: dict) -> bool:
+    """이 상품주문이 **추가옵션**인가(``productClass`` 정본).
+
+    Args:
+        detail: 상품주문 상세 1건.
+
+    Returns:
+        추가옵션이면 True. 값이 없는 옛 원본은 본품으로 본다(모르면 항목을 남긴다).
+    """
+    _order, product_order, _shipping = unwrap_detail(detail)
+    return _text(product_order.get("productClass")) == ADDON_PRODUCT_CLASS
+
+
+def split_main_groups(details: list[dict]) -> list[tuple[dict, list[dict]]]:
+    """수집(응답) 순서대로 **본품 → 그 본품의 추가옵션**을 묶는다.
+
+    네이버 API 는 추가옵션에 부모 링크를 주지 않는다. 대신 **응답 순서가 본품 다음에 그
+    본품의 옵션들**이다 — 2026-08-18 사용자 확인 + 실데이터 검증(주문 `2026081822487841`:
+    180cm 본품 → TYPE C·TYPE B·EP마감·1cm·제로조인트, 그다음 30cm 본품 → 나머지 7건).
+    이름 토큰 유사도 추정보다 이 순서가 정확하다.
+
+    Args:
+        details: 같은 묶음의 상세 목록(수집 순서 그대로).
+
+    Returns:
+        ``[(본품 detail, [추가옵션 detail, ...]), ...]`` — 입력 순서 보존.
+        본품이 하나도 없으면 첫 건을 본품으로 삼는다(빈 묶음 방지).
+    """
+    groups: list[tuple[dict, list[dict]]] = []
+    for detail in details:
+        if not is_addon_detail(detail):
+            groups.append((detail, []))
+        elif groups:
+            groups[-1][1].append(detail)
+        else:
+            # 본품보다 먼저 온 추가옵션 — 뒤에 올 첫 본품에 붙인다(임시 보관).
+            groups.append((detail, []))
+    if groups and is_addon_detail(groups[0][0]) and len(groups) > 1:
+        orphan, _ = groups.pop(0)
+        groups[0][1].insert(0, orphan)
+    return groups
+
+
 def map_group(details: list[dict], *, today: str) -> tuple[dict[str, Any], dict]:
     """같은 묶음의 상품주문 여러 건을 **주문 1건**으로 매핑한다 (T13).
 
@@ -417,28 +469,55 @@ def map_group(details: list[dict], *, today: str) -> tuple[dict[str, Any], dict]
     if len(details) > 1:
         order_fields["product"] = f"{order_fields['product']} 외 {len(details) - 1}건"
 
+    # **품목은 본품만 만든다** (2026-08-18 사용자 확정). 추가옵션(수납구성·EP마감·서랍·
+    # 제로조인트·길이추가)까지 항목으로 만들면 한 집이 14행이 되어 규격을 채울 행을 찾기가
+    # 어렵다. 옵션은 항목이 아니라 **그 본품 항목의 부속 정보**로 싣는다(도크에도 원문 그대로).
+    # 금액은 잃지 않는다 — 본품 항목 금액 = 본품 + 그 본품에 귀속된 옵션 합계라서
+    # ``items_total`` 이 묶음 합계와 정확히 같다.
+    groups = split_main_groups(details)
+    lead_first = sorted(
+        groups,
+        key=lambda pair: 0 if pair[0] is lead else 1,
+    )
     items = []
     option_lines = []
-    # 품목은 **대표 본품이 1번**이어야 한다 — 사람이 편집기에서 처음 보는 행이 33,200원짜리
-    # 길이추가 옵션이면 본품을 찾아 헤맨다(2026-08-14 실사용 피드백). 대표 먼저, 나머지는
-    # 원래 순서 유지.
-    display_order = [lead] + [d for i, d in enumerate(details) if i != lead_index]
-    for detail in display_order:
-        _order, product_order, _shipping = unwrap_detail(detail)
+    for main, addons in lead_first:
+        _order, product_order, _shipping = unwrap_detail(main)
         name = _text(product_order.get("productName"))
         option = _text(product_order.get("productOption"))
+        price = _int(product_order.get("totalPaymentAmount"))
+        addon_rows = []
+        addon_options = []
+        for addon in addons:
+            _o, addon_po, _s = unwrap_detail(addon)
+            addon_name = _text(addon_po.get("productName"))
+            addon_option = _text(addon_po.get("productOption"))
+            addon_price = _int(addon_po.get("totalPaymentAmount"))
+            price += addon_price
+            addon_rows.append({
+                "product_name": addon_name,
+                "options": addon_option,
+                "quantity": _int(addon_po.get("quantity")) or 1,
+                "price": addon_price,
+                "naver_product_order_id": _text(addon_po.get("productOrderId")),
+            })
+            if addon_option:
+                addon_options.append(f"{addon_name}: {addon_option}")
         items.append({
             "product_name": name,
             "name": name,
-            "options": option,
+            # 규격을 채우는 사람이 한 칸에서 본품·옵션 원문을 다 보게 이어 붙인다.
+            "options": _join_options(option, addon_options),
             "quantity": _int(product_order.get("quantity")) or 1,
-            "price": _int(product_order.get("totalPaymentAmount")),
+            "price": price,
             "naver_product_order_id": _text(product_order.get("productOrderId")),
-            # 편집기·목록이 본품/추가옵션을 구분해 보여줄 근거(대표 = 본품).
-            "naver_role": "main" if detail is lead else "addon",
+            "naver_role": "main",
+            # 항목으로 만들지 않은 추가옵션 원본 — 추적·역산용(화면 표시는 도크가 한다).
+            "naver_addons": addon_rows,
         })
         if option:
             option_lines.append(f"{name}: {option}" if len(details) > 1 else option)
+        option_lines.extend(addon_options)
 
     structured["items"] = items
     structured["totals"] = {"items_total": total}
@@ -450,8 +529,9 @@ def map_group(details: list[dict], *, today: str) -> tuple[dict[str, Any], dict]
     structured["naver"]["grouped_count"] = len(details)
     # 배송메모는 상품주문마다 따로 달린다. 대표 것만 쓰면 다른 줄에 적힌 요청이 조용히
     # 사라지므로 **서로 다른 값은 전부** 남긴다(중복은 제거, 표시 순서는 대표 먼저).
+    memo_order = [lead] + [d for i, d in enumerate(details) if i != lead_index]
     memos: list[str] = []
-    for detail in display_order:
+    for detail in memo_order:
         memo = extract_shipping_memo(detail)
         if memo and memo not in memos:
             memos.append(memo)

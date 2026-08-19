@@ -1147,6 +1147,20 @@
   background: #eef2ff;
 }
 
+.as-push-confirm__ord {
+  position: absolute;
+  top: 4px;
+  left: 4px;
+  z-index: 1;
+  min-width: 1rem;
+  padding: 0 4px;
+  border-radius: 8px;
+  background: rgba(17, 24, 39, 0.72);
+  color: #fff;
+  font-size: 0.625rem;
+  font-weight: 700;
+}
+
 .as-push-confirm__file input {
   position: absolute;
   top: 8px;
@@ -1184,8 +1198,50 @@
   white-space: nowrap;
 }
 
-.as-push-confirm__source {
-  display: block;
+.as-push-confirm__hint {
+  margin: 0 0 8px;
+  color: #b45309;
+  font-size: 0.75rem;
+}
+
+.as-push-confirm__selected {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 8px;
+  min-height: 72px;
+  margin-bottom: 8px;
+}
+
+.as-push-confirm__selected .as-push-confirm__file {
+  cursor: grab;
+}
+
+.as-push-confirm__nudge-row {
+  display: none;
+  justify-content: center;
+  gap: 2px;
+  margin-top: 2px;
+}
+
+.as-push-confirm__file.is-on .as-push-confirm__nudge-row {
+  display: flex;
+}
+
+.as-push-confirm__nudge {
+  padding: 0 4px;
+  border: 0;
+  background: none;
   color: #868e96;
   font-size: 0.625rem;
+  line-height: 1;
+  cursor: pointer;
+}
+
+.as-push-confirm__nudge:hover,
+.as-push-confirm__nudge:focus {
+  color: #4f46e5;
+}
+
+.as-push-confirm__file.is-over-cap {
+  opacity: 0.45;
 }

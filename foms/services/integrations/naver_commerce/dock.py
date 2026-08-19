@@ -6,9 +6,9 @@
 복사 버튼으로만 한다.
 
 본품/추가옵션 판정은 네이버 원본의 ``productClass`` 가 정본이다(실측 2026-08-14):
-``조합형옵션상품`` = 본품, ``추가구성상품`` = 추가옵션. 이름 휴리스틱은 **귀속 추정**
-(어느 본품의 옵션인가)에만 쓴다 — 네이버 API 는 부모 링크를 주지 않으므로 추정은
-표시까지, 확정은 사람이 한다(귀속 드롭다운).
+``조합형옵션상품`` = 본품, ``추가구성상품`` = 추가옵션. **귀속(어느 본품의 옵션인가)은
+수집 순서**로 본다 — 네이버 응답은 본품 다음에 그 본품의 옵션들이 온다(2026-08-18 확정).
+추정은 표시까지, 확정은 사람이 한다(귀속 드롭다운).
 
 DB 만 읽는다 — 네이버 HTTP 는 여기서 절대 내지 않는다(WORKER 단일 출구 계약).
 """
@@ -19,31 +19,18 @@ import logging
 import re
 from typing import Any, Optional
 
-from foms.services.integrations.naver_commerce.constants import CHANNEL
+from foms.services.integrations.naver_commerce.constants import (
+    ADDON_PRODUCT_CLASS,
+    CHANNEL,
+)
 
 logger = logging.getLogger(__name__)
-
-#: 네이버 productClass 값 — 추가옵션(부모 없는 독립 productOrder).
-ADDON_PRODUCT_CLASS = "추가구성상품"
 
 #: 귀속 값으로 허용되는 특수 토큰 — "주문 전체 공통" (특정 본품 소속이 아님).
 ASSIGN_COMMON = "COMMON"
 
-_TOKEN_SPLIT = re.compile(r"[\s/()\[\]（）:,+×x·-]+")
-
-
 def _text(value: Any) -> str:
     return str(value or "").strip()
-
-
-def _tokens(text: str) -> set[str]:
-    """이름 매칭용 토큰(2글자 이상, 숫자 단독 제외)."""
-    out = set()
-    for tok in _TOKEN_SPLIT.split(text):
-        tok = tok.strip()
-        if len(tok) >= 2 and not tok.isdigit():
-            out.add(tok)
-    return out
 
 
 def split_option_copies(option_text: str) -> list[str]:
@@ -238,31 +225,36 @@ def _row_source(link: Any) -> dict[str, Any]:
     }
 
 
-def _guess_main(addon: dict[str, Any], mains: list[dict[str, Any]]) -> tuple[Optional[str], str]:
-    """추가옵션이 어느 본품 것인지 추정한다.
+def _guess_by_sequence(rows: list[dict[str, Any]], mains: list[dict[str, Any]]) -> None:
+    """추가옵션의 귀속을 **수집 순서**로 정한다(각 행에 guess_main/guess_reason 기록).
+
+    네이버는 부모 링크를 주지 않지만 응답 순서가 **본품 → 그 본품의 옵션들** 이다
+    (2026-08-18 사용자 확인 + 실데이터 검증). 이름 토큰 유사도로 추정하던 옛 방식은
+    본품 2종이 비슷한 이름일 때 엉뚱한 짝을 만들었다(2026-08-18 제거).
+    사람이 지정한 ``assigned_main`` 은 언제나 이 추정을 이긴다(호출측에서 우선).
 
     Args:
-        addon: 추가옵션 행(dict).
+        rows: 수집 순서(link.id 오름차순)로 정렬된 도크 행 목록. **제자리 수정**한다.
         mains: 본품 행 목록.
-
-    Returns:
-        ``(추정 본품 external_id 또는 None, 사람이 읽는 근거)``.
     """
-    if not mains:
-        return (None, "본품 없음")
-    if len(mains) == 1:
-        return (mains[0]["external_id"], "단일 본품 — 자동 귀속")
-    addon_tokens = _tokens(f"{addon['product_name']} {addon['option_text']}")
-    scored = []
-    for main in mains:
-        overlap = len(_tokens(main["product_name"]) & addon_tokens)
-        scored.append((overlap, main))
-    scored.sort(key=lambda pair: -pair[0])
-    best_score, best = scored[0]
-    runner_up = scored[1][0] if len(scored) > 1 else 0
-    if best_score > 0 and best_score > runner_up:
-        return (best["external_id"], f"원문 단서로 '{best['product_name'][:20]}' 추정")
-    return (None, "단서 없음 — 어느 본품의 구성인지 선택 필요")
+    current: Optional[str] = None
+    pending: list[dict[str, Any]] = []
+    first_main = mains[0]["external_id"] if mains else None
+    for row in rows:
+        if row["role"] != "addon":
+            row["guess_main"], row["guess_reason"] = (None, "")
+            current = row["external_id"]
+            continue
+        if current:
+            row["guess_main"] = current
+            row["guess_reason"] = "수집 순서 — 바로 위 본품의 구성"
+        else:
+            # 본품보다 먼저 온 옵션 — 첫 본품이 정해지면 그쪽으로 붙인다.
+            pending.append(row)
+    for row in pending:
+        row["guess_main"] = first_main
+        row["guess_reason"] = ("수집 순서 — 첫 본품의 구성" if first_main
+                               else "본품 없음")
 
 
 def build_dock_payload(db: Any, order: Any) -> Optional[dict[str, Any]]:
@@ -341,11 +333,7 @@ def build_dock_payload(db: Any, order: Any) -> Optional[dict[str, Any]]:
         lead["role"] = "main"
         mains = [lead]
 
-    for row in rows:
-        if row["role"] != "addon":
-            row["guess_main"], row["guess_reason"] = (None, "")
-            continue
-        row["guess_main"], row["guess_reason"] = _guess_main(row, mains)
+    _guess_by_sequence(rows, mains)
 
     # 본품별 총폭 힌트(T14-I) — 귀속은 사람 지정 > 추정 순으로 본다(화면과 같은 규칙).
     width_hints: dict[str, Any] = {}

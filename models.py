@@ -265,6 +265,10 @@ class OrderAttachment(Base):
     # 이 축이 "이 기록의 사진" 렌더와 PUSH 회차 필터의 근거이며, 기존 첨부는 NULL 로 남는다
     # (소급 배정 금지 — 추정 배정은 오귀속을 만든다).
     as_log_id = Column(String(64), nullable=True)
+    # AS-SORT-01: 같은 기록(as_log_id) 안에서의 표시·전송 순서. 작을수록 앞.
+    # NULL = 레거시(소급 배정 금지) → 읽기는 id ASC 폴백. 병렬 업로드가 id 순서를
+    # 뒤섞으므로 순서는 이 컬럼이 정본이다.
+    sort_order = Column(Integer, nullable=True)
     file_size = Column(Integer, nullable=False, default=0)
 
     storage_key = Column(String(500), nullable=False)  # static/uploads 기준 key 또는 R2 key
@@ -304,6 +308,7 @@ class OrderAttachment(Base):
             'category': self.category or 'measurement',
             'item_index': self.item_index,
             'as_log_id': self.as_log_id,
+            'sort_order': self.sort_order,
             'file_size': self.file_size,
             'storage_key': self.storage_key,
             'thumbnail_key': self.thumbnail_key,

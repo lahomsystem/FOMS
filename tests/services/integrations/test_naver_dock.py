@@ -298,7 +298,7 @@ def test_payload_roles_follow_product_class(app):
 
 
 def test_payload_single_main_auto_assigns_addons(app):
-    """본품이 하나면 모든 추가옵션이 자동 귀속(추정)된다."""
+    """본품이 하나면 모든 추가옵션이 자동 귀속된다(수집 순서)."""
     order = _naver_order(_staff())
     main = _link(order, _snapshot(product_name="라홈 로라 240cm", amount=812000))
     _link(order, _snapshot(product_name="TYPE H", product_class="추가구성상품", amount=0))
@@ -307,25 +307,43 @@ def test_payload_single_main_auto_assigns_addons(app):
 
     addon = [r for r in payload["rows"] if r["role"] == "addon"][0]
     assert addon["guess_main"] == main.external_id
-    assert "단일 본품" in addon["guess_reason"]
+    assert "수집 순서" in addon["guess_reason"]
 
 
-def test_payload_multi_main_guesses_by_name_clue(app):
-    """본품 둘 — 원문에 본품 이름 단서가 있으면 그 본품으로 추정, 없으면 미정."""
+def test_payload_multi_main_assigns_addons_by_collection_order(app):
+    """본품 둘 — 옵션은 **바로 위 본품**의 구성이다(2026-08-18 사용자 확정).
+
+    네이버 응답 순서가 본품 → 그 본품의 옵션들이다. 이름 토큰 유사도로 추정하던 옛 방식은
+    본품 이름이 비슷하면 엉뚱한 짝을 만들었다.
+    """
     order = _naver_order(_staff())
-    roras = _link(order, _snapshot(product_name="라홈 로라 안방 240cm", amount=812000))
-    _link(order, _snapshot(product_name="라홈 보테가 작은방 160cm", amount=645000))
-    clued = _link(order, _snapshot(product_name="길이추가 1cm", option="로라 무몰딩 여닫이",
-                                   product_class="추가구성상품", amount=26560))
-    unclued = _link(order, _snapshot(product_name="수납구성 TYPE D",
-                                     product_class="추가구성상품", amount=30000))
+    first = _link(order, _snapshot(product_name="라홈 로라 안방 240cm", amount=812000))
+    first_addon = _link(order, _snapshot(product_name="수납구성 TYPE D",
+                                         product_class="추가구성상품", amount=30000))
+    second = _link(order, _snapshot(product_name="라홈 보테가 작은방 160cm", amount=645000))
+    second_addon = _link(order, _snapshot(product_name="길이추가 1cm",
+                                          option="로라 무몰딩 여닫이",
+                                          product_class="추가구성상품", amount=26560))
 
     payload = build_dock_payload(db_session, order)
 
     by_ext = {row["external_id"]: row for row in payload["rows"]}
-    assert by_ext[clued.external_id]["guess_main"] == roras.external_id
-    assert by_ext[unclued.external_id]["guess_main"] is None
-    assert "선택" in by_ext[unclued.external_id]["guess_reason"]
+    assert by_ext[first_addon.external_id]["guess_main"] == first.external_id
+    # 이름은 '로라' 단서를 갖고 있지만 순서가 정본이다 — 두 번째 본품에 붙는다.
+    assert by_ext[second_addon.external_id]["guess_main"] == second.external_id
+
+
+def test_payload_addon_before_first_main_attaches_to_first_main(app):
+    """본품보다 먼저 온 옵션도 버리지 않고 첫 본품에 붙인다."""
+    order = _naver_order(_staff())
+    early = _link(order, _snapshot(product_name="제로조인트 추가",
+                                   product_class="추가구성상품", amount=0))
+    main = _link(order, _snapshot(product_name="라홈 로라 240cm", amount=812000))
+
+    payload = build_dock_payload(db_session, order)
+
+    by_ext = {row["external_id"]: row for row in payload["rows"]}
+    assert by_ext[early.external_id]["guess_main"] == main.external_id
 
 
 def test_payload_falls_back_to_max_amount_when_no_product_class(app):

@@ -292,3 +292,32 @@ def test_mobile_detail_quest_section_has_deep_link_anchor() -> None:
     ).read_text(encoding="utf-8")
     assert 'id="foms-detail-quest"' in partial
     assert "erp-mobile-quest-approve-team" in partial
+
+
+def test_mobile_detail_assignee_approve_button_rendered_once() -> None:
+    """담당자 승인 CTA는 하단 고정바 1곳만 — 섹션 중복 렌더는 화면에 버튼 2개로 보인다."""
+    partial = (
+        ROOT / "templates" / "orders" / "partials" / "order_detail_mobile_v2.html"
+    ).read_text(encoding="utf-8")
+    # 섹션 버튼은 고정바가 같은 버튼을 그리는 조건(sticky_quest_approve)일 때 렌더되지 않는다.
+    assert "{% set sticky_quest_approve" in partial
+    assert "{% elif sticky_quest_approve %}" in partial
+    # 고정바도 같은 플래그를 쓴다 — 조건이 갈라지면 다시 중복/누락이 생긴다.
+    assert "{% if sticky_quest_approve %}" in partial
+    section = partial.split('id="mobile-quest-approvals-', 1)[1].split("</section>", 1)[0]
+    assert section.count("erp-mobile-quest-approve-assignee") == 1
+    assert section.index("{% elif sticky_quest_approve %}") < section.index(
+        "erp-mobile-quest-approve-assignee"
+    )
+
+
+def test_mobile_detail_sticky_cta_is_single_row_and_reserves_space() -> None:
+    """고정 CTA는 한 줄(flex) + 본문 하단 여백에 CTA 높이 포함(주문 진행 카드 가림 방지)."""
+    css = (
+        ROOT / "static" / "css" / "components" / "foms-detail-hero.css"
+    ).read_text(encoding="utf-8")
+    sticky = css.split(".foms-detail-sticky-cta {", 1)[1].split("}", 1)[0]
+    assert "display: flex;" in sticky
+    assert "display: grid;" not in sticky
+    assert "--foms-detail-cta-h" in css
+    assert "var(--foms-detail-cta-h, 78px)" in css
