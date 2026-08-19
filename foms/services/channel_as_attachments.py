@@ -22,6 +22,7 @@ from __future__ import annotations
 from typing import Any
 
 from foms.services.channel_policy import MAX_MANUAL_ATTACHMENTS
+from foms.services.attachment_sort import attachment_sort_key
 from foms.services.orders.as_log import current_as_round
 
 __all__ = [
@@ -96,7 +97,8 @@ def select_as_push_attachments(
         limit: 전송 상한(기본 = 채널톡 수동 push 정책 상한).
 
     Returns:
-        선정된 첨부를 **id 오름차순**(업로드 순)으로. 상한 초과 시 남는 쪽은 **최신**이다.
+        선정된 첨부를 **sort_order 오름차순**(NULL 은 id 폴백)으로. 상한 초과 시
+        남는 쪽은 **시퀀스 끝**(큰 sort_order / 큰 id)이다.
     """
     items = [a for a in attachments if getattr(a, "storage_key", None)]
     if not items:
@@ -114,6 +116,7 @@ def select_as_push_attachments(
     if not picked:
         picked = list(items)
 
-    # 최신 우선으로 자른 뒤 업로드 순으로 되돌린다 — 절단이 최신을 버리지 않게.
-    picked.sort(key=_attachment_id, reverse=True)
-    return sorted(picked[: max(0, limit)], key=_attachment_id)
+    # 시퀀스 끝(큰 sort_order / 큰 id)을 남긴 뒤 정방향으로 되돌린다 — 절단이
+    # 방금 올린/맨 뒤 사진을 버리지 않게(AS-FRESH-01). explicit ids 경로는 이 함수를 안 탄다.
+    picked.sort(key=attachment_sort_key, reverse=True)
+    return sorted(picked[: max(0, limit)], key=attachment_sort_key)

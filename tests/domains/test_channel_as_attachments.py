@@ -14,10 +14,17 @@ from foms.services.channel_as_attachments import (
 )
 
 
-def _att(att_id: int, *, as_log_id: str | None = None, storage_key: str | None = None):
+def _att(
+    att_id: int,
+    *,
+    as_log_id: str | None = None,
+    storage_key: str | None = None,
+    sort_order: int | None = None,
+):
     return SimpleNamespace(
         id=att_id,
         as_log_id=as_log_id,
+        sort_order=sort_order,
         storage_key=f"orders/1/f{att_id}.jpg" if storage_key is None else storage_key,
         filename=f"f{att_id}.jpg",
         file_type="image",
@@ -101,3 +108,25 @@ def test_last_pushed_max_attachment_id_reads_history() -> None:
     assert last_pushed_max_attachment_id({"max_attachment_id": 7}) == 7
     # max_attachment_id 없는 구이력은 목록 최대값으로 폴백.
     assert last_pushed_max_attachment_id({"attachment_ids": [3, 11, 5]}) == 11
+
+
+def test_send_order_follows_sort_order_not_id() -> None:
+    """지정한 sort_order 가 id 보다 앞선다 (AS-SORT-01)."""
+    attachments = [
+        _att(10, sort_order=2),
+        _att(11, sort_order=0),
+        _att(12, sort_order=1),
+    ]
+
+    picked = select_as_push_attachments({}, attachments, None)
+
+    assert [a.id for a in picked] == [11, 12, 10]
+
+
+def test_cap_keeps_end_of_sort_order_sequence() -> None:
+    """상한 절단은 시퀀스 끝(큰 sort_order)을 남긴다."""
+    attachments = [_att(i, sort_order=i - 1) for i in range(1, 22)]
+
+    picked = select_as_push_attachments({}, attachments, None, limit=20)
+
+    assert [a.id for a in picked] == list(range(2, 22))

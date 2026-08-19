@@ -29,7 +29,7 @@ def test_as_attachment_modal_offers_as_channel_push() -> None:
     assert 'id="as-modal-channel-push-btn"' in template
 
     start = js.index("var asChannelPushBtn = document.getElementById('as-modal-channel-push-btn');")
-    block = js[start:start + 7000]
+    block = js[start:start + 16000]
     assert "'/api/channel/push-manual'" in block
     assert "push_kind: 'as'" in block
     # 본문은 서버 SSOT — 이 화면은 주문 폼이 없어 text 를 만들 수 없다.
@@ -61,6 +61,8 @@ def test_as_push_confirm_modal_previews_body_and_files() -> None:
     assert "'/api/channel/push-preview?order_id='" in js
     assert "attachment_ids: attachmentIds" in js
     assert "f.selected ? ' checked' : ''" in js
+    assert "as-push-confirm-selected" in js
+    assert "as-push-confirm__nudge" in js
     # 인라인 스타일 금지 — 확인창 스킨은 as-dashboard-body.css 소유.
     assert "as-push-confirm__file" in js
     assert ".as-push-confirm__file" in (

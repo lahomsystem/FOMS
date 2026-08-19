@@ -17,6 +17,7 @@ from sqlalchemy.orm.attributes import flag_modified
 from db import get_db
 from models import Order, OrderAttachment, OrderEvent
 from foms.web.auth import log_access, login_required, role_required
+from foms.services.attachment_sort import attachment_sort_key
 from foms.services.audit_message_display import describe_order_action
 from foms.services.orders.audit_order_context import order_audit_context
 from foms.services.channel_as_attachments import (
@@ -126,8 +127,11 @@ def _parse_attachment_ids(raw) -> tuple:
         return None, None
     if not isinstance(raw, list):
         return None, 'attachment_ids 는 배열이어야 합니다.'
-    if len(raw) > MAX_MANUAL_ATTACHMENTS:
-        return None, f'첨부는 최대 {MAX_MANUAL_ATTACHMENTS}개까지 전송할 수 있습니다.'
+    # 전송 상한(20)은 배열 **앞쪽**을 남기는 절단이다. 여기서 거절하면 확인창이
+    # 21장을 골랐을 때 지정 순서가 아니라 요청 실패가 된다(AS-SORT-01).
+    # 확인창 후보 상한 밖의 초대형 배열만 막는다.
+    if len(raw) > _PREVIEW_CANDIDATE_MAX:
+        return None, f'첨부는 한 번에 최대 {_PREVIEW_CANDIDATE_MAX}개까지 지정할 수 있습니다.'
     ids = []
     for item in raw:
         # bool 은 int 의 하위형이라 명시적으로 배제한다(True 가 1번 첨부로 통과하는 것 방지).
@@ -437,7 +441,8 @@ def api_channel_push_manual():
                 'message': f'변경 내용은 최대 {_MAX_CHANGE_NOTE_LEN}자까지 입력할 수 있습니다.',
             }), 400
 
-        # 해당 분류 첨부파일만 (이미지 + 동영상, 업로드 순서대로)
+        # 해당 분류 첨부파일만. AS 기본 선정은 select_as_push_attachments 가
+        # sort_order(없으면 id) 순으로 돌려준다. explicit ids 는 **배열 순서 그대로**.
         attachments = (
             db.query(OrderAttachment)
             .filter(
@@ -463,7 +468,9 @@ def api_channel_push_manual():
                         'success': False,
                         'message': '이 주문의 AS 첨부가 아닌 파일이 포함됐습니다.',
                     }), 400
-                attachments = [allowed[i] for i in sorted(explicit_ids)]
+                # AS-SORT-01: 확인창이 보낸 배열 순서 = 채널톡 dto.files 순서.
+                # id 로 다시 정렬하면 지정 순서가 사라진다.
+                attachments = [allowed[i] for i in explicit_ids]
             else:
                 attachments = select_as_push_attachments(
                     sd, attachments, sd.get(kind_config['history_key'])
@@ -483,8 +490,10 @@ def api_channel_push_manual():
                     'mime': _infer_mime(att.filename or '', att.file_type or 'image'),
                 })
                 sent_attachment_ids.append(att.id)
-        # 전송 단(apply_attachment_policy)이 files[:20] 로 자르므로 provenance 도 같은 자리에서
-        # 자른다 — 안 자르면 "보냈다고 기록됐지만 실제로는 안 나간" 첨부가 생긴다.
+        # 지정 순서의 앞 20장만 전송(AS-SORT-01). provenance 와 files 를 같은 자리에서
+        # 자른다 — dispatch 의 apply_attachment_policy 도 files[:20] 이지만, 여기까지
+        # 21장을 넘기면 이력과 실제 전송이 어긋날 수 있다.
+        files = files[:MAX_MANUAL_ATTACHMENTS]
         sent_attachment_ids = sent_attachment_ids[:MAX_MANUAL_ATTACHMENTS]
 
         current_user = getattr(g, "current_user", None)
@@ -612,8 +621,19 @@ def api_channel_push_preview():
 
     labels = _as_log_labels(sd)
     storage = get_storage()
+    # 선택분 = 전송 기본 순서(select 결과). 미선택은 그 아래(정렬 키).
+    ordered = []
+    seen = set()
+    for att in selected:
+        if att.id in pool and att.id not in seen:
+            ordered.append(att)
+            seen.add(att.id)
+    rest = [att for att in pool.values() if att.id not in seen]
+    rest.sort(key=attachment_sort_key)
+    ordered.extend(rest)
+
     files = []
-    for att in sorted(pool.values(), key=lambda a: a.id, reverse=True):
+    for att in ordered:
         if not att.storage_key:
             continue
         preview_key = att.thumbnail_key or att.storage_key

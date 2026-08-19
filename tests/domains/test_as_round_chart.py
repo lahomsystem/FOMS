@@ -277,3 +277,29 @@ def test_render_can_edit_false_hides_dock(app):
     assert "as-rchart-dock" not in html and "as-timeline__quick-add" not in html
     assert "as-tl-item__delete" not in html
     assert "as-billing-edit" not in html
+
+
+def test_render_can_edit_false_hides_attachment_sort_handles(app):
+    """지도 카드(readonly)는 순서 핸들·드래그가 없다. 썸네일 자체는 남긴다."""
+    sd = _scenario_sd()
+    view = build_as_round_chart_view(sd, today=_TODAY)
+    log_id = None
+    for round_view in view["rounds"]:
+        for entry in round_view["entries"]:
+            log_id = entry["id"]
+            break
+        if log_id:
+            break
+    assert log_id
+    files = {log_id: [{
+        "id": 7, "filename": "a.jpg", "is_image": True,
+        "view_url": "/v/a.jpg", "thumb_url": "/t/a.jpg",
+    }]}
+    view = build_as_round_chart_view(sd, attachments_by_log_id=files, today=_TODAY)
+    readonly = _render_chart(app, view, can_edit=False)
+    assert "as-rchart-file" in readonly
+    assert "as-attach-nudge" not in readonly
+    assert 'draggable="true"' not in readonly
+    editable = _render_chart(app, view, can_edit=True)
+    assert "as-attach-nudge" in editable
+    assert 'draggable="true"' in editable

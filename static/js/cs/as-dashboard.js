@@ -1304,7 +1304,9 @@
               orderId, data.entry.id, pending, form.querySelector('.as-rchart-dock__status'));
             const fileInput = form.querySelector('.as-rchart-dock__file');
             if (fileInput) fileInput.value = '';
-            renderDockPreview(form);
+            const ctl = dockController(form);
+            if (ctl) ctl.clear();
+            else renderDockPreview(form);
           }
           if (stream) {
             stream.insertAdjacentHTML('afterbegin', data.html); // optimistic prepend
@@ -1517,7 +1519,8 @@
       // 업로드는 기록 저장 **뒤**에 as_log_id 로 결합한다. 업로드만 실패해도 기록은
       // 되돌리지 않는다 — as_log 는 append-only 라 롤백이 소프트 삭제 흔적을 남기고,
       // 사용자가 쓴 문장이 사라지는 쪽이 훨씬 나쁘다. 재시도는 행의 클립 버튼.
-      async function uploadAsLogFiles(orderId, logId, files, statusEl) {
+      async function uploadAsLogFiles(orderId, logId, files, statusEl, options) {
+        options = options || {};
         if (!orderId || !logId || !files || !files.length) return { ok: 0, total: 0 };
         if (typeof window.fomsUploadOrderAttachmentsBatch !== 'function') {
           showFeedback('업로드 모듈을 불러오지 못했습니다.', true);
@@ -1533,6 +1536,7 @@
           folder: 'orders/' + orderId + '/attachments',
           category: 'as',
           asLogId: logId,
+          sortOrders: files.map(function (_file, index) { return (options.baseSort || 0) + index; }),
           useDirectUpload: true,
           onUploadProgress: function (info) {
             if (statusEl) {
@@ -1547,13 +1551,26 @@
         return result;
       }
 
+      function dockController(form) {
+        if (!form) return null;
+        if (form._asOrder) return form._asOrder;
+        const box = form.querySelector('.as-rchart-dock__preview');
+        if (!box || !window.fomsAsAttachmentOrder) return null;
+        form._asOrder = window.fomsAsAttachmentOrder.mount(box, {});
+        return form._asOrder;
+      }
+
       /** quick-add 폼에 담긴 파일 목록(제출 전). 미리보기는 로컬 objectURL. */
       function dockFiles(form) {
+        const ctl = dockController(form);
+        if (ctl) return ctl.getFiles();
         const input = form && form.querySelector('.as-rchart-dock__file');
         return input && input.files ? Array.from(input.files) : [];
       }
 
       function renderDockPreview(form) {
+        const ctl = dockController(form);
+        if (ctl) return;
         const box = form && form.querySelector('.as-rchart-dock__preview');
         if (!box) return;
         const files = dockFiles(form);
@@ -1585,10 +1602,40 @@
       document.addEventListener('change', function (e) {
         const input = e.target.closest && e.target.closest('.as-rchart-dock__file');
         if (!input) return;
-        renderDockPreview(input.closest('.as-timeline__quick-add'));
+        const form = input.closest('.as-timeline__quick-add');
+        const ctl = dockController(form);
+        const picked = Array.from(input.files || []);
+        if (ctl) ctl.addFiles(picked);
+        else renderDockPreview(form);
+        input.value = '';
       });
 
-      // 이미 저장된 기록에 파일 추가(행 클립 버튼) — 업로드 실패 재시도 경로이기도 하다.
+      function ensureRowStage(item) {
+        let stage = item.querySelector('.as-rchart-row__stage');
+        if (!stage) {
+          stage = document.createElement('div');
+          stage.className = 'as-rchart-row__stage';
+          stage.innerHTML = '<div class="as-rchart-row__stage-preview as-attach-order"></div>'
+            + '<button type="button" class="btn btn-sm btn-primary as-rchart-row__stage-send">올리기</button>'
+            + '<button type="button" class="btn btn-sm btn-link as-rchart-row__stage-cancel">취소</button>';
+          const text = item.querySelector('.as-rchart-row__text');
+          (text || item).appendChild(stage);
+        }
+        if (!stage._asOrder && window.fomsAsAttachmentOrder) {
+          stage._asOrder = window.fomsAsAttachmentOrder.mount(
+            stage.querySelector('.as-rchart-row__stage-preview'), {});
+        }
+        return stage;
+      }
+
+      function clearRowStage(item) {
+        const stage = item && item.querySelector('.as-rchart-row__stage');
+        if (!stage) return;
+        if (stage._asOrder) stage._asOrder.clear();
+        stage.remove();
+      }
+
+      // 이미 저장된 기록에 파일 추가(행 클립 버튼) — 고른 뒤 스테이징에서 순서를 정하고 올린다.
       document.addEventListener('click', function (e) {
         const attach = e.target.closest && e.target.closest('.as-tl-item__attach');
         if (!attach) return;
@@ -1601,19 +1648,123 @@
         picker.type = 'file';
         picker.multiple = true;
         picker.accept = 'image/*,video/*,.pdf,.doc,.docx';
-        picker.addEventListener('change', async function () {
+        picker.addEventListener('change', function () {
           const files = this.files ? Array.from(this.files) : [];
           if (!files.length) return;
-          attach.disabled = true;
-          try {
-            await uploadAsLogFiles(orderId, logId, files, null);
-            await refreshRoundChart(orderId);
-          } finally {
-            attach.disabled = false;
+          const stage = ensureRowStage(item);
+          if (stage._asOrder) stage._asOrder.addFiles(files);
+          else {
+            attach.disabled = true;
+            uploadAsLogFiles(orderId, logId, files, null).then(function () {
+              return refreshRoundChart(orderId);
+            }).finally(function () { attach.disabled = false; });
           }
         });
         picker.click();
       });
+
+      document.addEventListener('click', function (e) {
+        const send = e.target.closest && e.target.closest('.as-rchart-row__stage-send');
+        const cancel = e.target.closest && e.target.closest('.as-rchart-row__stage-cancel');
+        if (!send && !cancel) return;
+        const item = (send || cancel).closest('.as-tl-item');
+        const chart = (send || cancel).closest('.as-rchart');
+        if (cancel) { clearRowStage(item); return; }
+        const stage = item && item.querySelector('.as-rchart-row__stage');
+        const files = stage && stage._asOrder ? stage._asOrder.getFiles() : [];
+        const logId = item && item.dataset.logId;
+        const orderId = chart && chart.dataset.orderId;
+        if (!files.length || !logId || !orderId) { clearRowStage(item); return; }
+        const baseSort = item.querySelectorAll('.as-rchart-file-wrap').length;
+        send.disabled = true;
+        uploadAsLogFiles(orderId, logId, files, null, { baseSort: baseSort })
+          .then(function () { return refreshRoundChart(orderId); })
+          .finally(function () { send.disabled = false; });
+      });
+
+      function renumberFileWraps(row) {
+        Array.from(row.querySelectorAll('.as-rchart-file-wrap')).forEach(function (wrap, idx) {
+          const badge = wrap.querySelector('.as-attach-ord');
+          if (badge) badge.textContent = String(idx + 1);
+        });
+      }
+
+      async function persistFileOrder(row) {
+        const item = row.closest('.as-tl-item');
+        const chart = row.closest('.as-rchart');
+        const orderId = chart && chart.dataset.orderId;
+        const logId = item && item.dataset.logId;
+        const ids = Array.from(row.querySelectorAll('.as-rchart-file-wrap'))
+          .map(function (el) { return Number(el.dataset.attachmentId); })
+          .filter(function (n) { return Number.isFinite(n) && n > 0; });
+        if (!orderId || !logId || !ids.length) return;
+        try {
+          const res = await fetch(
+            '/api/orders/' + encodeURIComponent(orderId) + '/attachments/reorder',
+            {
+              method: 'POST',
+              headers: { 'Content-Type': 'application/json' },
+              credentials: 'same-origin',
+              body: JSON.stringify({ as_log_id: logId, ids: ids }),
+            }
+          );
+          const data = await readTimelineJson(res);
+          if (!data.success) {
+            showFeedback((data && data.message) || '순서 저장 실패', true);
+            await refreshRoundChart(orderId);
+          }
+        } catch (err) {
+          showFeedback((err && err.message) || '순서 저장 중 오류가 났습니다.', true);
+          await refreshRoundChart(orderId);
+        }
+      }
+
+      document.addEventListener('click', function (e) {
+        const nudge = e.target.closest && e.target.closest('.as-attach-nudge');
+        if (!nudge) return;
+        e.preventDefault();
+        const wrap = nudge.closest('.as-rchart-file-wrap');
+        const row = nudge.closest('.as-rchart-row__files');
+        if (!wrap || !row) return;
+        const dir = Number(nudge.getAttribute('data-dir'));
+        if (dir < 0 && wrap.previousElementSibling) row.insertBefore(wrap, wrap.previousElementSibling);
+        else if (dir > 0 && wrap.nextElementSibling) row.insertBefore(wrap.nextElementSibling, wrap);
+        else return;
+        renumberFileWraps(row);
+        persistFileOrder(row);
+      });
+
+      let chartDragWrap = null;
+      document.addEventListener('dragstart', function (e) {
+        const wrap = e.target.closest && e.target.closest('.as-rchart-file-wrap[draggable="true"]');
+        if (!wrap) return;
+        chartDragWrap = wrap;
+        if (e.dataTransfer) e.dataTransfer.effectAllowed = 'move';
+      });
+      document.addEventListener('dragover', function (e) {
+        if (!chartDragWrap) return;
+        const row = e.target.closest && e.target.closest('.as-rchart-row__files');
+        if (!row || !row.contains(chartDragWrap)) return;
+        e.preventDefault();
+      });
+      document.addEventListener('drop', function (e) {
+        const wrap = e.target.closest && e.target.closest('.as-rchart-file-wrap');
+        const row = wrap && wrap.closest('.as-rchart-row__files');
+        if (!wrap || !row || !chartDragWrap || wrap === chartDragWrap || !row.contains(chartDragWrap)) {
+          return;
+        }
+        e.preventDefault();
+        const wraps = Array.from(row.querySelectorAll('.as-rchart-file-wrap'));
+        const fromIdx = wraps.indexOf(chartDragWrap);
+        const toIdx = wraps.indexOf(wrap);
+        if (fromIdx < 0 || toIdx < 0) return;
+        if (fromIdx < toIdx) row.insertBefore(chartDragWrap, wrap.nextSibling);
+        else row.insertBefore(chartDragWrap, wrap);
+        chartDragWrap = null;
+        renumberFileWraps(row);
+        persistFileOrder(row);
+      });
+      document.addEventListener('dragend', function () { chartDragWrap = null; });
 
       // 기록 줄 썸네일 클릭 — 이미지 뷰어 SSOT(GlobalImageViewer)로 위임.
       document.addEventListener('click', function (e) {
@@ -2430,52 +2581,131 @@
         var pushConfirmEl = document.getElementById('asPushConfirmModal');
         var pushTextEl = document.getElementById('as-push-confirm-text');
         var pushFilesEl = document.getElementById('as-push-confirm-files');
+        var pushSelectedEl = document.getElementById('as-push-confirm-selected');
+        var pushCapHint = document.getElementById('as-push-confirm-cap-hint');
         var pushCountEl = document.getElementById('as-push-confirm-count');
         var pushSendBtn = document.getElementById('as-push-confirm-send');
         var __pushConfirmOrderId = null;
+        var __pushDragFrom = -1;
 
         function selectedPushIds() {
-          if (!pushFilesEl) return [];
-          return Array.from(pushFilesEl.querySelectorAll('input[type="checkbox"]:checked'))
-            .map(function (el) { return Number(el.value); })
+          if (!pushSelectedEl) return [];
+          return Array.from(pushSelectedEl.querySelectorAll('.as-push-confirm__file'))
+            .map(function (el) { return Number(el.dataset.fileId); })
             .filter(function (n) { return Number.isFinite(n); });
         }
 
         function syncPushCount() {
           if (!pushCountEl) return;
-          var total = pushFilesEl ? pushFilesEl.querySelectorAll('input[type="checkbox"]').length : 0;
-          pushCountEl.textContent = total ? selectedPushIds().length + ' / ' + total + '건' : '';
+          var selected = selectedPushIds().length;
+          var pool = pushFilesEl ? pushFilesEl.querySelectorAll('.as-push-confirm__file').length : 0;
+          pushCountEl.textContent = (selected || pool) ? selected + '건 전송' : '';
+          if (pushCapHint) pushCapHint.hidden = selected <= 20;
+          if (pushSelectedEl) {
+            Array.from(pushSelectedEl.querySelectorAll('.as-push-confirm__file')).forEach(function (el, idx) {
+              el.classList.toggle('is-over-cap', idx >= 20);
+              var ord = el.querySelector('.as-push-confirm__ord');
+              if (ord) ord.textContent = String(idx + 1);
+            });
+          }
+        }
+
+        function pushFileCard(f, selected) {
+          var name = typeof escapeHtml === 'function' ? escapeHtml(f.filename || '') : (f.filename || '');
+          var source = typeof escapeHtml === 'function' ? escapeHtml(f.source || '') : (f.source || '');
+          var media = f.is_image
+            ? '<img class="as-push-confirm__thumb" src="' + f.url + '" alt="' + name + '" loading="lazy">'
+            : '<div class="as-push-confirm__doc"><i class="fas fa-file"></i></div>';
+          return '<label class="as-push-confirm__file' + (selected ? ' is-on' : '') + '" draggable="' + (selected ? 'true' : 'false') + '" data-file-id="' + f.id + '">'
+            + '<span class="as-push-confirm__ord">' + (selected ? '1' : '') + '</span>'
+            + '<input type="checkbox" value="' + f.id + '"' + (f.selected ? ' checked' : '') + '>'
+            + media
+            + '<span class="as-push-confirm__name" title="' + name + '">' + name + '</span>'
+            + '<span class="as-push-confirm__source">' + source + '</span>'
+            + '<span class="as-push-confirm__nudge-row">'
+            + '<button type="button" class="as-push-confirm__nudge" data-dir="-1" aria-label="앞으로">▲</button>'
+            + '<button type="button" class="as-push-confirm__nudge" data-dir="1" aria-label="뒤로">▼</button>'
+            + '</span>'
+            + '</label>';
         }
 
         function renderPushFiles(files) {
           if (!pushFilesEl) return;
           if (!files.length) {
+            if (pushSelectedEl) pushSelectedEl.innerHTML = '';
             pushFilesEl.innerHTML = '<div class="as-push-confirm__empty">보낼 AS 첨부가 없습니다. 본문만 전송됩니다.</div>';
             syncPushCount();
             return;
           }
-          pushFilesEl.innerHTML = files.map(function (f) {
-            var name = typeof escapeHtml === 'function' ? escapeHtml(f.filename || '') : (f.filename || '');
-            var source = typeof escapeHtml === 'function' ? escapeHtml(f.source || '') : (f.source || '');
-            var media = f.is_image
-              ? '<img class="as-push-confirm__thumb" src="' + f.url + '" alt="' + name + '" loading="lazy">'
-              : '<div class="as-push-confirm__doc"><i class="fas fa-file"></i></div>';
-            return '<label class="as-push-confirm__file' + (f.selected ? ' is-on' : '') + '">'
-              + '<input type="checkbox" value="' + f.id + '"' + (f.selected ? ' checked' : '') + '>'
-              + media
-              + '<span class="as-push-confirm__name" title="' + name + '">' + name + '</span>'
-              + '<span class="as-push-confirm__source">' + source + '</span>'
-              + '</label>';
-          }).join('');
+          var selected = files.filter(function (f) { return f.selected; });
+          var rest = files.filter(function (f) { return !f.selected; });
+          if (pushSelectedEl) {
+            pushSelectedEl.innerHTML = selected.map(function (f) { return pushFileCard(f, true); }).join('');
+          }
+          pushFilesEl.innerHTML = rest.length
+            ? rest.map(function (f) { return pushFileCard(f, false); }).join('')
+            : '<div class="as-push-confirm__empty">후보 없음</div>';
           syncPushCount();
+        }
+
+        function movePushSelected(from, to) {
+          if (!pushSelectedEl) return;
+          var nodes = Array.from(pushSelectedEl.querySelectorAll('.as-push-confirm__file'));
+          if (from < 0 || to < 0 || from >= nodes.length || to >= nodes.length || from === to) return;
+          var taken = nodes[from];
+          var target = nodes[to];
+          if (from < to) pushSelectedEl.insertBefore(taken, target.nextSibling);
+          else pushSelectedEl.insertBefore(taken, target);
+          syncPushCount();
+        }
+
+        if (pushSelectedEl) {
+          addAsDashboardListener(pushSelectedEl, 'change', function (e) {
+            var box = e.target.closest && e.target.closest('input[type="checkbox"]');
+            if (!box || box.checked) return;
+            var label = box.closest('.as-push-confirm__file');
+            if (!label || !pushFilesEl) return;
+            box.checked = false;
+            label.classList.remove('is-on');
+            label.setAttribute('draggable', 'false');
+            pushFilesEl.appendChild(label);
+            syncPushCount();
+          });
+          addAsDashboardListener(pushSelectedEl, 'dragstart', function (e) {
+            var label = e.target.closest && e.target.closest('.as-push-confirm__file');
+            if (!label) return;
+            __pushDragFrom = Array.from(pushSelectedEl.querySelectorAll('.as-push-confirm__file')).indexOf(label);
+          });
+          addAsDashboardListener(pushSelectedEl, 'dragover', function (e) { e.preventDefault(); });
+          addAsDashboardListener(pushSelectedEl, 'drop', function (e) {
+            var label = e.target.closest && e.target.closest('.as-push-confirm__file');
+            if (!label) return;
+            e.preventDefault();
+            var to = Array.from(pushSelectedEl.querySelectorAll('.as-push-confirm__file')).indexOf(label);
+            movePushSelected(__pushDragFrom, to);
+            __pushDragFrom = -1;
+          });
+          addAsDashboardListener(pushSelectedEl, 'click', function (e) {
+            var nudge = e.target.closest && e.target.closest('.as-push-confirm__nudge');
+            if (!nudge) return;
+            e.preventDefault();
+            e.stopPropagation();
+            var label = nudge.closest('.as-push-confirm__file');
+            var nodes = Array.from(pushSelectedEl.querySelectorAll('.as-push-confirm__file'));
+            var from = nodes.indexOf(label);
+            movePushSelected(from, from + Number(nudge.getAttribute('data-dir')));
+          });
         }
 
         if (pushFilesEl) {
           addAsDashboardListener(pushFilesEl, 'change', function (e) {
             var box = e.target.closest && e.target.closest('input[type="checkbox"]');
-            if (!box) return;
+            if (!box || !box.checked || !pushSelectedEl) return;
             var label = box.closest('.as-push-confirm__file');
-            if (label) label.classList.toggle('is-on', box.checked);
+            if (!label) return;
+            label.classList.add('is-on');
+            label.setAttribute('draggable', 'true');
+            pushSelectedEl.appendChild(label);
             syncPushCount();
           });
         }

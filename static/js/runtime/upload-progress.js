@@ -378,7 +378,7 @@
     return sessionMap;
   }
 
-  async function fomsUploadOrderAttachmentsBatch(options) {
+    async function fomsUploadOrderAttachmentsBatch(options) {
     options = options || {};
     var files = Array.prototype.slice.call(options.files || []);
     var orderId = options.orderId;
@@ -387,6 +387,11 @@
     // AS-FRESH-01: 어느 AS 기록의 파일인지(선택). direct/fallback 두 경로에 같이 실어야
     // 업로드 경로에 따라 결합되기도 안 되기도 하는 갈림이 생기지 않는다.
     var asLogId = options.asLogId || null;
+    // AS-SORT-01: 미리보기 순서. files 와 같은 길이여야 하며 0 도 유효값이다.
+    var sortOrders = options.sortOrders;
+    if (sortOrders != null && (!Array.isArray(sortOrders) || sortOrders.length !== files.length)) {
+      return { ok: 0, total: files.length, results: [], preparedFiles: [], error: 'sortOrders 길이가 파일 수와 다릅니다.' };
+    }
     var folder = options.folder || ('orders/' + orderId + '/attachments');
     var total = files.length;
     var ok = 0;
@@ -400,6 +405,7 @@
       formData.append('category', category);
       if (itemIndex != null) formData.append('item_index', String(itemIndex));
       if (asLogId) formData.append('as_log_id', asLogId);
+      if (sortOrders) formData.append('sort_order', String(sortOrders[uploadIndex]));
       if (typeof uploadWithProgress !== 'undefined') {
         return uploadWithProgress('/api/orders/' + orderId + '/attachments', formData, {
           onProgress: function (p) {
@@ -456,6 +462,7 @@
                   category: category,
                   item_index: itemIndex,
                   as_log_id: asLogId,
+                  sort_order: sortOrders ? sortOrders[index] : null,
                   size: entry.file.size
                 })
               });

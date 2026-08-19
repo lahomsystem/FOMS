@@ -55,6 +55,11 @@
       "policy_id": "STAFF_MUTATION",
       "rule": "/api/orders/<int:order_id>/attachments/<int:attachment_id>"
     },
+    "attachments.api_order_attachments_reorder": {
+      "mode": "guard",
+      "policy_id": "STAFF_MUTATION",
+      "rule": "/api/orders/<int:order_id>/attachments/reorder"
+    },
     "attachments.api_order_attachments_restore": {
       "mode": "guard",
       "policy_id": "STAFF_MUTATION",
