@@ -8,11 +8,11 @@
     "log_access"
   ],
   "baselines": {
-    "total": 178,
+    "total": 179,
     "unaudited": 0
   },
   "classification_counts": {
-    "AUDITED": 148,
+    "AUDITED": 149,
     "EXEMPT": 30,
     "UNAUDITED": 0
   },
@@ -32,7 +32,7 @@
     {
       "path": "foms/api/channel/channel_integration.py",
       "endpoint": "api_channel_push_estimate",
-      "lineno": 664,
+      "lineno": 684,
       "methods": [
         "POST"
       ],
@@ -41,7 +41,7 @@
     {
       "path": "foms/api/channel/channel_integration.py",
       "endpoint": "api_channel_push_manual",
-      "lineno": 345,
+      "lineno": 349,
       "methods": [
         "POST"
       ],
@@ -698,7 +698,7 @@
     {
       "path": "foms/api/files/direct_upload.py",
       "endpoint": "api_order_attachments_complete",
-      "lineno": 165,
+      "lineno": 166,
       "methods": [
         "POST"
       ],
@@ -707,7 +707,7 @@
     {
       "path": "foms/api/files/direct_upload.py",
       "endpoint": "api_upload_session",
-      "lineno": 43,
+      "lineno": 44,
       "methods": [
         "POST"
       ],
@@ -716,7 +716,7 @@
     {
       "path": "foms/api/files/direct_upload.py",
       "endpoint": "api_upload_session_batch",
-      "lineno": 101,
+      "lineno": 102,
       "methods": [
         "POST"
       ],
@@ -725,7 +725,7 @@
     {
       "path": "foms/api/files/order_routes.py",
       "endpoint": "api_order_attachments_delete",
-      "lineno": 469,
+      "lineno": 588,
       "methods": [
         "DELETE"
       ],
@@ -734,7 +734,7 @@
     {
       "path": "foms/api/files/order_routes.py",
       "endpoint": "api_order_attachments_patch",
-      "lineno": 407,
+      "lineno": 414,
       "methods": [
         "PATCH"
       ],
@@ -742,8 +742,17 @@
     },
     {
       "path": "foms/api/files/order_routes.py",
+      "endpoint": "api_order_attachments_reorder",
+      "lineno": 513,
+      "methods": [
+        "POST"
+      ],
+      "classification": "AUDITED"
+    },
+    {
+      "path": "foms/api/files/order_routes.py",
       "endpoint": "api_order_attachments_restore",
-      "lineno": 523,
+      "lineno": 642,
       "methods": [
         "POST"
       ],
@@ -752,7 +761,7 @@
     {
       "path": "foms/api/files/order_routes.py",
       "endpoint": "api_order_attachments_upload",
-      "lineno": 295,
+      "lineno": 296,
       "methods": [
         "POST"
       ],
@@ -1104,7 +1113,7 @@
     {
       "path": "foms/api/quest.py",
       "endpoint": "api_order_quest_approve",
-      "lineno": 271,
+      "lineno": 336,
       "methods": [
         "POST"
       ],
@@ -1113,7 +1122,7 @@
     {
       "path": "foms/api/quest.py",
       "endpoint": "api_order_quest_create",
-      "lineno": 117,
+      "lineno": 124,
       "methods": [
         "POST"
       ],
@@ -1122,7 +1131,7 @@
     {
       "path": "foms/api/quest.py",
       "endpoint": "api_order_quest_update_status",
-      "lineno": 481,
+      "lineno": 572,
       "methods": [
         "PUT"
       ],
