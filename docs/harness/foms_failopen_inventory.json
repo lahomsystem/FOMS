@@ -5,18 +5,18 @@
   "overlap_api_error_01": "API-ERROR-01 owns response/stdout exposure (print_exc/str(e) -> log_handled_exception). This packet owns swallow classification. Sites that log via log_handled_exception are LOG_AND_CONTINUE here.",
   "marker_convention": "Silent-by-design catches carry an inline `# failopen: intentional: <reason>` (or `fail-closed`) marker; the scanner reads it as the justification. No bare allowlist, no lint-disable.",
   "baselines": {
-    "broad_total": 536,
+    "broad_total": 537,
     "unclassified": 0,
     "swallow_by_control_flow": 180
   },
   "disposition_counts": {
     "FAIL_CLOSED": 31,
     "INTENTIONAL": 17,
-    "LOG_AND_CONTINUE": 308,
+    "LOG_AND_CONTINUE": 309,
     "SWALLOW_BY_CONTROL_FLOW": 180
   },
   "owner_counts": {
-    "api": 234,
+    "api": 235,
     "audit": 2,
     "auth": 15,
     "cache": 28,
@@ -1365,7 +1365,7 @@
     },
     {
       "path": "foms/api/events.py",
-      "lineno": 115,
+      "lineno": 127,
       "handler_type": "broad_exception",
       "disposition": "LOG_AND_CONTINUE",
       "owner": "api",
@@ -1374,7 +1374,7 @@
     },
     {
       "path": "foms/api/events.py",
-      "lineno": 228,
+      "lineno": 247,
       "handler_type": "broad_exception",
       "disposition": "LOG_AND_CONTINUE",
       "owner": "api",
@@ -1383,7 +1383,7 @@
     },
     {
       "path": "foms/api/events.py",
-      "lineno": 248,
+      "lineno": 267,
       "handler_type": "broad_exception",
       "disposition": "LOG_AND_CONTINUE",
       "owner": "api",
@@ -1392,7 +1392,7 @@
     },
     {
       "path": "foms/api/events.py",
-      "lineno": 334,
+      "lineno": 353,
       "handler_type": "broad_exception",
       "disposition": "LOG_AND_CONTINUE",
       "owner": "api",
@@ -1401,7 +1401,7 @@
     },
     {
       "path": "foms/api/events.py",
-      "lineno": 406,
+      "lineno": 425,
       "handler_type": "broad_exception",
       "disposition": "LOG_AND_CONTINUE",
       "owner": "api",
@@ -1410,7 +1410,7 @@
     },
     {
       "path": "foms/api/events.py",
-      "lineno": 473,
+      "lineno": 492,
       "handler_type": "broad_exception",
       "disposition": "LOG_AND_CONTINUE",
       "owner": "api",
@@ -1419,7 +1419,16 @@
     },
     {
       "path": "foms/api/events.py",
-      "lineno": 687,
+      "lineno": 706,
+      "handler_type": "broad_exception",
+      "disposition": "LOG_AND_CONTINUE",
+      "owner": "api",
+      "has_logging": true,
+      "justification": "logs via logger/log_handled_exception"
+    },
+    {
+      "path": "foms/api/events.py",
+      "lineno": 832,
       "handler_type": "broad_exception",
       "disposition": "LOG_AND_CONTINUE",
       "owner": "api",
@@ -4020,7 +4029,7 @@
     },
     {
       "path": "foms/services/orders/order_field_change_writer.py",
-      "lineno": 143,
+      "lineno": 157,
       "handler_type": "broad_exception",
       "disposition": "LOG_AND_CONTINUE",
       "owner": "services",

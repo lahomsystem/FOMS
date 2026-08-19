@@ -8,11 +8,11 @@
     "log_access"
   ],
   "baselines": {
-    "total": 188,
+    "total": 189,
     "unaudited": 0
   },
   "classification_counts": {
-    "AUDITED": 158,
+    "AUDITED": 159,
     "EXEMPT": 30,
     "UNAUDITED": 0
   },
@@ -689,7 +689,16 @@
     {
       "path": "foms/api/events.py",
       "endpoint": "api_compensate_change_event",
-      "lineno": 599,
+      "lineno": 618,
+      "methods": [
+        "POST"
+      ],
+      "classification": "AUDITED"
+    },
+    {
+      "path": "foms/api/events.py",
+      "endpoint": "api_restore_field_change",
+      "lineno": 715,
       "methods": [
         "POST"
       ],
@@ -698,7 +707,7 @@
     {
       "path": "foms/api/events.py",
       "endpoint": "api_set_order_change_reason",
-      "lineno": 271,
+      "lineno": 290,
       "methods": [
         "POST"
       ],

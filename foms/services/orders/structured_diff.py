@@ -39,6 +39,8 @@ __all__ = [
     "SENSITIVE_ITEM_TEMPLATE",
     "DiffResult",
     "diff_structured",
+    "get_path",
+    "normalize_for_ledger",
 ]
 
 #: 감사 대상 스칼라 경로(2026-08-11 staging 주문 3,412건 키 분포 조사 기반).
@@ -311,6 +313,29 @@ def _get_path(source: Any, path: str) -> Any:
             return None
         node = node.get(part)
     return node
+
+
+def get_path(source: Any, path: str) -> Any:
+    """점 경로로 값을 꺼낸다(공개 진입점 — 복원 경로가 같은 규칙으로 읽게 한다).
+
+    :param source: ``structured_data`` dict.
+    :param path: ``schedule.measurement.date`` 형태 경로.
+    :return: 값 또는 ``None``.
+    """
+    return _get_path(source, path)
+
+
+def normalize_for_ledger(value: Any, path: str) -> Any:
+    """원장에 실릴 정규 값(절단 포함)을 만든다.
+
+    diff 가 저장하는 값과 **같은 규칙**이어야 한다 — 복원 경로가 "지금 값이 원장의
+    after 와 같은가"를 물으려면 같은 정규화를 거친 뒤 비교해야 하기 때문이다.
+
+    :param value: 원시 값(``structured_data`` 에서 읽은 그대로).
+    :param path: 그 값의 점 경로(금액 경로 판정에 쓴다).
+    :return: 정규화·절단된 값(빈값은 ``None``).
+    """
+    return _clip(_normalize(value, numeric=_is_numeric_path(path)))
 
 
 def _clip(value: Any) -> Any:

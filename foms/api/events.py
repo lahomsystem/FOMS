@@ -3,6 +3,11 @@
 """
 
 import copy
+import hashlib
+import json
+import uuid
+from typing import Any, Dict, List
+
 from foms.services.error_logging import log_handled_exception
 from flask import Blueprint, request, jsonify, session
 from sqlalchemy.orm.attributes import flag_modified
@@ -16,6 +21,13 @@ from foms.services.audit_message_display import (
 )
 from foms.services.datetime_kst import format_datetime_kst
 from foms.services.orders.audit_order_context import order_audit_context
+from foms.services.orders.field_restore import (
+    RestoreRejected,
+    apply_restore,
+    describe_restorability,
+    plan_restore,
+)
+from foms.services.orders.revision import RevisionError, execute_order_mutation
 from foms.services.orders.change_reason import (
     REASON_CODES,
     REASON_OTHER,
@@ -182,6 +194,8 @@ def api_order_field_changes(order_id: int):
             .order_by(OrderFieldChange.id)
             .all()  # perf-ok: bounded by change set limit above
         )
+        # 되돌리기 가능 판정은 "현재 값" 과 대조해야 하므로 주문 sd 를 한 번만 읽어 돌려쓴다.
+        current_sd = order.structured_data if isinstance(order.structured_data, dict) else {}
         actor_ids = {row.actor_user_id for row in rows if row.actor_user_id}
         actors = {}
         if actor_ids:
@@ -209,11 +223,16 @@ def api_order_field_changes(order_id: int):
                 'op': row.op,
                 'item': row.item_name,
             }
-            bucket['changes'].append({
+            # RESTORE-GUI-01 T1: 화면이 버튼을 켤지 끌지 판단하려면 되돌리기 가능 여부와
+            # 그 이유가 함께 와야 한다(눌러 보고 400 을 받는 UI 는 만들지 않는다).
+            entry = {
+                'id': row.id,
                 'label': path_label(row.path),
                 'text': describe_change(payload),
                 'item': row.item_name,
-            })
+            }
+            entry.update(describe_restorability(row, current_sd))
+            bucket['changes'].append(entry)
 
         # ORDER-REASON-00: "왜" 는 별도 원장에 있다 — change set 단위로 한 번에 붙인다.
         reasons = reasons_for_change_sets(db, grouped.keys())
@@ -689,3 +708,128 @@ def api_compensate_change_event(order_id, event_id):
         db.rollback()
         log_handled_exception()
         return jsonify({'success': False, 'message': str(e)}), 500
+
+
+@events_bp.route('/orders/<int:order_id>/field-changes/<int:change_id>/restore', methods=['POST'])
+@login_required
+def api_restore_field_change(order_id: int, change_id: int):
+    """변경 원장 행 하나를 근거로 그 필드를 이전 값으로 되돌린다 (RESTORE-GUI-01 T1).
+
+    요청은 **원장 행 id 하나**만 받는다 — 경로도 값도 서버가 기록에서 읽으므로 임의
+    ``structured_data`` 경로 쓰기가 성립하지 않는다(제거된 generic revert 라우트를 위험 없이
+    대체하는 지점이다). 판정·거부 규칙은 :mod:`foms.services.orders.field_restore` 가 소유한다.
+
+    쓰기는 :func:`~foms.services.orders.revision.execute_order_mutation` 으로 감싸 row lock·
+    version bump·idempotency receipt 를 얻는다(직접 ``flag_modified`` 금지 — mutation writer
+    인벤토리에서 EXTERNAL 로 새지 않게).
+
+    Args:
+        order_id: 대상 주문 ID.
+        change_id: 되돌릴 ``order_field_changes`` 행 ID.
+
+    Returns:
+        JSON ``{'success', 'data': {'path', 'restored_to'}}`` / 실패 시 4xx·5xx.
+    """
+    db = get_db()
+    try:
+        data = request.get_json(silent=True) or {}
+        reason = str(data.get('reason') or '').strip()
+        if not reason:
+            return jsonify({'success': False, 'error': '되돌리기 사유를 입력해주세요.'}), 400
+
+        user_id = session.get('user_id')
+        user = db.query(User).filter(User.id == user_id).first()
+        if not user:
+            return jsonify({'success': False, 'error': '사용자를 찾을 수 없습니다.'}), 401
+
+        row = db.query(OrderFieldChange).filter(
+            OrderFieldChange.id == change_id,
+            OrderFieldChange.order_id == order_id,
+        ).first()
+        if row is None:
+            return jsonify({'success': False, 'error': '변경 기록을 찾을 수 없습니다.'}), 404
+
+        # 권한: ADMIN 또는 그 변경을 만든 본인(기존 typed compensation 과 같은 규칙).
+        if user.role != 'ADMIN' and row.actor_user_id != user_id:
+            return jsonify({'success': False, 'error': '본인이 만든 변경만 되돌릴 수 있습니다.'}), 403
+
+        order = db.query(Order).filter(Order.id == order_id).first()
+        if order is None:
+            return jsonify({'success': False, 'error': '주문을 찾을 수 없습니다.'}), 404
+
+        current_sd = order.structured_data if isinstance(order.structured_data, dict) else {}
+        try:
+            plan_restore(row, current_sd)
+        except RestoreRejected as rejected:
+            return jsonify({'success': False, 'error': rejected.message}), rejected.status_code
+
+        change_set_id = str(uuid.uuid4())
+        body = {'change_id': change_id, 'reason': reason, 'change_set': change_set_id}
+        applied: Dict[str, Any] = {}
+
+        def _mutate(sess, orders: List[Order]) -> Dict[int, List[str]]:
+            """잠긴 row 아래에서 복원을 적용한다(쓰기 본체는 정본 mutator 소유)."""
+            locked = orders[0]
+            applied.update(apply_restore(
+                sess, locked, row,
+                actor_user_id=user_id,
+                change_set_id=change_set_id,
+            ))
+            return {locked.id: [f'ORDER_DETAIL:{locked.id}', 'ORDERS_INDEX']}
+
+        try:
+            execute_order_mutation(
+                db,
+                actor_user_id=user_id,
+                policy_id='ORDER_FIELD_RESTORE',
+                order_ids=[order_id],
+                scope_hash=hashlib.sha256(
+                    f'ORDER_FIELD_RESTORE:{order_id}:{change_id}'.encode('utf-8')
+                ).hexdigest(),
+                request_hash=hashlib.sha256(
+                    json.dumps(body, sort_keys=True, ensure_ascii=False).encode('utf-8')
+                ).hexdigest(),
+                mutation=_mutate,
+                idempotency_key=(request.headers.get('Idempotency-Key') or '')[:64] or None,
+            )
+        except RestoreRejected as rejected:
+            db.rollback()
+            return jsonify({'success': False, 'error': rejected.message}), rejected.status_code
+        except RevisionError as conflict:
+            db.rollback()
+            return jsonify({'success': False, 'error': f'동시 수정이 감지됐습니다: {conflict}'}), 409
+
+        db.add(OrderEvent(
+            order_id=order_id,
+            event_type='CHANGE_REVERTED',
+            payload={
+                'domain': 'ORDER_FIELD',
+                'action': 'RESTORED',
+                'target': applied['path'],
+                'before': applied['after'],
+                'after': applied['before'],
+                'reason': reason,
+                'restored_change_id': change_id,
+                'change_method': 'API_FIELD_RESTORE',
+                'source_screen': 'order_change_history',
+            },
+            created_by_user_id=user_id,
+        ))
+        db.add(SecurityLog(
+            user_id=user_id,
+            action='ORDER_FIELD_RESTORED',
+            target_type='ORDER',
+            target_id=order_id,
+            message=f"주문 #{order_id} 필드 되돌리기: {applied['path']}",
+        ))
+        db.commit()
+
+        return jsonify({'success': True, 'data': {
+            'path': applied['path'],
+            'restored_to': applied['before'],
+        }})
+
+    except Exception:
+        db.rollback()
+        log_handled_exception()
+        return jsonify({'success': False, 'error': '되돌리기 처리 중 오류가 발생했습니다.'}), 500

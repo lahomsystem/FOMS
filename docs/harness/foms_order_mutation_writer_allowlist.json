@@ -139,6 +139,12 @@
       "classification": "AUDITED_RECOVERY",
       "owner": "OFFLINE-01",
       "reason": "오프라인 로컬 큐 recovery apply — OPS-APPROVAL(seq>=1 재인증·one-time·artifact_sha256 바인딩) 하에서만, 큐 무결성 검증 뒤 all-or-none 한 tx 로 적용한다. SW-01 이 offline mutation 을 OFF 로 유지 → 자동/백그라운드 replay 0(명시 승인 apply 만)."
+    },
+    {
+      "path": "foms/services/orders/field_restore.py",
+      "classification": "CANONICAL",
+      "owner": "RESTORE-GUI-01",
+      "reason": "필드 단위 복원 정본 mutator — REV-00 route(api/events field-changes restore) 의 execute_order_mutation callback 안에서 structured_data 를 원자 변경한다. 경로는 RESTORABLE_PATHS 화이트리스트로 고정이며 요청이 target 을 지정할 수 없다."
     }
   ]
 }
