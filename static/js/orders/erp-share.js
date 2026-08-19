@@ -306,11 +306,91 @@
 
     /** 문자 버튼 라벨 1.5초 피드백. */
     function _flashSmsSent() {
-        var btn = document.getElementById('erp-share-sms-btn');
+        _flashSent('erp-share-sms-btn');
+    }
+
+    /** 발송 버튼 라벨 1.5초 피드백 (문자·알림톡 공용). */
+    function _flashSent(btnId) {
+        var btn = document.getElementById(btnId);
         if (!btn) return;
         var original = btn.innerHTML;
         btn.innerHTML = '<i class="fas fa-check"></i> 발송됨';
         window.setTimeout(function () { btn.innerHTML = original; }, 1500);
+    }
+
+    /** 원클릭 알림톡 — 모달 없이 링크 자동 발급 후 즉시 알림톡 발송(도면/견적서). */
+    function _quickAlimtalk(btn) {
+        if (_busy || (btn && btn.disabled)) return;
+        var kind = (btn && btn.getAttribute('data-share-kind')) || 'drawing';
+        var kindLabel = KIND_LABELS[kind] || '문서';
+        if (!window.confirm('고객에게 ' + kindLabel + ' 열람 링크를 알림톡으로 보낼까요?')) return;
+        _busy = true;
+        if (btn) btn.disabled = true;
+        fetch('/api/share/create/' + _orderId(), {
+            method: 'POST',
+            credentials: 'same-origin',
+            headers: { 'Content-Type': 'application/json' },
+            body: JSON.stringify({ kind: kind }),
+        })
+            .then(function (res) { return res.json(); })
+            .then(function (body) {
+                if (!body || !body.success || !body.data) {
+                    throw new Error((body && body.error) || 'network');
+                }
+                return fetch('/api/share/send-alimtalk/' + body.data.share_id, {
+                    method: 'POST',
+                    credentials: 'same-origin',
+                    headers: { 'Content-Type': 'application/json' },
+                    body: JSON.stringify({ token: body.data.token }),
+                }).then(function (res) { return res.json(); });
+            })
+            .then(function (body) {
+                var sent = !!(body && body.success && body.data && body.data.sent);
+                if (sent) {
+                    if (btn) {
+                        var original = btn.innerHTML;
+                        btn.innerHTML = '<i class="fas fa-check"></i> 발송됨';
+                        window.setTimeout(function () { btn.innerHTML = original; }, 1500);
+                    }
+                    return;
+                }
+                var code = (body && (body.error || (body.data && body.data.error))) || 'network';
+                window.alert('알림톡 발송 실패 — ' + _label(code));
+            })
+            .catch(function (err) {
+                window.alert('알림톡 발송 실패 — ' + _label((err && err.message) || 'network'));
+            })
+            .finally(function () { _busy = false; if (btn) btn.disabled = false; });
+    }
+
+    /** POST send-alimtalk — 문자와 대칭, 실패 시 Solapi 가 문자로 자동 대체발송. */
+    function _sendAlimtalk() {
+        if (!_issued || !_issued.token) {
+            _setNotice('먼저 링크를 발급하세요 — 알림톡은 발급 직후에만 보낼 수 있습니다.');
+            return;
+        }
+        var btn = document.getElementById('erp-share-alimtalk-btn');
+        if (btn && btn.disabled) return;
+        if (btn) btn.disabled = true;
+        fetch('/api/share/send-alimtalk/' + _issued.shareId, {
+            method: 'POST',
+            credentials: 'same-origin',
+            headers: { 'Content-Type': 'application/json' },
+            body: JSON.stringify({ token: _issued.token }),
+        })
+            .then(function (res) { return res.json(); })
+            .then(function (body) {
+                var sent = !!(body && body.success && body.data && body.data.sent);
+                if (sent) {
+                    _setNotice('');
+                    _flashSent('erp-share-alimtalk-btn');
+                    return;
+                }
+                var code = (body && (body.error || (body.data && body.data.error))) || 'network';
+                _setNotice('알림톡 발송 실패 — ' + _label(code));
+            })
+            .catch(function () { _setNotice('알림톡 발송 실패 — ' + _label('network')); })
+            .finally(function () { if (btn) btn.disabled = false; });
     }
 
     /** POST revoke — 목록의 활성 링크를 즉시 죽인다. */
@@ -374,6 +454,17 @@
         if (target.closest('#erp-share-sms-btn')) {
             ev.preventDefault();
             _sendSms();
+            return;
+        }
+        if (target.closest('#erp-share-alimtalk-btn')) {
+            ev.preventDefault();
+            _sendAlimtalk();
+            return;
+        }
+        var quickBtn = target.closest('.erp-share-alimtalk-quick-btn');
+        if (quickBtn) {
+            ev.preventDefault();
+            _quickAlimtalk(quickBtn);
             return;
         }
         var revokeBtn = target.closest('[data-share-revoke]');

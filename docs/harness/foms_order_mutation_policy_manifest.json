@@ -3,7 +3,7 @@
   "policy_ssot": "foms/services/orders/order_mutation_policy.py",
   "description": "AUTH-01 URL-map inventory: 모든 cookie-auth state-changing route 의 policy_id. mode=guard 는 order_mutation_policy.evaluate_policy 로 §2.1 정책 enforce(before_request enforce_order_mutation_policy). mode=exempt 는 서명 검증 webhook/Function·anonymous RUM 처럼 쿠키 세션 미사용 자기 정책으로 우회. url_map 의 모든 POST/PUT/PATCH/DELETE endpoint 가 여기 등재되어야 하며 미분류=static gate fail(tests/domains/test_auth_enforcement.py).",
   "exempt_count": 4,
-  "guard_count": 173,
+  "guard_count": 174,
   "routes": {
     "admin.ops_approval_review": {
       "mode": "guard",
@@ -20,6 +20,11 @@
       "policy_id": "STAFF_MUTATION",
       "rule": "/api/upload-drafts/<int:draft_id>/cancel"
     },
+    "attachments.api_complete_upload_ticket": {
+      "mode": "guard",
+      "policy_id": "STAFF_MUTATION",
+      "rule": "/api/upload-tickets/<int:ticket_id>/complete"
+    },
     "attachments.api_create_upload_draft": {
       "mode": "guard",
       "policy_id": "STAFF_MUTATION",
@@ -29,6 +34,11 @@
       "mode": "guard",
       "policy_id": "STAFF_MUTATION",
       "rule": "/api/upload-drafts/<int:draft_id>/finalize"
+    },
+    "attachments.api_issue_upload_ticket": {
+      "mode": "guard",
+      "policy_id": "STAFF_MUTATION",
+      "rule": "/api/orders/<int:order_id>/upload-tickets"
     },
     "attachments.api_order_attachments_complete": {
       "mode": "guard",
@@ -255,25 +265,70 @@
       "policy_id": "STAFF_MUTATION",
       "rule": "/api/erp/order-draft/attachments"
     },
+    "erp_orders_as.api_as_billing": {
+      "mode": "guard",
+      "policy_id": "ERP_EDIT",
+      "rule": "/api/orders/<int:order_id>/as/billing"
+    },
+    "erp_orders_as.api_as_classification": {
+      "mode": "guard",
+      "policy_id": "ERP_EDIT",
+      "rule": "/api/orders/<int:order_id>/as/classification"
+    },
     "erp_orders_as.api_as_complete": {
       "mode": "guard",
       "policy_id": "ERP_EDIT",
       "rule": "/api/orders/<int:order_id>/as/complete"
+    },
+    "erp_orders_as.api_as_log_append": {
+      "mode": "guard",
+      "policy_id": "ERP_EDIT",
+      "rule": "/api/orders/<int:order_id>/as/log"
+    },
+    "erp_orders_as.api_as_log_delete": {
+      "mode": "guard",
+      "policy_id": "ERP_EDIT",
+      "rule": "/api/orders/<int:order_id>/as/log/<log_id>/delete"
+    },
+    "erp_orders_as.api_as_log_patch": {
+      "mode": "guard",
+      "policy_id": "ERP_EDIT",
+      "rule": "/api/orders/<int:order_id>/as/log/<log_id>"
     },
     "erp_orders_as.api_as_register": {
       "mode": "guard",
       "policy_id": "CONSTRUCTION_EDIT",
       "rule": "/api/orders/<int:order_id>/as/register"
     },
+    "erp_orders_as.api_as_reopen": {
+      "mode": "guard",
+      "policy_id": "ERP_EDIT",
+      "rule": "/api/orders/<int:order_id>/as/reopen"
+    },
     "erp_orders_as.api_as_schedule": {
       "mode": "guard",
       "policy_id": "ERP_EDIT",
       "rule": "/api/orders/<int:order_id>/as/schedule"
     },
+    "erp_orders_as.api_as_schedule_link": {
+      "mode": "guard",
+      "policy_id": "ERP_EDIT",
+      "rule": "/api/orders/<int:order_id>/as/schedule-link"
+    },
     "erp_orders_as.api_as_start": {
       "mode": "guard",
       "policy_id": "ERP_EDIT",
       "rule": "/api/orders/<int:order_id>/as/start"
+    },
+    "erp_orders_as.api_as_unschedule": {
+      "mode": "guard",
+      "policy_id": "ERP_EDIT",
+      "rule": "/api/orders/<int:order_id>/as/unschedule"
+    },
+    "erp_orders_as.api_as_verdict": {
+      "mode": "guard",
+      "policy_id": "ERP_EDIT",
+      "rule": "/api/orders/<int:order_id>/as/verdict"
     },
     "erp_orders_blueprint.api_blueprint_complete": {
       "mode": "guard",
@@ -405,6 +460,11 @@
       "policy_id": "DRAWING_ASSIGNED",
       "rule": "/api/orders/<int:order_id>/drawing-wizard"
     },
+    "erp_orders_production.api_production_cancel": {
+      "mode": "guard",
+      "policy_id": "PRODUCTION_EDIT",
+      "rule": "/api/orders/<int:order_id>/production/cancel"
+    },
     "erp_orders_production.api_production_change_ack": {
       "mode": "guard",
       "policy_id": "PRODUCTION_EDIT",
@@ -439,6 +499,11 @@
       "mode": "guard",
       "policy_id": "PRODUCTION_EDIT",
       "rule": "/api/orders/<int:order_id>/production/steps"
+    },
+    "erp_orders_production.api_production_uncomplete": {
+      "mode": "guard",
+      "policy_id": "PRODUCTION_EDIT",
+      "rule": "/api/orders/<int:order_id>/production/uncomplete"
     },
     "erp_orders_production.api_set_logistics_status": {
       "mode": "guard",
@@ -559,21 +624,6 @@
       "mode": "guard",
       "policy_id": "STAFF_MUTATION",
       "rule": "/api/kakao/alimtalk/send-manual/<int:order_id>"
-    },
-    "share_api.api_share_create": {
-      "mode": "guard",
-      "policy_id": "STAFF_MUTATION",
-      "rule": "/api/share/create/<int:order_id>"
-    },
-    "share_api.api_share_revoke": {
-      "mode": "guard",
-      "policy_id": "STAFF_MUTATION",
-      "rule": "/api/share/revoke/<int:share_id>"
-    },
-    "share_api.api_share_send_sms": {
-      "mode": "guard",
-      "policy_id": "STAFF_MUTATION",
-      "rule": "/api/share/send-sms/<int:share_id>"
     },
     "notifications.api_notification_ack": {
       "mode": "guard",
@@ -715,6 +765,31 @@
       "policy_id": "STAFF_MUTATION",
       "rule": "/api/orders/<int:order_id>/quest/status"
     },
+    "share_api.api_share_create": {
+      "mode": "guard",
+      "policy_id": "STAFF_MUTATION",
+      "rule": "/api/share/create/<int:order_id>"
+    },
+    "share_api.api_share_revoke": {
+      "mode": "guard",
+      "policy_id": "STAFF_MUTATION",
+      "rule": "/api/share/revoke/<int:share_id>"
+    },
+    "share_api.api_share_send_alimtalk": {
+      "mode": "guard",
+      "policy_id": "STAFF_MUTATION",
+      "rule": "/api/share/send-alimtalk/<int:share_id>"
+    },
+    "share_api.api_share_send_sms": {
+      "mode": "guard",
+      "policy_id": "STAFF_MUTATION",
+      "rule": "/api/share/send-sms/<int:share_id>"
+    },
+    "storage_dashboard.update_storage_field": {
+      "mode": "guard",
+      "policy_id": "STAFF_MUTATION",
+      "rule": "/api/storage_dashboard/order/<int:order_id>/field"
+    },
     "tasks.api_order_tasks_create": {
       "mode": "guard",
       "policy_id": "ERP_EDIT",
@@ -819,76 +894,6 @@
       "mode": "guard",
       "policy_id": "WDC_ESTIMATE",
       "rule": "/api/wdcalculator/unmatch-order"
-    },
-    "storage_dashboard.update_storage_field": {
-      "mode": "guard",
-      "policy_id": "STAFF_MUTATION",
-      "rule": "/api/storage_dashboard/order/<int:order_id>/field"
-    },
-    "attachments.api_issue_upload_ticket": {
-      "mode": "guard",
-      "policy_id": "STAFF_MUTATION",
-      "rule": "/api/orders/<int:order_id>/upload-tickets"
-    },
-    "attachments.api_complete_upload_ticket": {
-      "mode": "guard",
-      "policy_id": "STAFF_MUTATION",
-      "rule": "/api/upload-tickets/<int:ticket_id>/complete"
-    },
-    "erp_orders_as.api_as_unschedule": {
-      "mode": "guard",
-      "policy_id": "ERP_EDIT",
-      "rule": "/api/orders/<int:order_id>/as/unschedule"
-    },
-    "erp_orders_as.api_as_reopen": {
-      "mode": "guard",
-      "policy_id": "ERP_EDIT",
-      "rule": "/api/orders/<int:order_id>/as/reopen"
-    },
-    "erp_orders_as.api_as_classification": {
-      "mode": "guard",
-      "policy_id": "ERP_EDIT",
-      "rule": "/api/orders/<int:order_id>/as/classification"
-    },
-    "erp_orders_as.api_as_billing": {
-      "mode": "guard",
-      "policy_id": "ERP_EDIT",
-      "rule": "/api/orders/<int:order_id>/as/billing"
-    },
-    "erp_orders_as.api_as_log_append": {
-      "mode": "guard",
-      "policy_id": "ERP_EDIT",
-      "rule": "/api/orders/<int:order_id>/as/log"
-    },
-    "erp_orders_as.api_as_log_delete": {
-      "mode": "guard",
-      "policy_id": "ERP_EDIT",
-      "rule": "/api/orders/<int:order_id>/as/log/<log_id>/delete"
-    },
-    "erp_orders_as.api_as_log_patch": {
-      "mode": "guard",
-      "policy_id": "ERP_EDIT",
-      "rule": "/api/orders/<int:order_id>/as/log/<log_id>"
-    },
-    "erp_orders_as.api_as_schedule_link": {
-      "mode": "guard",
-      "policy_id": "ERP_EDIT",
-      "rule": "/api/orders/<int:order_id>/as/schedule-link"
-    },
-    "erp_orders_as.api_as_verdict": {
-      "mode": "guard",
-      "policy_id": "ERP_EDIT",
-      "rule": "/api/orders/<int:order_id>/as/verdict"
-    },
-    "erp_orders_production.api_production_cancel": {
-      "mode": "guard",
-      "policy_id": "PRODUCTION_EDIT",
-      "rule": "/api/orders/<int:order_id>/production/cancel"
-    },
-    "erp_orders_production.api_production_uncomplete": {
-      "mode": "guard",
-      "policy_id": "PRODUCTION_EDIT",
-      "rule": "/api/orders/<int:order_id>/production/uncomplete"
     }
   }
 }
