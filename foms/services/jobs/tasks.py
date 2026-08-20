@@ -271,7 +271,8 @@ def run_naver_fulfillment_task(link_id: int, action: str, actor_user_id=None):
             # 서비스가 실패 사유를 **일부러** 상태에 적고 올린다(fulfillment.py 의 except 절).
             # 여기서 통째로 rollback 하면 그 기록까지 지워져, 실패가 DB 어디에도 안 남고
             # 로그·RQ 에만 남는다 — 화면이 "성공 n · 실패 m · 사유" 를 못 보여주는 원인이었다.
-            # 이 경로는 네이버 호출이 실패한 것이라 성공 표식은 아직 하나도 쓰이지 않았다.
+            # 부분 실패(HTTP 200 + failProductOrderInfos)도 이 경로로 온다 — 그때는 성공한
+            # 상품주문의 표식도 함께 커밋해야 재시도가 실패한 건만 다시 보낸다.
             db.commit()
             raise
         except Exception:

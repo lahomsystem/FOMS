@@ -128,6 +128,71 @@ def _dispatch_timestamp(now: datetime) -> str:
     return kst.strftime("%Y-%m-%dT%H:%M:%S.") + f"{kst.microsecond // 1000:03d}" + kst.strftime("%z")[:3] + ":" + kst.strftime("%z")[3:]
 
 
+def _split_result(payload: Any, ids: list[str]) -> tuple[list[str], dict[str, str]]:
+    """네이버 200 응답을 **건별 성공/실패**로 가른다.
+
+    커머스API 는 HTTP 200 을 주면서 body 안에 건별 실패를 담는다
+    (``failProductOrderInfos``). 그걸 안 보면 실패한 상품주문에도 성공 도장이 찍히고,
+    멱등 규칙 때문에 **다시는 보내지지 않는다** — 조용한 미발송이 된다.
+
+    모르는 모양의 응답(성공 목록 키도 실패 목록 키도 없는 body)은 예전처럼 전부 성공으로
+    본다. 판단 근거가 없는데 실패로 몰면 이미 나간 호출을 사람이 다시 보내게 된다.
+
+    Args:
+        payload: 클라이언트가 돌려준 응답 payload.
+        ids: 이번 호출로 보낸 상품주문번호 목록.
+
+    Returns:
+        ``(성공한 id 목록, {실패한 id: 사유})``.
+    """
+    data = payload.get("data") if isinstance(payload, dict) else None
+    if not isinstance(data, dict):
+        data = payload if isinstance(payload, dict) else {}
+
+    failures: dict[str, str] = {}
+    for row in (data.get("failProductOrderInfos") or []):
+        if not isinstance(row, dict):
+            continue
+        pid = str(row.get("productOrderId") or "").strip()
+        if not pid:
+            continue
+        reason = (row.get("message") or row.get("failMessage")
+                  or row.get("reason") or "네이버가 실패로 처리했습니다.")
+        failures[pid] = str(reason)[:500]
+
+    raw_success = data.get("successProductOrderIds")
+    if raw_success is None:
+        infos = data.get("successProductOrderInfos")
+        if isinstance(infos, list):
+            raw_success = [row.get("productOrderId") for row in infos if isinstance(row, dict)]
+    if isinstance(raw_success, list):
+        reported_ok = {str(x) for x in raw_success if x}
+        for pid in ids:
+            # 성공 목록에도 실패 목록에도 없는 건 = 네이버가 처리했다고 말하지 않은 건.
+            if pid not in reported_ok and pid not in failures:
+                failures[pid] = "네이버가 성공 목록에 넣지 않았습니다."
+    elif not failures:
+        return list(ids), {}
+
+    return [pid for pid in ids if pid not in failures], failures
+
+
+def _mark_failures(rows: dict[str, ExternalOrderLink], failures: dict[str, str],
+                   *, action: str, stamp: datetime) -> None:
+    """실패한 상품주문에 사유를 남긴다 — **어느 작업**이 실패했는지 함께.
+
+    화면의 '실패한 집만 다시 시도' 가 이 값을 보고 같은 작업으로 재시도한다. 없으면
+    발송처리 실패를 발주확인으로 재시도하게 되고, 그건 멱등 규칙에 걸려 조용히 넘어간 뒤
+    실패 띠만 영원히 남는다.
+    """
+    for pid, reason in failures.items():
+        row = rows.get(pid)
+        if row is None:
+            continue
+        _write_state(row, {"last_error": reason, "last_error_at": stamp.isoformat(),
+                           "last_error_action": action})
+
+
 def confirm_place_order(session: Session, client: Any, *, link_id: int,
                         actor_user_id: Optional[int] = None,
                         now: Optional[datetime] = None) -> dict[str, Any]:
@@ -153,24 +218,34 @@ def confirm_place_order(session: Session, client: Any, *, link_id: int,
         return {"confirmed": [], "skipped": [row.external_id for row in links]}
 
     ids = [str(row.external_id) for row in todo]
+    by_id = {str(row.external_id): row for row in todo}
     try:
-        client.confirm_place_orders(ids)
+        response = client.confirm_place_orders(ids)
     except Exception as exc:  # noqa: BLE001 - 사유를 상태에 남기고 그대로 올린다
-        for row in todo:
-            _write_state(row, {"last_error": str(exc)[:500], "last_error_at": stamp.isoformat()})
+        _mark_failures(by_id, {pid: str(exc)[:500] for pid in ids},
+                       action="confirm", stamp=stamp)
         session.flush()
         logger.warning("[NAVER] 발주확인 실패 link=%s: %s", link_id, exc)
         raise FulfillmentError(f"발주확인에 실패했습니다: {exc}") from exc
 
-    for row in todo:
+    ok_ids, failures = _split_result(response, ids)
+    _mark_failures(by_id, failures, action="confirm", stamp=stamp)
+    for pid in ok_ids:
+        row = by_id[pid]
         _write_state(row, {"place_confirmed_at": stamp.isoformat(),
                            "place_confirmed_by": actor_user_id,
-                           "last_error": "", "last_error_at": ""})
+                           "last_error": "", "last_error_at": "", "last_error_action": ""})
         # 화면 필터가 보는 사본도 같이 올린다(다음 스윕을 기다리지 않게).
         row.place_order_status = "OK"
     session.flush()
-    logger.info("[NAVER] 발주확인 완료 link=%s 건수=%d", link_id, len(todo))
-    return {"confirmed": ids, "skipped": [row.external_id for row in links if row not in todo]}
+    if failures:
+        # 성공분은 위에서 확정했다 — 워커가 이 예외에서 commit 하므로 그 표식은 남고,
+        # 재시도는 실패한 상품주문만 다시 보낸다.
+        logger.warning("[NAVER] 발주확인 부분 실패 link=%s 실패=%d", link_id, len(failures))
+        detail = "; ".join(f"{pid}: {reason}" for pid, reason in failures.items())
+        raise FulfillmentError(f"발주확인 일부가 실패했습니다: {detail}")
+    logger.info("[NAVER] 발주확인 완료 link=%s 건수=%d", link_id, len(ok_ids))
+    return {"confirmed": ok_ids, "skipped": [row.external_id for row in links if row not in todo]}
 
 
 def dispatch_order(session: Session, client: Any, *, link_id: int,
@@ -206,25 +281,34 @@ def dispatch_order(session: Session, client: Any, *, link_id: int,
     if not todo:
         return {"dispatched": [], "skipped": [row.external_id for row in links]}
 
-    payload = [{"productOrderId": str(row.external_id),
+    ids = [str(row.external_id) for row in todo]
+    by_id = {str(row.external_id): row for row in todo}
+    payload = [{"productOrderId": pid,
                 "deliveryMethod": delivery_method,
                 "dispatchDate": _dispatch_timestamp(stamp)}
-               for row in todo]
+               for pid in ids]
     try:
-        client.dispatch_product_orders(payload)
+        response = client.dispatch_product_orders(payload)
     except Exception as exc:  # noqa: BLE001
-        for row in todo:
-            _write_state(row, {"last_error": str(exc)[:500], "last_error_at": stamp.isoformat()})
+        _mark_failures(by_id, {pid: str(exc)[:500] for pid in ids},
+                       action="dispatch", stamp=stamp)
         session.flush()
         logger.warning("[NAVER] 발송처리 실패 link=%s: %s", link_id, exc)
         raise FulfillmentError(f"발송처리에 실패했습니다: {exc}") from exc
 
-    for row in todo:
-        _write_state(row, {"dispatched_at": stamp.isoformat(),
-                           "dispatched_by": actor_user_id,
-                           "delivery_method": delivery_method,
-                           "last_error": "", "last_error_at": ""})
+    ok_ids, failures = _split_result(response, ids)
+    _mark_failures(by_id, failures, action="dispatch", stamp=stamp)
+    for pid in ok_ids:
+        _write_state(by_id[pid], {"dispatched_at": stamp.isoformat(),
+                                  "dispatched_by": actor_user_id,
+                                  "delivery_method": delivery_method,
+                                  "last_error": "", "last_error_at": "",
+                                  "last_error_action": ""})
     session.flush()
-    logger.info("[NAVER] 발송처리 완료 link=%s 건수=%d", link_id, len(todo))
-    return {"dispatched": [str(row.external_id) for row in todo],
+    if failures:
+        logger.warning("[NAVER] 발송처리 부분 실패 link=%s 실패=%d", link_id, len(failures))
+        detail = "; ".join(f"{pid}: {reason}" for pid, reason in failures.items())
+        raise FulfillmentError(f"발송처리 일부가 실패했습니다: {detail}")
+    logger.info("[NAVER] 발송처리 완료 link=%s 건수=%d", link_id, len(ok_ids))
+    return {"dispatched": ok_ids,
             "skipped": [row.external_id for row in links if row not in todo]}

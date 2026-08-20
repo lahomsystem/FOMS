@@ -7,6 +7,8 @@
 
 from __future__ import annotations
 
+from typing import Any
+
 import pytest
 
 from db import db_session
@@ -20,24 +22,44 @@ from models import ExternalOrderLink
 
 
 class _StubClient:
-    """네이버를 부르지 않는 스텁 — 호출 횟수와 payload 만 기록한다."""
+    """네이버를 부르지 않는 스텁 — 호출 횟수와 payload 만 기록한다.
 
-    def __init__(self, *, fail: bool = False) -> None:
+    ``partial`` 을 주면 그 상품주문만 **HTTP 200 안에서** 실패로 돌려준다
+    (커머스API 는 건별 실패를 body 의 ``failProductOrderInfos`` 로 준다).
+    ``payload_override`` 는 모양이 다른 응답(옛 필드·빈 body)을 흉내낸다.
+    """
+
+    def __init__(self, *, fail: bool = False, partial: dict[str, str] | None = None,
+                 payload_override: Any = None) -> None:
         self.confirm_calls: list[list[str]] = []
         self.dispatch_calls: list[list[dict]] = []
         self.fail = fail
+        self.partial = dict(partial or {})
+        self.payload_override = payload_override
+
+    def _payload(self, ids: list[str]) -> dict:
+        if self.payload_override is not None:
+            return self.payload_override
+        ok = [x for x in ids if x not in self.partial]
+        data: dict[str, Any] = {"successProductOrderIds": ok}
+        if self.partial:
+            data["failProductOrderInfos"] = [
+                {"productOrderId": pid, "message": reason}
+                for pid, reason in self.partial.items() if pid in ids
+            ]
+        return {"data": data}
 
     def confirm_place_orders(self, ids):
         if self.fail:
             raise RuntimeError("HTTP 400 처리권한이 없는 상품주문번호")
         self.confirm_calls.append(list(ids))
-        return {"data": {"successProductOrderIds": list(ids)}}
+        return self._payload([str(x) for x in ids])
 
     def dispatch_product_orders(self, rows):
         if self.fail:
             raise RuntimeError("HTTP 400 발송처리 실패")
         self.dispatch_calls.append(list(rows))
-        return {"data": {"successProductOrderIds": [r["productOrderId"] for r in rows]}}
+        return self._payload([str(r["productOrderId"]) for r in rows])
 
 
 def _link(external_id: str, *, order_no: str = "N-FUL", place: str | None = None,
@@ -403,3 +425,87 @@ def test_dispatch_stays_inside_the_selected_household(app):
     assert [row["productOrderId"] for row in client.dispatch_calls[0]] == ["PO-SPD-A1"]
     assert result["dispatched"] == ["PO-SPD-A1"]
     assert _state(b_only) == {}
+
+
+# --------------------------------------------------------------------------- #
+# HTTP 200 안의 건별 실패 (리뷰 지적 P4)
+#
+# 커머스API 는 200 을 주면서 body 에 실패 목록을 담는다. 그걸 안 보면 실패한 상품주문에도
+# 성공 도장이 찍히고, 멱등 규칙 때문에 **다시는 보내지지 않는다** — 조용한 미발송이 된다.
+# --------------------------------------------------------------------------- #
+
+def test_partial_failure_stamps_only_the_successful_ones(app):
+    """200 안의 실패 건은 성공 표식을 받지 않고 사유를 남긴다."""
+    first = _link("PO-PF-1", order_no="N-PF", place="NOT_YET")
+    second = _link("PO-PF-2", order_no="N-PF", place="NOT_YET")
+    client = _StubClient(partial={"PO-PF-2": "판매자 확인이 필요한 상품주문입니다"})
+
+    with pytest.raises(FulfillmentError) as caught:
+        confirm_place_order(db_session, client, link_id=first)
+    db_session.commit()
+
+    assert "판매자 확인이 필요한 상품주문입니다" in str(caught.value)
+    assert _state(first)["place_confirmed_at"], "성공한 건은 그대로 확정된다"
+    assert not _state(second).get("place_confirmed_at"), "실패한 건에 도장을 찍으면 안 된다"
+    assert "판매자 확인이 필요한 상품주문입니다" in _state(second)["last_error"]
+    db_session.expire_all()
+    assert db_session.get(ExternalOrderLink, second).place_order_status == "NOT_YET"
+
+
+def test_retry_after_partial_failure_sends_only_the_failed_one(app):
+    """다시 시도하면 실패한 상품주문만 나간다 — 성공분을 두 번 부르지 않는다."""
+    first = _link("PO-PF-R1", order_no="N-PFR", place="NOT_YET")
+    _link("PO-PF-R2", order_no="N-PFR", place="NOT_YET")
+    client = _StubClient(partial={"PO-PF-R2": "일시 오류"})
+    with pytest.raises(FulfillmentError):
+        confirm_place_order(db_session, client, link_id=first)
+    db_session.commit()
+
+    client.partial = {}
+    confirm_place_order(db_session, client, link_id=first)
+    db_session.commit()
+
+    assert client.confirm_calls == [["PO-PF-R1", "PO-PF-R2"], ["PO-PF-R2"]], client.confirm_calls
+
+
+def test_unknown_response_shape_is_still_treated_as_success(app):
+    """성공 목록 키가 없는 응답은 예전처럼 전부 성공으로 본다(판단 근거가 없다)."""
+    link_id = _link("PO-PF-SHAPE", order_no="N-PFS", place="NOT_YET")
+    client = _StubClient(payload_override={"traceId": "abc"})
+
+    result = confirm_place_order(db_session, client, link_id=link_id)
+    db_session.commit()
+
+    assert result["confirmed"] == ["PO-PF-SHAPE"]
+    assert _state(link_id)["place_confirmed_at"]
+
+
+def test_dispatch_partial_failure_keeps_the_failed_one_open(app):
+    """발송처리도 같다 — 실패 건은 발송 표식 없이 남아 다시 보낼 수 있다."""
+    first = _link("PO-PFD-1", order_no="N-PFD", place="OK")
+    second = _link("PO-PFD-2", order_no="N-PFD", place="OK")
+    client = _StubClient(partial={"PO-PFD-2": "발송 가능 상태가 아닙니다"})
+
+    with pytest.raises(FulfillmentError):
+        dispatch_order(db_session, client, link_id=first)
+    db_session.commit()
+
+    assert _state(first)["dispatched_at"]
+    assert not _state(second).get("dispatched_at")
+    assert "발송 가능 상태가 아닙니다" in _state(second)["last_error"]
+
+
+def test_failure_records_which_action_failed(app):
+    """실패 사유에 **어느 작업**이 실패했는지 함께 남는다 — 화면 재시도가 그걸 보고 고른다."""
+    confirm_link = _link("PO-ACT-1", order_no="N-ACT1", place="NOT_YET")
+    with pytest.raises(FulfillmentError):
+        confirm_place_order(db_session, _StubClient(fail=True), link_id=confirm_link)
+    db_session.commit()
+
+    dispatch_link = _link("PO-ACT-2", order_no="N-ACT2", place="OK")
+    with pytest.raises(FulfillmentError):
+        dispatch_order(db_session, _StubClient(fail=True), link_id=dispatch_link)
+    db_session.commit()
+
+    assert _state(confirm_link)["last_error_action"] == "confirm"
+    assert _state(dispatch_link)["last_error_action"] == "dispatch"
