@@ -40,12 +40,21 @@ class _StubClient:
         return {"data": {"successProductOrderIds": [r["productOrderId"] for r in rows]}}
 
 
-def _link(external_id: str, *, order_no: str = "N-FUL", place: str | None = None) -> int:
+def _link(external_id: str, *, order_no: str = "N-FUL", place: str | None = None,
+          address: str = "", tel: str = "") -> int:
+    """수집분 링크 1건. ``address``/``tel`` 을 주면 **분할배송**(같은 주문번호·다른 집)이 된다."""
+    from foms.services.integrations.naver_commerce.mapping import group_key_text
+
+    snapshot = {"order": {"orderId": order_no},
+                "productOrder": {"productOrderId": external_id}}
+    if address or tel:
+        snapshot["productOrder"]["shippingAddress"] = {
+            "name": "이수취", "tel1": tel, "baseAddress": address, "detailedAddress": "",
+        }
     link = ExternalOrderLink(
         channel="NAVER", external_id=external_id, external_order_no=order_no,
         sync_status="LINKED", place_order_status=place,
-        raw_snapshot={"order": {"orderId": order_no},
-                      "productOrder": {"productOrderId": external_id}},
+        raw_snapshot=snapshot, group_key=group_key_text(snapshot),
     )
     db_session.add(link)
     db_session.commit()
@@ -351,3 +360,46 @@ def test_worker_failure_commit_does_not_leak_success_marks(app, monkeypatch):
     # 성공하면 사유는 지워진다 — 낡은 실패 문구가 화면에 남으면 안 된다.
     assert not state.get("last_error")
     assert link.place_order_status == "OK"
+
+
+# --------------------------------------------------------------------------- #
+# 분할배송 — 화면이 가른 집과 워커가 처리하는 대상이 같아야 한다 (리뷰 지적 P2)
+#
+# 화면은 group_key(주문번호+수취인 전화+주소)로 집을 가르는데 워커가 주문번호로만 묶으면,
+# A집만 체크해도 B집까지 발주확인이 나간다. 네이버로 나간 호출은 되돌릴 수 없다.
+# --------------------------------------------------------------------------- #
+
+def test_confirm_stays_inside_the_selected_household(app):
+    """A집만 골랐으면 B집 상품주문은 건드리지 않는다."""
+    a_first = _link("PO-SP-A1", order_no="N-SPLIT", place="NOT_YET",
+                    address="서울 강남구 1", tel="010-1111-1111")
+    _link("PO-SP-A2", order_no="N-SPLIT", place="NOT_YET",
+          address="서울 강남구 1", tel="010-1111-1111")
+    b_only = _link("PO-SP-B1", order_no="N-SPLIT", place="NOT_YET",
+                   address="부산 해운대구 9", tel="010-2222-2222")
+    client = _StubClient()
+
+    result = confirm_place_order(db_session, client, link_id=a_first)
+    db_session.commit()
+
+    assert client.confirm_calls == [["PO-SP-A1", "PO-SP-A2"]], client.confirm_calls
+    assert set(result["confirmed"]) == {"PO-SP-A1", "PO-SP-A2"}
+    assert _state(b_only) == {}, "옆 집은 상태도 바뀌면 안 된다"
+    db_session.expire_all()
+    assert db_session.get(ExternalOrderLink, b_only).place_order_status == "NOT_YET"
+
+
+def test_dispatch_stays_inside_the_selected_household(app):
+    """발송처리도 마찬가지 — 옆 집이 발주확인 전이라고 A집 발송이 막히지도 않는다."""
+    a_first = _link("PO-SPD-A1", order_no="N-SPLITD", place="OK",
+                    address="서울 강남구 1", tel="010-1111-1111")
+    b_only = _link("PO-SPD-B1", order_no="N-SPLITD", place="NOT_YET",
+                   address="부산 해운대구 9", tel="010-2222-2222")
+    client = _StubClient()
+
+    result = dispatch_order(db_session, client, link_id=a_first)
+    db_session.commit()
+
+    assert [row["productOrderId"] for row in client.dispatch_calls[0]] == ["PO-SPD-A1"]
+    assert result["dispatched"] == ["PO-SPD-A1"]
+    assert _state(b_only) == {}

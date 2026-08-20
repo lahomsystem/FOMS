@@ -51,8 +51,38 @@ class FulfillmentError(RuntimeError):
     """발주확인·발송처리 실패. 사유 문장을 그대로 사람에게 보여준다."""
 
 
+def _household_key(link: ExternalOrderLink) -> tuple[str, str, str]:
+    """이 링크가 속한 '집' 키 — 화면이 집을 가르는 것과 **같은 규칙**.
+
+    화면 큐(:func:`foms.web.admin.naver_ingest._group_queue`)는
+    :func:`mapping.group_key` ``(주문번호, 수취인 전화, 주소)`` 로 집을 가른다.
+    여기서 주문번호만 보면 **분할배송**(같은 주문번호·다른 주소)에서 화면이 두 줄로
+    보여준 것을 워커가 한 번에 처리한다 — A집만 골랐는데 B집까지 네이버로 나가고,
+    그 호출은 되돌릴 수 없다.
+
+    Args:
+        link: ``ExternalOrderLink`` 행.
+
+    Returns:
+        같은 값이면 같은 집. 원본이 깨져 키를 못 만들면 그 링크 혼자인 집으로 본다
+        (화면과 같은 폴백 — 큐에서 조용히 사라지는 것보다 낫다).
+    """
+    from foms.services.integrations.naver_commerce.mapping import group_key
+
+    try:
+        return group_key(link.raw_snapshot or {})
+    except (ValueError, TypeError, AttributeError, KeyError) as exc:
+        logger.warning("[NAVER] 집 키 계산 실패(link %s): %s", link.id, exc)
+        return ("__ungrouped__", str(link.id), "")
+
+
 def _links_of_group(session: Session, link_id: int) -> list[ExternalOrderLink]:
-    """같은 네이버 주문번호의 링크 전부(한 집은 통째로 처리한다)."""
+    """같은 **집**의 링크 전부(한 집은 통째로 처리한다).
+
+    1차로 같은 네이버 주문번호를 모으고(인덱스 있는 축), 그중 :func:`_household_key` 가
+    같은 것만 남긴다. 분할배송에서 화면이 가른 집과 서버가 처리하는 대상이 어긋나지 않게
+    하는 자리다.
+    """
     link = (
         session.query(ExternalOrderLink)
         .filter(ExternalOrderLink.id == link_id, ExternalOrderLink.channel == CHANNEL)
@@ -70,7 +100,9 @@ def _links_of_group(session: Session, link_id: int) -> list[ExternalOrderLink]:
         .order_by(ExternalOrderLink.id.asc())
         .all()
     )
-    return rows or [link]
+    base_key = _household_key(link)
+    same_house = [row for row in rows if _household_key(row) == base_key]
+    return same_house or [link]
 
 
 def _state(link: ExternalOrderLink) -> dict[str, Any]:
