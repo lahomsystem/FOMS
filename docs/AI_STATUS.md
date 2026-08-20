@@ -8,11 +8,11 @@ Flask 2.3 + PostgreSQL + R2 + Railway (Web×2, Worker×1)
 브랜치: deploy (스테이징) → production (운영)
 
 ## 진행 중
+- [2026-08-20] **복원 GUI T1 배포·QA + 저장 유실 수정(`ec6b22a9`)** — 변경 이력에서 필드 한 건 되돌리기(요청=change_id 만, 화이트리스트 12경로, 절단·타입·현재값 4가드). 스테이징 실화면 QA 통과. QA 중 발견: 편집 저장이 `parties` 통째 대입이라 폼 미렌더 키(`orderer.phone`·`customer.phone2`, 네이버 수집분)를 매번 삭제 → `_merge_preserving_missing` 대상에 `parties` 추가. **`parties.orderer` 이름 충돌(폼=발주사 vs 수집=주문자) 미해결**. 기존 유실분은 원장으로 셀 수 있다
 - [2026-08-20] **네이버 수집 화면 UX 개편 — 조사·설계 완료, 목업 v1** — 이력·확인 큐 두 화면 왕복 불편 지적에서 출발. 국내 SaaS(플레이오토·사방넷·이지어드민·네이버 판매자센터)·해외 OMS(ShipStation·Linnworks·Shopify 등) 리서치 + 현 화면 감사(결함 29, 높음 8). **확정: 탭 4개 통합(처리 대기/발주확인 전/취소·반품/전체 이력)·숫자 이중표기(집+건)·상태 3축 분리·행 인라인 확장·불가역 액션 4종 세트.** 선행 결함: 두 화면 '집' 정의 불일치(이력=주문번호 vs 확인=주문번호+전화+주소), **취소·반품 건이 큐에서 안 빠짐**(확인 완료 버튼이 주문 있는 건에만). 구현 시 계약 테스트 60개 문구 동반 수정 필요. 정본: `docs/research/2026-08-20-naver-ux/04_설계_결정.md`, 목업 `docs/design/mockups/naver-ingest-workbench.html`. 잔여=v2 목업→승인→구현 스펙
 - [2026-08-20] **네이버 관계 판별 + 발주확인·발송처리(NAVER-INGEST-02, deploy)** — T16-A~H 코드 완료. 수집 판정이 `PAYED` 하나뿐이라 재결제·차액결제가 전부 새 집으로 들어오던 문제를 **사람이 고르는 붙이기**로 닫았다(자동 확정 없음). 스테이징 실물 왕복 검증(강재상 1cm 집 → #4466 붙임 → 도크 "추가결제 3건 · 517,550원(반영은 수동)" → 되돌림 → 원복). **잔여=네이버 실호출 검증(사용자 직접)**, G3(재결제 시 원 주문 취소 표시) 미확정. 권한 게이트 통과(API그룹 `주문 판매자`=발주/발송처리 포함), 배송코드 `DIRECT_DELIVERY`(구매확정·정산 시점 변동 주의). 함정: `.alert` 5초 자동닫힘이 상시 안내를 지운다(`data-foms-no-autodismiss` 필요, 취소 경고도 이 버그였음) · 주문 JSONB 직접쓰기는 REV-99 게이트 → `execute_order_mutation` 경유 · 새 감사 행위는 `audit_message_display` 라벨 필수(pre_push_smoke 사각).
 - ⚠️ [2026-08-20] **deploy FOMS CI red = 타 세션 몫** — `3d3c2f61`(RESTORE-GUI-01 T1)의 `ORDER_FIELD_RESTORED` 라벨 누락 + `events.api_restore_field_change` 정책 미분류. Harness CI·PG Lane·perf-gate 는 green.
 - [2026-08-19] **오프사이트 백업 복구·상황판(`foms-ops-backup`+F7)** — 개설 후 6회 전패(`which(pg_dump)`=16·R2 시크릿 미등재) 해소 후 첫 성공. 침묵 차단 3종 + `/admin/backup-status`(서명 심박 푸시, 앱은 백업 열쇠 미보유·fail-closed, 종단검증 완료). Railway D6+W27+M89·dev D 신설. 리허설 절차서 `RESTORE.md` §8(분기 수동). 잔여=첨부 R2 오프사이트·운영 승격 시 URL 교체
-- [2026-08-18] **AS 증발 사고 종결 + 구조 제거** — 운영 55/55 복구 + 일괄 경로 AS 제외 가드(운영 `63737e91`) + **AS-AXIS-01** AS 대시보드 술어 status→`as_axis_status` 투영 교체(deploy `e061beb7`, 스테이징 검증 완료·운영 승격 대기). **AS 판정=status 기준·투영 암묵삭제 금지**(레거시 506건 lifecycle 없음). 복구 절차 `docs/guides/DATA_INCIDENT_RECOVERY.md`, 스펙 §11에 실측 조정 기록. **운영 승격 차단: `asaxis_00` 부모가 미승격 `naverdock_00`** — 네이버·변경사유 승격 후 진행(2026-08-18 사용자 결정)
 - ⚠️ **미결: `as-delete-reapply`의 `8c1ef69a`**(삭제 라우트 WRITE-GUARD-01 manifest 등재) deploy 미반영. worktree 정리 중 발견, 타 세션 몫이라 미처리. 브랜치 ref 보존됨.
 
 ## 알려진 이슈
@@ -97,6 +97,8 @@ Flask 2.3 + PostgreSQL + R2 + Railway (Web×2, Worker×1)
 
 ## 기록 보관 (strict canonical / 이전 배치 요약)
 
+- [2026-08-20] 아래 1건은 '진행 중'에서 **문구 그대로** 옮겼다(상단 40줄 예산).
+- [2026-08-18] **AS 증발 사고 종결 + 구조 제거** — 운영 55/55 복구 + 일괄 경로 AS 제외 가드(운영 `63737e91`) + **AS-AXIS-01** AS 대시보드 술어 status→`as_axis_status` 투영 교체(deploy `e061beb7`, 스테이징 검증 완료·운영 승격 대기). **AS 판정=status 기준·투영 암묵삭제 금지**(레거시 506건 lifecycle 없음). 복구 절차 `docs/guides/DATA_INCIDENT_RECOVERY.md`, 스펙 §11에 실측 조정 기록. **운영 승격 차단: `asaxis_00` 부모가 미승격 `naverdock_00`** — 네이버·변경사유 승격 후 진행(2026-08-18 사용자 결정)
 - [2026-08-20] 아래 2건은 '진행 중'에서 **문구 그대로** 옮겼다(상단 40줄 예산). 내용 변경 없음.
 - [2026-08-19] **네이버 수집 관리 화면 수정 2건(deploy `3c4e8243`)** — 필터 카운트 단위 통일(전체=묶음인데 상태별은 행이라 부분>전체로 보였다) + 취소·반품 건 "주문 만들기" 버튼 잠금(서버는 이미 400 차단, 화면만 열려 있었다). 지도 좌표 미갱신 원인 확정: **GEOCODE outbox handler 미배포**(전 주문 공통, 네이버 밖 과제).
 - [2026-08-19] **네이버 수집 T15 완료(deploy)** — 품목=본품만·귀속=수집순서+사양 보정·승격 순서 버그·규격 도우미 오탐·도크 폭2배. 운영 IP 교체 불필요 확정. 잔여=PR #113 머지(사용자)·폰 탭 보류 유지. 원장 `docs/plans/2026-08-13-naver-order-ingest-ledger.md`
