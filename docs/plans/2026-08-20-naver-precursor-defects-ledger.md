@@ -46,7 +46,7 @@
 `compute_triage_pending_count` 를 `count(distinct group_key)` 로 · 화면 헤더 이중 표기.
 **완료 기준**: nav 배지와 화면 필터 숫자가 같은 단위(집) · `test_naver_nav_entry.py` 기대값을 집 수로 먼저 고쳐 red 확인 후 green.
 
-### T6 — 통합 검증 (PENDING)
+### T6 — 통합 검증 (DONE)
 **완료 기준**: `pytest tests/services/integrations/ -q` 전건 통과 · `APP_OK` · `pre_push_smoke.ps1` exit 0 ·
 변경 파일 lint · 원장·AI_STATUS 갱신.
 
@@ -92,3 +92,10 @@
   스트립이 `…{{ naver_triage_pending }}건` 이라 숫자만 집으로 바뀌면 더 헷갈릴 상태여서 라벨도 '집'으로 고쳤다.
   트리아지 헤더는 이미 이중 표기(`{{ group_count }}집` + `상품주문 {{ pending_count }}건`)라 손대지 않았다.
   검증: `tests/services/integrations/` **289 passed** · `APP_OK`.
+- 2026-08-20 **T6 완료**. `pytest tests/services/integrations/ -q` **289 passed** · PG 레인 **737 passed** ·
+  `APP_OK` · `pre_push_smoke.ps1` **PASSED(323)** · 변경 파일 compileall OK.
+  **도중 선행 red 1건 처리**: `test_ai_status_head_budget` 가 AI_STATUS 상단 40줄 5519자(예산 4000)로 실패.
+  내 작업이 아니라 **이전 세션 커밋 `4019694a` 시점부터 이미 red** 였다(f8ded3b0^ 에서도 5519자 확인).
+  헤더 장문 7줄을 축약하고 원문은 "## 최근 완료" 아래에 그대로 보존해 3729자로 낮췄다 — 정보 손실 없음.
+- **전체 완료**: 선행 결함 5건(#5 #8 #4 #1 #2) 닫힘. #7(대조표)은 UI 개편 본체로 이관.
+  **미푸시**(사용자 결정 — 세션 브랜치 유지). 배포 시 `backfill_naver_group_key.py` 실행 필요.
