@@ -680,3 +680,39 @@ def test_result_strip_shows_on_every_tab(client, workbench_on):
     for tab in ("work", "place", "claim", "all"):
         body = client.get(f"{TRIAGE_PATH}?tab={tab}").get_data(as_text=True)
         assert 'id="wb-result"' in body, tab
+
+
+# --------------------------------------------------------------------------- #
+# 리다이렉트 (W6)
+# --------------------------------------------------------------------------- #
+
+def test_ingest_dashboard_redirects_to_the_workbench_when_gate_is_on(client, workbench_on):
+    """게이트가 켜지면 두 URL 왕복이 끝난다 — 옛 주소는 본진으로 보낸다."""
+    _login(client)
+
+    response = client.get("/admin/naver-ingest")
+
+    assert response.status_code in (301, 302)
+    assert "/admin/naver-ingest/triage" in response.headers["Location"]
+
+
+def test_ingest_dashboard_keeps_working_when_gate_is_off(client):
+    """게이트가 꺼져 있으면 옛 관리 화면이 그대로다 — 롤백이 실제로 된다."""
+    _login(client)
+
+    response = client.get("/admin/naver-ingest")
+
+    assert response.status_code == 200
+    assert "네이버 주문 수집" in response.get_data(as_text=True)
+
+
+def test_redirect_carries_the_history_filter_over(client, workbench_on):
+    """필터를 걸어 둔 채 옛 주소로 들어와도 그 조건이 살아남는다."""
+    _login(client)
+
+    response = client.get("/admin/naver-ingest?status=FAILED&place=PENDING")
+    location = response.headers["Location"]
+
+    assert "tab=all" in location, location
+    assert "status=FAILED" in location, location
+    assert "place=PENDING" in location, location

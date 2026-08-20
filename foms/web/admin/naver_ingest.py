@@ -18,7 +18,7 @@ import datetime
 import logging
 from typing import Any, Optional
 
-from flask import jsonify, render_template, request, session, url_for
+from flask import jsonify, redirect, render_template, request, session, url_for
 
 from db import get_db
 from foms.services.datetime_kst import format_datetime_kst, now_utc_naive
@@ -357,7 +357,25 @@ def _link_rows(db, *, status: Optional[str], page: int,
 @login_required
 @role_required(["ADMIN"])
 def naver_ingest_dashboard():
-    """수집 이력·워터마크·만료일을 한 화면에 보여준다(읽기 전용)."""
+    """수집 이력·워터마크·만료일을 한 화면에 보여준다(읽기 전용).
+
+    워크벤치 게이트가 켜진 사용자는 본진(``naver_ingest_triage``)의 '전체 이력' 탭으로
+    보낸다 — 두 URL 왕복을 없애는 것이 개편의 출발점이었다. 걸어 둔 필터는 그대로 넘긴다
+    (조건을 잃으면 사용자가 방금 좁힌 목록을 다시 만들어야 한다).
+    게이트가 꺼져 있으면 이 화면이 예전 그대로 뜬다.
+    """
+    from foms.services.feature_flags import is_naver_workbench_enabled
+
+    if is_naver_workbench_enabled(session.get("user_id")):
+        status_arg = (request.args.get("status") or "").strip().upper()
+        return redirect(url_for(
+            "admin.naver_ingest_triage",
+            tab="all",
+            status=status_arg if status_arg in VALID_STATUSES else None,
+            place="PENDING" if (request.args.get("place") or "").strip().upper() == "PENDING" else None,
+            page=request.args.get("page", type=int) or None,
+        ))
+
     db = get_db()
     status = (request.args.get("status") or "").strip().upper()
     try:

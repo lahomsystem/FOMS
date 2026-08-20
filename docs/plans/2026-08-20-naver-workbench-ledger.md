@@ -42,7 +42,7 @@
 성공/실패 카운터 → 펼침 → 건별 사유 → 실패건만 재시도. `data-foms-no-autodismiss` 필수.
 **완료 기준**: 실패가 있을 때만 뜸 · 5초 뒤에도 남음 · 재시도가 실패건만 대상.
 
-### W6 — 리다이렉트 + 통합 검증 (PENDING)
+### W6 — 리다이렉트 + 통합 검증 (DONE)
 게이트 on 일 때 `/admin/naver-ingest` → 본진 리다이렉트. 옛 템플릿 정리 여부 판단(게이트 남기면 유지).
 **완료 기준**: `pytest tests/services/integrations/ -q` 전건 · `APP_OK` · `pre_push_smoke.ps1` exit 0 ·
 1440 실브라우저에서 4탭 왕복·모달·선택 게이트 확인 · AI_STATUS 갱신(상단 40줄 예산 준수).
@@ -120,3 +120,19 @@
   실패가 없으면 띠 자체가 안 뜬다(빈 경고는 사람이 안 읽게 만든다). 탭과 무관하게 항상 보인다.
   검증: `tests/services/integrations/` **336 passed** · `APP_OK` ·
   1440 실브라우저(실패 3줄·재시도 대상 3·**6초 뒤에도 띠 유지**·가로 스크롤 없음·JS 에러 0).
+- 2026-08-20 **W6 완료 — 플랜 전체(W1~W6) 종료**. 테스트 3건 먼저 red → 구현 → green. 워크벤치 48건.
+  게이트 on 이면 `/admin/naver-ingest` 가 본진 `?tab=all` 로 리다이렉트하고 `status`·`place`·`page` 를
+  그대로 넘긴다(조건을 잃으면 방금 좁힌 목록을 다시 만들어야 한다). off 면 옛 화면 그대로 — 롤백이 실제로 된다.
+  옛 템플릿 2종은 **지우지 않았다**: 게이트 off 경로의 정본이고, 그 경로가 green 이어야 롤백이 의미를 갖는다.
+  최종 검증: `tests/services/integrations/` **339 passed** · **PG 레인 737 passed** ·
+  `pre_push_smoke.ps1` **PASSED(323)** · `APP_OK` ·
+  1440 실브라우저 4탭 왕복(탭 선택 정확·결과 띠 전 탭 유지·가로 스크롤 없음·JS 에러 0) ·
+  리다이렉트 실측 `302 → /admin/naver-ingest/triage?tab=all&status=FAILED&place=PENDING`.
+  AI_STATUS 갱신(상단 40줄 3781자/예산 4000).
+
+## 남은 일 (다음 세션)
+1. **미푸시** — 사용자 결정으로 세션 브랜치에만 있다. deploy 승격 시 `pre_push_smoke` 재확인.
+2. **배포 시 backfill 필수** — `python scripts/maintenance/backfill_naver_group_key.py`.
+   안 돌려도 화면은 죽지 않고 예전 폴백으로 떨어질 뿐이다.
+3. **게이트 켜기** — `FOMS_NAVER_WORKBENCH_ENABLED=1` + `FOMS_NAVER_WORKBENCH_COHORT=<id>` 로 소수 먼저.
+4. **실사용 확인 후 옛 화면 정리 여부 결정** — 지금은 롤백 경로라 남겨 둔다.
