@@ -17,7 +17,7 @@
 
 ## Task
 
-### W1 — 게이트 + 뼈대 + 처리 대기 탭 (PENDING)
+### W1 — 게이트 + 뼈대 + 처리 대기 탭 (DONE)
 1. `feature_flags` 에 `is_naver_workbench_enabled(user_id)` 추가 (`FOMS_NAVER_WORKBENCH_ENABLED` + `_COHORT`)
 2. `naver_ingest_triage` 라우트가 게이트로 템플릿 분기 (off=기존 `naver_triage.html`)
 3. 새 템플릿 `templates/admin/naver_workbench.html` — 상태 스트립 + 헤더 이중표기 + 탭 4개(`?tab=`)
@@ -59,3 +59,18 @@
 
 ## 진행 기록
 - 2026-08-20 스펙·플랜 작성. 현 구조 실측(템플릿 372+627줄·라우트 1066줄·계약 테스트 79건/정확 마크업 22곳). 승인 대기.
+- 2026-08-20 사용자 승인 — W1 시작.
+- 2026-08-20 **W1 완료**. 테스트 12건 먼저 red → 구현 → green. 최종 18건.
+  파일: `feature_flags.is_naver_workbench_enabled` · `templates/admin/naver_workbench.html` ·
+  `static/css/admin/naver-workbench.css`(인라인 스타일 금지 규칙) · `static/js/admin/naver-workbench.js` ·
+  라우트에 `_active_tab()`·`_member_rows()` 추가.
+  검증: `tests/services/integrations/` **306 passed**(게이트 off 경로 기존 79건 포함 전부 green) · `APP_OK` ·
+  1440 실브라우저 렌더 확인(가로 스크롤 없음·JS 에러 0·2단 그리드 400px+1004px·색띠 5px).
+  **실브라우저에서 테스트가 못 잡은 결함 2건을 잡았다**:
+  ① 템플릿이 `selected.naver.customer_name` 을 읽었는데 정본 키는 `recipient_name` 이라
+     대조표 수취인·연락처가 **조용히 빈 칸**이었다(섹션 존재만 확인하던 테스트는 통과했다).
+     → 값 존재를 무는 테스트 추가 후 수정. 옵션 원문도 `option`(단수)이 정본이었다.
+  ② 취소·반품 줄에 "손대지 않음"과 "주문 만들기"가 **동시에** 떴다(next_step 이 클레임을 모른다).
+     → 테스트 추가 후 클레임이면 next_step 배지를 숨긴다.
+  **W3 로 넘길 메모**: 지금 work 탭 큐는 미확인 전체라 취소·반품 집도 섞여 보인다.
+  목표 화면(v2 목업)에서는 취소·반품 탭으로 분리된다 — 탭별 모집단 필터를 W3 에서 넣는다.

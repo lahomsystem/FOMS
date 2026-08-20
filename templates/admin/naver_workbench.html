@@ -1,0 +1,246 @@
+{% extends "admin/layout.html" %}
+
+{#
+  네이버 수집 워크벤치 — UI 개편 본체.
+  스펙 docs/specs/2026-08-20-naver-ingest-workbench_SPEC.md · 목표 화면
+  docs/design/mockups/naver-ingest-workbench-v2.html
+
+  게이트(FOMS_NAVER_WORKBENCH_ENABLED + _COHORT, 기본 off)가 켜진 사용자만 본다.
+  꺼져 있으면 admin/naver_triage.html 이 그대로 뜬다.
+
+  탭 전환은 서버 라운드트립(?tab=)이다 — 새로고침·북마크·뒤로가기가 그냥 된다.
+#}
+
+{% block title %}네이버 수집{% endblock %}
+
+{% block styles %}
+<link rel="stylesheet" href="{{ url_for('static', filename='css/admin/naver-workbench.css') }}?v=20260820a">
+{% endblock %}
+
+{% block content %}
+<div class="container-fluid naver-workbench" data-active-tab="{{ active_tab }}">
+
+    {# 상태 스트립 — 예전 카드 3장을 한 줄로 접었다. 결정 3 이중 표기도 여기 한 곳만. #}
+    <div class="wb-strip">
+        <span class="wb-strip__title">네이버 수집</span>
+        <span class="wb-strip__count">{{ group_count }}집 · 상품주문 {{ pending_count }}건</span>
+        <span class="wb-strip__spacer"></span>
+        {% if current_user and current_user.role == 'ADMIN' %}
+        <a href="{{ url_for('admin.naver_ingest_dashboard') }}" class="btn btn-outline-secondary btn-sm">
+            수집 상태 화면
+        </a>
+        {% endif %}
+    </div>
+
+    {# 탭 4개 — 배지는 집 수만 쓴다(탭별 상품주문 건수는 만들어 낼 수 없다). #}
+    <nav class="wb-tabs" role="tablist">
+        <a class="wb-tab" role="tab" data-tab="work" aria-selected="{{ 'true' if active_tab == 'work' else 'false' }}"
+           href="{{ url_for('admin.naver_ingest_triage', tab='work') }}">처리 대기<span class="wb-tab__n">{{ group_count }}집</span></a>
+        <a class="wb-tab" role="tab" data-tab="place" aria-selected="{{ 'true' if active_tab == 'place' else 'false' }}"
+           href="{{ url_for('admin.naver_ingest_triage', tab='place') }}">발주확인 전</a>
+        <a class="wb-tab wb-tab--danger" role="tab" data-tab="claim" aria-selected="{{ 'true' if active_tab == 'claim' else 'false' }}"
+           href="{{ url_for('admin.naver_ingest_triage', tab='claim') }}">취소·반품</a>
+        <a class="wb-tab" role="tab" data-tab="all" aria-selected="{{ 'true' if active_tab == 'all' else 'false' }}"
+           href="{{ url_for('admin.naver_ingest_triage', tab='all') }}">전체 이력</a>
+    </nav>
+
+    {% if active_tab == 'work' %}
+    {# ══ 처리 대기 ═══════════════════════════════════════════════════ #}
+    <div class="wb-split">
+
+        <section class="card shadow-sm">
+            <div class="card-header py-2 small fw-semibold">확인 대기 — 한 집이 한 줄</div>
+            <div class="wb-queue">
+                {% for group in queue %}
+                {#
+                  결정 4 의 3층: ① 진행축 배지 ② 클레임축 배지 ③ 색띠 + 글자 라벨.
+                  색띠만으로 구분하면 색맹 사용자가 못 읽어서 글자를 항상 함께 둔다.
+                #}
+                {% set row_kind = 'stop' if group.claim_blocking
+                                  else ('spec' if group.order_id
+                                        else ('wait' if group.place_pending else 'go')) %}
+                <a class="wb-row wb-row--{{ row_kind }}"
+                   {% if selected_group and selected_group.id == group.id %}aria-current="true"{% endif %}
+                   href="{{ url_for('admin.naver_ingest_triage', tab='work', link_id=group.id) }}">
+                    <span class="wb-row__bar"></span>
+                    <span class="wb-row__body">
+                        <span class="wb-row__line1">
+                            <span class="wb-row__name">{{ group.customer_name }}</span>
+                        </span>
+                        <span class="wb-row__line2">
+                            {{ group.product }}{% if group.extra_count %} 외 {{ group.extra_count }}건{% endif %}
+                        </span>
+                        <span class="wb-row__line3">
+                            {% if group.count > 1 %}
+                            <span class="badge bg-light text-dark">{{ group.count }}건 묶음</span>
+                            {% endif %}
+                            {# 다음 할 일 배지는 클레임을 모른다. 취소·반품 집에 그대로 찍으면
+                               한 줄에서 "손대지 않음"과 "주문 만들기"가 충돌한다. #}
+                            {% if group.next_step and not group.claim_blocking %}
+                            <span class="badge bg-primary">{{ group.next_step }}</span>
+                            {% endif %}
+                            {% if group.claim_label %}
+                            <span class="badge bg-danger">{{ group.claim_label }}</span>
+                            {% endif %}
+                            {% if group.place_pending and not group.claim_blocking %}
+                            <span class="badge bg-warning text-dark">발주확인 전</span>
+                            {% endif %}
+                            <span class="wb-can wb-can--{{ row_kind }}">
+                                {% if row_kind == 'stop' %}손대지 않음
+                                {% elif row_kind == 'spec' %}규격 입력할 차례
+                                {% elif row_kind == 'wait' %}발주확인 먼저
+                                {% else %}지금 처리 가능{% endif %}
+                            </span>
+                            <span class="wb-row__when">{{ group.created_at }}</span>
+                        </span>
+                    </span>
+                </a>
+                {% else %}
+                <div class="wb-empty">확인할 주문이 없습니다.</div>
+                {% endfor %}
+            </div>
+        </section>
+
+        <section class="card shadow-sm">
+            {% if selected %}
+            <div class="card-header py-2 d-flex flex-wrap align-items-center gap-2">
+                <span class="fw-semibold">{{ selected.naver.recipient_name or selected.external_id }}</span>
+                <span class="small text-muted">상품주문 {{ selected.external_id }}</span>
+                {% if selected_group and selected_group.count > 1 %}
+                <span class="badge bg-light text-dark">{{ selected_group.count }}건 묶음</span>
+                {% endif %}
+                <span class="ms-auto">
+                    {% if not selected.order_id %}
+                    <button type="button" class="btn btn-primary btn-sm"
+                            data-bs-toggle="modal" data-bs-target="#wb-modal-create"
+                            {% if selected.claim.blocking %}disabled
+                            title="네이버에서 취소·반품이 진행 중입니다"{% endif %}>
+                        + 주문 만들기
+                    </button>
+                    {% else %}
+                    <a class="btn btn-outline-primary btn-sm" target="_blank" rel="noopener"
+                       href="{{ selected.edit_url }}">ERP 규격 입력</a>
+                    {% endif %}
+                </span>
+            </div>
+
+            <div class="card-body">
+                {# 도메인 규칙 6: 규격 자동 파싱 금지. 원문을 크게 보여주고 복사만 돕는다. #}
+                {% if selected.naver.option %}
+                <div class="alert alert-light border" data-foms-no-autodismiss>
+                    <div class="small text-muted fw-semibold">네이버 옵션 원문 — 규격은 사람이 이걸 읽고 편집기에서 채운다</div>
+                    <div class="wb-option-raw">{{ selected.naver.option }}</div>
+                </div>
+                {% endif %}
+
+                {# 결정 7 · 1단: 집 단위 값(한 집에 하나뿐인 것). #}
+                <div class="wb-cmp-title" data-cmp-section="household">
+                    집 단위 <span class="wb-cmp-title__sub">수취인·주소·결제 — 한 집에 하나뿐인 값</span>
+                </div>
+                <table class="wb-cmp">
+                    <thead>
+                        <tr><th>항목</th><th>네이버 원본</th><th>FOMS 현재 값</th></tr>
+                    </thead>
+                    <tbody>
+                        <tr>
+                            <td class="wb-cmp__k">수취인</td>
+                            <td>{{ selected.naver.recipient_name }}</td>
+                            <td>{{ selected.foms.customer_name or '아직 없음' }}</td>
+                        </tr>
+                        <tr>
+                            <td class="wb-cmp__k">연락처</td>
+                            <td>{{ selected.naver.recipient_tel }}</td>
+                            <td>{{ selected.foms.phone or '아직 없음' }}</td>
+                        </tr>
+                        <tr>
+                            <td class="wb-cmp__k">주소</td>
+                            <td>{{ selected.naver.address }}</td>
+                            <td>{{ selected.foms.address or '아직 없음' }}</td>
+                        </tr>
+                    </tbody>
+                </table>
+
+                {# 결정 5 · 7 · 2단: 상품주문 행 단위. 예전에는 pane 이 링크 1건이라
+                   6건 묶음을 다 보려면 페이지를 6번 열어야 했다. #}
+                <div class="wb-cmp-title" data-cmp-section="product-orders">
+                    상품주문 {{ member_rows|length }}건
+                    <span class="wb-cmp-title__sub">네이버가 본품과 옵션을 각각 다른 상품주문으로 준다</span>
+                </div>
+                <table class="wb-cmp">
+                    <thead>
+                        <tr>
+                            <th>상품주문번호</th><th>제품 · 옵션 원문</th>
+                            <th class="wb-cmp__num">수량</th><th class="wb-cmp__num">금액</th>
+                        </tr>
+                    </thead>
+                    <tbody>
+                        {% for row in member_rows %}
+                        <tr>
+                            <td class="wb-cmp__k">{{ row.external_id }}</td>
+                            <td>
+                                <div class="fw-semibold">{{ row.product }}</div>
+                                {% if row.options %}
+                                <div class="wb-cmp__option">{{ row.options }}</div>
+                                {% endif %}
+                            </td>
+                            <td class="wb-cmp__num">{{ row.quantity if row.quantity is not none else '–' }}</td>
+                            <td class="wb-cmp__num">{{ '{:,}'.format(row.amount) if row.amount is not none else '–' }}</td>
+                        </tr>
+                        {% endfor %}
+                    </tbody>
+                </table>
+            </div>
+
+            {# 결정 6: 불가역 액션 4종 세트 — 건수 재진술 + 되돌릴 수 없음 + 사후 경로. #}
+            {% if not selected.order_id %}
+            <div class="modal fade" id="wb-modal-create" tabindex="-1" aria-hidden="true">
+                <div class="modal-dialog modal-dialog-centered">
+                    <div class="modal-content">
+                        <div class="modal-header">
+                            <h5 class="modal-title">주문을 만들기 전에 확인하세요</h5>
+                            <button type="button" class="btn-close" data-bs-dismiss="modal" aria-label="닫기"></button>
+                        </div>
+                        <div class="modal-body">
+                            {# ① 건수 재진술 — 버튼 라벨과 같은 숫자를 문장으로 다시 읽힌다. #}
+                            <p class="fw-semibold mb-2">
+                                {{ selected.naver.recipient_name }}님의 상품주문
+                                {{ selected_group.count if selected_group else 1 }}건을
+                                FOMS 주문 1건으로 만듭니다.
+                            </p>
+                            {# ② 되돌릴 수 없음 #}
+                            <div class="alert alert-danger py-2 mb-2" data-foms-no-autodismiss>
+                                만든 주문을 이 화면에서 되돌릴 수는 없습니다(주문 화면에서 취소해야 합니다).
+                            </div>
+                            {# ③ 사후 경로 — 누른 다음 무엇이 열리는지 #}
+                            <p class="small text-muted mb-0">
+                                만든 뒤에는 <b>ERP 규격 입력</b> 단계가 열립니다. 규격은 옵션 원문을 보고 사람이 채웁니다.
+                                담당자 지정은 이 화면 일이 아니라 <b>실측 일정</b> 단계에서 합니다.
+                            </p>
+                        </div>
+                        <div class="modal-footer">
+                            <button type="button" class="btn btn-outline-secondary" data-bs-dismiss="modal">취소</button>
+                            <button type="button" class="btn btn-primary" id="wb-create-order"
+                                    data-link-id="{{ selected_group.id if selected_group else selected.link_id }}">
+                                주문 만들기
+                            </button>
+                        </div>
+                    </div>
+                </div>
+            </div>
+            {% endif %}
+            {% else %}
+            <div class="card-body wb-empty">확인할 주문이 없습니다.</div>
+            {% endif %}
+        </section>
+    </div>
+
+    {% else %}
+    {# W2~W4 에서 채운다. 게이트가 기본 off 라 실사용자에게는 보이지 않는다. #}
+    <div class="wb-empty">이 탭은 아직 준비 중입니다.</div>
+    {% endif %}
+</div>
+{% endblock %}
+
+{% block scripts %}
+<script src="{{ url_for('static', filename='js/admin/naver-workbench.js') }}?v=20260820a" defer></script>
+{% endblock %}

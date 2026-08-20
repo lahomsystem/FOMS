@@ -535,8 +535,7 @@ def naver_ingest_triage():
         None,
     )
 
-    return render_template(
-        "admin/naver_triage.html",
+    context = dict(
         queue=queue,
         pending_count=sum(len(group["link_ids"]) for group in queue),
         group_count=len(queue),
@@ -544,6 +543,81 @@ def naver_ingest_triage():
         selected_group=selected_group,
         sales_users=_active_sales_users(db),
     )
+
+    from foms.services.feature_flags import is_naver_workbench_enabled
+
+    if is_naver_workbench_enabled(session.get("user_id")):
+        return render_template(
+            "admin/naver_workbench.html",
+            active_tab=_active_tab(),
+            member_rows=_member_rows(db, selected_group),
+            **context,
+        )
+    return render_template("admin/naver_triage.html", **context)
+
+
+#: 통합 화면의 탭 — 두 URL 왕복을 없앤 자리(설계 결정 1).
+WORKBENCH_TABS = ("work", "place", "claim", "all")
+
+
+def _active_tab() -> str:
+    """``?tab=`` 을 읽어 유효한 탭 이름으로 정규화한다.
+
+    모르는 값은 조용히 기본 탭으로 떨어뜨린다 — 주소를 손으로 고쳐도 화면이 죽지 않는다.
+
+    Returns:
+        ``work`` / ``place`` / ``claim`` / ``all`` 중 하나.
+    """
+    raw = (request.args.get("tab") or "").strip().lower()
+    return raw if raw in WORKBENCH_TABS else "work"
+
+
+def _member_rows(db, selected_group: Optional[dict]) -> list[dict[str, Any]]:
+    """선택한 집의 **상품주문 행 단위** 목록 (설계 결정 5·7).
+
+    네이버는 본품과 구성 옵션을 각각 다른 상품주문으로 준다. 예전 화면은 pane 이
+    링크 1건이라 6건 묶음을 다 보려면 페이지를 6번 열어야 했다. 여기서 한 번에 편다.
+
+    대조표를 2단으로 나누는 이유도 같다 — 집 단위 값(수취인·주소·결제)과 상품주문 행
+    단위 값(옵션 원문·금액)은 단위가 다르다. 한 표에 섞으면 "네이버 1건 vs FOMS 묶음
+    합계"로 어긋난다(03 감사 결함 #7).
+
+    Args:
+        db: 요청 스코프 DB 세션.
+        selected_group: :func:`_group_queue` 가 만든 묶음(없으면 빈 목록).
+
+    Returns:
+        상품주문 행 목록(대표 먼저). 옵션 원문은 **자르지 않는다** — 사람이 이걸 보고
+        규격을 채운다(도메인 규칙 6).
+    """
+    if not selected_group:
+        return []
+    link_ids = list(selected_group.get("link_ids") or [])
+    if not link_ids:
+        return []
+    links = {
+        row.id: row
+        for row in db.query(ExternalOrderLink)
+        .filter(ExternalOrderLink.id.in_(link_ids))  # perf-ok: 한 집(최대 십수 건) batch
+        .all()
+    }
+    rows: list[dict[str, Any]] = []
+    for member in selected_group.get("members") or []:
+        link = links.get(member["id"])
+        if link is None:
+            continue
+        summary = summarize_snapshot(link.raw_snapshot)
+        rows.append({
+            "link_id": link.id,
+            "external_id": link.external_id,
+            "product": summary["product"],
+            "options": summary["options"],
+            "quantity": summary["quantity"],
+            "amount": summary["amount"],
+            "is_lead": member.get("is_lead", False),
+            "place_confirmed": summary["place_confirmed"],
+        })
+    return rows
 
 
 def _group_queue(links: list[ExternalOrderLink], orders: dict,

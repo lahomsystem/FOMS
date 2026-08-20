@@ -1,0 +1,157 @@
+/* 네이버 수집 워크벤치 — UI 개편 본체 (스펙 2026-08-20-naver-ingest-workbench_SPEC.md).
+ *
+ * 인라인 스타일 금지 규칙 때문에 전용 파일로 둔다. 색·간격 값은 erp-pro.css 토큰을
+ * 쓸 수 있으면 쓰고, 이 화면에만 있는 개념(색띠 3층·2단 대조표)만 여기서 정의한다.
+ */
+
+.naver-workbench {
+    --wb-line: #dbe1ea;
+    --wb-line-soft: #edf1f6;
+    --wb-muted: #6b7280;
+    --wb-surface-soft: #f6f8fb;
+}
+
+/* ── 상태 스트립: 예전 카드 3장(워터마크·마지막 실행·인증 만료)을 한 줄로 접었다.
+      CS 는 이 값을 매번 읽지 않는다 — 이상할 때만 본다. ─────────────────── */
+.wb-strip {
+    display: flex;
+    align-items: center;
+    gap: 18px;
+    flex-wrap: wrap;
+    padding: 8px 0;
+    border-bottom: 1px solid var(--wb-line);
+    font-size: 13px;
+}
+
+.wb-strip__title { font-size: 15px; font-weight: 700; }
+
+/* 결정 3: 숫자 이중 표기는 화면에서 여기 한 곳만 한다.
+   탭 배지는 집 수만 — 탭별 상품주문 건수를 만들려면 없는 숫자를 지어내야 한다. */
+.wb-strip__count {
+    font-weight: 700;
+    font-variant-numeric: tabular-nums;
+    background: #eaf1ff;
+    color: #2563eb;
+    padding: 2px 9px;
+    border-radius: 999px;
+}
+
+.wb-strip__fact { color: var(--wb-muted); }
+.wb-strip__fact b { color: inherit; font-weight: 600; }
+.wb-strip__spacer { flex: 1; }
+
+/* ── 탭: triage ↔ naver-ingest 두 URL 왕복을 없앤 자리 ─────────────────── */
+.wb-tabs {
+    display: flex;
+    gap: 2px;
+    border-bottom: 1px solid var(--wb-line);
+    margin-bottom: 12px;
+}
+
+.wb-tab {
+    display: inline-block;
+    padding: 9px 14px;
+    font-size: 13px;
+    font-weight: 600;
+    color: var(--wb-muted);
+    text-decoration: none;
+    border-bottom: 2px solid transparent;
+}
+
+.wb-tab:hover { color: #111827; text-decoration: none; }
+.wb-tab[aria-selected="true"] { color: #2563eb; border-bottom-color: #2563eb; }
+
+.wb-tab__n {
+    display: inline-block;
+    margin-left: 6px;
+    padding: 1px 7px;
+    border-radius: 10px;
+    background: var(--wb-surface-soft);
+    font-size: 11px;
+    font-weight: 700;
+}
+
+.wb-tab[aria-selected="true"] .wb-tab__n { background: #eaf1ff; color: #2563eb; }
+.wb-tab--danger .wb-tab__n { background: #fdeaea; color: #b91c1c; }
+
+/* ── 본문 2단 (결정 8): 원본을 읽으며 규격을 채우는 일이라 대조가 상시 필요하다 ── */
+.wb-split {
+    display: grid;
+    grid-template-columns: minmax(320px, 400px) 1fr;
+    gap: 12px;
+    align-items: start;
+}
+
+@media (max-width: 991.98px) {
+    .wb-split { grid-template-columns: 1fr; }
+}
+
+/* ── 큐 행: 한 집 = 한 줄 ────────────────────────────────────────────── */
+.wb-queue { max-height: 640px; overflow: auto; }
+
+.wb-row {
+    display: grid;
+    grid-template-columns: 5px 1fr;
+    gap: 10px;
+    border-bottom: 1px solid var(--wb-line-soft);
+    text-decoration: none;
+    color: inherit;
+}
+
+.wb-row:hover { background: var(--wb-surface-soft); color: inherit; text-decoration: none; }
+.wb-row[aria-current="true"] { background: #eaf1ff; }
+
+/* 결정 4 의 3층째 — 색띠. 색만으로 구분하면 색맹 사용자가 못 읽으므로
+   .wb-can 글자 라벨을 항상 함께 둔다. */
+.wb-row__bar { background: #2563eb; }
+.wb-row--wait .wb-row__bar { background: #f59e0b; }
+.wb-row--spec .wb-row__bar { background: #22c55e; }
+
+/* 손대면 안 되는 집은 띠를 끊어 그린다 — 색을 못 봐도 "다른 줄"임을 안다. */
+.wb-row--stop .wb-row__bar {
+    background: repeating-linear-gradient(180deg, #9aa3af 0 4px, transparent 4px 8px);
+}
+
+.wb-row--stop .wb-row__body { opacity: .62; }
+.wb-row__body { padding: 9px 10px 10px 0; min-width: 0; }
+.wb-row__line1 { display: flex; align-items: baseline; gap: 8px; }
+.wb-row__name { font-weight: 700; font-size: 13.5px; }
+.wb-row__amt { margin-left: auto; font-variant-numeric: tabular-nums; font-weight: 700; }
+
+.wb-row__line2 {
+    color: var(--wb-muted);
+    margin-top: 2px;
+    white-space: nowrap;
+    overflow: hidden;
+    text-overflow: ellipsis;
+}
+
+.wb-row__line3 { display: flex; align-items: center; gap: 5px; margin-top: 5px; flex-wrap: wrap; }
+.wb-row__when { margin-left: auto; color: #9aa3af; font-size: 11.5px; font-variant-numeric: tabular-nums; }
+
+/* "지금 손대도 되는가" 글자 라벨 — 배지가 아니라 문장 톤이라
+   '상태'가 아니라 '지금 뭘 할 수 있나'로 읽힌다. */
+.wb-can { font-size: 11.5px; font-weight: 700; }
+.wb-can--go { color: #2563eb; }
+.wb-can--wait { color: #b45309; }
+.wb-can--spec { color: #15803d; }
+.wb-can--stop { color: #6b7280; }
+
+/* ── 우측 상세 ──────────────────────────────────────────────────────── */
+.wb-option-raw { font-size: 16px; font-weight: 700; line-height: 1.5; }
+
+/* 결정 7: 집 단위와 상품주문 행 단위는 단위가 달라 한 표에 섞지 않는다. */
+.wb-cmp-title { font-weight: 700; margin: 16px 0 6px; }
+.wb-cmp-title__sub { font-weight: 500; color: var(--wb-muted); font-size: 11.5px; }
+.wb-cmp { width: 100%; border-collapse: collapse; font-size: 13px; }
+.wb-cmp th,
+.wb-cmp td { padding: 7px 8px; border-bottom: 1px solid var(--wb-line-soft); vertical-align: top; }
+.wb-cmp thead th { font-size: 11.5px; color: var(--wb-muted); text-align: left; background: var(--wb-surface-soft); }
+.wb-cmp td.wb-cmp__k { color: var(--wb-muted); width: 104px; }
+.wb-cmp td.wb-cmp__num { text-align: right; font-variant-numeric: tabular-nums; }
+.wb-cmp tr.wb-cmp__sum td { background: var(--wb-surface-soft); font-weight: 700; }
+
+/* 옵션 원문은 자르지 않는다 — 사람이 이걸 보고 규격을 채운다(도메인 규칙 6). */
+.wb-cmp__option { color: var(--wb-muted); font-size: 11.5px; white-space: pre-wrap; }
+
+.wb-empty { padding: 40px 16px; text-align: center; color: var(--wb-muted); }
