@@ -256,8 +256,14 @@ PATH_LABELS: dict[str, str] = {
     # --- 당사자 ---
     "parties.customer.name": "고객명",
     "parties.customer.phone": "전화번호",
-    "parties.orderer.name": "주문자명",
-    "parties.orderer.phone": "주문자 연락처",
+    "parties.customer.phone2": "보조 연락처",
+    # ORDERER-AXIS-01: parties.orderer 는 발주처(라홈/하우드) 자리다. 주문한 사람은 buyer.
+    # 구 라벨이 '주문자명'이라 두 뜻이 겹쳐 있던 흔적이었다 — 과거 이력 표시를 위해 경로는
+    # 남기되 라벨만 바로잡는다.
+    "parties.orderer.name": "발주사",
+    "parties.orderer.phone": "발주사 연락처",
+    "parties.buyer.name": "주문자명",
+    "parties.buyer.phone": "주문자 연락처",
     "parties.manager.name": "담당자",
     # --- 현장 ---
     "site.address_full": "주소",

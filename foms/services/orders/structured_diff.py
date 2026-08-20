@@ -58,8 +58,14 @@ SCALAR_PATHS: tuple[str, ...] = (
     # --- 당사자 ---
     "parties.customer.name",
     "parties.customer.phone",
+    # 보조 연락처. 수집이 채우고 폼은 렌더하지 않는다 — 원장에 없으면 사라져도 흔적이 없다
+    # (2026-08-20 유실 사고: 누가 언제 지웠는지 남지 않았다).
+    "parties.customer.phone2",
+    # 발주사(라홈/하우드). 주문한 사람은 아래 buyer 다 — ORDERER-AXIS-01.
     "parties.orderer.name",
     "parties.orderer.phone",
+    "parties.buyer.name",
+    "parties.buyer.phone",
     "parties.manager.name",
     # --- 현장 ---
     "site.address_full",

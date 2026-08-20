@@ -73,11 +73,15 @@ def get_order_display_name(order):
     parties = sd.get('parties') if isinstance(sd.get('parties'), dict) else {}
     parties_customer = parties.get('customer') if isinstance(parties.get('customer'), dict) else {}
     parties_orderer = parties.get('orderer') if isinstance(parties.get('orderer'), dict) else {}
+    parties_buyer = parties.get('buyer') if isinstance(parties.get('buyer'), dict) else {}
     parties_manager = parties.get('manager') if isinstance(parties.get('manager'), dict) else {}
 
     candidates = [
         parties_customer.get('name'),
         parties_customer.get('customer_name'),
+        # 주문한 사람이 발주사(라홈)보다 앞선다 — parties.orderer 는 발주처 이름이라
+        # 카드 제목이 전부 '라홈'이 돼 버린다(ORDERER-AXIS-01).
+        parties_buyer.get('name'),
         parties_orderer.get('name'),
         parties_manager.get('name'),
         customer.get('name'),
