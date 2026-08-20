@@ -155,3 +155,27 @@
 .wb-cmp__option { color: var(--wb-muted); font-size: 11.5px; white-space: pre-wrap; }
 
 .wb-empty { padding: 40px 16px; text-align: center; color: var(--wb-muted); }
+
+/* ── 전체 이력 (W4) ──────────────────────────────────────────────────── */
+.wb-filters { display: flex; gap: 6px; padding: 8px 12px; flex-wrap: wrap; border-bottom: 1px solid var(--wb-line-soft); }
+
+.wb-chip {
+    border: 1px solid var(--wb-line);
+    border-radius: 999px;
+    padding: 3px 10px;
+    font-size: 11.5px;
+    color: var(--wb-muted);
+    text-decoration: none;
+}
+
+.wb-chip:hover { background: var(--wb-surface-soft); color: #111827; text-decoration: none; }
+.wb-chip[aria-pressed="true"] { background: #111827; border-color: #111827; color: #fff; font-weight: 600; }
+
+/* 결정 2: 취소·반품은 이력에서 빼지 않고 회색으로 같은 자리에 남긴다.
+   빼면 "그 주문 어디 갔지" 가 되고, 남기면 같은 자리에서 사실을 확인할 수 있다. */
+.wb-hist--muted td { background: #fafbfc; color: #9aa3af; }
+.wb-hist--muted a:not(.btn) { color: #9aa3af; }
+
+.wb-pager { display: flex; align-items: center; gap: 8px; padding: 10px 12px; flex-wrap: wrap; }
+.wb-pager a { border: 1px solid var(--wb-line); border-radius: 6px; padding: 2px 9px; text-decoration: none; }
+.wb-pager__cur { font-weight: 700; font-variant-numeric: tabular-nums; }

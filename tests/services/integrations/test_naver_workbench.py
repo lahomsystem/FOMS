@@ -507,3 +507,100 @@ def test_explicit_link_id_is_honoured_even_across_tabs(client, workbench_on):
     header = body.split('class="card-header py-2 d-flex')[1].split("</div>")[0]
     assert "둘째 집" in body
     assert str(wanted.external_id) in header, header
+
+
+# --------------------------------------------------------------------------- #
+# 전체 이력 탭 (W4)
+# --------------------------------------------------------------------------- #
+
+def test_history_tab_keeps_claimed_rows_greyed_instead_of_dropping_them(client, workbench_on):
+    """결정 2: 취소·반품은 탭으로 분리하되 이력에서 **빼지 않는다**.
+
+    빼면 "그 주문 어디 갔지" 가 되고, 남기면 같은 자리에서 사실을 확인할 수 있다.
+    Linnworks(Parked)·Amazon(Pending grayed out)이 독립적으로 같은 답을 냈다.
+    """
+    _login(client)
+    _collected(order_no="N-H-OK", product="정상 붙박이장", amount=100000)
+    _collected(order_no="N-H-BAD", product="취소된 붙박이장", amount=100000,
+               claim_status="CANCEL_DONE")
+
+    body = client.get(f"{TRIAGE_PATH}?tab=all").get_data(as_text=True)
+
+    assert "정상 붙박이장" in body
+    assert "취소된 붙박이장" in body, "이력에서 빼면 안 된다"
+    row = body.split("취소된 붙박이장")[0].rsplit("<tr", 1)[1]
+    assert "wb-hist--muted" in row, row
+
+
+def test_history_tab_locks_actions_on_claimed_rows(client, workbench_on):
+    """회색으로 남기되 액션은 잠근다 — 서버가 400 으로 막는 일을 화면이 열어 두면 헛클릭이다."""
+    _login(client)
+    _collected(order_no="N-H-LOCK", product="취소된 붙박이장", amount=100000,
+               claim_status="CANCEL_DONE")
+
+    body = client.get(f"{TRIAGE_PATH}?tab=all").get_data(as_text=True)
+    row = body.split("취소된 붙박이장")[0].rsplit("<tr", 1)[1] + \
+        body.split("취소된 붙박이장")[1].split("</tr>")[0]
+    assert "disabled" in row, row
+
+
+def test_history_tab_filters_by_status(client, workbench_on):
+    """상태 필터가 목록을 실제로 좁힌다."""
+    _login(client)
+    link = _collected(order_no="N-H-FAIL", product="실패한 수집", amount=100000)
+    link.sync_status = "FAILED"
+    link.failure_reason = "HTTP 500"
+    db_session.commit()
+    _collected(order_no="N-H-NORMAL", product="정상 수집", amount=100000)
+
+    body = client.get(f"{TRIAGE_PATH}?tab=all&status=FAILED").get_data(as_text=True)
+
+    assert "실패한 수집" in body
+    assert "정상 수집" not in body
+
+
+def test_history_pagination_keeps_tab_and_filter(client, workbench_on, monkeypatch):
+    """페이지를 넘겨도 탭과 필터가 유지된다 — 선행 결함 #8 의 워크벤치 쪽."""
+    from foms.web.admin import naver_ingest as mod
+
+    monkeypatch.setattr(mod, "PAGE_SIZE", 1, raising=False)
+    _login(client)
+    for idx in range(3):
+        _collected(order_no=f"N-H-PG-{idx}", product=f"집 {idx}", amount=1000, place_status="")
+
+    body = client.get(f"{TRIAGE_PATH}?tab=all&place=PENDING").get_data(as_text=True)
+    pager = body.split('class="wb-pager"')[1].split("</div>")[0]
+
+    assert "tab=all" in pager, pager
+    assert "place=PENDING" in pager, pager
+    assert "page=2" in pager, pager
+
+
+def test_history_tab_shows_the_failure_reason(client, workbench_on):
+    """실패는 사유까지 보여야 한다 — 카운터만 있으면 무엇을 고쳐야 할지 모른다."""
+    _login(client)
+    link = _collected(order_no="N-H-WHY", product="실패한 수집", amount=100000)
+    link.sync_status = "FAILED"
+    link.failure_reason = "커머스API 인증 만료"
+    db_session.commit()
+
+    body = client.get(f"{TRIAGE_PATH}?tab=all").get_data(as_text=True)
+    assert "커머스API 인증 만료" in body
+
+
+def test_history_locked_row_says_why_and_looks_locked(client, workbench_on):
+    """잠긴 버튼은 잠긴 티가 나야 하고 이유가 옆에 있어야 한다.
+
+    파란 primary 버튼을 그대로 두고 pointer-events 로만 막으면 사람은 계속 누른다.
+    기존 이력 화면이 이미 빨간 사유 줄을 붙이고 있었다 — 워크벤치도 같아야 한다.
+    """
+    _login(client)
+    _collected(order_no="N-H-REASON", product="취소된 붙박이장", amount=100000,
+               claim_status="CANCEL_DONE")
+
+    body = client.get(f"{TRIAGE_PATH}?tab=all").get_data(as_text=True)
+    row = body.split("취소된 붙박이장")[1].split("</tr>")[0]
+
+    assert "btn-outline-secondary" in row, row
+    assert "btn-primary" not in row, row
+    assert "취소·반품 진행 중" in row, row

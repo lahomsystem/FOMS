@@ -572,6 +572,7 @@ def naver_ingest_triage():
                 context["selected"] = _triage_pane(db, lead) if lead is not None else None
                 context["selected_group"] = selected_group
 
+        history = _history_view(db) if active_tab == "all" else {}
         return render_template(
             "admin/naver_workbench.html",
             active_tab=active_tab,
@@ -580,6 +581,7 @@ def naver_ingest_triage():
             claim_groups=claim_groups,
             place_groups=place_groups,
             place_group_count=len(place_groups),
+            history=history,
             **context,
         )
     return render_template("admin/naver_triage.html", **context)
@@ -599,6 +601,44 @@ def _active_tab() -> str:
     """
     raw = (request.args.get("tab") or "").strip().lower()
     return raw if raw in WORKBENCH_TABS else "work"
+
+
+def _history_view(db) -> dict[str, Any]:
+    """전체 이력 탭 데이터 (W4).
+
+    이력 표 자체는 기존 관리 화면과 **같은 함수**(:func:`_link_rows`)를 쓴다 — 집 묶음·
+    페이징·클레임 표식 규칙이 두 벌이 되면 두 화면의 숫자가 또 갈린다.
+
+    취소·반품 행은 빼지 않는다(설계 결정 2). 빼면 "그 주문 어디 갔지" 가 되고,
+    회색으로 남기면 같은 자리에서 사실을 확인할 수 있다.
+
+    Args:
+        db: 요청 스코프 DB 세션.
+
+    Returns:
+        ``rows``·``total``·``page``·``page_size``·``status``·``place_pending``·``counts`` 를 담은 dict.
+    """
+    status = (request.args.get("status") or "").strip().upper()
+    status = status if status in VALID_STATUSES else ""
+    place_pending = (request.args.get("place") or "").strip().upper() == "PENDING"
+    try:
+        page = max(1, int(request.args.get("page", 1)))
+    except (TypeError, ValueError):
+        page = 1
+
+    rows, total = _link_rows(db, status=status or None, page=page,
+                             place_pending=place_pending)
+    return {
+        "rows": rows,
+        "total": total,
+        "page": page,
+        "page_size": PAGE_SIZE,
+        "pages": ((total - 1) // PAGE_SIZE) + 1 if total else 1,
+        "status": status,
+        "place_pending": place_pending,
+        "counts": _status_group_counts(db),
+        "place_pending_count": _place_pending_group_count(db),
+    }
 
 
 def _place_groups(db) -> list[dict[str, Any]]:
