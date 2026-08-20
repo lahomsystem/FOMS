@@ -610,9 +610,18 @@ def test_history_locked_row_says_why_and_looks_locked(client, workbench_on):
 # 실패 4단계 결과 띠 (W5)
 # --------------------------------------------------------------------------- #
 
-def _with_failure(link, reason="커머스API 인증 만료", at="2026-08-20T10:44:00"):
+def _with_failure(link, reason="커머스API 인증 만료", at="2026-08-20T10:44:00",
+                  action="confirm"):
     """워커가 남긴 실패 기록을 붙인다(fulfillment.last_error)."""
-    link.triage_state = {"fulfillment": {"last_error": reason, "last_error_at": at}}
+    link.triage_state = {"fulfillment": {"last_error": reason, "last_error_at": at,
+                                         "last_error_action": action}}
+    db_session.commit()
+    return link
+
+
+def _with_dock_state(link):
+    """실패와 무관한 다른 축의 triage_state(도크 체크) — 실패 목록에 끼면 안 된다."""
+    link.triage_state = {"dock": {"checked": True}}
     db_session.commit()
     return link
 
@@ -764,3 +773,173 @@ def test_manager_also_cannot_open_history_tab(client, workbench_on):
 
     assert 'data-active-tab="work"' in body
     assert "전체 이력" not in body
+
+
+# --------------------------------------------------------------------------- #
+# 결과 띠의 재시도 대상·조회 창 (리뷰 지적 P4)
+# --------------------------------------------------------------------------- #
+
+def test_retry_uses_the_action_that_actually_failed(client, workbench_on):
+    """발송처리가 실패한 집은 **발송처리**로 다시 시도한다.
+
+    항상 발주확인으로 보내면 이미 발주확인이 끝난 집이라 멱등 규칙에 걸려 조용히
+    넘어가고, 실패 사유는 지워지지 않아 띠가 영원히 남는다.
+    """
+    _login(client)
+    confirmed = _with_failure(_collected(order_no="N-RA-C", product="발주확인 실패", amount=1000),
+                              reason="처리권한이 없는 상품주문번호", action="confirm")
+    dispatched = _with_failure(_collected(order_no="N-RA-D", product="발송처리 실패", amount=1000),
+                               reason="발송 가능 상태가 아닙니다", action="dispatch")
+
+    body = client.get(TRIAGE_PATH).get_data(as_text=True)
+    strip = body.split('id="wb-result"')[1].split("</section>")[0]
+    ids = strip.split('id="wb-retry-failed"')[1].split('data-link-ids="')[1].split('"')[0]
+
+    assert f"{confirmed.id}:confirm" in ids, ids
+    assert f"{dispatched.id}:dispatch" in ids, ids
+
+
+def test_failure_row_says_which_action_failed(client, workbench_on):
+    """사유 옆에 어느 작업이 실패했는지 적는다 — 같은 사유라도 대응이 다르다."""
+    _login(client)
+    _with_failure(_collected(order_no="N-RA-LABEL", product="발송처리 실패", amount=1000),
+                  reason="발송 가능 상태가 아닙니다", action="dispatch")
+
+    body = client.get(TRIAGE_PATH).get_data(as_text=True)
+    strip = body.split('id="wb-result"')[1].split("</section>")[0]
+    row = strip.split("발송 가능 상태가 아닙니다")[0].rsplit("<tr", 1)[1]
+
+    assert "발송처리" in row, row
+
+
+def test_failure_strip_finds_failures_outside_the_recent_window(client, workbench_on, monkeypatch):
+    """오래 전에 수집된 집이 오늘 실패해도 띠에 뜬다.
+
+    최근 수집분 N건만 읽어 파이썬으로 거르면, 그 뒤로 수집이 많이 쌓인 집의 실패는
+    창 밖으로 밀려 화면에서 사라진다 — 실패는 수집 시각이 아니라 실패했다는 사실로 찾아야 한다.
+    """
+    from foms.web.admin import naver_ingest as mod
+
+    monkeypatch.setattr(mod, "QUEUE_LINK_FETCH_LIMIT", 2, raising=False)
+    _login(client)
+    old_failure = _with_failure(_collected(order_no="N-RW-OLD", product="옛 수집 실패", amount=1000),
+                                reason="이미 발주확인된 주문입니다")
+    for idx in range(3):
+        _with_dock_state(_collected(order_no=f"N-RW-NEW-{idx}", product=f"새 수집 {idx}", amount=1000))
+
+    body = client.get(TRIAGE_PATH).get_data(as_text=True)
+
+    assert 'id="wb-result"' in body, "실패가 있는데 띠가 없다"
+    strip = body.split('id="wb-result"')[1].split("</section>")[0]
+    assert "이미 발주확인된 주문입니다" in strip, strip[:400]
+    assert str(old_failure.id) in strip
+
+
+# --------------------------------------------------------------------------- #
+# 발송처리 (리뷰 지적 P4 — 게이트를 켜면 옛 화면에 있던 기능이 사라졌다)
+#
+# 네이버에 "물건이 나갔다"를 알리는 불가역 호출이다. 발주확인이 끝난 집에만 연다.
+# --------------------------------------------------------------------------- #
+
+def _dispatched(link, at="2026-08-20T11:00:00"):
+    """이미 발송처리된 집(워커의 멱등 기록)."""
+    link.triage_state = {"fulfillment": {"place_confirmed_at": "2026-08-20T10:00:00",
+                                         "dispatched_at": at}}
+    db_session.commit()
+    return link
+
+
+def test_dispatch_button_opens_for_a_confirmed_household(client, workbench_on):
+    """발주확인이 끝난 집에는 발송처리 버튼이 열린다."""
+    _login(client)
+    link = _collected(order_no="N-DSP-OK", product="붙박이장", amount=100000, place_status="OK")
+
+    body = client.get(f"{TRIAGE_PATH}?link_id={link.id}").get_data(as_text=True)
+    head = body.split('id="wb-dispatch"')[1].split(">")[0]
+
+    assert "disabled" not in head, head
+    assert 'id="wb-modal-dispatch"' in body, "불가역 호출은 확인 모달을 거친다"
+
+
+def test_dispatch_modal_restates_the_count_and_says_it_is_irreversible(client, workbench_on):
+    """결정 6 불가역 4종 세트 — 건수 재진술·되돌릴 수 없음·사후 경로."""
+    _login(client)
+    link = _collected(order_no="N-DSP-MODAL", product="붙박이장", amount=100000, place_status="OK")
+    _collected(order_no="N-DSP-MODAL", product="상판 추가", amount=10000, place_status="OK")
+
+    body = client.get(f"{TRIAGE_PATH}?link_id={link.id}").get_data(as_text=True)
+    modal = body.split('id="wb-modal-dispatch"')[1].split('id="wb-dispatch-confirm"')[0]
+
+    assert "2건" in modal, modal[:600]
+    assert "되돌릴 수 없" in modal, modal[:600]
+    assert "data-foms-no-autodismiss" in modal, modal[:600]
+
+
+def test_dispatch_button_is_locked_before_place_confirm(client, workbench_on):
+    """발주확인 전에는 잠근다 — 네이버가 거절하는 호출을 화면이 열어 두면 헛클릭이다."""
+    _login(client)
+    link = _collected(order_no="N-DSP-WAIT", product="붙박이장", amount=100000, place_status="")
+
+    body = client.get(f"{TRIAGE_PATH}?link_id={link.id}").get_data(as_text=True)
+    head = body.split('id="wb-dispatch"')[1].split(">")[0]
+
+    assert "disabled" in head, head
+    assert "발주확인" in head, "잠긴 이유를 버튼에 달아 둔다"
+
+
+def test_dispatch_shows_done_badge_instead_of_button(client, workbench_on):
+    """이미 발송처리된 집은 버튼이 아니라 완료 표시다(두 번 부르지 않는다)."""
+    _login(client)
+    link = _dispatched(_collected(order_no="N-DSP-DONE", product="붙박이장",
+                                  amount=100000, place_status="OK"))
+
+    body = client.get(f"{TRIAGE_PATH}?link_id={link.id}").get_data(as_text=True)
+
+    assert "발송처리 완료" in body
+    assert 'id="wb-dispatch"' not in body
+
+
+def test_dispatch_is_absent_for_claimed_household(client, workbench_on):
+    """취소·반품 집에는 발송처리가 없다 — 손대지 않는 집이다."""
+    _login(client)
+    link = _collected(order_no="N-DSP-CLAIM", product="붙박이장", amount=100000,
+                      place_status="OK", claim_status="CANCEL_REQUEST")
+
+    body = client.get(f"{TRIAGE_PATH}?tab=claim&link_id={link.id}").get_data(as_text=True)
+
+    assert 'id="wb-dispatch"' not in body
+
+
+# --------------------------------------------------------------------------- #
+# 발주확인 전 탭의 클레임 판정 (리뷰 지적 P4)
+#
+# 모집단을 '발주확인 전' 링크로 먼저 좁힌 뒤 클레임을 판정하면, 이미 발주확인이 끝난
+# 형제의 취소를 못 본다 — 취소가 걸린 집에 발주확인이 나간다.
+# --------------------------------------------------------------------------- #
+
+def test_place_tab_drops_household_whose_sibling_is_claimed(client, workbench_on):
+    """형제 상품주문이 취소 중이면 그 집은 발주확인 목록에 없다."""
+    _login(client)
+    _collected(order_no="N-PC-MIX", product="취소된 형제", amount=100000,
+               place_status="OK", claim_status="CANCEL_REQUEST")
+    _collected(order_no="N-PC-MIX", product="남은 형제", amount=50000, place_status="")
+
+    body = client.get(f"{TRIAGE_PATH}?tab=place").get_data(as_text=True)
+
+    assert "남은 형제" not in body, "취소가 걸린 집이 발주확인 목록에 남아 있다"
+    assert "발주확인이 필요한 집이 없습니다" in body
+
+
+def test_place_tab_badge_matches_the_list_after_the_claim_check(client, workbench_on):
+    """배지 숫자도 같이 줄어든다 — '2집' 이라 써 놓고 1줄이면 사람이 나머지를 찾아 헤맨다."""
+    _login(client)
+    _collected(order_no="N-PC-MIX2", product="취소된 형제", amount=100000,
+               place_status="OK", claim_status="CANCEL_REQUEST")
+    _collected(order_no="N-PC-MIX2", product="남은 형제", amount=50000, place_status="")
+    _collected(order_no="N-PC-OK", product="정상 집", amount=70000, place_status="")
+
+    body = client.get(f"{TRIAGE_PATH}?tab=place").get_data(as_text=True)
+    tab = body.split('data-tab="place"')[1].split("</a>")[0]
+
+    assert "1집" in tab, tab
+    assert "정상 집" in body

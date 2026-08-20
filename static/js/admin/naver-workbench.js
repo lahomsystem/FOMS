@@ -10,6 +10,42 @@
     wirePlaceOrder();
     wireClaimDone();
     wireRetryFailed();
+    wireDispatch();
+
+    /* ── 처리 대기 탭: 발송처리 ────────────────────────────────────────
+       네이버에 "물건이 나갔다"를 알린다. 되돌릴 수 없어 모달을 거치고, 실제 호출은
+       WORKER 가 낸다(web 은 큐에 넣기만 한다 — 커머스API 호출 IP 제약). */
+    function wireDispatch() {
+        var confirmBtn = document.getElementById('wb-dispatch-confirm');
+        if (!confirmBtn) {
+            return;
+        }
+        confirmBtn.addEventListener('click', async function () {
+            var linkId = confirmBtn.dataset.linkId;
+            if (!linkId) {
+                return;
+            }
+            // 두 번 눌러 두 번 나가는 걸 막는다(멱등은 워커도 지키지만 화면에서 먼저 막는다).
+            confirmBtn.disabled = true;
+            try {
+                const response = await fetch('/admin/naver-ingest/' + linkId + '/fulfillment', {
+                    method: 'POST',
+                    headers: { 'Content-Type': 'application/json' },
+                    body: JSON.stringify({ action: 'dispatch' })
+                });
+                const data = await response.json();
+                if (!data.success) {
+                    window.alert(data.error || '발송처리 요청에 실패했습니다.');
+                    confirmBtn.disabled = false;
+                    return;
+                }
+                window.location.reload();
+            } catch (error) {
+                window.alert('요청 중 오류가 발생했습니다: ' + error);
+                confirmBtn.disabled = false;
+            }
+        });
+    }
 
     /* ── 결과 띠: 실패한 집만 다시 시도 (결정 7 의 ④단계) ──────────────
        성공한 집은 서버가 목록에 넣지 않았으므로 여기 없다 — 재시도가 성공분을
@@ -20,18 +56,24 @@
             return;
         }
         retryBtn.addEventListener('click', async function () {
-            var ids = (retryBtn.dataset.linkIds || '').split(',').filter(Boolean);
-            if (!ids.length) {
+            // `<링크 id>:<작업>` 쌍이다. 실패한 그 작업으로 다시 보낸다 — 전부 발주확인으로
+            // 보내면 발송처리 실패는 멱등 규칙에 걸려 조용히 넘어가고 띠만 영원히 남는다.
+            var pairs = (retryBtn.dataset.linkIds || '').split(',').filter(Boolean)
+                .map(function (chunk) {
+                    var parts = chunk.split(':');
+                    return { id: parts[0], action: parts[1] === 'dispatch' ? 'dispatch' : 'confirm' };
+                });
+            if (!pairs.length) {
                 return;
             }
             retryBtn.disabled = true;
             var stillFailing = [];
-            for (const id of ids) {
+            for (const pair of pairs) {
                 try {
-                    const response = await fetch('/admin/naver-ingest/' + id + '/fulfillment', {
+                    const response = await fetch('/admin/naver-ingest/' + pair.id + '/fulfillment', {
                         method: 'POST',
                         headers: { 'Content-Type': 'application/json' },
-                        body: JSON.stringify({ action: 'confirm' })
+                        body: JSON.stringify({ action: pair.action })
                     });
                     const data = await response.json();
                     if (!data.success) {

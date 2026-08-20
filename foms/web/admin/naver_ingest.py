@@ -656,12 +656,17 @@ def _failure_rows(db) -> list[dict[str, Any]]:
         db: 요청 스코프 DB 세션.
 
     Returns:
-        ``link_id``·``customer_name``·``external_order_no``·``reason``·``at`` 목록(최근 순).
+        ``link_id``·``customer_name``·``external_order_no``·``reason``·``action``·
+        ``action_label``·``at`` 목록(최근 순).
     """
+    # 실패는 **실패했다는 사실로** 찾는다. 최근 수집분 N건을 읽어 파이썬으로 거르면,
+    # 그 뒤로 수집이 쌓인 집의 실패가 조회 창 밖으로 밀려 화면에서 사라진다
+    # (오래된 수집분이 오늘 발주확인에 실패하는 일은 흔하다).
+    reason_col = ExternalOrderLink.triage_state["fulfillment"]["last_error"].as_string()
     links = (
         db.query(ExternalOrderLink)
         .filter(ExternalOrderLink.channel == "NAVER",
-                ExternalOrderLink.triage_state.isnot(None))
+                reason_col.isnot(None), reason_col != "")
         .order_by(ExternalOrderLink.created_at.desc(), ExternalOrderLink.id.desc())
         .limit(QUEUE_LINK_FETCH_LIMIT)
         .all()
@@ -678,11 +683,18 @@ def _failure_rows(db) -> list[dict[str, Any]]:
             continue
         seen.add(key)
         summary = summarize_snapshot(link.raw_snapshot)
+        # 어느 작업이 실패했는지 워커가 함께 적는다. 없으면(옛 기록) 발주확인으로 본다 —
+        # 재시도를 항상 발주확인으로 보내면 발송처리 실패는 멱등 규칙에 걸려 조용히
+        # 넘어가고 실패 띠만 영원히 남는다.
+        action = str(state.get("last_error_action") or "confirm").strip().lower()
+        action = action if action in ("confirm", "dispatch") else "confirm"
         rows.append({
             "link_id": link.id,
             "customer_name": summary["customer_name"] or link.external_id,
             "external_order_no": link.external_order_no or "",
             "reason": reason,
+            "action": action,
+            "action_label": "발주확인" if action == "confirm" else "발송처리",
             "at": str(state.get("last_error_at") or "")[:16].replace("T", " "),
         })
     return rows
@@ -754,7 +766,49 @@ def _place_groups(db) -> list[dict[str, Any]]:
     if order_ids:
         orders = {o.id: o for o in db.query(Order).filter(Order.id.in_(order_ids)).all()}
     groups = _group_queue(links, orders, truncated=len(links) == QUEUE_LINK_FETCH_LIMIT)
-    return [group for group in groups if not group["claim_blocking"]]
+    # 클레임 판정은 **형제까지** 봐야 한다. 모집단을 '발주확인 전' 링크로 먼저 좁혔으므로,
+    # 이미 발주확인이 끝난 형제가 취소돼도 이 목록 안에서는 안 보인다 — 그 집에 발주확인을
+    # 보내면 네이버가 거절해 집 전체가 실패한다.
+    blocked = _claim_blocked_group_keys(db, links)
+    return [group for group in groups
+            if not group["claim_blocking"] and group["key"] not in blocked]
+
+
+def _claim_blocked_group_keys(db, links: list[ExternalOrderLink]) -> set:
+    """주어진 링크들이 속한 집 중 **취소·반품이 걸린 집**의 묶음키.
+
+    같은 네이버 주문번호의 링크를 전부 읽어(인덱스 있는 축) 클레임 표식을 확인한다.
+    한 상품주문만 취소돼도 그 집은 손대지 않는 집이다 — 큐의 다른 곳(:func:`_group_queue`)이
+    쓰는 규칙과 같다.
+
+    Args:
+        db: 요청 스코프 DB 세션.
+        links: 기준이 되는 링크 목록.
+
+    Returns:
+        :func:`mapping.group_key` 3-튜플의 집합.
+    """
+    from foms.services.integrations.naver_commerce.mapping import group_key
+
+    order_nos = {(row.external_order_no or "").strip() for row in links}
+    order_nos.discard("")
+    if not order_nos:
+        return set()
+    siblings = (
+        db.query(ExternalOrderLink)
+        .filter(ExternalOrderLink.channel == "NAVER",
+                ExternalOrderLink.external_order_no.in_(sorted(order_nos)))
+        .all()
+    )
+    blocked: set = set()
+    for row in siblings:
+        if not summarize_snapshot(row.raw_snapshot)["claim_blocking"]:
+            continue
+        try:
+            blocked.add(group_key(row.raw_snapshot or {}))
+        except (ValueError, TypeError, AttributeError, KeyError) as exc:
+            logger.warning("[NAVER] 클레임 집 키 계산 실패(link %s): %s", row.id, exc)
+    return blocked
 
 
 def _member_rows(db, selected_group: Optional[dict]) -> list[dict[str, Any]]:
@@ -859,6 +913,8 @@ def _group_queue(links: list[ExternalOrderLink], orders: dict,
         member_summaries = ordered_summaries
         queue.append({
             "id": lead.id,
+            # 묶음키 그대로 — 호출자가 이 집에 다른 판정(형제까지 본 클레임 등)을 붙일 때 쓴다.
+            "key": key,
             "external_id": lead.external_id,
             "created_at": format_datetime_kst(lead.created_at),
             "customer_name": (getattr(order, "customer_name", None)

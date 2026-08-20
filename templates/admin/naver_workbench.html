@@ -14,7 +14,7 @@
 {% block title %}네이버 수집{% endblock %}
 
 {% block styles %}
-<link rel="stylesheet" href="{{ url_for('static', filename='css/admin/naver-workbench.css') }}?v=20260820a">
+<link rel="stylesheet" href="{{ url_for('static', filename='css/admin/naver-workbench.css') }}?v=20260821a">
 {% endblock %}
 
 {% block content %}
@@ -50,6 +50,8 @@
             <tr>
                 <td class="wb-result__who">{{ row.customer_name }}</td>
                 <td class="wb-result__no">{{ row.external_order_no }}</td>
+                {# 같은 사유라도 발주확인 실패와 발송처리 실패는 대응이 다르다. #}
+                <td class="wb-result__act small">{{ row.action_label }}</td>
                 <td class="wb-result__why">{{ row.reason }}</td>
                 <td class="wb-result__at small">{{ row.at }}</td>
             </tr>
@@ -57,8 +59,10 @@
         </table>
         <div class="wb-result__foot">
             {# 성공한 집은 대상에서 아예 뺀다 — 재시도가 성공분까지 건드리면 안 된다. #}
+            {# `<링크 id>:<작업>` 쌍으로 넘긴다 — 실패한 그 작업으로 다시 보내야 한다.
+               전부 발주확인으로 보내면 발송처리 실패는 멱등 규칙에 걸려 조용히 넘어간다. #}
             <button type="button" class="btn btn-danger btn-sm" id="wb-retry-failed"
-                    data-link-ids="{{ failures | map(attribute='link_id') | join(',') }}">
+                    data-link-ids="{% for row in failures %}{{ row.link_id }}:{{ row.action }}{% if not loop.last %},{% endif %}{% endfor %}">
                 실패한 {{ failures|length }}집만 다시 시도
             </button>
         </div>
@@ -146,7 +150,7 @@
                 {% if selected_group and selected_group.count > 1 %}
                 <span class="badge bg-light text-dark">{{ selected_group.count }}건 묶음</span>
                 {% endif %}
-                <span class="ms-auto">
+                <span class="ms-auto d-flex align-items-center gap-2">
                     {% if not selected.order_id %}
                     <button type="button" class="btn btn-primary btn-sm"
                             data-bs-toggle="modal" data-bs-target="#wb-modal-create"
@@ -157,6 +161,27 @@
                     {% else %}
                     <a class="btn btn-outline-primary btn-sm" target="_blank" rel="noopener"
                        href="{{ selected.edit_url }}">ERP 규격 입력</a>
+                    {% endif %}
+
+                    {#
+                      발송처리 — 네이버에 "물건이 나갔다"를 알린다. 구매자에게 배송 시작으로
+                      보이고 구매확정·정산 시계가 돈다. 되돌릴 수 없다.
+                      발주확인이 끝난 집에만 연다(그 전이면 네이버가 거절한다). 판정은 집 단위다 —
+                      한 상품주문만 보면 형제가 발주확인 전인 집에서 버튼이 열린다.
+                      취소·반품 집에는 아예 내지 않는다(손대지 않는 집이다).
+                    #}
+                    {% if not selected.claim.blocking %}
+                    {% set place_pending = selected_group.place_pending if selected_group
+                                           else (not selected.place.confirmed) %}
+                    {% if selected.fulfillment.dispatched_at %}
+                    <span class="badge bg-success">발송처리 완료</span>
+                    {% elif place_pending %}
+                    <button type="button" class="btn btn-outline-secondary btn-sm" id="wb-dispatch" disabled
+                            title="발주확인이 먼저입니다(발주확인 전 상품주문이 있습니다)">발송처리</button>
+                    {% else %}
+                    <button type="button" class="btn btn-outline-primary btn-sm" id="wb-dispatch"
+                            data-bs-toggle="modal" data-bs-target="#wb-modal-dispatch">발송처리</button>
+                    {% endif %}
                     {% endif %}
                 </span>
             </div>
@@ -264,6 +289,50 @@
                     </div>
                 </div>
             </div>
+            {% endif %}
+
+            {# 결정 6 불가역 4종 세트 — 발송처리 쪽. 발주확인이 끝난 집에서만 렌더한다. #}
+            {% if not selected.claim.blocking and not selected.fulfillment.dispatched_at %}
+            {% set place_pending = selected_group.place_pending if selected_group
+                                   else (not selected.place.confirmed) %}
+            {% if not place_pending %}
+            <div class="modal fade" id="wb-modal-dispatch" tabindex="-1" aria-hidden="true">
+                <div class="modal-dialog modal-dialog-centered">
+                    <div class="modal-content">
+                        <div class="modal-header">
+                            <h5 class="modal-title">발송처리를 보내기 전에 확인하세요</h5>
+                            <button type="button" class="btn-close" data-bs-dismiss="modal" aria-label="닫기"></button>
+                        </div>
+                        <div class="modal-body">
+                            {# ① 건수 재진술 #}
+                            <p class="fw-semibold mb-2">
+                                {{ selected.naver.recipient_name }}님의 상품주문
+                                {{ selected_group.count if selected_group else 1 }}건을
+                                네이버에 발송처리로 보냅니다.
+                            </p>
+                            {# ② 되돌릴 수 없음 #}
+                            <div class="alert alert-danger py-2 mb-2" data-foms-no-autodismiss>
+                                네이버로 나가는 호출이라 되돌릴 수 없습니다. 구매자에게 <b>배송 시작</b>으로
+                                보이고 구매확정·정산 시계가 돌기 시작합니다.
+                            </div>
+                            {# ③ 사후 경로 #}
+                            <p class="small text-muted mb-0">
+                                보낸 뒤에는 이 집이 <b>발송처리 완료</b>로 바뀝니다. 배송방법은 자사
+                                <b>직접 전달</b>(택배사·송장 없음)로 나갑니다. 실패하면 화면 위 실패 목록에
+                                사유가 남고, 그 집만 다시 보낼 수 있습니다.
+                            </p>
+                        </div>
+                        <div class="modal-footer">
+                            <button type="button" class="btn btn-outline-secondary" data-bs-dismiss="modal">취소</button>
+                            <button type="button" class="btn btn-primary" id="wb-dispatch-confirm"
+                                    data-link-id="{{ selected_group.id if selected_group else selected.link_id }}">
+                                발송처리 보내기
+                            </button>
+                        </div>
+                    </div>
+                </div>
+            </div>
+            {% endif %}
             {% endif %}
             {% else %}
             <div class="card-body wb-empty">확인할 주문이 없습니다.</div>
@@ -579,5 +648,5 @@
 {% endblock %}
 
 {% block scripts %}
-<script src="{{ url_for('static', filename='js/admin/naver-workbench.js') }}?v=20260820a" defer></script>
+<script src="{{ url_for('static', filename='js/admin/naver-workbench.js') }}?v=20260821a" defer></script>
 {% endblock %}
