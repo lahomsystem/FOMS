@@ -218,6 +218,7 @@ ACTION_LABELS: dict[str, str] = {
     "ORDER_CHECKLIST_UPDATED": "체크리스트 변경",
     "ORDER_STATUS_CHANGED": "상태 변경",
     "ORDER_FIELD_RESTORED": "변경 되돌리기",
+    "OPS_BACKUP_HEARTBEAT": "백업 성공 알림",
     "ORDER_SOFT_DELETED": "주문 휴지통 이동",
     # --- 파일 열람(access_logs 화면과 같은 코드를 쓴다) ---
     "FILE_VIEW": "파일 열람",

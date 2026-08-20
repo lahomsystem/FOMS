@@ -1,0 +1,47 @@
+{% extends "admin/layout.html" %}
+
+{% block title %}백업 상황판{% endblock %}
+
+{% block content %}
+<div class="container mt-4">
+  <h1 class="h4 mb-3">오프사이트 백업 상황판</h1>
+
+  {% if status.state == 'ok' %}
+  <div class="alert alert-success">
+    <strong>정상</strong> — {{ status.headline }}
+  </div>
+  {% elif status.state == 'stale' %}
+  <div class="alert alert-danger">
+    <strong>백업이 밀렸습니다</strong> — {{ status.headline }}
+  </div>
+  {% else %}
+  <div class="alert alert-danger">
+    <strong>성공 기록 없음</strong> — {{ status.headline }}
+  </div>
+  {% endif %}
+
+  <p class="text-muted small">
+    백업이 성공할 때만 심박이 들어옵니다. 그래서 워크플로가 <strong>아예 돌지 않는 경우</strong>도
+    여기서 잡힙니다(실패 메일은 워크플로가 돌았을 때만 옵니다).
+    기준: 마지막 성공이 {{ stale_after_hours }}시간을 넘으면 빨강.
+  </p>
+
+  {% if status.heartbeat %}
+  <table class="table table-sm w-auto">
+    <tbody>
+      <tr><th scope="row">백업 완료 시각(UTC)</th><td>{{ status.heartbeat.finished_at or '-' }}</td></tr>
+      <tr><th scope="row">수신 시각(UTC)</th><td>{{ status.heartbeat.received_at or '-' }}</td></tr>
+      <tr><th scope="row">보관 키</th><td>{{ status.heartbeat.key or '-' }}</td></tr>
+      <tr><th scope="row">크기</th>
+        <td>{% if status.heartbeat.size_bytes %}{{ '%.1f'|format(status.heartbeat.size_bytes / 1048576) }} MB{% else %}-{% endif %}</td></tr>
+      <tr><th scope="row">TOC 항목</th><td>{{ status.heartbeat.toc_entries if status.heartbeat.toc_entries is not none else '-' }}</td></tr>
+      <tr><th scope="row">sha256</th><td class="text-break">{{ status.heartbeat.sha256 or '-' }}</td></tr>
+    </tbody>
+  </table>
+  <p class="text-muted small">
+    복원 시 받은 덤프의 sha256 이 위 값과 같아야 합니다. 구조 검사(TOC)는 자동이지만
+    <strong>실제 복원 리허설은 분기 1회 사람이</strong> 합니다.
+  </p>
+  {% endif %}
+</div>
+{% endblock %}
