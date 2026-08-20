@@ -1,7 +1,7 @@
 # 핀포인트 복원 GUI (RESTORE-GUI-01) — 스펙
 
 - 작성: 2026-08-19
-- 상태: **승인 대기** (Research 완료 → Plan)
+- 상태: **T1 구현 완료(deploy `3d3c2f61`)** / T2·T3 승인 대기
 - 기준 코드: deploy `9dcd89a3` / production `ad640344`
 - 선행: ORDER-DIFF-00·01(`order_field_changes` 운영 배포됨), DATA-DOCTOR-01(`tools/ops/data_doctor.py`, **deploy 전용**)
 
@@ -23,8 +23,8 @@
 
 | 없는 것 |
 |---|
-| 필드 변경 이력을 **보는 화면** — `field-changes` API 를 소비하는 UI 가 0개다 |
-| 한 건 되돌리기 — `_COMPENSATION_REGISTRY` 에 `DRAWING_ASSIGNEE_SET` 1종뿐 |
+| ~~필드 변경 이력을 보는 화면~~ — **오기 정정**: 변경 이력 탭이 이미 있다(ORDER-DIFF-02, `templates/orders/partials/edit_order_body.html` + `static/js/orders/order-change-history.js`). T1 은 새 화면이 아니라 그 탭에 되돌리기를 얹는 작업이었다 |
+| ~~한 건 되돌리기~~ — T1 로 해소(`POST /api/orders/<id>/field-changes/<change_id>/restore`) |
 | data_doctor 의 화면 — CLI + DSN 직결만, production 에는 파일 자체가 없다 |
 
 ## 2. 목표 / 비목표
@@ -83,6 +83,10 @@ assignments.owner_team
 shipment.sales_delivery / .construction_time / .construction_workers
 shipment.trip / .as_billing / .as_pending
 ```
+
+**구현에서 더 뺀 것**: `flags.urgent`(bool)·`shipment.as_pending`(bool)·
+`shipment.as_billing`(dict) — 원장은 정규화 **문자열**만 담아(`True` vs `"True"`)
+원형 복원이 불가하다. 런타임 타입 게이트가 문자열 축이 아닌 현재값을 400 으로 막는다.
 
 **v1 에서 뺀 것과 이유**
 - `totals.*` — 파생값이다. 단독 복원하면 `items` 합계와 어긋난다(출고가=grand total 규약).
