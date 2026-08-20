@@ -38,16 +38,23 @@ def group_key_expression() -> Any:
 def resolve_group_key(link: Any) -> str:
     """파이썬 쪽 같은 규칙 — :func:`group_key_expression` 과 결과가 같아야 한다.
 
+    **``.strip()`` 을 쓰지 않는다.** 묶음키의 구분자(:data:`mapping.GROUP_KEY_SEP`)는
+    제어문자 U+001F 인데, 파이썬은 이걸 **공백문자로 친다**(``GROUP_KEY_SEP.isspace()``
+    가 True). 전화·주소가 빈 집의 키(``"N-1" + SEP + SEP``)에서 ``.strip()`` 이 구분자를
+    잘라 ``"N-1"`` 을 만드는데, SQL 쪽 ``nullif(group_key, '')`` 는 자르지 않는다 —
+    같은 행이 두 키로 읽혀 이 모듈이 없애려던 '정의가 두 벌' 결함이 그대로 재발한다.
+    빈 문자열만 값이 아닌 것으로 보는 것이 ``nullif`` 와 정확히 같은 판정이다.
+
     Args:
         link: ``ExternalOrderLink`` 행.
 
     Returns:
         묶음키 문자열.
     """
-    stored = (getattr(link, "group_key", None) or "").strip()
+    stored = getattr(link, "group_key", None) or ""
     if stored:
         return stored
-    return (getattr(link, "external_order_no", None) or "").strip() or f"link:{link.id}"
+    return (getattr(link, "external_order_no", None) or "") or f"link:{link.id}"
 
 
 __all__ = ["group_key_expression", "resolve_group_key"]
