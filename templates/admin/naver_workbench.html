@@ -73,8 +73,12 @@
            href="{{ url_for('admin.naver_ingest_triage', tab='place') }}">발주확인 전<span class="wb-tab__n">{{ place_group_count }}집</span></a>
         <a class="wb-tab wb-tab--danger" role="tab" data-tab="claim" aria-selected="{{ 'true' if active_tab == 'claim' else 'false' }}"
            href="{{ url_for('admin.naver_ingest_triage', tab='claim') }}">취소·반품<span class="wb-tab__n">{{ claim_groups|length }}집</span></a>
+        {# 전체 이력은 ADMIN 전용이다(수집 관리 화면과 같은 기준) — 열 수 없는 탭은 아예 안 보인다.
+           탭만 숨기고 주소를 열어 두면 URL 을 아는 사람이 그대로 본다. 서버도 같이 막는다. #}
+        {% if can_view_history %}
         <a class="wb-tab" role="tab" data-tab="all" aria-selected="{{ 'true' if active_tab == 'all' else 'false' }}"
            href="{{ url_for('admin.naver_ingest_triage', tab='all') }}">전체 이력</a>
+        {% endif %}
     </nav>
 
     {% if active_tab == 'work' %}

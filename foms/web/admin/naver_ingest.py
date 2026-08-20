@@ -18,7 +18,7 @@ import datetime
 import logging
 from typing import Any, Optional
 
-from flask import jsonify, redirect, render_template, request, session, url_for
+from flask import g, jsonify, redirect, render_template, request, session, url_for
 
 from db import get_db
 from foms.services.datetime_kst import format_datetime_kst, now_utc_naive
@@ -596,6 +596,7 @@ def naver_ingest_triage():
         return render_template(
             "admin/naver_workbench.html",
             active_tab=active_tab,
+            can_view_history=_can_view_history(),
             member_rows=_member_rows(db, selected_group),
             work_groups=work_groups,
             claim_groups=claim_groups,
@@ -612,16 +613,34 @@ def naver_ingest_triage():
 WORKBENCH_TABS = ("work", "place", "claim", "all")
 
 
+def _can_view_history() -> bool:
+    """전체 이력 탭을 볼 수 있는가 — 기준은 수집 관리 화면과 **같다**(ADMIN 전용).
+
+    트리아지는 규격을 입력하는 CS 담당(STAFF 이상)에게 열려 있지만, 수집 이력·상태
+    집계·실패 사유는 ``naver_ingest_dashboard`` 가 ADMIN 으로 묶어 둔 자료다. 같은 자료를
+    STAFF 도 여는 라우트 안에서 다시 내면 **회귀가 아니라 신규 노출**이 된다.
+
+    Returns:
+        현재 사용자가 ADMIN 이면 True.
+    """
+    user = getattr(g, "current_user", None)
+    return bool(user) and str(getattr(user, "role", "") or "").upper() == "ADMIN"
+
+
 def _active_tab() -> str:
     """``?tab=`` 을 읽어 유효한 탭 이름으로 정규화한다.
 
     모르는 값은 조용히 기본 탭으로 떨어뜨린다 — 주소를 손으로 고쳐도 화면이 죽지 않는다.
+    볼 권한이 없는 탭도 같은 자리로 떨어진다(403 대신 기본 탭 — 나머지 작업은 계속 된다).
 
     Returns:
         ``work`` / ``place`` / ``claim`` / ``all`` 중 하나.
     """
     raw = (request.args.get("tab") or "").strip().lower()
-    return raw if raw in WORKBENCH_TABS else "work"
+    tab = raw if raw in WORKBENCH_TABS else "work"
+    if tab == "all" and not _can_view_history():
+        return "work"
+    return tab
 
 
 def _failure_rows(db) -> list[dict[str, Any]]:

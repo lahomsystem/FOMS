@@ -716,3 +716,51 @@ def test_redirect_carries_the_history_filter_over(client, workbench_on):
     assert "tab=all" in location, location
     assert "status=FAILED" in location, location
     assert "place=PENDING" in location, location
+
+
+# --------------------------------------------------------------------------- #
+# 전체 이력 탭의 권한 경계 (리뷰 지적 P1)
+#
+# `naver_ingest_dashboard`(수집 이력·상태 집계·실패 사유)는 ADMIN 전용인데,
+# 워크벤치는 STAFF 도 여는 라우트 안에 그 데이터를 다시 냈다. 회귀가 아니라 **신규 노출**이다.
+# --------------------------------------------------------------------------- #
+
+def test_history_tab_is_admin_only(client, workbench_on):
+    """STAFF 가 ?tab=all 을 열어도 수집 이력이 나오면 안 된다 — 작업 탭으로 떨어진다."""
+    _login(client, role="STAFF")
+    link = _collected(order_no="N-PERM-HIST", product="권한 붙박이장", amount=100000)
+    link.sync_status = "FAILED"
+    link.failure_reason = "커머스API 인증 만료"
+    db_session.commit()
+
+    body = client.get(f"{TRIAGE_PATH}?tab=all").get_data(as_text=True)
+
+    assert 'data-active-tab="work"' in body, "비 ADMIN 은 이력 탭을 열 수 없다"
+    assert "커머스API 인증 만료" not in body, "수집 실패 사유가 STAFF 에게 새면 안 된다"
+    assert "전체 이력" not in body, "열 수 없는 탭은 아예 보이지 않는다"
+
+
+def test_history_tab_stays_open_for_admin(client, workbench_on):
+    """ADMIN 에게는 그대로 열린다 — 권한을 좁히다 기능을 죽이지 않는다."""
+    _login(client, role="ADMIN")
+    link = _collected(order_no="N-PERM-ADMIN", product="관리자 붙박이장", amount=100000)
+    link.sync_status = "FAILED"
+    link.failure_reason = "커머스API 인증 만료"
+    db_session.commit()
+
+    body = client.get(f"{TRIAGE_PATH}?tab=all").get_data(as_text=True)
+
+    assert 'data-active-tab="all"' in body
+    assert "커머스API 인증 만료" in body
+    assert "전체 이력" in body
+
+
+def test_manager_also_cannot_open_history_tab(client, workbench_on):
+    """MANAGER 도 마찬가지다 — 기준은 기존 수집 관리 화면(`ADMIN` 전용)과 같아야 한다."""
+    _login(client, role="MANAGER")
+    _collected(order_no="N-PERM-MGR", product="매니저 붙박이장", amount=100000)
+
+    body = client.get(f"{TRIAGE_PATH}?tab=all").get_data(as_text=True)
+
+    assert 'data-active-tab="work"' in body
+    assert "전체 이력" not in body
