@@ -1155,3 +1155,38 @@ naver_triage_00 → navercollect_00`, orderreason_00·모델 정합 제거(불�
 
 **사용자 결정(2026-08-19)**: ① 운영 켜기 3단계는 나중에(오늘 손대지 않음) ② 폰 '네이버 주문'
 탭은 보류 유지(T15-D 그대로) ③ 축 단서 없는 옵션 귀속은 **지금처럼 사람이 고른다**(자동 추정 확대 없음).
+
+---
+
+### T15-O 폼 저장이 지운 연락처 — 복구 완료 (2026-08-20, 스테이징)
+
+**유실**: `ec6b22a9` 이전 ERP 폼 저장은 `structured_data['parties']` 를 통째로 대입했다.
+폼이 렌더하지 않는 키(`parties.orderer.phone`·`parties.customer.phone2`)는 주문을 한 번
+열어 저장하는 것만으로 사라졌다. 수집이 "버리면 다시 구할 방법이 없다"고 주석까지 달아 둔
+값들이다. 회귀 자체는 `ec6b22a9`(`_merge_preserving_missing` 대상에 `parties` 추가)로 멈췄다.
+
+**복구**: `tools/ops/restore_naver_lost_contacts.py` — `ExternalOrderLink.raw_snapshot` 을
+`mapping.build_structured_data` 로 다시 매핑해 **비어 있는 자리만** 되채운다. 현재 값이
+있으면 스냅샷과 달라도 두고 간다(사람이 고친 번호 보호). 기본 dry-run·멱등·번호 마스킹.
+계약 테스트 `tests/domains/test_restore_naver_lost_contacts.py` 9건.
+
+스테이징 실행 결과(`--execute`): `links_scanned=30 orders_touched=3 restored=4`
+
+| 주문 | 키 | 값 |
+|---|---|---|
+| 4462 | `parties.orderer.phone` | `010-****-1403` (회귀 커밋이 지목한 그 번호) |
+| 4461 | `parties.orderer.phone` | `010-****-6566` |
+| 4242 | `parties.orderer.phone` · `customer.phone2` | `010-****-5722` |
+
+재실행 `restored=0`(30건 전부 `nothing_missing`) + SQL 직접 조회로 값 확인. 운영은 수집
+자체가 아직 없어 대상 0건 — 손대지 않았다.
+
+**미결(별건) — `parties.orderer` 이름 축 충돌**: ERP 정본에서 `parties.orderer.name` 은
+**발주사**(라홈/하우드)다 — `erp_display.py:349` 가 `order.orderer_name` 으로 투영하고
+실측 대시보드 '발주사' 컬럼·도면 워크벤치·채널톡 '발주사'·알림톡 `#{발주사}` 가 그 자리를
+읽는다. 수집(`mapping.build_structured_data`)은 같은 자리에 **주문자 사람 이름**을 넣는다.
+그래서 수집 주문은 발주사 칸에 사람 이름이 뜨고, `_is_lahom_like_orderer`(실측일 삭제 시
+접수 복귀)·`estimate_service` 라홈 판정·`erp_quest_display` CS override·`lahom_deposit_gold`
+가 함께 어긋난다. PR #113 이 머지되면 운영으로 같이 넘어간다. 위 복구 스크립트가
+`orderer.name` 을 복구 대상에서 뺀 이유도 이것이다(사람이 고른 발주사를 되돌리지 않으려고).
+이 문단 §598 "주문자와 수취인 중 어느 이름을 화면 대표로" 미결과 같은 뿌리 — 사용자 결정 필요.
