@@ -13,15 +13,7 @@ Flask 2.3 + PostgreSQL + R2 + Railway (Web×2, Worker×1)
 - ⚠️ [2026-08-20] **deploy FOMS CI red = 타 세션 몫** — `3d3c2f61`(RESTORE-GUI-01 T1)의 `ORDER_FIELD_RESTORED` 라벨 누락 + `events.api_restore_field_change` 정책 미분류. Harness CI·PG Lane·perf-gate 는 green.
 - [2026-08-19] **네이버 수집 T15 완료(deploy)** — 품목=본품만·귀속=수집순서+사양 보정·승격 순서 버그·규격 도우미 오탐·도크 폭2배. 운영 IP 교체 불필요 확정. 잔여=PR #113 머지(사용자)·폰 탭 보류 유지. 원장 `docs/plans/2026-08-13-naver-order-ingest-ledger.md`
 - [2026-08-19] **오프사이트 백업 복구(`foms-ops-backup`)** — 6회 전부 실패 원인 ① `which(pg_dump)`=16(pgdg 17 경로 미고정) ② R2 시크릿 미등록. 해소 후 첫 성공(`59b377f`). 침묵 차단 3종(preflight·`LATEST.json` 심박·실패 이슈). Railway 스케줄 D6+W27+M89·dev D 신설(redis 제외=캐시/큐)·사고 스냅샷 2건 잠금. 잔여=복원 리허설(분기 수동)·첨부 R2·`/admin/backup-status`
-- [2026-08-19] **네이버 수집 T15(deploy)** — 품목=본품만(옵션은 본품 귀속·금액 보존)·귀속=수집순서+사양 보정(`attribution.py`)·승격 순서 버그 수정·규격 도우미 몰딩 오탐 수정·도크 폭2배+14px. 운영 IP 교체 불필요 확정. 잔여=PR #113 머지(사용자). 원장: `docs/plans/2026-08-13-naver-order-ingest-ledger.md`
-- [2026-08-18] **네이버 수집 T14-C~I deploy 완료 + 운영 승격 PR #113 대기** — 배송메모 유실 수정(실필드 `productOrder.shippingMemo`)·큐/이력 한 집 한 줄 묶음·취소 주문 생성 차단(서비스 레벨, API 우회 400)·수집 후 취소 추적+담당자 알림·CS 2단계 흐름(담당자 지정은 실측 스케줄링 단계)·규격 입력 도우미(총폭 계산·cm→mm·본품↔1cm 사양 불일치). **PR #113 = deploy 전체 승격, MERGEABLE·검사 9종 green, 머지는 사용자**. 승격 함정: **deploy 체인 순서 ≠ 운영 실행 순서**(운영 DB 는 `asfresh_00` 정지 — 그 아래 리비전은 영영 안 돈다). 원장 `docs/plans/2026-08-13-naver-order-ingest-ledger.md`
 - [2026-08-18] **AS 증발 사고 종결 + 구조 제거** — 운영 55/55 복구 + 일괄 경로 AS 제외 가드(운영 `63737e91`) + **AS-AXIS-01** AS 대시보드 술어 status→`as_axis_status` 투영 교체(deploy `e061beb7`, 스테이징 검증 완료·운영 승격 대기). **AS 판정=status 기준·투영 암묵삭제 금지**(레거시 506건 lifecycle 없음). 복구 절차 `docs/guides/DATA_INCIDENT_RECOVERY.md`, 스펙 §11에 실측 조정 기록. **운영 승격 차단: `asaxis_00` 부모가 미승격 `naverdock_00`** — 네이버·변경사유 승격 후 진행(2026-08-18 사용자 결정)
-- [2026-08-14] **주문 변경 사유 deploy** — 축=시공일·금액·단계·취소(제품세부=기록만). docs/specs/2026-08-13-order-change-reason_SPEC.md
-- [2026-08-13] **프래그먼트 다이어트**(운영 PR #78~#86·#90 `5b73eb46`, 주문 태블릿 PR #95 `9f9b1ade`) — v3 죽은 v2 표면 6탭 435.8KB(**운영은 전원 v2 = no-op**, `FOMS_V3_SHELL_COHORT`는 v2 자격 플래그)·`pointer:coarse` 주문 표면 47.2KB(운영 실효)·폰 광폭표면 526.9KB(쿠키 `foms_scr`, deploy `61af5bd8`). **AS 표는 제외**(`d-md-block` 768 → 폰 가로에서 실제 표시, 계약으로 부재 고정). **측정은 `?view=fragment` 필수**(헤더만이면 전체 페이지). 잔여=AS 모바일 229.5KB(리사이즈 재요청 선행)·폰 건 운영 승격. 상세는 AI_CHANGELOG 2026-08-14
-- [2026-08-13] **AS 근본 최적화 2건(deploy)** — ① dTTFB 181→96(예산 168 불변, 공식 176보다 엄격): 지출처=같은 모집단 집계 2회 + 행100×2필드 sanitize 재파싱 → 단일 스캔 + sanitize LRU 메모이즈. ② data-order-id 1271→228(행 컨테이너 일원화, 자손은 closest 역참조) → wire 51.1→46.3KB. **함정: 표면간 상태동기화가 `.cls[data-order-id=x]` 전역 선택자였다** — 스코프 조회로 치환 후에야 자손 제거 가능.
-- [2026-08-10] **채널톡 AS PUSH·시공 계측 승격**(`340b0064`) — AS 본문 서버 SSOT(AS방 230351), 시공 숫자판=시공 단계만, 진단 헤더 2종.
-- [2026-08-01] **하네스 함정** — `ci_watch.py`는 워크플로 1개만 본다. 판정은 `gh run list --branch <b>` 전수. SQLite 레인 FK 미강제·PG 레인 마이그레이션 미검증·CI Redis 없음.
-- 위 3건 상세·후속 목록·결재 기록: `docs/plans/2026-07-31-full-promotion-prep-ledger.md`
 - ⚠️ **미결: `as-delete-reapply`의 `8c1ef69a`**(삭제 라우트 WRITE-GUARD-01 manifest 등재) deploy 미반영. worktree 정리 중 발견, 타 세션 몫이라 미처리. 브랜치 ref 보존됨.
 
 ## 알려진 이슈
@@ -106,6 +98,15 @@ Flask 2.3 + PostgreSQL + R2 + Railway (Web×2, Worker×1)
 
 ## 기록 보관 (strict canonical / 이전 배치 요약)
 
+- [2026-08-20] 아래 8건은 '진행 중'에 있던 것을 **문구 그대로** 옮긴 것이다 — 상단 40줄 예산(4000자)을 넘겨 hygiene 계약 테스트가 red 였다. 내용 변경 없음.
+- [2026-08-19] **네이버 수집 T15(deploy)** — 품목=본품만(옵션은 본품 귀속·금액 보존)·귀속=수집순서+사양 보정(`attribution.py`)·승격 순서 버그 수정·규격 도우미 몰딩 오탐 수정·도크 폭2배+14px. 운영 IP 교체 불필요 확정. 잔여=PR #113 머지(사용자). 원장: `docs/plans/2026-08-13-naver-order-ingest-ledger.md`
+- [2026-08-18] **네이버 수집 T14-C~I deploy 완료 + 운영 승격 PR #113 대기** — 배송메모 유실 수정(실필드 `productOrder.shippingMemo`)·큐/이력 한 집 한 줄 묶음·취소 주문 생성 차단(서비스 레벨, API 우회 400)·수집 후 취소 추적+담당자 알림·CS 2단계 흐름(담당자 지정은 실측 스케줄링 단계)·규격 입력 도우미(총폭 계산·cm→mm·본품↔1cm 사양 불일치). **PR #113 = deploy 전체 승격, MERGEABLE·검사 9종 green, 머지는 사용자**. 승격 함정: **deploy 체인 순서 ≠ 운영 실행 순서**(운영 DB 는 `asfresh_00` 정지 — 그 아래 리비전은 영영 안 돈다). 원장 `docs/plans/2026-08-13-naver-order-ingest-ledger.md`
+- [2026-08-14] **주문 변경 사유 deploy** — 축=시공일·금액·단계·취소(제품세부=기록만). docs/specs/2026-08-13-order-change-reason_SPEC.md
+- [2026-08-13] **프래그먼트 다이어트**(운영 PR #78~#86·#90 `5b73eb46`, 주문 태블릿 PR #95 `9f9b1ade`) — v3 죽은 v2 표면 6탭 435.8KB(**운영은 전원 v2 = no-op**, `FOMS_V3_SHELL_COHORT`는 v2 자격 플래그)·`pointer:coarse` 주문 표면 47.2KB(운영 실효)·폰 광폭표면 526.9KB(쿠키 `foms_scr`, deploy `61af5bd8`). **AS 표는 제외**(`d-md-block` 768 → 폰 가로에서 실제 표시, 계약으로 부재 고정). **측정은 `?view=fragment` 필수**(헤더만이면 전체 페이지). 잔여=AS 모바일 229.5KB(리사이즈 재요청 선행)·폰 건 운영 승격. 상세는 AI_CHANGELOG 2026-08-14
+- [2026-08-13] **AS 근본 최적화 2건(deploy)** — ① dTTFB 181→96(예산 168 불변, 공식 176보다 엄격): 지출처=같은 모집단 집계 2회 + 행100×2필드 sanitize 재파싱 → 단일 스캔 + sanitize LRU 메모이즈. ② data-order-id 1271→228(행 컨테이너 일원화, 자손은 closest 역참조) → wire 51.1→46.3KB. **함정: 표면간 상태동기화가 `.cls[data-order-id=x]` 전역 선택자였다** — 스코프 조회로 치환 후에야 자손 제거 가능.
+- [2026-08-10] **채널톡 AS PUSH·시공 계측 승격**(`340b0064`) — AS 본문 서버 SSOT(AS방 230351), 시공 숫자판=시공 단계만, 진단 헤더 2종.
+- [2026-08-01] **하네스 함정** — `ci_watch.py`는 워크플로 1개만 본다. 판정은 `gh run list --branch <b>` 전수. SQLite 레인 FK 미강제·PG 레인 마이그레이션 미검증·CI Redis 없음.
+- 위 3건 상세·후속 목록·결재 기록: `docs/plans/2026-07-31-full-promotion-prep-ledger.md`
 - [2026-08-06] **계정 셀프서비스 v1 deploy 반영** — 셀프 가입 신청(PENDING 승인 흐름)+비밀번호 재설정 요청 큐(관리자 처리형), 마이그레이션 `account_self_00`, 승인 UI=/admin/users, 신규 테스트 14 green. 스펙: `docs/specs/2026-08-06-account-self-service-design.md`
 - [2026-08-11] 감사 화면 3라운드 상세: 헤더 드래그 폭 기억(표별 localStorage), 시간 칸 rem 고정(%폭은 좁은 화면에서 초 자리 잘림), 부가정보 ensure_ascii=False+접이식(행 153→65px), 보안 로그 기간 필터(KST 경계), 배지 한글 라벨(코드는 title), UA 요약. ColumnResizer 는 UMD 라 `.default` fallback 없으면 조용히 미부착.
 - [2026-04-17] **ERP fast-page `EPT-B8`:** run record `docs/plans/2026-04-17-ept-b8-verification-railway-evidence-run-record.md` — 로컬 게이트 완료; staging HTTP 하네스로 **§4 표·§5** 부분 채움; **closeout** 은 deploy ID·§6 모드·hard stop 조건 충족 후.
