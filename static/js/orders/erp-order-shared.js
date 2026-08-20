@@ -4037,6 +4037,24 @@ async function erpUploadCommonAttachmentFiles(files, options = {}) {
     const category = erpNormalizeAttachmentCategory(categoryEl ? categoryEl.value : 'measurement');
     const statusVerb = options.statusVerb || '업로드';
     const doneVerb = options.doneVerb || '업로드 완료';
+
+    let asLogId = null;
+    let sortOrders = null;
+    if (category === 'as') {
+        if (typeof window.fomsEnsureAsUploadAnchor !== 'function') {
+            erpAttachmentsSetStatus('AS 첨부 위치를 준비하지 못했습니다.', true);
+            return;
+        }
+        try {
+            const anchor = await window.fomsEnsureAsUploadAnchor(targetId);
+            asLogId = anchor.asLogId;
+            sortOrders = files.map(function (_file, index) { return anchor.nextSort + index; });
+        } catch (err) {
+            erpAttachmentsSetStatus(String((err && err.message) || err || 'AS 첨부 위치를 만들지 못했습니다.'), true);
+            return;
+        }
+    }
+
     // --- Optimistic UI Start ---
     const galleryWrap = document.getElementById('erp-attachments-gallery');
     if (galleryWrap) {
@@ -4088,6 +4106,8 @@ async function erpUploadCommonAttachmentFiles(files, options = {}) {
         files: files,
         folder: `orders/${ORDER_ID}/${category || 'attachments'}`,
         category: category,
+        asLogId: asLogId,
+        sortOrders: sortOrders,
         useDirectUpload: (typeof USE_DIRECT_UPLOAD !== 'undefined' && USE_DIRECT_UPLOAD),
         onPrepareProgress: function (info) {
             erpAttachmentsSetStatus(`이미지 최적화 중... (${info.done}/${info.total})`);
@@ -5242,6 +5262,47 @@ function fomsMountErpOrderSurface() {
         const payload = { order_id: orderId, text, push_kind: pushKind };
         if (changeNote) {
             payload.change_note = changeNote;
+        }
+
+        if (pushKind === 'as') {
+            if (typeof window.fomsConfirmAndSendAsPush !== 'function') {
+                alert('AS 전송 확인창을 불러오지 못했습니다.');
+                btn.innerHTML = originalHtml;
+                btn.disabled = false;
+                return;
+            }
+            try {
+                const result = await window.fomsConfirmAndSendAsPush({
+                    orderId: orderId,
+                    changeNote: changeNote,
+                });
+                if (!result || result.cancelled) {
+                    btn.innerHTML = originalHtml;
+                    btn.disabled = false;
+                    return;
+                }
+                if (result.success) {
+                    if (typeof erpMarkChannelPushSent === 'function') {
+                        erpMarkChannelPushSent(pushKind);
+                    }
+                    btn.innerHTML = '<i class="fas fa-check"></i> 전송완료';
+                    if (activeClass) btn.classList.replace(activeClass, successClass);
+                    setTimeout(() => {
+                        btn.innerHTML = originalHtml;
+                        if (activeClass) btn.classList.replace(successClass, activeClass);
+                        btn.disabled = false;
+                    }, 3000);
+                    return;
+                }
+                alert(`채널톡 전송 실패:\n${result.error || result.message || '알 수 없는 오류'}`);
+                btn.innerHTML = originalHtml;
+                btn.disabled = false;
+            } catch (e) {
+                alert(`네트워크 오류: ${e.message}`);
+                btn.innerHTML = originalHtml;
+                btn.disabled = false;
+            }
+            return;
         }
 
         try {

@@ -3,7 +3,7 @@
   "policy_ssot": "foms/services/orders/order_mutation_policy.py",
   "description": "AUTH-01 URL-map inventory: 모든 cookie-auth state-changing route 의 policy_id. mode=guard 는 order_mutation_policy.evaluate_policy 로 §2.1 정책 enforce(before_request enforce_order_mutation_policy). mode=exempt 는 서명 검증 webhook/Function·anonymous RUM 처럼 쿠키 세션 미사용 자기 정책으로 우회. url_map 의 모든 POST/PUT/PATCH/DELETE endpoint 가 여기 등재되어야 하며 미분류=static gate fail(tests/domains/test_auth_enforcement.py).",
   "exempt_count": 5,
-  "guard_count": 185,
+  "guard_count": 186,
   "routes": {
     "admin.naver_ingest_attach_order": {
       "mode": "guard",
@@ -85,6 +85,11 @@
       "policy_id": "STAFF_MUTATION",
       "rule": "/api/orders/<int:order_id>/attachments/complete"
     },
+    "attachments.api_order_attachments_reorder": {
+      "mode": "guard",
+      "policy_id": "STAFF_MUTATION",
+      "rule": "/api/orders/<int:order_id>/attachments/reorder"
+    },
     "attachments.api_order_attachments_delete": {
       "mode": "guard",
       "policy_id": "STAFF_MUTATION",
@@ -94,11 +99,6 @@
       "mode": "guard",
       "policy_id": "STAFF_MUTATION",
       "rule": "/api/orders/<int:order_id>/attachments/<int:attachment_id>"
-    },
-    "attachments.api_order_attachments_reorder": {
-      "mode": "guard",
-      "policy_id": "STAFF_MUTATION",
-      "rule": "/api/orders/<int:order_id>/attachments/reorder"
     },
     "attachments.api_order_attachments_restore": {
       "mode": "guard",
@@ -369,6 +369,11 @@
       "mode": "guard",
       "policy_id": "ERP_EDIT",
       "rule": "/api/orders/<int:order_id>/as/unschedule"
+    },
+    "erp_orders_as.api_as_upload_anchor": {
+      "mode": "guard",
+      "policy_id": "ERP_EDIT",
+      "rule": "/api/orders/<int:order_id>/as/upload-anchor"
     },
     "erp_orders_as.api_as_verdict": {
       "mode": "guard",

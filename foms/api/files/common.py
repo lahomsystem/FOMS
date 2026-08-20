@@ -83,6 +83,30 @@ def resolve_as_log_ref(order: Any, category, raw_as_log_id):
     return False, None, "결합할 AS 기록을 찾을 수 없습니다."
 
 
+def bind_as_log_id_for_upload(db, order, category, raw_as_log_id, user):
+    """업로드 결합 id. 명시값은 검증, AS 빈 값은 현재 회차 앵커 (AS-BIND-01).
+
+    Args:
+        db: 세션.
+        order: 대상 주문.
+        category: 정규화된 분류.
+        raw_as_log_id: 요청 원값.
+        user: 업로드 직원.
+
+    Returns:
+        ``(ok, as_log_id | None, 오류문구 | None)``.
+    """
+    ok, log_id, err = resolve_as_log_ref(order, category, raw_as_log_id)
+    if not ok or log_id or category != "as":
+        return ok, log_id, err
+    from foms.api.cs.as_orders import ensure_as_upload_anchor_on_order
+
+    try:
+        return True, ensure_as_upload_anchor_on_order(db, order, user), None
+    except ValueError as exc:
+        return False, None, str(exc)
+
+
 def resolve_as_sort_order(db, order_id, category, as_log_id, raw):
     """업로드 요청의 sort_order 를 확정한다 (AS-SORT-01).
 

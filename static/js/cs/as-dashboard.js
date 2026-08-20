@@ -2610,220 +2610,31 @@
       });
 
       // AS PUSH: 본문은 서버가 저장된 주문으로 조립한다(SSOT) — 이 화면에는 주문 폼이 없다.
-      // 전송 전 확인창(AS-FRESH-01 T7)에서 나갈 본문·파일을 보여주고 선택을 고칠 수 있게 한다.
-      // 기본 선택은 서버가 정한다(select_as_push_attachments) — 클라가 따로 판정하면
-      // 미리보기와 실제 전송이 갈린다. 재전송이면 서버가 400 으로 변경 내용을 요구하므로
-      // prompt 후 1회 재시도.
+      // 전송 전 확인창(AS-FRESH-01 T7)은 as-push-confirm.js 공용 모듈.
       var asChannelPushBtn = document.getElementById('as-modal-channel-push-btn');
       if (asChannelPushBtn) {
-        var pushConfirmEl = document.getElementById('asPushConfirmModal');
-        var pushTextEl = document.getElementById('as-push-confirm-text');
-        var pushFilesEl = document.getElementById('as-push-confirm-files');
-        var pushSelectedEl = document.getElementById('as-push-confirm-selected');
-        var pushCapHint = document.getElementById('as-push-confirm-cap-hint');
-        var pushCountEl = document.getElementById('as-push-confirm-count');
-        var pushSendBtn = document.getElementById('as-push-confirm-send');
-        var __pushConfirmOrderId = null;
-        var __pushDragFrom = -1;
-
-        function selectedPushIds() {
-          if (!pushSelectedEl) return [];
-          return Array.from(pushSelectedEl.querySelectorAll('.as-push-confirm__file'))
-            .map(function (el) { return Number(el.dataset.fileId); })
-            .filter(function (n) { return Number.isFinite(n); });
-        }
-
-        function syncPushCount() {
-          if (!pushCountEl) return;
-          var selected = selectedPushIds().length;
-          var pool = pushFilesEl ? pushFilesEl.querySelectorAll('.as-push-confirm__file').length : 0;
-          pushCountEl.textContent = (selected || pool) ? selected + '건 전송' : '';
-          if (pushCapHint) pushCapHint.hidden = selected <= 20;
-          if (pushSelectedEl) {
-            Array.from(pushSelectedEl.querySelectorAll('.as-push-confirm__file')).forEach(function (el, idx) {
-              el.classList.toggle('is-over-cap', idx >= 20);
-              var ord = el.querySelector('.as-push-confirm__ord');
-              if (ord) ord.textContent = String(idx + 1);
-            });
-          }
-        }
-
-        function pushFileCard(f, selected) {
-          var name = typeof escapeHtml === 'function' ? escapeHtml(f.filename || '') : (f.filename || '');
-          var source = typeof escapeHtml === 'function' ? escapeHtml(f.source || '') : (f.source || '');
-          var media = f.is_image
-            ? '<img class="as-push-confirm__thumb" src="' + f.url + '" alt="' + name + '" loading="lazy">'
-            : '<div class="as-push-confirm__doc"><i class="fas fa-file"></i></div>';
-          return '<label class="as-push-confirm__file' + (selected ? ' is-on' : '') + '" draggable="' + (selected ? 'true' : 'false') + '" data-file-id="' + f.id + '">'
-            + '<span class="as-push-confirm__ord">' + (selected ? '1' : '') + '</span>'
-            + '<input type="checkbox" value="' + f.id + '"' + (f.selected ? ' checked' : '') + '>'
-            + media
-            + '<span class="as-push-confirm__name" title="' + name + '">' + name + '</span>'
-            + '<span class="as-push-confirm__source">' + source + '</span>'
-            + '<span class="as-push-confirm__nudge-row">'
-            + '<button type="button" class="as-push-confirm__nudge" data-dir="-1" aria-label="앞으로">▲</button>'
-            + '<button type="button" class="as-push-confirm__nudge" data-dir="1" aria-label="뒤로">▼</button>'
-            + '</span>'
-            + '</label>';
-        }
-
-        function renderPushFiles(files) {
-          if (!pushFilesEl) return;
-          if (!files.length) {
-            if (pushSelectedEl) pushSelectedEl.innerHTML = '';
-            pushFilesEl.innerHTML = '<div class="as-push-confirm__empty">보낼 AS 첨부가 없습니다. 본문만 전송됩니다.</div>';
-            syncPushCount();
-            return;
-          }
-          var selected = files.filter(function (f) { return f.selected; });
-          var rest = files.filter(function (f) { return !f.selected; });
-          if (pushSelectedEl) {
-            pushSelectedEl.innerHTML = selected.map(function (f) { return pushFileCard(f, true); }).join('');
-          }
-          pushFilesEl.innerHTML = rest.length
-            ? rest.map(function (f) { return pushFileCard(f, false); }).join('')
-            : '<div class="as-push-confirm__empty">후보 없음</div>';
-          syncPushCount();
-        }
-
-        function movePushSelected(from, to) {
-          if (!pushSelectedEl) return;
-          var nodes = Array.from(pushSelectedEl.querySelectorAll('.as-push-confirm__file'));
-          if (from < 0 || to < 0 || from >= nodes.length || to >= nodes.length || from === to) return;
-          var taken = nodes[from];
-          var target = nodes[to];
-          if (from < to) pushSelectedEl.insertBefore(taken, target.nextSibling);
-          else pushSelectedEl.insertBefore(taken, target);
-          syncPushCount();
-        }
-
-        if (pushSelectedEl) {
-          addAsDashboardListener(pushSelectedEl, 'change', function (e) {
-            var box = e.target.closest && e.target.closest('input[type="checkbox"]');
-            if (!box || box.checked) return;
-            var label = box.closest('.as-push-confirm__file');
-            if (!label || !pushFilesEl) return;
-            box.checked = false;
-            label.classList.remove('is-on');
-            label.setAttribute('draggable', 'false');
-            pushFilesEl.appendChild(label);
-            syncPushCount();
-          });
-          addAsDashboardListener(pushSelectedEl, 'dragstart', function (e) {
-            var label = e.target.closest && e.target.closest('.as-push-confirm__file');
-            if (!label) return;
-            __pushDragFrom = Array.from(pushSelectedEl.querySelectorAll('.as-push-confirm__file')).indexOf(label);
-          });
-          addAsDashboardListener(pushSelectedEl, 'dragover', function (e) { e.preventDefault(); });
-          addAsDashboardListener(pushSelectedEl, 'drop', function (e) {
-            var label = e.target.closest && e.target.closest('.as-push-confirm__file');
-            if (!label) return;
-            e.preventDefault();
-            var to = Array.from(pushSelectedEl.querySelectorAll('.as-push-confirm__file')).indexOf(label);
-            movePushSelected(__pushDragFrom, to);
-            __pushDragFrom = -1;
-          });
-          addAsDashboardListener(pushSelectedEl, 'click', function (e) {
-            var nudge = e.target.closest && e.target.closest('.as-push-confirm__nudge');
-            if (!nudge) return;
-            e.preventDefault();
-            e.stopPropagation();
-            var label = nudge.closest('.as-push-confirm__file');
-            var nodes = Array.from(pushSelectedEl.querySelectorAll('.as-push-confirm__file'));
-            var from = nodes.indexOf(label);
-            movePushSelected(from, from + Number(nudge.getAttribute('data-dir')));
-          });
-        }
-
-        if (pushFilesEl) {
-          addAsDashboardListener(pushFilesEl, 'change', function (e) {
-            var box = e.target.closest && e.target.closest('input[type="checkbox"]');
-            if (!box || !box.checked || !pushSelectedEl) return;
-            var label = box.closest('.as-push-confirm__file');
-            if (!label) return;
-            label.classList.add('is-on');
-            label.setAttribute('draggable', 'true');
-            pushSelectedEl.appendChild(label);
-            syncPushCount();
-          });
-        }
-
         addAsDashboardListener(asChannelPushBtn, 'click', async function () {
           var orderId = __currentAsModalOrderId;
           if (!orderId) return;
+          if (typeof window.fomsConfirmAndSendAsPush !== 'function') {
+            showFeedback('AS 전송 확인창을 불러오지 못했습니다.', true);
+            return;
+          }
           asChannelPushBtn.disabled = true;
           try {
-            var res = await fetch(
-              '/api/channel/push-preview?order_id=' + encodeURIComponent(orderId) + '&push_kind=as',
-              { credentials: 'same-origin' }
-            );
-            var preview = await res.json();
-            if (!preview.success) {
-              showFeedback('미리보기 실패: ' + (preview.message || '알 수 없는 오류'), true);
-              return;
+            var result = await window.fomsConfirmAndSendAsPush({ orderId: orderId });
+            if (!result || result.cancelled) return;
+            if (result.success) {
+              showFeedback('AS방으로 전송했습니다. (첨부 ' + (result.files_count || 0) + '건)');
+            } else {
+              showFeedback('전송 실패: ' + (result.error || result.message || '알 수 없는 오류'), true);
             }
-            __pushConfirmOrderId = orderId;
-            if (pushTextEl) pushTextEl.textContent = preview.text || '';
-            renderPushFiles(preview.files || []);
-            if (pushConfirmEl) bootstrap.Modal.getOrCreateInstance(pushConfirmEl).show();
           } catch (err) {
             showFeedback('네트워크 오류: ' + String((err && err.message) || err || ''), true);
           } finally {
             asChannelPushBtn.disabled = false;
           }
         });
-
-        if (pushSendBtn) {
-          addAsDashboardListener(pushSendBtn, 'click', async function () {
-            var orderId = __pushConfirmOrderId;
-            if (!orderId) return;
-            var attachmentIds = selectedPushIds();
-
-            async function send(changeNote) {
-              var payload = {
-                order_id: Number(orderId),
-                push_kind: 'as',
-                attachment_ids: attachmentIds,
-              };
-              if (changeNote) payload.change_note = changeNote;
-              var resp = await fetch('/api/channel/push-manual', {
-                method: 'POST',
-                headers: { 'Content-Type': 'application/json' },
-                credentials: 'same-origin',
-                body: JSON.stringify(payload),
-              });
-              return resp.json();
-            }
-
-            pushSendBtn.disabled = true;
-            var originalHtml = pushSendBtn.innerHTML;
-            pushSendBtn.innerHTML = '<i class="fas fa-spinner fa-spin"></i> 전송중...';
-            try {
-              var data = await send(null);
-              if (!data.success) {
-                var msg = data.error || data.message || '알 수 없는 오류';
-                if (msg.indexOf('재전송 시 변경 내용') >= 0) {
-                  var note = (window.prompt(
-                    '이미 전송한 AS PUSH입니다. 변경 내용을 입력하면 채널톡 메시지 상단에 [수정]으로 표시됩니다.'
-                  ) || '').trim();
-                  if (!note) return;
-                  data = await send(note);
-                }
-              }
-              if (data.success) {
-                if (pushConfirmEl) bootstrap.Modal.getInstance(pushConfirmEl)?.hide();
-                showFeedback('AS방으로 전송했습니다. (첨부 ' + (data.files_count || 0) + '건)');
-              } else {
-                showFeedback('전송 실패: ' + (data.error || data.message || '알 수 없는 오류'), true);
-              }
-            } catch (err) {
-              showFeedback('네트워크 오류: ' + String((err && err.message) || err || ''), true);
-            } finally {
-              pushSendBtn.disabled = false;
-              pushSendBtn.innerHTML = originalHtml;
-            }
-          });
-        }
       }
 
       var asUploadInput = document.getElementById('as-modal-upload-input');
@@ -2843,6 +2654,12 @@
           asUploadBtn.disabled = true;
           var ok = 0;
           try {
+            if (typeof window.fomsEnsureAsUploadAnchor !== 'function') {
+              showFeedback('AS 첨부 위치를 준비하지 못했습니다.', true);
+              return;
+            }
+            var anchor = await window.fomsEnsureAsUploadAnchor(orderId);
+
             // --- Optimistic UI Start ---
             var galleryEl = document.getElementById('erp-attachments-category-gallery');
             if (galleryEl) {
@@ -2889,26 +2706,14 @@
             
             var category = 'as';
             var folder = 'orders/' + orderId + '/attachments';
-            let sessionMap = {};
-
-            const fallbackFormUpload = async function (file) {
-              try {
-                const fd = new FormData();
-                fd.append('file', file);
-                fd.append('category', category);
-                const res = await fetch(`/api/orders/${orderId}/attachments`, { method: 'POST', body: fd });
-                const data = await res.json();
-                return data && data.success ? { success: true } : (data || { success: false, message: '첨부 업로드 실패' });
-              } catch (err) {
-                return { success: false, message: err && err.message ? err.message : '첨부 업로드 실패' };
-              }
-            };
 
             const uploadResult = await window.fomsUploadOrderAttachmentsBatch({
                 orderId: orderId,
                 files: files,
                 folder: folder,
                 category: category,
+                asLogId: anchor.asLogId,
+                sortOrders: files.map(function (_file, index) { return anchor.nextSort + index; }),
                 useDirectUpload: true,
                 onPrepareProgress: function (info) {
                     if (asUploadStatus) asUploadStatus.textContent = '이미지 최적화 중... (' + info.done + '/' + info.total + ')';

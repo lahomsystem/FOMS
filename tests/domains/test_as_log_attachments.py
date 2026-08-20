@@ -16,6 +16,10 @@ from db import db_session
 from foms.api.files.common import resolve_as_log_ref
 from foms.services.attachment_sort import parse_attachment_sort_order
 from foms.services.orders.as_round_chart import build_as_round_chart_view
+from foms.services.orders.as_upload_anchor import (
+    AS_UPLOAD_PARK_FLAG,
+    peek_as_upload_anchor,
+)
 from models import Order, OrderAttachment, User
 
 
@@ -251,6 +255,163 @@ def test_attachment_upload_rejects_unknown_as_log_id(client) -> None:
     assert response.status_code == 400
     assert db_session.query(OrderAttachment).filter(
         OrderAttachment.order_id == order.id).count() == 0
+
+
+# ── 암시적 앵커 (AS-BIND-01) ──────────────────────────────────────────────────
+
+
+def test_peek_anchor_uses_current_round_reception_not_global_first() -> None:
+    """2회차 사진은 1회차 접수 칸에 붙지 않는다."""
+    sd = _sd_with_log(
+        {"id": "al_r1", "type": "reception", "text": "1차", "round": 1},
+        {"id": "al_v", "type": "verdict", "verdict": "unresolved", "text": "미결",
+         "round": 1},
+        {"id": "al_r2", "type": "reception", "text": "2차", "round": 2},
+    )
+
+    assert peek_as_upload_anchor(sd) == "al_r2"
+
+
+def test_peek_anchor_ignores_plan_and_prefers_park() -> None:
+    """방안 줄은 앵커가 아니다. 주차 플래그만 접수 다음 후보."""
+    sd = _sd_with_log(
+        {"id": "al_plan", "type": "plan", "text": "방문", "round": 1},
+        {"id": "al_park", "type": "memo", "text": "첨부 파일", "round": 1,
+         AS_UPLOAD_PARK_FLAG: True},
+    )
+
+    assert peek_as_upload_anchor(sd) == "al_park"
+
+
+def test_empty_as_upload_binds_current_round_reception(client) -> None:
+    """공통 첨부 AS(빈 as_log_id)는 현재 회차 접수 줄에 붙는다."""
+    _login_admin(client, username="as-bind-rec")
+    order = _as_order(as_log=[
+        {"id": "al_rec", "type": "reception", "text": "접수", "round": 1},
+    ])
+
+    response = client.post(
+        f"/api/orders/{order.id}/attachments",
+        data={
+            "file": (io.BytesIO(b"fake-image-bytes"), "as-photo.jpg"),
+            "category": "as",
+        },
+        content_type="multipart/form-data",
+    )
+
+    assert response.status_code == 200
+    assert response.get_json()["attachment"]["as_log_id"] == "al_rec"
+
+
+def test_empty_as_upload_parks_when_only_plan_exists(client) -> None:
+    """방안만 있으면 그 줄에 붙이지 않고 주차 메모를 만든다."""
+    _login_admin(client, username="as-bind-plan")
+    order = _as_order(as_log=[
+        {"id": "al_plan", "type": "plan", "text": "방문 예정", "round": 1},
+    ])
+    order_id = order.id
+
+    response = client.post(
+        f"/api/orders/{order_id}/attachments",
+        data={
+            "file": (io.BytesIO(b"fake-image-bytes"), "as-photo.jpg"),
+            "category": "as",
+        },
+        content_type="multipart/form-data",
+    )
+
+    assert response.status_code == 200
+    body = response.get_json()["attachment"]
+    assert body["as_log_id"] != "al_plan"
+    db_session.expire_all()
+    saved = db_session.get(Order, order_id)
+    park = next(
+        e for e in saved.structured_data["shipment"]["as_log"]
+        if e.get("id") == body["as_log_id"]
+    )
+    assert park.get(AS_UPLOAD_PARK_FLAG) is True
+    assert park.get("type") == "memo"
+
+
+def test_empty_as_upload_does_not_bind_round1_reception_in_round2(client) -> None:
+    """미결 후 2회차 업로드는 1회차 접수 id 를 쓰지 않는다."""
+    _login_admin(client, username="as-bind-r2")
+    order = _as_order(as_log=[
+        {"id": "al_r1", "type": "reception", "text": "1차", "round": 1},
+        {"id": "al_v", "type": "verdict", "verdict": "unresolved", "text": "미결",
+         "round": 1},
+    ])
+
+    response = client.post(
+        f"/api/orders/{order.id}/attachments",
+        data={
+            "file": (io.BytesIO(b"fake-image-bytes"), "as-photo.jpg"),
+            "category": "as",
+        },
+        content_type="multipart/form-data",
+    )
+
+    assert response.status_code == 200
+    assert response.get_json()["attachment"]["as_log_id"] != "al_r1"
+
+
+def test_as_register_promotes_parked_attachments(client) -> None:
+    """주차 사진을 올린 뒤 접수하면 접수 줄로 옮기고 주차 메모는 숨긴다."""
+    _login_admin(client, username="as-bind-promote")
+    order = _as_order()
+    order_id = order.id
+    park_res = client.post(f"/api/orders/{order_id}/as/upload-anchor", json={})
+    assert park_res.status_code == 200
+    park_id = park_res.get_json()["as_log_id"]
+
+    up = client.post(
+        f"/api/orders/{order_id}/attachments",
+        data={
+            "file": (io.BytesIO(b"fake-image-bytes"), "parked.jpg"),
+            "category": "as",
+            "as_log_id": park_id,
+        },
+        content_type="multipart/form-data",
+    )
+    assert up.status_code == 200
+    att_id = up.get_json()["attachment"]["id"]
+
+    reg = client.post(
+        f"/api/orders/{order_id}/as/register", json={"as_content": "후드 소음"}
+    )
+    assert reg.status_code == 200
+    reception_id = reg.get_json()["reception_log_id"]
+    assert reception_id
+    assert reception_id != park_id
+
+    db_session.expire_all()
+    saved_att = db_session.get(OrderAttachment, att_id)
+    assert saved_att.as_log_id == reception_id
+    saved = db_session.get(Order, order_id)
+    park = next(
+        e for e in saved.structured_data["shipment"]["as_log"] if e.get("id") == park_id
+    )
+    assert park.get("deleted") is True
+
+
+def test_as_register_does_not_promote_unbound_legacy(client) -> None:
+    """as_log_id 없는 레거시 파일은 접수 때 자동으로 안 붙는다."""
+    _login_admin(client, username="as-bind-legacy")
+    order = _as_order()
+    legacy = OrderAttachment(
+        order_id=order.id, filename="old.jpg", file_type="image",
+        category="as", as_log_id=None, storage_key=f"orders/{order.id}/old.jpg",
+    )
+    db_session.add(legacy)
+    db_session.commit()
+    legacy_id = legacy.id
+
+    client.post(
+        f"/api/orders/{order.id}/as/register", json={"as_content": "레거시 유지"}
+    )
+
+    db_session.expire_all()
+    assert db_session.get(OrderAttachment, legacy_id).as_log_id is None
 
 
 # ── 접수 응답 (T3) ────────────────────────────────────────────────────────────

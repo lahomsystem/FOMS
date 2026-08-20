@@ -915,6 +915,19 @@ def test_dashboard_js_link_is_version_pinned():
     link = [line for line in body.splitlines() if "js/cs/as-dashboard.js" in line]
     assert len(link) == 1
     assert "?v=" in link[0]
+    assert "defer" in link[0]
+
+
+def test_as_push_confirm_script_is_version_pinned_and_deferred():
+    """AS PUSH 확인창 공용 모듈도 SW 캐시 무효화 + 렌더 비차단(defer)이 필요하다."""
+    body = (_ROOT / "templates/cs/partials/as_dashboard_body.html").read_text(encoding="utf-8")
+    link = [line for line in body.splitlines() if "js/cs/as-push-confirm.js" in line]
+    assert len(link) == 1
+    assert "?v=" in link[0]
+    assert "defer" in link[0]
+    dash = body.index("js/cs/as-push-confirm.js")
+    after = body.index("js/cs/as-dashboard.js")
+    assert dash < after
 
 
 def test_as_attachment_order_script_is_version_pinned_and_deferred():
