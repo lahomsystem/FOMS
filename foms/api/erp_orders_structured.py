@@ -470,7 +470,12 @@ def _preserve_operational_structured_state(old_sd: dict, structured_data: dict) 
         if key not in structured_data and key in old_sd:
             structured_data[key] = copy.deepcopy(old_sd.get(key))
 
-    for key in ('workflow', 'assignments', 'shipment', 'meta'):
+    # 'parties' 는 폼이 렌더하는 키(customer.name/phone·orderer.name·manager.name)만 보내고
+    # 나머지는 payload 에 아예 없다. 통째 대입이면 수집이 채운 값이 첫 저장에서 사라진다 —
+    # 2026-08-20 스테이징 실측: 네이버가 보존한 parties.orderer.phone(대리주문 주문자)과
+    # parties.customer.phone2(보조 연락처, 수집 주석 왈 "버리면 다시 구할 방법이 없다")가
+    # 주문을 한 번 열어 저장하는 것만으로 지워졌다. 키가 오면 덮고, 안 오면 남긴다.
+    for key in ('workflow', 'assignments', 'shipment', 'meta', 'parties'):
         old_value = old_sd.get(key)
         incoming_value = structured_data.get(key)
         if isinstance(old_value, dict):
