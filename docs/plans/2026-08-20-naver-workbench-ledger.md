@@ -136,3 +136,40 @@
    안 돌려도 화면은 죽지 않고 예전 폴백으로 떨어질 뿐이다.
 3. **게이트 켜기** — `FOMS_NAVER_WORKBENCH_ENABLED=1` + `FOMS_NAVER_WORKBENCH_COHORT=<id>` 로 소수 먼저.
 4. **실사용 확인 후 옛 화면 정리 여부 결정** — 지금은 롤백 경로라 남겨 둔다.
+
+## 코드 리뷰 결과 (2026-08-20, 멀티에이전트 5축 + 적대적 검증)
+
+리뷰 45건 지적 / 검증 25건 판정(19건 반증 실패). 워크플로는 30/35 에서 승인 대기로 멈춰 종합 단계 미실행 —
+아래는 **감독자가 코드로 직접 재확인한 것만** 적는다. 나머지 high 9건은 미검증 상태로 다음 세션 몫.
+
+### 반드시 고칠 것 (직접 확인 완료 — 전부 이번 세션이 만든 것)
+
+1. **[권한 확대] STAFF 가 수집 이력을 보게 됐다** — `foms/web/admin/naver_ingest.py`
+   `naver_ingest_dashboard` 는 `@role_required(["ADMIN"])`(358행)인데 `naver_ingest_triage` 는
+   `["ADMIN","MANAGER","STAFF"]`(505행). W4 가 ADMIN 전용 `_history_view`(수집 이력·상태 집계·실패 사유)를
+   STAFF 도 여는 라우트 안에 넣었다. **회귀가 아니라 신규 노출**이다.
+   조치: `?tab=all` 을 ADMIN 에게만 열거나(비 ADMIN 은 탭 자체를 숨기고 접근 시 work 로), 이력 데이터를 권한별로 나눈다.
+
+2. **[구분자가 공백문자] 파이썬과 SQL 의 묶음키가 또 갈린다** — `naver_commerce/grouping.py`
+   `''.isspace()` 가 **True** 라 `resolve_group_key` 의 `.strip()` 이 앞뒤 구분자를 잘라낸다:
+   `'N-K'.strip()` → `'N-K'`. SQL 쪽 `nullif(group_key,'')` 는 안 자른다.
+   전화·주소가 빈 상세(claim_watch 갱신 등)에서 두 경로가 다른 키를 만든다 —
+   **이번 세션이 없애려던 '정의가 두 벌' 결함을 새로 만든 것**이다.
+   조치: `.strip()` 대신 `or ""` 만 쓰거나, 구분자를 공백이 아닌 문자로 바꾼다. 계약 테스트 동반 필수.
+
+3. **[불가역 호출이 옆 집까지 나간다] `_links_of_group` 이 아직 주문번호 기준** — `naver_commerce/fulfillment.py:63`
+   화면은 `group_key`(주문번호+전화+주소)로 집을 가르는데 워커는 같은 `external_order_no` 전부를 처리한다.
+   분할배송에서 A집만 체크해도 B집 상품주문까지 발주확인이 나간다. **되돌릴 수 없다.**
+   조치: `_links_of_group` 도 `group_key` 기준으로 좁히거나, 화면이 대상 링크 id 전부를 명시적으로 보낸다.
+
+### 미검증(다음 세션에서 코드로 확인할 것) — 리뷰가 high 로 든 나머지
+- 재시도 버튼이 항상 `action:'confirm'` — dispatch 실패는 영구히 띠에 남는다(js:34)
+- `group_key_expression()` 의 coalesce 가 `ix_external_order_link_group` 를 무력화(seq scan)
+- `_failure_rows` 가 `triage_state.isnot(None)` + LIMIT 250 — 진짜 실패가 창 밖으로 밀릴 수 있다
+- `_place_groups` 가 탭과 무관하게 매 렌더 실행(비용)
+- 네이버 200 + `failProductOrderInfos` 부분 실패를 성공으로 커밋(fulfillment.py:182)
+- 워크벤치에 **발송처리 버튼이 없다** — T16-H 계약 테스트는 전부 게이트 off 로 돌아 못 잡는다
+- `_place_groups` 가 클레임 판정을 '발주확인 전 멤버'만 보고 내린다
+- `resolve_group_key` 계약 테스트 부재(변이해도 190건 green)
+
+**판단: 지금 상태로 게이트를 켜면 안 된다.** 1·3 은 권한·불가역 호출이라 승격 전 필수.
