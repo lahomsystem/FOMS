@@ -1,0 +1,528 @@
+<!doctype html>
+<html lang="ko">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>네이버 수집 워크벤치 (목업)</title>
+<style>
+  :root {
+    --bg: #eef2f7;
+    --surface: #fff;
+    --surface-soft: #f6f8fb;
+    --text: #111827;
+    --muted: #6b7280;
+    --line: #dbe1ea;
+    --line-soft: #edf1f6;
+    --blue: #2563eb;
+    --blue-soft: #eaf1ff;
+    --green: #15803d;
+    --green-soft: #e7f6ec;
+    --amber: #b45309;
+    --amber-soft: #fdf3e3;
+    --red: #b91c1c;
+    --red-soft: #fdeaea;
+    --radius: 10px;
+    font-family: Pretendard, -apple-system, BlinkMacSystemFont, "Segoe UI", "Malgun Gothic", sans-serif;
+  }
+  * { box-sizing: border-box; }
+  body { margin: 0; background: var(--bg); color: var(--text); font-size: 13px; }
+
+  /* ── 상단: 한 줄 상태 스트립 (기존 카드 3개를 접었다) ───────────── */
+  .strip {
+    display: flex; align-items: center; gap: 18px; flex-wrap: wrap;
+    background: var(--surface); border-bottom: 1px solid var(--line);
+    padding: 8px 16px;
+  }
+  .strip .title { font-size: 15px; font-weight: 700; margin-right: 4px; }
+  .strip .fact { color: var(--muted); }
+  .strip .fact b { color: var(--text); font-weight: 600; }
+  .strip .dot { width: 7px; height: 7px; border-radius: 50%; display: inline-block; margin-right: 5px; }
+  .dot-ok { background: #22c55e; } .dot-warn { background: #f59e0b; }
+  .strip .spacer { flex: 1; }
+  .btn {
+    border: 1px solid var(--line); background: var(--surface); color: var(--text);
+    padding: 5px 11px; border-radius: 7px; font-size: 12px; cursor: pointer; font-weight: 600;
+  }
+  .btn:hover { background: var(--surface-soft); }
+  .btn-primary { background: var(--blue); border-color: var(--blue); color: #fff; }
+  .btn-ghost { border-color: transparent; color: var(--muted); }
+  .btn[disabled] { opacity: .45; cursor: not-allowed; }
+
+  /* ── 탭: 화면 왕복을 없앤 자리 ─────────────────────────────────── */
+  .tabs { display: flex; gap: 2px; background: var(--surface); padding: 0 12px; border-bottom: 1px solid var(--line); }
+  .tab {
+    padding: 9px 14px; border: none; background: none; cursor: pointer;
+    font-size: 13px; font-weight: 600; color: var(--muted);
+    border-bottom: 2px solid transparent;
+  }
+  .tab[aria-selected="true"] { color: var(--blue); border-bottom-color: var(--blue); }
+  .tab .n {
+    display: inline-block; margin-left: 6px; padding: 1px 7px; border-radius: 10px;
+    background: var(--surface-soft); color: var(--muted); font-size: 11px; font-weight: 700;
+  }
+  .tab[aria-selected="true"] .n { background: var(--blue-soft); color: var(--blue); }
+  .tab.danger .n { background: var(--red-soft); color: var(--red); }
+
+  /* ── 본문 2단 ───────────────────────────────────────────────── */
+  .wrap { display: grid; grid-template-columns: minmax(330px, 400px) 1fr; gap: 12px; padding: 12px; align-items: start; }
+  .panel { background: var(--surface); border: 1px solid var(--line); border-radius: var(--radius); }
+  .panel-head {
+    display: flex; align-items: center; gap: 8px; padding: 9px 12px;
+    border-bottom: 1px solid var(--line-soft); font-weight: 700;
+  }
+  .panel-head .sub { font-weight: 500; color: var(--muted); font-size: 12px; }
+
+  .filterbar { display: flex; gap: 6px; padding: 8px 10px; border-bottom: 1px solid var(--line-soft); flex-wrap: wrap; }
+  .chip {
+    border: 1px solid var(--line); background: var(--surface); border-radius: 999px;
+    padding: 3px 10px; font-size: 11.5px; color: var(--muted); cursor: pointer;
+  }
+  .chip[aria-pressed="true"] { background: #111827; border-color: #111827; color: #fff; font-weight: 600; }
+
+  /* ── 큐 행: 한 집 = 한 줄, 3계층 ────────────────────────────── */
+  .queue { max-height: 640px; overflow: auto; }
+  .row {
+    display: grid; grid-template-columns: 4px 1fr; gap: 10px;
+    padding: 0; border-bottom: 1px solid var(--line-soft); cursor: pointer;
+  }
+  .row:hover { background: var(--surface-soft); }
+  .row[aria-current="true"] { background: var(--blue-soft); }
+  .row .bar { background: var(--blue); }
+  .row.is-hold .bar { background: #f59e0b; }
+  .row.is-blocked .bar { background: var(--red); }
+  .row.is-done .bar { background: #22c55e; }
+  .row .body { padding: 9px 10px 10px 0; min-width: 0; }
+  .line1 { display: flex; align-items: baseline; gap: 8px; }
+  .name { font-weight: 700; font-size: 13.5px; }
+  .amt { margin-left: auto; font-variant-numeric: tabular-nums; font-weight: 700; }
+  .line2 { color: var(--muted); margin-top: 2px; white-space: nowrap; overflow: hidden; text-overflow: ellipsis; }
+  .line3 { display: flex; align-items: center; gap: 5px; margin-top: 5px; flex-wrap: wrap; }
+  .when { margin-left: auto; color: #9aa3af; font-size: 11.5px; font-variant-numeric: tabular-nums; }
+
+  /* 상태 배지: 축마다 자리가 고정이라 눈이 같은 위치를 본다 */
+  .b { font-size: 11px; font-weight: 700; border-radius: 5px; padding: 1.5px 6px; white-space: nowrap; }
+  .b-collect { background: var(--blue-soft); color: var(--blue); }
+  .b-linked { background: var(--green-soft); color: var(--green); }
+  .b-place { background: var(--amber-soft); color: var(--amber); }
+  .b-claim { background: var(--red-soft); color: var(--red); }
+  .b-size { background: #f1f3f7; color: #4b5563; }
+
+  /* ── 우측 작업 패널 ─────────────────────────────────────────── */
+  .work-head {
+    position: sticky; top: 0; z-index: 2; background: var(--surface);
+    border-bottom: 1px solid var(--line-soft); border-radius: var(--radius) var(--radius) 0 0;
+    padding: 10px 14px;
+  }
+  .work-title { display: flex; align-items: center; gap: 10px; flex-wrap: wrap; }
+  .work-title h2 { font-size: 15px; margin: 0; }
+  .ono { color: var(--muted); font-size: 12px; font-variant-numeric: tabular-nums; }
+  .steps { display: flex; align-items: center; gap: 6px; margin: 8px 0 0; color: var(--muted); font-size: 12px; }
+  .step { display: flex; align-items: center; gap: 5px; padding: 2px 8px; border-radius: 999px; background: var(--surface-soft); }
+  .step.on { background: var(--blue); color: #fff; font-weight: 700; }
+  .step.done { background: var(--green-soft); color: var(--green); font-weight: 700; }
+  .actions { display: flex; gap: 8px; align-items: center; margin-top: 10px; flex-wrap: wrap; }
+  .actions .hint { color: var(--muted); font-size: 11.5px; }
+
+  .work-body { padding: 12px 14px 16px; }
+  .callout {
+    border: 1px solid var(--line); border-left: 3px solid var(--blue); background: var(--surface-soft);
+    border-radius: 8px; padding: 10px 12px; margin-bottom: 12px;
+  }
+  .callout.warn { border-left-color: #f59e0b; background: var(--amber-soft); }
+  .callout.bad { border-left-color: var(--red); background: var(--red-soft); }
+  .callout .k { font-size: 11.5px; color: var(--muted); font-weight: 600; }
+  .option-raw { font-size: 16px; font-weight: 700; line-height: 1.5; margin-top: 3px; }
+
+  table.cmp { width: 100%; border-collapse: collapse; }
+  table.cmp th, table.cmp td { padding: 7px 8px; border-bottom: 1px solid var(--line-soft); vertical-align: top; }
+  table.cmp thead th { font-size: 11.5px; color: var(--muted); text-align: left; background: var(--surface-soft); }
+  table.cmp td.k { color: var(--muted); width: 108px; }
+  table.cmp td.v { font-weight: 600; }
+  table.cmp td.foms { color: #9aa3af; width: 150px; }
+  .copy { border: 1px solid var(--line); background: #fff; border-radius: 6px; font-size: 11px; padding: 1px 6px; cursor: pointer; color: var(--muted); }
+
+  .kbd { font-family: ui-monospace, Menlo, Consolas, monospace; font-size: 11px; border: 1px solid var(--line); border-bottom-width: 2px; border-radius: 4px; padding: 0 4px; background: #fff; }
+  .note { color: var(--muted); font-size: 11.5px; margin-top: 8px; }
+  .pane { display: none; }
+  .pane.on { display: block; }
+  .empty { padding: 40px 16px; text-align: center; color: var(--muted); }
+
+  /* 목업 설명용 주석 배지 */
+  .why { position: relative; }
+  .why::after {
+    content: attr(data-why); position: absolute; right: 8px; top: -9px;
+    background: #111827; color: #fff; font-size: 10px; padding: 1px 6px; border-radius: 4px;
+  }
+</style>
+</head>
+<body>
+
+<!-- 상태 스트립: 예전 화면의 카드 3장(워터마크·마지막 실행·인증 만료)을 한 줄로 접었다.
+     CS 는 이 값을 매번 읽지 않는다 — 이상할 때만 본다. -->
+<div class="strip">
+  <span class="title">🛒 네이버 수집</span>
+  <span class="fact"><span class="dot dot-ok"></span>마지막 실행 <b>08-20 10:42</b> · 수집 0 · 보류 0</span>
+  <span class="fact">워터마크 <b>10:41</b></span>
+  <span class="fact"><span class="dot dot-warn"></span>인증 만료일 <b>미등록</b></span>
+  <span class="spacer"></span>
+  <button class="btn">지금 수집</button>
+  <button class="btn btn-ghost">관리자 화면</button>
+</div>
+
+<!-- 탭: triage ↔ naver-ingest 왕복을 없앤 자리. 취소·반품은 별도 축이라 탭으로 분리. -->
+<div class="tabs" role="tablist">
+  <button class="tab" role="tab" aria-selected="true" data-pane="work">처리 대기<span class="n">40집</span></button>
+  <button class="tab" role="tab" aria-selected="false" data-pane="place">발주확인 전<span class="n">21집</span></button>
+  <button class="tab danger" role="tab" aria-selected="false" data-pane="claim">취소·반품<span class="n">4집</span></button>
+  <button class="tab" role="tab" aria-selected="false" data-pane="all">전체 이력<span class="n">45집</span></button>
+</div>
+
+<!-- ── 처리 대기 ─────────────────────────────────────────────── -->
+<div class="pane on" id="pane-work">
+<div class="wrap">
+  <section class="panel">
+    <div class="panel-head">확인 대기 <span class="sub">한 집 = 한 줄 · 상품주문 140건</span></div>
+    <div class="filterbar">
+      <button class="chip" aria-pressed="true">전체 40</button>
+      <button class="chip">주문 만들기 34</button>
+      <button class="chip">규격 입력 6</button>
+      <button class="chip">기존 주문 후보 있음 3</button>
+    </div>
+    <div class="queue">
+
+      <div class="row" aria-current="true">
+        <div class="bar"></div>
+        <div class="body">
+          <div class="line1"><span class="name">이재두</span><span class="amt">1,771,400</span></div>
+          <div class="line2">보테가 붙박이장 슬라이딩 미닫이 30cm · 1cm · TYPE E · 2단(대) · 1단(대) · TYPE 02</div>
+          <div class="line3">
+            <span class="b b-size">6건 묶음</span>
+            <span class="b b-collect">주문 만들기</span>
+            <span class="b b-linked">발주확인 완료</span>
+            <span class="when">08-20 08:28</span>
+          </div>
+        </div>
+      </div>
+
+      <div class="row is-hold">
+        <div class="bar"></div>
+        <div class="body">
+          <div class="line1"><span class="name">이도헌</span><span class="amt">1,271,280</span></div>
+          <div class="line2">보테가 붙박이장 슬라이딩 미닫이 30cm 외 4건</div>
+          <div class="line3">
+            <span class="b b-size">5건 묶음</span>
+            <span class="b b-collect">주문 만들기</span>
+            <span class="b b-place">발주확인 전</span>
+            <span class="when">08-19 23:01</span>
+          </div>
+        </div>
+      </div>
+
+      <div class="row">
+        <div class="bar"></div>
+        <div class="body">
+          <div class="line1"><span class="name">고봉관</span><span class="amt">148,790</span></div>
+          <div class="line2">로라 무몰딩 붙박이장 30cm 푸쉬타입 외 1건</div>
+          <div class="line3">
+            <span class="b b-size">2건 묶음</span>
+            <span class="b b-collect">주문 만들기</span>
+            <span class="when">08-19 20:26</span>
+          </div>
+        </div>
+      </div>
+
+      <div class="row is-hold why" data-why="차액 결제 후보">
+        <div class="bar"></div>
+        <div class="body">
+          <div class="line1"><span class="name">배수경</span><span class="amt">94,900</span></div>
+          <div class="line2">로라 무몰딩 붙박이장 30cm 푸쉬타입 · 수량 1</div>
+          <div class="line3">
+            <span class="b b-collect">주문 만들기</span>
+            <span class="b b-place">발주확인 전</span>
+            <span class="b" style="background:#ede9fe;color:#6d28d9;">기존 주문 후보 1</span>
+            <span class="when">08-19 14:57</span>
+          </div>
+        </div>
+      </div>
+
+      <div class="row is-done">
+        <div class="bar"></div>
+        <div class="body">
+          <div class="line1"><span class="name">전태곤</span><span class="amt">2,984,000</span></div>
+          <div class="line2">로라 무몰딩 붙박이장 30cm 외 13건</div>
+          <div class="line3">
+            <span class="b b-size">14건 묶음</span>
+            <span class="b b-linked">#4477 규격 입력</span>
+            <span class="when">08-18 11:02</span>
+          </div>
+        </div>
+      </div>
+
+      <div class="row">
+        <div class="bar"></div>
+        <div class="body">
+          <div class="line1"><span class="name">김지연</span><span class="amt">2,830,000</span></div>
+          <div class="line2">라운드 냉장고장 빌트인 홈카페 키친핏 프리스탠딩 외 1건</div>
+          <div class="line3">
+            <span class="b b-size">2건 묶음</span>
+            <span class="b b-collect">주문 만들기</span>
+            <span class="when">08-19 19:00</span>
+          </div>
+        </div>
+      </div>
+
+      <div class="row">
+        <div class="bar"></div>
+        <div class="body">
+          <div class="line1"><span class="name">최은혜</span><span class="amt">510,260</span></div>
+          <div class="line2">로라 무몰딩 붙박이장 30cm 푸쉬타입 외 1건</div>
+          <div class="line3">
+            <span class="b b-size">2건 묶음</span>
+            <span class="b b-collect">주문 만들기</span>
+            <span class="when">08-19 15:17</span>
+          </div>
+        </div>
+      </div>
+
+    </div>
+  </section>
+
+  <section class="panel">
+    <div class="work-head">
+      <div class="work-title">
+        <h2>이재두</h2>
+        <span class="ono">상품주문 2026082044326741 · 네이버주문 2026082064997471</span>
+        <span class="b b-linked">발주확인 완료</span>
+        <span class="b b-size">6건 묶음</span>
+      </div>
+      <div class="steps">
+        <span class="step on">① 주문 만들기</span> →
+        <span class="step">② ERP 규격 입력</span> →
+        <span class="step">③ 확인 완료</span>
+        <span style="margin-left:auto">담당자 지정은 실측 일정 잡을 때</span>
+      </div>
+      <div class="actions">
+        <button class="btn btn-primary">주문 만들기 (6건 묶음)</button>
+        <button class="btn" disabled>ERP 규격 입력</button>
+        <button class="btn" disabled>확인 완료</button>
+        <span class="hint"><span class="kbd">J</span>/<span class="kbd">K</span> 다음·이전 · <span class="kbd">Enter</span> 주문 만들기</span>
+      </div>
+    </div>
+
+    <div class="work-body">
+      <div class="callout">
+        <div class="k">네이버 옵션 원문 — 규격은 이걸 보고 채운다</div>
+        <div class="option-raw">길이추가(1cm): 보테가 슬라이딩 1cm</div>
+        <div class="note">본품 6건의 옵션 원문이 아래 표에 순서대로 붙어 있다. 총폭 힌트: <b>3,000mm</b> (1,500 × 2)</div>
+      </div>
+
+      <table class="cmp">
+        <thead><tr><th>항목</th><th>네이버 원본</th><th>FOMS 현재 값</th></tr></thead>
+        <tbody>
+          <tr><td class="k">수취인</td><td class="v">이재두 <button class="copy">복사</button></td><td class="foms">–</td></tr>
+          <tr><td class="k">연락처</td><td class="v">010-9107-6677 <button class="copy">복사</button></td><td class="foms">–</td></tr>
+          <tr><td class="k">주소</td><td class="v">경기도 성남시 중원구 사기막골로150번길 10 (상대원동, 산성아파트) 101동 103호 <button class="copy">복사</button></td><td class="foms">–</td></tr>
+          <tr><td class="k">주문자</td><td class="v">이재두 / 010-3860-0073 <span class="b b-size">수취인과 동일</span></td><td class="foms">–</td></tr>
+          <tr><td class="k">금액 / 할인</td><td class="v">1,771,400 <span style="color:var(--muted);font-weight:500">(할인 230,000)</span></td><td class="foms">–</td></tr>
+          <tr><td class="k">결제</td><td class="v">08-20 08:23 · 신용카드 간편결제 (MOBILE)</td><td class="foms">–</td></tr>
+          <tr><td class="k">발송기한</td><td class="v">2026-09-09 · 상품코드 main_03</td><td class="foms">–</td></tr>
+          <tr><td class="k">배송메모</td><td class="v">문 앞에 놓아주세요</td><td class="foms">–</td></tr>
+        </tbody>
+      </table>
+      <div class="note">상품ID 12025571454 · 유입 네이버페이&gt;홈(네이버쇼핑) · <a href="#">원본 JSON 보기</a></div>
+    </div>
+  </section>
+</div>
+</div>
+
+<!-- ── 발주확인 전 ───────────────────────────────────────────── -->
+<div class="pane" id="pane-place">
+<div class="wrap">
+  <section class="panel">
+    <div class="panel-head">발주확인 전 <span class="sub">네이버 판매자센터에 아직 안 알린 집</span></div>
+    <div class="filterbar">
+      <button class="chip" aria-pressed="true">전체 21</button>
+      <button class="chip">발송기한 3일 이내 4</button>
+      <button class="chip">주문 생성됨 2</button>
+    </div>
+    <div class="queue">
+      <div class="row is-hold" aria-current="true">
+        <div class="bar"></div>
+        <div class="body">
+          <div class="line1"><span class="name">이도헌</span><span class="amt">1,271,280</span></div>
+          <div class="line2">보테가 붙박이장 슬라이딩 미닫이 30cm 외 4건</div>
+          <div class="line3"><span class="b b-place">발주확인 전</span><span class="b b-size">발송기한 09-08</span><span class="when">08-19 23:01</span></div>
+        </div>
+      </div>
+      <div class="row is-hold">
+        <div class="bar"></div>
+        <div class="body">
+          <div class="line1"><span class="name">장효원</span><span class="amt">1,207,000</span></div>
+          <div class="line2">보테가 붙박이장 슬라이딩 미닫이 30cm 외 4건</div>
+          <div class="line3"><span class="b b-place">발주확인 전</span><span class="b b-size">발송기한 09-08</span><span class="when">08-19 19:25</span></div>
+        </div>
+      </div>
+      <div class="row is-hold">
+        <div class="bar"></div>
+        <div class="body">
+          <div class="line1"><span class="name">배수경</span><span class="amt">94,900</span></div>
+          <div class="line2">로라 무몰딩 붙박이장 30cm 푸쉬타입</div>
+          <div class="line3"><span class="b b-place">발주확인 전</span><span class="when">08-19 14:57</span></div>
+        </div>
+      </div>
+    </div>
+  </section>
+
+  <section class="panel">
+    <div class="work-head">
+      <div class="work-title"><h2>이도헌</h2><span class="ono">2026081960408441</span><span class="b b-place">발주확인 전</span></div>
+      <div class="actions">
+        <button class="btn btn-primary">발주확인 보내기 (5건)</button>
+        <button class="btn" disabled>발송처리</button>
+        <span class="hint">발주확인이 먼저다 — 네이버가 그 전에는 발송 단계를 막는다. 되돌릴 수 없다.</span>
+      </div>
+    </div>
+    <div class="work-body">
+      <div class="callout warn">
+        <div class="k">왜 지금 해야 하나</div>
+        <div>발송기한 <b>2026-09-08</b>까지 발주확인이 없으면 네이버가 주문을 자동 취소할 수 있다.</div>
+      </div>
+      <table class="cmp">
+        <thead><tr><th>상품주문</th><th>제품 / 옵션</th><th>금액</th></tr></thead>
+        <tbody>
+          <tr><td class="k">…37351031</td><td class="v">보테가 슬라이딩 미닫이 30cm</td><td class="v">1,018,280</td></tr>
+          <tr><td class="k">…37351041</td><td class="v">보테가 슬라이딩 1cm ×12</td><td class="v">73,000</td></tr>
+          <tr><td class="k">…37351051</td><td class="v">TYPE A (반옷장)</td><td class="v">60,000</td></tr>
+          <tr><td class="k">…37351061</td><td class="v">TYPE D</td><td class="v">60,000</td></tr>
+          <tr><td class="k">…37351071</td><td class="v">TYPE C</td><td class="v">60,000</td></tr>
+        </tbody>
+      </table>
+      <div class="note">한 집의 상품주문 전부가 함께 처리된다. 두 번 눌러도 네이버에는 한 번만 나간다.</div>
+    </div>
+  </section>
+</div>
+</div>
+
+<!-- ── 취소·반품 (요구사항 2) ─────────────────────────────────── -->
+<div class="pane" id="pane-claim">
+<div class="wrap">
+  <section class="panel">
+    <div class="panel-head">취소·반품 <span class="sub">작업 목록에서 빼둔 집 — 손대면 안 되는 것</span></div>
+    <div class="filterbar">
+      <button class="chip" aria-pressed="true">전체 4</button>
+      <button class="chip">취소 2</button>
+      <button class="chip">반품 2</button>
+      <button class="chip">주문 이미 생성됨 1</button>
+    </div>
+    <div class="queue">
+      <div class="row is-blocked" aria-current="true">
+        <div class="bar"></div>
+        <div class="body">
+          <div class="line1"><span class="name">이하린</span><span class="amt">1,481,800</span></div>
+          <div class="line2">로라 무몰딩 붙박이장 작은방 여닫이 푸쉬타입 180cm 외 4건</div>
+          <div class="line3"><span class="b b-claim">취소 완료</span><span class="b b-size">5건 묶음</span><span class="when">08-19 04:49</span></div>
+        </div>
+      </div>
+      <div class="row is-blocked">
+        <div class="bar"></div>
+        <div class="body">
+          <div class="line1"><span class="name">강재상</span><span class="amt">497,490</span></div>
+          <div class="line2">로라 무몰딩 붙박이장 30cm 푸쉬타입 외 2건</div>
+          <div class="line3"><span class="b b-claim">반품 완료</span><span class="b b-linked">#4466 주문 있음</span><span class="when">08-13 17:46</span></div>
+        </div>
+      </div>
+      <div class="row is-blocked">
+        <div class="bar"></div>
+        <div class="body">
+          <div class="line1"><span class="name">박선미</span><span class="amt">312,000</span></div>
+          <div class="line2">로라 무몰딩 붙박이장 30cm 푸쉬타입</div>
+          <div class="line3"><span class="b b-claim">취소 요청</span><span class="when">08-12 09:31</span></div>
+        </div>
+      </div>
+    </div>
+  </section>
+
+  <section class="panel">
+    <div class="work-head">
+      <div class="work-title"><h2>이하린</h2><span class="ono">2026081936451301</span><span class="b b-claim">취소 완료</span></div>
+      <div class="actions">
+        <button class="btn" disabled>주문 만들기</button>
+        <button class="btn" disabled>발주확인</button>
+        <button class="btn">이 집 숨기기</button>
+        <span class="hint">취소·반품 건은 주문을 만들 수 없다. 판매자센터에서 상태를 확인하세요.</span>
+      </div>
+    </div>
+    <div class="work-body">
+      <div class="callout bad">
+        <div class="k">네이버 취소 완료 · 요청 2026-08-19 06:12</div>
+        <div>사유: <b>구매자 단순 변심</b></div>
+        <div class="note">수집 당시 상태는 결제완료(PAYED)였다 — 결제 뒤 취소된 건이라 목록에는 남는다.</div>
+      </div>
+      <table class="cmp">
+        <thead><tr><th>항목</th><th>네이버 원본</th><th>FOMS 현재 값</th></tr></thead>
+        <tbody>
+          <tr><td class="k">수취인</td><td class="v">이하린</td><td class="foms">–</td></tr>
+          <tr><td class="k">금액</td><td class="v">1,481,800 <span style="color:var(--muted);font-weight:500">(할인 421,500)</span></td><td class="foms">–</td></tr>
+          <tr><td class="k">결제</td><td class="v">08-19 04:48 · 신용카드 간편결제</td><td class="foms">–</td></tr>
+          <tr><td class="k">FOMS 주문</td><td class="v">없음 — 만들기 전에 취소돼 사고가 없었다</td><td class="foms">–</td></tr>
+        </tbody>
+      </table>
+      <div class="note">주문이 이미 만들어진 뒤 취소된 건이면 여기서 <b>담당자 알림</b>이 함께 뜬다(자동으로 주문 상태를 바꾸지는 않는다).</div>
+    </div>
+  </section>
+</div>
+</div>
+
+<!-- ── 전체 이력 ─────────────────────────────────────────────── -->
+<div class="pane" id="pane-all">
+<div class="wrap" style="grid-template-columns: 1fr;">
+  <section class="panel">
+    <div class="panel-head">전체 이력 <span class="sub">45집 · 상품주문 140건 · 숫자는 모두 집 단위</span></div>
+    <div class="filterbar">
+      <button class="chip" aria-pressed="true">전체 45</button>
+      <button class="chip">수집됨 40</button>
+      <button class="chip">주문 생성됨 6</button>
+      <button class="chip">확인 필요 0</button>
+      <button class="chip">실패 0</button>
+      <button class="chip">발주확인 전 21</button>
+      <button class="chip">취소·반품 4</button>
+    </div>
+    <table class="cmp">
+      <thead><tr><th>수집 시각</th><th>고객</th><th>제품</th><th>수량</th><th>금액</th><th>상태</th><th>FOMS 주문</th></tr></thead>
+      <tbody>
+        <tr><td class="k">08-20 08:28</td><td class="v">이재두</td><td class="v">보테가 슬라이딩 미닫이 30cm <span class="b b-size">6건</span></td><td class="v">34</td><td class="v">1,771,400</td><td><span class="b b-collect">수집됨</span> <span class="b b-linked">발주확인 완료</span></td><td><button class="btn btn-primary" style="padding:3px 9px">주문 만들기</button></td></tr>
+        <tr><td class="k">08-19 23:01</td><td class="v">이도헌</td><td class="v">보테가 슬라이딩 미닫이 30cm <span class="b b-size">5건</span></td><td class="v">18</td><td class="v">1,271,280</td><td><span class="b b-collect">수집됨</span> <span class="b b-place">발주확인 전</span></td><td><button class="btn btn-primary" style="padding:3px 9px">주문 만들기</button></td></tr>
+        <tr><td class="k">08-19 04:49</td><td class="v">이하린</td><td class="v">로라 여닫이 180cm <span class="b b-size">5건</span></td><td class="v">6</td><td class="v">1,481,800</td><td><span class="b b-claim">취소 완료</span></td><td><button class="btn" style="padding:3px 9px" disabled>주문 만들기</button></td></tr>
+        <tr><td class="k">08-18 11:02</td><td class="v">전태곤</td><td class="v">로라 무몰딩 30cm <span class="b b-size">14건</span></td><td class="v">41</td><td class="v">2,984,000</td><td><span class="b b-linked">주문 생성됨</span></td><td><a href="#">#4477</a> · 규격 입력</td></tr>
+        <tr><td class="k">08-13 17:46</td><td class="v">강재상</td><td class="v">로라 무몰딩 30cm <span class="b b-size">3건</span></td><td class="v">12</td><td class="v">497,490</td><td><span class="b b-linked">주문 생성됨</span> <span class="b b-claim">반품 완료</span></td><td><a href="#">#4466</a></td></tr>
+      </tbody>
+    </table>
+  </section>
+</div>
+</div>
+
+<script>
+  // 목업 전용 탭 스위처 (실 구현은 서버 라우트 쿼리 파라미터로 간다)
+  document.querySelectorAll('.tab').forEach(function (tab) {
+    tab.addEventListener('click', function () {
+      document.querySelectorAll('.tab').forEach(function (t) { t.setAttribute('aria-selected', String(t === tab)); });
+      document.querySelectorAll('.pane').forEach(function (p) { p.classList.remove('on'); });
+      document.getElementById('pane-' + tab.dataset.pane).classList.add('on');
+    });
+  });
+  document.querySelectorAll('.row').forEach(function (row) {
+    row.addEventListener('click', function () {
+      var pane = row.closest('.pane');
+      pane.querySelectorAll('.row').forEach(function (r) { r.removeAttribute('aria-current'); });
+      row.setAttribute('aria-current', 'true');
+    });
+  });
+  document.querySelectorAll('.chip').forEach(function (chip) {
+    chip.addEventListener('click', function () {
+      var bar = chip.closest('.filterbar');
+      bar.querySelectorAll('.chip').forEach(function (c) { c.setAttribute('aria-pressed', String(c === chip)); });
+    });
+  });
+</script>
+</body>
+</html>
