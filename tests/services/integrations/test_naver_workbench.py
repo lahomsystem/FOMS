@@ -604,3 +604,79 @@ def test_history_locked_row_says_why_and_looks_locked(client, workbench_on):
     assert "btn-outline-secondary" in row, row
     assert "btn-primary" not in row, row
     assert "취소·반품 진행 중" in row, row
+
+
+# --------------------------------------------------------------------------- #
+# 실패 4단계 결과 띠 (W5)
+# --------------------------------------------------------------------------- #
+
+def _with_failure(link, reason="커머스API 인증 만료", at="2026-08-20T10:44:00"):
+    """워커가 남긴 실패 기록을 붙인다(fulfillment.last_error)."""
+    link.triage_state = {"fulfillment": {"last_error": reason, "last_error_at": at}}
+    db_session.commit()
+    return link
+
+
+def test_result_strip_is_absent_when_nothing_failed(client, workbench_on):
+    """실패가 없으면 띠 자체가 뜨지 않는다 — 빈 경고는 사람이 안 읽게 만든다."""
+    _login(client)
+    _collected(order_no="N-R-OK", product="정상 붙박이장", amount=100000)
+
+    body = client.get(TRIAGE_PATH).get_data(as_text=True)
+    assert 'id="wb-result"' not in body
+
+
+def test_result_strip_counts_failures(client, workbench_on):
+    """① 카운터 — 몇 집이 실패했는지 먼저 말한다."""
+    _login(client)
+    _with_failure(_collected(order_no="N-R-F1", product="실패 하나", amount=100000))
+    _with_failure(_collected(order_no="N-R-F2", product="실패 둘", amount=100000))
+    _collected(order_no="N-R-OK2", product="정상", amount=100000)
+
+    body = client.get(TRIAGE_PATH).get_data(as_text=True)
+    strip = body.split('id="wb-result"')[1].split("</section>")[0]
+    assert "실패 2집" in strip, strip[:400]
+
+
+def test_result_strip_lists_each_failure_with_its_reason(client, workbench_on):
+    """②③ 실패 전용 목록 + 건별 사유 — 카운터만 있으면 무엇을 고칠지 모른다."""
+    _login(client)
+    _with_failure(_collected(order_no="N-R-WHY", product="실패 건", amount=100000),
+                  reason="이미 발주확인된 주문입니다")
+
+    body = client.get(TRIAGE_PATH).get_data(as_text=True)
+    strip = body.split('id="wb-result"')[1].split("</section>")[0]
+    assert "이미 발주확인된 주문입니다" in strip, strip[:400]
+
+
+def test_result_strip_offers_retry_for_failed_only(client, workbench_on):
+    """④ 실패건만 재시도 — 성공한 집을 다시 보내지 않는다."""
+    _login(client)
+    failed = _with_failure(_collected(order_no="N-R-RETRY", product="실패 건", amount=100000))
+    _collected(order_no="N-R-DONE", product="성공 건", amount=100000)
+
+    body = client.get(TRIAGE_PATH).get_data(as_text=True)
+    strip = body.split('id="wb-result"')[1].split("</section>")[0]
+    ids = strip.split('id="wb-retry-failed"')[1].split('data-link-ids="')[1].split('"')[0]
+    assert str(failed.id) in ids
+    assert len(ids.split(",")) == 1, ids
+
+
+def test_result_strip_is_not_auto_dismissed(client, workbench_on):
+    """5초 자동닫힘이 실패 문구를 지우면 안 된다(03 감사 결함 #5 와 같은 함정)."""
+    _login(client)
+    _with_failure(_collected(order_no="N-R-KEEP", product="실패 건", amount=100000))
+
+    body = client.get(TRIAGE_PATH).get_data(as_text=True)
+    strip = body.split('id="wb-result"')[1].split("</section>")[0]
+    assert "data-foms-no-autodismiss" in strip, strip[:300]
+
+
+def test_result_strip_shows_on_every_tab(client, workbench_on):
+    """실패는 어느 탭에 있든 보여야 한다 — 탭을 옮겼다고 사고가 사라지지 않는다."""
+    _login(client)
+    _with_failure(_collected(order_no="N-R-TABS", product="실패 건", amount=100000))
+
+    for tab in ("work", "place", "claim", "all"):
+        body = client.get(f"{TRIAGE_PATH}?tab={tab}").get_data(as_text=True)
+        assert 'id="wb-result"' in body, tab

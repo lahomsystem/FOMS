@@ -573,6 +573,8 @@ def naver_ingest_triage():
                 context["selected_group"] = selected_group
 
         history = _history_view(db) if active_tab == "all" else {}
+        # 실패는 어느 탭에 있든 보여야 한다 — 탭을 옮겼다고 사고가 사라지지 않는다.
+        failures = _failure_rows(db)
         return render_template(
             "admin/naver_workbench.html",
             active_tab=active_tab,
@@ -582,6 +584,7 @@ def naver_ingest_triage():
             place_groups=place_groups,
             place_group_count=len(place_groups),
             history=history,
+            failures=failures,
             **context,
         )
     return render_template("admin/naver_triage.html", **context)
@@ -601,6 +604,51 @@ def _active_tab() -> str:
     """
     raw = (request.args.get("tab") or "").strip().lower()
     return raw if raw in WORKBENCH_TABS else "work"
+
+
+def _failure_rows(db) -> list[dict[str, Any]]:
+    """마지막 실행에서 실패한 집 (설계 결정 7 — 실패 4단계의 데이터 원천).
+
+    정본은 링크의 ``triage_state['fulfillment']['last_error']`` 다. 워커가 실패 사유를
+    거기 적고(``fulfillment.py``), 성공하면 지운다. 예전에는 워커가 예외에 통째로
+    rollback 해서 이 기록이 사라졌다 — 그래서 화면이 실패를 아예 보여줄 수 없었다.
+
+    집 단위로 접는다 — 한 집의 상품주문 3건이 같은 이유로 실패하면 3줄이 아니라 1줄이다.
+
+    Args:
+        db: 요청 스코프 DB 세션.
+
+    Returns:
+        ``link_id``·``customer_name``·``external_order_no``·``reason``·``at`` 목록(최근 순).
+    """
+    links = (
+        db.query(ExternalOrderLink)
+        .filter(ExternalOrderLink.channel == "NAVER",
+                ExternalOrderLink.triage_state.isnot(None))
+        .order_by(ExternalOrderLink.created_at.desc(), ExternalOrderLink.id.desc())
+        .limit(QUEUE_LINK_FETCH_LIMIT)
+        .all()
+    )
+    rows: list[dict[str, Any]] = []
+    seen: set[str] = set()
+    for link in links:
+        state = (link.triage_state or {}).get("fulfillment") or {}
+        reason = str(state.get("last_error") or "").strip()
+        if not reason:
+            continue
+        key = _history_group_key(link)
+        if key in seen:
+            continue
+        seen.add(key)
+        summary = summarize_snapshot(link.raw_snapshot)
+        rows.append({
+            "link_id": link.id,
+            "customer_name": summary["customer_name"] or link.external_id,
+            "external_order_no": link.external_order_no or "",
+            "reason": reason,
+            "at": str(state.get("last_error_at") or "")[:16].replace("T", " "),
+        })
+    return rows
 
 
 def _history_view(db) -> dict[str, Any]:

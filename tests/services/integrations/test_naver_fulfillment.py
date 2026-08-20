@@ -286,3 +286,68 @@ def test_reviewed_link_pane_is_still_reachable(auth_client):
     body = auth_client.get(f"/admin/naver-ingest/triage?link_id={link_id}").get_data(as_text=True)
     assert "PO-H-REVIEWED" in body
     assert 'data-action="confirm"' in body
+
+
+def test_worker_keeps_the_failure_reason_instead_of_rolling_it_back(app, monkeypatch):
+    """워커가 실패해도 **사유는 남아야 한다**.
+
+    서비스는 사유를 일부러 기록하고 올린다(`fulfillment.py` 의 except 절). 그런데 워커가
+    모든 예외에 db.rollback() 을 걸어 그 기록까지 지워 왔다 — 실패가 DB 어디에도 안 남고
+    로그·RQ 에만 있었다. 화면이 "성공 n · 실패 m · 사유" 를 보여주려면 이 기록이 정본이다.
+
+    성공분까지 함께 커밋되면 안 된다 — 그건 아래 별도 테스트가 지킨다.
+    """
+    from foms.services.integrations.naver_commerce import client as client_mod
+    from foms.services.jobs import tasks as tasks_mod
+
+    link_id = _link("PO-F-WORKER", order_no="N-FUL-WORKER", place="NOT_YET")
+    # 태스크가 함수 안에서 import 하므로 원본 모듈 속성을 갈아 끼운다.
+    monkeypatch.setattr(client_mod, "NaverCommerceClient", lambda: _StubClient(fail=True))
+
+    with pytest.raises(Exception):
+        tasks_mod.run_naver_fulfillment_task(link_id, "confirm", None)
+
+    db_session.expire_all()
+    link = db_session.get(ExternalOrderLink, link_id)
+    assert link is not None
+    state = (link.triage_state or {}).get("fulfillment") or {}
+    assert "처리권한" in (state.get("last_error") or ""), state
+    assert state.get("last_error_at"), state
+    # 실패인데 성공 표식이 붙으면 안 된다.
+    assert not state.get("place_confirmed_at"), state
+    assert link.place_order_status == "NOT_YET"
+
+
+def test_worker_failure_commit_does_not_leak_success_marks(app, monkeypatch):
+    """실패 경로 커밋이 '처리됐다' 표식까지 남기면 안 된다.
+
+    사유를 살리려고 커밋을 열었으니, 그 커밋이 성공 표식을 데려오지 않는지 반대편도 고정한다.
+    네이버 호출이 실패하면 place_confirmed_at·place_order_status 는 그대로여야 하고,
+    다음 시도가 정상적으로 다시 나가야 한다.
+    """
+    from foms.services.integrations.naver_commerce import client as client_mod
+    from foms.services.jobs import tasks as tasks_mod
+
+    link_id = _link("PO-F-NOLEAK", order_no="N-FUL-NOLEAK", place="NOT_YET")
+
+    monkeypatch.setattr(client_mod, "NaverCommerceClient", lambda: _StubClient(fail=True))
+    with pytest.raises(Exception):
+        tasks_mod.run_naver_fulfillment_task(link_id, "confirm", None)
+
+    db_session.expire_all()
+    state = (db_session.get(ExternalOrderLink, link_id).triage_state or {}).get("fulfillment") or {}
+    assert not state.get("place_confirmed_at"), state
+
+    # 다시 시도하면 네이버로 실제로 나간다(실패가 '이미 처리됨'으로 굳지 않는다).
+    ok_client = _StubClient()
+    monkeypatch.setattr(client_mod, "NaverCommerceClient", lambda: ok_client)
+    tasks_mod.run_naver_fulfillment_task(link_id, "confirm", None)
+
+    assert ok_client.confirm_calls, "재시도가 네이버를 부르지 않았다"
+    db_session.expire_all()
+    link = db_session.get(ExternalOrderLink, link_id)
+    state = (link.triage_state or {}).get("fulfillment") or {}
+    assert state.get("place_confirmed_at")
+    # 성공하면 사유는 지워진다 — 낡은 실패 문구가 화면에 남으면 안 된다.
+    assert not state.get("last_error")
+    assert link.place_order_status == "OK"

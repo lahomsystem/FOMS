@@ -32,6 +32,39 @@
         {% endif %}
     </div>
 
+    {#
+      결정 7 실패 4단계 — ① 카운터 ② 실패 전용 목록 ③ 건별 사유 ④ 실패건만 재시도.
+      실패가 있을 때만 뜬다(빈 경고는 사람이 안 읽게 만든다). 탭과 무관하게 항상 보인다 —
+      탭을 옮겼다고 사고가 사라지지 않는다.
+      data-foms-no-autodismiss 필수: 전역 5초 자동닫힘이 실패 문구를 지운다.
+    #}
+    {% if failures %}
+    <section class="wb-result alert alert-danger" id="wb-result" data-foms-no-autodismiss>
+        <div class="wb-result__head">
+            <span class="fw-semibold">발주확인·발송처리 실패 {{ failures|length }}집</span>
+            <span class="small">아래 사유를 먼저 해결한 뒤 실패한 집만 다시 보내세요.</span>
+            <span class="small ms-auto">이 알림은 자동으로 사라지지 않습니다.</span>
+        </div>
+        <table class="wb-result__list">
+            {% for row in failures %}
+            <tr>
+                <td class="wb-result__who">{{ row.customer_name }}</td>
+                <td class="wb-result__no">{{ row.external_order_no }}</td>
+                <td class="wb-result__why">{{ row.reason }}</td>
+                <td class="wb-result__at small">{{ row.at }}</td>
+            </tr>
+            {% endfor %}
+        </table>
+        <div class="wb-result__foot">
+            {# 성공한 집은 대상에서 아예 뺀다 — 재시도가 성공분까지 건드리면 안 된다. #}
+            <button type="button" class="btn btn-danger btn-sm" id="wb-retry-failed"
+                    data-link-ids="{{ failures | map(attribute='link_id') | join(',') }}">
+                실패한 {{ failures|length }}집만 다시 시도
+            </button>
+        </div>
+    </section>
+    {% endif %}
+
     {# 탭 4개 — 배지는 집 수만 쓴다(탭별 상품주문 건수는 만들어 낼 수 없다). #}
     <nav class="wb-tabs" role="tablist">
         <a class="wb-tab" role="tab" data-tab="work" aria-selected="{{ 'true' if active_tab == 'work' else 'false' }}"

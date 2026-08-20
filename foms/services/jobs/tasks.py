@@ -252,6 +252,8 @@ def run_naver_fulfillment_task(link_id: int, action: str, actor_user_id=None):
             dispatch_order,
         )
 
+        from foms.services.integrations.naver_commerce.fulfillment import FulfillmentError
+
         db = db_session()
         try:
             client = NaverCommerceClient()
@@ -265,7 +267,15 @@ def run_naver_fulfillment_task(link_id: int, action: str, actor_user_id=None):
                 raise ValueError(f"알 수 없는 작업입니다: {action}")
             db.commit()
             return result
+        except FulfillmentError:
+            # 서비스가 실패 사유를 **일부러** 상태에 적고 올린다(fulfillment.py 의 except 절).
+            # 여기서 통째로 rollback 하면 그 기록까지 지워져, 실패가 DB 어디에도 안 남고
+            # 로그·RQ 에만 남는다 — 화면이 "성공 n · 실패 m · 사유" 를 못 보여주는 원인이었다.
+            # 이 경로는 네이버 호출이 실패한 것이라 성공 표식은 아직 하나도 쓰이지 않았다.
+            db.commit()
+            raise
         except Exception:
+            # 그 밖의 예외(프로그래밍 오류·DB 오류)는 무엇이 쓰였는지 알 수 없어 되돌린다.
             db.rollback()
             raise
         finally:

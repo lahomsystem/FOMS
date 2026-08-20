@@ -179,3 +179,15 @@
 .wb-pager { display: flex; align-items: center; gap: 8px; padding: 10px 12px; flex-wrap: wrap; }
 .wb-pager a { border: 1px solid var(--wb-line); border-radius: 6px; padding: 2px 9px; text-decoration: none; }
 .wb-pager__cur { font-weight: 700; font-variant-numeric: tabular-nums; }
+
+/* ── 실행 결과 띠 (W5, 결정 7) ────────────────────────────────────────
+   .alert 는 전역 스크립트가 5초 뒤 제거한다 — 이 블록에는 반드시
+   data-foms-no-autodismiss 가 붙어야 실패 사유가 증발하지 않는다. */
+.wb-result { margin: 8px 0 12px; }
+.wb-result__head { display: flex; align-items: baseline; gap: 12px; flex-wrap: wrap; }
+.wb-result__list { width: 100%; border-collapse: collapse; margin-top: 8px; font-size: 12.5px; }
+.wb-result__list td { padding: 5px 8px; border-top: 1px solid rgba(185, 28, 28, .18); vertical-align: top; }
+.wb-result__who { font-weight: 700; width: 92px; }
+.wb-result__no { width: 172px; font-variant-numeric: tabular-nums; opacity: .8; }
+.wb-result__at { width: 120px; text-align: right; opacity: .8; font-variant-numeric: tabular-nums; }
+.wb-result__foot { margin-top: 10px; }

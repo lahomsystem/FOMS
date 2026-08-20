@@ -9,6 +9,45 @@
     wireCreateOrder();
     wirePlaceOrder();
     wireClaimDone();
+    wireRetryFailed();
+
+    /* ── 결과 띠: 실패한 집만 다시 시도 (결정 7 의 ④단계) ──────────────
+       성공한 집은 서버가 목록에 넣지 않았으므로 여기 없다 — 재시도가 성공분을
+       건드릴 수 없다. */
+    function wireRetryFailed() {
+        var retryBtn = document.getElementById('wb-retry-failed');
+        if (!retryBtn) {
+            return;
+        }
+        retryBtn.addEventListener('click', async function () {
+            var ids = (retryBtn.dataset.linkIds || '').split(',').filter(Boolean);
+            if (!ids.length) {
+                return;
+            }
+            retryBtn.disabled = true;
+            var stillFailing = [];
+            for (const id of ids) {
+                try {
+                    const response = await fetch('/admin/naver-ingest/' + id + '/fulfillment', {
+                        method: 'POST',
+                        headers: { 'Content-Type': 'application/json' },
+                        body: JSON.stringify({ action: 'confirm' })
+                    });
+                    const data = await response.json();
+                    if (!data.success) {
+                        stillFailing.push(data.error || '실패');
+                    }
+                } catch (error) {
+                    stillFailing.push(String(error));
+                }
+            }
+            if (stillFailing.length) {
+                window.alert('다시 시도했지만 ' + stillFailing.length + '집이 또 실패했습니다.\n'
+                    + stillFailing.join('\n'));
+            }
+            window.location.reload();
+        });
+    }
 
     /* ── 취소·반품 탭: 큐에서 빼기 ───────────────────────────────────────
        네이버 쪽에는 아무 영향이 없다 — 우리 큐에서만 사라진다. 그래서 확인 모달을
