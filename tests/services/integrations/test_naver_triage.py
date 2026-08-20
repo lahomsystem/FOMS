@@ -458,3 +458,71 @@ def test_holding_account_is_not_offered_as_an_assignee(auth_client):
     body = auth_client.get("/admin/naver-ingest/triage").get_data(as_text=True)
     assert "진짜영업" in body
     assert "미배정 (네이버 수집)" not in body
+
+
+# --------------------------------------------------------------------------- #
+# 취소·반품 건의 큐 이탈 (03 감사 결함 #4)
+# --------------------------------------------------------------------------- #
+
+def test_cancelled_link_can_still_be_marked_done(auth_client):
+    """취소·반품 건도 큐에서 뺄 수 있어야 한다(03 감사 결함 #4).
+
+    이 건들은 주문을 만들 수 없다(서버가 400). 그런데 카드 footer 가
+    ``{% if not selected.order_id %}`` 로 배타 분기라, 주문 없는 건은 '확인 완료'
+    버튼을 아예 만나지 못했다. 결과: 취소·반품 집이 영원히 큐에 남는다.
+    플레이오토의 최대 불만("쇼핑몰에서 직접 처리하세요")을 그대로 재현한 셈이다.
+    """
+    link = _collected_link(order_no="N-DONE-CANCEL", product="취소된 붙박이장",
+                           amount=500000, claim_status="CANCEL_DONE")
+    body = auth_client.get(
+        f"/admin/naver-ingest/triage?link_id={link.id}").get_data(as_text=True)
+
+    assert 'id="triage-done"' in body, "취소·반품 건에도 확인 완료 버튼이 있어야 한다"
+    done = body.split('id="triage-done"')[1].split(">")[0]
+    assert "disabled" not in done
+    assert str(link.id) in body.split('data-link-ids="')[1].split('"')[0]
+    # 주문 만들기는 여전히 잠겨 있어야 한다 — 큐에서 빼는 것과 만드는 것은 다른 일이다.
+    assert "disabled" in body.split('id="triage-create-order"')[1].split(">")[0]
+
+
+def test_collected_link_without_claim_also_has_done_button(auth_client):
+    """정상 수집분도 마찬가지 — 주문을 안 만들고 닫아야 할 집이 있다(중복 수집 등)."""
+    link = _collected_link(order_no="N-DONE-PLAIN", product="정상 붙박이장", amount=300000)
+    body = auth_client.get(
+        f"/admin/naver-ingest/triage?link_id={link.id}").get_data(as_text=True)
+
+    assert 'id="triage-done"' in body
+    assert "disabled" not in body.split('id="triage-create-order"')[1].split(">")[0]
+
+
+def test_assignee_control_stays_on_the_order_side_only(auth_client):
+    """담당자 지정은 주문이 있어야 의미가 있다 — 주문 없는 건에는 나오면 안 된다.
+
+    footer 분기를 푸는 김에 담당자 select 까지 딸려 나오면, CS 가 '지금 지정해야 하나'
+    로 읽는다. 담당자 지정은 실측 일정 단계 일이다(도메인 규칙 5).
+    """
+    link = _collected_link(order_no="N-NOASSIGN", product="붙박이장", amount=300000)
+    body = auth_client.get(
+        f"/admin/naver-ingest/triage?link_id={link.id}").get_data(as_text=True)
+    assert 'id="triage-assignee"' not in body
+
+
+def test_review_route_accepts_link_without_order(auth_client):
+    """버튼이 있어도 서버가 안 받으면 큐에서 안 빠진다 — 라우트까지 확인한다.
+
+    취소·반품 건은 주문이 영영 안 생긴다. review 는 '사람이 봤다' 축이라 주문과
+    무관해야 한다.
+    """
+    link = _collected_link(order_no="N-REVIEW-NOORDER", product="취소된 붙박이장",
+                           amount=500000, claim_status="CANCEL_DONE")
+    link_id = link.id
+
+    response = auth_client.post(f"/admin/naver-ingest/{link_id}/review", json={})
+    assert response.status_code == 200, response.get_data(as_text=True)
+    assert response.get_json()["success"] is True
+
+    db_session.expire_all()
+    assert db_session.get(ExternalOrderLink, link_id).reviewed_at is not None
+
+    body = auth_client.get("/admin/naver-ingest/triage").get_data(as_text=True)
+    assert "취소된 붙박이장" not in body

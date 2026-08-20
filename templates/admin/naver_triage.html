@@ -397,9 +397,16 @@
                     </select>
                     <button type="button" id="triage-assign" class="btn btn-sm btn-outline-primary"
                             data-order-id="{{ selected.order_id or '' }}">담당자 지정</button>
+                    {% endif %}
+
+                    {# 확인 완료는 주문 유무와 **무관하게** 항상 있다.
+                       예전에는 이 버튼이 '주문 있음' 분기 안에만 있어서, 주문을 만들 수 없는
+                       집(취소·반품 — 서버가 400 으로 막는다)이 영원히 큐에 남았다.
+                       큐에서 빼는 일과 주문을 만드는 일은 서로 다른 축이다.
+
+                       묶음 단위인 이유: 한 줄로 보이는데 형제 한 건이 큐에 남으면 같은 집이
+                       두 번 뜬다. 링크마다 기존 review 라우트를 순차 호출한다. #}
                     <div class="ms-auto">
-                        {# 확인 완료도 묶음 단위 — 한 줄로 보이는데 형제 한 건이 큐에 남으면
-                           같은 집이 두 번 뜬다. 링크마다 기존 review 라우트를 순차 호출한다. #}
                         <button type="button" id="triage-done" class="btn btn-success"
                                 data-link-ids="{{ (selected_group.link_ids if selected_group else [selected.link_id]) | join(',') }}">
                             <i class="fas fa-check"></i> 확인 완료
@@ -407,13 +414,16 @@
                             <span class="badge bg-light text-dark">{{ selected_group.count }}건</span>
                             {% endif %}
                         </button>
-                        {% if not selected.steps.spec_filled %}
+                        {% if selected.order_id and not selected.steps.spec_filled %}
                         <div class="small text-warning mt-1">
                             규격이 아직 비어 있습니다 — 닫아도 되지만 나중에 다시 찾아야 합니다.
                         </div>
+                        {% elif not selected.order_id and selected.claim.blocking %}
+                        <div class="small text-muted mt-1">
+                            주문을 만들 수 없는 집입니다 — 확인만 하고 큐에서 빼세요.
+                        </div>
                         {% endif %}
                     </div>
-                    {% endif %}
                 </div>
             </div>
             {% else %}

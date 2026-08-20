@@ -27,7 +27,7 @@
 `templates/admin/naver_ingest.html:246,255` 의 `url_for` 에 `place` 전달.
 **완료 기준**: `?place=PENDING&page=2` 링크에 `place=PENDING` 이 실려 있음을 테스트가 확인 · green.
 
-### T3 — #4 취소·반품 큐 이탈 (PENDING)
+### T3 — #4 취소·반품 큐 이탈 (DONE)
 `naver_triage.html` footer 배타 분기를 풀어 `확인 완료`를 공통 영역으로.
 **완료 기준**: 주문 없는 취소 건 상세에 `확인 완료` 버튼이 있고 `주문 만들기`는 잠긴 상태 · 테스트 green ·
 기존 "주문 있는 건" 경로(담당자 지정 + 확인 완료) 회귀 없음.
@@ -68,3 +68,8 @@
 - 2026-08-20 **T2 완료**. 테스트 `test_pagination_links_keep_place_filter` 먼저 red 확인
   (`href="/admin/naver-ingest?page=2"` — place 없음) → 페이지 링크 2곳에 필터 버튼과 **같은 관용구**
   `place='PENDING' if place_pending else None` 적용 → green. 27 passed.
+- 2026-08-20 **T3 완료**. 테스트 4건 먼저(취소건 확인완료 존재·정상 수집분도 존재·담당자 select 는 주문쪽만·
+  **review 라우트가 주문 없는 링크를 받는가**) → 신규 2건 red 확인 → footer 배타 분기 해제 → green.
+  **원인은 템플릿 하나였다**: 서버 review 라우트는 이미 주문 없는 링크를 정상 처리한다(라우트 테스트로 확인).
+  부수: 규격 경고를 `selected.order_id and ...` 로 좁히고, 주문 못 만드는 집에는 안내 문구를 따로 뒀다.
+  `pytest tests/services/integrations/ -q` **277 passed** · `APP_OK`.
