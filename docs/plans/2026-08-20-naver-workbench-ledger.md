@@ -1,0 +1,61 @@
+# 네이버 수집 워크벤치 — UI 개편 본체 플랜 + 진행 원장
+
+- 등급 `**C` · 브랜치 `session/naver-ingest` · 워크트리 `c:/tmp/foms-s-naver-ingest`
+- 스펙: `docs/specs/2026-08-20-naver-ingest-workbench_SPEC.md`
+- 목표 화면: `docs/design/mockups/naver-ingest-workbench-v2.html`
+- 선행 결함(완료): `docs/plans/2026-08-20-naver-precursor-defects-ledger.md`
+
+## 확정 사항
+
+주소=`/admin/naver-ingest/triage` 본진 · 탭 하나씩 · 게이트 스위치로 롤백 · 서버 `?tab=` 라운드트립 ·
+테스트 먼저 고치기 · 미푸시(세션 브랜치 유지).
+
+## 원칙
+
+**게이트 off 경로는 개편 내내 green 이어야 한다.** 기존 79건을 빨갛게 두면 개편 중에
+다른 회귀가 들어와도 못 본다. 새 화면 테스트는 게이트를 켠 클라이언트로 따로 쓴다.
+
+## Task
+
+### W1 — 게이트 + 뼈대 + 처리 대기 탭 (PENDING)
+1. `feature_flags` 에 `is_naver_workbench_enabled(user_id)` 추가 (`FOMS_NAVER_WORKBENCH_ENABLED` + `_COHORT`)
+2. `naver_ingest_triage` 라우트가 게이트로 템플릿 분기 (off=기존 `naver_triage.html`)
+3. 새 템플릿 `templates/admin/naver_workbench.html` — 상태 스트립 + 헤더 이중표기 + 탭 4개(`?tab=`)
+4. 처리 대기 탭: 좌 큐(색띠 3층 + 글자 라벨) / 우 상세(2단 대조표 + 상품주문 n행 표)
+5. 주문 만들기 확인 모달(건수 재진술·되돌릴 수 없음·사후 경로)
+**완료 기준**: 게이트 off 로 기존 79건 green · 게이트 on 신규 테스트 green(탭 4개 존재·기본 work·
+색띠 라벨 4종·상품주문 표가 옵션 원문 전문 노출·모달 문구에 건수 재진술) · `APP_OK`.
+
+### W2 — 발주확인 전 탭 (PENDING)
+선택 체크박스 + 선택 개수 동기 + 일괄 발주확인 모달. **선택 0집이면 버튼 비활성**.
+**완료 기준**: 선택 0=버튼 disabled · n집 선택 시 라벨·모달 문장 숫자 동기 · 기존 fulfillment 라우트 재사용 확인(회귀 없음).
+
+### W3 — 취소·반품 탭 (PENDING)
+액션 잠금 + `확인 완료`(선행 결함 #4 결과 재사용) + 클레임 사유 표시.
+**완료 기준**: 주문 만들기·발주확인 disabled · 확인 완료만 활성 · 큐에서 실제로 빠짐(라우트까지).
+
+### W4 — 전체 이력 탭 (PENDING)
+집 단위 표 + 취소·반품 회색 잔존(빼지 않는다) + 상태 필터 + 페이지네이션(필터 유지).
+**완료 기준**: 취소 행이 회색+비활성으로 **남아 있음** · 필터·페이지 파라미터 왕복 유지 · 집 수 = 헤더와 일치.
+
+### W5 — 실패 4단계 결과 띠 (PENDING)
+성공/실패 카운터 → 펼침 → 건별 사유 → 실패건만 재시도. `data-foms-no-autodismiss` 필수.
+**완료 기준**: 실패가 있을 때만 뜸 · 5초 뒤에도 남음 · 재시도가 실패건만 대상.
+
+### W6 — 리다이렉트 + 통합 검증 (PENDING)
+게이트 on 일 때 `/admin/naver-ingest` → 본진 리다이렉트. 옛 템플릿 정리 여부 판단(게이트 남기면 유지).
+**완료 기준**: `pytest tests/services/integrations/ -q` 전건 · `APP_OK` · `pre_push_smoke.ps1` exit 0 ·
+1440 실브라우저에서 4탭 왕복·모달·선택 게이트 확인 · AI_STATUS 갱신(상단 40줄 예산 준수).
+
+## 함정 메모
+
+- 계약 테스트가 **정확 마크업**을 문다(22곳). 배지 축·단위를 바꾸면 반드시 깨진다 — 게이트로 분리해 회귀 감지력을 지킨다.
+- `.alert` 5초 자동닫힘 → 상시 안내·결과 띠는 `data-foms-no-autodismiss`.
+- 새 감사 행위를 만들면 `audit_message_display` 라벨 등재 필수(pre_push_smoke 사각 → CI red).
+- 주문 JSONB 직접 쓰기는 REV-99 게이트 → `execute_order_mutation` 경유.
+- 집 수를 세는 식은 `naver_commerce/grouping.py` 하나뿐 — 새로 쓰지 말고 그걸 부른다.
+- 템플릿 800줄 초과 시 partial 분리, 인라인 script 300줄 초과 시 `.js` 분리(프로젝트 규칙).
+- 인라인 스타일 금지 → `erp-pro.css` 체계.
+
+## 진행 기록
+- 2026-08-20 스펙·플랜 작성. 현 구조 실측(템플릿 372+627줄·라우트 1066줄·계약 테스트 79건/정확 마크업 22곳). 승인 대기.
