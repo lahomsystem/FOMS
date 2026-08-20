@@ -547,14 +547,37 @@ def naver_ingest_triage():
     from foms.services.feature_flags import is_naver_workbench_enabled
 
     if is_naver_workbench_enabled(session.get("user_id")):
-        # 배지와 목록은 **같은 함수** 결과를 나눠 쓴다. 취소 여부는 raw_snapshot 안에
-        # 있어 SQL 이 못 거르므로, SQL 로 따로 세면 "4집이라 써 놓고 3줄" 이 된다.
+        # 배지와 목록은 **같은 결과**를 나눠 쓴다. 취소 여부는 raw_snapshot 안에 있어
+        # SQL 이 못 거르므로, SQL 로 따로 세면 "4집이라 써 놓고 3줄" 이 된다.
         # 그래서 탭이 아니어도 한 번 계산한다(조회는 QUEUE_LINK_FETCH_LIMIT 로 묶여 있다).
         place_groups = _place_groups(db)
+        # 처리 대기에서는 취소·반품 집을 뺀다 — 손댈 수 없는 줄이 작업 목록을 채우면
+        # 사람이 매번 건너뛰어야 한다. 대신 전용 탭에 모아 큐에서 뺄 수 있게 한다.
+        work_groups = [group for group in queue if not group["claim_blocking"]]
+        claim_groups = [group for group in queue if group["claim_blocking"]]
+
+        # 기본 선택은 **그 탭 안에서** 고른다. 큐 전체에서 고르면 처리 대기 탭을 열었는데
+        # 오른쪽에 취소·반품 집이 펼쳐지는 일이 생긴다(목록에는 없는데 상세만 뜬다).
+        # 사용자가 링크를 직접 지정했으면(?link_id=) 그 뜻을 존중한다.
+        active_tab = _active_tab()
+        tab_groups = {"work": work_groups, "claim": claim_groups}.get(active_tab)
+        if tab_groups is not None and not selected_id:
+            in_tab = selected_group is not None and any(
+                group["id"] == selected_group["id"] for group in tab_groups
+            )
+            if not in_tab:
+                selected_group = tab_groups[0] if tab_groups else None
+                lead = next((row for row in pending
+                             if selected_group and row.id == selected_group["id"]), None)
+                context["selected"] = _triage_pane(db, lead) if lead is not None else None
+                context["selected_group"] = selected_group
+
         return render_template(
             "admin/naver_workbench.html",
-            active_tab=_active_tab(),
+            active_tab=active_tab,
             member_rows=_member_rows(db, selected_group),
+            work_groups=work_groups,
+            claim_groups=claim_groups,
             place_groups=place_groups,
             place_group_count=len(place_groups),
             **context,

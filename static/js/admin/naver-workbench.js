@@ -8,6 +8,45 @@
 
     wireCreateOrder();
     wirePlaceOrder();
+    wireClaimDone();
+
+    /* ── 취소·반품 탭: 큐에서 빼기 ───────────────────────────────────────
+       네이버 쪽에는 아무 영향이 없다 — 우리 큐에서만 사라진다. 그래서 확인 모달을
+       두지 않는다(불가역이 아닌 일에 모달을 달면 진짜 불가역 경고가 값을 잃는다). */
+    function wireClaimDone() {
+        var doneBtn = document.getElementById('wb-claim-done');
+        if (!doneBtn) {
+            return;
+        }
+        doneBtn.addEventListener('click', async function () {
+            // 묶음 전체를 처리한다 — 형제 한 건이 남으면 같은 집이 큐에 다시 뜬다.
+            var ids = (doneBtn.dataset.linkIds || '').split(',').filter(Boolean);
+            if (!ids.length) {
+                return;
+            }
+            doneBtn.disabled = true;
+            for (const id of ids) {
+                try {
+                    const response = await fetch('/admin/naver-ingest/' + id + '/review', {
+                        method: 'POST',
+                        headers: { 'Content-Type': 'application/json' },
+                        body: '{}'
+                    });
+                    const data = await response.json();
+                    if (!data.success) {
+                        window.alert(data.error || '확인 처리에 실패했습니다.');
+                        doneBtn.disabled = false;
+                        return;
+                    }
+                } catch (error) {
+                    window.alert('요청 중 오류가 발생했습니다: ' + error);
+                    doneBtn.disabled = false;
+                    return;
+                }
+            }
+            window.location.href = '/admin/naver-ingest/triage?tab=claim';
+        });
+    }
 
     /* ── 발주확인 전 탭: 선택 개수 ↔ 버튼 상태 ↔ 모달 문장 ─────────────── */
     function wirePlaceOrder() {

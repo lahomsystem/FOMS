@@ -182,12 +182,15 @@ def test_row_waiting_for_place_order_says_so_first(client, workbench_on):
 
 
 def test_claimed_row_says_do_not_touch(client, workbench_on):
-    """취소·반품 집은 '손대지 않음' 이라고 글자로 말한다."""
+    """취소·반품 집은 '손대지 않음' 이라고 글자로 말한다.
+
+    W3 에서 이 집들은 전용 탭으로 옮겼다 — 처리 대기에는 더 이상 뜨지 않는다.
+    """
     _login(client)
     _collected(order_no="N-WB-CLAIM", product="취소된 붙박이장", amount=100000,
                claim_status="CANCEL_DONE")
 
-    body = client.get(f"{TRIAGE_PATH}?tab=work").get_data(as_text=True)
+    body = client.get(f"{TRIAGE_PATH}?tab=claim").get_data(as_text=True)
     assert "손대지 않음" in body
 
 
@@ -270,7 +273,7 @@ def test_untouchable_row_does_not_also_say_create_order(client, workbench_on):
     _collected(order_no="N-WB-CONTRA", product="취소된 붙박이장", amount=100000,
                claim_status="CANCEL_DONE")
 
-    body = client.get(TRIAGE_PATH).get_data(as_text=True)
+    body = client.get(f"{TRIAGE_PATH}?tab=claim").get_data(as_text=True)
     row = body.split('wb-row--stop')[1].split("</a>")[0]
 
     assert "손대지 않음" in row
@@ -383,3 +386,124 @@ def test_place_tab_badge_matches_the_list_length(client, workbench_on):
     tab = body.split('data-tab="place"')[1].split("</a>")[0]
     assert "2집" in tab, tab
     assert body.count('class="wb-pick"') == 2
+
+
+# --------------------------------------------------------------------------- #
+# 취소·반품 탭 (W3)
+# --------------------------------------------------------------------------- #
+
+def test_claim_tab_lists_only_claimed_households(client, workbench_on):
+    """탭 모집단은 취소·반품 집이다."""
+    _login(client)
+    _collected(order_no="N-CL-OK", product="정상 붙박이장", amount=100000)
+    _collected(order_no="N-CL-BAD", product="취소된 붙박이장", amount=100000,
+               claim_status="CANCEL_DONE")
+
+    body = client.get(f"{TRIAGE_PATH}?tab=claim").get_data(as_text=True)
+
+    assert "취소된 붙박이장" in body
+    assert "정상 붙박이장" not in body
+
+
+def test_work_tab_excludes_claimed_households(client, workbench_on):
+    """처리 대기에서는 취소·반품 집을 뺀다 — 손댈 수 없는 줄이 작업 목록을 채우면 안 된다."""
+    _login(client)
+    _collected(order_no="N-CL-W1", product="정상 붙박이장", amount=100000)
+    _collected(order_no="N-CL-W2", product="취소된 붙박이장", amount=100000,
+               claim_status="CANCEL_DONE")
+
+    body = client.get(f"{TRIAGE_PATH}?tab=work").get_data(as_text=True)
+
+    assert "정상 붙박이장" in body
+    assert "취소된 붙박이장" not in body
+
+
+def test_tab_badges_match_their_own_lists(client, workbench_on):
+    """탭 배지는 그 탭이 실제로 보여줄 줄 수와 같아야 한다(W2 에서 낸 결함의 재발 방지)."""
+    _login(client)
+    _collected(order_no="N-CL-B1", product="정상 하나", amount=100000)
+    _collected(order_no="N-CL-B2", product="정상 둘", amount=100000)
+    _collected(order_no="N-CL-B3", product="취소된 하나", amount=100000,
+               claim_status="CANCEL_DONE")
+
+    body = client.get(f"{TRIAGE_PATH}?tab=work").get_data(as_text=True)
+    work_tab = body.split('data-tab="work"')[1].split("</a>")[0]
+    claim_tab = body.split('data-tab="claim"')[1].split("</a>")[0]
+
+    assert "2집" in work_tab, work_tab
+    assert "1집" in claim_tab, claim_tab
+    assert body.count('class="wb-row wb-row--') == 2, "처리 대기 목록은 2줄"
+
+
+def test_claim_detail_locks_create_and_place_but_allows_done(client, workbench_on):
+    """주문 만들기·발주확인은 잠기고 '확인 완료'만 열린다(선행 결함 #4 의 화면 쪽)."""
+    _login(client)
+    link = _collected(order_no="N-CL-ACT", product="취소된 붙박이장", amount=100000,
+                      claim_status="CANCEL_DONE")
+
+    body = client.get(f"{TRIAGE_PATH}?tab=claim&link_id={link.id}").get_data(as_text=True)
+
+    assert 'id="wb-claim-create"' in body
+    assert "disabled" in body.split('id="wb-claim-create"')[1].split(">")[0]
+    assert 'id="wb-claim-place"' in body
+    assert "disabled" in body.split('id="wb-claim-place"')[1].split(">")[0]
+    done = body.split('id="wb-claim-done"')[1].split(">")[0]
+    assert "disabled" not in done, done
+
+
+def test_claim_detail_shows_why_it_is_locked(client, workbench_on):
+    """왜 잠겼는지 화면이 말해 준다 — 이유 없이 잠긴 버튼은 사람이 계속 누른다."""
+    _login(client)
+    link = _collected(order_no="N-CL-WHY", product="취소된 붙박이장", amount=100000,
+                      claim_status="CANCEL_DONE")
+
+    body = client.get(f"{TRIAGE_PATH}?tab=claim&link_id={link.id}").get_data(as_text=True)
+    assert "취소 완료" in body
+    assert "주문을 만들 수 없습니다" in body
+
+
+def test_marking_a_claimed_household_done_removes_it_from_the_tab(client, workbench_on):
+    """버튼만 있고 서버가 안 받으면 큐에서 안 빠진다 — 라우트까지 확인한다."""
+    _login(client)
+    link = _collected(order_no="N-CL-DONE", product="취소된 붙박이장", amount=100000,
+                      claim_status="CANCEL_DONE")
+    link_id = link.id
+
+    response = client.post(f"/admin/naver-ingest/{link_id}/review", json={})
+    assert response.status_code == 200 and response.get_json()["success"] is True
+
+    body = client.get(f"{TRIAGE_PATH}?tab=claim").get_data(as_text=True)
+    assert "취소된 붙박이장" not in body
+
+
+def test_default_selection_stays_inside_the_active_tab(client, workbench_on):
+    """기본 선택은 그 탭 안에서 고른다.
+
+    실화: 큐 전체에서 첫 집을 골랐더니, 처리 대기 탭을 열었는데 오른쪽 상세에
+    취소·반품 집이 펼쳐졌다 — 목록에는 없는데 상세만 뜨는 상태였다.
+    """
+    _login(client)
+    # 취소 집이 더 최신이라 큐 전체에서는 이쪽이 먼저 잡힌다.
+    _collected(order_no="N-SEL-OK", product="정상 붙박이장", amount=100000)
+    _collected(order_no="N-SEL-BAD", product="취소된 붙박이장", amount=100000,
+               claim_status="CANCEL_DONE")
+
+    work = client.get(f"{TRIAGE_PATH}?tab=work").get_data(as_text=True)
+    assert "취소된 붙박이장" not in work
+    assert "정상 붙박이장" in work
+
+    claim = client.get(f"{TRIAGE_PATH}?tab=claim").get_data(as_text=True)
+    assert "취소된 붙박이장" in claim
+    assert "정상 붙박이장" not in claim
+
+
+def test_explicit_link_id_is_honoured_even_across_tabs(client, workbench_on):
+    """사용자가 링크를 직접 지정했으면 그 뜻을 존중한다 — 조용히 다른 집으로 튀지 않는다."""
+    _login(client)
+    _collected(order_no="N-SEL-A", product="첫째 집", amount=100000)
+    wanted = _collected(order_no="N-SEL-B", product="둘째 집", amount=200000)
+
+    body = client.get(f"{TRIAGE_PATH}?tab=work&link_id={wanted.id}").get_data(as_text=True)
+    header = body.split('class="card-header py-2 d-flex')[1].split("</div>")[0]
+    assert "둘째 집" in body
+    assert str(wanted.external_id) in header, header

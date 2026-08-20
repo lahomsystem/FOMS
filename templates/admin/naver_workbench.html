@@ -35,11 +35,11 @@
     {# 탭 4개 — 배지는 집 수만 쓴다(탭별 상품주문 건수는 만들어 낼 수 없다). #}
     <nav class="wb-tabs" role="tablist">
         <a class="wb-tab" role="tab" data-tab="work" aria-selected="{{ 'true' if active_tab == 'work' else 'false' }}"
-           href="{{ url_for('admin.naver_ingest_triage', tab='work') }}">처리 대기<span class="wb-tab__n">{{ group_count }}집</span></a>
+           href="{{ url_for('admin.naver_ingest_triage', tab='work') }}">처리 대기<span class="wb-tab__n">{{ work_groups|length }}집</span></a>
         <a class="wb-tab" role="tab" data-tab="place" aria-selected="{{ 'true' if active_tab == 'place' else 'false' }}"
            href="{{ url_for('admin.naver_ingest_triage', tab='place') }}">발주확인 전<span class="wb-tab__n">{{ place_group_count }}집</span></a>
         <a class="wb-tab wb-tab--danger" role="tab" data-tab="claim" aria-selected="{{ 'true' if active_tab == 'claim' else 'false' }}"
-           href="{{ url_for('admin.naver_ingest_triage', tab='claim') }}">취소·반품</a>
+           href="{{ url_for('admin.naver_ingest_triage', tab='claim') }}">취소·반품<span class="wb-tab__n">{{ claim_groups|length }}집</span></a>
         <a class="wb-tab" role="tab" data-tab="all" aria-selected="{{ 'true' if active_tab == 'all' else 'false' }}"
            href="{{ url_for('admin.naver_ingest_triage', tab='all') }}">전체 이력</a>
     </nav>
@@ -51,7 +51,7 @@
         <section class="card shadow-sm">
             <div class="card-header py-2 small fw-semibold">확인 대기 — 한 집이 한 줄</div>
             <div class="wb-queue">
-                {% for group in queue %}
+                {% for group in work_groups %}
                 {#
                   결정 4 의 3층: ① 진행축 배지 ② 클레임축 배지 ③ 색띠 + 글자 라벨.
                   색띠만으로 구분하면 색맹 사용자가 못 읽어서 글자를 항상 함께 둔다.
@@ -319,8 +319,113 @@
         </div>
     </div>
 
+    {% elif active_tab == 'claim' %}
+    {# ══ 취소·반품 ═══════════════════════════════════════════════════
+       손대면 안 되는 집이지만 **큐에서는 뺄 수 있어야 한다**. 예전에는 확인 완료
+       버튼이 '주문 있음' 분기 안에만 있어서 이 집들이 영원히 큐에 남았다(감사 결함 #4).
+       플레이오토 최대 불만("쇼핑몰에서 직접 처리하세요")을 여기서 피한다. #}
+    <div class="wb-split">
+        <section class="card shadow-sm">
+            <div class="card-header py-2 small fw-semibold">
+                취소·반품 <span class="text-muted fw-normal">손대면 안 되는 집 — 그래도 큐에서는 뺄 수 있다</span>
+            </div>
+            <div class="wb-queue">
+                {% for group in claim_groups %}
+                <a class="wb-row wb-row--stop"
+                   {% if selected_group and selected_group.id == group.id %}aria-current="true"{% endif %}
+                   href="{{ url_for('admin.naver_ingest_triage', tab='claim', link_id=group.id) }}">
+                    <span class="wb-row__bar"></span>
+                    <span class="wb-row__body">
+                        <span class="wb-row__line1">
+                            <span class="wb-row__name">{{ group.customer_name }}</span>
+                        </span>
+                        <span class="wb-row__line2">
+                            {{ group.product }}{% if group.extra_count %} 외 {{ group.extra_count }}건{% endif %}
+                        </span>
+                        <span class="wb-row__line3">
+                            {% if group.count > 1 %}
+                            <span class="badge bg-light text-dark">{{ group.count }}건 묶음</span>
+                            {% endif %}
+                            <span class="badge bg-danger">{{ group.claim_label }}</span>
+                            {% if group.order_id %}
+                            <span class="badge bg-success">#{{ group.order_id }} 주문 있음</span>
+                            {% endif %}
+                            <span class="wb-can wb-can--stop">손대지 않음</span>
+                            <span class="wb-row__when">{{ group.created_at }}</span>
+                        </span>
+                    </span>
+                </a>
+                {% else %}
+                <div class="wb-empty">취소·반품 건이 없습니다.</div>
+                {% endfor %}
+            </div>
+        </section>
+
+        <section class="card shadow-sm">
+            {% if selected %}
+            <div class="card-header py-2 d-flex flex-wrap align-items-center gap-2">
+                <span class="fw-semibold">{{ selected.naver.recipient_name or selected.external_id }}</span>
+                <span class="small text-muted">상품주문 {{ selected.external_id }}</span>
+                <span class="badge bg-danger">{{ selected.claim.label }}</span>
+                <span class="ms-auto d-flex gap-2">
+                    {# 잠긴 이유를 title 로 붙인다 — 이유 없이 잠긴 버튼은 사람이 계속 누른다. #}
+                    <button type="button" class="btn btn-outline-secondary btn-sm" id="wb-claim-create" disabled
+                            title="취소·반품 건은 주문을 만들 수 없습니다(서버가 막습니다)">주문 만들기</button>
+                    <button type="button" class="btn btn-outline-secondary btn-sm" id="wb-claim-place" disabled
+                            title="취소·반품 건은 발주확인 대상이 아닙니다">발주확인</button>
+                    <button type="button" class="btn btn-primary btn-sm" id="wb-claim-done"
+                            data-link-ids="{{ (selected_group.link_ids if selected_group else [selected.link_id]) | join(',') }}">
+                        확인 완료 — 큐에서 빼기
+                    </button>
+                </span>
+            </div>
+            <div class="card-body">
+                <div class="alert alert-danger" data-foms-no-autodismiss>
+                    <div class="fw-semibold">네이버 {{ selected.claim.label }}</div>
+                    <div class="small">
+                        이 집은 <b>주문을 만들 수 없습니다</b> — 서버가 막습니다.
+                        큐에서 빼는 것만 됩니다. 네이버 쪽 상태는 판매자센터를 따릅니다.
+                    </div>
+                </div>
+
+                <div class="wb-cmp-title" data-cmp-section="household">
+                    집 단위 <span class="wb-cmp-title__sub">수취인·주소 — 확인용</span>
+                </div>
+                <table class="wb-cmp">
+                    <thead><tr><th>항목</th><th>네이버 원본</th><th>FOMS 현재 값</th></tr></thead>
+                    <tbody>
+                        <tr>
+                            <td class="wb-cmp__k">수취인</td>
+                            <td>{{ selected.naver.recipient_name }}</td>
+                            <td>{{ selected.foms.customer_name or '주문 없음' }}</td>
+                        </tr>
+                        <tr>
+                            <td class="wb-cmp__k">주소</td>
+                            <td>{{ selected.naver.address }}</td>
+                            <td>{{ selected.foms.address or '주문 없음' }}</td>
+                        </tr>
+                        <tr>
+                            <td class="wb-cmp__k">FOMS 주문</td>
+                            <td colspan="2">
+                                {% if selected.order_id %}
+                                <a href="{{ selected.edit_url }}" target="_blank" rel="noopener">#{{ selected.order_id }}</a>
+                                — 주문이 만들어진 뒤 취소된 집입니다. 담당자에게 알림이 갑니다(주문 상태를 자동으로 바꾸지는 않습니다).
+                                {% else %}
+                                없음 — 주문을 만들기 전에 취소돼 사고가 없었습니다.
+                                {% endif %}
+                            </td>
+                        </tr>
+                    </tbody>
+                </table>
+            </div>
+            {% else %}
+            <div class="card-body wb-empty">왼쪽에서 집을 고르세요.</div>
+            {% endif %}
+        </section>
+    </div>
+
     {% else %}
-    {# W3~W4 에서 채운다. 게이트가 기본 off 라 실사용자에게는 보이지 않는다. #}
+    {# W4 에서 채운다. 게이트가 기본 off 라 실사용자에게는 보이지 않는다. #}
     <div class="wb-empty">이 탭은 아직 준비 중입니다.</div>
     {% endif %}
 </div>
