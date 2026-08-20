@@ -961,7 +961,7 @@ def api_as_upload_anchor(order_id: int):
         as_log_id = ensure_as_upload_anchor_on_order(db, order, user)
     except (ValueError, RevisionError) as exc:
         return _as_error_response(db, exc)
-    db.add(SecurityLog(user_id=user_id, message=f"주문 #{order_id} AS 첨부 앵커({as_log_id})"))
+    _audit_as(order, "AS_UPLOAD_ANCHOR", user_id, extra={"as_log_id": as_log_id})
     db.commit()
     next_sort = next_attachment_sort_order(db, order_id, as_log_id)
     return jsonify({

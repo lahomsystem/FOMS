@@ -151,6 +151,7 @@ ACTION_LABELS: dict[str, str] = {
     "AS_LOG_ADDED": "AS 기록 추가",
     "AS_LOG_UPDATED": "AS 기록 수정",
     "AS_LOG_DELETED": "AS 기록 삭제",
+    "AS_UPLOAD_ANCHOR": "AS 첨부 위치",
     # --- 도면 ---
     "DRAWING_DELIVERED": "도면 전달 완료",
     "DRAWING_DELIVERY_CANCELED": "도면 전달 취소",
