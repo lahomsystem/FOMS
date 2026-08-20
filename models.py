@@ -3495,6 +3495,14 @@ class ExternalOrderLink(Base):
     # 있지만 그걸로 필터하면 인덱스 없는 JSONB 스캔이 된다. 목록 필터 전용 사본이다.
     # 정본은 여전히 raw_snapshot 이며, 재수집·클레임 갱신 때 함께 덮어쓴다.
     place_order_status = Column(String(20), nullable=True)
+    # 묶음('집') 키 — mapping.group_key_text(raw_snapshot) 의 사본.
+    # (주문번호, 수취인 전화, 주소)를 이은 값이다. 주소는 raw_snapshot 안에서 파이썬으로
+    # 조립해야 나오므로 SQL 이 못 센다 — 그래서 컬럼으로 복사해 둔다. 이 컬럼이 없던 시절
+    # 이력 표는 주문번호만으로 묶었고, 분할배송(같은 주문번호·다른 주소)에서 확인 큐와
+    # 집 수가 영구히 어긋났다(45집 vs 43집).
+    # nullable 인 이유: 이 컬럼이 생기기 전 행이 있다. 읽는 쪽이 external_order_no 로
+    # 폴백하므로 backfill 전에도 예전과 같은 동작으로 떨어질 뿐 화면은 죽지 않는다.
+    group_key = Column(String(200), nullable=True)
     # 도크(주문 편집 옆 네이버 원본 패널) 반영 상태 — T14-B.
     # {checked, checked_by, checked_at, assigned_main, assigned_by, assigned_at}.
     # reviewed_at 과 다른 축: 저건 큐 이탈(첫 확인 시각 불변), 이건 토글 가능한 표시용.
@@ -3524,6 +3532,8 @@ class ExternalOrderLink(Base):
         Index('ix_external_order_link_order', 'order_id'),
         # '발주확인 전' 목록 필터 경로(채널 + 발주상태 + 최신순).
         Index('ix_external_order_link_place', 'channel', 'place_order_status', 'created_at'),
+        # 이력 표의 묶음 단위 집계·페이징 경로(집 수 COUNT DISTINCT, 페이지 키 조회).
+        Index('ix_external_order_link_group', 'channel', 'group_key'),
     )
 
 

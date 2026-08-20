@@ -552,3 +552,114 @@ def test_block_layout_attributes_addons_by_spec_axis():
     assert [a["naver_product_order_id"] for a in by_id["PO-M2"]["naver_addons"]] == ["PO-A2"]
     assert sum(i["price"] for i in structured["items"]) == fields["payment_amount"], \
         "귀속이 미정이어도 금액은 어딘가에 붙어 합계가 보존된다"
+
+
+# --------------------------------------------------------------------------- #
+# 묶음키 컬럼 (03 감사 결함 #1)
+# --------------------------------------------------------------------------- #
+
+def test_collect_stores_group_key_column(app):
+    """수집이 묶음키를 컬럼에 복사한다 — 이력 표가 SQL 로 집을 셀 수 있어야 한다.
+
+    주소는 raw_snapshot 안에서 파이썬으로 조립해야 나오므로 SQL 이 못 센다. 컬럼이
+    비면 이력은 주문번호로 폴백하고, 분할배송에서 확인 큐와 집 수가 어긋난다.
+    """
+    from foms.services.integrations.naver_commerce.mapping import group_key_text
+
+    _accounts()
+    detail = _detail("PO-GK-1")
+    _run(FakeClient([_changed_entry("PO-GK-1")], [detail]))
+
+    link = db_session.query(ExternalOrderLink).filter_by(external_id="PO-GK-1").one()
+    assert link.group_key == group_key_text(detail)
+    assert link.group_key, "빈 값이면 폴백으로 떨어져 컬럼을 둔 의미가 없다"
+
+
+def test_split_shipment_gets_two_distinct_group_keys(app):
+    """같은 주문번호라도 배송지가 다르면 키가 갈린다 — 두 집이다.
+
+    합치면 남의 주소로 시공을 나가는 사고가 된다(mapping.group_key 주석).
+    """
+    _accounts()
+    first = _detail("PO-GK-S1")
+    second = _detail("PO-GK-S2")
+    second["productOrder"]["shippingAddress"] = dict(
+        second["productOrder"]["shippingAddress"], baseAddress="부산광역시 해운대구 9")
+
+    _run(FakeClient([_changed_entry("PO-GK-S1"), _changed_entry("PO-GK-S2")],
+                    [first, second]))
+
+    keys = {row.group_key for row in db_session.query(ExternalOrderLink)
+            .filter(ExternalOrderLink.external_id.in_(["PO-GK-S1", "PO-GK-S2"])).all()}
+    assert len(keys) == 2, keys
+
+
+def test_same_household_shares_one_group_key(app):
+    """같은 집의 본품·옵션은 한 키다 — 가르는 규칙이 과녁을 넘지 않는다."""
+    _accounts()
+    main = _detail("PO-GK-M")
+    addon = _detail("PO-GK-A", productName="길이추가(1cm)", totalPaymentAmount=0)
+
+    _run(FakeClient([_changed_entry("PO-GK-M"), _changed_entry("PO-GK-A")],
+                    [main, addon]))
+
+    keys = {row.group_key for row in db_session.query(ExternalOrderLink)
+            .filter(ExternalOrderLink.external_id.in_(["PO-GK-M", "PO-GK-A"])).all()}
+    # None 도 원소 하나라 len==1 만 보면 '컬럼을 안 채웠다'와 구분되지 않는다.
+    assert keys and None not in keys, keys
+    assert len(keys) == 1, keys
+
+
+def test_pending_review_link_also_gets_group_key(app):
+    """매핑 실패로 보류된 건도 집으로 세진다 — 이력 필터가 그 상태를 보여준다."""
+    _accounts()
+    broken = _detail("PO-GK-P")
+    broken["productOrder"]["shippingAddress"] = dict(
+        broken["productOrder"]["shippingAddress"], baseAddress="", detailedAddress="")
+
+    _run(FakeClient([_changed_entry("PO-GK-P")], [broken]))
+
+    link = db_session.query(ExternalOrderLink).filter_by(external_id="PO-GK-P").one()
+    assert link.sync_status == "PENDING_REVIEW"
+    assert link.group_key, "주소가 없어도 주문번호·전화로 키는 만들어진다"
+
+
+def test_backfill_fills_missing_group_key_and_is_idempotent(app):
+    """옛 행 채우기 — dry-run 은 쓰지 않고, 두 번 돌려도 결과가 같다."""
+    from scripts.maintenance.backfill_naver_group_key import backfill
+    from foms.services.integrations.naver_commerce.mapping import group_key_text
+
+    detail = _detail("PO-BF-1")
+    link = ExternalOrderLink(channel="NAVER", external_id="PO-BF-1", sync_status="COLLECTED",
+                             external_order_no="2026081312345", raw_snapshot=detail)
+    db_session.add(link)
+    db_session.commit()
+    link_id = link.id
+
+    dry = backfill(db_session, dry_run=True)
+    assert dry["filled"] == 1
+    db_session.expire_all()
+    assert db_session.get(ExternalOrderLink, link_id).group_key is None, "dry-run 은 쓰면 안 된다"
+
+    first = backfill(db_session)
+    assert first["filled"] == 1
+    db_session.expire_all()
+    assert db_session.get(ExternalOrderLink, link_id).group_key == group_key_text(detail)
+
+    # 멱등 — 이미 채워진 행은 다시 대상이 되지 않는다.
+    second = backfill(db_session)
+    assert second["scanned"] == 0 and second["filled"] == 0
+
+
+def test_backfill_skips_rows_without_snapshot(app):
+    """원본이 없으면 계산할 근거가 없다 — 조용히 건너뛰고 폴백에 맡긴다."""
+    from scripts.maintenance.backfill_naver_group_key import backfill
+
+    link = ExternalOrderLink(channel="NAVER", external_id="PO-BF-EMPTY",
+                             sync_status="FAILED", raw_snapshot=None)
+    db_session.add(link)
+    db_session.commit()
+
+    stats = backfill(db_session)
+    assert stats["skipped_no_snapshot"] >= 1
+    assert stats["filled"] == 0

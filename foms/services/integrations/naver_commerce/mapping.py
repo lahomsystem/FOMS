@@ -449,6 +449,34 @@ def group_key(detail: dict) -> tuple[str, str, str]:
     )
 
 
+#: 묶음키 문자열의 구분자. 주소·이름에 나올 수 없는 제어문자를 쓴다 — 구분자가 값 안에
+#: 섞이면 서로 다른 집이 같은 키로 접힌다.
+GROUP_KEY_SEP = "\x1f"
+
+#: 컬럼(String(200)) 길이 예산. 주문번호·전화가 짧으므로 주소를 잘라 맞춘다.
+#: 자르는 지점이 같으면 같은 집은 여전히 같은 키다(앞에서부터 자르므로 접두사가 보존된다).
+GROUP_KEY_MAX_LEN = 200
+
+
+def group_key_text(detail: dict) -> str:
+    """:func:`group_key` 의 3-튜플을 **컬럼에 저장할 문자열**로 정규화한다.
+
+    화면 두 곳이 같은 정의를 쓰려면 세밀한 키를 SQL 로도 셀 수 있어야 하고, 그러려면
+    값이 컬럼에 있어야 한다(주소는 ``raw_snapshot`` 안에서 파이썬으로 조립해야 나온다).
+
+    Args:
+        detail: 상품주문 상세 1건.
+
+    Returns:
+        같은 집이면 같은 문자열. 원본이 비어 키를 못 만들면 빈 문자열(호출자가 폴백한다).
+    """
+    order_no, tel, address = group_key(detail)
+    if not (order_no or tel or address):
+        return ""
+    raw = GROUP_KEY_SEP.join((order_no, tel, address))
+    return raw[:GROUP_KEY_MAX_LEN]
+
+
 def _join_options(main_option: str, addon_options: list[str]) -> str:
     """본품 옵션 원문 + 추가옵션 원문들을 한 칸에 이어 붙인다(줄바꿈 구분)."""
     parts = [line for line in ([main_option] + list(addon_options)) if line]
@@ -623,7 +651,10 @@ def map_group(details: list[dict], *, today: str) -> tuple[dict[str, Any], dict]
 
 __all__ = [
     "COLLECTIBLE_STATUS",
+    "GROUP_KEY_MAX_LEN",
+    "GROUP_KEY_SEP",
     "group_key",
+    "group_key_text",
     "map_group",
     "KST",
     "NaverMappingError",

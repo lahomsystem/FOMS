@@ -32,7 +32,7 @@
 **완료 기준**: 주문 없는 취소 건 상세에 `확인 완료` 버튼이 있고 `주문 만들기`는 잠긴 상태 · 테스트 green ·
 기존 "주문 있는 건" 경로(담당자 지정 + 확인 완료) 회귀 없음.
 
-### T4 — #1 묶음키 컬럼 (PENDING) ← 이 플랜의 본체
+### T4 — #1 묶음키 컬럼 (DONE) ← 이 플랜의 본체
 1. `mapping.group_key_text()` 신설(기존 `group_key()` 튜플 시그니처 불변)
 2. `ExternalOrderLink.group_key` 컬럼 + 마이그레이션 `navergroup_00`(down=`naver_relation_00`)
 3. 수집 upsert 에서 기록 · 재수집 시 갱신
@@ -73,3 +73,15 @@
   **원인은 템플릿 하나였다**: 서버 review 라우트는 이미 주문 없는 링크를 정상 처리한다(라우트 테스트로 확인).
   부수: 규격 경고를 `selected.order_id and ...` 로 좁히고, 주문 못 만드는 집에는 안내 문구를 따로 뒀다.
   `pytest tests/services/integrations/ -q` **277 passed** · `APP_OK`.
+- 2026-08-20 **T4 완료**. 사용자 선택: 마이그레이션은 격리 PG 레인에서만, backfill 은 스크립트만(실행 보류).
+  구현 6조각: `mapping.group_key_text()` 신설(기존 튜플 시그니처 불변) · `ExternalOrderLink.group_key`
+  + 인덱스 `ix_external_order_link_group` · 마이그레이션 `navergroup_00`(models/mapping import 없음) ·
+  수집 2곳(COLLECTED·PENDING_REVIEW) 기록 + `claim_watch` 재수집 시 갱신(빈 값이면 기존 값 보존) ·
+  이력 `_history_group_key`/`_group_key_col()` 이 컬럼 사용(폴백 `group_key → external_order_no → link:id`) ·
+  `scripts/maintenance/backfill_naver_group_key.py`(멱등·`--dry-run`·배치 커밋).
+  검증: SQLite 레인 `tests/services/integrations/` **286 passed** · **PG 레인 전수 737 passed**(PG 17.9, 5440) ·
+  `test_migration_chain` 왕복 통과(head=`navergroup_00` 단일, 신규 리비전이 왕복 창에 포함됨) · `APP_OK`.
+  **테스트가 무는지 직접 확인**: 기록 라인 2줄을 잠시 빼고 재실행 → 3건 red, 복원 후 green.
+  그때 `same_household` 만 양쪽 통과여서(`{None}` 도 원소 1개) `None not in keys` 를 추가로 물렸다.
+  **미검증 1건**: backfill `--dry-run` 을 로컬 dev DB 에서 못 돌렸다 — 그 DB 에는 컬럼이 없다
+  (마이그레이션 미적용, 사용자 선택). CLI 는 정상 동작하고 backfill 로직은 테스트 2건이 레인에서 검증한다.

@@ -28,6 +28,7 @@ from foms.services.integrations.naver_commerce.mapping import (
     extract_claim,
     extract_external_id,
     extract_place_status,
+    group_key_text,
 )
 from models import ExternalOrderLink, Notification, Order, OrderAssignment, User
 
@@ -225,6 +226,12 @@ def refresh_claims(
         # 목격자다. 안 갱신하면 목록 필터만 옛 값에 머문다(T16-B).
         place = extract_place_status(detail)
         link.place_order_status = (place["status"] or "")[:20] or None
+        # 묶음키 사본도 같은 이유로 갱신한다 — 확인 큐는 스냅샷에서 매번 다시 계산하므로,
+        # 컬럼만 옛 값에 머물면 두 화면의 집 수가 또 갈린다.
+        # 값을 못 만들면 기존 값을 지우지 않는다(폴백보다 옛 사본이 정확하다).
+        refreshed_group_key = group_key_text(detail)
+        if refreshed_group_key:
+            link.group_key = refreshed_group_key
         state = copy.deepcopy(link.triage_state) if isinstance(link.triage_state, dict) else {}
         sync = dict(state.get(STATE_KEY) or {})
         sync["last_status"] = claim["status"]

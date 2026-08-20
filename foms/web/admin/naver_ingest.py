@@ -118,11 +118,17 @@ def _expiry_view(db) -> dict[str, Any]:
 
 
 def _history_group_key(link: ExternalOrderLink) -> str:
-    """이력 표의 페이지·묶음 키 — 네이버 주문번호(없으면 링크 단독).
+    """이력 표의 페이지·묶음 키 — 확인 큐와 **같은 정의**(주문번호·수취인 전화·주소).
 
-    확인 화면(:func:`_group_queue`)은 분할배송까지 갈라내는 세밀한 키를 쓰지만, 이력은
-    **페이지 경계에서 한 집이 쪼개지지 않는 것**이 목적이라 SQL 로 셀 수 있는 주문번호를 쓴다.
+    값은 수집 시점에 ``group_key`` 컬럼에 복사해 둔다. 주소는 ``raw_snapshot`` 안에서
+    파이썬으로 조립해야 나오므로 SQL 이 못 세기 때문이다(:func:`_group_key_col`).
+
+    컬럼이 비면 예전 규칙(주문번호)으로 떨어진다 — 이 컬럼이 생기기 전 행과 backfill 전
+    행을 위한 폴백이다. 정확도는 예전만 못해도 화면은 죽지 않는다.
     """
+    stored = (link.group_key or "").strip()
+    if stored:
+        return stored
     return (link.external_order_no or "").strip() or f"link:{link.id}"
 
 
@@ -132,11 +138,12 @@ def _group_key_col():
     총계·상태별 건수·페이지 키가 **모두 같은 식**을 써야 숫자가 갈리지 않는다.
 
     Returns:
-        네이버 주문번호(없으면 ``link:<id>``) 라벨 ``gk`` 컬럼 식.
+        묶음키(없으면 주문번호, 그것도 없으면 ``link:<id>``) 라벨 ``gk`` 컬럼 식.
     """
     from sqlalchemy import String, cast, func, literal
 
     return func.coalesce(
+        func.nullif(ExternalOrderLink.group_key, ""),
         func.nullif(ExternalOrderLink.external_order_no, ""),
         literal("link:") + cast(ExternalOrderLink.id, String),
     ).label("gk")

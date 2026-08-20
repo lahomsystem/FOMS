@@ -130,6 +130,7 @@ def _record_pending(session: Session, *, external_id: str, detail: dict, reason:
             raw_snapshot=detail,
             sync_status="PENDING_REVIEW",
             place_order_status=_place_status_value(detail),
+            group_key=_group_key_value(detail),
             failure_reason=reason[:2000],
         )
     )
@@ -156,6 +157,28 @@ def _place_status_value(detail: dict) -> Optional[str]:
         logger.warning("[NAVER] 발주 상태 추출 실패(무시): %s", exc)
         return None
     return status[:20] or None
+
+
+def _group_key_value(detail: dict) -> Optional[str]:
+    """원본에서 묶음('집') 키를 만들어 컬럼에 넣을 값으로 만든다(못 만들면 None).
+
+    ``_place_status_value`` 와 같은 규약이다 — 정본은 ``raw_snapshot`` 이고 이 컬럼은
+    이력 표가 SQL 로 집을 셀 수 있게 하는 사본이다. 추출이 실패해도 수집은 막지 않는다
+    (못 받은 주문은 되돌릴 수 없다). 값이 없으면 읽는 쪽이 주문번호로 폴백한다.
+
+    Args:
+        detail: 상품주문 상세 1건.
+
+    Returns:
+        묶음키 문자열 또는 None.
+    """
+    try:
+        from foms.services.integrations.naver_commerce.mapping import group_key_text
+
+        return group_key_text(detail) or None
+    except (ValueError, TypeError, AttributeError, KeyError) as exc:  # 표시용 사본이라 흐름을 막지 않는다
+        logger.warning("[NAVER] 묶음키 계산 실패(무시): %s", exc)
+        return None
 
 
 def _safe_unwrap(detail: dict) -> tuple[dict, dict, dict]:
@@ -217,6 +240,8 @@ def ingest_detail(
                 sync_status="COLLECTED",
                 # 발주 상태 사본 — 목록 필터가 JSONB 를 스캔하지 않게 한다(T16-B).
                 place_order_status=_place_status_value(detail),
+                # 묶음키 사본 — 이력 표가 확인 큐와 같은 정의로 집을 셀 수 있게 한다.
+                group_key=_group_key_value(detail),
             )
         )
         session.flush()

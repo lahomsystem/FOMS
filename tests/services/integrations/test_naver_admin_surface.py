@@ -361,3 +361,61 @@ def test_pagination_links_keep_place_filter(auth_client, monkeypatch):
     nav = nav[:nav.index("</nav>")]
     assert "page=2" in nav, nav
     assert "place=PENDING" in nav, nav
+
+
+def _split_shipment_link(external_id: str, *, order_no: str, address: str,
+                         tel: str = "010-1111-2222") -> ExternalOrderLink:
+    """같은 네이버 주문번호인데 배송지가 다른 링크(분할배송).
+
+    수집 파이프라인이 만드는 모양 그대로 — ``group_key`` 컬럼까지 채운다
+    (수집이 실제로 그 컬럼을 채우는지는 `test_naver_ingest` 쪽에서 따로 고정한다).
+    """
+    from foms.services.integrations.naver_commerce.mapping import group_key_text
+
+    link = _link(external_id, "COLLECTED", external_order_no=order_no)
+    link.raw_snapshot = {
+        "order": {"orderId": order_no},
+        "productOrder": {
+            "productOrderId": external_id, "productName": "붙박이장",
+            "shippingAddress": {"name": "이수취", "tel1": tel,
+                                "baseAddress": address, "detailedAddress": "101호"},
+        },
+    }
+    link.group_key = group_key_text(link.raw_snapshot)
+    db_session.commit()
+    return link
+
+
+def test_history_falls_back_to_order_no_when_group_key_missing(auth_client):
+    """묶음키 컬럼이 비어 있어도(옛 행·backfill 전) 화면은 예전처럼 동작한다.
+
+    폴백이 없으면 링크마다 ``link:<id>`` 로 흩어져 집 수가 폭증한다.
+    """
+    _link("PO-NOGK-A", "COLLECTED", external_order_no="N-NOGK")
+    _link("PO-NOGK-B", "COLLECTED", external_order_no="N-NOGK")
+
+    body = auth_client.get("/admin/naver-ingest").get_data(as_text=True)
+    assert "전체 1집" in body
+
+
+def test_history_splits_by_address_like_the_triage_queue(auth_client):
+    """이력과 확인 큐의 '집' 정의가 같아야 한다(03 감사 결함 #1).
+
+    확인 큐는 (주문번호·수취인 전화·주소)로 가른다 — 분할배송에서 두 집을 하나로 합치면
+    남의 주소로 시공을 나가는 사고가 된다. 이력은 주문번호만 봐서 같은 데이터를
+    1집으로 셌고, 두 화면 숫자가 영구히 어긋났다(45집 vs 43집).
+    """
+    _split_shipment_link("PO-SPLIT-A", order_no="N-SPLIT", address="서울 강남구 1")
+    _split_shipment_link("PO-SPLIT-B", order_no="N-SPLIT", address="부산 해운대구 9")
+
+    body = auth_client.get("/admin/naver-ingest").get_data(as_text=True)
+    assert "전체 2집" in body, "배송지가 다르면 이력에서도 두 집이어야 한다"
+
+
+def test_history_still_groups_same_address_into_one(auth_client):
+    """같은 집은 여전히 한 집이다 — 가르는 규칙이 과녁을 넘지 않는다."""
+    _split_shipment_link("PO-SAME-A", order_no="N-SAME", address="서울 강남구 1")
+    _split_shipment_link("PO-SAME-B", order_no="N-SAME", address="서울 강남구 1")
+
+    body = auth_client.get("/admin/naver-ingest").get_data(as_text=True)
+    assert "전체 1집" in body
