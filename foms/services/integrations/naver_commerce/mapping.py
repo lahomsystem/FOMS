@@ -10,7 +10,9 @@
   빠져 틀린 값이 조용히 굳는다. 수집 주문도 기존 주문과 똑같이 지오코딩한다.
   네이버 좌표는 참고용으로 ``structured_data['naver']`` 에만 남긴다.
 * **주문자 ≠ 수취인** 케이스가 실재한다(대리주문). 배송지 이름/전화를 고객으로 쓰고,
-  주문자는 ``parties.orderer`` 에 따로 보존한다.
+  주문한 사람은 ``parties.buyer`` 에 따로 보존한다. ``parties.orderer`` 는 **발주사**
+  자리라 여기에 사람 이름을 넣으면 안 된다 — 넣었더니 알림톡이 하우드 프로필로 나가고
+  도면에 하우드 로고가 찍혔다(ORDERER-AXIS-01). 발주사는 항상 ``DEFAULT_ORDERER_NAME``.
 * ``takingAddress`` 는 반품 수거지(자사 주소)다. 고객 정보가 아니라서 버린다.
 * ``productOption`` 은 **원문 그대로** 보관한다(v1 자동 파싱 없음 — 스펙 §7 Q2).
 """
@@ -23,6 +25,7 @@ from typing import Any, Optional
 
 from foms.services.integrations.naver_commerce.constants import (
     ADDON_PRODUCT_CLASS,
+    DEFAULT_ORDERER_NAME,
     SOURCE_MARKER,
 )
 
@@ -305,9 +308,10 @@ def build_payment_info(detail: dict) -> dict:
 def build_structured_data(detail: dict) -> dict:
     """ERP structured_data 를 만든다(canonical 키 위치 사용).
 
-    ERP 대시보드·통합검색이 읽는 자리에 맞춘다: 고객은 ``parties.customer``, 주문자는
-    ``parties.orderer``, 주소는 ``site``, 품목은 ``items[]``. 네이버 고유 값은
-    ``naver`` 아래로 몰아 다른 채널이 생겨도 충돌하지 않게 한다.
+    ERP 대시보드·통합검색이 읽는 자리에 맞춘다: 고객은 ``parties.customer``, 발주사는
+    ``parties.orderer``(항상 라홈), 주문한 사람은 ``parties.buyer``, 주소는 ``site``,
+    품목은 ``items[]``. 네이버 고유 값은 ``naver`` 아래로 몰아 다른 채널이 생겨도
+    충돌하지 않게 한다.
     """
     order, product_order, shipping = unwrap_detail(detail)
     address = build_address(shipping)
@@ -322,8 +326,11 @@ def build_structured_data(detail: dict) -> dict:
                 # 버리면 다시 구할 방법이 없다. Order.phone 은 그대로 tel1 이다.
                 "phone2": _text(shipping.get("tel2")),
             },
-            # 대리주문이면 주문자와 수취인이 다르다 — 해피콜 대상 판단에 필요해 보존한다.
-            "orderer": {
+            # 발주사. ERP 에서 이 자리는 라홈/하우드 같은 발주처를 뜻하고, 알림톡 브랜드
+            # 프로필·도면 로고·퀘스트 CS 팀·견적서 양식이 이 값으로 갈린다.
+            "orderer": {"name": DEFAULT_ORDERER_NAME},
+            # 주문한 사람. 대리주문이면 수취인과 다르다 — 해피콜 대상 판단에 필요해 보존한다.
+            "buyer": {
                 "name": _text(order.get("ordererName")),
                 "phone": _text(order.get("ordererTel")),
             },

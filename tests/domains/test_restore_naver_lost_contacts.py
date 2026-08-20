@@ -1,10 +1,10 @@
 """``tools/ops/restore_naver_lost_contacts.py`` 복구 계약 테스트.
 
-``ec6b22a9`` 이전 폼 저장이 지운 ``parties.orderer.phone`` · ``parties.customer.phone2``
-를 ``ExternalOrderLink.raw_snapshot`` 에서 되채우는 스크립트다. 고정하는 계약:
+폼 저장이 지운 ``parties.buyer.*`` · ``parties.customer.phone2`` 를
+``ExternalOrderLink.raw_snapshot`` 에서 되채우는 스크립트다. 고정하는 계약:
 
 * 비어 있는 자리만 채운다 — 사람이 넣은 값은 스냅샷과 달라도 덮지 않는다.
-* ``orderer.name`` 은 건드리지 않는다(ERP 에서 그 자리는 발주사다).
+* ``parties.orderer`` 는 건드리지 않는다(그 자리는 발주사다).
 * 기본은 dry-run(쓰기 없음), ``execute=True`` 여야 실제로 쓴다.
 * 멱등 — 한 번 채우면 다음 실행은 ``restored=0``.
 """
@@ -94,45 +94,49 @@ def test_plan_restores_only_dropped_contact_keys():
     """비어 있는 orderer.phone·customer.phone2 만 계획에 담긴다(이름 제외)."""
     snapshot_parties = {
         "customer": {"name": "이수취", "phone": "010-3333-4444", "phone2": "010-5555-6666"},
-        "orderer": {"name": "김주문", "phone": "010-6279-1403"},
+        "orderer": {"name": "라홈"},
+        "buyer": {"name": "김주문", "phone": "010-6279-1403"},
     }
     plan = plan_parties_restore(_stripped_parties(), snapshot_parties)
-    assert plan == {"orderer.phone": "010-6279-1403", "customer.phone2": "010-5555-6666"}
-    assert not any(key.endswith(".name") for key in plan)
+    assert plan == {"buyer.name": "김주문", "buyer.phone": "010-6279-1403",
+                    "customer.phone2": "010-5555-6666"}
+    assert not any(key.startswith("orderer.") for key in plan)
 
 
 def test_plan_never_overwrites_existing_value():
     """사람이 넣은 값이 있으면 스냅샷과 달라도 건드리지 않는다."""
-    current = {"customer": {"phone2": "010-0000-0000"}, "orderer": {"phone": "010-9999-8888"}}
+    current = {"customer": {"phone2": "010-0000-0000"},
+               "buyer": {"name": "김주문", "phone": "010-9999-8888"}}
     snapshot_parties = {"customer": {"phone2": "010-5555-6666"},
-                        "orderer": {"phone": "010-6279-1403"}}
+                        "buyer": {"name": "김주문", "phone": "010-6279-1403"}}
     assert plan_parties_restore(current, snapshot_parties) == {}
 
 
 def test_plan_ignores_blank_snapshot_values():
     """스냅샷에 값이 없으면(tel2 미입력) 복구 대상이 아니다."""
-    snapshot_parties = {"customer": {"phone2": ""}, "orderer": {"phone": "  "}}
+    snapshot_parties = {"customer": {"phone2": ""}, "buyer": {"name": "", "phone": "  "}}
     assert plan_parties_restore(_stripped_parties(), snapshot_parties) == {}
 
 
 def test_plan_handles_missing_subtree():
-    """parties.orderer 가 통째로 없어도 계획이 선다."""
-    plan = plan_parties_restore({"customer": {}}, {"orderer": {"phone": "010-6279-1403"}})
-    assert plan == {"orderer.phone": "010-6279-1403"}
+    """parties.buyer 가 통째로 없어도 계획이 선다."""
+    plan = plan_parties_restore({"customer": {}}, {"buyer": {"phone": "010-6279-1403"}})
+    assert plan == {"buyer.phone": "010-6279-1403"}
 
 
 def test_apply_is_idempotent_and_leaves_other_keys():
     """적용 후 재계획은 비고, 기존 키(발주사 이름 등)와 원본 dict 는 그대로다."""
     snapshot_parties = {"customer": {"phone2": "010-5555-6666"},
-                        "orderer": {"phone": "010-6279-1403"}}
+                        "buyer": {"name": "김주문", "phone": "010-6279-1403"}}
     sd = {"parties": _stripped_parties(), "site": {"address_full": "서울 강남구 1 101호"}}
     plan = plan_parties_restore(sd["parties"], snapshot_parties)
     new_sd = apply_parties_restore(sd, plan)
 
-    assert new_sd["parties"]["orderer"] == {"name": "라홈", "phone": "010-6279-1403"}
+    assert new_sd["parties"]["buyer"] == {"name": "김주문", "phone": "010-6279-1403"}
+    assert new_sd["parties"]["orderer"] == {"name": "라홈"}  # 발주사 자리는 그대로
     assert new_sd["parties"]["customer"]["phone2"] == "010-5555-6666"
     assert new_sd["site"] == sd["site"]
-    assert sd["parties"]["orderer"] == {"name": "라홈"}  # 원본 불변(deepcopy)
+    assert "buyer" not in sd["parties"]  # 원본 불변(deepcopy)
     assert plan_parties_restore(new_sd["parties"], snapshot_parties) == {}
 
 
@@ -153,14 +157,14 @@ def test_dry_run_reports_without_writing(app):
     result = run_restore(db_session, order_ids=[order_id])
 
     assert result["mode"] == "dry-run"
-    assert result["restored"] == 2
+    assert result["restored"] == 3
     assert result["orders_touched"] == 1
     assert {c["key"] for c in result["changes"]} == {
-        "parties.orderer.phone", "parties.customer.phone2"}
+        "parties.buyer.name", "parties.buyer.phone", "parties.customer.phone2"}
 
     db_session.expire_all()
     reloaded = db_session.query(Order).filter(Order.id == order_id).first()
-    assert "phone" not in reloaded.structured_data["parties"]["orderer"]
+    assert "buyer" not in reloaded.structured_data["parties"]
 
 
 def test_execute_writes_and_second_run_is_noop(app):
@@ -170,12 +174,12 @@ def test_execute_writes_and_second_run_is_noop(app):
     order_id = order.id
 
     result = run_restore(db_session, execute=True, order_ids=[order_id])
-    assert result["restored"] == 2
+    assert result["restored"] == 3
 
     db_session.expire_all()
     reloaded = db_session.query(Order).filter(Order.id == order_id).first()
     parties = reloaded.structured_data["parties"]
-    assert parties["orderer"]["phone"] == "010-6279-1403"
+    assert parties["buyer"] == {"name": "김주문", "phone": "010-6279-1403"}
     assert parties["customer"]["phone2"] == "010-5555-6666"
     assert parties["orderer"]["name"] == "라홈"  # 발주사 자리는 그대로
 

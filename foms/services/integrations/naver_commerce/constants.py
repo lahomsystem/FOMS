@@ -27,5 +27,11 @@ OWNER_USERNAME = "naver_unassigned"
 #: 여기에 둔다 — 한쪽만 바뀌면 품목 생성과 화면 표시가 어긋난다.
 ADDON_PRODUCT_CLASS = "추가구성상품"
 
-__all__ = ["ACTOR_USERNAME", "ADDON_PRODUCT_CLASS", "CHANNEL", "OWNER_USERNAME",
-           "SOURCE_MARKER"]
+#: 수집 주문의 **발주사**(``parties.orderer.name``). 네이버 스마트스토어가 라홈 스토어라
+#: 발주사는 항상 라홈이다. ERP 에서 이 자리는 발주사 전용이고 주문한 사람은
+#: ``parties.buyer`` 로 간다 — 두 뜻이 겹쳐 있던 것을 가른 것이 ORDERER-AXIS-01 이다.
+#: 이 값으로 알림톡 브랜드 프로필·도면 로고·퀘스트 CS 팀·견적서 양식이 갈린다.
+DEFAULT_ORDERER_NAME = "라홈"
+
+__all__ = ["ACTOR_USERNAME", "ADDON_PRODUCT_CLASS", "CHANNEL", "DEFAULT_ORDERER_NAME",
+           "OWNER_USERNAME", "SOURCE_MARKER"]

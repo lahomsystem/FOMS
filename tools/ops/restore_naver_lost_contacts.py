@@ -4,7 +4,9 @@
 대입했다. 편집 폼은 ``customer.name/phone`` · ``orderer.name`` · ``manager.name`` 만
 렌더하므로, 폼이 모르는 키는 주문을 한 번 열어 저장하는 것만으로 사라졌다:
 
-* ``parties.orderer.phone`` — 대리주문 주문자 번호(해피콜 대상 판단용)
+* ``parties.buyer.name``/``parties.buyer.phone`` — 주문한 사람(해피콜 대상 판단용).
+  ORDERER-AXIS-01 이전 수집분은 이 값이 ``parties.orderer`` 에 있었다 — 그 축 이동은
+  ``split_orderer_buyer_axis.py`` 가 하고, 이 스크립트는 이동 후 자리를 본다.
 * ``parties.customer.phone2`` — 보조 연락처(수집 47건 중 6건)
 
 원본은 남아 있다. ``ExternalOrderLink.raw_snapshot`` 이 네이버 응답 그대로를 보관하고,
@@ -15,10 +17,8 @@
 
 * 현재 값이 비어 있고 스냅샷 값이 있을 때만 채운다. 값이 이미 있으면 다르더라도
   건드리지 않는다 — 사람이 고쳐 넣은 번호를 스냅샷이 덮으면 그게 새 유실이다.
-* ``orderer.name`` 은 복구 대상이 아니다. ERP 에서 ``parties.orderer.name`` 은
-  **발주사**(라홈/하우드)를 뜻하고 폼의 발주사 셀렉트가 그 자리에 쓴다. 수집이 같은
-  자리에 주문자 이름을 넣어 두 뜻이 겹쳐 있는 상태라, 이름까지 되살리면 사람이 고른
-  발주사를 스크립트가 되돌리게 된다. 이름 축 정리는 별건이다.
+* ``parties.orderer`` 는 복구 대상이 아니다. 그 자리는 **발주사**(라홈/하우드)이고
+  폼의 발주사 셀렉트가 쓴다 — 스크립트가 되살리면 사람이 고른 발주사를 되돌리게 된다.
 * 삭제된 주문(``status == 'DELETED'`` 또는 ``deleted_at``)은 건너뛴다.
 * 멱등: 한 번 채우면 다음 실행은 값이 있으므로 ``restored=0`` 이 정상이다.
 
@@ -59,10 +59,11 @@ from foms.services.integrations.naver_commerce.mapping import (  # noqa: E402
 from models import ExternalOrderLink, Order  # noqa: E402
 
 #: 되채우는 키 — (parties 하위 그룹, 필드). 폼이 렌더하지 않아 유실된 자리만 담는다.
-#: ``orderer.name``/``customer.name``/``customer.phone`` 은 폼이 렌더하므로 제외한다
-#: (빈 값도 사람이 '보낸 값'이라 스크립트가 뒤집으면 안 된다).
+#: ``orderer.name``(발주사)·``customer.name``·``customer.phone`` 은 폼이 렌더하므로
+#: 제외한다 (빈 값도 사람이 '보낸 값'이라 스크립트가 뒤집으면 안 된다).
 RESTORE_KEYS: tuple[tuple[str, str], ...] = (
-    ("orderer", "phone"),
+    ("buyer", "name"),
+    ("buyer", "phone"),
     ("customer", "phone2"),
 )
 
@@ -92,7 +93,7 @@ def plan_parties_restore(current_parties: Any, snapshot_parties: Any) -> dict[st
         snapshot_parties: 스냅샷을 다시 매핑해서 얻은 ``parties``(정본).
 
     Returns:
-        ``{"orderer.phone": "010-...", ...}`` — 지금 비어 있고 스냅샷에는 값이 있는
+        ``{"buyer.phone": "010-...", ...}`` — 지금 비어 있고 스냅샷에는 값이 있는
         키만 담는다. 채울 게 없으면 빈 dict.
     """
     plan: dict[str, str] = {}

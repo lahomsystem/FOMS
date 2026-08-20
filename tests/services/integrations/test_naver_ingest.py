@@ -133,7 +133,9 @@ def test_recipient_wins_over_orderer_for_customer_fields():
     assert fields["customer_name"] == "이수취"
     assert fields["phone"] == "010-3333-4444"
     sd = build_structured_data(_detail())
-    assert sd["parties"]["orderer"] == {"name": "김주문", "phone": "010-1111-2222"}
+    # ORDERER-AXIS-01: orderer 는 발주사 자리(항상 라홈), 주문한 사람은 buyer 로 간다.
+    assert sd["parties"]["orderer"] == {"name": "라홈"}
+    assert sd["parties"]["buyer"] == {"name": "김주문", "phone": "010-1111-2222"}
 
 
 def test_address_is_base_plus_detail():
