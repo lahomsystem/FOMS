@@ -67,7 +67,11 @@ def _collected(*, order_no: str, product: str, amount: int, option: str = "",
     }
     link = ExternalOrderLink(channel=CHANNEL, external_id=external_id,
                              sync_status="COLLECTED", external_order_no=order_no,
-                             raw_snapshot=snapshot, group_key=group_key_text(snapshot))
+                             raw_snapshot=snapshot, group_key=group_key_text(snapshot),
+                             # 수집 파이프라인은 발주 상태도 컬럼에 복사한다(목록 필터가
+                             # JSONB 를 스캔하지 않게 하려고). 픽스처도 같은 모양이어야
+                             # '발주확인 전' 탭 모집단 테스트가 실제와 같은 것을 잰다.
+                             place_order_status=place_status or None)
     db_session.add(link)
     db_session.commit()
     return link
@@ -271,3 +275,111 @@ def test_untouchable_row_does_not_also_say_create_order(client, workbench_on):
 
     assert "손대지 않음" in row
     assert "주문 만들기" not in row, row
+
+
+# --------------------------------------------------------------------------- #
+# 발주확인 전 탭 (W2)
+# --------------------------------------------------------------------------- #
+
+def test_place_tab_lists_only_households_awaiting_confirmation(client, workbench_on):
+    """탭 모집단은 '발주확인이 아직인 집' 이다 — 끝난 집이 섞이면 헛클릭이 난다."""
+    _login(client)
+    _collected(order_no="N-PL-WAIT", product="기다리는 붙박이장", amount=100000, place_status="")
+    _collected(order_no="N-PL-DONE", product="끝난 붙박이장", amount=100000, place_status="OK")
+
+    body = client.get(f"{TRIAGE_PATH}?tab=place").get_data(as_text=True)
+
+    assert "기다리는 붙박이장" in body
+    assert "끝난 붙박이장" not in body
+
+
+def test_place_tab_counts_households_in_the_tab_badge(client, workbench_on):
+    """탭 배지도 집 단위 — 한 집의 상품주문 3건이 3집으로 읽히면 안 된다."""
+    _login(client)
+    for idx in range(3):
+        _collected(order_no="N-PL-ONE", product=f"구성 {idx}", amount=1000, place_status="")
+
+    body = client.get(f"{TRIAGE_PATH}?tab=place").get_data(as_text=True)
+    tab = body.split('data-tab="place"')[1].split("</a>")[0]
+    assert "1집" in tab, tab
+
+
+def test_place_tab_has_a_checkbox_per_household(client, workbench_on):
+    """선택은 집 단위다 — 상품주문마다 체크박스가 뜨면 같은 집을 여러 번 고르게 된다."""
+    _login(client)
+    _collected(order_no="N-PL-A", product="본품", amount=100000, place_status="")
+    _collected(order_no="N-PL-A", product="구성", amount=1000, place_status="")
+    _collected(order_no="N-PL-B", product="다른 집", amount=50000, place_status="")
+
+    body = client.get(f"{TRIAGE_PATH}?tab=place").get_data(as_text=True)
+    assert body.count('class="wb-pick"') == 2
+
+
+def test_place_button_is_disabled_until_something_is_selected(client, workbench_on):
+    """선택이 없으면 버튼이 죽어 있다.
+
+    2026-08-14 일괄 완료처리 AS 증발 사고가 "선택 없이 버튼=전체 대상" 패턴에서 났다.
+    되돌릴 수 없는 네이버 호출에 그 패턴을 다시 쓰지 않는다.
+    """
+    _login(client)
+    _collected(order_no="N-PL-GATE", product="붙박이장", amount=100000, place_status="")
+
+    body = client.get(f"{TRIAGE_PATH}?tab=place").get_data(as_text=True)
+    button = body.split('id="wb-place-submit"')[1].split(">")[0]
+    assert "disabled" in button, button
+
+
+def test_place_modal_has_the_four_part_warning(client, workbench_on):
+    """건수 재진술 + 되돌릴 수 없음 + 사후 경로 — 불가역 액션 4종 세트."""
+    _login(client)
+    _collected(order_no="N-PL-MODAL", product="붙박이장", amount=100000, place_status="")
+
+    body = client.get(f"{TRIAGE_PATH}?tab=place").get_data(as_text=True)
+    modal = body.split('id="wb-modal-place"')[1].split("</div></div></div>")[0]
+
+    assert "되돌릴 수" in modal
+    assert "발송처리" in modal, "보낸 뒤 무엇이 열리는지 알려야 한다"
+    assert 'id="wb-place-count"' in modal, "건수는 선택에 따라 문장에서 갱신된다"
+
+
+def test_place_tab_shows_shipping_due_so_urgency_is_visible(client, workbench_on):
+    """발송기한이 보여야 '왜 지금인지'를 안다 — 기한을 넘기면 네이버가 자동 취소한다."""
+    _login(client)
+    link = _collected(order_no="N-PL-DUE", product="붙박이장", amount=100000, place_status="")
+    snapshot = dict(link.raw_snapshot)
+    snapshot["productOrder"] = dict(snapshot["productOrder"], shippingDueDate="2026-09-08")
+    link.raw_snapshot = snapshot
+    db_session.commit()
+
+    body = client.get(f"{TRIAGE_PATH}?tab=place").get_data(as_text=True)
+    assert "2026-09-08" in body
+
+
+def test_place_tab_excludes_claimed_households(client, workbench_on):
+    """취소·반품 집은 발주확인 대상이 아니다 — 목록에 두면 잘못 눌린다."""
+    _login(client)
+    _collected(order_no="N-PL-CLAIM", product="취소된 붙박이장", amount=100000,
+               place_status="", claim_status="CANCEL_DONE")
+
+    body = client.get(f"{TRIAGE_PATH}?tab=place").get_data(as_text=True)
+    assert "취소된 붙박이장" not in body
+
+
+def test_place_tab_badge_matches_the_list_length(client, workbench_on):
+    """배지 숫자와 목록 줄 수가 같아야 한다 — 다르면 사람이 나머지를 찾아 헤맨다.
+
+    실화: 배지는 SQL 로 세느라 취소·반품 집까지 포함했고, 목록은 그것들을 뺐다.
+    "4집"이라고 써 놓고 3줄만 보였다. 취소 여부는 raw_snapshot 안에 있어 SQL 이 못
+    거르므로, 세는 쪽과 뽑는 쪽이 **같은 함수**를 써야 한다.
+    """
+    _login(client)
+    _collected(order_no="N-PB-1", product="집 하나", amount=100000, place_status="")
+    _collected(order_no="N-PB-2", product="집 둘", amount=100000, place_status="")
+    _collected(order_no="N-PB-CLAIM", product="취소된 집", amount=100000,
+               place_status="", claim_status="CANCEL_DONE")
+
+    body = client.get(f"{TRIAGE_PATH}?tab=place").get_data(as_text=True)
+
+    tab = body.split('data-tab="place"')[1].split("</a>")[0]
+    assert "2집" in tab, tab
+    assert body.count('class="wb-pick"') == 2

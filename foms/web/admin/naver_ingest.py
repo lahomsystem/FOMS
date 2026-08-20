@@ -547,10 +547,16 @@ def naver_ingest_triage():
     from foms.services.feature_flags import is_naver_workbench_enabled
 
     if is_naver_workbench_enabled(session.get("user_id")):
+        # 배지와 목록은 **같은 함수** 결과를 나눠 쓴다. 취소 여부는 raw_snapshot 안에
+        # 있어 SQL 이 못 거르므로, SQL 로 따로 세면 "4집이라 써 놓고 3줄" 이 된다.
+        # 그래서 탭이 아니어도 한 번 계산한다(조회는 QUEUE_LINK_FETCH_LIMIT 로 묶여 있다).
+        place_groups = _place_groups(db)
         return render_template(
             "admin/naver_workbench.html",
             active_tab=_active_tab(),
             member_rows=_member_rows(db, selected_group),
+            place_groups=place_groups,
+            place_group_count=len(place_groups),
             **context,
         )
     return render_template("admin/naver_triage.html", **context)
@@ -570,6 +576,37 @@ def _active_tab() -> str:
     """
     raw = (request.args.get("tab") or "").strip().lower()
     return raw if raw in WORKBENCH_TABS else "work"
+
+
+def _place_groups(db) -> list[dict[str, Any]]:
+    """'발주확인 전' 탭의 집 목록 (W2).
+
+    모집단은 필터 버튼 숫자(:func:`_place_pending_group_count`)와 **같은 술어**여야 한다 —
+    "21집" 이라고 써 놓고 목록이 19줄이면 사람이 나머지를 찾아 헤맨다.
+
+    취소·반품 집은 뺀다. 발주확인 대상이 아니고, 목록에 두면 잘못 눌린다.
+
+    Args:
+        db: 요청 스코프 DB 세션.
+
+    Returns:
+        :func:`_group_queue` 형태의 묶음 목록(최신 수집순).
+    """
+    links = (
+        db.query(ExternalOrderLink)
+        .filter(ExternalOrderLink.channel == "NAVER", _place_pending_clause())
+        .order_by(ExternalOrderLink.created_at.desc(), ExternalOrderLink.id.desc())
+        .limit(QUEUE_LINK_FETCH_LIMIT)
+        .all()
+    )
+    if not links:
+        return []
+    order_ids = [int(row.order_id) for row in links if row.order_id]
+    orders = {}
+    if order_ids:
+        orders = {o.id: o for o in db.query(Order).filter(Order.id.in_(order_ids)).all()}
+    groups = _group_queue(links, orders, truncated=len(links) == QUEUE_LINK_FETCH_LIMIT)
+    return [group for group in groups if not group["claim_blocking"]]
 
 
 def _member_rows(db, selected_group: Optional[dict]) -> list[dict[str, Any]]:
