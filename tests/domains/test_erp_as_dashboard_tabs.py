@@ -82,17 +82,22 @@ def _create_as_order(
     return order
 
 
-def test_as_dashboard_base_query_includes_pure_as_status():
-    """후속 계획: ERP AS 대시보드가 status=AS 주문도 목록에 포함한다.
+def test_as_dashboard_scopes_by_as_axis_not_status():
+    """AS-AXIS-01: 모집단·탭 술어가 status 가 아니라 AS 축 투영을 본다.
 
-    Batch 5: AS 미완료/완료 탭 조건이 foms/services/as_dashboard_helpers.py로 이전됨
-    → 라우트 + helpers 두 파일을 합쳐 검사(AS 상태 처리 SSOT 유지).
+    status 는 overlay projection 이라 외부 write 한 번에 AS 목록이 통째로 사라졌다
+    (2026-08-14 사고 55건). 이 계약이 그 술어로 되돌아가는 회귀를 잡는다.
+    (구 계약: status IN ('AS','AS_RECEIVED','AS_COMPLETED') + status == 'AS' 리터럴 요구)
     """
     root = Path(__file__).resolve().parents[2]
-    src = (root / "foms/web/cs/as_dashboard.py").read_text(encoding="utf-8")
-    src += (root / "foms/services/as_dashboard_helpers.py").read_text(encoding="utf-8")
-    assert "Order.status.in_(['AS', 'AS_RECEIVED', 'AS_COMPLETED'])" in src
-    assert "Order.status == 'AS'" in src
+    route_src = (root / "foms/web/cs/as_dashboard.py").read_text(encoding="utf-8")
+    helper_src = (root / "foms/services/as_dashboard_helpers.py").read_text(encoding="utf-8")
+
+    assert "erp_as_scope_condition()" in route_src
+    assert "Order.as_axis_status.isnot(None)" in helper_src
+    assert "Order.as_axis_status == 'RECEIVED'" in helper_src
+    # 모집단 게이트가 status 로 되돌아가면 red (docstring 언급은 허용).
+    assert "base_query.filter(Order.status.in_" not in route_src
 
 
 def test_as_pc_and_mobile_workflow_affordances_are_present():

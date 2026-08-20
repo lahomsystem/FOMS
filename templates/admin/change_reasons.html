@@ -1,0 +1,33 @@
+{% extends "admin/layout.html" %}
+
+{% block title %}변경 사유 집계{% endblock %}
+
+{% block content %}
+{# ORDER-REASON-00: 목록형 사유를 택한 이유가 "입력 오류 정정이 이번 달 몇 건"이었다.
+   여기가 그 질문을 받는 화면이고, 함께 보는 값이 미입력(우회) 건수다. #}
+<div class="container-fluid mt-4" id="change-reason-stats"
+     data-endpoint="{{ url_for('events.api_change_reason_stats') }}">
+  <div class="card shadow">
+    <div class="card-header bg-primary text-white d-flex justify-content-between align-items-center">
+      <h4 class="mb-0"><i class="fas fa-clipboard-question"></i> 변경 사유 집계</h4>
+      <select class="form-select form-select-sm w-auto" data-role="days">
+        <option value="7">최근 7일</option>
+        <option value="30" selected>최근 30일</option>
+        <option value="90">최근 90일</option>
+      </select>
+    </div>
+    <div class="card-body">
+      <div class="row g-3 mb-3" data-role="summary"></div>
+      <table class="table table-sm align-middle">
+        <thead><tr><th>사유</th><th class="text-end">건수</th></tr></thead>
+        <tbody data-role="rows"><tr><td colspan="2" class="text-muted">불러오는 중...</td></tr></tbody>
+      </table>
+      <p class="text-muted small mb-0">
+        미입력은 사유를 물어야 했던 저장 중 실제로 사유가 붙지 않은 건수다. 이 값이 크면
+        규칙이 과하거나 입력 화면이 불편하다는 신호다.
+      </p>
+    </div>
+  </div>
+</div>
+<script src="{{ url_for('static', filename='js/orders/change-reason-stats.js') }}?v=20260813a" defer></script>
+{% endblock %}

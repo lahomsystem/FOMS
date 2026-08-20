@@ -810,6 +810,9 @@ def build_mobile_queue_order_row(db, order, current_user=None, *, batch_ctx=None
             manager_phone_map=(batch_ctx.manager_phone_map if batch_ctx is not None else None),
         ),
         "orderer_name": (parties.get("orderer") or {}).get("name") or None,
+        # ORDERER-AXIS-01: 발주사(orderer)와 주문한 사람(buyer)은 다른 축이다.
+        "buyer_name": (parties.get("buyer") or {}).get("name") or None,
+        "buyer_phone": (parties.get("buyer") or {}).get("phone") or None,
         "stage": stage,
         "stage_code": stage_code,
         "stage_badge_modifier": stage_badge_modifier(stage),

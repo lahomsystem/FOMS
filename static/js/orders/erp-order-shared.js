@@ -2553,6 +2553,22 @@ async function erpSaveStructuredOnce(opts = {}) {
         erpSetStatus(doRedirect ? '저장 완료! 이동합니다...' : '저장 완료');
         // 명시 저장(승격) 성공 → 자동저장 모듈이 로컬/세션 draft 흔적을 정리하도록 알림.
         try { document.dispatchEvent(new Event('erp:order-saved')); } catch (_e) {}
+        // ORDER-REASON-00: 금액·일정·단계가 바뀐 저장이면 서버가 표시해서 보낸다. 판정은
+        // 서버에만 있고, 화면은 저장이 끝난 뒤 사유를 받는다(저장을 막지 않는다).
+        // **이동 전에 기다린다** — 저장 성공 직후 대시보드로 넘어가면 시트가 뜨자마자
+        // 사라진다(2026-08-13 스테이징 QA 에서 실제로 그랬다).
+        if (data.change_reason_required === true && data.change_set) {
+            const reasonDetail = { orderId: targetId, changeSet: data.change_set, mode: 'full' };
+            try {
+                if (window.FomsChangeReason && typeof window.FomsChangeReason.prompt === 'function') {
+                    await window.FomsChangeReason.prompt(reasonDetail);
+                } else {
+                    document.dispatchEvent(new CustomEvent('foms:change-reason-required', {
+                        detail: reasonDetail
+                    }));
+                }
+            } catch (_e) {}
+        }
         // 저장 성공 후 Draft 모드 해제 → beforeunload 경고 비활성
         const wasDraftMode = isErpOrderDraftMode();
         if (wasDraftMode) {

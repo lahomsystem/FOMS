@@ -272,12 +272,11 @@
               <td class="erp-as-visit-cell {% if r.as_visit_date %}erp-as-visit-cell--set{% endif %}">
                 <div class="erp-as-visit-cell-wrap">
                   <input type="date" class="erp-pro-input editable-date-as" value="{{ r.as_visit_date or '' }}"
-                    data-order-id="{{ r.id }}" data-field="as_visit_date" style="width: 100%;">
+                    data-field="as_visit_date" style="width: 100%;">
                 </div>
                 {{ render_as_schedule_drift_badge(r.schedule_link_drift, r.id) }}
                 {# 방문 가능시간 칩 — 클릭=팝오버 편집(as-dashboard.js 위임) #}
                 <button type="button" class="erp-as-avail-chip{% if r.as_availability %} erp-as-avail-chip--set{% endif %}"
-                  data-order-id="{{ r.id }}"
                   data-avail-days="{{ r.as_availability.days if r.as_availability else '' }}"
                   data-avail-time="{{ r.as_availability.time if r.as_availability else '' }}"
                   data-avail-note="{{ r.as_availability.note if r.as_availability and r.as_availability.note else '' }}"
@@ -285,14 +284,14 @@
                   <i class="far fa-clock"></i><span class="erp-as-avail-chip__label">{{ r.as_availability_label or '가능시간' }}</span>
                 </button>
                 {% if r.as_visit_date %}
-                <button type="button" class="erp-as-pending-btn as-pending-btn{% if r.as_pending %} erp-as-pending-btn--active{% endif %}" data-order-id="{{ r.id }}"
+                <button type="button" class="erp-as-pending-btn as-pending-btn{% if r.as_pending %} erp-as-pending-btn--active{% endif %}"
                   data-as-pending="{% if r.as_pending %}1{% else %}0{% endif %}"
                   title="{% if r.as_pending %}미결 표시 해제{% else %}미결 표시{% endif %}">{% if r.as_pending %}미결 해제{% else %}미결{% endif %}</button>
                 {% endif %}
               </td>
               <td class="{% if r.as_completed_date %}erp-as-complete-cell--set{% endif %}">
                 <input type="date" class="erp-pro-input editable-date-as" value="{{ r.as_completed_date or '' }}"
-                  data-order-id="{{ r.id }}" data-field="as_completed_date" style="width: 100%;">
+                  data-field="as_completed_date" style="width: 100%;">
               </td>
               <td>{{ r.manager_name or '-' }}</td>
               <td>{{ render_as_construction_workers(r.id, r.construction_workers, can_edit_erp|default(false)) }}</td>
@@ -311,7 +310,6 @@
                   {% if r.address %}
                   <button type="button" class="btn btn-sm btn-outline-secondary ms-1 find-schedule-btn p-0 px-1"
                     data-address="{{ r.address }}"
-                    data-order-id="{{ r.id }}"
                     data-lat="{{ r.lat or '' }}"
                     data-lng="{{ r.lng or '' }}"
                     data-linked-ref-order-id="{{ r.schedule_link_drift.ref_order_id or '' }}"
@@ -325,7 +323,7 @@
                 {% if can_view_as_photos %}
                 <button type="button"
                   class="btn btn-sm p-1 as-photos-btn {{ 'btn-outline-primary' if r.has_as_photos else 'as-photos-btn--no-photos' }}"
-                  data-order-id="{{ r.id }}" title="AS 사진 보기">
+                  title="AS 사진 보기">
                   <i class="fas fa-paperclip"></i>
                 </button>
                 {% else %}
@@ -333,13 +331,13 @@
                 {% endif %}
               </td>
               <td class="text-center align-middle">
-                <input type="checkbox" class="form-check-input as-blueprint-checkbox" data-order-id="{{ r.id }}"
+                <input type="checkbox" class="form-check-input as-blueprint-checkbox"
                   {% if r.has_as_blueprint %}checked{% endif %} aria-label="주문 #{{ r.id }} AS도면 여부">
               </td>
-              <td class="erp-as-content-cell" data-order-id="{{ r.id }}">
+              <td class="erp-as-content-cell">
                 {{ render_as_timeline_cell(r.id, r.as_timeline_view) }}
               </td>
-              <td class="erp-as-status-cell" data-order-id="{{ r.id }}">
+              <td class="erp-as-status-cell">
                 <span
                   class="erp-pro-badge {% if r.as_pending %}erp-pro-badge--pending{% elif r.status == 'AS_COMPLETED' %}erp-pro-badge--success{% else %}erp-pro-badge--info{% endif %}">
                   {% if r.as_pending %}미결{% else %}{{ STATUS.get(r.status, r.status) }}{% endif %}

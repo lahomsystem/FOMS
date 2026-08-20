@@ -7,6 +7,9 @@
 
 ## 현재 상태 (한 줄)
 T1~T12 + 가독성 P4 A·B **운영 승격 완료**(2026-08-10, production `47f270e6`, PR #63),
+**P4 C 운영 승격 완료**(2026-08-10, production `7ceedde4`, PR #69) — 쓰기 라우트 감사
+커버리지 **100%**(AUDITED 142·EXEMPT 30·UNAUDITED 0, 게이트가 0 유지를 강제).
+잔여는 사용자 액션(Sentry 로그 육안)과 D 단계(열람 기록 여부 결정)뿐.
 **P4 C 완료 deploy 반영**(`6d840c52`·`414e2664`) — 쓰기 라우트 감사 커버리지 **100%**
 (AUDITED 142·EXEMPT 30·UNAUDITED 0, 게이트가 0 유지를 강제). 잔여는 사용자 액션(Sentry 로그
 육안)·C 승격 승인·D 단계(열람 기록 여부 결정)뿐.
@@ -41,6 +44,19 @@ T1~T12 + 가독성 P4 A·B **운영 승격 완료**(2026-08-10, production `47f2
      한국 오전 9시 이전 열람이 전날로 샌다(`_kst_date_bound_utc`).
   2. 주문 필터는 `additional_data` JSON **문자열** 매칭이라 구분자 없이 LIKE 하면
      주문 12 조회가 주문 123 을 끌고 온다(뮤테이션으로 red 실증 후 가드).
+
+## 새 세션 재개 지점 (2026-08-10 저녁 기준)
+
+1. ~~감사 표 컬럼 폭 조절 운영 승격~~ — **완료**(2026-08-11, PR #74, production `8d44c468`).
+   `456864df` 단독 cherry-pick, DB 변경 0. 운영 실화면 실증: 손잡이 6개(`/security_logs`)·
+   7개(`/admin/file-access-logs`), 첫 컬럼 143→249px 드래그·새로고침 유지·시간 칸 nowrap.
+   구현: `static/js/admin/audit-table-columns.js`(opt-in `data-foms-resizable-table`) +
+   `static/css/contexts/admin/audit-tables.css`, 계약 `tests/domains/test_admin_audit_table_columns.py`.
+   **함정**: 공용 리사이저는 UMD 라 `window.ColumnResizer.default || window.ColumnResizer`
+   fallback 없으면 에러 없이 조용히 미부착 — 브라우저로 봐야 잡힌다.
+2. **P4 D 단계**(열람 기록 여부) — D1 계측부터. 사용자 결정 대기 중.
+3. Sentry 는 **운영만** 켜져 있다(dev no-op). 사용자 액션: 알림 규칙 `environment:production`
+   필터 + 기존 staging 이슈 정리.
 
 ## 사용자 액션 대기
 - **Sentry**: dev(FOMS-DEV)에 `SENTRY_DSN` 등록 완료 상태. Railway 로그에

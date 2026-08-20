@@ -25,6 +25,7 @@ __all__ = [
     "process_channeltalk_inbound",
     "send_push_for_notification_task",
     "run_notification_escalation_task",
+    "run_naver_order_sync_task",
 ]
 
 
@@ -226,4 +227,74 @@ def run_notification_escalation_task():
             db_session.remove()
     except Exception as e:
         logger.error(f"[RQ] run_notification_escalation_task error: {e}", exc_info=True)
+        raise
+
+
+def run_naver_fulfillment_task(link_id: int, action: str, actor_user_id=None):
+    """발주확인·발송처리 1건 실행 (NAVER-INGEST-02 T16-G, WORKER 전용).
+
+    web 은 enqueue 만 한다 — 커머스API 에 등록된 호출 IP 가 WORKER 것뿐이라 web 에서 나가면
+    차단된다. 되돌릴 수 없는 조작이라 멱등 기록은 서비스(fulfillment)가 책임진다.
+
+    Args:
+        link_id: 기준 수집 링크 id(같은 집 전체가 함께 처리된다).
+        action: ``confirm``(발주확인) 또는 ``dispatch``(발송처리).
+        actor_user_id: 화면에서 누른 사람(기록용).
+
+    Returns:
+        서비스 결과 dict.
+    """
+    try:
+        from db import db_session
+        from foms.services.integrations.naver_commerce.client import NaverCommerceClient
+        from foms.services.integrations.naver_commerce.fulfillment import (
+            confirm_place_order,
+            dispatch_order,
+        )
+
+        db = db_session()
+        try:
+            client = NaverCommerceClient()
+            if action == "confirm":
+                result = confirm_place_order(db, client, link_id=int(link_id),
+                                             actor_user_id=actor_user_id)
+            elif action == "dispatch":
+                result = dispatch_order(db, client, link_id=int(link_id),
+                                        actor_user_id=actor_user_id)
+            else:
+                raise ValueError(f"알 수 없는 작업입니다: {action}")
+            db.commit()
+            return result
+        except Exception:
+            db.rollback()
+            raise
+        finally:
+            db.close()
+            db_session.remove()
+    except Exception as e:
+        logger.error(f"[RQ] run_naver_fulfillment_task error: {e}", exc_info=True)
+        raise
+
+
+def run_naver_order_sync_task(dry_run: bool = False):
+    """네이버 스마트스토어 주문 수집 1회 실행 (NAVER-INGEST-01, WORKER 전용).
+
+    화면의 "지금 수집" 버튼이 이 job 을 enqueue 한다. **web 프로세스에서 직접 호출하면
+    안 된다** — 커머스API센터에 등록된 호출 IP 는 WORKER 것뿐이라 web 에서 나가면 차단된다.
+    """
+    try:
+        from db import db_session
+        from foms.services.integrations.naver_commerce.ingest import run_sweep
+
+        db = db_session()
+        try:
+            return run_sweep(db, dry_run=bool(dry_run))
+        except Exception:
+            db.rollback()
+            raise
+        finally:
+            db.close()
+            db_session.remove()
+    except Exception as e:
+        logger.error(f"[RQ] run_naver_order_sync_task error: {e}", exc_info=True)
         raise

@@ -559,8 +559,8 @@ def api_as_register(order_id):
         "shipping_scheduled_date": getattr(order, "shipping_scheduled_date", None) or "",
         "construction_workers": shipment.get("construction_workers") or [],
         "draft_cleared": draft_cleared,
-        "mutation_version": getattr(order, "mutation_version", None),
         "reception_log_id": captured_register.get("reception_log_id") or "",
+        "mutation_version": getattr(order, "mutation_version", None),
     })
 
 

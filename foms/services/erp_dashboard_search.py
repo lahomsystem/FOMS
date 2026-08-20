@@ -168,6 +168,10 @@ def erp_order_dashboard_search_predicate(
             Order.structured_data["parties"]["customer"]["phone"].as_string(),
             Order.structured_data["parties"]["manager"]["name"].as_string(),
             Order.structured_data["parties"]["orderer"]["name"].as_string(),
+            # 주문한 사람(ORDERER-AXIS-01). 발주사 자리에서 갈라져 나온 값이라, 여기에
+            # 없으면 수집 주문을 주문자 이름·번호로 찾던 동작이 조용히 사라진다.
+            Order.structured_data["parties"]["buyer"]["name"].as_string(),
+            Order.structured_data["parties"]["buyer"]["phone"].as_string(),
             Order.structured_data["site"]["address_full"].as_string(),
             Order.structured_data["site"]["address_main"].as_string(),
             Order.structured_data["items"][0]["product_name"].as_string(),

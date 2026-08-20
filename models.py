@@ -106,6 +106,10 @@ class Order(Base):
     erp_stage_updated_at = Column(DateTime, nullable=True, index=True)     # workflow.stage_updated_at (stage transition truth)
     erp_owner_team_code = Column(String(20), nullable=True, index=True)    # assignments.owner_team
     erp_phone_digits = Column(String(20), nullable=True, index=True)       # customer phone digits-only (P1-02 search)
+    # AS-AXIS-01: AS 축(as_lifecycle) 의 SQL 조회용 플랫 투영. NULL = AS 이력 없음.
+    # 값 도메인은 state_axes.AS_VALUES 와 같다(RECEIVED/IN_PROGRESS/COMPLETED).
+    # status 컬럼은 overlay projection 이라 외부 write 로 덮이면 AS 목록이 증발했다(2026-08-14 사고).
+    as_axis_status = Column(String(16), nullable=True)                     # as_lifecycle 현재 cycle 상태
 
     # ============================================
     # ChannelTalk 연동 (Phase 0)
@@ -121,6 +125,8 @@ class Order(Base):
         Index('ix_orders_regional_active', 'id', postgresql_where=(and_(status != 'DELETED', deleted_at.is_(None), is_regional == True))),
         Index('ix_orders_self_measurement_active', 'id', postgresql_where=(and_(status != 'DELETED', deleted_at.is_(None), is_self_measurement == True))),
         Index('ix_orders_erp_order_active', 'id', postgresql_where=(and_(status != 'DELETED', deleted_at.is_(None), is_erp_order == True))),
+        # AS 행만 담는 부분 인덱스(AS 이력 없는 대다수 행은 NULL 이라 인덱스에 안 들어간다).
+        Index('ix_orders_as_axis_status', 'as_axis_status', postgresql_where=(as_axis_status.isnot(None))),
     )
 
     @classmethod
@@ -827,6 +833,34 @@ class OrderEvent(Base):
     created_by = relationship('User', foreign_keys=[created_by_user_id])
 
 
+class OrderShareToken(Base):
+    """고객 공유 열람 토큰(로그인 없는 링크) — 스펙 2026-08-11 §3.1.
+
+    토큰 원문은 저장하지 않는다 — sha256 해시(``token_hash``)만 UNIQUE 로 보관하며
+    256bit 원문(``secrets.token_urlsafe(32)``)이 실질 방어선이다. ``snapshot`` 은
+    kind='estimate' 전용 동결 렌더 데이터(D6 — 발송 시점 스냅샷 고정), drawing 은
+    NULL(라이브 수집). server_default 는 의도적으로 없다 — 모든 insert 가 ORM 경로라
+    클라이언트 default 만 두어 migration_chain 지문(모델↔마이그레이션)을 정합시킨다.
+    """
+    __tablename__ = 'order_share_tokens'
+
+    id = Column(Integer, primary_key=True)
+    order_id = Column(Integer, ForeignKey('orders.id', ondelete='CASCADE'),
+                      nullable=False, index=True)
+    kind = Column(String(20), nullable=False)  # 'drawing' | 'estimate'
+    token_hash = Column(String(64), nullable=False, unique=True)  # sha256 hex
+    created_by_user_id = Column(Integer, ForeignKey('users.id'), nullable=True)
+    expires_at = Column(DateTime, nullable=False)  # 발급 +FOMS_SHARE_TOKEN_DAYS(기본 30)d
+    revoked_at = Column(DateTime, nullable=True)
+    created_at = Column(DateTime, default=now_utc_naive, nullable=False)
+    view_count = Column(Integer, nullable=False, default=0)
+    last_viewed_at = Column(DateTime, nullable=True)
+    snapshot = Column(JSONColumn, nullable=True)  # estimate 전용 동결 렌더(64KB 캡)
+
+    order = relationship('Order')
+    created_by = relationship('User', foreign_keys=[created_by_user_id])
+
+
 class OrderFieldChange(Base):
     """주문 필드 변경 원장 — 저장 1회가 바꾼 값들을 **질의 가능한 행**으로 편다 (ORDER-DIFF-01).
 
@@ -879,32 +913,49 @@ class OrderFieldChange(Base):
     created_at = Column(DateTime, default=now_utc_naive, nullable=False)
 
 
-class OrderShareToken(Base):
-    """고객 공유 열람 토큰(로그인 없는 링크) — 스펙 2026-08-11 §3.1.
+class OrderChangeReason(Base):
+    """주문 변경 사유 — 저장 1회가 **왜** 일어났는지 (ORDER-REASON-00).
 
-    토큰 원문은 저장하지 않는다 — sha256 해시(``token_hash``)만 UNIQUE 로 보관하며
-    256bit 원문(``secrets.token_urlsafe(32)``)이 실질 방어선이다. ``snapshot`` 은
-    kind='estimate' 전용 동결 렌더 데이터(D6 — 발송 시점 스냅샷 고정), drawing 은
-    NULL(라이브 수집). server_default 는 의도적으로 없다 — 모든 insert 가 ORM 경로라
-    클라이언트 default 만 두어 migration_chain 지문(모델↔마이그레이션)을 정합시킨다.
+    ``OrderFieldChange`` 가 "무엇이 어떻게" 를 답한다면 여기는 "왜" 다. 금액·일정 분쟁에서
+    "고객이 요청한 변경"과 "우리 입력 실수"는 책임 소재가 정반대인데, 값만 남은 원장에서는
+    구별되지 않는다.
+
+    * ``change_set_id`` — 저장 1회 묶음이자 **unique** 키. 사유는 저장 1회에 하나뿐이고,
+      감사 원장이므로 나중에 덮어쓰지 않는다(중복 첨부는 API 가 409 로 막는다).
+    * ``reason_code`` — 자유 문자열이 아니라 목록 코드다(``change_reason.REASON_CODES``).
+      "입력 오류 정정이 이번 달 몇 건" 같은 질문이 인덱스를 타야 하기 때문이다.
+      라벨은 굽지 않는다 — 읽는 시점에 붙인다.
+    * **FK 없음** — ``OrderFieldChange``·``OrderEvent`` 와 같은 이유(감사 원장이 감사 대상과
+      생명주기를 공유하면 주문 hard purge 가 이력까지 지운다).
+
+    사유를 ``order_field_changes`` 의 컬럼으로 두지 않는 이유: 같은 문자열이 변경 필드 수만큼
+    복제되고 집계가 ``DISTINCT`` 를 타야 한다.
+
+    ``__table_args__`` 의 인덱스 이름·컬럼 순서는 마이그레이션 ``orderreason_00`` 과 **완전히**
+    같아야 한다(create_all 부트스트랩 레인과 alembic 레인의 스키마 정합).
     """
-    __tablename__ = 'order_share_tokens'
 
-    id = Column(Integer, primary_key=True)
-    order_id = Column(Integer, ForeignKey('orders.id', ondelete='CASCADE'),
-                      nullable=False, index=True)
-    kind = Column(String(20), nullable=False)  # 'drawing' | 'estimate'
-    token_hash = Column(String(64), nullable=False, unique=True)  # sha256 hex
-    created_by_user_id = Column(Integer, ForeignKey('users.id'), nullable=True)
-    expires_at = Column(DateTime, nullable=False)  # 발급 +FOMS_SHARE_TOKEN_DAYS(기본 30)d
-    revoked_at = Column(DateTime, nullable=True)
+    __tablename__ = 'order_change_reasons'
+    __table_args__ = (
+        # 저장 1회 = 사유 1행(중복 첨부 차단은 DB 에서도 강제한다).
+        Index('ux_order_change_reasons_change_set', 'change_set_id', unique=True),
+        # "입력 오류 정정 월 몇 건" — 사유 기준 집계.
+        Index('ix_order_change_reasons_code_time', 'reason_code', 'created_at'),
+        # 주문별 이력 탭 조인.
+        Index('ix_order_change_reasons_order_time', 'order_id', 'created_at'),
+    )
+
+    # 원장 계열 공통(OrderFieldChange 와 같은 variant — SQLite 자동증가 보존).
+    id = Column(BigInteger().with_variant(Integer, 'sqlite'), primary_key=True)
+    change_set_id = Column(String(36), nullable=False)
+    # FK 없음(위 docstring).
+    order_id = Column(Integer, nullable=False)
+    reason_code = Column(String(32), nullable=False)
+    reason_note = Column(String(200), nullable=True)
+    # 사유를 적은 사람 — 저장한 사람과 다를 수 있다(관리자 대리 입력).
+    actor_user_id = Column(Integer, nullable=True)
+    # naive DB timestamp = UTC 규약(datetime_kst).
     created_at = Column(DateTime, default=now_utc_naive, nullable=False)
-    view_count = Column(Integer, nullable=False, default=0)
-    last_viewed_at = Column(DateTime, nullable=True)
-    snapshot = Column(JSONColumn, nullable=True)  # estimate 전용 동결 렌더(64KB 캡)
-
-    order = relationship('Order')
-    created_by = relationship('User', foreign_keys=[created_by_user_id])
 
 
 class OrderTask(Base):
@@ -3376,3 +3427,114 @@ class ChannelWebhookJob(Base):
             name='ck_channel_webhook_job_status',
         ),
     )
+
+
+# --------------------------------------------------------------------------- #
+# NAVER-INGEST-01: 외부 채널(스마트스토어 등) 주문 수집 링크
+# --------------------------------------------------------------------------- #
+EXTERNAL_ORDER_CHANNELS = ('NAVER',)
+EXTERNAL_ORDER_SYNC_STATUSES = ('LINKED', 'PENDING_REVIEW', 'FAILED')
+
+
+class ExternalOrderLink(Base):
+    """외부 판매채널 주문 ↔ FOMS 주문의 링크 + 원본 스냅샷 (NAVER-INGEST-01 §3.4).
+
+    수집 파이프라인의 **멱등 정본**이다. ``UNIQUE (channel, external_id)`` 가 같은
+    ``productOrderId`` 를 두 번 주문으로 만드는 것을 DB 레벨에서 막는다 — 앱 선체크만으로는
+    다중 replica 동시 스윕 레이스를 못 막는다(체크와 INSERT 사이에 창이 있다).
+
+    ``Order`` 에 컬럼을 붙이지 않는 이유(설계 결정):
+
+    * 채널이 늘 때마다 ``orders`` 에 컬럼이 늘어난다.
+    * 네이버 원본 응답을 보존할 자리가 없다 — 매핑을 나중에 고쳐 **재처리**하려면 원본이 필요하다.
+    * 주문 soft delete 수명과 수집 이력 수명이 다르다(주문이 지워져도 "이미 수집함"은 남아야
+      재수집으로 되살아나지 않는다). 그래서 ``order_id`` 는 FK 지만 ``ON DELETE SET NULL``.
+
+    ``order_id`` 가 nullable 인 것은 **매핑 실패 보류 상태**(``PENDING_REVIEW``) 때문이다.
+    필수 필드가 없거나 형식이 깨진 응답은 쓰레기 주문을 만드는 대신 주문 없이 이 행만 남기고,
+    사람이 관리 화면에서 확인 후 수동 연결하거나 폐기한다.
+
+    ``raw_snapshot`` 은 개인정보(실번호·주소)를 그대로 담으므로 **관리자 전용**으로만 노출한다.
+    """
+
+    __tablename__ = 'external_order_links'
+
+    id = Column(Integer, primary_key=True)
+    # 판매채널 코드. v1 은 'NAVER' 뿐이지만 컬럼으로 둬 채널 확장을 막지 않는다.
+    channel = Column(String(20), nullable=False, server_default='NAVER')
+    # 채널의 상품주문 단위 고유 id(네이버 productOrderId) — 멱등 키.
+    external_id = Column(String(64), nullable=False)
+    # 매핑 성공 시 생성된 FOMS 주문. 주문이 hard delete 돼도 수집 이력은 남긴다(SET NULL).
+    order_id = Column(Integer, ForeignKey('orders.id', ondelete='SET NULL'), nullable=True)
+    # 묶음 주문번호(네이버 orderId). 한 주문에 상품주문이 여럿일 수 있어 참조용으로만 둔다.
+    external_order_no = Column(String(64), nullable=True)
+    # 채널 원본 응답 그대로(매핑 재처리·감사용). 관리자 전용 노출.
+    raw_snapshot = Column(JSONColumn, nullable=True)
+    sync_status = Column(String(20), nullable=False, server_default='LINKED')
+    # PENDING_REVIEW/FAILED 의 사유(사람이 읽는 문장).
+    failure_reason = Column(Text, nullable=True)
+    # --- 트리아지(사람 처리) 축 — NAVER-INGEST-01 §8.3 ---
+    # ``sync_status`` 에 값을 더하지 않는 이유: 그건 **수집 결과**(LINKED/PENDING_REVIEW/
+    # FAILED) 축이고 이건 **사람이 확인했는가** 축이다. 섞으면 "수집은 성공했지만 사람이
+    # 아직 안 본" 상태를 표현할 수 없다.
+    # NULL = 확인 대기(트리아지 큐에 뜬다). 값이 있으면 큐에서 빠진다.
+    reviewed_at = Column(DateTime, nullable=True)
+    reviewed_by_user_id = Column(
+        Integer, ForeignKey('users.id', ondelete='SET NULL'), nullable=True)
+    # --- 관계 축 — NAVER-INGEST-02 T16-B ---
+    # 이 수집분이 **새 주문**인지, 기존 주문의 **추가결제(차액)** 인지, 취소 뒤 **재결제**인지.
+    # sync_status(수집 결과)·reviewed_at(사람 확인)과 또 다른 축이다. ADDON/REPAY 는 주문을
+    # 새로 만들지 않고 order_id 에 기존 주문을 넣는다(스펙 §3.1).
+    relation = Column(String(10), nullable=False, server_default='NEW')
+    # 네이버 발주(발주확인) 상태 — 원본 placeOrderStatus 의 사본. raw_snapshot(JSONB) 안에도
+    # 있지만 그걸로 필터하면 인덱스 없는 JSONB 스캔이 된다. 목록 필터 전용 사본이다.
+    # 정본은 여전히 raw_snapshot 이며, 재수집·클레임 갱신 때 함께 덮어쓴다.
+    place_order_status = Column(String(20), nullable=True)
+    # 도크(주문 편집 옆 네이버 원본 패널) 반영 상태 — T14-B.
+    # {checked, checked_by, checked_at, assigned_main, assigned_by, assigned_at}.
+    # reviewed_at 과 다른 축: 저건 큐 이탈(첫 확인 시각 불변), 이건 토글 가능한 표시용.
+    triage_state = Column(JSONColumn, nullable=True)
+    created_at = Column(DateTime, nullable=False, default=now_utc_naive,
+                        server_default=func.now())
+    updated_at = Column(DateTime, nullable=False, default=now_utc_naive,
+                        onupdate=now_utc_naive, server_default=func.now())
+
+    __table_args__ = (
+        # 중복 수집 차단의 본체. 앱 체크가 아니라 이 제약이 정본이다.
+        UniqueConstraint('channel', 'external_id', name='uq_external_order_link_channel_ext'),
+        # COLLECTED = 수집만 됨(주문 미생성, 사람이 "주문 만들기"를 누르면 LINKED 로 간다).
+        CheckConstraint(
+            "sync_status IN ('COLLECTED','LINKED','PENDING_REVIEW','FAILED')",
+            name='ck_external_order_link_status'),
+        # 관계 축 닫힌집합. 오타 값이 들어가면 화면 분기가 조용히 새 주문 경로로 떨어진다.
+        CheckConstraint(
+            "relation IN ('NEW','ADDON','REPAY')",
+            name='ck_external_order_link_relation'),
+        # 관리 화면: 보류/실패 목록을 최신순으로 훑는 경로.
+        Index('ix_external_order_link_status_created', 'sync_status', 'created_at'),
+        # 트리아지 큐 hot path: 확인 대기 건만 최신순으로 훑는다(확인 완료분은 인덱스에서 빠진다).
+        Index('ix_external_order_link_pending_review', 'channel', 'created_at',
+              postgresql_where=text('reviewed_at IS NULL')),
+        # 주문 상세에서 "이 주문이 어느 채널 수집분인가" 역조회.
+        Index('ix_external_order_link_order', 'order_id'),
+        # '발주확인 전' 목록 필터 경로(채널 + 발주상태 + 최신순).
+        Index('ix_external_order_link_place', 'channel', 'place_order_status', 'created_at'),
+    )
+
+
+@event.listens_for(Order, 'before_insert')
+def _fill_as_axis_status_on_insert(mapper, connection, target) -> None:
+    """새 주문 row 의 AS 축 투영(``as_axis_status``)을 채운다 (AS-AXIS-01).
+
+    AS 대시보드 술어가 이 컬럼을 보므로 **생성 시점부터 stale 이면 안 된다**. 갱신은
+    ``sync_erp_flat_columns`` 가 담당하지만, 주문을 만드는 경로는 그 함수를 안 지나는 것도
+    있다(엑셀 임포트·테스트 픽스처 등). 명시로 값을 준 경우는 존중한다(백필·복구 도구).
+
+    갱신(before_update)에는 붙이지 않는다 — status 를 덮는 외부 write 가 투영까지 지우면
+    2026-08-14 사고가 그대로 재현된다. 투영은 AS 쓰기 경로에서만 바뀐다.
+    """
+    if getattr(target, 'as_axis_status', None) is not None:
+        return
+    from foms.services.orders.state_axes import derive_as_axis_status
+
+    target.as_axis_status = derive_as_axis_status(target)

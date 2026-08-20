@@ -566,11 +566,62 @@
     tbody tr.selected {
         background-color: #e3f2fd !important;
     }
+
+    /* 네이버 수집 인박스 스트립 (T14-A) — 대기>0 일 때만 렌더 */
+    .naver-inbox-strip {
+        display: flex;
+        align-items: center;
+        gap: 12px;
+        background-color: #e4f6ec;
+        border: 1px solid #059a54;
+        border-radius: 10px;
+        padding: 9px 16px;
+        margin-bottom: 12px;
+    }
+
+    .naver-inbox-strip__count {
+        font-size: 19px;
+        font-weight: 800;
+        color: #059a54;
+    }
+
+    .naver-inbox-strip__text {
+        flex: 1;
+        min-width: 0;
+    }
+
+    .naver-inbox-strip__title {
+        font-weight: 700;
+        font-size: 13.5px;
+    }
+
+    .naver-inbox-strip__sub {
+        font-size: 12px;
+        color: #475569;
+    }
+
+    .naver-inbox-strip__btn {
+        white-space: nowrap;
+    }
 </style>
 {% endblock %}
 
 {% block content %}
 <div class="erp-pro order-list-container">
+    {# === 네이버 수집 인박스 스트립 (T14-A) — 확인 대기>0 일 때만. 카운트는
+       naver_triage_pending 30초 전역 캐시 재사용이라 목록 렌더 비용 불변. === #}
+    {% if naver_triage_pending %}
+    <div class="naver-inbox-strip" role="status">
+        <span class="naver-inbox-strip__count">{{ naver_triage_pending }}</span>
+        <div class="naver-inbox-strip__text">
+            <div class="naver-inbox-strip__title">네이버 새 수집</div>
+            <div class="naver-inbox-strip__sub">주문 만들기·확인 대기 {{ naver_triage_pending }}건</div>
+        </div>
+        <a href="{{ url_for('admin.naver_ingest_triage') }}"
+           class="btn btn-success btn-sm naver-inbox-strip__btn">확인하기</a>
+    </div>
+    {% endif %}
+
     {# === 페이지 헤더 === #}
     <header class="order-list-page-header">
         <h1 class="order-list-page-header__title">
@@ -806,7 +857,12 @@
                                        행이 bulk-action-form 안에 있어 별도 form(order-trash-move-form)에
                                        연결해 벌크 검증 핸들러와 분리한다. csrf_token 은 layout_head 전역
                                        주입기가 제출 시 자동 삽입한다. #}
+                                    {# ORDER-REASON-00: 취소 사유를 **요청 전에** 받는다 —
+                                       삭제는 되돌리기가 비싸고 요청 후에는 화면을 떠난다.
+                                       order-delete-reason.js 가 첫 클릭을 가로채 사유를 받고
+                                       hidden 필드를 채운 뒤 다시 클릭한다(자산 없으면 기존 흐름). #}
                                     <button type="submit" form="order-trash-move-form"
+                                        data-foms-delete-reason="{{ order.id }}"
                                         formaction="{{ url_for('order_trash.delete_order', order_id=order.id) }}"
                                         class="btn btn-sm btn-outline-danger" title="휴지통으로 이동"
                                         aria-label="주문 {{ order.id }} 휴지통으로 이동"

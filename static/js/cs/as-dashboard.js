@@ -100,9 +100,47 @@
       target.addEventListener(type, handler, listenerOptions);
     }
 
+    // 주문 식별자는 **행 컨테이너에만** 싣는다(데스크톱 `tr`, 모바일 카드). 예전엔 행 안의
+    // 버튼·입력·셀마다 data-order-id 를 복제해 AS fragment 한 장에 1,271개가 실렸다
+    // (2026-08-13 실측, 행당 22개). 자손은 컨테이너에서 역참조한다.
+    //
+    // 같은 주문이 데스크톱 표와 모바일 카드 두 표면에 동시에 렌더되므로, 한 주문의 스코프는
+    // 항상 복수일 수 있다. 상태 동기화(미결 토글·도면 체크·날짜 저장)는 두 표면을 모두
+    // 갱신해야 하므로 querySelectorAll 결과를 전부 훑는다 — 예전 `.cls[data-order-id="x"]`
+    // 전역 선택자와 같은 집합이다.
+    function getOrderScopes(orderId) {
+      if (!orderId) return [];
+      return Array.from(document.querySelectorAll(`[data-order-id="${orderId}"]`));
+    }
+
+    function findInOrderScopes(orderId, selector) {
+      const found = [];
+      getOrderScopes(orderId).forEach((scope) => {
+        if (scope.matches(selector) && found.indexOf(scope) === -1) found.push(scope);
+        scope.querySelectorAll(selector).forEach((el) => {
+          if (found.indexOf(el) === -1) found.push(el);
+        });
+      });
+      return found;
+    }
+
+    function findOneInOrderScopes(orderId, selector) {
+      const all = findInOrderScopes(orderId, selector);
+      return all.length ? all[0] : null;
+    }
+
+    // 자손 엘리먼트 → 소속 주문 id. 자기 자신이 아직 속성을 들고 있으면 그대로 쓰고
+    // (타임라인 fragment 루트·설정 노드처럼 행 밖에 있는 소비자와 호환), 없으면 컨테이너를 탄다.
+    function orderIdOf(el) {
+      if (!el) return '';
+      if (el.dataset && el.dataset.orderId) return el.dataset.orderId;
+      const host = el.closest ? el.closest('[data-order-id]') : null;
+      return host && host.dataset ? (host.dataset.orderId || '') : '';
+    }
+
     function getDateInputsForOrder(orderId, field) {
       if (!orderId || !field) return [];
-      return Array.from(document.querySelectorAll(`.editable-date-as[data-order-id="${orderId}"][data-field="${field}"]`));
+      return findInOrderScopes(orderId, `.editable-date-as[data-field="${field}"]`);
     }
 
     let asConstructionWorkerOptions = [];
@@ -148,7 +186,7 @@
 
     function getConstructionWorkerListsForOrder(orderId) {
       if (!orderId) return [];
-      return Array.from(document.querySelectorAll(`.as-construction-worker-list[data-order-id="${orderId}"]`));
+      return findInOrderScopes(orderId, '.as-construction-worker-list');
     }
 
     function getConstructionWorkerRows(list) {
@@ -178,7 +216,7 @@
     }
 
     function buildAsConstructionWorkerRow(list, value, editing = false) {
-      const orderId = list && list.dataset ? (list.dataset.orderId || '') : '';
+      const orderId = orderIdOf(list);
       const datalistId = list && list.dataset ? (list.dataset.datalistId || '') : '';
       const placeholder = list && list.dataset ? (list.dataset.placeholder || '시공자') : '시공자';
       const normalizedValue = formatAsConstructionWorkers(value);
@@ -243,8 +281,8 @@
     }
 
     async function saveConstructionWorkersList(list) {
-      if (!list || !list.dataset.orderId) return { success: false, skipped: true };
-      const orderId = list.dataset.orderId;
+      const orderId = orderIdOf(list);
+      if (!list || !orderId) return { success: false, skipped: true };
       const previousWorkers = normalizeAsConstructionWorkers(list.dataset.savedValue || '');
       const nextWorkers = getConstructionWorkerValuesFromList(list);
       if (constructionWorkersEqual(previousWorkers, nextWorkers)) {
@@ -552,7 +590,7 @@
       }
 
       function applyChipState(orderId, value) {
-        document.querySelectorAll(`.erp-as-avail-chip[data-order-id="${orderId}"]`).forEach((chip) => {
+        findInOrderScopes(orderId, '.erp-as-avail-chip').forEach((chip) => {
           chip.dataset.availDays = value ? value.days : '';
           chip.dataset.availTime = value ? value.time : '';
           chip.dataset.availNote = value && value.note ? value.note : '';
@@ -575,7 +613,7 @@
 
       function openPop(chip) {
         closePop();
-        const orderId = chip.dataset.orderId;
+        const orderId = orderIdOf(chip);
         const state = {
           days: chip.dataset.availDays || 'any',
           time: chip.dataset.availTime || 'any',
@@ -641,9 +679,10 @@
         if (chip) {
           e.preventDefault();
           e.stopPropagation();
-          if (pop && pop.dataset.forOrder === chip.dataset.orderId) { closePop(); return; }
+          const chipOrderId = orderIdOf(chip);
+          if (pop && pop.dataset.forOrder === chipOrderId) { closePop(); return; }
           openPop(chip);
-          if (pop) pop.dataset.forOrder = chip.dataset.orderId;
+          if (pop) pop.dataset.forOrder = chipOrderId;
           return;
         }
         if (pop && !pop.contains(e.target)) closePop();
@@ -652,7 +691,7 @@
     })();
 
     function getDateFieldSaveState(input) {
-      const key = `${input.dataset.orderId}:${input.dataset.field}`;
+      const key = `${orderIdOf(input)}:${input.dataset.field}`;
       let state = dateFieldSaveState.get(key);
       if (!state) {
         state = {
@@ -672,7 +711,7 @@
     }
 
     function setSalesDeliveryButtons(orderId, isActive) {
-      document.querySelectorAll(`.as-sales-delivery-btn[data-order-id="${orderId}"]`).forEach((btn) => {
+      findInOrderScopes(orderId, '.as-sales-delivery-btn').forEach((btn) => {
         btn.dataset.salesDeliveryActive = isActive ? '1' : '0';
         btn.textContent = `${isActive ? '☑' : '☐'} 영업/전달`;
         btn.classList.toggle('btn-warning', !!isActive);
@@ -681,13 +720,13 @@
     }
 
     function setAsBlueprintCheckboxes(orderId, isChecked) {
-      document.querySelectorAll(`.as-blueprint-checkbox[data-order-id="${orderId}"]`).forEach((input) => {
+      findInOrderScopes(orderId, '.as-blueprint-checkbox').forEach((input) => {
         input.checked = !!isChecked;
       });
     }
 
     function setAsPendingButtonState(orderId, asPending) {
-      document.querySelectorAll(`.as-pending-btn[data-order-id="${orderId}"]`).forEach((btn) => {
+      findInOrderScopes(orderId, '.as-pending-btn').forEach((btn) => {
         btn.dataset.asPending = asPending ? '1' : '0';
         btn.textContent = asPending ? '미결 해제' : '미결';
         btn.title = asPending ? '미결 표시 해제' : '미결 표시';
@@ -837,7 +876,7 @@
     async function saveDateField(input, options = {}) {
       const silent = options.silent === true;
       const redirectAfterComplete = options.redirectAfterComplete === true;
-      const orderId = input.dataset.orderId;
+      const orderId = orderIdOf(input);
       const fieldName = input.dataset.field;
       const state = getDateFieldSaveState(input);
       const value = input.value || '';
@@ -930,7 +969,7 @@
 
     function loadAsCardDetail(placeholder) {
       if (!placeholder || placeholder.dataset.loading === '1') return;
-      const orderId = placeholder.dataset.orderId || '';
+      const orderId = orderIdOf(placeholder);
       if (!orderId) return;
       placeholder.dataset.loading = '1';
       placeholder.innerHTML = '<div class="erp-as-card-lazy__status text-muted small py-2">불러오는 중...</div>';
@@ -1033,7 +1072,7 @@
         if (e.target.closest('a, input, select, textarea')) return;
         const otherBtn = e.target.closest('button');
         if (otherBtn && !otherBtn.matches('.as-tl-cell__expand, .as-tl-cell__empty')) return;
-        const orderId = cell.dataset.orderId;
+        const orderId = orderIdOf(cell);
         const row = cell.closest('tr[data-order-id]');
         if (!row || !orderId) return;
         const next = row.nextElementSibling;
@@ -1101,7 +1140,7 @@
        * @param {{line: string, countDelta: number}} opts line='recent'|'anchor', 배지 증감
        */
       function updateAsCellSummary(orderId, html, opts) {
-        const cell = document.querySelector('.as-tl-cell[data-order-id="' + orderId + '"]');
+        const cell = findOneInOrderScopes(orderId, '.as-tl-cell');
         if (!cell) return; // 모바일 카드·상세 표면에는 요약 셀이 없다
         const parsed = document.createElement('div');
         parsed.innerHTML = html;
@@ -1149,11 +1188,10 @@
        * @param {string} html 서버 렌더 .as-tl-cell 마크업
        */
       function replaceAsCellSummary(orderId, html) {
-        const sel = '.as-tl-cell[data-order-id="' + orderId + '"]';
-        const cell = document.querySelector(sel);
+        const cell = findOneInOrderScopes(orderId, '.as-tl-cell');
         if (!cell || !html) return; // 모바일 상세 표면에는 요약 셀이 없다
         cell.outerHTML = html;
-        const fresh = document.querySelector(sel);
+        const fresh = findOneInOrderScopes(orderId, '.as-tl-cell');
         if (fresh) highlightTimelineStatic(fresh);
       }
 
@@ -1182,7 +1220,7 @@
        * 재조회 실패는 조용히 삼킨다(다음 열기에서 회복).
        */
       async function refreshRoundChart(orderId) {
-        const chart = document.querySelector('.as-rchart[data-order-id="' + orderId + '"]');
+        const chart = findOneInOrderScopes(orderId, '.as-rchart');
         if (!chart) return;
         try {
           const res = await fetch('/erp/as/timeline/' + encodeURIComponent(orderId), {
@@ -1219,7 +1257,7 @@
       document.addEventListener('click', async function (e) {
         const btn = e.target.closest && e.target.closest('.as-rchart-verdict-btn');
         if (!btn || btn.dataset.busy === '1') return;
-        const orderId = btn.dataset.orderId;
+        const orderId = orderIdOf(btn);
         const verdict = btn.dataset.verdict;
         if (!orderId || !verdict) return;
         const label = verdict === 'resolved' ? '완결' : '미결(다음 회차 시작)';
@@ -1251,7 +1289,7 @@
         const item = btn.closest('.as-tl-item');
         const timeline = btn.closest('.as-timeline, .as-rchart');
         const logId = item && item.dataset.logId;
-        const orderId = timeline && timeline.dataset.orderId;
+        const orderId = orderIdOf(timeline);
         if (!item || !logId || !orderId) return;
         if (!window.confirm('이 기록을 삭제할까요? 목록에서 사라집니다.')) return;
         btn.dataset.busy = '1';
@@ -1280,7 +1318,7 @@
         // 재진입 가드: 버튼 disabled는 키보드 단축키 경로를 막지 못한다. as_log는 append-only라
         // 연타 한 번이 중복 기록을 남긴다(삭제는 소프트 삭제여서 감춰질 뿐 되돌려지지 않는다).
         if (!form || form.dataset.busy === '1') return;
-        const orderId = form.dataset.orderId;
+        const orderId = orderIdOf(form);
         const textEl = form.querySelector('.as-timeline__text');
         const typeEl = form.querySelector('.as-timeline__type');
         const text = (textEl && textEl.value || '').trim();
@@ -1339,7 +1377,7 @@
         const item = form.closest('.as-tl-item');
         const timeline = form.closest('.as-timeline, .as-rchart');
         const logId = item && item.dataset.logId;
-        const orderId = timeline && timeline.dataset.orderId;
+        const orderId = orderIdOf(timeline);
         const textEl = form.querySelector('.as-timeline__text');
         const text = (textEl && textEl.value || '').trim();
         if (!logId || !orderId || !text) return;
@@ -1379,7 +1417,7 @@
 
       /** 상태 셀의 비용 배지를 서버 렌더 html로 교체(무배지면 제거). PC 표면 전용. */
       function updateAsBillingBadge(orderId, html) {
-        const cell = document.querySelector('.erp-as-status-cell[data-order-id="' + orderId + '"]');
+        const cell = findOneInOrderScopes(orderId, '.erp-as-status-cell');
         if (!cell) return; // 모바일 카드에는 상태 셀이 없다
         const old = cell.querySelector('.erp-as-billing-badge');
         if (old) old.remove();
@@ -1394,7 +1432,7 @@
       async function submitBillingDecision(form) {
         if (!form || form.dataset.busy === '1') return; // quick-add와 동일한 재진입 가드
         const timeline = form.closest('.as-timeline, .as-rchart');
-        const orderId = timeline && timeline.dataset.orderId;
+        const orderId = orderIdOf(timeline);
         const typeEl = form.querySelector('.as-billing-type');
         const amountEl = form.querySelector('.as-billing-amount');
         const reasonEl = form.querySelector('.as-billing-reason');
@@ -1835,7 +1873,7 @@
       document.addEventListener('click', function (e) {
         const more = e.target.closest && e.target.closest('.as-timeline__more');
         if (!more) return;
-        const orderId = more.dataset.orderId;
+        const orderId = orderIdOf(more);
         const timeline = more.closest('.as-timeline');
         const body = more.closest('.as-tl-expand-body')
           || more.closest('.erp-as-mobile-card__content')
@@ -1869,8 +1907,8 @@
       if (!btn) return;
       e.preventDefault();
 
-      // 토글은 타임라인 헤더 소속이라 구 리치에디터 조상이 없다 — dataset을 직접 읽는다.
-      const orderId = btn.dataset.orderId || '';
+      // 토글은 타임라인 헤더 소속이라 구 리치에디터 조상이 없다 — 행 컨테이너에서 역참조한다.
+      const orderId = orderIdOf(btn);
       if (!orderId) {
         showFeedback('영업/택배 분류 대상을 찾지 못했습니다.', true);
         return;
@@ -2211,7 +2249,7 @@
         const btn = e.target.closest('.find-schedule-btn');
         if (!btn) return;
         const addr = btn.dataset.address;
-        const orderId = btn.dataset.orderId;
+        const orderId = orderIdOf(btn);
         const btnLat = btn.dataset.lat;
         const btnLng = btn.dataset.lng;
         const modalEl = document.getElementById('scheduleSearchModal');
@@ -2552,7 +2590,7 @@
       addAsDashboardListener(document.body, 'click', async function (e) {
         var btn = e.target.closest('.as-photos-btn');
         if (!btn) return;
-        var orderId = btn.dataset.orderId;
+        var orderId = orderIdOf(btn);
         if (!orderId) return;
         __currentAsModalOrderId = orderId;
         var modalEl = document.getElementById('asErpAttachmentsCategoryModal');
@@ -3029,9 +3067,9 @@
     // AS 미결 버튼 클릭: 미결 ↔ 미결 해제 토글 (낙관적 UI 후 서버와 동기화)
     addAsDashboardListener(document, 'click', function (e) {
       var btn = e.target && e.target.closest('.as-pending-btn');
-      if (!btn || !btn.dataset.orderId) return;
+      var orderId = orderIdOf(btn);
+      if (!btn || !orderId) return;
       e.preventDefault();
-      var orderId = btn.dataset.orderId;
       var originallyPending = btn.dataset.asPending === '1';
       var nextPending = !originallyPending;
       applyOrderUiFromResponse(orderId, buildOptimisticAsPendingPayload(orderId, nextPending), { updatedField: 'as_pending' });
@@ -3061,11 +3099,11 @@
 
     addAsDashboardListener(document, 'change', function (e) {
       const checkbox = e.target && e.target.closest('.as-blueprint-checkbox');
-      if (!checkbox || !checkbox.dataset.orderId) return;
+      const orderId = orderIdOf(checkbox);
+      if (!checkbox || !orderId) return;
 
-      const orderId = checkbox.dataset.orderId;
       const nextChecked = checkbox.checked;
-      const relatedCheckboxes = document.querySelectorAll(`.as-blueprint-checkbox[data-order-id="${orderId}"]`);
+      const relatedCheckboxes = findInOrderScopes(orderId, '.as-blueprint-checkbox');
       const confirmed = window.confirm(
         nextChecked
           ? 'AS도면 확인으로 표시할까요?'

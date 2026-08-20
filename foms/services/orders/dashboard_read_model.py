@@ -436,3 +436,56 @@ def compute_orders_attachment_assignee_maps(db, page_orders, page_sds):
         "att_counts": {str(k): v for k, v in att_counts.items()},
         "user_map": {str(k): v for k, v in user_map.items()},
     }
+
+
+def compute_unassigned_intake_order_ids(db, page_orders, page_sds) -> set[int]:
+    """현재 페이지에서 **미배정 보류함이 아직 owner 인** 주문 id 집합.
+
+    외부 채널 수집 주문(``structured_data['source']``)은 실존 영업사원 대신 보류함 계정을
+    owner 로 달고 들어온다. 대시보드 '담당' 칸에 그 계정 이름이 그대로 뜨면 사람이 배정된
+    것처럼 보이므로, 여기서 뽑은 id 에 한해 '담당 미지정' 뱃지를 대신 띄운다.
+
+    owner 의 SSOT 는 ``OrderAssignment``(active SALES) 다 — ``structured_data`` 투영이
+    아니다. 배정 교체 즉시 뱃지가 사라져야 하므로 캐시 blob 에 넣지 않고 요청마다 계산한다.
+    수집 주문이 한 건도 없는 페이지에서는 **쿼리를 아예 내지 않는다**(평상시 비용 0).
+
+    Args:
+        db: 요청 스코프 DB 세션.
+        page_orders: 현재 페이지 Order 객체 리스트.
+        page_sds: order_id -> structured_data dict 맵.
+
+    Returns:
+        set[int]: 보류함이 owner 인 주문 id. 계정이 없으면 빈 집합.
+    """
+    from foms.services.integrations.naver_commerce.constants import (
+        OWNER_USERNAME,
+        SOURCE_MARKER,
+    )
+
+    candidate_ids = [
+        o.id for o in page_orders
+        if (page_sds.get(o.id) or {}).get("source") == SOURCE_MARKER
+    ]
+    if not candidate_ids:
+        return set()
+
+    owner = (
+        db.query(User.id)
+        .filter(User.username == OWNER_USERNAME)
+        .first()
+    )
+    if owner is None:
+        return set()
+
+    from models import OrderAssignment
+    rows = (
+        db.query(OrderAssignment.order_id)
+        .filter(
+            OrderAssignment.order_id.in_(candidate_ids),  # perf-ok: 수집 주문 id.in_ from dashboard page
+            OrderAssignment.domain == "SALES",
+            OrderAssignment.active.is_(True),
+            OrderAssignment.user_id == int(owner[0]),
+        )
+        .all()
+    )
+    return {int(r[0]) for r in rows}

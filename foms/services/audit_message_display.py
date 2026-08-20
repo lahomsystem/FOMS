@@ -107,6 +107,16 @@ _CHECKLIST_FIELDS = frozenset({
 #: SQL 로 물을 수 있고, 화면에는 여기 라벨로 나온다. 사전에 없는 코드는 코드 자체를
 #: 보여준다(감추지 않는다 — 새 배선이 라벨을 빠뜨려도 로그는 남는다).
 ACTION_LABELS: dict[str, str] = {
+    # --- 네이버 스마트스토어 수집 (NAVER-INGEST-01) ---
+    "NAVER_INGEST_RUN_NOW": "네이버 수집 수동 실행",
+    "NAVER_INGEST_SNAPSHOT_VIEW": "네이버 수집 원본 열람",
+    "NAVER_INGEST_MARK_REVIEWED": "네이버 수집 확인 완료",
+    "NAVER_INGEST_SET_ASSIGNEE": "네이버 수집 담당자 지정",
+    "NAVER_INGEST_CREATE_ORDER": "네이버 수집분 주문 생성",
+    "NAVER_INGEST_ATTACH_ORDER": "네이버 수집분 기존 주문 연결",
+    "NAVER_INGEST_DETACH_ORDER": "네이버 수집분 연결 되돌림",
+    "NAVER_INGEST_FULFILLMENT_ENQUEUE": "네이버 발주확인·발송처리 요청",
+    "NAVER_DOCK_STATE_SET": "네이버 도크 반영 상태 저장",
     # --- 결제 ---
     "PAYMENT_CONFIRMED": "결제 확인",
     "PAYMENT_CONFIRM_CLEARED": "결제 확인 해제",
@@ -179,6 +189,7 @@ ACTION_LABELS: dict[str, str] = {
     "ORDER_ESTIMATE_UPDATED": "주문 견적 수정",
     "ORDER_ESTIMATE_DELETED": "주문 견적 삭제",
     "ORDER_STRUCTURED_SAVED": "주문 저장",
+    "ORDER_CHANGE_REASON_SET": "변경 사유 입력",
     "ORDER_ADDRESS_UPDATED": "주소 수정",
     "ADDRESS_LEARNING_ADDED": "주소 학습 등록",
     "STORAGE_SETTING_UPDATED": "스토리지 설정 변경",
@@ -206,6 +217,8 @@ ACTION_LABELS: dict[str, str] = {
     "ORDER_MEMO_UPDATED": "메모 변경",
     "ORDER_CHECKLIST_UPDATED": "체크리스트 변경",
     "ORDER_STATUS_CHANGED": "상태 변경",
+    "ORDER_FIELD_RESTORED": "변경 되돌리기",
+    "OPS_BACKUP_HEARTBEAT": "백업 성공 알림",
     "ORDER_SOFT_DELETED": "주문 휴지통 이동",
     # --- 파일 열람(access_logs 화면과 같은 코드를 쓴다) ---
     "FILE_VIEW": "파일 열람",
@@ -243,8 +256,14 @@ PATH_LABELS: dict[str, str] = {
     # --- 당사자 ---
     "parties.customer.name": "고객명",
     "parties.customer.phone": "전화번호",
-    "parties.orderer.name": "주문자명",
-    "parties.orderer.phone": "주문자 연락처",
+    "parties.customer.phone2": "보조 연락처",
+    # ORDERER-AXIS-01: parties.orderer 는 발주처(라홈/하우드) 자리다. 주문한 사람은 buyer.
+    # 구 라벨이 '주문자명'이라 두 뜻이 겹쳐 있던 흔적이었다 — 과거 이력 표시를 위해 경로는
+    # 남기되 라벨만 바로잡는다.
+    "parties.orderer.name": "발주사",
+    "parties.orderer.phone": "발주사 연락처",
+    "parties.buyer.name": "주문자명",
+    "parties.buyer.phone": "주문자 연락처",
     "parties.manager.name": "담당자",
     # --- 현장 ---
     "site.address_full": "주소",
