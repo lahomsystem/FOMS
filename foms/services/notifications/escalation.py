@@ -10,6 +10,14 @@
 않는다. idempotent: state 의 ``escalated_at`` 와 ``operator_escalated`` 이벤트 존재 여부로
 같은 state 를 재실행해도 중복 알림/이벤트를 만들지 않는다.
 
+중복 억제(원본 단위): 같은 원본 알림이 여러 수신자에게 팬아웃돼 state 가 N 개여도 상급자
+1인이 받는 에스컬레이션 알림은 원본당 1건이다. 이미 통보한 대상 id 는 이벤트
+``metadata_json['escalation_target_user_ids']`` 에 남기고, 이후 스윕/단계에서 제외한다.
+
+본문: in-app 알림 message 에는 원본 제목·담당자·경과·원본 본문 요약을 담는다(수신자가
+무슨 일인지 알 수 있어야 한다). push/realtime payload 는 Spec D2 대로 generic 유지 —
+``_build_payload`` 는 ``notification.message`` 를 읽지 않는다.
+
 배달(badge/realtime/push)은 ``finalize_escalation_delivery`` — 호출자가 **commit 이후**
 실행한다(멘션/도면 finalize 패턴과 동일).
 """
@@ -21,7 +29,7 @@ import datetime as _dt
 from foms.services.datetime_kst import now_utc_naive
 import logging
 import os
-from typing import Any, Dict, List, Optional
+from typing import Any, Dict, Iterable, List, Optional, Set
 
 from sqlalchemy import func
 
@@ -37,6 +45,8 @@ from foms.services.notifications.recipients import fan_out_new_notification
 logger = logging.getLogger(__name__)
 
 _ESCALATION_TITLE = "[에스컬레이션] 확인되지 않은 긴급 알림이 있습니다."
+_SOURCE_MESSAGE_LIMIT = 160
+_TARGETS_META_KEY = "escalation_target_user_ids"
 
 
 def _stage_minutes() -> int:
@@ -76,14 +86,23 @@ def _record_event(
     user_state_id: int,
     recipient_user_id: int,
     event_type: str,
+    target_user_ids: Optional[Iterable[int]] = None,
 ) -> None:
-    """append-only 에스컬레이션 이벤트 1건 기록."""
+    """append-only 에스컬레이션 이벤트 1건 기록.
+
+    :param target_user_ids: 이번에 에스컬레이션 알림을 보낸 상급자 id 목록. 다음 스윕이
+        같은 원본으로 같은 사람에게 또 보내지 않도록 metadata 에 남긴다.
+    """
+    metadata = None
+    if target_user_ids is not None:
+        metadata = {_TARGETS_META_KEY: [int(x) for x in target_user_ids]}
     db.add(
         NotificationEvent(
             notification_id=notification_id,
             user_state_id=user_state_id,
             recipient_user_id=recipient_user_id,
             event_type=event_type,
+            metadata_json=metadata,
         )
     )
 
@@ -101,10 +120,59 @@ def _has_event(db: Any, user_state_id: int, event_type: str) -> bool:
     )
 
 
+def _shorten(text: Optional[str], limit: int = _SOURCE_MESSAGE_LIMIT) -> str:
+    """원본 본문을 한 줄 요약으로 자른다(줄바꿈 제거, 초과분은 말줄임)."""
+    raw = " ".join(str(text or "").split())
+    if not raw:
+        return ""
+    return raw if len(raw) <= limit else raw[: limit - 1].rstrip() + "…"
+
+
+def _owner_label(db: Any, user_id: Optional[int]) -> str:
+    """미확인 담당자 표기(이름 + 팀). 조회 실패 시 '담당자 미상'."""
+    user = db.get(User, int(user_id)) if user_id is not None else None
+    if user is None:
+        return "담당자 미상"
+    name = (getattr(user, "name", None) or getattr(user, "username", None) or "").strip()
+    team = (getattr(user, "team", None) or "").strip()
+    if not name:
+        return "담당자 미상"
+    return f"{name}({team})" if team else name
+
+
+def _build_escalation_message(
+    db: Any, source: Notification, overdue_user_id: Optional[int], minutes: int, stage: int
+) -> str:
+    """에스컬레이션 알림 본문(원본 제목·담당자·경과·원본 요약).
+
+    :param stage: 1=담당자 미확인, 2=매니저까지 미확인(운영 에스컬레이션)
+    :return: in-app 알림 목록에 그대로 표시되는 한 줄 본문
+    """
+    owner = _owner_label(db, overdue_user_id)
+    if stage >= 2:
+        head = f"{owner} 미확인 · 매니저 단계에서도 {minutes}분 더 지났습니다."
+    else:
+        head = f"{owner}가 {minutes}분 동안 확인하지 않았습니다."
+    parts = [head, f"원본: {source.title}"]
+    body = _shorten(getattr(source, "message", None))
+    if body:
+        parts.append(body)
+    if source.order_id:
+        parts.append(f"주문 #{int(source.order_id)}")
+    return " · ".join(parts)
+
+
 def _create_escalation_notification(
-    db: Any, recipient_user_id: int, source: Notification, now: _dt.datetime
+    db: Any,
+    recipient_user_id: int,
+    source: Notification,
+    now: _dt.datetime,
+    message: Optional[str] = None,
 ) -> Notification:
-    """상급자 1인에게 generic 에스컬레이션 알림 생성(민감정보 없음, 비긴급).
+    """상급자 1인에게 에스컬레이션 알림 생성(비긴급 — 재-escalation 방지).
+
+    본문에는 무슨 알림이 방치됐는지 담는다. push/realtime 은 generic payload 유지라
+    잠금화면에는 노출되지 않는다.
 
     :return: flush 된 Notification (id 확보). 배달은 호출부 commit 후 finalize.
     """
@@ -115,7 +183,7 @@ def _create_escalation_notification(
         target_user_id=int(recipient_user_id),
         is_urgent=False,
         title=_ESCALATION_TITLE,
-        message=None,
+        message=message,
         is_read=False,
         created_at=now,
     )
@@ -135,6 +203,33 @@ def _escalation_targets(
     if not targets and primary_role != "ADMIN":
         targets = _role_user_ids(db, "ADMIN", None)
     return targets
+
+
+def _already_notified_user_ids(db: Any, source_notification_id: int) -> Set[int]:
+    """이 원본 알림 때문에 이미 에스컬레이션 알림을 받은 사용자 id(과거 스윕 포함)."""
+    rows = (
+        db.query(NotificationEvent.metadata_json)
+        .filter(
+            NotificationEvent.notification_id == int(source_notification_id),
+            NotificationEvent.event_type.in_(
+                [
+                    NotificationEventType.ESCALATED,
+                    NotificationEventType.OPERATOR_ESCALATED,
+                ]
+            ),
+        )
+        .all()
+    )
+    seen: Set[int] = set()
+    for (metadata,) in rows:
+        if not isinstance(metadata, dict):
+            continue
+        for uid in metadata.get(_TARGETS_META_KEY) or []:
+            try:
+                seen.add(int(uid))
+            except (TypeError, ValueError):
+                continue
+    return seen
 
 
 def escalate_overdue_urgent(
@@ -160,6 +255,33 @@ def escalate_overdue_urgent(
     checked = 0
     created_notification_ids: List[int] = []
     recipient_user_ids: List[int] = []
+    # 원본 알림 id -> 이미 통보한 상급자 id (과거 스윕 + 이번 스윕 누적).
+    notified_by_source: Dict[int, Set[int]] = {}
+
+    def _fresh_targets(source_id: int, candidates: Iterable[int]) -> List[int]:
+        """이 원본으로 아직 통보받지 않은 대상만 남기고, 통보 예정으로 표시한다."""
+        seen = notified_by_source.get(int(source_id))
+        if seen is None:
+            seen = _already_notified_user_ids(db, source_id)
+            notified_by_source[int(source_id)] = seen
+        fresh: List[int] = []
+        for uid in candidates:
+            uid = int(uid)
+            if uid in seen:
+                continue
+            seen.add(uid)
+            fresh.append(uid)
+        return fresh
+
+    def _notify(source: Notification, uids: List[int], stage: int, overdue_user_id: int) -> None:
+        """대상 목록에 에스컬레이션 알림을 1인 1건씩 생성한다."""
+        if not uids:
+            return
+        message = _build_escalation_message(db, source, overdue_user_id, minutes, stage)
+        for uid in uids:
+            created = _create_escalation_notification(db, uid, source, now, message)
+            created_notification_ids.append(int(created.id))
+            recipient_user_ids.append(int(uid))
 
     for state, notif in _urgent_pending_query(db).all():
         checked += 1
@@ -167,33 +289,33 @@ def escalate_overdue_urgent(
         if state.escalated_at is None:
             if state.created_at is not None and state.created_at < stage1_cutoff:
                 state.escalated_at = now
+                targets = _fresh_targets(
+                    notif.id, _escalation_targets(db, state.user_id, "MANAGER")
+                )
+                _notify(notif, targets, 1, state.user_id)
                 _record_event(
                     db,
                     notif.id,
                     state.id,
                     state.user_id,
                     NotificationEventType.ESCALATED,
+                    target_user_ids=targets,
                 )
-                for uid in _escalation_targets(db, state.user_id, "MANAGER"):
-                    created = _create_escalation_notification(db, uid, notif, now)
-                    created_notification_ids.append(int(created.id))
-                    recipient_user_ids.append(int(uid))
                 escalated += 1
             continue
         # Stage 2: escalate 후 다시 5분 경과, 여전히 미ack -> ADMIN 운영 에스컬레이션.
         if state.escalated_at < stage2_cutoff and not _has_event(
             db, state.id, NotificationEventType.OPERATOR_ESCALATED
         ):
-            for uid in _role_user_ids(db, "ADMIN", None):
-                created = _create_escalation_notification(db, uid, notif, now)
-                created_notification_ids.append(int(created.id))
-                recipient_user_ids.append(int(uid))
+            targets = _fresh_targets(notif.id, _role_user_ids(db, "ADMIN", None))
+            _notify(notif, targets, 2, state.user_id)
             _record_event(
                 db,
                 notif.id,
                 state.id,
                 state.user_id,
                 NotificationEventType.OPERATOR_ESCALATED,
+                target_user_ids=targets,
             )
             operator += 1
 
