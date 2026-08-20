@@ -28,33 +28,42 @@ _cache: dict[str, tuple[float, int]] = {}
 
 
 def compute_triage_pending_count(db: Any) -> int:
-    """확인 대기 링크 수를 센다 — 트리아지 큐 정의와 같은 술어여야 한다.
+    """확인 대기 **집(묶음)** 수를 센다 — 트리아지 큐 정의와 같은 술어·같은 단위여야 한다.
 
     큐(``naver_ingest_triage``)에는 두 종류가 온다: 아직 주문이 없는 수집분
     (``COLLECTED`` — "주문 만들기" 대기)과 주문은 생겼지만 사람이 안 본 건
     (``LINKED``). 뱃지가 ``LINKED`` 만 세면 주문 만들기 대기가 0 으로 보인다
     (T14-A 에서 실제로 났던 불일치).
 
+    **단위가 집인 이유**: 네이버는 본품과 구성 옵션을 각각 다른 상품주문으로 준다.
+    링크 행을 세면 한 집이 6건으로 잡혀 nav 는 140, 화면 필터는 43 을 보여줬다 —
+    같은 화면에서 업무량이 3배로 읽힌다(2026-08-20 감사 결함 #2).
+    묶음 식은 이력 표와 공유한다(``grouping.group_key_expression``).
+
     Args:
         db: 요청 스코프 DB 세션.
 
     Returns:
-        int: 대기 건수. 조회 실패 시 0(뱃지는 부가 정보라 페이지를 죽이지 않는다).
+        int: 대기 집 수. 조회 실패 시 0(뱃지는 부가 정보라 페이지를 죽이지 않는다).
     """
+    from sqlalchemy import distinct, func
+
+    from foms.services.integrations.naver_commerce.grouping import group_key_expression
     from models import ExternalOrderLink
 
     try:
         return int(
-            db.query(ExternalOrderLink.id)
+            db.query(func.count(distinct(group_key_expression())))
             .filter(
                 ExternalOrderLink.channel == CHANNEL,
                 ExternalOrderLink.sync_status.in_(("COLLECTED", "LINKED")),
                 ExternalOrderLink.reviewed_at.is_(None),
             )
-            .count()
+            .scalar()
+            or 0
         )
     except SQLAlchemyError as exc:
-        logger.warning("[NAVER] 트리아지 대기 건수 조회 실패: %s", exc)
+        logger.warning("[NAVER] 트리아지 대기 집 수 조회 실패: %s", exc)
         return 0
 
 

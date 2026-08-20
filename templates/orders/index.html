@@ -615,7 +615,9 @@
         <span class="naver-inbox-strip__count">{{ naver_triage_pending }}</span>
         <div class="naver-inbox-strip__text">
             <div class="naver-inbox-strip__title">네이버 새 수집</div>
-            <div class="naver-inbox-strip__sub">주문 만들기·확인 대기 {{ naver_triage_pending }}건</div>
+            {# 단위는 '집'(묶음)이다 — 네이버는 본품과 옵션을 각각 다른 상품주문으로 주므로
+               링크 행을 세면 같은 일감이 몇 배로 읽힌다(2026-08-20 감사 결함 #2). #}
+            <div class="naver-inbox-strip__sub">주문 만들기·확인 대기 {{ naver_triage_pending }}집</div>
         </div>
         <a href="{{ url_for('admin.naver_ingest_triage') }}"
            class="btn btn-success btn-sm naver-inbox-strip__btn">확인하기</a>

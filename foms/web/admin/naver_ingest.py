@@ -126,27 +126,24 @@ def _history_group_key(link: ExternalOrderLink) -> str:
     컬럼이 비면 예전 규칙(주문번호)으로 떨어진다 — 이 컬럼이 생기기 전 행과 backfill 전
     행을 위한 폴백이다. 정확도는 예전만 못해도 화면은 죽지 않는다.
     """
-    stored = (link.group_key or "").strip()
-    if stored:
-        return stored
-    return (link.external_order_no or "").strip() or f"link:{link.id}"
+    from foms.services.integrations.naver_commerce.grouping import resolve_group_key
+
+    return resolve_group_key(link)
 
 
 def _group_key_col():
     """이력 표의 묶음 키 SQL 식 — 파이썬 :func:`_history_group_key` 와 같은 규칙.
 
     총계·상태별 건수·페이지 키가 **모두 같은 식**을 써야 숫자가 갈리지 않는다.
+    식 자체는 nav 뱃지와도 공유한다(`grouping` 모듈) — 두 벌로 갈라지면 지금 고친
+    "화면마다 집 수가 다르다" 결함이 그대로 재발한다.
 
     Returns:
         묶음키(없으면 주문번호, 그것도 없으면 ``link:<id>``) 라벨 ``gk`` 컬럼 식.
     """
-    from sqlalchemy import String, cast, func, literal
+    from foms.services.integrations.naver_commerce.grouping import group_key_expression
 
-    return func.coalesce(
-        func.nullif(ExternalOrderLink.group_key, ""),
-        func.nullif(ExternalOrderLink.external_order_no, ""),
-        literal("link:") + cast(ExternalOrderLink.id, String),
-    ).label("gk")
+    return group_key_expression()
 
 
 def _status_group_counts(db) -> dict[str, int]:

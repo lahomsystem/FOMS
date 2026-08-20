@@ -45,10 +45,12 @@ def _login(client, *, username: str, role: str) -> User:
     return user
 
 
-def _link(external_id: str, *, reviewed: bool = False, status: str = "LINKED") -> ExternalOrderLink:
+def _link(external_id: str, *, reviewed: bool = False, status: str = "LINKED",
+          group_key: str | None = None) -> ExternalOrderLink:
     from foms.services.datetime_kst import now_utc_naive
 
     link = ExternalOrderLink(channel=CHANNEL, external_id=external_id, sync_status=status,
+                             group_key=group_key,
                              reviewed_at=now_utc_naive() if reviewed else None)
     db_session.add(link)
     db_session.commit()
@@ -164,3 +166,49 @@ def test_broken_db_does_not_break_the_page(app):
             raise OperationalError("SELECT 1", {}, Exception("boom"))
 
     assert compute_triage_pending_count(_BrokenSession()) == 0
+
+
+def test_badge_counts_households_not_product_orders(client):
+    """뱃지 숫자는 화면 필터와 **같은 단위(집)** 여야 한다(03 감사 결함 #2).
+
+    네이버는 본품과 구성 옵션을 각각 다른 상품주문으로 준다. 링크 행을 세면 한 집이
+    6건으로 잡혀 nav 는 140, 화면 필터는 43 을 보여줬다 — 업무량이 3배로 읽힌다.
+    """
+    _login(client, username="nav_admin_unit", role="ADMIN")
+    _link("PO-U-1", group_key="N-1\x1f010-0000-0000\x1f서울 강남구 1")
+    _link("PO-U-2", group_key="N-1\x1f010-0000-0000\x1f서울 강남구 1")
+    _link("PO-U-3", group_key="N-1\x1f010-0000-0000\x1f서울 강남구 1")
+    _link("PO-U-4", group_key="N-2\x1f010-0000-0000\x1f부산 해운대구 9")
+
+    html = client.get("/erp/dashboard").get_data(as_text=True)
+
+    assert '<span class="badge rounded-pill bg-danger">2</span>' in html, "집 단위로 세야 한다"
+
+
+def test_badge_falls_back_to_order_no_when_group_key_missing(client):
+    """묶음키가 없는 옛 행도 주문번호로 묶인다 — 폴백이 이력 표와 같은 규칙이다."""
+    _login(client, username="nav_admin_fb", role="ADMIN")
+    _link("PO-FB-1")
+    _link("PO-FB-2")
+    for link in db_session.query(ExternalOrderLink).filter(
+            ExternalOrderLink.external_id.in_(["PO-FB-1", "PO-FB-2"])).all():
+        link.external_order_no = "N-FB"
+    db_session.commit()
+    reset_triage_count_cache_for_tests()
+
+    html = client.get("/erp/dashboard").get_data(as_text=True)
+    assert '<span class="badge rounded-pill bg-danger">1</span>' in html
+
+
+def test_inbox_strip_labels_the_unit_as_households(client):
+    """인박스 스트립 문구도 집 단위여야 한다 — 숫자만 바꾸고 라벨을 두면 더 헷갈린다."""
+    _login(client, username="nav_admin_strip", role="ADMIN")
+    _link("PO-S-1", group_key="N-S\x1f010-0000-0000\x1f서울 강남구 1")
+    _link("PO-S-2", group_key="N-S\x1f010-0000-0000\x1f서울 강남구 1")
+
+    html = client.get("/").get_data(as_text=True)
+
+    assert "naver-inbox-strip" in html
+    sub = html.split('naver-inbox-strip__sub">')[1].split("</div>")[0]
+    assert "1집" in sub, sub
+    assert "건" not in sub, sub

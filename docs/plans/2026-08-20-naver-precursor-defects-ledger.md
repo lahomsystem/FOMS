@@ -42,7 +42,7 @@
 마이그레이션 왕복(upgrade→downgrade→upgrade) PG 레인 통과 · backfill `--dry-run` 출력 확인 ·
 컬럼이 NULL 인 행이 섞여도 화면 200.
 
-### T5 — #2 단위 통일 (PENDING, T4 의존)
+### T5 — #2 단위 통일 (DONE, T4 의존)
 `compute_triage_pending_count` 를 `count(distinct group_key)` 로 · 화면 헤더 이중 표기.
 **완료 기준**: nav 배지와 화면 필터 숫자가 같은 단위(집) · `test_naver_nav_entry.py` 기대값을 집 수로 먼저 고쳐 red 확인 후 green.
 
@@ -85,3 +85,10 @@
   그때 `same_household` 만 양쪽 통과여서(`{None}` 도 원소 1개) `None not in keys` 를 추가로 물렸다.
   **미검증 1건**: backfill `--dry-run` 을 로컬 dev DB 에서 못 돌렸다 — 그 DB 에는 컬럼이 없다
   (마이그레이션 미적용, 사용자 선택). CLI 는 정상 동작하고 backfill 로직은 테스트 2건이 레인에서 검증한다.
+- 2026-08-20 **T5 완료**. 테스트 3건 먼저 red(배지 집 단위·폴백·인박스 스트립 라벨) → 구현 → green.
+  **설계 판단**: 폴백 규칙이 이력 표와 뱃지 두 벌로 갈라지면 지금 고치는 결함이 그대로 재발하므로,
+  SQL 식을 `foms/services/integrations/naver_commerce/grouping.py` 한 곳으로 뽑고 둘 다 호출하게 했다.
+  `compute_triage_pending_count` 를 `count(distinct gk)` 로 바꾸고, 확인 결과 `orders/index.html` 인박스
+  스트립이 `…{{ naver_triage_pending }}건` 이라 숫자만 집으로 바뀌면 더 헷갈릴 상태여서 라벨도 '집'으로 고쳤다.
+  트리아지 헤더는 이미 이중 표기(`{{ group_count }}집` + `상품주문 {{ pending_count }}건`)라 손대지 않았다.
+  검증: `tests/services/integrations/` **289 passed** · `APP_OK`.
