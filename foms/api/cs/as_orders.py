@@ -959,7 +959,7 @@ def api_as_upload_anchor(order_id: int):
     user = get_user_by_id(user_id)
     try:
         as_log_id = ensure_as_upload_anchor_on_order(db, order, user)
-    except Exception as exc:  # noqa: BLE001
+    except (ValueError, RevisionError) as exc:
         return _as_error_response(db, exc)
     db.add(SecurityLog(user_id=user_id, message=f"주문 #{order_id} AS 첨부 앵커({as_log_id})"))
     db.commit()
