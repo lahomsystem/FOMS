@@ -1,6 +1,5 @@
 # FOMS 현재 상태
 > 자동 업데이트: 2026-08-14
-> 최신: **오프사이트 백업 전면 실패 복구(foms-ops-backup)** — 개설 후 6회 전부 실패(성공 0)를 pg_dump 17 경로 고정 + R2 시크릿 등록으로 해소, 첫 성공. 침묵 차단 3종 배선.
 > 최신: **네이버 NAVER-INGEST-02 T16-A~H deploy(코드 완료·실호출 미실행)** — 재결제/차액결제/신규를 사람이 구분해 붙이는 관계 축(`relation` NEW/ADDON/REPAY) + 기존 주문 후보 제시(전화·이름·주소) + attach/detach(멱등·취소 가드·되돌리기) + 추가결제 기록(`pricing.extra_payments`, **출고가·잔금 불변**, REV-00 경유) + 발주확인·발송처리 실행 경로(WORKER enqueue, `DIRECT_DELIVERY`). **네이버 실호출은 사용자가 직접 검증**(2026-08-20 결정). 스펙 `docs/specs/2026-08-19-naver-order-relation-and-fulfillment_SPEC.md` · 원장 `docs/plans/2026-08-19-naver-relation-fulfillment-ledger.md`
 > 이 파일 상단 40줄이 세션 시작 컨텍스트의 전부다(hygiene 계약 테스트로 강제). 상세 이력: "## 최근 완료"·"## 기록 보관", 과거 헤더 상세는 기록 보관에 이관.
 
