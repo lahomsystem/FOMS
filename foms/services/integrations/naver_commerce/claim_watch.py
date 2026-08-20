@@ -63,10 +63,20 @@ def changed_external_ids(entries: list[dict]) -> list[str]:
     return out
 
 
-def _notify_targets(session: Session, link: ExternalOrderLink) -> list[int]:
-    """알림 받을 사용자 id — 주문 담당 SALES, 없으면 활성 ADMIN 전원.
+def _notify_targets(session: Session, link: ExternalOrderLink) -> tuple[list[int], bool]:
+    """알림 받을 사용자 id 와 **ADMIN 폴백 여부**를 함께 준다.
 
     담당자가 아직 없으면(보류함 소유) 아무도 못 보는 알림이 되므로 ADMIN 으로 올린다.
+    호출부가 두 경우를 구분해야 하는 이유: 담당자 특정은 ``USER`` 알림, ADMIN 폴백은
+    ``ROLE`` 알림 1건으로 만들어야 한다(NOTIF-ROLE-01).
+
+    Args:
+        session: DB 세션.
+        link: 클레임이 감지된 외부 주문 링크.
+
+    Returns:
+        ``(user_ids, is_admin_fallback)`` — 담당 SALES 가 있으면 그 사용자 id 목록과
+        ``False``, 없으면 활성 ADMIN 전원의 id 목록과 ``True``. 둘 다 없으면 ``([], True)``.
     """
     if link.order_id:
         rows = (
@@ -90,29 +100,26 @@ def _notify_targets(session: Session, link: ExternalOrderLink) -> list[int]:
 
             real = [int(u.id) for u in holders if u.username != OWNER_USERNAME]
             if real:
-                return real
+                return real, False
     admins = (
         session.query(User)
         .filter(User.role == "ADMIN", User.is_active.is_(True))
         .all()
     )
-    return [int(u.id) for u in admins]
+    return [int(u.id) for u in admins], True
 
 
-def _notify(session: Session, link: ExternalOrderLink, claim: dict,
-            *, now: datetime) -> int:
-    """취소·반품 발생을 담당자(없으면 ADMIN)에게 알린다.
+def _compose(session: Session, link: ExternalOrderLink, claim: dict) -> tuple[str, str]:
+    """클레임 알림의 제목·본문을 만든다.
+
+    Args:
+        session: DB 세션(고객명 조회에만 쓴다).
+        link: 클레임이 감지된 외부 주문 링크.
+        claim: :func:`mapping.extract_claim` 결과(``label``·``reason`` 사용).
 
     Returns:
-        만든 알림 건수.
+        ``(title, message)`` — title 은 200자로 잘라 둔 상태다.
     """
-    from foms.services.notifications.recipients import fan_out_new_notification
-
-    targets = _notify_targets(session, link)
-    if not targets:
-        logger.warning("[NAVER] 클레임 알림 대상이 없다 link=%s", link.id)
-        return 0
-
     order = session.get(Order, int(link.order_id)) if link.order_id else None
     who = getattr(order, "customer_name", None) or ""
     title = f"네이버 {claim['label']} — {who}".strip(" —")
@@ -124,17 +131,47 @@ def _notify(session: Session, link: ExternalOrderLink, claim: dict,
         f"({where} · 상품주문번호 {link.external_id}) "
         "일정·생산이 잡혀 있으면 진행을 멈추고 네이버 판매자센터에서 확인하세요."
     )
-    for user_id in targets:
-        notification = Notification(
-            order_id=int(link.order_id) if link.order_id else None,
-            notification_type=NOTIFICATION_TYPE,
-            target_type="USER",
-            target_user_id=user_id,
-            is_urgent=True,
-            title=title[:200],
-            message=message,
-            created_at=now,
-        )
+    return title[:200], message
+
+
+def _notify(session: Session, link: ExternalOrderLink, claim: dict,
+            *, now: datetime) -> int:
+    """취소·반품 발생을 담당자에게, 담당자가 없으면 ADMIN **역할**에게 알린다.
+
+    담당자가 특정되면 그 사람 앞으로 ``target_type='USER'`` 알림을 만든다. 담당자가 없어
+    관리자에게 올려야 하면 ``target_type='ROLE'`` + ``target_role='ADMIN'`` 알림을
+    **1건만** 만든다 — 관리자 수만큼 Notification 을 복제하지 않는다(NOTIF-ROLE-01).
+    사건 1건 = row 1건이 알림 SSOT 이고, 수신자별 읽음 상태는
+    :func:`recipients.fan_out_new_notification` 이 ``notification_user_states`` 로 만든다.
+
+    Args:
+        session: DB 세션(커밋은 호출자).
+        link: 클레임이 감지된 외부 주문 링크.
+        claim: :func:`mapping.extract_claim` 결과.
+        now: 알림 생성 시각.
+
+    Returns:
+        알림이 도달하는 **수신자 수**(대상이 없으면 0). Notification row 수가 아니다 —
+        ROLE 알림은 row 1건으로 관리자 전원에게 간다. 호출부 카운터(``notified``)와
+        중복 억제(``notified_status``)가 이 값의 "사람 수" 의미에 의존한다.
+    """
+    from foms.services.notifications.recipients import fan_out_new_notification
+
+    targets, admin_fallback = _notify_targets(session, link)
+    if not targets:
+        logger.warning("[NAVER] 클레임 알림 대상이 없다 link=%s", link.id)
+        return 0
+
+    title, message = _compose(session, link, claim)
+    order_id = int(link.order_id) if link.order_id else None
+    common = dict(order_id=order_id, notification_type=NOTIFICATION_TYPE,
+                  is_urgent=True, title=title, message=message, created_at=now)
+    if admin_fallback:
+        rows = [Notification(target_type="ROLE", target_role="ADMIN", **common)]
+    else:
+        rows = [Notification(target_type="USER", target_user_id=uid, **common)
+                for uid in targets]
+    for notification in rows:
         session.add(notification)
         session.flush()
         fan_out_new_notification(session, notification)

@@ -6,6 +6,8 @@
 * 취소 판정 정본은 상세 응답의 ``claimStatus`` — 변경 목록의 상태 문자열이 아니다.
 * 원본 스냅샷을 최신으로 갈아 끼워 화면(큐·트리아지·도크)이 자동으로 최신을 보게 한다.
 * 알림은 **같은 상태로 두 번 보내지 않는다**(5분 폴링).
+* 담당자가 없으면 ADMIN **역할** 알림 1건이다 — 관리자 수만큼 복제하지 않는다
+  (NOTIF-ROLE-01, 수신자별 상태는 ``notification_user_states``).
 * 주문 상태를 자동으로 바꾸지 않는다(사용자 확정 — 표시 + 알림까지).
 """
 
@@ -114,8 +116,8 @@ def test_empty_change_list_short_circuits(app):
 # --------------------------------------------------------------------------- #
 
 def test_cancel_after_collection_is_detected_and_notified(app):
-    """수집 뒤 취소되면 원본이 갱신되고 담당자(없으면 ADMIN)에게 알린다."""
-    admin = _admin()
+    """수집 뒤 취소되면 원본이 갱신되고 담당자(없으면 ADMIN 역할)에게 알린다."""
+    _admin()
     link = _link(f"PO-{_uid()}")
     client = FakeClient([_detail(link.external_id, claim="CANCEL_REQUEST")])
 
@@ -131,7 +133,9 @@ def test_cancel_after_collection_is_detected_and_notified(app):
     rows = (db_session.query(Notification)
             .filter(Notification.notification_type == NOTIFICATION_TYPE).all())
     assert len(rows) == 1
-    assert rows[0].target_user_id == admin.id
+    # 담당자가 없으면 ADMIN '역할' 알림 1건 — 관리자 수만큼 복제하지 않는다(NOTIF-ROLE-01).
+    assert rows[0].target_type == "ROLE" and rows[0].target_role == "ADMIN"
+    assert rows[0].target_user_id is None
     assert "취소 요청" in rows[0].title
 
 
