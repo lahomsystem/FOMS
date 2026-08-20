@@ -19,7 +19,7 @@
 
 빠른 것 먼저 → 큰 것 → 큰 것에 의존하는 것.
 
-### T1 — #5 `.alert` 자동닫힘 (PENDING)
+### T1 — #5 `.alert` 자동닫힘 (DONE)
 `templates/admin/naver_ingest.html:20` 에 `data-foms-no-autodismiss` 추가.
 **완료 기준**: 계약 테스트가 해당 속성 존재를 확인하고 green · 수집 실행 결과 문구가 5초 뒤에도 남는다.
 
@@ -60,4 +60,8 @@
 - PG 레인은 SQLite 와 달리 FK 강제 — 마이그레이션 검증은 PG 레인에서.
 
 ## 진행 기록
-- 2026-08-20 스펙·플랜 작성. 코드 사실 확인 완료(두 그룹키 정의·배지 링크 카운트·footer 배타 분기·페이지 링크 누락). 승인 대기.
+- 2026-08-20 스펙·플랜 작성. 코드 사실 확인 완료(두 그룹키 정의·배지 링크 카운트·footer 배타 분기·페이지 링크 누락).
+- 2026-08-20 사용자 승인 — T1부터 순차, T마다 끊어 보고.
+- 2026-08-20 **T1 완료**. 테스트 `test_run_result_alert_is_not_auto_dismissed` 를 먼저 넣어 red 확인
+  (`assert 'data-foms-no-autodismiss' in tag` 실패) → `templates/admin/naver_ingest.html:20` 에 속성 추가 → green.
+  `pytest tests/services/integrations/test_naver_admin_surface.py -q` **26 passed**(회귀 없음).

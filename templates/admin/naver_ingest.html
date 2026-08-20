@@ -17,7 +17,9 @@
         </div>
     </div>
 
-    <div id="naver-run-result" class="alert d-none" role="status"></div>
+    {# 전역 스크립트가 .alert 을 5초 뒤 제거한다. 실행 결과(특히 실패 사유)가 그렇게
+       증발하면 사람이 무엇이 왜 실패했는지 못 읽는다 — 이 칸은 자동닫힘에서 뺀다. #}
+    <div id="naver-run-result" class="alert d-none" role="status" data-foms-no-autodismiss></div>
 
     {# 수집이 지금 잘 돌고 있는지 — 이 화면의 첫 질문 #}
     <div class="row g-3 mb-4">

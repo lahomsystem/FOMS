@@ -325,3 +325,18 @@ def test_relation_defaults_to_new(auth_client):
     link = _link("PO-REL", "COLLECTED", external_order_no="N-REL")
     db_session.refresh(link)
     assert link.relation == "NEW"
+
+
+def test_run_result_alert_is_not_auto_dismissed(auth_client):
+    """수집 실행 결과 문구는 5초 뒤에 사라지면 안 된다(03 감사 결함 #5).
+
+    전역 스크립트가 ``.alert`` 을 5초 뒤 제거한다. 실패 사유가 그렇게 증발하면 사람이
+    무엇이 왜 실패했는지 영영 못 읽는다 — 실행 결과 칸은 opt-out 해야 한다.
+    triage 화면은 ``ecc484cb`` 에서 이미 처리됐고, 이력 화면이 남아 있었다.
+    """
+    body = auth_client.get("/admin/naver-ingest").get_data(as_text=True)
+
+    marker = 'id="naver-run-result"'
+    assert marker in body
+    tag = body[body.index(marker) - 60:body.index(marker) + 200]
+    assert "data-foms-no-autodismiss" in tag, tag
