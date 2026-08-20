@@ -23,7 +23,7 @@
 `templates/admin/naver_ingest.html:20` 에 `data-foms-no-autodismiss` 추가.
 **완료 기준**: 계약 테스트가 해당 속성 존재를 확인하고 green · 수집 실행 결과 문구가 5초 뒤에도 남는다.
 
-### T2 — #8 페이지 링크 필터 유실 (PENDING)
+### T2 — #8 페이지 링크 필터 유실 (DONE)
 `templates/admin/naver_ingest.html:246,255` 의 `url_for` 에 `place` 전달.
 **완료 기준**: `?place=PENDING&page=2` 링크에 `place=PENDING` 이 실려 있음을 테스트가 확인 · green.
 
@@ -65,3 +65,6 @@
 - 2026-08-20 **T1 완료**. 테스트 `test_run_result_alert_is_not_auto_dismissed` 를 먼저 넣어 red 확인
   (`assert 'data-foms-no-autodismiss' in tag` 실패) → `templates/admin/naver_ingest.html:20` 에 속성 추가 → green.
   `pytest tests/services/integrations/test_naver_admin_surface.py -q` **26 passed**(회귀 없음).
+- 2026-08-20 **T2 완료**. 테스트 `test_pagination_links_keep_place_filter` 먼저 red 확인
+  (`href="/admin/naver-ingest?page=2"` — place 없음) → 페이지 링크 2곳에 필터 버튼과 **같은 관용구**
+  `place='PENDING' if place_pending else None` 적용 → green. 27 passed.

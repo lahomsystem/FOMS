@@ -340,3 +340,24 @@ def test_run_result_alert_is_not_auto_dismissed(auth_client):
     assert marker in body
     tag = body[body.index(marker) - 60:body.index(marker) + 200]
     assert "data-foms-no-autodismiss" in tag, tag
+
+
+def test_pagination_links_keep_place_filter(auth_client, monkeypatch):
+    """페이지를 넘겨도 걸어 둔 필터가 풀리면 안 된다(03 감사 결함 #8).
+
+    라우트는 ``place`` 를 읽는데(`naver_ingest.py:364`) 페이지 링크는 ``status`` 만
+    넘겼다. '발주확인 전'으로 거른 뒤 2페이지로 가면 필터 없는 전체 목록이 나온다.
+    """
+    from foms.web.admin import naver_ingest as mod
+
+    monkeypatch.setattr(mod, "PAGE_SIZE", 1, raising=False)
+    for idx in range(3):
+        _link(f"PO-PG-{idx}", "COLLECTED", external_order_no=f"N-PG-{idx}",
+              place_order_status="NOT_YET")
+    db_session.commit()
+
+    body = auth_client.get("/admin/naver-ingest?place=PENDING").get_data(as_text=True)
+    nav = body[body.index("pagination"):]
+    nav = nav[:nav.index("</nav>")]
+    assert "page=2" in nav, nav
+    assert "place=PENDING" in nav, nav
