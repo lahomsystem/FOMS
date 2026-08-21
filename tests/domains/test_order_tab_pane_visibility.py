@@ -102,5 +102,5 @@ def test_edit_page_pins_the_bumped_stylesheet(client, monkeypatch: pytest.Monkey
     body = client.get(f"/edit/{order_id}").get_data(as_text=True)
     template = EDIT_TEMPLATE.read_text(encoding="utf-8")
 
-    assert "erp-edit-embedded.css') }}?v=20260814a" in template
-    assert "erp-edit-embedded.css?v=20260814a" in body
+    assert "erp-edit-embedded.css') }}?v=20260821a" in template
+    assert "erp-edit-embedded.css?v=20260821a" in body
