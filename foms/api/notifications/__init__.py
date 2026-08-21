@@ -66,20 +66,33 @@ def invalidate_badge_cache_for_user_ids(user_ids):
 
 def resolve_notification_recipient_user_ids(
     db, target_type=None, target_team=None, target_manager_name=None,
-    target_user_ids=None, include_admin=True
+    target_user_ids=None, include_admin=True, target_role=None
 ):
     """알림 타겟 기준으로 수신 사용자 ID 집합을 계산.
 
     target_type:
       ALL  -> 전체 활성 사용자
+      ROLE -> target_role 역할의 활성 사용자 (NOTIF-ROLE-01)
       TEAM -> target_team 기준
       USER -> target_user_ids 직접 지정
       ORDER/None -> 기존 방식 (target_team/target_manager_name)
+
+    `resolve_recipients_for_notification`(state 물질화)의 역할 경로와 같은 집합을 내야
+    배지 무효화 대상이 실제 수신자와 어긋나지 않는다.
     """
     ttype = (target_type or "").strip().upper()
 
     if ttype == "ALL":
         return {int(r[0]) for r in db.query(User.id).filter(User.is_active == True).yield_per(500)}
+
+    role = (target_role or "").strip().upper()
+    if ttype == "ROLE" and role:
+        return {
+            int(r[0])
+            for r in db.query(User.id)
+            .filter(func.upper(User.role) == role, User.is_active == True)  # noqa: E712
+            .yield_per(500)
+        }
 
     if ttype == "USER" and target_user_ids:
         out = set()

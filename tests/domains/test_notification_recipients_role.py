@@ -186,3 +186,23 @@ def test_null_target_role_keeps_legacy_paths_unchanged(db):
     assert order_result == [
         (other.id, NotificationRecipientSource.TARGET_MANAGER_NAME)
     ]
+def test_badge_resolver_role_branch_matches_state_fanout(db):
+    """배지 무효화 resolver 의 ROLE 집합 == state 팬아웃 집합.
+
+    두 함수가 갈라지면 "알림은 왔는데 배지 숫자가 안 바뀐다"(또는 그 반대)가 된다.
+    """
+    from foms.api.notifications import resolve_notification_recipient_user_ids
+    from foms.services.notifications.recipients import fan_out_new_notification
+
+    active = [_mk_user(f"badge_role_a{i}", f"관리자{i}", role="ADMIN") for i in range(2)]
+    _mk_user("badge_role_off", "비활성관리자", role="ADMIN", is_active=False)
+    _mk_user("badge_role_viewer", "뷰어", role="VIEWER")
+    notif = _mk_notification(target_type="ROLE", target_role="ADMIN")
+
+    fanned = {s.user_id for s in fan_out_new_notification(db, notif, actor_user_id=None)}
+    resolved = resolve_notification_recipient_user_ids(
+        db, target_type="ROLE", target_role="ADMIN", include_admin=False
+    )
+
+    assert fanned == {u.id for u in active}
+    assert resolved == fanned
