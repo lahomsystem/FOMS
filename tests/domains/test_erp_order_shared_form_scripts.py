@@ -70,7 +70,7 @@ def _assert_shared_form_script_contract(body: str) -> None:
     assert "html2canvas.min.js" not in body
     assert "js/orders/erp-channel-push-confirm.js?v=20260821a" in body
     assert "js/cs/as-push-confirm.js?v=20260820a" in body
-    assert "js/orders/erp-order-shared.js?v=20260821d" in body
+    assert "js/orders/erp-order-shared.js?v=20260821e" in body
     assert "js/cs/as-attachment-order.js?v=20260819a" in body
     assert "js/orders/erp-alimtalk-send.js?v=20260821a" in body
     assert "js/orders/erp-share.js?v=20260821b" in body
@@ -729,12 +729,11 @@ def test_measure_room_push_is_wired_on_pc_and_sheet_with_own_history_key() -> No
     assert "'channeltalk_push_measure_room'" in shared
 
 
-def test_measurement_push_sends_conversion_text_verbatim() -> None:
-    """영발(실측) PUSH 본문 = 변환 텍스트 그대로. 발주(도면) PUSH만 실측 헤더를 자른다.
+def test_measure_room_push_sends_conversion_text_verbatim() -> None:
+    """실측방(measure_room) PUSH 본문 = 변환 텍스트 그대로. 영발·발주는 실측 헤더를 자른다.
 
-    사고: 실측방으로 나간 푸시에서 실측일·시   간·실측 특이사항이 통째로 빠졌다.
-    슬라이스(erpSliceConversionTextForChannelPush)는 발주방을 위해 만들어진 것인데
-    영발 경로까지 같이 태워서 실측방이 정작 실측 일정을 못 받았다.
+    실측방은 실측일·시   간이 그대로 있어야 일정이 전달된다. 반대로 영발방/발주방에는
+    그 두 줄이 나가면 안 되므로(사용자 확정 규칙) 슬라이스를 유지한다.
     """
     root = Path(__file__).resolve().parents[2]
     text = (root / "static/js/orders/erp-order-shared.js").read_text(encoding="utf-8")
@@ -745,16 +744,18 @@ def test_measurement_push_sends_conversion_text_verbatim() -> None:
     push_end = text.index("initErpMainDatePickers();", push_start)
     push_block = text[push_start:push_end]
 
-    assert "pushKind === 'measurement'" in push_block
+    assert "pushKind === 'measure_room'" in push_block
     assert "String(rawConversionText).trim()" in push_block
     assert "erpSliceConversionTextForChannelPush(rawConversionText)" in push_block
+    # 영발(measurement)은 슬라이스 경로 — 실측일/시간이 영발방으로 나가면 안 된다.
+    assert "pushKind === 'measurement'" not in push_block
 
-    # 태블릿 실측 폼 미러도 같은 분기를 쓴다(PC SSOT 동기).
+    # 태블릿 실측 폼은 measure_room 버튼이 없다 — 항상 슬라이스 경로.
     tablet_js = (root / "static/js/foms/tablet-measure-form.js").read_text(encoding="utf-8")
     tablet_start = tablet_js.index("function requestPush(pushKind)")
     tablet_block = tablet_js[tablet_start:tablet_start + 900]
-    assert 'pushKind === "measurement"' in tablet_block
-    assert "sliceConversionTextForChannelPush(conversionText)" in tablet_block
+    assert "sliceConversionTextForChannelPush(buildConversionText())" in tablet_block
+    assert "measure_room" not in tablet_block
 
 
 def test_as_push_text_is_server_built_not_client_built() -> None:
