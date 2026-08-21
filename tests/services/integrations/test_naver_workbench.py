@@ -1173,3 +1173,42 @@ def test_failure_strip_folds_by_the_same_rule_the_actions_use(client, workbench_
     assert "실패 2집" in strip, strip[:400]
     ids = strip.split('id="wb-retry-failed"')[1].split('data-link-ids="')[1].split('"')[0]
     assert len(ids.split(",")) == 2, ids
+
+
+# --------------------------------------------------------------------------- #
+# 4차 리뷰 — 큐 밖 형제의 클레임 / 실패 띠 묶음 경계
+# --------------------------------------------------------------------------- #
+
+def test_dispatch_is_locked_when_the_claimed_sibling_left_the_queue(client, workbench_on):
+    """확인 완료돼 큐에서 빠진 형제가 취소 중이어도 발송처리는 잠긴다.
+
+    큐 모집단 안에서만 클레임을 보면 그 형제가 안 보인다 — 집 전체를 봐야 한다.
+    """
+    _login(client)
+    claimed = _collected(order_no="N-DSP-GONE", product="취소된 형제", amount=100000,
+                         place_status="OK", claim_status="CANCEL_REQUEST",
+                         address="울산 남구 3", tel="010-3333-1111")
+    _reviewed(claimed)
+    clean = _collected(order_no="N-DSP-GONE", product="멀쩡한 형제", amount=50000,
+                       place_status="OK", address="울산 남구 3", tel="010-3333-1111")
+
+    body = client.get(f"{TRIAGE_PATH}?link_id={clean.id}").get_data(as_text=True)
+
+    assert 'id="wb-dispatch"' not in body, "큐 밖 형제의 취소를 못 봤다"
+    assert 'id="wb-modal-dispatch"' not in body
+
+
+def test_failure_strip_does_not_merge_different_orders(client, workbench_on):
+    """원본이 비어 키를 못 만드는 링크들이 한 줄로 붙으면 안 된다(주문이 다르다)."""
+    _login(client)
+    first = _with_failure(_collected(order_no="N-BLANK-A", product="빈 원본 A", amount=1000))
+    second = _with_failure(_collected(order_no="N-BLANK-B", product="빈 원본 B", amount=1000))
+    for link in (first, second):
+        link.raw_snapshot = {}
+        link.group_key = None
+        db_session.commit()
+
+    body = client.get(TRIAGE_PATH).get_data(as_text=True)
+    strip = body.split('id="wb-result"')[1].split("</section>")[0]
+
+    assert "실패 2집" in strip, strip[:400]

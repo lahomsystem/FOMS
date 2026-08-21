@@ -631,3 +631,44 @@ def test_failure_without_product_order_id_is_not_treated_as_success(app):
 
     assert not _state(link_id).get("place_confirmed_at")
     assert _state(link_id)["last_error"]
+
+
+# --------------------------------------------------------------------------- #
+# 4차 리뷰 — 거절도 보여야 한다 / 사유를 잃지 않는다
+# --------------------------------------------------------------------------- #
+
+def test_claim_refusal_is_written_where_the_screen_can_see_it(app):
+    """서버가 막았다는 사실이 화면에 닿아야 한다.
+
+    web 은 enqueue 만 하고 즉시 "요청했습니다"로 답한다. 워커가 조용히 거절하면 사람은
+    보냈다고 믿는다 — 실패 사유를 상태에 남기는 것이 유일한 통로다.
+    """
+    first = _link("PO-CLMV-1", order_no="N-CLMV", place="OK")
+    _claimed(_link("PO-CLMV-2", order_no="N-CLMV", place="OK"))
+
+    with pytest.raises(FulfillmentError):
+        dispatch_order(db_session, _StubClient(), link_id=first)
+    db_session.commit()
+
+    state = _state(first)
+    assert "취소" in state["last_error"] or "반품" in state["last_error"], state
+    assert state["last_error_action"] == "dispatch"
+
+
+def test_unattributed_reason_survives_when_a_success_list_exists(app):
+    """상품주문번호 없는 실패 사유도 화면까지 간다 — 진단이 사라지면 못 고친다."""
+    first = _link("PO-UNATTR-1", order_no="N-UNATTR", place="NOT_YET")
+    _link("PO-UNATTR-2", order_no="N-UNATTR", place="NOT_YET")
+    client = _StubClient(payload_override={"data": {
+        "successProductOrderIds": ["PO-UNATTR-1"],
+        "failProductOrderInfos": [{"message": "판매자 확인이 필요합니다"}],
+    }})
+
+    with pytest.raises(FulfillmentError):
+        confirm_place_order(db_session, client, link_id=first)
+    db_session.commit()
+
+    second_state = [r for r in db_session.query(ExternalOrderLink)
+                    .filter(ExternalOrderLink.external_id == "PO-UNATTR-2").all()][0]
+    reason = (second_state.triage_state or {})["fulfillment"]["last_error"]
+    assert "판매자 확인이 필요합니다" in reason, reason

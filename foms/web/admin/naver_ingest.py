@@ -600,6 +600,9 @@ def naver_ingest_triage():
             if fallback_link is not None:
                 context["selected_group"] = _group_of_link(db, fallback_link)
         selected_group = context["selected_group"]
+        # 클레임 판정은 큐 모집단(확인 대기)만 봐서는 부족하다 — 확인 완료돼 큐에서 빠진
+        # 형제가 취소 중이면 그 집도 손대지 않는 집이다. 선택된 집만 형제 전부를 읽는다.
+        selected_household_claimed = _household_has_claim(db, selected)
 
         history = _history_view(db) if active_tab == "all" else {}
         # 수집 상태(워터마크·인증 만료일)는 이력 탭에 함께 싣는다. 게이트가 켜지면 옛
@@ -613,6 +616,7 @@ def naver_ingest_triage():
             "admin/naver_workbench.html",
             active_tab=active_tab,
             can_view_history=_can_view_history(),
+            selected_household_claimed=selected_household_claimed,
             member_rows=_member_rows(db, selected_group),
             work_groups=work_groups,
             claim_groups=claim_groups,
@@ -701,7 +705,7 @@ def _failure_rows(db) -> list[dict[str, Any]]:
         # 접는 규칙은 **재시도·확인함이 처리하는 단위와 같아야 한다**(둘 다 원본 3-튜플).
         # 컬럼(group_key)으로 접으면 백필 전 분할배송에서 두 집이 한 줄로 붙어, 건수가
         # 낮게 뜨고 한 번 눌러 한 집만 처리된다.
-        key = str(household_key(link))
+        key = f"{(link.external_order_no or '').strip()}|{household_key(link)}"
         if key in seen:
             continue
         seen.add(key)
@@ -801,6 +805,39 @@ def _place_groups(db) -> tuple[list[dict[str, Any]], bool]:
                if not group["claim_blocking"] and group["key"] not in blocked]
     truncated = len(visible) > PAGE_SIZE or len(links) == QUEUE_LINK_FETCH_LIMIT
     return visible[:PAGE_SIZE], truncated
+
+
+def _household_has_claim(db, link: Optional[ExternalOrderLink]) -> bool:
+    """선택한 집(형제 전부)에 취소·반품이 걸려 있는가.
+
+    큐 묶음(:func:`_group_queue`)의 ``claim_blocking`` 은 **확인 대기 링크만** 보므로,
+    확인 완료돼 큐에서 빠진 형제의 취소를 못 본다. 발송처리는 되돌릴 수 없어 그 구멍이
+    그대로 사고가 된다 — 선택된 집 하나만 형제 전부를 읽어 판정한다(조회 1회).
+
+    Args:
+        db: 요청 스코프 DB 세션.
+        link: 선택된 링크(없으면 False).
+
+    Returns:
+        형제 중 하나라도 취소·반품이면 True.
+    """
+    if link is None:
+        return False
+    order_no = (link.external_order_no or "").strip()
+    if not order_no:
+        return bool(summarize_snapshot(link.raw_snapshot)["claim_blocking"])
+
+    from foms.services.integrations.naver_commerce.fulfillment import household_key
+
+    base_key = household_key(link)
+    rows = (
+        db.query(ExternalOrderLink)
+        .filter(ExternalOrderLink.channel == "NAVER",
+                ExternalOrderLink.external_order_no == order_no)
+        .all()
+    )
+    return any(summarize_snapshot(row.raw_snapshot)["claim_blocking"]
+               for row in rows if household_key(row) == base_key)
 
 
 def _claim_blocked_group_keys(db, links: list[ExternalOrderLink]) -> set:

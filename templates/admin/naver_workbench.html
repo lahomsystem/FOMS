@@ -179,10 +179,12 @@
                       한 상품주문만 보면 형제가 발주확인 전인 집에서 버튼이 열린다.
                       취소·반품 집에는 아예 내지 않는다(손대지 않는 집이다).
                     #}
-                    {# 클레임 판정은 **집 단위**다 — 형제가 발주확인 뒤 취소된 집에서
-                       대표 링크만 보면 버튼이 열리고, 취소된 상품주문까지 발송처리가 나간다. #}
-                    {% set household_claimed = selected_group.claim_blocking if selected_group
-                                               else selected.claim.blocking %}
+                    {# 클레임 판정은 **집 단위**이고, 확인 완료돼 큐에서 빠진 형제까지 본다
+                       (selected_household_claimed). 대표 링크만 보면 버튼이 열리고
+                       취소된 상품주문까지 발송처리가 나간다 — 되돌릴 수 없다. #}
+                    {% set household_claimed = selected_household_claimed
+                                               or selected.claim.blocking
+                                               or (selected_group and selected_group.claim_blocking) %}
                     {% if not household_claimed %}
                     {% set place_pending = selected_group.place_pending if selected_group
                                            else (not selected.place.confirmed) %}
@@ -305,8 +307,9 @@
             {% endif %}
 
             {# 결정 6 불가역 4종 세트 — 발송처리 쪽. 발주확인이 끝난 집에서만 렌더한다. #}
-            {% set household_claimed = selected_group.claim_blocking if selected_group
-                                       else selected.claim.blocking %}
+            {% set household_claimed = selected_household_claimed
+                                       or selected.claim.blocking
+                                       or (selected_group and selected_group.claim_blocking) %}
             {% if not household_claimed and not selected.fulfillment.dispatched_at %}
             {% set place_pending = selected_group.place_pending if selected_group
                                    else (not selected.place.confirmed) %}
