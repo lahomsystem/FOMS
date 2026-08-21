@@ -67,7 +67,7 @@ def _assert_shared_form_script_contract(body: str) -> None:
     )
     assert "html2canvas.min.js" not in body
     assert "js/orders/erp-channel-push-confirm.js?v=20260821a" in body
-    assert "js/orders/erp-order-shared.js?v=20260821b" in body
+    assert "js/orders/erp-order-shared.js?v=20260821c" in body
     assert "js/cs/as-attachment-order.js?v=20260819a" in body
     assert "js/orders/erp-alimtalk-send.js?v=20260821a" in body
     assert "js/orders/erp-share.js?v=20260821b" in body
@@ -595,9 +595,10 @@ def test_shared_erp_order_js_does_not_auto_save_before_user_save() -> None:
     push_start = text.index("document.getElementById('erp-channeltalk-push-btn')")
     push_end = text.index("initErpMainDatePickers();", push_start)
     push_block = text[push_start:push_end]
-    # 미저장 변경(dirty)일 때만 명시 confirm 후 저장 — 자동저장은 아니다.
+    # PUSH는 사용자가 명시적으로 누른 전송 액션 — 미저장/draft면 되묻지 않고 먼저 저장(승격)한다.
     # 게이트 상세 계약: test_shared_erp_order_js_gates_channel_push_on_unsaved_changes.
-    assert "window.fomsErpAutosave && window.fomsErpAutosave.isDirty()" in push_block
+    assert "_autosave.isDirty()" in push_block
+    assert "erpIsDraftBackedOrder()" in push_block
     assert "erpCanUsePersistedOrderAction('푸쉬는')" in push_block
     assert "erpSliceConversionTextForChannelPush(" in push_block
     assert "erpHasPriorChannelPush" in push_block
@@ -1574,11 +1575,13 @@ def test_edit_order_page_renders_thin_erp_order_partial_contract(erp_editor_clie
 
 
 def test_shared_erp_order_js_gates_channel_push_on_unsaved_changes() -> None:
-    """미저장 변경 상태로 채널톡 푸시 시 저장 확인 게이트를 먼저 통과해야 한다.
+    """미저장/draft 상태로 채널톡 푸시 시 먼저 저장(승격)을 통과해야 한다.
 
     사고 재현(주문 4414): 푸시 본문이 미저장 라이브 DOM에서 조립되어 채널톡엔
-    나갔지만 DB엔 저장되지 않았다. isDirty()면 confirm 후 erpSaveStructured를
-    먼저 호출하고, 변환 텍스트 조립(erpGenerateConversionText)보다 앞서야 한다.
+    나갔지만 DB엔 저장되지 않았다. isDirty()거나 아직 승격 안 된 draft 주문이면
+    erpSaveStructured를 먼저 호출하고, 변환 텍스트 조립(erpGenerateConversionText)
+    보다 앞서야 한다. 저장 여부를 사용자에게 되묻는 confirm은 두지 않는다
+    (저장 후 다시 들어와야 푸시되던 동선 제거).
     """
     root = Path(__file__).resolve().parents[2]
     text = (root / "static/js/orders/erp-order-shared.js").read_text(encoding="utf-8")
@@ -1595,9 +1598,12 @@ def test_shared_erp_order_js_gates_channel_push_on_unsaved_changes() -> None:
     gen_text_idx = push_block.index("erpGenerateConversionText()")
     assert gate_idx < gen_text_idx
 
-    # 재귀(resend note) 호출은 이미 게이트를 통과했으므로 재질문하지 않는다.
-    assert "if (!resendRetryState && window.fomsErpAutosave" in push_block
+    # 재귀(resend note) 호출은 이미 저장을 마쳤으므로 다시 저장하지 않는다.
+    assert "if (!resendRetryState) {" in push_block
     assert "저장되지 않은 변경이 있습니다" in push_block
+    # 저장 여부 confirm 금지 — draft/미저장이면 자동 저장 후 그대로 푸시한다.
+    assert "저장한 뒤 푸시할까요" not in push_block
+    assert "erpIsDraftBackedOrder()" in push_block
 
 
 def test_shared_erp_order_js_regional_type_gate_alerts_without_scroll_jump() -> None:
