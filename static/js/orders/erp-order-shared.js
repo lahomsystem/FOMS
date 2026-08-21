@@ -2075,6 +2075,7 @@ function erpCollectStructured() {
         'channeltalk_push_drawing',
         'channeltalk_push_estimate',
         'channeltalk_push_as',
+        'channeltalk_push_measure_room',
     ];
 
     // DATA-01: provenance(schema_version/confidence)는 서버 소유다. 폼은 전송하지 않는다
@@ -5142,6 +5143,9 @@ function fomsMountErpOrderSurface() {
     document.getElementById('erp-channeltalk-push-as-btn')?.addEventListener('click', function() {
         return erpRunChannelPush(this, 'as');
     });
+    document.getElementById('erp-channeltalk-push-measure-btn')?.addEventListener('click', function() {
+        return erpRunChannelPush(this, 'measure_room');
+    });
 
     // 모바일 하단 액션바는 폭이 좁아 PUSH 버튼 3개를 나란히 두면 정렬이 무너진다.
     // 대신 PUSH 버튼 하나로 종류 선택 시트를 띄우고, 고른 종류로 공용 핸들러를 실행한다.
@@ -5209,8 +5213,10 @@ function fomsMountErpOrderSurface() {
             }
         }
 
-        const activeClass = btn.classList.contains('btn-warning') ? 'btn-warning'
+        const activeClass = btn.classList.contains('erp-push-btn--drawing') ? 'erp-push-btn--drawing'
+            : btn.classList.contains('btn-warning') ? 'btn-warning'
             : btn.classList.contains('btn-primary') ? 'btn-primary'
+            : btn.classList.contains('erp-push-btn--measure-room') ? 'erp-push-btn--measure-room'
             : btn.classList.contains('btn-info') ? 'btn-info'
             : btn.classList.contains('foms-btn--warning') ? 'foms-btn--warning'
             : btn.classList.contains('foms-btn--primary') ? 'foms-btn--primary'

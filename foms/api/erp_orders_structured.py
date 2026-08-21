@@ -239,6 +239,7 @@ _OPERATIONAL_TOP_LEVEL_KEYS = (
     'channeltalk_push_drawing',
     'channeltalk_push_estimate',
     'channeltalk_push_as',
+    'channeltalk_push_measure_room',
 )
 
 

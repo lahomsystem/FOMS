@@ -14,6 +14,10 @@
       <span>실측 대시보드</span>
     </h1>
     <div class="erp-pro-header__actions">
+      <a class="erp-pro-btn erp-pro-btn--primary" href="{{ url_for('order_pages.add_order', open='erp-order') }}">
+        <i class="fas fa-plus"></i>
+        <span>주문 생성</span>
+      </a>
       <button id="btn-export-image" type="button" class="erp-pro-btn erp-pro-btn--primary me-2 erp-measurement-header__export">
         <i class="fas fa-file-image"></i>
         <span class="d-none d-md-inline">이미지 저장</span>

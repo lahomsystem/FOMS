@@ -1,0 +1,37 @@
+<!-- 알림톡 종류 선택 (모바일 액션바 전용) — PUSH 선택 시트와 같은 마크업/CSS를 쓴다.
+     선택지 버튼은 PC 드롭다운과 같은 클래스를 그대로 달아 기존 위임 핸들러
+     (erp-alimtalk-send.js / erp-share.js)가 변경 없이 처리하게 한다. -->
+<div class="modal fade erp-channel-push-picker-modal erp-alimtalk-picker-modal" id="erpAlimtalkPickerModal"
+    tabindex="-1" aria-labelledby="erp-alimtalk-picker-title" aria-hidden="true">
+    <div class="modal-dialog modal-dialog-centered">
+        <div class="modal-content">
+            <div class="modal-header">
+                <h5 class="modal-title" id="erp-alimtalk-picker-title">어떤 알림톡을 보낼까요?</h5>
+                <button type="button" class="btn-close" data-bs-dismiss="modal" aria-label="닫기"></button>
+            </div>
+            <div class="modal-body">
+                <div class="erp-channel-push-picker-options" role="group" aria-label="알림톡 종류">
+                    <button type="button" class="foms-btn foms-btn--primary erp-alimtalk-send-btn"
+                        id="erp-alimtalk-send-btn-sheet">
+                        <i class="fas fa-comment-dots"></i> 예약 내역
+                        <span class="erp-channel-push-picker-hint">실측 예약 안내 발송</span>
+                    </button>
+                    <button type="button" class="foms-btn foms-btn--secondary erp-share-alimtalk-quick-btn"
+                        id="erp-share-alimtalk-quick-btn-sheet" data-share-kind="drawing">
+                        <i class="fas fa-drafting-compass"></i> 도면 열람 링크
+                        <span class="erp-channel-push-picker-hint">로그인 없이 도면 보기 링크</span>
+                    </button>
+                    <button type="button" class="foms-btn foms-btn--secondary erp-share-alimtalk-quick-btn"
+                        id="erp-share-alimtalk-quick-est-btn-sheet" data-share-kind="estimate">
+                        <i class="fas fa-file-signature"></i> 계약서(견적서) 열람 링크
+                        <span class="erp-channel-push-picker-hint">로그인 없이 계약서 보기 링크</span>
+                    </button>
+                </div>
+            </div>
+            <div class="modal-footer">
+                <button type="button" class="btn btn-secondary" data-bs-dismiss="modal"
+                    data-erp-alimtalk-picker-cancel>취소</button>
+            </div>
+        </div>
+    </div>
+</div>

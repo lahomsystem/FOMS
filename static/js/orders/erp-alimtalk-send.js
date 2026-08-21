@@ -237,7 +237,83 @@
         if (orderId) void _send(orderId);
     });
 
+    // --- 알림톡 종류 선택 시트 (모바일 하단 액션바 전용) ----------------------------
+    // dropdown 은 좁은 폭에서 메뉴가 액션바 위로 겹쳐 터치 대상이 무너진다.
+    // PUSH 와 같은 선택 시트(erp-channel-push.css)로 통일한다.
+    // 시트 안의 선택지는 PC 드롭다운과 같은 클래스를 그대로 달고 있으므로,
+    // 시트가 완전히 닫힌 뒤 같은 버튼을 replay 클릭해 기존 위임 핸들러가 처리하게 한다
+    // (모달 2개가 겹쳐 열려 backdrop 이 남는 것을 막는다).
+    let _pendingPickBtn = null;
+
+    /** 선택 시트 버튼/닫힘 이벤트 singleton bind. */
+    function erpMountAlimtalkPickerModal() {
+        if (window.__ERP_ALIMTALK_PICKER_BOUND) return;
+        const modalEl = document.getElementById('erpAlimtalkPickerModal');
+        if (!modalEl) return;
+        window.__ERP_ALIMTALK_PICKER_BOUND = true;
+
+        modalEl.querySelectorAll('.erp-channel-push-picker-options .foms-btn').forEach(function (btn) {
+            btn.addEventListener('click', function (ev) {
+                if (btn.dataset.erpAlimtalkReplay === '1') {
+                    delete btn.dataset.erpAlimtalkReplay;
+                    return;
+                }
+                ev.preventDefault();
+                ev.stopPropagation();
+                const bsModal = window.bootstrap && window.bootstrap.Modal
+                    ? window.bootstrap.Modal.getInstance(modalEl)
+                    : null;
+                if (!bsModal) {
+                    _replayPick(btn);
+                    return;
+                }
+                _pendingPickBtn = btn;
+                bsModal.hide();
+            });
+        });
+
+        modalEl.addEventListener('hidden.bs.modal', function () {
+            const btn = _pendingPickBtn;
+            _pendingPickBtn = null;
+            if (btn) _replayPick(btn);
+        });
+    }
+
+    /** 선택지 버튼을 다시 클릭해 기존 위임 핸들러로 흘려보낸다. */
+    function _replayPick(btn) {
+        btn.dataset.erpAlimtalkReplay = '1';
+        btn.click();
+    }
+
+    /** 알림톡 종류 선택 시트 열기. */
+    function erpOpenAlimtalkPicker() {
+        erpMountAlimtalkPickerModal();
+        const modalEl = document.getElementById('erpAlimtalkPickerModal');
+        if (!modalEl) {
+            erpOpenAlimtalkModal();
+            return;
+        }
+        const bsModal = window.bootstrap && window.bootstrap.Modal
+            ? window.bootstrap.Modal.getOrCreateInstance(modalEl)
+            : null;
+        if (!bsModal) {
+            erpOpenAlimtalkModal();
+            return;
+        }
+        bsModal.show();
+    }
+
+    document.addEventListener('click', function (ev) {
+        const target = ev.target;
+        if (!target || typeof target.closest !== 'function') return;
+        if (!target.closest('#erp-alimtalk-picker-btn')) return;
+        ev.preventDefault();
+        erpOpenAlimtalkPicker();
+    });
+
     window.erpOpenAlimtalkModal = erpOpenAlimtalkModal;
+    window.erpOpenAlimtalkPicker = erpOpenAlimtalkPicker;
+    window.erpMountAlimtalkPickerModal = erpMountAlimtalkPickerModal;
     // 공유 링크(erp-share.js)도 같은 dirty 가드를 쓴다 — 로드 순서상 이 파일이 먼저다.
     window.fomsErpEnsureSavedForSend = erpAlimtalkEnsureSaved;
     window.erpAlimtalkReasonLabel = erpAlimtalkReasonLabel;

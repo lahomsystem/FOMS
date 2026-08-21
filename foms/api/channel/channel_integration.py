@@ -81,6 +81,13 @@ _PUSH_KIND_CONFIG = {
         'history_key': 'channeltalk_push_as',
         'group_env': 'CHANNEL_GROUP_AS',
     },
+    # 실측 PUSH: 영발(measurement)과 같은 본문·같은 실측 첨부를 실측방으로 한 번 더 보낸다.
+    # 이력 키는 분리한다 — 영발을 보냈다고 실측 PUSH 가 재전송으로 취급되면 안 된다.
+    'measure_room': {
+        'category': 'measurement',
+        'history_key': 'channeltalk_push_measure_room',
+        'group_env': 'CHANNEL_GROUP_MEASURE_ROOM',
+    },
 }
 
 channel_integration_bp = Blueprint('channel_integration', __name__, url_prefix='/api/channel')
@@ -351,14 +358,15 @@ def api_channel_push_manual():
     ERP Beta 수동 채널톡 푸쉬.
 
     push_kind에 따라 변환 텍스트 + 해당 분류 첨부파일만 채널톡 그룹으로 전송합니다.
-        - measurement(영발 PUSH): 실측 첨부 → 실측 그룹
+        - measurement(영발 PUSH): 실측 첨부 → 영발 그룹(209990)
+        - measure_room(실측 PUSH): 실측 첨부 → 실측 그룹(229923)
         - drawing(발주 PUSH): 도면 첨부 → 도면 그룹(229625)
         - as(AS PUSH): AS 첨부 → AS 그룹(230351)
 
     Request JSON:
         order_id (int): 주문 ID
         text (str): 전송할 텍스트 (변환된 내용)
-        push_kind (str): 'measurement'(기본) / 'drawing' / 'as'
+        push_kind (str): 'measurement'(기본) / 'measure_room' / 'drawing' / 'as'
         change_note (str, optional): 재전송 시 변경 내용 (1~500자, 필수)
 
     Returns:

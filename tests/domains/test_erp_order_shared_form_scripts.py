@@ -66,16 +66,16 @@ def _assert_shared_form_script_contract(body: str) -> None:
         < estimate_columns_idx
     )
     assert "html2canvas.min.js" not in body
-    assert "js/orders/erp-channel-push-confirm.js?v=20260810a" in body
-    assert "js/orders/erp-order-shared.js?v=20260819a" in body
+    assert "js/orders/erp-channel-push-confirm.js?v=20260821a" in body
+    assert "js/orders/erp-order-shared.js?v=20260821b" in body
     assert "js/cs/as-attachment-order.js?v=20260819a" in body
-    assert "js/orders/erp-alimtalk-send.js?v=20260819c" in body
+    assert "js/orders/erp-alimtalk-send.js?v=20260821a" in body
     assert "js/orders/erp-share.js?v=20260819c" in body
     assert "js/orders/erp-stage-override.js?v=20260814d" in body
     assert "erp_stage_override_modal.html" not in body  # include renders modal markup, not path
     assert 'id="erpStageOverrideModal"' in body
     assert "(8자 이상)" not in body
-    assert "css/orders/erp-channel-push.css?v=20260811b" in body
+    assert "css/orders/erp-channel-push.css?v=20260821c" in body
     assert "css/orders/erp-items-master-detail.css?v=20260701f" in body
     assert "js/orders/erp-items-master-detail.js?v=20260630c" in body
     assert "erp-items-master-detail-shell" in body
@@ -621,7 +621,7 @@ def test_channel_push_confirm_js_resend_recovery_contract() -> None:
 
 
 def test_channel_push_kind_picker_contract() -> None:
-    """모바일 PUSH 선택 시트: 3종 제공 + 재전송 modal 중첩 회피(hidden 후 resolve)."""
+    """모바일 PUSH 선택 시트: 4종 제공 + 재전송 modal 중첩 회피(hidden 후 resolve)."""
     root = Path(__file__).resolve().parents[2]
     js = (root / "static/js/orders/erp-channel-push-confirm.js").read_text(encoding="utf-8")
     picker = (
@@ -638,8 +638,16 @@ def test_channel_push_kind_picker_contract() -> None:
     picker_mount = js[js.index("function erpMountChannelPushPickerModal()"):]
     assert "hidden.bs.modal" in picker_mount
 
-    for kind in ("measurement", "drawing", "as"):
+    for kind in ("measurement", "measure_room", "drawing", "as"):
         assert f'data-erp-push-kind="{kind}"' in picker
+    # 시트 색 = PC 버튼 색(같은 행위를 두 표면에서 다른 색으로 보이지 않게).
+    for cls in (
+        "erp-push-btn--measurement",
+        "erp-push-btn--measure-room",
+        "erp-push-btn--drawing",
+        "erp-push-btn--as",
+    ):
+        assert cls in picker
 
     assert "window.erpPromptChannelPushKind = erpPromptChannelPushKind;" in js
     assert "erpPromptChannelPushKind()" in shared
@@ -666,6 +674,53 @@ def test_channel_push_kind_picker_contract() -> None:
     assert "erp-mobile-push-btn--pastel" in trigger_line
     assert "foms-btn--secondary" not in trigger_line
     assert ".erp-mobile-push-btn--pastel {" in css
+
+
+def test_mobile_action_bar_buttons_do_not_wrap_labels() -> None:
+    """모바일 액션바 4버튼(저장·PUSH·알림톡·공유): 390px 에서 라벨이 세로로 접히면 안 된다."""
+    root = Path(__file__).resolve().parents[2]
+    css = (root / "static/css/components/foms-form-field.css").read_text(encoding="utf-8")
+    block_start = css.index(".erp-mobile-sticky-action-bar .foms-btn {")
+    block = css[block_start:css.index("}", block_start)]
+    assert "flex: 1 1 0" in block
+    # flex 아이템 기본 min-width:auto 는 내용 폭 아래로 못 줄어 라벨이 접힌다.
+    assert "min-width: 0" in block
+    assert "white-space: nowrap" in block
+
+
+def test_measure_room_push_is_wired_on_pc_and_sheet_with_own_history_key() -> None:
+    """실측 PUSH: PC 버튼·모바일 시트·이력 키가 영발과 분리돼 배선된다."""
+    root = Path(__file__).resolve().parents[2]
+    pc = (root / "templates/orders/partials/erp_order_tab.html").read_text(encoding="utf-8")
+    shared = (root / "static/js/orders/erp-order-shared.js").read_text(encoding="utf-8")
+    confirm = (root / "static/js/orders/erp-channel-push-confirm.js").read_text(encoding="utf-8")
+
+    # PC: 영발 PUSH 옆 버튼 — 테두리만 있는 outline 은 옆 solid 버튼들 사이에서 흐려 보였다.
+    assert 'id="erp-channeltalk-push-measure-btn"' in pc
+    assert "실측 PUSH" in pc
+    assert "erp-push-btn--measure-room" in pc
+    # 알림톡=카카오 노랑, 발주 PUSH=진한 주황(노랑끼리 붙어 보이지 않게 분리).
+    assert "erp-alimtalk-btn--kakao" in pc
+    assert "erp-push-btn--drawing" in pc
+    assert 'class="btn btn-sm erp-push-btn--drawing" type="button" id="erp-channeltalk-push-drawing-btn"' in pc
+    assert "btn-outline-primary dropdown-toggle" not in pc
+    css = (root / "static/css/orders/erp-channel-push.css").read_text(encoding="utf-8")
+    assert ".erp-push-btn--measure-room" in css
+    # PC 버튼과 모바일 시트 선택지는 같은 색 클래스를 쓴다.
+    picker = (
+        root / "templates/orders/partials/erp_channel_push_picker_modal.html"
+    ).read_text(encoding="utf-8")
+    assert "erp-push-btn--measure-room" in picker
+    assert pc.index("erp-channeltalk-push-btn") < pc.index("erp-channeltalk-push-measure-btn")
+
+    # 클릭 → 공용 핸들러에 measure_room 종류로 위임
+    assert "erpRunChannelPush(this, 'measure_room')" in shared
+    # 이력 키 분리 — 영발을 보냈다고 실측 PUSH 가 재전송으로 취급되면 안 된다.
+    assert "measure_room: 'channeltalk_push_measure_room'" in confirm
+    assert "measure_room: '실측 PUSH'" in confirm
+    assert "'erp-channeltalk-push-measure-btn'" in confirm
+    # 폼 PUT 이 서버 소유 이력을 지우지 않도록 보존 키 목록에도 등재
+    assert "'channeltalk_push_measure_room'" in shared
 
 
 def test_as_push_text_is_server_built_not_client_built() -> None:
@@ -1265,7 +1320,7 @@ def test_mobile_attachment_preview_uses_viewport_sized_modal() -> None:
     ) in css_text
     assert ".erp-order-mobile-form .erp-attachment-preview-actions .btn" not in css_text
     assert "max-width: min(92vw, 36rem)" not in css_text
-    assert "../components/foms-form-field.css?v=20260723i" in mobile_bundle
+    assert "../components/foms-form-field.css?v=20260821a" in mobile_bundle
     assert "foms-mobile-surfaces.css') }}?v=20260819a" in layout_head
 
 

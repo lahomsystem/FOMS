@@ -48,6 +48,7 @@ _STRUCTURED_DROP_KEYS = frozenset(
         "channeltalk_push",
         "channeltalk_push_drawing",
         "channeltalk_push_estimate",
+        "channeltalk_push_measure_room",
     }
 )
 
