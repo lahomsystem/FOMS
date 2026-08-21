@@ -6,8 +6,9 @@
   거절은 상태 보존 없이 row 삭제(재신청 허용)이므로 REJECTED 값은 없다.
 * 재설정 요청은 계정 열거 방지를 위해 username 실존 여부와 무관하게 접수하고
   (미매칭은 ``user_id`` NULL), 요청자에게 항상 동일한 성공 메시지를 보여준다.
-* 관리자 알림은 활성 ADMIN 각각에게 USER 타깃 Notification 을 만들고
-  ``fan_out_new_notification`` 훅을 경유한다(알림 SSOT 규약). 커밋은 호출자 몫.
+* 관리자 알림은 사건 1건 = ROLE 타깃 Notification row 1건이며(NOTIF-ROLE-01),
+  수신자별 state 는 ``fan_out_new_notification`` 훅이 만든다(알림 SSOT 규약).
+  커밋은 호출자 몫.
 """
 from __future__ import annotations
 
@@ -39,35 +40,39 @@ def notify_admins_account_event(
 ) -> int:
     """활성 ADMIN 전원에게 계정 이벤트 알림을 생성한다(커밋하지 않음).
 
-    ADMIN 마다 USER 타깃 Notification row 1개를 만들고 각 row 를 fan_out 한다.
+    NOTIF-ROLE-01: 사건 1건 = ``target_type='ROLE'`` + ``target_role='ADMIN'`` 인 공유
+    Notification row 1건이고, 수신자별 상태는 ``fan_out_new_notification`` 이 만드는
+    ``notification_user_states`` 가 담당한다(관리자 수만큼 알림 row 를 복제하지 않는다).
     알림 생성과 state 생성이 호출자 트랜잭션에 함께 참여해 고아 알림이 남지 않는다.
+    활성 ADMIN 이 0명이면 아무도 받지 못할 알림 row 를 만들지 않고 그대로 0 을 반환한다.
 
     :param db: SQLAlchemy 세션.
     :param notification_type: ``NOTIF_ACCOUNT_*`` 상수.
     :param title: 알림 제목(200자 이내).
     :param message: 알림 본문.
-    :return: 알림을 생성한 ADMIN 수.
+    :return: 생성된 수신자 state 수(활성 ADMIN 이 없으면 0).
     """
     from models import Notification, User
     from foms.services.notifications.recipients import fan_out_new_notification
 
-    admins = (
-        db.query(User)
+    has_active_admin = (
+        db.query(User.id)
         .filter(User.role == 'ADMIN', User.is_active.is_(True))
-        .all()
+        .first()
     )
-    for admin in admins:
-        notif = Notification(
-            notification_type=notification_type,
-            target_type='USER',
-            target_user_id=admin.id,
-            title=title,
-            message=message,
-        )
-        db.add(notif)
-        db.flush()
-        fan_out_new_notification(db, notif, actor_user_id=None)
-    return len(admins)
+    if has_active_admin is None:
+        return 0
+
+    notif = Notification(
+        notification_type=notification_type,
+        target_type='ROLE',
+        target_role='ADMIN',
+        title=title,
+        message=message,
+    )
+    db.add(notif)
+    db.flush()
+    return len(fan_out_new_notification(db, notif, actor_user_id=None))
 
 
 def submit_password_reset_request(

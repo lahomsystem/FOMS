@@ -7,12 +7,16 @@ resolve 로직은 `foms.api.notifications._build_user_notification_filter`(사�
 알림을 볼 수 있는지 판단하는 정방향 필터)의 **역방향**과 일치한다:
 - target_user_id            -> 'target_user'
 - target_type == 'ALL'      -> 활성 사용자 전체 'target_all'
+- target_role (역할 일치)     -> 해당 역할 활성 사용자 'target_role'
 - target_team (팀 일치)      -> 팀 활성 사용자 'target_team'
 - target_manager_name 일치   -> 활성 사용자 'target_manager_name'
 
 정방향 필터가 ADMIN 을 "전체 열람"으로 처리하는 것(read-path 관심사)은 여기서 상태를
 물질화하지 않는다. 관리자에게 모든 알림 state 를 만드는 팬아웃은 의도가 아니며,
-관리자는 위 4가지 경로(직접 지정/ALL/팀/이름)로만 state 를 가진다.
+관리자는 위 5가지 경로(직접 지정/ALL/역할/팀/이름)로만 state 를 가진다.
+`target_role` 경로(NOTIF-ROLE-01)는 "관리자 전원에게" 같은 사건을 수신자 수만큼의
+Notification row 로 복제하지 않기 위한 것으로, 알림을 만든 쪽이 역할을 **명시**했을
+때만 동작한다(암묵적인 ADMIN 팬아웃이 아니다).
 """
 from typing import Dict, Iterable, List, Optional, Tuple
 
@@ -29,6 +33,7 @@ from models import (
 # 우선순위: 더 구체적인 경로가 낮은 우선순위를 덮어쓴다.
 _SOURCE_ORDER = (
     NotificationRecipientSource.TARGET_ALL,
+    NotificationRecipientSource.TARGET_ROLE,
     NotificationRecipientSource.TARGET_TEAM,
     NotificationRecipientSource.TARGET_MANAGER_NAME,
     NotificationRecipientSource.TARGET_USER,
@@ -39,10 +44,12 @@ def resolve_recipients_for_notification(db, notification) -> List[Tuple[int, str
     """Notification row -> dedupe 된 (user_id, recipient_source) 목록.
 
     inactive 사용자는 제외한다. 한 사용자가 여러 경로에 해당하면 가장 구체적인
-    경로(target_user > target_manager_name > target_team > target_all)를 채택한다.
+    경로(target_user > target_manager_name > target_team > target_role > target_all)를
+    채택한다. 각 경로는 넓은 것부터 좁은 것 순으로 평가되어 뒤의 경로가 앞의 것을 덮어쓴다.
 
     :param db: SQLAlchemy 세션(scoped_session 또는 Session)
     :param notification: `models.Notification` 인스턴스
+        (`target_role` 이 채워져 있으면 그 역할의 활성 사용자 전원이 수신자가 된다)
     :return: user_id 오름차순 정렬된 (user_id, recipient_source) 튜플 리스트
     """
     source_by_user: Dict[int, str] = {}
@@ -51,6 +58,14 @@ def resolve_recipients_for_notification(db, notification) -> List[Tuple[int, str
     if ttype == 'ALL':
         for (uid,) in db.query(User.id).filter(User.is_active == True).yield_per(500):  # noqa: E712
             source_by_user[int(uid)] = NotificationRecipientSource.TARGET_ALL
+
+    role = (notification.target_role or '').strip().upper()
+    if role:
+        rows = db.query(User.id).filter(
+            func.upper(User.role) == role, User.is_active == True  # noqa: E712
+        ).yield_per(500)
+        for (uid,) in rows:
+            source_by_user[int(uid)] = NotificationRecipientSource.TARGET_ROLE
 
     team = (notification.target_team or '').strip().upper()
     if team:

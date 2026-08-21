@@ -1313,6 +1313,7 @@ class Notification(Base):
     target_type에 따른 대상 결정:
     - ORDER: 주문 관련 (기존 방식 — target_team/target_manager_name)
     - ALL: 전체 사용자 (사용자별 레코드 복제)
+    - ROLE: 특정 역할 전원 (target_role, 예: 'ADMIN')
     - TEAM: 특정 팀 대상
     - USER: 특정 사용자 직접 지정 (target_user_id)
     """
@@ -1335,6 +1336,9 @@ class Notification(Base):
     target_manager_name = Column(String(100), nullable=True, index=True)
     # 특정 사용자 직접 지정
     target_user_id = Column(Integer, ForeignKey('users.id'), nullable=True, index=True)
+    # 역할 대상(NOTIF-ROLE-01): target_type='ROLE' 일 때 이 역할의 활성 사용자 전원에게
+    # state 를 만든다. 사건 1건 = Notification 1건 + 수신자별 state N개.
+    target_role = Column(String(20), nullable=True, index=True)
     
     # 긴급 여부
     is_urgent = Column(Boolean, default=False, nullable=False, server_default='false', index=True)
@@ -1423,6 +1427,7 @@ class NotificationRecipientSource:
     """
 
     TARGET_USER = 'target_user'
+    TARGET_ROLE = 'target_role'
     TARGET_TEAM = 'target_team'
     TARGET_MANAGER_NAME = 'target_manager_name'
     TARGET_ALL = 'target_all'

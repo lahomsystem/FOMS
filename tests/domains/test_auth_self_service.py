@@ -91,7 +91,7 @@ def _signup(client, username, *, name="신청자", team="", password=_STRONG_PW)
 # 셀프 가입 신청
 # --------------------------------------------------------------------------
 def test_signup_creates_pending_viewer_and_notifies_admins(client, app):
-    admin_id = _make_user("adm", role="ADMIN")
+    _make_user("adm", role="ADMIN")
     resp = _signup(client, "newbie", team="CS")
     assert resp.status_code == 302
 
@@ -106,9 +106,11 @@ def test_signup_creates_pending_viewer_and_notifies_admins(client, app):
 
     notifs = db_session.query(Notification).filter_by(
         notification_type=NOTIF_ACCOUNT_SIGNUP).all()
+    # NOTIF-ROLE-01: 사건 1건 = ROLE 타깃 알림 1건(수신자는 state 가 담당)
     assert len(notifs) == 1
-    assert notifs[0].target_user_id == admin_id
-    assert notifs[0].target_type == "USER"
+    assert notifs[0].target_type == "ROLE"
+    assert notifs[0].target_role == "ADMIN"
+    assert notifs[0].target_user_id is None
 
 
 def test_signup_rejects_weak_password_and_duplicate(client, app):
@@ -234,7 +236,7 @@ def test_approve_requires_admin_role(client, app):
 # 비밀번호 재설정 요청 큐
 # --------------------------------------------------------------------------
 def test_reset_request_same_response_for_unknown_and_known(client, app):
-    admin_id = _make_user("adm", role="ADMIN")
+    _make_user("adm", role="ADMIN")
     known_id = _make_user("knownuser", role="STAFF")
 
     r1 = client.post("/password-reset/request", data={"username": "knownuser"},
@@ -255,8 +257,11 @@ def test_reset_request_same_response_for_unknown_and_known(client, app):
 
     notifs = db_session.query(Notification).filter_by(
         notification_type=NOTIF_ACCOUNT_RESET_REQUEST).all()
+    # NOTIF-ROLE-01: 요청 2건 = 알림 2건(관리자 수만큼 복제되지 않는다)
     assert len(notifs) == 2
-    assert all(n.target_user_id == admin_id for n in notifs)
+    assert all(n.target_type == "ROLE" for n in notifs)
+    assert all(n.target_role == "ADMIN" for n in notifs)
+    assert all(n.target_user_id is None for n in notifs)
 
 
 def test_reset_request_dedups_pending_for_same_user(client, app):
