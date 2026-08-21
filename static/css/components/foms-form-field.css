@@ -837,6 +837,13 @@ body.erp-mobile-v2-layout .erp-order-mobile-form .erp-mobile-attachment-controls
 
 .erp-mobile-sticky-action-bar .foms-btn {
   flex: 1 1 0;
+  /* 390px 폭 4버튼(저장·PUSH·알림톡·공유)에서 기본 좌우 패딩 16px 을 쓰면 내용 폭이
+     남지 않아 라벨이 세로로 접힌다(알림톡 h=74 vs 나머지 48). 줄바꿈을 막고
+     min-width:0 으로 실제로 줄어들 수 있게 한다. */
+  min-width: 0;
+  white-space: nowrap;
+  padding-left: var(--foms-space-2);
+  padding-right: var(--foms-space-2);
 }
 
 .erp-order-mobile-form #erp-items .form-control.form-control-sm,

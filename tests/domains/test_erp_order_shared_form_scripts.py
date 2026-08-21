@@ -672,6 +672,18 @@ def test_channel_push_kind_picker_contract() -> None:
     assert ".erp-mobile-push-btn--pastel {" in css
 
 
+def test_mobile_action_bar_buttons_do_not_wrap_labels() -> None:
+    """모바일 액션바 4버튼(저장·PUSH·알림톡·공유): 390px 에서 라벨이 세로로 접히면 안 된다."""
+    root = Path(__file__).resolve().parents[2]
+    css = (root / "static/css/components/foms-form-field.css").read_text(encoding="utf-8")
+    block_start = css.index(".erp-mobile-sticky-action-bar .foms-btn {")
+    block = css[block_start:css.index("}", block_start)]
+    assert "flex: 1 1 0" in block
+    # flex 아이템 기본 min-width:auto 는 내용 폭 아래로 못 줄어 라벨이 접힌다.
+    assert "min-width: 0" in block
+    assert "white-space: nowrap" in block
+
+
 def test_measure_room_push_is_wired_on_pc_and_sheet_with_own_history_key() -> None:
     """실측 PUSH: PC 버튼·모바일 시트·이력 키가 영발과 분리돼 배선된다."""
     root = Path(__file__).resolve().parents[2]
@@ -679,9 +691,17 @@ def test_measure_room_push_is_wired_on_pc_and_sheet_with_own_history_key() -> No
     shared = (root / "static/js/orders/erp-order-shared.js").read_text(encoding="utf-8")
     confirm = (root / "static/js/orders/erp-channel-push-confirm.js").read_text(encoding="utf-8")
 
-    # PC: 영발 PUSH 옆 버튼
+    # PC: 영발 PUSH 옆 버튼 — 테두리만 있는 outline 은 옆 solid 버튼들 사이에서 흐려 보였다.
     assert 'id="erp-channeltalk-push-measure-btn"' in pc
     assert "실측 PUSH" in pc
+    assert "erp-push-btn--measure-room" in pc
+    css = (root / "static/css/orders/erp-channel-push.css").read_text(encoding="utf-8")
+    assert ".erp-push-btn--measure-room" in css
+    # PC 버튼과 모바일 시트 선택지는 같은 색 클래스를 쓴다.
+    picker = (
+        root / "templates/orders/partials/erp_channel_push_picker_modal.html"
+    ).read_text(encoding="utf-8")
+    assert "erp-push-btn--measure-room" in picker
     assert pc.index("erp-channeltalk-push-btn") < pc.index("erp-channeltalk-push-measure-btn")
 
     # 클릭 → 공용 핸들러에 measure_room 종류로 위임
@@ -1307,7 +1327,7 @@ def test_mobile_attachment_preview_uses_viewport_sized_modal() -> None:
     ) in css_text
     assert ".erp-order-mobile-form .erp-attachment-preview-actions .btn" not in css_text
     assert "max-width: min(92vw, 36rem)" not in css_text
-    assert "../components/foms-form-field.css?v=20260723i" in mobile_bundle
+    assert "../components/foms-form-field.css?v=20260821a" in mobile_bundle
     assert "foms-mobile-surfaces.css') }}?v=20260819a" in layout_head
 
 

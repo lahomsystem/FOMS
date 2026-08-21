@@ -5251,7 +5251,7 @@ function fomsMountErpOrderSurface() {
 
         const activeClass = btn.classList.contains('btn-warning') ? 'btn-warning'
             : btn.classList.contains('btn-primary') ? 'btn-primary'
-            : btn.classList.contains('btn-outline-info') ? 'btn-outline-info'
+            : btn.classList.contains('erp-push-btn--measure-room') ? 'erp-push-btn--measure-room'
             : btn.classList.contains('btn-info') ? 'btn-info'
             : btn.classList.contains('foms-btn--warning') ? 'foms-btn--warning'
             : btn.classList.contains('foms-btn--primary') ? 'foms-btn--primary'
