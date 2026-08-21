@@ -8,6 +8,9 @@ ADMIN 1인에게 같은 제목의 빈 알림 20건이 쌓였다(원본당 1건�
 1. 에스컬레이션 알림 message 에 원본 제목·담당자·경과·원본 요약이 들어간다.
 2. 같은 원본으로 같은 상급자에게는 스윕/단계를 넘어 1건만 생성된다.
 3. push payload 는 여전히 generic (message 를 읽지 않는다).
+4. 브로드캐스트 유형(NAVER_ORDER_CLAIMED)은 에스컬레이션 대상에서 빠진다 —
+   관리자 전원에게 같은 내용이 개별 알림으로 뿌려져 미ack 이 정상이라, 에스컬레이션이
+   (원본 수 × 관리자 수) 로 증식하기만 했다(스테이징 실측 1073건).
 """
 import datetime
 
@@ -167,3 +170,44 @@ def test_escalation_push_payload_stays_generic(db):
     assert "홍길동" not in blob
     assert "강남구" not in blob
     assert payload["title"] == "에스컬레이션"
+
+
+def test_broadcast_claim_type_is_exempt_from_escalation(db):
+    """네이버 클레임 수집 알림은 미ack 이어도 에스컬레이션을 만들지 않는다."""
+    admin = _mk_user("esc_exempt_admin", "관리자", role="ADMIN")
+    victim = _mk_user("esc_exempt_victim", "김담당", team="CS")
+    notif = _mk_urgent("네이버 반품 요청", "본문", target_user_id=victim.id)
+    notif.notification_type = "NAVER_ORDER_CLAIMED"
+    db_session.flush()
+    _mk_state(notif, victim, created_at=NOW - datetime.timedelta(minutes=6))
+
+    result = escalate_overdue_urgent(db, now=NOW)
+
+    assert result["checked"] == 0
+    assert result["escalated"] == 0
+    assert _escalations(admin.id) == []
+
+
+def test_exempt_list_is_env_overridable(db):
+    """env 로 제외 목록을 비우면 기존처럼 전 유형을 에스컬레이션한다."""
+    import os
+
+    admin = _mk_user("esc_env_admin", "관리자", role="ADMIN")
+    victim = _mk_user("esc_env_victim", "김담당", team="CS")
+    notif = _mk_urgent("네이버 반품 요청", "본문", target_user_id=victim.id)
+    notif.notification_type = "NAVER_ORDER_CLAIMED"
+    db_session.flush()
+    _mk_state(notif, victim, created_at=NOW - datetime.timedelta(minutes=6))
+
+    old = os.environ.get("FOMS_ESCALATION_EXEMPT_TYPES")
+    os.environ["FOMS_ESCALATION_EXEMPT_TYPES"] = ""
+    try:
+        result = escalate_overdue_urgent(db, now=NOW)
+    finally:
+        if old is None:
+            os.environ.pop("FOMS_ESCALATION_EXEMPT_TYPES", None)
+        else:
+            os.environ["FOMS_ESCALATION_EXEMPT_TYPES"] = old
+
+    assert result["escalated"] == 1
+    assert len(_escalations(admin.id)) == 1

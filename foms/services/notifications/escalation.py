@@ -14,6 +14,10 @@
 1인이 받는 에스컬레이션 알림은 원본당 1건이다. 이미 통보한 대상 id 는 이벤트
 ``metadata_json['escalation_target_user_ids']`` 에 남기고, 이후 스윕/단계에서 제외한다.
 
+제외 유형: 담당자 1인이 ack 하는 알림이 아니라 관리자 전원에게 같은 내용이 뿌려지는
+브로드캐스트(예: 네이버 클레임 수집 알림)는 미ack 이 정상이라 에스컬레이션 대상에서 뺀다
+(``FOMS_ESCALATION_EXEMPT_TYPES``). 긴급 뱃지·푸시는 그대로 유지된다.
+
 본문: in-app 알림 message 에는 원본 제목·담당자·경과·원본 본문 요약을 담는다(수신자가
 무슨 일인지 알 수 있어야 한다). push/realtime payload 는 Spec D2 대로 generic 유지 —
 ``_build_payload`` 는 ``notification.message`` 를 읽지 않는다.
@@ -47,6 +51,10 @@ logger = logging.getLogger(__name__)
 _ESCALATION_TITLE = "[에스컬레이션] 확인되지 않은 긴급 알림이 있습니다."
 _SOURCE_MESSAGE_LIMIT = 160
 _TARGETS_META_KEY = "escalation_target_user_ids"
+# 에스컬레이션에서 제외할 알림 유형(기본값). 담당자 1인이 ack 할 수 있는 알림이 아니라
+# 관리자 전원에게 같은 내용이 뿌려지는 브로드캐스트 성격이면, 미ack 상태가 정상이라
+# 에스컬레이션 사슬이 (원본 수 × 관리자 수) 로 증식하기만 한다.
+_DEFAULT_EXEMPT_TYPES = ("NAVER_ORDER_CLAIMED",)
 
 
 def _stage_minutes() -> int:
@@ -59,9 +67,23 @@ def _stage_minutes() -> int:
     return value if value >= 1 else 5
 
 
+def _exempt_types() -> List[str]:
+    """에스컬레이션 대상에서 제외할 notification_type 목록.
+
+    env ``FOMS_ESCALATION_EXEMPT_TYPES`` (쉼표 구분) 로 override. 빈 문자열을 주면
+    제외 없이 전 유형을 에스컬레이션한다.
+
+    :return: 대문자 정규화된 유형 목록
+    """
+    raw = os.environ.get("FOMS_ESCALATION_EXEMPT_TYPES")
+    if raw is None:
+        return [t.upper() for t in _DEFAULT_EXEMPT_TYPES]
+    return [t.strip().upper() for t in raw.split(",") if t.strip()]
+
+
 def _urgent_pending_query(db: Any):
-    """긴급 & 미ack & 미resolved 인 (state, notification) 조인 쿼리."""
-    return (
+    """긴급 & 미ack & 미resolved 인 (state, notification) 조인 쿼리(제외 유형 제거)."""
+    query = (
         db.query(NotificationUserState, Notification)
         .join(Notification, Notification.id == NotificationUserState.notification_id)
         .filter(
@@ -70,6 +92,12 @@ def _urgent_pending_query(db: Any):
             NotificationUserState.resolved_at.is_(None),
         )
     )
+    exempt = _exempt_types()
+    if exempt:
+        query = query.filter(
+            func.upper(func.coalesce(Notification.notification_type, "")).notin_(exempt)
+        )
+    return query
 
 
 def _role_user_ids(db: Any, role: str, team: Optional[str]) -> List[int]:
