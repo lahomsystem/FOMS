@@ -20,21 +20,32 @@ def _read(rel: str) -> str:
     return (ROOT / rel).read_text(encoding="utf-8")
 
 
-def test_pc_tab_has_share_button_next_to_alimtalk() -> None:
-    """PC: 알림톡 버튼 옆 고객 공유 버튼."""
+def test_pc_tab_has_share_entry_inside_alimtalk_menu() -> None:
+    """PC: 공유 진입점은 알림톡 드롭다운 안의 '공유 링크 관리' 한 곳(발송 버튼과 분리)."""
     html = _read("templates/orders/partials/erp_order_tab.html")
-    assert BUTTON_CLASS in html
     assert 'id="erp-share-open-btn"' in html
-    assert html.index("erp-alimtalk-send-btn") < html.index(BUTTON_CLASS)
+    menu = html[html.index('id="erp-alimtalk-menu"'):]
+    menu = menu[: menu.index("</ul>")]
+    assert BUTTON_CLASS in menu, "공유 진입점이 알림톡 드롭다운 밖에 있다"
+    assert "공유 링크 관리" in menu
+    # 발송 항목 3종보다 아래(관리 기능이라 우선순위 낮춤).
+    assert menu.index("erp-share-alimtalk-quick-est-btn") < menu.index(BUTTON_CLASS)
+    # PC 에서는 sms: 딥링크가 동작하지 않으므로 '내 문자로 보내기' 를 노출하지 않는다.
+    assert "erp-share-sms-self-btn" not in html
 
 
-def test_mobile_tab_has_share_button_in_sticky_footer() -> None:
-    """모바일: sticky action bar 에 foms-btn 체계로 노출."""
-    html = _read("templates/orders/partials/erp_order_tab_mobile.html")
-    footer = html[html.index("erp-mobile-sticky-action-bar"):]
-    button = footer[: footer.index("</footer>")]
-    assert BUTTON_CLASS in button, "공유 버튼이 sticky footer 밖에 있다"
-    assert "foms-btn" in button
+def test_mobile_alimtalk_picker_has_self_sms_and_manage_entries() -> None:
+    """모바일: 알림톡 선택 시트에 '내 문자로 보내기' 2종 + '공유 링크 관리'(별도 공유 버튼 없음)."""
+    sheet = _read("templates/orders/partials/erp_alimtalk_picker_modal.html")
+    assert sheet.count("erp-share-sms-self-btn") == 2
+    assert 'data-share-kind="drawing"' in sheet and 'data-share-kind="estimate"' in sheet
+    assert BUTTON_CLASS in sheet and "공유 링크 관리" in sheet
+    # 액션바에서 공유 버튼은 사라지고 알림톡 시트 한 곳으로 모인다.
+    footer = _read("templates/orders/partials/erp_order_tab_mobile.html")
+    footer = footer[footer.index("erp-mobile-sticky-action-bar"):]
+    footer = footer[: footer.index("</footer>")]
+    assert BUTTON_CLASS not in footer, "모바일 액션바에 공유 버튼이 남아 있다"
+    assert "erp-alimtalk-picker-btn" in footer
 
 
 def test_modal_partial_included_on_both_surfaces() -> None:
@@ -93,6 +104,18 @@ def test_share_js_singleton_lazy_sdk_and_endpoints() -> None:
     assert "견적서 확인" in js
     # 태블릿 버튼은 자체 핸들러 소유(T9) — 이중 처리 방지 제외 선택자.
     assert ":not([data-tmf-share-open])" in js
+
+
+def test_share_js_self_sms_deeplink_uses_server_text() -> None:
+    """내 문자로 보내기: 서버가 준 본문·수신번호로 sms: 딥링크를 연다(화면값 조립 금지)."""
+    js = _read("static/js/orders/erp-share.js")
+    assert "erp-share-sms-self-btn" in js
+    assert "'sms:'" in js
+    # iOS 는 본문 구분자가 & — 분기 없으면 아이폰에서 본문이 비어 열린다.
+    assert "iPhone" in js and "'&'" in js
+    assert "sms_text" in js and "to_phone" in js
+    # 발급 전 dirty 가드(T13) 재사용 — 저장 안 된 내용이 링크로 나가면 안 된다.
+    assert "_ensureSaved(" in js
     # 토큰·URL 은 발급 응답 메모리에만 — localStorage/sessionStorage 격납 금지.
     assert "localStorage" not in js
     assert "sessionStorage" not in js
