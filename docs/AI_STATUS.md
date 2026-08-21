@@ -1,6 +1,6 @@
 # FOMS 현재 상태
 > 자동 업데이트: 2026-08-14
-> 최신: **네이버 수집 워크벤치 deploy(게이트 기본 off)** — 탭 4개 통합 화면(처리 대기·발주확인 전·취소반품·전체 이력) + 리뷰 5회차 수정(불가역 경로 서버 가드·분할배송 집 경계·실패 띠/확인함). 켜기=`FOMS_NAVER_WORKBENCH_ENABLED`+`_COHORT`, 배포 시 `backfill_naver_group_key.py` 필요. 원장 `docs/plans/2026-08-20-naver-workbench-ledger.md`
+> 최신: **네이버 수집 워크벤치 staging 게이트 ON(upperkill 단독)** — deploy 승격 2회 CI ALL GREEN, backfill 192행(집 61), 리뷰 6회차까지 수정(진짜 29건). 실데이터 확인: work 42·place 25·claim 8집. 잔여=네이버 실호출 1건·production 승격. 원장 `docs/plans/2026-08-20-naver-workbench-ledger.md`
 > 이 파일 상단 40줄이 세션 시작 컨텍스트의 전부다(hygiene 계약 테스트로 강제). 상세 이력: "## 최근 완료"·"## 기록 보관", 과거 헤더 상세는 기록 보관에 이관.
 
 ## 스택
@@ -11,7 +11,7 @@ Flask 2.3 + PostgreSQL + R2 + Railway (Web×2, Worker×1)
 - [2026-08-20] **NOTIF-ROLE-01 `target_role` deploy** — 관리자 알림 사건 1건=row 1건 복원(에스컬레이션 N²→N)
 - [2026-08-20] **에스컬레이션 알림 본문·중복 수정 운영 반영(`67ecaff3`)** — 빈 제목만 쌓이던 문제 해결(본문+원본당 1건). 잔여: 상류 `claim_watch.py` 가 클레임마다 ADMIN 수만큼 개별 긴급 알림 생성 → 스테이징 1073건 원천
 - [2026-08-20] **복원 GUI T1 배포·QA + 저장 유실 수정(`ec6b22a9`)** — 변경 이력에서 필드 한 건 되돌리기(요청=change_id 만, 화이트리스트 12경로, 절단·타입·현재값 4가드). 스테이징 실화면 QA 통과. QA 중 발견: 편집 저장이 `parties` 통째 대입이라 폼 미렌더 키(`orderer.phone`·`customer.phone2`, 네이버 수집분)를 매번 삭제 → `_merge_preserving_missing` 대상에 `parties` 추가. **`parties.orderer` 이름 충돌(폼=발주사 vs 수집=주문자) 미해결**. 기존 유실분은 원장으로 셀 수 있다
-- [2026-08-21] **네이버 워크벤치 W1~W6 + 리뷰 5회차(deploy, 게이트 off)** — 두 화면 왕복을 탭 하나로. 근본 수정: 집 정의 통일(`group_key` 컬럼+`backfill_naver_group_key.py`) · 워커 롤백이 실패 사유 지우던 버그 · 이력 탭 ADMIN 전용 · 분할배송에서 옆 집까지 나가던 발주확인/붙이기 · 취소 집 서버 가드(`_claim_guard`) · 200 안의 건별 실패 · 실패 부분 인덱스(`naverfail_00`). 검증 396+PG1133+smoke323+1440 브라우저.
+- [2026-08-21] **네이버 워크벤치 deploy + staging 게이트 ON(코호트 38)** — 두 화면 왕복을 탭 하나로. 근본 수정: 집 정의 통일(`group_key`+backfill 실행 완료) · 워커 롤백이 실패 사유 지우던 버그 · 이력 탭 ADMIN 전용 · 분할배송에서 옆 집까지 나가던 발주확인/붙이기 · 취소 집 서버 가드 · 200 안의 건별 실패 · 실패 부분 인덱스(`naverfail_00`). 리뷰 6라운드(진짜 29건, 매번 직전 수정이 만든 것). 검증 399+PG1136+smoke324+실데이터.
 - [2026-08-20] **네이버 관계 판별 + 발주확인·발송처리(NAVER-INGEST-02, deploy)** — T16-A~H 코드 완료. 수집 판정이 `PAYED` 하나뿐이라 재결제·차액결제가 전부 새 집으로 들어오던 문제를 **사람이 고르는 붙이기**로 닫았다(자동 확정 없음). 스테이징 실물 왕복 검증(강재상 1cm 집 → #4466 붙임 → 도크 "추가결제 3건 · 517,550원(반영은 수동)" → 되돌림 → 원복). **잔여=네이버 실호출 검증(사용자 직접)**, G3(재결제 시 원 주문 취소 표시) 미확정. 권한 게이트 통과(API그룹 `주문 판매자`=발주/발송처리 포함), 배송코드 `DIRECT_DELIVERY`(구매확정·정산 시점 변동 주의). 함정: `.alert` 5초 자동닫힘이 상시 안내를 지운다(`data-foms-no-autodismiss` 필요, 취소 경고도 이 버그였음) · 주문 JSONB 직접쓰기는 REV-99 게이트 → `execute_order_mutation` 경유 · 새 감사 행위는 `audit_message_display` 라벨 필수(pre_push_smoke 사각).
 - ⚠️ [2026-08-20] **deploy FOMS CI red = 타 세션 몫** — `3d3c2f61`(RESTORE-GUI-01 T1)의 `ORDER_FIELD_RESTORED` 라벨 누락 + `events.api_restore_field_change` 정책 미분류. Harness CI·PG Lane·perf-gate 는 green.
 - [2026-08-19] **오프사이트 백업 복구·상황판(`foms-ops-backup`+F7)** — 개설 후 6회 전패(`which(pg_dump)`=16·R2 시크릿 미등재) 해소 후 첫 성공. 침묵 차단 3종 + `/admin/backup-status`(서명 심박 푸시, 앱은 백업 열쇠 미보유·fail-closed, 종단검증 완료). Railway D6+W27+M89·dev D 신설. 리허설 절차서 `RESTORE.md` §8(분기 수동). 잔여=첨부 R2 오프사이트·운영 승격 시 URL 교체

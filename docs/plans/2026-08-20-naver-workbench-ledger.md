@@ -324,3 +324,37 @@
 `tests/services/integrations/` **396 passed** · PG 레인 **1133 passed** ·
 `pre_push_smoke.ps1` PASSED(323) exit 0 · `APP_OK` · alembic 단일 head(`naverfail_00`) + 왕복 통과.
 
+## 6차 리뷰 + 스테이징 승격·게이트 ON (2026-08-21)
+
+### 6차 (`828bbe1c`) — 전부 5차가 만든 것
+- 발송처리 거절 사유를 집 **전체**에 찍어 이미 발주확인이 끝난 형제까지 실패 목록에 집혔다 → 막힌 건에만.
+- 컬럼(`place_order_status='OK'`)으로 확인된 링크의 낡은 실패 사유를 안 지워, 판매자센터에서 손으로
+  처리한 집은 **자가치유 경로가 사라지고** 빨간 띠가 영구히 남았다 → 확인된 건의 사유를 지운다.
+- 이력 카드 헤더가 필터 걸린 수를 "전체 N집"이라 말했다(칩만 고쳤더니 두 줄 위에 같은 거짓말) →
+  필터가 있으면 "지금 목록 N집".
+
+### 승격 (deploy `66dd159e` + `12156ff8`)
+
+세션 커밋 29+1개를 `origin/deploy` 기반 임시 워크트리에 cherry-pick 했다. **브랜치 안에서는 안 보이던
+충돌 2종**이 승격 트리에서 드러났다:
+
+1. **alembic head 2개** — `navergroup_00`(내 것)과 타 세션 `notifrole_00` 이 둘 다 `naver_relation_00` 을
+   가리켰다. 세션 브랜치에는 `notifrole_00` 이 없어 `alembic heads` 가 단일로 보인다. `navergroup_00` 을
+   `notifrole_00` 뒤로 옮겨 단일 head(`naverfail_00`) 복구.
+2. **인벤토리 3종 충돌** — 내 사본을 그대로 올리면 타 세션이 그 사이 등재한 라우트가 지워진다.
+   deploy 쪽을 채택하고 **승격 트리에서 재생성**(`audit_coverage_scan.py`) + manifest 2종에 새 라우트만 추가.
+
+CI: 두 푸시 모두 **ALL GREEN**(FOMS CI · Harness CI · PostgreSQL Lane · perf-gate).
+
+### 스테이징 반영
+
+- `backfill_naver_group_key.py` 실행(공개 URL 직결): **192행 채움 · 빈 행 0 · 집 61**.
+  스테이징 alembic 은 이미 `naverfail_00` — 체인 재배치가 실환경에서도 정상 적용됐다.
+- 게이트 ON: `FOMS_NAVER_WORKBENCH_ENABLED=1` · `FOMS_NAVER_WORKBENCH_COHORT=38`(upperkill 단독).
+- **실데이터 검증**(코호트에 QA 계정 58 을 잠시 넣고 확인한 뒤 38 단독으로 되돌림):
+  - 탭 배지 work 42 · place 25 · claim 8 → 헤더 50집과 일치(42+8), 상품주문 162건
+  - 이력 61집 · 칩 "발주확인 전(취소 포함) 27집"(탭 배지 25집과 **모집단이 다르다는 것이 라벨에 보인다**)
+  - 발주확인 전 집의 발송처리 버튼 = 사유 달린 회색 잠금(모달 미렌더), 필터 시 헤더 "지금 목록 55집"
+  - 코호트 되돌린 뒤 QA 계정은 **옛 화면**으로 복귀 — 게이트가 양방향으로 동작한다
+- 잔여: 네이버 실호출(발주확인·발송처리)은 사용자가 직접 1건으로 확인. production 승격은 지시 대기.
+
