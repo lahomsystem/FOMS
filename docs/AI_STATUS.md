@@ -44,6 +44,7 @@ Flask 2.3 + PostgreSQL + R2 + Railway (Web×2, Worker×1)
 
 
 ## 최근 완료 (최대 5개)
+- [2026-08-21] **도면 주문 변경 피드 최초 입력 소음 제거 — production 승격 완료** (deploy `268562ba` CI 3종 green → PR #128 merge `a568f4f4`, 운영 healthz 신코드 확인). 빈칸·ERP 폼 placeholder(`상담`·`(없음)`·`미정`·`-`)에서 값이 처음 채워진 줄은 변경이 아니다 — 판정 SSOT `is_first_fill_change`(`foms/services/notifications/drawing_order_change.py`)를 **쓰기(`_add_change`)와 읽기(`humanize_order_change_changes`) 양쪽**에 걸어 신규 기록 차단 + 과거 이력 소급 정리. 최초 입력만 있는 저장은 알림·미확인 배지도 만들지 않는다. 유지: 실값→실값 수정·값 지움·`items.N` 항목 추가/삭제. 운영 실증(주문 4637, 실브라우저): **17줄 → 3줄**. REV-99 인벤토리는 승격 트리(production 기준) 재생성으로 타 세션 의존 차단.
 
 - [2026-08-11] **주문 변경내역 감사 ORDER-DIFF 00~02 운영 승격**(PR #82·#83) — 저장 로그 before/after 0건 → 필드 diff + `order_field_changes` 원장 + 변경 이력 탭. 품목 uid(`itemuid_00`)는 deploy+스테이징 검증 완료, 운영 승격만 **타 세션 `share_token_00` 선행 대기**. 함정: detail 4,000자 초과 시 통째 표식. 스펙 docs/specs/2026-08-11-order-*.md
 - [2026-08-13] **고객 공유 Phase A 운영 승격 완료(PR #89, production `a59c0d7d`)** — T1~T10+T8.1 + 승인 하에 itemuid_00·알림톡 v1 코드 동반 승격(발송 이중 잠금). 실측 알림톡 템플릿 2건 APPROVED·공유 링크 템플릿 2건 심사 중·문자 실발송 2통 검증(브랜드 분기·재시도 실증)·카톡 SDK PASS·고객 다운로드 추가. T11 알림톡+T12 통합 드롭다운(예약·도면·계약서) **운영 승격 완료**(08-19 PR #115 `01ef5862`, 실발송 2회 수신 확인). 잔여=Solapi IP 원복·실기기 카톡(사용자). 원장: docs/plans/2026-08-11-customer-share-phase-a-ledger.md
