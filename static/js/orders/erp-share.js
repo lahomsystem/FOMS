@@ -338,6 +338,63 @@
         window.setTimeout(function () { btn.innerHTML = original; }, 1500);
     }
 
+    /**
+     * 내 휴대폰 문자앱으로 보내기(모바일 전용) — 링크 발급 후 sms: 딥링크로 넘긴다.
+     *
+     * 회사 발송(알림톡/LMS)과 달리 실제 전송은 사용자의 기기에서 일어난다. 서버에는
+     * 발급·열람·회수 기록만 남고 "보냈는지"는 남지 않는다(영업 개인번호 발신 요구).
+     * 본문·수신번호는 서버가 준 값을 그대로 쓴다 — 화면값 조립 금지(알림톡 문구와 동일).
+     *
+     * @param {string} kind 공유 종류(drawing/estimate).
+     */
+    async function _selfSms(kind) {
+        if (_busy) return;
+        var orderId = _orderId();
+        if (!orderId) {
+            window.alert('저장 후 공유할 수 있습니다.');
+            return;
+        }
+        _busy = true;
+        if (!(await _ensureSaved(function (msg) { window.alert(msg); }))) {
+            _busy = false;
+            return;
+        }
+        try {
+            var res = await fetch('/api/share/create/' + orderId, {
+                method: 'POST',
+                credentials: 'same-origin',
+                headers: { 'Content-Type': 'application/json' },
+                body: JSON.stringify({ kind: kind }),
+            });
+            var body = await res.json();
+            if (!body || !body.success || !body.data) {
+                window.alert('발급 실패 — ' + _label(body && body.error));
+                return;
+            }
+            if (!body.data.to_phone) {
+                window.alert(_label('no_valid_phone'));
+                return;
+            }
+            window.location.href = _smsHref(body.data.to_phone, body.data.sms_text || body.data.url);
+        } catch (e) {
+            window.alert('발급 실패 — ' + _label('network'));
+        } finally {
+            _busy = false;
+        }
+    }
+
+    /**
+     * sms: 딥링크 조립 — 본문 구분자가 iOS 는 ``&``, 그 외는 ``?`` 다.
+     *
+     * @param {string} phone 수신번호(서버가 정규화한 숫자).
+     * @param {string} text 본문.
+     * @returns {string} sms 스킴 URL.
+     */
+    function _smsHref(phone, text) {
+        var sep = /iPad|iPhone|iPod|Macintosh/.test(navigator.userAgent) ? '&' : '?';
+        return 'sms:' + phone + sep + 'body=' + encodeURIComponent(text);
+    }
+
     /** 원클릭 알림톡 — 모달 없이 링크 자동 발급 후 즉시 알림톡 발송(도면/견적서). */
     async function _quickAlimtalk(btn) {
         if (_busy || (btn && btn.disabled)) return;
@@ -459,6 +516,12 @@
         if (target.closest('.erp-share-open-btn:not([data-tmf-share-open])')) {
             ev.preventDefault();
             erpOpenShareModal();
+            return;
+        }
+        var selfSmsBtn = target.closest('.erp-share-sms-self-btn');
+        if (selfSmsBtn) {
+            ev.preventDefault();
+            void _selfSms(selfSmsBtn.getAttribute('data-share-kind') || 'drawing');
             return;
         }
         if (target.closest('#erp-share-create-btn')) {
