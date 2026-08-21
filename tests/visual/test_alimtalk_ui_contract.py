@@ -52,7 +52,9 @@ def test_mobile_alimtalk_picker_sheet_reuses_push_sheet_markup() -> None:
     assert "erp-channel-push-picker-options" in sheet
     # 선택지는 기존 위임 핸들러가 그대로 처리하는 클래스를 단다.
     assert BUTTON_CLASS in sheet
-    assert sheet.count("data-share-kind=") == 2
+    # 알림톡 발송 2종(도면·계약서) + 내 문자로 보내기 2종.
+    assert sheet.count('class="foms-btn foms-btn--secondary erp-share-alimtalk-quick-btn"') == 2
+    assert sheet.count("data-share-kind=") == 4
     assert 'data-share-kind="drawing"' in sheet
     assert 'data-share-kind="estimate"' in sheet
 

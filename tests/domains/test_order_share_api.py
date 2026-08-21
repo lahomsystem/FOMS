@@ -96,6 +96,29 @@ def test_create_returns_token_url_once_and_audits(client, db):
     assert data['token'] not in str(logs[0].detail or '')
 
 
+def test_create_returns_self_sms_payload(client, db):
+    """모바일 '내 문자로 보내기' 용 본문·수신번호를 서버가 조립해 준다."""
+    order_id = _mk_order(
+        manager_name='김실장',
+        structured_data={
+            'parties': {'customer': {'name': '임다슬', 'phone': '010-2473-6730'},
+                        'orderer': {'name': '라홈시스템'}},
+        },
+    ).id
+    _login(client, 'staff1')
+
+    data = client.post(f'{_CREATE}/{order_id}', json={'kind': 'estimate'}).get_json()['data']
+
+    assert data['to_phone'] == '01024736730'
+    text = data['sms_text']
+    # 알림톡 승인 템플릿과 같은 문구 + 버튼 대신 링크 인라인.
+    assert text.startswith('안녕하세요 임다슬 고객님, 라홈입니다.')
+    assert '요청하신 견적서 열람 링크를 보내드립니다.' in text
+    assert data['url'] in text
+    assert '담당자 : 김실장' in text
+    assert '유효기간 : ' in text
+
+
 def test_create_default_kind_is_drawing(client, db):
     order = _mk_order()
     _login(client, 'staff2')

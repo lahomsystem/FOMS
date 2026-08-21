@@ -307,6 +307,7 @@ def api_share_create(order_id: int):
 
     url = url_for('share_view.view_shared_order', token=token, _external=True)
     expires_iso = row.expires_at.isoformat()
+    brand = ka.resolve_brand(order.structured_data or {})
     context = order_audit_context(order)
     # 감사에는 토큰 원문·URL 을 남기지 않는다(감사 원장에 bearer 자격 축적 금지).
     log_access(
@@ -322,6 +323,10 @@ def api_share_create(order_id: int):
         'token': token,
         'url': url,
         'expires_at': expires_iso,
+        # 영업 본인 휴대폰 문자앱으로 바로 보내기(모바일)용 — 서버가 조립한 본문과
+        # 정규화된 수신번호. 화면값 조립을 막아 알림톡 문구와 어긋나지 않게 한다.
+        'to_phone': ka.extract_valid_phone(order.structured_data or {}) or '',
+        'sms_text': share_link_message(order, kind=kind, url=url, brand=brand),
     }, None)
 
 
@@ -373,6 +378,8 @@ def api_share_list(order_id: int):
 _SMS_BUCKET_SECONDS = 5
 
 _SMS_KIND_LABEL = {'drawing': '도면', 'estimate': '견적서'}
+#: 문자 본문 첫 줄의 발주사 표기(알림톡 승인 템플릿 문구와 같은 표기).
+_BRAND_LABEL = {'LAHOM': '라홈', 'HAUD': '하우드'}
 
 
 def _manager_sender_phone(order: Order) -> Optional[str]:
@@ -590,6 +597,41 @@ def api_share_send_sms(share_id: int):
     )
     return _envelope({'sent': error is None, 'error': error}, error)
 
+
+def share_link_message(order: Order, *, kind: str, url: str, brand: str) -> str:
+    """공유 링크 안내 문자 본문 — 승인 알림톡 템플릿과 같은 문구(버튼 대신 링크 인라인).
+
+    알림톡은 WL 버튼이 링크를 들고 있지만 문자에는 버튼이 없어 본문에 URL 을 넣는다.
+    담당자/연락처 폴백은 :func:`_share_alimtalk_variables` 와 같은 규칙이다.
+
+    Args:
+        order: 대상 주문.
+        kind: 공유 종류(drawing/estimate).
+        url: 열람 링크 절대 URL.
+        brand: :func:`ka.resolve_brand` 결과(``LAHOM``/``HAUD``).
+
+    Returns:
+        문자앱에 채울 본문 문자열.
+    """
+    variables = _share_alimtalk_variables(order, kind=kind, token='', brand=brand)
+    customer = variables['#{고객명}']
+    kind_label = variables['#{문서종류}']
+    days = variables['#{유효기간}']
+    manager = variables['#{담당자}']
+    manager_phone = variables['#{담당자연락처}']
+    brand_label = _BRAND_LABEL.get(brand, '라홈')
+    lines = [
+        '안녕하세요 ' + customer + ' 고객님, ' + brand_label + '입니다.',
+        '요청하신 ' + kind_label + ' 열람 링크를 보내드립니다.',
+        '',
+        '아래 링크를 누르시면 로그인 없이 도면·계약서 등 문서를 확인하고 다운로드하실 수 있습니다.',
+        url,
+        '',
+        '유효기간 : ' + days + '일',
+        '담당자 : ' + manager,
+        '담당자 연락처 : ' + manager_phone,
+    ]
+    return '\n'.join(lines)
 
 def _share_alimtalk_variables(order: Order, *, kind: str, token: str,
                               brand: str) -> dict[str, str]:
