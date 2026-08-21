@@ -39,31 +39,14 @@
   }
 
   /** 저장 묶음 1건을 카드로 그린다. */
-  function renderChangeSet(entry) {
-    var card = document.createElement('div');
-    card.className = 'foms-change-set';
-
-    var head = document.createElement('div');
-    head.className = 'foms-change-set-head';
-    var actor = entry.actor ? (entry.actor.name || entry.actor.username) : '시스템';
-    head.textContent = (entry.at || '') + ' · ' + actor + ' · ' + entry.changes.length + '건';
-    card.appendChild(head);
-
-    // ORDER-REASON-00: "왜" 는 변경 목록보다 위에 온다 — 분쟁 조회에서 먼저 읽는 값이다.
-    if (entry.reason) {
-      var reason = document.createElement('div');
-      reason.className = 'foms-change-set-reason';
-      reason.textContent = '사유: ' + entry.reason.label
-        + (entry.reason.note ? ' — ' + entry.reason.note : '');
-      card.appendChild(reason);
-    }
-
+  /** 변경 줄 목록(ul)을 만든다. 같은 품목이 연달아 나오면 이름표는 첫 줄에만 붙인다 —
+   *  한 품목의 5개 필드를 고치면 같은 이름이 5번 반복돼 바뀐 값이 눈에 안 들어온다
+   *  (2026-08-14 운영 실측). */
+  function buildChangeList(changes) {
     var list = document.createElement('ul');
     list.className = 'foms-change-set-list';
-    // 같은 품목이 연달아 나오면 이름표는 첫 줄에만 붙인다 — 한 품목의 5개 필드를 고치면
-    // 같은 이름이 5번 반복돼 정작 바뀐 값이 눈에 안 들어온다(2026-08-14 운영 실측).
     var lastItem = null;
-    entry.changes.forEach(function (change) {
+    changes.forEach(function (change) {
       var item = document.createElement('li');
       item.textContent = change.text;
       if (change.item && change.item !== lastItem) {
@@ -76,7 +59,49 @@
       appendRestoreControl(item, change);
       list.appendChild(item);
     });
-    card.appendChild(list);
+    return list;
+  }
+
+  function renderChangeSet(entry) {
+    var card = document.createElement('div');
+    card.className = 'foms-change-set';
+
+    var real = [];
+    var firstFill = [];
+    entry.changes.forEach(function (change) {
+      (change.first_fill ? firstFill : real).push(change);
+    });
+
+    var head = document.createElement('div');
+    head.className = 'foms-change-set-head';
+    var actor = entry.actor ? (entry.actor.name || entry.actor.username) : '시스템';
+    // 건수는 접지 않은 줄 기준 — 접힌 최초 입력 건수는 접기 버튼이 따로 말한다.
+    head.textContent = (entry.at || '') + ' · ' + actor + ' · ' + real.length + '건';
+    card.appendChild(head);
+
+    // ORDER-REASON-00: "왜" 는 변경 목록보다 위에 온다 — 분쟁 조회에서 먼저 읽는 값이다.
+    if (entry.reason) {
+      var reason = document.createElement('div');
+      reason.className = 'foms-change-set-reason';
+      reason.textContent = '사유: ' + entry.reason.label
+        + (entry.reason.note ? ' — ' + entry.reason.note : '');
+      card.appendChild(reason);
+    }
+
+    // 최초 입력(빈칸→첫 값)은 접어 둔다 — 접수 직후 저장 한 번이면 이 줄이 화면을 덮어
+    // 진짜 수정이 묻힌다(운영 원장 48%). 펼치면 되돌리기까지 그대로 쓸 수 있다.
+    card.appendChild(buildChangeList(real));
+
+    if (firstFill.length) {
+      var fold = document.createElement('details');
+      fold.className = 'foms-change-set-fold';
+      var summary = document.createElement('summary');
+      summary.className = 'foms-change-set-fold__summary';
+      summary.textContent = '최초 입력 ' + firstFill.length + '건 보기';
+      fold.appendChild(summary);
+      fold.appendChild(buildChangeList(firstFill));
+      card.appendChild(fold);
+    }
 
     if (entry.truncated) {
       var more = document.createElement('div');

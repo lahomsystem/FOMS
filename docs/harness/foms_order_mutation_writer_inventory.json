@@ -73,7 +73,7 @@
     },
     {
       "path": "foms/api/events.py",
-      "lineno": 676,
+      "lineno": 680,
       "kind": "flag_modified_structured_data",
       "owner": "EVENT-REVERT-01"
     },
@@ -356,7 +356,7 @@
     },
     {
       "path": "foms/api/events.py",
-      "lineno": 676,
+      "lineno": 680,
       "kind": "flag_modified_structured_data",
       "classification": "EXTERNAL",
       "owner": "EVENT-REVERT-01"

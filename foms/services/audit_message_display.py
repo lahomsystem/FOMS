@@ -670,6 +670,27 @@ def path_label(path: str | None) -> str:
     return f"{head} {PATH_LABELS.get(f'items.*.{field}', field)}"
 
 
+def is_first_fill_row(op: Any, before: Any) -> bool:
+    """변경 1건이 "최초 입력"(빈칸·폼 placeholder → 첫 값)인지 판정한다 (ORDER-DIFF-02).
+
+    접수 직후 저장 한 번이면 빈 칸이 실제 값으로 한꺼번에 채워진다. 원장에는 남겨야 하지만
+    (되돌리기 대상이고 감사 증거다) 화면 맨 앞에 깔리면 **진짜 수정이 묻힌다** — 운영 원장
+    3,606행 중 1,737행(48%)이 이 종류였다(2026-08-21 실측). 화면은 이 값으로 접어 둔다.
+
+    placeholder 목록은 도면 변경 피드와 같은 SSOT를 쓴다(사전을 두 벌 두지 않는다).
+
+    :param op: 원장 ``op``(``set``·``add``·``clear``·``remove``). 품목 추가/삭제(``add``·
+        ``remove``)는 최초 입력이 아니다 — 구성이 바뀐 사실 자체가 정보다.
+    :param before: 원장 ``before_value``.
+    :return: 최초 입력이면 ``True``.
+    """
+    from foms.services.notifications.drawing_order_change import is_unset_display_value
+
+    if str(op or "").strip().lower() != "set":
+        return False
+    return is_unset_display_value(before)
+
+
 def describe_change(change: Mapping[str, Any]) -> str:
     """변경 1건을 ``라벨: 이전 → 이후`` 한 줄로 옮긴다 (ORDER-DIFF-00).
 

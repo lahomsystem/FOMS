@@ -17,6 +17,7 @@ from models import Order, OrderEvent, OrderFieldChange, User, SecurityLog
 from foms.services.audit_message_display import (
     describe_change,
     describe_order_action,
+    is_first_fill_row,
     path_label,
 )
 from foms.services.datetime_kst import format_datetime_kst
@@ -234,6 +235,9 @@ def api_order_field_changes(order_id: int):
                 'label': path_label(row.path),
                 'text': describe_change(payload),
                 'item': row.item_name,
+                # 최초 입력(빈칸→첫 값)은 화면이 접어 둔다 — 원장에는 그대로 남고
+                # 펼치면 되돌리기도 그대로 쓸 수 있다(은닉이 아니라 접기).
+                'first_fill': is_first_fill_row(row.op, row.before_value),
             }
             entry.update(describe_restorability(row, current_sd))
             bucket['changes'].append(entry)

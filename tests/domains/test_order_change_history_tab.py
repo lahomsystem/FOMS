@@ -6,6 +6,8 @@
 """
 
 
+import pathlib
+
 from werkzeug.security import generate_password_hash
 
 from db import db_session
@@ -50,7 +52,8 @@ def _create_order() -> Order:
 
 
 def _seed_change(order_id: int, *, change_set: str, actor_id: int | None, path: str,
-                 before: str | None, after: str | None, item_name: str | None = None) -> None:
+                 before: str | None, after: str | None, item_name: str | None = None,
+                 op: str = "set") -> None:
     db_session.add(OrderFieldChange(
         change_set_id=change_set,
         order_id=order_id,
@@ -58,7 +61,7 @@ def _seed_change(order_id: int, *, change_set: str, actor_id: int | None, path: 
         path_template=path,
         item_index=None,
         item_name=item_name,
-        op="set",
+        op=op,
         before_value=before,
         after_value=after,
         actor_user_id=actor_id,
@@ -149,3 +152,54 @@ def test_tab_renders_empty_shell_without_data(client):
     assert "order-change-history.js" in body
     # 서버 렌더 HTML 에 원장 값이 실려 있으면 지연 로딩이 아니다.
     assert "2026-08-14" not in body
+
+
+def test_first_fill_rows_are_flagged_for_folding(client):
+    """빈칸→첫 값은 `first_fill` 로 표시된다 — 화면이 접고, 원장·되돌리기는 그대로 둔다."""
+    admin = _make_user("hist-admin-ff", "ADMIN")
+    order_id = _create_order().id
+    _seed_change(order_id, change_set="cs-ff", actor_id=admin.id,
+                 path="schedule.construction.date", before=None, after="2026-08-27")
+    _seed_change(order_id, change_set="cs-ff", actor_id=admin.id,
+                 path="items.0.color", before="상담", after="클린화이트")
+    _seed_change(order_id, change_set="cs-ff", actor_id=admin.id,
+                 path="items.0.product_name", before="ㄱ자 붙박이장", after="몰딩 붙박이장")
+    _login(client, admin)
+
+    changes = client.get(f"/api/orders/{order_id}/field-changes").get_json(
+    )["data"]["change_sets"][0]["changes"]
+
+    by_path = {c["label"]: c["first_fill"] for c in changes}
+    assert len(changes) == 3, "원장 행은 하나도 사라지지 않는다(접기일 뿐 은닉이 아니다)"
+    assert by_path["시공일"] is True          # 빈칸 → 첫 날짜
+    assert by_path["1번 품목 색상"] is True    # '상담' placeholder → 첫 값
+    assert by_path["1번 품목 품목명"] is False  # 실값 → 실값 = 진짜 수정
+
+
+def test_item_add_and_clear_are_not_first_fill(client):
+    """품목 추가(add)·값 지움(clear)은 최초 입력이 아니다 — 접지 않는다."""
+    admin = _make_user("hist-admin-ff2", "ADMIN")
+    order_id = _create_order().id
+    _seed_change(order_id, change_set="cs-ff2", actor_id=admin.id, op="add",
+                 path="items.1", before=None, after="몰딩 수납장")
+    _seed_change(order_id, change_set="cs-ff2", actor_id=admin.id, op="clear",
+                 path="schedule.measurement.date", before="2026-07-27", after=None)
+    _login(client, admin)
+
+    changes = client.get(f"/api/orders/{order_id}/field-changes").get_json(
+    )["data"]["change_sets"][0]["changes"]
+
+    assert [c["first_fill"] for c in changes] == [False, False]
+
+
+def test_change_history_assets_are_pinned_together(client):
+    """접기 UI 는 JS+CSS 동반 변경이라 ?v 핀이 함께 올라가야 한다(SW 스테일 방지)."""
+    js = pathlib.Path("static/js/orders/order-change-history.js").read_text(encoding="utf-8")
+    css = pathlib.Path("static/css/orders/erp-edit-embedded.css").read_text(encoding="utf-8")
+    body = pathlib.Path("templates/orders/partials/edit_order_body.html").read_text(encoding="utf-8")
+    shell = pathlib.Path("templates/orders/edit_order.html").read_text(encoding="utf-8")
+
+    assert "foms-change-set-fold" in js and "first_fill" in js
+    assert ".foms-change-set-fold" in css
+    assert "order-change-history.js') }}?v=20260821a" in body
+    assert "erp-edit-embedded.css') }}?v=20260821a" in shell
