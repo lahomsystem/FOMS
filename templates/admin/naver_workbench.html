@@ -14,7 +14,7 @@
 {% block title %}네이버 수집{% endblock %}
 
 {% block styles %}
-<link rel="stylesheet" href="{{ url_for('static', filename='css/admin/naver-workbench.css') }}?v=20260821a">
+<link rel="stylesheet" href="{{ url_for('static', filename='css/admin/naver-workbench.css') }}?v=20260821b">
 {% endblock %}
 
 {% block content %}
@@ -25,9 +25,11 @@
         <span class="wb-strip__title">네이버 수집</span>
         <span class="wb-strip__count">{{ group_count }}집 · 상품주문 {{ pending_count }}건</span>
         <span class="wb-strip__spacer"></span>
-        {% if current_user and current_user.role == 'ADMIN' %}
-        <a href="{{ url_for('admin.naver_ingest_dashboard') }}" class="btn btn-outline-secondary btn-sm">
-            수집 상태 화면
+        {# 옛 수집 화면은 게이트가 켜지면 이 화면으로 리다이렉트된다 — 그 주소를 가리키면
+           제자리 뛰기가 된다. 수집 상태는 '전체 이력' 탭 안에 있으니 거기로 보낸다. #}
+        {% if can_view_history %}
+        <a href="{{ url_for('admin.naver_ingest_triage', tab='all') }}" class="btn btn-outline-secondary btn-sm">
+            수집 상태
         </a>
         {% endif %}
     </div>
@@ -54,6 +56,13 @@
                 <td class="wb-result__act small">{{ row.action_label }}</td>
                 <td class="wb-result__why">{{ row.reason }}</td>
                 <td class="wb-result__at small">{{ row.at }}</td>
+                {# 판매자센터에서 손으로 해결한 건은 성공한 재시도가 없다 — 사람이 닫는다.
+                   네이버에는 아무 영향이 없어 모달을 두지 않는다(불가역이 아니다). #}
+                <td class="wb-result__ack">
+                    <button type="button" class="btn btn-outline-secondary btn-sm wb-ack"
+                            data-link-id="{{ row.link_id }}"
+                            title="판매자센터에서 해결한 건을 목록에서 지웁니다(네이버에는 영향 없음)">확인함</button>
+                </td>
             </tr>
             {% endfor %}
         </table>
@@ -362,6 +371,14 @@
             </span>
         </div>
 
+        {# 조용히 자르면 사람이 나머지를 찾아 헤맨다. 잘렸으면 그렇게 말한다. #}
+        {% if place_truncated %}
+        <div class="wb-note" data-foms-no-autodismiss>
+            발주확인 전 집이 한 화면에 다 들어가지 않아 <b>{{ place_groups|length }}집</b>만 보입니다 —
+            먼저 처리하면 나머지가 올라옵니다.
+        </div>
+        {% endif %}
+
         <div class="wb-queue">
             {% for group in place_groups %}
             <div class="wb-row wb-row--wait">
@@ -533,6 +550,57 @@
     {% else %}
     {# ══ 전체 이력 ═══════════════════════════════════════════════════
        숫자는 모두 집 단위다. 상품주문 건수는 맨 위 헤더에서만 본다(결정 3). #}
+    {#
+      수집 상태 — 옛 수집 화면(ADMIN 전용)에만 있던 값이다. 게이트가 켜지면 그 화면은
+      리다이렉트로 닫히므로 여기 없으면 도달할 방법이 사라진다:
+      ① 마지막 성공 구간(워터마크)·마지막 실행 ② 실행 결과·실패 사유 ③ 인증 만료일
+      ④ "지금 수집"(큐에 넣기만 한다 — 네이버 HTTP 는 WORKER 에서만 나간다).
+    #}
+    {% if ingest_status %}
+    <section class="wb-ingest" id="wb-ingest-status">
+        <div class="wb-ingest__cell">
+            <div class="wb-ingest__k">마지막 성공 구간 끝(워터마크)</div>
+            <div class="wb-ingest__v">{{ ingest_status.watermark.last_success_to or '아직 없음' }}</div>
+            <div class="wb-ingest__sub">마지막 실행 {{ ingest_status.watermark.last_run_at or '아직 없음' }}</div>
+        </div>
+        <div class="wb-ingest__cell">
+            <div class="wb-ingest__k">마지막 실행 결과</div>
+            {% if ingest_status.watermark.last_error %}
+            <div class="wb-ingest__v text-danger">실패</div>
+            <div class="wb-ingest__sub text-danger">{{ ingest_status.watermark.last_error }}</div>
+            <div class="wb-ingest__sub">워터마크는 전진하지 않았습니다 — 다음 실행이 같은 구간을 다시 수집합니다.</div>
+            {% else %}
+            <div class="wb-ingest__v text-success">정상</div>
+            <div class="wb-ingest__sub">
+                수집 {{ ingest_status.watermark.last_summary.get('collected', 0) }} ·
+                건너뜀 {{ ingest_status.watermark.last_summary.get('skipped', 0) }} ·
+                보류 {{ ingest_status.watermark.last_summary.get('pending_review', 0) }}
+            </div>
+            {% endif %}
+        </div>
+        <div class="wb-ingest__cell">
+            <div class="wb-ingest__k">커머스API 인증 만료일</div>
+            {% if ingest_status.expiry.expires_on %}
+            <div class="wb-ingest__v">{{ ingest_status.expiry.expires_on }}</div>
+            {% if ingest_status.expiry.days_left is not none and ingest_status.expiry.days_left <= 7 %}
+            <span class="badge bg-danger">D-{{ ingest_status.expiry.days_left if ingest_status.expiry.days_left > 0 else 0 }} — 갱신 필요</span>
+            <div class="wb-ingest__sub text-danger">만료되면 앱이 자동 휴면되어 수집이 전면 중단됩니다.</div>
+            {% else %}
+            <div class="wb-ingest__sub">{{ ingest_status.expiry.days_left }}일 남음</div>
+            {% endif %}
+            {% else %}
+            <div class="wb-ingest__v text-warning">미등록</div>
+            <div class="wb-ingest__sub">만료일을 모르면 만료 경고를 보낼 수 없습니다.</div>
+            {% endif %}
+        </div>
+        <div class="wb-ingest__cell wb-ingest__cell--action">
+            <button type="button" class="btn btn-success btn-sm" id="wb-run-now">지금 수집</button>
+            <div class="wb-ingest__sub">큐에 넣기만 합니다 — 실제 호출은 워커가 냅니다.</div>
+            <div class="wb-ingest__sub" id="wb-run-result" data-foms-no-autodismiss></div>
+        </div>
+    </section>
+    {% endif %}
+
     <section class="card shadow-sm">
         <div class="card-header py-2 d-flex flex-wrap align-items-center gap-2">
             <span class="fw-semibold">전체 이력</span>
@@ -648,5 +716,5 @@
 {% endblock %}
 
 {% block scripts %}
-<script src="{{ url_for('static', filename='js/admin/naver-workbench.js') }}?v=20260821a" defer></script>
+<script src="{{ url_for('static', filename='js/admin/naver-workbench.js') }}?v=20260821b" defer></script>
 {% endblock %}

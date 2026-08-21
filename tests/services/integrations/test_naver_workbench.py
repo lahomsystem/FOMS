@@ -943,3 +943,172 @@ def test_place_tab_badge_matches_the_list_after_the_claim_check(client, workbenc
 
     assert "1집" in tab, tab
     assert "정상 집" in body
+
+
+# --------------------------------------------------------------------------- #
+# 큐 밖 링크를 열었을 때 (2차 리뷰)
+#
+# 확인 완료된 집·조회 상한 밖 집도 pane 은 열 수 있다(발주확인·발송처리가 거기 있다).
+# 그때 selected_group 이 없어 ① 모달이 "1건" 이라 거짓말하고 ② 상품주문 표가 빈 표가 됐다.
+# --------------------------------------------------------------------------- #
+
+def _reviewed(link, at="2026-08-20T09:00:00"):
+    """확인 완료 처리(큐에서 빠진다)."""
+    import datetime as _dt
+
+    link.reviewed_at = _dt.datetime.fromisoformat(at)
+    db_session.commit()
+    return link
+
+
+def test_out_of_queue_link_still_shows_its_product_orders(client, workbench_on):
+    """큐에서 빠진 집을 열어도 상품주문 표가 채워진다 — 옛 화면에는 있던 값이다."""
+    _login(client)
+    lead = _collected(order_no="N-OOQ", product="붙박이장 3600", amount=1800000,
+                      option="색상: 화이트")
+    sibling = _collected(order_no="N-OOQ", product="상판 추가", amount=120000)
+    _reviewed(lead)
+    _reviewed(sibling)
+
+    body = client.get(f"{TRIAGE_PATH}?link_id={lead.id}").get_data(as_text=True)
+
+    assert "상품주문 2건" in body, "묶음 건수를 표 제목이 말해야 한다"
+    assert "붙박이장 3600" in body
+    assert "상판 추가" in body, "형제 상품주문이 표에서 빠졌다"
+
+
+def test_out_of_queue_create_modal_states_the_real_count(client, workbench_on):
+    """불가역 모달이 실제로 만들 건수를 말한다 — 1건이라 해 놓고 2건을 합치면 안 된다."""
+    _login(client)
+    lead = _collected(order_no="N-OOQ-M", product="붙박이장 3600", amount=1800000)
+    sibling = _collected(order_no="N-OOQ-M", product="상판 추가", amount=120000)
+    _reviewed(lead)
+    _reviewed(sibling)
+
+    body = client.get(f"{TRIAGE_PATH}?link_id={lead.id}").get_data(as_text=True)
+    modal = body.split('id="wb-modal-create"')[1].split('id="wb-create-order"')[0]
+
+    assert "상품주문\n                                2건" in modal or "2건" in modal, modal[:500]
+    assert "1건을" not in modal, modal[:500]
+
+
+# --------------------------------------------------------------------------- #
+# '발주확인 전' 탭의 조회 상한·클레임 판정 (2차 리뷰)
+# --------------------------------------------------------------------------- #
+
+def test_place_tab_says_when_the_list_is_truncated(client, workbench_on, monkeypatch):
+    """상한에 걸려 잘렸으면 잘렸다고 말한다 — 조용히 자르면 나머지를 찾아 헤맨다."""
+    from foms.web.admin import naver_ingest as mod
+
+    monkeypatch.setattr(mod, "PAGE_SIZE", 1, raising=False)
+    _login(client)
+    for idx in range(3):
+        _collected(order_no=f"N-TRUNC-{idx}", product=f"집 {idx}", amount=1000,
+                   place_status="", address=f"서울 강남구 {idx}", tel=f"010-7777-000{idx}")
+
+    body = client.get(f"{TRIAGE_PATH}?tab=place").get_data(as_text=True)
+
+    assert "먼저 처리" in body or "더 있습니다" in body, "잘림 안내가 없다"
+    assert body.count('class="wb-pick"') == 1, "상한만큼만 보여야 한다"
+
+
+def test_place_tab_has_no_truncation_notice_when_everything_fits(client, workbench_on):
+    """다 보이면 안내를 띄우지 않는다 — 빈 경고는 사람이 안 읽게 만든다."""
+    _login(client)
+    _collected(order_no="N-FITS", product="집 하나", amount=1000, place_status="")
+
+    body = client.get(f"{TRIAGE_PATH}?tab=place").get_data(as_text=True)
+
+    assert "더 있습니다" not in body
+
+
+def test_place_tab_drops_household_when_the_claim_is_inside_the_population(client, workbench_on):
+    """취소된 형제가 '발주확인 전' 안에 있어도 그 집은 빠진다(모집단 안팎 모두)."""
+    _login(client)
+    _collected(order_no="N-PC-IN", product="취소된 형제", amount=100000,
+               place_status="", claim_status="CANCEL_REQUEST",
+               address="대구 수성구 9", tel="010-8888-9999")
+    _collected(order_no="N-PC-IN", product="남은 형제", amount=50000, place_status="",
+               address="대구 수성구 9", tel="010-8888-9999")
+
+    body = client.get(f"{TRIAGE_PATH}?tab=place").get_data(as_text=True)
+
+    assert "남은 형제" not in body
+    assert "발주확인이 필요한 집이 없습니다" in body
+
+
+# --------------------------------------------------------------------------- #
+# 수집 상태 (2차 리뷰) — 게이트가 켜지면 옛 화면이 리다이렉트로 닫힌다.
+# 워터마크·인증 만료일·"지금 수집" 이 도달 불가가 되면 수집이 멈춰도 아무도 모른다.
+# --------------------------------------------------------------------------- #
+
+def test_history_tab_carries_the_ingest_status(client, workbench_on):
+    """전체 이력 탭이 마지막 수집·인증 만료일·지금 수집을 함께 보여준다."""
+    _login(client)
+    _collected(order_no="N-ING-ST", product="붙박이장", amount=1000)
+
+    body = client.get(f"{TRIAGE_PATH}?tab=all").get_data(as_text=True)
+
+    assert 'id="wb-ingest-status"' in body
+    assert "마지막 성공 구간 끝" in body
+    assert "커머스API 인증 만료일" in body
+    assert 'id="wb-run-now"' in body, "'지금 수집' 이 어디에도 없으면 수집을 못 돌린다"
+
+
+def test_ingest_status_is_admin_only(client, workbench_on):
+    """수집 상태는 ADMIN 것이다 — STAFF 화면에는 없다(수집 관리 화면과 같은 기준)."""
+    _login(client, role="STAFF")
+    _collected(order_no="N-ING-STAFF", product="붙박이장", amount=1000)
+
+    body = client.get(TRIAGE_PATH).get_data(as_text=True)
+
+    assert 'id="wb-ingest-status"' not in body
+    assert 'id="wb-run-now"' not in body
+
+
+def test_status_button_points_into_the_workbench_not_the_redirect(client, workbench_on):
+    """상단 버튼이 리다이렉트로 되돌아오는 옛 주소를 가리키면 제자리 뛰기가 된다."""
+    _login(client)
+    _collected(order_no="N-ING-LOOP", product="붙박이장", amount=1000)
+
+    body = client.get(TRIAGE_PATH).get_data(as_text=True)
+    strip = body.split('class="wb-strip"')[1].split("</div>")[0]
+
+    assert "/admin/naver-ingest/triage" in strip, strip
+    assert 'href="/admin/naver-ingest"' not in strip, strip
+
+
+# --------------------------------------------------------------------------- #
+# 실패 띠 지우기 (2차 리뷰)
+# --------------------------------------------------------------------------- #
+
+def test_failure_row_offers_an_acknowledge_button(client, workbench_on):
+    """판매자센터에서 손으로 해결한 실패를 사람이 닫을 수 있어야 한다."""
+    _login(client)
+    failed = _with_failure(_collected(order_no="N-ACK", product="실패 건", amount=1000))
+
+    body = client.get(TRIAGE_PATH).get_data(as_text=True)
+    strip = body.split('id="wb-result"')[1].split("</section>")[0]
+
+    assert "wb-ack" in strip, strip[:500]
+    assert f'data-link-id="{failed.id}"' in strip, strip[:500]
+
+
+def test_acknowledge_route_clears_the_failure(client, workbench_on):
+    """라우트가 실제로 기록을 지운다 — 지운 뒤에는 띠가 사라진다."""
+    _login(client)
+    failed = _with_failure(_collected(order_no="N-ACK-GO", product="실패 건", amount=1000))
+
+    response = client.post(f"/admin/naver-ingest/{failed.id}/fulfillment-clear", json={})
+
+    assert response.status_code == 200, response.get_data(as_text=True)
+    assert response.get_json()["success"] is True
+    body = client.get(TRIAGE_PATH).get_data(as_text=True)
+    assert 'id="wb-result"' not in body, "지웠는데 띠가 남아 있다"
+
+
+def test_acknowledge_action_has_an_audit_label(client, workbench_on):
+    """새 감사 행위는 라벨을 등재해야 한다(미등재면 FOMS CI red)."""
+    from foms.services.audit_message_display import ACTION_LABELS
+
+    assert "NAVER_INGEST_FULFILLMENT_CLEAR" in ACTION_LABELS

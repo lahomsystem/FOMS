@@ -33,6 +33,7 @@ __all__ = [
     "FulfillmentError",
     "STATE_KEY",
     "DIRECT_DELIVERY",
+    "clear_failure",
     "confirm_place_order",
     "dispatch_order",
 ]
@@ -246,6 +247,45 @@ def confirm_place_order(session: Session, client: Any, *, link_id: int,
         raise FulfillmentError(f"발주확인 일부가 실패했습니다: {detail}")
     logger.info("[NAVER] 발주확인 완료 link=%s 건수=%d", link_id, len(ok_ids))
     return {"confirmed": ok_ids, "skipped": [row.external_id for row in links if row not in todo]}
+
+
+def clear_failure(session: Session, *, link_id: int,
+                  actor_user_id: Optional[int] = None,
+                  now: Optional[datetime] = None) -> dict[str, Any]:
+    """한 집의 **실패 사유만** 지운다 (네이버를 부르지 않는다 — web 에서 돌아도 된다).
+
+    실패 사유는 성공한 재시도가 지운다. 그런데 사람이 판매자센터에서 손으로 해결하거나
+    네이버가 "이미 처리됨"으로 답하면 우리 쪽 기록은 영원히 남아, 화면 위 빨간 띠가
+    모든 탭·모든 사용자에게 고정된다. 그 띠를 사람이 닫는 자리가 여기다.
+
+    **성공 표식(``place_confirmed_at``·``dispatched_at``)은 건드리지 않는다** — 지우면
+    멱등이 깨져 네이버를 두 번 부르게 된다. 누가 언제 닫았는지는 상태에 남긴다.
+
+    Args:
+        session: DB 세션(호출자가 commit 을 소유한다).
+        link_id: 기준 링크 id(같은 집 전체가 함께 지워진다 — 형제가 남으면 띠가 다시 뜬다).
+        actor_user_id: 닫은 사람(기록용).
+        now: 시각 주입(테스트).
+
+    Returns:
+        ``{"cleared": 지운 상품주문 수, "link_ids": [...]}``.
+
+    Raises:
+        FulfillmentError: 링크를 찾을 수 없을 때.
+    """
+    stamp = now or now_utc_naive()
+    links = _links_of_group(session, link_id)
+    cleared = 0
+    for row in links:
+        if not str(_state(row).get("last_error") or "").strip():
+            continue
+        _write_state(row, {"last_error": "", "last_error_at": "", "last_error_action": "",
+                           "failure_cleared_at": stamp.isoformat(),
+                           "failure_cleared_by": actor_user_id})
+        cleared += 1
+    session.flush()
+    logger.info("[NAVER] 실패 기록 지움 link=%s 건수=%d", link_id, cleared)
+    return {"cleared": cleared, "link_ids": [row.id for row in links]}
 
 
 def dispatch_order(session: Session, client: Any, *, link_id: int,

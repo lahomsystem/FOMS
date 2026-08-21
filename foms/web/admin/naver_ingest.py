@@ -568,7 +568,7 @@ def naver_ingest_triage():
         # 배지와 목록은 **같은 결과**를 나눠 쓴다. 취소 여부는 raw_snapshot 안에 있어
         # SQL 이 못 거르므로, SQL 로 따로 세면 "4집이라 써 놓고 3줄" 이 된다.
         # 그래서 탭이 아니어도 한 번 계산한다(조회는 QUEUE_LINK_FETCH_LIMIT 로 묶여 있다).
-        place_groups = _place_groups(db)
+        place_groups, place_truncated = _place_groups(db)
         # 처리 대기에서는 취소·반품 집을 뺀다 — 손댈 수 없는 줄이 작업 목록을 채우면
         # 사람이 매번 건너뛰어야 한다. 대신 전용 탭에 모아 큐에서 뺄 수 있게 한다.
         work_groups = [group for group in queue if not group["claim_blocking"]]
@@ -590,7 +590,23 @@ def naver_ingest_triage():
                 context["selected"] = _triage_pane(db, lead) if lead is not None else None
                 context["selected_group"] = selected_group
 
+        # 큐 밖 링크(확인 완료·조회 상한 밖)를 열었으면 집을 따로 만들어 준다 —
+        # 없으면 상품주문 표가 빈 표가 되고 모달이 "1건" 이라 거짓말한다.
+        if context["selected"] is not None and context["selected_group"] is None:
+            fallback_link = (selected if selected is not None
+                             and selected.id == context["selected"]["link_id"] else None)
+            if fallback_link is None:
+                fallback_link = db.get(ExternalOrderLink, context["selected"]["link_id"])
+            if fallback_link is not None:
+                context["selected_group"] = _group_of_link(db, fallback_link)
+        selected_group = context["selected_group"]
+
         history = _history_view(db) if active_tab == "all" else {}
+        # 수집 상태(워터마크·인증 만료일)는 이력 탭에 함께 싣는다. 게이트가 켜지면 옛
+        # 수집 화면이 리다이렉트로 닫히는데, 그 화면에만 있던 값이라 여기 없으면
+        # 수집이 조용히 멈춰도 아무도 모른다. ADMIN 전용은 그대로다.
+        ingest_status = ({"watermark": _watermark_view(db), "expiry": _expiry_view(db)}
+                         if active_tab == "all" and _can_view_history() else {})
         # 실패는 어느 탭에 있든 보여야 한다 — 탭을 옮겼다고 사고가 사라지지 않는다.
         failures = _failure_rows(db)
         return render_template(
@@ -602,7 +618,9 @@ def naver_ingest_triage():
             claim_groups=claim_groups,
             place_groups=place_groups,
             place_group_count=len(place_groups),
+            place_truncated=place_truncated,
             history=history,
+            ingest_status=ingest_status,
             failures=failures,
             **context,
         )
@@ -738,7 +756,7 @@ def _history_view(db) -> dict[str, Any]:
     }
 
 
-def _place_groups(db) -> list[dict[str, Any]]:
+def _place_groups(db) -> tuple[list[dict[str, Any]], bool]:
     """'발주확인 전' 탭의 집 목록 (W2).
 
     모집단은 필터 버튼 숫자(:func:`_place_pending_group_count`)와 **같은 술어**여야 한다 —
@@ -750,7 +768,8 @@ def _place_groups(db) -> list[dict[str, Any]]:
         db: 요청 스코프 DB 세션.
 
     Returns:
-        :func:`_group_queue` 형태의 묶음 목록(최신 수집순).
+        ``(묶음 목록, 잘렸는지)``. 조용히 자르면 사람이 나머지를 찾아 헤맨다 —
+        잘렸으면 화면이 그렇게 말한다.
     """
     links = (
         db.query(ExternalOrderLink)
@@ -760,26 +779,30 @@ def _place_groups(db) -> list[dict[str, Any]]:
         .all()
     )
     if not links:
-        return []
+        return [], False
     order_ids = [int(row.order_id) for row in links if row.order_id]
     orders = {}
     if order_ids:
         orders = {o.id: o for o in db.query(Order).filter(Order.id.in_(order_ids)).all()}
-    groups = _group_queue(links, orders, truncated=len(links) == QUEUE_LINK_FETCH_LIMIT)
+    # 한 집 더 받아 와서 상한에 걸렸는지 본다(정확히 PAGE_SIZE 집일 때 헛경고를 내지 않는다).
+    groups = _group_queue(links, orders, truncated=len(links) == QUEUE_LINK_FETCH_LIMIT,
+                          limit=PAGE_SIZE + 1)
     # 클레임 판정은 **형제까지** 봐야 한다. 모집단을 '발주확인 전' 링크로 먼저 좁혔으므로,
     # 이미 발주확인이 끝난 형제가 취소돼도 이 목록 안에서는 안 보인다 — 그 집에 발주확인을
     # 보내면 네이버가 거절해 집 전체가 실패한다.
     blocked = _claim_blocked_group_keys(db, links)
-    return [group for group in groups
-            if not group["claim_blocking"] and group["key"] not in blocked]
+    visible = [group for group in groups
+               if not group["claim_blocking"] and group["key"] not in blocked]
+    truncated = len(visible) > PAGE_SIZE or len(links) == QUEUE_LINK_FETCH_LIMIT
+    return visible[:PAGE_SIZE], truncated
 
 
 def _claim_blocked_group_keys(db, links: list[ExternalOrderLink]) -> set:
     """주어진 링크들이 속한 집 중 **취소·반품이 걸린 집**의 묶음키.
 
-    같은 네이버 주문번호의 링크를 전부 읽어(인덱스 있는 축) 클레임 표식을 확인한다.
-    한 상품주문만 취소돼도 그 집은 손대지 않는 집이다 — 큐의 다른 곳(:func:`_group_queue`)이
-    쓰는 규칙과 같다.
+    같은 네이버 주문번호의 형제 중 **이미 발주확인이 끝난 것만** 읽는다. 발주확인 전
+    형제는 이미 목록 안에 있어 :func:`_group_queue` 가 클레임을 판정했다.
+    한 상품주문만 취소돼도 그 집은 손대지 않는 집이다 — 큐의 다른 곳과 같은 규칙이다.
 
     Args:
         db: 요청 스코프 DB 세션.
@@ -794,10 +817,14 @@ def _claim_blocked_group_keys(db, links: list[ExternalOrderLink]) -> set:
     order_nos.discard("")
     if not order_nos:
         return set()
+    # **모집단 밖 형제만** 읽는다 — 모집단 안(발주확인 전) 링크의 클레임은 이미
+    # :func:`_group_queue` 가 `claim_blocking` 으로 판정했다. 여기서 다시 읽으면
+    # 같은 원본을 두 번 파싱하고 조회도 그만큼 커진다.
     siblings = (
         db.query(ExternalOrderLink)
         .filter(ExternalOrderLink.channel == "NAVER",
-                ExternalOrderLink.external_order_no.in_(sorted(order_nos)))
+                ExternalOrderLink.external_order_no.in_(sorted(order_nos)),
+                ExternalOrderLink.place_order_status.in_(CONFIRMED_PLACE_VALUES))
         .all()
     )
     blocked: set = set()
@@ -809,6 +836,42 @@ def _claim_blocked_group_keys(db, links: list[ExternalOrderLink]) -> set:
         except (ValueError, TypeError, AttributeError, KeyError) as exc:
             logger.warning("[NAVER] 클레임 집 키 계산 실패(link %s): %s", row.id, exc)
     return blocked
+
+
+def _group_of_link(db, link: ExternalOrderLink) -> Optional[dict[str, Any]]:
+    """큐에 없는 링크의 **집** — 확인 완료·조회 상한 밖 링크를 열었을 때 쓴다.
+
+    pane 은 큐에서 빠진 집도 열 수 있다(발주확인·발송처리 버튼이 거기 있다). 그때 집이
+    없으면 상품주문 표가 빈 표가 되고, 불가역 모달이 "상품주문 1건" 이라 말한다 —
+    실제로는 형제 전부가 주문 하나로 합쳐진다. 건수 재진술이 거짓이 되는 자리다.
+
+    묶음 규칙은 큐와 **같은 함수**(:func:`_group_queue`)를 쓴다. 규칙이 두 벌이 되면
+    같은 집이 화면마다 다르게 묶인다.
+
+    Args:
+        db: 요청 스코프 DB 세션.
+        link: 선택된 링크.
+
+    Returns:
+        그 링크가 속한 묶음(없으면 None).
+    """
+    order_no = (link.external_order_no or "").strip()
+    if order_no:
+        rows = (
+            db.query(ExternalOrderLink)
+            .filter(ExternalOrderLink.channel == "NAVER",
+                    ExternalOrderLink.external_order_no == order_no)
+            .order_by(ExternalOrderLink.created_at.desc(), ExternalOrderLink.id.desc())
+            .all()
+        )
+    else:
+        rows = [link]
+    order_ids = [int(row.order_id) for row in rows if row.order_id]
+    orders = {}
+    if order_ids:
+        orders = {o.id: o for o in db.query(Order).filter(Order.id.in_(order_ids)).all()}
+    groups = _group_queue(rows, orders, truncated=False)
+    return next((group for group in groups if link.id in group["link_ids"]), None)
 
 
 def _member_rows(db, selected_group: Optional[dict]) -> list[dict[str, Any]]:
@@ -860,7 +923,7 @@ def _member_rows(db, selected_group: Optional[dict]) -> list[dict[str, Any]]:
 
 
 def _group_queue(links: list[ExternalOrderLink], orders: dict,
-                 *, truncated: bool) -> list[dict[str, Any]]:
+                 *, truncated: bool, limit: Optional[int] = None) -> list[dict[str, Any]]:
     """확인 대기 링크를 **한 집 = 한 줄**로 묶는다 (T14-C).
 
     네이버는 본품과 구성 옵션을 각각 다른 상품주문으로 준다. 링크 1건 = 1행으로 두면
@@ -875,6 +938,8 @@ def _group_queue(links: list[ExternalOrderLink], orders: dict,
         links: 확인 대기 링크(최신순).
         orders: ``{order_id: Order}`` — FOMS 현재 값 우선 표시용.
         truncated: 조회 상한에 걸렸는지. 걸렸으면 마지막 묶음은 잘렸을 수 있어 버린다.
+        limit: 돌려줄 묶음 수 상한(기본 :data:`PAGE_SIZE`). 호출자가 잘림을 알아채려면
+            ``PAGE_SIZE + 1`` 을 주고 길이를 보면 된다.
 
     Returns:
         묶음 목록(최신 수집순). 각 항목은 대표 정보 + 구성 링크 목록.
@@ -900,7 +965,7 @@ def _group_queue(links: list[ExternalOrderLink], orders: dict,
         order_of_key.pop()
 
     queue: list[dict[str, Any]] = []
-    for key in order_of_key[:PAGE_SIZE]:
+    for key in order_of_key[:(limit if limit is not None else PAGE_SIZE)]:
         members = groups[key]
         lead = max(members, key=lambda row: (summarize_snapshot(row.raw_snapshot)["amount"] or 0,
                                              -row.id))
@@ -1047,6 +1112,35 @@ def naver_ingest_fulfillment(link_id: int):
     return jsonify({"success": True,
                     "data": {"link_id": link_id, "action": action, "queued": True},
                     "error": None})
+
+
+@admin_bp.route("/admin/naver-ingest/<int:link_id>/fulfillment-clear", methods=["POST"])
+@login_required
+@role_required(["ADMIN", "MANAGER", "STAFF"])
+def naver_ingest_fulfillment_clear(link_id: int):
+    """발주확인·발송처리 **실패 기록을 지운다** (네이버 호출 없음).
+
+    실패 사유는 성공한 재시도가 지운다. 판매자센터에서 손으로 해결한 건은 그 경로가
+    없어 빨간 띠가 영원히 남는다 — 사람이 "확인했다"고 닫는 자리다. 집 전체를 지운다
+    (형제 한 건이 남으면 띠가 다시 뜬다). 성공 표식은 건드리지 않는다.
+    """
+    from foms.services.integrations.naver_commerce.fulfillment import (
+        FulfillmentError,
+        clear_failure,
+    )
+
+    db = get_db()
+    try:
+        result = clear_failure(db, link_id=link_id, actor_user_id=session.get("user_id"))
+    except FulfillmentError as exc:
+        return jsonify({"success": False, "data": None, "error": str(exc)}), 404
+    db.commit()
+    log_access(
+        f"네이버 발주확인·발송처리 실패 기록 지움 (link {link_id})",
+        action="NAVER_INGEST_FULFILLMENT_CLEAR",
+        detail={"link_id": link_id, "cleared": result["cleared"]},
+    )
+    return jsonify({"success": True, "data": result, "error": None})
 
 
 @admin_bp.route("/admin/naver-ingest/<int:link_id>/attach", methods=["POST"])

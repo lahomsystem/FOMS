@@ -15,6 +15,7 @@ from db import db_session
 from foms.services.integrations.naver_commerce.fulfillment import (
     DIRECT_DELIVERY,
     FulfillmentError,
+    clear_failure,
     confirm_place_order,
     dispatch_order,
 )
@@ -509,3 +510,62 @@ def test_failure_records_which_action_failed(app):
 
     assert _state(confirm_link)["last_error_action"] == "confirm"
     assert _state(dispatch_link)["last_error_action"] == "dispatch"
+
+
+# --------------------------------------------------------------------------- #
+# 실패 기록 지우기 (2차 리뷰)
+#
+# 판매자센터에서 손으로 해결하면 우리 쪽 last_error 는 영원히 남아 빨간 띠가 고정된다.
+# 사람이 "확인했다"고 말할 수 있어야 한다. 성공 표식은 건드리지 않는다.
+# --------------------------------------------------------------------------- #
+
+def test_clear_failure_wipes_the_whole_household(app):
+    """한 집의 실패 기록을 통째로 지운다 — 형제 한 건이 남으면 띠가 다시 뜬다."""
+    first = _link("PO-CLR-1", order_no="N-CLR", place="NOT_YET")
+    second = _link("PO-CLR-2", order_no="N-CLR", place="NOT_YET")
+    with pytest.raises(FulfillmentError):
+        confirm_place_order(db_session, _StubClient(fail=True), link_id=first)
+    db_session.commit()
+
+    result = clear_failure(db_session, link_id=first, actor_user_id=7)
+    db_session.commit()
+
+    assert result["cleared"] == 2
+    assert not _state(first).get("last_error")
+    assert not _state(second).get("last_error")
+    assert _state(first)["failure_cleared_by"] == 7
+
+
+def test_clear_failure_keeps_the_success_marks(app):
+    """지우는 건 실패 사유뿐이다 — 발주확인·발송처리 표식을 지우면 멱등이 깨진다."""
+    link_id = _link("PO-CLR-KEEP", order_no="N-CLR-K", place="NOT_YET")
+    confirm_place_order(db_session, _StubClient(), link_id=link_id)
+    db_session.commit()
+    from foms.services.integrations.naver_commerce.fulfillment import _write_state
+    from models import ExternalOrderLink as _L
+
+    _write_state(db_session.get(_L, link_id), {"last_error": "판매자센터에서 처리함",
+                                               "last_error_action": "dispatch"})
+    db_session.commit()
+
+    clear_failure(db_session, link_id=link_id)
+    db_session.commit()
+
+    assert not _state(link_id).get("last_error")
+    assert _state(link_id)["place_confirmed_at"], "성공 표식은 남아야 한다"
+
+
+def test_clear_failure_does_not_touch_other_households(app):
+    """옆 집 실패는 그대로 둔다."""
+    mine = _link("PO-CLR-A", order_no="N-CLR-A", place="NOT_YET")
+    other = _link("PO-CLR-B", order_no="N-CLR-B", place="NOT_YET")
+    for link_id in (mine, other):
+        with pytest.raises(FulfillmentError):
+            confirm_place_order(db_session, _StubClient(fail=True), link_id=link_id)
+        db_session.commit()
+
+    clear_failure(db_session, link_id=mine)
+    db_session.commit()
+
+    assert not _state(mine).get("last_error")
+    assert _state(other)["last_error"], "옆 집 실패까지 지우면 사고를 덮는다"

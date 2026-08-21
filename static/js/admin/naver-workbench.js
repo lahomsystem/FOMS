@@ -11,6 +11,72 @@
     wireClaimDone();
     wireRetryFailed();
     wireDispatch();
+    wireRunNow();
+    wireFailureAck();
+
+    /* ── 결과 띠: 실패 기록 닫기 ──────────────────────────────────────
+       네이버에는 아무 영향이 없다(우리 기록만 지운다). 그래서 모달을 두지 않는다 —
+       불가역이 아닌 일에 경고를 달면 진짜 불가역 경고가 값을 잃는다. */
+    function wireFailureAck() {
+        var strip = document.getElementById('wb-result');
+        if (!strip) {
+            return;
+        }
+        strip.addEventListener('click', async function (event) {
+            var btn = event.target.closest('.wb-ack');
+            if (!btn) {
+                return;
+            }
+            btn.disabled = true;
+            try {
+                const response = await fetch(
+                    '/admin/naver-ingest/' + btn.dataset.linkId + '/fulfillment-clear', {
+                        method: 'POST',
+                        headers: { 'Content-Type': 'application/json' },
+                        body: '{}'
+                    });
+                const data = await response.json();
+                if (!data.success) {
+                    window.alert(data.error || '실패 기록을 지우지 못했습니다.');
+                    btn.disabled = false;
+                    return;
+                }
+                window.location.reload();
+            } catch (error) {
+                window.alert('요청 중 오류가 발생했습니다: ' + error);
+                btn.disabled = false;
+            }
+        });
+    }
+
+    /* ── 전체 이력 탭: 지금 수집 ──────────────────────────────────────
+       큐에 넣기만 한다. 네이버 HTTP 는 WORKER 에서만 나간다(호출 IP 한도 3). */
+    function wireRunNow() {
+        var runBtn = document.getElementById('wb-run-now');
+        if (!runBtn) {
+            return;
+        }
+        var out = document.getElementById('wb-run-result');
+        runBtn.addEventListener('click', async function () {
+            runBtn.disabled = true;
+            out.textContent = '작업 큐에 넣는 중…';
+            try {
+                const response = await fetch('/admin/naver-ingest/run', {
+                    method: 'POST',
+                    headers: { 'Content-Type': 'application/json' },
+                    body: '{}'
+                });
+                const data = await response.json();
+                out.textContent = data.success
+                    ? '수집 작업을 큐에 넣었습니다. 잠시 뒤 새로고침하면 결과가 이력에 나타납니다.'
+                    : (data.error || '수집 요청에 실패했습니다.');
+            } catch (error) {
+                out.textContent = '요청 중 오류가 발생했습니다: ' + error;
+            } finally {
+                runBtn.disabled = false;
+            }
+        });
+    }
 
     /* ── 처리 대기 탭: 발송처리 ────────────────────────────────────────
        네이버에 "물건이 나갔다"를 알린다. 되돌릴 수 없어 모달을 거치고, 실제 호출은

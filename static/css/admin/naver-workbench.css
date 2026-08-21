@@ -183,6 +183,17 @@
 /* ── 실행 결과 띠 (W5, 결정 7) ────────────────────────────────────────
    .alert 는 전역 스크립트가 5초 뒤 제거한다 — 이 블록에는 반드시
    data-foms-no-autodismiss 가 붙어야 실패 사유가 증발하지 않는다. */
+.wb-ingest { display: grid; grid-template-columns: repeat(4, 1fr); gap: 12px;
+             margin: 8px 0 12px; padding: 10px 12px; border: 1px solid var(--border, #dee2e6);
+             border-radius: 8px; background: rgba(15, 23, 42, .02); }
+.wb-ingest__k { font-size: 11.5px; opacity: .7; }
+.wb-ingest__v { font-size: 14px; font-weight: 700; margin-top: 2px; }
+.wb-ingest__sub { font-size: 11.5px; opacity: .75; margin-top: 2px; }
+.wb-ingest__cell--action { display: flex; flex-direction: column; align-items: flex-start; gap: 4px; }
+@media (max-width: 1100px) { .wb-ingest { grid-template-columns: repeat(2, 1fr); } }
+.wb-note { margin: 8px 12px 0; padding: 7px 10px; border-radius: 6px;
+           background: rgba(217, 119, 6, .08); border: 1px solid rgba(217, 119, 6, .28);
+           font-size: 12.5px; }
 .wb-result { margin: 8px 0 12px; }
 .wb-result__head { display: flex; align-items: baseline; gap: 12px; flex-wrap: wrap; }
 .wb-result__list { width: 100%; border-collapse: collapse; margin-top: 8px; font-size: 12.5px; }
@@ -191,4 +202,9 @@
 .wb-result__no { width: 172px; font-variant-numeric: tabular-nums; opacity: .8; }
 .wb-result__act { width: 76px; font-weight: 600; white-space: nowrap; }
 .wb-result__at { width: 120px; text-align: right; opacity: .8; font-variant-numeric: tabular-nums; }
+.wb-result__ack { width: 96px; text-align: right; }
+/* 전역 `.btn { padding: 10px 20px !important }`(style-pro-max.css) 때문에 좁은 칸에서
+   "확인함" 이 글자마다 줄바꿈돼 세로로 쪼개졌다(1440 실화면). 패딩은 못 이기므로
+   칸을 넓히고 줄바꿈을 막는다 — 지역 CSS 에 !important 를 더 얹지 않는다. */
+.naver-workbench .wb-result__ack .btn { white-space: nowrap; font-size: 12px; }
 .wb-result__foot { margin-top: 10px; }
