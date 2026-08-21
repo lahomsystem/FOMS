@@ -5163,19 +5163,30 @@ function fomsMountErpOrderSurface() {
     async function erpRunChannelPush(btn, pushKind, resendRetryState) {
         const retryState = resendRetryState || { resendRecoveryUsed: false };
 
-        // 푸시 본문은 저장 전 라이브 DOM에서 조립된다 — 미저장 변경이 있으면
-        // "전송완료" 표시만 남고 DB엔 반영 안 되는 사고가 나므로 먼저 저장 확인.
-        // 재귀(resend note) 호출은 이미 게이트를 통과했으므로 재질문하지 않는다.
-        if (!resendRetryState && window.fomsErpAutosave && window.fomsErpAutosave.isDirty()) {
-            const wantsSave = confirm(
-                '저장되지 않은 변경이 있습니다.\n저장한 뒤 푸시할까요?\n\n(취소하면 푸시하지 않습니다)'
+        // 푸시 본문은 저장 전 라이브 DOM에서 조립된다 — 미저장 변경이 있거나 아직
+        // 승격되지 않은 draft 주문이면 "전송완료" 표시만 남고 DB엔 반영 안 되는 사고가 난다.
+        // 그래서 되묻지 않고 여기서 먼저 저장(draft면 승격)한 뒤 푸시한다.
+        // (저장 후 다시 들어와야 푸시되던 동선 제거 — 다른 PUSH 버튼과 동일 UX)
+        // 재귀(resend note) 호출은 이미 저장을 마쳤으므로 다시 저장하지 않는다.
+        if (!resendRetryState) {
+            const _autosave = window.fomsErpAutosave;
+            const _isDirty = !!(
+                _autosave && typeof _autosave.isDirty === 'function' && _autosave.isDirty()
             );
-            if (!wantsSave) {
-                return;
-            }
-            const saveResult = await erpSaveStructured({ redirect: false });
-            if (saveResult?.success !== true) {
-                return;
+            const _needsPersist =
+                !(typeof ORDER_ID !== 'undefined' && ORDER_ID > 0) || erpIsDraftBackedOrder();
+            if (_isDirty || _needsPersist) {
+                erpSetStatus(
+                    _isDirty
+                        ? '저장되지 않은 변경이 있습니다. 저장 후 푸시합니다...'
+                        : '푸시 전 주문을 저장합니다...'
+                );
+                // 필수값 검증(고객명·전화·주소·제품)은 그대로 통과해야 한다 —
+                // 실패 시 저장 함수가 alert로 누락 항목을 알려주고 푸시는 중단된다.
+                const saveResult = await erpSaveStructured({ redirect: false });
+                if (saveResult?.success !== true) {
+                    return;
+                }
             }
         }
 
