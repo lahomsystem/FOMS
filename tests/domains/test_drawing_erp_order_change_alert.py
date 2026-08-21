@@ -93,11 +93,47 @@ def test_compute_changes_empty_when_operational_only():
 
 
 def test_compute_changes_detects_payment():
-    old = _base_sd()
-    new = _base_sd()
-    new["payment"] = {"deposit": 100000}
+    """결제는 필드별 before→after 로 남는다(구 `결제/금액 이전→변경됨` 자리표시 금지)."""
+    old = _base_sd(payment={"deposit": 100000, "discount": 0})
+    new = _base_sd(payment={"deposit": 250000, "discount": 0})
     changes = compute_drawing_relevant_changes(old, new)
-    assert any(c["path"] == "payment" for c in changes)
+    row = next(c for c in changes if c["path"] == "payment.deposit")
+    assert row["label"] == "예약금"
+    assert row["from"] == "100,000" and row["to"] == "250,000"
+    assert not [c for c in changes if c["to"] == "변경됨"]
+    assert not [c for c in changes if c["path"] == "payment.discount"]
+
+
+def test_payment_block_first_creation_is_silent():
+    """첫 저장에서 폼이 결제 블록을 통째로 만드는 건 변경이 아니다(모든 주문에 뜨던 원인)."""
+    old = _base_sd()
+    new = _base_sd(payment={
+        "deposit": 985800, "discount": 0, "free_input": "", "balance_note": "",
+        "cash_receipt": "", "deposit_confirmed": False, "balance_confirmed": False,
+        "deposit_confirmed_at": None, "deposit_confirmed_by": None,
+    })
+    changes = compute_drawing_relevant_changes(old, new)
+    assert not [c for c in changes if c["path"].startswith("payment")]
+
+
+def test_payment_confirm_flag_is_human_readable():
+    """확인 플래그는 1/0 이 아니라 확인/미확인으로 적는다."""
+    old = _base_sd(payment={"deposit_confirmed": False})
+    new = _base_sd(payment={"deposit_confirmed": True})
+    changes = compute_drawing_relevant_changes(old, new)
+    row = next(c for c in changes if c["path"] == "payment.deposit_confirmed")
+    assert (row["from"], row["to"]) == ("미확인", "확인")
+
+
+def test_humanize_drops_legacy_payment_placeholder():
+    """과거 이력에 박힌 `결제/금액 이전→변경됨` 줄은 읽기 시점에 사라진다."""
+    from foms.services.notifications.drawing_order_change import humanize_order_change_changes
+
+    rows = humanize_order_change_changes([
+        {"path": "payment", "label": "결제/금액", "from": "이전", "to": "변경됨"},
+        {"path": "site.address", "label": "주소", "from": "서울 강남", "to": "서울 서초"},
+    ])
+    assert [r["path"] for r in rows] == ["site.address"]
 
 
 def test_gate_blocks_pending_without_assignee():

@@ -344,6 +344,9 @@ def humanize_order_change_changes(
         # 읽기 시점 교정 — 이미 쌓인 과거 이력의 최초 입력 줄도 함께 걷어낸다.
         if is_first_fill_change(row["path"], row["from"]):
             continue
+        # 구(舊) 결제 자리표시 줄(`결제/금액 이전→변경됨`)은 정보가 0이다 — 과거 이력에서도 뺀다.
+        if row["path"] == "payment" and row["to"] == "변경됨":
+            continue
         out.append(row)
     return out
 
@@ -550,12 +553,64 @@ def _shipment_workers(sd: dict) -> str:
     return _party_name(sd, "construction") or _party_name(sd, "construction_workers")
 
 
-def _payment_fingerprint(sd: dict) -> str:
-    """결제 블록 비교용."""
-    payment = (sd or {}).get("payment")
-    if not isinstance(payment, dict):
-        return ""
-    return json.dumps(payment, ensure_ascii=False, sort_keys=True, default=str)
+# 결제 블록에서 사람이 읽을 값만. ``*_at``/``*_by``/``*_by_user_id`` 는 확인 버튼이 남기는
+# 부산물이라 표기하지 않는다(내용은 확인 플래그가 이미 말한다).
+_PAYMENT_FIELD_LABELS: Dict[str, str] = {
+    "deposit": "예약금",
+    "discount": "할인",
+    "free_input": "자유입력 금액",
+    "balance_note": "잔금 비고",
+    "cash_receipt": "현금영수증",
+    "deposit_confirmed": "예약금 확인",
+    "balance_confirmed": "잔금 확인",
+}
+_PAYMENT_MONEY_KEYS = frozenset({"deposit", "discount"})
+
+
+def _payment_display(key: str, value: Any) -> Any:
+    """결제 값 표시형. 금액은 천단위 구분, 확인 플래그는 확인/미확인."""
+    if key in ("deposit_confirmed", "balance_confirmed"):
+        if value is None or value == "":
+            return None
+        return "확인" if bool(value) else "미확인"
+    if key in _PAYMENT_MONEY_KEYS:
+        text = str(value if value is not None else "").strip()
+        if not text:
+            return None
+        try:
+            number = int(float(text))
+        except (TypeError, ValueError):
+            return text
+        return f"{number:,}"
+    return value
+
+
+def _append_payment_changes(
+    changes: List[Dict[str, str]],
+    old_sd: dict,
+    new_sd: dict,
+) -> None:
+    """결제 블록을 필드별 before→after 로 남긴다.
+
+    블록 전체 지문 비교는 ``결제/금액 이전→변경됨`` 한 줄만 남겨 무엇이 바뀐지 알 수 없었고,
+    첫 저장에서 폼이 블록 13키를 통째로 만들기 때문에 **모든 주문에 항상** 떴다
+    (2026-08-21 운영 실측). 필드별로 적으면 최초 입력 줄은 first-fill 필터가 걷어낸다.
+
+    Args:
+        changes: 누적 변경 목록(제자리 추가).
+        old_sd: 이전 structured_data.
+        new_sd: 새 structured_data.
+    """
+    old_pay = (old_sd or {}).get("payment") if isinstance((old_sd or {}).get("payment"), dict) else {}
+    new_pay = (new_sd or {}).get("payment") if isinstance((new_sd or {}).get("payment"), dict) else {}
+    for key, label in _PAYMENT_FIELD_LABELS.items():
+        _add_change(
+            changes,
+            f"payment.{key}",
+            label,
+            _payment_display(key, old_pay.get(key)),
+            _payment_display(key, new_pay.get(key)),
+        )
 
 
 def _flags_fingerprint(sd: dict) -> str:
@@ -704,13 +759,7 @@ def compute_drawing_relevant_changes(
         for key in sorted(all_keys - covered):
             _add_change(changes, f"flags.{key}", f"플래그({key})", old_flags.get(key), new_flags.get(key))
 
-    if _payment_fingerprint(old_sd) != _payment_fingerprint(new_sd):
-        changes.append({
-            "path": "payment",
-            "label": "결제/금액",
-            "from": "이전",
-            "to": "변경됨",
-        })
+    _append_payment_changes(changes, old_sd, new_sd)
 
     _add_change(changes, "is_regional", "지방주문", old_is_regional, new_is_regional)
     _add_change(
