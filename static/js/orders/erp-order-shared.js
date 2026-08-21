@@ -5249,7 +5249,8 @@ function fomsMountErpOrderSurface() {
             }
         }
 
-        const activeClass = btn.classList.contains('btn-warning') ? 'btn-warning'
+        const activeClass = btn.classList.contains('erp-push-btn--drawing') ? 'erp-push-btn--drawing'
+            : btn.classList.contains('btn-warning') ? 'btn-warning'
             : btn.classList.contains('btn-primary') ? 'btn-primary'
             : btn.classList.contains('erp-push-btn--measure-room') ? 'erp-push-btn--measure-room'
             : btn.classList.contains('btn-info') ? 'btn-info'
