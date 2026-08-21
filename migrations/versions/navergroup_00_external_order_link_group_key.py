@@ -12,7 +12,7 @@
 마이그레이션은 그 시점에 고정된 사실만 담아야 한다.
 
 Revision ID: navergroup_00
-Revises: naver_relation_00
+Revises: notifrole_00
 Create Date: 2026-08-20
 """
 
@@ -21,7 +21,7 @@ import sqlalchemy as sa
 
 
 revision = 'navergroup_00'
-down_revision = 'naver_relation_00'
+down_revision = 'notifrole_00'
 branch_labels = None
 depends_on = None
 
