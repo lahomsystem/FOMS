@@ -8,18 +8,21 @@
     const MIN_NOTE_LEN = 1;
     const HISTORY_KEYS = {
         measurement: 'channeltalk_push',
+        measure_room: 'channeltalk_push_measure_room',
         drawing: 'channeltalk_push_drawing',
         estimate: 'channeltalk_push_estimate',
         as: 'channeltalk_push_as',
     };
     const PUSH_LABELS = {
         measurement: '영발 PUSH',
+        measure_room: '실측 PUSH',
         drawing: '발주 PUSH',
         estimate: '견적서 PUSH',
         as: 'AS PUSH',
     };
     const PUSH_BUTTON_IDS = [
         'erp-channeltalk-push-btn',
+        'erp-channeltalk-push-measure-btn',
         'erp-channeltalk-push-drawing-btn',
         'erp-channeltalk-push-as-btn',
         'erp-channeltalk-push-picker-btn',

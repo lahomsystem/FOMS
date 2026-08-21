@@ -34,6 +34,16 @@ def test_get_routing_group_id_falls_back_to_production_groups(monkeypatch) -> No
     assert channel_policy.get_routing_group_id("manual", {"push_kind": "measurement"}) == "209990"
 
 
+def test_get_routing_group_id_routes_measure_room_to_own_group(monkeypatch) -> None:
+    """실측 PUSH(measure_room)는 영발 그룹이 아니라 실측방으로 간다."""
+    monkeypatch.setenv("CHANNEL_GROUP_MEASUREMENT", "measure-grp")
+    monkeypatch.setenv("CHANNEL_GROUP_MEASURE_ROOM", "room-grp")
+    assert channel_policy.get_routing_group_id("manual", {"push_kind": "measure_room"}) == "room-grp"
+
+    monkeypatch.delenv("CHANNEL_GROUP_MEASURE_ROOM", raising=False)
+    assert channel_policy.get_routing_group_id("manual", {"push_kind": "measure_room"}) == "229923"
+
+
 def test_dispatch_order_event_returns_failure_when_group_missing(monkeypatch) -> None:
     monkeypatch.setattr(channel_dispatch, "get_routing_group_id", lambda event_type, data: "")
 
