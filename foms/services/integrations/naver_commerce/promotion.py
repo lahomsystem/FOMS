@@ -458,11 +458,17 @@ def detach_link_from_order(session: Session, *, link_id: int,
 
 def _group_siblings_for_attach(session: Session,
                                link: ExternalOrderLink) -> list[ExternalOrderLink]:
-    """붙이기·되돌리기 대상 묶음 — 같은 네이버 주문번호의 링크 전부.
+    """붙이기·되돌리기 대상 묶음 — 같은 **집**의 링크 전부.
 
     승격용 :func:`_group_siblings` 는 **주문이 없는** 링크만 모은다(부분 생성 방어). 붙이기는
     반대로 이미 같은 주문에 붙은 형제까지 함께 다뤄야 되돌리기가 반쪽이 되지 않는다.
+
+    주문번호로만 묶으면 안 된다 — 분할배송(같은 주문번호·다른 주소)에서 A집을 붙이면
+    B집 링크까지 남의 주문으로 넘어가고 큐에서 사라진다. 집 판정은 화면·발주확인과
+    같은 규칙(:func:`fulfillment.household_key` = ``mapping.group_key``)을 쓴다.
     """
+    from foms.services.integrations.naver_commerce.fulfillment import household_key
+
     order_no = (link.external_order_no or "").strip()
     if not order_no:
         return [link]
@@ -473,7 +479,9 @@ def _group_siblings_for_attach(session: Session,
         .order_by(ExternalOrderLink.id.asc())
         .all()
     )
-    return rows or [link]
+    base_key = household_key(link)
+    same_house = [row for row in rows if household_key(row) == base_key]
+    return same_house or [link]
 
 
 def _group_siblings(session: Session, link: ExternalOrderLink) -> list[ExternalOrderLink]:

@@ -620,7 +620,9 @@
            처리 대기 탭으로 튄다. #}
         <div class="wb-filters">
             <a class="wb-chip" aria-pressed="{{ 'true' if not history.status and not history.place_pending else 'false' }}"
-               href="{{ url_for('admin.naver_ingest_triage', tab='all') }}">전체 {{ history.total }}집</a>
+               {# 필터가 걸리면 history.total 은 '걸러진 총계'다 — 그걸 "전체" 라고 말하면
+                  거짓말이 된다(옛 이력 화면도 같은 가드를 쓴다). #}
+               href="{{ url_for('admin.naver_ingest_triage', tab='all') }}">전체 {{ (history.total ~ '집') if not (history.status or history.place_pending) else '' }}</a>
             {% for key, label in [('COLLECTED', '수집됨(주문 전)'), ('LINKED', '주문 생성됨'),
                                   ('PENDING_REVIEW', '확인 필요'), ('FAILED', '실패')] %}
             <a class="wb-chip" aria-pressed="{{ 'true' if history.status == key else 'false' }}"
@@ -632,7 +634,10 @@
             <a class="wb-chip" aria-pressed="{{ 'true' if history.place_pending else 'false' }}"
                href="{{ url_for('admin.naver_ingest_triage', tab='all', status=history.status or None,
                                 place=None if history.place_pending else 'PENDING') }}">
-                발주확인 전 {{ history.place_pending_count }}집
+                {# 탭 배지("발주확인 전")는 **작업 대상**(취소·반품 제외, 한 화면 상한)이고
+                   이 칩은 이력 표를 거르는 술어라 취소 집도 포함한다. 같은 라벨을 쓰면
+                   같은 화면에서 두 숫자가 어긋나 보인다 — 모집단을 라벨에 적는다. #}
+                발주확인 전(취소 포함) {{ history.place_pending_count }}집
             </a>
         </div>
 

@@ -28,10 +28,14 @@ def _order(name: str = "김고객", phone: str = "010-1111-2222") -> int:
 
 
 def _link(external_id: str, *, order_no: str = "N-ATT", claim: str = "",
-          status: str = "COLLECTED") -> int:
+          status: str = "COLLECTED", address: str = "", tel: str = "") -> int:
+    """수집 링크 1건. ``address``/``tel`` 을 주면 분할배송(같은 주문번호·다른 집)이 된다."""
     product_order = {"productOrderId": external_id, "productName": "로라 무몰딩 1cm"}
     if claim:
         product_order["claimStatus"] = claim
+    if address or tel:
+        product_order["shippingAddress"] = {"name": "이수취", "tel1": tel,
+                                            "baseAddress": address, "detailedAddress": ""}
     link = ExternalOrderLink(
         channel="NAVER", external_id=external_id, external_order_no=order_no,
         sync_status=status,
@@ -293,3 +297,27 @@ def test_detach_removes_the_payment_record(auth_client):
 
     auth_client.post(f"/admin/naver-ingest/{link_id}/detach")
     assert _pricing(order_id)["extra_payments"] == []
+
+
+def test_attach_stays_inside_the_household_on_split_shipment(auth_client):
+    """분할배송에서 A집을 붙여도 B집은 그대로 남는다.
+
+    주문번호로만 묶으면 B집 링크까지 남의 주문으로 넘어가고 큐에서 사라진다 —
+    발주확인에서 고친 것과 같은 결함이 붙이기 경로에 남아 있었다.
+    """
+    order_id = _order()
+    a_first = _link("PO-SPA-1", order_no="N-ATT-SPLIT",
+                    address="서울 강남구 1", tel="010-1111-1111")
+    a_second = _link("PO-SPA-2", order_no="N-ATT-SPLIT",
+                     address="서울 강남구 1", tel="010-1111-1111")
+    b_only = _link("PO-SPB-1", order_no="N-ATT-SPLIT",
+                   address="부산 해운대구 9", tel="010-2222-2222")
+
+    response = auth_client.post(f"/admin/naver-ingest/{a_first}/attach",
+                                json={"order_id": order_id, "relation": "ADDON"})
+
+    assert response.status_code == 200, response.get_data(as_text=True)
+    assert _fresh(a_first).order_id == order_id
+    assert _fresh(a_second).order_id == order_id
+    assert _fresh(b_only).order_id is None, "옆 집이 남의 주문으로 넘어갔다"
+    assert _fresh(b_only).sync_status == "COLLECTED"

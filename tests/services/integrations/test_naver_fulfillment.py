@@ -672,3 +672,37 @@ def test_unattributed_reason_survives_when_a_success_list_exists(app):
                     .filter(ExternalOrderLink.external_id == "PO-UNATTR-2").all()][0]
     reason = (second_state.triage_state or {})["fulfillment"]["last_error"]
     assert "판매자 확인이 필요합니다" in reason, reason
+
+
+# --------------------------------------------------------------------------- #
+# 5차 리뷰 — 거절 가시화(발주확인 전) / 컬럼으로 확인된 형제
+# --------------------------------------------------------------------------- #
+
+def test_dispatch_before_place_confirm_leaves_a_reason(app):
+    """'발주확인이 먼저입니다' 도 화면에 닿아야 한다 — web 은 이미 성공으로 답했다."""
+    first = _link("PO-ORD-1", order_no="N-ORDER", place="OK")
+    _link("PO-ORD-2", order_no="N-ORDER", place="NOT_YET")
+
+    with pytest.raises(FulfillmentError):
+        dispatch_order(db_session, _StubClient(), link_id=first)
+    db_session.commit()
+
+    state = _state(first)
+    assert "발주확인" in state["last_error"], state
+    assert state["last_error_action"] == "dispatch"
+
+
+def test_confirm_skips_a_sibling_already_confirmed_in_the_column(app):
+    """판매자센터에서 손으로 발주확인한 형제는 다시 보내지 않는다.
+
+    컬럼(place_order_status='OK')을 무시하면 네이버가 그 건을 실패로 돌려주고,
+    실제로는 정상인데 빨간 실패 띠가 남는다(발송처리는 이미 컬럼을 본다).
+    """
+    first = _link("PO-COL-1", order_no="N-COL", place="NOT_YET")
+    _link("PO-COL-2", order_no="N-COL", place="OK")
+    client = _StubClient()
+
+    confirm_place_order(db_session, client, link_id=first)
+    db_session.commit()
+
+    assert client.confirm_calls == [["PO-COL-1"]], client.confirm_calls

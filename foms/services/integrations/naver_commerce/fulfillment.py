@@ -25,6 +25,7 @@ from sqlalchemy.orm import Session
 
 from foms.services.datetime_kst import now_utc_naive
 from foms.services.integrations.naver_commerce.constants import CHANNEL
+from foms.services.integrations.naver_commerce.mapping import CONFIRMED_PLACE_STATUSES
 from models import ExternalOrderLink
 
 logger = logging.getLogger(__name__)
@@ -275,7 +276,13 @@ def confirm_place_order(session: Session, client: Any, *, link_id: int,
     stamp = now or now_utc_naive()
     links = _links_of_group(session, link_id)
     _claim_guard(session, links, action="confirm", stamp=stamp)
-    todo = [row for row in links if not _state(row).get("place_confirmed_at")]
+    # 컬럼(place_order_status)도 함께 본다 — 판매자센터에서 손으로 발주확인한 형제를
+    # 다시 보내면 네이버가 그 건을 실패로 돌려주고, 정상인데 빨간 띠가 남는다.
+    # (발송처리 쪽 not_confirmed 판정은 이미 둘을 함께 본다.)
+    todo = [row for row in links
+            if not (_state(row).get("place_confirmed_at")
+                    or (row.place_order_status or "").strip().upper()
+                    in CONFIRMED_PLACE_STATUSES)]
     if not todo:
         return {"confirmed": [], "skipped": [row.external_id for row in links]}
 
@@ -377,7 +384,13 @@ def dispatch_order(session: Session, client: Any, *, link_id: int,
                      if not (_state(row).get("place_confirmed_at")
                              or (row.place_order_status or "").upper() == "OK")]
     if not_confirmed:
-        raise FulfillmentError("발주확인이 먼저입니다(발주확인 전 상품주문이 있습니다).")
+        # 거절도 화면에 닿아야 한다 — web 은 enqueue 만 하고 이미 "요청했습니다"로 답했다.
+        reason = "발주확인이 먼저입니다(발주확인 전 상품주문이 있습니다)."
+        _mark_failures({str(row.external_id): row for row in links},
+                       {str(row.external_id): reason for row in links},
+                       action="dispatch", stamp=stamp)
+        session.flush()
+        raise FulfillmentError(reason)
 
     todo = [row for row in links if not _state(row).get("dispatched_at")]
     if not todo:

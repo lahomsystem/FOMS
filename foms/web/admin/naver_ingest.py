@@ -600,9 +600,15 @@ def naver_ingest_triage():
             if fallback_link is not None:
                 context["selected_group"] = _group_of_link(db, fallback_link)
         selected_group = context["selected_group"]
-        # 클레임 판정은 큐 모집단(확인 대기)만 봐서는 부족하다 — 확인 완료돼 큐에서 빠진
-        # 형제가 취소 중이면 그 집도 손대지 않는 집이다. 선택된 집만 형제 전부를 읽는다.
-        selected_household_claimed = _household_has_claim(db, selected)
+        # 클레임 판정 대상은 **pane 에 실제로 뜬 링크**다. 탭 기본 선택이 큐 첫 줄과 다를 수
+        # 있어(취소 집은 처리 대기에서 빠진다) 큐 첫 줄로 판정하면 엉뚱한 집을 본다.
+        # 모집단도 큐(확인 대기)만으로는 부족하다 — 확인 완료돼 큐에서 빠진 형제의 취소를
+        # 못 본다. 그래서 뜬 집 하나만 형제 전부를 읽는다.
+        pane_link = selected
+        if context["selected"] is not None and (
+                pane_link is None or pane_link.id != context["selected"]["link_id"]):
+            pane_link = db.get(ExternalOrderLink, context["selected"]["link_id"])
+        selected_household_claimed = _household_has_claim(db, pane_link)
 
         history = _history_view(db) if active_tab == "all" else {}
         # 수집 상태(워터마크·인증 만료일)는 이력 탭에 함께 싣는다. 게이트가 켜지면 옛

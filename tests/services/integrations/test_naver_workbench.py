@@ -1212,3 +1212,56 @@ def test_failure_strip_does_not_merge_different_orders(client, workbench_on):
     strip = body.split('id="wb-result"')[1].split("</section>")[0]
 
     assert "실패 2집" in strip, strip[:400]
+
+
+# --------------------------------------------------------------------------- #
+# 5차 리뷰 — 판정 대상은 '화면에 뜬 집' / 필터 걸린 총계 / 같은 라벨 다른 숫자
+# --------------------------------------------------------------------------- #
+
+def test_claim_check_follows_the_household_actually_shown(client, workbench_on):
+    """클레임 판정은 pane 에 **실제로 뜬 집**을 봐야 한다.
+
+    탭 기본 선택이 큐 첫 줄과 다를 수 있다(취소 집은 처리 대기 탭에서 빠진다).
+    그때 큐 첫 줄로 판정하면 멀쩡한 집의 발송처리가 잠긴다.
+    """
+    _login(client)
+    # 큐는 최신순이라 **취소 집을 나중에** 만들어 큐 첫 줄로 오게 한다 —
+    # 처리 대기 탭은 그 줄을 빼므로 pane 에는 멀쩡한 집이 뜬다.
+    _collected(order_no="N-SEL-OK", product="멀쩡한 집", amount=50000, place_status="OK",
+               address="제주 제주시 2", tel="010-9090-2222")
+    _collected(order_no="N-SEL-CLAIM", product="취소 집", amount=100000, place_status="OK",
+               claim_status="CANCEL_REQUEST", address="제주 서귀포 1", tel="010-9090-1111")
+
+    body = client.get(f"{TRIAGE_PATH}?tab=work").get_data(as_text=True)
+
+    assert "멀쩡한 집" in body
+    assert 'id="wb-dispatch"' in body, "pane 에 뜬 집은 멀쩡한데 발송처리가 잠겼다"
+
+
+def test_history_total_chip_does_not_claim_a_filtered_number(client, workbench_on):
+    """필터가 걸린 상태에서 '전체 N집' 은 거짓말이다 — 옛 화면은 숫자를 뺐다."""
+    _login(client)
+    link = _collected(order_no="N-TOT", product="실패 수집", amount=1000)
+    link.sync_status = "FAILED"
+    db_session.commit()
+    _collected(order_no="N-TOT-2", product="정상 수집", amount=1000)
+
+    body = client.get(f"{TRIAGE_PATH}?tab=all&status=FAILED").get_data(as_text=True)
+    chip = body.split('class="wb-filters"')[1].split("</a>")[0]
+
+    assert "전체" in chip
+    assert "1집" not in chip, chip
+
+
+def test_place_pending_labels_say_which_population_they_count(client, workbench_on):
+    """탭 배지(작업 대상)와 이력 칩(취소 포함)이 같은 라벨로 다른 숫자를 내면 안 된다."""
+    _login(client)
+    _collected(order_no="N-LBL-CLAIM", product="취소 집", amount=1000, place_status="",
+               claim_status="CANCEL_REQUEST", address="강원 춘천 1", tel="010-7070-1111")
+    _collected(order_no="N-LBL-OK", product="정상 집", amount=1000, place_status="",
+               address="강원 원주 2", tel="010-7070-2222")
+
+    body = client.get(f"{TRIAGE_PATH}?tab=all").get_data(as_text=True)
+    chips = body.split('class="wb-filters"')[1].split("</div>")[0]
+
+    assert "취소 포함" in chips, chips
