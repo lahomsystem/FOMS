@@ -4520,6 +4520,7 @@ window._erpIsBalancePaymentConfirmed = _erpIsBalancePaymentConfirmed;
 function erpSliceConversionTextForChannelPush(text) {
     const raw = String(text ?? '').trim();
     if (!raw) return '';
+    // 발주(도면) PUSH 전용 슬라이스 — 영발(실측) PUSH 는 변환 텍스트를 그대로 보낸다.
     // 라홈시스템(factory2) ★★는 채널톡에도 유지.
     // 실측일/시간 헤더만 제거 — 실측 특이사항·주소/연락처 특이사항은 유지.
     const hasFactory2Stars = raw.split('\n').some((line) => /^\s*★★\s*$/.test(line));
@@ -5233,9 +5234,13 @@ function fomsMountErpOrderSurface() {
             if (typeof erpGenerateConversionText === 'function') {
                 erpGenerateConversionText();
             }
-            text = erpSliceConversionTextForChannelPush(
-                document.getElementById('erp-conversion-text')?.value || ''
-            );
+            const rawConversionText = document.getElementById('erp-conversion-text')?.value || '';
+            // 영발(실측) PUSH 는 변환 텍스트를 그대로 보낸다 — 실측방은 실측일·시   간·
+            // 실측 특이사항이 그대로 필요하다(슬라이스가 이 3줄을 지워 누락 신고).
+            // 발주(도면) PUSH 만 실측 헤더를 잘라낸다.
+            text = pushKind === 'measurement'
+                ? String(rawConversionText).trim()
+                : erpSliceConversionTextForChannelPush(rawConversionText);
             if (!text) {
                 alert('변환할 내용이 없습니다. 주문 정보를 입력해주세요.');
                 return;

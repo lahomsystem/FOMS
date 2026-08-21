@@ -1748,8 +1748,9 @@
     var tail = suffix ? String(suffix) : "";
     return text + label + " : " + convFormatMoneyKRW(n) + tail + "\n";
   }
-  // PC erpSliceConversionTextForChannelPush (erp-order-shared.js) — 채널톡 전송용 슬라이스.
+  // PC erpSliceConversionTextForChannelPush (erp-order-shared.js) — 발주(도면) PUSH 전용 슬라이스.
   // 실측일/시간 헤더만 제거. ★★·실측 특이사항·주소/연락처 특이사항은 유지.
+  // 영발(실측) PUSH 는 이 함수를 타지 않고 변환 텍스트를 그대로 보낸다.
   function sliceConversionTextForChannelPush(text) {
     var raw = String(text == null ? "" : text).trim();
     if (!raw) return "";
@@ -2150,7 +2151,12 @@
 
   function requestPush(pushKind) {
     if (!state || !isEditable()) return;
-    var text = sliceConversionTextForChannelPush(buildConversionText());
+    // PC erpRunChannelPush 미러: 영발(실측) PUSH 는 변환 텍스트 그대로,
+    // 발주(도면) PUSH 만 실측일/시간 헤더를 잘라낸다.
+    var conversionText = buildConversionText();
+    var text = pushKind === "measurement"
+      ? String(conversionText == null ? "" : conversionText).trim()
+      : sliceConversionTextForChannelPush(conversionText);
     if (!text) {
       setStatus("변환할 내용이 없습니다. 주문 정보를 입력해주세요.", "error");
       return;
