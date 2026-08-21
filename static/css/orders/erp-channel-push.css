@@ -74,6 +74,40 @@
   color: #fff;
 }
 
+/* 알림톡 = 카카오톡 발송이므로 카카오 브랜드 노랑을 그대로 쓴다(PC 드롭다운·모바일 트리거 공용).
+   노랑은 어두운 글자여야 대비가 나온다. */
+.erp-alimtalk-btn--kakao,
+.erp-alimtalk-btn--kakao.dropdown-toggle {
+  background: #fee500;
+  border-color: #fee500;
+  color: #191600;
+}
+
+.erp-alimtalk-btn--kakao:hover,
+.erp-alimtalk-btn--kakao:focus,
+.erp-alimtalk-btn--kakao.show {
+  background: #f2da00;
+  border-color: #f2da00;
+  color: #191600;
+}
+
+/* 발주 PUSH: 알림톡이 카카오 노랑을 가져가면서 bootstrap warning(노란 주황)과
+   붙어 보인다. 확실히 갈라지는 진한 주황으로 옮긴다(PC 버튼·모바일 시트 공용). */
+.erp-push-btn--drawing,
+.erp-channel-push-picker-options .erp-push-btn--drawing {
+  background: #fd7e14;
+  border-color: #fd7e14;
+  color: #fff;
+}
+
+.erp-push-btn--drawing:hover,
+.erp-push-btn--drawing:focus,
+.erp-channel-push-picker-options .erp-push-btn--drawing:hover {
+  background: #e4690b;
+  border-color: #e4690b;
+  color: #fff;
+}
+
 /* 모바일 액션바 PUSH 트리거: 회색(secondary) 대신 파스텔 하늘색.
    저장(primary)과 구분되면서 전송 액션임을 색으로 알린다. */
 .erp-mobile-push-btn--pastel {
@@ -86,17 +120,6 @@
   background: color-mix(in srgb, var(--foms-color-info-500, #3b82f6) 16%, #fff);
 }
 
-/* 모바일 액션바 알림톡 트리거: PUSH 와 같은 시트를 여는 버튼이라 형태는 같게,
-   대상(고객)이 다르다는 것은 파스텔 초록으로 구분한다. */
-.erp-mobile-alimtalk-btn--pastel {
-  background: var(--foms-color-success-50, #ecfdf5);
-  color: var(--foms-color-success-600, #059669);
-  border-color: color-mix(in srgb, var(--foms-color-success-500, #10b981) 35%, transparent);
-}
-
-.erp-mobile-alimtalk-btn--pastel:hover {
-  background: color-mix(in srgb, var(--foms-color-success-500, #10b981) 16%, #fff);
-}
 
 /* 알림톡 미리보기: 서버 렌더 본문 read-only 표시(줄바꿈 보존 + 긴 줄 접기). */
 .erp-alimtalk-preview {

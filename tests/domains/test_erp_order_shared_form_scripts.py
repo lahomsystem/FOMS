@@ -67,7 +67,7 @@ def _assert_shared_form_script_contract(body: str) -> None:
     )
     assert "html2canvas.min.js" not in body
     assert "js/orders/erp-channel-push-confirm.js?v=20260821a" in body
-    assert "js/orders/erp-order-shared.js?v=20260821a" in body
+    assert "js/orders/erp-order-shared.js?v=20260821b" in body
     assert "js/cs/as-attachment-order.js?v=20260819a" in body
     assert "js/orders/erp-alimtalk-send.js?v=20260821a" in body
     assert "js/orders/erp-share.js?v=20260819c" in body
@@ -75,7 +75,7 @@ def _assert_shared_form_script_contract(body: str) -> None:
     assert "erp_stage_override_modal.html" not in body  # include renders modal markup, not path
     assert 'id="erpStageOverrideModal"' in body
     assert "(8자 이상)" not in body
-    assert "css/orders/erp-channel-push.css?v=20260821a" in body
+    assert "css/orders/erp-channel-push.css?v=20260821b" in body
     assert "css/orders/erp-items-master-detail.css?v=20260701f" in body
     assert "js/orders/erp-items-master-detail.js?v=20260630c" in body
     assert "erp-items-master-detail-shell" in body
@@ -691,6 +691,11 @@ def test_measure_room_push_is_wired_on_pc_and_sheet_with_own_history_key() -> No
     assert 'id="erp-channeltalk-push-measure-btn"' in pc
     assert "실측 PUSH" in pc
     assert "erp-push-btn--measure-room" in pc
+    # 알림톡=카카오 노랑, 발주 PUSH=진한 주황(노랑끼리 붙어 보이지 않게 분리).
+    assert "erp-alimtalk-btn--kakao" in pc
+    assert "erp-push-btn--drawing" in pc
+    assert 'class="btn btn-sm erp-push-btn--drawing" type="button" id="erp-channeltalk-push-drawing-btn"' in pc
+    assert "btn-outline-primary dropdown-toggle" not in pc
     css = (root / "static/css/orders/erp-channel-push.css").read_text(encoding="utf-8")
     assert ".erp-push-btn--measure-room" in css
     # PC 버튼과 모바일 시트 선택지는 같은 색 클래스를 쓴다.
