@@ -59,6 +59,14 @@ def test_modal_partial_included_on_both_surfaces() -> None:
     assert 'id="erp-share-copy-btn"' in modal
     assert 'id="erp-share-kakao-btn"' in modal
     assert 'id="erp-share-sms-btn"' in modal  # T8: 문자 발송(발급 직후 화면 한정)
+    # 폰 폭(360~390) 모달에서 4버튼이 한 줄에 들어와야 한다 — 라벨 세로 접힘 회귀 금지.
+    assert "erp-share-actions" in modal
+    css = (ROOT / "static/css/orders/erp-share.css").read_text(encoding="utf-8")
+    block = css[css.index(".erp-share-actions .btn {"):]
+    block = block[: block.index("}")]
+    assert "flex: 1 1 0" in block
+    assert "min-width: 0" in block
+    assert "white-space: nowrap" in block
     assert 'id="erp-share-list"' in modal
     assert "data-kakao-js-key" in modal
     assert "style=" not in modal, "인라인 스타일 금지 — bootstrap/erp-pro.css 사용"
