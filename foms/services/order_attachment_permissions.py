@@ -7,12 +7,19 @@ from typing import Any
 from sqlalchemy import func, or_
 
 from foms.services.erp_permissions import is_order_related_to_user
+from foms.services.orders.order_mutation_policy import normalize_team
 
 __all__ = [
     "can_delete_order_attachment",
     "can_manage_order_attachments",
     "can_modify_order_attachment",
+    "can_reorder_order_attachments",
+    "user_may_reorder_attachments",
 ]
+
+#: 첨부 순서(sort_order)만 ADMIN 과 동일하게 연다. 삭제·item_index 는 기존 정책.
+_REORDER_LIKE_ADMIN_ROLES = frozenset({"ADMIN", "MANAGER"})
+_REORDER_LIKE_ADMIN_TEAMS = frozenset({"CS"})  # CS = 라홈팀/하우드팀
 
 
 def _structured_data(order: Any) -> dict[str, Any]:
@@ -140,3 +147,44 @@ def can_delete_order_attachment(user: Any, order: Any, attachment: Any) -> bool:
 def can_modify_order_attachment(user: Any, order: Any, attachment: Any) -> bool:
     """Return whether the user may modify attachment metadata (e.g. item_index)."""
     return can_delete_order_attachment(user, order, attachment)
+
+
+def can_reorder_order_attachments(user: Any, order: Any) -> bool:
+    """첨부 순서를 ADMIN 과 같이 바꿀 수 있는지(역할·CS 팀·주문 담당자).
+
+    Args:
+        user: 현재 사용자.
+        order: 대상 주문.
+
+    Returns:
+        ADMIN·MANAGER·CS(라홈/하우드) 또는 주문 영업 담당자면 True.
+    """
+    if not user or not order:
+        return False
+    role = (getattr(user, "role", None) or "").strip().upper()
+    if role == "VIEWER":
+        return False
+    if role in _REORDER_LIKE_ADMIN_ROLES:
+        return True
+    if normalize_team(getattr(user, "team", None)) in _REORDER_LIKE_ADMIN_TEAMS:
+        return True
+    return can_manage_order_attachments(user, order)
+
+
+def user_may_reorder_attachments(user: Any, order: Any, attachments: Any) -> bool:
+    """기록 그룹 전체 순서 저장. 팀 권한이 없으면 파일별 수정 권한으로 폴백.
+
+    Args:
+        user: 현재 사용자.
+        order: 대상 주문.
+        attachments: 그 그룹의 살아 있는 첨부 iterable.
+
+    Returns:
+        부분 저장 없이 전건 허용이면 True.
+    """
+    if can_reorder_order_attachments(user, order):
+        return True
+    live = list(attachments or ())
+    if not live:
+        return False
+    return all(can_modify_order_attachment(user, order, att) for att in live)

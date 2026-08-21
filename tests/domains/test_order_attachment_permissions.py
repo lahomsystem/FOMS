@@ -11,6 +11,8 @@ from foms.services.order_attachment_permissions import (
     can_delete_order_attachment,
     can_manage_order_attachments,
     can_modify_order_attachment,
+    can_reorder_order_attachments,
+    user_may_reorder_attachments,
 )
 from models import Order, OrderAttachment, User
 
@@ -68,6 +70,34 @@ def test_can_manage_order_attachments_for_admin_and_sales_assignee() -> None:
     assert can_manage_order_attachments(admin, order)
     assert can_manage_order_attachments(sales_user, order)
     assert not can_manage_order_attachments(outsider, order)
+
+
+def test_can_reorder_order_attachments_cs_and_manager_like_admin() -> None:
+    """순서만 ADMIN 과 동일: MANAGER 역할·CS(라홈/하우드). 영업 비담당자는 제외."""
+    order = SimpleNamespace(
+        manager_name="영업담당",
+        structured_data={
+            "parties": {"manager": {"name": "영업담당"}},
+            "assignments": {"sales_assignee_user_ids": [42]},
+        },
+    )
+    other_att = SimpleNamespace(user_id=99)
+    manager = SimpleNamespace(id=7, role="MANAGER", name="박매니저", username="mgr", team="DRAWING")
+    cs_staff = SimpleNamespace(id=8, role="STAFF", name="CS직원", username="cs1", team="CS")
+    sales_outsider = SimpleNamespace(id=9, role="STAFF", name="다른영업", username="sales2", team="SALES")
+    viewer_cs = SimpleNamespace(id=10, role="VIEWER", name="뷰어", username="view1", team="CS")
+
+    assert can_reorder_order_attachments(manager, order)
+    assert can_reorder_order_attachments(cs_staff, order)
+    assert not can_reorder_order_attachments(sales_outsider, order)
+    assert not can_reorder_order_attachments(viewer_cs, order)
+    assert not can_manage_order_attachments(manager, order)
+    assert not can_manage_order_attachments(cs_staff, order)
+    assert user_may_reorder_attachments(cs_staff, order, [other_att])
+    assert not user_may_reorder_attachments(sales_outsider, order, [other_att])
+    assert user_may_reorder_attachments(
+        sales_outsider, order, [SimpleNamespace(user_id=9)]
+    )
 
 
 def test_can_delete_order_attachment_manager_deletes_legacy_null_uploader() -> None:
