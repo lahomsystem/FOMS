@@ -320,6 +320,8 @@ def _build_handoff_thread(history: list[Mapping[str, Any]]) -> list[dict[str, An
         changes = event.get('changes')
         if action == 'ERP_ORDER_CHANGED' and changes:
             changes = humanize_order_change_changes(changes)
+            if not changes:
+                continue  # 최초 입력 줄만 있던 이벤트 — 타임라인에서도 뺀다(note 는 소음 원문).
         thread.append({
             **event,
             'side': side,
@@ -929,12 +931,20 @@ def erp_drawing_workbench_detail(order_id):
     product_items = build_product_items_for_order(db, order)
     order_change_pending = is_order_change_pending(s_data)
     latest_order_change_note = ''
-    order_change_events = [h for h in reversed(history) if h.get('action') == 'ERP_ORDER_CHANGED']
-    for h in order_change_events:
+    # 최초 입력 줄(빈칸·'상담' → 첫 값)은 humanize 단계에서 걷힌다. 걷고 나서 남는 줄이 없는
+    # 이벤트는 통째로 소음이므로 피드에서 뺀다(과거에 쌓인 이력도 읽기 시점에 함께 정리된다).
+    order_change_events = []
+    for h in [x for x in reversed(history) if x.get('action') == 'ERP_ORDER_CHANGED']:
         if isinstance(h, dict) and h.get('changes'):
             h['changes'] = humanize_order_change_changes(h.get('changes'))
+            if not h['changes']:
+                continue
+        order_change_events.append(h)
         if not latest_order_change_note:
-            latest_order_change_note = str(h.get('note') or '').strip()
+            latest_order_change_note = (
+                summarize_changes(h.get('changes')) if h.get('changes')
+                else str(h.get('note') or '').strip()
+            )
     # 도면 상세 전용: 공통 실측 이미지(항목에 매핑되지 않은 첨부) 수집
     common_measure_photos = []
     for att in db.query(OrderAttachment).filter(
