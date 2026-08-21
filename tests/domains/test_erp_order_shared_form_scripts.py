@@ -75,7 +75,7 @@ def _assert_shared_form_script_contract(body: str) -> None:
     assert "erp_stage_override_modal.html" not in body  # include renders modal markup, not path
     assert 'id="erpStageOverrideModal"' in body
     assert "(8자 이상)" not in body
-    assert "css/orders/erp-channel-push.css?v=20260821b" in body
+    assert "css/orders/erp-channel-push.css?v=20260821c" in body
     assert "css/orders/erp-items-master-detail.css?v=20260701f" in body
     assert "js/orders/erp-items-master-detail.js?v=20260630c" in body
     assert "erp-items-master-detail-shell" in body
@@ -640,6 +640,14 @@ def test_channel_push_kind_picker_contract() -> None:
 
     for kind in ("measurement", "measure_room", "drawing", "as"):
         assert f'data-erp-push-kind="{kind}"' in picker
+    # 시트 색 = PC 버튼 색(같은 행위를 두 표면에서 다른 색으로 보이지 않게).
+    for cls in (
+        "erp-push-btn--measurement",
+        "erp-push-btn--measure-room",
+        "erp-push-btn--drawing",
+        "erp-push-btn--as",
+    ):
+        assert cls in picker
 
     assert "window.erpPromptChannelPushKind = erpPromptChannelPushKind;" in js
     assert "erpPromptChannelPushKind()" in shared
