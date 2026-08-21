@@ -237,3 +237,48 @@
 2. 배포 시 `python scripts/maintenance/backfill_naver_group_key.py` 필요(안 돌려도 폴백).
 3. **게이트는 계속 기본 off.** P1·P2 가 닫혔으니 켤 수 있는 상태가 됐지만, 켜는 시점은 사용자 결정이다.
 4. 실사용 확인 후 옛 화면 정리 여부 판단.
+
+## 2차 코드 리뷰 (2026-08-21) — 브랜치 22커밋 재훑기
+
+1차 리뷰 45건 중 **원장에 남은 건 11건뿐**이다(워크플로가 종합 단계 전에 멈춰 나머지 34건은
+어디에도 저장되지 않았다 — 세션 임시 디렉토리·저장소 모두 확인). 목록을 되살릴 수 없으니
+**브랜치 전체를 다시 훑었다**. 그 사이 코드가 6군데 바뀌었으니 새로 도는 편이 더 정확하다.
+
+### 판정 (8건)
+
+| 지적 | 판정 | 처리 |
+|---|---|---|
+| 큐 밖 링크를 열면 모달이 "상품주문 1건" 이라 거짓말 | **진짜** | `_group_of_link()` 로 큐와 같은 규칙의 집을 만든다 |
+| 같은 원인으로 상품주문 표가 빈 표 | **진짜** | 위와 같은 수정(옛 화면에는 있던 값이다) |
+| 게이트 on 이면 워터마크·인증 만료일·"지금 수집" 이 도달 불가 | **진짜** | '전체 이력' 탭에 수집 상태 줄로 이관(ADMIN 전용) + 상단 버튼 목적지 교정 |
+| `_place_groups` 가 50집에서 조용히 잘림 | **진짜** | `_group_queue(limit=PAGE_SIZE+1)` 로 정확히 감지, 잘리면 화면이 말한다 |
+| 실패 띠를 사람이 지울 방법이 없다 | **진짜** | `clear_failure()` + `/fulfillment-clear` 라우트(사용자 결정) |
+| `_claim_blocked_group_keys` 가 매 요청 형제 전부 파싱 | **진짜(비용)** | 발주확인이 끝난 형제만 읽는다(모집단 안은 이미 판정됨) |
+| 상단 스트립 `group_count`(3집) vs 탭 배지(2집) | **오탐** | 총계 vs 탭별이라 서로 다른 게 맞다. W2 의 "배지 4집인데 목록 3줄"과는 다른 성격 |
+| enqueue 응답을 완료로 보고 즉시 reload | **유지(사용자 결정)** | 워커가 빠르면 결과가 바로 보인다. 지금 방식 유지 |
+
+### 새 mutation 라우트 계약 (`/fulfillment-clear`)
+
+기억해 둔 4종을 전부 등재했다 — 하나라도 빠지면 로컬 green 인데 CI 가 red 다:
+`foms_order_mutation_policy_manifest.json`(STAFF_MUTATION) · `foms_write_guard_manifest.json` ·
+감사 라벨 `NAVER_INGEST_FULFILLMENT_CLEAR` · `audit_coverage_scan.py` 인벤토리 재생성
+(이 참에 옛 lineno 드리프트도 함께 정리됐다).
+
+지우는 범위는 **실패 사유뿐**이다. 성공 표식(`place_confirmed_at`·`dispatched_at`)을 지우면
+멱등이 깨져 네이버를 두 번 부른다. 누가 언제 닫았는지는 상태에 남긴다.
+
+### 브라우저가 또 잡은 것 (테스트는 통과했다)
+
+'확인함' 버튼이 좁은 칸에서 **글자마다 줄바꿈돼 세로로 쪼개졌다**(78px 칸 · 실측 62×85).
+원인은 전역 `.btn { padding: 10px 20px !important }`(`style-pro-max.css`) — 지역 CSS 로는
+못 이긴다. 칸을 96px 로 넓히고 `white-space: nowrap` 으로 막았다(지역 CSS 에 `!important` 를
+더 얹지 않는다). 실측 78×40 한 줄.
+
+### 검증 (2026-08-21 2차)
+
+- `tests/services/integrations/` **380 passed** · PG 레인 **1117 passed**(integrations+postgres)
+- `pre_push_smoke.ps1` **PASSED(323) exit 0** · `APP_OK` · `audit_coverage_scan.py --check` drift 없음
+- **1440 실브라우저**: 큐 밖 집을 열면 상품주문 2건이 다 보이고 모달도 "상품주문 2건" ·
+  이력 탭 수집 상태 줄 3칸 + "지금 수집" · '확인함' 클릭 → `POST .../6/fulfillment-clear 200` →
+  띠 사라짐 · 가로 스크롤 없음
+
