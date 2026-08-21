@@ -102,15 +102,16 @@
         var badgeTone = item.status === 'active' ? 'text-bg-success' : 'text-bg-secondary';
         var created = String(item.created_at || '').replace('T', ' ').slice(0, 16);
         var views = '열람 ' + (item.view_count || 0) + '회';
+        // 좁은 모달에서 버튼 라벨이 세로로 접히지 않게 nowrap 고정.
         var revokeBtn = item.status === 'active'
-            ? '<button type="button" class="btn btn-outline-danger btn-sm" data-share-revoke="'
+            ? '<button type="button" class="btn btn-outline-danger btn-sm text-nowrap" data-share-revoke="'
               + item.share_id + '">회수</button>'
             : '';
         return '<li class="list-group-item d-flex justify-content-between align-items-center gap-2">'
             + '<span class="small">' + (KIND_LABELS[item.kind] || item.kind) + ' · ' + created
             + ' · ' + views + '</span>'
-            + '<span class="d-flex align-items-center gap-2">'
-            + '<span class="badge ' + badgeTone + '">' + status + '</span>' + revokeBtn
+            + '<span class="d-flex align-items-center gap-2 flex-shrink-0">'
+            + '<span class="badge text-nowrap ' + badgeTone + '">' + status + '</span>' + revokeBtn
             + '</span></li>';
     }
 
