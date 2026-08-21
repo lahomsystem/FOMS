@@ -689,6 +689,8 @@ def _failure_rows(db) -> list[dict[str, Any]]:
         .limit(QUEUE_LINK_FETCH_LIMIT)
         .all()
     )
+    from foms.services.integrations.naver_commerce.fulfillment import household_key
+
     rows: list[dict[str, Any]] = []
     seen: set[str] = set()
     for link in links:
@@ -696,7 +698,10 @@ def _failure_rows(db) -> list[dict[str, Any]]:
         reason = str(state.get("last_error") or "").strip()
         if not reason:
             continue
-        key = _history_group_key(link)
+        # 접는 규칙은 **재시도·확인함이 처리하는 단위와 같아야 한다**(둘 다 원본 3-튜플).
+        # 컬럼(group_key)으로 접으면 백필 전 분할배송에서 두 집이 한 줄로 붙어, 건수가
+        # 낮게 뜨고 한 번 눌러 한 집만 처리된다.
+        key = str(household_key(link))
         if key in seen:
             continue
         seen.add(key)
@@ -784,9 +789,10 @@ def _place_groups(db) -> tuple[list[dict[str, Any]], bool]:
     orders = {}
     if order_ids:
         orders = {o.id: o for o in db.query(Order).filter(Order.id.in_(order_ids)).all()}
-    # 한 집 더 받아 와서 상한에 걸렸는지 본다(정확히 PAGE_SIZE 집일 때 헛경고를 내지 않는다).
+    # 상한은 **클레임을 걸러낸 뒤에** 건다. 앞에서 자르면 빠질 집이 상한을 먹어
+    # "잘렸다"를 숨긴다(60집 중 5집이 취소면 46집만 보이고 경고가 안 뜬다).
     groups = _group_queue(links, orders, truncated=len(links) == QUEUE_LINK_FETCH_LIMIT,
-                          limit=PAGE_SIZE + 1)
+                          limit=QUEUE_LINK_FETCH_LIMIT)
     # 클레임 판정은 **형제까지** 봐야 한다. 모집단을 '발주확인 전' 링크로 먼저 좁혔으므로,
     # 이미 발주확인이 끝난 형제가 취소돼도 이 목록 안에서는 안 보인다 — 그 집에 발주확인을
     # 보내면 네이버가 거절해 집 전체가 실패한다.

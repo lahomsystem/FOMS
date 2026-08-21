@@ -1112,3 +1112,64 @@ def test_acknowledge_action_has_an_audit_label(client, workbench_on):
     from foms.services.audit_message_display import ACTION_LABELS
 
     assert "NAVER_INGEST_FULFILLMENT_CLEAR" in ACTION_LABELS
+
+
+# --------------------------------------------------------------------------- #
+# 3차 리뷰 — 집 단위 클레임 잠금 / 잘림 감지 순서 / 실패 띠 묶음 규칙
+# --------------------------------------------------------------------------- #
+
+def test_dispatch_is_locked_when_a_sibling_is_claimed(client, workbench_on):
+    """형제가 취소된 집은 대표를 열어도 발송처리가 없다 — 판정은 집 단위다."""
+    _login(client)
+    _collected(order_no="N-DSP-SIB", product="취소된 형제", amount=100000,
+               place_status="OK", claim_status="CANCEL_REQUEST",
+               address="광주 서구 7", tel="010-6666-7777")
+    clean = _collected(order_no="N-DSP-SIB", product="멀쩡한 형제", amount=50000,
+                       place_status="OK", address="광주 서구 7", tel="010-6666-7777")
+
+    body = client.get(f"{TRIAGE_PATH}?link_id={clean.id}").get_data(as_text=True)
+
+    assert 'id="wb-dispatch"' not in body, "취소가 걸린 집에 발송처리 버튼이 열렸다"
+    assert 'id="wb-modal-dispatch"' not in body
+
+
+def test_truncation_is_measured_after_the_claim_filter(client, workbench_on, monkeypatch):
+    """클레임으로 빠진 집이 상한을 먹어 '잘림'이 숨겨지면 안 된다."""
+    from foms.web.admin import naver_ingest as mod
+
+    monkeypatch.setattr(mod, "PAGE_SIZE", 1, raising=False)
+    _login(client)
+    _collected(order_no="N-TR-A", product="정상 하나", amount=1000, place_status="",
+               address="서울 종로구 1", tel="010-4444-0001")
+    _collected(order_no="N-TR-CLAIM", product="취소 집", amount=1000, place_status="",
+               claim_status="CANCEL_REQUEST", address="서울 종로구 2", tel="010-4444-0002")
+    _collected(order_no="N-TR-B", product="정상 둘", amount=1000, place_status="",
+               address="서울 종로구 3", tel="010-4444-0003")
+
+    body = client.get(f"{TRIAGE_PATH}?tab=place").get_data(as_text=True)
+
+    assert "먼저 처리" in body, "잘렸는데 안내가 없다"
+
+
+def test_failure_strip_folds_by_the_same_rule_the_actions_use(client, workbench_on):
+    """실패 띠의 한 줄 = 재시도가 처리하는 한 집이어야 한다(백필 전에도).
+
+    띠가 group_key 컬럼으로 접고 재시도는 원본 3-튜플로 처리하면, 분할배송에서 두 집이
+    한 줄로 접혀 건수가 낮게 뜨고 한 번에 한 집만 처리된다.
+    """
+    _login(client)
+    first = _with_failure(_collected(order_no="N-FOLD", product="A집 실패", amount=1000,
+                                     address="서울 강남구 1", tel="010-1111-0001"))
+    second = _with_failure(_collected(order_no="N-FOLD", product="B집 실패", amount=1000,
+                                      address="부산 해운대구 2", tel="010-2222-0002"))
+    # 백필 전 상태 재현: 묶음키 컬럼이 비어 주문번호로 폴백된다.
+    for link in (first, second):
+        link.group_key = None
+    db_session.commit()
+
+    body = client.get(TRIAGE_PATH).get_data(as_text=True)
+    strip = body.split('id="wb-result"')[1].split("</section>")[0]
+
+    assert "실패 2집" in strip, strip[:400]
+    ids = strip.split('id="wb-retry-failed"')[1].split('data-link-ids="')[1].split('"')[0]
+    assert len(ids.split(",")) == 2, ids

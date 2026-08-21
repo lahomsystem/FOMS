@@ -569,3 +569,65 @@ def test_clear_failure_does_not_touch_other_households(app):
 
     assert not _state(mine).get("last_error")
     assert _state(other)["last_error"], "옆 집 실패까지 지우면 사고를 덮는다"
+
+
+# --------------------------------------------------------------------------- #
+# 3차 리뷰 — 클레임 집 발송 금지 / 상품주문번호 없는 실패 항목
+# --------------------------------------------------------------------------- #
+
+def _claimed(link_id: int, status: str = "CANCEL_REQUEST") -> None:
+    """그 링크의 원본에 클레임 표식을 심는다(네이버 취소·반품 진행 중)."""
+    import copy
+
+    from sqlalchemy.orm.attributes import flag_modified
+
+    link = db_session.get(ExternalOrderLink, link_id)
+    snapshot = copy.deepcopy(link.raw_snapshot or {})
+    snapshot.setdefault("productOrder", {})["claimStatus"] = status
+    link.raw_snapshot = snapshot
+    flag_modified(link, "raw_snapshot")
+    db_session.commit()
+
+
+def test_dispatch_refuses_a_household_with_a_claim(app):
+    """형제가 취소·반품 중이면 발송처리를 서버가 막는다 — 되돌릴 수 없는 호출이다."""
+    first = _link("PO-CLM-1", order_no="N-CLM", place="OK")
+    second = _link("PO-CLM-2", order_no="N-CLM", place="OK")
+    _claimed(second)
+    client = _StubClient()
+
+    with pytest.raises(FulfillmentError) as caught:
+        dispatch_order(db_session, client, link_id=first)
+
+    assert "취소" in str(caught.value) or "반품" in str(caught.value), str(caught.value)
+    assert client.dispatch_calls == [], "네이버를 부르면 안 된다"
+
+
+def test_confirm_refuses_a_household_with_a_claim(app):
+    """발주확인도 같다 — 취소가 걸린 집은 화면에서도 서버에서도 손대지 않는다."""
+    first = _link("PO-CLM-C1", order_no="N-CLM-C", place="NOT_YET")
+    _claimed(_link("PO-CLM-C2", order_no="N-CLM-C", place="NOT_YET"))
+    client = _StubClient()
+
+    with pytest.raises(FulfillmentError):
+        confirm_place_order(db_session, client, link_id=first)
+
+    assert client.confirm_calls == []
+
+
+def test_failure_without_product_order_id_is_not_treated_as_success(app):
+    """상품주문번호가 없는 실패 항목이 와도 성공 도장을 찍지 않는다.
+
+    버리고 넘어가면 '성공 목록도 실패 목록도 없다' 경로로 떨어져 전부 성공이 되고,
+    멱등 규칙 때문에 영영 재발송되지 않는다 — 이 함수가 막으려던 조용한 미발송이다.
+    """
+    link_id = _link("PO-NOID", order_no="N-NOID", place="NOT_YET")
+    client = _StubClient(payload_override={
+        "data": {"failProductOrderInfos": [{"message": "처리할 수 없는 요청입니다"}]}})
+
+    with pytest.raises(FulfillmentError):
+        confirm_place_order(db_session, client, link_id=link_id)
+    db_session.commit()
+
+    assert not _state(link_id).get("place_confirmed_at")
+    assert _state(link_id)["last_error"]

@@ -31,6 +31,7 @@ logger = logging.getLogger(__name__)
 
 __all__ = [
     "FulfillmentError",
+    "household_key",
     "STATE_KEY",
     "DIRECT_DELIVERY",
     "clear_failure",
@@ -52,7 +53,7 @@ class FulfillmentError(RuntimeError):
     """발주확인·발송처리 실패. 사유 문장을 그대로 사람에게 보여준다."""
 
 
-def _household_key(link: ExternalOrderLink) -> tuple[str, str, str]:
+def household_key(link: ExternalOrderLink) -> tuple[str, str, str]:
     """이 링크가 속한 '집' 키 — 화면이 집을 가르는 것과 **같은 규칙**.
 
     화면 큐(:func:`foms.web.admin.naver_ingest._group_queue`)는
@@ -80,7 +81,7 @@ def _household_key(link: ExternalOrderLink) -> tuple[str, str, str]:
 def _links_of_group(session: Session, link_id: int) -> list[ExternalOrderLink]:
     """같은 **집**의 링크 전부(한 집은 통째로 처리한다).
 
-    1차로 같은 네이버 주문번호를 모으고(인덱스 있는 축), 그중 :func:`_household_key` 가
+    1차로 같은 네이버 주문번호를 모으고(인덱스 있는 축), 그중 :func:`household_key` 가
     같은 것만 남긴다. 분할배송에서 화면이 가른 집과 서버가 처리하는 대상이 어긋나지 않게
     하는 자리다.
     """
@@ -101,9 +102,32 @@ def _links_of_group(session: Session, link_id: int) -> list[ExternalOrderLink]:
         .order_by(ExternalOrderLink.id.asc())
         .all()
     )
-    base_key = _household_key(link)
-    same_house = [row for row in rows if _household_key(row) == base_key]
+    base_key = household_key(link)
+    same_house = [row for row in rows if household_key(row) == base_key]
     return same_house or [link]
+
+
+def _claim_guard(links: list[ExternalOrderLink]) -> None:
+    """집 안에 취소·반품이 하나라도 있으면 네이버를 부르지 않는다.
+
+    화면은 클레임 집을 잠그지만(집 단위), 화면만 믿으면 링크 id 를 아는 요청이 그대로
+    통과한다. 발송처리는 구매자에게 "배송 시작"으로 보이고 되돌릴 수 없다 — 마지막 문을
+    서버가 닫는다. 판정 기준은 화면과 같은 :func:`mapping.extract_claim` 이다.
+
+    Args:
+        links: 한 집의 링크들.
+
+    Raises:
+        FulfillmentError: 클레임이 걸린 상품주문이 있을 때.
+    """
+    from foms.services.integrations.naver_commerce.mapping import extract_claim
+
+    for row in links:
+        claim = extract_claim(row.raw_snapshot or {})
+        if claim.get("blocking"):
+            raise FulfillmentError(
+                f"취소·반품이 진행 중인 집입니다({claim.get('label') or '클레임'}) — "
+                "판매자센터에서 처리하세요.")
 
 
 def _state(link: ExternalOrderLink) -> dict[str, Any]:
@@ -151,15 +175,19 @@ def _split_result(payload: Any, ids: list[str]) -> tuple[list[str], dict[str, st
         data = payload if isinstance(payload, dict) else {}
 
     failures: dict[str, str] = {}
+    #: 상품주문번호가 없어 어느 건인지 모르는 실패 항목의 사유. 버리면 "실패 목록이 없다"가
+    #: 되어 전부 성공 도장이 찍히고, 멱등 규칙 때문에 영영 재발송되지 않는다.
+    unattributed: list[str] = []
     for row in (data.get("failProductOrderInfos") or []):
         if not isinstance(row, dict):
             continue
+        reason = str(row.get("message") or row.get("failMessage")
+                     or row.get("reason") or "네이버가 실패로 처리했습니다.")[:500]
         pid = str(row.get("productOrderId") or "").strip()
         if not pid:
+            unattributed.append(reason)
             continue
-        reason = (row.get("message") or row.get("failMessage")
-                  or row.get("reason") or "네이버가 실패로 처리했습니다.")
-        failures[pid] = str(reason)[:500]
+        failures[pid] = reason
 
     raw_success = data.get("successProductOrderIds")
     if raw_success is None:
@@ -172,6 +200,13 @@ def _split_result(payload: Any, ids: list[str]) -> tuple[list[str], dict[str, st
             # 성공 목록에도 실패 목록에도 없는 건 = 네이버가 처리했다고 말하지 않은 건.
             if pid not in reported_ok and pid not in failures:
                 failures[pid] = "네이버가 성공 목록에 넣지 않았습니다."
+    elif unattributed:
+        # 실패는 왔는데 어느 건인지 모르고 성공 목록도 없다 — 누가 됐는지 알 수 없으므로
+        # 아무에게도 성공 도장을 찍지 않는다(사람이 사유를 보고 다시 보낸다).
+        detail = "; ".join(unattributed)[:500]
+        for pid in ids:
+            if pid not in failures:
+                failures[pid] = f"네이버가 실패를 알렸으나 상품주문번호가 없습니다: {detail}"
     elif not failures:
         return list(ids), {}
 
@@ -214,6 +249,7 @@ def confirm_place_order(session: Session, client: Any, *, link_id: int,
     """
     stamp = now or now_utc_naive()
     links = _links_of_group(session, link_id)
+    _claim_guard(links)
     todo = [row for row in links if not _state(row).get("place_confirmed_at")]
     if not todo:
         return {"confirmed": [], "skipped": [row.external_id for row in links]}
@@ -310,6 +346,7 @@ def dispatch_order(session: Session, client: Any, *, link_id: int,
     """
     stamp = now or now_utc_naive()
     links = _links_of_group(session, link_id)
+    _claim_guard(links)
     # 발주확인 전에 발송처리를 하면 네이버가 거절한다 — 우리 화면에서 먼저 막는다.
     not_confirmed = [row for row in links
                      if not (_state(row).get("place_confirmed_at")
