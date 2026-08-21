@@ -1265,3 +1265,19 @@ def test_place_pending_labels_say_which_population_they_count(client, workbench_
     chips = body.split('class="wb-filters"')[1].split("</div>")[0]
 
     assert "취소 포함" in chips, chips
+
+
+def test_history_header_does_not_call_a_filtered_list_the_whole_thing(client, workbench_on):
+    """카드 헤더도 필터를 알아야 한다 — 칩만 고치면 두 줄 위에서 같은 거짓말이 남는다."""
+    _login(client)
+    link = _collected(order_no="N-HDR", product="실패 수집", amount=1000)
+    link.sync_status = "FAILED"
+    db_session.commit()
+    _collected(order_no="N-HDR-2", product="정상 수집", amount=1000)
+
+    body = client.get(f"{TRIAGE_PATH}?tab=all&status=FAILED").get_data(as_text=True)
+    # 카드 헤더는 "숫자는 모두 집 단위" 문구를 달고 있는 그 줄이다(탭 이름과 헷갈리지 않게).
+    header = body.split("숫자는 모두 집 단위")[0][-300:]
+
+    assert "전체 1집" not in header, header
+    assert "지금 목록" in header, header

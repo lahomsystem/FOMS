@@ -613,7 +613,11 @@
     <section class="card shadow-sm">
         <div class="card-header py-2 d-flex flex-wrap align-items-center gap-2">
             <span class="fw-semibold">전체 이력</span>
-            <span class="small text-muted">{{ history.total }}집 — 숫자는 모두 집 단위</span>
+            {# 필터가 걸리면 history.total 은 걸러진 수다 — 헤더도 그렇게 말해야 한다.
+               칩만 고치고 헤더를 두면 두 줄 위에서 같은 거짓말이 남는다. #}
+            <span class="small text-muted">
+                {% if history.status or history.place_pending %}지금 목록 {{ history.total }}집
+                {% else %}전체 {{ history.total }}집{% endif %} — 숫자는 모두 집 단위</span>
         </div>
 
         {# 필터 칩. 링크마다 tab 을 실어 보낸다 — 안 실으면 필터를 누르는 순간

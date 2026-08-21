@@ -283,6 +283,18 @@ def confirm_place_order(session: Session, client: Any, *, link_id: int,
             if not (_state(row).get("place_confirmed_at")
                     or (row.place_order_status or "").strip().upper()
                     in CONFIRMED_PLACE_STATUSES)]
+    # 이미 발주확인이 끝난 건에 낡은 실패 사유가 남아 있으면 지운다. 판매자센터에서 손으로
+    # 처리한 집은 우리 재전송이 성공할 일이 없어, 안 지우면 빨간 띠가 영구히 남는다
+    # (예전에는 재전송 성공이 지워 주던 자가치유 경로다).
+    healed = False
+    for row in links:
+        if row in todo:
+            continue
+        if str(_state(row).get("last_error") or "").strip():
+            _write_state(row, {"last_error": "", "last_error_at": "", "last_error_action": ""})
+            healed = True
+    if healed:
+        session.flush()
     if not todo:
         return {"confirmed": [], "skipped": [row.external_id for row in links]}
 
@@ -385,9 +397,11 @@ def dispatch_order(session: Session, client: Any, *, link_id: int,
                              or (row.place_order_status or "").upper() == "OK")]
     if not_confirmed:
         # 거절도 화면에 닿아야 한다 — web 은 enqueue 만 하고 이미 "요청했습니다"로 답했다.
+        # 사유는 **막힌 건에만** 찍는다. 집 전체에 찍으면 이미 발주확인이 끝난 형제까지
+        # 실패 목록에 집혀(_failure_rows) 멀쩡한 건이 빨갛게 뜬다.
         reason = "발주확인이 먼저입니다(발주확인 전 상품주문이 있습니다)."
-        _mark_failures({str(row.external_id): row for row in links},
-                       {str(row.external_id): reason for row in links},
+        _mark_failures({str(row.external_id): row for row in not_confirmed},
+                       {str(row.external_id): reason for row in not_confirmed},
                        action="dispatch", stamp=stamp)
         session.flush()
         raise FulfillmentError(reason)

@@ -681,15 +681,17 @@ def test_unattributed_reason_survives_when_a_success_list_exists(app):
 def test_dispatch_before_place_confirm_leaves_a_reason(app):
     """'발주확인이 먼저입니다' 도 화면에 닿아야 한다 — web 은 이미 성공으로 답했다."""
     first = _link("PO-ORD-1", order_no="N-ORDER", place="OK")
-    _link("PO-ORD-2", order_no="N-ORDER", place="NOT_YET")
+    blocked = _link("PO-ORD-2", order_no="N-ORDER", place="NOT_YET")
 
     with pytest.raises(FulfillmentError):
         dispatch_order(db_session, _StubClient(), link_id=first)
     db_session.commit()
 
-    state = _state(first)
+    # 사유는 막힌 건에만 남는다 — 이미 발주확인이 끝난 형제까지 빨갛게 만들면 안 된다.
+    state = _state(blocked)
     assert "발주확인" in state["last_error"], state
     assert state["last_error_action"] == "dispatch"
+    assert not _state(first).get("last_error")
 
 
 def test_confirm_skips_a_sibling_already_confirmed_in_the_column(app):
@@ -706,3 +708,41 @@ def test_confirm_skips_a_sibling_already_confirmed_in_the_column(app):
     db_session.commit()
 
     assert client.confirm_calls == [["PO-COL-1"]], client.confirm_calls
+
+
+# --------------------------------------------------------------------------- #
+# 6차 리뷰 — 거절 사유는 해당 건에만 / 컬럼 확인분도 자가치유
+# --------------------------------------------------------------------------- #
+
+def test_dispatch_refusal_marks_only_the_unconfirmed_ones(app):
+    """'발주확인이 먼저' 사유를 집 전체에 찍으면, 이미 확인된 건까지 실패로 집힌다."""
+    confirmed = _link("PO-MIX-1", order_no="N-MIX", place="OK")
+    pending = _link("PO-MIX-2", order_no="N-MIX", place="NOT_YET")
+
+    with pytest.raises(FulfillmentError):
+        dispatch_order(db_session, _StubClient(), link_id=confirmed)
+    db_session.commit()
+
+    assert not _state(confirmed).get("last_error"), "발주확인이 끝난 건에 실패가 찍혔다"
+    assert "발주확인" in _state(pending)["last_error"]
+
+
+def test_confirm_clears_a_stale_error_for_column_confirmed_links(app):
+    """판매자센터에서 손으로 발주확인한 집도 실패 띠에서 풀린다.
+
+    컬럼만 OK 가 된 링크는 todo 에서 빠지는데, 그때 사유를 안 지우면 재전송으로 낫던
+    자가치유 경로가 사라져 빨간 띠가 영구히 남는다.
+    """
+    link_id = _link("PO-STALE", order_no="N-STALE", place="NOT_YET")
+    with pytest.raises(FulfillmentError):
+        confirm_place_order(db_session, _StubClient(fail=True), link_id=link_id)
+    db_session.commit()
+    # 사람이 판매자센터에서 처리 → 다음 스윕이 컬럼을 OK 로 올린다.
+    db_session.get(ExternalOrderLink, link_id).place_order_status = "OK"
+    db_session.commit()
+
+    result = confirm_place_order(db_session, _StubClient(), link_id=link_id)
+    db_session.commit()
+
+    assert result["confirmed"] == []
+    assert not _state(link_id).get("last_error"), "낡은 실패 사유가 그대로 남았다"
