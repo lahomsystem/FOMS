@@ -32,13 +32,21 @@ def _sd_with_log(*entries):
     return {"shipment": {"as_log": list(entries)}}
 
 
-def _login_admin(client, username="as-attach-admin") -> int:
+def _login_user(
+    client,
+    username: str,
+    *,
+    role: str = "ADMIN",
+    team: str = "CS",
+    name: str = "AS 첨부 사용자",
+) -> int:
+    """테스트 사용자를 만들고 세션에 넣는다."""
     user = User(
         username=username,
         password=generate_password_hash("pw"),
-        role="ADMIN",
-        team="CS",
-        name="AS 첨부 관리자",
+        role=role,
+        team=team,
+        name=name,
         is_active=True,
     )
     db_session.add(user)
@@ -46,6 +54,10 @@ def _login_admin(client, username="as-attach-admin") -> int:
     with client.session_transaction() as sess:
         sess["user_id"] = user.id
     return user.id
+
+
+def _login_admin(client, username="as-attach-admin") -> int:
+    return _login_user(client, username, role="ADMIN", team="CS", name="AS 첨부 관리자")
 
 
 def _as_order(**shipment):
@@ -236,6 +248,59 @@ def test_attachment_reorder_rejects_partial_list(client) -> None:
     )
 
     assert response.status_code == 400
+
+
+def _as_reorder_group(uploader_id: int | None = 99) -> tuple[int, list[int]]:
+    """타인 업로드 AS 첨부 2장 그룹을 만들고 (order_id, ids) 를 돌려준다."""
+    order = _as_order(as_log=[{"id": "al_up", "type": "memo", "text": "사진"}])
+    rows = [
+        OrderAttachment(
+            order_id=order.id, filename=f"as-{i}.jpg", file_type="image",
+            category="as", as_log_id="al_up", sort_order=i, user_id=uploader_id,
+            storage_key=f"orders/{order.id}/as-{i}.jpg",
+        )
+        for i in range(2)
+    ]
+    db_session.add_all(rows)
+    db_session.commit()
+    return order.id, [row.id for row in rows]
+
+
+def test_attachment_reorder_allows_cs_staff_on_others_files(client) -> None:
+    _login_user(client, "as-attach-cs-reorder", role="STAFF", team="CS", name="CS직원")
+    order_id, ids = _as_reorder_group()
+
+    response = client.post(
+        f"/api/orders/{order_id}/attachments/reorder",
+        json={"as_log_id": "al_up", "ids": [ids[1], ids[0]]},
+    )
+
+    assert response.status_code == 200
+    assert [item["id"] for item in response.get_json()["attachments"]] == [ids[1], ids[0]]
+
+
+def test_attachment_reorder_allows_manager_role_on_others_files(client) -> None:
+    _login_user(client, "as-attach-mgr-reorder", role="MANAGER", team="SALES", name="박매니저")
+    order_id, ids = _as_reorder_group()
+
+    response = client.post(
+        f"/api/orders/{order_id}/attachments/reorder",
+        json={"as_log_id": "al_up", "ids": [ids[1], ids[0]]},
+    )
+
+    assert response.status_code == 200
+
+
+def test_attachment_reorder_denies_sales_outsider(client) -> None:
+    _login_user(client, "as-attach-sales-reorder", role="STAFF", team="SALES", name="다른영업")
+    order_id, ids = _as_reorder_group()
+
+    response = client.post(
+        f"/api/orders/{order_id}/attachments/reorder",
+        json={"as_log_id": "al_up", "ids": [ids[1], ids[0]]},
+    )
+
+    assert response.status_code == 403
 
 
 def test_attachment_upload_rejects_unknown_as_log_id(client) -> None:

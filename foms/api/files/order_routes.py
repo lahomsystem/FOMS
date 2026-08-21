@@ -42,6 +42,7 @@ from foms.services.order_attachment_permissions import (
     can_delete_order_attachment,
     can_manage_order_attachments,
     can_modify_order_attachment,
+    user_may_reorder_attachments,
 )
 from foms.services.sidefx_outbox import enqueue_side_effect
 from foms.services.storage import get_storage
@@ -514,7 +515,8 @@ def api_order_attachments_reorder(order_id):
     """같은 AS 기록 그룹의 첨부 순서를 저장한다 (AS-SORT-01).
 
     ``ids`` 는 그 그룹의 살아 있는 AS 첨부 전부의 순열이어야 한다. 빠진 id·다른
-    그룹·다른 주문은 400. 하나라도 수정 권한이 없으면 403(부분 저장 없음).
+    그룹·다른 주문은 400. ADMIN·MANAGER·CS(라홈/하우드)·주문 담당자가 아니면
+    파일별 수정 권한(업로더)을 전건 통과해야 하며, 하나라도 거부면 403(부분 저장 없음).
     """
     try:
         payload = request.get_json(silent=True) or {}
@@ -547,12 +549,11 @@ def api_order_attachments_reorder(order_id):
             }), 400
 
         current_user = _current_user()
-        for att in live:
-            if not can_modify_order_attachment(current_user, order, att):
-                return jsonify({
-                    "success": False,
-                    "message": "첨부파일 수정 권한이 없습니다.",
-                }), 403
+        if not user_may_reorder_attachments(current_user, order, live):
+            return jsonify({
+                "success": False,
+                "message": "첨부파일 순서 변경 권한이 없습니다.",
+            }), 403
 
         for index, att_id in enumerate(ids):
             live_by_id[att_id].sort_order = index
