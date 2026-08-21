@@ -1,0 +1,20 @@
+/* 고객 공유 모달 — 발급 직후 액션 행 전용 규칙.
+   버튼 4개(복사·카톡·문자·알림톡)는 폰 폭(360~390px) 모달에서도 한 줄에 들어와야 한다.
+   기본 btn-sm 글자·패딩으로는 라벨이 글자 단위로 접히거나 오른쪽으로 넘쳤다. */
+.erp-share-actions {
+  display: flex;
+  gap: 0.25rem;
+}
+
+.erp-share-actions .btn {
+  /* 남는 폭을 4등분. min-width:0 이 없으면 flex 아이템이 내용 폭 아래로 못 줄어든다. */
+  flex: 1 1 0;
+  min-width: 0;
+  white-space: nowrap;
+  font-size: 0.8rem;
+  padding: 0.35rem 0.25rem;
+}
+
+.erp-share-actions .btn i {
+  margin-right: 0.15rem;
+}
