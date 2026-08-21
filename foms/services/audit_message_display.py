@@ -691,6 +691,26 @@ def is_first_fill_row(op: Any, before: Any) -> bool:
     return is_unset_display_value(before)
 
 
+def _format_money_text(path: str, text: str) -> str:
+    """금액 경로의 값에 천단위 구분을 넣는다.
+
+    ``100000`` 은 사람이 자릿수를 세야 읽힌다. 금액 경로 판정은 원장 differ 와 같은 SSOT
+    (:data:`~foms.services.orders.structured_diff.NUMERIC_PATH_SUFFIXES`)를 쓴다.
+
+    :param path: 구조화 경로.
+    :param text: 이미 표시형으로 옮긴 값.
+    :return: 금액이면 ``100,000``, 아니면 원문 그대로.
+    """
+    from foms.services.orders.structured_diff import NUMERIC_PATH_SUFFIXES
+
+    if not any(path.endswith(suffix) for suffix in NUMERIC_PATH_SUFFIXES):
+        return text
+    probe = text.replace(",", "").strip()
+    if not probe or not probe.lstrip("-").isdigit():
+        return text
+    return f"{int(probe):,}"
+
+
 def describe_change(change: Mapping[str, Any]) -> str:
     """변경 1건을 ``라벨: 이전 → 이후`` 한 줄로 옮긴다 (ORDER-DIFF-00).
 
@@ -709,8 +729,8 @@ def describe_change(change: Mapping[str, Any]) -> str:
         return f"{label} {verb}({name})" if name else f"{label} {verb}"
 
     value_field = _PATH_VALUE_FIELD.get(path)
-    before_text = format_value(value_field, change.get("before"))
-    after_text = format_value(value_field, change.get("after"))
+    before_text = _format_money_text(path, format_value(value_field, change.get("before")))
+    after_text = _format_money_text(path, format_value(value_field, change.get("after")))
     if before_text == _EMPTY_DISPLAY:
         before_text = _EMPTY_BEFORE_DISPLAY
     return f"{label} {before_text} → {after_text}"

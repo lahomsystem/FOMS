@@ -330,3 +330,31 @@ def test_object_with_no_content_says_so_instead_of_showing_json():
 def test_unrecoverable_fragment_keeps_the_original_text():
     """되살릴 수 없는 조각은 원문을 그대로 낸다 — 감사 화면은 못 읽은 값을 감추지 않는다."""
     assert amd.format_value(None, '{"broken') == '{"broken'
+
+
+def test_money_paths_get_thousands_separator():
+    """금액은 자릿수를 세지 않고 읽히게 — 경로 판정은 원장 differ 와 같은 SSOT."""
+    from foms.services.audit_message_display import describe_change
+
+    assert describe_change(
+        {"path": "payment.deposit", "before": "0", "after": "100000", "op": "set"}
+    ).endswith("0 → 100,000")
+    assert "1,620,000" in describe_change(
+        {"path": "items.0.price", "before": None, "after": "1620000", "op": "set"}
+    )
+    # 날짜·코드는 숫자로 보여도 금액이 아니다.
+    assert describe_change(
+        {"path": "schedule.construction.date", "before": "2026-08-12", "after": "2026-08-14", "op": "set"}
+    ).endswith("2026-08-12 → 2026-08-14")
+
+
+def test_first_fill_row_predicate():
+    """최초 입력 판정: op=set + 빈칸/placeholder. 품목 추가·값 지움은 아니다."""
+    from foms.services.audit_message_display import is_first_fill_row
+
+    assert is_first_fill_row("set", None) is True
+    assert is_first_fill_row("set", "상담") is True
+    assert is_first_fill_row("set", "  ") is True
+    assert is_first_fill_row("set", "2026-08-12") is False
+    assert is_first_fill_row("add", None) is False
+    assert is_first_fill_row("clear", None) is False

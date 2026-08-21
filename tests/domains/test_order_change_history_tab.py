@@ -201,5 +201,5 @@ def test_change_history_assets_are_pinned_together(client):
 
     assert "foms-change-set-fold" in js and "first_fill" in js
     assert ".foms-change-set-fold" in css
-    assert "order-change-history.js') }}?v=20260821a" in body
+    assert "order-change-history.js') }}?v=20260821b" in body
     assert "erp-edit-embedded.css') }}?v=20260821a" in shell

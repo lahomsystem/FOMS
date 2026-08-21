@@ -76,7 +76,11 @@
     head.className = 'foms-change-set-head';
     var actor = entry.actor ? (entry.actor.name || entry.actor.username) : '시스템';
     // 건수는 접지 않은 줄 기준 — 접힌 최초 입력 건수는 접기 버튼이 따로 말한다.
-    head.textContent = (entry.at || '') + ' · ' + actor + ' · ' + real.length + '건';
+    // 전부 최초 입력인 저장은 "0건"으로 읽히면 안 된다(값이 없는 게 아니라 접힌 것).
+    var countText = real.length
+      ? real.length + '건'
+      : '최초 입력 ' + firstFill.length + '건';
+    head.textContent = (entry.at || '') + ' · ' + actor + ' · ' + countText;
     card.appendChild(head);
 
     // ORDER-REASON-00: "왜" 는 변경 목록보다 위에 온다 — 분쟁 조회에서 먼저 읽는 값이다.
