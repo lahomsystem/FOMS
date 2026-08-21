@@ -331,3 +331,77 @@ def test_all_change_values_forbid_json():
     )
     assert "{" not in legacy[0]["from"] and "{" not in legacy[0]["to"]
     assert "주소 특이사항" in legacy[0]["to"] or "c" in legacy[0]["to"]
+
+
+def test_first_fill_rows_are_not_changes():
+    """빈칸·'상담' placeholder 에서 첫 값이 들어온 줄은 변경이 아니다(2026-08-20 소음 제거)."""
+    old = _base_sd()
+    old["schedule"]["construction"] = {}
+    old["items"] = [{"product_name": "라운드 핏 냉장고장 외", "color": "상담", "handle": "상담"}]
+    new = _base_sd()
+    new["schedule"]["construction"] = {"date": "2026-08-27", "time": "오전"}
+    new["items"] = [{"product_name": "냉장고장 리폼", "color": "클린화이트", "handle": "푸쉬"}]
+
+    changes = compute_drawing_relevant_changes(old, new)
+    paths = {c["path"] for c in changes}
+    assert "items.0.product_name" in paths, "실값→실값 수정은 남아야 한다"
+    assert "schedule.construction.date" not in paths
+    assert "schedule.construction.time" not in paths
+    assert "items.0.color" not in paths
+    assert "items.0.handle" not in paths
+
+
+def test_item_add_row_survives_without_field_noise():
+    """항목 추가/삭제 줄은 최초 입력이어도 남기고, 그 항목의 필드 줄은 남기지 않는다."""
+    old = _base_sd()
+    new = _base_sd()
+    new["items"].append({"product_name": "몰딩 파우더장", "color": "클린화이트", "width": "1225"})
+
+    changes = compute_drawing_relevant_changes(old, new)
+    paths = {c["path"] for c in changes}
+    assert "items.1" in paths
+    add_row = next(c for c in changes if c["path"] == "items.1")
+    assert add_row["to"] == "몰딩 파우더장"
+    assert not [p for p in paths if p.startswith("items.1.")]
+
+
+def test_clearing_a_real_value_is_still_a_change():
+    """값→빈칸(지움)은 최초 입력이 아니라 진짜 변경 — 계속 표시한다."""
+    old = _base_sd()
+    new = _base_sd()
+    new["schedule"]["construction"] = {}
+    changes = compute_drawing_relevant_changes(old, new)
+    row = next(c for c in changes if c["path"] == "schedule.construction.date")
+    assert row["from"] == "2026-07-25"
+    assert row["to"] == "(없음)"
+
+
+def test_humanize_drops_legacy_first_fill_rows():
+    """이미 쌓인 과거 이력도 읽기 시점에 정리된다(항목 추가 줄은 유지)."""
+    from foms.services.notifications.drawing_order_change import humanize_order_change_changes
+
+    rows = humanize_order_change_changes([
+        {"path": "items.1", "label": "항목2 추가", "from": "(없음)", "to": "몰딩 파우더장"},
+        {"path": "items.1.color", "label": "항목2 색상", "from": "(없음)", "to": "클린화이트"},
+        {"path": "items.0.color", "label": "항목1 색상", "from": "상담", "to": "클린화이트"},
+        {"path": "site.address", "label": "주소", "from": "경기 파주시 청석로 350", "to": "경기 파주시 물향기2로 9"},
+    ])
+    assert [r["path"] for r in rows] == ["items.1", "site.address"]
+
+
+def test_apply_skips_alert_when_only_first_fill(app, drawing_order):
+    """최초 입력만 있는 저장은 알림·pending 을 만들지 않는다."""
+    with app.app_context():
+        db = db_session()
+        order = db.get(Order, drawing_order.id)
+        old = copy.deepcopy(order.structured_data)
+        old["items"][0]["color"] = "상담"
+        new = copy.deepcopy(old)
+        new["items"][0]["color"] = "클린화이트"
+        notif, created = apply_drawing_order_change_alert(
+            db, order, old, new, actor_user_id=None, actor_name="실측담당",
+        )
+        assert notif is None and created is False
+        assert not (new.get("drawing_transfer_history") or [])
+        assert is_order_change_pending(new) is False
+        db.rollback()

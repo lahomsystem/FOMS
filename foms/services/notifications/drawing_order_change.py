@@ -11,6 +11,7 @@ import datetime as _dt
 from foms.services.datetime_kst import now_utc_naive
 import json
 import logging
+import re
 from typing import Any, Dict, List, Optional, Sequence, Tuple
 
 from sqlalchemy.orm import Session
@@ -284,6 +285,44 @@ def humanize_change_display_value(label: Any, path: Any, value: Any) -> str:
     return formatted if formatted else text
 
 
+# ERP 폼 미입력 표시값 — 저장 시 placeholder 가 채워지는 자리.
+# '(없음)'·'상담' 에서 첫 값이 들어온 줄은 "수정"이 아니라 최초 입력이라 도면팀이 볼 이유가 없다.
+_UNSET_DISPLAY_TOKENS = frozenset({"", "-", "--", "(없음)", "없음", "미정", "상담"})
+# items.<n> (필드 접미 없음) = 항목 추가/삭제 줄. 품목 수 변화는 최초 입력이어도 도면팀에 남긴다.
+_ITEM_ROOT_PATH_RE = re.compile(r"^items\.\d+$")
+
+
+def is_unset_display_value(value: Any) -> bool:
+    """표시값이 "값 없음"(빈칸·(없음)·폼 placeholder '상담' 등)인지 판정한다.
+
+    Args:
+        value: 사람 표기로 옮긴 뒤의 from/to 값.
+
+    Returns:
+        미입력과 같은 뜻이면 ``True``.
+    """
+    return str(value or "").strip() in _UNSET_DISPLAY_TOKENS
+
+
+def is_first_fill_change(path: Any, from_value: Any) -> bool:
+    """"최초 입력" 줄(빈값·placeholder → 첫 값)인지 판정한다.
+
+    도면팀 피드는 *최초 입력 이후 바뀐 값*만 보여야 한다. 접수 직후 저장 한 번이면
+    빈칸·'상담' 이 실제 값으로 전부 채워져 진짜 수정 한 줄이 소음 열몇 줄에 묻힌다
+    (2026-08-20 운영 실측: 17줄 중 진짜 수정 2줄).
+
+    Args:
+        path: 변경 경로(``items.2`` 같은 항목 추가/삭제 줄은 제외 대상이 아니다).
+        from_value: 사람 표기 이전값.
+
+    Returns:
+        최초 입력이라 숨겨야 하면 ``True``.
+    """
+    if _ITEM_ROOT_PATH_RE.match(str(path or "").strip()):
+        return False
+    return is_unset_display_value(from_value)
+
+
 def humanize_order_change_changes(
     changes: Optional[Sequence[Any]],
 ) -> List[Dict[str, str]]:
@@ -302,6 +341,9 @@ def humanize_order_change_changes(
                 raw.get("label"), raw.get("path"), raw.get("to")
             ),
         }
+        # 읽기 시점 교정 — 이미 쌓인 과거 이력의 최초 입력 줄도 함께 걷어낸다.
+        if is_first_fill_change(row["path"], row["from"]):
+            continue
         out.append(row)
     return out
 
@@ -381,18 +423,8 @@ def _append_item_field_changes(
                 "from": "(없음)",
                 "to": name,
             })
-            # 신규 행의 주요 값도 from→to로 남겨 도면팀이 스펙을 바로 본다.
-            snap = _item_snapshot(new_it)
-            for key, val in snap.items():
-                if key.startswith("_") or not val:
-                    continue
-                label = _ITEM_FIELD_LABELS.get(key, key)
-                changes.append({
-                    "path": f"items.{idx}.{key}",
-                    "label": f"{prefix} {label}",
-                    "from": "(없음)",
-                    "to": val,
-                })
+            # 신규 행의 필드별 (없음)→값 줄은 남기지 않는다 — 추가 줄 하나로 충분하고,
+            # 나머지는 최초 입력이라 진짜 수정을 가린다.
             continue
         if new_it is None and isinstance(old_it, dict):
             name = _norm_scalar(old_it.get("product_name")) or f"#{idx + 1}"
@@ -477,6 +509,8 @@ def _add_change(
     new_s = format_value_for_display(new)
     if old_s == new_s:
         return
+    if is_first_fill_change(path, old_s):
+        return  # 최초 입력(빈칸·'상담' → 첫 값)은 변경이 아니다.
     changes.append({
         "path": path,
         "label": label,
