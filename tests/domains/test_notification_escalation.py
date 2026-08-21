@@ -211,3 +211,32 @@ def test_exempt_list_is_env_overridable(db):
 
     assert result["escalated"] == 1
     assert len(_escalations(admin.id)) == 1
+
+
+def test_role_source_escalates_once_per_admin(db):
+    """NOTIF-ROLE-01 통합: ROLE 원본 1건은 관리자 1인당 에스컬레이션 1건만 만든다.
+
+    전환 전에는 관리자 N명 = 원본 N건이었고 각 원본이 다시 N명에게 에스컬레이션돼
+    N² 로 불어났다(스테이징 실측 148건 → 1073건). 원본이 1건이 되면 원본당 중복 억제와
+    맞물려 N 으로 떨어진다.
+    """
+    from foms.services.notifications.recipients import fan_out_new_notification
+
+    admins = [_mk_user(f"esc_role_a{i}", f"관리자{i}", role="ADMIN") for i in range(3)]
+    notif = _mk_urgent("네이버 반품 요청", "본문")
+    notif.target_type = "ROLE"
+    notif.target_role = "ADMIN"
+    db_session.flush()
+    created = fan_out_new_notification(db, notif, actor_user_id=None)
+    assert len(created) == 3  # 원본 1건 + state 3개
+    for state in created:
+        state.created_at = NOW - datetime.timedelta(minutes=6)
+    db_session.flush()
+
+    result = escalate_overdue_urgent(db, now=NOW)
+
+    assert result["escalated"] == 3  # state 3건 모두 escalate 처리
+    total = sum(len(_escalations(a.id)) for a in admins)
+    assert total == 3  # N² (9) 가 아니라 N (3)
+    for admin in admins:
+        assert len(_escalations(admin.id)) == 1

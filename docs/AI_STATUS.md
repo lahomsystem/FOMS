@@ -1,6 +1,6 @@
 # FOMS 현재 상태
 > 자동 업데이트: 2026-07-28
-> 최신: **AS 지도 v2+v3+T15 승격(PR #54) + T15g 세로 글자 수정 승격(PR #56 `29acc3f5`)** — 좁은 표면 분기는 뷰포트 MQ가 아니라 container query(부품 자폭): 지도 패널 358px에서 행 그리드가 본문에 42px만 남기던 것이 근본. 원장: docs/plans/2026-08-06-as-map-cluster-availability-ledger.md
+> 최신: **NOTIF-ROLE-01 운영 승격** — 관리자 알림 사건 1건 = row 1건 + 수신자별 state(에스컬레이션 N²→N). 원장: docs/plans/2026-08-20-notifrole-progress-ledger.md
 > 이 파일 상단 40줄이 세션 시작 컨텍스트의 전부다(hygiene 계약 테스트로 강제). 상세 이력: "## 최근 완료"·"## 기록 보관", 과거 헤더 상세는 기록 보관에 이관.
 
 ## 스택
@@ -8,6 +8,7 @@ Flask 2.3 + PostgreSQL + R2 + Railway (Web×2, Worker×1)
 브랜치: deploy (스테이징) → production (운영)
 
 ## 진행 중
+- [2026-08-21] **NOTIF-ROLE-01 운영 승격** — `notifrole_00` 부모는 운영 계보 `assort_00`(네이버 체인 미반영). 네이버 `claim_watch` ROLE 전환은 네이버 승격 때 함께.
 - [2026-08-13] **AS dTTFB 근본 해소 181→96(예산 168 불변)** — 지출처=같은 모집단 집계 2회 스캔 + 행100×2필드 sanitize 재파싱(`phase()` 계측). 수정=단일 스캔 + sanitize LRU 메모이즈.
 - [2026-08-07] **지방 대시보드 섹션=상태 개편 운영 승격 완료(PR #59, production `95fb7826`)** — 드롭다운 0·뱃지만, 상차완료/보류 섹션 폐지, AS 섹션+AS완료(`as_completed_date` 필수). 읽기 경로 status 쓰기는 state_guard 차단(상차일 변경 시점 기록).
 - [2026-08-08] **감사 로깅 `**D` T1~T12 완료(deploy 반영·CI 4/4 green)** — 삭제→비활성화(감사 actor 보존)·보존기간 3년/2년·**파일 열람 기록 화면**(`/admin/file-access-logs`, ADMIN 전용). 운영 승격 전 주의 3건: `docs/harness/runtime/HANDOFF_AUDIT_LOGGING.md`
