@@ -56,6 +56,18 @@
   opacity: 0.75;
 }
 
+/* 실측 PUSH 선택지: foms-btn 에는 info 변형이 없어 선택 시트 안에서만 정의한다.
+   영발(회색)·발주(주황)·AS(파랑)와 색으로 구분된다. */
+.erp-channel-push-picker-options .foms-btn--info {
+  background: var(--foms-color-info-50, #eff6ff);
+  color: var(--foms-color-info-600, #2563eb);
+  border-color: color-mix(in srgb, var(--foms-color-info-500, #3b82f6) 35%, transparent);
+}
+
+.erp-channel-push-picker-options .foms-btn--info:hover {
+  background: color-mix(in srgb, var(--foms-color-info-500, #3b82f6) 16%, #fff);
+}
+
 /* 모바일 액션바 PUSH 트리거: 회색(secondary) 대신 파스텔 하늘색.
    저장(primary)과 구분되면서 전송 액션임을 색으로 알린다. */
 .erp-mobile-push-btn--pastel {
@@ -66,6 +78,18 @@
 
 .erp-mobile-push-btn--pastel:hover {
   background: color-mix(in srgb, var(--foms-color-info-500, #3b82f6) 16%, #fff);
+}
+
+/* 모바일 액션바 알림톡 트리거: PUSH 와 같은 시트를 여는 버튼이라 형태는 같게,
+   대상(고객)이 다르다는 것은 파스텔 초록으로 구분한다. */
+.erp-mobile-alimtalk-btn--pastel {
+  background: var(--foms-color-success-50, #ecfdf5);
+  color: var(--foms-color-success-600, #059669);
+  border-color: color-mix(in srgb, var(--foms-color-success-500, #10b981) 35%, transparent);
+}
+
+.erp-mobile-alimtalk-btn--pastel:hover {
+  background: color-mix(in srgb, var(--foms-color-success-500, #10b981) 16%, #fff);
 }
 
 /* 알림톡 미리보기: 서버 렌더 본문 read-only 표시(줄바꿈 보존 + 긴 줄 접기). */

@@ -13,6 +13,7 @@ ROOT = Path(__file__).resolve().parents[2]
 
 BUTTON_CLASS = "erp-alimtalk-send-btn"
 MODAL_PARTIAL = "orders/partials/erp_alimtalk_modal.html"
+PICKER_PARTIAL = "orders/partials/erp_alimtalk_picker_modal.html"
 SEND_JS = "js/orders/erp-alimtalk-send.js"
 
 
@@ -31,13 +32,33 @@ def test_pc_tab_has_alimtalk_button_and_status_line() -> None:
 
 
 def test_mobile_tab_has_alimtalk_button_in_sticky_footer() -> None:
-    """모바일: sticky action bar 에 foms-btn 체계로 노출."""
+    """모바일: sticky action bar 에 foms-btn 체계로 노출(PUSH 와 같은 선택 시트 트리거)."""
     html = _read("templates/orders/partials/erp_order_tab_mobile.html")
-    assert BUTTON_CLASS in html
     footer = html[html.index("erp-mobile-sticky-action-bar"):]
     button = footer[: footer.index("</footer>")]
-    assert BUTTON_CLASS in button, "알림톡 버튼이 sticky footer 밖에 있다"
+    assert 'id="erp-alimtalk-picker-btn"' in button, "알림톡 버튼이 sticky footer 밖에 있다"
     assert "foms-btn" in button
+    # dropdown 은 좁은 폭에서 액션바를 덮어 터치가 막힌다 — 시트로만 연다.
+    assert "erp-alimtalk-menu-mobile" not in html
+    assert PICKER_PARTIAL in html
+
+
+def test_mobile_alimtalk_picker_sheet_reuses_push_sheet_markup() -> None:
+    """모바일 알림톡 선택 시트: PUSH 시트와 같은 클래스 + PC 드롭다운과 같은 3항목."""
+    sheet = _read("templates/orders/partials/erp_alimtalk_picker_modal.html")
+    assert 'id="erpAlimtalkPickerModal"' in sheet
+    # PUSH 시트 CSS(erp-channel-push.css)를 그대로 물려받는다.
+    assert "erp-channel-push-picker-modal" in sheet
+    assert "erp-channel-push-picker-options" in sheet
+    # 선택지는 기존 위임 핸들러가 그대로 처리하는 클래스를 단다.
+    assert BUTTON_CLASS in sheet
+    assert sheet.count("data-share-kind=") == 2
+    assert 'data-share-kind="drawing"' in sheet
+    assert 'data-share-kind="estimate"' in sheet
+
+    js = _read("static/js/orders/erp-alimtalk-send.js")
+    assert "erpOpenAlimtalkPicker" in js
+    assert "erpAlimtalkReplay" in js
 
 
 def test_tablet_measure_form_renders_alimtalk_button_and_handler() -> None:

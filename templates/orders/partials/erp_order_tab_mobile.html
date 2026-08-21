@@ -464,17 +464,10 @@ ERP Order mobile-v2 tab pane.
                 <button class="foms-btn erp-mobile-push-btn erp-mobile-push-btn--pastel" type="button" id="erp-channeltalk-push-picker-btn">
                     <i class="fas fa-paper-plane"></i> PUSH
                 </button>
-                <div class="btn-group dropup" id="erp-alimtalk-menu-mobile">
-                    <button class="foms-btn dropdown-toggle" type="button" data-bs-toggle="dropdown" aria-expanded="false"
-                        title="고객에게 카카오 알림톡 발송 (실패 시 문자 대체발송)">
-                        <i class="fas fa-comment-dots"></i> 알림톡
-                    </button>
-                    <ul class="dropdown-menu">
-                        <li><button class="dropdown-item erp-alimtalk-send-btn" type="button" id="erp-alimtalk-send-btn-mobile">예약 내역 (실측 예약 안내)</button></li>
-                        <li><button class="dropdown-item erp-share-alimtalk-quick-btn" type="button" id="erp-share-alimtalk-quick-btn-mobile" data-share-kind="drawing">도면 열람 링크</button></li>
-                        <li><button class="dropdown-item erp-share-alimtalk-quick-btn" type="button" id="erp-share-alimtalk-quick-est-btn-mobile" data-share-kind="estimate">계약서(견적서) 열람 링크</button></li>
-                    </ul>
-                </div>
+                <button class="foms-btn erp-mobile-push-btn erp-mobile-alimtalk-btn--pastel" type="button"
+                    id="erp-alimtalk-picker-btn" title="고객에게 카카오 알림톡 발송 (실패 시 문자 대체발송)">
+                    <i class="fas fa-comment-dots"></i> 알림톡
+                </button>
                 <button class="foms-btn erp-share-open-btn" type="button" id="erp-share-open-btn-mobile"
                     title="고객에게 로그인 없는 도면 열람 링크를 공유">
                     <i class="fas fa-link"></i> 공유
@@ -487,6 +480,7 @@ ERP Order mobile-v2 tab pane.
 
 {% include 'orders/partials/erp_channel_push_resend_modal.html' %}
 {% include 'orders/partials/erp_channel_push_picker_modal.html' %}
+{% include 'orders/partials/erp_alimtalk_picker_modal.html' %}
 {% include 'orders/partials/erp_alimtalk_modal.html' %}
 {% include 'orders/partials/erp_share_modal.html' %}
 

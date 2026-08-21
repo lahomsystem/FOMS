@@ -66,16 +66,16 @@ def _assert_shared_form_script_contract(body: str) -> None:
         < estimate_columns_idx
     )
     assert "html2canvas.min.js" not in body
-    assert "js/orders/erp-channel-push-confirm.js?v=20260810a" in body
-    assert "js/orders/erp-order-shared.js?v=20260819a" in body
+    assert "js/orders/erp-channel-push-confirm.js?v=20260821a" in body
+    assert "js/orders/erp-order-shared.js?v=20260821a" in body
     assert "js/cs/as-attachment-order.js?v=20260819a" in body
-    assert "js/orders/erp-alimtalk-send.js?v=20260819c" in body
+    assert "js/orders/erp-alimtalk-send.js?v=20260821a" in body
     assert "js/orders/erp-share.js?v=20260819c" in body
     assert "js/orders/erp-stage-override.js?v=20260814d" in body
     assert "erp_stage_override_modal.html" not in body  # include renders modal markup, not path
     assert 'id="erpStageOverrideModal"' in body
     assert "(8자 이상)" not in body
-    assert "css/orders/erp-channel-push.css?v=20260811b" in body
+    assert "css/orders/erp-channel-push.css?v=20260821a" in body
     assert "css/orders/erp-items-master-detail.css?v=20260701f" in body
     assert "js/orders/erp-items-master-detail.js?v=20260630c" in body
     assert "erp-items-master-detail-shell" in body
@@ -621,7 +621,7 @@ def test_channel_push_confirm_js_resend_recovery_contract() -> None:
 
 
 def test_channel_push_kind_picker_contract() -> None:
-    """모바일 PUSH 선택 시트: 3종 제공 + 재전송 modal 중첩 회피(hidden 후 resolve)."""
+    """모바일 PUSH 선택 시트: 4종 제공 + 재전송 modal 중첩 회피(hidden 후 resolve)."""
     root = Path(__file__).resolve().parents[2]
     js = (root / "static/js/orders/erp-channel-push-confirm.js").read_text(encoding="utf-8")
     picker = (
@@ -638,7 +638,7 @@ def test_channel_push_kind_picker_contract() -> None:
     picker_mount = js[js.index("function erpMountChannelPushPickerModal()"):]
     assert "hidden.bs.modal" in picker_mount
 
-    for kind in ("measurement", "drawing", "as"):
+    for kind in ("measurement", "measure_room", "drawing", "as"):
         assert f'data-erp-push-kind="{kind}"' in picker
 
     assert "window.erpPromptChannelPushKind = erpPromptChannelPushKind;" in js
@@ -666,6 +666,28 @@ def test_channel_push_kind_picker_contract() -> None:
     assert "erp-mobile-push-btn--pastel" in trigger_line
     assert "foms-btn--secondary" not in trigger_line
     assert ".erp-mobile-push-btn--pastel {" in css
+
+
+def test_measure_room_push_is_wired_on_pc_and_sheet_with_own_history_key() -> None:
+    """실측 PUSH: PC 버튼·모바일 시트·이력 키가 영발과 분리돼 배선된다."""
+    root = Path(__file__).resolve().parents[2]
+    pc = (root / "templates/orders/partials/erp_order_tab.html").read_text(encoding="utf-8")
+    shared = (root / "static/js/orders/erp-order-shared.js").read_text(encoding="utf-8")
+    confirm = (root / "static/js/orders/erp-channel-push-confirm.js").read_text(encoding="utf-8")
+
+    # PC: 영발 PUSH 옆 버튼
+    assert 'id="erp-channeltalk-push-measure-btn"' in pc
+    assert "실측 PUSH" in pc
+    assert pc.index("erp-channeltalk-push-btn") < pc.index("erp-channeltalk-push-measure-btn")
+
+    # 클릭 → 공용 핸들러에 measure_room 종류로 위임
+    assert "erpRunChannelPush(this, 'measure_room')" in shared
+    # 이력 키 분리 — 영발을 보냈다고 실측 PUSH 가 재전송으로 취급되면 안 된다.
+    assert "measure_room: 'channeltalk_push_measure_room'" in confirm
+    assert "measure_room: '실측 PUSH'" in confirm
+    assert "'erp-channeltalk-push-measure-btn'" in confirm
+    # 폼 PUT 이 서버 소유 이력을 지우지 않도록 보존 키 목록에도 등재
+    assert "'channeltalk_push_measure_room'" in shared
 
 
 def test_as_push_text_is_server_built_not_client_built() -> None:
