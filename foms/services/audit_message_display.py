@@ -670,6 +670,49 @@ def path_label(path: str | None) -> str:
     return f"{head} {PATH_LABELS.get(f'items.*.{field}', field)}"
 
 
+#: 파생 ``totals.*`` 행 → 그 값을 만든 **입력** 경로. 폼이 예약금을 한 번 고치면 입력 경로와
+#: 서버 파생 합계가 **같은 말을 두 줄로** 남긴다(2026-08-21 스테이징 실화면:
+#: ``예약금 0 → 100,000`` + ``예약금 입력 0 → 100,000``). 원장에는 둘 다 남기고 화면만 접는다.
+MIRROR_DERIVED_TO_INPUT: dict[str, str] = {
+    "totals.deposit_amount": "payment.deposit",
+    "totals.discount_amount": "payment.discount",
+    "totals.free_input_amount": "payment.free_input",
+}
+
+
+def resolve_mirror_rows(rows: Iterable[Mapping[str, Any]]) -> tuple[set[Any], dict[Any, str]]:
+    """한 저장(change set) 안에서 파생·입력 쌍이 같은 값을 말하는 행을 찾는다.
+
+    값이 다르면 접지 않는다 — 파생 계산이 입력과 어긋난 상태 자체가 봐야 할 정보다.
+
+    :param rows: ``id``·``path``·``before``·``after`` 를 가진 매핑들(한 change set 분량).
+    :return: ``(숨길 행 id 집합, 살아남는 행 id → 대체 라벨)``. 살아남는 쪽은 사람이 입력한
+        경로이고, 라벨은 짧은 파생 쪽 이름(``예약금 입력`` 대신 ``예약금``)을 쓴다.
+    """
+    by_path: dict[str, Mapping[str, Any]] = {}
+    for row in rows:
+        path = str(row.get("path") or "")
+        if path:
+            by_path.setdefault(path, row)
+
+    dropped: set[Any] = set()
+    labels: dict[Any, str] = {}
+    for derived_path, input_path in MIRROR_DERIVED_TO_INPUT.items():
+        derived = by_path.get(derived_path)
+        source = by_path.get(input_path)
+        if derived is None or source is None:
+            continue
+        same = (
+            str(derived.get("before") or "").strip() == str(source.get("before") or "").strip()
+            and str(derived.get("after") or "").strip() == str(source.get("after") or "").strip()
+        )
+        if not same:
+            continue
+        dropped.add(derived.get("id"))
+        labels[source.get("id")] = path_label(derived_path)
+    return dropped, labels
+
+
 def is_first_fill_row(op: Any, before: Any) -> bool:
     """변경 1건이 "최초 입력"(빈칸·폼 placeholder → 첫 값)인지 판정한다 (ORDER-DIFF-02).
 
@@ -711,7 +754,7 @@ def _format_money_text(path: str, text: str) -> str:
     return f"{int(probe):,}"
 
 
-def describe_change(change: Mapping[str, Any]) -> str:
+def describe_change(change: Mapping[str, Any], *, label_override: str | None = None) -> str:
     """변경 1건을 ``라벨: 이전 → 이후`` 한 줄로 옮긴다 (ORDER-DIFF-00).
 
     :param change: :func:`foms.services.orders.structured_diff.diff_structured` 가 만든 dict
@@ -719,7 +762,7 @@ def describe_change(change: Mapping[str, Any]) -> str:
     :return: 사람이 읽는 한 줄. 품목 추가/삭제는 화살표 대신 ``추가``/``삭제`` 로 적는다.
     """
     path = str(change.get("path") or "")
-    label = path_label(path)
+    label = label_override or path_label(path)
     op = change.get("op")
 
     item_match = _ITEM_PATH_RE.match(path)

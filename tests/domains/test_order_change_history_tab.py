@@ -203,3 +203,39 @@ def test_change_history_assets_are_pinned_together(client):
     assert ".foms-change-set-fold" in css
     assert "order-change-history.js') }}?v=20260821b" in body
     assert "erp-edit-embedded.css') }}?v=20260821a" in shell
+
+
+def test_mirror_totals_row_is_collapsed(client):
+    """예약금은 입력·파생 두 경로에 쓰이지만 화면엔 한 줄 — 원장 행은 그대로 남는다."""
+    admin = _make_user("hist-admin-mirror", "ADMIN")
+    order_id = _create_order().id
+    _seed_change(order_id, change_set="cs-m", actor_id=admin.id,
+                 path="totals.deposit_amount", before="0", after="100000")
+    _seed_change(order_id, change_set="cs-m", actor_id=admin.id,
+                 path="payment.deposit", before="0", after="100000")
+    _login(client, admin)
+
+    changes = client.get(f"/api/orders/{order_id}/field-changes").get_json(
+    )["data"]["change_sets"][0]["changes"]
+
+    assert len(changes) == 1, "같은 값을 말하는 두 줄은 한 줄로 접힌다"
+    assert changes[0]["label"] == "예약금", "살아남는 줄은 짧은 이름으로 적는다"
+    assert "100,000" in changes[0]["text"]
+    # 원장(DB) 은 두 행 그대로 — 화면만 접은 것이다.
+    assert db_session.query(OrderFieldChange).filter_by(change_set_id="cs-m").count() == 2
+
+
+def test_mirror_rows_with_different_values_both_survive(client):
+    """파생값이 입력과 어긋나면 접지 않는다 — 그 불일치 자체가 봐야 할 정보다."""
+    admin = _make_user("hist-admin-mirror2", "ADMIN")
+    order_id = _create_order().id
+    _seed_change(order_id, change_set="cs-m2", actor_id=admin.id,
+                 path="totals.discount_amount", before="0", after="5000")
+    _seed_change(order_id, change_set="cs-m2", actor_id=admin.id,
+                 path="payment.discount", before="0", after="7000")
+    _login(client, admin)
+
+    changes = client.get(f"/api/orders/{order_id}/field-changes").get_json(
+    )["data"]["change_sets"][0]["changes"]
+
+    assert len(changes) == 2

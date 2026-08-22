@@ -19,6 +19,7 @@ from foms.services.audit_message_display import (
     describe_order_action,
     is_first_fill_row,
     path_label,
+    resolve_mirror_rows,
 )
 from foms.services.datetime_kst import format_datetime_kst
 from foms.services.orders.audit_order_context import order_audit_context
@@ -209,8 +210,24 @@ def api_order_field_changes(order_id: int):
                 for u in db.query(User).filter(User.id.in_(actor_ids)).all()  # perf-ok: batched
             }
 
+        # 파생 totals 와 입력 payment 가 같은 값을 말하면 화면은 한 줄만 낸다(원장은 둘 다 보존).
+        mirror_dropped: set = set()
+        mirror_labels: dict = {}
+        by_set: dict[str, list] = {}
+        for row in rows:
+            by_set.setdefault(row.change_set_id, []).append(row)
+        for set_rows in by_set.values():
+            dropped, labels = resolve_mirror_rows([
+                {'id': r.id, 'path': r.path, 'before': r.before_value, 'after': r.after_value}
+                for r in set_rows
+            ])
+            mirror_dropped |= dropped
+            mirror_labels.update(labels)
+
         grouped: dict[str, dict] = {}
         for row in rows:
+            if row.id in mirror_dropped:
+                continue
             bucket = grouped.setdefault(row.change_set_id, {
                 'change_set': row.change_set_id,
                 'at': format_datetime_kst(row.created_at) if row.created_at else None,
@@ -230,10 +247,11 @@ def api_order_field_changes(order_id: int):
             }
             # RESTORE-GUI-01 T1: 화면이 버튼을 켤지 끌지 판단하려면 되돌리기 가능 여부와
             # 그 이유가 함께 와야 한다(눌러 보고 400 을 받는 UI 는 만들지 않는다).
+            override_label = mirror_labels.get(row.id)
             entry = {
                 'id': row.id,
-                'label': path_label(row.path),
-                'text': describe_change(payload),
+                'label': override_label or path_label(row.path),
+                'text': describe_change(payload, label_override=override_label),
                 'item': row.item_name,
                 # 최초 입력(빈칸→첫 값)은 화면이 접어 둔다 — 원장에는 그대로 남고
                 # 펼치면 되돌리기도 그대로 쓸 수 있다(은닉이 아니라 접기).
