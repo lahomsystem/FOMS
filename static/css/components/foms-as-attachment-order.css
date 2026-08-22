@@ -87,3 +87,174 @@
 .as-attach-order-fallback-box {
   height: 70px;
 }
+
+/* AS PUSH 확인창 — ERP 주문 페이지에도 같은 스킨이 필요해서 공용 파일에 둔다. */
+.as-push-confirm__label {
+  margin: 12px 0 6px;
+  color: #495057;
+  font-size: 0.8125rem;
+  font-weight: 700;
+}
+
+.as-push-confirm__label:first-child {
+  margin-top: 0;
+}
+
+.as-push-confirm__count {
+  color: #6366f1;
+  font-weight: 700;
+}
+
+.as-push-confirm__text {
+  max-height: 220px;
+  margin: 0;
+  padding: 10px 12px;
+  overflow: auto;
+  border: 1px solid #dee2e6;
+  border-radius: 8px;
+  background: #f8f9fa;
+  color: #212529;
+  font-family: inherit;
+  font-size: 0.8125rem;
+  line-height: 1.55;
+  white-space: pre-wrap;
+  word-break: break-word;
+}
+
+.as-push-confirm__files {
+  display: grid;
+  grid-template-columns: repeat(auto-fill, minmax(112px, 1fr));
+  gap: 8px;
+}
+
+.as-push-confirm__empty {
+  grid-column: 1 / -1;
+  padding: 14px 0;
+  color: #6c757d;
+  font-size: 0.8125rem;
+  text-align: center;
+}
+
+.as-push-confirm__file {
+  display: block;
+  position: relative;
+  margin: 0;
+  padding: 6px;
+  border: 2px solid #dee2e6;
+  border-radius: 8px;
+  background: #fff;
+  cursor: pointer;
+}
+
+.as-push-confirm__file.is-on {
+  border-color: #6366f1;
+  background: #eef2ff;
+}
+
+.as-push-confirm__ord {
+  position: absolute;
+  top: 4px;
+  left: 4px;
+  z-index: 1;
+  min-width: 1rem;
+  padding: 0 4px;
+  border-radius: 8px;
+  background: rgba(17, 24, 39, 0.72);
+  color: #fff;
+  font-size: 0.625rem;
+  font-weight: 700;
+}
+
+.as-push-confirm__file input {
+  position: absolute;
+  top: 8px;
+  left: 8px;
+  margin: 0;
+}
+
+.as-push-confirm__thumb {
+  display: block;
+  width: 100%;
+  height: 78px;
+  border-radius: 6px;
+  object-fit: cover;
+  background: #f1f3f5;
+}
+
+.as-push-confirm__doc {
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  height: 78px;
+  border-radius: 6px;
+  background: #f1f3f5;
+  color: #868e96;
+  font-size: 1.25rem;
+}
+
+.as-push-confirm__name {
+  display: block;
+  margin-top: 4px;
+  overflow: hidden;
+  color: #212529;
+  font-size: 0.6875rem;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+
+.as-push-confirm__source {
+  display: block;
+  overflow: hidden;
+  color: #868e96;
+  font-size: 0.625rem;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+
+.as-push-confirm__hint {
+  margin: 0 0 8px;
+  color: #b45309;
+  font-size: 0.75rem;
+}
+
+.as-push-confirm__selected {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 8px;
+  min-height: 72px;
+  margin-bottom: 8px;
+}
+
+.as-push-confirm__selected .as-push-confirm__file {
+  cursor: grab;
+}
+
+.as-push-confirm__nudge-row {
+  display: none;
+  justify-content: center;
+  gap: 2px;
+  margin-top: 2px;
+}
+
+.as-push-confirm__file.is-on .as-push-confirm__nudge-row {
+  display: flex;
+}
+
+.as-push-confirm__nudge {
+  padding: 0 4px;
+  border: 0;
+  background: none;
+  color: #868e96;
+  font-size: 0.625rem;
+  line-height: 1;
+  cursor: pointer;
+}
+
+.as-push-confirm__nudge:hover,
+.as-push-confirm__nudge:focus {
+  color: #4f46e5;
+}
+
+.as-push-confirm__file.is-over-cap {
+  opacity: 0.45;
+}

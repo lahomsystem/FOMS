@@ -1,0 +1,627 @@
+{% extends "admin/layout.html" %}
+
+{% block title %}수집 주문 확인{% endblock %}
+
+{% block content %}
+<div class="container-fluid">
+    <div class="d-flex justify-content-between align-items-center mb-3">
+        <h1 class="h3 mb-0">
+            <i class="fas fa-clipboard-check text-primary"></i> 수집 주문 확인
+            <span class="badge bg-primary align-middle">{{ group_count }}집</span>
+            <span class="small text-muted align-middle">상품주문 {{ pending_count }}건</span>
+        </h1>
+        {# 수집 운영 화면은 관리자 전용 — 전 직원 개방(T14-A) 후에도 링크는 ADMIN 에게만. #}
+        {% if current_user and current_user.role == 'ADMIN' %}
+        <a href="{{ url_for('admin.naver_ingest_dashboard') }}" class="btn btn-outline-secondary btn-sm">
+            수집 상태 화면으로
+        </a>
+        {% endif %}
+    </div>
+
+    <p class="text-muted small">
+        수집 주문은 담당자와 규격이 비어 있는 초안입니다. 아래 원본을 보고 편집기에서 채운 뒤
+        "확인 완료"를 누르면 목록에서 빠집니다.
+    </p>
+
+    <div id="triage-result" class="alert d-none" role="status"></div>
+
+    <div class="row g-3">
+        {# 좌: 확인 대기 큐 #}
+        <div class="col-lg-4">
+            <div class="card shadow-sm">
+                <div class="card-header py-2 small fw-semibold">확인 대기 — 한 집이 한 줄</div>
+                {# T14-C: 한 집 = 한 줄. 구성 상품주문은 접어 두고 펼쳐서 본다
+                   (묶음 판정은 주문 생성과 같은 키 — 화면과 생성 결과가 갈리면 안 된다). #}
+                <div class="list-group list-group-flush">
+                    {% for row in queue %}
+                    {% set is_open = selected_group and selected_group.id == row.id %}
+                    <div class="list-group-item {{ 'active' if is_open }}">
+                        <div class="d-flex align-items-start gap-2">
+                            {% if row.extra_count %}
+                            <button class="btn btn-sm btn-link p-0 text-decoration-none {{ 'text-white' if is_open }}"
+                                    type="button" data-bs-toggle="collapse"
+                                    data-bs-target="#naver-grp-{{ row.id }}"
+                                    aria-expanded="{{ 'true' if is_open else 'false' }}"
+                                    aria-controls="naver-grp-{{ row.id }}"
+                                    aria-label="구성 상품 펼치기">
+                                <i class="fas fa-caret-down"></i>
+                            </button>
+                            {% else %}
+                            <span class="text-muted small">·</span>
+                            {% endif %}
+                            <a class="flex-grow-1 text-decoration-none {{ 'text-white' if is_open else 'text-body' }}"
+                               href="{{ url_for('admin.naver_ingest_triage', link_id=row.id) }}">
+                                <div class="d-flex justify-content-between">
+                                    <span class="fw-semibold">{{ row.customer_name or '(고객명 없음)' }}</span>
+                                    <small>{{ row.created_at }}</small>
+                                </div>
+                                <div class="small text-truncate">
+                                    {{ row.product or '(제품 없음)' }}
+                                    {% if row.extra_count %}
+                                    <span class="badge bg-secondary">외 {{ row.extra_count }}건</span>
+                                    {% endif %}
+                                    {% if row.place_pending %}
+                                    <span class="badge bg-warning text-dark" title="네이버 발주확인이 아직입니다">발주확인 전</span>
+                                    {% endif %}
+                                    {% if row.claim_label %}
+                                    <span class="badge bg-danger">{{ row.claim_label }}</span>
+                                    {% elif row.next_step %}
+                                    <span class="badge bg-primary">{{ row.next_step }}</span>
+                                    {% endif %}
+                                </div>
+                            </a>
+                        </div>
+                        {% if row.extra_count %}
+                        <div class="collapse {{ 'show' if is_open }}" id="naver-grp-{{ row.id }}">
+                            <div class="ps-4 pt-1">
+                                {% for member in row.members %}
+                                <a class="d-block small text-truncate text-decoration-none {{ 'text-white' if is_open else 'text-muted' }}"
+                                   href="{{ url_for('admin.naver_ingest_triage', link_id=member.id) }}">
+                                    {{ '■' if member.is_lead else '·' }}
+                                    {{ member.product or '(제품 없음)' }}
+                                </a>
+                                {% endfor %}
+                            </div>
+                        </div>
+                        {% endif %}
+                    </div>
+                    {% else %}
+                    <div class="list-group-item text-center text-muted py-4">확인할 주문이 없습니다.</div>
+                    {% endfor %}
+                </div>
+            </div>
+        </div>
+
+        {# 우: 네이버 원본 ↔ FOMS 현재 값 대조 #}
+        <div class="col-lg-8">
+            {% if selected %}
+            <div class="card shadow-sm">
+                <div class="card-header d-flex justify-content-between align-items-center py-2">
+                    <span class="small text-muted">상품주문번호 {{ selected.external_id }}</span>
+                    {% if selected.order_id %}
+                    <a class="btn btn-sm btn-primary" target="_blank" rel="noopener"
+                       href="{{ url_for('order_edit.edit_order', order_id=selected.order_id, open='erp-order') }}">
+                        <i class="fas fa-pen"></i> 주문 열어서 규격 채우기
+                    </a>
+                    {% endif %}
+                </div>
+                <div class="card-body">
+                    {# CS 흐름은 두 단계다: ① 주문 만들기 ② ERP 규격 입력.
+                       담당자 지정은 여기가 아니라 고객 통화 → 실측일 지정 → 실측 스케줄링
+                       시점에 한다(2026-08-17 사용자 확정). #}
+                    <div class="d-flex flex-wrap align-items-center gap-2 mb-3">
+                        <span class="badge {{ 'bg-success' if selected.steps.order_created else 'bg-secondary' }}">
+                            {{ '✓' if selected.steps.order_created else '1' }} 주문 만들기
+                        </span>
+                        <span class="text-muted">→</span>
+                        <span class="badge {{ 'bg-success' if selected.steps.spec_filled else ('bg-primary' if selected.steps.order_created else 'bg-secondary') }}">
+                            {{ '✓' if selected.steps.spec_filled else '2' }} ERP 규격 입력
+                        </span>
+                        {% if selected.steps.order_created and not selected.steps.spec_filled %}
+                        <span class="small text-primary">지금 할 일 — 편집기에서 제품 규격을 채우세요.</span>
+                        {% elif selected.steps.spec_filled %}
+                        <span class="small text-success">규격 입력됨 — 확인 완료를 누르면 목록에서 빠집니다.</span>
+                        {% endif %}
+                        <span class="small text-muted ms-auto">담당자 지정은 실측 일정 잡을 때</span>
+                    </div>
+                    {# 발주확인 상태 — 네이버 판매자센터 쪽 처리 여부. 수집 원본 값이라 호출 0회(T16-A). #}
+                    {% if selected.place.status %}
+                    <div class="alert {{ 'alert-secondary' if selected.place.confirmed else 'alert-warning' }} py-2" data-foms-no-autodismiss>
+                        <i class="fas fa-clipboard-list"></i>
+                        <b>네이버 {{ selected.place.label }}</b>
+                        {% if selected.place.shipping_due %} · 발송기한 {{ selected.place.shipping_due[:10] }}{% endif %}
+                        {% if not selected.place.confirmed %}
+                        <div class="small">판매자센터에서 발주확인을 해야 발송 단계로 넘어갑니다.</div>
+                        {% endif %}
+                    </div>
+                    {% endif %}
+                    {# 기존 주문 후보 — 재결제·차액 결제 판별(T16-D). 자동으로 붙이지 않는다:
+                       금액·시공이 걸린 판단이라 근거만 보여주고 사람이 고른다. #}
+                    {% if selected.candidates and not selected.order_id %}
+                    <div class="alert alert-info py-2" data-foms-no-autodismiss>
+                        <div class="fw-semibold mb-1">
+                            <i class="fas fa-link"></i> 이 고객의 기존 주문 {{ selected.candidates|length }}건
+                        </div>
+                        <div class="small text-muted mb-2">
+                            새 주문이 아니라 <b>기존 주문의 추가결제(차액)</b>거나 <b>취소 후 재결제</b>일 수 있습니다.
+                            맞으면 아래에서 붙이세요 — 새 주문을 만들지 않습니다.
+                        </div>
+                        <div class="table-responsive">
+                            <table class="table table-sm align-middle mb-0">
+                                <tbody>
+                                    {% for cand in selected.candidates %}
+                                    <tr>
+                                        <td class="small">
+                                            <a href="{{ url_for('order_edit.edit_order', order_id=cand.order_id, open='erp-order') }}"
+                                               target="_blank" rel="noopener">#{{ cand.order_id }}</a>
+                                            <div class="text-muted">{{ cand.reason }}</div>
+                                        </td>
+                                        <td class="small">
+                                            {{ cand.customer_name }}
+                                            <div class="text-muted">{{ cand.address[:24] }}</div>
+                                        </td>
+                                        <td class="small text-muted">
+                                            {{ cand.received_date }}
+                                            {% if cand.naver_link_count %}
+                                            <div>네이버 수집 {{ cand.naver_link_count }}건</div>
+                                            {% endif %}
+                                        </td>
+                                        <td class="text-end">
+                                            <button type="button" class="btn btn-sm btn-outline-primary naver-attach-btn"
+                                                    data-link-id="{{ selected.link_id }}"
+                                                    data-order-id="{{ cand.order_id }}"
+                                                    data-relation="ADDON">추가결제로 붙이기</button>
+                                            <button type="button" class="btn btn-sm btn-outline-secondary naver-attach-btn"
+                                                    data-link-id="{{ selected.link_id }}"
+                                                    data-order-id="{{ cand.order_id }}"
+                                                    data-relation="REPAY">재결제로 붙이기</button>
+                                        </td>
+                                    </tr>
+                                    {% endfor %}
+                                </tbody>
+                            </table>
+                        </div>
+                    </div>
+                    {% endif %}
+                    {% if selected.relation in ('ADDON', 'REPAY') %}
+                    <div class="alert alert-secondary py-2 d-flex flex-wrap align-items-center gap-2" data-foms-no-autodismiss>
+                        <span>
+                            <i class="fas fa-link"></i>
+                            <b>{{ '추가결제' if selected.relation == 'ADDON' else '재결제' }}</b> 로
+                            주문 #{{ selected.order_id }} 에 붙어 있습니다(새 주문을 만들지 않았습니다).
+                        </span>
+                        <button type="button" id="triage-detach" class="btn btn-sm btn-outline-danger ms-auto"
+                                data-link-id="{{ selected.link_id }}">되돌리기</button>
+                    </div>
+                    {% endif %}
+                    {# 발주확인·발송처리 (T16-H). 업무 규칙: 신규는 주문을 만든 뒤 발주확인,
+                       추가결제는 사람이 확인을 끝낸 뒤 발송처리. 실제 호출은 WORKER 가 낸다. #}
+                    {% if selected.order_id %}
+                    <div class="alert alert-light border py-2" data-foms-no-autodismiss>
+                        <div class="d-flex flex-wrap align-items-center gap-2">
+                            <span class="fw-semibold"><i class="fas fa-truck"></i> 네이버 처리</span>
+                            {% if selected.fulfillment.place_confirmed_at or selected.place.confirmed %}
+                            <span class="badge bg-success">발주확인 완료</span>
+                            {% else %}
+                            <span class="badge bg-warning text-dark">발주확인 전</span>
+                            {% endif %}
+                            {% if selected.fulfillment.dispatched_at %}
+                            <span class="badge bg-success">발송처리 완료</span>
+                            {% endif %}
+
+                            {% set place_done = selected.fulfillment.place_confirmed_at or selected.place.confirmed %}
+                            {% if not place_done %}
+                            {# 신규·재결제·추가결제 모두 발주확인이 먼저다(네이버가 발송 단계를 막는다). #}
+                            <button type="button" class="btn btn-sm btn-primary naver-fulfill-btn ms-auto"
+                                    data-link-id="{{ selected.link_id }}" data-action="confirm">
+                                발주확인 보내기
+                            </button>
+                            {% elif selected.relation == 'ADDON' and not selected.fulfillment.dispatched_at %}
+                            {# 추가결제(차액)는 물건이 따로 나가지 않는다 — 발주확인 뒤 바로 발송처리로 닫는다. #}
+                            <button type="button" class="btn btn-sm btn-primary naver-fulfill-btn ms-auto"
+                                    data-link-id="{{ selected.link_id }}" data-action="dispatch">
+                                발송처리 보내기
+                            </button>
+                            {% elif not selected.fulfillment.dispatched_at %}
+                            <span class="small text-muted ms-auto">
+                                발송처리는 실제 출고·시공 시점에 합니다(추가결제 건만 여기서 바로 닫습니다).
+                            </span>
+                            {% endif %}
+                        </div>
+                        {% if selected.fulfillment.last_error %}
+                        <div class="small text-danger mt-1">
+                            마지막 실패: {{ selected.fulfillment.last_error }}
+                        </div>
+                        {% endif %}
+                        <div class="small text-muted mt-1">
+                            네이버로 보내는 조작이라 되돌릴 수 없습니다. 한 집의 상품주문 전부가 함께 처리됩니다.
+                        </div>
+                    </div>
+                    {% endif %}
+                    {% if selected.claim.status %}
+                    {# 취소·반품은 productOrderStatus(PAYED)로는 안 보인다 — 실물 1건 확인(2026-08-14) #}
+                    <div class="alert alert-danger py-2" data-foms-no-autodismiss>
+                        <i class="fas fa-triangle-exclamation"></i>
+                        <b>네이버 {{ selected.claim.label }}</b>
+                        {% if selected.claim.reason %} · 사유 {{ selected.claim.reason }}{% endif %}
+                        {% if selected.claim.requested_at %} · {{ selected.claim.requested_at[:16] }}{% endif %}
+                        <div class="small">
+                            {% if selected.claim.blocking %}
+                            주문을 만들 수 없습니다. 네이버 판매자센터에서 상태를 확인하세요.
+                            {% else %}
+                            상태를 확인한 뒤 진행하세요.
+                            {% endif %}
+                        </div>
+                    </div>
+                    {% endif %}
+                    {# 옵션 원문이 이 화면의 핵심이다 — v1 은 규격을 파싱하지 않는다 #}
+                    <div class="mb-3">
+                        <div class="text-muted small">네이버 옵션 원문 (이걸 보고 규격을 채웁니다)</div>
+                        <div class="p-3 bg-light rounded fs-5">{{ selected.naver.option or '(옵션 없음)' }}</div>
+                    </div>
+
+                    <div class="table-responsive">
+                        <table class="table table-sm align-middle">
+                            <thead class="table-light">
+                                <tr>
+                                    <th style="width: 22%">항목</th>
+                                    <th style="width: 39%">네이버 원본</th>
+                                    <th style="width: 39%">FOMS 현재 값</th>
+                                </tr>
+                            </thead>
+                            <tbody>
+                                <tr>
+                                    <td class="text-muted small">수취인</td>
+                                    <td>{{ selected.naver.recipient_name or '-' }}</td>
+                                    <td>{{ selected.foms.customer_name or '-' }}</td>
+                                </tr>
+                                <tr>
+                                    <td class="text-muted small">연락처</td>
+                                    <td>{{ selected.naver.recipient_tel or '-' }}</td>
+                                    <td>{{ selected.foms.phone or '-' }}</td>
+                                </tr>
+                                <tr>
+                                    <td class="text-muted small">주소</td>
+                                    <td>{{ selected.naver.address or '-' }}</td>
+                                    <td>{{ selected.foms.address or '-' }}</td>
+                                </tr>
+                                <tr>
+                                    <td class="text-muted small">제품</td>
+                                    <td>{{ selected.naver.product_name or '-' }}</td>
+                                    <td>{{ selected.foms.product or '-' }}</td>
+                                </tr>
+                                <tr>
+                                    <td class="text-muted small">금액</td>
+                                    <td>{{ selected.naver.amount or '-' }}</td>
+                                    <td>{{ selected.foms.payment_amount or '-' }}</td>
+                                </tr>
+                                <tr>
+                                    <td class="text-muted small">주문자<br><span class="small">(수취인과 다르면 확인)</span></td>
+                                    <td colspan="2">
+                                        {{ selected.naver.orderer_name or '-' }}
+                                        / {{ selected.naver.orderer_tel or '-' }}
+                                    </td>
+                                </tr>
+                                <tr>
+                                    <td class="text-muted small">발송기한 / 상품코드</td>
+                                    <td colspan="2">
+                                        {{ selected.naver.shipping_due_date or '-' }}
+                                        / {{ selected.naver.seller_product_code or '-' }}
+                                    </td>
+                                </tr>
+                                {% if selected.naver.recipient_tel2 %}
+                                <tr>
+                                    <td class="text-muted small">보조 연락처</td>
+                                    <td colspan="2">{{ selected.naver.recipient_tel2 }}</td>
+                                </tr>
+                                {% endif %}
+                                {% if selected.payment.paid_at or selected.payment.means %}
+                                <tr>
+                                    <td class="text-muted small">결제</td>
+                                    <td colspan="2">
+                                        {{ selected.payment.paid_at[:16] or '-' }}
+                                        / {{ selected.payment.means or '-' }}
+                                        {% if selected.payment.location_type %}
+                                        ({{ selected.payment.location_type }})
+                                        {% endif %}
+                                    </td>
+                                </tr>
+                                {% endif %}
+                                {% if selected.payment.product_discount_amount or selected.payment.coupons %}
+                                <tr>
+                                    <td class="text-muted small">할인 / 쿠폰</td>
+                                    <td colspan="2">
+                                        할인 {{ '{:,}'.format(selected.payment.product_discount_amount) }}원
+                                        {% for coupon in selected.payment.coupons %}
+                                        · 쿠폰 {{ '{:,}'.format(coupon.discount_amount) }}원
+                                        {% endfor %}
+                                        {% if selected.payment.expected_settlement_amount %}
+                                        · 정산예정 {{ '{:,}'.format(selected.payment.expected_settlement_amount) }}원
+                                        {% endif %}
+                                    </td>
+                                </tr>
+                                {% endif %}
+                                {% if selected.naver.product_id or selected.naver.inflow_path %}
+                                <tr>
+                                    <td class="text-muted small">상품ID / 유입</td>
+                                    <td colspan="2" class="small text-muted">
+                                        {{ selected.naver.product_id or '-' }}
+                                        / {{ selected.naver.inflow_path or '-' }}
+                                    </td>
+                                </tr>
+                                {% endif %}
+                                {% if selected.naver.shipping_memo %}
+                                <tr>
+                                    <td class="text-muted small">배송 메모</td>
+                                    <td colspan="2">{{ selected.naver.shipping_memo }}</td>
+                                </tr>
+                                {% endif %}
+                            </tbody>
+                        </table>
+                    </div>
+                </div>
+
+                <div class="card-footer d-flex flex-wrap gap-2 align-items-center">
+                    {% if not selected.order_id %}
+                    <div class="w-100 d-flex align-items-center gap-2">
+                        {# 묶음당 버튼 1개 — 대표(본품) 링크로 부르면 형제 상품주문이 함께 묶여
+                           주문 1건이 된다(promote_link_to_order 가 group_key 로 형제를 모은다). #}
+                        <button type="button" id="triage-create-order" class="btn btn-primary"
+                                {% if selected.claim.blocking %}disabled
+                                title="네이버에서 취소·반품이 진행 중입니다"{% endif %}
+                                data-link-id="{{ (selected_group.id if selected_group else selected.link_id) }}">
+                            <i class="fas fa-plus"></i> 주문 만들기
+                            {% if selected_group and selected_group.count > 1 %}
+                            <span class="badge bg-light text-dark">{{ selected_group.count }}건 묶음</span>
+                            {% endif %}
+                        </button>
+                        <span class="small text-muted">
+                            수집만 된 상태입니다. 위 원본을 확인한 뒤 주문을 만드세요 —
+                            {% if selected_group and selected_group.count > 1 %}
+                            이 집의 상품주문 {{ selected_group.count }}건이 주문 1건으로 묶입니다.
+                            {% else %}
+                            만들면 담당자 지정·편집이 열립니다.
+                            {% endif %}
+                        </span>
+                    </div>
+                    {% else %}
+                    <label class="small text-muted mb-0" for="triage-assignee"
+                           title="접수 단계에서는 필요 없습니다 — 실측 일정 잡을 때 지정하세요">
+                        담당 영업 <span class="text-muted">(실측 일정 잡을 때)</span>
+                    </label>
+                    <select id="triage-assignee" class="form-select form-select-sm" style="width: 12rem;">
+                        <option value="">담당자 선택</option>
+                        {% for user in sales_users %}
+                        <option value="{{ user.id }}">{{ user.name }}</option>
+                        {% endfor %}
+                    </select>
+                    <button type="button" id="triage-assign" class="btn btn-sm btn-outline-primary"
+                            data-order-id="{{ selected.order_id or '' }}">담당자 지정</button>
+                    {% endif %}
+
+                    {# 확인 완료는 주문 유무와 **무관하게** 항상 있다.
+                       예전에는 이 버튼이 '주문 있음' 분기 안에만 있어서, 주문을 만들 수 없는
+                       집(취소·반품 — 서버가 400 으로 막는다)이 영원히 큐에 남았다.
+                       큐에서 빼는 일과 주문을 만드는 일은 서로 다른 축이다.
+
+                       묶음 단위인 이유: 한 줄로 보이는데 형제 한 건이 큐에 남으면 같은 집이
+                       두 번 뜬다. 링크마다 기존 review 라우트를 순차 호출한다. #}
+                    <div class="ms-auto">
+                        <button type="button" id="triage-done" class="btn btn-success"
+                                data-link-ids="{{ (selected_group.link_ids if selected_group else [selected.link_id]) | join(',') }}">
+                            <i class="fas fa-check"></i> 확인 완료
+                            {% if selected_group and selected_group.count > 1 %}
+                            <span class="badge bg-light text-dark">{{ selected_group.count }}건</span>
+                            {% endif %}
+                        </button>
+                        {% if selected.order_id and not selected.steps.spec_filled %}
+                        <div class="small text-warning mt-1">
+                            규격이 아직 비어 있습니다 — 닫아도 되지만 나중에 다시 찾아야 합니다.
+                        </div>
+                        {% elif not selected.order_id and selected.claim.blocking %}
+                        <div class="small text-muted mt-1">
+                            주문을 만들 수 없는 집입니다 — 확인만 하고 큐에서 빼세요.
+                        </div>
+                        {% endif %}
+                    </div>
+                </div>
+            </div>
+            {% else %}
+            <div class="card shadow-sm">
+                <div class="card-body text-center text-muted py-5">확인할 주문이 없습니다.</div>
+            </div>
+            {% endif %}
+        </div>
+    </div>
+</div>
+
+<script>
+// 확인 완료 / 담당자 지정. CSRF 는 공용 레이아웃의 fetch 래퍼가 붙인다.
+(function () {
+    var box = document.getElementById('triage-result');
+    function show(kind, text) {
+        box.className = 'alert alert-' + kind;
+        box.textContent = text;
+    }
+
+    // 기존 주문에 붙이기 / 되돌리기 (T16-D). 관계 판정은 사람이 하고, 화면은 그 선택만 보낸다.
+    async function postJson(url, body) {
+        const response = await fetch(url, {
+            method: 'POST',
+            headers: { 'Content-Type': 'application/json' },
+            body: body ? JSON.stringify(body) : undefined
+        });
+        return response.json();
+    }
+
+    document.querySelectorAll('.naver-attach-btn').forEach(function (btn) {
+        btn.addEventListener('click', async function () {
+            var relationLabel = btn.dataset.relation === 'ADDON' ? '추가결제' : '재결제';
+            if (!window.confirm('주문 #' + btn.dataset.orderId + ' 에 ' + relationLabel + ' 로 붙입니다. 계속할까요?')) {
+                return;
+            }
+            btn.disabled = true;
+            try {
+                const data = await postJson('/admin/naver-ingest/' + btn.dataset.linkId + '/attach', {
+                    order_id: Number(btn.dataset.orderId),
+                    relation: btn.dataset.relation
+                });
+                if (!data.success) {
+                    show('danger', data.error || '붙이지 못했습니다.');
+                    btn.disabled = false;
+                    return;
+                }
+                show('success', '주문 #' + data.data.order_id + ' 에 붙였습니다(' + data.data.attached + '건).');
+                window.setTimeout(function () { window.location.reload(); }, 800);
+            } catch (err) {
+                show('danger', '붙이기 실패: ' + err);
+                btn.disabled = false;
+            }
+        });
+    });
+
+    var detachBtn = document.getElementById('triage-detach');
+    if (detachBtn) {
+        detachBtn.addEventListener('click', async function () {
+            if (!window.confirm('붙이기를 되돌립니다. 수집 직후 상태로 돌아갑니다.')) { return; }
+            detachBtn.disabled = true;
+            try {
+                const data = await postJson('/admin/naver-ingest/' + detachBtn.dataset.linkId + '/detach');
+                if (!data.success) {
+                    show('danger', data.error || '되돌리지 못했습니다.');
+                    detachBtn.disabled = false;
+                    return;
+                }
+                show('success', '되돌렸습니다.');
+                window.setTimeout(function () { window.location.reload(); }, 800);
+            } catch (err) {
+                show('danger', '되돌리기 실패: ' + err);
+                detachBtn.disabled = false;
+            }
+        });
+    }
+
+    // 발주확인·발송처리 (T16-H). web 은 큐에 넣기만 한다 — 실제 호출은 WORKER.
+    document.querySelectorAll('.naver-fulfill-btn').forEach(function (btn) {
+        btn.addEventListener('click', async function () {
+            var label = btn.dataset.action === 'confirm' ? '발주확인' : '발송처리';
+            if (!window.confirm('네이버에 ' + label + '을 보냅니다. 되돌릴 수 없습니다. 계속할까요?')) {
+                return;
+            }
+            btn.disabled = true;
+            try {
+                const data = await postJson('/admin/naver-ingest/' + btn.dataset.linkId + '/fulfillment', {
+                    action: btn.dataset.action
+                });
+                if (!data.success) {
+                    show('danger', data.error || (label + '을 보내지 못했습니다.'));
+                    btn.disabled = false;
+                    return;
+                }
+                show('success', label + ' 요청을 보냈습니다. 처리되면 상태가 바뀝니다(새로고침).');
+            } catch (err) {
+                show('danger', label + ' 실패: ' + err);
+                btn.disabled = false;
+            }
+        });
+    });
+
+    var createBtn = document.getElementById('triage-create-order');
+    if (createBtn) {
+        createBtn.addEventListener('click', async function () {
+            createBtn.disabled = true;
+            createBtn.textContent = '만드는 중…';
+            try {
+                const response = await fetch('/admin/naver-ingest/' + createBtn.dataset.linkId + '/create-order', {
+                    method: 'POST',
+                    headers: { 'Content-Type': 'application/json' }
+                });
+                const data = await response.json();
+                if (!data.success) {
+                    show('danger', data.error || '주문을 만들지 못했습니다.');
+                    createBtn.disabled = false;
+                    createBtn.textContent = '주문 만들기';
+                    return;
+                }
+                // CS 는 만들자마자 규격을 넣으러 간다 — 편집 화면을 새 탭으로 열고
+                // 이 목록은 그대로 둔다(다음 건을 이어서 처리). 팝업이 막히면 링크를 남긴다.
+                var editUrl = (data.data || {}).edit_url;
+                if (editUrl) {
+                    var opened = window.open(editUrl, '_blank');
+                    if (!opened) {
+                        show('warning', '주문을 만들었습니다. 팝업이 차단되어 새 탭을 열지 못했습니다 — ' +
+                             '아래 링크로 이동하세요: ' + editUrl);
+                    }
+                }
+                window.location.reload();
+            } catch (error) {
+                show('danger', '요청 중 오류가 발생했습니다: ' + error);
+                createBtn.disabled = false;
+                createBtn.textContent = '주문 만들기';
+            }
+        });
+    }
+
+    var doneBtn = document.getElementById('triage-done');
+    if (doneBtn) {
+        doneBtn.addEventListener('click', async function () {
+            doneBtn.disabled = true;
+            // 묶음 전체를 확인 처리한다 — 한 건이라도 남으면 같은 집이 큐에 다시 뜬다.
+            var ids = (doneBtn.dataset.linkIds || '').split(',').filter(Boolean);
+            try {
+                let failure = null;
+                for (const id of ids) {
+                    const response = await fetch('/admin/naver-ingest/' + id + '/review', {
+                        method: 'POST',
+                        headers: { 'Content-Type': 'application/json' },
+                        body: '{}'
+                    });
+                    const result = await response.json();
+                    if (!result.success) { failure = result.error; break; }
+                }
+                const data = failure ? { success: false, error: failure } : { success: true };
+                if (!data.success) {
+                    show('danger', data.error || '확인 처리에 실패했습니다.');
+                    doneBtn.disabled = false;
+                    return;
+                }
+                window.location.href = '{{ url_for("admin.naver_ingest_triage") }}';
+            } catch (error) {
+                show('danger', '요청 중 오류가 발생했습니다: ' + error);
+                doneBtn.disabled = false;
+            }
+        });
+    }
+
+    var assignBtn = document.getElementById('triage-assign');
+    if (assignBtn) {
+        assignBtn.addEventListener('click', async function () {
+            var select = document.getElementById('triage-assignee');
+            var orderId = assignBtn.dataset.orderId;
+            if (!select.value || !orderId) {
+                show('warning', '담당자를 먼저 선택하세요.');
+                return;
+            }
+            assignBtn.disabled = true;
+            try {
+                const response = await fetch('/admin/naver-ingest/' + orderId + '/assignee', {
+                    method: 'POST',
+                    headers: { 'Content-Type': 'application/json' },
+                    body: JSON.stringify({ user_id: Number(select.value) })
+                });
+                const data = await response.json();
+                if (!data.success) {
+                    show('danger', data.error || '담당자 지정에 실패했습니다.');
+                    return;
+                }
+                show('success', '담당자를 지정했습니다.');
+            } catch (error) {
+                show('danger', '요청 중 오류가 발생했습니다: ' + error);
+            } finally {
+                assignBtn.disabled = false;
+            }
+        });
+    }
+})();
+</script>
+{% endblock %}

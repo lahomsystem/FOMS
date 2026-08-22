@@ -12,7 +12,7 @@ from foms.api.files.common import (
     allowed_erp_attachment_file,
     get_erp_media_max_size,
     parse_attachment_item_index,
-    resolve_as_log_ref,
+    bind_as_log_id_for_upload,
     resolve_as_sort_order,
     resolve_attachment_category,
     serialize_attachment,
@@ -204,8 +204,8 @@ def api_order_attachments_complete(order_id):
             return jsonify({"success": False, "message": "주문을 찾을 수 없습니다."}), 404
 
         # AS-FRESH-01: form 업로드와 같은 검증을 direct 경로에도 건다(경로별 결합 갈림 방지).
-        ok_log, as_log_id, log_err = resolve_as_log_ref(
-            order, category, data.get("as_log_id")
+        ok_log, as_log_id, log_err = bind_as_log_id_for_upload(
+            db, order, category, data.get("as_log_id"), _current_user()
         )
         if not ok_log:
             return jsonify({"success": False, "message": log_err}), 400

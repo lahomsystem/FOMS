@@ -26,6 +26,7 @@ __all__ = [
     "enqueue_thumbnail_generation",
     "enqueue_geocode_order_address",
     "enqueue_channeltalk_inbound",
+    "enqueue_naver_order_sync",
 ]
 
 
@@ -165,4 +166,46 @@ def enqueue_channeltalk_inbound(event_log_id: int):
         return True
     except Exception as e:
         logger.error(f"[RQ] enqueue_channeltalk_inbound error: {e}", exc_info=True)
+        return False
+
+
+def enqueue_naver_fulfillment(link_id: int, action: str, actor_user_id=None):
+    """발주확인·발송처리 job enqueue (NAVER-INGEST-02 T16-G).
+
+    web 은 네이버를 직접 부르지 않는다(호출 IP 계약). 큐가 없으면 False 를 돌려주고
+    화면이 "지금은 처리할 수 없다"를 그대로 보여준다 — 조용히 성공한 척하지 않는다.
+    """
+    q = get_rq_queue()
+    if not q:
+        return False
+    try:
+        q.enqueue(
+            f"{_TASK_PATH_PREFIX}.run_naver_fulfillment_task",
+            int(link_id), str(action), actor_user_id,
+            job_timeout="5m",
+        )
+        return True
+    except Exception as e:
+        logger.error(f"[RQ] enqueue_naver_fulfillment error: {e}", exc_info=True)
+        return False
+
+
+def enqueue_naver_order_sync(dry_run: bool = False):
+    """네이버 주문 수집 job enqueue (NAVER-INGEST-01 "지금 수집").
+
+    web 은 **enqueue 만** 한다. 실제 네이버 HTTP 는 WORKER 가 낸다 — 커머스API센터에
+    등록된 호출 IP 가 WORKER 것뿐이라 web 에서 직접 부르면 차단된다. 취향이 아니라 제약이다.
+    """
+    q = get_rq_queue()
+    if not q:
+        return False
+    try:
+        q.enqueue(
+            f"{_TASK_PATH_PREFIX}.run_naver_order_sync_task",
+            bool(dry_run),
+            job_timeout="10m",
+        )
+        return True
+    except Exception as e:
+        logger.error(f"[RQ] enqueue_naver_order_sync error: {e}", exc_info=True)
         return False

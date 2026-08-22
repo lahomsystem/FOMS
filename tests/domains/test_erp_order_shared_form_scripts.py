@@ -50,6 +50,7 @@ def _create_erp_order() -> Order:
 def _assert_shared_form_script_contract(body: str) -> None:
     payment_urls_idx = body.index("window.__ERP_PAYMENT_ICON_URLS")
     channel_push_confirm_idx = body.index("js/orders/erp-channel-push-confirm.js")
+    as_push_confirm_idx = body.index("js/cs/as-push-confirm.js")
     erp_order_shared_idx = body.index("js/orders/erp-order-shared.js")
     stage_override_idx = body.index("js/orders/erp-stage-override.js")
     estimate_preview_idx = body.index("js/orders/estimate-preview.js")
@@ -59,6 +60,7 @@ def _assert_shared_form_script_contract(body: str) -> None:
     assert (
         payment_urls_idx
         < channel_push_confirm_idx
+        < as_push_confirm_idx
         < erp_order_shared_idx
         < stage_override_idx
         < column_resizer_idx
@@ -67,6 +69,7 @@ def _assert_shared_form_script_contract(body: str) -> None:
     )
     assert "html2canvas.min.js" not in body
     assert "js/orders/erp-channel-push-confirm.js?v=20260821a" in body
+    assert "js/cs/as-push-confirm.js?v=20260820a" in body
     assert "js/orders/erp-order-shared.js?v=20260821e" in body
     assert "js/cs/as-attachment-order.js?v=20260819a" in body
     assert "js/orders/erp-alimtalk-send.js?v=20260821a" in body
@@ -75,6 +78,7 @@ def _assert_shared_form_script_contract(body: str) -> None:
     assert "js/orders/erp-stage-override.js?v=20260814d" in body
     assert "erp_stage_override_modal.html" not in body  # include renders modal markup, not path
     assert 'id="erpStageOverrideModal"' in body
+    assert 'id="asPushConfirmModal"' in body
     assert "(8자 이상)" not in body
     assert "css/orders/erp-channel-push.css?v=20260821c" in body
     assert "css/orders/erp-items-master-detail.css?v=20260701f" in body
@@ -768,6 +772,22 @@ def test_as_push_text_is_server_built_not_client_built() -> None:
     assert "if (pushKind !== 'as')" in push_block
     # 변환 텍스트 경로는 AS 가 아닐 때만 탄다.
     assert "erpSliceConversionTextForChannelPush(" in push_block
+    # AS-BIND-01: ERP AS PUSH도 대시보드와 같은 확인창 + attachment_ids.
+    assert "fomsConfirmAndSendAsPush" in push_block
+
+
+def test_erp_as_gallery_upload_binds_anchor_before_batch() -> None:
+    """AS-BIND-01: 공통첨부 분류 AS는 업로드 전에 앵커를 잡고 as_log_id를 실어 보낸다."""
+    root = Path(__file__).resolve().parents[2]
+    text = (root / "static/js/orders/erp-order-shared.js").read_text(encoding="utf-8")
+    start = text.index("async function erpUploadCommonAttachmentFiles")
+    block = text[start:start + 9000]
+    assert "fomsEnsureAsUploadAnchor" in block
+    assert "asLogId: asLogId" in block
+    assert "sortOrders: sortOrders" in block
+    ensure_idx = block.index("fomsEnsureAsUploadAnchor")
+    optimistic_idx = block.index("Optimistic UI Start")
+    assert ensure_idx < optimistic_idx
 
 
 def test_shared_erp_order_supports_scoped_clipboard_image_upload() -> None:

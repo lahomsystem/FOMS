@@ -99,6 +99,12 @@
         } else {
           toast("저장됨");
         }
+        // ORDER-REASON-00: 인라인은 blur 자동저장이라 모달을 띄우지 않는다 — 배너로 받는다.
+        if (result.data.change_reason_required === true && result.data.change_set) {
+          document.dispatchEvent(new CustomEvent("foms:change-reason-required", {
+            detail: { orderId: orderId, changeSet: result.data.change_set, mode: "inline" },
+          }));
+        }
         if (fieldPath.indexOf("items.") === 0) {
           var parts = fieldPath.split(".");
           var itemIndex = Number(parts[1]);

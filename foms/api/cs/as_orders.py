@@ -61,6 +61,12 @@ from foms.services.orders.as_log import (
     decorate_entry,
     migrate_legacy_into_log,
 )
+from foms.services.orders.as_upload_anchor import (
+    append_as_upload_park,
+    lock_as_upload_anchor,
+    peek_as_upload_anchor,
+    promote_parked_as_attachments,
+)
 from foms.services.orders.as_schedule_link import (
     SOURCE_NEARBY,
     ack_link,
@@ -233,6 +239,55 @@ def _run_sd_mutation(
         scope_hash=_scope_hash(command_id, order_id), request_hash=_request_hash(body),
         mutation=_mutate, idempotency_key=_idempotency_key(body),
     )
+
+
+def ensure_as_upload_anchor_on_order(db: Session, order: Order, user) -> str:
+    """현재 회차 접수/주차 id 를 돌려준다. 없으면 주차 메모를 만든다 (AS-BIND-01).
+
+    업로드 경로가 빈 as_log_id 를 보낼 때와 ``POST .../as/upload-anchor`` 가 공유한다.
+    주차 append 는 REV-00 mutation 으로만 한다(직접 flag_modified 금지).
+
+    Args:
+        db: 요청 세션.
+        order: 대상 주문(호출 후 refresh 될 수 있음).
+        user: 업로드 직원.
+
+    Returns:
+        결합할 as_log 항목 id.
+
+    Raises:
+        ValueError: 앵커를 만들거나 읽지 못함.
+    """
+    lock_as_upload_anchor(db, order.id)
+    sd = order.structured_data if isinstance(order.structured_data, dict) else {}
+    existing = peek_as_upload_anchor(sd)
+    if existing:
+        return existing
+
+    captured: dict[str, str] = {}
+    actor_id = int(getattr(user, "id", 0) or 0)
+
+    def _apply(locked_sd: Dict[str, Any], _locked: Order) -> None:
+        lock_as_upload_anchor(db, order.id)
+        found = peek_as_upload_anchor(locked_sd)
+        captured["id"] = found or append_as_upload_park(locked_sd, user)
+
+    _run_sd_mutation(
+        db,
+        order_id=order.id,
+        actor_user_id=actor_id,
+        policy_id=POLICY_AS_LOG_APPEND,
+        command_id="AS_UPLOAD_ANCHOR",
+        apply=_apply,
+        body={"op": "as-upload-anchor", "order_id": order.id},
+    )
+    db.refresh(order)
+    result = captured.get("id") or peek_as_upload_anchor(
+        order.structured_data if isinstance(order.structured_data, dict) else {}
+    )
+    if not result:
+        raise ValueError("AS 첨부 위치를 만들지 못했습니다.")
+    return result
 
 
 # --------------------------------------------------------------------------- #
@@ -507,6 +562,18 @@ def api_as_register(order_id):
             billing["type"] = billing_type
             billing["amount"] = billing_amount
             shipment["as_billing"] = billing
+        rec_id = str(captured_register.get("reception_log_id") or "")
+        if rec_id:
+            promote_parked_as_attachments(
+                db, order, sd, rec_id,
+                deleted_by=(user.name if user else "") or "시스템",
+            )
+        rec_id = str(captured_register.get("reception_log_id") or "")
+        if rec_id:
+            promote_parked_as_attachments(
+                db, order, sd, rec_id,
+                deleted_by=(user.name if user else "") or "시스템",
+            )
 
     def _apply_reregistration(sd: Dict[str, Any], locked: Order) -> None:
         """열린 cycle 이 있는 재접수: 새 cycle 없이 접수 기록만 갱신한다.
@@ -559,8 +626,8 @@ def api_as_register(order_id):
         "shipping_scheduled_date": getattr(order, "shipping_scheduled_date", None) or "",
         "construction_workers": shipment.get("construction_workers") or [],
         "draft_cleared": draft_cleared,
-        "mutation_version": getattr(order, "mutation_version", None),
         "reception_log_id": captured_register.get("reception_log_id") or "",
+        "mutation_version": getattr(order, "mutation_version", None),
     })
 
 
@@ -864,6 +931,43 @@ def api_as_billing(order_id: int):
         "html": entry_html,          # 타임라인 낙관적 삽입용(없으면 빈 문자열)
         "badge_html": _render_as_billing_badge(billing),  # 상태 셀 배지 교체용
         "state_text": _as_billing_state_text(billing),    # 헤더 현재 판정 표기
+    })
+
+
+@erp_orders_as_bp.route("/<int:order_id>/as/upload-anchor", methods=["POST"])
+@login_required
+@erp_edit_required
+def api_as_upload_anchor(order_id: int):
+    """AS 공통첨부 결합 위치. 접수 줄 또는 주차 메모 id + 다음 sort_order.
+
+    배치 업로드가 파일마다 주차 메모를 만들지 않도록 한 번 호출한다. 접수가 있으면
+    그 id 만 읽고 mutation 하지 않는다.
+
+    Args:
+        order_id: 대상 주문 PK.
+
+    Returns:
+        200 ``{success, as_log_id, next_sort_order}`` / 404 주문 없음 / 409 뮤테이션 실패.
+    """
+    from foms.services.attachment_sort import next_attachment_sort_order
+
+    db = get_db()
+    order, err = _load_active_order(db, order_id)
+    if err:
+        return err
+    user_id = session.get("user_id")
+    user = get_user_by_id(user_id)
+    try:
+        as_log_id = ensure_as_upload_anchor_on_order(db, order, user)
+    except (ValueError, RevisionError) as exc:
+        return _as_error_response(db, exc)
+    _audit_as(order, "AS_UPLOAD_ANCHOR", user_id, extra={"as_log_id": as_log_id})
+    db.commit()
+    next_sort = next_attachment_sort_order(db, order_id, as_log_id)
+    return jsonify({
+        "success": True,
+        "as_log_id": as_log_id,
+        "next_sort_order": next_sort,
     })
 
 
@@ -1324,5 +1428,6 @@ __all__ = [
     "api_as_log_patch",
     "api_as_log_delete",
     "api_as_schedule_link",
+    "api_as_upload_anchor",
     "get_today_kst",
 ]

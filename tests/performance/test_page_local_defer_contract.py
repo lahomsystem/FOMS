@@ -162,6 +162,11 @@ def test_schedule_map_module_loads_kakao_sdk_lazily_without_cdn_tag() -> None:
         assert 'data-kakao-js-key="{{ kakao_js_key or \'\' }}"' in html, page
         _assert_deferred(html, "js/common/foms-schedule-map.js")
 
+    dash = _read("templates/cs/partials/as_dashboard_body.html")
+    _assert_deferred(dash, "js/cs/as-push-confirm.js")
+    _assert_deferred(dash, "js/cs/as-dashboard.js")
+    assert dash.index("js/cs/as-push-confirm.js") < dash.index("js/cs/as-dashboard.js")
+
     # 지도 렌더 코드는 모듈 단독 소유 — 호출부에 카카오/Leaflet 잔재가 남으면 두 구현으로 재분기한다.
     for caller in ("static/js/cs/as-dashboard.js", "static/js/shipment/shipment-dashboard.js"):
         js = _read(caller)
@@ -182,10 +187,11 @@ def test_erp_order_shared_scripts_are_deferred_with_preserved_globals() -> None:
     shared_js = _read("static/js/orders/erp-order-shared.js")
 
     _assert_deferred(html, "js/foms/attachment-preview-zoom.js")
+    _assert_deferred(html, "js/cs/as-push-confirm.js")
     _assert_deferred(html, "js/orders/erp-order-shared.js")
     assert html.index("js/foms/attachment-preview-zoom.js") < html.index(
-        "js/orders/erp-order-shared.js"
-    )
+        "js/cs/as-push-confirm.js"
+    ) < html.index("js/orders/erp-order-shared.js")
     assert 'var ORDER_ID = parseInt(String(window.ORDER_ID || "0"), 10) || 0;' in shared_js
     assert 'typeof window.ERP_ORDER_ENABLED !== "undefined"' in shared_js
     assert "window.ERP_ORDER_ENABLED = ERP_ORDER_ENABLED;" in shared_js
@@ -235,6 +241,7 @@ def test_deferred_page_scripts_are_removed_from_global_sync_allowlist() -> None:
         "dashboard.js",
         "drawing-handoff.js",
         "erp-order-shared.js",
+        "as-push-confirm.js",
         "estimate-lifecycle.js",
         "image-export.js",
         "layout-sync-wiring.js",

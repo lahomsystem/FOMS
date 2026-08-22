@@ -14,11 +14,12 @@ import logging
 import re
 from typing import Any, Iterable, Mapping
 
+from foms.services.orders.structured_diff import normalize_for_ledger
 from models import OrderFieldChange
 
 logger = logging.getLogger(__name__)
 
-__all__ = ["build_change_rows", "path_template_of", "record_field_changes"]
+__all__ = ["build_change_rows", "ledger_text", "path_template_of", "record_field_changes"]
 
 #: ``items.2.price`` / ``items.2`` 분해용(경로 문법은 structured_diff 가 만든 것과 같다).
 _ITEM_PATH_RE = re.compile(r"^items\.(?P<index>\d+)(?:\.(?P<field>[A-Za-z0-9_]+))?$")
@@ -65,6 +66,19 @@ def _text(value: Any) -> str | None:
     if value is None:
         return None
     return value if isinstance(value, str) else str(value)
+
+
+def ledger_text(value: Any, path: str) -> str | None:
+    """원시 값이 원장에 저장될 문자열 표현을 만든다(정규화 규칙의 공개 진입점).
+
+    복원 경로가 "현재 값이 원장의 ``after_value`` 와 같은가"를 물을 때 쓴다. 저장 경로와
+    같은 함수를 거쳐야 표현 차이를 변경으로 오독하지 않는다.
+
+    :param value: ``structured_data`` 에서 읽은 원시 값.
+    :param path: 그 값의 점 경로.
+    :return: 원장 표현 문자열(빈값이면 ``None``).
+    """
+    return _text(normalize_for_ledger(value, path))
 
 
 def build_change_rows(

@@ -1,0 +1,902 @@
+<!doctype html>
+<html lang="ko">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>네이버 수집 워크벤치 v2 (목업)</title>
+<!--
+  v2 목업 — 설계 정본 docs/research/2026-08-20-naver-ux/04_설계_결정.md 의 확정 8개를 전부 반영한다.
+  v1(naver-ingest-workbench.html) 대비 새로 들어간 것:
+    · 결정 3 숫자 이중 표기(헤더 한정 — 탭별 상품주문 건수는 실측에 없어 지어내지 않는다)
+    · 결정 4 상태 3층 중 세 번째 층 "지금 손대도 되는가" = 왼쪽 세로 색띠 + 글자 라벨
+    · 결정 5 한 집의 상품주문 n건 = 오른쪽 상세에 행 단위 표로 편다
+    · 결정 6 불가역 액션 = 실제로 뜨는 확인 모달(건수 재진술 + 되돌릴 수 없음 + 사후 경로)
+    · 결정 7 실패 4단계 = 상단 결과 띠(카운터→건별 사유→실패건만 재시도) + 전체 이력에도 기록
+    · 선행 결함 #4 취소·반품 건도 "확인 완료"로 큐에서 뺀다 / #7 대조표 2단 재설계 / #8 페이지 링크 필터 유지
+  뺀 것: v1 의 J/K/Enter 단축키 안내 — 04 문서가 "핫키 파워유저 최적화는 반영하지 않는다"로 정리했다.
+-->
+<style>
+  :root {
+    --bg: #eef2f7;
+    --surface: #fff;
+    --surface-soft: #f6f8fb;
+    --text: #111827;
+    --muted: #6b7280;
+    --line: #dbe1ea;
+    --line-soft: #edf1f6;
+    --blue: #2563eb;
+    --blue-soft: #eaf1ff;
+    --green: #15803d;
+    --green-soft: #e7f6ec;
+    --amber: #b45309;
+    --amber-soft: #fdf3e3;
+    --red: #b91c1c;
+    --red-soft: #fdeaea;
+    --violet: #6d28d9;
+    --violet-soft: #ede9fe;
+    --radius: 10px;
+    font-family: Pretendard, -apple-system, BlinkMacSystemFont, "Segoe UI", "Malgun Gothic", sans-serif;
+  }
+  * { box-sizing: border-box; }
+  body { margin: 0; background: var(--bg); color: var(--text); font-size: 13px; }
+
+  /* ── 상단 상태 스트립: 기존 카드 3장(워터마크·마지막 실행·인증 만료)을 한 줄로 접었다.
+        CS 는 이 값을 매번 읽지 않는다 — 이상할 때만 본다. ───────────── */
+  .strip {
+    display: flex; align-items: center; gap: 18px; flex-wrap: wrap;
+    background: var(--surface); border-bottom: 1px solid var(--line);
+    padding: 8px 16px;
+  }
+  .strip .title { font-size: 15px; font-weight: 700; margin-right: 2px; }
+  /* 결정 3: 이중 표기는 여기 한 곳에서만 한다. 실측값(43집·140건) 그대로. */
+  .strip .hdr-count {
+    font-weight: 700; font-variant-numeric: tabular-nums;
+    background: var(--blue-soft); color: var(--blue);
+    padding: 2px 9px; border-radius: 999px; font-size: 12.5px;
+  }
+  .strip .hdr-count .sub { font-weight: 600; opacity: .8; }
+  .strip .fact { color: var(--muted); }
+  .strip .fact b { color: var(--text); font-weight: 600; }
+  .strip .dot { width: 7px; height: 7px; border-radius: 50%; display: inline-block; margin-right: 5px; }
+  .dot-ok { background: #22c55e; } .dot-warn { background: #f59e0b; }
+  .strip .spacer { flex: 1; }
+  .btn {
+    border: 1px solid var(--line); background: var(--surface); color: var(--text);
+    padding: 5px 11px; border-radius: 7px; font-size: 12px; cursor: pointer; font-weight: 600;
+  }
+  .btn:hover { background: var(--surface-soft); }
+  .btn-primary { background: var(--blue); border-color: var(--blue); color: #fff; }
+  .btn-ghost { border-color: transparent; color: var(--muted); }
+  .btn[disabled] { opacity: .45; cursor: not-allowed; }
+
+  /* ── 실행 결과 띠 (결정 7 — ① 카운터 ② 실패 전용 목록 ③ 건별 사유 ④ 실패건만 재시도).
+        .alert 는 5초 뒤 자동으로 사라져서 실패 문구가 증발한다(03 감사 결함 #5).
+        실구현에서 이 블록에는 data-foms-no-autodismiss 가 반드시 붙어야 한다. ───── */
+  .result { background: var(--surface); border-bottom: 1px solid var(--line); }
+  .result-head {
+    display: flex; align-items: center; gap: 14px; padding: 7px 16px; cursor: pointer;
+    border-left: 3px solid var(--red);
+  }
+  .result-head .lbl { font-weight: 700; }
+  .result .ok { color: var(--green); font-weight: 700; }
+  .result .ng { color: var(--red); font-weight: 700; }
+  .result .when { color: var(--muted); font-size: 11.5px; margin-left: auto; }
+  .result .caret { color: var(--muted); font-size: 11px; }
+  .result-body { display: none; padding: 0 16px 12px 19px; }
+  .result.open .result-body { display: block; }
+  .fail-list { width: 100%; border-collapse: collapse; }
+  .fail-list td { padding: 6px 8px; border-top: 1px solid var(--line-soft); }
+  .fail-list td.who { font-weight: 700; width: 90px; }
+  .fail-list td.fno { color: var(--muted); font-variant-numeric: tabular-nums; width: 175px; }
+  .fail-list td.why { color: var(--red); }
+  .result-foot { display: flex; align-items: center; gap: 10px; margin-top: 10px; flex-wrap: wrap; }
+
+  /* ── 탭: triage ↔ naver-ingest 두 URL 왕복을 없앤 자리.
+        배지는 집 수만 — 탭별 상품주문 건수는 실측에 없어 헤더 이중 표기로 대신한다. ── */
+  .tabs { display: flex; gap: 2px; background: var(--surface); padding: 0 12px; border-bottom: 1px solid var(--line); }
+  .tab {
+    padding: 9px 14px; border: none; background: none; cursor: pointer;
+    font-size: 13px; font-weight: 600; color: var(--muted);
+    border-bottom: 2px solid transparent;
+  }
+  .tab[aria-selected="true"] { color: var(--blue); border-bottom-color: var(--blue); }
+  .tab .n {
+    display: inline-block; margin-left: 6px; padding: 1px 7px; border-radius: 10px;
+    background: var(--surface-soft); color: var(--muted); font-size: 11px; font-weight: 700;
+  }
+  .tab[aria-selected="true"] .n { background: var(--blue-soft); color: var(--blue); }
+  .tab.danger .n { background: var(--red-soft); color: var(--red); }
+
+  /* ── 본문 2단 (결정 8 — 원본 읽으며 규격 채우는 일이라 대조가 상시 필요) ── */
+  .wrap { display: grid; grid-template-columns: minmax(340px, 420px) 1fr; gap: 12px; padding: 12px; align-items: start; }
+  .panel { background: var(--surface); border: 1px solid var(--line); border-radius: var(--radius); }
+  .panel-head {
+    display: flex; align-items: center; gap: 8px; padding: 9px 12px;
+    border-bottom: 1px solid var(--line-soft); font-weight: 700;
+  }
+  .panel-head .sub { font-weight: 500; color: var(--muted); font-size: 12px; }
+  .panel-head .spacer { flex: 1; }
+
+  .filterbar { display: flex; gap: 6px; padding: 8px 10px; border-bottom: 1px solid var(--line-soft); flex-wrap: wrap; align-items: center; }
+  .chip {
+    border: 1px solid var(--line); background: var(--surface); border-radius: 999px;
+    padding: 3px 10px; font-size: 11.5px; color: var(--muted); cursor: pointer;
+  }
+  .chip[aria-pressed="true"] { background: #111827; border-color: #111827; color: #fff; font-weight: 600; }
+
+  /* ── 큐 행: 한 집 = 한 줄.
+        결정 4 의 3층 = ① 진행축 배지 ② 클레임축 배지 ③ 왼쪽 색띠 + 글자 라벨(지금 손대도 되는가).
+        색만으로 구분하면 색맹 사용자가 못 읽어서 글자 라벨을 함께 둔다. ── */
+  .queue { max-height: 660px; overflow: auto; }
+  .row {
+    display: grid; grid-template-columns: 5px 1fr; gap: 10px;
+    border-bottom: 1px solid var(--line-soft); cursor: pointer;
+  }
+  .row:hover { background: var(--surface-soft); }
+  .row[aria-current="true"] { background: var(--blue-soft); }
+  .row .bar { background: var(--blue); }
+  .row.is-hold .bar { background: #f59e0b; }
+  .row.is-done .bar { background: #22c55e; }
+  /* 손대면 안 되는 집은 띠를 끊어 그린다 — 색을 못 보는 사용자도 "다른 줄"임을 안다 */
+  .row.is-blocked .bar {
+    background: repeating-linear-gradient(180deg, #9aa3af 0 4px, transparent 4px 8px);
+  }
+  .row.is-blocked .body { opacity: .62; }
+  .row .body { padding: 9px 10px 10px 0; min-width: 0; }
+  .line1 { display: flex; align-items: baseline; gap: 8px; }
+  .name { font-weight: 700; font-size: 13.5px; }
+  .amt { margin-left: auto; font-variant-numeric: tabular-nums; font-weight: 700; }
+  .line2 { color: var(--muted); margin-top: 2px; white-space: nowrap; overflow: hidden; text-overflow: ellipsis; }
+  .line3 { display: flex; align-items: center; gap: 5px; margin-top: 5px; flex-wrap: wrap; }
+  .when { margin-left: auto; color: #9aa3af; font-size: 11.5px; font-variant-numeric: tabular-nums; }
+
+  /* 3층째 글자 라벨 — 배지가 아니라 문장 톤이라 "상태"가 아니라 "지금 뭘 할 수 있나"로 읽힌다 */
+  .can { font-size: 11.5px; font-weight: 700; }
+  .can-go { color: var(--blue); }
+  .can-wait { color: var(--amber); }
+  .can-spec { color: var(--green); }
+  .can-stop { color: #6b7280; }
+
+  /* 상태 배지: 축마다 자리가 고정이라 눈이 늘 같은 위치를 본다 */
+  .b { font-size: 11px; font-weight: 700; border-radius: 5px; padding: 1.5px 6px; white-space: nowrap; }
+  .b-collect { background: var(--blue-soft); color: var(--blue); }
+  .b-linked { background: var(--green-soft); color: var(--green); }
+  .b-place { background: var(--amber-soft); color: var(--amber); }
+  .b-claim { background: var(--red-soft); color: var(--red); }
+  .b-size { background: #f1f3f7; color: #4b5563; }
+  .b-cand { background: var(--violet-soft); color: var(--violet); }
+
+  .pick { margin: 0 8px 0 0; }
+
+  /* ── 우측 작업 패널 ───────────────────────────────────────── */
+  .work-head {
+    position: sticky; top: 0; z-index: 2; background: var(--surface);
+    border-bottom: 1px solid var(--line-soft); border-radius: var(--radius) var(--radius) 0 0;
+    padding: 10px 14px;
+  }
+  .work-title { display: flex; align-items: center; gap: 10px; flex-wrap: wrap; }
+  .work-title h2 { font-size: 15px; margin: 0; }
+  .ono { color: var(--muted); font-size: 12px; font-variant-numeric: tabular-nums; }
+  .steps { display: flex; align-items: center; gap: 6px; margin: 8px 0 0; color: var(--muted); font-size: 12px; flex-wrap: wrap; }
+  .step { display: flex; align-items: center; gap: 5px; padding: 2px 8px; border-radius: 999px; background: var(--surface-soft); }
+  .step.on { background: var(--blue); color: #fff; font-weight: 700; }
+  .step.done { background: var(--green-soft); color: var(--green); font-weight: 700; }
+  .actions { display: flex; gap: 8px; align-items: center; margin-top: 10px; flex-wrap: wrap; }
+  .actions .hint { color: var(--muted); font-size: 11.5px; }
+
+  .work-body { padding: 12px 14px 16px; }
+  .callout {
+    border: 1px solid var(--line); border-left: 3px solid var(--blue); background: var(--surface-soft);
+    border-radius: 8px; padding: 10px 12px; margin-bottom: 12px;
+  }
+  .callout.warn { border-left-color: #f59e0b; background: var(--amber-soft); }
+  .callout.bad { border-left-color: var(--red); background: var(--red-soft); }
+  .callout .k { font-size: 11.5px; color: var(--muted); font-weight: 600; }
+  .option-raw { font-size: 16px; font-weight: 700; line-height: 1.5; margin-top: 3px; }
+
+  /* ── 대조표 2단 (선행 결함 #7).
+        위 = 집 단위 값(수취인·주소·결제) / 아래 = 상품주문 행 단위(옵션 원문·금액).
+        단위가 다른 둘을 한 표에 섞으면 "네이버 상품주문 1건 vs FOMS 묶음 합계"로 어긋난다. ── */
+  .sec-title {
+    display: flex; align-items: baseline; gap: 8px;
+    font-weight: 700; margin: 18px 0 6px;
+  }
+  .sec-title .sub { font-weight: 500; color: var(--muted); font-size: 11.5px; }
+  table.cmp { width: 100%; border-collapse: collapse; }
+  table.cmp th, table.cmp td { padding: 7px 8px; border-bottom: 1px solid var(--line-soft); vertical-align: top; }
+  table.cmp thead th { font-size: 11.5px; color: var(--muted); text-align: left; background: var(--surface-soft); }
+  table.cmp td.k { color: var(--muted); width: 100px; }
+  table.cmp td.v { font-weight: 600; }
+  table.cmp td.foms { width: 190px; }
+  table.cmp td.num { text-align: right; font-variant-numeric: tabular-nums; font-weight: 600; }
+  table.cmp tr.sum td { background: var(--surface-soft); }
+  .same { color: var(--green); font-weight: 700; }
+  .todo { color: var(--amber); font-weight: 700; }
+  /* 실측 스크린샷에 없던 값은 지어내지 않고 이렇게 비워 둔다 */
+  .unk { color: #9aa3af; font-style: italic; font-weight: 500; }
+  .copy { border: 1px solid var(--line); background: #fff; border-radius: 6px; font-size: 11px; padding: 1px 6px; cursor: pointer; color: var(--muted); }
+  .raw { font-size: 13.5px; font-weight: 700; }
+
+  .note { color: var(--muted); font-size: 11.5px; margin-top: 8px; }
+  .pane { display: none; }
+  .pane.on { display: block; }
+
+  /* 전체 이력 — 취소·반품은 빼지 않고 회색으로 같은 자리에 남긴다(결정 2) */
+  tr.muted-row td { background: #fafbfc; color: #9aa3af; }
+  tr.muted-row td.v { font-weight: 500; }
+  tr.fail-row td { background: #fffafa; }
+  .pager { display: flex; align-items: center; gap: 6px; padding: 10px 12px; color: var(--muted); flex-wrap: wrap; }
+  .pager a { color: var(--blue); text-decoration: none; border: 1px solid var(--line); border-radius: 6px; padding: 2px 9px; }
+  .pager .cur { background: #111827; color: #fff; border-radius: 6px; padding: 2px 9px; font-weight: 700; }
+
+  /* ── 불가역 액션 확인 모달 (결정 6) ─────────────────────────── */
+  .modal-back {
+    display: none; position: fixed; inset: 0; background: rgba(17,24,39,.45);
+    z-index: 50; align-items: center; justify-content: center;
+  }
+  .modal-back.on { display: flex; }
+  .modal {
+    background: var(--surface); border-radius: 12px; width: 540px; max-width: calc(100vw - 32px);
+    box-shadow: 0 18px 48px rgba(17,24,39,.25); overflow: hidden;
+  }
+  .modal h3 { margin: 0; padding: 14px 18px; font-size: 15px; border-bottom: 1px solid var(--line-soft); }
+  .modal .m-body { padding: 16px 18px; line-height: 1.65; }
+  .modal .restate { font-size: 14.5px; font-weight: 700; }
+  .modal .irrev {
+    margin-top: 10px; background: var(--red-soft); color: var(--red);
+    border-radius: 8px; padding: 9px 11px; font-weight: 700;
+  }
+  .modal .after { margin-top: 10px; color: var(--muted); }
+  .modal .after b { color: var(--text); }
+  .modal .m-foot { display: flex; gap: 8px; justify-content: flex-end; padding: 12px 18px; background: var(--surface-soft); }
+
+  /* 목업 설명용 주석 배지 */
+  .why { position: relative; }
+  .why::after {
+    content: attr(data-why); position: absolute; right: 8px; top: -9px;
+    background: #111827; color: #fff; font-size: 10px; padding: 1px 6px; border-radius: 4px;
+  }
+  .mock-note {
+    margin: 0 12px 14px; padding: 8px 12px; border: 1px dashed var(--line);
+    border-radius: 8px; color: var(--muted); font-size: 11.5px; background: #fff;
+  }
+</style>
+</head>
+<body>
+
+<!-- 상태 스트립 + 결정 3 이중 표기(실측 43집·140건) -->
+<div class="strip">
+  <span class="title">🛒 네이버 수집</span>
+  <span class="hdr-count">43집 <span class="sub">· 상품주문 140건</span></span>
+  <span class="fact"><span class="dot dot-ok"></span>마지막 실행 <b>08-20 10:42</b> · 수집 0 · 건너뜀 0 · 보류 0</span>
+  <span class="fact">워터마크 <b>08-20 10:41</b></span>
+  <span class="fact"><span class="dot dot-warn"></span>커머스API 인증 만료일 <b>미등록</b></span>
+  <span class="spacer"></span>
+  <button class="btn">지금 수집</button>
+</div>
+
+<!--
+  결정 7 실패 4단계를 한 블록에 담았다.
+  ① 성공/실패 카운터 → ② 실패 전용 목록 → ③ 건별 사유 → ④ 실패건만 재시도.
+  주의: 아래는 "실패가 났을 때 이렇게 보인다"는 예시 상태다.
+  2026-08-20 실측은 수집 실패 0집이라 평소에는 이 띠가 아예 뜨지 않는다.
+-->
+<div class="result" id="result">
+  <div class="result-head" id="result-head">
+    <span class="lbl">발주확인 일괄 실행 결과</span>
+    <span class="ok">✓ 성공 18집</span>
+    <span class="ng">✕ 실패 3집</span>
+    <span class="caret">펼쳐서 사유 보기 ▾</span>
+    <span class="when">08-20 10:44 · 이 알림은 자동으로 사라지지 않는다</span>
+  </div>
+  <div class="result-body">
+    <table class="fail-list">
+      <tr>
+        <td class="who">이도헌</td>
+        <td class="fno">2026081960408441</td>
+        <td class="why">이미 발주확인된 주문 — 네이버가 중복 처리를 거절했다</td>
+      </tr>
+      <tr>
+        <td class="who">장효원</td>
+        <td class="fno"><span class="unk">상품주문번호</span></td>
+        <td class="why">네이버 응답 없음(시간 초과) — 반영됐는지 알 수 없다. 다시 시도해도 두 번 나가지는 않는다</td>
+      </tr>
+      <tr>
+        <td class="who">배수경</td>
+        <td class="fno"><span class="unk">상품주문번호</span></td>
+        <td class="why">커머스API 인증 만료 — 맨 위 스트립의 '인증 만료일 미등록'을 먼저 해결해야 한다</td>
+      </tr>
+    </table>
+    <div class="result-foot">
+      <button class="btn btn-primary">실패한 3집만 다시 시도</button>
+      <button class="btn">결과 닫기</button>
+      <span class="note" style="margin:0">성공한 18집은 재시도 대상에서 아예 빠진다.</span>
+    </div>
+  </div>
+</div>
+
+<!-- 탭 4개 — 배지는 집 수(실측). 취소·반품은 실측에서 확인된 이하린·강재상 2집. -->
+<div class="tabs" role="tablist">
+  <button class="tab" role="tab" aria-selected="true" data-pane="work">처리 대기<span class="n">40집</span></button>
+  <button class="tab" role="tab" aria-selected="false" data-pane="place">발주확인 전<span class="n">21집</span></button>
+  <button class="tab danger" role="tab" aria-selected="false" data-pane="claim">취소·반품<span class="n">2집</span></button>
+  <button class="tab" role="tab" aria-selected="false" data-pane="all">전체 이력<span class="n">45집</span></button>
+</div>
+
+<!-- ══ 처리 대기 ═══════════════════════════════════════════════ -->
+<div class="pane on" id="pane-work">
+<div class="wrap">
+  <section class="panel">
+    <div class="panel-head">확인 대기 <span class="sub">한 집 = 한 줄</span></div>
+    <div class="filterbar">
+      <button class="chip" aria-pressed="true">전체 40집</button>
+      <button class="chip">주문 만들기 34집</button>
+      <button class="chip">규격 입력 6집</button>
+      <button class="chip">기존 주문 후보 있음</button>
+    </div>
+    <div class="queue">
+
+      <div class="row" aria-current="true">
+        <div class="bar"></div>
+        <div class="body">
+          <div class="line1"><span class="name">이재두</span><span class="amt">1,771,400</span></div>
+          <div class="line2">보테가 붙박이장 작은방 안방 슬라이딩 미닫이 30cm 외 5건</div>
+          <div class="line3">
+            <span class="b b-size">6건 묶음</span>
+            <span class="b b-collect">주문 만들기</span>
+            <span class="b b-linked">발주확인 완료</span>
+            <span class="can can-go">지금 처리 가능</span>
+            <span class="when">08-20 08:28</span>
+          </div>
+        </div>
+      </div>
+
+      <div class="row is-hold">
+        <div class="bar"></div>
+        <div class="body">
+          <div class="line1"><span class="name">이도헌</span><span class="amt">1,271,280</span></div>
+          <div class="line2">보테가 붙박이장 작은방 안방 슬라이딩 미닫이 30cm 외 4건</div>
+          <div class="line3">
+            <span class="b b-size">5건 묶음</span>
+            <span class="b b-collect">주문 만들기</span>
+            <span class="b b-place">발주확인 전</span>
+            <span class="can can-wait">발주확인 먼저</span>
+            <span class="when">08-19 23:01</span>
+          </div>
+        </div>
+      </div>
+
+      <div class="row">
+        <div class="bar"></div>
+        <div class="body">
+          <div class="line1"><span class="name">고봉관</span><span class="amt">148,790</span></div>
+          <div class="line2">로라 무몰딩 붙박이장 30cm 푸쉬타입 친환경 E0 외 1건</div>
+          <div class="line3">
+            <span class="b b-size">2건 묶음</span>
+            <span class="b b-collect">주문 만들기</span>
+            <span class="can can-go">지금 처리 가능</span>
+            <span class="when">08-19 20:26</span>
+          </div>
+        </div>
+      </div>
+
+      <div class="row is-hold">
+        <div class="bar"></div>
+        <div class="body">
+          <div class="line1"><span class="name">장효원</span><span class="amt">1,207,000</span></div>
+          <div class="line2">보테가 붙박이장 작은방 안방 슬라이딩 미닫이 30cm 외 4건</div>
+          <div class="line3">
+            <span class="b b-size">5건 묶음</span>
+            <span class="b b-collect">주문 만들기</span>
+            <span class="b b-place">발주확인 전</span>
+            <span class="can can-wait">발주확인 먼저</span>
+            <span class="when">08-19 19:25</span>
+          </div>
+        </div>
+      </div>
+
+      <div class="row">
+        <div class="bar"></div>
+        <div class="body">
+          <div class="line1"><span class="name">김지연</span><span class="amt">2,830,000</span></div>
+          <div class="line2">라운드 냉장고장 빌트인 홈카페 키친핏 프리스탠딩 EO 외 1건</div>
+          <div class="line3">
+            <span class="b b-size">2건 묶음</span>
+            <span class="b b-collect">주문 만들기</span>
+            <span class="can can-go">지금 처리 가능</span>
+            <span class="when">08-19 19:00</span>
+          </div>
+        </div>
+      </div>
+
+      <div class="row">
+        <div class="bar"></div>
+        <div class="body">
+          <div class="line1"><span class="name">장상진</span><span class="amt">287,380</span></div>
+          <div class="line2">로라 무몰딩 붙박이장 30cm 푸쉬타입 친환경 E0 외 1건</div>
+          <div class="line3">
+            <span class="b b-size">2건 묶음</span>
+            <span class="b b-collect">주문 만들기</span>
+            <span class="can can-go">지금 처리 가능</span>
+            <span class="when">08-19 17:13</span>
+          </div>
+        </div>
+      </div>
+
+      <div class="row">
+        <div class="bar"></div>
+        <div class="body">
+          <div class="line1"><span class="name">최은혜</span><span class="amt">510,260</span></div>
+          <div class="line2">로라 무몰딩 붙박이장 30cm 푸쉬타입 친환경 E0 외 1건</div>
+          <div class="line3">
+            <span class="b b-size">2건 묶음</span>
+            <span class="b b-collect">주문 만들기</span>
+            <span class="can can-go">지금 처리 가능</span>
+            <span class="when">08-19 15:17</span>
+          </div>
+        </div>
+      </div>
+
+      <!-- 도메인 규칙 8: 차액 결제는 새 주문이 아니라 기존 주문에 붙인다.
+           후보가 있는 집은 목록에서 바로 보여야 사람이 "새로 만들기"를 실수로 누르지 않는다. -->
+      <div class="row is-hold why" data-why="차액 결제 의심">
+        <div class="bar"></div>
+        <div class="body">
+          <div class="line1"><span class="name">배수경</span><span class="amt">94,900</span></div>
+          <div class="line2">로라 무몰딩 붙박이장 30cm 푸쉬타입 친환경 E0 · 단독 · 수량 1</div>
+          <div class="line3">
+            <span class="b b-collect">주문 만들기</span>
+            <span class="b b-place">발주확인 전</span>
+            <span class="b b-cand">기존 주문 후보</span>
+            <span class="can can-wait">발주확인 먼저</span>
+            <span class="when">08-19 14:57</span>
+          </div>
+        </div>
+      </div>
+
+      <div class="row is-hold">
+        <div class="bar"></div>
+        <div class="body">
+          <div class="line1"><span class="name">김지연</span><span class="amt">973,000</span></div>
+          <div class="line2">로라 무몰딩 붙박이장 30cm 푸쉬타입 친환경 E0</div>
+          <div class="line3">
+            <span class="b b-collect">주문 만들기</span>
+            <span class="b b-place">발주확인 전</span>
+            <span class="can can-wait">발주확인 먼저</span>
+            <span class="when">08-19 14:46</span>
+          </div>
+        </div>
+      </div>
+
+      <div class="row is-hold">
+        <div class="bar"></div>
+        <div class="body">
+          <div class="line1"><span class="name">임재용</span><span class="amt unk">금액 미상</span></div>
+          <div class="line2">로라 무몰딩 붙박이장 30cm 푸쉬타입 친환경 E0 외 1건</div>
+          <div class="line3">
+            <span class="b b-size">2건 묶음</span>
+            <span class="b b-collect">주문 만들기</span>
+            <span class="b b-place">발주확인 전</span>
+            <span class="can can-wait">발주확인 먼저</span>
+            <span class="when">08-18 19:53</span>
+          </div>
+        </div>
+      </div>
+
+      <div class="row is-done">
+        <div class="bar"></div>
+        <div class="body">
+          <div class="line1"><span class="name">전태곤</span><span class="amt unk">금액 미상</span></div>
+          <div class="line2">로라 무몰딩 붙박이장 30cm 푸쉬타입 친환경 E0 외 13건</div>
+          <div class="line3">
+            <span class="b b-size">14건 묶음</span>
+            <span class="b b-linked">#4477 규격 입력</span>
+            <span class="can can-spec">규격 입력할 차례</span>
+            <span class="when">주문 생성됨</span>
+          </div>
+        </div>
+      </div>
+
+    </div>
+    <div class="note" style="padding:8px 12px">"금액 미상"은 실측 스크린샷에 값이 없던 집이다 — 목업이라 숫자를 지어내지 않았다.</div>
+  </section>
+
+  <section class="panel">
+    <div class="work-head">
+      <div class="work-title">
+        <h2>이재두</h2>
+        <span class="ono">상품주문 2026082044326741 · 네이버주문 2026082064997471</span>
+        <span class="b b-linked">발주확인 완료</span>
+        <span class="b b-size">6건 묶음</span>
+      </div>
+      <!-- 도메인 규칙 5: CS 업무는 ①주문 만들기 ②규격 입력 ③확인 완료까지.
+           담당자 지정은 실측 일정 단계라 이 화면 일이 아니다. -->
+      <div class="steps">
+        <span class="step on">① 주문 만들기</span> →
+        <span class="step">② ERP 규격 입력</span> →
+        <span class="step">③ 확인 완료</span>
+        <span style="margin-left:auto">담당자 지정은 실측 일정 잡을 때</span>
+      </div>
+      <div class="actions">
+        <button class="btn btn-primary" data-modal="make">+ 주문 만들기 (6건 묶음 → 주문 1건)</button>
+        <button class="btn" disabled>ERP 규격 입력</button>
+        <button class="btn" disabled>확인 완료</button>
+        <span class="hint">발송기한 2026-09-09 · 이 집의 상품주문 6건이 FOMS 주문 1건으로 묶인다</span>
+      </div>
+    </div>
+
+    <div class="work-body">
+      <!-- 도메인 규칙 6: 규격 자동 파싱 금지. 화면은 원문을 크게 보여주고 복사만 돕는다. -->
+      <div class="callout">
+        <div class="k">네이버 옵션 원문 — 규격은 사람이 이걸 읽고 편집기에서 채운다</div>
+        <div class="option-raw">길이추가(1cm): 보테가 슬라이딩 1cm</div>
+      </div>
+
+      <div class="sec-title">집 단위 <span class="sub">한 집에 하나뿐인 값 — 수취인·주소·결제</span></div>
+      <table class="cmp">
+        <thead><tr><th>항목</th><th>네이버 원본</th><th>FOMS 현재 값</th></tr></thead>
+        <tbody>
+          <tr><td class="k">수취인</td><td class="v">이재두 <button class="copy">복사</button></td><td class="foms"><span class="todo">아직 없음</span> · 주문 만들면 채워진다</td></tr>
+          <tr><td class="k">연락처</td><td class="v">010-9107-6677 <button class="copy">복사</button></td><td class="foms"><span class="todo">아직 없음</span></td></tr>
+          <tr><td class="k">주소</td><td class="v">경기도 성남시 중원구 사기막골로150번길 10 (상대원동, 산성아파트) 101동 103호 <button class="copy">복사</button></td><td class="foms"><span class="todo">아직 없음</span></td></tr>
+          <tr><td class="k">주문자</td><td class="v">이재두 / 010-3860-0073 <span class="b b-size">수취인과 이름 같음</span></td><td class="foms"><span class="todo">아직 없음</span></td></tr>
+          <tr><td class="k">결제</td><td class="v">2026-08-20 08:23 · 신용카드 간편결제 (MOBILE)</td><td class="foms"><span class="unk">해당 없음</span></td></tr>
+          <tr><td class="k">발송기한</td><td class="v">2026-09-09 23:59:59</td><td class="foms"><span class="unk">해당 없음</span></td></tr>
+          <tr><td class="k">유입 경로</td><td class="v">네이버페이 &gt; 홈(네이버쇼핑) · 상품ID 12025571454</td><td class="foms"><span class="unk">해당 없음</span></td></tr>
+        </tbody>
+      </table>
+
+      <!-- 결정 5: 6건 묶음을 다 보려고 페이지를 6번 로드하던 걸 여기서 한 번에 편다.
+           선행 결함 #7 대응 — 네이버 상품주문 1행과 FOMS 품목 1행을 같은 단위로 맞댄다. -->
+      <div class="sec-title">상품주문 6건 <span class="sub">네이버가 본품과 옵션을 각각 다른 상품주문으로 준다 — 한 줄씩 맞대 본다</span></div>
+      <table class="cmp">
+        <thead><tr><th style="width:172px">상품주문번호</th><th>제품 · 옵션 원문</th><th style="width:64px">수량</th><th style="width:96px">금액</th><th style="width:150px">FOMS 품목</th></tr></thead>
+        <tbody>
+          <tr>
+            <td class="k">2026082044326741</td>
+            <td class="v"><span class="raw">보테가 슬라이딩 1cm</span><div class="note" style="margin-top:2px">길이추가(1cm): 보테가 슬라이딩 1cm</div></td>
+            <td class="num"><span class="unk">–</span></td>
+            <td class="num">71,400</td>
+            <td class="foms"><span class="todo">아직 없음</span></td>
+          </tr>
+          <tr><td class="k"><span class="unk">상품주문 2</span></td><td class="v"><span class="raw unk">원본 옵션 문자열</span></td><td class="num"><span class="unk">–</span></td><td class="num"><span class="unk">–</span></td><td class="foms"><span class="todo">아직 없음</span></td></tr>
+          <tr><td class="k"><span class="unk">상품주문 3</span></td><td class="v"><span class="raw unk">원본 옵션 문자열</span></td><td class="num"><span class="unk">–</span></td><td class="num"><span class="unk">–</span></td><td class="foms"><span class="todo">아직 없음</span></td></tr>
+          <tr><td class="k"><span class="unk">상품주문 4</span></td><td class="v"><span class="raw unk">원본 옵션 문자열</span></td><td class="num"><span class="unk">–</span></td><td class="num"><span class="unk">–</span></td><td class="foms"><span class="todo">아직 없음</span></td></tr>
+          <tr><td class="k"><span class="unk">상품주문 5</span></td><td class="v"><span class="raw unk">원본 옵션 문자열</span></td><td class="num"><span class="unk">–</span></td><td class="num"><span class="unk">–</span></td><td class="foms"><span class="todo">아직 없음</span></td></tr>
+          <tr><td class="k"><span class="unk">상품주문 6</span></td><td class="v"><span class="raw unk">원본 옵션 문자열</span></td><td class="num"><span class="unk">–</span></td><td class="num"><span class="unk">–</span></td><td class="foms"><span class="todo">아직 없음</span></td></tr>
+          <tr class="sum">
+            <td class="k"><b>집 합계</b></td>
+            <td class="v">할인 230,000 적용</td>
+            <td class="num">34</td>
+            <td class="num">1,771,400</td>
+            <td class="foms"><span class="unk">주문 없음</span></td>
+          </tr>
+        </tbody>
+      </table>
+      <div class="note">
+        회색 이탤릭 칸은 <b>실측 스크린샷에 열려 있던 상품주문이 1건뿐이라 비워 둔 자리</b>다 — 목업에서 값을 지어내지 않는다.
+        실구현에서는 이 6행이 네이버 원본 그대로 채워진다. <a href="#">원본 JSON 보기</a>
+      </div>
+    </div>
+  </section>
+</div>
+</div>
+
+<!-- ══ 발주확인 전 ═══════════════════════════════════════════ -->
+<div class="pane" id="pane-place">
+<div class="wrap">
+  <section class="panel">
+    <div class="panel-head">
+      발주확인 전 <span class="sub">네이버에 아직 안 알린 집</span>
+      <span class="spacer"></span>
+      <label style="font-weight:500;color:var(--muted);font-size:11.5px"><input type="checkbox" id="pick-all"> 전부 선택</label>
+    </div>
+    <div class="filterbar">
+      <button class="chip" aria-pressed="true">전체 21집</button>
+      <button class="chip">발송기한 3일 이내</button>
+      <button class="chip">주문 생성됨</button>
+    </div>
+    <div class="queue" id="place-queue">
+      <div class="row is-hold" aria-current="true">
+        <div class="bar"></div>
+        <div class="body">
+          <div class="line1"><input type="checkbox" class="pick"><span class="name">이도헌</span><span class="amt">1,271,280</span></div>
+          <div class="line2">보테가 붙박이장 작은방 안방 슬라이딩 미닫이 30cm 외 4건</div>
+          <div class="line3"><span class="b b-size">5건 묶음</span><span class="b b-place">발주확인 전</span><span class="can can-wait">발주확인 대상</span><span class="when">08-19 23:01</span></div>
+        </div>
+      </div>
+      <div class="row is-hold">
+        <div class="bar"></div>
+        <div class="body">
+          <div class="line1"><input type="checkbox" class="pick"><span class="name">장효원</span><span class="amt">1,207,000</span></div>
+          <div class="line2">보테가 붙박이장 작은방 안방 슬라이딩 미닫이 30cm 외 4건</div>
+          <div class="line3"><span class="b b-size">5건 묶음</span><span class="b b-place">발주확인 전</span><span class="can can-wait">발주확인 대상</span><span class="when">08-19 19:25</span></div>
+        </div>
+      </div>
+      <div class="row is-hold">
+        <div class="bar"></div>
+        <div class="body">
+          <div class="line1"><input type="checkbox" class="pick"><span class="name">배수경</span><span class="amt">94,900</span></div>
+          <div class="line2">로라 무몰딩 붙박이장 30cm 푸쉬타입 친환경 E0 · 단독</div>
+          <div class="line3"><span class="b b-place">발주확인 전</span><span class="b b-cand">기존 주문 후보</span><span class="can can-wait">발주확인 대상</span><span class="when">08-19 14:57</span></div>
+        </div>
+      </div>
+      <div class="row is-hold">
+        <div class="bar"></div>
+        <div class="body">
+          <div class="line1"><input type="checkbox" class="pick"><span class="name">김지연</span><span class="amt">973,000</span></div>
+          <div class="line2">로라 무몰딩 붙박이장 30cm 푸쉬타입 친환경 E0</div>
+          <div class="line3"><span class="b b-place">발주확인 전</span><span class="can can-wait">발주확인 대상</span><span class="when">08-19 14:46</span></div>
+        </div>
+      </div>
+      <div class="row is-hold">
+        <div class="bar"></div>
+        <div class="body">
+          <div class="line1"><input type="checkbox" class="pick"><span class="name">임재용</span><span class="amt unk">금액 미상</span></div>
+          <div class="line2">로라 무몰딩 붙박이장 30cm 푸쉬타입 친환경 E0 외 1건</div>
+          <div class="line3"><span class="b b-size">2건 묶음</span><span class="b b-place">발주확인 전</span><span class="can can-wait">발주확인 대상</span><span class="when">08-18 19:53</span></div>
+        </div>
+      </div>
+    </div>
+  </section>
+
+  <section class="panel">
+    <div class="work-head">
+      <div class="work-title"><h2>이도헌</h2><span class="ono">2026081960408441</span><span class="b b-place">발주확인 전</span><span class="b b-size">5건 묶음</span></div>
+      <!--
+        2026-08-14 일괄 완료처리 AS 증발 사고가 "선택 없이 버튼=전체 대상" 패턴에서 났다.
+        그래서 선택 0집이면 버튼이 아예 죽어 있다 — 실수로 21집 전체가 나가지 않는다.
+      -->
+      <div class="actions">
+        <button class="btn btn-primary" id="btn-place" data-modal="place" disabled>선택한 <span id="place-n">0</span>집 발주확인 보내기</button>
+        <button class="btn" disabled>발송처리</button>
+        <span class="hint">선택한 집이 없으면 아무것도 하지 않는다. 발주확인이 먼저다 — 그 전에는 네이버가 발송 단계를 막는다.</span>
+      </div>
+    </div>
+    <div class="work-body">
+      <div class="callout warn">
+        <div class="k">왜 지금 해야 하나</div>
+        <div>발송기한까지 발주확인이 없으면 네이버가 주문을 자동 취소할 수 있다. <b>되돌릴 수 없는 호출</b>이라 보내기 전에 한 번 더 묻는다.</div>
+      </div>
+      <div class="sec-title">이 집의 상품주문 5건 <span class="sub">발주확인은 집 단위로 한 번에 나간다</span></div>
+      <table class="cmp">
+        <thead><tr><th style="width:172px">상품주문번호</th><th>제품 · 옵션 원문</th><th style="width:96px">금액</th></tr></thead>
+        <tbody>
+          <tr><td class="k">2026081960408441</td><td class="v"><span class="raw">보테가 붙박이장 작은방 안방 슬라이딩 미닫이 30cm</span></td><td class="num"><span class="unk">–</span></td></tr>
+          <tr><td class="k"><span class="unk">상품주문 2</span></td><td class="v"><span class="raw unk">원본 옵션 문자열</span></td><td class="num"><span class="unk">–</span></td></tr>
+          <tr><td class="k"><span class="unk">상품주문 3</span></td><td class="v"><span class="raw unk">원본 옵션 문자열</span></td><td class="num"><span class="unk">–</span></td></tr>
+          <tr><td class="k"><span class="unk">상품주문 4</span></td><td class="v"><span class="raw unk">원본 옵션 문자열</span></td><td class="num"><span class="unk">–</span></td></tr>
+          <tr><td class="k"><span class="unk">상품주문 5</span></td><td class="v"><span class="raw unk">원본 옵션 문자열</span></td><td class="num"><span class="unk">–</span></td></tr>
+          <tr class="sum"><td class="k"><b>집 합계</b></td><td class="v">수량 18 · 할인 253,000 적용</td><td class="num">1,271,280</td></tr>
+        </tbody>
+      </table>
+      <div class="note">두 번 눌러도 네이버에는 한 번만 나간다(멱등). 그래도 되돌릴 수는 없다.</div>
+    </div>
+  </section>
+</div>
+</div>
+
+<!-- ══ 취소·반품 ═════════════════════════════════════════════ -->
+<div class="pane" id="pane-claim">
+<div class="wrap">
+  <section class="panel">
+    <div class="panel-head">취소·반품 <span class="sub">손대면 안 되는 집 — 그래도 큐에서는 뺄 수 있다</span></div>
+    <div class="filterbar">
+      <button class="chip" aria-pressed="true">전체 2집</button>
+      <button class="chip">취소 1집</button>
+      <button class="chip">반품 1집</button>
+    </div>
+    <div class="queue">
+      <div class="row is-blocked" aria-current="true">
+        <div class="bar"></div>
+        <div class="body">
+          <div class="line1"><span class="name">이하린</span><span class="amt">1,481,800</span></div>
+          <div class="line2">로라 무몰딩 붙박이장 작은방 여닫이 푸쉬타입 180cm 외 4건</div>
+          <div class="line3"><span class="b b-claim">취소 완료</span><span class="b b-place">발주확인 전</span><span class="can can-stop">손대지 않음</span><span class="when">08-19 04:49</span></div>
+        </div>
+      </div>
+      <div class="row is-blocked">
+        <div class="bar"></div>
+        <div class="body">
+          <div class="line1"><span class="name">강재상</span><span class="amt">497,490</span></div>
+          <div class="line2">로라 무몰딩 붙박이장 30cm 푸쉬타입 친환경 E0 외 2건</div>
+          <div class="line3"><span class="b b-size">3건 묶음</span><span class="b b-claim">반품 완료</span><span class="b b-linked">#4466 주문 있음</span><span class="can can-stop">손대지 않음</span><span class="when">08-13 17:46</span></div>
+        </div>
+      </div>
+    </div>
+  </section>
+
+  <section class="panel">
+    <div class="work-head">
+      <div class="work-title"><h2>이하린</h2><span class="ono">2026081936451301</span><span class="b b-claim">취소 완료</span></div>
+      <!--
+        선행 결함 #4: 지금은 "확인 완료" 버튼이 주문 있는 건에만 붙어 있어(naver_triage.html:365)
+        취소·반품 건이 영원히 큐에 남는다. v2 에서는 주문 없는 집도 확인 완료로 뺄 수 있다.
+        플레이오토 최대 불만("쇼핑몰에서 직접 처리하세요")을 우리는 여기서 피한다.
+      -->
+      <div class="actions">
+        <button class="btn" disabled>주문 만들기</button>
+        <button class="btn" disabled>발주확인</button>
+        <button class="btn btn-primary" data-modal="ack">확인 완료 — 큐에서 빼기</button>
+        <span class="hint">취소·반품 건은 주문을 만들 수 없다(서버가 막는다). 큐에서 빼는 것만 된다.</span>
+      </div>
+    </div>
+    <div class="work-body">
+      <div class="callout bad">
+        <div class="k">네이버 취소 완료</div>
+        <div>수집 당시 상태는 결제완료였다 — <b>결제 뒤 취소된 건</b>이라 목록에는 남는다.</div>
+        <div class="note">취소 사유·요청 시각은 판매자센터 원본을 따른다(목업에서 지어내지 않는다).</div>
+      </div>
+      <div class="sec-title">집 단위</div>
+      <table class="cmp">
+        <thead><tr><th>항목</th><th>네이버 원본</th><th>FOMS 현재 값</th></tr></thead>
+        <tbody>
+          <tr><td class="k">수취인</td><td class="v">이하린</td><td class="foms"><span class="unk">주문 없음</span></td></tr>
+          <tr><td class="k">금액</td><td class="v">1,481,800</td><td class="foms"><span class="unk">주문 없음</span></td></tr>
+          <tr><td class="k">수집 시각</td><td class="v">2026-08-19 04:49:15</td><td class="foms"><span class="unk">해당 없음</span></td></tr>
+          <tr><td class="k">FOMS 주문</td><td class="v"><span class="same">없음</span> — 주문을 만들기 전에 취소돼 사고가 없었다</td><td class="foms"><span class="unk">–</span></td></tr>
+        </tbody>
+      </table>
+      <div class="note">주문이 이미 만들어진 뒤 취소된 집(예: 강재상 #4466)이면 여기에 <b>담당자 알림</b>이 함께 뜬다. 주문 상태를 자동으로 바꾸지는 않는다.</div>
+    </div>
+  </section>
+</div>
+</div>
+
+<!-- ══ 전체 이력 ═════════════════════════════════════════════ -->
+<div class="pane" id="pane-all">
+<div class="wrap" style="grid-template-columns: 1fr;">
+  <section class="panel">
+    <div class="panel-head">전체 이력 <span class="sub">숫자는 모두 집 단위 — 상품주문 건수는 맨 위 헤더에서 본다</span></div>
+    <div class="filterbar">
+      <button class="chip" aria-pressed="true">전체 45집</button>
+      <button class="chip">수집됨(주문 전) 40집</button>
+      <button class="chip">주문 생성됨 6집</button>
+      <button class="chip">확인 필요 0집</button>
+      <button class="chip">실패 0집</button>
+      <button class="chip">발주확인 전 21집</button>
+      <button class="chip">취소·반품 2집</button>
+    </div>
+    <table class="cmp">
+      <thead><tr><th style="width:104px">수집 시각</th><th style="width:80px">고객</th><th>제품</th><th style="width:56px">수량</th><th style="width:96px">금액</th><th style="width:196px">상태</th><th style="width:218px">FOMS 주문</th></tr></thead>
+      <tbody>
+        <tr><td class="k">08-20 08:28</td><td class="v">이재두</td><td class="v">보테가 슬라이딩 미닫이 30cm <span class="b b-size">6건 묶음</span></td><td class="num">34</td><td class="num">1,771,400</td><td><span class="b b-collect">수집됨</span> <span class="b b-linked">발주확인 완료</span></td><td><button class="btn btn-primary" style="padding:3px 9px">주문 만들기</button></td></tr>
+        <tr><td class="k">08-19 23:01</td><td class="v">이도헌</td><td class="v">보테가 슬라이딩 미닫이 30cm <span class="b b-size">5건 묶음</span></td><td class="num">18</td><td class="num">1,271,280</td><td><span class="b b-collect">수집됨</span> <span class="b b-place">발주확인 전</span></td><td><button class="btn btn-primary" style="padding:3px 9px">주문 만들기</button></td></tr>
+        <tr><td class="k">08-19 20:26</td><td class="v">고봉관</td><td class="v">로라 무몰딩 30cm 푸쉬타입 <span class="b b-size">2건 묶음</span></td><td class="num">18</td><td class="num">148,790</td><td><span class="b b-collect">수집됨</span></td><td><button class="btn btn-primary" style="padding:3px 9px">주문 만들기</button></td></tr>
+        <!-- 결정 2: 취소·반품은 탭으로 분리하되 이력에서 빼지 않는다. 회색 + 액션 비활성으로 같은 자리에 남긴다. -->
+        <tr class="muted-row"><td class="k">08-19 04:49</td><td class="v">이하린</td><td class="v">로라 여닫이 180cm <span class="b b-size">5건 묶음</span></td><td class="num">6</td><td class="num">1,481,800</td><td><span class="b b-claim">취소 완료</span></td><td><button class="btn" style="padding:3px 9px" disabled>주문 만들기</button></td></tr>
+        <tr><td class="k">08-18 11:02</td><td class="v">전태곤</td><td class="v">로라 무몰딩 30cm <span class="b b-size">14건 묶음</span></td><td class="num"><span class="unk">–</span></td><td class="num"><span class="unk">–</span></td><td><span class="b b-linked">주문 생성됨</span></td><td><a href="#">#4477</a> · 규격 입력</td></tr>
+        <tr class="muted-row"><td class="k">08-13 17:46</td><td class="v">강재상</td><td class="v">로라 무몰딩 30cm <span class="b b-size">3건 묶음</span></td><td class="num"><span class="unk">–</span></td><td class="num">497,490</td><td><span class="b b-linked">주문 생성됨</span> <span class="b b-claim">반품 완료</span></td><td><a href="#">#4466</a></td></tr>
+        <!-- 결정 7 의 마지막 자리: 실패도 이력에 기록으로 남아 나중에 사유를 다시 읽을 수 있다. -->
+        <tr class="fail-row"><td class="k">08-20 10:44</td><td class="v">배수경</td><td class="v">발주확인 실행 실패 <span class="unk">(예시 — 실측 실패는 0집)</span></td><td class="num">–</td><td class="num">–</td><td><span class="b b-claim">실패</span></td><td>인증 만료 · <a href="#" style="white-space:nowrap">다시 시도</a></td></tr>
+      </tbody>
+    </table>
+    <!-- 선행 결함 #8: 지금은 페이지 링크에서 place 필터가 조용히 풀린다(naver_ingest.html:246,255).
+         v2 는 지금 걸린 필터를 페이지 링크가 그대로 들고 간다는 걸 눈에 보이게 적는다. -->
+    <div class="pager">
+      <span class="cur">1</span><a href="#">2</a><a href="#">3</a>
+      <span style="margin-left:8px">지금 걸린 필터(<b>전체 45집</b>)는 페이지를 넘겨도 그대로 유지된다.</span>
+    </div>
+  </section>
+</div>
+</div>
+
+<!-- ══ 불가역 액션 확인 모달 (결정 6 — 4종 세트) ═══════════════ -->
+<div class="modal-back" id="modal-back">
+  <div class="modal" role="dialog" aria-modal="true">
+    <h3 id="m-title">확인</h3>
+    <div class="m-body">
+      <!-- ① 건수 재진술: 버튼 라벨과 같은 숫자를 문장으로 다시 읽힌다(플레이오토 관례) -->
+      <div class="restate" id="m-restate"></div>
+      <!-- ② 되돌릴 수 없음 -->
+      <div class="irrev" id="m-irrev"></div>
+      <!-- ③ 사후 경로: 누른 다음 무엇이 열리는지 -->
+      <div class="after" id="m-after"></div>
+    </div>
+    <div class="m-foot">
+      <button class="btn" id="m-cancel">취소</button>
+      <button class="btn btn-primary" id="m-ok">확인</button>
+    </div>
+  </div>
+</div>
+
+<div class="mock-note">
+  목업 안내 — 이 파일은 백엔드에 붙어 있지 않다. 탭 전환·행 선택·선택 개수·결과 띠 펼침·확인 모달만 실제로 움직인다.
+  숫자와 고객명은 2026-08-20 스테이징 실측 스크린샷 값만 썼고, 실측에 없던 값은 회색 이탤릭으로 비워 뒀다.
+</div>
+
+<script>
+  // 탭 전환 — 실구현에서는 서버 라우트 쿼리 파라미터(?tab=)로 간다.
+  document.querySelectorAll('.tab').forEach(function (tab) {
+    tab.addEventListener('click', function () {
+      document.querySelectorAll('.tab').forEach(function (t) { t.setAttribute('aria-selected', String(t === tab)); });
+      document.querySelectorAll('.pane').forEach(function (p) { p.classList.remove('on'); });
+      document.getElementById('pane-' + tab.dataset.pane).classList.add('on');
+    });
+  });
+
+  // 행 선택 — 체크박스를 누른 경우는 선택 이동으로 치지 않는다(고르기와 체크는 다른 일).
+  document.querySelectorAll('.row').forEach(function (row) {
+    row.addEventListener('click', function (e) {
+      if (e.target.classList.contains('pick')) return;
+      var pane = row.closest('.pane');
+      pane.querySelectorAll('.row').forEach(function (r) { r.removeAttribute('aria-current'); });
+      row.setAttribute('aria-current', 'true');
+    });
+  });
+
+  document.querySelectorAll('.chip').forEach(function (chip) {
+    chip.addEventListener('click', function () {
+      var bar = chip.closest('.filterbar');
+      bar.querySelectorAll('.chip').forEach(function (c) { c.setAttribute('aria-pressed', String(c === chip)); });
+    });
+  });
+
+  // 결과 띠 펼치기 — 실패 사유는 사용자가 닫기 전까지 사라지지 않는다.
+  var result = document.getElementById('result');
+  document.getElementById('result-head').addEventListener('click', function () {
+    result.classList.toggle('open');
+    result.querySelector('.caret').textContent = result.classList.contains('open') ? '접기 ▴' : '펼쳐서 사유 보기 ▾';
+  });
+
+  // 선택 개수 ↔ 버튼 상태. 0집이면 버튼이 죽는다(2026-08-14 일괄 사고 패턴 차단).
+  var placeQueue = document.getElementById('place-queue');
+  var placeBtn = document.getElementById('btn-place');
+  var placeN = document.getElementById('place-n');
+  function syncPlace() {
+    var n = placeQueue.querySelectorAll('.pick:checked').length;
+    placeN.textContent = n;
+    placeBtn.disabled = (n === 0);
+  }
+  placeQueue.querySelectorAll('.pick').forEach(function (c) { c.addEventListener('change', syncPlace); });
+  document.getElementById('pick-all').addEventListener('change', function () {
+    var on = this.checked;
+    placeQueue.querySelectorAll('.pick').forEach(function (c) { c.checked = on; });
+    syncPlace();
+  });
+  syncPlace();
+
+  // 불가역 확인 모달 — 종류별로 건수 재진술 문장을 다르게 만든다.
+  var back = document.getElementById('modal-back');
+  function openModal(kind) {
+    var t = document.getElementById('m-title');
+    var restate = document.getElementById('m-restate');
+    var irrev = document.getElementById('m-irrev');
+    var after = document.getElementById('m-after');
+    var ok = document.getElementById('m-ok');
+
+    if (kind === 'place') {
+      var picked = placeQueue.querySelectorAll('.pick:checked');
+      var names = [];
+      picked.forEach(function (c) { names.push(c.closest('.body').querySelector('.name').textContent); });
+      t.textContent = '발주확인을 보내기 전에 확인하세요';
+      restate.textContent = '선택한 ' + picked.length + '집(' + names.join(', ') + ')을 네이버에 발주확인으로 보냅니다.';
+      irrev.textContent = '⚠ 네이버로 나가는 호출이라 되돌릴 수 없습니다.';
+      after.innerHTML = '보낸 뒤에는 상태가 <b>발주확인 완료</b>로 바뀌고, 그 집의 <b>발송처리</b> 버튼이 열립니다.<br>실패한 집이 있으면 화면 맨 위에 <b>실패 목록과 사유</b>가 남고, 실패한 집만 다시 시도할 수 있습니다.';
+      ok.textContent = picked.length + '집 발주확인 보내기';
+    } else if (kind === 'make') {
+      t.textContent = '주문을 만들기 전에 확인하세요';
+      restate.textContent = '이재두님의 상품주문 6건을 FOMS 주문 1건으로 만듭니다.';
+      irrev.textContent = '⚠ 만든 주문을 이 화면에서 되돌릴 수는 없습니다(주문 화면에서 취소해야 합니다).';
+      after.innerHTML = '만든 뒤에는 <b>ERP 규격 입력</b> 단계가 열립니다. 규격은 옵션 원문을 보고 사람이 채웁니다.<br>담당자 지정은 이 화면 일이 아니라 <b>실측 일정</b> 단계에서 합니다.';
+      ok.textContent = '주문 만들기';
+    } else {
+      t.textContent = '큐에서 빼기 전에 확인하세요';
+      restate.textContent = '이하린님의 집(상품주문 5건)을 확인 완료로 처리해 대기 큐에서 뺍니다.';
+      irrev.textContent = '⚠ 네이버 쪽에는 아무 영향이 없습니다. 우리 큐에서만 사라집니다.';
+      after.innerHTML = '뺀 뒤에도 <b>전체 이력</b> 탭과 <b>취소·반품</b> 탭에는 그대로 남습니다.';
+      ok.textContent = '확인 완료';
+    }
+    back.classList.add('on');
+  }
+  document.querySelectorAll('[data-modal]').forEach(function (b) {
+    b.addEventListener('click', function () { openModal(b.dataset.modal); });
+  });
+  function closeModal() { back.classList.remove('on'); }
+  document.getElementById('m-cancel').addEventListener('click', closeModal);
+  document.getElementById('m-ok').addEventListener('click', closeModal);
+  back.addEventListener('click', function (e) { if (e.target === back) closeModal(); });
+  document.addEventListener('keydown', function (e) { if (e.key === 'Escape') closeModal(); });
+</script>
+</body>
+</html>
