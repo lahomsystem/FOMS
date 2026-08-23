@@ -432,3 +432,20 @@ L-1 모집단 부작용 없음 · sticky stacking 재발 없음 · 계약 §0 �
 
 부산물: `test_place_tab_shows_shipping_due_so_urgency_is_visible` 이 전체 날짜를 문서 전역에서
 찾고 있었다 — 줄 단위로 좁히고 "연도 없음"까지 단언하도록 고쳤다(L-4 와 같은 부류).
+
+## CI red 1건 — 없는 order_id (2026-08-24)
+
+**FOMS CI 가 두 커밋(45077645·fbe13363) 모두 red.** 나머지 3개(Harness·PG Lane·perf-gate)는 green.
+원인은 **내가 새로 쓴 테스트 3개**가 `order_id = 999999` 처럼 존재하지 않는 주문 id 를 꽂은 것:
+로컬 SQLite 는 FK 를 강제하지 않아 green 인데 CI 는 강제해서 `FOREIGN KEY constraint failed`.
+`_order()` 헬퍼로 실제 `Order` 를 만들어 붙이도록 고쳤고 함정을 docstring 에 남겼다.
+로컬에서 CI 와 같은 환경(`DATABASE_URL=sqlite:///:memory:`)으로 재확인 — 16 passed.
+**로컬 재현은 안 됐다**(같은 URL 로도 FK 미강제) — pre_push_smoke·로컬 전수로는 못 잡는 부류다.
+
+## 사용자 지적 — 오른쪽 여백 (2026-08-24)
+
+`#wb-pane .wb-cmp { max-width: 860px }` 가 넓은 화면에서 카드 오른쪽을 통째로 죽였다.
+"화면 비율에 따라 꽉 차게, flexible 하게" 요구 — **상한을 빼고 숫자 열을 고정**하는 방식으로 바꿨다.
+남는 폭은 제품·옵션 원문(사람이 읽고 규격을 채우는 값)이 먹고, 수량 92px·금액 128px 은
+자릿수만큼만 차지한다. 실측: 1920 카드 1201 / 표 1169, 1440 카드 894 / 표 862 —
+오른쪽 죽은 공간은 카드 패딩 16px 뿐. 이력 탭 표는 원래대로 전체 폭.

@@ -1079,7 +1079,17 @@ def _work_groups(db) -> tuple[list[dict[str, Any]], bool]:
         ``(집 목록, 조회 상한에 걸렸는지)``. 순서는 큐(수집 최신순) → 큐 밖 발주확인 전 집.
     """
     pending, truncated = _queue_links(db)
-    queue = _group_queue(pending, _orders_by_id(db, pending), truncated=truncated)
+    # **캡 하나를 더 넘겨 받아** 잘렸는지 스스로 안다. `_group_queue` 는 상한까지만 돌려주는데
+    # 그 사실을 아무도 안 봐서, 집이 50을 넘으면 화면이 조용히 51번째부터 버렸다 —
+    # 링크 250 상한(`truncated`)에 걸릴 때만 안내 띠가 떴다. 캡으로 자른 뒤 아무 말도 안 하면
+    # 사람은 나머지를 찾아 헤맨다(2026-08-14 대시보드 캡 결함과 같은 부류, CEO 검수 보통).
+    queue = _group_queue(pending, _orders_by_id(db, pending),
+                         truncated=truncated, limit=PAGE_SIZE + 1)
+    queue_truncated = len(queue) > PAGE_SIZE
+    if queue_truncated:
+        logger.info("[NAVER] 처리 목록 캡 발동: 큐 묶음 %s집 중 %s집만 보여준다",
+                    len(queue), PAGE_SIZE)
+        queue = queue[:PAGE_SIZE]
     place_groups, place_truncated = _place_groups(db)
 
     merged: dict[Any, dict[str, Any]] = {}
@@ -1101,7 +1111,7 @@ def _work_groups(db) -> tuple[list[dict[str, Any]], bool]:
     _attach_household_counts(db, groups)
     # 잠금·선택 판정은 위 두 단계가 끝난 **뒤에** 한 번만 한다(형제 클레임이 반영된 값으로).
     _attach_row_flags(groups)
-    return groups, bool(truncated or place_truncated)
+    return groups, bool(truncated or place_truncated or queue_truncated)
 
 
 def _mark_sibling_claims(db, queue_links: list[ExternalOrderLink],

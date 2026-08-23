@@ -15,7 +15,7 @@ from datetime import datetime
 from db import db_session
 from foms.services.integrations.naver_commerce.constants import CHANNEL
 from foms.services.integrations.naver_commerce.mapping import group_key_text
-from models import ExternalOrderLink
+from models import ExternalOrderLink, Order
 
 from tests.services.integrations._markup import has_attribute
 from tests.services.integrations.test_naver_workbench import (  # noqa: F401 - fixture 재사용
@@ -52,6 +52,19 @@ def _sibling(base: ExternalOrderLink, *, product: str, amount: int,
     db_session.add(link)
     db_session.commit()
     return link
+
+
+def _order(name: str = "이수취") -> Order:
+    """형제에 붙일 **실재하는** 주문 1건.
+
+    없는 id(예: 999999)를 `order_id` 에 꽂으면 로컬 SQLite 는 FK 를 강제하지 않아 green 인데
+    CI 는 `PRAGMA foreign_keys` 가 켜져 있어 IntegrityError 로 터진다(2026-08-24 실사고).
+    """
+    order = Order(received_date="2026-08-01", customer_name=name, phone="010-3333-4444",
+                  address="서울 강남구 1 101호", product="붙박이장", status="RECEIVED")
+    db_session.add(order)
+    db_session.commit()
+    return order
 
 
 def _modal_of(html: str, modal_id: str) -> str:
@@ -190,7 +203,7 @@ def test_create_modal_counts_only_what_promotion_will_move(client, workbench_on)
     lead = _collected(order_no="N-M2-MIX", product="붙박이장 본품", amount=1000000)
     _sibling(lead, product="구성 A", amount=2000)
     already = _sibling(lead, product="이미 주문된 구성", amount=3000)
-    already.order_id = 999999          # 사람이 부분적으로 먼저 만든 형제
+    already.order_id = int(_order().id)   # 사람이 부분적으로 먼저 만든 형제
     already.sync_status = "LINKED"
     db_session.add(already)
     db_session.commit()
@@ -284,12 +297,13 @@ def test_create_button_closes_when_nothing_is_promotable(client, workbench_on):
     """
     _login(client)
     lead = _collected(order_no="N-CEO-ZERO", product="붙박이장 본품", amount=1000000)
-    lead.order_id = 888001
+    made = _order()
+    lead.order_id = int(made.id)
     lead.sync_status = "LINKED"
     db_session.add(lead)
     db_session.commit()
     sib = _sibling(lead, product="구성 A", amount=2000)
-    sib.order_id = 888001
+    sib.order_id = int(made.id)
     sib.sync_status = "LINKED"
     db_session.add(sib)
     db_session.commit()
@@ -308,7 +322,7 @@ def test_create_posts_the_promotable_sibling_not_the_lead(client, workbench_on):
     """
     _login(client)
     lead = _collected(order_no="N-CEO-LEAD", product="붙박이장 본품", amount=1000000)
-    lead.order_id = 888002
+    lead.order_id = int(_order().id)
     lead.sync_status = "LINKED"
     db_session.add(lead)
     db_session.commit()
@@ -355,3 +369,40 @@ def test_bulk_count_excludes_already_confirmed_siblings(client, workbench_on):
     body = client.get(f"{TRIAGE_PATH}?tab=work&f=place").get_data(as_text=True)
     row = body.split('<a class="wb-row')[1].split("</a>")[0]
     assert 'data-count="2"' in row, row
+
+
+# --------------------------------------------------------------------------- #
+# 선재 결함 2건 — 캡 침묵 · 마우스 없는 기기
+# --------------------------------------------------------------------------- #
+
+def test_queue_cap_says_it_cut_the_list(client, workbench_on):
+    """집이 캡을 넘으면 **잘렸다고 말한다**.
+
+    `_group_queue` 는 상한(PAGE_SIZE)까지만 돌려주는데 그 사실을 아무도 안 봐서, 링크
+    250 상한에 걸릴 때만 안내 띠가 떴다. 캡으로 자르고 침묵하면 사람은 나머지를 찾아
+    헤맨다 — 2026-08-14 대시보드 캡 결함과 같은 부류다.
+    """
+    from foms.web.admin.naver_ingest import PAGE_SIZE
+
+    _login(client)
+    for i in range(PAGE_SIZE + 3):
+        _collected(order_no=f"N-CAP-{i:03d}", product=f"붙박이장 {i}", amount=100000)
+
+    body = client.get(f"{TRIAGE_PATH}?tab=work").get_data(as_text=True)
+    assert body.count('<a class="wb-row') == PAGE_SIZE, "캡이 안 걸렸다(전제 확인)"
+    assert "다 들어가지 않아" in body, "캡으로 잘라 놓고 화면이 아무 말도 안 한다"
+
+
+def test_place_confirmed_is_visible_without_hovering(client, workbench_on):
+    """발주확인이 끝난 사실이 **잠긴 버튼의 title 밖에도** 있어야 한다.
+
+    마우스가 없는 기기(태블릿)에서는 title 이 안 뜬다 — 왜 못 누르는지가 화면에 없다.
+    """
+    _login(client)
+    link = _collected(order_no="N-TOUCH-OK", product="붙박이장", amount=100000,
+                      place_status="OK")
+
+    pane = _pane(client.get(f"{TRIAGE_PATH}?tab=work&link_id={link.id}").get_data(as_text=True))
+    assert has_attribute(pane, "wb-confirm", "disabled"), "전제: 발주확인 버튼이 잠겨 있다"
+    head = pane.split('class="card-header')[1].split("</div>")[0]
+    assert "발주확인 완료" in head, "잠긴 이유가 title 에만 있다"

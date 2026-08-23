@@ -87,6 +87,12 @@
             {% if selected.order_id %}
             <span class="badge bg-primary">주문 #{{ selected.order_id }}</span>
             {% endif %}
+            {# 발주확인이 끝난 사실은 지금까지 **잠긴 버튼의 title 에만** 있었다. 마우스가 없는
+               기기에서는 그 글자를 영영 못 읽는다 — 왜 못 누르는지가 화면에 없다는 뜻이다
+               (2026-08-23 CEO 검수 하). 발송처리 완료 표시와 같은 자리에 사실로 남긴다. #}
+            {% if not place_pending and not locked %}
+            <span class="badge bg-success">발주확인 완료</span>
+            {% endif %}
         </div>
 
         {# 목록 밖 집(리뷰 M-3) — 이력 탭의 `처리 탭에서 열기`·북마크·필터가 바뀐 주소로

@@ -319,13 +319,17 @@ input.wb-pick:disabled,
 .wb-cmp-title { font-weight: 700; margin: 16px 0 6px; }
 .wb-cmp-title__sub { font-weight: 500; color: var(--wb-muted); font-size: 11.5px; }
 .wb-cmp { width: 100%; border-collapse: collapse; font-size: 13px; }
-/* 표는 칸 폭을 다 쓰지 않는다 — 넓은 화면에서 100% 로 늘리면 제품명과 금액이
-   화면 양 끝으로 갈라져 한 행을 읽는 데 눈이 좌우로 크게 움직인다(사용자 지적:
-   "금액 열이 화면 끝까지 밀려 표가 헐겁다").
-   **상한은 상세 pane 안에서만.** 이력 탭 표(`.wb-cmp.wb-hist`)는 7열짜리 전체 폭 표라
-   같이 조이면 수집시각·상태 칸이 접힌다 — M-3 이 "이력에서 찾아 처리하러 가는 길"이라고
-   지킨 바로 그 표다(2026-08-23 CEO 검수 상). */
-#wb-pane .wb-cmp { max-width: 860px; }
+
+/* 표는 **칸을 꽉 채운다**. 한때 `max-width: 860px` 로 상한을 뒀는데(금액 열이 화면 끝까지
+   밀려 헐거워 보이던 문제), 넓은 화면에서는 카드 오른쪽에 큰 죽은 공간이 생겼다
+   (2026-08-24 사용자 지적, 스테이징 실화면). 폭을 막는 대신 **숫자 열을 고정**해서
+   남는 폭이 제품·옵션 원문(사람이 읽고 규격을 채우는 값)으로 가게 한다 — 그러면
+   화면이 넓어져도 수량·금액이 제품명에서 멀어지지 않고, 표는 비율대로 늘어난다. */
+.wb-cmp th.wb-cmp__num,
+.wb-cmp td.wb-cmp__num { width: 92px; }
+/* 금액은 자릿수가 많다(1,178,100). 마지막 열만 한 치수 넓게. */
+.wb-cmp th.wb-cmp__num:last-child,
+.wb-cmp td.wb-cmp__num:last-child { width: 128px; }
 .wb-cmp th,
 .wb-cmp td { padding: 7px 8px; border-bottom: 1px solid var(--wb-line-soft); vertical-align: top; }
 .wb-cmp thead th { font-size: 11.5px; color: var(--wb-muted); text-align: left; background: var(--wb-surface-soft); }
