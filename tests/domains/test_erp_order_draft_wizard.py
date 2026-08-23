@@ -216,9 +216,12 @@ def test_wizard_step3_flag_inputs_contract() -> None:
     assert 'id="wiz-flag-urgent"' in step3
     assert 'id="wiz-regional-construction-type"' in step3
     assert 'id="wiz-urgent-reason"' in step3
+    assert 'id="wiz-load-date"' in step3
     js = (ROOT / "static/js/foms/wizard.js").read_text(encoding="utf-8")
     assert "collectFlags" in js
     assert "syncFlagFieldVisibility" in js
+    # 추가 버튼으로 만든 카드는 접힌 채로 두지 않는다.
+    assert "revealEmptyProductCard(addedCard)" in js
     css = (ROOT / "static/css/components/foms-wizard.css").read_text(encoding="utf-8")
     assert ".foms-wizard__flag" in css
 
@@ -270,6 +273,82 @@ def test_order_draft_submit_persists_order_flags(client, app, wizard_enabled) ->
         assert flags.get("urgent") is True
         assert flags.get("urgent_reason") == "시공일 임박"
         assert order.erp_urgent is True
+
+
+def test_order_draft_submit_persists_regional_load_date(client, app, wizard_enabled) -> None:
+    """지방주문 상차일은 shipping_scheduled_date 컬럼과 structured schedule.load 로 간다."""
+    from db import db_session
+    from models import Order
+
+    _login(client, app, "wizard_load_date_user")
+    key = "new.test-load-date"
+    payload = {
+        "schema_version": 1,
+        "step": 4,
+        "data": {
+            "customer_name": "상차테스트",
+            "phone": "010-5555-6666",
+            "address": "전라북도 전주시",
+            "items": [{"product_name": "주방장", "spec_rows": []}],
+            "schedule": {"load_date": "2026-09-01"},
+            "flags": {"regional_order": True, "regional_construction_type": "하우드 시공"},
+        },
+    }
+    client.put(
+        "/api/erp/order-draft",
+        data=json.dumps({"draft_key": key, "step": 4, "payload": payload}),
+        content_type="application/json",
+    )
+    submit = client.post(
+        "/api/erp/order-draft/submit",
+        data=json.dumps({"draft_key": key}),
+        content_type="application/json",
+    )
+    assert submit.status_code == 200
+    order_id = submit.get_json()["data"]["order_id"]
+    with app.app_context():
+        order = db_session.query(Order).filter_by(id=order_id).one()
+        assert order.shipping_scheduled_date == "2026-09-01"
+        assert ((order.structured_data or {}).get("schedule") or {}).get("load") == {
+            "date": "2026-09-01"
+        }
+
+
+def test_order_draft_submit_drops_load_date_when_not_regional(client, app, wizard_enabled) -> None:
+    """지방주문이 아니면 남아 있던 상차일은 저장하지 않는다."""
+    from db import db_session
+    from models import Order
+
+    _login(client, app, "wizard_load_date_nonregional_user")
+    key = "new.test-load-date-off"
+    payload = {
+        "schema_version": 1,
+        "step": 4,
+        "data": {
+            "customer_name": "비지방테스트",
+            "phone": "010-7777-8888",
+            "address": "서울시 송파구",
+            "items": [{"product_name": "신발장", "spec_rows": []}],
+            "schedule": {"load_date": "2026-09-01"},
+            "flags": {"regional_order": False},
+        },
+    }
+    client.put(
+        "/api/erp/order-draft",
+        data=json.dumps({"draft_key": key, "step": 4, "payload": payload}),
+        content_type="application/json",
+    )
+    submit = client.post(
+        "/api/erp/order-draft/submit",
+        data=json.dumps({"draft_key": key}),
+        content_type="application/json",
+    )
+    assert submit.status_code == 200
+    order_id = submit.get_json()["data"]["order_id"]
+    with app.app_context():
+        order = db_session.query(Order).filter_by(id=order_id).one()
+        assert not order.shipping_scheduled_date
+        assert "load" not in ((order.structured_data or {}).get("schedule") or {})
 
 
 def test_order_draft_submit_rejects_regional_without_construction_type(

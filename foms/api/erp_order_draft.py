@@ -108,6 +108,22 @@ def _draft_flags(data: dict[str, Any]) -> dict[str, Any]:
     }
 
 
+def _draft_load_date(data: dict[str, Any], flags: dict[str, Any]) -> str:
+    """지방주문 상차일(YYYY-MM-DD)을 뽑는다.
+
+    Args:
+        data: draft_v1 payload 의 data 객체.
+        flags: :func:`_draft_flags` 결과.
+
+    Returns:
+        지방주문이고 값이 있으면 상차일 문자열, 아니면 빈 문자열.
+    """
+    if not flags.get("regional_order"):
+        return ""
+    schedule = data.get("schedule") if isinstance(data.get("schedule"), dict) else {}
+    return str(schedule.get("load_date") or "").strip()
+
+
 def _draft_payload_to_structured(data: dict[str, Any]) -> dict[str, Any]:
     """Map draft_v1.data to ERP structured_data for order creation."""
     items_in = data.get("items") if isinstance(data.get("items"), list) else []
@@ -182,7 +198,12 @@ def _draft_payload_to_structured(data: dict[str, Any]) -> dict[str, Any]:
         structured["schedule"]["construction"] = {"date": cons}
         if schedule_in.get("construction_time"):
             structured["schedule"]["construction"]["time"] = str(schedule_in.get("construction_time")).strip()
-    load_date = str(schedule_in.get("load_date") or "").strip()
+    # 상차일은 지방주문 전용 — 비지방 주문에 남은 값이 흘러들지 않게 여기서 잘라낸다.
+    load_date = (
+        str(schedule_in.get("load_date") or "").strip()
+        if bool((data.get("flags") or {}).get("regional_order"))
+        else ""
+    )
     if load_date:
         structured["schedule"]["load"] = {"date": load_date}
     sales_mgr = str(schedule_in.get("sales_manager") or "").strip()
@@ -578,6 +599,8 @@ def api_submit_order_draft() -> tuple[Any, int]:
             structured_confidence=None,
             is_regional=submit_flags["regional_order"],
             construction_type=submit_flags["regional_construction_type"] or None,
+            # 지방 대시보드 "상차 예정 알림"이 읽는 SSOT 는 이 flat 컬럼이다.
+            shipping_scheduled_date=_draft_load_date(data, submit_flags) or None,
         ),
         structured_data=structured_data,
         is_erp_order=True,
