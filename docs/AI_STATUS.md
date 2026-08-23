@@ -1,6 +1,6 @@
 # FOMS 현재 상태
 > 자동 업데이트: 2026-08-14
-> 최신: **네이버 수집 워크벤치 staging 게이트 ON(upperkill 단독)** — deploy 승격 2회 CI ALL GREEN, backfill 192행(집 61), 리뷰 6회차까지 수정(진짜 29건). 실데이터 확인: work 42·place 25·claim 8집. 잔여=네이버 실호출 1건·production 승격. 원장 `docs/plans/2026-08-20-naver-workbench-ledger.md`
+> 최신: **네이버 워크벤치 관계 축(추가결제·재결제) + 판매자 직접취소 deploy(`5f9433c5`, CI 4개 green)** — 배지·후보/붙이기/되돌리기·발송처리 관계별 분기·취소 모달(사유 7코드). 스테이징 실데이터 눈 확인 완료. **production 에 네이버 코드 0줄(커밋 123·마이그레이션 8 미승격) — 부분 cherry-pick 승격 불가.** 원장 `docs/plans/2026-08-20-naver-workbench-ledger.md`
 > 이 파일 상단 40줄이 세션 시작 컨텍스트의 전부다(hygiene 계약 테스트로 강제). 상세 이력: "## 최근 완료"·"## 기록 보관", 과거 헤더 상세는 기록 보관에 이관.
 
 ## 스택
@@ -8,6 +8,7 @@ Flask 2.3 + PostgreSQL + R2 + Railway (Web×2, Worker×1)
 브랜치: deploy (스테이징) → production (운영)
 
 ## 진행 중
+- [2026-08-23] **네이버 워크벤치 관계 축 + 판매자 직접취소 deploy(`5f9433c5`, CI 4개 green)** — 취소는 커머스API `claim/cancel/request`(상품주문 1건씩·사유 7코드), WORKER 단일 출구·집 단위·멱등. 가드: 취소한 집은 발주확인·발송처리·주문 만들기 전부 차단, `close_now` 는 집 전체가 ADDON/REPAY 일 때만. 스테이징 실데이터 눈 확인 완료(배지·후보표·발송처리 잠금·취소 모달 집 건수 일치). **잔여: 취소 실호출 1건(사용자 실건 발생 시)·네이버 기능 전체 승격은 별도 작업.**
 - [2026-08-23] **모바일 주문 마법사 제품 카드·주문 구분 운영 반영(PR #135, production `d53dc438`)** — 복제 카드 헤더 `#1 제품 1` 고정 결함을 `renumberProductCards()`(DOM 순서=정본)로 수정 + 카드 삭제 버튼 신설, 3단계에 주문 구분 칩 3종(지방주문=`is_regional`/`construction_type` 컬럼·미선택 400, 라홈시스템·긴급=`structured_data.flags`). 후속(deploy): 지방주문 상차일→`shipping_scheduled_date`, 새 카드 추가 즉시 펼침. 상세: AI_CHANGELOG 2026-08-23
 - [2026-08-23] **운영 승격 PR #133 대기(머지=사용자)** — 체인을 운영 head `notifrole_00` 위로 재직렬화, 운영 재현 upgrade 9리비전 + 스위트 5392 green. **승격은 당일 머지하거나 직전 head 재확인**(#113·#121 무효 전례). 원장 `docs/plans/2026-08-21-production-promotion-ledger.md`
 - [2026-08-21] **NOTIF-ROLE-01 운영 승격 완료(PR #127, production `1d35ed06`)** — 관리자 알림 사건 1건=row 1건(에스컬레이션 N²→N). `notifrole_00` 부모는 브랜치별로 다르다(deploy=`naver_relation_00` / 운영=`assort_00`) — 네이버 체인 운영 미반영. 네이버 `claim_watch` ROLE 전환은 네이버 승격 때. 승격 PR 은 pg-lane·perf-gate 만 돈다(FOMS CI·Harness CI 트리거가 main/deploy 한정)
