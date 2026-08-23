@@ -106,6 +106,27 @@ def household_key(link: ExternalOrderLink) -> tuple[str, str, str]:
     return key
 
 
+def is_place_pending(link: ExternalOrderLink) -> bool:
+    """이 상품주문에 **발주확인이 아직 남았는가** — 화면 재진술과 서버 처리의 공통 술어.
+
+    :func:`confirm_place_order` 가 실제로 보낼 대상(``todo``)을 고르는 조건 그대로다.
+    화면이 이 술어를 안 쓰고 집 전체 수로 재진술하면 "3건 보냅니다"라고 읽히는데 2건만
+    나간다 — 계약 §0-2(모달 재진술 == 서버가 처리할 건수) 위반이다(2026-08-23 CEO 검수).
+
+    판매자센터에서 손으로 확인한 건은 우리 상태 표식(``place_confirmed_at``)이 없고
+    컬럼만 ``OK`` 라, 둘을 함께 본다.
+
+    Args:
+        link: 수집 링크.
+
+    Returns:
+        아직 발주확인이 안 된 건이면 True.
+    """
+    return not (_state(link).get("place_confirmed_at")
+                or (link.place_order_status or "").strip().upper()
+                in CONFIRMED_PLACE_STATUSES)
+
+
 def _links_of_group(session: Session, link_id: int) -> list[ExternalOrderLink]:
     """같은 **집**의 링크 전부(한 집은 통째로 처리한다).
 
@@ -374,10 +395,7 @@ def confirm_place_order(session: Session, client: Any, *, link_id: int,
     # 컬럼(place_order_status)도 함께 본다 — 판매자센터에서 손으로 발주확인한 형제를
     # 다시 보내면 네이버가 그 건을 실패로 돌려주고, 정상인데 빨간 띠가 남는다.
     # (발송처리 쪽 not_confirmed 판정은 이미 둘을 함께 본다.)
-    todo = [row for row in links
-            if not (_state(row).get("place_confirmed_at")
-                    or (row.place_order_status or "").strip().upper()
-                    in CONFIRMED_PLACE_STATUSES)]
+    todo = [row for row in links if is_place_pending(row)]
     # 이미 발주확인이 끝난 건에 낡은 실패 사유가 남아 있으면 지운다. 판매자센터에서 손으로
     # 처리한 집은 우리 재전송이 성공할 일이 없어, 안 지우면 빨간 띠가 영구히 남는다
     # (예전에는 재전송 성공이 지워 주던 자가치유 경로다).

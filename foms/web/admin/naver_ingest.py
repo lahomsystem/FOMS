@@ -24,7 +24,7 @@ from flask import (abort, g, jsonify, redirect, render_template, request, sessio
 from db import get_db
 from foms.services.datetime_kst import format_datetime_kst, now_utc_naive
 from foms.services.integrations.naver_commerce.order_candidates import find_order_candidates
-from foms.services.integrations.naver_commerce.promotion import summarize_snapshot
+from foms.services.integrations.naver_commerce.promotion import is_promotable, summarize_snapshot
 from foms.services.jobs.queue import enqueue_naver_order_sync
 from foms.web.admin.routes import admin_bp
 from foms.web.auth import log_access, login_required, role_required
@@ -608,7 +608,43 @@ def naver_ingest_triage():
     )
 
 
-def _pane_context(db, link: Optional[ExternalOrderLink]) -> dict[str, Any]:
+def _selected_offlist(link: Optional[ExternalOrderLink],
+                      household: Optional[dict[str, Any]],
+                      visible: Optional[list[dict[str, Any]]]) -> bool:
+    """지금 상세에 연 집이 **왼쪽 목록에 없는** 집인가 (리뷰 M-3).
+
+    ``?link_id=`` 는 목록 밖 집도 완전무장 상태로 연다 — 이력 탭의 `처리 탭에서 열기`가
+    실제로 그 경로다(막으면 안 된다: 이력에서 찾은 집을 처리하러 가는 유일한 길이다).
+    다만 화면이 그 사실을 말하지 않으면, 왼쪽에 없는 집에 불가역 버튼 4종이 열려 있는
+    상태가 된다 — 사람은 "방금 누른 그 집" 을 목록에서 찾다가 다른 집을 누른다.
+
+    판정은 **실제 목록 멤버십**으로 한다. 모집단 술어를 여기서 다시 구현하면
+    (:func:`_work_groups` 의 원천 1·2 조건) 판정이 두 벌이 되어 조용히 갈린다 —
+    v3 리뷰 H1 이 정확히 그 갈라짐에서 나왔다.
+
+    Args:
+        link: 상세에 띄운 링크(없으면 판정 불가 → False).
+        household: 그 링크가 속한 집(:func:`_group_of_link` 결과).
+        visible: 지금 화면에 그린 집 목록. ``None`` 이면 목록을 모르는 호출(pane
+            프래그먼트)이라 판정하지 않는다 — 그 경로는 목록의 행을 눌러야 도달하므로
+            **정의상 목록 안**이다.
+
+    Returns:
+        목록 밖 집이면 True.
+    """
+    if link is None or visible is None or household is None:
+        return False
+    # **집 단위**로 본다. 링크 id 로 비교하면 큐 모집단(COLLECTED|LINKED +
+    # reviewed_at NULL)에 없는 형제(예: 매핑 실패로 PENDING_REVIEW 인 옵션 건)를 열었을 때
+    # 그 집이 왼쪽에 멀쩡히 그려져 있는데도 "목록에 없는 집"이라고 말한다 — 왼쪽 행은
+    # 심지어 aria-current 로 하이라이트까지 된다(2026-08-23 CEO 검수 높음-2).
+    # 그러면 경고를 아무도 안 믿게 되고, 진짜 목록 밖 집에서 같은 문구가 흘러간다.
+    house = set(household.get("link_ids") or [])
+    return not any(house & set(group["link_ids"]) for group in visible)
+
+
+def _pane_context(db, link: Optional[ExternalOrderLink],
+                  *, visible: Optional[list[dict[str, Any]]] = None) -> dict[str, Any]:
     """상세 pane 컨텍스트 — 전체 렌더와 프래그먼트 응답이 **이 함수 하나**를 쓴다.
 
     계산 경로가 두 벌이 되면 모집단이 갈라진다. pane 의 집은 큐가 아니라
@@ -620,10 +656,12 @@ def _pane_context(db, link: Optional[ExternalOrderLink]) -> dict[str, Any]:
     Args:
         db: 요청 스코프 DB 세션.
         link: pane 에 띄울 링크(None 이면 빈 pane).
+        visible: 지금 화면에 그린 집 목록(전체 렌더만 넘긴다). 목록 밖 집을 열었을 때
+            pane 이 그 사실을 말하게 하는 데만 쓴다(:func:`_selected_offlist`).
 
     Returns:
         ``selected``·``selected_group``·``selected_household_claimed``·``member_rows``·
-        ``cancel_reasons``·``sales_users``.
+        ``cancel_reasons``·``selected_offlist``.
     """
     from foms.services.integrations.naver_commerce.fulfillment import CANCEL_REASONS
 
@@ -637,6 +675,8 @@ def _pane_context(db, link: Optional[ExternalOrderLink]) -> dict[str, Any]:
         "member_rows": _member_rows(db, household),
         # 취소 사유는 네이버 코드가 SSOT 다 — 화면이 따로 목록을 들면 둘이 갈린다.
         "cancel_reasons": CANCEL_REASONS,
+        # 목록 밖 집을 열었는지(리뷰 M-3). 버튼을 막지 않는다 — 사실만 말한다.
+        "selected_offlist": _selected_offlist(link, household, visible),
         # sales_users 는 워크벤치 두 템플릿 어디서도 안 쓴다 — 넣어 두면
         # pane 조각 요청마다 User 전 행 조회가 1회씩 헛돈다(리뷰 M-5).
         # 게이트 OFF 경로(naver_triage.html)는 자기 자리에서 따로 부른다.
@@ -700,7 +740,7 @@ def _render_workbench(db) -> str:
         ingest_status=ingest_status,
         # 실패는 어느 탭에 있든 보여야 한다 — 탭을 옮겼다고 사고가 사라지지 않는다.
         failures=_failure_rows(db),
-        **_pane_context(db, _selected_link(db, visible)),
+        **_pane_context(db, _selected_link(db, visible), visible=visible),
     )
 
 
@@ -1200,9 +1240,12 @@ def _claim_blocked_group_keys(db, links: list[ExternalOrderLink]) -> set:
         links: 기준이 되는 링크 목록.
 
     Returns:
-        :func:`mapping.group_key` 3-튜플의 집합.
+        :func:`fulfillment.household_key` 3-튜플의 집합 — `group["key"]` 와 같은 어휘다.
     """
-    from foms.services.integrations.naver_commerce.mapping import group_key
+    # 반환 키는 `group["key"]` 와 **같은 어휘**여야 한다. 큐가 household_key 로 옮겨간 뒤
+    # 여기만 mapping.group_key 로 남으면, 원본이 통째로 빈 집에서 ("","","") 와
+    # ("__ungrouped__", id, "") 로 갈려 이 경로의 잠금이 조용히 안 걸린다(CEO 검수 하).
+    from foms.services.integrations.naver_commerce.fulfillment import household_key
 
     order_nos = {(row.external_order_no or "").strip() for row in links}
     order_nos.discard("")
@@ -1222,10 +1265,8 @@ def _claim_blocked_group_keys(db, links: list[ExternalOrderLink]) -> set:
     for row in siblings:
         if not summarize_snapshot(row.raw_snapshot)["claim_blocking"]:
             continue
-        try:
-            blocked.add(group_key(row.raw_snapshot or {}))
-        except (ValueError, TypeError, AttributeError, KeyError) as exc:
-            logger.warning("[NAVER] 클레임 집 키 계산 실패(link %s): %s", row.id, exc)
+        # household_key 는 실패·빈 키 폴백을 자기가 들고 있다(예외를 던지지 않는다).
+        blocked.add(household_key(row))
     return blocked
 
 
@@ -1313,6 +1354,24 @@ def _member_rows(db, selected_group: Optional[dict]) -> list[dict[str, Any]]:
     return rows
 
 
+def _dispatched_count(links: list[ExternalOrderLink]) -> int:
+    """이 링크들 중 **이미 발송처리가 나간** 상품주문 수.
+
+    발송 표식은 링크(상품주문)마다 찍힌다 —
+    :func:`fulfillment.dispatch_order` 가 건별로 성공/실패하기 때문에 한 집이
+    "3건 중 2건만 나간" 상태로 남을 수 있다. 화면이 이 사실을 집 단위로 세지 않으면
+    어느 형제로 상세를 열었느냐에 따라 취소 버튼이 있기도 없기도 한다(리뷰 M-4).
+
+    Args:
+        links: 한 집의 링크 목록.
+
+    Returns:
+        ``dispatched_at`` 표식이 있는 링크 수.
+    """
+    return sum(1 for row in links
+               if ((row.triage_state or {}).get("fulfillment") or {}).get("dispatched_at"))
+
+
 def _group_queue(links: list[ExternalOrderLink], orders: dict,
                  *, truncated: bool, limit: Optional[int] = None) -> list[dict[str, Any]]:
     """확인 대기 링크를 **한 집 = 한 줄**로 묶는다 (T14-C).
@@ -1335,17 +1394,19 @@ def _group_queue(links: list[ExternalOrderLink], orders: dict,
     Returns:
         묶음 목록(최신 수집순). 각 항목은 대표 정보 + 구성 링크 목록.
     """
-    from foms.services.integrations.naver_commerce.mapping import group_key
+    # 집 키는 워커와 **같은 함수**로 만든다. 예전에는 여기서 group_key 를 직접 부르고
+    # 실패 폴백을 따로 적어 뒀는데, `household_key` 에만 있던 두 번째 폴백(키가 통째로
+    # 비면 링크 단독으로 센다)이 화면에는 없었다 — 서로 다른 빈 원본이 화면에서만 한 집으로
+    # 붙어 보이고 워커는 따로 처리하는 갈라짐이었다(리뷰 L-1). 폴백을 한 벌만 둔다.
+    from foms.services.integrations.naver_commerce.fulfillment import (
+        household_key,
+        is_place_pending,
+    )
 
     groups: dict[tuple, list[ExternalOrderLink]] = {}
     order_of_key: list[tuple] = []
     for link in links:
-        try:
-            key = group_key(link.raw_snapshot or {})
-        except (ValueError, TypeError, AttributeError, KeyError) as exc:
-            # 원본이 깨진 건은 묶지 않고 홀로 남긴다(큐에서 사라지면 사람이 못 본다).
-            logger.warning("[NAVER] 큐 묶음 키 계산 실패(link %s): %s", link.id, exc)
-            key = ("__ungrouped__", str(link.id), "")
+        key = household_key(link)
         if key not in groups:
             groups[key] = []
             order_of_key.append(key)
@@ -1367,12 +1428,16 @@ def _group_queue(links: list[ExternalOrderLink], orders: dict,
         # 아래 표식(클레임·발주)들이 같은 결과를 나눠 쓴다.
         ordered_summaries = [summarize_snapshot(row.raw_snapshot) for row in [lead, *rest]]
         member_summaries = ordered_summaries
+        dispatched_n = _dispatched_count(members)
         queue.append({
             "id": lead.id,
             # 묶음키 그대로 — 호출자가 이 집에 다른 판정(형제까지 본 클레임 등)을 붙일 때 쓴다.
             "key": key,
             "external_id": lead.external_id,
-            "created_at": format_datetime_kst(lead.created_at),
+            # 목록은 접수순 정렬이라 **날짜·시각**은 필요하지만 초와 연도는 아무 결정도
+            # 바꾸지 않는다. 이름 줄 오른쪽에 붙는 값이라 19자를 그대로 쓰면 긴 고객명이
+            # 잘린다(2026-08-23 CEO 검수). 상세·이력 표의 시각 표기는 그대로 둔다.
+            "created_at": format_datetime_kst(lead.created_at, "%m-%d %H:%M"),
             "customer_name": (getattr(order, "customer_name", None)
                               or lead_summary["customer_name"]),
             "product": lead_summary["product"],
@@ -1399,6 +1464,31 @@ def _group_queue(links: list[ExternalOrderLink], orders: dict,
             # 우리가 취소한 집은 더 손대지 않는다 — 버튼·모달·발주확인 전 탭에서 함께 뺀다.
             "canceled": any(((row.triage_state or {}).get("fulfillment") or {}).get("canceled_at")
                             for row in members),
+            # 발송처리는 **상품주문(링크)마다** 찍힌다 — 워커가 건별로 성공/실패해서 한 집이
+            # 부분 발송으로 남을 수 있다. pane 이 링크 1건의 표식만 보면 어느 형제로 열었느냐에
+            # 따라 취소 버튼이 있기도 없기도 한다(리뷰 M-4). 판정을 집 단위로 한 번만 한다.
+            #  · dispatched      = 집 전체가 나갔다(워커 dispatch_order 가 전부 skip 하는 상태)
+            #  · dispatched_any  = 하나라도 나갔다(취소는 이 순간부터 반품 흐름 — 서버가 거절한다)
+            "dispatched_count": dispatched_n,
+            "dispatched": dispatched_n == len(members) and bool(members),
+            "dispatched_any": dispatched_n > 0,
+            # 주문 만들기가 **실제로 옮길** 형제 수. 집 전체 수(count)로 재진술하면 이미
+            # 주문이 붙은 형제까지 세어 "3건을 주문 1건으로" 라고 읽히는데 서버는 2건만
+            # 옮긴다(리뷰 M-2). 술어는 promotion 모듈 한 벌을 그대로 쓴다.
+            "promotable_count": sum(1 for row in members if is_promotable(row)),
+            # 발주확인이 **실제로 나갈** 건수. 서버 confirm_place_order 는 이미 확인된
+            # 형제를 빼고 보낸다 — 집 전체 수로 재진술하면 과대 진술이 된다(계약 §0-2).
+            "place_pending_count": sum(1 for row in members if is_place_pending(row)),
+            # 주문 만들기 POST 가 나갈 링크. 대표(최고금액)가 **이미 주문을 가진** 집에서
+            # 대표 id 로 보내면 promote_link_to_order 가 그 주문을 멱등 반환만 하고
+            # 형제는 하나도 안 옮긴다 — 화면은 "N건을 옮깁니다" 라고 말한 뒤 0건이 움직인다
+            # (2026-08-23 CEO 검수 상). 승격 대상 중 최고금액 건을 기준으로 보낸다.
+            "promotable_lead_id": next(
+                (row.id for row, _ in sorted(
+                    ((row, summary) for row, summary in zip([lead, *rest], ordered_summaries)
+                     if is_promotable(row)),
+                    key=lambda pair: (pair[1]["amount"] or 0, -pair[0].id), reverse=True)),
+                None),
             "shipping_due": next((s["shipping_due"] for s in member_summaries if s["shipping_due"]), ""),
             # CS 가 다음에 할 일을 목록에서 바로 알아보게 한다.
             "next_step": ("주문 만들기" if not lead.order_id

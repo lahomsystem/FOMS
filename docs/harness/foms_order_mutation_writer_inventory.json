@@ -103,13 +103,13 @@
     },
     {
       "path": "foms/services/integrations/naver_commerce/promotion.py",
-      "lineno": 210,
+      "lineno": 233,
       "kind": "flag_modified_structured_data",
       "owner": "UNASSIGNED"
     },
     {
       "path": "foms/services/integrations/naver_commerce/promotion.py",
-      "lineno": 248,
+      "lineno": 271,
       "kind": "flag_modified_structured_data",
       "owner": "UNASSIGNED"
     },
@@ -475,14 +475,14 @@
     },
     {
       "path": "foms/services/integrations/naver_commerce/promotion.py",
-      "lineno": 210,
+      "lineno": 233,
       "kind": "flag_modified_structured_data",
       "classification": "EXTERNAL",
       "owner": "UNASSIGNED"
     },
     {
       "path": "foms/services/integrations/naver_commerce/promotion.py",
-      "lineno": 248,
+      "lineno": 271,
       "kind": "flag_modified_structured_data",
       "classification": "EXTERNAL",
       "owner": "UNASSIGNED"

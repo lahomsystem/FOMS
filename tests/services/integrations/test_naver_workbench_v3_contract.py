@@ -29,6 +29,7 @@ from foms.services.datetime_kst import now_utc_naive
 from foms.services.integrations.naver_commerce.constants import CHANNEL
 from foms.services.integrations.naver_commerce.mapping import group_key_text
 from models import ExternalOrderLink, Order, User
+from tests.services.integrations._markup import has_attribute, is_disabled, open_tag
 
 TRIAGE_PATH = "/admin/naver-ingest/triage"
 PANE_PATH = "/admin/naver-ingest/triage/pane"
@@ -411,13 +412,13 @@ def test_locked_household_closes_every_irreversible_action(client, workbench_on,
     for pane in (_pane(full), fragment):
         for action in _LOCKED_ACTIONS:
             assert f'id="{action}"' in pane, action
-            head = pane.split(f'id="{action}"')[1].split(">")[0]
-            assert "disabled" in head, f"{action}: {head}"
-            assert "title=" in head, f"{action} 에 잠긴 이유가 없다: {head}"
+            head = open_tag(pane, action)
+            assert is_disabled(pane, action), f"{action}: {head}"
+            assert has_attribute(pane, action, "title"), f"{action} 에 잠긴 이유가 없다: {head}"
         for modal in _LOCKED_MODALS:
             assert f'id="{modal}"' not in pane, f"{modal} 이 열려 있다"
-        done = pane.split('id="wb-review-done"')[1].split(">")[0]
-        assert "disabled" not in done, done
+        done = open_tag(pane, "wb-review-done")
+        assert not is_disabled(pane, "wb-review-done"), done
         assert "발주확인·발송처리·주문 만들기가 모두 닫혀 있습니다" in pane
 
 

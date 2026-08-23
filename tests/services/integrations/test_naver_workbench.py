@@ -16,6 +16,7 @@ from db import db_session
 from foms.services.integrations.naver_commerce.constants import CHANNEL
 from foms.services.integrations.naver_commerce.mapping import group_key_text
 from models import ExternalOrderLink, User
+from tests.services.integrations._markup import is_disabled, open_tag
 
 TRIAGE_PATH = "/admin/naver-ingest/triage"
 
@@ -85,10 +86,18 @@ def _collected(*, order_no: str, product: str, amount: int, option: str = "",
 # --------------------------------------------------------------------------- #
 
 def _row_of(body: str, needle: str) -> str:
-    """목록에서 그 글자가 든 집 한 줄(``<a class="wb-row" …</a>``)을 통째로 잘라 준다."""
-    head = body.split(needle)[0].rsplit('<a class="wb-row', 1)[1]
-    tail = body.split(needle)[1].split("</a>")[0]
-    return '<a class="wb-row' + head + needle + tail
+    """목록에서 그 글자가 든 집 한 줄(``<a class="wb-row" …</a>``)을 통째로 잘라 준다.
+
+    **글자의 첫 등장 위치로 자르지 않는다.** 같은 글자가 한 줄 안에서 두 번 나오면
+    (예: 제품명이 ``title`` 속성과 본문에 함께 들어간다) 첫 등장 기준으로 자른 꼬리가
+    두 번째 등장 직전에서 끊겨, 뒤쪽 배지·라벨이 통째로 사라진 조각을 단언하게 된다.
+    줄을 먼저 나누고 그 안에 글자가 있는지 보는 순서라야 마크업 순서에 안 묶인다.
+    """
+    for chunk in body.split('<a class="wb-row')[1:]:
+        row = '<a class="wb-row' + chunk.split("</a>")[0]
+        if needle in row:
+            return row
+    raise AssertionError(f"목록에 '{needle}' 이(가) 든 줄이 없다")
 
 
 def _hist_row(body: str, needle: str) -> str:
@@ -549,11 +558,11 @@ def test_claim_detail_locks_the_four_actions_but_allows_done(client, workbench_o
     body = client.get(f"{TRIAGE_PATH}?tab=work&f=claim&link_id={link.id}").get_data(as_text=True)
 
     assert 'id="wb-create"' in body
-    assert "disabled" in body.split('id="wb-create"')[1].split(">")[0]
+    assert is_disabled(body, "wb-create"), open_tag(body, "wb-create")
     assert 'id="wb-confirm"' in body
-    assert "disabled" in body.split('id="wb-confirm"')[1].split(">")[0]
-    done = body.split('id="wb-review-done"')[1].split(">")[0]
-    assert "disabled" not in done, done
+    assert is_disabled(body, "wb-confirm"), open_tag(body, "wb-confirm")
+    done = open_tag(body, "wb-review-done")
+    assert not is_disabled(body, "wb-review-done"), done
 
 
 def test_claim_detail_shows_why_it_is_locked(client, workbench_on):
@@ -570,7 +579,7 @@ def test_claim_detail_shows_why_it_is_locked(client, workbench_on):
     # ② 무엇이 닫혔는지 한 줄로(계약 §3.3 목업 문장).
     assert "발주확인·발송처리·주문 만들기가 모두 닫혀 있습니다" in pane, pane[:800]
     # ③ 잠긴 버튼마다 이유가 붙는다 — title 이 없으면 사람은 계속 누른다.
-    assert "판매자센터를 따릅니다" in pane.split('id="wb-create"')[1].split(">")[0]
+    assert "판매자센터를 따릅니다" in open_tag(pane, "wb-create")
 
 
 def test_marking_a_claimed_household_done_removes_it_from_the_tab(client, workbench_on):
@@ -981,9 +990,9 @@ def test_dispatch_button_opens_for_a_confirmed_household(client, workbench_on):
     link = _collected(order_no="N-DSP-OK", product="붙박이장", amount=100000, place_status="OK")
 
     body = client.get(f"{TRIAGE_PATH}?link_id={link.id}").get_data(as_text=True)
-    head = body.split('id="wb-dispatch"')[1].split(">")[0]
+    head = open_tag(body, "wb-dispatch")
 
-    assert "disabled" not in head, head
+    assert not is_disabled(body, "wb-dispatch"), head
     assert 'id="wb-modal-dispatch"' in body, "불가역 호출은 확인 모달을 거친다"
 
 
@@ -1007,9 +1016,9 @@ def test_dispatch_button_is_locked_before_place_confirm(client, workbench_on):
     link = _collected(order_no="N-DSP-WAIT", product="붙박이장", amount=100000, place_status="")
 
     body = client.get(f"{TRIAGE_PATH}?link_id={link.id}").get_data(as_text=True)
-    head = body.split('id="wb-dispatch"')[1].split(">")[0]
+    head = open_tag(body, "wb-dispatch")
 
-    assert "disabled" in head, head
+    assert is_disabled(body, "wb-dispatch"), head
     assert "발주확인" in head, "잠긴 이유를 버튼에 달아 둔다"
 
 
@@ -1038,8 +1047,8 @@ def test_dispatch_is_locked_for_claimed_household(client, workbench_on):
 
     body = client.get(f"{TRIAGE_PATH}?tab=work&f=claim&link_id={link.id}").get_data(as_text=True)
 
-    head = body.split('id="wb-dispatch"')[1].split(">")[0]
-    assert "disabled" in head, head
+    head = open_tag(body, "wb-dispatch")
+    assert is_disabled(body, "wb-dispatch"), head
     assert 'id="wb-modal-dispatch"' not in body, "잠긴 집에 발송처리 모달이 열려 있다"
     assert 'id="wb-dispatch-confirm"' not in body
 
@@ -1279,8 +1288,8 @@ def test_dispatch_is_locked_when_a_sibling_is_claimed(client, workbench_on):
 
     body = client.get(f"{TRIAGE_PATH}?link_id={clean.id}").get_data(as_text=True)
 
-    head = body.split('id="wb-dispatch"')[1].split(">")[0]
-    assert "disabled" in head, "취소가 걸린 집에 발송처리 버튼이 열렸다"
+    head = open_tag(body, "wb-dispatch")
+    assert is_disabled(body, "wb-dispatch"), "취소가 걸린 집에 발송처리 버튼이 열렸다"
     assert 'id="wb-modal-dispatch"' not in body
     assert 'id="wb-dispatch-confirm"' not in body
 
@@ -1346,8 +1355,8 @@ def test_dispatch_is_locked_when_the_claimed_sibling_left_the_queue(client, work
 
     body = client.get(f"{TRIAGE_PATH}?link_id={clean.id}").get_data(as_text=True)
 
-    head = body.split('id="wb-dispatch"')[1].split(">")[0]
-    assert "disabled" in head, "큐 밖 형제의 취소를 못 봤다"
+    head = open_tag(body, "wb-dispatch")
+    assert is_disabled(body, "wb-dispatch"), "큐 밖 형제의 취소를 못 봤다"
     assert 'id="wb-modal-dispatch"' not in body
     assert 'id="wb-dispatch-confirm"' not in body
 

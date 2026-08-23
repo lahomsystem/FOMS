@@ -156,9 +156,16 @@
 .naver-workbench #wb-bulk .btn { white-space: nowrap; font-size: 12px; }
 
 /* ── 본문 2단 (결정 8): 원본을 읽으며 규격을 채우는 일이라 대조가 상시 필요하다 ── */
+/* 좌측 상한을 px 로 못박으면(구 400px) 넓은 화면에서 남는 폭을 전부 오른쪽이 먹는다 —
+   목록은 제품명이 잘리고 배지가 줄바꿈돼 행 높이가 들쭉날쭉한데, 상세는 금액 열이
+   화면 끝까지 밀려 헐거워졌다(2026-08-23 사용자 지적, 스테이징 1440 실화면).
+   상한을 비율로 바꿔 폭이 커질수록 목록도 같이 넓어지게 한다. 하한 360px 는
+   992px 브레이크포인트 직전(비율값이 하한 아래로 떨어지는 구간)에서 목록이
+   더 좁아지지 않게 잡아 준다. 오른쪽은 minmax(0, …) — 안 그러면 옵션 원문 같은
+   긴 내용이 1fr 의 자동 최소폭을 밀어 격자 전체가 넘친다. */
 .wb-split {
     display: grid;
-    grid-template-columns: minmax(320px, 400px) 1fr;
+    grid-template-columns: minmax(360px, 36%) minmax(0, 1fr);
     gap: 12px;
     align-items: start;
 }
@@ -263,17 +270,34 @@ input.wb-pick,
 
 input.wb-pick:disabled,
 #wb-pick-all:disabled { cursor: not-allowed; opacity: .45; }
-.wb-row__name { font-weight: 700; font-size: 13.5px; }
+/* 이름이 길면 날짜를 칸 밖으로 밀어낸다 — 밀리는 쪽은 이름이어야 한다. */
+.wb-row__name {
+    font-weight: 700;
+    font-size: 13.5px;
+    min-width: 0;
+    overflow: hidden;
+    white-space: nowrap;
+    text-overflow: ellipsis;
+}
 .wb-row__line2 {
     color: var(--wb-muted);
+    /* 없으면 Bootstrap 본문 16px 을 상속해 **행에서 가장 큰 글자**가 된다 —
+       고객명(13.5px)보다 제품명이 커서 위계가 뒤집히고, 같은 칸에 들어가는 글자 수가
+       3분의 1쯤 줄어 "제품명이 중간에서 끊긴다"의 절반이 여기서 나왔다(CEO 검수 중). */
+    font-size: 12px;
     margin-top: 2px;
     white-space: nowrap;
     overflow: hidden;
     text-overflow: ellipsis;
 }
 
-.wb-row__line3 { display: flex; align-items: center; gap: 5px; margin-top: 5px; flex-wrap: wrap; }
-.wb-row__when { margin-left: auto; color: #9aa3af; font-size: 11.5px; font-variant-numeric: tabular-nums; }
+/* row-gap 을 따로 준다 — 배지가 두 줄로 접히는 행만 갑자기 붙어 보이면
+   같은 목록에서 행마다 다른 리듬이 된다. */
+.wb-row__line3 { display: flex; align-items: center; gap: 5px 5px; margin-top: 5px; flex-wrap: wrap; }
+/* 접수시각은 배지 줄이 아니라 **이름 줄 오른쪽**에 산다. 배지 줄에 두면 날짜가
+   폭을 먹어 배지 한 개가 아래로 밀리고, 그 행만 한 줄 더 높아진다(사용자 지적).
+   이름 줄은 오른쪽이 통째로 비어 있어 날짜가 들어갈 자리가 이미 있다. */
+.wb-row__when { margin-left: auto; flex: none; color: #9aa3af; font-size: 11.5px; font-variant-numeric: tabular-nums; }
 
 /* "지금 손대도 되는가" 글자 라벨 — 배지가 아니라 문장 톤이라
    '상태'가 아니라 '지금 뭘 할 수 있나'로 읽힌다. */
@@ -290,6 +314,13 @@ input.wb-pick:disabled,
 .wb-cmp-title { font-weight: 700; margin: 16px 0 6px; }
 .wb-cmp-title__sub { font-weight: 500; color: var(--wb-muted); font-size: 11.5px; }
 .wb-cmp { width: 100%; border-collapse: collapse; font-size: 13px; }
+/* 표는 칸 폭을 다 쓰지 않는다 — 넓은 화면에서 100% 로 늘리면 제품명과 금액이
+   화면 양 끝으로 갈라져 한 행을 읽는 데 눈이 좌우로 크게 움직인다(사용자 지적:
+   "금액 열이 화면 끝까지 밀려 표가 헐겁다").
+   **상한은 상세 pane 안에서만.** 이력 탭 표(`.wb-cmp.wb-hist`)는 7열짜리 전체 폭 표라
+   같이 조이면 수집시각·상태 칸이 접힌다 — M-3 이 "이력에서 찾아 처리하러 가는 길"이라고
+   지킨 바로 그 표다(2026-08-23 CEO 검수 상). */
+#wb-pane .wb-cmp { max-width: 860px; }
 .wb-cmp th,
 .wb-cmp td { padding: 7px 8px; border-bottom: 1px solid var(--wb-line-soft); vertical-align: top; }
 .wb-cmp thead th { font-size: 11.5px; color: var(--wb-muted); text-align: left; background: var(--wb-surface-soft); }

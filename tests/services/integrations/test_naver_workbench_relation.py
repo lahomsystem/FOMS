@@ -16,6 +16,7 @@ from db import db_session
 from foms.services.integrations.naver_commerce.constants import CHANNEL
 from foms.services.integrations.naver_commerce.mapping import group_key_text
 from models import ExternalOrderLink, Order, User
+from tests.services.integrations._markup import is_disabled, open_tag
 
 TRIAGE_PATH = "/admin/naver-ingest/triage"
 
@@ -199,7 +200,7 @@ def test_addon_can_close_before_place_confirmation(client, workbench_on):
     body = _body(client, tab="work", link_id=link.id)
 
     assert "지금 닫기" in body
-    assert 'id="wb-dispatch" disabled' not in body
+    assert not is_disabled(body, "wb-dispatch"), open_tag(body, "wb-dispatch")
 
 
 def test_new_household_stays_locked_before_place_confirmation(client, workbench_on):
@@ -209,7 +210,7 @@ def test_new_household_stays_locked_before_place_confirmation(client, workbench_
 
     body = _body(client, tab="work", link_id=link.id)
 
-    assert 'id="wb-dispatch" disabled' in body
+    assert is_disabled(body, "wb-dispatch"), open_tag(body, "wb-dispatch")
     assert "지금 닫기" not in body
 
 
@@ -346,8 +347,8 @@ def test_cancelled_household_cannot_be_dispatched(client, workbench_on):
 
     body = _body(client, tab="work", link_id=link.id)
 
-    head = body.split('id="wb-dispatch"')[1].split(">")[0]
-    assert "disabled" in head, head
+    head = open_tag(body, "wb-dispatch")
+    assert is_disabled(body, "wb-dispatch"), head
     assert "취소한 집입니다" in head, "왜 잠겼는지 버튼이 말해야 한다"
     assert 'id="wb-modal-dispatch"' not in body
     assert 'id="wb-dispatch-confirm"' not in body
@@ -392,7 +393,7 @@ def test_a_mixed_relation_household_is_not_offered_close_now(client, workbench_o
     body = _body(client, tab="work", link_id=lead.id)
 
     assert "지금 닫기" not in body
-    assert 'id="wb-dispatch" disabled' in body
+    assert is_disabled(body, "wb-dispatch"), open_tag(body, "wb-dispatch")
 
 
 def test_cancel_refusal_is_not_hidden_by_another_failure(client, workbench_on):

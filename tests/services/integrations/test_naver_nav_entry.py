@@ -16,6 +16,8 @@
 
 from __future__ import annotations
 
+import re
+
 import pytest
 from werkzeug.security import generate_password_hash
 
@@ -59,6 +61,36 @@ def _login(client, *, username: str, role: str) -> User:
     return user
 
 
+# --------------------------------------------------------------------------- #
+# 메뉴 이름 뽑기
+#
+# "그 이름이 문서 어디에도 없다"(``"네이버 주문" not in html``)는 단언은 화면이 자랄수록
+# 거짓 red 를 만든다 — 고객명·메모·제품명에 그 글자가 한 번 들어오면 메뉴는 멀쩡한데
+# 깨진다. 여기서 지켜야 할 뜻은 "그 이름의 **메뉴 항목이 없다**"이므로, 검사 자리를
+# 메뉴 라벨로 좁힌다.
+# --------------------------------------------------------------------------- #
+
+_MENU_LINK_RE = re.compile(
+    r'<a[^>]*class="[^"]*(?:nav-link|dropdown-item)[^"]*"[^>]*>(.*?)</a>', re.S)
+
+
+def _menu_labels(html: str) -> list[str]:
+    """공용 셸 메뉴에서 **사람이 읽는 이름**들만 — 주 메뉴 탭 + 계정 드롭다운 항목.
+
+    두 번 좁힌다: ① 셸의 헤더(계정 드롭다운이 사는 곳)와 주 메뉴 ``<nav>`` 만 자르고
+    ② 그 안에서 링크 라벨(아이콘·뱃지 태그를 걷어낸 글자)만 뽑는다. 본문·목록은
+    아예 보지 않으므로, 주문 자료에 같은 글자가 들어와도 이름 계약은 흔들리지 않는다.
+
+    라벨이 하나도 안 잡히면 "없으니 통과"로 조용히 green 이 되므로, 쓰는 쪽에서
+    있어야 할 이름('네이버 수집')을 함께 단언해 그 사고를 막는다.
+    """
+    assert "</header>" in html and 'aria-label="메인 메뉴"' in html, "공용 셸 메뉴가 없다"
+    header = html.split("</header>", 1)[0].rsplit("<header", 1)[1]
+    nav = html.split('aria-label="메인 메뉴"', 1)[1].split("</nav>", 1)[0]
+    return [" ".join(re.sub(r"<[^>]+>", " ", label).split())
+            for label in _MENU_LINK_RE.findall(header + nav)]
+
+
 def _link(external_id: str, *, reviewed: bool = False, status: str = "LINKED",
           group_key: str | None = None) -> ExternalOrderLink:
     from foms.services.datetime_kst import now_utc_naive
@@ -88,9 +120,12 @@ def test_nav_has_exactly_one_naver_entry_named_collect(client):
     assert f'href="{INGEST_PATH}"' not in html, (
         "옛 수집 운영 화면 진입구는 nav 에서 뺐다(게이트 ON 이면 트리아지로 리다이렉트라 제자리 뛰기)"
     )
-    assert "네이버 수집" in html
-    assert "네이버 주문" not in html, "옛 탭 이름이 남아 있다"
-    assert "수집 확인</span>" not in html, "옛 드롭다운 이름이 남아 있다"
+    # 이름은 **메뉴 라벨 자리**에서만 본다 — 문서 전체를 훑으면 고객명·메모에 같은
+    # 글자가 들어오는 순간 메뉴가 멀쩡한데도 red 가 된다.
+    labels = _menu_labels(html)
+    assert any("네이버 수집" in label for label in labels), labels
+    assert not any("네이버 주문" in label for label in labels), f"옛 탭 이름이 남아 있다: {labels}"
+    assert not any("수집 확인" in label for label in labels), f"옛 드롭다운 이름이 남아 있다: {labels}"
 
 
 def test_gate_off_admin_still_reaches_the_old_ingest_screen(client):

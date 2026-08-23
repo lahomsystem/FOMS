@@ -31,9 +31,24 @@
 {# 결정 D1: 추가결제·재결제는 물건이 따로 나가지 않는다 — 발주확인 전에도 바로 닫는다.
    집 전체가 ADDON/REPAY 일 때만(서버 dispatch_order 의 all 규칙과 같다). #}
 {% set close_now = grp.close_now if grp else (relation in ('ADDON', 'REPAY')) %}
-{% set dispatched = selected.fulfillment.dispatched_at %}
+{# 발송 판정도 **집 단위**다. 발송 표식은 상품주문(링크)마다 찍히고 워커가 건별로
+   성공/실패해서 한 집이 "3건 중 2건만 나간" 상태로 남을 수 있다. 링크 1건의 표식만
+   보면 어느 형제로 상세를 열었느냐에 따라 취소 버튼이 있기도 없기도 했다(리뷰 M-4).
+    · dispatched      = 집 전체가 나갔다 → 발송처리는 더 할 일이 없다
+    · dispatched_any  = 하나라도 나갔다 → 취소는 이 순간부터 반품 흐름(서버가 거절한다) #}
+{% set dispatched = grp.dispatched if grp else selected.fulfillment.dispatched_at %}
+{% set dispatched_any = grp.dispatched_any if grp else selected.fulfillment.dispatched_at %}
+{% set dispatched_count = grp.dispatched_count if grp else (1 if selected.fulfillment.dispatched_at else 0) %}
 {% set claim_label = (grp.claim_label if grp else '') or selected.claim.label or '' %}
 {% set member_count = grp.count if grp else 1 %}
+{# 주문 만들기가 실제로 옮길 형제 수(리뷰 M-2). 집이 없으면(큐 밖 단건) 링크 자신이
+   주문 미생성일 때만 1건이다. #}
+{% set promotable_count = grp.promotable_count if grp else (0 if selected.order_id else 1) %}
+{# 발주확인이 실제로 나갈 건수(fulfillment.is_place_pending 술어). #}
+{% set place_pending_count = grp.place_pending_count if grp else (0 if selected.place.confirmed else 1) %}
+{# 주문 만들기 POST 가 나갈 링크 — 대표가 이미 주문을 가진 집에서 대표 id 로 보내면
+   서버가 멱등 반환만 하고 0건이 옮겨진다(CEO 검수 상). #}
+{% set create_target_id = (grp.promotable_lead_id if grp else None) or selected.link_id %}
 {% set target_id = grp.id if grp else selected.link_id %}
 {% set group_link_ids = (grp.link_ids if grp else [selected.link_id]) %}
 {# 잠긴 버튼에 이유가 없으면 사람은 계속 누른다. title 을 한 곳에서 만든다. #}
@@ -41,10 +56,15 @@
                   if household_claimed
                   else ('취소한 집입니다 — 주문 만들기·발주확인·발송처리가 모두 닫혀 있습니다'
                         if household_canceled else '') %}
-{% set can_create = not selected.order_id and not locked %}
+{# 옮길 형제가 하나도 없으면 버튼을 열지 않는다 — 열어 두면 모달이 "상품주문 0건을
+   주문 1건으로 만듭니다" 라고 말하고, 눌러도 아무 일도 안 난다(CEO 검수 상). #}
+{% set can_create = not selected.order_id and not locked and promotable_count > 0 %}
 {% set can_confirm = place_pending and not locked %}
 {% set can_dispatch = not locked and not dispatched and (not place_pending or close_now) %}
-{% set can_cancel = not locked and not dispatched %}
+{# 취소는 **하나라도** 나갔으면 닫는다 — 서버 `cancel_order` 가 형제 중 발송된 건이
+   있으면 집 전체를 거절한다(반품 흐름). 링크 기준으로 두면 안 나간 형제로 열었을 때
+   버튼이 열려 있다가 서버에서 실패한다. #}
+{% set can_cancel = not locked and not dispatched_any %}
 
 <section class="card shadow-sm wb-detail">
     <div class="card-header py-2 wb-detail__head">
@@ -69,17 +89,33 @@
             {% endif %}
         </div>
 
+        {# 목록 밖 집(리뷰 M-3) — 이력 탭의 `처리 탭에서 열기`·북마크·필터가 바뀐 주소로
+           들어오면 왼쪽에 없는 집이 여기 완전무장 상태로 열린다. 그 경로는 막지 않는다
+           (이력에서 찾은 집을 처리하러 가는 유일한 길이다). 대신 사실을 말한다 —
+           안 그러면 사람이 "방금 그 집"을 왼쪽에서 찾다가 다른 집을 누른다.
+           `is defined` 가드: 이 파셜을 단독으로 렌더하는 테스트가 UndefinedError 로 죽지 않게. #}
+        {# 프래그먼트 응답에는 목록이 없어 서버가 이 값을 판정하지 못한다. 그래서 요소는
+           **항상 렌더하고 `hidden` 으로 접어** 두고, pane 을 갈아 끼운 JS 가 직전 판정을
+           그대로 옮겨 붙인다(js:applyOfflistFlag). 안 그러면 발주확인 성공 직후 조각 교체에서
+           경고만 사라지고 불가역 버튼 4종은 무장한 채 남는다(2026-08-23 CEO 검수). #}
+        <div class="wb-acts__why small" id="wb-offlist"
+             {% if not (selected_offlist is defined and selected_offlist) %}hidden{% endif %}>
+            <b>지금 왼쪽 목록에 없는 집</b>입니다 — 주소로 바로 열었습니다.
+            아래 버튼은 이 집에 그대로 나갑니다.
+        </div>
+
         {#
           액션 5종 (계약 §3.3). locked = 취소·반품 진행 중 이거나 취소 완료.
           잠기면 앞의 4개가 전부 disabled 이고 '확인 완료' 만 열린다 — 손대면 안 되는
           집이라도 **큐에서는 뺄 수 있어야 한다**(v2 감사 결함 #4 재발 방지).
         #}
         <div class="d-flex flex-wrap align-items-center gap-2 mt-2 wb-acts">
-            {# 속성 순서(class → id → disabled)는 계약 테스트가 `id="wb-..." disabled` 를
-               통째로 문자열로 찾기 때문에 지킨다 — 사이에 다른 속성을 끼우지 말 것. #}
+            {# (2026-08-23) 여기 있던 "속성 순서를 지켜라" 제약은 사라졌다 — 계약 테스트가
+               `id="…" disabled` 문자열이 아니라 `_markup.is_disabled` 로 여는 태그를 파싱한다
+               (리뷰 L-3). 마크업 포맷은 이제 테스트에 인질로 잡혀 있지 않다. #}
             <button type="button"
                     class="btn btn-sm {{ 'btn-primary' if can_create else 'btn-outline-secondary' }}"
-                    id="wb-create" {% if can_create %}data-bs-toggle="modal" data-bs-target="#wb-modal-create"{% else %}disabled title="{% if locked %}{{ lock_why }}{% else %}이미 주문 #{{ selected.order_id }} 가 있습니다{% endif %}"{% endif %}>
+                    id="wb-create" {% if can_create %}data-bs-toggle="modal" data-bs-target="#wb-modal-create"{% else %}disabled title="{% if locked %}{{ lock_why }}{% elif selected.order_id %}이미 주문 #{{ selected.order_id }} 가 있습니다{% else %}이 집의 상품주문은 모두 이미 주문에 들어가 있습니다{% endif %}"{% endif %}>
                 + 주문 만들기
             </button>
             {# 주문이 생긴 뒤의 다음 걸음은 규격 입력이다 — 편집기가 규격의 SSOT 다. #}
@@ -111,8 +147,10 @@
             {% endif %}
 
             {# 발송처리가 나간 집은 취소가 아니라 반품 흐름이라 **버튼 자체를 내지 않는다**
-               (서버도 막는다). 잠긴 집은 버튼을 남기되 이유를 달아 잠근다. #}
-            {% if not dispatched %}
+               (서버도 막는다). 잠긴 집은 버튼을 남기되 이유를 달아 잠근다.
+               부분 발송(형제 일부만 나간 집)도 서버가 집 전체를 거절하므로 같이 닫는다 —
+               아래 안내 문구가 "왜 없는지"를 말한다(리뷰 M-4). #}
+            {% if not dispatched_any %}
             <button type="button"
                     class="btn btn-sm {{ 'btn-outline-danger' if can_cancel else 'btn-outline-secondary' }}"
                     id="wb-cancel" {% if can_cancel %}data-bs-toggle="modal" data-bs-target="#wb-modal-cancel"{% else %}disabled title="{{ lock_why }}"{% endif %}>
@@ -144,6 +182,29 @@
         {% elif place_pending %}
         <div class="wb-acts__why small">
             신규 집이라 발주확인이 먼저입니다. 발송처리는 <b>실제 출고·시공 시점</b>에 누르세요.
+        </div>
+        {% endif %}
+
+        {# 부분 발송 — 목업에 없던 상태다(워커가 상품주문별로 찍어서 생긴다). 이 줄이 없으면
+           "취소처리 버튼이 왜 없지?" 가 되고, 사람은 없어진 버튼을 다른 형제를 열어 찾는다.
+           잠긴 집은 위 문구가 이미 이유를 말하므로 겹쳐 쓰지 않는다(리뷰 M-4). #}
+        {% if dispatched_any and not dispatched and not locked %}
+        <div class="wb-acts__why small">
+            상품주문 {{ member_count }}건 중 <b>{{ dispatched_count }}건 발송 완료</b> —
+            {# 발주확인이 남아 있으면 발송처리 버튼은 잠겨 있다. 그때 "남은 건만 나갑니다"는
+               화면이 없는 동작을 약속하는 말이 된다(CEO 검수 중). #}
+            {% if can_dispatch %}남은 건만 나갑니다.{% else %}발주확인이 먼저라 지금은 보낼 수 없습니다.{% endif %}
+            취소는 <b>반품</b>으로만 가능합니다.
+        </div>
+        {% elif dispatched and not locked %}
+        <div class="wb-acts__why small">
+            이 집은 발송처리가 끝났습니다 — 취소가 필요하면 <b>반품</b>으로 판매자센터에서 처리하세요.
+        </div>
+        {% elif locked and dispatched_any %}
+        {# 잠금 안내는 취소를 언급하지 않는다. 잠김 + 발송분이 겹치면 취소 버튼이 사라진 이유가
+           어디에도 안 적히는 유일한 조합이었다(CEO 검수 하). #}
+        <div class="wb-acts__why small">
+            이미 발송처리된 상품주문이 있어 <b>취소처리도 열리지 않습니다</b> — 반품으로 처리하세요.
         </div>
         {% endif %}
 
@@ -314,11 +375,20 @@
                 <button type="button" class="btn-close" data-bs-dismiss="modal" aria-label="닫기"></button>
             </div>
             <div class="modal-body">
-                {# ① 건수 재진술 — 버튼 라벨과 같은 숫자를 문장으로 다시 읽힌다. #}
+                {# ① 건수 재진술 — 서버가 **실제로 옮길** 건수를 읽힌다.
+                   집 전체 수(member_count)로 말하면 이미 주문이 붙은 형제까지 세어
+                   "3건을 주문 1건으로" 라고 읽히는데 promote_link_to_order 는 2건만
+                   옮긴다(리뷰 M-2). 남는 형제는 아래 줄이 따로 말한다. #}
                 <p class="fw-semibold mb-2">
-                    {{ selected.naver.recipient_name }}님의 상품주문 {{ member_count }}건을
+                    {{ selected.naver.recipient_name }}님의 상품주문 {{ promotable_count }}건을
                     FOMS 주문 1건으로 만듭니다.
                 </p>
+                {% if member_count > promotable_count %}
+                <p class="small mb-2">
+                    이 집의 나머지 <b>{{ member_count - promotable_count }}건</b>은 이미 주문이 있어
+                    <b>이번에 옮기지 않습니다</b> — 같은 상품주문이 두 주문에 들어가지 않게 하는 규칙입니다.
+                </p>
+                {% endif %}
                 {# ② 되돌릴 수 없음 #}
                 <div class="alert alert-danger py-2 mb-2" data-foms-no-autodismiss>
                     만든 주문을 이 화면에서 되돌릴 수는 없습니다(주문 화면에서 취소해야 합니다).
@@ -332,7 +402,7 @@
             <div class="modal-footer">
                 <button type="button" class="btn btn-outline-secondary" data-bs-dismiss="modal">취소</button>
                 <button type="button" class="btn btn-primary" id="wb-create-order"
-                        data-link-id="{{ target_id }}">주문 만들기</button>
+                        data-link-id="{{ create_target_id }}">주문 만들기</button>
             </div>
         </div>
     </div>
@@ -352,9 +422,17 @@
                 {# ① 건수 재진술 — pane 의 집은 _group_of_link 결과다(절대 규칙 2).
                    여기 숫자가 서버가 실제로 처리할 건수와 같아야 한다. #}
                 <p class="fw-semibold mb-2">
-                    {{ selected.naver.recipient_name }}님의 상품주문 {{ member_count }}건을
+                    {{ selected.naver.recipient_name }}님의 상품주문 {{ place_pending_count }}건을
                     네이버에 <b>발주확인</b>으로 보냅니다.
                 </p>
+                {# 서버 confirm_place_order 의 todo 는 이미 확인된 형제를 뺀다(판매자센터에서
+                   손으로 확인한 건 포함) — 술어는 fulfillment.is_place_pending 한 벌이다. #}
+                {% if member_count > place_pending_count %}
+                <p class="small mb-2">
+                    이미 발주확인이 끝난 <b>{{ member_count - place_pending_count }}건</b>은
+                    다시 보내지 않습니다.
+                </p>
+                {% endif %}
                 {# ② 되돌릴 수 없음 #}
                 <div class="alert alert-danger py-2 mb-2" data-foms-no-autodismiss>
                     네이버로 나가는 호출이라 되돌릴 수 없습니다.
@@ -388,9 +466,16 @@
             <div class="modal-body">
                 {# ① 건수 재진술 #}
                 <p class="fw-semibold mb-2">
-                    {{ selected.naver.recipient_name }}님의 상품주문 {{ member_count }}건을
-                    네이버에 발송처리로 보냅니다.
+                    {{ selected.naver.recipient_name }}님의 상품주문
+                    {{ member_count - dispatched_count }}건을 네이버에 발송처리로 보냅니다.
                 </p>
+                {# 서버 dispatch_order 의 todo 는 이미 나간 형제를 뺀다 — 집 전체 수로
+                   재진술하면 "3건 보냅니다" 라고 읽히는데 1건만 나간다(계약 §0-2). #}
+                {% if dispatched_count %}
+                <p class="small mb-2">
+                    이미 발송처리된 <b>{{ dispatched_count }}건</b>은 다시 보내지 않습니다.
+                </p>
+                {% endif %}
                 {# ② 되돌릴 수 없음 — 관계에 따라 사람이 물어야 할 질문이 다르다.
                    추가결제는 "이 집이 정말 추가결제인가", 신규는 "물건이 정말 나갔나". #}
                 <div class="alert alert-danger py-2 mb-2" data-foms-no-autodismiss>

@@ -67,6 +67,9 @@
 
     function init() {
         syncBulk();
+        // 서버가 전체 렌더에서 내린 "목록 밖 집" 판정을 첫 화면에서 읽어 둔다 —
+        // 이후 조각 교체는 이 값을 옮겨 붙인다(applyOfflistFlag).
+        paneOfflist = readOfflistFlag();
         // 첫 화면도 우리 상태로 남긴다 — 뒤로가기가 여기로 돌아왔을 때 무엇을 열어야
         // 하는지 알 수 있어야 한다.
         var current = document.querySelector('.wb-row[aria-current="true"]');
@@ -173,6 +176,7 @@
         }
         markCurrent(row);
         var href = row.href;
+        paneOfflist = false;   // 왼쪽 목록의 행을 눌러 연 집이다.
         loadPane(id, href).then(function (ok) {
             if (ok) {
                 pushPaneState(id, href);
@@ -246,6 +250,35 @@
      * 로그인 리다이렉트나 오류 페이지가 오면 조각이 아니다 — 그때는 갈아 끼우지 않고
      * 던져서 호출자가 전체 왕복으로 되돌리게 한다.
      */
+    /**
+     * "지금 왼쪽 목록에 없는 집" 판정을 조각 교체 너머로 옮긴다.
+     *
+     * 판정 주체는 여전히 서버다(전체 렌더의 `_selected_offlist`). 다만 pane 프래그먼트
+     * 응답에는 목록이 없어 서버가 같은 판정을 할 수 없고, 그 자리에서 술어를 다시
+     * 구현하면 모집단 판정이 두 벌이 된다(v3 리뷰 H1 이 그 갈라짐에서 나왔다).
+     * 그래서 값을 **여기서 들고 다닌다** — 행을 눌러 연 집은 정의상 목록 안이라 false 로
+     * 내려가고, 발주확인 성공·뒤로가기처럼 **같은 집을 다시 받는** 경로는 직전 값을 유지한다.
+     * 이게 없으면 발주확인을 누른 순간 경고만 사라지고 불가역 버튼은 그대로 남는다.
+     */
+    var paneOfflist = false;
+
+    function readOfflistFlag() {
+        var note = document.getElementById('wb-offlist');
+        return !!(note && !note.hasAttribute('hidden'));
+    }
+
+    function applyOfflistFlag() {
+        var note = document.getElementById('wb-offlist');
+        if (!note) {
+            return;
+        }
+        if (paneOfflist) {
+            note.removeAttribute('hidden');
+        } else {
+            note.setAttribute('hidden', 'hidden');
+        }
+    }
+
     function swapPane(html) {
         var holder = document.createElement('div');
         holder.innerHTML = html;
@@ -256,6 +289,7 @@
         }
         teardownModals(current);
         current.replaceWith(next);
+        applyOfflistFlag();
     }
 
     function markCurrent(row) {

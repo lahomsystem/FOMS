@@ -41,6 +41,29 @@ class PromotionError(RuntimeError):
     """주문을 만들 수 없다(사유는 사람이 읽는 문장으로 담는다)."""
 
 
+#: 주문 승격 대상 상태. 이미 주문이 붙은 형제는 제외한다 — 사람이 부분적으로 먼저
+#: 만들었을 수 있고, 다시 묶으면 같은 상품주문이 두 주문에 들어간다.
+PROMOTABLE_SYNC_STATUSES = ("COLLECTED", "PENDING_REVIEW")
+
+
+def is_promotable(link: ExternalOrderLink) -> bool:
+    """이 링크가 **주문 승격 대상**인가 — 화면 재진술과 서버 동작의 공통 술어.
+
+    :func:`_group_siblings` 가 실제로 묶는 조건과 같은 술어다. 워크벤치 모달이 집 전체
+    건수를 재진술하면(``member_count``) 이미 주문이 붙은 형제까지 세어 "3건을 주문
+    1건으로 만듭니다"라고 읽히지만 서버는 2건만 옮긴다 — 남는 형제를 화면이 알리지도
+    않는다(2026-08-23 리뷰 M-2). 술어를 여기 한 벌만 두고 양쪽이 나눠 쓴다.
+
+    Args:
+        link: 수집 링크.
+
+    Returns:
+        아직 주문이 없고 상태가 :data:`PROMOTABLE_SYNC_STATUSES` 면 True.
+    """
+    return (link.order_id is None
+            and str(link.sync_status or "") in PROMOTABLE_SYNC_STATUSES)
+
+
 def promote_link_to_order(
     session: Session, *, link_id: int, actor_user_id: int, owner_user_id: int,
     now: Optional[datetime] = None,
@@ -516,7 +539,8 @@ def _group_siblings(session: Session, link: ExternalOrderLink) -> list[ExternalO
             ExternalOrderLink.channel == CHANNEL,
             ExternalOrderLink.external_order_no == order_no,
             ExternalOrderLink.order_id.is_(None),
-            ExternalOrderLink.sync_status.in_(("COLLECTED", "PENDING_REVIEW")),
+            # 술어 SSOT — 화면 재진술(:func:`is_promotable`)과 같은 목록을 쓴다.
+            ExternalOrderLink.sync_status.in_(PROMOTABLE_SYNC_STATUSES),
             ExternalOrderLink.id != link.id,
         )
         .with_for_update()

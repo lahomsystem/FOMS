@@ -19,7 +19,7 @@
 {% block title %}네이버 수집{% endblock %}
 
 {% block styles %}
-<link rel="stylesheet" href="{{ url_for('static', filename='css/admin/naver-workbench.css') }}?v=20260823b">
+<link rel="stylesheet" href="{{ url_for('static', filename='css/admin/naver-workbench.css') }}?v=20260823d">
 {% endblock %}
 
 {% block content %}
@@ -207,8 +207,14 @@
                     <span class="wb-row__body">
                         <span class="wb-row__line1">
                             <span class="wb-row__name">{{ group.customer_name }}</span>
+                            {# 접수시각은 여기 산다 — 배지 줄에 두면 폭을 먹어 배지 하나가
+                               아래로 밀리고 그 행만 한 줄 더 높아진다(2026-08-23 사용자 지적). #}
+                            <span class="wb-row__when">{{ group.created_at }}</span>
                         </span>
-                        <span class="wb-row__line2">
+                        {# 제품명은 한 줄로 자른다(행 높이를 고르게) — 대신 잘린 뒤에도
+                           전체를 확인할 수 있게 title 로 원문을 남긴다. #}
+                        <span class="wb-row__line2"
+                              title="{{ group.product }}{% if group.extra_count %} 외 {{ group.extra_count }}건{% endif %}">
                             {{ group.product }}{% if group.extra_count %} 외 {{ group.extra_count }}건{% endif %}
                         </span>
                         <span class="wb-row__line3">
@@ -233,7 +239,12 @@
                             {% if group.claim_label %}
                             <span class="badge bg-danger">{{ group.claim_label }}</span>
                             {% endif %}
-                            {% if group.place_pending and not row_locked %}
+                            {# 같은 줄 오른쪽 끝의 `.wb-can` 이 이미 "발주확인 먼저" 라고 말한다 —
+                               row_kind == 'wait' 이면 같은 사실을 한 줄에서 두 번 쓰는 셈이고,
+                               그 배지 하나(≈90px) 때문에 배지 줄이 접혀 행 높이가 튄다
+                               (2026-08-23 CEO 검수). 주문이 이미 있는 집(spec)에서는 글자 라벨이
+                               "규격 입력할 차례"라 발주확인 사실을 여기서만 알 수 있으므로 남긴다. #}
+                            {% if group.place_pending and not row_locked and row_kind != 'wait' %}
                             <span class="badge bg-warning text-dark">발주확인 전</span>
                             {% endif %}
                             {# 발송기한을 넘기면 네이버가 자동 취소할 수 있다 — 없어진
@@ -251,7 +262,6 @@
                                 {% elif row_kind == 'wait' %}발주확인 먼저
                                 {% else %}지금 처리 가능{% endif %}
                             </span>
-                            <span class="wb-row__when">{{ group.created_at }}</span>
                         </span>
                     </span>
                 </a>
@@ -482,5 +492,5 @@
 {% endblock %}
 
 {% block scripts %}
-<script src="{{ url_for('static', filename='js/admin/naver-workbench.js') }}?v=20260823b" defer></script>
+<script src="{{ url_for('static', filename='js/admin/naver-workbench.js') }}?v=20260823d" defer></script>
 {% endblock %}
