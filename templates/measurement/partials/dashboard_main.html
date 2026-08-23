@@ -747,6 +747,15 @@
                 <span>폭 초기화</span>
               </button>
             </div>
+            {% if main_rows_truncated %}
+            {# 조용한 축소 금지: 표시 상한에 걸려 잘렸다는 사실을 화면에 남긴다.
+               .alert 는 5초 뒤 자동으로 닫히므로 상시 안내에는 no-autodismiss 가 필수. #}
+            <div class="alert alert-warning py-2 px-3 mb-2 small" data-foms-no-autodismiss role="status">
+              <i class="fas fa-triangle-exclamation me-1"></i>
+              조회 결과 <strong>{{ main_rows_total }}건</strong> 중 <strong>{{ main_rows_display_cap }}건</strong>만 표시됩니다.
+              기간을 좁히거나 검색어를 더해 범위를 줄여 주세요.
+            </div>
+            {% endif %}
             <table class="table table-sm table-hover align-middle measurement-table" id="measurement-dashboard-table">
               <colgroup>
                 <col data-col-key="detail" style="width: 70px;">
