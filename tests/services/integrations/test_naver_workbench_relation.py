@@ -301,3 +301,15 @@ def test_cancel_failure_alone_leaves_no_retry_button(client, workbench_on):
     body = _body(client, tab="work", link_id=link.id)
 
     assert 'id="wb-retry-failed"' not in body
+
+
+def test_place_tab_also_flags_addon_households(client, workbench_on):
+    """'발주확인 전' 탭에서도 관계가 보인다 — 같은 배지 규칙(D4)."""
+    _login(client)
+    order = _order()
+    _collected(order_no="N-REL-PLACE-ADDON", relation="ADDON", order_id=int(order.id),
+               place_status="NOT_YET")
+
+    body = _body(client, tab="place")
+
+    assert "추가결제" in body

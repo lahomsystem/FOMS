@@ -605,6 +605,13 @@
                         {% if group.count > 1 %}
                         <span class="badge bg-light text-dark">{{ group.count }}건 묶음</span>
                         {% endif %}
+                        {# 처리 대기 탭과 **같은 배지 규칙**(D4) — 같은 집이 탭마다 다르게 보이면
+                           사람이 두 화면을 대조하게 된다. #}
+                        {% if group.relation in ('ADDON', 'REPAY') %}
+                        <span class="badge bg-info text-dark">
+                            {{ '추가결제' if group.relation == 'ADDON' else '재결제' }}
+                        </span>
+                        {% endif %}
                         <span class="badge bg-warning text-dark">발주확인 전</span>
                         {% if group.shipping_due %}
                         <span class="badge bg-light text-dark">발송기한 {{ group.shipping_due }}</span>
