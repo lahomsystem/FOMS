@@ -254,6 +254,40 @@
     applyAlpineErrors(root, {});
   }
 
+  // 카드 순번은 DOM 순서가 정본이다. 복제/삭제 후 인덱스·헤더 라벨·첨부 input id를
+  // 한 곳에서 다시 매긴다(복제본이 "#1 제품 1"로 고정되던 결함의 근본 수정).
+  function renumberProductCards(container) {
+    if (!container) {
+      return;
+    }
+    var cards = container.querySelectorAll("[data-product-index]");
+    var multi = cards.length > 1;
+    Array.prototype.forEach.call(cards, function (card, idx) {
+      card.setAttribute("data-product-index", String(idx));
+      var indexEl = card.querySelector(".foms-product-item__index");
+      if (indexEl) {
+        indexEl.textContent = "#" + (idx + 1);
+      }
+      var titleEl = card.querySelector("[data-foms-product-title]");
+      if (titleEl) {
+        titleEl.textContent =
+          readValue(card.querySelector('[data-product-field="product_name"]')) || "제품 " + (idx + 1);
+      }
+      var input = card.querySelector("[data-wizard-attachment-input]");
+      if (input) {
+        input.id = "wiz-attach-input-" + idx;
+      }
+      var widget = card.querySelector("[data-foms-photo-capture]");
+      if (widget) {
+        widget.setAttribute("data-target-input", "wiz-attach-input-" + idx);
+      }
+      var removeBtn = card.querySelector("[data-foms-product-remove]");
+      if (removeBtn) {
+        removeBtn.hidden = !multi;
+      }
+    });
+  }
+
   function cloneProductCard(container, draftKey, scheduleSave) {
     var cards = container.querySelectorAll("[data-product-index]");
     var template = cards[0];
@@ -298,6 +332,7 @@
     }
     clone._wizardAttachmentsBound = false;
     container.appendChild(clone);
+    renumberProductCards(container);
     if (window.FomsWizardAttachments) {
       window.FomsWizardAttachments.resetCard(clone);
       window.FomsWizardAttachments.bindCard(clone, draftKey, scheduleSave);
@@ -492,6 +527,7 @@
       var card = container.querySelector('[data-product-index="' + idx + '"]');
       fillProductCard(card, item);
     });
+    renumberProductCards(container);
   }
 
   function esc(s) {
@@ -838,7 +874,35 @@
 
     // 규격 행 추가/삭제(위임 → 동적 카드/행 대응).
     root.querySelectorAll("[data-product-index]").forEach(updateSpecDelVisibility);
+    renumberProductCards(root.querySelector("#foms-wizard-products"));
     root.addEventListener("click", function (e) {
+      var removeProductBtn = e.target.closest("[data-foms-product-remove]");
+      if (removeProductBtn) {
+        e.preventDefault();
+        e.stopPropagation();
+        var pContainer = root.querySelector("#foms-wizard-products");
+        var pCard = removeProductBtn.closest("[data-product-index]");
+        if (!pContainer || !pCard) {
+          return;
+        }
+        if (pContainer.querySelectorAll("[data-product-index]").length <= 1) {
+          return;
+        }
+        var pName = readValue(pCard.querySelector('[data-product-field="product_name"]'));
+        var pLabel = pName || "제품 " + (parseInt(pCard.getAttribute("data-product-index") || "0", 10) + 1);
+        if (!window.confirm(pLabel + " 항목을 삭제할까요?")) {
+          return;
+        }
+        pCard.remove();
+        renumberProductCards(pContainer);
+        recalcWizardAmounts(root);
+        var afterScan = findFirstEmptyProductCard(root);
+        if (afterScan.count && !afterScan.firstEmpty) {
+          clearAlpineErrors(root);
+        }
+        draftClient.scheduleSave();
+        return;
+      }
       var addBtn = e.target.closest("[data-spec-add]");
       if (addBtn) {
         var card = addBtn.closest("[data-product-index]");
