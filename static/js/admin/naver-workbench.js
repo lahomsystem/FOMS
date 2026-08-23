@@ -129,8 +129,13 @@
             var pairs = (retryBtn.dataset.linkIds || '').split(',').filter(Boolean)
                 .map(function (chunk) {
                     var parts = chunk.split(':');
-                    return { id: parts[0], action: parts[1] === 'dispatch' ? 'dispatch' : 'confirm' };
-                });
+                    // 모르는 작업을 confirm 으로 강등하지 않는다 — 취소 실패 집에 발주확인이
+                    // 나가는 자리였다(2026-08-23 리뷰 F9). 템플릿이 이미 거르지만 방어선을 둔다.
+                    if (parts[1] !== 'dispatch' && parts[1] !== 'confirm') {
+                        return null;
+                    }
+                    return { id: parts[0], action: parts[1] };
+                }).filter(Boolean);
             if (!pairs.length) {
                 return;
             }

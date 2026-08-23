@@ -62,6 +62,14 @@ def _link(external_id: str, *, order_no: str = "N-CXL", place: str | None = "OK"
     return int(link.id)
 
 
+@pytest.fixture()
+def workbench_on(monkeypatch):
+    """취소는 워크벤치 전용 기능이다 — 게이트가 켜져야 라우트가 열린다."""
+    monkeypatch.setenv("FOMS_NAVER_WORKBENCH_ENABLED", "1")
+    monkeypatch.setenv("FOMS_NAVER_WORKBENCH_COHORT", "all")
+    yield
+
+
 def _state(link_id: int) -> dict:
     db_session.expire_all()
     link = db_session.get(ExternalOrderLink, link_id)
@@ -194,7 +202,7 @@ def test_cancel_http_failure_records_the_reason(app):
 # 라우트 — web 은 큐에 넣기만 한다 (호출 IP 3슬롯 계약)
 # --------------------------------------------------------------------------- #
 
-def test_route_enqueues_and_never_calls_naver_from_web(auth_client, monkeypatch):
+def test_route_enqueues_and_never_calls_naver_from_web(auth_client, monkeypatch, workbench_on):
     """취소도 WORKER 단일 출구다 — web 에서 네이버로 나가면 IP 가 막힌다."""
     calls = []
 
@@ -213,7 +221,7 @@ def test_route_enqueues_and_never_calls_naver_from_web(auth_client, monkeypatch)
     assert calls == [(link_id, "SOLD_OUT", "재고 없음", calls[0][3])]
 
 
-def test_route_rejects_an_unknown_reason(auth_client):
+def test_route_rejects_an_unknown_reason(auth_client, workbench_on):
     """사유 코드는 서버가 정본으로 검사한다 — 화면 select 만 믿지 않는다."""
     link_id = _link("PO-C-ROUTE-BAD", order_no="N-CXL-ROUTE-BAD")
 
@@ -224,7 +232,7 @@ def test_route_rejects_an_unknown_reason(auth_client):
     assert response.get_json()["success"] is False
 
 
-def test_route_reports_when_queue_is_unavailable(auth_client, monkeypatch):
+def test_route_reports_when_queue_is_unavailable(auth_client, monkeypatch, workbench_on):
     """큐가 없으면 성공한 척하지 않는다 — 판매자센터로 가라고 말한다."""
     monkeypatch.setattr("foms.services.jobs.queue.enqueue_naver_cancel",
                         lambda *a, **k: False)
@@ -237,7 +245,7 @@ def test_route_reports_when_queue_is_unavailable(auth_client, monkeypatch):
     assert "판매자센터" in response.get_json()["error"]
 
 
-def test_route_writes_an_audit_trail(auth_client, monkeypatch):
+def test_route_writes_an_audit_trail(auth_client, monkeypatch, workbench_on):
     """되돌릴 수 없는 조작은 누가 눌렀는지 감사 로그에 남는다."""
     from models import SecurityLog
 
@@ -274,3 +282,67 @@ def test_worker_runs_cancel_with_the_reason(app, monkeypatch):
     tasks.run_naver_fulfillment_task(link_id, "cancel", 5, reason="SOLD_OUT", detail="품절")
 
     assert seen == {"link_id": link_id, "reason": "SOLD_OUT", "detail": "품절", "actor": 5}
+
+
+# --------------------------------------------------------------------------- #
+# 취소한 집은 더 이상 손대지 않는다 (푸시 전 리뷰 [치명])
+# --------------------------------------------------------------------------- #
+
+def test_dispatch_refuses_a_cancelled_household(app):
+    """취소한 집에 발송처리가 나가면 안 된다.
+
+    ``_claim_guard`` 는 raw_snapshot 만 본다 — **우리가 방금 보낸 취소는 다음 수집 스윕
+    전까지 스냅샷에 없다**. 그래서 취소 표식을 따로 봐야 한다.
+    """
+    from foms.services.integrations.naver_commerce.fulfillment import dispatch_order
+
+    link_id = _link("PO-C-THEN-DISP", order_no="N-CXL-THEN-DISP")
+    client = _StubClient()
+    cancel_order(db_session, client, link_id=link_id, reason="SOLD_OUT")
+    db_session.commit()
+
+    with pytest.raises(FulfillmentError):
+        dispatch_order(db_session, client, link_id=link_id)
+    assert client.dispatch_calls == []
+
+
+def test_confirm_refuses_a_cancelled_household(app):
+    """발주확인도 마찬가지다 — 취소한 집은 '발주확인 전' 목록에서도 빠져야 한다."""
+    from foms.services.integrations.naver_commerce.fulfillment import confirm_place_order
+
+    link_id = _link("PO-C-THEN-CONF", order_no="N-CXL-THEN-CONF", place="NOT_YET")
+    client = _StubClient()
+    client.confirm_place_orders = lambda ids: {"data": {"successProductOrderIds": list(ids)}}
+    cancel_order(db_session, client, link_id=link_id, reason="SOLD_OUT")
+    db_session.commit()
+
+    with pytest.raises(FulfillmentError):
+        confirm_place_order(db_session, client, link_id=link_id)
+
+
+def test_a_partly_cancelled_household_is_not_dispatched_either(app):
+    """형제 하나만 취소돼도 그 집은 손대지 않는다 — 반쪽 발송은 되돌릴 수 없다."""
+    from foms.services.integrations.naver_commerce.fulfillment import dispatch_order
+
+    first = _link("PO-C-HALF1", order_no="N-CXL-HALF")
+    second = _link("PO-C-HALF2", order_no="N-CXL-HALF")
+    client = _StubClient(fail_ids={"PO-C-HALF2"})
+    with pytest.raises(FulfillmentError):
+        cancel_order(db_session, client, link_id=first, reason="SOLD_OUT")
+    db_session.commit()
+
+    with pytest.raises(FulfillmentError):
+        dispatch_order(db_session, client, link_id=second)
+    assert client.dispatch_calls == []
+
+
+def test_cancel_route_is_closed_when_the_gate_is_off(auth_client, monkeypatch):
+    """게이트 off = 이 기능의 롤백 경로다 — 열린 탭·북마크로 우회되면 안 된다."""
+    monkeypatch.delenv("FOMS_NAVER_WORKBENCH_ENABLED", raising=False)
+    monkeypatch.delenv("FOMS_NAVER_WORKBENCH_COHORT", raising=False)
+    link_id = _link("PO-C-GATEOFF", order_no="N-CXL-GATEOFF")
+
+    response = auth_client.post(f"/admin/naver-ingest/{link_id}/cancel",
+                                json={"reason": "SOLD_OUT"})
+
+    assert response.status_code == 403

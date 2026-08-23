@@ -279,9 +279,20 @@ def run_naver_fulfillment_task(link_id: int, action: str, actor_user_id=None,
             # 상품주문의 표식도 함께 커밋해야 재시도가 실패한 건만 다시 보낸다.
             db.commit()
             raise
-        except Exception:
+        except Exception as exc:
             # 그 밖의 예외(프로그래밍 오류·DB 오류)는 무엇이 쓰였는지 알 수 없어 되돌린다.
             db.rollback()
+            # 되돌린 뒤 **사유만** 따로 남긴다. web 은 이미 "요청했습니다"로 답했고, 화면의
+            # 실패 띠가 유일한 통지 경로다(취소는 재시도 버튼도 없다). 기록 자체가 실패하면
+            # 원래 예외를 가리지 않도록 조용히 넘어간다.
+            try:
+                naver_fulfillment.record_task_failure(
+                    db, link_id=int(link_id), action=str(action),
+                    reason=f"작업이 실패했습니다: {exc}")
+                db.commit()
+            except Exception as record_exc:  # noqa: BLE001 - 통지 실패가 원인을 덮지 않게
+                db.rollback()
+                logger.warning("[RQ] 실패 사유 기록 실패 link=%s: %s", link_id, record_exc)
             raise
         finally:
             db.close()

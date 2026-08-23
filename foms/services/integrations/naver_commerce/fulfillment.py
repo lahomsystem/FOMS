@@ -38,6 +38,10 @@ __all__ = [
     "clear_failure",
     "confirm_place_order",
     "dispatch_order",
+    "cancel_order",
+    "record_task_failure",
+    "CANCEL_REASONS",
+    "CLOSE_NOW_RELATIONS",
 ]
 
 #: ``triage_state`` 안에서 이 기능이 쓰는 키. 도크 체크·클레임 동기화와 다른 축이다.
@@ -163,6 +167,38 @@ def _claim_guard(session: Session, links: list[ExternalOrderLink], *,
                        action=action, stamp=stamp)
         session.flush()
         raise FulfillmentError(reason)
+
+
+def _cancel_guard(session: Session, links: list[ExternalOrderLink], *,
+                  action: str, stamp: datetime) -> None:
+    """집 안에 **우리가 취소한** 상품주문이 있으면 발주확인·발송처리를 보내지 않는다.
+
+    :func:`_claim_guard` 로는 못 막는다 — 그건 ``raw_snapshot`` 의 네이버 클레임을 읽는데,
+    우리가 방금 낸 취소는 **다음 수집 스윕 전까지 스냅샷에 없다**. 그 사이 발송처리를 누르면
+    취소한 상품주문에 되돌릴 수 없는 호출이 나간다(2026-08-23 리뷰 [치명]).
+
+    한 건이라도 취소됐으면 **집 전체**를 막는다. 부분 취소 실패는 남은 건을 발송할 상황이
+    아니라 취소를 다시 보낼 상황이다.
+
+    Args:
+        session: DB 세션.
+        links: 한 집의 링크들.
+        action: ``confirm`` / ``dispatch`` (화면 재시도가 이 값을 본다).
+        stamp: 기록 시각.
+
+    Raises:
+        FulfillmentError: 취소된 상품주문이 있을 때.
+    """
+    canceled = [row for row in links if _state(row).get("canceled_at")]
+    if not canceled:
+        return
+    reason = ("취소한 집입니다 — 발주확인·발송처리를 보내지 않습니다"
+              f"(취소된 상품주문 {len(canceled)}건).")
+    _mark_failures({str(row.external_id): row for row in links},
+                   {str(row.external_id): reason for row in links},
+                   action=action, stamp=stamp)
+    session.flush()
+    raise FulfillmentError(reason)
 
 
 def _state(link: ExternalOrderLink) -> dict[str, Any]:
@@ -293,6 +329,7 @@ def confirm_place_order(session: Session, client: Any, *, link_id: int,
     stamp = now or now_utc_naive()
     links = _links_of_group(session, link_id)
     _claim_guard(session, links, action="confirm", stamp=stamp)
+    _cancel_guard(session, links, action="confirm", stamp=stamp)
     # 컬럼(place_order_status)도 함께 본다 — 판매자센터에서 손으로 발주확인한 형제를
     # 다시 보내면 네이버가 그 건을 실패로 돌려주고, 정상인데 빨간 띠가 남는다.
     # (발송처리 쪽 not_confirmed 판정은 이미 둘을 함께 본다.)
@@ -409,9 +446,13 @@ def dispatch_order(session: Session, client: Any, *, link_id: int,
     stamp = now or now_utc_naive()
     links = _links_of_group(session, link_id)
     _claim_guard(session, links, action="dispatch", stamp=stamp)
+    _cancel_guard(session, links, action="dispatch", stamp=stamp)
     # 관계 판정은 **집 단위**다(화면 배지와 같은 규칙). 붙이기가 집 전체를 함께 붙이지만
     # 백필 전 데이터는 형제 일부만 값이 있어, 한 건만 보면 화면과 서버가 갈린다.
-    close_now = any((row.relation or "").upper() in CLOSE_NOW_RELATIONS for row in links)
+    # **all** 이다: attach 이후 수집된 형제는 server_default 'NEW' 로 들어와 관계가 섞인다.
+    # any 로 두면 그 NEW 형제까지 발주확인 없이 발송된다(2026-08-23 리뷰 F7).
+    close_now = bool(links) and all(
+        (row.relation or "").upper() in CLOSE_NOW_RELATIONS for row in links)
     # 신규 주문은 발주확인이 먼저다 — 실제 출고 전 발송처리는 구매자에게 "배송 시작"으로
     # 보이고 구매확정·정산 시계를 먼저 돌린다. 추가결제·재결제는 물건이 따로 나가지 않아
     # 확인 뒤 바로 닫는다(D1) — 네이버도 발송처리에서 발주확인을 함께 처리한다.
@@ -465,6 +506,31 @@ def dispatch_order(session: Session, client: Any, *, link_id: int,
     logger.info("[NAVER] 발송처리 완료 link=%s 건수=%d", link_id, len(ok_ids))
     return {"dispatched": ok_ids,
             "skipped": [row.external_id for row in links if row not in todo]}
+
+
+def record_task_failure(session: Session, *, link_id: int, action: str, reason: str,
+                        now: Optional[datetime] = None) -> None:
+    """워커가 서비스 **바깥에서** 죽었을 때 사유를 남긴다(클라이언트 생성 실패·인증 만료 등).
+
+    web 은 enqueue 뒤 즉시 "요청했습니다"로 답한다. 서비스가 남기는 실패 사유가 유일한
+    통지 경로인데, `FulfillmentError` 가 아닌 예외는 워커가 rollback 해서 아무 흔적이
+    없었다 — 특히 취소는 재시도 버튼도 없다(2026-08-23 리뷰). 실패해도 조용하지 않게 한다.
+
+    Args:
+        session: DB 세션(호출자가 commit 을 소유한다).
+        link_id: 기준 링크 id.
+        action: ``confirm`` / ``dispatch`` / ``cancel``.
+        reason: 사람에게 그대로 보여줄 사유 문장.
+        now: 시각 주입(테스트).
+    """
+    stamp = now or now_utc_naive()
+    try:
+        links = _links_of_group(session, link_id)
+    except FulfillmentError:
+        return
+    _mark_failures({str(row.external_id): row for row in links},
+                   {str(row.external_id): str(reason)[:500] for row in links},
+                   action=action, stamp=stamp)
 
 
 def cancel_order(session: Session, client: Any, *, link_id: int, reason: str,

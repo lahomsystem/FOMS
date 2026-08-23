@@ -407,3 +407,72 @@ CI: 두 푸시 모두 **ALL GREEN**(FOMS CI · Harness CI · PostgreSQL Lane · 
 | T-R4 | 판매자 직접취소 — client·fulfillment·worker·route·UI·manifest 2종·감사 라벨·coverage | 취소 서비스/라우트 테스트 green, manifest·coverage 재생성 | DONE |
 | T-R5 | 1440 실브라우저 확인 | 배지·붙이기·되돌리기·발송처리 분기·취소 모달 눈으로 확인 | PENDING |
 
+
+### 진행 기록 (2026-08-22~23)
+
+- 사용자 결정 D1~D5 확정(스펙 §2). 취소 API 정본은 apicenter 2.86.0 문서에서 직접 확보:
+  `POST /v1/pay-order/seller/product-orders/{productOrderId}/claim/cancel/request`,
+  `cancelReason` 7코드 · `cancelDetailedReason`(500자) · `cancelQuantity`(미입력=전체).
+  문서는 Docusaurus 클라이언트 렌더라 HTML 만 받으면 비어 있다 — runtime~main 의 청크 맵을 풀어
+  `assets/js/<name>.<hash>.js` 를 직접 받아야 본문이 나온다(도구: scratchpad/naver_doc.py).
+- 커밋: `31d74ca9`(관계 축) · `abe02150`(취소) · `4dc4ea09`(failopen 인벤토리) · `dccb95a7`(place 탭 배지).
+- 자체 발견 결함 1건: 취소 실패가 '실패한 집만 다시 시도' 목록에 섞여 **발주확인으로 오발사**됐다
+  (`_failure_rows` 가 미지 action 을 confirm 으로 강등). `retryable` 플래그로 제외 + 안내 문구.
+- 검증: APP_OK · `tests/services/integrations` 전건 · PG 레인 737 pass · pre_push_smoke exit 0 ·
+  로컬 1440 실브라우저(배지·붙이기/되돌리기 라이브·발송처리 3상태·취소 모달·큐 없음 503).
+- 함정: 기존 로컬 PG 클러스터(5440)가 깨져 있었다(`could not open file "base/1/4171"`) — 코드 무관.
+  5441 에 새 initdb 로 레인을 돌렸다(`/c/tmp/pglane5441`).
+- 잔여: 네이버 실호출로 취소 1건 확인은 **사용자가 직접**(사유 코드 실검증). 스테이징 게이트는
+  upperkill 단독(코호트 38) 유지.
+
+### 푸시 전 리뷰 — 화면-서버 계약 렌즈 (2026-08-23)
+
+치명 1건은 하네스 렌즈와 동일(취소한 집에 발송처리·발주확인·주문 만들기가 열려 있다 —
+'발주확인 전' 탭에도 표식 없이 체크박스와 함께 남는다). 추가:
+
+- **[높음] 부분 취소 실패 = 화면 막다른 길.** pane 의 `fulfillment` 는 링크 1건 상태인데 배지·버튼이
+  그 값만 본다. 대표 취소 성공 + 형제 실패면 '취소 완료' 배지(집 전체를 대변하는 거짓말) + 취소
+  버튼 부재. 실패 띠는 "그 집을 열어 다시 보내라"는데 큐 줄 href 는 대표라 형제로 갈 UI 경로가 없다.
+- **[높음] 취소 모달 건수 재진술 < 서버가 취소할 건수.** 화면 집 = 큐 모집단(`COLLECTED|LINKED` +
+  `reviewed_at IS NULL`), 서버 집 = `_links_of_group`(주문번호+household_key 전체). 형제가
+  `PENDING_REVIEW`·`reviewed_at` 이면 모달은 "1건", 서버는 2건 취소 → **사람이 못 본 상품주문에 환불.**
+- **[보통] 발송처리 버튼은 열리는데 서버가 집 전체를 막는다.** 같은 모집단 불일치(`place_pending`
+  은 큐 멤버만, `not_confirmed` 는 집 전체). 실패 사유가 화면에 없는 형제에만 찍혀 영구 실패 루프.
+- **[보통] 취소 라우트에 게이트 검사 없음** — 사고 시 게이트 off 롤백이 취소 경로를 못 닫는다.
+- **[보통] 취소 job 이 `FulfillmentError` 밖 예외로 죽으면 실패가 어디에도 안 남는다**(rollback).
+  취소는 재시도 버튼이 없어 실패 띠가 유일한 통지 경로다.
+- **[낮음] 취소·반품 탭에만 관계 배지 없음** / **[낮음] 재시도 JS 가 미지 action 을 confirm 으로
+  강등**(현재는 템플릿이 cancel 쌍을 안 실어 안전 — 방어선이 한 겹).
+- 확인된 정상: 버튼↔모달 조건 일치, `selected_relation`/`close_now` 스코프 전 탭 안전(12조합 200),
+  클레임 축 화면·서버 일치, 게이트 OFF 옛 화면 무회귀.
+
+### 푸시 전 리뷰 — 불가역 경로 렌즈 (2026-08-23)
+
+- **[치명 F1/F2] 위 치명과 동일 뿌리 + 증거 소실.** 부분 취소 실패 뒤 발송처리를 누르면 취소하려던
+  형제가 발송되고, 성공 도장이 `last_error:""` 를 써서 **취소 실패 사유가 통째로 사라진다**.
+  화면이 사람을 그 경로로 민다(대표가 취소되면 취소 버튼이 사라지고 남는 버튼이 발송처리뿐).
+- **[높음 F4] 한 집에 실패 action 이 섞이면 취소 거절 사유가 화면에서 사라지고 재시도가 반대 조작을
+  쏜다.** `_failure_rows` 는 집당 1행(최신순 dedup) — cancel 거절 행이 dispatch 행에 가려지고
+  그 행은 `retryable=True`.
+- **[보통 F7] `close_now = any(...)` 는 섞인 집에서 열림 쪽으로 기운다.** attach 이후 수집된 형제는
+  `server_default 'NEW'` 로 들어와 섞인다 → 발주확인 없이 NEW 형제까지 발송. 안전한 방향은 `all`.
+- **[낮음 F8] `__all__` 에 cancel_order·CANCEL_REASONS 미등재 / [낮음 F9] 재시도 JS 폴백 confirm.**
+- 확인된 정상: RQ kwargs 전달(rq 2.5.0), 워커 commit 규칙, 사유 코드 2중 검증(라우트+서비스),
+  가드 순서(모든 거절이 네이버 호출 전), `clear_failure` 가 성공 도장 미변경, 게이트 off 무경로.
+
+### 리뷰 지적 처리 (2026-08-23)
+
+| 지적 | 처리 |
+|------|------|
+| [치명] 취소한 집에 발송처리·발주확인 | `_cancel_guard` 신설 — confirm/dispatch 진입에 배선(집에 취소가 하나라도 있으면 전체 차단, 사유 기록). 화면도 버튼·모달·주문 만들기를 함께 닫고 '취소 완료 — 발송처리 없음' 표기 |
+| [치명] 부분 취소 실패 뒤 발송처리가 증거를 지움 | 위 가드가 dispatch 자체를 막아 성공 도장이 `last_error` 를 덮는 경로가 사라짐 |
+| [높음 F4] 취소 거절이 다른 실패 행에 가려짐 | `_failure_rows` 접기 규칙 — 같은 집에 취소 실패가 있으면 그 행이 이긴다(=`retryable=False` 유지) |
+| [높음] 부분 취소 실패 = 화면 막다른 길 | 취소 완료 배지·버튼 판정을 **집 단위**(`selected_group.canceled`)로 바꿔 대표 링크만 보고 거짓말하지 않게. 실패 띠 문구에 판매자센터·확인함 경로 추가 |
+| [보통 F7] `close_now` any → 섞인 집이 열림 | 서버 `all()` + 화면 `group.close_now`(같은 all 규칙). 계약 테스트 2건(섞인 집 차단 / 전부 ADDON 이면 함께 닫힘) |
+| [보통] 취소한 집이 '발주확인 전' 탭에 잔존 | `_place_groups` 에서 제외(탭 배지 = 목록 길이라 함께 줄어든다) |
+| [보통] 취소 라우트 게이트 미검사 | `is_naver_workbench_enabled` 검사 추가(off = 403) + 계약 테스트 |
+| [보통] 워커가 서비스 밖에서 죽으면 실패 미기록 | `record_task_failure` 공개 헬퍼 + `tasks.py` 의 generic except 에서 rollback 후 사유만 기록 |
+| [낮음] claim 탭 관계 배지 / JS confirm 강등 / `--wb-surface` 미정의 / `__all__` / 타입힌트 | 전부 반영 |
+| [높음 F5] 취소 모달 건수 < 서버가 취소할 건수 | **닫음** — pane 의 집을 `_group_of_link`(주문번호+집 키 전체)로 통일. 모달 문장·상품주문 표·place_pending 이 모두 워커가 처리할 집과 같은 모집단을 본다. 계약 테스트 1건 |
+| [보통] 발송처리 버튼 열림 vs 서버 집 전체 차단 | 위 통일로 함께 닫힘(같은 모집단 불일치였다) |
+

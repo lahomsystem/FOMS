@@ -14,7 +14,7 @@
 {% block title %}네이버 수집{% endblock %}
 
 {% block styles %}
-<link rel="stylesheet" href="{{ url_for('static', filename='css/admin/naver-workbench.css') }}?v=20260822b">
+<link rel="stylesheet" href="{{ url_for('static', filename='css/admin/naver-workbench.css') }}?v=20260823a">
 {% endblock %}
 
 {% block content %}
@@ -82,7 +82,8 @@
             {% if failures|length > retryable|length %}
             <div class="small mt-1">
                 취소 실패 {{ failures|length - retryable|length }}집은 여기서 되보낼 수 없습니다 —
-                그 집을 열어 <b>사유를 다시 고른 뒤</b> 취소처리를 보내세요.
+                그 집을 열어 <b>사유를 다시 고른 뒤</b> 취소처리를 보내세요. 취소·반품이 이미 도는
+                집이라 취소처리 버튼이 없으면 <b>판매자센터</b>에서 처리한 뒤 <b>확인함</b>으로 닫으세요.
             </div>
             {% endif %}
         </div>
@@ -117,7 +118,7 @@
                   결정 4 의 3층: ① 진행축 배지 ② 클레임축 배지 ③ 색띠 + 글자 라벨.
                   색띠만으로 구분하면 색맹 사용자가 못 읽어서 글자를 항상 함께 둔다.
                 #}
-                {% set row_kind = 'stop' if group.claim_blocking
+                {% set row_kind = 'stop' if (group.claim_blocking or group.canceled)
                                   else ('spec' if group.order_id
                                         else ('wait' if group.place_pending else 'go')) %}
                 <a class="wb-row wb-row--{{ row_kind }}"
@@ -144,7 +145,11 @@
                             {% endif %}
                             {# 다음 할 일 배지는 클레임을 모른다. 취소·반품 집에 그대로 찍으면
                                한 줄에서 "손대지 않음"과 "주문 만들기"가 충돌한다. #}
-                            {% if group.next_step and not group.claim_blocking %}
+                            {% if group.canceled %}
+                            <span class="badge bg-secondary">취소 완료</span>
+                            {% endif %}
+                            {% if group.next_step and not group.claim_blocking
+                                  and not group.canceled %}
                             <span class="badge bg-primary">{{ group.next_step }}</span>
                             {% endif %}
                             {% if group.claim_label %}
@@ -154,7 +159,8 @@
                             <span class="badge bg-warning text-dark">발주확인 전</span>
                             {% endif %}
                             <span class="wb-can wb-can--{{ row_kind }}">
-                                {% if row_kind == 'stop' %}손대지 않음
+                                {% if group.canceled %}취소한 집
+                                {% elif row_kind == 'stop' %}손대지 않음
                                 {% elif row_kind == 'spec' %}규격 입력할 차례
                                 {% elif row_kind == 'wait' %}발주확인 먼저
                                 {% else %}지금 처리 가능{% endif %}
@@ -188,11 +194,17 @@
                 </span>
                 {% endif %}
                 <span class="ms-auto d-flex align-items-center gap-2">
+                    {% set household_canceled_head = (selected_group.canceled if selected_group
+                                                       else selected.fulfillment.canceled_at) %}
                     {% if not selected.order_id %}
-                    <button type="button" class="btn btn-primary btn-sm"
-                            data-bs-toggle="modal" data-bs-target="#wb-modal-create"
+                    <button type="button" data-bs-toggle="modal" data-bs-target="#wb-modal-create"
+                            class="btn btn-sm {{ 'btn-outline-secondary'
+                                                if (selected.claim.blocking or household_canceled_head)
+                                                else 'btn-primary' }}"
                             {% if selected.claim.blocking %}disabled
-                            title="네이버에서 취소·반품이 진행 중입니다"{% endif %}>
+                            title="네이버에서 취소·반품이 진행 중입니다"
+                            {% elif household_canceled_head %}disabled
+                            title="취소한 집입니다 - 주문을 만들지 않습니다"{% endif %}>
                         + 주문 만들기
                     </button>
                     {% else %}
@@ -220,8 +232,17 @@
                        바로 닫는다(네이버가 발송처리에서 발주확인을 함께 처리한다).
                        신규는 그대로다: 실제 출고 전에 누르면 구매자에게 '배송 시작'으로
                        보이고 구매확정·정산 시계가 먼저 돈다. #}
-                    {% set close_now = selected_relation in ('ADDON', 'REPAY') %}
-                    {% if selected.fulfillment.dispatched_at %}
+                    {# 집 전체가 추가결제·재결제일 때만 연다(서버 dispatch_order 와 같은 all 규칙).
+                       섞인 집은 발주확인이 먼저다 — 그래야 NEW 형제가 실려 나가지 않는다. #}
+                    {% set close_now = selected_group.close_now if selected_group
+                                       else selected_relation in ('ADDON', 'REPAY') %}
+                    {% set household_canceled = (selected_group.canceled if selected_group
+                                                 else selected.fulfillment.canceled_at) %}
+                    {% if household_canceled %}
+                    {# 취소한 집에는 발송처리를 내지 않는다. 서버도 막지만(_cancel_guard),
+                       버튼이 남아 있으면 사람이 누르고 실패 띠만 쌓인다. #}
+                    <span class="badge bg-secondary">취소 완료 — 발송처리 없음</span>
+                    {% elif selected.fulfillment.dispatched_at %}
                     <span class="badge bg-success">발송처리 완료</span>
                     {% elif place_pending and not close_now %}
                     <button type="button" class="btn btn-outline-secondary btn-sm" id="wb-dispatch" disabled
@@ -236,8 +257,9 @@
                     {# 판매자 직접취소 — 예전에는 이 화면에 없어서 판매자센터로 나가야 했다.
                        발송처리가 나간 집은 취소가 아니라 반품 흐름이라 버튼을 내지 않는다
                        (서버도 막는다). 이미 취소한 집은 표식만 남긴다. #}
-                    {% if selected.fulfillment.canceled_at %}
-                    <span class="badge bg-secondary">취소 완료</span>
+                    {% if household_canceled %}
+                    {# 집 단위 판정이다 — 대표 링크만 보면 형제 취소가 실패한 집이
+                       '취소 완료'로 보인다(부분 취소는 아래 실패 띠가 말한다). #}
                     {% elif not selected.fulfillment.dispatched_at %}
                     <button type="button" class="btn btn-outline-danger btn-sm" id="wb-cancel"
                             data-bs-toggle="modal" data-bs-target="#wb-modal-cancel">취소처리</button>
@@ -427,12 +449,14 @@
             {% set household_claimed = selected_household_claimed
                                        or selected.claim.blocking
                                        or (selected_group and selected_group.claim_blocking) %}
-            {% if not household_claimed and not selected.fulfillment.dispatched_at %}
+            {% if not household_claimed and not selected.fulfillment.dispatched_at
+                  and not (selected_group.canceled if selected_group
+                           else selected.fulfillment.canceled_at) %}
             {% set place_pending = selected_group.place_pending if selected_group
                                    else (not selected.place.confirmed) %}
             {# 버튼과 **같은 조건**으로 렌더한다 — 한쪽만 바꾸면 열린 버튼이 빈 모달을 연다. #}
-            {% set close_now = ((selected_group.relation if selected_group else '')
-                                or selected.relation or '') in ('ADDON', 'REPAY') %}
+            {% set close_now = selected_group.close_now if selected_group
+                               else ((selected.relation or '') in ('ADDON', 'REPAY')) %}
             {% if close_now or not place_pending %}
             <div class="modal fade" id="wb-modal-dispatch" tabindex="-1" aria-hidden="true">
                 <div class="modal-dialog modal-dialog-centered">
@@ -497,7 +521,8 @@
 
             {# 결정 6 불가역 4종 세트 — 취소 쪽. 버튼과 **같은 조건**으로 렌더한다. #}
             {% if not household_claimed and not selected.fulfillment.dispatched_at
-                  and not selected.fulfillment.canceled_at %}
+                  and not (selected_group.canceled if selected_group
+                           else selected.fulfillment.canceled_at) %}
             <div class="modal fade" id="wb-modal-cancel" tabindex="-1" aria-hidden="true">
                 <div class="modal-dialog modal-dialog-centered">
                     <div class="modal-content">
@@ -682,6 +707,11 @@
                         <span class="wb-row__line3">
                             {% if group.count > 1 %}
                             <span class="badge bg-light text-dark">{{ group.count }}건 묶음</span>
+                            {% endif %}
+                            {% if group.relation in ('ADDON', 'REPAY') %}
+                            <span class="badge bg-info text-dark">
+                                {{ '추가결제' if group.relation == 'ADDON' else '재결제' }}
+                            </span>
                             {% endif %}
                             <span class="badge bg-danger">{{ group.claim_label }}</span>
                             {% if group.order_id %}
@@ -939,5 +969,5 @@
 {% endblock %}
 
 {% block scripts %}
-<script src="{{ url_for('static', filename='js/admin/naver-workbench.js') }}?v=20260822b" defer></script>
+<script src="{{ url_for('static', filename='js/admin/naver-workbench.js') }}?v=20260823a" defer></script>
 {% endblock %}

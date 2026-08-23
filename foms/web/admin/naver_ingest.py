@@ -609,6 +609,15 @@ def naver_ingest_triage():
                 pane_link is None or pane_link.id != context["selected"]["link_id"]):
             pane_link = db.get(ExternalOrderLink, context["selected"]["link_id"])
         selected_household_claimed = _household_has_claim(db, pane_link)
+        # pane 의 집은 **서버가 처리할 집**과 같아야 한다(2026-08-23 리뷰 F5/H).
+        # 큐 모집단은 `COLLECTED|LINKED` + `reviewed_at IS NULL` 로 좁혀져 있는데, 워커는
+        # `_links_of_group`(주문번호+집 키 전체)를 처리한다. 그 차이가 그대로 모달 문장에
+        # 나오면 "상품주문 1건을 취소합니다"라고 읽고 2건이 환불된다.
+        if pane_link is not None:
+            household = _group_of_link(db, pane_link)
+            if household is not None:
+                context["selected_group"] = household
+                selected_group = household
 
         history = _history_view(db) if active_tab == "all" else {}
         # 수집 상태(워터마크·인증 만료일)는 이력 탭에 함께 싣는다. 게이트가 켜지면 옛
@@ -716,8 +725,16 @@ def _failure_rows(db) -> list[dict[str, Any]]:
         # 컬럼(group_key)으로 접으면 백필 전 분할배송에서 두 집이 한 줄로 붙어, 건수가
         # 낮게 뜨고 한 번 눌러 한 집만 처리된다.
         key = f"{(link.external_order_no or '').strip()}|{household_key(link)}"
+        action_now = str(state.get("last_error_action") or "").strip().lower()
         if key in seen:
-            continue
+            # 집당 1행으로 접되, **취소 거절은 다른 실패에 가려지면 안 된다**(2026-08-23 리뷰 F4).
+            # 가려지면 사람이 방금 누른 취소의 사유를 못 보고, 남은 행은 retryable 이라
+            # 재시도 버튼이 그 집에 반대 조작(발주확인·발송처리)을 쏜다.
+            if action_now == "cancel":
+                rows[:] = [row for row in rows if row["_key"] != key]
+                seen.discard(key)
+            else:
+                continue
         seen.add(key)
         summary = summarize_snapshot(link.raw_snapshot)
         # 어느 작업이 실패했는지 워커가 함께 적는다. 없으면(옛 기록) 발주확인으로 본다 —
@@ -726,6 +743,7 @@ def _failure_rows(db) -> list[dict[str, Any]]:
         action = str(state.get("last_error_action") or "confirm").strip().lower()
         action = action if action in ("confirm", "dispatch", "cancel") else "confirm"
         rows.append({
+            "_key": key,
             "link_id": link.id,
             "customer_name": summary["customer_name"] or link.external_id,
             "external_order_no": link.external_order_no or "",
@@ -812,6 +830,10 @@ def _place_groups(db) -> tuple[list[dict[str, Any]], bool]:
     # "잘렸다"를 숨긴다(60집 중 5집이 취소면 46집만 보이고 경고가 안 뜬다).
     groups = _group_queue(links, orders, truncated=len(links) == QUEUE_LINK_FETCH_LIMIT,
                           limit=QUEUE_LINK_FETCH_LIMIT)
+    # 우리가 취소한 집은 목록에서 뺀다. 컬럼(place_order_status)만 보는 SQL 술어로는 못 거른다
+    # — 취소 표식은 triage_state(JSONB) 이고 hot path 에서 JSONB 를 스캔하지 않는다.
+    # 탭 배지는 이 목록의 길이를 쓰므로 여기서 빼면 배지와 목록이 함께 줄어든다.
+    groups = [group for group in groups if not group["canceled"]]
     # 클레임 판정은 **형제까지** 봐야 한다. 모집단을 '발주확인 전' 링크로 먼저 좁혔으므로,
     # 이미 발주확인이 끝난 형제가 취소돼도 이 목록 안에서는 안 보인다 — 그 집에 발주확인을
     # 보내면 네이버가 거절해 집 전체가 실패한다.
@@ -1058,6 +1080,14 @@ def _group_queue(links: list[ExternalOrderLink], orders: dict,
             "relation": ("ADDON" if any((row.relation or "") == "ADDON" for row in members)
                          else next((row.relation for row in members
                                     if (row.relation or "") == "REPAY"), "")),
+            # 발송처리를 '지금 닫기'로 열지 여부는 **집 전체가** 추가결제·재결제일 때만이다
+            # (서버 dispatch_order 와 같은 all 규칙 — any 로 두면 섞인 집의 NEW 형제까지
+            # 발주확인 없이 나간다).
+            "close_now": all((row.relation or "").upper() in ("ADDON", "REPAY")
+                             for row in members),
+            # 우리가 취소한 집은 더 손대지 않는다 — 버튼·모달·발주확인 전 탭에서 함께 뺀다.
+            "canceled": any(((row.triage_state or {}).get("fulfillment") or {}).get("canceled_at")
+                            for row in members),
             "shipping_due": next((s["shipping_due"] for s in member_summaries if s["shipping_due"]), ""),
             # CS 가 다음에 할 일을 목록에서 바로 알아보게 한다.
             "next_step": ("주문 만들기" if not lead.order_id
@@ -1189,7 +1219,14 @@ def naver_ingest_cancel(link_id: int):
 
     FOMS 주문은 건드리지 않는다. 네이버 쪽만 취소한다(주문 취소는 주문 화면의 일이다).
     """
+    from foms.services.feature_flags import is_naver_workbench_enabled
     from foms.services.integrations.naver_commerce.fulfillment import CANCEL_REASONS
+
+    # 취소는 워크벤치에만 있는 기능이다. 게이트를 끄는 것이 이 기능의 롤백 경로이므로
+    # 라우트도 함께 닫는다 — 열어 두면 열린 탭·북마크가 게이트를 우회한다.
+    if not is_naver_workbench_enabled(session.get("user_id")):
+        return jsonify({"success": False, "data": None,
+                        "error": "이 화면에서는 취소를 보낼 수 없습니다."}), 403
 
     payload = request.get_json(silent=True) or {}
     reason = str(payload.get("reason") or "").strip().upper()

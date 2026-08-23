@@ -6,6 +6,7 @@ REDIS_URL 있으면 enqueue 가능. (USE_RQ_WORKER는 start.sh 전용, enqueue�
 from __future__ import annotations
 
 import logging
+from typing import Optional
 import os
 
 logger = logging.getLogger(__name__)
@@ -190,7 +191,8 @@ def enqueue_naver_fulfillment(link_id: int, action: str, actor_user_id=None):
         return False
 
 
-def enqueue_naver_cancel(link_id: int, reason: str, detail=None, actor_user_id=None):
+def enqueue_naver_cancel(link_id: int, reason: str, detail: Optional[str] = None,
+                         actor_user_id: Optional[int] = None) -> bool:
     """판매자 직접취소 job enqueue (스펙 §3.4).
 
     발주확인·발송처리와 같은 출구(WORKER)를 쓴다 — 커머스API 호출 IP 가 WORKER 것뿐이다.

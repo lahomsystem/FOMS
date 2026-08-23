@@ -171,21 +171,31 @@ def test_dispatch_lets_a_repay_close_before_place_confirmation(app):
     assert len(client.dispatch_calls) == 1
 
 
-def test_dispatch_relation_is_judged_by_the_household_not_one_row(app):
-    """관계는 집 판정이다 — 형제 하나만 ADDON 이어도 그 집은 지금 닫을 수 있다.
+def test_a_mixed_household_still_needs_place_confirmation_first(app):
+    """관계가 섞인 집은 **발주확인이 먼저**다 (2026-08-23 리뷰 F7).
 
-    붙이기는 집 전체를 함께 붙이지만, 백필 전 데이터는 형제 일부만 값이 있다.
-    한 건만 보고 막으면 화면(집 단위 배지)과 서버 판정이 갈린다.
+    붙이기는 집 전체에 관계를 쓰지만, attach 이후 수집된 형제는 server_default 'NEW' 로
+    들어온다. 한 건만 ADDON 이라고 집을 열면 그 NEW 형제까지 발주확인 없이 발송된다.
     """
     link_id = _link("PO-F-MIX1", order_no="N-FUL-MIX", place="NOT_YET", relation="ADDON")
     _link("PO-F-MIX2", order_no="N-FUL-MIX", place="NOT_YET")
     client = _StubClient()
 
+    with pytest.raises(FulfillmentError):
+        dispatch_order(db_session, client, link_id=link_id)
+    assert client.dispatch_calls == []
+
+
+def test_a_fully_addon_household_closes_together(app):
+    """집 전체가 추가결제면 형제까지 함께 닫는다 — 한 집은 통째로."""
+    link_id = _link("PO-F-ALL1", order_no="N-FUL-ALL", place="NOT_YET", relation="ADDON")
+    _link("PO-F-ALL2", order_no="N-FUL-ALL", place="NOT_YET", relation="ADDON")
+    client = _StubClient()
+
     dispatch_order(db_session, client, link_id=link_id)
     db_session.commit()
 
-    assert len(client.dispatch_calls) == 1
-    assert sorted(r["productOrderId"] for r in client.dispatch_calls[0]) == ["PO-F-MIX1", "PO-F-MIX2"]
+    assert sorted(r["productOrderId"] for r in client.dispatch_calls[0]) == ["PO-F-ALL1", "PO-F-ALL2"]
 
 
 def test_dispatch_uses_direct_delivery_with_iso_timestamp(app):

@@ -313,3 +313,102 @@ def test_place_tab_also_flags_addon_households(client, workbench_on):
     body = _body(client, tab="place")
 
     assert "추가결제" in body
+
+
+# --------------------------------------------------------------------------- #
+# 푸시 전 리뷰 [치명] — 취소한 집은 화면에서도 닫힌다
+# --------------------------------------------------------------------------- #
+
+def _mark_canceled(link: ExternalOrderLink) -> None:
+    """워커가 취소를 성공시킨 뒤의 상태."""
+    link.triage_state = {"fulfillment": {"canceled_at": "2026-08-22T01:00:00",
+                                         "cancel_reason": "SOLD_OUT"}}
+    db_session.commit()
+
+
+def test_cancelled_household_has_no_dispatch_button(client, workbench_on):
+    """취소한 집에 발송처리 버튼이 남아 있으면 사람이 누른다 — 서버도 막지만 화면이 먼저다."""
+    _login(client)
+    link = _collected(order_no="N-REL-CXL-DONE")
+    _mark_canceled(link)
+
+    body = _body(client, tab="work", link_id=link.id)
+
+    assert 'id="wb-dispatch"' not in body
+    assert 'id="wb-modal-dispatch"' not in body
+    assert "취소 완료" in body
+
+
+def test_cancelled_household_cannot_create_an_order(client, workbench_on):
+    """취소한 집으로 주문을 만들지 않는다."""
+    _login(client)
+    link = _collected(order_no="N-REL-CXL-NOORDER")
+    _mark_canceled(link)
+
+    body = _body(client, tab="work", link_id=link.id)
+
+    assert "취소한 집입니다" in body
+
+
+def test_cancelled_household_leaves_the_place_tab(client, workbench_on):
+    """'발주확인 전' 탭에서도 빠진다 — 안 빼면 전부 선택 → 발주확인이 취소한 집으로 나간다."""
+    _login(client)
+    link = _collected(order_no="N-REL-CXL-PLACE", place_status="NOT_YET")
+    _mark_canceled(link)
+
+    body = _body(client, tab="place")
+
+    assert "발주확인이 필요한 집이 없습니다" in body
+
+
+def test_a_mixed_relation_household_is_not_offered_close_now(client, workbench_on):
+    """형제 하나가 신규면 '지금 닫기'를 열지 않는다 — 서버 all 규칙과 같은 판정."""
+    _login(client)
+    order = _order()
+    lead = _collected(order_no="N-REL-MIXED", relation="ADDON", order_id=int(order.id),
+                      place_status="NOT_YET", amount=500000)
+    _collected(order_no="N-REL-MIXED", place_status="NOT_YET", amount=100)
+
+    body = _body(client, tab="work", link_id=lead.id)
+
+    assert "지금 닫기" not in body
+    assert 'id="wb-dispatch" disabled' in body
+
+
+def test_cancel_refusal_is_not_hidden_by_another_failure(client, workbench_on):
+    """한 집에 실패가 섞이면 **취소 거절**을 보여준다 — 가려지면 재시도가 반대 조작을 쏜다."""
+    _login(client)
+    first = _collected(order_no="N-REL-MIXFAIL", amount=500000)
+    second = _collected(order_no="N-REL-MIXFAIL", amount=100)
+    first.triage_state = {"fulfillment": {"last_error": "이미 발송처리한 집입니다",
+                                          "last_error_action": "cancel",
+                                          "last_error_at": "2026-08-22T02:00:00"}}
+    second.triage_state = {"fulfillment": {"last_error": "발주확인이 먼저입니다",
+                                           "last_error_action": "dispatch",
+                                           "last_error_at": "2026-08-22T01:00:00"}}
+    db_session.commit()
+
+    body = _body(client, tab="work", link_id=first.id)
+
+    assert "이미 발송처리한 집입니다" in body
+    assert 'id="wb-retry-failed"' not in body, "취소 거절 집에 재시도 버튼을 내면 안 된다"
+
+
+def test_modal_counts_the_household_the_server_will_touch(client, workbench_on):
+    """모달 건수 = 서버가 처리할 건수 (2026-08-23 리뷰 F5).
+
+    확인 완료된 형제는 큐에서 빠지지만 워커는 그 집을 통째로 처리한다. 화면이 큐 기준으로
+    세면 "1건 취소합니다"라고 읽히고 2건이 환불된다.
+    """
+    from foms.services.datetime_kst import now_utc_naive
+
+    _login(client)
+    lead = _collected(order_no="N-REL-COUNT", amount=500000)
+    sibling = _collected(order_no="N-REL-COUNT", amount=100)
+    sibling.reviewed_at = now_utc_naive()
+    db_session.commit()
+
+    body = _body(client, tab="work", link_id=lead.id)
+
+    assert "상품주문 2건" in body, "확인 완료된 형제도 세어야 한다"
+    assert body.count("2건을") >= 1
