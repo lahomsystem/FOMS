@@ -34,6 +34,7 @@ from foms.services.erp_display import (
 from foms.services.erp_product_items import build_product_items_for_order
 from foms.services.notifications.drawing_order_change import (
     _change_parts,
+    drawing_work_started,
     humanize_order_change_changes,
     is_order_change_pending,
     join_changes_text,
@@ -307,7 +308,7 @@ def _build_handoff_thread(history: list[Mapping[str, Any]]) -> list[dict[str, An
         'CONFIRM_RECEIPT': '수령 확정',
         'ERP_ORDER_CHANGED': '주문 변경',
     }
-    for _, event in newest_first:
+    for _event_index, event in newest_first:
         action = (event.get('action') or '').upper()
         targets = _event_target_numbers(event)
         target_text = ', '.join(str(n) for n in targets)
@@ -319,7 +320,13 @@ def _build_handoff_thread(history: list[Mapping[str, Any]]) -> list[dict[str, An
             side = 'right'
         changes = event.get('changes')
         if action == 'ERP_ORDER_CHANGED' and changes:
-            changes = humanize_order_change_changes(changes)
+            # 도면 착수 전 저장의 '항목N 추가'는 접수 내용 채우기라 최초 입력으로 본다.
+            changes = humanize_order_change_changes(
+                changes,
+                keep_item_add_rows=drawing_work_started(
+                    {'drawing_transfer_history': history}, before_index=_event_index
+                ),
+            )
             if not changes:
                 continue  # 최초 입력 줄만 있던 이벤트 — 타임라인에서도 뺀다(note 는 소음 원문).
         thread.append({
@@ -547,9 +554,10 @@ def erp_drawing_workbench_dashboard():
         # 비변경 이벤트는 빈 리스트 → 템플릿이 기존 note 1줄 표기로 폴백한다.
         _last_changes = (last_event or {}).get('changes')
         if h_action == 'ERP_ORDER_CHANGED' and isinstance(_last_changes, list) and _last_changes:
-            latest_event_parts = _change_parts(_last_changes)
-            latest_event_note = summarize_changes(_last_changes)
-            latest_event_note_full = join_changes_text(_last_changes)
+            _keep_adds = drawing_work_started(sd)
+            latest_event_parts = _change_parts(_last_changes, keep_item_add_rows=_keep_adds)
+            latest_event_note = summarize_changes(_last_changes, keep_item_add_rows=_keep_adds)
+            latest_event_note_full = join_changes_text(_last_changes, keep_item_add_rows=_keep_adds)
         else:
             latest_event_parts = []
             latest_event_note = str((last_event or {}).get('note') or '')
@@ -934,9 +942,19 @@ def erp_drawing_workbench_detail(order_id):
     # 최초 입력 줄(빈칸·'상담' → 첫 값)은 humanize 단계에서 걷힌다. 걷고 나서 남는 줄이 없는
     # 이벤트는 통째로 소음이므로 피드에서 뺀다(과거에 쌓인 이력도 읽기 시점에 함께 정리된다).
     order_change_events = []
-    for h in [x for x in reversed(history) if x.get('action') == 'ERP_ORDER_CHANGED']:
+    for _idx, h in sorted(
+        [(i, x) for i, x in enumerate(history) if x.get('action') == 'ERP_ORDER_CHANGED'],
+        key=lambda pair: pair[0],
+        reverse=True,
+    ):
+        # 그 이벤트 시점에 도면이 실제로 전달됐는지로 '항목N 추가' 표시 여부를 가른다.
+        _keep_adds = drawing_work_started(
+            {'drawing_transfer_history': history}, before_index=_idx
+        )
         if isinstance(h, dict) and h.get('changes'):
-            h['changes'] = humanize_order_change_changes(h.get('changes'))
+            h['changes'] = humanize_order_change_changes(
+                h.get('changes'), keep_item_add_rows=_keep_adds
+            )
             if not h['changes']:
                 continue
         order_change_events.append(h)

@@ -121,7 +121,7 @@
     },
     {
       "path": "foms/services/notifications/drawing_order_change.py",
-      "lineno": 1103,
+      "lineno": 1176,
       "kind": "flag_modified_structured_data",
       "owner": "STATE-DRAWING-01"
     },
@@ -496,7 +496,7 @@
     },
     {
       "path": "foms/services/notifications/drawing_order_change.py",
-      "lineno": 1103,
+      "lineno": 1176,
       "kind": "flag_modified_structured_data",
       "classification": "EXTERNAL",
       "owner": "STATE-DRAWING-01"

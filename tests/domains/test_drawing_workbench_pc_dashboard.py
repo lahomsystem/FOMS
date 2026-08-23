@@ -36,8 +36,8 @@ def test_dashboard_rows_rehumanize_order_change_note() -> None:
     assert "join_changes_text" in route
     assert "summarize_changes" in route
     assert "h_action == 'ERP_ORDER_CHANGED'" in route
-    assert "latest_event_note = summarize_changes(_last_changes)" in route
-    assert "latest_event_note_full = join_changes_text(_last_changes)" in route
+    assert "latest_event_note = summarize_changes(_last_changes, keep_item_add_rows=_keep_adds)" in route
+    assert "latest_event_note_full = join_changes_text(_last_changes, keep_item_add_rows=_keep_adds)" in route
     # 비변경 이벤트는 기존 note 를 그대로 쓴다(full = note).
     assert "latest_event_note_full = latest_event_note" in route
     # 행 필드 노출.
@@ -50,10 +50,10 @@ def test_join_changes_text_shares_assembly_with_summarize() -> None:
     src = _read(ORDER_CHANGE)
     assert "def _change_parts(" in src
     assert "def join_changes_text(" in src
-    assert 'return " · ".join(_change_parts(changes))' in src
+    assert 'return " · ".join(_change_parts(changes, keep_item_add_rows=keep_item_add_rows))' in src
     # summarize_changes 가 조립을 중복하지 않고 헬퍼를 소비한다.
     summarize = src.split("def summarize_changes(")[1]
-    assert "parts = _change_parts(changes)" in summarize
+    assert "parts = _change_parts(changes, keep_item_add_rows=keep_item_add_rows)" in summarize
     assert "for ch in humanize_order_change_changes(changes)" not in summarize
 
 
@@ -287,7 +287,7 @@ def test_rows_expose_latest_event_parts_reusing_change_parts() -> None:
     """조각 리스트는 join_changes_text 와 같은 SSOT(_change_parts) 를 재사용한다."""
     route = _read(WORKBENCH)
     assert "_change_parts," in route, "_change_parts 를 import 해 조립을 중복하지 않는다"
-    assert "latest_event_parts = _change_parts(_last_changes)" in route
+    assert "latest_event_parts = _change_parts(_last_changes, keep_item_add_rows=_keep_adds)" in route
     # 비변경 이벤트는 빈 리스트 → 템플릿이 note 1줄로 폴백.
     assert "latest_event_parts = []" in route
     assert "'latest_event_parts': latest_event_parts," in route

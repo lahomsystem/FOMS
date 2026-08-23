@@ -441,3 +441,76 @@ def test_apply_skips_alert_when_only_first_fill(app, drawing_order):
         assert not (new.get("drawing_transfer_history") or [])
         assert is_order_change_pending(new) is False
         db.rollback()
+
+
+def test_item_add_row_hidden_before_drawing_starts():
+    """도면 착수 전 품목 추가는 접수 내용 채우기 — 변경 이력에 남기지 않는다.
+
+    운영 실측(2026-08-20, 주문 4637): 실측 최종 승인 3분 15초 뒤 저장에서 항목2가 추가됐고
+    도면 전달 이력은 0건이었다. 단계만 보면 'DRAWING 이후'라 사고처럼 보이지만 실제로는
+    도면이 그려지기 전이다.
+    """
+    old = _base_sd(drawing={"status": "PENDING"}, drawing_status="PENDING")
+    new = _base_sd(drawing={"status": "PENDING"}, drawing_status="PENDING")
+    new["items"].append({"product_name": "몰딩 파우더장", "color": "클린화이트"})
+
+    changes = compute_drawing_relevant_changes(old, new)
+    assert not [c for c in changes if c["path"].startswith("items.1")]
+
+
+def test_item_add_row_kept_after_transfer():
+    """도면을 전달한 뒤 품목이 추가되면 그건 도면이 틀어지는 변경 — 반드시 남긴다."""
+    transferred = [{"action": "TRANSFER", "at": "2026-08-19 01:00:00", "by_user_name": "도면"}]
+    old = _base_sd(drawing={"status": "TRANSFERRED"}, drawing_status="TRANSFERRED",
+                   drawing_transfer_history=list(transferred))
+    new = _base_sd(drawing={"status": "TRANSFERRED"}, drawing_status="TRANSFERRED",
+                   drawing_transfer_history=list(transferred))
+    new["items"].append({"product_name": "몰딩 파우더장"})
+
+    changes = compute_drawing_relevant_changes(old, new)
+    add_row = next(c for c in changes if c["path"] == "items.1")
+    assert add_row["to"] == "몰딩 파우더장"
+
+
+def test_item_delete_row_survives_before_drawing_starts():
+    """품목 삭제는 도면 착수 전이라도 남는다 — 사라진 사실은 최초 입력이 아니다."""
+    old = _base_sd(drawing={"status": "PENDING"}, drawing_status="PENDING")
+    old["items"].append({"product_name": "몰딩 파우더장"})
+    new = _base_sd(drawing={"status": "PENDING"}, drawing_status="PENDING")
+
+    changes = compute_drawing_relevant_changes(old, new)
+    row = next(c for c in changes if c["path"] == "items.1")
+    assert row["label"].endswith("삭제") and row["from"] == "몰딩 파우더장"
+
+
+def test_humanize_drops_legacy_item_add_before_drawing_start():
+    """과거 이력도 그 시점 기준으로 정리된다 — 도면 착수 전 저장의 추가 줄은 접힌다."""
+    from foms.services.notifications.drawing_order_change import humanize_order_change_changes
+
+    rows = [
+        {"path": "items.1", "label": "항목2 추가", "from": "(없음)", "to": "몰딩 파우더장"},
+        {"path": "site.address", "label": "주소", "from": "경기 파주시 청석로 350", "to": "경기 파주시 물향기2로 9"},
+    ]
+    assert [r["path"] for r in humanize_order_change_changes(rows, keep_item_add_rows=False)] == [
+        "site.address"
+    ]
+    assert [r["path"] for r in humanize_order_change_changes(rows)] == ["items.1", "site.address"]
+
+
+def test_drawing_work_started_uses_transfer_not_stage():
+    """도면 착수 판정은 전달 이력·도면 상태 — 단계(DRAWING)만으로는 착수가 아니다."""
+    from foms.services.notifications.drawing_order_change import drawing_work_started
+
+    stage_only = _base_sd(drawing={"order_change_pending": True}, drawing_status="PENDING")
+    assert drawing_work_started(stage_only) is False
+
+    assert drawing_work_started(_base_sd(drawing_status="IN_PROGRESS")) is True
+
+    history = [
+        {"action": "ERP_ORDER_CHANGED", "at": "2026-08-01 00:00:00"},
+        {"action": "TRANSFER", "at": "2026-08-02 00:00:00"},
+        {"action": "ERP_ORDER_CHANGED", "at": "2026-08-03 00:00:00"},
+    ]
+    sd = _base_sd(drawing_status="PENDING", drawing_transfer_history=history)
+    assert drawing_work_started(sd, before_index=0) is False  # 전달 전 이벤트
+    assert drawing_work_started(sd, before_index=2) is True   # 전달 후 이벤트

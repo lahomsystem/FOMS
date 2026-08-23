@@ -292,6 +292,33 @@ _UNSET_DISPLAY_TOKENS = frozenset({"", "-", "--", "(없음)", "없음", "미정"
 _ITEM_ROOT_PATH_RE = re.compile(r"^items\.\d+$")
 
 
+def drawing_work_started(sd: dict, *, before_index: Optional[int] = None) -> bool:
+    """도면 작업이 실제로 시작됐는지 판정한다.
+
+    단계(`workflow.stage`)만 보면 실측 승인 직후의 마무리 저장까지 "도면 이후 변경"이 된다
+    (2026-08-20 운영 실측, 주문 4637: 실측 최종 승인 3분 15초 뒤 저장 — 도면 전달 이력 0건).
+    도면팀이 이미 그린 도면이 틀어지는 사고는 **전달(TRANSFER)이 있었거나 도면 상태가 진행 중**
+    일 때부터다.
+
+    Args:
+        sd: structured_data.
+        before_index: 주면 ``drawing_transfer_history`` 의 그 인덱스 **앞**까지만 본다
+            (과거 이벤트를 그 시점 기준으로 판정할 때 쓴다).
+
+    Returns:
+        도면 작업이 시작된 뒤면 ``True``.
+    """
+    if before_index is None and _drawing_status(sd) in _ACTIVE_DRAWING_STATUSES:
+        return True
+    history = list((sd or {}).get("drawing_transfer_history") or [])
+    if before_index is not None:
+        history = history[:before_index]
+    return any(
+        isinstance(entry, dict) and str(entry.get("action") or "").upper() == "TRANSFER"
+        for entry in history
+    )
+
+
 def is_unset_display_value(value: Any) -> bool:
     """표시값이 "값 없음"(빈칸·(없음)·폼 placeholder '상담' 등)인지 판정한다.
 
@@ -325,8 +352,18 @@ def is_first_fill_change(path: Any, from_value: Any) -> bool:
 
 def humanize_order_change_changes(
     changes: Optional[Sequence[Any]],
+    *,
+    keep_item_add_rows: bool = True,
 ) -> List[Dict[str, str]]:
-    """history.changes 표시용 복사본(원본 JSON from/to 를 사람 표기로)."""
+    """history.changes 표시용 복사본(원본 JSON from/to 를 사람 표기로).
+
+    Args:
+        changes: history.changes 원본.
+        keep_item_add_rows: ``False`` 면 ``항목N 추가``(빈값→첫 품목) 줄도 최초 입력으로 보고
+            걷어낸다. 도면 착수 **전** 저장에 쓴다 — 그 시점 품목 추가는 접수 내용을 채운
+            것이지 도면을 틀어지게 한 변경이 아니다. 품목 **삭제**는 from 에 값이 있어
+            이 옵션과 무관하게 남는다.
+    """
     out: List[Dict[str, str]] = []
     for raw in changes or []:
         if not isinstance(raw, dict):
@@ -344,6 +381,12 @@ def humanize_order_change_changes(
         # 읽기 시점 교정 — 이미 쌓인 과거 이력의 최초 입력 줄도 함께 걷어낸다.
         if is_first_fill_change(row["path"], row["from"]):
             continue
+        if (
+            not keep_item_add_rows
+            and _ITEM_ROOT_PATH_RE.match(row["path"])
+            and is_unset_display_value(row["from"])
+        ):
+            continue  # 도면 착수 전 품목 추가 = 접수 내용 채우기
         # 구(舊) 결제 자리표시 줄(`결제/금액 이전→변경됨`)은 정보가 0이다 — 과거 이력에서도 뺀다.
         if row["path"] == "payment" and row["to"] == "변경됨":
             continue
@@ -409,8 +452,17 @@ def _append_item_field_changes(
     changes: List[Dict[str, str]],
     old_sd: dict,
     new_sd: dict,
+    *,
+    keep_item_add_rows: bool = True,
 ) -> None:
-    """제품 행별 치수·옵션 before→after를 changes에 추가."""
+    """제품 행별 치수·옵션 before→after를 changes에 추가.
+
+    Args:
+        changes: 누적 변경 목록(제자리 추가).
+        old_sd: 이전 structured_data.
+        new_sd: 새 structured_data.
+        keep_item_add_rows: ``False`` 면 ``항목N 추가`` 줄을 남기지 않는다(도면 착수 전 저장).
+    """
     old_items = old_sd.get("items") if isinstance(old_sd.get("items"), list) else []
     new_items = new_sd.get("items") if isinstance(new_sd.get("items"), list) else []
     max_n = max(len(old_items), len(new_items))
@@ -419,6 +471,8 @@ def _append_item_field_changes(
         new_it = new_items[idx] if idx < len(new_items) else None
         prefix = f"항목{idx + 1}"
         if old_it is None and isinstance(new_it, dict):
+            if not keep_item_add_rows:
+                continue  # 도면 착수 전 품목 추가 = 접수 내용 채우기(최초 입력)
             name = _norm_scalar(new_it.get("product_name")) or f"#{idx + 1}"
             changes.append({
                 "path": f"items.{idx}",
@@ -708,7 +762,13 @@ def compute_drawing_relevant_changes(
     _add_change(changes, "schedule.construction.time", "시공시간", old_cons.get("time"), new_cons.get("time"))
 
     # --- 제품/스펙 (필드별 before→after) ---
-    _append_item_field_changes(changes, old_sd, new_sd)
+    _append_item_field_changes(
+        changes,
+        old_sd,
+        new_sd,
+        # 도면 착수 전이면 품목 추가도 최초 입력이다 — 도면이 틀어지는 사고가 아니다.
+        keep_item_add_rows=drawing_work_started(new_sd),
+    )
 
     # --- 메모·플래그·결제·지방 ---
     _add_change(changes, "notes", "주문비고", old_notes, new_notes)
@@ -772,7 +832,11 @@ def compute_drawing_relevant_changes(
     return changes
 
 
-def _change_parts(changes: Sequence[Dict[str, str]]) -> List[str]:
+def _change_parts(
+    changes: Sequence[Dict[str, str]],
+    *,
+    keep_item_add_rows: bool = True,
+) -> List[str]:
     """변경 항목별 ``라벨 before→after`` 조각 목록 (요약·전문 공용 조립 SSOT).
 
     Args:
@@ -782,7 +846,7 @@ def _change_parts(changes: Sequence[Dict[str, str]]) -> List[str]:
         절단·조인 전 조각 문자열 리스트.
     """
     parts: List[str] = []
-    for ch in humanize_order_change_changes(changes):
+    for ch in humanize_order_change_changes(changes, keep_item_add_rows=keep_item_add_rows):
         label = ch.get("label") or ch.get("path") or "항목"
         from_v = ch.get("from") or "(없음)"
         to_v = ch.get("to") or "(없음)"
@@ -790,7 +854,11 @@ def _change_parts(changes: Sequence[Dict[str, str]]) -> List[str]:
     return parts
 
 
-def join_changes_text(changes: Sequence[Dict[str, str]]) -> str:
+def join_changes_text(
+    changes: Sequence[Dict[str, str]],
+    *,
+    keep_item_add_rows: bool = True,
+) -> str:
     """절단 없는 변경 전문 (목록 tooltip 등). summarize_changes 와 동일 포맷.
 
     Args:
@@ -799,14 +867,19 @@ def join_changes_text(changes: Sequence[Dict[str, str]]) -> str:
     Returns:
         ``라벨 before→after`` 를 ``  ·  `` 로 이은 전체 문자열 (비면 빈 문자열).
     """
-    return " · ".join(_change_parts(changes))
+    return " · ".join(_change_parts(changes, keep_item_add_rows=keep_item_add_rows))
 
 
-def summarize_changes(changes: Sequence[Dict[str, str]], *, max_len: int = NOTE_MAX_LEN) -> str:
+def summarize_changes(
+    changes: Sequence[Dict[str, str]],
+    *,
+    max_len: int = NOTE_MAX_LEN,
+    keep_item_add_rows: bool = True,
+) -> str:
     """타임라인/알림용 한글 요약 (항상 before→after, JSON 금지)."""
     if not changes:
         return ""
-    parts = _change_parts(changes)
+    parts = _change_parts(changes, keep_item_add_rows=keep_item_add_rows)
     text = " · ".join(parts)
     if len(text) <= max_len:
         return text
