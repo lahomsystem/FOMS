@@ -702,6 +702,7 @@ def test_history_pagination_keeps_tab_and_filter(client, workbench_on, monkeypat
     """페이지를 넘겨도 탭과 필터가 유지된다 — 선행 결함 #8 의 워크벤치 쪽."""
     from foms.web.admin import naver_ingest as mod
 
+    # 이력 탭 페이징은 PAGE_SIZE 를 쓴다(처리 목록 상한 WORK_GROUP_LIMIT 과 별개다).
     monkeypatch.setattr(mod, "PAGE_SIZE", 1, raising=False)
     _login(client)
     for idx in range(3):
@@ -1157,7 +1158,9 @@ def test_place_tab_says_when_the_list_is_truncated(client, workbench_on, monkeyp
     """상한에 걸려 잘렸으면 잘렸다고 말한다 — 조용히 자르면 나머지를 찾아 헤맨다."""
     from foms.web.admin import naver_ingest as mod
 
-    monkeypatch.setattr(mod, "PAGE_SIZE", 1, raising=False)
+    # 목록 상한의 SSOT 는 WORK_GROUP_LIMIT 다(2026-08-24: 캡을 원천별이 아니라
+    # **병합 뒤 한 곳**으로 옮겼다). PAGE_SIZE 는 이력 페이징용이라 여기선 안 문다.
+    monkeypatch.setattr(mod, "WORK_GROUP_LIMIT", 1, raising=False)
     _login(client)
     for idx in range(3):
         _collected(order_no=f"N-TRUNC-{idx}", product=f"집 {idx}", amount=1000,
@@ -1303,7 +1306,9 @@ def test_truncation_is_measured_after_the_claim_filter(client, workbench_on, mon
     """클레임으로 빠진 집이 상한을 먹어 '잘림'이 숨겨지면 안 된다."""
     from foms.web.admin import naver_ingest as mod
 
-    monkeypatch.setattr(mod, "PAGE_SIZE", 1, raising=False)
+    # 목록 상한의 SSOT 는 WORK_GROUP_LIMIT 다(2026-08-24: 캡을 원천별이 아니라
+    # **병합 뒤 한 곳**으로 옮겼다). PAGE_SIZE 는 이력 페이징용이라 여기선 안 문다.
+    monkeypatch.setattr(mod, "WORK_GROUP_LIMIT", 1, raising=False)
     _login(client)
     _collected(order_no="N-TR-A", product="정상 하나", amount=1000, place_status="",
                address="서울 종로구 1", tel="010-4444-0001")

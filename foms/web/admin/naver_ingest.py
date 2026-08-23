@@ -39,6 +39,12 @@ PAGE_SIZE = 50
 #: 개를 채우려면 링크는 그보다 많이 필요하다(실측 평균 3건/집, 여유 배수 5).
 QUEUE_LINK_FETCH_LIMIT = PAGE_SIZE * 5
 
+#: 처리 탭 목록의 집 상한. 캡은 **병합 뒤 한 곳에서만** 건다 — 원천별로 걸면 큐가 50에서
+#: 잘려 "잘렸다" 띠가 켜지는데 화면에는 발주확인 전 집이 더해져 58줄이 보이는, 사람이
+#: 읽을 수 없는 상태가 된다(2026-08-24 스테이징 실화면). 50은 실제 운영 물량(58집)보다
+#: 작아서 상시 발동했다 — 상한은 "평소에는 안 닿는 안전장치"여야 한다.
+WORK_GROUP_LIMIT = 200
+
 #: 상태 필터 닫힌집합. 임의 문자열이 그대로 쿼리에 들어가지 않게 한다.
 VALID_STATUSES = ("COLLECTED", "LINKED", "PENDING_REVIEW", "FAILED")
 
@@ -1055,8 +1061,8 @@ def _place_groups(db) -> tuple[list[dict[str, Any]], bool]:
     blocked = _claim_blocked_group_keys(db, links)
     visible = [group for group in groups
                if not group["claim_blocking"] and group["key"] not in blocked]
-    truncated = len(visible) > PAGE_SIZE or len(links) == QUEUE_LINK_FETCH_LIMIT
-    return visible[:PAGE_SIZE], truncated
+    truncated = len(visible) > WORK_GROUP_LIMIT or len(links) == QUEUE_LINK_FETCH_LIMIT
+    return visible[:WORK_GROUP_LIMIT], truncated
 
 
 def _work_groups(db) -> tuple[list[dict[str, Any]], bool]:
@@ -1083,13 +1089,10 @@ def _work_groups(db) -> tuple[list[dict[str, Any]], bool]:
     # 그 사실을 아무도 안 봐서, 집이 50을 넘으면 화면이 조용히 51번째부터 버렸다 —
     # 링크 250 상한(`truncated`)에 걸릴 때만 안내 띠가 떴다. 캡으로 자른 뒤 아무 말도 안 하면
     # 사람은 나머지를 찾아 헤맨다(2026-08-14 대시보드 캡 결함과 같은 부류, CEO 검수 보통).
+    # 캡은 여기서 걸지 않는다 — 병합이 끝난 뒤 한 곳에서 건다(아래). 원천마다 자르면
+    # 큐가 잘려 띠가 켜지는데 화면 줄수는 캡보다 커지는, 서로 어긋난 상태가 된다.
     queue = _group_queue(pending, _orders_by_id(db, pending),
-                         truncated=truncated, limit=PAGE_SIZE + 1)
-    queue_truncated = len(queue) > PAGE_SIZE
-    if queue_truncated:
-        logger.info("[NAVER] 처리 목록 캡 발동: 큐 묶음 %s집 중 %s집만 보여준다",
-                    len(queue), PAGE_SIZE)
-        queue = queue[:PAGE_SIZE]
+                         truncated=truncated, limit=WORK_GROUP_LIMIT + 1)
     place_groups, place_truncated = _place_groups(db)
 
     merged: dict[Any, dict[str, Any]] = {}
@@ -1111,7 +1114,14 @@ def _work_groups(db) -> tuple[list[dict[str, Any]], bool]:
     _attach_household_counts(db, groups)
     # 잠금·선택 판정은 위 두 단계가 끝난 **뒤에** 한 번만 한다(형제 클레임이 반영된 값으로).
     _attach_row_flags(groups)
-    return groups, bool(truncated or place_truncated or queue_truncated)
+    # 캡 한 곳 — 병합 결과에만 건다. 닿으면 **로그를 남기고** 화면에도 말한다(조용히 자르면
+    # 사람이 나머지를 찾아 헤맨다 — 2026-08-14 대시보드 캡 결함과 같은 부류).
+    capped = len(groups) > WORK_GROUP_LIMIT
+    if capped:
+        logger.warning("[NAVER] 처리 목록 캡 발동: %s집 중 %s집만 보여준다",
+                       len(groups), WORK_GROUP_LIMIT)
+        groups = groups[:WORK_GROUP_LIMIT]
+    return groups, bool(truncated or place_truncated or capped)
 
 
 def _mark_sibling_claims(db, queue_links: list[ExternalOrderLink],

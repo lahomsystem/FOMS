@@ -19,7 +19,7 @@
 {% block title %}네이버 수집{% endblock %}
 
 {% block styles %}
-<link rel="stylesheet" href="{{ url_for('static', filename='css/admin/naver-workbench.css') }}?v=20260824c">
+<link rel="stylesheet" href="{{ url_for('static', filename='css/admin/naver-workbench.css') }}?v=20260824d">
 {% endblock %}
 
 {% block content %}
@@ -160,9 +160,10 @@
 
             {# 조용히 자르면 사람이 나머지를 찾아 헤맨다. 잘렸으면 그렇게 말한다. #}
             {% if work_truncated %}
+            {# 보이는 줄수를 그대로 쓰면 "58집만 보입니다" 인데 위 탭도 58집이라 사람 눈에
+               모순이 된다(2026-08-24 실화면). 상한에 닿았다는 사실만 말한다. #}
             <div class="wb-note" data-foms-no-autodismiss>
-                집이 한 화면에 다 들어가지 않아 <b>{{ work_groups|length }}집</b>만 보입니다 —
-                먼저 처리하면 나머지가 올라옵니다.
+                목록이 상한에 닿아 <b>일부 집이 안 보입니다</b> — 먼저 처리하면 나머지가 올라옵니다.
             </div>
             {% endif %}
 
@@ -501,5 +502,5 @@
 {% endblock %}
 
 {% block scripts %}
-<script src="{{ url_for('static', filename='js/admin/naver-workbench.js') }}?v=20260824c" defer></script>
+<script src="{{ url_for('static', filename='js/admin/naver-workbench.js') }}?v=20260824d" defer></script>
 {% endblock %}

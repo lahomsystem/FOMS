@@ -382,15 +382,38 @@ def test_queue_cap_says_it_cut_the_list(client, workbench_on):
     250 상한에 걸릴 때만 안내 띠가 떴다. 캡으로 자르고 침묵하면 사람은 나머지를 찾아
     헤맨다 — 2026-08-14 대시보드 캡 결함과 같은 부류다.
     """
-    from foms.web.admin.naver_ingest import PAGE_SIZE
+    from foms.web.admin import naver_ingest as view
 
     _login(client)
-    for i in range(PAGE_SIZE + 3):
-        _collected(order_no=f"N-CAP-{i:03d}", product=f"붙박이장 {i}", amount=100000)
+    # 상한은 실제 물량(스테이징 58집)보다 훨씬 커야 한다 — 그래야 "평소엔 안 닿는
+    # 안전장치" 다. 그 큰 수만큼 집을 만들면 테스트가 느려지므로 상한만 낮춰 잰다.
+    monkey_limit = 3
+    original = view.WORK_GROUP_LIMIT
+    view.WORK_GROUP_LIMIT = monkey_limit
+    try:
+        for i in range(monkey_limit + 2):
+            _collected(order_no=f"N-CAP-{i:03d}", product=f"붙박이장 {i}", amount=100000)
+        body = client.get(f"{TRIAGE_PATH}?tab=work").get_data(as_text=True)
+    finally:
+        view.WORK_GROUP_LIMIT = original
+
+    assert body.count('<a class="wb-row') == monkey_limit, "캡이 안 걸렸다(전제 확인)"
+    assert "상한에 닿아" in body, "캡으로 잘라 놓고 화면이 아무 말도 안 한다"
+    # 보이는 줄수를 그대로 재진술하면 위 탭 숫자와 같아져 모순으로 읽힌다(2026-08-24 실화면).
+    assert f"{monkey_limit}집만 보입니다" not in body
+
+
+def test_real_volume_does_not_trip_the_cap(client, workbench_on):
+    """운영 물량(스테이징 58집)에서는 캡 띠가 뜨지 않는다.
+
+    상한 50 은 실물량보다 작아 **상시 발동**했다 — 늘 켜져 있는 경고는 아무도 안 읽는다.
+    """
+    _login(client)
+    for i in range(12):
+        _collected(order_no=f"N-VOL-{i:03d}", product=f"붙박이장 {i}", amount=100000)
 
     body = client.get(f"{TRIAGE_PATH}?tab=work").get_data(as_text=True)
-    assert body.count('<a class="wb-row') == PAGE_SIZE, "캡이 안 걸렸다(전제 확인)"
-    assert "다 들어가지 않아" in body, "캡으로 잘라 놓고 화면이 아무 말도 안 한다"
+    assert "상한에 닿아" not in body, "평범한 물량에서 캡 경고가 떴다"
 
 
 def test_place_confirmed_is_visible_without_hovering(client, workbench_on):
