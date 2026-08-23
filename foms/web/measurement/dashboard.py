@@ -8,6 +8,7 @@ from models import Order, OrderScheduleDate
 from foms.web.auth import login_required
 import datetime
 import json
+import logging
 from datetime import date, timedelta
 from sqlalchemy import String, cast, or_, and_, func
 
@@ -51,6 +52,7 @@ from foms.services.common.erp_shell_http import (
 )
 from foms.services.measurement_dashboard_filters import parse_measurement_dashboard_filters
 from foms.services.measurement_read_model import (
+    MEASUREMENT_MAIN_DISPLAY_CAP,
     apply_measurement_dashboard_order_scope,
     compute_measurement_panel_assembly,
     compute_measurement_product_items_build,
@@ -233,6 +235,10 @@ def erp_measurement_dashboard():
         page="measurement",
         slice_name="main_rows",
     )
+    # 표시 상한(300) 발동 여부 — 캐시 blob 이 상한 적용 전 모집단을 들고 있다.
+    # 조용한 축소 금지: 잘렸으면 화면에 그 사실을 남긴다(생산 칸반과 같은 규율).
+    main_rows_total = int(_main_blob.get("total_count") or 0)
+    main_rows_truncated = main_rows_total > MEASUREMENT_MAIN_DISPLAY_CAP
     rows, row_fallback_added_ids = hydrate_measurement_main_rows(
         list_base_query,
         _main_blob,
@@ -459,6 +465,9 @@ def erp_measurement_dashboard():
             use_date_range=use_range,
             manager_filter=manager_filter,
             rows=rows,
+            main_rows_total=main_rows_total,
+            main_rows_truncated=main_rows_truncated,
+            main_rows_display_cap=MEASUREMENT_MAIN_DISPLAY_CAP,
             mobile_queue_rows=mobile_queue_rows,
             mobile_hero_row=mobile_hero_row,
             mobile_hero_time_hm=mobile_hero_time_hm,
@@ -483,6 +492,36 @@ def erp_measurement_dashboard():
 # /regional_dashboard, /metropolitan_dashboard, /self_measurement_dashboard
 # -----------------------------------------------------------------------------
 dashboards_bp = Blueprint("dashboards", __name__, url_prefix="")
+
+logger = logging.getLogger(__name__)
+
+
+def _fetch_legacy_dashboard_orders(query, *, label: str, cap: int = LEGACY_DASHBOARD_ORDER_LIMIT) -> list:
+    """캡 뒤 파이썬 분류를 쓰는 legacy 보드 전용 조회 — 조용한 누락을 막는다.
+
+    이 보드들은 SQL 로 모집단을 좁힌 뒤 **파이썬에서 상태·날짜로 섹션을 나눈다**.
+    캡이 모집단보다 작으면 특정 섹션이 통째로 비는데(2026-08-23 도면 작업실 사고와
+    같은 구조), 예전 코드는 그 사실을 어디에도 남기지 않았다. 생산 칸반
+    (foms/web/production/dashboard.py)이 쓰는 "캡 발동은 로그로" 규율을 따른다.
+
+    ``cap + 1`` 을 뽑아 초과를 판정하므로 count 쿼리를 추가하지 않는다.
+
+    Args:
+        query: 정렬까지 끝난 ``Order`` 쿼리.
+        label: 로그에 남길 화면 이름.
+        cap: 렌더 상한(폭주 가드).
+
+    Returns:
+        최대 ``cap`` 개의 ``Order``.
+    """
+    rows = query.limit(cap + 1).all()
+    if len(rows) > cap:
+        logger.warning(
+            "[legacy-dashboard] %s 캡 발동: 모집단 > %s건 — 초과분이 화면에서 누락된다",
+            label, cap,
+        )
+        return rows[:cap]
+    return rows
 
 
 # 지방 대시보드 "상차 예정 알림" 지역(시/도) 정렬용 상수.
@@ -553,8 +592,8 @@ def regional_dashboard():
             include_manager=False,
         )
 
-    all_regional_orders = (
-        base_query.order_by(Order.id.desc()).limit(LEGACY_DASHBOARD_ORDER_LIMIT).all()
+    all_regional_orders = _fetch_legacy_dashboard_orders(
+        base_query.order_by(Order.id.desc()), label="지방 대시보드",
     )
     apply_erp_display_fields_to_orders(all_regional_orders)
     today = get_today_kst()
@@ -738,7 +777,8 @@ def metropolitan_dashboard():
             Order.measurement_date != None,
             Order.measurement_date != "",
         )
-    ).order_by(Order.measurement_date.asc()).limit(LEGACY_DASHBOARD_ORDER_LIMIT).all()
+    ).order_by(Order.measurement_date.asc())
+    urgent_candidates = _fetch_legacy_dashboard_orders(urgent_candidates, label="수도권 긴급 알림")
     urgent_alerts = [o for o in urgent_candidates if _measurement_dates_include_today(o)]
 
     measurement_candidates = get_filtered_orders(
@@ -748,7 +788,8 @@ def metropolitan_dashboard():
             Order.measurement_date != "",
             or_(Order.scheduled_date == None, Order.scheduled_date == ""),
         )
-    ).order_by(Order.measurement_date.asc()).limit(LEGACY_DASHBOARD_ORDER_LIMIT).all()
+    ).order_by(Order.measurement_date.asc())
+    measurement_candidates = _fetch_legacy_dashboard_orders(measurement_candidates, label="수도권 실측 알림")
     measurement_alerts = [o for o in measurement_candidates if _measurement_dates_any_lt_today(o)]
 
     pre_candidates = get_filtered_orders(
@@ -765,7 +806,8 @@ def metropolitan_dashboard():
                 ),
             )
         )
-    ).order_by(Order.measurement_date.asc()).limit(LEGACY_DASHBOARD_ORDER_LIMIT).all()
+    ).order_by(Order.measurement_date.asc())
+    pre_candidates = _fetch_legacy_dashboard_orders(pre_candidates, label="수도권 실측 전 알림")
     pre_measurement_alerts = [
         o
         for o in pre_candidates
@@ -780,7 +822,8 @@ def metropolitan_dashboard():
             Order.scheduled_date != None,
             Order.scheduled_date != "",
         )
-    ).order_by(Order.scheduled_date.asc()).limit(LEGACY_DASHBOARD_ORDER_LIMIT).all()
+    ).order_by(Order.scheduled_date.asc())
+    installation_candidates = _fetch_legacy_dashboard_orders(installation_candidates, label="수도권 설치 알림")
     installation_alerts = [
         o for o in installation_candidates if _scheduled_dates_any_lt_today(o)
     ]
@@ -798,14 +841,16 @@ def metropolitan_dashboard():
             Order.status == "AS_RECEIVED",
             Order.is_regional == False,
         )
-    ).order_by(Order.created_at.desc()).limit(LEGACY_DASHBOARD_ORDER_LIMIT).all()
+    ).order_by(Order.created_at.desc())
+    as_orders = _fetch_legacy_dashboard_orders(as_orders, label="수도권 AS 접수")
 
     hold_orders = get_filtered_orders(
         db.query(Order).filter(
             Order.status == "ON_HOLD",
             Order.is_regional == False,
         )
-    ).order_by(Order.created_at.desc()).limit(LEGACY_DASHBOARD_ORDER_LIMIT).all()
+    ).order_by(Order.created_at.desc())
+    hold_orders = _fetch_legacy_dashboard_orders(hold_orders, label="수도권 보류")
 
     normal_orders = get_filtered_orders(
         db.query(Order).filter(
@@ -873,7 +918,9 @@ def self_measurement_dashboard():
             include_manager=False,
         )
 
-    all_orders = base_query.order_by(Order.id.desc()).limit(LEGACY_DASHBOARD_ORDER_LIMIT).all()
+    all_orders = _fetch_legacy_dashboard_orders(
+        base_query.order_by(Order.id.desc()), label="자가실측 대시보드",
+    )
     apply_erp_display_fields_to_orders(all_orders)
 
     as_orders = [o for o in all_orders if o.status == "AS_RECEIVED"]

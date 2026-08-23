@@ -10,8 +10,12 @@ from sqlalchemy.orm import Query
 from foms.services.phone_search import extract_phone_digit_query
 from models import Order
 
-# Legacy SLG measurement dashboards — canonical /erp/measurement uses limit(500) already.
-LEGACY_DASHBOARD_ORDER_LIMIT = 500
+# Legacy SLG measurement dashboards (지방·수도권·자가실측) 렌더 상한.
+# 이 보드들은 캡으로 뽑은 뒤 **파이썬에서 상태·날짜로 섹션을 나눈다**. 캡이 모집단보다
+# 작으면 특정 섹션이 통째로 빈다(2026-08-23 도면 작업실 사고와 같은 구조). 운영 실측
+# 모집단은 수도권 alert 후보가 최대 949건이라 500 은 이미 부족했다 — 폭주 가드로만
+# 남도록 상향하고, 캡 발동은 _fetch_legacy_dashboard_orders 가 로그로 남긴다.
+LEGACY_DASHBOARD_ORDER_LIMIT = 2000
 
 
 def _strip_ilike_pattern(pattern: str) -> str:
