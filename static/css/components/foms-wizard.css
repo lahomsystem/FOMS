@@ -385,6 +385,9 @@
   min-width: 48px;
   font-size: 18px;
 }
+.foms-wizard__sub-label {
+  margin-top: var(--foms-space-3, 12px);
+}
 .foms-wizard__hint {
   display: block;
   font-size: var(--foms-font-size-xs, 12px);
