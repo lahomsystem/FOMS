@@ -7,6 +7,7 @@
     'use strict';
 
     wireCreateOrder();
+    wireRelation();
     wirePlaceOrder();
     wireClaimDone();
     wireRetryFailed();
@@ -260,6 +261,73 @@
                 window.alert('실패 ' + failures.length + '집\n' + failures.join('\n'));
             }
             window.location.reload();
+        });
+    }
+
+    /* ── 처리 대기 탭: 기존 주문에 붙이기 / 되돌리기 ──────────────────────
+       관계 판정(추가결제·재결제)은 사람이 하고, 화면은 그 선택만 보낸다.
+       되돌릴 수 있는 조작이라 모달을 두지 않는다 — 확인창 한 번으로 끝낸다.
+       취소·반품 집의 추가결제는 서버가 막는다. 사유를 그대로 띄운다. */
+    function wireRelation() {
+        document.querySelectorAll('.naver-attach-btn').forEach(function (btn) {
+            btn.addEventListener('click', async function () {
+                var label = btn.dataset.relation === 'ADDON' ? '추가결제' : '재결제';
+                if (!window.confirm('주문 #' + btn.dataset.orderId + ' 에 ' + label
+                                    + ' 로 붙입니다. 새 주문은 만들지 않습니다.')) {
+                    return;
+                }
+                btn.disabled = true;
+                try {
+                    const response = await fetch(
+                        '/admin/naver-ingest/' + btn.dataset.linkId + '/attach', {
+                            method: 'POST',
+                            headers: { 'Content-Type': 'application/json' },
+                            body: JSON.stringify({
+                                order_id: Number(btn.dataset.orderId),
+                                relation: btn.dataset.relation
+                            })
+                        });
+                    const data = await response.json();
+                    if (!data.success) {
+                        window.alert(data.error || '붙이지 못했습니다.');
+                        btn.disabled = false;
+                        return;
+                    }
+                    window.location.reload();
+                } catch (error) {
+                    window.alert('요청 중 오류가 발생했습니다: ' + error);
+                    btn.disabled = false;
+                }
+            });
+        });
+
+        var detachBtn = document.getElementById('wb-detach');
+        if (!detachBtn) {
+            return;
+        }
+        detachBtn.addEventListener('click', async function () {
+            if (!window.confirm('붙이기를 되돌립니다. 수집 직후 상태로 돌아갑니다.')) {
+                return;
+            }
+            detachBtn.disabled = true;
+            try {
+                const response = await fetch(
+                    '/admin/naver-ingest/' + detachBtn.dataset.linkId + '/detach', {
+                        method: 'POST',
+                        headers: { 'Content-Type': 'application/json' },
+                        body: '{}'
+                    });
+                const data = await response.json();
+                if (!data.success) {
+                    window.alert(data.error || '되돌리지 못했습니다.');
+                    detachBtn.disabled = false;
+                    return;
+                }
+                window.location.reload();
+            } catch (error) {
+                window.alert('요청 중 오류가 발생했습니다: ' + error);
+                detachBtn.disabled = false;
+            }
         });
     }
 

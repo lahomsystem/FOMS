@@ -46,6 +46,11 @@ STATE_KEY = "fulfillment"
 #: 자사 배송(택배사·송장 없음)의 배송방법 코드.
 DIRECT_DELIVERY = "DIRECT_DELIVERY"
 
+#: 발주확인 없이도 바로 발송처리로 닫는 관계(2026-08-22 사용자 결정 D1).
+#: 추가결제·재결제는 물건이 따로 나가지 않아 "배송 시작"이 사실을 왜곡하지 않는다.
+#: 신규(NEW·빈값)는 그대로 발주확인이 먼저다.
+CLOSE_NOW_RELATIONS = ("ADDON", "REPAY")
+
 #: KST — 네이버는 발송일에 타임존이 붙은 ISO8601 을 요구한다.
 KST = timezone(timedelta(hours=9))
 
@@ -386,15 +391,22 @@ def dispatch_order(session: Session, client: Any, *, link_id: int,
         ``{"dispatched": [...], "skipped": [...]}``.
 
     Raises:
-        FulfillmentError: 링크가 없거나 발주확인 전이거나 네이버 호출이 실패했을 때.
+        FulfillmentError: 링크가 없거나 (신규 집인데) 발주확인 전이거나 네이버 호출이
+            실패했을 때.
     """
     stamp = now or now_utc_naive()
     links = _links_of_group(session, link_id)
     _claim_guard(session, links, action="dispatch", stamp=stamp)
-    # 발주확인 전에 발송처리를 하면 네이버가 거절한다 — 우리 화면에서 먼저 막는다.
-    not_confirmed = [row for row in links
-                     if not (_state(row).get("place_confirmed_at")
-                             or (row.place_order_status or "").upper() == "OK")]
+    # 관계 판정은 **집 단위**다(화면 배지와 같은 규칙). 붙이기가 집 전체를 함께 붙이지만
+    # 백필 전 데이터는 형제 일부만 값이 있어, 한 건만 보면 화면과 서버가 갈린다.
+    close_now = any((row.relation or "").upper() in CLOSE_NOW_RELATIONS for row in links)
+    # 신규 주문은 발주확인이 먼저다 — 실제 출고 전 발송처리는 구매자에게 "배송 시작"으로
+    # 보이고 구매확정·정산 시계를 먼저 돌린다. 추가결제·재결제는 물건이 따로 나가지 않아
+    # 확인 뒤 바로 닫는다(D1) — 네이버도 발송처리에서 발주확인을 함께 처리한다.
+    not_confirmed = [] if close_now else [
+        row for row in links
+        if not (_state(row).get("place_confirmed_at")
+                or (row.place_order_status or "").upper() == "OK")]
     if not_confirmed:
         # 거절도 화면에 닿아야 한다 — web 은 enqueue 만 하고 이미 "요청했습니다"로 답했다.
         # 사유는 **막힌 건에만** 찍는다. 집 전체에 찍으면 이미 발주확인이 끝난 형제까지

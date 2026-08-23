@@ -64,7 +64,7 @@ class _StubClient:
 
 
 def _link(external_id: str, *, order_no: str = "N-FUL", place: str | None = None,
-          address: str = "", tel: str = "") -> int:
+          address: str = "", tel: str = "", relation: str = "") -> int:
     """수집분 링크 1건. ``address``/``tel`` 을 주면 **분할배송**(같은 주문번호·다른 집)이 된다."""
     from foms.services.integrations.naver_commerce.mapping import group_key_text
 
@@ -76,7 +76,7 @@ def _link(external_id: str, *, order_no: str = "N-FUL", place: str | None = None
         }
     link = ExternalOrderLink(
         channel="NAVER", external_id=external_id, external_order_no=order_no,
-        sync_status="LINKED", place_order_status=place,
+        sync_status="LINKED", place_order_status=place, relation=relation or None,
         raw_snapshot=snapshot, group_key=group_key_text(snapshot),
     )
     db_session.add(link)
@@ -142,6 +142,50 @@ def test_dispatch_requires_place_confirmation_first(app):
     with pytest.raises(FulfillmentError):
         dispatch_order(db_session, client, link_id=link_id)
     assert client.dispatch_calls == []
+
+
+def test_dispatch_lets_an_addon_close_before_place_confirmation(app):
+    """추가결제는 발주확인 전에도 닫는다 (D1) — 물건이 따로 나가지 않는다.
+
+    네이버 발송관리 화면도 발주확인 없이 발송처리를 받는다. 우리가 먼저 막으면 사람이
+    두 번 눌러야 하고, 안 눌러도 되는 발주확인을 배우게 된다.
+    """
+    link_id = _link("PO-F-ADDON", order_no="N-FUL-ADDON", place="NOT_YET", relation="ADDON")
+    client = _StubClient()
+
+    dispatch_order(db_session, client, link_id=link_id)
+    db_session.commit()
+
+    assert len(client.dispatch_calls) == 1
+    assert _state(link_id)["dispatched_at"]
+
+
+def test_dispatch_lets_a_repay_close_before_place_confirmation(app):
+    """재결제도 같다 — 원 주문의 후속이라 새로 나가는 물건이 없다."""
+    link_id = _link("PO-F-REPAY", order_no="N-FUL-REPAY", place="NOT_YET", relation="REPAY")
+    client = _StubClient()
+
+    dispatch_order(db_session, client, link_id=link_id)
+    db_session.commit()
+
+    assert len(client.dispatch_calls) == 1
+
+
+def test_dispatch_relation_is_judged_by_the_household_not_one_row(app):
+    """관계는 집 판정이다 — 형제 하나만 ADDON 이어도 그 집은 지금 닫을 수 있다.
+
+    붙이기는 집 전체를 함께 붙이지만, 백필 전 데이터는 형제 일부만 값이 있다.
+    한 건만 보고 막으면 화면(집 단위 배지)과 서버 판정이 갈린다.
+    """
+    link_id = _link("PO-F-MIX1", order_no="N-FUL-MIX", place="NOT_YET", relation="ADDON")
+    _link("PO-F-MIX2", order_no="N-FUL-MIX", place="NOT_YET")
+    client = _StubClient()
+
+    dispatch_order(db_session, client, link_id=link_id)
+    db_session.commit()
+
+    assert len(client.dispatch_calls) == 1
+    assert sorted(r["productOrderId"] for r in client.dispatch_calls[0]) == ["PO-F-MIX1", "PO-F-MIX2"]
 
 
 def test_dispatch_uses_direct_delivery_with_iso_timestamp(app):

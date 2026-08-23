@@ -208,3 +208,20 @@
    칸을 넓히고 줄바꿈을 막는다 — 지역 CSS 에 !important 를 더 얹지 않는다. */
 .naver-workbench .wb-result__ack .btn { white-space: nowrap; font-size: 12px; }
 .wb-result__foot { margin-top: 10px; }
+
+/* ── 관계 축 (추가결제·재결제) ─────────────────────────────────────────
+   대조표 아래 한 덩어리. 붙이기는 되돌릴 수 있는 조작이라 경고색을 쓰지 않는다 —
+   빨강은 되돌릴 수 없는 것(발송처리·취소)에만 남긴다. */
+.wb-relation { display: flex; align-items: center; gap: 8px; flex-wrap: wrap;
+               padding: 9px 10px; border-radius: 6px;
+               background: var(--wb-surface-soft); border: 1px solid var(--wb-line-soft); }
+.wb-relation--ask { display: block; }
+.wb-relation__text { font-size: 13px; }
+.wb-relation__why { font-size: 12.5px; margin: 0 0 8px; }
+.wb-relation__reason { color: var(--wb-muted); font-size: 11.5px; }
+/* 후보 표는 대조표와 같은 골격을 쓰되 첫 칸이 주문번호라 폭이 다르다. */
+.wb-cmp--cand { background: var(--wb-surface); }
+.wb-cmp--cand td.wb-cmp__k { width: 132px; color: inherit; }
+/* 전역 `.btn { padding: 10px 20px !important }` 때문에 붙이기 버튼 2개가 좁은 칸에서
+   세로로 쪼개진다(실패 목록 '확인함' 과 같은 함정). 줄바꿈만 막는다. */
+.naver-workbench .wb-cmp--cand .btn { white-space: nowrap; font-size: 12px; }

@@ -1043,6 +1043,12 @@ def _group_queue(links: list[ExternalOrderLink], orders: dict,
             "claim_blocking": any(s["claim_blocking"] for s in member_summaries),
             # 발주확인은 상품주문 단위다 — 하나라도 남아 있으면 그 집은 "발주확인 전"이다(T16-A).
             "place_pending": any(not _place_view(row)["confirmed"] for row in members),
+            # 관계 축(추가결제·재결제). 붙이기는 집 전체를 함께 붙이지만(attach_link_to_order),
+            # 백필 전 데이터는 형제 일부만 값이 있을 수 있어 멤버 전체를 본다. 둘이 섞이면
+            # ADDON 이 이긴다 — 화면에서 더 강한 제약(발송처리 즉시 닫기)을 받는 쪽이다.
+            "relation": ("ADDON" if any((row.relation or "") == "ADDON" for row in members)
+                         else next((row.relation for row in members
+                                    if (row.relation or "") == "REPAY"), "")),
             "shipping_due": next((s["shipping_due"] for s in member_summaries if s["shipping_due"]), ""),
             # CS 가 다음에 할 일을 목록에서 바로 알아보게 한다.
             "next_step": ("주문 만들기" if not lead.order_id

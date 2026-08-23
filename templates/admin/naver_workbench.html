@@ -14,7 +14,7 @@
 {% block title %}네이버 수집{% endblock %}
 
 {% block styles %}
-<link rel="stylesheet" href="{{ url_for('static', filename='css/admin/naver-workbench.css') }}?v=20260821b">
+<link rel="stylesheet" href="{{ url_for('static', filename='css/admin/naver-workbench.css') }}?v=20260822a">
 {% endblock %}
 
 {% block content %}
@@ -124,6 +124,13 @@
                             {% if group.count > 1 %}
                             <span class="badge bg-light text-dark">{{ group.count }}건 묶음</span>
                             {% endif %}
+                            {# 관계 배지는 추가결제·재결제에만 단다(결정 D4). 대부분이 신규라
+                               전부 달면 배지가 배경이 된다 — 다른 것만 눈에 띄어야 한다. #}
+                            {% if group.relation in ('ADDON', 'REPAY') %}
+                            <span class="badge bg-info text-dark">
+                                {{ '추가결제' if group.relation == 'ADDON' else '재결제' }}
+                            </span>
+                            {% endif %}
                             {# 다음 할 일 배지는 클레임을 모른다. 취소·반품 집에 그대로 찍으면
                                한 줄에서 "손대지 않음"과 "주문 만들기"가 충돌한다. #}
                             {% if group.next_step and not group.claim_blocking %}
@@ -159,6 +166,16 @@
                 {% if selected_group and selected_group.count > 1 %}
                 <span class="badge bg-light text-dark">{{ selected_group.count }}건 묶음</span>
                 {% endif %}
+                {# 관계는 이 집에서 무엇을 눌러도 되는지를 바꾼다(발송처리 분기) — 헤더에 둔다.
+                   집 값이 먼저다: 붙이기는 집 전체를 함께 붙이므로 형제 중 하나만 값이
+                   있는 백필 전 데이터에서도 집 판정이 맞다. #}
+                {% set selected_relation = (selected_group.relation if selected_group else '')
+                                           or selected.relation or '' %}
+                {% if selected_relation in ('ADDON', 'REPAY') %}
+                <span class="badge bg-info text-dark">
+                    {{ '추가결제' if selected_relation == 'ADDON' else '재결제' }}
+                </span>
+                {% endif %}
                 <span class="ms-auto d-flex align-items-center gap-2">
                     {% if not selected.order_id %}
                     <button type="button" class="btn btn-primary btn-sm"
@@ -188,14 +205,21 @@
                     {% if not household_claimed %}
                     {% set place_pending = selected_group.place_pending if selected_group
                                            else (not selected.place.confirmed) %}
+                    {# 결정 D1: 추가결제·재결제는 물건이 따로 나가지 않는다 — 발주확인 전에도
+                       바로 닫는다(네이버가 발송처리에서 발주확인을 함께 처리한다).
+                       신규는 그대로다: 실제 출고 전에 누르면 구매자에게 '배송 시작'으로
+                       보이고 구매확정·정산 시계가 먼저 돈다. #}
+                    {% set close_now = selected_relation in ('ADDON', 'REPAY') %}
                     {% if selected.fulfillment.dispatched_at %}
                     <span class="badge bg-success">발송처리 완료</span>
-                    {% elif place_pending %}
+                    {% elif place_pending and not close_now %}
                     <button type="button" class="btn btn-outline-secondary btn-sm" id="wb-dispatch" disabled
                             title="발주확인이 먼저입니다(발주확인 전 상품주문이 있습니다)">발송처리</button>
                     {% else %}
                     <button type="button" class="btn btn-outline-primary btn-sm" id="wb-dispatch"
-                            data-bs-toggle="modal" data-bs-target="#wb-modal-dispatch">발송처리</button>
+                            data-bs-toggle="modal" data-bs-target="#wb-modal-dispatch">
+                        {{ '지금 닫기' if close_now else '발송처리' }}
+                    </button>
                     {% endif %}
                     {% endif %}
                 </span>
@@ -266,6 +290,78 @@
                         {% endfor %}
                     </tbody>
                 </table>
+
+                {#
+                  결정 D3 — 관계 축. 수집 판정은 결제완료 하나뿐이라 재결제·차액 결제도 새 집으로
+                  들어온다. 그대로 "주문 만들기"를 누르면 같은 고객의 시공 건이 둘로 갈린다.
+                  **자동으로 붙이지 않는다**: 금액·시공이 걸린 판단이라 근거만 늘어놓고 사람이 고른다.
+                  붙이기는 되돌릴 수 있어(/detach) 불가역 4종 세트 모달을 두지 않는다.
+                #}
+                {% if selected_relation in ('ADDON', 'REPAY') %}
+                <div class="wb-cmp-title" data-cmp-section="relation">
+                    관계 <span class="wb-cmp-title__sub">이 집은 기존 주문의 후속이다 — 새 주문을 만들지 않았다</span>
+                </div>
+                <div class="wb-relation" data-foms-no-autodismiss>
+                    <span class="badge bg-info text-dark">
+                        {{ '추가결제' if selected_relation == 'ADDON' else '재결제' }}
+                    </span>
+                    <span class="wb-relation__text">
+                        주문
+                        <a href="{{ selected.edit_url }}" target="_blank" rel="noopener">#{{ selected.order_id }}</a>
+                        에 붙어 있습니다.
+                    </span>
+                    <button type="button" class="btn btn-outline-danger btn-sm ms-auto" id="wb-detach"
+                            data-link-id="{{ selected.link_id }}">되돌리기</button>
+                </div>
+                {% elif selected.candidates and not selected.order_id %}
+                <div class="wb-cmp-title" data-cmp-section="relation">
+                    관계 <span class="wb-cmp-title__sub">이 고객의 기존 주문 {{ selected.candidates|length }}건 — 새 주문이 아닐 수 있다</span>
+                </div>
+                <div class="wb-relation wb-relation--ask" data-foms-no-autodismiss>
+                    <p class="wb-relation__why">
+                        새 주문이 아니라 <b>기존 주문의 추가결제(차액)</b>거나 <b>취소 후 재결제</b>일 수 있습니다.
+                        맞으면 아래에서 붙이세요 — 새 주문을 만들지 않습니다.
+                    </p>
+                    <table class="wb-cmp wb-cmp--cand">
+                        <thead>
+                            <tr><th>주문</th><th>고객 · 주소</th><th>접수일</th><th class="text-end">붙이기</th></tr>
+                        </thead>
+                        <tbody>
+                            {% for cand in selected.candidates %}
+                            <tr>
+                                <td class="wb-cmp__k">
+                                    <a href="{{ url_for('order_edit.edit_order', order_id=cand.order_id, open='erp-order') }}"
+                                       target="_blank" rel="noopener">#{{ cand.order_id }}</a>
+                                    <div class="wb-relation__reason">{{ cand.reason }}</div>
+                                </td>
+                                <td>
+                                    {{ cand.customer_name }}
+                                    <div class="wb-relation__reason">{{ cand.address[:24] }}</div>
+                                </td>
+                                <td>
+                                    {{ cand.received_date }}
+                                    {% if cand.naver_link_count %}
+                                    <div class="wb-relation__reason">네이버 수집 {{ cand.naver_link_count }}건</div>
+                                    {% endif %}
+                                </td>
+                                <td class="text-end">
+                                    {# 취소·반품 집의 추가결제는 서버가 막는다(재결제는 허용) —
+                                       화면은 사유를 그대로 받아 보여준다. #}
+                                    <button type="button" class="btn btn-sm btn-outline-primary naver-attach-btn"
+                                            data-link-id="{{ selected.link_id }}"
+                                            data-order-id="{{ cand.order_id }}"
+                                            data-relation="ADDON">추가결제로 붙이기</button>
+                                    <button type="button" class="btn btn-sm btn-outline-secondary naver-attach-btn"
+                                            data-link-id="{{ selected.link_id }}"
+                                            data-order-id="{{ cand.order_id }}"
+                                            data-relation="REPAY">재결제로 붙이기</button>
+                                </td>
+                            </tr>
+                            {% endfor %}
+                        </tbody>
+                    </table>
+                </div>
+                {% endif %}
             </div>
 
             {# 결정 6: 불가역 액션 4종 세트 — 건수 재진술 + 되돌릴 수 없음 + 사후 경로. #}
@@ -313,12 +409,17 @@
             {% if not household_claimed and not selected.fulfillment.dispatched_at %}
             {% set place_pending = selected_group.place_pending if selected_group
                                    else (not selected.place.confirmed) %}
-            {% if not place_pending %}
+            {# 버튼과 **같은 조건**으로 렌더한다 — 한쪽만 바꾸면 열린 버튼이 빈 모달을 연다. #}
+            {% set close_now = ((selected_group.relation if selected_group else '')
+                                or selected.relation or '') in ('ADDON', 'REPAY') %}
+            {% if close_now or not place_pending %}
             <div class="modal fade" id="wb-modal-dispatch" tabindex="-1" aria-hidden="true">
                 <div class="modal-dialog modal-dialog-centered">
                     <div class="modal-content">
                         <div class="modal-header">
-                            <h5 class="modal-title">발송처리를 보내기 전에 확인하세요</h5>
+                            <h5 class="modal-title">
+                                {{ '추가결제를 지금 닫습니다' if close_now else '발송처리를 보내기 전에 확인하세요' }}
+                            </h5>
                             <button type="button" class="btn-close" data-bs-dismiss="modal" aria-label="닫기"></button>
                         </div>
                         <div class="modal-body">
@@ -328,11 +429,31 @@
                                 {{ selected_group.count if selected_group else 1 }}건을
                                 네이버에 발송처리로 보냅니다.
                             </p>
-                            {# ② 되돌릴 수 없음 #}
+                            {# ② 되돌릴 수 없음 — 관계에 따라 사람이 물어야 할 질문이 다르다.
+                               추가결제는 "지금 닫아도 되나"가 아니라 "이 집이 정말 추가결제인가"고,
+                               신규는 "물건이 정말 나갔나"다. #}
                             <div class="alert alert-danger py-2 mb-2" data-foms-no-autodismiss>
                                 네이버로 나가는 호출이라 되돌릴 수 없습니다. 구매자에게 <b>배송 시작</b>으로
                                 보이고 구매확정·정산 시계가 돌기 시작합니다.
+                                {% if not close_now %}
+                                <div class="mt-1">
+                                    이 집은 <b>신규 주문</b>입니다 — <b>실제 출고·시공 시점</b>에만 누르세요.
+                                    아직 물건이 나가지 않았다면 지금 누르면 안 됩니다.
+                                </div>
+                                {% endif %}
                             </div>
+                            {% if close_now %}
+                            <div class="alert alert-secondary py-2 mb-2" data-foms-no-autodismiss>
+                                {{ '추가결제' if selected_relation == 'ADDON' else '재결제' }}는 물건이
+                                <b>따로 나가지 않습니다</b> — 확인을 끝냈으면 여기서 바로 닫습니다.
+                                {% if place_pending %}
+                                <div class="mt-1">
+                                    이 집은 <b>발주확인 전</b>입니다. 발송처리를 보내면 네이버가 발주확인까지
+                                    함께 처리합니다. 네이버가 거절하면 사유가 화면 위 실패 목록에 남습니다.
+                                </div>
+                                {% endif %}
+                            </div>
+                            {% endif %}
                             {# ③ 사후 경로 #}
                             <p class="small text-muted mb-0">
                                 보낸 뒤에는 이 집이 <b>발송처리 완료</b>로 바뀝니다. 배송방법은 자사
@@ -344,7 +465,7 @@
                             <button type="button" class="btn btn-outline-secondary" data-bs-dismiss="modal">취소</button>
                             <button type="button" class="btn btn-primary" id="wb-dispatch-confirm"
                                     data-link-id="{{ selected_group.id if selected_group else selected.link_id }}">
-                                발송처리 보내기
+                                {{ '지금 닫기' if close_now else '발송처리 보내기' }}
                             </button>
                         </div>
                     </div>
@@ -734,5 +855,5 @@
 {% endblock %}
 
 {% block scripts %}
-<script src="{{ url_for('static', filename='js/admin/naver-workbench.js') }}?v=20260821b" defer></script>
+<script src="{{ url_for('static', filename='js/admin/naver-workbench.js') }}?v=20260822a" defer></script>
 {% endblock %}
