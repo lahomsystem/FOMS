@@ -15,8 +15,6 @@ Flask 2.3 + PostgreSQL + R2 + Railway (Web×2, Worker×1)
 - [2026-08-23] **운영 승격 PR #133 대기(머지=사용자)** — 체인을 운영 head `notifrole_00` 위로 재직렬화, 운영 재현 upgrade 9리비전 + 스위트 5392 green. **승격은 당일 머지하거나 직전 head 재확인**(#113·#121 무효 전례). 원장 `docs/plans/2026-08-21-production-promotion-ledger.md`
 - [2026-08-21] **NOTIF-ROLE-01 운영 승격 완료(PR #127, production `1d35ed06`)** — 관리자 알림 사건 1건=row 1건(에스컬레이션 N²→N). `notifrole_00` 부모는 브랜치별로 다르다(deploy=`naver_relation_00` / 운영=`assort_00`) — 네이버 체인 운영 미반영. 네이버 `claim_watch` ROLE 전환은 네이버 승격 때. 승격 PR 은 pg-lane·perf-gate 만 돈다(FOMS CI·Harness CI 트리거가 main/deploy 한정)
 - [2026-08-20] **에스컬레이션 알림 본문·중복 수정 운영 반영(`67ecaff3`)** — 빈 제목만 쌓이던 문제 해결(본문+원본당 1건). 잔여: 상류 `claim_watch.py` 가 클레임마다 ADMIN 수만큼 개별 긴급 알림 생성 → 스테이징 1073건 원천
-- [2026-08-20] **복원 GUI T1 배포·QA + 저장 유실 수정(`ec6b22a9`)** — 변경 이력에서 필드 한 건 되돌리기(요청=change_id 만, 화이트리스트 12경로, 절단·타입·현재값 4가드). 스테이징 실화면 QA 통과. QA 중 발견: 편집 저장이 `parties` 통째 대입이라 폼 미렌더 키(`orderer.phone`·`customer.phone2`, 네이버 수집분)를 매번 삭제 → `_merge_preserving_missing` 대상에 `parties` 추가. **`parties.orderer` 이름 충돌(폼=발주사 vs 수집=주문자) 미해결**. 기존 유실분은 원장으로 셀 수 있다
-- [2026-08-21] **네이버 워크벤치 deploy + staging 게이트 ON(코호트 38)** — 두 화면 왕복을 탭 하나로. 근본 수정: 집 정의 통일(`group_key`+backfill 실행 완료) · 워커 롤백이 실패 사유 지우던 버그 · 이력 탭 ADMIN 전용 · 분할배송에서 옆 집까지 나가던 발주확인/붙이기 · 취소 집 서버 가드 · 200 안의 건별 실패 · 실패 부분 인덱스(`naverfail_00`). 리뷰 6라운드(진짜 29건, 매번 직전 수정이 만든 것). 검증 399+PG1136+smoke324+실데이터.
 - ⚠️ [2026-08-20] **deploy FOMS CI red = 타 세션 몫** — `3d3c2f61`(RESTORE-GUI-01 T1)의 `ORDER_FIELD_RESTORED` 라벨 누락 + `events.api_restore_field_change` 정책 미분류. Harness CI·PG Lane·perf-gate 는 green.
 - ⚠️ **미결: `as-delete-reapply`의 `8c1ef69a`**(삭제 라우트 WRITE-GUARD-01 manifest 등재) deploy 미반영. worktree 정리 중 발견, 타 세션 몫이라 미처리. 브랜치 ref 보존됨.
 
@@ -106,6 +104,9 @@ Flask 2.3 + PostgreSQL + R2 + Railway (Web×2, Worker×1)
 - [2026-04-15] **Strict final canonical tree `SFC-B11B` slice 2 (`dashboards`, §6.16):** 구현을 `foms/web/dashboards/routes.py`로 이전; `foms/web/dashboards/__init__.py`는 `routes`만 import; `apps/dashboards.py`는 `foms.web.dashboards` 재노출 shim. 검증: `APP_OK`, `verify_result.py --json`, `pytest tests` **586 passed**. 근거: batch11b **§Slice B11B-2**.
 
 ## 기록 보관 (strict canonical / 이전 배치 요약)
+
+- [2026-08-20] **복원 GUI T1 배포·QA + 저장 유실 수정(`ec6b22a9`)** — 변경 이력에서 필드 한 건 되돌리기(요청=change_id 만, 화이트리스트 12경로, 절단·타입·현재값 4가드). 스테이징 실화면 QA 통과. QA 중 발견: 편집 저장이 `parties` 통째 대입이라 폼 미렌더 키(`orderer.phone`·`customer.phone2`, 네이버 수집분)를 매번 삭제 → `_merge_preserving_missing` 대상에 `parties` 추가. **`parties.orderer` 이름 충돌(폼=발주사 vs 수집=주문자) 미해결**. 기존 유실분은 원장으로 셀 수 있다
+- [2026-08-21] **네이버 워크벤치 deploy + staging 게이트 ON(코호트 38)** — 두 화면 왕복을 탭 하나로. 근본 수정: 집 정의 통일(`group_key`+backfill 실행 완료) · 워커 롤백이 실패 사유 지우던 버그 · 이력 탭 ADMIN 전용 · 분할배송에서 옆 집까지 나가던 발주확인/붙이기 · 취소 집 서버 가드 · 200 안의 건별 실패 · 실패 부분 인덱스(`naverfail_00`). 리뷰 6라운드(진짜 29건, 매번 직전 수정이 만든 것). 검증 399+PG1136+smoke324+실데이터.
 
 - [2026-08-21] **네이버 워크벤치 deploy + staging 게이트 ON(코호트 38)** — 두 화면 왕복을 탭 하나로. 근본 수정: 집 정의 통일(`group_key`+backfill 실행 완료) · 워커 롤백이 실패 사유 지우던 버그 · 이력 탭 ADMIN 전용 · 분할배송에서 옆 집까지 나가던 발주확인/붙이기 · 취소 집 서버 가드 · 200 안의 건별 실패 · 실패 부분 인덱스(`naverfail_00`). 리뷰 6라운드(진짜 29건, 매번 직전 수정이 만든 것). 검증 399+PG1136+smoke324+실데이터.
 - [2026-08-20] **네이버 관계 판별 + 발주확인·발송처리(NAVER-INGEST-02, deploy)** — T16-A~H 코드 완료. 수집 판정이 `PAYED` 하나뿐이라 재결제·차액결제가 전부 새 집으로 들어오던 문제를 **사람이 고르는 붙이기**로 닫았다(자동 확정 없음). 스테이징 실물 왕복 검증(강재상 1cm 집 → #4466 붙임 → 도크 "추가결제 3건 · 517,550원(반영은 수동)" → 되돌림 → 원복). **잔여=네이버 실호출 검증(사용자 직접)**, G3(재결제 시 원 주문 취소 표시) 미확정. 권한 게이트 통과(API그룹 `주문 판매자`=발주/발송처리 포함), 배송코드 `DIRECT_DELIVERY`(구매확정·정산 시점 변동 주의). 함정: `.alert` 5초 자동닫힘이 상시 안내를 지운다(`data-foms-no-autodismiss` 필요, 취소 경고도 이 버그였음) · 주문 JSONB 직접쓰기는 REV-99 게이트 → `execute_order_mutation` 경유 · 새 감사 행위는 `audit_message_display` 라벨 필수(pre_push_smoke 사각).
