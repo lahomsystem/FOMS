@@ -292,6 +292,49 @@ _UNSET_DISPLAY_TOKENS = frozenset({"", "-", "--", "(없음)", "없음", "미정"
 _ITEM_ROOT_PATH_RE = re.compile(r"^items\.\d+$")
 
 
+#: 같은 치수를 여러 칸에 나눠 담는 키들. ERP 폼이 스펙 문자열을 ``spec`` 과 ``width`` 양쪽에
+#: 넣어서 ``항목1 스펙 2400 → 2450*700*2400`` 과 ``항목1 W(가로) 2400 → 2450*700*2400`` 이
+#: 나란히 뜬다(2026-08-21 운영 전수: 남은 43줄 중 5줄). 값이 **완전히 같을 때만** 한 줄로
+#: 접는다 — 가로만 바뀐 저장(``스펙 …x570x2300`` / ``W 4450``)은 둘 다 봐야 한다.
+_DIMENSION_KEYS = (
+    "spec", "spec_rows", "spec_width", "spec_depth", "spec_height",
+    "width", "depth", "height", "w", "d", "h",
+)
+_DIMENSION_PATH_RE = re.compile(r"^items\.\d+\.(" + "|".join(_DIMENSION_KEYS) + r")$")
+
+
+def _dimension_item_key(path: str) -> Optional[str]:
+    """치수 계열 경로면 ``items.<idx>`` 를, 아니면 ``None`` 을 낸다(중복 판정 단위)."""
+    if not _DIMENSION_PATH_RE.match(path or ""):
+        return None
+    return path.rsplit(".", 1)[0]
+
+
+def dedupe_dimension_rows(rows: Sequence[Dict[str, str]]) -> List[Dict[str, str]]:
+    """같은 품목에서 치수 계열 줄이 **완전히 같은 값**을 말하면 한 줄만 남긴다.
+
+    ``spec`` 이 먼저 오도록 정렬된 목록을 전제한다(살아남는 줄 = ``항목N 스펙``).
+    값이 다르면 둘 다 남긴다 — 가로만 바뀐 변경을 감추면 안 된다.
+
+    Args:
+        rows: 변경 줄 목록.
+
+    Returns:
+        중복이 걷힌 새 목록.
+    """
+    seen: set = set()
+    deduped: List[Dict[str, str]] = []
+    for row in rows:
+        item_key = _dimension_item_key(str(row.get("path") or ""))
+        if item_key is not None:
+            fingerprint = (item_key, row.get("from"), row.get("to"))
+            if fingerprint in seen:
+                continue
+            seen.add(fingerprint)
+        deduped.append(row)
+    return deduped
+
+
 def drawing_work_started(sd: dict, *, before_index: Optional[int] = None) -> bool:
     """도면 작업이 실제로 시작됐는지 판정한다.
 
@@ -391,7 +434,8 @@ def humanize_order_change_changes(
         if row["path"] == "payment" and row["to"] == "변경됨":
             continue
         out.append(row)
-    return out
+    # 같은 치수를 여러 칸에 담아 생긴 중복은 과거 이력에서도 한 줄로 접는다.
+    return dedupe_dimension_rows(out)
 
 
 # forward ref: _ITEM_FIELD_LABELS used above — defined immediately below
@@ -503,7 +547,9 @@ def _append_item_field_changes(
             continue
         old_snap = _item_snapshot(old_it)
         new_snap = _item_snapshot(new_it)
-        for key in sorted(set(old_snap) | set(new_snap)):
+        item_rows: List[Dict[str, str]] = []
+        # ``spec`` 을 먼저 본다 — 같은 치수가 여러 칸에 담겼을 때 살아남는 줄이 '스펙'이 된다.
+        for key in sorted(set(old_snap) | set(new_snap), key=lambda k: (k != "spec", k)):
             label_key = _ITEM_FIELD_LABELS.get(key, key if not key.startswith("_") else "내용")
             old_v = old_snap.get(key)
             new_v = new_snap.get(key)
@@ -512,12 +558,13 @@ def _append_item_field_changes(
                 if old_v == old_snap.get("spec") and new_v == new_snap.get("spec"):
                     continue
             _add_change(
-                changes,
+                item_rows,
                 f"items.{idx}.{key}",
                 f"{prefix} {label_key}",
                 old_v,
                 new_v,
             )
+        changes.extend(dedupe_dimension_rows(item_rows))
 
     old_spec = old_sd.get("spec_rows")
     new_spec = new_sd.get("spec_rows")
