@@ -32,6 +32,7 @@ from foms.services.orders.estimate_defaults import (
     ERP_DRAFT_PLACEHOLDER_PHONE,
     ERP_DRAFT_PLACEHOLDER_PRODUCT,
 )
+from foms.services.orders.construction_type import normalize_regional_construction_type
 from foms.services.orders.initial_workflow_stage import resolve_initial_workflow_stage
 from foms.services.orders.order_create import create_order
 from foms.services.orders.status_constants import STATUS
@@ -78,6 +79,33 @@ def _items_total_from_draft_items(items: list[dict[str, Any]]) -> int:
         if isinstance(raw, dict):
             total += _parse_money_amount(raw.get("price"))
     return total
+
+
+def _draft_flags(data: dict[str, Any]) -> dict[str, Any]:
+    """draft_v1.data.flags 를 정규화한다(주문 구분: 지방주문·라홈시스템·긴급).
+
+    Args:
+        data: draft_v1 payload 의 data 객체.
+
+    Returns:
+        {"regional_order": bool, "regional_construction_type": str,
+         "factory2": bool, "urgent": bool, "urgent_reason": str}
+        — 지방주문이 아니면 구분은 빈 문자열, 긴급이 아니면 사유는 빈 문자열.
+    """
+    raw = data.get("flags") if isinstance(data.get("flags"), dict) else {}
+    regional = bool(raw.get("regional_order"))
+    urgent = bool(raw.get("urgent"))
+    return {
+        "regional_order": regional,
+        "regional_construction_type": (
+            normalize_regional_construction_type(raw.get("regional_construction_type")) or ""
+        )
+        if regional
+        else "",
+        "factory2": bool(raw.get("factory2")),
+        "urgent": urgent,
+        "urgent_reason": str(raw.get("urgent_reason") or "").strip() if urgent else "",
+    }
 
 
 def _draft_payload_to_structured(data: dict[str, Any]) -> dict[str, Any]:
@@ -167,6 +195,15 @@ def _draft_payload_to_structured(data: dict[str, Any]) -> dict[str, Any]:
     notes = str(schedule_in.get("notes") or "").strip()
     if notes:
         structured["notes"] = notes
+
+    # flags.urgent 는 sync_erp_flat_columns 가 order.erp_urgent 로, factory2 는
+    # 대시보드 배지(라홈시스템)가 읽는 canonical 키다. 지방주문은 Order 컬럼이라 여기 없다.
+    flags = _draft_flags(data)
+    structured["flags"] = {
+        "urgent": flags["urgent"],
+        "urgent_reason": flags["urgent_reason"],
+        "factory2": flags["factory2"],
+    }
 
     deposit_amount = _parse_money_amount(data.get("deposit"))
     items_total = _items_total_from_draft_items(items)
@@ -498,6 +535,20 @@ def api_submit_order_draft() -> tuple[Any, int]:
     if missing:
         return jsonify({"success": False, "error": "VALIDATION", "fields": missing}), 400
 
+    # 지방주문은 구분(하우드/협력사)이 필수 — ERP 저장 경로(PUT /structured)와 동일 semantics.
+    submit_flags = _draft_flags(data)
+    if submit_flags["regional_order"] and not submit_flags["regional_construction_type"]:
+        return (
+            jsonify(
+                {
+                    "success": False,
+                    "error": "VALIDATION",
+                    "fields": ["지방주문 구분 (하우드/협력사)"],
+                }
+            ),
+            400,
+        )
+
     received_date = str(data.get("received_date") or get_today_kst().strftime("%Y-%m-%d"))
     received_time = now_kst().strftime("%H:%M")
     workflow_stage = (
@@ -525,6 +576,8 @@ def api_submit_order_draft() -> tuple[Any, int]:
             status=order_status,
             raw_order_text="",
             structured_confidence=None,
+            is_regional=submit_flags["regional_order"],
+            construction_type=submit_flags["regional_construction_type"] or None,
         ),
         structured_data=structured_data,
         is_erp_order=True,
