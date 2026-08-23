@@ -49,6 +49,49 @@
   </div>
 
   <div class="foms-wizard__field">
+    <span class="field__label" id="wiz-flags-label">주문 구분</span>
+    <div class="foms-wizard__flags" role="group" aria-labelledby="wiz-flags-label">
+      <label class="foms-wizard__flag" for="wiz-flag-regional">
+        <input type="checkbox" id="wiz-flag-regional" data-wizard-field data-wizard-flag="regional_order" />
+        <span class="foms-wizard__flag-body">
+          <span class="foms-wizard__flag-ico" aria-hidden="true">🚚</span>
+          <span class="foms-wizard__flag-txt">지방주문</span>
+        </span>
+      </label>
+      <label class="foms-wizard__flag" for="wiz-flag-factory2">
+        <input type="checkbox" id="wiz-flag-factory2" data-wizard-field data-wizard-flag="factory2" />
+        <span class="foms-wizard__flag-body">
+          <span class="foms-wizard__flag-ico" aria-hidden="true">🏭</span>
+          <span class="foms-wizard__flag-txt">라홈시스템</span>
+        </span>
+      </label>
+      <label class="foms-wizard__flag foms-wizard__flag--urgent" for="wiz-flag-urgent">
+        <input type="checkbox" id="wiz-flag-urgent" data-wizard-field data-wizard-flag="urgent" />
+        <span class="foms-wizard__flag-body">
+          <span class="foms-wizard__flag-ico" aria-hidden="true">🔥</span>
+          <span class="foms-wizard__flag-txt">긴급</span>
+        </span>
+      </label>
+    </div>
+  </div>
+
+  <div class="foms-wizard__field" id="wiz-regional-type-field" hidden>
+    <label class="field__label foms-wizard__label--required" for="wiz-regional-construction-type">지방주문 구분</label>
+    <select class="foms-select" id="wiz-regional-construction-type" data-wizard-field data-wizard-flag="regional_construction_type">
+      <option value="">하우드/협력사 선택</option>
+      <option value="하우드 시공">하우드</option>
+      <option value="협력사 시공">협력사</option>
+    </select>
+    <p class="foms-wizard__error" x-show="has('regional_construction_type')" x-text="errors.regional_construction_type" role="alert"></p>
+  </div>
+
+  <div class="foms-wizard__field" id="wiz-urgent-reason-field" hidden>
+    <label class="field__label" for="wiz-urgent-reason">긴급 사유</label>
+    <textarea class="foms-input" id="wiz-urgent-reason" data-wizard-field data-wizard-flag="urgent_reason" rows="2"
+      placeholder="시공일 임박 / 현장 변경 / 자재 이슈"></textarea>
+  </div>
+
+  <div class="foms-wizard__field">
     <label class="field__label" for="wiz-notes">비고</label>
     <textarea class="foms-input" id="wiz-notes" name="notes" data-wizard-field data-schedule-field rows="3" placeholder="현장 특이사항, 주의사항"></textarea>
   </div>

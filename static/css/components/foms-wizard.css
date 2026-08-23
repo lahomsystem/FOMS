@@ -500,3 +500,100 @@
 .foms-wizard__amounts .erp-mobile-amount-chip {
   justify-content: flex-end;
 }
+
+/* 주문 구분 토글 칩(지방주문·라홈시스템·긴급) — 모바일 탭 타깃 44px 이상 */
+.foms-wizard__flags {
+  display: grid;
+  grid-template-columns: repeat(3, 1fr);
+  gap: var(--foms-space-2, 8px);
+}
+
+.foms-wizard__flag {
+  position: relative;
+  display: block;
+  margin: 0;
+  cursor: pointer;
+}
+
+.foms-wizard__flag input {
+  position: absolute;
+  opacity: 0;
+  width: 1px;
+  height: 1px;
+  pointer-events: none;
+}
+
+.foms-wizard__flag-body {
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  justify-content: center;
+  gap: 2px;
+  min-height: 56px;
+  padding: var(--foms-space-2, 8px) 4px;
+  border: 1px solid var(--foms-border-subtle, #e5e7eb);
+  border-radius: var(--foms-radius-lg, 12px);
+  background: var(--foms-surface-base, #fff);
+  color: var(--foms-text-secondary, #4b5563);
+  font-size: var(--foms-font-size-sm, 14px);
+  font-weight: 600;
+  line-height: 1.2;
+  text-align: center;
+  transition: background 0.12s ease, border-color 0.12s ease, color 0.12s ease;
+}
+
+.foms-wizard__flag-ico {
+  font-size: 1.05rem;
+  line-height: 1;
+}
+
+.foms-wizard__flag input:focus-visible + .foms-wizard__flag-body {
+  outline: 2px solid var(--foms-color-brand-500, #3b82f6);
+  outline-offset: 2px;
+}
+
+.foms-wizard__flag input:checked + .foms-wizard__flag-body {
+  border-color: var(--foms-color-brand-500, #3b82f6);
+  background: var(--foms-color-brand-50, #eff6ff);
+  color: var(--foms-color-brand-700, #1d4ed8);
+}
+
+.foms-wizard__flag--urgent input:checked + .foms-wizard__flag-body {
+  border-color: var(--foms-color-danger-500, #ef4444);
+  background: var(--foms-color-danger-50, #fef2f2);
+  color: var(--foms-color-danger-600, #dc2626);
+}
+
+.foms-wizard__flag input:active + .foms-wizard__flag-body,
+.foms-wizard__flag-body:active {
+  transform: scale(0.98);
+}
+
+.foms-wizard__summary-flags {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 4px;
+}
+
+.foms-wizard__summary-flag {
+  display: inline-flex;
+  align-items: center;
+  gap: 2px;
+  padding: 1px 8px;
+  border-radius: 999px;
+  font-size: var(--foms-font-size-xs, 12px);
+  font-weight: 600;
+  background: var(--foms-color-brand-50, #eff6ff);
+  color: var(--foms-color-brand-700, #1d4ed8);
+}
+
+.foms-wizard__summary-flag--urgent {
+  background: var(--foms-color-danger-50, #fef2f2);
+  color: var(--foms-color-danger-600, #dc2626);
+}
+
+.foms-wizard__summary-flag-reason {
+  margin-top: 2px;
+  font-size: var(--foms-font-size-xs, 12px);
+  color: var(--foms-text-secondary, #4b5563);
+}

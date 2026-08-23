@@ -208,6 +208,104 @@ def test_order_draft_submit_creates_order(client, app, wizard_enabled) -> None:
     assert client.get(f"/api/erp/order-draft?key={key}").get_json()["draft"] is None
 
 
+def test_wizard_step3_flag_inputs_contract() -> None:
+    """일정·담당 단계에서 지방주문·라홈시스템·긴급을 입력할 수 있어야 한다."""
+    step3 = (ROOT / "templates/orders/wizard/step3_schedule.html").read_text(encoding="utf-8")
+    assert 'id="wiz-flag-regional"' in step3
+    assert 'id="wiz-flag-factory2"' in step3
+    assert 'id="wiz-flag-urgent"' in step3
+    assert 'id="wiz-regional-construction-type"' in step3
+    assert 'id="wiz-urgent-reason"' in step3
+    js = (ROOT / "static/js/foms/wizard.js").read_text(encoding="utf-8")
+    assert "collectFlags" in js
+    assert "syncFlagFieldVisibility" in js
+    css = (ROOT / "static/css/components/foms-wizard.css").read_text(encoding="utf-8")
+    assert ".foms-wizard__flag" in css
+
+
+def test_order_draft_submit_persists_order_flags(client, app, wizard_enabled) -> None:
+    """지방주문(컬럼)·라홈시스템/긴급(structured flags)이 주문에 저장된다."""
+    from db import db_session
+    from models import Order
+
+    _login(client, app, "wizard_flags_user")
+    key = "new.test-flags"
+    payload = {
+        "schema_version": 1,
+        "step": 4,
+        "data": {
+            "customer_name": "구분테스트",
+            "phone": "010-1111-2222",
+            "address": "강원도 원주시",
+            "received_date": "2026-08-23",
+            "items": [{"product_name": "붙박이장", "spec_rows": []}],
+            "schedule": {},
+            "flags": {
+                "regional_order": True,
+                "regional_construction_type": "협력사 시공",
+                "factory2": True,
+                "urgent": True,
+                "urgent_reason": "시공일 임박",
+            },
+        },
+    }
+    client.put(
+        "/api/erp/order-draft",
+        data=json.dumps({"draft_key": key, "step": 4, "payload": payload}),
+        content_type="application/json",
+    )
+    submit = client.post(
+        "/api/erp/order-draft/submit",
+        data=json.dumps({"draft_key": key}),
+        content_type="application/json",
+    )
+    assert submit.status_code == 200
+    order_id = submit.get_json()["data"]["order_id"]
+    with app.app_context():
+        order = db_session.query(Order).filter_by(id=order_id).one()
+        assert order.is_regional is True
+        assert order.construction_type == "협력사 시공"
+        flags = (order.structured_data or {}).get("flags") or {}
+        assert flags.get("factory2") is True
+        assert flags.get("urgent") is True
+        assert flags.get("urgent_reason") == "시공일 임박"
+        assert order.erp_urgent is True
+
+
+def test_order_draft_submit_rejects_regional_without_construction_type(
+    client, app, wizard_enabled
+) -> None:
+    """지방주문인데 구분(하우드/협력사)이 없으면 400."""
+    _login(client, app, "wizard_flags_reject_user")
+    key = "new.test-flags-reject"
+    payload = {
+        "schema_version": 1,
+        "step": 4,
+        "data": {
+            "customer_name": "구분누락",
+            "phone": "010-3333-4444",
+            "address": "충청북도 청주시",
+            "items": [{"product_name": "신발장", "spec_rows": []}],
+            "schedule": {},
+            "flags": {"regional_order": True, "regional_construction_type": ""},
+        },
+    }
+    client.put(
+        "/api/erp/order-draft",
+        data=json.dumps({"draft_key": key, "step": 4, "payload": payload}),
+        content_type="application/json",
+    )
+    submit = client.post(
+        "/api/erp/order-draft/submit",
+        data=json.dumps({"draft_key": key}),
+        content_type="application/json",
+    )
+    assert submit.status_code == 400
+    body = submit.get_json()
+    assert body["error"] == "VALIDATION"
+    assert any("지방주문 구분" in f for f in body["fields"])
+
+
 def test_order_draft_submit_sets_measure_for_haud_orderer(client, app, wizard_enabled) -> None:
     """하우드 발주사는 실측일 없어도 주문 단계가 실측(MEASURE)이어야 한다."""
     from db import db_session
