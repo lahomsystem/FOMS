@@ -514,3 +514,41 @@ def test_drawing_work_started_uses_transfer_not_stage():
     sd = _base_sd(drawing_status="PENDING", drawing_transfer_history=history)
     assert drawing_work_started(sd, before_index=0) is False  # 전달 전 이벤트
     assert drawing_work_started(sd, before_index=2) is True   # 전달 후 이벤트
+
+
+def test_same_dimension_value_is_one_row():
+    """ERP 폼이 스펙 문자열을 spec·width 양쪽에 넣어 생긴 중복은 한 줄로 접는다."""
+    old = _base_sd()
+    old["items"] = [{"product_name": "붙박이장", "spec": "2400", "width": "2400"}]
+    new = _base_sd()
+    new["items"] = [{"product_name": "붙박이장", "spec": "2450*700*2400", "width": "2450*700*2400"}]
+
+    changes = compute_drawing_relevant_changes(old, new)
+    dim_rows = [c for c in changes if c["path"].startswith("items.0.")]
+    assert [c["path"] for c in dim_rows] == ["items.0.spec"]
+    assert dim_rows[0]["to"] == "2450*700*2400"
+
+
+def test_different_dimension_values_both_survive():
+    """가로만 바뀐 저장은 두 줄 다 남긴다 — 값이 다르면 감추지 않는다."""
+    old = _base_sd()
+    old["items"] = [{"product_name": "붙박이장", "spec": "4435", "width": "4435"}]
+    new = _base_sd()
+    new["items"] = [{"product_name": "붙박이장", "spec": "4450x570x2300", "width": "4450"}]
+
+    changes = compute_drawing_relevant_changes(old, new)
+    paths = {c["path"] for c in changes}
+    assert "items.0.spec" in paths and "items.0.width" in paths
+
+
+def test_humanize_dedupes_legacy_dimension_rows():
+    """과거 이력에 이미 쌓인 중복도 읽기 시점에 한 줄로 접힌다."""
+    from foms.services.notifications.drawing_order_change import humanize_order_change_changes
+
+    rows = humanize_order_change_changes([
+        {"path": "items.0.spec", "label": "항목1 스펙", "from": "2400", "to": "2450*700*2400"},
+        {"path": "items.0.width", "label": "항목1 W(가로)", "from": "2400", "to": "2450*700*2400"},
+        {"path": "items.1.spec", "label": "항목2 스펙", "from": "1060", "to": "1590"},
+        {"path": "items.0.color", "label": "항목1 색상", "from": "화이트", "to": "그레이"},
+    ])
+    assert [r["path"] for r in rows] == ["items.0.spec", "items.1.spec", "items.0.color"]
