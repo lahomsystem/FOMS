@@ -10,12 +10,15 @@ subpackage `foms.services.measurement` __init__의 standalone 순환 import 회�
 from __future__ import annotations
 
 import datetime
+import logging
 
 from sqlalchemy import or_, and_, cast, String
 from sqlalchemy.orm import load_only, selectinload
 
 from models import Order, OrderScheduleDate
 from foms.services.erp_display import _ensure_dict, self_measurement_four_checks_done, apply_erp_display_fields_to_orders
+
+logger = logging.getLogger(__name__)
 from foms.services.measurement_dates import extract_all_measurement_dates
 from foms.services.common.business_calendar import get_holidays_kr
 
@@ -75,7 +78,10 @@ def panel_date_count_fields(
     }
 
 
-MEASUREMENT_MAIN_SEED_LIMIT = 300
+# 메인 목록 표시 상한(정책) + seed 캡. 둘은 항상 같은 값이어야 한다 — seed 가 더 작으면
+# 표시 상한에 닿기 전에 행이 사라지고, 더 크면 뽑아놓고 버린다.
+MEASUREMENT_MAIN_DISPLAY_CAP = 300
+MEASUREMENT_MAIN_SEED_LIMIT = MEASUREMENT_MAIN_DISPLAY_CAP
 
 
 def fetch_measurement_main_seed_rows(list_query) -> list:
@@ -104,7 +110,18 @@ def compute_measurement_main_rows_blob(
     date_to,
     focus_order_id,
 ) -> dict:
-    """JSON DTO for measurement main_rows micro-cache."""
+    """JSON DTO for measurement main_rows micro-cache.
+
+    ``total_count`` 는 표시 상한(:data:`MEASUREMENT_MAIN_DISPLAY_CAP`) 적용 **전** 모집단이다.
+    3개월 범위 조회처럼 모집단이 상한을 넘으면 화면이 조용히 잘리므로(운영 실측: 92일
+    조회 1069건 중 300건), 잘렸다는 사실을 화면과 로그에 남기기 위해 함께 캐시한다.
+    """
+    total_count = int(list_query.order_by(None).count() or 0)
+    if total_count > MEASUREMENT_MAIN_DISPLAY_CAP:
+        logger.warning(
+            "[measurement] 메인 목록 표시 상한 발동: 모집단 %s건 > 상한 %s건",
+            total_count, MEASUREMENT_MAIN_DISPLAY_CAP,
+        )
     seed_rows = fetch_measurement_main_seed_rows(list_query)
     rows, row_fallback_added_ids = build_measurement_main_rows(
         db,
@@ -122,6 +139,7 @@ def compute_measurement_main_rows_blob(
     return {
         "order_ids": [int(o.id) for o in rows],
         "row_fallback_added_ids": [int(x) for x in row_fallback_added_ids],
+        "total_count": total_count,
     }
 
 
@@ -459,7 +477,7 @@ def build_measurement_main_rows(
             # [:300] 절단보다 앞에 두어 큐가 가득 차도 검색 카드가 누락되지 않게 한다.
             rows.insert(0, focus_row)
 
-    rows = rows[:300]
+    rows = rows[:MEASUREMENT_MAIN_DISPLAY_CAP]
     for row in rows:
         row.measurement_dates_display = _build_measurement_dates_for_display(
             row,
