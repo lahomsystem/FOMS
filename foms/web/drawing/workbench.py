@@ -47,7 +47,6 @@ from foms.services.common.dashboard_cache import (
     get_or_compute_dashboard_slice,
 )
 from foms.services.drawing_workbench_read_model import (
-    DRAWING_WORKBENCH_SEED_CAP,
     fetch_drawing_seed_order_ids,
     hydrate_drawing_orders_by_ids,
 )
@@ -382,35 +381,32 @@ def erp_drawing_workbench_dashboard():
             else orders_query.filter(Order.id == -1)
         )
 
+    # seed 는 도면 모집단(단계 ∪ RETURNED [∪ CONFIRMED])으로 SQL 선스코프한 뒤 cap 을
+    # 적용한다. 슬라이스명이 workbench_queue_ids 인 이유: 과거 workbench_seed_ids 블롭은
+    # '최신 250건'이라 의미가 다르다 — 이름을 유지하면 배포 직후 TTL 동안 옛 id 묶음이
+    # 그대로 서빙돼 누락이 이어진다.
     _seed_fp = {
         "v": KEY_VERSION,
         "uid": current_user.id if current_user else None,
         "role": getattr(current_user, "role", None) if current_user else None,
         "team": getattr(current_user, "team", None) if current_user else None,
         "mine": bool(mine_only),
+        "confirmed": bool(include_confirmed),
     }
-    _seed_key = build_dashboard_cache_key("drawing", "workbench_seed_ids", _seed_fp)
+    _seed_key = build_dashboard_cache_key("drawing", "workbench_queue_ids", _seed_fp)
     _seed_blob = get_or_compute_dashboard_slice(
         _seed_key,
         TTL_PANEL_ROWS,
-        lambda: {"order_ids": fetch_drawing_seed_order_ids(orders_query)},
+        lambda: {
+            "order_ids": fetch_drawing_seed_order_ids(
+                orders_query, include_confirmed=include_confirmed
+            )
+        },
         page="drawing",
-        slice_name="workbench_seed_ids",
+        slice_name="workbench_queue_ids",
     )
     order_ids = [int(x) for x in (_seed_blob.get("order_ids") or [])]
     orders = hydrate_drawing_orders_by_ids(orders_query, order_ids)
-
-    # 컨펌 포함: 기본 seed 캐시는 불변(바이트 동일). include_confirmed=1 일 때만 CONFIRM
-    # 단계 주문을 추가 조회해 뒤에 덧붙인다(중복 제거, 아래 필터가 CONFIRMED만 통과시킴).
-    if include_confirmed:
-        _seen_ids = {o.id for o in orders}
-        _confirmed_orders = (
-            orders_query.filter(Order.erp_stage_code.in_(['CONFIRM', '고객컨펌']))
-            .order_by(Order.created_at.desc())
-            .limit(DRAWING_WORKBENCH_SEED_CAP)
-            .all()
-        )
-        orders = orders + [o for o in _confirmed_orders if o.id not in _seen_ids]
 
     # 검색 카드 딥링크(?focus_order=)는 seed 캡·필터와 무관하게 해당 주문이 착지해야 한다.
     # orders/construction/measurement 대시보드와 동일한 deep-link SSOT.
