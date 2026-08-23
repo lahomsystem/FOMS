@@ -78,6 +78,42 @@ def _collected(*, order_no: str, product: str, amount: int, option: str = "",
 
 
 # --------------------------------------------------------------------------- #
+# 마크업 조각 뽑기
+#
+# v3 는 목록·상세·이력이 **한 문서**에 함께 있다. "화면에 그 글자가 있다" 만으로는
+# 뜻이 안 지켜진다 — 목록에 있는지 상세에 있는지가 곧 계약이다(예: 관계 배지 vs 필터 칩).
+# --------------------------------------------------------------------------- #
+
+def _row_of(body: str, needle: str) -> str:
+    """목록에서 그 글자가 든 집 한 줄(``<a class="wb-row" …</a>``)을 통째로 잘라 준다."""
+    head = body.split(needle)[0].rsplit('<a class="wb-row', 1)[1]
+    tail = body.split(needle)[1].split("</a>")[0]
+    return '<a class="wb-row' + head + needle + tail
+
+
+def _hist_row(body: str, needle: str) -> str:
+    """이력 표에서 그 글자가 든 행(``<tr>…</tr>``)을 통째로 잘라 준다."""
+    head = body.split(needle)[0].rsplit("<tr", 1)[1]
+    tail = body.split(needle)[1].split("</tr>")[0]
+    return "<tr" + head + needle + tail
+
+
+def _pane(body: str) -> str:
+    """상세 pane(``#wb-pane``) 안쪽만."""
+    return body.split('id="wb-pane"')[1]
+
+
+def _chip(body: str, name: str) -> str:
+    """필터 칩 하나(``data-filter="…"`` 링크) — v2 의 탭 배지 자리."""
+    return body.split(f'data-filter="{name}"')[1].split("</a>")[0]
+
+
+def _row_count(body: str) -> int:
+    """지금 목록에 뜬 집의 줄 수."""
+    return body.count('<a class="wb-row')
+
+
+# --------------------------------------------------------------------------- #
 # 게이트
 # --------------------------------------------------------------------------- #
 
@@ -106,23 +142,35 @@ def test_gate_on_renders_the_workbench(client, workbench_on):
 # 탭 (결정 1) — 서버 ?tab= 라운드트립
 # --------------------------------------------------------------------------- #
 
-def test_four_tabs_exist_and_work_is_default(client, workbench_on):
-    """탭 4개가 한 화면에 있고 기본은 '처리 대기' 다 — 두 URL 왕복을 없앤 자리."""
+def test_two_tabs_and_four_chips_with_work_as_default(client, workbench_on):
+    """v2 의 탭 4개는 **탭 2개 + 필터 칩 4개**가 됐다 — 한 집 처리하려고 탭을 오가던 자리.
+
+    옛 뜻(네 갈래가 한 화면에서 손에 닿고 기본은 처리 탭)은 그대로다. 표현만
+    탭 → 칩으로 내려왔다(계약 §1). `place`·`claim` 은 더 이상 탭이 아니다.
+    """
     _login(client)
     _collected(order_no="N-WB-TAB", product="붙박이장", amount=100000)
 
     body = client.get(TRIAGE_PATH).get_data(as_text=True)
 
-    for label in ("처리 대기", "발주확인 전", "취소·반품", "전체 이력"):
-        assert label in body, label
     assert 'data-tab="work"' in body
-    assert 'aria-selected="true"' in body.split('data-tab="work"')[1].split(">")[0] or \
-           'aria-selected="true"' in body.split('data-tab="work"')[0].rsplit("<button", 1)[-1]
+    assert 'data-tab="all"' in body
+    assert 'data-tab="place"' not in body, "발주확인 전은 탭이 아니라 칩이다"
+    assert 'data-tab="claim"' not in body, "취소·반품은 탭이 아니라 칩이다"
+    # 네 갈래는 같은 목록의 필터 칩으로 남는다 — 라벨도 그대로 읽힌다.
+    for key, label in (("all", "전체"), ("place", "발주확인 전"),
+                       ("rel", "추가결제·재결제"), ("claim", "취소·반품")):
+        assert f'data-filter="{key}"' in body, key
+        assert label in _chip(body, key), key
+    assert "이력" in body, "이력 탭은 ADMIN 에게 그대로 있다"
+    assert 'data-active-tab="work"' in body
+    assert 'aria-selected="true"' in body.split('data-tab="work"')[1].split(">")[0]
+    assert 'aria-pressed="true"' in _chip(body, "all"), "기본 필터는 전체다"
 
 
-@pytest.mark.parametrize("tab", ["work", "place", "claim", "all"])
+@pytest.mark.parametrize("tab", ["work", "all"])
 def test_each_tab_responds(client, workbench_on, tab):
-    """네 탭 모두 서버 라운드트립으로 열린다(새로고침·북마크가 그냥 된다)."""
+    """두 탭 모두 서버 라운드트립으로 열린다(새로고침·북마크가 그냥 된다)."""
     _login(client)
     _collected(order_no=f"N-WB-{tab}", product="붙박이장", amount=100000)
 
@@ -130,6 +178,20 @@ def test_each_tab_responds(client, workbench_on, tab):
 
     assert response.status_code == 200
     assert f'data-active-tab="{tab}"' in response.get_data(as_text=True)
+
+
+@pytest.mark.parametrize("f", ["all", "place", "rel", "claim"])
+def test_each_filter_responds(client, workbench_on, f):
+    """칩 4종도 서버 라운드트립이다 — 칩은 평범한 링크라 북마크·새로고침이 그냥 된다."""
+    _login(client)
+    _collected(order_no=f"N-WB-F-{f}", product="붙박이장", amount=100000, place_status="")
+
+    response = client.get(f"{TRIAGE_PATH}?tab=work&f={f}")
+
+    assert response.status_code == 200
+    body = response.get_data(as_text=True)
+    assert f'data-active-filter="{f}"' in body
+    assert 'aria-pressed="true"' in _chip(body, f)
 
 
 def test_unknown_tab_falls_back_to_work(client, workbench_on):
@@ -296,15 +358,14 @@ def test_place_tab_lists_only_households_awaiting_confirmation(client, workbench
     assert "끝난 붙박이장" not in body
 
 
-def test_place_tab_counts_households_in_the_tab_badge(client, workbench_on):
-    """탭 배지도 집 단위 — 한 집의 상품주문 3건이 3집으로 읽히면 안 된다."""
+def test_place_chip_counts_households(client, workbench_on):
+    """칩 숫자도 집 단위 — 한 집의 상품주문 3건이 3집으로 읽히면 안 된다(옛 탭 배지 자리)."""
     _login(client)
     for idx in range(3):
         _collected(order_no="N-PL-ONE", product=f"구성 {idx}", amount=1000, place_status="")
 
-    body = client.get(f"{TRIAGE_PATH}?tab=place").get_data(as_text=True)
-    tab = body.split('data-tab="place"')[1].split("</a>")[0]
-    assert "1집" in tab, tab
+    body = client.get(f"{TRIAGE_PATH}?tab=work&f=place").get_data(as_text=True)
+    assert "1집" in _chip(body, "place"), _chip(body, "place")
 
 
 def test_place_tab_has_a_checkbox_per_household(client, workbench_on):
@@ -318,31 +379,57 @@ def test_place_tab_has_a_checkbox_per_household(client, workbench_on):
     assert body.count('class="wb-pick"') == 2
 
 
-def test_place_button_is_disabled_until_something_is_selected(client, workbench_on):
-    """선택이 없으면 버튼이 죽어 있다.
+def test_bulk_send_is_out_of_reach_until_something_is_selected(client, workbench_on):
+    """선택이 없으면 발주확인 보내기에 손이 닿지 않는다.
 
     2026-08-14 일괄 완료처리 AS 증발 사고가 "선택 없이 버튼=전체 대상" 패턴에서 났다.
     되돌릴 수 없는 네이버 호출에 그 패턴을 다시 쓰지 않는다.
+
+    v3 에서 표현이 바뀌었다: 옛 `#wb-place-submit` 의 서버 렌더 `disabled` 대신
+    **벌크 바 자체가 접혀 있고**(`#wb-bulk` 는 `on` 없이 렌더 → CSS `display:none`),
+    JS 가 선택 0집이면 보내기 버튼을 `disabled` 로 유지한다. 두 층을 함께 문다 —
+    한 층만 보면 다른 층이 조용히 빠져도 테스트가 green 이다.
     """
+    import pathlib
+
     _login(client)
     _collected(order_no="N-PL-GATE", product="붙박이장", amount=100000, place_status="")
 
-    body = client.get(f"{TRIAGE_PATH}?tab=place").get_data(as_text=True)
-    button = body.split('id="wb-place-submit"')[1].split(">")[0]
-    assert "disabled" in button, button
+    body = client.get(f"{TRIAGE_PATH}?tab=work&f=place").get_data(as_text=True)
+
+    # ① 서버는 벌크 바를 **접힌 채로** 낸다(선택 0집).
+    assert 'class="wb-bulk" id="wb-bulk"' in body, "벌크 바가 없거나 클래스가 바뀌었다"
+    assert 'class="wb-bulk on"' not in body, "선택이 없는데 벌크 바가 펼쳐져 있다"
+    assert 'id="wb-bulk-submit"' in body
+
+    root = pathlib.Path(__file__).resolve().parents[3]
+    # ② CSS 가 접는 층 — `on` 이 붙어야만 보인다.
+    css = (root / "static/css/admin/naver-workbench.css").read_text(encoding="utf-8")
+    bulk_block = css.split("#wb-bulk {")[1].split("}")[0]
+    assert "display: none" in bulk_block, bulk_block
+    assert "#wb-bulk.on" in css, "펼치는 규칙이 없으면 벌크가 영영 안 뜬다"
+    # ③ JS 가 잠그는 층 — 0집이면 보내기 버튼이 죽어 있다.
+    js = (root / "static/js/admin/naver-workbench.js").read_text(encoding="utf-8")
+    assert "submit.disabled = chosen.length === 0" in js, "선택 0집에서 버튼이 살아 있다"
 
 
-def test_place_modal_has_the_four_part_warning(client, workbench_on):
-    """건수 재진술 + 되돌릴 수 없음 + 사후 경로 — 불가역 액션 4종 세트."""
+def test_bulk_modal_has_the_four_part_warning(client, workbench_on):
+    """건수 재진술 + 되돌릴 수 없음 + 사후 경로 — 불가역 액션 4종 세트.
+
+    v3 에서 `#wb-modal-place` 는 벌크 모달 `#wb-modal-bulk` 로 옮겨졌다(계약 §3.2).
+    건수 재진술은 **집 수와 상품주문 건수 둘 다** 갱신된다 — 집 수만 읽히면 "2집" 이
+    실제로 상품주문 9건인 걸 모른다.
+    """
     _login(client)
     _collected(order_no="N-PL-MODAL", product="붙박이장", amount=100000, place_status="")
 
-    body = client.get(f"{TRIAGE_PATH}?tab=place").get_data(as_text=True)
-    modal = body.split('id="wb-modal-place"')[1].split("</div></div></div>")[0]
+    body = client.get(f"{TRIAGE_PATH}?tab=work&f=place").get_data(as_text=True)
+    modal = body.split('id="wb-modal-bulk"')[1].split("</div></div></div>")[0]
 
     assert "되돌릴 수" in modal
     assert "발송처리" in modal, "보낸 뒤 무엇이 열리는지 알려야 한다"
-    assert 'id="wb-place-count"' in modal, "건수는 선택에 따라 문장에서 갱신된다"
+    assert 'id="wb-bulk-count"' in modal, "집 수는 선택에 따라 문장에서 갱신된다"
+    assert 'id="wb-bulk-items"' in modal, "상품주문 건수도 함께 재진술한다"
 
 
 def test_place_tab_shows_shipping_due_so_urgency_is_visible(client, workbench_on):
@@ -368,12 +455,12 @@ def test_place_tab_excludes_claimed_households(client, workbench_on):
     assert "취소된 붙박이장" not in body
 
 
-def test_place_tab_badge_matches_the_list_length(client, workbench_on):
-    """배지 숫자와 목록 줄 수가 같아야 한다 — 다르면 사람이 나머지를 찾아 헤맨다.
+def test_place_chip_count_matches_the_list_length(client, workbench_on):
+    """칩 숫자와 목록 줄 수가 같아야 한다 — 다르면 사람이 나머지를 찾아 헤맨다.
 
     실화: 배지는 SQL 로 세느라 취소·반품 집까지 포함했고, 목록은 그것들을 뺐다.
     "4집"이라고 써 놓고 3줄만 보였다. 취소 여부는 raw_snapshot 안에 있어 SQL 이 못
-    거르므로, 세는 쪽과 뽑는 쪽이 **같은 함수**를 써야 한다.
+    거르므로, 세는 쪽과 뽑는 쪽이 **같은 술어**(`_group_matches_filter`)를 써야 한다.
     """
     _login(client)
     _collected(order_no="N-PB-1", product="집 하나", amount=100000, place_status="")
@@ -381,10 +468,10 @@ def test_place_tab_badge_matches_the_list_length(client, workbench_on):
     _collected(order_no="N-PB-CLAIM", product="취소된 집", amount=100000,
                place_status="", claim_status="CANCEL_DONE")
 
-    body = client.get(f"{TRIAGE_PATH}?tab=place").get_data(as_text=True)
+    body = client.get(f"{TRIAGE_PATH}?tab=work&f=place").get_data(as_text=True)
 
-    tab = body.split('data-tab="place"')[1].split("</a>")[0]
-    assert "2집" in tab, tab
+    assert "2집" in _chip(body, "place"), _chip(body, "place")
+    assert _row_count(body) == 2
     assert body.count('class="wb-pick"') == 2
 
 
@@ -405,8 +492,13 @@ def test_claim_tab_lists_only_claimed_households(client, workbench_on):
     assert "정상 붙박이장" not in body
 
 
-def test_work_tab_excludes_claimed_households(client, workbench_on):
-    """처리 대기에서는 취소·반품 집을 뺀다 — 손댈 수 없는 줄이 작업 목록을 채우면 안 된다."""
+def test_work_list_keeps_claimed_households_but_locks_the_row(client, workbench_on):
+    """취소·반품 집은 목록에서 **빠지지 않고 잠긴 줄로 남는다**(v3 절대 규칙 6).
+
+    v2 는 전용 탭으로 옮겨 처리 목록에서 뺐다. 그러면 "그 주문 어디 갔지" 가 되고,
+    한 집을 확인하려고 탭을 오가게 된다 — 이 개편의 출발점이다. 대신 손댈 수 없다는
+    사실을 줄에서 못 박는다: 체크박스 disabled + 잠금 클래스 + 글자 라벨.
+    """
     _login(client)
     _collected(order_no="N-CL-W1", product="정상 붙박이장", amount=100000)
     _collected(order_no="N-CL-W2", product="취소된 붙박이장", amount=100000,
@@ -415,11 +507,17 @@ def test_work_tab_excludes_claimed_households(client, workbench_on):
     body = client.get(f"{TRIAGE_PATH}?tab=work").get_data(as_text=True)
 
     assert "정상 붙박이장" in body
-    assert "취소된 붙박이장" not in body
+    assert "취소된 붙박이장" in body, "잠글지언정 목록에서 없애지 않는다"
+    locked = _row_of(body, "취소된 붙박이장")
+    assert "wb-row--locked" in locked, locked
+    assert "disabled" in locked, "잠긴 집이 벌크로 선택된다"
+    assert "손대지 않음" in locked, "색만으로는 못 읽는다 — 글자 라벨이 함께 있어야 한다"
+    # 멀쩡한 집은 그대로 고를 수 있다(잠금이 목록 전체로 번지지 않는다).
+    assert "wb-row--locked" not in _row_of(body, "정상 붙박이장")
 
 
-def test_tab_badges_match_their_own_lists(client, workbench_on):
-    """탭 배지는 그 탭이 실제로 보여줄 줄 수와 같아야 한다(W2 에서 낸 결함의 재발 방지)."""
+def test_chip_counts_match_their_own_filtered_lists(client, workbench_on):
+    """칩 숫자는 그 칩이 실제로 보여줄 줄 수와 같아야 한다(W2 에서 낸 결함의 재발 방지)."""
     _login(client)
     _collected(order_no="N-CL-B1", product="정상 하나", amount=100000)
     _collected(order_no="N-CL-B2", product="정상 둘", amount=100000)
@@ -427,27 +525,34 @@ def test_tab_badges_match_their_own_lists(client, workbench_on):
                claim_status="CANCEL_DONE")
 
     body = client.get(f"{TRIAGE_PATH}?tab=work").get_data(as_text=True)
-    work_tab = body.split('data-tab="work"')[1].split("</a>")[0]
-    claim_tab = body.split('data-tab="claim"')[1].split("</a>")[0]
 
-    assert "2집" in work_tab, work_tab
-    assert "1집" in claim_tab, claim_tab
-    assert body.count('class="wb-row wb-row--') == 2, "처리 대기 목록은 2줄"
+    # 칩 숫자(필터 전 전체에서 센다)
+    assert "3집" in _chip(body, "all"), _chip(body, "all")
+    assert "1집" in _chip(body, "claim"), _chip(body, "claim")
+    # 목록은 하나다 — 취소 집도 잠긴 줄로 함께 있다.
+    assert _row_count(body) == 3, "처리 목록은 3줄(취소 집 포함)"
+    claim_only = client.get(f"{TRIAGE_PATH}?tab=work&f=claim").get_data(as_text=True)
+    assert _row_count(claim_only) == 1, "취소·반품 칩은 1줄"
 
 
-def test_claim_detail_locks_create_and_place_but_allows_done(client, workbench_on):
-    """주문 만들기·발주확인은 잠기고 '확인 완료'만 열린다(선행 결함 #4 의 화면 쪽)."""
+def test_claim_detail_locks_the_four_actions_but_allows_done(client, workbench_on):
+    """주문 만들기·발주확인은 잠기고 '확인 완료'만 열린다(선행 결함 #4 의 화면 쪽).
+
+    v3 에서 id 가 바뀌었다: `#wb-claim-create`→`#wb-create`, `#wb-claim-place`→`#wb-confirm`,
+    `#wb-claim-done`→`#wb-review-done`(모든 집에 낸다). 뜻은 그대로 —
+    **손댈 수 없는 집이라도 큐에서는 뺄 수 있어야 한다.**
+    """
     _login(client)
     link = _collected(order_no="N-CL-ACT", product="취소된 붙박이장", amount=100000,
                       claim_status="CANCEL_DONE")
 
-    body = client.get(f"{TRIAGE_PATH}?tab=claim&link_id={link.id}").get_data(as_text=True)
+    body = client.get(f"{TRIAGE_PATH}?tab=work&f=claim&link_id={link.id}").get_data(as_text=True)
 
-    assert 'id="wb-claim-create"' in body
-    assert "disabled" in body.split('id="wb-claim-create"')[1].split(">")[0]
-    assert 'id="wb-claim-place"' in body
-    assert "disabled" in body.split('id="wb-claim-place"')[1].split(">")[0]
-    done = body.split('id="wb-claim-done"')[1].split(">")[0]
+    assert 'id="wb-create"' in body
+    assert "disabled" in body.split('id="wb-create"')[1].split(">")[0]
+    assert 'id="wb-confirm"' in body
+    assert "disabled" in body.split('id="wb-confirm"')[1].split(">")[0]
+    done = body.split('id="wb-review-done"')[1].split(">")[0]
     assert "disabled" not in done, done
 
 
@@ -457,9 +562,15 @@ def test_claim_detail_shows_why_it_is_locked(client, workbench_on):
     link = _collected(order_no="N-CL-WHY", product="취소된 붙박이장", amount=100000,
                       claim_status="CANCEL_DONE")
 
-    body = client.get(f"{TRIAGE_PATH}?tab=claim&link_id={link.id}").get_data(as_text=True)
-    assert "취소 완료" in body
-    assert "주문을 만들 수 없습니다" in body
+    body = client.get(f"{TRIAGE_PATH}?tab=work&f=claim&link_id={link.id}").get_data(as_text=True)
+    pane = _pane(body)
+
+    # ① 상태를 사람 말로 — 클레임 라벨 그대로.
+    assert "취소 완료" in pane
+    # ② 무엇이 닫혔는지 한 줄로(계약 §3.3 목업 문장).
+    assert "발주확인·발송처리·주문 만들기가 모두 닫혀 있습니다" in pane, pane[:800]
+    # ③ 잠긴 버튼마다 이유가 붙는다 — title 이 없으면 사람은 계속 누른다.
+    assert "판매자센터를 따릅니다" in pane.split('id="wb-create"')[1].split(">")[0]
 
 
 def test_marking_a_claimed_household_done_removes_it_from_the_tab(client, workbench_on):
@@ -476,36 +587,43 @@ def test_marking_a_claimed_household_done_removes_it_from_the_tab(client, workbe
     assert "취소된 붙박이장" not in body
 
 
-def test_default_selection_stays_inside_the_active_tab(client, workbench_on):
-    """기본 선택은 그 탭 안에서 고른다.
+def test_default_selection_stays_inside_the_active_filter(client, workbench_on):
+    """기본 선택은 **지금 보이는 목록 안에서** 고른다.
 
-    실화: 큐 전체에서 첫 집을 골랐더니, 처리 대기 탭을 열었는데 오른쪽 상세에
-    취소·반품 집이 펼쳐졌다 — 목록에는 없는데 상세만 뜨는 상태였다.
+    실화: 큐 전체에서 첫 집을 골랐더니, 목록에는 없는 집이 오른쪽 상세에 펼쳐졌다.
+    v3 에서 갈래를 정하는 건 탭이 아니라 필터 칩이다 — 판정 대상만 바뀌고 뜻은 같다.
     """
     _login(client)
-    # 취소 집이 더 최신이라 큐 전체에서는 이쪽이 먼저 잡힌다.
-    _collected(order_no="N-SEL-OK", product="정상 붙박이장", amount=100000)
+    # 취소 집을 **먼저** 만들어 목록 둘째 줄로 보낸다(정렬은 수집 최신순).
     _collected(order_no="N-SEL-BAD", product="취소된 붙박이장", amount=100000,
                claim_status="CANCEL_DONE")
+    _collected(order_no="N-SEL-OK", product="정상 붙박이장", amount=100000)
 
-    work = client.get(f"{TRIAGE_PATH}?tab=work").get_data(as_text=True)
-    assert "취소된 붙박이장" not in work
-    assert "정상 붙박이장" in work
+    everything = client.get(f"{TRIAGE_PATH}?tab=work").get_data(as_text=True)
+    assert "정상 붙박이장" in _pane(everything), "목록 첫 줄이 펼쳐져야 한다"
 
-    claim = client.get(f"{TRIAGE_PATH}?tab=claim").get_data(as_text=True)
-    assert "취소된 붙박이장" in claim
-    assert "정상 붙박이장" not in claim
+    claim = client.get(f"{TRIAGE_PATH}?tab=work&f=claim").get_data(as_text=True)
+    assert _row_count(claim) == 1
+    assert "정상 붙박이장" not in claim, "필터에 맞지 않는 집이 목록에 남았다"
+    assert "취소된 붙박이장" in _pane(claim), "목록에 없는 집이 오른쪽에 펼쳐졌다"
 
 
-def test_explicit_link_id_is_honoured_even_across_tabs(client, workbench_on):
-    """사용자가 링크를 직접 지정했으면 그 뜻을 존중한다 — 조용히 다른 집으로 튀지 않는다."""
+def test_explicit_link_id_is_honoured_even_across_filters(client, workbench_on):
+    """사용자가 링크를 직접 지정했으면 그 뜻을 존중한다 — 조용히 다른 집으로 튀지 않는다.
+
+    필터가 그 집을 가려도 마찬가지다(주소를 받아 연 사람은 그 집을 보러 온 것이다).
+    """
     _login(client)
     _collected(order_no="N-SEL-A", product="첫째 집", amount=100000)
     wanted = _collected(order_no="N-SEL-B", product="둘째 집", amount=200000)
 
-    body = client.get(f"{TRIAGE_PATH}?tab=work&link_id={wanted.id}").get_data(as_text=True)
-    header = body.split('class="card-header py-2 d-flex')[1].split("</div>")[0]
-    assert "둘째 집" in body
+    body = client.get(
+        f"{TRIAGE_PATH}?tab=work&f=claim&link_id={wanted.id}").get_data(as_text=True)
+    pane = _pane(body)
+    header = pane.split("wb-detail__title")[1].split("</div>")[0]
+
+    assert _row_count(body) == 0, "취소·반품 칩이라 목록은 비어 있다"
+    assert "둘째 집" in pane
     assert str(wanted.external_id) in header, header
 
 
@@ -532,16 +650,23 @@ def test_history_tab_keeps_claimed_rows_greyed_instead_of_dropping_them(client, 
     assert "wb-hist--muted" in row, row
 
 
-def test_history_tab_locks_actions_on_claimed_rows(client, workbench_on):
-    """회색으로 남기되 액션은 잠근다 — 서버가 400 으로 막는 일을 화면이 열어 두면 헛클릭이다."""
+def test_history_rows_carry_no_actions_at_all(client, workbench_on):
+    """회색으로 남기되 **액션 자체를 두지 않는다**(v3 절대 규칙 3).
+
+    v2 는 잠긴 버튼(`disabled`)을 남겼다. 불가역 mutation 라우트는 전부 STAFF 까지
+    열려 있어서, 이력 행에 버튼·`data-link-id` 를 두면 그 자리가 곧 과거 주문 전체에
+    대한 취소·발송 조작면이 된다. 그래서 잠그는 게 아니라 **만들지 않는다**.
+    """
     _login(client)
     _collected(order_no="N-H-LOCK", product="취소된 붙박이장", amount=100000,
                claim_status="CANCEL_DONE")
 
     body = client.get(f"{TRIAGE_PATH}?tab=all").get_data(as_text=True)
-    row = body.split("취소된 붙박이장")[0].rsplit("<tr", 1)[1] + \
-        body.split("취소된 붙박이장")[1].split("</tr>")[0]
-    assert "disabled" in row, row
+    row = _hist_row(body, "취소된 붙박이장")
+
+    assert "<button" not in row, row
+    assert "data-link-id" not in row, row
+    assert "wb-hist--muted" in row, "취소·반품 줄은 회색으로 남는다"
 
 
 def test_history_tab_filters_by_status(client, workbench_on):
@@ -588,22 +713,23 @@ def test_history_tab_shows_the_failure_reason(client, workbench_on):
     assert "커머스API 인증 만료" in body
 
 
-def test_history_locked_row_says_why_and_looks_locked(client, workbench_on):
-    """잠긴 버튼은 잠긴 티가 나야 하고 이유가 옆에 있어야 한다.
+def test_history_locked_row_says_why_instead_of_an_action(client, workbench_on):
+    """왜 손댈 수 없는지 이유가 그 줄에 있어야 한다.
 
-    파란 primary 버튼을 그대로 두고 pointer-events 로만 막으면 사람은 계속 누른다.
-    기존 이력 화면이 이미 빨간 사유 줄을 붙이고 있었다 — 워크벤치도 같아야 한다.
+    v2 는 회색 버튼(`btn-outline-secondary`)으로 표현했다. v3 는 버튼을 아예 안 두므로
+    (절대 규칙 3) **문장이 그 자리를 대신한다** — 이유 없이 아무것도 없으면 사람은
+    "왜 여기만 링크가 없지" 하고 헤맨다.
     """
     _login(client)
     _collected(order_no="N-H-REASON", product="취소된 붙박이장", amount=100000,
                claim_status="CANCEL_DONE")
 
     body = client.get(f"{TRIAGE_PATH}?tab=all").get_data(as_text=True)
-    row = body.split("취소된 붙박이장")[1].split("</tr>")[0]
+    row = _hist_row(body, "취소된 붙박이장")
 
-    assert "btn-outline-secondary" in row, row
+    assert "취소·반품 진행 중 — 주문을 만들 수 없습니다." in row, row
+    assert 'class="btn' not in row, row
     assert "btn-primary" not in row, row
-    assert "취소·반품 진행 중" in row, row
 
 
 # --------------------------------------------------------------------------- #
@@ -899,15 +1025,23 @@ def test_dispatch_shows_done_badge_instead_of_button(client, workbench_on):
     assert 'id="wb-dispatch"' not in body
 
 
-def test_dispatch_is_absent_for_claimed_household(client, workbench_on):
-    """취소·반품 집에는 발송처리가 없다 — 손대지 않는 집이다."""
+def test_dispatch_is_locked_for_claimed_household(client, workbench_on):
+    """취소·반품 집에는 발송처리를 보낼 수 없다 — 손대지 않는 집이다.
+
+    v2 는 버튼을 **안 냈다**. v3 는 **잠가서 낸다**(계약 §3.3): 버튼이 통째로 사라지면
+    사람은 "왜 없지"를 화면 밖에서 추측한다 — 이유를 붙인 잠긴 버튼이 낫다.
+    보내는 길(모달·확인 버튼)은 그대로 없다.
+    """
     _login(client)
     link = _collected(order_no="N-DSP-CLAIM", product="붙박이장", amount=100000,
                       place_status="OK", claim_status="CANCEL_REQUEST")
 
-    body = client.get(f"{TRIAGE_PATH}?tab=claim&link_id={link.id}").get_data(as_text=True)
+    body = client.get(f"{TRIAGE_PATH}?tab=work&f=claim&link_id={link.id}").get_data(as_text=True)
 
-    assert 'id="wb-dispatch"' not in body
+    head = body.split('id="wb-dispatch"')[1].split(">")[0]
+    assert "disabled" in head, head
+    assert 'id="wb-modal-dispatch"' not in body, "잠긴 집에 발송처리 모달이 열려 있다"
+    assert 'id="wb-dispatch-confirm"' not in body
 
 
 # --------------------------------------------------------------------------- #
@@ -917,31 +1051,40 @@ def test_dispatch_is_absent_for_claimed_household(client, workbench_on):
 # 형제의 취소를 못 본다 — 취소가 걸린 집에 발주확인이 나간다.
 # --------------------------------------------------------------------------- #
 
-def test_place_tab_drops_household_whose_sibling_is_claimed(client, workbench_on):
-    """형제 상품주문이 취소 중이면 그 집은 발주확인 목록에 없다."""
+def test_place_filter_drops_household_whose_sibling_is_claimed(client, workbench_on):
+    """형제 상품주문이 취소 중이면 그 집은 발주확인 대상이 아니다.
+
+    v3 에서 그 집은 화면에서 사라지지 않는다 — **취소·반품 칩**으로 옮겨가 잠긴 줄로
+    남는다(절대 규칙 6). 발주확인 칩에서 빠지는 것이 지켜야 할 뜻이다.
+    """
     _login(client)
     _collected(order_no="N-PC-MIX", product="취소된 형제", amount=100000,
                place_status="OK", claim_status="CANCEL_REQUEST")
     _collected(order_no="N-PC-MIX", product="남은 형제", amount=50000, place_status="")
 
-    body = client.get(f"{TRIAGE_PATH}?tab=place").get_data(as_text=True)
+    body = client.get(f"{TRIAGE_PATH}?tab=work&f=place").get_data(as_text=True)
 
-    assert "남은 형제" not in body, "취소가 걸린 집이 발주확인 목록에 남아 있다"
-    assert "발주확인이 필요한 집이 없습니다" in body
+    assert _row_count(body) == 0, "취소가 걸린 집이 발주확인 목록에 남아 있다"
+    assert "0집" in _chip(body, "place"), _chip(body, "place")
+    assert "이 필터에 해당하는 집이 없습니다" in body
+    # 사라지지는 않는다 — 취소·반품 칩에 잠긴 줄로 있다.
+    claim = client.get(f"{TRIAGE_PATH}?tab=work&f=claim").get_data(as_text=True)
+    assert _row_count(claim) == 1
+    assert "wb-row--locked" in claim
 
 
-def test_place_tab_badge_matches_the_list_after_the_claim_check(client, workbench_on):
-    """배지 숫자도 같이 줄어든다 — '2집' 이라 써 놓고 1줄이면 사람이 나머지를 찾아 헤맨다."""
+def test_place_chip_count_matches_the_list_after_the_claim_check(client, workbench_on):
+    """칩 숫자도 같이 줄어든다 — '2집' 이라 써 놓고 1줄이면 사람이 나머지를 찾아 헤맨다."""
     _login(client)
     _collected(order_no="N-PC-MIX2", product="취소된 형제", amount=100000,
                place_status="OK", claim_status="CANCEL_REQUEST")
     _collected(order_no="N-PC-MIX2", product="남은 형제", amount=50000, place_status="")
     _collected(order_no="N-PC-OK", product="정상 집", amount=70000, place_status="")
 
-    body = client.get(f"{TRIAGE_PATH}?tab=place").get_data(as_text=True)
-    tab = body.split('data-tab="place"')[1].split("</a>")[0]
+    body = client.get(f"{TRIAGE_PATH}?tab=work&f=place").get_data(as_text=True)
 
-    assert "1집" in tab, tab
+    assert "1집" in _chip(body, "place"), _chip(body, "place")
+    assert _row_count(body) == 1
     assert "정상 집" in body
 
 
@@ -1022,7 +1165,7 @@ def test_place_tab_has_no_truncation_notice_when_everything_fits(client, workben
     assert "더 있습니다" not in body
 
 
-def test_place_tab_drops_household_when_the_claim_is_inside_the_population(client, workbench_on):
+def test_place_filter_drops_household_when_the_claim_is_inside_the_population(client, workbench_on):
     """취소된 형제가 '발주확인 전' 안에 있어도 그 집은 빠진다(모집단 안팎 모두)."""
     _login(client)
     _collected(order_no="N-PC-IN", product="취소된 형제", amount=100000,
@@ -1031,10 +1174,11 @@ def test_place_tab_drops_household_when_the_claim_is_inside_the_population(clien
     _collected(order_no="N-PC-IN", product="남은 형제", amount=50000, place_status="",
                address="대구 수성구 9", tel="010-8888-9999")
 
-    body = client.get(f"{TRIAGE_PATH}?tab=place").get_data(as_text=True)
+    body = client.get(f"{TRIAGE_PATH}?tab=work&f=place").get_data(as_text=True)
 
-    assert "남은 형제" not in body
-    assert "발주확인이 필요한 집이 없습니다" in body
+    assert _row_count(body) == 0
+    assert "0집" in _chip(body, "place"), _chip(body, "place")
+    assert "이 필터에 해당하는 집이 없습니다" in body
 
 
 # --------------------------------------------------------------------------- #
@@ -1066,16 +1210,22 @@ def test_ingest_status_is_admin_only(client, workbench_on):
     assert 'id="wb-run-now"' not in body
 
 
-def test_status_button_points_into_the_workbench_not_the_redirect(client, workbench_on):
-    """상단 버튼이 리다이렉트로 되돌아오는 옛 주소를 가리키면 제자리 뛰기가 된다."""
+def test_strip_has_no_link_that_bounces_back_to_itself(client, workbench_on):
+    """상단 스트립이 리다이렉트로 되돌아오는 옛 주소를 가리키면 제자리 뛰기가 된다.
+
+    v3 는 그 '수집 상태' 버튼을 아예 없앴다(계약 §1 — 바로 아래 이력 탭과 같은 곳을
+    가리키던 중복이었다). 도달 경로가 사라지면 안 되므로 이력 탭이 그 자리를 대신하는지
+    함께 확인한다.
+    """
     _login(client)
     _collected(order_no="N-ING-LOOP", product="붙박이장", amount=1000)
 
     body = client.get(TRIAGE_PATH).get_data(as_text=True)
     strip = body.split('class="wb-strip"')[1].split("</div>")[0]
 
-    assert "/admin/naver-ingest/triage" in strip, strip
     assert 'href="/admin/naver-ingest"' not in strip, strip
+    assert "<a " not in strip, "스트립에는 진입구를 두지 않는다(이력 탭과 중복)"
+    assert 'data-tab="all"' in body, "수집 상태로 가는 길(이력 탭)은 남아 있어야 한다"
 
 
 # --------------------------------------------------------------------------- #
@@ -1119,7 +1269,7 @@ def test_acknowledge_action_has_an_audit_label(client, workbench_on):
 # --------------------------------------------------------------------------- #
 
 def test_dispatch_is_locked_when_a_sibling_is_claimed(client, workbench_on):
-    """형제가 취소된 집은 대표를 열어도 발송처리가 없다 — 판정은 집 단위다."""
+    """형제가 취소된 집은 대표를 열어도 발송처리를 보낼 수 없다 — 판정은 집 단위다."""
     _login(client)
     _collected(order_no="N-DSP-SIB", product="취소된 형제", amount=100000,
                place_status="OK", claim_status="CANCEL_REQUEST",
@@ -1129,8 +1279,10 @@ def test_dispatch_is_locked_when_a_sibling_is_claimed(client, workbench_on):
 
     body = client.get(f"{TRIAGE_PATH}?link_id={clean.id}").get_data(as_text=True)
 
-    assert 'id="wb-dispatch"' not in body, "취소가 걸린 집에 발송처리 버튼이 열렸다"
+    head = body.split('id="wb-dispatch"')[1].split(">")[0]
+    assert "disabled" in head, "취소가 걸린 집에 발송처리 버튼이 열렸다"
     assert 'id="wb-modal-dispatch"' not in body
+    assert 'id="wb-dispatch-confirm"' not in body
 
 
 def test_truncation_is_measured_after_the_claim_filter(client, workbench_on, monkeypatch):
@@ -1194,8 +1346,10 @@ def test_dispatch_is_locked_when_the_claimed_sibling_left_the_queue(client, work
 
     body = client.get(f"{TRIAGE_PATH}?link_id={clean.id}").get_data(as_text=True)
 
-    assert 'id="wb-dispatch"' not in body, "큐 밖 형제의 취소를 못 봤다"
+    head = body.split('id="wb-dispatch"')[1].split(">")[0]
+    assert "disabled" in head, "큐 밖 형제의 취소를 못 봤다"
     assert 'id="wb-modal-dispatch"' not in body
+    assert 'id="wb-dispatch-confirm"' not in body
 
 
 def test_failure_strip_does_not_merge_different_orders(client, workbench_on):

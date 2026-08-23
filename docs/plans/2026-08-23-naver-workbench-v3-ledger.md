@@ -1,0 +1,247 @@
+# 네이버 수집 워크벤치 v3 — 구현 원장 (2026-08-23)
+
+계약: `docs/specs/2026-08-23-naver-workbench-v3_CONTRACT.md`
+목업: `docs/design/mockups/naver-workbench-v3.html`
+근거: 3CEO 토론(현장 가치·불가역 위험·비용 순서) — 사용자 지목 통증 2개
+(① 한 집 처리에 탭 왕복 ② 행 클릭마다 전체 페이지 재요청)
+
+작업 위치: `c:\tmp\foms-s-naver-ingest` / 브랜치 `session/naver-ingest`
+시작 시점 HEAD: `4c8d7a2f` 직전 = 목업 커밋
+
+## 파일 소유권 (동시 편집 충돌 방지)
+
+| 담당 | 파일 |
+|---|---|
+| 서버 | `foms/web/admin/naver_ingest.py` |
+| 템플릿 | `templates/admin/naver_workbench.html`, `templates/admin/partials/naver_workbench_pane.html` |
+| nav | `foms/services/menu_config.py`, `templates/partials/shared/layout_nav.html`, `foms/services/naver/triage_count.py`, `tests/services/integrations/test_naver_nav_entry.py` |
+| JS·CSS | `static/js/admin/naver-workbench.js`, `static/css/admin/naver-workbench.css` |
+| 테스트 | `tests/services/integrations/test_naver_workbench.py` 외 |
+
+**손대지 않는 것**: `templates/admin/naver_triage.html`(게이트 OFF 롤백 경로),
+불가역 mutation 라우트의 동작(`fulfillment.py` 전체).
+
+## Task
+
+| Task | 내용 | 완료 기준 | 상태 |
+|---|---|---|---|
+| V-1 | 서버 — 탭 2개·필터·`_work_groups` 병합·pane 프래그먼트 라우트 | APP_OK + 컨텍스트 키가 계약 §2.4와 일치 | DONE — 신설 11함수 전부 50줄 이하, ingest+place 45 passed |
+| V-2 | 템플릿 — 셸 축소 + pane 파셜 신설 + 액션 2종 신설 | Jinja PARSE_OK + `id="wb-` 중복 0 | DONE — 셸 973→475줄, pane 파셜 478줄, 중복 id 0 |
+| V-3 | nav — 이름/진입구 4→1 + 뱃지 모집단 일치 | APP_OK + nav 테스트 green | DONE — 15 passed, 진입구 1개, 뱃지 캐시 게이트별 분리 |
+| V-4 | JS — 전면 위임 전환 + 행 클릭 부분 갱신(fetch) + 벌크 재배선 | 실브라우저에서 전체 리로드 없음 확인 | DONE — 417→750줄, headless 하네스 33건 PASS |
+| V-5 | CSS — 칩·벌크바·잠금행·pane sticky, `max-height` 제거 | 1440/991px 두 폭 확인 | DONE — 353줄, `.wb-queue` max-height 제거·`#wb-pane` sticky(≥992px)·잠금행 색 무의존 3층 |
+| V-6 | 계약 테스트 갱신 + 신규 8종 (계약 §7) | `tests/services/integrations` 전건 green | 진행 중 (3차 위임) |
+| V-7 | 통합 검증 — APP_OK·전건·pre_push_smoke·실브라우저 QA | 목업 대비 동작 일치, 모든 버튼 실동작 | PENDING |
+| V-8 | 2CEO 통합 리뷰 (불가역 위험 / 통합 품질) | 지적 전량 원장 등재 후 처리 | PENDING |
+| V-9 | 커밋 + deploy 푸시 + CI green | pre_push_smoke exit 0, CI 4개 green | PENDING |
+
+## 진행 기록
+
+- (1차 위임 시작) 서버·템플릿·nav 3갈래 병렬. 계약 문서로 컨텍스트 키·DOM id 를 선고정 —
+  이게 어긋나면 세 사람이 서로 다른 화면을 만든다.
+
+### V-3 / V-5 완료 (검증 직접 확인)
+
+- **CSS**: `.wb-queue` 의 `max-height:640px` 제거 확인, `#wb-bulk` 기본 `display:none` + `.on` 토글,
+  `.wb-row--locked` 는 끊긴 띠 + opacity + 취소선(색 단서 0). `#wb-pane` sticky 는 `min-width:992px`
+  안에서만. 판단 갈릴 지점 1곳: pane 에 `max-height: calc(100vh - 24px)` + 자체 스크롤을 줬다
+  (sticky 요소가 뷰포트보다 길면 아래쪽에 손이 안 닿는다). 되돌리려면 그 두 줄만 지우면 된다.
+- **nav**: 진입구 4 → 1. `data/admin/menu_config.json` 이 실제 SSOT 라 파이썬 기본값만 고치면
+  화면이 안 바뀐다(함정). 게이트 OFF ADMIN 은 `naver_triage.html:13-18` 의 '수집 상태 화면으로'
+  버튼으로 옛 화면에 그대로 간다 — **기능 소실 없음 확인**, 회귀 테스트로 고정.
+- **뱃지**: 게이트 ON = `len(_work_groups(db)[0])` (SQL 재계산 금지 — 취소 표식이 JSONB 라
+  SQL 로는 같은 수가 안 나온다. 이게 67 vs 45 의 원인이었다). 게이트 OFF 는 옛 정의 유지,
+  캐시 키를 `NAVER:queue` / `NAVER:work` 로 분리(같은 칸이면 서로의 숫자를 읽는다).
+  순환 import 는 함수 안 지연 import 로 해소, `naver_ingest.py` 무접촉.
+- **성능 메모(승격 전 확인)**: 뱃지가 COUNT 1회 → `_work_groups`(조회 여러 번)로 바뀐다.
+  30초 전역 캐시 + 현재 코호트 38 단독이라 무해하나, 전 직원 개방 시 TTFB 재측정 필요.
+- **운영 메모**: `data/admin/menu_config.json` 은 `/admin/menu` 런타임 저장 대상. 운영에서
+  관리자가 저장한 적이 있으면 배포본 이름이 안 보일 수 있다 — 그때는 `/admin/menu` 재저장.
+
+### V-1 / V-2 완료
+
+- **서버**: 신설 11함수(`_queue_links`·`_orders_by_id`·`_link_by_id`·`_pane_context`·`_selected_link`·
+  `_render_workbench`·`naver_ingest_triage_pane`·`_active_filter`·`_group_matches_filter`·
+  `_filter_counts`·`_work_groups`), 전부 50줄 이하(최대 45). `_pane_context` 가 pane SSOT —
+  전체 렌더와 프래그먼트가 이 함수 하나를 쓴다(모집단 갈라짐 차단).
+  **F5 로직 유지 확인**: pane 의 집은 `_group_of_link` 결과를 **무조건** 쓴다(v2 의 큐 폴백 제거 —
+  그게 절대 규칙 2 위반이었다).
+- **템플릿**: 셸 973 → 475줄(800줄 규칙 통과), pane 파셜 478줄 신설. 모달은 카드 밖·pane 안에 둬서
+  카드 `overflow:hidden` 회피 + pane 교체 시 함께 갈린다.
+  계약과 다르게 한 것 4건(전부 타당, 승인):
+  1. 트리거 `#wb-create` 신설 — 기존 JS 가 `#wb-create-order` 를 **submit** 으로 물고 있어
+     그걸 트리거로 바꾸면 모달 없이 즉시 주문 생성(불가역)이 된다.
+  2. 붙이기는 `.wb-attach` **클래스** — 후보 수만큼 렌더돼 id 면 중복(절대 규칙 1 위반).
+  3. `전부 선택`을 벌크 바가 아니라 목록 카드 헤더에 — 벌크 바는 0집이면 숨어 첫 선택을 못 한다.
+  4. 이력 행의 `열어서 만들기` 버튼 → 평범한 텍스트 링크(절대 규칙 3 을 문자 그대로).
+- 남은 테스트 실패 25건은 전부 v2 마크업 전제 — V-6 담당 몫. 브리틀 3건은 템플릿 쪽에서 되돌려 green.
+
+### ⚠ 사고 — 로컬 dev Postgres 행 데이터 소실 (2026-08-23)
+
+서버 담당의 임시 검증 pytest 파일이 `tests/conftest.py` 보다 **먼저** `db` 를 import 했다.
+엔진이 sqlite 가 아니라 로컬 dev Postgres(`localhost/furniture_orders`)에 묶인 채
+`app` 픽스처 티어다운의 `Base.metadata.drop_all(bind=engine)` 이 돌아 테이블 86개가 드롭됐다.
+
+- 스테이징·운영 **무관**. pytest 정상 경로(sqlite 인메모리)도 무관.
+- 스키마는 `create_all` 로 재생성(현재 88 테이블, `alembic_version=access_log_00`).
+- **행 데이터는 복구 불가** — 직접 확인: `orders 0 · users 0 · external_order_links 0 · notifications 0`,
+  `stage_gate_templates 18` 만 생존. 로컬 pg_dump 백업 없음.
+
+**근본 수정 완료**: `tests/postgres_guard.assert_not_postgresql` 는 **환경변수 문자열**만 봤다.
+`db.py` 는 `DATABASE_URL` 이 없으면 로컬 Postgres 하드코딩 fallback 으로 붙는데, conftest 가
+`setdefault` 로 env 에 sqlite 를 넣는 순간 가드는 "sqlite 니까 안전"으로 통과한다.
+→ `assert_engine_not_postgresql(engine)` 신설(**엔진이 실제 붙은 곳**으로 판정),
+`assert_safe_for_schema_reset(..., engine=engine)` 로 확장, conftest 의 `create_all` **앞**과
+`drop_all` 앞 양쪽에 배선. 자체 검증: Postgres URL 엔진 → 차단, sqlite → 통과.
+
+### V-4 완료 + 열린 결정 3건 처리 (2026-08-23)
+
+**JS**(417 → 750줄). 리스너는 `document` 4개뿐(`click`·`change`·`show.bs.modal`·`popstate`),
+요소 단발 배선 0 — pane 이 교체돼도 죽지 않는다. 모달을 **여는** 일은 마크업의 `data-bs-toggle`
+이 하고 JS 는 확인 버튼만 문다(모달 없이 POST 하는 경로 0).
+
+부분 갱신: 요청 토큰으로 경합 차단(늦게 온 응답이 새 선택을 못 덮는다) · 비200·네트워크 실패·
+**조각이 아닌 응답**(로그인 리다이렉트) 전부 `location.href` 폴백 · `popstate` 로 뒤로가기 지원 ·
+pane 교체 직전 pane 안 모달 인스턴스 `dispose()`(열린 채 교체되면 백드롭·`body.modal-open` 이
+남아 화면이 어둡게 잠긴다).
+
+헤드리스 하네스 33건 PASS: 체크박스 클릭이 행을 열지 않음 / 전부 선택이 잠긴 행을 안 고름 /
+모달 재진술 집·건수 일치 / 행 클릭 시 pane 라우트 호출·전체 이동 없음 / 늦은 응답이 새 선택
+미덮음 / 열린 모달 안은 채 교체해도 백드롭 0 / 뒤로가기 복귀.
+
+**열린 결정 3건 — 처리 완료**
+
+1. **성공 피드백 자리 없음** → `#wb-pane-ack` 신설(파셜) + CSS + `submitConfirm` 배선.
+   발주확인은 큐에 넣기만 해서 pane 을 다시 받아도 화면이 그대로다. 표시가 없으면 사람은
+   "안 눌렸나" 하고 **한 번 더 누른다** — 불가역 호출에서 재클릭은 그 자체가 사고 경로다.
+   `:empty` 면 접히고, `data-foms-no-autodismiss` 로 전역 5초 자동닫힘을 피한다.
+2. **`aria-busy` 시각 피드백 없음** → `#wb-pane[aria-busy="true"]` 흐림 + `pointer-events:none`.
+3. **칩 이동 시 선택 유지** → **하지 않는다(결정).** 칩 href 에 `link_id` 를 실으면
+   `_selected_link` 가 그걸 무조건 우선해 **목록엔 없는 집이 상세에만 열린다** — 절대 규칙
+   (화면 집 == 서버 집)을 정면으로 깬다. 필터를 바꾸면 보이는 목록의 첫 집으로 초기화되는
+   현재 동작이 정본이다.
+
+**?v 핀**: 이미 `20260823b`. 이번 JS·CSS 수정도 같은 v3 변경셋 안이고 `b` 로 나간 배포가 없어
+추가 범프 불필요.
+
+## V-8 통합 리뷰 — 품질 렌즈 지적 (2026-08-23, 전량 등재)
+
+판정: **조건부** — [H1][H2] 고치고 나간다. 다섯 겹(서버·템플릿·JS·CSS·테스트) 이름은 거의 맞물린다.
+어긋난 건 이름이 아니라 **판정이 갈라진 자리** — v2 에서 `_place_groups` 한 곳에만 있던 안전장치가
+v3 병합 후 한쪽 원천에만 남았다.
+
+| ID | 등급 | 지적 | 처리 |
+|---|---|---|---|
+| H1 | 높음 | **형제 취소 가드가 두 원천 중 하나에만.** `_claim_blocked_group_keys` 가 `_place_groups`(원천2) 안에만 있어, 원천1(큐) 출신 집은 검사 없이 목록에 오른다. 결과: 잠겨야 할 집에 **체크박스가 열리고**(벌크 발주확인 대상) 잠금 표시·취소 칩에도 안 뜬다. 그런데 그 행을 열면 pane 은 `_household_has_claim` 으로 형제 전부를 읽어 잠근다 → **목록과 상세가 정반대를 말한다**. 워커 `_claim_guard` 가 실호출은 막지만 화면이 거짓말하고 실패 띠가 오염된다. v2 는 체크박스가 `place_groups` 루프 안에만 있어 구조적으로 불가능했다 — **병합이 만든 신규 회귀** | 대기 |
+| H2 | 높음 | **벌크 모달 건수 ≠ 서버가 처리할 건수.** `data-count={{ group.count }}` 는 `_group_queue` 가 만든 **큐 부분집합** 크기인데 워커 `_links_of_group` 는 `reviewed_at` 무관하게 **집 전체**를 처리한다. pane 은 F5 로 `_group_of_link` 를 쓰게 고쳤는데 **벌크는 안 고쳤다**. 같은 화면에서 목록 줄 "1건" · 벌크 모달 "1건" · pane 모달 "3건" 이 동시에 뜬다 | 대기 |
+| M1 | 보통 | nav 뱃지가 `_work_groups` 전체를 부르는데 `except SQLAlchemyError` 만 잡는다. 스냅샷 하나가 예상 밖이면 `TypeError` 가 새어 **nav 렌더하는 모든 페이지 500**. docstring 은 "뱃지는 부가 정보라 페이지를 죽이지 않는다"고 약속 중 | 대기 |
+| M2 | 보통 | 성능: 뱃지가 COUNT 1회 → 조회 4~6회 + JSON 파싱 수백 건. 30초 캐시·코호트 38 단독이라 지금 무해. **전 직원 개방 전 TTFB 측정 필수** | 원장 완료 기준으로 승격 |
+| M3 | 보통 | `aria-current` 미부착 케이스. 행은 `selected_group.id == group.id` 비교인데 `group.id`(목록 모집단 최대금액) ≠ `selected_group.id`(집 전체 최대금액)일 수 있다 → 열린 집이 하이라이트 안 되고, `init()` 이 `aria-current` 를 못 찾아 뒤로가기가 전체 리로드로 떨어진다 | 대기 |
+| M4 | 보통 | pane 판정 단위 혼재 — `dispatched` 만 링크 1건 기준(나머지는 집 단위). 워커는 상품주문별로 찍어 부분 성공 가능 → 어느 상품주문으로 들어왔느냐에 따라 취소 버튼이 있기도/없기도 | 대기 |
+| M5 | 보통 | 판정 중복 — `place` 술어 2벌(서버·템플릿), `locked` 3벌(서버·셸·pane). 계약이 "술어 SSOT 하나"라 선언했는데 화면 두 겹이 재구현. **H1 이 정확히 이 갈라짐에서 나왔다** | 대기 |
+| M6 | 보통 | 원장 "열린 결정 3"의 불변식 문장이 부정확. 이력 탭 `처리 탭에서 열기` 가 실제로 "목록에 없는 집을 상세에" 연다(필요한 경로). 문장을 안 고치면 6개월 뒤 누가 링크를 지운다 | 대기 |
+| L1 | 낮음 | 불가역 모달 4종이 `#wb-pane`(overflow:auto + max-height) 안에 있다. `position:fixed` 라 안 잘릴 것으로 보나 **미검증** — 실브라우저 1440/991 확인 | QA 담당 확인 중 |
+| L2 | 낮음 | pane 버튼의 `naver-attach-btn` 클래스 + JS 대응 분기 = 죽은 이중 배선 | 대기 |
+| L3 | 낮음 | 계약 테스트가 **속성 순서**를 단언(`id="..." disabled` 문자열 split) → 마크업 포맷을 인질로. 파싱으로 바꾸면 그 제약과 주석이 함께 사라진다 | 대기 |
+| L4 | 낮음 | `assert "네이버 주문" not in html` 이 전체 HTML 전역 검사 — 고객명·메모가 그 글자를 담으면 깨진다 | 대기 |
+| L5 | 낮음 | `naver_ingest_triage_pane` 반환 타입 힌트 없음 | 대기 |
+| L6 | 낮음 | `test_zz_review_probe.*.pyc` 잔재(로컬 DB 드롭한 그 파일) | 대기 |
+
+**죽은 코드**: `_pane_context` 의 `sales_users`(두 템플릿 미사용 — pane 조각 요청마다 `User` 전 행 조회 낭비) ·
+CSS `.wb-row__amt`·`.wb-cmp__sum`·`:has()` 중복 규칙 · `naver-attach-btn` 이중 배선.
+**CSS 없는 클래스 7종**: `.wb-detail*`·`.wb-acts`·`.wb-acts__why`·`.wb-result__why`·`.wb-hist`.
+실피해는 `.wb-acts__why` 하나 — 계약 §3.3 이 "목업 문장 그대로"라 못박은 안내 문구 3종이 맨 텍스트로 나온다.
+**동어반복 테스트**: `test_naver_workbench_v3_population.py` 의 뱃지 테스트가
+`len(_work_groups(...))` 를 `len(_work_groups(...))` 와 비교 — 어떤 회귀도 못 잡는다.
+
+**규칙 위반**: `_place_groups` 가 44 → 52줄(50줄 초과, 대부분 주석) · `naver_ingest_triage_pane` 타입 힌트.
+나머지(인라인 스타일·jQuery·tojson·800줄·fetch 검증·API 형식·bare except)는 전부 통과.
+
+**잘된 것(되돌리지 말 것)**: `_pane_context` 단일 SSOT · pane 판정값 선계산 블록 ·
+모달을 pane 안에 둔 결정 + `teardownModals` · 전면 위임 + 요청 토큰 경합 차단 ·
+행 `href` 유지 + `location.href` 폴백 · 불가역 모달 없이 POST 하는 경로 0 ·
+잠긴 버튼을 지우지 않고 `title` 로 이유 남기기 · `#wb-pane-ack` · 뱃지 캐시 게이트별 분리 ·
+`assert_engine_not_postgresql`.
+
+## V-8 통합 리뷰 — 불가역 위험 렌즈 지적 (2026-08-23, 전량 등재)
+
+판정: **막아야 함**(리뷰 시점 기준). 계약 §0 절대 규칙 6개 중 2·6 이 X.
+※ 이 리뷰는 **H1·H2·M1 수정이 들어가기 전 워킹트리**를 봤다 — 아래 상태 열이 정본.
+
+| ID | 등급 | 지적 | 상태 |
+|---|---|---|---|
+| 치명-1 | 치명 | `_attach_household_counts` 가 `group["external_order_no"]` 를 읽는데 **그 키가 없다** → 항상 no-op → 벌크 재진술이 여전히 큐 부분집합 크기 | **이미 수정됨** — 대표 링크에서 주문번호를 뽑도록 고쳤고 `household_count==3` 회귀 테스트가 잡는다(처음엔 `1 == 3` red 였다) |
+| 치명-2 | 치명 | **`#wb-pane` 의 `position:sticky` 가 stacking context 를 만든다.** Bootstrap 백드롭은 `body`(z:1050)에 붙는데 모달 4종은 pane 안이라 그 컨텍스트에 갇힌다 → **백드롭이 모달을 덮어 데스크톱에서 단건 불가역 액션 4종이 실행 불가**. 벌크 모달만 `.wb-split` 밖이라 멀쩡 → "벌크만 되고 단건은 안 되는" 최악의 비대칭. 원장 L1 은 clipping 으로 오진했는데 진짜 원인은 stacking context | 수정 |
+| H-A | 높음 | 형제 취소 가드 여전히 반쪽 — `_claim_blocked_group_keys` 가 `place_order_status='OK'` 형제의 **클레임만** 읽는다. ① 발주확인 전 형제의 클레임 ② 우리가 취소한 형제(`canceled_at`) 미커버 → 행이 안 잠기고 체크박스가 열린다 | 수정 |
+| H-B | 높음 | FAILED/PENDING_REVIEW 제외가 **화면에만** 있고 액션엔 없다. `_links_of_group` 에 status 필터가 없고, 이력 탭 `처리 탭에서 열기` 가 `pending_link_id`(PENDING_REVIEW 포함)를 그대로 열어 **깨진 집에 발주확인 버튼이 열린다** | 수정 |
+| H-C | 높음 | `aria-current` 미부착(대표 링크 id 비교) | **이미 수정됨**(M3) |
+| H-D | 높음 | nav 뱃지가 전 페이지에서 `_work_groups` 전체를 돈다 — TTL 만료 후 첫 요청이 비용을 문다. **전 직원 개방 전 TTFB 측정 없이 승격 불가** | 승격 게이트로 등재 |
+| M-1 | 보통 | `확인 완료 — 큐에서 빼기` 가 행을 안 없앤다(그 집이 `place_pending` 이면 원천 2 로 남는다). 버튼 title·목록 헤더 "확인 대기"가 v3 에서 거짓이 됐다 — 사람이 같은 버튼을 반복해 누른다 | 수정(문구) |
+| M-2 | 보통 | 주문 만들기 모달이 건수 과대 진술 — `member_count`(집 전체) vs `promote_link_to_order` 의 `_group_siblings`(`order_id IS NULL` + COLLECTED/PENDING_REVIEW). 방향은 안전하나 재진술이 거짓 | 원장 등재 |
+| M-3 | 보통 | `?link_id=` 가 목록 밖 집을 완전무장 상태로 연다. 계약 테스트가 그 동작을 못박아 뒀다 — pane 에 "지금 목록에 없는 집" 표시 필요 | 원장 등재 |
+| M-4 | 보통 | 이력 탭에서도 `_work_groups`·`_pane_context` 를 전부 계산하고 버린다 | 원장 등재 |
+| M-5 | 보통 | `_pane_context` 의 `sales_users` 미사용 — pane 조각 요청마다 `User` 전 행 조회 | 수정 |
+| M-6 | 보통 | pane 프래그먼트에 대한 STAFF 계약 테스트 없음(§0.4 그물이 새 라우트를 안 덮는다) | 수정 |
+| M-7 | 보통 | `naver_ingest_fulfillment` 라우트에 게이트 검사 없음(cancel 은 있다). 롤백 시 이 경로가 열린 채 남는다 | 수정 |
+| L-1~L-5 | 낮음 | 집 키 폴백 2벌 · popstate 초기 reload · 이력/처리 칩 모집단 상이 · `_group_of_link` 의 `limit=PAGE_SIZE` 폴백이 과소 진술 방향 · 벌크 실패가 alert+reload 뿐 | 원장 등재 |
+| INV | 필수 | `triage_count.py` 신규 broad except 1건 → `foms_failopen_inventory.json` 재생성 안 하면 **CI red**(pre_push_smoke 사각) | 수정 |
+
+**확인된 정상(중복 수정 금지)**: pane 의 집 == `_group_of_link` == `_links_of_group`(단건 모달 완결) ·
+벌크 대상 ⊆ 화면 목록("선택 없으면 전체" 패턴 0건 — 2026-08-14 AS 증발 패턴 재발 없음) ·
+모달 없이 POST 되는 불가역 경로 0 · 한 번 눌러야 할 게 두 번 나가는 자리 없음 ·
+경합 토큰·폴백·모달 잔재 정리 · 체크박스가 행을 안 연다 · STAFF 는 `all` 컨텍스트 자체를 못 받는다 ·
+서버 최종 방어선(`_claim_guard`·`_cancel_guard`·사유 코드 재검증) 무접촉 · `?v` 핀 양쪽 범프 ·
+게이트 OFF 롤백 경로 무변경.
+
+## V-7 실브라우저 QA 결과 (2026-08-23) — 18항목 중 17 PASS
+
+로컬 시드 11집·링크 16건·주문 3건(계정 `qa_v3` ADMIN / `qa_v3_staff` STAFF, 코호트 1,2).
+**네이버 실호출 0건** — RQ 워커 미기동 + Redis 없음이라 enqueue 라우트가 전부 503 으로 정상 실패.
+스테이징·운영 무접촉. 시드는 로컬 dev DB 에 남겨 뒀다(비어 있던 DB라 덮어쓴 데이터 없음).
+
+PASS: 행 클릭 부분 갱신(문서 요청 0) · 칩 4종 숫자==줄수 · 체크박스가 행을 안 엶 ·
+전부 선택이 잠긴 행 제외 · 벌크 재진술 5집·6건 일치 · 벌크 enqueue 5건 · 주문 만들기 200 ·
+발주확인 단건 `{action:'confirm'}` + 성공 시 pane 만 갱신 + `#wb-pane-ack` · 발송처리 분기
+(NEW disabled / ADDON `지금 닫기`) · 취소 모달 사유 7코드 + 재진술 3건 일치 · 확인 완료 후
+스트립·탭·칩 동시 감소 · 붙이기/되돌리기 200 + rel 칩 2↔3 · 잠긴 집 4버튼 disabled ·
+이력 탭 행 액션 0 + STAFF 는 `all` 강제 차단 · 실패 띠 + 재시도 + 확인함 · 지금 수집 ·
+1440/991 두 폭(2단↔1단, sticky, 목록 미잘림). `id="wb-` 중복 0, 잔여 백드롭 0,
+nav 뱃지==스트립==탭==목록 줄수.
+
+**치명-2(모달이 백드롭 아래) 브라우저 재현·해소 확인**: 수정 전 `Element not interactable`,
+`pane.style.position='static'` 로 격리하면 정상 → 원인 확정. 수정본에서 create·confirm·cancel
+모달 전부 `clickable:true`, 1440 에서 발주확인·취소 POST 실성사.
+
+**H2 브라우저 재현·해소 확인**: 형제 2건이 확인 완료된 3건 묶음에서 수정 전 `data-count="1"`
+(벌크 모달 "1건" vs pane "3건"), 수정 후 `data-count="3"`.
+
+### QA 가 잡은 미해결 1건 — 수정 완료
+
+**[FAIL #2] 뒤로가기가 전체 리로드가 된다.** 원인은 워크벤치가 아니라 **전역 nav 런타임**이었다:
+`static/js/global-nav-runtime.js` 의 popstate 폴백이 `st.gnav` 키가 없으면 무조건
+`location.reload()` 를 한다. 워크벤치는 `{wbLinkId}` 를 push 하므로 남의 state 로 분류돼
+부분 갱신 UI 가 전체 재요청으로 되돌아갔다(요청도 2번 나갔다). 계약이 지목한 통증 ②
+(전체 리로드 제거)가 뒤로가기에서만 깨지는 자리였고, `nav.layout-global-nav` 가 있는
+**모든 페이지**에 해당한다.
+
+수정: `didSwapMain` 플래그 신설. 리로드는 **이 런타임이 실제로 `#main-content` 를 갈아 끼운 뒤**
+원래 항목으로 돌아왔을 때만 옳다 — 한 번도 스왑한 적 없으면 DOM 은 서버가 준 그대로다.
+브라우저 실증: 스왑 없는 페이지에서 `{wbLinkId}` state 로 뒤로가기 → 마커 생존(리로드 없음),
+URL 정상 복귀. gnav 계약 테스트 6건 green.
+
+## 리뷰 지적 처리 요약
+
+| 지적 | 처리 |
+|---|---|
+| 치명-1 벌크 no-op | 이미 수정(대표 링크에서 주문번호 추출) + 회귀 테스트 |
+| 치명-2 sticky stacking | sticky 를 `#wb-pane > .wb-detail` 로 이동, 브라우저 실증 |
+| H-A 형제 가드 반쪽 | `_attach_household_counts` 같은 쿼리에서 `claim_blocking`·`canceled` 재계산 |
+| H-B 깨진 수집분 | 서비스 층 `_broken_collection_guard` + 양방향 테스트 |
+| H-C aria-current | 링크 포함 비교로 수정 |
+| H-D / M2 뱃지 성능 | **전 직원 개방 전 TTFB 측정**을 승격 게이트로 등재(미측정) |
+| M-1 문구 거짓 | title·목록 헤더 수정 |
+| M-5 죽은 조회 | `_pane_context` 의 `sales_users` 제거 |
+| M-6 pane STAFF 그물 | 프래그먼트 누출 테스트 추가 |
+| M-7 fulfillment 게이트 | **기각** — 게이트 OFF 화면(`naver_triage.html:513`)이 그 라우트를 쓴다. 막으면 롤백 경로가 죽는다 |
+| INV 인벤토리 | failopen 재생성(신규 broad except 1건) — pre_push_smoke 사각이라 안 했으면 CI red |
+| M-2·M-3·M-4·L-1~L-5 | 미처리, 원장 등재(다음 세션 후보) |

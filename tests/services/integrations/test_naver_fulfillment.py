@@ -800,3 +800,35 @@ def test_confirm_clears_a_stale_error_for_column_confirmed_links(app):
 
     assert result["confirmed"] == []
     assert not _state(link_id).get("last_error"), "낡은 실패 사유가 그대로 남았다"
+
+
+def test_confirm_refuses_a_household_with_a_broken_collection(app):
+    """수집이 실패·보류된 형제가 있으면 발주확인을 네이버로 보내지 않는다 (리뷰 H-B).
+
+    화면(`_place_groups`)이 FAILED/PENDING_REVIEW 를 목록에서 빼지만 그건 화면일 뿐이다.
+    `_links_of_group` 은 상태를 안 보고, 이력 탭 '처리 탭에서 열기' 는 PENDING_REVIEW
+    링크를 그대로 열어 준다 — 그 집에서 발주확인 버튼이 열렸다. 발주확인은 되돌릴 수
+    없으므로 마지막 문은 서버가 닫는다.
+    """
+    first = _link("PO-BRK-1", order_no="N-BRK", place="NOT_YET")
+    broken = _link("PO-BRK-2", order_no="N-BRK", place="NOT_YET")
+    db_session.get(ExternalOrderLink, broken).sync_status = "PENDING_REVIEW"
+    db_session.commit()
+    client = _StubClient()
+
+    with pytest.raises(FulfillmentError) as err:
+        confirm_place_order(db_session, client, link_id=first)
+
+    assert "수집이 완료되지 않은" in str(err.value)
+    assert client.confirm_calls == [], "네이버 호출이 나갔다 — 가드가 뚫렸다"
+
+
+def test_confirm_still_runs_for_a_healthy_household(app):
+    """정상 수집분만 있는 집은 그대로 나간다 — 가드가 과잉 차단하면 안 된다."""
+    link_id = _link("PO-OK-1", order_no="N-OKH", place="NOT_YET")
+    client = _StubClient()
+
+    confirm_place_order(db_session, client, link_id=link_id)
+    db_session.commit()
+
+    assert client.confirm_calls, "정상 집인데 호출이 안 나갔다"

@@ -51,7 +51,7 @@ def _default_menu_config() -> dict[str, Any]:
             {"id": "order_list", "name": "전체 주문", "url": "/"},
             {"id": "received", "name": "접수", "url": "/?status=RECEIVED"},
             {"id": "measured", "name": "실측", "url": "/?status=MEASURE"},
-            {"id": "naver_orders", "name": "네이버 주문", "url": "/admin/naver-ingest/triage"},
+            {"id": "naver_orders", "name": "네이버 수집", "url": "/admin/naver-ingest/triage"},
             {"id": "regional_dashboard", "name": "지방 주문 대시보드", "url": "/regional_dashboard"},
             {
                 "id": "self_measurement_dashboard",

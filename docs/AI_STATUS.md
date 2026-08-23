@@ -8,6 +8,8 @@ Flask 2.3 + PostgreSQL + R2 + Railway (Web×2, Worker×1)
 브랜치: deploy (스테이징) → production (운영)
 
 ## 진행 중
+- [2026-08-23] **네이버 수집 워크벤치 v3 deploy** — 사용자 지목 통증 2개 정면 수정(탭 왕복·전체 리로드). 탭 4→2+필터 칩, 상세 발주확인 단건, pane 프래그먼트 부분 갱신, `확인 완료` 전 집 복원, nav 진입구 4→1·뱃지 67vs45 해소. 2CEO 치명 2건(모달이 백드롭 아래·벌크 재진술 오차) 수정. 520 passed·smoke 0·실브라우저 17/18. 계약/원장 `docs/specs/2026-08-23-naver-workbench-v3_CONTRACT.md`·`docs/plans/2026-08-23-naver-workbench-v3-ledger.md`
+- ⚠️ [2026-08-23] **로컬 dev DB 행 소실(로컬 한정)** — pytest 파일이 conftest 보다 먼저 `db` import → 로컬 PG 에 `drop_all`. 스테이징·운영 무관. 근본 수정: `assert_engine_not_postgresql`(env 문자열 아닌 엔진 판정)
 - [2026-08-23] **네이버 워크벤치 관계 축 + 판매자 직접취소 deploy(`5f9433c5`, CI 4개 green)** — 취소는 커머스API `claim/cancel/request`(상품주문 1건씩·사유 7코드), WORKER 단일 출구·집 단위·멱등. 가드: 취소한 집은 발주확인·발송처리·주문 만들기 전부 차단, `close_now` 는 집 전체가 ADDON/REPAY 일 때만. 스테이징 실데이터 눈 확인 완료(배지·후보표·발송처리 잠금·취소 모달 집 건수 일치). **잔여: 취소 실호출 1건(사용자 실건 발생 시)·네이버 기능 전체 승격은 별도 작업.**
 - [2026-08-23] **모바일 주문 마법사 제품 카드·주문 구분 운영 반영(PR #135, production `d53dc438`)** — 복제 카드 헤더 `#1 제품 1` 고정 결함을 `renumberProductCards()`(DOM 순서=정본)로 수정 + 카드 삭제 버튼 신설, 3단계에 주문 구분 칩 3종(지방주문=`is_regional`/`construction_type` 컬럼·미선택 400, 라홈시스템·긴급=`structured_data.flags`). 후속(deploy): 지방주문 상차일→`shipping_scheduled_date`, 새 카드 추가 즉시 펼침. 상세: AI_CHANGELOG 2026-08-23
 - [2026-08-23] **운영 승격 PR #133 대기(머지=사용자)** — 체인을 운영 head `notifrole_00` 위로 재직렬화, 운영 재현 upgrade 9리비전 + 스위트 5392 green. **승격은 당일 머지하거나 직전 head 재확인**(#113·#121 무효 전례). 원장 `docs/plans/2026-08-21-production-promotion-ledger.md`
@@ -104,6 +106,9 @@ Flask 2.3 + PostgreSQL + R2 + Railway (Web×2, Worker×1)
 - [2026-04-15] **Strict final canonical tree `SFC-B11B` slice 2 (`dashboards`, §6.16):** 구현을 `foms/web/dashboards/routes.py`로 이전; `foms/web/dashboards/__init__.py`는 `routes`만 import; `apps/dashboards.py`는 `foms.web.dashboards` 재노출 shim. 검증: `APP_OK`, `verify_result.py --json`, `pytest tests` **586 passed**. 근거: batch11b **§Slice B11B-2**.
 
 ## 기록 보관 (strict canonical / 이전 배치 요약)
+
+- [2026-08-21] **네이버 워크벤치 deploy + staging 게이트 ON(코호트 38)** — 두 화면 왕복을 탭 하나로. 근본 수정: 집 정의 통일(`group_key`+backfill 실행 완료) · 워커 롤백이 실패 사유 지우던 버그 · 이력 탭 ADMIN 전용 · 분할배송에서 옆 집까지 나가던 발주확인/붙이기 · 취소 집 서버 가드 · 200 안의 건별 실패 · 실패 부분 인덱스(`naverfail_00`). 리뷰 6라운드(진짜 29건, 매번 직전 수정이 만든 것). 검증 399+PG1136+smoke324+실데이터.
+- [2026-08-20] **네이버 관계 판별 + 발주확인·발송처리(NAVER-INGEST-02, deploy)** — T16-A~H 코드 완료. 수집 판정이 `PAYED` 하나뿐이라 재결제·차액결제가 전부 새 집으로 들어오던 문제를 **사람이 고르는 붙이기**로 닫았다(자동 확정 없음). 스테이징 실물 왕복 검증(강재상 1cm 집 → #4466 붙임 → 도크 "추가결제 3건 · 517,550원(반영은 수동)" → 되돌림 → 원복). **잔여=네이버 실호출 검증(사용자 직접)**, G3(재결제 시 원 주문 취소 표시) 미확정. 권한 게이트 통과(API그룹 `주문 판매자`=발주/발송처리 포함), 배송코드 `DIRECT_DELIVERY`(구매확정·정산 시점 변동 주의). 함정: `.alert` 5초 자동닫힘이 상시 안내를 지운다(`data-foms-no-autodismiss` 필요, 취소 경고도 이 버그였음) · 주문 JSONB 직접쓰기는 REV-99 게이트 → `execute_order_mutation` 경유 · 새 감사 행위는 `audit_message_display` 라벨 필수(pre_push_smoke 사각).
 
 - [2026-08-20] 아래 1건은 '진행 중'에서 **문구 그대로** 옮겼다(상단 40줄 예산).
 - [2026-08-18] **AS 증발 사고 종결 + 구조 제거** — 운영 55/55 복구 + 일괄 경로 AS 제외 가드(운영 `63737e91`) + **AS-AXIS-01** AS 대시보드 술어 status→`as_axis_status` 투영 교체(deploy `e061beb7`, 스테이징 검증 완료·운영 승격 대기). **AS 판정=status 기준·투영 암묵삭제 금지**(레거시 506건 lifecycle 없음). 복구 절차 `docs/guides/DATA_INCIDENT_RECOVERY.md`, 스펙 §11에 실측 조정 기록. **운영 승격 차단: `asaxis_00` 부모가 미승격 `naverdock_00`** — 네이버·변경사유 승격 후 진행(2026-08-18 사용자 결정)

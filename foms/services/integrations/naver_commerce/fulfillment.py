@@ -41,6 +41,7 @@ __all__ = [
     "cancel_order",
     "record_task_failure",
     "CANCEL_REASONS",
+    "HEALTHY_SYNC_STATUSES",
     "CLOSE_NOW_RELATIONS",
 ]
 
@@ -167,6 +168,45 @@ def _claim_guard(session: Session, links: list[ExternalOrderLink], *,
                        action=action, stamp=stamp)
         session.flush()
         raise FulfillmentError(reason)
+
+
+#: 수집이 성공한 상태. 이 밖의 링크는 원본이 불완전할 수 있어 네이버로 보내지 않는다.
+HEALTHY_SYNC_STATUSES = ("COLLECTED", "LINKED")
+
+
+def _broken_collection_guard(session: Session, links: list[ExternalOrderLink], *,
+                             action: str, stamp: datetime) -> None:
+    """수집이 실패·보류된 상품주문이 섞인 집은 네이버를 부르지 않는다.
+
+    화면(:func:`foms.web.admin.naver_ingest._place_groups`)이 ``FAILED``·``PENDING_REVIEW``
+    를 목록에서 빼지만 **그건 화면일 뿐**이다. ``_links_of_group`` 은 상태를 안 보고,
+    이력 탭의 '처리 탭에서 열기' 는 ``PENDING_REVIEW`` 링크를 그대로 열어 준다 —
+    그 집에서 발주확인 버튼이 열린다(2026-08-23 리뷰 H-B). 마지막 문은 서버가 닫는다.
+
+    발주확인은 되돌릴 수 없다. 원본이 깨진 건을 네이버에 확정으로 보내면, 잘못 매핑된
+    주문이 그대로 확정된다.
+
+    Args:
+        session: DB 세션.
+        links: 한 집의 링크들.
+        action: 화면 재시도가 보는 값(``confirm``).
+        stamp: 기록 시각.
+
+    Raises:
+        FulfillmentError: 수집이 성공하지 않은 상품주문이 하나라도 있을 때.
+    """
+    broken = [row for row in links
+              if (row.sync_status or "") not in HEALTHY_SYNC_STATUSES]
+    if not broken:
+        return
+    reason = ("수집이 완료되지 않은 상품주문이 있는 집입니다"
+              f"({', '.join(sorted({str(r.sync_status) for r in broken}))}) — "
+              "수집을 먼저 정상화하세요.")
+    _mark_failures({str(r.external_id): r for r in links},
+                   {str(r.external_id): reason for r in links},
+                   action=action, stamp=stamp)
+    session.flush()
+    raise FulfillmentError(reason)
 
 
 def _cancel_guard(session: Session, links: list[ExternalOrderLink], *,
@@ -330,6 +370,7 @@ def confirm_place_order(session: Session, client: Any, *, link_id: int,
     links = _links_of_group(session, link_id)
     _claim_guard(session, links, action="confirm", stamp=stamp)
     _cancel_guard(session, links, action="confirm", stamp=stamp)
+    _broken_collection_guard(session, links, action="confirm", stamp=stamp)
     # 컬럼(place_order_status)도 함께 본다 — 판매자센터에서 손으로 발주확인한 형제를
     # 다시 보내면 네이버가 그 건을 실패로 돌려주고, 정상인데 빨간 띠가 남는다.
     # (발송처리 쪽 not_confirmed 판정은 이미 둘을 함께 본다.)

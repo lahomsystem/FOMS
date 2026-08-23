@@ -115,14 +115,22 @@ def test_queue_row_flags_a_repay_household(client, workbench_on):
 
 
 def test_new_household_gets_no_relation_badge(client, workbench_on):
-    """신규는 배지를 달지 않는다 — 대부분이 신규라 다 달면 배지가 무의미해진다."""
+    """신규는 배지를 달지 않는다 — 대부분이 신규라 다 달면 배지가 무의미해진다.
+
+    v3 에서 '추가결제·재결제' 는 **필터 칩 라벨**로도 화면에 항상 있다(목록을 거르는
+    장치라 관계와 무관하게 뜬다). 글자만 세면 늘 실패하므로, 배지 자체(관계 배지가
+    쓰는 `badge bg-info`)가 0인지를 문다 — 지키려던 뜻은 "이 집이 후속으로 보이면 안
+    된다" 다.
+    """
     _login(client)
     link = _collected(order_no="N-REL-NEW")
 
     body = _body(client, tab="work", link_id=link.id)
 
-    assert "추가결제" not in body
-    assert "재결제" not in body
+    assert "badge bg-info" not in body, "신규 집에 관계 배지가 달렸다"
+    assert 'data-cmp-section="relation"' not in body, "신규 집에 관계 섹션이 떴다"
+    # 칩은 배지가 아니다 — 목록 필터라 관계와 무관하게 늘 있다.
+    assert 'data-filter="rel"' in body
 
 
 # --------------------------------------------------------------------------- #
@@ -326,16 +334,23 @@ def _mark_canceled(link: ExternalOrderLink) -> None:
     db_session.commit()
 
 
-def test_cancelled_household_has_no_dispatch_button(client, workbench_on):
-    """취소한 집에 발송처리 버튼이 남아 있으면 사람이 누른다 — 서버도 막지만 화면이 먼저다."""
+def test_cancelled_household_cannot_be_dispatched(client, workbench_on):
+    """취소한 집으로 발송처리가 나가면 안 된다 — 서버도 막지만 화면이 먼저다.
+
+    v3 는 버튼을 지우는 대신 **잠가서 남긴다**(계약 §3.3) — 사라진 버튼은 이유를
+    말해 주지 못한다. 보내는 길(모달·확인 버튼)이 없다는 것이 지켜야 할 뜻이다.
+    """
     _login(client)
     link = _collected(order_no="N-REL-CXL-DONE")
     _mark_canceled(link)
 
     body = _body(client, tab="work", link_id=link.id)
 
-    assert 'id="wb-dispatch"' not in body
+    head = body.split('id="wb-dispatch"')[1].split(">")[0]
+    assert "disabled" in head, head
+    assert "취소한 집입니다" in head, "왜 잠겼는지 버튼이 말해야 한다"
     assert 'id="wb-modal-dispatch"' not in body
+    assert 'id="wb-dispatch-confirm"' not in body
     assert "취소 완료" in body
 
 
@@ -350,15 +365,20 @@ def test_cancelled_household_cannot_create_an_order(client, workbench_on):
     assert "취소한 집입니다" in body
 
 
-def test_cancelled_household_leaves_the_place_tab(client, workbench_on):
-    """'발주확인 전' 탭에서도 빠진다 — 안 빼면 전부 선택 → 발주확인이 취소한 집으로 나간다."""
+def test_cancelled_household_leaves_the_place_filter(client, workbench_on):
+    """'발주확인 전' 갈래에서 빠진다 — 안 빼면 전부 선택 → 발주확인이 취소한 집으로 나간다.
+
+    v3 에서 그 갈래는 탭이 아니라 칩이다. 옛 주소(`?tab=place`)도 같은 곳을 가리켜야
+    한다 — 열어 둔 탭·북마크가 빈 화면으로 떨어지면 안 된다.
+    """
     _login(client)
     link = _collected(order_no="N-REL-CXL-PLACE", place_status="NOT_YET")
     _mark_canceled(link)
 
-    body = _body(client, tab="place")
-
-    assert "발주확인이 필요한 집이 없습니다" in body
+    for body in (_body(client, tab="work", f="place"), _body(client, tab="place")):
+        assert body.count('<a class="wb-row') == 0, "취소한 집이 발주확인 목록에 남아 있다"
+        assert "0집" in body.split('data-filter="place"')[1].split("</a>")[0]
+        assert 'class="wb-pick"' not in body, "고를 수 있으면 벌크로 발주확인이 나간다"
 
 
 def test_a_mixed_relation_household_is_not_offered_close_now(client, workbench_on):

@@ -18,7 +18,8 @@ import datetime
 import logging
 from typing import Any, Optional
 
-from flask import g, jsonify, redirect, render_template, request, session, url_for
+from flask import (abort, g, jsonify, redirect, render_template, request, session,
+                   url_for)
 
 from db import get_db
 from foms.services.datetime_kst import format_datetime_kst, now_utc_naive
@@ -500,6 +501,66 @@ def _triage_pane(db, link: ExternalOrderLink) -> dict[str, Any]:
     }
 
 
+def _queue_links(db) -> tuple[list[ExternalOrderLink], bool]:
+    """확인 대기 큐의 원천 링크 — 아직 사람이 보지 않은 수집분.
+
+    큐에는 두 종류가 같이 온다: 아직 주문이 없는 수집분(``COLLECTED`` — 여기서 "주문
+    만들기")과 주문은 생겼지만 사람이 아직 안 본 건(``LINKED`` + ``reviewed_at`` NULL).
+
+    Args:
+        db: 요청 스코프 DB 세션.
+
+    Returns:
+        ``(링크 목록(최신순), 조회 상한에 걸렸는지)``.
+    """
+    links = (
+        db.query(ExternalOrderLink)
+        .filter(
+            ExternalOrderLink.channel == "NAVER",
+            ExternalOrderLink.sync_status.in_(("COLLECTED", "LINKED")),
+            ExternalOrderLink.reviewed_at.is_(None),
+        )
+        .order_by(ExternalOrderLink.created_at.desc(), ExternalOrderLink.id.desc())
+        .limit(QUEUE_LINK_FETCH_LIMIT)
+        .all()
+    )
+    return links, len(links) == QUEUE_LINK_FETCH_LIMIT
+
+
+def _orders_by_id(db, links: list[ExternalOrderLink]) -> dict[int, Order]:
+    """링크가 가리키는 주문을 한 번에 당겨 ``{id: Order}`` 로 준다 (N+1 금지).
+
+    Args:
+        db: 요청 스코프 DB 세션.
+        links: 주문 id 를 들고 있을 수 있는 링크 목록.
+
+    Returns:
+        ``{order_id: Order}`` — 주문이 붙은 링크가 없으면 빈 dict.
+    """
+    order_ids = [int(row.order_id) for row in links if row.order_id]
+    if not order_ids:
+        return {}
+    return {order.id: order
+            for order in db.query(Order).filter(Order.id.in_(order_ids)).all()}
+
+
+def _link_by_id(db, link_id: int) -> Optional[ExternalOrderLink]:
+    """수집 링크 1건을 채널까지 확인해 읽는다.
+
+    Args:
+        db: 요청 스코프 DB 세션.
+        link_id: 링크 id.
+
+    Returns:
+        네이버 수집 링크(없으면 None).
+    """
+    return (
+        db.query(ExternalOrderLink)
+        .filter(ExternalOrderLink.id == link_id, ExternalOrderLink.channel == "NAVER")
+        .first()
+    )
+
+
 @admin_bp.route("/admin/naver-ingest/triage")
 @login_required
 @role_required(["ADMIN", "MANAGER", "STAFF"])
@@ -515,45 +576,29 @@ def naver_ingest_triage():
     관리자 전용으로 남는다.
     """
     db = get_db()
-    # 큐에는 두 종류가 같이 온다: 아직 주문이 없는 수집분(COLLECTED — 여기서 "주문 만들기")과
-    # 주문은 생겼지만 사람이 아직 안 본 건(LINKED + reviewed_at NULL).
-    pending = (
-        db.query(ExternalOrderLink)
-        .filter(
-            ExternalOrderLink.channel == "NAVER",
-            ExternalOrderLink.sync_status.in_(("COLLECTED", "LINKED")),
-            ExternalOrderLink.reviewed_at.is_(None),
-        )
-        .order_by(ExternalOrderLink.created_at.desc(), ExternalOrderLink.id.desc())
-        .limit(QUEUE_LINK_FETCH_LIMIT)
-        .all()
-    )
-    truncated = len(pending) == QUEUE_LINK_FETCH_LIMIT
+    from foms.services.feature_flags import is_naver_workbench_enabled
+
+    if is_naver_workbench_enabled(session.get("user_id")):
+        return _render_workbench(db)
+
+    # --- 아래는 게이트 OFF 경로(롤백 경로) — 예전 화면 그대로 둔다 ---
+    pending, truncated = _queue_links(db)
     selected_id = request.args.get("link_id", type=int)
     selected = next((row for row in pending if row.id == selected_id), None)
     if selected is None and selected_id:
         # 확인 완료된 건은 큐에서 빠지지만 **대조 pane 은 열 수 있어야 한다** — 발주확인·
         # 발송처리 버튼이 거기 있고, 확인을 끝낸 뒤에 처리할 일도 있다(T16-H).
-        selected = (
-            db.query(ExternalOrderLink)
-            .filter(ExternalOrderLink.id == selected_id,
-                    ExternalOrderLink.channel == "NAVER")
-            .first()
-        )
+        selected = _link_by_id(db, selected_id)
     if selected is None and pending:
         selected = pending[0]
 
-    order_ids = [int(row.order_id) for row in pending if row.order_id]
-    orders = {}
-    if order_ids:
-        orders = {o.id: o for o in db.query(Order).filter(Order.id.in_(order_ids)).all()}
-    queue = _group_queue(pending, orders, truncated=truncated)
+    queue = _group_queue(pending, _orders_by_id(db, pending), truncated=truncated)
     selected_group = next(
         (group for group in queue if selected is not None and selected.id in group["link_ids"]),
         None,
     )
-
-    context = dict(
+    return render_template(
+        "admin/naver_triage.html",
         queue=queue,
         pending_count=sum(len(group["link_ids"]) for group in queue),
         group_count=len(queue),
@@ -562,96 +607,144 @@ def naver_ingest_triage():
         sales_users=_active_sales_users(db),
     )
 
+
+def _pane_context(db, link: Optional[ExternalOrderLink]) -> dict[str, Any]:
+    """상세 pane 컨텍스트 — 전체 렌더와 프래그먼트 응답이 **이 함수 하나**를 쓴다.
+
+    계산 경로가 두 벌이 되면 모집단이 갈라진다. pane 의 집은 큐가 아니라
+    :func:`_group_of_link`(주문번호 + 집 키 전체)로 만든다 — 큐 모집단은
+    ``COLLECTED|LINKED`` + ``reviewed_at IS NULL`` 로 좁혀져 있는데 워커는 집 전체를
+    처리한다. 그 차이가 모달 문장에 나오면 "상품주문 1건을 취소합니다"라고 읽고 2건이
+    환불된다(2026-08-23 리뷰 F5/H).
+
+    Args:
+        db: 요청 스코프 DB 세션.
+        link: pane 에 띄울 링크(None 이면 빈 pane).
+
+    Returns:
+        ``selected``·``selected_group``·``selected_household_claimed``·``member_rows``·
+        ``cancel_reasons``·``sales_users``.
+    """
+    from foms.services.integrations.naver_commerce.fulfillment import CANCEL_REASONS
+
+    household = _group_of_link(db, link) if link is not None else None
+    return {
+        "selected": _triage_pane(db, link) if link is not None else None,
+        "selected_group": household,
+        # 클레임 판정 모집단도 **형제 전부**다. 확인 완료돼 큐에서 빠진 형제의 취소를 큐
+        # 묶음은 못 보는데, 발송처리는 되돌릴 수 없어 그 구멍이 그대로 사고가 된다.
+        "selected_household_claimed": _household_has_claim(db, link),
+        "member_rows": _member_rows(db, household),
+        # 취소 사유는 네이버 코드가 SSOT 다 — 화면이 따로 목록을 들면 둘이 갈린다.
+        "cancel_reasons": CANCEL_REASONS,
+        # sales_users 는 워크벤치 두 템플릿 어디서도 안 쓴다 — 넣어 두면
+        # pane 조각 요청마다 User 전 행 조회가 1회씩 헛돈다(리뷰 M-5).
+        # 게이트 OFF 경로(naver_triage.html)는 자기 자리에서 따로 부른다.
+    }
+
+
+def _selected_link(db, visible: list[dict[str, Any]]) -> Optional[ExternalOrderLink]:
+    """pane 에 띄울 링크 — 주소가 지정한 것 우선, 없으면 보이는 목록의 첫 집.
+
+    기본 선택은 **지금 보이는 목록 안에서** 고른다. 전체에서 고르면 필터를 걸었는데
+    목록에 없는 집이 오른쪽에 펼쳐진다(목록엔 없는데 상세만 뜬다).
+
+    Args:
+        db: 요청 스코프 DB 세션.
+        visible: 현재 필터로 걸러진 집 목록.
+
+    Returns:
+        링크(목록이 비고 지정도 없으면 None).
+    """
+    link_id = request.args.get("link_id", type=int)
+    if link_id:
+        link = _link_by_id(db, link_id)
+        if link is not None:
+            return link
+    return db.get(ExternalOrderLink, int(visible[0]["id"])) if visible else None
+
+
+def _render_workbench(db) -> str:
+    """워크벤치(게이트 ON) 렌더 — 목록 하나 + 필터 칩 + 상세 pane.
+
+    탭은 처리/이력 둘뿐이다. 예전 ``발주확인 전``·``취소·반품`` 탭은 같은 목록의 필터
+    칩으로 내려왔다 — 한 집을 처리하려고 탭을 오가던 것이 이 개편의 출발점이다.
+
+    Args:
+        db: 요청 스코프 DB 세션.
+
+    Returns:
+        렌더된 HTML.
+    """
+    active_tab = _active_tab()
+    active_filter = _active_filter()
+    groups, work_truncated = _work_groups(db)
+    visible = [group for group in groups if _group_matches_filter(group, active_filter)]
+    # 수집 상태(워터마크·인증 만료일)는 이력 탭에 함께 싣는다. 게이트가 켜지면 옛 수집
+    # 화면이 리다이렉트로 닫히는데, 그 화면에만 있던 값이라 여기 없으면 수집이 조용히
+    # 멈춰도 아무도 모른다. ADMIN 전용은 그대로다.
+    ingest_status = ({"watermark": _watermark_view(db), "expiry": _expiry_view(db)}
+                     if active_tab == "all" and _can_view_history() else {})
+    return render_template(
+        "admin/naver_workbench.html",
+        active_tab=active_tab,
+        active_filter=active_filter,
+        work_groups=visible,
+        # 칩 숫자·스트립·탭 배지는 **필터 전 전체**에서 센다(칩을 눌러도 총량은 안 변한다).
+        filter_counts=_filter_counts(groups),
+        group_count=len(groups),
+        pending_count=sum(int(group["count"]) for group in groups),
+        work_truncated=work_truncated,
+        can_view_history=_can_view_history(),
+        history=_history_view(db) if active_tab == "all" else {},
+        ingest_status=ingest_status,
+        # 실패는 어느 탭에 있든 보여야 한다 — 탭을 옮겼다고 사고가 사라지지 않는다.
+        failures=_failure_rows(db),
+        **_pane_context(db, _selected_link(db, visible)),
+    )
+
+
+@admin_bp.route("/admin/naver-ingest/triage/pane")
+@login_required
+@role_required(["ADMIN", "MANAGER", "STAFF"])
+def naver_ingest_triage_pane() -> str:
+    """상세 pane 조각만 돌려준다 — 행을 눌러도 페이지를 통째로 다시 받지 않게.
+
+    읽기 전용 GET 이다(mutation 이 아니라 write manifest 등재도 감사 라벨도 없다).
+    컨텍스트는 전체 렌더와 **같은** :func:`_pane_context` 로 만든다 — 계산 경로를 두 벌로
+    두면 모달이 재진술하는 건수와 서버가 처리할 건수가 갈린다.
+
+    Query:
+        ``link_id``: 열 링크 id(필수).
+
+    Returns:
+        pane 조각 HTML(레이아웃 없음). 게이트 OFF 는 404(그 화면에는 이 경로가 없다),
+        ``link_id`` 누락은 400, 없는 링크는 404.
+    """
     from foms.services.feature_flags import is_naver_workbench_enabled
 
-    if is_naver_workbench_enabled(session.get("user_id")):
-        # 배지와 목록은 **같은 결과**를 나눠 쓴다. 취소 여부는 raw_snapshot 안에 있어
-        # SQL 이 못 거르므로, SQL 로 따로 세면 "4집이라 써 놓고 3줄" 이 된다.
-        # 그래서 탭이 아니어도 한 번 계산한다(조회는 QUEUE_LINK_FETCH_LIMIT 로 묶여 있다).
-        place_groups, place_truncated = _place_groups(db)
-        # 처리 대기에서는 취소·반품 집을 뺀다 — 손댈 수 없는 줄이 작업 목록을 채우면
-        # 사람이 매번 건너뛰어야 한다. 대신 전용 탭에 모아 큐에서 뺄 수 있게 한다.
-        work_groups = [group for group in queue if not group["claim_blocking"]]
-        claim_groups = [group for group in queue if group["claim_blocking"]]
-
-        # 기본 선택은 **그 탭 안에서** 고른다. 큐 전체에서 고르면 처리 대기 탭을 열었는데
-        # 오른쪽에 취소·반품 집이 펼쳐지는 일이 생긴다(목록에는 없는데 상세만 뜬다).
-        # 사용자가 링크를 직접 지정했으면(?link_id=) 그 뜻을 존중한다.
-        active_tab = _active_tab()
-        tab_groups = {"work": work_groups, "claim": claim_groups}.get(active_tab)
-        if tab_groups is not None and not selected_id:
-            in_tab = selected_group is not None and any(
-                group["id"] == selected_group["id"] for group in tab_groups
-            )
-            if not in_tab:
-                selected_group = tab_groups[0] if tab_groups else None
-                lead = next((row for row in pending
-                             if selected_group and row.id == selected_group["id"]), None)
-                context["selected"] = _triage_pane(db, lead) if lead is not None else None
-                context["selected_group"] = selected_group
-
-        # 큐 밖 링크(확인 완료·조회 상한 밖)를 열었으면 집을 따로 만들어 준다 —
-        # 없으면 상품주문 표가 빈 표가 되고 모달이 "1건" 이라 거짓말한다.
-        if context["selected"] is not None and context["selected_group"] is None:
-            fallback_link = (selected if selected is not None
-                             and selected.id == context["selected"]["link_id"] else None)
-            if fallback_link is None:
-                fallback_link = db.get(ExternalOrderLink, context["selected"]["link_id"])
-            if fallback_link is not None:
-                context["selected_group"] = _group_of_link(db, fallback_link)
-        selected_group = context["selected_group"]
-        # 클레임 판정 대상은 **pane 에 실제로 뜬 링크**다. 탭 기본 선택이 큐 첫 줄과 다를 수
-        # 있어(취소 집은 처리 대기에서 빠진다) 큐 첫 줄로 판정하면 엉뚱한 집을 본다.
-        # 모집단도 큐(확인 대기)만으로는 부족하다 — 확인 완료돼 큐에서 빠진 형제의 취소를
-        # 못 본다. 그래서 뜬 집 하나만 형제 전부를 읽는다.
-        pane_link = selected
-        if context["selected"] is not None and (
-                pane_link is None or pane_link.id != context["selected"]["link_id"]):
-            pane_link = db.get(ExternalOrderLink, context["selected"]["link_id"])
-        selected_household_claimed = _household_has_claim(db, pane_link)
-        # pane 의 집은 **서버가 처리할 집**과 같아야 한다(2026-08-23 리뷰 F5/H).
-        # 큐 모집단은 `COLLECTED|LINKED` + `reviewed_at IS NULL` 로 좁혀져 있는데, 워커는
-        # `_links_of_group`(주문번호+집 키 전체)를 처리한다. 그 차이가 그대로 모달 문장에
-        # 나오면 "상품주문 1건을 취소합니다"라고 읽고 2건이 환불된다.
-        if pane_link is not None:
-            household = _group_of_link(db, pane_link)
-            if household is not None:
-                context["selected_group"] = household
-                selected_group = household
-
-        history = _history_view(db) if active_tab == "all" else {}
-        # 수집 상태(워터마크·인증 만료일)는 이력 탭에 함께 싣는다. 게이트가 켜지면 옛
-        # 수집 화면이 리다이렉트로 닫히는데, 그 화면에만 있던 값이라 여기 없으면
-        # 수집이 조용히 멈춰도 아무도 모른다. ADMIN 전용은 그대로다.
-        ingest_status = ({"watermark": _watermark_view(db), "expiry": _expiry_view(db)}
-                         if active_tab == "all" and _can_view_history() else {})
-        # 실패는 어느 탭에 있든 보여야 한다 — 탭을 옮겼다고 사고가 사라지지 않는다.
-        failures = _failure_rows(db)
-        from foms.services.integrations.naver_commerce.fulfillment import CANCEL_REASONS
-
-        return render_template(
-            "admin/naver_workbench.html",
-            active_tab=active_tab,
-            # 취소 사유는 네이버 코드가 SSOT 다 — 화면이 따로 목록을 들면 둘이 갈린다.
-            cancel_reasons=CANCEL_REASONS,
-            can_view_history=_can_view_history(),
-            selected_household_claimed=selected_household_claimed,
-            member_rows=_member_rows(db, selected_group),
-            work_groups=work_groups,
-            claim_groups=claim_groups,
-            place_groups=place_groups,
-            place_group_count=len(place_groups),
-            place_truncated=place_truncated,
-            history=history,
-            ingest_status=ingest_status,
-            failures=failures,
-            **context,
-        )
-    return render_template("admin/naver_triage.html", **context)
+    if not is_naver_workbench_enabled(session.get("user_id")):
+        abort(404)
+    link_id = request.args.get("link_id", type=int)
+    if not link_id:
+        abort(400)
+    db = get_db()
+    link = _link_by_id(db, link_id)
+    if link is None:
+        abort(404)
+    return render_template("admin/partials/naver_workbench_pane.html",
+                           **_pane_context(db, link))
 
 
-#: 통합 화면의 탭 — 두 URL 왕복을 없앤 자리(설계 결정 1).
-WORKBENCH_TABS = ("work", "place", "claim", "all")
+#: 통합 화면의 탭 — 두 URL 왕복을 없앤 자리(설계 결정 1). v3 에서 ``place``·``claim`` 은
+#: 탭이 아니라 **같은 목록의 필터 칩**으로 내려왔다(한 집 처리하려고 탭을 오가던 통증).
+WORKBENCH_TABS = ("work", "all")
+
+#: 처리 탭의 필터 칩. 술어 SSOT 는 :func:`_group_matches_filter` 하나뿐이다.
+WORKBENCH_FILTERS = ("all", "place", "rel", "claim")
+
+#: 없어진 탭 → 필터 이름. 옛 주소·북마크가 가리키던 목록을 그대로 보여준다.
+LEGACY_TAB_FILTERS = {"place": "place", "claim": "claim"}
 
 
 def _can_view_history() -> bool:
@@ -671,17 +764,73 @@ def _can_view_history() -> bool:
 def _active_tab() -> str:
     """``?tab=`` 을 읽어 유효한 탭 이름으로 정규화한다.
 
+    없어진 탭(``place``·``claim``)은 처리 탭으로 흡수한다 — 열린 탭·북마크가 빈 화면으로
+    떨어지지 않게. 그 주소가 뜻하던 갈래는 :func:`_active_filter` 가 같은 인자에서 다시
+    읽어 필터로 되살린다.
+
     모르는 값은 조용히 기본 탭으로 떨어뜨린다 — 주소를 손으로 고쳐도 화면이 죽지 않는다.
     볼 권한이 없는 탭도 같은 자리로 떨어진다(403 대신 기본 탭 — 나머지 작업은 계속 된다).
 
     Returns:
-        ``work`` / ``place`` / ``claim`` / ``all`` 중 하나.
+        ``work`` 또는 ``all``.
     """
     raw = (request.args.get("tab") or "").strip().lower()
     tab = raw if raw in WORKBENCH_TABS else "work"
     if tab == "all" and not _can_view_history():
         return "work"
     return tab
+
+
+def _active_filter() -> str:
+    """``?f=`` 를 읽어 유효한 필터 이름으로 정규화한다.
+
+    옛 주소(``?tab=place``·``?tab=claim``)는 탭이 사라졌어도 **그 뜻대로** 필터를 정한다.
+    모르는 값은 조용히 ``all`` 로 떨어뜨린다(주소를 손으로 고쳐도 목록이 비지 않는다).
+
+    Returns:
+        :data:`WORKBENCH_FILTERS` 중 하나.
+    """
+    legacy = (request.args.get("tab") or "").strip().lower()
+    if legacy in LEGACY_TAB_FILTERS:
+        return LEGACY_TAB_FILTERS[legacy]
+    raw = (request.args.get("f") or "").strip().lower()
+    return raw if raw in WORKBENCH_FILTERS else "all"
+
+
+def _group_matches_filter(group: dict[str, Any], name: str) -> bool:
+    """집 하나가 필터 칩 조건에 맞는가 (계약 §2.2 술어 — 화면·숫자가 함께 쓰는 SSOT).
+
+    Args:
+        group: :func:`_work_groups` 가 만든 집.
+        name: 필터 이름(:data:`WORKBENCH_FILTERS`).
+
+    Returns:
+        그 칩 목록에 보여야 하면 True. 모르는 이름은 ``all`` 로 본다.
+    """
+    if name == "place":
+        return (bool(group.get("place_pending"))
+                and not group.get("claim_blocking") and not group.get("canceled"))
+    if name == "rel":
+        return str(group.get("relation") or "").upper() in ("ADDON", "REPAY")
+    if name == "claim":
+        return bool(group.get("claim_blocking")) or bool(group.get("canceled"))
+    return True
+
+
+def _filter_counts(groups: list[dict[str, Any]]) -> dict[str, int]:
+    """칩 4종의 숫자 — **필터를 걸기 전 전체**에서 센다.
+
+    거른 뒤에 세면 지금 고른 칩만 제 숫자를 갖고 나머지가 0이 된다 — 사람은 다른 칩에
+    몇 집이 남았는지 보려고 칩을 본다.
+
+    Args:
+        groups: :func:`_work_groups` 의 전체 결과.
+
+    Returns:
+        ``{"all": n, "place": n, "rel": n, "claim": n}``.
+    """
+    return {name: sum(1 for group in groups if _group_matches_filter(group, name))
+            for name in WORKBENCH_FILTERS}
 
 
 def _failure_rows(db) -> list[dict[str, Any]]:
@@ -815,7 +964,15 @@ def _place_groups(db) -> tuple[list[dict[str, Any]], bool]:
     """
     links = (
         db.query(ExternalOrderLink)
-        .filter(ExternalOrderLink.channel == "NAVER", _place_pending_clause())
+        .filter(ExternalOrderLink.channel == "NAVER",
+                # 수집이 성공한 건만 본다. v2 에서는 이 목록이 '발주확인 전' **탭 전용**이라
+                # FAILED·PENDING_REVIEW 가 섞여도 뱃지·처리 큐에는 안 들어갔다. v3 가 이
+                # 결과를 처리 목록·nav 뱃지와 합치면서, **수집이 깨진 링크가 "처리할 집"으로
+                # 세어지고 벌크 발주확인 후보로 체크박스까지 열렸다**(2026-08-23 발견).
+                # 발주확인은 네이버로 나가는 불가역 호출이다 — 원본이 불완전한 건을 그 대상에
+                # 올리지 않는다. 보류·실패는 이력 탭과 실패 띠가 받는다.
+                ExternalOrderLink.sync_status.in_(("COLLECTED", "LINKED")),
+                _place_pending_clause())
         .order_by(ExternalOrderLink.created_at.desc(), ExternalOrderLink.id.desc())
         .limit(QUEUE_LINK_FETCH_LIMIT)
         .all()
@@ -842,6 +999,140 @@ def _place_groups(db) -> tuple[list[dict[str, Any]], bool]:
                if not group["claim_blocking"] and group["key"] not in blocked]
     truncated = len(visible) > PAGE_SIZE or len(links) == QUEUE_LINK_FETCH_LIMIT
     return visible[:PAGE_SIZE], truncated
+
+
+def _work_groups(db) -> tuple[list[dict[str, Any]], bool]:
+    """처리 탭 목록 = 확인 큐 ∪ 발주확인 전 집 (집 단위 병합).
+
+    두 목록을 따로 두면 같은 집이 화면마다 다른 숫자로 세어지고, 사람은 한 집을 끝내려고
+    탭을 오간다. 하나로 합치고 갈래는 필터 칩(:func:`_group_matches_filter`)이 맡는다.
+
+    원천 1 = 확인 큐(:func:`_queue_links` — ``COLLECTED|LINKED`` + ``reviewed_at`` NULL),
+    원천 2 = :func:`_place_groups` (확인은 끝나 큐에서 빠졌지만 아직 발주확인 전인 집).
+    같은 집이 양쪽에 있으면 **큐 쪽 dict 를 채택**하고 ``place_pending`` 만 합친다.
+
+    ``request``·``session`` 을 읽지 않는다 — nav 뱃지가 모든 페이지 렌더에서 이 정의를
+    그대로 쓴다(뱃지 67 · 탭 45 로 어긋나던 자리).
+
+    Args:
+        db: 요청 스코프 DB 세션.
+
+    Returns:
+        ``(집 목록, 조회 상한에 걸렸는지)``. 순서는 큐(수집 최신순) → 큐 밖 발주확인 전 집.
+    """
+    pending, truncated = _queue_links(db)
+    queue = _group_queue(pending, _orders_by_id(db, pending), truncated=truncated)
+    place_groups, place_truncated = _place_groups(db)
+
+    merged: dict[Any, dict[str, Any]] = {}
+    order_of_key: list[Any] = []
+    for group in queue:
+        merged[group["key"]] = dict(group, in_queue=True)
+        order_of_key.append(group["key"])
+    for group in place_groups:
+        seen = merged.get(group["key"])
+        if seen is not None:
+            # 큐 dict 가 이긴다. 다만 '발주확인 전'은 원천 2 가 더 넓게 본다(큐 모집단은
+            # 확인 대기로 좁혀져 있다) — 그 축만 합쳐야 칩 숫자가 목록과 맞는다.
+            seen["place_pending"] = bool(seen["place_pending"] or group["place_pending"])
+            continue
+        merged[group["key"]] = dict(group, in_queue=False)
+        order_of_key.append(group["key"])
+    groups = [merged[key] for key in order_of_key]
+    _mark_sibling_claims(db, pending, groups)
+    _attach_household_counts(db, groups)
+    return groups, bool(truncated or place_truncated)
+
+
+def _mark_sibling_claims(db, queue_links: list[ExternalOrderLink],
+                         groups: list[dict[str, Any]]) -> None:
+    """이미 발주확인이 끝난 **형제**의 취소·반품을 집 전체에 반영한다.
+
+    ``_place_groups`` 는 원천 2 안에서 이 검사를 하지만, 원천 1(확인 큐)은 안 한다.
+    v2 에서는 체크박스가 원천 2 목록 루프 안에만 있어 구조적으로 문제가 없었는데,
+    v3 가 두 목록을 합치면서 **원천 1 출신 집이 검사 없이 목록에 올라** 체크박스가
+    열리고 잠금 표시도 안 됐다(2026-08-23 리뷰 H1). 그러면 목록은 "보내도 된다"고 하고
+    상세는 "취소·반품이라 닫혀 있다"고 하는, 한 화면 안의 모순이 된다.
+
+    Args:
+        db: 요청 스코프 DB 세션.
+        queue_links: 확인 큐 링크(형제 조회의 기준).
+        groups: 병합된 집 목록. **제자리에서** ``claim_blocking`` 을 올린다.
+    """
+    if not groups:
+        return
+    blocked = _claim_blocked_group_keys(db, queue_links)
+    if not blocked:
+        return
+    for group in groups:
+        if group["key"] in blocked:
+            group["claim_blocking"] = True
+
+
+def _attach_household_counts(db, groups: list[dict[str, Any]]) -> None:
+    """각 집에 **워커가 실제로 처리할 상품주문 수**(``household_count``)를 붙인다.
+
+    ``count`` 는 화면 목록 모집단(확인 대기로 좁혀진 큐) 안의 수라, 확인이 끝난 형제가
+    있으면 워커가 처리할 수보다 작다. 벌크 모달이 그 값을 재진술하면 "1건 보냅니다"라고
+    읽고 3건이 나간다 — pane 은 ``_group_of_link`` 로 이미 고쳤는데 벌크만 남아 있었다
+    (2026-08-23 리뷰 H2). 집 판정은 워커와 같은 :func:`fulfillment.household_key` 를 쓴다.
+
+    조회는 주문번호 묶음 **한 번**이다(집마다 세면 N+1).
+
+    Args:
+        db: 요청 스코프 DB 세션.
+        groups: 병합된 집 목록. 제자리에서 ``household_count`` 를 채운다.
+    """
+    from foms.services.integrations.naver_commerce.fulfillment import household_key
+
+    # 집 dict 에는 주문번호가 없다(대표 link id 만 있다) — 대표 링크에서 뽑는다.
+    lead_ids = [int(g["id"]) for g in groups if g.get("id")]
+    counts: dict[Any, int] = {}
+    blocking: set = set()
+    canceled: set = set()
+    order_nos = set()
+    if lead_ids:
+        leads = (
+            db.query(ExternalOrderLink)
+            .filter(ExternalOrderLink.id.in_(lead_ids))  # perf-ok: 페이지 대표 링크 batch
+            .all()
+        )
+        order_nos = {(row.external_order_no or "").strip()
+                     for row in leads if (row.external_order_no or "").strip()}
+    if order_nos:
+        rows = (
+            db.query(ExternalOrderLink)
+            .filter(ExternalOrderLink.channel == "NAVER",
+                    ExternalOrderLink.external_order_no.in_(sorted(order_nos)))
+            .all()
+        )
+        from foms.services.integrations.naver_commerce.mapping import extract_claim
+
+        for row in rows:
+            hkey = household_key(row)
+            counts[hkey] = counts.get(hkey, 0) + 1
+            # 형제 전부를 이 한 번의 조회에서 판정한다. `_claim_blocked_group_keys` 는
+            # `place_order_status='OK'` 형제의 **클레임만** 읽어서, ① 발주확인 전 형제의
+            # 클레임 ② 우리가 낸 취소(`canceled_at`)를 놓쳤다 — 그 집은 행이 안 잠기고
+            # 체크박스가 열려 벌크 발주확인 대상이 됐다(2026-08-23 리뷰 H-A).
+            # 목록이 "보내도 된다"고 하는데 상세는 "닫혀 있다"고 하면 그건 화면의 거짓말이다.
+            try:
+                if (extract_claim(row.raw_snapshot or {}) or {}).get("blocking"):
+                    blocking.add(hkey)
+            except (ValueError, TypeError, AttributeError, KeyError) as exc:
+                logger.warning("[NAVER] 형제 클레임 판정 실패(link %s): %s", row.id, exc)
+            state = (row.triage_state or {}).get("fulfillment") or {}
+            if state.get("canceled_at"):
+                canceled.add(hkey)
+    for group in groups:
+        # 못 세면 화면이 아는 수로 떨어진다(작게 말하는 쪽이 크게 말하는 쪽보다 안전하지
+        # 않다 — 그래서 이 값이 실패하면 모달이 집계를 숨기도록 템플릿이 판단한다).
+        group["household_count"] = counts.get(group["key"], group["count"])
+        # 형제까지 본 잠금 판정. 같은 쿼리 결과를 재사용하므로 조회는 늘지 않는다.
+        if group["key"] in blocking:
+            group["claim_blocking"] = True
+        if group["key"] in canceled:
+            group["canceled"] = True
 
 
 def _household_has_claim(db, link: Optional[ExternalOrderLink]) -> bool:
@@ -1607,6 +1898,7 @@ __all__ = [
     "naver_ingest_mark_reviewed",
     "naver_ingest_set_assignee",
     "naver_ingest_triage",
+    "naver_ingest_triage_pane",
     "naver_ingest_run_now",
     "naver_ingest_snapshot",
     "PAGE_SIZE",

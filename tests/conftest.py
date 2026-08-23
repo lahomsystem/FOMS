@@ -26,15 +26,24 @@ def app():
     flask_app.config["TESTING"] = True
     
     # Create tables
+    # 엔진 기준 가드가 **먼저** 온다. env 문자열만 보면, conftest 보다 먼저 db 를 import 한
+    # 파일 하나가 엔진을 로컬 Postgres 에 묶어 놓아도 "sqlite 니까 안전"으로 통과한다
+    # (2026-08-23 그렇게 로컬 dev DB 테이블 86개가 드롭됐다).
+    assert_safe_for_schema_reset(
+        os.environ.get("DATABASE_URL", ""),
+        context="tests/conftest.py app fixture setup",
+        engine=engine,
+    )
     Base.metadata.create_all(bind=engine)
-    
+
     yield flask_app
-    
+
     # Cleanup
     db_session.remove()
     assert_safe_for_schema_reset(
         os.environ.get("DATABASE_URL", ""),
         context="tests/conftest.py app fixture teardown",
+        engine=engine,
     )
     Base.metadata.drop_all(bind=engine)
 

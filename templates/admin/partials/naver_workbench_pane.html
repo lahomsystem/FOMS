@@ -1,0 +1,491 @@
+{#
+  네이버 수집 워크벤치 v3 — 상세 pane (계약 docs/specs/2026-08-23-naver-workbench-v3_CONTRACT.md §3).
+
+  **전체 렌더와 프래그먼트 응답이 이 파일 하나를 공유한다.**
+    · 전체 렌더 : admin/naver_workbench.html 이 include 한다.
+    · 프래그먼트: GET /admin/naver-ingest/triage/pane?link_id=N 이 이 템플릿만 렌더한다.
+  그래서 지켜야 할 것 두 가지 —
+    ① 최상위 요소는 wb-pane div 하나뿐이다(응답 조각의 루트가 곧 교체 대상).
+    ② 셸 컨텍스트(work_groups·filter_counts·group_count·history …)를 **쓰지 않는다**.
+       쓰는 값은 selected · selected_group · selected_household_claimed · member_rows ·
+       cancel_reasons 뿐이다. 프래그먼트 경로에는 나머지가 없다.
+
+  절대 규칙 1: 상세는 문서에 하나. 여기 있는 id 는 페이지 전체에서 유일해야 한다
+  (중복되면 5번째 행의 취소가 1번째 집으로 나간다).
+#}
+<div id="wb-pane">
+{% if selected %}
+
+{# ── 판정값을 맨 위에서 한 번만 만든다. 버튼과 모달이 서로 다른 식을 쓰면
+      열린 버튼이 빈 모달을 연다(v2 에서 실제로 났던 결함). ──────────────── #}
+{% set grp = selected_group %}
+{% set relation = (grp.relation if grp else '') or selected.relation or '' %}
+{% set rel_label = '추가결제' if relation == 'ADDON' else ('재결제' if relation == 'REPAY' else '') %}
+{# 클레임 판정은 **집 단위**다. 대표 링크만 보면 확인 완료돼 큐에서 빠진 형제의
+   취소를 못 보고 버튼이 열린다 — 되돌릴 수 없는 호출이 나간다. #}
+{% set household_claimed = selected_household_claimed or selected.claim.blocking
+                           or (grp.claim_blocking if grp else False) %}
+{% set household_canceled = grp.canceled if grp else selected.fulfillment.canceled_at %}
+{% set locked = household_claimed or household_canceled %}
+{% set place_pending = grp.place_pending if grp else (not selected.place.confirmed) %}
+{# 결정 D1: 추가결제·재결제는 물건이 따로 나가지 않는다 — 발주확인 전에도 바로 닫는다.
+   집 전체가 ADDON/REPAY 일 때만(서버 dispatch_order 의 all 규칙과 같다). #}
+{% set close_now = grp.close_now if grp else (relation in ('ADDON', 'REPAY')) %}
+{% set dispatched = selected.fulfillment.dispatched_at %}
+{% set claim_label = (grp.claim_label if grp else '') or selected.claim.label or '' %}
+{% set member_count = grp.count if grp else 1 %}
+{% set target_id = grp.id if grp else selected.link_id %}
+{% set group_link_ids = (grp.link_ids if grp else [selected.link_id]) %}
+{# 잠긴 버튼에 이유가 없으면 사람은 계속 누른다. title 을 한 곳에서 만든다. #}
+{% set lock_why = '네이버에서 취소·반품이 진행 중입니다 — 판매자센터를 따릅니다'
+                  if household_claimed
+                  else ('취소한 집입니다 — 주문 만들기·발주확인·발송처리가 모두 닫혀 있습니다'
+                        if household_canceled else '') %}
+{% set can_create = not selected.order_id and not locked %}
+{% set can_confirm = place_pending and not locked %}
+{% set can_dispatch = not locked and not dispatched and (not place_pending or close_now) %}
+{% set can_cancel = not locked and not dispatched %}
+
+<section class="card shadow-sm wb-detail">
+    <div class="card-header py-2 wb-detail__head">
+        <div class="d-flex flex-wrap align-items-center gap-2 wb-detail__title">
+            <span class="fw-semibold">{{ selected.naver.recipient_name or selected.external_id }}</span>
+            <span class="small text-muted">상품주문 {{ selected.external_id }}</span>
+            {% if member_count > 1 %}
+            <span class="badge bg-light text-dark">{{ member_count }}건 묶음</span>
+            {% endif %}
+            {# 관계는 이 집에서 무엇을 눌러도 되는지를 바꾼다(발송처리 분기) — 헤더에 둔다. #}
+            {% if rel_label %}
+            <span class="badge bg-info text-dark">{{ rel_label }}</span>
+            {% endif %}
+            {% if household_claimed and claim_label %}
+            <span class="badge bg-danger">{{ claim_label }}</span>
+            {% endif %}
+            {% if household_canceled %}
+            <span class="badge bg-secondary">취소 완료</span>
+            {% endif %}
+            {% if selected.order_id %}
+            <span class="badge bg-primary">주문 #{{ selected.order_id }}</span>
+            {% endif %}
+        </div>
+
+        {#
+          액션 5종 (계약 §3.3). locked = 취소·반품 진행 중 이거나 취소 완료.
+          잠기면 앞의 4개가 전부 disabled 이고 '확인 완료' 만 열린다 — 손대면 안 되는
+          집이라도 **큐에서는 뺄 수 있어야 한다**(v2 감사 결함 #4 재발 방지).
+        #}
+        <div class="d-flex flex-wrap align-items-center gap-2 mt-2 wb-acts">
+            {# 속성 순서(class → id → disabled)는 계약 테스트가 `id="wb-..." disabled` 를
+               통째로 문자열로 찾기 때문에 지킨다 — 사이에 다른 속성을 끼우지 말 것. #}
+            <button type="button"
+                    class="btn btn-sm {{ 'btn-primary' if can_create else 'btn-outline-secondary' }}"
+                    id="wb-create" {% if can_create %}data-bs-toggle="modal" data-bs-target="#wb-modal-create"{% else %}disabled title="{% if locked %}{{ lock_why }}{% else %}이미 주문 #{{ selected.order_id }} 가 있습니다{% endif %}"{% endif %}>
+                + 주문 만들기
+            </button>
+            {# 주문이 생긴 뒤의 다음 걸음은 규격 입력이다 — 편집기가 규격의 SSOT 다. #}
+            {% if selected.order_id %}
+            <a class="btn btn-outline-primary btn-sm" target="_blank" rel="noopener"
+               href="{{ selected.edit_url }}">ERP 규격 입력</a>
+            {% endif %}
+
+            {# 발주확인 단건(v3 신설). 예전에는 이걸 하려고 '발주확인 전' 탭으로 건너가
+               같은 집을 다시 찾아야 했다 — 사용자가 지목한 통증 ①. #}
+            <button type="button"
+                    class="btn btn-sm {{ 'btn-outline-primary' if can_confirm else 'btn-outline-secondary' }}"
+                    id="wb-confirm" {% if can_confirm %}data-bs-toggle="modal" data-bs-target="#wb-modal-confirm"{% else %}disabled title="{% if locked %}{{ lock_why }}{% else %}이미 발주확인이 끝났습니다{% endif %}"{% endif %}>
+                발주확인
+            </button>
+
+            {# 발송처리 — 구매자에게 '배송 시작' 으로 보이고 구매확정·정산 시계가 돈다.
+               되돌릴 수 없다. 발주확인이 끝난 집에만 연다(그 전이면 네이버가 거절한다).
+               이미 나간 집은 **버튼이 아니라 완료 표시**다(한 번 더 부르지 않는다).
+               단 잠긴 집에서는 버튼을 남겨 잠근다 — 왜 닫혔는지가 title 로 보여야 한다. #}
+            {% if dispatched and not locked %}
+            <span class="badge bg-success">발송처리 완료</span>
+            {% else %}
+            <button type="button"
+                    class="btn btn-sm {{ 'btn-primary' if can_dispatch else 'btn-outline-secondary' }}"
+                    id="wb-dispatch" {% if can_dispatch %}data-bs-toggle="modal" data-bs-target="#wb-modal-dispatch"{% else %}disabled title="{% if locked %}{{ lock_why }}{% elif dispatched %}이미 발송처리가 끝났습니다{% else %}발주확인이 먼저입니다(발주확인 전 상품주문이 있습니다){% endif %}"{% endif %}>
+                {{ '지금 닫기' if close_now else '발송처리' }}
+            </button>
+            {% endif %}
+
+            {# 발송처리가 나간 집은 취소가 아니라 반품 흐름이라 **버튼 자체를 내지 않는다**
+               (서버도 막는다). 잠긴 집은 버튼을 남기되 이유를 달아 잠근다. #}
+            {% if not dispatched %}
+            <button type="button"
+                    class="btn btn-sm {{ 'btn-outline-danger' if can_cancel else 'btn-outline-secondary' }}"
+                    id="wb-cancel" {% if can_cancel %}data-bs-toggle="modal" data-bs-target="#wb-modal-cancel"{% else %}disabled title="{{ lock_why }}"{% endif %}>
+                취소처리
+            </button>
+            {% endif %}
+
+            {# 계약 §3.3: **항상** 낸다. 네이버로 나가는 호출이 아니라 우리 큐에서만 뺀다. #}
+            <button type="button" class="btn btn-outline-secondary btn-sm ms-auto" id="wb-review-done"
+                    data-link-ids="{{ group_link_ids | join(',') }}"
+                    {# v3 에서 목록은 확인 큐 ∪ 발주확인 전 집이다. 확인만 끝내도 그 집이
+                       아직 발주확인 전이면 목록에 그대로 남는다 — 옛 문구("목록에서 뺍니다")는
+                       거짓이 됐고, 사람이 안 없어지니 같은 버튼을 반복해 눌렀다(리뷰 M-1). #}
+                    title="네이버에는 아무것도 보내지 않습니다 — 이 집을 &#39;확인함&#39;으로 표시합니다. 발주확인이 남아 있으면 목록에는 계속 보입니다.">
+                확인 완료 — 큐에서 빼기
+            </button>
+        </div>
+
+        {# 안내 문구 — 계약 §3.3(목업 문장 그대로). 왜 잠겼는지 / 무엇이 먼저인지 한 줄. #}
+        {% if locked %}
+        <div class="wb-acts__why small">
+            이 집은 {{ claim_label if (household_claimed and claim_label) else '취소 완료' }}입니다.
+            발주확인·발송처리·주문 만들기가 모두 닫혀 있습니다.
+        </div>
+        {% elif place_pending and close_now %}
+        <div class="wb-acts__why small">
+            {{ rel_label }}는 물건이 따로 나가지 않습니다 — 발주확인 없이 여기서 바로 닫습니다.
+        </div>
+        {% elif place_pending %}
+        <div class="wb-acts__why small">
+            신규 집이라 발주확인이 먼저입니다. 발송처리는 <b>실제 출고·시공 시점</b>에 누르세요.
+        </div>
+        {% endif %}
+
+        {#
+          성공 피드백 자리. 발주확인은 **큐에 넣기만** 하므로 pane 을 다시 받아도 화면이
+          그대로다 — 사람에게는 "눌렀는데 아무 일도 안 났다"로 보이고, 그러면 한 번 더 누른다.
+          불가역 호출에서 재클릭은 그 자체가 사고 경로다. 실패는 `#wb-result` 띠가 받지만
+          성공은 받는 곳이 없어서 이 줄을 둔다. 비어 있으면 CSS 가 접는다(:empty).
+          data-foms-no-autodismiss: 전역 5초 자동닫힘이 이 문구를 지운다.
+        #}
+        <div class="wb-pane__ack small" id="wb-pane-ack" role="status" aria-live="polite"
+             data-foms-no-autodismiss></div>
+    </div>
+
+    <div class="card-body">
+        {# 도메인 규칙 6: 규격 자동 파싱 금지. 원문을 크게 보여주고 사람이 읽는다. #}
+        {% if selected.naver.option %}
+        <div class="alert alert-light border" data-foms-no-autodismiss>
+            <div class="small text-muted fw-semibold">네이버 옵션 원문 — 규격은 사람이 이걸 읽고 편집기에서 채운다</div>
+            <div class="wb-option-raw">{{ selected.naver.option }}</div>
+        </div>
+        {% endif %}
+
+        {# 결정 7 · 1단: 집 단위 값(한 집에 하나뿐인 것). #}
+        <div class="wb-cmp-title" data-cmp-section="household">
+            집 단위 <span class="wb-cmp-title__sub">수취인·주소·결제 — 한 집에 하나뿐인 값</span>
+        </div>
+        <table class="wb-cmp">
+            <thead>
+                <tr><th>항목</th><th>네이버 원본</th><th>FOMS 현재 값</th></tr>
+            </thead>
+            <tbody>
+                <tr>
+                    <td class="wb-cmp__k">수취인</td>
+                    <td>{{ selected.naver.recipient_name }}</td>
+                    <td>{{ selected.foms.customer_name or '아직 없음' }}</td>
+                </tr>
+                <tr>
+                    <td class="wb-cmp__k">연락처</td>
+                    <td>{{ selected.naver.recipient_tel }}</td>
+                    <td>{{ selected.foms.phone or '아직 없음' }}</td>
+                </tr>
+                <tr>
+                    <td class="wb-cmp__k">주소</td>
+                    <td>{{ selected.naver.address }}</td>
+                    <td>{{ selected.foms.address or '아직 없음' }}</td>
+                </tr>
+            </tbody>
+        </table>
+
+        {# 결정 5 · 7 · 2단: 상품주문 행 단위. pane 이 링크 1건이던 시절에는 6건 묶음을
+           다 보려면 페이지를 6번 열어야 했다. #}
+        <div class="wb-cmp-title" data-cmp-section="product-orders">
+            상품주문 {{ member_rows|length }}건
+            <span class="wb-cmp-title__sub">네이버가 본품과 옵션을 각각 다른 상품주문으로 준다</span>
+        </div>
+        <table class="wb-cmp">
+            <thead>
+                <tr>
+                    <th>상품주문번호</th><th>제품 · 옵션 원문</th>
+                    <th class="wb-cmp__num">수량</th><th class="wb-cmp__num">금액</th>
+                </tr>
+            </thead>
+            <tbody>
+                {% for row in member_rows %}
+                <tr>
+                    <td class="wb-cmp__k">{{ row.external_id }}</td>
+                    <td>
+                        <div class="fw-semibold">{{ row.product }}</div>
+                        {% if row.options %}
+                        <div class="wb-cmp__option">{{ row.options }}</div>
+                        {% endif %}
+                    </td>
+                    <td class="wb-cmp__num">{{ row.quantity if row.quantity is not none else '–' }}</td>
+                    <td class="wb-cmp__num">{{ '{:,}'.format(row.amount) if row.amount is not none else '–' }}</td>
+                </tr>
+                {% endfor %}
+            </tbody>
+        </table>
+
+        {#
+          결정 D3 — 관계 축. 수집 판정은 결제완료 하나뿐이라 재결제·차액 결제도 새 집으로
+          들어온다. 그대로 "주문 만들기" 를 누르면 같은 고객의 시공 건이 둘로 갈린다.
+          **자동으로 붙이지 않는다**: 금액·시공이 걸린 판단이라 근거만 늘어놓고 사람이 고른다.
+          붙이기는 되돌릴 수 있어(/detach) 불가역 4종 세트 모달을 두지 않는다.
+        #}
+        {% if rel_label %}
+        <div class="wb-cmp-title" data-cmp-section="relation">
+            관계 <span class="wb-cmp-title__sub">이 집은 기존 주문의 후속이다 — 새 주문을 만들지 않았다</span>
+        </div>
+        <div class="wb-relation" data-foms-no-autodismiss>
+            <span class="badge bg-info text-dark">{{ rel_label }}</span>
+            <span class="wb-relation__text">
+                주문
+                <a href="{{ selected.edit_url }}" target="_blank" rel="noopener">#{{ selected.order_id }}</a>
+                에 붙어 있습니다.
+            </span>
+            <button type="button" class="btn btn-outline-danger btn-sm ms-auto" id="wb-detach"
+                    data-link-id="{{ selected.link_id }}">되돌리기</button>
+        </div>
+        {% elif selected.candidates and not selected.order_id %}
+        <div class="wb-cmp-title" data-cmp-section="relation">
+            관계 <span class="wb-cmp-title__sub">이 고객의 기존 주문 {{ selected.candidates|length }}건 — 새 주문이 아닐 수 있다</span>
+        </div>
+        <div class="wb-relation wb-relation--ask" data-foms-no-autodismiss>
+            <p class="wb-relation__why">
+                새 주문이 아니라 <b>기존 주문의 추가결제(차액)</b>거나 <b>취소 후 재결제</b>일 수 있습니다.
+                맞으면 아래에서 붙이세요 — 새 주문을 만들지 않습니다.
+            </p>
+            <table class="wb-cmp wb-cmp--cand">
+                <thead>
+                    <tr><th>주문</th><th>고객 · 주소</th><th>접수일</th><th class="text-end">붙이기</th></tr>
+                </thead>
+                <tbody>
+                    {% for cand in selected.candidates %}
+                    <tr>
+                        <td class="wb-cmp__k">
+                            <a href="{{ url_for('order_edit.edit_order', order_id=cand.order_id, open='erp-order') }}"
+                               target="_blank" rel="noopener">#{{ cand.order_id }}</a>
+                            <div class="wb-relation__reason">{{ cand.reason }}</div>
+                        </td>
+                        <td>
+                            {{ cand.customer_name }}
+                            <div class="wb-relation__reason">{{ cand.address[:24] }}</div>
+                        </td>
+                        <td>
+                            {{ cand.received_date }}
+                            {% if cand.naver_link_count %}
+                            <div class="wb-relation__reason">네이버 수집 {{ cand.naver_link_count }}건</div>
+                            {% endif %}
+                        </td>
+                        <td class="text-end">
+                            {# 붙이기 버튼은 후보 수만큼 나온다 — id 를 달면 문서에 중복이 생긴다
+                               (절대 규칙 1). JS 는 .wb-attach 로 문다(계약 §3.2 의 #wb-attach 자리).
+                               취소·반품 집의 추가결제는 서버가 막는다(재결제는 허용) —
+                               화면은 사유를 그대로 받아 보여준다. #}
+                            <button type="button" class="btn btn-sm btn-outline-primary wb-attach naver-attach-btn"
+                                    data-link-id="{{ selected.link_id }}"
+                                    data-order-id="{{ cand.order_id }}"
+                                    data-relation="ADDON">추가결제로 붙이기</button>
+                            <button type="button" class="btn btn-sm btn-outline-secondary wb-attach naver-attach-btn"
+                                    data-link-id="{{ selected.link_id }}"
+                                    data-order-id="{{ cand.order_id }}"
+                                    data-relation="REPAY">재결제로 붙이기</button>
+                        </td>
+                    </tr>
+                    {% endfor %}
+                </tbody>
+            </table>
+        </div>
+        {% endif %}
+    </div>
+</section>
+
+{#
+  ── 불가역 액션 모달 (결정 6 의 4종 세트: ① 건수 재진술 ② 되돌릴 수 없음
+     ③ 사후 경로 ④ 필요한 입력). 카드 **밖** · pane **안**에 둔다 —
+     카드는 overflow:hidden 이고, pane 이 통째로 교체될 때 모달도 같이 갈려야
+     새 집의 link_id 를 물고 온다(옛 모달이 남으면 다른 집으로 호출이 나간다).
+     버튼과 **같은 조건**으로 렌더한다: 한쪽만 바꾸면 열린 버튼이 빈 모달을 연다.
+#}
+{% if can_create %}
+<div class="modal fade" id="wb-modal-create" tabindex="-1" aria-hidden="true">
+    <div class="modal-dialog modal-dialog-centered">
+        <div class="modal-content">
+            <div class="modal-header">
+                <h5 class="modal-title">주문을 만들기 전에 확인하세요</h5>
+                <button type="button" class="btn-close" data-bs-dismiss="modal" aria-label="닫기"></button>
+            </div>
+            <div class="modal-body">
+                {# ① 건수 재진술 — 버튼 라벨과 같은 숫자를 문장으로 다시 읽힌다. #}
+                <p class="fw-semibold mb-2">
+                    {{ selected.naver.recipient_name }}님의 상품주문 {{ member_count }}건을
+                    FOMS 주문 1건으로 만듭니다.
+                </p>
+                {# ② 되돌릴 수 없음 #}
+                <div class="alert alert-danger py-2 mb-2" data-foms-no-autodismiss>
+                    만든 주문을 이 화면에서 되돌릴 수는 없습니다(주문 화면에서 취소해야 합니다).
+                </div>
+                {# ③ 사후 경로 #}
+                <p class="small text-muted mb-0">
+                    만든 뒤에는 <b>ERP 규격 입력</b> 단계가 열립니다. 규격은 옵션 원문을 보고 사람이 채웁니다.
+                    담당자 지정은 이 화면 일이 아니라 <b>실측 일정</b> 단계에서 합니다.
+                </p>
+            </div>
+            <div class="modal-footer">
+                <button type="button" class="btn btn-outline-secondary" data-bs-dismiss="modal">취소</button>
+                <button type="button" class="btn btn-primary" id="wb-create-order"
+                        data-link-id="{{ target_id }}">주문 만들기</button>
+            </div>
+        </div>
+    </div>
+</div>
+{% endif %}
+
+{# 발주확인 단건 — v3 신설. 네이버로 나가는 호출이라 벌크와 같은 4종 세트를 쓴다. #}
+{% if can_confirm %}
+<div class="modal fade" id="wb-modal-confirm" tabindex="-1" aria-hidden="true">
+    <div class="modal-dialog modal-dialog-centered">
+        <div class="modal-content">
+            <div class="modal-header">
+                <h5 class="modal-title">발주확인을 보내기 전에 확인하세요</h5>
+                <button type="button" class="btn-close" data-bs-dismiss="modal" aria-label="닫기"></button>
+            </div>
+            <div class="modal-body">
+                {# ① 건수 재진술 — pane 의 집은 _group_of_link 결과다(절대 규칙 2).
+                   여기 숫자가 서버가 실제로 처리할 건수와 같아야 한다. #}
+                <p class="fw-semibold mb-2">
+                    {{ selected.naver.recipient_name }}님의 상품주문 {{ member_count }}건을
+                    네이버에 <b>발주확인</b>으로 보냅니다.
+                </p>
+                {# ② 되돌릴 수 없음 #}
+                <div class="alert alert-danger py-2 mb-2" data-foms-no-autodismiss>
+                    네이버로 나가는 호출이라 되돌릴 수 없습니다.
+                </div>
+                {# ③ 사후 경로 #}
+                <p class="small text-muted mb-0">
+                    보낸 뒤에는 상태가 <b>발주확인 완료</b>로 바뀌고, 이 집의 <b>발송처리</b>가 열립니다.
+                    실패하면 화면 위 실패 목록에 사유가 남고, 그 집만 다시 보낼 수 있습니다.
+                </p>
+            </div>
+            <div class="modal-footer">
+                <button type="button" class="btn btn-outline-secondary" data-bs-dismiss="modal">취소</button>
+                <button type="button" class="btn btn-primary" id="wb-confirm-submit"
+                        data-link-id="{{ target_id }}">발주확인 보내기</button>
+            </div>
+        </div>
+    </div>
+</div>
+{% endif %}
+
+{% if can_dispatch %}
+<div class="modal fade" id="wb-modal-dispatch" tabindex="-1" aria-hidden="true">
+    <div class="modal-dialog modal-dialog-centered">
+        <div class="modal-content">
+            <div class="modal-header">
+                <h5 class="modal-title">
+                    {{ '추가결제를 지금 닫습니다' if close_now else '발송처리를 보내기 전에 확인하세요' }}
+                </h5>
+                <button type="button" class="btn-close" data-bs-dismiss="modal" aria-label="닫기"></button>
+            </div>
+            <div class="modal-body">
+                {# ① 건수 재진술 #}
+                <p class="fw-semibold mb-2">
+                    {{ selected.naver.recipient_name }}님의 상품주문 {{ member_count }}건을
+                    네이버에 발송처리로 보냅니다.
+                </p>
+                {# ② 되돌릴 수 없음 — 관계에 따라 사람이 물어야 할 질문이 다르다.
+                   추가결제는 "이 집이 정말 추가결제인가", 신규는 "물건이 정말 나갔나". #}
+                <div class="alert alert-danger py-2 mb-2" data-foms-no-autodismiss>
+                    네이버로 나가는 호출이라 되돌릴 수 없습니다. 구매자에게 <b>배송 시작</b>으로
+                    보이고 구매확정·정산 시계가 돌기 시작합니다.
+                    {% if not close_now %}
+                    <div class="mt-1">
+                        이 집은 <b>신규 주문</b>입니다 — <b>실제 출고·시공 시점</b>에만 누르세요.
+                        아직 물건이 나가지 않았다면 지금 누르면 안 됩니다.
+                    </div>
+                    {% endif %}
+                </div>
+                {% if close_now %}
+                <div class="alert alert-secondary py-2 mb-2" data-foms-no-autodismiss>
+                    {{ rel_label }}는 물건이 <b>따로 나가지 않습니다</b> — 확인을 끝냈으면 여기서 바로 닫습니다.
+                    {% if place_pending %}
+                    <div class="mt-1">
+                        이 집은 <b>발주확인 전</b>입니다. 발송처리를 보내면 네이버가 발주확인까지
+                        함께 처리합니다. 네이버가 거절하면 사유가 화면 위 실패 목록에 남습니다.
+                    </div>
+                    {% endif %}
+                </div>
+                {% endif %}
+                {# ③ 사후 경로 #}
+                <p class="small text-muted mb-0">
+                    보낸 뒤에는 이 집이 <b>발송처리 완료</b>로 바뀝니다. 배송방법은 자사
+                    <b>직접 전달</b>(택배사·송장 없음)로 나갑니다. 실패하면 화면 위 실패 목록에
+                    사유가 남고, 그 집만 다시 보낼 수 있습니다.
+                </p>
+            </div>
+            <div class="modal-footer">
+                <button type="button" class="btn btn-outline-secondary" data-bs-dismiss="modal">취소</button>
+                <button type="button" class="btn btn-primary" id="wb-dispatch-confirm"
+                        data-link-id="{{ target_id }}">
+                    {{ '지금 닫기' if close_now else '발송처리 보내기' }}
+                </button>
+            </div>
+        </div>
+    </div>
+</div>
+{% endif %}
+
+{% if can_cancel %}
+<div class="modal fade" id="wb-modal-cancel" tabindex="-1" aria-hidden="true">
+    <div class="modal-dialog modal-dialog-centered">
+        <div class="modal-content">
+            <div class="modal-header">
+                <h5 class="modal-title">취소를 보내기 전에 확인하세요</h5>
+                <button type="button" class="btn-close" data-bs-dismiss="modal" aria-label="닫기"></button>
+            </div>
+            <div class="modal-body">
+                {# ① 건수 재진술 #}
+                <p class="fw-semibold mb-2">
+                    {{ selected.naver.recipient_name }}님의 상품주문 {{ member_count }}건을
+                    네이버에서 <b>판매자 직접취소</b> 합니다.
+                </p>
+                {# ② 되돌릴 수 없음 #}
+                <div class="alert alert-danger py-2 mb-2" data-foms-no-autodismiss>
+                    네이버로 나가는 호출이라 <b>되돌릴 수 없습니다</b>. 구매자에게 결제
+                    <b>환불</b>이 시작되고, 취소된 주문은 다시 살릴 수 없습니다.
+                </div>
+                {# ③ 사유 — 네이버가 아는 코드만 보낸다(서버가 다시 검사한다). #}
+                <label class="form-label small fw-semibold mb-1" for="wb-cancel-reason">취소 사유</label>
+                <select class="form-select form-select-sm mb-2" id="wb-cancel-reason">
+                    {% for code, label in cancel_reasons.items() %}
+                    <option value="{{ code }}">{{ label }}</option>
+                    {% endfor %}
+                </select>
+                <label class="form-label small fw-semibold mb-1" for="wb-cancel-detail">
+                    상세 사유 <span class="text-muted fw-normal">(선택, 500자)</span>
+                </label>
+                <textarea class="form-control form-control-sm mb-2" id="wb-cancel-detail"
+                          rows="2" maxlength="500"
+                          placeholder="예: 고객 통화 확인 — 재고 없음"></textarea>
+                {# ④ 사후 경로 #}
+                <p class="small text-muted mb-0">
+                    보낸 뒤에는 이 집이 <b>취소 완료</b>로 바뀝니다. <b>FOMS 주문은 그대로입니다</b> —
+                    주문을 없애려면 주문 화면에서 따로 취소하세요. 실패하면 화면 위 실패 목록에
+                    사유가 남습니다.
+                </p>
+            </div>
+            <div class="modal-footer">
+                <button type="button" class="btn btn-outline-secondary" data-bs-dismiss="modal">닫기</button>
+                <button type="button" class="btn btn-danger" id="wb-cancel-confirm"
+                        data-link-id="{{ target_id }}">취소 보내기</button>
+            </div>
+        </div>
+    </div>
+</div>
+{% endif %}
+
+{% else %}
+{# 프래그먼트 경로에서도 같은 껍데기를 돌려줘야 JS 가 #wb-pane 을 그대로 갈아 끼운다. #}
+<section class="card shadow-sm wb-detail">
+    <div class="card-body wb-empty">왼쪽에서 집을 하나 고르세요.</div>
+</section>
+{% endif %}
+</div>

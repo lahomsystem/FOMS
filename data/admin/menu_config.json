@@ -17,7 +17,7 @@
     },
     {
       "id": "naver_orders",
-      "name": "네이버 주문",
+      "name": "네이버 수집",
       "url": "/admin/naver-ingest/triage"
     },
     {
