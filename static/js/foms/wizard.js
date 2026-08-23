@@ -35,6 +35,10 @@
       construction_time: readValue(root.querySelector("#wiz-construction-time")),
       sales_manager: readValue(root.querySelector("#wiz-sales-manager")),
       construction_manager: readValue(root.querySelector("#wiz-construction-manager")),
+      // 상차일은 지방주문 전용 — 체크가 꺼지면 값이 남아도 전송하지 않는다.
+      load_date: readChecked(root.querySelector("#wiz-flag-regional"))
+        ? readValue(root.querySelector("#wiz-load-date"))
+        : "",
       notes: readValue(root.querySelector("#wiz-notes")),
     };
   }
@@ -74,6 +78,8 @@
     if (!regional) {
       var typeEl = root.querySelector("#wiz-regional-construction-type");
       if (typeEl) typeEl.value = "";
+      var loadEl = root.querySelector("#wiz-load-date");
+      if (loadEl) loadEl.value = "";
     }
     var urgent = readChecked(root.querySelector("#wiz-flag-urgent"));
     var urgentField = root.querySelector("#wiz-urgent-reason-field");
@@ -294,6 +300,7 @@
       "#wiz-construction-time": schedule.construction_time,
       "#wiz-sales-manager": schedule.sales_manager,
       "#wiz-construction-manager": schedule.construction_manager,
+      "#wiz-load-date": schedule.load_date,
       "#wiz-notes": schedule.notes,
     };
     Object.keys(map).forEach(function (sel) {
@@ -952,9 +959,13 @@
         if (!container) {
           return;
         }
-        cloneProductCard(container, draftKey, function () {
+        var addedCard = cloneProductCard(container, draftKey, function () {
           draftClient.scheduleSave();
         });
+        // 사용자가 방금 만든 카드는 바로 입력할 수 있어야 한다(초안 복원 경로는 접힘 유지).
+        if (addedCard) {
+          revealEmptyProductCard(addedCard);
+        }
         draftClient.scheduleSave();
       });
     }
