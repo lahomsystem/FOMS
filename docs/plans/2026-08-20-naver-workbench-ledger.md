@@ -481,7 +481,6 @@ CI: 두 푸시 모두 **ALL GREEN**(FOMS CI · Harness CI · PostgreSQL Lane · 
 
 - `cbd5b488..5f9433c5` push 완료(내 세션 커밋 5개만 cherry-pick). 승격 트리에서 alembic 단일 head·
   인벤토리 3종·integrations 443 재확인 후 push. 충돌은 이 원장 파일 1개뿐(코드 의존 아님).
-- CI: Harness ✅ · PG Lane ✅ · perf-gate ✅ · **FOMS CI 는 세션 종료 시점까지 in_progress**
-  (`Run tests` 단계). 다음 세션 첫 일로 `gh run list --branch deploy --limit 12` 로
-  `5f9433c5` 4개 전부 green 인지 확인할 것 — red 면 근본 수정 → pre_push_smoke → 재푸시.
+- **CI ALL GREEN**: FOMS CI · Harness CI · PG Lane · perf-gate 4개 전부 success(`5f9433c5`).
+  FOMS CI 는 `Run tests` 단계가 길어 약 50분 걸렸다(정상).
 - 브랜치에만 남은 문서 커밋 2개(다음 세션 프롬프트·AI_STATUS): 운영 승격 때 함께 올린다.
