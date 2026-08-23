@@ -19,7 +19,7 @@
 {% block title %}네이버 수집{% endblock %}
 
 {% block styles %}
-<link rel="stylesheet" href="{{ url_for('static', filename='css/admin/naver-workbench.css') }}?v=20260823d">
+<link rel="stylesheet" href="{{ url_for('static', filename='css/admin/naver-workbench.css') }}?v=20260824a">
 {% endblock %}
 
 {% block content %}
@@ -193,13 +193,16 @@
                     <span class="wb-row__bar"></span>
                     {# 선택은 집 단위다 — 상품주문마다 체크박스를 두면 같은 집을 여러 번 고른다.
                        data-count 는 모달 재진술("N집 · 상품주문 M건")의 M 을 JS 가 더하는 값이다.
-                       **집 전체 수(household_count)** 를 쓴다 — group.count 는 확인 대기로 좁혀진
-                       화면 모집단 크기라, 확인이 끝난 형제가 있으면 워커가 처리할 수보다 작다.
-                       그 값으로 재진술하면 "1건 보냅니다"라고 읽고 3건이 나간다(리뷰 H2). #}
+                       **집 전체에서 발주확인이 남은 건수**를 쓴다.
+                        · group.count(화면 모집단)는 확인이 끝난 형제가 있으면 워커가 처리할
+                          수보다 **작다** — "1건 보냅니다" 라고 읽고 3건이 나간다(리뷰 H2).
+                        · household_count(집 전체)는 반대로 **크다** — 서버
+                          confirm_place_order 가 이미 확인된 형제를 빼기 때문이다
+                          (계약 §0-2, 2026-08-23 CEO 검수). 술어는 fulfillment.is_place_pending. #}
                     <input type="checkbox" class="wb-pick"
                            data-group-id="{{ group.id }}"
                            data-name="{{ group.customer_name }}"
-                           data-count="{{ group.household_count or group.count }}"
+                           data-count="{{ group.household_place_pending or group.household_count or group.count }}"
                            {% if not can_pick %}disabled
                            title="{% if group.claim_blocking %}취소·반품 집은 고를 수 없습니다{% elif group.canceled %}취소한 집은 고를 수 없습니다{% else %}이미 발주확인이 끝났습니다{% endif %}"
                            {% else %}title="여러 집을 한 번에 발주확인"{% endif %}
@@ -233,7 +236,11 @@
                             {% if group.canceled %}
                             <span class="badge bg-secondary">취소 완료</span>
                             {% endif %}
-                            {% if group.next_step and not row_locked %}
+                            {# 'spec' 행에서는 오른쪽 `.wb-can` 이 이미 "규격 입력할 차례" 라고
+                               말한다 — 배지까지 두면 같은 말이 한 줄에 두 번이다(발주확인 전
+                               배지와 같은 손질). 'wait'·'go' 의 "주문 만들기" 는 글자 라벨과
+                               다른 말이라 남긴다. #}
+                            {% if group.next_step and not row_locked and row_kind != 'spec' %}
                             <span class="badge bg-primary">{{ group.next_step }}</span>
                             {% endif %}
                             {% if group.claim_label %}
@@ -250,7 +257,9 @@
                             {# 발송기한을 넘기면 네이버가 자동 취소할 수 있다 — 없어진
                                '발주확인 전' 탭이 갖고 있던 사실을 여기로 옮겼다. #}
                             {% if group.shipping_due and group.place_pending and not row_locked %}
-                            <span class="badge bg-light text-dark">발송기한 {{ group.shipping_due }}</span>
+                            {# 연도는 전부 같은 해라 아무 결정도 바꾸지 않는다 — 목록에서만 뗀다
+                               (상세·모달은 전체 날짜 그대로). #}
+                            <span class="badge bg-light text-dark">발송기한 {{ group.shipping_due[5:] if group.shipping_due|length > 7 else group.shipping_due }}</span>
                             {% endif %}
                             {% if group.order_id %}
                             <span class="badge bg-light text-dark">주문 #{{ group.order_id }}</span>
@@ -492,5 +501,5 @@
 {% endblock %}
 
 {% block scripts %}
-<script src="{{ url_for('static', filename='js/admin/naver-workbench.js') }}?v=20260823d" defer></script>
+<script src="{{ url_for('static', filename='js/admin/naver-workbench.js') }}?v=20260824a" defer></script>
 {% endblock %}

@@ -451,7 +451,12 @@ def test_place_tab_shows_shipping_due_so_urgency_is_visible(client, workbench_on
     db_session.commit()
 
     body = client.get(f"{TRIAGE_PATH}?tab=place").get_data(as_text=True)
-    assert "2026-09-08" in body
+    # 목록 배지는 **연도를 떼고** 보여준다(월-일). 기한은 전부 같은 해라 연도가 아무 결정도
+    # 바꾸지 않는데, 19자를 그대로 쓰면 배지 줄이 접혀 행 높이가 튄다(2026-08-23 스테이징
+    # 실측: 이 손질을 포함한 셋으로 58행이 같은 높이가 됐다). 상세·모달은 전체 날짜 그대로다.
+    row = _row_of(body, "붙박이장")
+    assert "발송기한 09-08" in row, row
+    assert "2026-09-08" not in row, "목록 배지에 연도가 남았다"
 
 
 def test_place_tab_excludes_claimed_households(client, workbench_on):

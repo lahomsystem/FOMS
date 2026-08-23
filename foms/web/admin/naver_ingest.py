@@ -1148,6 +1148,9 @@ def _attach_household_counts(db, groups: list[dict[str, Any]]) -> None:
     # 집 dict 에는 주문번호가 없다(대표 link id 만 있다) — 대표 링크에서 뽑는다.
     lead_ids = [int(g["id"]) for g in groups if g.get("id")]
     counts: dict[Any, int] = {}
+    # 벌크 모달이 재진술할 건수 — 서버 confirm_place_order 는 이미 확인된 형제를 뺀다.
+    # 집 전체 수로 말하면 "119건 보냅니다" 인데 그보다 적게 나간다(계약 §0-2, CEO 검수 보통).
+    pending_counts: dict[Any, int] = {}
     blocking: set = set()
     canceled: set = set()
     order_nos = set()
@@ -1166,11 +1169,14 @@ def _attach_household_counts(db, groups: list[dict[str, Any]]) -> None:
                     ExternalOrderLink.external_order_no.in_(sorted(order_nos)))
             .all()
         )
+        from foms.services.integrations.naver_commerce.fulfillment import is_place_pending
         from foms.services.integrations.naver_commerce.mapping import extract_claim
 
         for row in rows:
             hkey = household_key(row)
             counts[hkey] = counts.get(hkey, 0) + 1
+            if is_place_pending(row):
+                pending_counts[hkey] = pending_counts.get(hkey, 0) + 1
             # 형제 전부를 이 한 번의 조회에서 판정한다. `_claim_blocked_group_keys` 는
             # `place_order_status='OK'` 형제의 **클레임만** 읽어서, ① 발주확인 전 형제의
             # 클레임 ② 우리가 낸 취소(`canceled_at`)를 놓쳤다 — 그 집은 행이 안 잠기고
@@ -1188,6 +1194,9 @@ def _attach_household_counts(db, groups: list[dict[str, Any]]) -> None:
         # 못 세면 화면이 아는 수로 떨어진다(작게 말하는 쪽이 크게 말하는 쪽보다 안전하지
         # 않다 — 그래서 이 값이 실패하면 모달이 집계를 숨기도록 템플릿이 판단한다).
         group["household_count"] = counts.get(group["key"], group["count"])
+        # 못 세면 화면이 아는 수(집 안 발주확인 전 건수)로 떨어진다.
+        group["household_place_pending"] = pending_counts.get(
+            group["key"], group.get("place_pending_count") or group["count"])
         # 형제까지 본 잠금 판정. 같은 쿼리 결과를 재사용하므로 조회는 늘지 않는다.
         if group["key"] in blocking:
             group["claim_blocking"] = True

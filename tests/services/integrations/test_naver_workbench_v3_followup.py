@@ -338,3 +338,20 @@ def test_offlist_is_judged_per_household_not_per_link(client, workbench_on):
     assert "붙박이장 본품" in body.split('id="wb-pane"')[0], "전제: 그 집이 목록에 있다"
     assert has_attribute(_pane(body), "wb-offlist", "hidden"), \
         "목록에 있는 집인데 '목록에 없는 집' 경고가 떴다"
+
+
+def test_bulk_count_excludes_already_confirmed_siblings(client, workbench_on):
+    """벌크 재진술 건수도 **서버가 보낼 건수**다.
+
+    행의 `data-count` 를 JS 가 더해 "N집 · 상품주문 M건" 을 만든다. 집 전체 수를 쓰면
+    이미 발주확인이 끝난 형제까지 세어 실제보다 크게 말한다(계약 §0-2).
+    """
+    _login(client)
+    lead = _collected(order_no="N-BULK-MIX", product="붙박이장 본품", amount=1000000,
+                      place_status="")
+    _sibling(lead, product="구성 A", amount=2000, place_status="")
+    _sibling(lead, product="이미 확인된 구성", amount=3000, place_status="OK")
+
+    body = client.get(f"{TRIAGE_PATH}?tab=work&f=place").get_data(as_text=True)
+    row = body.split('<a class="wb-row')[1].split("</a>")[0]
+    assert 'data-count="2"' in row, row
