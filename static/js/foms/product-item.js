@@ -167,6 +167,29 @@
     toggleRow(row, !!collapseDefault);
   }
 
+  // 마법사 카드 순번은 DOM 속성이 정본(삭제/복제 후 wizard.js가 다시 매긴다).
+  function wizardCardNumber(row) {
+    var idx = parseInt(row.getAttribute("data-product-index") || "0", 10);
+    return (isNaN(idx) ? 0 : idx) + 1;
+  }
+
+  function toggleWizardRow(row, collapsed) {
+    row.classList.toggle("foms-product-item--collapsed", collapsed);
+    var head = row.querySelector("[data-foms-product-toggle], .foms-product-item__head");
+    if (head) {
+      head.setAttribute("aria-expanded", collapsed ? "false" : "true");
+    }
+    var expand = row.querySelector(".foms-product-item__expand");
+    if (expand) {
+      expand.textContent = collapsed ? "▾" : "▴";
+      expand.setAttribute("aria-label", collapsed ? "펼치기" : "접기");
+    }
+    var summary = row.querySelector("[data-foms-product-summary]");
+    if (summary) {
+      summary.textContent = buildWizardSummary(row);
+    }
+  }
+
   function initWizardProducts(root) {
     var scope = root || document;
     scope.querySelectorAll(".foms-wizard__product-card[data-product-index]").forEach(function (row, idx) {
@@ -189,15 +212,19 @@
         summary.textContent = readValue(row.querySelector('[data-product-field="product_name"]')) || "제품명을 입력하세요";
       }
       if (head) {
-        head.addEventListener("click", function () {
-          toggleRow(row, !row.classList.contains("foms-product-item--collapsed"));
+        head.addEventListener("click", function (ev) {
+          // 삭제 버튼 클릭은 접기/펴기가 아니다(wizard.js 위임 핸들러가 처리).
+          if (ev.target.closest && ev.target.closest("[data-foms-product-remove]")) {
+            return;
+          }
+          toggleWizardRow(row, !row.classList.contains("foms-product-item--collapsed"));
         });
       }
       row.querySelectorAll("[data-product-field]").forEach(function (input) {
         input.addEventListener("input", function () {
           var titleEl = row.querySelector("[data-foms-product-title]");
           if (titleEl && input.getAttribute("data-product-field") === "product_name") {
-            titleEl.textContent = readValue(input) || "제품 " + (idx + 1);
+            titleEl.textContent = readValue(input) || "제품 " + wizardCardNumber(row);
           }
           if (summary) {
             summary.textContent = buildWizardSummary(row);

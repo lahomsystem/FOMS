@@ -45,6 +45,71 @@
     };
   }
 
+  function readChecked(el) {
+    return !!(el && el.checked);
+  }
+
+  // 주문 구분 플래그: 지방주문(=Order.is_regional 컬럼)·라홈시스템/긴급(=structured_data.flags).
+  function collectFlags(root) {
+    var regional = readChecked(root.querySelector("#wiz-flag-regional"));
+    var urgent = readChecked(root.querySelector("#wiz-flag-urgent"));
+    return {
+      regional_order: regional,
+      regional_construction_type: regional
+        ? readValue(root.querySelector("#wiz-regional-construction-type"))
+        : "",
+      factory2: readChecked(root.querySelector("#wiz-flag-factory2")),
+      urgent: urgent,
+      urgent_reason: urgent ? readValue(root.querySelector("#wiz-urgent-reason")) : "",
+    };
+  }
+
+  // 하위 입력(지방주문 구분·긴급 사유)은 상위 체크가 켜졌을 때만 노출한다.
+  function syncFlagFieldVisibility(root) {
+    var regional = readChecked(root.querySelector("#wiz-flag-regional"));
+    var regionalField = root.querySelector("#wiz-regional-type-field");
+    if (regionalField) {
+      regionalField.hidden = !regional;
+    }
+    if (!regional) {
+      var typeEl = root.querySelector("#wiz-regional-construction-type");
+      if (typeEl) typeEl.value = "";
+    }
+    var urgent = readChecked(root.querySelector("#wiz-flag-urgent"));
+    var urgentField = root.querySelector("#wiz-urgent-reason-field");
+    if (urgentField) {
+      urgentField.hidden = !urgent;
+    }
+    if (!urgent) {
+      var reasonEl = root.querySelector("#wiz-urgent-reason");
+      if (reasonEl) reasonEl.value = "";
+    }
+  }
+
+  function applyFlags(root, flags) {
+    if (!flags) {
+      return;
+    }
+    var map = {
+      "#wiz-flag-regional": !!flags.regional_order,
+      "#wiz-flag-factory2": !!flags.factory2,
+      "#wiz-flag-urgent": !!flags.urgent,
+    };
+    Object.keys(map).forEach(function (sel) {
+      var el = root.querySelector(sel);
+      if (el) el.checked = map[sel];
+    });
+    var typeEl = root.querySelector("#wiz-regional-construction-type");
+    if (typeEl && flags.regional_construction_type) {
+      typeEl.value = flags.regional_construction_type;
+    }
+    var reasonEl = root.querySelector("#wiz-urgent-reason");
+    if (reasonEl && flags.urgent_reason) {
+      reasonEl.value = flags.urgent_reason;
+    }
+    syncFlagFieldVisibility(root);
+  }
+
   function collectProducts(root) {
     var cards = root.querySelectorAll("[data-product-index]");
     var items = [];
@@ -174,6 +239,7 @@
     applyBasic(root, data);
     applyProducts(root, data.items, draftKey, scheduleSave);
     applySchedule(root, data.schedule);
+    applyFlags(root, data.flags);
     applyPayment(root, data);
   }
 
@@ -181,6 +247,7 @@
     var data = collectBasic(root);
     data.items = collectProducts(root);
     data.schedule = collectSchedule(root);
+    data.flags = collectFlags(root);
     data.deposit = collectPayment(root).deposit;
     return {
       schema_version: 1,
@@ -254,6 +321,40 @@
     applyAlpineErrors(root, {});
   }
 
+  // 카드 순번은 DOM 순서가 정본이다. 복제/삭제 후 인덱스·헤더 라벨·첨부 input id를
+  // 한 곳에서 다시 매긴다(복제본이 "#1 제품 1"로 고정되던 결함의 근본 수정).
+  function renumberProductCards(container) {
+    if (!container) {
+      return;
+    }
+    var cards = container.querySelectorAll("[data-product-index]");
+    var multi = cards.length > 1;
+    Array.prototype.forEach.call(cards, function (card, idx) {
+      card.setAttribute("data-product-index", String(idx));
+      var indexEl = card.querySelector(".foms-product-item__index");
+      if (indexEl) {
+        indexEl.textContent = "#" + (idx + 1);
+      }
+      var titleEl = card.querySelector("[data-foms-product-title]");
+      if (titleEl) {
+        titleEl.textContent =
+          readValue(card.querySelector('[data-product-field="product_name"]')) || "제품 " + (idx + 1);
+      }
+      var input = card.querySelector("[data-wizard-attachment-input]");
+      if (input) {
+        input.id = "wiz-attach-input-" + idx;
+      }
+      var widget = card.querySelector("[data-foms-photo-capture]");
+      if (widget) {
+        widget.setAttribute("data-target-input", "wiz-attach-input-" + idx);
+      }
+      var removeBtn = card.querySelector("[data-foms-product-remove]");
+      if (removeBtn) {
+        removeBtn.hidden = !multi;
+      }
+    });
+  }
+
   function cloneProductCard(container, draftKey, scheduleSave) {
     var cards = container.querySelectorAll("[data-product-index]");
     var template = cards[0];
@@ -298,6 +399,7 @@
     }
     clone._wizardAttachmentsBound = false;
     container.appendChild(clone);
+    renumberProductCards(container);
     if (window.FomsWizardAttachments) {
       window.FomsWizardAttachments.resetCard(clone);
       window.FomsWizardAttachments.bindCard(clone, draftKey, scheduleSave);
@@ -469,6 +571,20 @@
         }
       }
     }
+    if (step === 3) {
+      var flags = collectFlags(root);
+      if (flags.regional_order && !flags.regional_construction_type) {
+        errors.regional_construction_type = "지방주문 구분(하우드/협력사)을 선택해주세요.";
+        var typeEl = root.querySelector("#wiz-regional-construction-type");
+        if (typeEl) {
+          try {
+            typeEl.scrollIntoView({ block: "center", behavior: "smooth" });
+          } catch (e) {
+            typeEl.scrollIntoView();
+          }
+        }
+      }
+    }
     if (Object.keys(errors).length) {
       applyAlpineErrors(root, errors);
       return errors[Object.keys(errors)[0]];
@@ -492,6 +608,7 @@
       var card = container.querySelector('[data-product-index="' + idx + '"]');
       fillProductCard(card, item);
     });
+    renumberProductCards(container);
   }
 
   function esc(s) {
@@ -627,6 +744,32 @@
     return '<div class="foms-wizard__summary-row"><dt>' + esc(dt) + "</dt><dd>" + ddHtml + "</dd></div>";
   }
 
+  function renderFlagsSummaryRow(root) {
+    var flags = collectFlags(root);
+    var chips = [];
+    if (flags.regional_order) {
+      var label = "지방주문";
+      if (flags.regional_construction_type) {
+        label += " · " + flags.regional_construction_type.replace(" 시공", "");
+      }
+      chips.push('<span class="foms-wizard__summary-flag">' + esc(label) + "</span>");
+    }
+    if (flags.factory2) {
+      chips.push('<span class="foms-wizard__summary-flag">라홈시스템</span>');
+    }
+    if (flags.urgent) {
+      chips.push('<span class="foms-wizard__summary-flag foms-wizard__summary-flag--urgent">긴급</span>');
+    }
+    if (!chips.length) {
+      return "";
+    }
+    var body = '<span class="foms-wizard__summary-flags">' + chips.join("") + "</span>";
+    if (flags.urgent && flags.urgent_reason) {
+      body += '<div class="foms-wizard__summary-flag-reason">' + esc(flags.urgent_reason) + "</div>";
+    }
+    return sumRow("주문 구분", body);
+  }
+
   function renderSummary(root) {
     var basic = collectBasic(root);
     var schedule = collectSchedule(root);
@@ -703,7 +846,8 @@
         (schedule.load_date ? sumRow("상차", '<span class="foms-tabular">' + esc(schedule.load_date) + "</span>") : "") +
         (schedule.sales_manager ? sumRow("영업", esc(schedule.sales_manager)) : "") +
         (schedule.construction_manager ? sumRow("시공담당", esc(schedule.construction_manager)) : "") +
-        (schedule.notes ? sumRow("비고", esc(schedule.notes)) : "");
+        (schedule.notes ? sumRow("비고", esc(schedule.notes)) : "") +
+        renderFlagsSummaryRow(root);
     }
   }
 
@@ -836,9 +980,59 @@
       });
     }
 
+    // 주문 구분 체크 → 하위 입력 노출 동기화(+ 초안 저장).
+    syncFlagFieldVisibility(root);
+    ["#wiz-flag-regional", "#wiz-flag-urgent"].forEach(function (sel) {
+      var el = root.querySelector(sel);
+      if (!el) {
+        return;
+      }
+      el.addEventListener("change", function () {
+        syncFlagFieldVisibility(root);
+        draftClient.scheduleSave();
+      });
+    });
+    var regionalTypeEl = root.querySelector("#wiz-regional-construction-type");
+    if (regionalTypeEl) {
+      regionalTypeEl.addEventListener("change", function () {
+        if (readValue(regionalTypeEl)) {
+          clearAlpineErrors(root);
+        }
+        draftClient.scheduleSave();
+      });
+    }
+
     // 규격 행 추가/삭제(위임 → 동적 카드/행 대응).
     root.querySelectorAll("[data-product-index]").forEach(updateSpecDelVisibility);
+    renumberProductCards(root.querySelector("#foms-wizard-products"));
     root.addEventListener("click", function (e) {
+      var removeProductBtn = e.target.closest("[data-foms-product-remove]");
+      if (removeProductBtn) {
+        e.preventDefault();
+        e.stopPropagation();
+        var pContainer = root.querySelector("#foms-wizard-products");
+        var pCard = removeProductBtn.closest("[data-product-index]");
+        if (!pContainer || !pCard) {
+          return;
+        }
+        if (pContainer.querySelectorAll("[data-product-index]").length <= 1) {
+          return;
+        }
+        var pName = readValue(pCard.querySelector('[data-product-field="product_name"]'));
+        var pLabel = pName || "제품 " + (parseInt(pCard.getAttribute("data-product-index") || "0", 10) + 1);
+        if (!window.confirm(pLabel + " 항목을 삭제할까요?")) {
+          return;
+        }
+        pCard.remove();
+        renumberProductCards(pContainer);
+        recalcWizardAmounts(root);
+        var afterScan = findFirstEmptyProductCard(root);
+        if (afterScan.count && !afterScan.firstEmpty) {
+          clearAlpineErrors(root);
+        }
+        draftClient.scheduleSave();
+        return;
+      }
       var addBtn = e.target.closest("[data-spec-add]");
       if (addBtn) {
         var card = addBtn.closest("[data-product-index]");
