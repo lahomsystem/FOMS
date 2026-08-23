@@ -40,6 +40,27 @@
   line-height: 1;
 }
 
+/* 제품 카드 삭제(마법사) — 카드가 2개 이상일 때만 노출(hidden 속성은 JS가 제어) */
+.foms-product-item__remove {
+  border: 0;
+  background: transparent;
+  color: var(--foms-color-danger-600, #dc2626);
+  font-size: 0.9rem;
+  line-height: 1;
+  min-width: 32px;
+  min-height: 32px;
+  border-radius: 999px;
+  cursor: pointer;
+}
+
+.foms-product-item__remove[hidden] {
+  display: none;
+}
+
+.foms-product-item__remove:active {
+  background: var(--foms-color-danger-50, #fef2f2);
+}
+
 .foms-product-item--collapsed .foms-product-item__body {
   display: none;
 }

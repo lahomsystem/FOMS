@@ -45,6 +45,20 @@ def test_wizard_alpine_validation_and_multi_product() -> None:
     assert "foms-kv-row.css" in css
 
 
+def test_wizard_product_card_renumber_and_remove() -> None:
+    """복제 카드 헤더 번호 재매김 + 카드 삭제 버튼 계약."""
+    step2 = (ROOT / "templates/orders/wizard/step2_products.html").read_text(encoding="utf-8")
+    assert "data-foms-product-remove" in step2
+    js = (ROOT / "static/js/foms/wizard.js").read_text(encoding="utf-8")
+    assert "renumberProductCards" in js
+    assert '[data-foms-product-remove]' in js
+    item_js = (ROOT / "static/js/foms/product-item.js").read_text(encoding="utf-8")
+    # 헤더 삭제 버튼 클릭은 접기/펴기 토글이 아니다.
+    assert "data-foms-product-remove" in item_js
+    css = (ROOT / "static/css/components/foms-product-item.css").read_text(encoding="utf-8")
+    assert "foms-product-item__remove" in css
+
+
 def test_c14_product_item_contract() -> None:
     macro = (ROOT / "templates/macros/foms_product_item.html").read_text(encoding="utf-8")
     js = (ROOT / "static/js/foms/product-item.js").read_text(encoding="utf-8")
