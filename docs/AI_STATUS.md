@@ -8,6 +8,7 @@ Flask 2.3 + PostgreSQL + R2 + Railway (Web×2, Worker×1)
 브랜치: deploy (스테이징) → production (운영)
 
 ## 진행 중
+- [2026-08-23] **운영 승격 PR #133 대기(머지=사용자)** — 체인을 운영 head `notifrole_00` 위로 재직렬화, 운영 재현 upgrade 9리비전 + 스위트 5392 green. **승격은 당일 머지하거나 직전 head 재확인**(#113·#121 무효 전례). 원장 `docs/plans/2026-08-21-production-promotion-ledger.md`
 - [2026-08-21] **NOTIF-ROLE-01 운영 승격 완료(PR #127, production `1d35ed06`)** — 관리자 알림 사건 1건=row 1건(에스컬레이션 N²→N). `notifrole_00` 부모는 브랜치별로 다르다(deploy=`naver_relation_00` / 운영=`assort_00`) — 네이버 체인 운영 미반영. 네이버 `claim_watch` ROLE 전환은 네이버 승격 때. 승격 PR 은 pg-lane·perf-gate 만 돈다(FOMS CI·Harness CI 트리거가 main/deploy 한정)
 - [2026-08-20] **에스컬레이션 알림 본문·중복 수정 운영 반영(`67ecaff3`)** — 빈 제목만 쌓이던 문제 해결(본문+원본당 1건). 잔여: 상류 `claim_watch.py` 가 클레임마다 ADMIN 수만큼 개별 긴급 알림 생성 → 스테이징 1073건 원천
 - [2026-08-20] **복원 GUI T1 배포·QA + 저장 유실 수정(`ec6b22a9`)** — 변경 이력에서 필드 한 건 되돌리기(요청=change_id 만, 화이트리스트 12경로, 절단·타입·현재값 4가드). 스테이징 실화면 QA 통과. QA 중 발견: 편집 저장이 `parties` 통째 대입이라 폼 미렌더 키(`orderer.phone`·`customer.phone2`, 네이버 수집분)를 매번 삭제 → `_merge_preserving_missing` 대상에 `parties` 추가. **`parties.orderer` 이름 충돌(폼=발주사 vs 수집=주문자) 미해결**. 기존 유실분은 원장으로 셀 수 있다
