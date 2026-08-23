@@ -422,6 +422,44 @@ class NaverCommerceClient:
             headers={"Content-Type": "application/json"},
         )
 
+    def request_cancel_product_order(self, product_order_id: str, *, reason: str,
+                                     detail: Optional[str] = None,
+                                     quantity: Optional[int] = None) -> dict:
+        """판매자 직접취소 — 상품주문 **1건**을 취소 요청한다.
+
+        발주확인·발송처리와 달리 배치가 없다(문서 "취소 요청": 1건의 상품 주문을 취소
+        요청합니다). 집 단위 처리는 호출자가 돌면서 한다.
+
+        Args:
+            product_order_id: 취소할 ``productOrderId``.
+            reason: 클레임 요청 사유 코드(``SOLD_OUT`` 등 — 목록은
+                :data:`fulfillment.CANCEL_REASONS`).
+            detail: 취소 상세 사유(500자 제한). 없으면 보내지 않는다.
+            quantity: 취소 수량. 없으면 전체 수량 취소다(네이버 기본값).
+
+        Returns:
+            응답 payload(원본). 건별 성공/실패는 ``data.successProductOrderIds`` 와
+            ``data.failProductOrderInfos`` 로 온다.
+
+        Raises:
+            ValueError: 상품주문번호나 사유가 비었을 때(빈 요청으로 API 를 때리지 않는다).
+        """
+        pid = str(product_order_id or "").strip()
+        if not pid:
+            raise ValueError("취소할 상품주문번호가 없습니다.")
+        if not str(reason or "").strip():
+            raise ValueError("취소 사유가 없습니다.")
+        body: dict[str, Any] = {"cancelReason": str(reason).strip()}
+        if detail:
+            body["cancelDetailedReason"] = str(detail)[:500]
+        if quantity is not None:
+            body["cancelQuantity"] = int(quantity)
+        return self._request(
+            "POST", f"/v1/pay-order/seller/product-orders/{pid}/claim/cancel/request",
+            json_body=body,
+            headers={"Content-Type": "application/json"},
+        )
+
     # -- HTTP ------------------------------------------------------------- #
 
     def _session(self) -> Any:

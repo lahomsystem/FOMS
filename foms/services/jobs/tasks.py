@@ -230,16 +230,19 @@ def run_notification_escalation_task():
         raise
 
 
-def run_naver_fulfillment_task(link_id: int, action: str, actor_user_id=None):
-    """발주확인·발송처리 1건 실행 (NAVER-INGEST-02 T16-G, WORKER 전용).
+def run_naver_fulfillment_task(link_id: int, action: str, actor_user_id=None,
+                               reason=None, detail=None):
+    """발주확인·발송처리·취소 1건 실행 (NAVER-INGEST-02 T16-G, WORKER 전용).
 
     web 은 enqueue 만 한다 — 커머스API 에 등록된 호출 IP 가 WORKER 것뿐이라 web 에서 나가면
     차단된다. 되돌릴 수 없는 조작이라 멱등 기록은 서비스(fulfillment)가 책임진다.
 
     Args:
         link_id: 기준 수집 링크 id(같은 집 전체가 함께 처리된다).
-        action: ``confirm``(발주확인) 또는 ``dispatch``(발송처리).
+        action: ``confirm``(발주확인) · ``dispatch``(발송처리) · ``cancel``(판매자 직접취소).
         actor_user_id: 화면에서 누른 사람(기록용).
+        reason: 취소 사유 코드(``cancel`` 일 때만).
+        detail: 취소 상세 사유(``cancel`` 일 때만, 선택).
 
     Returns:
         서비스 결과 dict.
@@ -247,10 +250,7 @@ def run_naver_fulfillment_task(link_id: int, action: str, actor_user_id=None):
     try:
         from db import db_session
         from foms.services.integrations.naver_commerce.client import NaverCommerceClient
-        from foms.services.integrations.naver_commerce.fulfillment import (
-            confirm_place_order,
-            dispatch_order,
-        )
+        from foms.services.integrations.naver_commerce import fulfillment as naver_fulfillment
 
         from foms.services.integrations.naver_commerce.fulfillment import FulfillmentError
 
@@ -258,11 +258,15 @@ def run_naver_fulfillment_task(link_id: int, action: str, actor_user_id=None):
         try:
             client = NaverCommerceClient()
             if action == "confirm":
-                result = confirm_place_order(db, client, link_id=int(link_id),
-                                             actor_user_id=actor_user_id)
+                result = naver_fulfillment.confirm_place_order(
+                    db, client, link_id=int(link_id), actor_user_id=actor_user_id)
             elif action == "dispatch":
-                result = dispatch_order(db, client, link_id=int(link_id),
-                                        actor_user_id=actor_user_id)
+                result = naver_fulfillment.dispatch_order(
+                    db, client, link_id=int(link_id), actor_user_id=actor_user_id)
+            elif action == "cancel":
+                result = naver_fulfillment.cancel_order(
+                    db, client, link_id=int(link_id), reason=str(reason or ""),
+                    detail=detail, actor_user_id=actor_user_id)
             else:
                 raise ValueError(f"알 수 없는 작업입니다: {action}")
             db.commit()

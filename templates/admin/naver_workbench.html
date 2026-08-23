@@ -14,7 +14,7 @@
 {% block title %}네이버 수집{% endblock %}
 
 {% block styles %}
-<link rel="stylesheet" href="{{ url_for('static', filename='css/admin/naver-workbench.css') }}?v=20260822a">
+<link rel="stylesheet" href="{{ url_for('static', filename='css/admin/naver-workbench.css') }}?v=20260822b">
 {% endblock %}
 
 {% block content %}
@@ -43,7 +43,7 @@
     {% if failures %}
     <section class="wb-result alert alert-danger" id="wb-result" data-foms-no-autodismiss>
         <div class="wb-result__head">
-            <span class="fw-semibold">발주확인·발송처리 실패 {{ failures|length }}집</span>
+            <span class="fw-semibold">네이버 처리 실패 {{ failures|length }}집</span>
             <span class="small">아래 사유를 먼저 해결한 뒤 실패한 집만 다시 보내세요.</span>
             <span class="small ms-auto">이 알림은 자동으로 사라지지 않습니다.</span>
         </div>
@@ -69,11 +69,22 @@
         <div class="wb-result__foot">
             {# 성공한 집은 대상에서 아예 뺀다 — 재시도가 성공분까지 건드리면 안 된다. #}
             {# `<링크 id>:<작업>` 쌍으로 넘긴다 — 실패한 그 작업으로 다시 보내야 한다.
-               전부 발주확인으로 보내면 발송처리 실패는 멱등 규칙에 걸려 조용히 넘어간다. #}
+               전부 발주확인으로 보내면 발송처리 실패는 멱등 규칙에 걸려 조용히 넘어간다.
+               **취소 실패는 여기 넣지 않는다**: 사유를 다시 골라야 하고, 목록에 섞으면
+               취소하려던 집으로 발주확인이 나간다(되돌릴 수 없는 반대 조작). #}
+            {% set retryable = failures | selectattr('retryable') | list %}
+            {% if retryable %}
             <button type="button" class="btn btn-danger btn-sm" id="wb-retry-failed"
-                    data-link-ids="{% for row in failures %}{{ row.link_id }}:{{ row.action }}{% if not loop.last %},{% endif %}{% endfor %}">
-                실패한 {{ failures|length }}집만 다시 시도
+                    data-link-ids="{% for row in retryable %}{{ row.link_id }}:{{ row.action }}{% if not loop.last %},{% endif %}{% endfor %}">
+                실패한 {{ retryable|length }}집만 다시 시도
             </button>
+            {% endif %}
+            {% if failures|length > retryable|length %}
+            <div class="small mt-1">
+                취소 실패 {{ failures|length - retryable|length }}집은 여기서 되보낼 수 없습니다 —
+                그 집을 열어 <b>사유를 다시 고른 뒤</b> 취소처리를 보내세요.
+            </div>
+            {% endif %}
         </div>
     </section>
     {% endif %}
@@ -220,6 +231,16 @@
                             data-bs-toggle="modal" data-bs-target="#wb-modal-dispatch">
                         {{ '지금 닫기' if close_now else '발송처리' }}
                     </button>
+                    {% endif %}
+
+                    {# 판매자 직접취소 — 예전에는 이 화면에 없어서 판매자센터로 나가야 했다.
+                       발송처리가 나간 집은 취소가 아니라 반품 흐름이라 버튼을 내지 않는다
+                       (서버도 막는다). 이미 취소한 집은 표식만 남긴다. #}
+                    {% if selected.fulfillment.canceled_at %}
+                    <span class="badge bg-secondary">취소 완료</span>
+                    {% elif not selected.fulfillment.dispatched_at %}
+                    <button type="button" class="btn btn-outline-danger btn-sm" id="wb-cancel"
+                            data-bs-toggle="modal" data-bs-target="#wb-modal-cancel">취소처리</button>
                     {% endif %}
                     {% endif %}
                 </span>
@@ -472,6 +493,62 @@
                 </div>
             </div>
             {% endif %}
+            {% endif %}
+
+            {# 결정 6 불가역 4종 세트 — 취소 쪽. 버튼과 **같은 조건**으로 렌더한다. #}
+            {% if not household_claimed and not selected.fulfillment.dispatched_at
+                  and not selected.fulfillment.canceled_at %}
+            <div class="modal fade" id="wb-modal-cancel" tabindex="-1" aria-hidden="true">
+                <div class="modal-dialog modal-dialog-centered">
+                    <div class="modal-content">
+                        <div class="modal-header">
+                            <h5 class="modal-title">취소를 보내기 전에 확인하세요</h5>
+                            <button type="button" class="btn-close" data-bs-dismiss="modal" aria-label="닫기"></button>
+                        </div>
+                        <div class="modal-body">
+                            {# ① 건수 재진술 #}
+                            <p class="fw-semibold mb-2">
+                                {{ selected.naver.recipient_name }}님의 상품주문
+                                {{ selected_group.count if selected_group else 1 }}건을
+                                네이버에서 <b>판매자 직접취소</b> 합니다.
+                            </p>
+                            {# ② 되돌릴 수 없음 #}
+                            <div class="alert alert-danger py-2 mb-2" data-foms-no-autodismiss>
+                                네이버로 나가는 호출이라 <b>되돌릴 수 없습니다</b>. 구매자에게 결제
+                                <b>환불</b>이 시작되고, 취소된 주문은 다시 살릴 수 없습니다.
+                            </div>
+                            {# ③ 사유 — 네이버가 아는 코드만 보낸다(서버가 다시 검사한다). #}
+                            <label class="form-label small fw-semibold mb-1" for="wb-cancel-reason">
+                                취소 사유
+                            </label>
+                            <select class="form-select form-select-sm mb-2" id="wb-cancel-reason">
+                                {% for code, label in cancel_reasons.items() %}
+                                <option value="{{ code }}">{{ label }}</option>
+                                {% endfor %}
+                            </select>
+                            <label class="form-label small fw-semibold mb-1" for="wb-cancel-detail">
+                                상세 사유 <span class="text-muted fw-normal">(선택, 500자)</span>
+                            </label>
+                            <textarea class="form-control form-control-sm mb-2" id="wb-cancel-detail"
+                                      rows="2" maxlength="500"
+                                      placeholder="예: 고객 통화 확인 — 재고 없음"></textarea>
+                            {# ④ 사후 경로 #}
+                            <p class="small text-muted mb-0">
+                                보낸 뒤에는 이 집이 <b>취소 완료</b>로 바뀝니다. <b>FOMS 주문은 그대로입니다</b> —
+                                주문을 없애려면 주문 화면에서 따로 취소하세요. 실패하면 화면 위 실패 목록에
+                                사유가 남습니다.
+                            </p>
+                        </div>
+                        <div class="modal-footer">
+                            <button type="button" class="btn btn-outline-secondary" data-bs-dismiss="modal">닫기</button>
+                            <button type="button" class="btn btn-danger" id="wb-cancel-confirm"
+                                    data-link-id="{{ selected_group.id if selected_group else selected.link_id }}">
+                                취소 보내기
+                            </button>
+                        </div>
+                    </div>
+                </div>
+            </div>
             {% endif %}
             {% else %}
             <div class="card-body wb-empty">확인할 주문이 없습니다.</div>
@@ -855,5 +932,5 @@
 {% endblock %}
 
 {% block scripts %}
-<script src="{{ url_for('static', filename='js/admin/naver-workbench.js') }}?v=20260822a" defer></script>
+<script src="{{ url_for('static', filename='js/admin/naver-workbench.js') }}?v=20260822b" defer></script>
 {% endblock %}

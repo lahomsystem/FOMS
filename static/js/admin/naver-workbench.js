@@ -8,6 +8,7 @@
 
     wireCreateOrder();
     wireRelation();
+    wireCancel();
     wirePlaceOrder();
     wireClaimDone();
     wireRetryFailed();
@@ -261,6 +262,46 @@
                 window.alert('실패 ' + failures.length + '집\n' + failures.join('\n'));
             }
             window.location.reload();
+        });
+    }
+
+    /* ── 처리 대기 탭: 판매자 직접취소 ────────────────────────────────────
+       되돌릴 수 없다. 사유는 네이버 코드 그대로 보내고, 서버가 다시 검사한다.
+       버튼은 한 번만 눌린다 — 두 번 나가면 두 번째는 네이버가 거절하고 실패 띠만 남는다. */
+    function wireCancel() {
+        var confirmBtn = document.getElementById('wb-cancel-confirm');
+        if (!confirmBtn) {
+            return;
+        }
+        confirmBtn.addEventListener('click', async function () {
+            var reasonEl = document.getElementById('wb-cancel-reason');
+            var detailEl = document.getElementById('wb-cancel-detail');
+            if (!reasonEl || !reasonEl.value) {
+                window.alert('취소 사유를 고르세요.');
+                return;
+            }
+            confirmBtn.disabled = true;
+            try {
+                const response = await fetch(
+                    '/admin/naver-ingest/' + confirmBtn.dataset.linkId + '/cancel', {
+                        method: 'POST',
+                        headers: { 'Content-Type': 'application/json' },
+                        body: JSON.stringify({
+                            reason: reasonEl.value,
+                            detail: detailEl ? detailEl.value : ''
+                        })
+                    });
+                const data = await response.json();
+                if (!data.success) {
+                    window.alert(data.error || '취소 요청에 실패했습니다.');
+                    confirmBtn.disabled = false;
+                    return;
+                }
+                window.location.reload();
+            } catch (error) {
+                window.alert('요청 중 오류가 발생했습니다: ' + error);
+                confirmBtn.disabled = false;
+            }
         });
     }
 

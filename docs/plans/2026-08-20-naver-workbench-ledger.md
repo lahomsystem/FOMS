@@ -401,9 +401,9 @@ CI: 두 푸시 모두 **ALL GREEN**(FOMS CI · Harness CI · PostgreSQL Lane · 
 
 | Task | 내용 | 완료 기준 | 상태 |
 |------|------|-----------|------|
-| T-R1 | 관계 배지 — `_group_queue` 에 relation, 큐 줄·상세 pane 에 ADDON/REPAY 배지 | 배지 렌더 계약 테스트 green, NEW 는 무배지 | PENDING |
-| T-R2 | 관계 섹션 — 대조표 아래 후보 표 + 붙이기(ADDON/REPAY) + 되돌리기 | 후보/붙음/없음 3상태 렌더 테스트 green | PENDING |
-| T-R3 | 발송처리 분기 — ADDON/REPAY 발주확인 전 단독 허용, NEW 는 잠금+경고 | `dispatch_order` 관계별 가드 테스트 + 버튼 계약 green | PENDING |
-| T-R4 | 판매자 직접취소 — client·fulfillment·worker·route·UI·manifest 2종·감사 라벨·coverage | 취소 서비스/라우트 테스트 green, manifest·coverage 재생성 | PENDING |
+| T-R1 | 관계 배지 — `_group_queue` 에 relation, 큐 줄·상세 pane 에 ADDON/REPAY 배지 | 배지 렌더 계약 테스트 green, NEW 는 무배지 | DONE |
+| T-R2 | 관계 섹션 — 대조표 아래 후보 표 + 붙이기(ADDON/REPAY) + 되돌리기 | 후보/붙음/없음 3상태 렌더 테스트 green | DONE |
+| T-R3 | 발송처리 분기 — ADDON/REPAY 발주확인 전 단독 허용, NEW 는 잠금+경고 | `dispatch_order` 관계별 가드 테스트 + 버튼 계약 green | DONE |
+| T-R4 | 판매자 직접취소 — client·fulfillment·worker·route·UI·manifest 2종·감사 라벨·coverage | 취소 서비스/라우트 테스트 green, manifest·coverage 재생성 | DONE |
 | T-R5 | 1440 실브라우저 확인 | 배지·붙이기·되돌리기·발송처리 분기·취소 모달 눈으로 확인 | PENDING |
 

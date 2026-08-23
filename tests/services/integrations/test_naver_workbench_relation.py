@@ -225,3 +225,79 @@ def test_addon_modal_says_it_closes_the_payment(client, workbench_on):
     body = _body(client, tab="work", link_id=link.id)
 
     assert "따로 나가지 않" in body
+
+
+# --------------------------------------------------------------------------- #
+# T-R4 판매자 직접취소 — 화면 (스펙 §3.4)
+# --------------------------------------------------------------------------- #
+
+def test_detail_has_a_cancel_button_and_reason_picker(client, workbench_on):
+    """취소는 판매자센터로 나가지 않고 여기서 한다 — 버튼 + 사유 선택."""
+    _login(client)
+    link = _collected(order_no="N-REL-CXL")
+
+    body = _body(client, tab="work", link_id=link.id)
+
+    assert 'id="wb-cancel"' in body
+    assert 'id="wb-modal-cancel"' in body
+    assert 'value="SOLD_OUT"' in body, "네이버 사유 코드를 그대로 보낸다"
+    assert "상품 품절" in body, "사람이 읽는 라벨도 함께 보여준다"
+
+
+def test_cancel_modal_restates_the_count_and_says_it_is_final(client, workbench_on):
+    """불가역 4종 세트 — 건수 재진술 + 되돌릴 수 없음 + 사후 경로."""
+    _login(client)
+    link = _collected(order_no="N-REL-CXL-MODAL")
+
+    body = _body(client, tab="work", link_id=link.id)
+
+    assert "되돌릴 수 없습니다" in body
+    assert "환불" in body or "결제" in body, "구매자에게 무엇이 일어나는지 말해야 한다"
+
+
+def test_dispatched_household_cannot_be_cancelled(client, workbench_on):
+    """발송처리한 집은 취소가 아니라 반품이다 — 버튼을 열지 않는다(서버도 막는다)."""
+    _login(client)
+    link = _collected(order_no="N-REL-CXL-SENT")
+    link.triage_state = {"fulfillment": {"dispatched_at": "2026-08-22T00:00:00"}}
+    db_session.commit()
+
+    body = _body(client, tab="work", link_id=link.id)
+
+    assert 'id="wb-cancel"' not in body
+
+
+def test_cancel_failure_is_not_retried_as_a_place_confirmation(client, workbench_on):
+    """취소 실패를 '발주확인'으로 재시도하면 안 된다 — 되돌릴 수 없는 오발사다.
+
+    실패 행의 action 은 워커가 적은 값 그대로 살아야 한다. 모르는 값을 confirm 으로
+    강등하면, 취소하려던 집에 발주확인이 나간다.
+    """
+    _login(client)
+    link = _collected(order_no="N-REL-CXL-FAIL")
+    link.triage_state = {"fulfillment": {"last_error": "상품 주문 상태 확인 필요",
+                                         "last_error_action": "cancel",
+                                         "last_error_at": "2026-08-22T01:00:00"}}
+    db_session.commit()
+
+    body = _body(client, tab="work", link_id=link.id)
+
+    assert f'{link.id}:confirm' not in body
+    assert "취소" in body
+
+
+def test_cancel_failure_alone_leaves_no_retry_button(client, workbench_on):
+    """취소 실패만 있으면 '실패한 집만 다시 시도' 버튼을 내지 않는다.
+
+    취소는 사유를 다시 골라야 한다 — 버튼 하나로 되보낼 수 없다.
+    """
+    _login(client)
+    link = _collected(order_no="N-REL-CXL-FAIL2")
+    link.triage_state = {"fulfillment": {"last_error": "네이버 거절",
+                                         "last_error_action": "cancel",
+                                         "last_error_at": "2026-08-22T01:00:00"}}
+    db_session.commit()
+
+    body = _body(client, tab="work", link_id=link.id)
+
+    assert 'id="wb-retry-failed"' not in body

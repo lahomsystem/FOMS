@@ -618,9 +618,13 @@ def naver_ingest_triage():
                          if active_tab == "all" and _can_view_history() else {})
         # 실패는 어느 탭에 있든 보여야 한다 — 탭을 옮겼다고 사고가 사라지지 않는다.
         failures = _failure_rows(db)
+        from foms.services.integrations.naver_commerce.fulfillment import CANCEL_REASONS
+
         return render_template(
             "admin/naver_workbench.html",
             active_tab=active_tab,
+            # 취소 사유는 네이버 코드가 SSOT 다 — 화면이 따로 목록을 들면 둘이 갈린다.
+            cancel_reasons=CANCEL_REASONS,
             can_view_history=_can_view_history(),
             selected_household_claimed=selected_household_claimed,
             member_rows=_member_rows(db, selected_group),
@@ -720,14 +724,19 @@ def _failure_rows(db) -> list[dict[str, Any]]:
         # 재시도를 항상 발주확인으로 보내면 발송처리 실패는 멱등 규칙에 걸려 조용히
         # 넘어가고 실패 띠만 영원히 남는다.
         action = str(state.get("last_error_action") or "confirm").strip().lower()
-        action = action if action in ("confirm", "dispatch") else "confirm"
+        action = action if action in ("confirm", "dispatch", "cancel") else "confirm"
         rows.append({
             "link_id": link.id,
             "customer_name": summary["customer_name"] or link.external_id,
             "external_order_no": link.external_order_no or "",
             "reason": reason,
             "action": action,
-            "action_label": "발주확인" if action == "confirm" else "발송처리",
+            "action_label": {"confirm": "발주확인", "dispatch": "발송처리",
+                             "cancel": "취소"}[action],
+            # 취소는 사유를 다시 골라야 해서 버튼 하나로 되보낼 수 없다. 재시도 목록에
+            # 넣으면 그 집이 **발주확인**으로 나간다 — 취소하려던 집에 되돌릴 수 없는
+            # 반대 조작이 나가는 자리다. 상세 pane 에서 사유와 함께 다시 보낸다.
+            "retryable": action in ("confirm", "dispatch"),
             "at": str(state.get("last_error_at") or "")[:16].replace("T", " "),
         })
     return rows
@@ -1166,6 +1175,44 @@ def naver_ingest_fulfillment(link_id: int):
     )
     return jsonify({"success": True,
                     "data": {"link_id": link_id, "action": action, "queued": True},
+                    "error": None})
+
+
+@admin_bp.route("/admin/naver-ingest/<int:link_id>/cancel", methods=["POST"])
+@login_required
+@role_required(["ADMIN", "MANAGER", "STAFF"])
+def naver_ingest_cancel(link_id: int):
+    """판매자 직접취소를 **큐에 넣는다** (스펙 §3.4).
+
+    네이버 HTTP 는 WORKER 에서만 나간다(호출 IP 3슬롯 계약). 사유 코드는 화면 select 를
+    믿지 않고 여기서 다시 본다 — 목록 밖 코드는 네이버 400 이고, 되돌릴 수 없는 경로다.
+
+    FOMS 주문은 건드리지 않는다. 네이버 쪽만 취소한다(주문 취소는 주문 화면의 일이다).
+    """
+    from foms.services.integrations.naver_commerce.fulfillment import CANCEL_REASONS
+
+    payload = request.get_json(silent=True) or {}
+    reason = str(payload.get("reason") or "").strip().upper()
+    detail = str(payload.get("detail") or "").strip()[:500]
+    if reason not in CANCEL_REASONS:
+        return jsonify({"success": False, "data": None,
+                        "error": "취소 사유를 고르세요."}), 400
+
+    from foms.services.jobs.queue import enqueue_naver_cancel
+
+    queued = enqueue_naver_cancel(link_id, reason, detail or None, session.get("user_id"))
+    if not queued:
+        return jsonify({"success": False, "data": None,
+                        "error": "작업 큐를 쓸 수 없습니다(REDIS_URL 미설정 또는 큐 장애). "
+                                 "지금은 판매자센터에서 처리하세요."}), 503
+
+    log_access(
+        f"네이버 취소 요청 (link {link_id}, {CANCEL_REASONS[reason]})",
+        action="NAVER_INGEST_CANCEL_ENQUEUE",
+        detail={"link_id": link_id, "reason": reason, "cancel_detail": detail},
+    )
+    return jsonify({"success": True,
+                    "data": {"link_id": link_id, "reason": reason, "queued": True},
                     "error": None})
 
 

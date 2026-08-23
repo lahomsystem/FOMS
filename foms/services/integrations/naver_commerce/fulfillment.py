@@ -51,6 +51,18 @@ DIRECT_DELIVERY = "DIRECT_DELIVERY"
 #: 신규(NEW·빈값)는 그대로 발주확인이 먼저다.
 CLOSE_NOW_RELATIONS = ("ADDON", "REPAY")
 
+#: 판매자 직접취소 사유 코드 → 사람이 읽는 라벨 (커머스API 2.86.0 "취소 요청").
+#: 네이버가 아는 값만 보낸다 — 목록 밖 코드는 400 이고, 되돌릴 수 없는 경로라 미리 막는다.
+CANCEL_REASONS = {
+    "INTENT_CHANGED": "구매 의사 취소",
+    "COLOR_AND_SIZE": "색상 및 사이즈 변경",
+    "WRONG_ORDER": "다른 상품 잘못 주문",
+    "PRODUCT_UNSATISFIED": "서비스 불만족",
+    "DELAYED_DELIVERY": "배송 지연",
+    "SOLD_OUT": "상품 품절",
+    "INCORRECT_INFO": "상품 정보 상이",
+}
+
 #: KST — 네이버는 발송일에 타임존이 붙은 ISO8601 을 요구한다.
 KST = timezone(timedelta(hours=9))
 
@@ -452,4 +464,88 @@ def dispatch_order(session: Session, client: Any, *, link_id: int,
         raise FulfillmentError(f"발송처리 일부가 실패했습니다: {detail}")
     logger.info("[NAVER] 발송처리 완료 link=%s 건수=%d", link_id, len(ok_ids))
     return {"dispatched": ok_ids,
+            "skipped": [row.external_id for row in links if row not in todo]}
+
+
+def cancel_order(session: Session, client: Any, *, link_id: int, reason: str,
+                 detail: Optional[str] = None, actor_user_id: Optional[int] = None,
+                 now: Optional[datetime] = None) -> dict[str, Any]:
+    """한 집을 **판매자 직접취소** 한다 (WORKER 실행, 스펙 §3.4).
+
+    네이버 취소는 상품주문 1건씩이라(배치 없음) 집을 돌며 부른다. 한 건이 실패해도 나머지는
+    계속 부른다 — 반쪽만 취소된 채 사람이 사유를 못 보는 상태가 제일 나쁘다.
+
+    **FOMS 주문은 건드리지 않는다.** 네이버 쪽만 취소한다. 주문 취소는 주문 화면의 일이고,
+    두 곳에서 상태를 쓰면 SSOT 가 갈린다.
+
+    Args:
+        session: DB 세션(호출자가 commit 을 소유한다).
+        client: 커머스API 클라이언트.
+        link_id: 기준 링크 id(같은 집 전체가 함께 처리된다).
+        reason: 취소 사유 코드(:data:`CANCEL_REASONS` 안의 값).
+        detail: 취소 상세 사유(선택, 500자).
+        actor_user_id: 누른 사람(기록용).
+        now: 시각 주입(테스트).
+
+    Returns:
+        ``{"canceled": [...], "skipped": [...]}``.
+
+    Raises:
+        FulfillmentError: 링크가 없거나, 사유 코드가 목록 밖이거나, 이미 발송처리한
+            집이거나, 클레임이 도는 집이거나, 네이버 호출이 실패했을 때.
+    """
+    stamp = now or now_utc_naive()
+    code = str(reason or "").strip().upper()
+    if code not in CANCEL_REASONS:
+        # 네이버가 모르는 코드는 400 으로 돌아온다. 되돌릴 수 없는 경로라 호출 전에 막는다.
+        raise FulfillmentError(f"취소 사유 코드가 올바르지 않습니다 ({reason}).")
+
+    links = _links_of_group(session, link_id)
+    _claim_guard(session, links, action="cancel", stamp=stamp)
+
+    # 발송처리가 나간 집은 취소가 아니라 반품 흐름이다(네이버도 거절한다).
+    dispatched = [row for row in links if _state(row).get("dispatched_at")]
+    if dispatched:
+        reason_text = ("이미 발송처리한 집입니다 — 취소가 아니라 반품으로 처리해야 합니다"
+                       "(판매자센터).")
+        _mark_failures({str(row.external_id): row for row in dispatched},
+                       {str(row.external_id): reason_text for row in dispatched},
+                       action="cancel", stamp=stamp)
+        session.flush()
+        raise FulfillmentError(reason_text)
+
+    todo = [row for row in links if not _state(row).get("canceled_at")]
+    if not todo:
+        return {"canceled": [], "skipped": [row.external_id for row in links]}
+
+    ok_ids: list[str] = []
+    failures: dict[str, str] = {}
+    by_id = {str(row.external_id): row for row in todo}
+    for pid, row in by_id.items():
+        try:
+            response = client.request_cancel_product_order(pid, reason=code, detail=detail)
+        except Exception as exc:  # noqa: BLE001 - 사유 문장을 그대로 사람에게 보여준다
+            logger.warning("[NAVER] 취소 실패 link=%s po=%s: %s", link_id, pid, exc)
+            failures[pid] = str(exc)[:500]
+            continue
+        # 커머스API 는 HTTP 200 안에 건별 실패를 담는다 — 발주확인·발송처리와 같은 파서를 쓴다.
+        succeeded, failed = _split_result(response, [pid])
+        failures.update(failed)
+        ok_ids.extend(succeeded)
+
+    for pid in ok_ids:
+        _write_state(by_id[pid], {"canceled_at": stamp.isoformat(),
+                                  "canceled_by": actor_user_id,
+                                  "cancel_reason": code,
+                                  "cancel_detail": (detail or "")[:500],
+                                  "last_error": "", "last_error_at": "",
+                                  "last_error_action": ""})
+    _mark_failures(by_id, failures, action="cancel", stamp=stamp)
+    session.flush()
+    if failures:
+        logger.warning("[NAVER] 취소 부분 실패 link=%s 실패=%d", link_id, len(failures))
+        detail_text = "; ".join(f"{pid}: {why}" for pid, why in failures.items())
+        raise FulfillmentError(f"취소 일부가 실패했습니다: {detail_text}")
+    logger.info("[NAVER] 취소 완료 link=%s 건수=%d", link_id, len(ok_ids))
+    return {"canceled": ok_ids,
             "skipped": [row.external_id for row in links if row not in todo]}

@@ -190,6 +190,28 @@ def enqueue_naver_fulfillment(link_id: int, action: str, actor_user_id=None):
         return False
 
 
+def enqueue_naver_cancel(link_id: int, reason: str, detail=None, actor_user_id=None):
+    """판매자 직접취소 job enqueue (스펙 §3.4).
+
+    발주확인·발송처리와 같은 출구(WORKER)를 쓴다 — 커머스API 호출 IP 가 WORKER 것뿐이다.
+    큐가 없으면 False 를 돌려주고 화면이 "판매자센터에서 처리하세요"를 그대로 보여준다.
+    """
+    q = get_rq_queue()
+    if not q:
+        return False
+    try:
+        q.enqueue(
+            f"{_TASK_PATH_PREFIX}.run_naver_fulfillment_task",
+            int(link_id), "cancel", actor_user_id,
+            reason=str(reason), detail=detail,
+            job_timeout="5m",
+        )
+        return True
+    except Exception as e:
+        logger.error(f"[RQ] enqueue_naver_cancel error: {e}", exc_info=True)
+        return False
+
+
 def enqueue_naver_order_sync(dry_run: bool = False):
     """네이버 주문 수집 job enqueue (NAVER-INGEST-01 "지금 수집").
 
