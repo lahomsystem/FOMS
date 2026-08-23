@@ -476,3 +476,12 @@ CI: 두 푸시 모두 **ALL GREEN**(FOMS CI · Harness CI · PostgreSQL Lane · 
 | [높음 F5] 취소 모달 건수 < 서버가 취소할 건수 | **닫음** — pane 의 집을 `_group_of_link`(주문번호+집 키 전체)로 통일. 모달 문장·상품주문 표·place_pending 이 모두 워커가 처리할 집과 같은 모집단을 본다. 계약 테스트 1건 |
 | [보통] 발송처리 버튼 열림 vs 서버 집 전체 차단 | 위 통일로 함께 닫힘(같은 모집단 불일치였다) |
 
+
+### deploy 승격 (2026-08-23)
+
+- `cbd5b488..5f9433c5` push 완료(내 세션 커밋 5개만 cherry-pick). 승격 트리에서 alembic 단일 head·
+  인벤토리 3종·integrations 443 재확인 후 push. 충돌은 이 원장 파일 1개뿐(코드 의존 아님).
+- CI: Harness ✅ · PG Lane ✅ · perf-gate ✅ · **FOMS CI 는 세션 종료 시점까지 in_progress**
+  (`Run tests` 단계). 다음 세션 첫 일로 `gh run list --branch deploy --limit 12` 로
+  `5f9433c5` 4개 전부 green 인지 확인할 것 — red 면 근본 수정 → pre_push_smoke → 재푸시.
+- 브랜치에만 남은 문서 커밋 2개(다음 세션 프롬프트·AI_STATUS): 운영 승격 때 함께 올린다.
