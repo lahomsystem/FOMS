@@ -100,7 +100,7 @@
                 return;
             }
             // 붙이기 버튼은 후보 수만큼 나온다 — id 를 달면 문서에 중복이 생긴다(절대 규칙 1).
-            if (btn.classList.contains('wb-attach') || btn.classList.contains('naver-attach-btn')) {
+            if (btn.classList.contains('wb-attach')) {
                 submitAttach(btn);
                 return;
             }

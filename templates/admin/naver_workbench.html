@@ -172,12 +172,14 @@
                   결정 4 의 3층: ① 진행축 배지 ② 클레임축 배지 ③ 색띠 + 글자 라벨.
                   색띠만으로 구분하면 색맹 사용자가 못 읽어서 글자를 항상 함께 둔다.
                 #}
-                {% set row_locked = group.claim_blocking or group.canceled %}
+                {# 잠금·선택 판정은 서버가 이미 했다(_attach_row_flags). 화면이 같은 식을
+                   다시 쓰면 한쪽만 고쳐졌을 때 조용히 어긋난다 — H1 이 그렇게 났다. #}
+                {% set row_locked = group.locked %}
                 {% set row_kind = 'stop' if row_locked
                                   else ('spec' if group.order_id
                                         else ('wait' if group.place_pending else 'go')) %}
                 {# 벌크는 '아직 발주확인 안 된, 손대도 되는 집' 에만 연다(계약 §2.2 place 술어와 같다). #}
-                {% set can_pick = group.place_pending and not group.claim_blocking and not group.canceled %}
+                {% set can_pick = group.can_pick %}
                 <a class="wb-row wb-row--pick wb-row--{{ row_kind }}{{ ' wb-row--locked' if row_locked else '' }}"
                    data-group-id="{{ group.id }}" data-link-id="{{ group.id }}"
                    {# 대표 링크 id 로 비교하면 안 된다 — group.id 는 **목록 모집단** 안의 최대금액

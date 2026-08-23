@@ -12,16 +12,23 @@ import pytest
 from models import ExternalOrderLink
 
 
-def _link(db, *, external_id: str, status: str, name: str) -> ExternalOrderLink:
-    """발주확인 전 상태의 수집 링크 한 건을 만든다."""
+def _link(db, *, external_id: str, status: str, name: str,
+          order_no: str | None = None) -> ExternalOrderLink:
+    """발주확인 전 상태의 수집 링크 한 건을 만든다.
+
+    ``order_no`` 를 안 주면 **링크마다 다른 주문번호**를 쓴다 — 예전에는
+    ``external_id[:-2]`` 를 썼는데 그 규칙이 서로 다른 링크에서 같은 값을 만들어
+    두 링크가 한 집으로 합쳐졌다(테스트가 재려던 것과 다른 걸 재고 있었다).
+    형제를 만들려면 같은 ``order_no`` 를 명시해라.
+    """
     row = ExternalOrderLink(
         channel="NAVER",
         external_id=external_id,
-        external_order_no=external_id[:-2],
+        external_order_no=order_no or f"N-{external_id}",
         sync_status=status,
         place_order_status="NOT_YET",
         raw_snapshot={
-            "order": {"orderId": external_id[:-2], "ordererName": name},
+            "order": {"orderId": order_no or f"N-{external_id}", "ordererName": name},
             "productOrder": {
                 "productOrderId": external_id,
                 "productName": f"{name} 상품",
@@ -164,3 +171,31 @@ def test_bulk_restates_the_household_the_worker_will_touch(app):
     assert house["household_count"] == 3, (
         "벌크가 재진술할 수가 워커가 처리할 수와 다르다"
     )
+
+
+def test_row_flags_come_from_the_same_predicate_as_the_chips(app):
+    """행 잠금·선택 판정 == 칩 술어. 세 벌로 갈라져 있던 걸 한 벌로 묶은 계약.
+
+    이 판정이 서버·목록 템플릿·pane 에 각각 있어서, 한 곳만 고치면 나머지가 조용히
+    어긋났다 — H1(잠겨야 할 집에 체크박스가 열려 벌크 발주확인 대상이 됐다)이 그
+    갈라짐에서 나왔다. 이제 서버가 한 번만 판정하고 화면은 값을 읽기만 한다.
+    """
+    from db import db_session
+    from foms.web.admin.naver_ingest import _group_matches_filter, _work_groups
+
+    _link(db_session, external_id="20260823000071", status="COLLECTED", name="정상집")
+    canceled = _link(db_session, external_id="20260823000081",
+                     status="COLLECTED", name="취소집")
+    canceled.triage_state = {"fulfillment": {"canceled_at": "2026-08-23T00:00:00"}}
+    db_session.commit()
+
+    groups, _truncated = _work_groups(db_session)
+    assert groups, "전제: 목록이 비면 아무것도 못 잰다"
+    for group in groups:
+        assert group["locked"] == _group_matches_filter(group, "claim"), group["customer_name"]
+        assert group["can_pick"] == _group_matches_filter(group, "place"), group["customer_name"]
+
+    by_name = {g["customer_name"]: g for g in groups}
+    assert by_name["취소집"]["locked"] is True
+    assert by_name["취소집"]["can_pick"] is False
+    assert by_name["정상집"]["locked"] is False

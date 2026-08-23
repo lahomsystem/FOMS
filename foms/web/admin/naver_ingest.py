@@ -817,6 +817,24 @@ def _group_matches_filter(group: dict[str, Any], name: str) -> bool:
     return True
 
 
+def _attach_row_flags(groups: list[dict[str, Any]]) -> None:
+    """행 잠금·벌크 선택 가능 여부를 **서버가 한 번만** 판정해 집에 싣는다.
+
+    이 판정이 서버(:func:`_group_matches_filter`)·목록 템플릿·pane 템플릿 세 곳에
+    각각 구현돼 있었다. 그래서 한 곳만 고치면 나머지가 조용히 어긋난다 —
+    2026-08-23 의 H1(잠겨야 할 집에 체크박스가 열려 벌크 발주확인 대상이 됐다)이
+    정확히 그 갈라짐에서 나왔다. 술어를 한 벌로 만들고 화면은 값을 읽기만 한다.
+
+    Args:
+        groups: :func:`_work_groups` 가 만든 집 목록. 제자리에서 두 키를 채운다.
+    """
+    for group in groups:
+        # `claim` 칩과 같은 술어여야 한다 — 잠긴 줄과 취소·반품 칩의 모집단은 하나다.
+        group["locked"] = _group_matches_filter(group, "claim")
+        # `place` 칩과 같은 술어. 발주확인 대상이 아닌 집은 애초에 고를 수 없다.
+        group["can_pick"] = _group_matches_filter(group, "place")
+
+
 def _filter_counts(groups: list[dict[str, Any]]) -> dict[str, int]:
     """칩 4종의 숫자 — **필터를 걸기 전 전체**에서 센다.
 
@@ -1041,6 +1059,8 @@ def _work_groups(db) -> tuple[list[dict[str, Any]], bool]:
     groups = [merged[key] for key in order_of_key]
     _mark_sibling_claims(db, pending, groups)
     _attach_household_counts(db, groups)
+    # 잠금·선택 판정은 위 두 단계가 끝난 **뒤에** 한 번만 한다(형제 클레임이 반영된 값으로).
+    _attach_row_flags(groups)
     return groups, bool(truncated or place_truncated)
 
 

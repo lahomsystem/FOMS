@@ -145,7 +145,7 @@ def test_detail_offers_existing_orders_with_attach_buttons(client, workbench_on)
 
     body = _body(client, tab="work", link_id=link.id)
 
-    assert "naver-attach-btn" in body, "붙이기 버튼이 있어야 한다"
+    assert "wb-attach" in body, "붙이기 버튼이 있어야 한다"
     assert 'data-relation="ADDON"' in body
     assert 'data-relation="REPAY"' in body
     assert f"#{order.id}" in body, "어느 주문에 붙는지 번호가 보여야 한다"
@@ -158,7 +158,7 @@ def test_attach_section_is_absent_without_candidates(client, workbench_on):
 
     body = _body(client, tab="work", link_id=link.id)
 
-    assert "naver-attach-btn" not in body
+    assert "wb-attach" not in body
 
 
 def test_attached_household_shows_the_order_and_a_way_back(client, workbench_on):
@@ -182,7 +182,7 @@ def test_attached_household_does_not_offer_more_candidates(client, workbench_on)
 
     body = _body(client, tab="work", link_id=link.id)
 
-    assert "naver-attach-btn" not in body
+    assert "wb-attach" not in body
 
 
 # --------------------------------------------------------------------------- #

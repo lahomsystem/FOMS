@@ -264,8 +264,6 @@ input.wb-pick,
 input.wb-pick:disabled,
 #wb-pick-all:disabled { cursor: not-allowed; opacity: .45; }
 .wb-row__name { font-weight: 700; font-size: 13.5px; }
-.wb-row__amt { margin-left: auto; font-variant-numeric: tabular-nums; font-weight: 700; }
-
 .wb-row__line2 {
     color: var(--wb-muted);
     margin-top: 2px;
@@ -297,8 +295,6 @@ input.wb-pick:disabled,
 .wb-cmp thead th { font-size: 11.5px; color: var(--wb-muted); text-align: left; background: var(--wb-surface-soft); }
 .wb-cmp td.wb-cmp__k { color: var(--wb-muted); width: 104px; }
 .wb-cmp td.wb-cmp__num { text-align: right; font-variant-numeric: tabular-nums; }
-.wb-cmp tr.wb-cmp__sum td { background: var(--wb-surface-soft); font-weight: 700; }
-
 /* 옵션 원문은 자르지 않는다 — 사람이 이걸 보고 규격을 채운다(도메인 규칙 6). */
 .wb-cmp__option { color: var(--wb-muted); font-size: 11.5px; white-space: pre-wrap; }
 
@@ -390,4 +386,31 @@ input.wb-pick:disabled,
     background: var(--wb-danger-soft, #fdeaea);
     border-color: var(--wb-danger-line, #f3c2c2);
     color: var(--wb-danger, #b91c1c);
+}
+
+/* ── 액션 줄과 안내 문구 ───────────────────────────────────────────────
+   계약 §3.3 이 "목업 문장 그대로"라고 못박은 안내 3종("신규 집이라 발주확인이
+   먼저입니다" 등)이 여기 실린다. 스타일이 없으면 맨 텍스트로 흘러 버튼 줄과
+   구분이 안 되고, 왜 잠겼는지가 눈에 안 들어온다. */
+.wb-acts {
+    row-gap: 6px;
+}
+
+.wb-acts__why {
+    width: 100%;
+    margin-top: 2px;
+    color: #b45309;                 /* .wb-can--wait 와 같은 경고색 축 */
+    line-height: 1.5;
+}
+
+/* 잠긴 집의 안내는 "왜 닫혔는지"라 경고보다 강하게 읽혀야 한다. */
+.wb-acts__why--locked {
+    color: var(--wb-danger, #b91c1c);
+}
+
+/* 상세 카드 머리: 이름·배지 줄과 액션 줄이 붙어 보이지 않게. */
+.wb-detail__head {
+    display: flex;
+    flex-direction: column;
+    gap: 2px;
 }

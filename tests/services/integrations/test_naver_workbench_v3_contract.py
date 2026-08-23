@@ -465,7 +465,7 @@ def test_no_duplicate_wb_ids_anywhere_in_the_document(client, workbench_on):
     history = client.get(f"{TRIAGE_PATH}?tab=all").get_data(as_text=True)
     fragment = client.get(f"{PANE_PATH}?link_id={lead.id}").get_data(as_text=True)
 
-    assert "naver-attach-btn" in work, "후보가 없으면 가장 시끄러운 화면이 아니다"
+    assert "wb-attach" in work, "후보가 없으면 가장 시끄러운 화면이 아니다"
     for name, html in (("work", work), ("all", history), ("fragment", fragment)):
         assert _duplicate_wb_ids(html) == [], f"{name}: {_duplicate_wb_ids(html)}"
 
