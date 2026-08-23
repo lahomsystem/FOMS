@@ -405,7 +405,7 @@ CI: 두 푸시 모두 **ALL GREEN**(FOMS CI · Harness CI · PostgreSQL Lane · 
 | T-R2 | 관계 섹션 — 대조표 아래 후보 표 + 붙이기(ADDON/REPAY) + 되돌리기 | 후보/붙음/없음 3상태 렌더 테스트 green | DONE |
 | T-R3 | 발송처리 분기 — ADDON/REPAY 발주확인 전 단독 허용, NEW 는 잠금+경고 | `dispatch_order` 관계별 가드 테스트 + 버튼 계약 green | DONE |
 | T-R4 | 판매자 직접취소 — client·fulfillment·worker·route·UI·manifest 2종·감사 라벨·coverage | 취소 서비스/라우트 테스트 green, manifest·coverage 재생성 | DONE |
-| T-R5 | 1440 실브라우저 확인 | 배지·붙이기·되돌리기·발송처리 분기·취소 모달 눈으로 확인 | PENDING |
+| T-R5 | 1440 실브라우저 확인 | 배지·붙이기·되돌리기·발송처리 분기·취소 모달 눈으로 확인 | DONE (로컬 1440 2회 + 2026-08-23 스테이징 실데이터, ADDON '지금 닫기'만 미확인) |
 
 
 ### 진행 기록 (2026-08-22~23)
@@ -484,3 +484,41 @@ CI: 두 푸시 모두 **ALL GREEN**(FOMS CI · Harness CI · PostgreSQL Lane · 
 - **CI ALL GREEN**: FOMS CI · Harness CI · PG Lane · perf-gate 4개 전부 success(`5f9433c5`).
   FOMS CI 는 `Run tests` 단계가 길어 약 50분 걸렸다(정상).
 - 브랜치에만 남은 문서 커밋 2개(다음 세션 프롬프트·AI_STATUS): 운영 승격 때 함께 올린다.
+
+### 스테이징 눈 확인 + 운영 승격 재검토 (2026-08-23 오후)
+
+**CI 재확인**: `5f9433c5` 4개 워크플로 전부 `success`(FOMS CI · Harness CI · PG Lane ·
+perf-gate) — `gh run list --branch deploy --json headSha,workflowName,conclusion` 로 SHA 매칭 확인.
+
+**스테이징 실데이터 확인(claude_master)**. 게이트 코호트를 `38,58` 로 잠시 넓혀 워크벤치를 열고
+확인 후 `38` 로 원복했다(FOMS-DEV FOMS 서비스 env, 재배포 1회). 자산 핀 `?v=20260823a` 서빙 확인,
+console 에러 0.
+
+| 확인 대상 | 결과 |
+|---|---|
+| 관계 배지(큐) | 김지연 집에 `추가결제` 배지 — 나머지 NEW 집은 무배지 |
+| 관계 섹션(붙음) | "추가결제 / 주문 #4242 에 붙어 있습니다 / 되돌리기" |
+| 후보 표(붙이기) | link 237 에서 `wb-relation--ask` 렌더 — 후보 #4477 + 근거 "수취인 전화 일치" + 추가결제/재결제 붙이기 2버튼 |
+| 발송처리 분기 | NEW 집 `발송처리` disabled + title "발주확인이 먼저입니다(발주확인 전 상품주문이 있습니다)" |
+| 취소 모달 | "상품주문 **6건**" — 서버 집(`2026082343955001` 링크 6건)과 일치(F5 모집단 통일 확인). 사유 7코드·불가역 경고·실패 안내 전부 렌더 |
+| 취소한 집 차단 | 취소·반품 탭 5집에서 `주문 만들기`·`발주확인` 모두 disabled, 취소처리 버튼 없음 |
+| '발주확인 전' 탭 | 34집, 취소 완료 집 0건(제외 규칙 적용됨), 벌크 버튼 0집일 때 disabled |
+
+미확인으로 남긴 것: **ADDON '지금 닫기'(발주확인 전 발송처리 단독)** — 스테이징 ADDON 2건이 이미
+`발송처리 완료` 상태라 그 버튼이 뜨는 집이 없다. 계약 테스트 + 로컬 1440 QA 로만 확인된 상태.
+
+**취소 실호출**: 사용자 결정으로 **보류**. 스테이징 링크 230건·70집이 전부 실제 고객 주문이라
+실호출 대상이 없다(실제 취소할 건이 생기면 그때 검증). 사유 코드 7종은 여전히 미검증.
+
+**운영 승격 — 성립하지 않음(중요)**. `origin/production` 에 네이버 기능이 **통째로 없다**:
+
+- `naver_commerce` 파일 0개, `models.py` 에 `external_order_links` 0회, 워크벤치 템플릿 없음
+- 운영 DB 에 `external_order_links` 테이블 자체가 없음(운영 Postgres 직접 조회)
+- deploy 에만 있는 네이버 마이그레이션 7개(`naver_link_00`·`naver_triage_00`·`navercollect_00`·
+  `naverdock_00`·`navergroup_00`·`naverfail_00`·`naver_relation_00`) + `merge_drawqueue_naverfail_heads`
+- deploy↔production 네이버 관련 커밋 차이 **123개**
+
+즉 이 세션 커밋 5개만 cherry-pick 하면 기반 없는 조각이 운영에 올라간다. 네이버 승격은
+**기능 전체 승격**(마이그레이션 체인 + 워커 배포 + 네이버 API 자격증명 + 게이트 env + 롤백 절차)이
+한 덩어리이며 별도 스펙·원장이 필요하다. 사용자 결정: **지금은 승격하지 않는다.**
+(참고: AS-AXIS-01 운영 승격이 "네이버 체인 대기"인 것과 같은 뿌리다.)
