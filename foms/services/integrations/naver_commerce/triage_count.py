@@ -104,16 +104,21 @@ def _workbench_group_count(db: Any) -> int:
     화면 코드(``foms.web.admin.naver_ingest``)를 서비스가 부르므로 **함수 안에서**
     import 한다. 모듈 최상단에서 부르면 web → services → web 순환이 된다.
 
+    뱃지는 **손댈 수 있는 집**만 센다(``_actionable_count``). 취소·반품 집은 목록에
+    남지만 어떤 액션도 되지 않는데, 예전에는 그 집까지 세어 담당자가 매일 아침 보는
+    업무량이 실제 처리 대상보다 컸다(2026-08-24 실측: 확인 큐 72집 중 13집이 그런 집).
+    화면 스트립이 "처리 가능 N집 · 손대지 않음 M집"으로 같은 분해를 보여 준다.
+
     Args:
         db: 요청 스코프 DB 세션.
 
     Returns:
-        int: 처리 탭에 뜰 집 수(필터 칩 적용 전 = ``filter_counts["all"]``).
+        int: 처리 탭 스트립·탭 배지와 같은 수(손댈 수 있는 집).
     """
-    from foms.web.admin.naver_ingest import _work_groups
+    from foms.web.admin.naver_ingest import _actionable_count, _work_groups
 
     groups, _truncated = _work_groups(db, display=False)
-    return len(groups)
+    return _actionable_count(groups)
 
 
 def compute_triage_pending_count(db: Any, *, workbench: bool = False) -> int:

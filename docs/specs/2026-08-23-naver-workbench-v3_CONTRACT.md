@@ -100,7 +100,9 @@ active_tab            "work" | "all"
 active_filter         "all" | "place" | "rel" | "claim"
 work_groups           _work_groups() 결과 중 **현재 필터로 거른 것**
 filter_counts         {"all": n, "place": n, "rel": n, "claim": n}   # 필터 전 전체에서 계산
-group_count           len(전체 집)          # 스트립·탭 배지 = 같은 값
+group_count           len(전체 집)          # 목록 길이 = 칩 '전체'
+actionable_count      손댈 수 있는 집 수     # 스트립·탭 배지·nav 뱃지 = 같은 값 (2026-08-24 개정)
+locked_count          group_count - actionable_count   # 스트립 '손대지 않음'
 pending_count         sum(count)            # 스트립 "상품주문 M건"
 work_truncated        bool
 selected              _triage_pane(...) | None
@@ -108,6 +110,20 @@ selected_group        _group_of_link(...) 결과 (절대 규칙 2)
 selected_household_claimed / member_rows / sales_users / cancel_reasons / can_view_history
 history / ingest_status / failures         # 기존과 동일 (all 탭 + ADMIN 조건 유지)
 ```
+
+**2026-08-24 개정 — 숫자의 정의**: 스트립·탭 배지·nav 뱃지는 `group_count`(목록 길이)가
+아니라 **`actionable_count`(손댈 수 있는 집)** 를 말한다. 취소·반품 집은 목록에 남지만 어떤
+액션도 되지 않는데, 그 집까지 세면 담당자가 매일 아침 보는 업무량이 실제 처리 대상보다 크다
+(2026-08-24 스테이징 실측: 확인 큐 72집 중 **13집(18%)**).
+
+목록에서 지우지 않는 이유: STAFF 는 이력 탭이 없어(절대 규칙 3·4) '취소·반품' 칩이 유일한
+조회 창구이고, 그 칩의 모집단도 이 목록이다. 지우면 다시 찾을 자리가 사라진다.
+
+그래서 **목록은 그대로 두고 숫자만 쪼갠다**. 화면에 셋이 모두 라벨과 함께 보이고 산수가
+맞아야 한다 — `actionable_count` + `locked_count` == `group_count` == `filter_counts["all"]`,
+그리고 `locked_count` == `filter_counts["claim"]`. 술어는 `claim` 칩과 **같은 것**
+(`_group_matches_filter(group, "claim")`)을 쓴다. 이것이 "한 화면 두 말"이 아닌 이유는
+분해된 두 수가 같은 줄에 함께 있기 때문이다.
 
 **제거되는 컨텍스트 키**: `claim_groups`, `place_groups`, `place_group_count`, `place_truncated`.
 

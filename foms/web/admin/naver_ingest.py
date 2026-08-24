@@ -878,6 +878,10 @@ def _render_workbench(db) -> str:
         # 칩 숫자·스트립·탭 배지는 **필터 전 전체**에서 센다(칩을 눌러도 총량은 안 변한다).
         filter_counts=_filter_counts(groups),
         group_count=len(groups),
+        # 스트립·탭 배지·nav 뱃지가 말하는 수 — 손댈 수 있는 집만(계약 §2.4).
+        # 잠긴 집은 목록에는 남고 `locked_count` 로 따로 고지된다.
+        actionable_count=_actionable_count(groups),
+        locked_count=len(groups) - _actionable_count(groups),
         pending_count=sum(int(group["count"]) for group in groups),
         work_truncated=work_truncated,
         can_view_history=_can_view_history(),
@@ -1100,6 +1104,32 @@ def _attach_row_flags(groups: list[dict[str, Any]]) -> None:
         group["locked"] = _group_matches_filter(group, "claim")
         # `place` 칩과 같은 술어. 발주확인 대상이 아닌 집은 애초에 고를 수 없다.
         group["can_pick"] = _group_matches_filter(group, "place")
+
+
+def _actionable_count(groups: list[dict[str, Any]]) -> int:
+    """**손댈 수 있는** 집 수 — 스트립·탭 배지·nav 뱃지가 함께 쓰는 SSOT.
+
+    취소·반품 집은 목록에 남지만 어떤 액션도 되지 않는다(체크박스도 disabled). 그런데
+    "처리할 집 N집"과 nav 뱃지가 그 집까지 세어서, 담당자가 매일 아침 보는 업무량이 실제
+    처리 대상보다 컸다 — 2026-08-24 스테이징 실측으로 확인 큐 72집 중 **13집(18%)**이
+    그런 집이었다.
+
+    빼기만 하면 안 된다. 목록에서 지우면 STAFF 는 그 집을 다시 찾을 자리가 없다
+    (이력 탭은 ADMIN 전용이고, '취소·반품' 칩의 모집단도 이 목록이다). 그래서 **목록은
+    그대로 두고 숫자만 쪼갠다**: 스트립이 "처리 가능 62집 · 손대지 않음 13집"을 함께
+    말하므로 62 + 13 = 75(칩 '전체')가 화면에서 맞아떨어진다. 한 화면 두 말이 아니라
+    한 말의 분해다.
+
+    술어는 `claim` 칩과 **같은 것**을 쓴다(:func:`_group_matches_filter`) — 잠긴 줄·
+    취소·반품 칩·이 숫자의 모집단이 하나여야 한다.
+
+    Args:
+        groups: :func:`_work_groups` 의 전체 결과(필터 전).
+
+    Returns:
+        int: 손댈 수 있는 집 수. 정의상 ``filter_counts["all"] - filter_counts["claim"]``.
+    """
+    return sum(1 for group in groups if not _group_matches_filter(group, "claim"))
 
 
 def _filter_counts(groups: list[dict[str, Any]]) -> dict[str, int]:

@@ -19,7 +19,7 @@
 {% block title %}네이버 수집{% endblock %}
 
 {% block styles %}
-<link rel="stylesheet" href="{{ url_for('static', filename='css/admin/naver-workbench.css') }}?v=20260824i">
+<link rel="stylesheet" href="{{ url_for('static', filename='css/admin/naver-workbench.css') }}?v=20260824j">
 {% endblock %}
 
 {% block content %}
@@ -31,8 +31,17 @@
     <div class="wb-strip">
         <span class="wb-strip__title">네이버 수집</span>
         {# 결정 3: 숫자 이중 표기(집 · 상품주문)는 화면에서 여기 한 곳만 한다.
-           group_count 는 탭 배지·칩 '전체' 와 같은 값이어야 한다(계약 §2.4). #}
-        <span class="wb-strip__count">{{ group_count }}집 · 상품주문 {{ pending_count }}건</span>
+           **스트립·탭 배지·nav 뱃지는 '손댈 수 있는 집'을 말한다**(계약 §2.4, 2026-08-24 개정).
+           취소·반품 집은 목록에 남지만 어떤 액션도 되지 않는데 예전에는 이 숫자에 섞여
+           담당자가 보는 업무량이 실제보다 컸다(스테이징 72집 중 13집). 빼기만 하면 STAFF
+           가 그 집을 다시 찾을 자리가 없어서(이력 탭은 ADMIN 전용) 목록은 그대로 두고
+           숫자만 쪼갠다 — 아래 '손대지 않음'과 칩 '전체'가 62 + 13 = 75 로 맞아떨어진다. #}
+        <span class="wb-strip__count">{{ actionable_count }}집 · 상품주문 {{ pending_count }}건</span>
+        {% if locked_count %}
+        <span class="wb-strip__locked" title="취소·반품이라 어떤 액션도 되지 않는 집입니다. 목록에는 남아 있습니다.">
+            손대지 않음 <b>{{ locked_count }}집</b>
+        </span>
+        {% endif %}
         <span class="wb-strip__spacer"></span>
         {# 글자 크기 조절 — 브라우저를 80% 로 축소해 쓰면 11~12px 가 9~10px 로 보인다.
            브라우저 확대는 화면 전체를 키워 목록이 잘리므로, 이 화면 글자만 단계로 키운다.
@@ -112,10 +121,12 @@
     {% endif %}
 
     {# 탭 2개. 배지는 집 수만 쓴다(탭별 상품주문 건수는 만들어 낼 수 없다).
-       처리 탭 배지 = group_count = 스트립 숫자 = 칩 '전체' — 한 화면 안에서 어긋나면 안 된다. #}
+       처리 탭 배지 = actionable_count = 스트립 숫자 = nav 뱃지 — 한 화면 안에서 어긋나면
+       안 된다. 칩 '전체'(group_count)는 목록 길이라 이 값보다 크고, 그 차이는 스트립의
+       '손대지 않음'이 말한다(계약 §2.4, 2026-08-24 개정). #}
     <nav class="wb-tabs" role="tablist">
         <a class="wb-tab" role="tab" data-tab="work" aria-selected="{{ 'true' if active_tab == 'work' else 'false' }}"
-           href="{{ url_for('admin.naver_ingest_triage', tab='work') }}">처리<span class="wb-tab__n">{{ group_count }}집</span></a>
+           href="{{ url_for('admin.naver_ingest_triage', tab='work') }}">처리<span class="wb-tab__n">{{ actionable_count }}집</span></a>
         {# 이력은 ADMIN 전용이다(수집 관리 화면과 같은 기준) — 열 수 없는 탭은 아예 안 보인다.
            탭만 숨기고 주소를 열어 두면 URL 을 아는 사람이 그대로 본다. 서버도 같이 막는다. #}
         {% if can_view_history %}
@@ -138,7 +149,7 @@
             {{ label }} <b class="wb-chip__n">{{ filter_counts.get(key, 0) }}집</b>
         </a>
         {% endfor %}
-        <span class="wb-chips__hint">칩 숫자는 같은 목록을 거른 결과다 — 합집합이 위 탭 숫자와 같다</span>
+        <span class="wb-chips__hint">칩 숫자는 같은 목록을 거른 결과다 — '전체'가 목록 길이고, 탭 숫자는 그중 손댈 수 있는 집이다</span>
     </div>
 
     {#
@@ -517,5 +528,5 @@
 {% endblock %}
 
 {% block scripts %}
-<script src="{{ url_for('static', filename='js/admin/naver-workbench.js') }}?v=20260824i" defer></script>
+<script src="{{ url_for('static', filename='js/admin/naver-workbench.js') }}?v=20260824j" defer></script>
 {% endblock %}

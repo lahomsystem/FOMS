@@ -134,17 +134,27 @@ def test_thin_and_rich_agree_on_population(app):
 
 
 def test_badge_equals_work_tab_count(app):
-    """nav 뱃지 숫자 == 처리 탭 숫자 == 칩 '전체' (계약 §2.4)."""
+    """nav 뱃지 == 처리 탭 숫자 == 손댈 수 있는 집 (계약 §2.4, 2026-08-24 개정).
+
+    2026-08-24 개정 전에는 목록 길이(칩 '전체')와도 같았다. 지금은 취소·반품 집이
+    숫자에서 빠지고 스트립의 '손대지 않음'이 그 차이를 말한다.
+    """
     from db import db_session
     from foms.services.integrations.naver_commerce.triage_count import (
         _workbench_group_count,
     )
-    from foms.web.admin.naver_ingest import _filter_counts, _work_groups
+    from foms.web.admin.naver_ingest import (
+        _actionable_count,
+        _filter_counts,
+        _work_groups,
+    )
 
     _seed_mixed(db_session)
 
     groups, _truncated = _work_groups(db_session, display=True)
-    assert _workbench_group_count(db_session) == len(groups) == _filter_counts(groups)["all"]
+    counts = _filter_counts(groups)
+    assert _workbench_group_count(db_session) == _actionable_count(groups)
+    assert _actionable_count(groups) + counts["claim"] == len(groups) == counts["all"]
 
 
 def test_thin_path_does_not_load_orders(app, monkeypatch):
