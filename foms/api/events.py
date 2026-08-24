@@ -112,21 +112,44 @@ events_bp = Blueprint('events', __name__, url_prefix='/api')
 @events_bp.route('/orders/<int:order_id>/events', methods=['GET'])
 @login_required
 def api_order_events(order_id):
-    """주문 이벤트 스트림 조회(최근 N개)"""
+    """주문 이벤트 스트림 조회(최근 N개).
+
+    ``event_type`` 쿼리 파라미터(쉼표 구분)로 종류를 좁힐 수 있다 — 알림톡 발송 흔적 칩의
+    이력 패널처럼 한 종류만 필요한 화면이 200건을 받아 클라이언트에서 거르지 않게 한다.
+
+    사람이 읽을 라벨(``event_label``)과 보낸 사람 이름(``created_by_name``)을 함께 준다.
+    이름은 id 집합 한 번의 조회로 붙인다(N+1 금지).
+    """
     try:
         db = get_db()
         limit = int(request.args.get('limit', 50))
         limit = max(1, min(limit, 200))
 
-        rows = db.query(OrderEvent).filter(OrderEvent.order_id == order_id).order_by(OrderEvent.created_at.desc()).limit(limit).all()
+        query = db.query(OrderEvent).filter(OrderEvent.order_id == order_id)
+        wanted = [t.strip() for t in (request.args.get('event_type') or '').split(',')]
+        wanted = [t for t in wanted if t]
+        if wanted:
+            query = query.filter(OrderEvent.event_type.in_(wanted))
+        rows = query.order_by(OrderEvent.created_at.desc()).limit(limit).all()
+
+        user_ids = {r.created_by_user_id for r in rows if r.created_by_user_id}
+        names = {}
+        if user_ids:
+            names = {
+                uid: name
+                for uid, name in db.query(User.id, User.name).filter(User.id.in_(user_ids)).all()
+            }
+
         events = []
         for r in rows:
             events.append({
                 'id': r.id,
                 'order_id': r.order_id,
                 'event_type': r.event_type,
+                'event_label': translate_event_type_to_korean(r.event_type),
                 'payload': r.payload,
                 'created_by_user_id': r.created_by_user_id,
+                'created_by_name': names.get(r.created_by_user_id),
                 'created_at': format_datetime_kst(r.created_at) if r.created_at else None
             })
         return jsonify({'success': True, 'events': events})
