@@ -179,6 +179,32 @@ def test_confirm_stops_after_empty_vendor_answer(db, solapi_env, stub_lookup):
     assert stub_lookup["calls"] == ["MSG-1"]
 
 
+def test_confirm_does_not_clobber_a_save_made_during_the_vendor_call(
+        db, solapi_env, monkeypatch):
+    """벤더 왕복은 느리다 — 그 사이 들어온 저장을 채널 기록이 덮으면 입력이 사라진다."""
+    order = _seed_history(_mk_order())
+    order_id = order.id
+
+    def _slow_lookup(message_id):
+        # 조회가 도는 동안 다른 경로가 같은 주문을 저장한 상황.
+        saved = db_session.get(Order, order_id)
+        sd = copy.deepcopy(saved.structured_data or {})
+        sd["notes"] = "실측 중 메모"
+        saved.structured_data = sd
+        flag_modified(saved, "structured_data")
+        db_session.commit()
+        return "SMS"
+
+    monkeypatch.setattr(ka, "_solapi_lookup_channel", _slow_lookup)
+
+    assert ka.confirm_channel(order_id)["channel"] == "SMS"
+
+    db_session.expire_all()
+    sd = db_session.get(Order, order_id).structured_data or {}
+    assert sd["notes"] == "실측 중 메모", "채널 기록이 그 사이 저장을 덮었다"
+    assert sd["alimtalk_measurement"]["channel"] == "SMS"
+
+
 def test_confirm_too_early_does_not_call_vendor(db, solapi_env, stub_lookup_never):
     """발송 1분이 지나지 않았으면 아직 벤더가 채널을 바꾸지 않았다."""
     order = _seed_history(_mk_order(), age_seconds=5)

@@ -752,6 +752,9 @@ def confirm_channel(order_id: int) -> dict:
                            order_id, code, exc)
             return {"channel": None, "checked": False, "cached": False, "error": code}
 
+        # 벤더 왕복 동안 사용자가 주문을 저장했을 수 있다. 그 사이의 저장본을 덮지 않도록
+        # 쓰기 직전에 다시 읽는다(structured_data 전체를 통째로 되쓰는 구조라 필수).
+        session.refresh(order)
         now = now_utc_naive()
         next_sd = copy.deepcopy(order.structured_data or {})
         record = next_sd.get("alimtalk_measurement")
