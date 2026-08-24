@@ -889,3 +889,65 @@ AS 미완료 지도가 **598건을 그대로 본다**.
   `alembic_version`·운영 tip 이 바뀌었으면 §10 의 낡음 조건을 먼저 판정한다.
 - 남은 단계: **S2 병합·등가 증명 → S3 로컬 전량 게이트 → S4 승격 → S5 확인.**
   착수 전 필요한 사용자 결정은 **전량 머지 승인** 하나다(백필 승인·롤백 합의는 완료).
+
+---
+
+## 15. S2 · S3 실행 기록 (2026-08-25)
+
+사용자 결정: **전량 머지 승인 · 로컬 검사 전부 · 승격 후 네이버 켜기**(켜기는 별건으로 분리).
+
+### 승격 대상 SHA 고정
+
+deploy tip 이 계속 움직여서 **CI 전량 green 인 최신 SHA 로 못박았다**: **`77fc7cb4`**
+(= 이 세션의 S0·S1 기록 커밋. FOMS CI · Harness CI · PG Lane **3/3 success** 확인).
+브랜치명으로 병합하면 타 세션 push 시 게이트가 조용히 거짓말한다 — SHA 로만 병합했다.
+
+### S2 — 병합 · 등가 증명 (통과)
+
+승격 워크트리 `c:/tmp/foms-promote`, 브랜치 `promote/full-20260825`, 기점 `57cc536d`.
+
+```
+충돌 25개  ->  전부 deploy 판 채택(--theirs)
++ 조용한 중복 1개(tests/domains/test_as_timeline_wiring.py)  ->  deploy 판으로 덮음
+```
+
+**판정 게이트 — 통과:**
+
+```
+git diff --stat 77fc7cb4   ->  무출력
+머지 트리   = 2539be20fea7454c5399695156e32acb0674fd0f
+deploy 트리 = 2539be20fea7454c5399695156e32acb0674fd0f      <- 완전 일치
+충돌 잔재 0 · 충돌 마커 0
+```
+
+커밋: `3edddbb8`.
+
+**인벤토리 드리프트 — 1건은 거짓 경보였다(기록):**
+
+| 스캐너 | `--check` |
+|---|---|
+| `failopen_scan` · `order_mutation_writer_scan` · `state_writer_scan` | 드리프트 0 |
+| `audit_coverage_scan` | **`drift=YES`** |
+
+그런데 `audit_coverage_scan --check` 는 **CI green 인 세션 트리에서도 똑같이 `drift=YES`**
+를 내고(`total=193` vs 승격 트리 `total=194`, 둘 다 `unaudited=0 coverage=100%`),
+**CI·`pre_push_smoke` 어디서도 이 스캐너를 `--check` 로 돌리지 않는다**(워크플로·smoke 전수 그렙).
+→ 병합이 만든 것이 아니라 **선재 상태**다. 실제 게이트인 계약 테스트
+`test_audit_coverage_inventory` + `test_failopen_inventory` 는 **24 passed**.
+
+로드맵 §11 이 경고한 "틀린 검증 명령의 거짓 경보" 부류가 S2.5 에서 그대로 재현됐다.
+**다음 승격에서는 S2.5 를 계약 테스트로 대체해야 한다.**
+
+### S3 — 로컬 전량 게이트
+
+| 게이트 | 결과 |
+|---|---|
+| `import app` | **APP_OK** |
+| `test_alembic_single_head` | 1 passed |
+| `test_auth_enforcement` + `test_write_guard` | 37 passed |
+| `tests/postgres` 전수 | **747 passed** |
+| `pre_push_smoke.ps1 -Full` | **FAIL** (전량 pytest 단계) — 원인 조사 중 |
+
+전량 pytest 실패는 **트리가 CI green 인 deploy 와 바이트 동일한데 로컬만 실패**하는
+형태다. 환경 기인(로컬 DB 드리프트·Redis 부재 등) 가능성이 높지만 **추정하지 않고
+실패 목록을 직접 뽑아 판정한다**. 판정 전까지 S4 진입 금지.
