@@ -17,12 +17,14 @@ from __future__ import annotations
 import datetime
 import hashlib
 import logging
+import time
 from typing import Any, Optional
 
 from flask import (abort, g, jsonify, redirect, render_template, request, session,
                    url_for)
 
 from db import get_db
+from foms.services.common.ept_b7_profile import record_phase
 from foms.services.datetime_kst import format_datetime_kst, now_utc_naive
 from foms.services.integrations.naver_commerce.order_candidates import find_order_candidates
 from foms.services.integrations.naver_commerce.promotion import is_promotable, summarize_snapshot
@@ -1245,6 +1247,7 @@ def _place_groups(db, *, display: bool = True) -> tuple[list[dict[str, Any]], bo
         ``(묶음 목록, 잘렸는지)``. 조용히 자르면 사람이 나머지를 찾아 헤맨다 —
         잘렸으면 화면이 그렇게 말한다.
     """
+    _t = time.perf_counter()
     links = _fetch_links(
         db,
         ExternalOrderLink.channel == "NAVER",
@@ -1260,6 +1263,7 @@ def _place_groups(db, *, display: bool = True) -> tuple[list[dict[str, Any]], bo
         order_by=(ExternalOrderLink.created_at.desc(), ExternalOrderLink.id.desc()),
         limit=QUEUE_LINK_FETCH_LIMIT,
     )
+    record_phase("nvb_pfetch", (time.perf_counter() - _t) * 1000)
     if not links:
         return [], False
     # 주문은 표시(고객명·다음 할 일)에만 쓴다 — 얇은 경로는 조회 자체를 내지 않는다.
@@ -1269,8 +1273,10 @@ def _place_groups(db, *, display: bool = True) -> tuple[list[dict[str, Any]], bo
         orders = {o.id: o for o in db.query(Order).filter(Order.id.in_(order_ids)).all()}
     # 상한은 **클레임을 걸러낸 뒤에** 건다. 앞에서 자르면 빠질 집이 상한을 먹어
     # "잘렸다"를 숨긴다(60집 중 5집이 취소면 46집만 보이고 경고가 안 뜬다).
+    _t = time.perf_counter()
     groups = _group_queue(links, orders, truncated=len(links) == QUEUE_LINK_FETCH_LIMIT,
                           limit=QUEUE_LINK_FETCH_LIMIT)
+    record_phase("nvb_pgroup", (time.perf_counter() - _t) * 1000)
     # 우리가 취소한 집은 목록에서 뺀다. 컬럼(place_order_status)만 보는 SQL 술어로는 못 거른다
     # — 취소 표식은 triage_state(JSONB) 이고 hot path 에서 JSONB 를 스캔하지 않는다.
     # 탭 배지는 이 목록의 길이를 쓰므로 여기서 빼면 배지와 목록이 함께 줄어든다.
@@ -1278,7 +1284,9 @@ def _place_groups(db, *, display: bool = True) -> tuple[list[dict[str, Any]], bo
     # 클레임 판정은 **형제까지** 봐야 한다. 모집단을 '발주확인 전' 링크로 먼저 좁혔으므로,
     # 이미 발주확인이 끝난 형제가 취소돼도 이 목록 안에서는 안 보인다 — 그 집에 발주확인을
     # 보내면 네이버가 거절해 집 전체가 실패한다.
+    _t = time.perf_counter()
     blocked = _claim_blocked_group_keys(db, links, display=display)
+    record_phase("nvb_pclaim", (time.perf_counter() - _t) * 1000)
     visible = [group for group in groups
                if not group["claim_blocking"] and group["key"] not in blocked]
     truncated = len(visible) > WORK_GROUP_LIMIT or len(links) == QUEUE_LINK_FETCH_LIMIT
@@ -1313,16 +1321,22 @@ def _work_groups(db, *, display: bool = True) -> tuple[list[dict[str, Any]], boo
     Returns:
         ``(집 목록, 조회 상한에 걸렸는지)``. 순서는 큐(수집 최신순) → 큐 밖 발주확인 전 집.
     """
+    _t = time.perf_counter()
     pending, truncated = _queue_links(db, display=display)
+    record_phase("nvb_qfetch", (time.perf_counter() - _t) * 1000)
     # **캡 하나를 더 넘겨 받아** 잘렸는지 스스로 안다. `_group_queue` 는 상한까지만 돌려주는데
     # 그 사실을 아무도 안 봐서, 집이 50을 넘으면 화면이 조용히 51번째부터 버렸다 —
     # 링크 250 상한(`truncated`)에 걸릴 때만 안내 띠가 떴다. 캡으로 자른 뒤 아무 말도 안 하면
     # 사람은 나머지를 찾아 헤맨다(2026-08-14 대시보드 캡 결함과 같은 부류, CEO 검수 보통).
     # 캡은 여기서 걸지 않는다 — 병합이 끝난 뒤 한 곳에서 건다(아래). 원천마다 자르면
     # 큐가 잘려 띠가 켜지는데 화면 줄수는 캡보다 커지는, 서로 어긋난 상태가 된다.
+    _t = time.perf_counter()
     queue = _group_queue(pending, _orders_by_id(db, pending) if display else {},
                          truncated=truncated, limit=WORK_GROUP_LIMIT + 1)
+    record_phase("nvb_qgroup", (time.perf_counter() - _t) * 1000)
+    _t = time.perf_counter()
     place_groups, place_truncated = _place_groups(db, display=display)
+    record_phase("nvb_place", (time.perf_counter() - _t) * 1000)
 
     merged: dict[Any, dict[str, Any]] = {}
     order_of_key: list[Any] = []
@@ -1339,8 +1353,12 @@ def _work_groups(db, *, display: bool = True) -> tuple[list[dict[str, Any]], boo
         merged[group["key"]] = dict(group, in_queue=False)
         order_of_key.append(group["key"])
     groups = [merged[key] for key in order_of_key]
+    _t = time.perf_counter()
     _mark_sibling_claims(db, pending, groups, display=display)
+    record_phase("nvb_sib", (time.perf_counter() - _t) * 1000)
+    _t = time.perf_counter()
     _attach_household_counts(db, groups, display=display)
+    record_phase("nvb_hcnt", (time.perf_counter() - _t) * 1000)
     # 잠금·선택 판정은 위 두 단계가 끝난 **뒤에** 한 번만 한다(형제 클레임이 반영된 값으로).
     _attach_row_flags(groups)
     # 캡 한 곳 — 병합 결과에만 건다. 닿으면 **로그를 남기고** 화면에도 말한다(조용히 자르면
