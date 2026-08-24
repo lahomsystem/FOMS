@@ -115,12 +115,38 @@ def test_send_js_autosaves_dirty_form_before_preview() -> None:
     # 저장 SSOT = 기존 ERP 통합 저장(리다이렉트 없이 호출).
     assert "window.erpSaveStructured" in js
     assert "redirect: false" in js
-    # draft 백업 주문은 알림톡 클릭만으로 승격되면 안 된다(draft 부활 레이스 회피).
-    assert "erpIsDraftBackedOrder" in js
     # 저장 실패 시 발송 중단 + 문구 표면화(조용한 통과 금지).
     assert "저장 실패 — 저장 후 다시 시도해주세요." in js
     # 공유 링크(erp-share.js)가 재사용하는 전역 헬퍼.
     assert "window.fomsErpEnsureSavedForSend" in js
+
+
+def test_send_js_persists_new_and_draft_orders_like_channel_push() -> None:
+    """저장 안 한 주문도 **저장(승격)한 뒤** 발송한다 — 채널 PUSH 와 같은 규칙.
+
+    예전에는 draft 백업 주문이면 저장을 건너뛰고 서버의 ``not_eligible`` 을 그대로
+    보여줬다. 사용자에게는 "입력해 놨는데 발송이 안 된다"로만 읽혔다(2026-08-24 보고).
+    이제 미저장 변경뿐 아니라 **주문 id 가 없거나 draft 인 경우에도** 저장한다.
+    """
+    js = _read("static/js/orders/erp-alimtalk-send.js")
+    # 저장 조건 = dirty ∨ (id 없음 ∨ draft) — 채널 PUSH(_isDirty || _needsPersist) 미러.
+    assert "needsPersist" in js
+    assert "erpAlimtalkOrderId()" in js
+    assert "erpIsDraftBackedOrder" in js
+    assert "if (!dirty && !needsPersist) return true;" in js
+    # draft 를 그냥 통과시키던 옛 분기가 되살아나면 같은 사고가 난다.
+    assert "window.erpIsDraftBackedOrder()) {\n            return true;" not in js
+    # id 는 저장 **뒤에** 읽는다(저장이 주문을 만들거나 승격하므로).
+    open_body = js.split("async function erpOpenAlimtalkModal()", 1)[1]
+    assert open_body.index("erpAlimtalkEnsureSaved()") < open_body.index("erpAlimtalkOrderId()")
+
+
+def test_share_js_saves_before_reading_order_id() -> None:
+    """공유 발급·내 문자 보내기도 저장 뒤에 주문 id 를 읽는다(같은 사고 자리)."""
+    js = _read("static/js/orders/erp-share.js")
+    for entry in ("async function _create()", "async function _selfSms(kind)"):
+        body = js.split(entry, 1)[1][:1200]
+        assert body.index("_ensureSaved(") < body.index("_orderId()"), entry
 
 
 def test_share_js_reuses_alimtalk_autosave_guard() -> None:

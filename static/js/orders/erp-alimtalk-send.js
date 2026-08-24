@@ -38,6 +38,11 @@
         return REASON_LABELS[code] || String(code || '알 수 없는 오류');
     }
 
+    /** @returns {number} 현재 주문 id(아직 저장 전이면 0). */
+    function erpAlimtalkOrderId() {
+        return parseInt(String(window.ORDER_ID || '0'), 10) || 0;
+    }
+
     /** @returns {boolean} 저장되지 않은 편집이 남아 있는지 */
     function erpAlimtalkIsDirty() {
         const autosave = window.fomsErpAutosave;
@@ -55,17 +60,22 @@
      */
     async function erpAlimtalkEnsureSaved(setStatus) {
         const say = typeof setStatus === 'function' ? setStatus : erpAlimtalkSetStatus;
-        if (!erpAlimtalkIsDirty()) return true;
-        // draft 백업 주문은 아직 승격 전 — 여기서 저장하면 클릭만으로 draft 가 승격된다.
-        // 저장하지 않고 진행해 서버 자격 판정(not_eligible)을 그대로 보여준다.
-        if (typeof window.erpIsDraftBackedOrder === 'function' && window.erpIsDraftBackedOrder()) {
-            return true;
-        }
+        const dirty = erpAlimtalkIsDirty();
+        // 아직 저장된 주문이 없거나(신규) draft 백업이면 **저장본이 없어서** 서버 자격 판정이
+        // 통과할 수 없다. 예전에는 여기서 저장을 건너뛰고 not_eligible 을 그대로 보여줬는데,
+        // 사용자에겐 "입력해 놨는데 발송이 안 된다"로만 읽힌다(2026-08-24 사용자 보고).
+        // 채널 PUSH(erpRunChannelPush)와 **같은 규칙**으로 여기서 먼저 저장(draft면 승격)한다.
+        const needsPersist = !erpAlimtalkOrderId()
+            || (typeof window.erpIsDraftBackedOrder === 'function'
+                && window.erpIsDraftBackedOrder());
+        if (!dirty && !needsPersist) return true;
         if (typeof window.erpSaveStructured !== 'function') {
             say('저장되지 않은 변경이 있습니다. 저장 후 발송해주세요.');
             return false;
         }
-        say('저장 중…');
+        // 필수값 검증(고객명·전화·주소·제품)은 저장 함수가 그대로 한다 — 누락이면 저장이
+        // 실패하고 아래에서 발송이 멈춘다(조용히 옛 저장본으로 나가지 않는다).
+        say(dirty ? '저장 중…' : '발송 전 주문을 저장합니다…');
         let result = null;
         try {
             result = await window.erpSaveStructured({ redirect: false });
@@ -180,16 +190,17 @@
     /** 버튼 클릭 진입점: (미저장이면) 자동 저장 → preview 조회 → 모달 표시. */
     async function erpOpenAlimtalkModal() {
         if (_busy) return;
-        let orderId = parseInt(String(window.ORDER_ID || '0'), 10) || 0;
-        if (!orderId) {
-            erpAlimtalkSetStatus('저장 후 발송할 수 있습니다.');
-            return;
-        }
         _busy = true;
         try {
+            // 저장이 **먼저**다. 아직 저장 전인 주문에서 여기서 되돌려보내면 사용자는
+            // 입력해 둔 내용을 두고 "발송이 안 된다"만 본다(채널 PUSH 와 같은 동선).
             if (!(await erpAlimtalkEnsureSaved())) return;
-            // 저장이 주문을 승격했으면 ORDER_ID 가 갱신될 수 있어 다시 읽는다.
-            orderId = parseInt(String(window.ORDER_ID || '0'), 10) || orderId;
+            // 저장이 주문을 만들거나 승격했으면 ORDER_ID 가 갱신된다 — 저장 뒤에 읽는다.
+            const orderId = erpAlimtalkOrderId();
+            if (!orderId) {
+                erpAlimtalkSetStatus('저장 후 발송할 수 있습니다.');
+                return;
+            }
             erpAlimtalkSetStatus('미리보기 불러오는 중…');
 
             const res = await fetch('/api/kakao/alimtalk/preview/' + orderId, {
