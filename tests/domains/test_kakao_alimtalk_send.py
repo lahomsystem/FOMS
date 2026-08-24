@@ -11,7 +11,7 @@ import pytest
 
 from db import db_session
 from foms.services import kakao_alimtalk as ka
-from models import DomainSideEffectOutbox, Order, OrderEvent
+from models import DomainSideEffectOutbox, Order, OrderEvent, User
 
 _MEASURE_SD = {
     "parties": {"customer": {"name": "임다슬", "phone": "010-2473-6730"},
@@ -43,6 +43,14 @@ def _mk_order(structured_data=None, status="ERPORDER") -> Order:
     db_session.add(order)
     db_session.commit()
     return order
+
+
+def _mk_user(name: str = "홍길동") -> User:
+    """발송자 표시명 검증용 사용자 1건."""
+    user = User(username=f"u{name}", password="x", name=name, role="STAFF")
+    db_session.add(user)
+    db_session.commit()
+    return user
 
 
 def _events(order_id: int) -> list[OrderEvent]:
@@ -233,12 +241,36 @@ def test_send_records_history_and_event(db, solapi_env, stub_solapi_ok):
 
 def test_send_manual_records_sent_by(db, solapi_env, stub_solapi_ok):
     order = _mk_order()
-    ka.send_alimtalk(order.id, manual_by=7, dedupe_key="alimtalk:measure:x:manual:abc")
+    sender = _mk_user("홍길동")
+    ka.send_alimtalk(order.id, manual_by=sender.id,
+                     dedupe_key="alimtalk:measure:x:manual:abc")
 
     history = _history(order.id)
-    assert history["sent_by"] == 7
+    assert history["sent_by"] == sender.id
+    # 칩은 추가 요청 없이 sd 만 읽어 그린다 — 이름이 여기 없으면 화면에 못 뜬다(T15).
+    assert history["sent_by_name"] == "홍길동"
     assert history["dedupe_key"] == "alimtalk:measure:x:manual:abc"
-    assert _events(order.id)[0].created_by_user_id == 7
+    assert _events(order.id)[0].created_by_user_id == sender.id
+
+
+def test_send_records_channel_unresolved(db, solapi_env, stub_solapi_ok):
+    """발송 직후 채널은 미확정이다 — 카톡이 실패해야 벤더가 문자로 바꾼다(T15)."""
+    order = _mk_order()
+    ka.send_alimtalk(order.id)
+
+    history = _history(order.id)
+    assert history["channel"] is None
+    assert history["channel_checked_at"] is None
+    # 자동 발송은 보낸 사람이 없다 — 화면은 '자동 발송'으로 표기한다.
+    assert history["sent_by"] is None and history["sent_by_name"] is None
+
+
+def test_send_manual_unknown_user_keeps_name_empty(db, solapi_env, stub_solapi_ok):
+    """지워진 사용자 id 로 기록돼도 발송·이력이 깨지지 않는다(이름만 빈다)."""
+    order = _mk_order()
+    ka.send_alimtalk(order.id, manual_by=999999)
+
+    assert _history(order.id)["sent_by_name"] is None
 
 
 def test_send_no_phone_records_failed(db, solapi_env, stub_solapi_never):
