@@ -101,7 +101,7 @@ active_filter         "all" | "place" | "rel" | "claim"
 work_groups           _work_groups() 결과 중 **현재 필터로 거른 것**
 filter_counts         {"all": n, "place": n, "rel": n, "claim": n}   # 필터 전 전체에서 계산
 group_count           len(전체 집)          # 목록 길이 = 칩 '전체'
-actionable_count      손댈 수 있는 집 수     # 스트립·탭 배지·nav 뱃지 = 같은 값 (2026-08-24 개정)
+actionable_count      손댈 수 있는 집 수     # **탭 배지**·nav 뱃지 = 같은 값 (2026-08-24 개정)
 locked_count          group_count - actionable_count   # 스트립 '손대지 않음'
 pending_count         sum(count)            # 스트립 "상품주문 M건"
 work_truncated        bool
@@ -110,6 +110,18 @@ selected_group        _group_of_link(...) 결과 (절대 규칙 2)
 selected_household_claimed / member_rows / sales_users / cancel_reasons / can_view_history
 history / ingest_status / failures         # 기존과 동일 (all 탭 + ADMIN 조건 유지)
 ```
+
+**2026-08-24 2차 개정 — 한 줄에서 한 번만 말한다.** 상단 4줄(이름·탭·칩·도구)을 2줄로
+접으면서, 집 수를 말하는 자리를 **탭 배지 하나**로 줄였다. 스트립과 탭 배지가 같은 수를
+나란히 반복하면 어긋날 여지가 생기고, 한 줄에 붙으면 그 중복이 그대로 눈에 띈다. 어긋나지
+않게 하는 가장 확실한 방법은 한 번만 말하는 것이다.
+
+- 머리줄 = `네이버 수집` + 탭(집 수 소유) + **탭 배지가 말할 수 없는 사실**
+  (`상품주문 N건` · `손대지 않음 M집`) + 글자 크기. 뒤 둘은 처리 탭의 사실이므로
+  이력 탭에서는 내지 않는다.
+- 도구줄 = 필터 칩(낱개 알약 + 숫자) + `정렬`(붙은 세그먼트) + `찾기`.
+  칩과 정렬은 **모양으로** 가른다 — 둘 다 알약이면 한 줄에서 역할이 섞인다.
+- 두 줄 모두 sticky. 고정 높이는 예전(탭+도구)과 같고 보이는 사실만 늘었다.
 
 **2026-08-24 개정 — 숫자의 정의**: 스트립·탭 배지·nav 뱃지는 `group_count`(목록 길이)가
 아니라 **`actionable_count`(손댈 수 있는 집)** 를 말한다. 취소·반품 집은 목록에 남지만 어떤

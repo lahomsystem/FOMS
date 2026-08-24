@@ -168,16 +168,18 @@ def test_list_length_matches_strip_tab_badge_and_all_chip(client, workbench_on):
                address="대구 수성구 3", tel="010-3333-0003")
 
     body = client.get(TRIAGE_PATH).get_data(as_text=True)
-    strip = body.split("wb-strip__count")[1].split("</span>")[0]
+    strip = body.split("wb-bar__fact")[1].split("</span>")[0]
     work_tab = body.split('data-tab="work"')[1].split("</a>")[0]
 
     # 2026-08-24 개정: 스트립·탭 배지는 **손댈 수 있는 집**을 말한다. 집 C 는 취소요청이라
     # 어떤 액션도 되지 않으므로 2집이고, 그 차이는 스트립의 '손대지 않음'이 말한다.
     # 칩 '전체'는 목록 길이(3집) 그대로다 — 2 + 1 = 3 이 화면에서 맞아떨어져야 한다.
-    locked = body.split("wb-strip__locked")[1].split("</span>")[0]
+    locked = body.split("wb-bar__locked")[1].split("</span>")[0]
     assert len(_rows_html(body)) == 3, "목록이 3줄이 아니다(잠긴 집도 목록에는 남는다)"
-    assert "2집" in strip, strip
-    assert "상품주문 4건" in strip, strip
+    # 2026-08-24 머리줄 통합: 집 수는 **탭 배지 한 곳**이 말한다. 스트립은 탭 배지가
+    # 말할 수 없는 사실(상품주문 건수·손대지 않음)만 든다 — 같은 수를 두 번 쓰지 않는다.
+    assert "4" in strip and "건" in strip, strip
+    assert "집" not in strip, f"집 수를 스트립이 또 말한다: {strip}"
     assert "1집" in locked, locked
     assert "2집" in work_tab, work_tab
     assert "3집" in _chip(body, "all"), _chip(body, "all")
@@ -199,8 +201,7 @@ def test_strip_and_tab_keep_the_total_while_a_chip_filters(client, workbench_on)
     assert len(_rows_html(body)) == 1, "칩이 목록을 좁히지 않았다"
     # 총량은 칩과 무관하게 그대로다. 스트립·탭은 손댈 수 있는 집(1집), 칩 '전체'는 목록
     # 길이(2집) — 둘의 차이는 '손대지 않음 1집'이 화면에서 메운다(계약 §2.4, 08-24 개정).
-    assert "1집" in body.split("wb-strip__count")[1].split("</span>")[0]
-    assert "1집" in body.split("wb-strip__locked")[1].split("</span>")[0]
+    assert "1집" in body.split("wb-bar__locked")[1].split("</span>")[0]
     assert "1집" in body.split('data-tab="work"')[1].split("</a>")[0]
     assert "2집" in _chip(body, "all")
     assert "1집" in _chip(body, "claim")

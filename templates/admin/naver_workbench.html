@@ -19,7 +19,7 @@
 {% block title %}네이버 수집{% endblock %}
 
 {% block styles %}
-<link rel="stylesheet" href="{{ url_for('static', filename='css/admin/naver-workbench.css') }}?v=20260824p">
+<link rel="stylesheet" href="{{ url_for('static', filename='css/admin/naver-workbench.css') }}?v=20260824q">
 {% endblock %}
 
 {% block content %}
@@ -28,21 +28,37 @@
 
     {# 상태 스트립 — 이름은 화면에 하나("네이버 수집"). 진입구도 하나다.
        v2 의 '수집 상태' 버튼은 제거했다: 바로 아래 이력 탭과 같은 곳을 가리키던 중복이었다. #}
-    <div class="wb-strip">
-        <span class="wb-strip__title">네이버 수집</span>
+    <div class="wb-bar wb-bar--head">
+        <span class="wb-bar__title">네이버 수집</span>
+        <nav class="wb-tabs" role="tablist">
+            <a class="wb-tab" role="tab" data-tab="work" aria-selected="{{ 'true' if active_tab == 'work' else 'false' }}"
+               href="{{ url_for('admin.naver_ingest_triage', tab='work') }}">처리<span class="wb-tab__n">{{ actionable_count }}집</span></a>
+            {# 이력은 ADMIN 전용이다(수집 관리 화면과 같은 기준) — 열 수 없는 탭은 아예 안 보인다.
+               탭만 숨기고 주소를 열어 두면 URL 을 아는 사람이 그대로 본다. 서버도 같이 막는다. #}
+            {% if can_view_history %}
+            <a class="wb-tab" role="tab" data-tab="all" aria-selected="{{ 'true' if active_tab == 'all' else 'false' }}"
+               href="{{ url_for('admin.naver_ingest_triage', tab='all') }}">이력{% if history and history.total is defined %}<span class="wb-tab__n">{{ history.total }}집</span>{% endif %}</a>
+            {% endif %}
+        </nav>
         {# 결정 3: 숫자 이중 표기(집 · 상품주문)는 화면에서 여기 한 곳만 한다.
            **스트립·탭 배지·nav 뱃지는 '손댈 수 있는 집'을 말한다**(계약 §2.4, 2026-08-24 개정).
            취소·반품 집은 목록에 남지만 어떤 액션도 되지 않는데 예전에는 이 숫자에 섞여
            담당자가 보는 업무량이 실제보다 컸다(스테이징 72집 중 13집). 빼기만 하면 STAFF
            가 그 집을 다시 찾을 자리가 없어서(이력 탭은 ADMIN 전용) 목록은 그대로 두고
            숫자만 쪼갠다 — 아래 '손대지 않음'과 칩 '전체'가 62 + 13 = 75 로 맞아떨어진다. #}
-        <span class="wb-strip__count">{{ actionable_count }}집 · 상품주문 {{ pending_count }}건</span>
+        {# 집 수는 **탭 배지가 소유한다**(위). 여기서 또 말하면 한 줄 안에서 같은 수가 두 번
+           보인다 — 어긋날 여지를 없애는 가장 확실한 방법은 한 번만 말하는 것이다.
+           남는 것은 탭 배지가 말할 수 없는 사실 둘뿐이고, 둘 다 **처리 탭의 사실**이라
+           이력 탭에서는 내지 않는다(그 탭의 목록과 무관한 수를 띄우면 또 두 말이 된다). #}
+        {% if active_tab == 'work' %}
+        <span class="wb-bar__fact">상품주문 <b>{{ pending_count }}</b>건</span>
         {% if locked_count %}
-        <span class="wb-strip__locked" title="취소·반품이라 어떤 액션도 되지 않는 집입니다. 목록에는 남아 있습니다.">
+        <span class="wb-bar__locked" title="취소·반품이라 어떤 액션도 되지 않는 집입니다. 목록에는 남아 있습니다.">
             손대지 않음 <b>{{ locked_count }}집</b>
         </span>
         {% endif %}
-        <span class="wb-strip__spacer"></span>
+        {% endif %}
+        <span class="wb-bar__spacer"></span>
         {# 글자 크기 조절 — 브라우저를 80% 로 축소해 쓰면 11~12px 가 9~10px 로 보인다.
            브라우저 확대는 화면 전체를 키워 목록이 잘리므로, 이 화면 글자만 단계로 키운다.
            선택은 localStorage 에 남는다(사람마다 쓰는 배율이 다르다). #}
@@ -56,7 +72,7 @@
         {# 수집이 조용히 멈춰도 아무도 모르는 상태를 막는 최소 사실. 서버가 이 탭에
            ingest_status 를 싣지 않으면(처리 탭·비ADMIN) 아무것도 안 그린다. #}
         {% if ingest_status and ingest_status.watermark %}
-        <span class="wb-strip__fact">
+        <span class="wb-bar__fact wb-bar__fact--quiet">
             마지막 수집 <b>{{ ingest_status.watermark.last_run_at or '아직 없음' }}</b>
         </span>
         {% endif %}
@@ -120,26 +136,23 @@
     </section>
     {% endif %}
 
-    {# 탭 2개. 배지는 집 수만 쓴다(탭별 상품주문 건수는 만들어 낼 수 없다).
-       처리 탭 배지 = actionable_count = 스트립 숫자 = nav 뱃지 — 한 화면 안에서 어긋나면
-       안 된다. 칩 '전체'(group_count)는 목록 길이라 이 값보다 크고, 그 차이는 스트립의
-       '손대지 않음'이 말한다(계약 §2.4, 2026-08-24 개정). #}
-    <nav class="wb-tabs" role="tablist">
-        <a class="wb-tab" role="tab" data-tab="work" aria-selected="{{ 'true' if active_tab == 'work' else 'false' }}"
-           href="{{ url_for('admin.naver_ingest_triage', tab='work') }}">처리<span class="wb-tab__n">{{ actionable_count }}집</span></a>
-        {# 이력은 ADMIN 전용이다(수집 관리 화면과 같은 기준) — 열 수 없는 탭은 아예 안 보인다.
-           탭만 숨기고 주소를 열어 두면 URL 을 아는 사람이 그대로 본다. 서버도 같이 막는다. #}
-        {% if can_view_history %}
-        <a class="wb-tab" role="tab" data-tab="all" aria-selected="{{ 'true' if active_tab == 'all' else 'false' }}"
-           href="{{ url_for('admin.naver_ingest_triage', tab='all') }}">이력{% if history and history.total is defined %}<span class="wb-tab__n">{{ history.total }}집</span>{% endif %}</a>
-        {% endif %}
-    </nav>
 
     {% if active_tab == 'work' %}
     {# ══ 처리 ════════════════════════════════════════════════════════
        목록은 하나다. 칩은 **같은 목록을 거를 뿐** 다른 표를 부르지 않는다
        (v2 는 탭마다 모집단이 달라 45집 vs 43집처럼 숫자가 어긋났다). #}
-    <div class="wb-chips" role="group" aria-label="목록 필터">
+
+    {# 정렬 + 목록 안 찾기.
+       정렬은 **서버**가 한다 — 캡(WORK_GROUP_LIMIT)보다 먼저 돌아야 캡이 자를 집이
+       달라진다. 화면에서 줄만 다시 늘어놓으면 이미 잘린 집은 영영 안 나온다.
+       찾기는 **화면**이 한다 — 지금 목록에 있는 줄만 즉시 좁힌다(서버 왕복 0).
+       그래서 "이 목록에서"라고 못 박는다. 확인 완료로 큐에서 빠진 집은 여기서 안 나온다. #}
+    <div class="wb-bar wb-bar--tools">
+        {# 필터 칩과 정렬은 **모양으로** 가른다. 둘 다 알약이면 한 줄에 나란히 놓였을 때
+           어느 것이 "무엇을 보는가"이고 어느 것이 "어떤 순서인가"인지 구분이 안 된다.
+           칩 = 낱개 알약 + 숫자(주 조작), 정렬 = 붙은 세그먼트(둘 중 하나) — 글자를
+           더 쓰지 않고 뜻을 가르는 방법이다. #}
+        <span class="wb-chips" role="group" aria-label="목록 필터">
         {% for key, label in [('all', '전체'), ('place', '발주확인 전'),
                               ('rel', '추가결제·재결제'), ('claim', '취소·반품')] %}
         <a class="wb-chip{{ ' wb-chip--danger' if key == 'claim' else '' }}"
@@ -149,15 +162,10 @@
             {{ label }} <b class="wb-chip__n">{{ filter_counts.get(key, 0) }}집</b>
         </a>
         {% endfor %}
-    </div>
-
-    {# 정렬 + 목록 안 찾기.
-       정렬은 **서버**가 한다 — 캡(WORK_GROUP_LIMIT)보다 먼저 돌아야 캡이 자를 집이
-       달라진다. 화면에서 줄만 다시 늘어놓으면 이미 잘린 집은 영영 안 나온다.
-       찾기는 **화면**이 한다 — 지금 목록에 있는 줄만 즉시 좁힌다(서버 왕복 0).
-       그래서 "이 목록에서"라고 못 박는다. 확인 완료로 큐에서 빠진 집은 여기서 안 나온다. #}
-    <div class="wb-tools">
+        </span>
+        <span class="wb-bar__sep" aria-hidden="true"></span>
         <span class="wb-tools__label">정렬</span>
+        <span class="wb-seg" role="group" aria-label="정렬">
         {% for key, label, hint in [
             ('new', '접수순', '최근에 들어온 집부터'),
             ('due', '발송기한 임박순', '기한이 가까운 집부터 — 기한을 넘기면 네이버가 자동 취소할 수 있다')] %}
@@ -166,11 +174,14 @@
            title="{{ hint }}"
            href="{{ url_for('admin.naver_ingest_triage', tab='work', f=active_filter, s=key) }}">{{ label }}</a>
         {% endfor %}
-        <span class="wb-tools__spacer"></span>
+        </span>
+        <span class="wb-bar__spacer"></span>
+        {# 라벨을 없애고 placeholder 만 두지 않는다 — 값이 들어가면 무엇을 찾는 칸인지
+           사라진다. 라벨은 짧게 남기고, **범위**("이 목록에서")는 placeholder 로 내린다. #}
         <label class="wb-find">
-            <span class="wb-find__label">이 목록에서 찾기</span>
+            <span class="wb-find__label">찾기</span>
             <input type="search" id="wb-find" class="wb-find__input" autocomplete="off"
-                   placeholder="고객명 · 주문번호 · 제품"
+                   placeholder="이 목록에서 · 고객명 · 주문번호 · 제품"
                    aria-label="이 목록에서 찾기">
         </label>
         <span class="wb-find__note" id="wb-find-note" role="status" aria-live="polite"></span>
@@ -582,5 +593,5 @@
 {% endblock %}
 
 {% block scripts %}
-<script src="{{ url_for('static', filename='js/admin/naver-workbench.js') }}?v=20260824p" defer></script>
+<script src="{{ url_for('static', filename='js/admin/naver-workbench.js') }}?v=20260824q" defer></script>
 {% endblock %}

@@ -247,8 +247,9 @@ def test_empty_snapshots_are_counted_one_household_each(client, workbench_on):
     db_session.commit()
 
     body = client.get(f"{TRIAGE_PATH}?tab=work").get_data(as_text=True)
-    strip = body.split('class="wb-strip__count"')[1].split("</span>")[0]
-    assert "2집" in strip, f"빈 원본 2건이 한 집으로 붙었다: {strip}"
+    # 집 수는 탭 배지가 소유한다(2026-08-24 머리줄 통합) — 스트립은 상품주문 건수만 말한다.
+    tab = body.split('data-tab="work"')[1].split("</a>")[0]
+    assert "2집" in tab, f"빈 원본 2건이 한 집으로 붙었다: {tab}"
 
 
 # --------------------------------------------------------------------------- #
@@ -441,7 +442,7 @@ def test_font_size_control_is_on_the_shell(client, workbench_on):
     _collected(order_no="N-FS-UI", product="붙박이장", amount=100000)
 
     body = client.get(f"{TRIAGE_PATH}?tab=work").get_data(as_text=True)
-    strip = body.split('class="wb-strip"')[1].split("</div>")[0]
+    strip = body.split('class="wb-bar wb-bar--head"')[1].split("</div>")[0]
     assert 'id="wb-fs-down"' in strip and 'id="wb-fs-up"' in strip, strip
     assert 'id="wb-fs-now"' in strip
     # pane 파셜에는 없어야 한다(조각 응답에 들어가면 문서에 id 가 두 벌 생긴다 — 절대 규칙 1).

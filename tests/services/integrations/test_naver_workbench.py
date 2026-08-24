@@ -1238,10 +1238,13 @@ def test_strip_has_no_link_that_bounces_back_to_itself(client, workbench_on):
     _collected(order_no="N-ING-LOOP", product="붙박이장", amount=1000)
 
     body = client.get(TRIAGE_PATH).get_data(as_text=True)
-    strip = body.split('class="wb-strip"')[1].split("</div>")[0]
+    # 2026-08-24: 탭이 머리줄 안으로 들어왔다(4줄 → 2줄). 탭 링크는 정당한 진입구이므로
+    # 검사 범위를 **탭 밖**으로 좁힌다 — 막으려던 것은 이력 탭과 중복되던 '수집 상태' 버튼이다.
+    head = body.split('class="wb-bar wb-bar--head"')[1].split("</div>")[0]
+    outside_tabs = head.split("</nav>")[-1]
 
-    assert 'href="/admin/naver-ingest"' not in strip, strip
-    assert "<a " not in strip, "스트립에는 진입구를 두지 않는다(이력 탭과 중복)"
+    assert 'href="/admin/naver-ingest"' not in outside_tabs, outside_tabs
+    assert "<a " not in outside_tabs, "머리줄에는 탭 말고 진입구를 두지 않는다(이력 탭과 중복)"
     assert 'data-tab="all"' in body, "수집 상태로 가는 길(이력 탭)은 남아 있어야 한다"
 
 
