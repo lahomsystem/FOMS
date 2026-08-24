@@ -135,6 +135,26 @@ def _compose(session: Session, link: ExternalOrderLink, claim: dict) -> tuple[st
     return title[:200], message
 
 
+def _is_our_cancel(link: ExternalOrderLink) -> bool:
+    """이 링크의 취소를 **우리가** 냈는가 (판매자 직접취소 표식).
+
+    표식은 ``fulfillment.cancel_order`` 가 집 전체에 남긴다
+    (``triage_state['fulfillment']['canceled_at']``). 이 모듈의 상태 키
+    (:data:`STATE_KEY` = ``claim_sync``)와 **다른 축**이라 서로 덮어쓰지 않는다.
+
+    Args:
+        link: 클레임이 감지된 링크.
+
+    Returns:
+        bool: 우리 취소 표식이 있으면 True.
+    """
+    state = link.triage_state if isinstance(link.triage_state, dict) else {}
+    fulfillment = state.get("fulfillment")
+    if not isinstance(fulfillment, dict):
+        return False
+    return bool(fulfillment.get("canceled_at"))
+
+
 def _notify(session: Session, link: ExternalOrderLink, claim: dict,
             *, now: datetime) -> int:
     """취소·반품 발생을 담당자에게, 담당자가 없으면 ADMIN **역할**에게 알린다.
@@ -192,10 +212,12 @@ def refresh_claims(
         now: 알림 생성 시각(테스트 주입).
 
     Returns:
-        ``{"refreshed", "claimed", "notified"}`` 집계.
+        ``{"refreshed", "claimed", "notified", "self_canceled"}`` 집계.
+        ``self_canceled`` 는 **우리가 낸 취소라 알림을 막은 건수**다 — 억제도
+        세어야 "알림이 왜 안 왔지"를 나중에 확인할 수 있다.
     """
     stamp = now or now_utc_naive()
-    result = {"refreshed": 0, "claimed": 0, "notified": 0}
+    result = {"refreshed": 0, "claimed": 0, "notified": 0, "self_canceled": 0}
     ids = changed_external_ids(changed)
     if not ids:
         return result
@@ -240,8 +262,21 @@ def refresh_claims(
 
         if claim["blocking"]:
             result["claimed"] += 1
+            # **우리가 낸 취소는 알리지 않는다.** 판매자 직접취소(`fulfillment.cancel_order`)를
+            # 보내면 다음 스윕이 그 결과를 클레임으로 목격하고, 문안이 "일정·생산이 잡혀
+            # 있으면 진행을 멈추고 판매자센터에서 확인하세요"인 긴급 알림을 담당자에게
+            # 되돌려 보냈다. 방금 자기가 누른 일이 5분 뒤 경보로 돌아온다 — 진짜 고객
+            # 취소와 구분이 안 되니 경보 전체가 무뎌진다(2026-08-24 감사).
+            # 상태 갱신(스냅샷·발주상태·묶음키·last_status)은 그대로 한다. 사실은 사실이고,
+            # 화면의 '취소 완료' 표시는 이 갱신에서 나온다. 막는 것은 **알림뿐**이다.
+            if _is_our_cancel(link):
+                # 조용히 넘기지 않는다 — 억제도 기록이 남아야 나중에 셀 수 있다.
+                logger.info("[NAVER] 우리가 낸 취소라 클레임 알림을 보내지 않는다 link=%s status=%s",
+                            link.id, claim["status"])
+                sync["notified_status"] = claim["status"]
+                result["self_canceled"] += 1
             # 같은 상태로 두 번 알리지 않는다(5분 폴링이라 중복 방지가 필수).
-            if sync.get("notified_status") != claim["status"]:
+            elif sync.get("notified_status") != claim["status"]:
                 sent = _notify(session, link, claim, now=stamp)
                 if sent:
                     sync["notified_status"] = claim["status"]

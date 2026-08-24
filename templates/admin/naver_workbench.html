@@ -19,7 +19,7 @@
 {% block title %}네이버 수집{% endblock %}
 
 {% block styles %}
-<link rel="stylesheet" href="{{ url_for('static', filename='css/admin/naver-workbench.css') }}?v=20260824n">
+<link rel="stylesheet" href="{{ url_for('static', filename='css/admin/naver-workbench.css') }}?v=20260824p">
 {% endblock %}
 
 {% block content %}
@@ -149,7 +149,6 @@
             {{ label }} <b class="wb-chip__n">{{ filter_counts.get(key, 0) }}집</b>
         </a>
         {% endfor %}
-        <span class="wb-chips__hint">칩 숫자는 같은 목록을 거른 결과다 — '전체'가 목록 길이고, 탭 숫자는 그중 손댈 수 있는 집이다</span>
     </div>
 
     {# 정렬 + 목록 안 찾기.
@@ -583,5 +582,5 @@
 {% endblock %}
 
 {% block scripts %}
-<script src="{{ url_for('static', filename='js/admin/naver-workbench.js') }}?v=20260824n" defer></script>
+<script src="{{ url_for('static', filename='js/admin/naver-workbench.js') }}?v=20260824p" defer></script>
 {% endblock %}
