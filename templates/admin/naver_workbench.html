@@ -19,7 +19,7 @@
 {% block title %}네이버 수집{% endblock %}
 
 {% block styles %}
-<link rel="stylesheet" href="{{ url_for('static', filename='css/admin/naver-workbench.css') }}?v=20260824j">
+<link rel="stylesheet" href="{{ url_for('static', filename='css/admin/naver-workbench.css') }}?v=20260824k">
 {% endblock %}
 
 {% block content %}
@@ -152,6 +152,31 @@
         <span class="wb-chips__hint">칩 숫자는 같은 목록을 거른 결과다 — '전체'가 목록 길이고, 탭 숫자는 그중 손댈 수 있는 집이다</span>
     </div>
 
+    {# 정렬 + 목록 안 찾기.
+       정렬은 **서버**가 한다 — 캡(WORK_GROUP_LIMIT)보다 먼저 돌아야 캡이 자를 집이
+       달라진다. 화면에서 줄만 다시 늘어놓으면 이미 잘린 집은 영영 안 나온다.
+       찾기는 **화면**이 한다 — 지금 목록에 있는 줄만 즉시 좁힌다(서버 왕복 0).
+       그래서 "이 목록에서"라고 못 박는다. 확인 완료로 큐에서 빠진 집은 여기서 안 나온다. #}
+    <div class="wb-tools">
+        <span class="wb-tools__label">정렬</span>
+        {% for key, label, hint in [
+            ('new', '접수순', '최근에 들어온 집부터'),
+            ('due', '발송기한 임박순', '기한이 가까운 집부터 — 기한을 넘기면 네이버가 자동 취소할 수 있다')] %}
+        <a class="wb-sort" data-sort="{{ key }}"
+           aria-pressed="{{ 'true' if active_sort == key else 'false' }}"
+           title="{{ hint }}"
+           href="{{ url_for('admin.naver_ingest_triage', tab='work', f=active_filter, s=key) }}">{{ label }}</a>
+        {% endfor %}
+        <span class="wb-tools__spacer"></span>
+        <label class="wb-find">
+            <span class="wb-find__label">이 목록에서 찾기</span>
+            <input type="search" id="wb-find" class="wb-find__input" autocomplete="off"
+                   placeholder="고객명 · 주문번호 · 제품"
+                   aria-label="이 목록에서 찾기">
+        </label>
+        <span class="wb-find__note" id="wb-find-note" role="status" aria-live="polite"></span>
+    </div>
+
     {#
       벌크 바 — 고른 게 있을 때만 뜬다(#wb-bulk 는 CSS 로 display:none, JS 가 `.on` 을 붙인다).
       2026-08-14 일괄 완료처리 AS 증발 사고가 "선택 없이 버튼=전체 대상" 패턴에서 났다 —
@@ -207,7 +232,11 @@
                                         else ('wait' if group.place_pending else 'go')) %}
                 {# 벌크는 '아직 발주확인 안 된, 손대도 되는 집' 에만 연다(계약 §2.2 place 술어와 같다). #}
                 {% set can_pick = group.can_pick %}
+                {# 찾기 대상 텍스트를 행이 직접 들고 있는다. JS 가 여러 자식 요소를 훑어
+                   조립하면 마크업이 바뀔 때마다 조용히 안 걸린다. 주문번호는 행 어디에도
+                   글자로 없어서(배지는 '주문 #N' = FOMS 주문) 여기서만 검색 대상이 된다. #}
                 <a class="wb-row wb-row--pick wb-row--{{ row_kind }}{{ ' wb-row--locked' if row_locked else '' }}"
+                   data-find="{{ (group.customer_name ~ ' ' ~ (group.external_order_no or '') ~ ' ' ~ (group.product or '') ~ ' ' ~ ('주문 ' ~ group.order_id if group.order_id else ''))|lower }}"
                    data-group-id="{{ group.id }}" data-link-id="{{ group.id }}"
                    {# 대표 링크 id 로 비교하면 안 된다 — group.id 는 **목록 모집단** 안의 최대금액
                       링크이고 selected_group.id 는 _group_of_link 가 **집 전체**에서 뽑은 것이라
@@ -528,5 +557,5 @@
 {% endblock %}
 
 {% block scripts %}
-<script src="{{ url_for('static', filename='js/admin/naver-workbench.js') }}?v=20260824j" defer></script>
+<script src="{{ url_for('static', filename='js/admin/naver-workbench.js') }}?v=20260824k" defer></script>
 {% endblock %}

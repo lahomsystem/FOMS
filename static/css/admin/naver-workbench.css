@@ -278,6 +278,64 @@
     }
 }
 
+/* ── 정렬 + 목록 안 찾기 ─────────────────────────────────────────────
+   칩(모집단 거르기) 바로 아래에 둔다. 칩은 "무엇을 보는가", 여기는 "어떤 순서로 ·
+   그중 어느 줄"이다. 두 줄이 붙어 있어야 사람이 한 곳에서 목록을 조작한다. */
+.wb-tools {
+    display: flex;
+    align-items: center;
+    gap: 8px;
+    flex-wrap: wrap;
+    margin: 0 0 10px;
+    font-size: calc(12px * var(--wb-fs, 1));
+}
+
+.wb-tools__label { color: var(--wb-muted); }
+.wb-tools__spacer { flex: 1; }
+
+.wb-sort {
+    padding: 3px 10px;
+    border: 1px solid var(--wb-line);
+    border-radius: 999px;
+    color: var(--wb-muted);
+    text-decoration: none;
+    background: #fff;
+}
+
+.wb-sort:hover { background: var(--wb-surface-soft); color: #111827; }
+
+/* 지금 걸린 정렬 — 파랑(되돌릴 수 있는 것) 규칙을 따른다. */
+.wb-sort[aria-pressed="true"] {
+    background: var(--wb-accent-soft);
+    border-color: var(--wb-accent-line);
+    color: var(--wb-accent);
+    font-weight: 600;
+}
+
+.wb-find { display: inline-flex; align-items: center; gap: 6px; }
+.wb-find__label { color: var(--wb-muted); }
+
+.wb-find__input {
+    width: 220px;
+    max-width: 46vw;
+    padding: 3px 9px;
+    border: 1px solid var(--wb-line);
+    border-radius: 6px;
+    font-size: calc(12px * var(--wb-fs, 1));
+}
+
+.wb-find__input:focus {
+    outline: none;
+    border-color: var(--wb-accent-line);
+    box-shadow: 0 0 0 2px var(--wb-accent-soft);
+}
+
+/* 몇 줄로 좁혔는지 — 조용히 좁히면 "집이 사라졌다"가 된다. */
+.wb-find__note {
+    color: var(--wb-muted);
+    font-variant-numeric: tabular-nums;
+}
+
 /* ── 큐 행: 한 집 = 한 줄 ────────────────────────────────────────────── */
 /* v3: max-height/overflow 제거. 목록이 640px 에서 잘려 스크롤이 두 겹이 되는 바람에
    "방금 본 집이 어디 갔지" 가 됐다 — 이제 페이지 하나만 스크롤한다. */

@@ -84,6 +84,8 @@
 
     document.addEventListener('click', onClick);
     document.addEventListener('change', onChange);
+    // 목록 안 찾기는 서버 왕복 없이 즉시 좁힌다 — 위임이라 pane 교체에도 안 죽는다.
+    document.addEventListener('input', onInput);
     // Bootstrap 5 의 모달 이벤트는 버블한다 — 벌크 모달이 열리기 직전에 재진술을 한 번 더
     // 맞춘다(체크 상태와 모달 문장이 어긋난 채 열리는 자리를 막는다).
     document.addEventListener('show.bs.modal', onModalShow);
@@ -208,6 +210,60 @@
         if (target.closest('input.wb-pick')) {
             syncBulk();
         }
+    }
+
+    /**
+     * 목록 안 찾기 — 지금 화면에 있는 줄만 즉시 좁힌다.
+     *
+     * 서버로 보내지 않는 이유: 이 화면의 목록은 이미 한 번에 다 와 있고(캡 500집),
+     * 왕복을 넣으면 한 글자마다 조회가 나간다. 대신 **범위를 화면에 못 박는다** —
+     * 확인 완료로 큐에서 빠진 집은 목록에 없으므로 여기서도 안 나온다.
+     *
+     * 정렬은 반대로 서버가 한다: 캡보다 먼저 돌아야 캡이 자를 집이 달라진다.
+     */
+    function onInput(event) {
+        if (!event.target || event.target.id !== 'wb-find') {
+            return;
+        }
+        applyFind(event.target.value);
+    }
+
+    /**
+     * 찾기 낱말로 행을 숨기고 결과 수를 고지한다.
+     * @param {string} raw 사용자가 친 문자열.
+     */
+    function applyFind(raw) {
+        var needle = String(raw || '').trim().toLowerCase();
+        var rows = Array.prototype.slice.call(
+            document.querySelectorAll('#wb-queue a.wb-row'));
+        var shown = 0;
+        rows.forEach(function (row) {
+            var hay = row.getAttribute('data-find') || '';
+            var hit = !needle || hay.indexOf(needle) !== -1;
+            // hidden 은 CSS 없이도 먹는다 — 이 화면 CSS 가 늦게 와도 목록이 안 어긋난다.
+            row.hidden = !hit;
+            if (hit) {
+                shown += 1;
+            }
+        });
+        var note = document.getElementById('wb-find-note');
+        if (note) {
+            // 조용히 좁히면 "집이 사라졌다"가 된다. 찾는 중일 때만 말한다.
+            note.textContent = needle
+                ? (shown + '집 / ' + rows.length + '집')
+                : '';
+        }
+        // 숨은 줄이 선택에 남아 있으면 벌크가 화면에 없는 집으로 나간다(계약 §0-5).
+        clearHiddenPicks();
+        syncBulk();
+    }
+
+    /** 찾기로 숨겨진 행의 체크를 푼다 — 벌크 대상은 **화면에 보이는 집**의 부분집합이다. */
+    function clearHiddenPicks() {
+        var boxes = document.querySelectorAll('#wb-queue a.wb-row[hidden] input.wb-pick:checked');
+        Array.prototype.forEach.call(boxes, function (box) {
+            box.checked = false;
+        });
     }
 
     function onModalShow(event) {

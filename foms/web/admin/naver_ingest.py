@@ -863,7 +863,8 @@ def _render_workbench(db) -> str:
     """
     active_tab = _active_tab()
     active_filter = _active_filter()
-    groups, work_truncated = _work_groups(db)
+    active_sort = _active_sort()
+    groups, work_truncated = _work_groups(db, sort=active_sort)
     visible = [group for group in groups if _group_matches_filter(group, active_filter)]
     # 수집 상태(워터마크·인증 만료일)는 이력 탭에 함께 싣는다. 게이트가 켜지면 옛 수집
     # 화면이 리다이렉트로 닫히는데, 그 화면에만 있던 값이라 여기 없으면 수집이 조용히
@@ -874,6 +875,7 @@ def _render_workbench(db) -> str:
         "admin/naver_workbench.html",
         active_tab=active_tab,
         active_filter=active_filter,
+        active_sort=active_sort,
         work_groups=visible,
         # 칩 숫자·스트립·탭 배지는 **필터 전 전체**에서 센다(칩을 눌러도 총량은 안 변한다).
         filter_counts=_filter_counts(groups),
@@ -1106,6 +1108,59 @@ def _attach_row_flags(groups: list[dict[str, Any]]) -> None:
         group["can_pick"] = _group_matches_filter(group, "place")
 
 
+#: 목록 정렬 닫힌집합. 임의 문자열이 정렬식으로 들어가지 않게 한다.
+#: ``new`` = 접수 최신순(기본, v3 부터의 순서) · ``due`` = 발송기한 임박순.
+WORKBENCH_SORTS = ("new", "due")
+
+#: 발송기한이 없는 집을 임박순 정렬에서 **맨 뒤로** 보내는 자리표시 날짜.
+#: 빈 문자열로 정렬하면 기한 없는 집이 제일 급한 것처럼 맨 앞에 온다.
+_NO_DUE = "9999-12-31"
+
+
+def _active_sort() -> str:
+    """``?s=`` 를 읽어 유효한 정렬 이름으로 정규화한다.
+
+    Returns:
+        :data:`WORKBENCH_SORTS` 중 하나. 모르는 값은 조용히 ``new`` 로 떨어뜨린다
+        (주소를 손으로 고쳐도 목록이 비지 않는다 — :func:`_active_filter` 와 같은 규칙).
+    """
+    raw = (request.args.get("s") or "").strip().lower()
+    return raw if raw in WORKBENCH_SORTS else "new"
+
+
+def _sort_groups(groups: list[dict[str, Any]], name: str) -> None:
+    """집 목록을 제자리에서 정렬한다.
+
+    **접수순(`new`)이 기본이지만 그냥 두면 안 된다.** 목록은 확인 큐(최신순) 뒤에
+    '발주확인 전' 집(최신순)을 이어 붙인 두 덩어리라, 접수시각이 아래로 가다가 중간에서
+    다시 최신으로 튄다 — 담당자는 목록이 시간순이라고 믿고 훑는데 그 믿음이 중간에서
+    깨진다(2026-08-24 감사). 병합 뒤 **전역으로** 다시 정렬한다.
+
+    화면 문자열(``created_at`` = ``"%m-%d %H:%M"``)로 정렬하면 연말에 뒤집힌다
+    (12-31 > 01-02). 그래서 원본 시각 사본(``created_sort``)을 쓴다.
+
+    ``due``(발송기한 임박순)의 동률은 접수 최신순으로 깬다 — 같은 기한이면 나중에 들어온
+    집이 손이 덜 간 집이다. 기한이 없는 집은 :data:`_NO_DUE` 로 맨 뒤에 둔다.
+
+    Args:
+        groups: :func:`_work_groups` 가 만든 집 목록. **제자리에서** 정렬된다.
+        name: :data:`WORKBENCH_SORTS` 중 하나.
+    """
+    if name == "due":
+        groups.sort(key=lambda group: (str(group.get("shipping_due") or _NO_DUE),
+                                       _sort_stamp_desc(group)))
+        return
+    groups.sort(key=_sort_stamp_desc)
+
+
+def _sort_stamp_desc(group: dict[str, Any]) -> float:
+    """접수 최신순 정렬키(작을수록 최신). 시각이 없으면 맨 뒤로 보낸다."""
+    stamp = group.get("created_sort")
+    if stamp is None:
+        return float("inf")
+    return -stamp.timestamp()
+
+
 def _actionable_count(groups: list[dict[str, Any]]) -> int:
     """**손댈 수 있는** 집 수 — 스트립·탭 배지·nav 뱃지가 함께 쓰는 SSOT.
 
@@ -1323,7 +1378,8 @@ def _place_groups(db, *, display: bool = True) -> tuple[list[dict[str, Any]], bo
     return visible[:WORK_GROUP_LIMIT], truncated
 
 
-def _work_groups(db, *, display: bool = True) -> tuple[list[dict[str, Any]], bool]:
+def _work_groups(db, *, display: bool = True,
+                 sort: str = "new") -> tuple[list[dict[str, Any]], bool]:
     """처리 탭 목록 = 확인 큐 ∪ 발주확인 전 집 (집 단위 병합).
 
     두 목록을 따로 두면 같은 집이 화면마다 다른 숫자로 세어지고, 사람은 한 집을 끝내려고
@@ -1347,6 +1403,8 @@ def _work_groups(db, *, display: bool = True) -> tuple[list[dict[str, Any]], boo
         db: 요청 스코프 DB 세션.
         display: 표시용 스냅샷·주문까지 싣는가. nav 뱃지(:func:`triage_count.
             _workbench_group_count`)는 세기만 하므로 False 로 부른다.
+        sort: 목록 정렬(:data:`WORKBENCH_SORTS`). **모집단을 바꾸지 않는다** — 캡보다
+            먼저 돌므로 캡이 자를 집만 달라진다.
 
     Returns:
         ``(집 목록, 조회 상한에 걸렸는지)``. 순서는 큐(수집 최신순) → 큐 밖 발주확인 전 집.
@@ -1391,6 +1449,10 @@ def _work_groups(db, *, display: bool = True) -> tuple[list[dict[str, Any]], boo
     record_phase("nvb_hcnt", (time.perf_counter() - _t) * 1000)
     # 잠금·선택 판정은 위 두 단계가 끝난 **뒤에** 한 번만 한다(형제 클레임이 반영된 값으로).
     _attach_row_flags(groups)
+    # 정렬은 **캡보다 먼저** 한다. 뒤에 하면 캡이 자를 집을 정렬이 못 고른다 — 발송기한이
+    # 임박한 집은 정의상 오래 전에 수집된 집이라 접수순 목록의 아래쪽에 있고, 캡이 먼저
+    # 자르면 그 집이 화면 밖으로 밀린 뒤에야 정렬이 돈다.
+    _sort_groups(groups, sort)
     # 캡 한 곳 — 병합 결과에만 건다. 닿으면 **로그를 남기고** 화면에도 말한다(조용히 자르면
     # 사람이 나머지를 찾아 헤맨다 — 2026-08-14 대시보드 캡 결함과 같은 부류).
     capped = len(groups) > WORK_GROUP_LIMIT
@@ -1897,10 +1959,16 @@ def _group_queue(links: list[ExternalOrderLink], orders: dict,
             # 묶음키 그대로 — 호출자가 이 집에 다른 판정(형제까지 본 클레임 등)을 붙일 때 쓴다.
             "key": key,
             "external_id": lead.external_id,
+            # 네이버 주문번호 — 목록에서 집을 찾는 유일한 확실한 열쇠다(화면 글자에는
+            # 안 나오고 '주문 #N' 배지는 FOMS 주문 id 라 서로 다른 번호다).
+            "external_order_no": lead.external_order_no or "",
             # 목록은 접수순 정렬이라 **날짜·시각**은 필요하지만 초와 연도는 아무 결정도
             # 바꾸지 않는다. 이름 줄 오른쪽에 붙는 값이라 19자를 그대로 쓰면 긴 고객명이
             # 잘린다(2026-08-23 CEO 검수). 상세·이력 표의 시각 표기는 그대로 둔다.
             "created_at": format_datetime_kst(lead.created_at, "%m-%d %H:%M"),
+            # 정렬 전용 원본 시각. 화면 문자열("%m-%d %H:%M")로 정렬하면 **연말에 뒤집힌다**
+            # (12-31 > 01-02). 렌더에는 쓰지 않는다.
+            "created_sort": lead.created_at,
             "customer_name": (getattr(order, "customer_name", None)
                               or lead_summary["customer_name"]),
             "product": lead_summary["product"],
