@@ -366,3 +366,108 @@ tip 에서 딴 깨끗한 워크트리**(`c:/tmp/foms-chain`)에서 적용했다(
   B(네이버만 cherry-pick)는 스펙이 가장 위험하다고 판정했다(핫파일 충돌 → 운영에만
   존재하는 제4의 코드 상태). 권고는 **C → A 2단**.
 - D6(승격 후 네이버 기능을 켤지) · D7(S4 실패 시 downgrade 사전 위임) · D8(배포 시간대).
+
+---
+
+## 10. 운영 스키마 승격 완료 (PR #143 · 운영 `57cc536d`)
+
+**C 방식(스키마 선행) 실행 완료.** 코드는 아직 안 갔다.
+
+```
+운영 alembic_version : merge_prod_drawq -> merge_drawq_naverfail
+external_order_links / order_change_reasons : 생성됨
+orders.as_axis_status : 존재
+healthz 200 · login 200
+```
+
+배포 직후 운영 DB 를 읽기 전용으로 폴링해 위 전이를 **눈으로 확인**했다(`PRODUCTION_MIGRATED_OK`).
+
+### 10.1 PR 이 red 였고, 진짜 결함이었다 (재발 방지)
+
+처음 올린 PR 은 **마이그레이션 파일 10개만** 담았다. pg-lane 이 red:
+
+```
+UndefinedObject: index "ix_external_order_link_group" does not exist
+```
+
+PG 레인 베이스라인이 `models.py` 의 `create_all` 이라, 운영 `models.py` 에 `ExternalOrderLink`
+모델이 없으면 그 테이블이 아예 안 만들어지고 `navergroup_00.downgrade` 가 없는 인덱스를
+DROP 하려다 터진다. **마이그레이션 파일만 옮기면 안 된다 — 대응 모델 선언까지 옮기고
+기능 코드는 두고 온다.**
+
+모델 3종(`Order.as_axis_status`+인덱스 · `OrderChangeReason` · `ExternalOrderLink`)을 옮기니
+**두 번째 결함**이 드러났다:
+
+```
+UndefinedColumn: column orders.as_axis_status does not exist
+```
+
+`blueprint_00` 의 `downgrade` 가 부르는 `_legacy_orders` 가 `Order` **전체 컬럼**을 SELECT 한다.
+그 리비전은 `asaxis_00` 보다 **아래**인데 앱 서비스를 재사용하기 때문에, 나중에 추가된
+컬럼이 그 시점 스키마에 없는 상태로 SQL 에 섞인다. deploy 에는 이미 `load_only` 로 고쳐져
+있고 docstring 이 **"2026-08-17 AS-AXIS-01 컬럼 추가에서 실제 발생"** 이라 적어 놨다.
+그 수정을 함께 가져왔다 — 스키마 승격의 **선행 조건**이지 기능 변경이 아니다.
+
+결과: `test_migration_chain` 1 passed · `tests/postgres` **729 passed**(직전 717+1 failed).
+
+### 10.2 perf-gate 1ms 초과는 코드 회귀가 아니었다
+
+`/erp/as` dTTFB **169ms vs 예산 168ms**. 나머지 12개 경로는 여유 통과.
+이 PR 은 `migrations/` 와 모델 선언만 건드리고 `/erp/as` 경로 코드는 0줄이며, perf-gate 는
+PR 브랜치가 아니라 **스테이징 실서버**를 잰다. **예산을 건드리지 않고** 재측정만 했더니
+`pass`. 저녁 드리프트 계열(선행 사례: `project_perf_gate_evening_drift_2026_08_06`).
+
+### 10.3 승격 전 실측으로 확인한 것
+
+| 항목 | 결과 |
+|---|---|
+| 운영 `web` 실배포 매니페스트(U3) | `preDeployCommand = ['sh predeploy.sh']` · `startCommand = 'sh start.sh'` — **대시보드 덮어쓰기 없음**. `railway status --json` 의 `serviceManifest.deploy` 로 확인(GraphQL 은 403) |
+| 운영 기존 마이그레이션 파일 변경 | **0줄**(순수 add 10개). E2·E3 이 운영에선 이미 그 값이었다 |
+| 새 마이그레이션의 앱 코드 import | **0** (stdlib `json` 뿐) — 운영에 없는 심볼을 안 부른다 |
+| 승격 리허설(운영 코드 트리) | `stamp merge_prod_drawq` → `upgrade head`: 신규 3종 생성, 인덱스 유실 0 |
+| 롤백 리허설 | `downgrade merge_prod_drawq` 로 운영 출발점에 정확히 복귀 |
+| 역방향 | 새 스키마 위에서 운영 코드 부팅 + `Order` 조회 OK |
+
+### 10.4 아직 안 한 검증 (정직하게)
+
+- **운영에 로그인해 주문 목록·상세를 눈으로 본 확인이 없다.** DB 수준 전이와 `healthz`·
+  `login` 200 까지만 봤다. 운영 `claude_master` 는 기본 잠금이고 해제는 별건 승인이라
+  건드리지 않았다. **사용자가 운영 주문 화면을 한 번 여는 것이 최종 확인이다.**
+
+---
+
+## 11. R2 · R3 (deploy `e93274fd` · `5d8db32b`)
+
+### 11.1 R2 — 도크에서 워크벤치로 돌아가는 길, ADMIN·MANAGER 한정
+
+재결제 집은 발주확인과 발송처리 사이에 며칠이 뜨는데, 그 사이 `확인 완료` 를 누르면
+목록 두 원천에서 모두 빠져 발송처리 버튼에 닿을 길이 주소 수기밖에 안 남았다(§5 함정 1).
+
+**역할 제한이 본체다.** 판정을 payload 생성 시점(서버)에서 해 **STAFF 응답에는 주소가
+아예 안 실린다** — 화면에서 숨기는 게 아니라 컨텍스트를 만들지 않는다(계약 §0-4).
+주소는 문자열이 아니라 `url_for` 로 만들고, 실경로(`order_edit_view_context.py:85`)가
+`user` 를 넘기는 것까지 확인했다.
+
+**주 세션 재검증**: `test_naver_dock.py` 42 passed · `APP_OK` ·
+`WORKBENCH_LINK_ROLES` 에 `STAFF` 를 넣으니 **그 테스트 하나만** 정확히 red(축 분리 확인).
+
+### 11.2 R3 — 붙이기·되돌리기를 주문 변경 이력에
+
+08-19 §7 **Q3 이행(안 B)**: 주문 상태 불변 + `OrderEvent` 1건. append-only —
+되돌리기는 금액 기록만 걷어내고 붙임 이벤트는 남긴다.
+
+집 요약을 **변경 전에** 뽑는다(되돌리기가 `relation` 을 `NEW` 로 돌리므로 뒤에 부르면
+값이 사라진다). 호출자 트랜잭션에 그대로 얹는다 — 이력만 따로 커밋하면 "붙었는데 이력이
+없는" 상태가 새로 생기는데 그게 바로 R3 가 없애려던 결함이다.
+
+**주 세션 재검증**: `tests/services/integrations/` 575 passed · 인벤토리·네임스페이스
+203 passed · `APP_OK` · `pre_push_smoke` exit 0.
+라벨 사전 2줄만 빼고 돌리니 red 사유가 정확히 **`['기타 변경']`** — 스펙에 박아 둔 함정이
+실제로 그렇게 나타난다는 것까지 확인했다.
+
+### 11.3 R2 가 남긴 판단 (기록)
+
+링크가 여는 집은 **가장 나중에 수집된 링크**다. pane 이 `external_order_no` 로 집을
+되찾으므로 집 안에서는 어느 링크든 같고, 주문에 집이 둘이면 나중 집이 처리가 남은 쪽이다.
+다만 도크 머리말의 `주문번호` 는 여전히 **첫 집** 번호라, 집이 둘인 주문에서 머리말과
+링크가 가리키는 집이 다르다. 기존 표기 결함이라 이번에 손대지 않았다 — 육안 확인 목록.
