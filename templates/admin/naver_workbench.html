@@ -19,7 +19,7 @@
 {% block title %}네이버 수집{% endblock %}
 
 {% block styles %}
-<link rel="stylesheet" href="{{ url_for('static', filename='css/admin/naver-workbench.css') }}?v=20260824m">
+<link rel="stylesheet" href="{{ url_for('static', filename='css/admin/naver-workbench.css') }}?v=20260824n">
 {% endblock %}
 
 {% block content %}
@@ -202,7 +202,9 @@
         <section class="card shadow-sm">
             <div class="card-header py-2 d-flex flex-wrap align-items-center gap-2">
                 <span class="small fw-semibold">처리할 집</span>
-                <span class="small text-muted">한 집이 한 줄 · {{ work_groups|length }}집</span>
+                {# 스트립은 '손댈 수 있는 집'을 말하고 여기는 **지금 보이는 줄 수**다(칩으로
+                   좁히면 줄어든다). 둘 다 "N집"이면 같은 말로 읽혀서 라벨을 갈랐다. #}
+                <span class="small text-muted">한 집이 한 줄 · 보이는 {{ work_groups|length }}줄</span>
                 {# 절대 규칙 5: 전부 선택은 **지금 필터로 보이는 행**만 고른다. #}
                 <label class="small text-muted mb-0 ms-auto d-flex align-items-center gap-1">
                     <input type="checkbox" id="wb-pick-all"> 전부 선택
@@ -277,8 +279,14 @@
                             {{ group.product }}{% if group.extra_count %} 외 {{ group.extra_count }}건{% endif %}
                         </span>
                         <span class="wb-row__line3">
-                            {% if group.count > 1 %}
-                            <span class="badge bg-light text-dark">{{ group.count }}건 묶음</span>
+                            {# 'N건 묶음'은 **집 전체**의 상품주문 수다. 예전에는 group.count
+                               (화면 모집단 안의 수)를 썼는데, 확인이 끝났거나 매핑 실패로 큐에서
+                               빠진 형제를 안 세서 "2건 묶음"을 읽고 체크한 뒤 모달에서 "상품주문
+                               4건"을 봤다 — 한 화면 안에서 건수가 두 개였다(2026-08-24 감사).
+                               household_count 는 워커가 실제로 손댈 집 전체 수다. #}
+                            {% set row_items = group.household_count or group.count %}
+                            {% if row_items > 1 %}
+                            <span class="badge bg-light text-dark">{{ row_items }}건 묶음</span>
                             {% endif %}
                             {# 관계 배지는 추가결제·재결제에만 단다(결정 D4). 대부분이 신규라
                                전부 달면 배지가 배경이 된다 — 다른 것만 눈에 띄어야 한다. #}
@@ -317,6 +325,15 @@
                                배지가 없어서 **정렬의 근거가 화면에 없었다**(실화면에서 상단
                                15줄이 기한을 안 보여줬다). 정렬한 값은 보여야 한다.
                                발주확인이 끝나도 그 날짜까지 발송해야 하는 것은 그대로다. #}
+                            {# 발주확인이 끝난 집에는 아무 표시가 없어서 '발주확인 전' 배지가
+                               **없다는 사실**로만 읽어야 했다 — 화면 규칙을 외운 사람만 읽는다.
+                               상세 pane 은 같은 이유로 이미 완료 배지를 달고 있다.
+                               모든 행에 달지는 않는다(결정 D4: 전부 달면 배지가 배경이 된다) —
+                               **체크박스가 회색인 이유**가 필요한 행, 즉 잠기지 않았는데 벌크
+                               대상이 아닌 행에만 단다. 그 조건이 곧 '발주확인이 끝났다'이다. #}
+                            {% if not row_locked and not can_pick %}
+                            <span class="badge bg-light text-dark wb-badge--done">발주확인 완료</span>
+                            {% endif %}
                             {% if group.shipping_due and not row_locked %}
                             {# 연도는 전부 같은 해라 아무 결정도 바꾸지 않는다 — 목록에서만 뗀다
                                (상세·모달은 전체 날짜 그대로). #}
@@ -366,6 +383,10 @@
                         선택한 <span id="wb-bulk-count">0</span>집 ·
                         상품주문 <span id="wb-bulk-items">0</span>건
                         (<span id="wb-bulk-names"></span>)을 네이버에 <b>발주확인</b>으로 보냅니다.
+                        <span class="d-block small fw-normal text-muted mt-1">
+                            이미 발주확인이 끝난 형제는 빠집니다 — 목록의 '건 묶음'(집 전체 수)보다
+                            적을 수 있습니다.
+                        </span>
                     </p>
                     {# ② 되돌릴 수 없음 #}
                     <div class="alert alert-danger py-2 mb-2" data-foms-no-autodismiss>
@@ -562,5 +583,5 @@
 {% endblock %}
 
 {% block scripts %}
-<script src="{{ url_for('static', filename='js/admin/naver-workbench.js') }}?v=20260824m" defer></script>
+<script src="{{ url_for('static', filename='js/admin/naver-workbench.js') }}?v=20260824n" defer></script>
 {% endblock %}
