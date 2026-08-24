@@ -19,7 +19,7 @@
 {% block title %}네이버 수집{% endblock %}
 
 {% block styles %}
-<link rel="stylesheet" href="{{ url_for('static', filename='css/admin/naver-workbench.css') }}?v=20260824k">
+<link rel="stylesheet" href="{{ url_for('static', filename='css/admin/naver-workbench.css') }}?v=20260824m">
 {% endblock %}
 
 {% block content %}
@@ -312,7 +312,12 @@
                             {% endif %}
                             {# 발송기한을 넘기면 네이버가 자동 취소할 수 있다 — 없어진
                                '발주확인 전' 탭이 갖고 있던 사실을 여기로 옮겼다. #}
-                            {% if group.shipping_due and group.place_pending and not row_locked %}
+                            {# 2026-08-24: `place_pending` 조건을 뗐다. 발송기한 임박순으로
+                               정렬할 수 있게 되었는데, 발주확인이 끝난 집은 기한이 있어도
+                               배지가 없어서 **정렬의 근거가 화면에 없었다**(실화면에서 상단
+                               15줄이 기한을 안 보여줬다). 정렬한 값은 보여야 한다.
+                               발주확인이 끝나도 그 날짜까지 발송해야 하는 것은 그대로다. #}
+                            {% if group.shipping_due and not row_locked %}
                             {# 연도는 전부 같은 해라 아무 결정도 바꾸지 않는다 — 목록에서만 뗀다
                                (상세·모달은 전체 날짜 그대로). #}
                             <span class="badge bg-light text-dark">발송기한 {{ group.shipping_due[5:] if group.shipping_due|length > 7 else group.shipping_due }}</span>
@@ -557,5 +562,5 @@
 {% endblock %}
 
 {% block scripts %}
-<script src="{{ url_for('static', filename='js/admin/naver-workbench.js') }}?v=20260824k" defer></script>
+<script src="{{ url_for('static', filename='js/admin/naver-workbench.js') }}?v=20260824m" defer></script>
 {% endblock %}

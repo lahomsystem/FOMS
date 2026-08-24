@@ -1147,7 +1147,11 @@ def _sort_groups(groups: list[dict[str, Any]], name: str) -> None:
         name: :data:`WORKBENCH_SORTS` 중 하나.
     """
     if name == "due":
-        groups.sort(key=lambda group: (str(group.get("shipping_due") or _NO_DUE),
+        # 잠긴 집(취소·반품)은 기한이 아무리 가까워도 **맨 뒤**다. 담당자가 "급한 것부터"
+        # 보려고 누른 건데 손댈 수 없는 집이 상단을 차지하면 정렬이 거짓말을 한다
+        # (2026-08-24 스테이징 실화면: 임박순 상단 6줄 중 4줄이 취소·반품이었다).
+        groups.sort(key=lambda group: (bool(group.get("locked")),
+                                       str(group.get("shipping_due") or _NO_DUE),
                                        _sort_stamp_desc(group)))
         return
     groups.sort(key=_sort_stamp_desc)

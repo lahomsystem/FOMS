@@ -160,3 +160,31 @@ def test_sort_does_not_change_the_population(app):
     assert _filter_counts(by_new) == _filter_counts(by_due)
     assert _actionable_count(by_new) == _actionable_count(by_due)
     assert trunc_new == trunc_due
+
+
+def test_due_sort_pushes_locked_households_to_the_bottom(app):
+    """임박순은 **손댈 수 있는 집**부터다 — 취소·반품이 상단을 차지하면 정렬이 거짓말이다.
+
+    2026-08-24 스테이징 실화면에서 임박순 상단 6줄 중 4줄이 '손대지 않음'이었다.
+    담당자는 "급한 것부터"를 보려고 누른 것이지 손댈 수 없는 집을 보려는 게 아니다.
+    """
+    from db import db_session
+    from foms.web.admin.naver_ingest import _work_groups
+
+    # 기한이 제일 가까운 집을 **취소 요청**으로 만든다 — 정렬만 보면 맨 위여야 하는 집.
+    locked = _link(db_session, external_id="20260811000001", order_no="N-LOCK",
+                   name="취소급함", tel="010-6000-0001",
+                   created_at=datetime.datetime(2026, 8, 23, 9, 0))
+    snap = dict(locked.raw_snapshot)
+    product_order = dict(snap["productOrder"])
+    product_order["shippingDueDate"] = "2026-08-25T00:00:00.0+09:00"
+    product_order["claimStatus"] = "CANCEL_REQUEST"
+    snap["productOrder"] = product_order
+    locked.raw_snapshot = snap
+    db_session.commit()
+    _seed_due(db_session)
+
+    groups, _truncated = _work_groups(db_session, sort="due")
+
+    assert groups[0]["customer_name"] == "급함", "손댈 수 있는 집이 먼저 와야 한다"
+    assert groups[-1]["customer_name"] == "취소급함", "잠긴 집은 기한과 무관하게 맨 뒤다"
