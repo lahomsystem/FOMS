@@ -17,6 +17,7 @@
 from __future__ import annotations
 
 import copy
+import datetime
 import logging
 import os
 import re
@@ -48,6 +49,8 @@ __all__ = [
     "sender_phone",
     "send_alimtalk",
     "maybe_send_measure_alimtalk",
+    "confirm_channel",
+    "ALIMTALK_CHANNEL_PROBE_DELAY_SEC",
 ]
 
 logger = logging.getLogger(__name__)
@@ -644,6 +647,123 @@ def send_alimtalk(
         )
         session.commit()
         return {"sent": error is None, "error": error}
+    finally:
+        session.close()
+
+
+#: 발송 직후엔 벤더가 아직 카톡→문자 전환을 결정하지 않았다(접수 시점 type=ATA). 이만큼
+#: 지난 뒤에 한 번 조회해야 실제 나간 채널을 알 수 있다(T15 ③ — 웹훅 아님, 사용자 결정).
+ALIMTALK_CHANNEL_PROBE_DELAY_SEC = 60
+
+#: 벤더 조회 결과 ``type`` 이 이 집합이면 카톡이 실패해 문자로 대체발송된 것이다.
+_TEXT_CHANNELS = frozenset({"SMS", "LMS", "MMS"})
+
+
+def _solapi_lookup_channel(message_id: str) -> str | None:
+    """벤더에 메시지 1건을 조회해 실제 나간 채널(``type``)을 돌려준다.
+
+    격리된 호출부다 — 테스트는 이 함수를 monkeypatch 해 네트워크 없이 돈다
+    (:func:`_solapi_send` 선례).
+
+    Args:
+        message_id: 발송 시 받은 벤더 message id.
+
+    Returns:
+        ``'ATA'``(카톡) · ``'SMS'``/``'LMS'``(문자 대체발송) 등 벤더 type. 벤더가 그
+        메시지를 모르면 ``None``. 호출 실패는 예외로 올라온다.
+    """
+    from solapi import SolapiMessageService
+    from solapi.model.request.messages.get_messages import GetMessagesRequest
+
+    service = SolapiMessageService(_env("SOLAPI_API_KEY"), _env("SOLAPI_API_SECRET"))
+    response = service.get_messages(GetMessagesRequest(message_id=message_id))
+    for item in (getattr(response, "message_list", None) or {}).values():
+        kind = getattr(item, "type", None)
+        if kind:
+            return str(kind).upper()
+    return None
+
+
+def _parse_history_time(value: object) -> datetime.datetime | None:
+    """이력에 저장된 naive UTC ISO 문자열을 datetime 으로 되돌린다(불량이면 None)."""
+    if not isinstance(value, str) or not value:
+        return None
+    try:
+        return datetime.datetime.fromisoformat(value)
+    except ValueError:
+        return None
+
+
+def is_text_channel(channel: object) -> bool:
+    """이력의 channel 값이 '문자로 나갔다'를 뜻하는지 판정한다(화면 문구 SSOT)."""
+    return str(channel or "").upper() in _TEXT_CHANNELS
+
+
+def confirm_channel(order_id: int) -> dict:
+    """발송된 알림톡이 실제 어느 채널로 나갔는지 벤더에 **한 번** 물어 이력에 굳힌다.
+
+    카톡(ATA)으로 접수된 건이 실패하면 벤더가 문자(SMS/LMS)로 대체발송하는데, 그 전환은
+    발송 직후엔 알 수 없다. 그래서 발송 1분 뒤에 이 함수가 한 번 조회한다.
+
+    벤더 호출이 성공하면 결과가 비어 있어도 ``channel_checked_at`` 을 남긴다 — '물어봤다'는
+    사실 자체가 재조회를 멈추는 기준이다(무한 재시도 방지). 호출이 실패하면 아무것도
+    쓰지 않아 다음 기회에 다시 물을 수 있다.
+
+    Args:
+        order_id: 주문 id.
+
+    Returns:
+        ``{'channel': str | None, 'checked': bool, 'cached': bool, 'error': str | None}``.
+        ``checked`` 는 채널 확정이 끝났는지, ``cached`` 는 이전 조회 결과를 그대로 돌려준
+        것인지(이번에 벤더를 부르지 않음)를 뜻한다.
+    """
+    session = _session_factory()
+    try:
+        order = session.get(Order, order_id)
+        if order is None:
+            return {"channel": None, "checked": False, "cached": False,
+                    "error": "order_not_found"}
+        sd = order.structured_data or {}
+        history = sd.get("alimtalk_measurement")
+        history = history if isinstance(history, dict) else {}
+        message_id = history.get("message_id")
+        if history.get("error") is not None or not message_id:
+            # 실패했거나 벤더 id 가 없는 건은 확인할 채널 자체가 없다.
+            return {"channel": None, "checked": False, "cached": False,
+                    "error": "nothing_to_confirm"}
+        if history.get("channel_checked_at"):
+            return {"channel": history.get("channel"), "checked": True,
+                    "cached": True, "error": None}
+        sent_at = _parse_history_time(history.get("sent_at"))
+        if sent_at is not None:
+            elapsed = (now_utc_naive() - sent_at).total_seconds()
+            if elapsed < ALIMTALK_CHANNEL_PROBE_DELAY_SEC:
+                return {"channel": None, "checked": False, "cached": False,
+                        "error": "too_early"}
+        if not is_configured(resolve_brand(sd)):
+            return {"channel": None, "checked": False, "cached": False,
+                    "error": "not_configured"}
+
+        try:
+            channel = _solapi_lookup_channel(str(message_id))
+        except Exception as exc:  # 조회 실패는 삼키지 않고 코드로 표면화(이력 미변경)
+            code = _classify_error(exc)
+            logger.warning("알림톡 채널 조회 실패 (order_id=%s, error=%s): %s",
+                           order_id, code, exc)
+            return {"channel": None, "checked": False, "cached": False, "error": code}
+
+        now = now_utc_naive()
+        next_sd = copy.deepcopy(order.structured_data or {})
+        record = next_sd.get("alimtalk_measurement")
+        record = record if isinstance(record, dict) else {}
+        record["channel"] = channel
+        record["channel_checked_at"] = now.isoformat()
+        next_sd["alimtalk_measurement"] = record
+        order.structured_data = next_sd
+        flag_modified(order, "structured_data")
+        session.commit()
+        logger.info("알림톡 채널 확정 (order_id=%s, channel=%s)", order_id, channel)
+        return {"channel": channel, "checked": True, "cached": False, "error": None}
     finally:
         session.close()
 
