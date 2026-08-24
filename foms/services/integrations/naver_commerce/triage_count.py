@@ -95,6 +95,12 @@ def _workbench_group_count(db: Any) -> int:
     원본 스냅샷을 읽어 거르고(취소·반품 집), 발주확인 전 집을 더한다 — SQL 술어로는
     같은 수가 나오지 않는다. 실제로 nav 67 · 탭 45 로 어긋났다(v3 계약 §6).
 
+    ``display=False`` 로 부른다 — **모집단이 아니라 문서의 두께만** 바뀐다. 술어·병합·캡
+    코드는 그대로고 ``raw_snapshot`` 자리에 판정 경로만 담은 축소 문서가 실린다
+    (``naver_ingest._snapshot_projection``). 뱃지는 모든 페이지 렌더에 실리는데 3.3KB
+    스냅샷 본문이 행 조회 비용의 약 80% 였다(2026-08-24 실측: 게이트 ON 콜드 113ms).
+    두 모드의 집 키 목록이 같다는 것은 회귀 테스트가 직접 비교해 못박는다(계약 §2.4).
+
     화면 코드(``foms.web.admin.naver_ingest``)를 서비스가 부르므로 **함수 안에서**
     import 한다. 모듈 최상단에서 부르면 web → services → web 순환이 된다.
 
@@ -106,7 +112,7 @@ def _workbench_group_count(db: Any) -> int:
     """
     from foms.web.admin.naver_ingest import _work_groups
 
-    groups, _truncated = _work_groups(db)
+    groups, _truncated = _work_groups(db, display=False)
     return len(groups)
 
 

@@ -37,14 +37,21 @@ logger = logging.getLogger(__name__)
 PAGE_SIZE = 50
 
 #: 트리아지 큐가 한 번에 읽는 링크 수. 한 집이 상품주문 여러 건으로 오므로 묶음 PAGE_SIZE
-#: 개를 채우려면 링크는 그보다 많이 필요하다(실측 평균 3건/집, 여유 배수 5).
-QUEUE_LINK_FETCH_LIMIT = PAGE_SIZE * 5
+#: 개를 채우려면 링크는 그보다 많이 필요하다(실측 평균 3건/집).
+#: 250(=PAGE_SIZE*5)에서 **1500** 으로 올렸다(2026-08-24). 스테이징이 큐 링크 229건이라
+#: 곧 닿는데, 닿으면 "일부 집이 안 보입니다" 띠가 **상시 발동**한다 — 늘 켜진 경고는 아무도
+#: 안 읽고 정작 진짜로 잘릴 때 못 알아챈다. 올릴 수 있게 된 근거는 nav 뱃지가 판정에
+#: 필요한 경로만 읽도록 바뀐 것이다(:func:`_snapshot_projection` — 스펙 2026-08-24).
+#: **상한을 올려도 오늘 비용은 늘지 않는다** — 비용은 상한이 아니라 실제 행수에 비례한다.
+QUEUE_LINK_FETCH_LIMIT = 1500
 
 #: 처리 탭 목록의 집 상한. 캡은 **병합 뒤 한 곳에서만** 건다 — 원천별로 걸면 큐가 50에서
 #: 잘려 "잘렸다" 띠가 켜지는데 화면에는 발주확인 전 집이 더해져 58줄이 보이는, 사람이
 #: 읽을 수 없는 상태가 된다(2026-08-24 스테이징 실화면). 50은 실제 운영 물량(58집)보다
 #: 작아서 상시 발동했다 — 상한은 "평소에는 안 닿는 안전장치"여야 한다.
-WORK_GROUP_LIMIT = 200
+#: 링크 상한만 올리면 **이 캡이 대신 상시 발동한다**(링크 1500 ÷ 평균 3.2건/집 ≈ 470집).
+#: 그래서 200 → 500 으로 함께 올린다(2026-08-24).
+WORK_GROUP_LIMIT = 500
 
 #: 상태 필터 닫힌집합. 임의 문자열이 그대로 쿼리에 들어가지 않게 한다.
 VALID_STATUSES = ("COLLECTED", "LINKED", "PENDING_REVIEW", "FAILED")
@@ -508,7 +515,137 @@ def _triage_pane(db, link: ExternalOrderLink) -> dict[str, Any]:
     }
 
 
-def _queue_links(db) -> tuple[list[ExternalOrderLink], bool]:
+class _ThinLink:
+    """판정용 **얇은** 링크 행 — ``raw_snapshot`` 자리에 축소 문서가 들어간다.
+
+    nav 뱃지는 **모든 페이지 렌더**에서 :func:`_work_groups` 를 돈다. 그런데 목록 판정에
+    실제로 필요한 것은 스냅샷 전체가 아니라 몇 개 경로뿐이다 — 2026-08-24 실측으로
+    3.3KB ``raw_snapshot`` 본문이 행 조회 비용의 **약 80%** 를 먹는 것을 확인했다
+    (240행: 통째 22.3ms vs 스냅샷 제외 4.4ms). 파싱은 범인이 아니다
+    (``summarize_snapshot`` 979회에 5.5ms).
+
+    ORM 인스턴스로 만들지 않는 이유는 **세션 identity map** 이다. 같은 요청에서 pane 이
+    이미 통째로 읽어 둔 링크를 뱃지 조회가 얇은 값으로 덮거나, 반대로 얇게 읽힌 인스턴스를
+    pane 이 건드려 지연 로딩 N+1 이 나는 자리다. 읽기 전용 평행 객체를 쓰면 그 접점이 없다.
+
+    ``ExternalOrderLink`` 와 **같은 속성 이름만** 노출한다 — ``household_key``·
+    ``is_place_pending``·``is_promotable``·:func:`_place_view`·:func:`_dispatched_count`·
+    ``summarize_snapshot`` 이 전부 속성 읽기뿐이라 그대로 통과한다(2026-08-24 확인).
+    """
+
+    __slots__ = ("id", "external_id", "external_order_no", "order_id", "sync_status",
+                 "place_order_status", "relation", "group_key", "created_at",
+                 "triage_state", "raw_snapshot")
+
+    def __init__(self, id, external_id, external_order_no, order_id, sync_status,
+                 place_order_status, relation, group_key, created_at, triage_state,
+                 raw_snapshot):
+        self.id = id
+        self.external_id = external_id
+        self.external_order_no = external_order_no
+        self.order_id = order_id
+        self.sync_status = sync_status
+        self.place_order_status = place_order_status
+        self.relation = relation
+        self.group_key = group_key
+        self.created_at = created_at
+        self.triage_state = triage_state
+        self.raw_snapshot = raw_snapshot
+
+
+#: 얇은 경로가 싣는 컬럼. ``raw_snapshot`` 은 여기 없다 — 대신
+#: :func:`_snapshot_projection` 이 만든 축소 문서가 마지막 자리에 붙는다.
+_THIN_COLUMNS = (
+    ExternalOrderLink.id,
+    ExternalOrderLink.external_id,
+    ExternalOrderLink.external_order_no,
+    ExternalOrderLink.order_id,
+    ExternalOrderLink.sync_status,
+    ExternalOrderLink.place_order_status,
+    ExternalOrderLink.relation,
+    ExternalOrderLink.group_key,
+    ExternalOrderLink.created_at,
+    ExternalOrderLink.triage_state,
+)
+
+
+def _snapshot_projection(db):
+    """판정에 필요한 경로만 담은 **축소 스냅샷 문서**를 만드는 SQL 식.
+
+    이 문서를 그대로 ``raw_snapshot`` 자리에 넣으면 뒤따르는 파이썬 코드가 **한 줄도
+    갈라지지 않는다** — ``group_key``·``extract_claim``·``extract_place_status`` 가
+    같은 함수로 같은 경로를 읽는다. 판정 함수를 두 벌로 만들면 계약 §2.4(뱃지 == 탭
+    숫자 == 칩 '전체')가 깨진다. 이 저장소가 이미 두 번 겪은 결함이다(nav 67·탭 45 /
+    nav 140·필터 43). 그래서 **술어가 아니라 입력만** 얇게 한다.
+
+    ``COALESCE`` 는 ``unwrap_detail`` 의 **평평한 응답 폴백**(``detail["productOrder"]``
+    가 dict 가 아니면 ``detail`` 자신을 쓴다)을 그대로 옮긴 것이다.
+
+    싣지 않는 것은 전부 표시 전용이다 — 제품명·고객명·금액·옵션·주문일·발송기한.
+    얇은 경로에서는 빈 값이 되고, 그 값들은 어떤 술어도 읽지 않는다.
+
+    Args:
+        db: 요청 스코프 DB 세션(방언 판정용).
+
+    Returns:
+        SQL 식. PostgreSQL 이 아니면 ``raw_snapshot`` 컬럼 그대로 — 결과는 같고 비용만
+        옛날 값이다(SQLite 테스트 레인 보호).
+    """
+    from sqlalchemy import func
+
+    bind = db.get_bind()
+    if getattr(getattr(bind, "dialect", None), "name", "") != "postgresql":
+        return ExternalOrderLink.raw_snapshot
+    raw = ExternalOrderLink.raw_snapshot
+    return func.jsonb_build_object(
+        "order", func.jsonb_build_object(
+            "orderId", raw["order"]["orderId"],
+            "claimStatus", raw["order"]["claimStatus"],
+            "placeOrderStatus", raw["order"]["placeOrderStatus"]),
+        "productOrder", func.jsonb_build_object(
+            "shippingAddress", func.coalesce(raw["productOrder"]["shippingAddress"],
+                                             raw["shippingAddress"]),
+            "claimStatus", func.coalesce(raw["productOrder"]["claimStatus"],
+                                         raw["claimStatus"]),
+            "claimType", func.coalesce(raw["productOrder"]["claimType"],
+                                       raw["claimType"]),
+            "placeOrderStatus", func.coalesce(raw["productOrder"]["placeOrderStatus"],
+                                              raw["placeOrderStatus"])),
+        "cancel", raw["cancel"],
+        "currentClaim", raw["currentClaim"],
+    )
+
+
+def _fetch_links(db, *criteria, display: bool, order_by=None, limit=None):
+    """링크 행을 읽는다 — ``display`` 가 문서의 두께만 정한다.
+
+    술어·정렬·상한은 두 모드가 **같다**. 다른 것은 ``raw_snapshot`` 자리에 무엇이
+    실리느냐뿐이다(:func:`_snapshot_projection`).
+
+    Args:
+        db: 요청 스코프 DB 세션.
+        *criteria: WHERE 조건.
+        display: True 면 ORM 인스턴스(스냅샷 통째), False 면 :class:`_ThinLink`.
+        order_by: 정렬식 튜플(없으면 정렬 없음).
+        limit: 조회 상한(없으면 없음).
+
+    Returns:
+        링크 행 목록.
+    """
+    if display:
+        query = db.query(ExternalOrderLink).filter(*criteria)
+    else:
+        query = db.query(*_THIN_COLUMNS,
+                         _snapshot_projection(db).label("raw_snapshot")).filter(*criteria)
+    if order_by:
+        query = query.order_by(*order_by)
+    if limit is not None:
+        query = query.limit(limit)
+    rows = query.all()
+    return rows if display else [_ThinLink(*row) for row in rows]
+
+
+def _queue_links(db, *, display: bool = True) -> tuple[list[Any], bool]:
     """확인 대기 큐의 원천 링크 — 아직 사람이 보지 않은 수집분.
 
     큐에는 두 종류가 같이 온다: 아직 주문이 없는 수집분(``COLLECTED`` — 여기서 "주문
@@ -516,20 +653,19 @@ def _queue_links(db) -> tuple[list[ExternalOrderLink], bool]:
 
     Args:
         db: 요청 스코프 DB 세션.
+        display: 표시용 스냅샷까지 싣는가(:func:`_fetch_links`).
 
     Returns:
         ``(링크 목록(최신순), 조회 상한에 걸렸는지)``.
     """
-    links = (
-        db.query(ExternalOrderLink)
-        .filter(
-            ExternalOrderLink.channel == "NAVER",
-            ExternalOrderLink.sync_status.in_(("COLLECTED", "LINKED")),
-            ExternalOrderLink.reviewed_at.is_(None),
-        )
-        .order_by(ExternalOrderLink.created_at.desc(), ExternalOrderLink.id.desc())
-        .limit(QUEUE_LINK_FETCH_LIMIT)
-        .all()
+    links = _fetch_links(
+        db,
+        ExternalOrderLink.channel == "NAVER",
+        ExternalOrderLink.sync_status.in_(("COLLECTED", "LINKED")),
+        ExternalOrderLink.reviewed_at.is_(None),
+        display=display,
+        order_by=(ExternalOrderLink.created_at.desc(), ExternalOrderLink.id.desc()),
+        limit=QUEUE_LINK_FETCH_LIMIT,
     )
     return links, len(links) == QUEUE_LINK_FETCH_LIMIT
 
@@ -1093,7 +1229,7 @@ def _history_view(db) -> dict[str, Any]:
     }
 
 
-def _place_groups(db) -> tuple[list[dict[str, Any]], bool]:
+def _place_groups(db, *, display: bool = True) -> tuple[list[dict[str, Any]], bool]:
     """'발주확인 전' 탭의 집 목록 (W2).
 
     모집단은 필터 버튼 숫자(:func:`_place_pending_group_count`)와 **같은 술어**여야 한다 —
@@ -1103,29 +1239,31 @@ def _place_groups(db) -> tuple[list[dict[str, Any]], bool]:
 
     Args:
         db: 요청 스코프 DB 세션.
+        display: 표시용 스냅샷까지 싣는가(:func:`_fetch_links`).
 
     Returns:
         ``(묶음 목록, 잘렸는지)``. 조용히 자르면 사람이 나머지를 찾아 헤맨다 —
         잘렸으면 화면이 그렇게 말한다.
     """
-    links = (
-        db.query(ExternalOrderLink)
-        .filter(ExternalOrderLink.channel == "NAVER",
-                # 수집이 성공한 건만 본다. v2 에서는 이 목록이 '발주확인 전' **탭 전용**이라
-                # FAILED·PENDING_REVIEW 가 섞여도 뱃지·처리 큐에는 안 들어갔다. v3 가 이
-                # 결과를 처리 목록·nav 뱃지와 합치면서, **수집이 깨진 링크가 "처리할 집"으로
-                # 세어지고 벌크 발주확인 후보로 체크박스까지 열렸다**(2026-08-23 발견).
-                # 발주확인은 네이버로 나가는 불가역 호출이다 — 원본이 불완전한 건을 그 대상에
-                # 올리지 않는다. 보류·실패는 이력 탭과 실패 띠가 받는다.
-                ExternalOrderLink.sync_status.in_(("COLLECTED", "LINKED")),
-                _place_pending_clause())
-        .order_by(ExternalOrderLink.created_at.desc(), ExternalOrderLink.id.desc())
-        .limit(QUEUE_LINK_FETCH_LIMIT)
-        .all()
+    links = _fetch_links(
+        db,
+        ExternalOrderLink.channel == "NAVER",
+        # 수집이 성공한 건만 본다. v2 에서는 이 목록이 '발주확인 전' **탭 전용**이라
+        # FAILED·PENDING_REVIEW 가 섞여도 뱃지·처리 큐에는 안 들어갔다. v3 가 이
+        # 결과를 처리 목록·nav 뱃지와 합치면서, **수집이 깨진 링크가 "처리할 집"으로
+        # 세어지고 벌크 발주확인 후보로 체크박스까지 열렸다**(2026-08-23 발견).
+        # 발주확인은 네이버로 나가는 불가역 호출이다 — 원본이 불완전한 건을 그 대상에
+        # 올리지 않는다. 보류·실패는 이력 탭과 실패 띠가 받는다.
+        ExternalOrderLink.sync_status.in_(("COLLECTED", "LINKED")),
+        _place_pending_clause(),
+        display=display,
+        order_by=(ExternalOrderLink.created_at.desc(), ExternalOrderLink.id.desc()),
+        limit=QUEUE_LINK_FETCH_LIMIT,
     )
     if not links:
         return [], False
-    order_ids = [int(row.order_id) for row in links if row.order_id]
+    # 주문은 표시(고객명·다음 할 일)에만 쓴다 — 얇은 경로는 조회 자체를 내지 않는다.
+    order_ids = [int(row.order_id) for row in links if row.order_id] if display else []
     orders = {}
     if order_ids:
         orders = {o.id: o for o in db.query(Order).filter(Order.id.in_(order_ids)).all()}
@@ -1140,14 +1278,14 @@ def _place_groups(db) -> tuple[list[dict[str, Any]], bool]:
     # 클레임 판정은 **형제까지** 봐야 한다. 모집단을 '발주확인 전' 링크로 먼저 좁혔으므로,
     # 이미 발주확인이 끝난 형제가 취소돼도 이 목록 안에서는 안 보인다 — 그 집에 발주확인을
     # 보내면 네이버가 거절해 집 전체가 실패한다.
-    blocked = _claim_blocked_group_keys(db, links)
+    blocked = _claim_blocked_group_keys(db, links, display=display)
     visible = [group for group in groups
                if not group["claim_blocking"] and group["key"] not in blocked]
     truncated = len(visible) > WORK_GROUP_LIMIT or len(links) == QUEUE_LINK_FETCH_LIMIT
     return visible[:WORK_GROUP_LIMIT], truncated
 
 
-def _work_groups(db) -> tuple[list[dict[str, Any]], bool]:
+def _work_groups(db, *, display: bool = True) -> tuple[list[dict[str, Any]], bool]:
     """처리 탭 목록 = 확인 큐 ∪ 발주확인 전 집 (집 단위 병합).
 
     두 목록을 따로 두면 같은 집이 화면마다 다른 숫자로 세어지고, 사람은 한 집을 끝내려고
@@ -1160,22 +1298,31 @@ def _work_groups(db) -> tuple[list[dict[str, Any]], bool]:
     ``request``·``session`` 을 읽지 않는다 — nav 뱃지가 모든 페이지 렌더에서 이 정의를
     그대로 쓴다(뱃지 67 · 탭 45 로 어긋나던 자리).
 
+    ``display=False`` 는 **모집단을 바꾸지 않는다.** 술어·병합·캡 코드가 그대로고,
+    ``raw_snapshot`` 자리에 판정 경로만 담은 축소 문서가 들어갈 뿐이다
+    (:func:`_snapshot_projection`). 그래서 집 키 목록·필터 숫자·``truncated`` 가
+    두 모드에서 **같아야 한다** — 계약 §2.4(뱃지 == 탭 숫자 == 칩 '전체')의 증명이 그것이고,
+    회귀 테스트가 두 모드를 직접 비교해 못박는다. 달라지는 것은 표시 전용 필드
+    (제품명·고객명·금액·다음 할 일 등)뿐이다.
+
     Args:
         db: 요청 스코프 DB 세션.
+        display: 표시용 스냅샷·주문까지 싣는가. nav 뱃지(:func:`triage_count.
+            _workbench_group_count`)는 세기만 하므로 False 로 부른다.
 
     Returns:
         ``(집 목록, 조회 상한에 걸렸는지)``. 순서는 큐(수집 최신순) → 큐 밖 발주확인 전 집.
     """
-    pending, truncated = _queue_links(db)
+    pending, truncated = _queue_links(db, display=display)
     # **캡 하나를 더 넘겨 받아** 잘렸는지 스스로 안다. `_group_queue` 는 상한까지만 돌려주는데
     # 그 사실을 아무도 안 봐서, 집이 50을 넘으면 화면이 조용히 51번째부터 버렸다 —
     # 링크 250 상한(`truncated`)에 걸릴 때만 안내 띠가 떴다. 캡으로 자른 뒤 아무 말도 안 하면
     # 사람은 나머지를 찾아 헤맨다(2026-08-14 대시보드 캡 결함과 같은 부류, CEO 검수 보통).
     # 캡은 여기서 걸지 않는다 — 병합이 끝난 뒤 한 곳에서 건다(아래). 원천마다 자르면
     # 큐가 잘려 띠가 켜지는데 화면 줄수는 캡보다 커지는, 서로 어긋난 상태가 된다.
-    queue = _group_queue(pending, _orders_by_id(db, pending),
+    queue = _group_queue(pending, _orders_by_id(db, pending) if display else {},
                          truncated=truncated, limit=WORK_GROUP_LIMIT + 1)
-    place_groups, place_truncated = _place_groups(db)
+    place_groups, place_truncated = _place_groups(db, display=display)
 
     merged: dict[Any, dict[str, Any]] = {}
     order_of_key: list[Any] = []
@@ -1192,8 +1339,8 @@ def _work_groups(db) -> tuple[list[dict[str, Any]], bool]:
         merged[group["key"]] = dict(group, in_queue=False)
         order_of_key.append(group["key"])
     groups = [merged[key] for key in order_of_key]
-    _mark_sibling_claims(db, pending, groups)
-    _attach_household_counts(db, groups)
+    _mark_sibling_claims(db, pending, groups, display=display)
+    _attach_household_counts(db, groups, display=display)
     # 잠금·선택 판정은 위 두 단계가 끝난 **뒤에** 한 번만 한다(형제 클레임이 반영된 값으로).
     _attach_row_flags(groups)
     # 캡 한 곳 — 병합 결과에만 건다. 닿으면 **로그를 남기고** 화면에도 말한다(조용히 자르면
@@ -1206,8 +1353,8 @@ def _work_groups(db) -> tuple[list[dict[str, Any]], bool]:
     return groups, bool(truncated or place_truncated or capped)
 
 
-def _mark_sibling_claims(db, queue_links: list[ExternalOrderLink],
-                         groups: list[dict[str, Any]]) -> None:
+def _mark_sibling_claims(db, queue_links: list[Any],
+                         groups: list[dict[str, Any]], *, display: bool = True) -> None:
     """이미 발주확인이 끝난 **형제**의 취소·반품을 집 전체에 반영한다.
 
     ``_place_groups`` 는 원천 2 안에서 이 검사를 하지만, 원천 1(확인 큐)은 안 한다.
@@ -1220,10 +1367,11 @@ def _mark_sibling_claims(db, queue_links: list[ExternalOrderLink],
         db: 요청 스코프 DB 세션.
         queue_links: 확인 큐 링크(형제 조회의 기준).
         groups: 병합된 집 목록. **제자리에서** ``claim_blocking`` 을 올린다.
+        display: 표시용 스냅샷까지 싣는가(:func:`_fetch_links`).
     """
     if not groups:
         return
-    blocked = _claim_blocked_group_keys(db, queue_links)
+    blocked = _claim_blocked_group_keys(db, queue_links, display=display)
     if not blocked:
         return
     for group in groups:
@@ -1231,7 +1379,8 @@ def _mark_sibling_claims(db, queue_links: list[ExternalOrderLink],
             group["claim_blocking"] = True
 
 
-def _attach_household_counts(db, groups: list[dict[str, Any]]) -> None:
+def _attach_household_counts(db, groups: list[dict[str, Any]], *,
+                             display: bool = True) -> None:
     """각 집에 **워커가 실제로 처리할 상품주문 수**(``household_count``)를 붙인다.
 
     ``count`` 는 화면 목록 모집단(확인 대기로 좁혀진 큐) 안의 수라, 확인이 끝난 형제가
@@ -1244,6 +1393,7 @@ def _attach_household_counts(db, groups: list[dict[str, Any]]) -> None:
     Args:
         db: 요청 스코프 DB 세션.
         groups: 병합된 집 목록. 제자리에서 ``household_count`` 를 채운다.
+        display: 표시용 스냅샷까지 싣는가(:func:`_fetch_links`).
     """
     from foms.services.integrations.naver_commerce.fulfillment import household_key
 
@@ -1257,19 +1407,19 @@ def _attach_household_counts(db, groups: list[dict[str, Any]]) -> None:
     canceled: set = set()
     order_nos = set()
     if lead_ids:
+        # 대표 링크에서 필요한 것은 **주문번호 하나**다 — 스냅샷은 여기서 안 쓴다.
         leads = (
-            db.query(ExternalOrderLink)
+            db.query(ExternalOrderLink.external_order_no)
             .filter(ExternalOrderLink.id.in_(lead_ids))  # perf-ok: 페이지 대표 링크 batch
             .all()
         )
-        order_nos = {(row.external_order_no or "").strip()
-                     for row in leads if (row.external_order_no or "").strip()}
+        order_nos = {(row[0] or "").strip() for row in leads if (row[0] or "").strip()}
     if order_nos:
-        rows = (
-            db.query(ExternalOrderLink)
-            .filter(ExternalOrderLink.channel == "NAVER",
-                    ExternalOrderLink.external_order_no.in_(sorted(order_nos)))
-            .all()
+        rows = _fetch_links(
+            db,
+            ExternalOrderLink.channel == "NAVER",
+            ExternalOrderLink.external_order_no.in_(sorted(order_nos)),
+            display=display,
         )
         from foms.services.integrations.naver_commerce.fulfillment import is_place_pending
         from foms.services.integrations.naver_commerce.mapping import extract_claim
@@ -1339,7 +1489,7 @@ def _household_has_claim(db, link: Optional[ExternalOrderLink]) -> bool:
                for row in rows if household_key(row) == base_key)
 
 
-def _claim_blocked_group_keys(db, links: list[ExternalOrderLink]) -> set:
+def _claim_blocked_group_keys(db, links: list[Any], *, display: bool = True) -> set:
     """주어진 링크들이 속한 집 중 **취소·반품이 걸린 집**의 묶음키.
 
     같은 네이버 주문번호의 형제 중 **이미 발주확인이 끝난 것만** 읽는다. 발주확인 전
@@ -1349,6 +1499,7 @@ def _claim_blocked_group_keys(db, links: list[ExternalOrderLink]) -> set:
     Args:
         db: 요청 스코프 DB 세션.
         links: 기준이 되는 링크 목록.
+        display: 표시용 스냅샷까지 싣는가(:func:`_fetch_links`).
 
     Returns:
         :func:`fulfillment.household_key` 3-튜플의 집합 — `group["key"]` 와 같은 어휘다.
@@ -1365,12 +1516,12 @@ def _claim_blocked_group_keys(db, links: list[ExternalOrderLink]) -> set:
     # **모집단 밖 형제만** 읽는다 — 모집단 안(발주확인 전) 링크의 클레임은 이미
     # :func:`_group_queue` 가 `claim_blocking` 으로 판정했다. 여기서 다시 읽으면
     # 같은 원본을 두 번 파싱하고 조회도 그만큼 커진다.
-    siblings = (
-        db.query(ExternalOrderLink)
-        .filter(ExternalOrderLink.channel == "NAVER",
-                ExternalOrderLink.external_order_no.in_(sorted(order_nos)),
-                ExternalOrderLink.place_order_status.in_(CONFIRMED_PLACE_VALUES))
-        .all()
+    siblings = _fetch_links(
+        db,
+        ExternalOrderLink.channel == "NAVER",
+        ExternalOrderLink.external_order_no.in_(sorted(order_nos)),
+        ExternalOrderLink.place_order_status.in_(CONFIRMED_PLACE_VALUES),
+        display=display,
     )
     blocked: set = set()
     for row in siblings:
@@ -1504,7 +1655,7 @@ def _fulfillment_state(db, link: ExternalOrderLink) -> dict[str, Any]:
 #: 벌크 진행 조회가 한 번에 볼 수 있는 집(대표 링크) 수 상한. 화면 목록 캡
 #: (:data:`WORK_GROUP_LIMIT`)과 같은 수 — 벌크 대상은 정의상 화면 목록의 부분집합이다
 #: (계약 §0-5). 넘어오면 자른다(조용히 늘어난 요청으로 조회가 커지지 않게).
-PROGRESS_LINK_ID_LIMIT = 200
+PROGRESS_LINK_ID_LIMIT = WORK_GROUP_LIMIT
 
 
 def _fulfillment_progress(db, link_ids: list[int]) -> dict[str, Any]:
