@@ -187,6 +187,13 @@
 /* 벌크 진행 문구 — 비어 있으면 자리를 차지하지 않는다(폴링 대신 여기로 말한다). */
 .wb-bulk__note { font-size: calc(11px * var(--wb-fs, 1)); color: var(--wb-accent, #2563eb); }
 .wb-bulk__note:empty { display: none; }
+
+/* 잠긴 체크박스는 탭을 **행에게 넘긴다**.
+   disabled 폼 컨트롤은 click 이벤트를 아예 내지 않아서, 마우스가 없는 기기에서는
+   "왜 못 고르는지"(title)를 읽을 방법이 없었다. 포인터를 통과시키면 같은 탭이
+   a.wb-row 에 닿아 상세가 열리고, 사유는 거기 상시 문구·배지로 이미 적혀 있다.
+   활성 체크박스는 그대로다 — :disabled 에만 건다. */
+.wb-pick:disabled { pointer-events: none; }
 /* 전역 `.btn { padding: 10px 20px !important }`(style-pro-max.css) 대응 — 다른 좁은 칸과
    같은 함정이라 같은 처방(줄바꿈만 막는다, !important 를 더 얹지 않는다). */
 .naver-workbench #wb-bulk .btn { white-space: nowrap; font-size: calc(12px * var(--wb-fs, 1)); }

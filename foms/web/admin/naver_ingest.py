@@ -821,6 +821,46 @@ def naver_ingest_fulfillment_state():
     return jsonify({"success": True, "data": _fulfillment_state(db, link), "error": None})
 
 
+@admin_bp.route("/admin/naver-ingest/triage/fulfillment-progress")
+@login_required
+@role_required(["ADMIN", "MANAGER", "STAFF"])
+def naver_ingest_fulfillment_progress():
+    """벌크로 보낸 집들의 발주확인 진행 상황 — **조회 2회**(집 수와 무관).
+
+    벌크는 집마다 폴링하지 않는다. 33집을 집마다 물으면 폴링 한 회차에 조회가 66번
+    나가는데, 이 화면의 조회 비용은 이미 nav 뱃지 실측에서 드러났다(콜드 113ms).
+
+    읽기 전용 GET 이다(mutation 아님). **판정은 하지 않는다** — 남은 건수 술어만
+    서버 SSOT(`is_place_pending`)를 그대로 쓴다.
+
+    Query:
+        ``link_ids``: 쉼표로 이은 대표 링크 id(필수, 최대
+        :data:`PROGRESS_LINK_ID_LIMIT` 개까지 본다).
+
+    Returns:
+        ``{"success": True, "data": _fulfillment_progress(...)}``. 게이트 OFF 는 404,
+        ``link_ids`` 누락·형식 오류는 400.
+    """
+    from foms.services.feature_flags import is_naver_workbench_enabled
+
+    if not is_naver_workbench_enabled(session.get("user_id")):
+        return jsonify({"success": False, "data": None,
+                        "error": "이 화면에서는 쓸 수 없습니다."}), 404
+    raw = (request.args.get("link_ids") or "").strip()
+    ids: list[int] = []
+    for chunk in raw.split(","):
+        chunk = chunk.strip()
+        if chunk.isdigit():
+            ids.append(int(chunk))
+    if not ids:
+        return jsonify({"success": False, "data": None,
+                        "error": "link_ids 가 필요합니다."}), 400
+    db = get_db()
+    return jsonify({"success": True,
+                    "data": _fulfillment_progress(db, ids[:PROGRESS_LINK_ID_LIMIT]),
+                    "error": None})
+
+
 #: 불가역 작업 3종의 한글 라벨. 실패 띠와 폴링 응답이 **같은 표**를 쓴다 — 두 벌이면
 #: 같은 실패가 화면 자리마다 다른 이름으로 불린다.
 FULFILLMENT_ACTION_LABELS = {"confirm": "발주확인", "dispatch": "발송처리", "cancel": "취소"}
@@ -1457,6 +1497,75 @@ def _fulfillment_state(db, link: ExternalOrderLink) -> dict[str, Any]:
         "last_error_at": last_error_at,
         "last_error_action": action,
         "action_label": FULFILLMENT_ACTION_LABELS.get(action, ""),
+        "rev": hashlib.sha1(";".join(marks).encode("utf-8")).hexdigest()[:16],
+    }
+
+
+#: 벌크 진행 조회가 한 번에 볼 수 있는 집(대표 링크) 수 상한. 화면 목록 캡
+#: (:data:`WORK_GROUP_LIMIT`)과 같은 수 — 벌크 대상은 정의상 화면 목록의 부분집합이다
+#: (계약 §0-5). 넘어오면 자른다(조용히 늘어난 요청으로 조회가 커지지 않게).
+PROGRESS_LINK_ID_LIMIT = 200
+
+
+def _fulfillment_progress(db, link_ids: list[int]) -> dict[str, Any]:
+    """벌크 대상 **집들 전체**의 발주확인 진행 상황 — 조회 2회(집 수와 무관).
+
+    집마다 따로 물으면 조회가 집 수만큼 곱해진다(33집 × 30회 폴링 × 2 = 1980회).
+    nav 뱃지 부하 실측(2026-08-24)에서 이 화면의 조회 비용이 이미 드러난 터라, 벌크는
+    묶음키 SSOT(:func:`grouping.group_key_expression`)로 **한 번에** 걷는다.
+
+    남은 건수 술어는 :func:`fulfillment.is_place_pending` **하나**다 — 모달이 재진술한
+    건수와 같은 술어여야 "상품주문 119건 중 47건 완료"가 거짓이 되지 않는다(계약 §0-2).
+    여기서도 화면 판정(무엇을 눌러도 되는지)은 하지 않는다.
+
+    Args:
+        db: 요청 스코프 DB 세션.
+        link_ids: 벌크로 보낸 집들의 대표 링크 id.
+
+    Returns:
+        ``links``(대상 상품주문 수)·``place_pending``(아직 발주확인 남은 수)·
+        ``failed_links``·``last_error``·``rev``.
+    """
+    from sqlalchemy import distinct
+
+    from foms.services.integrations.naver_commerce.fulfillment import is_place_pending
+    from foms.services.integrations.naver_commerce.grouping import group_key_expression
+
+    empty = {"links": 0, "place_pending": 0, "failed_links": 0, "last_error": "", "rev": ""}
+    if not link_ids:
+        return empty
+
+    gk = group_key_expression()
+    keys = [row[0] for row in
+            db.query(distinct(gk)).filter(ExternalOrderLink.id.in_(link_ids)).all()]
+    if not keys:
+        return empty
+    rows = (
+        db.query(ExternalOrderLink)
+        .filter(ExternalOrderLink.channel == "NAVER", gk.in_(keys))  # perf-ok: 묶음키 IN 배치
+        .order_by(ExternalOrderLink.id)
+        .all()
+    )
+
+    marks: list[str] = []
+    pending = failed = 0
+    last_error = last_error_at = ""
+    for row in rows:
+        state = (row.triage_state or {}).get("fulfillment") or {}
+        at_error = str(state.get("last_error_at") or "")
+        if is_place_pending(row):
+            pending += 1
+        if str(state.get("last_error") or "").strip():
+            failed += 1
+            if at_error > last_error_at:
+                last_error_at = at_error
+                last_error = str(state.get("last_error") or "")
+        marks.append(f"{row.id}|{state.get('place_confirmed_at') or ''}|{at_error}")
+    return {
+        "links": len(rows),
+        "place_pending": pending,
+        "failed_links": failed,
+        "last_error": last_error,
         "rev": hashlib.sha1(";".join(marks).encode("utf-8")).hexdigest()[:16],
     }
 

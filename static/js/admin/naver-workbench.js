@@ -33,8 +33,13 @@
     /** 폴링 주기·마감. **끝이 있어야 한다** — 무한 폴링 금지(nav 뱃지 부하와 겹친다). */
     var POLL_INTERVAL_MS = 2000;
     var POLL_TIMEOUT_MS = 25000;
-    /** 벌크는 폴링하지 않는다(집 수만큼 곱해진다) — 한 번만 늦게 갱신한다. */
+    /** 재시도는 폴링하지 않는다(집 수만큼 곱해진다) — 한 번만 늦게 갱신한다. */
     var BULK_REFRESH_MS = 15000;
+    /** 벌크 진행 조회(집 수와 무관하게 서버 조회 2회). */
+    var PROGRESS_URL = '/admin/naver-ingest/triage/fulfillment-progress';
+    /** 벌크는 워커가 집을 하나씩 처리한다 — 단건보다 창이 넓어야 끝을 본다. */
+    var BULK_POLL_INTERVAL_MS = 3000;
+    var BULK_POLL_TIMEOUT_MS = 90000;
 
     /**
      * 부분 갱신 경합 토큰.
@@ -51,6 +56,10 @@
      */
     var pollToken = 0;
     var pollTimer = null;
+
+    /** 벌크 폴링 토큰·타이머(단건과 따로 — 서로를 끊지 않는다). */
+    var bulkToken = 0;
+    var bulkTimer = null;
 
     /** 글자 크기 단계와 저장 키. **init() 보다 위에 둔다** — defer 스크립트라 init 이
         곧바로 실행되는데, var 는 선언만 끌어올려지고 대입은 안 따라온다(값이 undefined). */
@@ -498,7 +507,11 @@
             return sum + (parseInt(box.dataset.count, 10) || 0);
         }, 0);
 
-        bar.classList.toggle('on', chosen.length > 0);
+        // 진행 문구가 남아 있으면 선택이 0 이어도 바를 연다 — 화면을 다시 받으면 체크가
+        // 풀리는데, 그때 바가 접히면 "다 됐는지" 를 말할 자리가 같이 사라진다.
+        var note = document.getElementById('wb-bulk-note');
+        var noteOn = !!(note && note.textContent.trim());
+        bar.classList.toggle('on', chosen.length > 0 || noteOn);
         setText('wb-bulk-n', chosen.length);
         setText('wb-bulk-count', chosen.length);
         setText('wb-bulk-items', items);
@@ -698,11 +711,13 @@
         }
         btn.disabled = true;
         var failures = [];
+        var ids = [];
         for (const box of chosen) {
             const id = safeId(box.dataset.groupId);
             if (!id) {
                 continue;
             }
+            ids.push(id);
             const result = await postJson(BASE + id + '/fulfillment', { action: 'confirm' });
             if (!result.ok) {
                 failures.push((box.dataset.name || id) + ': ' + result.error);
@@ -714,19 +729,100 @@
                 + failures.join(String.fromCharCode(10)));
         }
         await hideModal(document.getElementById('wb-modal-bulk'));
-        // 벌크는 **폴링하지 않는다**. 집마다 폴링하면 조회가 집 수만큼 곱해진다
-        // (33집이면 최대 858회) — nav 뱃지 부하 측정이 끝나기 전에 얹을 부하가 아니다.
-        // 대신 보내는 중임을 말로 남기고 한 번만 늦게 갱신한다. 결과는 목록에서 본다.
-        setBulkNote(chosen.length + '집에 발주확인을 보냈습니다. 결과를 기다리는 중…');
-        window.setTimeout(function () { softRefresh(); }, BULK_REFRESH_MS);
+        // 집마다 폴링하지 않는다 — 조회가 집 수만큼 곱해진다(33집이면 회차마다 66회).
+        // 진행 조회는 묶음키로 한 번에 걷어 **집 수와 무관하게 조회 2회**다.
+        watchBulk(ids, chosen.length);
     }
 
-    /** 벌크 바 상태 문구 — 폴링 대신 여기로 진행을 말한다. */
+    /**
+     * 벌크 결과를 기다린다 — 남은 상품주문 건수가 줄어드는 것을 진행으로 보여준다.
+     *
+     * 워커는 집을 **하나씩** 처리한다. 단건과 같은 25초 창으로는 33집이 끝나기 전에
+     * 접히므로 창을 넓히고(90초) 대신 주기를 늘렸다(3초). 조회는 집 수와 무관하게
+     * 회차마다 2회다(서버가 묶음키로 한 번에 걷는다).
+     *
+     * @param {string[]} ids 벌크로 보낸 집들의 대표 링크 id.
+     * @param {number} houses 사람이 읽을 집 수(재진술용).
+     */
+    function watchBulk(ids, houses) {
+        if (!ids.length) {
+            return;
+        }
+        stopBulkWatch();
+        var mine = bulkToken;
+        var deadline = Date.now() + BULK_POLL_TIMEOUT_MS;
+        var base = null;                 // 첫 회차에서 잡는 '보내기 전 남은 건수'
+        setBulkNote(houses + '집에 발주확인을 보냈습니다. 네이버 응답을 기다리는 중…');
+        bulkTimer = window.setTimeout(tick, BULK_POLL_INTERVAL_MS);
+
+        async function tick() {
+            if (mine !== bulkToken) {
+                return;
+            }
+            const data = await readBulkProgress(ids);
+            if (mine !== bulkToken) {
+                return;
+            }
+            if (data) {
+                if (base === null) {
+                    base = data.place_pending;
+                }
+                var done = Math.max(0, base - data.place_pending);
+                if (data.place_pending === 0) {
+                    stopBulkWatch();
+                    await softRefresh();
+                    setBulkNote(houses + '집 발주확인이 끝났습니다'
+                        + (data.failed_links ? ' — 실패 ' + data.failed_links
+                            + '건은 위 실패 목록을 보세요.' : '.'));
+                    return;
+                }
+                setBulkNote('보내는 중… 상품주문 ' + base + '건 중 ' + done + '건 완료'
+                    + (data.failed_links ? ' · 실패 ' + data.failed_links + '건' : ''));
+            }
+            if (Date.now() >= deadline) {
+                // 무한 폴링 금지. 지금 시점의 서버 사실로 한 번 맞추고 접는다.
+                stopBulkWatch();
+                await softRefresh();
+                setBulkNote('아직 처리 중입니다 — 잠시 뒤 목록에서 다시 확인하세요.');
+                return;
+            }
+            bulkTimer = window.setTimeout(tick, BULK_POLL_INTERVAL_MS);
+        }
+    }
+
+    /** 돌고 있는 벌크 폴링을 끊는다(새 벌크·완료·마감). */
+    function stopBulkWatch() {
+        bulkToken += 1;
+        if (bulkTimer !== null) {
+            window.clearTimeout(bulkTimer);
+            bulkTimer = null;
+        }
+    }
+
+    /** 벌크 대상 전체의 남은 건수를 읽는다(일시 오류는 다음 회차에 다시 묻는다). */
+    async function readBulkProgress(ids) {
+        try {
+            const response = await fetch(PROGRESS_URL + '?link_ids=' + ids.join(','), {
+                credentials: 'same-origin',
+                headers: { 'X-Requested-With': 'XMLHttpRequest' }
+            });
+            if (!response.ok) {
+                return null;
+            }
+            const data = await response.json();
+            return data && data.success ? data.data : null;
+        } catch (error) {
+            return null;
+        }
+    }
+
+    /** 벌크 바 상태 문구 — 문구가 있으면 바는 선택 0 이어도 열린 채 남는다. */
     function setBulkNote(message) {
         var box = document.getElementById('wb-bulk-note');
         if (box) {
             box.textContent = message || '';
         }
+        syncBulk();
     }
 
     /**

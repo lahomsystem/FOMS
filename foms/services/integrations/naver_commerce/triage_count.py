@@ -28,8 +28,16 @@ logger = logging.getLogger(__name__)
 #: nav 뱃지 캐시 수명(초). dashboard_counts.NAV_BADGE_CACHE_TTL_SEC 와 같은 값.
 TRIAGE_COUNT_CACHE_TTL_SEC = 30
 
+#: 캐시 dict 보호용. **짧게만** 잡는다 — 여기서 계산까지 하면 캐시 히트 요청까지 줄을 선다.
 _lock = Lock()
 _cache: dict[str, tuple[float, int]] = {}
+
+#: 모집단별 **계산** 잠금(단일 비행). 캐시가 만료되는 순간 동시 요청이 몰리면 그 수만큼
+#: `_work_groups` 가 동시에 돈다 — 게이트 ON 경로는 콜드 1회가 113ms(스테이징 73집 실측,
+#: 2026-08-24)라 동시 5명이면 조회가 5벌 나간다. 전 직원 개방 = 동시 사용자 증가라 정확히
+#: 이 자리가 위험하다. 한 명만 계산하고 나머지는 그 결과를 기다린다.
+#: gevent monkey-patch 하에서 `Lock` 대기는 그린렛 양보라 워커를 막지 않는다.
+_compute_locks: dict[str, Lock] = {}
 
 
 def _cache_key(workbench: bool) -> str:
@@ -139,16 +147,43 @@ def get_triage_pending_count(db: Any, *, workbench: bool = False) -> int:
         int: 대기 건수.
     """
     key = _cache_key(workbench)
+    cached = _read_cache(key)
+    if cached is not None:
+        return cached
+
+    # 여기부터가 단일 비행이다. 잠금을 기다린 쪽은 **다시 캐시를 본다** — 앞선 요청이
+    # 방금 채워 놨으면 계산하지 않는다. 이 재확인이 없으면 잠금은 계산을 직렬화만 하고
+    # 횟수는 그대로다(줄만 서고 일은 N번).
+    with _compute_lock(key):
+        cached = _read_cache(key)
+        if cached is not None:
+            return cached
+        value = compute_triage_pending_count(db, workbench=workbench)
+        with _lock:
+            _cache[key] = (time.monotonic() + TRIAGE_COUNT_CACHE_TTL_SEC, value)
+        return value
+
+
+def _read_cache(key: str) -> int | None:
+    """살아 있는 캐시 값(없거나 만료면 None)."""
     now = time.monotonic()
     with _lock:
         entry = _cache.get(key)
-        if entry and entry[0] > now:
-            return entry[1]
+        return entry[1] if entry and entry[0] > now else None
 
-    value = compute_triage_pending_count(db, workbench=workbench)
+
+def _compute_lock(key: str) -> Lock:
+    """모집단별 계산 잠금을 준다(없으면 만든다).
+
+    잠금 순서는 **항상** 계산 잠금 → `_lock` 이다. 여기서는 `_lock` 만 짧게 잡고 곧바로
+    놓으므로 역순 보유가 생기지 않는다(교착 없음).
+    """
     with _lock:
-        _cache[key] = (now + TRIAGE_COUNT_CACHE_TTL_SEC, value)
-    return value
+        lock = _compute_locks.get(key)
+        if lock is None:
+            lock = Lock()
+            _compute_locks[key] = lock
+        return lock
 
 
 def reset_triage_count_cache_for_tests() -> None:

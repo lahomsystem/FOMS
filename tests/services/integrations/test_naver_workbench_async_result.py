@@ -26,12 +26,14 @@ from tests.services.integrations.test_naver_workbench import (  # noqa: F401 - f
     _uid,
     workbench_on,
 )
-from tests.services.integrations.test_naver_workbench_v3_followup import _sibling
+from tests.services.integrations.test_naver_workbench_v3_followup import _order, _sibling
 
 STATE_PATH = "/admin/naver-ingest/triage/fulfillment-state"
+PROGRESS_PATH = "/admin/naver-ingest/triage/fulfillment-progress"
 
 JS_PATH = pathlib.Path("static/js/admin/naver-workbench.js")
 TEMPLATE_PATH = pathlib.Path("templates/admin/naver_workbench.html")
+CSS_PATH = pathlib.Path("static/css/admin/naver-workbench.css")
 
 
 def _mark(link_id: int, **fields) -> None:
@@ -227,18 +229,35 @@ def test_polling_has_a_deadline_and_race_guards():
     assert "while (true)" not in source and "while(true)" not in source
 
 
-def test_bulk_and_retry_do_not_poll_per_household():
-    """벌크·재시도는 집마다 폴링하지 않는다 — 조회가 집 수만큼 곱해진다.
+def test_bulk_and_retry_never_poll_per_household():
+    """벌크·재시도는 **집마다** 폴링하지 않는다 — 조회가 집 수만큼 곱해진다.
 
-    nav 뱃지 부하 측정(승격 게이트 1번)이 끝나기 전에 얹을 부하가 아니다.
+    nav 뱃지 부하 실측(2026-08-24: 게이트 ON 콜드 113ms)이 이 화면의 조회 비용을 이미
+    보여줬다. 벌크는 묶음키로 한 번에 걷는 진행 조회(집 수와 무관하게 회차당 2회)를 쓰고,
+    재시도는 아예 폴링하지 않는다.
     """
     source = JS_PATH.read_text(encoding="utf-8")
-    bulk = source.split("async function submitBulk")[1].split("async function")[0]
-    retry = source.split("async function submitRetry")[1].split("async function")[0]
+    bulk = source.split("async function submitBulk")[1].split("    /**")[0]
+    retry = source.split("async function submitRetry")[1].split("    /**")[0]
 
-    for name, body in (("벌크", bulk), ("재시도", retry)):
-        assert "watchFulfillment" not in body, f"{name} 는 폴링하지 않는다"
-        assert "BULK_REFRESH_MS" in body, f"{name} 는 한 번만 늦게 갱신한다"
+    assert "watchFulfillment" not in bulk, "벌크가 단건 폴링을 집마다 부르면 안 된다"
+    assert "watchBulk(ids" in bulk, "벌크는 묶음 진행 조회를 쓴다"
+
+    assert "watchFulfillment" not in retry and "watchBulk" not in retry
+    assert "BULK_REFRESH_MS" in retry, "재시도는 한 번만 늦게 갱신한다"
+
+
+def test_bulk_progress_is_batched_and_bounded():
+    """벌크 진행 조회는 **한 번에** 묻고, 폴링에는 마감이 있다."""
+    source = JS_PATH.read_text(encoding="utf-8")
+    watch = source.split("function watchBulk")[1].split("function stopBulkWatch")[0]
+
+    assert "readBulkProgress(ids)" in watch, "집 목록을 한 번에 넘긴다"
+    assert "Date.now() >= deadline" in watch, "마감 없이 도는 폴링을 만들지 않는다"
+    assert "mine !== bulkToken" in watch, "새 벌크가 앞 폴링을 끊어야 한다"
+
+    reader = source.split("async function readBulkProgress")[1].split("    /**")[0]
+    assert "ids.join(',')" in reader, "집마다 요청을 내지 않는다"
 
 
 def test_single_actions_wait_for_the_worker():
@@ -273,4 +292,152 @@ def test_bulk_note_exists_and_asset_pin_moved():
 
     assert 'id="wb-bulk-note"' in markup
     assert 'id="wb-retry-note"' in markup
-    assert markup.count("?v=20260824h") == 2, "CSS·JS 핀을 함께 올린다"
+    assert markup.count("?v=20260824i") == 2, "CSS·JS 핀을 함께 올린다"
+
+
+# --------------------------------------------------------------------------- #
+# 벌크 진행 — 집 수와 무관하게 조회 2회 (승격 게이트 1의 부하 교훈)
+# --------------------------------------------------------------------------- #
+
+def _progress(client, link_ids):
+    ids = ",".join(str(i) for i in link_ids)
+    return client.get(f"{PROGRESS_PATH}?link_ids={ids}").get_json()["data"]
+
+
+def test_progress_route_is_hidden_when_gate_is_off(client):
+    """게이트 OFF 화면에는 이 경로가 없다."""
+    _login(client)
+    link = _collected(order_no=f"N-PG-OFF-{_uid()}", product="붙박이장", amount=100000,
+                      place_status="NOT_YET")
+
+    assert client.get(f"{PROGRESS_PATH}?link_ids={link.id}").status_code == 404
+
+
+def test_progress_route_needs_link_ids(client, workbench_on):
+    """무엇을 묻는지 없으면 400 — 숫자가 아닌 값도 무시하고 400 이다."""
+    _login(client)
+
+    assert client.get(PROGRESS_PATH).status_code == 400
+    assert client.get(f"{PROGRESS_PATH}?link_ids=abc,%20").status_code == 400
+
+
+def test_progress_counts_the_whole_household(client, workbench_on):
+    """대표 하나만 넘겨도 **집 전체**를 센다 — 벌크는 집 단위로 나간다."""
+    _login(client)
+    lead = _collected(order_no=f"N-PG-HH-{_uid()}", product="붙박이장", amount=300000,
+                      place_status="NOT_YET")
+    lead_id = lead.id
+    _sibling(lead, product="서랍 옵션", amount=20000, place_status="NOT_YET")
+
+    data = _progress(client, [lead_id])
+
+    assert data["links"] == 2, "형제까지 세야 '119건 중 47건' 이 거짓이 안 된다"
+    assert data["place_pending"] == 2
+
+
+def test_progress_uses_the_server_pending_predicate(client, workbench_on):
+    """남은 건수 술어는 서버 SSOT(`is_place_pending`) 하나다.
+
+    판매자센터에서 손으로 확인한 건은 우리 표식이 없고 컬럼만 ``OK`` 인데, 그걸 남은
+    것으로 세면 진행률이 영원히 100%에 못 닿는다.
+    """
+    _login(client)
+    lead = _collected(order_no=f"N-PG-PRED-{_uid()}", product="붙박이장", amount=300000,
+                      place_status="NOT_YET")
+    lead_id = lead.id
+    _sibling(lead, product="서랍 옵션", amount=20000, place_status="OK")
+
+    data = _progress(client, [lead_id])
+
+    assert data["links"] == 2
+    assert data["place_pending"] == 1, "컬럼이 OK 인 형제는 이미 끝난 것이다"
+
+
+def test_progress_rev_and_pending_move_when_the_worker_confirms(client, workbench_on):
+    """워커가 표식을 찍으면 남은 수가 줄고 지문이 바뀐다 — 이게 진행률의 신호다."""
+    _login(client)
+    lead_id = _collected(order_no=f"N-PG-MOVE-{_uid()}", product="붙박이장", amount=100000,
+                         place_status="NOT_YET").id
+    before = _progress(client, [lead_id])
+
+    _mark(lead_id, place_confirmed_at="2026-08-24T06:00:00")
+
+    after = _progress(client, [lead_id])
+    assert before["place_pending"] == 1 and after["place_pending"] == 0
+    assert after["rev"] != before["rev"]
+
+
+def test_progress_surfaces_failures(client, workbench_on):
+    """실패도 진행 조회로 보인다 — 벌크는 상세 pane 이 없어 여기 말고 볼 곳이 없다."""
+    _login(client)
+    lead_id = _collected(order_no=f"N-PG-ERR-{_uid()}", product="붙박이장", amount=100000,
+                         place_status="NOT_YET").id
+
+    _mark(lead_id, last_error="네이버가 거절했습니다.", last_error_at="2026-08-24T07:00:00",
+          last_error_action="confirm")
+
+    data = _progress(client, [lead_id])
+    assert data["failed_links"] == 1
+    assert data["last_error"] == "네이버가 거절했습니다."
+
+
+def test_progress_carries_no_screen_judgement(client, workbench_on):
+    """진행 조회도 화면 판정을 만들지 않는다(판정 SSOT 는 pane 하나)."""
+    _login(client)
+    lead_id = _collected(order_no=f"N-PG-JUDGE-{_uid()}", product="붙박이장", amount=100000,
+                         place_status="NOT_YET").id
+
+    data = _progress(client, [lead_id])
+
+    assert set(data) == {"links", "place_pending", "failed_links", "last_error", "rev"}
+
+
+def test_progress_caps_the_number_of_households(client, workbench_on, monkeypatch):
+    """상한을 넘겨 보내도 상한까지만 본다 — 조용히 커진 요청이 조회를 키우지 않게."""
+    from foms.web.admin import naver_ingest
+
+    _login(client)
+    first = _collected(order_no=f"N-PG-CAP1-{_uid()}", product="붙박이장", amount=100000,
+                       place_status="NOT_YET")
+    second = _collected(order_no=f"N-PG-CAP2-{_uid()}", product="장롱", amount=200000,
+                        place_status="NOT_YET")
+    ids = [first.id, second.id]
+    monkeypatch.setattr(naver_ingest, "PROGRESS_LINK_ID_LIMIT", 1)
+
+    data = _progress(client, ids)
+
+    assert data["links"] == 1, "상한 밖 집은 보지 않는다"
+
+
+# --------------------------------------------------------------------------- #
+# 터치 기기 잠금 사유 (승격 게이트 3) — hover 없이도 읽혀야 한다
+# --------------------------------------------------------------------------- #
+
+def test_locked_checkbox_passes_the_tap_to_the_row():
+    """잠긴 체크박스는 탭을 행에게 넘긴다.
+
+    `disabled` 폼 컨트롤은 click 이벤트를 **아예 내지 않는다** — 마우스가 없는 기기에서는
+    title 에 적힌 "왜 못 고르는지"를 읽을 길이 없었다. 포인터를 통과시키면 같은 탭이
+    `a.wb-row` 에 닿아 상세가 열리고, 사유는 거기 상시 문구·배지로 이미 있다.
+    """
+    css = CSS_PATH.read_text(encoding="utf-8")
+
+    assert ".wb-pick:disabled { pointer-events: none; }" in css
+    assert ".wb-pick { pointer-events: none" not in css, "활성 체크박스까지 막으면 안 된다"
+
+
+def test_create_lock_reason_is_visible_text_not_only_a_tooltip(client, workbench_on):
+    """'주문 만들기' 가 잠긴 사유가 **화면 글자**로 있어야 한다(배지·문구와 같은 부류)."""
+    _login(client)
+    lead = _collected(order_no=f"N-TAP-CREATE-{_uid()}", product="붙박이장", amount=100000,
+                      place_status="NOT_YET")
+    order = _order("탭검증")
+    lead_id = lead.id
+    link = db_session.get(ExternalOrderLink, lead_id)
+    link.order_id = order.id
+    db_session.commit()
+
+    body = client.get(f"/admin/naver-ingest/triage?link_id={lead_id}").get_data(as_text=True)
+    pane = body.split('id="wb-pane"')[1]
+
+    assert f"주문 #{order.id}</b> 가 있습니다" in pane, "사유가 title 밖에도 있어야 한다"
