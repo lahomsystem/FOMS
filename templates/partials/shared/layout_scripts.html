@@ -86,6 +86,9 @@
 <script src="{{ url_for('static', filename='js/foms/tablet-side-sheet.js') }}?v=20260727a" defer></script>
 <script src="{{ url_for('static', filename='js/foms/tablet-density-toggle.js') }}?v=20260713a" defer></script>
 <script src="{{ url_for('static', filename='js/foms/tablet-measure-form.js') }}?v=20260824b" defer></script>
+{# 알림톡 발송 흔적 칩: ERP 주문(PC·모바일)과 태블릿 실측 폼이 같이 쓴다. 태블릿 대시보드는
+   셸 변형에 따라 페이지 스크립트 블록이 통째로 빠지는 경로가 있어 전역 1곳에서 싣는다. #}
+<script src="{{ url_for('static', filename='js/orders/erp-alimtalk-trace.js') }}?v=20260824a" defer></script>
 <script src="{{ url_for('static', filename='js/foms/tablet-measurement.js') }}?v=20260720a" defer></script>
 <script src="{{ url_for('static', filename='js/foms/tablet-production-kanban.js') }}?v=20260725a" defer></script>
 {% if flag_rum_baseline %}

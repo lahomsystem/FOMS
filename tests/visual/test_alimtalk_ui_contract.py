@@ -191,12 +191,21 @@ def test_trace_modal_included_on_both_html_surfaces() -> None:
     assert "style=" not in modal, "인라인 스타일 금지 — erp-channel-push.css 사용"
 
 
-def test_trace_js_wired_after_send_js_with_version() -> None:
-    """사유 문구 맵을 발송 모듈에서 재사용하므로 그 뒤에 defer 로드된다."""
-    chain = _read("templates/orders/partials/erp_order_js.html")
-    line = next(ln for ln in chain.splitlines() if TRACE_JS in ln)
+def test_trace_js_loaded_globally_exactly_once() -> None:
+    """칩 스크립트는 전역 1곳에서만 싣는다.
+
+    태블릿 실측 대시보드는 셸 변형에 따라 페이지 스크립트 블록이 통째로 빠지는 경로가 있어
+    페이지 스코프로 실으면 그 표면에서만 칩이 조용히 사라진다(스테이징 실측). 반대로 두 곳에
+    실으면 같은 파일이 두 번 실행된다.
+    """
+    layout = _read("templates/partials/shared/layout_scripts.html")
+    line = next(ln for ln in layout.splitlines() if TRACE_JS in ln)
     assert "defer" in line and "?v=" in line
-    assert chain.index(SEND_JS) < chain.index(TRACE_JS)
+    # 태블릿 폼과 같은 자리 — 두 표면이 같은 로드 경로를 탄다.
+    assert layout.index("js/foms/tablet-measure-form.js") < layout.index(TRACE_JS)
+    for page_scope in ("templates/orders/partials/erp_order_js.html",
+                       "templates/measurement/partials/dashboard_scripts.html"):
+        assert TRACE_JS not in _read(page_scope), page_scope
 
 
 def test_trace_js_renders_from_loaded_structured_data_only() -> None:
@@ -275,9 +284,10 @@ def test_tablet_measure_form_renders_trace_slot_and_publishes_record() -> None:
     assert "window.erpAlimtalkTraceRender" in js
     # 실패 사유 문구는 태블릿 맵을 같은 이름으로 내줘 칩과 갈리지 않게 한다.
     assert "window.erpAlimtalkReasonLabel" in js
-    # 칩 스크립트가 실측 대시보드(풀페이지·fragment 공용 partial)에 실린다.
-    assert "js/orders/erp-alimtalk-trace.js" in _read(
-        "templates/measurement/partials/dashboard_scripts.html")
+    # 칩 CSS 는 실측 대시보드(풀페이지·fragment 양쪽)에 실린다.
+    for surface in ("templates/measurement/dashboard.html",
+                    "templates/measurement/partials/dashboard_fragment.html"):
+        assert "css/orders/erp-alimtalk-trace.css" in _read(surface), surface
 
 
 def test_trace_chip_is_display_only_without_history_panel() -> None:

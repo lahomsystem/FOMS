@@ -1,8 +1,6 @@
 {% set measurement_js_v = '20260810b' %}
 {# 실측 대시보드 JS는 measurement-entry.js 가 순차 로드 (fragment 재실행 시 스크립트 이중 실행 방지) #}
 <script src="{{ url_for('static', filename='js/measurement/measurement-entry.js') }}?v={{ measurement_js_v }}" defer></script>
-{# 태블릿 실측 폼의 알림톡 발송 흔적 칩. 자체 완결 IIFE + 싱글톤이라 fragment 재실행에 안전하다. #}
-<script src="{{ url_for('static', filename='js/orders/erp-alimtalk-trace.js') }}?v=20260824a" defer></script>
 <script>
   (function () {
     function focusRequestedMeasurementRow() {
