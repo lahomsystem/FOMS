@@ -159,15 +159,18 @@
     /** POST create — 토큰 원문은 이 응답에서만 존재한다. */
     async function _create() {
         if (_busy) return;
-        var orderId = _orderId();
-        if (!orderId) {
-            _setNotice('저장 후 공유할 수 있습니다.');
-            return;
-        }
         var kindInput = document.querySelector('input[name="erp-share-kind"]:checked');
         var kind = kindInput ? kindInput.value : 'drawing';
         _busy = true;
+        // 저장이 먼저다 — 신규·draft 주문도 여기서 저장(승격)된 뒤 id 를 읽는다.
+        // 앞에서 id 를 보고 되돌려보내면 입력해 둔 내용이 그대로 남은 채 막힌다.
         if (!(await _ensureSaved(_setNotice))) {
+            _busy = false;
+            return;
+        }
+        var orderId = _orderId();
+        if (!orderId) {
+            _setNotice('저장 후 공유할 수 있습니다.');
             _busy = false;
             return;
         }
@@ -349,13 +352,15 @@
      */
     async function _selfSms(kind) {
         if (_busy) return;
+        _busy = true;
+        // 저장이 먼저 — 신규·draft 주문도 저장(승격)된 뒤 id 를 읽는다(_create 와 같은 규칙).
+        if (!(await _ensureSaved(function (msg) { window.alert(msg); }))) {
+            _busy = false;
+            return;
+        }
         var orderId = _orderId();
         if (!orderId) {
             window.alert('저장 후 공유할 수 있습니다.');
-            return;
-        }
-        _busy = true;
-        if (!(await _ensureSaved(function (msg) { window.alert(msg); }))) {
             _busy = false;
             return;
         }
