@@ -292,3 +292,77 @@ red 사유까지 확인했다 — 화면 쪽은 `assert '지금 닫기' not in b
 `-E` 누락이 정말로 거짓 무출력을 내는지도 직접 재현했다:
 `git show origin/deploy:models.py | grep -c "A|B|C"` → **0**,
 같은 파일 `grep -cE` → **9**. 검증자 주장이 맞다.
+
+---
+
+## 9. 같은 세션 이후 진행 (D1 개정 뒤)
+
+### 9.1 R1 — 도크 금액 표기를 관계별로 갈랐다 (커밋 `486bb3ad`)
+
+도크가 붙이기 기록 금액을 **관계와 무관하게 항상 "추가결제"** 라 적고 있었다
+(`erp-naver-dock.js` 라벨 하드코딩 + `_extra_payment_summary` 가 전부 합산).
+`REPAY` 에서 그 숫자는 원 결제가 환불된 뒤 **다시** 낸 같은 물건값이라, 담당자가
+예약금·입금에 더하면 주문 하나 값만큼 총액이 부풀어 오른다.
+
+- payload 에 `extra_payment_by_relation` 추가. `extra_payment_count`/`total` 은
+  **관계 무시 합계 그대로**(화면 게이트 `hasFacts` 가 이 값을 본다 — 재결제 전용
+  주문도 도크가 계속 뜬다).
+- `relation` 없는 옛 항목은 `addon` 칸. 지금까지 화면이 그렇게 말해 왔으므로 표기가
+  바뀌지 않는다. 재결제로 추정해 옮기면 근거 없이 경고를 띄운다.
+- **주 세션 검증**: `tests/services/integrations/` 566 passed · `APP_OK` ·
+  인벤토리·네임스페이스 203 passed · `pre_push_smoke` exit 0.
+  RED 재현 직접: `dock.py` 만 되돌리니 4건이 `KeyError: 'extra_payment_by_relation'`,
+  JS 계약 1건은 재결제 줄 부재로 red. 복원 후 diff 동일 확인.
+- `?v` 핀 `20260824a` 범프(참조처 `erp_order_js.html` 한 곳, 전수 그렙).
+
+### 9.2 승격 체인 재직렬화를 deploy 에 랜딩 (커밋 `da7c0f9e`)
+
+스펙 `2026-08-24-naver-production-promotion-chain_SPEC.md` 의 E1~E6 을 **`origin/deploy`
+tip 에서 딴 깨끗한 워크트리**(`c:/tmp/foms-chain`)에서 적용했다(스펙 §1.3 지시).
+
+실증 — 전부 내가 직접 돌렸다:
+
+| 검증 | 결과 |
+|---|---|
+| R0 그래프 | `heads = ['merge_drawq_naverfail']` **1개** · `count = 85` · dangling 0 |
+| `test_alembic_single_head` | 1 passed |
+| §4.2 등식 | 운영 조상집합 **75** == `origin/production` 실제 리비전 **75**, 완전 일치. 네이버·asaxis 혼입 0 |
+| R2 운영 출발점 리허설(PG17.9 로컬 5441) | 컬럼 778 → 754 로 실제로 걷힘 → `upgrade head` 후 **컬럼 유실 0 · 속성 드리프트 0 · 인덱스 유실 0** · 2회차 왕복 통과 → `ROUNDTRIP_OK` |
+| R3 `tests/postgres` 전수 | **747 passed** |
+| `pre_push_smoke` | exit 0 |
+
+**실조회로 해소한 전제(읽기 전용 1회씩)**:
+
+- 운영 `alembic_version` = `['merge_prod_drawq']` 단일 행 · `orders.as_axis_status` **0개** ·
+  `external_order_links`·`order_change_reasons` 둘 다 `None` → 설계 전제와 정확히 일치(U1).
+- 스테이징 `alembic_version` = `['merge_drawq_naverfail']` = 설계 head → 이 커밋이
+  스테이징에 반영돼도 `upgrade head` 는 **무동작**(U2). §4.3 '의도적 허구'가 무해한
+  이유가 실측으로 확인됐다.
+- `ensure_schema.py` 는 `designer_*` 3테이블만 손댄다 — 이번 체인 객체와 겹침 **0**,
+  운영 stamp 가 `merge_prod_drawq` 라 레거시 stamp 보정 UPDATE 도 no-op(U4).
+
+### 9.3 내가 스펙보다 느슨하게 판정한 자리 (기록)
+
+스펙 R2 스크립트의 `assert after == before` 는 **프로젝트 자체 계약보다 엄격했다.**
+그대로 돌리니 `ix_external_order_link_fulfillment_error` 하나 때문에 터졌다 — 그런데
+그 인덱스는 `naverfail_00` 이 만드는 **JSONB 식 부분 인덱스**이고 `models.py` 에 선언이
+없어 `create_all` 이 못 만드는, **마이그레이션 전용** 객체다.
+
+프로젝트 계약 테스트가 이미 규칙을 갖고 있다:
+> "인덱스는 사라지면 안 된다. **추가는 정상**(`startup_schema_00` 이 ORM 에 없는 성능
+> 인덱스를 소유한다)" — `tests/postgres/test_migration_chain.py` §4번 단언
+
+그래서 판정을 **컬럼 유실 0 · 속성 드리프트 0 · 인덱스 유실 0**(추가는 허용, 다만 목록을
+찍어 남긴다)으로 바꿔 다시 돌렸고 `ROUNDTRIP_OK` 를 받았다. E1~E6 과 무관한 선재
+비대칭이다(`naverfail_00.upgrade()` 는 이번에 한 줄도 안 건드렸다).
+
+### 9.4 아직 사람이 해야 하는 것
+
+- **U3 — 운영 web 서비스가 대시보드에서 `preDeployCommand` 를 덮어썼는가.** railway CLI
+  로는 안 잡힌다(로그·서비스 조회 모두 무출력). 스펙이 원래 "사람이 눈으로"(S0-1)로
+  배정한 항목이다. **이게 뒤집히면 `predeploy` fail-closed 안전망이 전부 무효**가 되고
+  blockers 문서의 최악 시나리오가 되살아난다.
+- **D5 승격 범위** — A(전량 463커밋)는 프로젝트 규칙상 **사용자 "전체 푸쉬" 명시 필수**.
+  B(네이버만 cherry-pick)는 스펙이 가장 위험하다고 판정했다(핫파일 충돌 → 운영에만
+  존재하는 제4의 코드 상태). 권고는 **C → A 2단**.
+- D6(승격 후 네이버 기능을 켤지) · D7(S4 실패 시 downgrade 사전 위임) · D8(배포 시간대).
