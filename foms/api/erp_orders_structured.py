@@ -241,6 +241,21 @@ _OPERATIONAL_TOP_LEVEL_KEYS = (
     'channeltalk_push_estimate',
     'channeltalk_push_as',
     'channeltalk_push_measure_room',
+    # 채널 수집 provenance + 채널이 기록한 결제. 폼은 이 셋을 렌더하지도 보내지도 않는다.
+    # 보존 목록에 없으면 **주문을 한 번 열어 저장하는 것만으로 조용히 사라진다** —
+    # allowlist(structured_form_projection.enforce_form_allowlist)는 들어온 dict 에서
+    # 낯선 키를 걷어낼 뿐, 빠진 옛 키를 되살리지 않는다(strip 목록에도 안 남아 로그가 없다).
+    # 2026-08-24 스테이징 실측: 네이버 링크가 붙은 주문 9건 중 ERP 편집 흔적이 있는 5건은
+    # 전부 'source' 를 잃었고, 편집이 없던 4건은 전부 남아 있었다(9/9 일치).
+    #  · source  — 없으면 주문 편집 화면이 네이버 원본 도크를 아예 렌더하지 않고
+    #              (foms/web/orders/edit.py), 대시보드의 채널 취급도 함께 꺼진다
+    #              (foms/services/orders/dashboard_read_model.py).
+    #  · naver   — 수집 원본 참조(주문번호 등). 버리면 다시 만들 방법이 없다.
+    #  · pricing — 붙이기가 기록한 추가결제·재결제 금액이 여기 있다. 폼 저장 한 번에
+    #              돈 기록이 통째로 날아가는 자리였다(주문 4485: 1,610,780원 6건).
+    'source',
+    'naver',
+    'pricing',
 )
 
 

@@ -321,3 +321,56 @@ def test_attach_stays_inside_the_household_on_split_shipment(auth_client):
     assert _fresh(a_second).order_id == order_id
     assert _fresh(b_only).order_id is None, "옆 집이 남의 주문으로 넘어갔다"
     assert _fresh(b_only).sync_status == "COLLECTED"
+
+
+def _order_sd(order_id: int) -> dict:
+    """요청 뒤 주문의 structured_data 를 다시 읽는다."""
+    db_session.expire_all()
+    return db_session.get(Order, order_id).structured_data or {}
+
+
+def test_attach_stamps_the_channel_source_marker(auth_client):
+    """붙이면 주문에 네이버 출처 표식이 남는다 — 없으면 결과를 볼 자리가 없다.
+
+    주문 편집 화면은 ``structured_data['source'] == 'NAVER_SMARTSTORE'`` 일 때만 네이버
+    원본 도크를 렌더하고(``foms/web/orders/edit.py``), 붙이기가 기록한 추가결제를 읽는
+    코드는 그 도크 하나뿐이다. 표식이 없으면 붙이기는 성공했는데 화면은 빈손이다 —
+    2026-08-24 스테이징 실사례(주문 4485: REPAY 6건·1,610,780원 기록, 화면 아무것도 없음).
+    """
+    order_id = _order()
+    assert "source" not in _order_sd(order_id), "사전 조건: 표식 없는 주문"
+    link_id = _link("PO-SRC-1")
+
+    response = auth_client.post(f"/admin/naver-ingest/{link_id}/attach",
+                                json={"order_id": order_id, "relation": "REPAY"})
+
+    assert response.status_code == 200, response.get_data(as_text=True)
+    assert _order_sd(order_id).get("source") == "NAVER_SMARTSTORE"
+
+
+def test_attach_records_money_where_the_screen_can_read_it(auth_client):
+    """표식과 금액 기록이 **같은 저장에서** 함께 남는다(한쪽만 남으면 또 빈손이다)."""
+    order_id = _order()
+    link_id = _link("PO-SRC-2")
+
+    auth_client.post(f"/admin/naver-ingest/{link_id}/attach",
+                     json={"order_id": order_id, "relation": "REPAY"})
+
+    data = _order_sd(order_id)
+    assert data.get("source") == "NAVER_SMARTSTORE"
+    assert isinstance(data.get("pricing", {}).get("extra_payments"), list)
+    assert data["pricing"]["extra_payments"], "붙였는데 결제 기록이 비었다"
+
+
+def test_attach_never_overwrites_an_existing_source(auth_client):
+    """다른 채널 표식은 덮지 않는다 — 덮으면 그 주문의 출처가 거짓이 된다."""
+    order_id = _order()
+    order = db_session.get(Order, order_id)
+    order.structured_data = {"source": "OTHER_CHANNEL"}
+    db_session.commit()
+    link_id = _link("PO-SRC-3")
+
+    auth_client.post(f"/admin/naver-ingest/{link_id}/attach",
+                     json={"order_id": order_id, "relation": "ADDON"})
+
+    assert _order_sd(order_id).get("source") == "OTHER_CHANNEL"

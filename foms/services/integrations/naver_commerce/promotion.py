@@ -234,6 +234,48 @@ def _apply_extra_payments(order: Order, links: list[ExternalOrderLink], *, relat
     return added
 
 
+def _stamp_source_marker(order: Optional[Order]) -> bool:
+    """주문에 네이버 출처 표식(``structured_data['source']``)이 없으면 찍는다.
+
+    **이 한 줄이 없으면 붙이기 결과가 화면에 아예 나타나지 않는다.** 주문 편집 화면은
+    ``structured_data['source'] == SOURCE_MARKER`` 일 때만 네이버 원본 도크를 렌더하고
+    (``foms/web/orders/edit.py``), 방금 기록한 추가결제(:data:`EXTRA_PAYMENTS_KEY`)를
+    읽는 코드는 그 도크 하나뿐이다(``dock.py._extra_payment_summary``). 표식이 없으면
+    붙이기는 성공했는데 사람이 볼 자리가 없다 — 2026-08-24 스테이징 실사례
+    (주문 4485: 링크 264~269 가 REPAY 로 붙고 1,610,780원이 기록됐는데 화면은 빈손).
+
+    표식은 원래 **주문 생성 매핑**에서만 찍혔다(``mapping.py`` 의 ``"source": SOURCE_MARKER``).
+    그래서 ① 사람이 ERP 에서 만든 주문에 수집분을 붙이거나 ② 폼 저장이 표식을 지운 뒤
+    붙이면 도크가 영영 닫힌 채로 남았다.
+
+    **있는 값은 덮지 않는다** — 다른 채널 표식을 네이버로 바꿔 쓰면 그 주문의 출처가
+    거짓이 된다. 비어 있을 때만 채운다.
+
+    Args:
+        order: 대상 주문(None 이면 아무것도 하지 않는다).
+
+    Returns:
+        bool: 새로 찍었으면 True.
+    """
+    import copy
+
+    from sqlalchemy.orm.attributes import flag_modified
+
+    from foms.services.integrations.naver_commerce.constants import SOURCE_MARKER
+
+    if order is None:
+        return False
+    data = order.structured_data
+    if isinstance(data, dict) and data.get("source"):
+        return False
+    updated = copy.deepcopy(data) if isinstance(data, dict) else {}
+    updated["source"] = SOURCE_MARKER
+    order.structured_data = updated
+    flag_modified(order, "structured_data")
+    logger.info("[NAVER] 주문 출처 표식 각인 order=%s", getattr(order, "id", None))
+    return True
+
+
 def _drop_extra_payments(order: Optional[Order], links: list[ExternalOrderLink]) -> int:
     """되돌리기 때 기록도 같이 걷어낸다 (T16-F).
 
@@ -427,6 +469,7 @@ def attach_link_to_order(session: Session, *, link_id: int, order_id: int,
         row.failure_reason = None
         attached += 1
     session.flush()
+    _stamp_source_marker(order)
     # 금액은 **기록만** 한다 — 출고가·잔금 계산식은 그대로다(T16-F).
     # 기록 자체는 REV-00 mutation 계약(row lock·version bump·receipt)을 탄다.
     recorded = _record_extra_payments(session, order_id=int(order_id), links=siblings,
