@@ -1,7 +1,8 @@
 """NOTIF-ROLE-01: notifications.target_role (역할 대상 알림)
 
 Revision ID: notifrole_00
-Revises: naver_relation_00
+Revises: assort_00
+  운영 실제 계보 정합 — 2026-08-24 SPEC 4장(승격 체인 재직렬화).
 Create Date: 2026-08-20
 
 관리자 전원에게 가는 알림은 지금까지 **수신자 수만큼 별개 Notification row** 로
@@ -24,7 +25,7 @@ from alembic import op
 import sqlalchemy as sa
 
 revision: str = "notifrole_00"
-down_revision: Union[str, None] = "naver_relation_00"
+down_revision: Union[str, None] = "assort_00"
 branch_labels: Union[str, Sequence[str], None] = None
 depends_on: Union[str, Sequence[str], None] = None
 

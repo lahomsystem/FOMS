@@ -951,12 +951,12 @@ psql -h 127.0.0.1 -p 5441 -U postgres -d postgres -c "DROP DATABASE \"$DB\";"
 
 | # | 항목 | 상태 | 해소 방법 |
 |---|---|---|---|
-| U1 | 운영 `alembic_version` 이 **지금도** `merge_prod_drawq` 인가 | **미확인** — DB 미조회. 운영 브랜치 그래프 head 와 blockers 실측이 일치한다는 간접 근거만 있다 | S0-2 |
-| U2 | 스테이징 `alembic_version` = `merge_drawq_naverfail` 인가 | **가정** | S0-3 |
+| U1 | 운영 `alembic_version` 이 **지금도** `merge_prod_drawq` 인가 | ✅ **해소 (2026-08-24 20:54 KST 실조회)** — 운영 DB 읽기 전용 1회 조회: `alembic_version = ['merge_prod_drawq']` **단일 행**, `orders.as_axis_status` 컬럼 **0개**, `external_order_links`·`order_change_reasons` 둘 다 `None`. 설계 전제와 정확히 일치 | 완료 |
+| U2 | 스테이징 `alembic_version` = `merge_drawq_naverfail` 인가 | ✅ **해소 (실조회)** — `['merge_drawq_naverfail']` = 설계 head. 재직렬화 후 스테이징 `upgrade head` 는 **무동작**이다(§4.3 의 '의도적 허구'가 무해한 이유가 실측으로 확인됨) | 완료 |
 | U3 | 운영 web 서비스가 실제로 `railway.toml` 의 `preDeployCommand` 를 쓰는가 | **미확인**(대시보드 덮어쓰기 가능) | S0-1. **아니면 §1.2 의 안전망이 전부 무효** |
-| U4 | `tools/ops/ensure_schema.py` 가 `upgrade head` 이후 무엇을 손보는가 | **미조사** | S1 전에 읽어라. 이번 체인의 객체와 겹치면 순서 판단이 필요하다 |
-| U5 | `merge_drawq_naverfail` 의 중복 부모(`drawqueue_00` 이 `naverfail_00` 의 조상이면서 동시에 직접 부모)를 alembic 이 문제없이 처리하는가 | **미실증** | R0(`alembic history`) + R2 |
-| U6 | R2 의 `downgrade merge_prod_drawq` 가 `create_all` DB 에서 완주하는가 | **미실증**. `models.py` 에 `Index('ix_orders_as_axis_status', …)` 가 있어 `asaxis_00.downgrade` 의 `drop_index` 는 대상이 있음을 확인했으나 나머지 8개는 미검사 | R2. **실패하면 그건 models↔마이그레이션 드리프트라는 발견이지, 마이그레이션을 고칠 핑계가 아니다** |
+| U4 | `tools/ops/ensure_schema.py` 가 `upgrade head` 이후 무엇을 손보는가 | ✅ **해소** — `designer_drawing_extractions`·`designer_extraction_candidates`·`designer_design_cases` 에 `ADD COLUMN IF NOT EXISTS` 5개 + 레거시 stamp 보정(`designer_eval_snapshots` → `designer_wdplanner_v2_fix`). **이번 체인 객체(네이버·asaxis·orderreason)와 겹치는 것이 0개**이고, 운영 stamp 가 `merge_prod_drawq` 라 stamp 보정 UPDATE 는 no-op | 완료 |
+| U5 | `merge_drawq_naverfail` 의 중복 부모(`drawqueue_00` 이 `naverfail_00` 의 조상이면서 동시에 직접 부모)를 alembic 이 문제없이 처리하는가 | ✅ **해소** — R0 실행: `heads = ['merge_drawq_naverfail']`(1개) · `count = 85` · dangling 0 · `test_alembic_single_head` 1 passed. R2 에서 실제 `downgrade`/`upgrade` 도 이 노드를 정상 통과했다 | 완료 |
+| U6 | R2 의 `downgrade merge_prod_drawq` 가 `create_all` DB 에서 완주하는가 | ✅ **해소 (2026-08-24 실행, PG17.9 로컬 레인 5441)** — `ROUNDTRIP_OK`. 컬럼 778 → 754 로 실제로 걷혔고(무의미한 no-op 왕복이 아님), `upgrade head` 후 **컬럼 유실 0 · 타입/nullable/default 드리프트 0 · 인덱스 유실 0**. 2회차 왕복도 통과. R3(`tests/postgres` 전수) **747 passed** | 완료 |
 | U7 | nav 뱃지 fail-open 이 실패 쿼리로 요청 트랜잭션을 오염시켜 후속 쿼리를 연쇄로 죽이는가 | **미확인**(blockers 문서에서도 미확인) | C/A 안에서는 스키마가 먼저 올라가므로 이 경로 자체가 사라진다 |
 | U8 | 463커밋 안에 **다른 세션의 미완결 작업**이 있는가 | **미조사** | D5 에서 A 를 고를 때 사용자가 감수하는 위험 |
 

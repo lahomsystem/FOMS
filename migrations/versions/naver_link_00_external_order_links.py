@@ -1,7 +1,8 @@
 """NAVER-INGEST-01 T2: external_order_links (외부 채널 주문 수집 링크 + 원본 스냅샷)
 
 Revision ID: naver_link_00
-Revises: asfresh_00
+Revises: merge_prod_drawq
+  운영 실제 계보 정합 — 2026-08-24 SPEC 4장(승격 체인 재직렬화).
 Create Date: 2026-08-13
 
 스마트스토어 주문 자동 수집(NAVER-INGEST-01 §3.4)의 멱등 정본 테이블을 만든다.
@@ -28,7 +29,7 @@ import sqlalchemy as sa
 from sqlalchemy.dialects import postgresql
 
 revision: str = 'naver_link_00'
-down_revision: Union[str, None] = 'asfresh_00'
+down_revision: Union[str, None] = 'merge_prod_drawq'
 branch_labels: Union[str, Sequence[str], None] = None
 depends_on: Union[str, Sequence[str], None] = None
 

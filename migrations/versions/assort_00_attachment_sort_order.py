@@ -1,7 +1,8 @@
 """AS-SORT-01: order_attachments.sort_order (AS 첨부 표시·전송 순서)
 
 Revision ID: assort_00
-Revises: asaxis_00
+Revises: asfresh_00
+  운영 실제 계보 정합 — 2026-08-24 SPEC 4장(승격 체인 재직렬화).
 Create Date: 2026-08-19
 
 AS 첨부의 화면·채널톡 순서는 지금까지 ``id`` 오름차순(=병렬 업로드 완료 순)이었다.
@@ -17,7 +18,7 @@ from alembic import op
 import sqlalchemy as sa
 
 revision: str = "assort_00"
-down_revision: Union[str, None] = "asaxis_00"
+down_revision: Union[str, None] = "asfresh_00"
 branch_labels: Union[str, Sequence[str], None] = None
 depends_on: Union[str, Sequence[str], None] = None
 

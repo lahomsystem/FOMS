@@ -1,7 +1,8 @@
 """NAVER-INGEST-02 T16-B: external_order_links 관계 축 + 발주 상태 컬럼
 
 Revision ID: naver_relation_00
-Revises: assort_00
+Revises: asaxis_00
+  운영 실제 계보 정합 — 2026-08-24 SPEC 4장(승격 체인 재직렬화).
 Create Date: 2026-08-19
 
 수집 판정이 ``productOrderStatus == PAYED`` 하나뿐이라 **취소 후 재결제**와 **기존 주문의
@@ -31,7 +32,7 @@ from alembic import op
 import sqlalchemy as sa
 
 revision: str = 'naver_relation_00'
-down_revision: Union[str, None] = 'assort_00'
+down_revision: Union[str, None] = 'asaxis_00'
 branch_labels: Union[str, Sequence[str], None] = None
 depends_on: Union[str, Sequence[str], None] = None
 
