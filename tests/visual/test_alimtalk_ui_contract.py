@@ -181,3 +181,100 @@ def test_share_js_reuses_alimtalk_autosave_guard() -> None:
     assert "fomsErpEnsureSavedForSend" in js
     # 헬퍼 정의 1 + 발급/원클릭 호출 2.
     assert js.count("_ensureSaved(") >= 3
+
+
+# --- T15 발송 흔적 칩 ------------------------------------------------------------
+
+TRACE_JS = "js/orders/erp-alimtalk-trace.js"
+TRACE_PARTIAL = "orders/partials/erp_alimtalk_trace_modal.html"
+
+
+def test_pc_tab_has_trace_slot_under_alimtalk_button() -> None:
+    """PC: 흔적 칩 자리가 알림톡 버튼 **아래**에 있다(0클릭 확인의 전제)."""
+    html = _read("templates/orders/partials/erp_order_tab.html")
+    assert "data-erp-alimtalk-trace" in html
+    assert html.index(BUTTON_CLASS) < html.index("data-erp-alimtalk-trace")
+
+
+def test_mobile_tab_has_compact_trace_slot_in_action_bar() -> None:
+    """모바일: 액션바 안에서 한 줄을 차지하는 축약형 칩(보낸 사람 없음)."""
+    html = _read("templates/orders/partials/erp_order_tab_mobile.html")
+    footer = html[html.index("erp-mobile-sticky-action-bar"):]
+    bar = footer[: footer.index("</footer>")]
+    assert 'data-erp-alimtalk-trace="compact"' in bar, "칩이 액션바 밖에 있다"
+    assert "erp-alimtalk-trace-slot--mobile" in bar
+
+
+def test_trace_modal_included_on_both_html_surfaces() -> None:
+    """이력 패널 partial 은 PC/모바일 두 표면 모두에 include 된다."""
+    assert TRACE_PARTIAL in _read("templates/orders/partials/erp_order_tab.html")
+    assert TRACE_PARTIAL in _read("templates/orders/partials/erp_order_tab_mobile.html")
+
+    modal = _read("templates/" + TRACE_PARTIAL)
+    assert 'id="erpAlimtalkTraceModal"' in modal
+    assert 'id="erp-alimtalk-trace-log"' in modal
+    assert 'id="erp-alimtalk-trace-count"' in modal
+    assert "style=" not in modal, "인라인 스타일 금지 — erp-channel-push.css 사용"
+
+
+def test_trace_js_wired_after_send_js_with_version() -> None:
+    """사유 문구 맵을 발송 모듈에서 재사용하므로 그 뒤에 defer 로드된다."""
+    chain = _read("templates/orders/partials/erp_order_js.html")
+    line = next(ln for ln in chain.splitlines() if TRACE_JS in ln)
+    assert "defer" in line and "?v=" in line
+    assert chain.index(SEND_JS) < chain.index(TRACE_JS)
+
+
+def test_trace_js_renders_from_loaded_structured_data_only() -> None:
+    """칩은 이미 화면에 있는 구조화 데이터로 그린다 — 렌더에 서버 왕복이 없다."""
+    js = _read("static/js/orders/" + TRACE_JS.split("/")[-1])
+    assert "window.__FOMS_ALIMTALK_TRACE_BOUND" in js
+    assert "window.__erpLastStructuredData" in js
+    assert "alimtalk_measurement" in js
+    # 렌더 경로가 preview 를 부르면 '추가 요청 0' 계약이 깨진다.
+    assert "/api/kakao/alimtalk/preview/" not in js
+
+
+def test_trace_js_reuses_reason_labels_instead_of_copying() -> None:
+    """사유 문구는 발송 모듈 맵 재사용 — 3벌째 사본이 생기면 문구가 갈린다."""
+    js = _read("static/js/orders/" + TRACE_JS.split("/")[-1])
+    assert "window.erpAlimtalkReasonLabel" in js
+    assert "invalid_phone" not in js, "사유 맵을 복사했다"
+
+
+def test_trace_js_covers_four_chip_states() -> None:
+    """보냄·문자로 보냄·실패·미발송 네 상태 — 빈 자리는 '확인 못 함'으로 읽힌다."""
+    js = _read("static/js/orders/" + TRACE_JS.split("/")[-1])
+    for label in ("예약 안내 보냄", "문자로 보냄", "발송 실패", "아직 안 보냄"):
+        assert label in js, label
+    for state in ("--sent", "--text", "--failed", "--none"):
+        assert "erp-alimtalk-trace" + state in _read("static/css/orders/erp-channel-push.css")
+
+
+def test_trace_js_probes_channel_once_after_delay() -> None:
+    """채널 확정은 발송 1분 뒤 1회 — 웹훅 아님, 이미 확정된 건은 다시 묻지 않는다."""
+    js = _read("static/js/orders/" + TRACE_JS.split("/")[-1])
+    assert "/api/kakao/alimtalk/confirm-channel/" in js
+    assert "channel_checked_at" in js
+    assert "setTimeout" in js and "60 * 1000" in js
+
+
+def test_trace_history_panel_uses_filtered_event_stream() -> None:
+    """이력 패널은 알림톡 이벤트만 받아온다(200건 받아 클라이언트에서 거르지 않는다)."""
+    js = _read("static/js/orders/" + TRACE_JS.split("/")[-1])
+    assert "event_type=" in js
+    assert "ALIMTALK_SENT,ALIMTALK_FAILED" in js
+    assert "created_by_name" in js
+
+
+def test_send_js_publishes_trace_update() -> None:
+    """발송 직후 칩 갱신은 응답에 실려 온 이력으로 한다(추가 조회 없음)."""
+    js = _read("static/js/orders/erp-alimtalk-send.js")
+    assert "foms:alimtalk-trace-update" in js
+    assert "body.data.last" in js
+
+
+def test_structured_load_announces_itself_for_late_renderers() -> None:
+    """구조화 데이터 도착 신호가 있어야 칩이 로드 순서와 무관하게 그려진다."""
+    js = _read("static/js/orders/erp-order-shared.js")
+    assert "foms:erp-structured-loaded" in js

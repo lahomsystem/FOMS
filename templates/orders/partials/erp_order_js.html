@@ -14,14 +14,16 @@
 <script src="{{ url_for('static', filename='js/foms/attachment-preview-zoom.js') }}?v=20260629a" defer></script>
 <link rel="stylesheet" href="{{ url_for('static', filename='css/orders/erp-autosave.css') }}?v=20260630a">
 <link rel="stylesheet" href="{{ url_for('static', filename='css/orders/erp-items-master-detail.css') }}?v=20260701f">
-<link rel="stylesheet" href="{{ url_for('static', filename='css/orders/erp-channel-push.css') }}?v=20260821c">
+<link rel="stylesheet" href="{{ url_for('static', filename='css/orders/erp-channel-push.css') }}?v=20260824b">
 <script src="{{ url_for('static', filename='js/orders/erp-channel-push-confirm.js') }}?v=20260821a" defer></script>
-<script src="{{ url_for('static', filename='js/orders/erp-alimtalk-send.js') }}?v=20260824a" defer></script>
+<script src="{{ url_for('static', filename='js/orders/erp-alimtalk-send.js') }}?v=20260824b" defer></script>
+{# 발송 흔적 칩: 사유 문구 맵을 발송 모듈에서 재사용하므로 뒤에 온다. #}
+<script src="{{ url_for('static', filename='js/orders/erp-alimtalk-trace.js') }}?v=20260824a" defer></script>
 <link rel="stylesheet" href="{{ url_for('static', filename='css/orders/erp-share.css') }}?v=20260821a">
 <script src="{{ url_for('static', filename='js/orders/erp-share.js') }}?v=20260824a" defer></script>
 <script src="{{ url_for('static', filename='js/cs/as-attachment-order.js') }}?v=20260819a" defer></script>
 <script src="{{ url_for('static', filename='js/cs/as-push-confirm.js') }}?v=20260820a" defer></script>
-<script src="{{ url_for('static', filename='js/orders/erp-order-shared.js') }}?v=20260821e" defer></script>
+<script src="{{ url_for('static', filename='js/orders/erp-order-shared.js') }}?v=20260824a" defer></script>
 {# ORDER-REASON-00: 저장 성공 뒤 사유를 받는 표면(전체 저장=시트, 인라인=배너). #}
 <script src="{{ url_for('static', filename='js/orders/order-change-reason.js') }}?v=20260814a" defer></script>
 <script src="{{ url_for('static', filename='js/orders/erp-stage-override.js') }}?v=20260814d" defer></script>

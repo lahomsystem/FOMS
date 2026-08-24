@@ -468,6 +468,9 @@ ERP Order mobile-v2 tab pane.
 
             </div>
             <footer class="foms-sticky-action-bar erp-mobile-sticky-action-bar" role="group" aria-label="ERP 주문 저장 및 전송">
+                <!-- 발송 흔적: 좁은 폭이라 액션바 위에 눕는다(상태 + 시각만) -->
+                <div class="erp-alimtalk-trace-slot erp-alimtalk-trace-slot--mobile"
+                    data-erp-alimtalk-trace="compact"></div>
                 <button class="foms-btn foms-btn--primary" type="button" id="erp-save-btn">
                     <i class="fas fa-save"></i> 저장
                 </button>
@@ -488,6 +491,7 @@ ERP Order mobile-v2 tab pane.
 {% include 'orders/partials/erp_channel_push_picker_modal.html' %}
 {% include 'orders/partials/erp_alimtalk_picker_modal.html' %}
 {% include 'orders/partials/erp_alimtalk_modal.html' %}
+{% include 'orders/partials/erp_alimtalk_trace_modal.html' %}
 {% include 'orders/partials/erp_share_modal.html' %}
 
 <!-- ERP 주소 검색 모달 -->
