@@ -6,6 +6,10 @@
  * 통일된 바텀시트로 옵션을 고른 뒤 value 설정 + input/change 디스패치 → 호스트 로직이 그대로 동작.
  * 동적 추가 행/옵션도 document 위임 + 열 때 live 옵션 읽기로 자동 대응.
  *
+ * 입력 경로 2개: 터치는 touchend 취소(합성 mouse/click/focus 미발생 → iOS 네이티브 피커 차단),
+ * 마우스/펜은 기존 mousedown 취소. iOS Safari 의 select 피커는 focus 로 뜨므로 시트를 닫을 때
+ * 터치 기기에서는 포커스를 되돌리지 않는다(되돌리면 피커가 다시 뜬다).
+ *
  * 대상(opt-in): select.foms-select, select[data-sheet]
  * 제외: [multiple], [disabled], [data-no-sheet], 숨김(d-none / offsetParent null)
  * 계산기 자체 selsheet는 .form-select(base-product/category/note)를 대상으로 하므로
@@ -15,7 +19,16 @@
   "use strict";
 
   var MQ = window.matchMedia("(max-width: 991.98px), (pointer: coarse)");
+  // iOS Safari 의 select 피커는 focus 기반(탭=포커스=피커)이라 합성 mousedown 취소로 막히지
+  // 않는다. 터치 경로는 touchend 를 취소해 합성 mouse/click/focus 자체를 막고, 포커스 복원도
+  // 건너뛴다(안드로이드/데스크톱 동작은 기존 mousedown 경로 그대로).
+  var COARSE = window.matchMedia("(pointer: coarse)");
+  var TAP_SLOP_PX = 10; // 이보다 많이 움직이면 스크롤 제스처로 보고 시트를 열지 않는다
   var sheet, backdrop, titleEl, bodyEl, currentSel;
+  var touchSel = null,
+    touchX = 0,
+    touchY = 0,
+    touchOpenAt = 0;
 
   function isTarget(sel) {
     if (!sel || sel.tagName !== "SELECT") return false;
@@ -65,6 +78,14 @@
 
   function open(sel) {
     ensureSheet();
+    // 이미 포커스가 붙었으면(iOS 는 그 순간 네이티브 피커가 뜬다) 떼어내 겹침을 없앤다.
+    if (sel.blur) {
+      try {
+        sel.blur();
+      } catch (e) {
+        /* blur 미지원 환경 무시 */
+      }
+    }
     currentSel = sel;
     titleEl.textContent = labelFor(sel);
     bodyEl.innerHTML = "";
@@ -98,7 +119,8 @@
     if (sheet) sheet.hidden = true;
     if (backdrop) backdrop.hidden = true;
     document.body.classList.remove("foms-msel-open");
-    if (currentSel && currentSel.focus) {
+    // 터치 기기에서 select 포커스 복원 = iOS 네이티브 피커 재오픈("고르면 또 뜬다")이므로 생략.
+    if (currentSel && currentSel.focus && !COARSE.matches) {
       try {
         currentSel.focus({ preventScroll: true });
       } catch (e) {
@@ -110,9 +132,32 @@
 
   function onPointer(e) {
     if (!MQ.matches) return;
+    if (Date.now() - touchOpenAt < 700) return; // 터치 경로가 이미 연 뒤의 합성 mousedown
     var sel = e.target && e.target.closest ? e.target.closest("select") : null;
     if (!isTarget(sel) || !isVisible(sel)) return;
-    e.preventDefault(); // 네이티브 OS 팝업 차단
+    e.preventDefault(); // 네이티브 OS 팝업 차단(안드로이드/데스크톱: mousedown 기본동작)
+    open(sel);
+  }
+  function onTouchStart(e) {
+    touchSel = null;
+    if (!MQ.matches || !e.touches || e.touches.length !== 1) return;
+    var sel = e.target && e.target.closest ? e.target.closest("select") : null;
+    if (!isTarget(sel) || !isVisible(sel)) return;
+    touchSel = sel;
+    touchX = e.touches[0].clientX;
+    touchY = e.touches[0].clientY;
+  }
+  function onTouchEnd(e) {
+    var sel = touchSel;
+    touchSel = null;
+    if (!sel) return;
+    var t = e.changedTouches && e.changedTouches[0];
+    if (!t) return;
+    if (Math.abs(t.clientX - touchX) > TAP_SLOP_PX || Math.abs(t.clientY - touchY) > TAP_SLOP_PX) return;
+    // touchend 취소 = 합성 mouse/click/focus 미발생 → iOS 네이티브 피커 차단.
+    // touchstart 는 취소하지 않으므로 select 위에서 시작한 스크롤은 그대로 동작한다.
+    e.preventDefault();
+    touchOpenAt = Date.now();
     open(sel);
   }
   function onKey(e) {
@@ -128,7 +173,10 @@
     if (e.key === "Escape" && sheet && !sheet.hidden) close();
   }
 
-  // 위임(동적 행 대응). mousedown preventDefault로 네이티브 팝업을 연(open)되기 전에 차단.
+  // 위임(동적 행 대응). 터치=touchend, 그 외=mousedown 을 preventDefault 해
+  // 네이티브 팝업이 열리기 전에 차단한다(touchstart 는 살려 스크롤 보존).
+  document.addEventListener("touchstart", onTouchStart, { passive: true });
+  document.addEventListener("touchend", onTouchEnd, { passive: false });
   document.addEventListener("mousedown", onPointer);
   document.addEventListener("keydown", onKey);
   document.addEventListener("keydown", onEsc);
