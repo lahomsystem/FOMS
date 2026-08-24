@@ -342,3 +342,132 @@ def test_register_syncs_polluted_as_stage_but_keeps_clean_main_stage(client):
     saved = _reload(cid)
     assert saved.structured_data["workflow"]["stage"] == "CS"
     assert saved.status == "AS_RECEIVED"
+
+
+# ---------------------------------------------------------------------------
+# AS 재접수 S1 저장 계층: 건(cycle) 스냅샷 봉인 · as_log 건 스탬프 · 재발 표식
+# ---------------------------------------------------------------------------
+_H64 = "a" * 64
+
+
+def _cycle_by_id(order, cycle_id):
+    """as_lifecycle.cycles 에서 지정 cycle_id dict 를 꺼낸다(지난 건 조회용)."""
+    return next(
+        c for c in order.structured_data["as_lifecycle"]["cycles"]
+        if c["cycle_id"] == cycle_id
+    )
+
+
+def test_reregister_seals_previous_cycle_completed_date_and_billing(client):
+    """완료 → 재접수 시 직전 건에 완료일·비용 스냅샷이 봉인된다(컬럼 1칸·1슬롯은 새 건이 덮는다).
+
+    ``as_completed_date`` 는 컬럼 한 칸, ``shipment.as_billing`` 은 주문당 한 슬롯이라
+    새 건이 열리면 지난 건의 완료일·유무상 판정이 복원 불가능하게 사라졌다. 봉인은 깊은
+    복사라 이후 판정 전환이 지난 건 값을 바꾸지 않아야 한다.
+    """
+    _login_as_admin(client, "state-as-seal")
+    order = _create_cs_order()
+    oid = order.id
+    client.post(f"/api/orders/{oid}/as/register",
+                json={"as_content": "1차", "billing_type": "paid", "amount": 50000})
+    client.post(f"/api/orders/{oid}/as/start", json={"reason": "r", "description": "d"})
+    client.post(f"/api/orders/{oid}/as/complete", json={"note": "완료"})
+    saved = _reload(oid)
+    first_id = saved.structured_data["as_lifecycle"]["current_cycle_id"]
+    completed = saved.as_completed_date
+    received = saved.as_received_date
+    assert completed and _current_cycle(saved)["completed_date"] == completed
+
+    r = client.post(f"/api/orders/{oid}/as/register", json={"as_content": "2차 재접수"})
+    assert r.status_code == 200 and r.get_json()["success"] is True
+    saved = _reload(oid)
+    first = _cycle_by_id(saved, first_id)
+    assert first["completed_date"] == completed        # 지난 건 완료일 보존
+    assert first["received_date"] == received          # 지난 건 접수일 보존
+    assert first["billing_snapshot"]["type"] == "paid"
+    assert first["billing_snapshot"]["amount"] == 50000
+    assert saved.as_completed_date is None             # 컬럼은 새 건 기준으로 초기화
+
+    # 깊은 복사 검증: 새 건에서 판정을 무상으로 전환해도 지난 건 스냅샷은 불변
+    r = client.post(f"/api/orders/{oid}/as/billing",
+                    json={"type": "free", "reason": "2차는 무상 처리"})
+    assert r.status_code == 200
+    saved = _reload(oid)
+    assert saved.structured_data["shipment"]["as_billing"]["type"] == "free"
+    first = _cycle_by_id(saved, first_id)
+    assert first["billing_snapshot"]["type"] == "paid"
+    assert first["billing_snapshot"]["amount"] == 50000
+
+
+def test_new_cycle_stamps_new_as_log_entries_and_leaves_old_ones(client):
+    """새 건으로 append 된 as_log 항목은 새 cycle_id 로 묶이고, 옛 항목은 소급 스탬프 0."""
+    _login_as_admin(client, "state-as-logstamp")
+    order = _create_cs_order()
+    oid = order.id
+    client.post(f"/api/orders/{oid}/as/register", json={"as_content": "1차 하자"})
+    saved = _reload(oid)
+    first_id = saved.structured_data["as_lifecycle"]["current_cycle_id"]
+    client.post(f"/api/orders/{oid}/as/start", json={"reason": "r", "description": "d"})
+    client.post(f"/api/orders/{oid}/as/complete", json={"note": "완료"})
+
+    saved = _reload(oid)
+    before = {e["id"]: e.get("cycle_id") for e in saved.structured_data["shipment"]["as_log"]}
+    assert before and set(before.values()) == {first_id}  # 1차 건 기록은 전부 1차 cycle
+
+    r = client.post(f"/api/orders/{oid}/as/register", json={"as_content": "2차 하자"})
+    assert r.status_code == 200 and r.get_json()["success"] is True
+    saved = _reload(oid)
+    second_id = saved.structured_data["as_lifecycle"]["current_cycle_id"]
+    assert second_id != first_id
+    entries = saved.structured_data["shipment"]["as_log"]
+    fresh = [e for e in entries if e["id"] not in before]
+    assert fresh  # 2차 접수 원문 + "AS 접수됨" 시스템 기록
+    assert {e.get("cycle_id") for e in fresh} == {second_id}
+    # 옛 항목은 그대로(append-only — 표식 이전 기록은 건드리지 않는다)
+    assert {e["id"]: e.get("cycle_id") for e in entries if e["id"] in before} == before
+
+
+def test_reopen_drops_completed_date_snapshot(client):
+    """reopen 하면 그 건은 다시 진행 중이므로 cycle 의 completed_date 스냅샷이 사라진다."""
+    _login_as_admin(client, "state-as-reopen-snap")
+    order = _create_cs_order()
+    oid = order.id
+    client.post(f"/api/orders/{oid}/as/register", json={"as_content": "접수"})
+    client.post(f"/api/orders/{oid}/as/start", json={"reason": "r", "description": "d"})
+    client.post(f"/api/orders/{oid}/as/complete", json={"note": "완료"})
+    saved = _reload(oid)
+    assert _current_cycle(saved)["completed_date"] == saved.as_completed_date
+
+    r = client.post(f"/api/orders/{oid}/as/reopen", json={"reason": "오완료"})
+    assert r.status_code == 200 and r.get_json()["success"] is True
+    saved = _reload(oid)
+    assert "completed_date" not in _current_cycle(saved)
+    assert saved.as_completed_date is None
+
+
+def test_register_persists_recurrence_flag_on_cycle(client):
+    """recurrence=True 접수는 재발 표식을 cycle core + AS_REGISTER payload 에 남긴다.
+
+    라우트 배선은 후속 task 소관이라 서비스 계층 계약만 고정한다(기본값은 False).
+    """
+    user = _login_as_admin(client, "state-as-recurrence")
+    order = _create_cs_order()
+    oid = order.id
+    register_as_cycle(
+        db_session, order_id=oid, actor_user_id=user.id, as_content="같은 하자 재발",
+        received_date="2026-08-24", recurrence=True, scope_hash=_H64, request_hash=_H64,
+    )
+    db_session.commit()
+    saved = _reload(oid)
+    cycle = _current_cycle(saved)
+    assert cycle["recurrence"] is True
+    assert cycle["received_date"] == "2026-08-24"
+    assert saved.as_received_date == "2026-08-24"
+    register_tr = cycle["transitions"][0]
+    assert register_tr["command"] == "AS_REGISTER"
+    assert register_tr["payload"]["recurrence"] is True
+
+    # 기본값 False — 기존 접수 경로(라우트)는 무변경
+    plain = _create_cs_order()
+    client.post(f"/api/orders/{plain.id}/as/register", json={"as_content": "일반 접수"})
+    assert _current_cycle(_reload(plain.id))["recurrence"] is False

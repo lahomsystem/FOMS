@@ -359,12 +359,102 @@ def _run_as_command(
 
 
 # --------------------------------------------------------------------------- #
+# cycle 스냅샷 봉인 / 신규 cycle 발급
+# --------------------------------------------------------------------------- #
+def _seal_billing_snapshot(sd: Dict[str, Any], cycle: Optional[Dict[str, Any]]) -> None:
+    """cycle 에 그 시점 ``shipment['as_billing']`` **깊은 복사본**을 봉인한다.
+
+    ``as_billing`` 은 shipment 하위 **주문당 1슬롯**이라 다음 AS 건이 값을 갈아끼우면
+    지난 건의 유·무상 판정이 사라진다. 새 건이 열리는 순간과 완료 시점에 봉인해 지난
+    건의 값을 고정한다. 이미 봉인돼 있으면 덮지 않는다(과거 판정 불변).
+
+    Args:
+        sd: 잠긴 row 의 structured_data 사본.
+        cycle: 봉인 대상 cycle(None 이면 no-op).
+    """
+    if not isinstance(cycle, dict) or cycle.get("billing_snapshot") is not None:
+        return
+    billing = (sd.get("shipment") or {}).get("as_billing")
+    if isinstance(billing, dict):
+        cycle["billing_snapshot"] = copy.deepcopy(billing)
+
+
+def resync_completed_cycle_billing(sd: Dict[str, Any]) -> bool:
+    """완료된 **현재 건**의 비용 스냅샷을 지금의 ``shipment['as_billing']`` 으로 다시 봉인한다.
+
+    봉인은 완료 시점 판정을 고정하지만, 완료 **뒤** 유·무상이나 금액을 정정하면 그 건의
+    최종 판정이 바뀐 것이라 스냅샷도 따라가야 한다. 안 따라가면 다음 건 접수가 주문당
+    1슬롯인 flat ``as_billing`` 을 재시드하는 순간 정정값이 화면·스냅샷 **양쪽에서**
+    사라진다(실매출 소실). 열린 건은 완료 시점에 봉인되므로 여기서 손대지 않는다.
+
+    Args:
+        sd: 잠긴 row 의 structured_data 사본(``flag_modified`` 는 호출자 몫).
+
+    Returns:
+        스냅샷을 갱신했으면 True, 대상이 아니면 False.
+    """
+    cycle = current_cycle(sd)
+    if not isinstance(cycle, dict) or cycle_status(cycle) != AS_COMPLETED:
+        return False
+    billing = (sd.get("shipment") or {}).get("as_billing")
+    if not isinstance(billing, dict):
+        return False
+    cycle["billing_snapshot"] = copy.deepcopy(billing)
+    return True
+
+
+def _issue_new_cycle(
+    sd: Dict[str, Any], *, content: str, shipping: Optional[str],
+    received_date: Optional[str], recurrence: bool, actor_user_id: int,
+    now: datetime.datetime,
+) -> Dict[str, Any]:
+    """새 RECEIVED cycle 을 발급해 current 로 세운다(직전 cycle 비용 봉인 포함).
+
+    ``received_date``/``recurrence`` 는 cycle core 에 함께 봉인한다 — 접수일은 지금까지
+    ``order.as_received_date`` 컬럼 1칸에만 있어 다음 건이 열리면 지난 건 접수일 복원이
+    불가능했다.
+
+    Args:
+        sd: 잠긴 row 의 structured_data 사본. content: 접수 원문(검증 완료).
+        shipping: 상차일(``YYYY-MM-DD``|None). received_date: 접수일(KST, 없으면 오늘).
+        recurrence: 재발 표식. actor_user_id: 접수자. now: 발급 시각.
+
+    Returns:
+        발급된 cycle dict.
+
+    Raises:
+        ASCycleError: 이미 열린 cycle(RECEIVED/IN_PROGRESS)이 있는 경우.
+    """
+    lifecycle = _lifecycle(sd)
+    existing = current_cycle(sd)
+    if existing is not None and cycle_status(existing) in (AS_RECEIVED, AS_IN_PROGRESS):
+        raise ASCycleError("이미 진행 중인 AS 접수가 있습니다.")
+    _seal_billing_snapshot(sd, existing)
+    cycle_id = str(uuid.uuid4())
+    cycle = {
+        "cycle_id": cycle_id, "opened_at": now.isoformat(), "opened_by": actor_user_id,
+        "initial_content": content, "initial_shipping_date": shipping,
+        "received_date": received_date or _today_str(), "recurrence": bool(recurrence),
+        "classification": {f: False for f in CLASSIFICATION_FIELDS}, "transitions": [],
+    }
+    _append_transition(
+        cycle, command="AS_REGISTER", from_status=AS_NONE, to_status=AS_RECEIVED,
+        payload={"as_content_len": len(content), "recurrence": bool(recurrence)},
+        actor_user_id=actor_user_id, now=now,
+    )
+    lifecycle["cycles"].append(cycle)
+    lifecycle["current_cycle_id"] = cycle_id
+    return cycle
+
+
+# --------------------------------------------------------------------------- #
 # canonical AS command
 # --------------------------------------------------------------------------- #
 def register_as_cycle(
     session: Session, *, order_id: int, actor_user_id: int, as_content: str,
     shipping_scheduled_date: Optional[str] = None, source_screen: Optional[str] = None,
     received_date: Optional[str] = None, construction_worker_name: Optional[str] = None,
+    recurrence: bool = False,
     scope_hash: str, request_hash: str, now: Optional[datetime.datetime] = None,
     idempotency_key: Optional[str] = None,
     sd_hook: Optional[Callable[[Dict[str, Any]], None]] = None,
@@ -375,46 +465,48 @@ def register_as_cycle(
     cycle 은 이력으로 남고 새 cycle 이 append 된다. main stage 는 건드리지 않는다.
     ``received_date`` 는 endpoint 가 KST 로 계산해 넘긴다(get_today_kst monkeypatch 존중);
     ``construction_worker_name`` 이 있으면 shipment 담당자 projection 에 반영한다.
+    ``recurrence`` 는 "같은 하자의 재발"이라는 접수 표식으로 cycle core 에 봉인된다.
+
+    새 cycle 발급은 ``sd_hook`` **보다 먼저** 돈다 — endpoint 부수 기록(접수 reception·
+    system 로그)이 새 건의 ``cycle_id`` 로 스탬프돼야 건별 묶음이 어긋나지 않는다.
     """
     now = now or now_utc_naive()
     content = _require_text(as_content, field="AS 내용", min_len=0, max_len=_MAX_CONTENT)
     shipping = _require_iso_date(shipping_scheduled_date, field="상차일") if shipping_scheduled_date else None
 
+    def _pre(sd: Dict[str, Any]) -> None:
+        """새 cycle 발급 → endpoint 부수 기록 순서(부수 기록이 새 건 id 로 스탬프된다)."""
+        _issue_new_cycle(
+            sd, content=content, shipping=shipping, received_date=received_date,
+            recurrence=recurrence, actor_user_id=actor_user_id, now=now,
+        )
+        if sd_hook is not None:
+            sd_hook(sd)
+
     def _apply(sd: Dict[str, Any], order: Order) -> Dict[str, Any]:
-        lifecycle = _lifecycle(sd)
-        existing = current_cycle(sd)
-        if existing is not None and cycle_status(existing) in (AS_RECEIVED, AS_IN_PROGRESS):
-            raise ASCycleError("이미 진행 중인 AS 접수가 있습니다.")
-        cycle_id = str(uuid.uuid4())
-        cycle = {
-            "cycle_id": cycle_id, "opened_at": now.isoformat(), "opened_by": actor_user_id,
-            "initial_content": content, "initial_shipping_date": shipping,
-            "classification": {f: False for f in CLASSIFICATION_FIELDS}, "transitions": [],
-        }
-        _append_transition(cycle, command="AS_REGISTER", from_status=AS_NONE,
-                            to_status=AS_RECEIVED, payload={"as_content_len": len(content)},
-                            actor_user_id=actor_user_id, now=now)
-        lifecycle["cycles"].append(cycle)
-        lifecycle["current_cycle_id"] = cycle_id
+        cycle = current_cycle(sd)
+        if cycle is None:  # _pre 가 항상 발급한다 — 방어적 계약 확인
+            raise ASCycleError("AS cycle 발급에 실패했습니다.")
         shipment = sd.setdefault("shipment", {})
         shipment["as_content"] = content
         if construction_worker_name:
             shipment["construction_workers"] = [construction_worker_name]
         _apply_classification_projection(sd, cycle)
-        order.as_received_date = received_date or _today_str()
+        order.as_received_date = cycle.get("received_date")
         # 새 RECEIVED cycle 은 이전 완료일의 잔존을 허용하지 않는다. 남기면 AS 대시보드
         # 완료일 삭제가 reopen(COMPLETED 전용)으로 가 409 RECEIVED 가 된다.
+        # (지난 건의 완료일은 그 cycle 의 completed_date 스냅샷에 봉인돼 있다.)
         order.as_completed_date = None
         if shipping:
             order.shipping_scheduled_date = shipping
-        return {"command": "AS_REGISTER", "cycle_id": cycle_id, "to": AS_RECEIVED,
-                "source_screen": source_screen}
+        return {"command": "AS_REGISTER", "cycle_id": cycle.get("cycle_id"), "to": AS_RECEIVED,
+                "source_screen": source_screen, "recurrence": bool(recurrence)}
 
     return _run_as_command(
         session, order_id=order_id, actor_user_id=actor_user_id, policy_id=POLICY_AS_REGISTER,
         event_type="AS_REGISTERED", apply=_apply, scope_hash=scope_hash,
         request_hash=request_hash, idempotency_key=idempotency_key, now=now,
-        sd_hook=sd_hook,
+        sd_hook=_pre,
     )
 
 
@@ -516,6 +608,7 @@ def complete_as_cycle(
     IN_PROGRESS 전용이고, AS 대시보드 완료 버튼(``field_update`` as_completed_date 브리지)은
     RECEIVED cycle 을 곧바로 종결하는 실제 동선이라 ``(RECEIVED, IN_PROGRESS)`` 를 넘긴다.
     ``completed_date`` 는 사용자가 고른 완료일(``YYYY-MM-DD``); 생략하면 오늘(KST)이다.
+    완료일과 그 시점 비용(``as_billing``) 판정은 cycle 스냅샷으로 봉인한다.
     """
     now = now or now_utc_naive()
     note_str = _require_text(note, field="완료 메모", min_len=0, max_len=_MAX_NOTE)
@@ -523,10 +616,16 @@ def complete_as_cycle(
 
     def _apply(sd: Dict[str, Any], order: Order) -> Dict[str, Any]:
         cycle = _require_open_cycle(sd, cycle_id, allow=allow_from)
+        done = done_date or _today_str()
         _append_transition(cycle, command="AS_COMPLETE", from_status=cycle_status(cycle),
-                            to_status=AS_COMPLETED, payload={"note": note_str},
+                            to_status=AS_COMPLETED,
+                            payload={"note": note_str, "completed_date": done},
                             actor_user_id=actor_user_id, now=now)
-        order.as_completed_date = done_date or _today_str()
+        # 완료일·비용 판정을 cycle 에 봉인한다 — 컬럼 1칸(as_completed_date)과 1슬롯
+        # (shipment.as_billing)은 다음 건이 열리면 덮여 지난 건 복원이 불가능하다.
+        cycle["completed_date"] = done
+        _seal_billing_snapshot(sd, cycle)
+        order.as_completed_date = done
         return {"command": "AS_COMPLETE", "cycle_id": cycle.get("cycle_id"), "to": AS_COMPLETED}
 
     return _run_as_command(
@@ -553,6 +652,12 @@ def reopen_as_cycle(
         _append_transition(cycle, command="AS_REOPEN", from_status=AS_COMPLETED,
                             to_status=AS_RECEIVED, payload={"reason": reason_str},
                             actor_user_id=actor_user_id, now=now)
+        # 다시 진행 중인 건이므로 완료일 스냅샷도 걷는다(남기면 "완료된 지난 건"으로 읽힌다).
+        # 비용 스냅샷도 같은 근거로 걷는다 — 그 건의 **최종** 판정이 다시 미정으로 돌아간
+        # 것이므로, 남기면 _seal_billing_snapshot 이 조기반환해 재완료 뒤에도 첫 완료
+        # 시점 값에 영구히 고정된다(재완료 사이의 판정 변경이 통째로 사라짐).
+        cycle.pop("completed_date", None)
+        cycle.pop("billing_snapshot", None)
         order.as_completed_date = None
         return {"command": "AS_REOPEN", "cycle_id": cycle.get("cycle_id"), "to": AS_RECEIVED}
 
@@ -700,5 +805,6 @@ __all__ = [
     "complete_as_cycle",
     "reopen_as_cycle",
     "clear_as_completed_date",
+    "resync_completed_cycle_billing",
     "set_as_classification",
 ]
