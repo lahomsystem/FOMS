@@ -294,6 +294,9 @@ _AS_LOG_WRITE_CALL_SITES = {
     # 회차 차트 lazy legacy(읽기 전용·비파괴) — 쓰기가 아니라 표시 시점 변환이다.
     ("foms/services/orders/as_round_chart.py", "_legacy_entries_from_content"),
     ("foms/services/orders/as_log.py", 'as_log"].append'),  # 원시 append = 정본 생성지점 3곳뿐(client/system/verdict)
+    # 첨부 업로드 앵커(주차 메모). 본문은 서버 고정 상수 AS_UPLOAD_PARK_TEXT 라
+    # 사용자 입력이 섞이지 않는다 — append_client_log 의 sanitize 를 그대로 탄다.
+    ("foms/services/orders/as_upload_anchor.py", "append_client_log"),
 }
 
 

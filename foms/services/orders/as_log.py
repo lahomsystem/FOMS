@@ -63,8 +63,29 @@ def coerce_client_log_type(raw: Any) -> str:
     return value if value in _CLIENT_TYPES else _DEFAULT_TYPE
 
 
+def current_as_cycle_id(sd: dict | None) -> str | None:
+    """현재 AS 접수 건(cycle)의 id. 건이 없으면 None.
+
+    ``as_cycle_service`` 를 import 하면 순환(as_cycle_service → as_log)이므로 read-only
+    로 ``as_lifecycle.current_cycle_id`` 한 필드만 직접 읽는다. 새 항목의 소속 건 스탬프
+    전용이며, 과거 항목을 소급 스탬프하는 데는 쓰지 않는다(append-only).
+
+    Args:
+        sd: 주문 structured_data (None 허용).
+
+    Returns:
+        현재 cycle_id 문자열 또는 None.
+    """
+    lifecycle = (sd or {}).get("as_lifecycle")
+    if not isinstance(lifecycle, dict):
+        return None
+    cycle_id = lifecycle.get("current_cycle_id")
+    return str(cycle_id) if cycle_id else None
+
+
 def build_as_log_entry(
-    *, log_type: str, text: str, by: str, by_id: int | None, round_no: int = 1
+    *, log_type: str, text: str, by: str, by_id: int | None, round_no: int = 1,
+    cycle_id: str | None = None,
 ) -> dict[str, Any]:
     """as_log 항목 dict 생성. ts는 UTC naive ISO, 본문은 AS_LOG_TEXT_MAX 로 절단.
 
@@ -72,11 +93,13 @@ def build_as_log_entry(
         log_type: AS_LOG_TYPES 중 하나. text: 본문(호출자가 sanitize 완료).
         by/by_id: 작성자 표기·id. round_no: 소속 회차(1 시작 — round 없는 구항목은
             읽기 시점에 1로 간주하므로 기본값도 1).
+        cycle_id: 소속 AS 접수 건(cycle). 건이 없으면 키 자체를 넣지 않는다 — None 을
+            저장하면 "건 없음"과 "미분류 구항목"이 구분되지 않는다.
 
     Returns:
         as_log 에 append 가능한 항목 dict.
     """
-    return {
+    entry = {
         "id": new_as_log_id(),
         "ts": now_utc_naive().isoformat(),
         "by": by or "",
@@ -87,6 +110,9 @@ def build_as_log_entry(
         "edited_at": None,
         "edited_by": None,
     }
+    if cycle_id:
+        entry["cycle_id"] = cycle_id
+    return entry
 
 
 def _legacy_entries_from_content(
@@ -173,7 +199,8 @@ def append_client_log(sd: dict, *, log_type: str, text: str, by: str, by_id: int
     """수기 항목 append(최초 append 시 legacy 영구화, 현재 회차 스탬프). 반환=append된 항목."""
     migrate_legacy_into_log(sd)
     entry = build_as_log_entry(
-        log_type=log_type, text=text, by=by, by_id=by_id, round_no=current_as_round(sd))
+        log_type=log_type, text=text, by=by, by_id=by_id, round_no=current_as_round(sd),
+        cycle_id=current_as_cycle_id(sd))
     sd["shipment"]["as_log"].append(entry)
     return entry
 
@@ -189,7 +216,7 @@ def append_system_log(sd: dict, *, text: str) -> dict:
     migrate_legacy_into_log(sd)
     entry = build_as_log_entry(
         log_type="system", text=str(escape(text or "")), by="시스템", by_id=None,
-        round_no=current_as_round(sd),
+        round_no=current_as_round(sd), cycle_id=current_as_cycle_id(sd),
     )
     sd["shipment"]["as_log"].append(entry)
     return entry
@@ -217,7 +244,8 @@ def append_verdict_log(sd: dict, *, verdict: str, text: str, by: str, by_id: int
         raise ValueError("판정은 완결(resolved)/미결(unresolved)만 허용됩니다.")
     migrate_legacy_into_log(sd)
     entry = build_as_log_entry(
-        log_type="verdict", text=text, by=by, by_id=by_id, round_no=current_as_round(sd))
+        log_type="verdict", text=text, by=by, by_id=by_id, round_no=current_as_round(sd),
+        cycle_id=current_as_cycle_id(sd))
     entry["verdict"] = value
     sd["shipment"]["as_log"].append(entry)
     return entry
