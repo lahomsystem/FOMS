@@ -202,6 +202,7 @@ ACTION_LABELS: dict[str, str] = {
     "URGENT_MENTION_SENT": "긴급 호출",
     "CHANNEL_PUSH_SENT": "채널톡 발송",
     "ALIMTALK_MANUAL_SENT": "알림톡 수동 발송",
+    "ALIMTALK_CHANNEL_CONFIRMED": "알림톡 발송 채널 확인",
     "SHARE_LINK_CREATED": "고객 공유 링크 발급",
     "SHARE_LINK_REVOKED": "고객 공유 링크 회수",
     "SHARE_SMS_SENT": "고객 공유 링크 문자 발송",
