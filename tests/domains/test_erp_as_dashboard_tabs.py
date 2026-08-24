@@ -421,3 +421,54 @@ def test_as_dashboard_renders_tab_counts_and_incomplete_summary(client, monkeypa
     assert re.search(r'data-as-incomplete-summary="visit_confirmed"[^>]*data-count="1"', body)
     assert re.search(r'data-as-incomplete-summary="pending"[^>]*data-count="1"', body)
     assert re.search(r'data-as-incomplete-summary="unassigned"[^>]*data-count="1"', body)
+
+
+def test_dashboard_rows_carry_as_cycle_projection(client):
+    """행 보강이 AS 건(cycle) 표식 5키를 싣는다 — 투영 SSOT = orders/as_cycle_view.
+
+    완료된 1번째 건 + 열린 2번째 건(재발)을 심고, 행이 건 번호·건 상태·재발·이력불명·
+    지난 건 요약을 그대로 들고 나오는지 본다(PC 표·모바일 카드가 같은 행을 쓴다).
+    as_cycle_status 는 완료일 삭제 팝업 3케이스 분기의 근거라 반드시 실려야 한다.
+    """
+    from sqlalchemy.orm.attributes import flag_modified
+
+    from foms.services.as_dashboard_display import apply_as_dashboard_row_display_fields
+
+    order = _create_as_order(customer_name="AS 건 투영 고객")
+    sd = dict(order.structured_data or {})
+    sd["as_lifecycle"] = {
+        "current_cycle_id": "cyc-2",
+        "cycles": [
+            {
+                "cycle_id": "cyc-1",
+                "received_date": "2026-05-01",
+                "completed_date": "2026-05-09",
+                "billing_snapshot": {"type": "paid", "confirmed": True, "amount": 30000},
+                # cycle transition 의 to 는 AS 축 값(RECEIVED/COMPLETED) — status_constants 의
+                # legacy AS_* projection 문자열이 아니다(state_axes 규약).
+                "transitions": [{"seq": 1, "to": "COMPLETED"}],
+            },
+            {
+                "cycle_id": "cyc-2",
+                "received_date": "2026-08-20",
+                "recurrence": True,
+                "transitions": [{"seq": 1, "to": "RECEIVED"}],
+            },
+        ],
+    }
+    order.structured_data = sd
+    flag_modified(order, "structured_data")
+    db_session.commit()
+    order_id = order.id
+
+    db_session.expire_all()
+    row = db_session.get(Order, order_id)
+    apply_as_dashboard_row_display_fields([row], db_session, mobile_v2_active=False)
+
+    assert row.as_cycle_no == 2
+    assert row.as_cycle_status == "RECEIVED"
+    assert row.as_recurrence is True
+    assert row.as_history_unknown is False
+    prev = row.as_prev_cycle
+    assert prev["ordinal"] == 1 and prev["completed_date"] == "2026-05-09"
+    assert prev["billing_text"].startswith("유상 확정")

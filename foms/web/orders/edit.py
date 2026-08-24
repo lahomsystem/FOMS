@@ -28,6 +28,7 @@ from foms.services.erp_order_deeplink import resolve_edit_return_back_endpoint
 from foms.services.request_utils import get_preserved_filter_args, redirect_if_legacy_open_erp_beta
 from foms.services.order_edit_view_context import build_order_edit_get_context
 from foms.services.jobs.queue import enqueue_geocode_order_address
+from foms.services.orders.as_cycle_view import as_cycle_detail_payload
 from foms.services.orders.construction_type import normalize_regional_construction_type
 from foms.services.order_geocode import (
     apply_erp_order_site_address_to_sd,
@@ -432,6 +433,9 @@ def _build_erp_order_bootstrap(order, user=None):
         'construction_type': getattr(order, 'construction_type', None) or '',
         # GET /structured 와 동일 shape — 지방주문 AS 재상차 모달 prefill용.
         'shipping_scheduled_date': getattr(order, 'shipping_scheduled_date', None) or '',
+        # GET /structured 와 동일 shape — AS 재접수 모달의 'N번째 AS' 제목·지난 건 요약.
+        # 두 지점이 갈리면 첫 페인트와 새로고침 후 모달이 서로 다른 걸 그린다.
+        'as_cycle': as_cycle_detail_payload(order.structured_data),
     }
     if user is not None:
         try:

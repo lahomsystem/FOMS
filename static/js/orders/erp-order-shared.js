@@ -1888,6 +1888,10 @@ async function erpLoadStructured(bootstrapData, options) {
     if (regionalEl) regionalEl.checked = !!data.is_regional;
     // 지방주문 AS 재상차 모달 prefill용 flat 컬럼값 보관(structured_data에 없어 GET 응답에서 전달).
     window.__erpShippingScheduledDate = data.shipping_scheduled_date || '';
+    // AS 건(cycle) 투영 — 재접수 모달의 모드·제목·지난 건 요약 정본(서버 as_cycle_view SSOT).
+    // structured_data 가 아니라 payload 루트라 여기서 따로 보관한다. 부트스트랩과
+    // GET /structured 가 같은 shape 라 첫 페인트와 새로고침 후 모달이 갈리지 않는다.
+    window.__erpAsCycle = (data.as_cycle && typeof data.as_cycle === 'object') ? data.as_cycle : null;
     const regionalConstructionTypeEl = document.getElementById('erp-regional-construction-type');
     if (regionalConstructionTypeEl) {
         regionalConstructionTypeEl.value = data.construction_type || '';
@@ -1980,6 +1984,8 @@ async function erpLoadStructured(bootstrapData, options) {
         erpRenderItemAttachmentPanels();
     }
     erpBindAutosizeTextareas(document.getElementById('erp-order') || document);
+    // as_cycle 이 채워진 뒤라야 재접수 모달이 옳은 모드로 열린다 — 로드 끝에서 1회 소비.
+    erpMaybeOpenAsReintakeFromUrl();
 }
 
 function erpCollectStructured() {
@@ -2341,6 +2347,165 @@ function erpNavigateAfterStructuredSave(targetUrl) {
 }
 
 /**
+ * AS 접수 모달이 열릴 세 모드 중 하나를 고른다.
+ *
+ * 판정은 서버 payload(``as_cycle.cycle_status``)로만 한다. 화면이 ``order.status`` 같은
+ * 상태 문자열을 따로 해석하면 서버 분기(as_orders.py:565-573 — 열린 건이면 기록 갱신,
+ * 아니면 새 건 발급)와 어긋나 "새 건인 줄 알았는데 갱신됐다"가 난다.
+ *
+ * @param {{reregister: boolean}} options - 호출자가 준 힌트(payload 가 건을 못 찾을 때만 쓰인다).
+ * @returns {{mode: string, cycleNo: number, lastClosed: (Object|null)}}
+ *   mode 는 'new'(최초 접수) · 'edit'(열린 건 접수 수정) · 'reintake'(완료 뒤 새 건),
+ *   cycleNo 는 이번 모달이 다루는 건의 순번, lastClosed 는 지난 종결 건 요약.
+ */
+function erpResolveAsReceiveMode(options = {}) {
+    const cycle = window.__erpAsCycle || null;
+    const status = String((cycle && cycle.cycle_status) || 'NONE');
+    const lastClosed = (cycle && cycle.last_closed_cycle && typeof cycle.last_closed_cycle === 'object')
+        ? cycle.last_closed_cycle
+        : null;
+    if (status === 'RECEIVED' || status === 'IN_PROGRESS') {
+        return { mode: 'edit', cycleNo: Number((cycle && cycle.cycle_no) || 0), lastClosed: lastClosed };
+    }
+    if (status === 'COMPLETED' || lastClosed) {
+        return { mode: 'reintake', cycleNo: Number((lastClosed && lastClosed.ordinal) || 0) + 1, lastClosed: lastClosed };
+    }
+    // as_lifecycle 이 없는 레거시 AS 주문: payload 로는 못 가른다 — 버튼이 준 힌트로 간다.
+    return options.reregister === true
+        ? { mode: 'edit', cycleNo: 0, lastClosed: null }
+        : { mode: 'new', cycleNo: 1, lastClosed: null };
+}
+
+/**
+ * 이번 접수에서 비용 판정을 다시 시드할 수 있는가(= 세그먼트를 열어도 되는가).
+ *
+ * 서버는 ``reseed_billing = new_cycle and _prior_cycle_billing_sealed(sd)`` 로만 재시드한다
+ * (as_orders.py). 봉인이 없는 레거시 주문에서 화면만 열면 사용자가 고른 값이 조용히 버려져
+ * "골랐는데 저장 안 됨"이 된다 — 그래서 봉인 여부(billing_text)까지 같이 본다.
+ *
+ * @returns {boolean} 세그먼트를 열어도 되면 true.
+ */
+function erpAsReceiveCanReseedBilling() {
+    if (window.__erpAsReceiveMode !== 'reintake') return false;
+    const lastClosed = window.__erpAsCycle && window.__erpAsCycle.last_closed_cycle;
+    return !!(lastClosed && lastClosed.billing_text);
+}
+
+/**
+ * 접수 모달 안의 조건부 블록 하나를 켜고 끈다.
+ *
+ * @param {string} id - 대상 엘리먼트 id.
+ * @param {boolean} show - 보일지 여부.
+ * @returns {void}
+ */
+function erpToggleAsReceiveBlock(id, show) {
+    const el = document.getElementById(id);
+    if (el) el.classList.toggle('d-none', !show);
+}
+
+/**
+ * '지난 AS 요약' 접힘 블록을 채운다 — 값이 없는 줄은 통째로 숨긴다(추정 금지).
+ *
+ * 완료일·비용은 cycle 봉인분(B2/B3)이 있는 건만 진짜 값이다. 없는 걸 '-' 로 채우면
+ * 화면이 "기록이 있는데 비었다"고 거짓말한다.
+ *
+ * 증상·처리(목업 4-C)도 같은 규약이다 — 증상은 그 건 접수 원문 발췌(``symptom_text``),
+ * 처리는 그 건 as_log 의 최대 회차(``max_round``)다. 건 표식이 없던 옛 기록에는 회차
+ * 스탬프가 없어 0 으로 오므로 그 줄은 안 낸다.
+ *
+ * @param {Object|null} summary - as_cycle_view.cycle_summary shape 또는 null.
+ * @returns {void}
+ */
+function erpRenderAsReceivePrevCycle(summary) {
+    const wrap = document.getElementById('as-receive-prev-wrap');
+    if (!wrap) return;
+    wrap.open = false;
+    if (!summary) { wrap.classList.add('d-none'); return; }
+    const unknown = summary.history_unknown === true;
+    const ordinal = Number(summary.ordinal || 0);
+    const maxRound = Number(summary.max_round || 0);
+    const rows = {
+        ordinal: unknown ? '이력 시작 전' : (ordinal > 0 ? `${ordinal}번째 AS` : ''),
+        received: unknown ? '접수일 불명' : String(summary.received_date || ''),
+        completed: String(summary.completed_date || ''),
+        symptom: String(summary.symptom_text || ''),
+        billing: String(summary.billing_text || ''),
+        rounds: maxRound > 0
+            ? `${maxRound}차까지 갔어요${maxRound > 1 ? ` — "이번엔 못 끝냈다" 판정이 ${maxRound - 1}번 있었다는 뜻` : ''}`
+            : '',
+    };
+    Object.keys(rows).forEach(function (key) {
+        const row = wrap.querySelector(`[data-prev-row="${key}"]`);
+        const valEl = wrap.querySelector(`[data-prev-val="${key}"]`);
+        if (valEl) valEl.textContent = rows[key];
+        if (row) row.classList.toggle('d-none', !rows[key]);
+    });
+    const label = document.getElementById('as-receive-prev-summary');
+    if (label) {
+        label.textContent = (unknown || ordinal <= 0)
+            ? '지난 AS 요약 보기'
+            : `지난 AS 요약 보기 (${ordinal}번째 AS)`;
+    }
+    wrap.classList.remove('d-none');
+}
+
+/**
+ * 모드에 맞춰 접수 모달의 조건부 UI 를 전부 다시 그린다(오픈마다 재평가).
+ *
+ * @param {string} mode - 'new' | 'edit' | 'reintake'.
+ * @param {Object|null} lastClosed - 지난 종결 건 요약(as_cycle.last_closed_cycle).
+ * @returns {void}
+ */
+function erpApplyAsReceiveMode(mode, lastClosed) {
+    const isReintake = mode === 'reintake';
+    erpToggleAsReceiveBlock('as-receive-same-cycle-note', mode === 'edit');
+    erpToggleAsReceiveBlock('as-receive-hard-warn', isReintake);
+    erpToggleAsReceiveBlock('as-receive-prefill-tools', isReintake);
+    erpToggleAsReceiveBlock('as-receive-recurrence-wrap', isReintake && !!lastClosed);
+    erpToggleAsReceiveBlock('as-receive-clear-content', false);
+    erpToggleAsReceiveBlock('as-receive-load-hint', false);
+    const recurEl = document.getElementById('as-receive-recurrence');
+    if (recurEl) recurEl.checked = false;
+    erpRenderAsReceivePrevCycle(isReintake ? lastClosed : null);
+    if (!isReintake) return;
+    // 새 건은 지난 건 판정·금액을 물려받지 않는다 — 기본값(무상 추정)에서 다시 고른다.
+    document.querySelectorAll('input[name="as-receive-billing"]').forEach(function (r) {
+        r.checked = (r.value === 'free');
+    });
+    const amountEl = document.getElementById('as-receive-amount');
+    if (amountEl) amountEl.value = '';
+}
+
+/**
+ * URL 의 ``as_reintake=1`` 딥링크를 1회 소비해 AS 재접수 모달을 자동으로 연다.
+ *
+ * AS 대시보드 완료 탭의 '재접수' 버튼이 이 링크로 들어온다. 모드는 URL 이 아니라
+ * ``as_cycle`` payload 가 정한다 — 링크를 눌러 오는 사이 다른 사람이 그 건을 다시 열었다면
+ * 화면이 "새 건"이라고 거짓말하면 안 된다. 파라미터는 연 직후 지워 새로고침 재오픈을 막는다.
+ *
+ * @returns {boolean} 모달을 열었으면 true.
+ */
+function erpMaybeOpenAsReintakeFromUrl() {
+    let params;
+    try {
+        params = new URLSearchParams(window.location.search || '');
+    } catch (e) {
+        return false;
+    }
+    if (params.get('as_reintake') !== '1') return false;
+    params.delete('as_reintake');
+    const qs = params.toString();
+    try {
+        window.history.replaceState(
+            null, '', `${window.location.pathname}${qs ? `?${qs}` : ''}${window.location.hash || ''}`);
+    } catch (e) {
+        // history 접근이 막힌 브라우저 모드에서도 모달 자체는 열어야 한다.
+    }
+    const previousStage = (window.__erpLastStructuredData?.workflow?.stage || '').trim();
+    return erpOpenAsReceiveModal(erpResolveCurrentOrderId(), previousStage);
+}
+
+/**
  * Open the shared AS reception modal without mutating the main workflow stage.
  * Active AS corrections reuse the same endpoint, which preserves the cycle and history.
  */
@@ -2358,22 +2523,48 @@ function erpOpenAsReceiveModal(targetId, previousStage, options = {}) {
     const titleEl = document.getElementById('asReceiveModalLabel');
     const submitBtn = document.getElementById('as-receive-submit-btn');
     const isReregister = options.reregister === true;
+    // 모드 정본은 서버 payload 다(erpResolveAsReceiveMode). isReregister 는 payload 가
+    // 건을 못 찾는 레거시 주문에서만 갈림길이 된다.
+    const modeInfo = erpResolveAsReceiveMode({ reregister: isReregister });
+    const mode = modeInfo.mode;
+    const isReintake = mode === 'reintake';
+    const isEdit = mode === 'edit';
+    window.__erpAsReceiveMode = mode;
 
     if (contentEl) {
-        contentEl.value = (window.__erpLastStructuredData?.shipment?.as_content || '').trim();
+        // D4: 새 건은 지난 증상을 절대 미리 채우지 않는다 — 채워 두면 그게 이번 건의
+        // 접수 원문으로 굳어 "저번 증상으로 새 AS 가 열린" 기록이 남는다.
+        if (contentEl.dataset.defaultPlaceholder === undefined) {
+            contentEl.dataset.defaultPlaceholder = contentEl.placeholder || '';
+        }
+        contentEl.value = isReintake
+            ? ''
+            : (window.__erpLastStructuredData?.shipment?.as_content || '').trim();
+        contentEl.placeholder = isReintake
+            ? '이번에 생긴 문제를 적어주세요'
+            : contentEl.dataset.defaultPlaceholder;
     }
     if (filesEl) filesEl.value = '';
     window.__erpAsReceiveClipboardFiles = [];
     if (previewEl && previewEl._asOrder) previewEl._asOrder.clear();
     else if (previewEl) previewEl.innerHTML = '';
     if (titleEl) {
-        titleEl.innerHTML = '<i class="fas fa-exclamation-circle text-warning"></i> '
-            + (isReregister ? 'AS 접수 수정' : 'AS 접수');
+        // 건 배지는 2번째부터만 붙인다(1번째 AS 는 소음 — as_cycle_view 표시 규약).
+        const badge = modeInfo.cycleNo >= 2
+            ? ` <span class="foms-as-cycle-badge">${modeInfo.cycleNo}번째 AS</span>`
+            : '';
+        titleEl.innerHTML = isReintake
+            ? `<i class="fas fa-redo text-primary"></i> ${modeInfo.cycleNo}번째 AS 접수${badge}`
+            : '<i class="fas fa-exclamation-circle text-warning"></i> '
+                + (isEdit ? `AS 접수 수정${badge}` : 'AS 접수');
     }
     if (submitBtn) {
-        submitBtn.innerHTML = '<i class="fas fa-check"></i> '
-            + (isReregister ? '수정 내용 저장' : 'AS 접수 확인');
+        submitBtn.innerHTML = isReintake
+            ? `<i class="fas fa-redo"></i> ${modeInfo.cycleNo}번째 AS 접수하기`
+            : '<i class="fas fa-check"></i> '
+                + (isEdit ? '수정 내용 저장' : 'AS 접수 확인');
     }
+    erpApplyAsReceiveMode(mode, modeInfo.lastClosed);
 
     const shipWrapEl = document.getElementById('as-receive-shipping-wrap');
     const shipDateEl = document.getElementById('as-receive-shipping-date');
@@ -2962,9 +3153,13 @@ ${escapeHtml(sub)}</div>` : ''}`;
         // 재접수(지방 재상차 등)는 서버가 billing 페이로드를 무시하고 기존 판정을 보존한다
         // (foms/api/cs/as_orders.py: as_billing이 dict면 시드 건너뜀). 그래서 세그먼트를
         // 열어두면 "골랐는데 저장 안 됨"이 된다 — 기존값으로 고정하고 잠근다.
+        // 예외 = 완료 뒤 **새 건**(reintake): 지난 건 판정이 cycle.billing_snapshot 에
+        // 봉인돼 있어 서버가 이번 선택으로 재시드한다. 그때만 잠금을 푼다
+        // (erpAsReceiveCanReseedBilling 이 서버 조건과 같은 술어를 쓴다).
         function applyExistingBillingLock() {
             const existing = window.__erpLastStructuredData?.shipment?.as_billing;
-            const locked = !!existing && typeof existing === 'object' && !Array.isArray(existing);
+            const locked = !!existing && typeof existing === 'object' && !Array.isArray(existing)
+                && !erpAsReceiveCanReseedBilling();
             const radios = billingRadios();
             if (locked) {
                 const type = String(existing.type || 'free');
@@ -3002,6 +3197,28 @@ ${escapeHtml(sub)}</div>` : ''}`;
                 window.__erpAsReceiveClipboardFiles = [];
                 const files = Array.from(this.files || []);
                 erpRenderAsReceiveFilePreview(files);
+            });
+        }
+
+        // 새 건은 빈 칸으로 연다(D4). 지난 증상은 버튼을 누른 사람만 가져가고,
+        // '지우기'로 언제든 빈 칸으로 되돌린다 — 실수로 지난 내용이 남는 걸 막는다.
+        const loadPrevBtn = document.getElementById('as-receive-load-prev');
+        const clearContentBtn = document.getElementById('as-receive-clear-content');
+        const loadHint = document.getElementById('as-receive-load-hint');
+        if (loadPrevBtn && contentEl) {
+            loadPrevBtn.addEventListener('click', function () {
+                contentEl.value = (window.__erpLastStructuredData?.shipment?.as_content || '').trim();
+                if (clearContentBtn) clearContentBtn.classList.remove('d-none');
+                if (loadHint) loadHint.classList.remove('d-none');
+                erpFocusWithoutScroll(contentEl);
+            });
+        }
+        if (clearContentBtn && contentEl) {
+            clearContentBtn.addEventListener('click', function () {
+                contentEl.value = '';
+                clearContentBtn.classList.add('d-none');
+                if (loadHint) loadHint.classList.add('d-none');
+                erpFocusWithoutScroll(contentEl);
             });
         }
 
@@ -3068,6 +3285,12 @@ ${escapeHtml(sub)}</div>` : ''}`;
                 if (billingType === 'paid') {
                     const amt = parseInt(amountEl?.value || '', 10);
                     if (!Number.isNaN(amt) && amt >= 0) regPayload.amount = amt;
+                }
+                // 재발 표식은 새 건 core 에만 붙는다 — 열린 건 재접수(같은 건 갱신)에서는
+                // 체크박스 자체가 숨겨져 있고 서버도 recurrence 를 봉인하지 않는다.
+                const recurEl = document.getElementById('as-receive-recurrence');
+                if (recurEl && recurEl.checked && window.__erpAsReceiveMode === 'reintake') {
+                    regPayload.recurrence = true;
                 }
                 const shipDateEl = document.getElementById('as-receive-shipping-date');
                 const isRegionalNow = document.getElementById('erp-regional-order')?.checked === true;
