@@ -58,11 +58,11 @@
 | T15.3 | 이력 API — `GET /api/orders/<id>/events` 에 `event_type` 필터 + `created_by_name` + 한글 `label` 추가(읽기 전용·additive) | `pytest tests/domains/test_order_events_api.py -q` PASS(신규 파일) + 기존 events 테스트 PASS + APP_OK | DONE | cd3fd47e | 25 passed. 이름은 id 집합 1회 조회로 붙임(N+1 금지) |
 | T15.4 | 칩 UI PC·모바일 — `static/js/orders/erp-alimtalk-trace.js` 신규 + `erp-pro.css` 칩 클래스(인라인 스타일 금지) + PC 액션바/모바일 sticky bar 마운트 + 이력 패널 + `?v` 핀 등록·범프 | `pytest tests/visual/test_alimtalk_ui_contract.py tests/domains/test_erp_order_shared_form_scripts.py -q` PASS + APP_OK | DONE | e5da54cc | 91 passed. send-manual 응답에 last 추가로 발송 직후 갱신도 추가 조회 0 |
 | T15.5 | 태블릿 칩 — `tablet-measure-form.js` 상단 바에 같은 칩(`state.structured` 재사용, 축약형) + 발송 후 갱신 | 태블릿 계약 테스트 PASS + APP_OK | DONE | 16184465 | 188+27 passed. 칩 CSS 를 erp-alimtalk-trace.css 로 분리(ERP·태블릿 번들이 달라 사본 위험) · 태블릿엔 이력 패널 마크업이 없어 칩은 표시 전용 span | 
-| T15.6 | 통합 검증·스테이징 E2E | `scripts/ops/pre_push_smoke.ps1` exit 0 + `gh run list` 전 워크플로 green + 스테이징에서 칩 4상태 육안 확인(발송→칩 즉시 갱신→60초 후 채널 확정) | IN_PROGRESS | 431e1fc0 | smoke exit 0. deploy push `08856fb2..e689382c`. 착수 중 발견·수정: 채널 확정이 벤더 왕복 사이의 저장을 덮던 자리(재현 테스트 red→green). 인벤토리 2종(rev-99·failopen)은 줄 밀림 반영 재생성 — **핀 재생성은 push 직전 마지막 단계로** |
+| T15.6 | 통합 검증·스테이징 E2E | `scripts/ops/pre_push_smoke.ps1` exit 0 + `gh run list` 전 워크플로 green + 스테이징에서 칩 4상태 육안 확인(발송→칩 즉시 갱신→60초 후 채널 확정) | DONE | 431e1fc0 | smoke exit 0. deploy push `08856fb2..e689382c`. 착수 중 발견·수정: 채널 확정이 벤더 왕복 사이의 저장을 덮던 자리(재현 테스트 red→green). 인벤토리 2종(rev-99·failopen)은 줄 밀림 반영 재생성 — **핀 재생성은 push 직전 마지막 단계로** |
 
 ## 스테이징 검증 기록 (T15.6)
 
-- CI `e689382c` 4/4 green(Harness·PG Lane·perf-gate·FOMS).
+- CI 3푸시 전부 green: `e689382c` 4/4 · `431e1fc0` 4/4 · `cfbc520e` 3/3(문서 전용이라 perf-gate 미실행).
 - 실주문 4485(스테이징): 칩 `아직 안 보냄`(점선) 렌더 — 슬롯 1, 추가 요청 0. 칩 클릭 →
   이력 패널 열림 + `아직 보낸 알림톡이 없습니다.`
 - `POST /api/kakao/alimtalk/confirm-channel/4485` → 200 + `nothing_to_confirm`(발송 이력 없음).
