@@ -182,6 +182,18 @@
   font-variant-numeric: tabular-nums;
 }
 
+/* 재결제 줄(R1) — "출고가·잔금에 더하지 마세요"가 눈에 걸려야 한다.
+   문구가 길어 한 줄에 안 들어가므로 위 정렬로 바꾸고 줄바꿈을 허용한다. */
+.naver-dock-fact.naver-dock-fact-warn {
+  align-items: flex-start;
+}
+
+.naver-dock-fact-warn .naver-dock-fact-k,
+.naver-dock-fact-warn .naver-dock-fact-v {
+  color: #b91c1c;
+  font-weight: 700;
+}
+
 .naver-dock-memo {
   margin-top: 7px;
 }

@@ -8,9 +8,14 @@
 * 체크·귀속 상태는 ``ExternalOrderLink.triage_state`` 에 즉시 저장(팀 공유)되고
   주문 데이터(items·spec_rows)는 절대 건드리지 않는다(폼 불가침).
 * 편집 페이지 bootstrap JSON 에 naver_origin 이 동봉된다(네이버 수집 주문만).
+* 결제 기록 요약은 **관계별로 갈라서** 싣는다(R1) — ``ADDON`` 은 더 낸 차액,
+  ``REPAY`` 는 원 결제가 환불된 뒤 다시 낸 같은 물건값이라 문구가 달라야 한다.
 """
 
 from __future__ import annotations
+
+import pathlib
+import re
 
 from werkzeug.security import generate_password_hash
 
@@ -561,3 +566,135 @@ def test_dock_payload_reports_extra_payment_summary(app):
     payload = build_dock_payload(db_session, order)
     assert payload["extra_payment_count"] == 2
     assert payload["extra_payment_total"] == 244900
+
+
+# --------------------------------------------------------------------------- #
+# 추가결제 / 재결제 표기 분리 (R1 — 2026-08-24 재결제 케이스 SPEC §4.4)
+#
+# 같은 숫자가 ADDON 에서는 "더 받은 돈"이고 REPAY 에서는 "다시 받은 돈"(원 결제는
+# 환불)이다. 관계와 무관하게 "추가결제"라 부르면 담당자가 예약금·입금에 더해
+# 주문 하나 값만큼 총액을 부풀린다. 계산식은 그대로 두고 **표기만** 가른다.
+# --------------------------------------------------------------------------- #
+
+_REPO_ROOT = pathlib.Path(__file__).resolve().parents[3]
+_DOCK_JS = _REPO_ROOT / "static" / "js" / "orders" / "erp-naver-dock.js"
+_ORDER_JS_TPL = _REPO_ROOT / "templates" / "orders" / "partials" / "erp_order_js.html"
+
+# 담당자가 눈으로 읽는 ADDON 한 줄 — R1 이 **한 글자도** 바꾸면 안 되는 문구다.
+_ADDON_FACT_LINE = (
+    "facts.push(['추가결제', "
+    "state.extraPaymentAddon.count + '건 · ' + "
+    "state.extraPaymentAddon.total.toLocaleString('ko-KR') + '원 (반영은 수동)', false]);"
+)
+_REPAY_FACT_LINE = (
+    "facts.push(['재결제', "
+    "state.extraPaymentRepay.count + '건 · ' + "
+    "state.extraPaymentRepay.total.toLocaleString('ko-KR') + "
+    "'원 — 원 주문 취소분 재결제입니다. 출고가·잔금에 더하지 마세요', "
+    "false, 'naver-dock-fact-warn']);"
+)
+
+
+def _squash(text: str) -> str:
+    """줄바꿈·들여쓰기를 공백 하나로 눌러 소스 문구를 한 줄로 비교한다."""
+    return re.sub(r"\s+", " ", text)
+
+
+def _order_with_extra_payments(entries: list[dict]) -> Order:
+    """추가결제 기록을 심은 네이버 수집 주문 하나(링크 1건 포함).
+
+    도크는 링크가 있어야 payload 를 만든다 — 기록만 심으면 ``None`` 이 온다.
+    """
+    order = _naver_order(_staff())
+    order.structured_data = dict(order.structured_data or {},
+                                 pricing={"extra_payments": entries})
+    db_session.commit()
+    _link(order, _snapshot(product_name="붙박이장"), order_no="N-DOCK-REL")
+    return order
+
+
+def test_dock_payload_splits_repay_only_extra_payments(app):
+    """재결제만 있는 주문 — 재결제 칸에만 숫자가 들어가고 추가결제 칸은 0."""
+    order = _order_with_extra_payments([
+        {"external_id": "PO-R1", "relation": "REPAY", "amount": 812000},
+        {"external_id": "PO-R2", "relation": "REPAY", "amount": 798780},
+    ])
+
+    payload = build_dock_payload(db_session, order)
+
+    split = payload["extra_payment_by_relation"]
+    assert split["repay"] == {"count": 2, "total": 1610780}
+    assert split["addon"] == {"count": 0, "total": 0}
+    # 합계 필드는 하위호환으로 그대로 — 화면 게이트(hasFacts)가 이 숫자를 본다.
+    assert payload["extra_payment_count"] == 2
+    assert payload["extra_payment_total"] == 1610780
+
+
+def test_dock_payload_addon_only_keeps_wording_untouched(app):
+    """추가결제만 있는 주문 — 갈라도 추가결제 칸이 곧 합계이고, 문구는 그대로다.
+
+    R1 의 회귀 방지 핵심: 지금까지 담당자가 보던 ADDON 한 줄이 **한 글자도**
+    바뀌면 안 된다(바뀌면 "무엇이 달라졌나"를 다시 배워야 한다).
+    """
+    order = _order_with_extra_payments([
+        {"external_id": "PO-A1", "relation": "ADDON", "amount": 94900},
+        {"external_id": "PO-A2", "relation": "ADDON", "amount": 150000},
+    ])
+
+    payload = build_dock_payload(db_session, order)
+
+    split = payload["extra_payment_by_relation"]
+    assert split["addon"] == {"count": 2, "total": 244900}
+    assert split["repay"] == {"count": 0, "total": 0}
+    assert payload["extra_payment_count"] == 2
+    assert payload["extra_payment_total"] == 244900
+    assert _ADDON_FACT_LINE in _squash(_DOCK_JS.read_text(encoding="utf-8")), (
+        "ADDON 문구가 바뀌었다 — R1 은 재결제 줄만 추가하고 이 줄은 건드리지 않는다"
+    )
+
+
+def test_dock_payload_splits_mixed_relations(app):
+    """섞인 주문 — 두 칸이 각각 서고, 합계는 두 칸의 합 그대로다(두 줄 표시의 근거)."""
+    order = _order_with_extra_payments([
+        {"external_id": "PO-M1", "relation": "ADDON", "amount": 94900},
+        {"external_id": "PO-M2", "relation": "REPAY", "amount": 812000},
+        {"external_id": "PO-M3", "relation": "REPAY", "amount": 798780},
+    ])
+
+    payload = build_dock_payload(db_session, order)
+
+    split = payload["extra_payment_by_relation"]
+    assert split["addon"] == {"count": 1, "total": 94900}
+    assert split["repay"] == {"count": 2, "total": 1610780}
+    assert payload["extra_payment_count"] == 3
+    assert payload["extra_payment_total"] == 94900 + 1610780
+
+
+def test_dock_payload_treats_relationless_legacy_entries_as_addon(app):
+    """``relation`` 이 없는 옛 기록은 추가결제 칸으로 — 표기가 바뀌지 않게."""
+    order = _order_with_extra_payments([
+        {"external_id": "PO-L1", "amount": 94900},
+        {"external_id": "PO-L2", "relation": None, "amount": 150000},
+    ])
+
+    payload = build_dock_payload(db_session, order)
+
+    split = payload["extra_payment_by_relation"]
+    assert split["addon"] == {"count": 2, "total": 244900}
+    assert split["repay"] == {"count": 0, "total": 0}
+
+
+def test_dock_js_says_repay_separately_and_asset_pin_moved():
+    """도크 JS 가 재결제를 따로 말하고, 고쳤으니 ``?v`` 핀이 움직였다.
+
+    SW 가 ``staticCacheFirst`` 라 핀을 안 올리면 옛 JS 가 계속 서빙되어
+    화면은 여전히 "추가결제"라 말한다(수정이 배포돼도 사람에게 도달하지 않는다).
+    """
+    source = _squash(_DOCK_JS.read_text(encoding="utf-8"))
+    assert _REPAY_FACT_LINE in source
+    assert "extraPaymentAddon: extraPaymentBucket(payload, 'addon')" in source
+    assert "extraPaymentRepay: extraPaymentBucket(payload, 'repay')" in source
+
+    tpl = _ORDER_JS_TPL.read_text(encoding="utf-8")
+    assert "js/orders/erp-naver-dock.js') }}?v=20260824a" in tpl
+    assert "css/orders/erp-naver-dock.css') }}?v=20260824a" in tpl

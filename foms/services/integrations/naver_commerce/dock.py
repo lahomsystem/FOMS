@@ -216,33 +216,66 @@ def _apply_attribution(rows: list[dict[str, Any]]) -> None:
         row["guess_reason"] = reason
 
 
-def _extra_payment_summary(order: Any) -> dict[str, int]:
-    """주문에 기록된 추가결제(차액·재결제) 건수와 합계.
+def _extra_payment_bucket(entry: dict[str, Any]) -> str:
+    """기록 항목 하나가 어느 관계 칸에 들어가는지 고른다 (R1).
+
+    ``relation`` 은 붙이기 때 찍힌다(``promotion.py`` ``_extra_payment_entry``). 값이
+    ``REPAY`` 일 때만 재결제 칸이고, **나머지는 전부 추가결제 칸**이다 — 백필 이전에
+    기록돼 ``relation`` 이 아예 없는 옛 항목도 여기로 온다. 근거: 지금까지 도크가 관계와
+    무관하게 "추가결제"라고 말해 왔으므로(2026-08-24 이전 라벨 하드코딩), 옛 항목을
+    추가결제로 두면 사람이 보던 표기가 한 글자도 바뀌지 않는다. 재결제로 추정해 옮기면
+    근거 없이 "출고가에 더하지 마세요"를 띄우게 된다.
+
+    Args:
+        entry: ``pricing.extra_payments`` 항목 하나.
+
+    Returns:
+        ``"repay"`` 또는 ``"addon"``.
+    """
+    relation = entry.get("relation")
+    if isinstance(relation, str) and relation.strip().upper() == "REPAY":
+        return "repay"
+    return "addon"
+
+
+def _extra_payment_summary(order: Any) -> dict[str, Any]:
+    """주문에 기록된 추가결제(차액·재결제) 건수와 합계 — 관계별로도 가른다.
 
     출고가·잔금을 바꾸지 않고 기록만 하기로 했으므로(2026-08-19 사용자 확정), 사람이
     "얼마가 더 들어왔는지"를 볼 자리가 필요하다.
+
+    관계를 가르는 이유(R1 · 2026-08-24 스펙 §4.4): ``ADDON`` 에서 이 금액은 원 주문에
+    **더** 낸 차액이지만, ``REPAY`` 에서는 원 결제가 환불된 뒤 **다시** 낸 같은 물건값이다.
+    한 숫자로 합쳐 "추가결제"라 부르면 담당자가 예약금·입금에 더해 주문 하나 값만큼
+    총액을 부풀린다.
 
     Args:
         order: :class:`models.Order`.
 
     Returns:
-        ``{"count", "total"}`` — 기록이 없으면 둘 다 0.
+        ``{"count", "total", "addon": {"count","total"}, "repay": {"count","total"}}``.
+        ``count``/``total`` 은 **관계 무시 합계**로 그대로 둔다(하위호환 — 도크 payload
+        의 ``extra_payment_count``/``extra_payment_total`` 이 이 값을 그대로 싣는다).
     """
     data = getattr(order, "structured_data", None)
     pricing = data.get("pricing") if isinstance(data, dict) else None
     rows = pricing.get("extra_payments") if isinstance(pricing, dict) else None
+    by_relation = {"addon": {"count": 0, "total": 0}, "repay": {"count": 0, "total": 0}}
     if not isinstance(rows, list):
-        return {"count": 0, "total": 0}
+        return {"count": 0, "total": 0, **by_relation}
     total = 0
     count = 0
     for row in rows:
         if not isinstance(row, dict):
             continue
+        bucket = by_relation[_extra_payment_bucket(row)]
         count += 1
+        bucket["count"] += 1
         amount = row.get("amount")
         if isinstance(amount, int):
             total += amount
-    return {"count": count, "total": total}
+            bucket["total"] += amount
+    return {"count": count, "total": total, **by_relation}
 
 
 def build_dock_payload(db: Any, order: Any) -> Optional[dict[str, Any]]:
@@ -338,8 +371,11 @@ def build_dock_payload(db: Any, order: Any) -> Optional[dict[str, Any]]:
     extra = _extra_payment_summary(order)
     return {
         # 추가결제(차액)·재결제 기록 — 금액은 기록만 하고 출고가·잔금은 사람이 반영한다(T16-F).
+        # 아래 둘은 **관계 무시 합계**다(하위호환 — 화면 게이트가 이 숫자를 본다).
         "extra_payment_count": extra["count"],
         "extra_payment_total": extra["total"],
+        # 관계별 분해(R1) — 도크가 ADDON/REPAY 를 다른 문구로 말하기 위한 자리.
+        "extra_payment_by_relation": {"addon": extra["addon"], "repay": extra["repay"]},
         "order_no": order_no,
         "rows": rows,
         "mains": [{"external_id": row["external_id"],

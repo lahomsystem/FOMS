@@ -42,6 +42,28 @@
         return amount.toLocaleString('ko-KR') + '원';
     }
 
+    /**
+     * 결제 기록의 관계별 집계 한 칸 (R1).
+     * payload 에 관계별 분해가 없으면(옛 서버 응답) 합계를 통째로 addon 으로 본다 —
+     * 지금까지 화면이 그렇게 말해 왔으므로 그 경우 표기가 바뀌지 않는다.
+     * @param {Object} payload 도크 payload.
+     * @param {string} key 'addon' | 'repay'.
+     * @returns {{count: number, total: number}}
+     */
+    function extraPaymentBucket(payload, key) {
+        var split = payload.extra_payment_by_relation;
+        if (split && split[key]) {
+            return { count: split[key].count || 0, total: split[key].total || 0 };
+        }
+        if (key === 'addon') {
+            return {
+                count: payload.extra_payment_count || 0,
+                total: payload.extra_payment_total || 0
+            };
+        }
+        return { count: 0, total: 0 };
+    }
+
     /** addon 의 유효 귀속: 사람 지정 > 추정 > 미정(null). */
     function effectiveMain(row) {
         return row.assigned_main || row.guess_main || null;
@@ -155,13 +177,23 @@
         }
         // 추가결제(차액)·재결제 기록. 금액은 기록만이라 출고가·잔금에는 반영돼 있지 않다 —
         // 사람이 보고 판단하라고 여기서 알려준다(T16-F).
-        if (state.extraPaymentCount) {
+        // 관계별로 가른다(R1 · 2026-08-24 스펙 §4.4): ADDON 은 원 주문에 **더** 낸 차액이라
+        // 출고가에 더하는 것이 맞고, REPAY 는 원 결제가 환불된 뒤 **다시** 낸 같은 물건값이라
+        // 더하면 주문 하나 값만큼 두 번 센다. 섞인 집은 두 줄로 각각 말한다.
+        if (state.extraPaymentAddon.count) {
             facts.push(['추가결제',
-                state.extraPaymentCount + '건 · ' +
-                state.extraPaymentTotal.toLocaleString('ko-KR') + '원 (반영은 수동)', false]);
+                state.extraPaymentAddon.count + '건 · ' +
+                state.extraPaymentAddon.total.toLocaleString('ko-KR') + '원 (반영은 수동)', false]);
+        }
+        if (state.extraPaymentRepay.count) {
+            facts.push(['재결제',
+                state.extraPaymentRepay.count + '건 · ' +
+                state.extraPaymentRepay.total.toLocaleString('ko-KR') +
+                '원 — 원 주문 취소분 재결제입니다. 출고가·잔금에 더하지 마세요',
+                false, 'naver-dock-fact-warn']);
         }
         facts.forEach(function (fact) {
-            var row = el('div', 'naver-dock-fact');
+            var row = el('div', fact[3] ? 'naver-dock-fact ' + fact[3] : 'naver-dock-fact');
             row.appendChild(el('span', 'naver-dock-fact-k', fact[0]));
             row.appendChild(el('span', 'naver-dock-fact-v', fact[1]));
             if (fact[2]) {
@@ -468,6 +500,8 @@
             paidAt: payload.paid_at || '',
             extraPaymentCount: payload.extra_payment_count || 0,
             extraPaymentTotal: payload.extra_payment_total || 0,
+            extraPaymentAddon: extraPaymentBucket(payload, 'addon'),
+            extraPaymentRepay: extraPaymentBucket(payload, 'repay'),
             payMeans: payload.pay_means || '',
             discount: payload.discount || 0,
             widthHints: payload.width_hints || {}
