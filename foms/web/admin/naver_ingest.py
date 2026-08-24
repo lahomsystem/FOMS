@@ -537,11 +537,11 @@ class _ThinLink:
 
     __slots__ = ("id", "external_id", "external_order_no", "order_id", "sync_status",
                  "place_order_status", "relation", "group_key", "created_at",
-                 "triage_state", "raw_snapshot")
+                 "triage_state", "reviewed_at", "raw_snapshot")
 
     def __init__(self, id, external_id, external_order_no, order_id, sync_status,
                  place_order_status, relation, group_key, created_at, triage_state,
-                 raw_snapshot):
+                 reviewed_at, raw_snapshot):
         self.id = id
         self.external_id = external_id
         self.external_order_no = external_order_no
@@ -552,6 +552,8 @@ class _ThinLink:
         self.group_key = group_key
         self.created_at = created_at
         self.triage_state = triage_state
+        # 두 모집단(확인 큐 / 발주확인 전)을 **한 번 읽고 파이썬에서 가르기** 위해 싣는다.
+        self.reviewed_at = reviewed_at
         self.raw_snapshot = raw_snapshot
 
 
@@ -568,6 +570,7 @@ _THIN_COLUMNS = (
     ExternalOrderLink.group_key,
     ExternalOrderLink.created_at,
     ExternalOrderLink.triage_state,
+    ExternalOrderLink.reviewed_at,
 )
 
 
@@ -1320,7 +1323,10 @@ def _history_view(db) -> dict[str, Any]:
     }
 
 
-def _place_groups(db, *, display: bool = True) -> tuple[list[dict[str, Any]], bool]:
+def _place_groups(db, *, display: bool = True, links: Optional[list[Any]] = None,
+                  truncated: Optional[bool] = None,
+                  sibling: Optional["_SiblingIndex"] = None
+                  ) -> tuple[list[dict[str, Any]], bool]:
     """'발주확인 전' 탭의 집 목록 (W2).
 
     모집단은 필터 버튼 숫자(:func:`_place_pending_group_count`)와 **같은 술어**여야 한다 —
@@ -1331,13 +1337,19 @@ def _place_groups(db, *, display: bool = True) -> tuple[list[dict[str, Any]], bo
     Args:
         db: 요청 스코프 DB 세션.
         display: 표시용 스냅샷까지 싣는가(:func:`_fetch_links`).
+        links: 호출자가 **이미 읽어 둔** 발주확인 전 링크(없으면 여기서 읽는다).
+            :func:`_work_groups` 는 확인 큐와 이 목록을 한 번에 읽어 파이썬에서 가른다 —
+            술어는 같고 조회만 한 벌이다.
+        truncated: 그 목록이 조회 상한에 걸렸는지(``links`` 를 줬을 때만 쓴다).
+        sibling: 미리 만든 :class:`_SiblingIndex` (없으면 형제를 여기서 다시 읽는다).
 
     Returns:
         ``(묶음 목록, 잘렸는지)``. 조용히 자르면 사람이 나머지를 찾아 헤맨다 —
         잘렸으면 화면이 그렇게 말한다.
     """
     _t = time.perf_counter()
-    links = _fetch_links(
+    prefetched = links is not None
+    links = links if prefetched else _fetch_links(
         db,
         ExternalOrderLink.channel == "NAVER",
         # 수집이 성공한 건만 본다. v2 에서는 이 목록이 '발주확인 전' **탭 전용**이라
@@ -1353,6 +1365,7 @@ def _place_groups(db, *, display: bool = True) -> tuple[list[dict[str, Any]], bo
         limit=QUEUE_LINK_FETCH_LIMIT,
     )
     record_phase("nvb_pfetch", (time.perf_counter() - _t) * 1000)
+    hit_cap = bool(truncated) if prefetched else len(links) == QUEUE_LINK_FETCH_LIMIT
     if not links:
         return [], False
     # 주문은 표시(고객명·다음 할 일)에만 쓴다 — 얇은 경로는 조회 자체를 내지 않는다.
@@ -1363,7 +1376,7 @@ def _place_groups(db, *, display: bool = True) -> tuple[list[dict[str, Any]], bo
     # 상한은 **클레임을 걸러낸 뒤에** 건다. 앞에서 자르면 빠질 집이 상한을 먹어
     # "잘렸다"를 숨긴다(60집 중 5집이 취소면 46집만 보이고 경고가 안 뜬다).
     _t = time.perf_counter()
-    groups = _group_queue(links, orders, truncated=len(links) == QUEUE_LINK_FETCH_LIMIT,
+    groups = _group_queue(links, orders, truncated=hit_cap,
                           limit=QUEUE_LINK_FETCH_LIMIT)
     record_phase("nvb_pgroup", (time.perf_counter() - _t) * 1000)
     # 우리가 취소한 집은 목록에서 뺀다. 컬럼(place_order_status)만 보는 SQL 술어로는 못 거른다
@@ -1374,12 +1387,62 @@ def _place_groups(db, *, display: bool = True) -> tuple[list[dict[str, Any]], bo
     # 이미 발주확인이 끝난 형제가 취소돼도 이 목록 안에서는 안 보인다 — 그 집에 발주확인을
     # 보내면 네이버가 거절해 집 전체가 실패한다.
     _t = time.perf_counter()
-    blocked = _claim_blocked_group_keys(db, links, display=display)
+    blocked = (sibling.confirmed_claim_blocked if sibling is not None
+               else _claim_blocked_group_keys(db, links, display=display))
     record_phase("nvb_pclaim", (time.perf_counter() - _t) * 1000)
     visible = [group for group in groups
                if not group["claim_blocking"] and group["key"] not in blocked]
-    truncated = len(visible) > WORK_GROUP_LIMIT or len(links) == QUEUE_LINK_FETCH_LIMIT
-    return visible[:WORK_GROUP_LIMIT], truncated
+    return visible[:WORK_GROUP_LIMIT], bool(len(visible) > WORK_GROUP_LIMIT or hit_cap)
+
+
+def _row_place_pending(row: Any) -> bool:
+    """:func:`_place_pending_clause` 의 **파이썬 쌍둥이** — 같은 컬럼, 같은 갈래.
+
+    한 번 읽은 행을 두 모집단으로 가를 때 쓴다. SQL 술어와 갈리면 '발주확인 전' 칩
+    숫자가 목록과 어긋나므로, 판정은 여기 한 줄과 :func:`_place_pending_clause` 한
+    줄뿐이고 둘의 동치는 회귀 테스트가 못박는다.
+
+    Args:
+        row: 링크 행(ORM 또는 :class:`_ThinLink`).
+
+    Returns:
+        발주확인이 아직인 링크인가.
+    """
+    status = row.place_order_status
+    return status is None or status not in CONFIRMED_PLACE_VALUES
+
+
+def _work_source_links(db, *, display: bool) -> tuple[list[Any], bool]:
+    """처리 탭의 두 원천을 **조회 한 번**으로 읽는다.
+
+    원천 1(확인 큐 — ``reviewed_at`` NULL)과 원천 2('발주확인 전')는 같은 채널·같은
+    ``sync_status`` 를 보고 크게 겹치는데 따로 읽고 있었다 — 2026-08-24 스테이징 구간
+    실측에서 뱃지 콜드의 **36%**(34.5ms + 21.5ms)가 이 두 벌이었다. 술어를 OR 로 합쳐
+    한 번 읽고 파이썬에서 가른다. 두 갈래의 술어는 그대로다.
+
+    상한은 **합집합 하나**에 건다. 닿으면 두 원천 모두 불완전할 수 있으므로 잘림 표식을
+    양쪽에 똑같이 준다 — 조용히 자르지 않는다(캡 발동은 :func:`_work_groups` 가 고지).
+
+    Args:
+        db: 요청 스코프 DB 세션.
+        display: 표시용 스냅샷까지 싣는가(:func:`_fetch_links`).
+
+    Returns:
+        ``(합집합 링크(최신순), 조회 상한에 걸렸는지)``.
+    """
+    from sqlalchemy import or_
+
+    rows = _fetch_links(
+        db,
+        ExternalOrderLink.channel == "NAVER",
+        # 수집이 성공한 건만 본다(두 원천 공통) — 보류·실패는 이력 탭과 실패 띠가 받는다.
+        ExternalOrderLink.sync_status.in_(("COLLECTED", "LINKED")),
+        or_(ExternalOrderLink.reviewed_at.is_(None), _place_pending_clause()),
+        display=display,
+        order_by=(ExternalOrderLink.created_at.desc(), ExternalOrderLink.id.desc()),
+        limit=QUEUE_LINK_FETCH_LIMIT,
+    )
+    return rows, len(rows) == QUEUE_LINK_FETCH_LIMIT
 
 
 def _work_groups(db, *, display: bool = True,
@@ -1414,8 +1477,15 @@ def _work_groups(db, *, display: bool = True,
         ``(집 목록, 조회 상한에 걸렸는지)``. 순서는 큐(수집 최신순) → 큐 밖 발주확인 전 집.
     """
     _t = time.perf_counter()
-    pending, truncated = _queue_links(db, display=display)
+    source, truncated = _work_source_links(db, display=display)
+    # 술어는 SQL 과 같은 갈래를 파이썬에서 그대로 쓴다(`_row_place_pending`).
+    pending = [row for row in source if row.reviewed_at is None]
+    place_links = [row for row in source if _row_place_pending(row)]
     record_phase("nvb_qfetch", (time.perf_counter() - _t) * 1000)
+    # 형제 판정은 여기서 **한 벌만** 만든다 — 아래 세 곳이 같은 색인을 나눠 쓴다.
+    _t = time.perf_counter()
+    sibling = _build_sibling_index(db, _source_order_nos(source), display=display)
+    record_phase("nvb_sibidx", (time.perf_counter() - _t) * 1000)
     # **캡 하나를 더 넘겨 받아** 잘렸는지 스스로 안다. `_group_queue` 는 상한까지만 돌려주는데
     # 그 사실을 아무도 안 봐서, 집이 50을 넘으면 화면이 조용히 51번째부터 버렸다 —
     # 링크 250 상한(`truncated`)에 걸릴 때만 안내 띠가 떴다. 캡으로 자른 뒤 아무 말도 안 하면
@@ -1427,7 +1497,8 @@ def _work_groups(db, *, display: bool = True,
                          truncated=truncated, limit=WORK_GROUP_LIMIT + 1)
     record_phase("nvb_qgroup", (time.perf_counter() - _t) * 1000)
     _t = time.perf_counter()
-    place_groups, place_truncated = _place_groups(db, display=display)
+    place_groups, place_truncated = _place_groups(
+        db, display=display, links=place_links, truncated=truncated, sibling=sibling)
     record_phase("nvb_place", (time.perf_counter() - _t) * 1000)
 
     merged: dict[Any, dict[str, Any]] = {}
@@ -1446,10 +1517,10 @@ def _work_groups(db, *, display: bool = True,
         order_of_key.append(group["key"])
     groups = [merged[key] for key in order_of_key]
     _t = time.perf_counter()
-    _mark_sibling_claims(db, pending, groups, display=display)
+    _mark_sibling_claims(db, pending, groups, display=display, sibling=sibling)
     record_phase("nvb_sib", (time.perf_counter() - _t) * 1000)
     _t = time.perf_counter()
-    _attach_household_counts(db, groups, display=display)
+    _attach_household_counts(db, groups, display=display, sibling=sibling)
     record_phase("nvb_hcnt", (time.perf_counter() - _t) * 1000)
     # 잠금·선택 판정은 위 두 단계가 끝난 **뒤에** 한 번만 한다(형제 클레임이 반영된 값으로).
     _attach_row_flags(groups)
@@ -1468,7 +1539,8 @@ def _work_groups(db, *, display: bool = True,
 
 
 def _mark_sibling_claims(db, queue_links: list[Any],
-                         groups: list[dict[str, Any]], *, display: bool = True) -> None:
+                         groups: list[dict[str, Any]], *, display: bool = True,
+                         sibling: Optional["_SiblingIndex"] = None) -> None:
     """이미 발주확인이 끝난 **형제**의 취소·반품을 집 전체에 반영한다.
 
     ``_place_groups`` 는 원천 2 안에서 이 검사를 하지만, 원천 1(확인 큐)은 안 한다.
@@ -1482,10 +1554,15 @@ def _mark_sibling_claims(db, queue_links: list[Any],
         queue_links: 확인 큐 링크(형제 조회의 기준).
         groups: 병합된 집 목록. **제자리에서** ``claim_blocking`` 을 올린다.
         display: 표시용 스냅샷까지 싣는가(:func:`_fetch_links`).
+        sibling: 미리 만든 :class:`_SiblingIndex` (없으면 형제를 여기서 다시 읽는다).
+            색인은 두 원천의 주문번호 **합집합**으로 만들어져 옛 경로보다 넓어 보이지만,
+            판정은 집키로 하고 집키가 목록에 있으려면 그 주문번호가 이미 기준 집합에
+            들어 있다 — 결과는 같다(동치 회귀 테스트가 못박는다).
     """
     if not groups:
         return
-    blocked = _claim_blocked_group_keys(db, queue_links, display=display)
+    blocked = (sibling.confirmed_claim_blocked if sibling is not None
+               else _claim_blocked_group_keys(db, queue_links, display=display))
     if not blocked:
         return
     for group in groups:
@@ -1494,7 +1571,8 @@ def _mark_sibling_claims(db, queue_links: list[Any],
 
 
 def _attach_household_counts(db, groups: list[dict[str, Any]], *,
-                             display: bool = True) -> None:
+                             display: bool = True,
+                             sibling: Optional["_SiblingIndex"] = None) -> None:
     """각 집에 **워커가 실제로 처리할 상품주문 수**(``household_count``)를 붙인다.
 
     ``count`` 는 화면 목록 모집단(확인 대기로 좁혀진 큐) 안의 수라, 확인이 끝난 형제가
@@ -1508,9 +1586,14 @@ def _attach_household_counts(db, groups: list[dict[str, Any]], *,
         db: 요청 스코프 DB 세션.
         groups: 병합된 집 목록. 제자리에서 ``household_count`` 를 채운다.
         display: 표시용 스냅샷까지 싣는가(:func:`_fetch_links`).
+        sibling: 미리 만든 :class:`_SiblingIndex`. 주면 대표 링크 조회·형제 조회를
+            **둘 다 건너뛴다** — 같은 행을 세 벌로 읽던 자리다.
     """
     from foms.services.integrations.naver_commerce.fulfillment import household_key
 
+    if sibling is not None:
+        _apply_household_counts(groups, sibling)
+        return
     # 집 dict 에는 주문번호가 없다(대표 link id 만 있다) — 대표 링크에서 뽑는다.
     lead_ids = [int(g["id"]) for g in groups if g.get("id")]
     counts: dict[Any, int] = {}
@@ -1556,17 +1639,30 @@ def _attach_household_counts(db, groups: list[dict[str, Any]], *,
             state = (row.triage_state or {}).get("fulfillment") or {}
             if state.get("canceled_at"):
                 canceled.add(hkey)
+    index = _SiblingIndex()
+    index.counts, index.pending_counts = counts, pending_counts
+    index.blocking, index.canceled = blocking, canceled
+    _apply_household_counts(groups, index)
+
+
+def _apply_household_counts(groups: list[dict[str, Any]], sibling: "_SiblingIndex") -> None:
+    """형제 색인을 집 목록에 **제자리로** 얹는다 — 두 경로가 쓰는 한 벌의 규칙.
+
+    Args:
+        groups: 병합된 집 목록.
+        sibling: :class:`_SiblingIndex`.
+    """
     for group in groups:
         # 못 세면 화면이 아는 수로 떨어진다(작게 말하는 쪽이 크게 말하는 쪽보다 안전하지
         # 않다 — 그래서 이 값이 실패하면 모달이 집계를 숨기도록 템플릿이 판단한다).
-        group["household_count"] = counts.get(group["key"], group["count"])
+        group["household_count"] = sibling.counts.get(group["key"], group["count"])
         # 못 세면 화면이 아는 수(집 안 발주확인 전 건수)로 떨어진다.
-        group["household_place_pending"] = pending_counts.get(
+        group["household_place_pending"] = sibling.pending_counts.get(
             group["key"], group.get("place_pending_count") or group["count"])
         # 형제까지 본 잠금 판정. 같은 쿼리 결과를 재사용하므로 조회는 늘지 않는다.
-        if group["key"] in blocking:
+        if group["key"] in sibling.blocking:
             group["claim_blocking"] = True
-        if group["key"] in canceled:
+        if group["key"] in sibling.canceled:
             group["canceled"] = True
 
 
@@ -1601,6 +1697,101 @@ def _household_has_claim(db, link: Optional[ExternalOrderLink]) -> bool:
     )
     return any(summarize_snapshot(row.raw_snapshot)["claim_blocking"]
                for row in rows if household_key(row) == base_key)
+
+
+class _SiblingIndex:
+    """형제 행을 **한 번만** 읽어 만든 집 단위 판정 색인.
+
+    같은 판정을 세 곳이 각자 조회했다: :func:`_claim_blocked_group_keys` 가 두 번
+    (``_place_groups``·``_mark_sibling_claims``), :func:`_attach_household_counts` 가
+    한 번. 셋 다 같은 ``external_order_no`` 집합으로 형제 행을 읽고 같은 스냅샷을 다시
+    판정한다 — 2026-08-24 스테이징 구간 실측에서 뱃지 콜드 155.5ms 중 **74.0ms(48%)**
+    가 이 세 벌이었다.
+
+    **술어는 하나도 바꾸지 않는다.** 모집단·판정 함수는 그대로고 읽는 횟수만 줄인다 —
+    뱃지와 화면이 다른 함수로 세는 순간 계약 §2.4(뱃지 == 탭 숫자 == 칩 '전체')가 깨진다
+    (이 저장소가 두 번 겪었다: nav 67·탭 45 / nav 140·필터 43).
+
+    ``claim_blocking`` 은 :func:`summarize_snapshot` 으로 판정한다. 옛 집계 경로는
+    ``extract_claim`` 을 직접 불러 예외를 잡았는데, ``summarize_snapshot`` 은 같은
+    ``claim["blocking"]`` 을 돌려주면서 깨진 원본에 대해 **예외 대신 False** 를 준다
+    (판정값 동일, 실패 처리만 한 벌).
+
+    Attributes:
+        counts: ``{집키: 형제 상품주문 수}``.
+        pending_counts: ``{집키: 발주확인 전 형제 수}``.
+        blocking: 취소·반품이 걸린 집키 집합(형제 전체 기준).
+        canceled: 우리가 취소한(``canceled_at``) 집키 집합.
+        confirmed_claim_blocked: **이미 발주확인이 끝난** 형제가 취소·반품인 집키 집합
+            — 옛 :func:`_claim_blocked_group_keys` 의 반환값과 같은 어휘다.
+    """
+
+    __slots__ = ("counts", "pending_counts", "blocking", "canceled",
+                 "confirmed_claim_blocked")
+
+    def __init__(self):
+        self.counts: dict[Any, int] = {}
+        self.pending_counts: dict[Any, int] = {}
+        self.blocking: set = set()
+        self.canceled: set = set()
+        self.confirmed_claim_blocked: set = set()
+
+
+def _source_order_nos(links: list[Any]) -> set:
+    """링크 목록에서 네이버 주문번호 집합을 뽑는다(빈 값 제외).
+
+    Args:
+        links: 링크 행 목록.
+
+    Returns:
+        공백을 턴 주문번호 집합.
+    """
+    order_nos = {(row.external_order_no or "").strip() for row in links}
+    order_nos.discard("")
+    return order_nos
+
+
+def _build_sibling_index(db, order_nos: set, *, display: bool) -> _SiblingIndex:
+    """주문번호 집합의 형제 행을 **한 번 읽어** 집 단위 판정을 전부 만든다.
+
+    Args:
+        db: 요청 스코프 DB 세션.
+        order_nos: 기준 주문번호 집합(:func:`_source_order_nos`).
+        display: 표시용 스냅샷까지 싣는가(:func:`_fetch_links`).
+
+    Returns:
+        :class:`_SiblingIndex`. 주문번호가 없으면 빈 색인.
+    """
+    from foms.services.integrations.naver_commerce.fulfillment import (
+        household_key,
+        is_place_pending,
+    )
+
+    index = _SiblingIndex()
+    if not order_nos:
+        return index
+    rows = _fetch_links(
+        db,
+        ExternalOrderLink.channel == "NAVER",
+        ExternalOrderLink.external_order_no.in_(sorted(order_nos)),
+        display=display,
+    )
+    for row in rows:
+        hkey = household_key(row)
+        index.counts[hkey] = index.counts.get(hkey, 0) + 1
+        if is_place_pending(row):
+            index.pending_counts[hkey] = index.pending_counts.get(hkey, 0) + 1
+        # 원본 파싱은 행마다 **한 번**이다 — 옛 경로는 같은 행을 세 벌로 다시 풀었다.
+        claim_blocking = summarize_snapshot(row.raw_snapshot)["claim_blocking"]
+        if claim_blocking:
+            index.blocking.add(hkey)
+            # 발주확인이 끝난 형제의 클레임만 따로 센다 — 발주확인 전 형제의 클레임은
+            # 이미 목록 안에 있어 `_group_queue` 가 판정했다(옛 SQL 술어와 같은 갈래).
+            if (row.place_order_status or "") in CONFIRMED_PLACE_VALUES:
+                index.confirmed_claim_blocked.add(hkey)
+        if ((row.triage_state or {}).get("fulfillment") or {}).get("canceled_at"):
+            index.canceled.add(hkey)
+    return index
 
 
 def _claim_blocked_group_keys(db, links: list[Any], *, display: bool = True) -> set:
