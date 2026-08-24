@@ -67,16 +67,21 @@ def _assert_shared_form_script_contract(body: str) -> None:
     )
     assert "html2canvas.min.js" not in body
     assert "js/orders/erp-channel-push-confirm.js?v=20260821a" in body
-    assert "js/orders/erp-order-shared.js?v=20260821e" in body
+    assert "js/orders/erp-order-shared.js?v=20260824a" in body
     assert "js/cs/as-attachment-order.js?v=20260819a" in body
-    assert "js/orders/erp-alimtalk-send.js?v=20260824a" in body
+    assert "js/orders/erp-alimtalk-send.js?v=20260824b" in body
+    # T15 발송 흔적: 칩 자리·이력 패널이 실제 렌더에 붙어 있어야 한다(템플릿 계약만으로는
+    # 코호트 게이트가 한쪽 표면을 통째로 지워도 초록이다).
+    assert "js/orders/erp-alimtalk-trace.js?v=20260824a" in body
+    assert "data-erp-alimtalk-trace" in body
+    assert 'id="erpAlimtalkTraceModal"' in body
     assert "js/orders/erp-share.js?v=20260824a" in body
     assert "css/orders/erp-share.css?v=20260821a" in body
     assert "js/orders/erp-stage-override.js?v=20260814d" in body
     assert "erp_stage_override_modal.html" not in body  # include renders modal markup, not path
     assert 'id="erpStageOverrideModal"' in body
     assert "(8자 이상)" not in body
-    assert "css/orders/erp-channel-push.css?v=20260821c" in body
+    assert "css/orders/erp-channel-push.css?v=20260824b" in body
     assert "css/orders/erp-items-master-detail.css?v=20260701f" in body
     assert "js/orders/erp-items-master-detail.js?v=20260630c" in body
     assert "erp-items-master-detail-shell" in body

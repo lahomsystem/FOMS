@@ -468,6 +468,8 @@ ERP Order Tab Pane (shared between add_order and edit_order)
                                 </button>
                             </div>
                         </div>
+                        <!-- 발송 흔적: 알림톡 버튼 바로 아래 한 줄(0클릭 확인) -->
+                        <div class="erp-alimtalk-trace-slot px-2 pt-2" data-erp-alimtalk-trace></div>
                         <div class="card-body p-2">
                             <textarea class="form-control form-control-sm bg-light" id="erp-conversion-text" rows="8" readonly
                                 placeholder="변환 버튼을 누르면 텍스트가 생성됩니다."></textarea>
@@ -519,6 +521,7 @@ ERP Order Tab Pane (shared between add_order and edit_order)
 
 {% include 'orders/partials/erp_channel_push_resend_modal.html' %}
 {% include 'orders/partials/erp_alimtalk_modal.html' %}
+{% include 'orders/partials/erp_alimtalk_trace_modal.html' %}
 {% include 'orders/partials/erp_share_modal.html' %}
 
 <!-- ERP 주소 검색 모달 -->

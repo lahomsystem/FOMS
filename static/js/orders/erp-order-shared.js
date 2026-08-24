@@ -1934,6 +1934,9 @@ async function erpLoadStructured(bootstrapData, options) {
     sd.payment = paymentData;
     window.__erpLastStructuredData = sd;
     window.__erpStructuredLoadSucceeded = true;
+    // 구조화 데이터가 도착했다는 신호. 이 데이터만 읽고 그리는 화면 조각(알림톡 발송 흔적
+    // 칩 등)이 로드 순서에 상관없이 다시 그릴 수 있게 한다.
+    document.dispatchEvent(new CustomEvent('foms:erp-structured-loaded'));
     erpRecalcItemsTotal();
     const depositEl = document.getElementById('erp-deposit-amount');
     if (depositEl) {

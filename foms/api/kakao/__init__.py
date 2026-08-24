@@ -105,8 +105,9 @@ def api_alimtalk_send_manual(order_id: int):
         order_id: 주문 id (URL).
 
     Returns:
-        성공/실패 모두 200 + ``data = {'sent': bool, 'error': str | None}``.
-        서버 미설정은 503, 대상 주문 없음은 404.
+        성공/실패 모두 200 + ``data = {'sent': bool, 'error': str | None, 'last': dict}``.
+        ``last`` 는 방금 기록된 발송 이력이다 — 화면의 발송 흔적 칩이 이걸로 즉시 갱신해
+        추가 조회를 하지 않는다(T15). 서버 미설정은 503, 대상 주문 없음은 404.
     """
     if not is_configured():
         return _envelope(None, 'not_configured', 503)
@@ -128,6 +129,9 @@ def api_alimtalk_send_manual(order_id: int):
     # 이력은 structured_data 의 alimtalk_measurement 가 이미 소유한다.
     sent = bool(result.get('sent'))
     error = result.get('error')
+    # send_alimtalk 은 자기 세션에서 이력을 커밋했다 — 이 요청 세션의 사본은 낡았다.
+    get_db().expire(order)
+    result['last'] = (order.structured_data or {}).get('alimtalk_measurement')
     context = order_audit_context(order)
     log_access(
         describe_order_action(order_id=order_id, action='ALIMTALK_MANUAL_SENT',
