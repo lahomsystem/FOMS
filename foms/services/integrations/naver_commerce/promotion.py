@@ -522,6 +522,51 @@ def detach_link_from_order(session: Session, *, link_id: int,
     return (len(siblings), previous_order_id)
 
 
+def summarize_link_household(session: Session, *, link_id: int,
+                             relations: Optional[tuple[str, ...]] = None) -> dict[str, Any]:
+    """이력에 남길 **집** 요약 — 외부 주문번호·상품주문 건수·금액 합계 (스펙 2026-08-24 R3).
+
+    붙이기·되돌리기 라우트가 주문 변경 이력(``OrderEvent``)에 적을 숫자를 만든다. 집 판정을
+    라우트에서 다시 짜면 화면·발주확인과 어긋난 숫자가 이력에 박히므로(집 세기 SSOT 이탈),
+    붙이기와 **같은** 묶음 함수(:func:`_group_siblings_for_attach`)를 그대로 쓴다.
+
+    **변경 전에 부른다.** 되돌리기는 ``relation`` 을 ``NEW`` 로 되돌리므로 뒤에 부르면 관계값도
+    대상 집합도 이미 사라져 있다.
+
+    Args:
+        session: DB 세션(읽기만 한다).
+        link_id: 기준 수집 링크 id.
+        relations: 셀 관계값(``None`` 이면 집 전체 — 붙이기는 집이 통째로 움직인다).
+            되돌리기는 :data:`ATTACHABLE_RELATIONS` 만 걷어내므로 같은 값을 넘긴다.
+
+    Returns:
+        ``{"external_order_no", "relation", "product_order_count", "amount_total"}``.
+        링크가 없으면 빈 요약(건수 0)을 돌려준다 — 이력 기록이 붙이기를 깨지 않는다.
+    """
+    link = (
+        session.query(ExternalOrderLink)
+        .filter(ExternalOrderLink.id == link_id, ExternalOrderLink.channel == CHANNEL)
+        .first()
+    )
+    if link is None:
+        return {"external_order_no": "", "relation": "",
+                "product_order_count": 0, "amount_total": 0}
+
+    rows = _group_siblings_for_attach(session, link)
+    if relations is not None:
+        rows = [row for row in rows if row.relation in relations]
+    total = 0
+    for row in rows:
+        amount = summarize_snapshot(row.raw_snapshot).get("amount")
+        total += int(amount) if isinstance(amount, int) else 0
+    return {
+        "external_order_no": (link.external_order_no or "").strip(),
+        "relation": (link.relation or "").strip(),
+        "product_order_count": len(rows),
+        "amount_total": total,
+    }
+
+
 def _group_siblings_for_attach(session: Session,
                                link: ExternalOrderLink) -> list[ExternalOrderLink]:
     """붙이기·되돌리기 대상 묶음 — 같은 **집**의 링크 전부.

@@ -21,16 +21,21 @@ from typing import Any, Optional
 
 from flask import (abort, g, jsonify, redirect, render_template, request, session,
                    url_for)
+from sqlalchemy.orm import Session
 
 from db import get_db
 from foms.services.datetime_kst import format_datetime_kst, now_utc_naive
 from foms.services.integrations.naver_commerce.fulfillment import CLOSE_NOW_RELATIONS
 from foms.services.integrations.naver_commerce.order_candidates import find_order_candidates
-from foms.services.integrations.naver_commerce.promotion import is_promotable, summarize_snapshot
+from foms.services.integrations.naver_commerce.promotion import (
+    is_promotable,
+    summarize_link_household,
+    summarize_snapshot,
+)
 from foms.services.jobs.queue import enqueue_naver_order_sync
 from foms.web.admin.routes import admin_bp
 from foms.web.auth import log_access, login_required, role_required
-from models import ExternalOrderLink, Order
+from models import ExternalOrderLink, Order, OrderEvent
 
 logger = logging.getLogger(__name__)
 
@@ -2410,6 +2415,50 @@ def naver_ingest_fulfillment_clear(link_id: int):
     return jsonify({"success": True, "data": result, "error": None})
 
 
+#: 붙이기·되돌리기가 주문 변경 이력에 남기는 이벤트 타입 (스펙 2026-08-24 R3 = 08-19 §7 Q3 안 B).
+#: **라벨 사전(``foms/services/order_event_display.py``)에 반드시 함께 등재한다.** 빠지면
+#: 화면에 영문 코드가 뜨는 게 아니라 한글 "기타 변경"으로 조용히 뭉개져 다른 미등재
+#: 이벤트와 구분이 안 된다(``translate_event_type_to_korean`` 의 기본값).
+ATTACH_EVENT_TYPE = "NAVER_ORDER_ATTACHED"
+DETACH_EVENT_TYPE = "NAVER_ORDER_DETACHED"
+
+
+def _record_link_history(db: Session, *, order_id: int, link_id: int, event_type: str,
+                         relation: str, summary: dict[str, Any]) -> None:
+    """붙이기·되돌리기를 **주문 변경 이력**(``OrderEvent``)에 1건 남긴다 (스펙 2026-08-24 R3).
+
+    주문 상태·단계는 한 글자도 건드리지 않는다 — 재결제로 원 네이버 주문이 취소돼도 FOMS
+    주문은 살아 있고, 남길 것은 "무엇이 얼마 붙었나"라는 사실뿐이다(안 B).
+    **append-only** — 되돌리기는 금액 기록만 걷어내고 붙임 이벤트는 지우지 않는다.
+
+    호출자의 트랜잭션에 그대로 얹는다(commit 은 호출자 소유). 이력을 따로 커밋하면
+    "붙었는데 이력이 없는" 상태가 새로 생기는데, 그것이 바로 R3 가 없애려는 결함이다.
+
+    Args:
+        db: 호출자 DB 세션(commit 하지 않는다).
+        order_id: 이력을 붙일 FOMS 주문 id.
+        link_id: 사람이 누른 기준 수집 링크 id.
+        event_type: :data:`ATTACH_EVENT_TYPE` 또는 :data:`DETACH_EVENT_TYPE`.
+        relation: 관계값(``ADDON``/``REPAY``).
+        summary: :func:`summarize_link_household` 결과(집 요약).
+
+    Returns:
+        None — 실패는 예외로 올라가 호출자의 rollback 에 걸린다.
+    """
+    db.add(OrderEvent(
+        order_id=int(order_id),
+        event_type=event_type,
+        payload={
+            "relation": relation,
+            "link_id": int(link_id),
+            "external_order_no": summary.get("external_order_no") or "",
+            "product_order_count": int(summary.get("product_order_count") or 0),
+            "amount_total": int(summary.get("amount_total") or 0),
+        },
+        created_by_user_id=session.get("user_id"),
+    ))
+
+
 @admin_bp.route("/admin/naver-ingest/<int:link_id>/attach", methods=["POST"])
 @login_required
 @role_required(["ADMIN", "MANAGER", "STAFF"])
@@ -2438,9 +2487,14 @@ def naver_ingest_attach_order(link_id: int):
 
     db = get_db()
     try:
+        # 집 요약은 **변경 전에** 뽑는다 — 붙인 뒤에는 대상 집합·관계값이 이미 바뀌어 있다.
+        history = summarize_link_household(db, link_id=link_id)
         attached, target_order_id = attach_link_to_order(
             db, link_id=link_id, order_id=order_id, relation=relation,
             actor_user_id=session.get("user_id"))
+        _record_link_history(db, order_id=target_order_id, link_id=link_id,
+                             event_type=ATTACH_EVENT_TYPE, relation=relation,
+                             summary=history)
         db.commit()
     except PromotionError as exc:
         db.rollback()
@@ -2475,14 +2529,22 @@ def naver_ingest_detach_order(link_id: int):
     주문 생성분(``NEW``)은 되돌릴 수 없다. 그건 주문 삭제 문제라 이 경로의 일이 아니다.
     """
     from foms.services.integrations.naver_commerce.promotion import (
+        ATTACHABLE_RELATIONS,
         PromotionError,
         detach_link_from_order,
     )
 
     db = get_db()
     try:
+        # 되돌리기는 붙이기로 연결된 링크만 걷어낸다 — 같은 술어로 요약해야 숫자가 맞는다.
+        history = summarize_link_household(db, link_id=link_id,
+                                           relations=ATTACHABLE_RELATIONS)
         detached, previous_order_id = detach_link_from_order(
             db, link_id=link_id, actor_user_id=session.get("user_id"))
+        if previous_order_id:
+            _record_link_history(db, order_id=previous_order_id, link_id=link_id,
+                                 event_type=DETACH_EVENT_TYPE,
+                                 relation=history["relation"], summary=history)
         db.commit()
     except PromotionError as exc:
         db.rollback()
