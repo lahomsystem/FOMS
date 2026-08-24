@@ -184,7 +184,9 @@
             .then(function (body) {
                 const sent = !!(body && body.success && body.data && body.data.sent);
                 // 성공·실패 모두 방금 기록된 이력을 칩에 흘려보낸다(추가 조회 없음, T15).
-                _publishTrace(body && body.data ? body.data.last : null);
+                // 이력이 없는 응답(서버 미설정 등)에서는 게시하지 않는다 — 게시는 '이게
+                // 최신 이력이다'라는 선언이라, 빈 값을 보내면 멀쩡한 칩이 지워진다.
+                if (body && body.data && body.data.last) _publishTrace(body.data.last);
                 if (sent) {
                     erpAlimtalkSetStatus('알림톡 발송 완료');
                     const modal = _modal();

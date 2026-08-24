@@ -33,9 +33,25 @@
     let _probeTimer = null;
     let _probing = false;
 
-    /** @returns {number} 현재 주문 id(아직 저장 전이면 0). */
+    /**
+     * 현재 주문 id.
+     *
+     * ERP 주문 화면은 전역 `ORDER_ID` 를 갖지만 태블릿 실측 폼은 갖지 않는다 — 그쪽은 칩
+     * 자리에 주문 id 를 실어 준다.
+     *
+     * @returns {number} 주문 id(아직 저장 전이면 0).
+     */
     function _orderId() {
-        return parseInt(String(window.ORDER_ID || '0'), 10) || 0;
+        const global = parseInt(String(window.ORDER_ID || '0'), 10) || 0;
+        if (global) return global;
+        const slot = document.querySelector('[data-erp-alimtalk-trace-order]');
+        const owned = slot ? slot.getAttribute('data-erp-alimtalk-trace-order') : '';
+        return parseInt(String(owned || '0'), 10) || 0;
+    }
+
+    /** @returns {boolean} 이 표면에 이력 패널 마크업이 있는지(태블릿엔 없다). */
+    function _hasPanel() {
+        return !!document.getElementById('erpAlimtalkTraceModal');
     }
 
     /** @returns {Object|null} 화면이 이미 들고 있는 마지막 발송 이력. */
@@ -46,13 +62,23 @@
         return record && typeof record === 'object' ? record : null;
     }
 
-    /** 이력 사본을 화면 전역 구조화 데이터에 되꽂는다(다음 렌더의 입력). */
+    /**
+     * 이력 사본을 화면 전역 구조화 데이터에 되꽂는다(다음 렌더의 입력).
+     *
+     * ``null`` 은 '이 주문엔 이력이 없다'를 뜻하며 남아 있던 값을 **지운다** — 태블릿은 한
+     * 화면에서 주문을 갈아끼우므로, 지우지 않으면 이전 주문의 발송이 새 주문 칩에 남는다.
+     *
+     * @param {Object|null} record 발송 이력(없으면 null).
+     */
     function _storeRecord(record) {
-        if (!record || typeof record !== 'object') return;
         if (!window.__erpLastStructuredData || typeof window.__erpLastStructuredData !== 'object') {
             window.__erpLastStructuredData = {};
         }
-        window.__erpLastStructuredData.alimtalk_measurement = record;
+        if (record && typeof record === 'object') {
+            window.__erpLastStructuredData.alimtalk_measurement = record;
+        } else {
+            delete window.__erpLastStructuredData.alimtalk_measurement;
+        }
     }
 
     /** @returns {boolean} 이 이력이 '문자로 나갔다'인지 */
@@ -141,10 +167,14 @@
      */
     function _buildChip(record, compact) {
         const state = _state(record);
-        const chip = document.createElement('button');
-        chip.type = 'button';
+        // 이력 패널이 없는 표면(태블릿)에서는 눌러도 아무 일이 없는 버튼을 만들지 않는다.
+        const clickable = _hasPanel();
+        const chip = document.createElement(clickable ? 'button' : 'span');
+        if (clickable) {
+            chip.type = 'button';
+            chip.setAttribute('data-erp-alimtalk-trace-open', '1');
+        }
         chip.className = 'erp-alimtalk-trace erp-alimtalk-trace--' + state;
-        chip.setAttribute('data-erp-alimtalk-trace-open', '1');
         chip.setAttribute('data-foms-no-autodismiss', '1');
 
         const dot = document.createElement('span');
@@ -170,9 +200,13 @@
             }
         }
 
-        chip.title = state === 'none'
-            ? '아직 실측 예약 안내를 보내지 않았습니다. 눌러서 발송 이력을 봅니다.'
-            : '눌러서 알림톡 발송 이력을 봅니다.';
+        if (clickable) {
+            chip.title = state === 'none'
+                ? '아직 실측 예약 안내를 보내지 않았습니다. 눌러서 발송 이력을 봅니다.'
+                : '눌러서 알림톡 발송 이력을 봅니다.';
+        } else if (state === 'none') {
+            chip.title = '아직 실측 예약 안내를 보내지 않았습니다.';
+        }
         return chip;
     }
 
@@ -346,8 +380,7 @@
 
     // 발송 모듈이 방금 기록된 이력을 실어 보낸다 — 칩은 추가 조회 없이 즉시 갱신된다.
     document.addEventListener('foms:alimtalk-trace-update', function (ev) {
-        const record = ev && ev.detail ? ev.detail.record : null;
-        if (record) _storeRecord(record);
+        _storeRecord(ev && ev.detail ? ev.detail.record : null);
         erpAlimtalkTraceRender();
         erpAlimtalkTraceScheduleProbe();
     });
