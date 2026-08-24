@@ -28,6 +28,14 @@
     /** mutation 라우트 접두어. 뒤에 `<link_id>/<작업>` 이 붙는다. */
     var BASE = '/admin/naver-ingest/';
 
+    /** 집의 워커 처리 표식만 묻는 읽기 전용 경로(폴링 대상). */
+    var STATE_URL = '/admin/naver-ingest/triage/fulfillment-state';
+    /** 폴링 주기·마감. **끝이 있어야 한다** — 무한 폴링 금지(nav 뱃지 부하와 겹친다). */
+    var POLL_INTERVAL_MS = 2000;
+    var POLL_TIMEOUT_MS = 25000;
+    /** 벌크는 폴링하지 않는다(집 수만큼 곱해진다) — 한 번만 늦게 갱신한다. */
+    var BULK_REFRESH_MS = 15000;
+
     /**
      * 부분 갱신 경합 토큰.
      * 행을 빠르게 두 번 누르면 응답 순서가 뒤집힐 수 있다. 늦게 온 응답이 새 선택을
@@ -35,6 +43,14 @@
      * 취소를 누르면 보고 있지 않은 집으로 호출이 나간다.
      */
     var paneToken = 0;
+
+    /**
+     * 폴링 경합 토큰과 타이머.
+     * 집을 연속으로 조작하면 앞 폴링이 아직 돌고 있다. 늦게 온 폴링이 새 조작의 결과를
+     * 덮으면 화면이 방금 누른 것과 다른 집·다른 작업을 말한다.
+     */
+    var pollToken = 0;
+    var pollTimer = null;
 
     /** 글자 크기 단계와 저장 키. **init() 보다 위에 둔다** — defer 스크립트라 init 이
         곧바로 실행되는데, var 는 선언만 끌어올려지고 대입은 안 따라온다(값이 undefined). */
@@ -515,6 +531,157 @@
         }
     }
 
+    /* ── 워커 결과 기다리기 (2026-08-24) ───────────────────────────────
+       발주확인·발송처리·취소는 **큐에 들어가고 서버가 바로 답한다**(네이버 HTTP 는
+       WORKER 단일 출구 — 커머스API 호출 IP 3슬롯 계약). 그 직후에 화면을 갱신하면
+       아직 옛 상태다: 사용자에게는 "눌러도 아무 일이 없다"로 보이고, 되돌릴 수 없는
+       조작에서 재클릭을 부른다. 실패는 더 나빴다 — 워커가 남긴 사유가 전체 렌더의
+       실패 띠에만 있어 새로고침 전에는 어디에도 없었다.
+
+       그래서 집의 처리 표식 지문(rev)이 뒤집힐 때까지 짧게 폴링하고, 뒤집히면 화면을
+       조용히 다시 받는다. 성공도 실패도 같은 신호로 잡힌다(워커는 성공 시 last_error 를
+       지우고 실패 시 쓴다 — 둘 다 표식 변화다). */
+
+    /** 돌고 있는 폴링을 끊는다(새 조작·완료·마감). */
+    function stopWatch() {
+        pollToken += 1;
+        if (pollTimer !== null) {
+            window.clearTimeout(pollTimer);
+            pollTimer = null;
+        }
+    }
+
+    /**
+     * 불가역 작업의 결과를 기다렸다가 화면을 다시 그린다.
+     *
+     * @param {string} linkId 조작한 집의 대표 링크 id.
+     * @param {string} baseRev POST 응답이 준 **enqueue 직전** 지문.
+     * @param {string} label 사람이 읽는 작업 이름(발주확인·발송처리·취소).
+     */
+    function watchFulfillment(linkId, baseRev, label) {
+        var id = safeId(linkId);
+        if (!id) {
+            return;
+        }
+        stopWatch();
+        var mine = pollToken;
+        // 시작 시점의 pane 을 기억한다 — 사용자가 다른 집을 열면 이 폴링은 남의 일이 된다.
+        var paneAt = paneToken;
+        var deadline = Date.now() + POLL_TIMEOUT_MS;
+        lockPaneActions();
+        setPaneAck(label + ' 요청을 보냈습니다. 네이버 응답을 기다리는 중…');
+        pollTimer = window.setTimeout(tick, POLL_INTERVAL_MS);
+
+        async function tick() {
+            if (mine !== pollToken || paneAt !== paneToken) {
+                return;
+            }
+            const state = await readFulfillmentState(id);
+            if (mine !== pollToken || paneAt !== paneToken) {
+                return;
+            }
+            if (state && state.rev && state.rev !== baseRev) {
+                stopWatch();
+                await softRefresh();
+                if (state.last_error) {
+                    setPaneAck('네이버 ' + (state.action_label || label) + ' 실패: '
+                        + state.last_error, true);
+                } else {
+                    setPaneAck('네이버 ' + label + ' 완료.');
+                }
+                return;
+            }
+            if (Date.now() >= deadline) {
+                // 무한 폴링 금지. 지금 시점의 서버 사실로 한 번 맞추고 접는다 — 버튼이
+                // 다시 열려도 두 번 나가지 않는다(워커 서비스가 멱등을 지킨다).
+                stopWatch();
+                await softRefresh();
+                setPaneAck(label + ' 결과가 아직 안 왔습니다(네이버 응답 지연). '
+                    + '잠시 뒤 목록에서 다시 확인하세요.');
+                return;
+            }
+            pollTimer = window.setTimeout(tick, POLL_INTERVAL_MS);
+        }
+    }
+
+    /**
+     * 집의 처리 표식을 읽는다. 일시 오류는 null 로 삼키고 다음 회차에 다시 묻는다 —
+     * 마감은 `deadline` 이 쥐고 있어서 여기서 멈추면 오히려 결과를 못 본다.
+     */
+    async function readFulfillmentState(linkId) {
+        try {
+            const response = await fetch(STATE_URL + '?link_id=' + linkId, {
+                credentials: 'same-origin',
+                headers: { 'X-Requested-With': 'XMLHttpRequest' }
+            });
+            if (!response.ok) {
+                return null;
+            }
+            const data = await response.json();
+            return data && data.success ? data.data : null;
+        } catch (error) {
+            return null;
+        }
+    }
+
+    /**
+     * 응답을 기다리는 동안 불가역 버튼을 잠근다 — 되돌릴 수 없는 호출에서 재클릭은
+     * 그 자체가 사고 경로다. 다시 여는 것은 우리가 하지 않는다: 화면을 다시 받으면
+     * 서버 판정대로 열린다(잠금 판정 SSOT 는 서버 하나다).
+     */
+    function lockPaneActions() {
+        ['wb-confirm', 'wb-dispatch', 'wb-cancel', 'wb-create'].forEach(function (id) {
+            var btn = document.getElementById(id);
+            if (btn) {
+                btn.disabled = true;
+            }
+        });
+    }
+
+    /**
+     * 지금 주소를 다시 받아 `.naver-workbench` 를 통째로 갈아 끼운다.
+     *
+     * pane 만 갈면 왼쪽 목록 행의 `발주확인 전` 배지·칩 숫자·탭 숫자가 낡은 채 남아
+     * 한 화면이 두 말을 한다. 이 파일의 배선은 전부 document 위임(규율 ①)이라 하위
+     * 트리를 통째로 바꿔도 죽는 핸들러가 없다 — 그래서 통째 교체가 가능하고,
+     * `location.reload()` 와 달리 스크롤·글자 배율·열린 탭을 잃지 않는다.
+     *
+     * 조각이 아닌 응답(로그인 리다이렉트·오류 페이지)이면 전체 왕복으로 되돌린다.
+     */
+    async function softRefresh() {
+        if (!document.querySelector('.naver-workbench')) {
+            window.location.reload();
+            return false;
+        }
+        try {
+            const response = await fetch(window.location.href, {
+                credentials: 'same-origin',
+                headers: { 'X-Requested-With': 'XMLHttpRequest' }
+            });
+            if (!response.ok) {
+                throw new Error('HTTP ' + response.status);
+            }
+            const html = await response.text();
+            var next = new DOMParser().parseFromString(html, 'text/html')
+                .querySelector('.naver-workbench');
+            var current = document.querySelector('.naver-workbench');
+            if (!next || !current) {
+                throw new Error('workbench root missing');
+            }
+            teardownModals(current);
+            current.replaceWith(next);
+            // 교체로 잃는 것만 되돌린다. 목록 밖 판정은 전체 렌더가 서버에서 다시
+            // 내려주므로 들고 다니던 값 대신 서버 값을 읽는다(이 쪽이 더 정확하다).
+            applyFontScale(readFontScale());
+            syncBulk();
+            paneOfflist = readOfflistFlag();
+            return true;
+        } catch (error) {
+            window.location.reload();
+            return false;
+        }
+    }
+
     /* ── 불가역 액션 (모달 확인 버튼) ─────────────────────────────────── */
 
     /**
@@ -543,9 +710,23 @@
         }
         if (failures.length) {
             // 사유는 삼키지 않는다. 실패 띠(#wb-result)에도 서버가 다시 남긴다.
-            window.alert('실패 ' + failures.length + '집\n' + failures.join('\n'));
+            window.alert('실패 ' + failures.length + '집' + String.fromCharCode(10)
+                + failures.join(String.fromCharCode(10)));
         }
-        window.location.reload();
+        await hideModal(document.getElementById('wb-modal-bulk'));
+        // 벌크는 **폴링하지 않는다**. 집마다 폴링하면 조회가 집 수만큼 곱해진다
+        // (33집이면 최대 858회) — nav 뱃지 부하 측정이 끝나기 전에 얹을 부하가 아니다.
+        // 대신 보내는 중임을 말로 남기고 한 번만 늦게 갱신한다. 결과는 목록에서 본다.
+        setBulkNote(chosen.length + '집에 발주확인을 보냈습니다. 결과를 기다리는 중…');
+        window.setTimeout(function () { softRefresh(); }, BULK_REFRESH_MS);
+    }
+
+    /** 벌크 바 상태 문구 — 폴링 대신 여기로 진행을 말한다. */
+    function setBulkNote(message) {
+        var box = document.getElementById('wb-bulk-note');
+        if (box) {
+            box.textContent = message || '';
+        }
     }
 
     /**
@@ -566,13 +747,11 @@
             btn.disabled = false;
             return;
         }
+        // 갱신을 여기서 바로 하면 아직 워커 전이라 화면이 그대로다 — 결과가 나올 때까지
+        // 기다렸다가 그린다. **모달을 닫기 전에** 시작한다: 닫는 애니메이션(최대 0.6초)
+        // 동안 pane 의 불가역 버튼이 열려 있으면 그 틈에 한 번 더 눌린다.
+        watchFulfillment(id, result.data && result.data.rev, '발주확인');
         await hideModal(document.getElementById('wb-modal-confirm'));
-        var row = document.querySelector('a.wb-row[data-link-id="' + id + '"]');
-        await loadPane(id, row ? row.href : window.location.href);
-        // 발주확인은 **큐에 넣기만** 한다 — pane 을 다시 받아도 화면이 그대로다.
-        // 아무 표시가 없으면 사람은 안 눌렸다고 보고 한 번 더 누른다. 불가역 호출에서
-        // 재클릭은 그 자체가 사고 경로라 성공을 말로 남긴다.
-        setPaneAck('발주확인을 보냈습니다. 네이버 응답은 잠시 뒤 목록에 반영됩니다.');
     }
 
     /**
@@ -606,7 +785,8 @@
             btn.disabled = false;
             return;
         }
-        window.location.reload();
+        watchFulfillment(id, result.data && result.data.rev, '발송처리');
+        await hideModal(document.getElementById('wb-modal-dispatch'));
     }
 
     /**
@@ -633,7 +813,8 @@
             btn.disabled = false;
             return;
         }
-        window.location.reload();
+        watchFulfillment(id, result.data && result.data.rev, '취소');
+        await hideModal(document.getElementById('wb-modal-cancel'));
     }
 
     /**
@@ -777,10 +958,16 @@
             }
         }
         if (stillFailing.length) {
-            window.alert('다시 시도했지만 ' + stillFailing.length + '집이 또 실패했습니다.\n'
-                + stillFailing.join('\n'));
+            window.alert('다시 시도했지만 ' + stillFailing.length + '집이 또 실패했습니다.'
+                + String.fromCharCode(10) + stillFailing.join(String.fromCharCode(10)));
         }
-        window.location.reload();
+        // 재시도도 큐에 들어간다 — 바로 갱신하면 옛 실패 띠를 다시 그린다. 벌크와 같은
+        // 규칙으로 한 번만 늦게 받는다(집마다 폴링하지 않는다).
+        var note = document.getElementById('wb-retry-note');
+        if (note) {
+            note.textContent = pairs.length + '집을 다시 보냈습니다. 결과를 기다리는 중…';
+        }
+        window.setTimeout(function () { softRefresh(); }, BULK_REFRESH_MS);
     }
 
     /** 지금 수집 — 큐에 넣기만 한다. 네이버 HTTP 는 WORKER 에서만 나간다(호출 IP 한도 3). */

@@ -19,7 +19,7 @@
 {% block title %}네이버 수집{% endblock %}
 
 {% block styles %}
-<link rel="stylesheet" href="{{ url_for('static', filename='css/admin/naver-workbench.css') }}?v=20260824g">
+<link rel="stylesheet" href="{{ url_for('static', filename='css/admin/naver-workbench.css') }}?v=20260824h">
 {% endblock %}
 
 {% block content %}
@@ -97,6 +97,8 @@
                     data-link-ids="{% for row in retryable %}{{ row.link_id }}:{{ row.action }}{% if not loop.last %},{% endif %}{% endfor %}">
                 실패한 {{ retryable|length }}집만 다시 시도
             </button>
+            {# 재시도도 큐에 들어간다 — 누른 직후의 화면은 아직 옛 상태다(벌크와 같은 규칙). #}
+            <span class="wb-result__note small" id="wb-retry-note" role="status" aria-live="polite"></span>
             {% endif %}
             {% if failures|length > retryable|length %}
             <div class="small mt-1">
@@ -152,6 +154,9 @@
             선택한 집 발주확인 보내기
         </button>
         <button type="button" class="btn btn-outline-secondary btn-sm" id="wb-bulk-clear">선택 해제</button>
+        {# 벌크는 폴링하지 않는다(집 수만큼 조회가 곱해진다) — 진행을 여기서 말로 남기고
+           잠시 뒤 화면을 한 번 다시 받는다. 비어 있으면 자리를 차지하지 않는다. #}
+        <span class="wb-bulk__note" id="wb-bulk-note" role="status" aria-live="polite"></span>
         <span class="wb-bulk__spacer"></span>
         <span class="wb-bulk__why">여러 집을 한 번에 보낼 때만 씁니다. 한 집이면 오른쪽 상세에서 바로.</span>
     </div>
@@ -512,5 +517,5 @@
 {% endblock %}
 
 {% block scripts %}
-<script src="{{ url_for('static', filename='js/admin/naver-workbench.js') }}?v=20260824g" defer></script>
+<script src="{{ url_for('static', filename='js/admin/naver-workbench.js') }}?v=20260824h" defer></script>
 {% endblock %}

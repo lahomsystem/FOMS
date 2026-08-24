@@ -184,6 +184,9 @@
 #wb-bulk-n { font-weight: 700; color: var(--wb-accent, #2563eb); font-variant-numeric: tabular-nums; }
 .wb-bulk__spacer { flex: 1; }
 .wb-bulk__why { font-size: calc(11px * var(--wb-fs, 1)); color: var(--wb-muted); }
+/* 벌크 진행 문구 — 비어 있으면 자리를 차지하지 않는다(폴링 대신 여기로 말한다). */
+.wb-bulk__note { font-size: calc(11px * var(--wb-fs, 1)); color: var(--wb-accent, #2563eb); }
+.wb-bulk__note:empty { display: none; }
 /* 전역 `.btn { padding: 10px 20px !important }`(style-pro-max.css) 대응 — 다른 좁은 칸과
    같은 함정이라 같은 처방(줄바꿈만 막는다, !important 를 더 얹지 않는다). */
 .naver-workbench #wb-bulk .btn { white-space: nowrap; font-size: calc(12px * var(--wb-fs, 1)); }
@@ -416,6 +419,9 @@ input.wb-pick:disabled,
    칸을 넓히고 줄바꿈을 막는다 — 지역 CSS 에 !important 를 더 얹지 않는다. */
 .naver-workbench .wb-result__ack .btn { white-space: nowrap; font-size: calc(12px * var(--wb-fs, 1)); }
 .wb-result__foot { margin-top: 10px; }
+/* 재시도 진행 문구 — 벌크와 같은 규칙(누른 직후는 아직 워커 전이다). */
+.wb-result__note { margin-left: 8px; font-size: calc(11px * var(--wb-fs, 1)); }
+.wb-result__note:empty { display: none; }
 
 /* ── 관계 축 (추가결제·재결제) ─────────────────────────────────────────
    대조표 아래 한 덩어리. 붙이기는 되돌릴 수 있는 조작이라 경고색을 쓰지 않는다 —

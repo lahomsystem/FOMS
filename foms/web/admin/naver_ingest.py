@@ -15,6 +15,7 @@ web 에서 부르면 등록되지 않은 IP 라 차단된다. 취향이 아니�
 from __future__ import annotations
 
 import datetime
+import hashlib
 import logging
 from typing import Any, Optional
 
@@ -782,6 +783,48 @@ def naver_ingest_triage_pane() -> str:
                            **_pane_context(db, link))
 
 
+@admin_bp.route("/admin/naver-ingest/triage/fulfillment-state")
+@login_required
+@role_required(["ADMIN", "MANAGER", "STAFF"])
+def naver_ingest_fulfillment_state():
+    """집의 워커 처리 표식만 돌려준다 — 화면이 "언제 뒤집혔는지" 물어보는 자리.
+
+    불가역 3종(발주확인·발송처리·취소)은 큐에 들어가고 web 은 바로 답한다. 화면이 그
+    직후에 갱신하면 아직 옛 상태다 — 사용자에게는 "눌러도 아무 일이 없다"로 보인다.
+    화면은 이 경로를 짧게 폴링해 표식이 뒤집히면 그때 다시 그린다.
+
+    읽기 전용 GET 이다(mutation 이 아니라 write manifest 등재도 감사 라벨도 없다).
+    **판정은 하지 않는다** — 무엇을 눌러도 되는지는 pane 이 혼자 정한다
+    (:func:`_fulfillment_state` docstring 참조).
+
+    Query:
+        ``link_id``: 기준 링크 id(필수). 이 링크가 속한 **집 전체**를 센다.
+
+    Returns:
+        ``{"success": True, "data": _fulfillment_state(...)}``. 게이트 OFF 는 404
+        (그 화면에는 이 경로가 없다), ``link_id`` 누락은 400, 없는 링크는 404.
+    """
+    from foms.services.feature_flags import is_naver_workbench_enabled
+
+    if not is_naver_workbench_enabled(session.get("user_id")):
+        return jsonify({"success": False, "data": None,
+                        "error": "이 화면에서는 쓸 수 없습니다."}), 404
+    link_id = request.args.get("link_id", type=int)
+    if not link_id:
+        return jsonify({"success": False, "data": None,
+                        "error": "link_id 가 필요합니다."}), 400
+    db = get_db()
+    link = _link_by_id(db, link_id)
+    if link is None:
+        return jsonify({"success": False, "data": None,
+                        "error": "수집분을 찾을 수 없습니다."}), 404
+    return jsonify({"success": True, "data": _fulfillment_state(db, link), "error": None})
+
+
+#: 불가역 작업 3종의 한글 라벨. 실패 띠와 폴링 응답이 **같은 표**를 쓴다 — 두 벌이면
+#: 같은 실패가 화면 자리마다 다른 이름으로 불린다.
+FULFILLMENT_ACTION_LABELS = {"confirm": "발주확인", "dispatch": "발송처리", "cancel": "취소"}
+
 #: 통합 화면의 탭 — 두 URL 왕복을 없앤 자리(설계 결정 1). v3 에서 ``place``·``claim`` 은
 #: 탭이 아니라 **같은 목록의 필터 칩**으로 내려왔다(한 집 처리하려고 탭을 오가던 통증).
 WORKBENCH_TABS = ("work", "all")
@@ -962,8 +1005,7 @@ def _failure_rows(db) -> list[dict[str, Any]]:
             "external_order_no": link.external_order_no or "",
             "reason": reason,
             "action": action,
-            "action_label": {"confirm": "발주확인", "dispatch": "발송처리",
-                             "cancel": "취소"}[action],
+            "action_label": FULFILLMENT_ACTION_LABELS[action],
             # 취소는 사유를 다시 골라야 해서 버튼 하나로 되보낼 수 없다. 재시도 목록에
             # 넣으면 그 집이 **발주확인**으로 나간다 — 취소하려던 집에 되돌릴 수 없는
             # 반대 조작이 나가는 자리다. 상세 pane 에서 사유와 함께 다시 보낸다.
@@ -1316,6 +1358,25 @@ def _group_of_link(db, link: ExternalOrderLink) -> Optional[dict[str, Any]]:
     Returns:
         그 링크가 속한 묶음(없으면 None).
     """
+    return _household_of_link(db, link)[0]
+
+
+def _household_of_link(db, link: ExternalOrderLink
+                       ) -> tuple[Optional[dict[str, Any]], list[ExternalOrderLink]]:
+    """:func:`_group_of_link` 의 본체 — 집과 **그 집을 만든 링크 행**을 함께 준다.
+
+    링크 행까지 돌려주는 이유는 하나다: 폴링용 상태 조회
+    (:func:`_fulfillment_state`)가 멤버의 ``triage_state`` 를 읽어야 하는데, 집만 받으면
+    같은 링크를 한 번 더 조회하게 된다(조회 3회). 그루핑 규칙은 여기서도
+    :func:`_group_queue` 하나뿐이다 — 규칙을 두 벌로 만들지 않는다.
+
+    Args:
+        db: 요청 스코프 DB 세션.
+        link: 선택된 링크.
+
+    Returns:
+        ``(묶음(없으면 None), 주문번호로 읽은 링크 행 전부)``.
+    """
     order_no = (link.external_order_no or "").strip()
     if order_no:
         rows = (
@@ -1332,7 +1393,72 @@ def _group_of_link(db, link: ExternalOrderLink) -> Optional[dict[str, Any]]:
     if order_ids:
         orders = {o.id: o for o in db.query(Order).filter(Order.id.in_(order_ids)).all()}
     groups = _group_queue(rows, orders, truncated=False)
-    return next((group for group in groups if link.id in group["link_ids"]), None)
+    group = next((group for group in groups if link.id in group["link_ids"]), None)
+    return group, rows
+
+
+def _fulfillment_state(db, link: ExternalOrderLink) -> dict[str, Any]:
+    """집의 **워커 처리 표식**만 요약한다 — 화면 판정은 하지 않는다.
+
+    web 라우트는 큐에 넣고 바로 답한다(네이버 HTTP 는 WORKER 단일 출구). 그래서 버튼을
+    누른 직후의 화면은 아직 옛 상태다. 화면이 "언제 뒤집혔는지" 알려면 물어볼 곳이
+    있어야 하는데, 그 자리에서 ``can_confirm``·``can_dispatch`` 같은 **판정을 다시 만들면
+    모집단이 두 벌이 된다**(v3 리뷰 H1 이 그 갈라짐에서 나왔다). 여기서는 워커가 쓴 원시
+    표식과 그 지문만 돌려주고, 무엇을 눌러도 되는지는 :func:`_pane_context` 가 그대로
+    혼자 정한다.
+
+    집 정의도 :func:`_household_of_link`(주문번호 + ``household_key``)를 그대로 쓴다 —
+    모달이 재진술하는 집과 폴링이 보는 집이 갈리면 안 된다(계약 §0-2).
+
+    Args:
+        db: 요청 스코프 DB 세션.
+        link: 기준 링크(이 링크가 속한 **집 전체**를 센다).
+
+    Returns:
+        ``link_id``·``total``·``confirmed``·``dispatched``·``canceled``·
+        ``last_error``·``last_error_at``·``last_error_action``·``action_label``·``rev``.
+        ``rev`` 는 표식 지문이다 — 성공이든 실패든 표식이 바뀌면 값이 바뀐다(워커는 성공
+        시 ``last_error*`` 를 지우므로 그것도 변화다). ``hash()`` 는 쓰지 않는다
+        (PYTHONHASHSEED 로 프로세스마다 달라져 워커·웹 사이에서 못 쓴다).
+    """
+    group, rows = _household_of_link(db, link)
+    member_ids = set(group["link_ids"]) if group else {link.id}
+    members = sorted((row for row in rows if row.id in member_ids), key=lambda row: row.id)
+    if not members:
+        members = [link]
+    marks: list[str] = []
+    confirmed = dispatched = canceled = 0
+    last_error = last_error_at = last_error_action = ""
+    for row in members:
+        state = (row.triage_state or {}).get("fulfillment") or {}
+        at_confirm = str(state.get("place_confirmed_at") or "")
+        at_dispatch = str(state.get("dispatched_at") or "")
+        at_cancel = str(state.get("canceled_at") or "")
+        at_error = str(state.get("last_error_at") or "")
+        confirmed += 1 if at_confirm else 0
+        dispatched += 1 if at_dispatch else 0
+        canceled += 1 if at_cancel else 0
+        # 형제마다 따로 실패할 수 있다(발송처리는 건별로 성공/실패한다) — 가장 최근 것을
+        # 대표로 보인다. 사유를 삼키지 않는 자리는 전체 렌더의 실패 띠가 계속 맡는다.
+        if at_error and at_error > last_error_at:
+            last_error_at = at_error
+            last_error = str(state.get("last_error") or "")
+            last_error_action = str(state.get("last_error_action") or "")
+        marks.append(f"{row.id}|{at_confirm}|{at_dispatch}|{at_cancel}|{at_error}")
+    action = last_error_action.strip().lower()
+    action = action if action in FULFILLMENT_ACTION_LABELS else ""
+    return {
+        "link_id": link.id,
+        "total": len(members),
+        "confirmed": confirmed,
+        "dispatched": dispatched,
+        "canceled": canceled,
+        "last_error": last_error,
+        "last_error_at": last_error_at,
+        "last_error_action": action,
+        "action_label": FULFILLMENT_ACTION_LABELS.get(action, ""),
+        "rev": hashlib.sha1(";".join(marks).encode("utf-8")).hexdigest()[:16],
+    }
 
 
 def _member_rows(db, selected_group: Optional[dict]) -> list[dict[str, Any]]:
@@ -1621,6 +1747,13 @@ def naver_ingest_fulfillment(link_id: int):
 
     from foms.services.jobs.queue import enqueue_naver_fulfillment
 
+    # 기준 지문은 **enqueue 앞에서** 잡는다. 뒤에서 잡으면 워커가 이미 끝냈을 때 화면이
+    # 뒤집힘을 영원히 못 보고 타임아웃 문구로 접힌다. 화면이 POST 전에 따로 물어보게 하면
+    # 그 사이 레이스가 생기고 왕복도 는다 — 레이스가 없는 유일한 지점이 여기다.
+    db = get_db()
+    link = _link_by_id(db, link_id)
+    base_rev = _fulfillment_state(db, link)["rev"] if link is not None else ""
+
     queued = enqueue_naver_fulfillment(link_id, action, session.get("user_id"))
     if not queued:
         return jsonify({"success": False, "data": None,
@@ -1634,7 +1767,9 @@ def naver_ingest_fulfillment(link_id: int):
         detail={"link_id": link_id, "action": action},
     )
     return jsonify({"success": True,
-                    "data": {"link_id": link_id, "action": action, "queued": True},
+                    # rev: 화면이 이 값이 바뀔 때까지 폴링한다(naver_ingest_fulfillment_state).
+                    "data": {"link_id": link_id, "action": action, "queued": True,
+                             "rev": base_rev},
                     "error": None})
 
 
@@ -1667,6 +1802,11 @@ def naver_ingest_cancel(link_id: int):
 
     from foms.services.jobs.queue import enqueue_naver_cancel
 
+    # 기준 지문은 enqueue 앞에서(발주확인·발송처리와 같은 이유).
+    db = get_db()
+    link = _link_by_id(db, link_id)
+    base_rev = _fulfillment_state(db, link)["rev"] if link is not None else ""
+
     queued = enqueue_naver_cancel(link_id, reason, detail or None, session.get("user_id"))
     if not queued:
         return jsonify({"success": False, "data": None,
@@ -1679,7 +1819,8 @@ def naver_ingest_cancel(link_id: int):
         detail={"link_id": link_id, "reason": reason, "cancel_detail": detail},
     )
     return jsonify({"success": True,
-                    "data": {"link_id": link_id, "reason": reason, "queued": True},
+                    "data": {"link_id": link_id, "reason": reason, "queued": True,
+                             "rev": base_rev},
                     "error": None})
 
 
