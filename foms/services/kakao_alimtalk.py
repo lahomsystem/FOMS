@@ -31,7 +31,7 @@ from foms.services.datetime_kst import now_utc_naive
 from foms.services.erp_display import erp_deposit_amount_from_structured
 from foms.services.order_date_sync import _normalize_date_str
 from foms.services.sidefx_outbox import enqueue_side_effect
-from models import DomainSideEffectOutbox, Order, OrderEvent
+from models import DomainSideEffectOutbox, Order, OrderEvent, User
 
 __all__ = [
     "ALIMTALK_TEMPLATE_MEASURE",
@@ -514,6 +514,27 @@ def _dispatch(sd: dict) -> tuple[str | None, str | None]:
 # ---------------------------------------------------------------------------
 
 
+def _resolve_sender_name(session: Session, sent_by: int | None) -> str | None:
+    """발송 시점의 사용자 표시명을 이력에 함께 굳힌다(자동 발송이면 ``None``).
+
+    화면의 발송 흔적 칩은 추가 요청 없이 ``structured_data`` 만 읽어 그리므로 읽기 시점에
+    id 를 이름으로 바꿀 기회가 없다. 이름이 나중에 바뀌어도 '그때 보낸 사람'이 남는 편이
+    이력으로 옳다(T15).
+
+    Args:
+        session: 기록 트랜잭션의 세션.
+        sent_by: 수동 발송자 user id(자동이면 ``None``).
+
+    Returns:
+        표시명. 자동 발송이거나 사용자를 찾을 수 없으면 ``None``.
+    """
+    if sent_by is None:
+        return None
+    user = session.get(User, int(sent_by))
+    name = getattr(user, "name", None) if user is not None else None
+    return str(name) if name else None
+
+
 def _record_history(
     session: Session,
     order: Order,
@@ -537,6 +558,11 @@ def _record_history(
         "dedupe_key": dedupe_key,
         "error": error,
         "sent_by": sent_by,
+        "sent_by_name": _resolve_sender_name(session, sent_by),
+        # 채널(카톡 ATA / 문자 대체발송 SMS·LMS)은 발송 직후엔 알 수 없다 — 카톡이 실패해야
+        # 벤더가 바꾸기 때문이다. 1분 뒤 조회가 채운다(confirm_channel). None = 미확정.
+        "channel": None,
+        "channel_checked_at": None,
     }
     order.structured_data = sd
     flag_modified(order, "structured_data")
