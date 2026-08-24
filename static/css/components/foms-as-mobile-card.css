@@ -599,7 +599,9 @@
     gap: 0.25rem;
     flex: 1 1 0;
     min-width: 56px;
-    min-height: 34px;
+    /* 장갑 낀 손 기준 터치 타깃 44px(목업 2-A③). 기존 34px 는 손가락이 빗나갔다.
+       폭은 그대로라 카드 안쪽 352px 에 4개(개당 83px)가 계속 한 줄로 들어간다. */
+    min-height: 44px;
     padding: 0 0.375rem;
     border: 1px solid var(--foms-border-subtle, #dde1e6);
     border-radius: var(--foms-radius-md, 8px);
@@ -745,6 +747,374 @@
 
   body.erp-mobile-v2-layout .erp-as-dashboard[data-erp-mobile-v2='true'] .as-timeline__notes-body {
     font-size: 0.75rem;
+  }
+
+  /* ── AS 재접수 / 건(cycle) 표식 (목업 2-A~2-D) ──────────────────────────────
+     PC 표(as-dashboard-body.css)와 **같은 클래스 이름**을 쓰되 밀도만 모바일로 맞춘다.
+     보라 = 'AS 건', 빨강 = '재발', 회색 = '이력 시작 전' — 세 표식의 의미는 전 표면 공통.
+     팔레트에 보라 계열 토큰이 --foms-stage-drawing 하나뿐이라 로컬 별칭으로 받아 쓴다
+     (다크 모드에서도 함께 밝아진다). 이 화면에는 도면 배지가 없어 의미 충돌이 없다. */
+  body.erp-mobile-v2-layout .erp-as-dashboard[data-erp-mobile-v2='true'] .erp-as-mobile-card--v2 {
+    --erp-as-cycle-accent: var(--foms-stage-drawing, #8b5cf6);
+  }
+
+  body.erp-mobile-v2-layout .erp-as-dashboard[data-erp-mobile-v2='true'] .erp-as-mobile-card__marks {
+    display: flex;
+    flex-wrap: wrap;
+    align-items: center;
+    gap: 0.25rem;
+    min-width: 0;
+  }
+
+  body.erp-mobile-v2-layout .erp-as-dashboard[data-erp-mobile-v2='true'] .erp-as-cycle-badge,
+  body.erp-mobile-v2-layout .erp-as-dashboard[data-erp-mobile-v2='true'] .erp-as-recur-chip,
+  body.erp-mobile-v2-layout .erp-as-dashboard[data-erp-mobile-v2='true'] .erp-as-cycle-legacy {
+    display: inline-flex;
+    align-items: center;
+    min-height: 20px;
+    padding: 1px 8px;
+    border-radius: var(--foms-radius-full, 9999px);
+    font-size: 0.6875rem;
+    font-weight: var(--foms-font-weight-bold, 700);
+    line-height: 1.4;
+    white-space: nowrap;
+  }
+
+  body.erp-mobile-v2-layout .erp-as-dashboard[data-erp-mobile-v2='true'] .erp-as-cycle-badge {
+    border: 1px solid color-mix(in srgb, var(--erp-as-cycle-accent, #8b5cf6) 40%, transparent);
+    background: color-mix(in srgb, var(--erp-as-cycle-accent, #8b5cf6) 12%, transparent);
+    color: var(--erp-as-cycle-accent, #8b5cf6);
+  }
+
+  body.erp-mobile-v2-layout .erp-as-dashboard[data-erp-mobile-v2='true'] .erp-as-recur-chip {
+    border: 1px solid color-mix(in srgb, var(--foms-stage-cs, #ef4444) 42%, transparent);
+    background: color-mix(in srgb, var(--foms-stage-cs, #ef4444) 12%, transparent);
+    color: var(--foms-stage-cs, #ef4444);
+  }
+
+  body.erp-mobile-v2-layout .erp-as-dashboard[data-erp-mobile-v2='true'] .erp-as-cycle-legacy {
+    border: 1px solid var(--foms-border-subtle, #dde1e6);
+    background: var(--foms-surface-muted, #eef0f3);
+    color: var(--foms-text-secondary, #4b525d);
+  }
+
+  body.erp-mobile-v2-layout .erp-as-dashboard[data-erp-mobile-v2='true'] .erp-as-unknown-date {
+    color: var(--foms-text-tertiary, #6b7380);
+    font-weight: var(--foms-font-weight-medium, 500);
+  }
+
+  /* 지난 AS 한 줄 — 값이 있는 조각만 서버가 렌더한다(템플릿에서 빈 값 차단). */
+  body.erp-mobile-v2-layout .erp-as-dashboard[data-erp-mobile-v2='true'] .erp-as-mobile-card__prev {
+    display: flex;
+    align-items: baseline;
+    gap: 0.375rem;
+    min-width: 0;
+    padding: 0.3125rem 0.5rem;
+    border-radius: var(--foms-radius-md, 8px);
+    background: color-mix(in srgb, var(--erp-as-cycle-accent, #8b5cf6) 7%, transparent);
+    font-size: 0.71875rem;
+    line-height: 1.35;
+  }
+
+  body.erp-mobile-v2-layout .erp-as-dashboard[data-erp-mobile-v2='true'] .erp-as-mobile-card__prev-label {
+    flex: 0 0 auto;
+    color: var(--erp-as-cycle-accent, #8b5cf6);
+    font-weight: var(--foms-font-weight-bold, 700);
+  }
+
+  body.erp-mobile-v2-layout .erp-as-dashboard[data-erp-mobile-v2='true'] .erp-as-mobile-card__prev-value {
+    min-width: 0;
+    color: var(--foms-text-secondary, #4b525d);
+    overflow-wrap: anywhere;
+  }
+
+  /* 재접수는 액션 칩 줄에 5번째로 끼우지 않는다 — flex-basis 100% 로 자기 줄을 통째로 쓴다.
+     (카드 안쪽 352px 에 칩 5개면 개당 65px 로 글자가 빠듯하다. 기존 칩 4개는 폭 그대로
+     높이만 44px 로 올렸다 — 목업 2-A③.) */
+  body.erp-mobile-v2-layout .erp-as-dashboard[data-erp-mobile-v2='true'] .erp-as-mobile-card__action--reintake {
+    flex: 1 1 100%;
+    min-height: 48px;
+    padding: 0 0.75rem;
+    border-color: transparent;
+    background: var(--erp-as-cycle-accent, #8b5cf6);
+    color: #fff;
+    font-size: 0.8125rem;
+  }
+
+  body.erp-mobile-v2-layout .erp-as-dashboard[data-erp-mobile-v2='true'] .erp-as-mobile-card__action--reintake i {
+    font-size: 0.8125rem;
+  }
+
+  body.erp-mobile-v2-layout .erp-as-dashboard[data-erp-mobile-v2='true'] .erp-as-mobile-card__action-sub {
+    font-weight: var(--foms-font-weight-medium, 500);
+    opacity: 0.86;
+  }
+
+  /* ── 재접수 바텀시트 (목업 2-B) ────────────────────────────────────────────
+     Bootstrap offcanvas-bottom 위에 얹는다. 제출 버튼은 시트 하단 고정(엄지 자리). */
+  body.erp-mobile-v2-layout .erp-as-dashboard[data-erp-mobile-v2='true'] .erp-as-reintake-sheet {
+    --erp-as-cycle-accent: var(--foms-stage-drawing, #8b5cf6);
+    display: flex;
+    flex-direction: column;
+    max-height: 88vh;
+    height: auto;
+    border-top-left-radius: var(--foms-radius-lg, 12px);
+    border-top-right-radius: var(--foms-radius-lg, 12px);
+    background: var(--foms-surface-base, #fff);
+    color: var(--foms-text-primary, #14171c);
+  }
+
+  body.erp-mobile-v2-layout .erp-as-dashboard[data-erp-mobile-v2='true'] .erp-as-reintake-sheet__head {
+    align-items: flex-start;
+    gap: 0.5rem;
+    padding: 0.75rem 1rem 0.5rem;
+    border-bottom: 1px solid var(--foms-border-subtle, #dde1e6);
+  }
+
+  body.erp-mobile-v2-layout .erp-as-dashboard[data-erp-mobile-v2='true'] .erp-as-reintake-sheet__heading {
+    min-width: 0;
+  }
+
+  body.erp-mobile-v2-layout .erp-as-dashboard[data-erp-mobile-v2='true'] .erp-as-reintake-sheet__title {
+    margin: 0;
+    font-size: 1.0625rem;
+    font-weight: var(--foms-font-weight-bold, 700);
+  }
+
+  body.erp-mobile-v2-layout .erp-as-dashboard[data-erp-mobile-v2='true'] .erp-as-reintake-sheet__sub {
+    margin: 0.125rem 0 0;
+    color: var(--foms-text-secondary, #4b525d);
+    font-size: 0.75rem;
+  }
+
+  body.erp-mobile-v2-layout .erp-as-dashboard[data-erp-mobile-v2='true'] .erp-as-reintake-sheet__body {
+    display: flex;
+    flex-direction: column;
+    gap: 0.625rem;
+    padding: 0.75rem 1rem;
+    overflow-y: auto;
+  }
+
+  body.erp-mobile-v2-layout .erp-as-dashboard[data-erp-mobile-v2='true'] .erp-as-reintake-sheet__prev {
+    border: 1px solid var(--foms-border-subtle, #dde1e6);
+    border-radius: var(--foms-radius-md, 8px);
+    background: var(--foms-surface-raised, #f7f8fa);
+  }
+
+  body.erp-mobile-v2-layout .erp-as-dashboard[data-erp-mobile-v2='true'] .erp-as-reintake-sheet__prev-summary {
+    display: flex;
+    align-items: center;
+    min-height: 44px;
+    padding: 0 0.75rem;
+    color: var(--erp-as-cycle-accent, #8b5cf6);
+    font-size: 0.8125rem;
+    font-weight: var(--foms-font-weight-bold, 700);
+    cursor: pointer;
+  }
+
+  body.erp-mobile-v2-layout .erp-as-dashboard[data-erp-mobile-v2='true'] .erp-as-reintake-sheet__prev-body {
+    padding: 0 0.75rem 0.625rem;
+    color: var(--foms-text-secondary, #4b525d);
+    font-size: 0.78125rem;
+    line-height: 1.5;
+  }
+
+  body.erp-mobile-v2-layout .erp-as-dashboard[data-erp-mobile-v2='true'] .erp-as-reintake-sheet__field {
+    display: flex;
+    flex-direction: column;
+    gap: 0.3125rem;
+    min-width: 0;
+  }
+
+  body.erp-mobile-v2-layout .erp-as-dashboard[data-erp-mobile-v2='true'] .erp-as-reintake-sheet__label {
+    color: var(--foms-text-primary, #14171c);
+    font-size: 0.8125rem;
+    font-weight: var(--foms-font-weight-bold, 700);
+  }
+
+  body.erp-mobile-v2-layout .erp-as-dashboard[data-erp-mobile-v2='true'] .erp-as-reintake-sheet__textarea {
+    width: 100%;
+    min-height: 88px;
+    padding: 0.5rem 0.625rem;
+    border: 1px solid var(--foms-border-default, #c1c7d0);
+    border-radius: var(--foms-radius-md, 8px);
+    background: var(--foms-surface-base, #fff);
+    color: var(--foms-text-primary, #14171c);
+    /* 16px 미만이면 iOS 가 포커스 시 페이지를 확대한다(시트가 화면 밖으로 밀림). */
+    font-size: 1rem;
+    line-height: 1.45;
+    resize: vertical;
+  }
+
+  body.erp-mobile-v2-layout .erp-as-dashboard[data-erp-mobile-v2='true'] .erp-as-reintake-sheet__hint {
+    color: var(--foms-text-tertiary, #6b7380);
+    font-size: 0.71875rem;
+    line-height: 1.4;
+  }
+
+  /* 체크박스는 글자까지 통째로 누를 수 있게 <label> 이 감싼다(누를 면적 = 줄 전체). */
+  body.erp-mobile-v2-layout .erp-as-dashboard[data-erp-mobile-v2='true'] .erp-as-reintake-sheet__check {
+    display: flex;
+    align-items: center;
+    gap: 0.5rem;
+    min-height: 52px;
+    margin: 0;
+    padding: 0 0.75rem;
+    border: 1px solid var(--foms-border-subtle, #dde1e6);
+    border-radius: var(--foms-radius-md, 8px);
+    background: var(--foms-surface-base, #fff);
+    cursor: pointer;
+  }
+
+  body.erp-mobile-v2-layout .erp-as-dashboard[data-erp-mobile-v2='true'] .erp-as-reintake-sheet__check input {
+    flex: 0 0 auto;
+    width: 22px;
+    height: 22px;
+    margin: 0;
+    accent-color: var(--erp-as-cycle-accent, #8b5cf6);
+  }
+
+  body.erp-mobile-v2-layout .erp-as-dashboard[data-erp-mobile-v2='true'] .erp-as-reintake-sheet__check-text {
+    display: flex;
+    flex-direction: column;
+    gap: 0.125rem;
+    min-width: 0;
+    font-size: 0.8125rem;
+    font-weight: var(--foms-font-weight-bold, 700);
+  }
+
+  body.erp-mobile-v2-layout .erp-as-dashboard[data-erp-mobile-v2='true'] .erp-as-reintake-sheet__check-sub {
+    color: var(--foms-text-tertiary, #6b7380);
+    font-size: 0.71875rem;
+    font-weight: var(--foms-font-weight-normal, 400);
+  }
+
+  body.erp-mobile-v2-layout .erp-as-dashboard[data-erp-mobile-v2='true'] .erp-as-reintake-sheet__costlock {
+    display: flex;
+    align-items: center;
+    gap: 0.5rem;
+    min-height: 52px;
+    padding: 0 0.75rem;
+    border: 1px dashed var(--foms-border-default, #c1c7d0);
+    border-radius: var(--foms-radius-md, 8px);
+    background: var(--foms-surface-raised, #f7f8fa);
+    color: var(--foms-text-secondary, #4b525d);
+  }
+
+  body.erp-mobile-v2-layout .erp-as-dashboard[data-erp-mobile-v2='true'] .erp-as-reintake-sheet__costlock-text {
+    display: flex;
+    flex-direction: column;
+    gap: 0.125rem;
+    min-width: 0;
+    font-size: 0.8125rem;
+  }
+
+  body.erp-mobile-v2-layout .erp-as-dashboard[data-erp-mobile-v2='true'] .erp-as-reintake-sheet__costlock-sub {
+    color: var(--foms-text-tertiary, #6b7380);
+    font-size: 0.71875rem;
+  }
+
+  body.erp-mobile-v2-layout .erp-as-dashboard[data-erp-mobile-v2='true'] .erp-as-reintake-sheet__office {
+    padding: 1px 6px;
+    border-radius: var(--foms-radius-full, 9999px);
+    background: var(--foms-chip-badge-bg, #eef0f3);
+    color: var(--foms-text-secondary, #4b525d);
+    font-size: 0.6875rem;
+  }
+
+  body.erp-mobile-v2-layout .erp-as-dashboard[data-erp-mobile-v2='true'] .erp-as-reintake-sheet__seg {
+    display: flex;
+    gap: 0.375rem;
+  }
+
+  body.erp-mobile-v2-layout .erp-as-dashboard[data-erp-mobile-v2='true'] .erp-as-reintake-sheet__seg-btn {
+    flex: 1 1 0;
+    min-height: 44px;
+    padding: 0 0.5rem;
+    border: 1px solid var(--foms-border-subtle, #dde1e6);
+    border-radius: var(--foms-radius-md, 8px);
+    background: var(--foms-surface-base, #fff);
+    color: var(--foms-text-primary, #14171c);
+    font-size: 0.8125rem;
+    font-weight: var(--foms-font-weight-bold, 700);
+    cursor: pointer;
+  }
+
+  body.erp-mobile-v2-layout .erp-as-dashboard[data-erp-mobile-v2='true'] .erp-as-reintake-sheet__seg-btn.is-on {
+    border-color: transparent;
+    background: var(--foms-interactive-primary, #5a67d8);
+    color: #fff;
+  }
+
+  body.erp-mobile-v2-layout .erp-as-dashboard[data-erp-mobile-v2='true'] .erp-as-reintake-sheet__amount-input {
+    width: 100%;
+    min-height: 44px;
+    padding: 0 0.625rem;
+    border: 1px solid var(--foms-border-default, #c1c7d0);
+    border-radius: var(--foms-radius-md, 8px);
+    background: var(--foms-surface-base, #fff);
+    color: var(--foms-text-primary, #14171c);
+    font-size: 1rem;
+  }
+
+  body.erp-mobile-v2-layout .erp-as-dashboard[data-erp-mobile-v2='true'] .erp-as-reintake-sheet__photo {
+    display: flex;
+    align-items: center;
+    gap: 0.5rem;
+    min-height: 52px;
+    padding: 0 0.75rem;
+    border: 1px dashed color-mix(in srgb, var(--foms-interactive-primary, #5a67d8) 45%, transparent);
+    border-radius: var(--foms-radius-md, 8px);
+    background: var(--foms-interactive-primary-soft, #f3f4ff);
+    color: var(--foms-interactive-primary, #5a67d8);
+    font-size: 0.8125rem;
+    font-weight: var(--foms-font-weight-bold, 700);
+    cursor: pointer;
+  }
+
+  body.erp-mobile-v2-layout .erp-as-dashboard[data-erp-mobile-v2='true'] .erp-as-reintake-sheet__photo-text {
+    flex: 1 1 auto;
+    text-align: left;
+  }
+
+  body.erp-mobile-v2-layout .erp-as-dashboard[data-erp-mobile-v2='true'] .erp-as-reintake-sheet__photo-count {
+    flex: 0 0 auto;
+    color: var(--foms-text-secondary, #4b525d);
+    font-weight: var(--foms-font-weight-medium, 500);
+  }
+
+  body.erp-mobile-v2-layout .erp-as-dashboard[data-erp-mobile-v2='true'] .erp-as-reintake-sheet__status {
+    margin: 0;
+    color: var(--foms-text-secondary, #4b525d);
+    font-size: 0.78125rem;
+  }
+
+  body.erp-mobile-v2-layout .erp-as-dashboard[data-erp-mobile-v2='true'] .erp-as-reintake-sheet__status.is-error {
+    color: var(--foms-stage-cs, #ef4444);
+    font-weight: var(--foms-font-weight-bold, 700);
+  }
+
+  body.erp-mobile-v2-layout .erp-as-dashboard[data-erp-mobile-v2='true'] .erp-as-reintake-sheet__foot {
+    flex: 0 0 auto;
+    padding: 0.625rem 1rem calc(0.625rem + env(safe-area-inset-bottom, 0px));
+    border-top: 1px solid var(--foms-border-subtle, #dde1e6);
+    background: var(--foms-surface-base, #fff);
+  }
+
+  body.erp-mobile-v2-layout .erp-as-dashboard[data-erp-mobile-v2='true'] .erp-as-reintake-sheet__submit {
+    width: 100%;
+    min-height: 52px;
+    border: 0;
+    border-radius: var(--foms-radius-md, 8px);
+    background: var(--erp-as-cycle-accent, #8b5cf6);
+    color: #fff;
+    font-size: 0.9375rem;
+    font-weight: var(--foms-font-weight-bold, 700);
+    cursor: pointer;
+  }
+
+  body.erp-mobile-v2-layout .erp-as-dashboard[data-erp-mobile-v2='true'] .erp-as-reintake-sheet__submit:disabled {
+    opacity: 0.6;
   }
 }
 

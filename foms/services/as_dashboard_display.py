@@ -16,6 +16,7 @@ from foms.services.erp_display import (
 )
 from foms.services.as_content_safety import as_content_html_to_text, sanitize_as_content_html
 from foms.services.orders.as_availability import as_availability_label
+from foms.services.orders.as_cycle_view import project_as_cycle_row
 from foms.services.orders.as_log import build_as_timeline_view
 from foms.services.orders.as_schedule_link import (
     evaluate_drift,
@@ -538,9 +539,9 @@ def apply_as_dashboard_row_display_fields(rows, db, *, mobile_v2_active):
     """AS 대시보드 rows에 표시 필드를 in-place 보강 (구 erp_as_dashboard 표시 블록). 동작 보존.
 
     structured_data 정규화 + ERP 표시 필드 + AS 사진 보유/대기/도면/영업택배 플래그 +
-    시공자 목록 + AS 내용 HTML(+notes 폴백) + 썸네일 + 단계 배지 + 기준 일정 드리프트를
-    채운다. 캐시 아님. batch_resolve_as_thumbnail_urls / as_thumb_enabled 동작은
-    변경하지 않는다.
+    시공자 목록 + AS 내용 HTML(+notes 폴백) + 썸네일 + 단계 배지 + 기준 일정 드리프트 +
+    AS 건(cycle) 표식 5키(as_cycle_view 투영)를 채운다. 캐시 아님.
+    batch_resolve_as_thumbnail_urls / as_thumb_enabled 동작은 변경하지 않는다.
 
     Args:
         rows: 현재 페이지 Order 객체 리스트.
@@ -633,6 +634,14 @@ def apply_as_dashboard_row_display_fields(rows, db, *, mobile_v2_active):
         _cmp = compare_photos.get(r.id) or {"before": [], "after": []}
         r.as_before_photos = _cmp["before"]
         r.as_after_photos = _cmp["after"]
+        # AS 건(cycle) 표식 5키(as_cycle_no/as_cycle_status/as_recurrence/
+        # as_history_unknown/as_prev_cycle). 투영 SSOT 는 orders/as_cycle_view 하나다 —
+        # 표면마다 따로 세면 PC 표·모바일 카드·차트의 건 번호가 어긋난다. 이미 로드된
+        # structured_data 만 읽으므로 추가 쿼리 0(행당 dict 순회뿐).
+        # as_cycle_status 는 완료일 삭제 팝업이 3케이스(완료 건 되돌리기 / 열린 건
+        # 잔존 날짜 삭제 / 새 접수)를 가르는 근거라 행 dict 에 반드시 실려야 한다.
+        for _cycle_key, _cycle_val in project_as_cycle_row(r.structured_data).items():
+            setattr(r, _cycle_key, _cycle_val)
     record_phase("rd_loop", (time.perf_counter() - _t_loop0) * 1000)
     record_phase("rd_sanitize", _t_sanitize * 1000)
     record_phase("rd_timeline", _t_timeline * 1000)

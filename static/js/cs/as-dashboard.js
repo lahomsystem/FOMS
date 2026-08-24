@@ -2944,6 +2944,293 @@
         });
     });
 
+    // ───────── 완료일 비우기 확인 팝업 (AS 건 상태별) ─────────
+    // 서버는 완료일이 비워질 때 그 AS 건 상태로 길이 갈린다
+    // (foms/api/orders/field_update.py _bridge_as_completed_date):
+    //   RECEIVED/IN_PROGRESS → clear_as_completed_date (잘못 남은 날짜만 삭제)
+    //   그 외(COMPLETED·건 없음) → reopen_as_cycle (완료 되돌리기)
+    // 화면이 한 가지 질문만 하면 열린 건에서 "되돌릴까요"라는 거짓말을 하게 되므로
+    // 서버와 **같은 술어**로 가른다. 판정값은 행이 실어 준다(data-as-cycle-status, 추가 fetch 0).
+    const AS_OPEN_CYCLE_STATUSES = ['RECEIVED', 'IN_PROGRESS'];
+
+    /**
+     * 완료일 비우기에 확인이 필요한 유형을 판정한다.
+     * @param {HTMLInputElement} input .editable-date-as
+     * @returns {'reopen'|'clear'|null} null = 확인 없이 기존 저장 경로 그대로
+     */
+    function getAsCompletedClearKind(input) {
+      if (!input || input.dataset.field !== 'as_completed_date') return null;
+      if ((input.value || '').trim() !== '') return null;
+      // 건 상태를 안 실어 주는 표면(모바일/태블릿 대조 등)은 기존 동작을 그대로 둔다.
+      const status = (input.dataset.asCycleStatus || '').trim();
+      if (!status) return null;
+      // 원래 비어 있던 칸은 지울 것이 없다(saveDateField 도 skip 한다).
+      if (!getDateFieldSaveState(input).savedValue) return null;
+      return AS_OPEN_CYCLE_STATUSES.indexOf(status) >= 0 ? 'clear' : 'reopen';
+    }
+
+    // 팝업 마크업. 문구는 목업(docs/design/mockups/as-reintake-workbench.html §1-C) 그대로.
+    // .alert 를 쓰지 않는다 — 전역 자동 닫힘(5초)이 확인 팝업을 삼킨다.
+    const AS_CLEAR_DIALOG_HTML = {
+      reopen: [
+        '<div class="erp-as-clear-dialog__card" role="dialog" aria-modal="true" aria-labelledby="as-clear-dialog-title">',
+        '<p class="erp-as-clear-dialog__title" id="as-clear-dialog-title">⚠ 완료일을 지웠어요. 어떻게 할까요?</p>',
+        '<p class="erp-as-clear-dialog__who"></p>',
+        '<div class="erp-as-clear-dialog__body">',
+        '<button type="button" class="erp-as-clear-choice" data-as-clear-choice="reopen">',
+        '<span class="erp-as-clear-choice__n">①</span>',
+        '<span class="erp-as-clear-choice__text">',
+        '<span class="erp-as-clear-choice__t">실수로 완료를 눌렀어요 → 되돌리기</span>',
+        '<span class="erp-as-clear-choice__d">지난 기록이 그대로 이어져요. 건은 늘지 않아요.</span>',
+        '</span></button>',
+        '<button type="button" class="erp-as-clear-choice erp-as-clear-choice--new" data-as-clear-choice="new">',
+        '<span class="erp-as-clear-choice__n">②</span>',
+        '<span class="erp-as-clear-choice__text">',
+        '<span class="erp-as-clear-choice__t">AS가 또 생겼어요 → 새로 접수 <span class="erp-as-cycle-badge" data-as-next-badge></span></span>',
+        '<span class="erp-as-clear-choice__d">새 접수 화면이 열려요. 지난 건은 기록으로 남고, 이 행은 미완료 탭으로 옮겨져요.</span>',
+        '</span></button>',
+        '</div>',
+        '<div class="erp-as-clear-dialog__foot">',
+        '<span class="erp-as-clear-dialog__hint">잘못 눌렀으면 취소하세요.</span>',
+        '<button type="button" class="erp-as-clear-btn erp-as-clear-btn--ghost" data-as-clear-choice="cancel">취소</button>',
+        '</div></div>'
+      ].join(''),
+      clear: [
+        '<div class="erp-as-clear-dialog__card" role="dialog" aria-modal="true" aria-labelledby="as-clear-dialog-title">',
+        '<p class="erp-as-clear-dialog__title" id="as-clear-dialog-title">🧹 잘못 남은 완료 날짜만 지울게요</p>',
+        '<p class="erp-as-clear-dialog__who"></p>',
+        '<div class="erp-as-clear-dialog__body">',
+        '<p class="erp-as-clear-dialog__say">이 AS는 <b>아직 진행 중</b>이에요. 잘못 남은 완료 날짜만 지울게요.',
+        '<span class="erp-as-clear-dialog__muted">상태는 그대로 «AS 접수»예요. 새 건도 안 생기고, 되돌릴 것도 없어요.</span></p>',
+        '</div>',
+        '<div class="erp-as-clear-dialog__foot">',
+        '<button type="button" class="erp-as-clear-btn erp-as-clear-btn--ghost" data-as-clear-choice="cancel">취소</button>',
+        '<button type="button" class="erp-as-clear-btn erp-as-clear-btn--ok" data-as-clear-choice="clear">확인 — 날짜만 지우기</button>',
+        '</div></div>'
+      ].join('')
+    };
+
+    /** 팝업 부제("주문 #123 · 김서연 · 2번째 AS · 2026-06-11 완료"). 값은 전부 textContent 로 넣는다. */
+    function buildAsClearDialogWho(input) {
+      const parts = ['주문 #' + (orderIdOf(input) || '')];
+      const name = (input.dataset.asCustomerName || '').trim();
+      if (name) parts.push(name);
+      const no = parseInt(input.dataset.asCycleNo || '0', 10);
+      if (no > 0) parts.push(no + '번째 AS');
+      const saved = getDateFieldSaveState(input).savedValue;
+      if (saved) parts.push(saved + ' 완료');
+      return parts.join(' · ');
+    }
+
+    function closeAsClearDialog() {
+      document.querySelectorAll('.erp-as-clear-dialog').forEach((el) => el.remove());
+    }
+
+    /**
+     * 완료일 비우기 확인 팝업을 띄우고 사용자의 선택을 돌려준다.
+     * @param {HTMLInputElement} input 완료일 인풋
+     * @param {'reopen'|'clear'} kind getAsCompletedClearKind 판정값
+     * @returns {Promise<'reopen'|'new'|'clear'|'cancel'>}
+     */
+    function openAsCompletedClearDialog(input, kind) {
+      closeAsClearDialog();
+      const overlay = document.createElement('div');
+      overlay.className = 'erp-as-clear-dialog';
+      // 상시 안내 블록이라 전역 .alert 자동 닫힘 대상이 되면 안 된다(방어적 표식).
+      overlay.dataset.fomsNoAutodismiss = '1';
+      overlay.innerHTML = AS_CLEAR_DIALOG_HTML[kind];
+      const who = overlay.querySelector('.erp-as-clear-dialog__who');
+      if (who) who.textContent = buildAsClearDialogWho(input);
+      const nextBadge = overlay.querySelector('[data-as-next-badge]');
+      if (nextBadge) {
+        const no = parseInt(input.dataset.asCycleNo || '0', 10);
+        if (no > 0) nextBadge.textContent = (no + 1) + '번째 AS';
+        else nextBadge.remove();
+      }
+      // 편집 권한이 없으면 딥링크가 안 실린다 → '새로 접수' 갈래 자체를 내지 않는다.
+      const newChoice = overlay.querySelector('[data-as-clear-choice="new"]');
+      if (newChoice && !input.dataset.asReintakeUrl) newChoice.remove();
+      document.body.appendChild(overlay);
+      return waitForAsClearDialogChoice(overlay);
+    }
+
+    /** 팝업 이벤트(선택/배경 클릭/Esc)를 한 번만 해소해 선택 문자열로 resolve 한다. */
+    function waitForAsClearDialogChoice(overlay) {
+      return new Promise((resolve) => {
+        let settled = false;
+        function finish(choice) {
+          if (settled) return;
+          settled = true;
+          document.removeEventListener('keydown', onKeydown, true);
+          closeAsClearDialog();
+          resolve(choice);
+        }
+        function onKeydown(e) {
+          if (e.key !== 'Escape') return;
+          e.preventDefault();
+          finish('cancel');
+        }
+        overlay.addEventListener('click', (e) => {
+          const btn = e.target && e.target.closest('[data-as-clear-choice]');
+          if (btn) { finish(btn.dataset.asClearChoice || 'cancel'); return; }
+          if (e.target === overlay) finish('cancel');
+        });
+        document.addEventListener('keydown', onKeydown, true);
+        const first = overlay.querySelector('[data-as-clear-choice]');
+        if (first && first.focus) first.focus();
+      });
+    }
+
+    // ───────── 완료 탭 잔류 안내 줄(목업 1-A) ─────────
+    // 되돌리기가 성공하면 그 행은 완료 탭 조건(as_completed_date IS NOT NULL)에서 빠진다.
+    // 예전에는 곧바로 미완료 탭으로 리다이렉트했는데, 그러면 "누른 순간 화면이 통째로
+    // 바뀌고 행이 사라진" 것처럼 보여 CS 가 "주문이 없어졌다"고 읽었다. 목업 1-A 대로
+    // **그 자리에** 왜 사라지는지 남기고(안내 줄) 행만 1.5초 뒤 접는다.
+    const AS_MOVE_NOTICE_ROW_DELAY_MS = 1500;
+
+    /**
+     * 완료 탭 PC 표에서 **화면에 보이는** 그 주문의 행을 찾는다.
+     *
+     * 보이지 않으면(모바일 폭에서 표가 통째로 d-none 등) 안내 줄을 낼 자리가 없다 —
+     * 그럴 때는 호출부가 기존 리다이렉트로 돌아가야 사용자가 결과를 볼 수 있다.
+     *
+     * @param {string} orderId 주문 id.
+     * @returns {HTMLTableRowElement|null}
+     */
+    function getVisibleAsTableRowForOrder(orderId) {
+      if (!orderId) return null;
+      const row = document.querySelector(`#as-dashboard-table tbody tr[data-order-id="${orderId}"]`);
+      return row && row.offsetParent !== null ? row : null;
+    }
+
+    /** 그 주문에 이미 떠 있는 안내 줄을 걷어낸다(같은 행을 두 번 되돌린 경우). */
+    function removeAsMoveNotice(orderId) {
+      document.querySelectorAll(`tr[data-as-moverow="${orderId}"]`).forEach((el) => el.remove());
+    }
+
+    /**
+     * 안내 줄 한 줄(`<tr>`)을 만든다. 사용자 값(고객명)은 전부 textContent 로만 넣는다.
+     *
+     * @param {string} orderId 주문 id.
+     * @param {string} customerName 고객명(빈 값 허용).
+     * @param {number} colSpan 표 컬럼 수(행에서 실측 — 컬럼이 늘어도 안 깨진다).
+     * @returns {HTMLTableRowElement}
+     */
+    function buildAsMoveNoticeRow(orderId, customerName, colSpan) {
+      const tr = document.createElement('tr');
+      tr.className = 'erp-as-moverow';
+      tr.dataset.asMoverow = String(orderId);
+      // 상시 안내 줄이라 전역 .alert 자동 닫힘(5초)에 걸리면 안 된다(방어적 표식).
+      tr.dataset.fomsNoAutodismiss = '1';
+      const td = document.createElement('td');
+      td.colSpan = colSpan;
+      const box = document.createElement('div');
+      box.className = 'erp-as-move';
+      const ico = document.createElement('span');
+      ico.className = 'erp-as-move__ico';
+      ico.setAttribute('aria-hidden', 'true');
+      ico.textContent = '↗';
+      const txt = document.createElement('span');
+      txt.className = 'erp-as-move__txt';
+      const strong = document.createElement('b');
+      strong.textContent = `#${orderId}${customerName ? ' ' + customerName : ''} — 미완료 탭으로 옮겼어요.`;
+      txt.appendChild(strong);
+      txt.appendChild(document.createTextNode(
+        ' 완료를 되돌려서 «완료» 조건에서 빠졌어요. 없어진 게 아니에요.'));
+      const go = document.createElement('a');
+      go.className = 'erp-as-move__go';
+      go.href = buildAsDashboardUrl({ tab: 'incomplete', status: 'AS_RECEIVED', focus_order: orderId });
+      go.textContent = '미완료 탭에서 보러가기 ▸';
+      const close = document.createElement('button');
+      close.type = 'button';
+      close.className = 'erp-as-move__x';
+      close.dataset.asMoveClose = String(orderId);
+      close.textContent = '닫기';
+      box.append(ico, txt, go, close);
+      td.appendChild(box);
+      tr.appendChild(td);
+      return tr;
+    }
+
+    /**
+     * 되돌리기 성공 직후 그 행 자리에 안내 줄을 남기고, 1.5초 뒤 행만 접는다.
+     *
+     * @param {HTMLInputElement} input 완료일 인풋(고객명 출처).
+     * @param {HTMLTableRowElement} row 안내 줄을 붙일 행.
+     * @returns {void}
+     */
+    function showAsReopenMoveNotice(input, row) {
+      const orderId = orderIdOf(input);
+      removeAsMoveNotice(orderId);
+      const notice = buildAsMoveNoticeRow(
+        orderId, (input.dataset.asCustomerName || '').trim(), row.cells.length || 1);
+      row.parentNode.insertBefore(notice, row.nextSibling);
+      row.classList.add('erp-as-row--leaving');
+      window.setTimeout(() => {
+        row.classList.add('erp-as-row--gone');
+      }, AS_MOVE_NOTICE_ROW_DELAY_MS);
+      notice.scrollIntoView({ behavior: 'smooth', block: 'center' });
+    }
+
+    /**
+     * AS 날짜 인풋 change 진입점. 완료일을 **비우는** 경우에만 건 상태별 확인을 거치고,
+     * 나머지(방문일·완료일 입력)는 기존 저장 경로 그대로다.
+     *
+     * saveDateField 초입이 아니라 이 change 핸들러에 두는 이유: flushDateFieldIfNeeded·
+     * 영업/택배 버튼(silent)·applyRefDateToAsVisit 등 무관한 경로에서도 팝업이 뜬다.
+     * @param {HTMLInputElement} input .editable-date-as
+     * @returns {Promise<void>}
+     */
+    async function handleAsDateInputChange(input) {
+      const kind = getAsCompletedClearKind(input);
+      if (!kind) {
+        await saveDateField(input, { redirectAfterComplete: true });
+        return;
+      }
+      const choice = await openAsCompletedClearDialog(input, kind);
+      const orderId = orderIdOf(input);
+      if (choice === 'cancel') {
+        // 아무것도 저장하지 않고 원래 완료일로 되돌린다.
+        syncDateFieldInputs(orderId, 'as_completed_date', getDateFieldSaveState(input).savedValue || '');
+        return;
+      }
+      if (choice === 'new') {
+        // 완료일 저장은 **취소**하고 재접수 화면으로 보낸다 — 새 건 발급 경로가
+        // as_completed_date=None 을 이미 하므로(as_cycle_service.register_as_cycle) 여기서
+        // 빈 값을 먼저 저장하면 건이 하나 열리기 전에 완료가 풀려 상태가 어긋난다.
+        syncDateFieldInputs(orderId, 'as_completed_date', getDateFieldSaveState(input).savedValue || '');
+        window.location.href = input.dataset.asReintakeUrl;
+        return;
+      }
+      // 되돌리기는 그 행을 완료 탭에서 빼므로(legacy_status_projection) 왜 사라졌는지
+      // **그 자리에** 남긴다(목업 1-A). 안내 줄을 낼 수 있으면 리다이렉트를 끈다 —
+      // 페이지가 통째로 넘어가 버리면 남길 자리 자체가 없어진다.
+      const noticeRow = (choice === 'reopen' && currentAsTab === 'completed')
+        ? getVisibleAsTableRowForOrder(orderId)
+        : null;
+      try {
+        await saveDateField(input, { silent: true, redirectAfterComplete: !noticeRow });
+      } catch (err) {
+        showFeedback('저장 실패: ' + String((err && err.message) || err || ''), true);
+        return;
+      }
+      if (noticeRow) {
+        showAsReopenMoveNotice(input, noticeRow);
+        showFeedback('완료를 되돌렸어요 — 이 주문은 «미완료» 탭으로 옮겨집니다.');
+        return;
+      }
+      showFeedback(choice === 'reopen'
+        ? '완료를 되돌렸어요 — 이 주문은 «미완료» 탭으로 옮겨집니다.'
+        : '잘못 남은 완료 날짜만 지웠어요. 상태는 그대로예요.');
+    }
+
+    // 안내 줄 '닫기' — 문서 위임이라 fragment 스왑·행 재렌더 뒤에도 산다.
+    addAsDashboardListener(document, 'click', (e) => {
+      const btn = e.target && e.target.closest ? e.target.closest('[data-as-move-close]') : null;
+      if (!btn) return;
+      removeAsMoveNotice(btn.dataset.asMoveClose);
+    });
+
     // --- per-card 바인딩 함수 (페이지별 렌더마다 init에서 호출, dataset 가드로 멱등) ---
     function bindAsDateAndWorkerInputs(scope) {
       const root = scope || document;
@@ -2952,7 +3239,7 @@
         input.dataset.asDateBound = '1';
         getDateFieldSaveState(input);
         addAsDashboardListener(input, 'change', function () {
-          saveDateField(this, { redirectAfterComplete: true }).catch(() => {});
+          handleAsDateInputChange(this).catch(() => {});
         });
       });
       root.querySelectorAll('.as-construction-worker-list').forEach(list => {

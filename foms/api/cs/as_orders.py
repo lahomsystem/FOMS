@@ -45,11 +45,13 @@ from foms.services.orders.as_cycle_service import (
     cycle_status,
     register_as_cycle,
     reopen_as_cycle,
+    resync_completed_cycle_billing,
     schedule_as_cycle,
     set_as_classification,
     start_as_cycle,
     unschedule_as_cycle,
 )
+from foms.services.orders.as_cycle_view import current_cycle_ordinal
 from foms.services.orders.as_log import (
     AS_LOG_TEXT_MAX,
     append_client_log,
@@ -300,6 +302,34 @@ _AS_BILLING_LABELS = {"free": "무상", "paid": "유상", "undecided": "미정"}
 _AS_BILLING_FIRST_EVENTS = {"free": "무상 확정", "paid": "유상 확정", "undecided": "미정 처리"}
 
 
+def _prior_cycle_billing_sealed(sd: dict) -> bool:
+    """현재(방금 발급된) 건 **직전** cycle 에 그 시점 비용 판정이 봉인돼 있는가.
+
+    새 건 접수의 비용 재시드(S4)는 "지난 건 판정이 다른 곳에 남아 있다"가 전제다
+    (cycle.billing_snapshot — as_cycle_service._seal_billing_snapshot 이 새 cycle 발급·
+    완료 시 봉인). 레거시 AS 주문(as_lifecycle 없이 status 만 AS_*)은 직전 건이 cycle 로
+    존재하지 않아 봉인분도 없다 — 그런 주문에서 덮으면 확정된 유상 판정이 흔적 없이
+    사라진다(test_register_preserves_existing_confirmed_billing 이 핀하는 회귀).
+
+    Args:
+        sd: 새 cycle 발급 **후**의 structured_data 사본.
+
+    Returns:
+        직전 cycle 이 있고 그 cycle 에 billing_snapshot 이 봉인돼 있으면 True.
+    """
+    lifecycle = (sd or {}).get("as_lifecycle")
+    if not isinstance(lifecycle, dict):
+        return False
+    cycles = [c for c in (lifecycle.get("cycles") or []) if isinstance(c, dict)]
+    current_id = str(lifecycle.get("current_cycle_id") or "")
+    idx = next(
+        (i for i, c in enumerate(cycles) if str(c.get("cycle_id") or "") == current_id), -1
+    )
+    if idx < 1:
+        return False
+    return isinstance(cycles[idx - 1].get("billing_snapshot"), dict)
+
+
 def _default_as_billing() -> dict[str, object]:
     """as_billing 기본값(무상 추정·미확정)."""
     return {
@@ -462,8 +492,10 @@ def _render_as_timeline_cell(order_id: int, sd: dict) -> str:
 def api_as_register(order_id):
     """AS 접수 등록: 새 RECEIVED cycle 발급 + 접수일 스탬프 + draft finalize(DRAFT-LIFECYCLE).
 
-    접수 원문은 reception 항목으로, 접수 "사실"은 system 항목으로 타임라인에 남고, 최초
-    접수에서만 as_billing 추정값을 시드한다(모두 cycle 전이와 같은 tx).
+    접수 원문은 reception 항목으로, 접수 "사실"은 system 항목으로 타임라인에 남고,
+    **새 건**이면 이번 접수에서 고른 as_billing 추정값을 (재)시드한다(모두 cycle 전이와
+    같은 tx). 열린 건 재접수는 새 cycle 을 열지 않고 기록만 갱신하며 비용 판정은 잠근다.
+    응답의 ``cycle_no``/``is_new_cycle`` 이 프런트 안내 문구를 가른다.
     """
     db = get_db()
     order, err = _load_active_order(db, order_id)
@@ -486,6 +518,9 @@ def api_as_register(order_id):
     except ValueError as ve:
         return jsonify({"success": False, "message": str(ve)}), 400
     source_screen = str(data.get("source_screen") or "").strip()
+    # 재발 표식: "같은 하자가 또 났다"는 접수자 판단. 새 cycle core 에만 봉인한다
+    # (열린 건 재접수는 같은 건의 기록 갱신이라 재발 대상이 아니다 — 아래 분기 참조).
+    recurrence = bool(data.get("recurrence"))
     shipping = str(data.get("shipping_scheduled_date") or "").strip() or None
     if shipping:
         try:
@@ -523,8 +558,14 @@ def api_as_register(order_id):
     # append 를 건너뛴 무편집 재접수에서도 **기존 항목 id** 를 돌려줘야 그 파일이 고아가 되지 않는다.
     captured_register: Dict[str, Any] = {}
 
-    def _register_side_records(sd: Dict[str, Any]) -> None:
-        """cycle 전이와 같은 sd 사본에 접수 기록(reception·system·billing 시드)을 남긴다."""
+    def _register_side_records(sd: Dict[str, Any], *, new_cycle: bool) -> None:
+        """cycle 전이와 같은 sd 사본에 접수 기록(reception·system·billing 시드)을 남긴다.
+
+        Args:
+            sd: 잠긴 row 의 structured_data 사본.
+            new_cycle: 새 AS 건(cycle)으로 접수하는가. 열린 건 재접수면 False —
+                비용 판정 재시드 여부가 이 값 하나로 갈린다(아래 billing 블록).
+        """
         shipment = ensure_path(sd, "shipment")
         # 덮어쓰기 전에 이전 원문을 legacy로 굳힌다. append_client_log도 같은 마이그레이션을
         # 하지만 그건 원문이 **있을 때만** 돈다 — 빈 원문 재접수는 append가 없어 register 의
@@ -554,10 +595,17 @@ def api_as_register(order_id):
         # 접수 원문(수기 reception)과 별개로 접수 "사실"을 이벤트로 남긴다 — 원문 없이
         # 접수만 하는 흐름에서도 타임라인 첫 줄이 비지 않는다.
         append_system_log(sd, text="AS 접수됨")
-        # 최초 접수에서만 billing을 시드한다. 재접수(지방 재상차 등)는 정상 흐름이므로
-        # 기존 billing을 덮으면 확정된 유상 금액이 free/미확정으로 되돌아간다.
-        # 확정·전환은 전용 API 소관(스펙 §3.2).
-        if not isinstance(shipment.get("as_billing"), dict):
+        # billing 시드 규칙(S4). as_billing 은 주문당 1슬롯이라 무조건 덮으면 위 경고대로
+        # 확정된 유상 금액이 free/미확정으로 되돌아간다. 세 경우를 갈라 처리한다:
+        #  * 판정이 아직 없다: 그대로 시드(종전 "최초 접수" 동작).
+        #  * 열린 건 재접수(new_cycle=False): 같은 AS 건의 기록 갱신이므로 **잠금 유지**
+        #    — 기존 판정에 손대지 않는다(지방 재상차 회귀 방지, 종전 동작 그대로).
+        #  * 새 건 접수 + **직전 건 판정이 봉인됨**: 이번 접수에서 고른 판정으로 재시드.
+        #    덮어도 지난 건 근거는 그 cycle 의 billing_snapshot 에 남는다. 봉인이 없는
+        #    레거시 주문은 잠금을 유지한다(_prior_cycle_billing_sealed docstring 참조).
+        # 확정·전환은 계속 전용 API 소관(스펙 §3.2).
+        reseed_billing = new_cycle and _prior_cycle_billing_sealed(sd)
+        if reseed_billing or not isinstance(shipment.get("as_billing"), dict):
             billing = _default_as_billing()
             billing["type"] = billing_type
             billing["amount"] = billing_amount
@@ -582,7 +630,9 @@ def api_as_register(order_id):
         을 열면 한 건이 두 건으로 갈라진다. 상태·cycle 은 그대로 두고 접수 원문·타임라인·
         상차일만 갱신한다(서비스의 "중복 open cycle 거부" 불변식은 유지 — 라우트가 중재).
         """
-        _register_side_records(sd)  # as_content 를 덮기 전에 먼저(legacy 영구화 순서 계약)
+        # as_content 를 덮기 전에 먼저(legacy 영구화 순서 계약). 같은 건이므로 새 cycle
+        # 아님 → 비용 판정 잠금 유지, recurrence 도 스탬프하지 않는다.
+        _register_side_records(sd, new_cycle=False)
         shipment = ensure_path(sd, "shipment")
         shipment["as_content"] = as_content
         if cw_name:
@@ -606,8 +656,10 @@ def api_as_register(order_id):
                 db, order_id=order_id, actor_user_id=user_id, as_content=as_content,
                 shipping_scheduled_date=shipping, source_screen=source_screen or None,
                 received_date=today, construction_worker_name=cw_name or None,
+                recurrence=recurrence,
                 scope_hash=_scope_hash("AS_REGISTER", order_id), request_hash=_request_hash(data),
-                idempotency_key=_idempotency_key(data), sd_hook=_register_side_records,
+                idempotency_key=_idempotency_key(data),
+                sd_hook=lambda sd: _register_side_records(sd, new_cycle=True),
             )
     except Exception as exc:  # noqa: BLE001 — 계약 위반은 409, 그 외 500 으로 분기
         return _as_error_response(db, exc)
@@ -618,9 +670,14 @@ def api_as_register(order_id):
     db.refresh(order)
 
     shipment = (order.structured_data or {}).get("shipment") or {}
+    # 현재 건 순번(1-기반, 0=건 없음)·새 건 여부. 프런트가 "2번째 AS 접수됨" 안내와
+    # "기존 접수 내용을 갱신했습니다"를 이 두 값으로 가른다(투영 SSOT = as_cycle_view).
+    cycle_no = current_cycle_ordinal(order.structured_data or {})
     return jsonify({
         "success": True,
         "message": "AS 접수가 등록되었습니다.",
+        "cycle_no": cycle_no,
+        "is_new_cycle": not reregistering,
         "as_received_date": today,
         "new_status": order.status,
         "shipping_scheduled_date": getattr(order, "shipping_scheduled_date", None) or "",
@@ -844,6 +901,11 @@ def _apply_billing_decision(sd: dict, *, data: dict, new_type: str, reason: str,
         sd: 잠긴 row 의 structured_data 사본. data: 요청 payload. new_type: 확정 유형.
         reason: 판정 사유(빈 값 허용). user: actor.
 
+    현재 건이 이미 **완료**됐다면 그 cycle 의 ``billing_snapshot`` 도 같은 tx 에서 새 판정으로
+    다시 봉인한다 — 봉인은 완료 시점 값을 고정하지만 완료 뒤 정정은 그 건의 최종 판정이
+    바뀐 것이고, 안 따라가면 다음 건 접수의 비용 재시드가 flat 값을 덮는 순간 정정값이
+    화면·스냅샷 양쪽에서 사라진다(실매출 소실).
+
     Returns:
         ``{"billing": 갱신된 as_billing, "entry": append 된 system 항목 또는 None}``.
     """
@@ -871,6 +933,7 @@ def _apply_billing_decision(sd: dict, *, data: dict, new_type: str, reason: str,
     else:
         event = ""
     entry = append_system_log(sd, text=f"{event}{suffix}") if event else None
+    resync_completed_cycle_billing(sd)
     return {"billing": billing, "entry": entry}
 
 

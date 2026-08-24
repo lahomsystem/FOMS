@@ -1245,3 +1245,340 @@
 .as-push-confirm__file.is-over-cap {
   opacity: 0.45;
 }
+
+/* ── AS 건(cycle) 표식 · 재접수 · 완료일 확인 팝업 (2026-08-24) ──
+   값의 SSOT 는 foms/services/orders/as_cycle_view.py 투영이고, 여기는 표기만 소유한다.
+   색 규약(목업 §1): 건(N번째 AS)=보라 알약 · 왼쪽 주문 칸 / 회차(N차)=회색 네모 ·
+   오른쪽 내용 칸 / 재발=빨강 알약 — 색·모양·자리 셋이 전부 달라야 두 숫자가 안 헷갈린다.
+   1번째 건은 배지 자체가 없으므로 "보라색이 보이면 전에도 있었다"가 곧바로 읽힌다. */
+.erp-as-cycle-badge {
+  display: inline-block;
+  margin-top: 3px;
+  padding: 1px 8px;
+  border: 1px solid #6d28d9;
+  border-radius: 999px;
+  background: #f1ebfd;
+  color: #6d28d9;
+  font-size: 0.6875rem;
+  font-weight: 700;
+  line-height: 1.6;
+  white-space: nowrap;
+}
+
+/* 옛 주문(LEGACY_BRIDGE): 순번을 셀 수 없다 → 보라 배지 대신 조용한 회색. */
+.erp-as-cycle-legacy {
+  display: inline-block;
+  margin-top: 3px;
+  padding: 1px 8px;
+  border: 1px solid #d4dae2;
+  border-radius: 999px;
+  background: #eef1f5;
+  color: #4b5563;
+  font-size: 0.6875rem;
+  font-weight: 700;
+  line-height: 1.6;
+  white-space: nowrap;
+}
+
+/* 접수일 '불명' — 실제 접수일이 아니라 전환 시각이라 날짜를 안 쓴다.
+   점선 테두리로 "값이 없다"를 날짜처럼 안 읽히게 구분한다. */
+.erp-as-unknown-date {
+  display: inline-block;
+  padding: 1px 7px;
+  border: 1px dashed #b9c2ce;
+  border-radius: 6px;
+  background: #eef1f5;
+  color: #6b7280;
+  font-size: 0.72rem;
+  font-weight: 700;
+}
+
+.erp-as-recur-chip {
+  display: inline-block;
+  margin-bottom: 3px;
+  padding: 1px 8px;
+  border: 1px solid #b91c1c;
+  border-radius: 999px;
+  background: #fdeaea;
+  color: #b91c1c;
+  font-size: 0.6875rem;
+  font-weight: 700;
+  line-height: 1.6;
+  white-space: nowrap;
+}
+
+/* 재접수 = 완료 탭 상태 셀 전용(13번째 열을 만들지 않는다 — 열 계약 파손).
+   전역 .btn 패딩에 걸리지 않도록 .btn 계열을 쓰지 않고 자체 알약으로 낸다. */
+.erp-as-status-cell__actions {
+  margin-top: 6px;
+}
+
+.erp-as-reintake-btn,
+.erp-as-reintake-btn:hover,
+.erp-as-reintake-btn:focus {
+  display: inline-flex;
+  align-items: center;
+  gap: 5px;
+  padding: 5px 11px;
+  border: 1px solid #6d28d9;
+  border-radius: 8px;
+  background: #6d28d9;
+  color: #fff;
+  font-size: 0.75rem;
+  font-weight: 800;
+  line-height: 1.2;
+  text-decoration: none;
+  cursor: pointer;
+}
+
+.erp-as-reintake-btn:hover {
+  filter: brightness(1.12);
+}
+
+.erp-as-reintake-btn:focus-visible {
+  outline: 2px solid #6d28d9;
+  outline-offset: 2px;
+}
+
+/* 완료일 비우기 확인 팝업 — as-dashboard.js 가 body 에 부착(.alert 미사용:
+   전역 5초 자동 닫힘이 확인 대화를 삼킨다). 모달 스택 위(1080)로 올린다. */
+.erp-as-clear-dialog {
+  position: fixed;
+  inset: 0;
+  z-index: 1080;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  padding: 16px;
+  background: rgba(15, 23, 42, 0.48);
+}
+
+.erp-as-clear-dialog__card {
+  width: 100%;
+  max-width: 460px;
+  max-height: 90vh;
+  overflow-y: auto;
+  padding: 14px 15px;
+  border-radius: 12px;
+  background: #fff;
+  box-shadow: 0 14px 34px rgba(0, 0, 0, 0.34);
+}
+
+.erp-as-clear-dialog__title {
+  margin: 0;
+  color: #111827;
+  font-size: 0.9375rem;
+  font-weight: 800;
+  line-height: 1.45;
+}
+
+.erp-as-clear-dialog__who {
+  margin: 6px 0 0;
+  color: #6b7280;
+  font-size: 0.72rem;
+  line-height: 1.6;
+}
+
+.erp-as-clear-dialog__body {
+  padding: 12px 0 4px;
+}
+
+.erp-as-clear-dialog__say {
+  margin: 0 0 10px;
+  color: #111827;
+  font-size: 0.8125rem;
+  line-height: 1.65;
+}
+
+.erp-as-clear-dialog__muted {
+  display: block;
+  margin-top: 4px;
+  color: #6b7280;
+  font-size: 0.75rem;
+}
+
+.erp-as-clear-choice {
+  display: flex;
+  gap: 10px;
+  width: 100%;
+  margin: 0 0 9px;
+  padding: 11px 12px;
+  border: 1px solid #dbe1ea;
+  border-radius: 10px;
+  background: #fff;
+  font: inherit;
+  text-align: left;
+  cursor: pointer;
+}
+
+.erp-as-clear-choice:hover,
+.erp-as-clear-choice:focus-visible {
+  border-color: #2563eb;
+  background: #eaf1ff;
+}
+
+.erp-as-clear-choice--new:hover,
+.erp-as-clear-choice--new:focus-visible {
+  border-color: #6d28d9;
+  background: #f1ebfd;
+}
+
+.erp-as-clear-choice__n {
+  display: flex;
+  flex: 0 0 24px;
+  align-items: center;
+  justify-content: center;
+  height: 24px;
+  border: 1px solid #dbe1ea;
+  border-radius: 50%;
+  background: #f6f8fb;
+  color: #111827;
+  font-size: 0.75rem;
+  font-weight: 800;
+}
+
+.erp-as-clear-choice--new .erp-as-clear-choice__n {
+  border-color: #ddd0fa;
+  background: #f1ebfd;
+  color: #6d28d9;
+}
+
+.erp-as-clear-choice__t {
+  display: block;
+  color: #111827;
+  font-size: 0.8125rem;
+  font-weight: 800;
+  line-height: 1.5;
+}
+
+.erp-as-clear-choice__d {
+  display: block;
+  margin-top: 3px;
+  color: #6b7280;
+  font-size: 0.72rem;
+  line-height: 1.55;
+}
+
+.erp-as-clear-dialog__foot {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 10px;
+  padding-top: 8px;
+}
+
+.erp-as-clear-dialog__hint {
+  color: #6b7280;
+  font-size: 0.72rem;
+}
+
+.erp-as-clear-btn {
+  padding: 6px 13px;
+  border-radius: 8px;
+  font: inherit;
+  font-size: 0.75rem;
+  font-weight: 700;
+  cursor: pointer;
+}
+
+.erp-as-clear-btn--ghost {
+  border: 1px solid #dbe1ea;
+  background: #fff;
+  color: #6b7280;
+}
+
+.erp-as-clear-btn--ghost:hover {
+  border-color: #c3ccd8;
+  color: #111827;
+}
+
+.erp-as-clear-btn--ok {
+  margin-left: auto;
+  border: 1px solid #2563eb;
+  background: #2563eb;
+  color: #fff;
+  font-weight: 800;
+}
+
+.erp-as-clear-btn--ok:hover {
+  filter: brightness(1.08);
+}
+
+/* 완료 탭 잔류 안내 줄(목업 1-A) — 되돌리기로 행이 완료 조건에서 빠질 때, 그 자리에
+   왜 사라지는지 남긴다. 리다이렉트로 대체하면 "누른 순간 주문이 없어졌다"로 읽힌다.
+   .alert 를 쓰지 않는다(전역 5초 자동 닫힘이 상시 안내를 삼킨다 — JS 가
+   data-foms-no-autodismiss 도 함께 단다). */
+.erp-as-table tr.erp-as-row--leaving > td {
+  opacity: 0.35;
+  transition: opacity 0.45s ease;
+}
+
+.erp-as-table tr.erp-as-row--gone {
+  display: none;
+}
+
+.erp-as-moverow > td {
+  background: #f1ebfd;
+  border-top: 1px solid #ddd0fa;
+}
+
+/* 표는 고정 colgroup 합(~1800px)이라 가로로 스크롤된다. 안내 줄을 td 폭에 맡기면
+   '보러가기' 버튼이 첫 화면 밖(오른쪽)으로 나가 누를 수가 없다 — 내용 폭으로 줄이고
+   스크롤 왼쪽에 붙여 둔다. */
+.erp-as-move {
+  position: sticky;
+  left: 0;
+  display: flex;
+  align-items: center;
+  gap: 10px;
+  flex-wrap: wrap;
+  width: fit-content;
+  max-width: calc(100vw - 3rem);
+  color: #4c1d95;
+  font-size: 12.5px;
+}
+
+.erp-as-move__ico {
+  color: #6d28d9;
+  font-size: 15px;
+  font-weight: 800;
+}
+
+.erp-as-move__txt {
+  flex: 0 1 auto;
+  min-width: 0;
+  line-height: 1.6;
+}
+
+.erp-as-move__go {
+  padding: 5px 11px;
+  border: 1px solid #6d28d9;
+  border-radius: 8px;
+  background: #6d28d9;
+  color: #fff;
+  font-size: 12px;
+  font-weight: 800;
+  text-decoration: none;
+  white-space: nowrap;
+}
+
+.erp-as-move__go:hover,
+.erp-as-move__go:focus {
+  color: #fff;
+  filter: brightness(1.1);
+}
+
+.erp-as-move__x {
+  padding: 5px 10px;
+  border: 1px solid #ddd0fa;
+  border-radius: 8px;
+  background: #fff;
+  color: #6d28d9;
+  font-size: 12px;
+  font-weight: 700;
+  cursor: pointer;
+}
+
+.erp-as-move__x:hover {
+  border-color: #6d28d9;
+}

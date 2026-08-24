@@ -537,3 +537,163 @@ def test_existing_billing_locks_segment_on_reregister():
     assert "disabled = true" in block
     assert "disabled = false" in block  # 최초 접수로 되돌아오면 잠금 해제
     assert "as-receive-billing-locked-note" in js
+
+
+def test_new_cycle_register_reseeds_billing(client):
+    """완료 뒤 **새 건** 접수는 이번에 고른 판정으로 as_billing 을 다시 시드한다(S4).
+
+    지난 건 판정은 그 cycle 의 ``billing_snapshot`` 에 봉인돼 있어(완료·새 건 발급 시 봉인)
+    덮어도 사라지지 않는다 — 그래서 새 건에서만 재선택을 연다. 응답의 cycle_no/is_new_cycle
+    도 함께 핀한다(프런트 안내 문구가 이 두 값으로 갈린다).
+    """
+    _login_as_admin(client, username="as-billing-newcycle-admin")
+    order_id = _create_as_order(status="CS", customer_name="새 건 재접수").id
+
+    res = client.post(f"/api/orders/{order_id}/as/register",
+                      json={"as_content": "1번째 하자", "billing_type": "paid", "amount": 50000})
+    assert res.status_code == 200 and res.get_json()["is_new_cycle"] is True
+    assert res.get_json()["cycle_no"] == 1
+    assert client.post(f"/api/orders/{order_id}/as/start",
+                       json={"reason": "방문", "description": "부품 교체"}
+                       ).status_code == 200
+    assert client.post(f"/api/orders/{order_id}/as/complete",
+                       json={"note": "처리 완료"}).status_code == 200
+
+    res = client.post(f"/api/orders/{order_id}/as/register",
+                      json={"as_content": "2번째 하자", "billing_type": "free",
+                            "recurrence": True})
+    body = res.get_json()
+    assert res.status_code == 200 and body["success"] is True
+    assert body["is_new_cycle"] is True and body["cycle_no"] == 2
+
+    db_session.expire_all()
+    sd = db_session.get(Order, order_id).structured_data
+    billing = sd["shipment"]["as_billing"]
+    assert billing["type"] == "free" and billing["amount"] is None
+    assert billing["confirmed"] is False
+    cycles = sd["as_lifecycle"]["cycles"]
+    assert len(cycles) == 2
+    # 지난 건 근거는 봉인분에 남고, 재발 표식은 새 건 core 에만 붙는다.
+    assert cycles[0]["billing_snapshot"]["type"] == "paid"
+    assert cycles[0]["billing_snapshot"]["amount"] == 50000
+    assert cycles[1]["recurrence"] is True
+
+
+def test_open_cycle_reregister_keeps_billing_locked(client):
+    """**열린 건** 재접수(지방 재상차 등)는 확정 판정을 잠근 채 기록만 갱신한다.
+
+    같은 AS 건이라 새 cycle 도 열리지 않고(is_new_cycle=False) 재발 표식도 붙지 않는다.
+    """
+    _login_as_admin(client, username="as-billing-opencycle-admin")
+    order_id = _create_as_order(status="CS", customer_name="열린 건 재접수").id
+
+    assert client.post(
+        f"/api/orders/{order_id}/as/register",
+        json={"as_content": "접수", "billing_type": "paid", "amount": 70000},
+    ).status_code == 200
+    assert client.post(f"/api/orders/{order_id}/as/billing",
+                       json={"type": "paid", "amount": 70000}).status_code == 200
+
+    res = client.post(f"/api/orders/{order_id}/as/register",
+                      json={"as_content": "재상차 접수", "billing_type": "free", "amount": 0,
+                            "recurrence": True})
+    body = res.get_json()
+    assert res.status_code == 200 and body["success"] is True
+    assert body["is_new_cycle"] is False and body["cycle_no"] == 1
+
+    db_session.expire_all()
+    sd = db_session.get(Order, order_id).structured_data
+    billing = sd["shipment"]["as_billing"]
+    assert billing["type"] == "paid" and billing["confirmed"] is True
+    assert billing["amount"] == 70000
+    cycles = sd["as_lifecycle"]["cycles"]
+    assert len(cycles) == 1 and cycles[0].get("recurrence") is not True
+
+
+# --------------------------------------------------------------------------- #
+# R-A: cycle billing_snapshot 이 실제 판정과 어긋나지 않는다(실매출 소실 차단)
+# --------------------------------------------------------------------------- #
+def _cycles_of(order_id):
+    db_session.expire_all()
+    return db_session.get(Order, order_id).structured_data["as_lifecycle"]["cycles"]
+
+
+def test_reopen_clears_snapshot_so_recomplete_reseals(client):
+    """④ 완료 → 재개봉 → 재완료면 스냅샷은 **재완료 시점** 값이다.
+
+    reopen 이 completed_date 만 걷고 billing_snapshot 을 남기면 _seal_billing_snapshot 이
+    조기반환해(이미 봉인됨) 재완료 뒤에도 첫 완료 시점 값에 영구히 고정된다 — 그 사이의
+    판정 정정이 통째로 사라진다.
+    """
+    _login_as_admin(client, username="as-billing-reopen-admin")
+    order_id = _create_as_order(status="CS", customer_name="재개봉 스냅샷").id
+
+    assert client.post(f"/api/orders/{order_id}/as/register",
+                       json={"as_content": "문틀 뒤틀림"}).status_code == 200
+    assert client.post(f"/api/orders/{order_id}/as/billing",
+                       json={"type": "paid", "amount": 50000}).status_code == 200
+    assert client.post(f"/api/orders/{order_id}/as/start",
+                       json={"reason": "방문", "description": "부품 교체"}).status_code == 200
+    assert client.post(f"/api/orders/{order_id}/as/complete",
+                       json={"note": "1차 완료"}).status_code == 200
+    assert _cycles_of(order_id)[0]["billing_snapshot"]["amount"] == 50000
+
+    assert client.post(f"/api/orders/{order_id}/as/reopen",
+                       json={"reason": "오완료"}).status_code == 200
+    cycle = _cycles_of(order_id)[0]
+    # 최종 판정이 다시 미정으로 돌아갔으므로 완료일과 함께 비용 봉인도 걷힌다
+    assert "completed_date" not in cycle and "billing_snapshot" not in cycle
+
+    assert client.post(f"/api/orders/{order_id}/as/billing",
+                       json={"type": "free", "reason": "당사 귀책 확인"}).status_code == 200
+    assert client.post(f"/api/orders/{order_id}/as/start",
+                       json={"reason": "재방문", "description": "재작업"}).status_code == 200
+    assert client.post(f"/api/orders/{order_id}/as/complete",
+                       json={"note": "재완료"}).status_code == 200
+
+    snapshot = _cycles_of(order_id)[0]["billing_snapshot"]
+    assert snapshot["type"] == "free" and snapshot["amount"] is None
+    assert snapshot["confirmed"] is True
+
+
+def _complete_then_correct_to_paid(client, order_id):
+    """무상으로 완료한 뒤 유상 120000 으로 정정한다(⑤·⑥ 공용 준비)."""
+    assert client.post(f"/api/orders/{order_id}/as/register",
+                       json={"as_content": "경첩 소음"}).status_code == 200
+    assert client.post(f"/api/orders/{order_id}/as/start",
+                       json={"reason": "방문", "description": "조정"}).status_code == 200
+    assert client.post(f"/api/orders/{order_id}/as/complete",
+                       json={"note": "무상 처리"}).status_code == 200
+    assert _cycles_of(order_id)[0]["billing_snapshot"]["type"] == "free"
+    res = client.post(f"/api/orders/{order_id}/as/billing",
+                      json={"type": "paid", "amount": 120000, "reason": "고객 과실 확인"})
+    assert res.status_code == 200 and res.get_json()["success"] is True
+
+
+def test_billing_change_after_complete_updates_cycle_snapshot(client):
+    """⑤ 완료 뒤 판정을 정정하면 그 건의 봉인 스냅샷도 새 값으로 갱신된다."""
+    _login_as_admin(client, username="as-billing-postfix-admin")
+    order_id = _create_as_order(status="CS", customer_name="완료 후 정정").id
+    _complete_then_correct_to_paid(client, order_id)
+
+    snapshot = _cycles_of(order_id)[0]["billing_snapshot"]
+    assert snapshot["type"] == "paid" and snapshot["amount"] == 120000
+    assert snapshot["confirmed"] is True
+
+
+def test_corrected_snapshot_survives_next_cycle_reseed(client):
+    """⑥ 그 뒤 새 건을 접수해 flat as_billing 이 재시드돼도 지난 건은 정정값을 지킨다."""
+    _login_as_admin(client, username="as-billing-postfix-reseed-admin")
+    order_id = _create_as_order(status="CS", customer_name="정정 후 재접수").id
+    _complete_then_correct_to_paid(client, order_id)
+
+    res = client.post(f"/api/orders/{order_id}/as/register",
+                      json={"as_content": "재발 하자", "billing_type": "free",
+                            "recurrence": True})
+    assert res.status_code == 200 and res.get_json()["is_new_cycle"] is True
+
+    db_session.expire_all()
+    sd = db_session.get(Order, order_id).structured_data
+    assert sd["shipment"]["as_billing"]["type"] == "free"      # 새 건은 새 판정
+    past = sd["as_lifecycle"]["cycles"][0]["billing_snapshot"]  # 지난 건은 정정값 유지
+    assert past["type"] == "paid" and past["amount"] == 120000
