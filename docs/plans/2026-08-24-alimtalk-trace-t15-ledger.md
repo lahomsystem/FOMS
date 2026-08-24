@@ -91,3 +91,16 @@
 - sidefx worker handler 를 등록하지 않는다(worker 에 벤더 env 없음).
 - 문서 공유 링크 템플릿 2종의 `replacements`(문자 대체발송 문구) 등록은 Solapi **콘솔 작업**이라
   코드 범위 밖 — 상위 원장 T15 ① 잔여로 남는다.
+
+## 운영 승격 (PR #144 — 머지는 사용자)
+
+- 브랜치 `promote/own-1787578338-46168`(운영 `57cc536d` 기반) 에 코드 7커밋 cherry-pick + 생성물 재생성 1커밋.
+  문서 2커밋(AI_STATUS·CHANGELOG·상위 원장)은 **가져가지 않았다** — 운영 문서는 머지 뒤 승격 SHA 와 함께 갱신한다.
+- 승격 트리에서만 난 충돌 2종(알려진 클래스): ① 생성물(매니페스트 2종·인벤토리 3종)은 운영 기준으로
+  재등재·재생성 ② 자산 `?v` 핀은 **운영 스크립트 목록을 유지**하고 내용이 바뀐 파일 핀만 범프
+  (`erp-order-shared.js` `20260824a` · `tablet-measure-form.js` `20260824b`). deploy 에만 있는
+  `order-change-reason.js`·`order-delete-reason.js`·`as-push-confirm.js` 는 가져오지 않았다.
+- 검증: 승격 트리 APP_OK · 알림톡/이벤트/UI 계약 158 passed · pre_push_smoke exit 0 · PR 체크 pg-lane pass,
+  perf-gate pass(1차 red 는 `/erp/production/dashboard` dTTFB 160ms>133ms — 내 변경이 닿지 않는 경로,
+  재실행 green. 스테이징 일중 변동 선례와 같은 형태).
+- 머지 후: 운영 실발송 1건 E2E(칩 즉시 갱신 → 60초 뒤 채널 확정) + 문서에 production SHA 기록.
