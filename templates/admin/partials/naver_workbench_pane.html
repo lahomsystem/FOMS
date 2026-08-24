@@ -28,9 +28,12 @@
 {% set household_canceled = grp.canceled if grp else selected.fulfillment.canceled_at %}
 {% set locked = household_claimed or household_canceled %}
 {% set place_pending = grp.place_pending if grp else (not selected.place.confirmed) %}
-{# 결정 D1: 추가결제·재결제는 물건이 따로 나가지 않는다 — 발주확인 전에도 바로 닫는다.
-   집 전체가 ADDON/REPAY 일 때만(서버 dispatch_order 의 all 규칙과 같다). #}
-{% set close_now = grp.close_now if grp else (relation in ('ADDON', 'REPAY')) %}
+{# 결정 D1(2026-08-24 개정): **추가결제만** 물건이 따로 나가지 않는다 — 그 집만 발주확인
+   전에도 바로 닫는다. 재결제는 원 주문을 취소하고 그 물건값을 다시 낸 것이라 **원 주문의
+   물건이 나중에 한 번 나간다** — 신규와 같이 발주확인이 먼저다.
+   폴백 값은 서버 CLOSE_NOW_RELATIONS 와 같은 값이어야 한다(정본은 grp.close_now).
+   집 전체가 그 관계일 때만 연다(서버 dispatch_order 의 all 규칙과 같다). #}
+{% set close_now = grp.close_now if grp else (relation == 'ADDON') %}
 {# 발송 판정도 **집 단위**다. 발송 표식은 상품주문(링크)마다 찍히고 워커가 건별로
    성공/실패해서 한 집이 "3건 중 2건만 나간" 상태로 남을 수 있다. 링크 1건의 표식만
    보면 어느 형제로 상세를 열었느냐에 따라 취소 버튼이 있기도 없기도 했다(리뷰 M-4).
@@ -65,6 +68,10 @@
    있으면 집 전체를 거절한다(반품 흐름). 링크 기준으로 두면 안 나간 형제로 열었을 때
    버튼이 열려 있다가 서버에서 실패한다. #}
 {% set can_cancel = not locked and not dispatched_any %}
+{# 모달 제목은 관계 라벨을 **그대로** 쓴다. '추가결제' 를 손으로 적어 두면 close_now 대상이
+   바뀔 때 다른 관계의 집에도 "추가결제"라 뜬다 — 실제로 재결제 집에 그렇게 떴다
+   (D1 개정 2026-08-24 에서 걷어낸 결함). #}
+{% set close_now_title = (rel_label ~ '를 지금 닫습니다') if rel_label else '이 집을 지금 닫습니다' %}
 
 <section class="card shadow-sm wb-detail">
     <div class="card-header py-2 wb-detail__head">
@@ -184,6 +191,19 @@
         {% elif place_pending and close_now %}
         <div class="wb-acts__why small">
             {{ rel_label }}는 물건이 따로 나가지 않습니다 — 발주확인 없이 여기서 바로 닫습니다.
+        </div>
+        {% elif place_pending and relation == 'REPAY' %}
+        {# 재결제 집도 여기로 떨어진다(D1 개정 2026-08-24). 예전에는 아래 '신규 집' 가지가
+           받아 화면이 재결제 집을 신규라고 불렀다 — 배지는 '재결제'인데 문장은 '신규'였다. #}
+        <div class="wb-acts__why small">
+            재결제 집이라 발주확인이 먼저입니다 — 원 주문의 물건이 <b>나중에 한 번</b> 나갑니다.
+            발송처리는 <b>실제 출고·시공 시점</b>에 누르세요.
+        </div>
+        {% elif place_pending and rel_label %}
+        {# 관계가 섞인 집(대표는 추가결제인데 신규 형제가 있어 close_now 가 아니다). #}
+        <div class="wb-acts__why small">
+            이 집에는 <b>신규 상품주문이 섞여</b> 있어 발주확인이 먼저입니다.
+            발송처리는 <b>실제 출고·시공 시점</b>에 누르세요.
         </div>
         {% elif place_pending %}
         <div class="wb-acts__why small">
@@ -476,7 +496,7 @@
         <div class="modal-content">
             <div class="modal-header">
                 <h5 class="modal-title">
-                    {{ '추가결제를 지금 닫습니다' if close_now else '발송처리를 보내기 전에 확인하세요' }}
+                    {{ close_now_title if close_now else '발송처리를 보내기 전에 확인하세요' }}
                 </h5>
                 <button type="button" class="btn-close" data-bs-dismiss="modal" aria-label="닫기"></button>
             </div>
@@ -494,14 +514,23 @@
                 </p>
                 {% endif %}
                 {# ② 되돌릴 수 없음 — 관계에 따라 사람이 물어야 할 질문이 다르다.
-                   추가결제는 "이 집이 정말 추가결제인가", 신규는 "물건이 정말 나갔나". #}
+                   추가결제는 "이 집이 정말 추가결제인가", 신규·재결제는 "물건이 정말 나갔나".
+                   재결제를 '신규 주문' 이라 부르면 거짓말이다 — 원 주문의 후속이다
+                   (D1 개정 2026-08-24). #}
                 <div class="alert alert-danger py-2 mb-2" data-foms-no-autodismiss>
                     네이버로 나가는 호출이라 되돌릴 수 없습니다. 구매자에게 <b>배송 시작</b>으로
                     보이고 구매확정·정산 시계가 돌기 시작합니다.
                     {% if not close_now %}
                     <div class="mt-1">
-                        이 집은 <b>신규 주문</b>입니다 — <b>실제 출고·시공 시점</b>에만 누르세요.
-                        아직 물건이 나가지 않았다면 지금 누르면 안 됩니다.
+                        {% if relation == 'REPAY' %}
+                        이 집은 <b>재결제</b>입니다 — 원 주문의 물건이 <b>나중에 한 번</b> 나갑니다.
+                        {% elif rel_label %}
+                        이 집에는 <b>신규 상품주문이 섞여</b> 있습니다.
+                        {% else %}
+                        이 집은 <b>신규 주문</b>입니다.
+                        {% endif %}
+                        <b>실제 출고·시공 시점</b>에만 누르세요. 아직 물건이 나가지 않았다면
+                        지금 누르면 안 됩니다.
                     </div>
                     {% endif %}
                 </div>

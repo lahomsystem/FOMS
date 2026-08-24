@@ -214,6 +214,28 @@ def test_new_household_stays_locked_before_place_confirmation(client, workbench_
     assert "지금 닫기" not in body
 
 
+def test_repay_stays_locked_before_place_confirmation(client, workbench_on):
+    """재결제는 '지금 닫기'가 뜨지 않고 발송처리가 잠긴다 (D1 개정 2026-08-24).
+
+    재결제는 원 주문을 취소하고 그 물건값을 다시 낸 것이라 **원 주문의 물건이 나중에
+    한 번 나간다** — 발주확인이 먼저다. 화면에서 파란 '지금 닫기'가 켜져 있으면 두 번째
+    클릭이 그대로 불가역 호출이 된다(구매자에게 "배송 시작", 취소 버튼 소멸).
+
+    배지('재결제')는 그대로 있어야 한다 — 관계를 숨기는 게 아니라 버튼만 닫는 것이다.
+    """
+    _login(client)
+    order = _order()
+    link = _collected(order_no="N-REL-REPAY-LOCK", relation="REPAY",
+                      order_id=int(order.id), place_status="NOT_YET")
+
+    body = _body(client, tab="work", link_id=link.id)
+
+    assert "재결제" in body, "관계 배지는 그대로 보여야 한다"
+    assert "지금 닫기" not in body, "재결제 집에 '지금 닫기'가 떴다"
+    assert is_disabled(body, "wb-dispatch"), open_tag(body, "wb-dispatch")
+    assert "신규 집이라" not in body, "재결제 집을 '신규 집'이라 불렀다"
+
+
 def test_new_dispatch_modal_warns_about_real_shipment(client, workbench_on):
     """신규 발송처리 모달은 '실제 출고·시공 시점'을 크게 경고한다(D2)."""
     _login(client)

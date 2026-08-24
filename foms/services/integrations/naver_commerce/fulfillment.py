@@ -51,10 +51,20 @@ STATE_KEY = "fulfillment"
 #: 자사 배송(택배사·송장 없음)의 배송방법 코드.
 DIRECT_DELIVERY = "DIRECT_DELIVERY"
 
-#: 발주확인 없이도 바로 발송처리로 닫는 관계(2026-08-22 사용자 결정 D1).
-#: 추가결제·재결제는 물건이 따로 나가지 않아 "배송 시작"이 사실을 왜곡하지 않는다.
-#: 신규(NEW·빈값)는 그대로 발주확인이 먼저다.
-CLOSE_NOW_RELATIONS = ("ADDON", "REPAY")
+#: 발주확인 없이도 바로 발송처리로 닫는 관계(2026-08-22 결정 D1 → **D1 개정 2026-08-24**).
+#:
+#: 추가결제(ADDON)만 여기 남는다 — 차액만 더 받은 것이라 **물건이 따로 나가지 않는다**.
+#: "배송 시작"이 사실을 왜곡하지 않으므로 발주확인 전에 바로 닫아도 된다.
+#:
+#: 재결제(REPAY)는 **뺐다**(D1 개정 2026-08-24). 재결제는 원 주문을 취소하고 그 물건값을
+#: 다시 낸 것이다 — **원 주문의 물건이 나중에 한 번 나간다**. "물건이 따로 나가지 않는다"
+#: 는 ADDON 논리이고 REPAY 에는 거짓이다. 출고 전에 닫으면 구매자에게 "배송 시작"이 먼저
+#: 뜨고 구매확정·정산 시계가 돌며, ``dispatched_any`` 가 되어 취소 버튼까지 사라진다
+#: (되돌릴 수 없다). 2026-08-19 스펙 §3 원안(REPAY = 신규와 같게)으로 되돌린 것이다.
+#:
+#: 재결제·신규(NEW·빈값)는 발주확인이 먼저다. 발주확인 버튼은 그대로 열려 있고
+#: (``can_confirm``) 확인 뒤 발송처리가 열리므로 **막다른 길은 없다** — 비용은 클릭 1회다.
+CLOSE_NOW_RELATIONS = ("ADDON",)
 
 #: 판매자 직접취소 사유 코드 → 사람이 읽는 라벨 (커머스API 2.86.0 "취소 요청").
 #: 네이버가 아는 값만 보낸다 — 목록 밖 코드는 400 이고, 되돌릴 수 없는 경로라 미리 막는다.
@@ -499,8 +509,8 @@ def dispatch_order(session: Session, client: Any, *, link_id: int,
         ``{"dispatched": [...], "skipped": [...]}``.
 
     Raises:
-        FulfillmentError: 링크가 없거나 (신규 집인데) 발주확인 전이거나 네이버 호출이
-            실패했을 때.
+        FulfillmentError: 링크가 없거나 (:data:`CLOSE_NOW_RELATIONS` 밖의 집인데 —
+            신규·재결제) 발주확인 전이거나 네이버 호출이 실패했을 때.
     """
     stamp = now or now_utc_naive()
     links = _links_of_group(session, link_id)
@@ -512,9 +522,10 @@ def dispatch_order(session: Session, client: Any, *, link_id: int,
     # any 로 두면 그 NEW 형제까지 발주확인 없이 발송된다(2026-08-23 리뷰 F7).
     close_now = bool(links) and all(
         (row.relation or "").upper() in CLOSE_NOW_RELATIONS for row in links)
-    # 신규 주문은 발주확인이 먼저다 — 실제 출고 전 발송처리는 구매자에게 "배송 시작"으로
-    # 보이고 구매확정·정산 시계를 먼저 돌린다. 추가결제·재결제는 물건이 따로 나가지 않아
-    # 확인 뒤 바로 닫는다(D1) — 네이버도 발송처리에서 발주확인을 함께 처리한다.
+    # 신규·재결제 집은 발주확인이 먼저다 — 실제 출고 전 발송처리는 구매자에게 "배송 시작"
+    # 으로 보이고 구매확정·정산 시계를 먼저 돌린다. 재결제는 원 주문의 물건이 **나중에 한 번
+    # 나가므로** 여기 해당한다(D1 개정 2026-08-24). 추가결제만 물건이 따로 나가지 않아
+    # 확인 뒤 바로 닫는다 — 네이버도 발송처리에서 발주확인을 함께 처리한다.
     not_confirmed = [] if close_now else [
         row for row in links
         if not (_state(row).get("place_confirmed_at")

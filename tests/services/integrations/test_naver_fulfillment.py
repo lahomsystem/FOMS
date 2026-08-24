@@ -160,15 +160,50 @@ def test_dispatch_lets_an_addon_close_before_place_confirmation(app):
     assert _state(link_id)["dispatched_at"]
 
 
-def test_dispatch_lets_a_repay_close_before_place_confirmation(app):
-    """재결제도 같다 — 원 주문의 후속이라 새로 나가는 물건이 없다."""
+def test_dispatch_blocks_a_repay_before_place_confirmation(app):
+    """재결제는 발주확인 전에 닫지 **않는다** (D1 개정 2026-08-24).
+
+    옛 D1(2026-08-22)은 ADDON 논리("물건이 따로 나가지 않는다")를 REPAY 로 확장했는데
+    그 문장은 재결제에 거짓이다 — 재결제는 원 주문을 취소하고 그 물건값을 다시 낸 것이라
+    **원 주문의 물건이 나중에 한 번 나간다**. 출고 전에 닫으면 구매자에게 "배송 시작"이
+    먼저 뜨고 구매확정·정산 시계가 돌며, dispatched_any 가 되어 취소 버튼까지 사라진다.
+    2026-08-19 스펙 §3 원안(REPAY = 신규와 같게)으로 되돌린 결정이다.
+
+    거절 사유가 **링크에 남는지**까지 본다: web 은 enqueue 뒤 이미 "요청했습니다"로
+    답했으므로, 이 기록이 사람에게 닿는 유일한 통지 경로다.
+    """
     link_id = _link("PO-F-REPAY", order_no="N-FUL-REPAY", place="NOT_YET", relation="REPAY")
     client = _StubClient()
 
+    with pytest.raises(FulfillmentError) as caught:
+        dispatch_order(db_session, client, link_id=link_id)
+    db_session.commit()
+
+    assert client.dispatch_calls == [], "재결제 집이 발주확인 없이 네이버로 나갔다"
+    assert "발주확인이 먼저입니다" in str(caught.value)
+    state = _state(link_id)
+    assert "발주확인이 먼저입니다" in state["last_error"], "거절 사유가 링크에 없다"
+    assert state["last_error_action"] == "dispatch"
+
+
+def test_a_repay_dispatches_after_place_confirmation(app):
+    """재결제도 **막다른 길이 아니다** — 발주확인을 마치면 발송처리가 그대로 나간다.
+
+    D1 개정의 비용은 클릭 1회여야 한다. 발주확인 뒤에도 막히면 그건 개정이 아니라
+    재결제 집을 화면에서 처리할 수 없게 만든 것이다.
+    """
+    link_id = _link("PO-F-REPAY-OK", order_no="N-FUL-REPAY-OK", place="NOT_YET",
+                    relation="REPAY")
+    client = _StubClient()
+
+    confirm_place_order(db_session, client, link_id=link_id)
+    db_session.commit()
     dispatch_order(db_session, client, link_id=link_id)
     db_session.commit()
 
     assert len(client.dispatch_calls) == 1
+    assert _state(link_id)["dispatched_at"]
+    assert not _state(link_id)["last_error"]
 
 
 def test_a_mixed_household_still_needs_place_confirmation_first(app):

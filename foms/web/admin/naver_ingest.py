@@ -24,6 +24,7 @@ from flask import (abort, g, jsonify, redirect, render_template, request, sessio
 
 from db import get_db
 from foms.services.datetime_kst import format_datetime_kst, now_utc_naive
+from foms.services.integrations.naver_commerce.fulfillment import CLOSE_NOW_RELATIONS
 from foms.services.integrations.naver_commerce.order_candidates import find_order_candidates
 from foms.services.integrations.naver_commerce.promotion import is_promotable, summarize_snapshot
 from foms.services.jobs.queue import enqueue_naver_order_sync
@@ -2156,16 +2157,21 @@ def _group_queue(links: list[ExternalOrderLink], orders: dict,
             "claim_blocking": any(s["claim_blocking"] for s in member_summaries),
             # 발주확인은 상품주문 단위다 — 하나라도 남아 있으면 그 집은 "발주확인 전"이다(T16-A).
             "place_pending": any(not _place_view(row)["confirmed"] for row in members),
-            # 관계 축(추가결제·재결제). 붙이기는 집 전체를 함께 붙이지만(attach_link_to_order),
-            # 백필 전 데이터는 형제 일부만 값이 있을 수 있어 멤버 전체를 본다. 둘이 섞이면
-            # ADDON 이 이긴다 — 화면에서 더 강한 제약(발송처리 즉시 닫기)을 받는 쪽이다.
+            # 관계 축(추가결제·재결제) — 이 값은 **배지 라벨**이다. 붙이기는 집 전체를 함께
+            # 붙이지만(attach_link_to_order) 백필 전 데이터는 형제 일부만 값이 있을 수 있어
+            # 멤버 전체를 본다. 둘이 섞이면 ADDON 을 대표로 적는다 — **표기 우선순위일 뿐**
+            # 버튼 동작은 바꾸지 않는다(옛 주석은 "ADDON 이 더 강한 제약"이라 했는데, 지금
+            # 닫기 대상이 ADDON 뿐이라 사실이 아니다 — D1 개정 2026-08-24).
+            # 아래 close_now 는 **집 전체**를 보므로 섞인 집은 어차피 '지금 닫기'가 아니다.
             "relation": ("ADDON" if any((row.relation or "") == "ADDON" for row in members)
                          else next((row.relation for row in members
                                     if (row.relation or "") == "REPAY"), "")),
-            # 발송처리를 '지금 닫기'로 열지 여부는 **집 전체가** 추가결제·재결제일 때만이다
-            # (서버 dispatch_order 와 같은 all 규칙 — any 로 두면 섞인 집의 NEW 형제까지
-            # 발주확인 없이 나간다).
-            "close_now": all((row.relation or "").upper() in ("ADDON", "REPAY")
+            # 발송처리를 '지금 닫기'로 열지 여부는 **집 전체가** CLOSE_NOW_RELATIONS 일
+            # 때만이다(서버 dispatch_order 와 **같은 상수·같은 all 규칙** — any 로 두면
+            # 섞인 집의 NEW 형제까지 발주확인 없이 나간다). 튜플을 여기 손으로 다시 적으면
+            # 다음 개정에서 서버와 화면이 조용히 갈린다 — 실제로 갈릴 뻔했다(D1 개정
+            # 2026-08-24: REPAY 를 뺄 때 이 자리가 하드코딩이었다).
+            "close_now": all((row.relation or "").upper() in CLOSE_NOW_RELATIONS
                              for row in members),
             # 우리가 취소한 집은 더 손대지 않는다 — 버튼·모달·발주확인 전 탭에서 함께 뺀다.
             "canceled": any(((row.triage_state or {}).get("fulfillment") or {}).get("canceled_at")
