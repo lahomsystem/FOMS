@@ -1,8 +1,13 @@
 """AS 회차 차트(ver7) 뷰 빌더 — 상태 카드 + 회차 아코디언 + 접수 앵커.
 
-sd['shipment']['as_log'](round 스탬프, T15a 규약)를 회차별로 묶어 ver7 차트가
-그대로 렌더할 뷰 dict 를 만든다. 표면 SSOT: AS 대시보드 타임라인 대체 + 지도
-카드 인라인 확장이 같은 부품(templates/cs/partials/as_round_chart.html)을 공유.
+sd['shipment']['as_log'](round 스탬프, T15a 규약)를 **(건, 회차) 두 열쇠**로 묶어
+ver7 차트가 그대로 렌더할 뷰 dict 를 만든다. 표면 SSOT: AS 대시보드 타임라인 대체 +
+지도 카드 인라인 확장이 같은 부품(templates/cs/partials/as_round_chart.html)을 공유.
+
+회차 번호를 정수 하나로만 묶으면 6월 건 1차와 8월 건 1차가 한 통에 들어가 기록이
+섞이고, 방문일까지 같은 통에서 꺼내져 지난 건 방문이 새 건 슬롯에 '완료'로 찍힌다
+(목업 3-C). 그래서 버킷 키가 ``(cycle_id, round)`` 다. 번호 계산·표시는 이 범위에서
+바꾸지 않는다(S3). 건 요약 투영은 ``as_cycle_view`` SSOT 를 그대로 싣는다.
 
 시스템 기록은 스트림에서 제거하고 상태 카드(방문일·가능시간·비용) 이력으로
 흡수한다(ver7 확정 — 시스템 회색 강등이 아니라 표면 승격이 해법). 분류는 system
@@ -12,7 +17,7 @@ sd['shipment']['as_log'](round 스탬프, T15a 규약)를 회차별로 묶어 ve
 from __future__ import annotations
 
 import datetime
-from typing import Any
+from typing import Any, Callable
 
 from foms.services.as_content_safety import as_content_html_to_text
 from foms.services.orders.as_availability import as_availability_label
@@ -99,6 +104,62 @@ def _entry_round(entry: dict) -> int:
     return raw if isinstance(raw, int) and raw >= 1 else 1
 
 
+def _entry_cycle(entry: dict) -> str:
+    """항목 소속 AS 건(cycle) 표식. 스탬프 전 구항목은 ``''``(= 분류 안 됨).
+
+    **시각으로 추정하지 않는다**(사용자 확정): 표식 없는 옛 기록을 날짜로 어느 건에
+    끼워 넣으면 완료 뒤 늦게 달린 기록이 엉뚱한 건으로 들어가고, 화면은 그걸 단정해서
+    보여준다. 모르는 것은 ``''`` 로 두고 '예전 기록' 블록에 모은다.
+    """
+    raw = entry.get("cycle_id")
+    return str(raw) if raw else ""
+
+
+def _absorb_cycle_key(sd: dict) -> str:
+    """표식 없는 옛 기록을 귀속시킬 **유일해** 건 표식. 조건 미충족이면 ``''``.
+
+    건이 **정확히 1개**뿐이고 그게 현재 건이면, 표식 없는 기록이 속할 수 있는 건은 그
+    하나밖에 없다 — 시각으로 고르는 추정이 아니라 유일해다. 이 보정이 없으면 스탬프 도입
+    **이전부터 진행 중이던 AS**(배포 당일 실운영 모집단 전체)가 현재 건 '기록 없음' +
+    '예전 기록' 블록으로 쪼개져, 같은 회차 번호가 화면에 두 번 뜬다.
+
+    건이 2개 이상이면 어느 건인지 알 수 없으므로 ``''`` 를 돌려 '예전 기록' 블록에 남긴다
+    (완료 뒤 늦게 달린 기록을 엉뚱한 건에 끼워 넣지 않는다 — ``_entry_cycle`` 참조).
+
+    Args:
+        sd: 주문 structured_data.
+
+    Returns:
+        귀속시킬 ``cycle_id`` 또는 ``''``.
+    """
+    lifecycle = sd.get("as_lifecycle")
+    if not isinstance(lifecycle, dict):
+        return ""
+    cycles = [c for c in (lifecycle.get("cycles") or []) if isinstance(c, dict)]
+    if len(cycles) != 1:
+        return ""
+    only = str(cycles[0].get("cycle_id") or "")
+    return only if only and only == str(lifecycle.get("current_cycle_id") or "") else ""
+
+
+def _scoped(bucket: dict[tuple[str, int], Any], cycle_key: str | None) -> dict[int, Any]:
+    """``(cycle_id, round)`` 버킷에서 한 건 몫만 회차 키로 뽑는다.
+
+    ``cycle_key=None`` 은 건 구분 없이 합치는 **기존 동작 보존 경로**다(건 기록이 아예
+    없는 개편 전 주문). 건이 하나라도 있으면 항상 건 단위로 뽑아야 6월 건 1차와 8월 건
+    1차가 한 통에 섞이지 않는다.
+    """
+    if cycle_key is not None:
+        return {no: value for (cid, no), value in bucket.items() if cid == cycle_key}
+    merged: dict[int, Any] = {}
+    for (_cid, no), value in bucket.items():
+        if isinstance(value, list):
+            merged.setdefault(no, []).extend(value)
+        else:
+            merged[no] = value
+    return merged
+
+
 def _round_visit_date(round_systems: list[dict]) -> str:
     """그 회차의 마지막 '방문일 확정' system 문구에서 방문일(ISO)을 뽑는다. 없으면 ''."""
     for e in reversed(round_systems):
@@ -181,6 +242,102 @@ def _sort_desc(entries: list[tuple[str, int, dict]]) -> list[dict]:
     return [e for _, _, e in sorted(entries, key=lambda t: (t[0], t[1]), reverse=True)]
 
 
+def _build_rounds(
+    *,
+    people: dict[int, list[tuple[str, int, dict]]],
+    systems: dict[int, list[dict]],
+    verdicts: dict[int, dict],
+    is_current: bool,
+    current_round: int,
+    visit_date: str,
+    today: datetime.date,
+    decorate: Callable[[dict], dict[str, Any]],
+) -> list[dict[str, Any]]:
+    """한 건 몫의 회차 목록(최신 회차 먼저). 항목 모양은 기존 ``rounds`` 와 동일.
+
+    Args:
+        people/systems/verdicts: **그 건으로 이미 좁혀진** 회차별 버킷.
+        is_current: 현재 건인가. 현재 건에서만 빈 진행 회차를 채우고 슬롯을 판정한다 —
+            종결된 건·분류 안 된 옛 기록에 '다음: 방문' 슬롯을 그리면 거짓말이 된다.
+        current_round: ``current_as_round`` 값(번호 규칙은 이번 범위에서 안 바꾼다).
+        visit_date: 현재 방문일(flat) — 현재 건 진행 회차 슬롯 판정에만 쓴다.
+        today: 기준일(KST). decorate: 항목 표시 dict 변환기.
+    """
+    # systems 도 회차 출처다. 평탄 목록이던 때는 ``{current}`` 를 무조건 합쳐 회차 1 이
+    # 늘 존재했고 시스템 이벤트가 거기 붙었다. 건별로 좁힌 뒤에는 그 보정이 현재 건에만
+    # 걸리므로, 사람 기록 없이 시스템 이벤트만 남은 **종결 건**이 회차 0개가 되어 지난 건
+    # 블록이 통째로 '이 건 기록 없음'이 된다(접수 원문은 전역 reception 슬롯이 가져간다).
+    nos = set(people) | set(verdicts) | set(systems)
+    if is_current:
+        nos.add(current_round)
+    out: list[dict[str, Any]] = []
+    for no in sorted(nos, reverse=True):
+        verdict = verdicts.get(no)
+        entries = _sort_desc(people.get(no, []))
+        is_open = is_current and verdict is None
+        # 방문일도 **같은 두 열쇠**로 찾는다 — 건 구분 없이 꺼내면 지난 건 방문일이
+        # 새 건 슬롯에 done 으로 찍힌다(목업 3-C '터지는 것 2').
+        round_visit = _round_visit_date(systems.get(no, []))
+        visit_md = _short_md(round_visit)
+        out.append({
+            "no": no,
+            "open": is_open,
+            "verdict": _decorated_verdict(verdict) if verdict else None,
+            "summary": _round_summary(list(reversed(entries)), visit_md),
+            "visit_md": visit_md,
+            "slots": _build_slots(
+                entries=entries, has_verdict=False, today=today,
+                visit_date=_effective_round_visit(round_visit, visit_date, today),
+            ) if is_open else [],
+            "entries": [decorate(e) for e in entries[:_ROUND_ENTRY_LIMIT]],
+            "hidden_count": max(len(entries) - _ROUND_ENTRY_LIMIT, 0),
+        })
+    return out
+
+
+def _build_cycle_groups(
+    sd: dict,
+    *,
+    buckets: tuple[dict, dict, dict],
+    current_round: int,
+    visit_date: str,
+    today: datetime.date,
+    decorate: Callable[[dict], dict[str, Any]],
+) -> tuple[list[dict[str, Any]], list[dict[str, Any]], list[dict[str, Any]]]:
+    """건(cycle) 단위 묶음 조립. 반환 ``(cycle_groups, rounds, unassigned_rounds)``.
+
+    현재 건이 맨 앞이고 그다음이 종결 건 최신순이다. 건 요약은 투영 SSOT
+    (``as_cycle_view.cycle_summary``)를 그대로 실어 ``history_unknown``(이력 시작 전)
+    까지 템플릿이 그릴 수 있게 한다.
+    """
+    from foms.services.orders.as_cycle_service import current_cycle
+    from foms.services.orders.as_cycle_view import closed_cycle_summaries, cycle_summary
+
+    people, systems, verdicts = buckets
+
+    def _rounds(cycle_key: str | None, is_current: bool) -> list[dict[str, Any]]:
+        return _build_rounds(
+            people=_scoped(people, cycle_key), systems=_scoped(systems, cycle_key),
+            verdicts=_scoped(verdicts, cycle_key), is_current=is_current,
+            current_round=current_round, visit_date=visit_date, today=today,
+            decorate=decorate)
+
+    current = cycle_summary(sd, current_cycle(sd))
+    if current is None:
+        # 건 기록이 없는 주문: 건 구분 없이 전체를 세던 기존 계산 그대로(회귀 0).
+        return [], _rounds(None, True), []
+    groups = [{
+        "summary": current, "is_current": True,
+        "rounds": _rounds(str(current.get("cycle_id") or ""), True),
+    }]
+    for summary in closed_cycle_summaries(sd):
+        groups.append({
+            "summary": summary, "is_current": False,
+            "rounds": _rounds(str(summary.get("cycle_id") or ""), False),
+        })
+    return groups, groups[0]["rounds"], _rounds("", False)
+
+
 def build_as_round_chart_view(
     sd: dict | None,
     *,
@@ -197,9 +354,14 @@ def build_as_round_chart_view(
             도는 N+1 이 된다. 미주입이면 기록 줄에 썸네일이 붙지 않는다.
 
     Returns:
-        ``{state_card, symptom_preview, rounds(최신 회차 먼저), reception, legacy,
-        current_round, verdict_prompt, count}``. rounds 항목은
-        ``{no, open, verdict, summary, visit_md, slots, entries}``.
+        ``{state_card, symptom_preview, rounds(최신 회차 먼저), cycle_groups,
+        unassigned_rounds, reception, legacy, current_round, verdict_prompt, count}``.
+        rounds 항목은 ``{no, open, verdict, summary, visit_md, slots, entries}``.
+
+        ``cycle_groups`` = ``[{summary, is_current, rounds}]`` — 현재 건이 맨 앞,
+        그다음 종결 건 최신순. ``rounds`` 는 **현재 건 그룹의 rounds** 와 같은 객체다
+        (건 기록이 없는 개편 전 주문은 건 구분 없는 기존 전체 계산). ``unassigned_rounds``
+        는 ``cycle_id`` 표식이 없는 옛 기록 — 시각으로 추정해 건에 끼워 넣지 않는다.
     """
     from foms.services.as_dashboard_display import as_billing_badge_kind, as_billing_state_text
     from foms.services.erp_display import get_today_kst
@@ -226,10 +388,14 @@ def build_as_round_chart_view(
     legacy: list[dict] = []
     histories: dict[str, list[dict]] = {
         "visit": [], "availability": [], "billing": [], "other": []}
-    round_people: dict[int, list[tuple[str, int, dict]]] = {}
-    round_systems: dict[int, list[dict]] = {}
-    round_verdicts: dict[int, dict] = {}
+    # 버킷 키 = (cycle_id, round) — 건 표식이 없는 옛 항목은 cycle_id 자리가 ''.
+    round_people: dict[tuple[str, int], list[tuple[str, int, dict]]] = {}
+    round_systems: dict[tuple[str, int], list[dict]] = {}
+    round_verdicts: dict[tuple[str, int], dict] = {}
     human_count = 0
+
+    # 건이 하나뿐인 주문에서는 표식 없는 옛 기록도 그 건 몫이다(_absorb_cycle_key).
+    absorb_cycle = _absorb_cycle_key(sd)
 
     entries = shipment.get("as_log") if isinstance(shipment.get("as_log"), list) else []
     if not entries:
@@ -240,50 +406,32 @@ def build_as_round_chart_view(
     for idx, e in enumerate(entries):
         if not isinstance(e, dict) or e.get("deleted") is True:
             continue
-        no = _entry_round(e)
+        key = (_entry_cycle(e) or absorb_cycle, _entry_round(e))
         etype = e.get("type")
         if e.get("legacy") is True:
             legacy.append(_decorate(e))
         elif etype == "system":
             histories[_classify_system_entry(str(e.get("text") or ""))].append(_decorate(e))
-            round_systems.setdefault(no, []).append(e)
+            round_systems.setdefault(key, []).append(e)
         elif etype == "reception" and reception is None:
             reception = _decorate(e)
         elif etype == "verdict":
             human_count += 1
             # 같은 회차 재판정(정정)은 마지막 판정이 이긴다 — 이전 판정은 기록 표에 남는다.
-            prev = round_verdicts.get(no)
+            prev = round_verdicts.get(key)
             if prev is not None:
-                round_people.setdefault(no, []).append(
+                round_people.setdefault(key, []).append(
                     (prev.get("ts") or "", -1, prev))
-            round_verdicts[no] = e
+            round_verdicts[key] = e
         else:
             human_count += 1
-            round_people.setdefault(no, []).append((e.get("ts") or "", idx, e))
+            round_people.setdefault(key, []).append((e.get("ts") or "", idx, e))
 
     current = current_as_round(sd)
-    # 회차 목록: 기록·판정이 있는 회차 ∪ 현재 회차(막 열린 빈 회차 포함).
-    round_nos = sorted(set(round_people) | set(round_verdicts) | {current}, reverse=True)
-    rounds: list[dict[str, Any]] = []
-    for no in round_nos:
-        verdict = round_verdicts.get(no)
-        people = _sort_desc(round_people.get(no, []))
-        is_open = verdict is None
-        round_visit = _round_visit_date(round_systems.get(no, []))
-        visit_md = _short_md(round_visit)
-        rounds.append({
-            "no": no,
-            "open": is_open,
-            "verdict": _decorated_verdict(verdict) if verdict else None,
-            "summary": _round_summary(list(reversed(people)), visit_md),
-            "visit_md": visit_md,
-            "slots": _build_slots(
-                entries=people, has_verdict=False, today=today,
-                visit_date=_effective_round_visit(round_visit, visit_date, today),
-            ) if is_open else [],
-            "entries": [_decorate(e) for e in people[:_ROUND_ENTRY_LIMIT]],
-            "hidden_count": max(len(people) - _ROUND_ENTRY_LIMIT, 0),
-        })
+    # 회차 목록: 기록·판정이 있는 회차 ∪ 현재 회차(막 열린 빈 회차 포함)를 **건 안에서만**.
+    cycle_groups, rounds, unassigned_rounds = _build_cycle_groups(
+        sd, buckets=(round_people, round_systems, round_verdicts),
+        current_round=current, visit_date=visit_date, today=today, decorate=_decorate)
 
     open_round = next((r for r in rounds if r["open"]), None)
     verdict_prompt = bool(open_round) and any(
@@ -319,6 +467,8 @@ def build_as_round_chart_view(
         },
         "symptom_preview": symptom,
         "rounds": rounds,
+        "cycle_groups": cycle_groups,
+        "unassigned_rounds": unassigned_rounds,
         "reception": reception,
         "legacy": legacy,
         "current_round": current,

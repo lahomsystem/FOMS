@@ -69,13 +69,89 @@
 {% endfor %}
 {%- endmacro %}
 
+{# 회차 하나 — 현재 건 인라인과 지난 건 <details> 두 자리에서 같은 마크업을 쓴다(중복 금지).
+   진행 회차는 슬롯 칩 + 펼친 표, 끝난 회차는 details 접힘(as-rchart-round--closed 계약 유지). #}
+{% macro _rchart_round(r, can_edit=true) -%}
+{% if r.open %}
+<div class="as-rchart-round as-rchart-round--open" data-round="{{ r.no }}">
+  <div class="as-rchart-round__head">
+    <span class="as-rchart-round__num as-rchart-round__num--on">{{ r.no }}차 · 진행 중</span>
+    {% set next_slot = (r.slots | selectattr('state', 'equalto', 'next') | list | first) %}
+    {% if next_slot %}<span class="as-rchart-round__next">다음: {{ next_slot.label }}</span>{% endif %}
+  </div>
+  <div class="as-rchart-slots">
+    {% for s in r.slots %}
+    <span class="as-rchart-slot as-rchart-slot--{{ s.state }}">{% if s.state == 'done' %}✓ {% elif s.state == 'next' %}! {% endif %}{{ s.label }}</span>
+    {% endfor %}
+  </div>
+  <div class="as-rchart-rows">
+    {% for e in r.entries %}{{ render_as_rchart_entry_row(e, can_edit) }}{% endfor %}
+    {% if not r.entries %}<div class="as-rchart-rows__empty text-muted small">이 회차 기록 없음 · 첫 기록을 남겨보세요.</div>{% endif %}
+    {% if r.hidden_count %}<div class="as-rchart-rows__empty text-muted small">이전 기록 {{ r.hidden_count }}건 생략</div>{% endif %}
+  </div>
+</div>
+{% else %}
+<details class="as-rchart-round as-rchart-round--closed" data-round="{{ r.no }}">
+  <summary class="as-rchart-round__head">
+    <span class="as-rchart-round__num">{{ r.no }}차</span>
+    {% if r.summary %}<span class="as-rchart-round__summary">{{ r.summary }}</span>{% endif %}
+    {% if r.verdict %}<span class="as-rchart-verdict-flag as-rchart-verdict-flag--{{ r.verdict.verdict }}">{{ r.verdict.verdict_label }}{% if r.verdict.reason_preview %} — {{ r.verdict.reason_preview }}{% endif %}</span>{% endif %}
+  </summary>
+  <div class="as-rchart-rows">
+    {% if r.verdict %}{{ render_as_rchart_entry_row(r.verdict, can_edit) }}{% endif %}
+    {% for e in r.entries %}{{ render_as_rchart_entry_row(e, can_edit) }}{% endfor %}
+    {% if r.hidden_count %}<div class="as-rchart-rows__empty text-muted small">이전 기록 {{ r.hidden_count }}건 생략</div>{% endif %}
+  </div>
+</details>
+{% endif %}
+{%- endmacro %}
+
+{# 건(cycle) 구분선 — 지난 건 접힘 블록과 '예전 기록' 블록이 같은 껍데기를 쓴다.
+   text 는 호출부가 만든 요약 문구(caller), kind 는 스타일 변형(''|'unassigned'). #}
+{% macro _rchart_cycle_divider(text, kind='', free='') -%}
+<summary class="as-rchart-cycle-divider{% if kind %} as-rchart-cycle-divider--{{ kind }}{% endif %}">
+  <span class="as-rchart-cycle-divider__line"></span>
+  <span class="as-rchart-cycle-divider__text">{{ text }}{% if free %} <span class="as-rchart-cycle-divider__free">{{ free }}</span>{% endif %}</span>
+  <span class="as-rchart-cycle-divider__more as-rchart-cycle-divider__more--closed">펼쳐 보기 ▸</span>
+  <span class="as-rchart-cycle-divider__more as-rchart-cycle-divider__more--open">접기 ▾</span>
+  <span class="as-rchart-cycle-divider__line"></span>
+</summary>
+{%- endmacro %}
+
+{# 건 요약 → 구분선 문구. 접수일·완료일·비용은 **봉인된 스냅샷이 있을 때만** 쓴다 —
+   history_unknown(LEGACY_BRIDGE) 건은 접수일을 모르므로 '불명'이라고 쓴다(추정 금지). #}
+{% macro _rchart_cycle_label(s) -%}
+{%- if s.history_unknown -%}이력 시작 전 · 접수일 불명
+{%- else -%}{{ s.ordinal }}번째 AS{% if s.received_date %} · {{ s.received_date }} 접수{% else %} · 접수일 불명{% endif %}
+{%- endif -%}
+{%- if s.completed_date %} · {{ s.completed_date }} 완료{% endif -%}
+{%- endmacro %}
+
 {% macro render_as_round_chart(order_id, view, can_edit=true, billing_state='', billing_type='free', is_sales_delivery=false, notes='') -%}
 {% set v = view or {} %}
 {% set sc = v.state_card or {} %}
+{# 건(cycle) 투영은 as_cycle_view SSOT 가 만든 요약을 그대로 쓴다 — 화면이 다시 세지 않는다.
+   cycle_groups 는 [현재 건, 종결 건 최신순]. 건 기록이 없는 옛 주문이면 통째로 비어 있다. #}
+{% set cyc = (v.cycle_groups[0].summary if v.cycle_groups else none) %}
+{% set prev_cyc = (v.cycle_groups[1].summary if v.cycle_groups and v.cycle_groups | length > 1 else none) %}
 <div class="as-rchart" data-order-id="{{ order_id }}" data-current-round="{{ v.current_round }}">
   {% if can_edit %}
   <div class="as-rchart-head">
+    {# 건 배지: 1번째 AS 는 배지를 붙이지 않는다(ordinal > 1 만). 이력 시작 전 건은
+       '몇 번째'를 셀 수 없으므로 순번 배지 대신 회색 배지만 붙인다. #}
+    {% if cyc and cyc.history_unknown %}
+    <span class="as-rchart-cycle-badge as-rchart-cycle-badge--unknown">이력 시작 전</span>
+    {% elif cyc and cyc.ordinal > 1 %}
+    <span class="as-rchart-cycle-badge">{{ cyc.ordinal }}번째 AS</span>
+    {% endif %}
+    {% if cyc and cyc.recurrence %}<span class="as-rchart-cycle-recur">재발</span>{% endif %}
     <span class="as-rchart-head__round">{{ v.current_round }}차{% if v.rounds and v.rounds[0].open %} · 진행 중{% else %} · 완결{% endif %}</span>
+    {# 직전 건 한 줄 — 값이 없으면 줄 자체를 안 낸다(빈 칸·추정 금지). #}
+    {% if cyc and cyc.history_unknown %}
+    <span class="as-rchart-cycle-prev">이 건 접수일 <span class="as-rchart-cycle-unknown">불명</span></span>
+    {% elif prev_cyc %}
+    <span class="as-rchart-cycle-prev">직전: {% if prev_cyc.history_unknown %}이력 시작 전{% else %}{{ prev_cyc.ordinal }}번째 AS{% endif %}{% if prev_cyc.completed_date | length >= 10 %} · {{ prev_cyc.completed_date[5:7] | int }}/{{ prev_cyc.completed_date[8:10] | int }} 완료{% endif %}{% if prev_cyc.billing_text %} · {{ prev_cyc.billing_text }}{% endif %}</span>
+    {% endif %}
     <span class="as-billing-state" data-billing-type="{{ billing_type }}">비용 {{ billing_state }}</span>
     <button type="button" class="btn btn-sm btn-outline-secondary as-billing-edit" title="무상/유상 판정 변경">판정 변경</button>
     <button type="button"
@@ -121,9 +197,25 @@
       <summary>
         <span class="as-rchart-field__k">비용</span>
         <span class="as-rchart-field__v">{{ (sc.billing.state_text if sc.billing else '') or '무상 추정' }}</span>
+        {% if cyc and cyc.history_unknown %}<span class="as-rchart-field__m">지난 건 비용은 <span class="as-rchart-cycle-unknown">불명</span></span>{% endif %}
       </summary>
-      <div class="as-rchart-hist">{{ _rchart_history(sc.billing.history if sc.billing else []) }}{% if not (sc.billing and sc.billing.history) %}<div class="as-rchart-hist__empty">이력 없음</div>{% endif %}</div>
+      <div class="as-rchart-hist">{{ _rchart_history(sc.billing.history if sc.billing else []) }}{% if not (sc.billing and sc.billing.history) %}<div class="as-rchart-hist__empty">이력 없음</div>{% endif %}{% if cyc and cyc.history_unknown %}<div class="as-rchart-hist__empty">비용칸은 주문당 하나뿐이라, 지금 값이 어느 건 것인지 구분되지 않습니다.</div>{% endif %}</div>
     </details>
+    {# 옛 주문(LEGACY_BRIDGE)은 과거 이력이 복원되지 않았다 — 헤더의 '이 건 접수일 불명'
+       하나로는 "그럼 지난 AS 는 몇 번이었나"가 화면에서 답이 없는 채로 남는다. 목업
+       3-B ③ 대로 **모르는 것 셋을 다 모른다고** 적는다(추정·기본값 금지). #}
+    {% if cyc and cyc.history_unknown %}
+    <details class="as-rchart-field as-rchart-field--unknown">
+      <summary>
+        <span class="as-rchart-field__k">지난 AS 횟수</span>
+        <span class="as-rchart-field__v"><span class="as-rchart-cycle-unknown">불명</span></span>
+        <span class="as-rchart-field__m">"몇 번째 AS"를 셀 수 없어요</span>
+      </summary>
+      <div class="as-rchart-hist">
+        <div class="as-rchart-hist__empty">건 표식이 생긴 뒤 기록부터만 셀 수 있어요. 그 전 AS 는 세지 않습니다.</div>
+      </div>
+    </details>
+    {% endif %}
     {% if sc.other_history %}
     <details class="as-rchart-field as-rchart-field--etc">
       <summary><span class="as-rchart-field__k">기타 이력</span><span class="as-rchart-field__v">{{ sc.other_history | length }}건</span></summary>
@@ -137,41 +229,11 @@
   <div class="as-rchart-symptom">증상: {{ v.symptom_preview }}</div>
   {% endif %}
 
-  {# [B] 회차 아코디언 — 최신 회차 맨 위. 진행 회차=슬롯 칩+기록 표 펼침, 끝난 회차=details 접힘. #}
-  {% for r in v.rounds %}
-  {% if r.open %}
-  <div class="as-rchart-round as-rchart-round--open" data-round="{{ r.no }}">
-    <div class="as-rchart-round__head">
-      <span class="as-rchart-round__num as-rchart-round__num--on">{{ r.no }}차 · 진행 중</span>
-      {% set next_slot = (r.slots | selectattr('state', 'equalto', 'next') | list | first) %}
-      {% if next_slot %}<span class="as-rchart-round__next">다음: {{ next_slot.label }}</span>{% endif %}
-    </div>
-    <div class="as-rchart-slots">
-      {% for s in r.slots %}
-      <span class="as-rchart-slot as-rchart-slot--{{ s.state }}">{% if s.state == 'done' %}✓ {% elif s.state == 'next' %}! {% endif %}{{ s.label }}</span>
-      {% endfor %}
-    </div>
-    <div class="as-rchart-rows">
-      {% for e in r.entries %}{{ render_as_rchart_entry_row(e, can_edit) }}{% endfor %}
-      {% if not r.entries %}<div class="as-rchart-rows__empty text-muted small">이 회차 기록 없음 · 첫 기록을 남겨보세요.</div>{% endif %}
-      {% if r.hidden_count %}<div class="as-rchart-rows__empty text-muted small">이전 기록 {{ r.hidden_count }}건 생략</div>{% endif %}
-    </div>
-  </div>
-  {% else %}
-  <details class="as-rchart-round as-rchart-round--closed" data-round="{{ r.no }}">
-    <summary class="as-rchart-round__head">
-      <span class="as-rchart-round__num">{{ r.no }}차</span>
-      {% if r.summary %}<span class="as-rchart-round__summary">{{ r.summary }}</span>{% endif %}
-      {% if r.verdict %}<span class="as-rchart-verdict-flag as-rchart-verdict-flag--{{ r.verdict.verdict }}">{{ r.verdict.verdict_label }}{% if r.verdict.reason_preview %} — {{ r.verdict.reason_preview }}{% endif %}</span>{% endif %}
-    </summary>
-    <div class="as-rchart-rows">
-      {% if r.verdict %}{{ render_as_rchart_entry_row(r.verdict, can_edit) }}{% endif %}
-      {% for e in r.entries %}{{ render_as_rchart_entry_row(e, can_edit) }}{% endfor %}
-      {% if r.hidden_count %}<div class="as-rchart-rows__empty text-muted small">이전 기록 {{ r.hidden_count }}건 생략</div>{% endif %}
-    </div>
-  </details>
-  {% endif %}
-  {% endfor %}
+  {# [B] 회차 아코디언 — 최신 회차 맨 위. 진행 회차=슬롯 칩+기록 표 펼침, 끝난 회차=details 접힘.
+     v.rounds 는 **현재 건 몫**이다(cycle_groups[0].rounds 와 같은 객체) — 지난 건은 아래
+     구분선 블록이, 건 표식이 없는 옛 기록은 '예전 기록' 블록이 각각 그린다. 기록이 두 번
+     그려지지 않도록 세 자리는 서로 배타다. #}
+  {% for r in v.rounds %}{{ _rchart_round(r, can_edit) }}{% endfor %}
 
   {# 접수 원문 — 맨 아래 고정(시간상 시작점). legacy 는 그 아래(가장 오래된 본문). #}
   {% if v.reception %}
@@ -188,7 +250,33 @@
     {% endfor %}
   </div>
   {% endif %}
-  {% if not v.rounds and not v.reception and not v.legacy %}
+  {# 지난 AS 건 — 굵은 구분선 + 기본 접힘. 펼치면 그 건의 회차 아코디언이 통째로 나온다.
+     <details> 네이티브라 JS 0줄. 종결 건 최신순(as_cycle_view.closed_cycle_summaries 순서). #}
+  {% for g in v.cycle_groups %}
+  {% if not g.is_current %}
+  <details class="as-rchart-cycle-past">
+    {{ _rchart_cycle_divider(_rchart_cycle_label(g.summary), '', g.summary.billing_text) }}
+    <div class="as-rchart-cycle-body">
+      {% for r in g.rounds %}{{ _rchart_round(r, can_edit) }}{% endfor %}
+      {% if not g.rounds %}<div class="as-rchart-rows__empty text-muted small">이 건 기록 없음</div>{% endif %}
+    </div>
+  </details>
+  {% endif %}
+  {% endfor %}
+
+  {# 예전 기록 — 건 표식(cycle_id)이 생기기 전 기록. 어느 건인지 **모르므로** 추정 배치하지
+     않고 맨 아래 접힘 블록으로만 낸다(목업 3-B ③). #}
+  {% if v.unassigned_rounds %}
+  {% set unassigned_count = v.unassigned_rounds | map(attribute='entries') | map('length') | sum %}
+  <details class="as-rchart-cycle-past as-rchart-cycle-past--unassigned">
+    {{ _rchart_cycle_divider('여기서부터는 옛 기록이라 어느 AS 건인지 구분이 없어요 · 기록 ' ~ unassigned_count ~ '건', 'unassigned') }}
+    <div class="as-rchart-cycle-body">
+      {% for r in v.unassigned_rounds %}{{ _rchart_round(r, can_edit) }}{% endfor %}
+    </div>
+  </details>
+  {% endif %}
+
+  {% if not v.rounds and not v.reception and not v.legacy and not v.cycle_groups and not v.unassigned_rounds %}
   <div class="as-rchart-empty text-muted small">기록 없음 · 첫 기록을 남겨보세요.</div>
   {% endif %}
 

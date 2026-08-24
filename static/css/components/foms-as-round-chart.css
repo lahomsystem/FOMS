@@ -49,6 +49,14 @@
 /* 기타 이력(4번째 details)은 아래 줄 전체 폭 */
 .as-rchart-field--etc { grid-column: 1 / -1; border-top: 1px dashed #eef2f7; }
 
+/* 옛 주문의 '모르는 값' 줄(목업 3-B ③) — 3열 그리드를 깨지 않도록 아래 줄 전체 폭.
+   위 3칸(방문일·가능시간·비용)에 끼우면 비용이 혼자 다음 줄로 밀린다. */
+.as-rchart-field--unknown {
+  grid-column: 1 / -1;
+  border-top: 1px dashed #eef2f7;
+  border-right: none;
+}
+
 .as-rchart-field > summary {
   list-style: none;
   cursor: pointer;
@@ -301,6 +309,17 @@
     overflow: visible;
     text-overflow: clip;
   }
+
+  /* 건 구분선: 좁은 표면에서 점선 양날개가 남은 폭을 먹으면 문구가 min-content 까지
+     눌려 세로로 선다(회차 헤더와 같은 실패 모양). 좁을 때는 날개를 접고 문구에 전폭을
+     준다 — 구분 기능은 위아래 여백·배경이 대신한다. */
+  .as-rchart-cycle-divider { flex-wrap: wrap; gap: 6px; }
+
+  .as-rchart-cycle-divider__line { display: none; }
+
+  .as-rchart-cycle-divider__text { flex: 1 1 100%; white-space: normal; }
+
+  .as-rchart-cycle-prev { white-space: normal; }
 }
 
 /* 상태 카드 가능시간 편집 칩 — 목록 칩(erp-as-avail-chip 컨텍스트 스타일)과 달리
@@ -331,6 +350,155 @@
 .as-rchart-reception--legacy .as-rchart-reception__label { color: #94a3b8; }
 
 .as-rchart-reception .as-rchart-row { background: transparent; border-top: none; }
+
+/* ── AS 건(cycle) 구분 — 헤더 배지 · 지난 건 구분선 · 예전 기록 블록 ────────────
+   건(cycle) = "N번째 AS"(보라), 처리 회차 = "N차"(회색 .as-rchart-round__num).
+   둘이 같은 헤더에 나란히 서므로 **생김새를 확실히 다르게** 잡는다: 건은 꽉 찬 보라
+   알약, 회차는 회색 네모. 색은 목업 as-reintake-workbench.html §3 확정값. */
+.as-rchart-cycle-badge {
+  display: inline-block;
+  background: #f1ebfd;
+  color: #6d28d9;
+  border: 1px solid #ddd0fa;
+  border-radius: 999px;
+  padding: 1px 10px;
+  font-size: 0.74rem;
+  font-weight: 800;
+  white-space: nowrap;
+}
+
+/* 이력 시작 전(LEGACY_BRIDGE): '몇 번째 AS'를 셀 수 없다 — 순번 배지 대신 회색으로. */
+.as-rchart-cycle-badge--unknown {
+  background: #eef2f7;
+  color: #475569;
+  border-color: #cbd5e1;
+}
+
+.as-rchart-cycle-recur {
+  display: inline-block;
+  background: #fdeaea;
+  color: #b91c1c;
+  border: 1px solid #f6cfcf;
+  border-radius: 6px;
+  padding: 0 7px;
+  font-size: 0.72rem;
+  font-weight: 800;
+  white-space: nowrap;
+}
+
+/* 직전 건 한 줄 요약 — 헤더 오른쪽(비용/버튼 앞). 값이 없으면 템플릿이 줄을 안 낸다. */
+.as-rchart-cycle-prev {
+  font-size: 0.74rem;
+  color: #6b7280;
+  background: #f6f8fb;
+  border: 1px solid #edf1f6;
+  border-radius: 999px;
+  padding: 1px 10px;
+  white-space: nowrap;
+  min-width: 0;
+  overflow: hidden;
+  text-overflow: ellipsis;
+}
+
+/* '모르는 값'은 회색 점선 — 아는 척하지 않는다는 표시(추정 날짜 금지). */
+.as-rchart-cycle-unknown {
+  color: #64748b;
+  font-weight: 700;
+  border-bottom: 1px dashed #94a3b8;
+}
+
+/* 지난 건 접힘 블록 — <summary> 가 구분선 자체다(JS 0줄). */
+.as-rchart-cycle-past {
+  border-top: 1px solid #eef2f7;
+}
+
+.as-rchart-cycle-divider {
+  list-style: none;
+  cursor: pointer;
+  display: flex;
+  align-items: center;
+  gap: 10px;
+  padding: 10px 12px;
+  min-width: 0;
+}
+
+.as-rchart-cycle-divider::-webkit-details-marker { display: none; }
+
+.as-rchart-cycle-divider__line {
+  flex: 1 1 auto;
+  height: 0;
+  border-top: 2px dashed #c9b6f5;
+}
+
+.as-rchart-cycle-divider__text {
+  flex: 0 1 auto;
+  background: #fff;
+  border: 1.5px solid #c9b6f5;
+  border-radius: 999px;
+  padding: 4px 14px;
+  font-size: 0.78rem;
+  font-weight: 800;
+  color: #6d28d9;
+  min-width: 0;
+}
+
+.as-rchart-cycle-divider__free {
+  display: inline-block;
+  background: #e7f6ec;
+  color: #15803d;
+  border-radius: 6px;
+  padding: 0 7px;
+  font-size: 0.72rem;
+  margin-left: 4px;
+}
+
+.as-rchart-cycle-divider__more {
+  flex: 0 0 auto;
+  font-size: 0.74rem;
+  font-weight: 700;
+  color: #6d28d9;
+}
+
+.as-rchart-cycle-past[open] .as-rchart-cycle-divider__more--closed { display: none; }
+
+.as-rchart-cycle-divider__more--open { display: none; }
+
+.as-rchart-cycle-past[open] .as-rchart-cycle-divider__more--open { display: inline; }
+
+.as-rchart-cycle-divider:hover .as-rchart-cycle-divider__text { background: #f1ebfd; }
+
+/* 펼친 지난 건은 **독립 카드**로 감싼다 — 그래야 그 안의 회차 아코디언이 현재 건 회차와
+   섞여 보이지 않는다(목업 .ch-chart--past 와 동일 처리). */
+.as-rchart-cycle-body {
+  margin: 0 12px 12px;
+  background: #fdfcff;
+  border: 1px solid #ddd0fa;
+  border-radius: 10px;
+  overflow: hidden;
+}
+
+/* 카드 안 첫 회차는 위 테두리가 겹치므로 자기 테두리를 지운다 */
+.as-rchart-cycle-body > .as-rchart-round:first-child > .as-rchart-round__head { border-top: none; }
+
+.as-rchart-cycle-body > .as-rchart-round--closed:last-child > .as-rchart-round__head { border-bottom: none; }
+
+/* 예전 기록(건 표식 이전) — 보라(=건)를 쓰면 "건"인 척이 된다. 회색으로 낮춘다. */
+.as-rchart-cycle-divider--unassigned .as-rchart-cycle-divider__line { border-top-color: #94a3b8; }
+
+.as-rchart-cycle-divider--unassigned .as-rchart-cycle-divider__text {
+  border-color: #94a3b8;
+  color: #475569;
+  font-weight: 700;
+}
+
+.as-rchart-cycle-divider--unassigned .as-rchart-cycle-divider__more { color: #475569; }
+
+.as-rchart-cycle-divider--unassigned:hover .as-rchart-cycle-divider__text { background: #eef2f7; }
+
+.as-rchart-cycle-past--unassigned > .as-rchart-cycle-body {
+  background: #fcfcfd;
+  border-color: #cbd5e1;
+}
 
 /* [C] 입력 도크 — 세그먼트 + 텍스트 + 판정 */
 .as-rchart-dock {
