@@ -278,12 +278,62 @@ def _extra_payment_summary(order: Any) -> dict[str, Any]:
     return {"count": count, "total": total, **by_relation}
 
 
-def build_dock_payload(db: Any, order: Any) -> Optional[dict[str, Any]]:
+#: 도크에서 워크벤치 **처리 pane** 으로 가는 링크를 낼 수 있는 역할 (R2).
+#:
+#: 도크가 실리는 ``/edit/<id>`` 는 ADMIN·MANAGER·STAFF 가 연다
+#: (``foms/web/orders/edit.py`` ``edit_order`` 의 ``role_required``). 반면 그 링크가
+#: 여는 워크벤치 처리 pane 은 발주확인·발송처리·취소처리 같은 **불가역** 버튼이 무장된
+#: 화면이다. 링크를 무조건 내면 STAFF 가 자기가 여는 **모든** 네이버 주문에서 클릭 두
+#: 번으로 거기 닿는다. 계약(2026-08-23 v3 §0-3)이 규제하는 것은 권한이 아니라 **통로**라,
+#: 통로 자체를 두 역할에만 만든다 — 화면에서 숨기는 게 아니라 응답에 싣지 않는다(§0-4).
+WORKBENCH_LINK_ROLES = ("ADMIN", "MANAGER")
+
+
+def _workbench_link_url(viewer: Any, rows: list[dict[str, Any]]) -> Optional[str]:
+    """도크 머리말에 낼 **워크벤치 처리 탭 링크** 주소 (R2 · 2026-08-24 스펙 §6).
+
+    필요한 이유: 재결제 집은 발주확인과 발송처리 사이에 며칠이 뜬다. 그 사이 담당자가
+    ``확인 완료 — 큐에서 빼기`` 를 먼저 누르면 그 집이 목록 두 원천에서 모두 빠져
+    발송처리 버튼에 도달할 길이 주소 수기밖에 남지 않는다(스펙 §5 함정 1).
+
+    어느 집을 여는가: **가장 나중에 수집된 링크**(``rows`` 는 ``link.id`` 오름차순)를
+    가리킨다. 워크벤치 pane 은 링크가 속한 집을 ``external_order_no`` 로 되찾으므로
+    (``naver_ingest.py`` ``_household_of_link``) 집 안에서는 어느 링크든 같다. 주문에
+    집이 둘 이상 붙은 경우(재결제·추가결제로 나중에 붙인 집)에는 **나중에 온 집**이
+    아직 처리가 남은 쪽이다 — 원 주문 집은 이미 주문으로 승격돼 있다.
+
+    Args:
+        viewer: 지금 편집 화면을 연 :class:`models.User` (미인증이면 None).
+        rows: :func:`build_dock_payload` 가 만든 행 목록(``link.id`` 오름차순).
+
+    Returns:
+        ``/admin/naver-ingest/triage?tab=work&link_id=<N>``. 역할이 아니거나 워크벤치
+        게이트가 꺼져 있으면 ``None`` (그러면 화면에 앵커가 아예 생기지 않는다).
+    """
+    if not rows or viewer is None:
+        return None
+    role = str(getattr(viewer, "role", "") or "").strip().upper()
+    if role not in WORKBENCH_LINK_ROLES:
+        return None
+    from foms.services.feature_flags import is_naver_workbench_enabled
+
+    # 게이트 off 인 사람에게 링크를 내면 옛 트리아지 화면으로 떨어진다 — 없는 길이다.
+    if not is_naver_workbench_enabled(getattr(viewer, "id", None)):
+        return None
+    from flask import url_for
+
+    return url_for("admin.naver_ingest_triage", tab="work", link_id=rows[-1]["link_id"])
+
+
+def build_dock_payload(db: Any, order: Any, *,
+                       viewer: Any = None) -> Optional[dict[str, Any]]:
     """주문의 네이버 수집 링크들을 도크 표시용 payload 로 만든다.
 
     Args:
         db: 요청 스코프 DB 세션.
         order: 대상 :class:`models.Order`.
+        viewer: 지금 화면을 연 :class:`models.User`. 워크벤치 링크를 낼지 판정하는 데만
+            쓴다(R2) — 넘기지 않으면 링크는 ``None`` 이다.
 
     Returns:
         도크 payload dict. 네이버 수집 링크가 없으면 ``None`` (도크 미렌더).
@@ -377,6 +427,9 @@ def build_dock_payload(db: Any, order: Any) -> Optional[dict[str, Any]]:
         # 관계별 분해(R1) — 도크가 ADDON/REPAY 를 다른 문구로 말하기 위한 자리.
         "extra_payment_by_relation": {"addon": extra["addon"], "repay": extra["repay"]},
         "order_no": order_no,
+        # 워크벤치 처리 탭으로 돌아가는 길(R2). 역할·게이트가 아니면 **None 이 실린다** —
+        # 화면에서 숨기는 게 아니라 주소를 만들지 않는다(계약 §0-4).
+        "workbench_url": _workbench_link_url(viewer, rows),
         "rows": rows,
         "mains": [{"external_id": row["external_id"],
                    "label": row["product_name"] or row["external_id"]} for row in mains],

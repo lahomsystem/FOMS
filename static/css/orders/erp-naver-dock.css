@@ -117,6 +117,14 @@
   color: #94a3b8;
 }
 
+/* 워크벤치 처리 탭으로 돌아가는 평범한 앵커(R2) — 버튼처럼 보이면 안 된다.
+   불가역 동작이 아니라 "그 집을 여는 링크"라는 뜻이 생김새로도 읽혀야 한다. */
+.naver-dock-hd .naver-dock-wb {
+  font-size: 13px;
+  color: #059a54;
+  text-decoration: underline;
+}
+
 .naver-dock-hd .naver-dock-prog {
   margin-left: auto;
   font-size: 13px;

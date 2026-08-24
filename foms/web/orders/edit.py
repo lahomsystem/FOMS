@@ -448,5 +448,7 @@ def _build_erp_order_bootstrap(order, user=None):
     if (order.structured_data or {}).get('source') == 'NAVER_SMARTSTORE':
         from foms.services.integrations.naver_commerce.dock import build_dock_payload
 
-        payload['naver_origin'] = build_dock_payload(get_db(), order)
+        # viewer 는 워크벤치 링크(R2) 판정에만 쓴다 — ADMIN·MANAGER 가 아니거나 게이트가
+        # 꺼져 있으면 payload 에 주소가 아예 실리지 않는다.
+        payload['naver_origin'] = build_dock_payload(get_db(), order, viewer=user)
     return payload

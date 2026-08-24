@@ -10,13 +10,17 @@
 * 편집 페이지 bootstrap JSON 에 naver_origin 이 동봉된다(네이버 수집 주문만).
 * 결제 기록 요약은 **관계별로 갈라서** 싣는다(R1) — ``ADDON`` 은 더 낸 차액,
   ``REPAY`` 는 원 결제가 환불된 뒤 다시 낸 같은 물건값이라 문구가 달라야 한다.
+* 워크벤치 처리 탭으로 돌아가는 링크(R2)는 **ADMIN·MANAGER 응답에만** 실린다 —
+  STAFF 응답에는 주소 자체가 없다(숨기는 게 아니라 만들지 않는다).
 """
 
 from __future__ import annotations
 
+import json
 import pathlib
 import re
 
+import pytest
 from werkzeug.security import generate_password_hash
 
 from db import db_session
@@ -696,5 +700,147 @@ def test_dock_js_says_repay_separately_and_asset_pin_moved():
     assert "extraPaymentRepay: extraPaymentBucket(payload, 'repay')" in source
 
     tpl = _ORDER_JS_TPL.read_text(encoding="utf-8")
-    assert "js/orders/erp-naver-dock.js') }}?v=20260824a" in tpl
-    assert "css/orders/erp-naver-dock.css') }}?v=20260824a" in tpl
+    # 핀은 R2(워크벤치 링크)에서 다시 움직였다 — 값은
+    # ``test_dock_js_renders_workbench_anchor_and_asset_pin_moved`` 가 못박는다.
+    assert "js/orders/erp-naver-dock.js') }}?v=20260824b" in tpl
+    assert "css/orders/erp-naver-dock.css') }}?v=20260824b" in tpl
+
+
+# --------------------------------------------------------------------------- #
+# 워크벤치 처리 탭으로 돌아가는 링크 (R2 — 2026-08-24 재결제 케이스 SPEC §5 함정 1 / §6)
+#
+# 재결제 집은 발주확인과 발송처리 사이에 며칠이 뜬다. 그 사이 `확인 완료 — 큐에서 빼기`
+# 를 먼저 누르면 그 집이 목록 두 원천에서 모두 빠져 발송처리 버튼에 갈 길이 사라진다.
+# 그 길을 도크 머리말의 **평범한 앵커** 하나로 잇는다.
+#
+# 다만 도크는 `/edit/<id>` 에 실리고 그 라우트는 ADMIN·MANAGER·STAFF 다. 링크를 무조건
+# 내면 STAFF 가 자기가 여는 모든 네이버 주문에서 클릭 두 번으로 불가역 4종 버튼이 무장된
+# pane 에 닿는다 — 계약 §0-3 이 규제하는 것은 권한이 아니라 **통로**다.
+# --------------------------------------------------------------------------- #
+
+@pytest.fixture()
+def workbench_on(monkeypatch):
+    """워크벤치 게이트를 켠다(전역 on + 코호트 all)."""
+    monkeypatch.setenv("FOMS_NAVER_WORKBENCH_ENABLED", "1")
+    monkeypatch.setenv("FOMS_NAVER_WORKBENCH_COHORT", "all")
+    yield
+
+
+@pytest.fixture()
+def workbench_off(monkeypatch):
+    """워크벤치 게이트를 끈다(기본값이지만 명시한다 — 옆 테스트의 setenv 에 안 젖게)."""
+    monkeypatch.delenv("FOMS_NAVER_WORKBENCH_ENABLED", raising=False)
+    monkeypatch.delenv("FOMS_NAVER_WORKBENCH_COHORT", raising=False)
+    yield
+
+
+def _dock_user(role: str) -> User:
+    """역할만 다른 도크 사용자 하나(팀은 CS — ERP 편집 권한 조건)."""
+    user = User(username=f"dock_{role.lower()}_{_uid()}", password=generate_password_hash("pw"),
+                role=role, team="CS", name=f"{role} 사용자", is_active=True)
+    db_session.add(user)
+    db_session.commit()
+    return user
+
+
+def _dock_json(html: str) -> dict:
+    """편집 페이지 HTML 에서 도크 전용 JSON 태그를 뜯어 파싱한다.
+
+    ``| tojson`` 이 ``&`` 를 ``\u0026`` 로 이스케이프하므로 주소를 문자열로 그냥
+    비교하면 늘 어긋난다 — 파싱해서 값으로 본다.
+    """
+    match = re.search(r'id="naver-origin-data">(.*?)</script>', html, re.S)
+    assert match, "도크 JSON 태그(#naver-origin-data)가 응답에 없다"
+    return json.loads(match.group(1))
+
+
+def _order_with_two_households(owner: User) -> tuple[int, int, int]:
+    """집이 둘 붙은 네이버 주문 — 원 주문 집 + 나중에 붙은 재결제 집.
+
+    Returns:
+        ``(order_id, 원 주문 집 link_id, 나중에 붙은 집 link_id)``.
+    """
+    order = _naver_order(owner)
+    first = _link(order, _snapshot(product_name="붙박이장", order_no="N-R2-A"),
+                  order_no="N-R2-A")
+    latest = _link(order, _snapshot(product_name="붙박이장(재결제)", order_no="N-R2-B"),
+                   order_no="N-R2-B")
+    return order.id, first.id, latest.id
+
+
+def test_dock_gives_admin_a_link_back_to_the_workbench(app, client, workbench_on):
+    """ADMIN 응답에는 워크벤치 처리 탭 주소가 실린다 — 나중에 붙은 집을 가리킨다.
+
+    주문에 집이 둘이면 아직 처리가 남은 쪽은 **나중에 온 집**이다(원 주문 집은 이미
+    주문으로 승격돼 있다). 그 집이 §5 함정 1 로 목록에서 사라진 바로 그 집이다.
+    """
+    admin = _dock_user("ADMIN")
+    order_id, first_id, latest_id = _order_with_two_households(admin)
+    _login(client, admin)
+
+    html = client.get(f"/edit/{order_id}").get_data(as_text=True)
+
+    payload = _dock_json(html)
+    assert payload["workbench_url"] == (
+        f"/admin/naver-ingest/triage?tab=work&link_id={latest_id}"
+    )
+    assert f"link_id={first_id}" not in payload["workbench_url"]
+
+
+def test_dock_gives_manager_the_same_link(app, client, workbench_on):
+    """MANAGER 도 같은 링크를 받는다(계약 §0-3 예외 없이 두 역할까지)."""
+    manager = _dock_user("MANAGER")
+    order_id, _first_id, latest_id = _order_with_two_households(manager)
+    _login(client, manager)
+
+    html = client.get(f"/edit/{order_id}").get_data(as_text=True)
+
+    assert _dock_json(html)["workbench_url"] == (
+        f"/admin/naver-ingest/triage?tab=work&link_id={latest_id}"
+    )
+
+
+def test_dock_gives_staff_no_workbench_anchor_at_all(app, client, workbench_on):
+    """STAFF 응답에는 **앵커가 0개**다 — 주소가 응답에 아예 실리지 않는다.
+
+    JS 에서 숨기면 응답에 데이터가 남는다(계약 §0-4: 탭을 숨기는 게 아니라 컨텍스트를
+    만들지 않는다). 그래서 payload 값과 **응답 본문 전체**를 함께 못박는다.
+    """
+    staff = _dock_user("STAFF")
+    order_id, _first_id, _latest_id = _order_with_two_households(staff)
+    _login(client, staff)
+
+    html = client.get(f"/edit/{order_id}").get_data(as_text=True)
+
+    assert _dock_json(html)["workbench_url"] is None
+    # 처리 탭 주소는 `?tab=work` 가 붙은 것뿐이다(nav 의 네이버 수집 진입구는 인자 없음).
+    assert "tab=work" not in html
+
+
+def test_dock_hides_workbench_link_when_gate_is_off(app, client, workbench_off):
+    """게이트가 꺼진 ADMIN 에게도 링크를 내지 않는다 — 그 주소는 옛 화면으로 떨어진다."""
+    admin = _dock_user("ADMIN")
+    order_id, _first_id, _latest_id = _order_with_two_households(admin)
+    _login(client, admin)
+
+    html = client.get(f"/edit/{order_id}").get_data(as_text=True)
+
+    assert _dock_json(html)["workbench_url"] is None
+    assert "tab=work" not in html
+
+
+def test_dock_js_renders_workbench_anchor_and_asset_pin_moved():
+    """도크 JS 가 앵커(버튼 아님)를 그리고, 고쳤으니 ``?v`` 핀이 움직였다.
+
+    SW 가 ``staticCacheFirst`` 라 핀을 안 올리면 옛 JS 가 계속 서빙되어 링크가 배포돼도
+    사람 화면에는 영영 안 뜬다.
+    """
+    source = _squash(_DOCK_JS.read_text(encoding="utf-8"))
+    assert "var wb = el('a', 'naver-dock-wb', '워크벤치에서 열기 ↗');" in source
+    assert "wb.href = state.workbenchUrl;" in source
+    assert "wb.target = '_blank';" in source
+    assert "workbenchUrl: payload.workbench_url || ''," in source
+
+    tpl = _ORDER_JS_TPL.read_text(encoding="utf-8")
+    assert "js/orders/erp-naver-dock.js') }}?v=20260824b" in tpl
+    assert "css/orders/erp-naver-dock.css') }}?v=20260824b" in tpl

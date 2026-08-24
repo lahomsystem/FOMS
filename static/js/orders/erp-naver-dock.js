@@ -247,6 +247,16 @@
         var head = el('div', 'naver-dock-hd');
         head.appendChild(el('b', 'naver-dock-title', '🏪 네이버 원본'));
         if (state.orderNo) head.appendChild(el('span', 'naver-dock-orderno', '주문번호 ' + state.orderNo));
+        // 워크벤치 처리 탭으로 돌아가는 길(R2). 버튼이 아니라 **평범한 앵커**다 —
+        // 누르면 그 집이 열릴 뿐 아무것도 네이버로 보내지 않는다. 주소는 서버가
+        // 역할·게이트를 보고 만들어 주며, 없으면 앵커 자체가 생기지 않는다.
+        if (state.workbenchUrl) {
+            var wb = el('a', 'naver-dock-wb', '워크벤치에서 열기 ↗');
+            wb.href = state.workbenchUrl;
+            wb.target = '_blank';
+            wb.rel = 'noopener';
+            head.appendChild(wb);
+        }
         head.appendChild(el('span', 'naver-dock-prog'));
         if (withClose) {
             var close = el('button', 'btn btn-sm btn-outline-secondary', '닫기');
@@ -502,6 +512,7 @@
             extraPaymentTotal: payload.extra_payment_total || 0,
             extraPaymentAddon: extraPaymentBucket(payload, 'addon'),
             extraPaymentRepay: extraPaymentBucket(payload, 'repay'),
+            workbenchUrl: payload.workbench_url || '',
             payMeans: payload.pay_means || '',
             discount: payload.discount || 0,
             widthHints: payload.width_hints || {}
