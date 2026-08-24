@@ -248,7 +248,7 @@ def test_trace_js_covers_four_chip_states() -> None:
     for label in ("예약 안내 보냄", "문자로 보냄", "발송 실패", "아직 안 보냄"):
         assert label in js, label
     for state in ("--sent", "--text", "--failed", "--none"):
-        assert "erp-alimtalk-trace" + state in _read("static/css/orders/erp-channel-push.css")
+        assert "erp-alimtalk-trace" + state in _read("static/css/orders/erp-alimtalk-trace.css")
 
 
 def test_trace_js_probes_channel_once_after_delay() -> None:
@@ -278,3 +278,45 @@ def test_structured_load_announces_itself_for_late_renderers() -> None:
     """구조화 데이터 도착 신호가 있어야 칩이 로드 순서와 무관하게 그려진다."""
     js = _read("static/js/orders/erp-order-shared.js")
     assert "foms:erp-structured-loaded" in js
+
+
+def test_trace_css_is_shared_by_both_surfaces() -> None:
+    """칩 CSS 는 파일 하나 — ERP 번들과 태블릿 번들이 서로 다르다고 사본을 두면 색이 갈린다."""
+    assert "erp-alimtalk-trace" not in _read("static/css/orders/erp-channel-push.css")
+    for surface in (
+        "templates/orders/partials/erp_order_js.html",
+        "templates/measurement/dashboard.html",
+        "templates/measurement/partials/dashboard_fragment.html",
+    ):
+        assert "css/orders/erp-alimtalk-trace.css" in _read(surface), surface
+
+
+def test_tablet_measure_form_renders_trace_slot_and_publishes_record() -> None:
+    """태블릿: 같은 칩(축약형) + 주문 로드·발송 직후 갱신. 칩 마크업은 칩 모듈이 소유한다."""
+    js = _read("static/js/foms/tablet-measure-form.js")
+    assert 'data-erp-alimtalk-trace="compact"' in js
+    assert "data-erp-alimtalk-trace-order" in js
+    assert "foms:alimtalk-trace-update" in js
+    # 탭 재렌더가 칩 자리를 새로 만들므로 다시 그리라고 알려야 한다.
+    assert "window.erpAlimtalkTraceRender" in js
+    # 실패 사유 문구는 태블릿 맵을 같은 이름으로 내줘 칩과 갈리지 않게 한다.
+    assert "window.erpAlimtalkReasonLabel" in js
+    # 칩 스크립트가 실측 대시보드(풀페이지·fragment 공용 partial)에 실린다.
+    assert "js/orders/erp-alimtalk-trace.js" in _read(
+        "templates/measurement/partials/dashboard_scripts.html")
+
+
+def test_trace_chip_is_display_only_without_history_panel() -> None:
+    """이력 패널이 없는 표면에서는 눌러도 아무 일이 없는 버튼을 만들지 않는다."""
+    js = _read("static/js/orders/" + TRACE_JS.split("/")[-1])
+    assert "erpAlimtalkTraceModal" in js
+    assert "createElement(clickable ? 'button' : 'span')" in js
+
+
+def test_trace_update_with_no_record_clears_stale_chip() -> None:
+    """태블릿은 한 화면에서 주문을 갈아끼운다 — 빈 이력은 이전 주문의 칩을 지워야 한다."""
+    js = _read("static/js/orders/" + TRACE_JS.split("/")[-1])
+    assert "delete window.__erpLastStructuredData.alimtalk_measurement" in js
+    # 반대로, 이력이 없는 발송 응답이 멀쩡한 칩을 지우면 안 된다.
+    send = _read("static/js/orders/erp-alimtalk-send.js")
+    assert "if (body && body.data && body.data.last) _publishTrace(body.data.last);" in send

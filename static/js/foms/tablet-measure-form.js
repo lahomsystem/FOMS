@@ -1134,6 +1134,10 @@
     return (
       '<section class="foms-tmf__section">' +
       '<h5 class="foms-tmf__title">변환 텍스트 · 채널톡</h5>' +
+      // 발송 흔적 칩(erp-alimtalk-trace.js 소유). 좁은 폭이라 축약형이고, 이 표면엔 이력
+      // 패널 마크업이 없어 칩은 표시 전용으로 그려진다.
+      '<div class="erp-alimtalk-trace-slot" data-erp-alimtalk-trace="compact" ' +
+      'data-erp-alimtalk-trace-order="' + escapeHtml(String((state && state.orderId) || "")) + '"></div>' +
       '<div class="foms-tmf__convo-actions">' +
       '<button type="button" class="foms-btn foms-btn--secondary foms-btn--sm" data-tmf-gen-text>' +
       '<i class="fas fa-wand-magic-sparkles" aria-hidden="true"></i><span>변환 텍스트 생성</span></button>' +
@@ -1242,6 +1246,8 @@
       renderOrderTab(inj);
     }
     syncTabButtons();
+    // 탭 재렌더는 칩 자리를 새로 만든다(innerHTML) — 칩 모듈에 다시 그리라고 알린다.
+    if (typeof window.erpAlimtalkTraceRender === "function") window.erpAlimtalkTraceRender();
   }
 
   function refreshItemBody() {
@@ -1982,6 +1988,26 @@
     return ALIMTALK_REASONS[code] || String(code || "알 수 없는 오류");
   }
 
+  // 발송 흔적 칩(erp-alimtalk-trace.js)도 실패 사유를 사람 문구로 그린다. 이 표면엔
+  // erp-alimtalk-send.js 가 없으므로 여기 맵을 같은 이름으로 내준다(문구 갈림 방지).
+  if (typeof window.erpAlimtalkReasonLabel !== "function") {
+    window.erpAlimtalkReasonLabel = alimtalkReason;
+  }
+
+  /**
+   * 마지막 발송 이력을 발송 흔적 칩에 전달한다(erp-alimtalk-trace.js 가 듣는다).
+   *
+   * 칩 모듈은 PC 화면의 전역 구조화 데이터를 읽는데 태블릿엔 그 전역이 없다. 그래서 이력만
+   * 이벤트로 실어 보낸다 — 칩 마크업·문구·상태 판정은 한 곳(칩 모듈)에만 둔다.
+   *
+   * @param {Object|null} record `alimtalk_measurement` 이력.
+   */
+  function publishAlimtalkTrace(record) {
+    document.dispatchEvent(
+      new CustomEvent("foms:alimtalk-trace-update", { detail: { record: record || null } })
+    );
+  }
+
   function sendAlimtalk(orderId) {
     setStatus("알림톡 발송 중…", "saving");
     // CSRF 헤더는 layout_head 전역 fetch 래퍼가 붙인다(라우트별 ad hoc 주입 금지).
@@ -1994,6 +2020,11 @@
       })
       .then(function (body) {
         if (!state || state.orderId !== orderId) return;
+        var last = body && body.data ? body.data.last : null;
+        if (last) {
+          state.structured.alimtalk_measurement = last;
+          publishAlimtalkTrace(last);
+        }
         if (body && body.success && body.data && body.data.sent) {
           setStatus("알림톡 발송 완료", "saved");
           return;
@@ -2280,6 +2311,7 @@
         };
         renderTopbarId();
         renderActiveTab();
+        publishAlimtalkTrace(sd.alimtalk_measurement || null);
       })
       .catch(function () {
         if (inj) inj.innerHTML = '<div class="foms-tmf__loading">주문 원장을 불러오지 못했습니다.</div>';
