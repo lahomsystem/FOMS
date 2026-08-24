@@ -2,6 +2,7 @@
 
 Revision ID: assort_00
 Revises: asfresh_00
+  운영 실제 계보 정합 — 2026-08-24 SPEC 4장(승격 체인 재직렬화).
 Create Date: 2026-08-19
 
 AS 첨부의 화면·채널톡 순서는 지금까지 ``id`` 오름차순(=병렬 업로드 완료 순)이었다.

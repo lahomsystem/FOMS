@@ -1934,6 +1934,9 @@ async function erpLoadStructured(bootstrapData, options) {
     sd.payment = paymentData;
     window.__erpLastStructuredData = sd;
     window.__erpStructuredLoadSucceeded = true;
+    // 구조화 데이터가 도착했다는 신호. 이 데이터만 읽고 그리는 화면 조각(알림톡 발송 흔적
+    // 칩 등)이 로드 순서에 상관없이 다시 그릴 수 있게 한다.
+    document.dispatchEvent(new CustomEvent('foms:erp-structured-loaded'));
     erpRecalcItemsTotal();
     const depositEl = document.getElementById('erp-deposit-amount');
     if (depositEl) {
@@ -2554,6 +2557,22 @@ async function erpSaveStructuredOnce(opts = {}) {
         erpSetStatus(doRedirect ? '저장 완료! 이동합니다...' : '저장 완료');
         // 명시 저장(승격) 성공 → 자동저장 모듈이 로컬/세션 draft 흔적을 정리하도록 알림.
         try { document.dispatchEvent(new Event('erp:order-saved')); } catch (_e) {}
+        // ORDER-REASON-00: 금액·일정·단계가 바뀐 저장이면 서버가 표시해서 보낸다. 판정은
+        // 서버에만 있고, 화면은 저장이 끝난 뒤 사유를 받는다(저장을 막지 않는다).
+        // **이동 전에 기다린다** — 저장 성공 직후 대시보드로 넘어가면 시트가 뜨자마자
+        // 사라진다(2026-08-13 스테이징 QA 에서 실제로 그랬다).
+        if (data.change_reason_required === true && data.change_set) {
+            const reasonDetail = { orderId: targetId, changeSet: data.change_set, mode: 'full' };
+            try {
+                if (window.FomsChangeReason && typeof window.FomsChangeReason.prompt === 'function') {
+                    await window.FomsChangeReason.prompt(reasonDetail);
+                } else {
+                    document.dispatchEvent(new CustomEvent('foms:change-reason-required', {
+                        detail: reasonDetail
+                    }));
+                }
+            } catch (_e) {}
+        }
         // 저장 성공 후 Draft 모드 해제 → beforeunload 경고 비활성
         const wasDraftMode = isErpOrderDraftMode();
         if (wasDraftMode) {
@@ -4022,6 +4041,24 @@ async function erpUploadCommonAttachmentFiles(files, options = {}) {
     const category = erpNormalizeAttachmentCategory(categoryEl ? categoryEl.value : 'measurement');
     const statusVerb = options.statusVerb || '업로드';
     const doneVerb = options.doneVerb || '업로드 완료';
+
+    let asLogId = null;
+    let sortOrders = null;
+    if (category === 'as') {
+        if (typeof window.fomsEnsureAsUploadAnchor !== 'function') {
+            erpAttachmentsSetStatus('AS 첨부 위치를 준비하지 못했습니다.', true);
+            return;
+        }
+        try {
+            const anchor = await window.fomsEnsureAsUploadAnchor(targetId);
+            asLogId = anchor.asLogId;
+            sortOrders = files.map(function (_file, index) { return anchor.nextSort + index; });
+        } catch (err) {
+            erpAttachmentsSetStatus(String((err && err.message) || err || 'AS 첨부 위치를 만들지 못했습니다.'), true);
+            return;
+        }
+    }
+
     // --- Optimistic UI Start ---
     const galleryWrap = document.getElementById('erp-attachments-gallery');
     if (galleryWrap) {
@@ -4073,6 +4110,8 @@ async function erpUploadCommonAttachmentFiles(files, options = {}) {
         files: files,
         folder: `orders/${ORDER_ID}/${category || 'attachments'}`,
         category: category,
+        asLogId: asLogId,
+        sortOrders: sortOrders,
         useDirectUpload: (typeof USE_DIRECT_UPLOAD !== 'undefined' && USE_DIRECT_UPLOAD),
         onPrepareProgress: function (info) {
             erpAttachmentsSetStatus(`이미지 최적화 중... (${info.done}/${info.total})`);
@@ -5247,6 +5286,47 @@ function fomsMountErpOrderSurface() {
         const payload = { order_id: orderId, text, push_kind: pushKind };
         if (changeNote) {
             payload.change_note = changeNote;
+        }
+
+        if (pushKind === 'as') {
+            if (typeof window.fomsConfirmAndSendAsPush !== 'function') {
+                alert('AS 전송 확인창을 불러오지 못했습니다.');
+                btn.innerHTML = originalHtml;
+                btn.disabled = false;
+                return;
+            }
+            try {
+                const result = await window.fomsConfirmAndSendAsPush({
+                    orderId: orderId,
+                    changeNote: changeNote,
+                });
+                if (!result || result.cancelled) {
+                    btn.innerHTML = originalHtml;
+                    btn.disabled = false;
+                    return;
+                }
+                if (result.success) {
+                    if (typeof erpMarkChannelPushSent === 'function') {
+                        erpMarkChannelPushSent(pushKind);
+                    }
+                    btn.innerHTML = '<i class="fas fa-check"></i> 전송완료';
+                    if (activeClass) btn.classList.replace(activeClass, successClass);
+                    setTimeout(() => {
+                        btn.innerHTML = originalHtml;
+                        if (activeClass) btn.classList.replace(successClass, activeClass);
+                        btn.disabled = false;
+                    }, 3000);
+                    return;
+                }
+                alert(`채널톡 전송 실패:\n${result.error || result.message || '알 수 없는 오류'}`);
+                btn.innerHTML = originalHtml;
+                btn.disabled = false;
+            } catch (e) {
+                alert(`네트워크 오류: ${e.message}`);
+                btn.innerHTML = originalHtml;
+                btn.disabled = false;
+            }
+            return;
         }
 
         try {

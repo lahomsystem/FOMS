@@ -1,0 +1,597 @@
+{% extends "admin/layout.html" %}
+
+{#
+  네이버 수집 워크벤치 v3 — 셸(스트립·탭 2개·필터 칩·벌크 바·목록·벌크 모달·이력).
+  계약 docs/specs/2026-08-23-naver-workbench-v3_CONTRACT.md · 목업 정본
+  docs/design/mockups/naver-workbench-v3.html
+
+  게이트(FOMS_NAVER_WORKBENCH_ENABLED + _COHORT, 기본 off)가 켜진 사용자만 본다.
+  꺼져 있으면 admin/naver_triage.html 이 그대로 뜬다(롤백 경로 — 손대지 않는다).
+
+  v3 에서 바뀐 것:
+   · 탭 4개 → 2개(처리·이력). 없어진 '발주확인 전'·'취소·반품' 탭은 **같은 목록의 필터 칩**으로
+     내려왔다 — 한 집을 처리하려고 탭을 오가던 통증 ①의 자리.
+   · 상세는 파셜 하나(admin/partials/naver_workbench_pane.html)로 빠졌다. 전체 렌더와
+     프래그먼트 응답(/triage/pane)이 **그 파일 하나**를 공유한다 — 통증 ②(전체 리로드)의 자리.
+   · 행 href 는 그대로 남긴다: JS 가 죽어도 전체 페이지 왕복으로 일이 진행돼야 한다.
+#}
+
+{% block title %}네이버 수집{% endblock %}
+
+{% block styles %}
+<link rel="stylesheet" href="{{ url_for('static', filename='css/admin/naver-workbench.css') }}?v=20260824q">
+{% endblock %}
+
+{% block content %}
+<div class="container-fluid naver-workbench"
+     data-active-tab="{{ active_tab }}" data-active-filter="{{ active_filter }}">
+
+    {# 상태 스트립 — 이름은 화면에 하나("네이버 수집"). 진입구도 하나다.
+       v2 의 '수집 상태' 버튼은 제거했다: 바로 아래 이력 탭과 같은 곳을 가리키던 중복이었다. #}
+    <div class="wb-bar wb-bar--head">
+        <span class="wb-bar__title">네이버 수집</span>
+        <nav class="wb-tabs" role="tablist">
+            <a class="wb-tab" role="tab" data-tab="work" aria-selected="{{ 'true' if active_tab == 'work' else 'false' }}"
+               href="{{ url_for('admin.naver_ingest_triage', tab='work') }}">처리<span class="wb-tab__n">{{ actionable_count }}집</span></a>
+            {# 이력은 ADMIN 전용이다(수집 관리 화면과 같은 기준) — 열 수 없는 탭은 아예 안 보인다.
+               탭만 숨기고 주소를 열어 두면 URL 을 아는 사람이 그대로 본다. 서버도 같이 막는다. #}
+            {% if can_view_history %}
+            <a class="wb-tab" role="tab" data-tab="all" aria-selected="{{ 'true' if active_tab == 'all' else 'false' }}"
+               href="{{ url_for('admin.naver_ingest_triage', tab='all') }}">이력{% if history and history.total is defined %}<span class="wb-tab__n">{{ history.total }}집</span>{% endif %}</a>
+            {% endif %}
+        </nav>
+        {# 결정 3: 숫자 이중 표기(집 · 상품주문)는 화면에서 여기 한 곳만 한다.
+           **스트립·탭 배지·nav 뱃지는 '손댈 수 있는 집'을 말한다**(계약 §2.4, 2026-08-24 개정).
+           취소·반품 집은 목록에 남지만 어떤 액션도 되지 않는데 예전에는 이 숫자에 섞여
+           담당자가 보는 업무량이 실제보다 컸다(스테이징 72집 중 13집). 빼기만 하면 STAFF
+           가 그 집을 다시 찾을 자리가 없어서(이력 탭은 ADMIN 전용) 목록은 그대로 두고
+           숫자만 쪼갠다 — 아래 '손대지 않음'과 칩 '전체'가 62 + 13 = 75 로 맞아떨어진다. #}
+        {# 집 수는 **탭 배지가 소유한다**(위). 여기서 또 말하면 한 줄 안에서 같은 수가 두 번
+           보인다 — 어긋날 여지를 없애는 가장 확실한 방법은 한 번만 말하는 것이다.
+           남는 것은 탭 배지가 말할 수 없는 사실 둘뿐이고, 둘 다 **처리 탭의 사실**이라
+           이력 탭에서는 내지 않는다(그 탭의 목록과 무관한 수를 띄우면 또 두 말이 된다). #}
+        {% if active_tab == 'work' %}
+        <span class="wb-bar__fact">상품주문 <b>{{ pending_count }}</b>건</span>
+        {% if locked_count %}
+        <span class="wb-bar__locked" title="취소·반품이라 어떤 액션도 되지 않는 집입니다. 목록에는 남아 있습니다.">
+            손대지 않음 <b>{{ locked_count }}집</b>
+        </span>
+        {% endif %}
+        {% endif %}
+        <span class="wb-bar__spacer"></span>
+        {# 글자 크기 조절 — 브라우저를 80% 로 축소해 쓰면 11~12px 가 9~10px 로 보인다.
+           브라우저 확대는 화면 전체를 키워 목록이 잘리므로, 이 화면 글자만 단계로 키운다.
+           선택은 localStorage 에 남는다(사람마다 쓰는 배율이 다르다). #}
+        <span class="wb-fs" role="group" aria-label="글자 크기">
+            <button type="button" class="wb-fs__btn" id="wb-fs-down"
+                    aria-label="글자 작게" title="글자 작게">−</button>
+            <span class="wb-fs__now" id="wb-fs-now" aria-live="polite">100%</span>
+            <button type="button" class="wb-fs__btn" id="wb-fs-up"
+                    aria-label="글자 크게" title="글자 크게">+</button>
+        </span>
+        {# 수집이 조용히 멈춰도 아무도 모르는 상태를 막는 최소 사실. 서버가 이 탭에
+           ingest_status 를 싣지 않으면(처리 탭·비ADMIN) 아무것도 안 그린다. #}
+        {% if ingest_status and ingest_status.watermark %}
+        <span class="wb-bar__fact wb-bar__fact--quiet">
+            마지막 수집 <b>{{ ingest_status.watermark.last_run_at or '아직 없음' }}</b>
+        </span>
+        {% endif %}
+    </div>
+
+    {#
+      결정 7 실패 4단계 — ① 카운터 ② 실패 전용 목록 ③ 건별 사유 ④ 실패건만 재시도.
+      실패가 있을 때만 뜬다(빈 경고는 사람이 안 읽게 만든다). 탭과 무관하게 항상 보인다 —
+      탭을 옮겼다고 사고가 사라지지 않는다.
+      data-foms-no-autodismiss 필수: 전역 5초 자동닫힘이 실패 문구를 지운다.
+    #}
+    {% if failures %}
+    <section class="wb-result alert alert-danger" id="wb-result" data-foms-no-autodismiss>
+        <div class="wb-result__head">
+            <span class="fw-semibold">네이버 처리 실패 {{ failures|length }}집</span>
+            <span class="small">아래 사유를 먼저 해결한 뒤 실패한 집만 다시 보내세요.</span>
+            <span class="small ms-auto">이 알림은 자동으로 사라지지 않습니다.</span>
+        </div>
+        <table class="wb-result__list">
+            {% for row in failures %}
+            <tr>
+                <td class="wb-result__who">{{ row.customer_name }}</td>
+                <td class="wb-result__no">{{ row.external_order_no }}</td>
+                {# 같은 사유라도 발주확인 실패와 발송처리 실패는 대응이 다르다. #}
+                <td class="wb-result__act small">{{ row.action_label }}</td>
+                <td class="wb-result__why">{{ row.reason }}</td>
+                <td class="wb-result__at small">{{ row.at }}</td>
+                {# 판매자센터에서 손으로 해결한 건은 성공한 재시도가 없다 — 사람이 닫는다.
+                   네이버에는 아무 영향이 없어 모달을 두지 않는다(불가역이 아니다). #}
+                <td class="wb-result__ack">
+                    <button type="button" class="btn btn-outline-secondary btn-sm wb-ack"
+                            data-link-id="{{ row.link_id }}"
+                            title="판매자센터에서 해결한 건을 목록에서 지웁니다(네이버에는 영향 없음)">확인함</button>
+                </td>
+            </tr>
+            {% endfor %}
+        </table>
+        <div class="wb-result__foot">
+            {# 성공한 집은 대상에서 아예 뺀다 — 재시도가 성공분까지 건드리면 안 된다. #}
+            {# `<링크 id>:<작업>` 쌍으로 넘긴다 — 실패한 그 작업으로 다시 보내야 한다.
+               전부 발주확인으로 보내면 발송처리 실패는 멱등 규칙에 걸려 조용히 넘어간다.
+               **취소 실패는 여기 넣지 않는다**: 사유를 다시 골라야 하고, 목록에 섞으면
+               취소하려던 집으로 발주확인이 나간다(되돌릴 수 없는 반대 조작). #}
+            {% set retryable = failures | selectattr('retryable') | list %}
+            {% if retryable %}
+            <button type="button" class="btn btn-danger btn-sm" id="wb-retry-failed"
+                    data-link-ids="{% for row in retryable %}{{ row.link_id }}:{{ row.action }}{% if not loop.last %},{% endif %}{% endfor %}">
+                실패한 {{ retryable|length }}집만 다시 시도
+            </button>
+            {# 재시도도 큐에 들어간다 — 누른 직후의 화면은 아직 옛 상태다(벌크와 같은 규칙). #}
+            <span class="wb-result__note small" id="wb-retry-note" role="status" aria-live="polite"></span>
+            {% endif %}
+            {% if failures|length > retryable|length %}
+            <div class="small mt-1">
+                취소 실패 {{ failures|length - retryable|length }}집은 여기서 되보낼 수 없습니다 —
+                그 집을 열어 <b>사유를 다시 고른 뒤</b> 취소처리를 보내세요. 취소·반품이 이미 도는
+                집이라 취소처리 버튼이 없으면 <b>판매자센터</b>에서 처리한 뒤 <b>확인함</b>으로 닫으세요.
+            </div>
+            {% endif %}
+        </div>
+    </section>
+    {% endif %}
+
+
+    {% if active_tab == 'work' %}
+    {# ══ 처리 ════════════════════════════════════════════════════════
+       목록은 하나다. 칩은 **같은 목록을 거를 뿐** 다른 표를 부르지 않는다
+       (v2 는 탭마다 모집단이 달라 45집 vs 43집처럼 숫자가 어긋났다). #}
+
+    {# 정렬 + 목록 안 찾기.
+       정렬은 **서버**가 한다 — 캡(WORK_GROUP_LIMIT)보다 먼저 돌아야 캡이 자를 집이
+       달라진다. 화면에서 줄만 다시 늘어놓으면 이미 잘린 집은 영영 안 나온다.
+       찾기는 **화면**이 한다 — 지금 목록에 있는 줄만 즉시 좁힌다(서버 왕복 0).
+       그래서 "이 목록에서"라고 못 박는다. 확인 완료로 큐에서 빠진 집은 여기서 안 나온다. #}
+    <div class="wb-bar wb-bar--tools">
+        {# 필터 칩과 정렬은 **모양으로** 가른다. 둘 다 알약이면 한 줄에 나란히 놓였을 때
+           어느 것이 "무엇을 보는가"이고 어느 것이 "어떤 순서인가"인지 구분이 안 된다.
+           칩 = 낱개 알약 + 숫자(주 조작), 정렬 = 붙은 세그먼트(둘 중 하나) — 글자를
+           더 쓰지 않고 뜻을 가르는 방법이다. #}
+        <span class="wb-chips" role="group" aria-label="목록 필터">
+        {% for key, label in [('all', '전체'), ('place', '발주확인 전'),
+                              ('rel', '추가결제·재결제'), ('claim', '취소·반품')] %}
+        <a class="wb-chip{{ ' wb-chip--danger' if key == 'claim' else '' }}"
+           data-filter="{{ key }}"
+           aria-pressed="{{ 'true' if active_filter == key else 'false' }}"
+           href="{{ url_for('admin.naver_ingest_triage', tab='work', f=key) }}">
+            {{ label }} <b class="wb-chip__n">{{ filter_counts.get(key, 0) }}집</b>
+        </a>
+        {% endfor %}
+        </span>
+        <span class="wb-bar__sep" aria-hidden="true"></span>
+        <span class="wb-tools__label">정렬</span>
+        <span class="wb-seg" role="group" aria-label="정렬">
+        {% for key, label, hint in [
+            ('new', '접수순', '최근에 들어온 집부터'),
+            ('due', '발송기한 임박순', '기한이 가까운 집부터 — 기한을 넘기면 네이버가 자동 취소할 수 있다')] %}
+        <a class="wb-sort" data-sort="{{ key }}"
+           aria-pressed="{{ 'true' if active_sort == key else 'false' }}"
+           title="{{ hint }}"
+           href="{{ url_for('admin.naver_ingest_triage', tab='work', f=active_filter, s=key) }}">{{ label }}</a>
+        {% endfor %}
+        </span>
+        <span class="wb-bar__spacer"></span>
+        {# 라벨을 없애고 placeholder 만 두지 않는다 — 값이 들어가면 무엇을 찾는 칸인지
+           사라진다. 라벨은 짧게 남기고, **범위**("이 목록에서")는 placeholder 로 내린다. #}
+        <label class="wb-find">
+            <span class="wb-find__label">찾기</span>
+            <input type="search" id="wb-find" class="wb-find__input" autocomplete="off"
+                   placeholder="이 목록에서 · 고객명 · 주문번호 · 제품"
+                   aria-label="이 목록에서 찾기">
+        </label>
+        <span class="wb-find__note" id="wb-find-note" role="status" aria-live="polite"></span>
+    </div>
+
+    {#
+      벌크 바 — 고른 게 있을 때만 뜬다(#wb-bulk 는 CSS 로 display:none, JS 가 `.on` 을 붙인다).
+      2026-08-14 일괄 완료처리 AS 증발 사고가 "선택 없이 버튼=전체 대상" 패턴에서 났다 —
+      되돌릴 수 없는 네이버 호출에 그 패턴을 다시 쓰지 않는다.
+      '전부 선택' 은 여기 두지 않는다: 0집일 때 이 바가 숨으면 전부 선택에 손이 닿지 않는다.
+    #}
+    <div class="wb-bulk" id="wb-bulk">
+        <span><b id="wb-bulk-n">0</b>집 선택됨</span>
+        <button type="button" class="btn btn-primary btn-sm" id="wb-bulk-submit"
+                data-bs-toggle="modal" data-bs-target="#wb-modal-bulk">
+            선택한 집 발주확인 보내기
+        </button>
+        <button type="button" class="btn btn-outline-secondary btn-sm" id="wb-bulk-clear">선택 해제</button>
+        {# 벌크는 폴링하지 않는다(집 수만큼 조회가 곱해진다) — 진행을 여기서 말로 남기고
+           잠시 뒤 화면을 한 번 다시 받는다. 비어 있으면 자리를 차지하지 않는다. #}
+        <span class="wb-bulk__note" id="wb-bulk-note" role="status" aria-live="polite"></span>
+        <span class="wb-bulk__spacer"></span>
+        <span class="wb-bulk__why">여러 집을 한 번에 보낼 때만 씁니다. 한 집이면 오른쪽 상세에서 바로.</span>
+    </div>
+
+    <div class="wb-split">
+
+        <section class="card shadow-sm">
+            <div class="card-header py-2 d-flex flex-wrap align-items-center gap-2">
+                <span class="small fw-semibold">처리할 집</span>
+                {# 스트립은 '손댈 수 있는 집'을 말하고 여기는 **지금 보이는 줄 수**다(칩으로
+                   좁히면 줄어든다). 둘 다 "N집"이면 같은 말로 읽혀서 라벨을 갈랐다. #}
+                <span class="small text-muted">한 집이 한 줄 · 보이는 {{ work_groups|length }}줄</span>
+                {# 절대 규칙 5: 전부 선택은 **지금 필터로 보이는 행**만 고른다. #}
+                <label class="small text-muted mb-0 ms-auto d-flex align-items-center gap-1">
+                    <input type="checkbox" id="wb-pick-all"> 전부 선택
+                </label>
+            </div>
+
+            {# 조용히 자르면 사람이 나머지를 찾아 헤맨다. 잘렸으면 그렇게 말한다. #}
+            {% if work_truncated %}
+            {# 보이는 줄수를 그대로 쓰면 "58집만 보입니다" 인데 위 탭도 58집이라 사람 눈에
+               모순이 된다(2026-08-24 실화면). 상한에 닿았다는 사실만 말한다. #}
+            <div class="wb-note" data-foms-no-autodismiss>
+                목록이 상한에 닿아 <b>일부 집이 안 보입니다</b> — 먼저 처리하면 나머지가 올라옵니다.
+            </div>
+            {% endif %}
+
+            <div class="wb-queue" id="wb-queue">
+                {% for group in work_groups %}
+                {#
+                  결정 4 의 3층: ① 진행축 배지 ② 클레임축 배지 ③ 색띠 + 글자 라벨.
+                  색띠만으로 구분하면 색맹 사용자가 못 읽어서 글자를 항상 함께 둔다.
+                #}
+                {# 잠금·선택 판정은 서버가 이미 했다(_attach_row_flags). 화면이 같은 식을
+                   다시 쓰면 한쪽만 고쳐졌을 때 조용히 어긋난다 — H1 이 그렇게 났다. #}
+                {% set row_locked = group.locked %}
+                {% set row_kind = 'stop' if row_locked
+                                  else ('spec' if group.order_id
+                                        else ('wait' if group.place_pending else 'go')) %}
+                {# 벌크는 '아직 발주확인 안 된, 손대도 되는 집' 에만 연다(계약 §2.2 place 술어와 같다). #}
+                {% set can_pick = group.can_pick %}
+                {# 찾기 대상 텍스트를 행이 직접 들고 있는다. JS 가 여러 자식 요소를 훑어
+                   조립하면 마크업이 바뀔 때마다 조용히 안 걸린다. 주문번호는 행 어디에도
+                   글자로 없어서(배지는 '주문 #N' = FOMS 주문) 여기서만 검색 대상이 된다. #}
+                <a class="wb-row wb-row--pick wb-row--{{ row_kind }}{{ ' wb-row--locked' if row_locked else '' }}"
+                   data-find="{{ (group.customer_name ~ ' ' ~ (group.external_order_no or '') ~ ' ' ~ (group.product or '') ~ ' ' ~ ('주문 ' ~ group.order_id if group.order_id else ''))|lower }}"
+                   data-group-id="{{ group.id }}" data-link-id="{{ group.id }}"
+                   {# 대표 링크 id 로 비교하면 안 된다 — group.id 는 **목록 모집단** 안의 최대금액
+                      링크이고 selected_group.id 는 _group_of_link 가 **집 전체**에서 뽑은 것이라
+                      본품이 이미 발주확인 완료거나 확인 완료면 두 값이 갈린다. 그러면 열린 집이
+                      하이라이트되지 않고, JS init() 이 aria-current 를 못 찾아 뒤로가기가 부분
+                      갱신 대신 전체 리로드로 떨어진다(리뷰 M3). 집이 같은지는 링크 포함으로 본다. #}
+                   {% if selected_group and (selected_group.id in group.link_ids
+                                             or group.id in selected_group.link_ids) %}aria-current="true"{% endif %}
+                   href="{{ url_for('admin.naver_ingest_triage', tab='work', f=active_filter, link_id=group.id) }}">
+                    <span class="wb-row__bar"></span>
+                    {# 선택은 집 단위다 — 상품주문마다 체크박스를 두면 같은 집을 여러 번 고른다.
+                       data-count 는 모달 재진술("N집 · 상품주문 M건")의 M 을 JS 가 더하는 값이다.
+                       **집 전체에서 발주확인이 남은 건수**를 쓴다.
+                        · group.count(화면 모집단)는 확인이 끝난 형제가 있으면 워커가 처리할
+                          수보다 **작다** — "1건 보냅니다" 라고 읽고 3건이 나간다(리뷰 H2).
+                        · household_count(집 전체)는 반대로 **크다** — 서버
+                          confirm_place_order 가 이미 확인된 형제를 빼기 때문이다
+                          (계약 §0-2, 2026-08-23 CEO 검수). 술어는 fulfillment.is_place_pending. #}
+                    <input type="checkbox" class="wb-pick"
+                           data-group-id="{{ group.id }}"
+                           data-name="{{ group.customer_name }}"
+                           data-count="{{ group.household_place_pending or group.household_count or group.count }}"
+                           {% if not can_pick %}disabled
+                           title="{% if group.claim_blocking %}취소·반품 집은 고를 수 없습니다{% elif group.canceled %}취소한 집은 고를 수 없습니다{% else %}이미 발주확인이 끝났습니다{% endif %}"
+                           {% else %}title="여러 집을 한 번에 발주확인"{% endif %}
+                           aria-label="{{ group.customer_name }} 선택">
+                    <span class="wb-row__body">
+                        <span class="wb-row__line1">
+                            <span class="wb-row__name">{{ group.customer_name }}</span>
+                            {# 접수시각은 여기 산다 — 배지 줄에 두면 폭을 먹어 배지 하나가
+                               아래로 밀리고 그 행만 한 줄 더 높아진다(2026-08-23 사용자 지적). #}
+                            <span class="wb-row__when">{{ group.created_at }}</span>
+                        </span>
+                        {# 제품명은 한 줄로 자른다(행 높이를 고르게) — 대신 잘린 뒤에도
+                           전체를 확인할 수 있게 title 로 원문을 남긴다. #}
+                        <span class="wb-row__line2"
+                              title="{{ group.product }}{% if group.extra_count %} 외 {{ group.extra_count }}건{% endif %}">
+                            {{ group.product }}{% if group.extra_count %} 외 {{ group.extra_count }}건{% endif %}
+                        </span>
+                        <span class="wb-row__line3">
+                            {# 'N건 묶음'은 **집 전체**의 상품주문 수다. 예전에는 group.count
+                               (화면 모집단 안의 수)를 썼는데, 확인이 끝났거나 매핑 실패로 큐에서
+                               빠진 형제를 안 세서 "2건 묶음"을 읽고 체크한 뒤 모달에서 "상품주문
+                               4건"을 봤다 — 한 화면 안에서 건수가 두 개였다(2026-08-24 감사).
+                               household_count 는 워커가 실제로 손댈 집 전체 수다. #}
+                            {% set row_items = group.household_count or group.count %}
+                            {% if row_items > 1 %}
+                            <span class="badge bg-light text-dark">{{ row_items }}건 묶음</span>
+                            {% endif %}
+                            {# 관계 배지는 추가결제·재결제에만 단다(결정 D4). 대부분이 신규라
+                               전부 달면 배지가 배경이 된다 — 다른 것만 눈에 띄어야 한다. #}
+                            {% if group.relation in ('ADDON', 'REPAY') %}
+                            <span class="badge bg-info text-dark">
+                                {{ '추가결제' if group.relation == 'ADDON' else '재결제' }}
+                            </span>
+                            {% endif %}
+                            {# 다음 할 일 배지는 클레임을 모른다. 취소·반품 집에 그대로 찍으면
+                               한 줄에서 "손대지 않음"과 "주문 만들기"가 충돌한다. #}
+                            {% if group.canceled %}
+                            <span class="badge bg-secondary">취소 완료</span>
+                            {% endif %}
+                            {# 'spec' 행에서는 오른쪽 `.wb-can` 이 이미 "규격 입력할 차례" 라고
+                               말한다 — 배지까지 두면 같은 말이 한 줄에 두 번이다(발주확인 전
+                               배지와 같은 손질). 'wait'·'go' 의 "주문 만들기" 는 글자 라벨과
+                               다른 말이라 남긴다. #}
+                            {% if group.next_step and not row_locked and row_kind != 'spec' %}
+                            <span class="badge bg-primary">{{ group.next_step }}</span>
+                            {% endif %}
+                            {% if group.claim_label %}
+                            <span class="badge bg-danger">{{ group.claim_label }}</span>
+                            {% endif %}
+                            {# 같은 줄 오른쪽 끝의 `.wb-can` 이 이미 "발주확인 먼저" 라고 말한다 —
+                               row_kind == 'wait' 이면 같은 사실을 한 줄에서 두 번 쓰는 셈이고,
+                               그 배지 하나(≈90px) 때문에 배지 줄이 접혀 행 높이가 튄다
+                               (2026-08-23 CEO 검수). 주문이 이미 있는 집(spec)에서는 글자 라벨이
+                               "규격 입력할 차례"라 발주확인 사실을 여기서만 알 수 있으므로 남긴다. #}
+                            {% if group.place_pending and not row_locked and row_kind != 'wait' %}
+                            <span class="badge bg-warning text-dark">발주확인 전</span>
+                            {% endif %}
+                            {# 발송기한을 넘기면 네이버가 자동 취소할 수 있다 — 없어진
+                               '발주확인 전' 탭이 갖고 있던 사실을 여기로 옮겼다. #}
+                            {# 2026-08-24: `place_pending` 조건을 뗐다. 발송기한 임박순으로
+                               정렬할 수 있게 되었는데, 발주확인이 끝난 집은 기한이 있어도
+                               배지가 없어서 **정렬의 근거가 화면에 없었다**(실화면에서 상단
+                               15줄이 기한을 안 보여줬다). 정렬한 값은 보여야 한다.
+                               발주확인이 끝나도 그 날짜까지 발송해야 하는 것은 그대로다. #}
+                            {# 발주확인이 끝난 집에는 아무 표시가 없어서 '발주확인 전' 배지가
+                               **없다는 사실**로만 읽어야 했다 — 화면 규칙을 외운 사람만 읽는다.
+                               상세 pane 은 같은 이유로 이미 완료 배지를 달고 있다.
+                               모든 행에 달지는 않는다(결정 D4: 전부 달면 배지가 배경이 된다) —
+                               **체크박스가 회색인 이유**가 필요한 행, 즉 잠기지 않았는데 벌크
+                               대상이 아닌 행에만 단다. 그 조건이 곧 '발주확인이 끝났다'이다. #}
+                            {% if not row_locked and not can_pick %}
+                            <span class="badge bg-light text-dark wb-badge--done">발주확인 완료</span>
+                            {% endif %}
+                            {% if group.shipping_due and not row_locked %}
+                            {# 연도는 전부 같은 해라 아무 결정도 바꾸지 않는다 — 목록에서만 뗀다
+                               (상세·모달은 전체 날짜 그대로). #}
+                            <span class="badge bg-light text-dark">발송기한 {{ group.shipping_due[5:] if group.shipping_due|length > 7 else group.shipping_due }}</span>
+                            {% endif %}
+                            {% if group.order_id %}
+                            <span class="badge bg-light text-dark">주문 #{{ group.order_id }}</span>
+                            {% endif %}
+                            <span class="wb-can wb-can--{{ row_kind }}">
+                                {% if group.canceled %}취소한 집
+                                {% elif row_kind == 'stop' %}손대지 않음
+                                {% elif row_kind == 'spec' %}규격 입력할 차례
+                                {% elif row_kind == 'wait' %}발주확인 먼저
+                                {% else %}지금 처리 가능{% endif %}
+                            </span>
+                        </span>
+                    </span>
+                </a>
+                {% else %}
+                <div class="wb-empty">
+                    {% if active_filter == 'all' %}확인할 주문이 없습니다.
+                    {% else %}이 필터에 해당하는 집이 없습니다 — 위 <b>전체</b> 칩을 눌러 보세요.{% endif %}
+                </div>
+                {% endfor %}
+            </div>
+        </section>
+
+        {# 상세 pane. 전체 렌더와 프래그먼트 응답이 이 파셜 하나를 공유한다(계약 §3.1).
+           최상위 요소가 #wb-pane 이라 JS 가 응답으로 그대로 갈아 끼운다. #}
+        {% include "admin/partials/naver_workbench_pane.html" %}
+    </div>
+
+    {# 결정 6: 불가역 액션 4종 세트 — 벌크 쪽. 집 수·상품주문 건수·이름은 선택에 따라
+       JS 가 문장에 다시 넣는다(빈 자리를 서버가 0 으로 렌더해 두고 JS 가 채운다).
+       목록/벌크 바 밖에 둔다 — 바가 숨어도 모달은 문서에 남아 있어야 열린다. #}
+    <div class="modal fade" id="wb-modal-bulk" tabindex="-1" aria-hidden="true">
+        <div class="modal-dialog modal-dialog-centered">
+            <div class="modal-content">
+                <div class="modal-header">
+                    <h5 class="modal-title">발주확인을 보내기 전에 확인하세요</h5>
+                    <button type="button" class="btn-close" data-bs-dismiss="modal" aria-label="닫기"></button>
+                </div>
+                <div class="modal-body">
+                    {# ① 건수 재진술 — 집 수만 읽히면 "2집" 이 실제로 상품주문 9건인 걸 모른다.
+                       둘을 함께 읽힌다(절대 규칙 2 의 화면 쪽 짝). #}
+                    <p class="fw-semibold mb-2">
+                        선택한 <span id="wb-bulk-count">0</span>집 ·
+                        상품주문 <span id="wb-bulk-items">0</span>건
+                        (<span id="wb-bulk-names"></span>)을 네이버에 <b>발주확인</b>으로 보냅니다.
+                        <span class="d-block small fw-normal text-muted mt-1">
+                            이미 발주확인이 끝난 형제는 빠집니다 — 목록의 '건 묶음'(집 전체 수)보다
+                            적을 수 있습니다.
+                        </span>
+                    </p>
+                    {# ② 되돌릴 수 없음 #}
+                    <div class="alert alert-danger py-2 mb-2" data-foms-no-autodismiss>
+                        네이버로 나가는 호출이라 되돌릴 수 없습니다.
+                    </div>
+                    {# ③ 사후 경로 #}
+                    <p class="small text-muted mb-0">
+                        보낸 뒤에는 상태가 <b>발주확인 완료</b>로 바뀌고, 그 집의 <b>발송처리</b>가 열립니다.
+                        실패한 집이 있으면 화면 위에 실패 목록과 사유가 남습니다.
+                    </p>
+                </div>
+                <div class="modal-footer">
+                    <button type="button" class="btn btn-outline-secondary" data-bs-dismiss="modal">취소</button>
+                    <button type="button" class="btn btn-primary" id="wb-bulk-confirm">보내기</button>
+                </div>
+            </div>
+        </div>
+    </div>
+
+    {% else %}
+    {# ══ 이력 (ADMIN 전용) ═══════════════════════════════════════════
+       **읽기 전용 표다.** 절대 규칙 3: 행에 액션 버튼·data-link-id 를 달지 않는다 —
+       불가역 mutation 라우트는 STAFF 까지 열려 있어서, 이력 행을 누를 수 있게 만들면
+       과거 주문 전체에 취소·발송 버튼을 주는 셈이 된다.
+       숫자는 모두 집 단위다. 상품주문 건수는 맨 위 스트립에서만 본다(결정 3). #}
+    {#
+      수집 상태 — 옛 수집 화면(ADMIN 전용)에만 있던 값이다. 게이트가 켜지면 그 화면은
+      리다이렉트로 닫히므로 여기 없으면 도달할 방법이 사라진다:
+      ① 마지막 성공 구간(워터마크)·마지막 실행 ② 실행 결과·실패 사유 ③ 인증 만료일
+      ④ "지금 수집"(큐에 넣기만 한다 — 네이버 HTTP 는 WORKER 에서만 나간다).
+    #}
+    {% if ingest_status %}
+    <section class="wb-ingest" id="wb-ingest-status">
+        <div class="wb-ingest__cell">
+            <div class="wb-ingest__k">마지막 성공 구간 끝(워터마크)</div>
+            <div class="wb-ingest__v">{{ ingest_status.watermark.last_success_to or '아직 없음' }}</div>
+            <div class="wb-ingest__sub">마지막 실행 {{ ingest_status.watermark.last_run_at or '아직 없음' }}</div>
+        </div>
+        <div class="wb-ingest__cell">
+            <div class="wb-ingest__k">마지막 실행 결과</div>
+            {% if ingest_status.watermark.last_error %}
+            <div class="wb-ingest__v text-danger">실패</div>
+            <div class="wb-ingest__sub text-danger">{{ ingest_status.watermark.last_error }}</div>
+            <div class="wb-ingest__sub">워터마크는 전진하지 않았습니다 — 다음 실행이 같은 구간을 다시 수집합니다.</div>
+            {% else %}
+            <div class="wb-ingest__v text-success">정상</div>
+            <div class="wb-ingest__sub">
+                수집 {{ ingest_status.watermark.last_summary.get('collected', 0) }} ·
+                건너뜀 {{ ingest_status.watermark.last_summary.get('skipped', 0) }} ·
+                보류 {{ ingest_status.watermark.last_summary.get('pending_review', 0) }}
+            </div>
+            {% endif %}
+        </div>
+        <div class="wb-ingest__cell">
+            <div class="wb-ingest__k">커머스API 인증 만료일</div>
+            {% if ingest_status.expiry.expires_on %}
+            <div class="wb-ingest__v">{{ ingest_status.expiry.expires_on }}</div>
+            {% if ingest_status.expiry.days_left is not none and ingest_status.expiry.days_left <= 7 %}
+            <span class="badge bg-danger">D-{{ ingest_status.expiry.days_left if ingest_status.expiry.days_left > 0 else 0 }} — 갱신 필요</span>
+            <div class="wb-ingest__sub text-danger">만료되면 앱이 자동 휴면되어 수집이 전면 중단됩니다.</div>
+            {% else %}
+            <div class="wb-ingest__sub">{{ ingest_status.expiry.days_left }}일 남음</div>
+            {% endif %}
+            {% else %}
+            <div class="wb-ingest__v text-warning">미등록</div>
+            <div class="wb-ingest__sub">만료일을 모르면 만료 경고를 보낼 수 없습니다.</div>
+            {% endif %}
+        </div>
+        <div class="wb-ingest__cell wb-ingest__cell--action">
+            <button type="button" class="btn btn-success btn-sm" id="wb-run-now">지금 수집</button>
+            <div class="wb-ingest__sub">큐에 넣기만 합니다 — 실제 호출은 워커가 냅니다.</div>
+            <div class="wb-ingest__sub" id="wb-run-result" data-foms-no-autodismiss></div>
+        </div>
+    </section>
+    {% endif %}
+
+    <section class="card shadow-sm">
+        <div class="card-header py-2 d-flex flex-wrap align-items-center gap-2">
+            <span class="fw-semibold">전체 이력</span>
+            {# 필터가 걸리면 history.total 은 걸러진 수다 — 헤더도 그렇게 말해야 한다.
+               칩만 고치고 헤더를 두면 두 줄 위에서 같은 거짓말이 남는다. #}
+            <span class="small text-muted">
+                {% if history.status or history.place_pending %}지금 목록 {{ history.total }}집
+                {% else %}전체 {{ history.total }}집{% endif %} — 숫자는 모두 집 단위</span>
+            <span class="small text-muted ms-auto">읽기 전용 — 처리는 <b>처리</b> 탭에서 합니다</span>
+        </div>
+
+        {# 이력 표 필터. 처리 탭 칩과 생김새는 같지만 거르는 대상이 다르다(이력 행 vs 집 목록)
+           — JS·테스트는 data-filter 로 둘을 가른다. 여기 칩에는 data-filter 를 달지 않는다. #}
+        <div class="wb-filters">
+            <a class="wb-chip" aria-pressed="{{ 'true' if not history.status and not history.place_pending else 'false' }}"
+               {# 필터가 걸리면 history.total 은 '걸러진 총계'다 — 그걸 "전체" 라고 말하면
+                  거짓말이 된다(옛 이력 화면도 같은 가드를 쓴다). #}
+               href="{{ url_for('admin.naver_ingest_triage', tab='all') }}">전체 {{ (history.total ~ '집') if not (history.status or history.place_pending) else '' }}</a>
+            {% for key, label in [('COLLECTED', '수집됨(주문 전)'), ('LINKED', '주문 생성됨'),
+                                  ('PENDING_REVIEW', '확인 필요'), ('FAILED', '실패')] %}
+            <a class="wb-chip" aria-pressed="{{ 'true' if history.status == key else 'false' }}"
+               href="{{ url_for('admin.naver_ingest_triage', tab='all', status=key,
+                                place='PENDING' if history.place_pending else None) }}">
+                {{ label }} {{ history.counts.get(key, 0) }}집
+            </a>
+            {% endfor %}
+            <a class="wb-chip" aria-pressed="{{ 'true' if history.place_pending else 'false' }}"
+               href="{{ url_for('admin.naver_ingest_triage', tab='all', status=history.status or None,
+                                place=None if history.place_pending else 'PENDING') }}">
+                {# 처리 탭의 '발주확인 전' 칩은 **작업 대상**(취소·반품 제외)이고 이 칩은 이력
+                   표를 거르는 술어라 취소 집도 포함한다. 같은 라벨을 쓰면 같은 화면에서 두
+                   숫자가 어긋나 보인다 — 모집단을 라벨에 적는다. #}
+                발주확인 전(취소 포함) {{ history.place_pending_count }}집
+            </a>
+        </div>
+
+        <div class="table-responsive">
+            <table class="wb-cmp wb-hist">
+                <thead>
+                    <tr>
+                        <th>수집 시각</th><th>고객</th><th>제품</th>
+                        <th class="wb-cmp__num">수량</th><th class="wb-cmp__num">금액</th>
+                        <th>상태</th><th>FOMS 주문</th>
+                    </tr>
+                </thead>
+                <tbody>
+                    {% for row in history.rows %}
+                    {# 결정 2: 취소·반품은 빼지 않는다. 회색으로 같은 자리에 남긴다. #}
+                    <tr class="{{ 'wb-hist--muted' if row.claim_blocking else '' }}">
+                        <td class="wb-cmp__k">{{ row.created_at }}</td>
+                        <td>{{ row.customer_name }}</td>
+                        <td>
+                            {{ row.product }}
+                            {% if row.count and row.count > 1 %}
+                            <span class="badge bg-light text-dark">{{ row.count }}건 묶음</span>
+                            {% endif %}
+                            {% if row.failure_reason %}
+                            <div class="wb-cmp__option text-danger">{{ row.failure_reason }}</div>
+                            {% endif %}
+                        </td>
+                        <td class="wb-cmp__num">{{ row.quantity if row.quantity is not none else '–' }}</td>
+                        <td class="wb-cmp__num">{{ '{:,}'.format(row.amount) if row.amount is not none else '–' }}</td>
+                        <td>
+                            {% if row.sync_status == 'COLLECTED' %}<span class="badge bg-primary">수집됨</span>
+                            {% elif row.sync_status == 'LINKED' %}<span class="badge bg-success">주문 생성됨</span>
+                            {% elif row.sync_status == 'PENDING_REVIEW' %}<span class="badge bg-warning text-dark">확인 필요</span>
+                            {% else %}<span class="badge bg-danger">실패</span>{% endif %}
+                            {% if row.claim_label %}
+                            <span class="badge bg-danger">{{ row.claim_label }}</span>
+                            {% endif %}
+                            {% if row.place_pending and not row.claim_blocking %}
+                            <span class="badge bg-warning text-dark">발주확인 전</span>
+                            {% endif %}
+                        </td>
+                        <td>
+                            {% if row.order_id %}
+                            <a href="{{ url_for('order_edit.edit_order', order_id=row.order_id, open='erp-order') }}"
+                               target="_blank" rel="noopener">#{{ row.order_id }}</a>
+                            {% elif row.pending_link_id %}
+                            {# 절대 규칙 3: 여기에 **버튼을 두지 않는다**. 처리 탭의 그 집으로
+                               가는 평범한 링크만 둔다(누르면 그 집이 열릴 뿐, 아무것도 보내지 않는다).
+                               취소·반품이면 링크도 두지 않고 사유만 적는다. #}
+                            {% if row.claim_blocking %}
+                            <span class="small text-danger">취소·반품 진행 중 — 주문을 만들 수 없습니다.</span>
+                            {% else %}
+                            <a href="{{ url_for('admin.naver_ingest_triage', tab='work', link_id=row.pending_link_id) }}">처리 탭에서 열기</a>
+                            {% endif %}
+                            {% endif %}
+                        </td>
+                    </tr>
+                    {% else %}
+                    <tr><td colspan="7" class="wb-empty">수집 이력이 없습니다.</td></tr>
+                    {% endfor %}
+                </tbody>
+            </table>
+        </div>
+
+        {# 선행 결함 #8 의 워크벤치 쪽: 페이지 링크가 탭·필터를 그대로 들고 간다. #}
+        {% if history.pages > 1 %}
+        <div class="wb-pager">
+            {% if history.page > 1 %}
+            <a href="{{ url_for('admin.naver_ingest_triage', tab='all', status=history.status or None,
+                                place='PENDING' if history.place_pending else None,
+                                page=history.page - 1) }}">이전</a>
+            {% endif %}
+            <span class="wb-pager__cur">{{ history.page }} / {{ history.pages }}</span>
+            {% if history.page < history.pages %}
+            <a href="{{ url_for('admin.naver_ingest_triage', tab='all', status=history.status or None,
+                                place='PENDING' if history.place_pending else None,
+                                page=history.page + 1) }}">다음</a>
+            {% endif %}
+            <span class="small text-muted">지금 걸린 필터는 페이지를 넘겨도 유지된다.</span>
+        </div>
+        {% endif %}
+    </section>
+    {% endif %}
+</div>
+{% endblock %}
+
+{% block scripts %}
+<script src="{{ url_for('static', filename='js/admin/naver-workbench.js') }}?v=20260824q" defer></script>
+{% endblock %}

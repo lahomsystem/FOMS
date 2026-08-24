@@ -440,6 +440,17 @@ def change_logs():
     return render_template("admin/change_logs.html")
 
 
+@admin_bp.route("/admin/change-reasons")
+@login_required
+@role_required(["ADMIN"])
+def change_reasons():
+    """변경 사유 집계 화면 (ORDER-REASON-00) — 숫자는 API 가 센다.
+
+    :return: ``admin/change_reasons.html`` 렌더 결과.
+    """
+    return render_template("admin/change_reasons.html")
+
+
 @admin_bp.route("/security_logs")
 @login_required
 @role_required(["ADMIN"])

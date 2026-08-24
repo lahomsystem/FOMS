@@ -68,3 +68,15 @@ def test_apply_legacy_dashboard_search_filter_adds_extra_columns() -> None:
     sql = str(q.filters[0][0].compile(compile_kwargs={"literal_binds": True}))
     assert "product" in sql
     assert "manager_name" in sql
+
+
+def test_erp_order_dashboard_search_predicate_covers_buyer_axis() -> None:
+    """ORDERER-AXIS-01: 주문한 사람(parties.buyer)도 검색 후보다.
+
+    발주사 자리에서 갈라져 나온 값이라 여기 없으면 수집 주문을 주문자 이름·번호로 찾던
+    동작이 조용히 사라진다.
+    """
+    sql = str(erp_order_dashboard_search_predicate('%x%').compile(
+        compile_kwargs={"literal_binds": True}))
+    assert "'buyer'" in sql and "'name'" in sql
+    assert sql.count("'buyer'") >= 2  # name · phone

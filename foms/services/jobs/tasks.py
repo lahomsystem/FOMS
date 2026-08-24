@@ -25,6 +25,7 @@ __all__ = [
     "process_channeltalk_inbound",
     "send_push_for_notification_task",
     "run_notification_escalation_task",
+    "run_naver_order_sync_task",
 ]
 
 
@@ -226,4 +227,100 @@ def run_notification_escalation_task():
             db_session.remove()
     except Exception as e:
         logger.error(f"[RQ] run_notification_escalation_task error: {e}", exc_info=True)
+        raise
+
+
+def run_naver_fulfillment_task(link_id: int, action: str, actor_user_id=None,
+                               reason=None, detail=None):
+    """발주확인·발송처리·취소 1건 실행 (NAVER-INGEST-02 T16-G, WORKER 전용).
+
+    web 은 enqueue 만 한다 — 커머스API 에 등록된 호출 IP 가 WORKER 것뿐이라 web 에서 나가면
+    차단된다. 되돌릴 수 없는 조작이라 멱등 기록은 서비스(fulfillment)가 책임진다.
+
+    Args:
+        link_id: 기준 수집 링크 id(같은 집 전체가 함께 처리된다).
+        action: ``confirm``(발주확인) · ``dispatch``(발송처리) · ``cancel``(판매자 직접취소).
+        actor_user_id: 화면에서 누른 사람(기록용).
+        reason: 취소 사유 코드(``cancel`` 일 때만).
+        detail: 취소 상세 사유(``cancel`` 일 때만, 선택).
+
+    Returns:
+        서비스 결과 dict.
+    """
+    try:
+        from db import db_session
+        from foms.services.integrations.naver_commerce.client import NaverCommerceClient
+        from foms.services.integrations.naver_commerce import fulfillment as naver_fulfillment
+
+        from foms.services.integrations.naver_commerce.fulfillment import FulfillmentError
+
+        db = db_session()
+        try:
+            client = NaverCommerceClient()
+            if action == "confirm":
+                result = naver_fulfillment.confirm_place_order(
+                    db, client, link_id=int(link_id), actor_user_id=actor_user_id)
+            elif action == "dispatch":
+                result = naver_fulfillment.dispatch_order(
+                    db, client, link_id=int(link_id), actor_user_id=actor_user_id)
+            elif action == "cancel":
+                result = naver_fulfillment.cancel_order(
+                    db, client, link_id=int(link_id), reason=str(reason or ""),
+                    detail=detail, actor_user_id=actor_user_id)
+            else:
+                raise ValueError(f"알 수 없는 작업입니다: {action}")
+            db.commit()
+            return result
+        except FulfillmentError:
+            # 서비스가 실패 사유를 **일부러** 상태에 적고 올린다(fulfillment.py 의 except 절).
+            # 여기서 통째로 rollback 하면 그 기록까지 지워져, 실패가 DB 어디에도 안 남고
+            # 로그·RQ 에만 남는다 — 화면이 "성공 n · 실패 m · 사유" 를 못 보여주는 원인이었다.
+            # 부분 실패(HTTP 200 + failProductOrderInfos)도 이 경로로 온다 — 그때는 성공한
+            # 상품주문의 표식도 함께 커밋해야 재시도가 실패한 건만 다시 보낸다.
+            db.commit()
+            raise
+        except Exception as exc:
+            # 그 밖의 예외(프로그래밍 오류·DB 오류)는 무엇이 쓰였는지 알 수 없어 되돌린다.
+            db.rollback()
+            # 되돌린 뒤 **사유만** 따로 남긴다. web 은 이미 "요청했습니다"로 답했고, 화면의
+            # 실패 띠가 유일한 통지 경로다(취소는 재시도 버튼도 없다). 기록 자체가 실패하면
+            # 원래 예외를 가리지 않도록 조용히 넘어간다.
+            try:
+                naver_fulfillment.record_task_failure(
+                    db, link_id=int(link_id), action=str(action),
+                    reason=f"작업이 실패했습니다: {exc}")
+                db.commit()
+            except Exception as record_exc:  # noqa: BLE001 - 통지 실패가 원인을 덮지 않게
+                db.rollback()
+                logger.warning("[RQ] 실패 사유 기록 실패 link=%s: %s", link_id, record_exc)
+            raise
+        finally:
+            db.close()
+            db_session.remove()
+    except Exception as e:
+        logger.error(f"[RQ] run_naver_fulfillment_task error: {e}", exc_info=True)
+        raise
+
+
+def run_naver_order_sync_task(dry_run: bool = False):
+    """네이버 스마트스토어 주문 수집 1회 실행 (NAVER-INGEST-01, WORKER 전용).
+
+    화면의 "지금 수집" 버튼이 이 job 을 enqueue 한다. **web 프로세스에서 직접 호출하면
+    안 된다** — 커머스API센터에 등록된 호출 IP 는 WORKER 것뿐이라 web 에서 나가면 차단된다.
+    """
+    try:
+        from db import db_session
+        from foms.services.integrations.naver_commerce.ingest import run_sweep
+
+        db = db_session()
+        try:
+            return run_sweep(db, dry_run=bool(dry_run))
+        except Exception:
+            db.rollback()
+            raise
+        finally:
+            db.close()
+            db_session.remove()
+    except Exception as e:
+        logger.error(f"[RQ] run_naver_order_sync_task error: {e}", exc_info=True)
         raise

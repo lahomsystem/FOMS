@@ -19,9 +19,9 @@ def _erp_as_incomplete_filter(query):
 
 
 def _erp_as_completed_condition():
-    """AS 완료 탭 공통 조건."""
+    """AS 완료 탭 공통 조건(AS-AXIS-01 — 술어는 AS 축 투영 컬럼)."""
     return and_(
-        Order.status == 'AS_COMPLETED',
+        Order.as_axis_status == 'COMPLETED',
         Order.as_completed_date.isnot(None),
         Order.as_completed_date != ''
     )
@@ -273,13 +273,47 @@ def _has_text_value(expr):
     return func.trim(func.coalesce(cast(expr, String), '')) != ''
 
 
+def erp_as_scope_condition():
+    """AS 대시보드 모집단 조건(AS-AXIS-01) — AS 축이 있는 주문 전체.
+
+    구 술어 ``Order.status.in_(['AS','AS_RECEIVED','AS_COMPLETED'])`` 를 대체한다. status 는
+    overlay projection 이라 외부 write 한 번에 모집단에서 통째로 빠졌다(2026-08-14 사고).
+
+    Returns:
+        SQLAlchemy 조건식(``as_axis_status IS NOT NULL``).
+    """
+    return Order.as_axis_status.isnot(None)
+
+
+def erp_as_status_filter_condition(status_filter):
+    """AS 탭의 legacy status 필터를 AS 축 값으로 옮긴다(AS-AXIS-01).
+
+    화면 필터는 여전히 ``AS``/``AS_RECEIVED``/``AS_COMPLETED`` 문자열을 보낸다(URL 하위호환).
+
+    Args:
+        status_filter: 화면이 보낸 legacy status 문자열.
+
+    Returns:
+        SQLAlchemy 조건식. 매핑되지 않는 값이면 ``None``(필터 미적용).
+    """
+    mapping = {'AS_RECEIVED': 'RECEIVED', 'AS': 'IN_PROGRESS', 'AS_COMPLETED': 'COMPLETED'}
+    axis_value = mapping.get(str(status_filter or '').strip())
+    return Order.as_axis_status == axis_value if axis_value else None
+
+
 def _erp_as_incomplete_condition():
-    """AS 미완료 탭 공통 조건."""
+    """AS 미완료 탭 공통 조건.
+
+    AS-AXIS-01: 술어는 **AS 축 투영 컬럼**(``as_axis_status``)을 본다. ``status`` 는 overlay
+    projection 이라 일괄 완료처리 같은 외부 write 한 번에 AS 목록이 통째로 사라졌다
+    (2026-08-14 사고 55건). 투영 컬럼은 ``sync_erp_flat_columns`` 를 지나는 AS 쓰기 경로만
+    갱신하므로 status 를 덮어도 목록이 흔들리지 않는다.
+    """
     return or_(
-        Order.status == 'AS',
-        Order.status == 'AS_RECEIVED',
+        Order.as_axis_status == 'RECEIVED',
+        Order.as_axis_status == 'IN_PROGRESS',
         and_(
-            Order.status == 'AS_COMPLETED',
+            Order.as_axis_status == 'COMPLETED',
             or_(
                 Order.as_completed_date.is_(None),
                 Order.as_completed_date == ''

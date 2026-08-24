@@ -141,6 +141,32 @@ def test_send_js_persists_new_and_draft_orders_like_channel_push() -> None:
     assert open_body.index("erpAlimtalkEnsureSaved()") < open_body.index("erpAlimtalkOrderId()")
 
 
+def test_tablet_form_saves_before_alimtalk_and_share() -> None:
+    """태블릿 실측 폼도 저장 뒤에 발송한다 — PC 와 같은 규칙(본문 = 저장본 SSOT).
+
+    이 화면은 디바운스 자동저장을 쓰지만 마지막 입력 직후에는 아직 저장 전인 창이 남는다.
+    그 창에서 알림톡·공유를 누르면 화면과 다른 내용이 고객에게 나간다.
+    """
+    js = _read("static/js/foms/tablet-measure-form.js")
+    assert "function ensureSavedForSend()" in js
+    # 저장 SSOT = 이 화면의 명시 저장(saveNow) — 판정 경로를 새로 만들지 않는다.
+    assert "saveNow({ explicit: true })" in js
+    # 저장 실패 시 발송 중단 + 문구 표면화(조용한 통과 금지).
+    assert "저장 실패 — 저장 후 다시 시도해주세요." in js
+    # 두 진입점 모두 가드를 먼저 탄다 — 각 진입점 본문은 다음 function 선언 전까지.
+    def _entry_body(name: str) -> str:
+        rest = js.split(name, 1)[1]
+        return rest[: rest.index("\n  function ")]
+
+    for entry in ("function requestAlimtalk()", "function requestShare()"):
+        assert "ensureSavedForSend()" in _entry_body(entry), entry
+    # preview·발급 fetch 는 저장 뒤 단계로 분리돼 있다(가드를 건너뛰는 경로 없음).
+    assert "function _requestAlimtalkSaved()" in js
+    assert "function _requestShareSaved()" in js
+    assert "/api/kakao/alimtalk/preview/" not in _entry_body("function requestAlimtalk()")
+    assert "/api/share/create/" not in _entry_body("function requestShare()")
+
+
 def test_share_js_saves_before_reading_order_id() -> None:
     """공유 발급·내 문자 보내기도 저장 뒤에 주문 id 를 읽는다(같은 사고 자리)."""
     js = _read("static/js/orders/erp-share.js")
@@ -155,3 +181,152 @@ def test_share_js_reuses_alimtalk_autosave_guard() -> None:
     assert "fomsErpEnsureSavedForSend" in js
     # 헬퍼 정의 1 + 발급/원클릭 호출 2.
     assert js.count("_ensureSaved(") >= 3
+
+
+# --- T15 발송 흔적 칩 ------------------------------------------------------------
+
+TRACE_JS = "js/orders/erp-alimtalk-trace.js"
+TRACE_PARTIAL = "orders/partials/erp_alimtalk_trace_modal.html"
+
+
+def test_pc_tab_has_trace_slot_under_alimtalk_button() -> None:
+    """PC: 흔적 칩 자리가 알림톡 버튼 **아래**에 있다(0클릭 확인의 전제)."""
+    html = _read("templates/orders/partials/erp_order_tab.html")
+    assert "data-erp-alimtalk-trace" in html
+    assert html.index(BUTTON_CLASS) < html.index("data-erp-alimtalk-trace")
+
+
+def test_mobile_tab_has_compact_trace_slot_in_action_bar() -> None:
+    """모바일: 액션바 안에서 한 줄을 차지하는 축약형 칩(보낸 사람 없음)."""
+    html = _read("templates/orders/partials/erp_order_tab_mobile.html")
+    footer = html[html.index("erp-mobile-sticky-action-bar"):]
+    bar = footer[: footer.index("</footer>")]
+    assert 'data-erp-alimtalk-trace="compact"' in bar, "칩이 액션바 밖에 있다"
+    assert "erp-alimtalk-trace-slot--mobile" in bar
+
+
+def test_trace_modal_included_on_both_html_surfaces() -> None:
+    """이력 패널 partial 은 PC/모바일 두 표면 모두에 include 된다."""
+    assert TRACE_PARTIAL in _read("templates/orders/partials/erp_order_tab.html")
+    assert TRACE_PARTIAL in _read("templates/orders/partials/erp_order_tab_mobile.html")
+
+    modal = _read("templates/" + TRACE_PARTIAL)
+    assert 'id="erpAlimtalkTraceModal"' in modal
+    assert 'id="erp-alimtalk-trace-log"' in modal
+    assert 'id="erp-alimtalk-trace-count"' in modal
+    assert "style=" not in modal, "인라인 스타일 금지 — erp-channel-push.css 사용"
+
+
+def test_trace_js_loaded_globally_exactly_once() -> None:
+    """칩 스크립트는 전역 1곳에서만 싣는다.
+
+    태블릿 실측 대시보드는 셸 변형에 따라 페이지 스크립트 블록이 통째로 빠지는 경로가 있어
+    페이지 스코프로 실으면 그 표면에서만 칩이 조용히 사라진다(스테이징 실측). 반대로 두 곳에
+    실으면 같은 파일이 두 번 실행된다.
+    """
+    layout = _read("templates/partials/shared/layout_scripts.html")
+    line = next(ln for ln in layout.splitlines() if TRACE_JS in ln)
+    assert "defer" in line and "?v=" in line
+    # 태블릿 폼과 같은 자리 — 두 표면이 같은 로드 경로를 탄다.
+    assert layout.index("js/foms/tablet-measure-form.js") < layout.index(TRACE_JS)
+    for page_scope in ("templates/orders/partials/erp_order_js.html",
+                       "templates/measurement/partials/dashboard_scripts.html"):
+        assert TRACE_JS not in _read(page_scope), page_scope
+
+
+def test_trace_js_renders_from_loaded_structured_data_only() -> None:
+    """칩은 이미 화면에 있는 구조화 데이터로 그린다 — 렌더에 서버 왕복이 없다."""
+    js = _read("static/js/orders/" + TRACE_JS.split("/")[-1])
+    assert "window.__FOMS_ALIMTALK_TRACE_BOUND" in js
+    assert "window.__erpLastStructuredData" in js
+    assert "alimtalk_measurement" in js
+    # 렌더 경로가 preview 를 부르면 '추가 요청 0' 계약이 깨진다.
+    assert "/api/kakao/alimtalk/preview/" not in js
+
+
+def test_trace_js_reuses_reason_labels_instead_of_copying() -> None:
+    """사유 문구는 발송 모듈 맵 재사용 — 3벌째 사본이 생기면 문구가 갈린다."""
+    js = _read("static/js/orders/" + TRACE_JS.split("/")[-1])
+    assert "window.erpAlimtalkReasonLabel" in js
+    assert "invalid_phone" not in js, "사유 맵을 복사했다"
+
+
+def test_trace_js_covers_four_chip_states() -> None:
+    """보냄·문자로 보냄·실패·미발송 네 상태 — 빈 자리는 '확인 못 함'으로 읽힌다."""
+    js = _read("static/js/orders/" + TRACE_JS.split("/")[-1])
+    for label in ("예약 안내 보냄", "문자로 보냄", "발송 실패", "아직 안 보냄"):
+        assert label in js, label
+    for state in ("--sent", "--text", "--failed", "--none"):
+        assert "erp-alimtalk-trace" + state in _read("static/css/orders/erp-alimtalk-trace.css")
+
+
+def test_trace_js_probes_channel_once_after_delay() -> None:
+    """채널 확정은 발송 1분 뒤 1회 — 웹훅 아님, 이미 확정된 건은 다시 묻지 않는다."""
+    js = _read("static/js/orders/" + TRACE_JS.split("/")[-1])
+    assert "/api/kakao/alimtalk/confirm-channel/" in js
+    assert "channel_checked_at" in js
+    assert "setTimeout" in js and "60 * 1000" in js
+
+
+def test_trace_history_panel_uses_filtered_event_stream() -> None:
+    """이력 패널은 알림톡 이벤트만 받아온다(200건 받아 클라이언트에서 거르지 않는다)."""
+    js = _read("static/js/orders/" + TRACE_JS.split("/")[-1])
+    assert "event_type=" in js
+    assert "ALIMTALK_SENT,ALIMTALK_FAILED" in js
+    assert "created_by_name" in js
+
+
+def test_send_js_publishes_trace_update() -> None:
+    """발송 직후 칩 갱신은 응답에 실려 온 이력으로 한다(추가 조회 없음)."""
+    js = _read("static/js/orders/erp-alimtalk-send.js")
+    assert "foms:alimtalk-trace-update" in js
+    assert "body.data.last" in js
+
+
+def test_structured_load_announces_itself_for_late_renderers() -> None:
+    """구조화 데이터 도착 신호가 있어야 칩이 로드 순서와 무관하게 그려진다."""
+    js = _read("static/js/orders/erp-order-shared.js")
+    assert "foms:erp-structured-loaded" in js
+
+
+def test_trace_css_is_shared_by_both_surfaces() -> None:
+    """칩 CSS 는 파일 하나 — ERP 번들과 태블릿 번들이 서로 다르다고 사본을 두면 색이 갈린다."""
+    assert "erp-alimtalk-trace" not in _read("static/css/orders/erp-channel-push.css")
+    for surface in (
+        "templates/orders/partials/erp_order_js.html",
+        "templates/measurement/dashboard.html",
+        "templates/measurement/partials/dashboard_fragment.html",
+    ):
+        assert "css/orders/erp-alimtalk-trace.css" in _read(surface), surface
+
+
+def test_tablet_measure_form_renders_trace_slot_and_publishes_record() -> None:
+    """태블릿: 같은 칩(축약형) + 주문 로드·발송 직후 갱신. 칩 마크업은 칩 모듈이 소유한다."""
+    js = _read("static/js/foms/tablet-measure-form.js")
+    assert 'data-erp-alimtalk-trace="compact"' in js
+    assert "data-erp-alimtalk-trace-order" in js
+    assert "foms:alimtalk-trace-update" in js
+    # 탭 재렌더가 칩 자리를 새로 만들므로 다시 그리라고 알려야 한다.
+    assert "window.erpAlimtalkTraceRender" in js
+    # 실패 사유 문구는 태블릿 맵을 같은 이름으로 내줘 칩과 갈리지 않게 한다.
+    assert "window.erpAlimtalkReasonLabel" in js
+    # 칩 CSS 는 실측 대시보드(풀페이지·fragment 양쪽)에 실린다.
+    for surface in ("templates/measurement/dashboard.html",
+                    "templates/measurement/partials/dashboard_fragment.html"):
+        assert "css/orders/erp-alimtalk-trace.css" in _read(surface), surface
+
+
+def test_trace_chip_is_display_only_without_history_panel() -> None:
+    """이력 패널이 없는 표면에서는 눌러도 아무 일이 없는 버튼을 만들지 않는다."""
+    js = _read("static/js/orders/" + TRACE_JS.split("/")[-1])
+    assert "erpAlimtalkTraceModal" in js
+    assert "createElement(clickable ? 'button' : 'span')" in js
+
+
+def test_trace_update_with_no_record_clears_stale_chip() -> None:
+    """태블릿은 한 화면에서 주문을 갈아끼운다 — 빈 이력은 이전 주문의 칩을 지워야 한다."""
+    js = _read("static/js/orders/" + TRACE_JS.split("/")[-1])
+    assert "delete window.__erpLastStructuredData.alimtalk_measurement" in js
+    # 반대로, 이력이 없는 발송 응답이 멀쩡한 칩을 지우면 안 된다.
+    send = _read("static/js/orders/erp-alimtalk-send.js")
+    assert "if (body && body.data && body.data.last) _publishTrace(body.data.last);" in send

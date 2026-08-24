@@ -261,3 +261,24 @@ def test_object_values_keep_only_the_keys_that_have_content():
     )
 
     assert result.changes == []
+
+
+def test_every_audited_path_has_korean_label():
+    """감사 대상 경로는 전부 한글 라벨을 갖는다 (라벨 없으면 화면에 raw 경로가 뜬다)."""
+    from foms.services.audit_message_display import PATH_LABELS
+    from foms.services.orders.structured_diff import SCALAR_PATHS
+
+    missing = [p for p in SCALAR_PATHS
+               if p not in PATH_LABELS and not p.startswith("items.")]
+    assert not missing, f"라벨 없는 감사 경로: {missing}"
+
+
+def test_buyer_axis_paths_are_audited_and_labelled():
+    """ORDERER-AXIS-01: 주문자(buyer)·보조 연락처 변경이 원장에 남는다."""
+    from foms.services.audit_message_display import PATH_LABELS
+    from foms.services.orders.structured_diff import SCALAR_PATHS
+
+    for path in ("parties.buyer.name", "parties.buyer.phone", "parties.customer.phone2"):
+        assert path in SCALAR_PATHS
+        assert PATH_LABELS[path]
+    assert PATH_LABELS["parties.orderer.name"] == "발주사"

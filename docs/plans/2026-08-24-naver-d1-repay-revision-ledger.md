@@ -1,0 +1,558 @@
+# 진행 원장 — D1 개정: 재결제를 '지금 닫기'에서 뺀다 (2026-08-24)
+
+상위 계약: `docs/specs/2026-08-23-naver-workbench-v3_CONTRACT.md` (§0 절대 규칙 6개 = 판정 기준)
+개정 대상: `docs/specs/2026-08-22-naver-workbench-relation-and-cancel_SPEC.md` **결정 D1**
+복귀 기준: `docs/specs/2026-08-19-naver-order-relation-and-fulfillment_SPEC.md` §3 원안
+선행 원장: `2026-08-24-naver-workbench-ux-pass-ledger.md` (마지막 줄에 이 위험을 남겼다) ·
+`2026-08-24-naver-attach-invisible-result-ledger.md`
+작업 위치: `c:\tmp\foms-s-naver-ingest` (브랜치 `session/naver-ingest`, HEAD `49b0ba3a`)
+**커밋·푸시 없음.** 세 갈래 모두 편집만 했고, 커밋은 주 세션이 아래 §6 검증 뒤에 한다.
+
+---
+
+## 1. 왜 D1 을 개정했나
+
+선행 원장이 남긴 미해결 위험 한 줄이 출발점이다.
+
+> 재결제가 `CLOSE_NOW_RELATIONS` 에 있어 붙이면 발송처리가 '지금 닫기'로 열린다.
+> — `2026-08-24-naver-workbench-ux-pass-ledger.md` 마지막 줄
+
+세 가지가 겹쳐서 이건 문구 결함이 아니라 **불가역 호출이 한 클릭 앞에 놓인 자리**였다.
+
+1. **"물건이 따로 나가지 않는다"는 재결제에 거짓이다.** 추가결제(ADDON)는 차액만 더 받은
+   것이라 참이다. 재결제(REPAY)는 원 주문을 취소하고 **그 물건값을 다시 낸 것**이라 원
+   주문의 물건이 **나중에 한 번 나간다**. 옛 D1(08-22)은 ADDON 논리를 REPAY 단독 근거
+   없이 확장한 것이었다.
+2. **붙이기 직후 불가역 버튼이 파란색으로 켜져 있었다.** 붙이기는 모달 없이 즉시 실행되고
+   (되돌리기 가능) 바로 옆에 `지금 닫기`가 활성 파란 버튼으로 떴다. **두 번째 클릭이
+   불가역**이다 — 구매자에게 "배송 시작", 구매확정·정산 시계 시작, `dispatched_any` 가
+   되면 취소 버튼 자체가 사라지고 반품 흐름으로 넘어간다.
+3. **원안으로의 복귀다.** 2026-08-19 스펙 §3 이 `REPAY → 신규와 같게(발주확인 먼저)` 였다.
+   되돌린 것이지 새 규칙을 만든 것이 아니다.
+
+**비용은 클릭 1회다.** `can_confirm = place_pending and not locked` 라 발주확인 버튼은
+관계를 보지 않고 그대로 열리고, 발주확인 뒤 발송처리가 열린다 — **막다른 길 없음**.
+`ADDON` 은 그대로 둔다(물건이 따로 나가지 않는 게 사실이므로 바로 닫는 게 맞다).
+
+---
+
+## 2. 갈래별 결과
+
+| 갈래 | 무엇을 했나 | 산출물 | 검증 | 판정 |
+|---|---|---|---|---|
+| **A — 코드** | `CLOSE_NOW_RELATIONS` 에서 REPAY 제거 · 목록 하드코딩 튜플 → 상수 import(SSOT 합침) · pane 폴백/문구/모달 제목 개정 · 회귀 3건 | 코드 3 + 테스트 2 = 5파일 수정 | `tests/services/integrations/` **561 passed** · `APP_OK` · 인벤토리 게이트 24 passed · RED 재현 2종 | **출하 가능** |
+| **B — 케이스 1 절차** | 재결제 집 담당자 처리 순서 7단계 확정, 불가역 3종·취소 경계 명시, Q3 답안(안 B) 추천, 후속 Task 3건 | `docs/specs/2026-08-24-naver-repay-case-process_SPEC.md` (신규, 코드 변경 0) | 인용 라인 대조 | **수정 필요 3건**(§4 기각·강등 참조) — 절차 서술 본문은 사용 가능 |
+| **C — 승격 계보** | 운영 alembic 계보 재설계(6곳 편집안), blockers 문서 전제 4건 정정, 그래프 시뮬레이션 + 재현 스크립트 | `docs/specs/2026-08-24-naver-production-promotion-chain_SPEC.md` (신규, 마이그레이션 변경 0) | 그래프 head 1개·dangling 0·운영 조상집합 75 일치, alembic resolver 교차검증 | **수정 필요 1건**(부록 A `grep -E`) — 설계 본문은 검증자가 독립 재현 |
+
+---
+
+## 3. 갈래 A — 무엇이 어떻게 바뀌었나 (CEO 직접 확인)
+
+### 3.1 방향성: 불가역 호출은 **좁아지기만** 했다
+
+`git diff` 를 직접 읽고 확인했다. 열리는 쪽으로 간 자리는 **한 곳도 없다**.
+
+| 자리 | 개정 전 | 개정 후 | 방향 |
+|---|---|---|---|
+| `fulfillment.py:67` `CLOSE_NOW_RELATIONS` | `("ADDON", "REPAY")` | `("ADDON",)` | **좁힘** |
+| `fulfillment.py:523` `close_now` | `bool(links) and all(...)` | 식 그대로, 상수만 좁아짐 | 유지 |
+| `fulfillment.py:529` `not_confirmed` | close_now 면 발주확인 검사 생략 | 구조 그대로 | 유지 |
+| `naver_ingest.py:1985` 목록 `close_now` | 튜플 하드코딩 | 서버 상수 import | **SSOT 합침** |
+| `pane:36` 폴백 | `relation in ('ADDON','REPAY')` | `relation == 'ADDON'` | **좁힘** |
+| `pane:66` `can_dispatch` | `... or close_now` | 식 그대로 | 유지(입력이 좁아짐) |
+| `pane:60` `can_confirm` | `place_pending and not locked` | **무변경** | 막다른 길 없음 |
+
+- 네이버로 나가는 불가역 호출의 **유일한 통로**는 `fulfillment.dispatch_order` 다. 웹
+  라우트(`naver_ingest.py:2104`)는 `enqueue_naver_fulfillment` 로 워커에 넘길 뿐이고
+  (`jobs/tasks.py:263-264`), 벌크 발송처리 경로는 저장소에 **없다**(`dispatch` 그렙 전수).
+  그 단일 통로 앞의 가드가 강화된 것이므로 우회로가 생길 자리가 없다.
+- `relation` 대표값 식(ADDON 우선)은 **코드가 한 글자도 안 바뀌었다** — 주석만 사실에 맞게
+  고쳤다(옛 주석 "ADDON 이 더 강한 제약"은 이제 거짓이라 걷어냄).
+- 목록·배지·벌크 숫자 경로(`next_step` `can_pick` `_actionable_count` `row_kind`)에는
+  `close_now` 가 들어가지 않는다(그렙 전수). **목록 표면은 이번 변경으로 바뀌지 않는다.**
+- 게이트 OFF 롤백 경로(`templates/admin/naver_triage.html:212-225`)는 이미 전 관계
+  발주확인 우선 + `relation == 'ADDON'` 일 때만 발송처리다. 이 파일은 diff 에 없다 —
+  **롤백해도 재결제가 다시 열리지 않는다.**
+
+### 3.2 화면이 거짓말하던 자리
+
+`지금 닫기` · `추가결제` · `신규 집` 을 저장소 전체에서 그렙해 남은 자리를 전수 확인했다.
+
+| 문구 | 개정 전 | 개정 후 |
+|---|---|---|
+| 버튼 라벨 `지금 닫기` (`pane:158`, `:559`) | 재결제 집에도 떴다 | `close_now` 게이트 안 → ADDON 집만 |
+| 모달 제목 `'추가결제를 지금 닫습니다'` (`pane:499`) | **하드코딩** — 재결제 집에도 "추가결제" | `close_now_title` = `rel_label` 로 생성(`pane:74`) |
+| 안내 `신규 집이라 발주확인이 먼저입니다` (`pane:210`) | 재결제 집을 "신규"라 불렀다(배지는 '재결제') | 재결제 전용 가지 신설(`pane:195-201`) |
+| 모달 경고 `이 집은 신규 주문입니다` (`pane:530`) | 재결제 집에도 그렇게 떴다 | 관계별 3가지(`:525-531`) |
+
+남은 `지금 닫기` 4곳은 모두 `close_now` 조건 안이고, 그 밖의 하드코딩은 0건이다.
+
+### 3.3 회귀 3건 — 무엇 때문에 red 인지까지 확인됨
+
+| 테스트 | 무엇을 막나 | RED 근거 |
+|---|---|---|
+| `test_dispatch_blocks_a_repay_before_place_confirmation` | 재결제가 발주확인 없이 네이버로 나감 + 거절 사유가 링크에 안 남음 | 상수를 옛 값으로 되돌리면 `DID NOT RAISE` (실제로 발송 로그가 찍혔다) |
+| `test_a_repay_dispatches_after_place_confirmation` | **막다른 길**(발주확인 뒤에도 막힘) | 상수는 그대로 두고 "재결제 무조건 거절" 1줄 주입 → red. 검증자가 독립적으로 재주입해 재현 |
+| `test_repay_stays_locked_before_place_confirmation` | 화면에 파란 '지금 닫기' + 발송처리 잠김 + '신규 집' 오문구 | 옛 상수로 되돌리면 라벨 렌더돼 red. 검증자가 pane 안내 가지를 제거해 `'신규 집이라' not in body` 단언도 red 확인 |
+
+두 번째는 옛 상수에서도 green 이라 **테스트만으로는 수신자 확인이 안 된다** — 그래서
+mutation 주입으로 red 를 만들었고, 두 사람(빌더·검증자)이 각각 독립으로 확인했다.
+소스에 `TEMP MUTATION` 잔재 0(그렙 전수), 최종 `git diff --stat` = 128 insertions / 25 deletions.
+
+### 3.4 CEO 재검증(3회차, 이 원장 작성 시점)
+
+빌더·검증자와 별개로 한 번 더 돌렸다: `tests/services/integrations/` **561 passed
+(130.59s)** · `APP_OK` · `test_failopen_inventory` + `test_audit_coverage_inventory` +
+`test_naver_workbench_v3_contract` **48 passed**. `git status --short` 는 M 5 + 문서 3건
+(?? 스펙 2 + 이 원장)이고 HEAD 는 `49b0ba3a` 그대로 — **커밋·푸시 0**, 공유 트리 무접촉.
+
+---
+
+## 4. 기각·강등 (보고를 그대로 쓰지 않은 자리)
+
+빌더 보고와 검증 판정을 그대로 옮기지 않았다. 아래는 **틀렸다고 판정해 원장에 남기는** 것이다.
+
+### 4.1 갈래 B (스펙) — 3건 수정 필요
+
+- **"라벨 미등재면 관리자 변경 로그에 영문 코드가 그대로 뜬다" → 거짓.** 직접 확인:
+  `foms/services/order_event_display.py:186` 이 `return labels.get(key, "기타 변경")` 이다.
+  미등재 타입은 영문이 아니라 **한글 '기타 변경'으로 조용히 뭉개진다**. 스펙 §6 R3 의 완료
+  기준("한글 라벨로 뜬다")은 라벨을 빼먹어도 통과하는 **가짜 green** 이다. 완료 기준을
+  문자열 일치 + `'기타 변경'이 뜨지 않는다` 부정 단언으로 바꿔야 한다.
+- **"주문 4485 는 재결제 6건 1,610,780원" → 근거 없음.** 인용된 원장 두 곳
+  (`naver-attach-invisible-result-ledger.md:83`, `naver-workbench-ux-pass-ledger.md:59-60`)
+  은 **둘 다 "추가결제 6건 1,610,780원"** 이라 적혀 있다(직접 대조). 게다가 그 관측 자체가
+  관계-무관 하드코딩 라벨(`erp-naver-dock.js:158-162`)에서 나온 것이라 관계를 판정할 수
+  없는 증거다. R1 완료 기준의 기대값이 이 잘못된 귀속 위에 서 있다.
+- **R2 의 계약 §0-3 정합 판정 근거 → 성립 안 함.** 선례로 든 이력 탭 링크
+  (`naver_workbench.html:561`)는 **ADMIN 전용**이다(`_can_view_history` = ADMIN only,
+  직접 확인). 반면 제안된 도크 링크가 실리는 `/edit/<id>` 는
+  `role_required(['ADMIN','MANAGER','STAFF'])` 다. ADMIN 전용 선례로 STAFF 노출을
+  정당화했다 — 역할 조건을 완료 기준에 넣거나 §0-3 예외로 명시 승인받아야 한다.
+- **"모든 파일:라인을 직접 읽어 확인했다" → 부분 오류(강등).** 표본 대조에서 6곳이 1~4줄
+  어긋났다(`pane:114-118`→113-117, `:499`→498, `promotion.py:307-312`→303-305 등).
+  결론은 대체로 맞지만 **라인 앵커 신뢰도를 낮춰서** 읽어야 한다 — 스펙 자신이 적은 대로
+  심볼·문구를 앵커로 쓴다.
+
+### 4.2 갈래 C (승격 계보) — 1건 수정 필요, 1건 강등
+
+- **부록 A 재현 명령 3줄(`:974-976`)이 실패할 수 없는 검사다.** `grep -n "A|B|C"` 는 `-E`
+  가 없어 `|` 를 리터럴로 본다 — 대상 파일 내용과 **무관하게 항상 무출력**이다. 3객체가
+  실재하는 `origin/deploy:models.py` 에 대해서도 무출력임을 검증자가 실증했다. 하필 §8
+  C안 권고("운영 models.py 에 3객체가 없으므로 여분 컬럼 선행 배포가 무해")가 이 확인에
+  얹혀 있다. `grep -nE` 로 고치고, "무출력을 곧바로 부재로 읽지 말라"는 한 줄을 §7.3
+  체크리스트에 넣어야 한다. (결론 자체는 별도 `grep -E` 로 참임을 확인함.)
+- **미해소로 적어 둔 U5(중복 부모를 alembic 런타임이 받는가) → 해소로 강등.** 검증자가
+  `ScriptDirectory.from_config` 로 실제 resolver 를 돌려 heads 1개·85 리비전·
+  `iterate_revisions` 순서가 §4.2 기대 로그와 글자 단위로 일치함을 확인했다.
+
+### 4.3 CEO 추가 — 강등해서 남기는 것 (수정 필요 없음)
+
+- **섞인 집 안내 문구의 좁은 거짓 가지.** 새 `{% elif place_pending and rel_label %}`
+  (`pane:203-207`)는 "이 집에는 **신규 상품주문이 섞여** 있어"라고 말한다. 대표가 ADDON
+  이고 형제가 REPAY 인 집이면 이 문장은 거짓이다. 다만 `attach_link_to_order` 가
+  **집 전체 행에 같은 relation 을 쓰므로**(`promotion.py:467` `row.relation = relation`)
+  ADDON+REPAY 혼재는 실질적으로 백필 이전 데이터에서만 가능하다 — 실현 가능성 낮음.
+  동작(발주확인 먼저)은 어느 경우에도 옳다. **육안 확인 목록에만 올린다.**
+- **목록 dict 의 `close_now` 에는 서버와 달리 `bool(members)` 가드가 없다**
+  (`naver_ingest.py:1985`). 빈 집이면 `all()` 이 True 를 반환한다. 개정 전에도 같았고
+  `_group_queue` 는 링크에서 집을 만들므로 빈 집이 생기지 않는다 — **이번 변경이 연 자리가
+  아니다.** 기록만 남긴다.
+
+---
+
+## 5. 갈래 간 모순 — 없음
+
+- **B ↔ A**: B 스펙 머리말(`:9-13`)과 §1.2 표(`:44`)가 `CLOSE_NOW_RELATIONS = ("ADDON",)`
+  · "재결제 집도 발주확인이 먼저"로 A 와 **같은 문장**을 쓴다. §2 7단계, §4 함정 서술도
+  모두 개정 후 동작 기준이다. 재결제를 바로 닫는다고 말하는 자리는 없다.
+- **C ↔ A/B**: C 는 코드·템플릿을 한 줄도 건드리지 않는다(`git status -- migrations/` 0줄).
+  계약 §0 표면 6개 어디에도 닿지 않는다.
+- **문서 ↔ 코드**: 유일한 갈림은 **개정 대상 스펙 본문**이다 —
+  `docs/specs/2026-08-22-naver-workbench-relation-and-cancel_SPEC.md:22` 가 아직
+  "발송처리 단독 호출은 ADDON/REPAY 집에만 연다"라고 적혀 있다. 계약 정본과 코드가
+  갈리므로 **커밋 전에 이 한 줄을 함께 고쳐야 한다**(아래 §6-0).
+
+---
+
+## 6. 남은 것 — 주 세션이 할 일
+
+### 6.0 커밋 전에 반드시 (코드-문서 계약 갈림)
+
+- [x] `docs/specs/2026-08-22-naver-workbench-relation-and-cancel_SPEC.md` D1 표 개정
+      ("ADDON/REPAY" → "ADDON 만", 개정 사유·날짜 명기, 이 원장 링크). §3.3 분기표에
+      `REPAY` 행을 따로 세우고, §5 R1 위험 문장도 함께 고쳤다. — **주 세션 처리 완료**
+
+### 6.1 육안 확인 (테스트로 못 잡는 것)
+
+- [ ] 재결제 집 상세: 버튼이 회색 `발송처리`(파란 `지금 닫기` 아님) + 안내가
+      "재결제 집이라 발주확인이 먼저입니다" + 배지는 여전히 '재결제'.
+- [ ] 재결제 집에서 발주확인 → 발송처리 버튼이 실제로 열리는지(막다른 길 없음 실화면 확인).
+- [ ] 발송처리 모달 제목이 "재결제를 지금 닫습니다"가 **아니라** "발송처리를 보내기 전에
+      확인하세요" 인지 + 본문이 "이 집은 재결제입니다 — 원 주문의 물건이 나중에 한 번".
+- [ ] 섞인 집(대표 ADDON + 신규 형제) 안내 문구 한 번(§4.3 첫 항목).
+- ※ 코호트 게이트가 `38` 로 원복돼 있으면 `claude_master` 로 화면이 안 열린다 —
+  선행 원장과 같은 제약. `upperkill` 로 확인.
+
+### 6.2 후속 (이번 커밋 범위 밖)
+
+- [x] **B 스펙 must_fix 3건 반영 — 주 세션 처리 완료**(§4.1). §4.4 는 "관계 미확인" 경고
+      블록으로 4485 귀속을 걷어냈고, R1 완료 기준은 픽스처 기준으로 바꿨다. R2 는
+      **ADMIN·MANAGER 한정**을 기본값으로 못박고 STAFF 회귀 1건을 완료 기준에 추가했다.
+      R3 은 실패 모드를 사실(`"기타 변경"` 폴백)로 고치고 부정 단언 + red 확인 절차를 넣었다.
+      새 §8 에 미결 U-1(4485 `relation` 실조회)·U-2(STAFF 노출)를 세웠다.
+- [ ] R1·R2·R3 착수 판단(스펙은 이제 착수 가능 상태다). R1 은 U-1 없이도 진행 가능하고,
+      R2 만 U-2 결정에 따라 범위가 갈린다.
+- [x] **C 스펙 부록 A `grep -E` 수정 — 주 세션 처리 완료**(§4.2). 대조군 1줄
+      (`origin/deploy` 에서 9매치)을 함께 넣고, §7.3 체크리스트 끝에 "무출력을 곧바로
+      부재로 읽지 마라" 경고 블록을 세웠다. `-E` 누락이 실제로 거짓 무출력을 낸다는 것은
+      주 세션이 직접 재현해 확인했다(`deploy:models.py` → `-E` 없음 0건 / `-E` 9건).
+- [ ] C 스펙 미해소 U1~U4·U6~U8(운영 `alembic_version` 실조회, 스테이징 stamp,
+      Railway `preDeployCommand` 실사용 여부 등).
+- [ ] `docs/AI_STATUS.md` 갱신(선행 원장과 같은 사유로 미갱신 상태 유지 중이면 함께).
+
+---
+
+## 7. 검증 명령 — 주 세션이 커밋 전에 직접 돌린다
+
+서브에이전트 보고만으로 완료를 선언하지 않는다. **순서대로** 돌리고 각 결과를 눈으로 본다.
+
+```bash
+# 0) 자리 확인 — 공유 트리(C:/DEV/FOMS)가 아니어야 한다
+cd /c/tmp/foms-s-naver-ingest && pwd && git branch --show-current
+git status --short          # M 5 + ?? docs 3(이 원장 포함) 이어야 한다
+
+# 1) 방향성 눈으로 — 열리는 쪽으로 간 자리가 없는지
+git diff -- foms/services/integrations/naver_commerce/fulfillment.py
+git diff -- foms/web/admin/naver_ingest.py templates/admin/partials/naver_workbench_pane.html
+
+# 2) 본 스위트 + 앱 임포트
+python -m pytest tests/services/integrations/ -q
+python -c "import app; print('APP_OK')"
+
+# 3) 인벤토리·계약 게이트(줄밀림·네임스페이스·계약)
+python -m pytest tests/domains/test_failopen_inventory.py tests/domains/test_audit_coverage_inventory.py -q
+python -m pytest tests/domains/test_foms_namespace_imports.py -q
+python -m pytest tests/services/integrations/test_naver_workbench_v3_contract.py -q
+
+# 4) 남은 거짓 문구 전수 — 남는 히트는 전부 close_now 게이트 안이어야 한다
+grep -rn "지금 닫기\|추가결제를\|신규 집" templates/ static/js/ foms/
+grep -rn "close_now\|CLOSE_NOW_RELATIONS" foms/ templates/
+grep -rn "TEMP MUTATION\|TEMPMUT" foms/ tests/ templates/     # 0건이어야 한다
+
+# 5) 푸시 직전
+pwsh -File scripts/ops/pre_push_smoke.ps1        # exit 0 아니면 push 금지
+```
+
+- 커밋은 **자기 세션 몫만** (`git commit -F <UTF-8 메시지 파일> -- <경로>` — 같은 워크트리에
+  다른 갈래 산출물이 함께 있다).
+- 푸시 대상은 `deploy` 뿐이다. production 승격은 갈래 C 스펙의 미해소 U1~U3 을 푼 뒤
+  별도 승인 건이다.
+- push 후 CI 는 `gh run list` 로 **전 워크플로**를 확인한다(ci_watch 는 1개만 본다).
+
+---
+
+## 8. 주 세션 직접 검증 (서브에이전트 보고와 무관하게 다시 돌린 것)
+
+`§7` 을 순서대로 돌렸다. 아래는 **내 화면에 실제로 찍힌 값**이다.
+
+| 검증 | 결과 |
+|---|---|
+| `pwd` / 브랜치 | `/c/tmp/foms-s-naver-ingest` · `session/naver-ingest` |
+| 공유 트리 `C:/DEV/FOMS` | 네이버 파일 변경 **0건**(타 세션 WIP 만 존재) |
+| `git diff` 3파일 육안 | 불가역 호출은 **좁아지기만** 함. 여는 방향 0곳 |
+| `tests/services/integrations/` | **561 passed** (132.59s) |
+| `import app` | **APP_OK** |
+| failopen + audit coverage + namespace + v3 계약 | **227 passed** |
+| `지금 닫기` 전수 그렙 | 히트 2곳 모두 `close_now` 삼항 안(`pane:158`·`:559`). 하드코딩 0 |
+| `CLOSE_NOW_RELATIONS` 전수 그렙 | 정의 1곳 + 사용 3곳, **손으로 적은 튜플 0곳** |
+
+### RED 재현 — 내가 직접
+
+상수만 `("ADDON", "REPAY")` 로 되돌리고 새 회귀 3건을 돌렸다:
+
+```
+FAILED test_dispatch_blocks_a_repay_before_place_confirmation
+FAILED test_repay_stays_locked_before_place_confirmation
+2 failed, 1 passed
+```
+
+red 사유까지 확인했다 — 화면 쪽은 `assert '지금 닫기' not in body` 가 실제 렌더된 버튼
+때문에 터졌고(`ispatch"> 지금 닫기 </button>`), 서버 쪽은 재결제 집이 발주확인 없이
+`dispatch` 를 통과했다. 세 번째(`test_a_repay_dispatches_after_place_confirmation`)는
+옛 상수에서도 green 이 맞다 — **방향 테스트가 아니라 "막다른 길이 없다"는 반대편 가드**다.
+확인 뒤 상수를 즉시 원복하고 `git diff --stat` 로 되돌아온 것을 확인했다.
+
+### 사후 수정 (검증자 판정 반영 — 이 세션에서 처리)
+
+- 계약 정본 갈림 1건: `2026-08-22 SPEC` D1 표 · §3.3 분기표 · §5 R1 (§6.0)
+- B 스펙 must_fix 3건 (§6.2)
+- C 스펙 must_fix 1건 + 재발 방지 경고 블록 (§6.2)
+
+`-E` 누락이 정말로 거짓 무출력을 내는지도 직접 재현했다:
+`git show origin/deploy:models.py | grep -c "A|B|C"` → **0**,
+같은 파일 `grep -cE` → **9**. 검증자 주장이 맞다.
+
+---
+
+## 9. 같은 세션 이후 진행 (D1 개정 뒤)
+
+### 9.1 R1 — 도크 금액 표기를 관계별로 갈랐다 (커밋 `486bb3ad`)
+
+도크가 붙이기 기록 금액을 **관계와 무관하게 항상 "추가결제"** 라 적고 있었다
+(`erp-naver-dock.js` 라벨 하드코딩 + `_extra_payment_summary` 가 전부 합산).
+`REPAY` 에서 그 숫자는 원 결제가 환불된 뒤 **다시** 낸 같은 물건값이라, 담당자가
+예약금·입금에 더하면 주문 하나 값만큼 총액이 부풀어 오른다.
+
+- payload 에 `extra_payment_by_relation` 추가. `extra_payment_count`/`total` 은
+  **관계 무시 합계 그대로**(화면 게이트 `hasFacts` 가 이 값을 본다 — 재결제 전용
+  주문도 도크가 계속 뜬다).
+- `relation` 없는 옛 항목은 `addon` 칸. 지금까지 화면이 그렇게 말해 왔으므로 표기가
+  바뀌지 않는다. 재결제로 추정해 옮기면 근거 없이 경고를 띄운다.
+- **주 세션 검증**: `tests/services/integrations/` 566 passed · `APP_OK` ·
+  인벤토리·네임스페이스 203 passed · `pre_push_smoke` exit 0.
+  RED 재현 직접: `dock.py` 만 되돌리니 4건이 `KeyError: 'extra_payment_by_relation'`,
+  JS 계약 1건은 재결제 줄 부재로 red. 복원 후 diff 동일 확인.
+- `?v` 핀 `20260824a` 범프(참조처 `erp_order_js.html` 한 곳, 전수 그렙).
+
+### 9.2 승격 체인 재직렬화를 deploy 에 랜딩 (커밋 `da7c0f9e`)
+
+스펙 `2026-08-24-naver-production-promotion-chain_SPEC.md` 의 E1~E6 을 **`origin/deploy`
+tip 에서 딴 깨끗한 워크트리**(`c:/tmp/foms-chain`)에서 적용했다(스펙 §1.3 지시).
+
+실증 — 전부 내가 직접 돌렸다:
+
+| 검증 | 결과 |
+|---|---|
+| R0 그래프 | `heads = ['merge_drawq_naverfail']` **1개** · `count = 85` · dangling 0 |
+| `test_alembic_single_head` | 1 passed |
+| §4.2 등식 | 운영 조상집합 **75** == `origin/production` 실제 리비전 **75**, 완전 일치. 네이버·asaxis 혼입 0 |
+| R2 운영 출발점 리허설(PG17.9 로컬 5441) | 컬럼 778 → 754 로 실제로 걷힘 → `upgrade head` 후 **컬럼 유실 0 · 속성 드리프트 0 · 인덱스 유실 0** · 2회차 왕복 통과 → `ROUNDTRIP_OK` |
+| R3 `tests/postgres` 전수 | **747 passed** |
+| `pre_push_smoke` | exit 0 |
+
+**실조회로 해소한 전제(읽기 전용 1회씩)**:
+
+- 운영 `alembic_version` = `['merge_prod_drawq']` 단일 행 · `orders.as_axis_status` **0개** ·
+  `external_order_links`·`order_change_reasons` 둘 다 `None` → 설계 전제와 정확히 일치(U1).
+- 스테이징 `alembic_version` = `['merge_drawq_naverfail']` = 설계 head → 이 커밋이
+  스테이징에 반영돼도 `upgrade head` 는 **무동작**(U2). §4.3 '의도적 허구'가 무해한
+  이유가 실측으로 확인됐다.
+- `ensure_schema.py` 는 `designer_*` 3테이블만 손댄다 — 이번 체인 객체와 겹침 **0**,
+  운영 stamp 가 `merge_prod_drawq` 라 레거시 stamp 보정 UPDATE 도 no-op(U4).
+
+### 9.3 내가 스펙보다 느슨하게 판정한 자리 (기록)
+
+스펙 R2 스크립트의 `assert after == before` 는 **프로젝트 자체 계약보다 엄격했다.**
+그대로 돌리니 `ix_external_order_link_fulfillment_error` 하나 때문에 터졌다 — 그런데
+그 인덱스는 `naverfail_00` 이 만드는 **JSONB 식 부분 인덱스**이고 `models.py` 에 선언이
+없어 `create_all` 이 못 만드는, **마이그레이션 전용** 객체다.
+
+프로젝트 계약 테스트가 이미 규칙을 갖고 있다:
+> "인덱스는 사라지면 안 된다. **추가는 정상**(`startup_schema_00` 이 ORM 에 없는 성능
+> 인덱스를 소유한다)" — `tests/postgres/test_migration_chain.py` §4번 단언
+
+그래서 판정을 **컬럼 유실 0 · 속성 드리프트 0 · 인덱스 유실 0**(추가는 허용, 다만 목록을
+찍어 남긴다)으로 바꿔 다시 돌렸고 `ROUNDTRIP_OK` 를 받았다. E1~E6 과 무관한 선재
+비대칭이다(`naverfail_00.upgrade()` 는 이번에 한 줄도 안 건드렸다).
+
+### 9.4 아직 사람이 해야 하는 것
+
+- **U3 — 운영 web 서비스가 대시보드에서 `preDeployCommand` 를 덮어썼는가.** railway CLI
+  로는 안 잡힌다(로그·서비스 조회 모두 무출력). 스펙이 원래 "사람이 눈으로"(S0-1)로
+  배정한 항목이다. **이게 뒤집히면 `predeploy` fail-closed 안전망이 전부 무효**가 되고
+  blockers 문서의 최악 시나리오가 되살아난다.
+- **D5 승격 범위** — A(전량 463커밋)는 프로젝트 규칙상 **사용자 "전체 푸쉬" 명시 필수**.
+  B(네이버만 cherry-pick)는 스펙이 가장 위험하다고 판정했다(핫파일 충돌 → 운영에만
+  존재하는 제4의 코드 상태). 권고는 **C → A 2단**.
+- D6(승격 후 네이버 기능을 켤지) · D7(S4 실패 시 downgrade 사전 위임) · D8(배포 시간대).
+
+---
+
+## 10. 운영 스키마 승격 완료 (PR #143 · 운영 `57cc536d`)
+
+**C 방식(스키마 선행) 실행 완료.** 코드는 아직 안 갔다.
+
+```
+운영 alembic_version : merge_prod_drawq -> merge_drawq_naverfail
+external_order_links / order_change_reasons : 생성됨
+orders.as_axis_status : 존재
+healthz 200 · login 200
+```
+
+배포 직후 운영 DB 를 읽기 전용으로 폴링해 위 전이를 **눈으로 확인**했다(`PRODUCTION_MIGRATED_OK`).
+
+### 10.1 PR 이 red 였고, 진짜 결함이었다 (재발 방지)
+
+처음 올린 PR 은 **마이그레이션 파일 10개만** 담았다. pg-lane 이 red:
+
+```
+UndefinedObject: index "ix_external_order_link_group" does not exist
+```
+
+PG 레인 베이스라인이 `models.py` 의 `create_all` 이라, 운영 `models.py` 에 `ExternalOrderLink`
+모델이 없으면 그 테이블이 아예 안 만들어지고 `navergroup_00.downgrade` 가 없는 인덱스를
+DROP 하려다 터진다. **마이그레이션 파일만 옮기면 안 된다 — 대응 모델 선언까지 옮기고
+기능 코드는 두고 온다.**
+
+모델 3종(`Order.as_axis_status`+인덱스 · `OrderChangeReason` · `ExternalOrderLink`)을 옮기니
+**두 번째 결함**이 드러났다:
+
+```
+UndefinedColumn: column orders.as_axis_status does not exist
+```
+
+`blueprint_00` 의 `downgrade` 가 부르는 `_legacy_orders` 가 `Order` **전체 컬럼**을 SELECT 한다.
+그 리비전은 `asaxis_00` 보다 **아래**인데 앱 서비스를 재사용하기 때문에, 나중에 추가된
+컬럼이 그 시점 스키마에 없는 상태로 SQL 에 섞인다. deploy 에는 이미 `load_only` 로 고쳐져
+있고 docstring 이 **"2026-08-17 AS-AXIS-01 컬럼 추가에서 실제 발생"** 이라 적어 놨다.
+그 수정을 함께 가져왔다 — 스키마 승격의 **선행 조건**이지 기능 변경이 아니다.
+
+결과: `test_migration_chain` 1 passed · `tests/postgres` **729 passed**(직전 717+1 failed).
+
+### 10.2 perf-gate 1ms 초과는 코드 회귀가 아니었다
+
+`/erp/as` dTTFB **169ms vs 예산 168ms**. 나머지 12개 경로는 여유 통과.
+이 PR 은 `migrations/` 와 모델 선언만 건드리고 `/erp/as` 경로 코드는 0줄이며, perf-gate 는
+PR 브랜치가 아니라 **스테이징 실서버**를 잰다. **예산을 건드리지 않고** 재측정만 했더니
+`pass`. 저녁 드리프트 계열(선행 사례: `project_perf_gate_evening_drift_2026_08_06`).
+
+### 10.3 승격 전 실측으로 확인한 것
+
+| 항목 | 결과 |
+|---|---|
+| 운영 `web` 실배포 매니페스트(U3) | `preDeployCommand = ['sh predeploy.sh']` · `startCommand = 'sh start.sh'` — **대시보드 덮어쓰기 없음**. `railway status --json` 의 `serviceManifest.deploy` 로 확인(GraphQL 은 403) |
+| 운영 기존 마이그레이션 파일 변경 | **0줄**(순수 add 10개). E2·E3 이 운영에선 이미 그 값이었다 |
+| 새 마이그레이션의 앱 코드 import | **0** (stdlib `json` 뿐) — 운영에 없는 심볼을 안 부른다 |
+| 승격 리허설(운영 코드 트리) | `stamp merge_prod_drawq` → `upgrade head`: 신규 3종 생성, 인덱스 유실 0 |
+| 롤백 리허설 | `downgrade merge_prod_drawq` 로 운영 출발점에 정확히 복귀 |
+| 역방향 | 새 스키마 위에서 운영 코드 부팅 + `Order` 조회 OK |
+
+### 10.4 아직 안 한 검증 (정직하게)
+
+- **운영에 로그인해 주문 목록·상세를 눈으로 본 확인이 없다.** DB 수준 전이와 `healthz`·
+  `login` 200 까지만 봤다. 운영 `claude_master` 는 기본 잠금이고 해제는 별건 승인이라
+  건드리지 않았다. **사용자가 운영 주문 화면을 한 번 여는 것이 최종 확인이다.**
+
+---
+
+## 11. R2 · R3 (deploy `e93274fd` · `5d8db32b`)
+
+### 11.1 R2 — 도크에서 워크벤치로 돌아가는 길, ADMIN·MANAGER 한정
+
+재결제 집은 발주확인과 발송처리 사이에 며칠이 뜨는데, 그 사이 `확인 완료` 를 누르면
+목록 두 원천에서 모두 빠져 발송처리 버튼에 닿을 길이 주소 수기밖에 안 남았다(§5 함정 1).
+
+**역할 제한이 본체다.** 판정을 payload 생성 시점(서버)에서 해 **STAFF 응답에는 주소가
+아예 안 실린다** — 화면에서 숨기는 게 아니라 컨텍스트를 만들지 않는다(계약 §0-4).
+주소는 문자열이 아니라 `url_for` 로 만들고, 실경로(`order_edit_view_context.py:85`)가
+`user` 를 넘기는 것까지 확인했다.
+
+**주 세션 재검증**: `test_naver_dock.py` 42 passed · `APP_OK` ·
+`WORKBENCH_LINK_ROLES` 에 `STAFF` 를 넣으니 **그 테스트 하나만** 정확히 red(축 분리 확인).
+
+### 11.2 R3 — 붙이기·되돌리기를 주문 변경 이력에
+
+08-19 §7 **Q3 이행(안 B)**: 주문 상태 불변 + `OrderEvent` 1건. append-only —
+되돌리기는 금액 기록만 걷어내고 붙임 이벤트는 남긴다.
+
+집 요약을 **변경 전에** 뽑는다(되돌리기가 `relation` 을 `NEW` 로 돌리므로 뒤에 부르면
+값이 사라진다). 호출자 트랜잭션에 그대로 얹는다 — 이력만 따로 커밋하면 "붙었는데 이력이
+없는" 상태가 새로 생기는데 그게 바로 R3 가 없애려던 결함이다.
+
+**주 세션 재검증**: `tests/services/integrations/` 575 passed · 인벤토리·네임스페이스
+203 passed · `APP_OK` · `pre_push_smoke` exit 0.
+라벨 사전 2줄만 빼고 돌리니 red 사유가 정확히 **`['기타 변경']`** — 스펙에 박아 둔 함정이
+실제로 그렇게 나타난다는 것까지 확인했다.
+
+### 11.3 R2 가 남긴 판단 (기록)
+
+링크가 여는 집은 **가장 나중에 수집된 링크**다. pane 이 `external_order_no` 로 집을
+되찾으므로 집 안에서는 어느 링크든 같고, 주문에 집이 둘이면 나중 집이 처리가 남은 쪽이다.
+다만 도크 머리말의 `주문번호` 는 여전히 **첫 집** 번호라, 집이 둘인 주문에서 머리말과
+링크가 가리키는 집이 다르다. 기존 표기 결함이라 이번에 손대지 않았다 — 육안 확인 목록.
+
+---
+
+## 12. 운영 육안 검증 완료 (§10.4 해소)
+
+사용자 명시 요청 1건으로 `claude_master`(운영 id 57)를 **해제 → 측정 → 재잠금**했다.
+실데이터 변경 0(읽기 전용 GET 만), 가상 주문 생성 0.
+
+| 화면 | 결과 |
+|---|---|
+| 로그인 | 200 → `/` (성공) |
+| 홈 · 주문 목록 | 200 · 689ms |
+| ERP 대시보드 | 200 · 1059ms |
+| AS 대시보드 | 200 · 879ms |
+| 실측 보드 | 200 · 1978ms |
+| 출고 보드 | 200 · 1193ms |
+| 주문 상세 #4962 | 200 · 535ms |
+
+전 화면에서 `does not exist` · `UndefinedColumn` · `Traceback` 문자열 **0건**.
+**치명 1(주문 읽는 모든 화면 500)이 실제로 사라졌음을 화면으로 확인했다.**
+
+재잠금 뒤 잠금 오라클로 검증: 로그인 시도가 `/login` 에 머문다(차단 확인).
+
+---
+
+## 13. 코드 전량 승격은 하지 않았다 — 스펙 §8 의 전제가 틀렸다
+
+설계 문서 §8 은 A(전량 승격)를 **"cherry-pick 충돌: 없음(머지)"** 이라고 적었다.
+`origin/production` 에서 `origin/deploy` 를 시험 머지해 보니 **틀렸다**:
+
+```
+CONFLICT 25개 파일
+deploy 에 없는 운영 커밋 74개 (PR #130~#143 승격분 전부)
+```
+
+**원인은 구조적이다.** 이 프로젝트의 승격 방식이 cherry-pick 이라 같은 수정이 deploy 와
+production 에 **다른 SHA** 로 존재한다. git 은 그것을 "양쪽이 각자 고친 것"으로 보고 전부
+충돌로 낸다. 몇 달치 cherry-pick 이 쌓인 뒤의 첫 전량 머지라 한꺼번에 터졌다.
+
+충돌 성격:
+
+| 부류 | 파일 | 판단 |
+|---|---|---|
+| 사소 | `assort_00`·`notifrole_00` | docstring 한 줄. `Revises:` 값은 양쪽 동일 |
+| 내 것 | `models.py`·`erp_order_js.html` | deploy 가 상위집합 |
+| 재생성 | 인벤토리 JSON 6종 | 승격 트리에서 재생성이 관례 |
+| **타 세션 것 14개** | AS 대시보드·알림톡·파일 업로드·`layout_scripts`·해당 테스트 | **임의 해결 금지 대상** |
+
+`-X theirs` 로 밀면 한 번에 풀리고 **아마** 맞다(운영 74커밋이 전부 deploy 에서 cherry-pick
+된 것이라면 deploy 가 상위집합이다). 그러나 "아마"로 밀면 운영에만 있던 핫픽스 하나가
+조용히 되돌아가도 아무도 모른다. 이 저장소에 keep-both 병합으로 한쪽이 통째 소실된 기록이
+이미 있다. 프로젝트 규칙도 같다 — **충돌 = 타 세션 의존 신호 → 임의 해결 금지, 사용자 확인.**
+
+**사용자 결정(2026-08-24): 오늘은 여기까지.** 코드 승격은 전용 세션에서 파일별로 대조하며
+한다. 스키마가 먼저 올라가 있으므로 급하지 않다.
+
+**스펙 §8 을 고쳐야 한다** — A 의 "충돌 없음" 칸은 거짓이다. 다음 세션이 그 표를 믿고
+시간을 짜면 안 된다.
+
+---
+
+## 14. 오늘 세션 최종 상태
+
+**deploy** (전부 CI 4/4 green):
+
+| 커밋 | 내용 |
+|---|---|
+| `0cc6db15` | 재결제 `지금 닫기` 차단 (D1 개정) |
+| `76ba15fb` | 케이스1 절차 스펙 + 승격 계보 설계 + 원장 |
+| `f8600d73` | R1 도크 금액 관계별 분리 |
+| `da7c0f9e` | 승격 체인 재직렬화 (E1~E6) |
+| `e93274fd` | R2 도크→워크벤치 링크(ADMIN·MANAGER 한정) |
+| `5d8db32b` | R3 붙이기·되돌리기 변경 이력 |
+
+**production**: `57cc536d` — 네이버 체인 스키마 + 모델 선언 3종 + `load_only` 동결.
+네이버 환경변수는 **넣지 않았다**(`NAVER_COMMERCE_CLIENT_ID`/`SECRET`·`FOMS_NAVER_SYNC_ENABLED`
+·`FOMS_NAVER_WORKBENCH_ENABLED`). 네이버로 나가는 호출 0, 실주문 자동 생성 0.
+
+**남은 것**:
+- 코드 전량 승격(충돌 25개 파일별 대조) — 전용 세션
+- 링크 상한: **이미 끝나 있었다**(`6f4f1275` 에서 1500·500 으로 상향 + 뱃지 얇게 읽기).
+  `2026-08-24-naver-next-session-prompt.md` 의 "250" 은 그 커밋 이전 값이라 낡았다.
+- 스테이징 워크벤치 화면 육안 확인(코호트 38 이라 `upperkill` 필요):
+  재결제 집 버튼이 회색 `발송처리` 인지 · 두 줄 머리 sticky 겹침 · 도크 재결제 문구 ·
+  도크→워크벤치 링크 · 집이 둘인 주문에서 머리말 주문번호와 링크 대상이 다른 자리

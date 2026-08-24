@@ -212,7 +212,11 @@ def test_send_manual_records_sent_by_and_manual_key(client, db, solapi_env, stub
 
     assert response.status_code == 200, response.get_data(as_text=True)
     body = response.get_json()
-    assert body == {"success": True, "data": {"sent": True, "error": None}, "error": None}
+    assert body["success"] is True and body["error"] is None
+    assert body["data"]["sent"] is True and body["data"]["error"] is None
+    # 칩이 추가 조회 없이 즉시 갱신하려면 방금 기록된 이력이 응답에 실려야 한다(T15).
+    assert body["data"]["last"]["sent_by"] == uid
+    assert body["data"]["last"]["sent_at"]
     assert len(stub_solapi_ok) == 1
 
     history = _history(order_id)
@@ -262,7 +266,9 @@ def test_send_manual_failure_returns_error_envelope(client, db, solapi_env, monk
 
     body = client.post(f"{_SEND}/{order_id}").get_json()
 
-    assert body == {"success": False, "data": {"sent": False, "error": "network"}, "error": "network"}
+    assert body["success"] is False and body["error"] == "network"
+    assert body["data"]["sent"] is False and body["data"]["error"] == "network"
+    assert body["data"]["last"]["error"] == "network"
     assert _history(order_id)["error"] == "network"
 
 

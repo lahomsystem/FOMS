@@ -30,8 +30,17 @@ __all__ = [
     "MAX_CHANGES",
     "NUMERIC_PATH_SUFFIXES",
     "SCALAR_PATHS",
+    "AMOUNT_PATH_TEMPLATES",
+    "CONFIRMED_STAGES",
+    "ITEM_DETAIL_TEMPLATES",
+    "STAGE_TEMPLATES",
+    "CONSTRUCTION_SCHEDULE_TEMPLATES",
+    "SENSITIVE_ITEM_OPS",
+    "SENSITIVE_ITEM_TEMPLATE",
     "DiffResult",
     "diff_structured",
+    "get_path",
+    "normalize_for_ledger",
 ]
 
 #: 감사 대상 스칼라 경로(2026-08-11 staging 주문 3,412건 키 분포 조사 기반).
@@ -49,8 +58,14 @@ SCALAR_PATHS: tuple[str, ...] = (
     # --- 당사자 ---
     "parties.customer.name",
     "parties.customer.phone",
+    # 보조 연락처. 수집이 채우고 폼은 렌더하지 않는다 — 원장에 없으면 사라져도 흔적이 없다
+    # (2026-08-20 유실 사고: 누가 언제 지웠는지 남지 않았다).
+    "parties.customer.phone2",
+    # 발주사(라홈/하우드). 주문한 사람은 아래 buyer 다 — ORDERER-AXIS-01.
     "parties.orderer.name",
     "parties.orderer.phone",
+    "parties.buyer.name",
+    "parties.buyer.phone",
     "parties.manager.name",
     # --- 현장 ---
     "site.address_full",
@@ -110,6 +125,72 @@ NUMERIC_PATH_SUFFIXES: tuple[str, ...] = (".price", ".amount", ".deposit", ".dis
 
 #: 한 저장에 담을 변경 상한. 초과분은 버리지 않고 개수(:attr:`DiffResult.truncated`)로 남긴다.
 MAX_CHANGES = 40
+
+#: 변경 사유를 물어야 하는 **제품 세부 내역** 경로(ORDER-REASON-00). 값은 경로 템플릿이라
+#: ``path_template_of`` 로 정규화한 뒤 대조한다(품목 번호와 무관하게 판정된다).
+#:
+#: 축을 셋(시공일·금액·제품 세부)으로 좁힌 것은 사용자 결정(2026-08-14)이다. 전 경로에
+#: 사유를 물으면 직원이 귀찮아서 아무 값이나 고르고, 그 순간 기록의 가치가 0 이 된다.
+#: 여기서 빠지는 것: 실측일·AS 방문일·단계(``workflow.stage``)·연락처·주소·비고.
+#:
+#: ``internal`` 은 내부 메모라 제품 사양이 아니고, ``price`` 는 금액 축
+#: (:data:`AMOUNT_PATH_TEMPLATES`)이 임계와 함께 따로 본다.
+ITEM_DETAIL_TEMPLATES: frozenset[str] = frozenset({
+    "items.*.product_name",
+    "items.*.spec",
+    "items.*.spec_rows",
+    "items.*.spec_width",
+    "items.*.spec_height",
+    "items.*.spec_depth",
+    "items.*.color",
+    "items.*.handle",
+    "items.*.option_detail",
+    "items.*.extra_input",
+    "items.*.misc",
+})
+
+#: **``totals.*`` 는 일부러 뺐다** — 전부 서버 파생값이다(``structured_form_projection`` 이 매
+#: 저장마다 품목 price·payment 입력에서 재계산한다). 넣으면 저장된 totals 가 낡은 주문에서
+#: 전화번호만 고친 저장이 "금액 변경"으로 판정돼 사유를 묻는다(2026-08-13 실측으로 확인).
+#: 파생값은 그 값을 만든 **입력 경로**가 대신 대표한다.
+
+#: 단계 이동(취소·보류 포함) — 사용자 결정(2026-08-14)으로 축에 되살렸다. "왜 취소했나"는
+#: 분쟁에서 가장 자주 묻는 질문이고, 운영 실측상 단계 변경은 2일간 0건이라 빈도 비용도 없다.
+#:
+#: **주의**: FOMS 의 "주문 취소"는 구조화 저장이 아니라 **휴지통 이동**(``ORDER_SOFT_DELETED``,
+#: ``/delete/<id>``)이다. 여기서 잡는 것은 구조화 저장으로 일어나는 단계 이동뿐이고, 휴지통
+#: 이동 사유는 별도 경로가 필요하다.
+STAGE_TEMPLATES: frozenset[str] = frozenset({"workflow.stage"})
+
+#: 시공 일정 경로. 다른 일정과 달리 **확정(CONFIRM) 이후**에만 사유를 묻는다 —
+#: 접수·실측·도면 단계의 시공일은 아직 "잡는 중"인 값이라 바뀌는 게 정상이다.
+#: 운영 실측(2026-08-13): 시공일 변경이 전체 사유 요구의 27% 로 단일 최대 기여였다.
+CONSTRUCTION_SCHEDULE_TEMPLATES: frozenset[str] = frozenset({
+    "schedule.construction.date",
+    "schedule.construction.time",
+    "items.*.construction_date",
+})
+
+#: 시공일 변경에 사유를 묻기 시작하는 단계(고객 컨펌 이후 = 고객과 약속된 날짜).
+CONFIRMED_STAGES: frozenset[str] = frozenset({
+    "CONFIRM", "PRODUCTION", "CONSTRUCTION", "CS", "COMPLETED",
+})
+
+#: 금액 **입력** 경로. 사유 판정은 여기만 금액 임계(잔돈 변경 제외)를 함께 본다 —
+#: 목록 자체는 :data:`ITEM_DETAIL_TEMPLATES` 와 분리해 둔다(금액만 임계를 함께 본다).
+AMOUNT_PATH_TEMPLATES: frozenset[str] = frozenset({
+    "payment.deposit",
+    "payment.discount",
+    "payment.free_input",
+    "items.*.price",
+})
+
+#: 품목 구성 변경(``items.*`` 의 추가·삭제)도 사유 대상이다. 품목 하나가 통째로 들고 나면
+#: 개별 필드 변경이 아니라 ``add``/``remove`` 1건으로만 남아 ``items.*.price`` 에 걸리지 않는다.
+SENSITIVE_ITEM_TEMPLATE = "items.*"
+
+#: 위 템플릿에서 사유를 요구하는 연산.
+SENSITIVE_ITEM_OPS: frozenset[str] = frozenset({"add", "remove"})
 
 _EMPTY_TOKENS = frozenset({"", "none", "null", "-"})
 _VALUE_LIMIT = 120
@@ -238,6 +319,29 @@ def _get_path(source: Any, path: str) -> Any:
             return None
         node = node.get(part)
     return node
+
+
+def get_path(source: Any, path: str) -> Any:
+    """점 경로로 값을 꺼낸다(공개 진입점 — 복원 경로가 같은 규칙으로 읽게 한다).
+
+    :param source: ``structured_data`` dict.
+    :param path: ``schedule.measurement.date`` 형태 경로.
+    :return: 값 또는 ``None``.
+    """
+    return _get_path(source, path)
+
+
+def normalize_for_ledger(value: Any, path: str) -> Any:
+    """원장에 실릴 정규 값(절단 포함)을 만든다.
+
+    diff 가 저장하는 값과 **같은 규칙**이어야 한다 — 복원 경로가 "지금 값이 원장의
+    after 와 같은가"를 물으려면 같은 정규화를 거친 뒤 비교해야 하기 때문이다.
+
+    :param value: 원시 값(``structured_data`` 에서 읽은 그대로).
+    :param path: 그 값의 점 경로(금액 경로 판정에 쓴다).
+    :return: 정규화·절단된 값(빈값은 ``None``).
+    """
+    return _clip(_normalize(value, numeric=_is_numeric_path(path)))
 
 
 def _clip(value: Any) -> Any:

@@ -76,12 +76,11 @@
   {% if can_edit %}
   <div class="as-rchart-head">
     <span class="as-rchart-head__round">{{ v.current_round }}차{% if v.rounds and v.rounds[0].open %} · 진행 중{% else %} · 완결{% endif %}</span>
-    <span class="as-billing-state" data-order-id="{{ order_id }}" data-billing-type="{{ billing_type }}">비용 {{ billing_state }}</span>
-    <button type="button" class="btn btn-sm btn-outline-secondary as-billing-edit" data-order-id="{{ order_id }}" title="무상/유상 판정 변경">판정 변경</button>
+    <span class="as-billing-state" data-billing-type="{{ billing_type }}">비용 {{ billing_state }}</span>
+    <button type="button" class="btn btn-sm btn-outline-secondary as-billing-edit" title="무상/유상 판정 변경">판정 변경</button>
     <button type="button"
       class="btn btn-sm as-sales-delivery-btn {{ 'btn-warning' if is_sales_delivery else 'btn-outline-warning' }}"
       data-sales-delivery-active="{{ '1' if is_sales_delivery else '0' }}"
-      data-order-id="{{ order_id }}"
       title="영업/전달 분류 토글 후 탭 이동">{{ '☑' if is_sales_delivery else '☐' }} 영업/전달</button>
   </div>
   {% endif %}
@@ -105,7 +104,6 @@
              안 겹친다. 저장 성공 시 applyChipState + 차트 재조회(window.__fomsRefreshRoundChart). #}
           {% if can_edit %}
           <button type="button" class="erp-as-avail-chip as-rchart-avail-edit{% if sc.availability and sc.availability.days %} erp-as-avail-chip--set{% endif %}"
-            data-order-id="{{ order_id }}"
             data-avail-days="{{ sc.availability.days if sc.availability else '' }}"
             data-avail-time="{{ sc.availability.time if sc.availability else '' }}"
             data-avail-note="{{ sc.availability.note if sc.availability else '' }}"
@@ -224,8 +222,8 @@
       {% if v.verdict_prompt %}
       <span class="as-rchart-verdict-prompt">
         방문 후 판정:
-        <button type="button" class="btn btn-sm btn-outline-success as-rchart-verdict-btn" data-order-id="{{ order_id }}" data-verdict="resolved">완결</button>
-        <button type="button" class="btn btn-sm btn-outline-danger as-rchart-verdict-btn" data-order-id="{{ order_id }}" data-verdict="unresolved">미결 · 다음 회차</button>
+        <button type="button" class="btn btn-sm btn-outline-success as-rchart-verdict-btn" data-verdict="resolved">완결</button>
+        <button type="button" class="btn btn-sm btn-outline-danger as-rchart-verdict-btn" data-verdict="unresolved">미결 · 다음 회차</button>
       </span>
       {% endif %}
     </div>

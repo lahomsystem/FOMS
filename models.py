@@ -108,8 +108,7 @@ class Order(Base):
     erp_phone_digits = Column(String(20), nullable=True, index=True)       # customer phone digits-only (P1-02 search)
     # AS-AXIS-01: AS 축(as_lifecycle) 의 SQL 조회용 플랫 투영. NULL = AS 이력 없음.
     # 값 도메인은 state_axes.AS_VALUES 와 같다(RECEIVED/IN_PROGRESS/COMPLETED).
-    # 승격 주의: 이 컬럼은 **스키마 정합용 선언**이다(2026-08-24 스키마 선행 승격).
-    #   채우는 쪽(before_insert 훅·state_axes)은 코드 승격 때 함께 온다.
+    # status 컬럼은 overlay projection 이라 외부 write 로 덮이면 AS 목록이 증발했다(2026-08-14 사고).
     as_axis_status = Column(String(16), nullable=True)                     # as_lifecycle 현재 cycle 상태
 
     # ============================================
@@ -834,6 +833,34 @@ class OrderEvent(Base):
     created_by = relationship('User', foreign_keys=[created_by_user_id])
 
 
+class OrderShareToken(Base):
+    """고객 공유 열람 토큰(로그인 없는 링크) — 스펙 2026-08-11 §3.1.
+
+    토큰 원문은 저장하지 않는다 — sha256 해시(``token_hash``)만 UNIQUE 로 보관하며
+    256bit 원문(``secrets.token_urlsafe(32)``)이 실질 방어선이다. ``snapshot`` 은
+    kind='estimate' 전용 동결 렌더 데이터(D6 — 발송 시점 스냅샷 고정), drawing 은
+    NULL(라이브 수집). server_default 는 의도적으로 없다 — 모든 insert 가 ORM 경로라
+    클라이언트 default 만 두어 migration_chain 지문(모델↔마이그레이션)을 정합시킨다.
+    """
+    __tablename__ = 'order_share_tokens'
+
+    id = Column(Integer, primary_key=True)
+    order_id = Column(Integer, ForeignKey('orders.id', ondelete='CASCADE'),
+                      nullable=False, index=True)
+    kind = Column(String(20), nullable=False)  # 'drawing' | 'estimate'
+    token_hash = Column(String(64), nullable=False, unique=True)  # sha256 hex
+    created_by_user_id = Column(Integer, ForeignKey('users.id'), nullable=True)
+    expires_at = Column(DateTime, nullable=False)  # 발급 +FOMS_SHARE_TOKEN_DAYS(기본 30)d
+    revoked_at = Column(DateTime, nullable=True)
+    created_at = Column(DateTime, default=now_utc_naive, nullable=False)
+    view_count = Column(Integer, nullable=False, default=0)
+    last_viewed_at = Column(DateTime, nullable=True)
+    snapshot = Column(JSONColumn, nullable=True)  # estimate 전용 동결 렌더(64KB 캡)
+
+    order = relationship('Order')
+    created_by = relationship('User', foreign_keys=[created_by_user_id])
+
+
 class OrderFieldChange(Base):
     """주문 필드 변경 원장 — 저장 1회가 바꾼 값들을 **질의 가능한 행**으로 편다 (ORDER-DIFF-01).
 
@@ -884,34 +911,6 @@ class OrderFieldChange(Base):
     actor_user_id = Column(Integer, nullable=True)
     # naive DB timestamp = UTC 규약(datetime_kst).
     created_at = Column(DateTime, default=now_utc_naive, nullable=False)
-
-
-class OrderShareToken(Base):
-    """고객 공유 열람 토큰(로그인 없는 링크) — 스펙 2026-08-11 §3.1.
-
-    토큰 원문은 저장하지 않는다 — sha256 해시(``token_hash``)만 UNIQUE 로 보관하며
-    256bit 원문(``secrets.token_urlsafe(32)``)이 실질 방어선이다. ``snapshot`` 은
-    kind='estimate' 전용 동결 렌더 데이터(D6 — 발송 시점 스냅샷 고정), drawing 은
-    NULL(라이브 수집). server_default 는 의도적으로 없다 — 모든 insert 가 ORM 경로라
-    클라이언트 default 만 두어 migration_chain 지문(모델↔마이그레이션)을 정합시킨다.
-    """
-    __tablename__ = 'order_share_tokens'
-
-    id = Column(Integer, primary_key=True)
-    order_id = Column(Integer, ForeignKey('orders.id', ondelete='CASCADE'),
-                      nullable=False, index=True)
-    kind = Column(String(20), nullable=False)  # 'drawing' | 'estimate'
-    token_hash = Column(String(64), nullable=False, unique=True)  # sha256 hex
-    created_by_user_id = Column(Integer, ForeignKey('users.id'), nullable=True)
-    expires_at = Column(DateTime, nullable=False)  # 발급 +FOMS_SHARE_TOKEN_DAYS(기본 30)d
-    revoked_at = Column(DateTime, nullable=True)
-    created_at = Column(DateTime, default=now_utc_naive, nullable=False)
-    view_count = Column(Integer, nullable=False, default=0)
-    last_viewed_at = Column(DateTime, nullable=True)
-    snapshot = Column(JSONColumn, nullable=True)  # estimate 전용 동결 렌더(64KB 캡)
-
-    order = relationship('Order')
-    created_by = relationship('User', foreign_keys=[created_by_user_id])
 
 
 class OrderChangeReason(Base):
@@ -3435,6 +3434,13 @@ class ChannelWebhookJob(Base):
     )
 
 
+# --------------------------------------------------------------------------- #
+# NAVER-INGEST-01: 외부 채널(스마트스토어 등) 주문 수집 링크
+# --------------------------------------------------------------------------- #
+EXTERNAL_ORDER_CHANNELS = ('NAVER',)
+EXTERNAL_ORDER_SYNC_STATUSES = ('LINKED', 'PENDING_REVIEW', 'FAILED')
+
+
 class ExternalOrderLink(Base):
     """외부 판매채널 주문 ↔ FOMS 주문의 링크 + 원본 스냅샷 (NAVER-INGEST-01 §3.4).
 
@@ -3529,3 +3535,21 @@ class ExternalOrderLink(Base):
         # 이력 표의 묶음 단위 집계·페이징 경로(집 수 COUNT DISTINCT, 페이지 키 조회).
         Index('ix_external_order_link_group', 'channel', 'group_key'),
     )
+
+
+@event.listens_for(Order, 'before_insert')
+def _fill_as_axis_status_on_insert(mapper, connection, target) -> None:
+    """새 주문 row 의 AS 축 투영(``as_axis_status``)을 채운다 (AS-AXIS-01).
+
+    AS 대시보드 술어가 이 컬럼을 보므로 **생성 시점부터 stale 이면 안 된다**. 갱신은
+    ``sync_erp_flat_columns`` 가 담당하지만, 주문을 만드는 경로는 그 함수를 안 지나는 것도
+    있다(엑셀 임포트·테스트 픽스처 등). 명시로 값을 준 경우는 존중한다(백필·복구 도구).
+
+    갱신(before_update)에는 붙이지 않는다 — status 를 덮는 외부 write 가 투영까지 지우면
+    2026-08-14 사고가 그대로 재현된다. 투영은 AS 쓰기 경로에서만 바뀐다.
+    """
+    if getattr(target, 'as_axis_status', None) is not None:
+        return
+    from foms.services.orders.state_axes import derive_as_axis_status
+
+    target.as_axis_status = derive_as_axis_status(target)

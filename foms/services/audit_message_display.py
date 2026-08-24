@@ -107,6 +107,18 @@ _CHECKLIST_FIELDS = frozenset({
 #: SQL 로 물을 수 있고, 화면에는 여기 라벨로 나온다. 사전에 없는 코드는 코드 자체를
 #: 보여준다(감추지 않는다 — 새 배선이 라벨을 빠뜨려도 로그는 남는다).
 ACTION_LABELS: dict[str, str] = {
+    # --- 네이버 스마트스토어 수집 (NAVER-INGEST-01) ---
+    "NAVER_INGEST_RUN_NOW": "네이버 수집 수동 실행",
+    "NAVER_INGEST_SNAPSHOT_VIEW": "네이버 수집 원본 열람",
+    "NAVER_INGEST_MARK_REVIEWED": "네이버 수집 확인 완료",
+    "NAVER_INGEST_SET_ASSIGNEE": "네이버 수집 담당자 지정",
+    "NAVER_INGEST_CREATE_ORDER": "네이버 수집분 주문 생성",
+    "NAVER_INGEST_ATTACH_ORDER": "네이버 수집분 기존 주문 연결",
+    "NAVER_INGEST_DETACH_ORDER": "네이버 수집분 연결 되돌림",
+    "NAVER_INGEST_FULFILLMENT_ENQUEUE": "네이버 발주확인·발송처리 요청",
+    "NAVER_INGEST_CANCEL_ENQUEUE": "네이버 판매자 직접취소 요청",
+    "NAVER_INGEST_FULFILLMENT_CLEAR": "네이버 발주확인·발송처리 실패 기록 지움",
+    "NAVER_DOCK_STATE_SET": "네이버 도크 반영 상태 저장",
     # --- 결제 ---
     "PAYMENT_CONFIRMED": "결제 확인",
     "PAYMENT_CONFIRM_CLEARED": "결제 확인 해제",
@@ -141,6 +153,7 @@ ACTION_LABELS: dict[str, str] = {
     "AS_LOG_ADDED": "AS 기록 추가",
     "AS_LOG_UPDATED": "AS 기록 수정",
     "AS_LOG_DELETED": "AS 기록 삭제",
+    "AS_UPLOAD_ANCHOR": "AS 첨부 위치",
     # --- 도면 ---
     "DRAWING_DELIVERED": "도면 전달 완료",
     "DRAWING_DELIVERY_CANCELED": "도면 전달 취소",
@@ -179,6 +192,7 @@ ACTION_LABELS: dict[str, str] = {
     "ORDER_ESTIMATE_UPDATED": "주문 견적 수정",
     "ORDER_ESTIMATE_DELETED": "주문 견적 삭제",
     "ORDER_STRUCTURED_SAVED": "주문 저장",
+    "ORDER_CHANGE_REASON_SET": "변경 사유 입력",
     "ORDER_ADDRESS_UPDATED": "주소 수정",
     "ADDRESS_LEARNING_ADDED": "주소 학습 등록",
     "STORAGE_SETTING_UPDATED": "스토리지 설정 변경",
@@ -188,6 +202,7 @@ ACTION_LABELS: dict[str, str] = {
     "URGENT_MENTION_SENT": "긴급 호출",
     "CHANNEL_PUSH_SENT": "채널톡 발송",
     "ALIMTALK_MANUAL_SENT": "알림톡 수동 발송",
+    "ALIMTALK_CHANNEL_CONFIRMED": "알림톡 발송 채널 확인",
     "SHARE_LINK_CREATED": "고객 공유 링크 발급",
     "SHARE_LINK_REVOKED": "고객 공유 링크 회수",
     "SHARE_SMS_SENT": "고객 공유 링크 문자 발송",
@@ -206,6 +221,8 @@ ACTION_LABELS: dict[str, str] = {
     "ORDER_MEMO_UPDATED": "메모 변경",
     "ORDER_CHECKLIST_UPDATED": "체크리스트 변경",
     "ORDER_STATUS_CHANGED": "상태 변경",
+    "ORDER_FIELD_RESTORED": "변경 되돌리기",
+    "OPS_BACKUP_HEARTBEAT": "백업 성공 알림",
     "ORDER_SOFT_DELETED": "주문 휴지통 이동",
     # --- 파일 열람(access_logs 화면과 같은 코드를 쓴다) ---
     "FILE_VIEW": "파일 열람",
@@ -243,8 +260,14 @@ PATH_LABELS: dict[str, str] = {
     # --- 당사자 ---
     "parties.customer.name": "고객명",
     "parties.customer.phone": "전화번호",
-    "parties.orderer.name": "주문자명",
-    "parties.orderer.phone": "주문자 연락처",
+    "parties.customer.phone2": "보조 연락처",
+    # ORDERER-AXIS-01: parties.orderer 는 발주처(라홈/하우드) 자리다. 주문한 사람은 buyer.
+    # 구 라벨이 '주문자명'이라 두 뜻이 겹쳐 있던 흔적이었다 — 과거 이력 표시를 위해 경로는
+    # 남기되 라벨만 바로잡는다.
+    "parties.orderer.name": "발주사",
+    "parties.orderer.phone": "발주사 연락처",
+    "parties.buyer.name": "주문자명",
+    "parties.buyer.phone": "주문자 연락처",
     "parties.manager.name": "담당자",
     # --- 현장 ---
     "site.address_full": "주소",
@@ -649,7 +672,91 @@ def path_label(path: str | None) -> str:
     return f"{head} {PATH_LABELS.get(f'items.*.{field}', field)}"
 
 
-def describe_change(change: Mapping[str, Any]) -> str:
+#: 파생 ``totals.*`` 행 → 그 값을 만든 **입력** 경로. 폼이 예약금을 한 번 고치면 입력 경로와
+#: 서버 파생 합계가 **같은 말을 두 줄로** 남긴다(2026-08-21 스테이징 실화면:
+#: ``예약금 0 → 100,000`` + ``예약금 입력 0 → 100,000``). 원장에는 둘 다 남기고 화면만 접는다.
+MIRROR_DERIVED_TO_INPUT: dict[str, str] = {
+    "totals.deposit_amount": "payment.deposit",
+    "totals.discount_amount": "payment.discount",
+    "totals.free_input_amount": "payment.free_input",
+}
+
+
+def resolve_mirror_rows(rows: Iterable[Mapping[str, Any]]) -> tuple[set[Any], dict[Any, str]]:
+    """한 저장(change set) 안에서 파생·입력 쌍이 같은 값을 말하는 행을 찾는다.
+
+    값이 다르면 접지 않는다 — 파생 계산이 입력과 어긋난 상태 자체가 봐야 할 정보다.
+
+    :param rows: ``id``·``path``·``before``·``after`` 를 가진 매핑들(한 change set 분량).
+    :return: ``(숨길 행 id 집합, 살아남는 행 id → 대체 라벨)``. 살아남는 쪽은 사람이 입력한
+        경로이고, 라벨은 짧은 파생 쪽 이름(``예약금 입력`` 대신 ``예약금``)을 쓴다.
+    """
+    by_path: dict[str, Mapping[str, Any]] = {}
+    for row in rows:
+        path = str(row.get("path") or "")
+        if path:
+            by_path.setdefault(path, row)
+
+    dropped: set[Any] = set()
+    labels: dict[Any, str] = {}
+    for derived_path, input_path in MIRROR_DERIVED_TO_INPUT.items():
+        derived = by_path.get(derived_path)
+        source = by_path.get(input_path)
+        if derived is None or source is None:
+            continue
+        same = (
+            str(derived.get("before") or "").strip() == str(source.get("before") or "").strip()
+            and str(derived.get("after") or "").strip() == str(source.get("after") or "").strip()
+        )
+        if not same:
+            continue
+        dropped.add(derived.get("id"))
+        labels[source.get("id")] = path_label(derived_path)
+    return dropped, labels
+
+
+def is_first_fill_row(op: Any, before: Any) -> bool:
+    """변경 1건이 "최초 입력"(빈칸·폼 placeholder → 첫 값)인지 판정한다 (ORDER-DIFF-02).
+
+    접수 직후 저장 한 번이면 빈 칸이 실제 값으로 한꺼번에 채워진다. 원장에는 남겨야 하지만
+    (되돌리기 대상이고 감사 증거다) 화면 맨 앞에 깔리면 **진짜 수정이 묻힌다** — 운영 원장
+    3,606행 중 1,737행(48%)이 이 종류였다(2026-08-21 실측). 화면은 이 값으로 접어 둔다.
+
+    placeholder 목록은 도면 변경 피드와 같은 SSOT를 쓴다(사전을 두 벌 두지 않는다).
+
+    :param op: 원장 ``op``(``set``·``add``·``clear``·``remove``). 품목 추가/삭제(``add``·
+        ``remove``)는 최초 입력이 아니다 — 구성이 바뀐 사실 자체가 정보다.
+    :param before: 원장 ``before_value``.
+    :return: 최초 입력이면 ``True``.
+    """
+    from foms.services.notifications.drawing_order_change import is_unset_display_value
+
+    if str(op or "").strip().lower() != "set":
+        return False
+    return is_unset_display_value(before)
+
+
+def _format_money_text(path: str, text: str) -> str:
+    """금액 경로의 값에 천단위 구분을 넣는다.
+
+    ``100000`` 은 사람이 자릿수를 세야 읽힌다. 금액 경로 판정은 원장 differ 와 같은 SSOT
+    (:data:`~foms.services.orders.structured_diff.NUMERIC_PATH_SUFFIXES`)를 쓴다.
+
+    :param path: 구조화 경로.
+    :param text: 이미 표시형으로 옮긴 값.
+    :return: 금액이면 ``100,000``, 아니면 원문 그대로.
+    """
+    from foms.services.orders.structured_diff import NUMERIC_PATH_SUFFIXES
+
+    if not any(path.endswith(suffix) for suffix in NUMERIC_PATH_SUFFIXES):
+        return text
+    probe = text.replace(",", "").strip()
+    if not probe or not probe.lstrip("-").isdigit():
+        return text
+    return f"{int(probe):,}"
+
+
+def describe_change(change: Mapping[str, Any], *, label_override: str | None = None) -> str:
     """변경 1건을 ``라벨: 이전 → 이후`` 한 줄로 옮긴다 (ORDER-DIFF-00).
 
     :param change: :func:`foms.services.orders.structured_diff.diff_structured` 가 만든 dict
@@ -657,7 +764,7 @@ def describe_change(change: Mapping[str, Any]) -> str:
     :return: 사람이 읽는 한 줄. 품목 추가/삭제는 화살표 대신 ``추가``/``삭제`` 로 적는다.
     """
     path = str(change.get("path") or "")
-    label = path_label(path)
+    label = label_override or path_label(path)
     op = change.get("op")
 
     item_match = _ITEM_PATH_RE.match(path)
@@ -667,8 +774,8 @@ def describe_change(change: Mapping[str, Any]) -> str:
         return f"{label} {verb}({name})" if name else f"{label} {verb}"
 
     value_field = _PATH_VALUE_FIELD.get(path)
-    before_text = format_value(value_field, change.get("before"))
-    after_text = format_value(value_field, change.get("after"))
+    before_text = _format_money_text(path, format_value(value_field, change.get("before")))
+    after_text = _format_money_text(path, format_value(value_field, change.get("after")))
     if before_text == _EMPTY_DISPLAY:
         before_text = _EMPTY_BEFORE_DISPLAY
     return f"{label} {before_text} → {after_text}"

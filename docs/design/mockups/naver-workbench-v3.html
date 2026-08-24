@@ -1,0 +1,517 @@
+<!doctype html>
+<html lang="ko">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>네이버 수집 v3 — 탭 왕복·전체 리로드 제거 (목업)</title>
+<style>
+  :root {
+    --bg: #eef2f7;
+    --surface: #fff;
+    --surface-soft: #f6f8fb;
+    --text: #111827;
+    --muted: #6b7280;
+    --line: #dbe1ea;
+    --line-soft: #edf1f6;
+    --blue: #2563eb;
+    --blue-soft: #eaf1ff;
+    --green: #15803d;
+    --green-soft: #e7f6ec;
+    --amber: #b45309;
+    --amber-soft: #fdf3e3;
+    --red: #b91c1c;
+    --red-soft: #fdeaea;
+    --violet: #6d28d9;
+    --violet-soft: #f1ebfd;
+    --radius: 10px;
+    font-family: Pretendard, -apple-system, BlinkMacSystemFont, "Segoe UI", "Malgun Gothic", sans-serif;
+  }
+  * { box-sizing: border-box; }
+  body { margin: 0; background: var(--bg); color: var(--text); font-size: 13px; }
+  button { font: inherit; cursor: pointer; }
+
+  .wrap { max-width: 1440px; margin: 0 auto; padding: 14px 16px 40px; }
+
+  /* ── 변경점 안내 (목업 전용, 실제 화면엔 없음) ───────────────────── */
+  .memo { background:#0f172a; color:#e2e8f0; border-radius: var(--radius); padding: 12px 14px; margin-bottom: 12px; }
+  .memo h2 { margin:0 0 6px; font-size: 13px; color:#fff; }
+  .memo ul { margin: 0; padding-left: 18px; }
+  .memo li { margin: 3px 0; line-height: 1.5; }
+  .memo b { color: #fde68a; }
+  .memo .off { color:#94a3b8; text-decoration: line-through; }
+
+  /* ── 상단 스트립: 이름 하나 ──────────────────────────────────────── */
+  .strip { display:flex; align-items:center; gap:10px; background: var(--surface);
+           border:1px solid var(--line); border-radius: var(--radius); padding: 10px 14px; margin-bottom: 10px; }
+  .strip__title { font-weight: 700; font-size: 15px; }
+  .strip__count { color: var(--muted); }
+  .strip__spacer { flex: 1; }
+  .strip__note { font-size: 12px; color: var(--muted); }
+
+  /* ── 탭 2개 ──────────────────────────────────────────────────────── */
+  .tabs { display:flex; gap:6px; margin-bottom: 8px; }
+  .tab { border:1px solid var(--line); background: var(--surface); border-radius: 999px;
+         padding: 7px 16px; color: var(--muted); display:flex; align-items:center; gap:7px; }
+  .tab[aria-selected="true"] { background: var(--text); border-color: var(--text); color:#fff; font-weight:600; }
+  .tab__n { background: rgba(0,0,0,.08); border-radius: 999px; padding: 1px 8px; font-size: 12px; }
+  .tab[aria-selected="true"] .tab__n { background: rgba(255,255,255,.22); }
+  .tab__lock { font-size: 11px; opacity:.8; }
+
+  /* ── 필터 칩 ─────────────────────────────────────────────────────── */
+  .chips { display:flex; gap:6px; flex-wrap: wrap; margin-bottom: 10px; align-items:center; }
+  .chip { border:1px solid var(--line); background: var(--surface); border-radius: 999px;
+          padding: 5px 12px; color: var(--muted); font-size: 12px; }
+  .chip[aria-pressed="true"] { background: var(--blue-soft); border-color: #b9d0ff; color: var(--blue); font-weight:600; }
+  .chip--danger[aria-pressed="true"] { background: var(--red-soft); border-color:#f3c2c2; color: var(--red); }
+  .chips__hint { font-size: 11px; color: var(--muted); margin-left: 4px; }
+
+  /* ── 벌크 바: 고른 게 있을 때만 나타난다 ─────────────────────────── */
+  .bulk { display:none; align-items:center; gap:10px; background: var(--blue-soft);
+          border:1px solid #b9d0ff; border-radius: var(--radius); padding: 9px 14px; margin-bottom: 10px; }
+  .bulk.on { display:flex; }
+  .bulk__n { font-weight: 700; color: var(--blue); }
+  .bulk__spacer { flex:1; }
+  .bulk__why { font-size: 11px; color: var(--muted); }
+
+  /* ── 2단 ─────────────────────────────────────────────────────────── */
+  .split { display:grid; grid-template-columns: 400px 1fr; gap: 12px; align-items: start; }
+  @media (max-width: 991.98px) { .split { grid-template-columns: 1fr; } }
+
+  .panel { background: var(--surface); border:1px solid var(--line); border-radius: var(--radius); overflow:hidden; }
+  .panel__head { padding: 9px 12px; border-bottom:1px solid var(--line-soft); background: var(--surface-soft);
+                 display:flex; align-items:center; gap:8px; font-weight:600; }
+  .panel__head .sub { font-weight: 400; color: var(--muted); font-size: 11px; }
+
+  /* 목록: max-height 제거, 페이지가 스크롤한다 */
+  .queue { display:flex; flex-direction: column; }
+  .row { display:flex; gap:9px; padding: 10px 12px; border-bottom:1px solid var(--line-soft);
+         background:none; border-left: 3px solid transparent; text-align:left; width:100%; align-items:flex-start; }
+  .row:hover { background: var(--surface-soft); }
+  .row[aria-current="true"] { background: var(--blue-soft); border-left-color: var(--blue); }
+  .row__check { margin-top: 2px; }
+  .row__body { flex:1; min-width:0; }
+  .row__l1 { display:flex; align-items:center; gap:6px; }
+  .row__name { font-weight: 600; }
+  .row__l2 { color: var(--muted); margin-top: 2px; white-space:nowrap; overflow:hidden; text-overflow:ellipsis; }
+  .row__l3 { display:flex; gap:5px; margin-top: 5px; flex-wrap: wrap; align-items:center; }
+  .row__at { color: #9aa3af; font-size: 11px; margin-left:auto; }
+  .row--locked { opacity: .62; }
+  .row--locked .row__name { text-decoration: line-through; }
+
+  .b { border-radius: 999px; padding: 1px 8px; font-size: 11px; line-height: 1.7; white-space:nowrap; }
+  .b--n { background:#eceff3; color:#4b5563; }
+  .b--todo { background: var(--amber-soft); color: var(--amber); }
+  .b--ok { background: var(--green-soft); color: var(--green); }
+  .b--addon { background: var(--violet-soft); color: var(--violet); font-weight:700; }
+  .b--stop { background: var(--red-soft); color: var(--red); }
+  .b--blue { background: var(--blue-soft); color: var(--blue); }
+
+  /* 상세: 붙어 다닌다 */
+  .detail { position: sticky; top: 12px; }
+  .detail__head { padding: 11px 14px; border-bottom:1px solid var(--line-soft); }
+  .detail__title { display:flex; align-items:center; gap:8px; flex-wrap:wrap; }
+  .detail__title h3 { margin:0; font-size: 15px; }
+  .detail__no { color: var(--muted); font-size: 12px; }
+
+  .acts { display:flex; gap:6px; flex-wrap: wrap; margin-top: 10px; align-items:center; }
+  .btn { border:1px solid var(--line); background: var(--surface); border-radius: 7px; padding: 6px 12px; color: var(--text); }
+  .btn:hover:not(:disabled) { background: var(--surface-soft); }
+  .btn--primary { background: var(--blue); border-color: var(--blue); color:#fff; }
+  .btn--go { background: var(--green); border-color: var(--green); color:#fff; }
+  .btn--danger { background: var(--surface); border-color:#f0c4c4; color: var(--red); }
+  .btn--ghost { background: none; border-color: transparent; color: var(--muted); }
+  .btn:disabled { opacity: .45; cursor: not-allowed; }
+  .acts__spacer { flex:1; }
+  .acts__why { font-size: 11px; color: var(--amber); width:100%; margin-top: 2px; }
+
+  .sec { padding: 12px 14px; border-top:1px solid var(--line-soft); }
+  .sec__t { font-weight: 700; margin-bottom: 7px; display:flex; gap:7px; align-items:baseline; }
+  .sec__t span { font-weight: 400; color: var(--muted); font-size: 11px; }
+
+  table { width:100%; border-collapse: collapse; }
+  th, td { text-align:left; padding: 6px 8px; border-bottom:1px solid var(--line-soft); vertical-align: top; }
+  th { color: var(--muted); font-weight: 600; font-size: 11px; background: var(--surface-soft); }
+  td.num { text-align:right; white-space:nowrap; }
+  .diff { color: var(--amber); }
+
+  .rel { background: var(--violet-soft); border:1px solid #ddd0f7; border-radius: 8px;
+         padding: 10px 12px; display:flex; align-items:center; gap:9px; }
+  .rel__spacer { flex:1; }
+  .rel--ask { background: var(--surface-soft); border-color: var(--line); display:block; }
+  .rel__why { margin: 0 0 8px; color: var(--muted); }
+
+  .empty { padding: 40px 14px; text-align:center; color: var(--muted); }
+
+  /* 갱신 표시 — 전체 리로드가 아님을 눈으로 보여준다 */
+  .flash { position: fixed; right: 18px; bottom: 18px; background:#0f172a; color:#e2e8f0;
+           border-radius: 8px; padding: 8px 13px; opacity: 0; transition: opacity .18s; pointer-events:none; }
+  .flash.on { opacity: 1; }
+  .flash b { color:#86efac; }
+</style>
+</head>
+<body>
+<div class="wrap">
+
+  <div class="memo">
+    <h2>v3 목업 — 3CEO 결론 반영 (이 검정 박스는 설명용, 실제 화면엔 없음)</h2>
+    <ul>
+      <li><b>이름 하나</b>: <span class="off">네이버 주문 / 네이버 수집 / 수집 확인 / 수집 상태</span> → <b>네이버 수집</b> 하나. 진입구 4개 → 1개.</li>
+      <li><b>탭 4개 → 2개</b>: 처리 · 이력. <span class="off">발주확인 전 탭</span>과 <span class="off">취소·반품 탭</span>은 <b>같은 목록의 필터 칩</b>으로 내려왔다.</li>
+      <li><b>탭 왕복 제거</b>: 발주확인 버튼이 상세에 생겼다(이 집 하나만). 다른 탭 가서 같은 집 다시 찾을 일이 없다.</li>
+      <li><b>전체 리로드 제거</b>: 행을 눌러도 페이지가 새로 뜨지 않는다. 오른쪽 상세만 갈아 끼운다(우하단 표시 확인).</li>
+      <li><b>큐가 줄어든다</b>: <b>확인 완료</b> 버튼을 모든 집에 복원(지금은 취소·반품 탭에만 있어 정상 집이 영원히 남는다 — 회귀).</li>
+      <li><b>숫자 일치</b>: 위 뱃지 = 처리 탭 숫자 = 목록 길이. 지금은 nav 67 vs 탭 45로 어긋난다.</li>
+      <li><b>안전 유지</b>: 상세는 <b>항상 한 집만</b> 열린다(여러 집 동시 펼침 금지 — 다른 집이 취소되는 경로). 벌크는 <b>고른 게 있을 때만</b> 뜬다. 취소·반품 집은 행부터 잠긴다. 이력 행에는 액션을 달지 않는다.</li>
+    </ul>
+  </div>
+
+  <div class="strip">
+    <span class="strip__title">네이버 수집</span>
+    <span class="strip__count" id="strip-count">52집 · 상품주문 168건</span>
+    <span class="strip__spacer"></span>
+    <span class="strip__note">메뉴 진입구 1개 · 마지막 수집 08-23 10:38 · 다음 수집 10분 뒤</span>
+  </div>
+
+  <div class="tabs" role="tablist">
+    <button class="tab" role="tab" aria-selected="true" data-tab="work">처리<span class="tab__n" id="n-work">52집</span></button>
+    <button class="tab" role="tab" aria-selected="false" data-tab="hist">이력<span class="tab__n">70집</span><span class="tab__lock">관리자</span></button>
+  </div>
+
+  <div class="chips" id="chips">
+    <button class="chip" aria-pressed="true" data-f="all">전체 <b data-n="all"></b></button>
+    <button class="chip" aria-pressed="false" data-f="place">발주확인 전 <b data-n="place"></b></button>
+    <button class="chip" aria-pressed="false" data-f="rel">추가결제·재결제 <b data-n="rel"></b></button>
+    <button class="chip chip--danger" aria-pressed="false" data-f="claim">취소·반품 <b data-n="claim"></b></button>
+    <span class="chips__hint">칩 숫자의 합집합 = 위 탭 숫자 = 목록 길이. 칩은 같은 목록을 거를 뿐, 다른 표를 부르지 않는다</span>
+  </div>
+
+  <div class="bulk" id="bulk">
+    <span class="bulk__n" id="bulk-n">0집</span> 선택됨
+    <button class="btn btn--primary" id="bulk-go">선택한 집 발주확인 보내기</button>
+    <button class="btn btn--ghost" id="bulk-clear">선택 해제</button>
+    <span class="bulk__spacer"></span>
+    <span class="bulk__why">여러 집을 한 번에 보낼 때만 쓴다. 한 집이면 오른쪽 상세에서 바로.</span>
+  </div>
+
+  <div class="split">
+    <div class="panel">
+      <div class="panel__head">확인 대기 <span class="sub" id="list-sub">한 집이 한 줄 · 52집</span></div>
+      <div class="queue" id="queue"></div>
+    </div>
+
+    <div class="panel detail" id="detail"></div>
+  </div>
+</div>
+
+<div class="flash" id="flash">오른쪽 상세만 갱신 — <b>페이지 재요청 없음</b></div>
+
+<script>
+/* 목업 데이터 — 실제 고객 정보가 아니라 가상값이다. */
+const GROUPS = [
+  {
+    id: 'g1', name: '한가온', no: '2026082343955001', n: 6, rel: 'NEW',
+    place: 'NOT_YET', claim: null, orderId: null, at: '2026-08-23 10:38',
+    summary: '보테가 슬라이딩 1cm 외 5건',
+    phone: '010-8213-9027', addr: '서울특별시 서초구 신반포로 20 117동 2203호',
+    ermAddr: null,
+    items: [
+      ['2026082355329421', '보테가 슬라이딩 1cm', 330, 1178100],
+      ['2026082355329411', 'TYPE A (반오름)', 2, 0],
+      ['2026082355329401', 'TYPE J', 2, 100000],
+      ['2026082355329391', 'TYPE F', 1, 20000],
+      ['2026082355329381', 'TYPE C', 1, 30000],
+      ['2026082355329371', '무몰딩 붙박이장 슬라이딩 미니장 30cm', 1, 96000],
+    ],
+    cands: []
+  },
+  {
+    id: 'g2', name: '도유한', no: '2026082229445801', n: 2, rel: 'NEW',
+    place: 'NOT_YET', claim: null, orderId: null, at: '2026-08-22 14:01',
+    summary: '무몰딩 붙박이장 로라 시리즈 30cm 외 1건',
+    phone: '010-4410-2277', addr: '충청북도 옥천군 옥천읍 성왕로 1274 103동 1602호',
+    ermAddr: null,
+    items: [
+      ['2026082236721151', '무몰딩 붙박이장 로라 시리즈 30cm 푸쉬타입', 1, 372280],
+      ['2026082236721161', 'TYPE F', 1, 20000],
+    ],
+    cands: [
+      { order: '4477', why: '수취인 전화 일치', who: '도유한', addr: '충청북도 옥천군 옥천읍 성왕로 1274', at: '2026-08-18', links: 14 }
+    ]
+  },
+  {
+    id: 'g3', name: '서리안', no: '2026081954734821', n: 2, rel: 'ADDON',
+    place: 'OK', claim: null, orderId: '4242', at: '2026-08-19 19:00',
+    summary: '라운드 냉장고장 빌트인 홈카페 키친핏 외 1건',
+    phone: '010-5772-5722', addr: '경기도 화성시 동탄순환대로21길 15 1351동 503호',
+    ermAddr: '화성시 동탄구 동탄순환대로21길15 1351동503호',
+    items: [
+      ['2026081928906521', '라운드 냉장고장 빌트인 홈카페 키친핏 프리스탠딩 E0', 1, 2650000],
+      ['2026081928906511', '슬라이딩 거울도어 옵션', 1, 180000],
+    ],
+    cands: []
+  },
+  {
+    id: 'g4', name: '나윤슬', no: '2026082112205181', n: 4, rel: 'NEW',
+    place: 'OK', claim: null, orderId: '4468', at: '2026-08-21 06:48',
+    summary: '로라 붙박이장 안방 여닫이 푸쉬타입 30cm 외 3건',
+    phone: '010-2201-9080', addr: '부산광역시 해운대구 센텀중앙로 90 2204호',
+    ermAddr: '부산 해운대구 센텀중앙로 90 2204호',
+    items: [
+      ['2026082133883311', '로라 붙박이장 안방 여닫이 푸쉬타입 30cm', 1, 435400],
+      ['2026082133883321', 'TYPE C', 1, 30000],
+      ['2026082133883331', 'TYPE F', 1, 20000],
+      ['2026082133883341', 'EP 신형 손잡이', 1, 150000],
+    ],
+    cands: []
+  },
+  {
+    id: 'g5', name: '유하람', no: '2026082019888651', n: 1, rel: 'REPAY',
+    place: 'NOT_YET', claim: null, orderId: '4455', at: '2026-08-20 22:59',
+    summary: '로라 무몰딩 붙박이장 안방 여닫이 30cm 푸쉬타입',
+    phone: '010-7781-3355', addr: '대전광역시 유성구 대학로 291 305동 902호',
+    ermAddr: '대전 유성구 대학로 291 305동 902호',
+    items: [
+      ['2026082028761001', '로라 무몰딩 붙박이장 안방 여닫이 30cm 푸쉬타입', 1, 834100],
+    ],
+    cands: []
+  },
+  {
+    id: 'g6', name: '문서하', no: '2026081847112901', n: 5, rel: 'NEW',
+    place: 'OK', claim: '취소 완료', orderId: null, at: '2026-08-19 04:49',
+    summary: '로라 무몰딩 붙박이장 작은방 여닫이 푸쉬타입 180cm 외 4건',
+    phone: '010-3390-1120', addr: '인천광역시 연수구 송도과학로 32 1802호',
+    ermAddr: null,
+    items: [
+      ['2026081856120011', '로라 무몰딩 붙박이장 작은방 여닫이 푸쉬타입 180cm', 1, 536400],
+    ],
+    cands: []
+  },
+];
+
+const RELS = { ADDON: '추가결제', REPAY: '재결제' };
+const money = n => n.toLocaleString('ko-KR');
+
+let filter = 'all';
+let selected = 'g1';
+const picked = new Set();
+
+function match(g, f) {
+  if (f === 'all') return true;
+  if (f === 'place') return g.place === 'NOT_YET' && !g.claim;
+  if (f === 'rel') return g.rel !== 'NEW';
+  if (f === 'claim') return !!g.claim;
+  return true;
+}
+function visible() { return GROUPS.filter(g => match(g, filter)); }
+
+/* 칩·탭·스트립 숫자를 전부 같은 데이터에서 뽑는다 — 화면 안에서 숫자가 어긋나지 않게. */
+function renderCounts() {
+  ['all', 'place', 'rel', 'claim'].forEach(f => {
+    document.querySelector(`[data-n="${f}"]`).textContent =
+      GROUPS.filter(g => match(g, f)).length + '집';
+  });
+}
+
+function rowBadges(g) {
+  const out = [];
+  if (g.n > 1) out.push(`<span class="b b--n">${g.n}건 묶음</span>`);
+  if (g.rel !== 'NEW') out.push(`<span class="b b--addon">${RELS[g.rel]}</span>`);
+  if (g.claim) out.push(`<span class="b b--stop">${g.claim} — 손대지 않음</span>`);
+  else if (g.place === 'NOT_YET') out.push(`<span class="b b--todo">발주확인 전</span>`);
+  else out.push(`<span class="b b--ok">발주확인 완료</span>`);
+  if (g.orderId) out.push(`<span class="b b--blue">주문 #${g.orderId}</span>`);
+  return out.join('');
+}
+
+function renderQueue() {
+  const rows = visible();
+  document.getElementById('queue').innerHTML = rows.map(g => `
+    <div class="row ${g.claim ? 'row--locked' : ''}" data-id="${g.id}" aria-current="${g.id === selected}">
+      <input class="row__check" type="checkbox" data-pick="${g.id}"
+             ${picked.has(g.id) ? 'checked' : ''} ${g.claim || g.place === 'OK' ? 'disabled' : ''}
+             title="${g.claim ? '취소·반품 집은 고를 수 없다' : g.place === 'OK' ? '이미 발주확인이 끝났다' : '여러 집 한 번에 발주확인'}">
+      <div class="row__body">
+        <div class="row__l1"><span class="row__name">${g.name}</span></div>
+        <div class="row__l2">${g.summary}</div>
+        <div class="row__l3">${rowBadges(g)}<span class="row__at">${g.at}</span></div>
+      </div>
+    </div>`).join('');
+  document.getElementById('list-sub').textContent = `한 집이 한 줄 · ${rows.length}집`;
+  document.getElementById('n-work').textContent = `${GROUPS.length}집`;
+  document.getElementById('strip-count').textContent =
+    `${GROUPS.length}집 · 상품주문 ${GROUPS.reduce((s, g) => s + g.n, 0)}건`;
+}
+
+function renderDetail(flash) {
+  const g = GROUPS.find(x => x.id === selected);
+  const box = document.getElementById('detail');
+  if (!g) { box.innerHTML = `<div class="empty">왼쪽에서 집을 하나 고르세요.</div>`; return; }
+
+  const canClose = g.rel !== 'NEW';                 // ADDON·REPAY 만 발주확인 전에도 닫는다
+  const locked = !!g.claim;                          // 취소·반품 집은 전부 잠긴다
+  const needConfirm = g.place === 'NOT_YET';
+
+  const acts = `
+    <div class="acts">
+      <button class="btn btn--primary" ${locked || g.orderId ? 'disabled' : ''}
+        title="${locked ? '취소·반품 집에는 주문을 만들지 않는다' : g.orderId ? '이미 주문 #' + g.orderId + ' 가 있다' : ''}">+ 주문 만들기</button>
+
+      <button class="btn" ${locked || !needConfirm ? 'disabled' : ''}
+        title="${locked ? '취소·반품 집' : !needConfirm ? '이미 발주확인이 끝났다' : '이 집만 발주확인을 보낸다'}">발주확인</button>
+
+      <button class="btn btn--go" ${locked || (needConfirm && !canClose) ? 'disabled' : ''}
+        title="${locked ? '취소·반품 집' : (needConfirm && !canClose) ? '발주확인이 먼저입니다' : ''}">발송처리</button>
+
+      <button class="btn btn--danger" ${locked ? 'disabled' : ''}>취소처리</button>
+      <span class="acts__spacer"></span>
+      <button class="btn">확인 완료 — 큐에서 빼기</button>
+      ${needConfirm && !canClose
+        ? `<div class="acts__why">신규 집이라 발주확인이 먼저입니다. 발송처리는 <b>실제 출고·시공 시점</b>에 누르세요.</div>` : ''}
+      ${needConfirm && canClose
+        ? `<div class="acts__why">${RELS[g.rel]}는 물건이 따로 나가지 않습니다 — 발주확인 없이 여기서 바로 닫습니다.</div>` : ''}
+      ${locked
+        ? `<div class="acts__why">이 집은 ${g.claim}입니다. 발주확인·발송처리·주문 만들기가 모두 닫혀 있습니다.</div>` : ''}
+    </div>`;
+
+  const cmp = `
+    <div class="sec">
+      <div class="sec__t">집 단위 <span>수취인·주소·결제 — 한 집에 하나뿐인 값</span></div>
+      <table>
+        <tr><th style="width:90px">항목</th><th>네이버 원본</th><th>FOMS 현재 값</th></tr>
+        <tr><td>수취인</td><td>${g.name}</td><td>${g.orderId ? g.name : '<span class="diff">— 주문 없음</span>'}</td></tr>
+        <tr><td>연락처</td><td>${g.phone}</td><td>${g.orderId ? g.phone : '<span class="diff">—</span>'}</td></tr>
+        <tr><td>주소</td><td>${g.addr}</td>
+            <td>${g.ermAddr ? g.ermAddr : '<span class="diff">—</span>'}</td></tr>
+      </table>
+    </div>`;
+
+  const items = `
+    <div class="sec">
+      <div class="sec__t">상품주문 ${g.n}건 <span>네이버가 본품과 옵션을 각각 다른 상품주문으로 준다</span></div>
+      <table>
+        <tr><th>상품주문번호</th><th>제품 · 옵션</th><th class="num">수량</th><th class="num">금액</th></tr>
+        ${g.items.map(([no, nm, q, amt]) =>
+          `<tr><td>${no}</td><td>${nm}</td><td class="num">${q}</td><td class="num">${money(amt)}</td></tr>`).join('')}
+      </table>
+    </div>`;
+
+  let rel = '';
+  if (g.rel !== 'NEW') {
+    rel = `
+    <div class="sec">
+      <div class="sec__t">관계 <span>이 집은 기존 주문의 후속이다 — 새 주문을 만들지 않았다</span></div>
+      <div class="rel">
+        <span class="b b--addon">${RELS[g.rel]}</span>
+        <span>주문 <b>#${g.orderId}</b> 에 붙어 있습니다.</span>
+        <span class="rel__spacer"></span>
+        <button class="btn btn--ghost" style="color:var(--red)">되돌리기</button>
+      </div>
+    </div>`;
+  } else if (g.cands.length) {
+    rel = `
+    <div class="sec">
+      <div class="sec__t">관계 <span>기존 주문의 후속일 수 있다</span></div>
+      <div class="rel rel--ask">
+        <p class="rel__why">새 주문이 아니라 <b>기존 주문의 추가결제(차액)</b>거나 <b>취소 후 재결제</b>일 수 있습니다.
+           맞으면 아래에서 붙이세요 — 새 주문을 만들지 않습니다.</p>
+        <table>
+          <tr><th>주문</th><th>고객 · 주소</th><th>접수일</th><th style="text-align:right">붙이기</th></tr>
+          ${g.cands.map(c => `
+            <tr>
+              <td><b>#${c.order}</b><div style="color:var(--muted);font-size:11px">${c.why}</div></td>
+              <td>${c.who}<div style="color:var(--muted);font-size:11px">${c.addr}</div></td>
+              <td>${c.at}<div style="color:var(--muted);font-size:11px">네이버 수집 ${c.links}건</div></td>
+              <td style="text-align:right; white-space:nowrap">
+                <button class="btn btn--ghost" style="color:var(--violet)">추가결제로 붙이기</button>
+                <button class="btn">재결제로 붙이기</button>
+              </td>
+            </tr>`).join('')}
+        </table>
+      </div>
+    </div>`;
+  }
+
+  box.innerHTML = `
+    <div class="detail__head">
+      <div class="detail__title">
+        <h3>${g.name}</h3>
+        <span class="detail__no">주문번호 ${g.no}</span>
+        ${g.n > 1 ? `<span class="b b--n">${g.n}건 묶음</span>` : ''}
+        ${g.rel !== 'NEW' ? `<span class="b b--addon">${RELS[g.rel]}</span>` : ''}
+        ${g.claim ? `<span class="b b--stop">${g.claim}</span>` : ''}
+      </div>
+      ${acts}
+    </div>
+    ${cmp}${items}${rel}`;
+
+  if (flash) {
+    const f = document.getElementById('flash');
+    f.classList.add('on');
+    clearTimeout(window.__ft);
+    window.__ft = setTimeout(() => f.classList.remove('on'), 1100);
+  }
+}
+
+function syncBulk() {
+  const bar = document.getElementById('bulk');
+  bar.classList.toggle('on', picked.size > 0);
+  document.getElementById('bulk-n').textContent = `${picked.size}집`;
+}
+
+document.getElementById('queue').addEventListener('click', e => {
+  const cb = e.target.closest('[data-pick]');
+  if (cb) {
+    const id = cb.dataset.pick;
+    cb.checked ? picked.add(id) : picked.delete(id);
+    syncBulk();
+    return;                                   // 체크는 선택이지 열기가 아니다
+  }
+  const row = e.target.closest('.row');
+  if (!row) return;
+  selected = row.dataset.id;                  // 항상 한 집만 열린다
+  document.querySelectorAll('.row').forEach(r =>
+    r.setAttribute('aria-current', String(r.dataset.id === selected)));
+  renderDetail(true);                         // 상세만 갈아 끼운다
+});
+
+document.getElementById('chips').addEventListener('click', e => {
+  const c = e.target.closest('.chip');
+  if (!c) return;
+  filter = c.dataset.f;
+  document.querySelectorAll('.chip').forEach(x =>
+    x.setAttribute('aria-pressed', String(x.dataset.f === filter)));
+  const rows = visible();
+  if (!rows.some(g => g.id === selected)) selected = rows.length ? rows[0].id : null;
+  renderQueue();
+  renderDetail(false);
+});
+
+document.getElementById('bulk-clear').addEventListener('click', () => {
+  picked.clear(); syncBulk(); renderQueue();
+});
+document.getElementById('bulk-go').addEventListener('click', () => {
+  alert(`목업입니다. 실제로는 ${picked.size}집 · 상품주문 ` +
+        `${GROUPS.filter(g => picked.has(g.id)).reduce((s, g) => s + g.n, 0)}건을 재진술하는 ` +
+        `불가역 확인 모달이 뜹니다.`);
+});
+
+document.querySelectorAll('.tab').forEach(t => t.addEventListener('click', () => {
+  document.querySelectorAll('.tab').forEach(x =>
+    x.setAttribute('aria-selected', String(x === t)));
+  if (t.dataset.tab === 'hist') {
+    document.getElementById('queue').innerHTML =
+      `<div class="empty">이력 탭(관리자 전용) — 읽기 전용 표.<br>
+       행에는 액션 버튼을 달지 않는다. 처리하려면 '처리' 탭의 그 집으로 이동한다.</div>`;
+    document.getElementById('detail').innerHTML =
+      `<div class="empty">이력은 상세 액션이 없다.</div>`;
+  } else {
+    renderQueue(); renderDetail(false);
+  }
+}));
+
+renderCounts();
+renderQueue();
+renderDetail(false);
+</script>
+</body>
+</html>

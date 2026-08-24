@@ -12,6 +12,8 @@
 
   var prefetched = Object.create(null);
   var warmCache = Object.create(null);
+  // 이 런타임이 #main-content 를 갈아 끼운 적이 있는가(popstate 폴백 판정용).
+  var didSwapMain = false;
   var scrollMem = Object.create(null);
   var hoverTimer = null;
   var activeNavLink = null;
@@ -238,6 +240,8 @@
     if (!main) {
       throw new Error('missing #main-content');
     }
+    // 이 런타임이 실제로 본문을 갈아 끼웠는지 기억한다 — popstate 폴백이 이걸 본다.
+    didSwapMain = true;
     main.innerHTML = stripTitleTags(html);
     activateScriptsIn(main);
   }
@@ -357,6 +361,14 @@
   function onPopState(ev) {
     var st = ev.state;
     if (!st || !st.gnav || !st.gnavKey) {
+      // 리로드는 **이 런타임이 본문을 갈아 끼운 뒤** 원래 항목으로 돌아왔을 때만 옳다.
+      // 한 번도 스왑한 적이 없으면 DOM 은 서버가 준 그대로이고, 그 히스토리 항목은
+      // 다른 화면이 만든 것이다(예: 네이버 워크벤치의 `{wbLinkId}` 부분 갱신).
+      // 그때 리로드하면 남의 부분 갱신 UI 를 전체 재요청으로 되돌린다 —
+      // 워크벤치 뒤로가기가 정확히 그렇게 깨졌다(2026-08-23 QA #2).
+      if (!didSwapMain) {
+        return;
+      }
       window.location.reload();
       return;
     }

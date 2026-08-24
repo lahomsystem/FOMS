@@ -14,6 +14,7 @@ from foms.services.feature_flags import (
     env_bool,
     env_bool_or_mobile_v2,
     is_mobile_v2_shell,
+    is_naver_workbench_enabled,
     is_shell_v3_eligible,
     resolve_shell_variant_cached,
     should_render_new_order_wizard,
@@ -23,6 +24,8 @@ from foms.services.feature_flags import (
 )
 from foms.services.datetime_kst import format_datetime_kst
 from foms.services.dashboard_counts import get_nav_badge_counts
+from foms.services.integrations.naver_commerce.triage_count import get_triage_pending_count
+from foms.services.common.ept_b7_profile import phase
 from foms.services.common.erp_mine_filter import erp_mine_only_from_request
 from foms.services.common.geocode_config import KAKAO_JS_API_KEY
 from foms.web.auth import ROLES
@@ -142,9 +145,25 @@ def inject_status_list() -> dict[str, Any]:
 
     admin_switch_users: list[AdminSwitchUser] = []
     impersonating_from_id = session.get("impersonating_from")
-    if current_user and current_user.role == "ADMIN":
+    # 수집 확인 대기 뱃지: 트리아지 화면을 쓸 수 있는 역할(T14-A 전 직원 개방)에만 계산.
+    # VIEWER 는 화면 접근이 막혀 있으므로 쿼리를 내지 않는다. 30초 전역 캐시라
+    # 역할이 늘어도 nav 렌더 비용은 그대로다.
+    # 모집단은 **그 사람이 링크를 눌렀을 때 볼 목록**과 같아야 한다 — 워크벤치 v3 게이트가
+    # 켜졌으면 처리 탭 목록(확인 큐 ∪ 발주확인 전), 아니면 옛 확인 대기 큐(v3 계약 §6).
+    naver_triage_pending = 0
+    if current_user:
         db = get_db()
-        admin_switch_users = _get_admin_switch_users(db, current_user.id)
+        if current_user.role == "ADMIN":
+            admin_switch_users = _get_admin_switch_users(db, current_user.id)
+        if current_user.role in ("ADMIN", "MANAGER", "STAFF"):
+            # 이 뱃지는 **모든 페이지 렌더**에 실린다. 워크벤치 v3 게이트가 켜지면
+            # 모집단이 COUNT 1회에서 처리 탭 목록 전체(조회 4~6회 + 스냅샷 JSONB 파싱
+            # 수백 건)로 바뀐다 — 코호트를 넓히기 전에 **추정이 아니라 실측**이 있어야
+            # 한다(2026-08-24 승격 게이트 1). 30초 캐시 히트는 0ms 로 찍히므로 캐시
+            # 미스(콜드) 표본만 골라낼 수 있다. 진단 전용이라 응답을 깨지 않는다.
+            with phase("nvbadge"):
+                naver_triage_pending = get_triage_pending_count(
+                    db, workbench=is_naver_workbench_enabled(current_user.id))
 
     erp_order_enabled = env_bool("ERP_ORDER_ENABLED", default=True)
     shell_variant = _current_shell_variant()
@@ -166,6 +185,7 @@ def inject_status_list() -> dict[str, Any]:
         "current_user": current_user,
         "admin_switch_users": admin_switch_users,
         "impersonating_from_id": impersonating_from_id,
+        "naver_triage_pending": naver_triage_pending,
         "erp_order_enabled": erp_order_enabled,
         "erp_mobile_v2_enabled": erp_mobile_v2_enabled,
         "coarse_pointer_surfaces": wants_coarse_pointer_surfaces(),

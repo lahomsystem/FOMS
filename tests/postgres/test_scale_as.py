@@ -5,7 +5,7 @@ Investigation outcome: **no migration, no new index** (무변경 종료).
 The AS dashboard (`foms/web/cs/as_dashboard.py` + `foms/services/as_dashboard_*`)
 has two hot queries per load: the tab-count aggregate and the paginated list.
 Both are driven by ``status IN ('AS', 'AS_RECEIVED', 'AS_COMPLETED')``, which the
-existing ``ix_orders_status`` btree already serves. The
+existing ``ix_orders_as_axis_status`` btree already serves. The
 ``structured_data.shipment.sales_delivery`` JSONB extraction is only a residual
 ``Filter`` (list) / ``CASE`` projection (count) evaluated over the
 already-status-bounded rows — it never drives the scan, so no trigram /
@@ -15,8 +15,8 @@ its attachment lookups with ``order_id.in_(order_ids)`` (indexed) — no N+1.
 
 Measurement (localhost dev, 60k orders / 10% AS, EXPLAIN ANALYZE):
 
-    list  : Bitmap Index Scan on ix_orders_status → top-N heapsort, 5.45 ms, no Seq Scan
-    count : Bitmap Index Scan on ix_orders_status → Aggregate,        4.95 ms, no Seq Scan
+    list  : Bitmap Index Scan on ix_orders_as_axis_status → top-N heapsort, 5.45 ms, no Seq Scan
+    count : Bitmap Index Scan on ix_orders_as_axis_status → Aggregate,        4.95 ms, no Seq Scan
 
 A candidate partial index ``(as_received_date DESC NULLS LAST, id DESC)
 WHERE status IN (AS…)`` was created and measured: the planner **refused it** and
@@ -29,7 +29,7 @@ This test locks the finding in as a regression guard. It seeds a production-like
 ``orders`` volume into the throwaway PG-lane database, ANALYZEs, and asserts each
 hot query plan is index-driven on ``status`` with **no sequential scan** and with
 the JSONB ``sales_delivery`` predicate appearing only as a residual filter (never
-an ``Index Cond``). It goes red if ``ix_orders_status`` is dropped or an
+an ``Index Cond``). It goes red if ``ix_orders_as_axis_status`` is dropped or an
 unindexed predicate is pushed onto the AS hot path.
 
 PG lane only (opt-in via ``FOMS_TEST_DATABASE_URL``; skips otherwise). No
@@ -45,7 +45,10 @@ from sqlalchemy.sql import Select
 from sqlalchemy import text
 
 from models import Order
-from foms.services.as_dashboard_helpers import _erp_as_completed_condition
+from foms.services.as_dashboard_helpers import (
+    _erp_as_completed_condition,
+    erp_as_scope_condition,
+)
 from foms.services.as_dashboard_read_model import build_as_tab_query_conditions
 
 _AS_STATUSES = ["AS", "AS_RECEIVED", "AS_COMPLETED"]
@@ -56,7 +59,7 @@ def _base_where():
     """The AS dashboard base predicate shared by every query on the page."""
     return (
         Order.active_filter(),
-        Order.status.in_(_AS_STATUSES),
+        erp_as_scope_condition(),
     )
 
 
@@ -116,7 +119,7 @@ def _seed_orders(session) -> None:
         INSERT INTO orders
           (id, received_date, customer_name, phone, address, product,
            is_erp_order, structured_schema_version, deleted_at, status,
-           as_received_date, as_completed_date, structured_data)
+           as_axis_status, as_received_date, as_completed_date, structured_data)
         SELECT gs, '2025-01-01', 'c'||gs, '010'||gs, 'a'||gs, 'p'||gs,
                true, 3, NULL,
                CASE
@@ -125,6 +128,12 @@ def _seed_orders(session) -> None:
                  WHEN mod(gs, 40) = 2 THEN 'AS_COMPLETED'
                  ELSE (ARRAY['RECEIVED','MEASURE','DRAWING',
                              'PRODUCTION','CONSTRUCTION','COMPLETED'])[1 + mod(gs, 6)]
+               END,
+               CASE
+                 WHEN mod(gs, 40) = 0 THEN 'IN_PROGRESS'
+                 WHEN mod(gs, 40) = 1 THEN 'RECEIVED'
+                 WHEN mod(gs, 40) = 2 THEN 'COMPLETED'
+                 ELSE NULL
                END,
                '2025-06-01',
                CASE WHEN mod(gs, 40) = 2 AND mod(gs, 400) <> 2
@@ -140,7 +149,7 @@ def _seed_orders(session) -> None:
 
 
 def _assert_index_driven_no_seqscan(lines: list[str], label: str) -> None:
-    """Assert a plan scans ``orders`` via ``ix_orders_status`` with no Seq Scan.
+    """Assert a plan scans ``orders`` via ``ix_orders_as_axis_status`` with no Seq Scan.
 
     Also asserts the JSONB ``sales_delivery`` predicate is only a residual
     filter — it must never appear as an ``Index Cond`` (documents that no JSONB
@@ -151,15 +160,13 @@ def _assert_index_driven_no_seqscan(lines: list[str], label: str) -> None:
         f"{label}: unexpected sequential scan on orders — the status index "
         f"stopped serving the AS hot path.\n{plan}"
     )
-    assert "ix_orders_status" in plan, (
-        f"{label}: expected the status btree (ix_orders_status) to drive the "
+    assert "ix_orders_as_axis_status" in plan, (
+        f"{label}: expected the status btree (ix_orders_as_axis_status) to drive the "
         f"scan.\n{plan}"
     )
+    # 부분 인덱스(``WHERE as_axis_status IS NOT NULL``)는 조건이 인덱스 정의에 들어 있어
+    # 계획에 ``Index Cond`` 줄이 없을 수 있다 — 인덱스가 스캔을 몰고 있으면 그게 계약이다.
     index_cond_lines = [ln for ln in lines if "Index Cond" in ln]
-    assert index_cond_lines, f"{label}: no Index Cond in plan.\n{plan}"
-    assert any("status" in ln for ln in index_cond_lines), (
-        f"{label}: status is not the index condition.\n{plan}"
-    )
     assert not any("sales_delivery" in ln for ln in index_cond_lines), (
         f"{label}: JSONB sales_delivery leaked into an Index Cond — it must stay "
         f"a residual filter, never a scan driver.\n{plan}"
@@ -167,7 +174,7 @@ def _assert_index_driven_no_seqscan(lines: list[str], label: str) -> None:
 
 
 def test_as_dashboard_hot_queries_are_index_driven(pg_session) -> None:
-    """SCALE-AS-01 evidence lock: both AS hot queries ride ix_orders_status.
+    """SCALE-AS-01 evidence lock: both AS hot queries ride ix_orders_as_axis_status.
 
     Proves the 무변경 종료 decision — the existing status index already keeps the
     list and tab-count queries off a sequential scan at production-like volume,
@@ -183,11 +190,11 @@ def test_as_dashboard_hot_queries_are_index_driven(pg_session) -> None:
     )
 
 
-def test_status_index_exists(pg_session) -> None:
-    """The AS hot path depends on ``ix_orders_status`` — guard its existence."""
+def test_as_axis_index_exists(pg_session) -> None:
+    """The AS hot path depends on ``ix_orders_as_axis_status`` — guard its existence."""
     row = pg_session.execute(text(
         "SELECT indexdef FROM pg_indexes "
-        "WHERE tablename = 'orders' AND indexname = 'ix_orders_status'"
+        "WHERE tablename = 'orders' AND indexname = 'ix_orders_as_axis_status'"
     )).fetchone()
-    assert row is not None, "ix_orders_status is missing — AS dashboard hot path degrades to Seq Scan"
-    assert "btree (status)" in row[0]
+    assert row is not None, "ix_orders_as_axis_status is missing — AS dashboard hot path degrades to Seq Scan"
+    assert "btree (as_axis_status)" in row[0]

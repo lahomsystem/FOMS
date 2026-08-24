@@ -100,9 +100,47 @@
       target.addEventListener(type, handler, listenerOptions);
     }
 
+    // 주문 식별자는 **행 컨테이너에만** 싣는다(데스크톱 `tr`, 모바일 카드). 예전엔 행 안의
+    // 버튼·입력·셀마다 data-order-id 를 복제해 AS fragment 한 장에 1,271개가 실렸다
+    // (2026-08-13 실측, 행당 22개). 자손은 컨테이너에서 역참조한다.
+    //
+    // 같은 주문이 데스크톱 표와 모바일 카드 두 표면에 동시에 렌더되므로, 한 주문의 스코프는
+    // 항상 복수일 수 있다. 상태 동기화(미결 토글·도면 체크·날짜 저장)는 두 표면을 모두
+    // 갱신해야 하므로 querySelectorAll 결과를 전부 훑는다 — 예전 `.cls[data-order-id="x"]`
+    // 전역 선택자와 같은 집합이다.
+    function getOrderScopes(orderId) {
+      if (!orderId) return [];
+      return Array.from(document.querySelectorAll(`[data-order-id="${orderId}"]`));
+    }
+
+    function findInOrderScopes(orderId, selector) {
+      const found = [];
+      getOrderScopes(orderId).forEach((scope) => {
+        if (scope.matches(selector) && found.indexOf(scope) === -1) found.push(scope);
+        scope.querySelectorAll(selector).forEach((el) => {
+          if (found.indexOf(el) === -1) found.push(el);
+        });
+      });
+      return found;
+    }
+
+    function findOneInOrderScopes(orderId, selector) {
+      const all = findInOrderScopes(orderId, selector);
+      return all.length ? all[0] : null;
+    }
+
+    // 자손 엘리먼트 → 소속 주문 id. 자기 자신이 아직 속성을 들고 있으면 그대로 쓰고
+    // (타임라인 fragment 루트·설정 노드처럼 행 밖에 있는 소비자와 호환), 없으면 컨테이너를 탄다.
+    function orderIdOf(el) {
+      if (!el) return '';
+      if (el.dataset && el.dataset.orderId) return el.dataset.orderId;
+      const host = el.closest ? el.closest('[data-order-id]') : null;
+      return host && host.dataset ? (host.dataset.orderId || '') : '';
+    }
+
     function getDateInputsForOrder(orderId, field) {
       if (!orderId || !field) return [];
-      return Array.from(document.querySelectorAll(`.editable-date-as[data-order-id="${orderId}"][data-field="${field}"]`));
+      return findInOrderScopes(orderId, `.editable-date-as[data-field="${field}"]`);
     }
 
     let asConstructionWorkerOptions = [];
@@ -148,7 +186,7 @@
 
     function getConstructionWorkerListsForOrder(orderId) {
       if (!orderId) return [];
-      return Array.from(document.querySelectorAll(`.as-construction-worker-list[data-order-id="${orderId}"]`));
+      return findInOrderScopes(orderId, '.as-construction-worker-list');
     }
 
     function getConstructionWorkerRows(list) {
@@ -178,7 +216,7 @@
     }
 
     function buildAsConstructionWorkerRow(list, value, editing = false) {
-      const orderId = list && list.dataset ? (list.dataset.orderId || '') : '';
+      const orderId = orderIdOf(list);
       const datalistId = list && list.dataset ? (list.dataset.datalistId || '') : '';
       const placeholder = list && list.dataset ? (list.dataset.placeholder || '시공자') : '시공자';
       const normalizedValue = formatAsConstructionWorkers(value);
@@ -243,8 +281,8 @@
     }
 
     async function saveConstructionWorkersList(list) {
-      if (!list || !list.dataset.orderId) return { success: false, skipped: true };
-      const orderId = list.dataset.orderId;
+      const orderId = orderIdOf(list);
+      if (!list || !orderId) return { success: false, skipped: true };
       const previousWorkers = normalizeAsConstructionWorkers(list.dataset.savedValue || '');
       const nextWorkers = getConstructionWorkerValuesFromList(list);
       if (constructionWorkersEqual(previousWorkers, nextWorkers)) {
@@ -552,7 +590,7 @@
       }
 
       function applyChipState(orderId, value) {
-        document.querySelectorAll(`.erp-as-avail-chip[data-order-id="${orderId}"]`).forEach((chip) => {
+        findInOrderScopes(orderId, '.erp-as-avail-chip').forEach((chip) => {
           chip.dataset.availDays = value ? value.days : '';
           chip.dataset.availTime = value ? value.time : '';
           chip.dataset.availNote = value && value.note ? value.note : '';
@@ -575,7 +613,7 @@
 
       function openPop(chip) {
         closePop();
-        const orderId = chip.dataset.orderId;
+        const orderId = orderIdOf(chip);
         const state = {
           days: chip.dataset.availDays || 'any',
           time: chip.dataset.availTime || 'any',
@@ -641,9 +679,10 @@
         if (chip) {
           e.preventDefault();
           e.stopPropagation();
-          if (pop && pop.dataset.forOrder === chip.dataset.orderId) { closePop(); return; }
+          const chipOrderId = orderIdOf(chip);
+          if (pop && pop.dataset.forOrder === chipOrderId) { closePop(); return; }
           openPop(chip);
-          if (pop) pop.dataset.forOrder = chip.dataset.orderId;
+          if (pop) pop.dataset.forOrder = chipOrderId;
           return;
         }
         if (pop && !pop.contains(e.target)) closePop();
@@ -652,7 +691,7 @@
     })();
 
     function getDateFieldSaveState(input) {
-      const key = `${input.dataset.orderId}:${input.dataset.field}`;
+      const key = `${orderIdOf(input)}:${input.dataset.field}`;
       let state = dateFieldSaveState.get(key);
       if (!state) {
         state = {
@@ -672,7 +711,7 @@
     }
 
     function setSalesDeliveryButtons(orderId, isActive) {
-      document.querySelectorAll(`.as-sales-delivery-btn[data-order-id="${orderId}"]`).forEach((btn) => {
+      findInOrderScopes(orderId, '.as-sales-delivery-btn').forEach((btn) => {
         btn.dataset.salesDeliveryActive = isActive ? '1' : '0';
         btn.textContent = `${isActive ? '☑' : '☐'} 영업/전달`;
         btn.classList.toggle('btn-warning', !!isActive);
@@ -681,13 +720,13 @@
     }
 
     function setAsBlueprintCheckboxes(orderId, isChecked) {
-      document.querySelectorAll(`.as-blueprint-checkbox[data-order-id="${orderId}"]`).forEach((input) => {
+      findInOrderScopes(orderId, '.as-blueprint-checkbox').forEach((input) => {
         input.checked = !!isChecked;
       });
     }
 
     function setAsPendingButtonState(orderId, asPending) {
-      document.querySelectorAll(`.as-pending-btn[data-order-id="${orderId}"]`).forEach((btn) => {
+      findInOrderScopes(orderId, '.as-pending-btn').forEach((btn) => {
         btn.dataset.asPending = asPending ? '1' : '0';
         btn.textContent = asPending ? '미결 해제' : '미결';
         btn.title = asPending ? '미결 표시 해제' : '미결 표시';
@@ -837,7 +876,7 @@
     async function saveDateField(input, options = {}) {
       const silent = options.silent === true;
       const redirectAfterComplete = options.redirectAfterComplete === true;
-      const orderId = input.dataset.orderId;
+      const orderId = orderIdOf(input);
       const fieldName = input.dataset.field;
       const state = getDateFieldSaveState(input);
       const value = input.value || '';
@@ -930,7 +969,7 @@
 
     function loadAsCardDetail(placeholder) {
       if (!placeholder || placeholder.dataset.loading === '1') return;
-      const orderId = placeholder.dataset.orderId || '';
+      const orderId = orderIdOf(placeholder);
       if (!orderId) return;
       placeholder.dataset.loading = '1';
       placeholder.innerHTML = '<div class="erp-as-card-lazy__status text-muted small py-2">불러오는 중...</div>';
@@ -1033,7 +1072,7 @@
         if (e.target.closest('a, input, select, textarea')) return;
         const otherBtn = e.target.closest('button');
         if (otherBtn && !otherBtn.matches('.as-tl-cell__expand, .as-tl-cell__empty')) return;
-        const orderId = cell.dataset.orderId;
+        const orderId = orderIdOf(cell);
         const row = cell.closest('tr[data-order-id]');
         if (!row || !orderId) return;
         const next = row.nextElementSibling;
@@ -1101,7 +1140,7 @@
        * @param {{line: string, countDelta: number}} opts line='recent'|'anchor', 배지 증감
        */
       function updateAsCellSummary(orderId, html, opts) {
-        const cell = document.querySelector('.as-tl-cell[data-order-id="' + orderId + '"]');
+        const cell = findOneInOrderScopes(orderId, '.as-tl-cell');
         if (!cell) return; // 모바일 카드·상세 표면에는 요약 셀이 없다
         const parsed = document.createElement('div');
         parsed.innerHTML = html;
@@ -1149,11 +1188,10 @@
        * @param {string} html 서버 렌더 .as-tl-cell 마크업
        */
       function replaceAsCellSummary(orderId, html) {
-        const sel = '.as-tl-cell[data-order-id="' + orderId + '"]';
-        const cell = document.querySelector(sel);
+        const cell = findOneInOrderScopes(orderId, '.as-tl-cell');
         if (!cell || !html) return; // 모바일 상세 표면에는 요약 셀이 없다
         cell.outerHTML = html;
-        const fresh = document.querySelector(sel);
+        const fresh = findOneInOrderScopes(orderId, '.as-tl-cell');
         if (fresh) highlightTimelineStatic(fresh);
       }
 
@@ -1182,7 +1220,7 @@
        * 재조회 실패는 조용히 삼킨다(다음 열기에서 회복).
        */
       async function refreshRoundChart(orderId) {
-        const chart = document.querySelector('.as-rchart[data-order-id="' + orderId + '"]');
+        const chart = findOneInOrderScopes(orderId, '.as-rchart');
         if (!chart) return;
         try {
           const res = await fetch('/erp/as/timeline/' + encodeURIComponent(orderId), {
@@ -1219,7 +1257,7 @@
       document.addEventListener('click', async function (e) {
         const btn = e.target.closest && e.target.closest('.as-rchart-verdict-btn');
         if (!btn || btn.dataset.busy === '1') return;
-        const orderId = btn.dataset.orderId;
+        const orderId = orderIdOf(btn);
         const verdict = btn.dataset.verdict;
         if (!orderId || !verdict) return;
         const label = verdict === 'resolved' ? '완결' : '미결(다음 회차 시작)';
@@ -1251,7 +1289,7 @@
         const item = btn.closest('.as-tl-item');
         const timeline = btn.closest('.as-timeline, .as-rchart');
         const logId = item && item.dataset.logId;
-        const orderId = timeline && timeline.dataset.orderId;
+        const orderId = orderIdOf(timeline);
         if (!item || !logId || !orderId) return;
         if (!window.confirm('이 기록을 삭제할까요? 목록에서 사라집니다.')) return;
         btn.dataset.busy = '1';
@@ -1280,7 +1318,7 @@
         // 재진입 가드: 버튼 disabled는 키보드 단축키 경로를 막지 못한다. as_log는 append-only라
         // 연타 한 번이 중복 기록을 남긴다(삭제는 소프트 삭제여서 감춰질 뿐 되돌려지지 않는다).
         if (!form || form.dataset.busy === '1') return;
-        const orderId = form.dataset.orderId;
+        const orderId = orderIdOf(form);
         const textEl = form.querySelector('.as-timeline__text');
         const typeEl = form.querySelector('.as-timeline__type');
         const text = (textEl && textEl.value || '').trim();
@@ -1339,7 +1377,7 @@
         const item = form.closest('.as-tl-item');
         const timeline = form.closest('.as-timeline, .as-rchart');
         const logId = item && item.dataset.logId;
-        const orderId = timeline && timeline.dataset.orderId;
+        const orderId = orderIdOf(timeline);
         const textEl = form.querySelector('.as-timeline__text');
         const text = (textEl && textEl.value || '').trim();
         if (!logId || !orderId || !text) return;
@@ -1379,7 +1417,7 @@
 
       /** 상태 셀의 비용 배지를 서버 렌더 html로 교체(무배지면 제거). PC 표면 전용. */
       function updateAsBillingBadge(orderId, html) {
-        const cell = document.querySelector('.erp-as-status-cell[data-order-id="' + orderId + '"]');
+        const cell = findOneInOrderScopes(orderId, '.erp-as-status-cell');
         if (!cell) return; // 모바일 카드에는 상태 셀이 없다
         const old = cell.querySelector('.erp-as-billing-badge');
         if (old) old.remove();
@@ -1394,7 +1432,7 @@
       async function submitBillingDecision(form) {
         if (!form || form.dataset.busy === '1') return; // quick-add와 동일한 재진입 가드
         const timeline = form.closest('.as-timeline, .as-rchart');
-        const orderId = timeline && timeline.dataset.orderId;
+        const orderId = orderIdOf(timeline);
         const typeEl = form.querySelector('.as-billing-type');
         const amountEl = form.querySelector('.as-billing-amount');
         const reasonEl = form.querySelector('.as-billing-reason');
@@ -1835,7 +1873,7 @@
       document.addEventListener('click', function (e) {
         const more = e.target.closest && e.target.closest('.as-timeline__more');
         if (!more) return;
-        const orderId = more.dataset.orderId;
+        const orderId = orderIdOf(more);
         const timeline = more.closest('.as-timeline');
         const body = more.closest('.as-tl-expand-body')
           || more.closest('.erp-as-mobile-card__content')
@@ -1869,8 +1907,8 @@
       if (!btn) return;
       e.preventDefault();
 
-      // 토글은 타임라인 헤더 소속이라 구 리치에디터 조상이 없다 — dataset을 직접 읽는다.
-      const orderId = btn.dataset.orderId || '';
+      // 토글은 타임라인 헤더 소속이라 구 리치에디터 조상이 없다 — 행 컨테이너에서 역참조한다.
+      const orderId = orderIdOf(btn);
       if (!orderId) {
         showFeedback('영업/택배 분류 대상을 찾지 못했습니다.', true);
         return;
@@ -2211,7 +2249,7 @@
         const btn = e.target.closest('.find-schedule-btn');
         if (!btn) return;
         const addr = btn.dataset.address;
-        const orderId = btn.dataset.orderId;
+        const orderId = orderIdOf(btn);
         const btnLat = btn.dataset.lat;
         const btnLng = btn.dataset.lng;
         const modalEl = document.getElementById('scheduleSearchModal');
@@ -2552,7 +2590,7 @@
       addAsDashboardListener(document.body, 'click', async function (e) {
         var btn = e.target.closest('.as-photos-btn');
         if (!btn) return;
-        var orderId = btn.dataset.orderId;
+        var orderId = orderIdOf(btn);
         if (!orderId) return;
         __currentAsModalOrderId = orderId;
         var modalEl = document.getElementById('asErpAttachmentsCategoryModal');
@@ -2572,220 +2610,31 @@
       });
 
       // AS PUSH: 본문은 서버가 저장된 주문으로 조립한다(SSOT) — 이 화면에는 주문 폼이 없다.
-      // 전송 전 확인창(AS-FRESH-01 T7)에서 나갈 본문·파일을 보여주고 선택을 고칠 수 있게 한다.
-      // 기본 선택은 서버가 정한다(select_as_push_attachments) — 클라가 따로 판정하면
-      // 미리보기와 실제 전송이 갈린다. 재전송이면 서버가 400 으로 변경 내용을 요구하므로
-      // prompt 후 1회 재시도.
+      // 전송 전 확인창(AS-FRESH-01 T7)은 as-push-confirm.js 공용 모듈.
       var asChannelPushBtn = document.getElementById('as-modal-channel-push-btn');
       if (asChannelPushBtn) {
-        var pushConfirmEl = document.getElementById('asPushConfirmModal');
-        var pushTextEl = document.getElementById('as-push-confirm-text');
-        var pushFilesEl = document.getElementById('as-push-confirm-files');
-        var pushSelectedEl = document.getElementById('as-push-confirm-selected');
-        var pushCapHint = document.getElementById('as-push-confirm-cap-hint');
-        var pushCountEl = document.getElementById('as-push-confirm-count');
-        var pushSendBtn = document.getElementById('as-push-confirm-send');
-        var __pushConfirmOrderId = null;
-        var __pushDragFrom = -1;
-
-        function selectedPushIds() {
-          if (!pushSelectedEl) return [];
-          return Array.from(pushSelectedEl.querySelectorAll('.as-push-confirm__file'))
-            .map(function (el) { return Number(el.dataset.fileId); })
-            .filter(function (n) { return Number.isFinite(n); });
-        }
-
-        function syncPushCount() {
-          if (!pushCountEl) return;
-          var selected = selectedPushIds().length;
-          var pool = pushFilesEl ? pushFilesEl.querySelectorAll('.as-push-confirm__file').length : 0;
-          pushCountEl.textContent = (selected || pool) ? selected + '건 전송' : '';
-          if (pushCapHint) pushCapHint.hidden = selected <= 20;
-          if (pushSelectedEl) {
-            Array.from(pushSelectedEl.querySelectorAll('.as-push-confirm__file')).forEach(function (el, idx) {
-              el.classList.toggle('is-over-cap', idx >= 20);
-              var ord = el.querySelector('.as-push-confirm__ord');
-              if (ord) ord.textContent = String(idx + 1);
-            });
-          }
-        }
-
-        function pushFileCard(f, selected) {
-          var name = typeof escapeHtml === 'function' ? escapeHtml(f.filename || '') : (f.filename || '');
-          var source = typeof escapeHtml === 'function' ? escapeHtml(f.source || '') : (f.source || '');
-          var media = f.is_image
-            ? '<img class="as-push-confirm__thumb" src="' + f.url + '" alt="' + name + '" loading="lazy">'
-            : '<div class="as-push-confirm__doc"><i class="fas fa-file"></i></div>';
-          return '<label class="as-push-confirm__file' + (selected ? ' is-on' : '') + '" draggable="' + (selected ? 'true' : 'false') + '" data-file-id="' + f.id + '">'
-            + '<span class="as-push-confirm__ord">' + (selected ? '1' : '') + '</span>'
-            + '<input type="checkbox" value="' + f.id + '"' + (f.selected ? ' checked' : '') + '>'
-            + media
-            + '<span class="as-push-confirm__name" title="' + name + '">' + name + '</span>'
-            + '<span class="as-push-confirm__source">' + source + '</span>'
-            + '<span class="as-push-confirm__nudge-row">'
-            + '<button type="button" class="as-push-confirm__nudge" data-dir="-1" aria-label="앞으로">▲</button>'
-            + '<button type="button" class="as-push-confirm__nudge" data-dir="1" aria-label="뒤로">▼</button>'
-            + '</span>'
-            + '</label>';
-        }
-
-        function renderPushFiles(files) {
-          if (!pushFilesEl) return;
-          if (!files.length) {
-            if (pushSelectedEl) pushSelectedEl.innerHTML = '';
-            pushFilesEl.innerHTML = '<div class="as-push-confirm__empty">보낼 AS 첨부가 없습니다. 본문만 전송됩니다.</div>';
-            syncPushCount();
-            return;
-          }
-          var selected = files.filter(function (f) { return f.selected; });
-          var rest = files.filter(function (f) { return !f.selected; });
-          if (pushSelectedEl) {
-            pushSelectedEl.innerHTML = selected.map(function (f) { return pushFileCard(f, true); }).join('');
-          }
-          pushFilesEl.innerHTML = rest.length
-            ? rest.map(function (f) { return pushFileCard(f, false); }).join('')
-            : '<div class="as-push-confirm__empty">후보 없음</div>';
-          syncPushCount();
-        }
-
-        function movePushSelected(from, to) {
-          if (!pushSelectedEl) return;
-          var nodes = Array.from(pushSelectedEl.querySelectorAll('.as-push-confirm__file'));
-          if (from < 0 || to < 0 || from >= nodes.length || to >= nodes.length || from === to) return;
-          var taken = nodes[from];
-          var target = nodes[to];
-          if (from < to) pushSelectedEl.insertBefore(taken, target.nextSibling);
-          else pushSelectedEl.insertBefore(taken, target);
-          syncPushCount();
-        }
-
-        if (pushSelectedEl) {
-          addAsDashboardListener(pushSelectedEl, 'change', function (e) {
-            var box = e.target.closest && e.target.closest('input[type="checkbox"]');
-            if (!box || box.checked) return;
-            var label = box.closest('.as-push-confirm__file');
-            if (!label || !pushFilesEl) return;
-            box.checked = false;
-            label.classList.remove('is-on');
-            label.setAttribute('draggable', 'false');
-            pushFilesEl.appendChild(label);
-            syncPushCount();
-          });
-          addAsDashboardListener(pushSelectedEl, 'dragstart', function (e) {
-            var label = e.target.closest && e.target.closest('.as-push-confirm__file');
-            if (!label) return;
-            __pushDragFrom = Array.from(pushSelectedEl.querySelectorAll('.as-push-confirm__file')).indexOf(label);
-          });
-          addAsDashboardListener(pushSelectedEl, 'dragover', function (e) { e.preventDefault(); });
-          addAsDashboardListener(pushSelectedEl, 'drop', function (e) {
-            var label = e.target.closest && e.target.closest('.as-push-confirm__file');
-            if (!label) return;
-            e.preventDefault();
-            var to = Array.from(pushSelectedEl.querySelectorAll('.as-push-confirm__file')).indexOf(label);
-            movePushSelected(__pushDragFrom, to);
-            __pushDragFrom = -1;
-          });
-          addAsDashboardListener(pushSelectedEl, 'click', function (e) {
-            var nudge = e.target.closest && e.target.closest('.as-push-confirm__nudge');
-            if (!nudge) return;
-            e.preventDefault();
-            e.stopPropagation();
-            var label = nudge.closest('.as-push-confirm__file');
-            var nodes = Array.from(pushSelectedEl.querySelectorAll('.as-push-confirm__file'));
-            var from = nodes.indexOf(label);
-            movePushSelected(from, from + Number(nudge.getAttribute('data-dir')));
-          });
-        }
-
-        if (pushFilesEl) {
-          addAsDashboardListener(pushFilesEl, 'change', function (e) {
-            var box = e.target.closest && e.target.closest('input[type="checkbox"]');
-            if (!box || !box.checked || !pushSelectedEl) return;
-            var label = box.closest('.as-push-confirm__file');
-            if (!label) return;
-            label.classList.add('is-on');
-            label.setAttribute('draggable', 'true');
-            pushSelectedEl.appendChild(label);
-            syncPushCount();
-          });
-        }
-
         addAsDashboardListener(asChannelPushBtn, 'click', async function () {
           var orderId = __currentAsModalOrderId;
           if (!orderId) return;
+          if (typeof window.fomsConfirmAndSendAsPush !== 'function') {
+            showFeedback('AS 전송 확인창을 불러오지 못했습니다.', true);
+            return;
+          }
           asChannelPushBtn.disabled = true;
           try {
-            var res = await fetch(
-              '/api/channel/push-preview?order_id=' + encodeURIComponent(orderId) + '&push_kind=as',
-              { credentials: 'same-origin' }
-            );
-            var preview = await res.json();
-            if (!preview.success) {
-              showFeedback('미리보기 실패: ' + (preview.message || '알 수 없는 오류'), true);
-              return;
+            var result = await window.fomsConfirmAndSendAsPush({ orderId: orderId });
+            if (!result || result.cancelled) return;
+            if (result.success) {
+              showFeedback('AS방으로 전송했습니다. (첨부 ' + (result.files_count || 0) + '건)');
+            } else {
+              showFeedback('전송 실패: ' + (result.error || result.message || '알 수 없는 오류'), true);
             }
-            __pushConfirmOrderId = orderId;
-            if (pushTextEl) pushTextEl.textContent = preview.text || '';
-            renderPushFiles(preview.files || []);
-            if (pushConfirmEl) bootstrap.Modal.getOrCreateInstance(pushConfirmEl).show();
           } catch (err) {
             showFeedback('네트워크 오류: ' + String((err && err.message) || err || ''), true);
           } finally {
             asChannelPushBtn.disabled = false;
           }
         });
-
-        if (pushSendBtn) {
-          addAsDashboardListener(pushSendBtn, 'click', async function () {
-            var orderId = __pushConfirmOrderId;
-            if (!orderId) return;
-            var attachmentIds = selectedPushIds();
-
-            async function send(changeNote) {
-              var payload = {
-                order_id: Number(orderId),
-                push_kind: 'as',
-                attachment_ids: attachmentIds,
-              };
-              if (changeNote) payload.change_note = changeNote;
-              var resp = await fetch('/api/channel/push-manual', {
-                method: 'POST',
-                headers: { 'Content-Type': 'application/json' },
-                credentials: 'same-origin',
-                body: JSON.stringify(payload),
-              });
-              return resp.json();
-            }
-
-            pushSendBtn.disabled = true;
-            var originalHtml = pushSendBtn.innerHTML;
-            pushSendBtn.innerHTML = '<i class="fas fa-spinner fa-spin"></i> 전송중...';
-            try {
-              var data = await send(null);
-              if (!data.success) {
-                var msg = data.error || data.message || '알 수 없는 오류';
-                if (msg.indexOf('재전송 시 변경 내용') >= 0) {
-                  var note = (window.prompt(
-                    '이미 전송한 AS PUSH입니다. 변경 내용을 입력하면 채널톡 메시지 상단에 [수정]으로 표시됩니다.'
-                  ) || '').trim();
-                  if (!note) return;
-                  data = await send(note);
-                }
-              }
-              if (data.success) {
-                if (pushConfirmEl) bootstrap.Modal.getInstance(pushConfirmEl)?.hide();
-                showFeedback('AS방으로 전송했습니다. (첨부 ' + (data.files_count || 0) + '건)');
-              } else {
-                showFeedback('전송 실패: ' + (data.error || data.message || '알 수 없는 오류'), true);
-              }
-            } catch (err) {
-              showFeedback('네트워크 오류: ' + String((err && err.message) || err || ''), true);
-            } finally {
-              pushSendBtn.disabled = false;
-              pushSendBtn.innerHTML = originalHtml;
-            }
-          });
-        }
       }
 
       var asUploadInput = document.getElementById('as-modal-upload-input');
@@ -2805,6 +2654,12 @@
           asUploadBtn.disabled = true;
           var ok = 0;
           try {
+            if (typeof window.fomsEnsureAsUploadAnchor !== 'function') {
+              showFeedback('AS 첨부 위치를 준비하지 못했습니다.', true);
+              return;
+            }
+            var anchor = await window.fomsEnsureAsUploadAnchor(orderId);
+
             // --- Optimistic UI Start ---
             var galleryEl = document.getElementById('erp-attachments-category-gallery');
             if (galleryEl) {
@@ -2851,26 +2706,14 @@
             
             var category = 'as';
             var folder = 'orders/' + orderId + '/attachments';
-            let sessionMap = {};
-
-            const fallbackFormUpload = async function (file) {
-              try {
-                const fd = new FormData();
-                fd.append('file', file);
-                fd.append('category', category);
-                const res = await fetch(`/api/orders/${orderId}/attachments`, { method: 'POST', body: fd });
-                const data = await res.json();
-                return data && data.success ? { success: true } : (data || { success: false, message: '첨부 업로드 실패' });
-              } catch (err) {
-                return { success: false, message: err && err.message ? err.message : '첨부 업로드 실패' };
-              }
-            };
 
             const uploadResult = await window.fomsUploadOrderAttachmentsBatch({
                 orderId: orderId,
                 files: files,
                 folder: folder,
                 category: category,
+                asLogId: anchor.asLogId,
+                sortOrders: files.map(function (_file, index) { return anchor.nextSort + index; }),
                 useDirectUpload: true,
                 onPrepareProgress: function (info) {
                     if (asUploadStatus) asUploadStatus.textContent = '이미지 최적화 중... (' + info.done + '/' + info.total + ')';
@@ -3029,9 +2872,9 @@
     // AS 미결 버튼 클릭: 미결 ↔ 미결 해제 토글 (낙관적 UI 후 서버와 동기화)
     addAsDashboardListener(document, 'click', function (e) {
       var btn = e.target && e.target.closest('.as-pending-btn');
-      if (!btn || !btn.dataset.orderId) return;
+      var orderId = orderIdOf(btn);
+      if (!btn || !orderId) return;
       e.preventDefault();
-      var orderId = btn.dataset.orderId;
       var originallyPending = btn.dataset.asPending === '1';
       var nextPending = !originallyPending;
       applyOrderUiFromResponse(orderId, buildOptimisticAsPendingPayload(orderId, nextPending), { updatedField: 'as_pending' });
@@ -3061,11 +2904,11 @@
 
     addAsDashboardListener(document, 'change', function (e) {
       const checkbox = e.target && e.target.closest('.as-blueprint-checkbox');
-      if (!checkbox || !checkbox.dataset.orderId) return;
+      const orderId = orderIdOf(checkbox);
+      if (!checkbox || !orderId) return;
 
-      const orderId = checkbox.dataset.orderId;
       const nextChecked = checkbox.checked;
-      const relatedCheckboxes = document.querySelectorAll(`.as-blueprint-checkbox[data-order-id="${orderId}"]`);
+      const relatedCheckboxes = findInOrderScopes(orderId, '.as-blueprint-checkbox');
       const confirmed = window.confirm(
         nextChecked
           ? 'AS도면 확인으로 표시할까요?'

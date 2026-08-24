@@ -1,0 +1,432 @@
+/* 네이버 원본 도크 (T14-B) — 주문 편집 셸 우측 독립 패널.
+   폼 불가침: 기존 폼 셀렉터를 일절 건드리지 않는다. 셸 좁은 폭에서는 pane 대신
+   FAB + 슬라이드 서랍으로 전환하며, 판정은 JS(ResizeObserver, 셸 폭 기준)가 한다
+   — 뷰포트 미디어쿼리 금지(공용 부품 규칙: 같은 부품이 다른 폭 컨테이너에 실린다). */
+
+/* ── 도킹 pane (셸 넓을 때, is-naver-dock-open 이 form col 을 좁힌다) ── */
+/* 폭: 2026-08-19 사용자 요청으로 종전 360px 의 약 2배까지 넓힌다. 고정 720px 로 두면
+   1400px 셸(도킹 최소 폭)에서 폼이 굶으므로 셸 폭에 비례시키고 상한만 720px 로 잡는다
+   — 1565px 이상이면 720px(=2배), 1400px 에서도 644px 로 종전보다 훨씬 넓다.
+   뷰포트 미디어쿼리는 쓰지 않는다(공용 부품 규칙 — 판정은 셸 폭). */
+.erp-edit-shell--erp-order.is-naver-dock-open .erp-edit-col--split-ready {
+  flex: 1 1 auto;
+  max-width: calc(100% - clamp(436px, 46%, 736px));
+  margin-left: 0 !important;
+  margin-right: 0 !important;
+}
+
+.erp-naver-dock-pane {
+  flex: 0 0 clamp(420px, 46%, 720px);
+  max-width: 720px;
+  width: auto;
+}
+
+.erp-naver-dock-card {
+  position: sticky;
+  top: 14px;
+  border: 1px solid #059a54;
+  border-radius: 12px;
+  overflow: hidden;
+  max-height: calc(100vh - 40px);
+  display: flex;
+  flex-direction: column;
+}
+
+/* ── FAB (좁은 셸) ── */
+.erp-naver-dock-fab {
+  position: fixed;
+  right: 22px;
+  bottom: 22px;
+  /* .row 직계 자식이라 Bootstrap `.row > * { width:100% }` 가 걸린다 — fixed 여도
+     지정 너비는 적용되므로 반드시 auto 로 되돌린다(실사고: 1366px 풀폭 바). */
+  width: auto;
+  max-width: none;
+  z-index: 1055;
+  display: inline-flex;
+  align-items: center;
+  gap: 7px;
+  background: #059669;
+  border-color: #059669;
+  color: #fff;
+  font-weight: 600;
+  box-shadow: 0 6px 20px rgba(15, 23, 42, 0.25);
+}
+
+.erp-naver-dock-fab:hover,
+.erp-naver-dock-fab:focus {
+  background: #047857;
+  color: #fff;
+}
+
+/* ── 슬라이드 서랍 ── */
+.erp-naver-dock-drawer {
+  position: fixed;
+  top: 0;
+  right: 0;
+  bottom: 0;
+  width: min(720px, 92vw);
+  max-width: none;
+  padding: 0; /* .row > * 거터 패딩 무효화 */
+  background: #fff;
+  border-left: 1px solid #059a54;
+  box-shadow: -12px 0 30px rgba(15, 23, 42, 0.18);
+  transform: translateX(105%);
+  transition: transform 0.28s;
+  z-index: 1056;
+  display: flex;
+  flex-direction: column;
+}
+
+.erp-naver-dock-drawer.is-open {
+  transform: none;
+}
+
+@media (prefers-reduced-motion: reduce) {
+  .erp-naver-dock-drawer {
+    transition: none;
+  }
+}
+
+/* ── 패널 내부 (pane·서랍 공용 — JS 가 같은 마크업을 양쪽에 렌더) ── */
+.erp-naver-dock-mount {
+  display: flex;
+  flex-direction: column;
+  min-height: 0;
+  flex: 1 1 auto;
+  overflow: hidden;
+}
+
+.naver-dock-hd {
+  background: #e4f6ec;
+  padding: 10px 14px;
+  border-bottom: 1px solid #059a54;
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  flex-wrap: wrap;
+}
+
+.naver-dock-hd .naver-dock-title {
+  font-size: 15px;
+  font-weight: 700;
+  color: #059a54;
+}
+
+.naver-dock-hd .naver-dock-orderno {
+  font-size: 13px;
+  color: #94a3b8;
+}
+
+/* 워크벤치 처리 탭으로 돌아가는 평범한 앵커(R2) — 버튼처럼 보이면 안 된다.
+   불가역 동작이 아니라 "그 집을 여는 링크"라는 뜻이 생김새로도 읽혀야 한다. */
+.naver-dock-hd .naver-dock-wb {
+  font-size: 13px;
+  color: #059a54;
+  text-decoration: underline;
+}
+
+.naver-dock-hd .naver-dock-prog {
+  margin-left: auto;
+  font-size: 13px;
+  font-weight: 700;
+  color: #475569;
+}
+
+/* ── 머리말 정보 (수취인·주문자 다름·배송메모) ── */
+.naver-dock-info {
+  padding: 8px 14px;
+  border-bottom: 1px solid #e2e8f0;
+  flex-shrink: 0;
+}
+
+/* 취소·반품 표식 — 규격 입력 전에 반드시 걸려야 하는 경고라 가장 강한 색을 쓴다. */
+.naver-dock-claim {
+  background: #fee2e2;
+  border: 1px solid #fca5a5;
+  color: #b91c1c;
+  border-radius: 6px;
+  padding: 4px 8px;
+  font-size: 14px;
+  font-weight: 800;
+  margin-bottom: 6px;
+}
+
+.naver-dock-who {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: center;
+  gap: 6px;
+  font-size: 14px;
+  font-weight: 700;
+  color: #0f172a;
+}
+
+/* 대리주문일 때만 뜨는 표식 — 해피콜 대상이 갈리므로 눈에 걸려야 한다. */
+.naver-dock-who .naver-dock-who-diff {
+  font-size: 12.5px;
+  font-weight: 700;
+  color: #b45309;
+  background: #fef3c7;
+  border-radius: 4px;
+  padding: 1px 6px;
+}
+
+.naver-dock-fact {
+  display: flex;
+  align-items: center;
+  gap: 6px;
+  margin-top: 4px;
+  font-size: 13px;
+}
+
+.naver-dock-fact .naver-dock-fact-k {
+  color: #94a3b8;
+  font-weight: 700;
+  min-width: 4.4rem;
+}
+
+.naver-dock-fact .naver-dock-fact-v {
+  color: #334155;
+  font-variant-numeric: tabular-nums;
+}
+
+/* 재결제 줄(R1) — "출고가·잔금에 더하지 마세요"가 눈에 걸려야 한다.
+   문구가 길어 한 줄에 안 들어가므로 위 정렬로 바꾸고 줄바꿈을 허용한다. */
+.naver-dock-fact.naver-dock-fact-warn {
+  align-items: flex-start;
+}
+
+.naver-dock-fact-warn .naver-dock-fact-k,
+.naver-dock-fact-warn .naver-dock-fact-v {
+  color: #b91c1c;
+  font-weight: 700;
+}
+
+.naver-dock-memo {
+  margin-top: 7px;
+}
+
+.naver-dock-memo .naver-dock-memo-hd {
+  display: flex;
+  align-items: center;
+  gap: 6px;
+  font-size: 13px;
+  font-weight: 800;
+  color: #b45309;
+}
+
+.naver-dock-memo .naver-dock-memo-body {
+  margin-top: 3px;
+  font-size: 14px;
+  color: #78350f;
+  background: #fffbeb;
+  border: 1px solid #fde68a;
+  border-radius: 6px;
+  padding: 5px 8px;
+  white-space: pre-wrap;
+  word-break: break-word;
+}
+
+.naver-dock-pbar {
+  height: 5px;
+  background: #e2e8f0;
+  flex-shrink: 0;
+}
+
+.naver-dock-pbar i {
+  display: block;
+  height: 100%;
+  background: #059669;
+  width: 0;
+  transition: width 0.25s;
+}
+
+@media (prefers-reduced-motion: reduce) {
+  .naver-dock-pbar i {
+    transition: none;
+  }
+}
+
+.naver-dock-bd {
+  overflow-y: auto;
+  padding: 2px 0 4px;
+  flex: 1 1 auto;
+  min-height: 0;
+}
+
+.naver-dock-grp {
+  padding: 8px 14px 2px;
+  font-size: 13px;
+  font-weight: 800;
+  color: #2563eb;
+  letter-spacing: 0.03em;
+  border-top: 1px solid #e2e8f0;
+  margin-top: 4px;
+  display: flex;
+  align-items: center;
+  gap: 6px;
+}
+
+.naver-dock-grp:first-child {
+  border-top: 0;
+  margin-top: 0;
+}
+
+.naver-dock-grp .naver-dock-grp-sub {
+  font-weight: 600;
+  color: #94a3b8;
+  font-variant-numeric: tabular-nums;
+}
+
+/* 총폭 힌트 — CS 가 손으로 하던 계산(모듈 × 수량 + 1cm × 수량)을 보여준다. */
+.naver-dock-width {
+  margin: 4px 14px 6px;
+  padding: 6px 9px;
+  border: 1px solid #bfdbfe;
+  background: #eff6ff;
+  border-radius: 7px;
+}
+
+.naver-dock-width .naver-dock-width-hd {
+  display: flex;
+  align-items: center;
+  gap: 7px;
+  font-size: 14px;
+  font-weight: 800;
+  color: #1d4ed8;
+  font-variant-numeric: tabular-nums;
+}
+
+.naver-dock-width .naver-dock-width-formula {
+  margin-top: 2px;
+  font-size: 13px;
+  color: #64748b;
+  font-variant-numeric: tabular-nums;
+}
+
+.naver-dock-width .naver-dock-width-warn {
+  margin-top: 4px;
+  font-size: 13px;
+  font-weight: 700;
+  color: #b91c1c;
+}
+
+.naver-dock-row {
+  display: flex;
+  gap: 9px;
+  padding: 9px 14px;
+  border-bottom: 1px solid #e2e8f0;
+}
+
+.naver-dock-row:last-child {
+  border-bottom: 0;
+}
+
+.naver-dock-row input[type="checkbox"] {
+  margin-top: 2px;
+  width: 15px;
+  height: 15px;
+  accent-color: #059669;
+  cursor: pointer;
+  flex-shrink: 0;
+}
+
+.naver-dock-row .naver-dock-row-body {
+  flex: 1;
+  min-width: 0;
+}
+
+.naver-dock-row .naver-dock-row-title {
+  font-size: 14px;
+  font-weight: 700;
+}
+
+.naver-dock-row .naver-dock-zero {
+  font-size: 12.5px;
+  font-weight: 800;
+  background: #fef3c7;
+  color: #d97706;
+  border-radius: 4px;
+  padding: 0 5px;
+  margin-left: 4px;
+}
+
+.naver-dock-row .naver-dock-src {
+  font-size: 14px;
+  color: #475569;
+  background: #f8fafc;
+  border-radius: 6px;
+  padding: 4px 8px;
+  margin-top: 4px;
+  word-break: break-all;
+}
+
+.naver-dock-row.is-checked .naver-dock-src {
+  opacity: 0.5;
+  text-decoration: line-through;
+}
+
+.naver-dock-acts {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 5px;
+  margin-top: 6px;
+  align-items: center;
+}
+
+.naver-dock-copy {
+  font-size: 13px;
+  font-weight: 600;
+  border: 1px solid #cbd5e1;
+  border-radius: 6px;
+  padding: 1px 8px;
+  color: #475569;
+  background: #fff;
+  cursor: pointer;
+}
+
+.naver-dock-copy:hover {
+  border-color: #059a54;
+  color: #059a54;
+}
+
+.naver-dock-copy.is-copied {
+  border-color: #059669;
+  color: #059669;
+}
+
+.naver-dock-guess {
+  font-size: 12.5px;
+  color: #94a3b8;
+}
+
+.naver-dock-assign {
+  font-size: 14px;
+  border: 1px solid #cbd5e1;
+  border-radius: 6px;
+  padding: 1px 5px;
+  color: #475569;
+  background: #fff;
+  max-width: 100%;
+}
+
+/* 귀속 미정만 경고색 — 지정/추정된 행까지 노랗게 하면 신호가 죽는다. */
+.naver-dock-assign.is-unset {
+  border-color: #d97706;
+  color: #d97706;
+  background: #fef3c7;
+}
+
+.naver-dock-ft {
+  border-top: 1px solid #e2e8f0;
+  padding: 10px 14px;
+  display: flex;
+  gap: 8px;
+  align-items: center;
+  flex-shrink: 0;
+}
+
+.naver-dock-ft .naver-dock-hint {
+  font-size: 13px;
+  color: #94a3b8;
+}

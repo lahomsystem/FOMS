@@ -1088,6 +1088,11 @@
                 <div class="erp-detail-text">
                   <div class="mb-3"><strong class="erp-detail-label">고객명:</strong> <span class="erp-detail-value">{{ customer_name or '-' }}</span></div>
                   <div class="mb-3"><strong class="erp-detail-label">발주사:</strong> <span class="erp-detail-value">{{ sd_orderer.get('name') or '-' }}</span></div>
+                  {# ORDERER-AXIS-01: 주문한 사람(대리주문이면 수취인과 다르다). 값이 있을 때만 낸다. #}
+                  {%- set sd_buyer = sd_parties.get('buyer', {}) %}
+                  {%- if sd_buyer.get('name') or sd_buyer.get('phone') %}
+                  <div class="mb-3"><strong class="erp-detail-label">주문자:</strong> <span class="erp-detail-value">{{ sd_buyer.get('name') or '-' }}{% if sd_buyer.get('phone') %} ({{ sd_buyer.get('phone') }}){% endif %}</span></div>
+                  {%- endif %}
                   <div class="mb-3"><strong class="erp-detail-label">연락처:</strong> <span class="erp-detail-value">{{ sd_customer.get('phone') or order.phone or '-' }}</span></div>
                   <div class="mb-3"><strong class="erp-detail-label">주소:</strong> <span class="erp-detail-value">{{ order.address or '-' }}</span></div>
                   <div class="mb-3"><strong class="erp-detail-label">담당자:</strong> <span class="erp-detail-value">{{ manager_name or '-' }}</span></div>
