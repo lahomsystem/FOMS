@@ -3,17 +3,17 @@
   "summary": "Order mutation writer inventory for foms/. Every persisted order mutation — flag_modified(order, 'structured_data') or a direct mutation_version bump — is classified CANONICAL (routes through REV-00 execute_order_mutation / canonical mutator) / VERSIONED_DIRECT (direct version bump under FOR UPDATE) / AUDITED_RECOVERY (OPS-APPROVAL offline apply) / EXTERNAL (direct writer with no version/If-Match contract). Release target: EXTERNAL == 0 (every order mutation carries version bump + If-Match/idempotency metadata). EXTERNAL sites below are pinned residual writers reported to their owner packet — the drift gate keeps the set from growing.",
   "scope": "foms/**.py",
   "baselines": {
-    "total": 65,
-    "external": 20
+    "total": 66,
+    "external": 21
   },
   "classification_counts": {
     "AUDITED_RECOVERY": 2,
     "CANONICAL": 38,
-    "EXTERNAL": 20,
+    "EXTERNAL": 21,
     "VERSIONED_DIRECT": 5
   },
   "kind_counts": {
-    "flag_modified_structured_data": 61,
+    "flag_modified_structured_data": 62,
     "mutation_version_bump": 4
   },
   "external_sites": [
@@ -73,7 +73,7 @@
     },
     {
       "path": "foms/api/events.py",
-      "lineno": 527,
+      "lineno": 550,
       "kind": "flag_modified_structured_data",
       "owner": "EVENT-REVERT-01"
     },
@@ -103,7 +103,13 @@
     },
     {
       "path": "foms/services/kakao_alimtalk.py",
-      "lineno": 542,
+      "lineno": 571,
+      "kind": "flag_modified_structured_data",
+      "owner": "UNASSIGNED"
+    },
+    {
+      "path": "foms/services/kakao_alimtalk.py",
+      "lineno": 766,
       "kind": "flag_modified_structured_data",
       "owner": "UNASSIGNED"
     },
@@ -344,7 +350,7 @@
     },
     {
       "path": "foms/api/events.py",
-      "lineno": 527,
+      "lineno": 550,
       "kind": "flag_modified_structured_data",
       "classification": "EXTERNAL",
       "owner": "EVENT-REVERT-01"
@@ -463,7 +469,14 @@
     },
     {
       "path": "foms/services/kakao_alimtalk.py",
-      "lineno": 542,
+      "lineno": 571,
+      "kind": "flag_modified_structured_data",
+      "classification": "EXTERNAL",
+      "owner": "UNASSIGNED"
+    },
+    {
+      "path": "foms/services/kakao_alimtalk.py",
+      "lineno": 766,
       "kind": "flag_modified_structured_data",
       "classification": "EXTERNAL",
       "owner": "UNASSIGNED"
