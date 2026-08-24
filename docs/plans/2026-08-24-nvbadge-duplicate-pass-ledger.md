@@ -83,3 +83,33 @@ Railway 는 웹·DB 가 같은 리전이라 전송이 싸고, 아낀 전송량�
   (합집합 밖 행은 파이썬이 되살릴 수 없다).
 - `tests/services/integrations/` **542 passed** · `APP_OK` · `pre_push_smoke` **exit 0**.
 
+### T4·T5 — 스테이징 재측정 (2026-08-24, 실브라우저 claude_master 콜드 8회)
+
+deploy `181e8306` (CI: Harness·PG Lane·perf-gate green, FOMS CI 확인).
+
+| 구간(ms, med) | 수술 전 | 수술 후 |
+|---|---|---|
+| `nvb_qfetch` (원천 조회) | 34.5 | 34.0 |
+| `nvb_sibidx` (형제 색인 1벌) | — | 33.0 |
+| `nvb_qgroup` | 8.5 | 5.0 |
+| `nvb_place` (하위합) | 33.5 | 2.0 |
+| `nvb_pfetch` | 21.5 | **0** |
+| `nvb_pclaim` | 6.5 | **0** |
+| `nvb_sib` | 25.0 | **0** |
+| `nvb_hcnt` | 42.5 | **0** |
+| **nvbadge 합계** | **155.5** | **75.0 (-52%)** |
+
+수술 후 분포: min 67 · max 79(표본 7 — 1회는 캐시 히트라 제외). 조회는 2벌
+(원천 합집합 + 형제 색인)만 남았다.
+
+**화면 눈 확인**: nav 뱃지 62 == 처리 탭 62집 == 스트립 62집, 콘솔 에러 0.
+(칩 '전체' 76집 은 어긋남이 아니다 — 타 세션 `a83e8044` 가 뱃지·탭·스트립을
+`_actionable_count`(손댈 수 있는 집)로 바꾸고 잠긴 집은 `locked_count` 로 따로 고지한다.)
+
+**정리**: 구간 계측(`b8a915de`)은 `record_phase("nvb_*")` 20줄을 걷어내 되돌렸다.
+`context_processors` 의 `nvbadge` 총합 계측은 그대로 둔다(선행 커밋 자산).
+로컬 dev DB 합성 시드 249건(`CLAUDE-PERF-`) 삭제 완료. 스테이징 코호트 38 원복.
+
+**남은 것**: `nvb_qfetch` 34ms + `nvb_sibidx` 33ms = 67ms 가 이제 거의 전부다.
+둘 다 조회 자체라 더 줄이려면 모집단 컬럼화(취소 표식을 JSONB 밖으로)가 필요하다 —
+별건이다.
