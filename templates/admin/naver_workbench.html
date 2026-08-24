@@ -19,7 +19,7 @@
 {% block title %}네이버 수집{% endblock %}
 
 {% block styles %}
-<link rel="stylesheet" href="{{ url_for('static', filename='css/admin/naver-workbench.css') }}?v=20260824d">
+<link rel="stylesheet" href="{{ url_for('static', filename='css/admin/naver-workbench.css') }}?v=20260824g">
 {% endblock %}
 
 {% block content %}
@@ -34,6 +34,16 @@
            group_count 는 탭 배지·칩 '전체' 와 같은 값이어야 한다(계약 §2.4). #}
         <span class="wb-strip__count">{{ group_count }}집 · 상품주문 {{ pending_count }}건</span>
         <span class="wb-strip__spacer"></span>
+        {# 글자 크기 조절 — 브라우저를 80% 로 축소해 쓰면 11~12px 가 9~10px 로 보인다.
+           브라우저 확대는 화면 전체를 키워 목록이 잘리므로, 이 화면 글자만 단계로 키운다.
+           선택은 localStorage 에 남는다(사람마다 쓰는 배율이 다르다). #}
+        <span class="wb-fs" role="group" aria-label="글자 크기">
+            <button type="button" class="wb-fs__btn" id="wb-fs-down"
+                    aria-label="글자 작게" title="글자 작게">−</button>
+            <span class="wb-fs__now" id="wb-fs-now" aria-live="polite">100%</span>
+            <button type="button" class="wb-fs__btn" id="wb-fs-up"
+                    aria-label="글자 크게" title="글자 크게">+</button>
+        </span>
         {# 수집이 조용히 멈춰도 아무도 모르는 상태를 막는 최소 사실. 서버가 이 탭에
            ingest_status 를 싣지 않으면(처리 탭·비ADMIN) 아무것도 안 그린다. #}
         {% if ingest_status and ingest_status.watermark %}
@@ -502,5 +512,5 @@
 {% endblock %}
 
 {% block scripts %}
-<script src="{{ url_for('static', filename='js/admin/naver-workbench.js') }}?v=20260824d" defer></script>
+<script src="{{ url_for('static', filename='js/admin/naver-workbench.js') }}?v=20260824g" defer></script>
 {% endblock %}

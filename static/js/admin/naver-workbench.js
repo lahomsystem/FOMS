@@ -36,9 +36,16 @@
      */
     var paneToken = 0;
 
+    /** 글자 크기 단계와 저장 키. **init() 보다 위에 둔다** — defer 스크립트라 init 이
+        곧바로 실행되는데, var 는 선언만 끌어올려지고 대입은 안 따라온다(값이 undefined). */
+    var FONT_STEPS = [1, 1.15, 1.3, 1.5];
+    var FONT_KEY = 'foms.naverWorkbench.fontScale';
+
     /** id → 핸들러. 버튼 하나가 라우트 하나를 문다. */
     var ACTIONS = {
         'wb-create-order': submitCreateOrder,
+        'wb-fs-up': function () { stepFontScale(1); },
+        'wb-fs-down': function () { stepFontScale(-1); },
         'wb-confirm-submit': submitConfirm,
         'wb-dispatch-confirm': submitDispatch,
         'wb-cancel-confirm': submitCancel,
@@ -66,6 +73,7 @@
     /* ── 초기화 ─────────────────────────────────────────────────────── */
 
     function init() {
+        applyFontScale(readFontScale());
         syncBulk();
         // 서버가 전체 렌더에서 내린 "목록 밖 집" 판정을 첫 화면에서 읽어 둔다 —
         // 이후 조각 교체는 이 값을 옮겨 붙인다(applyOfflistFlag).
@@ -75,6 +83,53 @@
         var current = document.querySelector('.wb-row[aria-current="true"]');
         var id = current ? safeId(current.dataset.linkId) : '';
         replacePaneState(id || null);
+    }
+
+    /* ── 글자 크기 (2026-08-24) ──────────────────────────────────────────
+       브라우저를 80% 로 축소해 쓰는 사용자에게 11~12px 는 9~10px 로 보인다. 브라우저
+       확대는 화면 전체를 키워 2단 목록이 잘리므로, **이 화면 글자만** 단계로 키운다.
+       배율은 CSS 변수 `--wb-fs` 하나로 흐른다(모든 font-size 가 calc 로 그 변수를 문다).
+       사람마다 쓰는 축소율이 달라 선택은 localStorage 에 남긴다. */
+    function readFontScale() {
+        try {
+            var saved = parseFloat(window.localStorage.getItem(FONT_KEY));
+            // 저장값이 단계 목록에 없으면(옛 값·손댄 값) 기본으로 되돌린다.
+            return FONT_STEPS.indexOf(saved) >= 0 ? saved : FONT_STEPS[0];
+        } catch (error) {
+            return FONT_STEPS[0];   // 사생활 보호 모드 등에서 localStorage 가 막힌다
+        }
+    }
+
+    function applyFontScale(scale) {
+        var root = document.querySelector('.naver-workbench');
+        if (!root) {
+            return;
+        }
+        root.style.setProperty('--wb-fs', String(scale));
+        var label = document.getElementById('wb-fs-now');
+        if (label) {
+            label.textContent = Math.round(scale * 100) + '%';
+        }
+        var idx = FONT_STEPS.indexOf(scale);
+        var down = document.getElementById('wb-fs-down');
+        var up = document.getElementById('wb-fs-up');
+        // 끝에 닿으면 잠근다 — 눌러도 안 변하는 버튼은 고장으로 읽힌다.
+        if (down) { down.disabled = idx <= 0; }
+        if (up) { up.disabled = idx >= FONT_STEPS.length - 1; }
+    }
+
+    function stepFontScale(direction) {
+        var idx = FONT_STEPS.indexOf(readFontScale()) + direction;
+        if (idx < 0 || idx >= FONT_STEPS.length) {
+            return;
+        }
+        var next = FONT_STEPS[idx];
+        try {
+            window.localStorage.setItem(FONT_KEY, String(next));
+        } catch (error) {
+            /* 저장만 못 한다 — 이번 화면에서는 그대로 적용된다. */
+        }
+        applyFontScale(next);
     }
 
     /* ── 위임 진입점 ─────────────────────────────────────────────────── */

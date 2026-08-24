@@ -429,3 +429,57 @@ def test_place_confirmed_is_visible_without_hovering(client, workbench_on):
     assert has_attribute(pane, "wb-confirm", "disabled"), "전제: 발주확인 버튼이 잠겨 있다"
     head = pane.split('class="card-header')[1].split("</div>")[0]
     assert "발주확인 완료" in head, "잠긴 이유가 title 에만 있다"
+
+
+# --------------------------------------------------------------------------- #
+# 글자 크기 조절 (2026-08-24 사용자 요청 — 브라우저 80% 축소 사용)
+# --------------------------------------------------------------------------- #
+
+def test_font_size_control_is_on_the_shell(client, workbench_on):
+    """글자 크기 버튼은 **셸**에 있다 — pane 을 갈아 끼워도 사라지면 안 된다."""
+    _login(client)
+    _collected(order_no="N-FS-UI", product="붙박이장", amount=100000)
+
+    body = client.get(f"{TRIAGE_PATH}?tab=work").get_data(as_text=True)
+    strip = body.split('class="wb-strip"')[1].split("</div>")[0]
+    assert 'id="wb-fs-down"' in strip and 'id="wb-fs-up"' in strip, strip
+    assert 'id="wb-fs-now"' in strip
+    # pane 파셜에는 없어야 한다(조각 응답에 들어가면 문서에 id 가 두 벌 생긴다 — 절대 규칙 1).
+    pane = client.get(f"{TRIAGE_PATH}/pane?link_id=1").get_data(as_text=True)
+    assert "wb-fs-up" not in pane
+
+
+def test_every_workbench_font_size_follows_the_scale():
+    """이 화면의 글자 크기는 **한 변수**(`--wb-fs`)로 흐른다.
+
+    한 곳이라도 고정 px 로 남으면 사용자가 버튼을 눌러도 그 부분만 안 커진다 —
+    "키웠는데 저기만 작다" 가 된다. 예외는 조절기 자신뿐이다(조절기가 같이 커지면
+    손이 따라간다).
+    """
+    import pathlib
+    import re
+
+    root = pathlib.Path(__file__).resolve().parents[3]
+    css = (root / "static/css/admin/naver-workbench.css").read_text(encoding="utf-8")
+    # 선언이 아니라 **규칙 단위**로 본다 — 고정 px 이 어느 선택자 안에 있는지가 판정 기준이다.
+    offenders = []
+    for rule in css.split("}"):
+        if not re.search(r"font-size:\s*[\d.]+px", rule):
+            continue
+        selector = rule.split("{")[0]
+        if ".wb-fs__" not in selector:          # 조절기 자신만 예외
+            offenders.append(selector.strip().splitlines()[-1].strip())
+    assert not offenders, f"배율을 안 따르는 글자 크기 규칙: {offenders}"
+
+
+def test_font_scale_steps_and_storage_key_exist():
+    """단계 목록과 저장 키가 JS 에 있다 — 새로고침해도 고른 크기가 남아야 한다."""
+    import pathlib
+
+    root = pathlib.Path(__file__).resolve().parents[3]
+    js = (root / "static/js/admin/naver-workbench.js").read_text(encoding="utf-8")
+    assert "FONT_STEPS = [1, 1.15, 1.3, 1.5]" in js
+    assert "foms.naverWorkbench.fontScale" in js
+    # 상수는 init() 보다 위에 있어야 한다 — defer 스크립트라 init 이 곧바로 돌고,
+    # var 는 선언만 끌어올려지고 대입은 안 따라온다(2026-08-24 실제로 여기서 막혔다).
+    assert js.index("var FONT_STEPS") < js.index("function init()")

@@ -17,6 +17,39 @@
     --wb-danger: #b91c1c;
     --wb-danger-soft: #fdeaea;
     --wb-danger-line: #f3c2c2;
+    /* 글자 크기 배율. 이 파일의 모든 font-size 는 `calc(Npx * var(--wb-fs))` 다 —
+       브라우저를 80% 로 축소해 쓰는 사용자에게 11~12px 는 9~10px 로 보인다(2026-08-24 지적).
+       값은 스트립의 글자 크기 버튼이 JS 로 바꾸고 localStorage 에 남긴다. */
+    --wb-fs: 1;
+}
+
+/* ── 글자 크기 조절 (스트립 오른쪽) ───────────────────────────────────
+   전역 `.btn { padding: 10px 20px !important }` 을 피하려고 .btn 을 쓰지 않는다 —
+   좁은 칸에서 글자가 세로로 쪼개지던 그 함정이다. */
+.wb-fs { display: inline-flex; align-items: center; gap: 2px; }
+
+.wb-fs__btn {
+    width: 22px;
+    height: 22px;
+    line-height: 1;
+    padding: 0;
+    border: 1px solid var(--wb-line);
+    border-radius: 5px;
+    background: #fff;
+    color: var(--wb-muted);
+    font-size: 13px;          /* 이 버튼만 배율에서 뺀다 — 조절기가 같이 커지면 손이 따라간다 */
+    cursor: pointer;
+}
+
+.wb-fs__btn:hover:not(:disabled) { background: var(--wb-surface-soft); color: #111827; }
+.wb-fs__btn:disabled { opacity: .35; cursor: default; }
+
+.wb-fs__now {
+    min-width: 34px;
+    text-align: center;
+    font-size: 11px;
+    color: var(--wb-muted);
+    font-variant-numeric: tabular-nums;
 }
 
 /* ── 상태 스트립: 예전 카드 3장(워터마크·마지막 실행·인증 만료)을 한 줄로 접었다.
@@ -28,10 +61,10 @@
     flex-wrap: wrap;
     padding: 8px 0;
     border-bottom: 1px solid var(--wb-line);
-    font-size: 13px;
+    font-size: calc(13px * var(--wb-fs, 1));
 }
 
-.wb-strip__title { font-size: 15px; font-weight: 700; }
+.wb-strip__title { font-size: calc(15px * var(--wb-fs, 1)); font-weight: 700; }
 
 /* 결정 3: 숫자 이중 표기는 화면에서 여기 한 곳만 한다.
    탭 배지는 집 수만 — 탭별 상품주문 건수를 만들려면 없는 숫자를 지어내야 한다. */
@@ -59,7 +92,7 @@
 .wb-tab {
     display: inline-block;
     padding: 9px 14px;
-    font-size: 13px;
+    font-size: calc(13px * var(--wb-fs, 1));
     font-weight: 600;
     color: var(--wb-muted);
     text-decoration: none;
@@ -75,7 +108,7 @@
     padding: 1px 7px;
     border-radius: 10px;
     background: var(--wb-surface-soft);
-    font-size: 11px;
+    font-size: calc(11px * var(--wb-fs, 1));
     font-weight: 700;
 }
 
@@ -101,7 +134,7 @@
     border: 1px solid var(--wb-line);
     border-radius: 999px;
     padding: 3px 10px;
-    font-size: 11.5px;
+    font-size: calc(11.5px * var(--wb-fs, 1));
     color: var(--wb-muted);
     background: #fff;
     text-decoration: none;
@@ -128,8 +161,8 @@
 .wb-chip__n { font-variant-numeric: tabular-nums; font-weight: 700; }
 
 /* 처리 탭 칩 줄은 필터 자체가 주 조작이라 이력 탭 필터보다 한 치수 크다. */
-.wb-chips .wb-chip { padding: 5px 12px; font-size: 12px; }
-.wb-chips__hint { font-size: 11px; color: var(--wb-muted); margin-left: 4px; }
+.wb-chips .wb-chip { padding: 5px 12px; font-size: calc(12px * var(--wb-fs, 1)); }
+.wb-chips__hint { font-size: calc(11px * var(--wb-fs, 1)); color: var(--wb-muted); margin-left: 4px; }
 
 /* ── 벌크 바 (v3): 고른 게 있을 때만 나타난다.
       기본 display:none, JS 가 `.on` 을 붙이면 display:flex.
@@ -144,16 +177,16 @@
     border: 1px solid var(--wb-accent-line, #b9d0ff);
     border-radius: 8px;
     background: var(--wb-accent-soft, #eaf1ff);
-    font-size: 12.5px;
+    font-size: calc(12.5px * var(--wb-fs, 1));
 }
 
 #wb-bulk.on { display: flex; }
 #wb-bulk-n { font-weight: 700; color: var(--wb-accent, #2563eb); font-variant-numeric: tabular-nums; }
 .wb-bulk__spacer { flex: 1; }
-.wb-bulk__why { font-size: 11px; color: var(--wb-muted); }
+.wb-bulk__why { font-size: calc(11px * var(--wb-fs, 1)); color: var(--wb-muted); }
 /* 전역 `.btn { padding: 10px 20px !important }`(style-pro-max.css) 대응 — 다른 좁은 칸과
    같은 함정이라 같은 처방(줄바꿈만 막는다, !important 를 더 얹지 않는다). */
-.naver-workbench #wb-bulk .btn { white-space: nowrap; font-size: 12px; }
+.naver-workbench #wb-bulk .btn { white-space: nowrap; font-size: calc(12px * var(--wb-fs, 1)); }
 
 /* ── 본문 2단 (결정 8): 원본을 읽으며 규격을 채우는 일이라 대조가 상시 필요하다 ── */
 /* 좌측 상한을 px 로 못박으면(구 400px) 넓은 화면에서 남는 폭을 전부 오른쪽이 먹는다 —
@@ -273,7 +306,7 @@ input.wb-pick:disabled,
 /* 이름이 길면 날짜를 칸 밖으로 밀어낸다 — 밀리는 쪽은 이름이어야 한다. */
 .wb-row__name {
     font-weight: 700;
-    font-size: 13.5px;
+    font-size: calc(13.5px * var(--wb-fs, 1));
     min-width: 0;
     overflow: hidden;
     white-space: nowrap;
@@ -284,7 +317,7 @@ input.wb-pick:disabled,
     /* 없으면 Bootstrap 본문 16px 을 상속해 **행에서 가장 큰 글자**가 된다 —
        고객명(13.5px)보다 제품명이 커서 위계가 뒤집히고, 같은 칸에 들어가는 글자 수가
        3분의 1쯤 줄어 "제품명이 중간에서 끊긴다"의 절반이 여기서 나왔다(CEO 검수 중). */
-    font-size: 12px;
+    font-size: calc(12px * var(--wb-fs, 1));
     margin-top: 2px;
     white-space: nowrap;
     overflow: hidden;
@@ -298,27 +331,27 @@ input.wb-pick:disabled,
    주문을 만든 뒤의 행(묶음·규격 입력·발주확인 전·발송기한·주문 #N)이 이 패딩 때문에
    한 줄을 넘겼다 — 정보를 지우지 않고 폭만 되찾는다(2026-08-23 실측: 이 세 손질로
    58행이 전부 같은 높이가 됐다). 상세·모달 배지는 그대로 둔다. */
-.wb-row__line3 .badge { padding: 4px 7px; font-size: 11px; }
+.wb-row__line3 .badge { padding: 4px 7px; font-size: calc(11px * var(--wb-fs, 1)); }
 /* 접수시각은 배지 줄이 아니라 **이름 줄 오른쪽**에 산다. 배지 줄에 두면 날짜가
    폭을 먹어 배지 한 개가 아래로 밀리고, 그 행만 한 줄 더 높아진다(사용자 지적).
    이름 줄은 오른쪽이 통째로 비어 있어 날짜가 들어갈 자리가 이미 있다. */
-.wb-row__when { margin-left: auto; flex: none; color: #9aa3af; font-size: 11.5px; font-variant-numeric: tabular-nums; }
+.wb-row__when { margin-left: auto; flex: none; color: #9aa3af; font-size: calc(11.5px * var(--wb-fs, 1)); font-variant-numeric: tabular-nums; }
 
 /* "지금 손대도 되는가" 글자 라벨 — 배지가 아니라 문장 톤이라
    '상태'가 아니라 '지금 뭘 할 수 있나'로 읽힌다. */
-.wb-can { font-size: 11.5px; font-weight: 700; }
+.wb-can { font-size: calc(11.5px * var(--wb-fs, 1)); font-weight: 700; }
 .wb-can--go { color: var(--wb-accent, #2563eb); }
 .wb-can--wait { color: #b45309; }
 .wb-can--spec { color: #15803d; }
 .wb-can--stop { color: #6b7280; }
 
 /* ── 우측 상세 ──────────────────────────────────────────────────────── */
-.wb-option-raw { font-size: 16px; font-weight: 700; line-height: 1.5; }
+.wb-option-raw { font-size: calc(16px * var(--wb-fs, 1)); font-weight: 700; line-height: 1.5; }
 
 /* 결정 7: 집 단위와 상품주문 행 단위는 단위가 달라 한 표에 섞지 않는다. */
 .wb-cmp-title { font-weight: 700; margin: 16px 0 6px; }
-.wb-cmp-title__sub { font-weight: 500; color: var(--wb-muted); font-size: 11.5px; }
-.wb-cmp { width: 100%; border-collapse: collapse; font-size: 13px; }
+.wb-cmp-title__sub { font-weight: 500; color: var(--wb-muted); font-size: calc(11.5px * var(--wb-fs, 1)); }
+.wb-cmp { width: 100%; border-collapse: collapse; font-size: calc(13px * var(--wb-fs, 1)); }
 
 /* 표는 **칸을 꽉 채운다**. 한때 `max-width: 860px` 로 상한을 뒀는데(금액 열이 화면 끝까지
    밀려 헐거워 보이던 문제), 넓은 화면에서는 카드 오른쪽에 큰 죽은 공간이 생겼다
@@ -326,17 +359,18 @@ input.wb-pick:disabled,
    남는 폭이 제품·옵션 원문(사람이 읽고 규격을 채우는 값)으로 가게 한다 — 그러면
    화면이 넓어져도 수량·금액이 제품명에서 멀어지지 않고, 표는 비율대로 늘어난다. */
 .wb-cmp th.wb-cmp__num,
-.wb-cmp td.wb-cmp__num { width: 92px; }
+.wb-cmp td.wb-cmp__num { width: calc(92px * var(--wb-fs, 1)); }
 /* 금액은 자릿수가 많다(1,178,100). 마지막 열만 한 치수 넓게. */
 .wb-cmp th.wb-cmp__num:last-child,
-.wb-cmp td.wb-cmp__num:last-child { width: 128px; }
+.wb-cmp td.wb-cmp__num:last-child { width: calc(128px * var(--wb-fs, 1)); }
 .wb-cmp th,
 .wb-cmp td { padding: 7px 8px; border-bottom: 1px solid var(--wb-line-soft); vertical-align: top; }
-.wb-cmp thead th { font-size: 11.5px; color: var(--wb-muted); text-align: left; background: var(--wb-surface-soft); }
-.wb-cmp td.wb-cmp__k { color: var(--wb-muted); width: 104px; }
+.wb-cmp thead th { font-size: calc(11.5px * var(--wb-fs, 1)); color: var(--wb-muted); text-align: left; background: var(--wb-surface-soft); }
+/* 칸 폭도 배율을 따라간다 — 안 그러면 150% 에서 상품주문번호가 두 줄로 접힌다. */
+.wb-cmp td.wb-cmp__k { color: var(--wb-muted); width: calc(104px * var(--wb-fs, 1)); }
 .wb-cmp td.wb-cmp__num { text-align: right; font-variant-numeric: tabular-nums; }
 /* 옵션 원문은 자르지 않는다 — 사람이 이걸 보고 규격을 채운다(도메인 규칙 6). */
-.wb-cmp__option { color: var(--wb-muted); font-size: 11.5px; white-space: pre-wrap; }
+.wb-cmp__option { color: var(--wb-muted); font-size: calc(11.5px * var(--wb-fs, 1)); white-space: pre-wrap; }
 
 .wb-empty { padding: 40px 16px; text-align: center; color: var(--wb-muted); }
 
@@ -360,17 +394,17 @@ input.wb-pick:disabled,
 .wb-ingest { display: grid; grid-template-columns: repeat(4, 1fr); gap: 12px;
              margin: 8px 0 12px; padding: 10px 12px; border: 1px solid var(--border, #dee2e6);
              border-radius: 8px; background: rgba(15, 23, 42, .02); }
-.wb-ingest__k { font-size: 11.5px; opacity: .7; }
-.wb-ingest__v { font-size: 14px; font-weight: 700; margin-top: 2px; }
-.wb-ingest__sub { font-size: 11.5px; opacity: .75; margin-top: 2px; }
+.wb-ingest__k { font-size: calc(11.5px * var(--wb-fs, 1)); opacity: .7; }
+.wb-ingest__v { font-size: calc(14px * var(--wb-fs, 1)); font-weight: 700; margin-top: 2px; }
+.wb-ingest__sub { font-size: calc(11.5px * var(--wb-fs, 1)); opacity: .75; margin-top: 2px; }
 .wb-ingest__cell--action { display: flex; flex-direction: column; align-items: flex-start; gap: 4px; }
 @media (max-width: 1100px) { .wb-ingest { grid-template-columns: repeat(2, 1fr); } }
 .wb-note { margin: 8px 12px 0; padding: 7px 10px; border-radius: 6px;
            background: rgba(217, 119, 6, .08); border: 1px solid rgba(217, 119, 6, .28);
-           font-size: 12.5px; }
+           font-size: calc(12.5px * var(--wb-fs, 1)); }
 .wb-result { margin: 8px 0 12px; }
 .wb-result__head { display: flex; align-items: baseline; gap: 12px; flex-wrap: wrap; }
-.wb-result__list { width: 100%; border-collapse: collapse; margin-top: 8px; font-size: 12.5px; }
+.wb-result__list { width: 100%; border-collapse: collapse; margin-top: 8px; font-size: calc(12.5px * var(--wb-fs, 1)); }
 .wb-result__list td { padding: 5px 8px; border-top: 1px solid rgba(185, 28, 28, .18); vertical-align: top; }
 .wb-result__who { font-weight: 700; width: 92px; }
 .wb-result__no { width: 172px; font-variant-numeric: tabular-nums; opacity: .8; }
@@ -380,7 +414,7 @@ input.wb-pick:disabled,
 /* 전역 `.btn { padding: 10px 20px !important }`(style-pro-max.css) 때문에 좁은 칸에서
    "확인함" 이 글자마다 줄바꿈돼 세로로 쪼개졌다(1440 실화면). 패딩은 못 이기므로
    칸을 넓히고 줄바꿈을 막는다 — 지역 CSS 에 !important 를 더 얹지 않는다. */
-.naver-workbench .wb-result__ack .btn { white-space: nowrap; font-size: 12px; }
+.naver-workbench .wb-result__ack .btn { white-space: nowrap; font-size: calc(12px * var(--wb-fs, 1)); }
 .wb-result__foot { margin-top: 10px; }
 
 /* ── 관계 축 (추가결제·재결제) ─────────────────────────────────────────
@@ -390,15 +424,15 @@ input.wb-pick:disabled,
                padding: 9px 10px; border-radius: 6px;
                background: var(--wb-surface-soft); border: 1px solid var(--wb-line-soft); }
 .wb-relation--ask { display: block; }
-.wb-relation__text { font-size: 13px; }
-.wb-relation__why { font-size: 12.5px; margin: 0 0 8px; }
-.wb-relation__reason { color: var(--wb-muted); font-size: 11.5px; }
+.wb-relation__text { font-size: calc(13px * var(--wb-fs, 1)); }
+.wb-relation__why { font-size: calc(12.5px * var(--wb-fs, 1)); margin: 0 0 8px; }
+.wb-relation__reason { color: var(--wb-muted); font-size: calc(11.5px * var(--wb-fs, 1)); }
 /* 후보 표는 대조표와 같은 골격을 쓰되 첫 칸이 주문번호라 폭이 다르다. */
 .wb-cmp--cand { background: #fff; }
-.wb-cmp--cand td.wb-cmp__k { width: 132px; color: inherit; }
+.wb-cmp--cand td.wb-cmp__k { width: calc(132px * var(--wb-fs, 1)); color: inherit; }
 /* 전역 `.btn { padding: 10px 20px !important }` 때문에 붙이기 버튼 2개가 좁은 칸에서
    세로로 쪼개진다(실패 목록 '확인함' 과 같은 함정). 줄바꿈만 막는다. */
-.naver-workbench .wb-cmp--cand .btn { white-space: nowrap; font-size: 12px; }
+.naver-workbench .wb-cmp--cand .btn { white-space: nowrap; font-size: calc(12px * var(--wb-fs, 1)); }
 
 /* ── v3: 부분 갱신 피드백 ─────────────────────────────────────────────
    행을 눌러 상세만 갈아 끼우는 동안, 그리고 발주확인처럼 화면이 안 변하는
