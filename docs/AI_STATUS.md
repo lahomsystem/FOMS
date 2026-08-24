@@ -1,6 +1,6 @@
 # FOMS 현재 상태
 > 자동 업데이트: 2026-08-14
-> 최신: **네이버 워크벤치 관계 축(추가결제·재결제) + 판매자 직접취소 deploy(`5f9433c5`, CI 4개 green)** — 배지·후보/붙이기/되돌리기·발송처리 관계별 분기·취소 모달(사유 7코드). 스테이징 실데이터 눈 확인 완료. **production 에 네이버 코드 0줄(커밋 123·마이그레이션 8 미승격) — 부분 cherry-pick 승격 불가.** 원장 `docs/plans/2026-08-20-naver-workbench-ledger.md`
+> 최신: **네이버 워크벤치 불가역 3종 결과 즉시 반영 deploy(`27464394`)** — 발주확인·발송처리·취소가 워커보다 먼저 새로고침해 결과가 안 보이던 문제. 집 처리표식 지문(rev) 폴링(2초·최대 25초) 후 `.naver-workbench` 통째 soft refresh. 스테이징 실측: 3초 만에 실패 사유가 새로고침 없이 떴다. 원장 `docs/plans/2026-08-24-naver-workbench-async-result-ledger.md`
 > 이 파일 상단 40줄이 세션 시작 컨텍스트의 전부다(hygiene 계약 테스트로 강제). 상세 이력: "## 최근 완료"·"## 기록 보관", 과거 헤더 상세는 기록 보관에 이관.
 
 ## 스택
@@ -8,7 +8,7 @@ Flask 2.3 + PostgreSQL + R2 + Railway (Web×2, Worker×1)
 브랜치: deploy (스테이징) → production (운영)
 
 ## 진행 중
-- [2026-08-23] **네이버 수집 워크벤치 v3 deploy(`93fd4a99`, CI 4개 green)** — 탭 왕복·전체 리로드 제거. 탭 4→2+필터 칩, 상세 발주확인 단건, pane 프래그먼트 부분 갱신, nav 진입구 4→1·뱃지 일치. 2CEO 치명 2건 수정 + 후속 정리. 좌우 밸런스·리뷰 6건·CEO 2판정·선재 2건 처리 후 deploy(`9bc59846`). 스테이징 실데이터 58집 눈 확인 완료(코호트 38 원복). **잔여: 전 직원 개방 전 뱃지 TTFB 측정 · 터치 기기 잠금사유 표면.** 원장 `docs/plans/2026-08-23-naver-workbench-v3-ledger.md`
+- [2026-08-23] **네이버 수집 워크벤치 v3 deploy(`93fd4a99`, CI 4개 green)** — 탭 왕복·전체 리로드 제거. 탭 4→2+필터 칩, 상세 발주확인 단건, pane 프래그먼트 부분 갱신, nav 진입구 4→1·뱃지 일치. 2CEO 치명 2건 수정 + 후속 정리. 좌우 밸런스·리뷰 6건·CEO 2판정·선재 2건 처리 후 deploy(`9bc59846`). 스테이징 실데이터 58집 눈 확인 완료(코호트 38 원복). 후속: 불가역 3종 결과 즉시 반영(`27464394`, 폴링+soft refresh, 스테이징 실패 경로 실측). **잔여: 전 직원 개방 전 뱃지 TTFB 측정 · QUEUE_LINK_FETCH_LIMIT(스테이징 73집/238링크로 250 상한 근접) · 터치 기기 잠금사유 표면.** 원장 `docs/plans/2026-08-23-naver-workbench-v3-ledger.md`
 - ⚠️ [2026-08-23] **로컬 dev DB 행 소실(로컬 한정)** — pytest 파일이 conftest 보다 먼저 `db` import → 로컬 PG 에 `drop_all`. 스테이징·운영 무관. 근본 수정: `assert_engine_not_postgresql`(env 문자열 아닌 엔진 판정)
 - [2026-08-23] **네이버 워크벤치 관계 축 + 판매자 직접취소 deploy(`5f9433c5`, CI 4개 green)** — 취소는 커머스API `claim/cancel/request`(상품주문 1건씩·사유 7코드), WORKER 단일 출구·집 단위·멱등. 가드: 취소한 집은 발주확인·발송처리·주문 만들기 전부 차단, `close_now` 는 집 전체가 ADDON/REPAY 일 때만. 스테이징 실데이터 눈 확인 완료(배지·후보표·발송처리 잠금·취소 모달 집 건수 일치). **잔여: 취소 실호출 1건(사용자 실건 발생 시)·네이버 기능 전체 승격은 별도 작업.**
 - [2026-08-23] **모바일 주문 마법사 제품 카드·주문 구분 운영 반영(PR #135, production `d53dc438`)** — 복제 카드 헤더 `#1 제품 1` 고정 결함을 `renumberProductCards()`(DOM 순서=정본)로 수정 + 카드 삭제 버튼 신설, 3단계에 주문 구분 칩 3종(지방주문=`is_regional`/`construction_type` 컬럼·미선택 400, 라홈시스템·긴급=`structured_data.flags`). 후속(deploy): 지방주문 상차일→`shipping_scheduled_date`, 새 카드 추가 즉시 펼침. 상세: AI_CHANGELOG 2026-08-23
