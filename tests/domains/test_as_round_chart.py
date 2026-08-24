@@ -303,3 +303,168 @@ def test_render_can_edit_false_hides_attachment_sort_handles(app):
     editable = _render_chart(app, view, can_edit=True)
     assert "as-attach-nudge" in editable
     assert 'draggable="true"' in editable
+
+
+# --------------------------------------------------------------------------- #
+# T2b: 회차 버킷 키 = (cycle_id, round) — 건(cycle)별 묶기
+# --------------------------------------------------------------------------- #
+def _sd_two_cycles() -> dict:
+    """옛 기록(표식 없음) → 1번째 AS(cyc-1, 종결) → 2번째 AS(cyc-2, 진행) 순으로 쌓인 sd.
+
+    두 건 모두 **1차**다(회차 번호는 이 범위에서 재시작하지 않는다 — 미결 판정이 없어
+    current_as_round 가 1로 유지된다). 정수 하나로 버킷팅하면 이 둘이 한 통에 섞인다.
+    """
+    sd = _base_sd()
+    # ① 건 표식이 생기기 전 기록 — cycle_id 가 없다(소급 스탬프 금지).
+    append_client_log(sd, log_type="memo", text="예전 기록: 서랍 조정", by="김", by_id=1)
+
+    sd["as_lifecycle"] = {
+        "current_cycle_id": "cyc-1",
+        "cycles": [
+            {"cycle_id": "cyc-1", "received_date": "2026-06-02",
+             "completed_date": "2026-06-11", "recurrence": False,
+             "transitions": [{"seq": 1, "command": "AS_COMPLETE", "to": "COMPLETED"}]},
+            {"cycle_id": "cyc-2", "received_date": "2026-08-01", "recurrence": True,
+             "transitions": [{"seq": 1, "command": "AS_REGISTER", "to": "RECEIVED"}]},
+        ],
+    }
+    # ② 1번째 AS(6월) — 사람 기록 + 그 건의 방문일 확정
+    append_client_log(sd, log_type="memo", text="6월 현장 재접착", by="박", by_id=2)
+    append_system_log(sd, text="방문일 확정: 2026-06-06")
+
+    # ③ 2번째 AS(8월) — 현재 건
+    sd["as_lifecycle"]["current_cycle_id"] = "cyc-2"
+    append_client_log(sd, log_type="plan", text="8월 접착면 연마 후 재부착", by="이", by_id=3)
+    return sd
+
+
+def _texts(rounds: list[dict]) -> list[str]:
+    return [e["text"] for r in rounds for e in r["entries"]]
+
+
+def test_cycle_groups_split_two_cycles_without_mixing():
+    """① 두 건이면 cycle_groups 가 2개고, 각 건의 기록이 서로 섞이지 않는다."""
+    view = build_as_round_chart_view(_sd_two_cycles(), today=_TODAY)
+    groups = view["cycle_groups"]
+    assert len(groups) == 2
+
+    cur, past = groups
+    # 현재 건이 맨 앞, 그다음 종결 건 최신순
+    assert cur["is_current"] is True and past["is_current"] is False
+    assert cur["summary"]["cycle_id"] == "cyc-2" and cur["summary"]["ordinal"] == 2
+    assert past["summary"]["cycle_id"] == "cyc-1" and past["summary"]["ordinal"] == 1
+    # 건 요약은 as_cycle_view 투영 SSOT 그대로(접수일·완료일·재발·이력불명)
+    assert past["summary"]["status"] == "COMPLETED"
+    assert past["summary"]["received_date"] == "2026-06-02"
+    assert past["summary"]["completed_date"] == "2026-06-11"
+    assert past["summary"]["history_unknown"] is False
+    assert cur["summary"]["recurrence"] is True
+
+    # 두 건 모두 1차인데 기록이 섞이지 않는다
+    assert [r["no"] for r in cur["rounds"]] == [1]
+    assert [r["no"] for r in past["rounds"]] == [1]
+    assert _texts(cur["rounds"]) == ["8월 접착면 연마 후 재부착"]
+    assert _texts(past["rounds"]) == ["6월 현장 재접착"]
+    # 종결 건 회차는 진행 슬롯을 그리지 않는다(끝난 건에 '다음: 방문'은 거짓말)
+    assert past["rounds"][0]["open"] is False and past["rounds"][0]["slots"] == []
+
+
+def test_unstamped_old_entries_go_to_unassigned_not_guessed():
+    """② cycle_id 없는 옛 항목은 unassigned_rounds 로 간다 — 시각 추정 배치 없음."""
+    view = build_as_round_chart_view(_sd_two_cycles(), today=_TODAY)
+    assert _texts(view["unassigned_rounds"]) == ["예전 기록: 서랍 조정"]
+    # 어느 건에도 끼워 넣지 않는다
+    for group in view["cycle_groups"]:
+        assert "예전 기록: 서랍 조정" not in _texts(group["rounds"])
+    # '분류 안 됨' 블록은 진행 회차가 아니다(슬롯·빈 현재 회차 없음)
+    assert all(r["open"] is False and r["slots"] == [] for r in view["unassigned_rounds"])
+
+
+def test_other_cycle_visit_date_does_not_fill_current_slot():
+    """③ 한 건의 방문일이 다른 건 같은 번호 슬롯에 찍히지 않는다(목업 3-C '터지는 것 2')."""
+    view = build_as_round_chart_view(_sd_two_cycles(), today=_TODAY)
+    cur, past = view["cycle_groups"]
+    assert past["rounds"][0]["visit_md"] == "6/6"       # 6월 건에만 남는다
+    assert cur["rounds"][0]["visit_md"] == ""           # 8월 건 1차로 새지 않는다
+    states = {s["key"]: s["state"] for s in cur["rounds"][0]["slots"]}
+    assert states["schedule"] != "done" and states["visit"] != "done"
+    assert view["verdict_prompt"] is False
+    # 현재 건 rounds 가 그대로 최상위 rounds 다(기존 소비자 계약)
+    assert view["rounds"] == cur["rounds"]
+
+
+def test_rounds_key_unchanged_when_no_cycles():
+    """④ 회귀 방지 핀 — 건 기록이 없는 주문은 rounds 모양·번호가 지금과 동일하다."""
+    view = build_as_round_chart_view(_scenario_sd(), today=_TODAY)
+    assert view["cycle_groups"] == [] and view["unassigned_rounds"] == []
+    assert [r["no"] for r in view["rounds"]] == [2, 1]
+    assert set(view["rounds"][0]) == {
+        "no", "open", "verdict", "summary", "visit_md", "slots", "entries", "hidden_count"}
+    open_r, closed_r = view["rounds"]
+    assert open_r["open"] is True and open_r["visit_md"] == ""
+    assert [s["state"] for s in open_r["slots"]] == [
+        "done", "done", "next", "wait", "wait", "wait"]
+    assert closed_r["open"] is False and closed_r["visit_md"] == "7/30"
+    assert [e["type"] for e in closed_r["entries"]] == ["call", "plan"]
+    # 반환 키 집합 = 기존 8개 + 신설 2개 (기존 키 제거 금지)
+    assert set(view) == {
+        "state_card", "symptom_preview", "rounds", "cycle_groups", "unassigned_rounds",
+        "reception", "legacy", "current_round", "verdict_prompt", "count"}
+
+
+# --------------------------------------------------------------------------- #
+# R-B: 스탬프 도입 전부터 진행 중이던 AS(배포 당일 실운영 모집단) — 유일해 귀속
+# --------------------------------------------------------------------------- #
+def _sd_single_cycle_unstamped() -> dict:
+    """cycle 은 1개(현재 건)인데 as_log 항목엔 cycle_id 가 없는 주문.
+
+    스탬프(T1) 배포 시점에 **이미 진행 중이던 모든 AS** 가 이 모양이다. 귀속 보정이
+    없으면 현재 건은 '이 회차 기록 없음'이 되고 실제 기록은 전부 '예전 기록'으로 빠져
+    같은 회차 번호가 화면에 두 번 뜬다.
+    """
+    sd = _base_sd()
+    append_client_log(sd, log_type="plan", text="1차 방안: 경첩 조정", by="김", by_id=1)
+    append_verdict_log(sd, verdict="unresolved", text="부품 불량", by="김", by_id=1)
+    append_client_log(sd, log_type="plan", text="2차 방안: 부품 교체", by="김", by_id=1)
+    append_system_log(sd, text="방문일 확정: 2026-08-05")
+    sd["as_lifecycle"] = {
+        "current_cycle_id": "cyc-live",
+        "cycles": [{"cycle_id": "cyc-live", "received_date": "2026-07-20",
+                    "transitions": [{"seq": 1, "command": "AS_REGISTER", "to": "RECEIVED"}]}],
+    }
+    return sd
+
+
+def test_single_cycle_absorbs_unstamped_entries():
+    """① 건이 하나뿐이면 미스탬프 기록은 그 건 몫이다(유일해 — 추정 아님)."""
+    view = build_as_round_chart_view(_sd_single_cycle_unstamped(), today=_TODAY)
+    groups = view["cycle_groups"]
+    assert len(groups) == 1 and groups[0]["is_current"] is True
+    cur = groups[0]["rounds"]
+    assert [r["no"] for r in cur] == [2, 1]
+    assert _texts(cur) == ["2차 방안: 부품 교체", "1차 방안: 경첩 조정"]
+    # 그 건의 방문일도 함께 귀속된다(현재 회차 슬롯 판정 근거)
+    assert cur[0]["visit_md"] == "8/5"
+    # '예전 기록' 블록은 비어야 한다 — 갈 곳이 정해졌으므로 남길 이유가 없다
+    assert view["unassigned_rounds"] == []
+    assert view["rounds"] == cur
+
+
+def test_two_cycles_keep_unstamped_in_unassigned():
+    """② 건이 2개 이상이면 미스탬프 기록은 그대로 '예전 기록'이다(어느 건인지 모름)."""
+    view = build_as_round_chart_view(_sd_two_cycles(), today=_TODAY)
+    assert len(view["cycle_groups"]) == 2
+    assert _texts(view["unassigned_rounds"]) == ["예전 기록: 서랍 조정"]
+    # 현재 건에는 자기 스탬프 기록만 실린다
+    assert _texts(view["cycle_groups"][0]["rounds"]) == ["8월 접착면 연마 후 재부착"]
+
+
+def test_single_cycle_has_no_duplicate_round_numbers():
+    """③ 같은 회차 번호가 현재 건과 '예전 기록'에 동시에 뜨지 않는다."""
+    view = build_as_round_chart_view(_sd_single_cycle_unstamped(), today=_TODAY)
+    current_nos = {r["no"] for r in view["rounds"]}
+    unassigned_nos = {r["no"] for r in view["unassigned_rounds"]}
+    assert current_nos == {1, 2}
+    assert current_nos & unassigned_nos == set()
+    # 기록이 어느 쪽에서도 사라지지 않는다(총 사람 기록 3건 = 방안2 + 판정1)
+    assert view["count"] == 3
