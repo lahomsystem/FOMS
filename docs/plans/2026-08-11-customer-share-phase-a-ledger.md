@@ -53,6 +53,13 @@
 - 수정: production 브랜치 `requirements.txt` 에 한 줄 추가(두 브랜치 diff 는 이 줄뿐) → 재배포 빌드에 `solapi-5.0.3` 설치 확인.
 - **운영 실검증 완료**: 주문 4870(CLAUDE-TEST-PROD-T13, 라홈 발주사) 미저장 실측시간 `11시 20분` → 알림톡 클릭 → 자동 저장 후 본문 반영(T13) → 발송 성공. Solapi ATA `status=COMPLETE·수신 완료`, **from=15660792**(T14 라홈 분기), to=010-8327-7282(사용자 변경 번호). 정리 완료: 주문 soft delete·로그아웃·`claude_master`(id57) 재잠금.
 
+### 개정 템플릿 4종 교체 (2026-08-24 — 승인 완료, PR #140)
+- Solapi 심사 승인: 실측 라홈 `KA01TP260819235109543IZ09ZS2GGxU` · 실측 하우드 `KA01TP260819083609155X1JFCnksFJ2` · 공유 라홈 `KA01TP260819084043806JpKvOqz3TDo` · 공유 하우드 `KA01TP260819084128244ThoZdhdBocC`.
+- env 교체 완료 3곳(로컬 `.env` · 스테이징 `FOMS` · 운영 `web`, `--skip-deploys`). 템플릿 ID 는 web 서비스에만 존재(worker·cron 없음).
+- 개정 내용: 실측 2종은 안내 문구 변경(카카오 고객센터 채팅/담당자 문의) + 상담톡 버튼 제거, 공유 2종은 본문 동일·상담톡 버튼만 제거. ERP 미리보기 상수 `ALIMTALK_TEMPLATE_MEASURE` 를 승인본에 맞춤(`77d20bea`) + REV-99 인벤토리 재생성(`a3bbe5bb`).
+- **스테이징 실발송 검증**: 실측 → 신규 templateId·`from=15660792`·COMPLETE·새 문구 확인 / 공유(도면) → 신규 templateId·버튼 `WL:열람하기` 단독·COMPLETE. 잔여물 정리 완료.
+- **함정**: 상수 줄 수가 바뀌면 REV-99 인벤토리 lineno 가 밀려 smoke red — 재생성 필수(2026-08-24 실사례, push 후 후속 커밋으로 복구).
+
 ### T13·T14 운영 승격 (2026-08-19 — 완료, PR #117 → production `40248a45`)
 - 승격 커밋: `f40a72f2`(T14) → `0fc0770d`, `d83854c2`(T13) → `4a4d1928` (자기 세션 커밋만 cherry-pick, docs 제외).
 - 충돌 해소: `erp_order_js.html` = production 줄 유지 + 본인 핀 2개만 `?v=20260819c` 범프 / `test_erp_order_shared_form_scripts.py` = production 핀 유지 + 본인 assertion 2줄 추가 / mutation writer 인벤토리 = 승격 트리 재생성.
