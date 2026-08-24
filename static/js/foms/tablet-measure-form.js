@@ -2010,7 +2010,37 @@
 
   // 미리보기(서버 렌더) 확인 후 발송. 태블릿에는 미리보기 modal 마크업이 없으므로
   // window.confirm 으로 본문을 보여준다(PC/모바일은 erp_alimtalk_modal.html 사용).
+  /**
+   * 미저장 편집이 남아 있으면 **먼저 저장**한다 — PC `erpAlimtalkEnsureSaved` 미러.
+   *
+   * 알림톡 본문·공유 문서는 서버가 **저장본**으로 조립한다. 저장 없이 보내면 화면에
+   * 보이는 값과 다른 내용이 고객에게 나간다. 이 화면은 디바운스 자동저장을 쓰지만
+   * 마지막 입력 직후에는 아직 저장 전인 창이 남는다.
+   *
+   * @returns {Promise<boolean>} 발송 흐름을 계속해도 되는지(저장 실패면 false).
+   */
+  function ensureSavedForSend() {
+    if (!state || !state.dirty || !isEditable()) return Promise.resolve(true);
+    if (state.saving) {
+      // 진행 중인 저장을 가로채면 어느 쪽이 이겼는지 말할 수 없다 — 되묻는다.
+      setStatus("저장 중입니다. 잠시 후 다시 시도해주세요.", "error");
+      return Promise.resolve(false);
+    }
+    return saveNow({ explicit: true }).then(function (ok) {
+      if (!ok) setStatus("저장 실패 — 저장 후 다시 시도해주세요.", "error");
+      return !!ok;
+    });
+  }
+
   function requestAlimtalk() {
+    if (!state) return;
+    ensureSavedForSend().then(function (ok) {
+      if (ok) _requestAlimtalkSaved();
+    });
+  }
+
+  /** 저장이 끝난 뒤의 알림톡 미리보기·확인 흐름. */
+  function _requestAlimtalkSaved() {
     if (!state) return;
     var orderId = state.orderId;
     setStatus("알림톡 미리보기 불러오는 중…", "saving");
@@ -2114,10 +2144,19 @@
 
   function requestShare() {
     if (!state) return;
-    var orderId = state.orderId;
     if (!window.confirm("고객이 로그인 없이 볼 수 있는 도면 열람 링크를 발급할까요?\n(링크는 30일간 유효합니다)")) {
       return;
     }
+    // 공유 링크도 열람 시점의 **저장본**을 보여준다 — 알림톡과 같은 가드를 탄다.
+    ensureSavedForSend().then(function (ok) {
+      if (ok) _requestShareSaved();
+    });
+  }
+
+  /** 저장이 끝난 뒤의 공유 링크 발급 흐름. */
+  function _requestShareSaved() {
+    if (!state) return;
+    var orderId = state.orderId;
     setStatus("공유 링크 발급 중…", "saving");
     fetch("/api/share/create/" + orderId, {
       method: "POST",

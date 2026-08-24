@@ -141,6 +141,32 @@ def test_send_js_persists_new_and_draft_orders_like_channel_push() -> None:
     assert open_body.index("erpAlimtalkEnsureSaved()") < open_body.index("erpAlimtalkOrderId()")
 
 
+def test_tablet_form_saves_before_alimtalk_and_share() -> None:
+    """태블릿 실측 폼도 저장 뒤에 발송한다 — PC 와 같은 규칙(본문 = 저장본 SSOT).
+
+    이 화면은 디바운스 자동저장을 쓰지만 마지막 입력 직후에는 아직 저장 전인 창이 남는다.
+    그 창에서 알림톡·공유를 누르면 화면과 다른 내용이 고객에게 나간다.
+    """
+    js = _read("static/js/foms/tablet-measure-form.js")
+    assert "function ensureSavedForSend()" in js
+    # 저장 SSOT = 이 화면의 명시 저장(saveNow) — 판정 경로를 새로 만들지 않는다.
+    assert "saveNow({ explicit: true })" in js
+    # 저장 실패 시 발송 중단 + 문구 표면화(조용한 통과 금지).
+    assert "저장 실패 — 저장 후 다시 시도해주세요." in js
+    # 두 진입점 모두 가드를 먼저 탄다 — 각 진입점 본문은 다음 function 선언 전까지.
+    def _entry_body(name: str) -> str:
+        rest = js.split(name, 1)[1]
+        return rest[: rest.index("\n  function ")]
+
+    for entry in ("function requestAlimtalk()", "function requestShare()"):
+        assert "ensureSavedForSend()" in _entry_body(entry), entry
+    # preview·발급 fetch 는 저장 뒤 단계로 분리돼 있다(가드를 건너뛰는 경로 없음).
+    assert "function _requestAlimtalkSaved()" in js
+    assert "function _requestShareSaved()" in js
+    assert "/api/kakao/alimtalk/preview/" not in _entry_body("function requestAlimtalk()")
+    assert "/api/share/create/" not in _entry_body("function requestShare()")
+
+
 def test_share_js_saves_before_reading_order_id() -> None:
     """공유 발급·내 문자 보내기도 저장 뒤에 주문 id 를 읽는다(같은 사고 자리)."""
     js = _read("static/js/orders/erp-share.js")
