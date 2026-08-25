@@ -137,6 +137,36 @@ def test_send_alimtalk_manager_variables_and_sender(client, db, ata_stub, clock)
     assert call['variables']['#{담당자연락처}'] == '01055556666'
 
 
+def test_send_alimtalk_regional_shows_head_office_contact(client, db, ata_stub, clock):
+    """지방 주문은 도면 컨펌을 본사 CS 가 받는다 — 안내 연락처가 본사 대표번호다."""
+    manager = User(username='atargn', password=generate_password_hash('pw'),
+                   role='STAFF', team='CS', name='박협력', is_active=True,
+                   sender_phone='01055557777')
+    db_session.add(manager)
+    db_session.commit()
+    order_id = _mk_order(manager_name='박협력', is_regional=True).id
+    _login(client, 'ata-regional')
+    share_id, token = _mk_share(order_id)
+    _send(client, share_id, token)
+
+    call = ata_stub[0]
+    assert call['variables']['#{담당자연락처}'] == '1566-0792'
+    # 발신번호는 그대로 담당자 번호다(문자 대체발송이 그 번호로 나가야 회신이 닿는다).
+    assert call['from_'] == '01055557777'
+
+
+def test_send_alimtalk_regional_contact_env_override(client, db, ata_stub, monkeypatch,
+                                                     clock):
+    """본사 대표번호가 바뀌면 env 로 갈아끼운다(코드 재배포 없이)."""
+    monkeypatch.setenv('FOMS_REGIONAL_CONTACT_PHONE', '1588-0000')
+    order_id = _mk_order(is_regional=True).id
+    _login(client, 'ata-regional-env')
+    share_id, token = _mk_share(order_id)
+    _send(client, share_id, token)
+
+    assert ata_stub[0]['variables']['#{담당자연락처}'] == '1588-0000'
+
+
 def test_send_alimtalk_lahom_brand_branch(client, db, ata_stub, monkeypatch, clock):
     monkeypatch.setenv('SOLAPI_PF_ID_LAHOM', 'PF-LAHOM')
     monkeypatch.setenv('SOLAPI_TEMPLATE_SHARE_ID_LAHOM', 'TPL-LAHOM')

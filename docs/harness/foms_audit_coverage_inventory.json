@@ -698,7 +698,7 @@
     {
       "path": "foms/api/events.py",
       "endpoint": "api_compensate_change_event",
-      "lineno": 644,
+      "lineno": 667,
       "methods": [
         "POST"
       ],
@@ -707,7 +707,7 @@
     {
       "path": "foms/api/events.py",
       "endpoint": "api_restore_field_change",
-      "lineno": 741,
+      "lineno": 764,
       "methods": [
         "POST"
       ],
@@ -716,7 +716,7 @@
     {
       "path": "foms/api/events.py",
       "endpoint": "api_set_order_change_reason",
-      "lineno": 316,
+      "lineno": 339,
       "methods": [
         "POST"
       ],
@@ -851,7 +851,7 @@
     {
       "path": "foms/api/kakao/__init__.py",
       "endpoint": "api_alimtalk_confirm_channel",
-      "lineno": 145,
+      "lineno": 149,
       "methods": [
         "POST"
       ],
@@ -1185,7 +1185,7 @@
     {
       "path": "foms/api/share.py",
       "endpoint": "api_share_revoke",
-      "lineno": 783,
+      "lineno": 810,
       "methods": [
         "POST"
       ],
@@ -1194,7 +1194,7 @@
     {
       "path": "foms/api/share.py",
       "endpoint": "api_share_send_alimtalk",
-      "lineno": 674,
+      "lineno": 701,
       "methods": [
         "POST"
       ],
@@ -1491,7 +1491,7 @@
     {
       "path": "foms/web/admin/naver_ingest.py",
       "endpoint": "naver_ingest_attach_order",
-      "lineno": 2416,
+      "lineno": 2465,
       "methods": [
         "POST"
       ],
@@ -1500,7 +1500,7 @@
     {
       "path": "foms/web/admin/naver_ingest.py",
       "endpoint": "naver_ingest_cancel",
-      "lineno": 2336,
+      "lineno": 2341,
       "methods": [
         "POST"
       ],
@@ -1509,7 +1509,7 @@
     {
       "path": "foms/web/admin/naver_ingest.py",
       "endpoint": "naver_ingest_create_order",
-      "lineno": 2239,
+      "lineno": 2244,
       "methods": [
         "POST"
       ],
@@ -1518,7 +1518,7 @@
     {
       "path": "foms/web/admin/naver_ingest.py",
       "endpoint": "naver_ingest_detach_order",
-      "lineno": 2472,
+      "lineno": 2526,
       "methods": [
         "POST"
       ],
@@ -1527,7 +1527,7 @@
     {
       "path": "foms/web/admin/naver_ingest.py",
       "endpoint": "naver_ingest_dock_state",
-      "lineno": 2539,
+      "lineno": 2601,
       "methods": [
         "POST"
       ],
@@ -1536,7 +1536,7 @@
     {
       "path": "foms/web/admin/naver_ingest.py",
       "endpoint": "naver_ingest_fulfillment",
-      "lineno": 2293,
+      "lineno": 2298,
       "methods": [
         "POST"
       ],
@@ -1545,7 +1545,7 @@
     {
       "path": "foms/web/admin/naver_ingest.py",
       "endpoint": "naver_ingest_fulfillment_clear",
-      "lineno": 2387,
+      "lineno": 2392,
       "methods": [
         "POST"
       ],
@@ -1554,7 +1554,7 @@
     {
       "path": "foms/web/admin/naver_ingest.py",
       "endpoint": "naver_ingest_mark_reviewed",
-      "lineno": 2510,
+      "lineno": 2572,
       "methods": [
         "POST"
       ],
@@ -1563,7 +1563,7 @@
     {
       "path": "foms/web/admin/naver_ingest.py",
       "endpoint": "naver_ingest_run_now",
-      "lineno": 2711,
+      "lineno": 2773,
       "methods": [
         "POST"
       ],
@@ -1572,7 +1572,7 @@
     {
       "path": "foms/web/admin/naver_ingest.py",
       "endpoint": "naver_ingest_set_assignee",
-      "lineno": 2620,
+      "lineno": 2682,
       "methods": [
         "POST"
       ],
