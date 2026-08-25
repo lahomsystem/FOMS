@@ -1030,3 +1030,77 @@ AS 대시보드 실렌더 행(data-order-id)      570      <- 비어 있지 않�
   `2026-08-24-naver-d1-repay-revision-ledger.md` 가 갖고 있다.
   ⚠️ AI_STATUS 는 head40 여유가 **78자뿐** — 새 줄을 넣으려면 기존 한 줄을 `## 기록 보관`
   으로 강등해야 한다.
+
+---
+
+## 17. 네이버 운영 개방 (2026-08-25) — 승격 범위 밖이던 것을 켰다
+
+사용자 결정: **스테이징 열쇠를 그대로 사용 · 전부 켜기(화면+수집, 전 직원) ·
+스테이징 수집도 계속 유지 · 즉시 재배포.**
+
+### 17.1 "운영 네이버수집이 이전 버전" 신고 — 배포 실패가 아니었다
+
+사용자가 옛 트리아지 화면(`수집 주문 확인` · `확인 대기 — 한 집이 한 줄`)을 보고 신고했다.
+
+**원인**: `FOMS_NAVER_WORKBENCH_ENABLED` 가 운영에 없어서 **게이트 OFF 경로**
+(`templates/admin/naver_triage.html`)가 렌더된 것이다. 계약이 그 파일을 "손대지 않는
+롤백 경로"로 지정해 뒀다. 운영 트리는 deploy 와 바이트 동일(`2539be20`)이라 **코드는 새
+버전이 맞았고 플래그만 꺼져 있었다.**
+
+> 교훈: 승격 후 "옛 화면이 보인다"는 신고는 **배포 실패가 아니라 게이트 미설정**일 수 있다.
+> 트리 해시가 같으면 코드는 갔다 — 다음은 플래그를 봐라.
+
+### 17.2 열쇠 이관 중 사고 1건 — `eval` 이 secret 을 잘랐다
+
+스테이징 `worker` 의 열쇠 3종을 운영 `WORKER` 로 옮기면서 `eval railway variables --set ...`
+을 썼더니 **`CLIENT_SECRET` 이 29자 → 27자로 잘렸다.** 값이 `$2a$…` 로 시작하는데 셸이
+`$2` 를 위치 매개변수로 확장해 먹은 것이다.
+
+**화면에 값을 안 찍었기 때문에 눈으로는 못 잡았다 — 길이·SHA 대조가 잡았다:**
+
+```
+NAVER_COMMERCE_APP_EXPIRES_ON   OK   len 10->10  sha 57b41a84 -> 57b41a84
+NAVER_COMMERCE_CLIENT_ID        OK   len 22->22  sha fc0253f0 -> fc0253f0
+NAVER_COMMERCE_CLIENT_SECRET    불일치! len 29->27  sha a666551e -> 04b3d92f   <- 잘림
+```
+
+수정: `eval` 을 버리고 변수 확장으로 넣었다(**변수 값 안의 `$` 는 재확장되지 않는다**).
+재대조에서 3종 전부 해시 일치. 임시 파일 삭제.
+
+> **다음에도 반드시 지켜라**: 비밀값을 셸로 옮길 때 `eval` 금지, 넣은 뒤 **길이+해시 대조**.
+> 값을 안 찍는 규율은 옳지만, 그 규율 때문에 잘림을 눈으로 못 잡는다 — 대조가 유일한 그물이다.
+
+### 17.3 넣은 설정 (서비스 배치가 계약이다)
+
+| 서비스 | 변수 |
+|---|---|
+| **WORKER** | `NAVER_COMMERCE_CLIENT_ID` · `CLIENT_SECRET` · `APP_EXPIRES_ON` + `FOMS_NAVER_SYNC_ENABLED=1` + `FOMS_NAVER_SYNC_INTERVAL_SECONDS=300` |
+| **web** | `FOMS_NAVER_WORKBENCH_ENABLED=1` + `FOMS_NAVER_WORKBENCH_COHORT=all` |
+
+- **네이버로 나가는 HTTP 는 WORKER 단독**이다. 커머스API IP 한도 3 = Railway static IP 3 이라
+  여유가 없다(`start.sh:31-36` 주석). 그래서 web 에는 열쇠를 넣지 않았다.
+- `COHORT=all` 이 필요하다 — `is_enabled_for_user` 는 **cohort 가 비면 플래그가 켜져도
+  꺼진 것으로 판정**한다(`feature_flags.py:112-134`).
+
+### 17.4 적용·검증
+
+`--skip-deploys` 로 변수만 넣고, dev/prod 혼동 가드(프로젝트명 확인) 후 `web`·`WORKER`
+재배포 → **둘 다 SUCCESS**.
+
+| 확인 | 결과 |
+|---|---|
+| `healthz` | 200 ×3 |
+| **수집 실동작** | `external_order_links` **16행**, 최근 수집 `2026-08-25 00:44:19` |
+| **워크벤치 v3 렌더** | `wb-tabs` · `wb-detail` · `data-filter="rel"` **있음** / 옛 화면 문구 **없음** |
+
+`지금 닫기` 라벨이 없는 것도 **정상**이다 — 오늘 D1 개정으로 그 버튼은 **추가결제(ADDON)
+집에만** 뜨는데 현재 그런 집이 없다.
+
+`claude_master` 는 해제 → 측정 → **재잠금**(`is_active = False` 확인). 실데이터 변경 0.
+
+### 17.5 남은 위험 (사용자 인지 후 유지 결정)
+
+**스테이징 수집도 계속 돈다.** 같은 네이버 계정이라 같은 주문을 양쪽이 각자 보관하고,
+**발주확인·발송처리 같은 불가역 버튼이 양쪽 화면에 동시에 살아 있다.** 스테이징에서
+누르면 진짜 네이버로 나간다. 끄려면 스테이징 `worker` 의 `FOMS_NAVER_SYNC_ENABLED` 만
+내리면 된다(화면은 그대로 남는다).
