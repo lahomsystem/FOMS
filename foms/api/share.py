@@ -429,7 +429,7 @@ def _resolve_sender(order: Order, brand: str) -> tuple[Optional[str], Optional[s
         # 지방 주문은 안내 연락처가 본사 CS 다. 카톡이 실패해 문자로 대체발송될 때
         # 발신번호가 담당자 번호면 고객 화면에는 두 번호가 따로 뜬다 — 같은 번호로 맞춘다
         # (사용자 결정 2026-08-25). 벤더에는 숫자만 넘긴다.
-        digits = re.sub(r'\D', '', _regional_contact_phone())
+        digits = re.sub(r'\D', '', _regional_contact_phone(brand))
         if digits:
             return digits, 'regional_cs'
     phone = _manager_sender_phone(order)
@@ -643,11 +643,15 @@ def share_link_message(order: Order, *, kind: str, url: str, brand: str) -> str:
     ]
     return '\n'.join(lines)
 
-#: 지방(협력사 시공) 주문의 안내 연락처 env. 미설정이면 아래 기본값.
-_REGIONAL_CONTACT_PHONE_ENV = 'FOMS_REGIONAL_CONTACT_PHONE'
+#: 지방(협력사 시공) 주문의 안내 연락처 — 브랜드별 본사 CS 대표번호(사용자 결정 2026-08-25).
+#: 발주사에 '라홈'이 들어가면 라홈, 그 외 전부 하우드다(:func:`ka.resolve_brand` 규칙).
+_REGIONAL_CONTACT_PHONE_DEFAULTS = {
+    'LAHOM': '1566-0792',
+    'HAUD': '1566-0703',
+}
 
-#: 본사 CS 대표번호(사용자 결정 2026-08-25).
-_REGIONAL_CONTACT_PHONE_DEFAULT = '1566-0792'
+#: 대표번호가 바뀌면 코드 재배포 없이 갈아끼우는 env 접두(뒤에 브랜드가 붙는다).
+_REGIONAL_CONTACT_PHONE_ENV_PREFIX = 'FOMS_REGIONAL_CONTACT_PHONE_'
 
 
 def _is_regional_order(order: Order) -> bool:
@@ -655,9 +659,18 @@ def _is_regional_order(order: Order) -> bool:
     return bool(getattr(order, 'is_regional', False))
 
 
-def _regional_contact_phone() -> str:
-    """지방 주문 안내에 쓸 본사 CS 대표번호(표시 형식 그대로)."""
-    return ka._env(_REGIONAL_CONTACT_PHONE_ENV) or _REGIONAL_CONTACT_PHONE_DEFAULT
+def _regional_contact_phone(brand: str) -> str:
+    """지방 주문 안내에 쓸 본사 CS 대표번호(표시 형식 그대로).
+
+    Args:
+        brand: :func:`ka.resolve_brand` 결과(``LAHOM``/``HAUD``).
+
+    Returns:
+        브랜드 대표번호. 모르는 브랜드는 하우드 쪽으로 떨어뜨린다(라홈 외 전부 하우드).
+    """
+    fallback = _REGIONAL_CONTACT_PHONE_DEFAULTS.get(
+        brand, _REGIONAL_CONTACT_PHONE_DEFAULTS['HAUD'])
+    return ka._env(_REGIONAL_CONTACT_PHONE_ENV_PREFIX + brand) or fallback
 
 
 def _share_contact_name(order: Order) -> str:
@@ -686,7 +699,7 @@ def _share_contact_phone(order: Order, brand: str) -> str:
         표시용 연락처 문자열(빈값 금지 — 알림톡 변수는 비울 수 없다).
     """
     if _is_regional_order(order):
-        return _regional_contact_phone()
+        return _regional_contact_phone(brand)
     return (
         _manager_sender_phone(order)
         or ka._env(f'SOLAPI_SENDER_PHONE_{brand}')
