@@ -377,7 +377,11 @@
             </p>
             <table class="wb-cmp wb-cmp--cand">
                 <thead>
-                    <tr><th>주문</th><th>고객 · 주소</th><th>접수일</th><th class="text-end">붙이기</th></tr>
+                    {# R-1(2026-08-25): 판정 근거 2열. 담당자는 이 둘을 확인하려고 네이버를
+                       따로 열고 있었다 — 취소됐으면 재결제, 살아 있으면 추가결제다. #}
+                    <tr><th>주문</th><th>고객 · 주소</th><th>접수일</th>
+                        <th>네이버 옛 결제</th><th class="wb-cmp__num">금액 견주기</th>
+                        <th class="text-end">붙이기</th></tr>
                 </thead>
                 <tbody>
                     {% for cand in selected.candidates %}
@@ -395,6 +399,33 @@
                             {{ cand.received_date }}
                             {% if cand.naver_link_count %}
                             <div class="wb-relation__reason">네이버 수집 {{ cand.naver_link_count }}건</div>
+                            {% endif %}
+                        </td>
+                        {# ② 옛 결제가 취소됐는가 — 재결제/추가결제를 가르는 결정 신호. #}
+                        <td>
+                            {% if not cand.naver_link_count %}
+                            <span class="wb-relation__reason">네이버 수집분 없음</span>
+                            {% elif cand.naver_claim_label == '전부 취소' %}
+                            <span class="wb-cand__claim wb-cand__claim--dead">전부 취소</span>
+                            <div class="wb-relation__reason">{{ cand.naver_canceled_count }}건 전부 · <b>재결제 신호</b></div>
+                            {% elif cand.naver_claim_label == '일부 취소' %}
+                            <span class="wb-cand__claim wb-cand__claim--part">일부 취소</span>
+                            <div class="wb-relation__reason">취소 {{ cand.naver_canceled_count }} · 살아있음 {{ cand.naver_alive_count }}</div>
+                            {% else %}
+                            <span class="wb-cand__claim wb-cand__claim--alive">살아 있음</span>
+                            <div class="wb-relation__reason">{{ cand.naver_alive_count }}건 · <b>추가결제 신호</b></div>
+                            {% endif %}
+                        </td>
+                        {# ③ 금액 관계 — 집 전체끼리 견준다(대표 1건끼리 견주면 항상 작게 나온다). #}
+                        <td class="wb-cmp__num">
+                            {% if cand.naver_amount_total %}
+                            <div>새 {{ '{:,}'.format(cand.new_amount_total) }}</div>
+                            <div class="wb-relation__reason">옛 {{ '{:,}'.format(cand.naver_amount_total) }}</div>
+                            <div class="wb-cand__delta">
+                                {{ '+' if cand.amount_delta > 0 else '' }}{{ '{:,}'.format(cand.amount_delta) }}
+                            </div>
+                            {% else %}
+                            <span class="wb-relation__reason">–</span>
                             {% endif %}
                         </td>
                         <td class="text-end">
