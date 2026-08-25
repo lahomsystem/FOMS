@@ -1,0 +1,103 @@
+{# AS 재접수 바텀시트(목업 2-B) — 모바일 v2 카드의 [data-as-reintake-open] 탭으로 열린다.
+   Bootstrap offcanvas-bottom(프로젝트 관행: as_mobile_controls.html 필터 드로어와 동일 패턴).
+   배선은 static/js/cs/as-reintake-sheet.js 한 곳(문서 위임 + 싱글턴 가드) — 인라인 script 금지.
+   제출은 기존 라우트 POST /api/orders/<id>/as/register 를 그대로 쓴다(새 URL 없음 →
+   write-guard/mutation-policy manifest 추가 등재 불필요). #}
+<div
+  class="offcanvas offcanvas-bottom erp-as-reintake-sheet"
+  tabindex="-1"
+  id="erp-as-reintake-sheet"
+  data-as-reintake-sheet
+  data-can-edit-erp="{{ 'true' if can_edit_erp|default(false) else 'false' }}"
+  aria-labelledby="erp-as-reintake-sheet-title">
+  <div class="offcanvas-header erp-as-reintake-sheet__head">
+    <div class="erp-as-reintake-sheet__heading">
+      <h2 class="offcanvas-title erp-as-reintake-sheet__title" id="erp-as-reintake-sheet-title"
+        data-as-reintake-title>AS 접수</h2>
+      <p class="erp-as-reintake-sheet__sub" data-as-reintake-sub></p>
+    </div>
+    <button type="button" class="btn-close" data-bs-dismiss="offcanvas" aria-label="닫기"></button>
+  </div>
+
+  <div class="offcanvas-body erp-as-reintake-sheet__body">
+    {# 지난 건 요약 — 값이 하나도 없으면 JS 가 이 블록을 통째로 숨긴다(추정 금지). #}
+    <details class="erp-as-reintake-sheet__prev" data-as-reintake-prev hidden>
+      <summary class="erp-as-reintake-sheet__prev-summary">지난 AS 보기</summary>
+      <div class="erp-as-reintake-sheet__prev-body" data-as-reintake-prev-body></div>
+    </details>
+
+    <label class="erp-as-reintake-sheet__field" for="erp-as-reintake-content">
+      <span class="erp-as-reintake-sheet__label">이번엔 뭐가 문제인가요?</span>
+      {# D4: 지난 증상 프리필 금지. 자동으로 채우면 현장에서 그대로 제출돼 사무실이
+         '진짜 새 증상'을 영영 못 본다 — 빈 칸으로 두고 지난 건은 위 접힘 블록에만 둔다. #}
+      <textarea
+        id="erp-as-reintake-content"
+        class="erp-as-reintake-sheet__textarea"
+        data-as-reintake-content
+        rows="3"
+        placeholder="이번에 생긴 문제를 적어주세요"></textarea>
+      <span class="erp-as-reintake-sheet__hint">지난 내용은 일부러 안 채워 둡니다. 이번에 본 것을 새로 적어야 사무실이 제대로 판단해요.</span>
+    </label>
+
+    <label class="erp-as-reintake-sheet__check" for="erp-as-reintake-recurrence">
+      <input type="checkbox" id="erp-as-reintake-recurrence" data-as-reintake-recurrence>
+      <span class="erp-as-reintake-sheet__check-text">
+        지난 건과 같은 증상이에요
+        <span class="erp-as-reintake-sheet__check-sub">체크하면 카드에 <span class="erp-as-recur-chip">재발</span> 표시가 붙어요</span>
+      </span>
+    </label>
+
+    {# 비용: 현장 기사에게는 선택권을 주지 않는다(안내만). 무상/유상은 보증기간·과실 책임
+       판단이라 현장에서 알 수 없는 정보(계약·이전 클레임)가 필요하고, 기사가 고른 값이
+       화면에 남으면 고객이 금액 약속으로 받아들여 분쟁이 된다.
+       노출 권한 근거 = ERP 편집 권한(can_edit_erp: ADMIN·라홈팀·하우드팀·영업팀,
+       foms/services/erp_permissions.py) = '사무실'. 서버는 새 건 접수에서 직전 건 billing 이
+       봉인돼 있을 때만 이 값을 재시드한다(foms/api/cs/as_orders.py `reseed_billing`)
+       — 그래서 새 건에서만 의미가 있다.
+       ⚠ 아래 잠금 안내(else 갈래)는 지금 이 화면에서는 도달 불가다: 시공팀은
+       _erp_construction_team_restrict(foms/platform/http.py) 때문에 /erp/as 를 못 열고,
+       나머지 사용자는 재접수 버튼 자체가 안 보인다. '사무실' 기준을 can_edit_erp 보다 좁게
+       잡을지는 S4 미정 사항이라 여기서 새 권한을 발명하지 않는다. #}
+    {% if can_edit_erp|default(false) %}
+    <div class="erp-as-reintake-sheet__field erp-as-reintake-sheet__cost">
+      <span class="erp-as-reintake-sheet__label">이번 AS 비용 <span class="erp-as-reintake-sheet__office">사무실 전용</span></span>
+      <div class="erp-as-reintake-sheet__seg" role="group" aria-label="이번 AS 비용">
+        <button type="button" class="erp-as-reintake-sheet__seg-btn is-on" data-as-reintake-billing="free">무상</button>
+        <button type="button" class="erp-as-reintake-sheet__seg-btn" data-as-reintake-billing="paid">유상</button>
+      </div>
+      <div class="erp-as-reintake-sheet__amount" data-as-reintake-amount-wrap hidden>
+        <label class="erp-as-reintake-sheet__label" for="erp-as-reintake-amount">예상 금액(원)</label>
+        <input type="number" id="erp-as-reintake-amount" class="erp-as-reintake-sheet__amount-input"
+          data-as-reintake-amount min="0" step="1000" inputmode="numeric" placeholder="예: 50000">
+      </div>
+      <span class="erp-as-reintake-sheet__hint">새 AS 건이라 다시 고를 수 있어요. 지난 건의 판정은 그 건에 그대로 남습니다.</span>
+    </div>
+    {% else %}
+    <div class="erp-as-reintake-sheet__costlock">
+      <i class="fas fa-lock" aria-hidden="true"></i>
+      <span class="erp-as-reintake-sheet__costlock-text">
+        <b>비용은 사무실에서 정해요</b>
+        <span class="erp-as-reintake-sheet__costlock-sub">기사님은 증상과 사진만 보내주시면 됩니다</span>
+      </span>
+    </div>
+    {% endif %}
+
+    {# 사진: 기존 AS 첨부 업로드 흐름 재사용 — window.fomsUploadOrderAttachmentsBatch
+       (static/js/runtime/upload-progress.js, layout_scripts 전역 로드)로 category='as' +
+       as_log_id=접수 기록 id 결합. 새 업로드 경로를 만들지 않는다. #}
+    <button type="button" class="erp-as-reintake-sheet__photo" data-as-reintake-photo>
+      <i class="fas fa-camera" aria-hidden="true"></i>
+      <span class="erp-as-reintake-sheet__photo-text">사진 찍어 붙이기</span>
+      <span class="erp-as-reintake-sheet__photo-count" data-as-reintake-photo-count>0장</span>
+    </button>
+    <input type="file" class="erp-as-reintake-sheet__file" data-as-reintake-files
+      accept="image/*" multiple hidden aria-hidden="true" tabindex="-1">
+
+    {# 자동 닫힘(.alert 5초 규칙) 대상이 아니도록 .alert 를 쓰지 않는다. #}
+    <p class="erp-as-reintake-sheet__status" data-as-reintake-status role="status" aria-live="polite" hidden></p>
+  </div>
+
+  <div class="erp-as-reintake-sheet__foot">
+    <button type="button" class="erp-as-reintake-sheet__submit" data-as-reintake-submit>AS 접수하기</button>
+  </div>
+</div>

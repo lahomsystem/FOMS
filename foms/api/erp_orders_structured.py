@@ -25,6 +25,7 @@ from foms.services.orders.estimate_defaults import (
     ERP_DRAFT_PLACEHOLDER_PHONE,
     ERP_DRAFT_PLACEHOLDER_PRODUCT,
 )
+from foms.services.orders.as_cycle_view import as_cycle_detail_payload
 from foms.services.orders.construction_type import normalize_regional_construction_type
 from foms.services.orders.stage_override import normalize_main_stage
 from foms.services.orders.status_constants import STATUS
@@ -913,6 +914,9 @@ def api_get_order_structured(order_id):
             'construction_type': getattr(order, 'construction_type', None) or '',
             # 지방주문 AS 재상차 모달 prefill용(flat 컬럼, structured_data에는 없음).
             'shipping_scheduled_date': getattr(order, 'shipping_scheduled_date', None) or '',
+            # AS 재접수 모달의 'N번째 AS' 제목·지난 건 요약용 투영
+            # (SSOT: services/orders/as_cycle_view). 부트스트랩 payload 와 같은 shape.
+            'as_cycle': as_cycle_detail_payload(order.structured_data),
         })
     except Exception as e:
         logger.exception("[ERP_ORDER] structured GET 오류: %s", e)

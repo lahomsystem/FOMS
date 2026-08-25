@@ -1,0 +1,38 @@
+/* AS 건(cycle) 표식 — 주문 상세 재접수 모달용.
+   "N번째 AS" = 보라 알약(건), "재발" = 빨강 칩. 색은 목업 as-reintake-workbench.html
+   확정값이며 회차 차트(.as-rchart-cycle-badge, foms-as-round-chart.css)와 같은 값이다 —
+   같은 뜻의 배지가 화면마다 다른 색이면 "다른 것"으로 읽힌다.
+   회차 차트 CSS 는 AS 대시보드·지도 전용이라 주문 편집 화면에 실리지 않아 여기 따로 둔다. */
+
+.foms-as-cycle-badge {
+  display: inline-block;
+  background: #f1ebfd;
+  color: #6d28d9;
+  border: 1px solid #ddd0fa;
+  border-radius: 999px;
+  padding: 1px 10px;
+  font-size: 0.74rem;
+  font-weight: 800;
+  white-space: nowrap;
+  vertical-align: middle;
+}
+
+/* 이력 시작 전(LEGACY_BRIDGE): '몇 번째 AS'를 셀 수 없다 — 순번 배지 대신 회색으로. */
+.foms-as-cycle-badge--unknown {
+  background: #eef2f7;
+  color: #475569;
+  border-color: #cbd5e1;
+}
+
+.foms-as-recur-chip {
+  display: inline-block;
+  background: #fdeaea;
+  color: #b91c1c;
+  border: 1px solid #f6cfcf;
+  border-radius: 6px;
+  padding: 0 7px;
+  font-size: 0.72rem;
+  font-weight: 800;
+  white-space: nowrap;
+  vertical-align: middle;
+}

@@ -1,0 +1,3264 @@
+<!doctype html>
+<html lang="ko">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>AS 재접수 설계 목업</title>
+<style>
+  :root {
+    --bg: #eef2f7;
+    --surface: #fff;
+    --surface-soft: #f6f8fb;
+    --text: #111827;
+    --muted: #6b7280;
+    --line: #dbe1ea;
+    --line-soft: #edf1f6;
+    --blue: #2563eb;
+    --blue-soft: #eaf1ff;
+    --green: #15803d;
+    --green-soft: #e7f6ec;
+    --amber: #b45309;
+    --amber-soft: #fdf3e3;
+    --red: #b91c1c;
+    --red-soft: #fdeaea;
+    --purple: #6d28d9;
+    --purple-soft: #f1ebfd;
+    --radius: 10px;
+    font-family: Pretendard, -apple-system, BlinkMacSystemFont, "Segoe UI", "Malgun Gothic", sans-serif;
+  }
+  * { box-sizing: border-box; }
+  body { margin: 0; background: var(--bg); color: var(--text); font-size: 13px; line-height: 1.5; }
+
+  /* ── 문서 셸 ─────────────────────────────────────────────── */
+  .mk-doc-head {
+    background: var(--surface); border-bottom: 1px solid var(--line);
+    padding: 18px 22px; position: sticky; top: 0; z-index: 50;
+  }
+  .mk-doc-head h1 { margin: 0 0 4px; font-size: 18px; }
+  .mk-doc-head p { margin: 0; color: var(--muted); }
+  .mk-toc { display: flex; gap: 6px; flex-wrap: wrap; margin-top: 10px; }
+  .mk-toc a {
+    text-decoration: none; color: var(--text); background: var(--surface-soft);
+    border: 1px solid var(--line); border-radius: 999px; padding: 4px 12px; font-size: 12px; font-weight: 600;
+  }
+  .mk-toc a:hover { background: var(--blue-soft); border-color: var(--blue); color: var(--blue); }
+  .mk-wrap { padding: 22px; max-width: 1240px; margin: 0 auto; }
+  .mk-section {
+    background: var(--surface); border: 1px solid var(--line); border-radius: var(--radius);
+    padding: 20px; margin-bottom: 26px;
+    /* 폭 넓은 시연물(표·눈금자)은 섹션 안에서 가로 스크롤 — 페이지 본문은 절대 가로로 안 밀린다 */
+    overflow-x: auto;
+    /* 위쪽 목차로 점프할 때 sticky 헤더가 제목을 가리지 않게 */
+    scroll-margin-top: 150px;
+  }
+  .mk-h2 { margin: 0 0 4px; font-size: 16px; }
+  .mk-sub { margin: 0 0 16px; color: var(--muted); }
+  .mk-h3 { margin: 22px 0 8px; font-size: 14px; color: var(--text); }
+
+  /* ── 공통 부품(섹션에서 재정의 금지) ───────────────────────── */
+  .mk-btn {
+    border: 1px solid var(--line); background: var(--surface); color: var(--text);
+    padding: 5px 11px; border-radius: 7px; font-size: 12px; cursor: pointer; font-weight: 600;
+  }
+  .mk-btn:hover { background: var(--surface-soft); }
+  .mk-btn--primary { background: var(--blue); border-color: var(--blue); color: #fff; }
+  .mk-btn--ghost { border-color: transparent; color: var(--muted); background: none; }
+  .mk-btn--danger { background: var(--red); border-color: var(--red); color: #fff; }
+  .mk-btn[disabled] { opacity: .45; cursor: not-allowed; }
+
+  .mk-card { background: var(--surface); border: 1px solid var(--line); border-radius: var(--radius); padding: 14px; }
+  .mk-row { display: flex; align-items: center; gap: 8px; flex-wrap: wrap; }
+  .mk-muted { color: var(--muted); }
+
+  .mk-chip {
+    display: inline-block; padding: 1px 8px; border-radius: 999px; font-size: 11px; font-weight: 700;
+    background: var(--surface-soft); border: 1px solid var(--line); color: var(--muted);
+  }
+
+  /* 세 표식 — 네 섹션이 동일하게 쓴다 */
+  .mk-cycle-badge {
+    display: inline-block; padding: 1px 8px; border-radius: 999px; font-size: 11px; font-weight: 700;
+    background: var(--purple-soft); border: 1px solid var(--purple); color: var(--purple); white-space: nowrap;
+  }
+  .mk-recur-chip {
+    display: inline-block; padding: 1px 8px; border-radius: 999px; font-size: 11px; font-weight: 700;
+    background: var(--red-soft); border: 1px solid var(--red); color: var(--red); white-space: nowrap;
+  }
+  .mk-round {
+    display: inline-block; padding: 1px 7px; border-radius: 5px; font-size: 11px; font-weight: 700;
+    background: var(--surface-soft); border: 1px solid var(--line); color: var(--muted); white-space: nowrap;
+  }
+
+  .mk-note {
+    background: var(--blue-soft); border-left: 4px solid var(--blue); border-radius: 6px;
+    padding: 10px 12px; margin: 12px 0; font-size: 12px; color: #1e3a8a;
+  }
+  .mk-note b { color: #1e3a8a; }
+  .mk-note--q { background: var(--amber-soft); border-left-color: var(--amber); color: #7c2d12; }
+  .mk-note--q b { color: #7c2d12; }
+  .mk-note--new { background: var(--green-soft); border-left-color: var(--green); color: #14532d; }
+  .mk-note--new b { color: #14532d; }
+
+  /* 아직 저장 안 되는 값 — 점선 밑줄 + 꼬리표 */
+  .mk-todo { border-bottom: 1px dashed var(--amber); position: relative; white-space: nowrap; }
+  .mk-todo i {
+    font-style: normal; font-size: 10px; font-weight: 700; color: var(--amber);
+    background: var(--amber-soft); border: 1px solid var(--amber); border-radius: 4px;
+    padding: 0 4px; margin-left: 4px; vertical-align: 1px;
+  }
+  /* 배포 단계 꼬리표 */
+  .mk-stage {
+    display: inline-block; font-size: 10px; font-weight: 800; letter-spacing: .3px;
+    color: #fff; background: var(--muted); border-radius: 4px; padding: 1px 6px; margin-left: 6px; vertical-align: 2px;
+  }
+  .mk-stage[data-s="S1"] { background: #475569; }
+  .mk-stage[data-s="S2"] { background: var(--blue); }
+  .mk-stage[data-s="S3"] { background: var(--amber); }
+  .mk-stage[data-s="S4"] { background: var(--purple); }
+
+  .mk-legend { display: flex; gap: 18px; flex-wrap: wrap; margin-top: 12px; font-size: 12px; color: var(--muted); }
+  .mk-legend div { display: flex; align-items: center; gap: 6px; }
+</style>
+</head>
+<body>
+<header class="mk-doc-head">
+  <h1>AS 재접수 설계 목업 — 화면 4개</h1>
+  <p>AS를 완료한 뒤 같은 주문에 AS가 또 생겼을 때, 헷갈리지 않게 처리하는 화면 제안. 실제 코드는 아직 안 건드렸다(그림만).</p>
+  <div class="mk-legend">
+    <div><span class="mk-cycle-badge">2번째 AS</span> 접수 건(件) — 완료 후 새로 접수하면 늘어난다</div>
+    <div><span class="mk-round">3차</span> 처리 회차 — "이번엔 못 끝냈다"고 판정할 때마다 +1 (기존 개념)</div>
+    <div><span class="mk-recur-chip">재발</span> 지난 건과 같은 증상</div>
+  </div>
+  <div class="mk-legend">
+    <div><span class="mk-todo">6/11 완료<i>저장 추가 필요</i></span> 지금은 저장 안 되는 값 — 만들려면 저장부터 늘려야 한다</div>
+    <div><span class="mk-stage" data-s="S1">S1</span><span class="mk-stage" data-s="S2">S2</span><span class="mk-stage" data-s="S3">S3</span><span class="mk-stage" data-s="S4">S4</span> 배포 단계 — S1 저장만 · S2 화면 표시 · S3 회차 의미 · S4 비용·플래그</div>
+  </div>
+  <nav class="mk-toc">
+    <a href="#sec-pc">1. PC 대시보드 표</a>
+    <a href="#sec-mobile">2. 모바일 카드</a>
+    <a href="#sec-chart">3. 회차 차트</a>
+    <a href="#sec-modal">4. 재접수 모달</a>
+  </nav>
+</header>
+<main class="mk-wrap">
+<!-- SECTION: sec-pc -->
+<section id="sec-pc" class="mk-section">
+  <h2 class="mk-h2">1. PC AS 대시보드 표</h2>
+  <p class="mk-sub">전화 받는 중에, 완료된 AS를 표에서 바로 다시 접수한다 — 주문 상세로 왔다 갔다 하지 않는다. 그리고 완료일을 지웠을 때 <b>상황에 맞는 팝업</b>이 뜬다.</p>
+
+  <style>
+    /* 이 섹션 전용 — 전부 #sec-pc 로 스코프. 셸 유틸(.mk-btn/.mk-note/.mk-card/.mk-todo/.mk-stage)은 건드리지 않는다. */
+    #sec-pc .pc-block { margin: 22px 0 8px; }
+    #sec-pc .pc-h3 { font-size: 15px; font-weight: 800; margin: 0 0 4px; color: var(--text, #111827); }
+    #sec-pc .pc-h3__tag { font-size: 12px; font-weight: 600; color: var(--muted, #6b7280); margin-left: 6px; }
+    #sec-pc .pc-lead { font-size: 13px; color: var(--muted, #6b7280); margin: 0 0 10px; }
+
+    /* 화면 액자 */
+    #sec-pc .pc-screen { border: 1px solid var(--line, #dbe1ea); border-radius: var(--radius, 10px); background: var(--surface, #fff); overflow: hidden; }
+    #sec-pc .pc-screen__bar { display: flex; align-items: center; gap: 8px; padding: 7px 12px; background: var(--surface-soft, #f6f8fb); border-bottom: 1px solid var(--line, #dbe1ea); font-size: 12px; color: var(--muted, #6b7280); }
+    #sec-pc .pc-screen__dot { width: 8px; height: 8px; border-radius: 50%; background: #cbd3de; display: inline-block; }
+
+    /* 탭 */
+    #sec-pc .pc-tabs { display: flex; gap: 4px; padding: 10px 12px 0; border-bottom: 1px solid var(--line, #dbe1ea); background: var(--surface, #fff); }
+    #sec-pc .pc-tab { display: inline-flex; align-items: center; gap: 6px; padding: 8px 14px; font-size: 13px; color: var(--muted, #6b7280); border: 1px solid transparent; border-bottom: none; border-radius: 8px 8px 0 0; }
+    #sec-pc .pc-tab.is-active { background: var(--surface, #fff); border-color: var(--line, #dbe1ea); color: var(--text, #111827); font-weight: 800; box-shadow: 0 1px 0 0 var(--surface, #fff); position: relative; top: 1px; }
+    #sec-pc .pc-tab__count { font-size: 11px; font-weight: 700; padding: 1px 7px; border-radius: 999px; background: var(--surface-soft, #f6f8fb); border: 1px solid var(--line, #dbe1ea); color: var(--muted, #6b7280); }
+
+    /* 표 */
+    #sec-pc .pc-table { width: 100%; border-collapse: collapse; font-size: 13px; table-layout: fixed; }
+    #sec-pc .pc-table th { text-align: left; font-size: 12px; font-weight: 700; color: var(--muted, #6b7280); background: var(--surface-soft, #f6f8fb); padding: 9px 10px; border-bottom: 1px solid var(--line, #dbe1ea); white-space: nowrap; }
+    #sec-pc .pc-table td { padding: 10px; border-bottom: 1px solid var(--line-soft, #edf1f6); vertical-align: top; color: var(--text, #111827); word-break: break-all; }
+    #sec-pc .pc-table tr:last-child td { border-bottom: none; }
+    #sec-pc .pc-table tr.is-focus td { background: #fbf8ff; }
+    #sec-pc .pc-table tr.is-legacy td { background: #f8f9fb; }
+    #sec-pc .pc-oid { font-weight: 800; color: var(--blue, #2563eb); text-decoration: none; }
+    #sec-pc .pc-sub { display: block; font-size: 11px; color: var(--muted, #6b7280); margin-top: 3px; }
+    #sec-pc .pc-date { width: 100%; max-width: 122px; padding: 4px 6px; font: inherit; font-size: 12px; color: var(--text, #111827); background: var(--surface, #fff); border: 1px solid var(--line, #dbe1ea); border-radius: 6px; }
+    #sec-pc .pc-date.is-set { background: var(--green-soft, #e7f6ec); border-color: #bfe3ca; }
+    #sec-pc .pc-date.is-drift { background: var(--amber-soft, #fdf3e3); border-color: #f0dcb6; }
+
+    /* 상태·비용 배지 */
+    #sec-pc .pc-badge { display: inline-block; padding: 2px 9px; border-radius: 999px; font-size: 11px; font-weight: 700; line-height: 1.7; }
+    #sec-pc .pc-badge--done { background: var(--green-soft, #e7f6ec); color: var(--green, #15803d); }
+    #sec-pc .pc-badge--doing { background: var(--blue-soft, #eaf1ff); color: var(--blue, #2563eb); }
+    #sec-pc .pc-bill { display: inline-block; margin-left: 4px; padding: 2px 7px; border-radius: 6px; font-size: 11px; font-weight: 700; border: 1px solid var(--line, #dbe1ea); color: var(--muted, #6b7280); background: var(--surface, #fff); }
+    #sec-pc .pc-bill--free { color: var(--green, #15803d); border-color: #bfe3ca; background: var(--green-soft, #e7f6ec); }
+    #sec-pc .pc-bill--paid { color: var(--amber, #b45309); border-color: #f0dcb6; background: var(--amber-soft, #fdf3e3); }
+
+    /* 옛 주문(이력 시작 전) 표식 */
+    #sec-pc .pc-legacy { display: inline-block; padding: 2px 8px; border-radius: 999px; font-size: 11px; font-weight: 700; line-height: 1.7; background: #eef1f5; color: #4b5563; border: 1px solid #d4dae2; white-space: nowrap; }
+    #sec-pc .pc-unknown { display: inline-block; padding: 2px 8px; border-radius: 6px; font-size: 11.5px; font-weight: 700; color: #6b7280; background: #eef1f5; border: 1px dashed #b9c2ce; }
+    #sec-pc .pc-warn { display: inline-block; margin-top: 4px; padding: 1px 7px; border-radius: 999px; font-size: 10.5px; font-weight: 800; color: var(--amber, #b45309); background: var(--amber-soft, #fdf3e3); border: 1px solid #f0dcb6; white-space: nowrap; }
+
+    /* 공통 표식 3종 — 색·모양·자리로 서로 구분한다 */
+    #sec-pc .mk-cycle-badge { display: inline-block; padding: 2px 9px; border-radius: 999px; font-size: 11px; font-weight: 800; line-height: 1.7; white-space: nowrap; background: var(--purple-soft, #f1ebfd); color: var(--purple, #6d28d9); border: 1px solid #ddd0fa; }
+    #sec-pc .mk-recur-chip { display: inline-block; padding: 2px 8px; border-radius: 999px; font-size: 11px; font-weight: 800; line-height: 1.7; background: var(--red-soft, #fdeaea); color: var(--red, #b91c1c); border: 1px solid #f5c9c9; }
+    #sec-pc .mk-round { display: inline-block; padding: 1px 6px; border-radius: 4px; font-size: 11px; font-weight: 700; line-height: 1.7; background: #eef1f5; color: #4b5563; border: 1px solid var(--line, #dbe1ea); font-variant-numeric: tabular-nums; }
+
+    /* 신설: 재접수 버튼 (보라 = AS 건 색) */
+    #sec-pc .pc-reintake { display: inline-flex; align-items: center; gap: 5px; margin-top: 7px; padding: 5px 11px; font: inherit; font-size: 12px; font-weight: 800; color: #fff; background: var(--purple, #6d28d9); border: 1px solid var(--purple, #6d28d9); border-radius: 8px; cursor: pointer; }
+    #sec-pc .pc-reintake:hover { filter: brightness(1.12); }
+    #sec-pc .pc-reintake:focus-visible { outline: 2px solid var(--purple, #6d28d9); outline-offset: 2px; }
+
+    /* 재접수 뒤 «행이 사라지는 이유»를 그 자리에 남기는 안내 줄 */
+    #sec-pc .pc-table tr.is-leaving td { opacity: .35; transition: opacity .45s ease; }
+    #sec-pc .pc-table tr.is-gone { display: none; }
+    #sec-pc .pc-moverow[hidden] { display: none; }
+    #sec-pc .pc-moverow td { background: var(--purple-soft, #f1ebfd); border-top: 1px solid #ddd0fa; }
+    #sec-pc .pc-move { display: flex; align-items: center; gap: 10px; flex-wrap: wrap; font-size: 12.5px; color: #4c1d95; }
+    #sec-pc .pc-move__ico { font-size: 15px; font-weight: 800; color: var(--purple, #6d28d9); }
+    #sec-pc .pc-move__txt { flex: 1 1 320px; line-height: 1.6; }
+    #sec-pc .pc-move__go { padding: 5px 11px; font: inherit; font-size: 12px; font-weight: 800; color: #fff; background: var(--purple, #6d28d9); border: 1px solid var(--purple, #6d28d9); border-radius: 8px; cursor: pointer; }
+    #sec-pc .pc-move__x { padding: 5px 10px; font: inherit; font-size: 12px; font-weight: 700; color: var(--purple, #6d28d9); background: var(--surface, #fff); border: 1px solid #ddd0fa; border-radius: 8px; cursor: pointer; }
+
+    #sec-pc .pc-underbar { display: flex; align-items: center; gap: 10px; flex-wrap: wrap; margin-top: 10px; }
+    #sec-pc .pc-replay { padding: 5px 11px; font: inherit; font-size: 12px; font-weight: 700; color: var(--muted, #6b7280); background: var(--surface, #fff); border: 1px solid var(--line, #dbe1ea); border-radius: 8px; cursor: pointer; }
+    #sec-pc .pc-replay:hover { color: var(--text, #111827); border-color: #c3ccd8; }
+    #sec-pc .pc-hint { font-size: 11.5px; color: var(--muted, #6b7280); }
+
+    /* 타임라인 셀(AS 내용) */
+    #sec-pc .pc-tl { font-size: 12px; line-height: 1.55; }
+    #sec-pc .pc-tl__anchor { font-weight: 700; color: var(--text, #111827); }
+    #sec-pc .pc-tl__last { color: var(--muted, #6b7280); margin-top: 2px; }
+    #sec-pc .pc-tl__prev { color: var(--muted, #6b7280); margin-top: 3px; }
+
+    /* 1-C 팝업 3케이스 */
+    #sec-pc .pc-stage { padding: 20px 14px; background: #1f2530; border-radius: var(--radius, 10px); }
+    #sec-pc .pc-cases { display: grid; grid-template-columns: repeat(auto-fit, minmax(310px, 1fr)); gap: 14px; align-items: start; }
+    #sec-pc .pc-case { display: flex; flex-direction: column; gap: 9px; }
+    #sec-pc .pc-case__when { padding: 8px 11px; border-radius: 8px; font-size: 12px; line-height: 1.6; color: #e8ecf3; background: rgba(255, 255, 255, .09); border: 1px solid rgba(255, 255, 255, .18); }
+    #sec-pc .pc-case__when b { color: #fff; }
+    #sec-pc .pc-case__when code { font-size: 11px; color: #cbd5e1; }
+    #sec-pc .pc-case__key { display: inline-block; margin-right: 6px; padding: 1px 7px; border-radius: 5px; font-size: 11px; font-weight: 800; color: #1f2530; background: #fff; }
+    #sec-pc .pc-modal { background: var(--surface, #fff); border-radius: 12px; box-shadow: 0 14px 34px rgba(0, 0, 0, .34); overflow: hidden; }
+    #sec-pc .pc-case.is-flash .pc-modal { animation: pcFlash 1.1s ease-out 2; }
+    @keyframes pcFlash { 0%, 100% { box-shadow: 0 14px 34px rgba(0, 0, 0, .34); } 50% { box-shadow: 0 0 0 6px rgba(109, 40, 217, .6); } }
+    #sec-pc .pc-modal__head { padding: 14px 15px 11px; border-bottom: 1px solid var(--line-soft, #edf1f6); }
+    #sec-pc .pc-modal__title { margin: 0; font-size: 15px; font-weight: 800; color: var(--text, #111827); line-height: 1.45; }
+    #sec-pc .pc-modal__who { margin: 6px 0 0; font-size: 11.5px; color: var(--muted, #6b7280); line-height: 1.6; }
+    #sec-pc .pc-modal__body { padding: 12px 15px 4px; }
+    #sec-pc .pc-say { margin: 0 0 10px; font-size: 13px; line-height: 1.65; color: var(--text, #111827); }
+    #sec-pc .pc-choice { display: flex; gap: 10px; width: 100%; text-align: left; padding: 11px 12px; margin: 0 0 9px; background: var(--surface, #fff); border: 1px solid var(--line, #dbe1ea); border-radius: 10px; cursor: pointer; font: inherit; }
+    #sec-pc .pc-choice:hover { border-color: var(--blue, #2563eb); background: var(--blue-soft, #eaf1ff); }
+    #sec-pc .pc-choice--new:hover { border-color: var(--purple, #6d28d9); background: var(--purple-soft, #f1ebfd); }
+    #sec-pc .pc-choice--idea { border-style: dashed; border-color: var(--purple, #6d28d9); background: var(--purple-soft, #f1ebfd); }
+    #sec-pc .pc-choice__n { flex: 0 0 24px; height: 24px; border-radius: 50%; background: var(--surface-soft, #f6f8fb); border: 1px solid var(--line, #dbe1ea); color: var(--text, #111827); font-size: 12px; font-weight: 800; display: flex; align-items: center; justify-content: center; }
+    #sec-pc .pc-choice--new .pc-choice__n { background: var(--purple-soft, #f1ebfd); border-color: #ddd0fa; color: var(--purple, #6d28d9); }
+    #sec-pc .pc-choice--idea .pc-choice__n { background: #fff; border-color: var(--purple, #6d28d9); color: var(--purple, #6d28d9); }
+    #sec-pc .pc-choice__t { font-size: 13px; font-weight: 800; color: var(--text, #111827); line-height: 1.5; }
+    #sec-pc .pc-choice__d { font-size: 11.5px; color: var(--muted, #6b7280); margin-top: 3px; line-height: 1.55; }
+    #sec-pc .pc-reason { margin: 2px 0 9px 34px; }
+    #sec-pc .pc-reason select, #sec-pc .pc-reason input { width: 100%; padding: 5px 7px; font: inherit; font-size: 12px; color: var(--text, #111827); background: var(--surface, #fff); border: 1px solid #ddd0fa; border-radius: 7px; margin-bottom: 5px; }
+    #sec-pc .pc-modal__foot { display: flex; align-items: center; justify-content: space-between; gap: 10px; padding: 8px 15px 14px; }
+    #sec-pc .pc-cancel { padding: 6px 13px; font: inherit; font-size: 12px; font-weight: 700; color: var(--muted, #6b7280); background: var(--surface, #fff); border: 1px solid var(--line, #dbe1ea); border-radius: 8px; cursor: pointer; }
+    #sec-pc .pc-cancel:hover { color: var(--text, #111827); border-color: #c3ccd8; }
+    #sec-pc .pc-ok { padding: 6px 13px; font: inherit; font-size: 12px; font-weight: 800; color: #fff; background: var(--blue, #2563eb); border: 1px solid var(--blue, #2563eb); border-radius: 8px; cursor: pointer; }
+    #sec-pc .pc-foot-hint { font-size: 11px; color: var(--muted, #6b7280); }
+    #sec-pc .pc-result { margin: 0; padding: 9px 11px; font-size: 12px; font-weight: 700; color: #fff; background: rgba(255, 255, 255, .12); border: 1px dashed rgba(255, 255, 255, .38); border-radius: 8px; display: none; }
+    #sec-pc .pc-result.is-on { display: block; }
+
+    #sec-pc .pc-legend { display: flex; flex-direction: column; gap: 8px; margin: 10px 0 0; font-size: 12px; color: var(--muted, #6b7280); line-height: 1.6; }
+    #sec-pc .pc-legend span b { color: var(--text, #111827); }
+  </style>
+
+  <div class="mk-note">
+    <b>지금은</b> 완료 탭에 재접수 버튼이 없어서, 전화를 받은 채로 주문 상세를 열었다 돌아와야 한다.<br>
+    <b>지금은</b> 완료일 칸을 지우면 아무것도 안 묻고 저장되고(<code>as-dashboard.js</code> 날짜 <code>change</code> → <code>/api/update_order_field</code>), 미완료 탭으로 화면까지 자동으로 넘어간다.<br>
+    <b>이렇게 바꾼다</b> 완료 탭 행마다 <b>재접수</b> 버튼을 두고, 완료일을 지우면 <b>상황에 맞는 팝업</b>(3가지)을 띄운다.
+  </div>
+
+  <!-- ───────────────────────── 1-A. 완료 탭 표 ───────────────────────── -->
+  <div class="pc-block">
+    <h3 class="pc-h3">1-A. 완료 탭 표<span class="mk-stage" data-s="S2">S2</span><span class="pc-h3__tag">— 행에서 바로 재접수 · 사라진 이유를 그 자리에 남긴다</span></h3>
+    <p class="pc-lead">CS 김민지가 전화를 받는 중이다. 완료된 AS 행 오른쪽 끝 <b>상태</b> 칸에서 <b>재접수</b>를 누르면 그 자리에서 새 AS 접수가 시작된다. <b>▸ #4821 의 «↺ 재접수» 를 눌러 보라.</b></p>
+
+    <div class="pc-screen">
+      <div class="pc-screen__bar"><span class="pc-screen__dot"></span> AS 대시보드 · PC</div>
+      <div class="pc-tabs">
+        <div class="pc-tab">영업/택배 <span class="pc-tab__count">12</span></div>
+        <div class="pc-tab">미완료 <span class="pc-tab__count">37</span></div>
+        <div class="pc-tab is-active">완료 <span class="pc-tab__count">128</span></div>
+      </div>
+      <table class="pc-table">
+        <colgroup>
+          <col style="width:14%"><col style="width:11%"><col style="width:10%"><col style="width:12%">
+          <col style="width:8%"><col style="width:13%"><col style="width:16%"><col style="width:16%">
+        </colgroup>
+        <thead>
+          <tr>
+            <th>주문</th>
+            <th>AS 접수일</th>
+            <th>AS 방문일</th>
+            <th>AS 완료일</th>
+            <th>담당자</th>
+            <th>고객</th>
+            <th>AS 내용</th>
+            <th>상태</th>
+          </tr>
+        </thead>
+        <tbody>
+          <!-- ① 1번째 AS — 지금 저장되는 값만 있는 행(꼬리표 없음) -->
+          <tr class="is-focus" data-pc-row="4821">
+            <td>
+              <a class="pc-oid" href="#sec-pc">#4821</a>
+              <span class="pc-sub">1번째 AS · 배지 없음</span>
+            </td>
+            <td>2026-06-02</td>
+            <td>2026-06-09</td>
+            <td><input class="pc-date is-set" type="date" value="2026-06-11" data-pc-done-input aria-label="주문 4821 AS 완료일"></td>
+            <td>이수현</td>
+            <td>김서연<span class="pc-sub">서울 강남구 …</span></td>
+            <td>
+              <div class="pc-tl">
+                <div class="pc-tl__anchor">상판 마감 들뜸</div>
+                <div class="pc-tl__last">조치 · 상판 재부착 완료 <span class="mk-round">2차</span></div>
+              </div>
+            </td>
+            <td>
+              <span class="pc-badge pc-badge--done">AS 완료</span><span class="pc-bill pc-bill--free">무상</span>
+              <div><button type="button" class="pc-reintake" data-pc-reintake="4821">↺ 재접수</button></div>
+            </td>
+          </tr>
+          <tr class="pc-moverow" hidden data-pc-move="4821">
+            <td colspan="8">
+              <div class="pc-move">
+                <span class="pc-move__ico">↗</span>
+                <span class="pc-move__txt"><b>#4821 김서연 — 미완료 탭으로 옮겼어요.</b> 새 AS 건(<span class="mk-cycle-badge">2번째 AS</span>)이 열려서 «완료» 조건에서 빠졌어요. 없어진 게 아니에요.</span>
+                <button type="button" class="pc-move__go">미완료 탭에서 보기 ▸</button>
+                <button type="button" class="pc-move__x" data-pc-move-close="4821">닫기</button>
+              </div>
+            </td>
+          </tr>
+
+          <!-- ② 2번째 AS — 지난 건 값이 섞여 나오는 행(꼬리표 붙는다) -->
+          <tr data-pc-row="4655">
+            <td>
+              <a class="pc-oid" href="#sec-pc">#4655</a>
+              <span class="pc-sub"><span class="mk-cycle-badge">2번째 AS</span></span>
+            </td>
+            <td>2026-07-08</td>
+            <td>2026-07-15</td>
+            <td><input class="pc-date is-set" type="date" value="2026-07-19" aria-label="주문 4655 AS 완료일"></td>
+            <td>이수현</td>
+            <td>박지우<span class="pc-sub">서울 송파구 …</span></td>
+            <td>
+              <div class="pc-tl">
+                <div class="pc-tl__anchor">서랍 레일 소음 <span class="mk-recur-chip">재발</span></div>
+                <div class="pc-tl__last">조치 · 레일 교체 <span class="mk-round">1차</span></div>
+                <div class="pc-tl__prev">지난 건 <span class="mk-todo">5/02~5/11<i>저장 필요</i></span></div>
+              </div>
+            </td>
+            <td>
+              <span class="pc-badge pc-badge--done">AS 완료</span>
+              <span class="mk-todo">유상<i>건별 저장 필요</i></span>
+              <span class="pc-sub">첫 접수 때 잠긴 값</span>
+              <div><button type="button" class="pc-reintake" data-pc-reintake="4655">↺ 재접수</button></div>
+            </td>
+          </tr>
+          <tr class="pc-moverow" hidden data-pc-move="4655">
+            <td colspan="8">
+              <div class="pc-move">
+                <span class="pc-move__ico">↗</span>
+                <span class="pc-move__txt"><b>#4655 박지우 — 미완료 탭으로 옮겼어요.</b> 새 AS 건(<span class="mk-cycle-badge">3번째 AS</span>)이 열렸어요.</span>
+                <button type="button" class="pc-move__go">미완료 탭에서 보기 ▸</button>
+                <button type="button" class="pc-move__x" data-pc-move-close="4655">닫기</button>
+              </div>
+            </td>
+          </tr>
+
+          <!-- ③ 1번째 AS — 배지 없음 대조군 -->
+          <tr data-pc-row="4390">
+            <td>
+              <a class="pc-oid" href="#sec-pc">#4390</a>
+              <span class="pc-sub">1번째 AS · 배지 없음</span>
+            </td>
+            <td>2026-05-14</td>
+            <td>2026-05-20</td>
+            <td><input class="pc-date is-set" type="date" value="2026-05-21" aria-label="주문 4390 AS 완료일"></td>
+            <td>이수현</td>
+            <td>최민호<span class="pc-sub">경기 성남시 …</span></td>
+            <td>
+              <div class="pc-tl">
+                <div class="pc-tl__anchor">문짝 단차</div>
+                <div class="pc-tl__last">조치 · 경첩 조정 <span class="mk-round">1차</span></div>
+              </div>
+            </td>
+            <td>
+              <span class="pc-badge pc-badge--done">AS 완료</span><span class="pc-bill pc-bill--free">무상</span>
+              <div><button type="button" class="pc-reintake" data-pc-reintake="4390">↺ 재접수</button></div>
+            </td>
+          </tr>
+          <tr class="pc-moverow" hidden data-pc-move="4390">
+            <td colspan="8">
+              <div class="pc-move">
+                <span class="pc-move__ico">↗</span>
+                <span class="pc-move__txt"><b>#4390 최민호 — 미완료 탭으로 옮겼어요.</b> 새 AS 건(<span class="mk-cycle-badge">2번째 AS</span>)이 열렸어요.</span>
+                <button type="button" class="pc-move__go">미완료 탭에서 보기 ▸</button>
+                <button type="button" class="pc-move__x" data-pc-move-close="4390">닫기</button>
+              </div>
+            </td>
+          </tr>
+
+          <!-- ④ 옛 주문 — 건 이력이 복원되지 않은 행 -->
+          <tr class="is-legacy" data-pc-row="3172">
+            <td>
+              <a class="pc-oid" href="#sec-pc">#3172</a>
+              <span class="pc-sub"><span class="pc-legacy">이력 시작 전</span></span>
+            </td>
+            <td><span class="pc-unknown">불명</span><span class="pc-sub">2025-11 주문</span></td>
+            <td>2026-02-18</td>
+            <td><input class="pc-date is-set" type="date" value="2026-02-20" aria-label="주문 3172 AS 완료일"></td>
+            <td>이수현</td>
+            <td>정하늘<span class="pc-sub">부산 해운대구 …</span></td>
+            <td>
+              <div class="pc-tl">
+                <div class="pc-tl__anchor">서랍 밀림</div>
+                <div class="pc-tl__last">조치 · 현장 조정 <span class="mk-round">1차</span></div>
+                <div class="pc-tl__prev">그 전 이력 없음(복원 안 됨)</div>
+              </div>
+            </td>
+            <td>
+              <span class="pc-badge pc-badge--done">AS 완료</span><span class="pc-bill pc-bill--free">무상</span>
+              <div><button type="button" class="pc-reintake" data-pc-reintake="3172">↺ 재접수</button></div>
+            </td>
+          </tr>
+          <tr class="pc-moverow" hidden data-pc-move="3172">
+            <td colspan="8">
+              <div class="pc-move">
+                <span class="pc-move__ico">↗</span>
+                <span class="pc-move__txt"><b>#3172 정하늘 — 미완료 탭으로 옮겼어요.</b> 옛 주문이라 «몇 번째»는 <span class="pc-legacy">이력 시작 전</span> 으로 남아요.</span>
+                <button type="button" class="pc-move__go">미완료 탭에서 보기 ▸</button>
+                <button type="button" class="pc-move__x" data-pc-move-close="3172">닫기</button>
+              </div>
+            </td>
+          </tr>
+        </tbody>
+      </table>
+    </div>
+
+    <div class="pc-underbar">
+      <button type="button" class="pc-replay" data-pc-replay>↺ 표 처음으로 되돌리기(시연용)</button>
+      <span class="pc-hint">안내 줄은 <b>스스로 사라지지 않는다</b> — 탭을 다시 열거나 새로고침할 때까지 그 자리에 남는다.</span>
+    </div>
+
+    <div class="mk-note mk-note--new">
+      <b>1차 목업의 미해결 질문 1에 대한 답 — “재접수하면 그 행이 완료 탭에서 왜 사라지나?”</b><br>
+      재접수는 그 주문을 <b>AS 접수</b> 상태로 되돌리므로(<code>as_cycle_service.py</code> AS_REGISTER → <code>legacy_status_projection</code>) 완료 탭 조건에서 빠진다. 이건 못 막는다 — 그래서 <b>사라지는 걸 숨기지 말고 설명한다</b>.<br>
+      <b>화면 규칙</b> ① 누른 즉시 그 행 자리에 <b>“미완료 탭으로 옮겼어요 · 보러가기”</b> 안내 줄이 뜬다 → ② 1.5초 뒤 원래 행만 사라진다 → ③ 안내 줄은 그대로 남는다.<br>
+      <span class="mk-muted">토스트(화면 구석 알림)로는 부족하다. 토스트는 몇 초 뒤 없어지고, 그때는 “행이 왜 없어졌지?”만 남는다. 안내 줄은 <b>없어진 그 자리</b>에 있어서 눈이 저절로 간다.</span>
+    </div>
+
+    <div class="mk-note">
+      <b>재접수 버튼은 완료 탭에서만 보인다.</b> 미완료·영업/택배 탭 행은 이미 열려 있는 AS 건이라, 버튼을 내면 “또 눌러도 되나?” 헷갈리고 잘못 누르면 건이 하나 더 생긴다.
+      (열린 건에서 다시 접수하면 새 건이 아니라 접수 기록만 갱신된다 — 화면에는 그 차이가 안 보이므로 버튼 자체를 안 낸다.)<br>
+      <b>#4390·#4821은 배지가 없다</b> — 1번째 AS는 <code>mk-cycle-badge</code>를 표시하지 않는 규칙이다. 배지가 보이면 “아, 전에도 있었구나”가 바로 읽힌다.<br>
+      <span class="mk-muted">목업은 12열 중 8열만 그렸다. 생략한 4열(시공자·주소·첨부·AS도면)은 지금 그대로 두고, <b>상태</b> 열에만 버튼이 늘어난다.</span>
+    </div>
+
+    <div class="mk-note mk-note--q">
+      <b>점선 밑줄 <span class="mk-todo">이렇게<i>저장 필요</i></span> 붙은 값은 «아직 저장 안 되는 값»이다</b> <span class="mk-stage" data-s="S1">S1</span> <span class="mk-stage" data-s="S2">S2</span> — 화면에 내려면 <b>저장부터(S1)</b> 늘려야 한다.<br>
+      <b>비용(무상/유상)</b>: 주문 하나에 칸이 <b>딱 하나</b>다(<code>as_billing</code>). 그래서 #4655 의 “유상”은 이번 건 판정이 아니라 <b>첫 접수 때 잠긴 값</b>이 그대로 비치는 것이다. 반대로 #4821·#4390 처럼 1번째 AS 행의 비용은 이번 건 값이 맞으므로 꼬리표가 없다.<br>
+      <b>지난 건 날짜</b>: 완료일은 재접수하는 순간 지워진다(<code>as_completed_date = None</code>) — 건별로 남겨 두는 자리가 아직 없다.
+    </div>
+
+    <div class="mk-note">
+      <b>#3172 «이력 시작 전» 배지</b> — 2026년 이전에 접수된 옛 AS 주문은 시스템이 <b>지금부터</b>의 건 하나만 열어 주고 <b>과거 이력은 복원하지 않는다</b>(<code>LEGACY_BRIDGE</code>, <code>as_cycle_service.py:229-276</code>). 그래서 접수일 자리에 찍힌 값은 실제 고객이 전화한 날이 아니라 <b>전환이 돌아간 시각</b>이다 — 거짓 날짜를 보여 주느니 <span class="pc-unknown">불명</span> 이라고 쓴다. 이 행에서는 “몇 번째 AS”도 셀 수 없으므로 보라 배지 대신 회색 <span class="pc-legacy">이력 시작 전</span> 을 쓴다.
+    </div>
+  </div>
+
+  <!-- ───────────────────────── 1-B. 미완료 탭 행 ───────────────────────── -->
+  <div class="pc-block">
+    <h3 class="pc-h3">1-B. 미완료 탭 행<span class="mk-stage" data-s="S2">S2</span><span class="mk-stage" data-s="S3">S3</span><span class="pc-h3__tag">— “2번째 AS”와 “3차”가 한 줄에 같이 있을 때</span></h3>
+    <p class="pc-lead">#4821 을 재접수했더니 <b>2번째 AS</b>가 열려 미완료 탭에 나타났다. 이 건에서 <b>“이번엔 못 끝냈다”는 판정이 두 번</b> 있었으므로 지금은 <b>3차</b>(세 번째 시도 중)다. 두 숫자는 뜻이 다르므로 색·모양·자리를 갈라 놓는다.</p>
+
+    <div class="pc-screen">
+      <div class="pc-screen__bar"><span class="pc-screen__dot"></span> AS 대시보드 · PC</div>
+      <div class="pc-tabs">
+        <div class="pc-tab">영업/택배 <span class="pc-tab__count">12</span></div>
+        <div class="pc-tab is-active">미완료 <span class="pc-tab__count">38</span></div>
+        <div class="pc-tab">완료 <span class="pc-tab__count">127</span></div>
+      </div>
+      <table class="pc-table">
+        <colgroup>
+          <col style="width:14%"><col style="width:11%"><col style="width:10%"><col style="width:12%">
+          <col style="width:8%"><col style="width:13%"><col style="width:16%"><col style="width:16%">
+        </colgroup>
+        <thead>
+          <tr>
+            <th>주문</th>
+            <th>AS 접수일</th>
+            <th>AS 방문일</th>
+            <th>AS 완료일</th>
+            <th>담당자</th>
+            <th>고객</th>
+            <th>AS 내용</th>
+            <th>상태</th>
+          </tr>
+        </thead>
+        <tbody>
+          <tr class="is-focus">
+            <td>
+              <a class="pc-oid" href="#sec-pc">#4821</a>
+              <span class="pc-sub"><span class="mk-cycle-badge">2번째 AS</span></span>
+            </td>
+            <td>2026-08-24</td>
+            <td>2026-08-27</td>
+            <td><input class="pc-date" type="date" value="" aria-label="주문 4821 AS 완료일 (미완료)"></td>
+            <td>이수현</td>
+            <td>김서연<span class="pc-sub">서울 강남구 …</span></td>
+            <td>
+              <div class="pc-tl">
+                <div class="pc-tl__anchor">같은 자리 재들뜸 <span class="mk-recur-chip">재발</span></div>
+                <div class="pc-tl__last">방문 예정 · 상판 교체 검토 <span class="mk-round">3차</span></div>
+                <div class="pc-tl__prev">지난 건 <span class="mk-todo">6/02~6/11<i>저장 필요</i></span></div>
+              </div>
+            </td>
+            <td>
+              <span class="pc-badge pc-badge--doing">AS 접수</span>
+              <span class="mk-todo">유상 미확정<i>건별 저장 필요</i></span>
+            </td>
+          </tr>
+          <tr>
+            <td>
+              <a class="pc-oid" href="#sec-pc">#4903</a>
+              <span class="pc-sub">1번째 AS · 배지 없음</span>
+            </td>
+            <td>2026-08-21</td>
+            <td>2026-08-26</td>
+            <td><input class="pc-date" type="date" value="" aria-label="주문 4903 AS 완료일 (미완료)"></td>
+            <td>이수현</td>
+            <td>한서준<span class="pc-sub">인천 연수구 …</span></td>
+            <td>
+              <div class="pc-tl">
+                <div class="pc-tl__anchor">손잡이 흔들림</div>
+                <div class="pc-tl__last">접수 · 방문 일정 조율 <span class="mk-round">1차</span></div>
+              </div>
+            </td>
+            <td>
+              <span class="pc-badge pc-badge--doing">AS 접수</span><span class="pc-bill pc-bill--free">무상</span>
+            </td>
+          </tr>
+          <!-- 드리프트 행: 열려 있는데 완료일만 남아 있다 → 1-C (b) 팝업이 뜨는 자리 -->
+          <tr>
+            <td>
+              <a class="pc-oid" href="#sec-pc">#4788</a>
+              <span class="pc-sub"><span class="mk-cycle-badge">2번째 AS</span></span>
+            </td>
+            <td>2026-08-19</td>
+            <td>2026-08-25</td>
+            <td>
+              <input class="pc-date is-set is-drift" type="date" value="2026-08-12" data-pc-drift-input aria-label="주문 4788 AS 완료일 (잘못 남은 값)">
+              <span class="pc-warn">⚠ 옛 완료일이 남음</span>
+            </td>
+            <td>이수현</td>
+            <td>오세라<span class="pc-sub">서울 마포구 …</span></td>
+            <td>
+              <div class="pc-tl">
+                <div class="pc-tl__anchor">경첩 헐거움 <span class="mk-recur-chip">재발</span></div>
+                <div class="pc-tl__last">진행 중 · 부속 대기 <span class="mk-round">1차</span></div>
+              </div>
+            </td>
+            <td>
+              <span class="pc-badge pc-badge--doing">AS 접수</span>
+              <span class="mk-todo">무상<i>건별 저장 필요</i></span>
+            </td>
+          </tr>
+        </tbody>
+      </table>
+    </div>
+
+    <div class="pc-legend">
+      <span><span class="mk-cycle-badge">2번째 AS</span> &nbsp;<b>보라 알약 · 주문번호 밑</b> — 이 주문에서 AS를 <b>몇 번째로 받았나</b>(건 단위). 완료한 뒤 또 접수하면 1 늘어난다.</span>
+      <span><span class="mk-round">3차</span> &nbsp;<b>회색 네모 · AS 내용 칸</b> — 이번 AS 건에서 <b>세 번째 시도 중</b>이라는 뜻. <b>“이번엔 못 끝냈다”고 판정할 때마다 다음 차수가 열려요. 방문했어도 판정을 안 남기면 차수는 그대로예요.</b> <span class="mk-stage" data-s="S3">S3</span></span>
+      <span><span class="mk-recur-chip">재발</span> &nbsp;<b>빨강 알약 · 증상 옆</b> — 같은 증상이 또 났다</span>
+    </div>
+
+    <div class="mk-note">
+      두 숫자를 헷갈리지 않게 하는 규칙: <b>건은 “N번째 AS”, 회차는 “N차”</b>로만 쓴다. 건은 보라 알약이고 왼쪽 주문 칸에, 회차는 회색 네모이고 오른쪽 내용 칸에 붙는다 — 색·모양·자리 세 가지가 전부 다르다.<br>
+      1번째 AS 행에는 보라 알약이 아예 없으므로, <b>보라색이 보이면 “전에도 있었다”</b>는 뜻이 된다.<br>
+      <b>“N차”는 방문 횟수가 아니다</b> — 코드가 세는 건 <b>미결(못 끝냄) 판정 수 + 1</b> 이다(<code>as_log.py:147-170</code>). 하루에 두 번 나가도 판정이 한 번이면 차수도 한 번만 오른다. 옛 설명(“방문 횟수”)은 여기서 전부 뺐다.
+    </div>
+
+    <div class="mk-note mk-note--q">
+      <b>#4788 은 “열려 있는데 완료일만 남은” 행이다</b> — 재접수 뒤 옛 완료일이 남는 등으로 생긴다. <b>▸ 이 행의 완료일을 지워 보면</b> 아래 1-C 의 <b>(b) 팝업</b>이 반짝인다. 반대로 1-A 완료 탭 #4821 의 완료일을 지우면 <b>(a) 팝업</b>이 반짝인다 — 서버가 가는 길이 다르기 때문이다.
+    </div>
+  </div>
+
+  <!-- ───────────────────────── 1-C. 완료일 지우기 팝업 3케이스 ───────────────────────── -->
+  <div class="pc-block">
+    <h3 class="pc-h3">1-C. 완료일을 지웠을 때 뜨는 팝업 — 상황 3가지<span class="mk-stage" data-s="S2">S2</span><span class="mk-stage" data-s="S4">S4</span><span class="pc-h3__tag">— 서버가 가는 길이 다르면 묻는 말도 달라야 한다</span></h3>
+    <p class="pc-lead">완료일을 지웠다고 다 같은 상황이 아니다. 서버는 <b>그 AS 건이 지금 어떤 상태냐</b>를 보고 길을 나눈다(<code>field_update.py:263-281</code>). 화면도 똑같이 나눈다.</p>
+
+    <div class="pc-stage">
+      <div class="pc-cases">
+
+        <!-- (a) 완료된 건 → reopen -->
+        <div class="pc-case" data-pc-case="a">
+          <div class="pc-case__when">
+            <span class="pc-case__key">(a)</span><b>그 AS 건이 «완료»일 때</b> — 완료 탭 행에서 완료일을 지운 경우. 서버는 <code>reopen_as_cycle</code> 로 간다.
+          </div>
+          <div class="pc-modal" role="dialog" aria-label="완료일을 지웠어요">
+            <div class="pc-modal__head">
+              <p class="pc-modal__title">⚠ 완료일을 지웠어요. 어떻게 할까요?</p>
+              <p class="pc-modal__who">주문 #4821 · 김서연 · 1번째 AS (2026-06-02 접수 → <span class="mk-todo">2026-06-11 완료<i>저장 필요</i></span>) · 상판 마감 들뜸</p>
+            </div>
+            <div class="pc-modal__body">
+              <button type="button" class="pc-choice" data-pc-choice="reopen">
+                <span class="pc-choice__n">①</span>
+                <span>
+                  <span class="pc-choice__t">실수로 완료를 눌렀어요 → 되돌리기</span>
+                  <span class="pc-choice__d">지난 기록이 그대로 이어져요. 건은 늘지 않아요.</span>
+                </span>
+              </button>
+              <button type="button" class="pc-choice pc-choice--new" data-pc-choice="new">
+                <span class="pc-choice__n">②</span>
+                <span>
+                  <span class="pc-choice__t">AS가 또 생겼어요 → 새로 접수 <span class="mk-cycle-badge">2번째 AS</span></span>
+                  <span class="pc-choice__d">새 접수 화면이 열려요. 지난 건은 기록으로 남고, 이 행은 미완료 탭으로 옮겨져요(1-A 안내 줄).</span>
+                </span>
+              </button>
+            </div>
+            <div class="pc-modal__foot">
+              <span class="pc-foot-hint">잘못 눌렀으면 취소하세요.</span>
+              <button type="button" class="pc-cancel" data-pc-choice="cancel">취소</button>
+            </div>
+          </div>
+          <p class="pc-result" data-pc-result></p>
+        </div>
+
+        <!-- (b) 열린 건 + 잔존 완료일 → clear_as_completed_date -->
+        <div class="pc-case" data-pc-case="b">
+          <div class="pc-case__when">
+            <span class="pc-case__key">(b)</span><b>그 AS 건이 아직 «접수/진행 중»인데 완료일만 남아 있을 때</b> — 미완료 탭 행(#4788). 서버는 <code>clear_as_completed_date</code> 로 간다. <b>되돌릴 게 없다.</b>
+          </div>
+          <div class="pc-modal" role="dialog" aria-label="잘못 남은 완료 날짜를 지웁니다">
+            <div class="pc-modal__head">
+              <p class="pc-modal__title">🧹 잘못 남은 완료 날짜만 지울게요</p>
+              <p class="pc-modal__who">주문 #4788 · 오세라 · 2번째 AS (2026-08-19 접수, <b>진행 중</b>) · 경첩 헐거움</p>
+            </div>
+            <div class="pc-modal__body">
+              <p class="pc-say">이 AS는 <b>아직 진행 중</b>이에요. 잘못 남은 완료 날짜만 지울게요.<br>
+              <span class="mk-muted">상태는 그대로 «AS 접수»예요. 새 건도 안 생기고, 되돌릴 것도 없어요.</span></p>
+            </div>
+            <div class="pc-modal__foot">
+              <button type="button" class="pc-cancel" data-pc-choice="cancel-b">취소</button>
+              <button type="button" class="pc-ok" data-pc-choice="clear">확인 — 날짜만 지우기</button>
+            </div>
+          </div>
+          <p class="pc-result" data-pc-result></p>
+          <div class="mk-note">
+            여기서 (a)처럼 <b>“되돌릴까요 / 새로 접수할까요”를 물으면 화면이 거짓말</b>이 된다. 이 건은 애초에 끝난 적이 없어서 되돌릴 상태가 없고, 서버도 다른 길로 간다.
+          </div>
+        </div>
+
+        <!-- (c) 취소 종결 — 제안 -->
+        <div class="pc-case" data-pc-case="c">
+          <div class="pc-case__when">
+            <span class="pc-case__key">(c)</span><b>제안</b> — 고객이 취소했거나 연락이 끊겨서 <b>안 하고 닫아야</b> 하는 AS. 지금은 닫을 방법이 없어 «완료»로 찍거나 영영 열어 둔다. (a) 팝업에 <b>③번</b>을 더하자는 안이다.
+          </div>
+          <div class="pc-modal" role="dialog" aria-label="취소로 끝내기 제안">
+            <div class="pc-modal__head">
+              <p class="pc-modal__title">⚠ 완료일을 지웠어요. 어떻게 할까요? <span class="mk-stage" data-s="S4">S4</span></p>
+              <p class="pc-modal__who">주문 #4655 · 박지우 · 2번째 AS · 서랍 레일 소음 — ①②는 (a)와 같고, <b>③이 새로 생긴다</b>.</p>
+            </div>
+            <div class="pc-modal__body">
+              <button type="button" class="pc-choice pc-choice--idea" data-pc-choice="cancel-as">
+                <span class="pc-choice__n">③</span>
+                <span>
+                  <span class="pc-choice__t">AS를 취소로 끝낼래요 (사유 입력)</span>
+                  <span class="pc-choice__d">안 하고 닫는다. «완료»가 아니라 «취소»로 남아서, 나중에 세어 볼 때 진짜 고친 건과 섞이지 않는다.</span>
+                </span>
+              </button>
+              <div class="pc-reason">
+                <select aria-label="취소 사유 고르기">
+                  <option>사유 고르기 — 고객이 취소했어요</option>
+                  <option>연락이 안 돼요</option>
+                  <option>AS 대상이 아니에요</option>
+                  <option>직접 입력</option>
+                </select>
+                <input type="text" placeholder="자세한 사유(선택)" aria-label="취소 사유 자세히">
+              </div>
+            </div>
+            <div class="pc-modal__foot">
+              <span class="pc-foot-hint">③은 아직 <b>없는 기능</b>입니다.</span>
+              <button type="button" class="pc-cancel" data-pc-choice="cancel">취소</button>
+            </div>
+          </div>
+          <p class="pc-result" data-pc-result></p>
+          <div class="mk-note mk-note--q">
+            <b>사용자 결정이 필요합니다.</b> ③을 만들려면 <b>새 상태값(AS 취소)</b> 을 만들어야 한다 — 지금 AS 상태 어휘는 <code>RECEIVED / IN_PROGRESS / COMPLETED</code> 세 개뿐이고 <b>CANCEL 이 없다</b>. 상태를 하나 늘리면 대시보드 탭·집계·발주처 메시지가 같이 흔들리므로, <b>맨 마지막 단계(S4)</b> 로 미뤄 두고 “할지 말지”부터 정해야 한다.
+          </div>
+        </div>
+
+      </div>
+    </div>
+
+    <div class="mk-note">
+      <b>지금은</b> 완료일을 지우는 순간 아무것도 안 묻고 저장되고, 화면이 미완료 탭으로 혼자 넘어간다. 상황 (a)와 (b)가 화면에서 똑같이 보이는데 서버는 이미 다른 길로 가고 있다.<br>
+      <b>이렇게 바꾼다</b> 지우면 먼저 물어본다 — <b>(a)</b> 완료된 건이면 “되돌리기 / 새로 접수”, <b>(b)</b> 아직 열린 건이면 “잘못 남은 날짜만 지울게요” 한 줄 확인. <b>취소</b>는 완료일을 원래 날짜로 되돌려 놓는다.<br>
+      <b>(c)</b> 취소 종결은 아직 제안이다 — 상태값을 새로 만드는 일이라 <span class="mk-stage" data-s="S4">S4</span> 로 뺐다.
+    </div>
+  </div>
+
+  <div class="mk-note mk-note--q">
+    <b>남은 미해결 질문</b><br>
+    1. <b>AS를 «취소»로 끝내는 상태값을 만들 것인가?</b> (1-C (c) — 만들면 탭·집계·발주처 메시지까지 같이 손대야 한다)<br>
+    2. 재접수 버튼을 <b>영업/택배 탭의 완료된 행</b>에도 낼지? (완료 탭과 같은 상태인데 탭만 다르다)<br>
+    3. 재접수 버튼도 주문 링크처럼 <b>ERP 편집 권한</b>이 있어야 보이게 할지, 보이되 누르면 막을지?<br>
+    <span class="mk-muted">※ 1차 질문 1(“재접수하면 행이 사라지는 문제”)은 1-A 의 <b>안내 줄</b>로 답을 냈다.</span>
+  </div>
+
+  <script>
+    (function () {
+      var root = document.getElementById('sec-pc');
+      if (!root) { return; }
+
+      function say(caseKey, text) {
+        var card = root.querySelector('[data-pc-case="' + caseKey + '"]');
+        var el = card ? card.querySelector('[data-pc-result]') : null;
+        if (!el) { return; }
+        el.textContent = text;
+        el.classList.add('is-on');
+      }
+
+      function flashCase(caseKey) {
+        root.querySelectorAll('[data-pc-case]').forEach(function (card) {
+          card.classList.remove('is-flash');
+          var res = card.querySelector('[data-pc-result]');
+          if (res) { res.classList.remove('is-on'); }
+        });
+        var target = root.querySelector('[data-pc-case="' + caseKey + '"]');
+        if (!target) { return; }
+        void target.offsetWidth;
+        target.classList.add('is-flash');
+        target.scrollIntoView({ behavior: 'smooth', block: 'center' });
+      }
+
+      /* ── 1-A. 재접수 → 그 자리에 «옮겼어요» 안내 줄을 남기고, 1.5초 뒤 행만 사라진다 ── */
+      var timers = [];
+      root.querySelectorAll('[data-pc-reintake]').forEach(function (btn) {
+        btn.addEventListener('click', function () {
+          var id = btn.getAttribute('data-pc-reintake');
+          var row = root.querySelector('[data-pc-row="' + id + '"]');
+          var banner = root.querySelector('[data-pc-move="' + id + '"]');
+          if (!row || !banner) { return; }
+          banner.hidden = false;             // ① 안내 줄 먼저 — 이유를 남긴다
+          row.classList.add('is-leaving');   // ② 원래 행은 흐려진다
+          timers.push(window.setTimeout(function () {
+            row.classList.add('is-gone');    // ③ 1.5초 뒤 행만 사라진다(안내 줄은 남는다)
+          }, 1500));
+        });
+      });
+
+      function restore(id) {
+        var row = root.querySelector('[data-pc-row="' + id + '"]');
+        var banner = root.querySelector('[data-pc-move="' + id + '"]');
+        if (row) { row.classList.remove('is-leaving', 'is-gone'); }
+        if (banner) { banner.hidden = true; }
+      }
+
+      root.querySelectorAll('[data-pc-move-close]').forEach(function (btn) {
+        btn.addEventListener('click', function () {
+          restore(btn.getAttribute('data-pc-move-close'));
+        });
+      });
+
+      var replay = root.querySelector('[data-pc-replay]');
+      if (replay) {
+        replay.addEventListener('click', function () {
+          timers.forEach(function (t) { window.clearTimeout(t); });
+          timers = [];
+          root.querySelectorAll('[data-pc-row]').forEach(function (row) {
+            restore(row.getAttribute('data-pc-row'));
+          });
+        });
+      }
+
+      /* ── 완료일 칸을 비우면, 그 행 상태에 맞는 팝업이 반짝인다 ── */
+      function bindDate(input, caseKey, driftClass) {
+        if (!input) { return; }
+        var saved = input.value;
+        input.addEventListener('change', function () {
+          var has = !!input.value;
+          input.classList.toggle('is-set', has);
+          if (driftClass) { input.classList.toggle('is-drift', has); }
+          if (has) { saved = input.value; return; }
+          input.setAttribute('data-pc-saved', saved);
+          flashCase(caseKey);
+        });
+      }
+      bindDate(root.querySelector('[data-pc-done-input]'), 'a', false);   // 완료된 건 → (a)
+      bindDate(root.querySelector('[data-pc-drift-input]'), 'b', true);   // 열린 건 → (b)
+
+      function undoDate(selector) {
+        var input = root.querySelector(selector);
+        if (!input) { return ''; }
+        var saved = input.getAttribute('data-pc-saved') || '';
+        if (!saved) { return ''; }
+        input.value = saved;
+        input.classList.add('is-set');
+        if (selector.indexOf('drift') > -1) { input.classList.add('is-drift'); }
+        return saved;
+      }
+
+      /* ── 팝업 선택 결과 ── */
+      root.querySelectorAll('[data-pc-choice]').forEach(function (btn) {
+        btn.addEventListener('click', function () {
+          var kind = btn.getAttribute('data-pc-choice');
+          var card = btn.closest('[data-pc-case]');
+          var key = card ? card.getAttribute('data-pc-case') : 'a';
+          if (card) { card.classList.remove('is-flash'); }
+
+          if (kind === 'reopen') {
+            say(key, '① 되돌렸어요 — 같은 AS 건(1번째 AS)이 다시 «진행 중»이 됩니다. 지난 기록은 그대로 이어집니다. (서버: reopen_as_cycle)');
+          } else if (kind === 'new') {
+            say(key, '② 새로 접수 — «2번째 AS» 접수 창이 열립니다. 이 행은 미완료 탭으로 옮겨지고, 완료 탭에는 «옮겼어요» 안내 줄만 남습니다.');
+          } else if (kind === 'clear') {
+            say(key, '확인 — 잘못 남은 완료 날짜만 지웠어요. 상태는 «AS 접수» 그대로이고 새 건도 안 생겼습니다. (서버: clear_as_completed_date)');
+          } else if (kind === 'cancel-as') {
+            say(key, '③ 제안 — 사유와 함께 «AS 취소»로 닫는 그림입니다. 지금은 이런 상태값이 없어서 만들 수 없습니다(사용자 결정 필요 · S4).');
+          } else if (kind === 'cancel-b') {
+            var back2 = undoDate('[data-pc-drift-input]');
+            say(key, '취소했어요 — 아무것도 안 바뀌고 완료일이 원래대로(' + (back2 || '2026-08-12') + ') 돌아왔습니다.');
+          } else {
+            var back = undoDate('[data-pc-done-input]');
+            say(key, '취소했어요 — 아무것도 안 바뀌고 완료일이 원래대로(' + (back || '2026-06-11') + ') 돌아왔습니다.');
+          }
+        });
+      });
+    }());
+  </script>
+</section>
+<!-- SECTION: sec-mobile -->
+<section id="sec-mobile" class="mk-section">
+  <h2 class="mk-h2">2. 모바일 AS 카드 (현장 시공기사)</h2>
+  <p class="mk-sub">현장에서 한 손 엄지로, 주문 상세에 안 들어가고, 카드에서 바로 AS를 다시 접수한다.</p>
+
+  <div class="mk-note">
+    <strong>지금은 이렇다 →</strong> 모바일 카드에는 재접수 버튼이 없어서, 다시 갈 일이 생기면 주문 상세까지 들어갔다 나와야 한다.<br>
+    <strong>이렇게 바꾼다 →</strong> 카드 맨 아래에 <b>재접수</b> 버튼 하나를 새로 놓고, 누르면 아래에서 시트가 올라와 <b>사진까지 한 번에</b> 끝낸다.<br>
+    <strong>덤으로 →</strong> 몇 번째 AS인지(<span class="mk-cycle-badge">2번째 AS</span>)와 <span class="mk-recur-chip">재발</span> 여부가 카드 맨 위에 보인다.
+  </div>
+
+  <div class="ph-toolbar">
+    <button type="button" class="mk-btn mk-btn--ghost" data-thumb-toggle>엄지 닿는 곳 보기</button>
+    <button type="button" class="mk-btn mk-btn--ghost" data-office-toggle>사무실 권한으로 보기</button>
+    <span class="mk-muted ph-toolbar__hint">현장 조건: 안드로이드 · 한 손 엄지 · 장갑 낀 손 · 터치 타깃 최소 44px</span>
+  </div>
+
+  <!-- ============================ 2-A ============================ -->
+  <h3 class="ph-h3">2-A. 완료된 AS 카드 — 액션바에 <em>재접수</em> 버튼 신설<span class="mk-stage" data-s="S2">S2</span></h3>
+
+  <div class="ph-wrap">
+
+    <!-- Frame A1 : 완료 카드 (재접수 버튼 있음) -->
+    <div class="ph-col">
+      <p class="ph-cap">① 완료 탭 카드 <span>· 아직 1번째 AS라 배지 없음</span></p>
+      <div class="ph">
+        <div class="ph-screen">
+          <div class="thumb-zone" aria-hidden="true"><span class="thumb-zone__tag">엄지가 편하게 닿는 곳</span></div>
+
+          <div class="ph-status"><span>9:41</span><span>▮▮▮ ▾ 84%</span></div>
+          <div class="ph-appbar"><span class="ph-appbar__title">AS 대시보드</span><span class="ph-appbar__me">박형준</span></div>
+          <div class="ph-tabs"><span class="ph-tab">진행 중</span><span class="ph-tab is-on">완료</span></div>
+
+          <div class="ph-list">
+            <article class="asc">
+              <header class="asc__head">
+                <div class="asc__who">
+                  <span class="asc__id">#4821</span>
+                  <h4 class="asc__name">김서연</h4>
+                  <div class="asc__meta"><span>담당 이수현</span><span class="asc__dot">·</span><span>시공 박형준</span></div>
+                </div>
+                <span class="asc__status asc__status--done">AS 완료</span>
+              </header>
+
+              <div class="asc__dates">
+                <div class="asc__date"><span class="asc__date-l">접수</span><span class="asc__date-v">2026-06-02</span></div>
+                <div class="asc__date"><span class="asc__date-l">방문</span><span class="asc__date-v">2026-06-11</span></div>
+                <div class="asc__date asc__date--set"><span class="asc__date-l">완료</span><span class="asc__date-v">2026-06-11</span></div>
+              </div>
+
+              <div class="asc__addr">
+                <p class="asc__addr-t">서울 강남구 …</p>
+                <button type="button" class="asc__addr-btn">일정</button>
+              </div>
+
+              <footer class="acts" aria-label="AS 빠른 작업">
+                <div class="acts__row">
+                  <button type="button" class="act">사진</button>
+                  <button type="button" class="act">미결</button>
+                  <button type="button" class="act">전화</button>
+                  <button type="button" class="act act--edit">편집</button>
+                </div>
+                <div class="acts__row acts__row--new">
+                  <button type="button" class="act act--reintake" data-open-sheet>
+                    <span class="act__ico" aria-hidden="true">↺</span> 재접수 <span class="act__sub">(또 문제 생겼어요)</span>
+                  </button>
+                </div>
+              </footer>
+
+              <div class="asc__detail">시공·AS 내용 ▸</div>
+            </article>
+          </div>
+        </div>
+      </div>
+      <p class="ph-foot">새 버튼은 <b>카드 맨 아래 한 줄 통째</b>로. 손가락 아무 데나 눌러도 맞는다(높이 48px).</p>
+    </div>
+
+    <!-- Frame A2 : 접수 직후 같은 카드 -->
+    <div class="ph-col">
+      <p class="ph-cap">② 접수 끝난 뒤 같은 카드 <span>· 배지가 붙는다</span></p>
+      <div class="ph">
+        <div class="ph-screen">
+          <div class="thumb-zone" aria-hidden="true"><span class="thumb-zone__tag">엄지가 편하게 닿는 곳</span></div>
+
+          <div class="ph-status"><span>9:43</span><span>▮▮▮ ▾ 84%</span></div>
+          <div class="ph-appbar"><span class="ph-appbar__title">AS 대시보드</span><span class="ph-appbar__me">박형준</span></div>
+          <div class="ph-tabs"><span class="ph-tab is-on">진행 중</span><span class="ph-tab">완료</span></div>
+
+          <div class="ph-list">
+            <article class="asc asc--fresh" data-after-card>
+              <div class="asc__marks">
+                <span class="mk-cycle-badge">2번째 AS</span>
+                <span class="mk-recur-chip">재발</span>
+              </div>
+              <header class="asc__head">
+                <div class="asc__who">
+                  <span class="asc__id">#4821</span>
+                  <h4 class="asc__name">김서연</h4>
+                  <div class="asc__meta"><span>담당 이수현</span><span class="asc__dot">·</span><span>시공 박형준</span></div>
+                </div>
+                <span class="asc__status asc__status--new">AS 접수</span>
+              </header>
+
+              <div class="asc__dates">
+                <div class="asc__date asc__date--set"><span class="asc__date-l">접수</span><span class="asc__date-v">2026-08-24</span></div>
+                <div class="asc__date"><span class="asc__date-l">방문</span><span class="asc__date-v asc__date-v--empty">미정</span></div>
+                <div class="asc__date"><span class="asc__date-l">완료</span><span class="asc__date-v asc__date-v--empty">—</span></div>
+              </div>
+
+              <div class="asc__prev">
+                <span class="asc__prev-l">지난 AS<span class="mk-stage" data-s="S1">S1</span></span>
+                <span class="asc__prev-v">1번째 · <span class="mk-todo">2026-06-11 완료<i>저장 추가 필요</i></span> · 상판 마감 들뜸 · <span class="mk-todo">무상<i>저장 추가 필요</i></span></span>
+              </div>
+
+              <div class="asc__addr">
+                <p class="asc__addr-t">서울 강남구 …</p>
+                <button type="button" class="asc__addr-btn">일정</button>
+              </div>
+
+              <footer class="acts">
+                <div class="acts__row">
+                  <button type="button" class="act">사진</button>
+                  <button type="button" class="act">미결</button>
+                  <button type="button" class="act">전화</button>
+                  <button type="button" class="act act--edit">편집</button>
+                </div>
+              </footer>
+            </article>
+          </div>
+        </div>
+      </div>
+      <p class="ph-foot">지난 AS 줄의 <span class="mk-todo">완료일<i>저장 추가 필요</i></span>·<span class="mk-todo">비용<i>저장 추가 필요</i></span>은 <b>지금 코드로는 못 만든다</b> —
+        재접수가 완료일을 지우고(<code>as_cycle_service.py:404-407</code>), 비용은 주문당 한 칸뿐이다(<code>as_orders.py:530</code>).
+        <b>S1에서 건별로 저장하기 시작해야</b> 이 줄이 진짜가 된다.</p>
+    </div>
+
+    <!-- 액션바 수용력 눈금자 -->
+    <div class="ph-col ph-col--ruler">
+      <p class="ph-cap">③ 버튼 몇 개까지 되나 <span>· 실제 CSS 기준</span></p>
+      <div class="ruler">
+        <p class="ruler__lead">카드 안쪽 폭 <b>352px</b> (390 − 목록여백 16 − 테두리 2 − 카드패딩 20)<br>
+          버튼 규칙(현행 CSS): <code>flex:1 1 0</code> · <code>min-width:56px</code> · 사이 간격 6px<br>
+          <span class="ruler__scale">아래 막대는 <b>실제 352px 그대로</b>다(축소 안 함). 화면이 좁으면 막대만 옆으로 밀린다.</span></p>
+
+        <div class="ruler__cases">
+          <div class="ruler__case">
+            <span class="ruler__tag ruler__tag--ok">4개 = 한 개당 83px · 넉넉</span>
+            <div class="ruler__scroll"><div class="ruler__bar"><i>사진</i><i>미결</i><i>전화</i><i>편집</i></div></div>
+          </div>
+          <div class="ruler__case">
+            <span class="ruler__tag ruler__tag--warn">5개 = 한 개당 65px · 글자 빠듯</span>
+            <div class="ruler__scroll"><div class="ruler__bar"><i>사진</i><i>미결</i><i>전화</i><i>편집</i><i class="is-tight">재접수</i></div></div>
+          </div>
+          <div class="ruler__case">
+            <span class="ruler__tag ruler__tag--bad">6개 = 53px &lt; 최소 56px → 줄이 접힌다</span>
+            <div class="ruler__scroll"><div class="ruler__bar ruler__bar--wrap"><i>사진</i><i>미결</i><i>전화</i><i>편집</i><i>도면</i><i class="is-drop">재접수</i></div></div>
+          </div>
+        </div>
+
+        <div class="mk-note ruler__note">
+          <b>그래서 5번째로 끼워 넣지 않는다.</b> 한 줄 최대는 4개다(장갑 낀 손 기준 폭 70px 이상 필요).
+          재접수는 <b>아래 한 줄을 통째로</b> 쓴다 — 폭 352px · 높이 48px로 44px 규칙도 지킨다.
+          기존 칩 4개도 높이만 34px → 44px로 올린다.
+        </div>
+      </div>
+    </div>
+  </div>
+
+  <!-- ============================ 2-B ============================ -->
+  <h3 class="ph-h3">2-B. 재접수 바텀시트 — 손가락만으로 끝낸다<span class="mk-stage" data-s="S2">S2</span></h3>
+
+  <div class="ph-wrap">
+    <div class="ph-col">
+      <p class="ph-cap">재접수 시트 <span>· ①의 재접수 버튼을 누르면 올라온다</span></p>
+      <div class="ph">
+        <div class="ph-screen">
+          <div class="thumb-zone" aria-hidden="true"><span class="thumb-zone__tag">엄지가 편하게 닿는 곳</span></div>
+
+          <div class="ph-status"><span>9:42</span><span>▮▮▮ ▾ 84%</span></div>
+          <div class="ph-appbar"><span class="ph-appbar__title">AS 대시보드</span><span class="ph-appbar__me">박형준</span></div>
+
+          <div class="ph-list ph-list--dim">
+            <article class="asc asc--behind">
+              <header class="asc__head">
+                <div class="asc__who">
+                  <span class="asc__id">#4821</span>
+                  <h4 class="asc__name">김서연</h4>
+                </div>
+                <span class="asc__status asc__status--done">AS 완료</span>
+              </header>
+              <div class="asc__addr"><p class="asc__addr-t">서울 강남구 …</p></div>
+            </article>
+          </div>
+
+          <div class="scrim" data-scrim></div>
+
+          <div class="sheet" data-sheet role="dialog" aria-label="2번째 AS 접수">
+            <div class="sheet__grip" aria-hidden="true"></div>
+            <div class="sheet__head">
+              <div>
+                <h4 class="sheet__title">2번째 AS 접수</h4>
+                <p class="sheet__sub">주문 #4821 · 김서연</p>
+              </div>
+              <button type="button" class="sheet__x" data-close-sheet aria-label="닫기">✕</button>
+            </div>
+
+            <div class="sheet__body">
+              <details class="prev">
+                <summary class="prev__sum">지난 AS 보기 <span class="mk-stage" data-s="S1">S1</span> <span aria-hidden="true">▸</span></summary>
+                <div class="prev__box">
+                  <div class="prev__line"><span>1번째 AS</span><span class="mk-muted">2026-06-02 접수 · <span class="mk-todo">2026-06-11 완료<i>저장 추가 필요</i></span></span></div>
+                  <div class="prev__line"><span>증상</span><span>상판 마감 들뜸</span></div>
+                  <div class="prev__line"><span>비용</span><span class="mk-todo">무상<i>저장 추가 필요</i></span></div>
+                  <div class="prev__why">완료일은 재접수할 때 지워지고, 비용 칸은 주문에 하나뿐이라 <b>지난 건 값이 남지 않는다.</b> S1에서 건별 저장을 만든 뒤에 이 상자가 진짜가 된다.</div>
+                </div>
+              </details>
+
+              <label class="fld">
+                <span class="fld__l">이번엔 뭐가 문제인가요?</span>
+                <textarea class="fld__ta" rows="3" placeholder="보이는 대로 적으세요 (어디가 · 어떻게)" data-symptom></textarea>
+                <span class="fld__hint">지난 내용은 <b>일부러 안 채워 둡니다.</b> 이번에 본 것을 새로 적어야 사무실이 제대로 판단해요.</span>
+              </label>
+
+              <label class="chk">
+                <input type="checkbox" data-recur>
+                <span class="chk__box" aria-hidden="true">✓</span>
+                <span class="chk__t">지난 건과 같은 증상이에요<span class="chk__s">체크하면 <span class="mk-recur-chip">재발</span> 표시가 붙어요</span></span>
+              </label>
+
+              <!-- 기본(현장 기사) : 비용 칸이 아예 없다 -->
+              <div class="costlock" data-cost-locked>
+                <span class="costlock__ico" aria-hidden="true">🔒</span>
+                <span class="costlock__t"><span class="costlock__m">비용은 <b>사무실에서 정해요</b></span><span class="costlock__s">기사님은 증상과 사진만 보내주시면 됩니다</span></span>
+              </div>
+
+              <!-- 사무실 권한일 때만 나타난다 -->
+              <div class="fld costseg" data-cost-seg hidden>
+                <span class="fld__l">이번 AS 비용 <span class="mk-chip">사무실 전용</span><span class="mk-stage" data-s="S4">S4</span></span>
+                <div class="seg" role="group" aria-label="이번 AS 비용">
+                  <button type="button" class="seg__b is-on" data-cost="무상">무상</button>
+                  <button type="button" class="seg__b" data-cost="유상">유상</button>
+                </div>
+                <span class="fld__hint">새 AS 건이라 <b>다시 고를 수 있어요.</b> 지난 건의 무상은 그대로 남습니다. (비용을 건별로 저장하는 S4에서 열린다)</span>
+              </div>
+
+              <button type="button" class="photo" data-photo>
+                <span class="photo__ico" aria-hidden="true">◉</span>
+                <span class="photo__t">사진 찍어 붙이기</span>
+                <span class="photo__n" data-photo-n>0장</span>
+              </button>
+
+              <div class="pre" aria-live="polite">
+                <span class="pre__l">이렇게 저장돼요</span>
+                <span class="pre__v">
+                  <span class="mk-cycle-badge">2번째 AS</span>
+                  <span class="pre__recur" data-pre-recur hidden><span class="mk-recur-chip">재발</span></span>
+                  <span class="pre__cost" data-pre-cost>비용 미정 · 사무실이 정함</span>
+                  <span class="mk-muted">· 2026-08-24 접수</span>
+                </span>
+              </div>
+            </div>
+
+            <div class="sheet__foot">
+              <button type="button" class="submit" data-submit>AS 접수하기</button>
+            </div>
+          </div>
+
+          <div class="toast" data-toast hidden>2번째 AS로 접수했어요 ✓</div>
+        </div>
+      </div>
+      <p class="ph-foot">제출 버튼은 화면 <b>맨 아래 고정</b>. 스크롤을 어디까지 했든 엄지 자리에 그대로 있다.</p>
+    </div>
+
+    <div class="ph-col ph-col--notes">
+      <div class="mk-note mk-note--new">
+        <b>결정 — 비용 칸은 기사에게 안 보여준다</b> <span class="mk-stage" data-s="S4">S4</span><br>
+        1차 목업이 미뤄둔 질문의 답이다. 근거 셋: ① 무상/유상은 <b>보증 기간·과실 책임</b>을 따지는 판단이라
+        현장에서 알 수 없는 정보(계약·이전 클레임)가 필요하다. ② 기사가 고른 값이 화면에 남으면
+        고객이 그 자리에서 <b>금액 약속</b>으로 받아들여 분쟁이 된다. ③ 기사에게 본질은 <b>증상 + 사진</b>이고,
+        칸을 하나 지우면 한 손 조작이 6단계 → 5단계로 준다.<br>
+        그래서 기본은 <b>“비용은 사무실에서 정해요”</b> 안내 한 줄뿐이다.
+        위 <b>사무실 권한으로 보기</b> 버튼을 눌러 사무실 사용자가 볼 화면을 확인할 수 있다.
+      </div>
+      <div class="mk-note">
+        <b>지난 증상을 자동으로 안 채우는 이유</b><br>
+        자동으로 채워 두면 현장에서 그냥 그대로 제출한다. 그러면 사무실은 <u>진짜 새 증상</u>을 영영 못 본다.
+        칸은 비워 두되, 지난 건은 <b>접어서</b> 바로 위에 둔다 — 보고 싶으면 한 번만 누르면 된다.
+      </div>
+      <div class="mk-note">
+        <b>한 손 엄지로 끝나는 순서</b><br>
+        ① 카드 아래 <b>재접수</b> 누르기 → ② 증상 몇 글자 → ③ 같은 증상이면 체크 한 번 →
+        ④ 사진 → ⑤ 맨 아래 <b>AS 접수하기</b>.<br>
+        비용 고르는 단계가 빠져서 <b>다섯 번</b>이면 끝난다. 주문 상세로 <b>한 번도 안 들어간다.</b>
+      </div>
+      <div class="mk-note">
+        <b>터치 타깃</b> — 시트 안 모든 누르는 곳은 높이 48px 이상, 체크박스는 글자까지 통째로 누를 수 있게
+        <code>&lt;label&gt;</code>로 감쌌다(누를 면적 352×56px).
+      </div>
+    </div>
+  </div>
+
+  <!-- ============================ 2-C ============================ -->
+  <h3 class="ph-h3">2-C. 진행 중 카드 — <span class="mk-cycle-badge">2번째 AS</span> 와 <span class="mk-round">3차</span> 가 같이 있어도 안 헷갈리게<span class="mk-stage" data-s="S2">S2</span></h3>
+
+  <div class="ph-wrap">
+    <div class="ph-col">
+      <p class="ph-cap">진행 중 탭 <span>· 2번째 AS 건에서 세 번째 시도 중</span></p>
+      <div class="ph">
+        <div class="ph-screen">
+          <div class="thumb-zone" aria-hidden="true"><span class="thumb-zone__tag">엄지가 편하게 닿는 곳</span></div>
+
+          <div class="ph-status"><span>9:41</span><span>▮▮▮ ▾ 82%</span></div>
+          <div class="ph-appbar"><span class="ph-appbar__title">AS 대시보드</span><span class="ph-appbar__me">박형준</span></div>
+          <div class="ph-tabs"><span class="ph-tab is-on">진행 중</span><span class="ph-tab">완료</span></div>
+
+          <div class="ph-list">
+            <article class="asc asc--pending">
+              <div class="asc__marks">
+                <span class="mk-cycle-badge">2번째 AS</span>
+                <span class="mk-recur-chip">재발</span>
+                <span class="mk-round">3차</span>
+              </div>
+              <header class="asc__head">
+                <div class="asc__who">
+                  <span class="asc__id">#4821</span>
+                  <h4 class="asc__name">김서연</h4>
+                  <div class="asc__meta"><span>담당 이수현</span><span class="asc__dot">·</span><span>시공 박형준</span></div>
+                </div>
+                <span class="asc__status asc__status--pending">미결</span>
+              </header>
+
+              <div class="asc__marks-help">
+                <span><span class="mk-cycle-badge">2번째 AS</span> = 이 주문에서 <b>두 번째로 접수한 AS 건</b></span>
+                <span><span class="mk-round">3차</span> = 이번 AS 건에서 <b>세 번째 시도 중</b><span class="mk-stage" data-s="S3">S3</span><br>
+                  <b>“이번엔 못 끝냈다”고 판정할 때마다</b> 다음 차수가 열려요. 방문했어도 판정을 안 남기면 차수는 그대로예요.</span>
+              </div>
+
+              <div class="asc__dates">
+                <div class="asc__date asc__date--set"><span class="asc__date-l">접수</span><span class="asc__date-v">2026-08-24</span></div>
+                <div class="asc__date"><span class="asc__date-l">방문</span><span class="asc__date-v">2026-09-02</span></div>
+                <div class="asc__date"><span class="asc__date-l">완료</span><span class="asc__date-v asc__date-v--empty">—</span></div>
+              </div>
+
+              <div class="asc__addr">
+                <p class="asc__addr-t">서울 강남구 …</p>
+                <button type="button" class="asc__addr-btn">일정</button>
+              </div>
+
+              <footer class="acts">
+                <div class="acts__row">
+                  <button type="button" class="act">사진</button>
+                  <button type="button" class="act act--on">해제</button>
+                  <button type="button" class="act">전화</button>
+                  <button type="button" class="act act--edit">편집</button>
+                </div>
+              </footer>
+            </article>
+          </div>
+        </div>
+      </div>
+      <p class="ph-foot">진행 중인 건에는 <b>재접수 버튼을 안 보여준다</b> — 이미 열려 있는 건이라 새로 접수할 게 없다.</p>
+    </div>
+
+    <div class="ph-col ph-col--notes">
+      <div class="mk-note">
+        <b>안 헷갈리게 만드는 세 가지</b><br>
+        ① 생김새를 다르게 — <span class="mk-cycle-badge">2번째 AS</span>는 꽉 찬 보라 알약, <span class="mk-round">3차</span>는 테두리만 있는 회색.<br>
+        ② 말을 다르게 — AS 건은 <b>“N번째 AS”</b>, 처리 회차는 <b>“N차”</b>. 절대 섞지 않는다.<br>
+        ③ 순서를 고정 — 항상 <b>[N번째 AS] [재발] [N차]</b> 왼쪽부터 이 차례.
+      </div>
+      <div class="mk-note mk-note--new">
+        <b>“N차”가 방문 횟수가 아닌 이유</b> <span class="mk-stage" data-s="S3">S3</span><br>
+        지금 코드는 <code>1 + (안 지워진 ‘미결’ 판정 수)</code> 로 차수를 센다(<code>as_log.py:147-170</code>).
+        그래서 <b>세 번 갔어도 판정을 안 남겼으면 아직 1차</b>고, 안 가고 미결만 눌러도 2차가 된다.<br>
+        화면 문구를 코드에 맞춰 <b>“세 번째 시도 중”</b> 으로 적는다 — 계산은 안 바꾼다.
+      </div>
+      <div class="mk-note">
+        <b>사장님 주간 점검용</b> — <span class="mk-recur-chip">재발</span> 은 빨강이라 카드 목록을 훑기만 해도 눈에 걸린다.
+      </div>
+    </div>
+  </div>
+
+  <!-- ============================ 2-D ============================ -->
+  <h3 class="ph-h3">2-D. 예전에 만들어진 AS 건 — 접수일을 <em>믿으면 안 되는</em> 카드<span class="mk-stage" data-s="S2">S2</span></h3>
+
+  <div class="ph-wrap">
+    <div class="ph-col">
+      <p class="ph-cap">옛 주문 카드 <span>· 브리지로 열린 건</span></p>
+      <div class="ph">
+        <div class="ph-screen">
+          <div class="thumb-zone" aria-hidden="true"><span class="thumb-zone__tag">엄지가 편하게 닿는 곳</span></div>
+
+          <div class="ph-status"><span>9:44</span><span>▮▮▮ ▾ 81%</span></div>
+          <div class="ph-appbar"><span class="ph-appbar__title">AS 대시보드</span><span class="ph-appbar__me">박형준</span></div>
+          <div class="ph-tabs"><span class="ph-tab is-on">진행 중</span><span class="ph-tab">완료</span></div>
+
+          <div class="ph-list">
+            <article class="asc asc--legacy">
+              <div class="asc__marks">
+                <span class="mk-chip">이력 시작 전</span>
+              </div>
+              <header class="asc__head">
+                <div class="asc__who">
+                  <span class="asc__id">#2107</span>
+                  <h4 class="asc__name">정하윤</h4>
+                  <div class="asc__meta"><span>담당 이수현</span><span class="asc__dot">·</span><span>시공 박형준</span></div>
+                </div>
+                <span class="asc__status asc__status--pending">AS 접수</span>
+              </header>
+
+              <div class="asc__dates">
+                <div class="asc__date"><span class="asc__date-l">접수</span><span class="asc__date-v asc__date-v--empty">불명</span></div>
+                <div class="asc__date"><span class="asc__date-l">방문</span><span class="asc__date-v">2026-08-27</span></div>
+                <div class="asc__date"><span class="asc__date-l">완료</span><span class="asc__date-v asc__date-v--empty">—</span></div>
+              </div>
+
+              <div class="asc__legacy-help">
+                이 주문은 <b>AS 이력을 쓰기 시작하기 전</b>에 만들어졌어요. 그래서 몇 번째 AS인지 알 수 없고,
+                접수일도 진짜 접수한 날이 아니라 <b>시스템이 건을 만든 날</b>이라 <b>불명</b>으로 둡니다.
+              </div>
+
+              <div class="asc__addr">
+                <p class="asc__addr-t">경기 성남시 …</p>
+                <button type="button" class="asc__addr-btn">일정</button>
+              </div>
+
+              <footer class="acts">
+                <div class="acts__row">
+                  <button type="button" class="act">사진</button>
+                  <button type="button" class="act">미결</button>
+                  <button type="button" class="act">전화</button>
+                  <button type="button" class="act act--edit">편집</button>
+                </div>
+              </footer>
+            </article>
+          </div>
+        </div>
+      </div>
+      <p class="ph-foot"><span class="mk-cycle-badge">N번째 AS</span> 배지 대신 회색 <span class="mk-chip">이력 시작 전</span> 만 붙는다 — <b>모르는 걸 아는 척하지 않는다.</b></p>
+    </div>
+
+    <div class="ph-col ph-col--notes">
+      <div class="mk-note mk-note--q">
+        <b>근거</b> — 옛 주문은 <code>LEGACY_BRIDGE</code> 로 AS 건이 뒤늦게 열려서 과거 이력이 복원되지 않는다.
+        접수일에 <b>브리지가 돌아간 시각</b>이 들어가 실제 접수일과 다르다(<code>as_cycle_service.py:229-276</code>).
+      </div>
+      <div class="mk-note">
+        <b>날짜를 지어내지 않는 게 핵심</b><br>
+        브리지 시각을 그냥 접수일로 보여주면 현장·사무실이 <b>“6월에 접수했네”</b> 하고 잘못 읽는다.
+        차라리 <b>불명</b> 이라고 적어야 “주문서를 확인해야겠다”로 이어진다.
+      </div>
+    </div>
+  </div>
+
+  <div class="mk-note mk-note--new">
+    <b>정해진 것 (2차 검수 반영)</b><br>
+    · <b>기사에게는 비용 선택권을 안 준다.</b> 기본은 “비용은 사무실에서 정해요” 안내뿐이고, 세그먼트는 사무실 권한에서만 열린다 (2-B).<br>
+    · <b>“N차”는 시도 횟수가 아니라 미결 판정 수 + 1</b> 이다. 문구를 코드에 맞췄다 (2-C).<br>
+    · 지난 건 <b>완료일·비용</b>은 지금 저장되지 않는 값이라 <span class="mk-todo">꼬리표<i>저장 추가 필요</i></span> 를 달았다 — S1 저장이 먼저다.
+  </div>
+
+  <div class="mk-note mk-note--q">
+    <b>아직 못 정한 것</b><br>
+    ① 재접수 버튼을 완료 카드에 <b>언제까지</b> 보여줄까? (완료 후 30일? 무기한?)<br>
+    ② 사진을 붙이던 중 앱이 꺼지면 쓰던 증상 글은 살려둘까(임시 저장)?<br>
+    ③ <b>사무실 권한</b>의 기준은 무엇으로 잡나? (직군? 별도 권한 플래그? — S4에서 정해야 한다)
+  </div>
+
+  <style>
+    #sec-mobile .ph-h3 {
+      margin: 26px 0 10px;
+      font-size: 16px;
+      font-weight: 800;
+      color: var(--text, #111827);
+    }
+    #sec-mobile .ph-toolbar {
+      display: flex;
+      flex-wrap: wrap;
+      align-items: center;
+      gap: 10px;
+      margin: 12px 0 4px;
+    }
+    #sec-mobile .ph-toolbar__hint { font-size: 12px; }
+    #sec-mobile .ph-wrap {
+      display: flex;
+      flex-wrap: wrap;
+      gap: 22px;
+      align-items: flex-start;
+    }
+    #sec-mobile .ph-col { flex: 0 0 auto; max-width: 100%; }
+    #sec-mobile .ph-col--notes { flex: 1 1 320px; min-width: 300px; }
+    /* 눈금자는 폰 2대 아래 한 줄을 통째로 쓴다 — 옆에 끼면 폭이 352px 미만으로 눌려 잘렸다(2차 검수 결함) */
+    #sec-mobile .ph-col--ruler { flex: 1 1 100%; min-width: 0; width: 100%; }
+    #sec-mobile .ph-cap {
+      margin: 0 0 8px;
+      font-size: 13px;
+      font-weight: 800;
+      color: var(--text, #111827);
+    }
+    #sec-mobile .ph-cap span { font-weight: 500; color: var(--muted, #6b7280); }
+    #sec-mobile .ph-foot {
+      width: 390px;
+      max-width: 100%;
+      margin: 8px 0 0;
+      font-size: 12px;
+      line-height: 1.5;
+      color: var(--muted, #6b7280);
+    }
+
+    /* ---- 폰 프레임 ---- */
+    #sec-mobile .ph {
+      position: relative;
+      width: 390px;
+      max-width: 100%;
+      border: 10px solid #23272f;
+      border-radius: 32px;
+      background: var(--bg, #eef2f7);
+      overflow: hidden;
+      box-shadow: 0 10px 26px rgba(15, 17, 21, .2);
+    }
+    #sec-mobile .ph-screen {
+      position: relative;
+      display: flex;
+      flex-direction: column;
+      height: 640px;
+      overflow: hidden;
+      background: var(--bg, #eef2f7);
+    }
+    #sec-mobile .ph-status {
+      display: flex;
+      justify-content: space-between;
+      padding: 7px 16px 3px;
+      background: var(--surface, #fff);
+      font-size: 11px;
+      color: var(--muted, #6b7280);
+    }
+    #sec-mobile .ph-appbar {
+      display: flex;
+      justify-content: space-between;
+      align-items: center;
+      padding: 8px 14px 10px;
+      background: var(--surface, #fff);
+      border-bottom: 1px solid var(--line-soft, #edf1f6);
+    }
+    #sec-mobile .ph-appbar__title { font-size: 15px; font-weight: 800; color: var(--text, #111827); }
+    #sec-mobile .ph-appbar__me { font-size: 12px; color: var(--muted, #6b7280); }
+    #sec-mobile .ph-tabs {
+      display: flex;
+      gap: 6px;
+      padding: 8px 12px;
+      background: var(--surface, #fff);
+      border-bottom: 1px solid var(--line, #dbe1ea);
+    }
+    #sec-mobile .ph-tab {
+      flex: 1 1 0;
+      text-align: center;
+      padding: 9px 0;
+      border-radius: 8px;
+      background: var(--surface-soft, #f6f8fb);
+      font-size: 13px;
+      font-weight: 700;
+      color: var(--muted, #6b7280);
+    }
+    #sec-mobile .ph-tab.is-on { background: var(--blue-soft, #eaf1ff); color: var(--blue, #2563eb); }
+    #sec-mobile .ph-list { flex: 1 1 auto; padding: 8px; overflow: hidden; }
+    #sec-mobile .ph-list--dim { filter: saturate(.6); }
+
+    /* ---- AS 카드 ---- */
+    #sec-mobile .asc {
+      display: grid;
+      gap: 8px;
+      padding: 10px;
+      border: 1px solid var(--line, #dbe1ea);
+      border-radius: 12px;
+      background: var(--surface, #fff);
+      box-shadow: 0 1px 3px rgba(15, 17, 21, .06);
+    }
+    #sec-mobile .asc--fresh { border-color: var(--purple, #6d28d9); box-shadow: 0 0 0 2px var(--purple-soft, #f1ebfd); }
+    #sec-mobile .asc--pending { border-color: var(--amber, #b45309); box-shadow: 0 0 0 2px var(--amber-soft, #fdf3e3); }
+    #sec-mobile .asc--behind { opacity: .55; }
+    #sec-mobile .asc.is-flash { animation: secMobileFlash 1.4s ease; }
+    @keyframes secMobileFlash {
+      0%, 100% { box-shadow: 0 0 0 2px var(--purple-soft, #f1ebfd); }
+      35% { box-shadow: 0 0 0 6px var(--purple-soft, #f1ebfd); }
+    }
+    #sec-mobile .asc__marks { display: flex; flex-wrap: wrap; align-items: center; gap: 6px; }
+    #sec-mobile .asc__marks-help {
+      display: grid;
+      gap: 5px;
+      padding: 8px 9px;
+      border: 1px dashed var(--line, #dbe1ea);
+      border-radius: 8px;
+      background: var(--surface-soft, #f6f8fb);
+      font-size: 11.5px;
+      line-height: 1.45;
+      color: var(--muted, #6b7280);
+    }
+    #sec-mobile .asc__head { display: grid; grid-template-columns: minmax(0, 1fr) auto; gap: 8px; align-items: start; }
+    #sec-mobile .asc__id { font-size: 12px; font-weight: 800; color: var(--blue, #2563eb); }
+    #sec-mobile .asc__name { margin: 1px 0 2px; font-size: 17px; font-weight: 800; color: var(--text, #111827); }
+    #sec-mobile .asc__meta { display: flex; flex-wrap: wrap; gap: 4px; font-size: 11.5px; color: var(--muted, #6b7280); }
+    #sec-mobile .asc__dot { opacity: .6; }
+    #sec-mobile .asc__status {
+      flex: 0 0 auto;
+      padding: 4px 9px;
+      border-radius: 999px;
+      font-size: 11.5px;
+      font-weight: 800;
+      white-space: nowrap;
+    }
+    #sec-mobile .asc__status--done { background: var(--green-soft, #e7f6ec); color: var(--green, #15803d); }
+    #sec-mobile .asc__status--new { background: var(--purple-soft, #f1ebfd); color: var(--purple, #6d28d9); }
+    #sec-mobile .asc__status--pending { background: var(--amber-soft, #fdf3e3); color: var(--amber, #b45309); }
+    #sec-mobile .asc__dates { display: grid; grid-template-columns: repeat(3, minmax(0, 1fr)); gap: 6px; }
+    #sec-mobile .asc__date {
+      display: grid;
+      gap: 2px;
+      padding: 6px 7px;
+      border: 1px solid var(--line-soft, #edf1f6);
+      border-radius: 8px;
+      background: var(--surface-soft, #f6f8fb);
+    }
+    #sec-mobile .asc__date--set { border-color: var(--line, #dbe1ea); background: var(--surface, #fff); }
+    #sec-mobile .asc__date-l { font-size: 10.5px; font-weight: 700; color: var(--muted, #6b7280); }
+    #sec-mobile .asc__date-v { font-size: 12.5px; font-weight: 700; color: var(--text, #111827); font-variant-numeric: tabular-nums; }
+    #sec-mobile .asc__date-v--empty { color: var(--muted, #6b7280); font-weight: 500; }
+    #sec-mobile .asc__prev {
+      display: flex;
+      flex-wrap: wrap;
+      gap: 6px;
+      padding: 7px 8px;
+      border-radius: 8px;
+      background: var(--purple-soft, #f1ebfd);
+      font-size: 11.5px;
+      color: var(--text, #111827);
+    }
+    #sec-mobile .asc__prev-l { font-weight: 800; color: var(--purple, #6d28d9); }
+    #sec-mobile .asc__addr { display: flex; align-items: center; gap: 8px; }
+    #sec-mobile .asc__addr-t { flex: 1 1 auto; margin: 0; font-size: 12.5px; color: var(--text, #111827); }
+    #sec-mobile .asc__addr-btn {
+      flex: 0 0 auto;
+      min-height: 30px;
+      padding: 0 10px;
+      border: 1px solid var(--line, #dbe1ea);
+      border-radius: 8px;
+      background: var(--surface, #fff);
+      font-size: 11.5px;
+      font-weight: 700;
+      color: var(--text, #111827);
+    }
+    #sec-mobile .asc__detail {
+      padding-top: 6px;
+      border-top: 1px dashed var(--line, #dbe1ea);
+      font-size: 11.5px;
+      font-weight: 700;
+      color: var(--muted, #6b7280);
+    }
+
+    /* ---- 액션바 ---- */
+    #sec-mobile .acts { display: grid; gap: 6px; }
+    #sec-mobile .acts__row { display: flex; flex-wrap: wrap; gap: 6px; }
+    #sec-mobile .act {
+      display: inline-flex;
+      align-items: center;
+      justify-content: center;
+      gap: 4px;
+      flex: 1 1 0;
+      min-width: 56px;
+      min-height: 44px;
+      padding: 0 6px;
+      border: 1px solid var(--line, #dbe1ea);
+      border-radius: 8px;
+      background: var(--surface, #fff);
+      font-size: 12.5px;
+      font-weight: 700;
+      color: var(--text, #111827);
+      white-space: nowrap;
+      cursor: pointer;
+    }
+    #sec-mobile .act--edit { border-color: transparent; background: var(--blue, #2563eb); color: #fff; }
+    #sec-mobile .act--on { border-color: var(--amber, #b45309); background: var(--amber-soft, #fdf3e3); color: var(--amber, #b45309); }
+    #sec-mobile .acts__row--new { position: relative; }
+    #sec-mobile .act--reintake {
+      flex: 1 1 100%;
+      min-height: 48px;
+      border: 0;
+      background: var(--purple, #6d28d9);
+      color: #fff;
+      font-size: 15px;
+      font-weight: 800;
+    }
+    #sec-mobile .act--reintake:active { transform: translateY(1px); }
+    #sec-mobile .act__ico { font-size: 16px; }
+    #sec-mobile .act__sub { font-size: 11.5px; font-weight: 600; opacity: .82; }
+
+    /* ---- 엄지 도달 영역 ---- */
+    #sec-mobile .thumb-zone {
+      position: absolute;
+      left: -18%;
+      right: -18%;
+      bottom: -20%;
+      height: 62%;
+      border-radius: 50%;
+      border: 2px dashed rgba(109, 40, 217, .55);
+      background: radial-gradient(circle at 50% 100%, rgba(109, 40, 217, .16), rgba(109, 40, 217, .03) 70%);
+      pointer-events: none;
+      opacity: 0;
+      transition: opacity .2s ease;
+      z-index: 40;
+    }
+    #sec-mobile.show-thumb .thumb-zone { opacity: 1; }
+    #sec-mobile .thumb-zone__tag {
+      position: absolute;
+      left: 50%;
+      top: 10px;
+      transform: translateX(-50%);
+      padding: 3px 9px;
+      border-radius: 999px;
+      background: var(--purple, #6d28d9);
+      color: #fff;
+      font-size: 11px;
+      font-weight: 800;
+      white-space: nowrap;
+    }
+
+    /* ---- 눈금자 ---- */
+    #sec-mobile .ruler {
+      display: grid;
+      /* minmax(0,·) 없으면 안쪽 352px 막대가 그리드 트랙을 밀어 패널 밖으로 삐져나간다 */
+      grid-template-columns: minmax(0, 1fr);
+      gap: 12px;
+      padding: 14px;
+      border: 1px solid var(--line, #dbe1ea);
+      border-radius: var(--radius, 10px);
+      background: var(--surface, #fff);
+    }
+    #sec-mobile .ruler__lead { margin: 0; font-size: 12px; line-height: 1.6; color: var(--muted, #6b7280); }
+    #sec-mobile .ruler__scale { color: var(--blue, #2563eb); font-weight: 700; }
+    #sec-mobile .ruler__cases { display: flex; flex-wrap: wrap; gap: 14px; }
+    /* 넓으면 3칸 나란히, 좁으면 접힌다. min-width:0 이라야 안쪽 막대가 칸을 못 늘린다 */
+    #sec-mobile .ruler__case { flex: 1 1 352px; min-width: 0; max-width: 100%; }
+    /* 칸이 352px 보다 좁아지면 잘리는 대신 이 상자 안에서만 옆으로 밀린다 */
+    #sec-mobile .ruler__scroll {
+      max-width: 100%;
+      overflow-x: auto;
+      overflow-y: hidden;
+      padding-bottom: 2px;
+      overscroll-behavior-x: contain;
+      scrollbar-width: thin;
+    }
+    /* ::-webkit-scrollbar 를 정의하면 크로미움이 겹침(overlay) 스크롤바를 끄고 항상 보이는 막대를 그린다 */
+    #sec-mobile .ruler__scroll::-webkit-scrollbar { height: 8px; }
+    #sec-mobile .ruler__scroll::-webkit-scrollbar-track { background: var(--surface-soft, #f6f8fb); border-radius: 999px; }
+    #sec-mobile .ruler__scroll::-webkit-scrollbar-thumb { background: var(--line, #dbe1ea); border-radius: 999px; }
+    #sec-mobile .ruler__lead code {
+      padding: 1px 5px;
+      border-radius: 5px;
+      background: var(--surface-soft, #f6f8fb);
+      font-size: 11.5px;
+      color: var(--text, #111827);
+    }
+    #sec-mobile .ruler__case { display: grid; grid-template-columns: minmax(0, 1fr); gap: 5px; }
+    #sec-mobile .ruler__tag { font-size: 11.5px; font-weight: 800; }
+    #sec-mobile .ruler__tag--ok { color: var(--green, #15803d); }
+    #sec-mobile .ruler__tag--warn { color: var(--amber, #b45309); }
+    #sec-mobile .ruler__tag--bad { color: var(--red, #b91c1c); }
+    #sec-mobile .ruler__bar {
+      display: flex;
+      flex-wrap: wrap;
+      gap: 6px;
+      /* 실제 카드 안쪽 폭 그대로 — 축소하면 눈금자로서 의미가 없다. 좁으면 .ruler__scroll 이 받는다 */
+      width: 352px;
+      flex: 0 0 auto;
+      padding: 6px;
+      border: 1px dashed var(--line, #dbe1ea);
+      border-radius: 8px;
+      background: var(--surface-soft, #f6f8fb);
+    }
+    #sec-mobile .ruler__bar i {
+      display: inline-flex;
+      align-items: center;
+      justify-content: center;
+      flex: 1 1 0;
+      min-width: 56px;
+      min-height: 34px;
+      border: 1px solid var(--line, #dbe1ea);
+      border-radius: 7px;
+      background: var(--surface, #fff);
+      font-size: 12px;
+      font-style: normal;
+      font-weight: 700;
+      color: var(--text, #111827);
+      overflow: hidden;
+      white-space: nowrap;
+    }
+    #sec-mobile .ruler__bar i.is-tight { border-color: var(--amber, #b45309); color: var(--amber, #b45309); }
+    #sec-mobile .ruler__bar i.is-drop { border-color: var(--red, #b91c1c); color: var(--red, #b91c1c); }
+    #sec-mobile .ruler__note { margin: 2px 0 0; }
+
+    /* ---- 바텀시트 ---- */
+    #sec-mobile .scrim {
+      position: absolute;
+      inset: 0;
+      background: rgba(17, 24, 39, .42);
+      opacity: 1;
+      transition: opacity .26s ease;
+      z-index: 10;
+    }
+    #sec-mobile .scrim.is-hidden { opacity: 0; pointer-events: none; }
+    #sec-mobile .sheet {
+      position: absolute;
+      left: 0;
+      right: 0;
+      bottom: 0;
+      z-index: 20;
+      display: flex;
+      flex-direction: column;
+      max-height: 92%;
+      border-radius: 18px 18px 0 0;
+      background: var(--surface, #fff);
+      box-shadow: 0 -8px 26px rgba(15, 17, 21, .22);
+      transform: translateY(0);
+      transition: transform .28s cubic-bezier(.22, .8, .3, 1);
+    }
+    #sec-mobile .sheet.is-closed { transform: translateY(102%); }
+    #sec-mobile .sheet__grip {
+      width: 42px;
+      height: 4px;
+      margin: 8px auto 2px;
+      border-radius: 999px;
+      background: var(--line, #dbe1ea);
+    }
+    #sec-mobile .sheet__head {
+      display: flex;
+      align-items: flex-start;
+      justify-content: space-between;
+      gap: 8px;
+      padding: 6px 14px 10px;
+      border-bottom: 1px solid var(--line-soft, #edf1f6);
+    }
+    #sec-mobile .sheet__title { margin: 0; font-size: 20px; font-weight: 800; color: var(--text, #111827); }
+    #sec-mobile .sheet__sub { margin: 2px 0 0; font-size: 12px; color: var(--muted, #6b7280); }
+    #sec-mobile .sheet__x {
+      flex: 0 0 auto;
+      width: 44px;
+      height: 44px;
+      border: 0;
+      border-radius: 10px;
+      background: var(--surface-soft, #f6f8fb);
+      font-size: 15px;
+      color: var(--muted, #6b7280);
+      cursor: pointer;
+    }
+    #sec-mobile .sheet__body { flex: 1 1 auto; display: grid; gap: 12px; padding: 12px 14px; overflow: auto; }
+    #sec-mobile .sheet__foot {
+      flex: 0 0 auto;
+      padding: 10px 14px 16px;
+      border-top: 1px solid var(--line, #dbe1ea);
+      background: var(--surface, #fff);
+    }
+    #sec-mobile .submit {
+      width: 100%;
+      min-height: 54px;
+      border: 0;
+      border-radius: 12px;
+      background: var(--purple, #6d28d9);
+      color: #fff;
+      font-size: 17px;
+      font-weight: 800;
+      cursor: pointer;
+    }
+    #sec-mobile .submit:active { transform: translateY(1px); }
+
+    #sec-mobile .prev { border: 1px solid var(--line, #dbe1ea); border-radius: 10px; background: var(--surface-soft, #f6f8fb); }
+    #sec-mobile .prev__sum {
+      display: flex;
+      align-items: center;
+      min-height: 46px;
+      padding: 0 12px;
+      font-size: 13px;
+      font-weight: 800;
+      color: var(--purple, #6d28d9);
+      cursor: pointer;
+      list-style: none;
+    }
+    #sec-mobile .prev__sum::-webkit-details-marker { display: none; }
+    #sec-mobile .prev__box { display: grid; gap: 5px; padding: 0 12px 11px; }
+    #sec-mobile .prev__line { display: flex; gap: 8px; font-size: 12px; color: var(--text, #111827); }
+    #sec-mobile .prev__line > span:first-child { flex: 0 0 62px; font-weight: 700; color: var(--muted, #6b7280); }
+    #sec-mobile .prev__why {
+      margin-top: 3px;
+      padding-top: 6px;
+      border-top: 1px dashed var(--line, #dbe1ea);
+      font-size: 11px;
+      line-height: 1.5;
+      color: var(--amber, #b45309);
+    }
+
+    /* ---- 비용 권한 분기 ---- */
+    #sec-mobile .costlock {
+      display: flex;
+      align-items: center;
+      gap: 10px;
+      min-height: 56px;
+      padding: 8px 12px;
+      border: 1px dashed var(--line, #dbe1ea);
+      border-radius: 10px;
+      background: var(--surface-soft, #f6f8fb);
+    }
+    #sec-mobile .costlock__ico { flex: 0 0 auto; font-size: 17px; }
+    /* display:grid 는 맨 텍스트 조각도 각각 한 줄로 떼어낸다 — 첫 줄은 .costlock__m 으로 묶어야 안 쪼개진다 */
+    #sec-mobile .costlock__t { display: grid; gap: 2px; font-size: 13.5px; font-weight: 700; color: var(--muted, #6b7280); }
+    #sec-mobile .costlock__m b { color: var(--text, #111827); }
+    #sec-mobile .costlock__s { font-size: 11.5px; font-weight: 500; color: var(--muted, #6b7280); }
+    #sec-mobile .costseg { padding: 8px; border: 1px solid var(--purple, #6d28d9); border-radius: 10px; background: var(--purple-soft, #f1ebfd); }
+    #sec-mobile .costseg .seg { background: var(--surface, #fff); }
+    /* .fld 의 display:grid 가 [hidden] 을 이겨서 기본 상태에서도 보였다 — 명시적으로 다시 숨긴다 */
+    #sec-mobile [data-cost-seg][hidden] { display: none; }
+    #sec-mobile.show-office [data-cost-locked] { display: none; }
+    #sec-mobile.show-office [data-cost-seg][hidden] { display: grid; }
+
+    /* ---- 옛 주문(브리지) 카드 ---- */
+    #sec-mobile .asc--legacy { border-color: var(--muted, #6b7280); box-shadow: 0 0 0 2px var(--line-soft, #edf1f6); }
+    #sec-mobile .asc__legacy-help {
+      padding: 8px 9px;
+      border: 1px dashed var(--line, #dbe1ea);
+      border-radius: 8px;
+      background: var(--surface-soft, #f6f8fb);
+      font-size: 11.5px;
+      line-height: 1.45;
+      color: var(--muted, #6b7280);
+    }
+    #sec-mobile .asc__legacy-help b { color: var(--text, #111827); }
+
+    #sec-mobile .fld { display: grid; gap: 6px; }
+    #sec-mobile .fld__l { font-size: 13.5px; font-weight: 800; color: var(--text, #111827); }
+    #sec-mobile .fld__ta {
+      width: 100%;
+      min-height: 84px;
+      padding: 10px;
+      border: 1px solid var(--line, #dbe1ea);
+      border-radius: 10px;
+      background: var(--surface, #fff);
+      font-size: 14px;
+      font-family: inherit;
+      color: var(--text, #111827);
+      resize: none;
+    }
+    #sec-mobile .fld__hint { font-size: 11.5px; line-height: 1.5; color: var(--muted, #6b7280); }
+
+    #sec-mobile .chk {
+      display: flex;
+      align-items: center;
+      gap: 10px;
+      min-height: 56px;
+      padding: 0 12px;
+      border: 1px solid var(--line, #dbe1ea);
+      border-radius: 10px;
+      background: var(--surface, #fff);
+      cursor: pointer;
+    }
+    #sec-mobile .chk input { position: absolute; opacity: 0; width: 0; height: 0; }
+    #sec-mobile .chk__box {
+      flex: 0 0 auto;
+      display: inline-flex;
+      align-items: center;
+      justify-content: center;
+      width: 26px;
+      height: 26px;
+      border: 2px solid var(--line, #dbe1ea);
+      border-radius: 7px;
+      background: var(--surface, #fff);
+      color: transparent;
+      font-size: 15px;
+      font-weight: 800;
+    }
+    #sec-mobile .chk input:checked + .chk__box { border-color: var(--red, #b91c1c); background: var(--red-soft, #fdeaea); color: var(--red, #b91c1c); }
+    #sec-mobile .chk__t { display: grid; gap: 2px; font-size: 13.5px; font-weight: 700; color: var(--text, #111827); }
+    #sec-mobile .chk__s { font-size: 11.5px; font-weight: 500; color: var(--muted, #6b7280); }
+
+    #sec-mobile .seg {
+      display: flex;
+      gap: 6px;
+      padding: 4px;
+      border-radius: 12px;
+      background: var(--surface-soft, #f6f8fb);
+    }
+    #sec-mobile .seg__b {
+      flex: 1 1 0;
+      min-height: 48px;
+      border: 1px solid transparent;
+      border-radius: 9px;
+      background: transparent;
+      font-size: 15px;
+      font-weight: 800;
+      color: var(--muted, #6b7280);
+      cursor: pointer;
+    }
+    #sec-mobile .seg__b.is-on {
+      border-color: var(--line, #dbe1ea);
+      background: var(--surface, #fff);
+      color: var(--text, #111827);
+      box-shadow: 0 1px 3px rgba(15, 17, 21, .08);
+    }
+
+    #sec-mobile .photo {
+      display: flex;
+      align-items: center;
+      gap: 10px;
+      width: 100%;
+      min-height: 64px;
+      padding: 0 14px;
+      border: 2px dashed var(--blue, #2563eb);
+      border-radius: 12px;
+      background: var(--blue-soft, #eaf1ff);
+      color: var(--blue, #2563eb);
+      font-size: 15px;
+      font-weight: 800;
+      cursor: pointer;
+    }
+    #sec-mobile .photo__ico { font-size: 22px; }
+    #sec-mobile .photo__t { flex: 1 1 auto; text-align: left; }
+    #sec-mobile .photo__n { font-size: 12.5px; font-weight: 700; }
+
+    #sec-mobile .pre {
+      display: grid;
+      gap: 5px;
+      padding: 9px 11px;
+      border-radius: 10px;
+      background: var(--purple-soft, #f1ebfd);
+    }
+    #sec-mobile .pre__l { font-size: 11.5px; font-weight: 800; color: var(--purple, #6d28d9); }
+    #sec-mobile .pre__v { display: flex; flex-wrap: wrap; align-items: center; gap: 6px; font-size: 12px; color: var(--text, #111827); }
+    #sec-mobile .pre__cost { font-weight: 800; }
+
+    #sec-mobile .toast {
+      position: absolute;
+      left: 50%;
+      bottom: 22px;
+      z-index: 60;
+      transform: translateX(-50%);
+      padding: 11px 18px;
+      border-radius: 999px;
+      background: rgba(17, 24, 39, .92);
+      color: #fff;
+      font-size: 13px;
+      font-weight: 700;
+      white-space: nowrap;
+    }
+
+    @media (max-width: 900px) {
+      #sec-mobile .ph-wrap { gap: 18px; }
+    }
+    /* 468px 아래에서만 352px 막대가 패널 폭을 넘는다 — 그때만 "옆으로 밀린다" 안내를 켠다.
+       .ruler__case 가 grid 라서 ::after 는 막대 위에 겹치지 않고 아래 한 줄로 깔린다 */
+    @media (max-width: 470px) {
+      #sec-mobile .ruler__case::after {
+        content: "← 막대를 옆으로 밀면 나머지가 보여요 (실제 352px 그대로 그렸습니다) →";
+        font-size: 10.5px;
+        font-weight: 700;
+        color: var(--blue, #2563eb);
+      }
+    }
+  </style>
+
+  <script>
+    (function () {
+      var root = document.getElementById('sec-mobile');
+      if (!root) { return; }
+
+      var sheet = root.querySelector('[data-sheet]');
+      var scrim = root.querySelector('[data-scrim]');
+      var toast = root.querySelector('[data-toast]');
+      var afterCard = root.querySelector('[data-after-card]');
+      var recur = root.querySelector('[data-recur]');
+      var preRecur = root.querySelector('[data-pre-recur]');
+      var preCost = root.querySelector('[data-pre-cost]');
+      var photoN = root.querySelector('[data-photo-n]');
+      var shots = 0;
+      var toastTimer = null;
+
+      function openSheet(replay) {
+        if (!sheet) { return; }
+        if (replay) {
+          sheet.classList.add('is-closed');
+          if (scrim) { scrim.classList.add('is-hidden'); }
+          void sheet.offsetWidth;
+        }
+        sheet.classList.remove('is-closed');
+        if (scrim) { scrim.classList.remove('is-hidden'); }
+      }
+
+      function closeSheet() {
+        if (sheet) { sheet.classList.add('is-closed'); }
+        if (scrim) { scrim.classList.add('is-hidden'); }
+      }
+
+      function showToast(text) {
+        if (!toast) { return; }
+        toast.textContent = text;
+        toast.hidden = false;
+        if (toastTimer) { window.clearTimeout(toastTimer); }
+        toastTimer = window.setTimeout(function () { toast.hidden = true; }, 2600);
+      }
+
+      root.querySelectorAll('[data-open-sheet]').forEach(function (btn) {
+        btn.addEventListener('click', function () {
+          openSheet(true);
+          if (sheet && sheet.scrollIntoView) {
+            sheet.scrollIntoView({ behavior: 'smooth', block: 'center' });
+          }
+        });
+      });
+
+      root.querySelectorAll('[data-close-sheet]').forEach(function (btn) {
+        btn.addEventListener('click', closeSheet);
+      });
+      if (scrim) { scrim.addEventListener('click', closeSheet); }
+
+      if (recur && preRecur) {
+        recur.addEventListener('change', function () {
+          preRecur.hidden = !recur.checked;
+        });
+      }
+
+      var LOCKED_COST = '비용 미정 · 사무실이 정함';
+
+      function chosenCost() {
+        var on = root.querySelector('[data-cost].is-on');
+        return on ? on.getAttribute('data-cost') : '무상';
+      }
+
+      function syncCostPreview() {
+        if (!preCost) { return; }
+        // 기사 화면에서는 고른 값이 아니라 "사무실이 정함"이 저장 미리보기에 뜬다
+        preCost.textContent = root.classList.contains('show-office') ? chosenCost() : LOCKED_COST;
+      }
+
+      root.querySelectorAll('[data-cost]').forEach(function (btn) {
+        btn.addEventListener('click', function () {
+          root.querySelectorAll('[data-cost]').forEach(function (other) {
+            other.classList.toggle('is-on', other === btn);
+          });
+          syncCostPreview();
+        });
+      });
+
+      var officeBtn = root.querySelector('[data-office-toggle]');
+      if (officeBtn) {
+        officeBtn.addEventListener('click', function () {
+          var on = root.classList.toggle('show-office');
+          officeBtn.textContent = on ? '기사 화면으로 돌아가기' : '사무실 권한으로 보기';
+          syncCostPreview();
+        });
+      }
+
+      var photoBtn = root.querySelector('[data-photo]');
+      if (photoBtn && photoN) {
+        photoBtn.addEventListener('click', function () {
+          shots = shots + 1;
+          photoN.textContent = shots + '장';
+        });
+      }
+
+      var submitBtn = root.querySelector('[data-submit]');
+      if (submitBtn) {
+        submitBtn.addEventListener('click', function () {
+          closeSheet();
+          showToast('2번째 AS로 접수했어요 ✓');
+          if (afterCard) {
+            afterCard.classList.remove('is-flash');
+            void afterCard.offsetWidth;
+            afterCard.classList.add('is-flash');
+          }
+        });
+      }
+
+      var thumbBtn = root.querySelector('[data-thumb-toggle]');
+      if (thumbBtn) {
+        thumbBtn.addEventListener('click', function () {
+          var on = root.classList.toggle('show-thumb');
+          thumbBtn.textContent = on ? '엄지 닿는 곳 숨기기' : '엄지 닿는 곳 보기';
+        });
+      }
+    }());
+  </script>
+</section>
+<!-- SECTION: sec-chart -->
+<section id="sec-chart" class="mk-section">
+
+<style>
+/* ── 공통 표식 fallback ──────────────────────────────────────────────────
+   셸이 .mk-cycle-badge / .mk-recur-chip / .mk-round / .mk-note--q / .mk-todo /
+   .mk-stage 를 정의하면 그쪽이 무조건 이긴다(:where() = 특정도 0). 조각 단독으로
+   열어봐도 모양이 보이게만 하는 최소 정의이며, 셸 정의를 덮지 않는다. */
+:where(#sec-chart .mk-cycle-badge){display:inline-block;background:var(--purple-soft,#f1ebfd);color:var(--purple,#6d28d9);border:1px solid #ddd0fa;border-radius:999px;padding:2px 10px;font-size:.76rem;font-weight:800;white-space:nowrap}
+:where(#sec-chart .mk-recur-chip){display:inline-block;background:var(--red-soft,#fdeaea);color:var(--red,#b91c1c);border:1px solid #f6cfcf;border-radius:6px;padding:1px 8px;font-size:.74rem;font-weight:800;white-space:nowrap}
+:where(#sec-chart .mk-round){display:inline-block;background:#e2e8f0;color:#475569;border-radius:6px;padding:2px 8px;font-size:.74rem;font-weight:800;white-space:nowrap}
+:where(#sec-chart .mk-note--q){border-left:4px solid var(--amber,#b45309);background:var(--amber-soft,#fdf3e3)}
+:where(#sec-chart .mk-todo){border-bottom:1px dashed var(--amber,#b45309);white-space:nowrap}
+:where(#sec-chart .mk-todo i){font-style:normal;font-size:10px;font-weight:700;color:var(--amber,#b45309);background:var(--amber-soft,#fdf3e3);border:1px solid var(--amber,#b45309);border-radius:4px;padding:0 4px;margin-left:4px;vertical-align:1px}
+:where(#sec-chart .mk-stage){display:inline-block;font-size:10px;font-weight:800;color:#fff;background:var(--muted,#6b7280);border-radius:4px;padding:1px 6px;margin-left:6px;vertical-align:2px}
+
+/* ── 섹션 전용 (전부 #sec-chart 스코프) ───────────────────────────────── */
+#sec-chart .ch-h3{margin:26px 0 4px;font-size:1rem;font-weight:800;color:var(--text,#111827)}
+#sec-chart .ch-lead{margin:0 0 10px;font-size:.82rem;color:var(--muted,#6b7280)}
+#sec-chart .ch-cap{margin:10px 0 6px;font-size:.78rem;font-weight:700;color:var(--muted,#6b7280)}
+#sec-chart code{font-size:.92em;background:#eaeef4;border-radius:4px;padding:0 4px}
+
+/* 회차 정의 박스 */
+#sec-chart .ch-def{background:var(--surface-soft,#f6f8fb);border:1px solid var(--line,#dbe1ea);border-left:4px solid #475569;border-radius:6px;padding:10px 12px;margin:12px 0;font-size:.82rem;color:#334155}
+#sec-chart .ch-def b{color:#0f172a}
+#sec-chart .ch-def__row{display:flex;align-items:baseline;flex-wrap:wrap;gap:8px;margin-top:6px}
+
+/* 차트 본체 — 실제 .as-rchart 톤 그대로 */
+#sec-chart .ch-chart{background:var(--surface,#fff);border:1px solid #e2e8f0;border-radius:var(--radius,10px);overflow:hidden;font-size:.86rem}
+#sec-chart .ch-chart--cur{border-color:#ddd0fa;box-shadow:0 0 0 3px rgba(109,40,217,.07)}
+#sec-chart .ch-chart--legacy{border-color:#cbd5e1;background:#fcfcfd}
+
+#sec-chart .ch-head{display:flex;align-items:center;flex-wrap:wrap;gap:6px;padding:8px 12px;background:#faf8ff;border-bottom:1px solid #eef2f7}
+#sec-chart .ch-head--legacy{background:#f4f6f9}
+#sec-chart .ch-head__state{font-weight:800;color:#a16207;font-size:.78rem}
+#sec-chart .ch-head__prev{margin-left:auto;font-size:.76rem;color:var(--muted,#6b7280);background:var(--surface-soft,#f6f8fb);border:1px solid var(--line-soft,#edf1f6);border-radius:999px;padding:2px 10px}
+#sec-chart .ch-billing{font-size:.78rem;font-weight:800;color:var(--amber,#b45309);background:var(--amber-soft,#fdf3e3);border-radius:6px;padding:2px 8px;white-space:nowrap}
+
+/* 옛 주문 전용 표기 */
+#sec-chart .ch-legacy-badge{display:inline-block;background:#e2e8f0;color:#334155;border:1px dashed #94a3b8;border-radius:999px;padding:2px 10px;font-size:.76rem;font-weight:800;white-space:nowrap}
+#sec-chart .ch-unknown{display:inline-block;background:#f1f5f9;color:#64748b;border:1px dashed #94a3b8;border-radius:5px;padding:0 7px;font-weight:800;font-size:.9em}
+
+/* [A] 상태 카드 3칸 */
+#sec-chart .ch-state{display:grid;grid-template-columns:repeat(3,1fr);border-bottom:1px solid #eef2f7}
+#sec-chart .ch-field{border-right:1px solid #f1f5f9;min-width:0}
+#sec-chart .ch-field:last-child{border-right:none}
+#sec-chart .ch-field>summary{list-style:none;cursor:pointer;padding:8px 12px}
+#sec-chart .ch-field>summary::-webkit-details-marker{display:none}
+#sec-chart .ch-field>summary:hover{background:#f8fafc}
+#sec-chart .ch-field__k{display:block;font-size:.72rem;font-weight:700;color:#94a3b8}
+#sec-chart .ch-field__v{display:block;font-weight:800;color:#1f2937;white-space:nowrap;overflow:hidden;text-overflow:ellipsis}
+#sec-chart .ch-field__m{display:block;font-size:.74rem;color:#64748b}
+#sec-chart .ch-hist{background:#f8fafc;border-top:1px dashed #e2e8f0;padding:6px 12px;font-size:.78rem;color:#64748b}
+#sec-chart .ch-hist__line{padding:1px 0}
+#sec-chart .ch-hist__ts{color:#94a3b8;margin-right:6px}
+
+/* 증상 줄 */
+#sec-chart .ch-symptom{display:flex;align-items:center;flex-wrap:wrap;gap:8px;padding:7px 12px;background:#fbfdff;border-bottom:1px solid #eef2f7;font-size:.82rem;color:#334155;font-weight:700}
+#sec-chart .ch-symptom__prev{font-weight:400;font-size:.76rem;color:#94a3b8}
+
+/* [B] 회차 아코디언 */
+#sec-chart .ch-round--open{background:#fffdf5;border-left:4px solid #facc15;border-bottom:1px solid #eef2f7}
+#sec-chart .ch-round__head{display:flex;align-items:center;flex-wrap:wrap;gap:8px;padding:8px 12px;min-width:0}
+#sec-chart .ch-round--closed{border-bottom:1px solid #eef2f7}
+#sec-chart .ch-round--closed>summary{list-style:none;cursor:pointer;color:#64748b}
+#sec-chart .ch-round--closed>summary::-webkit-details-marker{display:none}
+#sec-chart .ch-round--closed>summary:hover{background:#f8fafc}
+#sec-chart .ch-round__state{font-size:.78rem;font-weight:800;color:#a16207}
+#sec-chart .ch-round__next{font-size:.78rem;color:#a16207;font-weight:700;margin-left:auto}
+#sec-chart .ch-round__summary{font-size:.8rem;color:#64748b}
+#sec-chart .ch-verdict{font-size:.74rem;font-weight:800;border-radius:6px;padding:1px 7px}
+#sec-chart .ch-verdict--unresolved{background:#fee2e2;color:#b91c1c}
+#sec-chart .ch-verdict--resolved{background:#dcfce7;color:#15803d}
+
+/* 슬롯 칩 */
+#sec-chart .ch-slots{display:flex;flex-wrap:wrap;gap:5px;padding:0 12px 8px}
+#sec-chart .ch-slot{font-size:.76rem;font-weight:700;border:1px solid #e2e8f0;border-radius:7px;padding:2px 9px;background:#f8fafc;color:#94a3b8}
+#sec-chart .ch-slot--done{background:#f0fdf4;border-color:#bbf7d0;color:#15803d}
+#sec-chart .ch-slot--next{background:#fef9c3;border-color:#fde047;color:#a16207;box-shadow:0 0 0 2px rgba(250,204,21,.25)}
+
+/* 기록 줄 */
+#sec-chart .ch-rows{padding:2px 0 6px}
+#sec-chart .ch-row{display:grid;grid-template-columns:92px 60px 1fr auto;gap:6px;align-items:start;padding:5px 16px 5px 12px;border-top:1px solid #f6f8fa;background:var(--surface,#fff)}
+#sec-chart .ch-row:hover{background:#f8fafc}
+#sec-chart .ch-row__date{font-size:.76rem;color:#94a3b8;white-space:nowrap}
+#sec-chart .ch-row__text{min-width:0;font-size:.82rem;color:#1f2937}
+#sec-chart .ch-row__by{font-size:.78rem;color:#64748b;white-space:nowrap}
+#sec-chart .ch-chip{display:inline-block;color:#fff;border-radius:5px;padding:1px 7px;font-size:.72rem;font-weight:700;white-space:nowrap}
+#sec-chart .ch-chip--reception{background:#1e3a8a}
+#sec-chart .ch-chip--call{background:#2563eb}
+#sec-chart .ch-chip--material{background:#b45309}
+#sec-chart .ch-chip--memo{background:#6b7280}
+#sec-chart .ch-chip--system{background:#64748b}
+#sec-chart .ch-chip--plan{background:#92400e}
+#sec-chart .ch-chip--verdict{background:#334155}
+
+/* 접수 줄 */
+#sec-chart .ch-reception{border-top:2px solid #eef2f7;background:#fcfdff}
+#sec-chart .ch-reception__label{display:block;padding:6px 12px 0;font-size:.74rem;font-weight:800;color:#94a3b8}
+
+/* [3-B] AS 건 구분선 */
+#sec-chart .ch-past{margin-top:14px}
+#sec-chart .ch-divider{list-style:none;cursor:pointer;display:flex;align-items:center;gap:10px;padding:10px 4px}
+#sec-chart .ch-divider::-webkit-details-marker{display:none}
+#sec-chart .ch-divider:hover .ch-divider__text{background:var(--purple-soft,#f1ebfd)}
+#sec-chart .ch-divider__line{flex:1 1 auto;height:0;border-top:2px dashed #c9b6f5}
+#sec-chart .ch-divider__text{flex:0 0 auto;background:#fff;border:1.5px solid #c9b6f5;border-radius:999px;padding:5px 14px;font-size:.82rem;font-weight:800;color:var(--purple,#6d28d9)}
+#sec-chart .ch-divider__free{background:var(--green-soft,#e7f6ec);color:var(--green,#15803d);border-radius:6px;padding:1px 7px;font-size:.74rem;margin-left:4px}
+#sec-chart .ch-divider__more{flex:0 0 auto;font-size:.76rem;font-weight:700;color:var(--purple,#6d28d9)}
+#sec-chart .ch-past[open] .ch-divider__more--closed{display:none}
+#sec-chart .ch-divider__more--open{display:none}
+#sec-chart .ch-past[open] .ch-divider__more--open{display:inline}
+#sec-chart .ch-chart--past{border-color:#ddd0fa;background:#fdfcff}
+#sec-chart .ch-past-sum{display:flex;flex-wrap:wrap;gap:6px 14px;padding:9px 12px;background:#f7f3ff;border-bottom:1px solid #eee6fb;font-size:.8rem;color:#4c1d95}
+#sec-chart .ch-past-sum b{color:#2e1065}
+#sec-chart .ch-expand{margin:6px 0 0}
+/* 옛 주문용 회색 구분선 */
+#sec-chart .ch-divider--legacy:hover .ch-divider__text{background:#eef2f7}
+#sec-chart .ch-divider--legacy .ch-divider__line{border-top-color:#94a3b8}
+#sec-chart .ch-divider--legacy .ch-divider__text{border-color:#94a3b8;color:#475569;font-weight:700}
+#sec-chart .ch-divider--legacy .ch-divider__more{color:#475569}
+#sec-chart .ch-legacy-help{padding:9px 12px;background:#f4f6f9;border-bottom:1px solid #e2e8f0;font-size:.8rem;color:#475569}
+
+/* [3-C] 두 열쇠 그림 */
+#sec-chart .ch-keys{display:grid;gap:10px;margin:10px 0 4px}
+#sec-chart .ch-key{background:#fff;border:1px solid var(--line,#dbe1ea);border-radius:8px;padding:10px 12px}
+#sec-chart .ch-key--bad{border-color:#f6cfcf;background:#fffafa}
+#sec-chart .ch-key--after{border-color:#bfe3cb;background:#fbfefc}
+#sec-chart .ch-key__hd{display:flex;align-items:center;flex-wrap:wrap;gap:8px;font-size:.84rem;font-weight:800;color:#1f2937}
+#sec-chart .ch-key__tag{flex:0 0 auto;border-radius:6px;padding:2px 9px;font-size:.74rem;font-weight:800;background:#e2e8f0;color:#475569}
+#sec-chart .ch-key__tag--bad{background:var(--red-soft,#fdeaea);color:var(--red,#b91c1c)}
+#sec-chart .ch-key__tag--after{background:var(--green-soft,#e7f6ec);color:var(--green,#15803d)}
+#sec-chart .ch-key__code{font-size:.76rem;color:#475569;background:#eef2f7;border-radius:5px;padding:1px 8px;font-weight:700}
+#sec-chart .ch-bins{display:flex;flex-wrap:wrap;gap:8px;margin:9px 0 6px}
+#sec-chart .ch-bin{flex:0 0 auto;min-width:104px;border:1.5px solid #cbd5e1;border-radius:8px;background:#f8fafc;padding:5px 7px 7px}
+#sec-chart .ch-bin__name{display:block;text-align:center;font-size:.74rem;font-weight:800;color:#334155;border-bottom:1px dashed #cbd5e1;padding-bottom:4px;margin-bottom:5px;white-space:nowrap}
+#sec-chart .ch-bin--mixed{border-color:var(--red,#b91c1c);background:#fdeaea;box-shadow:0 0 0 3px rgba(185,28,28,.08)}
+#sec-chart .ch-bin--clean{border-color:#bfe3cb;background:#f2fbf5}
+#sec-chart .ch-bin__empty{display:block;text-align:center;font-size:.72rem;color:#94a3b8}
+#sec-chart .ch-item{display:block;margin:3px 0;border-radius:5px;padding:2px 7px;font-size:.72rem;font-weight:700;white-space:nowrap;text-align:center}
+#sec-chart .ch-item--old{background:#ede4fd;color:#5b21b6;border:1px solid #d8c8fa}
+#sec-chart .ch-item--new{background:#dbeafe;color:#1d4ed8;border:1px solid #bfd8fb}
+#sec-chart .ch-key__out{font-size:.78rem;color:#475569;margin:2px 0 0;padding-left:2px}
+#sec-chart .ch-key__out b{color:#1f2937}
+#sec-chart .ch-key__out--bad{color:var(--red,#b91c1c)}
+#sec-chart .ch-key__out--bad b{color:var(--red,#b91c1c)}
+#sec-chart .ch-key__out--good{color:var(--green,#15803d)}
+#sec-chart .ch-key__out--good b{color:var(--green,#15803d)}
+#sec-chart .ch-src{font-size:.74rem;color:#94a3b8;margin-top:6px}
+
+/* [3-D] 옛 기록 처리 두 안 비교 */
+#sec-chart .ch-opts{display:grid;grid-template-columns:1fr 1fr;gap:10px;margin:8px 0 4px}
+#sec-chart .ch-opt{border:1px solid var(--line,#dbe1ea);border-radius:8px;background:#fff;overflow:hidden;min-width:0}
+#sec-chart .ch-opt__hd{padding:7px 10px;font-size:.82rem;font-weight:800;border-bottom:1px solid var(--line-soft,#edf1f6)}
+#sec-chart .ch-opt--risk .ch-opt__hd{background:var(--red-soft,#fdeaea);color:var(--red,#b91c1c)}
+#sec-chart .ch-opt--safe .ch-opt__hd{background:var(--green-soft,#e7f6ec);color:var(--green,#15803d)}
+#sec-chart .ch-mini{padding:6px 8px}
+#sec-chart .ch-mini__grp{font-size:.76rem;font-weight:800;color:var(--purple,#6d28d9);background:#f7f3ff;border:1px solid #eee6fb;border-radius:6px;padding:3px 8px;margin:5px 0 3px}
+#sec-chart .ch-mini__grp--unsorted{color:#475569;background:#f1f5f9;border:1px dashed #94a3b8}
+#sec-chart .ch-mini__line{display:flex;gap:6px;font-size:.76rem;color:#334155;padding:2px 6px;border-top:1px solid #f6f8fa}
+#sec-chart .ch-mini__line span:first-child{color:#94a3b8;white-space:nowrap}
+#sec-chart .ch-mini__line--bad{background:#fdeaea;color:var(--red,#b91c1c);border-radius:5px;font-weight:700}
+#sec-chart .ch-opt__foot{padding:7px 10px;border-top:1px solid var(--line-soft,#edf1f6);font-size:.76rem;color:#475569;background:#fbfcfe}
+#sec-chart .ch-opt__foot b{color:#1f2937}
+
+@media (max-width:640px){
+  #sec-chart .ch-state{grid-template-columns:1fr}
+  #sec-chart .ch-field{border-right:none;border-bottom:1px solid #f1f5f9}
+  #sec-chart .ch-row{grid-template-columns:auto auto 1fr;grid-template-areas:"date type by" "text text text";row-gap:3px;align-items:center}
+  #sec-chart .ch-row__date{grid-area:date}
+  #sec-chart .ch-row__type{grid-area:type}
+  #sec-chart .ch-row__by{grid-area:by;justify-self:end}
+  #sec-chart .ch-row__text{grid-area:text}
+  #sec-chart .ch-divider{flex-wrap:wrap;gap:6px}
+  #sec-chart .ch-divider__line{display:none}
+  /* 좁은 폭에서는 구분선 라벨이 한 줄을 통째로 쓰고 줄바꿈된다(고정폭 유지 시 가로 넘침) */
+  #sec-chart .ch-divider__text{flex:1 1 100%;white-space:normal}
+  #sec-chart .ch-divider__more{flex:0 0 auto}
+  #sec-chart .ch-opts{grid-template-columns:1fr}
+  #sec-chart .ch-bin{min-width:92px;flex:1 1 92px}
+}
+</style>
+
+<h2 class="mk-h2">3. AS 회차 차트 — 건(件) 구분</h2>
+<p class="mk-sub">지난 AS 기록과 이번 AS 기록이 한 줄로 섞여 있어, 고객 앞에서 "지난번엔 뭘 해드렸죠?"를 3초 안에 못 찾는다.</p>
+
+<div class="mk-note">
+  <b>지금은</b> — 차트가 <code>as_log</code> 를 AS 건 구분 없이 한 줄로 이어 붙인다. 6월 기록과 8월 기록이 섞이고, 처리 회차는 재접수해도 <b>5차</b>처럼 계속 올라간다.<br>
+  <b>이렇게 바꾼다</b> — 차트를 <b>AS 건 단위</b>로 묶는다. 지금 건만 펼쳐 두고, 지난 건은 <b>접힌 블록</b>으로 아래에 내린다.<br>
+  <b>회차 번호</b> — 기록을 <b>담는 통의 이름표를 (건, 회차) 두 개짜리로</b> 바꾼다. 그래야 화면 숫자가 건마다 1차부터 다시 시작해도 기록이 안 섞인다(3-C).
+</div>
+
+<!-- ── 회차 정의 (코드 기준) ─────────────────────────────────────────── -->
+<div class="ch-def">
+  <b>먼저 — "N차"가 무슨 뜻이냐면</b><br>
+  <b>"이번엔 못 끝냈다"고 판정할 때마다 다음 차수가 열려요. 방문했어도 판정을 안 남기면 차수는 그대로예요.</b>
+  <div class="ch-def__row">
+    <span class="mk-round">3차</span>
+    <span>= <b>세 번째 시도 중</b> (앞에서 "못 끝냈다" 판정이 2번 나왔다는 뜻)</span>
+  </div>
+  <p class="ch-src">코드 근거 — <code>as_log.py:147-170</code> <code>current_as_round</code> = <b>1 + (지워지지 않은 '미결' 판정 개수)</b>. 방문 횟수·전화 횟수는 세지 않는다.</p>
+</div>
+
+<!-- ═══ 3-A. 지금 진행 중인 AS 건 ═══════════════════════════════════ -->
+<h3 class="ch-h3">3-A. 지금 진행 중인 AS 건 (2번째 AS · 진행 중) <span class="mk-stage" data-s="S2">S2</span></h3>
+<p class="ch-lead">주문 #4821 · 김서연 · 서울 강남구 … · 담당 이수현 · 시공 박형준</p>
+
+<div class="ch-chart ch-chart--cur">
+
+  <!-- 헤더: 몇 번째 AS인가(건) + 몇 차인가(처리 회차) + 비용 -->
+  <div class="ch-head">
+    <span class="mk-cycle-badge">2번째 AS</span>
+    <span class="mk-round">2차</span>
+    <span class="ch-head__state">· 두 번째 시도 중</span>
+    <span class="ch-head__prev">직전: 1번째 AS · <span class="mk-todo">6/11 완료 · 무상<i>저장 추가 필요</i></span></span>
+    <span class="ch-billing">비용 유상 미확정</span>
+    <button type="button" class="mk-btn mk-btn--ghost">판정 변경</button>
+  </div>
+
+  <!-- [A] 상태 카드 3칸 (클릭하면 이력이 펼쳐진다) -->
+  <div class="ch-state">
+    <details class="ch-field">
+      <summary>
+        <span class="ch-field__k">방문일</span>
+        <span class="ch-field__v">08-27 14:00 · D-3</span>
+      </summary>
+      <div class="ch-hist">
+        <div class="ch-hist__line"><span class="ch-hist__ts">08-24 13:35</span> AS 방문일 08-27 지정 · 이수현</div>
+        <div class="ch-hist__line"><span class="ch-hist__ts">08-24 11:20</span> 1차 방문 08-24 완료 · 박형준</div>
+      </div>
+    </details>
+    <details class="ch-field">
+      <summary>
+        <span class="ch-field__k">가능시간</span>
+        <span class="ch-field__v">평일 오후</span>
+        <span class="ch-field__m">12~13시는 빼주세요</span>
+      </summary>
+      <div class="ch-hist">
+        <div class="ch-hist__line"><span class="ch-hist__ts">08-24 10:20</span> 가능시간 입력: 평일 오후 · 김민지</div>
+      </div>
+    </details>
+    <details class="ch-field">
+      <summary>
+        <span class="ch-field__k">비용</span>
+        <span class="ch-field__v">유상 미확정</span>
+        <span class="ch-field__m"><span class="mk-todo">1번째 AS는 무상<i>저장 추가 필요</i></span></span>
+      </summary>
+      <div class="ch-hist">
+        <div class="ch-hist__line"><span class="ch-hist__ts">08-24 09:45</span> 2번째 AS 접수 — 비용 유상 미확정으로 시작 · 김민지</div>
+        <div class="ch-hist__line"><span class="ch-hist__ts">06-11 17:02</span> 1번째 AS 완료 — 무상 확정 · 김민지</div>
+        <div class="ch-hist__line">건이 바뀌면 비용은 <b>다시 고를 수 있다</b>(지난 건 판정에 잠기지 않는다). <span class="mk-stage" data-s="S4">S4</span></div>
+        <div class="ch-hist__line">※ 지금 비용칸은 <b>주문당 한 칸뿐</b>이라, 건별로 남기려면 저장을 먼저 늘려야 한다. <span class="mk-stage" data-s="S1">S1</span></div>
+      </div>
+    </details>
+  </div>
+
+  <!-- 증상 줄 -->
+  <div class="ch-symptom">
+    <span>증상: 같은 자리 재들뜸</span>
+    <span class="mk-recur-chip">재발</span>
+    <span class="ch-symptom__prev">1번째 AS 증상: 상판 마감 들뜸 — 같은 자리</span>
+  </div>
+
+  <!-- [B] 회차 아코디언 — 이 건 안에서만 1차·2차 -->
+  <div class="ch-round ch-round--open">
+    <div class="ch-round__head">
+      <span class="mk-round">2차</span>
+      <span class="ch-round__state">두 번째 시도 중</span>
+      <span class="ch-round__next">다음: 방문</span>
+    </div>
+    <div class="ch-slots">
+      <span class="ch-slot ch-slot--done">✓ 방안</span>
+      <span class="ch-slot ch-slot--done">✓ 자재</span>
+      <span class="ch-slot ch-slot--done">✓ 일정</span>
+      <span class="ch-slot ch-slot--done">✓ 컨택</span>
+      <span class="ch-slot ch-slot--next">! 방문</span>
+      <span class="ch-slot">판정</span>
+    </div>
+    <div class="ch-rows">
+      <div class="ch-row">
+        <span class="ch-row__date">08-24 15:00</span>
+        <span class="ch-row__type"><span class="ch-chip ch-chip--call">통화</span></span>
+        <div class="ch-row__text">고객에게 8/27 오후 재방문 안내. 비용은 자재 확인 후 알려드리기로 함.</div>
+        <span class="ch-row__by">김민지</span>
+      </div>
+      <div class="ch-row">
+        <span class="ch-row__date">08-24 14:10</span>
+        <span class="ch-row__type"><span class="ch-chip ch-chip--plan">방안</span></span>
+        <div class="ch-row__text">상판을 떼고 접착면을 갈아낸 뒤 재부착. 6월과 같은 방식은 다시 들뜰 수 있어 바꿈.</div>
+        <span class="ch-row__by">이수현</span>
+      </div>
+      <div class="ch-row">
+        <span class="ch-row__date">08-24 13:30</span>
+        <span class="ch-row__type"><span class="ch-chip ch-chip--material">자재</span></span>
+        <div class="ch-row__text">전용 접착제 발주 — 08-26 입고 예정.</div>
+        <span class="ch-row__by">이수현</span>
+      </div>
+    </div>
+  </div>
+
+  <details class="ch-round ch-round--closed">
+    <summary class="ch-round__head">
+      <span class="mk-round">1차</span>
+      <span class="ch-round__summary">현장 확인 · 자재 부족 (기록 2건)</span>
+      <span class="ch-verdict ch-verdict--unresolved">미결 — 자재가 없어 재방문</span>
+    </summary>
+    <div class="ch-rows">
+      <div class="ch-row">
+        <span class="ch-row__date">08-24 11:20</span>
+        <span class="ch-row__type"><span class="ch-chip ch-chip--verdict">판정</span></span>
+        <div class="ch-row__text"><span class="ch-verdict ch-verdict--unresolved">미결</span> 현장에 맞는 접착제가 없어 그날 못 고침. <b>이 판정 한 줄 때문에 2차가 열렸다.</b></div>
+        <span class="ch-row__by">박형준</span>
+      </div>
+      <div class="ch-row">
+        <span class="ch-row__date">08-24 11:00</span>
+        <span class="ch-row__type"><span class="ch-chip ch-chip--memo">메모</span></span>
+        <div class="ch-row__text">현장 확인 — 6월에 고친 자리가 그대로 다시 들뜸. 사진 2장 첨부.</div>
+        <span class="ch-row__by">박형준</span>
+      </div>
+      <div class="ch-row">
+        <span class="ch-row__date">08-24 10:15</span>
+        <span class="ch-row__type"><span class="ch-chip ch-chip--call">통화</span></span>
+        <div class="ch-row__text">고객 통화 — "6월에 고쳤는데 같은 자리가 또 떴다". 오늘 오후 방문 약속.</div>
+        <span class="ch-row__by">김민지</span>
+      </div>
+    </div>
+  </details>
+
+  <!-- 이 건의 접수 원문 — 건 블록 맨 아래 -->
+  <div class="ch-reception">
+    <span class="ch-reception__label">접수 2026-08-24 · 2번째 AS 시작</span>
+    <div class="ch-row">
+      <span class="ch-row__date">08-24 09:40</span>
+      <span class="ch-row__type"><span class="ch-chip ch-chip--reception">접수</span></span>
+      <div class="ch-row__text">같은 자리 재들뜸. 6월 AS 받은 곳과 동일 부위라고 고객이 말함.</div>
+      <span class="ch-row__by">김민지</span>
+    </div>
+  </div>
+
+</div><!-- /ch-chart 현재 건 -->
+
+<!-- ═══ 3-B. AS 건 구분선 + 지난 건 접힘 블록 ═════════════════════════ -->
+<h3 class="ch-h3">3-B. 여기서부터는 <em>지난</em> AS 건 <span class="mk-stage" data-s="S2">S2</span></h3>
+<p class="ch-lead">현재 건 기록이 끝나는 자리에 굵은 구분선이 들어간다. 지난 건은 <b>기본 접힘</b>이라 지금 화면을 어지럽히지 않는다. 줄을 누르면 그때 펼쳐진다.</p>
+<p class="ch-lead">점선 밑줄 + <span class="mk-todo">꼬리표<i>저장 추가 필요</i></span> 가 붙은 값은 <b>지금 시스템에 안 남는 값</b>이다 — 완료일은 완료 기록에 안 담기고(<code>as_cycle_service.py:526-529</code> payload는 <code>note</code>뿐), 비용은 주문당 한 칸뿐이다. 이 화면이 진짜가 되려면 <b>S1(저장 늘리기)</b>이 먼저 나가야 한다.</p>
+
+<p class="ch-cap">① 기본 모습 (접힘)</p>
+<details class="ch-past" data-demo="closed">
+  <summary class="ch-divider">
+    <span class="ch-divider__line"></span>
+    <span class="ch-divider__text">1번째 AS · 2026-06-02 접수 · <span class="mk-todo">2026-06-11 완료<i>저장 추가 필요</i></span> <span class="ch-divider__free"><span class="mk-todo">무상<i>저장 추가 필요</i></span></span></span>
+    <span class="ch-divider__more ch-divider__more--closed">펼쳐 보기 ▸</span>
+    <span class="ch-divider__more ch-divider__more--open">접기 ▾</span>
+    <span class="ch-divider__line"></span>
+  </summary>
+  <div class="ch-chart ch-chart--past">
+    <div class="ch-past-sum">이 줄을 누르면 아래 ②처럼 그 건의 회차 기록이 통째로 펼쳐진다.</div>
+  </div>
+</details>
+<p class="ch-lead"><button type="button" class="mk-btn mk-btn--ghost ch-expand" data-open="0">지난 AS 건 펼쳐 보기</button></p>
+
+<p class="ch-cap">② 펼친 모습 — 그 건 안의 회차가 다시 <b>1차부터</b> 보인다</p>
+<details class="ch-past" data-demo="open" open>
+  <summary class="ch-divider">
+    <span class="ch-divider__line"></span>
+    <span class="ch-divider__text">1번째 AS · 2026-06-02 접수 · <span class="mk-todo">2026-06-11 완료<i>저장 추가 필요</i></span> <span class="ch-divider__free"><span class="mk-todo">무상<i>저장 추가 필요</i></span></span></span>
+    <span class="ch-divider__more ch-divider__more--closed">펼쳐 보기 ▸</span>
+    <span class="ch-divider__more ch-divider__more--open">접기 ▾</span>
+    <span class="ch-divider__line"></span>
+  </summary>
+
+  <div class="ch-chart ch-chart--past">
+    <div class="ch-past-sum">
+      <span>증상 <b>상판 마감 들뜸</b></span>
+      <span>처리 <b>2차까지</b> ("못 끝냈다" 판정 1번)</span>
+      <span>비용 <b><span class="mk-todo">무상 확정<i>저장 추가 필요</i></span></b></span>
+      <span>담당 <b>이수현</b> · 시공 <b>박형준</b></span>
+      <span>걸린 기간 <b><span class="mk-todo">9일<i>저장 추가 필요</i></span></b></span>
+    </div>
+
+    <div class="ch-rows">
+      <div class="ch-row">
+        <span class="ch-row__date">06-11 17:02</span>
+        <span class="ch-row__type"><span class="ch-chip ch-chip--system">시스템</span></span>
+        <div class="ch-row__text">AS 완료 처리 — 무상 확정. (1번째 AS 종료)</div>
+        <span class="ch-row__by">김민지</span>
+      </div>
+    </div>
+
+    <details class="ch-round ch-round--closed" open>
+      <summary class="ch-round__head">
+        <span class="mk-round">2차</span>
+        <span class="ch-round__summary">접착제 교체 후 재부착 (기록 2건)</span>
+        <span class="ch-verdict ch-verdict--resolved">완결 — 고객 확인 완료</span>
+      </summary>
+      <div class="ch-rows">
+        <div class="ch-row">
+          <span class="ch-row__date">06-10 16:40</span>
+          <span class="ch-row__type"><span class="ch-chip ch-chip--verdict">판정</span></span>
+          <div class="ch-row__text"><span class="ch-verdict ch-verdict--resolved">완결</span> 재부착 후 고객이 직접 확인, 이상 없음.</div>
+          <span class="ch-row__by">박형준</span>
+        </div>
+        <div class="ch-row">
+          <span class="ch-row__date">06-10 14:05</span>
+          <span class="ch-row__type"><span class="ch-chip ch-chip--memo">메모</span></span>
+          <div class="ch-row__text">상판 마감 재부착 완료. 사진 3장 첨부.</div>
+          <span class="ch-row__by">박형준</span>
+        </div>
+        <div class="ch-row">
+          <span class="ch-row__date">06-09 10:30</span>
+          <span class="ch-row__type"><span class="ch-chip ch-chip--material">자재</span></span>
+          <div class="ch-row__text">일반 접착제 → 내열 접착제로 교체 발주.</div>
+          <span class="ch-row__by">이수현</span>
+        </div>
+      </div>
+    </details>
+
+    <details class="ch-round ch-round--closed">
+      <summary class="ch-round__head">
+        <span class="mk-round">1차</span>
+        <span class="ch-round__summary">현장 재접착 (기록 2건)</span>
+        <span class="ch-verdict ch-verdict--unresolved">미결 — 하루 만에 다시 들뜸</span>
+      </summary>
+      <div class="ch-rows">
+        <div class="ch-row">
+          <span class="ch-row__date">06-07 09:15</span>
+          <span class="ch-row__type"><span class="ch-chip ch-chip--verdict">판정</span></span>
+          <div class="ch-row__text"><span class="ch-verdict ch-verdict--unresolved">미결</span> 다음 날 같은 자리가 다시 들떴다고 고객 연락. <b>이 판정으로 2차가 열렸다.</b></div>
+          <span class="ch-row__by">김민지</span>
+        </div>
+        <div class="ch-row">
+          <span class="ch-row__date">06-06 13:20</span>
+          <span class="ch-row__type"><span class="ch-chip ch-chip--memo">메모</span></span>
+          <div class="ch-row__text">현장 방문 — 들뜬 부위 재접착 후 눌러 고정.</div>
+          <span class="ch-row__by">박형준</span>
+        </div>
+        <div class="ch-row">
+          <span class="ch-row__date">06-05 11:00</span>
+          <span class="ch-row__type"><span class="ch-chip ch-chip--call">통화</span></span>
+          <div class="ch-row__text">방문 일정 조율 — 06-06 오후로 확정.</div>
+          <span class="ch-row__by">김민지</span>
+        </div>
+      </div>
+    </details>
+
+    <div class="ch-reception">
+      <span class="ch-reception__label">접수 2026-06-02 · 1번째 AS 시작</span>
+      <div class="ch-row">
+        <span class="ch-row__date">06-02 10:05</span>
+        <span class="ch-row__type"><span class="ch-chip ch-chip--reception">접수</span></span>
+        <div class="ch-row__text">상판 마감이 들떠 있음. 사진 3장 첨부.</div>
+        <span class="ch-row__by">김민지</span>
+      </div>
+    </div>
+  </div>
+</details>
+
+<!-- ── 3-B ③ 옛 주문(LEGACY_BRIDGE) 전용 표기 ─────────────────────── -->
+<p class="ch-cap">③ 옛 주문 — 건 구분이 없던 시절에 들어온 AS <span class="mk-stage" data-s="S2">S2</span></p>
+<p class="ch-lead">
+  개편 <b>전에</b> 들어온 AS 주문은 시스템이 나중에 <b>자동으로 건을 하나 열어줬다</b>(<code>LEGACY_BRIDGE</code>).
+  이때 <b>과거 이력은 복원되지 않고</b>, 그 건의 접수일 자리에는 <b>자동 전환이 돌아간 시각</b>이 들어간다
+  (<code>as_cycle_service.py:229-276</code>). 그러니 이런 주문에 "1번째 AS · 2026-08-21 접수"라고 쓰면
+  <b>화면이 확실하게 거짓말을 한다</b>. 아래처럼 <b>모르는 건 모른다고</b> 쓴다.
+</p>
+
+<div class="ch-chart ch-chart--legacy">
+  <div class="ch-head ch-head--legacy">
+    <span class="ch-legacy-badge">이력 시작 전</span>
+    <span class="mk-round">1차</span>
+    <span class="ch-head__state">· 첫 번째 시도 중</span>
+    <span class="ch-head__prev">지난 건: <span class="ch-unknown">불명</span></span>
+  </div>
+  <p class="ch-legacy-help">주문 #3907 · 박지훈 · 경기 성남시 … — 이 주문은 <b>몇 번째 AS인지 셀 수 없다</b>. 그래서 <span class="ch-legacy-badge">이력 시작 전</span> 이라고만 쓰고 <span class="mk-cycle-badge">1번째 AS</span> 배지는 <b>붙이지 않는다</b>.</p>
+  <div class="ch-state">
+    <details class="ch-field">
+      <summary>
+        <span class="ch-field__k">이 건 접수일</span>
+        <span class="ch-field__v"><span class="ch-unknown">불명</span></span>
+        <span class="ch-field__m">기록이 남기 전이라 알 수 없어요</span>
+      </summary>
+      <div class="ch-hist">
+        <div class="ch-hist__line"><span class="ch-hist__ts">08-21 04:02</span> 시스템이 이 주문을 새 방식으로 옮긴 시각 — <b>접수일이 아니다</b>. 화면에 접수일로 쓰지 않는다.</div>
+        <div class="ch-hist__line">진짜 접수일은 옮기기 전 기록에만 있었고, 그건 <b>복원되지 않았다</b>.</div>
+      </div>
+    </details>
+    <details class="ch-field">
+      <summary>
+        <span class="ch-field__k">지난 AS 횟수</span>
+        <span class="ch-field__v"><span class="ch-unknown">불명</span></span>
+        <span class="ch-field__m">"몇 번째 AS"를 셀 수 없어요</span>
+      </summary>
+      <div class="ch-hist">
+        <div class="ch-hist__line">건 표식이 생긴 <b>2026-08-20 이후</b>부터만 셀 수 있다. 그 전 것은 세지 않는다.</div>
+      </div>
+    </details>
+    <details class="ch-field">
+      <summary>
+        <span class="ch-field__k">비용</span>
+        <span class="ch-field__v">무상 확정</span>
+        <span class="ch-field__m">지난 건 비용은 <span class="ch-unknown">불명</span></span>
+      </summary>
+      <div class="ch-hist">
+        <div class="ch-hist__line">비용칸은 주문당 하나뿐이라, 지금 값이 <b>어느 건 것인지 구분되지 않는다</b>. <span class="mk-stage" data-s="S1">S1</span></div>
+      </div>
+    </details>
+  </div>
+
+  <div class="ch-rows">
+    <div class="ch-row">
+      <span class="ch-row__date">08-22 10:40</span>
+      <span class="ch-row__type"><span class="ch-chip ch-chip--memo">메모</span></span>
+      <div class="ch-row__text">서랍 레일 교체 방문 예정 — 고객과 일정 조율 중.</div>
+      <span class="ch-row__by">김민지</span>
+    </div>
+  </div>
+</div>
+
+<details class="ch-past">
+  <summary class="ch-divider ch-divider--legacy">
+    <span class="ch-divider__line"></span>
+    <span class="ch-divider__text">여기서부터는 옛 기록이라 <b>건 구분이 없어요</b> · 기록 14건</span>
+    <span class="ch-divider__more ch-divider__more--closed">펼쳐 보기 ▸</span>
+    <span class="ch-divider__more ch-divider__more--open">접기 ▾</span>
+    <span class="ch-divider__line"></span>
+  </summary>
+  <div class="ch-chart ch-chart--legacy">
+    <p class="ch-legacy-help">아래 기록들은 <b>몇 번째 AS 것인지 시스템이 모른다</b>. 순서대로만 보여주고, "O번째 AS"라고 <b>이름 붙이지 않는다</b>.</p>
+    <div class="ch-rows">
+      <div class="ch-row">
+        <span class="ch-row__date">2026-03-14</span>
+        <span class="ch-row__type"><span class="ch-chip ch-chip--memo">메모</span></span>
+        <div class="ch-row__text">서랍 닫힘 불량 — 현장 조정 후 정상.</div>
+        <span class="ch-row__by">박형준</span>
+      </div>
+      <div class="ch-row">
+        <span class="ch-row__date">2025-11-02</span>
+        <span class="ch-row__type"><span class="ch-chip ch-chip--call">통화</span></span>
+        <div class="ch-row__text">문짝 소음 문의 — 방문 안내.</div>
+        <span class="ch-row__by">김민지</span>
+      </div>
+    </div>
+  </div>
+</details>
+
+<!-- ═══ 3-C. 회차를 묶는 열쇠 ═══════════════════════════════════════ -->
+<h3 class="ch-h3">3-C. 기록을 담는 통의 이름표를 <em>(건, 회차)</em> 두 개로 바꾼다 <span class="mk-stage" data-s="S3">S3</span></h3>
+<p class="ch-lead">
+  차트는 기록 하나하나를 <b>"통"에 담아</b> 회차 아코디언을 만든다. 지금 그 통의 이름표는 <b>숫자 하나(회차)</b>뿐이다.
+  그래서 <b>"화면 숫자만 1차로 되돌리자"는 방법은 쓸 수 없다</b> — 서로 다른 건의 1차가 <b>같은 통</b>으로 들어가 섞인다.
+</p>
+
+<div class="ch-keys">
+
+  <!-- ① 지금 -->
+  <div class="ch-key">
+    <div class="ch-key__hd">
+      <span class="ch-key__tag">지금</span>
+      <span>이름표 = <b>회차 하나</b></span>
+      <span class="ch-key__code">통 이름 = 2차</span>
+    </div>
+    <div class="ch-bins">
+      <div class="ch-bin"><span class="ch-bin__name">1차</span><span class="ch-item ch-item--old">6월 · 1번째 AS</span></div>
+      <div class="ch-bin"><span class="ch-bin__name">2차</span><span class="ch-item ch-item--old">6월 · 1번째 AS</span></div>
+      <div class="ch-bin"><span class="ch-bin__name">3차</span><span class="ch-item ch-item--new">8월 · 2번째 AS</span></div>
+      <div class="ch-bin"><span class="ch-bin__name">4차</span><span class="ch-item ch-item--new">8월 · 2번째 AS</span></div>
+    </div>
+    <p class="ch-key__out">기록은 <b>안 섞인다</b>. 대신 새로 접수했는데 화면이 <b>3차</b>부터 시작한다 — 고객 앞에서 "벌써 네 번째요?" 소리가 나온다.</p>
+  </div>
+
+  <!-- ② 위험한 방법 -->
+  <div class="ch-key ch-key--bad">
+    <div class="ch-key__hd">
+      <span class="ch-key__tag ch-key__tag--bad">⚠ 이렇게 하면 안 된다</span>
+      <span>이름표는 <b>그대로 회차 하나</b>인데 <b>숫자만</b> 1차로 되돌리기</span>
+      <span class="ch-key__code">통 이름 = 1차</span>
+    </div>
+    <div class="ch-bins">
+      <div class="ch-bin ch-bin--mixed">
+        <span class="ch-bin__name">1차 ⚠</span>
+        <span class="ch-item ch-item--old">6월 · 1번째 AS</span>
+        <span class="ch-item ch-item--new">8월 · 2번째 AS</span>
+      </div>
+      <div class="ch-bin ch-bin--mixed">
+        <span class="ch-bin__name">2차 ⚠</span>
+        <span class="ch-item ch-item--old">6월 · 1번째 AS</span>
+        <span class="ch-item ch-item--new">8월 · 2번째 AS</span>
+      </div>
+    </div>
+    <p class="ch-key__out ch-key__out--bad"><b>터지는 것 1</b> — 6월 기록이 <b>8월 1차 아코디언 안에</b> 그대로 나온다. 지난 건과 이번 건이 한 통에 들어갔기 때문.</p>
+    <p class="ch-key__out ch-key__out--bad"><b>터지는 것 2</b> — <b>방문일도 같은 통</b>에서 꺼낸다. 그래서 <b>6/06 방문일이 8월 1차 슬롯에 찍힌다</b>(아직 안 간 방문이 "다녀옴"으로 보인다).</p>
+    <p class="ch-src">근거 — <code>as_round_chart.py:97-99</code> <code>_entry_round</code>(항목→회차 숫자 하나), <code>:264-266</code> <code>round_nos</code>(회차 숫자로만 목록 만듦), <code>:102-108</code> <code>_round_visit_date</code>(같은 통에서 방문일을 꺼냄).</p>
+  </div>
+
+  <!-- ③ 바꾼 뒤 -->
+  <div class="ch-key ch-key--after">
+    <div class="ch-key__hd">
+      <span class="ch-key__tag ch-key__tag--after">바꾼 뒤</span>
+      <span>이름표 = <b>(건, 회차) 두 개</b></span>
+      <span class="ch-key__code">통 이름 = (2번째 AS, 1차)</span>
+    </div>
+    <div class="ch-bins">
+      <div class="ch-bin ch-bin--clean"><span class="ch-bin__name">1번째 AS · 1차</span><span class="ch-item ch-item--old">6월 · 1번째 AS</span></div>
+      <div class="ch-bin ch-bin--clean"><span class="ch-bin__name">1번째 AS · 2차</span><span class="ch-item ch-item--old">6월 · 1번째 AS</span></div>
+      <div class="ch-bin ch-bin--clean"><span class="ch-bin__name">2번째 AS · 1차</span><span class="ch-item ch-item--new">8월 · 2번째 AS</span></div>
+      <div class="ch-bin ch-bin--clean"><span class="ch-bin__name">2번째 AS · 2차</span><span class="ch-item ch-item--new">8월 · 2번째 AS</span></div>
+    </div>
+    <p class="ch-key__out ch-key__out--good">통이 <b>건마다 따로</b> 생기니 <b>절대 안 섞인다</b>. 화면 숫자는 건마다 <b>1차</b>부터 다시 시작해도 안전하고, 방문일도 그 건 것만 꺼내진다.</p>
+    <p class="ch-key__out">해야 할 일 — ⑴ 기록에 <b>건 표식(cycle_id)</b>을 같이 남긴다, ⑵ 회차 목록을 만들 때 <b>건 + 회차</b>로 묶는다, ⑶ 방문일도 <b>같은 두 열쇠</b>로 찾는다. 셋을 <b>동시에</b> 해야 한다 — 하나만 하면 위 ②가 된다.</p>
+  </div>
+
+</div>
+
+<div class="mk-note">
+  <b>덧붙임</b> — 회차 숫자를 세는 규칙(<b>1 + 미결 판정 개수</b>)은 그대로다.
+  달라지는 건 <b>세는 범위</b>다: 지금은 그 주문의 모든 기록에서 세고, 바꾼 뒤에는 <b>지금 열린 AS 건 안에서만</b> 센다.
+</div>
+
+<div class="mk-note mk-note--q">
+  <b>⚠ 발주처로 나가는 메시지도 같이 봐야 한다</b><br>
+  발주처 알림 본문에 <code>[2차 기록]</code> 같은 줄이 그대로 들어간다(<code>foms/services/channel_as_message.py:216</code>).
+  회차 뜻을 바꾸면 <b>이미 보낸 메시지의 "3차"</b>와 <b>새 화면의 "1차"</b>가 서로 다른 걸 가리키게 된다 — 발주처가 "3차까지 갔다더니 왜 1차냐"고 묻는다.<br>
+  → <b>S3 착수 전에 이 메시지 문구를 따로 점검</b>한다(문구를 "2번째 AS · 1차 기록"처럼 건까지 적을지, 회차 줄을 뺄지). 이 섹션에서는 결정하지 않는다.
+</div>
+
+<!-- ═══ 3-D. 옛 기록은 어느 건에 넣나 (미해결) ═══════════════════════ -->
+<h3 class="ch-h3">3-D. 표식이 없는 <em>옛</em> 기록은 어느 건에 넣나 <span class="mk-stage" data-s="S2">S2</span></h3>
+<p class="ch-lead">
+  이미 쌓인 <code>as_log</code> 항목에는 <b>건 표식이 없다</b>(회차 숫자만 있다). 과거 기록에 표식을 <b>소급해서 찍지 않기로</b> 했으므로,
+  화면이 옛 기록을 어떻게 다룰지 골라야 한다. 아래 두 가지를 화면으로 비교한다. (<b>"옛 기록은 전부 1번째 AS로 몰기"는 뺐다</b> —
+  재접수를 이미 한 주문에서 즉시 거짓말이 되기 때문.)
+</p>
+
+<div class="ch-opts">
+
+  <!-- 안 ① -->
+  <div class="ch-opt ch-opt--risk">
+    <div class="ch-opt__hd">안 ① 시각으로 추정해서 나눈다</div>
+    <div class="ch-mini">
+      <div class="ch-mini__grp">1번째 AS · 06-02 ~ 06-11 (추정)</div>
+      <div class="ch-mini__line"><span>06-10</span><span>재부착 완료 · 박형준</span></div>
+      <div class="ch-mini__line"><span>06-05</span><span>일정 조율 통화 · 김민지</span></div>
+      <div class="ch-mini__grp">2번째 AS · 08-24 ~ (추정)</div>
+      <div class="ch-mini__line ch-mini__line--bad"><span>06-14</span><span>⚠ "고객이 다시 봐달라고 함" — 6월 기록인데 <b>8월 건으로 끌려 들어옴</b></span></div>
+      <div class="ch-mini__line"><span>08-24</span><span>현장 확인 · 박형준</span></div>
+    </div>
+    <div class="ch-opt__foot">
+      <b>좋은 점</b> — 블록이 안 늘고 옛 주문도 이력이 보인다.<br>
+      <b>나쁜 점</b> — 완료 뒤에 늦게 달린 기록이 <b>엉뚱한 건</b>으로 들어간다. 그런데 화면은 그걸 <b>단정해서</b> 보여준다 = <b>틀린 문장이 화면에 남는다</b>. 사람이 봐도 틀린 줄 모른다.
+    </div>
+  </div>
+
+  <!-- 안 ③ -->
+  <div class="ch-opt ch-opt--safe">
+    <div class="ch-opt__hd">안 ③ 표식 생긴 뒤만 건별 + 그 전은 "분류 안 됨"</div>
+    <div class="ch-mini">
+      <div class="ch-mini__grp">2번째 AS · 08-24 접수 (표식 있음)</div>
+      <div class="ch-mini__line"><span>08-24</span><span>현장 확인 · 박형준</span></div>
+      <div class="ch-mini__line"><span>08-24</span><span>고객 통화 · 김민지</span></div>
+      <div class="ch-mini__grp ch-mini__grp--unsorted">분류 안 됨 · 예전 기록 12건 ▸ <span class="ch-unknown">건 불명</span></div>
+      <div class="ch-mini__line"><span>06-14</span><span>고객이 다시 봐달라고 함 · 김민지</span></div>
+      <div class="ch-mini__line"><span>06-10</span><span>재부착 완료 · 박형준</span></div>
+    </div>
+    <div class="ch-opt__foot">
+      <b>왜 안전한가</b> — 화면이 <b>"이 기록은 O번째 AS 것"이라고 단정하는 자리가 0개</b>다.
+      아는 것만 이름을 붙이고, 모르는 것은 <b>"모름" 칸에 그대로</b> 둔다 → <b>틀릴 수 있는 문장이 하나도 없다</b>.<br>
+      <b>대가</b> — 접힌 블록이 하나 늘고, 옛 주문은 한동안 이력이 "모름"으로만 보인다. (3-B ③ 화면과 같은 방식이다.)
+    </div>
+  </div>
+
+</div>
+
+<div class="mk-note mk-note--q">
+  <b>미해결 질문 — 최종 선택은 사용자 몫</b><br>
+  ① 시각 추정 / ③ 표식 이후만 건별 중 무엇으로 갈지 골라야 한다. <b>이 목업의 그림은 ③ 기준</b>으로 그려져 있다(거짓말 0).<br>
+  <b>따라오는 질문</b> — 완료 취소(같은 건 되돌리기)로 다시 열린 건은 회차를 <b>이어서</b> 세야 하나, 1차부터 다시 세야 하나?
+  (설계상 같은 건이므로 <b>이어서</b>가 맞아 보이지만 사용자 확인이 필요하다.)
+</div>
+
+<script>
+(function () {
+  var root = document.getElementById('sec-chart');
+  if (!root) { return; }
+  var btn = root.querySelector('.ch-expand');
+  var demo = root.querySelector('.ch-past[data-demo="closed"]');
+  if (!btn || !demo) { return; }
+  btn.addEventListener('click', function () {
+    var willOpen = btn.getAttribute('data-open') !== '1';
+    demo.open = willOpen;
+    btn.setAttribute('data-open', willOpen ? '1' : '0');
+    btn.textContent = willOpen ? '지난 AS 건 접기' : '지난 AS 건 펼쳐 보기';
+  });
+})();
+</script>
+
+</section>
+<!-- SECTION: sec-modal -->
+<section id="sec-modal" class="mk-section">
+  <h2 class="mk-h2">4. 주문 상세 — 재접수 모달</h2>
+  <p class="mk-sub">한 벌로 쓰던 AS 모달을 "고치기 / 새 건 접수 / 같은 건 다시 접수" 세 갈래로 갈라, 지난 건의 기록이 조용히 덮이지 않게 한다.</p>
+
+  <style>
+    /* 이 섹션 전용 스코프. 공통 유틸(.mk-btn/.mk-card/.mk-note/.mk-todo/.mk-stage)은 셸 정의를 그대로 쓴다. */
+    #sec-modal .mkm-grid{display:grid;grid-template-columns:repeat(4,minmax(0,1fr));gap:14px;align-items:start;margin-top:14px}
+    @media (max-width:1180px){#sec-modal .mkm-grid{grid-template-columns:repeat(2,minmax(0,1fr))}}
+    @media (max-width:720px){#sec-modal .mkm-grid{grid-template-columns:1fr}}
+
+    #sec-modal .mkm-col{min-width:0}
+    #sec-modal .mkm-colhead{display:flex;align-items:baseline;gap:6px;flex-wrap:wrap;margin:0 0 8px}
+    #sec-modal .mkm-colhead__n{font-weight:700;font-size:13.5px;color:var(--text,#111827)}
+    #sec-modal .mkm-colhead__when{font-size:11.5px;color:var(--muted,#6b7280)}
+    #sec-modal .mkm-tag{font-size:11px;font-weight:700;padding:2px 8px;border-radius:999px;border:1px solid var(--line,#dbe1ea);color:var(--muted,#6b7280);background:var(--surface-soft,#f6f8fb);white-space:nowrap}
+    #sec-modal .mkm-tag--keep{color:var(--muted,#6b7280)}
+    #sec-modal .mkm-tag--new{color:var(--purple,#6d28d9);border-color:var(--purple,#6d28d9);background:var(--purple-soft,#f1ebfd)}
+
+    /* 모달 껍데기(부트스트랩 모달 흉내) */
+    #sec-modal .mkm{background:var(--surface,#fff);border:1px solid var(--line,#dbe1ea);border-radius:var(--radius,10px);box-shadow:0 6px 22px rgba(17,24,39,.08);overflow:hidden}
+    #sec-modal .mkm--star{border-color:var(--purple,#6d28d9);box-shadow:0 8px 26px rgba(109,40,217,.16)}
+    #sec-modal .mkm--same{border-color:var(--blue,#2563eb);box-shadow:0 8px 26px rgba(37,99,235,.14)}
+    #sec-modal .mkm__head{display:flex;align-items:center;gap:8px;padding:12px 14px;border-bottom:1px solid var(--line-soft,#edf1f6);background:var(--surface-soft,#f6f8fb)}
+    #sec-modal .mkm__title{font-size:14.5px;font-weight:700;margin:0;color:var(--text,#111827);display:flex;align-items:center;gap:7px;flex-wrap:wrap;min-width:0}
+    #sec-modal .mkm__x{margin-left:auto;border:0;background:none;color:var(--muted,#6b7280);font-size:16px;line-height:1;cursor:default;padding:2px 4px}
+    #sec-modal .mkm__body{padding:14px}
+    #sec-modal .mkm__foot{display:flex;justify-content:flex-end;gap:8px;padding:12px 14px;border-top:1px solid var(--line-soft,#edf1f6);background:var(--surface-soft,#f6f8fb);flex-wrap:wrap}
+    #sec-modal .mkm__order{font-size:12px;color:var(--muted,#6b7280);margin:0 0 12px;padding-bottom:10px;border-bottom:1px dashed var(--line,#dbe1ea);line-height:1.6}
+
+    /* 필드 */
+    #sec-modal .mkf{margin-bottom:14px}
+    #sec-modal .mkf__label{display:flex;align-items:center;gap:6px;flex-wrap:wrap;font-size:13px;font-weight:700;color:var(--text,#111827);margin-bottom:6px}
+    #sec-modal .mkf__req{color:var(--red,#b91c1c)}
+    #sec-modal .mkf__help{font-size:11.5px;color:var(--muted,#6b7280);margin-top:5px;line-height:1.55}
+    #sec-modal .mkm-input{width:100%;box-sizing:border-box;font:inherit;font-size:13px;color:var(--text,#111827);background:#fff;border:1px solid var(--line,#dbe1ea);border-radius:8px;padding:8px 10px;resize:vertical}
+    #sec-modal textarea.mkm-input{min-height:74px;line-height:1.6}
+    #sec-modal .mkm-input:disabled,#sec-modal .mkm-input[readonly]{background:var(--surface-soft,#f6f8fb);color:var(--muted,#6b7280)}
+    #sec-modal .mkm-input::placeholder{color:#9aa3b0}
+
+    /* 비용 세그먼트 */
+    #sec-modal .mkseg{display:grid;grid-template-columns:repeat(3,1fr);gap:0;border:1px solid var(--line,#dbe1ea);border-radius:8px;overflow:hidden}
+    #sec-modal .mkseg__opt{display:flex;align-items:center;justify-content:center;gap:5px;font-size:12px;font-weight:600;padding:8px 4px;color:var(--muted,#6b7280);background:#fff;border-right:1px solid var(--line,#dbe1ea);cursor:pointer;text-align:center;word-break:keep-all;line-height:1.35}
+    #sec-modal .mkseg__opt:last-child{border-right:0}
+    #sec-modal .mkseg__opt input{margin:0;accent-color:var(--blue,#2563eb)}
+    #sec-modal .mkseg__opt:has(input:checked){background:var(--blue-soft,#eaf1ff);color:var(--blue,#2563eb)}
+    #sec-modal .mkseg__opt:has(input[value="free"]:checked){background:var(--green-soft,#e7f6ec);color:var(--green,#15803d)}
+    #sec-modal .mkseg__opt:has(input[value="paid"]:checked){background:var(--amber-soft,#fdf3e3);color:var(--amber,#b45309)}
+    #sec-modal .mkseg--locked{opacity:.62;background:var(--surface-soft,#f6f8fb)}
+    #sec-modal .mkseg--locked .mkseg__opt{cursor:not-allowed}
+    /* 조건부로만 열리는 비용칸임을 테두리로 알린다 */
+    #sec-modal .mkseg--conditional{border-color:var(--purple,#6d28d9);box-shadow:0 0 0 3px var(--purple-soft,#f1ebfd)}
+    #sec-modal .mkm-lockrow{display:flex;align-items:center;gap:6px;font-size:11.5px;font-weight:700;color:var(--muted,#6b7280);margin-top:6px}
+
+    /* 조건 명시 배너(비용칸 바로 위) */
+    #sec-modal .mkm-cond-note{font-size:11.5px;font-weight:700;line-height:1.5;color:var(--purple,#6d28d9);background:var(--purple-soft,#f1ebfd);border:1px solid var(--purple,#6d28d9);border-radius:8px;padding:7px 9px;margin-bottom:7px}
+    #sec-modal .mkm-cond-note span.mkm-cond-note__x{font-weight:800}
+
+    /* 위험 고지(빨강) */
+    #sec-modal .mkm-risk{display:flex;gap:7px;align-items:flex-start;font-size:11.5px;color:var(--red,#b91c1c);background:var(--red-soft,#fdeaea);border:1px solid var(--red,#b91c1c);border-radius:8px;padding:8px 10px;line-height:1.55;margin-top:8px}
+    #sec-modal .mkm-risk b{color:var(--red,#b91c1c)}
+
+    /* 첨부 자리 */
+    #sec-modal .mkm-attach{border:1px dashed var(--line,#dbe1ea);border-radius:8px;padding:10px;background:var(--surface-soft,#f6f8fb)}
+    #sec-modal .mkm-attach__row{display:flex;gap:6px;flex-wrap:wrap}
+    #sec-modal .mkm-attach__note{font-size:11.5px;color:var(--muted,#6b7280);margin-top:7px;line-height:1.5}
+
+    /* 조건부(지방) 칸 */
+    #sec-modal .mkm-cond{border:1px dashed #c9d2de;border-radius:8px;padding:10px;background:repeating-linear-gradient(135deg,#fbfcfe,#fbfcfe 8px,#f4f7fb 8px,#f4f7fb 16px)}
+    #sec-modal .mkm-cond--on{border-style:solid;border-color:var(--blue,#2563eb);background:var(--blue-soft,#eaf1ff)}
+
+    /* 지난 건 요약(접힘 기본) */
+    #sec-modal .mkm-prev{border:1px solid var(--purple,#6d28d9);background:var(--purple-soft,#f1ebfd);border-radius:8px;margin-bottom:12px}
+    #sec-modal .mkm-prev>summary{list-style:none;cursor:pointer;padding:9px 11px;font-size:12px;font-weight:700;color:var(--purple,#6d28d9);display:flex;align-items:center;gap:6px;flex-wrap:wrap}
+    #sec-modal .mkm-prev>summary::-webkit-details-marker{display:none}
+    #sec-modal .mkm-prev>summary::before{content:"\25B8";display:inline-block;transition:transform .12s ease}
+    #sec-modal .mkm-prev[open]>summary::before{transform:rotate(90deg)}
+    #sec-modal .mkm-prev__body{padding:0 11px 11px;font-size:12px;color:var(--text,#111827);line-height:1.7}
+    #sec-modal .mkm-prev__body dl{display:grid;grid-template-columns:auto 1fr;gap:2px 10px;margin:0}
+    #sec-modal .mkm-prev__body dt{color:var(--muted,#6b7280);white-space:nowrap}
+    #sec-modal .mkm-prev__body dd{margin:0;min-width:0}
+    #sec-modal .mkm-prev__foot{margin-top:8px;padding-top:7px;border-top:1px dashed var(--purple,#6d28d9);font-size:11px;color:var(--purple,#6d28d9);font-weight:700;line-height:1.5}
+
+    /* 재발 체크 + 미리보기 */
+    #sec-modal .mkm-check{display:flex;align-items:flex-start;gap:8px;font-size:12.5px;color:var(--text,#111827);padding:9px 10px;border:1px solid var(--line,#dbe1ea);border-radius:8px;background:#fff;cursor:pointer}
+    #sec-modal .mkm-check input{margin:2px 0 0;accent-color:var(--red,#b91c1c)}
+    #sec-modal .mkm-check:has(input:checked){border-color:var(--red,#b91c1c);background:var(--red-soft,#fdeaea)}
+    #sec-modal .mkm-preview{display:none;margin-top:7px;font-size:11.5px;color:var(--muted,#6b7280);align-items:center;gap:6px;flex-wrap:wrap}
+    #sec-modal .mkm-preview.is-on{display:flex}
+
+    /* 되돌릴 수 없음 경고 */
+    #sec-modal .mkm-warn{display:flex;gap:8px;align-items:flex-start;font-size:12px;font-weight:600;color:var(--amber,#b45309);background:var(--amber-soft,#fdf3e3);border:1px solid var(--amber,#b45309);border-radius:8px;padding:9px 11px;line-height:1.55}
+    #sec-modal .mkm-warn--hard{color:var(--red,#b91c1c);background:var(--red-soft,#fdeaea);border-color:var(--red,#b91c1c);border-width:2px}
+    #sec-modal .mkm-warn__t{font-weight:800;font-size:12.5px;display:block;margin-bottom:4px}
+    #sec-modal .mkm-warn ol{margin:0;padding-left:17px}
+    #sec-modal .mkm-warn li{margin:3px 0}
+    #sec-modal .mkm-warn__body{min-width:0}
+
+    #sec-modal .mkm-src{font-size:10.5px;color:var(--muted,#6b7280);margin-top:7px;line-height:1.5;font-weight:600}
+    #sec-modal .mkm-src code{font-family:ui-monospace,SFMono-Regular,Consolas,monospace;font-size:10px;background:#fff;border:1px solid var(--line,#dbe1ea);border-radius:4px;padding:0 4px;color:var(--text,#111827)}
+
+    #sec-modal .mkm-inline{display:flex;align-items:center;gap:8px;flex-wrap:wrap;margin-top:7px}
+    #sec-modal .mkm-hint{display:none;font-size:11.5px;color:var(--amber,#b45309)}
+    #sec-modal .mkm-hint.is-on{display:inline}
+    #sec-modal .mkm-mini{font:inherit;font-size:11.5px;font-weight:600;padding:4px 9px;border-radius:999px;border:1px solid var(--line,#dbe1ea);background:#fff;color:var(--text,#111827);cursor:pointer}
+    #sec-modal .mkm-mini:hover{border-color:var(--blue,#2563eb);color:var(--blue,#2563eb)}
+    #sec-modal .mkm-mini:disabled{opacity:.5;cursor:default}
+    #sec-modal .mkm-fake{font:inherit;font-size:11.5px;font-weight:600;padding:6px 10px;border-radius:8px;border:1px solid var(--line,#dbe1ea);background:#fff;color:var(--muted,#6b7280);cursor:default}
+    #sec-modal .mkm-go{font:inherit;font-size:12.5px;font-weight:700;padding:8px 12px;border-radius:8px;border:1px solid var(--blue,#2563eb);background:var(--blue,#2563eb);color:#fff;cursor:default}
+    #sec-modal .mkm-go--star{border-color:var(--purple,#6d28d9);background:var(--purple,#6d28d9)}
+    #sec-modal .mkm-cancel{font:inherit;font-size:12.5px;font-weight:600;padding:8px 12px;border-radius:8px;border:1px solid var(--line,#dbe1ea);background:#fff;color:var(--muted,#6b7280);cursor:default}
+
+    /* 회차 정의 안내(공통 문구) */
+    #sec-modal .mkm-rounddef{font-size:11.5px;color:var(--muted,#6b7280);line-height:1.55;background:var(--surface-soft,#f6f8fb);border:1px solid var(--line,#dbe1ea);border-radius:8px;padding:7px 9px;margin-top:6px}
+
+    /* 공통 표식(.mk-cycle-badge/.mk-recur-chip/.mk-round/.mk-todo/.mk-stage)은 셸 정의를 그대로 쓴다 — 재정의 금지. */
+
+    /* 간격 유틸(인라인 스타일 대신) */
+    #sec-modal .mkm-t10{margin-top:10px}
+    #sec-modal .mkm-t14{margin-top:14px}
+    #sec-modal .mkm-lead{margin:12px 0 0;font-size:12.5px;line-height:1.7}
+    #sec-modal .mkf--last{margin-bottom:0}
+    #sec-modal .mkf--amount{margin:8px 0 0}
+  </style>
+
+  <div class="mk-note">
+    <strong>지금은 이렇다</strong> — 모달 하나가 ①최초 접수 ②내용 수정 ③완료 뒤 새 AS ④열린 건 다시 접수(지방 재상차)를 다 처리한다. 제목만 "AS 접수 / AS 접수 수정" 두 가지로 바뀐다.<br>
+    <strong>그래서 생기는 일</strong> — 새 AS 를 받는데도 지난 증상이 칸에 미리 채워지고, 몇 번째 AS 인지 안 보이고, ③과 ④가 화면에서 똑같이 생겼다.<br>
+    <strong>이렇게 바꾼다</strong> — ③과 ④를 <strong>이름부터 다른 두 모달</strong>로 가른다. ③은 "몇 번째 AS" 배지 + 빈 증상 칸 + 되돌릴 수 없음 경고, ④는 "같은 건 갱신"이라고 못박고 비용을 잠근 채로 둔다.
+  </div>
+
+  <p class="mk-muted mkm-lead">
+    주문 <strong>#4821</strong> · 고객 <strong>김서연</strong> · 서울 강남구 … · 담당 <strong>이수현</strong> · 시공 <strong>박형준</strong> — 같은 주문에서 시간 순으로 열리는 모달 셋(4-A → 4-B → 4-C).<br>
+    <strong>4-D</strong> 만 지방주문 예시(<strong>#4907</strong> · 정다은 · 충남 천안시)다. 지방 재상차는 서울 주문에선 안 생기기 때문이다.
+  </p>
+
+  <div class="mkm-grid">
+
+    <!-- ================= 4-A. 최초 접수 (현행 유지) ================= -->
+    <div class="mkm-col">
+      <div class="mkm-colhead">
+        <span class="mkm-colhead__n">4-A. 최초 접수</span>
+        <span class="mkm-tag mkm-tag--keep">현행 유지</span>
+        <span class="mkm-colhead__when">2026-06-02</span>
+      </div>
+
+      <div class="mkm">
+        <div class="mkm__head">
+          <h5 class="mkm__title"><span aria-hidden="true">&#9888;</span> AS 접수</h5>
+          <button type="button" class="mkm__x" aria-hidden="true" tabindex="-1">&#10005;</button>
+        </div>
+        <div class="mkm__body">
+          <p class="mkm__order">#4821 김서연 · 첫 AS 라 건 배지는 <strong>표시하지 않는다</strong>.</p>
+
+          <div class="mkf">
+            <span class="mkf__label">AS 내용 <span class="mkf__req">*</span></span>
+            <textarea class="mkm-input" rows="3" placeholder="예: 슬라이딩 붙박이장 가운데 문이 내려앉음(안닫힘)"></textarea>
+          </div>
+
+          <div class="mkf">
+            <span class="mkf__label">비용 구분</span>
+            <div class="mkseg" data-mk-seg="a">
+              <label class="mkseg__opt"><input type="radio" name="mk-billing-a" value="free" checked> 무상(추정)</label>
+              <label class="mkseg__opt"><input type="radio" name="mk-billing-a" value="paid"> 유상</label>
+              <label class="mkseg__opt"><input type="radio" name="mk-billing-a" value="undecided"> 미정</label>
+            </div>
+            <div class="mkf__help">이 주문의 <strong>비용 칸을 처음 채우는 순간</strong>이라 열려 있다.</div>
+          </div>
+
+          <div class="mkf mkf--last">
+            <span class="mkf__label">사진/동영상 첨부</span>
+            <div class="mkm-attach">
+              <div class="mkm-attach__row">
+                <button type="button" class="mkm-fake" tabindex="-1">&#128247; 카메라로 촬영</button>
+                <button type="button" class="mkm-fake" tabindex="-1">&#128444; 갤러리에서 선택</button>
+              </div>
+            </div>
+          </div>
+        </div>
+        <div class="mkm__foot">
+          <button type="button" class="mkm-cancel" tabindex="-1">취소</button>
+          <button type="button" class="mkm-go" tabindex="-1">&#10003; AS 접수 확인</button>
+        </div>
+      </div>
+
+      <div class="mk-note mkm-t10">기준점. 여기는 바꿀 게 없다.</div>
+    </div>
+
+    <!-- ================= 4-B. 접수 내용 수정 (현행 유지) ================= -->
+    <div class="mkm-col">
+      <div class="mkm-colhead">
+        <span class="mkm-colhead__n">4-B. 접수 내용 수정</span>
+        <span class="mkm-tag mkm-tag--keep">현행 유지</span>
+        <span class="mkm-colhead__when">2026-06-05</span>
+      </div>
+
+      <div class="mkm">
+        <div class="mkm__head">
+          <h5 class="mkm__title"><span aria-hidden="true">&#9998;</span> AS 접수 수정</h5>
+          <button type="button" class="mkm__x" aria-hidden="true" tabindex="-1">&#10005;</button>
+        </div>
+        <div class="mkm__body">
+          <p class="mkm__order">#4821 김서연 · 지금 열려 있는 AS 를 고치는 중 · <span class="mk-round">2차</span> 진행 중(= 두 번째 시도 중)</p>
+
+          <div class="mkf">
+            <span class="mkf__label">AS 내용 <span class="mkf__req">*</span></span>
+            <textarea class="mkm-input" rows="3">상판 마감 들뜸</textarea>
+            <div class="mkf__help">같은 건이니까 <strong>지금 내용이 그대로 들어와 있는 게 맞다</strong>. 고쳐 쓰면 그 건의 접수 내용이 바뀐다.</div>
+          </div>
+
+          <div class="mkf">
+            <span class="mkf__label">비용 구분</span>
+            <div class="mkseg mkseg--locked" data-mk-seg="b">
+              <label class="mkseg__opt"><input type="radio" name="mk-billing-b" value="free" checked disabled> 무상(추정)</label>
+              <label class="mkseg__opt"><input type="radio" name="mk-billing-b" value="paid" disabled> 유상</label>
+              <label class="mkseg__opt"><input type="radio" name="mk-billing-b" value="undecided" disabled> 미정</label>
+            </div>
+            <div class="mkm-lockrow"><span aria-hidden="true">&#128274;</span> 잠김 — 이미 판정된 AS입니다. 판정 변경은 AS 대시보드에서 하세요.</div>
+          </div>
+
+          <div class="mkf mkf--last">
+            <span class="mkf__label">사진/동영상 첨부</span>
+            <div class="mkm-attach">
+              <div class="mkm-attach__row">
+                <button type="button" class="mkm-fake" tabindex="-1">&#128247; 카메라로 촬영</button>
+                <button type="button" class="mkm-fake" tabindex="-1">&#128444; 갤러리에서 선택</button>
+              </div>
+            </div>
+          </div>
+        </div>
+        <div class="mkm__foot">
+          <button type="button" class="mkm-cancel" tabindex="-1">취소</button>
+          <button type="button" class="mkm-go" tabindex="-1">&#10003; 수정 내용 저장</button>
+        </div>
+      </div>
+
+      <div class="mk-note mkm-t10">
+        이건 <strong>같은 건을 고치는 것</strong> — 지금 동작이 맞다.<br>
+        내용 프리필 O, 비용 잠금 O 를 그대로 둔다. 새 건이 아니므로 건 배지도 안 붙는다(아직 1번째 AS).
+      </div>
+    </div>
+
+    <!-- ================= 4-C. 재접수 = 새 AS 건 (신규) ================= -->
+    <div class="mkm-col">
+      <div class="mkm-colhead">
+        <span class="mkm-colhead__n">4-C. 재접수 <em class="mk-muted">(새 건)</em></span>
+        <span class="mkm-tag mkm-tag--new">신규</span>
+        <span class="mkm-colhead__when">2026-08-24</span>
+        <span class="mk-stage" data-s="S2">S2</span>
+      </div>
+
+      <div class="mkm mkm--star">
+        <div class="mkm__head">
+          <h5 class="mkm__title">
+            <span aria-hidden="true">&#8634;</span> 2번째 AS 접수
+            <span class="mk-cycle-badge">2번째 AS</span>
+          </h5>
+          <button type="button" class="mkm__x" aria-hidden="true" tabindex="-1">&#10005;</button>
+        </div>
+        <div class="mkm__body">
+          <p class="mkm__order">#4821 김서연 · 서울 강남구 … · 담당 이수현 · 1번째 AS 는 <strong>완료된 상태</strong>라 여기서 새 건이 열린다.</p>
+
+          <details class="mkm-prev">
+            <summary>지난 AS 요약 보기 (1번째 AS) <span class="mk-stage" data-s="S2">S2</span></summary>
+            <div class="mkm-prev__body">
+              <dl>
+                <dt>건</dt><dd>1번째 AS</dd>
+                <dt>접수</dt><dd><span class="mk-todo">2026-06-02 접수<i>저장 추가 필요</i></span></dd>
+                <dt>완료</dt><dd><span class="mk-todo">2026-06-11 완료<i>저장 추가 필요</i></span></dd>
+                <dt>증상</dt><dd>상판 마감 들뜸</dd>
+                <dt>비용</dt><dd><span class="mk-todo">무상 확정<i>저장 추가 필요</i></span></dd>
+                <dt>처리</dt><dd><span class="mk-round">2차</span>까지 갔다 — "이번엔 못 끝냈다" 판정이 <strong>1번</strong> 있었다는 뜻</dd>
+              </dl>
+              <div class="mkm-rounddef">
+                <strong>차수 읽는 법</strong> — "이번엔 못 끝냈다"고 <strong>판정할 때마다</strong> 다음 차수가 열려요.
+                방문했어도 판정을 안 남기면 차수는 그대로예요. 그래서 <span class="mk-round">3차</span> 는 "세 번째 시도 중"이라는 뜻이에요.
+              </div>
+              <div class="mkm-prev__foot">
+                점선 친 값(완료일 · 비용)은 <strong>지금 건별로 저장되지 않아요</strong>.
+                완료일은 주문에 딱 한 칸뿐이고 새 건을 열면 지워져요. 이 요약을 띄우려면 <span class="mk-stage" data-s="S1">S1</span> 저장부터 늘려야 해요.
+                <div class="mkm-src">근거 <code>as_cycle_service.py:526-529</code> (완료 기록에 <code>note</code> 만 남는다)</div>
+              </div>
+            </div>
+          </details>
+
+          <div class="mkf">
+            <span class="mkf__label">AS 내용 <span class="mkf__req">*</span></span>
+            <textarea class="mkm-input" rows="3" data-mk-content placeholder="이번에 생긴 문제를 적어주세요"></textarea>
+            <div class="mkm-inline">
+              <button type="button" class="mkm-mini" data-mk-load-prev>지난 증상 불러오기</button>
+              <button type="button" class="mkm-mini" data-mk-clear hidden>&#8634; 지우기</button>
+              <span class="mkm-hint" data-mk-load-hint>지난 증상을 넣었어요 — 이번 내용으로 꼭 고쳐 쓰세요.</span>
+            </div>
+            <div class="mkf__help">새 AS 라 <strong>빈 칸으로 열린다</strong>. 지난 증상은 필요한 사람만 버튼으로 가져온다.</div>
+          </div>
+
+          <div class="mkf">
+            <label class="mkm-check">
+              <input type="checkbox" data-mk-recur>
+              <span>지난 건과 같은 증상이 또 생겼어요 <strong>(재발)</strong></span>
+            </label>
+            <div class="mkm-preview" data-mk-recur-preview>
+              <span>이렇게 보여요 &rarr;</span>
+              <span class="mk-cycle-badge">2번째 AS</span>
+              <span class="mk-recur-chip">재발</span>
+              <span>대시보드·카드·회차 차트에 함께 붙는다.</span>
+            </div>
+          </div>
+
+          <div class="mkf">
+            <span class="mkf__label">비용 구분 <span class="mk-stage" data-s="S4">S4</span></span>
+
+            <div class="mkm-cond-note">
+              <span class="mkm-cond-note__x">여기서만 다시 고를 수 있어요</span> — <strong>새 AS 건</strong>일 때만.
+              같은 건을 다시 접수하는 4-D 에서는 <strong>계속 잠겨 있어요</strong>.<br>
+              지난 건 금액은 그대로 보관돼요 &rarr; <span class="mk-todo">건별 금액 보관<i>저장 추가 필요</i></span>
+            </div>
+
+            <div class="mkseg mkseg--conditional" data-mk-seg="c">
+              <label class="mkseg__opt"><input type="radio" name="mk-billing-c" value="free"> 무상(추정)</label>
+              <label class="mkseg__opt"><input type="radio" name="mk-billing-c" value="paid" checked> 유상</label>
+              <label class="mkseg__opt"><input type="radio" name="mk-billing-c" value="undecided"> 미정</label>
+            </div>
+            <div class="mkf mkf--amount" data-mk-amount>
+              <span class="mkf__label">예상 금액(원)</span>
+              <input type="number" class="mkm-input" min="0" step="1000" value="80000" placeholder="선택 입력">
+            </div>
+
+            <div class="mkm-risk">
+              <span aria-hidden="true">&#9888;</span>
+              <div>
+                <b>지금 코드로는 이 칸을 열면 안 된다.</b> 비용 칸이 <b>주문당 딱 하나</b>라, 여기서 다시 고르면
+                1번째 건의 <b>확정 금액이 덮여서 사라진다</b>. 게다가 저장 함수를 4-D 와 <b>같이 쓴다</b> —
+                그냥 열면 지방 재상차가 확정 유상 금액을 무상으로 되돌린다.<br>
+                그래서 <span class="mk-stage" data-s="S1">S1</span> 건별 금액 보관 →
+                <span class="mk-stage" data-s="S4">S4</span> "새 건일 때만 열기" 순서로만 낸다.
+                <div class="mkm-src">근거 <code>as_orders.py:527-530</code> (재접수는 billing 을 덮지 않는다) · <code>_register_side_records</code> 공유</div>
+              </div>
+            </div>
+          </div>
+
+          <div class="mkf">
+            <span class="mkf__label">사진/동영상 첨부</span>
+            <div class="mkm-attach">
+              <div class="mkm-attach__row">
+                <button type="button" class="mkm-fake" tabindex="-1">&#128247; 카메라로 촬영</button>
+                <button type="button" class="mkm-fake" tabindex="-1">&#128444; 갤러리에서 선택</button>
+              </div>
+              <div class="mkm-attach__note">PC: 이 영역을 클릭한 뒤 Ctrl+V 로 캡처 이미지를 추가할 수 있습니다.</div>
+            </div>
+          </div>
+
+          <div class="mkf">
+            <span class="mkf__label">상차일 (지방주문)</span>
+            <div class="mkm-cond">
+              <input type="date" class="mkm-input" disabled>
+              <div class="mkf__help">이 칸은 <strong>지방주문일 때만 나타난다</strong>. #4821 은 서울이라 실제 화면에선 안 보인다(여기서는 설명하려고 회색으로 띄워 뒀다).</div>
+            </div>
+          </div>
+
+          <div class="mkm-warn mkm-warn--hard mkf--last">
+            <span aria-hidden="true">&#9888;</span>
+            <div class="mkm-warn__body">
+              <span class="mkm-warn__t">접수 버튼을 누르면 이 3가지가 바로 일어나요 — 되돌리기 없음</span>
+              <ol>
+                <li>1번째 AS 의 <strong>완료일(6/11)이 지워져요.</strong> 다시 채워 넣을 곳이 없어요.</li>
+                <li>이 주문의 <strong>AS 접수일이 오늘(8/24)로 바뀌어요.</strong> 6/2 는 안 남아요.</li>
+                <li>AS 대시보드에서 이 주문이 <strong>완료 탭 &rarr; 미완료 탭으로 옮겨가요.</strong></li>
+              </ol>
+              <div class="mkm-src">근거 <code>as_cycle_service.py:404-407</code> (<code>as_received_date</code> 덮어쓰기 + <code>as_completed_date=None</code>) · 완료 탭 조건 = <code>as_completed_date IS NOT NULL</code></div>
+            </div>
+          </div>
+        </div>
+        <div class="mkm__foot">
+          <button type="button" class="mkm-cancel" tabindex="-1">취소</button>
+          <button type="button" class="mkm-go mkm-go--star" tabindex="-1">&#8634; 2번째 AS 접수하기</button>
+        </div>
+      </div>
+
+      <div class="mk-note mkm-t10">
+        제목만 봐도 <strong>수정(4-B)</strong> · <strong>새 건(4-C)</strong> · <strong>같은 건 갱신(4-D)</strong> 이 갈린다.<br>
+        새 요소 6개: 건 배지 · 지난 건 요약 · 빈 증상 칸 · 재발 체크 · <strong>조건부로 열리는 비용</strong> · 3줄짜리 경고.<br>
+        모달 분리와 문구는 <span class="mk-stage" data-s="S2">S2</span> 에 낼 수 있지만, 비용 칸만 <span class="mk-stage" data-s="S4">S4</span> 로 미룬다.
+      </div>
+    </div>
+
+    <!-- ================= 4-D. 열린 건 재접수 = 같은 건 갱신 (신규 구분) ================= -->
+    <div class="mkm-col">
+      <div class="mkm-colhead">
+        <span class="mkm-colhead__n">4-D. 같은 건 재접수</span>
+        <span class="mkm-tag mkm-tag--keep">지방 재상차</span>
+        <span class="mkm-tag mkm-tag--new">구분 신설</span>
+        <span class="mkm-colhead__when">2026-08-30</span>
+        <span class="mk-stage" data-s="S2">S2</span>
+      </div>
+
+      <div class="mkm mkm--same">
+        <div class="mkm__head">
+          <h5 class="mkm__title">
+            <span aria-hidden="true">&#8635;</span> AS 접수 내용 갱신 (같은 건)
+            <span class="mk-cycle-badge">2번째 AS</span>
+          </h5>
+          <button type="button" class="mkm__x" aria-hidden="true" tabindex="-1">&#10005;</button>
+        </div>
+        <div class="mkm__body">
+          <p class="mkm__order">#4907 정다은 · 충남 천안시 … · 담당 이수현 · 이 주문의 2번째 AS 가 <strong>아직 안 끝났다</strong>(진행 중).</p>
+
+          <div class="mkm-cond-note">
+            <span class="mkm-cond-note__x">이건 새 건이 아니에요.</span>
+            같은 건을 다시 접수하는 거예요(<strong>지방 재상차</strong>). 그래서 <strong>AS 건 수가 안 늘어나요</strong> —
+            배지는 계속 <span class="mk-cycle-badge">2번째 AS</span> 그대로예요.
+            <div class="mkm-src">근거 <code>as_orders.py:565-573</code> — 열린 건이 있으면 새 건을 열지 않는다</div>
+          </div>
+
+          <div class="mkf">
+            <span class="mkf__label">AS 내용 <span class="mkf__req">*</span></span>
+            <textarea class="mkm-input" rows="3">문짝 하부 레일 유격 — 부품 교체 필요</textarea>
+            <div class="mkf__help">같은 건이라 <strong>지금 내용이 그대로 들어와 있다</strong>. 고쳐 쓰면 그 건의 접수 내용이 바뀐다(4-B 와 같은 규칙).</div>
+          </div>
+
+          <div class="mkf">
+            <span class="mkf__label">상차일 (지방주문) <span class="mkf__req">*</span></span>
+            <div class="mkm-cond mkm-cond--on">
+              <input type="date" class="mkm-input" value="2026-09-02">
+              <div class="mkf__help">지방주문이라 <strong>이 칸이 실제로 뜬다</strong>. 이 날짜를 다시 잡으려고 여는 모달이 대부분이다.</div>
+            </div>
+          </div>
+
+          <div class="mkf">
+            <span class="mkf__label">비용 구분</span>
+            <div class="mkseg mkseg--locked" data-mk-seg="d">
+              <label class="mkseg__opt"><input type="radio" name="mk-billing-d" value="free" disabled> 무상(추정)</label>
+              <label class="mkseg__opt"><input type="radio" name="mk-billing-d" value="paid" checked disabled> 유상 120,000원</label>
+              <label class="mkseg__opt"><input type="radio" name="mk-billing-d" value="undecided" disabled> 미정</label>
+            </div>
+            <div class="mkm-lockrow"><span aria-hidden="true">&#128274;</span> 잠김 유지 — 같은 건이라 여기선 못 바꿔요.</div>
+            <div class="mkf__help">
+              여길 열면 <strong>이미 확정된 유상 120,000원이 무상으로 되돌아간다</strong>.
+              4-C 와 저장 함수를 같이 쓰기 때문에, "새 건일 때만" 조건 없이 그냥 열면 여기까지 같이 열린다.
+            </div>
+          </div>
+
+          <div class="mkf">
+            <span class="mkf__label">사진/동영상 첨부</span>
+            <div class="mkm-attach">
+              <div class="mkm-attach__row">
+                <button type="button" class="mkm-fake" tabindex="-1">&#128247; 카메라로 촬영</button>
+                <button type="button" class="mkm-fake" tabindex="-1">&#128444; 갤러리에서 선택</button>
+              </div>
+            </div>
+          </div>
+
+          <div class="mkm-warn mkf--last">
+            <span aria-hidden="true">&#9888;</span>
+            <div class="mkm-warn__body">
+              <span class="mkm-warn__t">갱신하면 이건 바뀌어요</span>
+              <ol>
+                <li>이 주문의 <strong>AS 접수일이 오늘(8/30)로 바뀌어요.</strong>
+                  <span class="mk-todo">처음 접수한 날<i>저장 추가 필요</i></span> 은 안 남아요.</li>
+                <li>새 건은 <strong>안 열려요</strong> — 4-C 와 달리 AS 건 수가 그대로예요.</li>
+              </ol>
+              <div class="mkm-src">근거 <code>as_orders.py</code> <code>_apply_reregistration</code> — <code>as_received_date=today</code></div>
+            </div>
+          </div>
+        </div>
+        <div class="mkm__foot">
+          <button type="button" class="mkm-cancel" tabindex="-1">취소</button>
+          <button type="button" class="mkm-go" tabindex="-1">&#10003; 접수 내용 갱신</button>
+        </div>
+      </div>
+
+      <div class="mk-note mkm-t10">
+        <strong>4-C 와 헷갈리면 돈이 사라진다.</strong> 4-C 는 "새 AS 를 연다", 4-D 는 "같은 AS 를 다시 접수한다".<br>
+        지금 화면은 둘 다 <em>"AS 접수 수정"</em> 이라고만 떠서 구분이 안 된다 — 제목·안내문만 갈라도 <span class="mk-stage" data-s="S2">S2</span> 에서 바로 낼 수 있다.
+      </div>
+    </div>
+  </div>
+
+  <div class="mk-note mkm-t14">
+    <strong>증명한 시나리오</strong> — 영업 이수현(고객 대면): 모달을 열자마자 <span class="mk-cycle-badge">2번째 AS</span> 와 지난 건 요약으로
+    "저번에 고쳤는데 또" 를 바로 확인한다. · CS 김민지: 지난 증상이 자동으로 안 들어와 새 증상을 그대로 받아 적고,
+    <strong>새 건일 때만</strong> 열리는 비용 칸에서 2번째 AS 를 유상으로 고른다. · 지방 담당: 4-D 에서 상차일만 다시 잡고,
+    확정된 유상 금액은 <strong>건드릴 수 없게</strong> 잠겨 있는 걸 확인한다.
+  </div>
+
+  <div class="mk-note mk-note--q mkm-t10">
+    <strong>미해결 질문</strong><br>
+    1) "지난 증상 불러오기" 는 지금 <strong>덮어쓰기</strong>다. 이미 쓴 글이 있으면 아래에 <strong>덧붙이기</strong>로 할까?<br>
+    2) 재발 체크는 사람이 직접 고르는 것으로 뒀다. 지난 증상과 글이 비슷하면 <strong>미리 체크해 주는</strong> 방식도 가능한데, 틀리면 통계가 오염된다.<br>
+    3) <span class="mk-stage" data-s="S4">S4</span> 가 나오기 전(= 건별 금액 보관 전)에는 4-C 비용 칸을 <strong>잠근 채로</strong> 낼까, 아니면 4-C 자체를 S4 까지 미룰까?<br>
+    4) 4-D 는 지방 재상차가 주 용도지만 코드상 <strong>열린 건이면 서울 주문도</strong> 이 모달이 뜬다. 제목을 "지방 재상차"로 좁혀 부를까, 지금처럼 "같은 건 갱신"으로 넓게 둘까?
+  </div>
+
+  <script>
+  (function () {
+    var root = document.getElementById('sec-modal');
+    if (!root) return;
+
+    // 1) 지난 증상 불러오기 — 자동 프리필 금지, 사람이 누를 때만 채운다.
+    var PREV_SYMPTOM = '상판 마감 들뜸';
+    var contentEl = root.querySelector('[data-mk-content]');
+    var loadBtn = root.querySelector('[data-mk-load-prev]');
+    var clearBtn = root.querySelector('[data-mk-clear]');
+    var loadHint = root.querySelector('[data-mk-load-hint]');
+
+    if (loadBtn && contentEl) {
+      loadBtn.addEventListener('click', function () {
+        contentEl.value = PREV_SYMPTOM;
+        contentEl.focus();
+        if (loadHint) loadHint.classList.add('is-on');
+        if (clearBtn) clearBtn.hidden = false;
+        loadBtn.disabled = true;
+      });
+    }
+    if (clearBtn && contentEl) {
+      clearBtn.addEventListener('click', function () {
+        contentEl.value = '';
+        contentEl.focus();
+        if (loadHint) loadHint.classList.remove('is-on');
+        clearBtn.hidden = true;
+        if (loadBtn) loadBtn.disabled = false;
+      });
+    }
+
+    // 2) 재발 체크 → 표식 미리보기
+    var recurEl = root.querySelector('[data-mk-recur]');
+    var recurPreview = root.querySelector('[data-mk-recur-preview]');
+    if (recurEl && recurPreview) {
+      recurEl.addEventListener('change', function () {
+        recurPreview.classList.toggle('is-on', recurEl.checked);
+      });
+    }
+
+    // 3) 유상 선택일 때만 금액 칸 표시(4-C 만 해당 — 4-A 는 금액칸 없음, 4-B/4-D 는 잠겨 있다)
+    root.querySelectorAll('[data-mk-seg]').forEach(function (seg) {
+      var wrap = seg.parentElement ? seg.parentElement.querySelector('[data-mk-amount]') : null;
+      if (!wrap) return;
+      function sync() {
+        var paid = seg.querySelector('input[value="paid"]');
+        wrap.hidden = !(paid && paid.checked);
+      }
+      seg.addEventListener('change', sync);
+      sync();
+    });
+  })();
+  </script>
+</section>
+</main>
+</body>
+</html>

@@ -5,12 +5,47 @@
 {# v2 compact: 현장 담당자가 스크롤 최소로 건 스캔·방문일·사진·미결 처리 #}
 {% set safe_phone = (r.phone or '')|replace('-', '')|replace(' ', '') %}
 {% set has_phone = safe_phone and safe_phone != '-' %}
+{# AS 건(cycle) 표식·재접수 게이트. 투영 SSOT = foms/services/orders/as_cycle_view.py
+   (project_as_cycle_row) — 표면마다 따로 세면 PC 표·모바일 카드·차트의 건 번호가 어긋난다. #}
+{% set as_cycle_status = r.as_cycle_status|default('NONE') %}
+{% set as_prev_cycle = r.as_prev_cycle|default(none) %}
+{# 재접수는 '닫힌 건'에서만 낸다. 열린 건(RECEIVED/IN_PROGRESS)에서 다시 접수하면 서버는
+   새 건이 아니라 접수 기록만 갱신하는데(foms/api/cs/as_orders.py 재접수 분기) 화면에는
+   그 차이가 안 보인다 → 진행 중 카드에는 버튼을 내지 않는다(목업 2-C).
+   cycle 이 아예 없는 옛 주문은 order.status 로만 완료를 판정한다. #}
+{% set as_reintake_ready = as_cycle_status == 'COMPLETED' or (as_cycle_status == 'NONE' and r.status == 'AS_COMPLETED') %}
+{# 권한 근거: 서버 게이트 @erp_construction_edit_required(foms/api/cs/as_orders.py)
+   = can_edit_erp(ADMIN·라홈·하우드·영업) **또는** 시공팀(can_edit_erp_construction,
+   foms/services/erp_permissions.py). 화면 게이트를 서버와 같은 술어로 둔다 — 좁히면 목업의
+   주 페르소나인 현장 기사에게 버튼이 사라진다. 최종 판정은 언제나 서버가 한다(클라=노출용).
+   ⚠ 현재 시공팀은 /erp/as 자체를 못 연다 — _erp_construction_team_restrict
+   (foms/platform/http.py)가 CONSTRUCTION 팀의 /erp/* 를 출고 대시보드로 302 시킨다.
+   그래서 아래 시공팀 갈래는 지금은 도달 불가이며, 그 가드를 푸는 순간 바로 맞게 동작한다. #}
+{% set as_can_reintake = can_edit_erp|default(false) or (current_user and (current_user.team or '')|trim == 'CONSTRUCTION') %}
 {# id: 드리프트 배너 점프 칩(`#as-card-<id>`) 앵커 + `:target` 하이라이트 대상.
    PC 표 행은 `as-row-<id>`로 따로 잡는다(두 표면이 동시에 DOM 에 있어 중복 id 금지). #}
 <article
   id="as-card-{{ r.id }}"
   class="erp-pro-order-card erp-as-mobile-card erp-as-mobile-card--v2{% if r.as_pending %} is-pending{% endif %}"
   data-order-id="{{ r.id }}">
+  {# 건 표식 줄(목업 2-A②/2-C/2-D). 순서 고정 = [N번째 AS] [재발]. 1번째 건은 배지를 붙이지
+     않는다(소음 방지 규약, as_cycle_view.project_as_cycle_row docstring).
+     이력 불명(LEGACY_BRIDGE) 건은 순번을 셀 수 없으므로 보라 배지 대신 회색 '이력 시작 전'
+     하나만 낸다(둘 다 렌더 금지 — 모르는 걸 아는 척하지 않는다). #}
+  {% if r.as_history_unknown or (r.as_cycle_no|default(0)) > 1 or r.as_recurrence %}
+  <div class="erp-as-mobile-card__marks">
+    {% if r.as_history_unknown %}
+    <span class="erp-as-cycle-legacy"
+      title="옛 주문이라 이전 AS 이력이 복원되지 않았습니다(몇 번째 AS인지 셀 수 없음)">이력 시작 전</span>
+    {% elif (r.as_cycle_no|default(0)) > 1 %}
+    <span class="erp-as-cycle-badge"
+      title="이 주문에서 {{ r.as_cycle_no }}번째로 접수된 AS 건입니다">{{ r.as_cycle_no }}번째 AS</span>
+    {% endif %}
+    {% if r.as_recurrence %}
+    <span class="erp-as-recur-chip" title="지난 건과 같은 증상이 다시 생긴 AS입니다">재발</span>
+    {% endif %}
+  </div>
+  {% endif %}
   <header class="erp-as-mobile-card__head{% if r.as_pending %} erp-as-customer-row--pending{% endif %}">
     <div class="erp-as-mobile-card__identity">
       {% if r.as_thumb_enabled %}
@@ -61,7 +96,9 @@
   <div class="erp-as-mobile-card__schedule">
     <div class="erp-as-mobile-card__date erp-as-mobile-card__date--received">
       <span class="erp-as-mobile-card__date-label">접수</span>
-      <span class="erp-as-mobile-card__date-value foms-tabular">{{ r.as_received_date or '-' }}</span>
+      {# 이력 불명 건의 접수일은 실제 접수일이 아니라 레거시 전환(LEGACY_BRIDGE)이 돌아간
+         시각이다 — 그대로 찍으면 화면이 거짓말을 하므로 '불명'으로 낸다(목업 2-D). #}
+      <span class="erp-as-mobile-card__date-value foms-tabular">{% if r.as_history_unknown %}<span class="erp-as-unknown-date">불명</span>{% else %}{{ r.as_received_date or '-' }}{% endif %}</span>
     </div>
     <div
       class="erp-as-mobile-card__date erp-as-mobile-card__date--visit erp-as-visit-cell {% if r.as_visit_date %}erp-as-visit-row--set{% endif %}">
@@ -87,6 +124,21 @@
         data-field="as_completed_date" aria-label="AS 완료일">
     </div>
   </div>
+
+  {# 지난 AS 한 줄(목업 2-A②). 값은 직전 종결 건의 봉인 스냅샷(as_prev_cycle)만 쓴다 —
+     완료일·비용은 S1 봉인이 있는 건에만 남으므로 빈 값이면 그 조각을 통째로 숨긴다(추정 금지).
+     지난 '증상' 원문은 cycle_summary 에 없으므로 여기서 지어내지 않는다. #}
+  {% if as_prev_cycle %}
+  <div class="erp-as-mobile-card__prev">
+    <span class="erp-as-mobile-card__prev-label">지난 AS</span>
+    <span class="erp-as-mobile-card__prev-value">
+      {%- if as_prev_cycle.history_unknown %}이력 시작 전{% else %}{{ as_prev_cycle.ordinal }}번째{% endif -%}
+      {%- if as_prev_cycle.received_date %} · {{ as_prev_cycle.received_date }} 접수{% endif -%}
+      {%- if as_prev_cycle.completed_date %} · {{ as_prev_cycle.completed_date }} 완료{% endif -%}
+      {%- if as_prev_cycle.billing_text %} · {{ as_prev_cycle.billing_text }}{% endif -%}
+    </span>
+  </div>
+  {% endif %}
 
   <div class="erp-as-mobile-card__address erp-pro-order-card__row erp-pro-order-card__row--full">
     <p class="erp-as-mobile-card__address-text">{{ r.address or '-' }}</p>
@@ -133,6 +185,39 @@
       <i class="fas fa-pen" aria-hidden="true"></i>
       <span>편집</span>
     </a>
+    {% endif %}
+    {# 재접수(목업 2-A①). 액션 칩 줄에 5번째로 끼우지 않는다 — 카드 안쪽 폭 352px 에
+       flex:1 1 0 / min-width:56px 규칙이면 5개째부터 개당 65px 로 글자가 빠듯하다.
+       flex-basis 100% 로 **자기 줄을 통째로** 쓰고 높이 48px(터치 44px 규칙 상회).
+       기존 칩 높이(34px)는 건드리지 않는다(회귀 위험).
+       '지난 건' 요약은 **지금 막 끝난 현재 건**이다 — 새로 여는 건 기준으로 그게 직전이고,
+       as_prev_cycle 은 그보다 한 칸 더 과거다(1건뿐인 주문에선 None). 현재 건이 아예 없는
+       옛 주문(NONE)일 때만 as_prev_cycle 로 떨어진다. #}
+    {% if as_reintake_ready and as_can_reintake %}
+    <button type="button"
+      class="erp-as-mobile-card__action erp-as-mobile-card__action--reintake as-reintake-btn"
+      data-as-reintake-open
+      data-order-id="{{ r.id }}"
+      data-as-customer-name="{{ r.customer_name or '' }}"
+      data-as-next-cycle-no="{% if r.as_history_unknown %}0{% else %}{{ (r.as_cycle_no|default(0)) + 1 }}{% endif %}"
+      {% if as_cycle_status != 'NONE' %}
+      data-prev-ordinal="{{ r.as_cycle_no|default(0) }}"
+      data-prev-unknown="{% if r.as_history_unknown %}1{% else %}0{% endif %}"
+      data-prev-received="{% if r.as_history_unknown %}{% else %}{{ r.as_received_date or '' }}{% endif %}"
+      data-prev-completed="{{ r.as_completed_date or '' }}"
+      data-prev-billing="{{ r.as_billing_state_text|default('') }}"
+      {% elif as_prev_cycle %}
+      data-prev-ordinal="{{ as_prev_cycle.ordinal }}"
+      data-prev-unknown="{% if as_prev_cycle.history_unknown %}1{% else %}0{% endif %}"
+      data-prev-received="{{ as_prev_cycle.received_date }}"
+      data-prev-completed="{{ as_prev_cycle.completed_date }}"
+      data-prev-billing="{{ as_prev_cycle.billing_text }}"
+      {% endif %}
+      title="이 주문에 AS를 새로 접수합니다(새 건이 열리고 미완료 탭으로 옮겨집니다)">
+      <i class="fas fa-rotate-left" aria-hidden="true"></i>
+      <span>재접수</span>
+      <span class="erp-as-mobile-card__action-sub">(또 문제 생겼어요)</span>
+    </button>
     {% endif %}
   </footer>
 

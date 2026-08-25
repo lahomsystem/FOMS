@@ -16,13 +16,13 @@
 {# AS 타임라인 공용 컴포넌트(SSOT) — 컨텍스트 오버라이드(as-dashboard-body.css)보다 먼저 로드해
    캐스케이드 순서를 지킨다(컴포넌트 → 컨텍스트 오버라이드). #}
 <link rel="stylesheet" href="{{ url_for('static', filename='css/components/foms-as-timeline.css') }}?v=20260806a">
-<link rel="stylesheet" href="{{ url_for('static', filename='css/components/foms-as-round-chart.css') }}?v=20260819b">
+<link rel="stylesheet" href="{{ url_for('static', filename='css/components/foms-as-round-chart.css') }}?v=20260824b">
 <link rel="stylesheet" href="{{ url_for('static', filename='css/components/foms-as-attachment-order.css') }}?v=20260820a">
-<link rel="stylesheet" href="{{ url_for('static', filename='css/contexts/cs/as-dashboard-body.css') }}?v=20260819b">
+<link rel="stylesheet" href="{{ url_for('static', filename='css/contexts/cs/as-dashboard-body.css') }}?v=20260824b">
 {# 카드 CSS는 body 파셜에 둔다 → fast-tab 프래그먼트 스왑(as_dashboard_fragment.html)에도
    함께 실려, 탭 이동 첫 진입에서 카드가 원시(미스타일)로 뜨는 FOUC를 막는다.
    (head_extra 전용이면 전체 새로고침 전까지 카드 CSS가 누락된다) #}
-<link rel="stylesheet" href="{{ url_for('static', filename='css/components/foms-as-mobile-card.css') }}?v=20260728c">
+<link rel="stylesheet" href="{{ url_for('static', filename='css/components/foms-as-mobile-card.css') }}?v=20260824b">
 <div class="erp-pro erp-mobile-shell erp-as-dashboard" data-erp-mobile-v2="{{ 'true' if erp_mobile_v2_enabled else 'false' }}">
   {% if erp_mobile_v2_enabled %}
     {% include 'partials/shared/erp_mobile_shell.html' %}
@@ -267,8 +267,22 @@
                 {% else %}
                 #{{ r.id }} <span class="text-muted small">(권한없음)</span>
                 {% endif %}
+                {# AS 건(cycle) 표식. 투영 SSOT = foms/services/orders/as_cycle_view.py
+                   (project_as_cycle_row) — 표면마다 따로 세면 PC 표·모바일 카드·차트의
+                   건 번호가 어긋난다. 1번째 건은 배지를 붙이지 않는다(소음 방지 규약).
+                   이력 불명(LEGACY_BRIDGE) 건은 순번을 셀 수 없으므로 보라 배지 대신
+                   회색 '이력 시작 전'만 낸다(둘 다 렌더 금지). #}
+                {% if r.as_history_unknown %}
+                <span class="erp-as-cycle-legacy"
+                  title="옛 주문이라 이전 AS 이력이 복원되지 않았습니다(몇 번째 AS인지 셀 수 없음)">이력 시작 전</span>
+                {% elif (r.as_cycle_no|default(0)) > 1 %}
+                <span class="erp-as-cycle-badge"
+                  title="이 주문에서 {{ r.as_cycle_no }}번째로 접수된 AS 건입니다">{{ r.as_cycle_no }}번째 AS</span>
+                {% endif %}
               </td>
-              <td>{{ r.as_received_date or '-' }}</td>
+              {# 이력 불명 건의 접수일은 실제 접수일이 아니라 레거시 전환이 돌아간 시각이다 —
+                 그대로 찍으면 화면이 거짓말을 하므로 '불명'으로 낸다(as_cycle_view 규약). #}
+              <td>{% if r.as_history_unknown %}<span class="erp-as-unknown-date">불명</span>{% else %}{{ r.as_received_date or '-' }}{% endif %}</td>
               <td class="erp-as-visit-cell {% if r.as_visit_date %}erp-as-visit-cell--set{% endif %}">
                 <div class="erp-as-visit-cell-wrap">
                   <input type="date" class="erp-pro-input editable-date-as" value="{{ r.as_visit_date or '' }}"
@@ -290,8 +304,18 @@
                 {% endif %}
               </td>
               <td class="{% if r.as_completed_date %}erp-as-complete-cell--set{% endif %}">
+                {# data-as-cycle-status: 완료일을 비울 때 서버가 갈라지는 술어와 같은 값
+                   (RECEIVED/IN_PROGRESS=날짜만 삭제, 그 외=완료 되돌리기 — field_update.py
+                   _bridge_as_completed_date). 화면이 한 가지 질문만 하면 열린 건에서
+                   '되돌리기'라는 거짓말을 하게 되므로 행에 실어 보내고 JS가 그것만 읽는다.
+                   data-as-reintake-url 은 편집 권한이 있을 때만 실린다 = '새로 접수' 갈래 게이트. #}
                 <input type="date" class="erp-pro-input editable-date-as" value="{{ r.as_completed_date or '' }}"
-                  data-field="as_completed_date" style="width: 100%;">
+                  data-field="as_completed_date"
+                  data-as-cycle-status="{{ r.as_cycle_status or 'NONE' }}"
+                  data-as-cycle-no="{{ r.as_cycle_no|default(0) }}"
+                  data-as-customer-name="{{ r.customer_name or '' }}"
+                  {% if can_edit_erp|default(false) %}data-as-reintake-url="{{ url_for('order_edit.edit_order', order_id=r.id) }}?open=erp-order&amp;as_reintake=1"{% endif %}
+                  style="width: 100%;">
               </td>
               <td>{{ r.manager_name or '-' }}</td>
               <td>{{ render_as_construction_workers(r.id, r.construction_workers, can_edit_erp|default(false)) }}</td>
@@ -335,6 +359,10 @@
                   {% if r.has_as_blueprint %}checked{% endif %} aria-label="주문 #{{ r.id }} AS도면 여부">
               </td>
               <td class="erp-as-content-cell">
+                {# 재발 칩은 매크로 바깥(형제)에 둔다 — as-dashboard.js replaceAsCellSummary 는
+                   .as-tl-cell outerHTML 만 갈아끼우므로 타임라인 갱신 뒤에도 칩이 살아남는다. #}
+                {% if r.as_recurrence %}<span class="erp-as-recur-chip"
+                  title="지난 건과 같은 증상이 다시 생긴 AS입니다">재발</span>{% endif %}
                 {{ render_as_timeline_cell(r.id, r.as_timeline_view) }}
               </td>
               <td class="erp-as-status-cell">
@@ -343,6 +371,18 @@
                   {% if r.as_pending %}미결{% else %}{{ STATUS.get(r.status, r.status) }}{% endif %}
                 </span>
                 {{ render_as_billing_badge(r.as_billing_badge) }}
+                {# 재접수는 완료 탭에서만 낸다 — 열린 건에서 다시 접수하면 새 건이 아니라 접수
+                   기록만 갱신되는데(as_orders.py 재접수 분기) 화면에는 그 차이가 안 보인다.
+                   13번째 열을 만들지 않는 이유: colspan="12"·_COL_KEYS·td:nth-child 위치
+                   셀렉터 계약이 전부 깨진다 → 기존 상태 셀 안에 둔다.
+                   동작은 주문 상세 딥링크 이동(대시보드에는 #asReceiveModal 이 없다). #}
+                {% if as_tab == 'completed' and can_edit_erp|default(false) %}
+                <div class="erp-as-status-cell__actions">
+                  <a class="erp-as-reintake-btn"
+                    href="{{ url_for('order_edit.edit_order', order_id=r.id) }}?open=erp-order&amp;as_reintake=1"
+                    title="이 주문에 AS를 새로 접수합니다(새 건이 열리고 미완료 탭으로 옮겨집니다)">↺ 재접수</a>
+                </div>
+                {% endif %}
               </td>
             </tr>
             {% endfor %}
@@ -371,6 +411,10 @@
           {% include 'cs/partials/as_mobile_summary.html' %}
         </div>
         {% include 'cs/partials/as_mobile_controls.html' %}
+        {# AS 재접수 바텀시트(T4). 카드마다 만들지 않고 목록당 1개만 두고 JS 가 탭한 카드의
+           data-* 로 채운다(카드 100장 × 시트 = fragment 비만). v2 코호트 전용 —
+           레거시 카드에는 재접수 버튼 자체가 없다. #}
+        {% include 'cs/partials/as_reintake_sheet.html' %}
         {% if rows %}
           <div class="erp-pro-order-cards foms-mobile-queue-list">
             {% for r in rows %}{% include 'cs/partials/as_mobile_order_card.html' %}{% endfor %}
@@ -585,10 +629,13 @@
 <script src="{{ url_for('static', filename='js/common/foms-schedule-map.js') }}?v=20260730g" defer></script>
 <script src="{{ url_for('static', filename='js/cs/as-attachment-order.js') }}?v=20260819a" defer></script>
 <script src="{{ url_for('static', filename='js/cs/as-push-confirm.js') }}?v=20260820a" defer></script>
-<script src="{{ url_for('static', filename='js/cs/as-dashboard.js') }}?v=20260820a" defer></script>
+<script src="{{ url_for('static', filename='js/cs/as-dashboard.js') }}?v=20260824b" defer></script>
 {# PC 12열 컬럼 폭 조절(드래그 + localStorage). 모바일은 파일 자체가 조기 반환 —
    body 파셜에 두는 이유는 CSS 와 같다(fast-tab 프래그먼트 스왑에도 함께 실려야 재초기화된다). #}
 <script src="{{ url_for('static', filename='js/cs/as-dashboard-columns.js') }}?v=20260728b" defer></script>
+{# 모바일 재접수 바텀시트 배선(T4). body 파셜에 둬야 fast-tab 프래그먼트 스왑에도 실린다
+   (erp-shell activateScripts 가 swap 마다 재실행 → 파일 자체가 싱글턴 가드를 든다). #}
+<script src="{{ url_for('static', filename='js/cs/as-reintake-sheet.js') }}?v=20260824a" defer></script>
 {# 태블릿 가로 대조 표면 CTA(일정 변경·AS 완료) 배선 — v2 코호트(폰+태블릿)만 로드.
    표시 게이트는 CSS(coarse landscape)가 소유하므로 폰에선 버튼 은닉·무동작(문서 위임+싱글턴 가드). #}
 {% if erp_mobile_v2_enabled %}

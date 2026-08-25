@@ -539,10 +539,41 @@ ERP Order mobile-v2 tab pane.
                 <button type="button" class="btn-close" data-bs-dismiss="modal" aria-label="Close"></button>
             </div>
             <div class="modal-body">
+                {# AS-REINTAKE T6: 아래 3블록은 모드별 조건부다(erp-order-shared.js erpApplyAsReceiveMode).
+                   PC 파티얼과 같은 id 계약 — 한쪽만 고치면 그 코호트에서 재접수가 무너진다. #}
+                <div class="border border-info rounded p-2 mb-3 d-none" id="as-receive-same-cycle-note">
+                    <div class="small fw-bold">이건 새 건이 아니에요. 같은 건을 다시 접수하는 거예요.</div>
+                    <div class="small text-muted">AS 건 수는 늘지 않아요 — 접수 내용·상차일만 바뀝니다.</div>
+                </div>
+                <details class="mb-3 d-none" id="as-receive-prev-wrap">
+                    <summary class="small fw-bold" id="as-receive-prev-summary">지난 AS 요약 보기</summary>
+                    <div class="border rounded p-2 mt-2" id="as-receive-prev-body">
+                        <div class="small" data-prev-row="ordinal"><span class="text-muted me-1">건</span><span data-prev-val="ordinal"></span></div>
+                        <div class="small" data-prev-row="received"><span class="text-muted me-1">접수</span><span data-prev-val="received"></span></div>
+                        <div class="small" data-prev-row="completed"><span class="text-muted me-1">완료</span><span data-prev-val="completed"></span></div>
+                        {# 증상=그 건 접수 원문 발췌, 처리=그 건이 몇 차까지 갔는지(목업 4-C).
+                           값 출처는 서버 as_cycle_view.with_cycle_detail_extras — 근거가 없으면
+                           빈 문자열/0 으로 와서 JS 가 줄을 통째로 숨긴다(추정 금지). #}
+                        <div class="small" data-prev-row="symptom"><span class="text-muted me-1">증상</span><span data-prev-val="symptom"></span></div>
+                        <div class="small" data-prev-row="billing"><span class="text-muted me-1">비용</span><span data-prev-val="billing"></span></div>
+                        <div class="small" data-prev-row="rounds"><span class="text-muted me-1">처리</span><span data-prev-val="rounds"></span></div>
+                    </div>
+                </details>
                 <div class="mb-3">
                     <label class="field__label field__label--required" for="as-receive-content">AS 내용</label>
                     <textarea id="as-receive-content" class="foms-textarea" rows="5"
                         placeholder="예: 슬라이딩 붙박이장 가운데 문이 내려앉음(안닫힘)&#10;금일 오후 4시반~6시반까지 통화 어려우심"></textarea>
+                    <div class="mt-2 d-none" id="as-receive-prefill-tools">
+                        <button type="button" class="btn btn-sm btn-outline-secondary" id="as-receive-load-prev">지난 증상 불러오기</button>
+                        <button type="button" class="btn btn-sm btn-outline-secondary d-none" id="as-receive-clear-content">&#8634; 지우기</button>
+                        <div class="small text-muted mt-1 d-none" id="as-receive-load-hint">지난 증상을 넣었어요 — 이번 내용으로 꼭 고쳐 쓰세요.</div>
+                    </div>
+                </div>
+                <div class="mb-3 d-none" id="as-receive-recurrence-wrap">
+                    <div class="form-check">
+                        <input class="form-check-input" type="checkbox" id="as-receive-recurrence">
+                        <label class="form-check-label" for="as-receive-recurrence">지난 건과 같은 증상이 또 생겼어요 <strong>(재발)</strong></label>
+                    </div>
                 </div>
                 <div class="mb-3">
                     <label class="field__label">비용 구분</label>
@@ -560,7 +591,7 @@ ERP Order mobile-v2 tab pane.
                         <input type="number" min="0" step="1000" id="as-receive-amount" class="foms-input foms-tabular" placeholder="선택 입력">
                     </div>
                     <div class="small text-muted mt-1 d-none" id="as-receive-billing-locked-note">
-                        이미 판정된 AS입니다. 판정 변경은 AS 대시보드에서 하세요.
+                        🔒 잠김 유지 — 같은 AS 건이라 여기서는 비용을 못 바꿔요. 판정 변경은 AS 대시보드에서 하세요.
                     </div>
                 </div>
                 <div class="mb-3 d-none" id="as-receive-shipping-wrap">
@@ -590,6 +621,16 @@ ERP Order mobile-v2 tab pane.
                         <div class="small text-muted mt-1">동영상 10MB 초과 시 업로드가 지연될 수 있습니다.</div>
                     </div>
                     <div id="as-receive-preview" class="row g-2 mt-1 as-attach-order"></div>
+                </div>
+                {# 되돌릴 수 없음 경고(reintake 전용). .alert 를 쓰지 않는다 —
+                   script.js 가 .alert 를 5초 뒤 자동으로 닫아 상시 경고가 사라진다. #}
+                <div class="border border-danger rounded p-2 d-none" id="as-receive-hard-warn" data-foms-no-autodismiss>
+                    <div class="small fw-bold text-danger">접수하면 이 3가지가 바로 일어나요 — 되돌리기 없음</div>
+                    <ol class="small mb-0 ps-3">
+                        <li>지난 AS 의 <strong>완료일이 지워져요.</strong></li>
+                        <li>이 주문의 <strong>AS 접수일이 오늘로 바뀌어요.</strong></li>
+                        <li>AS 대시보드에서 이 주문이 <strong>완료 탭에서 미완료 탭으로 옮겨가요.</strong></li>
+                    </ol>
                 </div>
             </div>
             <div class="modal-footer">
