@@ -430,3 +430,39 @@ def test_js_contract_defer_and_api_path():
     assert "erp-stage-override.js" in erp_js
     assert "defer" in erp_js
     assert "erp_stage_override_modal.html" in erp_js
+
+
+def test_guard_base_is_saved_server_stage_not_form_preview():
+    """미저장 폼 미리보기가 아니라 **저장된** 단계를 base 로 override 를 건다.
+
+    회귀: 새 주문(서버 RECEIVED)에서 폼 단계를 실측으로 바꿔 본 뒤 다시 주문접수를
+    고르면, 클라가 저장값(RECEIVED)이 아닌 미리보기(MEASURE)를 base 로 삼아
+    RECEIVED→RECEIVED override 를 보냈고 서버가 ``same`` 으로 400 을 냈다.
+    """
+    from pathlib import Path
+
+    root = Path(__file__).resolve().parents[2]
+    js = (root / "static/js/orders/erp-stage-override.js").read_text(encoding="utf-8")
+    assert "noteServerStage" in js
+    assert "var _serverStage" in js
+    # change 가드가 저장값을 base 로 쓰고, 저장값 복귀는 서버 호출 없이 통과시킨다.
+    assert "var saved = String(_serverStage || '').trim();" in js
+    assert "if (saved && next === saved) {" in js
+
+    shared = (root / "static/js/orders/erp-order-shared.js").read_text(encoding="utf-8")
+    # GET /structured 재조회 + 저장 성공 두 지점에서 저장 단계를 갱신한다.
+    assert shared.count("FOMS_STAGE_OVERRIDE.noteServerStage(") == 2
+
+
+def test_override_error_box_is_exempt_from_alert_autodismiss():
+    """실패 메시지 상자가 전역 5초 .alert 자동닫힘에 지워지면 안 된다(무반응 오인)."""
+    from pathlib import Path
+
+    root = Path(__file__).resolve().parents[2]
+    html = (
+        root / "templates/orders/partials/erp_stage_override_modal.html"
+    ).read_text(encoding="utf-8")
+    marker = 'id="erp-stage-override-error"'
+    assert marker in html
+    block = html[html.index(marker) - 200 : html.index(marker) + 200]
+    assert "data-foms-no-autodismiss" in block

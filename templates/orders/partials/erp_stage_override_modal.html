@@ -44,7 +44,10 @@
                         이 변경이 의도된 운영 조치임을 확인합니다.
                     </label>
                 </div>
-                <div class="alert alert-danger py-2 mt-2 d-none" id="erp-stage-override-error" role="alert"></div>
+                {# .alert 전역 5초 자동닫힘(static/js/runtime/script.js)이 이 상자를 DOM 에서
+                   지워 실패 메시지가 통째로 사라졌다 — 자동닫힘 제외 필수. #}
+                <div class="alert alert-danger py-2 mt-2 d-none" id="erp-stage-override-error"
+                     role="alert" data-foms-no-autodismiss></div>
             </div>
             <div class="modal-footer">
                 <button type="button" class="btn btn-secondary" data-bs-dismiss="modal">취소</button>
