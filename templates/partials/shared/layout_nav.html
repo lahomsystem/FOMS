@@ -87,7 +87,7 @@
                            확인 대기 뱃지는 30초 캐시 카운트라 nav 렌더 비용이 요청마다 늘지 않는다. #}
                         <li><a class="dropdown-item d-flex align-items-center justify-content-between"
                                href="{{ url_for('admin.naver_ingest_triage') }}">
-                                <span><i class="fas fa-clipboard-check"></i> 네이버 수집</span>
+                                <span><svg class="foms-nav-mark foms-nav-mark--naver" viewBox="0 0 24 24" width="15" height="15" aria-hidden="true" focusable="false"><rect width="24" height="24" rx="5" fill="#03C75A"/><path d="M13.6 12.3 10.2 7.2H7.2v9.6h3.2v-5.1l3.4 5.1h3v-9.6h-3.2z" fill="#fff"/></svg> 네이버 수집</span>
                                 {% if naver_triage_pending %}
                                 <span class="badge bg-danger ms-2">{{ naver_triage_pending }}</span>
                                 {% endif %}
@@ -170,7 +170,11 @@
                     <li class="nav-item">
                         {# '네이버 수집' 탭(T14-A)만 확인 대기 뱃지를 단다 — 카운트는
                            naver_triage_pending 30초 전역 캐시라 nav 렌더 비용 불변. #}
-                        <a class="nav-link" href="{{ item.url }}">{{ item.name }}{% if item.id == 'naver_orders' and naver_triage_pending %}
+                        {# 네이버 수집만 채널 표식을 단다 — 이 항목만 **바깥 채널**에서 들어온
+                           일감이라, 사내 화면들 사이에서 눈으로 즉시 갈라져야 한다.
+                           외부 이미지가 아니라 인라인 SVG 다: 네트워크 왕복 0 · CSP 무관 ·
+                           자산 핀(?v) 관리 대상이 아니다. #}
+                        <a class="nav-link" href="{{ item.url }}">{% if item.id == 'naver_orders' %}<svg class="foms-nav-mark foms-nav-mark--naver" viewBox="0 0 24 24" width="15" height="15" aria-hidden="true" focusable="false"><rect width="24" height="24" rx="5" fill="#03C75A"/><path d="M13.6 12.3 10.2 7.2H7.2v9.6h3.2v-5.1l3.4 5.1h3v-9.6h-3.2z" fill="#fff"/></svg>{% endif %}{{ item.name }}{% if item.id == 'naver_orders' and naver_triage_pending %}
                             <span class="badge rounded-pill bg-danger">{{ naver_triage_pending }}</span>{% endif %}</a>
                     </li>
                     {% endfor %}
