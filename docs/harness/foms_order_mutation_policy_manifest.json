@@ -979,6 +979,11 @@
       "mode": "guard",
       "policy_id": "STAFF_MUTATION",
       "rule": "/admin/naver-ingest/ghost/<int:order_id>/discard"
+    },
+    "admin.naver_ingest_repay_reconcile": {
+      "mode": "guard",
+      "policy_id": "STAFF_MUTATION",
+      "rule": "/admin/naver-ingest/<int:link_id>/reconcile"
     }
   }
 }

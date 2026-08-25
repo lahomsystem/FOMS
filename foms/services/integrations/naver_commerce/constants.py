@@ -33,5 +33,9 @@ ADDON_PRODUCT_CLASS = "추가구성상품"
 #: 이 값으로 알림톡 브랜드 프로필·도면 로고·퀘스트 CS 팀·견적서 양식이 갈린다.
 DEFAULT_ORDERER_NAME = "라홈"
 
+#: 네이버 판매자센터 주소. 옛 결제가 **살아 있을 때** 화면이 안내하는 곳이다 —
+#: 판매자 직접취소는 불가역이라 우리가 API 로 걸지 않는다(2026-08-25 결정, 스펙 §2.5).
+SELLER_CENTER_URL = "https://sell.smartstore.naver.com/"
+
 __all__ = ["ACTOR_USERNAME", "ADDON_PRODUCT_CLASS", "CHANNEL", "DEFAULT_ORDERER_NAME",
-           "OWNER_USERNAME", "SOURCE_MARKER"]
+           "OWNER_USERNAME", "SELLER_CENTER_URL", "SOURCE_MARKER"]
