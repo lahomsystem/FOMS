@@ -633,6 +633,38 @@ def share_link_message(order: Order, *, kind: str, url: str, brand: str) -> str:
     ]
     return '\n'.join(lines)
 
+#: 지방(협력사 시공) 주문의 안내 연락처 env. 미설정이면 아래 기본값.
+_REGIONAL_CONTACT_PHONE_ENV = 'FOMS_REGIONAL_CONTACT_PHONE'
+
+#: 본사 CS 대표번호(사용자 결정 2026-08-25).
+_REGIONAL_CONTACT_PHONE_DEFAULT = '1566-0792'
+
+
+def _share_contact_phone(order: Order, brand: str) -> str:
+    """고객에게 **보여줄** 문의 연락처(발신번호와 별개다).
+
+    지방 주문은 협력사가 시공하지만 도면 컨펌은 본사 CS 가 받는다. 현장 담당자 번호를
+    안내하면 컨펌 문의가 CS 를 건너뛰므로, 지방 주문에는 본사 대표번호를 넣는다
+    (사용자 결정 2026-08-25). 그 외에는 담당자 등록번호 → 브랜드 대표 → 구 폴백 순.
+
+    Args:
+        order: 대상 주문.
+        brand: :func:`ka.resolve_brand` 결과(``LAHOM``/``HAUD``).
+
+    Returns:
+        표시용 연락처 문자열(빈값 금지 — 알림톡 변수는 비울 수 없다).
+    """
+    if bool(getattr(order, 'is_regional', False)):
+        return (ka._env(_REGIONAL_CONTACT_PHONE_ENV)
+                or _REGIONAL_CONTACT_PHONE_DEFAULT)
+    return (
+        _manager_sender_phone(order)
+        or ka._env(f'SOLAPI_SENDER_PHONE_{brand}')
+        or ka._env('SOLAPI_SENDER_PHONE')
+        or '고객센터'
+    )
+
+
 def _share_alimtalk_variables(order: Order, *, kind: str, token: str,
                               brand: str) -> dict[str, str]:
     """공유 알림톡 템플릿 변수(심사 승인 템플릿과 1:1 — 빈값 금지 폴백 포함).
@@ -652,12 +684,7 @@ def _share_alimtalk_variables(order: Order, *, kind: str, token: str,
     sd = order.structured_data or {}
     customer = str(ka._node(sd, 'parties', 'customer').get('name') or '').strip() or '고객'
     manager = (order.manager_name or '').strip() or '고객센터'
-    manager_phone = (
-        _manager_sender_phone(order)
-        or ka._env(f'SOLAPI_SENDER_PHONE_{brand}')
-        or ka._env('SOLAPI_SENDER_PHONE')
-        or '고객센터'
-    )
+    manager_phone = _share_contact_phone(order, brand)
     return {
         '#{고객명}': customer,
         '#{문서종류}': _SMS_KIND_LABEL.get(kind, '문서'),
