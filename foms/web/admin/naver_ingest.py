@@ -2489,12 +2489,17 @@ def naver_ingest_attach_order(link_id: int):
     try:
         # 집 요약은 **변경 전에** 뽑는다 — 붙인 뒤에는 대상 집합·관계값이 이미 바뀌어 있다.
         history = summarize_link_household(db, link_id=link_id)
-        attached, target_order_id = attach_link_to_order(
+        attached, target_order_id, changed = attach_link_to_order(
             db, link_id=link_id, order_id=order_id, relation=relation,
             actor_user_id=session.get("user_id"))
-        _record_link_history(db, order_id=target_order_id, link_id=link_id,
-                             event_type=ATTACH_EVENT_TYPE, relation=relation,
-                             summary=history)
+        # 같은 버튼을 두 번 누르면 두 번째는 **아무것도 바꾸지 않는다**(금액 기록은 원래
+        # 멱등). 그런데도 이력에 줄이 쌓이면 담당자가 "두 번 붙었나?" 를 의심하게 된다 —
+        # 주문 변경 이력은 **무엇이 바뀌었나**를 말하는 자리다(2026-08-25 정책 확정).
+        # 누가 눌렀는가는 아래 log_access 가 누른 횟수만큼 그대로 남긴다(감사 축은 불변).
+        if changed:
+            _record_link_history(db, order_id=target_order_id, link_id=link_id,
+                                 event_type=ATTACH_EVENT_TYPE, relation=relation,
+                                 summary=history)
         db.commit()
     except PromotionError as exc:
         db.rollback()

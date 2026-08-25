@@ -409,7 +409,7 @@ def _erase_extra_payments(session: Session, *, order_id: Optional[int],
 
 def attach_link_to_order(session: Session, *, link_id: int, order_id: int,
                          relation: str, actor_user_id: Optional[int] = None,
-                         now: Optional[datetime] = None) -> tuple[int, int]:
+                         now: Optional[datetime] = None) -> tuple[int, int, bool]:
     """수집분을 **기존 주문에 붙인다** — 새 주문을 만들지 않는다 (T16-E).
 
     차액 결제(ADDON)와 취소 후 재결제(REPAY)가 여기로 온다. 둘 다 새 집이 아니라 이미 있는
@@ -425,7 +425,11 @@ def attach_link_to_order(session: Session, *, link_id: int, order_id: int,
         relation: ``ADDON`` 또는 ``REPAY``.
 
     Returns:
-        ``(붙인 링크 수, 주문 id)``.
+        ``(붙인 링크 수, 주문 id, 실제로 바뀌었는가)``.
+
+        세 번째 값이 ``False`` = **같은 주문에 같은 관계로 이미 붙어 있었다**(같은 버튼을
+        두 번 누른 경우). 금액 기록은 원래 멱등이라 결과가 같지만, 호출자가 주문 변경
+        이력에 줄을 더 쌓지 않도록 이 사실을 알려 준다(2026-08-25 정책).
 
     Raises:
         PromotionError: 관계값·링크·주문이 잘못됐거나, 취소·반품 건을 ADDON 으로 붙이려 할 때,
@@ -458,18 +462,26 @@ def attach_link_to_order(session: Session, *, link_id: int, order_id: int,
             )
 
     attached = 0
+    changed = False
     for row in siblings:
         if row.order_id and int(row.order_id) != int(order_id):
             raise PromotionError(
                 f"이미 다른 주문(#{row.order_id})에 붙어 있습니다. 먼저 되돌린 뒤 다시 붙이세요."
             )
+        # 이 줄이 실제로 무엇을 바꾸는지 **쓰기 전에** 본다 — 같은 버튼을 두 번 눌렀을 때
+        # 호출자가 이력에 줄을 더 쌓지 않게 하는 근거다.
+        if (row.order_id is None or int(row.order_id) != int(order_id)
+                or str(row.relation or "") != relation
+                or str(row.sync_status or "") != "LINKED"
+                or row.failure_reason):
+            changed = True
         row.order_id = int(order_id)
         row.relation = relation
         row.sync_status = "LINKED"
         row.failure_reason = None
         attached += 1
     session.flush()
-    _stamp_source_marker(order)
+    stamped = _stamp_source_marker(order)
     # 금액은 **기록만** 한다 — 출고가·잔금 계산식은 그대로다(T16-F).
     # 기록 자체는 REV-00 mutation 계약(row lock·version bump·receipt)을 탄다.
     recorded = _record_extra_payments(session, order_id=int(order_id), links=siblings,
@@ -477,7 +489,9 @@ def attach_link_to_order(session: Session, *, link_id: int, order_id: int,
                                       now=now or now_utc_naive())
     logger.info("[NAVER] 수집분 기존 주문 연결 link=%s(+%d) order=%s relation=%s 결제기록 %d건",
                 link_id, attached - 1, order_id, relation, recorded)
-    return (attached, int(order_id))
+    # 표식 찍기·금액 기록도 '바뀜'이다 — 링크 행이 그대로여도 주문 쪽이 움직였으면
+    # 이력에 남을 값이 있다.
+    return (attached, int(order_id), bool(changed or recorded or stamped))
 
 
 def detach_link_from_order(session: Session, *, link_id: int,
