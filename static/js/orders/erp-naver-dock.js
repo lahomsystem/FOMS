@@ -246,7 +246,23 @@
 
         var head = el('div', 'naver-dock-hd');
         head.appendChild(el('b', 'naver-dock-title', '🏪 네이버 원본'));
-        if (state.orderNo) head.appendChild(el('span', 'naver-dock-orderno', '주문번호 ' + state.orderNo));
+        // 집이 둘 이상이면 **전부** 말한다. 예전에는 첫 집 번호 하나만 말하면서
+        // `워크벤치에서 열기` 는 나중 집을 열어, 읽은 번호와 열리는 집이 어긋났다
+        // (2026-08-25 수정). 링크가 여는 집에는 표식을 붙여 어느 쪽인지 못박는다.
+        var nos = state.orderNos && state.orderNos.length ? state.orderNos
+            : (state.orderNo ? [state.orderNo] : []);
+        if (nos.length) {
+            var label = el('span', 'naver-dock-orderno', '주문번호 ');
+            nos.forEach(function (no, idx) {
+                if (idx) label.appendChild(document.createTextNode(' · '));
+                var opensHere = nos.length > 1 && state.workbenchUrl
+                    && no === state.workbenchOrderNo;
+                var one = el('span', opensHere ? 'naver-dock-orderno-open' : '', no);
+                if (opensHere) one.title = '워크벤치에서 열기가 여는 집';
+                label.appendChild(one);
+            });
+            head.appendChild(label);
+        }
         // 워크벤치 처리 탭으로 돌아가는 길(R2). 버튼이 아니라 **평범한 앵커**다 —
         // 누르면 그 집이 열릴 뿐 아무것도 네이버로 보내지 않는다. 주소는 서버가
         // 역할·게이트를 보고 만들어 주며, 없으면 앵커 자체가 생기지 않는다.
@@ -498,6 +514,10 @@
         if (!payload || !payload.rows || !payload.rows.length) return;
         state = {
             orderNo: payload.order_no || '',
+            // 집이 둘 이상인 주문(재결제·추가결제가 나중에 붙은 경우)의 집 번호 전부.
+            orderNos: payload.order_nos || (payload.order_no ? [payload.order_no] : []),
+            // `워크벤치에서 열기` 가 실제로 여는 집 — 머리말에서 그 집을 표시한다.
+            workbenchOrderNo: payload.workbench_order_no || '',
             rows: payload.rows,
             mains: payload.mains || [],
             assignCommon: payload.assign_common || 'COMMON',

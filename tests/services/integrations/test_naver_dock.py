@@ -702,8 +702,8 @@ def test_dock_js_says_repay_separately_and_asset_pin_moved():
     tpl = _ORDER_JS_TPL.read_text(encoding="utf-8")
     # 핀은 R2(워크벤치 링크)에서 다시 움직였다 — 값은
     # ``test_dock_js_renders_workbench_anchor_and_asset_pin_moved`` 가 못박는다.
-    assert "js/orders/erp-naver-dock.js') }}?v=20260824b" in tpl
-    assert "css/orders/erp-naver-dock.css') }}?v=20260824b" in tpl
+    assert "js/orders/erp-naver-dock.js') }}?v=20260825a" in tpl
+    assert "css/orders/erp-naver-dock.css') }}?v=20260825a" in tpl
 
 
 # --------------------------------------------------------------------------- #
@@ -787,6 +787,48 @@ def test_dock_gives_admin_a_link_back_to_the_workbench(app, client, workbench_on
     assert f"link_id={first_id}" not in payload["workbench_url"]
 
 
+def test_dock_header_names_every_household_and_marks_the_one_the_link_opens(
+        app, client, workbench_on):
+    """머리말이 집 번호를 **전부** 말하고, 링크가 여는 집을 지목한다 (2026-08-25).
+
+    결함: 머리말은 첫 집 번호("N-R2-A")만 말하는데 `워크벤치에서 열기` 는 나중 집
+    ("N-R2-B")을 열었다. 담당자는 A 를 읽고 눌러 B 를 보게 된다 — 집이 둘인 주문에서만
+    나타나 눈에 잘 띄지 않는다. payload 두 값이 **같은 행**에서 나오는지까지 못박는다.
+    """
+    admin = _dock_user("ADMIN")
+    order_id, _first_id, latest_id = _order_with_two_households(admin)
+    _login(client, admin)
+
+    payload = _dock_json(client.get(f"/edit/{order_id}").get_data(as_text=True))
+
+    assert payload["order_nos"] == ["N-R2-A", "N-R2-B"], "집 번호를 전부 말하지 않는다"
+    assert payload["order_no"] == "N-R2-A", "하위호환 키는 첫 집 그대로다"
+    # 링크가 여는 집과 머리말이 지목하는 집이 같은 링크에서 나와야 한다.
+    assert payload["workbench_order_no"] == "N-R2-B"
+    assert payload["workbench_url"].endswith(f"link_id={latest_id}")
+
+
+def test_dock_single_household_still_reports_one_number(app, client, workbench_on):
+    """집이 하나면 예전과 같다 — 목록에 한 개, 표식은 화면에서 뜨지 않는다."""
+    admin = _dock_user("ADMIN")
+    order = _naver_order(admin)
+    _link(order, _snapshot(product_name="붙박이장", order_no="N-SOLO"), order_no="N-SOLO")
+    _login(client, admin)
+
+    payload = _dock_json(client.get(f"/edit/{order.id}").get_data(as_text=True))
+
+    assert payload["order_nos"] == ["N-SOLO"]
+    assert payload["workbench_order_no"] == "N-SOLO"
+
+
+def test_dock_js_marks_the_opened_household_only_when_there_are_two():
+    """표식은 **집이 둘 이상일 때만** 붙는다 — 한 집짜리에 무게를 더하지 않는다."""
+    source = _squash(_DOCK_JS.read_text(encoding="utf-8"))
+    assert "var opensHere = nos.length > 1 && state.workbenchUrl" in source
+    assert "no === state.workbenchOrderNo" in source
+    assert "workbenchOrderNo: payload.workbench_order_no || ''" in source
+
+
 def test_dock_gives_manager_the_same_link(app, client, workbench_on):
     """MANAGER 도 같은 링크를 받는다(계약 §0-3 예외 없이 두 역할까지)."""
     manager = _dock_user("MANAGER")
@@ -842,5 +884,5 @@ def test_dock_js_renders_workbench_anchor_and_asset_pin_moved():
     assert "workbenchUrl: payload.workbench_url || ''," in source
 
     tpl = _ORDER_JS_TPL.read_text(encoding="utf-8")
-    assert "js/orders/erp-naver-dock.js') }}?v=20260824b" in tpl
-    assert "css/orders/erp-naver-dock.css') }}?v=20260824b" in tpl
+    assert "js/orders/erp-naver-dock.js') }}?v=20260825a" in tpl
+    assert "css/orders/erp-naver-dock.css') }}?v=20260825a" in tpl
