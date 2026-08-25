@@ -750,6 +750,65 @@ def _share_alimtalk_variables(order: Order, *, kind: str, token: str,
     }
 
 
+#: 버튼 2개짜리 통합 템플릿 env 접두(뒤에 브랜드가 붙는다). 심사 승인 뒤 이 env 를 넣으면
+#: bundle 발송이 '링크 1개' 에서 '도면·계약서 버튼 2개' 로 갈아탄다 — 코드 변경 없이 env 스위치.
+_BOTH_TEMPLATE_ENV_PREFIX = 'SOLAPI_TEMPLATE_SHARE_BOTH_ID_'
+
+
+def _both_template_id(brand: str) -> str:
+    """브랜드별 통합(버튼 2개) 템플릿 id. 미설정이면 빈 문자열(= 구 경로 유지)."""
+    return ka._env(_BOTH_TEMPLATE_ENV_PREFIX + brand)
+
+
+def _share_both_variables(order: Order, *, drawing_token: str, estimate_token: str,
+                          brand: str) -> dict[str, str]:
+    """버튼 2개 템플릿 변수(승인 템플릿과 1:1).
+
+    문서종류는 본문에 고정 문구로 들어가므로 변수가 없고, 토큰이 둘이다.
+
+    Args:
+        order: 대상 주문.
+        drawing_token: 도면 링크 토큰 원문.
+        estimate_token: 계약서 링크 토큰 원문.
+        brand: :func:`ka.resolve_brand` 결과.
+
+    Returns:
+        치환 dict — 빈값 금지 폴백은 :func:`_share_alimtalk_variables` 와 같은 규칙.
+    """
+    sd = order.structured_data or {}
+    customer = str(ka._node(sd, 'parties', 'customer').get('name') or '').strip() or '고객'
+    return {
+        '#{고객명}': customer,
+        '#{유효기간}': str(share_service.token_days()),
+        '#{담당자}': _share_contact_name(order),
+        '#{담당자연락처}': _share_contact_phone(order, brand),
+        '#{도면토큰}': drawing_token,
+        '#{계약서토큰}': estimate_token,
+    }
+
+
+def _issue_pair_tokens(order: Order) -> tuple[Any, str, Any, str]:
+    """버튼 2개 발송용 도면·계약서 링크를 새로 발급한다(커밋은 호출자 몫).
+
+    계약서 링크는 발급 시점 동결 스냅샷을 동반한다 — 단독 발급과 같은 규칙(D6).
+
+    Args:
+        order: 대상 주문.
+
+    Returns:
+        ``(도면 row, 도면 토큰, 계약서 row, 계약서 토큰)``.
+
+    Raises:
+        share_service.SnapshotTooLargeError: 견적 항목이 스냅샷 상한을 넘을 때.
+    """
+    drawing_row, drawing_token = share_service.create_share_token(
+        db_session, order.id, 'drawing')
+    snapshot = share_service.build_estimate_snapshot(order)
+    estimate_row, estimate_token = share_service.create_share_token(
+        db_session, order.id, 'estimate', snapshot=snapshot)
+    return drawing_row, drawing_token, estimate_row, estimate_token
+
+
 @share_api_bp.route('/send-alimtalk/<int:share_id>', methods=['POST'])
 @login_required
 @role_required(_SHARE_ROLES)
@@ -757,7 +816,9 @@ def api_share_send_alimtalk(share_id: int):
     """공유 링크 알림톡 발송 — 발급 직후 화면에서만 가능(send-sms 와 대칭).
 
     body ``{'token': <원문>}`` 재해시 검증 후 심사 승인 템플릿
-    (``SOLAPI_TEMPLATE_SHARE_ID_{brand}``)으로 발송한다. 발신번호는 T8.1 3단
+    (``SOLAPI_TEMPLATE_SHARE_ID_{brand}``)으로 발송한다. ``kind='bundle'`` 이고 통합
+    템플릿(``SOLAPI_TEMPLATE_SHARE_BOTH_ID_{brand}``)이 등록돼 있으면 도면·계약서 링크를
+    그 자리에서 발급해 **버튼 2개** 템플릿으로 내보낸다(승인 전후 전환이 env 하나). 발신번호는 T8.1 3단
     우선순위(:func:`_resolve_sender`) — Solapi 가 알림톡 실패 시 이 번호로 SMS
     대체발송(failover)한다(담당자 번호 발신 요구). 멱등 = 선점 insert +
     ``share_alimtalk:{share_id}:{bucket}`` UNIQUE(409).
@@ -796,12 +857,27 @@ def api_share_send_alimtalk(share_id: int):
     actor_user_id = session.get('user_id')
     brand = ka.resolve_brand(order.structured_data or {})
     pf_id = ka._env(f'SOLAPI_PF_ID_{brand}')
-    template_id = ka._env(f'SOLAPI_TEMPLATE_SHARE_ID_{brand}')
+    # bundle 은 통합 템플릿(버튼 2개)이 승인·등록돼 있으면 그쪽으로 나간다. env 가 없으면
+    # 지금처럼 링크 1개(통합 열람 페이지)로 나간다 — 승인 전후 전환이 env 하나다.
+    use_both = row.kind == 'bundle' and bool(_both_template_id(brand))
+    template_id = (_both_template_id(brand) if use_both
+                   else ka._env(f'SOLAPI_TEMPLATE_SHARE_ID_{brand}'))
     from_phone, sender_source = _resolve_sender(order, brand)
     if not (pf_id and template_id and from_phone):
         return _envelope(None, 'not_configured', 503)
 
-    variables = _share_alimtalk_variables(order, kind=row.kind, token=token, brand=brand)
+    pair_ids: dict[str, int] = {}
+    if use_both:
+        try:
+            drawing_row, drawing_token, estimate_row, estimate_token = _issue_pair_tokens(order)
+        except share_service.SnapshotTooLargeError:
+            db_session.rollback()
+            return _envelope(None, 'snapshot_too_large', 400)
+        variables = _share_both_variables(order, drawing_token=drawing_token,
+                                          estimate_token=estimate_token, brand=brand)
+        pair_ids = {'drawing_share_id': drawing_row.id, 'estimate_share_id': estimate_row.id}
+    else:
+        variables = _share_alimtalk_variables(order, kind=row.kind, token=token, brand=brand)
 
     # --- 선점 insert (send-sms 와 동일 계약 — 벤더 호출 전 commit) ---
     bucket = int(time.time()) // _SMS_BUCKET_SECONDS
@@ -854,7 +930,8 @@ def api_share_send_alimtalk(share_id: int):
         action='SHARE_ALIMTALK_SENT', target_type='order', target_id=int(order.id),
         detail={'share_id': row.id, 'kind': row.kind, 'sent': error is None,
                 'error': error, 'to': ka._mask_phone(to_phone),
-                'sender_source': sender_source, **context},
+                'template': 'share_both' if use_both else 'share',
+                'sender_source': sender_source, **pair_ids, **context},
     )
     return _envelope({'sent': error is None, 'error': error}, error)
 
