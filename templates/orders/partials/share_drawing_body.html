@@ -1,0 +1,29 @@
+{# 도면 갤러리·파일 목록 본문 — 공유 열람 페이지 2곳(도면 단독·도면+계약서 통합) 공용.
+   presigned URL 만료(5분) 후 이미지는 onerror 로 새로고침 안내를 표면화한다. #}
+    {% if drawing_preview_cards or share_extra_files %}
+      {% include 'drawing/partials/drawing_mobile_v2_gallery.html' %}
+      {% if share_extra_files %}
+        <section class="foms-share-view__files" aria-label="도면 파일">
+          <ul class="foms-share-view__file-list">
+            {% for f in share_extra_files %}
+              <li><a href="{{ f.url }}" rel="noreferrer">{{ f.label }}</a></li>
+            {% endfor %}
+          </ul>
+        </section>
+      {% endif %}
+      {% if share_download_files %}
+        <section class="foms-share-view__files foms-share-view__downloads" aria-label="파일 다운로드">
+          <h2 class="foms-share-view__files-title">파일 다운로드</h2>
+          <ul class="foms-share-view__file-list">
+            {% for f in share_download_files %}
+              <li><a href="{{ f.url }}" rel="noreferrer" download>{{ f.label }} 내려받기</a></li>
+            {% endfor %}
+          </ul>
+        </section>
+      {% endif %}
+      <p class="foms-share-view__expiry-note" data-share-expiry-note hidden>
+        이미지 주소가 만료되었습니다. 페이지를 새로고침해 주세요.
+      </p>
+    {% else %}
+      <p class="foms-share-view__empty">아직 등록된 도면이 없습니다. 담당자에게 문의해 주세요.</p>
+    {% endif %}

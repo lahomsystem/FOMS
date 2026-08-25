@@ -1,0 +1,81 @@
+{# 계약서(견적서) 본문 — 공유 열람 페이지 2곳(계약서 단독·도면+계약서 통합)이 함께 쓴다.
+   렌더 소스는 발급 시점 동결 스냅샷(snap)뿐이다(D6). 이 파셜은 단독 렌더돼도 터지지 않게
+   필요한 지역 변수를 자기 안에서 만든다. #}
+{% set company = snap.company_info or {} %}
+    <section class="foms-share-est__info" aria-label="계약 정보">
+      <table class="foms-share-est__tbl">
+        <tbody>
+          <tr><th>고객명</th><td>{{ snap.customer_name }}</td></tr>
+          <tr><th>연락처</th><td>{{ snap.customer_phone }}</td></tr>
+          <tr><th>시공현장</th><td>{{ snap.site_address }}</td></tr>
+          {% if snap.construction_date %}<tr><th>시공일자</th><td>{{ snap.construction_date }}</td></tr>{% endif %}
+          {% if snap.manager_name %}<tr><th>담당자</th><td>{{ snap.manager_name }}{% if snap.manager_phone %} ({{ snap.manager_phone }}){% endif %}</td></tr>{% endif %}
+        </tbody>
+      </table>
+    </section>
+
+    <section class="foms-share-est__items" aria-label="계약 내용">
+      <h2 class="foms-share-est__section-title">계약 내용</h2>
+      <div class="foms-share-est__scroll">
+        <table class="foms-share-est__tbl foms-share-est__tbl--items">
+          <thead>
+            <tr><th>품명</th><th>규격</th><th>색상</th><th>수량</th><th>금액</th></tr>
+          </thead>
+          <tbody>
+            {% for item in snap['items'] %}
+            <tr>
+              <td>{{ item.product_name }}</td>
+              <td>{{ item.spec }}</td>
+              <td>{{ item.color }}</td>
+              <td class="foms-share-est__num">{{ item.quantity }}</td>
+              <td class="foms-share-est__num">{{ '{:,}'.format(item.amount or 0) }}원</td>
+            </tr>
+            {% else %}
+            <tr><td colspan="5" class="foms-share-est__empty">등록된 제품이 없습니다</td></tr>
+            {% endfor %}
+            {% for line in snap.free_input_lines %}
+            <tr>
+              <td>{{ line.label }}</td><td></td><td></td><td></td>
+              <td class="foms-share-est__num">{{ '{:,}'.format(line.amount or 0) }}원</td>
+            </tr>
+            {% endfor %}
+          </tbody>
+        </table>
+      </div>
+    </section>
+
+    <section class="foms-share-est__sum" aria-label="결제 금액">
+      <table class="foms-share-est__tbl">
+        <tbody>
+          {% if snap.discount_amount %}<tr><th>할인</th><td class="foms-share-est__num">-{{ '{:,}'.format(snap.discount_amount) }}원</td></tr>{% endif %}
+          <tr><th>출고가</th><td class="foms-share-est__num foms-share-est__total">{{ '{:,}'.format(snap.shipping_price or 0) }}원</td></tr>
+          {% if snap.deposit_amount %}<tr><th>예약금</th><td class="foms-share-est__num">{{ '{:,}'.format(snap.deposit_amount) }}원</td></tr>{% endif %}
+          <tr><th>잔금</th><td class="foms-share-est__num foms-share-est__total">{{ '{:,}'.format(snap.balance_amount or 0) }}원</td></tr>
+        </tbody>
+      </table>
+    </section>
+
+    {% set pay = snap.payment_info or {} %}
+    <section class="foms-share-est__pay" aria-label="결제 정보">
+      <h2 class="foms-share-est__section-title">결제 정보</h2>
+      {% for acc in pay.accounts %}
+      <div class="foms-share-est__account">
+        <span class="foms-share-est__bank">{{ acc.bank }}</span>
+        <span class="foms-share-est__accnum">{{ acc.account }}</span>
+        <span class="foms-share-est__holder">예금주: {{ acc.holder }}</span>
+      </div>
+      {% endfor %}
+      {% if pay.notice %}<p class="foms-share-est__notice">{{ pay.notice }}</p>{% endif %}
+    </section>
+
+    <footer class="foms-share-est__company" aria-label="사업자 정보">
+      <p>{{ company.name }} · 대표 {{ company.ceo }} · {{ company.business_number }}</p>
+      <p>{{ company.address }}</p>
+      <p>전화 {{ company.phone }} · 고객센터 {{ company.customer_center }} · {{ company.website }}</p>
+    </footer>
+
+    <div class="foms-share-est__actions">
+      <button type="button" class="foms-share-est__print-btn" data-share-print>
+        견적서 저장·인쇄 (PDF)
+      </button>
+    </div>

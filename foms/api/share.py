@@ -188,6 +188,14 @@ def view_shared_order(token: str):
         )
         return render_template('orders/share_estimate_view.html', snap=snap)
 
+    snapshot = None
+    if row.kind == 'bundle':
+        # 계약서 쪽은 estimate 와 같은 동결 규칙 — 스냅샷 없는 링크는 존재하면 안 된다.
+        snapshot = row.snapshot
+        if not isinstance(snapshot, dict) or not snapshot:
+            logger.error('bundle 공유 스냅샷 부재: share_id=%s', row.id)
+            return _error_page(_MSG_UNAVAILABLE, 503)
+
     storage = get_storage()
     if storage.storage_type not in ('r2', 's3'):
         # fail-closed(스펙 §3.2): 로컬 경로 노출 금지 — 503 + 안내 + 로그 1건.
@@ -231,9 +239,13 @@ def view_shared_order(token: str):
         user_agent=request.headers.get('User-Agent'),
         order_id=order.id,
     )
+    # bundle 은 같은 도면 렌더 위에 동결 계약서를 얹는다(링크 하나로 둘 다 — 2026-08-25).
+    template = ('orders/share_bundle_view.html' if row.kind == 'bundle'
+                else 'orders/share_view.html')
     return render_template(
-        'orders/share_view.html',
+        template,
         share_kind=row.kind,
+        snap=snapshot,
         drawing_preview_cards=cards,
         share_extra_files=extra_files,
         share_download_files=download_files,
@@ -293,7 +305,7 @@ def api_share_create(order_id: int):
         return _envelope(None, 'order_not_found', 404)
 
     snapshot = None
-    if kind == 'estimate':
+    if kind in share_service.SNAPSHOT_KINDS:
         # D6: 발송 시점 동결 — 스냅샷 없는 견적 링크는 존재하지 않는다.
         try:
             snapshot = share_service.build_estimate_snapshot(order)
@@ -378,7 +390,7 @@ def api_share_list(order_id: int):
 #: send-sms 멱등 시간버킷(초) — 같은 버킷 내 재요청은 outbox UNIQUE 가 DB 로 차단(플랜 §1).
 _SMS_BUCKET_SECONDS = 5
 
-_SMS_KIND_LABEL = {'drawing': '도면', 'estimate': '견적서'}
+_SMS_KIND_LABEL = {'drawing': '도면', 'estimate': '견적서', 'bundle': '도면·계약서'}
 #: 문자 본문 첫 줄의 발주사 표기(알림톡 승인 템플릿 문구와 같은 표기).
 _BRAND_LABEL = {'LAHOM': '라홈', 'HAUD': '하우드'}
 

@@ -20,7 +20,13 @@ from sqlalchemy.orm import Session
 from foms.services.datetime_kst import now_utc_naive
 from models import OrderShareToken
 
-SHARE_KINDS = ('drawing', 'estimate')
+#: 공유 링크 종류. ``bundle`` 은 도면과 계약서를 한 링크에서 함께 보여준다 — 고객에게
+#: 링크 두 개를 보내지 않으려고 만든 종류다(사용자 결정 2026-08-25). 견적 동결 규칙은
+#: ``estimate`` 와 같다(스냅샷 없는 링크는 존재하지 않는다).
+SHARE_KINDS = ('drawing', 'estimate', 'bundle')
+
+#: 견적 스냅샷을 함께 굳혀야 하는 종류(발급 시점 동결 — D6).
+SNAPSHOT_KINDS = ('estimate', 'bundle')
 _DEFAULT_TOKEN_DAYS = 30
 
 #: estimate 스냅샷 직렬화 상한 — drawing_wizard 64KB 캡 선례(플랜 §1).

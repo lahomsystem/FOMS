@@ -22,7 +22,7 @@
         expired: '만료',
         revoked: '회수됨',
     };
-    var KIND_LABELS = { drawing: '도면', estimate: '견적서' };
+    var KIND_LABELS = { drawing: '도면', estimate: '견적서', bundle: '도면·계약서' };
     var ERROR_LABELS = {
         order_not_found: '주문을 찾을 수 없습니다',
         unknown_kind: '알 수 없는 공유 종류입니다',
