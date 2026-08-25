@@ -951,3 +951,82 @@ deploy 트리 = 2539be20fea7454c5399695156e32acb0674fd0f      <- 완전 일치
 전량 pytest 실패는 **트리가 CI green 인 deploy 와 바이트 동일한데 로컬만 실패**하는
 형태다. 환경 기인(로컬 DB 드리프트·Redis 부재 등) 가능성이 높지만 **추정하지 않고
 실패 목록을 직접 뽑아 판정한다**. 판정 전까지 S4 진입 금지.
+
+---
+
+## 16. S4 · S5 실행 기록 — **전량 승격 완료** (2026-08-25)
+
+### S3 최종 판정 — 통과 (실패 6건은 전부 환경 기인)
+
+전량 pytest: **6,247 passed / 6 failed**. 6건 전부 `tests/harness/` 였고 근거 셋으로 확정:
+
+1. 같은 6건이 **CI green 인 세션 트리에서도 동일하게** 실패한다.
+2. **`PYTHONIOENCODING=utf-8` 을 빼니 5건이 사라진다** → `tests/harness` **361 passed / 1 failed**.
+   실패 형태가 `TypeError: argument of type 'NoneType' is not iterable`(서브프로세스
+   `stdout` 이 `None`)로, 원장에 기록된 **가짜 red 함정** 그대로다.
+3. 남은 `test_deploy_push_allows_when_scope_empty` 는 **가드가 정상 동작한 결과**다 —
+   승격 워크트리에서 deploy 로 푸시하면 75커밋이 딸려가니 `ask` 를 낸다(워크트리 git 상태
+   의존). CI 는 깨끗한 클론이라 `allow` 이고, **Harness CI 가 같은 트리로
+   `pytest tests/harness` 를 돌려 green** 이다.
+
+> **다음 승격 지침**: `pre_push_smoke -Full` 은 `PYTHONIOENCODING` 를 **설정하지 않은**
+> 셸에서 돌려라. 설정하면 harness 5건이 가짜 red 로 뜬다.
+
+### S4 — 운영 승격 (완료)
+
+PR **#145** (`promote/full-20260825` → `production`). 체크 **perf-gate pass · pg-lane pass**.
+병합 전 운영 tip 이 기점 `57cc536d` 에서 안 움직인 것을 확인하고 머지.
+
+```
+운영 머지 커밋 : 39fa919d
+운영 트리      = 2539be20fea7454c5399695156e32acb0674fd0f
+deploy(77fc7cb4) = 2539be20fea7454c5399695156e32acb0674fd0f      <- 바이트 동일
+```
+
+**배포 중 스키마 감시**(30초 간격 12회, 읽기 전용): `alembic_version` 이
+`merge_drawq_naverfail` 로 **불변**, `as_axis_status filled` 598 **불변**.
+→ 예상대로 이번 배포는 마이그레이션을 실행하지 않았다(스키마는 이미 head).
+
+**배포 후 백필 재실행**(멱등 — 로드맵이 지시한 대로):
+
+```
+[적용] 후보 623건 / 변경 3건        (NULL→RECEIVED 2 · COMPLETED→RECEIVED 1)
+드리프트 감사: checked 619 / mismatch 0 / missing_projection 0 / legacy_only 0
+```
+
+S1~S4 사이에 실제로 AS 활동 3건이 있었다 — **재실행 지시가 값을 했다.**
+
+### S5 — 운영 확인 (완료)
+
+`claude_master` 해제 → 측정 → **재잠금**(`is_active = False` 확인). 실데이터 변경 0.
+
+**B-1 최종 판정 — 통과:**
+
+```
+신 술어(as_axis_status IS NOT NULL) 600  ==  구 술어(status IN AS 계열) 600
+AS 대시보드 실렌더 행(data-order-id)      570      <- 비어 있지 않다
+```
+
+| 화면 | 결과 |
+|---|---|
+| 홈 · 주문 목록 | 200 · 736ms |
+| ERP 대시보드 | 200 · 978ms |
+| **AS 대시보드** | 200 · 730ms · **570행 렌더** |
+| 실측 · 출고 · 시공 대시보드 | 200 |
+| **AS 미완료 지도** | 200 · 마커 렌더됨(빈 화면 아님) |
+| 주문 상세 #4968 | 200 |
+
+전 화면에서 `does not exist` · `UndefinedColumn` · `Traceback` **0건**.
+
+> **정직하게**: AS 미완료 지도는 마커를 비동기로 싣기 때문에 HTML 만으로 **건수 일치까지는
+> 확인하지 못했다**. 확인한 것은 "비어 있지 않다"이며, B-1 의 실패 모드(통째로 빔)는 배제됐다.
+
+### 남은 것
+
+- **운영 네이버 환경변수 미투입** — `NAVER_COMMERCE_CLIENT_ID`/`SECRET`·
+  `FOMS_NAVER_SYNC_ENABLED`·`FOMS_NAVER_WORKBENCH_ENABLED` 없음.
+  네이버로 나가는 호출 0, 실주문 자동 생성 0. **켜는 것은 열쇠가 필요한 별건이다.**
+- `docs/AI_STATUS.md`·`docs/AI_CHANGELOG.md` 미갱신(병렬 세션 충돌 회피). 기록은 이 문서와
+  `2026-08-24-naver-d1-repay-revision-ledger.md` 가 갖고 있다.
+  ⚠️ AI_STATUS 는 head40 여유가 **78자뿐** — 새 줄을 넣으려면 기존 한 줄을 `## 기록 보관`
+  으로 강등해야 한다.
