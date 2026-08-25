@@ -231,3 +231,39 @@ def test_erp_search_placeholders_use_whole_search_label():
     for path in template_paths:
         text = Path(path).read_text(encoding="utf-8")
         assert 'placeholder="전체 검색..."' in text, path
+
+
+def test_order_extra_text_fields_includes_buyer() -> None:
+    """ORDERER-AXIS-01: 분류기 필드 폭에 주문한 사람(parties.buyer)이 들어간다.
+
+    SQL 후보(erp_order_dashboard_search_predicate)와 폭이 어긋나면 SD 에만 값이 있는
+    수집 주문이 조용히 탈락한다.
+    """
+    from types import SimpleNamespace
+
+    from foms.services.foms_unified_search import _order_extra_text_fields
+
+    order = SimpleNamespace(structured_data={
+        "parties": {"orderer": {"name": "라홈"},
+                    "buyer": {"name": "김주문", "phone": "010-6279-1403"}},
+    })
+    values = _order_extra_text_fields(order)
+    assert "김주문" in values
+    assert "010-6279-1403" in values
+
+
+def test_order_display_name_prefers_buyer_over_orderer() -> None:
+    """ORDERER-AXIS-01: 로그 카드 주문명은 발주사(라홈)보다 주문한 사람이 앞선다.
+
+    parties.orderer 는 발주처 이름이라, 고객명이 비면 카드 제목이 전부 '라홈'이 된다.
+    """
+    from types import SimpleNamespace
+
+    from foms.api.events import get_order_display_name
+
+    order = SimpleNamespace(
+        customer_name="",
+        structured_data={"parties": {"orderer": {"name": "라홈"},
+                                     "buyer": {"name": "김주문"}}},
+    )
+    assert get_order_display_name(order) == "김주문"

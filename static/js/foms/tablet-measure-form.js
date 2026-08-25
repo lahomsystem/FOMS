@@ -1134,6 +1134,10 @@
     return (
       '<section class="foms-tmf__section">' +
       '<h5 class="foms-tmf__title">변환 텍스트 · 채널톡</h5>' +
+      // 발송 흔적 칩(erp-alimtalk-trace.js 소유). 좁은 폭이라 축약형이고, 이 표면엔 이력
+      // 패널 마크업이 없어 칩은 표시 전용으로 그려진다.
+      '<div class="erp-alimtalk-trace-slot" data-erp-alimtalk-trace="compact" ' +
+      'data-erp-alimtalk-trace-order="' + escapeHtml(String((state && state.orderId) || "")) + '"></div>' +
       '<div class="foms-tmf__convo-actions">' +
       '<button type="button" class="foms-btn foms-btn--secondary foms-btn--sm" data-tmf-gen-text>' +
       '<i class="fas fa-wand-magic-sparkles" aria-hidden="true"></i><span>변환 텍스트 생성</span></button>' +
@@ -1242,6 +1246,8 @@
       renderOrderTab(inj);
     }
     syncTabButtons();
+    // 탭 재렌더는 칩 자리를 새로 만든다(innerHTML) — 칩 모듈에 다시 그리라고 알린다.
+    if (typeof window.erpAlimtalkTraceRender === "function") window.erpAlimtalkTraceRender();
   }
 
   function refreshItemBody() {
@@ -1556,6 +1562,21 @@
           setStatus(isDraft ? "임시 저장됨" : "저장됨", "saved");
           showAutosaveBadge((isDraft || !explicit ? "자동저장됨" : "저장됨") + " · 방금");
           refreshBaseline(orderId);
+          // ORDER-REASON-00: 금액·일정이 바뀐 저장이면 서버가 표시해서 보낸다. 태블릿은
+          // 현장에서 한 손으로 쓰는 화면이라 모달이 아니라 배너(1탭)로 받는다. 임시/자동
+          // 저장은 아직 값을 만지는 중이므로 묻지 않는다(explicit 저장만).
+          if (explicit && !isDraft
+              && result.data.change_reason_required === true && result.data.change_set) {
+            var reasonDetail = {
+              orderId: orderId, changeSet: result.data.change_set, mode: "inline",
+            };
+            if (window.FomsChangeReason && typeof window.FomsChangeReason.prompt === "function") {
+              window.FomsChangeReason.prompt(reasonDetail);
+            } else {
+              document.dispatchEvent(new CustomEvent("foms:change-reason-required",
+                                                     { detail: reasonDetail }));
+            }
+          }
         } else {
           var msg = (result.data && result.data.message) || "저장 실패";
           setStatus(msg, "error");
@@ -1967,6 +1988,26 @@
     return ALIMTALK_REASONS[code] || String(code || "알 수 없는 오류");
   }
 
+  // 발송 흔적 칩(erp-alimtalk-trace.js)도 실패 사유를 사람 문구로 그린다. 이 표면엔
+  // erp-alimtalk-send.js 가 없으므로 여기 맵을 같은 이름으로 내준다(문구 갈림 방지).
+  if (typeof window.erpAlimtalkReasonLabel !== "function") {
+    window.erpAlimtalkReasonLabel = alimtalkReason;
+  }
+
+  /**
+   * 마지막 발송 이력을 발송 흔적 칩에 전달한다(erp-alimtalk-trace.js 가 듣는다).
+   *
+   * 칩 모듈은 PC 화면의 전역 구조화 데이터를 읽는데 태블릿엔 그 전역이 없다. 그래서 이력만
+   * 이벤트로 실어 보낸다 — 칩 마크업·문구·상태 판정은 한 곳(칩 모듈)에만 둔다.
+   *
+   * @param {Object|null} record `alimtalk_measurement` 이력.
+   */
+  function publishAlimtalkTrace(record) {
+    document.dispatchEvent(
+      new CustomEvent("foms:alimtalk-trace-update", { detail: { record: record || null } })
+    );
+  }
+
   function sendAlimtalk(orderId) {
     setStatus("알림톡 발송 중…", "saving");
     // CSRF 헤더는 layout_head 전역 fetch 래퍼가 붙인다(라우트별 ad hoc 주입 금지).
@@ -1979,6 +2020,11 @@
       })
       .then(function (body) {
         if (!state || state.orderId !== orderId) return;
+        var last = body && body.data ? body.data.last : null;
+        if (last) {
+          state.structured.alimtalk_measurement = last;
+          publishAlimtalkTrace(last);
+        }
         if (body && body.success && body.data && body.data.sent) {
           setStatus("알림톡 발송 완료", "saved");
           return;
@@ -1995,7 +2041,37 @@
 
   // 미리보기(서버 렌더) 확인 후 발송. 태블릿에는 미리보기 modal 마크업이 없으므로
   // window.confirm 으로 본문을 보여준다(PC/모바일은 erp_alimtalk_modal.html 사용).
+  /**
+   * 미저장 편집이 남아 있으면 **먼저 저장**한다 — PC `erpAlimtalkEnsureSaved` 미러.
+   *
+   * 알림톡 본문·공유 문서는 서버가 **저장본**으로 조립한다. 저장 없이 보내면 화면에
+   * 보이는 값과 다른 내용이 고객에게 나간다. 이 화면은 디바운스 자동저장을 쓰지만
+   * 마지막 입력 직후에는 아직 저장 전인 창이 남는다.
+   *
+   * @returns {Promise<boolean>} 발송 흐름을 계속해도 되는지(저장 실패면 false).
+   */
+  function ensureSavedForSend() {
+    if (!state || !state.dirty || !isEditable()) return Promise.resolve(true);
+    if (state.saving) {
+      // 진행 중인 저장을 가로채면 어느 쪽이 이겼는지 말할 수 없다 — 되묻는다.
+      setStatus("저장 중입니다. 잠시 후 다시 시도해주세요.", "error");
+      return Promise.resolve(false);
+    }
+    return saveNow({ explicit: true }).then(function (ok) {
+      if (!ok) setStatus("저장 실패 — 저장 후 다시 시도해주세요.", "error");
+      return !!ok;
+    });
+  }
+
   function requestAlimtalk() {
+    if (!state) return;
+    ensureSavedForSend().then(function (ok) {
+      if (ok) _requestAlimtalkSaved();
+    });
+  }
+
+  /** 저장이 끝난 뒤의 알림톡 미리보기·확인 흐름. */
+  function _requestAlimtalkSaved() {
     if (!state) return;
     var orderId = state.orderId;
     setStatus("알림톡 미리보기 불러오는 중…", "saving");
@@ -2099,10 +2175,19 @@
 
   function requestShare() {
     if (!state) return;
-    var orderId = state.orderId;
     if (!window.confirm("고객이 로그인 없이 볼 수 있는 도면 열람 링크를 발급할까요?\n(링크는 30일간 유효합니다)")) {
       return;
     }
+    // 공유 링크도 열람 시점의 **저장본**을 보여준다 — 알림톡과 같은 가드를 탄다.
+    ensureSavedForSend().then(function (ok) {
+      if (ok) _requestShareSaved();
+    });
+  }
+
+  /** 저장이 끝난 뒤의 공유 링크 발급 흐름. */
+  function _requestShareSaved() {
+    if (!state) return;
+    var orderId = state.orderId;
     setStatus("공유 링크 발급 중…", "saving");
     fetch("/api/share/create/" + orderId, {
       method: "POST",
@@ -2226,6 +2311,7 @@
         };
         renderTopbarId();
         renderActiveTab();
+        publishAlimtalkTrace(sd.alimtalk_measurement || null);
       })
       .catch(function () {
         if (inj) inj.innerHTML = '<div class="foms-tmf__loading">주문 원장을 불러오지 못했습니다.</div>';

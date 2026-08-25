@@ -47,6 +47,7 @@ def test_shared_upload_runtime_exposes_mobile_safe_helpers() -> None:
         "window.fomsRunLimitedQueue",
         "window.fomsRequestUploadSessions",
         "window.fomsUploadOrderAttachmentsBatch",
+        "window.fomsEnsureAsUploadAnchor",
         "image/jpeg",
         "image/png",
         "image/webp",

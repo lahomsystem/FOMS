@@ -653,6 +653,8 @@ def test_namespaced_jobs_queue_shim_preserves_canonical_contract() -> None:
         "enqueue_thumbnail_generation",
         "enqueue_geocode_order_address",
         "enqueue_channeltalk_inbound",
+        # NAVER-INGEST-01 §3.1: web 은 enqueue 만 한다(네이버 HTTP 는 WORKER 단일 출구).
+        "enqueue_naver_order_sync",
     ]
 
     assert namespaced_jobs_queue.__all__ == expected_public_names
@@ -668,6 +670,8 @@ def test_namespaced_jobs_tasks_shim_preserves_canonical_contract() -> None:
         "process_channeltalk_inbound",
         "send_push_for_notification_task",
         "run_notification_escalation_task",
+        # NAVER-INGEST-01 §3.1: 수집 실행은 WORKER 의 rq job 이다(web 직접 호출 금지).
+        "run_naver_order_sync_task",
     ]
 
     assert namespaced_jobs_tasks.__all__ == expected_public_names
@@ -2290,6 +2294,9 @@ _SLG_FOMS_SERVICES_TOP_LEVEL_ALLOWED = frozenset(
         "cs",
         "drawing",
         "files",
+        # NAVER-INGEST-01 §3.2: 외부 판매채널 API 클라이언트 경계(네이버 커머스API 등).
+        # 도메인 규칙이 아니라 인증·전송·재시도만 담는 자리라 orders/ 와 분리한다.
+        "integrations",
         "jobs",
         "measurement",
         "notifications",

@@ -2,6 +2,7 @@
 
 Revision ID: notifrole_00
 Revises: assort_00
+  운영 실제 계보 정합 — 2026-08-24 SPEC 4장(승격 체인 재직렬화).
 Create Date: 2026-08-20
 
 관리자 전원에게 가는 알림은 지금까지 **수신자 수만큼 별개 Notification row** 로
@@ -17,14 +18,6 @@ NULL 은 "역할 대상이 아님"(기존 ORDER/ALL/TEAM/USER 경로 전부) —
 부트스트랩 DB 와 마이그레이션 계보가 갈라지지 않는다(MIGCHAIN-01 왕복 게이트).
 
 마이그레이션 상수 동결 원칙에 따라 ``models`` 를 import 하지 않는다(리터럴 고정).
-
-**부모는 브랜치별로 다르다** — deploy 는 ``naver_relation_00``, 운영(production)은
-``assort_00``. 네이버 수집 체인이 운영에 아직 없어서 그 부모를 따라가면 운영
-``alembic upgrade head`` 가 ``KeyError`` 로 죽는다. 이 저장소는 승격 때 실행 순서
-기준으로 체인을 재배열해 왔고(``assort_00`` 자신도 deploy=``asaxis_00`` /
-운영=``asfresh_00``), 이 컬럼은 네이버와 무관해 재배열이 안전하다. 네이버 체인이
-운영으로 승격되면 ``notifrole_00`` 과 ``naver_relation_00`` 이 둘 다 ``assort_00``
-자식이 되므로 그때 merge revision 1건이 필요하다.
 """
 from typing import Sequence, Union
 

@@ -13,6 +13,13 @@
         "-y",
         "@upstash/context7-mcp@latest"
       ]
+    },
+    "solapi": {
+      "command": "npx",
+      "args": [
+        "-y",
+        "@solapi/mcp-server@1.10.7"
+      ]
     }
   }
 }

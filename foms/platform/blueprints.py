@@ -77,7 +77,7 @@ def register_blueprints(app: Flask) -> BlueprintBindings:
     from foms.api.personal_board import personal_board_bp
     from foms.web.admin import excel_bp, storage_dashboard_bp
     from foms.api.wdcalculator import wdcalculator_bp
-    from foms.web.admin import admin_bp
+    from foms.web.admin import admin_bp, ops_ingest_bp
     from foms.api.attachments import attachments_bp
     from foms.api.tasks import tasks_bp
     from foms.api.events import events_bp
@@ -142,6 +142,7 @@ def register_blueprints(app: Flask) -> BlueprintBindings:
     app.register_blueprint(chat_bp)
     app.register_blueprint(wdcalculator_bp)
     app.register_blueprint(admin_bp)
+    app.register_blueprint(ops_ingest_bp)
     app.register_blueprint(dashboards_bp)
     # Auxiliary APIs: attachments / tasks / events / quest / structured order payloads
     app.register_blueprint(attachments_bp)

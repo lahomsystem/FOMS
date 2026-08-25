@@ -507,4 +507,21 @@
   window.fomsPrepareUploadFiles = fomsPrepareUploadFiles;
   window.fomsRequestUploadSessions = fomsRequestUploadSessions;
   window.fomsUploadOrderAttachmentsBatch = fomsUploadOrderAttachmentsBatch;
+
+  async function fomsEnsureAsUploadAnchor(orderId) {
+    var response = await fetch('/api/orders/' + orderId + '/as/upload-anchor', {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/json' },
+      credentials: 'same-origin',
+      body: '{}'
+    });
+    var data = await response.json();
+    if (!data || !data.success || !data.as_log_id) {
+      throw new Error((data && (data.message || data.error)) || 'AS 첨부 위치를 만들지 못했습니다.');
+    }
+    var nextSort = Number(data.next_sort_order);
+    if (!Number.isFinite(nextSort) || nextSort < 0) nextSort = 0;
+    return { asLogId: data.as_log_id, nextSort: nextSort };
+  }
+  window.fomsEnsureAsUploadAnchor = fomsEnsureAsUploadAnchor;
 })();

@@ -32,6 +32,7 @@ from foms.services.orders.dashboard_read_model import (
     build_orders_dashboard_queries,
     compute_orders_summary_slice,
     compute_orders_attachment_assignee_maps,
+    compute_unassigned_intake_order_ids,
 )
 from foms.services.feature_flags import (
     env_bool,
@@ -357,7 +358,11 @@ def erp_dashboard():
 
     # Full enrichment: 50건만 (quest_payload, assignee_names, can_modify_domain 등 표시 필드)
     # Batch 2: 표시용 row DTO 조립은 build_orders_row_dtos(dashboard_dto)로 분리(동작 보존, 캐시 아님).
-    enriched = build_orders_row_dtos(page_orders, page_sds, att_counts, user_map, current_user)
+    # '담당 미지정' 뱃지: 보류함 owner 는 배정 즉시 풀려야 하므로 캐시 blob 밖에서 계산한다.
+    # 수집 주문이 없는 페이지에서는 쿼리를 내지 않는다(평상시 추가 비용 0).
+    _unassigned_intake_ids = compute_unassigned_intake_order_ids(db, page_orders, page_sds)
+    enriched = build_orders_row_dtos(page_orders, page_sds, att_counts, user_map, current_user,
+                                     unassigned_intake_ids=_unassigned_intake_ids)
 
     paginated_orders = enriched
 

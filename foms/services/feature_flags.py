@@ -16,6 +16,7 @@ __all__ = [
     "is_cohort_all",
     "is_enabled_for_user",
     "is_mobile_v2_shell",
+    "is_naver_workbench_enabled",
     "is_shell_v3_eligible",
     "prefers_mobile_wizard_client",
     "resolve_shell_variant",
@@ -301,6 +302,28 @@ def is_shell_v3_eligible(user_id: int | None) -> bool:
     """
     return is_enabled_for_user(
         "FOMS_SHELL_V3_ENABLED", user_id, cohort_key="FOMS_SHELL_V3_COHORT"
+    )
+
+
+def is_naver_workbench_enabled(user_id: int | None) -> bool:
+    """네이버 수집 워크벤치(UI 개편 본체) 자격 판정 — 2단계 게이트.
+
+    기본 off 다. 꺼져 있으면 기존 트리아지 화면이 그대로 뜬다.
+
+    게이트를 두는 이유는 롤백만이 아니다. 네이버 계약 테스트 79건 중 22건이 정확
+    마크업을 물고 있어, 개편을 그 위에 바로 얹으면 그것들이 전부 빨개진다 — 그러면
+    개편 도중 들어오는 **다른** 회귀를 감지하지 못한다. off 경로를 green 으로 남긴다.
+
+    쿠키 토글은 두지 않는다(관리자 화면이라 코호트만으로 충분하고, 표면을 늘리지 않는다).
+
+    Args:
+        user_id: 현재 사용자 id(미인증 시 None).
+
+    Returns:
+        워크벤치를 보여줄 자격이 있으면 True.
+    """
+    return is_enabled_for_user(
+        "FOMS_NAVER_WORKBENCH_ENABLED", user_id, cohort_key="FOMS_NAVER_WORKBENCH_COHORT"
     )
 
 

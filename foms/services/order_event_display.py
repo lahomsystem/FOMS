@@ -179,6 +179,11 @@ def translate_event_type_to_korean(event_type: str | None) -> str:
         "ATTACHMENT_RESTORED": "첨부파일 복구",
         "URGENT_CHANGED": "긴급 여부 변경",
         "PAYMENT_CHANGED": "금액 변경",
+        # 네이버 수집분 붙이기·되돌리기 (스펙 2026-08-24 R3 = 08-19 §7 Q3 안 B).
+        # 여기서 빼면 화면에 영문 코드가 아니라 아래 기본값 "기타 변경"이 뜬다 — 조용히
+        # 다른 미등재 이벤트와 섞여 구분이 안 되므로 타입 추가 시 반드시 함께 등재한다.
+        "NAVER_ORDER_ATTACHED": "네이버 수집분 연결",
+        "NAVER_ORDER_DETACHED": "네이버 수집분 연결 해제",
         "manager_changed": "담당자 변경",
         "order_updated": "주문 수정",
     }
@@ -292,6 +297,36 @@ def translate_value_to_korean(target: str, value: Any) -> str:
     return str(value)
 
 
+def _describe_naver_link_change(event_type: str, payload: dict[str, Any]) -> str:
+    """네이버 수집분 연결·해제를 "무엇이 얼마" 문장으로 만든다 (스펙 2026-08-24 R3).
+
+    08-19 §3.3 이 약속한 문장이다. 없으면 변경 로그 행이 기본값 "변경 이력"으로 떨어져
+    무엇이 붙었는지 사람이 알 수 없다.
+
+    Args:
+        event_type: ``NAVER_ORDER_ATTACHED`` 또는 ``NAVER_ORDER_DETACHED``.
+        payload: 이벤트 payload(``relation``·``external_order_no``·
+            ``product_order_count``·``amount_total``).
+
+    Returns:
+        사람이 읽는 한 문장.
+    """
+    relation = str(payload.get("relation") or "").strip()
+    relation_kr = {"ADDON": "추가결제", "REPAY": "재결제"}.get(relation, "수집분")
+    order_no = str(payload.get("external_order_no") or "").strip()
+    try:
+        count = int(payload.get("product_order_count") or 0)
+        amount = int(payload.get("amount_total") or 0)
+    except (TypeError, ValueError):
+        count, amount = 0, 0
+    head = f"네이버 {relation_kr}"
+    if order_no:
+        head = f"{head} 주문 {order_no}"
+    tail = ("을 이 주문에 연결했습니다" if event_type == "NAVER_ORDER_ATTACHED"
+            else "의 연결을 해제했습니다")
+    return f"{head} {count}건 · {amount:,}원{tail}"
+
+
 def generate_change_description(
     event_type: str,
     target_kr: str,
@@ -374,6 +409,9 @@ def generate_change_description(
         return "출고 일정을 등록했습니다"
     if event_type == "SHIPMENT_COMPLETED":
         return "출고를 완료했습니다"
+
+    if event_type in ("NAVER_ORDER_ATTACHED", "NAVER_ORDER_DETACHED"):
+        return _describe_naver_link_change(event_type, payload)
 
     if event_type == "CHANGE_REVERTED":
         return f"이전 변경사항을 되돌렸습니다 ({translate_target_to_korean(payload.get('target', ''))})"

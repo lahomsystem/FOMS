@@ -80,6 +80,18 @@
                         <li><a class="dropdown-item" href="{{ url_for('admin.file_access_logs') }}"><i
                                     class="fas fa-file-signature"></i>
                                 파일 열람 기록</a></li>
+                        {# 네이버 수집(NAVER-INGEST-01) 진입구는 **하나**다 — 이름 4개·진입구 4개가
+                           "왔다 갔다 헷갈린다"의 원인이었다(v3 계약 §6). 옛 수집 운영 화면은
+                           게이트 ON 이면 이 화면으로 리다이렉트되고, 게이트 OFF 면 이 화면 안의
+                           '수집 상태 화면으로'(ADMIN 전용) 버튼으로 간다.
+                           확인 대기 뱃지는 30초 캐시 카운트라 nav 렌더 비용이 요청마다 늘지 않는다. #}
+                        <li><a class="dropdown-item d-flex align-items-center justify-content-between"
+                               href="{{ url_for('admin.naver_ingest_triage') }}">
+                                <span><i class="fas fa-clipboard-check"></i> 네이버 수집</span>
+                                {% if naver_triage_pending %}
+                                <span class="badge bg-danger ms-2">{{ naver_triage_pending }}</span>
+                                {% endif %}
+                            </a></li>
                         {% if not impersonating_from_id and admin_switch_users %}
                         <li>
                             <h6 class="dropdown-header">다른 사용자로 전환</h6>
@@ -156,7 +168,10 @@
                 <ul class="navbar-nav">
                     {% for item in menu.main_menu %}
                     <li class="nav-item">
-                        <a class="nav-link" href="{{ item.url }}">{{ item.name }}</a>
+                        {# '네이버 수집' 탭(T14-A)만 확인 대기 뱃지를 단다 — 카운트는
+                           naver_triage_pending 30초 전역 캐시라 nav 렌더 비용 불변. #}
+                        <a class="nav-link" href="{{ item.url }}">{{ item.name }}{% if item.id == 'naver_orders' and naver_triage_pending %}
+                            <span class="badge rounded-pill bg-danger">{{ naver_triage_pending }}</span>{% endif %}</a>
                     </li>
                     {% endfor %}
                     {% if current_user.role == 'ADMIN' %}

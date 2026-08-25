@@ -154,6 +154,20 @@
         return sendable;
     }
 
+    /**
+     * 방금 기록된 발송 이력을 발송 흔적 칩(erp-alimtalk-trace.js)에 전달한다.
+     *
+     * 칩은 sd 만 읽어 그리므로 발송 직후에는 화면의 사본이 낡아 있다. 서버 응답에 실려 온
+     * 이력을 그대로 넘겨 추가 조회 없이 갱신한다. 칩 모듈이 없는 표면에서는 무해하다.
+     *
+     * @param {Object|null} record send-manual 응답의 ``last``.
+     */
+    function _publishTrace(record) {
+        document.dispatchEvent(new CustomEvent('foms:alimtalk-trace-update', {
+            detail: { record: record || null },
+        }));
+    }
+
     /** POST send-manual — CSRF 헤더는 layout_head 전역 fetch 래퍼가 붙인다. */
     function _send(orderId) {
         const confirmBtn = document.getElementById('erp-alimtalk-confirm-btn');
@@ -169,6 +183,10 @@
             })
             .then(function (body) {
                 const sent = !!(body && body.success && body.data && body.data.sent);
+                // 성공·실패 모두 방금 기록된 이력을 칩에 흘려보낸다(추가 조회 없음, T15).
+                // 이력이 없는 응답(서버 미설정 등)에서는 게시하지 않는다 — 게시는 '이게
+                // 최신 이력이다'라는 선언이라, 빈 값을 보내면 멀쩡한 칩이 지워진다.
+                if (body && body.data && body.data.last) _publishTrace(body.data.last);
                 if (sent) {
                     erpAlimtalkSetStatus('알림톡 발송 완료');
                     const modal = _modal();

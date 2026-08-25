@@ -905,6 +905,11 @@
                             <div class="erp-detail-text">
                               <div class="mb-3"><strong class="erp-detail-label">고객명:</strong> <span class="erp-detail-value">{{ r.customer_name or '-' }}</span></div>
                               <div class="mb-3"><strong class="erp-detail-label">발주사:</strong> <span class="erp-detail-value">{{ rsd_orderer.get('name') or r.orderer_name or '-' }}</span></div>
+                              {# ORDERER-AXIS-01: 주문한 사람. 수집 주문 등 값이 있을 때만 낸다. #}
+                              {%- set rsd_buyer = rsd.get('parties', {}).get('buyer', {}) %}
+                              {%- if rsd_buyer.get('name') or rsd_buyer.get('phone') %}
+                              <div class="mb-3"><strong class="erp-detail-label">주문자:</strong> <span class="erp-detail-value">{{ rsd_buyer.get('name') or '-' }}{% if rsd_buyer.get('phone') %} ({{ rsd_buyer.get('phone') }}){% endif %}</span></div>
+                              {%- endif %}
                               <div class="mb-3"><strong class="erp-detail-label">연락처:</strong> <span class="erp-detail-value">{{ r.phone or '-' }}</span></div>
                               <div class="mb-3"><strong class="erp-detail-label">주소:</strong> <span class="erp-detail-value">{{ r.address or '-' }}</span></div>
                               <div class="mb-3"><strong class="erp-detail-label">담당자:</strong> <span class="erp-detail-value">{{ r.manager_name or '-' }}</span></div>

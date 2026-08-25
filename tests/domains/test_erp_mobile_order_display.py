@@ -321,3 +321,35 @@ def test_mobile_detail_sticky_cta_is_single_row_and_reserves_space() -> None:
     assert "display: grid;" not in sticky
     assert "--foms-detail-cta-h" in css
     assert "var(--foms-detail-cta-h, 78px)" in css
+
+
+def test_mobile_queue_row_separates_orderer_and_buyer() -> None:
+    """ORDERER-AXIS-01: 발주사(orderer)와 주문한 사람(buyer)이 각자 자리로 나온다."""
+    order = SimpleNamespace(
+        id=1, structured_data={
+            "parties": {"orderer": {"name": "라홈"},
+                        "buyer": {"name": "김주문", "phone": "010-6279-1403"}},
+        },
+        customer_name="이수취", phone="010-3333-4444", address="서울 강남구 1",
+        status="RECEIVED", received_date="2026-08-20", manager_name="담당",
+        is_erp_order=True, deleted_at=None,
+    )
+    with patch.object(display, "_erp_has_media", return_value=False), \
+         patch.object(display, "_attachment_count", return_value=0):
+        row = display.build_mobile_queue_order_row(MagicMock(), order)
+
+    assert row["orderer_name"] == "라홈"
+    assert row["buyer_name"] == "김주문"
+    assert row["buyer_phone"] == "010-6279-1403"
+
+
+def test_detail_templates_render_buyer_row_only_when_present() -> None:
+    """주문자 행은 값이 있을 때만 나온다 — 기존 주문 상세는 그대로다."""
+    root = Path(__file__).resolve().parents[2]
+    for rel, guard in (
+        ("templates/drawing/partials/workbench_detail_body.html", "sd_buyer"),
+        ("templates/measurement/partials/dashboard_main.html", "rsd_buyer"),
+    ):
+        source = (root / rel).read_text(encoding="utf-8")
+        assert "주문자:" in source, rel
+        assert f"{{%- if {guard}.get('name') or {guard}.get('phone') %}}" in source, rel

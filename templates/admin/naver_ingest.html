@@ -1,0 +1,372 @@
+{% extends "admin/layout.html" %}
+
+{% block title %}네이버 주문 수집{% endblock %}
+
+{% block content %}
+<div class="container-fluid">
+    <div class="d-flex justify-content-between align-items-center mb-4">
+        <h1 class="h3 mb-0"><i class="fas fa-store text-success"></i> 네이버 주문 수집</h1>
+        <div class="d-flex gap-2">
+            <a href="{{ url_for('admin.naver_ingest_triage') }}" class="btn btn-outline-primary">
+                <i class="fas fa-clipboard-check"></i> 수집 확인
+                {% if naver_triage_pending %}<span class="badge bg-danger ms-1">{{ naver_triage_pending }}</span>{% endif %}
+            </a>
+            <button type="button" id="naver-run-now" class="btn btn-success">
+                <i class="fas fa-rotate"></i> 지금 수집
+            </button>
+        </div>
+    </div>
+
+    {# 전역 스크립트가 .alert 을 5초 뒤 제거한다. 실행 결과(특히 실패 사유)가 그렇게
+       증발하면 사람이 무엇이 왜 실패했는지 못 읽는다 — 이 칸은 자동닫힘에서 뺀다. #}
+    <div id="naver-run-result" class="alert d-none" role="status" data-foms-no-autodismiss></div>
+
+    {# 수집이 지금 잘 돌고 있는지 — 이 화면의 첫 질문 #}
+    <div class="row g-3 mb-4">
+        <div class="col-md-4">
+            <div class="card shadow-sm h-100">
+                <div class="card-body">
+                    <div class="text-muted small">마지막 성공 구간 끝(워터마크)</div>
+                    <div class="fs-6 fw-semibold">{{ watermark.last_success_to or '아직 없음' }}</div>
+                    <div class="text-muted small mt-2">마지막 실행</div>
+                    <div>{{ watermark.last_run_at or '아직 없음' }}</div>
+                </div>
+            </div>
+        </div>
+        <div class="col-md-4">
+            <div class="card shadow-sm h-100">
+                <div class="card-body">
+                    <div class="text-muted small">마지막 실행 결과</div>
+                    {% if watermark.last_error %}
+                    <div class="text-danger fw-semibold">실패</div>
+                    <div class="small text-danger">{{ watermark.last_error }}</div>
+                    <div class="small text-muted mt-1">워터마크는 전진하지 않았습니다 — 다음 실행이 같은 구간을 다시 수집합니다.</div>
+                    {% else %}
+                    <div class="text-success fw-semibold">정상</div>
+                    <div class="small text-muted">
+                        수집 {{ watermark.last_summary.get('collected', 0) }} ·
+                        건너뜀 {{ watermark.last_summary.get('skipped', 0) }} ·
+                        보류 {{ watermark.last_summary.get('pending_review', 0) }}
+                        <div class="mt-1">수집은 주문을 만들지 않습니다 — 목록에서 "주문 만들기"를 눌러야 생성됩니다.</div>
+                    </div>
+                    {% endif %}
+                </div>
+            </div>
+        </div>
+        <div class="col-md-4">
+            {# 만료되면 앱이 자동 휴면돼 수집이 조용히 멈춘다 — 화면에 상시 노출한다 #}
+            <div class="card shadow-sm h-100">
+                <div class="card-body">
+                    <div class="text-muted small">커머스API 인증 만료일</div>
+                    {% if expiry.expires_on %}
+                    <div class="fs-6 fw-semibold">{{ expiry.expires_on }}</div>
+                    {% if expiry.days_left is not none and expiry.days_left <= 7 %}
+                    <div class="badge bg-danger mt-1">D-{{ expiry.days_left if expiry.days_left > 0 else 0 }} — 갱신 필요</div>
+                    <div class="small text-danger mt-1">만료되면 앱이 자동 휴면되어 수집이 전면 중단됩니다.</div>
+                    {% else %}
+                    <div class="small text-muted">{{ expiry.days_left }}일 남음</div>
+                    {% endif %}
+                    {% else %}
+                    <div class="text-warning fw-semibold">미등록</div>
+                    <div class="small text-muted">만료일을 모르면 만료 경고를 보낼 수 없습니다.</div>
+                    {% endif %}
+                </div>
+            </div>
+        </div>
+    </div>
+
+    {# 사람 손이 필요한 건 — 이 화면의 두 번째 질문.
+       숫자는 전부 **묶음(집)** 단위다(_status_group_counts). 상품주문 행으로 세면
+       "전체 36 · 수집됨 102" 처럼 부분이 전체보다 커 보인다. #}
+    <div class="mb-3">
+        <a href="{{ url_for('admin.naver_ingest_dashboard', place='PENDING' if place_pending else None) }}"
+           class="btn btn-sm {{ 'btn-dark' if not status else 'btn-outline-dark' }}">전체 {{ total ~ '집' if not status else '' }}</a>
+        <a href="{{ url_for('admin.naver_ingest_dashboard', status='COLLECTED', place='PENDING' if place_pending else None) }}"
+           class="btn btn-sm {{ 'btn-primary' if status == 'COLLECTED' else 'btn-outline-primary' }}">수집됨(주문 전) {{ counts.COLLECTED }}집</a>
+        <a href="{{ url_for('admin.naver_ingest_dashboard', status='LINKED', place='PENDING' if place_pending else None) }}"
+           class="btn btn-sm {{ 'btn-success' if status == 'LINKED' else 'btn-outline-success' }}">주문 생성됨 {{ counts.LINKED }}집</a>
+        <a href="{{ url_for('admin.naver_ingest_dashboard', status='PENDING_REVIEW', place='PENDING' if place_pending else None) }}"
+           class="btn btn-sm {{ 'btn-warning' if status == 'PENDING_REVIEW' else 'btn-outline-warning' }}">확인 필요 {{ counts.PENDING_REVIEW }}집</a>
+        <a href="{{ url_for('admin.naver_ingest_dashboard', status='FAILED', place='PENDING' if place_pending else None) }}"
+           class="btn btn-sm {{ 'btn-danger' if status == 'FAILED' else 'btn-outline-danger' }}">실패 {{ counts.FAILED }}집</a>
+        {# 발주확인은 수집 상태와 다른 축이라 따로 둔다(겹쳐 걸 수 있다) — T16-B. #}
+        <a href="{{ url_for('admin.naver_ingest_dashboard', status=status or None, place='PENDING' if not place_pending else None) }}"
+           class="btn btn-sm ms-2 {{ 'btn-warning' if place_pending else 'btn-outline-warning' }}"
+           title="네이버 판매자센터에서 발주확인이 아직인 집만 봅니다">발주확인 전 {{ place_pending_count }}집</a>
+    </div>
+
+    <div class="card shadow-sm">
+        <div class="table-responsive">
+            <table class="table table-sm table-hover align-middle mb-0">
+                <thead class="table-light">
+                    <tr>
+                        <th style="width: 2rem;"></th>
+                        <th>수집 시각</th>
+                        <th>주문번호</th>
+                        <th>상태</th>
+                        <th>고객</th>
+                        <th>제품</th>
+                        <th class="text-end">수량</th>
+                        <th class="text-end">금액</th>
+                        <th>결제</th>
+                        <th class="text-end">할인</th>
+                        <th>FOMS 주문</th>
+                        <th>사유</th>
+                    </tr>
+                </thead>
+                {# T14-H: 한 집 = 한 줄. 상품주문별 상세는 접어 두고 눌러서 편다.
+                   페이지는 묶음 단위로 세므로 페이지 끝에서 한 집이 쪼개지지 않는다. #}
+                <tbody>
+                    {% for row in rows %}
+                    <tr>
+                        <td>
+                            {% if row.extra_count %}
+                            <button class="btn btn-sm btn-link p-0 text-decoration-none" type="button"
+                                    data-bs-toggle="collapse" data-bs-target="#naver-hist-{{ row.id }}"
+                                    aria-expanded="false" aria-controls="naver-hist-{{ row.id }}"
+                                    aria-label="상품주문 펼치기">
+                                <i class="fas fa-caret-down"></i>
+                            </button>
+                            {% endif %}
+                        </td>
+                        <td class="text-nowrap small">{{ row.created_at }}</td>
+                        <td class="small text-muted">
+                            {{ row.external_order_no or '-' }}
+                            {# 단독 묶음(주문번호 없는 실패 건 포함)도 추적할 수 있게 대표 상품주문번호를 남긴다. #}
+                            <div class="text-muted" style="font-size: .72rem;">{{ row.external_id }}</div>
+                        </td>
+                        <td>
+                            {% for st in row.statuses %}
+                            {% if st == 'COLLECTED' %}
+                            <span class="badge bg-primary">수집됨(주문 전)</span>
+                            {% elif st == 'LINKED' %}
+                            <span class="badge bg-success">주문 생성됨</span>
+                            {% elif st == 'PENDING_REVIEW' %}
+                            <span class="badge bg-warning text-dark">확인 필요</span>
+                            {% else %}
+                            <span class="badge bg-danger">실패</span>
+                            {% endif %}
+                            {% endfor %}
+                            {% if row.claim_label %}
+                            <span class="badge bg-danger">{{ row.claim_label }}</span>
+                            {% endif %}
+                            {# 발주확인은 네이버 판매자센터 쪽 처리다. 수집 원본에 이미 오는 값이라
+                               네이버 호출 없이 보여준다(T16-A). #}
+                            {% if row.place_pending %}
+                            <span class="badge bg-warning text-dark" title="네이버 판매자센터에서 발주확인이 아직 안 된 상품주문이 있습니다">발주확인 전</span>
+                            {% endif %}
+                        </td>
+                        <td class="small">{{ row.customer_name or '-' }}</td>
+                        <td class="small">
+                            {{ row.product or '-' }}
+                            {% if row.extra_count %}
+                            <span class="badge bg-secondary">외 {{ row.extra_count }}건</span>
+                            {% endif %}
+                        </td>
+                        <td class="small text-end">{{ row.quantity if row.quantity is not none else '-' }}</td>
+                        <td class="small text-end">{{ '{:,}'.format(row.amount) if row.amount is not none else '-' }}</td>
+                        <td class="small text-muted">
+                            {{ row.payment.paid_at or '-' }}
+                            {% if row.payment.means %}<br>{{ row.payment.means }}{% endif %}
+                        </td>
+                        <td class="small text-end">
+                            {{ '{:,}'.format(row.discount_total) if row.discount_total else '-' }}
+                        </td>
+                        <td>
+                            {% if row.order_id %}
+                            <a href="{{ url_for('order_edit.edit_order', order_id=row.order_id, open='erp-order') }}"
+                               class="small">#{{ row.order_id }}</a>
+                            {% if row.next_step == '규격 입력' %}
+                            <div class="small text-primary">규격 입력</div>
+                            {% endif %}
+                            {% elif row.pending_link_id %}
+                            {# 취소·반품 건은 서버(promotion.py)가 400 으로 막는다 — 확인 화면과
+                               같이 버튼도 잠가 헛클릭·실패 토스트를 없앤다. #}
+                            <button type="button" class="btn btn-sm btn-primary naver-create-order-btn"
+                                    {% if row.claim_blocking %}disabled
+                                    title="네이버에서 취소·반품이 진행 중입니다"{% endif %}
+                                    data-link-id="{{ row.pending_link_id }}">주문 만들기</button>
+                            {% if row.claim_blocking %}
+                            <div class="small text-danger mt-1">취소·반품 진행 중 — 주문을 만들 수 없습니다.</div>
+                            {% endif %}
+                            {% if row.pending_count > 1 %}
+                            <div class="small text-muted mt-1" title="같은 네이버 주문번호로 함께 묶입니다">
+                                상품주문 {{ row.pending_count }}건이 하나로 묶입니다
+                            </div>
+                            {% endif %}
+                            {% else %}
+                            <span class="text-muted small">없음</span>
+                            {% endif %}
+                        </td>
+                        <td class="small text-danger">{{ row.failure_reason or '' }}</td>
+                    </tr>
+                    {% if row.extra_count %}
+                    <tr class="collapse" id="naver-hist-{{ row.id }}">
+                        <td colspan="12" class="bg-light">
+                            <table class="table table-sm mb-0">
+                                <tbody>
+                                    {% for member in row.members %}
+                                    <tr>
+                                        <td class="small text-muted" style="width: 12rem;">{{ member.external_id }}</td>
+                                        <td class="small">{{ member.product or '-' }}</td>
+                                        <td class="small text-muted" style="max-width: 20rem;">{{ member.options or '-' }}</td>
+                                        <td class="small text-end" style="width: 5rem;">
+                                            {{ member.quantity if member.quantity is not none else '-' }}
+                                        </td>
+                                        <td class="small text-end" style="width: 8rem;">
+                                            {{ '{:,}'.format(member.amount) if member.amount is not none else '-' }}
+                                        </td>
+                                        <td class="small text-danger">{{ member.failure_reason or '' }}</td>
+                                        <td style="width: 5rem;">
+                                            <button type="button" class="btn btn-sm btn-outline-secondary naver-snapshot-btn"
+                                                    data-link-id="{{ member.id }}">원본</button>
+                                        </td>
+                                    </tr>
+                                    {% endfor %}
+                                </tbody>
+                            </table>
+                        </td>
+                    </tr>
+                    {% else %}
+                    {% endif %}
+                    {% else %}
+                    <tr>
+                        <td colspan="12" class="text-center text-muted py-4">수집 이력이 없습니다.</td>
+                    </tr>
+                    {% endfor %}
+                </tbody>
+            </table>
+        </div>
+    </div>
+
+    {% if total > page_size %}
+    <nav class="mt-3">
+        <ul class="pagination pagination-sm">
+            {% if page > 1 %}
+            <li class="page-item">
+                <a class="page-link"
+                   href="{{ url_for('admin.naver_ingest_dashboard', status=status or None, place='PENDING' if place_pending else None, page=page - 1) }}">이전</a>
+            </li>
+            {% endif %}
+            <li class="page-item disabled">
+                <span class="page-link">{{ page }} / {{ ((total - 1) // page_size) + 1 }}</span>
+            </li>
+            {% if page * page_size < total %}
+            <li class="page-item">
+                <a class="page-link"
+                   href="{{ url_for('admin.naver_ingest_dashboard', status=status or None, place='PENDING' if place_pending else None, page=page + 1) }}">다음</a>
+            </li>
+            {% endif %}
+        </ul>
+    </nav>
+    {% endif %}
+</div>
+
+{# 원본 스냅샷 — 실번호·주소가 그대로 들어 있어 관리자만 볼 수 있다(열람도 감사 기록된다) #}
+<div class="modal fade" id="naver-snapshot-modal" tabindex="-1" aria-hidden="true">
+    <div class="modal-dialog modal-lg modal-dialog-scrollable">
+        <div class="modal-content">
+            <div class="modal-header">
+                <h5 class="modal-title">네이버 원본 응답 <span id="naver-snapshot-id" class="text-muted small"></span></h5>
+                <button type="button" class="btn-close" data-bs-dismiss="modal" aria-label="닫기"></button>
+            </div>
+            <div class="modal-body">
+                <p class="small text-muted">개인정보가 포함된 원본입니다. 열람 기록이 남습니다.</p>
+                <pre id="naver-snapshot-body" class="small bg-light p-3 rounded overflow-auto"></pre>
+            </div>
+        </div>
+    </div>
+</div>
+
+<script>
+// "지금 수집" 은 큐에 넣기만 한다. 네이버 HTTP 는 WORKER 에서만 나가므로(호출 IP 한도 3)
+// 여기서 결과를 기다리지 않는다 — 잠시 뒤 새로고침하면 이력에 뜬다.
+(function () {
+    var button = document.getElementById('naver-run-now');
+    var box = document.getElementById('naver-run-result');
+    if (!button || !box) return;
+
+    function show(kind, text) {
+        box.className = 'alert alert-' + kind;
+        box.textContent = text;
+    }
+
+    // "주문 만들기" — 수집분을 FOMS 주문으로 승격한다(T12). 수집은 자동, 생성은 사람 판단이다.
+    // 서버가 멱등을 보장하지만 이중 클릭으로 요청 두 번 나가는 것 자체를 버튼 비활성화로 막는다.
+    document.querySelectorAll('.naver-create-order-btn').forEach(function (btn) {
+        btn.addEventListener('click', async function () {
+            btn.disabled = true;
+            var original = btn.textContent;
+            btn.textContent = '만드는 중…';
+            try {
+                const response = await fetch('/admin/naver-ingest/' + btn.dataset.linkId + '/create-order', {
+                    method: 'POST',
+                    headers: { 'Content-Type': 'application/json' }
+                });
+                const data = await response.json();
+                if (!data.success) {
+                    show('danger', data.error || '주문을 만들지 못했습니다.');
+                    btn.disabled = false;
+                    btn.textContent = original;
+                    return;
+                }
+                show('success', '주문 #' + data.data.order_id + ' 을(를) 만들었습니다.');
+                window.location.reload();
+            } catch (error) {
+                show('danger', '요청 중 오류가 발생했습니다: ' + error);
+                btn.disabled = false;
+                btn.textContent = original;
+            }
+        });
+    });
+
+    // 원본 스냅샷 열람(관리자 전용). 목록에 미리 실어 보내지 않는다 — 개인정보를
+    // 보는 사람만 받아가게 하고, 열람 자체를 서버가 감사 원장에 남긴다.
+    document.querySelectorAll('.naver-snapshot-btn').forEach(function (btn) {
+        btn.addEventListener('click', async function () {
+            var modalEl = document.getElementById('naver-snapshot-modal');
+            var body = document.getElementById('naver-snapshot-body');
+            var label = document.getElementById('naver-snapshot-id');
+            body.textContent = '불러오는 중…';
+            label.textContent = '';
+            var modal = bootstrap.Modal.getOrCreateInstance(modalEl);
+            modal.show();
+            try {
+                const response = await fetch('/admin/naver-ingest/' + btn.dataset.linkId + '/snapshot');
+                const data = await response.json();
+                if (!data.success) {
+                    body.textContent = data.error || '원본을 불러오지 못했습니다.';
+                    return;
+                }
+                label.textContent = data.data.external_id;
+                body.textContent = JSON.stringify(data.data.snapshot, null, 2);
+            } catch (error) {
+                body.textContent = '요청 중 오류가 발생했습니다: ' + error;
+            }
+        });
+    });
+
+    button.addEventListener('click', async function () {
+        button.disabled = true;
+        show('info', '작업 큐에 넣는 중…');
+        try {
+            const response = await fetch('{{ url_for("admin.naver_ingest_run_now") }}', {
+                method: 'POST',
+                headers: { 'Content-Type': 'application/json' },
+                body: '{}'
+            });
+            const data = await response.json();
+            if (!data.success) {
+                show('danger', data.error || '수집 요청에 실패했습니다.');
+                return;
+            }
+            show('success', '수집 작업을 큐에 넣었습니다. 잠시 뒤 새로고침하면 결과가 이력에 나타납니다.');
+        } catch (error) {
+            show('danger', '요청 중 오류가 발생했습니다: ' + error);
+        } finally {
+            button.disabled = false;
+        }
+    });
+})();
+</script>
+{% endblock %}

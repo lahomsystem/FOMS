@@ -94,12 +94,47 @@ def assert_visual_test_database(db_url: str) -> None:
         )
 
 
-def assert_safe_for_schema_reset(db_url: str, *, context: str) -> None:
+def assert_engine_not_postgresql(engine: object, *, context: str) -> None:
+    """
+    Block schema operations when the **live engine** targets PostgreSQL.
+
+    환경변수 문자열만 보는 :func:`assert_not_postgresql` 로는 못 막는 구멍이 있다.
+    ``db.py`` 는 ``DATABASE_URL`` 이 없으면 로컬 Postgres 하드코딩 fallback 으로 붙는다.
+    어떤 파일이 ``tests/conftest.py`` 보다 **먼저** ``db`` 를 import 하면 엔진은 그 시점에
+    Postgres 로 묶이고, 그 뒤 conftest 가 ``setdefault`` 로 env 에 sqlite 를 넣는 순간
+    문자열 가드는 "sqlite 니까 안전"으로 통과한다 — 그리고 티어다운 ``drop_all`` 이
+    로컬 dev DB 를 드롭한다. 2026-08-23 실제로 그렇게 테이블 86개가 날아갔다
+    (스키마는 재생성했으나 행 데이터는 복구 불가).
+
+    그래서 판정 대상은 env 문자열이 아니라 **엔진이 실제로 붙은 곳**이다.
+
+    Args:
+        engine: SQLAlchemy Engine (``url.drivername`` 을 읽는다).
+        context: Human-readable caller label.
+    """
+    drivername = getattr(getattr(engine, "url", None), "drivername", "") or ""
+    dialect = drivername.split("+", 1)[0].lower()
+    if dialect in POSTGRES_DIALECTS:
+        pytest.fail(
+            f"{context}: live engine is bound to PostgreSQL "
+            f"({getattr(engine, 'url', '?')!r}). Schema drop/create is blocked. "
+            "This usually means a module imported `db` before tests/conftest.py set "
+            "DATABASE_URL — check import order in the file you just added."
+        )
+
+
+def assert_safe_for_schema_reset(db_url: str, *, context: str,
+                                 engine: object | None = None) -> None:
     """
     Block metadata drop/create against PostgreSQL (defense in depth).
 
     Args:
         db_url: Active DATABASE_URL value.
         context: Human-readable caller label.
+        engine: 살아 있는 엔진. 주면 문자열이 아니라 **실제 접속 대상**으로도 판정한다
+            (import 순서가 어긋나면 문자열만으로는 못 막는다 —
+            :func:`assert_engine_not_postgresql` 참고).
     """
     assert_not_postgresql(db_url, context=context)
+    if engine is not None:
+        assert_engine_not_postgresql(engine, context=context)

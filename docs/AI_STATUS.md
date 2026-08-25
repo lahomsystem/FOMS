@@ -1,6 +1,6 @@
 # FOMS 현재 상태
-> 자동 업데이트: 2026-07-28
-> 최신: **NOTIF-ROLE-01 운영 승격** — 관리자 알림 사건 1건 = row 1건 + 수신자별 state(에스컬레이션 N²→N). 원장: docs/plans/2026-08-20-notifrole-progress-ledger.md
+> 자동 업데이트: 2026-08-14
+> 최신: **알림톡 발송 흔적 칩 deploy(`431e1fc0`, CI 4/4 green)** — 주문 화면 알림톡 버튼 아래 상시 칩 4상태(예약 안내 보냄 / 문자로 보냄 / 발송 실패·사유 / 아직 안 보냄), PC·모바일·태블릿 동일. 이력이 이미 structured_data 로 실려 와 **렌더 추가 요청 0**. 칩 클릭 = 발송 이력 패널. 채널(카톡 vs 문자 대체발송)은 발송 1분 뒤 벤더 1회 조회로 확정(멱등). **잔여 = 실발송 1건 E2E(사용자 승인 필요)·태블릿 실기기 육안**. 원장 `docs/plans/2026-08-24-alimtalk-trace-t15-ledger.md`
 > 이 파일 상단 40줄이 세션 시작 컨텍스트의 전부다(hygiene 계약 테스트로 강제). 상세 이력: "## 최근 완료"·"## 기록 보관", 과거 헤더 상세는 기록 보관에 이관.
 
 ## 스택
@@ -8,28 +8,23 @@ Flask 2.3 + PostgreSQL + R2 + Railway (Web×2, Worker×1)
 브랜치: deploy (스테이징) → production (운영)
 
 ## 진행 중
-- [2026-08-21] **NOTIF-ROLE-01 운영 승격** — `notifrole_00` 부모는 운영 계보 `assort_00`(네이버 체인 미반영). 네이버 `claim_watch` ROLE 전환은 네이버 승격 때 함께.
-- [2026-08-13] **AS dTTFB 근본 해소 181→96(예산 168 불변)** — 지출처=같은 모집단 집계 2회 스캔 + 행100×2필드 sanitize 재파싱(`phase()` 계측). 수정=단일 스캔 + sanitize LRU 메모이즈.
-- [2026-08-07] **지방 대시보드 섹션=상태 개편 운영 승격 완료(PR #59, production `95fb7826`)** — 드롭다운 0·뱃지만, 상차완료/보류 섹션 폐지, AS 섹션+AS완료(`as_completed_date` 필수). 읽기 경로 status 쓰기는 state_guard 차단(상차일 변경 시점 기록).
-- [2026-08-08] **감사 로깅 `**D` T1~T12 완료(deploy 반영·CI 4/4 green)** — 삭제→비활성화(감사 actor 보존)·보존기간 3년/2년·**파일 열람 기록 화면**(`/admin/file-access-logs`, ADMIN 전용). 운영 승격 전 주의 3건: `docs/harness/runtime/HANDOFF_AUDIT_LOGGING.md`
-- [2026-08-06] **계정 셀프서비스 v1 deploy 반영** — 셀프 가입 신청(PENDING 승인 흐름)+비밀번호 재설정 요청 큐(관리자 처리형), 마이그레이션 `account_self_00`, 승인 UI=/admin/users, 신규 테스트 14 green. 스펙: `docs/specs/2026-08-06-account-self-service-design.md`
-- [2026-08-05] **출고 시공일 변경 알림 T1~T8 완료(deploy)** — 이벤트 SSOT(`order_date_sync` before_flush)로 무음 경로 6종 차단, 수신 팀 **CONSTRUCTION**(SHIPMENT·PRODUCTION 팀은 실사용자 0 — 보내면 무음). AS 매칭은 production 반영 완료. 원장: `docs/plans/2026-07-30-shipment-construction-date-change-alert-ledger.md`
-- [2026-08-01] **deploy 전체 승격 완료 → production `0aae8d9f`** (PR #35, 356커밋·마이그레이션 29개, 테이블 45→84, 데이터 무손상). **롤백은 DB 먼저→코드 나중**(반대면 `Can't locate revision`으로 전 배포 파산). 백업 `/c/tmp/foms-backups/*.dump`.
-- [2026-08-03] **후속 완료 (deploy `04f0fc59`)** — 운영 Redis 실패잡 2,544건 정리(전부 퇴역 잡). `/erp/history` 301 제거(dTTFB 240→19ms). CI PG 16→17. **마이그레이션 체인 왕복 검증 신설**(CI가 처음 alembic 실행). construction 렌더 +22ms는 코드 무죄로 종결.
-- ⚠️ **`queue.py` 소켓 타임아웃 누락 수정**(운영 반영됨) — `rate_limit.py`·`dashboard_cache.py`엔 2초 상한이 있는데 이 경로만 없었다(2026-07-21 Redis 장애 대응이 절반만 적용). blackhole 시 `enqueue()`가 웹 워커를 130초 붙잡던 잠복 결함. 못 잡은 이유=`queue.py` 내부 테스트 0건.
-- [2026-08-01] **하네스 함정** — `ci_watch.py`는 워크플로 1개만 본다(7개 존재). 판정은 `gh run list --branch <b>`로 전수 나열. SQLite 레인은 FK 미강제 → FK 수정은 PG 레인 필수. PG 레인은 `create_all` 기반이라 마이그레이션 체인 미검증. CI에 Redis 없음.
-- 위 3건 상세·후속 목록·결재 기록: `docs/plans/2026-07-31-full-promotion-prep-ledger.md`
+- [2026-08-24] **nav 뱃지 콜드 155.5ms → 75.0ms(-52%) deploy** — 얇게 읽기(전송 절감)는 스테이징 이득 0(통째 113.0 vs 얇게 113.0). 구간 계측이 지목한 진범은 형제 3벌 74ms + 원천 2벌 56ms → 형제 색인 1벌 + OR 술어 1벌로 링크 표 조회 6→2회. 술어·병합·캡 무변경, 옛 경로 동치 회귀 5건. 원장 `docs/plans/2026-08-24-nvbadge-duplicate-pass-ledger.md`
+- [2026-08-23] **네이버 수집 워크벤치 v3 deploy(`93fd4a99`, CI 4개 green)** — 탭 왕복·전체 리로드 제거. 탭 4→2+필터 칩, 상세 발주확인 단건, pane 프래그먼트 부분 갱신, nav 진입구 4→1·뱃지 일치. 2CEO 치명 2건 수정 + 후속 정리. 좌우 밸런스·리뷰 6건·CEO 2판정·선재 2건 처리 후 deploy(`9bc59846`). 스테이징 실데이터 58집 눈 확인 완료(코호트 38 원복). 후속: 불가역 3종 즉시 반영(폴링+soft refresh, 스테이징 실패 경로 실측) · nav 뱃지 단일 비행(콜드 113ms 실측 근거) · 벌크 진행률(집 수 무관 조회 2회) · 터치 잠금사유. **잔여: QUEUE_LINK_FETCH_LIMIT(238/250) — 뱃지 콜드 비용 절감 뒤 상향.** 다음 세션 `docs/plans/2026-08-24-naver-next-session-prompt.md` 원장 `docs/plans/2026-08-23-naver-workbench-v3-ledger.md`
+- ⚠️ [2026-08-23] **로컬 dev DB 행 소실(로컬 한정)** — pytest 파일이 conftest 보다 먼저 `db` import → 로컬 PG 에 `drop_all`. 스테이징·운영 무관. 근본 수정: `assert_engine_not_postgresql`(env 문자열 아닌 엔진 판정)
+- [2026-08-23] **모바일 주문 마법사 제품 카드·주문 구분 운영 반영(PR #135, production `d53dc438`)** — 복제 카드 헤더 `#1 제품 1` 고정 결함을 `renumberProductCards()`(DOM 순서=정본)로 수정 + 카드 삭제 버튼 신설, 3단계에 주문 구분 칩 3종(지방주문=`is_regional`/`construction_type` 컬럼·미선택 400, 라홈시스템·긴급=`structured_data.flags`). 후속(deploy): 지방주문 상차일→`shipping_scheduled_date`, 새 카드 추가 즉시 펼침. 상세: AI_CHANGELOG 2026-08-23
+- [2026-08-23] **운영 승격 PR #133 대기(머지=사용자)** — 체인을 운영 head `notifrole_00` 위로 재직렬화, 운영 재현 upgrade 9리비전 + 스위트 5392 green. **승격은 당일 머지하거나 직전 head 재확인**(#113·#121 무효 전례). 원장 `docs/plans/2026-08-21-production-promotion-ledger.md`
+- [2026-08-21] **NOTIF-ROLE-01 운영 승격 완료(PR #127, production `1d35ed06`)** — 관리자 알림 사건 1건=row 1건(에스컬레이션 N²→N). `notifrole_00` 부모는 브랜치별로 다르다(deploy=`naver_relation_00` / 운영=`assort_00`) — 네이버 체인 운영 미반영. 네이버 `claim_watch` ROLE 전환은 네이버 승격 때. 승격 PR 은 pg-lane·perf-gate 만 돈다(FOMS CI·Harness CI 트리거가 main/deploy 한정)
+- [2026-08-20] **에스컬레이션 알림 본문·중복 수정 운영 반영(`67ecaff3`)** — 빈 제목만 쌓이던 문제 해결(본문+원본당 1건). 잔여: 상류 `claim_watch.py` 가 클레임마다 ADMIN 수만큼 개별 긴급 알림 생성 → 스테이징 1073건 원천
+- ⚠️ [2026-08-20] **deploy FOMS CI red = 타 세션 몫** — `3d3c2f61`(RESTORE-GUI-01 T1)의 `ORDER_FIELD_RESTORED` 라벨 누락 + `events.api_restore_field_change` 정책 미분류. Harness CI·PG Lane·perf-gate 는 green.
 - ⚠️ **미결: `as-delete-reapply`의 `8c1ef69a`**(삭제 라우트 WRITE-GUARD-01 manifest 등재) deploy 미반영. worktree 정리 중 발견, 타 세션 몫이라 미처리. 브랜치 ref 보존됨.
-- [2026-04-17] **ERP fast-page `EPT-B8`:** run record `docs/plans/2026-04-17-ept-b8-verification-railway-evidence-run-record.md` — 로컬 게이트 완료; staging HTTP 하네스로 **§4 표·§5** 부분 채움; **closeout** 은 deploy ID·§6 모드·hard stop 조건 충족 후.
-- [2026-04-15] active mainline 구조 tranche 없음. `WR-B1` / `WR-J1` / `WR-H1`는 explicit future batch 조건에서만 재개.
 
 ## 알려진 이슈
-- 차단 이슈 없음. post-Wave9 endgame mainline은 종료되었고, 남은 구조 부채는 `WR-B1` / `WR-J1` / `WR-H1`처럼 explicit future-batch 조건으로만 존재한다. W5-B8의 로컬 authenticated browser smoke 환경 이탈은 run record에 residual로 문서화되어 있으며, `wdcalculator_scripts_config.html` Jinja 상단 변수 주입 구간의 JS lint false-positive는 기존과 동일하게 남아 있다.
+- 차단 이슈 없음. 남은 구조 부채는 `WR-B1`/`WR-J1`/`WR-H1` 처럼 explicit future-batch 조건으로만 존재한다. `wdcalculator_scripts_config.html` Jinja 변수 주입 구간의 JS lint false-positive 는 기존과 동일.
 
 ## 아키텍처 요약
 - 파일 업로드: 브라우저→R2 Presigned PUT 직접 (배치+병렬, UUID키)
 - 도면 생명주기: 발송(보존)→취소(신규만삭제)→확정(구버전정리)
-- 지도: Folium iframe + `/api/map_data` 경량 폴링 (15s×5회)
+- 지도: 카카오 SDK 클라 렌더(head 조기 부팅)+folium 폴백, pending만 계단 폴링
 - 성능/조회: `OrderScheduleDate`(날짜정규화), Partial Indexes, `Order.active_filter()` / `dashboard_active_filter(days=60)` 병행 계약 존재
 - 권한: CONSTRUCTION팀 출고/시공만, 도면팀 발송/취소
 - 하네스 문서 자산: Step 7에서 `docs/harness/{policy,bundles,runtime,logs}` canonical taxonomy로 분리됐고, `docs/context`는 incident/reference 기록만 유지한다
@@ -47,7 +42,28 @@ Flask 2.3 + PostgreSQL + R2 + Railway (Web×2, Worker×1)
 
 
 
+
+
 ## 최근 완료 (최대 5개)
+- [2026-08-23] **네이버 워크벤치 관계 축 + 판매자 직접취소 deploy(`5f9433c5`, CI 4개 green)** — 취소는 커머스API `claim/cancel/request`(상품주문 1건씩·사유 7코드), WORKER 단일 출구·집 단위·멱등. 가드: 취소한 집은 발주확인·발송처리·주문 만들기 전부 차단, `close_now` 는 집 전체가 ADDON/REPAY 일 때만. 스테이징 실데이터 눈 확인 완료(배지·후보표·발송처리 잠금·취소 모달 집 건수 일치). **잔여: 취소 실호출 1건(사용자 실건 발생 시)·네이버 기능 전체 승격은 별도 작업.**
+- [2026-08-23] **대시보드 캡 결함 2건 — production 승격 완료** (PR #136 `89b9ca7f` / PR #139 `d5b44d87`, CI 4종 green·운영 실브라우저 확인). 공통 결함=SQL 로 모집단을 좁힌 뒤 **캡으로 자르고 그 다음 파이썬에서 상태·날짜로 좁힌다** — 캡이 모집단보다 작으면 섹션이 통째로 비는데 아무 흔적도 안 남았다. ① 도면 작업실: seed 가 단계 조건 없이 `created_at desc LIMIT 250`(활성 ERP 2480건) → 운영 28건 중 **27건 실종**(그중 16건이 수령확인 대기). 수정=모집단 술어를 SQL 로(`build_drawing_queue_filter` — 단계 미러 `erp_stage_code`+원본 `workflow.stage`, RETURNED/CONFIRMED 는 단계 무관), 부분 인덱스 3종(`drawqueue_00`; production 은 계보가 달라 병합 리비전 `merge_prod_drawq`), 캐시 슬라이스 `workbench_seed_ids`→`workbench_queue_ids`. 운영 실측 22.5ms→**0.92ms**, Seq Scan 없음. ② 전수 조사 결과 legacy 보드 3종 동일 구조 — **수도권은 이미 터져 있었다**(실측 알림 후보 944·949건 vs 캡 500 → 판정 전 444·449건 잘림). `LEGACY_DASHBOARD_ORDER_LIMIT` 500→2000, 조회를 `_fetch_legacy_dashboard_orders` 로 일원화(`cap+1` 로 초과 판정 — count 쿼리 추가 없음, 캡 발동은 warning 로그). 지방·자가실측 **UI 무변경**(사용자 지시). 실측 대시보드 `rows[:300]` 은 의도된 표시 상한이라 유지하되 잘림을 고지(캐시 DTO 에 `total_count`, 화면 안내+로그, `data-foms-no-autodismiss` 필수). 운영 확인: 도면 28=28, 실측 3개월 "978건 중 300건만 표시됩니다".
+- [2026-08-20] **네이버 관계 판별 + 발주확인·발송처리(NAVER-INGEST-02, deploy)** — T16-A~H 코드 완료. 수집 판정이 `PAYED` 하나뿐이라 재결제·차액결제가 전부 새 집으로 들어오던 문제를 **사람이 고르는 붙이기**로 닫았다(자동 확정 없음). 스테이징 실물 왕복 검증(강재상 1cm 집 → #4466 붙임 → 도크 "추가결제 3건 · 517,550원(반영은 수동)" → 되돌림 → 원복). **잔여=네이버 실호출 검증(사용자 직접)**, G3(재결제 시 원 주문 취소 표시) 미확정. 권한 게이트 통과(API그룹 `주문 판매자`=발주/발송처리 포함), 배송코드 `DIRECT_DELIVERY`(구매확정·정산 시점 변동 주의). 함정: `.alert` 5초 자동닫힘이 상시 안내를 지운다(`data-foms-no-autodismiss` 필요, 취소 경고도 이 버그였음) · 주문 JSONB 직접쓰기는 REV-99 게이트 → `execute_order_mutation` 경유 · 새 감사 행위는 `audit_message_display` 라벨 필수(pre_push_smoke 사각).
+- [2026-08-19] **오프사이트 백업 복구·상황판(`foms-ops-backup`+F7)** — 개설 후 6회 전패(`which(pg_dump)`=16·R2 시크릿 미등재) 해소 후 첫 성공. 침묵 차단 3종 + `/admin/backup-status`(서명 심박 푸시, 앱은 백업 열쇠 미보유·fail-closed, 종단검증 완료). Railway D6+W27+M89·dev D 신설. 리허설 절차서 `RESTORE.md` §8(분기 수동). 잔여=첨부 R2 오프사이트·운영 승격 시 URL 교체
+- [2026-08-21] **주문 변경 이력 소음 정리 — 운영 전수 196줄 → 38줄** (승격 PR #128 `a568f4f4` · #130 `1bd202e3` · #134 `536c382c` · #137 `05f8451c`, 전부 운영 배포 확인). 규칙 5종: ① 최초 입력(빈칸·`상담`·`미정`·`-` → 첫 값) 숨김 ② `결제/금액 이전→변경됨` 자리표시 → 필드별 실제 값(천단위·확인/미확인) ③ **도면 착수 전** 품목 추가 숨김 — 착수 판정은 전달(TRANSFER) 이력·도면 상태이고 `workflow.stage` 는 쓰지 않는다(단계로 판정하면 실측 승인 직후 마무리 저장이 사고로 뜬다, 주문 4637 실측) ④ 같은 치수가 `spec`·`width` 두 칸에 담겨 생긴 중복은 값이 **완전히 같을 때만** 1줄 ⑤ 품목 삭제·값 지움은 언제나 표시. 쓰기(`_add_change`·`_append_item_field_changes`)와 읽기(`humanize_order_change_changes`) 양쪽에 걸어 **과거 이력도 읽는 시점에 정리**된다. SSOT: `drawing_order_change.is_first_fill_change`·`drawing_work_started`·`dedupe_dimension_rows`. ERP 주문 상세 변경 이력 탭 접기(`is_first_fill_row`·`resolve_mirror_rows`, deploy `7dce3613`)는 **승격 보류** — 되돌리기 GUI·사유 표시 등 미승격 33커밋(타 세션) 위에 얹혀 cherry-pick 전건 충돌. 함정: `?v` 범프는 `test_edit_page_pins_the_bumped_stylesheet` 핀 계약과 동반 갱신(pre_push_smoke 사각).
+- [2026-08-21] **도면 주문 변경 피드 최초 입력 소음 제거 — production 승격 완료** (deploy `268562ba` CI 3종 green → PR #128 merge `a568f4f4`, 운영 healthz 신코드 확인). 빈칸·ERP 폼 placeholder(`상담`·`(없음)`·`미정`·`-`)에서 값이 처음 채워진 줄은 변경이 아니다 — 판정 SSOT `is_first_fill_change`(`foms/services/notifications/drawing_order_change.py`)를 **쓰기(`_add_change`)와 읽기(`humanize_order_change_changes`) 양쪽**에 걸어 신규 기록 차단 + 과거 이력 소급 정리. 최초 입력만 있는 저장은 알림·미확인 배지도 만들지 않는다. 유지: 실값→실값 수정·값 지움·`items.N` 항목 추가/삭제. 운영 실증(주문 4637, 실브라우저): **17줄 → 3줄**. REV-99 인벤토리는 승격 트리(production 기준) 재생성으로 타 세션 의존 차단.
+
+- [2026-08-11] **주문 변경내역 감사 ORDER-DIFF 00~02 운영 승격**(PR #82·#83) — 저장 로그 before/after 0건 → 필드 diff + `order_field_changes` 원장 + 변경 이력 탭. 품목 uid(`itemuid_00`)는 deploy+스테이징 검증 완료, 운영 승격만 **타 세션 `share_token_00` 선행 대기**. 함정: detail 4,000자 초과 시 통째 표식. 스펙 docs/specs/2026-08-11-order-*.md
+- [2026-08-13] **고객 공유 Phase A 운영 승격 완료(PR #89, production `a59c0d7d`)** — T1~T10+T8.1 + 승인 하에 itemuid_00·알림톡 v1 코드 동반 승격(발송 이중 잠금). 실측 알림톡 템플릿 2건 APPROVED·공유 링크 템플릿 2건 심사 중·문자 실발송 2통 검증(브랜드 분기·재시도 실증)·카톡 SDK PASS·고객 다운로드 추가. T11 알림톡+T12 통합 드롭다운(예약·도면·계약서) **운영 승격 완료**(08-19 PR #115 `01ef5862`, 실발송 2회 수신 확인). 잔여=Solapi IP 원복·실기기 카톡(사용자). 원장: docs/plans/2026-08-11-customer-share-phase-a-ledger.md
+- [2026-08-10] **Sentry 운영 전환 완료** — DSN 을 dev→production 으로 이동(운영만 감시). 운영 로그 `Sentry initialized environment=production` 확인, dev 는 no-op. 잔여=Sentry 알림 규칙에 `environment:production` 필터·기존 staging 이슈 정리(사용자).
+- [2026-08-11] **대시보드 캐시 무효화 엔진화 MUT-CACHE-01 운영 승격(PR #79 `24675249`)** — 라우트별 수동 무효화가 원인(빠진 경로 6, 단계 강제 변경 310초 지연 재현). `execute_order_mutation` 이 전/후 stage·삭제 표식을 session.info intent 로 남기고 `after_commit` 이 소비 → 엔진 경유 20개 모듈 자동 커버, 미경유 2곳(`/edit`·date_sync)은 직접 보강. 선행 삭제 수정 PR #72.
+- ⚠️ **`queue.py` 소켓 타임아웃 누락 수정**(운영 반영됨) — `rate_limit.py`·`dashboard_cache.py`엔 2초 상한이 있는데 이 경로만 없었다(2026-07-21 Redis 장애 대응이 절반만 적용). blackhole 시 `enqueue()`가 웹 워커를 130초 붙잡던 잠복 결함. 못 잡은 이유=`queue.py` 내부 테스트 0건.
+- [2026-08-11] **실측 지도 조기 부팅 승격 완료(PR #80, production `a68a8952`)** — 느림 정체는 지오코딩(좌표 결측 22/2982)도 서버(map_data 150ms)도 아닌 **SDK·map_data 요청의 DOMContentLoaded 대기**. `map_view.html` head 에서 카카오 SDK 선주입(`__FOMS_KAKAO_SDK`)+`/api/map_data` 선요청(`__FOMS_MAP_EARLY`, URL 완전일치 시 1회 소비), `loadSdk` 는 중복 주입 금지. 운영 실측: 문서도착→첫마커 844→262ms, 요청 중복 0, 콘솔 에러 0.
+- [2026-08-10] **감사 로깅 P4 Phase C 운영 승격 완료(PR #69, production `7ceedde4`)** — 쓰기 라우트 172개 전부 감사 기록(주문·단가표·견적·채팅·알림 등), 문장은 표시 SSOT 생성, PII는 고객명까지만. 게이트=`tools/harness/audit_coverage_scan.py`+인벤토리+allowlist(면제 30건 사유 필수), pre_push_smoke 편입. 마이그레이션 없음. 잔여=P4 D(열람 기록 여부 사용자 결정)·Sentry 로그 육안.
+- [2026-08-07] **지방 대시보드 섹션=상태 개편 운영 승격 완료(PR #59, production `95fb7826`)** — 드롭다운 0·뱃지만, 상차완료/보류 섹션 폐지, AS 섹션+AS완료(`as_completed_date` 필수). 읽기 경로 status 쓰기는 state_guard 차단(상차일 변경 시점 기록).
+- [2026-08-10] **감사 로깅 T1~T12 + 로그 가독성 P4 운영 승격 완료(PR #63, production `47f270e6`)** — 마이그레이션 7종 적용(alembic `seclog_time_00`), 데이터 무손실·order_events CASCADE 해소·감사 화면 인덱스. 로그가 업무 언어로 표시(운영 30일 1,438건 실검증). 백업 `c:/tmp/foms-backups/prod-pre-audit-promote-20260810.dump`
+- [2026-08-05] **출고 시공일 변경 알림 T1~T8 완료(deploy)** — 이벤트 SSOT(`order_date_sync` before_flush)로 무음 경로 6종 차단, 수신 팀 **CONSTRUCTION**(SHIPMENT·PRODUCTION 팀은 실사용자 0 — 보내면 무음). AS 매칭은 production 반영 완료. 원장: `docs/plans/2026-07-30-shipment-construction-date-change-alert-ledger.md`
+- [2026-08-01] **deploy 전체 승격 완료 → production `0aae8d9f`** (PR #35, 356커밋·마이그레이션 29개, alembic `wiz_pending_00`, 테이블 45→84, 데이터 무손상, 스모크 11경로 200). **롤백은 DB 먼저→코드 나중**(반대면 `Can't locate revision`으로 이후 전 배포 파산). 백업 `/c/tmp/foms-backups/*.dump`.
+- [2026-08-03] **후속 완료 (deploy `04f0fc59`)** — **운영 Redis 실패잡 2,544건 정리**(백업 `/c/tmp/foms-backups/prod-rq-failed-jobs-backup.json`, 전부 퇴역 잡). `/erp/history` 301 제거(dTTFB 240→19ms). CI PG 16→17. **마이그레이션 체인 왕복 검증 신설**(CI가 처음 alembic 실행). CI Redis 커버리지. construction 렌더 +22ms는 **코드 무죄·환경 미증명**으로 종결.
 - [2026-08-04] ✅ **PR #40 승격 완료 → production `2648d389`** — 자기 커밋 13개 cherry-pick(전체 22 중, 나머지 9는 타 세션 몫). **`typedrift_00` 운영 적용 실측 확인**(alembic head=typedrift_00, 3컬럼 uuid/jsonb 전환 확인), 서빙 커밋·6경로 200. 드리프트 원인=`shipment_reference_00`·`channel_inbound_00`이 ORM의 UUID/JSONB를 `sa.String(36)`/`sa.JSON()`으로 만든 작성 실수(형제 `order_mutation_receipts`는 rev_00에서 정확히 uuid/jsonb). 알려진-드리프트 목록 2종 모두 빈 집합 — 늘면 즉시 red. **perf-gate blocking red는 사용자 승인으로 admin 우회** — 코드 무죄 근거: 어제 동일 코드 79/98/96 → 오늘 151/182/152, 재측정 135/190/150, `/healthz` 기준선 223→244→272ms 동반 상승(전 경로 min +80~100ms). **스테이징 저하 원인 미규명 — 예산 재시드 금지(원장 A5) 유효.** 124-packet 승격 대기는 낡은 기록(8/1에 이미 포함).
 - [2026-08-04] **ERP 주문 자동 가격계산 삭제(피커·합산·포맷은 유지) — production 승격 완료** (deploy `45fe138b` CI 4/4 green → 스테이징 실브라우저 QA pass → PR #41 merge `ad44713f`, 운영 정적자산 신코드 서빙 확인). 금액=항상 수동(스냅샷 manual_override 고정), 플래그 개명 `flag_spec_picker`(구 CALC env fallback 유효). 스테이징 QA 계정 `qa_claude`(id 57) 신설. 상세: 커밋 메시지 + phase3 재도입 가드 테스트.
 - [2026-08-03] **비밀번호 변경 요구 UI 제거 production 승격 완료** — PR #38 머지(`d1c1ebee`). 로그인 flash+상시 배너 제거, 강도 정책 엔진은 유지. failopen 인벤토리 라인시프트 정합을 deploy(`04f0fc59`)·production 양쪽 반영. **스테이징 upperkill 비번을 지시값으로 DB 세팅(version=1) + GitHub secrets `FOMS_STAGING_*` 갱신** — perf-gate 로그인 거부(11:46~) 해소. 게이트 재실행은 옛 secret을 쓰므로 재트리거 커밋으로 신규 런 필요(함정). [08-04] CI는 전용 계정 `perfgate_ci`로 전환됨(타 에이전트, secrets 08-04 06:20). ablation이 삭제한 perf-gate 라이브 의존 `ept_b8_staging_session_from_login.py`는 로컬 복원 커밋 `2819e0ae`(원격은 원래 보유 — push 시 empty cherry-pick 주의).
@@ -89,6 +105,31 @@ Flask 2.3 + PostgreSQL + R2 + Railway (Web×2, Worker×1)
 - [2026-04-15] **Strict final canonical tree `SFC-B11B` slice 2 (`dashboards`, §6.16):** 구현을 `foms/web/dashboards/routes.py`로 이전; `foms/web/dashboards/__init__.py`는 `routes`만 import; `apps/dashboards.py`는 `foms.web.dashboards` 재노출 shim. 검증: `APP_OK`, `verify_result.py --json`, `pytest tests` **586 passed**. 근거: batch11b **§Slice B11B-2**.
 
 ## 기록 보관 (strict canonical / 이전 배치 요약)
+
+- [2026-08-20] **복원 GUI T1 배포·QA + 저장 유실 수정(`ec6b22a9`)** — 변경 이력에서 필드 한 건 되돌리기(요청=change_id 만, 화이트리스트 12경로, 절단·타입·현재값 4가드). 스테이징 실화면 QA 통과. QA 중 발견: 편집 저장이 `parties` 통째 대입이라 폼 미렌더 키(`orderer.phone`·`customer.phone2`, 네이버 수집분)를 매번 삭제 → `_merge_preserving_missing` 대상에 `parties` 추가. **`parties.orderer` 이름 충돌(폼=발주사 vs 수집=주문자) 미해결**. 기존 유실분은 원장으로 셀 수 있다
+- [2026-08-21] **네이버 워크벤치 deploy + staging 게이트 ON(코호트 38)** — 두 화면 왕복을 탭 하나로. 근본 수정: 집 정의 통일(`group_key`+backfill 실행 완료) · 워커 롤백이 실패 사유 지우던 버그 · 이력 탭 ADMIN 전용 · 분할배송에서 옆 집까지 나가던 발주확인/붙이기 · 취소 집 서버 가드 · 200 안의 건별 실패 · 실패 부분 인덱스(`naverfail_00`). 리뷰 6라운드(진짜 29건, 매번 직전 수정이 만든 것). 검증 399+PG1136+smoke324+실데이터.
+
+- [2026-08-21] **네이버 워크벤치 deploy + staging 게이트 ON(코호트 38)** — 두 화면 왕복을 탭 하나로. 근본 수정: 집 정의 통일(`group_key`+backfill 실행 완료) · 워커 롤백이 실패 사유 지우던 버그 · 이력 탭 ADMIN 전용 · 분할배송에서 옆 집까지 나가던 발주확인/붙이기 · 취소 집 서버 가드 · 200 안의 건별 실패 · 실패 부분 인덱스(`naverfail_00`). 리뷰 6라운드(진짜 29건, 매번 직전 수정이 만든 것). 검증 399+PG1136+smoke324+실데이터.
+- [2026-08-20] **네이버 관계 판별 + 발주확인·발송처리(NAVER-INGEST-02, deploy)** — T16-A~H 코드 완료. 수집 판정이 `PAYED` 하나뿐이라 재결제·차액결제가 전부 새 집으로 들어오던 문제를 **사람이 고르는 붙이기**로 닫았다(자동 확정 없음). 스테이징 실물 왕복 검증(강재상 1cm 집 → #4466 붙임 → 도크 "추가결제 3건 · 517,550원(반영은 수동)" → 되돌림 → 원복). **잔여=네이버 실호출 검증(사용자 직접)**, G3(재결제 시 원 주문 취소 표시) 미확정. 권한 게이트 통과(API그룹 `주문 판매자`=발주/발송처리 포함), 배송코드 `DIRECT_DELIVERY`(구매확정·정산 시점 변동 주의). 함정: `.alert` 5초 자동닫힘이 상시 안내를 지운다(`data-foms-no-autodismiss` 필요, 취소 경고도 이 버그였음) · 주문 JSONB 직접쓰기는 REV-99 게이트 → `execute_order_mutation` 경유 · 새 감사 행위는 `audit_message_display` 라벨 필수(pre_push_smoke 사각).
+
+- [2026-08-20] 아래 1건은 '진행 중'에서 **문구 그대로** 옮겼다(상단 40줄 예산).
+- [2026-08-18] **AS 증발 사고 종결 + 구조 제거** — 운영 55/55 복구 + 일괄 경로 AS 제외 가드(운영 `63737e91`) + **AS-AXIS-01** AS 대시보드 술어 status→`as_axis_status` 투영 교체(deploy `e061beb7`, 스테이징 검증 완료·운영 승격 대기). **AS 판정=status 기준·투영 암묵삭제 금지**(레거시 506건 lifecycle 없음). 복구 절차 `docs/guides/DATA_INCIDENT_RECOVERY.md`, 스펙 §11에 실측 조정 기록. **운영 승격 차단: `asaxis_00` 부모가 미승격 `naverdock_00`** — 네이버·변경사유 승격 후 진행(2026-08-18 사용자 결정)
+- [2026-08-20] 아래 2건은 '진행 중'에서 **문구 그대로** 옮겼다(상단 40줄 예산). 내용 변경 없음.
+- [2026-08-19] **네이버 수집 관리 화면 수정 2건(deploy `3c4e8243`)** — 필터 카운트 단위 통일(전체=묶음인데 상태별은 행이라 부분>전체로 보였다) + 취소·반품 건 "주문 만들기" 버튼 잠금(서버는 이미 400 차단, 화면만 열려 있었다). 지도 좌표 미갱신 원인 확정: **GEOCODE outbox handler 미배포**(전 주문 공통, 네이버 밖 과제).
+- [2026-08-19] **네이버 수집 T15 완료(deploy)** — 품목=본품만·귀속=수집순서+사양 보정·승격 순서 버그·규격 도우미 오탐·도크 폭2배. 운영 IP 교체 불필요 확정. 잔여=PR #113 머지(사용자)·폰 탭 보류 유지. [08-20] 유실 연락처 복구 + **발주사/주문자 축 분리(ORDERER-AXIS-01 T1~T6)** 완료 — 수집 발주사=라홈·사람=`parties.buyer`, 스테이징 7주문 백필 완료(알림톡·도면로고·CS퀘스트 라홈 경로 복구). 원장 `docs/plans/2026-08-13-naver-order-ingest-ledger.md`
+- [2026-08-20] 아래 8건은 '진행 중'에 있던 것을 **문구 그대로** 옮긴 것이다 — 상단 40줄 예산(4000자)을 넘겨 hygiene 계약 테스트가 red 였다. 내용 변경 없음.
+- [2026-08-19] **네이버 수집 T15(deploy)** — 품목=본품만(옵션은 본품 귀속·금액 보존)·귀속=수집순서+사양 보정(`attribution.py`)·승격 순서 버그 수정·규격 도우미 몰딩 오탐 수정·도크 폭2배+14px. 운영 IP 교체 불필요 확정. 잔여=PR #113 머지(사용자). 원장: `docs/plans/2026-08-13-naver-order-ingest-ledger.md`
+- [2026-08-18] **네이버 수집 T14-C~I deploy 완료 + 운영 승격 PR #113 대기** — 배송메모 유실 수정(실필드 `productOrder.shippingMemo`)·큐/이력 한 집 한 줄 묶음·취소 주문 생성 차단(서비스 레벨, API 우회 400)·수집 후 취소 추적+담당자 알림·CS 2단계 흐름(담당자 지정은 실측 스케줄링 단계)·규격 입력 도우미(총폭 계산·cm→mm·본품↔1cm 사양 불일치). **PR #113 = deploy 전체 승격, MERGEABLE·검사 9종 green, 머지는 사용자**. 승격 함정: **deploy 체인 순서 ≠ 운영 실행 순서**(운영 DB 는 `asfresh_00` 정지 — 그 아래 리비전은 영영 안 돈다). 원장 `docs/plans/2026-08-13-naver-order-ingest-ledger.md`
+- [2026-08-14] **주문 변경 사유 deploy** — 축=시공일·금액·단계·취소(제품세부=기록만). docs/specs/2026-08-13-order-change-reason_SPEC.md
+- [2026-08-13] **프래그먼트 다이어트**(운영 PR #78~#86·#90 `5b73eb46`, 주문 태블릿 PR #95 `9f9b1ade`) — v3 죽은 v2 표면 6탭 435.8KB(**운영은 전원 v2 = no-op**, `FOMS_V3_SHELL_COHORT`는 v2 자격 플래그)·`pointer:coarse` 주문 표면 47.2KB(운영 실효)·폰 광폭표면 526.9KB(쿠키 `foms_scr`, deploy `61af5bd8`). **AS 표는 제외**(`d-md-block` 768 → 폰 가로에서 실제 표시, 계약으로 부재 고정). **측정은 `?view=fragment` 필수**(헤더만이면 전체 페이지). 잔여=AS 모바일 229.5KB(리사이즈 재요청 선행)·폰 건 운영 승격. 상세는 AI_CHANGELOG 2026-08-14
+- [2026-08-13] **AS 근본 최적화 2건(deploy)** — ① dTTFB 181→96(예산 168 불변, 공식 176보다 엄격): 지출처=같은 모집단 집계 2회 + 행100×2필드 sanitize 재파싱 → 단일 스캔 + sanitize LRU 메모이즈. ② data-order-id 1271→228(행 컨테이너 일원화, 자손은 closest 역참조) → wire 51.1→46.3KB. **함정: 표면간 상태동기화가 `.cls[data-order-id=x]` 전역 선택자였다** — 스코프 조회로 치환 후에야 자손 제거 가능.
+- [2026-08-10] **채널톡 AS PUSH·시공 계측 승격**(`340b0064`) — AS 본문 서버 SSOT(AS방 230351), 시공 숫자판=시공 단계만, 진단 헤더 2종.
+- [2026-08-01] **하네스 함정** — `ci_watch.py`는 워크플로 1개만 본다. 판정은 `gh run list --branch <b>` 전수. SQLite 레인 FK 미강제·PG 레인 마이그레이션 미검증·CI Redis 없음.
+- 위 3건 상세·후속 목록·결재 기록: `docs/plans/2026-07-31-full-promotion-prep-ledger.md`
+- [2026-08-06] **계정 셀프서비스 v1 deploy 반영** — 셀프 가입 신청(PENDING 승인 흐름)+비밀번호 재설정 요청 큐(관리자 처리형), 마이그레이션 `account_self_00`, 승인 UI=/admin/users, 신규 테스트 14 green. 스펙: `docs/specs/2026-08-06-account-self-service-design.md`
+- [2026-08-11] 감사 화면 3라운드 상세: 헤더 드래그 폭 기억(표별 localStorage), 시간 칸 rem 고정(%폭은 좁은 화면에서 초 자리 잘림), 부가정보 ensure_ascii=False+접이식(행 153→65px), 보안 로그 기간 필터(KST 경계), 배지 한글 라벨(코드는 title), UA 요약. ColumnResizer 는 UMD 라 `.default` fallback 없으면 조용히 미부착.
+- [2026-04-17] **ERP fast-page `EPT-B8`:** run record `docs/plans/2026-04-17-ept-b8-verification-railway-evidence-run-record.md` — 로컬 게이트 완료; staging HTTP 하네스로 **§4 표·§5** 부분 채움; **closeout** 은 deploy ID·§6 모드·hard stop 조건 충족 후.
+- [2026-04-15] active mainline 구조 tranche 없음. `WR-B1` / `WR-J1` / `WR-H1`는 explicit future batch 조건에서만 재개.
 - [2026-04-15] **Strict final canonical tree `SFC-B11B` slice 1 (`auth`, §6.16):** 구현 `foms/web/auth/routes.py`; `apps/auth.py` shim; `log_access` 예외 명시화. 검증: **586 passed**. 근거: batch11b **§Slice B11B-1**.
 - [2026-04-15] **Strict final canonical tree `SFC-B11A` (§6.15 sign-off + slice 20):** 실행 계획 §**6.15** 대조표를 batch11a run record에 기록(인벤토리 동결·child family 계약·`blueprints` 정본 경로). `test_b11a_apps_api_package_init_empty_strict_canonical` 포함. 검증: `APP_OK`, `verify_result.py --json`, `pytest tests` **586 passed**.
 - [2026-04-15] **Strict final canonical tree `SFC-B11A` (slice 19 — `erp_shipment_settings` re-export):** `test_wr_h1_erp_shipment_settings_shim_strict_canonical` — 루트 `apps/api/erp_shipment_settings.py`가 `foms.api.shipment.settings`에서 재노출·`@erp_shipment_bp.route` 없음·Blueprint·뷰 함수 동일 객체. 검증: **585 passed**. 근거: batch11a **§Slice 19**.
@@ -258,3 +299,8 @@ Flask 2.3 + PostgreSQL + R2 + Railway (Web×2, Worker×1)
 | `tests/test_wdcalculator_base_components_contract_node.py` | `primary-form.js`에서 추출한 base-components row DOM/selectors·hook contract를 Node로 검증 |
 | `tests/test_wdcalculator_estimate_totals_node.py` | `estimate-totals.js` 수식을 Node로 검증하는 focused regression test |
 | `tests/test_wdcalculator_notes_contract_node.py` | `primary-form.js`에서 추출한 notes load/collect·formatting contract를 Node로 검증 |
+
+- [2026-08-13] **AS dTTFB 근본 해소 181→96(예산 168 불변)** — 지출처=같은 모집단 집계 2회 스캔 + 행100×2필드 sanitize 재파싱(`phase()` 계측). 수정=단일 스캔 + sanitize LRU 메모이즈.
+- [2026-08-08] **감사 로깅 `**D` T1~T12 완료(deploy 반영·CI 4/4 green)** — 삭제→비활성화(감사 actor 보존)·보존기간 3년/2년·**파일 열람 기록 화면**(`/admin/file-access-logs`, ADMIN 전용). 운영 승격 전 주의 3건: `docs/harness/runtime/HANDOFF_AUDIT_LOGGING.md`
+- [2026-08-01] **deploy 전체 승격 완료 → production `0aae8d9f`** (PR #35, 356커밋·마이그레이션 29개, 테이블 45→84, 데이터 무손상). **롤백은 DB 먼저→코드 나중**(반대면 `Can't locate revision`으로 전 배포 파산). 백업 `/c/tmp/foms-backups/*.dump`.
+- [2026-08-03] **후속 완료 (deploy `04f0fc59`)** — 운영 Redis 실패잡 2,544건 정리(전부 퇴역 잡). `/erp/history` 301 제거(dTTFB 240→19ms). CI PG 16→17. **마이그레이션 체인 왕복 검증 신설**(CI가 처음 alembic 실행). construction 렌더 +22ms는 코드 무죄로 종결.

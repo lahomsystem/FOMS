@@ -5,6 +5,8 @@
 * ``GET  /api/kakao/alimtalk/preview/<order_id>`` — **서버 저장본**으로 렌더한 본문 +
   자격 판정 + 마지막 발송 이력.
 * ``POST /api/kakao/alimtalk/send-manual/<order_id>`` — 같은 저장본으로 재렌더해 발송.
+* ``POST /api/kakao/alimtalk/confirm-channel/<order_id>`` — 발송 1분 뒤 벤더에 한 번 물어
+  실제 나간 채널(카톡/문자 대체발송)을 이력에 굳힌다(T15).
 
 두 라우트 모두 **클라이언트가 보낸 본문 텍스트를 받지 않는다**(스펙 §6.4 F2) — 미리보기와
 실제 발송이 같은 SSOT(``order.structured_data``)에서 나와야 위변조·불일치가 원천 차단된다.
@@ -27,7 +29,9 @@ from foms.services.audit_message_display import describe_order_action
 from foms.services.orders.audit_order_context import order_audit_context
 from foms.services.kakao_alimtalk import (
     _ineligible_reason,  # 자격 판정 SSOT — API 에서 재구현하면 발송/표시 판정이 갈린다
+    confirm_channel,
     is_configured,
+    is_text_channel,
     render_preview,
     send_alimtalk,
 )
@@ -101,8 +105,9 @@ def api_alimtalk_send_manual(order_id: int):
         order_id: 주문 id (URL).
 
     Returns:
-        성공/실패 모두 200 + ``data = {'sent': bool, 'error': str | None}``.
-        서버 미설정은 503, 대상 주문 없음은 404.
+        성공/실패 모두 200 + ``data = {'sent': bool, 'error': str | None, 'last': dict}``.
+        ``last`` 는 방금 기록된 발송 이력이다 — 화면의 발송 흔적 칩이 이걸로 즉시 갱신해
+        추가 조회를 하지 않는다(T15). 서버 미설정은 503, 대상 주문 없음은 404.
     """
     if not is_configured():
         return _envelope(None, 'not_configured', 503)
@@ -124,6 +129,9 @@ def api_alimtalk_send_manual(order_id: int):
     # 이력은 structured_data 의 alimtalk_measurement 가 이미 소유한다.
     sent = bool(result.get('sent'))
     error = result.get('error')
+    # send_alimtalk 은 자기 세션에서 이력을 커밋했다 — 이 요청 세션의 사본은 낡았다.
+    get_db().expire(order)
+    result['last'] = (order.structured_data or {}).get('alimtalk_measurement')
     context = order_audit_context(order)
     log_access(
         describe_order_action(order_id=order_id, action='ALIMTALK_MANUAL_SENT',
@@ -132,4 +140,48 @@ def api_alimtalk_send_manual(order_id: int):
         action='ALIMTALK_MANUAL_SENT', target_type='order', target_id=int(order_id),
         detail={'sent': sent, 'error': error, 'template': 'measure', **context},
     )
+    return _envelope(result, error)
+
+
+@kakao_bp.route('/alimtalk/confirm-channel/<int:order_id>', methods=['POST'])
+@login_required
+@role_required(_ALIMTALK_ROLES)
+def api_alimtalk_confirm_channel(order_id: int):
+    """발송된 알림톡의 실제 채널(카톡 / 문자 대체발송)을 벤더에 한 번 물어 확정한다.
+
+    화면의 발송 흔적 칩이 '카톡으로 나갔는지 문자로 나갔는지'를 표시하려면 이 확정이
+    필요하다 — 접수 시점 type 은 항상 ``ATA`` 이고 카톡이 실패해야 벤더가 문자로 바꾼다.
+    호출은 멱등이다: 이미 확정된 건은 벤더를 부르지 않고 저장된 값을 그대로 돌려준다.
+
+    아직 확인할 수 없는 상태(발송 1분 미경과·발송 이력 없음)는 **오류가 아니라 정상**이라
+    200 + error 코드로 조용히 돌려준다 — 화면은 칩을 그대로 두면 된다.
+
+    Args:
+        order_id: 주문 id (URL).
+
+    Returns:
+        ``data = {'channel', 'checked', 'cached', 'error'}``. 서버 미설정은 503,
+        대상 주문 없음은 404.
+    """
+    order = _load_order(order_id)
+    if order is None:
+        return _envelope(None, 'order_not_found', 404)
+
+    result = confirm_channel(order_id)
+    error = result.get('error')
+    if error == 'not_configured':
+        return _envelope(result, error, 503)
+
+    # 이번 호출이 실제로 벤더에 물어 확정한 경우에만 감사에 남긴다(캐시 반환은 소음).
+    if result.get('checked') and not result.get('cached'):
+        channel = result.get('channel')
+        context = order_audit_context(order)
+        note = '문자 대체발송' if is_text_channel(channel) else (channel or '확인 불가')
+        log_access(
+            describe_order_action(order_id=order_id, action='ALIMTALK_CHANNEL_CONFIRMED',
+                                  note=note, **context),
+            session.get('user_id'),
+            action='ALIMTALK_CHANNEL_CONFIRMED', target_type='order', target_id=int(order_id),
+            detail={'channel': channel, 'template': 'measure', **context},
+        )
     return _envelope(result, error)

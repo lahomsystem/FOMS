@@ -264,7 +264,10 @@
                       </div>
                       <div class="erp-drawing-gateway-meta">
                         도면 담당: <strong>{{ draftsman_text }}</strong><br />
-                        주문 담당: <strong>{{ o.manager_name or '-' }}</strong>
+                        주문 담당:
+                        {% if o.is_unassigned_intake %}
+                        <span class="badge bg-warning text-dark" title="네이버 수집 주문 — 담당자 배정 전">담당 미지정</span>
+                        {% else %}<strong>{{ o.manager_name or '-' }}</strong>{% endif %}
                         {% if drawing_transferred and drawing_files %}
                         <br />전달 파일: <strong>{{ drawing_files|length }}개</strong>
                         {% endif %}
@@ -401,7 +404,11 @@
                     {% endif %}
                     {% endif %}
                   </td>
-                  <td data-col-key="manager" data-label="담당" style="font-size: 1.1rem; color: #495057;">{{ o.manager_name or '-' }}</td>
+                  <td data-col-key="manager" data-label="담당" style="font-size: 1.1rem; color: #495057;">
+                    {% if o.is_unassigned_intake %}
+                    <span class="badge bg-warning text-dark" title="네이버 수집 주문 — 담당자 배정 전">담당 미지정</span>
+                    {% else %}{{ o.manager_name or '-' }}{% endif %}
+                  </td>
                   <td data-col-key="attachment" data-label="첨부">
                     {% if o.has_media %}
                     {% set order_id_att = o.id %}

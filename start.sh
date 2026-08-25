@@ -24,6 +24,16 @@ if [ "$USE_RQ_WORKER" = "1" ]; then
     python scripts/maintenance/run_notification_escalation.py --loop \
       --interval "${FOMS_ESCALATION_INTERVAL_SECONDS:-60}" --json &
   fi
+
+  # 네이버 스마트스토어 주문 수집 (NAVER-INGEST-01). escalation 과 같은 배선이다:
+  # 백그라운드 서브셸이라 수집 실패가 rq worker 본체를 죽이지 않고, 다중 replica 여도
+  # 멱등(UNIQUE (channel, external_id))이라 안전하다.
+  # **이 루프는 WORKER 에서만 돈다** — 커머스API센터 호출 IP 한도 3 = Railway static IP 3 이라
+  # 여유가 없어 네이버로 나가는 HTTP 는 이 서비스 한 곳으로 몰아야 한다. 기본은 off.
+  if [ "$FOMS_NAVER_SYNC_ENABLED" = "1" ]; then
+    python scripts/maintenance/run_naver_order_sync.py --loop \
+      --interval "${FOMS_NAVER_SYNC_INTERVAL_SECONDS:-300}" --json &
+  fi
   exec rq worker default --url "$REDIS_URL"
 else
   exec gunicorn -k gevent -w 2 --timeout 120 --graceful-timeout 30 --keep-alive 5 --access-logfile - --bind "0.0.0.0:${PORT:-8080}" app:app

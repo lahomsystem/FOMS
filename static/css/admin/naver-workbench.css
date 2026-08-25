@@ -1,0 +1,596 @@
+/* 네이버 수집 워크벤치 — UI 개편 본체 (스펙 2026-08-20-naver-ingest-workbench_SPEC.md).
+ *
+ * 인라인 스타일 금지 규칙 때문에 전용 파일로 둔다. 색·간격 값은 erp-pro.css 토큰을
+ * 쓸 수 있으면 쓰고, 이 화면에만 있는 개념(색띠 3층·2단 대조표)만 여기서 정의한다.
+ */
+
+.naver-workbench {
+    --wb-line: #dbe1ea;
+    --wb-line-soft: #edf1f6;
+    --wb-muted: #6b7280;
+    --wb-surface-soft: #f6f8fb;
+    /* 이 화면의 강조색 2종. 파랑 = 되돌릴 수 있는 것(선택·필터·열린 집),
+       빨강 = 되돌릴 수 없는 것(취소·반품). 아래 규칙은 전부 이 6개만 쓴다. */
+    --wb-accent: #2563eb;
+    --wb-accent-soft: #eaf1ff;
+    --wb-accent-line: #b9d0ff;
+    --wb-danger: #b91c1c;
+    --wb-danger-soft: #fdeaea;
+    --wb-danger-line: #f3c2c2;
+    /* 글자 크기 배율. 이 파일의 모든 font-size 는 `calc(Npx * var(--wb-fs))` 다 —
+       브라우저를 80% 로 축소해 쓰는 사용자에게 11~12px 는 9~10px 로 보인다(2026-08-24 지적).
+       값은 스트립의 글자 크기 버튼이 JS 로 바꾸고 localStorage 에 남긴다. */
+    --wb-fs: 1;
+}
+
+/* ── 글자 크기 조절 (스트립 오른쪽) ───────────────────────────────────
+   전역 `.btn { padding: 10px 20px !important }` 을 피하려고 .btn 을 쓰지 않는다 —
+   좁은 칸에서 글자가 세로로 쪼개지던 그 함정이다. */
+.wb-fs { display: inline-flex; align-items: center; gap: 2px; }
+
+.wb-fs__btn {
+    width: 22px;
+    height: 22px;
+    line-height: 1;
+    padding: 0;
+    border: 1px solid var(--wb-line);
+    border-radius: 5px;
+    background: #fff;
+    color: var(--wb-muted);
+    font-size: 13px;          /* 이 버튼만 배율에서 뺀다 — 조절기가 같이 커지면 손이 따라간다 */
+    cursor: pointer;
+}
+
+.wb-fs__btn:hover:not(:disabled) { background: var(--wb-surface-soft); color: #111827; }
+.wb-fs__btn:disabled { opacity: .35; cursor: default; }
+
+.wb-fs__now {
+    min-width: 34px;
+    text-align: center;
+    font-size: 11px;
+    color: var(--wb-muted);
+    font-variant-numeric: tabular-nums;
+}
+
+/* ── 머리줄(이름 + 탭 + 사실) · 도구줄(필터 + 정렬 + 찾기) ────────────
+   담당자는 76줄을 훑는다. 예전에는 이름·탭·칩·도구가 **네 줄**을 먹었고 그중 둘만
+   스크롤을 따라와서, 아래로 내려가면 "몇 집 남았는지"와 "어떤 필터인지"가 사라졌다.
+   둘로 접고 **둘 다** 따라오게 한다 — 고정 높이는 예전(탭+도구)과 같은데 보이는 사실은
+   두 배다. 크롬을 더 얹지 않는다: 배경 흰색, 아래 실선 1px, 그게 전부. */
+.wb-bar {
+    display: flex;
+    align-items: center;
+    gap: 10px;
+    flex-wrap: wrap;
+    position: sticky;
+    z-index: 3;
+    background: #fff;
+    border-bottom: 1px solid var(--wb-line);
+    font-size: calc(12px * var(--wb-fs, 1));
+}
+
+.wb-bar--head {
+    top: 0;
+    gap: 14px;
+    padding: 6px 0 0;
+}
+
+/* 도구줄은 머리줄 **바로 아래**에 선다. 머리줄 높이 = 패딩 6 + 탭(패딩 18 + 테두리 1 +
+   글자줄 20×배율) + 테두리 1. 이 화면은 글자를 단계로 키울 수 있어(--wb-fs) 고정값을
+   쓰면 크게 키웠을 때 두 줄이 겹친다. z-index 는 머리줄보다 낮다 — 겹치는 순간
+   위쪽이 이겨야 자연스럽다. */
+.wb-bar--tools {
+    top: calc(26px + 20px * var(--wb-fs, 1));
+    z-index: 2;
+    padding: 7px 0;
+    margin-bottom: 10px;
+}
+
+.wb-bar__title { font-size: calc(15px * var(--wb-fs, 1)); font-weight: 700; white-space: nowrap; }
+.wb-bar__spacer { flex: 1; }
+
+/* 탭 배지가 못 말하는 사실만 여기 남는다. 무게를 낮춘다 — 주 숫자는 탭 배지다. */
+.wb-bar__fact { color: var(--wb-muted); white-space: nowrap; }
+.wb-bar__fact b { color: #111827; font-weight: 600; font-variant-numeric: tabular-nums; }
+.wb-bar__fact--quiet { font-size: calc(11px * var(--wb-fs, 1)); }
+
+.wb-bar__locked {
+    font-size: calc(11.5px * var(--wb-fs, 1));
+    color: var(--wb-muted);
+    background: var(--wb-surface-soft);
+    border: 1px solid var(--wb-line);
+    padding: 2px 9px;
+    border-radius: 999px;
+    white-space: nowrap;
+    font-variant-numeric: tabular-nums;
+}
+
+.wb-bar__locked b { color: #111827; font-weight: 600; }
+
+/* 두 조작 묶음 사이의 경계. 글자 대신 1px 선 하나로 가른다(크롬 최소). */
+.wb-bar__sep {
+    width: 1px;
+    align-self: stretch;
+    margin: 2px 2px;
+    background: var(--wb-line);
+}
+
+/* ── 탭: 머리줄 안에 산다(sticky·배경·테두리는 .wb-bar 가 든다) ────────── */
+.wb-tabs { display: flex; gap: 2px; }
+
+.wb-tab {
+    display: inline-block;
+    padding: 9px 14px;
+    font-size: calc(13px * var(--wb-fs, 1));
+    font-weight: 600;
+    color: var(--wb-muted);
+    text-decoration: none;
+    border-bottom: 2px solid transparent;
+}
+
+.wb-tab:hover { color: #111827; text-decoration: none; }
+.wb-tab[aria-selected="true"] { color: var(--wb-accent, #2563eb); border-bottom-color: var(--wb-accent, #2563eb); }
+
+.wb-tab__n {
+    display: inline-block;
+    margin-left: 6px;
+    padding: 1px 7px;
+    border-radius: 10px;
+    background: var(--wb-surface-soft);
+    font-size: calc(11px * var(--wb-fs, 1));
+    font-weight: 700;
+}
+
+.wb-tab[aria-selected="true"] .wb-tab__n { background: var(--wb-accent-soft, #eaf1ff); color: var(--wb-accent, #2563eb); }
+/* v3 에서 탭은 처리·이력 2개뿐이라 이 변형은 탭에 안 붙는다. 취소·반품이 다시 탭으로
+   올라올 때를 위해 남긴다(칩 쪽 위험색은 .wb-chip--danger 가 따로 든다). */
+.wb-tab--danger .wb-tab__n { background: var(--wb-danger-soft, #fdeaea); color: var(--wb-danger, #b91c1c); }
+
+/* ── 필터 칩 (v3): 없어진 탭 2개(발주확인 전·취소·반품)가 여기로 내려왔다.
+      칩은 같은 목록을 거를 뿐이라 탭처럼 보이면 안 된다 — 알약형·연한 배경. ── */
+.wb-chips {
+    display: inline-flex;
+    align-items: center;
+    gap: 6px;
+    flex-wrap: wrap;
+}
+
+.wb-chip {
+    display: inline-flex;
+    align-items: center;
+    gap: 5px;
+    border: 1px solid var(--wb-line);
+    border-radius: 999px;
+    padding: 3px 10px;
+    font-size: calc(11.5px * var(--wb-fs, 1));
+    color: var(--wb-muted);
+    background: #fff;
+    text-decoration: none;
+}
+
+.wb-chip:hover { background: var(--wb-surface-soft); color: #111827; text-decoration: none; }
+
+.wb-chip[aria-pressed="true"] {
+    background: var(--wb-accent-soft, #eaf1ff);
+    border-color: var(--wb-accent-line, #b9d0ff);
+    color: var(--wb-accent, #2563eb);
+    font-weight: 600;
+}
+
+/* 취소·반품 칩 — 켰을 때만 붉어진다. 꺼져 있을 때까지 붉으면 "지금 사고" 로 읽힌다. */
+.wb-chip--danger[aria-pressed="true"] {
+    background: var(--wb-danger-soft, #fdeaea);
+    border-color: var(--wb-danger-line, #f3c2c2);
+    color: var(--wb-danger, #b91c1c);
+}
+
+/* 칩 안의 집 수. b/`.wb-chip__n` 어느 쪽으로 마크업해도 같게 보이도록 둘 다 문다. */
+.wb-chip b,
+.wb-chip__n { font-variant-numeric: tabular-nums; font-weight: 700; }
+
+/* 처리 탭 칩 줄은 필터 자체가 주 조작이라 이력 탭 필터보다 한 치수 크다. */
+.wb-chips .wb-chip { padding: 5px 12px; font-size: calc(12px * var(--wb-fs, 1)); }
+
+/* ── 벌크 바 (v3): 고른 게 있을 때만 나타난다.
+      기본 display:none, JS 가 `.on` 을 붙이면 display:flex.
+      상시 노출하면 "여러 집 한꺼번에 보내기" 가 기본 동작처럼 보인다(불가역 위험). ── */
+#wb-bulk {
+    display: none;
+    align-items: center;
+    gap: 10px;
+    flex-wrap: wrap;
+    margin-bottom: 10px;
+    padding: 9px 14px;
+    border: 1px solid var(--wb-accent-line, #b9d0ff);
+    border-radius: 8px;
+    background: var(--wb-accent-soft, #eaf1ff);
+    font-size: calc(12.5px * var(--wb-fs, 1));
+}
+
+#wb-bulk.on { display: flex; }
+#wb-bulk-n { font-weight: 700; color: var(--wb-accent, #2563eb); font-variant-numeric: tabular-nums; }
+.wb-bulk__spacer { flex: 1; }
+.wb-bulk__why { font-size: calc(11px * var(--wb-fs, 1)); color: var(--wb-muted); }
+/* 벌크 진행 문구 — 비어 있으면 자리를 차지하지 않는다(폴링 대신 여기로 말한다). */
+.wb-bulk__note { font-size: calc(11px * var(--wb-fs, 1)); color: var(--wb-accent, #2563eb); }
+.wb-bulk__note:empty { display: none; }
+
+/* 잠긴 체크박스는 탭을 **행에게 넘긴다**.
+   disabled 폼 컨트롤은 click 이벤트를 아예 내지 않아서, 마우스가 없는 기기에서는
+   "왜 못 고르는지"(title)를 읽을 방법이 없었다. 포인터를 통과시키면 같은 탭이
+   a.wb-row 에 닿아 상세가 열리고, 사유는 거기 상시 문구·배지로 이미 적혀 있다.
+   활성 체크박스는 그대로다 — :disabled 에만 건다. */
+.wb-pick:disabled { pointer-events: none; }
+/* 전역 `.btn { padding: 10px 20px !important }`(style-pro-max.css) 대응 — 다른 좁은 칸과
+   같은 함정이라 같은 처방(줄바꿈만 막는다, !important 를 더 얹지 않는다). */
+.naver-workbench #wb-bulk .btn { white-space: nowrap; font-size: calc(12px * var(--wb-fs, 1)); }
+
+/* ── 본문 2단 (결정 8): 원본을 읽으며 규격을 채우는 일이라 대조가 상시 필요하다 ── */
+/* 좌측 상한을 px 로 못박으면(구 400px) 넓은 화면에서 남는 폭을 전부 오른쪽이 먹는다 —
+   목록은 제품명이 잘리고 배지가 줄바꿈돼 행 높이가 들쭉날쭉한데, 상세는 금액 열이
+   화면 끝까지 밀려 헐거워졌다(2026-08-23 사용자 지적, 스테이징 1440 실화면).
+   상한을 비율로 바꿔 폭이 커질수록 목록도 같이 넓어지게 한다. 하한 360px 는
+   992px 브레이크포인트 직전(비율값이 하한 아래로 떨어지는 구간)에서 목록이
+   더 좁아지지 않게 잡아 준다. 오른쪽은 minmax(0, …) — 안 그러면 옵션 원문 같은
+   긴 내용이 1fr 의 자동 최소폭을 밀어 격자 전체가 넘친다. */
+.wb-split {
+    display: grid;
+    grid-template-columns: minmax(360px, 36%) minmax(0, 1fr);
+    gap: 12px;
+    align-items: start;
+}
+
+@media (max-width: 991.98px) {
+    .wb-split { grid-template-columns: 1fr; }
+}
+
+/* 상세는 목록을 따라 내려온다 — 목록에서 max-height 를 걷어낸 대신
+   행이 아래쪽에 있어도 상세가 화면 밖으로 사라지지 않게.
+   1단으로 접히는 폭(≤991.98px)에서는 sticky 를 걸지 않는다: 그 폭에서는 상세가
+   목록 아래에 오므로 붙어 다니면 목록을 가린다. 위 .wb-split 브레이크포인트의 짝. */
+@media (min-width: 992px) {
+    /* sticky 는 **pane 루트가 아니라 안쪽 카드**에 건다.
+       `position: sticky` 는 z-index 가 auto 여도 **항상 stacking context 를 만든다**.
+       불가역 모달 4종이 `#wb-pane` 안에 있는데 루트에 sticky 를 걸면 그 모달들이
+       pane 의 stacking context 에 갇히고, Bootstrap 백드롭은 `body`(z:1050)에 붙는다
+       → **백드롭이 모달 위를 덮어 데스크톱에서 단건 발주확인·발송처리·취소·주문 만들기가
+       전부 실행 불가**가 된다(2026-08-23 리뷰 치명-2). 벌크 모달만 `.wb-split` 밖이라
+       멀쩡해서, "벌크만 되고 단건은 안 되는" 최악의 비대칭이 나온다.
+       카드에 걸면 모달은 sticky 요소의 **형제**라 그 컨텍스트 밖에 남는다. */
+    #wb-pane {
+        align-self: stretch;   /* 안쪽 sticky 가 움직일 여백을 준다 */
+    }
+
+    #wb-pane > .wb-detail {
+        position: sticky;
+        /* 위에 붙어 있는 것이 **둘**이다: 탭 줄(`.wb-tabs`, top 0)과 정렬·찾기 줄
+           (`.wb-tools`). 상세 머리가 그 뒤로 숨지 않으려면 둘의 높이를 다 내려야 한다.
+             · 머리줄 = 패딩 6 + 탭(패딩 18 + 테두리 1 + 글자줄 20×배율) + 테두리 1
+             · 도구줄 = 패딩 14 + 글자줄(18 × 배율) + 테두리 1 + margin-bottom 10
+           이 화면은 글자를 단계로 키울 수 있으므로(--wb-fs) 고정값을 쓰면 크게 키웠을 때
+           다시 가려진다 — 배율을 따라간다. */
+        top: calc(60px + 38px * var(--wb-fs, 1));
+        /* 상세가 화면보다 길면 sticky 특성상 아래쪽에 영영 손이 닿지 않는다.
+           목록이 아니라 이 칸만 자체 스크롤을 갖는다. */
+        max-height: calc(100vh - 72px - 38px * var(--wb-fs, 1));
+        overflow: auto;
+        overscroll-behavior: contain;
+    }
+}
+
+/* 발주확인 완료 — 사실 고지지 경고가 아니다. '발주확인 전'(노랑)과 같은 자리에서
+   같은 축을 말하므로 무게를 낮춰 둔다(결정 D4: 배지가 배경이 되면 안 된다). */
+.wb-badge--done { color: var(--wb-muted) !important; border: 1px solid var(--wb-line); }
+
+/* ── 정렬 + 목록 안 찾기 ─────────────────────────────────────────────
+   칩(모집단 거르기) 바로 아래에 둔다. 칩은 "무엇을 보는가", 여기는 "어떤 순서로 ·
+   그중 어느 줄"이다. 두 줄이 붙어 있어야 사람이 한 곳에서 목록을 조작한다. */
+
+.wb-tools__label { color: var(--wb-muted); white-space: nowrap; }
+
+/* 세그먼트: 두 칸이 한 테두리를 나눠 쓴다 = "둘 중 하나"로 읽힌다.
+   낱개 알약인 필터 칩과 한 줄에 있어도 역할이 헷갈리지 않는다. */
+.wb-seg {
+    display: inline-flex;
+    border: 1px solid var(--wb-line);
+    border-radius: 7px;
+    overflow: hidden;
+}
+
+.wb-sort {
+    padding: 3px 10px;
+    color: var(--wb-muted);
+    text-decoration: none;
+    background: #fff;
+    white-space: nowrap;
+}
+
+.wb-sort + .wb-sort { border-left: 1px solid var(--wb-line); }
+.wb-sort:hover { background: var(--wb-surface-soft); color: #111827; text-decoration: none; }
+
+.wb-sort[aria-pressed="true"] {
+    background: var(--wb-accent-soft);
+    color: var(--wb-accent);
+    font-weight: 600;
+}
+
+.wb-find { display: inline-flex; align-items: center; gap: 6px; }
+.wb-find__label { color: var(--wb-muted); }
+
+.wb-find__input {
+    width: 220px;
+    max-width: 46vw;
+    padding: 3px 9px;
+    border: 1px solid var(--wb-line);
+    border-radius: 6px;
+    font-size: calc(12px * var(--wb-fs, 1));
+}
+
+.wb-find__input:focus {
+    outline: none;
+    border-color: var(--wb-accent-line);
+    box-shadow: 0 0 0 2px var(--wb-accent-soft);
+}
+
+/* 몇 줄로 좁혔는지 — 조용히 좁히면 "집이 사라졌다"가 된다. */
+.wb-find__note {
+    color: var(--wb-muted);
+    font-variant-numeric: tabular-nums;
+}
+
+/* ── 큐 행: 한 집 = 한 줄 ────────────────────────────────────────────── */
+/* v3: max-height/overflow 제거. 목록이 640px 에서 잘려 스크롤이 두 겹이 되는 바람에
+   "방금 본 집이 어디 갔지" 가 됐다 — 이제 페이지 하나만 스크롤한다. */
+.wb-queue { display: flex; flex-direction: column; }
+
+.wb-row {
+    display: grid;
+    grid-template-columns: 5px 1fr;
+    gap: 10px;
+    border-bottom: 1px solid var(--wb-line-soft);
+    text-decoration: none;
+    color: inherit;
+}
+
+/* 체크박스를 .wb-row 의 직계 자식으로 놓을 때만 칸을 하나 더 연다.
+   .wb-row__line1 안에 넣는 기존 마크업은 이 규칙 없이도 그대로 동작한다. */
+.wb-row--pick { grid-template-columns: 5px auto 1fr; }
+/* :has() 미지원 브라우저에서 선택자 목록이 통째로 죽지 않게 규칙을 나눠 둔다. */
+.wb-row:has(> input.wb-pick) { grid-template-columns: 5px auto 1fr; }
+
+.wb-row:hover { background: var(--wb-surface-soft); color: inherit; text-decoration: none; }
+.wb-row[aria-current="true"] { background: var(--wb-accent-soft, #eaf1ff); }
+
+/* 결정 4 의 3층째 — 색띠. 색만으로 구분하면 색맹 사용자가 못 읽으므로
+   .wb-can 글자 라벨을 항상 함께 둔다. */
+.wb-row__bar { background: #2563eb; }
+.wb-row--wait .wb-row__bar { background: #f59e0b; }
+.wb-row--spec .wb-row__bar { background: #22c55e; }
+
+/* 손대면 안 되는 집은 띠를 끊어 그린다 — 색을 못 봐도 "다른 줄"임을 안다. */
+.wb-row--stop .wb-row__bar {
+    background: repeating-linear-gradient(180deg, #9aa3af 0 4px, transparent 4px 8px);
+}
+
+.wb-row--stop .wb-row__body { opacity: .62; }
+
+/* ── 잠긴 행 (v3): 취소·반품 집과 취소한 집. 체크박스도 disabled 로 닫힌다.
+      색맹 사용자를 위해 색은 단서에서 뺀다 — 끊긴 띠 + 흐림 + 이름 취소선 3층으로
+      "이 줄은 손대는 줄이 아니다" 를 알린다. ─────────────────────────── */
+.wb-row--locked .wb-row__bar {
+    background: repeating-linear-gradient(180deg, #9aa3af 0 4px, transparent 4px 8px);
+}
+
+.wb-row--locked .wb-row__body { opacity: .62; }
+.wb-row--locked .wb-row__name { text-decoration: line-through; }
+.wb-row--locked:hover { background: none; }
+
+.wb-row__body { padding: 9px 10px 10px 0; min-width: 0; }
+.wb-row__line1 { display: flex; align-items: center; gap: 8px; }
+
+/* ── 벌크 체크박스: 행을 여는 조작이 아니므로 이름과 확실히 떨어져 보여야 한다.
+      (JS 가 closest('input.wb-pick') 이면 행 열기를 건너뛴다) ────────── */
+input.wb-pick,
+#wb-pick-all {
+    flex: none;
+    width: 15px;
+    height: 15px;
+    margin: 0;
+    accent-color: var(--wb-accent, #2563eb);
+    cursor: pointer;
+    vertical-align: middle;
+}
+
+/* .wb-row 직계 자식으로 놓였을 때 첫 줄 글자 높이에 맞춘다. */
+.wb-row > input.wb-pick { align-self: start; margin-top: 12px; }
+
+input.wb-pick:disabled,
+#wb-pick-all:disabled { cursor: not-allowed; opacity: .45; }
+/* 이름이 길면 날짜를 칸 밖으로 밀어낸다 — 밀리는 쪽은 이름이어야 한다. */
+.wb-row__name {
+    font-weight: 700;
+    font-size: calc(13.5px * var(--wb-fs, 1));
+    min-width: 0;
+    overflow: hidden;
+    white-space: nowrap;
+    text-overflow: ellipsis;
+}
+.wb-row__line2 {
+    color: var(--wb-muted);
+    /* 없으면 Bootstrap 본문 16px 을 상속해 **행에서 가장 큰 글자**가 된다 —
+       고객명(13.5px)보다 제품명이 커서 위계가 뒤집히고, 같은 칸에 들어가는 글자 수가
+       3분의 1쯤 줄어 "제품명이 중간에서 끊긴다"의 절반이 여기서 나왔다(CEO 검수 중). */
+    font-size: calc(12px * var(--wb-fs, 1));
+    margin-top: 2px;
+    white-space: nowrap;
+    overflow: hidden;
+    text-overflow: ellipsis;
+}
+
+/* row-gap 을 따로 준다 — 배지가 두 줄로 접히는 행만 갑자기 붙어 보이면
+   같은 목록에서 행마다 다른 리듬이 된다. */
+.wb-row__line3 { display: flex; align-items: center; gap: 5px 5px; margin-top: 5px; flex-wrap: wrap; }
+/* 목록 배지는 전역(.badge 6px 10px)보다 한 치수 작다. 스테이징 실데이터(58집)에서
+   주문을 만든 뒤의 행(묶음·규격 입력·발주확인 전·발송기한·주문 #N)이 이 패딩 때문에
+   한 줄을 넘겼다 — 정보를 지우지 않고 폭만 되찾는다(2026-08-23 실측: 이 세 손질로
+   58행이 전부 같은 높이가 됐다). 상세·모달 배지는 그대로 둔다. */
+.wb-row__line3 .badge { padding: 4px 7px; font-size: calc(11px * var(--wb-fs, 1)); }
+/* 접수시각은 배지 줄이 아니라 **이름 줄 오른쪽**에 산다. 배지 줄에 두면 날짜가
+   폭을 먹어 배지 한 개가 아래로 밀리고, 그 행만 한 줄 더 높아진다(사용자 지적).
+   이름 줄은 오른쪽이 통째로 비어 있어 날짜가 들어갈 자리가 이미 있다. */
+.wb-row__when { margin-left: auto; flex: none; color: #9aa3af; font-size: calc(11.5px * var(--wb-fs, 1)); font-variant-numeric: tabular-nums; }
+
+/* "지금 손대도 되는가" 글자 라벨 — 배지가 아니라 문장 톤이라
+   '상태'가 아니라 '지금 뭘 할 수 있나'로 읽힌다. */
+.wb-can { font-size: calc(11.5px * var(--wb-fs, 1)); font-weight: 700; }
+.wb-can--go { color: var(--wb-accent, #2563eb); }
+.wb-can--wait { color: #b45309; }
+.wb-can--spec { color: #15803d; }
+.wb-can--stop { color: #6b7280; }
+
+/* ── 우측 상세 ──────────────────────────────────────────────────────── */
+.wb-option-raw { font-size: calc(16px * var(--wb-fs, 1)); font-weight: 700; line-height: 1.5; }
+
+/* 결정 7: 집 단위와 상품주문 행 단위는 단위가 달라 한 표에 섞지 않는다. */
+.wb-cmp-title { font-weight: 700; margin: 16px 0 6px; }
+.wb-cmp-title__sub { font-weight: 500; color: var(--wb-muted); font-size: calc(11.5px * var(--wb-fs, 1)); }
+.wb-cmp { width: 100%; border-collapse: collapse; font-size: calc(13px * var(--wb-fs, 1)); }
+
+/* 표는 **칸을 꽉 채운다**. 한때 `max-width: 860px` 로 상한을 뒀는데(금액 열이 화면 끝까지
+   밀려 헐거워 보이던 문제), 넓은 화면에서는 카드 오른쪽에 큰 죽은 공간이 생겼다
+   (2026-08-24 사용자 지적, 스테이징 실화면). 폭을 막는 대신 **숫자 열을 고정**해서
+   남는 폭이 제품·옵션 원문(사람이 읽고 규격을 채우는 값)으로 가게 한다 — 그러면
+   화면이 넓어져도 수량·금액이 제품명에서 멀어지지 않고, 표는 비율대로 늘어난다. */
+.wb-cmp th.wb-cmp__num,
+.wb-cmp td.wb-cmp__num { width: calc(92px * var(--wb-fs, 1)); }
+/* 금액은 자릿수가 많다(1,178,100). 마지막 열만 한 치수 넓게. */
+.wb-cmp th.wb-cmp__num:last-child,
+.wb-cmp td.wb-cmp__num:last-child { width: calc(128px * var(--wb-fs, 1)); }
+.wb-cmp th,
+.wb-cmp td { padding: 7px 8px; border-bottom: 1px solid var(--wb-line-soft); vertical-align: top; }
+.wb-cmp thead th { font-size: calc(11.5px * var(--wb-fs, 1)); color: var(--wb-muted); text-align: left; background: var(--wb-surface-soft); }
+/* 칸 폭도 배율을 따라간다 — 안 그러면 150% 에서 상품주문번호가 두 줄로 접힌다. */
+.wb-cmp td.wb-cmp__k { color: var(--wb-muted); width: calc(104px * var(--wb-fs, 1)); }
+.wb-cmp td.wb-cmp__num { text-align: right; font-variant-numeric: tabular-nums; }
+/* 옵션 원문은 자르지 않는다 — 사람이 이걸 보고 규격을 채운다(도메인 규칙 6). */
+.wb-cmp__option { color: var(--wb-muted); font-size: calc(11.5px * var(--wb-fs, 1)); white-space: pre-wrap; }
+
+.wb-empty { padding: 40px 16px; text-align: center; color: var(--wb-muted); }
+
+/* ── 전체 이력 (W4) ──────────────────────────────────────────────────── */
+/* 이력 탭 필터도 같은 .wb-chip 을 쓴다 — 생김새 정본은 위 "필터 칩" 절 한 곳뿐이다.
+   (v3 전에는 여기서 검정 알약으로 따로 칠했는데, 한 화면에 켜짐 표시가 두 종류였다) */
+.wb-filters { display: flex; gap: 6px; padding: 8px 12px; flex-wrap: wrap; border-bottom: 1px solid var(--wb-line-soft); }
+
+/* 결정 2: 취소·반품은 이력에서 빼지 않고 회색으로 같은 자리에 남긴다.
+   빼면 "그 주문 어디 갔지" 가 되고, 남기면 같은 자리에서 사실을 확인할 수 있다. */
+.wb-hist--muted td { background: #fafbfc; color: #9aa3af; }
+.wb-hist--muted a:not(.btn) { color: #9aa3af; }
+
+.wb-pager { display: flex; align-items: center; gap: 8px; padding: 10px 12px; flex-wrap: wrap; }
+.wb-pager a { border: 1px solid var(--wb-line); border-radius: 6px; padding: 2px 9px; text-decoration: none; }
+.wb-pager__cur { font-weight: 700; font-variant-numeric: tabular-nums; }
+
+/* ── 실행 결과 띠 (W5, 결정 7) ────────────────────────────────────────
+   .alert 는 전역 스크립트가 5초 뒤 제거한다 — 이 블록에는 반드시
+   data-foms-no-autodismiss 가 붙어야 실패 사유가 증발하지 않는다. */
+.wb-ingest { display: grid; grid-template-columns: repeat(4, 1fr); gap: 12px;
+             margin: 8px 0 12px; padding: 10px 12px; border: 1px solid var(--border, #dee2e6);
+             border-radius: 8px; background: rgba(15, 23, 42, .02); }
+.wb-ingest__k { font-size: calc(11.5px * var(--wb-fs, 1)); opacity: .7; }
+.wb-ingest__v { font-size: calc(14px * var(--wb-fs, 1)); font-weight: 700; margin-top: 2px; }
+.wb-ingest__sub { font-size: calc(11.5px * var(--wb-fs, 1)); opacity: .75; margin-top: 2px; }
+.wb-ingest__cell--action { display: flex; flex-direction: column; align-items: flex-start; gap: 4px; }
+@media (max-width: 1100px) { .wb-ingest { grid-template-columns: repeat(2, 1fr); } }
+.wb-note { margin: 8px 12px 0; padding: 7px 10px; border-radius: 6px;
+           background: rgba(217, 119, 6, .08); border: 1px solid rgba(217, 119, 6, .28);
+           font-size: calc(12.5px * var(--wb-fs, 1)); }
+.wb-result { margin: 8px 0 12px; }
+.wb-result__head { display: flex; align-items: baseline; gap: 12px; flex-wrap: wrap; }
+.wb-result__list { width: 100%; border-collapse: collapse; margin-top: 8px; font-size: calc(12.5px * var(--wb-fs, 1)); }
+.wb-result__list td { padding: 5px 8px; border-top: 1px solid rgba(185, 28, 28, .18); vertical-align: top; }
+.wb-result__who { font-weight: 700; width: 92px; }
+.wb-result__no { width: 172px; font-variant-numeric: tabular-nums; opacity: .8; }
+.wb-result__act { width: 76px; font-weight: 600; white-space: nowrap; }
+.wb-result__at { width: 120px; text-align: right; opacity: .8; font-variant-numeric: tabular-nums; }
+.wb-result__ack { width: 96px; text-align: right; }
+/* 전역 `.btn { padding: 10px 20px !important }`(style-pro-max.css) 때문에 좁은 칸에서
+   "확인함" 이 글자마다 줄바꿈돼 세로로 쪼개졌다(1440 실화면). 패딩은 못 이기므로
+   칸을 넓히고 줄바꿈을 막는다 — 지역 CSS 에 !important 를 더 얹지 않는다. */
+.naver-workbench .wb-result__ack .btn { white-space: nowrap; font-size: calc(12px * var(--wb-fs, 1)); }
+.wb-result__foot { margin-top: 10px; }
+/* 재시도 진행 문구 — 벌크와 같은 규칙(누른 직후는 아직 워커 전이다). */
+.wb-result__note { margin-left: 8px; font-size: calc(11px * var(--wb-fs, 1)); }
+.wb-result__note:empty { display: none; }
+
+/* ── 관계 축 (추가결제·재결제) ─────────────────────────────────────────
+   대조표 아래 한 덩어리. 붙이기는 되돌릴 수 있는 조작이라 경고색을 쓰지 않는다 —
+   빨강은 되돌릴 수 없는 것(발송처리·취소)에만 남긴다. */
+.wb-relation { display: flex; align-items: center; gap: 8px; flex-wrap: wrap;
+               padding: 9px 10px; border-radius: 6px;
+               background: var(--wb-surface-soft); border: 1px solid var(--wb-line-soft); }
+.wb-relation--ask { display: block; }
+.wb-relation__text { font-size: calc(13px * var(--wb-fs, 1)); }
+.wb-relation__why { font-size: calc(12.5px * var(--wb-fs, 1)); margin: 0 0 8px; }
+.wb-relation__reason { color: var(--wb-muted); font-size: calc(11.5px * var(--wb-fs, 1)); }
+/* 후보 표는 대조표와 같은 골격을 쓰되 첫 칸이 주문번호라 폭이 다르다. */
+.wb-cmp--cand { background: #fff; }
+.wb-cmp--cand td.wb-cmp__k { width: calc(132px * var(--wb-fs, 1)); color: inherit; }
+/* 전역 `.btn { padding: 10px 20px !important }` 때문에 붙이기 버튼 2개가 좁은 칸에서
+   세로로 쪼개진다(실패 목록 '확인함' 과 같은 함정). 줄바꿈만 막는다. */
+.naver-workbench .wb-cmp--cand .btn { white-space: nowrap; font-size: calc(12px * var(--wb-fs, 1)); }
+
+/* ── v3: 부분 갱신 피드백 ─────────────────────────────────────────────
+   행을 눌러 상세만 갈아 끼우는 동안, 그리고 발주확인처럼 화면이 안 변하는
+   성공 뒤에 사람에게 뭐라도 보여 준다. 피드백이 없으면 "안 눌렸나" 하고
+   한 번 더 누르는데, 불가역 호출에서 재클릭은 그 자체가 사고 경로다. */
+#wb-pane[aria-busy="true"] {
+    opacity: .55;
+    pointer-events: none;
+    transition: opacity .12s ease-out;
+}
+
+/* 비어 있으면 자리를 차지하지 않는다 — 평소엔 없는 줄이어야 한다. */
+.wb-pane__ack:empty { display: none; }
+
+.wb-pane__ack {
+    margin-top: 8px;
+    padding: 6px 10px;
+    border-radius: 6px;
+    background: var(--wb-accent-soft, #eaf1ff);
+    border: 1px solid var(--wb-accent-line, #b9d0ff);
+    color: var(--wb-accent, #2563eb);
+}
+
+.wb-pane__ack--err {
+    background: var(--wb-danger-soft, #fdeaea);
+    border-color: var(--wb-danger-line, #f3c2c2);
+    color: var(--wb-danger, #b91c1c);
+}
+
+/* ── 액션 줄과 안내 문구 ───────────────────────────────────────────────
+   계약 §3.3 이 "목업 문장 그대로"라고 못박은 안내 3종("신규 집이라 발주확인이
+   먼저입니다" 등)이 여기 실린다. 스타일이 없으면 맨 텍스트로 흘러 버튼 줄과
+   구분이 안 되고, 왜 잠겼는지가 눈에 안 들어온다. */
+.wb-acts {
+    row-gap: 6px;
+}
+
+.wb-acts__why {
+    width: 100%;
+    margin-top: 2px;
+    color: #b45309;                 /* .wb-can--wait 와 같은 경고색 축 */
+    line-height: 1.5;
+}
+
+/* 잠긴 집의 안내는 "왜 닫혔는지"라 경고보다 강하게 읽혀야 한다. */
+.wb-acts__why--locked {
+    color: var(--wb-danger, #b91c1c);
+}
+
+/* 상세 카드 머리: 이름·배지 줄과 액션 줄이 붙어 보이지 않게. */
+.wb-detail__head {
+    display: flex;
+    flex-direction: column;
+    gap: 2px;
+}

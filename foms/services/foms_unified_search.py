@@ -136,7 +136,7 @@ def _order_extra_text_fields(order: Order) -> list[str]:
     structured_data 가시 경로 텍스트 — SQL 후보(erp_order_dashboard_search_predicate)와
     분류기 필드 폭을 일치시킨다.
 
-    SQL은 SD parties.manager/orderer·site 주소·items 상품명·일정 날짜까지 후보로
+    SQL은 SD parties.manager/orderer/buyer·site 주소·items 상품명·일정 날짜까지 후보로
     뽑지만 분류기가 레거시 컬럼만 보면 SD에만 값이 있는 ERP 주문이 조용히 탈락한다.
     """
     sd = _ensure_dict(order.structured_data)
@@ -145,11 +145,14 @@ def _order_extra_text_fields(order: Order) -> list[str]:
     schedule = sd.get("schedule") if isinstance(sd.get("schedule"), dict) else {}
     manager = parties.get("manager") if isinstance(parties.get("manager"), dict) else {}
     orderer = parties.get("orderer") if isinstance(parties.get("orderer"), dict) else {}
+    buyer = parties.get("buyer") if isinstance(parties.get("buyer"), dict) else {}
     measurement = schedule.get("measurement") if isinstance(schedule.get("measurement"), dict) else {}
     construction = schedule.get("construction") if isinstance(schedule.get("construction"), dict) else {}
     fields: list[Any] = [
         manager.get("name"),
         orderer.get("name"),
+        buyer.get("name"),
+        buyer.get("phone"),
         site.get("address_full"),
         site.get("address_main"),
         measurement.get("date"),

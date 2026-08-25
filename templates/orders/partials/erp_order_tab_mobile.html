@@ -9,6 +9,8 @@ ERP Order mobile-v2 tab pane.
 {% set erp_order_active = erp_order_active or false %}
 {% set erp_as_status_label = {'AS_RECEIVED': '접수', 'AS': '처리', 'AS_COMPLETED': '완료'}.get(order.status) if order is defined and order else none %}
 {% set erp_as_can_reregister = order is defined and order and order.status in ['AS_RECEIVED', 'AS'] %}
+{# 네이버 수집분 표식 — PC 탭(erp_order_tab.html)과 같은 조건·같은 문구를 유지한다. #}
+{% set erp_is_naver_intake = order is defined and order and (order.structured_data or {}).get('source') == 'NAVER_SMARTSTORE' %}
 <div class="tab-pane fade{% if erp_order_active %} show active{% endif %}" id="erp-order" role="tabpanel" lang="ko" data-erp-surface="1"{% if erp_order_active %} data-erp-ready="1"{% endif %}>
     <div class="card erp-order-mobile-card" data-erp-order-id="{{ order.id if order is defined and order else 0 }}">
         <div class="card-body foms-page-form erp-order-mobile-form">
@@ -17,6 +19,14 @@ ERP Order mobile-v2 tab pane.
                 ERP Order 패널은 현재 비활성입니다.
             </div>
             {% else %}
+            {% if erp_is_naver_intake %}
+            <div class="mb-2">
+                <span class="badge bg-dark" data-erp-order-source="NAVER_SMARTSTORE"
+                    title="네이버 스마트스토어에서 자동 수집된 주문입니다">
+                    <i class="fas fa-store"></i> 네이버 수집
+                </span>
+            </div>
+            {% endif %}
             <div class="alert alert-info py-2" id="erp-draft-banner" style="display:none;">
                 <div class="d-flex justify-content-between align-items-center">
                     <div>
@@ -458,6 +468,9 @@ ERP Order mobile-v2 tab pane.
 
             </div>
             <footer class="foms-sticky-action-bar erp-mobile-sticky-action-bar" role="group" aria-label="ERP 주문 저장 및 전송">
+                <!-- 발송 흔적: 좁은 폭이라 액션바 위에 눕는다(상태 + 시각만) -->
+                <div class="erp-alimtalk-trace-slot erp-alimtalk-trace-slot--mobile"
+                    data-erp-alimtalk-trace="compact"></div>
                 <button class="foms-btn foms-btn--primary" type="button" id="erp-save-btn">
                     <i class="fas fa-save"></i> 저장
                 </button>
@@ -478,6 +491,7 @@ ERP Order mobile-v2 tab pane.
 {% include 'orders/partials/erp_channel_push_picker_modal.html' %}
 {% include 'orders/partials/erp_alimtalk_picker_modal.html' %}
 {% include 'orders/partials/erp_alimtalk_modal.html' %}
+{% include 'orders/partials/erp_alimtalk_trace_modal.html' %}
 {% include 'orders/partials/erp_share_modal.html' %}
 
 <!-- ERP 주소 검색 모달 -->
