@@ -26,6 +26,7 @@ from sqlalchemy.orm import Session
 
 from db import get_db
 from foms.services.datetime_kst import format_datetime_kst, now_utc_naive
+from foms.services.integrations.naver_commerce.constants import SELLER_CENTER_URL
 from foms.services.integrations.naver_commerce.fulfillment import CLOSE_NOW_RELATIONS
 from foms.services.integrations.naver_commerce.order_candidates import find_order_candidates
 from foms.services.integrations.naver_commerce.promotion import (
@@ -459,8 +460,16 @@ def _triage_pane(db, link: ExternalOrderLink) -> dict[str, Any]:
         unwrap_detail,
     )
 
+    from foms.services.integrations.naver_commerce.repay_reconcile import (
+        attach_reconcile_plans,
+    )
+
     order = db.get(Order, int(link.order_id)) if link.order_id else None
     naver_order, product_order, shipping = unwrap_detail(link.raw_snapshot or {})
+    # 후보마다 **정리 계획**(R-3)을 미리 실어 둔다 — 관계를 고를 때마다 왕복하지 않는다.
+    candidates = find_order_candidates(db, link)
+    attach_reconcile_plans(db, candidates)
+    household = summarize_link_household(db, link_id=int(link.id))
     return {
         "link_id": link.id,
         "external_id": link.external_id,
@@ -509,7 +518,10 @@ def _triage_pane(db, link: ExternalOrderLink) -> dict[str, Any]:
         # 이 수집분이 붙을 만한 기존 주문 후보 — 재결제·차액 결제 판별용(T16-C/D).
         # **자동으로 붙이지 않는다.** 근거와 함께 늘어놓고 사람이 고른다.
         "relation": link.relation,
-        "candidates": find_order_candidates(db, link),
+        "candidates": candidates,
+        # 정리 카드 1번 칸이 재진술할 **새 집** 숫자(집 단위 — 화면과 서버가 같은 값을 쓴다).
+        "household": household,
+        "seller_center_url": SELLER_CENTER_URL,
         "payment": build_payment_info(link.raw_snapshot or {}),
         "foms": {
             "customer_name": getattr(order, "customer_name", None),
@@ -2640,6 +2652,110 @@ def naver_ingest_attach_order(link_id: int):
                              "relation": relation, "attached": attached,
                              "edit_url": url_for("order_edit.edit_order",
                                                  order_id=target_order_id, open="erp-order")},
+                    "error": None})
+
+
+@admin_bp.route("/admin/naver-ingest/<int:link_id>/reconcile", methods=["POST"])
+@login_required
+@role_required(["ADMIN", "MANAGER", "STAFF"])
+def naver_ingest_repay_reconcile(link_id: int):
+    """**재결제 정리** — 붙이기와 ERP 기존 주문 처리를 한 트랜잭션으로 (R-3 · 2026-08-25).
+
+    갈래 둘 중 하나를 실행한다:
+
+    * ``SUCCEED`` 승계 — 새 집을 기존 주문에 붙인다. 주문은 그대로 두고 예약금은
+      **안내만** 한다(D-1 확정 — 시스템이 넣지 않는다).
+    * ``DISCARD`` 취소 처리 — 기존 주문을 휴지통으로 보낸다(soft delete). **붙이지 않는다** —
+      휴지통에 든 주문에 새 집을 묶으면 ``주문 만들기`` 가 막힌다.
+
+    **네이버로 나가는 호출은 0 이다.** 옛 결제 취소는 고객이 하거나 판매자센터에서 한다
+    (스펙 §2.5 개정 — 불가역을 시스템이 대신 눌러 주지 않는다).
+
+    **후보 목록에 있는 주문만 받는다.** 목록 밖 주문 id 를 받아 처리하면 이 라우트가 범용
+    삭제·연결 경로가 되는데, 그건 주문 화면의 일이고 권한 규칙도 다르다.
+    """
+    from foms.services.feature_flags import is_naver_workbench_enabled
+    from foms.services.integrations.naver_commerce.promotion import PromotionError
+    from foms.services.integrations.naver_commerce.repay_reconcile import (
+        ReconcileError,
+        deposit_guidance,
+        run_reconcile,
+    )
+
+    # 워크벤치 전용 기능이다 — 게이트를 끄는 것이 롤백 경로이므로 라우트도 함께 닫는다.
+    if not is_naver_workbench_enabled(session.get("user_id")):
+        return jsonify({"success": False, "data": None,
+                        "error": "이 화면에서는 정리를 할 수 없습니다."}), 403
+
+    payload = request.get_json(silent=True) or {}
+    try:
+        order_id = int(payload.get("order_id") or 0)
+    except (TypeError, ValueError):
+        order_id = 0
+    relation = str(payload.get("relation") or "").strip().upper()
+    fork = str(payload.get("fork") or "").strip().upper()
+    if order_id <= 0:
+        return jsonify({"success": False, "data": None, "error": "정리할 주문을 지정하세요."}), 400
+
+    db = get_db()
+    link = _link_by_id(db, link_id)
+    if link is None:
+        return jsonify({"success": False, "data": None,
+                        "error": f"수집 기록을 찾을 수 없습니다 (link {link_id})."}), 400
+
+    candidate = next((row for row in find_order_candidates(db, link)
+                      if int(row["order_id"]) == order_id), None)
+    if candidate is None:
+        return jsonify({"success": False, "data": None,
+                        "error": "이 집의 기존 주문 후보가 아닙니다. 화면을 새로 고친 뒤 "
+                                 "다시 고르세요."}), 400
+
+    try:
+        # 집 요약은 **변경 전에** 뽑는다 — 붙인 뒤에는 대상 집합·관계값이 이미 바뀌어 있다.
+        history = summarize_link_household(db, link_id=link_id)
+        result = run_reconcile(db, link_id=link_id, order_id=order_id, relation=relation,
+                               fork=fork, actor_user_id=session.get("user_id"))
+        # 붙이기가 실제로 무언가를 바꿨을 때만 주문 변경 이력에 줄을 남긴다
+        # (같은 버튼 두 번 = 이력 한 줄 — 2026-08-25 정책). 감사 축은 아래 log_access.
+        if result["fork"] == "SUCCEED" and result["changed"]:
+            _record_link_history(db, order_id=result["order_id"], link_id=link_id,
+                                 event_type=ATTACH_EVENT_TYPE, relation=relation,
+                                 summary=history)
+        # 여기 한 번의 커밋이 이 흐름의 전부다 — 둘 다 되거나 둘 다 안 된다.
+        db.commit()
+    except (ReconcileError, PromotionError) as exc:
+        db.rollback()
+        return jsonify({"success": False, "data": None, "error": str(exc)}), 400
+    except Exception as exc:  # noqa: BLE001 - 실패 사유를 사람에게 그대로 보여준다
+        db.rollback()
+        logger.warning("[NAVER] 재결제 정리 실패 link=%s order=%s fork=%s: %s",
+                       link_id, order_id, fork, exc, exc_info=True)
+        return jsonify({"success": False, "data": None, "error": str(exc)}), 400
+
+    order = db.get(Order, int(order_id))
+    # 예약금 안내는 **승계일 때만** 뜻이 있다(취소 처리는 주문이 휴지통으로 간다).
+    deposit = (deposit_guidance(order, new_amount=candidate.get("new_amount_total") or 0,
+                                relation=relation)
+               if order is not None and result["fork"] == "SUCCEED" else None)
+
+    log_access(
+        f"네이버 재결제 정리 (link {link_id} → order {order_id}, {relation}/{fork})",
+        action="NAVER_INGEST_REPAY_RECONCILE",
+        target_type="order", target_id=int(order_id),
+        detail={"link_id": link_id, "order_id": int(order_id), "relation": relation,
+                "fork": result["fork"], "attached": result["attached"],
+                "discarded": result["discarded"],
+                "external_order_no": history.get("external_order_no") or "",
+                "amount_total": history.get("amount_total") or 0},
+    )
+    return jsonify({"success": True,
+                    "data": {"link_id": link_id, "order_id": int(order_id),
+                             "relation": relation, "fork": result["fork"],
+                             "attached": result["attached"],
+                             "discarded": result["discarded"],
+                             "deposit": deposit,
+                             "edit_url": url_for("order_edit.edit_order",
+                                                 order_id=int(order_id), open="erp-order")},
                     "error": None})
 
 

@@ -265,9 +265,18 @@
                 submitAck(btn);
                 return;
             }
-            // 붙이기 버튼은 후보 수만큼 나온다 — id 를 달면 문서에 중복이 생긴다(절대 규칙 1).
+            // 후보 버튼은 후보 수만큼 나온다 — id 를 달면 문서에 중복이 생긴다(절대 규칙 1).
+            // R-3 부터 이 버튼은 바로 붙이지 않고 **정리 계획 카드**를 연다.
             if (btn.classList.contains('wb-attach')) {
-                submitAttach(btn);
+                openReconcilePlan(btn);
+                return;
+            }
+            if (btn.classList.contains('wb-plan-run')) {
+                submitReconcile(btn);
+                return;
+            }
+            if (btn.classList.contains('wb-plan-close')) {
+                closePlan(btn.closest('.wb-plan'));
                 return;
             }
             // 나머지 버튼(모달 열기·닫기)은 Bootstrap 이 맡는다.
@@ -290,6 +299,12 @@
         }
         if (target.closest('input.wb-pick')) {
             syncBulk();
+            return;
+        }
+        // 갈래(승계/취소 처리)를 바꾸면 1번 칸의 안내 문장이 달라진다 — 취소 처리는 붙이지
+        // 않기 때문이다. 계획과 실제 동작이 어긋난 채로 실행 버튼을 누르는 자리를 막는다.
+        if (target.classList.contains('wb-fork__pick')) {
+            applyPlanFork(target.closest('.wb-plan'));
         }
     }
 
@@ -1097,29 +1112,169 @@
     }
 
     /** 붙이기 — 되돌릴 수 있다(/detach). 확인창 한 번으로 끝낸다. */
-    async function submitAttach(btn) {
-        var id = safeId(btn.dataset.linkId);
+    /* ── 재결제 정리 (R-3 · 2026-08-25) ──────────────────────────────────
+       후보 버튼은 **바로 붙이지 않는다**. 붙이기와 ERP 기존 주문 처리를 한 번에
+       커밋해야 반쪽 상태가 안 생기므로, 두 동작을 함께 보여주는 계획 카드를 먼저 연다.
+       카드에 실린 숫자는 전부 서버가 렌더한 값이다 — 화면이 다시 세지 않는다.
+       네이버로 나가는 호출은 이 흐름에 없다(2026-08-25 결정). */
+
+    /** 관계를 골라 그 후보의 정리 계획 카드를 연다. */
+    function openReconcilePlan(btn) {
         var orderId = safeId(btn.dataset.orderId);
-        if (!id || !orderId) {
+        var relation = btn.dataset.relation === 'ADDON' ? 'ADDON' : 'REPAY';
+        var card = orderId
+            ? document.querySelector('.wb-plan[data-plan-for="' + orderId + '"]')
+            : null;
+        if (!card) {
             return;
         }
-        var label = btn.dataset.relation === 'ADDON' ? '추가결제' : '재결제';
-        if (!window.confirm('주문 #' + orderId + ' 에 ' + label
-                            + ' 로 붙입니다. 새 주문은 만들지 않습니다.')) {
+        // 카드는 후보마다 하나다 — 둘이 동시에 열려 있으면 어느 계획을 실행하는지 흐려진다.
+        closeAllPlans();
+        card.dataset.relation = relation;
+        applyPlanRelation(card);
+        applyPlanFork(card);
+        card.hidden = false;
+        card.scrollIntoView({ block: 'nearest' });
+    }
+
+    /** 관계(재결제/추가결제)에 해당하는 조각만 남긴다 — 예약금 안내가 관계마다 다르다. */
+    function applyPlanRelation(card) {
+        if (!card) {
+            return;
+        }
+        var relation = card.dataset.relation === 'ADDON' ? 'ADDON' : 'REPAY';
+        Array.prototype.forEach.call(card.querySelectorAll('[data-plan-rel]'), function (el) {
+            el.hidden = el.getAttribute('data-plan-rel') !== relation;
+        });
+    }
+
+    /** 지금 고른 갈래를 돌려준다(기본은 승계). */
+    function planFork(card) {
+        var picked = card ? card.querySelector('input.wb-fork__pick:checked') : null;
+        return picked && picked.value === 'DISCARD' ? 'DISCARD' : 'SUCCEED';
+    }
+
+    /** 갈래에 매인 안내만 남긴다(취소 처리는 붙이지 않는다는 사실을 1번 칸이 말한다). */
+    function applyPlanFork(card) {
+        if (!card) {
+            return;
+        }
+        var fork = planFork(card);
+        Array.prototype.forEach.call(card.querySelectorAll('[data-plan-when]'), function (el) {
+            el.hidden = el.getAttribute('data-plan-when') !== fork;
+        });
+    }
+
+    function closeAllPlans() {
+        Array.prototype.forEach.call(document.querySelectorAll('.wb-plan'), closePlan);
+    }
+
+    /**
+     * 계획 카드를 접는다. **실행이 끝난 카드는 접지 않고 새로고침한다** —
+     * 붙이기·취소 처리 결과가 목록·상세에 반영돼야 화면이 거짓말을 안 한다.
+     */
+    function closePlan(card) {
+        if (!card) {
+            return;
+        }
+        if (card.dataset.done === '1') {
+            window.location.reload();
+            return;
+        }
+        card.hidden = true;
+    }
+
+    /** 정리 실행 — 붙이기와 ERP 처리가 서버에서 한 트랜잭션으로 커밋된다. */
+    async function submitReconcile(btn) {
+        var card = btn.closest('.wb-plan');
+        var linkId = safeId(btn.dataset.linkId);
+        var orderId = safeId(btn.dataset.orderId);
+        if (!card || !linkId || !orderId) {
+            return;
+        }
+        var relation = card.dataset.relation === 'ADDON' ? 'ADDON' : 'REPAY';
+        var fork = planFork(card);
+        var label = relation === 'ADDON' ? '추가결제' : '재결제';
+        var head = fork === 'DISCARD'
+            ? '주문 #' + orderId + ' 을 취소 처리합니다(휴지통 — 복구할 수 있습니다).'
+                + '\n새 집은 붙이지 않습니다 — 큐에 남습니다.'
+            : '새 집을 주문 #' + orderId + ' 에 ' + label + ' 로 붙입니다.'
+                + '\n주문은 그대로 두고 예약금은 안내만 합니다.';
+        if (!window.confirm(head + '\n\n두 동작은 한 번에 저장됩니다 — 하나만 되는 일은 없습니다.')) {
             return;
         }
         btn.disabled = true;
-        const result = await postJson(BASE + id + '/attach', {
+        const result = await postJson(BASE + linkId + '/reconcile', {
             order_id: Number(orderId),
-            relation: btn.dataset.relation
+            relation: relation,
+            fork: fork
         });
         if (!result.ok) {
-            // 취소·반품 집의 추가결제는 서버가 막는다 — 사유를 그대로 띄운다.
-            window.alert(result.error);
+            // 한 트랜잭션이라 실패는 곧 '아무것도 안 바뀜' 이다 — 그 사실까지 말한다.
+            window.alert(result.error + '\n\n붙이기도 ERP 처리도 되지 않았습니다.');
             btn.disabled = false;
             return;
         }
-        window.location.reload();
+        showPlanResult(card, result.data || {});
+    }
+
+    /**
+     * 실행 결과를 카드 안에 쓴다. 새로고침으로 바로 넘기지 않는 이유는 **예약금에 넣을
+     * 금액** 때문이다 — 시스템이 넣지 않으므로 사람이 그 숫자를 읽고 주문 화면에 옮겨
+     * 적어야 한다. 새로고침이 먼저 오면 그 숫자가 사라진다.
+     */
+    function showPlanResult(card, data) {
+        var done = card.querySelector('.wb-plan__done');
+        var acts = card.querySelector('.wb-plan__acts');
+        if (!done) {
+            window.location.reload();
+            return;
+        }
+        card.dataset.done = '1';
+        if (acts) {
+            acts.hidden = true;
+        }
+        done.textContent = '';
+        var title = document.createElement('div');
+        title.className = 'wb-plan__h';
+        title.textContent = data.discarded
+            ? '✓ 취소 처리 완료 — 주문 #' + data.order_id + ' 이 휴지통으로 갔습니다'
+            : '✓ 붙이기 완료 — 주문 #' + data.order_id + ' 에 ' + data.attached + '건';
+        done.appendChild(title);
+
+        if (data.deposit) {
+            var money = document.createElement('div');
+            money.className = 'wb-plan__money';
+            var strong = document.createElement('b');
+            strong.textContent = '예약금(선금)에 넣을 금액: '
+                + Number(data.deposit.target).toLocaleString('ko-KR') + '원';
+            money.appendChild(strong);
+            var note = document.createElement('div');
+            note.className = 'wb-plan__d';
+            note.textContent = data.deposit.sentence + ' 시스템이 넣지 않습니다.';
+            money.appendChild(note);
+            done.appendChild(money);
+        }
+        if (data.edit_url && !data.discarded) {
+            var link = document.createElement('a');
+            link.className = 'btn btn-sm btn-outline-primary';
+            link.href = data.edit_url;
+            link.target = '_blank';
+            link.rel = 'noopener';
+            link.textContent = '주문 #' + data.order_id + ' 열어서 넣기 ↗';
+            done.appendChild(link);
+        } else if (data.discarded) {
+            var hint = document.createElement('div');
+            hint.className = 'wb-plan__d';
+            hint.textContent = '새 집은 큐에 그대로 있습니다 — 이제 주문 만들기를 누르세요.';
+            done.appendChild(hint);
+        }
+        var close = document.createElement('button');
+        close.type = 'button';
+        close.className = 'btn btn-sm btn-outline-secondary wb-plan-close ms-2';
+        close.textContent = '닫기';
+        done.appendChild(close);
+        done.hidden = false;
     }
 
     async function submitDetach(btn) {
