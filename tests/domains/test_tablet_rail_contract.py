@@ -155,16 +155,19 @@ def test_bundle_imports_rail_css() -> None:
 
 
 def test_cache_chain_versions_bumped() -> None:
-    """Cache-chain contract: bundle link ?v=20260713h (content changed = 태블릿 클린 작업 큐
-    그리드 신설 = landscape.css), erp-pro.css link bumped off the old 20260711ad, and erp-pro.css @imports
-    the bridge at ?v=20260727a (bridge content changed = T2 chrome-hide arm + rail-key de-scope)."""
+    """Cache-chain contract: 자산 내용이 바뀌면 **@import 핀과 부모 링크 핀이 함께** 올라야 한다.
+
+    @import 만 올리면 부모(erp-pro.css)가 캐시에 남아 새 @import URL 을 아무도 못 본다 —
+    "배포는 됐는데 화면은 그대로"의 전형이다. 2026-08-25: 브리지에 nav 채널 표식(.foms-nav-mark)
+    을 더해 두 핀을 함께 20260825a 로 올렸다.
+    """
     head = _read(LAYOUT_HEAD)
     assert "foms-tablet-bundle.css') }}?v=20260727d" in head
     # erp-pro.css link bumped (old value gone, a fresh value present).
     assert "?v=20260711ad" not in head
-    assert "erp-pro.css') }}?v=20260715a" in head
+    assert "erp-pro.css') }}?v=20260825a" in head
     erp_pro = _read(ERP_PRO_CSS)
-    assert "13-foms-shell-bridge.css?v=20260727a" in erp_pro
+    assert "13-foms-shell-bridge.css?v=20260825a" in erp_pro
 
 
 # --- ⑥ Jinja global registration -------------------------------------------
