@@ -1875,6 +1875,12 @@ async function erpLoadStructured(bootstrapData, options) {
         erpConstructionWorkersEl.value = erpFormatConstructionWorkers(sd?.shipment?.construction_workers || []);
     }
     document.getElementById('erp-workflow-stage').value = sd?.workflow?.stage || '';
+    // 단계 강제 변경 가드의 base = **서버에 저장된** 단계. 아래 발주사/실측일 동기화가
+    // select 를 미리 앞당겨 놓아도 override 요청은 저장값 기준으로 나가야 한다.
+    if (window.FOMS_STAGE_OVERRIDE &&
+            typeof window.FOMS_STAGE_OVERRIDE.noteServerStage === 'function') {
+        window.FOMS_STAGE_OVERRIDE.noteServerStage(sd?.workflow?.stage || '');
+    }
     const erpNotesEl = document.getElementById('erp-notes');
     if (erpNotesEl) erpNotesEl.value = data.notes || '';
     document.getElementById('erp-urgent-flag').checked = !!sd?.flags?.urgent;
@@ -2745,6 +2751,12 @@ async function erpSaveStructuredOnce(opts = {}) {
         // 다음 저장이 stale 토큰으로 나가 무조건 409 가 되는 것을 막는다.
         window.__erpLastMutationVersion =
             typeof data.mutation_version === 'number' ? data.mutation_version : null;
+        // 저장 성공 = 폼 단계가 서버 단계가 됨. 강제 변경 가드 base 를 함께 옮긴다.
+        if (window.FOMS_STAGE_OVERRIDE &&
+                typeof window.FOMS_STAGE_OVERRIDE.noteServerStage === 'function') {
+            var _savedStageEl = document.getElementById('erp-workflow-stage');
+            if (_savedStageEl) window.FOMS_STAGE_OVERRIDE.noteServerStage(_savedStageEl.value);
+        }
         erpSetStatus(doRedirect ? '저장 완료! 이동합니다...' : '저장 완료');
         // 명시 저장(승격) 성공 → 자동저장 모듈이 로컬/세션 draft 흔적을 정리하도록 알림.
         try { document.dispatchEvent(new Event('erp:order-saved')); } catch (_e) {}
