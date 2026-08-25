@@ -11,6 +11,7 @@ flat 모듈이다 — namespace 닫힌집합 게이트는 디렉토리만 검사
 from __future__ import annotations
 
 import logging
+import re
 import time
 import urllib.parse
 from typing import Any, Optional
@@ -410,6 +411,7 @@ def _manager_sender_phone(order: Order) -> Optional[str]:
 def _resolve_sender(order: Order, brand: str) -> tuple[Optional[str], Optional[str]]:
     """발신번호 3단 우선순위 결정(T8.1 — 원장 '문자 발신번호 확정' 섹션이 정본).
 
+    지방 주문이면 그 앞에 본사 CS 번호가 온다(안내 연락처와 같은 번호 — 2026-08-25).
     ① 주문 담당자(``manager_name``)와 이름이 일치하는 활성 사용자의 ``sender_phone``
     (발송 버튼 누른 직원 기준 아님 — 동명이인은 id 오름차순 첫 등록자) ② 브랜드
     대표번호 ``SOLAPI_SENDER_PHONE_{brand}`` ③ 구 ``SOLAPI_SENDER_PHONE`` 최후 폴백.
@@ -420,9 +422,16 @@ def _resolve_sender(order: Order, brand: str) -> tuple[Optional[str], Optional[s
         brand: :func:`ka.resolve_brand` 결과(``LAHOM``/``HAUD``).
 
     Returns:
-        ``(발신번호, 출처)`` — 출처는 ``manager``/``brand``/``legacy``.
+        ``(발신번호, 출처)`` — 출처는 ``regional_cs``/``manager``/``brand``/``legacy``.
         결정 불가면 ``(None, None)`` (호출자가 503 처리).
     """
+    if _is_regional_order(order):
+        # 지방 주문은 안내 연락처가 본사 CS 다. 카톡이 실패해 문자로 대체발송될 때
+        # 발신번호가 담당자 번호면 고객 화면에는 두 번호가 따로 뜬다 — 같은 번호로 맞춘다
+        # (사용자 결정 2026-08-25). 벤더에는 숫자만 넘긴다.
+        digits = re.sub(r'\D', '', _regional_contact_phone())
+        if digits:
+            return digits, 'regional_cs'
     phone = _manager_sender_phone(order)
     if phone:
         return phone, 'manager'
@@ -455,7 +464,8 @@ def _send_sms_with_fallback(
         to_phone: 수신 휴대폰(숫자만).
         text: 발송 본문.
         from_phone: 1차 발신번호(:func:`_resolve_sender` 결과).
-        sender_source: 1차 발신 출처(``manager``/``brand``/``legacy``).
+        sender_source: 1차 발신 출처(``regional_cs``/``manager``/``brand``/``legacy``).
+            백업 재시도는 ``brand`` 일 때만 — 본사 CS·담당자 번호는 대체 후보가 없다.
         brand: 브랜드 판정(백업 env 키 ``SOLAPI_SENDER_FALLBACK_{brand}`` 결정).
 
     Returns:
@@ -640,8 +650,29 @@ _REGIONAL_CONTACT_PHONE_ENV = 'FOMS_REGIONAL_CONTACT_PHONE'
 _REGIONAL_CONTACT_PHONE_DEFAULT = '1566-0792'
 
 
+def _is_regional_order(order: Order) -> bool:
+    """지방(협력사 시공) 주문인지 — 안내 문구·발신번호를 본사 CS 로 돌리는 기준."""
+    return bool(getattr(order, 'is_regional', False))
+
+
+def _regional_contact_phone() -> str:
+    """지방 주문 안내에 쓸 본사 CS 대표번호(표시 형식 그대로)."""
+    return ka._env(_REGIONAL_CONTACT_PHONE_ENV) or _REGIONAL_CONTACT_PHONE_DEFAULT
+
+
+def _share_contact_name(order: Order) -> str:
+    """고객에게 보여줄 담당자 표기.
+
+    지방 주문은 번호가 본사 CS 인데 이름만 현장 담당자면 고객이 누구에게 연락하는지
+    헷갈린다 — 이름도 '고객센터' 로 맞춘다(사용자 결정 2026-08-25).
+    """
+    if _is_regional_order(order):
+        return '고객센터'
+    return (order.manager_name or '').strip() or '고객센터'
+
+
 def _share_contact_phone(order: Order, brand: str) -> str:
-    """고객에게 **보여줄** 문의 연락처(발신번호와 별개다).
+    """고객에게 **보여줄** 문의 연락처.
 
     지방 주문은 협력사가 시공하지만 도면 컨펌은 본사 CS 가 받는다. 현장 담당자 번호를
     안내하면 컨펌 문의가 CS 를 건너뛰므로, 지방 주문에는 본사 대표번호를 넣는다
@@ -654,9 +685,8 @@ def _share_contact_phone(order: Order, brand: str) -> str:
     Returns:
         표시용 연락처 문자열(빈값 금지 — 알림톡 변수는 비울 수 없다).
     """
-    if bool(getattr(order, 'is_regional', False)):
-        return (ka._env(_REGIONAL_CONTACT_PHONE_ENV)
-                or _REGIONAL_CONTACT_PHONE_DEFAULT)
+    if _is_regional_order(order):
+        return _regional_contact_phone()
     return (
         _manager_sender_phone(order)
         or ka._env(f'SOLAPI_SENDER_PHONE_{brand}')
@@ -683,7 +713,7 @@ def _share_alimtalk_variables(order: Order, *, kind: str, token: str,
     """
     sd = order.structured_data or {}
     customer = str(ka._node(sd, 'parties', 'customer').get('name') or '').strip() or '고객'
-    manager = (order.manager_name or '').strip() or '고객센터'
+    manager = _share_contact_name(order)
     manager_phone = _share_contact_phone(order, brand)
     return {
         '#{고객명}': customer,
