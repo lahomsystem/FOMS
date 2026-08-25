@@ -29,7 +29,9 @@
 | T5 | 정리 계획 카드(화면) | `naver_workbench_pane.html` · `naver-workbench.css` · `naver-workbench.js` · `?v=20260825e` | **DONE** |
 | T6 | 서비스 단위 테스트 22건 | `tests/services/integrations/test_naver_repay_reconcile.py` | **DONE** |
 | T7 | 라우트 계약 테스트 10건 | `tests/services/integrations/test_naver_repay_reconcile_route.py` | **DONE** |
-| T8 | 스테이징 실화면 확인 | — | **PENDING** |
+| T8 | 화면 계약 테스트 5건 | `tests/services/integrations/test_naver_repay_reconcile_card.py` | **DONE** |
+| T9 | deploy 푸시 + CI | `231b3ad3` | **DONE** |
+| T10 | 스테이징 실화면 확인 | — | **PENDING** |
 
 ## 못박은 규칙 (테스트가 지킨다)
 
@@ -60,9 +62,30 @@
 | import | `python -c "import app; print('APP_OK')"` | `APP_OK` |
 | 서비스 테스트 | `pytest tests/services/integrations/test_naver_repay_reconcile.py -q` | `22 passed in 4.55s` |
 | 라우트 테스트 | `pytest tests/services/integrations/test_naver_repay_reconcile_route.py -q` | `10 passed in 7.28s` |
-| 통합 전량 | `pytest tests/services/integrations -q` | 아래 기록 |
-| smoke | `scripts/ops/pre_push_smoke.ps1` | 아래 기록 |
-| CI | deploy 푸시 후 전 워크플로 나열 | 아래 기록 |
+| 화면 테스트 | `pytest tests/services/integrations/test_naver_repay_reconcile_card.py -q` | `5 passed in 2.94s` |
+| 통합 전량 | `pytest tests/services/integrations -q` | `650 passed in 368.34s` |
+| smoke | `powershell -File scripts/ops/pre_push_smoke.ps1` | `=== PRE-PUSH SMOKE PASSED ===` (exit 0) |
+| CI | `gh run list --branch deploy` (전 워크플로 나열) | **4/4 green** — perf-gate · FOMS PostgreSQL Lane · Harness CI · FOMS CI (`231b3ad3`) |
+
+## 곁가지로 확인한 것 — `지금 수집` 이 즉시 안 되는 이유 (2026-08-25 조사)
+
+R-3 밖이지만 같은 화면 질문이라 여기 남긴다. **웹은 큐에 넣기만 하고 화면은 아무것도
+기다리지 않는다.**
+
+1. `static/js/admin/naver-workbench.js:1362` `submitRunNow` — POST 뒤 안내 문구만 바꾼다.
+   폴링도 `softRefresh()` 도 없다("잠시 뒤 새로고침하면…" 문구가 구조를 자백한다).
+   같은 파일에 폴링 배선이 이미 3종 있는데(단건 2s/25s · 벌크 3s/90s · 재시도 15s 1회)
+   run-now 만 안 쓴다.
+2. `foms/web/admin/naver_ingest.py:3009` — `enqueue` 만 한다. 네이버 HTTP 는 WORKER 단일
+   출구 계약(IP 3슬롯)이라 web 동기 호출은 **의도적으로 없다**.
+3. `watermark.py:32` `END_SAFETY_MARGIN = 1분` — 조회 창 끝이 항상 1분 과거다.
+   **방금 결제된 주문은 지금 눌러도 창 밖**이다.
+4. 워커는 `rq worker default` 동시성 1. 앞선 job 이 있으면 그 뒤에서 기다린다.
+   큐는 붙는데 워커가 죽어 있어도 라우트는 200 을 준다(생존 확인 없음).
+
+고치려면: run-now 응답에 워터마크 지문을 실어 폴링(기존 `fulfillment-state` 급 GET 하나) +
+`get_rq_runtime_status()` 로 워커 생존 확인. 안전여유 축소는 워터마크 전진 없는 조회 전용
+모드일 때만 — 지금처럼 `advance` 하면 경계 주문이 영구 유실된다(그게 60초를 둔 이유다).
 
 ## 남은 것 (R-3 밖)
 
