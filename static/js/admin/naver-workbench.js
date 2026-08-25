@@ -57,6 +57,9 @@
     var pollToken = 0;
     var pollTimer = null;
 
+    /** 전역 nav 높이 재측정 디바운스 타이머(위쪽 고정줄 오프셋). */
+    var navOffsetTimer = null;
+
     /** 벌크 폴링 토큰·타이머(단건과 따로 — 서로를 끊지 않는다). */
     var bulkToken = 0;
     var bulkTimer = null;
@@ -90,6 +93,11 @@
     // 맞춘다(체크 상태와 모달 문장이 어긋난 채 열리는 자리를 막는다).
     document.addEventListener('show.bs.modal', onModalShow);
     window.addEventListener('popstate', onPopState);
+    // 폭 변화(= nav 접힘)와 nav 자체 높이 변화(메뉴 펼침·알림 줄바꿈) 둘 다 잡는다.
+    window.addEventListener('resize', scheduleNavOffset);
+    if (typeof window.ResizeObserver === 'function') {
+        window.addEventListener('DOMContentLoaded', observeNav);
+    }
 
     if (document.readyState === 'loading') {
         document.addEventListener('DOMContentLoaded', init);
@@ -101,6 +109,7 @@
 
     function init() {
         applyFontScale(readFontScale());
+        syncNavOffset();
         syncBulk();
         // 서버가 전체 렌더에서 내린 "목록 밖 집" 판정을 첫 화면에서 읽어 둔다 —
         // 이후 조각 교체는 이 값을 옮겨 붙인다(applyOfflistFlag).
@@ -110,6 +119,47 @@
         var current = document.querySelector('.wb-row[aria-current="true"]');
         var id = current ? safeId(current.dataset.linkId) : '';
         replacePaneState(id || null);
+    }
+
+    /* ── 위쪽 고정줄 오프셋 (2026-08-25) ─────────────────────────────────
+       머리줄·도구줄은 처음부터 `position: sticky` 였는데 **화면에서는 안 붙어 보였다**.
+       위에 전역 nav(`.layout-global-nav`)가 `sticky; top: 0; z-index: 1000` 으로 이미
+       붙어 있어서, `top: 0` 인 머리줄이 그 **밑에 깔린** 것이다(z-index 3 vs 1000).
+
+       고정 px 로 비켜 세울 수 없다: nav 높이가 폭에 따라 67 -> 97 -> 121 -> 169px 로
+       변한다(1920/992/900/768 실측). 그래서 실측해서 CSS 변수 하나로 흘린다 —
+       CSS 쪽 세 자리(머리줄·도구줄·상세 pane)가 전부 그 변수를 문다.
+
+       nav 가 없거나 숨겨진 셸(모바일 v2 등)에서는 0 이 들어가 예전 동작(top: 0)이 된다. */
+    function syncNavOffset() {
+        var root = document.querySelector('.naver-workbench');
+        if (!root) {
+            return;
+        }
+        var nav = document.querySelector('.layout-global-nav');
+        // getBoundingClientRect 는 sticky 여도 **높이**는 스크롤과 무관하게 같은 값을 준다.
+        var height = nav ? Math.round(nav.getBoundingClientRect().height) : 0;
+        root.style.setProperty('--wb-nav-h', height + 'px');
+    }
+
+    /** nav 자체가 커지는 경우(햄버거 메뉴 펼침 등)는 resize 가 안 온다 — 직접 지켜본다. */
+    function observeNav() {
+        var nav = document.querySelector('.layout-global-nav');
+        if (!nav) {
+            return;
+        }
+        new window.ResizeObserver(scheduleNavOffset).observe(nav);
+    }
+
+    /** 폭이 바뀌면 nav 가 접히며 높이가 변한다 — 다시 잰다(연타 방지 디바운스). */
+    function scheduleNavOffset() {
+        if (navOffsetTimer) {
+            window.clearTimeout(navOffsetTimer);
+        }
+        navOffsetTimer = window.setTimeout(function () {
+            navOffsetTimer = null;
+            syncNavOffset();
+        }, 120);
     }
 
     /* ── 글자 크기 (2026-08-24) ──────────────────────────────────────────
