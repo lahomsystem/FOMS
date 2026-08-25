@@ -115,7 +115,7 @@
 </p>
 
 <div class="note note--amber">
-  <b>2판에서 바뀐 것 (2026-08-25 결정).</b>
+  <b>2판에서 바뀐 것 (2026-08-25 결정).</b> 예약금은 <b>안내만</b> 한다 — 시스템이 금액을 넣지 않는다.<br>
   네이버 <span class="strike">판매자 직접취소</span> 를 이 흐름에서 <b>뺐다</b>. 정리는 <b>ERP 안에서</b> 끝낸다.<br>
   그 결과 <b>불가역 단계가 0 이 됐고</b>, 두 동작이 모두 우리 DB 라서 <b>한 트랜잭션으로 묶인다</b> —
   “동시에 진행”이 말 그대로 가능해졌다. 네이버 쪽 옛 결제는 <b>상태만 보여 주고</b> 손대지 않는다.
@@ -223,17 +223,18 @@
         <div class="fork">
           <div class="fork__opt fork__opt--on">
             <div class="fork__t">🔁 승계 — 주문을 살려 둔다</div>
-            <div class="fork__d">주문 #4485 를 유지하고 <b>받은 돈을 예약금(선금)에 반영</b>한다.
-              실측·도면·첨부·이력이 그대로 남는다.</div>
-            <div class="fork__d" style="margin-top:8px">
-              <b>예약금(선금)</b> <span class="b b--gray">체크됨</span><br>
-              <span class="num">1,191,900 <span class="soft">(옛 결제 · 환불됨)</span> → <b>1,610,780</b></span><br>
-              <span class="soft">재결제라 <b>덮어쓴다</b>. 추가결제였다면 더한다.</span>
+            <div class="fork__d">주문 #4485 를 유지한다. 실측·도면·첨부·이력이 그대로 남는다.</div>
+            <div class="fork__d" style="margin-top:8px;background:#fff;border:1px solid var(--blue-line);border-radius:6px;padding:9px 10px">
+              <b style="color:var(--text)">예약금(선금)에 넣을 금액</b> <span class="b b--gray">안내만</span><br>
+              <span class="num" style="font-size:15px;color:var(--text);font-weight:700">1,610,780원</span><br>
+              <span class="soft">지금 값 1,191,900 <b>대신 이 값으로 바꾸세요</b>(재결제라 옛 돈은 환불됐습니다).<br>
+              추가결제였다면 <b>더하세요</b>.</span>
             </div>
             <div class="fork__d">
-              출고가·품목 금액은 <b>안 건드린다</b> — 규격 W·시공비와 얽혀 있어 자동 가산이 다른 숫자를 틀어놓는다.
-              잔금은 <span class="kbd">출고가 − 예약금</span> 공식으로 <b>자동으로 줄어든다</b>.
+              <b>시스템이 넣지 않는다</b> — 사람이 주문 화면에서 입력한다. 출고가·품목도 안 건드린다.
+              예약금을 고치면 잔금은 <span class="kbd">출고가 − 예약금</span> 공식으로 따라온다.
             </div>
+            <div class="acts" style="margin-top:8px"><button class="btn">주문 #4485 열어서 넣기 ↗</button></div>
           </div>
           <div class="fork__opt fork__opt--off">
             <div class="fork__t">🗑 취소 처리 — ERP 주문을 접는다</div>
@@ -272,8 +273,8 @@
     <div class="modal__b">
       <div class="restate">
         ① 붙이기 — 집 <b>2026082473772101</b>(6건 · <b>1,610,780원</b>)을 주문 <b>#4485</b> 에 <b>재결제</b>로<br>
-        ② ERP — 주문 <b>#4485</b> <b>예약금(선금)</b> 을 <b>1,191,900 → 1,610,780</b> 으로 (덮어쓰기)<br>
-        <span class="soft">출고가·품목은 그대로. 잔금은 공식으로 자동 갱신됩니다.</span>
+        ② ERP — 주문 <b>#4485</b> 는 <b>그대로 둡니다</b>(승계).<br>
+        <span class="soft">예약금(선금)에 넣을 금액 <b>1,610,780원</b> 은 <b>안내만</b> 합니다 — 입력은 사람이 합니다.</span>
       </div>
       <p style="margin:0 0 6px">두 가지는 <b>한 번에</b> 저장됩니다. 하나만 되는 일은 없습니다.</p>
       <p style="margin:0" class="soft">
@@ -334,8 +335,8 @@
           <div class="plan__d">주문 #4485 · 6건 · 10:41</div></div>
         <div class="stateflag"><span class="prog"><span class="dot dot--done"></span>완료</span></div></div>
       <div class="plan__row"><div class="plan__n plan__n--done">✓</div>
-        <div><div class="plan__h">예약금(선금) 반영 완료</div>
-          <div class="plan__d">1,191,900 → 1,610,780 · 잔금 자동 갱신 · 변경 이력 1건</div></div>
+        <div><div class="plan__h">승계 — 주문 유지</div>
+          <div class="plan__d">예약금에 넣을 금액 <b>1,610,780원</b> 안내됨 · 입력은 사람이</div></div>
         <div class="stateflag"><span class="prog"><span class="dot dot--done"></span>완료</span></div></div>
       <div class="plan__row plan__row--info"><div class="plan__n plan__n--info">i</div>
         <div><div class="plan__h">네이버 옛 결제 <span class="b b--red">취소 완료</span></div>
@@ -352,7 +353,7 @@
           <div class="plan__h">정리를 저장하지 못했습니다</div>
           <div class="plan__d">
             “이미 다른 주문(#4600)에 붙어 있습니다. 먼저 되돌린 뒤 다시 붙이세요.”<br>
-            <b>붙이기도 예약금 반영도 되지 않았습니다</b> — 한 트랜잭션이라 함께 되돌아갑니다.
+            <b>붙이기도 취소 처리도 되지 않았습니다</b> — 한 트랜잭션이라 함께 되돌아갑니다.
           </div>
           <div class="acts" style="margin-top:8px">
             <button class="btn">주문 #4600 열기</button>
@@ -423,9 +424,9 @@
         <td>근거는 시스템이 모으고 <b>확정은 사람</b>이 한다. 다만 <b>불가능한 갈래는 잠근다</b>.</td></tr>
     <tr><td class="k">삭제는 소프트</td>
         <td>ERP 취소 처리는 <code>deleted_at</code> 만 찍는다. 휴지통에서 복구된다. hard delete 없음.</td></tr>
-    <tr><td class="k">받은 돈은 예약금으로</td>
-        <td>재결제·추가결제 금액은 <code>payment.deposit</code>(예약금·선금)에 반영한다. 재결제는 덮어쓰고 추가결제는 더한다.
-            출고가·품목은 안 건드린다 — 잔금은 <b>출고가 − 예약금</b> 공식이 알아서 따라온다.</td></tr>
+    <tr><td class="k">받은 돈은 예약금 자리를 가리킨다</td>
+        <td>넣을 금액을 <code>payment.deposit</code>(예약금·선금) 기준으로 <b>보여 주기만</b> 한다 — 시스템이 넣지 않는다.
+            재결제는 바꾸고 추가결제는 더한다는 것도 문장으로 말한다. 잔금은 사람이 예약금을 고치면 따라온다.</td></tr>
     <tr><td class="k">이력은 남는다</td>
         <td>붙이기·예약금 반영·취소 처리가 각각 <b>주문 변경 이력 1건</b>씩. 감사 로그는 별도로 전량.</td></tr>
   </tbody></table>
