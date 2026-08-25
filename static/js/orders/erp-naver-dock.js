@@ -150,7 +150,8 @@
         var hasWho = !!state.recipientName;
         var hasMemo = !!state.shippingMemo;
         var hasClaim = !!state.claimLabel;
-        var hasFacts = !!(state.recipientTel2 || state.paidAt || state.payMeans || state.discount || state.extraPaymentCount);
+        var hasFacts = !!(state.recipientTel2 || state.paidAt || state.payMeans || state.discount
+            || state.extraPaymentCount || state.couponCount);
         if (!hasWho && !hasMemo && !hasClaim && !hasFacts) return null;
         var info = el('div', 'naver-dock-info');
         if (hasClaim) {
@@ -174,6 +175,18 @@
         }
         if (state.discount) {
             facts.push(['할인', state.discount.toLocaleString('ko-KR') + '원', false]);
+        }
+        // 쿠폰은 **안 썼을 때도** 말한다. 줄이 없으면 "안 썼다"인지 "화면이 모른다"인지
+        // 구분이 안 되고, 담당자는 금액이 왜 이런지를 네이버에서 다시 확인하게 된다.
+        if (state.couponCount) {
+            var coupon = state.couponCount + '장 −' + state.couponDiscount.toLocaleString('ko-KR') + '원';
+            // 네이버 100% 부담 쿠폰은 정산액을 깎지 않는다 — 우리 돈이 나간 자리만 덧붙인다.
+            coupon += state.couponSellerBurden
+                ? ' (판매자 부담 ' + state.couponSellerBurden.toLocaleString('ko-KR') + '원)'
+                : ' (전액 네이버 부담)';
+            facts.push(['쿠폰', coupon, false]);
+        } else {
+            facts.push(['쿠폰', '사용 안 함', false]);
         }
         // 추가결제(차액)·재결제 기록. 금액은 기록만이라 출고가·잔금에는 반영돼 있지 않다 —
         // 사람이 보고 판단하라고 여기서 알려준다(T16-F).
@@ -535,6 +548,11 @@
             workbenchUrl: payload.workbench_url || '',
             payMeans: payload.pay_means || '',
             discount: payload.discount || 0,
+            // 쿠폰(2026-08-25). `discount` 는 상품할인+쿠폰 합계라 그것만으로는
+            // "쿠폰을 썼나"를 알 수 없다 — 장수·할인액·판매자 부담분을 따로 싣는다.
+            couponCount: payload.coupon_count || 0,
+            couponDiscount: payload.coupon_discount || 0,
+            couponSellerBurden: payload.coupon_seller_burden || 0,
             widthHints: payload.width_hints || {}
         };
         render();

@@ -190,6 +190,13 @@ def _row_source(link: Any) -> dict[str, Any]:
         "pay_means": payment["means"],
         "discount": payment["product_discount_amount"] + sum(
             coupon["discount_amount"] for coupon in payment["coupons"]),
+        # 쿠폰(2026-08-25) — 위 `discount` 는 상품할인과 쿠폰을 **합친** 값이라 그것만으로는
+        # "쿠폰을 썼나"를 알 수 없다. 장수·할인액·판매자 부담분을 따로 낸다.
+        "coupon_count": len(payment["coupons"]),
+        "coupon_discount": sum(coupon["discount_amount"] for coupon in payment["coupons"]),
+        "coupon_seller_burden": sum(
+            coupon["seller_burden_amount"] for coupon in payment["coupons"]
+            if coupon.get("seller_burden_amount") is not None),
     }
 
 
@@ -417,6 +424,10 @@ def build_dock_payload(db: Any, order: Any, *,
             "checked": bool(state.get("checked")),
             "assigned_main": state.get("assigned_main"),
             "reviewed": link.reviewed_at is not None,
+            # 쿠폰은 상품주문(행)마다 붙는다 — 집 합계는 이 값들을 더해서 만든다.
+            "coupon_count": source["coupon_count"],
+            "coupon_discount": source["coupon_discount"],
+            "coupon_seller_burden": source["coupon_seller_burden"],
         })
 
     mains = [row for row in rows if row["role"] == "main"]
@@ -458,6 +469,10 @@ def build_dock_payload(db: Any, order: Any, *,
         "extra_payment_total": extra["total"],
         # 관계별 분해(R1) — 도크가 ADDON/REPAY 를 다른 문구로 말하기 위한 자리.
         "extra_payment_by_relation": {"addon": extra["addon"], "repay": extra["repay"]},
+        # 집 전체 쿠폰 합계. 행마다 흩어 두면 사람이 암산해야 한다.
+        "coupon_count": sum(int(row["coupon_count"] or 0) for row in rows),
+        "coupon_discount": sum(int(row["coupon_discount"] or 0) for row in rows),
+        "coupon_seller_burden": sum(int(row["coupon_seller_burden"] or 0) for row in rows),
         "order_no": order_no,
         # 집이 둘 이상인 주문에서 머리말이 사실을 말하게 하는 자리. 화면은 이 목록을
         # 쓰고, `order_no`(첫 집)는 하위호환으로만 남긴다.
