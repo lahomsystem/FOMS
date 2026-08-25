@@ -674,7 +674,11 @@ def summarize_snapshot(raw_snapshot: Any) -> dict[str, Any]:
              "claim_label": "", "claim_blocking": False,
              # 원본이 없거나 깨졌으면 "발주확인 여부를 모른다" — 완료로 읽지 않는다.
              "place_status": "", "place_label": "", "place_confirmed": False,
-             "shipping_due": ""}
+             "shipping_due": "",
+             # 쿠폰 축(2026-08-25). 원본이 깨졌으면 "쿠폰 없음"이 아니라 **모름**이다 —
+             # 0 장으로 단정하면 화면이 "쿠폰 없음"이라고 거짓말한다.
+             "coupon_known": False, "coupon_count": 0,
+             "coupon_discount": 0, "coupon_seller_burden": 0}
     if not isinstance(raw_snapshot, dict) or not raw_snapshot:
         return empty
     try:
@@ -706,6 +710,49 @@ def summarize_snapshot(raw_snapshot: Any) -> dict[str, Any]:
         "place_label": place["label"],
         "place_confirmed": place["confirmed"],
         "shipping_due": place["shipping_due"][:10],
+        # 쿠폰 — 담당자가 금액을 볼 때 같이 봐야 하는 사실이다. 장수·할인액만이 아니라
+        # **판매자 부담분**을 따로 낸다: 네이버 100% 부담 쿠폰은 우리 정산액을 깎지 않는다.
+        **_coupon_facts(raw_snapshot),
+    }
+
+
+def _coupon_facts(raw_snapshot: Any) -> dict[str, Any]:
+    """이 상품주문에 적용된 쿠폰 요약 (2026-08-25).
+
+    Args:
+        raw_snapshot: ``ExternalOrderLink.raw_snapshot``.
+
+    Returns:
+        ``coupon_known``(원본을 읽었는가) · ``coupon_count`` · ``coupon_discount``
+        · ``coupon_seller_burden``. 부담 비율이 없는 쿠폰은 부담액에 더하지 않는다
+        (모르는 값을 0 으로 세면 "우리 부담 없음"으로 읽힌다).
+    """
+    from foms.services.integrations.naver_commerce.mapping import (
+        build_payment_info,
+        unwrap_detail,
+    )
+
+    unknown = {"coupon_known": False, "coupon_count": 0,
+               "coupon_discount": 0, "coupon_seller_burden": 0}
+    try:
+        _order, product_order, _shipping = unwrap_detail(raw_snapshot)
+        # 상품주문으로 보이지 않으면 **읽은 게 아니다.** 여기서 0 장을 돌려주면 화면이
+        # "쿠폰 사용 안 함" 이라고 단정하는데, 사실 원본은 그 말을 한 적이 없다.
+        # 판정은 `productOrderId` 로 한다 — 실데이터 250건 전부가 갖고 있고,
+        # `unwrap_detail` 은 낯선 dict 를 그대로 상품주문 취급해 돌려주기 때문이다.
+        if not isinstance(product_order, dict) or not product_order.get("productOrderId"):
+            return unknown
+        coupons = build_payment_info(raw_snapshot)["coupons"]
+    except (NaverMappingError, ValueError, TypeError, AttributeError, KeyError) as exc:
+        logger.warning("[NAVER] 쿠폰 요약 실패(모름으로 표시): %s", exc)
+        return unknown
+    return {
+        "coupon_known": True,
+        "coupon_count": len(coupons),
+        "coupon_discount": sum(int(row["discount_amount"] or 0) for row in coupons),
+        "coupon_seller_burden": sum(int(row["seller_burden_amount"] or 0)
+                                    for row in coupons
+                                    if row.get("seller_burden_amount") is not None),
     }
 
 

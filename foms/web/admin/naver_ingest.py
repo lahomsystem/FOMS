@@ -818,13 +818,16 @@ def _pane_context(db, link: Optional[ExternalOrderLink],
     from foms.services.integrations.naver_commerce.fulfillment import CANCEL_REASONS
 
     household = _group_of_link(db, link) if link is not None else None
+    member_rows = _member_rows(db, household)
     return {
         "selected": _triage_pane(db, link) if link is not None else None,
         "selected_group": household,
         # 클레임 판정 모집단도 **형제 전부**다. 확인 완료돼 큐에서 빠진 형제의 취소를 큐
         # 묶음은 못 보는데, 발송처리는 되돌릴 수 없어 그 구멍이 그대로 사고가 된다.
         "selected_household_claimed": _household_has_claim(db, link),
-        "member_rows": _member_rows(db, household),
+        "member_rows": member_rows,
+        # 집 단위 쿠폰 한 줄(2026-08-25) — 행 합계를 사람이 암산하지 않게 한다.
+        "coupon_summary": _coupon_summary(member_rows),
         # 취소 사유는 네이버 코드가 SSOT 다 — 화면이 따로 목록을 들면 둘이 갈린다.
         "cancel_reasons": CANCEL_REASONS,
         # 목록 밖 집을 열었는지(리뷰 M-3). 버튼을 막지 않는다 — 사실만 말한다.
@@ -2056,8 +2059,36 @@ def _member_rows(db, selected_group: Optional[dict]) -> list[dict[str, Any]]:
             "amount": summary["amount"],
             "is_lead": member.get("is_lead", False),
             "place_confirmed": summary["place_confirmed"],
+            # 쿠폰(2026-08-25) — 금액 옆에서 같이 읽혀야 하는 사실이다.
+            "coupon_known": summary["coupon_known"],
+            "coupon_count": summary["coupon_count"],
+            "coupon_discount": summary["coupon_discount"],
+            "coupon_seller_burden": summary["coupon_seller_burden"],
         })
     return rows
+
+
+def _coupon_summary(rows: list[dict[str, Any]]) -> dict[str, Any]:
+    """집 전체의 쿠폰 합계 — 상세 머리에서 한 줄로 말하기 위한 값 (2026-08-25).
+
+    행마다 따로 보면 "이 집에 쿠폰이 붙었나"를 사람이 암산해야 한다. 집이 6건씩 오는
+    화면이라 그 암산이 실제로 안 된다.
+
+    Args:
+        rows: :func:`_member_rows` 결과.
+
+    Returns:
+        ``known``(전 행의 원본을 읽었는가) · ``count`` · ``discount`` · ``seller_burden``.
+        한 행이라도 못 읽었으면 ``known=False`` 다 — 부분 합계를 전체인 양 말하지 않는다.
+    """
+    if not rows:
+        return {"known": False, "count": 0, "discount": 0, "seller_burden": 0}
+    return {
+        "known": all(row.get("coupon_known") for row in rows),
+        "count": sum(int(row.get("coupon_count") or 0) for row in rows),
+        "discount": sum(int(row.get("coupon_discount") or 0) for row in rows),
+        "seller_burden": sum(int(row.get("coupon_seller_burden") or 0) for row in rows),
+    }
 
 
 def _dispatched_count(links: list[ExternalOrderLink]) -> int:

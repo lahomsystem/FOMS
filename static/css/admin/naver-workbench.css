@@ -482,6 +482,32 @@ input.wb-pick:disabled,
 /* 옵션 원문은 자르지 않는다 — 사람이 이걸 보고 규격을 채운다(도메인 규칙 6). */
 .wb-cmp__option { color: var(--wb-muted); font-size: calc(11.5px * var(--wb-fs, 1)); white-space: pre-wrap; }
 
+/* ── 쿠폰 (2026-08-25) ────────────────────────────────────────────────
+   금액 바로 위/옆에서 읽히는 사실이라 별도 색을 쓰지 않는다. 쓴 집은 무게로,
+   안 쓴 집은 흐리게. 판매자 부담분만 진하게 — 우리 돈이 나간 자리다. */
+.wb-coupon {
+    display: flex;
+    align-items: baseline;
+    gap: 8px;
+    margin: 2px 0 8px;
+    font-size: calc(11.5px * var(--wb-fs, 1));
+}
+
+.wb-coupon__on { color: #111827; font-weight: 600; }
+.wb-coupon__amt { color: #111827; font-variant-numeric: tabular-nums; }
+.wb-coupon__burden {
+    color: #b45309;
+    font-variant-numeric: tabular-nums;
+}
+.wb-coupon__burden--naver { color: var(--wb-muted); }
+.wb-coupon__none { color: var(--wb-muted); }
+
+.wb-cmp__coupon {
+    color: var(--wb-muted);
+    font-size: calc(10.5px * var(--wb-fs, 1));
+    font-variant-numeric: tabular-nums;
+}
+
 .wb-empty { padding: 40px 16px; text-align: center; color: var(--wb-muted); }
 
 /* ── 전체 이력 (W4) ──────────────────────────────────────────────────── */

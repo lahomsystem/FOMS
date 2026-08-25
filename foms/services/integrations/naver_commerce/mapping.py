@@ -289,14 +289,42 @@ def build_payment_info(detail: dict) -> dict:
         for coupon in coupons:
             if not isinstance(coupon, dict):
                 continue
+            discount = _int(coupon.get("couponDiscountAmount"))
+            # 네이버 부담 비율(%). **이 값이 실무의 핵심**이다 — 같은 "쿠폰 1만원"이라도
+            # 100 이면 네이버가 물고(정산액 그대로), 0 이면 우리가 문다(정산액이 깎인다).
+            # 스테이징 실데이터에서 두 종류가 실제로 섞여 온다(NMP_PRD_DCNT=100 ·
+            # NMP_PRD_DUP_DCNT=0). 값이 없으면 **모른다**로 두고 부담액을 만들지 않는다.
+            raw_ratio = coupon.get("naverBurdenRatio")
+            ratio = _int(raw_ratio) if raw_ratio is not None else None
+            seller_burden = None
+            if ratio is not None:
+                seller_burden = int(round(discount * (100 - ratio) / 100))
             coupon_rows.append({
                 "class_code": _text(coupon.get("couponClassCode")),
-                "discount_amount": _int(coupon.get("couponDiscountAmount")),
+                "discount_amount": discount,
+                # 발행번호 — 같은 쿠폰이 형제 상품주문마다 반복될 때 한 장인지 여러 장인지
+                # 가리는 유일한 값이다.
+                "publish_number": _text(coupon.get("couponPublishNumber")),
+                "naver_burden_ratio": ratio,
+                "seller_burden_amount": seller_burden,
             })
+    # 카드사 프로모션(예: "멤버십데이 삼성카드 3% 할인"). 쿠폰과 다른 축이다 —
+    # 카드사가 부담하고 상품 금액은 안 깎이지만, 담당자가 "왜 이 금액인가"를 물을 때
+    # 쿠폰만 보여 주면 답이 안 나온다.
+    promotion = product_order.get("appliedCardPromotion")
+    card_promotion = None
+    if isinstance(promotion, dict):
+        card_promotion = {
+            "name": _text(promotion.get("promotionName")),
+            "card_company": _text(promotion.get("cardCompanyName")),
+            "apply_amount": _int(promotion.get("promotionApplyAmount")),
+        }
+
     return {
         "paid_at": _text(order.get("paymentDate")),
         "means": _text(order.get("paymentMeans")),
         "location_type": _text(order.get("payLocationType")),
+        "card_promotion": card_promotion,
         "unit_price": _int(product_order.get("unitPrice")),
         "option_price": _int(product_order.get("optionPrice")),
         "product_discount_amount": _int(product_order.get("productDiscountAmount")),

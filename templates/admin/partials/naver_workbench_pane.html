@@ -298,6 +298,25 @@
             상품주문 {{ member_rows|length }}건
             <span class="wb-cmp-title__sub">네이버가 본품과 옵션을 각각 다른 상품주문으로 준다</span>
         </div>
+        {# 쿠폰(2026-08-25) — "쿠폰 썼나"는 금액을 볼 때 같이 나오는 질문이다. 안 쓴 집도
+           **명시적으로** 말한다(표시가 없으면 "쿠폰이 없다"인지 "화면이 모른다"인지 구분이
+           안 된다). 판매자 부담분을 따로 내는 이유: 네이버 100% 부담 쿠폰은 정산액을 깎지
+           않는다 — 같은 "쿠폰 1만원"이라도 우리 돈이 나가는 건과 아닌 건이 섞여 온다. #}
+        <div class="wb-coupon" data-coupon-known="{{ 'yes' if coupon_summary.known else 'no' }}">
+            {% if not coupon_summary.known %}
+            <span class="wb-coupon__none">쿠폰 — 원본을 읽지 못해 모름</span>
+            {% elif coupon_summary.count %}
+            <span class="wb-coupon__on">쿠폰 {{ coupon_summary.count }}장 사용</span>
+            <span class="wb-coupon__amt">−{{ '{:,}'.format(coupon_summary.discount) }}원</span>
+            {% if coupon_summary.seller_burden %}
+            <span class="wb-coupon__burden">판매자 부담 {{ '{:,}'.format(coupon_summary.seller_burden) }}원</span>
+            {% else %}
+            <span class="wb-coupon__burden wb-coupon__burden--naver">전액 네이버 부담</span>
+            {% endif %}
+            {% else %}
+            <span class="wb-coupon__none">쿠폰 사용 안 함</span>
+            {% endif %}
+        </div>
         <table class="wb-cmp">
             <thead>
                 <tr>
@@ -316,7 +335,12 @@
                         {% endif %}
                     </td>
                     <td class="wb-cmp__num">{{ row.quantity if row.quantity is not none else '–' }}</td>
-                    <td class="wb-cmp__num">{{ '{:,}'.format(row.amount) if row.amount is not none else '–' }}</td>
+                    <td class="wb-cmp__num">
+                        {{ '{:,}'.format(row.amount) if row.amount is not none else '–' }}
+                        {% if row.coupon_known and row.coupon_count %}
+                        <div class="wb-cmp__coupon">쿠폰 −{{ '{:,}'.format(row.coupon_discount) }}</div>
+                        {% endif %}
+                    </td>
                 </tr>
                 {% endfor %}
             </tbody>
