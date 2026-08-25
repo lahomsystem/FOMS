@@ -1436,7 +1436,7 @@
             </div>
 
             <div id="geocode-poll-banner" class="alert alert-info alert-dismissible fade show small py-2 mb-2"
-                role="alert" style="display: none; margin: 8px 12px 0;">
+                role="alert" style="display: none; margin: 8px 12px 0;" data-foms-no-autodismiss>
                 <i class="fas fa-sync-alt fa-spin me-1"></i>
                 <span id="geocode-poll-text">주소 변환 중... 잠시 후 자동 갱신됩니다.</span>
                 <button type="button" class="btn-close btn-sm" data-bs-dismiss="alert" aria-label="닫기"
@@ -1444,7 +1444,7 @@
             </div>
 
             <div id="map-truncate-banner" class="alert alert-warning small py-2 mb-2" role="alert"
-                style="display: none; margin: 8px 12px 0;">
+                style="display: none; margin: 8px 12px 0;" data-foms-no-autodismiss>
                 <i class="fas fa-exclamation-triangle me-1"></i>
                 표시 상한을 초과해 일부 주문이 지도에서 잘렸습니다. 분류/검색으로 좁혀서 확인하세요.
             </div>
@@ -1494,7 +1494,7 @@
 
                     <!-- 현재 잘못된 주소 표시 (지도 좌표 변환 실패 시에만) -->
                     <div class="alert alert-danger d-flex align-items-start mb-3" id="map-address-error-alert"
-                        style="display: none;">
+                        style="display: none;" data-foms-no-autodismiss>
                         <i class="fas fa-exclamation-triangle me-2 mt-1"></i>
                         <div class="flex-grow-1">
                             <div class="fw-bold mb-1">지도 좌표 변환에 실패한 주소:</div>
@@ -1504,7 +1504,7 @@
 
                     <!-- 현재 주소 표시 (정상 주소) -->
                     <div class="alert alert-secondary d-flex align-items-start mb-3" id="map-address-normal-alert"
-                        style="display: none;">
+                        style="display: none;" data-foms-no-autodismiss>
                         <i class="fas fa-map-marker-alt me-2 mt-1"></i>
                         <div class="flex-grow-1">
                             <div class="fw-bold mb-1">현재 주소:</div>
