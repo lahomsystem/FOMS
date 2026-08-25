@@ -818,13 +818,16 @@ def _pane_context(db, link: Optional[ExternalOrderLink],
     from foms.services.integrations.naver_commerce.fulfillment import CANCEL_REASONS
 
     household = _group_of_link(db, link) if link is not None else None
+    member_rows = _member_rows(db, household)
     return {
         "selected": _triage_pane(db, link) if link is not None else None,
         "selected_group": household,
         # 클레임 판정 모집단도 **형제 전부**다. 확인 완료돼 큐에서 빠진 형제의 취소를 큐
         # 묶음은 못 보는데, 발송처리는 되돌릴 수 없어 그 구멍이 그대로 사고가 된다.
         "selected_household_claimed": _household_has_claim(db, link),
-        "member_rows": _member_rows(db, household),
+        "member_rows": member_rows,
+        # 집 단위 쿠폰 한 줄(2026-08-25) — 행 합계를 사람이 암산하지 않게 한다.
+        "coupon_summary": _coupon_summary(member_rows),
         # 취소 사유는 네이버 코드가 SSOT 다 — 화면이 따로 목록을 들면 둘이 갈린다.
         "cancel_reasons": CANCEL_REASONS,
         # 목록 밖 집을 열었는지(리뷰 M-3). 버튼을 막지 않는다 — 사실만 말한다.
@@ -2056,8 +2059,36 @@ def _member_rows(db, selected_group: Optional[dict]) -> list[dict[str, Any]]:
             "amount": summary["amount"],
             "is_lead": member.get("is_lead", False),
             "place_confirmed": summary["place_confirmed"],
+            # 쿠폰(2026-08-25) — 금액 옆에서 같이 읽혀야 하는 사실이다.
+            "coupon_known": summary["coupon_known"],
+            "coupon_count": summary["coupon_count"],
+            "coupon_discount": summary["coupon_discount"],
+            "coupon_seller_burden": summary["coupon_seller_burden"],
         })
     return rows
+
+
+def _coupon_summary(rows: list[dict[str, Any]]) -> dict[str, Any]:
+    """집 전체의 쿠폰 합계 — 상세 머리에서 한 줄로 말하기 위한 값 (2026-08-25).
+
+    행마다 따로 보면 "이 집에 쿠폰이 붙었나"를 사람이 암산해야 한다. 집이 6건씩 오는
+    화면이라 그 암산이 실제로 안 된다.
+
+    Args:
+        rows: :func:`_member_rows` 결과.
+
+    Returns:
+        ``known``(전 행의 원본을 읽었는가) · ``count`` · ``discount`` · ``seller_burden``.
+        한 행이라도 못 읽었으면 ``known=False`` 다 — 부분 합계를 전체인 양 말하지 않는다.
+    """
+    if not rows:
+        return {"known": False, "count": 0, "discount": 0, "seller_burden": 0}
+    return {
+        "known": all(row.get("coupon_known") for row in rows),
+        "count": sum(int(row.get("coupon_count") or 0) for row in rows),
+        "discount": sum(int(row.get("coupon_discount") or 0) for row in rows),
+        "seller_burden": sum(int(row.get("coupon_seller_burden") or 0) for row in rows),
+    }
 
 
 def _dispatched_count(links: list[ExternalOrderLink]) -> int:
@@ -2489,12 +2520,17 @@ def naver_ingest_attach_order(link_id: int):
     try:
         # 집 요약은 **변경 전에** 뽑는다 — 붙인 뒤에는 대상 집합·관계값이 이미 바뀌어 있다.
         history = summarize_link_household(db, link_id=link_id)
-        attached, target_order_id = attach_link_to_order(
+        attached, target_order_id, changed = attach_link_to_order(
             db, link_id=link_id, order_id=order_id, relation=relation,
             actor_user_id=session.get("user_id"))
-        _record_link_history(db, order_id=target_order_id, link_id=link_id,
-                             event_type=ATTACH_EVENT_TYPE, relation=relation,
-                             summary=history)
+        # 같은 버튼을 두 번 누르면 두 번째는 **아무것도 바꾸지 않는다**(금액 기록은 원래
+        # 멱등). 그런데도 이력에 줄이 쌓이면 담당자가 "두 번 붙었나?" 를 의심하게 된다 —
+        # 주문 변경 이력은 **무엇이 바뀌었나**를 말하는 자리다(2026-08-25 정책 확정).
+        # 누가 눌렀는가는 아래 log_access 가 누른 횟수만큼 그대로 남긴다(감사 축은 불변).
+        if changed:
+            _record_link_history(db, order_id=target_order_id, link_id=link_id,
+                                 event_type=ATTACH_EVENT_TYPE, relation=relation,
+                                 summary=history)
         db.commit()
     except PromotionError as exc:
         db.rollback()

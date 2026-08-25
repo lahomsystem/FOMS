@@ -889,3 +889,309 @@ AS 미완료 지도가 **598건을 그대로 본다**.
   `alembic_version`·운영 tip 이 바뀌었으면 §10 의 낡음 조건을 먼저 판정한다.
 - 남은 단계: **S2 병합·등가 증명 → S3 로컬 전량 게이트 → S4 승격 → S5 확인.**
   착수 전 필요한 사용자 결정은 **전량 머지 승인** 하나다(백필 승인·롤백 합의는 완료).
+
+---
+
+## 15. S2 · S3 실행 기록 (2026-08-25)
+
+사용자 결정: **전량 머지 승인 · 로컬 검사 전부 · 승격 후 네이버 켜기**(켜기는 별건으로 분리).
+
+### 승격 대상 SHA 고정
+
+deploy tip 이 계속 움직여서 **CI 전량 green 인 최신 SHA 로 못박았다**: **`77fc7cb4`**
+(= 이 세션의 S0·S1 기록 커밋. FOMS CI · Harness CI · PG Lane **3/3 success** 확인).
+브랜치명으로 병합하면 타 세션 push 시 게이트가 조용히 거짓말한다 — SHA 로만 병합했다.
+
+### S2 — 병합 · 등가 증명 (통과)
+
+승격 워크트리 `c:/tmp/foms-promote`, 브랜치 `promote/full-20260825`, 기점 `57cc536d`.
+
+```
+충돌 25개  ->  전부 deploy 판 채택(--theirs)
++ 조용한 중복 1개(tests/domains/test_as_timeline_wiring.py)  ->  deploy 판으로 덮음
+```
+
+**판정 게이트 — 통과:**
+
+```
+git diff --stat 77fc7cb4   ->  무출력
+머지 트리   = 2539be20fea7454c5399695156e32acb0674fd0f
+deploy 트리 = 2539be20fea7454c5399695156e32acb0674fd0f      <- 완전 일치
+충돌 잔재 0 · 충돌 마커 0
+```
+
+커밋: `3edddbb8`.
+
+**인벤토리 드리프트 — 1건은 거짓 경보였다(기록):**
+
+| 스캐너 | `--check` |
+|---|---|
+| `failopen_scan` · `order_mutation_writer_scan` · `state_writer_scan` | 드리프트 0 |
+| `audit_coverage_scan` | **`drift=YES`** |
+
+그런데 `audit_coverage_scan --check` 는 **CI green 인 세션 트리에서도 똑같이 `drift=YES`**
+를 내고(`total=193` vs 승격 트리 `total=194`, 둘 다 `unaudited=0 coverage=100%`),
+**CI·`pre_push_smoke` 어디서도 이 스캐너를 `--check` 로 돌리지 않는다**(워크플로·smoke 전수 그렙).
+→ 병합이 만든 것이 아니라 **선재 상태**다. 실제 게이트인 계약 테스트
+`test_audit_coverage_inventory` + `test_failopen_inventory` 는 **24 passed**.
+
+로드맵 §11 이 경고한 "틀린 검증 명령의 거짓 경보" 부류가 S2.5 에서 그대로 재현됐다.
+**다음 승격에서는 S2.5 를 계약 테스트로 대체해야 한다.**
+
+### S3 — 로컬 전량 게이트
+
+| 게이트 | 결과 |
+|---|---|
+| `import app` | **APP_OK** |
+| `test_alembic_single_head` | 1 passed |
+| `test_auth_enforcement` + `test_write_guard` | 37 passed |
+| `tests/postgres` 전수 | **747 passed** |
+| `pre_push_smoke.ps1 -Full` | **FAIL** (전량 pytest 단계) — 원인 조사 중 |
+
+전량 pytest 실패는 **트리가 CI green 인 deploy 와 바이트 동일한데 로컬만 실패**하는
+형태다. 환경 기인(로컬 DB 드리프트·Redis 부재 등) 가능성이 높지만 **추정하지 않고
+실패 목록을 직접 뽑아 판정한다**. 판정 전까지 S4 진입 금지.
+
+---
+
+## 16. S4 · S5 실행 기록 — **전량 승격 완료** (2026-08-25)
+
+### S3 최종 판정 — 통과 (실패 6건은 전부 환경 기인)
+
+전량 pytest: **6,247 passed / 6 failed**. 6건 전부 `tests/harness/` 였고 근거 셋으로 확정:
+
+1. 같은 6건이 **CI green 인 세션 트리에서도 동일하게** 실패한다.
+2. **`PYTHONIOENCODING=utf-8` 을 빼니 5건이 사라진다** → `tests/harness` **361 passed / 1 failed**.
+   실패 형태가 `TypeError: argument of type 'NoneType' is not iterable`(서브프로세스
+   `stdout` 이 `None`)로, 원장에 기록된 **가짜 red 함정** 그대로다.
+3. 남은 `test_deploy_push_allows_when_scope_empty` 는 **가드가 정상 동작한 결과**다 —
+   승격 워크트리에서 deploy 로 푸시하면 75커밋이 딸려가니 `ask` 를 낸다(워크트리 git 상태
+   의존). CI 는 깨끗한 클론이라 `allow` 이고, **Harness CI 가 같은 트리로
+   `pytest tests/harness` 를 돌려 green** 이다.
+
+> **다음 승격 지침**: `pre_push_smoke -Full` 은 `PYTHONIOENCODING` 를 **설정하지 않은**
+> 셸에서 돌려라. 설정하면 harness 5건이 가짜 red 로 뜬다.
+
+### S4 — 운영 승격 (완료)
+
+PR **#145** (`promote/full-20260825` → `production`). 체크 **perf-gate pass · pg-lane pass**.
+병합 전 운영 tip 이 기점 `57cc536d` 에서 안 움직인 것을 확인하고 머지.
+
+```
+운영 머지 커밋 : 39fa919d
+운영 트리      = 2539be20fea7454c5399695156e32acb0674fd0f
+deploy(77fc7cb4) = 2539be20fea7454c5399695156e32acb0674fd0f      <- 바이트 동일
+```
+
+**배포 중 스키마 감시**(30초 간격 12회, 읽기 전용): `alembic_version` 이
+`merge_drawq_naverfail` 로 **불변**, `as_axis_status filled` 598 **불변**.
+→ 예상대로 이번 배포는 마이그레이션을 실행하지 않았다(스키마는 이미 head).
+
+**배포 후 백필 재실행**(멱등 — 로드맵이 지시한 대로):
+
+```
+[적용] 후보 623건 / 변경 3건        (NULL→RECEIVED 2 · COMPLETED→RECEIVED 1)
+드리프트 감사: checked 619 / mismatch 0 / missing_projection 0 / legacy_only 0
+```
+
+S1~S4 사이에 실제로 AS 활동 3건이 있었다 — **재실행 지시가 값을 했다.**
+
+### S5 — 운영 확인 (완료)
+
+`claude_master` 해제 → 측정 → **재잠금**(`is_active = False` 확인). 실데이터 변경 0.
+
+**B-1 최종 판정 — 통과:**
+
+```
+신 술어(as_axis_status IS NOT NULL) 600  ==  구 술어(status IN AS 계열) 600
+AS 대시보드 실렌더 행(data-order-id)      570      <- 비어 있지 않다
+```
+
+| 화면 | 결과 |
+|---|---|
+| 홈 · 주문 목록 | 200 · 736ms |
+| ERP 대시보드 | 200 · 978ms |
+| **AS 대시보드** | 200 · 730ms · **570행 렌더** |
+| 실측 · 출고 · 시공 대시보드 | 200 |
+| **AS 미완료 지도** | 200 · 마커 렌더됨(빈 화면 아님) |
+| 주문 상세 #4968 | 200 |
+
+전 화면에서 `does not exist` · `UndefinedColumn` · `Traceback` **0건**.
+
+> **정직하게**: AS 미완료 지도는 마커를 비동기로 싣기 때문에 HTML 만으로 **건수 일치까지는
+> 확인하지 못했다**. 확인한 것은 "비어 있지 않다"이며, B-1 의 실패 모드(통째로 빔)는 배제됐다.
+
+### 남은 것
+
+- **운영 네이버 환경변수 미투입** — `NAVER_COMMERCE_CLIENT_ID`/`SECRET`·
+  `FOMS_NAVER_SYNC_ENABLED`·`FOMS_NAVER_WORKBENCH_ENABLED` 없음.
+  네이버로 나가는 호출 0, 실주문 자동 생성 0. **켜는 것은 열쇠가 필요한 별건이다.**
+- `docs/AI_STATUS.md`·`docs/AI_CHANGELOG.md` 미갱신(병렬 세션 충돌 회피). 기록은 이 문서와
+  `2026-08-24-naver-d1-repay-revision-ledger.md` 가 갖고 있다.
+  ⚠️ AI_STATUS 는 head40 여유가 **78자뿐** — 새 줄을 넣으려면 기존 한 줄을 `## 기록 보관`
+  으로 강등해야 한다.
+
+---
+
+## 17. 네이버 운영 개방 (2026-08-25) — 승격 범위 밖이던 것을 켰다
+
+사용자 결정: **스테이징 열쇠를 그대로 사용 · 전부 켜기(화면+수집, 전 직원) ·
+스테이징 수집도 계속 유지 · 즉시 재배포.**
+
+### 17.1 "운영 네이버수집이 이전 버전" 신고 — 배포 실패가 아니었다
+
+사용자가 옛 트리아지 화면(`수집 주문 확인` · `확인 대기 — 한 집이 한 줄`)을 보고 신고했다.
+
+**원인**: `FOMS_NAVER_WORKBENCH_ENABLED` 가 운영에 없어서 **게이트 OFF 경로**
+(`templates/admin/naver_triage.html`)가 렌더된 것이다. 계약이 그 파일을 "손대지 않는
+롤백 경로"로 지정해 뒀다. 운영 트리는 deploy 와 바이트 동일(`2539be20`)이라 **코드는 새
+버전이 맞았고 플래그만 꺼져 있었다.**
+
+> 교훈: 승격 후 "옛 화면이 보인다"는 신고는 **배포 실패가 아니라 게이트 미설정**일 수 있다.
+> 트리 해시가 같으면 코드는 갔다 — 다음은 플래그를 봐라.
+
+### 17.2 열쇠 이관 중 사고 1건 — `eval` 이 secret 을 잘랐다
+
+스테이징 `worker` 의 열쇠 3종을 운영 `WORKER` 로 옮기면서 `eval railway variables --set ...`
+을 썼더니 **`CLIENT_SECRET` 이 29자 → 27자로 잘렸다.** 값이 `$2a$…` 로 시작하는데 셸이
+`$2` 를 위치 매개변수로 확장해 먹은 것이다.
+
+**화면에 값을 안 찍었기 때문에 눈으로는 못 잡았다 — 길이·SHA 대조가 잡았다:**
+
+```
+NAVER_COMMERCE_APP_EXPIRES_ON   OK   len 10->10  sha 57b41a84 -> 57b41a84
+NAVER_COMMERCE_CLIENT_ID        OK   len 22->22  sha fc0253f0 -> fc0253f0
+NAVER_COMMERCE_CLIENT_SECRET    불일치! len 29->27  sha a666551e -> 04b3d92f   <- 잘림
+```
+
+수정: `eval` 을 버리고 변수 확장으로 넣었다(**변수 값 안의 `$` 는 재확장되지 않는다**).
+재대조에서 3종 전부 해시 일치. 임시 파일 삭제.
+
+> **다음에도 반드시 지켜라**: 비밀값을 셸로 옮길 때 `eval` 금지, 넣은 뒤 **길이+해시 대조**.
+> 값을 안 찍는 규율은 옳지만, 그 규율 때문에 잘림을 눈으로 못 잡는다 — 대조가 유일한 그물이다.
+
+### 17.3 넣은 설정 (서비스 배치가 계약이다)
+
+| 서비스 | 변수 |
+|---|---|
+| **WORKER** | `NAVER_COMMERCE_CLIENT_ID` · `CLIENT_SECRET` · `APP_EXPIRES_ON` + `FOMS_NAVER_SYNC_ENABLED=1` + `FOMS_NAVER_SYNC_INTERVAL_SECONDS=300` |
+| **web** | `FOMS_NAVER_WORKBENCH_ENABLED=1` + `FOMS_NAVER_WORKBENCH_COHORT=all` |
+
+- **네이버로 나가는 HTTP 는 WORKER 단독**이다. 커머스API IP 한도 3 = Railway static IP 3 이라
+  여유가 없다(`start.sh:31-36` 주석). 그래서 web 에는 열쇠를 넣지 않았다.
+- `COHORT=all` 이 필요하다 — `is_enabled_for_user` 는 **cohort 가 비면 플래그가 켜져도
+  꺼진 것으로 판정**한다(`feature_flags.py:112-134`).
+
+### 17.4 적용·검증
+
+`--skip-deploys` 로 변수만 넣고, dev/prod 혼동 가드(프로젝트명 확인) 후 `web`·`WORKER`
+재배포 → **둘 다 SUCCESS**.
+
+| 확인 | 결과 |
+|---|---|
+| `healthz` | 200 ×3 |
+| **수집 실동작** | `external_order_links` **16행**, 최근 수집 `2026-08-25 00:44:19` |
+| **워크벤치 v3 렌더** | `wb-tabs` · `wb-detail` · `data-filter="rel"` **있음** / 옛 화면 문구 **없음** |
+
+`지금 닫기` 라벨이 없는 것도 **정상**이다 — 오늘 D1 개정으로 그 버튼은 **추가결제(ADDON)
+집에만** 뜨는데 현재 그런 집이 없다.
+
+`claude_master` 는 해제 → 측정 → **재잠금**(`is_active = False` 확인). 실데이터 변경 0.
+
+### 17.5 남은 위험 (사용자 인지 후 유지 결정)
+
+**스테이징 수집도 계속 돈다.** 같은 네이버 계정이라 같은 주문을 양쪽이 각자 보관하고,
+**발주확인·발송처리 같은 불가역 버튼이 양쪽 화면에 동시에 살아 있다.** 스테이징에서
+누르면 진짜 네이버로 나간다. 끄려면 스테이징 `worker` 의 `FOMS_NAVER_SYNC_ENABLED` 만
+내리면 된다(화면은 그대로 남는다).
+
+
+---
+
+## 18. 개방 후 안정화 (2026-08-25 오후)
+
+사용자 결정 4건: 운영 실화면은 **사용자가 직접 확인**(claude_master production 미사용) ·
+재결제 화면 판정은 **스테이징에서** · 스테이징 수집 **유지** · 미결 4건 전부 처리.
+
+### 18.1 운영 수집은 건강하다 (읽기전용 DB 조회, 계정 미사용)
+
+```
+watermark last_run_at 2026-08-25T10:15:54+09:00   last_error: None
+external_order_links 20건  전부 COLLECTED · 실패 0 · failure_reason 0
+관계축 NEW 20 / REPAY 0 / ADDON 0     집(group_key distinct) 7
+reviewed_at 있는 건 0 · 생성된 주문 0
+```
+
+운영에 REPAY·ADDON 이 0 이라 **재결제 화면 판정은 운영 데이터로 불가능**하다.
+스테이징에는 REPAY 6 · ADDON 2 가 있다(265 links · 81집) — 판정은 거기서 한다.
+
+### 18.2 운영 사고 — `주문 만들기` 가 막혀 있었다 (T0 ① 미실행)
+
+사용자 신고: 운영 워크벤치에서 `주문 만들기` → `수집 actor 계정이 없다:
+naver_ingest_bot (T0 선행 작업)`.
+
+**원인**: 승격·개방은 코드와 플래그만 다뤘고, `NAVER_INGEST_SETUP.md` 운영 체크리스트
+**①(시스템 계정 2개 생성)이 한 번도 안 돌았다.** 운영 `users` 에 두 행 모두 없었다
+(스테이징에는 id 62·63 으로 있다).
+
+**조치**: `create_naver_ingest_accounts.py` 를 운영 DB 로 dry-run → 사용자 승인 → 1회 적용.
+`naver_ingest_bot`(id 61, MANAGER/CS) · `naver_unassigned`(id 62, STAFF/SALES) 생성.
+기존 행 변경 0. 검증은 **에러를 내던 그 함수**로 했다 —
+`resolve_ingest_account_ids(운영세션) -> (61, 62)`.
+
+> **교훈**: 수집이 돌고 목록이 보여도 **처리 경로는 따로 막힐 수 있다.** 개방 체크리스트는
+> "수집이 들어오는가" 로 끝나면 안 되고 **담당자가 누르는 버튼까지** 밟아야 한다.
+> 이 결함은 사람이 첫 `주문 만들기` 를 누르기 전까지 어떤 로그도 내지 않는다.
+
+### 18.3 워크벤치 두 줄 머리가 안 붙어 보이던 결함
+
+사용자 신고: "이 nav bar 도 sticky 로". **코드는 이미 sticky 였다** — 전역 nav
+(`.layout-global-nav`)가 `sticky · top:0 · z-index:1000` 이라 `top:0 · z-index:3` 인
+머리줄이 **그 밑에 깔린** 것이다. 고정 오프셋도 못 쓴다: nav 높이가 폭에 따라
+**67 → 97 → 121 → 169px**(1920/992/900/768 실측)로 변한다.
+
+수정: JS 가 실측해 `--wb-nav-h` 로 흘리고 CSS 네 자리(머리줄·도구줄·상세 sticky top·
+max-height)가 그 변수를 문다. `resize` + `ResizeObserver`(메뉴 펼침) 재측정.
+
+> 같은 부류의 신고가 또 오면 **먼저 z-index 를 의심해라.** "sticky 인데 안 붙는다" 의
+> 절반은 붙어 있는데 다른 sticky 밑에 깔린 것이다.
+
+### 18.4 도크 머리말 ≠ 링크가 여는 집 (U-1 과 같은 뿌리)
+
+U-1 실조회로 확정: 링크 264~269 = **REPAY**, 주문 4485. 같은 주문에 집이 하나 더
+있다(링크 58~61, NEW). 그래서 머리말(첫 집)과 `워크벤치에서 열기`(나중 집)가 어긋난다.
+
+수정: 머리말이 집 번호를 **전부** 말하고, 링크가 여는 집만 무게로 지목한다.
+`workbench_order_no` 는 주소를 만드는 `rows[-1]` 에서 끌어온다(출처 하나로 못박음).
+
+### 18.5 붙이기 중복 이벤트 — 정책 확정
+
+**주문 변경 이력은 "무엇이 바뀌었나" 를 말하는 자리다.** 같은 버튼을 두 번 눌러도
+두 번째는 아무것도 안 바꾼다(금액은 원래 멱등) → 이력에 안 쌓는다. 판정은 횟수가 아니라
+**상태**다: 되돌린 뒤 다시 붙이면 그때는 다시 남는다. 누가 몇 번 눌렀는가는
+`log_access` 감사가 전량 보관한다(감사 축 불변).
+
+### 18.6 검증 준비
+
+스테이징 워크벤치 코호트에 `claude_master`(id 58)를 더했다(`38` → `38,58`).
+화면 판정을 계정 하나로 반복하기 위해서다 — 운영 코호트(`all`)는 손대지 않았다.
+
+
+### 18.7 쿠폰 표기 (사용자 요구, 2026-08-25)
+
+**"쿠폰 썼는지 안 썼는지 알 수 있게 표기"** — 지금까지 쿠폰 할인은 `할인` 합계에 녹아
+있어 화면 어디서도 구분되지 않았다(워크벤치 v3 상세는 할인 표시 자체가 없었다).
+
+실데이터가 정한 설계: 스테이징 281건 중 **50건에 쿠폰**이 붙고 **부담 주체가 다른 두
+종류가 섞여 온다** — `NMP_PRD_DCNT`(naverBurdenRatio 100 · 네이버가 문다) ·
+`NMP_PRD_DUP_DCNT`(0 · 우리가 문다). 그래서 장수·할인액만으로는 부족하고 **판매자
+부담분**을 따로 낸다.
+
+규율 둘: ① **안 쓴 집도 말한다**(침묵하면 "없음"과 "모름"이 구분 안 된다).
+② 부담 비율이 없으면 부담액은 **모름(None)** 이다 — 0 으로 채우면 "우리 부담 없음"이 된다.
+
+스테이징 실화면 확인: 워크벤치 `쿠폰 2장 사용 −21,000원 · 판매자 부담 11,000원` /
+도크 `쿠폰 2장 −10,000원 (전액 네이버 부담)`.
+
+필드 인벤토리는 `docs/guides/NAVER_FIELD_INVENTORY.md` 로 분리했다 — 281건 전수 기준
+"오는 것 · 쓰는 것 · 안 쓰는 것".

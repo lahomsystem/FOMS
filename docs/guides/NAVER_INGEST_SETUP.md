@@ -15,8 +15,13 @@
 **순서대로**. 아래 상세 단계(1~5단계)는 스테이징 기준으로 쓰였고, 운영도 화면은 같다.
 Railway 프로젝트 이름만 **FOMS**(운영)인지 매번 눈으로 확인한다.
 
-- [ ] **① 계정 2개** — 운영 DB 로 `python scripts/maintenance/create_naver_ingest_accounts.py` 1회
-      (여러 번 돌려도 안전). 확인: `naver_ingest_bot` · `naver_unassigned` 2행.
+- [x] **① 계정 2개 — 2026-08-25 완료.** 운영에 `naver_ingest_bot`(id 61) ·
+      `naver_unassigned`(id 62) 생성. `python scripts/maintenance/create_naver_ingest_accounts.py`
+      를 `DATABASE_URL=<운영 DATABASE_PUBLIC_URL>` 로 1회(여러 번 돌려도 안전).
+      ⚠️ **이 단계를 건너뛴 채 수집·화면만 켜면** 담당자가 워크벤치에서 `주문 만들기` 를
+      누르는 순간 `수집 actor 계정이 없다: naver_ingest_bot (T0 선행 작업)` 로 막힌다 —
+      수집·목록은 멀쩡해서 켜는 시점에는 드러나지 않는다(2026-08-25 운영 실사고).
+      확인: `resolve_ingest_account_ids` 가 `(actor_id, owner_id)` 를 돌려주면 통과.
 - [ ] **② 자격증명** — Railway **FOMS → worker → Variables** 에 `NAVER_COMMERCE_CLIENT_ID` ·
       `NAVER_COMMERCE_CLIENT_SECRET`(`$2` 로 시작) · `NAVER_COMMERCE_APP_EXPIRES_ON`.
       **web 아님, worker 다.** (상세 = 4단계)

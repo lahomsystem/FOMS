@@ -263,8 +263,13 @@ def test_payment_details_are_captured():
     assert payment["unit_price"] == 50000 and payment["option_price"] == 4500
     assert payment["product_discount_amount"] == 11000
     assert payment["expected_settlement_amount"] == 46686
+    # 부담 비율이 안 온 쿠폰은 부담액을 **모름(None)** 으로 둔다(2026-08-25) —
+    # 0 으로 채우면 화면이 "우리 부담 없음" 이라고 거짓말한다.
     assert payment["coupons"] == [{"class_code": "NMP_PRD_DUP_DCNT",
-                                   "discount_amount": 11000}]
+                                   "discount_amount": 11000,
+                                   "publish_number": "",
+                                   "naver_burden_ratio": None,
+                                   "seller_burden_amount": None}]
 
 
 def test_product_identifiers_are_kept():

@@ -88,6 +88,46 @@ def test_attach_leaves_one_order_event(auth_client):
     assert types == ["NAVER_ORDER_ATTACHED"]
 
 
+def test_pressing_attach_twice_leaves_one_event(auth_client):
+    """같은 버튼을 두 번 눌러도 이력은 1건 (2026-08-25 정책).
+
+    두 번째 호출은 링크 상태·금액 기록을 하나도 바꾸지 않는다(금액은 원래 멱등). 그런데도
+    이력에 줄이 쌓이면 담당자는 "두 번 붙어서 돈이 두 번 잡혔나" 를 의심하게 된다 —
+    주문 변경 이력은 **바뀐 것**을 말하는 자리다. 누가 몇 번 눌렀는지는 감사 로그가 갖는다.
+    """
+    order_id = _order("두번붙임", "010-7777-2222")
+    link_id = _link("PO-EVT-TWICE", order_no="N-EVT-TWICE", amount=50000)
+    body = {"order_id": order_id, "relation": "REPAY"}
+
+    first = auth_client.post(f"/admin/naver-ingest/{link_id}/attach", json=body)
+    second = auth_client.post(f"/admin/naver-ingest/{link_id}/attach", json=body)
+
+    # 두 번 다 성공이다 — 두 번째를 에러로 막는 게 아니라 **이력만** 안 쌓는다.
+    assert first.status_code == 200, first.get_data(as_text=True)
+    assert second.status_code == 200, second.get_data(as_text=True)
+
+    events = _events(order_id)
+    assert len(events) == 1, f"두 번 눌렀다고 이력이 늘었다: {[e.event_type for e in events]}"
+
+
+def test_attach_after_detach_records_again(auth_client):
+    """되돌린 뒤 다시 붙이면 **그때는 진짜 바뀐다** — 이력이 다시 남는다.
+
+    위 멱등 처리가 "두 번째부터 영영 기록 안 함" 으로 굳으면 되돌리기-재붙이기라는 실제
+    작업이 이력에서 사라진다. 판정 기준은 횟수가 아니라 **상태가 바뀌었는가** 다.
+    """
+    order_id = _order("되돌린뒤재붙임", "010-7777-3333")
+    link_id = _link("PO-EVT-REDO", order_no="N-EVT-REDO", amount=70000)
+    body = {"order_id": order_id, "relation": "REPAY"}
+
+    auth_client.post(f"/admin/naver-ingest/{link_id}/attach", json=body)
+    auth_client.post(f"/admin/naver-ingest/{link_id}/detach", json={})
+    auth_client.post(f"/admin/naver-ingest/{link_id}/attach", json=body)
+
+    types = [event.event_type for event in _events(order_id)]
+    assert types == ["NAVER_ORDER_ATTACHED", "NAVER_ORDER_DETACHED", "NAVER_ORDER_ATTACHED"], types
+
+
 def test_attach_event_reads_as_korean_label_not_fallback(auth_client):
     """관리자 `변경 로그` 에 정확히 `네이버 수집분 연결` 로 뜬다.
 

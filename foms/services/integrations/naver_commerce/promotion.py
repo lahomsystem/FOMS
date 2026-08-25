@@ -409,7 +409,7 @@ def _erase_extra_payments(session: Session, *, order_id: Optional[int],
 
 def attach_link_to_order(session: Session, *, link_id: int, order_id: int,
                          relation: str, actor_user_id: Optional[int] = None,
-                         now: Optional[datetime] = None) -> tuple[int, int]:
+                         now: Optional[datetime] = None) -> tuple[int, int, bool]:
     """수집분을 **기존 주문에 붙인다** — 새 주문을 만들지 않는다 (T16-E).
 
     차액 결제(ADDON)와 취소 후 재결제(REPAY)가 여기로 온다. 둘 다 새 집이 아니라 이미 있는
@@ -425,7 +425,11 @@ def attach_link_to_order(session: Session, *, link_id: int, order_id: int,
         relation: ``ADDON`` 또는 ``REPAY``.
 
     Returns:
-        ``(붙인 링크 수, 주문 id)``.
+        ``(붙인 링크 수, 주문 id, 실제로 바뀌었는가)``.
+
+        세 번째 값이 ``False`` = **같은 주문에 같은 관계로 이미 붙어 있었다**(같은 버튼을
+        두 번 누른 경우). 금액 기록은 원래 멱등이라 결과가 같지만, 호출자가 주문 변경
+        이력에 줄을 더 쌓지 않도록 이 사실을 알려 준다(2026-08-25 정책).
 
     Raises:
         PromotionError: 관계값·링크·주문이 잘못됐거나, 취소·반품 건을 ADDON 으로 붙이려 할 때,
@@ -458,18 +462,26 @@ def attach_link_to_order(session: Session, *, link_id: int, order_id: int,
             )
 
     attached = 0
+    changed = False
     for row in siblings:
         if row.order_id and int(row.order_id) != int(order_id):
             raise PromotionError(
                 f"이미 다른 주문(#{row.order_id})에 붙어 있습니다. 먼저 되돌린 뒤 다시 붙이세요."
             )
+        # 이 줄이 실제로 무엇을 바꾸는지 **쓰기 전에** 본다 — 같은 버튼을 두 번 눌렀을 때
+        # 호출자가 이력에 줄을 더 쌓지 않게 하는 근거다.
+        if (row.order_id is None or int(row.order_id) != int(order_id)
+                or str(row.relation or "") != relation
+                or str(row.sync_status or "") != "LINKED"
+                or row.failure_reason):
+            changed = True
         row.order_id = int(order_id)
         row.relation = relation
         row.sync_status = "LINKED"
         row.failure_reason = None
         attached += 1
     session.flush()
-    _stamp_source_marker(order)
+    stamped = _stamp_source_marker(order)
     # 금액은 **기록만** 한다 — 출고가·잔금 계산식은 그대로다(T16-F).
     # 기록 자체는 REV-00 mutation 계약(row lock·version bump·receipt)을 탄다.
     recorded = _record_extra_payments(session, order_id=int(order_id), links=siblings,
@@ -477,7 +489,9 @@ def attach_link_to_order(session: Session, *, link_id: int, order_id: int,
                                       now=now or now_utc_naive())
     logger.info("[NAVER] 수집분 기존 주문 연결 link=%s(+%d) order=%s relation=%s 결제기록 %d건",
                 link_id, attached - 1, order_id, relation, recorded)
-    return (attached, int(order_id))
+    # 표식 찍기·금액 기록도 '바뀜'이다 — 링크 행이 그대로여도 주문 쪽이 움직였으면
+    # 이력에 남을 값이 있다.
+    return (attached, int(order_id), bool(changed or recorded or stamped))
 
 
 def detach_link_from_order(session: Session, *, link_id: int,
@@ -660,7 +674,11 @@ def summarize_snapshot(raw_snapshot: Any) -> dict[str, Any]:
              "claim_label": "", "claim_blocking": False,
              # 원본이 없거나 깨졌으면 "발주확인 여부를 모른다" — 완료로 읽지 않는다.
              "place_status": "", "place_label": "", "place_confirmed": False,
-             "shipping_due": ""}
+             "shipping_due": "",
+             # 쿠폰 축(2026-08-25). 원본이 깨졌으면 "쿠폰 없음"이 아니라 **모름**이다 —
+             # 0 장으로 단정하면 화면이 "쿠폰 없음"이라고 거짓말한다.
+             "coupon_known": False, "coupon_count": 0,
+             "coupon_discount": 0, "coupon_seller_burden": 0}
     if not isinstance(raw_snapshot, dict) or not raw_snapshot:
         return empty
     try:
@@ -692,6 +710,49 @@ def summarize_snapshot(raw_snapshot: Any) -> dict[str, Any]:
         "place_label": place["label"],
         "place_confirmed": place["confirmed"],
         "shipping_due": place["shipping_due"][:10],
+        # 쿠폰 — 담당자가 금액을 볼 때 같이 봐야 하는 사실이다. 장수·할인액만이 아니라
+        # **판매자 부담분**을 따로 낸다: 네이버 100% 부담 쿠폰은 우리 정산액을 깎지 않는다.
+        **_coupon_facts(raw_snapshot),
+    }
+
+
+def _coupon_facts(raw_snapshot: Any) -> dict[str, Any]:
+    """이 상품주문에 적용된 쿠폰 요약 (2026-08-25).
+
+    Args:
+        raw_snapshot: ``ExternalOrderLink.raw_snapshot``.
+
+    Returns:
+        ``coupon_known``(원본을 읽었는가) · ``coupon_count`` · ``coupon_discount``
+        · ``coupon_seller_burden``. 부담 비율이 없는 쿠폰은 부담액에 더하지 않는다
+        (모르는 값을 0 으로 세면 "우리 부담 없음"으로 읽힌다).
+    """
+    from foms.services.integrations.naver_commerce.mapping import (
+        build_payment_info,
+        unwrap_detail,
+    )
+
+    unknown = {"coupon_known": False, "coupon_count": 0,
+               "coupon_discount": 0, "coupon_seller_burden": 0}
+    try:
+        _order, product_order, _shipping = unwrap_detail(raw_snapshot)
+        # 상품주문으로 보이지 않으면 **읽은 게 아니다.** 여기서 0 장을 돌려주면 화면이
+        # "쿠폰 사용 안 함" 이라고 단정하는데, 사실 원본은 그 말을 한 적이 없다.
+        # 판정은 `productOrderId` 로 한다 — 실데이터 250건 전부가 갖고 있고,
+        # `unwrap_detail` 은 낯선 dict 를 그대로 상품주문 취급해 돌려주기 때문이다.
+        if not isinstance(product_order, dict) or not product_order.get("productOrderId"):
+            return unknown
+        coupons = build_payment_info(raw_snapshot)["coupons"]
+    except (NaverMappingError, ValueError, TypeError, AttributeError, KeyError) as exc:
+        logger.warning("[NAVER] 쿠폰 요약 실패(모름으로 표시): %s", exc)
+        return unknown
+    return {
+        "coupon_known": True,
+        "coupon_count": len(coupons),
+        "coupon_discount": sum(int(row["discount_amount"] or 0) for row in coupons),
+        "coupon_seller_burden": sum(int(row["seller_burden_amount"] or 0)
+                                    for row in coupons
+                                    if row.get("seller_burden_amount") is not None),
     }
 
 

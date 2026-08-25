@@ -190,6 +190,13 @@ def _row_source(link: Any) -> dict[str, Any]:
         "pay_means": payment["means"],
         "discount": payment["product_discount_amount"] + sum(
             coupon["discount_amount"] for coupon in payment["coupons"]),
+        # 쿠폰(2026-08-25) — 위 `discount` 는 상품할인과 쿠폰을 **합친** 값이라 그것만으로는
+        # "쿠폰을 썼나"를 알 수 없다. 장수·할인액·판매자 부담분을 따로 낸다.
+        "coupon_count": len(payment["coupons"]),
+        "coupon_discount": sum(coupon["discount_amount"] for coupon in payment["coupons"]),
+        "coupon_seller_burden": sum(
+            coupon["seller_burden_amount"] for coupon in payment["coupons"]
+            if coupon.get("seller_burden_amount") is not None),
     }
 
 
@@ -325,6 +332,29 @@ def _workbench_link_url(viewer: Any, rows: list[dict[str, Any]]) -> Optional[str
     return url_for("admin.naver_ingest_triage", tab="work", link_id=rows[-1]["link_id"])
 
 
+def _workbench_order_no(links: list[Any], rows: list[dict[str, Any]]) -> Optional[str]:
+    """``_workbench_link_url`` 이 여는 집의 주문번호(없으면 None).
+
+    ``_workbench_link_url`` 과 **같은 행**(``rows[-1]``)에서 값을 끌어온다. 머리말이
+    말하는 집과 링크가 여는 집이 갈리던 결함(2026-08-25)의 재발 방지다 — 한쪽만
+    고치면 다음 사람이 반대쪽을 바꿔 다시 어긋난다.
+
+    Args:
+        links: 이 주문의 :class:`models.ExternalOrderLink` 들(``id`` 오름차순).
+        rows: 그 링크들로 만든 행 목록(같은 순서).
+
+    Returns:
+        집 주문번호 문자열. 행이 없거나 값이 비면 None.
+    """
+    if not rows:
+        return None
+    target = rows[-1]["link_id"]
+    for link in links:
+        if link.id == target:
+            return _text(link.external_order_no) or None
+    return None
+
+
 def build_dock_payload(db: Any, order: Any, *,
                        viewer: Any = None) -> Optional[dict[str, Any]]:
     """주문의 네이버 수집 링크들을 도크 표시용 payload 로 만든다.
@@ -394,6 +424,10 @@ def build_dock_payload(db: Any, order: Any, *,
             "checked": bool(state.get("checked")),
             "assigned_main": state.get("assigned_main"),
             "reviewed": link.reviewed_at is not None,
+            # 쿠폰은 상품주문(행)마다 붙는다 — 집 합계는 이 값들을 더해서 만든다.
+            "coupon_count": source["coupon_count"],
+            "coupon_discount": source["coupon_discount"],
+            "coupon_seller_burden": source["coupon_seller_burden"],
         })
 
     mains = [row for row in rows if row["role"] == "main"]
@@ -416,8 +450,17 @@ def build_dock_payload(db: Any, order: Any, *,
         if hint:
             width_hints[main["external_id"]] = hint
 
-    order_no = next((_text(link.external_order_no) for link in links
-                     if _text(link.external_order_no)), "")
+    # 집 번호는 **여러 개일 수 있다**. 주문 하나에 재결제·추가결제 집이 나중에 붙으면
+    # 도크는 두 집의 행을 함께 싣는데, 머리말은 그중 첫 집 번호만 말했다. 그런데
+    # `워크벤치에서 열기` 는 **가장 나중 집**을 연다(위 _workbench_link_url) — 담당자가
+    # 읽은 번호와 눌러서 열리는 집이 어긋나던 자리다(2026-08-25 수정). 순서는 링크
+    # id 오름차순(= 수집 순서)이고 중복은 접는다.
+    order_nos: list[str] = []
+    for link in links:
+        text = _text(link.external_order_no)
+        if text and text not in order_nos:
+            order_nos.append(text)
+    order_no = order_nos[0] if order_nos else ""
     extra = _extra_payment_summary(order)
     return {
         # 추가결제(차액)·재결제 기록 — 금액은 기록만 하고 출고가·잔금은 사람이 반영한다(T16-F).
@@ -426,7 +469,18 @@ def build_dock_payload(db: Any, order: Any, *,
         "extra_payment_total": extra["total"],
         # 관계별 분해(R1) — 도크가 ADDON/REPAY 를 다른 문구로 말하기 위한 자리.
         "extra_payment_by_relation": {"addon": extra["addon"], "repay": extra["repay"]},
+        # 집 전체 쿠폰 합계. 행마다 흩어 두면 사람이 암산해야 한다.
+        "coupon_count": sum(int(row["coupon_count"] or 0) for row in rows),
+        "coupon_discount": sum(int(row["coupon_discount"] or 0) for row in rows),
+        "coupon_seller_burden": sum(int(row["coupon_seller_burden"] or 0) for row in rows),
         "order_no": order_no,
+        # 집이 둘 이상인 주문에서 머리말이 사실을 말하게 하는 자리. 화면은 이 목록을
+        # 쓰고, `order_no`(첫 집)는 하위호환으로만 남긴다.
+        "order_nos": order_nos,
+        # 위 `workbench_url` 이 실제로 여는 집의 번호. 머리말에서 그 집을 표시해
+        # "읽은 번호 != 열리는 집" 을 없앤다. **주소와 같은 행에서 끌어온다** — 둘이
+        # 갈리면 이 수정이 무의미해지므로 `rows[-1]` 을 공통 출처로 못박는다.
+        "workbench_order_no": _workbench_order_no(links, rows),
         # 워크벤치 처리 탭으로 돌아가는 길(R2). 역할·게이트가 아니면 **None 이 실린다** —
         # 화면에서 숨기는 게 아니라 주소를 만들지 않는다(계약 §0-4).
         "workbench_url": _workbench_link_url(viewer, rows),

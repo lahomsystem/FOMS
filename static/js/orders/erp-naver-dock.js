@@ -150,7 +150,8 @@
         var hasWho = !!state.recipientName;
         var hasMemo = !!state.shippingMemo;
         var hasClaim = !!state.claimLabel;
-        var hasFacts = !!(state.recipientTel2 || state.paidAt || state.payMeans || state.discount || state.extraPaymentCount);
+        var hasFacts = !!(state.recipientTel2 || state.paidAt || state.payMeans || state.discount
+            || state.extraPaymentCount || state.couponCount);
         if (!hasWho && !hasMemo && !hasClaim && !hasFacts) return null;
         var info = el('div', 'naver-dock-info');
         if (hasClaim) {
@@ -174,6 +175,18 @@
         }
         if (state.discount) {
             facts.push(['할인', state.discount.toLocaleString('ko-KR') + '원', false]);
+        }
+        // 쿠폰은 **안 썼을 때도** 말한다. 줄이 없으면 "안 썼다"인지 "화면이 모른다"인지
+        // 구분이 안 되고, 담당자는 금액이 왜 이런지를 네이버에서 다시 확인하게 된다.
+        if (state.couponCount) {
+            var coupon = state.couponCount + '장 −' + state.couponDiscount.toLocaleString('ko-KR') + '원';
+            // 네이버 100% 부담 쿠폰은 정산액을 깎지 않는다 — 우리 돈이 나간 자리만 덧붙인다.
+            coupon += state.couponSellerBurden
+                ? ' (판매자 부담 ' + state.couponSellerBurden.toLocaleString('ko-KR') + '원)'
+                : ' (전액 네이버 부담)';
+            facts.push(['쿠폰', coupon, false]);
+        } else {
+            facts.push(['쿠폰', '사용 안 함', false]);
         }
         // 추가결제(차액)·재결제 기록. 금액은 기록만이라 출고가·잔금에는 반영돼 있지 않다 —
         // 사람이 보고 판단하라고 여기서 알려준다(T16-F).
@@ -246,7 +259,23 @@
 
         var head = el('div', 'naver-dock-hd');
         head.appendChild(el('b', 'naver-dock-title', '🏪 네이버 원본'));
-        if (state.orderNo) head.appendChild(el('span', 'naver-dock-orderno', '주문번호 ' + state.orderNo));
+        // 집이 둘 이상이면 **전부** 말한다. 예전에는 첫 집 번호 하나만 말하면서
+        // `워크벤치에서 열기` 는 나중 집을 열어, 읽은 번호와 열리는 집이 어긋났다
+        // (2026-08-25 수정). 링크가 여는 집에는 표식을 붙여 어느 쪽인지 못박는다.
+        var nos = state.orderNos && state.orderNos.length ? state.orderNos
+            : (state.orderNo ? [state.orderNo] : []);
+        if (nos.length) {
+            var label = el('span', 'naver-dock-orderno', '주문번호 ');
+            nos.forEach(function (no, idx) {
+                if (idx) label.appendChild(document.createTextNode(' · '));
+                var opensHere = nos.length > 1 && state.workbenchUrl
+                    && no === state.workbenchOrderNo;
+                var one = el('span', opensHere ? 'naver-dock-orderno-open' : '', no);
+                if (opensHere) one.title = '워크벤치에서 열기가 여는 집';
+                label.appendChild(one);
+            });
+            head.appendChild(label);
+        }
         // 워크벤치 처리 탭으로 돌아가는 길(R2). 버튼이 아니라 **평범한 앵커**다 —
         // 누르면 그 집이 열릴 뿐 아무것도 네이버로 보내지 않는다. 주소는 서버가
         // 역할·게이트를 보고 만들어 주며, 없으면 앵커 자체가 생기지 않는다.
@@ -498,6 +527,10 @@
         if (!payload || !payload.rows || !payload.rows.length) return;
         state = {
             orderNo: payload.order_no || '',
+            // 집이 둘 이상인 주문(재결제·추가결제가 나중에 붙은 경우)의 집 번호 전부.
+            orderNos: payload.order_nos || (payload.order_no ? [payload.order_no] : []),
+            // `워크벤치에서 열기` 가 실제로 여는 집 — 머리말에서 그 집을 표시한다.
+            workbenchOrderNo: payload.workbench_order_no || '',
             rows: payload.rows,
             mains: payload.mains || [],
             assignCommon: payload.assign_common || 'COMMON',
@@ -515,6 +548,11 @@
             workbenchUrl: payload.workbench_url || '',
             payMeans: payload.pay_means || '',
             discount: payload.discount || 0,
+            // 쿠폰(2026-08-25). `discount` 는 상품할인+쿠폰 합계라 그것만으로는
+            // "쿠폰을 썼나"를 알 수 없다 — 장수·할인액·판매자 부담분을 따로 싣는다.
+            couponCount: payload.coupon_count || 0,
+            couponDiscount: payload.coupon_discount || 0,
+            couponSellerBurden: payload.coupon_seller_burden || 0,
             widthHints: payload.width_hints || {}
         };
         render();
