@@ -151,8 +151,10 @@ def test_send_alimtalk_regional_shows_head_office_contact(client, db, ata_stub, 
 
     call = ata_stub[0]
     assert call['variables']['#{담당자연락처}'] == '1566-0792'
-    # 발신번호는 그대로 담당자 번호다(문자 대체발송이 그 번호로 나가야 회신이 닿는다).
-    assert call['from_'] == '01055557777'
+    # 이름도 맞춘다 — 번호는 본사인데 이름만 현장 담당자면 고객이 헷갈린다.
+    assert call['variables']['#{담당자}'] == '고객센터'
+    # 문자 대체발송 발신번호도 같은 번호(벤더에는 숫자만).
+    assert call['from_'] == '15660792'
 
 
 def test_send_alimtalk_regional_contact_env_override(client, db, ata_stub, monkeypatch,
