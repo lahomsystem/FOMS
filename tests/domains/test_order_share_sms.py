@@ -125,7 +125,7 @@ def test_send_regional_uses_head_office_sender(client, db, sms_stub, clock):
     share_id, token = _mk_share(order_id)
     _send(client, share_id, token)
 
-    assert sms_stub[0]['from_'] == '15660792'
+    assert sms_stub[0]['from_'] == '15660703'
 
 
 def test_regional_self_sms_body_shows_head_office_contact(client, db, clock):
@@ -137,7 +137,7 @@ def test_regional_self_sms_body_shows_head_office_contact(client, db, clock):
         body = share_link_message(order, kind='drawing',
                                   url='https://example.test/s/tok', brand='HAUD')
 
-    assert '담당자 연락처 : 1566-0792' in body
+    assert '담당자 연락처 : 1566-0703' in body
 
 
 def test_send_ignores_actor_sender_phone(client, db, sms_stub, clock):
