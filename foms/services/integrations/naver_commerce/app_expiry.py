@@ -103,8 +103,11 @@ def check_and_notify(
 ) -> Optional[int]:
     """만료가 임박했으면 ADMIN 전원에게 1회 알린다.
 
-    알림은 ADMIN **사용자별 1건**(``target_user_id``)으로 만든다. 팀 타깃은 role 이 아니라
-    team 으로 풀려서 ADMIN 만 고르는 경로가 없다.
+    알림은 ``target_type='ROLE'`` + ``target_role='ADMIN'`` **1건**이다 — 관리자 수만큼
+    Notification 을 복제하지 않는다(NOTIF-ROLE-01). 사건 1건 = row 1건이 알림 SSOT 이고,
+    수신자별 읽음 상태는 :func:`recipients.fan_out_new_notification` 이
+    ``notification_user_states`` 로 만든다. (예전 주석의 "ADMIN 만 고르는 경로가 없다"는
+    ROLE 타깃이 생기기 전 이야기다 — 그래서 관리자 4명이면 만료 경고 1번에 알림이 4건이었다.)
 
     Args:
         session: DB 세션(커밋은 호출자).
@@ -147,20 +150,19 @@ def check_and_notify(
     created_at = now or now_utc_naive()
     from foms.services.notifications.recipients import fan_out_new_notification
 
-    for admin in admins:
-        notification = Notification(
-            order_id=None,
-            notification_type=NOTIFICATION_TYPE,
-            target_type="USER",
-            target_user_id=int(admin.id),
-            is_urgent=True,
-            title=title,
-            message=message,
-            created_at=created_at,
-        )
-        session.add(notification)
-        session.flush()
-        fan_out_new_notification(session, notification)
+    notification = Notification(
+        order_id=None,
+        notification_type=NOTIFICATION_TYPE,
+        target_type="ROLE",
+        target_role="ADMIN",
+        is_urgent=True,
+        title=title,
+        message=message,
+        created_at=created_at,
+    )
+    session.add(notification)
+    session.flush()
+    fan_out_new_notification(session, notification)
 
     _mark_notified(session, threshold)
     logger.warning("[NAVER] 앱 인증 만료 D-%d 알림 발송(ADMIN %d명)", days_left, len(admins))

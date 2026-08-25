@@ -169,6 +169,37 @@ CLAIM_STATUS_LABELS = {
     "PURCHASE_DECISION_HOLDBACK": "구매확정 보류",
 }
 
+#: 사람이 읽는 클레임 **사유** 라벨. 네이버는 사유를 영문 상수로 준다(``MISTAKE_ORDER`` 등).
+#: 알림 본문에 원문 그대로 실으면 받는 사람이 해독해야 한다 — 아는 값만 한국어로 바꾸고
+#: 모르는 값은 원문을 그대로 남긴다(상태 라벨과 같은 정책: 모르는 값을 숨기지 않는다).
+CLAIM_REASON_LABELS = {
+    "MISTAKE_ORDER": "주문 실수",
+    "SIMPLE_INTENT_CHANGED": "단순 변심",
+    "INTENT_CHANGED": "단순 변심",
+    "COLOR_SIZE_CHANGE": "색상·사이즈 변경",
+    "WRONG_PRODUCT": "다른 상품 잘못 주문",
+    "SOLD_OUT": "품절",
+    "DELAYED_DELIVERY": "배송 지연",
+    "PRODUCT_UNSATISFIED": "상품 불만족",
+    "PRODUCT_DEFECT": "상품 하자",
+    "WRONG_DELIVERY": "오배송",
+    "WRONG_DELIVERY_INFO": "배송지 정보 오류",
+}
+
+
+def claim_reason_text(code: str) -> str:
+    """클레임 사유 코드를 사람이 읽는 문구로. 모르는 코드는 원문 그대로.
+
+    Args:
+        code: 네이버가 준 사유 코드(``cancelReason``·``returnReason``).
+
+    Returns:
+        한국어 라벨. 매핑에 없으면 입력 원문(빈 값이면 빈 문자열).
+    """
+    raw = (code or "").strip()
+    return CLAIM_REASON_LABELS.get(raw.upper(), raw)
+
+
 #: 주문을 만들면 안 되는 클레임 상태(취소·반품 진행/완료). 거부·철회는 정상 진행이라 뺀다.
 BLOCKING_CLAIM_STATUSES = frozenset({
     "CANCEL_REQUEST", "CANCEL_REQUESTED", "CANCELING", "CANCEL_DONE",
@@ -693,6 +724,8 @@ __all__ = [
     "build_structured_data",
     "BLOCKING_CLAIM_STATUSES",
     "CLAIM_STATUS_LABELS",
+    "CLAIM_REASON_LABELS",
+    "claim_reason_text",
     "build_payment_info",
     "extract_claim",
     "extract_place_status",
