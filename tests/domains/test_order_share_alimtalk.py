@@ -13,7 +13,8 @@ import foms.api.share as share_routes
 from db import db_session
 from foms.services import kakao_alimtalk as ka
 from foms.services import order_share as osvc
-from models import DomainSideEffectOutbox, Order, OrderEvent, SecurityLog, User
+from models import (DomainSideEffectOutbox, Order, OrderEvent, OrderShareToken,
+                    SecurityLog, User)
 
 _SD = {
     'parties': {'customer': {'name': '임다슬', 'phone': '010-2473-6730'}},
@@ -119,6 +120,81 @@ def test_send_alimtalk_success_with_variables(client, db, ata_stub, clock):
     assert v['#{토큰}'] == token
     assert v['#{담당자}'] == '고객센터'          # manager_name 없음 폴백
     assert v['#{담당자연락처}'] == '15660703'    # 브랜드 대표번호 폴백
+
+
+# --- 통합(버튼 2개) 템플릿 전환 — 심사 승인 대비 배선 -------------------------------
+
+
+def _mk_bundle_share(order_id):
+    """bundle 링크 발급(계약서 동결 스냅샷 동반 — 실제 발급 경로와 같은 모양)."""
+    from foms.services.order_share import build_estimate_snapshot
+    from models import Order as _Order
+    order = db_session.get(_Order, order_id)
+    row, token = osvc.create_share_token(db_session, order_id, 'bundle',
+                                         snapshot=build_estimate_snapshot(order))
+    db_session.commit()
+    return row.id, token
+
+
+def test_bundle_send_uses_single_link_template_until_both_is_registered(
+        client, db, ata_stub, clock):
+    """통합 템플릿 env 가 없으면 지금처럼 링크 1개(통합 열람 페이지)로 나간다."""
+    order_id = _mk_order().id
+    _login(client, 'ata-bundle-legacy')
+    share_id, token = _mk_bundle_share(order_id)
+
+    _send(client, share_id, token)
+
+    call = ata_stub[0]
+    assert call['template_id'] == 'TPL-HAUD'
+    assert call['variables']['#{토큰}'] == token
+    assert call['variables']['#{문서종류}'] == '도면·계약서'
+    assert '#{도면토큰}' not in call['variables']
+
+
+def test_bundle_send_switches_to_two_button_template_by_env(
+        client, db, ata_stub, monkeypatch, clock):
+    """통합 템플릿이 등록되면 도면·계약서 링크를 그 자리에서 발급해 버튼 2개로 보낸다."""
+    monkeypatch.setenv('SOLAPI_TEMPLATE_SHARE_BOTH_ID_HAUD', 'TPL-HAUD-BOTH')
+    order_id = _mk_order().id
+    _login(client, 'ata-bundle-both')
+    share_id, token = _mk_bundle_share(order_id)
+
+    resp = _send(client, share_id, token)
+    assert resp.status_code == 200 and resp.get_json()['data']['sent'] is True
+
+    call = ata_stub[0]
+    assert call['template_id'] == 'TPL-HAUD-BOTH'
+    variables = call['variables']
+    assert variables['#{도면토큰}'] and variables['#{계약서토큰}']
+    assert variables['#{도면토큰}'] != variables['#{계약서토큰}']
+    assert '#{토큰}' not in variables and '#{문서종류}' not in variables
+
+    # 실제로 링크 2개가 발급됐고, 계약서 쪽은 동결 스냅샷을 들고 있다.
+    rows = (db_session.query(OrderShareToken)
+            .filter(OrderShareToken.order_id == order_id)
+            .order_by(OrderShareToken.id.asc()).all())
+    kinds = [r.kind for r in rows]
+    assert kinds == ['bundle', 'drawing', 'estimate']
+    assert rows[2].snapshot is not None
+
+
+def test_bundle_send_two_button_records_pair_in_audit(client, db, ata_stub, monkeypatch,
+                                                      clock):
+    """어느 링크 두 개가 나갔는지 감사에 남는다(회수·문의 추적용)."""
+    monkeypatch.setenv('SOLAPI_TEMPLATE_SHARE_BOTH_ID_HAUD', 'TPL-HAUD-BOTH')
+    order_id = _mk_order().id
+    _login(client, 'ata-bundle-audit')
+    share_id, token = _mk_bundle_share(order_id)
+
+    _send(client, share_id, token)
+
+    log = (db_session.query(SecurityLog)
+           .filter(SecurityLog.action == 'SHARE_ALIMTALK_SENT')
+           .order_by(SecurityLog.id.desc()).first())
+    assert log is not None
+    assert log.detail['template'] == 'share_both'
+    assert log.detail['drawing_share_id'] and log.detail['estimate_share_id']
 
 
 def test_send_alimtalk_manager_variables_and_sender(client, db, ata_stub, clock):
