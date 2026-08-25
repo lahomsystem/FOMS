@@ -104,3 +104,20 @@
   perf-gate pass(1차 red 는 `/erp/production/dashboard` dTTFB 160ms>133ms — 내 변경이 닿지 않는 경로,
   재실행 green. 스테이징 일중 변동 선례와 같은 형태).
 - 머지 후: 운영 실발송 1건 E2E(칩 즉시 갱신 → 60초 뒤 채널 확정) + 문서에 production SHA 기록.
+
+### 결말 — PR #144 은 머지하지 않는다 (2026-08-25)
+
+T15 는 **다른 경로로 이미 운영에 올라갔다.** 타 세션의 전량 승격 PR #145
+(`promote/full-20260825`, merge `39fa919d`, 승격 커밋 `3edddbb8`)가 deploy 를 통째로 운영에
+옮기면서 T15 커밋 8개가 함께 실려 갔다(운영 SHA `7ec9a0fb`…`e689382c` — cherry-pick 으로 재작성됨).
+
+- 확인: 운영 실서버 `GET /static/js/orders/erp-alimtalk-trace.js` 200(17,971B)·`.css` 200,
+  본문에 `erpAlimtalkTraceRender` 존재. `git diff origin/production origin/deploy` 로 T15 파일 6개
+  (trace.js·trace.css·kakao_alimtalk.py·api/kakao/__init__.py·api/events.py·layout_scripts.html)
+  **전부 동일** 확인.
+- 그래서 PR #144 는 중복이고 현재 CONFLICTING/DIRTY 다. 같은 내용이 다른 SHA 로 먼저 들어갔기 때문 —
+  승격 브랜치를 새 운영 tip 으로 리베이스해 보면 첫 커밋부터 원장 파일 add/add 충돌로 드러난다.
+  **머지하지 않는다**(사용자 결정 2026-08-25). 브랜치 `promote/own-1787578338-46168` 은 보존.
+- 교훈: 승격 PR 을 열어둔 채 하루가 지나면 **타 세션의 전량 승격이 내 몫을 먼저 가져갈 수 있다.**
+  머지 대기 중인 승격 PR 은 열기 전에 운영 tip 을, 머지 직전에 다시 한 번 확인한다.
+- 잔여(변함없음): 운영 실발송 1건 E2E(칩 즉시 갱신 → 60초 뒤 채널 확정) — 사용자 승인·대상 번호 필요.

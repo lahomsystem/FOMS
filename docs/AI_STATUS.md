@@ -1,6 +1,6 @@
 # FOMS 현재 상태
 > 자동 업데이트: 2026-08-14
-> 최신: **도면+계약서 한 링크 통합 열람 deploy(`703e61e3`)** — 링크 하나에서 도면과 계약서를 함께 본다(`kind='bundle'`, 계약서 쪽은 estimate 와 같은 발급 시점 동결). 지방 주문은 안내 담당자/연락처가 본사 CS(라홈 1566-0792 · 그 외 1566-0703)이고 문자 대체발송 발신번호도 같은 번호. 버튼 2개짜리 새 알림톡 템플릿 2종은 **심사 중**(라홈 `KA01TP260825021747177Iu2C2ykuJfS` · 하우드 `KA01TP260825021755111MLTAvg2dLLn`). **T15 발송 흔적 칩은 운영 승격 PR #144 머지 대기**. 원장 `docs/plans/2026-08-24-alimtalk-trace-t15-ledger.md`
+> 최신: **T15 알림톡 발송 흔적 칩 운영 반영 완료** — 타 세션 전량 승격 PR #145(production `39fa919d`)에 T15 커밋 8개가 실려 갔고, 운영 실서버에서 자산 200 + `erpAlimtalkTraceRender` 존재·운영↔deploy 파일 6개 바이트 동일 확인. 그래서 **승격 PR #144 는 중복(CONFLICTING) — 머지하지 않는다**. 아직 운영 미반영은 **T16**: 도면+계약서 한 링크 통합 열람(`kind='bundle'`)·지방 주문 안내 연락처 본사 CS(라홈 1566-0792 · 그 외 1566-0703)·**버튼 2개 템플릿 배선**(`SOLAPI_TEMPLATE_SHARE_BOTH_ID_{brand}` 하나로 전환, 코드 배포 불필요). 템플릿 2종 **심사 중**(라홈 `KA01TP260825021747177Iu2C2ykuJfS` · 하우드 `KA01TP260825021755111MLTAvg2dLLn`) → **승인 나면 코드+env 를 한번에 승격**(사용자 결정). 원장 `docs/plans/2026-08-24-alimtalk-trace-t15-ledger.md`
 > 이 파일 상단 40줄이 세션 시작 컨텍스트의 전부다(hygiene 계약 테스트로 강제). 상세 이력: "## 최근 완료"·"## 기록 보관", 과거 헤더 상세는 기록 보관에 이관.
 
 ## 스택
@@ -8,6 +8,7 @@ Flask 2.3 + PostgreSQL + R2 + Railway (Web×2, Worker×1)
 브랜치: deploy (스테이징) → production (운영)
 
 ## 진행 중
+- [2026-08-25] **고객 문서 공유 T16 — 승인 대기 중(deploy 완료)** — 통합 열람 링크(`kind='bundle'`, 도면=라이브 presign·계약서=발급 시점 동결)와 지방 주문 본사 CS 안내(담당자명 '고객센터', 문자 대체발송 발신번호도 동일)는 deploy 반영. 버튼 2개 템플릿 경로는 **env 하나(`SOLAPI_TEMPLATE_SHARE_BOTH_ID_{LAHOM|HAUD}`)로 전환**되게 미리 배선했다 — 승인돼도 코드 배포가 필요 없다. **승인 후 사용자 작업 2건**: ① env 3곳(로컬·스테이징 `FOMS`·운영 `web`) 등록 ② 문자 대체발송 문구(replacements) 콘솔 등록(MCP 도구에 파라미터 없음). 운영 승격은 **심사 통과 후 코드+env 한번에**. 원장 `docs/plans/2026-08-11-customer-share-phase-a-ledger.md` T16
 - [2026-08-25] **네이버 수집 운영 개방·안정화** — 전량 승격(production `39fa919d`) 뒤 열쇠·플래그 투입(WORKER 수집 300초 · web 워크벤치 `COHORT=all`). 개방 직후 `주문 만들기` 가 `naver_ingest_bot` 부재로 막혀 있었다(설치 체크리스트 ① 미실행) → 운영 id 61·62 생성으로 해소. 워크벤치 머리줄이 전역 nav(z-index 1000) 밑에 깔리던 결함 · 도크 머리말↔링크 집 불일치 · 붙이기 중복 이력 수정 deploy(`6ed045c9`). 원장 `docs/plans/2026-08-25-naver-full-promotion-roadmap.md` §18
 - [2026-08-24] **nav 뱃지 콜드 155.5ms → 75.0ms(-52%) deploy** — 얇게 읽기(전송 절감)는 스테이징 이득 0(통째 113.0 vs 얇게 113.0). 구간 계측이 지목한 진범은 형제 3벌 74ms + 원천 2벌 56ms → 형제 색인 1벌 + OR 술어 1벌로 링크 표 조회 6→2회. 술어·병합·캡 무변경, 옛 경로 동치 회귀 5건. 원장 `docs/plans/2026-08-24-nvbadge-duplicate-pass-ledger.md`
 - [2026-08-23] **네이버 수집 워크벤치 v3 deploy(`93fd4a99`, CI 4개 green)** — 탭 왕복·전체 리로드 제거. 탭 4→2+필터 칩, 상세 발주확인 단건, pane 프래그먼트 부분 갱신, nav 진입구 4→1·뱃지 일치. 2CEO 치명 2건 수정 + 후속 정리. 좌우 밸런스·리뷰 6건·CEO 2판정·선재 2건 처리 후 deploy(`9bc59846`). 스테이징 실데이터 58집 눈 확인 완료(코호트 38 원복). 후속: 불가역 3종 즉시 반영(폴링+soft refresh, 스테이징 실패 경로 실측) · nav 뱃지 단일 비행(콜드 113ms 실측 근거) · 벌크 진행률(집 수 무관 조회 2회) · 터치 잠금사유. **잔여: QUEUE_LINK_FETCH_LIMIT(238/250) — 뱃지 콜드 비용 절감 뒤 상향.** 다음 세션 `docs/plans/2026-08-24-naver-next-session-prompt.md` 원장 `docs/plans/2026-08-23-naver-workbench-v3-ledger.md`
