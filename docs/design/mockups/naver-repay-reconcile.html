@@ -1,0 +1,414 @@
+<!doctype html>
+<html lang="ko">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>재결제 정리 — 네이버 취소 + ERP 주문 처리 한 흐름 (목업)</title>
+<style>
+  :root {
+    --bg: #eef2f7; --surface: #fff; --surface-soft: #f6f8fb;
+    --text: #111827; --muted: #6b7280; --line: #dbe1ea; --line-soft: #edf1f6;
+    --blue: #2563eb; --blue-soft: #eaf1ff; --blue-line: #b9d0ff;
+    --green: #15803d; --green-soft: #e7f6ec; --green-line: #bfe3cb;
+    --amber: #b45309; --amber-soft: #fdf3e3; --amber-line: #f0d9ac;
+    --red: #b91c1c; --red-soft: #fdeaea; --red-line: #f3c2c2;
+    --violet: #6d28d9; --violet-soft: #f1ebfd;
+    --radius: 10px;
+    font-family: Pretendard, -apple-system, BlinkMacSystemFont, "Segoe UI", "Malgun Gothic", sans-serif;
+  }
+  * { box-sizing: border-box; }
+  body { margin: 0; background: var(--bg); color: var(--text); font-size: 13px; line-height: 1.5; }
+  .wrap { max-width: 1180px; margin: 0 auto; padding: 24px 20px 80px; }
+  h1 { font-size: 20px; margin: 0 0 4px; }
+  h2 { font-size: 15px; margin: 32px 0 10px; padding-top: 22px; border-top: 2px solid var(--line); }
+  h2:first-of-type { border-top: 0; padding-top: 0; }
+  .lede { color: var(--muted); margin: 0 0 20px; }
+  .note { background: var(--surface-soft); border: 1px solid var(--line); border-left: 3px solid var(--blue);
+          padding: 10px 12px; border-radius: 6px; margin: 10px 0 16px; color: #374151; }
+  .note b { color: var(--text); }
+  .card { background: var(--surface); border: 1px solid var(--line); border-radius: var(--radius);
+          padding: 16px; margin-bottom: 14px; }
+  .card__t { font-weight: 700; font-size: 14px; margin: 0 0 2px; display: flex; align-items: center; gap: 8px; }
+  .card__s { color: var(--muted); font-size: 12px; margin: 0 0 12px; }
+
+  .b { display: inline-block; padding: 1px 8px; border-radius: 999px; font-size: 11.5px; font-weight: 600;
+       border: 1px solid transparent; white-space: nowrap; }
+  .b--blue { background: var(--blue-soft); color: var(--blue); border-color: var(--blue-line); }
+  .b--red { background: var(--red-soft); color: var(--red); border-color: var(--red-line); }
+  .b--green { background: var(--green-soft); color: var(--green); border-color: var(--green-line); }
+  .b--amber { background: var(--amber-soft); color: var(--amber); border-color: var(--amber-line); }
+  .b--gray { background: var(--surface-soft); color: var(--muted); border-color: var(--line); }
+  .b--violet { background: var(--violet-soft); color: var(--violet); border-color: #ddd0f7; }
+
+  table.sig { width: 100%; border-collapse: collapse; font-size: 12.5px; }
+  table.sig th, table.sig td { text-align: left; padding: 8px 10px; border-bottom: 1px solid var(--line-soft); vertical-align: top; }
+  table.sig th { color: var(--muted); font-weight: 600; font-size: 11.5px; background: var(--surface-soft); }
+  table.sig td.k { color: var(--muted); white-space: nowrap; width: 148px; }
+  .verdict { font-weight: 700; }
+  .verdict--repay { color: var(--blue); }
+  .verdict--addon { color: var(--violet); }
+  .verdict--new { color: var(--green); }
+  .num { font-variant-numeric: tabular-nums; }
+  .soft { color: var(--muted); }
+
+  .plan { border: 1px solid var(--line); border-radius: 8px; overflow: hidden; }
+  .plan__row { display: grid; grid-template-columns: 26px 1fr auto; gap: 10px; align-items: start;
+               padding: 12px 14px; border-bottom: 1px solid var(--line-soft); }
+  .plan__row:last-child { border-bottom: 0; }
+  .plan__row--irrev { background: #fffdf8; }
+  .plan__n { width: 22px; height: 22px; border-radius: 999px; background: var(--surface-soft);
+             border: 1px solid var(--line); display: grid; place-items: center; font-size: 11px;
+             font-weight: 700; color: var(--muted); }
+  .plan__n--done { background: var(--green-soft); border-color: var(--green-line); color: var(--green); }
+  .plan__n--run { background: var(--amber-soft); border-color: var(--amber-line); color: var(--amber); }
+  .plan__n--fail { background: var(--red-soft); border-color: var(--red-line); color: var(--red); }
+  .plan__h { font-weight: 600; display: flex; align-items: center; gap: 8px; flex-wrap: wrap; }
+  .plan__d { color: var(--muted); font-size: 12px; margin-top: 3px; }
+  .plan__d code { background: var(--surface-soft); padding: 0 4px; border-radius: 3px; }
+
+  .fork { display: grid; grid-template-columns: 1fr 1fr; gap: 10px; margin-top: 10px; }
+  .fork__opt { border: 1px solid var(--line); border-radius: 8px; padding: 11px 12px; background: var(--surface); }
+  .fork__opt--on { border-color: var(--blue); background: var(--blue-soft); box-shadow: 0 0 0 1px var(--blue-line) inset; }
+  .fork__opt--off { opacity: .62; }
+  .fork__t { font-weight: 700; display: flex; align-items: center; gap: 6px; }
+  .fork__w { color: var(--red); font-size: 11.5px; margin-top: 6px; }
+  .fork__d { color: var(--muted); font-size: 12px; margin-top: 4px; }
+
+  .btn { border: 1px solid var(--line); background: var(--surface); border-radius: 7px;
+         padding: 7px 13px; font-size: 12.5px; font-weight: 600; cursor: pointer; color: var(--text); }
+  .btn--pri { background: var(--blue); border-color: var(--blue); color: #fff; }
+  .btn--danger { background: var(--red); border-color: var(--red); color: #fff; }
+  .btn--ghost { color: var(--muted); }
+  .acts { display: flex; gap: 8px; align-items: center; margin-top: 14px; flex-wrap: wrap; }
+  .acts__why { color: var(--muted); font-size: 12px; }
+
+  .modal { border: 1px solid var(--line); border-radius: var(--radius); background: var(--surface);
+           box-shadow: 0 12px 32px rgba(15,23,42,.14); max-width: 580px; }
+  .modal__h { padding: 14px 16px; border-bottom: 1px solid var(--line); font-weight: 700; }
+  .modal__b { padding: 14px 16px; }
+  .modal__f { padding: 12px 16px; border-top: 1px solid var(--line); display: flex; gap: 8px; justify-content: flex-end; }
+  .restate { background: var(--surface-soft); border: 1px solid var(--line); border-radius: 7px; padding: 11px 12px; margin-bottom: 10px; }
+  .restate b { font-variant-numeric: tabular-nums; }
+  .warn { color: var(--red); font-weight: 600; }
+
+  .prog { display: flex; align-items: center; gap: 6px; font-size: 12px; }
+  .dot { width: 8px; height: 8px; border-radius: 999px; display: inline-block; }
+  .dot--done { background: var(--green); }
+  .dot--run { background: var(--amber); animation: pulse 1.2s infinite; }
+  .dot--fail { background: var(--red); }
+  @keyframes pulse { 0%,100% { opacity: 1 } 50% { opacity: .35 } }
+
+  .stateflag { font-size: 11.5px; color: var(--muted); text-align: right; }
+  .grid2 { display: grid; grid-template-columns: 1fr 1fr; gap: 14px; }
+  @media (max-width: 900px) { .grid2, .fork { grid-template-columns: 1fr; } }
+  .caption { color: var(--muted); font-size: 12px; margin: -6px 0 14px; }
+  .kbd { font-family: ui-monospace, Menlo, Consolas, monospace; font-size: 11.5px;
+         background: var(--surface-soft); border: 1px solid var(--line); padding: 0 5px; border-radius: 4px; }
+</style>
+</head>
+<body>
+<div class="wrap">
+
+<h1>재결제 정리 — 네이버 취소 + ERP 주문 처리를 한 흐름으로</h1>
+<p class="lede">
+  2026-08-25 목업. 스테이징 <b>실데이터 4건</b>(주문 4462·4466·4467·4485)에서 확인된 문제를 푼다.
+  <b>제안이다 — 코드 변경 0.</b>
+</p>
+
+<div class="note">
+  <b>왜 필요한가.</b> 지금은 재결제가 판명돼도 담당자가 세 화면을 오간다: 워크벤치에서 새 집을 붙이고 →
+  옛 집을 따로 찾아 네이버에서 취소하고 → ERP 를 열어 주문을 지우거나 금액을 고친다.
+  실데이터에 <b>하나만 하고 멈춘 흔적이 4건</b> 남아 있다 —
+  네이버 결제는 취소됐는데 ERP 주문이 살아 있는 것 3건(4462·4466·4467),
+  붙이긴 했지만 금액·잔여 집이 정리 안 된 것 1건(4485).
+</div>
+
+<h2>1. 판정 근거 — 화면이 대신 세어 준다</h2>
+<p class="caption">
+  ①②는 지목된 근거, ③④⑤는 실데이터에서 실제로 판정을 가른 값이다.
+  <b>자동으로 붙이지 않는다</b> — 근거만 늘어놓고 사람이 고른다(기존 원칙 유지).
+</p>
+
+<div class="card">
+  <p class="card__t">이 집은 무엇인가 <span class="b b--blue">재결제로 추정</span></p>
+  <p class="card__s">집 2026082473772101 · 상품주문 6건 · 1,610,780원 · 2026-08-24 결제</p>
+  <table class="sig">
+    <thead><tr><th>근거</th><th>실제 값</th><th>이 값이 말하는 것</th></tr></thead>
+    <tbody>
+      <tr>
+        <td class="k">① ERP 기존 주문</td>
+        <td><b>주문 #4485</b> 신중섭 · 010-2667-6735 · 2026-08-14 접수 <span class="b b--gray">RECEIVED</span></td>
+        <td>있음 → <span class="verdict verdict--repay">재결제·추가결제 후보</span><br>
+            <span class="soft">없으면 진짜 신규다</span></td>
+      </tr>
+      <tr>
+        <td class="k">② 네이버 옛 집</td>
+        <td>집 2026081421699721 · 1,191,900원 ·
+            <span class="b b--red">취소 완료</span> <span class="soft">(고객이 8/24 13:19 취소)</span></td>
+        <td><b>취소됨 → 재결제</b><br>
+            <span class="soft">살아 있으면 추가결제(ADDON)다</span></td>
+      </tr>
+      <tr>
+        <td class="k">③ 금액 관계</td>
+        <td class="num">새 1,610,780 vs 옛 1,191,900 → <b>+418,880</b></td>
+        <td>비슷하거나 크다 → <span class="verdict verdict--repay">재결제</span>(증액 재결제)<br>
+            <span class="soft">훨씬 작으면 차액 결제(ADDON)</span></td>
+      </tr>
+      <tr>
+        <td class="k">④ 기존 주문 진행</td>
+        <td><span class="b b--gray">접수 RECEIVED</span> · 실측 없음 · 도면 없음 · 첨부 0</td>
+        <td><b>폐기해도 잃을 이력이 없다</b><br>
+            <span class="soft">실측·도면이 있으면 승계해야 한다</span></td>
+      </tr>
+      <tr>
+        <td class="k">⑤ 시간 간격</td>
+        <td class="num">10일 (8/14 → 8/24)</td>
+        <td>참고값. 180일 안이면 후보로 본다</td>
+      </tr>
+    </tbody>
+  </table>
+</div>
+
+<div class="grid2">
+  <div class="card">
+    <p class="card__t">판정이 갈리는 예 ① <span class="b b--violet">추가결제</span></p>
+    <p class="card__s">근거 ②가 뒤집는다</p>
+    <table class="sig"><tbody>
+      <tr><td class="k">② 네이버 옛 집</td><td><span class="b b--green">살아 있음</span> · 발주확인 완료</td></tr>
+      <tr><td class="k">③ 금액</td><td class="num">새 17,880 vs 옛 1,191,900 → <b>1.5%</b></td></tr>
+      <tr><td class="k">판정</td><td><span class="verdict verdict--addon">차액 결제(ADDON)</span> — 물건은 따로 안 나간다</td></tr>
+    </tbody></table>
+  </div>
+  <div class="card">
+    <p class="card__t">판정이 갈리는 예 ② <span class="b b--green">신규</span></p>
+    <p class="card__s">근거 ①이 비면 나머지를 볼 것도 없다</p>
+    <table class="sig"><tbody>
+      <tr><td class="k">① ERP 기존 주문</td><td><b>후보 0건</b> — 전화·이름+주소 어느 것도 안 걸린다</td></tr>
+      <tr><td class="k">판정</td><td><span class="verdict verdict--new">진짜 신규</span> — <span class="kbd">주문 만들기</span></td></tr>
+    </tbody></table>
+  </div>
+</div>
+
+<h2>2. 정리 계획 — 한 번 정하고, 세 가지가 순서대로 나간다</h2>
+<p class="caption">
+  <b>동시에는 불가능하다.</b> ERP 는 우리 DB(즉시·되돌릴 수 있음)이고 네이버 취소는 외부 호출
+  (WORKER 비동기·되돌릴 수 없음)이다. 그래서 <b>되돌릴 수 있는 것을 먼저, 불가역을 마지막에</b> 둔다.
+  중간에 멈춰도 어디까지 됐는지 화면이 말한다.
+</p>
+
+<div class="card">
+  <p class="card__t">재결제 정리 <span class="b b--blue">주문 #4485</span></p>
+  <p class="card__s">실행 전 — 담당자가 갈래를 고르는 화면</p>
+
+  <div class="plan">
+    <div class="plan__row">
+      <div class="plan__n">1</div>
+      <div>
+        <div class="plan__h">새 집을 주문 #4485 에 붙인다 <span class="b b--gray">되돌릴 수 있음</span></div>
+        <div class="plan__d">집 2026082473772101 상품주문 6건 · <code>relation=REPAY</code> ·
+          새 주문을 만들지 않는다. 금액은 <b>기록</b>되고 출고가·잔금은 사람이 반영한다.</div>
+      </div>
+      <div class="stateflag">항상 실행</div>
+    </div>
+
+    <div class="plan__row">
+      <div class="plan__n">2</div>
+      <div>
+        <div class="plan__h">ERP 기존 주문을 어떻게 할까 <span class="b b--amber">선택 필요</span></div>
+        <div class="fork">
+          <div class="fork__opt fork__opt--on">
+            <div class="fork__t">🔁 승계 — 주문을 살려 둔다</div>
+            <div class="fork__d">주문 #4485 를 유지하고 <b>금액만 새 결제로 정정</b>한다.
+              실측·도면·첨부·이력이 그대로 남는다.</div>
+            <div class="fork__d">금액 <b>1,191,900 → 1,610,780</b> 으로 정정 <span class="b b--gray">체크됨</span></div>
+          </div>
+          <div class="fork__opt fork__opt--off">
+            <div class="fork__t">🗑 폐기 — 주문을 지운다</div>
+            <div class="fork__d">주문 #4485 를 휴지통으로 보내고(soft delete) 새 집으로 주문을 새로 만든다.</div>
+            <div class="fork__w">⚠ 실측·도면 이력이 있으면 이 갈래는 잠긴다 (이 주문은 이력 0이라 열려 있다)</div>
+          </div>
+        </div>
+      </div>
+      <div class="stateflag">되돌릴 수 있음<br>(휴지통 복구)</div>
+    </div>
+
+    <div class="plan__row plan__row--irrev">
+      <div class="plan__n">3</div>
+      <div>
+        <div class="plan__h">네이버 옛 결제를 취소한다 <span class="b b--red">되돌릴 수 없음</span></div>
+        <div class="plan__d">
+          <b>이 집은 이미 취소돼 있다</b> — 고객이 8/24 13:19 에 취소했다(<code>CANCEL_DONE</code>).
+          <b>보낼 것이 없다.</b>
+        </div>
+      </div>
+      <div class="stateflag">건너뜀</div>
+    </div>
+  </div>
+
+  <div class="acts">
+    <button class="btn btn--pri">정리 실행</button>
+    <button class="btn btn--ghost">취소</button>
+    <span class="acts__why">3단계는 보낼 것이 없어 건너뜁니다. 실제로 나가는 건 1·2단계뿐입니다.</span>
+  </div>
+</div>
+
+<h2>3. 네이버 옛 결제가 <em>살아 있을 때</em> — 여기가 진짜 불가역</h2>
+<p class="caption">
+  고객이 새로 결제만 하고 옛 주문 취소를 안 한 경우다. 실데이터에도 있다 —
+  신중섭 고객의 8/14 집 <b>2026081421411031</b> 은 지금도 살아 있고 아무 데도 안 붙어 있다.
+</p>
+
+<div class="card">
+  <div class="plan">
+    <div class="plan__row plan__row--irrev">
+      <div class="plan__n">3</div>
+      <div>
+        <div class="plan__h">네이버 옛 결제를 취소한다 <span class="b b--red">되돌릴 수 없음</span></div>
+        <div class="plan__d">
+          집 2026081421411031 · 상품주문 4건 · <b class="num">1,191,900원</b> ·
+          <span class="b b--green">살아 있음</span> · 발주확인 완료<br>
+          <b>판매자 직접취소</b>로 나간다. 사유 코드를 고른다 →
+          <span class="kbd">고객 변심(재결제)</span> <span class="kbd">주문 정정</span> …
+        </div>
+      </div>
+      <div class="stateflag">WORKER 실행<br>1~2분</div>
+    </div>
+  </div>
+
+  <div class="acts">
+    <button class="btn btn--danger">정리 실행 — 네이버 취소 포함</button>
+    <span class="acts__why warn">3단계는 진짜 네이버로 나갑니다. 고객에게 환불이 시작됩니다.</span>
+  </div>
+</div>
+
+<div class="card" style="max-width:580px;padding:0;border:0;background:transparent">
+  <div class="modal">
+    <div class="modal__h">되돌릴 수 없습니다 — 정리 내용을 다시 읽어 주세요</div>
+    <div class="modal__b">
+      <div class="restate">
+        ① 붙이기 — 집 <b>2026082473772101</b>(6건 · <b>1,610,780원</b>)을 주문 <b>#4485</b> 에 <b>재결제</b>로<br>
+        ② ERP — 주문 <b>#4485</b> 금액을 <b>1,191,900 → 1,610,780</b> 으로 정정<br>
+        ③ 네이버 — 집 <b>2026081421411031</b>(4건 · <b>1,191,900원</b>) <b class="warn">판매자 직접취소</b>
+      </div>
+      <p style="margin:0 0 6px"><b class="warn">③은 되돌릴 수 없습니다.</b>
+        구매자에게 취소·환불로 나가고, 그 집은 다시 살릴 수 없습니다.</p>
+      <p style="margin:0" class="soft">
+        ①②가 먼저 끝난 뒤 ③이 나갑니다. ③이 실패하면 ①②는 그대로 남고, 화면이 ③만 다시 보낼 수 있게 합니다.</p>
+    </div>
+    <div class="modal__f">
+      <button class="btn">그만두기</button>
+      <button class="btn btn--danger">네, 3가지를 실행합니다</button>
+    </div>
+  </div>
+</div>
+
+<h2>4. 실행 뒤 — 어디까지 됐는지 화면이 말한다</h2>
+<p class="caption">부분 완료가 정상 상태다. 숨기지 않는다.</p>
+
+<div class="grid2">
+  <div class="card">
+    <p class="card__t">진행 중</p>
+    <div class="plan">
+      <div class="plan__row"><div class="plan__n plan__n--done">✓</div>
+        <div><div class="plan__h">붙이기 완료</div>
+          <div class="plan__d">주문 #4485 · 6건 · 10:41</div></div>
+        <div class="stateflag"><span class="prog"><span class="dot dot--done"></span>완료</span></div></div>
+      <div class="plan__row"><div class="plan__n plan__n--done">✓</div>
+        <div><div class="plan__h">ERP 금액 정정 완료</div>
+          <div class="plan__d">1,191,900 → 1,610,780 · 변경 이력 1건</div></div>
+        <div class="stateflag"><span class="prog"><span class="dot dot--done"></span>완료</span></div></div>
+      <div class="plan__row plan__row--irrev"><div class="plan__n plan__n--run">3</div>
+        <div><div class="plan__h">네이버 취소 보내는 중</div>
+          <div class="plan__d">4건 중 <b>2건</b> 완료 · 워커가 상품주문을 하나씩 부릅니다</div></div>
+        <div class="stateflag"><span class="prog"><span class="dot dot--run"></span>진행 중</span></div></div>
+    </div>
+  </div>
+
+  <div class="card">
+    <p class="card__t">부분 실패 — 이 화면이 없으면 사고가 된다</p>
+    <div class="plan">
+      <div class="plan__row"><div class="plan__n plan__n--done">✓</div>
+        <div><div class="plan__h">붙이기 완료</div></div>
+        <div class="stateflag"><span class="prog"><span class="dot dot--done"></span>완료</span></div></div>
+      <div class="plan__row"><div class="plan__n plan__n--done">✓</div>
+        <div><div class="plan__h">ERP 금액 정정 완료</div></div>
+        <div class="stateflag"><span class="prog"><span class="dot dot--done"></span>완료</span></div></div>
+      <div class="plan__row plan__row--irrev"><div class="plan__n plan__n--fail">!</div>
+        <div><div class="plan__h">네이버 취소 <span class="b b--red">4건 중 1건 실패</span></div>
+          <div class="plan__d">
+            상품주문 …411031 <b class="warn">실패</b> — “이미 배송중인 주문은 취소할 수 없습니다”<br>
+            나머지 3건은 취소됐다. <b>반쪽 상태다</b> — 남은 1건은 반품 흐름으로 처리해야 한다.
+          </div>
+          <div class="acts" style="margin-top:8px">
+            <button class="btn">실패한 1건만 다시 보내기</button>
+            <button class="btn btn--ghost">반품 안내 열기</button>
+          </div>
+        </div>
+        <div class="stateflag"><span class="prog"><span class="dot dot--fail"></span>실패</span></div></div>
+    </div>
+  </div>
+</div>
+
+<h2>5. 유령 주문 — 재결제 짝이 없을 때</h2>
+<p class="caption">
+  실데이터 주문 <b>4467 원주현</b>: 네이버 결제가 <b>전부 취소</b>됐는데 ERP 주문은
+  <span class="b b--gray">RECEIVED</span> 로 살아 있다. 재결제 새 집도 없다.
+  지금 이걸 알려 주는 화면은 <b>어디에도 없다</b>.
+</p>
+
+<div class="card">
+  <p class="card__t">⚠ 네이버 결제가 전부 취소된 주문 <span class="b b--red">3건</span></p>
+  <p class="card__s">워크벤치 처리 탭 위 띠 — 누르면 목록이 열린다</p>
+  <table class="sig">
+    <thead><tr><th>주문</th><th>네이버 집</th><th>진행</th><th>재결제 짝</th><th>제안</th></tr></thead>
+    <tbody>
+      <tr>
+        <td><b>#4467</b> 원주현<br><span class="soft">2,451,500원</span></td>
+        <td><span class="b b--red">취소 완료</span> 4건 전부</td>
+        <td><span class="b b--gray">RECEIVED</span><br><span class="soft">이력 없음</span></td>
+        <td><span class="soft">없음</span></td>
+        <td><button class="btn">주문 폐기 검토</button></td>
+      </tr>
+      <tr>
+        <td><b>#4462</b> 박선미<br><span class="soft">579,200원</span></td>
+        <td><span class="b b--red">취소 완료</span> 4건 전부</td>
+        <td><span class="b b--amber">MEASURE</span><br><span class="warn">실측 진행됨</span></td>
+        <td>집 2026082483898301<br><span class="soft">8/24 · 큐에 대기</span></td>
+        <td><button class="btn btn--pri">재결제로 정리</button></td>
+      </tr>
+      <tr>
+        <td><b>#4466</b> 강재상<br><span class="soft">497,490원</span></td>
+        <td><span class="b b--red">반품 완료</span> 3건 전부</td>
+        <td><span class="b b--gray">RECEIVED</span></td>
+        <td>집 2026081821290541<br><span class="soft">8/18 · 큐에 대기</span></td>
+        <td><button class="btn btn--pri">재결제로 정리</button></td>
+      </tr>
+    </tbody>
+  </table>
+  <div class="note" style="margin-top:14px">
+    <b>#4462 는 폐기 갈래가 잠긴다.</b> 실측까지 진행된 주문을 지우면 방문 기록·치수가 사라진다 —
+    이 경우 화면은 <b>승계만</b> 제안한다. 갈래는 사람이 고르되 <b>고를 수 없는 갈래는 아예 잠근다</b>.
+  </div>
+</div>
+
+<h2>6. 이 설계가 지키는 규칙</h2>
+<div class="card">
+  <table class="sig"><tbody>
+    <tr><td class="k">되돌릴 수 있는 것 먼저</td>
+        <td>붙이기 → ERP 처리 → 네이버 취소. <b>불가역을 맨 끝에</b> 둬서 중간에 멈춰도 손실이 최소다.</td></tr>
+    <tr><td class="k">원자성은 없다, 대신 사실을 말한다</td>
+        <td>두 시스템에 걸친 트랜잭션은 불가능하다. 부분 완료를 <b>화면이 추적</b>하고 실패한 조각만 다시 보낸다.</td></tr>
+    <tr><td class="k">자동 판정 금지</td>
+        <td>근거는 시스템이 모으고 <b>확정은 사람</b>이 한다(기존 원칙). 다만 <b>불가능한 갈래는 잠근다</b>.</td></tr>
+    <tr><td class="k">삭제는 소프트</td>
+        <td>ERP 주문 폐기는 <code>deleted_at</code> 만 찍는다. 휴지통에서 복구된다. hard delete 없음.</td></tr>
+    <tr><td class="k">네이버 호출은 WORKER 단독</td>
+        <td>web 은 큐에 넣기만 한다(IP 3슬롯 계약). 그래서 3단계는 <b>비동기</b>이고 폴링으로 상태를 받는다.</td></tr>
+    <tr><td class="k">이력은 남는다</td>
+        <td>붙이기·금액 정정·주문 폐기·네이버 취소가 각각 <b>주문 변경 이력 1건</b>씩. 감사 로그는 별도로 전량.</td></tr>
+  </tbody></table>
+</div>
+
+</div>
+</body>
+</html>
