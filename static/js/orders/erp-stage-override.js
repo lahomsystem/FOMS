@@ -31,10 +31,25 @@
     '단계 역행/건너뛰기는 「단계 강제 변경」에서 사유·확인 후 진행하세요.';
 
   var _guardLastOk = '';
+  // 서버에 **저장된** 본공정 단계. override API 는 DB 값과 비교하므로, 폼 select 의
+  // 미저장 미리보기(발주사·실측일 동기화가 앞당겨 표시)를 base 로 쓰면 서버가
+  // "현재와 동일한 단계" 로 판정해 400 이 난다. 저장/재조회 때만 갱신한다.
+  var _serverStage = '';
 
   function noteCurrentStage(code) {
     var next = String(code || '').trim();
     if (next) _guardLastOk = next;
+  }
+
+  /**
+   * 서버에 저장된 단계를 기록한다(GET /structured · 저장 성공 · override 성공).
+   * @param {string} code 저장된 단계 코드. 빈 값이면 무시(신규 draft 등).
+   */
+  function noteServerStage(code) {
+    var next = String(code || '').trim();
+    if (!next) return;
+    _serverStage = next;
+    _guardLastOk = next;
   }
 
   function forceMoveNotice(from, to) {
@@ -347,6 +362,7 @@
         }
         var stageEl = document.getElementById('erp-workflow-stage');
         if (stageEl) stageEl.value = to;
+        noteServerStage(to);
         if (window.__erpLastStructuredData && typeof window.__erpLastStructuredData === 'object') {
           window.__erpLastStructuredData.workflow =
             window.__erpLastStructuredData.workflow || {};
@@ -420,10 +436,17 @@
         _guardLastOk = stageEl.value;
       });
       stageEl.addEventListener('change', function () {
-        var from = _guardLastOk || stageEl.value;
+        var saved = String(_serverStage || '').trim();
+        var from = saved || _guardLastOk || stageEl.value;
         var next = stageEl.value;
         // AS 경로는 기존 asReceiveModal 이 담당
         if (next === 'AS_RECEIVED' || next === 'AS_COMPLETED' || next === 'AS') {
+          _guardLastOk = next;
+          return;
+        }
+        // 저장된 단계로 되돌리는 선택은 서버 상태 변경이 아니다(미저장 미리보기 취소).
+        // 여기서 override API 를 부르면 서버가 same 으로 400 을 던진다.
+        if (saved && next === saved) {
           _guardLastOk = next;
           return;
         }
@@ -549,6 +572,7 @@
     interceptStatusChange: interceptStatusChange,
     interceptBulkStatusChange: interceptBulkStatusChange,
     noteCurrentStage: noteCurrentStage,
+    noteServerStage: noteServerStage,
     confirmForceMove: confirmForceMove,
     wireUi: wireUi
   };
