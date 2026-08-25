@@ -189,3 +189,32 @@ def test_same_household_split_by_owner(app):
     assert len(rows) == 2
     assert {row.target_type for row in rows} == {"USER"}
     assert {row.target_user_id for row in rows} == {sales_a.id, sales_b.id}
+
+
+# --------------------------------------------------------------------------- #
+# 3. 사람이 읽을 수 있는 문안
+# --------------------------------------------------------------------------- #
+
+def test_message_says_who_and_what_in_korean(app):
+    """사유는 한국어, 아직 주문이 아닌 건은 이름·상품명이 본문에 있어야 찾을 수 있다."""
+    _user("ADMIN")
+    order_no = f"N-{_uid()}"
+    link = _link(order_no=order_no)
+
+    _sweep([link], order_nos=[order_no])
+
+    row = _claims()[0]
+    # 사유 코드(SIMPLE_INTENT_CHANGED)를 그대로 노출하지 않는다.
+    assert "단순 변심" in row.message and "SIMPLE_INTENT_CHANGED" not in row.message
+    # FOMS 주문이 없는 수집분이라 이름·상품명이 본문에 있어야 한다.
+    assert "이수취" in row.message and "붙박이장" in row.message
+    assert row.title == "네이버 취소 완료 — 이수취"
+
+
+def test_unknown_reason_code_is_kept_verbatim(app):
+    """모르는 사유 코드는 숨기지 않고 원문 그대로 — 사람이 판매자센터에서 찾아야 한다."""
+    from foms.services.integrations.naver_commerce.mapping import claim_reason_text
+
+    assert claim_reason_text("MISTAKE_ORDER") == "주문 실수"
+    assert claim_reason_text("SOMETHING_NEW_2027") == "SOMETHING_NEW_2027"
+    assert claim_reason_text("") == ""

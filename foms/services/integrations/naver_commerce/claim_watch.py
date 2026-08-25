@@ -26,10 +26,12 @@ from foms.services.datetime_kst import now_utc_naive
 from foms.services.integrations.naver_commerce.constants import CHANNEL
 from foms.services.integrations.naver_commerce.grouping import resolve_group_key
 from foms.services.integrations.naver_commerce.mapping import (
+    claim_reason_text,
     extract_claim,
     extract_external_id,
     extract_place_status,
     group_key_text,
+    unwrap_detail,
 )
 from models import ExternalOrderLink, Notification, Order, OrderAssignment, User
 
@@ -111,6 +113,38 @@ def _notify_targets(session: Session, link: ExternalOrderLink) -> tuple[list[int
     return [int(u.id) for u in admins], True
 
 
+#: 알림 본문에 싣는 상품명 최대 길이. 네이버 상품명은 길다("라홈 무몰딩 붙박이장 로라
+#: 시리즈 30cm 푸쉬타입 친환경 E0" — 실물 41자). 통째로 실으면 어느 집인지가 이름에 묻힌다.
+_PRODUCT_NAME_MAX = 24
+
+
+def _snapshot_customer(link: ExternalOrderLink) -> str:
+    """원본 스냅샷에서 사람 이름을 꺼낸다(수취인 우선, 없으면 주문자).
+
+    주문으로 만들기 전 수집분은 FOMS 쪽에 이름이 없어 알림이 번호만 남는다.
+    :func:`mapping.build_order_kwargs` 와 같은 우선순위를 쓴다(수취인 = 시공 받는 사람).
+
+    Args:
+        link: 클레임이 감지된 링크.
+
+    Returns:
+        이름(없으면 빈 문자열).
+    """
+    _order, _po, shipping = unwrap_detail(link.raw_snapshot or {})
+    order_part = (link.raw_snapshot or {}).get("order") or {}
+    return (str(shipping.get("name") or "").strip()
+            or str(order_part.get("ordererName") or "").strip())
+
+
+def _snapshot_product(link: ExternalOrderLink) -> str:
+    """원본 스냅샷의 상품명을 알림용으로 줄인다(없으면 빈 문자열)."""
+    _order, product_order, _shipping = unwrap_detail(link.raw_snapshot or {})
+    name = str(product_order.get("productName") or "").strip()
+    if len(name) > _PRODUCT_NAME_MAX:
+        return name[:_PRODUCT_NAME_MAX] + "…"
+    return name
+
+
 def _compose(session: Session, links: list[ExternalOrderLink],
              claim: dict) -> tuple[str, str]:
     """클레임 알림의 제목·본문을 만든다 — 단위는 **집(주문) 1건**이다.
@@ -130,15 +164,24 @@ def _compose(session: Session, links: list[ExternalOrderLink],
     head = links[0]
     order_id = next((int(row.order_id) for row in links if row.order_id), None)
     order = session.get(Order, order_id) if order_id else None
-    who = getattr(order, "customer_name", None) or ""
+    who = getattr(order, "customer_name", None) or _snapshot_customer(head)
     title = f"네이버 {claim['label']} — {who}".strip(" —")
-    detail = f" · 사유 {claim['reason']}" if claim["reason"] else ""
+    reason = claim_reason_text(claim["reason"])
+    detail = f" · 사유 {reason}" if reason else ""
     where = (f"FOMS 주문 #{order_id}" if order_id
              else "아직 주문으로 만들지 않은 수집분")
     extra = f" 외 {len(links) - 1}건" if len(links) > 1 else ""
+    parts = [where]
+    # 주문으로 만들기 전 건은 FOMS 안에 이름이 없다 — 원본에서 꺼내 적어야 사람이 찾는다.
+    if not order_id and who:
+        parts.append(who)
+    product = _snapshot_product(head)
+    if product:
+        parts.append(product)
+    parts.append(f"상품주문번호 {head.external_id}{extra}")
     message = (
         f"네이버에서 {claim['label']} 상태로 바뀐 주문이 있습니다{detail}. "
-        f"({where} · 상품주문번호 {head.external_id}{extra}) "
+        f"({' · '.join(parts)}) "
         "일정·생산이 잡혀 있으면 진행을 멈추고 네이버 판매자센터에서 확인하세요."
     )
     return title[:200], message
