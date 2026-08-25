@@ -31,7 +31,7 @@
 | T7 | 라우트 계약 테스트 10건 | `tests/services/integrations/test_naver_repay_reconcile_route.py` | **DONE** |
 | T8 | 화면 계약 테스트 5건 | `tests/services/integrations/test_naver_repay_reconcile_card.py` | **DONE** |
 | T9 | deploy 푸시 + CI | `231b3ad3` | **DONE** |
-| T10 | 스테이징 실화면 확인 | — | **PENDING** |
+| T10 | 스테이징 실화면 확인(실행까지) | 주문 #4477 · 집 15건 | **DONE** |
 
 ## 못박은 규칙 (테스트가 지킨다)
 
@@ -66,6 +66,25 @@
 | 통합 전량 | `pytest tests/services/integrations -q` | `650 passed in 368.34s` |
 | smoke | `powershell -File scripts/ops/pre_push_smoke.ps1` | `=== PRE-PUSH SMOKE PASSED ===` (exit 0) |
 | CI | `gh run list --branch deploy` (전 워크플로 나열) | **4/4 green** — perf-gate · FOMS PostgreSQL Lane · Harness CI · FOMS CI (`231b3ad3`) |
+
+## 스테이징 실화면 검증 (2026-08-26, claude_master)
+
+코호트를 잠시 `38,58` 로 열고(끝나고 `38` 원복) 워크벤치에서 직접 확인했다.
+대상: 링크 329 → 주문 **#4477**(옛 네이버 집 **전부 취소**), 새 집 15건 · 3,340,510원.
+
+| 확인 | 결과 |
+|---|---|
+| 후보 버튼 → 카드 | `재결제로 정리` 누르면 카드가 펼쳐지고 관계 배지는 `재결제` 하나만 보인다 |
+| 관계별 예약금 안내 | REPAY "지금 값 0원 **대신** 3,340,510원으로 바꾸세요" / ADDON "0원에 3,340,510원을 **더해**" |
+| 갈래 토글 | `취소 처리` 를 고르면 1번 칸이 "붙이지 않는다 — 새 집은 큐에 그대로 남는다" 로 바뀐다 |
+| i 칸 | "옛 집 **전부 취소** — 고객이 이미 처리했습니다. 할 일 없음" |
+| 정리 실행 | "✓ 붙이기 완료 — 주문 #4477 에 **15건**" + 예약금 안내 + 주문 열기 링크 |
+| **예약금 불가침** | 실행 뒤 주문 화면 `#erp-deposit-amount` = **0원 그대로** (자동 반영 없음이 실서버에서 확인됨) |
+| 콘솔 에러 | 0건 |
+| 원복 | `되돌리기`(detach) 로 후보 표·정리 카드가 되돌아옴 — 스테이징 상태 원상복구 |
+
+**함정 기록**: 코호트 env 변경은 스테이징 재배포를 부르고 **기존 로그인 세션이 끊긴다**.
+재배포 뒤에는 다시 로그인해야 하고, 그 전에 `a.wb-row` 를 세면 0 이 나와 "행이 없다" 로 오독한다.
 
 ## 곁가지로 확인한 것 — `지금 수집` 이 즉시 안 되는 이유 (2026-08-25 조사)
 
