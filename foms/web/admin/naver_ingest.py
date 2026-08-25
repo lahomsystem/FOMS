@@ -21,6 +21,7 @@ from typing import Any, Optional
 
 from flask import (abort, g, jsonify, redirect, render_template, request, session,
                    url_for)
+from sqlalchemy.exc import SQLAlchemyError
 from sqlalchemy.orm import Session
 
 from db import get_db
@@ -760,6 +761,33 @@ def naver_ingest_triage():
     )
 
 
+def _ghost_view(db) -> dict[str, Any]:
+    """유령 주문 띠 데이터 (R-2 · 2026-08-25).
+
+    네이버 결제가 **전부 취소**됐는데 살아 있는 ERP 주문이다. 지금까지 이 사실을 말하는
+    화면이 하나도 없어서 스테이징에 3건이 아무에게도 안 보인 채 남아 있었다.
+
+    Args:
+        db: 요청 스코프 DB 세션.
+
+    Returns:
+        ``{"count": n, "rows": [...]}``. 조회가 실패해도 화면을 죽이지 않는다 —
+        띠는 보조 정보고, 이게 목록을 막으면 본업이 멈춘다.
+    """
+    from foms.services.integrations.naver_commerce.ghost_orders import (
+        attach_repay_candidates,
+        find_ghost_orders,
+    )
+
+    try:
+        ghosts = find_ghost_orders(db)
+        attach_repay_candidates(db, ghosts)
+        return ghosts
+    except SQLAlchemyError as exc:  # 보조 정보라 흐름을 막지 않는다(failopen — 로그로 남긴다)
+        logger.warning("[NAVER] 유령 주문 조회 실패(띠 생략): %s", exc, exc_info=True)
+        return {"count": 0, "rows": []}
+
+
 def _selected_offlist(link: Optional[ExternalOrderLink],
                       household: Optional[dict[str, Any]],
                       visible: Optional[list[dict[str, Any]]]) -> bool:
@@ -901,6 +929,9 @@ def _render_workbench(db) -> str:
         ingest_status=ingest_status,
         # 실패는 어느 탭에 있든 보여야 한다 — 탭을 옮겼다고 사고가 사라지지 않는다.
         failures=_failure_rows(db),
+        # 유령 주문(R-2): 네이버 결제가 전부 취소됐는데 살아 있는 ERP 주문.
+        # 처리 탭에서만 낸다 — 이력 탭은 지난 기록을 보는 자리라 할 일을 띄우지 않는다.
+        ghosts=_ghost_view(db) if active_tab == "work" else {"count": 0, "rows": []},
         **_pane_context(db, _selected_link(db, visible), visible=visible),
     )
 
@@ -2363,6 +2394,62 @@ def naver_ingest_fulfillment(link_id: int):
                     # rev: 화면이 이 값이 바뀔 때까지 폴링한다(naver_ingest_fulfillment_state).
                     "data": {"link_id": link_id, "action": action, "queued": True,
                              "rev": base_rev},
+                    "error": None})
+
+
+@admin_bp.route("/admin/naver-ingest/ghost/<int:order_id>/discard", methods=["POST"])
+@login_required
+@role_required(["ADMIN", "MANAGER", "STAFF"])
+def naver_ingest_ghost_discard(order_id: int):
+    """유령 주문을 **취소 처리**한다 — 휴지통으로 (R-2 · 2026-08-25).
+
+    네이버 결제가 전부 취소됐는데 살아 있는 ERP 주문을 접는다. hard delete 가 아니라
+    soft delete 라 휴지통에서 복구된다 — 그래서 불가역 4종 세트 모달을 두지 않고
+    확인창 1회로 끝낸다(사용자 결정 D-3).
+
+    **띠에 뜬 주문만 받는다.** 목록 밖 주문 id 를 받아 지우면 이 라우트가 범용 삭제
+    경로가 되는데, 그건 주문 화면의 일이고 권한 규칙도 다르다. 진행 단계가 접수 이후면
+    거절한다 — 실측 기록이 붙은 주문을 접으면 그 이력이 화면에서 사라진다.
+    """
+    from foms.services.feature_flags import is_naver_workbench_enabled
+    from foms.services.integrations.naver_commerce.ghost_orders import find_ghost_orders
+    from foms.services.orders.soft_delete import soft_delete_order
+
+    # 워크벤치 전용 기능이다 — 게이트를 끄는 것이 롤백 경로이므로 라우트도 함께 닫는다.
+    if not is_naver_workbench_enabled(session.get("user_id")):
+        return jsonify({"success": False, "data": None,
+                        "error": "이 화면에서는 취소 처리를 할 수 없습니다."}), 403
+
+    db = get_db()
+    ghosts = find_ghost_orders(db, limit=1000)
+    target = next((row for row in ghosts["rows"] if row["order_id"] == int(order_id)), None)
+    if target is None:
+        return jsonify({"success": False, "data": None,
+                        "error": "이 주문은 '네이버 결제가 전부 취소된 주문' 목록에 없습니다."}), 400
+    if not target["can_discard"]:
+        return jsonify({"success": False, "data": None,
+                        "error": f"{target['discard_block']} — 재결제로 정리하세요."}), 400
+
+    try:
+        soft_delete_order(db, order_id=int(order_id),
+                          actor_user_id=int(session.get("user_id") or 0),
+                          reason="네이버 결제 전부 취소 — 워크벤치에서 정리")
+        db.commit()
+    except Exception as exc:  # noqa: BLE001 - 실패 사유를 사람에게 그대로 보여준다
+        db.rollback()
+        logger.warning("[NAVER] 유령 주문 취소 처리 실패 order=%s: %s", order_id, exc, exc_info=True)
+        return jsonify({"success": False, "data": None, "error": str(exc)}), 400
+
+    log_access(
+        f"네이버 유령 주문 취소 처리 (order {order_id}, 결제 전부 취소)",
+        action="NAVER_INGEST_GHOST_DISCARD",
+        target_type="order", target_id=int(order_id),
+        detail={"order_id": int(order_id),
+                "naver_order_nos": target["naver_order_nos"],
+                "naver_amount_total": target["naver_amount_total"]},
+    )
+    return jsonify({"success": True,
+                    "data": {"order_id": int(order_id), "discarded": True},
                     "error": None})
 
 

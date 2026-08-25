@@ -538,6 +538,54 @@ input.wb-pick:disabled,
     font-size: calc(12px * var(--wb-fs, 1));
 }
 
+/* ── 유령 주문 띠 (R-2 · 2026-08-25) ──────────────────────────────────
+   실패 띠(빨강 alert)와 **다른 무게**여야 한다. 실패는 방금 누른 것의 결과라 급하고,
+   이건 쌓여 있던 사실이라 접힌 채로 기다린다. 그래서 회색 테두리 + 접기(details)다. */
+.wb-ghost {
+    border: 1px solid var(--wb-line);
+    border-left: 3px solid var(--wb-danger-line);
+    border-radius: 8px;
+    background: #fff;
+    margin-bottom: 10px;
+    font-size: calc(12px * var(--wb-fs, 1));
+}
+
+.wb-ghost__head {
+    display: flex;
+    align-items: baseline;
+    gap: 8px;
+    padding: 9px 12px;
+    cursor: pointer;
+    flex-wrap: wrap;
+}
+
+.wb-ghost__badge {
+    background: var(--wb-danger-soft);
+    border: 1px solid var(--wb-danger-line);
+    color: var(--wb-danger);
+    border-radius: 999px;
+    padding: 1px 9px;
+    font-weight: 700;
+    font-variant-numeric: tabular-nums;
+}
+
+.wb-ghost__sub { color: var(--wb-muted); }
+.wb-ghost__dim { color: var(--wb-muted); font-size: calc(11px * var(--wb-fs, 1)); }
+
+.wb-ghost__claim {
+    color: var(--wb-danger);
+    font-weight: 600;
+}
+
+.wb-ghost__list { width: 100%; border-collapse: collapse; }
+.wb-ghost__list th, .wb-ghost__list td {
+    text-align: left;
+    padding: 8px 12px;
+    border-top: 1px solid var(--wb-line-soft);
+    vertical-align: top;
+}
+.wb-ghost__list th { color: var(--wb-muted); font-weight: 600; font-size: calc(11px * var(--wb-fs, 1)); }
+
 .wb-empty { padding: 40px 16px; text-align: center; color: var(--wb-muted); }
 
 /* ── 전체 이력 (W4) ──────────────────────────────────────────────────── */

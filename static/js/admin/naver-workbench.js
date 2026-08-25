@@ -82,7 +82,8 @@
         'wb-bulk-confirm': submitBulk,
         'wb-bulk-clear': clearPicks,
         'wb-retry-failed': submitRetry,
-        'wb-run-now': submitRunNow
+        'wb-run-now': submitRunNow,
+        'wb-ghost-discard': submitGhostDiscard
     };
 
     document.addEventListener('click', onClick);
@@ -119,6 +120,36 @@
         var current = document.querySelector('.wb-row[aria-current="true"]');
         var id = current ? safeId(current.dataset.linkId) : '';
         replacePaneState(id || null);
+    }
+
+    /* ── 유령 주문 취소 처리 (R-2 · 2026-08-25) ──────────────────────────
+       네이버 결제가 전부 취소됐는데 살아 있는 ERP 주문을 접는다. soft delete 라
+       휴지통에서 복구된다 — 그래서 불가역 4종 세트 모달이 아니라 확인창 1회다.
+       (되돌릴 수 없는 것만 모달을 쓴다는 이 화면의 규율.) */
+    function submitGhostDiscard(button) {
+        var orderId = safeId(button.dataset.orderId);
+        if (!orderId) {
+            return;
+        }
+        var who = button.dataset.customer || '';
+        var message = '주문 #' + orderId + (who ? ' (' + who + ')' : '')
+            + ' 을 취소 처리합니다. 휴지통으로 가며 복구할 수 있습니다.';
+        if (!window.confirm(message)) {
+            return;
+        }
+        button.disabled = true;
+        postJson(BASE + 'ghost/' + orderId + '/discard', {}).then(function (result) {
+            if (!result.ok) {
+                button.disabled = false;
+                window.alert(result.error);
+                return;
+            }
+            // 목록에서 그 줄만 걷어낸다 — 페이지를 다시 받지 않는다(v3 규율 ②).
+            var row = button.closest('[data-ghost-order-id]');
+            if (row && row.parentNode) {
+                row.parentNode.removeChild(row);
+            }
+        });
     }
 
     /* ── 위쪽 고정줄 오프셋 (2026-08-25) ─────────────────────────────────
