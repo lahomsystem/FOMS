@@ -508,6 +508,36 @@ input.wb-pick:disabled,
     font-variant-numeric: tabular-nums;
 }
 
+/* ── 후보 표 판정 근거 2열 (R-1 · 2026-08-25) ────────────────────────
+   담당자가 네이버를 따로 열어 확인하던 두 가지를 표 안으로 들인다. 색은 이미 이 화면이
+   쓰는 두 개만 쓴다: 빨강 = 되돌릴 수 없는 것(취소), 초록은 안 쓴다 — '살아 있음'은
+   좋은 소식이 아니라 **다른 판정**(추가결제)이라 회색이다. */
+.wb-cand__claim {
+    display: inline-block;
+    font-size: calc(11.5px * var(--wb-fs, 1));
+    font-weight: 600;
+    padding: 1px 8px;
+    border-radius: 999px;
+    border: 1px solid var(--wb-line);
+    background: var(--wb-surface-soft);
+    color: var(--wb-muted);
+    white-space: nowrap;
+}
+
+.wb-cand__claim--dead {
+    background: var(--wb-danger-soft);
+    border-color: var(--wb-danger-line);
+    color: var(--wb-danger);
+}
+
+.wb-cand__claim--part { border-style: dashed; }
+
+.wb-cand__delta {
+    font-weight: 700;
+    font-variant-numeric: tabular-nums;
+    font-size: calc(12px * var(--wb-fs, 1));
+}
+
 .wb-empty { padding: 40px 16px; text-align: center; color: var(--wb-muted); }
 
 /* ── 전체 이력 (W4) ──────────────────────────────────────────────────── */
