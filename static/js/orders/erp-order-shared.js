@@ -5845,6 +5845,9 @@ function erpRenderQuest() {
 
 async function erpLoadQuest() {
     if (!ERP_ORDER_ENABLED || !ORDER_ID) return;
+    // 퀘스트 마크업이 없는 화면에서는 응답을 그릴 곳이 없다 — 헛요청을 보내지 않는다.
+    // (템플릿에 #erp-quest-container 가 다시 붙으면 이 가드가 자동으로 풀린다.)
+    if (!document.getElementById('erp-quest-container')) return;
     try {
         const res = await fetch(`/api/orders/${ORDER_ID}/quest`);
         const data = await res.json();
