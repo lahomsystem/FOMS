@@ -1,6 +1,6 @@
 # FOMS 현재 상태
 > 자동 업데이트: 2026-08-14
-> 최신: **T15 알림톡 발송 흔적 칩 운영 반영 완료** — 타 세션 전량 승격 PR #145(production `39fa919d`)에 실려 갔다(운영 자산 200 확인). **승격 PR #144 는 중복이라 머지하지 않는다.** 운영 미반영은 **T16**(아래) — 템플릿 심사 통과 후 코드+env 한번에 승격. 원장 `docs/plans/2026-08-24-alimtalk-trace-t15-ledger.md`
+> 최신: **네이버 취소 알림 집 단위 묶음 운영 반영(PR #147, production `91e7e110`)** — 취소 1건이 세부옵션 수만큼 알림이 되던 결함. 집+상태+수신자로 묶어 집당 1건(`외 N건`), 억제 표식은 집의 모든 링크에. 스테이징 드릴 링크 6건 → 알림 1건 실증 후 원복
 > 이 파일 상단 40줄이 세션 시작 컨텍스트의 전부다(hygiene 계약 테스트로 강제). 상세 이력: "## 최근 완료"·"## 기록 보관", 과거 헤더 상세는 기록 보관에 이관.
 
 ## 스택
@@ -8,6 +8,7 @@ Flask 2.3 + PostgreSQL + R2 + Railway (Web×2, Worker×1)
 브랜치: deploy (스테이징) → production (운영)
 
 ## 진행 중
+- [2026-08-25] **네이버 취소 알림 집 단위 — 운영 반영(PR #147 `91e7e110`)** — 승격 누락이 아니라 미구현이었다(운영 4건이 같은 `group_key`). `_pending_groups`(집+상태+수신자)로 묶어 발송. 잔여: 이미 쌓인 중복 알림 보관(승인 대기)
 - [2026-08-25] **고객 문서 공유 T16 deploy 완료 — 템플릿 심사 대기** — 통합 열람 링크(`kind='bundle'`)·지방 주문 본사 CS 안내(라홈 1566-0792 / 그 외 1566-0703, 담당자 '고객센터')·버튼 2개 템플릿 배선(env `SOLAPI_TEMPLATE_SHARE_BOTH_ID_{brand}` 하나로 전환). 승인 후 사용자 작업 2건. 원장 `docs/plans/2026-08-11-customer-share-phase-a-ledger.md` T16
 - [2026-08-25] **네이버 수집 운영 개방·안정화** — 전량 승격(production `39fa919d`) 뒤 열쇠·플래그 투입(WORKER 수집 300초 · web 워크벤치 `COHORT=all`). 개방 직후 `주문 만들기` 가 `naver_ingest_bot` 부재로 막혀 있었다(설치 체크리스트 ① 미실행) → 운영 id 61·62 생성으로 해소. 워크벤치 머리줄이 전역 nav(z-index 1000) 밑에 깔리던 결함 · 도크 머리말↔링크 집 불일치 · 붙이기 중복 이력 수정 deploy(`6ed045c9`). 원장 `docs/plans/2026-08-25-naver-full-promotion-roadmap.md` §18
 - [2026-08-24] **nav 뱃지 콜드 155.5ms → 75.0ms(-52%) deploy** — 얇게 읽기(전송 절감)는 스테이징 이득 0(통째 113.0 vs 얇게 113.0). 구간 계측이 지목한 진범은 형제 3벌 74ms + 원천 2벌 56ms → 형제 색인 1벌 + OR 술어 1벌로 링크 표 조회 6→2회. 술어·병합·캡 무변경, 옛 경로 동치 회귀 5건. 원장 `docs/plans/2026-08-24-nvbadge-duplicate-pass-ledger.md`
@@ -15,7 +16,6 @@ Flask 2.3 + PostgreSQL + R2 + Railway (Web×2, Worker×1)
 - ⚠️ [2026-08-23] **로컬 dev DB 행 소실(로컬 한정)** — pytest 파일이 conftest 보다 먼저 `db` import → 로컬 PG 에 `drop_all`. 스테이징·운영 무관. 근본 수정: `assert_engine_not_postgresql`(env 문자열 아닌 엔진 판정)
 - [2026-08-23] **모바일 주문 마법사 제품 카드·주문 구분 운영 반영(PR #135, production `d53dc438`)** — 복제 카드 헤더 `#1 제품 1` 고정 결함을 `renumberProductCards()`(DOM 순서=정본)로 수정 + 카드 삭제 버튼 신설, 3단계에 주문 구분 칩 3종(지방주문=`is_regional`/`construction_type` 컬럼·미선택 400, 라홈시스템·긴급=`structured_data.flags`). 후속(deploy): 지방주문 상차일→`shipping_scheduled_date`, 새 카드 추가 즉시 펼침. 상세: AI_CHANGELOG 2026-08-23
 - [2026-08-23] **운영 승격 PR #133 대기(머지=사용자)** — 체인을 운영 head `notifrole_00` 위로 재직렬화, 운영 재현 upgrade 9리비전 + 스위트 5392 green. **승격은 당일 머지하거나 직전 head 재확인**(#113·#121 무효 전례). 원장 `docs/plans/2026-08-21-production-promotion-ledger.md`
-- ⚠️ [2026-08-20] **deploy FOMS CI red = 타 세션 몫** — `3d3c2f61`(RESTORE-GUI-01 T1)의 `ORDER_FIELD_RESTORED` 라벨 누락 + `events.api_restore_field_change` 정책 미분류. Harness CI·PG Lane·perf-gate 는 green.
 - ⚠️ **미결: `as-delete-reapply`의 `8c1ef69a`**(삭제 라우트 WRITE-GUARD-01 manifest 등재) deploy 미반영. worktree 정리 중 발견, 타 세션 몫이라 미처리. 브랜치 ref 보존됨.
 
 ## 알려진 이슈
@@ -45,6 +45,8 @@ Flask 2.3 + PostgreSQL + R2 + Railway (Web×2, Worker×1)
 
 
 ## 최근 완료 (최대 5개)
+- **T15 알림톡 발송 흔적 칩 운영 반영 완료** — 타 세션 전량 승격 PR #145(production `39fa919d`)에 실려 갔다(운영 자산 200 확인). **승격 PR #144 는 중복이라 머지하지 않는다.** 운영 미반영은 **T16**(아래) — 템플릿 심사 통과 후 코드+env 한번에 승격. 원장 `docs/plans/2026-08-24-alimtalk-trace-t15-ledger.md`
+- [2026-08-20] **deploy FOMS CI red(타 세션 `3d3c2f61`) 해소** — `d887ef86` 로 라벨·정책 등재, 현재 deploy CI 4개 green
 - [2026-08-23] **네이버 워크벤치 관계 축 + 판매자 직접취소 deploy(`5f9433c5`, CI 4개 green)** — 취소는 커머스API `claim/cancel/request`(상품주문 1건씩·사유 7코드), WORKER 단일 출구·집 단위·멱등. 가드: 취소한 집은 발주확인·발송처리·주문 만들기 전부 차단, `close_now` 는 집 전체가 ADDON/REPAY 일 때만. 스테이징 실데이터 눈 확인 완료(배지·후보표·발송처리 잠금·취소 모달 집 건수 일치). **잔여: 취소 실호출 1건(사용자 실건 발생 시)·네이버 기능 전체 승격은 별도 작업.**
 - [2026-08-23] **대시보드 캡 결함 2건 — production 승격 완료** (PR #136 `89b9ca7f` / PR #139 `d5b44d87`, CI 4종 green·운영 실브라우저 확인). 공통 결함=SQL 로 모집단을 좁힌 뒤 **캡으로 자르고 그 다음 파이썬에서 상태·날짜로 좁힌다** — 캡이 모집단보다 작으면 섹션이 통째로 비는데 아무 흔적도 안 남았다. ① 도면 작업실: seed 가 단계 조건 없이 `created_at desc LIMIT 250`(활성 ERP 2480건) → 운영 28건 중 **27건 실종**(그중 16건이 수령확인 대기). 수정=모집단 술어를 SQL 로(`build_drawing_queue_filter` — 단계 미러 `erp_stage_code`+원본 `workflow.stage`, RETURNED/CONFIRMED 는 단계 무관), 부분 인덱스 3종(`drawqueue_00`; production 은 계보가 달라 병합 리비전 `merge_prod_drawq`), 캐시 슬라이스 `workbench_seed_ids`→`workbench_queue_ids`. 운영 실측 22.5ms→**0.92ms**, Seq Scan 없음. ② 전수 조사 결과 legacy 보드 3종 동일 구조 — **수도권은 이미 터져 있었다**(실측 알림 후보 944·949건 vs 캡 500 → 판정 전 444·449건 잘림). `LEGACY_DASHBOARD_ORDER_LIMIT` 500→2000, 조회를 `_fetch_legacy_dashboard_orders` 로 일원화(`cap+1` 로 초과 판정 — count 쿼리 추가 없음, 캡 발동은 warning 로그). 지방·자가실측 **UI 무변경**(사용자 지시). 실측 대시보드 `rows[:300]` 은 의도된 표시 상한이라 유지하되 잘림을 고지(캐시 DTO 에 `total_count`, 화면 안내+로그, `data-foms-no-autodismiss` 필수). 운영 확인: 도면 28=28, 실측 3개월 "978건 중 300건만 표시됩니다".
 - [2026-08-20] **네이버 관계 판별 + 발주확인·발송처리(NAVER-INGEST-02, deploy)** — T16-A~H 코드 완료. 수집 판정이 `PAYED` 하나뿐이라 재결제·차액결제가 전부 새 집으로 들어오던 문제를 **사람이 고르는 붙이기**로 닫았다(자동 확정 없음). 스테이징 실물 왕복 검증(강재상 1cm 집 → #4466 붙임 → 도크 "추가결제 3건 · 517,550원(반영은 수동)" → 되돌림 → 원복). **잔여=네이버 실호출 검증(사용자 직접)**, G3(재결제 시 원 주문 취소 표시) 미확정. 권한 게이트 통과(API그룹 `주문 판매자`=발주/발송처리 포함), 배송코드 `DIRECT_DELIVERY`(구매확정·정산 시점 변동 주의). 함정: `.alert` 5초 자동닫힘이 상시 안내를 지운다(`data-foms-no-autodismiss` 필요, 취소 경고도 이 버그였음) · 주문 JSONB 직접쓰기는 REV-99 게이트 → `execute_order_mutation` 경유 · 새 감사 행위는 `audit_message_display` 라벨 필수(pre_push_smoke 사각).
