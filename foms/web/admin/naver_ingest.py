@@ -560,11 +560,22 @@ def _dispatch_time_text(value: Any) -> str:
     return format_datetime_kst(text, "%Y-%m-%d %H:%M") or text
 
 
-def _triage_pane(db, link: ExternalOrderLink) -> dict[str, Any]:
+def _triage_pane(db, link: ExternalOrderLink, *,
+                 with_candidates: bool = True) -> dict[str, Any]:
     """한 건의 원본 ↔ FOMS 현재 값 대조 데이터를 만든다.
 
     옵션 원문을 크게 보여주는 것이 이 화면의 존재 이유다 — v1 은 규격을 파싱하지 않으므로
     사람이 이 문자열을 읽고 편집기에서 채운다.
+
+    Args:
+        db: 요청 스코프 DB 세션.
+        link: 펼칠 링크.
+        with_candidates: 붙일 만한 기존 주문 후보까지 찾는가. **읽기 전용 상세**
+            (:func:`naver_ingest_triage_detail`)는 붙이기를 못 하므로 False 로 부른다 —
+            그리지도 않을 값을 위해 후보 탐색과 정리 계획 조회를 돌리지 않는다.
+
+    Returns:
+        pane 컨텍스트 dict. ``with_candidates`` 가 False 면 ``candidates`` 는 빈 목록이다.
     """
     from foms.services.integrations.naver_commerce.mapping import (
         build_payment_info,
@@ -581,8 +592,9 @@ def _triage_pane(db, link: ExternalOrderLink) -> dict[str, Any]:
     order = db.get(Order, int(link.order_id)) if link.order_id else None
     naver_order, product_order, shipping = unwrap_detail(link.raw_snapshot or {})
     # 후보마다 **정리 계획**(R-3)을 미리 실어 둔다 — 관계를 고를 때마다 왕복하지 않는다.
-    candidates = find_order_candidates(db, link)
-    attach_reconcile_plans(db, candidates)
+    candidates = find_order_candidates(db, link) if with_candidates else []
+    if candidates:
+        attach_reconcile_plans(db, candidates)
     household = summarize_link_household(db, link_id=int(link.id))
     return {
         "link_id": link.id,
@@ -1094,6 +1106,56 @@ def naver_ingest_triage_pane() -> str:
         abort(404)
     return render_template("admin/partials/naver_workbench_pane.html",
                            **_pane_context(db, link))
+
+
+@admin_bp.route("/admin/naver-ingest/triage/detail")
+@login_required
+@role_required(["ADMIN", "MANAGER", "STAFF"])
+def naver_ingest_triage_detail() -> str:
+    """이력 행의 **읽기 전용 상세** 조각 — 큐에서 빠진 집도 그 자리에서 볼 수 있게.
+
+    큐에서 빠진(주문이 생긴) 집은 처리 목록에 없어서, 지금까지 네이버 원본을 보려면
+    ERP 주문 편집 화면을 새 탭으로 열어야 했다. 그런데 거기에는 **원본이 없다** —
+    옵션 원문·수취인·배송메모·클레임 사유·발송 결과는 수집 스냅샷에만 있다.
+
+    **버튼을 하나도 두지 않는다**(이력 표의 절대 규칙 3). 이력에서 되돌릴 수 없는 호출
+    (발주확인·발송처리·취소)이 나갈 수 있으면, 이미 끝난 집을 다시 건드리는 사고가
+    난다. 그래서 pane 을 재사용하지 않고 **읽기 전용 템플릿**을 따로 둔다 —
+    pane 을 그대로 띄우면 버튼이 따라오고, 문서에 pane 의 id 가 두 벌 생겨
+    "5번째 행의 취소가 1번째 집으로 나가는" 절대 규칙 1 위반이 된다.
+
+    데이터는 pane 과 **같은 함수**(:func:`_triage_pane`·:func:`_member_rows`)로 만든다.
+    같은 집을 두 화면이 다르게 말하면 안 된다. 다만 후보 탐색은 끄고 부른다(붙이기가
+    없으므로 그릴 값이 아니다).
+
+    읽기 전용 GET 이다 — mutation 이 아니라 write manifest 등재도 감사 라벨도 없다.
+
+    Query:
+        ``link_id``: 열 링크 id(필수).
+
+    Returns:
+        상세 조각 HTML(레이아웃 없음). 게이트 OFF 는 404(그 화면에는 이 경로가 없다),
+        ``link_id`` 누락은 400, 없는 링크는 404.
+    """
+    from foms.services.feature_flags import is_naver_workbench_enabled
+
+    if not is_naver_workbench_enabled(session.get("user_id")):
+        abort(404)
+    link_id = request.args.get("link_id", type=int)
+    if not link_id:
+        abort(400)
+    db = get_db()
+    link = _link_by_id(db, link_id)
+    if link is None:
+        abort(404)
+    household = _group_of_link(db, link)
+    member_rows = _member_rows(db, household)
+    return render_template(
+        "admin/partials/naver_workbench_detail.html",
+        detail=_triage_pane(db, link, with_candidates=False),
+        member_rows=member_rows,
+        coupon_summary=_coupon_summary(member_rows),
+    )
 
 
 @admin_bp.route("/admin/naver-ingest/triage/fulfillment-state")

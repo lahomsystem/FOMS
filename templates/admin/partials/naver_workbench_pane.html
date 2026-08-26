@@ -1,3 +1,12 @@
+{# 고객이 쓴 취소·반품 사유 원문(2026-08-26). 라벨은 *무엇이* 일어났는지만 말하고
+   *왜* 를 말하지 못하는데, 재결제냐 추가결제냐를 가르는 답이 바로 이 문장에 있다
+   (실데이터: `일시불 재결제 예정` 은 재결제, `사이즈 재측정후 주문할께요` 는 아니다).
+   **없으면 아무것도 내지 않는다** — 빈 칸을 그리면 화면이 "사유가 없다"고 거짓말한다. #}
+{% macro customer_cancel_sentences(cand) %}
+{% for reason in cand.naver_cancel_reasons %}
+<div class="wb-cand__reason">“{{ reason }}”</div>
+{% endfor %}
+{% endmacro %}
 {#
   네이버 수집 워크벤치 v3 — 상세 pane (계약 docs/specs/2026-08-23-naver-workbench-v3_CONTRACT.md §3).
 
@@ -465,9 +474,11 @@
                             {% elif cand.naver_claim_label == '전부 취소' %}
                             <span class="wb-cand__claim wb-cand__claim--dead">전부 취소</span>
                             <div class="wb-relation__reason">{{ cand.naver_canceled_count }}건 전부 · <b>재결제 신호</b></div>
+                            {{ customer_cancel_sentences(cand) }}
                             {% elif cand.naver_claim_label == '일부 취소' %}
                             <span class="wb-cand__claim wb-cand__claim--part">일부 취소</span>
                             <div class="wb-relation__reason">취소 {{ cand.naver_canceled_count }} · 살아있음 {{ cand.naver_alive_count }}</div>
+                            {{ customer_cancel_sentences(cand) }}
                             {% else %}
                             <span class="wb-cand__claim wb-cand__claim--alive">살아 있음</span>
                             <div class="wb-relation__reason">{{ cand.naver_alive_count }}건 · <b>추가결제 신호</b></div>
