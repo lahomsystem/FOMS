@@ -16,15 +16,18 @@ from __future__ import annotations
 
 import datetime
 import hashlib
+import json
 import logging
 from typing import Any, Optional
 
 from flask import (abort, g, jsonify, redirect, render_template, request, session,
                    url_for)
+from sqlalchemy.exc import SQLAlchemyError
 from sqlalchemy.orm import Session
 
 from db import get_db
 from foms.services.datetime_kst import format_datetime_kst, now_utc_naive
+from foms.services.integrations.naver_commerce.constants import SELLER_CENTER_URL
 from foms.services.integrations.naver_commerce.fulfillment import CLOSE_NOW_RELATIONS
 from foms.services.integrations.naver_commerce.order_candidates import find_order_candidates
 from foms.services.integrations.naver_commerce.promotion import (
@@ -32,7 +35,7 @@ from foms.services.integrations.naver_commerce.promotion import (
     summarize_link_household,
     summarize_snapshot,
 )
-from foms.services.jobs.queue import enqueue_naver_order_sync
+from foms.services.jobs.queue import enqueue_naver_order_sync, get_rq_runtime_status
 from foms.web.admin.routes import admin_bp
 from foms.web.auth import log_access, login_required, role_required
 from models import ExternalOrderLink, Order, OrderEvent
@@ -123,6 +126,55 @@ def _watermark_view(db) -> dict[str, Any]:
         "last_error": state.get("last_error"),
         "last_summary": state.get("last_summary") or {},
     }
+
+
+def _watermark_rev(view: dict[str, Any]) -> str:
+    """워터마크 상태의 **지문** — 화면은 이 값이 바뀌는 것만 본다.
+
+    "지금 수집" 은 큐에 넣고 바로 답한다(네이버 HTTP 는 WORKER 단일 출구). 그래서 버튼을
+    누른 직후의 화면은 아직 옛 상태다. 화면이 "언제 끝났는지" 알려면 물어볼 곳이 필요한데,
+    그 자리에서 성공/실패를 **다시 판정하면 판정이 두 벌**이 된다. 여기서는 워커가 쓴
+    워터마크 원문의 지문만 만들고, 무엇을 보여줄지는 화면이 정한다
+    (:func:`_fulfillment_state` 의 ``rev`` 와 같은 규율).
+
+    성공(전진)이든 실패(사유 기록)든 ``last_run_at`` 이 함께 바뀌므로 두 결말 모두 지문이
+    움직인다. ``hash()`` 는 쓰지 않는다 — ``PYTHONHASHSEED`` 로 프로세스마다 값이 달라져
+    web·워커 사이에서 못 쓴다.
+
+    Args:
+        view: :func:`_watermark_view` 결과.
+
+    Returns:
+        16자 16진 지문 문자열.
+    """
+    marks = [
+        str(view.get("last_run_at") or ""),
+        str(view.get("last_success_to") or ""),
+        str(view.get("last_error") or ""),
+        json.dumps(view.get("last_summary") or {}, sort_keys=True, ensure_ascii=False),
+    ]
+    return hashlib.sha1("|".join(marks).encode("utf-8")).hexdigest()[:16]
+
+
+def _run_summary_text(summary: Any) -> str:
+    """마지막 실행 집계를 사람 말 한 줄로 — 화면 문구(``수집 N · 건너뜀 N · 보류 N``).
+
+    문구는 ``templates/admin/naver_workbench.html`` 의 수집 카드와 **같은 말**로 맞춘다.
+    폴링 결과가 카드와 다른 단어를 쓰면 같은 숫자를 두 가지로 읽게 된다.
+
+    Args:
+        summary: ``last_summary``(:meth:`SyncResult.as_dict` 결과) 또는 빈 값.
+
+    Returns:
+        요약 문장. 집계가 없으면 빈 문자열.
+    """
+    if not isinstance(summary, dict) or not summary:
+        return ""
+    return "수집 {collected} · 건너뜀 {skipped} · 보류 {pending}".format(
+        collected=int(summary.get("collected") or 0),
+        skipped=int(summary.get("skipped") or 0),
+        pending=int(summary.get("pending_review") or 0),
+    )
 
 
 def _expiry_view(db) -> dict[str, Any]:
@@ -458,8 +510,16 @@ def _triage_pane(db, link: ExternalOrderLink) -> dict[str, Any]:
         unwrap_detail,
     )
 
+    from foms.services.integrations.naver_commerce.repay_reconcile import (
+        attach_reconcile_plans,
+    )
+
     order = db.get(Order, int(link.order_id)) if link.order_id else None
     naver_order, product_order, shipping = unwrap_detail(link.raw_snapshot or {})
+    # 후보마다 **정리 계획**(R-3)을 미리 실어 둔다 — 관계를 고를 때마다 왕복하지 않는다.
+    candidates = find_order_candidates(db, link)
+    attach_reconcile_plans(db, candidates)
+    household = summarize_link_household(db, link_id=int(link.id))
     return {
         "link_id": link.id,
         "external_id": link.external_id,
@@ -508,7 +568,10 @@ def _triage_pane(db, link: ExternalOrderLink) -> dict[str, Any]:
         # 이 수집분이 붙을 만한 기존 주문 후보 — 재결제·차액 결제 판별용(T16-C/D).
         # **자동으로 붙이지 않는다.** 근거와 함께 늘어놓고 사람이 고른다.
         "relation": link.relation,
-        "candidates": find_order_candidates(db, link),
+        "candidates": candidates,
+        # 정리 카드 1번 칸이 재진술할 **새 집** 숫자(집 단위 — 화면과 서버가 같은 값을 쓴다).
+        "household": household,
+        "seller_center_url": SELLER_CENTER_URL,
         "payment": build_payment_info(link.raw_snapshot or {}),
         "foms": {
             "customer_name": getattr(order, "customer_name", None),
@@ -760,6 +823,33 @@ def naver_ingest_triage():
     )
 
 
+def _ghost_view(db) -> dict[str, Any]:
+    """유령 주문 띠 데이터 (R-2 · 2026-08-25).
+
+    네이버 결제가 **전부 취소**됐는데 살아 있는 ERP 주문이다. 지금까지 이 사실을 말하는
+    화면이 하나도 없어서 스테이징에 3건이 아무에게도 안 보인 채 남아 있었다.
+
+    Args:
+        db: 요청 스코프 DB 세션.
+
+    Returns:
+        ``{"count": n, "rows": [...]}``. 조회가 실패해도 화면을 죽이지 않는다 —
+        띠는 보조 정보고, 이게 목록을 막으면 본업이 멈춘다.
+    """
+    from foms.services.integrations.naver_commerce.ghost_orders import (
+        attach_repay_candidates,
+        find_ghost_orders,
+    )
+
+    try:
+        ghosts = find_ghost_orders(db)
+        attach_repay_candidates(db, ghosts)
+        return ghosts
+    except SQLAlchemyError as exc:  # 보조 정보라 흐름을 막지 않는다(failopen — 로그로 남긴다)
+        logger.warning("[NAVER] 유령 주문 조회 실패(띠 생략): %s", exc, exc_info=True)
+        return {"count": 0, "rows": []}
+
+
 def _selected_offlist(link: Optional[ExternalOrderLink],
                       household: Optional[dict[str, Any]],
                       visible: Optional[list[dict[str, Any]]]) -> bool:
@@ -901,6 +991,9 @@ def _render_workbench(db) -> str:
         ingest_status=ingest_status,
         # 실패는 어느 탭에 있든 보여야 한다 — 탭을 옮겼다고 사고가 사라지지 않는다.
         failures=_failure_rows(db),
+        # 유령 주문(R-2): 네이버 결제가 전부 취소됐는데 살아 있는 ERP 주문.
+        # 처리 탭에서만 낸다 — 이력 탭은 지난 기록을 보는 자리라 할 일을 띄우지 않는다.
+        ghosts=_ghost_view(db) if active_tab == "work" else {"count": 0, "rows": []},
         **_pane_context(db, _selected_link(db, visible), visible=visible),
     )
 
@@ -2366,6 +2459,62 @@ def naver_ingest_fulfillment(link_id: int):
                     "error": None})
 
 
+@admin_bp.route("/admin/naver-ingest/ghost/<int:order_id>/discard", methods=["POST"])
+@login_required
+@role_required(["ADMIN", "MANAGER", "STAFF"])
+def naver_ingest_ghost_discard(order_id: int):
+    """유령 주문을 **취소 처리**한다 — 휴지통으로 (R-2 · 2026-08-25).
+
+    네이버 결제가 전부 취소됐는데 살아 있는 ERP 주문을 접는다. hard delete 가 아니라
+    soft delete 라 휴지통에서 복구된다 — 그래서 불가역 4종 세트 모달을 두지 않고
+    확인창 1회로 끝낸다(사용자 결정 D-3).
+
+    **띠에 뜬 주문만 받는다.** 목록 밖 주문 id 를 받아 지우면 이 라우트가 범용 삭제
+    경로가 되는데, 그건 주문 화면의 일이고 권한 규칙도 다르다. 진행 단계가 접수 이후면
+    거절한다 — 실측 기록이 붙은 주문을 접으면 그 이력이 화면에서 사라진다.
+    """
+    from foms.services.feature_flags import is_naver_workbench_enabled
+    from foms.services.integrations.naver_commerce.ghost_orders import find_ghost_orders
+    from foms.services.orders.soft_delete import soft_delete_order
+
+    # 워크벤치 전용 기능이다 — 게이트를 끄는 것이 롤백 경로이므로 라우트도 함께 닫는다.
+    if not is_naver_workbench_enabled(session.get("user_id")):
+        return jsonify({"success": False, "data": None,
+                        "error": "이 화면에서는 취소 처리를 할 수 없습니다."}), 403
+
+    db = get_db()
+    ghosts = find_ghost_orders(db, limit=1000)
+    target = next((row for row in ghosts["rows"] if row["order_id"] == int(order_id)), None)
+    if target is None:
+        return jsonify({"success": False, "data": None,
+                        "error": "이 주문은 '네이버 결제가 전부 취소된 주문' 목록에 없습니다."}), 400
+    if not target["can_discard"]:
+        return jsonify({"success": False, "data": None,
+                        "error": f"{target['discard_block']} — 재결제로 정리하세요."}), 400
+
+    try:
+        soft_delete_order(db, order_id=int(order_id),
+                          actor_user_id=int(session.get("user_id") or 0),
+                          reason="네이버 결제 전부 취소 — 워크벤치에서 정리")
+        db.commit()
+    except Exception as exc:  # noqa: BLE001 - 실패 사유를 사람에게 그대로 보여준다
+        db.rollback()
+        logger.warning("[NAVER] 유령 주문 취소 처리 실패 order=%s: %s", order_id, exc, exc_info=True)
+        return jsonify({"success": False, "data": None, "error": str(exc)}), 400
+
+    log_access(
+        f"네이버 유령 주문 취소 처리 (order {order_id}, 결제 전부 취소)",
+        action="NAVER_INGEST_GHOST_DISCARD",
+        target_type="order", target_id=int(order_id),
+        detail={"order_id": int(order_id),
+                "naver_order_nos": target["naver_order_nos"],
+                "naver_amount_total": target["naver_amount_total"]},
+    )
+    return jsonify({"success": True,
+                    "data": {"order_id": int(order_id), "discarded": True},
+                    "error": None})
+
+
 @admin_bp.route("/admin/naver-ingest/<int:link_id>/cancel", methods=["POST"])
 @login_required
 @role_required(["ADMIN", "MANAGER", "STAFF"])
@@ -2553,6 +2702,110 @@ def naver_ingest_attach_order(link_id: int):
                              "relation": relation, "attached": attached,
                              "edit_url": url_for("order_edit.edit_order",
                                                  order_id=target_order_id, open="erp-order")},
+                    "error": None})
+
+
+@admin_bp.route("/admin/naver-ingest/<int:link_id>/reconcile", methods=["POST"])
+@login_required
+@role_required(["ADMIN", "MANAGER", "STAFF"])
+def naver_ingest_repay_reconcile(link_id: int):
+    """**재결제 정리** — 붙이기와 ERP 기존 주문 처리를 한 트랜잭션으로 (R-3 · 2026-08-25).
+
+    갈래 둘 중 하나를 실행한다:
+
+    * ``SUCCEED`` 승계 — 새 집을 기존 주문에 붙인다. 주문은 그대로 두고 예약금은
+      **안내만** 한다(D-1 확정 — 시스템이 넣지 않는다).
+    * ``DISCARD`` 취소 처리 — 기존 주문을 휴지통으로 보낸다(soft delete). **붙이지 않는다** —
+      휴지통에 든 주문에 새 집을 묶으면 ``주문 만들기`` 가 막힌다.
+
+    **네이버로 나가는 호출은 0 이다.** 옛 결제 취소는 고객이 하거나 판매자센터에서 한다
+    (스펙 §2.5 개정 — 불가역을 시스템이 대신 눌러 주지 않는다).
+
+    **후보 목록에 있는 주문만 받는다.** 목록 밖 주문 id 를 받아 처리하면 이 라우트가 범용
+    삭제·연결 경로가 되는데, 그건 주문 화면의 일이고 권한 규칙도 다르다.
+    """
+    from foms.services.feature_flags import is_naver_workbench_enabled
+    from foms.services.integrations.naver_commerce.promotion import PromotionError
+    from foms.services.integrations.naver_commerce.repay_reconcile import (
+        ReconcileError,
+        deposit_guidance,
+        run_reconcile,
+    )
+
+    # 워크벤치 전용 기능이다 — 게이트를 끄는 것이 롤백 경로이므로 라우트도 함께 닫는다.
+    if not is_naver_workbench_enabled(session.get("user_id")):
+        return jsonify({"success": False, "data": None,
+                        "error": "이 화면에서는 정리를 할 수 없습니다."}), 403
+
+    payload = request.get_json(silent=True) or {}
+    try:
+        order_id = int(payload.get("order_id") or 0)
+    except (TypeError, ValueError):
+        order_id = 0
+    relation = str(payload.get("relation") or "").strip().upper()
+    fork = str(payload.get("fork") or "").strip().upper()
+    if order_id <= 0:
+        return jsonify({"success": False, "data": None, "error": "정리할 주문을 지정하세요."}), 400
+
+    db = get_db()
+    link = _link_by_id(db, link_id)
+    if link is None:
+        return jsonify({"success": False, "data": None,
+                        "error": f"수집 기록을 찾을 수 없습니다 (link {link_id})."}), 400
+
+    candidate = next((row for row in find_order_candidates(db, link)
+                      if int(row["order_id"]) == order_id), None)
+    if candidate is None:
+        return jsonify({"success": False, "data": None,
+                        "error": "이 집의 기존 주문 후보가 아닙니다. 화면을 새로 고친 뒤 "
+                                 "다시 고르세요."}), 400
+
+    try:
+        # 집 요약은 **변경 전에** 뽑는다 — 붙인 뒤에는 대상 집합·관계값이 이미 바뀌어 있다.
+        history = summarize_link_household(db, link_id=link_id)
+        result = run_reconcile(db, link_id=link_id, order_id=order_id, relation=relation,
+                               fork=fork, actor_user_id=session.get("user_id"))
+        # 붙이기가 실제로 무언가를 바꿨을 때만 주문 변경 이력에 줄을 남긴다
+        # (같은 버튼 두 번 = 이력 한 줄 — 2026-08-25 정책). 감사 축은 아래 log_access.
+        if result["fork"] == "SUCCEED" and result["changed"]:
+            _record_link_history(db, order_id=result["order_id"], link_id=link_id,
+                                 event_type=ATTACH_EVENT_TYPE, relation=relation,
+                                 summary=history)
+        # 여기 한 번의 커밋이 이 흐름의 전부다 — 둘 다 되거나 둘 다 안 된다.
+        db.commit()
+    except (ReconcileError, PromotionError) as exc:
+        db.rollback()
+        return jsonify({"success": False, "data": None, "error": str(exc)}), 400
+    except Exception as exc:  # noqa: BLE001 - 실패 사유를 사람에게 그대로 보여준다
+        db.rollback()
+        logger.warning("[NAVER] 재결제 정리 실패 link=%s order=%s fork=%s: %s",
+                       link_id, order_id, fork, exc, exc_info=True)
+        return jsonify({"success": False, "data": None, "error": str(exc)}), 400
+
+    order = db.get(Order, int(order_id))
+    # 예약금 안내는 **승계일 때만** 뜻이 있다(취소 처리는 주문이 휴지통으로 간다).
+    deposit = (deposit_guidance(order, new_amount=candidate.get("new_amount_total") or 0,
+                                relation=relation)
+               if order is not None and result["fork"] == "SUCCEED" else None)
+
+    log_access(
+        f"네이버 재결제 정리 (link {link_id} → order {order_id}, {relation}/{fork})",
+        action="NAVER_INGEST_REPAY_RECONCILE",
+        target_type="order", target_id=int(order_id),
+        detail={"link_id": link_id, "order_id": int(order_id), "relation": relation,
+                "fork": result["fork"], "attached": result["attached"],
+                "discarded": result["discarded"],
+                "external_order_no": history.get("external_order_no") or "",
+                "amount_total": history.get("amount_total") or 0},
+    )
+    return jsonify({"success": True,
+                    "data": {"link_id": link_id, "order_id": int(order_id),
+                             "relation": relation, "fork": result["fork"],
+                             "attached": result["attached"],
+                             "discarded": result["discarded"],
+                             "deposit": deposit,
+                             "edit_url": url_for("order_edit.edit_order",
+                                                 order_id=int(order_id), open="erp-order")},
                     "error": None})
 
 
@@ -2811,12 +3064,47 @@ def naver_ingest_run_now():
 
     큐가 없으면(REDIS_URL 미설정) 조용히 성공한 척하지 않고 실패를 알린다. 여기서 직접
     HTTP 를 내면 IP 가 달라 차단되므로 폴백은 존재하지 않는다.
+
+    **큐가 살아 있어도 일할 워커가 0대면 넣지 않는다.** 넣으면 job 은 아무도 꺼내지 않는
+    큐에 영원히 앉아 있는데 화면은 "넣었습니다"라고 말한다 — 사용자에게는 눌러도 아무 일이
+    없는 것과 같고, 사유조차 없어 더 나쁘다. 판정은
+    :func:`~foms.services.jobs.queue.get_rq_runtime_status` 하나로 한다
+    (``push_sender.enqueue_push_for_notification`` 과 같은 형태).
+
+    응답 ``data.rev`` 는 지금 워터마크의 지문이다(:func:`_watermark_rev`). 화면은 이 값을
+    기준점으로 잡고 ``GET /admin/naver-ingest/run-state`` 를 폴링해 값이 바뀌면 수집이
+    끝난 것으로 본다.
+
+    Returns:
+        성공: ``{"success": True, "data": {"queued", "rev", "worker_count"}}``.
+        워커 없음·큐 장애: 503 + 사람 말로 된 사유.
     """
+    db = get_db()
+    status = get_rq_runtime_status()
+    worker_count = int(status.get("worker_count", 0) or 0)
+    # 큐에 닿는데도 워커가 0대인 경우만 여기서 막는다. REDIS 미설정·연결 불가는 애초에
+    # enqueue 가 False 를 돌려주므로 아래 기존 계약이 같은 503 으로 처리한다.
+    if status.get("state") == "reachable" and worker_count == 0:
+        log_access(
+            "네이버 주문 수집 수동 실행 실패(워커 없음)",
+            action="NAVER_INGEST_RUN_NOW",
+            detail={"queued": False, "reason": "no_worker", "worker_count": 0},
+        )
+        return jsonify({
+            "success": False,
+            "data": None,
+            "error": "수집을 맡을 워커가 한 대도 살아 있지 않습니다. 지금 넣으면 아무도 "
+                     "꺼내지 않는 큐에 남으므로 넣지 않았습니다. WORKER 서비스 상태를 "
+                     "확인한 뒤 다시 눌러 주세요.",
+        }), 503
+    # 기준 지문은 **큐에 넣기 전에** 읽는다. enqueue 뒤에 읽으면 그 사이 워커가 스윕을
+    # 끝냈을 때 기준점이 이미 새 값이라, 화면은 바뀔 리 없는 값을 90초 동안 지켜본다.
+    base_rev = _watermark_rev(_watermark_view(db))
     queued = enqueue_naver_order_sync(dry_run=False)
     log_access(
         "네이버 주문 수집 수동 실행" + ("" if queued else " 실패(큐 없음)"),
         action="NAVER_INGEST_RUN_NOW",
-        detail={"queued": bool(queued)},
+        detail={"queued": bool(queued), "worker_count": worker_count},
     )
     if not queued:
         return jsonify({
@@ -2824,7 +3112,39 @@ def naver_ingest_run_now():
             "error": "작업 큐에 넣지 못했습니다(REDIS_URL 미설정 또는 큐 장애). "
                      "네이버 호출은 WORKER 에서만 가능하므로 web 직접 실행은 없습니다.",
         }), 503
-    return jsonify({"success": True, "data": {"queued": True}, "error": None})
+    return jsonify({"success": True, "error": None, "data": {
+        "queued": True,
+        "rev": base_rev,
+        "worker_count": worker_count,
+    }})
+
+
+@admin_bp.route("/admin/naver-ingest/run-state")
+@login_required
+@role_required(["ADMIN"])
+def naver_ingest_run_state():
+    """수집 워터마크의 현재 상태만 돌려준다 — "지금 수집" 이 끝났는지 묻는 자리.
+
+    "지금 수집" 은 enqueue 로 끝나고 실제 수집은 WORKER 가 몇 초~몇 분 뒤에 한다. 화면이
+    F5 를 기다리는 대신 이 경로를 짧게 폴링해 ``rev`` 가 바뀌면 그때 다시 그린다.
+
+    **읽기 전용 GET 이다** — mutation 이 아니라 write manifest 등재도 감사 라벨도 없다.
+    다만 실행 이력은 수집 규모를 드러내므로 권한은 "지금 수집" 과 같은 ADMIN 으로 묶는다
+    (:func:`naver_ingest_run_now`). 판정은 하지 않는다 — 성공/실패를 어떻게 보여줄지는
+    화면 몫이고, 여기서는 워커가 쓴 값과 그 지문만 준다.
+
+    Returns:
+        ``{"success": True, "data": {"rev", "last_run_at", "last_summary", "last_error"},
+        "error": None}``. ``last_summary`` 는 화면 문구와 같은 한 줄 문자열이다.
+    """
+    db = get_db()
+    view = _watermark_view(db)
+    return jsonify({"success": True, "error": None, "data": {
+        "rev": _watermark_rev(view),
+        "last_run_at": str(view.get("last_run_at") or ""),
+        "last_summary": _run_summary_text(view.get("last_summary")),
+        "last_error": str(view.get("last_error") or ""),
+    }})
 
 
 __all__ = [
@@ -2835,6 +3155,7 @@ __all__ = [
     "naver_ingest_triage",
     "naver_ingest_triage_pane",
     "naver_ingest_run_now",
+    "naver_ingest_run_state",
     "naver_ingest_snapshot",
     "PAGE_SIZE",
     "VALID_STATUSES",

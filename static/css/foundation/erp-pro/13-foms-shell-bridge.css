@@ -10,6 +10,15 @@
   background-color: #fff !important;
 }
 
+/* 채널 표식(2026-08-25) — nav 항목 옆 작은 마크. 글자와 밑선을 맞춘다.
+   '네이버 수집'은 유일하게 **바깥 채널**에서 들어오는 일감이라 사내 화면들 사이에서
+   눈으로 갈라져야 한다. 외부 이미지가 아니라 인라인 SVG 라 요청도 캐시 핀도 없다. */
+.foms-nav-mark {
+  vertical-align: -2px;
+  margin-right: 5px;
+  flex: 0 0 auto;
+}
+
 .global-notification-panel {
   position: absolute;
   top: 140%;

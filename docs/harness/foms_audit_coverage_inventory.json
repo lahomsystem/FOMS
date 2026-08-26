@@ -8,11 +8,11 @@
     "log_access"
   ],
   "baselines": {
-    "total": 194,
+    "total": 196,
     "unaudited": 0
   },
   "classification_counts": {
-    "AUDITED": 164,
+    "AUDITED": 166,
     "EXEMPT": 30,
     "UNAUDITED": 0
   },
@@ -194,7 +194,7 @@
     {
       "path": "foms/api/cs/as_orders.py",
       "endpoint": "api_as_billing",
-      "lineno": 880,
+      "lineno": 943,
       "methods": [
         "POST"
       ],
@@ -203,7 +203,7 @@
     {
       "path": "foms/api/cs/as_orders.py",
       "endpoint": "api_as_classification",
-      "lineno": 801,
+      "lineno": 858,
       "methods": [
         "POST"
       ],
@@ -212,7 +212,7 @@
     {
       "path": "foms/api/cs/as_orders.py",
       "endpoint": "api_as_complete",
-      "lineno": 746,
+      "lineno": 803,
       "methods": [
         "POST"
       ],
@@ -221,7 +221,7 @@
     {
       "path": "foms/api/cs/as_orders.py",
       "endpoint": "api_as_log_append",
-      "lineno": 977,
+      "lineno": 1040,
       "methods": [
         "POST"
       ],
@@ -230,7 +230,7 @@
     {
       "path": "foms/api/cs/as_orders.py",
       "endpoint": "api_as_log_delete",
-      "lineno": 1142,
+      "lineno": 1205,
       "methods": [
         "POST"
       ],
@@ -239,7 +239,7 @@
     {
       "path": "foms/api/cs/as_orders.py",
       "endpoint": "api_as_log_patch",
-      "lineno": 1087,
+      "lineno": 1150,
       "methods": [
         "PATCH"
       ],
@@ -248,7 +248,7 @@
     {
       "path": "foms/api/cs/as_orders.py",
       "endpoint": "api_as_register",
-      "lineno": 462,
+      "lineno": 492,
       "methods": [
         "POST"
       ],
@@ -257,7 +257,7 @@
     {
       "path": "foms/api/cs/as_orders.py",
       "endpoint": "api_as_reopen",
-      "lineno": 773,
+      "lineno": 830,
       "methods": [
         "POST"
       ],
@@ -266,7 +266,7 @@
     {
       "path": "foms/api/cs/as_orders.py",
       "endpoint": "api_as_schedule",
-      "lineno": 637,
+      "lineno": 694,
       "methods": [
         "POST"
       ],
@@ -275,7 +275,7 @@
     {
       "path": "foms/api/cs/as_orders.py",
       "endpoint": "api_as_schedule_link",
-      "lineno": 1364,
+      "lineno": 1427,
       "methods": [
         "POST"
       ],
@@ -284,7 +284,7 @@
     {
       "path": "foms/api/cs/as_orders.py",
       "endpoint": "api_as_start",
-      "lineno": 719,
+      "lineno": 776,
       "methods": [
         "POST"
       ],
@@ -293,7 +293,7 @@
     {
       "path": "foms/api/cs/as_orders.py",
       "endpoint": "api_as_unschedule",
-      "lineno": 691,
+      "lineno": 748,
       "methods": [
         "POST"
       ],
@@ -302,7 +302,7 @@
     {
       "path": "foms/api/cs/as_orders.py",
       "endpoint": "api_as_upload_anchor",
-      "lineno": 940,
+      "lineno": 1003,
       "methods": [
         "POST"
       ],
@@ -311,7 +311,7 @@
     {
       "path": "foms/api/cs/as_orders.py",
       "endpoint": "api_as_verdict",
-      "lineno": 1022,
+      "lineno": 1085,
       "methods": [
         "POST"
       ],
@@ -635,7 +635,7 @@
     {
       "path": "foms/api/erp_orders_structured.py",
       "endpoint": "api_erp_create_draft",
-      "lineno": 1590,
+      "lineno": 1594,
       "methods": [
         "POST"
       ],
@@ -644,7 +644,7 @@
     {
       "path": "foms/api/erp_orders_structured.py",
       "endpoint": "api_erp_discard_draft",
-      "lineno": 2050,
+      "lineno": 2054,
       "methods": [
         "POST"
       ],
@@ -653,7 +653,7 @@
     {
       "path": "foms/api/erp_orders_structured.py",
       "endpoint": "api_erp_draft_autosave",
-      "lineno": 1923,
+      "lineno": 1927,
       "methods": [
         "POST"
       ],
@@ -662,7 +662,7 @@
     {
       "path": "foms/api/erp_orders_structured.py",
       "endpoint": "api_parse_order_text",
-      "lineno": 1485,
+      "lineno": 1489,
       "methods": [
         "POST"
       ],
@@ -671,7 +671,7 @@
     {
       "path": "foms/api/erp_orders_structured.py",
       "endpoint": "api_patch_order_structured_fields",
-      "lineno": 956,
+      "lineno": 960,
       "methods": [
         "PATCH"
       ],
@@ -680,7 +680,7 @@
     {
       "path": "foms/api/erp_orders_structured.py",
       "endpoint": "api_payment_confirm",
-      "lineno": 1507,
+      "lineno": 1511,
       "methods": [
         "POST"
       ],
@@ -689,7 +689,7 @@
     {
       "path": "foms/api/erp_orders_structured.py",
       "endpoint": "api_put_order_structured",
-      "lineno": 1095,
+      "lineno": 1099,
       "methods": [
         "PUT"
       ],
@@ -698,7 +698,7 @@
     {
       "path": "foms/api/events.py",
       "endpoint": "api_compensate_change_event",
-      "lineno": 644,
+      "lineno": 667,
       "methods": [
         "POST"
       ],
@@ -707,7 +707,7 @@
     {
       "path": "foms/api/events.py",
       "endpoint": "api_restore_field_change",
-      "lineno": 741,
+      "lineno": 764,
       "methods": [
         "POST"
       ],
@@ -716,7 +716,7 @@
     {
       "path": "foms/api/events.py",
       "endpoint": "api_set_order_change_reason",
-      "lineno": 316,
+      "lineno": 339,
       "methods": [
         "POST"
       ],
@@ -851,7 +851,7 @@
     {
       "path": "foms/api/kakao/__init__.py",
       "endpoint": "api_alimtalk_confirm_channel",
-      "lineno": 145,
+      "lineno": 149,
       "methods": [
         "POST"
       ],
@@ -1491,7 +1491,7 @@
     {
       "path": "foms/web/admin/naver_ingest.py",
       "endpoint": "naver_ingest_attach_order",
-      "lineno": 2416,
+      "lineno": 2645,
       "methods": [
         "POST"
       ],
@@ -1500,7 +1500,7 @@
     {
       "path": "foms/web/admin/naver_ingest.py",
       "endpoint": "naver_ingest_cancel",
-      "lineno": 2336,
+      "lineno": 2521,
       "methods": [
         "POST"
       ],
@@ -1509,7 +1509,7 @@
     {
       "path": "foms/web/admin/naver_ingest.py",
       "endpoint": "naver_ingest_create_order",
-      "lineno": 2239,
+      "lineno": 2368,
       "methods": [
         "POST"
       ],
@@ -1518,7 +1518,7 @@
     {
       "path": "foms/web/admin/naver_ingest.py",
       "endpoint": "naver_ingest_detach_order",
-      "lineno": 2472,
+      "lineno": 2815,
       "methods": [
         "POST"
       ],
@@ -1527,7 +1527,7 @@
     {
       "path": "foms/web/admin/naver_ingest.py",
       "endpoint": "naver_ingest_dock_state",
-      "lineno": 2539,
+      "lineno": 2890,
       "methods": [
         "POST"
       ],
@@ -1536,7 +1536,7 @@
     {
       "path": "foms/web/admin/naver_ingest.py",
       "endpoint": "naver_ingest_fulfillment",
-      "lineno": 2293,
+      "lineno": 2422,
       "methods": [
         "POST"
       ],
@@ -1545,7 +1545,16 @@
     {
       "path": "foms/web/admin/naver_ingest.py",
       "endpoint": "naver_ingest_fulfillment_clear",
-      "lineno": 2387,
+      "lineno": 2572,
+      "methods": [
+        "POST"
+      ],
+      "classification": "AUDITED"
+    },
+    {
+      "path": "foms/web/admin/naver_ingest.py",
+      "endpoint": "naver_ingest_ghost_discard",
+      "lineno": 2465,
       "methods": [
         "POST"
       ],
@@ -1554,7 +1563,7 @@
     {
       "path": "foms/web/admin/naver_ingest.py",
       "endpoint": "naver_ingest_mark_reviewed",
-      "lineno": 2510,
+      "lineno": 2861,
       "methods": [
         "POST"
       ],
@@ -1562,7 +1571,7 @@
     },
     {
       "path": "foms/web/admin/naver_ingest.py",
-      "endpoint": "naver_ingest_run_now",
+      "endpoint": "naver_ingest_repay_reconcile",
       "lineno": 2711,
       "methods": [
         "POST"
@@ -1571,8 +1580,17 @@
     },
     {
       "path": "foms/web/admin/naver_ingest.py",
+      "endpoint": "naver_ingest_run_now",
+      "lineno": 3062,
+      "methods": [
+        "POST"
+      ],
+      "classification": "AUDITED"
+    },
+    {
+      "path": "foms/web/admin/naver_ingest.py",
       "endpoint": "naver_ingest_set_assignee",
-      "lineno": 2620,
+      "lineno": 2971,
       "methods": [
         "POST"
       ],
@@ -1725,7 +1743,7 @@
     {
       "path": "foms/web/orders/edit.py",
       "endpoint": "edit_order",
-      "lineno": 55,
+      "lineno": 56,
       "methods": [
         "POST"
       ],

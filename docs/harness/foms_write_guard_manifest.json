@@ -788,6 +788,14 @@
     "wdcalculator.api_wdcalculator_unmatch_order": {
       "mode": "guard",
       "rule": "/api/wdcalculator/unmatch-order"
+    },
+    "admin.naver_ingest_ghost_discard": {
+      "mode": "guard",
+      "rule": "/admin/naver-ingest/ghost/<int:order_id>/discard"
+    },
+    "admin.naver_ingest_repay_reconcile": {
+      "mode": "guard",
+      "rule": "/admin/naver-ingest/<int:link_id>/reconcile"
     }
   }
 }

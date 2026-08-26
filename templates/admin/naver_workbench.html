@@ -19,7 +19,7 @@
 {% block title %}네이버 수집{% endblock %}
 
 {% block styles %}
-<link rel="stylesheet" href="{{ url_for('static', filename='css/admin/naver-workbench.css') }}?v=20260825b">
+<link rel="stylesheet" href="{{ url_for('static', filename='css/admin/naver-workbench.css') }}?v=20260826a">
 {% endblock %}
 
 {% block content %}
@@ -84,6 +84,66 @@
       탭을 옮겼다고 사고가 사라지지 않는다.
       data-foms-no-autodismiss 필수: 전역 5초 자동닫힘이 실패 문구를 지운다.
     #}
+    {# 유령 주문 띠(R-2 · 2026-08-25) — 네이버 결제가 전부 취소됐는데 살아 있는 ERP 주문.
+       실패 띠 **위**에 두지 않는다: 실패는 방금 내가 누른 것의 결과라 더 급하다.
+       이 띠는 쌓여 있던 사실이라 그 아래에서 조용히 기다리면 된다. #}
+    {% if ghosts and ghosts.count %}
+    <details class="wb-ghost" data-foms-no-autodismiss>
+        <summary class="wb-ghost__head">
+            <span class="wb-ghost__badge">{{ ghosts.count }}건</span>
+            <b>네이버 결제가 전부 취소된 주문</b>
+            <span class="wb-ghost__sub">결제는 취소됐는데 ERP 주문이 살아 있습니다 — 재결제로 정리하거나 접으세요.</span>
+        </summary>
+        <table class="wb-ghost__list">
+            <thead>
+                <tr><th>주문</th><th>네이버 집</th><th>진행</th><th>재결제 짝</th><th class="text-end">할 일</th></tr>
+            </thead>
+            <tbody>
+                {% for row in ghosts.rows %}
+                <tr data-ghost-order-id="{{ row.order_id }}">
+                    <td>
+                        <a href="{{ url_for('order_edit.edit_order', order_id=row.order_id, open='erp-order') }}"
+                           target="_blank" rel="noopener">#{{ row.order_id }}</a>
+                        {{ row.customer_name }}
+                        <div class="wb-ghost__dim">{{ '{:,}'.format(row.naver_amount_total) }}원</div>
+                    </td>
+                    <td>
+                        <span class="wb-ghost__claim">{{ row.claim_kind }} 완료</span>
+                        <div class="wb-ghost__dim">{{ row.naver_link_count }}건 전부</div>
+                    </td>
+                    <td>
+                        {{ row.status }}
+                        {% if not row.can_discard %}
+                        <div class="wb-ghost__dim">{{ row.discard_block }}</div>
+                        {% endif %}
+                    </td>
+                    <td>
+                        {% if row.repay_candidates %}
+                        {% for cand in row.repay_candidates[:2] %}
+                        <div><a href="{{ url_for('admin.naver_ingest_triage', tab='work', link_id=cand.link_id) }}">{{ cand.external_order_no }}</a></div>
+                        {% endfor %}
+                        <div class="wb-ghost__dim">큐에 대기 — 열어서 붙이세요</div>
+                        {% else %}
+                        <span class="wb-ghost__dim">없음</span>
+                        {% endif %}
+                    </td>
+                    <td class="text-end">
+                        {% if row.can_discard %}
+                        <button type="button" class="btn btn-sm btn-outline-danger" id="wb-ghost-discard"
+                                data-order-id="{{ row.order_id }}"
+                                data-customer="{{ row.customer_name }}">주문 취소 처리</button>
+                        <div class="wb-ghost__dim">휴지통으로 — 복구 가능</div>
+                        {% else %}
+                        <span class="wb-ghost__dim">취소 처리 잠김</span>
+                        {% endif %}
+                    </td>
+                </tr>
+                {% endfor %}
+            </tbody>
+        </table>
+    </details>
+    {% endif %}
+
     {% if failures %}
     <section class="wb-result alert alert-danger" id="wb-result" data-foms-no-autodismiss>
         <div class="wb-result__head">
@@ -593,5 +653,5 @@
 {% endblock %}
 
 {% block scripts %}
-<script src="{{ url_for('static', filename='js/admin/naver-workbench.js') }}?v=20260825b" defer></script>
+<script src="{{ url_for('static', filename='js/admin/naver-workbench.js') }}?v=20260826a" defer></script>
 {% endblock %}

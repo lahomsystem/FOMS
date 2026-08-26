@@ -377,7 +377,11 @@
             </p>
             <table class="wb-cmp wb-cmp--cand">
                 <thead>
-                    <tr><th>주문</th><th>고객 · 주소</th><th>접수일</th><th class="text-end">붙이기</th></tr>
+                    {# R-1(2026-08-25): 판정 근거 2열. 담당자는 이 둘을 확인하려고 네이버를
+                       따로 열고 있었다 — 취소됐으면 재결제, 살아 있으면 추가결제다. #}
+                    <tr><th>주문</th><th>고객 · 주소</th><th>접수일</th>
+                        <th>네이버 옛 결제</th><th class="wb-cmp__num">금액 견주기</th>
+                        <th class="text-end">붙이기</th></tr>
                 </thead>
                 <tbody>
                     {% for cand in selected.candidates %}
@@ -397,24 +401,192 @@
                             <div class="wb-relation__reason">네이버 수집 {{ cand.naver_link_count }}건</div>
                             {% endif %}
                         </td>
+                        {# ② 옛 결제가 취소됐는가 — 재결제/추가결제를 가르는 결정 신호. #}
+                        <td>
+                            {% if not cand.naver_link_count %}
+                            <span class="wb-relation__reason">네이버 수집분 없음</span>
+                            {% elif cand.naver_claim_label == '전부 취소' %}
+                            <span class="wb-cand__claim wb-cand__claim--dead">전부 취소</span>
+                            <div class="wb-relation__reason">{{ cand.naver_canceled_count }}건 전부 · <b>재결제 신호</b></div>
+                            {% elif cand.naver_claim_label == '일부 취소' %}
+                            <span class="wb-cand__claim wb-cand__claim--part">일부 취소</span>
+                            <div class="wb-relation__reason">취소 {{ cand.naver_canceled_count }} · 살아있음 {{ cand.naver_alive_count }}</div>
+                            {% else %}
+                            <span class="wb-cand__claim wb-cand__claim--alive">살아 있음</span>
+                            <div class="wb-relation__reason">{{ cand.naver_alive_count }}건 · <b>추가결제 신호</b></div>
+                            {% endif %}
+                        </td>
+                        {# ③ 금액 관계 — 집 전체끼리 견준다(대표 1건끼리 견주면 항상 작게 나온다). #}
+                        <td class="wb-cmp__num">
+                            {% if cand.naver_amount_total %}
+                            <div>새 {{ '{:,}'.format(cand.new_amount_total) }}</div>
+                            <div class="wb-relation__reason">옛 {{ '{:,}'.format(cand.naver_amount_total) }}</div>
+                            <div class="wb-cand__delta">
+                                {{ '+' if cand.amount_delta > 0 else '' }}{{ '{:,}'.format(cand.amount_delta) }}
+                            </div>
+                            {% else %}
+                            <span class="wb-relation__reason">–</span>
+                            {% endif %}
+                        </td>
                         <td class="text-end">
-                            {# 붙이기 버튼은 후보 수만큼 나온다 — id 를 달면 문서에 중복이 생긴다
+                            {# 버튼은 후보 수만큼 나온다 — id 를 달면 문서에 중복이 생긴다
                                (절대 규칙 1). JS 는 .wb-attach 로 문다(계약 §3.2 의 #wb-attach 자리).
+                               R-3(2026-08-25)부터 이 버튼은 **바로 붙이지 않는다** — 아래
+                               정리 계획 카드를 연다. 붙이기와 ERP 처리를 한 번에 커밋해야
+                               반쪽 상태(실데이터에 4건 남아 있던 그 모양)가 안 생긴다.
                                취소·반품 집의 추가결제는 서버가 막는다(재결제는 허용) —
                                화면은 사유를 그대로 받아 보여준다. #}
                             <button type="button" class="btn btn-sm btn-outline-primary wb-attach"
                                     data-link-id="{{ selected.link_id }}"
                                     data-order-id="{{ cand.order_id }}"
-                                    data-relation="ADDON">추가결제로 붙이기</button>
+                                    data-relation="ADDON">추가결제로 정리</button>
                             <button type="button" class="btn btn-sm btn-outline-secondary wb-attach"
                                     data-link-id="{{ selected.link_id }}"
                                     data-order-id="{{ cand.order_id }}"
-                                    data-relation="REPAY">재결제로 붙이기</button>
+                                    data-relation="REPAY">재결제로 정리</button>
                         </td>
                     </tr>
                     {% endfor %}
                 </tbody>
             </table>
+
+            {#
+              R-3(2026-08-25) 정리 계획 카드. 후보 1건마다 하나씩 접힌 채로 렌더한다 —
+              관계를 고를 때마다 서버로 왕복하면 상세 pane 조각 교체 규율과 어긋나고
+              예약금 안내가 한 박자 늦게 뜬다(계획은 서버가 미리 다 실어 둔다).
+
+              **두 동작이 한 번에 커밋된다**: 붙이기(1)와 ERP 처리(2)가 같은 트랜잭션이라
+              둘 다 되거나 둘 다 안 된다. 네이버로 나가는 호출은 0 — 옛 결제는 상태만 본다.
+              둘 다 되돌릴 수 있어(되돌리기·휴지통 복구) 불가역 4종 세트 모달을 두지 않는다.
+            #}
+            {% for cand in selected.candidates %}
+            {% if cand.reconcile %}
+            <div class="wb-plan" hidden data-plan-for="{{ cand.order_id }}"
+                 data-link-id="{{ selected.link_id }}" data-foms-no-autodismiss>
+                <div class="wb-plan__head">
+                    <b class="wb-plan__title">정리 계획</b>
+                    <span class="wb-plan__who">주문 #{{ cand.order_id }} · {{ cand.customer_name }}</span>
+                    <span class="wb-plan__rel" data-plan-rel="REPAY">재결제</span>
+                    <span class="wb-plan__rel" data-plan-rel="ADDON">추가결제</span>
+                    <button type="button" class="btn-close ms-auto wb-plan-close"
+                            aria-label="닫기"></button>
+                </div>
+
+                {# ── 1. 붙이기 ───────────────────────────────────────────── #}
+                <div class="wb-plan__row">
+                    <div class="wb-plan__n">1</div>
+                    <div class="wb-plan__body">
+                        <div class="wb-plan__h">
+                            새 집을 주문 #{{ cand.order_id }} 에 붙인다
+                            <span class="wb-plan__tag">되돌릴 수 있음</span>
+                        </div>
+                        <div class="wb-plan__d">
+                            집 {{ selected.household.external_order_no }} ·
+                            상품주문 {{ selected.household.product_order_count }}건 ·
+                            {{ '{:,}'.format(selected.household.amount_total) }}원 —
+                            새 주문을 만들지 않는다.
+                        </div>
+                        {# 취소 처리 갈래는 붙이지 않는다 — 휴지통에 든 주문에 새 집을 묶으면
+                           '주문 만들기' 가 막혀 사람이 되돌리기를 한 번 더 눌러야 한다. #}
+                        <div class="wb-plan__d wb-plan__d--warn" data-plan-when="DISCARD">
+                            취소 처리를 고르면 <b>붙이지 않는다</b> — 새 집은 큐에 그대로 남는다.
+                            정리 뒤 <b>주문 만들기</b>를 누르면 된다.
+                        </div>
+                    </div>
+                </div>
+
+                {# ── 2. ERP 기존 주문 (갈래) ───────────────────────────────── #}
+                <div class="wb-plan__row">
+                    <div class="wb-plan__n">2</div>
+                    <div class="wb-plan__body">
+                        <div class="wb-plan__h">
+                            ERP 기존 주문을 어떻게 할까
+                            <span class="wb-plan__tag wb-plan__tag--ask">선택 필요</span>
+                        </div>
+                        <label class="wb-fork">
+                            <input type="radio" class="wb-fork__pick"
+                                   name="wb-fork-{{ cand.order_id }}" value="SUCCEED" checked>
+                            <span class="wb-fork__body">
+                                <b>승계 — 주문을 살려 둔다</b>
+                                <span class="wb-fork__d">주문 #{{ cand.order_id }} 를 유지한다.
+                                    실측·도면·첨부·이력이 그대로 남는다.</span>
+                                {# D-1 확정: 자동 반영하지 않는다. 숫자만 말하고 입력은 사람이. #}
+                                {% for rel in ('REPAY', 'ADDON') %}
+                                <span class="wb-fork__money" data-plan-rel="{{ rel }}">
+                                    <b>예약금(선금)에 넣을 금액</b>
+                                    <span class="wb-fork__won">{{ '{:,}'.format(cand.reconcile[rel].deposit.target) }}원</span>
+                                    <span class="wb-fork__note">{{ cand.reconcile[rel].deposit.sentence }}</span>
+                                </span>
+                                {% endfor %}
+                                <span class="wb-fork__d"><b>시스템이 넣지 않는다</b> —
+                                    사람이 주문 화면에서 입력한다. 출고가·품목도 안 건드린다.
+                                    예약금을 고치면 잔금은 <code>출고가 − 예약금</code> 으로 따라온다.</span>
+                            </span>
+                        </label>
+                        <label class="wb-fork {% if not cand.reconcile.REPAY.can_discard %}wb-fork--off{% endif %}">
+                            <input type="radio" class="wb-fork__pick"
+                                   name="wb-fork-{{ cand.order_id }}" value="DISCARD"
+                                   {% if not cand.reconcile.REPAY.can_discard %}disabled{% endif %}>
+                            <span class="wb-fork__body">
+                                <b>취소 처리 — ERP 주문을 접는다</b>
+                                <span class="wb-fork__d">주문 #{{ cand.order_id }} 를
+                                    <b>휴지통으로</b> 보낸다(soft delete). 복구할 수 있다.</span>
+                                {% if not cand.reconcile.REPAY.can_discard %}
+                                <span class="wb-fork__d wb-plan__d--warn">
+                                    {{ cand.reconcile.REPAY.discard_block }} — 승계로 정리하세요.
+                                </span>
+                                {% endif %}
+                            </span>
+                        </label>
+                    </div>
+                </div>
+
+                {# ── i. 네이버 옛 결제 — 상태만 본다(호출 0) ────────────────── #}
+                <div class="wb-plan__row wb-plan__row--info">
+                    <div class="wb-plan__n wb-plan__n--info">i</div>
+                    <div class="wb-plan__body">
+                        <div class="wb-plan__h">
+                            네이버 옛 결제 — <b>우리가 손대지 않는다</b>
+                            <span class="wb-plan__tag">호출 0</span>
+                        </div>
+                        {% if cand.naver_alive_rows %}
+                        <div class="wb-plan__d wb-plan__d--warn">
+                            <b>살아 있는 옛 결제</b>가 있습니다:
+                            {% for row in cand.naver_alive_rows %}
+                            {{ row.external_order_no }}({{ row.product_order_count }}건 ·
+                            {{ '{:,}'.format(row.amount_total) }}원){% if not loop.last %}, {% endif %}
+                            {% endfor %}<br>
+                            이 건은 <b>네이버에서 처리</b>합니다 — 고객이 취소하거나 판매자센터에서
+                            처리합니다. ERP 정리는 그와 무관하게 지금 끝낼 수 있습니다.
+                        </div>
+                        <a class="btn btn-sm btn-outline-secondary" target="_blank" rel="noopener"
+                           href="{{ selected.seller_center_url }}">네이버 판매자센터 열기 ↗</a>
+                        {% elif cand.naver_claim_label %}
+                        <div class="wb-plan__d">
+                            옛 집 <b>{{ cand.naver_claim_label }}</b> — 고객이 이미 처리했습니다.
+                            <b>할 일 없음.</b>
+                        </div>
+                        {% else %}
+                        <div class="wb-plan__d">이 주문에 붙은 네이버 수집분이 없습니다.</div>
+                        {% endif %}
+                    </div>
+                </div>
+
+                <div class="wb-plan__acts">
+                    <button type="button" class="btn btn-primary btn-sm wb-plan-run"
+                            data-link-id="{{ selected.link_id }}"
+                            data-order-id="{{ cand.order_id }}">정리 실행</button>
+                    <button type="button" class="btn btn-outline-secondary btn-sm wb-plan-close">그만두기</button>
+                    <span class="wb-plan__why">네이버로 나가는 요청은 없습니다.
+                        두 동작은 <b>한 번에</b> 저장됩니다 — 하나만 되는 일은 없습니다.</span>
+                </div>
+
+                {# 실행 결과. 한 트랜잭션이라 '진행 중' 이 없다 — 되거나, 안 되고 아무것도
+                   안 바뀌거나 둘 중 하나다. 예약금 안내는 여기서 사람이 읽고 옮겨 적는다. #}
+                <div class="wb-plan__done" hidden></div>
+            </div>
+            {% endif %}
+            {% endfor %}
         </div>
         {% endif %}
     </div>

@@ -114,6 +114,8 @@ ACTION_LABELS: dict[str, str] = {
     "NAVER_INGEST_SET_ASSIGNEE": "네이버 수집 담당자 지정",
     "NAVER_INGEST_CREATE_ORDER": "네이버 수집분 주문 생성",
     "NAVER_INGEST_ATTACH_ORDER": "네이버 수집분 기존 주문 연결",
+    "NAVER_INGEST_GHOST_DISCARD": "네이버 유령 주문 취소 처리",
+    "NAVER_INGEST_REPAY_RECONCILE": "네이버 재결제 정리",
     "NAVER_INGEST_DETACH_ORDER": "네이버 수집분 연결 되돌림",
     "NAVER_INGEST_FULFILLMENT_ENQUEUE": "네이버 발주확인·발송처리 요청",
     "NAVER_INGEST_CANCEL_ENQUEUE": "네이버 판매자 직접취소 요청",

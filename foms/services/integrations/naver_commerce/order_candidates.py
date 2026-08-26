@@ -38,7 +38,8 @@ from models import ExternalOrderLink, Order
 
 logger = logging.getLogger(__name__)
 
-__all__ = ["find_order_candidates", "CANDIDATE_WINDOW_DAYS", "CANDIDATE_LIMIT"]
+__all__ = ["find_order_candidates", "household_amount",
+           "CANDIDATE_WINDOW_DAYS", "CANDIDATE_LIMIT"]
 
 #: 후보를 찾는 기간(일). 가구는 실측·제작·시공까지 몇 달이 걸려 차액 결제가 늦게 온다.
 CANDIDATE_WINDOW_DAYS = 180
@@ -89,9 +90,125 @@ def _snapshot_keys(raw_snapshot: Any) -> dict[str, str]:
     }
 
 
+def household_amount(session, link: ExternalOrderLink) -> int:
+    """이 집(같은 ``group_key``)의 상품주문 금액 합 — 후보와 견줄 **새 금액**.
+
+    네이버는 본품과 옵션을 각각 다른 상품주문으로 주므로 링크 한 건의 금액으로 견주면
+    항상 작게 나온다(실데이터: 재결제 집 6건 중 대표 1건만 보면 1,022,900 vs 실제 1,610,780).
+
+    Args:
+        session: DB 세션.
+        link: 기준 수집 링크.
+
+    Returns:
+        집 전체 금액 합(원). 원본이 없으면 0.
+    """
+    key = link.group_key or link.external_order_no
+    if not key:
+        return 0
+    column = ExternalOrderLink.group_key if link.group_key else ExternalOrderLink.external_order_no
+    rows = (session.query(ExternalOrderLink.raw_snapshot)
+            .filter(ExternalOrderLink.channel == link.channel, column == key)
+            .all())
+    total = 0
+    for (snapshot,) in rows:
+        if not isinstance(snapshot, dict):
+            continue
+        product_order = snapshot.get("productOrder")
+        if not isinstance(product_order, dict):
+            continue
+        amount = product_order.get("totalPaymentAmount")
+        if isinstance(amount, int):
+            total += amount
+    return total
+
+
+def _add_alive_row(rows: list[dict[str, Any]], external_order_no: Any, amount: int) -> None:
+    """살아 있는 옛 집 하나를 주문번호로 묶어 넣는다(같은 집이면 금액만 더한다).
+
+    Args:
+        rows: 누적 목록(제자리 수정).
+        external_order_no: 네이버 주문번호.
+        amount: 이 상품주문 결제 금액.
+
+    Returns:
+        None.
+    """
+    order_no = str(external_order_no or "").strip()
+    if not order_no:
+        return
+    for row in rows:
+        if row["external_order_no"] == order_no:
+            row["amount_total"] += int(amount or 0)
+            row["product_order_count"] += 1
+            return
+    rows.append({"external_order_no": order_no, "amount_total": int(amount or 0),
+                 "product_order_count": 1})
+
+
+def _naver_facts(session, order_ids: list[int]) -> dict[int, dict[str, Any]]:
+    """후보 주문마다 **붙어 있는 네이버 집의 사실**을 모은다 (2026-08-25 R-1).
+
+    지금까지 화면은 링크 **개수**만 냈다. 그런데 재결제·추가결제를 가르는 결정적 신호는
+    개수가 아니라 **그 결제가 취소됐는가**다(취소됐으면 재결제, 살아 있으면 추가결제).
+    담당자는 그걸 확인하려고 네이버를 따로 열고 있었다.
+
+    Args:
+        session: DB 세션.
+        order_ids: 후보 주문 id 목록.
+
+    Returns:
+        ``{order_id: {link_count, canceled, alive, amount_total, claim_label, alive_rows}}``.
+        ``claim_label`` 은 화면 문구다: 전부 취소 / 일부 취소 / 살아 있음 / 빈 문자열(네이버 아님).
+        ``alive_rows`` 는 **살아 있는 옛 집**을 주문번호로 묶은 목록이다(R-3 안내용) —
+        우리가 취소를 걸지 않으므로 "네이버에서 처리하세요" 를 말할 대상이 필요하다.
+    """
+    facts: dict[int, dict[str, Any]] = {}
+    if not order_ids:
+        return facts
+    rows = (session.query(ExternalOrderLink.order_id, ExternalOrderLink.raw_snapshot,
+                          ExternalOrderLink.external_order_no)
+            .filter(ExternalOrderLink.order_id.in_(order_ids))  # perf-ok: 후보 5건 batch
+            .all())
+    for order_id, snapshot, external_order_no in rows:
+        bucket = facts.setdefault(int(order_id), {
+            "link_count": 0, "canceled": 0, "alive": 0, "amount_total": 0, "claim_label": "",
+            "alive_rows": [],
+        })
+        bucket["link_count"] += 1
+        product_order = snapshot.get("productOrder") if isinstance(snapshot, dict) else None
+        if not isinstance(product_order, dict):
+            continue
+        amount = product_order.get("totalPaymentAmount")
+        if isinstance(amount, int):
+            bucket["amount_total"] += amount
+        # 클레임 상태가 있으면 그 상품주문은 취소·반품된 것이다(정상 주문은 비어 있다).
+        if str(product_order.get("claimStatus") or "").strip():
+            bucket["canceled"] += 1
+        else:
+            bucket["alive"] += 1
+            # 상품주문 단위가 아니라 **집** 단위로 말한다 — 본품·옵션이 따로 들어와
+            # 건별로 늘어놓으면 담당자가 같은 집을 여러 건으로 읽는다.
+            _add_alive_row(bucket["alive_rows"], external_order_no,
+                           amount if isinstance(amount, int) else 0)
+    for bucket in facts.values():
+        if not bucket["link_count"]:
+            continue
+        if bucket["canceled"] and not bucket["alive"]:
+            bucket["claim_label"] = "전부 취소"
+        elif bucket["canceled"]:
+            bucket["claim_label"] = "일부 취소"
+        else:
+            bucket["claim_label"] = "살아 있음"
+    return facts
+
+
 def _order_view(order: Order, *, score: int, reason: str,
-                link_count: int) -> dict[str, Any]:
+                link_count: int, facts: Optional[dict[str, Any]] = None,
+                new_amount: int = 0) -> dict[str, Any]:
     """후보 1건을 화면용 dict 로 편다."""
+    facts = facts or {}
+    old_amount = int(facts.get("amount_total") or 0)
     return {
         "order_id": int(order.id),
         "customer_name": order.customer_name,
@@ -105,6 +222,17 @@ def _order_view(order: Order, *, score: int, reason: str,
         "reason": reason,
         # 이미 네이버 수집분이 붙어 있는 주문인지(재결제·추가결제 판단에 쓰인다).
         "naver_link_count": link_count,
+        # --- R-1(2026-08-25): 판정 근거 2열 ---
+        # ② 이 주문에 붙은 네이버 집이 취소됐는가 — 재결제/추가결제를 가르는 결정 신호.
+        "naver_claim_label": facts.get("claim_label") or "",
+        "naver_canceled_count": int(facts.get("canceled") or 0),
+        "naver_alive_count": int(facts.get("alive") or 0),
+        # R-3: 살아 있는 옛 집 — 우리가 취소를 걸지 않으므로 "네이버에서 처리하세요" 대상.
+        "naver_alive_rows": list(facts.get("alive_rows") or []),
+        # ③ 금액 관계 — 집 전체끼리 견준다(대표 1건끼리 견주면 항상 작게 나온다).
+        "naver_amount_total": old_amount,
+        "new_amount_total": int(new_amount or 0),
+        "amount_delta": int(new_amount or 0) - old_amount,
     }
 
 
@@ -181,20 +309,15 @@ def find_order_candidates(session, link: ExternalOrderLink, *,
         int(order.id): order
         for order in session.query(Order).filter(Order.id.in_(list(scored.keys()))).all()
     }
-    link_counts: dict[int, int] = {}
-    from sqlalchemy import func as _func
-
-    for order_id, count in (
-        session.query(ExternalOrderLink.order_id, _func.count(ExternalOrderLink.id))
-        .filter(ExternalOrderLink.order_id.in_(list(scored.keys())))
-        .group_by(ExternalOrderLink.order_id)
-        .all()
-    ):
-        link_counts[int(order_id)] = int(count)
+    # 링크 개수만 세던 조회를 **사실 수집**으로 바꾼다(R-1) — 같은 1회 조회로 개수·취소
+    # 여부·금액을 함께 얻는다. 후보는 최대 5건이라 스냅샷을 읽어도 부하가 늘지 않는다.
+    facts = _naver_facts(session, list(scored.keys()))
+    new_amount = household_amount(session, link)
 
     views = [
         _order_view(orders[order_id], score=score, reason=reason,
-                    link_count=link_counts.get(order_id, 0))
+                    link_count=int(facts.get(order_id, {}).get("link_count") or 0),
+                    facts=facts.get(order_id), new_amount=new_amount)
         for order_id, (score, reason) in scored.items()
         if order_id in orders
     ]

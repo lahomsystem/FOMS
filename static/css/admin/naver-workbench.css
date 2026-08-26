@@ -508,6 +508,84 @@ input.wb-pick:disabled,
     font-variant-numeric: tabular-nums;
 }
 
+/* ── 후보 표 판정 근거 2열 (R-1 · 2026-08-25) ────────────────────────
+   담당자가 네이버를 따로 열어 확인하던 두 가지를 표 안으로 들인다. 색은 이미 이 화면이
+   쓰는 두 개만 쓴다: 빨강 = 되돌릴 수 없는 것(취소), 초록은 안 쓴다 — '살아 있음'은
+   좋은 소식이 아니라 **다른 판정**(추가결제)이라 회색이다. */
+.wb-cand__claim {
+    display: inline-block;
+    font-size: calc(11.5px * var(--wb-fs, 1));
+    font-weight: 600;
+    padding: 1px 8px;
+    border-radius: 999px;
+    border: 1px solid var(--wb-line);
+    background: var(--wb-surface-soft);
+    color: var(--wb-muted);
+    white-space: nowrap;
+}
+
+.wb-cand__claim--dead {
+    background: var(--wb-danger-soft);
+    border-color: var(--wb-danger-line);
+    color: var(--wb-danger);
+}
+
+.wb-cand__claim--part { border-style: dashed; }
+
+.wb-cand__delta {
+    font-weight: 700;
+    font-variant-numeric: tabular-nums;
+    font-size: calc(12px * var(--wb-fs, 1));
+}
+
+/* ── 유령 주문 띠 (R-2 · 2026-08-25) ──────────────────────────────────
+   실패 띠(빨강 alert)와 **다른 무게**여야 한다. 실패는 방금 누른 것의 결과라 급하고,
+   이건 쌓여 있던 사실이라 접힌 채로 기다린다. 그래서 회색 테두리 + 접기(details)다. */
+.wb-ghost {
+    border: 1px solid var(--wb-line);
+    border-left: 3px solid var(--wb-danger-line);
+    border-radius: 8px;
+    background: #fff;
+    margin-bottom: 10px;
+    font-size: calc(12px * var(--wb-fs, 1));
+}
+
+.wb-ghost__head {
+    display: flex;
+    align-items: baseline;
+    gap: 8px;
+    padding: 9px 12px;
+    cursor: pointer;
+    flex-wrap: wrap;
+}
+
+.wb-ghost__badge {
+    background: var(--wb-danger-soft);
+    border: 1px solid var(--wb-danger-line);
+    color: var(--wb-danger);
+    border-radius: 999px;
+    padding: 1px 9px;
+    font-weight: 700;
+    font-variant-numeric: tabular-nums;
+}
+
+.wb-ghost__sub { color: var(--wb-muted); }
+.wb-ghost__dim { color: var(--wb-muted); font-size: calc(11px * var(--wb-fs, 1)); }
+
+.wb-ghost__claim {
+    color: var(--wb-danger);
+    font-weight: 600;
+}
+
+.wb-ghost__list { width: 100%; border-collapse: collapse; }
+.wb-ghost__list th, .wb-ghost__list td {
+    text-align: left;
+    padding: 8px 12px;
+    border-top: 1px solid var(--wb-line-soft);
+    vertical-align: top;
+}
+.wb-ghost__list th { color: var(--wb-muted); font-weight: 600; font-size: calc(11px * var(--wb-fs, 1)); }
+
 .wb-empty { padding: 40px 16px; text-align: center; color: var(--wb-muted); }
 
 /* ── 전체 이력 (W4) ──────────────────────────────────────────────────── */
@@ -626,4 +704,160 @@ input.wb-pick:disabled,
     display: flex;
     flex-direction: column;
     gap: 2px;
+}
+
+/* ── R-3 재결제 정리 계획 카드 (2026-08-25) ────────────────────────────
+   후보 표에서 관계를 고르면 이 카드가 열린다. 카드가 말하는 것은 셋이다:
+   ① 무엇을 붙이는가 ② ERP 기존 주문을 어떻게 하는가 ③ 네이버 옛 결제는 어떤 상태인가.
+   ①②는 **한 트랜잭션**이고 ③은 우리가 손대지 않는다(호출 0) — 그 셋의 무게가 달라서
+   번호 칸의 색으로 가른다(파랑=우리가 하는 일, 회색=사실 표시). */
+.wb-plan {
+    margin-top: 10px;
+    padding: 10px 12px;
+    border: 1px solid var(--wb-accent-line);
+    border-radius: 8px;
+    background: #fff;
+    font-size: calc(12.5px * var(--wb-fs, 1));
+}
+
+.wb-plan__head {
+    display: flex;
+    align-items: center;
+    gap: 8px;
+    flex-wrap: wrap;
+    padding-bottom: 8px;
+    border-bottom: 1px solid var(--wb-line-soft);
+}
+
+.wb-plan__title { font-size: calc(13.5px * var(--wb-fs, 1)); }
+.wb-plan__who { color: var(--wb-muted); }
+
+.wb-plan__rel {
+    padding: 1px 8px;
+    border-radius: 999px;
+    font-weight: 700;
+    background: var(--wb-accent-soft);
+    border: 1px solid var(--wb-accent-line);
+    color: var(--wb-accent);
+}
+
+.wb-plan__row {
+    display: flex;
+    gap: 10px;
+    padding: 9px 0;
+    border-bottom: 1px solid var(--wb-line-soft);
+}
+
+.wb-plan__row--info { border-bottom: 0; }
+
+.wb-plan__n {
+    flex: none;
+    width: calc(22px * var(--wb-fs, 1));
+    height: calc(22px * var(--wb-fs, 1));
+    border-radius: 999px;
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    font-weight: 700;
+    background: var(--wb-accent-soft);
+    border: 1px solid var(--wb-accent-line);
+    color: var(--wb-accent);
+}
+
+/* i 칸은 우리가 하는 일이 아니다 — 강조색을 주면 할 일처럼 읽힌다. */
+.wb-plan__n--info {
+    background: var(--wb-surface-soft);
+    border-color: var(--wb-line);
+    color: var(--wb-muted);
+}
+
+.wb-plan__body { flex: 1 1 auto; min-width: 0; }
+.wb-plan__h { font-weight: 700; }
+.wb-plan__d { color: var(--wb-muted); line-height: 1.55; margin-top: 3px; }
+.wb-plan__d--warn { color: #b45309; }
+
+.wb-plan__tag {
+    margin-left: 6px;
+    padding: 1px 7px;
+    border-radius: 999px;
+    font-size: calc(11px * var(--wb-fs, 1));
+    font-weight: 600;
+    background: var(--wb-surface-soft);
+    border: 1px solid var(--wb-line);
+    color: var(--wb-muted);
+}
+
+.wb-plan__tag--ask {
+    background: #fff7ed;
+    border-color: #fed7aa;
+    color: #b45309;
+}
+
+/* 갈래 라디오. 통째로 누를 수 있어야 한다 — 점만 노리게 만들면 손이 빗나간다. */
+.wb-fork {
+    display: flex;
+    gap: 8px;
+    margin-top: 8px;
+    padding: 9px 10px;
+    border: 1px solid var(--wb-line);
+    border-radius: 6px;
+    cursor: pointer;
+}
+
+.wb-fork:has(.wb-fork__pick:checked) {
+    border-color: var(--wb-accent-line);
+    background: var(--wb-accent-soft);
+}
+
+/* 잠긴 갈래(실측 이후)는 눌리지 않는다 — 서버도 같은 판정으로 거절한다. */
+.wb-fork--off { opacity: .6; cursor: not-allowed; }
+
+.wb-fork__pick { flex: none; margin-top: 3px; }
+.wb-fork__body { display: block; }
+.wb-fork__d { display: block; color: var(--wb-muted); line-height: 1.55; margin-top: 3px; }
+
+/* 예약금 안내. **시스템이 넣지 않는다** — 사람이 읽고 옮겨 적는 숫자라 크게 둔다. */
+.wb-fork__money,
+.wb-plan__money {
+    display: block;
+    margin-top: 8px;
+    padding: 8px 10px;
+    background: #fff;
+    border: 1px solid var(--wb-accent-line);
+    border-radius: 6px;
+}
+
+.wb-fork__won {
+    display: block;
+    font-size: calc(15px * var(--wb-fs, 1));
+    font-weight: 700;
+    font-variant-numeric: tabular-nums;
+}
+
+.wb-fork__note { display: block; color: var(--wb-muted); line-height: 1.55; }
+
+.wb-plan__acts {
+    display: flex;
+    align-items: center;
+    gap: 8px;
+    flex-wrap: wrap;
+    padding-top: 9px;
+}
+
+.wb-plan__why {
+    color: var(--wb-muted);
+    font-size: calc(11.5px * var(--wb-fs, 1));
+}
+
+.wb-plan__done {
+    margin-top: 9px;
+    padding: 9px 10px;
+    border-radius: 6px;
+    background: var(--wb-surface-soft);
+    border: 1px solid var(--wb-line-soft);
+}
+
+.naver-workbench .wb-plan .btn {
+    white-space: nowrap;
+    font-size: calc(12px * var(--wb-fs, 1));
 }
