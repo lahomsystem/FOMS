@@ -3149,15 +3149,22 @@ def naver_ingest_run_now():
     끝난 것으로 본다.
 
     Returns:
-        성공: ``{"success": True, "data": {"queued", "rev", "worker_count"}}``.
-        워커 없음·큐 장애: 503 + 사람 말로 된 사유.
+        성공: ``{"success": True, "data": {"queued", "rev", "worker_count",
+        "worker_count_known"}}``. ``worker_count_known`` 이 False 면 ``worker_count`` 의
+        0 은 "0대"가 아니라 **"못 셌다"** 는 뜻이다.
+        워커 없음(**확실히 0대일 때만**)·큐 장애: 503 + 사람 말로 된 사유.
     """
     db = get_db()
     status = get_rq_runtime_status()
     worker_count = int(status.get("worker_count", 0) or 0)
-    # 큐에 닿는데도 워커가 0대인 경우만 여기서 막는다. REDIS 미설정·연결 불가는 애초에
-    # enqueue 가 False 를 돌려주므로 아래 기존 계약이 같은 503 으로 처리한다.
-    if status.get("state") == "reachable" and worker_count == 0:
+    # **"0대"와 "못 셌다"를 가른다.** ping 은 통했는데 그 직후 ``Worker.count`` 가 실패하는
+    # 짧은 창이 실재한다. 예전에는 그 실패가 조용히 0 이 되어, 워커가 멀쩡히 도는데도
+    # 화면이 "한 대도 살아 있지 않습니다. WORKER 서비스를 확인하세요"라고 말했다 —
+    # 사람을 엉뚱한 곳으로 보내는 문구다(2026-08-26 CEO 지적). 못 셌으면 막지 않고
+    # 그대로 넣는다: 진짜로 큐가 죽었다면 바로 아래 enqueue 가 False 를 돌려주고
+    # 그때는 "큐 장애"라는 **맞는** 사유가 나간다.
+    worker_count_known = bool(status.get("worker_count_known", True))
+    if status.get("state") == "reachable" and worker_count_known and worker_count == 0:
         log_access(
             "네이버 주문 수집 수동 실행 실패(워커 없음)",
             action="NAVER_INGEST_RUN_NOW",
@@ -3177,7 +3184,8 @@ def naver_ingest_run_now():
     log_access(
         "네이버 주문 수집 수동 실행" + ("" if queued else " 실패(큐 없음)"),
         action="NAVER_INGEST_RUN_NOW",
-        detail={"queued": bool(queued), "worker_count": worker_count},
+        detail={"queued": bool(queued), "worker_count": worker_count,
+                "worker_count_known": worker_count_known},
     )
     if not queued:
         return jsonify({
@@ -3189,6 +3197,7 @@ def naver_ingest_run_now():
         "queued": True,
         "rev": base_rev,
         "worker_count": worker_count,
+        "worker_count_known": worker_count_known,
     }})
 
 

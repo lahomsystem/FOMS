@@ -139,7 +139,7 @@ def test_rq_runtime_status_uses_live_worker_count(monkeypatch):
 
     status = queue_module.get_rq_runtime_status()
 
-    assert status == {"state": "reachable", "worker_count": 3}
+    assert status == {"state": "reachable", "worker_count": 3, "worker_count_known": True}
 
 
 def test_rq_runtime_status_falls_back_to_worker_all(monkeypatch):
@@ -166,7 +166,7 @@ def test_rq_runtime_status_falls_back_to_worker_all(monkeypatch):
 
     status = queue_module.get_rq_runtime_status()
 
-    assert status == {"state": "reachable", "worker_count": 2}
+    assert status == {"state": "reachable", "worker_count": 2, "worker_count_known": True}
 
 
 def test_push_manual_builds_image_and_video_files_and_dispatches(client, monkeypatch):
