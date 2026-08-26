@@ -40,3 +40,13 @@ def test_mobile_detail_partial_renders_extra_input_row() -> None:
     ).read_text(encoding="utf-8")
     assert ".foms-kv-row__text--pre" in css
     assert "white-space: pre-line" in css
+def test_v3_shell_css_carries_pre_line_rule() -> None:
+    """v3 셸은 foms-mobile-surfaces 번들을 로드하지 않으므로 줄바꿈 규칙이 v3 CSS 에도 있어야 한다."""
+    v3 = (ROOT / "static" / "css" / "v3" / "foms-mobile-v3.css").read_text(encoding="utf-8")
+    assert ".foms-kv-row__text--pre" in v3
+    assert "white-space: pre-line" in v3
+
+    layout_head = (
+        ROOT / "templates" / "partials" / "shared" / "layout_head.html"
+    ).read_text(encoding="utf-8")
+    assert "css/v3/foms-mobile-v3.css') }}?v=20260826a" in layout_head

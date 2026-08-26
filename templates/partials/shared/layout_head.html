@@ -299,7 +299,7 @@
     {# v3 셸 자산(배타 로드): shell_variant=='v3'일 때만 v3 CSS/셸 JS 로드. v2 모바일
        번들과 상호 배타(위 v2 critical CSS는 shell_variant=='v2' 게이트라 v3에서 미로드). #}
     {% if shell_variant == 'v3' %}
-    <link rel="stylesheet" href="{{ url_for('static', filename='css/v3/foms-mobile-v3.css') }}?v=20260715a">
+    <link rel="stylesheet" href="{{ url_for('static', filename='css/v3/foms-mobile-v3.css') }}?v=20260826a">
     <script src="{{ url_for('static', filename='js/v3/foms-mobile-v3.js') }}?v=20260713b" defer></script>
     {# B7 sync 배지 컨트롤러: v3 앱바 [data-foms-sync-badge] 배지를 갱신한다. v2 셸은
        foms_app_shell.html 이 로드하지만 v3 셸은 그 파샬을 include 하지 않으므로 여기서 배타 로드. #}
