@@ -11,7 +11,7 @@ import time
 import uuid
 from typing import Any, List, Mapping, Optional, Tuple
 
-from flask import Blueprint, has_request_context, request, jsonify, session
+from flask import Blueprint, g, has_request_context, request, jsonify, session
 
 logger = logging.getLogger(__name__)
 from sqlalchemy import text
@@ -31,12 +31,14 @@ from foms.services.orders.stage_override import normalize_main_stage
 from foms.services.orders.status_constants import STATUS
 from foms.web.auth import log_access, login_required, role_required
 from foms.services.audit_message_display import describe_order_action, summarize_changes
+from foms.services.audit_writer import record_access_denied
 from foms.services.integrations.naver_commerce.auto_assign import (
     auto_assign_sales_owner_from_manager,
 )
 from foms.services.orders.audit_order_context import order_audit_context
 from foms.services.orders.structured_item_uid import ensure_item_uids
 from foms.services.orders.order_field_change_writer import record_field_changes
+from foms.services.orders.order_flag_permissions import can_toggle_order_flags
 from foms.services.orders.change_reason import is_reason_required
 from foms.services.orders.structured_diff import MAX_CHANGES, DiffResult, diff_structured
 from foms.services.datetime_kst import now_kst
@@ -916,6 +918,9 @@ def api_get_order_structured(order_id):
             'is_self_measurement': getattr(order, 'is_self_measurement', False),
             'is_regional': getattr(order, 'is_regional', False),
             'construction_type': getattr(order, 'construction_type', None) or '',
+            # ORDER-FLAG-01: 라홈시스템·지방주문 편집 가능 여부. 화면이 서버와 **같은 판정**을
+            # 쓰게 내려준다 — 켤 수 있어 보이는데 저장이 무시되면 그게 더 나쁜 회귀다.
+            'can_toggle_order_flags': can_toggle_order_flags(getattr(g, 'current_user', None)),
             # 지방주문 AS 재상차 모달 prefill용(flat 컬럼, structured_data에는 없음).
             'shipping_scheduled_date': getattr(order, 'shipping_scheduled_date', None) or '',
             # AS 재접수 모달의 'N번째 AS' 제목·지난 건 요약용 투영
@@ -1128,6 +1133,88 @@ def api_patch_order_structured_fields(order_id: int):
         return jsonify({'success': False, 'message': str(e)}), 500
 
 
+def _denied_flag_paths(order: Order, payload: Mapping[str, Any]) -> list[str]:
+    """무권한 요청이 실제로 바꾸려 한 플래그 경로만 골라낸다 (ORDER-FLAG-01).
+
+    폼은 저장할 때마다 세 값을 늘 함께 보낸다 — 값이 그대로인 요청까지 감사에 남기면
+    무권한 사용자가 주문을 열어보기만 해도 ``ACCESS_DENIED`` 가 쌓인다.
+
+    :param order: 대상 주문(현재 저장값 비교 기준).
+    :param payload: 요청 JSON.
+    :return: 실제로 달라진 경로 목록(``is_regional``·``construction_type``·``flags.factory2``).
+    """
+    denied: list[str] = []
+    incoming_regional = payload.get('is_regional')
+    if incoming_regional is not None and bool(incoming_regional) != bool(getattr(order, 'is_regional', False)):
+        denied.append('is_regional')
+    incoming_ct = payload.get('construction_type')
+    if incoming_ct is not None:
+        normalized_ct = normalize_regional_construction_type(incoming_ct) or None
+        if normalized_ct != (getattr(order, 'construction_type', None) or None):
+            denied.append('construction_type')
+    structured = payload.get('structured_data')
+    incoming_flags = structured.get('flags') if isinstance(structured, dict) else None
+    if isinstance(incoming_flags, dict) and 'factory2' in incoming_flags:
+        stored_sd = order.structured_data if isinstance(order.structured_data, dict) else {}
+        stored_flags = stored_sd.get('flags') if isinstance(stored_sd.get('flags'), dict) else {}
+        if bool(incoming_flags.get('factory2')) != bool(stored_flags.get('factory2')):
+            denied.append('flags.factory2')
+    return denied
+
+
+def _restore_locked_factory2(old_sd: Mapping[str, Any], structured_data: dict) -> None:
+    """저장 직전에 ``flags.factory2`` 를 기존값으로 되돌린다 (ORDER-FLAG-01).
+
+    ``flags`` 는 서버 보존 대상이 아니라 클라이언트가 통째로 덮는 자리다
+    (``_preserve_operational_structured_state`` 의 deep-merge 목록에 없다). 그래서
+    무권한 요청은 payload 를 고쳐 놓는 것 말고는 막을 자리가 없다. 키가 없었으면
+    없는 채로 되돌린다 — 없던 키를 ``False`` 로 채우면 원장에 없는 변경이 생긴다.
+
+    :param old_sd: 락 아래에서 읽은 저장값.
+    :param structured_data: 이번 요청의 payload(제자리 수정).
+    """
+    stored_flags = old_sd.get('flags') if isinstance(old_sd.get('flags'), dict) else {}
+    if 'factory2' in stored_flags:
+        structured_data['flags']['factory2'] = stored_flags['factory2']
+    else:
+        structured_data['flags'].pop('factory2', None)
+
+
+def _flat_flag_changes(
+    *,
+    old_is_regional: Any,
+    new_is_regional: Any,
+    old_construction_type: Any,
+    new_construction_type: Any,
+) -> list[dict[str, Any]]:
+    """평면 컬럼 변경을 원장 change dict 로 옮긴다 (ORDER-FLAG-01).
+
+    ``is_regional``·``construction_type`` 은 ``structured_data`` 밖이라
+    :func:`diff_structured` 가 못 본다. 경로는 점 없는 컬럼명을 그대로 쓴다 — 점 경로로
+    적으면 되돌리기가 없는 ``structured_data`` 키를 만들어 두 벌 진실이 된다.
+
+    :return: ``{'path','before','after','op'}`` 목록(변경 없으면 빈 목록).
+    """
+    changes: list[dict[str, Any]] = []
+    if bool(old_is_regional) != bool(new_is_regional):
+        changes.append({
+            'path': 'is_regional',
+            'before': bool(old_is_regional),
+            'after': bool(new_is_regional),
+            'op': 'set',
+        })
+    old_ct = (old_construction_type or None)
+    new_ct = (new_construction_type or None)
+    if old_ct != new_ct:
+        changes.append({
+            'path': 'construction_type',
+            'before': old_ct,
+            'after': new_ct,
+            'op': 'add' if old_ct is None else ('clear' if new_ct is None else 'set'),
+        })
+    return changes
+
+
 @erp_orders_structured_bp.route('/orders/<int:order_id>/structured', methods=['PUT'])
 @login_required
 @role_required(['ADMIN', 'MANAGER', 'STAFF'])
@@ -1164,6 +1251,31 @@ def api_put_order_structured(order_id):
         is_self_measurement = payload.get('is_self_measurement')
         is_regional = payload.get('is_regional')
         construction_type = payload.get('construction_type')
+        # ORDER-FLAG-01: 라홈시스템(2공장)·지방주문은 CS(라홈팀/하우드팀)·관리자만 바꾼다.
+        # 거부(403)가 아니라 **무시**다 — 이 PUT 은 저장 버튼 말고도 견적 미리보기·알림톡
+        # 발송이 함께 태우므로, 403 으로 만들면 무권한 사용자의 정상 저장 전체가 막힌다.
+        # 지방주문 구분(construction_type)은 체크박스와 한 몸이라 함께 잠근다 — 여기만
+        # 열어두면 is_regional 을 떨어뜨린 뒤 아래 검증이 400 을 낸다.
+        flags_editable = can_toggle_order_flags(getattr(g, 'current_user', None))
+        if not flags_editable:
+            denied_flag_paths = _denied_flag_paths(order, payload)
+            is_regional = None
+            construction_type = None
+            if denied_flag_paths:
+                record_access_denied(
+                    f"권한 없는 주문 플래그 변경 시도(주문 {order_id}): {', '.join(denied_flag_paths)}",
+                    user_id=session.get('user_id'),
+                    ip=request.remote_addr,
+                    endpoint=request.endpoint,
+                    action='order-flag:ORDER_FLAG_FORBIDDEN',
+                    structured_action='ACCESS_DENIED',
+                    detail={
+                        'endpoint': request.endpoint,
+                        'reason': 'ORDER_FLAG_FORBIDDEN',
+                        'order_id': int(order_id),
+                        'paths': denied_flag_paths,
+                    },
+                )
         now = datetime.datetime.now()
         # 폼이 고른 단계. _pin_form_stage_to_server 가 곧 서버값으로 덮으므로 여기서 보관한다
         # (실측일 없는 지방주문/자가실측의 실측 단계 이동 판정에만 쓰인다).
@@ -1247,6 +1359,8 @@ def api_put_order_structured(order_id):
             'address_changed': False,
             # ORDER-DIFF-00: 감사용 변경 비교는 락 안에서만 만들 수 있다(저장 후엔 이전값이 없다).
             'diff': None,
+            # ORDER-FLAG-01: structured 밖(평면 컬럼) 변경 — diff 와 같은 change_set 에 실린다.
+            'flat_changes': [],
             'drawing_notif': None,
             'drawing_notif_created': False,
             'prod_notif': None,
@@ -1291,6 +1405,8 @@ def api_put_order_structured(order_id):
                     structured_data['workflow'] = {}
                 if not structured_data.get('flags'):
                     structured_data['flags'] = {}
+                if not flags_editable:
+                    _restore_locked_factory2(old_sd, structured_data)
                 if not structured_data.get('assignments'):
                     structured_data['assignments'] = {}
                 _preserve_operational_structured_state(old_sd, structured_data)
@@ -1372,6 +1488,15 @@ def api_put_order_structured(order_id):
                     captured['address_changed'] = True
                     reset_order_geocode_on_address_change(o, new_addr)
 
+            # ORDER-FLAG-01: 평면 컬럼 변경도 같은 change_set 에 싣는다 — structured 밖이라
+            # diff_structured 가 못 본다. structured_data 가 없는 요청에서도 남긴다.
+            captured['flat_changes'] = _flat_flag_changes(
+                old_is_regional=old_is_regional,
+                new_is_regional=getattr(o, 'is_regional', None),
+                old_construction_type=old_construction_type,
+                new_construction_type=getattr(o, 'construction_type', None),
+            )
+
             return {o.id: [f"ORDER_DETAIL:{o.id}", "ORDERS_INDEX"]}
 
         try:
@@ -1388,6 +1513,15 @@ def api_put_order_structured(order_id):
             )
             put_context = order_audit_context(order)
             put_diff = captured['diff'] or DiffResult([], 0, 0)
+            # ORDER-FLAG-01: 지방주문·시공구분은 평면 컬럼이라 structured diff 밖에 있다.
+            # 같은 change_set 에 합쳐 원장·감사 detail·저장 요약이 한 벌로 보이게 한다.
+            put_flat_changes = captured.get('flat_changes') or []
+            if put_flat_changes:
+                put_diff = DiffResult(
+                    list(put_diff.changes) + list(put_flat_changes),
+                    put_diff.total + len(put_flat_changes),
+                    put_diff.truncated,
+                )
             put_change_set = _new_change_set_id()
             # ORDER-REASON-00: 금액·일정·단계가 바뀐 저장이면 화면이 저장 성공 뒤에 사유를
             # 묻는다. 판정은 여기(서버)에만 있고, 응답으로 내려보낸다.

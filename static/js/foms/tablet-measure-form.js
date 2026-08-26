@@ -634,16 +634,46 @@
     );
   }
 
-  function checkboxField(label, fieldKey, checked) {
+  function checkboxField(label, fieldKey, checked, opts) {
+    opts = opts || {};
+    // ORDER-FLAG-01: 무권한이면 비활성으로만 둔다 — 마크업에서 빼면 저장 payload 조립이
+    // 값을 잃는다(PC 폼과 같은 규칙).
+    var lock = opts.disabled
+      ? ' title="' + escapeHtml(opts.title || "변경 권한이 없습니다.") + '"'
+      : "";
     return (
-      '<label class="foms-tmf__check"><input type="checkbox" data-tmf-field="' +
+      '<label class="foms-tmf__check"' +
+      lock +
+      '><input type="checkbox" data-tmf-field="' +
       fieldKey +
       '"' +
       (checked ? " checked" : "") +
+      (opts.disabled ? " disabled" : "") +
       '><span>' +
       escapeHtml(label) +
       "</span></label>"
     );
+  }
+
+  //: 라홈시스템·지방주문 확인 문구 (ORDER-FLAG-01).
+  var ORDER_FLAG_LABELS = { regional: "지방 주문", factory2: "라홈시스템(2공장)" };
+
+  function orderFlagsEditable() {
+    return !state || state.canToggleFlags !== false;
+  }
+
+  function orderFlagLock(field) {
+    if (orderFlagsEditable()) return {};
+    return { disabled: true, title: "라홈팀(CS)·관리자만 변경할 수 있습니다." };
+  }
+
+  function confirmOrderFlagToggle(field, input) {
+    var label = ORDER_FLAG_LABELS[field];
+    if (!label || !input || input.type !== "checkbox") return true;
+    var next = !!input.checked;
+    if (window.confirm("'" + label + "'을(를) " + (next ? "켤까요?" : "끌까요?"))) return true;
+    input.checked = !next;
+    return false;
   }
 
   function amountField(label, amountKey, value, opts) {
@@ -1050,8 +1080,8 @@
       '<div class="foms-tmf__checkrow">' +
       checkboxField("긴급 발주", "urgent", urgent) +
       checkboxField("자가 실측", "self_measurement", !!state.top.is_self_measurement) +
-      checkboxField("지방 주문", "regional", regional) +
-      checkboxField("라홈시스템(2공장)", "factory2", !!flagValue("factory2")) +
+      checkboxField("지방 주문", "regional", regional, orderFlagLock("regional")) +
+      checkboxField("라홈시스템(2공장)", "factory2", !!flagValue("factory2"), orderFlagLock("factory2")) +
       "</div>" +
       '<div class="foms-tmf__ffield foms-tmf__ffield--full" data-tmf-urgent-field' +
       (urgent ? "" : " hidden") +
@@ -2273,6 +2303,9 @@
           schemaVersion: data.structured_schema_version || 1,
           confidence: data.structured_confidence != null ? data.structured_confidence : null,
           baselineUpdatedAt: data.structured_updated_at || null,
+          // ORDER-FLAG-01: 서버 판정을 그대로 쓴다. 값이 없는 옛 응답은 허용으로 본다 —
+          // 진짜 게이트는 서버이고, 여기서 잠그면 정상 사용자가 막힌다.
+          canToggleFlags: data.can_toggle_order_flags !== false,
           topBaseline: topBase,
           top: {
             received_date: topBase.received_date,
@@ -2423,6 +2456,8 @@
     }
     if (t.tagName === "SELECT" || t.type === "checkbox") {
       var field = t.getAttribute("data-tmf-field");
+      // ORDER-FLAG-01: 취소면 체크 상태만 되돌리고 자동저장까지 태우지 않는다.
+      if (field && !confirmOrderFlagToggle(field, t)) return;
       if (field) applyFieldEdit(field, t);
       return;
     }

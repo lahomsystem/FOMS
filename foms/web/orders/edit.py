@@ -3,6 +3,7 @@ import copy
 import json
 from flask import (
     Blueprint,
+    g,
     make_response,
     render_template,
     request,
@@ -30,6 +31,7 @@ from foms.services.order_edit_view_context import build_order_edit_get_context
 from foms.services.jobs.queue import enqueue_geocode_order_address
 from foms.services.orders.as_cycle_view import as_cycle_detail_payload
 from foms.services.orders.construction_type import normalize_regional_construction_type
+from foms.services.orders.order_flag_permissions import can_toggle_order_flags
 from foms.services.order_geocode import (
     apply_erp_order_site_address_to_sd,
     clear_order_geocode_coords,
@@ -176,13 +178,20 @@ def edit_order(order_id):
             if _od('as_received_date') != as_received_date: changes['as_received_date'] = {'old': _od('as_received_date'), 'new': as_received_date}
             if _od('as_completed_date') != as_completed_date: changes['as_completed_date'] = {'old': _od('as_completed_date'), 'new': as_completed_date}
             if _od('shipping_scheduled_date') != shipping_scheduled_date: changes['shipping_scheduled_date'] = {'old': _od('shipping_scheduled_date'), 'new': shipping_scheduled_date}
-            is_regional_new = 'is_regional' in request.form
+            # ORDER-FLAG-01: 지방주문은 CS(라홈팀/하우드팀)·관리자만 바꾼다. 체크박스를
+            # 비활성으로 렌더하므로 폼에 안 실려 오는데, 미전송을 '해제'로 읽으면 저장 한
+            # 번에 지방 대시보드에서 주문이 사라진다 — 무권한이면 기존값을 그대로 쓴다.
+            flags_editable = can_toggle_order_flags(getattr(g, 'current_user', None))
+            is_regional_new = ('is_regional' in request.form) if flags_editable else bool(_od('is_regional', False))
             if bool(_od('is_regional', False)) != is_regional_new: changes['is_regional'] = {'old': _od('is_regional'), 'new': is_regional_new}
             is_self_measurement_new = 'is_self_measurement' in request.form
             if bool(_od('is_self_measurement', False)) != is_self_measurement_new: changes['is_self_measurement'] = {'old': _od('is_self_measurement'), 'new': is_self_measurement_new}
             measurement_completed_new = 'measurement_completed' in request.form
             if bool(_od('measurement_completed', False)) != measurement_completed_new: changes['measurement_completed'] = {'old': _od('measurement_completed'), 'new': measurement_completed_new}
-            construction_type_raw = request.form.get('construction_type', _od('construction_type'))
+            construction_type_raw = (
+                request.form.get('construction_type', _od('construction_type'))
+                if flags_editable else _od('construction_type')
+            )
             construction_type_new = (
                 normalize_regional_construction_type(construction_type_raw)
                 if is_regional_new

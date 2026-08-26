@@ -74,6 +74,9 @@ SCALAR_PATHS: tuple[str, ...] = (
     "workflow.stage",
     "flags.urgent",
     "flags.urgent_reason",
+    # 라홈시스템(2공장). 견적서 공급자·입금 계좌를 가르는 값이라 누가 언제 돌렸는지가
+    # 남아야 한다 — 2026-08-26 이전에는 토글 이력이 어디에도 없었다.
+    "flags.factory2",
     "assignments.owner_team",
     "assignments.drawing_assignee_user_ids",
     # --- 금액 ---
