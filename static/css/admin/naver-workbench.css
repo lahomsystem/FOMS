@@ -539,6 +539,37 @@ input.wb-pick:disabled,
     white-space: pre-wrap;
 }
 
+/* 반품 진행(T8-S0) — 수거·환불·회수지. 클레임 사유 원문 바로 아래에서 "그 다음"을 말한다.
+   새 색을 만들지 않는다 — 사유 줄과 같은 위험색을 쓰되 배경 없이 선만 남겨, 상시 강조가
+   되지 않게 한다(사유 원문이 더 급한 사실이다). */
+.wb-return {
+    display: flex;
+    align-items: baseline;
+    gap: 8px;
+    margin-top: 6px;
+    padding: 4px 10px;
+    border-left: 3px solid var(--wb-danger-line);
+    border-radius: 0 6px 6px 0;
+}
+
+.wb-return__k {
+    flex: none;
+    color: var(--wb-danger);
+    font-weight: 700;
+    font-size: calc(11.5px * var(--wb-fs, 1));
+}
+
+.wb-return__v {
+    display: flex;
+    flex-wrap: wrap;
+    gap: 4px 12px;
+    color: #111827;
+    font-size: calc(12px * var(--wb-fs, 1));
+}
+
+/* 값 하나가 한 조각. 좁은 폭에서 줄바꿈이 값 가운데를 자르지 않게 조각째 흐른다. */
+.wb-return__i { white-space: nowrap; }
+
 /* F-2 발송 결과. 같은 표의 다른 줄과 톤을 맞춘다 — 어긋난 집에서만 눈에 띄어야 한다.
    상시 강조하면 정상인 집까지 경고처럼 보여서 진짜 어긋남을 못 알아챈다. */
 .wb-sendline__status { color: var(--wb-muted); }

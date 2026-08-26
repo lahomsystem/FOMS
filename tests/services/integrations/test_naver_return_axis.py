@@ -216,3 +216,31 @@ def test_return_axis_does_not_raise_on_garbage():
     for garbage in (None, [], "", 0, {"cancel": "not-a-dict"}):
         axis = extract_return_axis(garbage)
         assert axis["known"] is False
+
+
+# ------------------------- `_claim_blocks` 가 바꾼 우선순위 (CEO 리뷰 A1)
+
+def test_current_claim_itself_is_read_when_no_named_block():
+    """`currentClaim` 이 **평평하게** 오는 모양도 읽는다 — 옛 규칙은 못 읽었다.
+
+    옛 코드는 `cancel` 과 `currentClaim.cancel` 두 자리만 봤다. 그래서 클레임 상세가
+    `currentClaim` 자신에 평평하게 실려 오면 `order.claimStatus`(더 뭉뚱그린 값)로
+    떨어졌다. **이건 값이 바뀌는 변경이다** — "기존 동작 불변"이 아니라 "더 구체적인
+    소스를 먼저 본다"가 정확한 진술이고, 그래서 여기에 단언으로 못박는다.
+    """
+    detail = _snapshot()
+    detail["order"]["claimStatus"] = "CANCEL_DONE"
+    detail["currentClaim"] = {"claimStatus": "RETURN_DONE", "returnReason": "PRODUCT_DEFECT"}
+    claim = extract_claim(detail)
+    assert claim["status"] == "RETURN_DONE"
+    assert claim["reason"] == "PRODUCT_DEFECT"
+
+
+def test_named_claim_block_wins_over_current_claim():
+    """이름 있는 블록(`cancel`)이 `currentClaim` 자신보다 앞선다 — 우선순위를 잠근다."""
+    detail = _snapshot()
+    detail["cancel"] = {"claimStatus": "CANCEL_REQUEST", "cancelReason": "MISTAKE_ORDER"}
+    detail["currentClaim"] = {"claimStatus": "RETURN_DONE", "returnReason": "PRODUCT_DEFECT"}
+    claim = extract_claim(detail)
+    assert claim["status"] == "CANCEL_REQUEST"
+    assert claim["reason"] == "MISTAKE_ORDER"

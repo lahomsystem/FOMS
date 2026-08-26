@@ -37,6 +37,10 @@
       "mode": "guard",
       "rule": "/admin/naver-ingest/<int:link_id>/review"
     },
+    "admin.naver_ingest_refresh": {
+      "mode": "guard",
+      "rule": "/admin/naver-ingest/<int:link_id>/refresh"
+    },
     "admin.naver_ingest_run_now": {
       "mode": "guard",
       "rule": "/admin/naver-ingest/run"
