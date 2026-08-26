@@ -98,6 +98,56 @@
   padding: 0;
 }
 
+/* 최근 검색: 세로 목록이면 검색 결과가 자판 아래로 밀린다 -> 뱃지 1줄 가로 스크롤 */
+.foms-search-overlay__recent-list {
+  display: flex;
+  flex-wrap: nowrap;
+  gap: 0.375rem;
+  overflow-x: auto;
+  overflow-y: hidden;
+  -webkit-overflow-scrolling: touch;
+  scrollbar-width: none;
+}
+
+.foms-search-overlay__recent-list::-webkit-scrollbar {
+  display: none;
+}
+
+.foms-search-overlay__recent-list > li {
+  flex: 0 0 auto;
+  min-width: 0;
+}
+
+.foms-search-overlay__recent-chip {
+  display: inline-flex;
+  align-items: center;
+  max-width: 10rem;
+  min-height: 34px;
+  padding: 0.25rem 0.75rem;
+  border: 1px solid var(--foms-border-subtle, #e5e7eb);
+  border-radius: var(--foms-radius-full, 999px);
+  background: var(--foms-surface-muted, #f3f4f6);
+  color: var(--foms-text-primary, #111827);
+  font-size: 0.8125rem;
+  line-height: 1.2;
+  white-space: nowrap;
+  overflow: hidden;
+  text-overflow: ellipsis;
+}
+
+.foms-search-overlay__recent-chip:focus-visible {
+  outline: 2px solid var(--foms-color-brand-500, #2563eb);
+  outline-offset: 1px;
+}
+
+.foms-search-overlay__recent {
+  margin-bottom: 0.5rem;
+}
+
+.foms-search-overlay__recent .foms-search-overlay__section-title {
+  margin-bottom: 0.375rem;
+}
+
 .foms-search-overlay__link {
   display: block;
   padding: 0.75rem;
