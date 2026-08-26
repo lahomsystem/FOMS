@@ -148,13 +148,22 @@ def test_principal_version_seeded_on_insert(pg_engine):
         s.close()
 
 
+# 수집 시점에 generate_password_hash 를 부르면 salt 가 매번 달라져 테스트 ID 가
+# 프로세스마다 바뀐다. 단일 프로세스에서는 티가 안 나지만 병렬 실행(pytest-xdist)
+# 에서는 워커끼리 수집 목록이 어긋나 "Different tests were collected" 로 죽는다.
+# 파라미터에는 안정된 표식만 두고, 실제 해시는 테스트 안에서 만든다.
+_FRESH_PASSWORD_HASH = "<generated-in-test>"
+
+
 @pytest.mark.parametrize("field,value", [
-    ("password", generate_password_hash("changed-not-committed")),
+    ("password", _FRESH_PASSWORD_HASH),
     ("role", "MANAGER"),
     ("team", "CS"),
     ("is_active", False),
 ])
 def test_principal_version_bumps_on_tracked_change(pg_engine, field, value):
+    if value is _FRESH_PASSWORD_HASH:
+        value = generate_password_hash("changed-not-committed")
     s = _session(pg_engine)
     try:
         u = _make_admin(s)
