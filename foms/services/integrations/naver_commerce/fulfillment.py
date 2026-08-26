@@ -37,6 +37,7 @@ logger = logging.getLogger(__name__)
 __all__ = [
     "FulfillmentError",
     "household_key",
+    "links_of_group",
     "STATE_KEY",
     "DIRECT_DELIVERY",
     "clear_failure",
@@ -168,6 +169,23 @@ def _links_of_group(session: Session, link_id: int) -> list[ExternalOrderLink]:
     base_key = household_key(link)
     same_house = [row for row in rows if household_key(row) == base_key]
     return same_house or [link]
+
+
+def links_of_group(session: Session, link_id: int) -> list[ExternalOrderLink]:
+    """같은 **집**의 링크 전부 — 모듈 밖에서 쓰는 공개 이름.
+
+    발주확인·발송처리·취소가 쓰는 집 판정(:func:`_links_of_group`)을 그대로 내보낸다.
+    "다시 읽기"(T4)가 같은 집을 대상으로 삼아야 화면이 가른 집과 어긋나지 않는다 —
+    집 판정을 부르는 쪽에서 다시 짜면 분할배송에서 남의 집이 섞인다.
+
+    Args:
+        session: DB 세션(읽기만 한다).
+        link_id: 기준 수집 링크 id.
+
+    Returns:
+        같은 집의 링크 목록(수집 순서). 링크가 없으면 :class:`FulfillmentError`.
+    """
+    return _links_of_group(session, link_id)
 
 
 def _claim_guard(session: Session, links: list[ExternalOrderLink], *,
