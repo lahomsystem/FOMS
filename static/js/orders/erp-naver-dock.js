@@ -69,6 +69,39 @@
         return row.assigned_main || row.guess_main || null;
     }
 
+    /**
+     * 집(네이버 주문번호) 하나의 사실 — 관계·대체 여부·라벨 (N2).
+     * @param {string} orderNo 집 주문번호.
+     * @returns {Object|null} 서버가 판정한 집 사실(없으면 null).
+     */
+    function householdFact(orderNo) {
+        var list = state.households || [];
+        for (var i = 0; i < list.length; i += 1) {
+            if (list[i].order_no === orderNo) return list[i];
+        }
+        return null;
+    }
+
+    /**
+     * 집 표식 한 조각 — `이전 주문 …4381` / `이번 주문(재결제) …7581` / `추가결제분 …`.
+     *
+     * 집이 하나뿐인 주문에서는 만들지 않는다 — 보통 주문 화면에 무게를 더하지 않는다.
+     * 라벨은 서버가 관계로 판정해 보낸다(관계가 전부 NEW 인 옛 데이터는 라벨이 비어
+     * 번호만 남는다 — 재결제로 **추정**하지 않는다).
+     * @param {string} orderNo 집 주문번호.
+     * @returns {Element|null} 표식 노드(만들 근거가 없으면 null).
+     */
+    function buildHouseholdChip(orderNo) {
+        if (!state.households || state.households.length < 2) return null;
+        var fact = householdFact(orderNo);
+        if (!fact) return null;
+        var tail = fact.order_no ? ' …' + fact.order_no.slice(-4) : '';
+        var chip = el('span', 'naver-dock-hh' + (fact.superseded ? ' is-superseded' : ''),
+            (fact.label || '주문번호') + tail);
+        if (fact.order_no) chip.title = '네이버 주문번호 ' + fact.order_no;
+        return chip;
+    }
+
     function blockers() {
         return state.rows.filter(function (row) {
             return row.role === 'addon' && !effectiveMain(row);
@@ -83,8 +116,18 @@
         return state.rows.every(function (row) { return row.reviewed; });
     }
 
-    function buildRow(row) {
-        var wrap = el('div', 'naver-dock-row' + (row.checked ? ' is-checked' : ''));
+    /**
+     * 행 하나. 재결제로 대체된 옛 집의 행은 **흐려지되 살아 있다**(N2) —
+     * 복사 버튼·체크·귀속 드롭다운을 그대로 둔다. 재결제는 "같은 주문을 다시 결제"라
+     * 옛 옵션 원문이 여전히 유효한 규격일 수 있고, 담당자는 새 집과 **비교**해야 무엇이
+     * 바뀌었는지 안다. 접으면 있는 줄도 모른다.
+     * @param {Object} row 도크 행.
+     * @param {?string} groupNo 이 그룹 본품이 속한 집 번호(없으면 null — 공통·미정 그룹).
+     * @returns {Element} 행 노드.
+     */
+    function buildRow(row, groupNo) {
+        var wrap = el('div', 'naver-dock-row' + (row.checked ? ' is-checked' : '')
+            + (row.superseded ? ' is-superseded' : ''));
         wrap.setAttribute('data-naver-dock-row', String(row.link_id));
 
         var checkbox = document.createElement('input');
@@ -99,6 +142,12 @@
             row.role === 'main' ? '본품 옵션 원문' : (row.product_name || '(이름 없음)'));
         if (row.role === 'addon' && row.amount === 0) {
             title.appendChild(el('span', 'naver-dock-zero', '0원'));
+        }
+        // 그룹 머리말이 말해 주지 못하는 행에만 집 표식을 단다 — 공통·귀속 미정 그룹이거나,
+        // 귀속이 집 경계를 넘어 다른 집 본품에 붙은 행이다. 모든 행에 달면 잡음이 된다.
+        if (row.external_order_no !== groupNo) {
+            var rowChip = buildHouseholdChip(row.external_order_no);
+            if (rowChip) title.appendChild(rowChip);
         }
         body.appendChild(title);
 
@@ -122,8 +171,12 @@
             placeholder.value = '';
             select.appendChild(placeholder);
             state.mains.forEach(function (main) {
-                var option = el('option', null, main.label);
+                // 이름이 겹치는 본품은 꼬리표를 **앞에** 붙여 읽는다 — 뒤에 붙이면 좁은
+                // select 에서 잘려 선택지 두 개가 다시 글자 하나까지 같아진다(N2 결함).
+                var option = el('option', null,
+                    main.qualifier ? main.qualifier + ' · ' + main.label : main.label);
                 option.value = main.external_id;
+                if (main.qualifier) option.title = main.label;
                 select.appendChild(option);
             });
             var common = el('option', null, '공통(주문 전체)');
@@ -320,13 +373,22 @@
             var mainRow = state.rows.filter(function (row) {
                 return row.role === 'main' && row.external_id === group.key;
             })[0];
+            // 집이 둘 이상이면 머리말이 **어느 집의 본품인지** 말한다. 이름이 같은 본품이
+            // 두 집에서 나란히 서던 자리다(N2).
+            var groupNo = mainRow ? mainRow.external_order_no : null;
+            var groupChip = mainRow ? buildHouseholdChip(groupNo) : null;
+            if (groupChip) header.appendChild(groupChip);
             if (mainRow && typeof mainRow.amount === 'number' && mainRow.amount > 0) {
                 header.appendChild(el('span', 'naver-dock-grp-sub', formatAmount(mainRow.amount)));
             }
             bd.appendChild(header);
+            var groupFact = mainRow ? householdFact(groupNo) : null;
+            if (groupFact && groupFact.note) {
+                bd.appendChild(el('div', 'naver-dock-hh-note', '⚠ ' + groupFact.note));
+            }
             var hint = state.widthHints[group.key];
             if (hint) bd.appendChild(buildWidthHint(hint));
-            rows.forEach(function (row) { bd.appendChild(buildRow(row)); });
+            rows.forEach(function (row) { bd.appendChild(buildRow(row, groupNo)); });
         });
         frag.appendChild(bd);
 
@@ -531,6 +593,9 @@
             orderNos: payload.order_nos || (payload.order_no ? [payload.order_no] : []),
             // `워크벤치에서 열기` 가 실제로 여는 집 — 머리말에서 그 집을 표시한다.
             workbenchOrderNo: payload.workbench_order_no || '',
+            // 집마다의 관계·라벨(N2) — 화면이 이전 주문 / 이번 주문을 가르는 근거.
+            // 옛 서버 응답에는 없다 → 빈 목록이면 표식이 아예 생기지 않는다(오늘과 같음).
+            households: payload.households || [],
             rows: payload.rows,
             mains: payload.mains || [],
             assignCommon: payload.assign_common || 'COMMON',
