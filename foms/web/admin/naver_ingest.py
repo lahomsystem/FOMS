@@ -496,6 +496,64 @@ def _place_view(link: ExternalOrderLink) -> dict[str, Any]:
     return {**view, "shipping_due": shipping_due}
 
 
+def _dispatch_view(link: ExternalOrderLink) -> dict[str, Any]:
+    """발송 결과 한 줄 — **우리 기록과 네이버가 말하는 것을 나란히** 놓는다 (F-2).
+
+    발송처리는 우리가 눌러서 나가는 되돌릴 수 없는 호출인데, 지금까지 화면은 우리 쪽
+    표식(``triage_state['fulfillment']['dispatched_at']``)만 읽었다. 네이버는 그 결과를
+    원본 스냅샷의 ``delivery.sendDate``·``delivery.deliveryStatus`` 로 돌려주는데
+    아무도 안 읽어서 **"우리는 보냈다는데 네이버에는 안 찍힌"** 어긋남이 화면에 없었다
+    (``docs/guides/NAVER_FIELD_INVENTORY.md`` §2.4).
+
+    시각 문자열을 사람이 읽는 형식으로 바꾸는 것은 화면 몫이라 여기서 한다
+    (``extract_delivery`` 는 원문 그대로 준다). **읽을 수 없는 값은 원문을 그대로**
+    남긴다 — 못 읽었다고 지우면 화면이 "발송 기록이 없다"고 거짓말을 한다.
+
+    Args:
+        link: pane 에 띄운 링크.
+
+    Returns:
+        ``ours_at``(우리 기록 KST) · ``naver_at``(네이버 sendDate KST) ·
+        ``naver_status``·``naver_status_label``·``method``·``wrong_tracking`` ·
+        ``known``(어느 한쪽이라도 말이 있는가) · ``mismatch``(한쪽만 있는가).
+        ``known`` 이 False 면 화면은 **그 줄 자체를 내지 않는다**.
+    """
+    from foms.services.integrations.naver_commerce.mapping import extract_delivery
+
+    delivery = extract_delivery(link.raw_snapshot or {})
+    naver_at = _dispatch_time_text(delivery.get("send_date"))
+    ours_at = _dispatch_time_text(
+        ((link.triage_state or {}).get("fulfillment") or {}).get("dispatched_at"))
+    return {
+        "ours_at": ours_at,
+        "naver_at": naver_at,
+        "naver_status": delivery.get("status") or "",
+        "naver_status_label": delivery.get("status_label") or "",
+        "method": delivery.get("method") or "",
+        "wrong_tracking": bool(delivery.get("wrong_tracking")),
+        # 상태 라벨만 있고 시각이 없는 집도 말할 것이 있다(네이버가 배송 축을 갖고 있다).
+        "known": bool(ours_at or naver_at or (delivery.get("status") or "")),
+        # 한쪽만 시각을 가진 집이 곧 어긋남이다 — 이것이 이 줄의 존재 이유다.
+        "mismatch": bool(ours_at) != bool(naver_at),
+    }
+
+
+def _dispatch_time_text(value: Any) -> str:
+    """발송 시각 하나를 사람이 읽는 KST 문자열로 편다(못 읽으면 원문 그대로).
+
+    Args:
+        value: ISO 문자열 또는 ``None``. 네이버 ``sendDate`` 는 오프셋이 붙어 오고
+            우리 표식은 UTC naive isoformat 이다 — 둘 다 같은 파서가 받는다.
+
+    Returns:
+        ``YYYY-MM-DD HH:MM`` 문자열. 값이 없으면 빈 문자열, 못 읽으면 원문.
+    """
+    text = str(value).strip() if value else ""
+    if not text:
+        return ""
+    return format_datetime_kst(text, "%Y-%m-%d %H:%M") or text
+
+
 def _triage_pane(db, link: ExternalOrderLink) -> dict[str, Any]:
     """한 건의 원본 ↔ FOMS 현재 값 대조 데이터를 만든다.
 
@@ -562,6 +620,8 @@ def _triage_pane(db, link: ExternalOrderLink) -> dict[str, Any]:
                              open="erp-order") if link.order_id else ""),
         # 취소·반품은 productOrderStatus 로는 안 보인다 — 별도 축으로 싣는다.
         "claim": extract_claim(link.raw_snapshot or {}),
+        # 발송 결과(F-2) — 우리 기록과 네이버가 말하는 것을 나란히. 어긋나면 화면이 말한다.
+        "dispatch": _dispatch_view(link),
         # 발주확인 여부(네이버 판매자센터 처리 상태). 표시 SSOT 는 컬럼이고(수집·스윕·우리
         # 발주확인이 갱신), 컬럼이 비면 원본 스냅샷으로 폴백한다 — T16-A/T16-G.
         "place": _place_view(link),
@@ -2124,8 +2184,11 @@ def _member_rows(db, selected_group: Optional[dict]) -> list[dict[str, Any]]:
 
     Returns:
         상품주문 행 목록(대표 먼저). 옵션 원문은 **자르지 않는다** — 사람이 이걸 보고
-        규격을 채운다(도메인 규칙 6).
+        규격을 채운다(도메인 규칙 6). ``partial_cancel`` 은 부분취소 잔여
+        (:func:`extract_partial_cancel`) — ``is_partial`` 인 행만 화면이 원래 수량을 낸다.
     """
+    from foms.services.integrations.naver_commerce.mapping import extract_partial_cancel
+
     if not selected_group:
         return []
     link_ids = list(selected_group.get("link_ids") or [])
@@ -2157,6 +2220,10 @@ def _member_rows(db, selected_group: Optional[dict]) -> list[dict[str, Any]]:
             "coupon_count": summary["coupon_count"],
             "coupon_discount": summary["coupon_discount"],
             "coupon_seller_burden": summary["coupon_seller_burden"],
+            # 부분취소 잔여(F-3) — 한 집에서 일부만 취소되면 지금 수량이 "원래 몇 개였는지"
+            # 를 화면이 말하지 못했다. **초기값과 잔여값이 실제로 다른 행에서만** 낸다
+            # (281/281 이 이 필드를 갖고 있어 존재 여부로 판정하면 전부 부분취소로 보인다).
+            "partial_cancel": extract_partial_cancel(link.raw_snapshot or {}),
         })
     return rows
 
