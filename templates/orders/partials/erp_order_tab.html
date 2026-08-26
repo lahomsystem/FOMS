@@ -116,9 +116,11 @@ ERP Order Tab Pane (shared between add_order and edit_order)
                                         autocomplete="off">
                                     <label class="form-check-label" for="erp-self-measurement">자가실측</label>
                                 </div>
-                                <div class="form-check mb-0">
+                                {# ORDER-FLAG-01: 무권한이면 숨기지 말고 비활성으로 둔다 — DOM 에서
+                                   빼면 폼 수집기가 false 를 실어 보내 저장 한 번에 값이 지워진다. #}
+                                <div class="form-check mb-0"{% if not can_toggle_order_flags %} title="지방주문은 라홈팀(CS)·관리자만 변경할 수 있습니다."{% endif %}>
                                     <input class="form-check-input" type="checkbox" id="erp-regional-order"
-                                        autocomplete="off">
+                                        autocomplete="off"{% if not can_toggle_order_flags %} disabled{% endif %}>
                                     <label class="form-check-label" for="erp-regional-order">지방주문</label>
                                 </div>
                             </div>
@@ -164,8 +166,9 @@ ERP Order Tab Pane (shared between add_order and edit_order)
                                     <input type="checkbox" class="form-check-input" id="erp-orderer-direct" autocomplete="off">
                                     <span class="form-check-label">직접입력</span>
                                 </label>
-                                <label class="form-check form-check-inline mb-0 small">
-                                    <input type="checkbox" class="form-check-input" id="erp-factory2" autocomplete="off">
+                                {# ORDER-FLAG-01: 비활성만 하고 제거하지 않는다(위 지방주문과 같은 이유). #}
+                                <label class="form-check form-check-inline mb-0 small"{% if not can_toggle_order_flags %} title="라홈시스템은 라홈팀(CS)·관리자만 변경할 수 있습니다."{% endif %}>
+                                    <input type="checkbox" class="form-check-input" id="erp-factory2" autocomplete="off"{% if not can_toggle_order_flags %} disabled{% endif %}>
                                     <span class="form-check-label">라홈시스템</span>
                                 </label>
                             </div>

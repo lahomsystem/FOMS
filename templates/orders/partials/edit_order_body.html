@@ -315,9 +315,10 @@
 
                             <!-- 지방 주문 설정 -->
                             <div class="mb-3">
-                                <div class="form-check">
+                                {# ORDER-FLAG-01: 무권한이면 비활성. 서버도 미전송을 '해제'로 읽지 않는다. #}
+                                <div class="form-check"{% if not can_toggle_order_flags %} title="지방주문은 라홈팀(CS)·관리자만 변경할 수 있습니다."{% endif %}>
                                     <input class="form-check-input" type="checkbox" id="is_regional" name="is_regional"
-                                        value="1" {{ 'checked' if order.is_regional else '' }}>
+                                        value="1" {{ 'checked' if order.is_regional else '' }}{% if not can_toggle_order_flags %} disabled{% endif %}>
                                     <label class="form-check-label" for="is_regional">
                                         <i class="fas fa-map-marker-alt text-warning"></i> 지방 주문으로 설정
                                     </label>

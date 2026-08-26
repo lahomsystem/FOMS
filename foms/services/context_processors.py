@@ -28,6 +28,7 @@ from foms.services.integrations.naver_commerce.triage_count import get_triage_pe
 from foms.services.common.ept_b7_profile import phase
 from foms.services.common.erp_mine_filter import erp_mine_only_from_request
 from foms.services.common.geocode_config import KAKAO_JS_API_KEY
+from foms.services.orders.order_flag_permissions import can_toggle_order_flags
 from foms.web.auth import ROLES
 from foms.services.orders.status_constants import BULK_ACTION_STATUS, STATUS
 from foms.persistence.main.db import get_db
@@ -187,6 +188,9 @@ def inject_status_list() -> dict[str, Any]:
         "impersonating_from_id": impersonating_from_id,
         "naver_triage_pending": naver_triage_pending,
         "erp_order_enabled": erp_order_enabled,
+        # ORDER-FLAG-01: 라홈시스템·지방주문 체크박스 활성 여부. 서버 게이트와 **같은 판정**을
+        # 써야 UI 와 저장 결과가 어긋나지 않는다(화면에서 켤 수 있는데 서버가 무시하면 회귀).
+        "can_toggle_order_flags": can_toggle_order_flags(current_user),
         "erp_mobile_v2_enabled": erp_mobile_v2_enabled,
         "coarse_pointer_surfaces": wants_coarse_pointer_surfaces(),
         "wide_only_surfaces": wants_wide_only_surfaces(),
