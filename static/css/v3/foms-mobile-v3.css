@@ -685,3 +685,9 @@
 [data-foms-contrast="high"] .fos-shell-v3 .px-drawing-vchip {
   border-width: 1.5px; font-weight: 800;
 }
+/* 공용 KV 행(foms_kv_row)의 여러 줄 값 — v3 셸은 foms-mobile-surfaces 번들을
+   로드하지 않으므로 줄바꿈 보존 규칙만 이식한다(주문 상세 '추가입력'). */
+.foms-kv-row__text--pre {
+  white-space: pre-line;
+  overflow-wrap: anywhere;
+}
