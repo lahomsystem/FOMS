@@ -283,6 +283,68 @@ def test_soft_refresh_replaces_the_whole_workbench_root():
     assert "syncBulk()" in body
 
 
+def test_soft_refresh_keeps_the_find_word_and_the_scroll_place(): # noqa: E501
+    """교체로 잃는 것 둘을 더 되돌린다 — 찾기 낱말과 훑던 자리 (2026-08-26).
+
+    서버는 사용자가 무엇을 쳤는지 모르므로 전체 렌더가 찾기 칸을 늘 빈 채로 준다. 그리고
+    집 하나가 큐에서 빠지면 문서가 짧아져 브라우저가 스크롤을 위로 당긴다. 둘을 안 되돌리면
+    큐를 위에서부터 훑는 손이 한 집을 처리할 때마다 맨 위에서 다시 찾아야 한다 —
+    **통째 이동을 없앤 값어치가 바로 이 둘이다.**
+    """
+    source = JS_PATH.read_text(encoding="utf-8")
+    body = source.split("async function softRefresh")[1].split("    /* ──")[0]
+
+    assert "captureFind()" in body, "교체 직전에 찾기 상태를 떠야 한다"
+    assert "restoreFind(" in body, "새 칸에 다시 심어야 한다"
+    assert "window.scrollTo(" in body, "줄어든 문서가 스크롤을 위로 당긴다"
+
+    restore = source.split("function restoreFind")[1].split("    function ")[0]
+    assert "applyFind(" in restore, (
+        "값만 옮기고 다시 좁히지 않으면 칸에는 낱말이 남았는데 전체 목록이 보인다")
+
+
+def test_review_done_does_not_reload_the_whole_page():
+    """확인 완료는 화면 루트만 갈아 끼운다 — 통째 이동은 폴백에만 남는다 (2026-08-26).
+
+    옛 코드는 ``location.href`` 로 페이지를 다시 받아 스크롤·찾기 낱말·글자 배율을 전부
+    잃었다. "페이지를 다시 받지 않는다"는 v3 규율 밖에 남아 있던 마지막 자리였다.
+    """
+    source = JS_PATH.read_text(encoding="utf-8")
+    body = source.split("async function submitReviewDone")[1].split("    /**")[0]
+
+    assert "await softRefresh()" in body, "부분 갱신으로 끝내야 한다"
+    assert "replacePaneState(null, next)" in body, (
+        "주소에서 선택만 지운다. pushState 면 뒤로가기가 방금 뺀 집으로 돌아간다")
+    assert "if (!refreshed)" in body, (
+        "부분 갱신이 안 되는 응답(로그인 리다이렉트)에서 뺀 집이 남은 것처럼 보이면 안 된다")
+
+
+def test_run_now_waits_with_its_own_token_and_a_deadline():
+    """지금 수집은 결과를 기다리되, 단건·벌크 폴링을 끊지 않는다 (2026-08-26).
+
+    옛 코드는 큐에 넣고 "잠시 뒤 새로고침하세요"로 끝냈다 — 사용자가 F5 를 누르기 전까지
+    화면은 영원히 그대로였다. 기다리게 하되 **토큰을 나눠 쓰면 안 된다**: 하나를 공유하면
+    수집을 누른 순간 돌고 있던 집 조작 폴링이 끊기고, 끊긴 쪽은 결과를 영영 못 본다.
+    """
+    source = JS_PATH.read_text(encoding="utf-8")
+    submit = source.split("async function submitRunNow")[1].split("    /**")[0]
+    watch = source.split("function watchRun")[1].split("function stopRunWatch")[0]
+
+    assert "watchRun(rev)" in submit, "응답 지문을 기준으로 결과를 기다린다"
+    assert "pollToken" not in watch and "bulkToken" not in watch, (
+        "단건·벌크 토큰을 나눠 쓰면 서로를 끊는다")
+    assert "mine !== runToken" in watch, "새 수집이 앞 폴링을 끊어야 한다"
+    assert "Date.now() >= deadline" in watch, "마감 없이 도는 폴링을 만들지 않는다"
+    assert "RUN_POLL_TIMEOUT_MS" in source and "RUN_POLL_INTERVAL_MS" in source
+
+    # 정지기가 **실제로 정지하는지**까지 본다. 토큰 비교만 못박으면 `stopRunWatch()` 본문이
+    # 비어도 전부 green 이다(2026-08-26 변이 실측으로 확인한 구멍) — 그러면 앞 폴링이
+    # 계속 돌면서 새 수집의 문구를 옛 결과로 덮는다.
+    stop = source.split("function stopRunWatch")[1].split("    /**")[0]
+    assert "runToken += 1" in stop, "토큰을 올리지 않으면 돌던 회차가 살아남는다"
+    assert "window.clearTimeout(runTimer)" in stop, "예약된 다음 회차를 취소해야 한다"
+
+
 def test_bulk_note_exists_and_asset_pin_moved():
     """진행 문구 자리가 있어야 하고, JS/CSS 를 고쳤으면 ``?v`` 핀이 움직여야 한다.
 
@@ -292,7 +354,7 @@ def test_bulk_note_exists_and_asset_pin_moved():
 
     assert 'id="wb-bulk-note"' in markup
     assert 'id="wb-retry-note"' in markup
-    assert markup.count("?v=20260825e") == 2, "CSS·JS 핀을 함께 올린다"
+    assert markup.count("?v=20260826a") == 2, "CSS·JS 핀을 함께 올린다"
 
 
 # --------------------------------------------------------------------------- #
