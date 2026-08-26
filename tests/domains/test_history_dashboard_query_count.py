@@ -233,6 +233,74 @@ def test_history_tablet_sheet_renders_readonly_snapshot(client):
     assert "<select" not in body
 
 
+def test_history_tablet_sheet_clamps_balance_when_only_deposit_present(client):
+    """품목금액 0 · 예약금만 있는 주문의 이력 시트 잔금은 0원이다(음수 표기 금지).
+
+    네이버 승격 주문은 실결제 총액을 예약금에만 담고 항목금액은 비운다 → 출고가 0.
+    클램프가 없으면 정산 카드에 ``-1,229,000원`` 이 뜬다(서버 파생식
+    structured_form_projection.recompute_totals 의 max(0, ...) 이 정본).
+    """
+    _login_admin(client)
+    order = Order(
+        received_date="2026-06-01",
+        customer_name="예약금만고객",
+        phone="010-7777-0002",
+        address="서울시 감사구 2",
+        product="붙박이장",
+        status="COMPLETED",
+        manager_name="이력담당",
+        is_erp_order=True,
+        erp_stage_code="COMPLETED",
+        structured_data={
+            "parties": {"customer": {"name": "예약금만고객", "phone": "010-7777-0002"}},
+            "schedule": {"construction": {"date": "2026-06-20"}},
+            "items": [{"product_name": "붙박이장", "price": 0}],
+            "payment": {"deposit": 1229000},
+            "totals": {"items_total": 0},
+        },
+    )
+    db_session.add(order)
+    db_session.commit()
+
+    resp = client.get(f"/erp/history/tablet-sheet/{order.id}")
+    assert resp.status_code == 200, f"sheet -> {resp.status_code}"
+    body = resp.get_data(as_text=True)
+    assert "1,229,000원" in body  # 예약금은 그대로 보인다
+    assert "-1,229,000원" not in body  # 음수 잔금 금지
+    assert "<dt>잔금</dt><dd>0원</dd>" in body
+
+
+def test_history_tablet_sheet_keeps_balance_for_priced_items(client):
+    """회귀 방지: 품목금액이 있는 주문의 이력 시트 잔금은 출고가 − 예약금 그대로."""
+    _login_admin(client)
+    order = Order(
+        received_date="2026-06-01",
+        customer_name="정상금액고객",
+        phone="010-7777-0003",
+        address="서울시 감사구 3",
+        product="붙박이장",
+        status="COMPLETED",
+        manager_name="이력담당",
+        is_erp_order=True,
+        erp_stage_code="COMPLETED",
+        structured_data={
+            "parties": {"customer": {"name": "정상금액고객", "phone": "010-7777-0003"}},
+            "schedule": {"construction": {"date": "2026-06-20"}},
+            "items": [{"product_name": "붙박이장", "price": 5000000}],
+            "payment": {"deposit": 1000000},
+            "totals": {"items_total": 5000000},
+        },
+    )
+    db_session.add(order)
+    db_session.commit()
+
+    resp = client.get(f"/erp/history/tablet-sheet/{order.id}")
+    assert resp.status_code == 200, f"sheet -> {resp.status_code}"
+    body = resp.get_data(as_text=True)
+    assert "<dt>출고가</dt><dd>5,000,000원</dd>" in body
+    assert "<dt>잔금</dt><dd>4,000,000원</dd>" in body
+
+
 def test_history_search_finds_long_completed_order(client):
     """회귀 차단: 완료된 지 60일 넘은 주문도 이력 검색에 나온다.
 

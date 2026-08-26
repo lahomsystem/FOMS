@@ -310,6 +310,7 @@ def history_tablet_sheet(order_id: int):
         erp_shipping_price_from_structured,
     )
     from foms.services.erp_product_items import build_product_items_for_orders
+    from foms.services.estimate_service import _balance_after_payments
 
     sd = _ensure_dict(order.structured_data)
     if is_erp_order_record(order):
@@ -327,10 +328,16 @@ def history_tablet_sheet(order_id: int):
     # 완료일 = 시공일(schedule.construction.date) — 완료 대시보드와 동일 정의.
     completed_date = ((sd.get('schedule') or {}).get('construction') or {}).get('date') or None
 
-    # 정산 요약(읽기전용). 잔금 = 출고가 − 예약금(불변식). 값 부재면 '—'.
+    # 정산 요약(읽기전용). 잔금 = max(0, 출고가 − 예약금). 값 부재면 '—'.
+    # 클램프 규칙의 정본은 서버 파생식(orders/structured_form_projection.recompute_totals)이고,
+    # 그 식과 **같은 값**을 내는 _balance_after_payments 를 쓴다(표면별 새 식 금지).
     shipping_price = erp_shipping_price_from_structured(sd)
     deposit = erp_deposit_amount_from_structured(sd)
-    balance = None if shipping_price is None else shipping_price - (deposit or 0)
+    balance = (
+        None
+        if shipping_price is None
+        else _balance_after_payments(shipping_price, deposit or 0)
+    )
 
     def _krw(value):
         return "—" if value is None else f"{int(value):,}원"

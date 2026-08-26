@@ -334,6 +334,22 @@ def mobile_amount_summary(sd: dict) -> dict[str, Any]:
     읽기전용 요약이므로 표시 금액은 출고가(shipping_price = 품목합 + 자유입력 - 할인)로
     통일하고, 별도 '할인' 라인은 출고가에 흡수해 숨긴다(discount_label=None). 잔금은
     기존 SSOT 계산을 그대로 유지한다(품목합 기준 재파생, 값 불변).
+
+    잔금 표시는 서버 파생식(orders/structured_form_projection.recompute_totals 의
+    ``max(0, ...)``)과 **같은 클램프 규칙**으로 0 에서 자른다 — 품목금액 0 · 예약금만 있는
+    주문(네이버 승격)에서 저장 totals 나 legacy 값이 음수여도 화면에 음수 잔금을 내보내지
+    않는다.
+
+    **다만 파생 소스는 완료 대시보드·이력 시트와 다르다.** 그 둘은 저장 totals 를 무시하고
+    매번 재파생하는데, 여기서는 저장된 ``totals.final_amount``/``balance_amount`` 를 먼저
+    쓰고 없을 때만 재파생한다. totals 가 낡은 주문에서는 두 화면의 잔금이 갈릴 수 있다 —
+    같아진 것은 클램프 규칙뿐이다.
+
+    Args:
+        sd: 주문 structured_data(JSONB) 딕셔너리.
+
+    Returns:
+        모바일 상세 금액 KV 블록 dict(출고가/예약금/할인/잔금 라벨).
     """
     totals = sd.get("totals") if isinstance(sd.get("totals"), dict) else {}
     pricing = sd.get("pricing") if isinstance(sd.get("pricing"), dict) else {}
@@ -357,6 +373,15 @@ def mobile_amount_summary(sd: dict) -> dict[str, Any]:
         except (TypeError, ValueError):
             return str(value)
 
+    def _fmt_balance(value) -> str | None:
+        """잔금 라벨: 숫자로 읽히면 0 에서 클램프해 포맷한다(음수 잔금 표기 차단)."""
+        if value in (None, ""):
+            return None
+        try:
+            return f"{max(0, int(float(value))):,}원"
+        except (TypeError, ValueError):
+            return str(value)
+
     # 출고가(shipping_price) 우선; 품목합만 구해지면 품목합, 그마저 없으면 계약금액 폴백.
     if shipping_price is not None:
         items_label = f"{shipping_price:,}원"
@@ -367,12 +392,12 @@ def mobile_amount_summary(sd: dict) -> dict[str, Any]:
     deposit_label = _fmt(deposit_val) if deposit_val else _fmt(legacy_deposit)
     # 읽기전용 요약: 할인은 출고가에 흡수 — 별도 라인 숨김.
     discount_label = None
-    balance_label = _fmt(final_raw)
+    balance_label = _fmt_balance(final_raw)
     if balance_label is None and items_total is not None:
         effective_total = int(items_total or 0) + int(free_input_val or 0)
         balance_label = f"{_balance_after_payments(effective_total, deposit_val, discount_val):,}원"
     elif balance_label is None:
-        balance_label = _fmt(legacy_balance)
+        balance_label = _fmt_balance(legacy_balance)
     return {
         "items_total_label": items_label,
         "deposit_label": deposit_label,

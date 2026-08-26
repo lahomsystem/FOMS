@@ -21,6 +21,7 @@ from foms.services.erp_display import (
     erp_deposit_amount_from_structured,
     erp_shipping_price_from_structured,
 )
+from foms.services.estimate_service import _balance_after_payments
 from foms.services.feature_flags import is_mobile_v2_shell, resolve_shell_variant_cached
 from foms.services.request_utils import get_search_query_arg
 from models import Order, OrderAttachment
@@ -126,7 +127,7 @@ def _completion_row(order) -> dict:
     """단일 완료 큐 Order → 태블릿 금액 그리드 행 dict.
 
     출고가/예약금은 erp_display SSOT 헬퍼로 **이미 로드된** structured_data 에서
-    파생한다(신규 쿼리·N+1 없음). 잔금 = 출고가 − 예약금(불변식, 예약금 미기입=0).
+    파생한다(신규 쿼리·N+1 없음). 잔금 = max(0, 출고가 − 예약금)(예약금 미기입=0).
     금액은 콤마 포맷 문자열로 1회 파생(셀에서 재파싱 금지). balance_amount 는 KPI 합산
     전용(미표시), month_key 는 기간 필터/집계 전용.
 
@@ -152,7 +153,15 @@ def _completion_row(order) -> dict:
     )[:80] or "-"
     shipping_price = erp_shipping_price_from_structured(sd)
     deposit = erp_deposit_amount_from_structured(sd)
-    balance = None if shipping_price is None else shipping_price - (deposit or 0)
+    # 잔금 = max(0, 출고가 − 예약금). 클램프 규칙의 정본은 서버 파생식
+    # (orders/structured_form_projection.recompute_totals)이고, 그 식과 **같은 값**을 내는
+    # _balance_after_payments 를 쓴다(erp_mobile_order_display 도 같은 헬퍼). 표면마다
+    # 새 식을 쓰면 같은 주문의 잔금이 화면마다 갈린다.
+    balance = (
+        None
+        if shipping_price is None
+        else _balance_after_payments(shipping_price, deposit or 0)
+    )
     payment = sd.get("payment")
     cash_receipt = (
         str(payment.get("cash_receipt") or "").strip()
@@ -445,7 +454,7 @@ def _completion_settlement_memo(settlement: dict | None) -> list[dict]:
 def _completion_sheet_context(db, order, user) -> dict:
     """완료 정산 시트 fragment 렌더 컨텍스트(단건).
 
-    잔금 = 출고가 − 예약금(불변식). 금액은 _format_krw 로 1회 파생.
+    잔금 = max(0, 출고가 − 예약금). 금액은 _format_krw 로 1회 파생.
 
     Args:
         db: DB 세션.
@@ -464,7 +473,15 @@ def _completion_sheet_context(db, order, user) -> dict:
     )
     shipping_price = erp_shipping_price_from_structured(sd)
     deposit = erp_deposit_amount_from_structured(sd)
-    balance = None if shipping_price is None else shipping_price - (deposit or 0)
+    # 잔금 = max(0, 출고가 − 예약금). 클램프 규칙의 정본은 서버 파생식
+    # (orders/structured_form_projection.recompute_totals)이고, 그 식과 **같은 값**을 내는
+    # _balance_after_payments 를 쓴다(erp_mobile_order_display 도 같은 헬퍼). 표면마다
+    # 새 식을 쓰면 같은 주문의 잔금이 화면마다 갈린다.
+    balance = (
+        None
+        if shipping_price is None
+        else _balance_after_payments(shipping_price, deposit or 0)
+    )
     payment = sd.get("payment")
     cash_receipt = (
         str(payment.get("cash_receipt") or "").strip()

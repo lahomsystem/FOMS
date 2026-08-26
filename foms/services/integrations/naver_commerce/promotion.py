@@ -64,6 +64,92 @@ def is_promotable(link: ExternalOrderLink) -> bool:
             and str(link.sync_status or "") in PROMOTABLE_SYNC_STATUSES)
 
 
+#: 승격 시 품목 행에 남기는 **네이버 원본 결제액** 키. 화면 금액식(``price``)이 읽지 않는
+#: 자리라 합계에 섞이지 않는다 — 사람이 "네이버에서 얼마 받았나"를 역산할 근거다.
+ITEM_PAID_AMOUNT_KEY = "naver_paid_amount"
+
+
+def apply_paid_amount_as_deposit(structured: dict) -> int:
+    """네이버 실결제 총액을 품목 금액이 아니라 **예약금**으로 앉힌다 (승격 전용).
+
+    2026-08-26 사용자 확정: 네이버에서 받은 돈은 계약 총액이 아니라 **선금**이다. 실측 전에는
+    품목 금액이 정해지지 않았으므로 항목 금액을 비우고(0) 결제 총액만 예약금에 넣는다.
+    실측 뒤 사람이 항목 금액을 채우면 그때부터 잔금이 표기된다(그 전까지 잔금 0).
+
+    상품주문이 여러 건인 집도 같다 — :func:`map_group` 이 이미 묶음 합계를
+    품목 행에 나눠 담아 뒀으므로 그 합이 곧 실결제 총액이다. 여기서 합산식을 새로 만들지
+    않는다(집 합계 정본은 ``map_group`` 하나다).
+
+    **품목 행은 지우지 않는다** — 품명·옵션·수량은 "무엇을 샀는가"이고, 그게 사라지면
+    실측자가 규격을 채울 근거가 없다. 지운 금액도 잃지 않는다: 행마다
+    ``items[].naver_paid_amount``, 집 단위는 ``naver.group_payment_total`` 에 남고,
+    네이버 원본 결제 상세는 ``naver.payment`` 그대로다.
+
+    다만 **행별 기록은 첫 폼 저장까지만** 산다. 폼 전체저장은 ``items`` 를 클라이언트 배열로
+    통째 교체하고 그 배열은 ``data-erp`` 입력만 담으므로, ``naver_paid_amount`` 는
+    ``naver_addons`` 와 같이 그때 사라진다. 집 단위(``naver.*``)는 보존 목록에 있어 살아
+    남으므로 "얼마 받았나"는 계속 역산할 수 있다 — 잃는 것은 행별 배분이다.
+
+    이 함수는 **갓 매핑한 dict 전용**이다. 이미 옮겨진 structured_data 에 다시 부르면
+    품목 행이 이미 0이라 합계도 0이고, 그 0이 예약금을 덮는다. 아래 가드가 그 경우를
+    막지만 애초에 두 번 부를 자리가 아니다(그래서 ``__all__`` 에 없다).
+
+    ``totals`` 는 손대지 않는다 — ``create_order`` 안 ``recompute_totals`` 가 서버 권위로
+    다시 계산한다(품목합 0 · 예약금 total → ``balance_amount`` 0).
+
+    ``deposit_confirmed`` 는 ``False`` 로 둔다. 입금 확정 토글은 FINANCE 권한 게이트라
+    수집이 대신 눌러 줄 수 없다(돈이 들어왔다는 판정은 사람 몫).
+
+    이 정책은 **새 주문을 만들 때만** 돈다. 기존 주문에 붙이는 경로
+    (:func:`attach_link_to_order`)는 지난 결정(2026-08-19)대로 금액을 기록만 하고
+    예약금·출고가를 자동으로 바꾸지 않는다.
+
+    Args:
+        structured: :func:`map_group` 이 만든 structured_data. **in-place** 로 고친다
+            (아직 DB 에 없는 dict 라 ``flag_modified`` 대상이 아니다).
+
+    Returns:
+        예약금으로 옮긴 실결제 총액(원).
+    """
+    if not isinstance(structured, dict):
+        return 0
+
+    # 품목 행 price → 원화 정수 규칙은 서버 재계산(recompute_totals)과 같은 것을 쓴다.
+    # 여기서 읽은 값이 곧 "우리가 비운 items_total" 이라야 예약금과 어긋나지 않는다.
+    # (순환 import 방지 위해 함수 지역 import — structured_form_projection 과 같은 이유.)
+    from foms.services.erp_display import _erp_coerce_item_price_krw
+
+    rows = [row for row in (structured.get("items") or []) if isinstance(row, dict)]
+    # 합계를 **먼저** 센다. 세면서 같이 쓰면 아래 가드가 이미 덮어쓴 값을 보게 된다
+    # (행별 원본이 0으로 지워진 뒤라 되돌릴 수 없다).
+    total = sum(_erp_coerce_item_price_krw(row) for row in rows)
+
+    payment = structured.get("payment")
+    if not isinstance(payment, dict):
+        payment = {}
+        structured["payment"] = payment
+    existing = int(payment.get("deposit") or 0)
+
+    # **두 번 부르면 예약금이 사라진다** — 두 번째 호출은 price 가 이미 0이라 합계도 0이고,
+    # 그 0으로 예약금·집 합계·행별 원본을 동시에 덮는다. 갓 매핑한 dict 위에서만 도는
+    # 지금은 도달할 수 없지만, 재승격·보정 스크립트가 기존 주문 structured_data 에 한 번
+    # 부르면 그 주문의 돈이 조용히 0이 된다. "이미 옮겨진 dict" 는 한 글자도 안 건드린다.
+    if total == 0 and existing > 0:
+        return existing
+
+    for row in rows:
+        row[ITEM_PAID_AMOUNT_KEY] = _erp_coerce_item_price_krw(row)
+        row["price"] = 0
+
+    payment["deposit"] = int(total)
+    payment["deposit_confirmed"] = False
+
+    naver = structured.get("naver")
+    if isinstance(naver, dict):
+        naver["group_payment_total"] = int(total)
+    return int(total)
+
+
 def promote_link_to_order(
     session: Session, *, link_id: int, actor_user_id: int, owner_user_id: int,
     now: Optional[datetime] = None,
@@ -128,6 +214,9 @@ def promote_link_to_order(
         link.sync_status = "PENDING_REVIEW"
         link.failure_reason = str(exc)[:2000]
         raise PromotionError(f"원본을 주문으로 옮길 수 없습니다: {exc}") from exc
+
+    # 네이버 결제액은 계약 총액이 아니라 **선금**이다 — 승격 경로에서만 자리를 옮긴다.
+    apply_paid_amount_as_deposit(structured)
 
     order = create_order(
         session,
@@ -756,6 +845,8 @@ def _coupon_facts(raw_snapshot: Any) -> dict[str, Any]:
     }
 
 
+# ``apply_paid_amount_as_deposit`` 은 **일부러 빼 둔다**. 갓 매핑한 dict 전용이라
+# 이미 옮겨진 주문에 다시 부르면 안 되는데, __all__ 에 있으면 "쓰라고 만든 것" 으로 읽힌다.
 __all__ = ["PromotionError", "promote_link_to_order", "summarize_snapshot",
            "attach_link_to_order", "detach_link_from_order", "ATTACHABLE_RELATIONS",
-           "EXTRA_PAYMENTS_KEY"]
+           "EXTRA_PAYMENTS_KEY", "ITEM_PAID_AMOUNT_KEY"]

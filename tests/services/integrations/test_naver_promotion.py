@@ -326,7 +326,7 @@ def _sibling(product_order_id: str, *, order_no: str = "2026081412345",
 
 
 def test_same_naver_order_becomes_one_foms_order(app):
-    """본품 + 0원 구성 2건 = 주문 1건, 품목 3행, 금액은 합계."""
+    """본품 + 0원 구성 2건 = 주문 1건, 품목 3행, 합계는 예약금(2026-08-26 정책)."""
     actor, owner = _accounts()
     main = _sibling("PO-G1", name="붙박이장 본품", amount=1200000, quantity=5)
     _sibling("PO-G2", name="TYPE A (반옷장)", amount=0, quantity=2)
@@ -343,7 +343,16 @@ def test_same_naver_order_becomes_one_foms_order(app):
     assert "외 2건" in order.product
     items = (order.structured_data or {}).get("items") or []
     assert len(items) == 3
-    assert {i["price"] for i in items} == {1200000, 0, 50000}
+    # 2026-08-26 이전 기대값은 ``{i["price"]} == {1200000, 0, 50000}`` 이었다. 그때는
+    # 네이버 결제액이 품목 행 금액으로 흘렀기 때문인데, 결제액은 계약 총액이 아니라
+    # **선금**이라 이제 예약금으로 간다(사용자 확정). 행별 금액 분배 계약 자체는 사라진 게
+    # 아니라 ``map_group`` 단위 테스트(test_naver_ingest.py)가 계속 물고 있고, 여기서는
+    # **승격 뒤 모습**만 본다.
+    assert {i["price"] for i in items} == {0}, "실측 전 항목 금액은 사람이 넣는다"
+    assert {i["naver_paid_amount"] for i in items} == {1200000, 0, 50000}, \
+        "원본 결제액은 행마다 그대로 남는다"
+    assert {i["quantity"] for i in items} == {5, 2, 1}, "수량은 보존된다"
+    assert order.structured_data["payment"]["deposit"] == 1250000, "합계는 예약금으로"
     links = db_session.query(ExternalOrderLink).all()
     assert {l.order_id for l in links} == {order_id}
     assert {l.sync_status for l in links} == {"LINKED"}

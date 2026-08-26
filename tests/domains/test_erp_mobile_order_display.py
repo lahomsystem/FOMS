@@ -285,6 +285,34 @@ def test_mobile_amount_summary_applies_discount_to_balance() -> None:
     assert summary["balance_label"] == "350,000원"
 
 
+def test_mobile_amount_summary_clamps_balance_when_only_deposit_present() -> None:
+    """품목금액 0 · 예약금만 있는 주문의 모바일 잔금 라벨은 0원이다(음수 금지).
+
+    네이버 승격 주문은 실결제 총액을 예약금에만 담고 항목금액은 비운다 → 출고가 0.
+    저장 totals 나 legacy 값이 음수여도 읽기 표면은 서버 파생식
+    (structured_form_projection.recompute_totals 의 max(0, ...))과 같게 0에서 자른다.
+    """
+    sd = {
+        "items": [{"price": 0}],
+        "payment": {"deposit": 1229000},
+        "totals": {"items_total": 0, "final_amount": -1229000},
+    }
+    summary = display.mobile_amount_summary(sd)
+    assert summary["items_total_label"] == "0원"
+    assert summary["deposit_label"] == "1,229,000원"
+    assert summary["balance_label"] == "0원"
+
+
+def test_mobile_amount_summary_clamps_legacy_negative_balance() -> None:
+    """totals 가 없고 legacy pricing.balance 만 음수로 남은 건도 0원으로 자른다."""
+    sd = {
+        "payment": {"deposit": 1229000},
+        "pricing": {"balance": -1229000},
+    }
+    summary = display.mobile_amount_summary(sd)
+    assert summary["balance_label"] == "0원"
+
+
 def test_mobile_detail_quest_section_has_deep_link_anchor() -> None:
     """카드의 '퀘스트 승인' deep-link 대상 앵커가 상세 퀘스트 섹션에 존재한다."""
     partial = (
