@@ -139,7 +139,8 @@ def test_get_rq_runtime_status_disabled_without_redis_url(
     """REDIS_URL 미설정은 'unreachable'(장애)이 아니라 'disabled'(의도된 비활성)."""
     monkeypatch.delenv("REDIS_URL", raising=False)
 
-    assert queue_mod.get_rq_runtime_status() == {"state": "disabled", "worker_count": 0}
+    assert queue_mod.get_rq_runtime_status() == {
+        "state": "disabled", "worker_count": 0, "worker_count_known": True}
 
 
 def test_get_rq_runtime_status_unreachable_when_ping_fails(
@@ -149,7 +150,8 @@ def test_get_rq_runtime_status_unreachable_when_ping_fails(
     monkeypatch.setenv("REDIS_URL", "redis://127.0.0.1:6390")
     monkeypatch.setattr(queue_mod, "_rq_queue", _DeadQueue())
 
-    assert queue_mod.get_rq_runtime_status() == {"state": "unreachable", "worker_count": 0}
+    assert queue_mod.get_rq_runtime_status() == {
+        "state": "unreachable", "worker_count": 0, "worker_count_known": True}
 
 
 def test_get_rq_worker_count_returns_zero_and_logs_when_redis_dead(
@@ -173,3 +175,60 @@ def test_get_rq_worker_count_returns_zero_and_logs_when_redis_dead(
         f"fallback 단계별 로그가 누락됐다(관측된 로그 {len(records)}건). "
         "조용한 0 은 '워커 없음' 오진을 만든다"
     )
+
+
+def test_unknown_worker_count_is_marked_unknown_not_zero(
+    monkeypatch: pytest.MonkeyPatch,
+) -> None:
+    """**못 센 0 과 진짜 0 을 가른다** (2026-08-26 CEO 지적).
+
+    바로 위 테스트가 적어 둔 오진("fallback 은 성공했고 워커가 진짜 0")을 로그가 아니라
+    **반환값으로** 막는다. 호출부는 로그를 읽지 않는다 — 값을 읽는다.
+    """
+    monkeypatch.setenv("REDIS_URL", "redis://127.0.0.1:6390")
+
+    count, known = queue_mod._probe_rq_workers(_DeadQueue())
+
+    assert count == 0
+    assert known is False, "못 센 것을 '0대'라고 단정했다"
+
+
+def test_counted_zero_stays_a_known_zero(monkeypatch: pytest.MonkeyPatch) -> None:
+    """진짜로 0대를 센 경우는 그대로 '안다'로 남는다 — 좁힌 판정이 못을 빼면 안 된다."""
+
+    class _EmptyQueue:
+        name = "default"
+
+        def __init__(self) -> None:
+            self.connection = self
+
+    monkeypatch.setenv("REDIS_URL", "redis://127.0.0.1:6390")
+    monkeypatch.setattr("rq.Worker.count", staticmethod(lambda connection=None, queue=None: 0))
+
+    count, known = queue_mod._probe_rq_workers(_EmptyQueue())
+
+    assert count == 0 and known is True
+
+
+def test_runtime_status_reports_unknown_worker_count(monkeypatch: pytest.MonkeyPatch) -> None:
+    """ping 은 통했는데 워커를 못 센 상태가 상태 dict 에 그대로 실린다."""
+
+    class _PingOkCountDead:
+        """ping 은 되는데 Worker 조회만 실패하는 짧은 창의 재현."""
+
+        name = "default"
+
+        def __init__(self) -> None:
+            self.connection = self
+
+        def ping(self):
+            return True
+
+    monkeypatch.setenv("REDIS_URL", "redis://127.0.0.1:6390")
+    monkeypatch.setattr(queue_mod, "_rq_queue", _PingOkCountDead())
+
+    status = queue_mod.get_rq_runtime_status()
+
+    assert status["state"] == "reachable", status
+    assert status["worker_count"] == 0
+    assert status["worker_count_known"] is False

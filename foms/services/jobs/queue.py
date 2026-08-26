@@ -56,16 +56,30 @@ def get_rq_queue():
         return None
 
 
-def get_rq_worker_count(q=None):
-    """Return the live worker count for the default queue."""
+def _probe_rq_workers(q=None) -> tuple[int, bool]:
+    """워커 수를 재고, **잰 것인지 못 잰 것인지**까지 함께 돌려준다.
+
+    ``get_rq_worker_count`` 는 실패했을 때도 0 을 준다. 그러면 "워커가 정말 0대"와
+    "Redis 가 일시적으로 대답을 못 해 셀 수 없었다"가 같은 값이 되어, 호출부가 멀쩡한
+    시스템을 두고 "워커가 한 대도 없습니다. WORKER 서비스를 확인하세요"라고 말한다
+    (2026-08-26 CEO 지적). 판정이 필요한 호출부는 이 함수를 쓴다.
+
+    Args:
+        q: RQ 큐. 없으면 기본 큐를 잡는다.
+
+    Returns:
+        ``(worker_count, known)``. ``known`` 이 False 면 ``worker_count`` 는 **모른다는
+        뜻의 0** 이지 "0대"가 아니다.
+    """
     q = q or get_rq_queue()
     if not q:
-        return 0
+        # 큐 자체가 없으면 워커도 없다 — 이건 못 잰 것이 아니라 확실히 아는 사실이다.
+        return 0, True
 
     try:
         from rq import Worker
 
-        return int(Worker.count(connection=q.connection, queue=q))
+        return int(Worker.count(connection=q.connection, queue=q)), True
     except Exception as e:
         logger.warning(f"[RQ] Worker.count failed: {e}", exc_info=True)
 
@@ -73,19 +87,36 @@ def get_rq_worker_count(q=None):
         from rq import Worker
 
         workers = Worker.all(connection=q.connection, queue=q)
-        return len(workers)
+        return len(workers), True
     except Exception as e:
         logger.warning(f"[RQ] Worker.all fallback failed: {e}", exc_info=True)
-        return 0
+        return 0, False
+
+
+def get_rq_worker_count(q=None):
+    """Return the live worker count for the default queue.
+
+    세지 못한 경우에도 0 을 준다 — "0대"와 "못 셌다"를 갈라야 하는 호출부는
+    :func:`_probe_rq_workers` 또는 :func:`get_rq_runtime_status` 의
+    ``worker_count_known`` 을 본다.
+    """
+    count, _known = _probe_rq_workers(q)
+    return count
 
 
 def get_rq_runtime_status():
-    """Inspect Redis reachability and live worker count for readiness checks."""
+    """Inspect Redis reachability and live worker count for readiness checks.
+
+    ``worker_count_known`` 이 False 면 ``worker_count`` 의 0 은 **"모른다"**는 뜻이다.
+    ping 은 통했는데 그 직후 ``Worker.count`` 가 실패하는 짧은 창이 실제로 있고, 그때
+    0 을 "워커 0대"로 읽으면 화면이 멀쩡한 WORKER 서비스를 의심하라고 말한다.
+    """
     redis_url = os.environ.get("REDIS_URL")
     if not redis_url:
         return {
             "state": "disabled",
             "worker_count": 0,
+            "worker_count_known": True,
         }
 
     q = get_rq_queue()
@@ -93,6 +124,7 @@ def get_rq_runtime_status():
         return {
             "state": "unreachable",
             "worker_count": 0,
+            "worker_count_known": True,
         }
 
     try:
@@ -102,11 +134,14 @@ def get_rq_runtime_status():
         return {
             "state": "unreachable",
             "worker_count": 0,
+            "worker_count_known": True,
         }
 
+    worker_count, known = _probe_rq_workers(q)
     return {
         "state": "reachable",
-        "worker_count": get_rq_worker_count(q),
+        "worker_count": worker_count,
+        "worker_count_known": known,
     }
 
 
