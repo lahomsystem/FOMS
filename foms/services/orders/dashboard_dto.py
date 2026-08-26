@@ -35,6 +35,8 @@ def build_orders_row_dtos(page_orders, page_sds, att_counts, user_map, current_u
         unassigned_intake_ids: 미배정 보류함이 아직 owner 인 주문 id 집합
             (:func:`~foms.services.orders.dashboard_read_model.compute_unassigned_intake_order_ids`).
             미지정이면 뱃지 없음 — 기존 호출자 동작 보존.
+            주문담당자(``parties.manager.name``)가 적혀 있으면 이 집합에 들어 있어도
+            뱃지를 걷는다 — 화면 '담당' 칸이 읽는 값이 곧 배정 표시이기 때문이다.
 
     Returns:
         list[dict]: 원본 enriched와 동일 구조 + ``is_unassigned_intake``.
@@ -70,6 +72,10 @@ def build_orders_row_dtos(page_orders, page_sds, att_counts, user_map, current_u
         parties = sd.get('parties') or {}
         site = sd.get('site') or {}
         schedule = sd.get('schedule') or {}
+        # '담당' 칸이 실제로 읽는 값 = ERP 주문담당자(structured_data.parties.manager.name).
+        # 뱃지 판정도 같은 값을 봐야 한다 — 사람이 담당자를 적어 넣었는데 보류함이 아직
+        # owner 라는 이유로 '담당 미지정' 이 뜨면, 화면은 적어둔 이름을 가려버린다.
+        manager_name = ((parties.get('manager') or {}).get('name') or '').strip()
         enriched.append({
             'id': o.id,
             # v3 CS 콜/접수 홈: 접수 큐 필터(status)·접수일 표시(파생값, 신규 쿼리 없음).
@@ -84,9 +90,9 @@ def build_orders_row_dtos(page_orders, page_sds, att_counts, user_map, current_u
             'address': site.get('address_full') or site.get('address_main') or '-',
             'measurement_date': (schedule.get('measurement') or {}).get('date'),
             'construction_date': (schedule.get('construction') or {}).get('date'),
-            'manager_name': (parties.get('manager') or {}).get('name') or '-',
-            # 수집 주문이 보류함 owner 를 그대로 달고 있는 상태(사람 배정 전).
-            'is_unassigned_intake': o.id in unassigned_ids,
+            'manager_name': manager_name or '-',
+            # 수집 주문이 보류함 owner 를 그대로 달고 있고, 주문담당자도 아직 빈 상태.
+            'is_unassigned_intake': o.id in unassigned_ids and not manager_name,
             'manager_phone': resolve_manager_phone_for_queue(
                 parties, order=o, manager_phone_map=manager_phone_map
             ),
