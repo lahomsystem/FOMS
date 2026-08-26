@@ -270,6 +270,72 @@ def test_history_tablet_sheet_clamps_balance_when_only_deposit_present(client):
     assert "<dt>잔금</dt><dd>0원</dd>" in body
 
 
+def test_history_tablet_sheet_names_the_overpayment(client):
+    """**과입금이 이력 시트에도 남는다** (2026-08-26 CEO L-1).
+
+    잔금은 ``max(0, …)`` 이라 예약금이 출고가를 넘으면 "잔금 0원"만 남고 넘친 금액은
+    어디에도 안 나온다 — 돌려줄 돈이 있다는 사실이 화면에서 사라진다.
+    """
+    _login_admin(client)
+    order = Order(
+        received_date="2026-06-01",
+        customer_name="더낸고객",
+        phone="010-7777-0009",
+        address="서울시 감사구 9",
+        product="붙박이장",
+        status="COMPLETED",
+        manager_name="이력담당",
+        is_erp_order=True,
+        erp_stage_code="COMPLETED",
+        structured_data={
+            "parties": {"customer": {"name": "더낸고객", "phone": "010-7777-0009"}},
+            "schedule": {"construction": {"date": "2026-06-20"}},
+            "items": [{"product_name": "붙박이장", "price": 5000000}],
+            "payment": {"deposit": 6000000},
+            "totals": {"items_total": 5000000},
+        },
+    )
+    db_session.add(order)
+    db_session.commit()
+
+    resp = client.get(f"/erp/history/tablet-sheet/{order.id}")
+
+    assert resp.status_code == 200
+    body = resp.get_data(as_text=True)
+    assert "<dt>잔금</dt><dd>0원</dd>" in body, "잔금 클램프 규칙은 그대로다"
+    assert "과입금" in body and "1,000,000원" in body, "넘친 금액이 화면에서 사라졌다"
+
+
+def test_history_tablet_sheet_does_not_call_measure_pending_overpaid(client):
+    """실측 전 주문(출고가 0 · 예약금 N)은 과입금이 아니다 — 총액 미확정이다."""
+    _login_admin(client)
+    order = Order(
+        received_date="2026-06-01",
+        customer_name="실측전고객",
+        phone="010-7777-0010",
+        address="서울시 감사구 10",
+        product="붙박이장",
+        status="COMPLETED",
+        manager_name="이력담당",
+        is_erp_order=True,
+        erp_stage_code="COMPLETED",
+        structured_data={
+            "parties": {"customer": {"name": "실측전고객", "phone": "010-7777-0010"}},
+            "schedule": {"construction": {"date": "2026-06-20"}},
+            "items": [{"product_name": "붙박이장", "price": 0}],
+            "payment": {"deposit": 1229000},
+            "totals": {"items_total": 0},
+        },
+    )
+    db_session.add(order)
+    db_session.commit()
+
+    resp = client.get(f"/erp/history/tablet-sheet/{order.id}")
+
+    assert resp.status_code == 200
+    assert "과입금" not in resp.get_data(as_text=True), "총액 미확정을 과입금이라 불렀다"
+
+
 def test_history_tablet_sheet_keeps_balance_for_priced_items(client):
     """회귀 방지: 품목금액이 있는 주문의 이력 시트 잔금은 출고가 − 예약금 그대로."""
     _login_admin(client)

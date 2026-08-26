@@ -313,6 +313,58 @@ def test_mobile_amount_summary_clamps_legacy_negative_balance() -> None:
     assert summary["balance_label"] == "0원"
 
 
+def test_mobile_overpayment_is_named_not_swallowed_by_the_clamp() -> None:
+    """**과입금이 화면에 남는다** (2026-08-26 CEO L-1).
+
+    잔금은 어느 표면에서나 ``max(0, …)`` 이라, 예약금이 출고가를 넘으면 화면은
+    "잔금 0원"이라고만 말하고 넘친 금액은 어디에도 안 나온다 — 돌려줄 돈이 있다는
+    사실이 화면에서 사라진다. 넘친 만큼을 따로 낸다.
+    """
+    sd = {
+        "items": [{"price": 500000}],
+        "payment": {"deposit": 600000},
+        "totals": {"items_total": 500000, "deposit_amount": 600000, "final_amount": -100000},
+    }
+    summary = display.mobile_amount_summary(sd)
+    assert summary["balance_label"] == "0원", "잔금 클램프 규칙은 그대로다"
+    assert summary["overpaid_label"] == "100,000원", "넘친 금액이 화면에서 사라졌다"
+
+
+def test_measure_pending_order_is_not_called_overpaid() -> None:
+    """**실측 전 주문은 과입금이 아니다** — 총액이 아직 안 정해진 것이다.
+
+    네이버 승격분은 실결제 총액을 예약금에만 담고 항목금액은 비운다(출고가 0). 그 상태를
+    과입금이라 부르면 승격된 주문이 **전부** 과입금으로 보인다.
+    """
+    sd = {
+        "items": [{"price": 0}],
+        "payment": {"deposit": 1229000},
+        "totals": {"items_total": 0, "final_amount": -1229000},
+    }
+    summary = display.mobile_amount_summary(sd)
+    assert summary["balance_label"] == "0원"
+    assert summary["overpaid_label"] is None, "총액 미확정을 과입금이라 불렀다"
+
+
+def test_exactly_paid_order_says_nothing_about_overpayment() -> None:
+    """딱 맞게 낸 주문에는 과입금 줄이 없다 — 0원 표기는 없는 사실을 그리는 것이다."""
+    sd = {
+        "items": [{"price": 500000}],
+        "payment": {"deposit": 500000},
+        "totals": {"items_total": 500000, "final_amount": 0},
+    }
+    assert display.mobile_amount_summary(sd)["overpaid_label"] is None
+
+
+def test_mobile_detail_renders_the_overpaid_row() -> None:
+    """모바일 상세 금액 블록이 과입금 라벨을 실제로 그린다(있을 때만)."""
+    partial = (
+        ROOT / "templates" / "orders" / "partials" / "order_detail_mobile_v2.html"
+    ).read_text(encoding="utf-8")
+    assert "amount.overpaid_label" in partial
+    assert "'과입금'" in partial
+
+
 def test_mobile_detail_quest_section_has_deep_link_anchor() -> None:
     """카드의 '퀘스트 승인' deep-link 대상 앵커가 상세 퀘스트 섹션에 존재한다."""
     partial = (

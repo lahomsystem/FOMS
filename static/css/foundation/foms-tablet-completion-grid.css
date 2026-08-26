@@ -140,6 +140,15 @@
     color: var(--foms-text-primary);
     font-weight: var(--foms-font-weight-bold);
   }
+  /* 과입금 = 돌려줄 돈이 있다는 신호. 잔금 아래 한 급 작게, 액션 필요 색으로.
+     넘친 집에만 렌더되므로 상시 경고가 되지 않는다. */
+  body.erp-mobile-v2-layout .foms-completion-grid__overpaid {
+    margin-top: var(--foms-space-1);
+    color: var(--foms-status-warning-text, var(--foms-interactive-primary));
+    font-weight: var(--foms-font-weight-bold);
+    font-size: var(--foms-font-size-xs);
+    white-space: nowrap;
+  }
 
   /* --- 정산 상태 배지: HMI 색 규율 = 정상(완료) 무채색, 대기(액션 필요)만 유채색 --- */
   body.erp-mobile-v2-layout .foms-completion-grid__badge {
@@ -489,6 +498,14 @@
   body.erp-mobile-v2-layout .foms-completion-sheet__amount--balance dd {
     font-size: var(--foms-font-size-2xl);
     color: var(--foms-interactive-primary);
+  }
+  /* 과입금 타일 — 잔금 타일과 같은 폭으로 바로 아래. 색은 액션 필요(돌려줄 돈). */
+  body.erp-mobile-v2-layout .foms-completion-sheet__amount--overpaid {
+    grid-column: 1 / -1;
+  }
+  body.erp-mobile-v2-layout .foms-completion-sheet__amount--overpaid dt,
+  body.erp-mobile-v2-layout .foms-completion-sheet__amount--overpaid dd {
+    color: var(--foms-status-warning-text, var(--foms-interactive-primary));
   }
 
   /* --- 정산 상태 배지: 대기=warning 틴트(액션 필요), 청구 완료=무채색(HMI 색 규율) --- */

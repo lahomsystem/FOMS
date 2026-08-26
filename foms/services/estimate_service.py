@@ -311,6 +311,33 @@ def _balance_after_payments(total_amount: int, deposit_amount: int, discount_amo
     )
 
 
+def _overpaid_after_payments(total_amount: int, deposit_amount: int,
+                             discount_amount: int = 0) -> int:
+    """받을 돈보다 **더 들어온** 금액 — 과입금. 잔금 클램프가 삼킨 나머지다.
+
+    잔금은 어느 표면에서나 ``max(0, …)`` 이라, 예약금이 받을 돈을 넘어서면 화면은
+    **잔금 0원**이라고만 말하고 넘친 금액은 어디에도 안 나온다. 그러면 돌려줄 돈이
+    있다는 사실이 화면에서 사라진다(2026-08-26 CEO 지적 L-1).
+
+    **총액이 0 이하면 0 을 준다.** 그건 과입금이 아니라 *총액이 아직 안 정해진 것*이다 —
+    네이버 승격분은 실측 전까지 품목금액이 비어 있고 예약금만 있다. 그 상태를 과입금이라
+    부르면 승격된 주문 전부가 과입금으로 보인다.
+
+    Args:
+        total_amount: 총액(출고가).
+        deposit_amount: 예약금.
+        discount_amount: 할인.
+
+    Returns:
+        ``max(0, 예약금 - max(0, 총액 - 할인))``. 총액 미확정(0 이하)이면 0.
+    """
+    total = int(total_amount or 0)
+    if total <= 0:
+        return 0
+    due = max(0, total - int(discount_amount or 0))
+    return max(0, int(deposit_amount or 0) - due)
+
+
 def is_factory2_order(structured_data: dict) -> bool:
     """structured_data.flags.factory2 — 2공장 전용 결제계좌 사용 여부."""
     flags = structured_data.get("flags") or {}
