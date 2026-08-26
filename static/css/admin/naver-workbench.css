@@ -578,6 +578,19 @@ input.wb-pick:disabled,
    담당자가 네이버를 따로 열어 확인하던 두 가지를 표 안으로 들인다. 색은 이미 이 화면이
    쓰는 두 개만 쓴다: 빨강 = 되돌릴 수 없는 것(취소), 초록은 안 쓴다 — '살아 있음'은
    좋은 소식이 아니라 **다른 판정**(추가결제)이라 회색이다. */
+/* 고객이 쓴 사유 원문. 라벨보다 한 급 작고 따옴표로 감싼다 — 우리가 만든 문구가 아니라
+   **고객의 말**이라는 것이 한눈에 보여야 판정 근거로 읽힌다. 길면 두 줄까지만 보인다. */
+.wb-cand__reason {
+    margin-top: 2px;
+    color: var(--wb-fg);
+    font-size: calc(11px * var(--wb-fs, 1));
+    line-height: 1.35;
+    display: -webkit-box;
+    -webkit-line-clamp: 2;
+    -webkit-box-orient: vertical;
+    overflow: hidden;
+}
+
 .wb-cand__claim {
     display: inline-block;
     font-size: calc(11.5px * var(--wb-fs, 1));

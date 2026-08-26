@@ -152,6 +152,42 @@ def test_detail_offers_existing_orders_with_attach_buttons(client, workbench_on)
     assert f"#{order.id}" in body, "어느 주문에 붙는지 번호가 보여야 한다"
 
 
+def test_candidate_table_shows_the_customers_cancel_sentence(client, workbench_on):
+    """후보 표의 `네이버 옛 결제` 열이 **고객이 쓴 사유 원문**까지 말한다 (2026-08-26).
+
+    판정(재결제냐 추가결제냐)이 실제로 일어나는 자리는 pane 위쪽이 아니라 이 표다.
+    라벨 `전부 취소` 는 무엇이 일어났는지만 말하고, 왜 취소했는지는 이 문장에 있다.
+    """
+    _login(client)
+    order = _order()
+    old = _collected(order_no="N-REL-OLDCXL", amount=500000, claim_status="CANCEL_DONE",
+                     order_id=int(order.id), relation="REPAY")
+    snapshot = dict(old.raw_snapshot)
+    snapshot["cancel"] = {"claimStatus": "CANCEL_DONE",
+                          "cancelDetailedReason": "일시불 재결제 예정"}
+    old.raw_snapshot = snapshot
+    db_session.commit()
+    link = _collected(order_no="N-REL-NEWPAY", amount=600000)
+
+    body = _body(client, tab="work", link_id=link.id)
+
+    assert "wb-cand__reason" in body, "후보 표에 사유 원문 자리가 없다"
+    assert "일시불 재결제 예정" in body, "고객이 쓴 문장이 판정 자리에 닿지 않았다"
+
+
+def test_candidate_without_a_cancel_reason_prints_no_empty_quote(client, workbench_on):
+    """사유가 없는 후보에는 **빈 따옴표조차 내지 않는다** — 빈 칸은 거짓말이다."""
+    _login(client)
+    order = _order()
+    _collected(order_no="N-REL-OLDALIVE", amount=500000, order_id=int(order.id),
+               relation="ADDON")
+    link = _collected(order_no="N-REL-NEWALIVE", amount=50000)
+
+    body = _body(client, tab="work", link_id=link.id)
+
+    assert "wb-cand__reason" not in body, "사유가 없는데 사유 줄이 났다"
+
+
 def test_attach_section_is_absent_without_candidates(client, workbench_on):
     """후보가 없으면 섹션 자체를 내지 않는다 — 빈 상자는 화면만 길게 만든다."""
     _login(client)

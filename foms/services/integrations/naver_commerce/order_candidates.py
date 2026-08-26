@@ -146,6 +146,29 @@ def _add_alive_row(rows: list[dict[str, Any]], external_order_no: Any, amount: i
                  "product_order_count": 1})
 
 
+def _detailed_reason(raw_snapshot: Any) -> str:
+    """스냅샷 1건에서 **고객이 쓴 취소·반품 사유 원문**만 꺼낸다.
+
+    추출 규칙은 :func:`mapping.extract_claim` 한 곳에만 둔다 — 같은 값을 두 벌로 읽으면
+    pane 위쪽(F-1)과 후보 표가 서로 다른 문장을 말하게 된다.
+
+    Args:
+        raw_snapshot: ``ExternalOrderLink.raw_snapshot``.
+
+    Returns:
+        사유 원문. 없거나 읽을 수 없으면 빈 문자열(**빈 값은 화면이 줄을 안 낸다**).
+    """
+    if not isinstance(raw_snapshot, dict) or not raw_snapshot:
+        return ""
+    try:
+        from foms.services.integrations.naver_commerce.mapping import extract_claim
+
+        return str(extract_claim(raw_snapshot).get("detailed_reason") or "").strip()
+    except (ValueError, TypeError, AttributeError) as exc:  # 표시용 보조라 흐름을 막지 않는다
+        logger.warning("[NAVER] 후보 사유 원문 추출 실패: %s", exc)
+        return ""
+
+
 def _naver_facts(session, order_ids: list[int]) -> dict[int, dict[str, Any]]:
     """후보 주문마다 **붙어 있는 네이버 집의 사실**을 모은다 (2026-08-25 R-1).
 
@@ -153,15 +176,24 @@ def _naver_facts(session, order_ids: list[int]) -> dict[int, dict[str, Any]]:
     개수가 아니라 **그 결제가 취소됐는가**다(취소됐으면 재결제, 살아 있으면 추가결제).
     담당자는 그걸 확인하려고 네이버를 따로 열고 있었다.
 
+    ``cancel_reasons`` 는 **고객이 직접 쓴 취소·반품 사유 원문**이다 (2026-08-26). 클레임
+    라벨(`전부 취소`)은 *무엇이* 일어났는지만 말하고 *왜* 를 말하지 못한다. 그런데 이 표는
+    재결제냐 추가결제냐를 가르는 자리이고, 실데이터의 사유 원문이 바로 그 답을 적고 있다 —
+    스테이징 실측: `일시불 재결제 예정` · `취소 재결제` · `재주문예정` · `재결제` 는 재결제,
+    `사이즈 재측정후 주문할께요` 는 아니다. pane 위쪽(F-1)은 **지금 수집분**의 사유를 내는데,
+    판정이 실제로 일어나는 자리는 **옛 집**을 놓고 고르는 이 표라 여기까지 올린다.
+
     Args:
         session: DB 세션.
         order_ids: 후보 주문 id 목록.
 
     Returns:
-        ``{order_id: {link_count, canceled, alive, amount_total, claim_label, alive_rows}}``.
+        ``{order_id: {link_count, canceled, alive, amount_total, claim_label, alive_rows,
+        cancel_reasons}}``.
         ``claim_label`` 은 화면 문구다: 전부 취소 / 일부 취소 / 살아 있음 / 빈 문자열(네이버 아님).
         ``alive_rows`` 는 **살아 있는 옛 집**을 주문번호로 묶은 목록이다(R-3 안내용) —
         우리가 취소를 걸지 않으므로 "네이버에서 처리하세요" 를 말할 대상이 필요하다.
+        ``cancel_reasons`` 는 중복을 뺀 사유 원문 목록이다(본품·옵션이 같은 문장을 들고 온다).
     """
     facts: dict[int, dict[str, Any]] = {}
     if not order_ids:
@@ -173,7 +205,7 @@ def _naver_facts(session, order_ids: list[int]) -> dict[int, dict[str, Any]]:
     for order_id, snapshot, external_order_no in rows:
         bucket = facts.setdefault(int(order_id), {
             "link_count": 0, "canceled": 0, "alive": 0, "amount_total": 0, "claim_label": "",
-            "alive_rows": [],
+            "alive_rows": [], "cancel_reasons": [],
         })
         bucket["link_count"] += 1
         product_order = snapshot.get("productOrder") if isinstance(snapshot, dict) else None
@@ -185,6 +217,11 @@ def _naver_facts(session, order_ids: list[int]) -> dict[int, dict[str, Any]]:
         # 클레임 상태가 있으면 그 상품주문은 취소·반품된 것이다(정상 주문은 비어 있다).
         if str(product_order.get("claimStatus") or "").strip():
             bucket["canceled"] += 1
+            # 왜 취소했는지는 고객이 써 놨다. 본품·옵션이 같은 문장을 각각 들고 오므로
+            # 중복은 뺀다 — 같은 말을 세 번 늘어놓으면 표가 읽히지 않는다.
+            reason = _detailed_reason(snapshot)
+            if reason and reason not in bucket["cancel_reasons"]:
+                bucket["cancel_reasons"].append(reason)
         else:
             bucket["alive"] += 1
             # 상품주문 단위가 아니라 **집** 단위로 말한다 — 본품·옵션이 따로 들어와
@@ -229,6 +266,8 @@ def _order_view(order: Order, *, score: int, reason: str,
         "naver_alive_count": int(facts.get("alive") or 0),
         # R-3: 살아 있는 옛 집 — 우리가 취소를 걸지 않으므로 "네이버에서 처리하세요" 대상.
         "naver_alive_rows": list(facts.get("alive_rows") or []),
+        # 고객이 쓴 사유 원문 — 라벨이 못 말하는 **왜** 를 말한다(2026-08-26).
+        "naver_cancel_reasons": list(facts.get("cancel_reasons") or []),
         # ③ 금액 관계 — 집 전체끼리 견준다(대표 1건끼리 견주면 항상 작게 나온다).
         "naver_amount_total": old_amount,
         "new_amount_total": int(new_amount or 0),
