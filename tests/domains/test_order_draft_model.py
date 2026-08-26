@@ -3,6 +3,7 @@
 from __future__ import annotations
 
 import copy
+from contextlib import contextmanager
 from datetime import datetime, timedelta
 
 import pytest
@@ -14,13 +15,32 @@ from db import db_session, engine
 from models import Order, OrderDraft, User
 
 
-def _enable_sqlite_foreign_keys() -> None:
-    """SQLite in-memory FK cascade requires PRAGMA per connection."""
+@contextmanager
+def _sqlite_foreign_keys_on():
+    """FK cascade 검증 동안만 SQLite FK 를 켜고, 끝나면 원래 값으로 되돌린다.
+
+    ``PRAGMA foreign_keys`` 는 **연결 단위** 설정이고, in-memory SQLite 는 풀이 같은
+    연결을 계속 돌려준다. 그래서 예전처럼 켜기만 하고 두면 이 파일이 끝난 뒤에도
+    같은 프로세스의 모든 테스트가 FK 강제 상태로 돈다 — 직렬 실행에서는 파일 순서상
+    티가 안 났지만, 병렬(pytest-xdist)에서는 워커 배치에 따라 다른 파일이 뒤에 붙어
+    IntegrityError 로 죽었다(2026-08-26 CI red: test_draft_lifecycle 의 discard 가 500).
+
+    Yields:
+        None. 블록을 벗어나면 진입 전 값으로 복원한다.
+    """
     if engine.dialect.name != "sqlite":
+        yield
         return
     with engine.connect() as conn:
+        previous = conn.execute(text("PRAGMA foreign_keys")).scalar()
         conn.execute(text("PRAGMA foreign_keys=ON"))
         conn.commit()
+    try:
+        yield
+    finally:
+        with engine.connect() as conn:
+            conn.execute(text(f"PRAGMA foreign_keys={'ON' if previous else 'OFF'}"))
+            conn.commit()
 
 
 def _make_user(username: str = "draft-user") -> User:
@@ -149,20 +169,46 @@ class TestOrderDraftModel:
         assert "ix_order_drafts_expires_at" in indexes
 
     def test_user_delete_cascades_drafts(self, app):
-        _enable_sqlite_foreign_keys()
-        user = _make_user("cascade-user")
-        draft = OrderDraft(
-            user_id=user.id,
-            draft_key="new.cascade",
-            step=1,
-            payload={"schema_version": 1, "step": 1, "data": {}},
-            expires_at=_expires_at(),
-        )
-        db_session.add(draft)
-        db_session.commit()
-        draft_id = draft.id
+        with _sqlite_foreign_keys_on():
+            user = _make_user("cascade-user")
+            draft = OrderDraft(
+                user_id=user.id,
+                draft_key="new.cascade",
+                step=1,
+                payload={"schema_version": 1, "step": 1, "data": {}},
+                expires_at=_expires_at(),
+            )
+            db_session.add(draft)
+            db_session.commit()
+            draft_id = draft.id
 
-        db_session.delete(user)
-        db_session.commit()
+            db_session.delete(user)
+            db_session.commit()
 
-        assert db_session.get(OrderDraft, draft_id) is None
+            assert db_session.get(OrderDraft, draft_id) is None
+
+
+def test_foreign_keys_pragma_does_not_leak_out_of_the_context(app) -> None:
+    """FK 강제가 컨텍스트 밖으로 새지 않는다.
+
+    2026-08-26 CI red 회귀 가드. PRAGMA 는 연결 단위이고 in-memory SQLite 는 같은
+    연결을 계속 돌려주므로, 켜고 두면 뒤따르는 모든 테스트가 FK 강제 상태로 돈다.
+    """
+    if engine.dialect.name != "sqlite":
+        pytest.skip("SQLite 전용 계약")
+
+    with engine.connect() as conn:
+        before = conn.execute(text("PRAGMA foreign_keys")).scalar()
+
+    with _sqlite_foreign_keys_on():
+        with engine.connect() as conn:
+            assert conn.execute(text("PRAGMA foreign_keys")).scalar() == 1, (
+                "컨텍스트 안에서 FK 가 켜지지 않았다"
+            )
+
+    with engine.connect() as conn:
+        after = conn.execute(text("PRAGMA foreign_keys")).scalar()
+    assert after == before, (
+        f"PRAGMA foreign_keys 가 복원되지 않았다 ({before} → {after}) — "
+        "이 상태가 남으면 같은 프로세스의 뒤따르는 테스트가 FK 강제로 돌아 깨진다."
+    )
