@@ -4,6 +4,7 @@ from __future__ import annotations
 
 import copy
 import datetime
+import uuid
 from foms.services.datetime_kst import now_utc_naive
 from typing import Any, Callable
 
@@ -22,6 +23,8 @@ from foms.services.erp_display import _normalize_date_to_yyyymmdd
 from foms.services.erp_sync_columns import sync_erp_flat_columns
 from foms.services.orders.as_log import append_system_log
 from foms.services.orders.construction_type import normalize_regional_construction_type
+from foms.services.orders.order_field_change_writer import record_field_changes
+from foms.services.orders.structured_diff import diff_structured
 from models import Order
 
 ORDER_UPDATE_ALLOWED_FIELDS = [
@@ -69,6 +72,127 @@ STRUCTURED_SYNC_FIELDS = {
     "sales_delivery",
     "construction_workers",
 }
+
+# --------------------------------------------------------------------------- #
+# AUDIT-GAP-01 — 이 라우트가 바꾸는 값 → 변경 원장(``order_field_changes``) 경로 매핑
+#
+# 이 화면의 **필드 이름과 원장 경로는 같지 않다.** 예를 들어 ``as_visit_date`` 는
+# ``structured_data`` 의 ``schedule.as_visit.date`` 를 쓴다. 필드 이름 그대로 적으면 같은
+# 값의 이력이 화면마다 다른 경로로 흩어져 한 축으로 못 읽는다(운영 실측 2026-08-26:
+# ``schedule.as_visit.date`` 원장 7행 vs ``ORDER_FIELD_UPDATED`` 보안로그 126행).
+#
+# | 필드 | 실제 쓰기 대상 | 원장 path | 출처 |
+# |---|---|---|---|
+# | as_visit_date | sd ``schedule.as_visit.date`` (+ 표시용 인스턴스 속성) | ``schedule.as_visit.date`` | diff_structured |
+# | as_pending | sd ``shipment.as_pending`` | ``shipment.as_pending`` | diff_structured |
+# | sales_delivery | sd ``shipment.sales_delivery`` | ``shipment.sales_delivery`` | diff_structured |
+# | construction_workers | sd ``shipment.construction_workers`` | ``shipment.construction_workers`` | diff_structured |
+# | manager_name | 컬럼 + sd ``parties.manager.name`` | sd 경로(비ERP 는 컬럼명) | diff + 평면 폴백 |
+# | measurement_date | 컬럼 + sd ``schedule.measurement.date`` | sd 경로(비ERP 는 컬럼명) | diff + 평면 폴백 |
+# | scheduled_date | 컬럼 + sd ``schedule.construction.date`` | sd 경로(비ERP 는 컬럼명) | diff + 평면 폴백 |
+# | status | 컬럼 + sd ``workflow.stage``(물류 중간상태는 stage 보존) | sd 경로, 없으면 ``status`` | diff + 평면 폴백 |
+# | as_completed_date | AS cycle command(컬럼) | ``as_completed_date`` | 브리지 전용 |
+# | shipping_scheduled_date · completion_date · as_received_date · regional_memo
+#   · construction_type · is_cabinet · measurement_completed · regional_* 5종
+#   | 평면 컬럼만 | 같은 이름(점 없음) | ``_ledger_flat_change`` |
+# | as_visit_availability | sd ``schedule.as_visit.availability`` | **미기록** | ``SCALAR_PATHS`` 밖(폼 저장이 ``as_visit`` 를 통째로 지우는 선행 결함 때문에 등재 보류 — AUDIT-GAP-01 원장 '범위 밖') |
+# | as_blueprint | sd ``shipment.as_blueprint`` | **미기록** | ``SCALAR_PATHS`` 미등재(화이트리스트는 별도 소유) |
+# --------------------------------------------------------------------------- #
+
+#: 평면 컬럼을 바꾸는 필드 → 원장 path. 평면 컬럼은 **점 없는 컬럼명**을 쓴다(ORDER-FLAG-01
+#: 확정 규약). ``_LEDGER_SD_TWIN`` 에 있는 필드는 같은 저장에서 sd 쌍둥이가 함께 바뀌므로,
+#: 그 sd 경로가 diff 에 실렸으면 평면 행을 만들지 않는다 — 한 번의 변경이 경로 2벌로
+#: 쪼개지면 감사 화면의 ``path_template`` 필터가 반쪽만 잡는다.
+_LEDGER_FLAT_PATHS: dict[str, str] = {
+    "status": "status",
+    "manager_name": "manager_name",
+    "measurement_date": "measurement_date",
+    "scheduled_date": "scheduled_date",
+    "shipping_scheduled_date": "shipping_scheduled_date",
+    "completion_date": "completion_date",
+    "as_received_date": "as_received_date",
+    "regional_memo": "regional_memo",
+    "construction_type": "construction_type",
+    "is_cabinet": "is_cabinet",
+    "measurement_completed": "measurement_completed",
+    "regional_sales_order_upload": "regional_sales_order_upload",
+    "regional_blueprint_sent": "regional_blueprint_sent",
+    "regional_order_upload": "regional_order_upload",
+    "regional_cargo_sent": "regional_cargo_sent",
+    "regional_construction_info_sent": "regional_construction_info_sent",
+}
+
+#: 같은 저장에서 함께 쓰이는 sd 쌍둥이 경로(중복 억제용). 비ERP 주문은 sd 를 아예 읽지
+#: 않으므로 쌍둥이가 없고, 그때만 평면 경로가 유일한 기록이 된다.
+_LEDGER_SD_TWIN: dict[str, str] = {
+    # ``status`` 는 여기 **없다**(2026-08-26 CEO 판정). ``order.status`` 와 ``workflow.stage``
+    # 는 일부러 분리된 두 축이다 — AS 접수 주문은 status 가 AS 로 바뀌어도 workflow.stage 는
+    # MEASURE 로 남는다(``stage_override.as_overlay_status`` docstring 이 SSOT). 쌍둥이로
+    # 묶어 평면 행을 억제하면 **한 저장에서 함께 바뀐 두 값 중 하나가 통째로 사라진다.**
+    "manager_name": "parties.manager.name",
+    "measurement_date": "schedule.measurement.date",
+    "scheduled_date": "schedule.construction.date",
+}
+
+#: 불리언 컬럼 — ``None`` 과 ``False`` 는 같은 뜻이라 op 는 항상 ``set`` 이다.
+_LEDGER_BOOL_FIELDS: frozenset[str] = frozenset({
+    "is_cabinet",
+    "measurement_completed",
+    "regional_sales_order_upload",
+    "regional_blueprint_sent",
+    "regional_order_upload",
+    "regional_cargo_sent",
+    "regional_construction_info_sent",
+})
+
+
+def _ledger_text_value(value: Any) -> str | None:
+    """평면 컬럼의 원장 비교값(빈값은 ``None`` 으로 접는다).
+
+    컬럼마다 빈값이 ``None`` 이기도 하고 ``''`` 이기도 하다. 둘을 같은 뜻으로 접어야
+    빈값→빈값 저장이 가짜 변경으로 기록되지 않는다.
+
+    Args:
+        value: 컬럼에서 읽은 원시 값.
+
+    Returns:
+        문자열, 또는 빈값이면 ``None``.
+    """
+    if value is None:
+        return None
+    text_value = value if isinstance(value, str) else str(value)
+    return text_value or None
+
+
+def _ledger_flat_change(order: Order, field: str, before_raw: Any) -> dict[str, Any] | None:
+    """평면 컬럼 1개의 원장 change dict 를 만든다(변경 없으면 ``None``).
+
+    Args:
+        order: setattr 이 끝난 주문(현재값 출처).
+        field: 요청 필드명.
+        before_raw: 쓰기 **전에** 떠 둔 컬럼 값.
+
+    Returns:
+        ``{'path','before','after','op'}`` 또는 값이 그대로면 ``None``.
+    """
+    path = _LEDGER_FLAT_PATHS.get(field)
+    if not path:
+        return None
+    after_raw = getattr(order, field, None)
+    if field in _LEDGER_BOOL_FIELDS:
+        # 요청 값은 아직 flush 전이라 "true"/1 같은 원시 표현일 수 있다. 컬럼 타입에 기대지
+        # 않고 요청 해석과 같은 규칙으로 접는다(bool("false") 가 True 인 함정 회피).
+        before_bool = _coerce_bool_value(before_raw) if before_raw is not None else False
+        after_bool = _coerce_bool_value(after_raw) if after_raw is not None else False
+        if before_bool == after_bool:
+            return None
+        return {"path": path, "before": before_bool, "after": after_bool, "op": "set"}
+    before_text = _ledger_text_value(before_raw)
+    after_text = _ledger_text_value(after_raw)
+    if before_text == after_text:
+        return None
+    op = "add" if before_text is None else ("clear" if after_text is None else "set")
+    return {"path": path, "before": before_text, "after": after_text, "op": op}
 
 
 def ensure_path(parent: dict[str, Any], key: str) -> dict[str, Any]:
@@ -246,6 +370,7 @@ def _bridge_as_completed_date(db, order: Order, user: Any, value: Any, body: dic
             {"success": False, "message": "완료일 형식이 올바르지 않습니다. (YYYY-MM-DD)"}
         ), 400
     structured_data = getattr(order, "structured_data", None) or {}
+    before_completed = _normalize_date_to_yyyymmdd(getattr(order, "as_completed_date", None))
     if not _as_date_changed(getattr(order, "as_completed_date", None), normalized):
         # 같은 값 재저장은 무기록 — append-only 타임라인이 중복으로 차면 안 된다.
         return jsonify(_build_order_update_response(order, "as_completed_date", value, structured_data))
@@ -286,13 +411,38 @@ def _bridge_as_completed_date(db, order: Order, user: Any, value: Any, body: dic
         return _as_error_response(db, exc)
 
     _as_audit = order_audit_context(order)
+    # AUDIT-GAP-01: 완료일은 여기까지 오면 반드시 바뀐 것이다(위 무변경 게이트 통과). 원장은
+    # 평면 컬럼이라 점 없는 컬럼명으로 싣고, 헤더 detail 은 같은 change_set 으로 잇는다.
+    as_change_set = str(uuid.uuid4())
+    as_recorded = record_field_changes(
+        db,
+        [{
+            "path": "as_completed_date",
+            "before": before_completed,
+            "after": normalized,
+            "op": "add" if before_completed is None else ("clear" if normalized is None else "set"),
+        }],
+        order_id=int(order.id),
+        actor_user_id=session.get("user_id"),
+        change_set_id=as_change_set,
+    )
+    _as_detail = {
+        "field": "as_completed_date",
+        # 무엇을 지웠는지가 없으면 되돌릴 수도 따질 수도 없다(운영 97건이 잃어버린 정보).
+        "before": before_completed,
+        "after": value,
+        **_as_audit,
+    }
+    if as_recorded:
+        _as_detail["change_set"] = as_change_set
     log_access(
         describe_field_change(
-            order_id=order.id, field="as_completed_date", after=value, **_as_audit
+            order_id=order.id, field="as_completed_date", before=before_completed,
+            after=value, has_before=True, **_as_audit
         ),
         session["user_id"], auto_commit=False,
         action="ORDER_FIELD_UPDATED", target_type="order", target_id=order.id,
-        detail={"field": "as_completed_date", "after": value, **_as_audit},
+        detail=_as_detail,
     )
     db.commit()
     _invalidate_shipment_asrec_caches("field_update:as_completed_date")
@@ -359,6 +509,13 @@ def update_order_field_response(
             value = normalized_construction_type or None
 
         is_erp_order = is_erp_order_record(order)
+        # AUDIT-GAP-01: canonical 전이는 아래 old_sd_snapshot 보다 **먼저** workflow.stage 를
+        # 바꾼다. 원장 비교의 기준은 요청 진입 시점 값이어야 하므로 status 경로만 미리 떠 둔다
+        # (다른 필드는 전이가 없어 old_sd_snapshot 과 같다 — 헛 deepcopy 를 하지 않는다).
+        ledger_base_sd: dict[str, Any] | None = (
+            copy.deepcopy(getattr(order, "structured_data", None) or {})
+            if field == "status" and is_erp_order else None
+        )
         status_transitioned = False
         if field == "status" and is_erp_order:
             from foms.services.orders.status_constants import is_logistics_board_status
@@ -600,6 +757,32 @@ def update_order_field_response(
             drawing_notif = None
             drawing_notif_created = False
 
+        # AUDIT-GAP-01: 보안로그에만 남던 before/after 를 변경 원장에도 싣는다. sd 를 실제로
+        # 바꾼 필드는 diff_structured 를 태워 ERP 폼 저장(PUT)과 **같은 점 경로**로 남기고,
+        # 평면 컬럼만 바꾼 필드는 점 없는 컬럼명으로 남긴다(경로 매핑표는 파일 상단).
+        # 원장 행은 아래 db.commit() 과 같은 트랜잭션에 실린다.
+        ledger_changes: list[dict[str, Any]] = []
+        if structured_data:
+            ledger_changes.extend(diff_structured(
+                ledger_base_sd if ledger_base_sd is not None else old_sd_snapshot,
+                structured_data,
+                max_changes=-1,
+            ).changes)
+        flat_change = _ledger_flat_change(
+            order, field, status_snapshot if field == "status" else old_value
+        )
+        if flat_change is not None:
+            twin_path = _LEDGER_SD_TWIN.get(field)
+            if twin_path is None or twin_path not in {c.get("path") for c in ledger_changes}:
+                ledger_changes.append(flat_change)
+        change_set_id = str(uuid.uuid4())
+        recorded_rows = record_field_changes(
+            db, ledger_changes,
+            order_id=int(order.id),
+            actor_user_id=session.get("user_id"),
+            change_set_id=change_set_id,
+        )
+
         # 변경 전 값을 함께 남긴다 — "무엇에서 무엇으로"가 없으면 되돌릴 수도 따질 수도 없다
         # (운영 실측: as_completed_date 를 ''로 바꾼 97건이 '원래 언제였는지' 없이 남았다).
         audit_context = order_audit_context(order)
@@ -609,6 +792,9 @@ def update_order_field_response(
             "after": value,
             **audit_context,
         }
+        if recorded_rows:
+            # 관리자 감사 화면이 detail->>'change_set' 으로 원장과 조인한다.
+            audit_detail["change_set"] = change_set_id
         log_access(
             describe_field_change(
                 order_id=order.id, field=field, before=old_value, after=value,

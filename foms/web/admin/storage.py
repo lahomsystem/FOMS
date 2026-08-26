@@ -10,6 +10,7 @@ import hashlib
 import json
 import os
 import datetime
+import uuid
 from typing import Any, Optional
 
 from flask import Blueprint, render_template, request, redirect, url_for, flash, send_file, session, current_app, jsonify
@@ -21,6 +22,7 @@ from foms.web.auth import login_required, role_required, log_access, get_user_by
 from foms.services.audit_message_display import describe_order_action
 from foms.services.orders.audit_order_context import order_audit_context
 from foms.services.orders.status_constants import CABINET_STATUS, STATUS
+from foms.services.orders.order_field_change_writer import record_field_changes
 from foms.services.orders.order_mutation_policy import POLICY_REGISTRY, evaluate_policy, Decision
 from foms.services.orders.revision import RevisionError, execute_order_mutation
 
@@ -263,6 +265,36 @@ def _storage_hashes(order_id: int, field: str, value: Any) -> tuple[str, str]:
     return scope, hashlib.sha256(payload.encode()).hexdigest()
 
 
+def _storage_ledger_text(value: Any) -> Optional[str]:
+    """원장에 실을 문자열 표현(빈값은 ``None`` 으로 접는다).
+
+    ``cabinet_status`` 는 ``None``/``''`` 이 모두 "값 없음"이라 둘을 같은 뜻으로 접어야
+    빈값→빈값이 가짜 변경으로 남지 않는다. ``shipping_fee`` 의 ``0`` 은 **빈값이 아니다**
+    (무료 배송이라는 값) — 그래서 문자열로 만든 뒤에 판정한다.
+
+    Args:
+        value: 컬럼 값(``str``/``int``/``None``).
+
+    Returns:
+        문자열, 또는 빈값이면 ``None``.
+    """
+    if value is None:
+        return None
+    text = value if isinstance(value, str) else str(value)
+    return text or None
+
+
+def _storage_ledger_op(before: Any, after: Any) -> str:
+    """원장 op 판정 — ``add``(빈값→값) · ``clear``(값→빈값) · ``set``."""
+    before_text = _storage_ledger_text(before)
+    after_text = _storage_ledger_text(after)
+    if before_text is None:
+        return "add"
+    if after_text is None:
+        return "clear"
+    return "set"
+
+
 def _parse_if_match(order_id: int) -> tuple[Optional[dict], Optional[Any]]:
     """optional ``If-Match``(mutation_version) → expected_versions. 형식오류는 ``(None, 400)``."""
     raw = (request.headers.get("If-Match") or "").strip().strip('"')
@@ -286,10 +318,16 @@ def _commit_storage_field(
     user_id = session.get("user_id")
     command = STORAGE_CABINET_COMMAND if field == "cabinet_status" else STORAGE_SHIPPING_COMMAND
     scope_hash, request_hash = _storage_hashes(order_id, field, typed_value)
+    # AUDIT-GAP-01: 이전값은 row lock 아래에서만 읽을 수 있다(밖에서 다시 읽으면 그 사이의
+    # 동시 쓰기를 놓친다). OrderEvent 에만 있던 값을 감사 헤더·변경 원장까지 끌어올린다 —
+    # 배송비는 돈이라 before 가 없으면 분쟁에서 따질 근거가 없다.
+    captured: dict[str, Any] = {"before": None, "changed": False}
 
     def _mutate(sess: Session, orders: list) -> dict:
         o = orders[0]
         old_value = getattr(o, field)
+        captured["before"] = old_value
+        captured["changed"] = old_value != typed_value
         setattr(o, field, typed_value)
         sess.add(OrderEvent(
             order_id=o.id, event_type=command,
@@ -306,13 +344,34 @@ def _commit_storage_field(
         )
         order = db.get(Order, order_id)
         storage_context = order_audit_context(order)
+        before_value = captured["before"]
+        # 평면 컬럼이라 점 없는 컬럼명을 원장 path 로 쓴다(ORDER-FLAG-01 확정 규약).
+        # 무변경 저장·replay 는 행을 만들지 않는다. 원장 행은 아래 db.commit() 과 같은 tx.
+        storage_change_set = str(uuid.uuid4())
+        storage_rows = record_field_changes(
+            db,
+            [{
+                "path": field,
+                "before": _storage_ledger_text(before_value),
+                "after": _storage_ledger_text(typed_value),
+                "op": _storage_ledger_op(before_value, typed_value),
+            }] if captured["changed"] else [],
+            order_id=int(order_id), actor_user_id=user_id,
+            change_set_id=storage_change_set,
+        )
+        storage_detail: dict[str, Any] = {
+            "field": field, "before": before_value, "after": typed_value, **storage_context
+        }
+        if storage_rows:
+            # 관리자 감사 화면이 detail->>'change_set' 으로 원장과 조인한다.
+            storage_detail["change_set"] = storage_change_set
         log_access(
             describe_order_action(order_id=order_id, action="STORAGE_SETTING_UPDATED",
                                   note=field, **storage_context),
             user_id,
             auto_commit=False,
             action="STORAGE_SETTING_UPDATED", target_type="order", target_id=int(order_id),
-            detail={"field": field, "after": typed_value, **storage_context},
+            detail=storage_detail,
         )
         db.commit()
     except RevisionError as rev:

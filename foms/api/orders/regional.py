@@ -10,6 +10,9 @@ P1-22 remediation: 예전엔 6종 체크리스트 불리언과 자유 메모를 
   AUTH-01 before_request 가드가 꺼진 컨텍스트(TESTING)에서도 항상.
 * **revision**: 저장은 REV-00 :func:`execute_order_mutation` 경유 — If-Match(mutation_version)
   낙관 잠금·``FOR UPDATE``·version bump·idempotency receipt·OrderEvent parity 를 한 tx 에.
+* **ledger** (AUDIT-GAP-01): 이 경로가 지방 체크리스트 6종의 **실사용 정본 쓰기 경로**라,
+  변경은 ``order_field_changes`` 원장에도 실린다. 경로(``path``)는 평면 컬럼명 그대로이고
+  (점 경로 아님), 감사 헤더 ``security_logs.detail['change_set']`` 과 같은 id 로 묶인다.
 
 **unrelated-path invariant**: 지정된 flat 컬럼 하나(또는 regional_memo)만 바꾸고 나머지
 structured_data/컬럼은 건드리지 않는다.
@@ -20,6 +23,7 @@ from __future__ import annotations
 import hashlib
 import json
 import logging
+import uuid
 from typing import Any, List, Mapping, Optional, Tuple
 
 from flask import jsonify, request, session
@@ -29,6 +33,7 @@ logger = logging.getLogger(__name__)
 
 from db import get_db
 from foms.services.orders.order_mutation_policy import POLICY_REGISTRY, evaluate_policy
+from foms.services.orders.order_field_change_writer import ledger_text, record_field_changes
 from foms.services.orders.revision import RevisionError, execute_order_mutation
 from foms.web.auth import get_user_by_id, log_access
 from foms.services.audit_message_display import describe_field_change
@@ -50,6 +55,10 @@ REGIONAL_POLICY_ID = "STAFF_MUTATION"
 REGIONAL_CHECKLIST_EVENT = "REGIONAL_CHECKLIST_UPDATED"
 REGIONAL_MEMO_EVENT = "REGIONAL_MEMO_UPDATED"
 _MEMO_MAX = 2000
+
+#: 원장 표시값이 120자 절단으로 before==after 가 될 때 붙이는 표식. 값이 실제로 바뀐 것과
+#: 안 바뀐 것을 읽는 사람이 구분할 수 있어야 한다(``structured_diff`` 의 site_extra 와 같은 규약).
+_MEMO_CONTENT_MARK = "(내용 수정)"
 
 #: 감사 detail 에 남길 메모 발췌 상한. 원장은 본문 저장소가 아니다 — 무엇이 바뀌었는지
 #: 알아볼 만큼만 남기고, 전문은 주문 화면이 정본이다.
@@ -160,10 +169,17 @@ def update_regional_status_response():
     scope_hash, request_hash = _hashes(order_id, {"field": field, "value": value})
 
     previous_value = getattr(order, field, None)
+    # AUDIT-GAP-01: 감사 헤더(security_logs)와 원장 항목을 잇는 열쇠. 아래 log_access 의
+    # ``detail['change_set']`` 과 **같은 값**이어야 관리자 감사 화면이 조인할 수 있다.
+    change_set_id = str(uuid.uuid4())
 
     def _mutate(sess: Session, orders: List[Order]) -> Mapping[int, List[str]]:
-        """row lock 아래에서 단일 체크리스트 컬럼만 설정 + event parity(축 불변)."""
+        """row lock 아래에서 단일 체크리스트 컬럼만 설정 + event parity(축 불변) + 원장."""
         o = orders[0]
+        # AUDIT-GAP-01: 원장 비교 기준은 아래 setattr **전에** 떠야 한다. 컬럼이 NULL 인
+        # 낡은 행이 있어 불리언으로 정규화한다 — NULL 은 '체크 안 됨'이지 별개 값이 아니다
+        # (NULL→False 저장이 변경으로 남으면 진짜 토글이 묻힌다).
+        before_flag = bool(getattr(o, field, None))
         setattr(o, field, value)
         sess.add(OrderEvent(
             order_id=o.id,
@@ -171,6 +187,23 @@ def update_regional_status_response():
             payload={"field": field, "value": value},
             created_by_user_id=user_id,
         ))
+        # AUDIT-GAP-01: 원장 쓰기를 **``_mutate`` 안**에 두는 이유 — 컬럼 write 와 운명을
+        # 같이해야 하기 때문이다. ``execute_order_mutation`` 반환 뒤(바깥)에 두면 두 경로가
+        # 어긋난다: ① 같은 Idempotency-Key replay 는 ``mutation`` 을 아예 실행하지 않고
+        # 저장된 응답을 반환하고(revision.py `_lookup_receipt` → `_replay`), ② receipt
+        # insert 의 IntegrityError backstop 은 ``session.rollback()`` 뒤 replay 를 반환한다.
+        # 두 경우 모두 컬럼은 그대로인데 바깥 쓰기만 살아남아 **유령 행**이 된다. 안에서 쓰면
+        # FOR UPDATE 락 안·같은 tx 라 replay 는 애초에 도달하지 않고 rollback 은 함께 지운다.
+        if before_flag != value:
+            # 무변경 저장(같은 값 재클릭·중복 요청)은 행을 만들지 않는다.
+            record_field_changes(
+                sess,
+                # path 는 점 없는 평면 컬럼명 그대로(ORDER-FLAG-01 확정 규약).
+                [{"path": field, "before": before_flag, "after": value, "op": "set"}],
+                order_id=o.id,
+                actor_user_id=user_id,
+                change_set_id=change_set_id,
+            )
         return {o.id: [f"ORDER_DETAIL:{o.id}", "ORDERS_INDEX"]}
 
     try:
@@ -202,7 +235,8 @@ def update_regional_status_response():
         ),
         session["user_id"],
         action="ORDER_CHECKLIST_UPDATED", target_type="order", target_id=order_id,
-        detail={"field": field, "before": previous_value, "after": value, **audit_context},
+        detail={"field": field, "before": previous_value, "after": value,
+                "change_set": change_set_id, **audit_context},
     )
     resp = jsonify({
         "success": True,
@@ -249,10 +283,19 @@ def update_regional_memo_response():
     idempotency_key = (request.headers.get("Idempotency-Key") or "").strip() or None
     user_id = session.get("user_id")
     scope_hash, request_hash = _hashes(order_id, {"memo_len": len(memo)})
+    # AUDIT-GAP-01: 감사 헤더 ``detail['change_set']`` 과 원장 행을 잇는 열쇠(위와 같은 규약).
+    change_set_id = str(uuid.uuid4())
 
     def _mutate(sess: Session, orders: List[Order]) -> Mapping[int, List[str]]:
-        """row lock 아래에서 regional_memo 컬럼만 설정 + event parity(축 불변)."""
+        """row lock 아래에서 regional_memo 컬럼만 설정 + event parity(축 불변) + 원장."""
         o = orders[0]
+        # AUDIT-GAP-01: 비교 기준은 대입 전 값이고, **판정은 절단 전 원문으로** 한다.
+        # 원장 표현(120자 절단)으로 판정하면 121자 이후만 고친 변경이 통째로 사라진다 —
+        # 메모는 상한이 2000자라 흔한 길이이고, 잔금 조건·열쇠 보관처처럼 분쟁 소재가
+        # 뒤쪽에 적힌다. 절단 때문에 표시값이 같아 보이는 행은 지우는 게 아니라
+        # 표식을 붙여 구분한다(``structured_diff`` 의 site_extra 선례와 같은 규약).
+        memo_before_raw = (getattr(o, "regional_memo", None) or "").strip()
+        memo_before = ledger_text(getattr(o, "regional_memo", None), "regional_memo")
         o.regional_memo = memo
         sess.add(OrderEvent(
             order_id=o.id,
@@ -260,6 +303,27 @@ def update_regional_memo_response():
             payload={"memo_len": len(memo)},
             created_by_user_id=user_id,
         ))
+        # 위치 근거는 체크리스트 경로의 주석과 같다(replay·rollback 시 유령 행 방지).
+        memo_after_raw = (memo or "").strip()
+        memo_after = ledger_text(memo, "regional_memo")
+        if memo_before_raw != memo_after_raw:
+            if memo_after == memo_before:
+                # 절단 충돌: 원문은 달라졌는데 표시값이 같다. 그대로 두면 원장이
+                # ``A → A`` 로 거짓말을 한다.
+                memo_after = f"{memo_after} {_MEMO_CONTENT_MARK}" if memo_after else _MEMO_CONTENT_MARK
+            record_field_changes(
+                sess,
+                [{
+                    "path": "regional_memo",
+                    "before": memo_before,
+                    "after": memo_after,
+                    "op": ("add" if memo_before is None
+                           else ("clear" if memo_after is None else "set")),
+                }],
+                order_id=o.id,
+                actor_user_id=user_id,
+                change_set_id=change_set_id,
+            )
         return {o.id: [f"ORDER_DETAIL:{o.id}", "ORDERS_INDEX"]}
 
     try:
@@ -299,6 +363,7 @@ def update_regional_memo_response():
             "after": memo[:_MEMO_AUDIT_MAX],
             "before_len": len(previous_memo),
             "after_len": len(memo),
+            "change_set": change_set_id,
             **memo_context,
         },
     )
