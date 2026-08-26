@@ -20,6 +20,8 @@ permissions:
 jobs:
   rum-report:
     runs-on: ubuntu-latest
+    # CI-TIMEOUT-01: 실측 median 0.3분. 2026-07 런 하나가 192.9분을 태우고 실패했다.
+    timeout-minutes: 15
     steps:
       - uses: actions/checkout@v4
 

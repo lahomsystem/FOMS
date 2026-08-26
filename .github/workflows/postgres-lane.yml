@@ -19,6 +19,8 @@ permissions:
 jobs:
   pg-lane:
     runs-on: ubuntu-latest
+    # CI-TIMEOUT-01: 실측 median 2.2분.
+    timeout-minutes: 20
 
     services:
       postgres:

@@ -4,7 +4,8 @@ on:
   push:
     branches: ["main", "deploy"]
   pull_request:
-    branches: ["main", "deploy"]
+    # CI-PROMOTE-01: 승격 PR(base=production) 도 하네스 계약을 통과해야 한다.
+    branches: ["main", "deploy", "production"]
 
 permissions:
   contents: read
@@ -12,6 +13,8 @@ permissions:
 jobs:
   harness:
     runs-on: ubuntu-latest
+    # CI-TIMEOUT-01: 실측 median 1.3분.
+    timeout-minutes: 20
 
     steps:
       - uses: actions/checkout@v5
