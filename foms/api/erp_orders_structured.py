@@ -46,6 +46,7 @@ from foms.services.erp_order_flags import (
     is_erp_order_record,
 )
 from foms.services.erp_sync_columns import sync_erp_flat_columns
+from foms.services.orders.structured_form_projection import recompute_totals
 from foms.services.orders.erp_automation import apply_auto_tasks
 from foms.services.orders.order_text_parser import parse_order_text
 from foms.services.geocode_helpers import extract_address_from_structured_data
@@ -957,6 +958,28 @@ def api_get_order_detail_payload(order_id: int):
         return jsonify({'success': False, 'message': str(e)}), 500
 
 
+def _field_affects_totals(field: str) -> bool:
+    """이 인라인 필드가 **금액 파생값을 바꾸는가**.
+
+    ``totals`` 는 ``items[].price`` 와 ``payment.*`` 에서만 나온다
+    (:func:`~foms.services.orders.structured_form_projection.recompute_totals`).
+    그 두 곳을 고쳤는데 재계산을 안 하면 저장된 ``totals`` 가 옛 값으로 남아, 저장
+    ``totals`` 를 먼저 읽는 표면(모바일 요약 등)이 **품목금액을 넣었는데도 잔금 0원**을
+    계속 보여준다. 2026-08-26 CEO 지적(M-1): 품목금액 인라인 저장 버튼을 화면에 다는
+    순간 돈이 사라지는 트립와이어였다.
+
+    Args:
+        field: 인라인 패치 경로(예: ``items.0.price``, ``payment.deposit``).
+
+    Returns:
+        재계산이 필요하면 True.
+    """
+    if field.startswith("payment."):
+        return True
+    parts = field.split(".")
+    return len(parts) >= 3 and parts[0] == "items" and parts[2] == "price"
+
+
 @erp_orders_structured_bp.route('/orders/<int:order_id>/structured/fields', methods=['PATCH'])
 @login_required
 @role_required(['ADMIN', 'MANAGER', 'STAFF'])
@@ -997,6 +1020,10 @@ def api_patch_order_structured_fields(order_id: int):
         old_is_regional = getattr(order, 'is_regional', None)
         old_construction_type = getattr(order, 'construction_type', None)
         structured_data = apply_field_patch(old_sd, field, value)
+        # 금액 소스를 고쳤으면 파생값도 그 자리에서 다시 센다. 폼 전체저장(PUT)은
+        # project_structured_form 안에서 이미 이걸 한다 — 인라인만 빠져 있었다.
+        if _field_affects_totals(field):
+            recompute_totals(structured_data)
 
         if field == 'site.address_full':
             flat_addr = str(value or '').strip()
