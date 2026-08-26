@@ -7,6 +7,8 @@
 * 수집 주문이 아닌 일반 주문은 owner 가 누구든 대상이 아니다.
 * 수집 주문이 페이지에 없으면 **쿼리를 아예 내지 않는다**(대시보드 hot path 비용 0).
 * DTO 는 그 집합을 ``is_unassigned_intake`` 로 실어 템플릿에 넘긴다.
+* 다만 주문담당자(``parties.manager.name``)가 적혀 있으면 뱃지를 걷는다 — 적어둔 이름이
+  뱃지에 가려지면 안 된다(보류함 owner 교체 전에도 화면은 사람 이름을 보여야 한다).
 * 주문 상세(PC·모바일 탭)는 ``structured_data['source']`` 로 '네이버 수집' 표식을 띄우고,
   템플릿 리터럴은 ``SOURCE_MARKER`` 와 같아야 한다(어긋나면 조용히 안 뜬다).
 """
@@ -207,3 +209,46 @@ def test_dto_default_keeps_existing_callers_unflagged(app):
     rows = build_orders_row_dtos([order], {order.id: _naver_sd()}, {}, {}, None)
 
     assert rows[0]["is_unassigned_intake"] is False
+
+
+def test_manager_name_clears_the_badge_even_while_holding_account_owns_it(app):
+    """주문담당자를 적어 넣으면 보류함이 아직 owner 여도 뱃지가 걷힌다."""
+    from foms.services.orders.dashboard_dto import build_orders_row_dtos
+
+    sd = _naver_sd()
+    sd["parties"]["manager"] = {"name": "강민경"}
+    order = _order(sd, owner=None)
+
+    rows = build_orders_row_dtos([order], {order.id: sd}, {}, {}, None,
+                                 unassigned_intake_ids={order.id})
+
+    assert rows[0]["is_unassigned_intake"] is False
+    assert rows[0]["manager_name"] == "강민경"
+
+
+def test_blank_manager_name_still_shows_the_badge(app):
+    """공백만 적힌 담당자는 배정이 아니다 — 뱃지 유지."""
+    from foms.services.orders.dashboard_dto import build_orders_row_dtos
+
+    sd = _naver_sd()
+    sd["parties"]["manager"] = {"name": "   "}
+    order = _order(sd, owner=None)
+
+    rows = build_orders_row_dtos([order], {order.id: sd}, {}, {}, None,
+                                 unassigned_intake_ids={order.id})
+
+    assert rows[0]["is_unassigned_intake"] is True
+
+
+def test_dashboard_html_shows_manager_name_instead_of_badge(client):
+    """대시보드 응답 HTML: 담당자를 적은 수집 주문은 이름이 뜨고 뱃지는 없다."""
+    _login_admin(client, "manager_badge_admin")
+    holding = _user(OWNER_USERNAME, "미배정")
+    sd = _naver_sd()
+    sd["parties"]["manager"] = {"name": "강민경"}
+    _order(sd, owner=holding)
+
+    html = client.get("/erp/dashboard").get_data(as_text=True)
+
+    assert "강민경" in html
+    assert "담당 미지정" not in html
