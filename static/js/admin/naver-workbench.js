@@ -41,6 +41,12 @@
     var BULK_POLL_INTERVAL_MS = 3000;
     var BULK_POLL_TIMEOUT_MS = 90000;
 
+    /** 수집 워터마크만 묻는 읽기 전용 경로('지금 수집' 결과 폴링 대상). */
+    var RUN_STATE_URL = '/admin/naver-ingest/run-state';
+    /** 수집 한 바퀴는 집 조작 하나보다 오래 걸린다(네이버 여러 페이지) — 창을 넓게 잡는다. */
+    var RUN_POLL_INTERVAL_MS = 3000;
+    var RUN_POLL_TIMEOUT_MS = 90000;
+
     /**
      * 부분 갱신 경합 토큰.
      * 행을 빠르게 두 번 누르면 응답 순서가 뒤집힐 수 있다. 늦게 온 응답이 새 선택을
@@ -63,6 +69,12 @@
     /** 벌크 폴링 토큰·타이머(단건과 따로 — 서로를 끊지 않는다). */
     var bulkToken = 0;
     var bulkTimer = null;
+
+    /** 수집 폴링 토큰·타이머. 단건(pollToken)·벌크(bulkToken)와 **따로 둔다** —
+        하나를 나눠 쓰면 '지금 수집' 을 누른 순간 돌고 있던 집 조작 폴링이 끊기고(그
+        반대도 마찬가지) 끊긴 쪽은 결과를 영영 못 본다. */
+    var runToken = 0;
+    var runTimer = null;
 
     /** 글자 크기 단계와 저장 키. **init() 보다 위에 둔다** — defer 스크립트라 init 이
         곧바로 실행되는데, var 는 선언만 끌어올려지고 대입은 안 따라온다(값이 undefined). */
@@ -362,6 +374,59 @@
         });
     }
 
+    /**
+     * 찾기 칸의 상태를 뜬다 — 화면 루트를 통째로 갈기 **직전**에 부른다.
+     *
+     * 전체 렌더는 이 칸을 늘 빈 채로 준다(서버는 사용자가 무엇을 쳤는지 모른다). 뜨지
+     * 않고 갈면 조작 한 번에 낱말이 날아가, 큐에서 보던 자리를 다시 쳐서 찾아야 한다.
+     * @returns {{value: string, focused: boolean, start: number, end: number}}
+     */
+    function captureFind() {
+        var el = document.getElementById('wb-find');
+        if (!el) {
+            return { value: '', focused: false, start: 0, end: 0 };
+        }
+        var caret = el.value.length;
+        var start = caret;
+        var end = caret;
+        try {
+            // 캐럿 API 는 input 종류에 따라 던진다(email·number 계열). 지금 이 칸은
+            // type="search" 라 안전하지만, 종류가 바뀌어도 낱말은 지키도록 감싸 둔다.
+            start = el.selectionStart === null ? caret : el.selectionStart;
+            end = el.selectionEnd === null ? caret : el.selectionEnd;
+        } catch (error) {
+            /* 캐럿만 잃는다 — 값과 포커스는 그대로 돌려준다. */
+        }
+        return { value: el.value, focused: document.activeElement === el, start: start, end: end };
+    }
+
+    /**
+     * 뜬 찾기 상태를 새 칸에 옮겨 심고 목록을 **다시 좁힌다**.
+     *
+     * 값만 옮기고 좁히지 않으면 칸에는 낱말이 남았는데 전체 목록이 보인다 — 한 화면이
+     * 두 말을 한다. 서버가 새로 준 목록(집 하나가 빠졌을 수 있다)에 같은 낱말을 먹인다.
+     * @param {{value: string, focused: boolean, start: number, end: number}} state
+     */
+    function restoreFind(state) {
+        var el = document.getElementById('wb-find');
+        if (!el || !state) {
+            return;
+        }
+        if (state.value) {
+            el.value = state.value;
+            applyFind(state.value);
+        }
+        if (state.focused) {
+            // 치는 도중에 갱신이 끼어들면 포커스까지 잃는다 — 다음 글자가 허공으로 간다.
+            el.focus();
+            try {
+                el.setSelectionRange(state.start, state.end);
+            } catch (error) {
+                /* 캐럿만 못 놓는다 — 커서는 글자 끝에 선다. */
+            }
+        }
+    }
+
     function onModalShow(event) {
         if (event.target && event.target.id === 'wb-modal-bulk') {
             syncBulk();
@@ -543,9 +608,17 @@
         }
     }
 
-    function replacePaneState(id) {
+    /**
+     * 열려 있는 집을 history 상태에 다시 심는다.
+     *
+     * @param {?string} id 열린 집의 링크 id. 없으면 null(선택 해제).
+     * @param {string} [href] 주소도 함께 바꿀 때만 준다(기본은 지금 주소 유지).
+     *   선택을 놓는 자리는 **새 기록을 쌓지 않는다** — pushState 로 하면 뒤로가기가
+     *   방금 큐에서 뺀 집으로 되돌아간다. 그래서 push 가 아니라 replace 다.
+     */
+    function replacePaneState(id, href) {
         try {
-            window.history.replaceState({ wbLinkId: id }, '', window.location.href);
+            window.history.replaceState({ wbLinkId: id }, '', href || window.location.href);
         } catch (error) {
             /* 같음. */
         }
@@ -833,6 +906,11 @@
             if (!next || !current) {
                 throw new Error('workbench root missing');
             }
+            // 교체 **직전**에 뜬다. 응답을 기다리는 동안 사용자가 더 스크롤했거나
+            // 낱말을 더 쳤을 수 있다 — 되돌릴 값은 그 최신 상태여야 한다.
+            var find = captureFind();
+            var scrollX = window.scrollX;
+            var scrollY = window.scrollY;
             teardownModals(current);
             current.replaceWith(next);
             // 교체로 잃는 것만 되돌린다. 목록 밖 판정은 전체 렌더가 서버에서 다시
@@ -840,6 +918,12 @@
             applyFontScale(readFontScale());
             syncBulk();
             paneOfflist = readOfflistFlag();
+            restoreFind(find);
+            // 새 목록이 더 짧으면(집 하나가 큐에서 빠지면) 문서가 줄어 브라우저가 스크롤을
+            // 위로 당긴다. 훑던 자리를 그대로 돌려준다 — 그게 통째 이동과의 차이다.
+            // behavior 를 못박는다 — 전역 CSS 가 나중에 smooth 를 켜면 갱신마다
+            // 화면이 미끄러지며 되돌아간다(움직임 자체가 새 통증이 된다).
+            window.scrollTo({ left: scrollX, top: scrollY, behavior: 'auto' });
             return true;
         } catch (error) {
             window.location.reload();
@@ -1108,7 +1192,19 @@
         }
         // 이 집은 목록에서 사라진다 — 지금 탭·필터는 지키고 선택만 놓는다.
         // (옛 코드가 가던 `?tab=claim` 은 v3 에서 없어진 탭이다.)
-        window.location.href = urlWithoutSelection();
+        //
+        // 예전에는 여기서 `location.href` 로 페이지를 통째로 다시 받았다. 큐를 위에서부터
+        // 훑는 손이 한 집을 뺄 때마다 맨 위로 튕기고 찾기 낱말·글자 배율까지 잃었다 —
+        // "페이지를 다시 받지 않는다"는 v3 규율 밖에 남아 있던 마지막 자리다.
+        // 주소에서 선택만 지우고(기록은 쌓지 않는다) 화면 루트만 갈아 끼운다.
+        var next = urlWithoutSelection();
+        replacePaneState(null, next);
+        var refreshed = await softRefresh();
+        if (!refreshed) {
+            // 부분 갱신이 안 되는 응답(로그인 리다이렉트·오류 페이지)이면 예전 경로로
+            // 되돌린다 — 뺀 집이 큐에 남은 것처럼 보이는 채로 끝내지 않는다.
+            window.location.href = next;
+        }
     }
 
     /** 붙이기 — 되돌릴 수 있다(/detach). 확인창 한 번으로 끝낸다. */
@@ -1358,20 +1454,130 @@
         window.setTimeout(function () { softRefresh(); }, BULK_REFRESH_MS);
     }
 
-    /** 지금 수집 — 큐에 넣기만 한다. 네이버 HTTP 는 WORKER 에서만 나간다(호출 IP 한도 3). */
+    /**
+     * 지금 수집 — 큐에 넣고 **워커가 한 바퀴 돌 때까지 지켜본다**.
+     *
+     * 네이버 HTTP 는 WORKER 에서만 나간다(호출 IP 한도 3). 예전에는 큐에 넣은 뒤
+     * "잠시 뒤 새로고침하면 이력에 나타납니다"로 끝냈다 — 사용자가 F5 를 누르기 전까지
+     * 화면은 영원히 그대로였고, 돌고 있는지 실패했는지 알 길이 없었다.
+     * 이제 수집 워터마크 지문(rev)이 뒤집히는 것만 보고, 뒤집히면 화면을 조용히 다시 받는다.
+     */
     async function submitRunNow(btn) {
-        var out = document.getElementById('wb-run-result');
         btn.disabled = true;
-        if (out) {
-            out.textContent = '작업 큐에 넣는 중…';
-        }
+        setRunNote('작업 큐에 넣는 중…');
         const result = await postJson('/admin/naver-ingest/run', {});
-        if (out) {
-            out.textContent = result.ok
-                ? '수집 작업을 큐에 넣었습니다. 잠시 뒤 새로고침하면 결과가 이력에 나타납니다.'
-                : result.error;
+        if (!result.ok) {
+            // 워커가 하나도 없으면 서버가 503 + 사유를 준다. 넣지도 못했으니 기다릴 결과가
+            // 없다 — 폴링하지 않고 사유를 그대로 띄우고 버튼을 다시 연다.
+            setRunNote(result.error);
+            enableRunNow();
+            return;
         }
-        btn.disabled = false;
+        var rev = result.data && result.data.rev;
+        if (!rev) {
+            // 기준 지문이 없으면 무엇이 바뀌었는지 판정할 수 없다. 없는 기준으로 90초를
+            // 도는 대신 예전 안내로 정직하게 끝낸다(폴링을 흉내 내지 않는다).
+            setRunNote('수집 작업을 큐에 넣었습니다. 잠시 뒤 새로고침하면 결과가 이력에 나타납니다.');
+            enableRunNow();
+            return;
+        }
+        watchRun(rev);
+    }
+
+    /**
+     * 수집 결과를 기다렸다가 화면을 다시 그린다.
+     *
+     * 성공도 실패도 같은 신호로 잡힌다 — 워커는 성공하면 요약을, 실패하면 사유를 남기고
+     * 둘 다 워터마크 지문을 바꾼다.
+     *
+     * @param {string} baseRev POST 응답이 준 **큐에 넣기 직전** 워터마크 지문.
+     */
+    function watchRun(baseRev) {
+        stopRunWatch();
+        var mine = runToken;
+        var deadline = Date.now() + RUN_POLL_TIMEOUT_MS;
+        setRunNote('수집 작업을 큐에 넣었습니다. 워커 결과를 기다리는 중…');
+        runTimer = window.setTimeout(tick, RUN_POLL_INTERVAL_MS);
+
+        async function tick() {
+            if (mine !== runToken) {
+                return;
+            }
+            const state = await readRunState();
+            if (mine !== runToken) {
+                return;
+            }
+            if (state && state.rev && state.rev !== baseRev) {
+                stopRunWatch();
+                // 갱신을 **먼저** 한다: softRefresh 가 `#wb-run-result` 를 서버가 준 빈
+                // 칸으로 갈아 끼우므로, 문구를 먼저 쓰면 그 자리에서 지워진다.
+                await softRefresh();
+                setRunNote(state.last_error
+                    ? '수집 실패: ' + state.last_error
+                    // 지문은 **전역** 워터마크다 — 5분 주기 자동 스윕이 이 창 안에 끝나면
+                    // 그 결과로 뒤집힌다. 그래서 "당신이 누른 그 수집이 끝났다"고 말하지
+                    // 않는다. 화면이 말할 수 있는 사실은 "상태가 갱신됐고 지금 값은 이것"뿐이다.
+                    : '수집 상태가 갱신되었습니다 — '
+                        + (state.last_summary || '결과 요약이 비어 있습니다.'));
+                return;
+            }
+            if (Date.now() >= deadline) {
+                // 무한 폴링 금지. 지문이 그대로면 새로 그릴 것도 없다 — 문구만 남기고
+                // 버튼을 다시 연다(수집은 워터마크로 이어 받아 두 번 돌아도 겹치지 않는다).
+                stopRunWatch();
+                setRunNote('아직 처리 중입니다 — 잠시 뒤 다시 확인하세요.');
+                enableRunNow();
+                return;
+            }
+            runTimer = window.setTimeout(tick, RUN_POLL_INTERVAL_MS);
+        }
+    }
+
+    /** 돌고 있는 수집 폴링을 끊는다(새 수집·완료·마감). */
+    function stopRunWatch() {
+        runToken += 1;
+        if (runTimer !== null) {
+            window.clearTimeout(runTimer);
+            runTimer = null;
+        }
+    }
+
+    /**
+     * 수집 워터마크를 읽는다(읽기 전용 경로). 일시 오류는 null 로 삼키고 다음 회차에
+     * 다시 묻는다 — 마감은 `deadline` 이 쥐고 있어서 여기서 멈추면 결과를 못 본다.
+     */
+    async function readRunState() {
+        try {
+            const response = await fetch(RUN_STATE_URL, {
+                credentials: 'same-origin',
+                headers: { 'X-Requested-With': 'XMLHttpRequest' }
+            });
+            if (!response.ok) {
+                return null;
+            }
+            const data = await response.json();
+            return data && data.success ? data.data : null;
+        } catch (error) {
+            return null;
+        }
+    }
+
+    /**
+     * 수집 안내 문구를 쓴다. 요소는 **쓸 때마다 다시 찾는다** — softRefresh 가 화면
+     * 루트를 갈면 들고 있던 요소는 문서 밖이라, 거기 쓴 글자는 아무 데도 안 보인다.
+     * @param {string} message 사람이 읽는 문장.
+     */
+    function setRunNote(message) {
+        setText('wb-run-result', message || '');
+    }
+
+    /** 수집 버튼을 다시 연다 — 갱신을 거치지 않은 끝맺음에서만 필요하다
+        (갱신을 거치면 서버가 준 새 버튼이 이미 열려 있다). */
+    function enableRunNow() {
+        var btn = document.getElementById('wb-run-now');
+        if (btn) {
+            btn.disabled = false;
+        }
     }
 
     /* ── 공용 ────────────────────────────────────────────────────────── */

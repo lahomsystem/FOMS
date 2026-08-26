@@ -1491,7 +1491,7 @@
     {
       "path": "foms/web/admin/naver_ingest.py",
       "endpoint": "naver_ingest_attach_order",
-      "lineno": 2595,
+      "lineno": 2645,
       "methods": [
         "POST"
       ],
@@ -1500,7 +1500,7 @@
     {
       "path": "foms/web/admin/naver_ingest.py",
       "endpoint": "naver_ingest_cancel",
-      "lineno": 2471,
+      "lineno": 2521,
       "methods": [
         "POST"
       ],
@@ -1509,7 +1509,7 @@
     {
       "path": "foms/web/admin/naver_ingest.py",
       "endpoint": "naver_ingest_create_order",
-      "lineno": 2318,
+      "lineno": 2368,
       "methods": [
         "POST"
       ],
@@ -1518,7 +1518,7 @@
     {
       "path": "foms/web/admin/naver_ingest.py",
       "endpoint": "naver_ingest_detach_order",
-      "lineno": 2765,
+      "lineno": 2815,
       "methods": [
         "POST"
       ],
@@ -1527,7 +1527,7 @@
     {
       "path": "foms/web/admin/naver_ingest.py",
       "endpoint": "naver_ingest_dock_state",
-      "lineno": 2840,
+      "lineno": 2890,
       "methods": [
         "POST"
       ],
@@ -1536,7 +1536,7 @@
     {
       "path": "foms/web/admin/naver_ingest.py",
       "endpoint": "naver_ingest_fulfillment",
-      "lineno": 2372,
+      "lineno": 2422,
       "methods": [
         "POST"
       ],
@@ -1545,7 +1545,7 @@
     {
       "path": "foms/web/admin/naver_ingest.py",
       "endpoint": "naver_ingest_fulfillment_clear",
-      "lineno": 2522,
+      "lineno": 2572,
       "methods": [
         "POST"
       ],
@@ -1554,7 +1554,7 @@
     {
       "path": "foms/web/admin/naver_ingest.py",
       "endpoint": "naver_ingest_ghost_discard",
-      "lineno": 2415,
+      "lineno": 2465,
       "methods": [
         "POST"
       ],
@@ -1563,7 +1563,7 @@
     {
       "path": "foms/web/admin/naver_ingest.py",
       "endpoint": "naver_ingest_mark_reviewed",
-      "lineno": 2811,
+      "lineno": 2861,
       "methods": [
         "POST"
       ],
@@ -1572,7 +1572,7 @@
     {
       "path": "foms/web/admin/naver_ingest.py",
       "endpoint": "naver_ingest_repay_reconcile",
-      "lineno": 2661,
+      "lineno": 2711,
       "methods": [
         "POST"
       ],
@@ -1581,7 +1581,7 @@
     {
       "path": "foms/web/admin/naver_ingest.py",
       "endpoint": "naver_ingest_run_now",
-      "lineno": 3012,
+      "lineno": 3062,
       "methods": [
         "POST"
       ],
@@ -1590,7 +1590,7 @@
     {
       "path": "foms/web/admin/naver_ingest.py",
       "endpoint": "naver_ingest_set_assignee",
-      "lineno": 2921,
+      "lineno": 2971,
       "methods": [
         "POST"
       ],

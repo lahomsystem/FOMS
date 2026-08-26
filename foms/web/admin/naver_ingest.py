@@ -16,6 +16,7 @@ from __future__ import annotations
 
 import datetime
 import hashlib
+import json
 import logging
 from typing import Any, Optional
 
@@ -34,7 +35,7 @@ from foms.services.integrations.naver_commerce.promotion import (
     summarize_link_household,
     summarize_snapshot,
 )
-from foms.services.jobs.queue import enqueue_naver_order_sync
+from foms.services.jobs.queue import enqueue_naver_order_sync, get_rq_runtime_status
 from foms.web.admin.routes import admin_bp
 from foms.web.auth import log_access, login_required, role_required
 from models import ExternalOrderLink, Order, OrderEvent
@@ -125,6 +126,55 @@ def _watermark_view(db) -> dict[str, Any]:
         "last_error": state.get("last_error"),
         "last_summary": state.get("last_summary") or {},
     }
+
+
+def _watermark_rev(view: dict[str, Any]) -> str:
+    """워터마크 상태의 **지문** — 화면은 이 값이 바뀌는 것만 본다.
+
+    "지금 수집" 은 큐에 넣고 바로 답한다(네이버 HTTP 는 WORKER 단일 출구). 그래서 버튼을
+    누른 직후의 화면은 아직 옛 상태다. 화면이 "언제 끝났는지" 알려면 물어볼 곳이 필요한데,
+    그 자리에서 성공/실패를 **다시 판정하면 판정이 두 벌**이 된다. 여기서는 워커가 쓴
+    워터마크 원문의 지문만 만들고, 무엇을 보여줄지는 화면이 정한다
+    (:func:`_fulfillment_state` 의 ``rev`` 와 같은 규율).
+
+    성공(전진)이든 실패(사유 기록)든 ``last_run_at`` 이 함께 바뀌므로 두 결말 모두 지문이
+    움직인다. ``hash()`` 는 쓰지 않는다 — ``PYTHONHASHSEED`` 로 프로세스마다 값이 달라져
+    web·워커 사이에서 못 쓴다.
+
+    Args:
+        view: :func:`_watermark_view` 결과.
+
+    Returns:
+        16자 16진 지문 문자열.
+    """
+    marks = [
+        str(view.get("last_run_at") or ""),
+        str(view.get("last_success_to") or ""),
+        str(view.get("last_error") or ""),
+        json.dumps(view.get("last_summary") or {}, sort_keys=True, ensure_ascii=False),
+    ]
+    return hashlib.sha1("|".join(marks).encode("utf-8")).hexdigest()[:16]
+
+
+def _run_summary_text(summary: Any) -> str:
+    """마지막 실행 집계를 사람 말 한 줄로 — 화면 문구(``수집 N · 건너뜀 N · 보류 N``).
+
+    문구는 ``templates/admin/naver_workbench.html`` 의 수집 카드와 **같은 말**로 맞춘다.
+    폴링 결과가 카드와 다른 단어를 쓰면 같은 숫자를 두 가지로 읽게 된다.
+
+    Args:
+        summary: ``last_summary``(:meth:`SyncResult.as_dict` 결과) 또는 빈 값.
+
+    Returns:
+        요약 문장. 집계가 없으면 빈 문자열.
+    """
+    if not isinstance(summary, dict) or not summary:
+        return ""
+    return "수집 {collected} · 건너뜀 {skipped} · 보류 {pending}".format(
+        collected=int(summary.get("collected") or 0),
+        skipped=int(summary.get("skipped") or 0),
+        pending=int(summary.get("pending_review") or 0),
+    )
 
 
 def _expiry_view(db) -> dict[str, Any]:
@@ -3014,12 +3064,47 @@ def naver_ingest_run_now():
 
     큐가 없으면(REDIS_URL 미설정) 조용히 성공한 척하지 않고 실패를 알린다. 여기서 직접
     HTTP 를 내면 IP 가 달라 차단되므로 폴백은 존재하지 않는다.
+
+    **큐가 살아 있어도 일할 워커가 0대면 넣지 않는다.** 넣으면 job 은 아무도 꺼내지 않는
+    큐에 영원히 앉아 있는데 화면은 "넣었습니다"라고 말한다 — 사용자에게는 눌러도 아무 일이
+    없는 것과 같고, 사유조차 없어 더 나쁘다. 판정은
+    :func:`~foms.services.jobs.queue.get_rq_runtime_status` 하나로 한다
+    (``push_sender.enqueue_push_for_notification`` 과 같은 형태).
+
+    응답 ``data.rev`` 는 지금 워터마크의 지문이다(:func:`_watermark_rev`). 화면은 이 값을
+    기준점으로 잡고 ``GET /admin/naver-ingest/run-state`` 를 폴링해 값이 바뀌면 수집이
+    끝난 것으로 본다.
+
+    Returns:
+        성공: ``{"success": True, "data": {"queued", "rev", "worker_count"}}``.
+        워커 없음·큐 장애: 503 + 사람 말로 된 사유.
     """
+    db = get_db()
+    status = get_rq_runtime_status()
+    worker_count = int(status.get("worker_count", 0) or 0)
+    # 큐에 닿는데도 워커가 0대인 경우만 여기서 막는다. REDIS 미설정·연결 불가는 애초에
+    # enqueue 가 False 를 돌려주므로 아래 기존 계약이 같은 503 으로 처리한다.
+    if status.get("state") == "reachable" and worker_count == 0:
+        log_access(
+            "네이버 주문 수집 수동 실행 실패(워커 없음)",
+            action="NAVER_INGEST_RUN_NOW",
+            detail={"queued": False, "reason": "no_worker", "worker_count": 0},
+        )
+        return jsonify({
+            "success": False,
+            "data": None,
+            "error": "수집을 맡을 워커가 한 대도 살아 있지 않습니다. 지금 넣으면 아무도 "
+                     "꺼내지 않는 큐에 남으므로 넣지 않았습니다. WORKER 서비스 상태를 "
+                     "확인한 뒤 다시 눌러 주세요.",
+        }), 503
+    # 기준 지문은 **큐에 넣기 전에** 읽는다. enqueue 뒤에 읽으면 그 사이 워커가 스윕을
+    # 끝냈을 때 기준점이 이미 새 값이라, 화면은 바뀔 리 없는 값을 90초 동안 지켜본다.
+    base_rev = _watermark_rev(_watermark_view(db))
     queued = enqueue_naver_order_sync(dry_run=False)
     log_access(
         "네이버 주문 수집 수동 실행" + ("" if queued else " 실패(큐 없음)"),
         action="NAVER_INGEST_RUN_NOW",
-        detail={"queued": bool(queued)},
+        detail={"queued": bool(queued), "worker_count": worker_count},
     )
     if not queued:
         return jsonify({
@@ -3027,7 +3112,39 @@ def naver_ingest_run_now():
             "error": "작업 큐에 넣지 못했습니다(REDIS_URL 미설정 또는 큐 장애). "
                      "네이버 호출은 WORKER 에서만 가능하므로 web 직접 실행은 없습니다.",
         }), 503
-    return jsonify({"success": True, "data": {"queued": True}, "error": None})
+    return jsonify({"success": True, "error": None, "data": {
+        "queued": True,
+        "rev": base_rev,
+        "worker_count": worker_count,
+    }})
+
+
+@admin_bp.route("/admin/naver-ingest/run-state")
+@login_required
+@role_required(["ADMIN"])
+def naver_ingest_run_state():
+    """수집 워터마크의 현재 상태만 돌려준다 — "지금 수집" 이 끝났는지 묻는 자리.
+
+    "지금 수집" 은 enqueue 로 끝나고 실제 수집은 WORKER 가 몇 초~몇 분 뒤에 한다. 화면이
+    F5 를 기다리는 대신 이 경로를 짧게 폴링해 ``rev`` 가 바뀌면 그때 다시 그린다.
+
+    **읽기 전용 GET 이다** — mutation 이 아니라 write manifest 등재도 감사 라벨도 없다.
+    다만 실행 이력은 수집 규모를 드러내므로 권한은 "지금 수집" 과 같은 ADMIN 으로 묶는다
+    (:func:`naver_ingest_run_now`). 판정은 하지 않는다 — 성공/실패를 어떻게 보여줄지는
+    화면 몫이고, 여기서는 워커가 쓴 값과 그 지문만 준다.
+
+    Returns:
+        ``{"success": True, "data": {"rev", "last_run_at", "last_summary", "last_error"},
+        "error": None}``. ``last_summary`` 는 화면 문구와 같은 한 줄 문자열이다.
+    """
+    db = get_db()
+    view = _watermark_view(db)
+    return jsonify({"success": True, "error": None, "data": {
+        "rev": _watermark_rev(view),
+        "last_run_at": str(view.get("last_run_at") or ""),
+        "last_summary": _run_summary_text(view.get("last_summary")),
+        "last_error": str(view.get("last_error") or ""),
+    }})
 
 
 __all__ = [
@@ -3038,6 +3155,7 @@ __all__ = [
     "naver_ingest_triage",
     "naver_ingest_triage_pane",
     "naver_ingest_run_now",
+    "naver_ingest_run_state",
     "naver_ingest_snapshot",
     "PAGE_SIZE",
     "VALID_STATUSES",
