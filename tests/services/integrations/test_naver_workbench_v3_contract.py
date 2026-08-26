@@ -179,10 +179,10 @@ def test_list_length_matches_strip_tab_badge_and_all_chip(client, workbench_on):
     # 2026-08-24 머리줄 통합: 집 수는 **탭 배지 한 곳**이 말한다. 스트립은 탭 배지가
     # 말할 수 없는 사실(상품주문 건수·손대지 않음)만 든다 — 같은 수를 두 번 쓰지 않는다.
     assert "4" in strip and "건" in strip, strip
-    assert "집" not in strip, f"집 수를 스트립이 또 말한다: {strip}"
-    assert "1집" in locked, locked
-    assert "2집" in work_tab, work_tab
-    assert "3집" in _chip(body, "all"), _chip(body, "all")
+    assert "주문" not in strip.replace("상품주문", ""), f"주문 수를 스트립이 또 말한다: {strip}"
+    assert "1주문" in locked, locked
+    assert "2주문" in work_tab, work_tab
+    assert "3주문" in _chip(body, "all"), _chip(body, "all")
 
 
 def test_strip_and_tab_keep_the_total_while_a_chip_filters(client, workbench_on):
@@ -201,10 +201,10 @@ def test_strip_and_tab_keep_the_total_while_a_chip_filters(client, workbench_on)
     assert len(_rows_html(body)) == 1, "칩이 목록을 좁히지 않았다"
     # 총량은 칩과 무관하게 그대로다. 스트립·탭은 손댈 수 있는 집(1집), 칩 '전체'는 목록
     # 길이(2집) — 둘의 차이는 '손대지 않음 1집'이 화면에서 메운다(계약 §2.4, 08-24 개정).
-    assert "1집" in body.split("wb-bar__locked")[1].split("</span>")[0]
-    assert "1집" in body.split('data-tab="work"')[1].split("</a>")[0]
-    assert "2집" in _chip(body, "all")
-    assert "1집" in _chip(body, "claim")
+    assert "1주문" in body.split("wb-bar__locked")[1].split("</span>")[0]
+    assert "1주문" in body.split('data-tab="work"')[1].split("</a>")[0]
+    assert "2주문" in _chip(body, "all")
+    assert "1주문" in _chip(body, "claim")
 
 
 # --------------------------------------------------------------------------- #
@@ -255,7 +255,7 @@ def test_each_chip_matches_its_predicate(client, workbench_on, name, expected):
 
     assert _shown(body, _FILTER_NAMES) == expected
     assert len(_rows_html(body)) == len(expected)
-    assert f"{len(expected)}집" in _chip(body, name), _chip(body, name)
+    assert f"{len(expected)}주문" in _chip(body, name), _chip(body, name)
 
 
 # --------------------------------------------------------------------------- #

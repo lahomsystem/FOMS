@@ -134,4 +134,4 @@ def test_list_header_does_not_reuse_the_strip_wording(client, workbench_on):
           name="머리집", tel="010-7000-0003")
 
     body = client.get(TRIAGE_PATH).get_data(as_text=True)
-    assert "보이는" in body.split("한 집이 한 줄")[1][:40]
+    assert "보이는" in body.split("한 주문이 한 줄")[1][:40]

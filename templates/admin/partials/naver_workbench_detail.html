@@ -51,7 +51,7 @@
     {% endif %}
 
     <div class="wb-cmp-title" data-cmp-section="household">
-        집 단위 <span class="wb-cmp-title__sub">수취인·주소·발송 — 한 집에 하나뿐인 값</span>
+        주문 단위 <span class="wb-cmp-title__sub">수취인·주소·발송 — 한 주문에 하나뿐인 값</span>
     </div>
     <table class="wb-cmp">
         <thead>
@@ -200,7 +200,7 @@
                견주면 본품·옵션이 갈라져 늘 작게 나온다. #}
             {% if detail.household and detail.household.amount_total %}
             <tr>
-                <td class="wb-cmp__k">집 합계</td>
+                <td class="wb-cmp__k">주문 합계</td>
                 <td>{{ '{:,}'.format(detail.household.amount_total) }}원
                     <span class="wb-cmp-title__sub">상품주문 {{ detail.household.product_order_count }}건</span>
                 </td>
