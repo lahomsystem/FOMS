@@ -313,6 +313,52 @@ def test_mobile_amount_summary_clamps_legacy_negative_balance() -> None:
     assert summary["balance_label"] == "0원"
 
 
+def test_mobile_amount_summary_clamps_legacy_negative_balance_string() -> None:
+    """legacy 잔금이 **문자열** 음수("-1,229,000")로 남아도 화면엔 음수가 안 뜬다(T2, CEO L-2).
+
+    ``float()`` 는 콤마를 못 읽어 예전엔 파싱이 실패하는 즉시 ``str(value)`` 원문이
+    부호까지 그대로 나갔다 — 숫자 버전(위 테스트)은 클램프를 타는데 문자열 버전만
+    클램프를 통째로 빠져나가는 구멍이었다.
+    """
+    sd = {
+        "payment": {"deposit": 1229000},
+        "pricing": {"balance": "-1,229,000"},
+    }
+    summary = display.mobile_amount_summary(sd)
+    assert summary["balance_label"] == "0원"
+
+
+def test_mobile_amount_summary_reads_comma_won_legacy_balance_without_losing_value() -> None:
+    """콤마·"원" 이 붙은 legacy 잔금 문자열은 숫자로 읽혀 값을 잃지 않는다(T2).
+
+    수정 전에는 ``float()`` 파싱 실패로 원문이 그대로 나가 이 케이스는 우연히
+    값이 맞았다 — 하지만 그건 "파싱을 못 해서 운 좋게 안 틀린 것"이라 같은 경로의
+    음수 문자열(위 테스트)은 뚫렸다. 여기서는 실제로 숫자로 파싱해 같은 포맷·같은
+    클램프를 통과시킨다는 것을 확인한다(재파싱 후에도 값 손실이 없어야 한다).
+    """
+    sd = {
+        "payment": {"deposit": 100000},
+        "pricing": {"balance": "1,229,000원"},
+    }
+    summary = display.mobile_amount_summary(sd)
+    assert summary["balance_label"] == "1,229,000원"
+
+
+def test_mobile_amount_summary_preserves_unparseable_legacy_balance_text() -> None:
+    """끝내 숫자로 못 읽는 legacy 잔금("미정")은 0원을 지어내지 않고 원문을 그대로 낸다(T2).
+
+    0원이라고 말하면 "잔금이 없다"는 거짓 정보가 화면에 뜬다 — 모르는 값은 모른다고
+    보여주는 게 맞다. 다만 이 함수의 존재 이유는 "음수가 그대로 찍히지 않는다"이므로,
+    그 전제가 깨지지 않는지도 같이 확인한다(이 값엔 부호가 없어 원문 그대로 나간다).
+    """
+    sd = {
+        "payment": {"deposit": 1229000},
+        "pricing": {"balance": "미정"},
+    }
+    summary = display.mobile_amount_summary(sd)
+    assert summary["balance_label"] == "미정"
+
+
 def test_mobile_overpayment_is_named_not_swallowed_by_the_clamp() -> None:
     """**과입금이 화면에 남는다** (2026-08-26 CEO L-1).
 
