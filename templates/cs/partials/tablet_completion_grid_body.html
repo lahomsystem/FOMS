@@ -120,7 +120,13 @@
           <td>{{ row.product_summary }}</td>
           <td class="is-num">{{ row.shipping_price_display }}</td>
           <td class="is-num">{{ row.deposit_display }}</td>
-          <td class="is-num foms-completion-grid__balance">{{ row.balance_display }}</td>
+          {# 잔금은 0 에서 잘린다 — 넘친 금액은 그 클램프가 삼킨다. 돌려줄 돈이 있다는
+             사실이 사라지지 않게 넘친 만큼만 따로 낸다(CEO L-1). 없으면 줄이 없다. #}
+          <td class="is-num foms-completion-grid__balance">{{ row.balance_display }}
+            {% if row.overpaid_display %}
+            <div class="foms-completion-grid__overpaid">과입금 {{ row.overpaid_display }}</div>
+            {% endif %}
+          </td>
           <td class="foms-completion-grid__receipt-cell">
             {% if row.cash_receipt_state == 'issued' %}
             <span class="foms-completion-grid__receipt-chip is-issued">발행됨</span>

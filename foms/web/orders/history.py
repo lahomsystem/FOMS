@@ -310,7 +310,10 @@ def history_tablet_sheet(order_id: int):
         erp_shipping_price_from_structured,
     )
     from foms.services.erp_product_items import build_product_items_for_orders
-    from foms.services.estimate_service import _balance_after_payments
+    from foms.services.estimate_service import (
+        _balance_after_payments,
+        _overpaid_after_payments,
+    )
 
     sd = _ensure_dict(order.structured_data)
     if is_erp_order_record(order):
@@ -338,6 +341,13 @@ def history_tablet_sheet(order_id: int):
         if shipping_price is None
         else _balance_after_payments(shipping_price, deposit or 0)
     )
+    # 잔금은 0 에서 잘린다 — 넘친 금액은 그 클램프가 삼킨다. 돌려줄 돈이 있다는 사실이
+    # 사라지지 않게 넘친 만큼만 따로 낸다(CEO L-1). 총액 미확정(0)은 과입금이 아니다.
+    overpaid = (
+        0
+        if shipping_price is None
+        else _overpaid_after_payments(shipping_price, deposit or 0)
+    )
 
     def _krw(value):
         return "—" if value is None else f"{int(value):,}원"
@@ -351,6 +361,7 @@ def history_tablet_sheet(order_id: int):
         shipping_price_display=_krw(shipping_price),
         deposit_display=_krw(deposit),
         balance_display=_krw(balance),
+        overpaid_display=(_krw(overpaid) if overpaid else ""),
         has_settlement=(shipping_price is not None or deposit is not None),
     ))
     apply_erp_shell_fragment_headers(response, request)

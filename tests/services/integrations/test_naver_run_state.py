@@ -53,19 +53,22 @@ def _login(client, *, role: str = "ADMIN") -> User:
     return user
 
 
-def _with_workers(monkeypatch, *, worker_count: int = 1, state: str = "reachable") -> list:
+def _with_workers(monkeypatch, *, worker_count: int = 1, state: str = "reachable",
+                  worker_count_known: bool = True, enqueue_ok: bool = True) -> list:
     """큐 런타임 상태를 고정하고, enqueue 호출을 기록하는 리스트를 돌려준다.
 
     실제 REDIS 에 의존하면 이 파일의 단언이 환경(REDIS_URL 유무)에 따라 흔들린다.
+    ``worker_count_known=False`` 는 **ping 은 통했는데 워커 수를 못 센** 상태다.
     """
     calls: list = []
 
     def _fake_enqueue(dry_run=False):
         calls.append(dry_run)
-        return True
+        return enqueue_ok
 
     monkeypatch.setattr("foms.web.admin.naver_ingest.get_rq_runtime_status",
-                        lambda: {"state": state, "worker_count": worker_count})
+                        lambda: {"state": state, "worker_count": worker_count,
+                                 "worker_count_known": worker_count_known})
     monkeypatch.setattr("foms.web.admin.naver_ingest.enqueue_naver_order_sync", _fake_enqueue)
     return calls
 
@@ -167,6 +170,45 @@ def test_run_now_refuses_when_no_worker_is_alive(app, client, monkeypatch):
     assert payload["success"] is False
     assert calls == []  # 아무도 꺼내지 않는 큐에 job 을 앉히지 않았다
     assert "워커" in payload["error"]
+
+
+def test_unknown_worker_count_is_not_reported_as_no_worker(app, client, monkeypatch):
+    """**"못 셌다"를 "0대"라고 말하지 않는다** (2026-08-26 CEO 지적).
+
+    ping 은 통했는데 그 직후 ``Worker.count`` 가 실패하는 짧은 창이 실재한다. 예전에는
+    그 실패가 조용히 0 이 되어, 워커가 멀쩡히 도는데도 화면이 "한 대도 살아 있지
+    않습니다. WORKER 서비스를 확인하세요"라고 말했다 — 사람을 엉뚱한 곳으로 보낸다.
+    못 셌으면 막지 않고 그대로 넣는다.
+    """
+    _login(client)
+    calls = _with_workers(monkeypatch, worker_count=0, worker_count_known=False)
+
+    response = client.post(RUN_PATH, json={})
+    payload = response.get_json()
+
+    assert response.status_code == 200, payload
+    assert payload["success"] is True
+    assert calls == [False], "못 셌다는 이유로 넣지 않았다"
+    assert payload["data"]["worker_count_known"] is False, "모른다는 사실을 숨겼다"
+
+
+def test_dead_queue_behind_an_unknown_count_still_says_queue_failure(app, client, monkeypatch):
+    """못 센 뒤 큐가 실제로 죽어 있으면 **"큐 장애"** 라는 맞는 사유가 나간다.
+
+    못 셌을 때 막지 않는 것이 안전한 이유가 이것이다 — 진짜 고장이면 enqueue 가
+    바로 실패하고, 그 자리에서 정확한 사유가 나온다.
+    """
+    _login(client)
+    calls = _with_workers(monkeypatch, worker_count=0, worker_count_known=False,
+                          enqueue_ok=False)
+
+    response = client.post(RUN_PATH, json={})
+    payload = response.get_json()
+
+    assert response.status_code == 503
+    assert calls == [False]
+    assert "워커" not in payload["error"], "큐 장애를 워커 탓으로 말했다"
+    assert "큐" in payload["error"]
 
 
 def test_queue_disabled_still_falls_back_to_the_existing_503(app, client, monkeypatch):

@@ -23,6 +23,7 @@ from foms.services.erp_quest_display import (
 )
 from foms.services.estimate_service import (
     _balance_after_payments,
+    _overpaid_after_payments,
     _extract_deposit_amount,
     _extract_discount_amount,
     _extract_free_input_amount,
@@ -351,6 +352,7 @@ def mobile_amount_summary(sd: dict) -> dict[str, Any]:
 
     Returns:
         모바일 상세 금액 KV 블록 dict(출고가/예약금/할인/잔금 라벨).
+        예약금이 출고가를 넘은 주문은 ``overpaid_label`` 에 넘친 금액이 담긴다(아니면 None).
     """
     totals = sd.get("totals") if isinstance(sd.get("totals"), dict) else {}
     pricing = sd.get("pricing") if isinstance(sd.get("pricing"), dict) else {}
@@ -399,10 +401,19 @@ def mobile_amount_summary(sd: dict) -> dict[str, Any]:
         balance_label = f"{_balance_after_payments(effective_total, deposit_val, discount_val):,}원"
     elif balance_label is None:
         balance_label = _fmt_balance(legacy_balance)
+    # 잔금은 위에서 0 에 잘린다 — 넘친 금액은 그 클램프가 삼킨다. 돌려줄 돈이 있다는
+    # 사실이 화면에서 사라지지 않게 넘친 만큼만 따로 낸다(CEO L-1). 견주는 값은 화면이
+    # 실제로 보여주는 출고가다(할인은 이미 출고가에 흡수돼 있으므로 또 빼지 않는다).
+    # 출고가가 0 인 실측 전 주문은 과입금이 아니다 — 총액이 아직 안 정해진 것이다.
+    overpaid = (
+        _overpaid_after_payments(shipping_price, deposit_val or 0)
+        if shipping_price is not None else 0
+    )
     return {
         "items_total_label": items_label,
         "deposit_label": deposit_label,
         "discount_label": discount_label,
+        "overpaid_label": (f"{overpaid:,}원" if overpaid else None),
         "balance_label": balance_label,
     }
 

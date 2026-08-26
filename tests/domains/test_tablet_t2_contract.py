@@ -996,6 +996,89 @@ def test_completion_sheet_context_clamps_balance_when_only_deposit_present(monke
     assert ctx["balance_display"] == "0"
 
 
+def test_completion_row_names_the_overpayment_the_clamp_swallowed() -> None:
+    """**과입금이 화면에 남는다** (2026-08-26 CEO L-1).
+
+    잔금은 ``max(0, …)`` 이라 예약금이 출고가를 넘으면 "잔금 0원"만 남고 넘친 금액은
+    어디에도 안 나온다 — 돌려줄 돈이 있다는 사실이 화면에서 사라진다.
+    """
+    from foms.web.cs.completion_dashboard import _completion_row
+
+    order = SimpleNamespace(
+        id=4245,
+        status="COMPLETED",
+        structured_data={
+            "parties": {"customer": {"name": "더낸고객"}},
+            "schedule": {"construction": {"date": "2026-08-20"}},
+            "items": [{"product_name": "붙박이장", "price": 5000000}],
+            "payment": {"deposit": 6000000},
+            "totals": {"items_total": 5000000},
+        },
+    )
+    row = _completion_row(order)
+    assert row["balance_display"] == "0", "잔금 클램프 규칙은 그대로다"
+    assert row["overpaid_display"] == "1,000,000", "넘친 금액이 화면에서 사라졌다"
+
+
+def test_completion_row_does_not_call_a_measure_pending_order_overpaid() -> None:
+    """**실측 전 주문은 과입금이 아니다** — 총액이 아직 안 정해진 것이다.
+
+    네이버 승격분은 출고가 0 · 예약금 N 이다. 이걸 과입금이라 부르면 승격분이 전부
+    과입금으로 보인다.
+    """
+    from foms.web.cs.completion_dashboard import _completion_row
+
+    order = SimpleNamespace(
+        id=4246,
+        status="COMPLETED",
+        structured_data={
+            "parties": {"customer": {"name": "예약금만고객"}},
+            "schedule": {"construction": {"date": "2026-08-20"}},
+            "items": [{"product_name": "붙박이장", "price": 0}],
+            "payment": {"deposit": 1229000},
+            "totals": {"items_total": 0},
+        },
+    )
+    assert _completion_row(order)["overpaid_display"] == ""
+
+
+def test_completion_sheet_context_also_names_the_overpayment(monkeypatch) -> None:
+    """시트도 같은 규칙 — 그리드만 고치면 단건 화면에서 사실이 사라진다."""
+    from foms.web.cs import completion_dashboard as cd
+
+    monkeypatch.setattr(cd, "_completion_construction_photos", lambda _db, _oid: [])
+    order = SimpleNamespace(
+        id=4247,
+        status="COMPLETED",
+        structured_data={
+            "parties": {"customer": {"name": "더낸고객"}},
+            "schedule": {"construction": {"date": "2026-08-20"}},
+            "items": [{"product_name": "붙박이장", "price": 5000000}],
+            "payment": {"deposit": 6000000},
+            "totals": {"items_total": 5000000},
+        },
+    )
+    ctx = cd._completion_sheet_context(None, order, None)
+    assert ctx["balance_display"] == "0"
+    assert ctx["overpaid_display"] == "1,000,000"
+
+
+def test_completion_surfaces_render_the_overpaid_row() -> None:
+    """그리드·시트 템플릿이 과입금을 실제로 그린다(있을 때만)."""
+    root = Path(__file__).resolve().parents[2]
+    grid = (root / "templates/cs/partials/tablet_completion_grid_body.html").read_text(
+        encoding="utf-8")
+    sheet = (root / "templates/cs/partials/tablet_completion_sheet.html").read_text(
+        encoding="utf-8")
+    css = (root / "static/css/foundation/foms-tablet-completion-grid.css").read_text(
+        encoding="utf-8")
+
+    assert "row.overpaid_display" in grid and "과입금" in grid
+    assert "overpaid_display" in sheet and "과입금" in sheet
+    assert ".foms-completion-grid__overpaid" in css, "인라인 스타일로 샜다"
+    assert ".foms-completion-sheet__amount--overpaid" in css
+
+
 def test_completion_grid_css_exclusivity_couples_hide_and_show_no_blank() -> None:
     """배타(blank 금지): 기본은 그리드 은닉. 태블릿 가로 코호트에서 사진 리뷰 은닉과
     그리드 표시가 **동일 게이트**(코호트 body class + 코어 MQ) 아래 결합."""

@@ -21,7 +21,10 @@ from foms.services.erp_display import (
     erp_deposit_amount_from_structured,
     erp_shipping_price_from_structured,
 )
-from foms.services.estimate_service import _balance_after_payments
+from foms.services.estimate_service import (
+    _balance_after_payments,
+    _overpaid_after_payments,
+)
 from foms.services.feature_flags import is_mobile_v2_shell, resolve_shell_variant_cached
 from foms.services.request_utils import get_search_query_arg
 from models import Order, OrderAttachment
@@ -162,6 +165,13 @@ def _completion_row(order) -> dict:
         if shipping_price is None
         else _balance_after_payments(shipping_price, deposit or 0)
     )
+    # 잔금은 0 에서 잘린다 — 넘친 금액은 그 클램프가 삼킨다. 돌려줄 돈이 있다는 사실이
+    # 화면에서 사라지지 않게 넘친 만큼을 따로 낸다(CEO L-1). 0 이면 화면은 줄을 안 낸다.
+    overpaid = (
+        0
+        if shipping_price is None
+        else _overpaid_after_payments(shipping_price, deposit or 0)
+    )
     payment = sd.get("payment")
     cash_receipt = (
         str(payment.get("cash_receipt") or "").strip()
@@ -185,6 +195,7 @@ def _completion_row(order) -> dict:
         "deposit_display": _format_krw(deposit),
         "balance_display": _format_krw(balance),
         "balance_amount": balance,
+        "overpaid_display": _format_krw(overpaid) if overpaid else "",
         "cash_receipt": cash_receipt,
         "cash_receipt_state": _cash_receipt_state(cash_receipt, cash_receipt_issued),
         "cash_receipt_issued": cash_receipt_issued,
@@ -482,6 +493,12 @@ def _completion_sheet_context(db, order, user) -> dict:
         if shipping_price is None
         else _balance_after_payments(shipping_price, deposit or 0)
     )
+    # 목록 행과 같은 규칙 — 잔금 클램프가 삼킨 과입금을 시트에서도 말한다(CEO L-1).
+    overpaid = (
+        0
+        if shipping_price is None
+        else _overpaid_after_payments(shipping_price, deposit or 0)
+    )
     payment = sd.get("payment")
     cash_receipt = (
         str(payment.get("cash_receipt") or "").strip()
@@ -501,6 +518,7 @@ def _completion_sheet_context(db, order, user) -> dict:
         "shipping_price_display": _format_krw(shipping_price),
         "deposit_display": _format_krw(deposit),
         "balance_display": _format_krw(balance),
+        "overpaid_display": _format_krw(overpaid) if overpaid else "",
         "cash_receipt": cash_receipt,
         "cash_receipt_issued": cash_receipt_issued,
         "cash_receipt_note": cash_receipt_note,
