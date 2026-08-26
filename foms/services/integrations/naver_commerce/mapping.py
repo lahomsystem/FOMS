@@ -397,37 +397,59 @@ def extract_delivery(detail: dict) -> dict:
     }
 
 
+def _axis_partial(initial: Optional[int], remain: Optional[int]) -> bool:
+    """한 축(수량 또는 금액)이 **부분**취소인가 — 일부는 사라지고 일부는 남았는가.
+
+    2026-08-26 스테이징 실데이터 100건이 이 판정을 다시 쓰게 했다: ``initial != remain``
+    으로 보면 **전부취소(``remain == 0``)까지 부분취소로 잡힌다**. 실제로 그 100건에서
+    "부분취소"로 표시된 18건은 전부 ``RETURN_DONE``·``CANCEL_DONE`` 인 **전부**취소였고,
+    진짜 부분취소는 **0건**이었다. 전부취소는 클레임 배지가 이미 말하므로 여기서 또
+    말하면 화면이 같은 사실을 두 번, 그것도 **틀린 이름으로** 말한다.
+
+    Args:
+        initial: 최초 값(안 왔으면 None).
+        remain: 잔여 값(안 왔으면 None).
+
+    Returns:
+        ``0 < remain < initial`` 일 때만 True. 한쪽이라도 안 온 원본은 "모른다"로 두고
+        False — 없는 값을 0 으로 채우면 화면이 "원래 0개였다"고 거짓말한다.
+    """
+    if initial is None or remain is None:
+        return False
+    return 0 < remain < initial
+
+
 def extract_partial_cancel(detail: dict) -> dict:
     """부분취소 잔여(``remain*``)·최초(``initial*``) 값을 뽑는다 — 인벤토리 §2.3.
 
-    **함정: 이 필드들은 281/281 전 건에 온다.** 부분취소가 있든 없든 온다는 뜻이라,
-    *필드가 있느냐* 로 판정하면 **모든 집이 부분취소로 보인다**. 부분취소는 초기값과
-    잔여값이 **실제로 다를 때**만이다.
+    **함정 1: 이 필드들은 281/281 전 건에 온다.** 부분취소가 있든 없든 온다는 뜻이라,
+    *필드가 있느냐* 로 판정하면 **모든 집이 부분취소로 보인다**.
 
-    한쪽 값이 아예 안 온 원본은 "모른다"로 두고 False 를 준다. 화면은 ``is_partial`` 이
-    True 인 행에서만 "원래 몇 개"를 덧붙이므로, 모를 때 침묵하는 쪽이 거짓말을 안 한다
-    (없는 값을 0 으로 채우면 화면이 "원래 0개였다"고 말한다).
+    **함정 2: ``initial != remain`` 도 부족하다.** 전부취소면 ``remain`` 이 0 이라 그
+    조건에 걸린다 — 판정은 :func:`_axis_partial` 이 하고, 부분취소는 **일부가 남았을
+    때**(``0 < remain < initial``)만이다.
 
     Args:
         detail: 상품주문 상세 1건(``initial*``·``remain*`` 는 ``productOrder`` 필드다).
 
     Returns:
-        ``{"is_partial", "initial_quantity", "remain_quantity",
-        "initial_amount", "remain_amount"}``. 숫자는 정수, 읽을 수 없으면 0.
+        ``{"is_partial", "quantity_partial", "amount_partial", "initial_quantity",
+        "remain_quantity", "initial_amount", "remain_amount"}``.
+        축별 플래그를 함께 주는 이유는 화면이 **바뀐 축에만** 잔여를 붙이기 때문이다
+        (금액만 깎인 취소에서 안 바뀐 수량에 잔여를 달면 거짓말이다).
+        숫자는 정수, 읽을 수 없으면 0.
     """
     _order, product_order, _shipping = unwrap_detail(detail if isinstance(detail, dict) else {})
     initial_quantity = _known_int(product_order, "initialQuantity")
     remain_quantity = _known_int(product_order, "remainQuantity")
     initial_amount = _known_int(product_order, "initialPaymentAmount")
     remain_amount = _known_int(product_order, "remainPaymentAmount")
-    is_partial = (
-        (initial_quantity is not None and remain_quantity is not None
-         and initial_quantity != remain_quantity)
-        or (initial_amount is not None and remain_amount is not None
-            and initial_amount != remain_amount)
-    )
+    quantity_partial = _axis_partial(initial_quantity, remain_quantity)
+    amount_partial = _axis_partial(initial_amount, remain_amount)
     return {
-        "is_partial": is_partial,
+        "is_partial": quantity_partial or amount_partial,
+        "quantity_partial": quantity_partial,
+        "amount_partial": amount_partial,
         "initial_quantity": initial_quantity if initial_quantity is not None else 0,
         "remain_quantity": remain_quantity if remain_quantity is not None else 0,
         "initial_amount": initial_amount if initial_amount is not None else 0,

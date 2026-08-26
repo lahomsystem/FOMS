@@ -7,7 +7,7 @@
   지금까지 담당자가 이 한 줄을 보려고 판매자센터를 따로 열었다.
 * F-2 ``delivery.sendDate`` — 발송처리를 우리가 눌러 놓고 그 결과 시각을 화면이 안 읽었다.
   우리 기록과 나란히 둬야 **어긋남**이 보인다(그게 이 줄의 값어치다).
-* F-3 ``remain*``/``initial*`` — 부분취소 뒤 "원래 몇 개였는지".
+* F-3 ``remain*``/``initial*`` — 부분취소 뒤 **남은 몇 개인지**(표의 숫자는 원래 값이다).
 
 이 파일이 무는 규율은 하나 더 있다: **없는 값을 지어내지 않는다.** 원본이 말한 적 없는
 것은 빈 칸이나 ``-`` 로 채우지 않고 **줄 자체를 내지 않는다** — 그래야 화면이 침묵과
@@ -217,6 +217,27 @@ def test_both_sides_recorded_is_not_flagged_as_a_gap(client, workbench_on):
     assert "어긋남" not in pane, "정상인 집에 경고가 떴다"
 
 
+def test_naver_only_send_is_shown_but_not_alarmed(client, workbench_on):
+    """네이버에만 발송 기록이 있는 집은 **사실만 보이고 경고는 없다**.
+
+    2026-08-26 스테이징 실데이터가 만든 단언이다: 발송 줄 44건 중 41건이 이 방향이었고
+    (우리 쪽만 있는 진짜 사고는 0건), 전부 경고가 붙어 있었다. 그 방향은 사고가 아니라
+    **판매자센터에서 직접 나간 발송**이라, 경고로 치면 93% 가 상시 경고가 되어 진짜
+    어긋남을 덮는다. 두 열은 그대로 나란히 있으니 사실 자체는 사라지지 않는다.
+    """
+    _login(client)
+    link = _collected(order_no="N-WB-NAVERONLY", product="붙박이장", amount=100000)
+    _patch(link, delivery={"deliveryStatus": "NOT_TRACKING",
+                           "sendDate": "2026-08-25T14:03:00.000+09:00"})
+
+    pane = _pane_html(client, link.id)
+
+    assert "wb-sendline" in pane, "네이버가 발송을 말하는데 줄이 없다"
+    assert "발송처리 2026-08-25 14:03" in pane, "네이버 쪽 시각이 화면에 닿지 않았다"
+    assert "아직 없음" in pane, "우리 쪽이 비어 있다는 사실을 말하지 않았다"
+    assert "어긋남" not in pane, "판매자센터 직접 발송에 경고가 붙었다(41/44 상시 경고)"
+
+
 # --------------------------------------------------------------------------- #
 # F-3 — 부분취소 잔여 (회귀 위험이 가장 큰 자리)
 # --------------------------------------------------------------------------- #
@@ -236,43 +257,67 @@ def test_non_partial_row_looks_exactly_like_today(client, workbench_on):
 
     table = _product_table(_pane_html(client, link.id))
 
-    assert "wb-cmp__was" not in table, "부분취소가 아닌 행에 '원래' 줄이 붙었다"
-    assert "원래" not in table
+    assert "wb-cmp__remain" not in table, "부분취소가 아닌 행에 잔여 줄이 붙었다"
+    assert "남은" not in table
     # 지금 화면이 말하던 값은 그대로다 — 수량·금액·제품이 전부 제자리에 있다.
     assert "붙박이장" in table
     assert "100,000" in table
     assert "3" in table
 
 
-def test_partial_row_shows_the_original_quantity(client, workbench_on):
-    """부분취소인 행만 **원래 수량**이 함께 보인다."""
+def test_partial_row_shows_what_is_left(client, workbench_on):
+    """부분취소인 행만 **남은 값**이 함께 보인다.
+
+    표에 찍히는 수량·금액은 네이버 ``quantity``·``totalPaymentAmount`` 라 클레임이 걸려도
+    안 줄어든다 — 즉 이미 **원래 값**이다. 그 옆에 "원래 3"을 또 놓으면 같은 숫자를 두 번
+    말하는 셈이라, 여기서 덧붙일 새 사실은 남은 값 하나뿐이다.
+    """
     _login(client)
-    link = _collected(order_no="N-WB-PART", product="붙박이장", amount=40000)
-    _patch(link, product_order={"quantity": 1,
+    link = _collected(order_no="N-WB-PART", product="붙박이장", amount=120000)
+    _patch(link, product_order={"quantity": 3, "totalPaymentAmount": 120000,
                                 "initialQuantity": 3, "remainQuantity": 1,
                                 "initialPaymentAmount": 120000,
                                 "remainPaymentAmount": 40000})
 
     table = _product_table(_pane_html(client, link.id))
 
-    assert "wb-cmp__was" in table, "부분취소 행인데 원래 값이 없다"
-    assert "원래 3" in table, "원래 수량이 화면에 닿지 않았다"
-    assert "원래 120,000" in table, "원래 금액이 화면에 닿지 않았다"
+    assert "wb-cmp__remain" in table, "부분취소 행인데 남은 값이 없다"
+    assert "남은 1" in table, "남은 수량이 화면에 닿지 않았다"
+    assert "남은 40,000" in table, "남은 금액이 화면에 닿지 않았다"
+
+
+def test_fully_canceled_row_is_not_called_partial(client, workbench_on):
+    """**전부취소된 행에는 잔여 줄이 없다** — 2026-08-26 실데이터가 만든 자물쇠.
+
+    스테이징 100건에서 "부분취소"로 잔여 줄이 붙던 18건이 전부 ``remain == 0`` 인
+    전부취소·전부반품이었고, 붙은 숫자는 바로 위에 찍힌 값과 **같은 숫자**였다.
+    """
+    _login(client)
+    link = _collected(order_no="N-WB-FULLCANCEL", product="붙박이장", amount=1303600)
+    _patch(link, product_order={"quantity": 14, "totalPaymentAmount": 1303600,
+                                "initialQuantity": 14, "remainQuantity": 0,
+                                "initialPaymentAmount": 1303600,
+                                "remainPaymentAmount": 0})
+
+    table = _product_table(_pane_html(client, link.id))
+
+    assert "wb-cmp__remain" not in table, "전부취소를 부분취소라고 불렀다"
+    assert "남은" not in table
 
 
 def test_amount_only_partial_cancel_does_not_fake_a_quantity_change(client, workbench_on):
     """금액만 깎인 부분취소는 **금액 줄만** 낸다 — 수량은 안 바뀌었으니 할 말이 없다."""
     _login(client)
-    link = _collected(order_no="N-WB-PART-AMT", product="붙박이장", amount=90000)
-    _patch(link, product_order={"quantity": 2,
+    link = _collected(order_no="N-WB-PART-AMT", product="붙박이장", amount=100000)
+    _patch(link, product_order={"quantity": 2, "totalPaymentAmount": 100000,
                                 "initialQuantity": 2, "remainQuantity": 2,
                                 "initialPaymentAmount": 100000,
                                 "remainPaymentAmount": 90000})
 
     table = _product_table(_pane_html(client, link.id))
 
-    assert "원래 100,000" in table
-    assert "원래 2" not in table, "안 바뀐 수량에 '원래' 를 붙였다"
+    assert "남은 90,000" in table
+    assert "남은 2" not in table, "안 바뀐 수량에 잔여를 붙였다"
 
 
 # --------------------------------------------------------------------------- #
@@ -283,10 +328,10 @@ def test_new_styles_live_in_the_workbench_css():
     """새 요소 3종의 스타일이 전용 CSS 에 있다 — 인라인 style 로 새지 않았다."""
     css = CSS_PATH.read_text(encoding="utf-8")
 
-    for selector in (".wb-claim-reason", ".wb-sendline__gap", ".wb-cmp__was"):
+    for selector in (".wb-claim-reason", ".wb-sendline__gap", ".wb-cmp__remain"):
         assert selector in css, f"{selector} 스타일이 없다"
 
     markup = PANE_TEMPLATE_PATH.read_text(encoding="utf-8")
-    for needle in ("wb-claim-reason", "wb-sendline", "wb-cmp__was"):
+    for needle in ("wb-claim-reason", "wb-sendline", "wb-cmp__remain"):
         assert needle in markup, f"{needle} 마크업이 없다"
     assert 'style="' not in markup, "pane 템플릿에 인라인 스타일이 들어왔다"

@@ -373,15 +373,17 @@
                         <div class="wb-cmp__option">{{ row.options }}</div>
                         {% endif %}
                     </td>
-                    {# 부분취소 잔여(F-3). 한 집에서 일부만 취소되면 여기 뜨는 수량은 **남은**
-                       수량인데, 화면이 "원래 몇 개였는지"를 말하지 못했다. `is_partial` 인
-                       행에서만 낸다 — 281/281 이 remain*/initial* 필드를 갖고 있어서 존재
-                       여부로 판정하면 모든 행이 부분취소로 보인다(그게 이 필드의 함정이다). #}
+                    {# 부분취소 잔여(F-3). 여기 뜨는 수량은 네이버 `productOrder.quantity` 라
+                       클레임이 걸려도 **안 줄어든다**(2026-08-26 실데이터: 전부반품된 집도
+                       quantity 14 · remainQuantity 0). 그러니 이 자리에 덧붙일 새 사실은
+                       "원래 몇 개"가 아니라 **남은 몇 개**다 — 원래 값은 이미 위에 찍혀 있다.
+                       `quantity_partial` 은 `0 < remain < initial` 일 때만 참이다: 전부취소는
+                       클레임 배지가 이미 말하고, 281/281 이 remain*/initial* 을 갖고 있어
+                       존재 여부나 단순 불일치로 판정하면 화면이 전부취소를 부분취소라 부른다. #}
                     <td class="wb-cmp__num">
                         {{ row.quantity if row.quantity is not none else '–' }}
-                        {% if row.partial_cancel.is_partial
-                              and row.partial_cancel.initial_quantity != row.partial_cancel.remain_quantity %}
-                        <div class="wb-cmp__was">원래 {{ row.partial_cancel.initial_quantity }}</div>
+                        {% if row.partial_cancel.quantity_partial %}
+                        <div class="wb-cmp__remain">남은 {{ row.partial_cancel.remain_quantity }}</div>
                         {% endif %}
                     </td>
                     <td class="wb-cmp__num">
@@ -390,10 +392,10 @@
                         <div class="wb-cmp__coupon">쿠폰 −{{ '{:,}'.format(row.coupon_discount) }}</div>
                         {% endif %}
                         {# 수량은 그대로인데 금액만 깎인 부분취소도 있다 — 축마다 따로 판정한다.
-                           같은 값이면 줄을 내지 않는다(원래 값이 지금 값과 같으면 할 말이 없다). #}
-                        {% if row.partial_cancel.is_partial
-                              and row.partial_cancel.initial_amount != row.partial_cancel.remain_amount %}
-                        <div class="wb-cmp__was">원래 {{ '{:,}'.format(row.partial_cancel.initial_amount) }}</div>
+                           안 바뀐 축에는 아무 줄도 내지 않는다(할 말이 없는데 숫자를 하나 더
+                           놓으면 읽는 사람이 그 축도 깎였다고 읽는다). #}
+                        {% if row.partial_cancel.amount_partial %}
+                        <div class="wb-cmp__remain">남은 {{ '{:,}'.format(row.partial_cancel.remain_amount) }}</div>
                         {% endif %}
                     </td>
                 </tr>
