@@ -98,6 +98,58 @@ def test_channel_health_uses_runtime_worker_status(client, monkeypatch):
     assert data["queue"]["worker_count"] == 2
 
 
+def test_channel_health_unknown_worker_count_does_not_fail(client, monkeypatch):
+    """worker 수를 못 센 경우(worker_count_known=False)는 fail 로 떨어지면 안 된다.
+
+    ping 은 통했는데 그 직후 Worker 조회만 실패하는 짧은 창이 실재한다(queue.py
+    _probe_rq_workers docstring). 예전에는 그 실패가 조용히 worker_count=0 이 되어
+    push/webhook 이 켜진 멀쩡한 연동이 503(readiness=fail)으로 떨어졌다. 이 테스트는
+    "못 셌다"를 "확실히 0대다"로 단정하지 않는지 확인한다 — status_code 는 200 대여야
+    하고(진짜 장애가 아니므로), 모른다는 사실(worker_count_known=False)은 응답에서
+    숨기지 않고 그대로 실려 있어야 한다(worker_count=0 만 보면 "0대"로 오해한다).
+    """
+    _login_admin(client)
+    monkeypatch.setenv("FOMS_BASE_URL", "https://example.com")
+    monkeypatch.setenv("CHANNEL_PUSH_ENABLED", "true")
+    monkeypatch.setattr(
+        channel_integration,
+        "get_rq_runtime_status",
+        lambda: {"state": "reachable", "worker_count": 0, "worker_count_known": False},
+    )
+
+    r = client.get("/api/channel/health")
+
+    assert r.status_code == 200
+    data = r.get_json()
+    assert data["readiness"] != "fail"
+    assert data["queue"]["worker_count_known"] is False
+
+
+def test_channel_health_confirmed_zero_workers_still_fails(client, monkeypatch):
+    """worker 가 확실히 0대(worker_count_known=True)일 때는 예전 그대로 fail 이다.
+
+    "모른다"와 "없다"를 가르는 판정을 좁히면서 진짜 0대인 상황까지 함께 느슨해지면
+    안 된다(못을 빼면 안 된다). worker_count_known 을 명시적으로 True 로 준 상태에서
+    worker_count=0 이면 push/webhook 이 켜진 연동은 여전히 503(readiness=fail)이어야
+    한다.
+    """
+    _login_admin(client)
+    monkeypatch.setenv("FOMS_BASE_URL", "https://example.com")
+    monkeypatch.setenv("CHANNEL_PUSH_ENABLED", "true")
+    monkeypatch.setattr(
+        channel_integration,
+        "get_rq_runtime_status",
+        lambda: {"state": "reachable", "worker_count": 0, "worker_count_known": True},
+    )
+
+    r = client.get("/api/channel/health")
+
+    assert r.status_code == 503
+    data = r.get_json()
+    assert data["readiness"] == "fail"
+    assert data["queue"]["worker_count_known"] is True
+
+
 def test_channel_health_returns_json_when_runtime_probe_fails(client, monkeypatch):
     _login_admin(client)
     monkeypatch.setenv("FOMS_BASE_URL", "https://example.com")
