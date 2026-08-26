@@ -49,6 +49,8 @@ _PTC_ROOT_ALLOWLIST: frozenset[str] = frozenset(
         "Dockerfile",
         "models.py",
         "Procfile",
+        # CI-PYTEST-01: pytest 설정 SSOT (2026-08-26 신설)
+        "pytest.ini",
         "predeploy.sh",
         "README.md",
         "railway.toml",
