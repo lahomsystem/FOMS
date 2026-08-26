@@ -285,6 +285,142 @@ def _extra_payment_summary(order: Any) -> dict[str, Any]:
     return {"count": count, "total": total, **by_relation}
 
 
+#: 재결제로 대체된 옛 집 행에 붙는 설명 — 화면이 그대로 읽는다.
+_SUPERSEDED_NOTE = "재결제로 대체된 이전 주문 — 옛 결제는 환불됐습니다"
+
+
+def _household_relations(links: list[Any]) -> dict[str, str]:
+    """집(``external_order_no``)마다 관계 하나 — ``NEW`` 가 아닌 값이 이긴다.
+
+    한 집의 형제 링크가 관계를 섞어 갖는 경우가 있다: 붙이기는 집 전체를 함께 찍지만
+    **붙인 뒤에 수집된 형제**는 ``server_default='NEW'`` 로 들어온다(같은 사실을
+    ``fulfillment.py`` 의 ``close_now`` 판정도 다룬다). 표시용으로는 "이 집이 왜 붙었나"가
+    사실이므로 비-``NEW`` 값을 그 집의 관계로 본다.
+
+    Args:
+        links: 이 주문의 :class:`models.ExternalOrderLink` 들(``id`` 오름차순).
+
+    Returns:
+        ``{집 주문번호: 관계}``. 관계는 ``NEW``/``ADDON``/``REPAY`` 대문자.
+    """
+    relations: dict[str, str] = {}
+    for link in links:
+        key = _text(link.external_order_no)
+        value = _text(link.relation).upper() or "NEW"
+        if relations.get(key) in (None, "NEW"):
+            relations[key] = value
+    return relations
+
+
+def _household_facts(links: list[Any], order_nos: list[str]) -> list[dict[str, Any]]:
+    """집마다 관계·대체 여부·화면 라벨을 판정한다 (N2 · 2026-08-26).
+
+    왜 필요한가: 재결제로 집이 둘 붙은 주문에서 화면이 두 집을 **같은 톤으로** 세워,
+    담당자가 이미 취소된 옛 집의 옵션 원문을 이번 규격으로 읽을 수 있었다. 반대로
+    추가결제는 옛 집이 살아 있다 — ``repay_reconcile.deposit_guidance`` 가 근거다
+    (재결제는 예약금을 **바꾸고**, 추가결제는 **더한다**). 두 관계를 같게 다루면 살아
+    있는 원 주문을 죽은 것으로 그리게 된다.
+
+    집이 하나뿐이면 라벨을 만들지 않는다 — 보통 주문 화면에 무게를 더하지 않는다.
+    관계가 전부 ``NEW`` 인 옛 데이터도 라벨이 없다(재결제로 **추정**하지 않는다).
+
+    Args:
+        links: 이 주문의 :class:`models.ExternalOrderLink` 들(``id`` 오름차순).
+        order_nos: 수집 순서의 집 주문번호 목록(중복 접음).
+
+    Returns:
+        ``[{"order_no", "relation", "superseded", "label", "note"}]`` — ``order_nos`` 와
+        같은 순서.
+    """
+    relations = _household_relations(links)
+    values = [relations.get(order_no, "NEW") for order_no in order_nos]
+    multi = len(order_nos) > 1
+    has_repay = "REPAY" in values
+    has_addon = "ADDON" in values
+    facts: list[dict[str, Any]] = []
+    for order_no, relation in zip(order_nos, values):
+        superseded = has_repay and relation == "NEW"
+        label = ""
+        if multi:
+            label = _household_label(relation, superseded=superseded, has_addon=has_addon)
+        facts.append({"order_no": order_no, "relation": relation,
+                      "superseded": superseded, "label": label,
+                      "note": _SUPERSEDED_NOTE if superseded else ""})
+    return facts
+
+
+def _household_label(relation: str, *, superseded: bool, has_addon: bool) -> str:
+    """집 하나가 화면에서 불릴 이름 — 관계마다 문구가 다르다.
+
+    Args:
+        relation: 그 집의 관계(``NEW``/``ADDON``/``REPAY``).
+        superseded: 재결제로 대체된 옛 집인가.
+        has_addon: 이 주문에 추가결제 집이 있는가(그때만 원 주문을 굳이 이름 붙인다).
+
+    Returns:
+        화면 라벨. 이름 붙일 근거가 없으면 빈 문자열.
+    """
+    if relation == "REPAY":
+        return "이번 주문(재결제)"
+    if relation == "ADDON":
+        return "추가결제분"
+    if superseded:
+        return "이전 주문"
+    return "원 주문" if has_addon else ""
+
+
+def _main_qualifier(row: dict[str, Any], fact: dict[str, Any]) -> str:
+    """이름이 겹치는 본품을 갈라 말하는 짧은 꼬리표.
+
+    집 라벨이 있으면 그것부터, 그 뒤에 **실제로 있는 번호**의 뒤 4자리를 붙인다. 값을
+    지어내지 않는다 — 집 번호가 비면 상품주문번호 뒤 4자리로 떨어진다(둘 다 원본 값이다).
+
+    Args:
+        row: 본품 행.
+        fact: 그 행이 속한 집의 사실(:func:`_household_facts` 항목). 없으면 빈 dict.
+
+    Returns:
+        ``"이전 주문 …4381"`` 같은 문자열. 붙일 근거가 없으면 빈 문자열.
+    """
+    tail = _text(row.get("external_order_no")) or _text(row.get("external_id"))
+    parts = [part for part in (_text(fact.get("label")),
+                               f"…{tail[-4:]}" if tail else "") if part]
+    return " ".join(parts)
+
+
+def _main_entries(mains: list[dict[str, Any]],
+                  facts: list[dict[str, Any]]) -> list[dict[str, Any]]:
+    """귀속 드롭다운·머리말이 읽는 본품 항목 — 이름이 겹치면 갈라 말한다 (N2).
+
+    실화면 결함(2026-08-26): 집이 둘인 주문에서 본품 선택지 두 개의 이름이 **글자 하나까지
+    같아**, 고르는 사람이 어느 쪽인지 분간할 근거가 화면에 없었다. 이름은 원문 그대로 두고
+    (복사·검색이 깨지면 안 된다) 꼬리표를 따로 실어 화면이 이름 **앞에** 붙여 읽게 한다 —
+    뒤에 붙이면 좁은 select 에서 잘려 다시 같아진다.
+
+    Args:
+        mains: 본품 행 목록.
+        facts: :func:`_household_facts` 결과.
+
+    Returns:
+        ``[{"external_id", "label", "order_no", "relation", "superseded", "qualifier"}]``.
+    """
+    by_no = {fact["order_no"]: fact for fact in facts}
+    labels = [row["product_name"] or row["external_id"] for row in mains]
+    entries: list[dict[str, Any]] = []
+    for row, label in zip(mains, labels):
+        fact = by_no.get(row.get("external_order_no", "")) or {}
+        entries.append({
+            "external_id": row["external_id"],
+            "label": label,
+            "order_no": row.get("external_order_no", ""),
+            "relation": fact.get("relation", "NEW"),
+            "superseded": bool(fact.get("superseded")),
+            # 이름이 유일하면 덧붙이지 않는다 — 이미 이름이 구분한다.
+            "qualifier": _main_qualifier(row, fact) if labels.count(label) > 1 else "",
+        })
+    return entries
+
+
 #: 도크에서 워크벤치 **처리 pane** 으로 가는 링크를 낼 수 있는 역할 (R2).
 #:
 #: 도크가 실리는 ``/edit/<id>`` 는 ADMIN·MANAGER·STAFF 가 연다
@@ -412,6 +548,12 @@ def build_dock_payload(db: Any, order: Any, *,
         rows.append({
             "link_id": link.id,
             "external_id": link.external_id,
+            # 이 행이 **어느 집에서 왔는가**(N2). 예전에는 집 번호가 payload 최상위에만
+            # 있어서, 집이 둘인 주문에서 화면은 행을 집별로 가를 근거가 없었다.
+            "external_order_no": _text(link.external_order_no),
+            # 관계 정본은 링크 컬럼이다(models.ExternalOrderLink.relation —
+            # NEW/ADDON/REPAY). 행 단위로 실어 화면이 추측하지 않게 한다.
+            "relation": _text(link.relation).upper() or "NEW",
             "role": "addon" if is_addon else "main",
             "product_name": source["product_name"],
             "option_text": source["option_text"],
@@ -461,6 +603,13 @@ def build_dock_payload(db: Any, order: Any, *,
         if text and text not in order_nos:
             order_nos.append(text)
     order_no = order_nos[0] if order_nos else ""
+    # 집마다 관계·대체 여부를 판정하고, 그 사실을 **행에도** 찍는다(N2). 행 단위로 찍는
+    # 이유: 귀속(추가옵션이 어느 본품 소속인가)은 집 경계를 넘을 수 있어, 화면이 그룹
+    # 머리말만 보고 흐리면 살아 있는 집의 행까지 함께 흐려진다.
+    households = _household_facts(links, order_nos)
+    superseded_nos = {fact["order_no"] for fact in households if fact["superseded"]}
+    for row in rows:
+        row["superseded"] = row["external_order_no"] in superseded_nos
     extra = _extra_payment_summary(order)
     return {
         # 추가결제(차액)·재결제 기록 — 금액은 기록만 하고 출고가·잔금은 사람이 반영한다(T16-F).
@@ -477,6 +626,9 @@ def build_dock_payload(db: Any, order: Any, *,
         # 집이 둘 이상인 주문에서 머리말이 사실을 말하게 하는 자리. 화면은 이 목록을
         # 쓰고, `order_no`(첫 집)는 하위호환으로만 남긴다.
         "order_nos": order_nos,
+        # 집마다의 관계·라벨(N2). 화면은 이 목록으로 **이전 주문 / 이번 주문**을 가른다.
+        # 집이 하나면 라벨이 전부 빈 문자열이라 화면이 오늘과 똑같이 그려진다.
+        "households": households,
         # 위 `workbench_url` 이 실제로 여는 집의 번호. 머리말에서 그 집을 표시해
         # "읽은 번호 != 열리는 집" 을 없앤다. **주소와 같은 행에서 끌어온다** — 둘이
         # 갈리면 이 수정이 무의미해지므로 `rows[-1]` 을 공통 출처로 못박는다.
@@ -485,8 +637,8 @@ def build_dock_payload(db: Any, order: Any, *,
         # 화면에서 숨기는 게 아니라 주소를 만들지 않는다(계약 §0-4).
         "workbench_url": _workbench_link_url(viewer, rows),
         "rows": rows,
-        "mains": [{"external_id": row["external_id"],
-                   "label": row["product_name"] or row["external_id"]} for row in mains],
+        # 본품 항목 — 이름이 겹치는 것끼리는 꼬리표로 갈라 말한다(N2).
+        "mains": _main_entries(mains, households),
         "assign_common": ASSIGN_COMMON,
         "recipient_name": recipient_name,
         "orderer_name": orderer_name,
