@@ -1377,7 +1377,7 @@ def test_mobile_attachment_preview_uses_viewport_sized_modal() -> None:
     assert ".erp-order-mobile-form .erp-attachment-preview-actions .btn" not in css_text
     assert "max-width: min(92vw, 36rem)" not in css_text
     assert "../components/foms-form-field.css?v=20260821a" in mobile_bundle
-    assert "foms-mobile-surfaces.css') }}?v=20260819a" in layout_head
+    assert "foms-mobile-surfaces.css') }}?v=20260826a" in layout_head
 
 
 def test_mobile_erp_autosize_textarea_overrides_80px_floor() -> None:

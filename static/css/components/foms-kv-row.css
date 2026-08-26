@@ -29,6 +29,12 @@
   font-size: 0.9375rem;
 }
 
+.foms-kv-row__text--pre {
+  white-space: pre-line;
+  overflow-wrap: anywhere;
+  min-width: 0;
+}
+
 .foms-kv-row__value.is-muted .foms-kv-row__text {
   color: var(--foms-text-tertiary, #6b7280);
 }

@@ -227,6 +227,7 @@
                 {'label': '옵션', 'value': item.option_detail or '-'},
                 {'label': '손잡이', 'value': item.handle or '-'},
                 {'label': '기타·설치', 'value': item.misc or '-'},
+                {'label': '추가입력', 'value': item.extra_input or '-', 'pre_line': True},
                 {'label': '품목 금액', 'value': item.price_label or '-'},
               ]) }}
               {% if item.attachment_categories %}
