@@ -903,9 +903,16 @@ def _evaluate_channel_readiness() -> tuple[dict, int]:
     전체 payload 를 만든다. 무인증 공개 응답은 이 중 coarse ``readiness`` 만 노출하고,
     나머지 운영 detail 은 ADMIN/MANAGER 세션 뒤에서만 반환한다.
 
+    worker 수 판정은 :func:`~foms.services.jobs.queue.get_rq_runtime_status` 의
+    ``worker_count_known`` 을 본다. push/webhook 이 켜져 있는데 worker 를 **확실히**
+    0대로 잰 경우에만 ``fail``(503) 이고, 못 잰 경우(ping 은 통했는데 그 직후 Worker
+    조회만 실패하는 짧은 창)는 ``degraded``(200) 로 내리고 ``queue.worker_count_known``
+    을 False 로 실어 "모른다"는 사실을 응답에서 숨기지 않는다(CT-T6).
+
     Returns:
         (payload, status_code): payload 는 readiness/environment/flags/queue/metrics
-        등 전체 detail, status_code 는 ready·degraded=200, fail=503.
+        등 전체 detail(``queue.worker_count_known`` 포함), status_code 는
+        ready·degraded=200, fail=503.
     """
     flags = {
         'push': os.environ.get('CHANNEL_PUSH_ENABLED', 'false').lower() == 'true',
@@ -931,6 +938,9 @@ def _evaluate_channel_readiness() -> tuple[dict, int]:
         queue_runtime = get_rq_runtime_status()
         queue_state = queue_runtime['state']
         rq_worker_count = queue_runtime['worker_count']
+        # 이 키가 없는 status(구 테스트 더블 등)는 "확실히 안다"(True)로 간주해 기존
+        # 동작을 유지한다 — push_sender.enqueue_push_for_notification 과 같은 규율.
+        rq_worker_count_known = bool(queue_runtime.get('worker_count_known', True))
 
         backlog_count = get_queue_backlog(db)
         legacy_success_drift = check_legacy_only_success_after_cutover(db)
@@ -947,10 +957,20 @@ def _evaluate_channel_readiness() -> tuple[dict, int]:
         elif (flags['command'] or flags['webhook']) and not environment['CHANNEL_SIGNING_KEY']:
             readiness = 'fail'
             flag_violations.append('INBOUND_FEATURES_REQUIRE_SIGNING_KEY')
-        elif (flags['push'] or flags['webhook']) and rq_worker_count < 1:
+        elif (flags['push'] or flags['webhook']) and rq_worker_count_known and rq_worker_count < 1:
+            # **확실히** 0대일 때만 fail. ping 은 통했는데 그 직후 Worker 조회만 한 번
+            # 실패하는 짧은 창이 실재하는데, 그걸 "0대"로 읽으면 멀쩡한 연동이 503 으로
+            # 떨어진다 — 오늘 이미 queue.py/naver_ingest.py/push_sender.py 에서 고친
+            # 같은 뿌리(2026-08-26 CEO 지적, CT-T6).
             readiness = 'fail'
         elif flag_violations:
             readiness = 'fail'
+        elif (flags['push'] or flags['webhook']) and not rq_worker_count_known:
+            # 못 셌을 뿐 확실히 0대인 것은 아니다 — "모른다"를 "없다"로 단정하지
+            # 않는다. degraded 로 내려 200 을 유지하되(진짜 장애가 아니므로 503 이 아님),
+            # 아래 queue.worker_count_known=False 로 모른다는 사실은 응답에서 숨기지
+            # 않는다(worker_count 0 을 그대로 두면 "0대"로 오해하기 때문).
+            readiness = 'degraded'
         elif legacy_success_drift > 0:
             readiness = 'degraded'
         else:
@@ -964,6 +984,7 @@ def _evaluate_channel_readiness() -> tuple[dict, int]:
             'queue': {
                 'state': queue_state,
                 'worker_count': rq_worker_count,
+                'worker_count_known': rq_worker_count_known,
                 'backlog_count': backlog_count,
             },
             'metrics': metrics,
@@ -980,6 +1001,7 @@ def _evaluate_channel_readiness() -> tuple[dict, int]:
             'queue': {
                 'state': 'unknown',
                 'worker_count': 0,
+                'worker_count_known': False,
                 'backlog_count': 0,
             },
             'metrics': {},
