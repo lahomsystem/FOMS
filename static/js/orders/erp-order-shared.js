@@ -487,7 +487,8 @@ function erpSyncRegionalConstructionTypeVisibility(options = {}) {
 
     if (regionalEl.checked) {
         fieldEl.classList.remove('d-none');
-        selectEl.disabled = false;
+        // ORDER-FLAG-01: 지방주문 체크박스를 못 만지는 사용자는 구분도 못 바꾼다(서버도 무시한다).
+        selectEl.disabled = !!regionalEl.disabled;
         return;
     }
 
@@ -2901,6 +2902,32 @@ window.erpTogglePayment = async function(btn, pType) {
     document.getElementById('erp-orderer')?.addEventListener('input', syncWorkflowStageByOrderer);
     document.getElementById('erp-orderer')?.addEventListener('change', syncWorkflowStageByOrderer);
     syncWorkflowStageByOrderer();
+
+    // ORDER-FLAG-01: 라홈시스템·지방주문은 견적 공급자·지방 대시보드 모집단을 가르는 값이라
+    // 켤 때와 끌 때 모두 확인한다. document 캡처에 두는 이유는 순서다 — 자동저장(pane 캡처)과
+    // 아래 change 핸들러보다 먼저 잡아야 '취소'가 값 변경으로 새어나가지 않는다.
+    if (!window.__fomsOrderFlagConfirmBound) {
+        window.__fomsOrderFlagConfirmBound = true;
+        const ORDER_FLAG_CONFIRM_LABELS = {
+            'erp-factory2': '라홈시스템',
+            'erp-regional-order': '지방주문',
+        };
+        document.addEventListener('change', function (event) {
+            const target = event.target;
+            if (!target || target.type !== 'checkbox') return;
+            const label = ORDER_FLAG_CONFIRM_LABELS[target.id];
+            if (!label) return;
+            const nextChecked = !!target.checked;
+            const question = nextChecked
+                ? `'${label}'을(를) 켤까요?`
+                : `'${label}'을(를) 끌까요?`;
+            if (window.confirm(question)) return;
+            // 취소: 체크 상태를 되돌리고 이벤트를 여기서 끊는다. 되돌린 상태가 곧 원래
+            // 상태이므로 아래 동기화 핸들러들을 굳이 태울 필요가 없다.
+            target.checked = !nextChecked;
+            event.stopPropagation();
+        }, true);
+    }
 
     document.getElementById('erp-factory2')?.addEventListener('change', function () {
         if (typeof window.erpInvalidateEstimateCache === 'function') {
