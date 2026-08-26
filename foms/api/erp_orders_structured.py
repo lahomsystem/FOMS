@@ -31,6 +31,9 @@ from foms.services.orders.stage_override import normalize_main_stage
 from foms.services.orders.status_constants import STATUS
 from foms.web.auth import log_access, login_required, role_required
 from foms.services.audit_message_display import describe_order_action, summarize_changes
+from foms.services.integrations.naver_commerce.auto_assign import (
+    auto_assign_sales_owner_from_manager,
+)
 from foms.services.orders.audit_order_context import order_audit_context
 from foms.services.orders.structured_item_uid import ensure_item_uids
 from foms.services.orders.order_field_change_writer import record_field_changes
@@ -1029,6 +1032,11 @@ def api_patch_order_structured_fields(order_id: int):
         flag_modified(order, 'structured_data')
         sync_erp_flat_columns(order, structured_data)
         setattr(order, 'structured_updated_at', now)
+        # 인라인 수정으로 주문담당자를 채운 경우도 같은 자동 배정을 태운다(PUT 과 동일 계약).
+        auto_assign_sales_owner_from_manager(
+            db, order_id=order.id, structured_data=structured_data,
+            actor_user_id=session.get('user_id'),
+        )
         patch_context = order_audit_context(order)
         # ORDER-DIFF-00: 경로만 남기던 인라인 로그에 이전값→새값을 채운다.
         # ORDER-DIFF-01: 원장에는 전량을 싣는다(상한은 화면용 detail 에만 건다).
@@ -1309,6 +1317,14 @@ def api_put_order_structured(order_id):
                 o.structured_data = copy.deepcopy(structured_data)
                 flag_modified(o, 'structured_data')
                 sync_erp_flat_columns(o, structured_data)
+
+                # 수집 주문 담당자 자동 배정: 보류함이 owner 인 채로 주문담당자만 적히면
+                # 취소 알림이 담당자에게 안 간다(claim_watch 는 SALES owner 로 보낸다).
+                # 이미 락 안이라 REV-00 mutation 을 새로 열지 않는 in-tx 경로를 쓴다.
+                auto_assign_sales_owner_from_manager(
+                    sess, order_id=o.id, structured_data=structured_data,
+                    actor_user_id=actor_user_id,
+                )
 
             # provenance(schema/confidence 컬럼): 기존 값이 있으면 클라이언트 값으로 덮지 않는다.
             if getattr(o, 'structured_schema_version', None) is None:

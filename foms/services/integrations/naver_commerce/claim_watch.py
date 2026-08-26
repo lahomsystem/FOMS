@@ -8,8 +8,12 @@
 변경 목록의 상태 문자열로 바로 판정하지 않는 이유: 취소가 그 목록에 어떤 이름으로 실리는지
 실물로 확인되지 않았다. 취소 여부의 정본은 **상세 응답의 ``claimStatus``** 다(실측 확인).
 
-발견 시 동작은 **표시 + 담당자 알림**까지다(2026-08-15 사용자 확정). 주문 상태를 자동으로
+발견 시 동작은 **표시 + 알림**까지다(2026-08-15 사용자 확정). 주문 상태를 자동으로
 바꾸지 않는다 — 이미 잡힌 일정·도면이 있으면 자동 변경이 더 큰 혼란을 만든다.
+
+알림 수신자는 **담당자 + 관리자 양쪽**이다(2026-08-26 사용자 확정). 취소는 환불·재고·이미
+나간 생산 지시가 얽혀 담당자 혼자 처리하고 끝나는 사건이 아니다. 담당자가 없으면 관리자만
+받는다(예전 폴백과 동일).
 """
 
 from __future__ import annotations
@@ -67,21 +71,26 @@ def changed_external_ids(entries: list[dict]) -> list[str]:
     return out
 
 
-def _notify_targets(session: Session, link: ExternalOrderLink) -> tuple[list[int], bool]:
-    """알림 받을 사용자 id 와 **ADMIN 폴백 여부**를 함께 준다.
+def _notify_targets(session: Session, link: ExternalOrderLink) -> tuple[list[int], list[int]]:
+    """알림 받을 **담당자**와 **관리자**를 따로 준다.
 
-    담당자가 아직 없으면(보류함 소유) 아무도 못 보는 알림이 되므로 ADMIN 으로 올린다.
-    호출부가 두 경우를 구분해야 하는 이유: 담당자 특정은 ``USER`` 알림, ADMIN 폴백은
-    ``ROLE`` 알림 1건으로 만들어야 한다(NOTIF-ROLE-01).
+    2026-08-26 사용자 확정: 취소는 담당자만 알아서 되는 사건이 아니다(환불·재고·이미 나간
+    생산 지시가 걸린다). 담당자가 있어도 관리자에게 함께 올리고, 담당자가 없으면 관리자만
+    받는다. 두 목록을 나눠 주는 이유는 알림 row 종류가 다르기 때문이다 — 담당자는
+    ``USER`` 알림, 관리자는 ``ROLE`` 알림 **1건**(NOTIF-ROLE-01, 관리자 수만큼 복제 금지).
+
+    보류함 계정(:data:`constants.OWNER_USERNAME`)이 owner 면 사람이 아니므로 담당자가
+    없는 것으로 친다.
 
     Args:
         session: DB 세션.
         link: 클레임이 감지된 외부 주문 링크.
 
     Returns:
-        ``(user_ids, is_admin_fallback)`` — 담당 SALES 가 있으면 그 사용자 id 목록과
-        ``False``, 없으면 활성 ADMIN 전원의 id 목록과 ``True``. 둘 다 없으면 ``([], True)``.
+        ``(holder_ids, admin_ids)`` — 활성 담당자 id 목록과 활성 ADMIN id 목록.
+        둘 다 비면 알림 대상이 없다는 뜻이다.
     """
+    holder_ids: list[int] = []
     if link.order_id:
         rows = (
             session.query(OrderAssignment)
@@ -92,25 +101,27 @@ def _notify_targets(session: Session, link: ExternalOrderLink) -> tuple[list[int
             )
             .all()
         )
-        holder_ids = [int(row.user_id) for row in rows]
-        if holder_ids:
+        assigned_ids = [int(row.user_id) for row in rows]
+        if assigned_ids:
             holders = (
                 session.query(User)
-                .filter(User.id.in_(holder_ids), User.is_active.is_(True))
+                .filter(User.id.in_(assigned_ids), User.is_active.is_(True))
                 .all()
             )
-            # 미배정 보류함 계정이 owner 면 사람이 아니다 — ADMIN 으로 넘긴다.
+            # 미배정 보류함 계정이 owner 면 사람이 아니다 — 담당자 없음으로 친다.
             from foms.services.integrations.naver_commerce.constants import OWNER_USERNAME
 
-            real = [int(u.id) for u in holders if u.username != OWNER_USERNAME]
-            if real:
-                return real, False
+            holder_ids = [int(u.id) for u in holders if u.username != OWNER_USERNAME]
     admins = (
         session.query(User)
         .filter(User.role == "ADMIN", User.is_active.is_(True))
         .all()
     )
-    return [int(u.id) for u in admins], True
+    admin_ids = [int(u.id) for u in admins]
+    # 담당자가 관리자이기도 하면 ROLE 알림으로 이미 받는다 — 같은 사건을 두 번 주지 않는다.
+    admin_set = set(admin_ids)
+    holder_ids = [uid for uid in holder_ids if uid not in admin_set]
+    return holder_ids, admin_ids
 
 
 #: 알림 본문에 싣는 상품명 최대 길이. 네이버 상품명은 길다("라홈 무몰딩 붙박이장 로라
@@ -209,7 +220,7 @@ def _is_our_cancel(link: ExternalOrderLink) -> bool:
 
 def _pending_groups(
     session: Session, pending: list[tuple[ExternalOrderLink, dict]],
-) -> list[tuple[list[ExternalOrderLink], dict, list[int], bool]]:
+) -> list[tuple[list[ExternalOrderLink], dict, list[int], list[int]]]:
     """알림 대기 링크를 **집 + 상태 + 수신자** 로 묶는다.
 
     집(:func:`grouping.resolve_group_key`)만으로 묶지 않는 이유: 같은 집이라도 링크가
@@ -223,42 +234,41 @@ def _pending_groups(
         pending: ``(link, claim)`` 목록 — 알림이 필요하다고 판정된 것만.
 
     Returns:
-        ``(links, claim, targets, admin_fallback)`` 목록. 대상이 아무도 없는 링크는
-        빠진다(호출자가 ``notified_status`` 를 안 남겨 다음 스윕에서 다시 시도한다).
+        ``(links, claim, holders, admins)`` 목록. 담당자도 관리자도 없는 링크는 빠진다
+        (호출자가 ``notified_status`` 를 안 남겨 다음 스윕에서 다시 시도한다).
     """
-    groups: dict[tuple, tuple[list[ExternalOrderLink], dict, list[int], bool]] = {}
+    groups: dict[tuple, tuple[list[ExternalOrderLink], dict, list[int], list[int]]] = {}
     for link, claim in pending:
-        targets, admin_fallback = _notify_targets(session, link)
-        if not targets:
+        holders, admins = _notify_targets(session, link)
+        if not holders and not admins:
             logger.warning("[NAVER] 클레임 알림 대상이 없다 link=%s", link.id)
             continue
-        key = (resolve_group_key(link), claim["status"], admin_fallback,
-               tuple(sorted(targets)))
+        key = (resolve_group_key(link), claim["status"], tuple(sorted(holders)))
         found = groups.get(key)
         if found is None:
-            groups[key] = ([link], claim, list(targets), admin_fallback)
+            groups[key] = ([link], claim, list(holders), list(admins))
         else:
             found[0].append(link)
     return list(groups.values())
 
 
 def _notify(session: Session, links: list[ExternalOrderLink], claim: dict,
-            targets: list[int], admin_fallback: bool, *, now: datetime) -> int:
-    """취소·반품 발생을 담당자에게, 담당자가 없으면 ADMIN **역할**에게 알린다.
+            holders: list[int], admins: list[int], *, now: datetime) -> int:
+    """취소·반품 발생을 **담당자와 관리자 양쪽**에 알린다.
 
-    담당자가 특정되면 그 사람 앞으로 ``target_type='USER'`` 알림을 만든다. 담당자가 없어
-    관리자에게 올려야 하면 ``target_type='ROLE'`` + ``target_role='ADMIN'`` 알림을
-    **1건만** 만든다 — 관리자 수만큼 Notification 을 복제하지 않는다(NOTIF-ROLE-01).
-    사건 1건 = row 1건이 알림 SSOT 이고, 수신자별 읽음 상태는
-    :func:`recipients.fan_out_new_notification` 이 ``notification_user_states`` 로 만든다.
-    여기서 "사건 1건"은 **집 1건**이다 — 세부옵션 수만큼 알림을 만들지 않는다.
+    담당자에게는 ``target_type='USER'`` 알림을, 관리자에게는 ``target_type='ROLE'`` +
+    ``target_role='ADMIN'`` 알림을 **1건만** 만든다 — 관리자 수만큼 Notification 을
+    복제하지 않는다(NOTIF-ROLE-01). 담당자가 없으면 ROLE 알림만 남아 예전 폴백 동작과
+    같아진다. 수신자별 읽음 상태는 :func:`recipients.fan_out_new_notification` 이
+    ``notification_user_states`` 로 만든다. 여기서 "사건 1건"은 **집 1건**이다 —
+    세부옵션 수만큼 알림을 만들지 않는다.
 
     Args:
         session: DB 세션(커밋은 호출자).
-        links: 같은 집·같은 상태·같은 수신자인 링크들(:func:`_pending_groups` 산출).
+        links: 같은 집·같은 상태·같은 담당자인 링크들(:func:`_pending_groups` 산출).
         claim: :func:`mapping.extract_claim` 결과.
-        targets: 수신자 사용자 id 목록(빈 목록이면 호출자가 이미 걸렀다).
-        admin_fallback: 담당자가 없어 ADMIN 역할로 올리는 경우 True.
+        holders: 담당자 사용자 id 목록(관리자와 겹치는 id 는 이미 빠져 있다).
+        admins: 활성 ADMIN 사용자 id 목록.
         now: 알림 생성 시각.
 
     Returns:
@@ -268,23 +278,22 @@ def _notify(session: Session, links: list[ExternalOrderLink], claim: dict,
     """
     from foms.services.notifications.recipients import fan_out_new_notification
 
-    if not targets:
+    if not holders and not admins:
         return 0
 
     title, message = _compose(session, links, claim)
     order_id = next((int(row.order_id) for row in links if row.order_id), None)
     common = dict(order_id=order_id, notification_type=NOTIFICATION_TYPE,
                   is_urgent=True, title=title, message=message, created_at=now)
-    if admin_fallback:
-        rows = [Notification(target_type="ROLE", target_role="ADMIN", **common)]
-    else:
-        rows = [Notification(target_type="USER", target_user_id=uid, **common)
-                for uid in targets]
+    rows = [Notification(target_type="USER", target_user_id=uid, **common)
+            for uid in holders]
+    if admins:
+        rows.append(Notification(target_type="ROLE", target_role="ADMIN", **common))
     for notification in rows:
         session.add(notification)
         session.flush()
         fan_out_new_notification(session, notification)
-    return len(targets)
+    return len(holders) + len(admins)
 
 
 def _refresh_link(link: ExternalOrderLink, detail: dict, *, stamp: datetime,
@@ -402,8 +411,8 @@ def refresh_claims(
 
     # 알림은 **집 단위**다 — 루프 안에서 링크마다 보내면 세부옵션 수만큼 알림이 간다.
     notified_status: dict[int, str] = {}
-    for group_links, claim, targets, admin_fallback in _pending_groups(session, pending):
-        sent = _notify(session, group_links, claim, targets, admin_fallback, now=stamp)
+    for group_links, claim, holders, admins in _pending_groups(session, pending):
+        sent = _notify(session, group_links, claim, holders, admins, now=stamp)
         if not sent:
             continue
         result["notified"] += sent
