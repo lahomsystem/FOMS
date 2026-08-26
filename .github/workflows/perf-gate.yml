@@ -31,6 +31,8 @@ permissions:
 jobs:
   perf-gate:
     runs-on: ubuntu-latest
+    # CI-TIMEOUT-01: 실측 median 2.1분.
+    timeout-minutes: 20
     steps:
       - uses: actions/checkout@v4
 
