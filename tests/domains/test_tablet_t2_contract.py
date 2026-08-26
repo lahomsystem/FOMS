@@ -20,6 +20,7 @@ from __future__ import annotations
 
 import re
 from pathlib import Path
+from types import SimpleNamespace
 
 ROOT = Path(__file__).resolve().parents[2]
 
@@ -912,14 +913,87 @@ def test_completion_grid_uses_derived_amount_fields_not_reparse() -> None:
 
 def test_completion_grid_route_derives_amounts_from_ssot_helpers() -> None:
     """라우트가 금액 SSOT 헬퍼(erp_shipping_price_from_structured /
-    erp_deposit_amount_from_structured)로 파생하고, 잔금=출고가−예약금 불변식을 계산.
+    erp_deposit_amount_from_structured)로 파생하고, 잔금 = max(0, 출고가 − 예약금)을 계산.
     코호트(v2∪v3)에서만 서버 적재(PC 서버 쿼리 무추가)."""
     route = _read(COMPLETION_ROUTE)
     assert "erp_shipping_price_from_structured" in route
     assert "erp_deposit_amount_from_structured" in route
-    assert "shipping_price - (deposit or 0)" in route  # 잔금 불변식
+    # 낡은 기대값 교체: 옛 계약은 클램프 없는 ``shipping_price - (deposit or 0)`` 리터럴을
+    # 물었다. 품목금액 0 · 예약금만 있는 주문(네이버 승격)에서 그 식은 음수 잔금을 화면에
+    # 내보낸다. 서버 파생식(structured_form_projection.recompute_totals)의 ``max(0, ...)``
+    # 이 정본이고, 읽기 표면은 그 식과 **같은 값**을 내는 _balance_after_payments 를 쓴다.
+    assert "shipping_price - (deposit or 0)" not in route
+    assert "_balance_after_payments(shipping_price, deposit or 0)" in route
     assert "is_mobile_v2_shell" in route  # 코호트 게이트(서버 적재)
     assert "tablet_completion_rows" in route
+
+
+def test_completion_row_clamps_balance_when_only_deposit_present() -> None:
+    """품목금액 0 · 예약금만 있는 주문의 잔금 표기는 0원이다(음수 금지).
+
+    네이버 승격은 실결제 총액을 예약금에만 담고 항목금액은 비운다 → 출고가 0.
+    클램프가 없으면 완료 그리드에 ``-1,229,000원`` 이 뜬다.
+    """
+    from foms.web.cs.completion_dashboard import _completion_row
+
+    order = SimpleNamespace(
+        id=4242,
+        status="COMPLETED",
+        structured_data={
+            "parties": {"customer": {"name": "예약금만고객"}},
+            "schedule": {"construction": {"date": "2026-08-20"}},
+            "items": [{"product_name": "붙박이장", "price": 0}],
+            "payment": {"deposit": 1229000},
+            "totals": {"items_total": 0},
+        },
+    )
+    row = _completion_row(order)
+    assert row["shipping_price_display"] == "0"
+    assert row["deposit_display"] == "1,229,000"
+    assert row["balance_display"] == "0"
+    assert row["balance_amount"] == 0
+
+
+def test_completion_row_keeps_existing_balance_for_priced_items() -> None:
+    """회귀 방지: 품목금액이 있는 기존 주문의 잔금 계산은 그대로(출고가 − 예약금)."""
+    from foms.web.cs.completion_dashboard import _completion_row
+
+    order = SimpleNamespace(
+        id=4243,
+        status="COMPLETED",
+        structured_data={
+            "parties": {"customer": {"name": "기존고객"}},
+            "schedule": {"construction": {"date": "2026-08-20"}},
+            "items": [{"product_name": "붙박이장", "price": 5000000}],
+            "payment": {"deposit": 1000000},
+            "totals": {"items_total": 5000000},
+        },
+    )
+    row = _completion_row(order)
+    assert row["shipping_price_display"] == "5,000,000"
+    assert row["balance_display"] == "4,000,000"
+    assert row["balance_amount"] == 4000000
+
+
+def test_completion_sheet_context_clamps_balance_when_only_deposit_present(monkeypatch) -> None:
+    """정산 사이드 시트(단건)도 같은 클램프를 쓴다 — 그리드만 고치면 시트에서 음수가 샌다."""
+    from foms.web.cs import completion_dashboard as cd
+
+    monkeypatch.setattr(cd, "_completion_construction_photos", lambda _db, _oid: [])
+    order = SimpleNamespace(
+        id=4244,
+        status="COMPLETED",
+        structured_data={
+            "parties": {"customer": {"name": "예약금만고객"}},
+            "schedule": {"construction": {"date": "2026-08-20"}},
+            "items": [{"product_name": "붙박이장", "price": 0}],
+            "payment": {"deposit": 1229000},
+            "totals": {"items_total": 0},
+        },
+    )
+    ctx = cd._completion_sheet_context(None, order, None)
+    assert ctx["deposit_display"] == "1,229,000"
+    assert ctx["balance_display"] == "0"
 
 
 def test_completion_grid_css_exclusivity_couples_hide_and_show_no_blank() -> None:
