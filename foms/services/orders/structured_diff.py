@@ -37,6 +37,7 @@ __all__ = [
     "CONSTRUCTION_SCHEDULE_TEMPLATES",
     "SENSITIVE_ITEM_OPS",
     "SENSITIVE_ITEM_TEMPLATE",
+    "SITE_EXTRA_PATH",
     "DiffResult",
     "diff_structured",
     "get_path",
@@ -47,6 +48,8 @@ __all__ = [
 #: 여기 없는 경로는 기록하지 않는다 — 파생/캐시 값(``totals`` 재계산 결과 제외 대상 아님에
 #: 주의: totals 는 금액이라 포함한다)과 별도 원장이 있는 값(``shipment.as_log`` = AS 타임라인,
 #: ``payment.*_confirmed*`` = ``PAYMENT_CONFIRMED`` action, 도면 = ``drawing_revisions``)은 뺀다.
+#: **요약 축**(:data:`SITE_EXTRA_PATH` · 품목 ``spec_rows``)도 여기 없다 — 값이 길어 그대로
+#: 실으면 절단되므로 별도 요약 함수가 비교키와 표시값을 따로 만든다.
 SCALAR_PATHS: tuple[str, ...] = (
     # --- 일정 ---
     "schedule.measurement.date",
@@ -55,6 +58,10 @@ SCALAR_PATHS: tuple[str, ...] = (
     "schedule.construction.time",
     "schedule.as_visit.date",
     "schedule.as_visit.time",
+    # AUDIT-GAP-01: 고객과 약속한 AS 방문 가능 시간대(평일/주말 · 오전/오후). 폼 저장이
+    # as_visit 을 통째로 지우던 선행 결함을 보존 목록으로 고친 뒤 등재했다 — 그 전에
+    # 등재했다면 저장 1회마다 허위 '지움' 행이 쌓였다.
+    "schedule.as_visit.availability",
     # --- 당사자 ---
     "parties.customer.name",
     "parties.customer.phone",
@@ -93,6 +100,9 @@ SCALAR_PATHS: tuple[str, ...] = (
     "payment.discount",
     "payment.free_input",
     "payment.cash_receipt",
+    # 잔금 조건을 적는 자유 칸. 금액이 아니라 약속(``설치 후 현금``)이 적히는 자리라
+    # 분쟁에서 자주 인용되는데 2026-08-26 이전에는 누가 언제 고쳤는지가 없었다 (AUDIT-GAP-01).
+    "payment.balance_note",
     # --- 출고/시공 ---
     "shipment.sales_delivery",
     "shipment.construction_time",
@@ -100,6 +110,9 @@ SCALAR_PATHS: tuple[str, ...] = (
     "shipment.trip",
     "shipment.as_billing",
     "shipment.as_pending",
+    # AS 접수 본문(HTML). ``shipment.as_log`` 타임라인은 append-only 라 **덮어쓰기**를 잡지
+    # 못한다 — 본문이 통째로 바뀐 사실은 이 경로에만 남는다 (AUDIT-GAP-01).
+    "shipment.as_content",
     # --- 비고(문자열 SSOT — dict 아님) ---
     "notes",
 )
@@ -194,6 +207,22 @@ SENSITIVE_ITEM_TEMPLATE = "items.*"
 
 #: 위 템플릿에서 사유를 요구하는 연산.
 SENSITIVE_ITEM_OPS: frozenset[str] = frozenset({"add", "remove"})
+
+#: 현장 특이사항 경로. :data:`SCALAR_PATHS` 에 **일부러 넣지 않았다** — 값 그대로 실으면
+#: 원장이 거짓말을 한다(아래 :func:`_site_extra_summary` 참조). ``spec_rows`` 와 같은 요약 축이다.
+SITE_EXTRA_PATH = "shipment.site_extra"
+
+#: 현장 특이사항 요약 표시값의 단위(``3건``).
+#:
+#: 원장 초안은 값 자체를 ``특이사항 3건`` 으로 적자고 했지만, 라벨(``현장 특이사항``)은 읽기
+#: 시점에 :func:`~foms.services.audit_message_display.describe_change` 가 앞에 붙인다 —
+#: 그대로 두면 화면에 ``현장 특이사항 특이사항 2건 → 특이사항 3건`` 이 뜬다. 그래서 같은
+#: 사정을 먼저 겪은 ``spec_rows``(표시값 ``3행``, 라벨 ``규격표``)의 규칙을 따른다.
+_SITE_EXTRA_UNIT = "건"
+
+#: 건수는 같은데 내용만 바뀐 경우 ``after`` 에 붙이는 표식. 이게 없으면 감사 화면에
+#: ``현장 특이사항 3건 → 3건`` 이라는, 읽는 사람이 오타로 여길 행이 남는다.
+_SITE_EXTRA_CONTENT_MARK = "(내용 수정)"
 
 _EMPTY_TOKENS = frozenset({"", "none", "null", "-"})
 _VALUE_LIMIT = 120
@@ -448,6 +477,66 @@ def _spec_rows_summary(item: dict[str, Any]) -> tuple[Any, str | None]:
     return key, f"{len(rows)}행"
 
 
+def _site_extra_summary(source: Any) -> tuple[Any, str | None]:
+    """현장 특이사항(``shipment.site_extra``)을 **비교키와 표시값으로 나눠** 요약한다.
+
+    저장 형식은 ``{text, color}`` **최대 20개 · text 500자** 리스트다(``shipment/writer.py``
+    의 exact schema). 이 값을 :data:`SCALAR_PATHS` 에 그냥 넣으면 직렬화 JSON 이
+    :func:`_clip` 의 120자 상한에서 잘리고, 앞 120자가 같으면 **``before`` 와 ``after`` 가
+    똑같아 보이는 행**이 남는다 — 원장이 "바뀌었다"면서 무엇이 바뀌었는지는커녕 바뀐 것처럼
+    보이지도 않게 된다. ``spec_rows``(:func:`_spec_rows_summary`) 가 먼저 쓴 해법을 따른다.
+
+    **비교키는 내용 전체, 표시값은 건수**로 나눈 이유:
+
+    * 건수로 비교하면 "3건 중 한 줄의 문구만 고친" 변경을 통째로 놓친다. 특이사항은 건수보다
+      **문구**가 분쟁 대상이라(``엘리베이터 없음`` 한 줄이 사라지면 시공이 멈춘다) 놓치면 안 된다.
+    * 그렇다고 내용을 표시값으로 실을 수는 없다 — 500자 × 20개는 어차피 절단된다. 원장은
+      "몇 건에서 몇 건으로, 내용이 바뀌었다"까지만 말하고 본문은 주문 화면이 갖는다.
+
+    비교는 **순서에 민감**하다(화면 표시 순서가 곧 사용자가 정한 우선순위다). 빈 text 항목은
+    양쪽 모두에서 걷어내므로 빈 칸 추가·삭제는 변경으로 남지 않는다.
+
+    :param source: ``structured_data``.
+    :return: ``(비교키, 표시값)`` — 표시값은 ``3건`` (라벨은 읽기 시점에 붙는다,
+        :data:`_SITE_EXTRA_UNIT` 참조). 내용 있는 항목이 하나도 없으면 ``(None, None)``.
+    """
+    entries = _get_path(source, SITE_EXTRA_PATH)
+    if not isinstance(entries, list):
+        return None, None
+
+    normalized: list[dict[str, str]] = []
+    for entry in entries:
+        if isinstance(entry, dict):
+            text = str(entry.get("text") or "").strip()
+            color = str(entry.get("color") or "").strip()
+        else:  # 폼 왕복 호환: 순수 문자열 항목도 저장돼 있다(shipment_reference.py:206).
+            text = str(entry or "").strip()
+            color = ""
+        if text:
+            normalized.append({"text": text, "color": color})
+
+    if not normalized:
+        return None, None
+    key = json.dumps(normalized, sort_keys=True, ensure_ascii=False)
+    return key, f"{len(normalized)}{_SITE_EXTRA_UNIT}"
+
+
+def _diff_site_extra(old_sd: Any, new_sd: Any) -> Iterable[dict[str, Any]]:
+    """현장 특이사항 변경 1건을 낸다(변화가 없으면 아무것도 내지 않는다).
+
+    :param old_sd: 이전 ``structured_data``.
+    :param new_sd: 이후 ``structured_data``.
+    :yield: 변경 dict(최대 1건).
+    """
+    old_key, old_display = _site_extra_summary(old_sd)
+    new_key, new_display = _site_extra_summary(new_sd)
+    if old_key == new_key:
+        return
+    if new_display is not None and new_display == old_display:
+        new_display = f"{new_display}{_SITE_EXTRA_CONTENT_MARK}"
+    yield _change(SITE_EXTRA_PATH, old_display, new_display)
+
+
 def _diff_item_pair(
     index: int,
     old_item: dict[str, Any],
@@ -578,6 +667,7 @@ def diff_structured(
             continue  # 미지정 ↔ 기본값(0·False·빈 목록)은 변경이 아니다.
         collected.append(_change(path, before, after))
 
+    collected.extend(_diff_site_extra(old_doc, new_doc))
     collected.extend(_diff_items(old_doc, new_doc))
 
     total = len(collected)

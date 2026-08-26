@@ -3,9 +3,11 @@ ERP 출고 설정 페이지 및 API. (Phase 4-2)
 erp.py에서 분리. 서비스는 foms/services/erp_shipment_settings 사용.
 """
 
+import copy
 import hashlib
 import json
 import logging
+import uuid
 from typing import Any, Optional
 
 from flask import Blueprint, g, jsonify, make_response, render_template, request, session
@@ -21,8 +23,10 @@ from foms.services.erp_shipment_settings import (
     ERP_SHIPMENT_SETTINGS_KEY,
     load_erp_shipment_settings,
 )
+from foms.services.orders.order_field_change_writer import record_field_changes
 from foms.services.orders.order_mutation_policy import POLICY_REGISTRY, evaluate_policy
 from foms.services.orders.revision import RevisionError, execute_order_mutation
+from foms.services.orders.structured_diff import diff_structured
 from foms.services.shipment.writer import apply_shipment_settings
 from foms.services.shipment_reference import (
     SHIPMENT_REFERENCE_POLICY_ID,
@@ -225,11 +229,20 @@ def api_erp_shipment_update(order_id: int):
 
     actor_id = getattr(user, "id", None)
 
+    # AUDIT-GAP-01: 이 저장은 ``shipment.construction_time``·``construction_workers`` 처럼
+    # 이미 감사 대상인 sd 값을 바꾸는데도 원장에는 **필드 이름만** 남았다. 쓰기 전 sd 를 떠서
+    # diff 를 태워야 ERP 폼 저장(PUT)과 같은 점 경로로 이력이 한 축에 모인다.
+    captured: dict[str, Any] = {"changes": []}
+
     def _mutate(session_, orders):
         target = orders[0]
+        old_sd = copy.deepcopy(getattr(target, "structured_data", None) or {})
         target.structured_data = apply_shipment_settings(
             getattr(target, "structured_data", None), payload
         )
+        captured["changes"] = diff_structured(
+            old_sd, target.structured_data, max_changes=-1
+        ).changes
         flag_modified(target, "structured_data")
         target.structured_updated_at = now_utc_naive()
         session_.add(OrderEvent(
@@ -252,12 +265,26 @@ def api_erp_shipment_update(order_id: int):
             mutation=_mutate,
         )
         settings_context = order_audit_context(order)
+        # 원장 행은 아래 db.commit() 과 같은 트랜잭션에 실린다(무변경 저장이면 0행).
+        settings_change_set = str(uuid.uuid4())
+        settings_rows = record_field_changes(
+            db, captured["changes"],
+            order_id=int(order_id), actor_user_id=actor_id,
+            change_set_id=settings_change_set,
+        )
+        settings_detail: dict[str, Any] = {
+            "fields": sorted(payload.keys()), **settings_context
+        }
+        if settings_rows:
+            # 관리자 감사 화면이 detail->>'change_set' 으로 원장과 조인한다.
+            settings_detail["change_set"] = settings_change_set
+            settings_detail["change_count"] = settings_rows
         log_access(
             describe_order_action(order_id=order_id, action="SHIPMENT_UPDATED", **settings_context),
             actor_id,
             auto_commit=False,
             action="SHIPMENT_UPDATED", target_type="order", target_id=int(order_id),
-            detail={"fields": sorted(payload.keys()), **settings_context},
+            detail=settings_detail,
         )
         db.commit()
     except RevisionError as err:

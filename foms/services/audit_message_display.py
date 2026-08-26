@@ -26,7 +26,7 @@ from foms.services.orders.as_availability import (
     AS_AVAILABILITY_DAY_LABELS,
     AS_AVAILABILITY_TIME_LABELS,
 )
-from foms.services.orders.status_constants import STATUS
+from foms.services.orders.status_constants import CABINET_STATUS, STATUS
 
 __all__ = [
     "ACTION_LABELS",
@@ -61,6 +61,10 @@ FIELD_LABELS: dict[str, str] = {
     "notes": "비고",
     "regional_memo": "메모",
     "status": "상태",
+    # 수납장 대시보드 typed 컬럼(STORAGE-WRITER-01). 값은 코드라 format_value 가 CABINET_STATUS
+    # 로 옮긴다.
+    "cabinet_status": "수납장 상태",
+    "shipping_fee": "배송비",
     "manager_name": "담당자",
     "manager": "담당자",
     "payment_amount": "결제금액",
@@ -86,13 +90,28 @@ FIELD_LABELS: dict[str, str] = {
     "regional_construction_info_sent": "시공정보 발송",
     # --- AS ---
     "as_visit_date": "AS 방문일",
+    "as_received_date": "AS 접수일",
     "as_completed_date": "AS 완료일",
     "as_content": "AS 내용",
     "as_visit_availability": "AS 방문 가능시간",
     "as_billing_type": "AS 비용 구분",
 }
 
+#: **코드 값을 쓰는 필드 → 그 코드 사전**. 원장·로그에는 ``SHIPPED`` 같은 코드가 그대로
+#: 저장되므로 읽는 시점에 옮긴다. 사전은 업무 로직이 쓰는 것을 **그대로 재사용**한다 —
+#: 여기에 한글을 베껴 쓰면 단계·상태가 추가될 때 화면만 낡는다(이 모듈이 생긴 이유가
+#: 라벨 사전 이중화였다). 사전에 없는 코드는 코드 원문을 낸다(감사 화면은 값을 감추지 않는다).
+_CODE_LABEL_MAPS: dict[str, Mapping[str, str]] = {
+    "status": STATUS,
+    "cabinet_status": CABINET_STATUS,
+}
+
 #: 체크박스형 필드 — True/False 를 "완료/해제"로 읽는다(예/아니오보다 업무 언어에 가깝다).
+#:
+#: ``is_self_measurement``·``is_cabinet`` 은 2026-08-26(AUDIT-GAP-01)에 합류했다. 둘 다 주문
+#: 수정 폼의 **체크박스**(``edit.py:187``·``:243``)인데 여기 없어서 같은 폼의 체크리스트 6종은
+#: "완료/해제", 이 둘만 "예/아니오"로 읽혔다. ``is_regional`` 은 그대로 뺀다 — 그건 사람이 켜는
+#: 체크가 아니라 주문 성격 분류(지방/수도권)라 "완료"가 뜻이 통하지 않는다.
 _CHECKLIST_FIELDS = frozenset({
     "measurement_completed",
     "regional_sales_order_upload",
@@ -100,6 +119,8 @@ _CHECKLIST_FIELDS = frozenset({
     "regional_order_upload",
     "regional_cargo_sent",
     "regional_construction_info_sent",
+    "is_self_measurement",
+    "is_cabinet",
 })
 
 #: 행위 코드 → 업무 라벨 (AUDIT-LOG P4 C1). 필드 변경이 아닌 **행위**(시공 시작·결제 확인
@@ -260,6 +281,7 @@ PATH_LABELS: dict[str, str] = {
     "schedule.construction.time": "시공시간",
     "schedule.as_visit.date": "AS 방문일",
     "schedule.as_visit.time": "AS 방문시간",
+    "schedule.as_visit.availability": "AS 방문 가능시간",
     # --- 당사자 ---
     "parties.customer.name": "고객명",
     "parties.customer.phone": "전화번호",
@@ -300,6 +322,7 @@ PATH_LABELS: dict[str, str] = {
     "payment.discount": "할인 입력",
     "payment.free_input": "자유입력",
     "payment.cash_receipt": "현금영수증",
+    "payment.balance_note": "잔금 비고",
     # --- 출고/시공 ---
     "shipment.sales_delivery": "영업 배송",
     "shipment.construction_time": "시공 시간",
@@ -307,7 +330,14 @@ PATH_LABELS: dict[str, str] = {
     "shipment.trip": "출장",
     "shipment.as_billing": "AS 비용 구분",
     "shipment.as_pending": "AS 보류",
+    "shipment.as_content": "AS 내용",
+    # 값은 건수 요약이다(``structured_diff._site_extra_summary``) — 본문 20개를 원장 한 칸에
+    # 담지 않는다.
+    "shipment.site_extra": "현장 특이사항",
     # --- 비고 ---
+    # sd 의 ``notes`` **객체**(주소·실측·시공 특이사항 4칸)다. ``Order.notes`` 컬럼은 별도
+    # textarea 라 아래 ``order_notes`` 로 나눠 둔다 — 같은 라벨이면 감사 화면에 뜻이 다른
+    # "비고" 두 줄이 나란히 뜬다.
     "notes": "비고",
     # --- 품목(인덱스는 path_label 이 붙인다) ---
     "items.*.product_name": "품목명",
@@ -325,13 +355,70 @@ PATH_LABELS: dict[str, str] = {
     "items.*.measurement_date": "실측일",
     "items.*.construction_date": "시공일",
     "items.*.spec_rows": "규격표",
+    # --- 평면 컬럼(AUDIT-GAP-01) ---
+    # 위 ``is_regional``·``construction_type`` 과 같은 bare 키 규약이다: ``Order`` 의 typed
+    # 컬럼은 structured 경로가 없어 컬럼명을 그대로 원장 ``path`` 로 싣는다. 라벨이 여기
+    # 없으면 감사 화면에 영문 컬럼명이 그대로 뜬다.
+    "is_self_measurement": "자가실측",
+    "is_cabinet": "수납장",
+    "cabinet_status": "수납장 상태",
+    # ``notes``(sd 비고 **객체**)와 이름을 나눈다 — 위 ``notes`` 항목의 주석 참조.
+    "order_notes": "주문 비고",
+    "received_date": "접수일",
+    "received_time": "접수시간",
+    "shipping_fee": "배송비",
+    "payment_amount": "결제금액",
+    "completion_date": "설치완료일",
+    "as_received_date": "AS 접수일",
+    "as_completed_date": "AS 완료일",
+    "shipping_scheduled_date": "상차 예정일",
+    "options": "옵션 상세",
+    "status": "상태",
+    # :data:`FIELD_LABELS` 쪽은 "메모"다 — 그쪽 문장은 ``지방 주문 #4183 (김철수) — 메모: …``
+    # 처럼 주문 접두가 이미 "지방"을 말한다. 원장 행에는 그 접두가 없어(``메모 A → B``) 어느
+    # 메모인지 알 수 없으므로 여기서만 "지방"을 붙인다.
+    "regional_memo": "지방 메모",
+    # AUDIT-GAP-01: 비ERP 주문 폴백 경로(``field_update`` 는 sd 가 없는 주문에서만 평면 컬럼명을
+    # 쓴다). 라벨은 **sd 쌍둥이와 같은 말**로 맞춘다 — 같은 원장 표에 ``schedule.measurement.date``
+    # 행과 나란히 놓이는데 이름이 다르면 한 값이 두 가지로 읽힌다.
+    "manager_name": "담당자",
+    "measurement_date": "실측일",
+    "scheduled_date": "시공일",
+    # 지방 체크리스트 6종. 값 표기는 _PATH_VALUE_FIELD 가 체크박스 규칙으로 넘긴다.
+    "regional_sales_order_upload": "영업발주 업로드",
+    "regional_blueprint_sent": "도면 발송",
+    "regional_order_upload": "발주 업로드",
+    "regional_cargo_sent": "화물 발송",
+    "regional_construction_info_sent": "시공정보 발송",
+    "measurement_completed": "실측완료",
 }
 
 #: 품목 경로 분해용. ``items.2`` (품목 자체 추가/삭제)와 ``items.2.price`` 를 모두 받는다.
 _ITEM_PATH_RE = re.compile(r"^items\.(?P<index>\d+)(?:\.(?P<field>[A-Za-z0-9_]+))?$")
 
-#: 경로별 **값 표기 규칙** 위임. 단계 코드는 :func:`format_value` 의 ``status`` 규칙을 그대로 쓴다.
-_PATH_VALUE_FIELD: dict[str, str] = {"workflow.stage": "status"}
+#: 경로별 **값 표기 규칙** 위임(원장 ``path`` → :func:`format_value` 의 ``field``).
+#: 단계 코드는 :func:`format_value` 의 ``status`` 규칙을 그대로 쓴다.
+#:
+#: 평면 컬럼(AUDIT-GAP-01)은 경로와 필드명이 같아 자기 이름을 가리킨다. **생략하면 안 된다** —
+#: 위임이 없으면 :func:`format_value` 가 ``field=None`` 으로 불려 체크박스가 ``완료/해제`` 대신
+#: ``예/아니오``, 상태 코드가 한글 단계명 대신 ``MEASURE`` 로 나온다(같은 값이 화면마다 다르게
+#: 읽히는 것이 이 모듈이 없애려는 문제다).
+_PATH_VALUE_FIELD: dict[str, str] = {
+    # 가능시간 dict 는 ``format_value`` 의 as_visit_availability 규칙이 "평일 · 오전"으로
+    # 읽어준다. 위임이 없으면 화면에 JSON 원문이 그대로 뜬다.
+    "schedule.as_visit.availability": "as_visit_availability",
+    "workflow.stage": "status",
+    "status": "status",
+    "is_self_measurement": "is_self_measurement",
+    "is_cabinet": "is_cabinet",
+    "cabinet_status": "cabinet_status",
+    "measurement_completed": "measurement_completed",
+    "regional_sales_order_upload": "regional_sales_order_upload",
+    "regional_blueprint_sent": "regional_blueprint_sent",
+    "regional_order_upload": "regional_order_upload",
+    "regional_cargo_sent": "regional_cargo_sent",
+    "regional_construction_info_sent": "regional_construction_info_sent",
+}
 
 #: 비어 있음을 뜻하는 원시 값들(문자열 비교는 소문자로 한다).
 _EMPTY_TOKENS = frozenset({"", "none", "null", "-"})
@@ -491,7 +578,8 @@ def format_value(field: str | None, value: Any) -> str:
     """원시 값을 사람이 읽는 표기로 옮긴다.
 
     규칙: 빈 값 → ``(지움)`` / 체크박스 → ``완료``·``해제`` / 그 밖의 불리언 → ``예``·``아니오``
-    / 상태 코드 → 한글 단계명 / 가능시간 dict → ``평일 · 오전`` / HTML 본문 → 태그 제거 후 요약.
+    / 코드 값(:data:`_CODE_LABEL_MAPS`: 단계·수납장 상태) → 한글 이름 / 가능시간 dict →
+    ``평일 · 오전`` / HTML 본문 → 태그 제거 후 요약.
 
     :param field: 값이 속한 필드명(표기 규칙 선택에 쓴다). 모르면 ``None``.
     :param value: 원시 값(문자열·불리언·dict 모두 허용).
@@ -521,8 +609,9 @@ def format_value(field: str | None, value: Any) -> str:
             return formatted
 
     text = str(value).strip()
-    if field == "status":
-        return STATUS.get(text, text)
+    codes = _CODE_LABEL_MAPS.get(field or "")
+    if codes is not None:
+        return codes.get(text, text)
 
     structured = _format_structured_text(text)
     if structured:
