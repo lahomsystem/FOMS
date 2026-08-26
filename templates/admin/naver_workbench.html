@@ -19,7 +19,7 @@
 {% block title %}네이버 수집{% endblock %}
 
 {% block styles %}
-<link rel="stylesheet" href="{{ url_for('static', filename='css/admin/naver-workbench.css') }}?v=20260826d">
+<link rel="stylesheet" href="{{ url_for('static', filename='css/admin/naver-workbench.css') }}?v=20260826e">
 {% endblock %}
 
 {% block content %}
@@ -575,7 +575,7 @@
                     <tr>
                         <th>수집 시각</th><th>고객</th><th>제품</th>
                         <th class="wb-cmp__num">수량</th><th class="wb-cmp__num">금액</th>
-                        <th>상태</th><th>FOMS 주문</th>
+                        <th>상태</th><th>FOMS 주문</th><th>원본</th>
                     </tr>
                 </thead>
                 <tbody>
@@ -622,9 +622,25 @@
                             {% endif %}
                             {% endif %}
                         </td>
+                        {# 큐에서 빠진 집의 **네이버 원본**을 그 자리에서 연다. 지금까지는
+                           ERP 주문 편집기를 새 탭으로 여는 길뿐이었는데, 거기에는 원본이
+                           없다 — 옵션 원문·배송메모·클레임 사유·발송 결과는 수집
+                           스냅샷에만 있다. 조각은 **읽기 전용**이라 여기에 처리 버튼이
+                           생기지 않는다(절대 규칙 3 유지). #}
+                        <td>
+                            {# **평범한 링크**다(절대 규칙 3 의 허용 모양). 버튼도 `data-link-id`
+                               도 두지 않는다 — 이력 행에 그 둘이 있으면 그 자리가 곧 과거 주문
+                               전체에 대한 취소·발송 조작면이 된다. 누르면 읽기 전용 조각을
+                               받아 모달로 띄우고(JS), JS 가 없으면 그 조각이 그대로 열릴 뿐
+                               **아무것도 보내지 않는다**. #}
+                            <a class="wb-hist-detail"
+                               href="{{ url_for('admin.naver_ingest_triage_detail', link_id=row.id) }}"
+                               data-detail-id="{{ row.id }}"
+                               data-customer="{{ row.customer_name }}">원본 보기</a>
+                        </td>
                     </tr>
                     {% else %}
-                    <tr><td colspan="7" class="wb-empty">수집 이력이 없습니다.</td></tr>
+                    <tr><td colspan="8" class="wb-empty">수집 이력이 없습니다.</td></tr>
                     {% endfor %}
                 </tbody>
             </table>
@@ -649,9 +665,28 @@
         {% endif %}
     </section>
     {% endif %}
+
+    {# 이력 상세 모달. 본문은 비워 두고 JS 가 조각을 넣는다 — 조각에 id 가 없어야
+       pane 의 id 와 겹치지 않는다(절대 규칙 1). 처리 버튼은 조각에도 여기에도 없다. #}
+    <div class="modal fade" id="wb-modal-detail" tabindex="-1" aria-hidden="true">
+        <div class="modal-dialog modal-lg modal-dialog-scrollable">
+            <div class="modal-content">
+                <div class="modal-header">
+                    <h5 class="modal-title">네이버 원본 — <span id="wb-detail-who"></span></h5>
+                    <button type="button" class="btn-close" data-bs-dismiss="modal" aria-label="닫기"></button>
+                </div>
+                <div class="modal-body" id="wb-detail-body" aria-busy="false">
+                    <p class="text-muted mb-0">불러오는 중…</p>
+                </div>
+                <div class="modal-footer">
+                    <button type="button" class="btn btn-secondary btn-sm" data-bs-dismiss="modal">닫기</button>
+                </div>
+            </div>
+        </div>
+    </div>
 </div>
 {% endblock %}
 
 {% block scripts %}
-<script src="{{ url_for('static', filename='js/admin/naver-workbench.js') }}?v=20260826d" defer></script>
+<script src="{{ url_for('static', filename='js/admin/naver-workbench.js') }}?v=20260826e" defer></script>
 {% endblock %}
