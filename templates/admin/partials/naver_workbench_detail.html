@@ -167,8 +167,14 @@
         </tbody>
     </table>
 
-    {# 결제 정보 — 집 합계와 결제수단. ERP 주문의 예약금과 견줄 근거다. #}
-    {% if detail.payment %}
+    {# 결제 정보 — 집 합계와 결제수단. ERP 주문의 예약금과 견줄 근거다.
+       **한 줄이라도 낼 것이 있을 때만 절을 낸다.** `payment` 는 값이 다 비어도 dict 라
+       존재만 보면 제목만 뜬 빈 절이 된다(2026-08-26 실화면에서 실제로 그렇게 떴다) —
+       빈 칸을 그리지 않는다는 이 화면의 규율이 절 단위에서도 똑같이 적용된다. #}
+    {% set has_payment = detail.payment.means or detail.payment.paid_at
+                         or (detail.payment.card_promotion and detail.payment.card_promotion.name)
+                         or (detail.household and detail.household.amount_total) %}
+    {% if has_payment %}
     <div class="wb-cmp-title" data-cmp-section="payment">결제</div>
     <table class="wb-cmp">
         <tbody>

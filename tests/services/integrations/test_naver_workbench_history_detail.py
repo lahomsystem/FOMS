@@ -133,6 +133,37 @@ def test_detail_says_nothing_it_was_not_told(client, workbench_on):
     assert "wb-sendline" not in body, "발송 기록이 없는데 줄이 났다"
 
 
+def test_no_section_is_a_title_with_nothing_under_it(client, workbench_on):
+    """**제목만 뜬 빈 절을 내지 않는다.**
+
+    2026-08-26 스테이징 실화면에서 결제 절이 제목만 뜬 채 비어 있었다 — ``payment`` 는
+    값이 다 비어도 dict 라 존재만 보고 절을 열었기 때문이다. 빈 칸을 그리지 않는다는
+    이 화면의 규율은 줄 단위뿐 아니라 **절 단위에도** 적용된다.
+    """
+    _login(client)
+    link = _linked(order_no="N-HIST-EMPTYSEC", product="붙박이장", amount=500_000)
+
+    body = _detail(client, link.id).get_data(as_text=True)
+
+    # 절 제목마다 바로 뒤 표에 최소 한 줄(키 칸)이 있어야 한다.
+    for match in re.finditer(r'data-cmp-section="([^"]+)"', body):
+        rest = body[match.end():]
+        table = rest.split("</table>")[0]
+        assert 'class="wb-cmp__k"' in table, f'{match.group(1)} 절이 제목만 있고 비어 있다'
+
+
+def test_payment_section_appears_when_there_is_something_to_say(client, workbench_on):
+    """결제할 말이 있으면 그 절이 나온다 — 빈 절을 막느라 있는 사실을 숨기면 안 된다."""
+    _login(client)
+    link = _linked(order_no="N-HIST-PAY", product="붙박이장", amount=500_000)
+    _patch(link, order={"paymentMeans": "신용카드", "paymentDate": "2026-08-25T10:00:00+09:00"})
+
+    body = _detail(client, link.id).get_data(as_text=True)
+
+    assert 'data-cmp-section="payment"' in body
+    assert "신용카드" in body
+
+
 # --------------------------------------------------------------------------- #
 # 경로 계약
 # --------------------------------------------------------------------------- #
