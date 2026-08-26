@@ -69,9 +69,11 @@ class ReadOnlyClient:
     def _forbidden(self, *args, **kwargs):
         raise AssertionError("다시 읽기는 네이버에 아무것도 쓰지 않는다")
 
-    confirm_product_orders = _forbidden
+    # 이름은 `client.py` 실물과 **글자까지 같아야** 한다 — 다르면 아무것도 안 막는
+    # 공허한 가드가 된다(2026-08-26 CEO 리뷰 B2).
+    confirm_place_orders = _forbidden
     dispatch_product_orders = _forbidden
-    cancel_product_order = _forbidden
+    request_cancel_product_order = _forbidden
 
 
 def test_refresh_household_asks_for_every_link_in_the_house(app):

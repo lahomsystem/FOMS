@@ -94,6 +94,7 @@
         'wb-dispatch-confirm': submitDispatch,
         'wb-cancel-confirm': submitCancel,
         'wb-review-done': submitReviewDone,
+        'wb-refresh': submitRefresh,
         'wb-detach': submitDetach,
         'wb-bulk-confirm': submitBulk,
         'wb-bulk-clear': clearPicks,
@@ -373,7 +374,7 @@
         if (note) {
             // 조용히 좁히면 "집이 사라졌다"가 된다. 찾는 중일 때만 말한다.
             note.textContent = needle
-                ? (shown + '집 / ' + rows.length + '집')
+                ? (shown + '주문 / ' + rows.length + '주문')
                 : '';
         }
         // 숨은 줄이 선택에 남아 있으면 벌크가 화면에 없는 집으로 나간다(계약 §0-5).
@@ -862,7 +863,7 @@
      * @param {string} baseRev POST 응답이 준 **enqueue 직전** 지문.
      * @param {string} label 사람이 읽는 작업 이름(발주확인·발송처리·취소).
      */
-    function watchFulfillment(linkId, baseRev, label) {
+    function watchFulfillment(linkId, baseRev, label, baseErrorAt) {
         var id = safeId(linkId);
         if (!id) {
             return;
@@ -887,7 +888,12 @@
             if (state && state.rev && state.rev !== baseRev) {
                 stopWatch();
                 await softRefresh();
-                if (state.last_error) {
+                // 옛 실패가 남아 있는 주문에서 이번 동작을 실패로 말하지 않는다.
+                // `baseErrorAt` 를 넘긴 호출(다시 읽기)만 이 비교를 쓴다 —
+                // 안 넘긴 기존 호출은 예전과 똑같이 동작한다(2026-08-26 CEO 리뷰 B3).
+                var freshError = state.last_error
+                    && (baseErrorAt === undefined || state.last_error_at !== baseErrorAt);
+                if (freshError) {
                     setPaneAck('네이버 ' + (state.action_label || label) + ' 실패: '
                         + state.last_error, true);
                 } else {
@@ -1027,7 +1033,7 @@
         }
         if (failures.length) {
             // 사유는 삼키지 않는다. 실패 띠(#wb-result)에도 서버가 다시 남긴다.
-            window.alert('실패 ' + failures.length + '집' + String.fromCharCode(10)
+            window.alert('실패 ' + failures.length + '주문' + String.fromCharCode(10)
                 + failures.join(String.fromCharCode(10)));
         }
         await hideModal(document.getElementById('wb-modal-bulk'));
@@ -1054,7 +1060,7 @@
         var mine = bulkToken;
         var deadline = Date.now() + BULK_POLL_TIMEOUT_MS;
         var base = null;                 // 첫 회차에서 잡는 '보내기 전 남은 건수'
-        setBulkNote(houses + '집에 발주확인을 보냈습니다. 네이버 응답을 기다리는 중…');
+        setBulkNote(houses + '주문에 발주확인을 보냈습니다. 네이버 응답을 기다리는 중…');
         bulkTimer = window.setTimeout(tick, BULK_POLL_INTERVAL_MS);
 
         async function tick() {
@@ -1073,7 +1079,7 @@
                 if (data.place_pending === 0) {
                     stopBulkWatch();
                     await softRefresh();
-                    setBulkNote(houses + '집 발주확인이 끝났습니다'
+                    setBulkNote(houses + '주문 발주확인이 끝났습니다'
                         + (data.failed_links ? ' — 실패 ' + data.failed_links
                             + '건은 위 실패 목록을 보세요.' : '.'));
                     return;
@@ -1150,6 +1156,32 @@
         // 동안 pane 의 불가역 버튼이 열려 있으면 그 틈에 한 번 더 눌린다.
         watchFulfillment(id, result.data && result.data.rev, '발주확인');
         await hideModal(document.getElementById('wb-modal-confirm'));
+    }
+
+    /**
+     * 다시 읽기 — 이 주문을 네이버에서 최신 상태로 **조회만** 한다(T4).
+     *
+     * 네이버에 쓰는 것이 없어 확인 모달이 없다. 되돌릴 게 없으므로 두 번 눌러도 조회가
+     * 한 번 더 나갈 뿐이다(그래도 응답 전까지는 버튼을 잠가 헛요청을 줄인다).
+     * 결과는 워커가 반영하므로 화면은 발주확인·발송처리와 **같은 폴링**을 쓴다 —
+     * `_fulfillment_state.rev` 가 `claim_sync.refreshed_at` 까지 지문에 넣는다.
+     *
+     * @param {HTMLElement} btn 눌린 버튼.
+     */
+    async function submitRefresh(btn) {
+        var id = safeId(btn.dataset.linkId);
+        if (!id) {
+            return;
+        }
+        btn.disabled = true;
+        const result = await postJson(BASE + id + '/refresh', {});
+        if (!result.ok) {
+            window.alert(result.error);
+            btn.disabled = false;
+            return;
+        }
+        watchFulfillment(id, result.data && result.data.rev, '다시 읽기',
+                         result.data && result.data.err_at);
     }
 
     /**
@@ -1359,8 +1391,8 @@
         var label = relation === 'ADDON' ? '추가결제' : '재결제';
         var head = fork === 'DISCARD'
             ? '주문 #' + orderId + ' 을 취소 처리합니다(휴지통 — 복구할 수 있습니다).'
-                + '\n새 집은 붙이지 않습니다 — 큐에 남습니다.'
-            : '새 집을 주문 #' + orderId + ' 에 ' + label + ' 로 붙입니다.'
+                + '\n새 주문은 붙이지 않습니다 — 큐에 남습니다.'
+            : '새 주문을 주문 #' + orderId + ' 에 ' + label + ' 로 붙입니다.'
                 + '\n주문은 그대로 두고 예약금은 안내만 합니다.';
         if (!window.confirm(head + '\n\n두 동작은 한 번에 저장됩니다 — 하나만 되는 일은 없습니다.')) {
             return;
@@ -1428,7 +1460,7 @@
         } else if (data.discarded) {
             var hint = document.createElement('div');
             hint.className = 'wb-plan__d';
-            hint.textContent = '새 집은 큐에 그대로 있습니다 — 이제 주문 만들기를 누르세요.';
+            hint.textContent = '새 주문은 큐에 그대로 있습니다 — 이제 주문 만들기를 누르세요.';
             done.appendChild(hint);
         }
         var close = document.createElement('button');
@@ -1508,14 +1540,14 @@
             }
         }
         if (stillFailing.length) {
-            window.alert('다시 시도했지만 ' + stillFailing.length + '집이 또 실패했습니다.'
+            window.alert('다시 시도했지만 ' + stillFailing.length + '주문이 또 실패했습니다.'
                 + String.fromCharCode(10) + stillFailing.join(String.fromCharCode(10)));
         }
         // 재시도도 큐에 들어간다 — 바로 갱신하면 옛 실패 띠를 다시 그린다. 벌크와 같은
         // 규칙으로 한 번만 늦게 받는다(집마다 폴링하지 않는다).
         var note = document.getElementById('wb-retry-note');
         if (note) {
-            note.textContent = pairs.length + '집을 다시 보냈습니다. 결과를 기다리는 중…';
+            note.textContent = pairs.length + '주문을 다시 보냈습니다. 결과를 기다리는 중…';
         }
         window.setTimeout(function () { softRefresh(); }, BULK_REFRESH_MS);
     }

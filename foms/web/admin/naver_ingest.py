@@ -544,6 +544,33 @@ def _dispatch_view(link: ExternalOrderLink) -> dict[str, Any]:
     }
 
 
+def _return_axis_view(link: ExternalOrderLink) -> dict[str, Any]:
+    """반품 **진행**(수거·환불) 한 묶음 — T8-S0.
+
+    클레임 배지는 "반품 요청"까지만 말한다. 그 다음 사람이 실제로 묻는 것은 **언제
+    회수됐나 · 어디로 가야 하나 · 환불이 언제 나가나** 셋이고, 셋 다 원본 스냅샷에
+    이미 들어 있는데 화면이 안 읽었다(``NAVER_FIELD_INVENTORY`` §2.5 — 회수지 15/281).
+    F-1~F-3 와 같은 성질이라 **네이버로 나가는 호출은 0**이다.
+
+    시각 문자열을 사람이 읽는 형식으로 바꾸는 것은 화면 몫이라 여기서 한다
+    (:func:`mapping.extract_return_axis` 는 원문 그대로 준다). 못 읽는 값은 원문을
+    그대로 남긴다 — 못 읽었다고 지우면 화면이 "기록이 없다"고 거짓말한다.
+
+    Args:
+        link: pane 에 띄운 링크.
+
+    Returns:
+        :func:`mapping.extract_return_axis` 결과에서 두 시각만 KST 문자열로 바꾼 dict.
+        ``known`` 이 False 면 화면은 **그 줄 자체를 내지 않는다**.
+    """
+    from foms.services.integrations.naver_commerce.mapping import extract_return_axis
+
+    axis = dict(extract_return_axis(link.raw_snapshot or {}))
+    axis["collect_completed_at"] = _dispatch_time_text(axis["collect_completed_at"])
+    axis["refund_expected_at"] = _dispatch_time_text(axis["refund_expected_at"])
+    return axis
+
+
 def _dispatch_time_text(value: Any) -> str:
     """발송 시각 하나를 사람이 읽는 KST 문자열로 편다(못 읽으면 원문 그대로).
 
@@ -640,6 +667,8 @@ def _triage_pane(db, link: ExternalOrderLink, *,
         "claim": extract_claim(link.raw_snapshot or {}),
         # 발송 결과(F-2) — 우리 기록과 네이버가 말하는 것을 나란히. 어긋나면 화면이 말한다.
         "dispatch": _dispatch_view(link),
+        # 반품 진행(T8-S0) — 수거·환불·회수지. 배지가 말하지 않는 "그 다음"이 여기 있다.
+        "return_axis": _return_axis_view(link),
         # 발주확인 여부(네이버 판매자센터 처리 상태). 표시 SSOT 는 컬럼이고(수집·스윕·우리
         # 발주확인이 갱신), 컬럼이 비면 원본 스냅샷으로 폴백한다 — T16-A/T16-G.
         "place": _place_view(link),
@@ -2150,7 +2179,11 @@ def _fulfillment_state(db, link: ExternalOrderLink) -> dict[str, Any]:
             last_error_at = at_error
             last_error = str(state.get("last_error") or "")
             last_error_action = str(state.get("last_error_action") or "")
-        marks.append(f"{row.id}|{at_confirm}|{at_dispatch}|{at_cancel}|{at_error}")
+        # 다시 읽기(T4)는 fulfillment 표식을 하나도 안 건드린다 — 그 축(`claim_sync`)의
+        # 시각을 지문에 함께 넣어야 화면이 "다시 읽기가 끝났다"를 볼 수 있다. 안 넣으면
+        # 눌러도 화면이 영원히 안 바뀐다(사용자에게는 "아무 일도 안 일어남"으로 보인다).
+        at_sync = str(((row.triage_state or {}).get("claim_sync") or {}).get("refreshed_at") or "")
+        marks.append(f"{row.id}|{at_confirm}|{at_dispatch}|{at_cancel}|{at_error}|{at_sync}")
     action = last_error_action.strip().lower()
     action = action if action in FULFILLMENT_ACTION_LABELS else ""
     return {
@@ -2551,6 +2584,63 @@ def naver_ingest_create_order(link_id: int):
                     "error": None})
 
 
+@admin_bp.route("/admin/naver-ingest/<int:link_id>/refresh", methods=["POST"])
+@login_required
+@role_required(["ADMIN", "MANAGER", "STAFF"])
+def naver_ingest_refresh(link_id: int):
+    """이 주문을 네이버에서 **다시 읽는다** — T4(읽기 전용).
+
+    자동 스윕은 네이버가 **변경 이벤트를 줄 때만** 그 건을 다시 읽는다. 이벤트가 안 오는
+    건은 자동 경로로 **영영** 못 잡는다(`claim_watch` 머리말이 "취소가 변경 목록에 어떤
+    이름으로 실리는지 실물로 확인되지 않았다"고 적어 뒀다). 그 구멍을 사람이 손으로
+    메우는 자리다. 5분을 안 기다려도 되는 것은 덤이다.
+
+    **네이버에 쓰는 것은 없다** — 나가는 호출은 상세 조회뿐이다. 그래도 큐를 거치는 이유는
+    발송처리와 같다: 커머스API 에 등록된 호출 IP 가 WORKER 것뿐이라 web 에서 내면 차단된다.
+
+    "아무 일도 안 일어난다"는 아니다 — 새로 발견된 취소·반품은 담당자·관리자 알림으로
+    나간다(:func:`claim_watch.refresh_household` 참조). 그게 이 버튼의 목적이라 확인 모달은
+    두지 않지만, **문구가 그 사실을 숨기지 않는다**.
+
+    Args:
+        link_id: 기준 수집 링크 id(그 링크가 속한 **주문 전체**를 다시 읽는다).
+
+    Returns:
+        ``{"success": True, "data": {"link_id", "queued", "rev"}}``. ``rev`` 는 화면이
+        폴링으로 비교할 기준 지문이다(:func:`_fulfillment_state`). 큐를 쓸 수 없으면 503.
+    """
+    from foms.services.jobs.queue import enqueue_naver_refresh
+
+    # 기준 지문은 **enqueue 앞에서** 잡는다 — 뒤에서 잡으면 워커가 이미 끝냈을 때 화면이
+    # 뒤집힘을 영원히 못 본다(발송처리와 같은 이유, 같은 자리).
+    db = get_db()
+    link = _link_by_id(db, link_id)
+    if link is None:
+        return jsonify({"success": False, "data": None,
+                        "error": "수집분을 찾을 수 없습니다."}), 404
+    base_state = _fulfillment_state(db, link)
+
+    if not enqueue_naver_refresh(link_id, session.get("user_id")):
+        return jsonify({"success": False, "data": None,
+                        "error": "작업 큐를 쓸 수 없습니다(REDIS_URL 미설정 또는 큐 장애). "
+                                 "잠시 후 다시 시도하세요."}), 503
+
+    log_access(
+        f"네이버 다시 읽기 요청 (link {link_id})",
+        action="NAVER_INGEST_REFRESH_ENQUEUE",
+        detail={"link_id": link_id},
+    )
+    return jsonify({"success": True,
+                    # `err_at` 은 **누르기 직전의 실패 시각**이다. 화면이 이 값과 비교해야
+                    # 옛 발주확인 실패가 남아 있는 주문에서 "다시 읽기 실패"라고 잘못
+                    # 말하지 않는다 — `last_error` 는 명시적으로 지울 때까지 남는 값이다
+                    # (2026-08-26 CEO 리뷰 B3).
+                    "data": {"link_id": link_id, "queued": True,
+                             "rev": base_state["rev"],
+                             "err_at": base_state["last_error_at"]},
+                    "error": None})
+
+
 @admin_bp.route("/admin/naver-ingest/<int:link_id>/fulfillment", methods=["POST"])
 @login_required
 @role_required(["ADMIN", "MANAGER", "STAFF"])
@@ -2892,7 +2982,7 @@ def naver_ingest_repay_reconcile(link_id: int):
                       if int(row["order_id"]) == order_id), None)
     if candidate is None:
         return jsonify({"success": False, "data": None,
-                        "error": "이 집의 기존 주문 후보가 아닙니다. 화면을 새로 고친 뒤 "
+                        "error": "이 건의 기존 주문 후보가 아닙니다. 화면을 새로 고친 뒤 "
                                  "다시 고르세요."}), 400
 
     try:

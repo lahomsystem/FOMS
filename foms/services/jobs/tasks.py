@@ -9,6 +9,7 @@ import logging
 import os
 import sys
 from pathlib import Path
+from typing import Optional
 
 logger = logging.getLogger(__name__)
 
@@ -302,7 +303,7 @@ def run_naver_fulfillment_task(link_id: int, action: str, actor_user_id=None,
         raise
 
 
-def run_naver_refresh_task(link_id: int, actor_user_id=None):
+def run_naver_refresh_task(link_id: int, actor_user_id: Optional[int] = None) -> dict:
     """집 1건을 네이버에서 다시 읽는다 (T4, WORKER 전용) — **읽기 전용**.
 
     web 은 enqueue 만 한다(커머스API 호출 IP 가 WORKER 것뿐이다). 여기서 나가는 네이버
