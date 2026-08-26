@@ -377,13 +377,46 @@ def mobile_amount_summary(sd: dict) -> dict[str, Any]:
             return str(value)
 
     def _fmt_balance(value) -> str | None:
-        """잔금 라벨: 숫자로 읽히면 0 에서 클램프해 포맷한다(음수 잔금 표기 차단)."""
+        """잔금 라벨: 숫자로 읽히면 0 에서 클램프해 포맷한다(음수 잔금 표기 차단).
+
+        legacy 주문은 ``pricing.balance``/``totals.balance`` 가 문자열로 남아있다
+        (예: ``"-1,229,000"``, ``"1,229,000원"``, ``"-1229000 "``). ``float()`` 는
+        콤마·"원"·앞뒤 공백을 못 읽어 바로 실패하는데, 예전엔 그때 원문을 그대로
+        돌려줬다(``str(value)``) — 부호(``-``)까지 그대로 찍혀 클램프를 통째로
+        빠져나갔다(T2, CEO L-2). 그래서 콤마·"원"·공백만 벗기고 **부호는 보존한 채**
+        다시 숫자로 읽어 같은 클램프를 태운다.
+
+        ``erp_display._erp_coerce_item_price_krw`` 를 재사용하지 않았다 — 그 헬퍼는
+        숫자만 남기고 부호까지 지운다(품목가는 음수가 없어 그래도 안전하다). 하지만
+        잔금은 부호가 "과입금인가 아닌가"를 가르는 정보라, 부호를 지우면 음수 잔금이
+        같은 크기의 양수로 둔갑한다 — 클램프를 우회하는 것보다 더 나쁜, 숫자를
+        지어내는 오류가 된다.
+
+        그래도 끝내 숫자로 못 읽는 값(예: ``"미정"``)은 숫자를 지어내지 않고 원문을
+        그대로 낸다 — 다만 이 함수의 존재 이유가 "음수 잔금을 화면에 내지 않는다"이므로,
+        원문에 선행 부호(``-``)가 남아있다면 그것만 떼어 음수처럼 보이는 일은 막는다.
+
+        Args:
+            value: 잔금 원시값(숫자 또는 문자열, legacy 포맷 포함).
+
+        Returns:
+            "1,229,000원" 형식 라벨. ``value`` 가 None/빈 문자열이면 None.
+            숫자로 끝내 못 읽으면 원문(선행 부호만 제거)을 그대로 낸다.
+        """
         if value in (None, ""):
             return None
         try:
             return f"{max(0, int(float(value))):,}원"
         except (TypeError, ValueError):
-            return str(value)
+            pass
+        if isinstance(value, str):
+            cleaned = value.strip().replace(",", "").replace("원", "").replace(" ", "")
+            try:
+                return f"{max(0, int(float(cleaned))):,}원"
+            except (TypeError, ValueError):
+                pass
+        text = str(value)
+        return text[1:] if text.startswith("-") else text
 
     # 출고가(shipping_price) 우선; 품목합만 구해지면 품목합, 그마저 없으면 계약금액 폴백.
     if shipping_price is not None:

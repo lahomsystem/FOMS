@@ -415,8 +415,15 @@ def enqueue_push_for_notification(
     """알림 생성 커밋 이후 push job 을 enqueue.
 
     - flag off → 조용히 skip(이벤트 없음).
-    - 큐 없음/worker 0 → 대상 state 를 queue_unavailable 로 표시하고 이벤트를 남긴다
-      (조용히 버리지 않음). 호출측 API 는 이 reason 으로 os_push 미보장을 노출할 수 있다.
+    - 큐 없음/worker **확실히** 0대(``worker_count_known`` True) → 대상 state 를
+      queue_unavailable 로 표시하고 이벤트를 남긴다(조용히 버리지 않음). 호출측 API 는
+      이 reason 으로 os_push 미보장을 노출할 수 있다.
+    - worker 수를 **못 센** 경우(``worker_count_known`` False)는 막지 않고 그대로
+      enqueue 를 시도한다 — ping 은 통했는데 그 직후 ``Worker.count`` 조회만 실패하는
+      짧은 창이 실재하고, 그걸 "워커 0대"로 읽으면 멀쩡한 큐에 알림이 안 들어간다.
+      진짜로 큐가 죽었다면 아래 ``q.enqueue`` 가 예외를 내고, 그 예외를 잡는 기존
+      ``except`` 가 같은 queue_unavailable 로 정확히 처리한다(자기교정,
+      ``naver_ingest_run_now`` 와 같은 판정 규율).
     - 정상 → RQ 문자열 경로로 enqueue.
 
     :param notification_id: enqueue 대상 알림 id
@@ -433,7 +440,11 @@ def enqueue_push_for_notification(
 
     q = get_rq_queue()
     status = get_rq_runtime_status()
-    if q is None or int(status.get("worker_count", 0) or 0) == 0:
+    worker_count = int(status.get("worker_count", 0) or 0)
+    # "0대"와 "못 셌다"를 가른다. worker_count_known 이 없는 status(구 테스트 더블 등)는
+    # True 로 간주해 기존 동작을 그대로 유지한다.
+    worker_count_known = bool(status.get("worker_count_known", True))
+    if q is None or (worker_count_known and worker_count == 0):
         _mark_queue_unavailable(db, int(notification_id))
         db.commit()
         return {"enqueued": False, "reason": "queue_unavailable"}

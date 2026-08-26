@@ -327,6 +327,86 @@ def test_enqueue_success_uses_queue(db, monkeypatch):
     assert args[0] == notif.id
 
 
+def test_enqueue_unknown_worker_count_still_attempts_enqueue(db, monkeypatch):
+    """worker 수를 못 센 경우(worker_count_known=False)는 미보장으로 떨어지면 안 된다.
+
+    ping 은 통했는데 그 직후 Worker.count 조회만 실패하는 짧은 창이 실재한다(같은 날
+    queue.py 에 이미 고친 문제). 예전 판정은 이때도 worker_count==0 이라 큐가 멀쩡한데
+    알림 하나가 조용히 queue_unavailable 로 표기되고 넣어 보지도 않았다. worker_count_known
+    을 보게 고친 뒤에는 못 셌을 때 막지 않고 실제 enqueue 를 시도해야 한다.
+    """
+    monkeypatch.setenv(FLAG_ENV, "1")
+    import foms.services.jobs.queue as qmod
+
+    class _FakeQueue:
+        def __init__(self):
+            self.enqueued = []
+
+        def enqueue(self, path, *args, **kwargs):
+            self.enqueued.append((path, args, kwargs))
+
+    fake_q = _FakeQueue()
+    monkeypatch.setattr(qmod, "get_rq_queue", lambda: fake_q)
+    monkeypatch.setattr(
+        qmod,
+        "get_rq_runtime_status",
+        lambda: {"state": "reachable", "worker_count": 0, "worker_count_known": False},
+    )
+
+    u = _mk_user("q_unknown", "A")
+    notif = _mk_notification(is_urgent=True)
+    state = _mk_state(notif, u)
+
+    result = enqueue_push_for_notification(notif.id, db=db)
+    assert result["enqueued"] is True
+    assert result["reason"] is None
+    assert len(fake_q.enqueued) == 1
+    # queue_unavailable 로 표기되지 않았는지도 확인 — 못 센 것과 진짜 0대를 가르는
+    # 핵심 단언이다.
+    assert _events(notif.id, NotificationEventType.PUSH_QUEUE_UNAVAILABLE) == []
+    db.refresh(state)
+    assert state.last_delivery_status != NotificationDeliveryStatus.QUEUE_UNAVAILABLE
+
+
+def test_enqueue_known_zero_workers_still_marks_unavailable(db, monkeypatch):
+    """worker 가 확실히 0대(worker_count_known=True)일 때는 좁힌 판정 이후에도 예전 그대로
+    미보장으로 막아야 한다.
+
+    이번 수정은 "못 셌다"만 새로 풀어주는 것이지, "진짜로 워커가 하나도 없다"는 판정까지
+    같이 느슨해지면 안 된다(못을 빼면 안 된다). worker_count_known 을 명시적으로 True 로
+    줘서 이 경계가 살아 있는지 확인한다.
+    """
+    monkeypatch.setenv(FLAG_ENV, "1")
+    import foms.services.jobs.queue as qmod
+
+    class _FakeQueue:
+        def __init__(self):
+            self.enqueued = []
+
+        def enqueue(self, path, *args, **kwargs):
+            self.enqueued.append((path, args, kwargs))
+            raise AssertionError("worker 0대가 확실하면 enqueue 를 시도하면 안 된다")
+
+    fake_q = _FakeQueue()
+    monkeypatch.setattr(qmod, "get_rq_queue", lambda: fake_q)
+    monkeypatch.setattr(
+        qmod,
+        "get_rq_runtime_status",
+        lambda: {"state": "reachable", "worker_count": 0, "worker_count_known": True},
+    )
+
+    u = _mk_user("q_knownzero", "A")
+    notif = _mk_notification(is_urgent=True)
+    state = _mk_state(notif, u)
+
+    result = enqueue_push_for_notification(notif.id, db=db)
+    assert result["enqueued"] is False
+    assert result["reason"] == "queue_unavailable"
+    assert fake_q.enqueued == []
+    db.refresh(state)
+    assert state.last_delivery_status == NotificationDeliveryStatus.QUEUE_UNAVAILABLE
+
+
 # ---------------------------------------------------------------------------
 # escalation
 # ---------------------------------------------------------------------------

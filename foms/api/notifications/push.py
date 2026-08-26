@@ -432,6 +432,10 @@ def push_health() -> Any:
                 "vapid_private_configured": vapid_private,
                 "rq_state": rq_status.get("state"),
                 "rq_worker_count": int(rq_status.get("worker_count", 0) or 0),
+                # get_rq_runtime_status() 의 worker_count_known 을 그대로 노출한다 — False 면
+                # 위 rq_worker_count=0 은 "0대"가 아니라 "못 셌다"는 뜻이다. 이 엔드포인트는
+                # 값을 그대로 보여주는 진단 자리라 판정(push_ready)은 바꾸지 않는다.
+                "rq_worker_count_known": bool(rq_status.get("worker_count_known", True)),
                 "push_ready": bool(
                     _web_push_enabled()
                     and _vapid_public_key()
