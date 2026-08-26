@@ -191,9 +191,29 @@ def all_completed(runs: list[dict]) -> bool:
     return bool(runs) and all(r.get("status") == "completed" for r in runs)
 
 
+# CI-CONCLUSION-01: green 은 success 하나뿐이다.
+#
+# 예전에는 conclusion == "failure" 인 run 만 실패로 셌다. 그래서 cancelled /
+# timed_out / startup_failure / action_required 는 전부 조용히 green 으로 통과했다.
+# 실제로 perf-gate 에서 cancelled 4 건이 그렇게 통과했고, AGENTS.md 의 "CI green
+# 까지가 push 완료" 계약이 아무도 모르게 네 번 깨졌다.
+#
+# 판정은 fail-closed 다. success 가 아닌 종료 상태는 "검증되지 않았다" 는 뜻이고,
+# 검증되지 않은 것을 green 이라 부르지 않는다.
+_GREEN_CONCLUSIONS = frozenset({"success"})
+
+
 def failures(runs: list[dict]) -> list[dict]:
-    """conclusion 이 failure 인 run 만 반환한다."""
-    return [r for r in runs if r.get("conclusion") == "failure"]
+    """완료됐지만 success 가 아닌 run 을 전부 반환한다(cancelled 포함)."""
+    out = []
+    for r in runs:
+        conclusion = r.get("conclusion")
+        if conclusion is None:  # 아직 진행 중 — all_completed 가 따로 본다
+            continue
+        if conclusion in _GREEN_CONCLUSIONS:
+            continue
+        out.append(r)
+    return out
 
 
 def poll_completion(
@@ -340,6 +360,16 @@ def handle_failures(
         run_id = run.get("databaseId")
         workflow = run.get("workflowName", "")
         printer(f"----- {workflow} ({run_id}) -----")
+        conclusion = str(run.get("conclusion") or "")
+        if conclusion != "failure":
+            # 코드가 틀려서 실패한 게 아니라 아예 완주하지 못한 run. 로그를 뒤져도
+            # 실패 스텝이 없으므로 분류만 하고 넘긴다 — 다만 green 은 아니다.
+            actions.append("unclassified")
+            printer(
+                f"  종료 상태 '{conclusion}' — 이 커밋은 검증되지 않았다. "
+                "재실행하거나 취소 사유를 확인하라(green 아님)."
+            )
+            continue
         if "perf-gate" in str(workflow).lower():
             _rc, log, _err = run_gh(["run", "view", str(run_id), "--log"])
             action, message = handle_perf_gate(run_id, log, sha_short, healthz, already_rerun)
