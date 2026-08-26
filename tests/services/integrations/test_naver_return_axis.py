@@ -154,10 +154,16 @@ def test_return_axis_empty_when_no_claim():
     assert axis["collect_address"]["address"] == ""
 
 
-def test_return_axis_from_cancel_block():
-    """실물로 확인된 유일한 경로(`cancel` 블록)에서 수거·환불 값을 읽는다."""
+def test_return_axis_from_return_block():
+    """실물 `return` 블록에서 수거·환불 값을 읽는다.
+
+    2026-08-27 정정: 이 테스트는 원래 `cancel` 블록에 값을 넣었다("실물로 확인된 유일한
+    경로"라고 적혀 있었다). 그때는 `return` 이 미관측이라 그랬지만, 스테이징에 실물
+    `return` 블록 33건이 관측됐고 **`cancel` 을 반품 축으로 읽는 것이 결함**이었다
+    (취소만 된 50건에 "반품 진행" 줄이 떴다). 픽스처를 실물 모양으로 바꾼다.
+    """
     detail = _snapshot(claimStatus="COLLECT_DONE")
-    detail["cancel"] = {
+    detail["return"] = {
         "claimStatus": "COLLECT_DONE",
         "collectDeliveryMethod": "DELIVERY",
         "collectCompletedDate": "2026-08-26T14:05:00.000+09:00",
@@ -180,7 +186,7 @@ def test_return_axis_collect_address_is_joined_like_shipping():
     자사 회수라 우리 차가 직접 간다 — 이 주소가 없으면 담당자가 판매자센터를 연다.
     """
     detail = _snapshot(claimStatus="COLLECTING")
-    detail["cancel"] = {
+    detail["return"] = {
         "claimStatus": "COLLECTING",
         "collectAddress": {
             "name": "김실측",
@@ -244,3 +250,53 @@ def test_named_claim_block_wins_over_current_claim():
     claim = extract_claim(detail)
     assert claim["status"] == "CANCEL_REQUEST"
     assert claim["reason"] == "MISTAKE_ORDER"
+
+
+# ------------------------------------------------- 취소 블록이 반품 축으로 새지 않는다
+
+
+def test_cancel_only_does_not_render_return_axis():
+    """**취소만 된 건은 반품 축이 비어 있어야 한다** (2026-08-27 CEO A1).
+
+    `cancel` 블록에도 `refundExpectedDate`·`refundStandbyStatus` 가 실려 온다.
+    반품 축이 `_claim_blocks`(첫 항목이 `cancel`)를 그대로 쓰면 그 값이 새어 들어와
+    화면 머리는 배지 `취소 완료` 를 달고 몸통은 `반품 진행` 을 말한다.
+    스테이징 실데이터 344 링크 중 **50건**이 그 상태였다 — 합성 음성 사례가
+    "클레임 아예 없음" 뿐이라 테스트가 못 잡았다.
+    """
+    detail = _snapshot(claimStatus="CANCEL_DONE")
+    detail["cancel"] = {
+        "claimStatus": "CANCEL_DONE",
+        "refundExpectedDate": "2026-08-23T00:00:00.000+09:00",
+        "refundStandbyStatus": "환불처리완료",
+        "refundStandbyReason": "취소 진행중건 존재",
+    }
+    axis = extract_return_axis(detail)
+    assert axis["refund_expected_at"] == ""
+    assert axis["refund_standby_status"] == ""
+    assert axis["refund_standby_reason"] == ""
+    assert axis["known"] is False
+
+
+def test_cancel_block_does_not_shadow_a_real_return():
+    """취소와 반품이 함께 있으면 **반품 값**을 읽는다 — 취소를 뺀 것이 반품을 가리지 않는다."""
+    detail = _snapshot(claimStatus="RETURN_DONE")
+    detail["cancel"] = {"refundExpectedDate": "2026-01-01T00:00:00.000+09:00"}
+    detail["return"] = {
+        "claimStatus": "RETURN_DONE",
+        "refundExpectedDate": "2026-09-04T00:00:00.000+09:00",
+        "collectCompletedDate": "2026-08-26T09:17:35.539+09:00",
+        "collectDeliveryMethod": "RETURN_INDIVIDUAL",
+    }
+    axis = extract_return_axis(detail)
+    assert axis["refund_expected_at"] == "2026-09-04T00:00:00.000+09:00"
+    assert axis["collect_completed_at"] == "2026-08-26T09:17:35.539+09:00"
+    assert axis["known"] is True
+
+
+def test_return_axis_block_keys_exclude_cancel():
+    """이름 목록을 **집합으로** 잠근다 — `cancel` 이 다시 들어오면 여기서 빨개진다."""
+    from foms.services.integrations.naver_commerce.mapping import RETURN_BLOCK_KEYS
+
+    assert "cancel" not in RETURN_BLOCK_KEYS
+    assert set(RETURN_BLOCK_KEYS) == {"returnInfo", "return", "exchange"}
