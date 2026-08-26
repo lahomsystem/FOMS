@@ -189,7 +189,8 @@ def test_partial_cancel_reports_both_sides_as_int():
         initialQuantity=3, remainQuantity=1,
         initialPaymentAmount="594,000", remainPaymentAmount="198000",
     ))
-    assert got == {"is_partial": True, "initial_quantity": 3, "remain_quantity": 1,
+    assert got == {"is_partial": True, "quantity_partial": True, "amount_partial": True,
+                   "initial_quantity": 3, "remain_quantity": 1,
                    "initial_amount": 594000, "remain_amount": 198000}
     assert all(isinstance(got[key], int) for key in
                ("initial_quantity", "remain_quantity", "initial_amount", "remain_amount"))
@@ -200,12 +201,39 @@ def test_amount_only_difference_is_partial():
     got = extract_partial_cancel(_snapshot(initialPaymentAmount=594000,
                                            remainPaymentAmount=560000))
     assert got["is_partial"] is True
+    assert got["amount_partial"] is True
+    assert got["quantity_partial"] is False, "안 바뀐 축까지 부분취소라고 말했다"
+
+
+def test_fully_canceled_is_not_partial():
+    """**전부취소는 부분취소가 아니다** — 2026-08-26 스테이징 실데이터가 만든 단언.
+
+    100건 중 "부분취소"로 화면에 뜨던 18건이 전부 ``remain == 0`` 인 전부취소·전부반품
+    이었고 진짜 부분취소는 0건이었다. 전부취소는 클레임 배지가 이미 말한다 — 여기서 또
+    말하면 화면이 같은 사실을 **틀린 이름으로** 두 번 말한다.
+    """
+    got = extract_partial_cancel(_snapshot(
+        quantity=14, totalPaymentAmount=1303600,
+        initialQuantity=14, remainQuantity=0,
+        initialPaymentAmount=1303600, remainPaymentAmount=0,
+    ))
+    assert got["is_partial"] is False
+    assert got["quantity_partial"] is False and got["amount_partial"] is False
+    # 값 자체는 그대로 준다 — 판정만 아니라고 할 뿐 사실을 지우지 않는다.
+    assert got["initial_quantity"] == 14 and got["remain_quantity"] == 0
+
+
+def test_remain_above_initial_is_not_partial():
+    """잔여가 최초보다 크면 우리가 모르는 형태다 — 부분취소라고 우기지 않는다."""
+    got = extract_partial_cancel(_snapshot(initialQuantity=1, remainQuantity=3))
+    assert got["quantity_partial"] is False
 
 
 def test_missing_fields_are_zero_and_not_partial():
     """값이 아예 없으면 '모른다' — 0 으로 채우되 부분취소라고 말하지 않는다."""
     assert extract_partial_cancel({"productOrder": {"productOrderId": "1"}}) == {
-        "is_partial": False, "initial_quantity": 0, "remain_quantity": 0,
+        "is_partial": False, "quantity_partial": False, "amount_partial": False,
+        "initial_quantity": 0, "remain_quantity": 0,
         "initial_amount": 0, "remain_amount": 0}
 
 

@@ -515,7 +515,9 @@ def _dispatch_view(link: ExternalOrderLink) -> dict[str, Any]:
     Returns:
         ``ours_at``(우리 기록 KST) · ``naver_at``(네이버 sendDate KST) ·
         ``naver_status``·``naver_status_label``·``method``·``wrong_tracking`` ·
-        ``known``(어느 한쪽이라도 말이 있는가) · ``mismatch``(한쪽만 있는가).
+        ``known``(어느 한쪽이라도 말이 있는가) ·
+        ``mismatch``(**우리 기록만 있고 네이버가 침묵하는가** — 되돌릴 수 없는 호출이
+        유실된 자리다. 반대 방향은 판매자센터 직접 발송이라 경고가 아니다).
         ``known`` 이 False 면 화면은 **그 줄 자체를 내지 않는다**.
     """
     from foms.services.integrations.naver_commerce.mapping import extract_delivery
@@ -533,8 +535,12 @@ def _dispatch_view(link: ExternalOrderLink) -> dict[str, Any]:
         "wrong_tracking": bool(delivery.get("wrong_tracking")),
         # 상태 라벨만 있고 시각이 없는 집도 말할 것이 있다(네이버가 배송 축을 갖고 있다).
         "known": bool(ours_at or naver_at or (delivery.get("status") or "")),
-        # 한쪽만 시각을 가진 집이 곧 어긋남이다 — 이것이 이 줄의 존재 이유다.
-        "mismatch": bool(ours_at) != bool(naver_at),
+        # **우리는 보냈다는데 네이버가 침묵하는 쪽**만 어긋남이다 (2026-08-26 실데이터로 좁혔다).
+        # 양방향으로 보면 "네이버에만 기록이 있는" 집까지 걸리는데, 스테이징 실데이터에서
+        # 그것이 발송 줄 44건 중 41건이었다(우리 쪽만 있는 진짜 사고는 0건). 그 방향은
+        # 사고가 아니라 **판매자센터에서 직접 나간 발송**이라, 경고를 달면 93% 가 상시
+        # 경고가 되어 진짜 어긋남을 덮는다. 두 열은 그대로 나란히 있으니 사실은 안 사라진다.
+        "mismatch": bool(ours_at) and not bool(naver_at),
     }
 
 
