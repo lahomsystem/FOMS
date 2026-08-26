@@ -38,6 +38,11 @@
       <dt>출고가</dt><dd>{{ shipping_price_display }}</dd>
       <dt>예약금</dt><dd>{{ deposit_display }}</dd>
       <dt>잔금</dt><dd>{{ balance_display }}</dd>
+      {# 예약금이 받을 돈을 넘은 주문만. 잔금 0원 옆에 아무 말이 없으면 돌려줄 돈이
+         있다는 사실이 화면에서 사라진다(CEO L-1). #}
+      {% if overpaid_display %}
+      <dt>과입금</dt><dd class="foms-history-sheet__overpaid">{{ overpaid_display }}</dd>
+      {% endif %}
     </dl>
   </div>
   {% endif %}

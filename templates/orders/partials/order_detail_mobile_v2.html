@@ -250,7 +250,7 @@
         {'label': '계약금', 'value': amount.deposit_label or '-'},
       ] + ([{'label': '할인', 'value': amount.discount_label}] if amount.discount_label else []) + [
         {'label': '잔금', 'value': amount.balance_label or '-'},
-      ]) }}
+      ] + ([{'label': '과입금', 'value': amount.overpaid_label}] if amount.overpaid_label else [])) }}
     </section>
 
     {% if order.current_quest and order.current_quest.title %}

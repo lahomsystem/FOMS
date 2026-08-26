@@ -395,6 +395,11 @@
 .foms-tsheet-kv dd:last-child {
   margin-bottom: 0;
 }
+/* 과입금 = 돌려줄 돈이 있다는 신호. 넘친 주문에만 렌더되므로 상시 경고가 아니다. */
+.foms-history-sheet__overpaid {
+  color: var(--foms-status-warning-text, var(--foms-interactive-primary));
+  font-weight: var(--foms-font-weight-bold, 700);
+}
 
 /* 썸네일 스트립 — 60×46 카드 + 추가 타일(목업 정합). 스트립=바깥 flex, 썸네일 그룹(.thumbs)이
    프리뷰 트리거, 추가 링크(.add)는 형제라 클릭 충돌 없음. 간격 통일(썸네일 내부·타일 사이 동일). */
