@@ -508,6 +508,71 @@ input.wb-pick:disabled,
     font-variant-numeric: tabular-nums;
 }
 
+/* ── 네이버 원본에 이미 있던 사실 3종 (2026-08-26 · F-1·F-2·F-3) ──────────
+   셋 다 수집된 스냅샷에 들어 있는데 화면이 안 읽던 값이다. 새 색을 만들지 않는다 —
+   이 화면이 이미 쓰는 두 개만 쓴다(빨강 = 되돌릴 수 없는 것, 나머지는 회색). */
+
+/* F-1 클레임 사유 원문. 배지(코드 라벨) 바로 아래에서 **왜** 취소인지를 말한다.
+   고객이 쓴 문장이라 줄바꿈·공백을 원문대로 남긴다(요약하거나 자르지 않는다). */
+.wb-claim-reason {
+    display: flex;
+    align-items: baseline;
+    gap: 8px;
+    margin-top: 6px;
+    padding: 6px 10px;
+    border-left: 3px solid var(--wb-danger-line);
+    background: var(--wb-danger-soft);
+    border-radius: 0 6px 6px 0;
+}
+
+.wb-claim-reason__k {
+    flex: none;
+    color: var(--wb-danger);
+    font-weight: 700;
+    font-size: calc(11.5px * var(--wb-fs, 1));
+}
+
+.wb-claim-reason__v {
+    color: #111827;
+    font-weight: 600;
+    font-size: calc(13px * var(--wb-fs, 1));
+    white-space: pre-wrap;
+}
+
+/* F-2 발송 결과. 같은 표의 다른 줄과 톤을 맞춘다 — 어긋난 집에서만 눈에 띄어야 한다.
+   상시 강조하면 정상인 집까지 경고처럼 보여서 진짜 어긋남을 못 알아챈다. */
+.wb-sendline__status { color: var(--wb-muted); }
+
+.wb-sendline__warn {
+    margin-left: 6px;
+    color: var(--wb-danger);
+    font-weight: 700;
+    font-size: calc(11.5px * var(--wb-fs, 1));
+}
+
+/* 한쪽에만 기록이 있는 집 = 어긋남. 이 줄만 배경을 깐다. */
+.wb-cmp tr.wb-sendline--gap > td { background: var(--wb-danger-soft); }
+
+.wb-sendline__gap {
+    display: inline-block;
+    margin-left: 6px;
+    padding: 1px 7px;
+    border-radius: 999px;
+    background: var(--wb-danger);
+    color: #fff;
+    font-weight: 700;
+    font-size: calc(10.5px * var(--wb-fs, 1));
+}
+
+/* F-3 부분취소 잔여. 지금 값 밑에 **원래 값**을 흐리게 한 줄 — 지금 값이 주인공이고
+   원래 값은 그 옆의 사실이다. 부분취소가 아닌 행에는 이 요소 자체가 없다. */
+.wb-cmp__was {
+    color: var(--wb-danger);
+    font-weight: 600;
+    font-size: calc(10.5px * var(--wb-fs, 1));
+    font-variant-numeric: tabular-nums;
+}
+
 /* ── 후보 표 판정 근거 2열 (R-1 · 2026-08-25) ────────────────────────
    담당자가 네이버를 따로 열어 확인하던 두 가지를 표 안으로 들인다. 색은 이미 이 화면이
    쓰는 두 개만 쓴다: 빨강 = 되돌릴 수 없는 것(취소), 초록은 안 쓴다 — '살아 있음'은
