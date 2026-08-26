@@ -249,7 +249,7 @@ def test_empty_snapshots_are_counted_one_household_each(client, workbench_on):
     body = client.get(f"{TRIAGE_PATH}?tab=work").get_data(as_text=True)
     # 집 수는 탭 배지가 소유한다(2026-08-24 머리줄 통합) — 스트립은 상품주문 건수만 말한다.
     tab = body.split('data-tab="work"')[1].split("</a>")[0]
-    assert "2집" in tab, f"빈 원본 2건이 한 집으로 붙었다: {tab}"
+    assert "2주문" in tab, f"빈 원본 2건이 한 집으로 붙었다: {tab}"
 
 
 # --------------------------------------------------------------------------- #
@@ -401,7 +401,7 @@ def test_queue_cap_says_it_cut_the_list(client, workbench_on):
     assert body.count('<a class="wb-row') == monkey_limit, "캡이 안 걸렸다(전제 확인)"
     assert "상한에 닿아" in body, "캡으로 잘라 놓고 화면이 아무 말도 안 한다"
     # 보이는 줄수를 그대로 재진술하면 위 탭 숫자와 같아져 모순으로 읽힌다(2026-08-24 실화면).
-    assert f"{monkey_limit}집만 보입니다" not in body
+    assert f"{monkey_limit}주문만 보입니다" not in body
 
 
 def test_real_volume_does_not_trip_the_cap(client, workbench_on):

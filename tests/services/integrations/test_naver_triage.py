@@ -241,7 +241,7 @@ def test_queue_groups_one_household_into_one_row(auth_client):
     _collected_link(order_no="N-100", product="길이추가(1cm)", amount=0)
     body = auth_client.get("/admin/naver-ingest/triage").get_data(as_text=True)
     assert "외 2건" in body          # 대표 + 나머지 2건
-    assert "1집" in body             # 묶음 수
+    assert "1주문" in body             # 묶음 수
     assert "상품주문 3건" in body     # 실제 링크 수
 
 
@@ -270,7 +270,7 @@ def test_queue_splits_groups_by_address(auth_client):
     _collected_link(order_no="N-102", product="본품 A", amount=500000, detail="101호")
     _collected_link(order_no="N-102", product="본품 B", amount=400000, detail="202호")
     body = auth_client.get("/admin/naver-ingest/triage").get_data(as_text=True)
-    assert "2집" in body
+    assert "2주문" in body
     assert "외 1건" not in body
 
 
