@@ -64,7 +64,10 @@ jobs:
         FLASK_ENV: "testing"
       run: |
         # tests/harness는 Harness CI job이 전담(이중 실행 제거), -q로 로그 절감
-        python -m pytest -q --ignore=tests/visual --ignore=tests/harness -p no:playwright
+        # CI-XDIST-01: public repo 의 ubuntu-latest 는 4 vCPU 다. --dist loadfile 로
+        # 파일 단위로 나눠, 같은 파일의 테스트는 한 워커에 머물게 한다(모듈 스코프
+        # fixture 가 워커 경계에서 갈리지 않는다).
+        python -m pytest -q --ignore=tests/visual --ignore=tests/harness -p no:playwright -n auto --dist loadfile
 
     - name: Run Redis lane (RQ positive path / rq API drift)
       env:

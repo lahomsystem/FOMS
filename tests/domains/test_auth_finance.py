@@ -14,6 +14,8 @@ manifest 는 세 endpoint 를 모두 ``FINANCE_MUTATION`` 으로 이미 분류�
 실행 **전** 차단이므로 거부 응답에는 ``X-Auth-Policy: denied`` 헤더가 붙는다.
 """
 
+from collections import Counter
+
 import pytest
 from werkzeug.security import generate_password_hash
 
@@ -116,11 +118,23 @@ def _gate_passed(resp):
     return resp.headers.get("X-Auth-Policy") is None
 
 
+# 거부 감사는 정책이 **의도적으로** 남기는 기록이다(order_mutation_policy._audit →
+# record_access_denied, structured_action="ACCESS_DENIED"). 도메인 기록과 구분한다.
+_DENIAL_AUDIT_PREFIX = "권한 거부(주문 정책)"
+
+
 def _finance_side_effect_counts(order_id):
-    """거부 증명용: 해당 주문의 OrderEvent, 전역 SecurityLog, structured_data 상태 스냅샷."""
+    """거부 증명용: 해당 주문의 OrderEvent, 전역 SecurityLog 메시지, structured_data 스냅샷.
+
+    Args:
+        order_id: 검사 대상 주문 id.
+
+    Returns:
+        ``(OrderEvent 수, SecurityLog 메시지 리스트, structured_data)``.
+    """
     db_session.expire_all()
     events = db_session.query(OrderEvent).filter(OrderEvent.order_id == order_id).count()
-    logs = db_session.query(SecurityLog).count()
+    logs = [row.message or "" for row in db_session.query(SecurityLog).all()]
     saved = db_session.get(Order, order_id)
     sd = saved.structured_data or {}
     return events, logs, sd
@@ -132,7 +146,7 @@ def _finance_side_effect_counts(order_id):
 @pytest.mark.parametrize("role,team", _DENIED_ACTORS)
 @pytest.mark.parametrize("method,path,body", _FINANCE_SURFACES)
 def test_finance_denied_no_side_effects(client, app, policy_on, role, team, method, path, body):
-    """VIEWER·비 CS/SALES STAFF 의 금융 mutation → 403 + OrderEvent/SecurityLog/DB 변화 0."""
+    """VIEWER·비 CS/SALES STAFF 의 금융 mutation → 403 + OrderEvent/DB 변화 0(거부 감사만 허용)."""
     _login(client, _make_user(role=role, team=team))
     oid = _make_order("COMPLETED")
 
@@ -144,9 +158,19 @@ def test_finance_denied_no_side_effects(client, app, policy_on, role, team, meth
     assert resp.is_json and resp.get_json()["success"] is False
     assert "Location" not in resp.headers  # redirect 아님(/api JSON)
 
-    # 거부 = handler 미실행 → 모든 side-effect 0 (before == after)
+    # 거부 = handler 미실행 → 도메인 side-effect 0
     assert after[0] == before[0] == 0, f"OrderEvent 변화: {before[0]}→{after[0]}"
-    assert after[1] == before[1], f"SecurityLog 변화: {before[1]}→{after[1]}"
+
+    # SecurityLog 는 "전역 개수 동결" 로 볼 수 없다. 정책 가드가 거부를 감사 기록으로
+    # 남기는 것은 설계된 동작이기 때문이다(_audit → record_access_denied). 예전 단언은
+    # 전역 개수가 그대로일 것을 요구했는데, 그건 record_access_denied 의 60초 dedupe
+    # 창(user/IP, endpoint, action) 덕분에 **앞선 테스트가 같은 거부를 이미 기록해
+    # 놓았을 때만** 성립했다. 그래서 이 파일을 단독으로 돌리면 실패했고, 전체 스위트
+    # 순서에서만 통과했다(병렬 실행에서 드러난 잠복 순서 의존).
+    # 진짜 계약은 "handler 가 안 돌았다" 이므로, 새로 생긴 기록이 거부 감사뿐임을 본다.
+    added_logs = Counter(after[1]) - Counter(before[1])
+    unexpected = [msg for msg in added_logs if not msg.startswith(_DENIAL_AUDIT_PREFIX)]
+    assert not unexpected, f"거부인데 도메인 SecurityLog 가 생겼다: {unexpected}"
     # settlement/cash_receipt 미기록, payment 미확인
     settlement = after[2].get("settlement") or {}
     assert "cash_receipt" not in settlement and not settlement.get("deductions")
