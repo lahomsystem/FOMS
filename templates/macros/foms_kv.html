@@ -1,9 +1,9 @@
 {# P1-07 shared KV row macro (WAM wam-kv-row superset) #}
-{% macro foms_kv_row(label, value, tone='default', href=None, href_label=None, copy_value=None, tel_value=None, map_query=None, mail_value=None, muted=False) -%}
+{% macro foms_kv_row(label, value, tone='default', href=None, href_label=None, copy_value=None, tel_value=None, map_query=None, mail_value=None, muted=False, pre_line=False) -%}
   <div class="foms-kv-row">
     <dt class="foms-kv-row__label">{{ label }}</dt>
     <dd class="foms-kv-row__value{% if muted %} is-muted{% endif %}{% if tone != 'default' %} is-{{ tone }}{% endif %}">
-      <span class="foms-kv-row__text">{{ value if value else '정보 없음' }}</span>
+      <span class="foms-kv-row__text{% if pre_line %} foms-kv-row__text--pre{% endif %}">{{ value if value else '정보 없음' }}</span>
       <span class="foms-kv-row__actions">
         {% if tel_value %}
           <a class="foms-kv-row__action" href="tel:{{ tel_value | replace('-', '') | replace(' ', '') }}">전화</a>
@@ -28,7 +28,7 @@
 {% macro foms_kv_list(rows) -%}
   <dl class="foms-kv-list">
     {% for row in rows %}
-      {{ foms_kv_row(row.label, row.value, tone=row.tone|default('default'), href=row.href, href_label=row.href_label, copy_value=row.copy_value, tel_value=row.tel_value, map_query=row.map_query, mail_value=row.mail_value, muted=row.muted|default(false)) }}
+      {{ foms_kv_row(row.label, row.value, tone=row.tone|default('default'), href=row.href, href_label=row.href_label, copy_value=row.copy_value, tel_value=row.tel_value, map_query=row.map_query, mail_value=row.mail_value, muted=row.muted|default(false), pre_line=row.pre_line|default(false)) }}
     {% endfor %}
   </dl>
 {%- endmacro %}

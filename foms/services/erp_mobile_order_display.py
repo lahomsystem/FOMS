@@ -318,6 +318,7 @@ def mobile_product_items(
                 "option_detail": raw.get("option_detail") or raw.get("option") or "-",
                 "handle": raw.get("handle") or "-",
                 "misc": raw.get("misc") or raw.get("install_notes") or "-",
+                "extra_input": str(raw.get("extra_input") or "").strip() or "-",
                 "price_label": price_label,
                 "summary": " · ".join(summary_bits) if summary_bits else str(name),
                 "collapsed_default": collapse_all,
