@@ -53,7 +53,10 @@ def test_alert_fires_at_d7(app):
 
     notification = db_session.query(Notification).one()
     assert notification.notification_type == app_expiry.NOTIFICATION_TYPE
-    assert notification.target_user_id == admin.id
+    # ROLE 알림이라 row 에는 사람이 안 박힌다 — 수신자는 state 로 풀린다(NOTIF-ROLE-01).
+    assert notification.target_type == "ROLE" and notification.target_role == "ADMIN"
+    assert notification.target_user_id is None
+    assert db_session.query(NotificationUserState).one().user_id == admin.id
     assert notification.is_urgent is True
     assert "D-7" in notification.title
     assert notification.order_id is None
@@ -104,9 +107,8 @@ def test_expired_already_uses_past_tense_title(app):
 
 
 def test_every_active_admin_gets_one(app):
-    """ADMIN 은 role 이라 팀 타깃으로 못 고른다 — 사용자별 1건으로 만든다."""
-    _admin("admin1")
-    _admin("admin2")
+    """관리자 수와 무관하게 Notification 은 ROLE 1건 — 수신은 활성 ADMIN 전원(NOTIF-ROLE-01)."""
+    admin1, admin2 = _admin("admin1"), _admin("admin2")
     _admin("admin3", is_active=False)
     db_session.add(User(username="staff1", password="pw-not-committed", name="사원",
                         role="STAFF", team="SALES", is_active=True))
@@ -114,7 +116,15 @@ def test_every_active_admin_gets_one(app):
     _set_expiry(1)
     app_expiry.check_and_notify(db_session, today=TODAY)
     db_session.commit()
-    assert db_session.query(Notification).count() == 2  # 활성 ADMIN 2명만
+
+    rows = db_session.query(Notification).all()
+    assert len(rows) == 1, "관리자 수만큼 알림이 복제됐다(NOTIF-ROLE-01 회귀)"
+    assert rows[0].target_type == "ROLE" and rows[0].target_role == "ADMIN"
+    assert rows[0].target_user_id is None
+    # 수신자는 활성 ADMIN 2명뿐 — 비활성 admin3·STAFF 는 빠진다.
+    states = (db_session.query(NotificationUserState)
+              .filter(NotificationUserState.notification_id == rows[0].id).all())
+    assert {s.user_id for s in states} == {admin1.id, admin2.id}
 
 
 def test_renewing_expiry_resets_notified_history(app):
