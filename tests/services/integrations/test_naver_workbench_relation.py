@@ -459,7 +459,7 @@ def test_cancel_refusal_is_not_hidden_by_another_failure(client, workbench_on):
     _login(client)
     first = _collected(order_no="N-REL-MIXFAIL", amount=500000)
     second = _collected(order_no="N-REL-MIXFAIL", amount=100)
-    first.triage_state = {"fulfillment": {"last_error": "이미 발송처리한 집입니다",
+    first.triage_state = {"fulfillment": {"last_error": "이미 발송처리한 주문입니다",
                                           "last_error_action": "cancel",
                                           "last_error_at": "2026-08-22T02:00:00"}}
     second.triage_state = {"fulfillment": {"last_error": "발주확인이 먼저입니다",
@@ -469,7 +469,7 @@ def test_cancel_refusal_is_not_hidden_by_another_failure(client, workbench_on):
 
     body = _body(client, tab="work", link_id=first.id)
 
-    assert "이미 발송처리한 집입니다" in body
+    assert "이미 발송처리한 주문입니다" in body
     assert 'id="wb-retry-failed"' not in body, "취소 거절 집에 재시도 버튼을 내면 안 된다"
 
 

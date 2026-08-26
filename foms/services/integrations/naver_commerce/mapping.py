@@ -251,6 +251,14 @@ def claim_reason_text(code: str) -> str:
 #: (모르는 모양을 추측해서 채우지 않는다).
 CLAIM_BLOCK_KEYS = ("cancel", "returnInfo", "return", "exchange")
 
+#: **반품 축 전용** 블록 이름 — ``cancel`` 이 없다 (2026-08-27 CEO A1).
+#: 취소 블록에도 ``refundExpectedDate``·``refundStandbyStatus`` 가 실려 온다. 그것을
+#: 반품 축으로 읽으면 **취소만 된 건이 "반품 진행" 이라고 말한다** — 스테이징 실데이터
+#: 344 링크 중 **50건**이 그랬다(머리의 배지는 `취소 완료` 인데 몸통은 `반품 진행`).
+#: 환불 시각은 취소에도 반품에도 있지만 **축이 다르다**: 취소 환불은 취소 줄이 맡는다.
+#: ``exchange`` 는 남긴다 — 수거는 반품·교환 **양쪽**에서 온다(N1 라벨 규칙과 같다).
+RETURN_BLOCK_KEYS = ("returnInfo", "return", "exchange")
+
 
 def _claim_blocks(detail: Any) -> list[dict]:
     """클레임 상세가 들어 있을 수 있는 블록들을 **우선순위 순**으로 모은다.
@@ -275,6 +283,35 @@ def _claim_blocks(detail: Any) -> list[dict]:
                 blocks.append(block)
     if current:
         blocks.append(current)
+    return blocks
+
+
+def _return_blocks(detail: Any) -> list[dict]:
+    """**반품 축**이 읽을 블록만 우선순위 순으로 모은다 (2026-08-27 CEO A1).
+
+    :func:`_claim_blocks` 와 갈라 둔 이유: 그쪽은 ``cancel`` 이 첫 번째다(사유 원문을
+    실제로 주는 경로라 옳다). 반품 축이 같은 목록을 쓰면 **취소 블록의 환불 필드가
+    반품 진행으로 새어** 취소만 된 건에 "반품 진행" 줄이 뜬다.
+
+    ``currentClaim`` 자체는 넣지 않는다 — 실데이터에서 그것은 평평한 클레임이 아니라
+    ``{"return": …}``/``{"cancel": …}`` **래퍼**였다(2026-08-27 스테이징 83건 관측).
+    넣으면 래퍼 안의 ``cancel`` 이 다시 새는 길이 된다.
+
+    Args:
+        detail: 상품주문 상세 1건(dict 가 아니면 빈 목록).
+
+    Returns:
+        비어 있지 않은 dict 블록 목록. 앞선 것이 이긴다.
+    """
+    if not isinstance(detail, dict):
+        return []
+    current = detail.get("currentClaim") if isinstance(detail.get("currentClaim"), dict) else {}
+    blocks: list[dict] = []
+    for holder in (detail, current):
+        for key in RETURN_BLOCK_KEYS:
+            block = holder.get(key)
+            if isinstance(block, dict) and block:
+                blocks.append(block)
     return blocks
 
 
@@ -371,7 +408,7 @@ def extract_return_axis(detail: Any) -> dict:
         ``known`` 이 False 면 화면은 줄 자체를 내지 않는다 — 빈 칸이나 ``-`` 로 채우면
         "값이 없다"와 "우리가 모른다"가 같은 모양이 된다.
     """
-    blocks = _claim_blocks(detail)
+    blocks = _return_blocks(detail)
     raw_address: dict = {}
     for block in blocks:
         candidate = block.get("collectAddress")

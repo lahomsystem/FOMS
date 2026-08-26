@@ -50,8 +50,14 @@ def _login(client) -> User:
     return user
 
 
-def _link(*, claim: dict | None = None) -> ExternalOrderLink:
-    """수집만 된 링크 1건. ``claim`` 을 주면 그대로 ``cancel`` 블록에 싣는다."""
+def _link(*, claim: dict | None = None, block: str = "return") -> ExternalOrderLink:
+    """수집만 된 링크 1건. ``claim`` 을 주면 ``block`` 이름으로 싣는다.
+
+    2026-08-27 정정: 기본이 ``cancel`` 이었다. 그래서 **양성 픽스처가 곧 결함**이었고
+    (취소 블록을 반품 축으로 읽는 것), 음성 사례는 "클레임 아예 없음" 하나뿐이라
+    취소만 된 건에 반품 줄이 뜨는 것을 아무도 못 봤다. 기본을 ``return`` 으로 바꾸고
+    ``cancel`` 은 **음성 사례를 만들 때** 명시적으로 넘긴다.
+    """
     external_id = f"PO-RA-{_uid()}"
     order_no = f"N-RA-{_uid()}"
     snapshot = {
@@ -65,7 +71,7 @@ def _link(*, claim: dict | None = None) -> ExternalOrderLink:
         },
     }
     if claim:
-        snapshot["cancel"] = claim
+        snapshot[block] = claim
     link = ExternalOrderLink(channel=CHANNEL, external_id=external_id,
                              sync_status="COLLECTED", external_order_no=order_no,
                              raw_snapshot=snapshot, group_key=group_key_text(snapshot),
@@ -130,3 +136,22 @@ def test_collecting_status_label_is_korean_on_screen(app, client, workbench_on):
     body = _body(client)
     assert "수거중" in body
     assert "COLLECTING" not in body
+
+
+def test_cancel_only_order_shows_no_return_block(app, client, workbench_on):
+    """**취소만 된 건도** 반품 줄을 내지 않는다 (2026-08-27 CEO A1).
+
+    지금까지 음성 사례가 "클레임 아예 없음" 하나뿐이었다. 취소 블록에도 환불 필드가
+    실려 오므로, 반품 축이 그것을 읽으면 머리의 배지는 `취소 완료` 인데 몸통은
+    `반품 진행` 이라고 말한다 — 스테이징 실데이터 344 링크 중 50건이 그랬다.
+    """
+    _login(client)
+    _link(block="cancel", claim={
+        "claimStatus": "CANCEL_DONE",
+        "refundExpectedDate": "2026-08-23T00:00:00.000+09:00",
+        "refundStandbyStatus": "환불처리완료",
+        "refundStandbyReason": "취소 진행중건 존재",
+    })
+    body = _body(client)
+    assert "wb-return" not in body
+    assert "반품 진행" not in body
