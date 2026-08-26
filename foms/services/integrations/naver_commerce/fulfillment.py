@@ -9,6 +9,10 @@ web 은 :func:`foms.services.jobs.queue.enqueue_naver_fulfillment` 로 enqueue �
 
 * **멱등** — 링크의 ``triage_state['fulfillment']`` 에 처리 시각을 남기고, 값이 있으면
   네이버를 다시 부르지 않는다. 네이버의 400(이미 처리됨)을 정상 흐름으로 삼지 않는다.
+  발송처리는 신호가 **한 벌 더** 있다(2026-08-26 T5): 원본 스냅샷의
+  ``delivery.sendDate``. 판매자센터에서 사람이 직접 보낸 발송은 우리 표식에 없어서,
+  그 신호를 안 보면 이미 나간 집에 두 번째 호출이 그대로 나간다
+  (:func:`_naver_dispatched_at`).
 * **실패는 조용히 넘기지 않는다** — 사유 문장을 상태에 남겨 화면이 그대로 보여준다.
 * 배송방법은 자사 배송이라 ``DIRECT_DELIVERY``(직접 전달). 택배사·송장이 없다.
 """
@@ -491,6 +495,44 @@ def clear_failure(session: Session, *, link_id: int,
     return {"cleared": cleared, "link_ids": [row.id for row in links]}
 
 
+def _naver_dispatched_at(link: ExternalOrderLink) -> str:
+    """네이버 **원본이 말하는** 발송 시각 — 없으면 빈 문자열(2026-08-26 T5).
+
+    멱등의 두 번째 신호다. 우리 표식(``dispatched_at``)은 **우리가 눌러서 나간 발송**만
+    안다 — 판매자센터에서 사람이 직접 발송처리한 집은 우리 쪽에 아무 흔적이 없어서,
+    지금까지 그 집에 두 번째 호출이 그대로 나갔다. 되돌릴 수 없는 호출이라
+    "네이버가 400 으로 막아 주겠지"에 기대지 않는다(이 모듈 첫머리의 규율).
+
+    Args:
+        link: 판정할 링크(상품주문 1건).
+
+    Returns:
+        ``delivery.sendDate`` 원문(공백 제거). 원본에 배송 블록이 없거나 발송 전이면
+        빈 문자열 — **없는 값을 지어내지 않는다**.
+    """
+    from foms.services.integrations.naver_commerce.mapping import extract_delivery
+
+    return str(extract_delivery(link.raw_snapshot or {}).get("send_date") or "").strip()
+
+
+def _naver_dispatched_text(value: str) -> str:
+    """발송 시각 하나를 사람이 읽는 KST 문자열로 편다(못 읽으면 원문 그대로).
+
+    이 문장은 실패 띠·폴링 응답을 타고 **사람 눈앞에 그대로** 간다. 시각이 없으면
+    "이미 있습니다"만 남아 판매자센터에서 어느 건을 봐야 할지 모른다.
+
+    Args:
+        value: ``delivery.sendDate`` 원문(오프셋이 붙어 온다).
+
+    Returns:
+        ``YYYY-MM-DD HH:MM`` 문자열. 못 읽으면 **원문 그대로** — 못 읽었다고 지우면
+        문장이 "발송 기록이 없다"고 거짓말한다.
+    """
+    from foms.services.datetime_kst import format_datetime_kst
+
+    return format_datetime_kst(value, "%Y-%m-%d %H:%M") or value
+
+
 def dispatch_order(session: Session, client: Any, *, link_id: int,
                    delivery_method: str = DIRECT_DELIVERY,
                    actor_user_id: Optional[int] = None,
@@ -506,11 +548,14 @@ def dispatch_order(session: Session, client: Any, *, link_id: int,
         now: 시각 주입(테스트).
 
     Returns:
-        ``{"dispatched": [...], "skipped": [...]}``.
+        ``{"dispatched": [...], "skipped": [...]}``. ``skipped`` 에는 우리 표식으로
+        이미 나간 건과 **네이버 원본이 이미 발송을 말하는 건**(:func:`_naver_dispatched_at`)
+        이 함께 들어간다 — 둘 다 네이버로 호출이 나가지 않은 건이다.
 
     Raises:
         FulfillmentError: 링크가 없거나 (:data:`CLOSE_NOW_RELATIONS` 밖의 집인데 —
-            신규·재결제) 발주확인 전이거나 네이버 호출이 실패했을 때.
+            신규·재결제) 발주확인 전이거나 네이버 호출이 실패했을 때. **보낼 것이
+            네이버 기록 때문에 하나도 남지 않은 집**도 여기로 온다(아래 참조).
     """
     stamp = now or now_utc_naive()
     links = _links_of_group(session, link_id)
@@ -541,9 +586,44 @@ def dispatch_order(session: Session, client: Any, *, link_id: int,
         session.flush()
         raise FulfillmentError(reason)
 
-    todo = [row for row in links if not _state(row).get("dispatched_at")]
+    # 멱등 신호 두 벌(2026-08-26 T5). ①은 우리가 눌러서 나간 발송, ②는 판매자센터에서
+    # 사람이 직접 보낸 발송이다. ②는 우리 쪽에 흔적이 없어 지금까지 그대로 두 번째 호출이
+    # 나갔다 — 구매자에게 '배송 시작'이 다시 뜨고 되돌릴 수 없다.
+    ours_done = [row for row in links if _state(row).get("dispatched_at")]
+    naver_done = [row for row in links
+                  if row not in ours_done and _naver_dispatched_at(row)]
+    todo = [row for row in links if row not in ours_done and row not in naver_done]
     if not todo:
+        if naver_done:
+            # **조용히 성공으로 돌려주지 않는다.** web 은 enqueue 만 하고 이미
+            # "요청했습니다"로 답했다 — 아무 표식도 안 바뀌면 화면은 그대로고, 사람에게는
+            # "눌렀는데 아무 일도 안 났다"로 보여 한 번 더 누른다(불가역 경로에서 재클릭은
+            # 그 자체가 사고 경로다). 우리 표식으로 끝난 집은 화면이 이미 '발송처리 완료'
+            # 라고 말하므로 조용해도 되지만, 이 집은 화면에 아무 말이 없다.
+            # 사유는 **막힌 건에만** 찍는다(위 not_confirmed 와 같은 규율) — 집 전체에
+            # 찍으면 우리가 정상 발송한 형제까지 실패 목록에서 빨갛게 뜬다.
+            # 시각은 **그 상품주문 것**을 적는다. 대표 하나의 시각을 형제에게 돌려 쓰면
+            # 화면이 그 건에 대해 없는 사실을 말하게 된다(발송은 건별로 찍힌다).
+            reasons = {
+                str(row.external_id):
+                    ("네이버에 이미 발송 기록이 있습니다"
+                     f"({_naver_dispatched_text(_naver_dispatched_at(row))}) — "
+                     "발송처리를 보내지 않았습니다. 판매자센터에서 확인하세요.")
+                for row in naver_done
+            }
+            reason = reasons[str(naver_done[0].external_id)]
+            _mark_failures({str(row.external_id): row for row in naver_done},
+                           reasons, action="dispatch", stamp=stamp)
+            session.flush()
+            logger.warning("[NAVER] 발송처리 생략 link=%s 네이버 기록=%d건",
+                           link_id, len(naver_done))
+            raise FulfillmentError(reason)
         return {"dispatched": [], "skipped": [row.external_id for row in links]}
+    if naver_done:
+        # 일부만 걸린 집은 남은 건을 그대로 보낸다 — 실패가 아니라 **뺀 것**이다.
+        # 여기서 실패 사유를 찍으면 정상 처리된 집에 빨간 띠가 남는다.
+        logger.info("[NAVER] 발송처리에서 네이버 기록분 제외 link=%s 제외=%d건 발송=%d건",
+                    link_id, len(naver_done), len(todo))
 
     ids = [str(row.external_id) for row in todo]
     by_id = {str(row.external_id): row for row in todo}

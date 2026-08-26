@@ -51,6 +51,21 @@
 {% set dispatched = grp.dispatched if grp else selected.fulfillment.dispatched_at %}
 {% set dispatched_any = grp.dispatched_any if grp else selected.fulfillment.dispatched_at %}
 {% set dispatched_count = grp.dispatched_count if grp else (1 if selected.fulfillment.dispatched_at else 0) %}
+{# 네이버가 **이미 발송을 말하고 있는** 집(2026-08-26 T5). 지금까지 발송처리 판정은
+   우리 표식만 봤다 — 판매자센터에서 이미 나간 집에 버튼이 열렸고, 누르면 되돌릴 수 없는
+   두 번째 호출이 나간다(구매자에게 '배송 시작'·구매확정·정산 시계).
+   값은 `_dispatch_view` 가 이미 만들어 둔 것을 그대로 쓴다 — 새 조회·새 API 호출 0.
+
+   **우리 표식이 있으면 잠그지 않는다**: 그 시각은 우리가 보낸 그 발송을 네이버가
+   되돌려준 것이라 새 사실이 아니다. 여기서 잠그면 부분 발송 집(형제 일부만 나간 집)의
+   남은 건이 영영 못 나간다.
+
+   **단위 주의 — 이 값은 pane 이 연 상품주문 1건의 원본이고 버튼은 집 전체에 나간다.**
+   집 단위로 세려면 형제의 원본을 읽어야 하는데 pane 컨텍스트에 그 값이 없다(그걸 만들려면
+   새 조회가 붙는다). 그래서 화면은 **보이는 증거로 닫는 쪽**만 한다 — 닫는 방향은
+   `dispatched_any` 가 취소를 닫는 것과 같은 규율이고, 못 본 형제(형제만 발송 기록이 있는
+   경우)는 서버 `dispatch_order` 가 형제 전부의 원본을 읽어 그 건만 빼서 막는다. #}
+{% set naver_sent_at = '' if selected.dispatch.ours_at else selected.dispatch.naver_at %}
 {% set claim_label = (grp.claim_label if grp else '') or selected.claim.label or '' %}
 {% set member_count = grp.count if grp else 1 %}
 {# 주문 만들기가 실제로 옮길 형제 수(리뷰 M-2). 집이 없으면(큐 밖 단건) 링크 자신이
@@ -68,11 +83,20 @@
                   if household_claimed
                   else ('취소한 집입니다 — 주문 만들기·발주확인·발송처리가 모두 닫혀 있습니다'
                         if household_canceled else '') %}
+{# 네이버 기록으로 잠근 이유도 한 곳에서 만든다(버튼 title 과 화면 문구가 같은 문장을
+   쓴다). **시각까지** 적는다 — "이미 있습니다"만으로는 사람이 판매자센터에서 어느 건을
+   봐야 하는지 모른다. 상품주문 번호를 붙이는 것도 같은 이유다(집이 6건씩 온다). #}
+{% set naver_sent_why = ('네이버에 이미 발송 기록이 있습니다(' ~ naver_sent_at ~ ') — '
+                         ~ '상품주문 ' ~ selected.external_id ~ ' 기준입니다. '
+                         ~ '판매자센터에서 확인하세요') if naver_sent_at else '' %}
 {# 옮길 형제가 하나도 없으면 버튼을 열지 않는다 — 열어 두면 모달이 "상품주문 0건을
    주문 1건으로 만듭니다" 라고 말하고, 눌러도 아무 일도 안 난다(CEO 검수 상). #}
 {% set can_create = not selected.order_id and not locked and promotable_count > 0 %}
 {% set can_confirm = place_pending and not locked %}
-{% set can_dispatch = not locked and not dispatched and (not place_pending or close_now) %}
+{# `not naver_sent_at`: 네이버가 이미 발송을 말하는 집에 두 번째 호출을 내보내지 않는다.
+   서버 `dispatch_order` 도 같은 신호(원본 `delivery.sendDate`)로 한 겹 더 막는다. #}
+{% set can_dispatch = not locked and not dispatched and not naver_sent_at
+                      and (not place_pending or close_now) %}
 {# 취소는 **하나라도** 나갔으면 닫는다 — 서버 `cancel_order` 가 형제 중 발송된 건이
    있으면 집 전체를 거절한다(반품 흐름). 링크 기준으로 두면 안 나간 형제로 열었을 때
    버튼이 열려 있다가 서버에서 실패한다. #}
@@ -176,7 +200,13 @@
             {% else %}
             <button type="button"
                     class="btn btn-sm {{ 'btn-primary' if can_dispatch else 'btn-outline-secondary' }}"
-                    id="wb-dispatch" {% if can_dispatch %}data-bs-toggle="modal" data-bs-target="#wb-modal-dispatch"{% else %}disabled title="{% if locked %}{{ lock_why }}{% elif dispatched %}이미 발송처리가 끝났습니다{% else %}발주확인이 먼저입니다(발주확인 전 상품주문이 있습니다){% endif %}"{% endif %}>
+                    {# title 은 **어느 사유가 이겼는지**가 갈리게 쓴다 — 잠긴 이유가 뭉뚱그려지면
+                       사람이 엉뚱한 곳(발주확인 탭)으로 간다. 순서가 곧 우선순위다:
+                       클레임·취소(집이 통째로 닫혔다) → 우리 발송 완료 → 네이버에 이미 기록
+                       (판매자센터로 보낸다) → 발주확인 미완(우리 화면에서 이어서 한다).
+                       네이버 기록이 발주확인보다 앞이어야 한다 — 이미 발송된 집에
+                       "발주확인이 먼저입니다"는 사람을 틀린 곳으로 보내는 말이다. #}
+                    id="wb-dispatch" {% if can_dispatch %}data-bs-toggle="modal" data-bs-target="#wb-modal-dispatch"{% else %}disabled title="{% if locked %}{{ lock_why }}{% elif dispatched %}이미 발송처리가 끝났습니다{% elif naver_sent_at %}{{ naver_sent_why }}{% else %}발주확인이 먼저입니다(발주확인 전 상품주문이 있습니다){% endif %}"{% endif %}>
                 {{ '지금 닫기' if close_now else '발송처리' }}
             </button>
             {% endif %}
@@ -209,6 +239,16 @@
         <div class="wb-acts__why wb-acts__why--locked small">
             이 집은 {{ claim_label if (household_claimed and claim_label) else '취소 완료' }}입니다.
             발주확인·발송처리·주문 만들기가 모두 닫혀 있습니다.
+        </div>
+        {% elif naver_sent_at %}
+        {# 잠근 사유가 title 에만 있으면 마우스가 없는 기기에서는 영영 못 읽는다('발주확인 완료'
+           배지와 같은 부류, 2026-08-24 승격 게이트 3). **잠긴 집에만** 뜨는 줄이라 상시
+           경고가 아니다 — 네이버 기록을 나란히 보여주는 아래 발송 줄은 그대로 두고
+           (그건 사실 표시고 경고가 아니다) 여기서는 왜 버튼이 닫혔는지만 말한다. #}
+        <div class="wb-acts__why small">
+            네이버에 <b>이미 발송 기록</b>이 있습니다({{ naver_sent_at }}) — 우리 쪽 발송처리
+            기록은 없어, <b>판매자센터에서 나간 발송</b>으로 보고 발송처리를 잠갔습니다.
+            상품주문 {{ selected.external_id }} 기준입니다 — 판매자센터에서 확인하세요.
         </div>
         {% elif place_pending and close_now %}
         <div class="wb-acts__why small">
@@ -251,8 +291,10 @@
         <div class="wb-acts__why small">
             상품주문 {{ member_count }}건 중 <b>{{ dispatched_count }}건 발송 완료</b> —
             {# 발주확인이 남아 있으면 발송처리 버튼은 잠겨 있다. 그때 "남은 건만 나갑니다"는
-               화면이 없는 동작을 약속하는 말이 된다(CEO 검수 중). #}
-            {% if can_dispatch %}남은 건만 나갑니다.{% else %}발주확인이 먼저라 지금은 보낼 수 없습니다.{% endif %}
+               화면이 없는 동작을 약속하는 말이 된다(CEO 검수 중).
+               네이버 기록으로 잠긴 집도 같은 함정이다 — 사유가 발주확인이 아닌데 "발주확인이
+               먼저라"고 말하면 사람이 발주확인 탭으로 간다(2026-08-26 T5). #}
+            {% if can_dispatch %}남은 건만 나갑니다.{% elif naver_sent_at %}네이버에 이미 발송 기록이 있어 지금은 보낼 수 없습니다.{% else %}발주확인이 먼저라 지금은 보낼 수 없습니다.{% endif %}
             취소는 <b>반품</b>으로만 가능합니다.
         </div>
         {% elif dispatched and not locked %}
