@@ -25,6 +25,9 @@
 
     /** 상세 pane 조각 라우트(읽기 전용 GET). */
     var PANE_URL = '/admin/naver-ingest/triage/pane';
+    // 이력 행의 **읽기 전용** 원본 조각. pane 과 다른 경로다 — 조각에 처리 버튼이
+    // 없어야 이력에서 되돌릴 수 없는 호출이 나가지 않는다(이력 절대 규칙 3).
+    var DETAIL_URL = '/admin/naver-ingest/triage/detail';
     /** mutation 라우트 접두어. 뒤에 `<link_id>/<작업>` 이 붙는다. */
     var BASE = '/admin/naver-ingest/';
 
@@ -54,6 +57,7 @@
      * 취소를 누르면 보고 있지 않은 집으로 호출이 나간다.
      */
     var paneToken = 0;
+    var detailToken = 0;
 
     /**
      * 폴링 경합 토큰과 타이머.
@@ -277,6 +281,7 @@
                 submitAck(btn);
                 return;
             }
+
             // 후보 버튼은 후보 수만큼 나온다 — id 를 달면 문서에 중복이 생긴다(절대 규칙 1).
             // R-3 부터 이 버튼은 바로 붙이지 않고 **정리 계획 카드**를 연다.
             if (btn.classList.contains('wb-attach')) {
@@ -292,6 +297,16 @@
                 return;
             }
             // 나머지 버튼(모달 열기·닫기)은 Bootstrap 이 맡는다.
+        }
+
+        // 이력 '원본 보기' — 평범한 링크다(이력 절대 규칙 3). JS 가 있을 때만 가로채
+        // 모달로 띄우고, 없으면 그 조각이 그대로 열린다. 행 수만큼 나오므로 id 가 아니라
+        // 클래스로 문다(절대 규칙 1).
+        var detailLink = target.closest('a.wb-hist-detail');
+        if (detailLink) {
+            event.preventDefault();
+            openHistoryDetail(detailLink);
+            return;
         }
 
         var row = target.closest('a.wb-row');
@@ -503,6 +518,57 @@
      * 실패하면(네트워크·비200·조각이 아닌 응답) 전체 페이지 왕복으로 되돌린다 —
      * 부분 갱신이 막혔다고 일이 멈추면 안 된다.
      */
+    /**
+     * 이력 행의 네이버 원본을 **읽기 전용 모달**로 연다.
+     *
+     * 큐에서 빠진 집은 처리 목록에 없어서, 지금까지 원본을 보려면 ERP 편집기를 새 탭으로
+     * 열어야 했다 — 그런데 옵션 원문·배송메모·클레임 사유·발송 결과는 거기 없다.
+     *
+     * 조각을 그대로 넣는다. 실패해도 페이지를 갈아엎지 않는다 — 이력은 읽는 화면이라
+     * 모달 안에서 사실대로 말하고 끝낸다(전체 왕복 폴백은 여기서 오히려 맥락을 잃는다).
+     */
+    async function openHistoryDetail(link) {
+        var id = safeId(link.getAttribute('data-detail-id'));
+        var body = document.getElementById('wb-detail-body');
+        var who = document.getElementById('wb-detail-who');
+        var modal = document.getElementById('wb-modal-detail');
+        if (!id || !body || !modal || !window.bootstrap) {
+            return;
+        }
+        if (who) {
+            who.textContent = link.getAttribute('data-customer') || '';
+        }
+        body.setAttribute('aria-busy', 'true');
+        body.innerHTML = '<p class="text-muted mb-0">불러오는 중…</p>';
+        window.bootstrap.Modal.getOrCreateInstance(modal).show();
+        var token = ++detailToken;
+        try {
+            const response = await fetch(DETAIL_URL + '?link_id=' + id, {
+                credentials: 'same-origin',
+                headers: { 'X-Requested-With': 'XMLHttpRequest' }
+            });
+            if (!response.ok) {
+                throw new Error('HTTP ' + response.status);
+            }
+            const html = await response.text();
+            if (token !== detailToken) {
+                return;   // 늦게 온 응답 — 새로 연 집을 덮지 않는다.
+            }
+            body.innerHTML = html;
+        } catch (error) {
+            if (token !== detailToken) {
+                return;
+            }
+            // 조용히 비우지 않는다 — 빈 모달은 "원본이 없다"로 읽힌다.
+            body.innerHTML = '<p class="text-danger mb-0">원본을 불러오지 못했습니다. '
+                + '잠시 뒤 다시 눌러 주세요.</p>';
+        } finally {
+            if (token === detailToken) {
+                body.setAttribute('aria-busy', 'false');
+            }
+        }
+    }
+
     async function loadPane(linkId, fallbackHref) {
         var id = safeId(linkId);
         var pane = document.getElementById('wb-pane');
