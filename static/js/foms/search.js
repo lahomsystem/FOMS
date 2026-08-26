@@ -72,8 +72,9 @@
       var li = document.createElement('li');
       var btn = document.createElement('button');
       btn.type = 'button';
-      btn.className = 'foms-search-overlay__link';
+      btn.className = 'foms-search-overlay__recent-chip';
       btn.textContent = term;
+      btn.title = term;
       btn.setAttribute('data-foms-search-recent-term', term);
       li.appendChild(btn);
       recentList.appendChild(li);
@@ -261,7 +262,7 @@
       return;
     }
 
-    var recentBtn = event.target.closest('.foms-search-overlay__link[data-foms-search-recent-term]');
+    var recentBtn = event.target.closest('[data-foms-search-recent-term]');
     if (recentBtn && dialog.contains(recentBtn)) {
       event.preventDefault();
       var term = recentBtn.getAttribute('data-foms-search-recent-term') || '';
