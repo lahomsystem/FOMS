@@ -278,6 +278,39 @@ def set_sales_assignee(
     )
 
 
+def replace_sales_owner_in_tx(
+    session: Session, *, order_id: int, user_id: int, actor_user_id: int,
+    reason: Optional[str], source: str = "TEAM_REPLACE",
+    now: Optional[datetime.datetime] = None,
+) -> None:
+    """**이미 열린 트랜잭션 안에서** SALES owner 를 교체한다(event 포함, version bump 없음).
+
+    :func:`set_sales_assignee` 와 같은 원장(active row replace + ``SALES_ASSIGNEE_SET``)을
+    남기지만 REV-00 :func:`execute_order_mutation` 을 부르지 않는다 — 이미 mutation 안
+    (FOR UPDATE 락·version bump 완료)에서 부수효과로 호출하는 자리 전용이다. 거기서
+    execute_order_mutation 을 다시 부르면 같은 주문 락을 중첩으로 잡고 version 이 한 저장에
+    두 번 올라간다(클라이언트 If-Match 가 즉시 stale).
+
+    호출자 책임: 주문 행이 이 세션에서 이미 잠겨 있을 것, 커밋할 것, 대상 user 가 활성일 것.
+    사람이 직접 지정하는 경로는 이 함수가 아니라 :func:`set_sales_assignee` 를 쓴다.
+
+    Args:
+        session: 열린 세션(커밋은 호출자).
+        order_id: 대상 주문 id.
+        user_id: 새 SALES owner user id.
+        actor_user_id: 행위자 user id(감사 원장 author).
+        reason: 교체 사유(1..500). 원장에 남는다.
+        source: ``OrderAssignment.source`` 값.
+        now: 시각 주입(테스트).
+    """
+    ts = now or now_utc_naive()
+    clean = _clean_reason(reason, required=False)
+    _replace_active(session, order_id, "SALES", [user_id], actor_user_id=actor_user_id,
+                    add_source=source, reason=clean, now=ts)
+    _emit_event(session, order_id, "SALES_ASSIGNEE_SET", actor_user_id,
+                {"user_id": user_id, "reason": clean}, ts)
+
+
 def _set_assignees(
     session: Session, *, domain: str, event_type: str, policy_id: str,
     actor_user_id: int, order_id: int, user_ids: Sequence[int], reason: Optional[str],
@@ -486,7 +519,8 @@ __all__ = [
     "AssignmentError", "AssignmentValidationError", "ClaimConflictError",
     "AssignmentNotActiveError",
     "resolve_assignee_ids",
-    "claim_drawing", "set_sales_assignee", "set_drawing_assignees",
+    "claim_drawing", "set_sales_assignee", "replace_sales_owner_in_tx",
+    "set_drawing_assignees",
     "set_construction_assignees", "batch_set_drawing_assignees", "release_assignment",
     "active_assignee_ids", "is_assignee", "can_release_assignment",
 ]

@@ -176,7 +176,11 @@ def test_different_households_notify_separately(app):
 
 
 def test_same_household_split_by_owner(app):
-    """같은 집이라도 담당자가 다르면 따로 간다 — 남의 주문 소식을 받으면 안 된다."""
+    """같은 집이라도 담당자가 다르면 따로 간다 — 남의 주문 소식을 받으면 안 된다.
+
+    담당자마다 ``USER`` 알림 1건 + 관리자용 ``ROLE`` 알림 1건이 함께 생긴다
+    (2026-08-26: 취소는 담당자와 관리자가 같이 본다).
+    """
     _user("ADMIN")
     sales_a, sales_b = _user("SALES"), _user("SALES")
     order_no = f"N-{_uid()}"
@@ -186,9 +190,12 @@ def test_same_household_split_by_owner(app):
     _sweep(links, order_nos=[order_no] * 2)
 
     rows = _claims()
-    assert len(rows) == 2
-    assert {row.target_type for row in rows} == {"USER"}
-    assert {row.target_user_id for row in rows} == {sales_a.id, sales_b.id}
+    user_rows = [row for row in rows if row.target_type == "USER"]
+    role_rows = [row for row in rows if row.target_type == "ROLE"]
+    assert {row.target_user_id for row in user_rows} == {sales_a.id, sales_b.id}
+    # 담당자 그룹이 2개라 관리자 알림도 그룹마다 1건씩(집·담당자 단위 발송 계약).
+    assert len(role_rows) == 2
+    assert {row.target_role for row in role_rows} == {"ADMIN"}
 
 
 # --------------------------------------------------------------------------- #

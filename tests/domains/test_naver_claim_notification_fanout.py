@@ -8,7 +8,9 @@
 
 1. 담당자 없는 클레임 → Notification **1건**, ``target_type='ROLE'`` ·
    ``target_role='ADMIN'`` (관리자 수와 무관하게 1건).
-2. 담당자 있는 클레임 → 기존대로 ``target_type='USER'`` 1건(회귀 가드).
+2. 담당자 있는 클레임 → ``target_type='USER'`` 1건 **+ 관리자용 ROLE 1건**
+   (2026-08-26 사용자 확정: 취소는 담당자와 관리자가 같이 본다). 관리자가 몇 명이든
+   ROLE 은 여전히 1건이다.
 3. 대상이 아무도 없으면 알림 0건이고 ``notified_status`` 도 남기지 않는다
    (다음 스윕에서 다시 시도해야 하므로).
 4. ``refresh_claims`` 의 ``notified`` 집계는 **수신자 수**다 — ROLE 로 바뀌었다고
@@ -179,7 +181,7 @@ def test_unassigned_claim_creates_single_role_notification(db):
 
 
 def test_holding_account_owner_still_falls_back_to_role(db):
-    """보류함(``naver_unassigned``)이 owner 면 사람이 아니므로 ADMIN 역할로 올린다."""
+    """보류함(``naver_unassigned``)이 owner 면 사람이 아니므로 ADMIN 역할 알림만 남는다."""
     _admins(2)
     holding = _user(OWNER_USERNAME, role="STAFF", name="미배정")
     link = _link(order=_order_with_owner(holding))
@@ -195,24 +197,39 @@ def test_holding_account_owner_still_falls_back_to_role(db):
 # 2. 담당자 있음 → USER 알림 (회귀 가드)
 # --------------------------------------------------------------------------- #
 
-def test_assigned_claim_still_targets_the_owner(db):
-    """담당 SALES 가 있으면 그 사람 앞 USER 알림 1건 — ROLE 로 새지 않는다."""
-    _admins(3)
+def test_assigned_claim_notifies_owner_and_admins(db):
+    """담당자가 있으면 담당자 USER 1건 + 관리자 ROLE 1건 — 둘 다 받는다."""
+    admins = _admins(3)
     sales = _user(f"sales-{_uid()}", role="STAFF", name="박영업")
     link = _link(order=_order_with_owner(sales))
 
     stats = _run_claim(link)
 
     rows = _claim_notifications()
-    assert len(rows) == 1
-    assert rows[0].target_type == "USER"
-    assert rows[0].target_user_id == sales.id
-    assert rows[0].target_role is None
-    assert stats["notified"] == 1
+    assert len(rows) == 2, "담당자·관리자 알림이 각각 1건씩 나와야 한다"
+    user_row = next(row for row in rows if row.target_type == "USER")
+    role_row = next(row for row in rows if row.target_type == "ROLE")
+    assert user_row.target_user_id == sales.id and user_row.target_role is None
+    # 관리자가 3명이어도 ROLE row 는 1건이다(NOTIF-ROLE-01).
+    assert role_row.target_role == "ADMIN" and role_row.target_user_id is None
+    assert stats["notified"] == 1 + len(admins)
 
     states = (db_session.query(NotificationUserState)
-              .filter(NotificationUserState.notification_id == rows[0].id).all())
+              .filter(NotificationUserState.notification_id == user_row.id).all())
     assert [s.user_id for s in states] == [sales.id]
+
+
+def test_admin_owner_is_not_notified_twice(db):
+    """담당자가 관리자면 ROLE 로 이미 받는다 — 같은 사건에 USER 알림을 겹쳐 만들지 않는다."""
+    admin_owner = _user(f"admin-{_uid()}", role="ADMIN", name="관리영업")
+    link = _link(order=_order_with_owner(admin_owner))
+
+    stats = _run_claim(link)
+
+    rows = _claim_notifications()
+    assert len(rows) == 1
+    assert rows[0].target_type == "ROLE" and rows[0].target_role == "ADMIN"
+    assert stats["notified"] == 1
 
 
 # --------------------------------------------------------------------------- #
