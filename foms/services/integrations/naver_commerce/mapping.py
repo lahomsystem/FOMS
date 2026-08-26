@@ -60,6 +60,37 @@ def _int(value: Any) -> int:
         return 0
 
 
+def _bool(value: Any) -> bool:
+    """참/거짓 값 정규화. 문자열 ``"false"``·``"0"`` 을 참으로 읽지 않는다.
+
+    원본은 JSONB 를 왕복하면서 불리언이 문자열로 굳는 경우가 있다. ``bool("false")`` 는
+    True 라서 그대로 쓰면 **송장 오류가 아닌 건이 오류로 뜬다**.
+    """
+    if isinstance(value, str):
+        return value.strip().lower() not in ("", "false", "0", "no", "n")
+    return bool(value)
+
+
+def _known_int(source: dict, key: str) -> Optional[int]:
+    """값이 **실제로 온 경우에만** 정수를 준다(키가 없거나 빈 값이면 None).
+
+    "0 이 왔다"와 "안 왔다"를 가르기 위한 헬퍼다. 둘을 같이 0 으로 뭉개면 값이 없는
+    원본이 "초기값 0"으로 읽혀 없는 부분취소가 생긴다.
+
+    Args:
+        source: 읽을 dict.
+        key: 원본 필드명.
+
+    Returns:
+        정수(파싱 실패는 0), 값이 아예 없으면 None.
+    """
+    if not isinstance(source, dict) or key not in source:
+        return None
+    if _text(source.get(key)) == "":
+        return None
+    return _int(source.get(key))
+
+
 def unwrap_detail(detail: dict) -> tuple[dict, dict, dict]:
     """상세 응답 1건을 ``(order, product_order, shipping_address)`` 로 푼다.
 
@@ -215,12 +246,19 @@ def extract_claim(detail: dict) -> dict:
     PAYED 하나뿐이라 취소 요청 건도 그대로 수집된다). 그 값을 아무도 읽지 않아 화면에
     표시되지 않았고, 사람이 "주문 만들기"를 누르면 취소 건이 정상 주문이 됐다.
 
+    ``detailed_reason`` 은 **고객이 직접 쓴 사유 원문**이다(인벤토리 §2.5 — 실데이터
+    ``"일시불 재결제 예정"``). 코드값(``reason``)만 봐서는 취소가 "재결제하려고 무른 것"인지
+    "안 사겠다는 것"인지 갈리지 않아, 지금까지 사람이 네이버를 따로 열어 확인했다.
+    **둘을 합치지 않는다** — ``reason`` 은 집계·판정에 쓰는 코드고 ``detailed_reason`` 은
+    사람이 읽는 문장이라 축이 다르다.
+
     Args:
         detail: 상품주문 상세 1건.
 
     Returns:
-        ``{"status", "type", "reason", "requested_at", "label", "blocking"}``.
-        클레임이 없으면 ``status`` 가 빈 문자열이고 ``blocking`` 은 False.
+        ``{"status", "type", "reason", "requested_at", "label", "blocking",
+        "detailed_reason"}``.
+        클레임이 없으면 ``status`` 와 ``detailed_reason`` 이 빈 문자열이고 ``blocking`` 은 False.
     """
     order, product_order, _shipping = unwrap_detail(detail)
     cancel = detail.get("cancel") if isinstance(detail.get("cancel"), dict) else {}
@@ -239,6 +277,10 @@ def extract_claim(detail: dict) -> dict:
         "requested_at": _text(source.get("claimRequestDate")),
         "label": CLAIM_STATUS_LABELS.get(upper, status),
         "blocking": upper in BLOCKING_CLAIM_STATUSES,
+        # 고객이 쓴 사유 원문. ``reason`` 과 **같은 source 규칙**(cancel → currentClaim.cancel)
+        # 을 쓰고, 취소·반품 어느 이름으로 와도 잡는다. 없으면 빈 문자열(화면이 줄을 안 낸다).
+        "detailed_reason": (_text(source.get("cancelDetailedReason"))
+                            or _text(source.get("returnDetailedReason"))),
     }
 
 
@@ -301,6 +343,117 @@ def extract_place_status(detail: dict) -> dict:
         "confirmed": upper in CONFIRMED_PLACE_STATUSES,
         "placed_at": _text(product_order.get("placeOrderDate")),
         "shipping_due": _text(product_order.get("shippingDueDate")),
+    }
+
+
+#: 사람이 읽는 **배송 상태** 라벨. 모르는 값은 원문 그대로 보여준다
+#: (``PLACE_STATUS_LABELS``·``CLAIM_STATUS_LABELS`` 와 같은 규율 — 모르는 상태를 숨기지 않는다).
+#: 스테이징 실데이터 281건에서 실제로 온 값은 ``NOT_TRACKING``(자사 배송이라 추적이 없다)과
+#: 배송수단 ``DIRECT_DELIVERY`` 다. 가구는 자사 배송·시공이라 택배 추적이 붙지 않는다.
+DELIVERY_STATUS_LABELS = {
+    "NOT_TRACKING": "배송추적 없음",
+    "DIRECT_DELIVERY": "자사 직접 전달",
+    "DELIVERING": "배송중",
+    "DELIVERED": "배송완료",
+}
+
+
+def extract_delivery(detail: dict) -> dict:
+    """발송(배송) 축을 뽑는다 — 인벤토리 §2.4 (281건 중 108건에 ``delivery`` 블록이 있다).
+
+    **발송처리는 우리가 눌러 놓고 그 결과를 화면이 안 읽었다.** "언제 발송처리가 나갔나"를
+    지금은 FOMS 쪽 기록(``fulfillment``)으로만 알아서, 네이버 쪽에 안 찍혔거나 시각이
+    어긋난 건을 사람이 판매자센터를 열어야 알 수 있었다. 네이버가 말하는 값을 그대로
+    되읽어 우리 기록 옆에 세우면 어긋남이 눈에 보인다.
+
+    Args:
+        detail: 상품주문 상세 1건(``delivery`` 는 ``order``·``productOrder`` 와 나란한
+            최상위 블록이다. 응답이 평평하게 오는 변형도 받아준다).
+
+    Returns:
+        ``{"method", "status", "status_label", "send_date", "wrong_tracking"}``.
+        ``delivery`` 블록이 없으면 전부 빈 값/False 다 — **예외를 던지지 않는다**
+        (표시용 보조라 여기서 터지면 멀쩡한 화면이 통째로 죽는다).
+        ``send_date`` 는 **원문 문자열 그대로** 준다. 사람이 읽는 형식 변환은 화면 몫이다.
+    """
+    if not isinstance(detail, dict):
+        detail = {}
+    order, product_order, _shipping = unwrap_detail(detail)
+    delivery = detail.get("delivery") if isinstance(detail.get("delivery"), dict) else {}
+    if not delivery:
+        # 평평한 응답·주문 단위로 접혀 오는 변형 대비(``unwrap_detail`` 과 같은 규율).
+        for holder in (product_order, order):
+            candidate = holder.get("delivery") if isinstance(holder, dict) else None
+            if isinstance(candidate, dict) and candidate:
+                delivery = candidate
+                break
+    status = _text(delivery.get("deliveryStatus"))
+    return {
+        "method": _text(delivery.get("deliveryMethod")),
+        "status": status,
+        "status_label": DELIVERY_STATUS_LABELS.get(status.upper(), status),
+        "send_date": _text(delivery.get("sendDate")),
+        "wrong_tracking": _bool(delivery.get("isWrongTrackingNumber")),
+    }
+
+
+def _axis_partial(initial: Optional[int], remain: Optional[int]) -> bool:
+    """한 축(수량 또는 금액)이 **부분**취소인가 — 일부는 사라지고 일부는 남았는가.
+
+    2026-08-26 스테이징 실데이터 100건이 이 판정을 다시 쓰게 했다: ``initial != remain``
+    으로 보면 **전부취소(``remain == 0``)까지 부분취소로 잡힌다**. 실제로 그 100건에서
+    "부분취소"로 표시된 18건은 전부 ``RETURN_DONE``·``CANCEL_DONE`` 인 **전부**취소였고,
+    진짜 부분취소는 **0건**이었다. 전부취소는 클레임 배지가 이미 말하므로 여기서 또
+    말하면 화면이 같은 사실을 두 번, 그것도 **틀린 이름으로** 말한다.
+
+    Args:
+        initial: 최초 값(안 왔으면 None).
+        remain: 잔여 값(안 왔으면 None).
+
+    Returns:
+        ``0 < remain < initial`` 일 때만 True. 한쪽이라도 안 온 원본은 "모른다"로 두고
+        False — 없는 값을 0 으로 채우면 화면이 "원래 0개였다"고 거짓말한다.
+    """
+    if initial is None or remain is None:
+        return False
+    return 0 < remain < initial
+
+
+def extract_partial_cancel(detail: dict) -> dict:
+    """부분취소 잔여(``remain*``)·최초(``initial*``) 값을 뽑는다 — 인벤토리 §2.3.
+
+    **함정 1: 이 필드들은 281/281 전 건에 온다.** 부분취소가 있든 없든 온다는 뜻이라,
+    *필드가 있느냐* 로 판정하면 **모든 집이 부분취소로 보인다**.
+
+    **함정 2: ``initial != remain`` 도 부족하다.** 전부취소면 ``remain`` 이 0 이라 그
+    조건에 걸린다 — 판정은 :func:`_axis_partial` 이 하고, 부분취소는 **일부가 남았을
+    때**(``0 < remain < initial``)만이다.
+
+    Args:
+        detail: 상품주문 상세 1건(``initial*``·``remain*`` 는 ``productOrder`` 필드다).
+
+    Returns:
+        ``{"is_partial", "quantity_partial", "amount_partial", "initial_quantity",
+        "remain_quantity", "initial_amount", "remain_amount"}``.
+        축별 플래그를 함께 주는 이유는 화면이 **바뀐 축에만** 잔여를 붙이기 때문이다
+        (금액만 깎인 취소에서 안 바뀐 수량에 잔여를 달면 거짓말이다).
+        숫자는 정수, 읽을 수 없으면 0.
+    """
+    _order, product_order, _shipping = unwrap_detail(detail if isinstance(detail, dict) else {})
+    initial_quantity = _known_int(product_order, "initialQuantity")
+    remain_quantity = _known_int(product_order, "remainQuantity")
+    initial_amount = _known_int(product_order, "initialPaymentAmount")
+    remain_amount = _known_int(product_order, "remainPaymentAmount")
+    quantity_partial = _axis_partial(initial_quantity, remain_quantity)
+    amount_partial = _axis_partial(initial_amount, remain_amount)
+    return {
+        "is_partial": quantity_partial or amount_partial,
+        "quantity_partial": quantity_partial,
+        "amount_partial": amount_partial,
+        "initial_quantity": initial_quantity if initial_quantity is not None else 0,
+        "remain_quantity": remain_quantity if remain_quantity is not None else 0,
+        "initial_amount": initial_amount if initial_amount is not None else 0,
+        "remain_amount": remain_amount if remain_amount is not None else 0,
     }
 
 
@@ -728,10 +881,13 @@ __all__ = [
     "claim_reason_text",
     "build_payment_info",
     "extract_claim",
+    "extract_delivery",
+    "extract_partial_cancel",
     "extract_place_status",
     "place_status_view",
     "PLACE_STATUS_LABELS",
     "CONFIRMED_PLACE_STATUSES",
+    "DELIVERY_STATUS_LABELS",
     "extract_external_id",
     "extract_shipping_memo",
     "is_collectible",
