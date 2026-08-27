@@ -113,8 +113,10 @@ def test_state_carries_no_screen_judgement(client, workbench_on):
     data = _state(client, lead.id)
 
     assert not [key for key in data if key.startswith("can_")], data
+    # `returned` 는 판정이 아니라 **워커가 쓴 표식의 수**다(T8-S1 반품 접수) —
+    # `confirmed`·`dispatched`·`canceled` 와 같은 층이다. 화면 판정(can_*)은 여전히 0개.
     assert set(data) == {"link_id", "total", "confirmed", "dispatched", "canceled",
-                         "last_error", "last_error_at", "last_error_action",
+                         "returned", "last_error", "last_error_at", "last_error_action",
                          "action_label", "rev"}
 
 
@@ -401,7 +403,7 @@ def test_bulk_note_exists_and_asset_pin_moved():
 
     assert 'id="wb-bulk-note"' in markup
     assert 'id="wb-retry-note"' in markup
-    assert markup.count("?v=20260827a") == 2, "CSS·JS 핀을 함께 올린다"
+    assert markup.count("?v=20260827b") == 2, "CSS·JS 핀을 함께 올린다"
 
 
 # --------------------------------------------------------------------------- #

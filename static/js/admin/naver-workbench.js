@@ -93,6 +93,7 @@
         'wb-confirm-submit': submitConfirm,
         'wb-dispatch-confirm': submitDispatch,
         'wb-cancel-confirm': submitCancel,
+        'wb-return-confirm': submitReturn,
         'wb-review-done': submitReviewDone,
         'wb-refresh': submitRefresh,
         'wb-detach': submitDetach,
@@ -1270,6 +1271,35 @@
         }
         watchFulfillment(id, result.data && result.data.rev, '취소');
         await hideModal(document.getElementById('wb-modal-cancel'));
+    }
+
+    /**
+     * 판매자 반품 접수 — 취소의 거울이다. 사유 목록이 다르고(RETURN_REASONS), 회수 방법은
+     * 화면이 고르지 않는다(서버 상수 한 값). 서버가 사유를 다시 검사한다.
+     */
+    async function submitReturn(btn) {
+        var id = safeId(btn.dataset.linkId);
+        if (!id) {
+            return;
+        }
+        var reasonEl = document.getElementById('wb-return-reason');
+        var detailEl = document.getElementById('wb-return-detail');
+        if (!reasonEl || !reasonEl.value) {
+            window.alert('반품 사유를 고르세요.');
+            return;
+        }
+        btn.disabled = true;
+        const result = await postJson(BASE + id + '/return', {
+            reason: reasonEl.value,
+            detail: detailEl ? detailEl.value : ''
+        });
+        if (!result.ok) {
+            window.alert(result.error);
+            btn.disabled = false;
+            return;
+        }
+        watchFulfillment(id, result.data && result.data.rev, '반품 접수');
+        await hideModal(document.getElementById('wb-modal-return'));
     }
 
     /**

@@ -1010,9 +1010,12 @@ def _pane_context(db, link: Optional[ExternalOrderLink],
 
     Returns:
         ``selected``·``selected_group``·``selected_household_claimed``·``member_rows``·
-        ``cancel_reasons``·``selected_offlist``.
+        ``cancel_reasons``·``return_reasons``·``selected_offlist``.
     """
-    from foms.services.integrations.naver_commerce.fulfillment import CANCEL_REASONS
+    from foms.services.integrations.naver_commerce.fulfillment import (
+        CANCEL_REASONS,
+        RETURN_REASONS,
+    )
 
     household = _group_of_link(db, link) if link is not None else None
     member_rows = _member_rows(db, household)
@@ -1027,6 +1030,9 @@ def _pane_context(db, link: Optional[ExternalOrderLink],
         "coupon_summary": _coupon_summary(member_rows),
         # 취소 사유는 네이버 코드가 SSOT 다 — 화면이 따로 목록을 들면 둘이 갈린다.
         "cancel_reasons": CANCEL_REASONS,
+        # 반품 사유는 **취소와 다른 목록**이다(T8-S1). 화이트리스트 밖 코드는 라우트가
+        # 튕기고 서비스가 한 번 더 본다 — 화면 select 를 믿지 않는다.
+        "return_reasons": RETURN_REASONS,
         # 목록 밖 집을 열었는지(리뷰 M-3). 버튼을 막지 않는다 — 사실만 말한다.
         "selected_offlist": _selected_offlist(link, household, visible),
         # sales_users 는 워크벤치 두 템플릿 어디서도 안 쓴다 — 넣어 두면
@@ -1267,7 +1273,8 @@ def naver_ingest_fulfillment_progress():
 
 #: 불가역 작업 3종의 한글 라벨. 실패 띠와 폴링 응답이 **같은 표**를 쓴다 — 두 벌이면
 #: 같은 실패가 화면 자리마다 다른 이름으로 불린다.
-FULFILLMENT_ACTION_LABELS = {"confirm": "발주확인", "dispatch": "발송처리", "cancel": "취소"}
+FULFILLMENT_ACTION_LABELS = {"confirm": "발주확인", "dispatch": "발송처리", "cancel": "취소",
+                             "return": "반품 접수"}
 
 #: 통합 화면의 탭 — 두 URL 왕복을 없앤 자리(설계 결정 1). v3 에서 ``place``·``claim`` 은
 #: 탭이 아니라 **같은 목록의 필터 칩**으로 내려왔다(한 집 처리하려고 탭을 오가던 통증).
@@ -1510,10 +1517,11 @@ def _failure_rows(db) -> list[dict[str, Any]]:
         key = f"{(link.external_order_no or '').strip()}|{household_key(link)}"
         action_now = str(state.get("last_error_action") or "").strip().lower()
         if key in seen:
-            # 집당 1행으로 접되, **취소 거절은 다른 실패에 가려지면 안 된다**(2026-08-23 리뷰 F4).
-            # 가려지면 사람이 방금 누른 취소의 사유를 못 보고, 남은 행은 retryable 이라
-            # 재시도 버튼이 그 집에 반대 조작(발주확인·발송처리)을 쏜다.
-            if action_now == "cancel":
+            # 집당 1행으로 접되, **취소·반품 거절은 다른 실패에 가려지면 안 된다**
+            # (2026-08-23 리뷰 F4, 반품은 T8-S1 에서 같은 규율로 추가). 가려지면 사람이
+            # 방금 누른 조작의 사유를 못 보고, 남은 행은 retryable 이라 재시도 버튼이
+            # 그 집에 반대 조작(발주확인·발송처리)을 쏜다.
+            if action_now in ("cancel", "return"):
                 rows[:] = [row for row in rows if row["_key"] != key]
                 seen.discard(key)
             else:
@@ -1524,7 +1532,7 @@ def _failure_rows(db) -> list[dict[str, Any]]:
         # 재시도를 항상 발주확인으로 보내면 발송처리 실패는 멱등 규칙에 걸려 조용히
         # 넘어가고 실패 띠만 영원히 남는다.
         action = str(state.get("last_error_action") or "confirm").strip().lower()
-        action = action if action in ("confirm", "dispatch", "cancel") else "confirm"
+        action = action if action in FULFILLMENT_ACTION_LABELS else "confirm"
         rows.append({
             "_key": key,
             "link_id": link.id,
@@ -1533,9 +1541,9 @@ def _failure_rows(db) -> list[dict[str, Any]]:
             "reason": reason,
             "action": action,
             "action_label": FULFILLMENT_ACTION_LABELS[action],
-            # 취소는 사유를 다시 골라야 해서 버튼 하나로 되보낼 수 없다. 재시도 목록에
-            # 넣으면 그 집이 **발주확인**으로 나간다 — 취소하려던 집에 되돌릴 수 없는
-            # 반대 조작이 나가는 자리다. 상세 pane 에서 사유와 함께 다시 보낸다.
+            # 취소·반품은 사유를 다시 골라야 해서 버튼 하나로 되보낼 수 없다. 재시도
+            # 목록에 넣으면 그 집이 **발주확인**으로 나간다 — 취소·반품하려던 집에
+            # 되돌릴 수 없는 반대 조작이 나가는 자리다. 상세 pane 에서 사유와 함께 다시 보낸다.
             "retryable": action in ("confirm", "dispatch"),
             "at": str(state.get("last_error_at") or "")[:16].replace("T", " "),
         })
@@ -2150,7 +2158,7 @@ def _fulfillment_state(db, link: ExternalOrderLink) -> dict[str, Any]:
         link: 기준 링크(이 링크가 속한 **집 전체**를 센다).
 
     Returns:
-        ``link_id``·``total``·``confirmed``·``dispatched``·``canceled``·
+        ``link_id``·``total``·``confirmed``·``dispatched``·``canceled``·``returned``·
         ``last_error``·``last_error_at``·``last_error_action``·``action_label``·``rev``.
         ``rev`` 는 표식 지문이다 — 성공이든 실패든 표식이 바뀌면 값이 바뀐다(워커는 성공
         시 ``last_error*`` 를 지우므로 그것도 변화다). ``hash()`` 는 쓰지 않는다
@@ -2162,7 +2170,7 @@ def _fulfillment_state(db, link: ExternalOrderLink) -> dict[str, Any]:
     if not members:
         members = [link]
     marks: list[str] = []
-    confirmed = dispatched = canceled = 0
+    confirmed = dispatched = canceled = returned = 0
     last_error = last_error_at = last_error_action = ""
     for row in members:
         state = (row.triage_state or {}).get("fulfillment") or {}
@@ -2173,6 +2181,7 @@ def _fulfillment_state(db, link: ExternalOrderLink) -> dict[str, Any]:
         confirmed += 1 if at_confirm else 0
         dispatched += 1 if at_dispatch else 0
         canceled += 1 if at_cancel else 0
+        returned += 1 if ((row.triage_state or {}).get("return") or {}).get("requested_at") else 0
         # 형제마다 따로 실패할 수 있다(발송처리는 건별로 성공/실패한다) — 가장 최근 것을
         # 대표로 보인다. 사유를 삼키지 않는 자리는 전체 렌더의 실패 띠가 계속 맡는다.
         if at_error and at_error > last_error_at:
@@ -2183,7 +2192,12 @@ def _fulfillment_state(db, link: ExternalOrderLink) -> dict[str, Any]:
         # 시각을 지문에 함께 넣어야 화면이 "다시 읽기가 끝났다"를 볼 수 있다. 안 넣으면
         # 눌러도 화면이 영원히 안 바뀐다(사용자에게는 "아무 일도 안 일어남"으로 보인다).
         at_sync = str(((row.triage_state or {}).get("claim_sync") or {}).get("refreshed_at") or "")
-        marks.append(f"{row.id}|{at_confirm}|{at_dispatch}|{at_cancel}|{at_error}|{at_sync}")
+        # 반품 접수(T8-S1)는 **다른 축**(`triage_state['return']`)에 찍힌다 — 여기 안 넣으면
+        # 접수 버튼을 눌러도 지문이 안 바뀌어 화면이 영원히 "아직 안 끝났다"로 폴링한다.
+        # 새 엔드포인트를 만들지 않는 이유이기도 하다(다시 읽기가 `claim_sync` 로 한 수법).
+        at_return = str(((row.triage_state or {}).get("return") or {}).get("requested_at") or "")
+        marks.append(
+            f"{row.id}|{at_confirm}|{at_dispatch}|{at_cancel}|{at_error}|{at_sync}|{at_return}")
     action = last_error_action.strip().lower()
     action = action if action in FULFILLMENT_ACTION_LABELS else ""
     return {
@@ -2192,6 +2206,8 @@ def _fulfillment_state(db, link: ExternalOrderLink) -> dict[str, Any]:
         "confirmed": confirmed,
         "dispatched": dispatched,
         "canceled": canceled,
+        # 반품 접수가 나간 상품주문 수 — 화면이 "접수 끝났다"를 말하는 근거다.
+        "returned": returned,
         "last_error": last_error,
         "last_error_at": last_error_at,
         "last_error_action": action,
@@ -2399,6 +2415,7 @@ def _group_queue(links: list[ExternalOrderLink], orders: dict,
     from foms.services.integrations.naver_commerce.fulfillment import (
         household_key,
         is_place_pending,
+        is_return_pending,
     )
 
     groups: dict[tuple, list[ExternalOrderLink]] = {}
@@ -2488,6 +2505,15 @@ def _group_queue(links: list[ExternalOrderLink], orders: dict,
             # 발주확인이 **실제로 나갈** 건수. 서버 confirm_place_order 는 이미 확인된
             # 형제를 빼고 보낸다 — 집 전체 수로 재진술하면 과대 진술이 된다(계약 §0-2).
             "place_pending_count": sum(1 for row in members if is_place_pending(row)),
+            # 반품 접수가 **실제로 나갈** 건수(T8-S1). 술어는 서버와 한 벌
+            # (:func:`fulfillment.is_return_pending`) — 부분 발송 집에서 집 전체 수로
+            # 재진술하면 "3건 반품 접수합니다"라고 읽히는데 서버는 나간 1건만 보낸다.
+            # **불가역 경로라 그 과대 진술이 그대로 사고다**(2026-08-27 CEO 지적).
+            "return_pending_count": sum(1 for row in members if is_return_pending(row)),
+            # 이미 우리가 접수한 건수 — 버튼을 닫고 "접수함"을 말하는 근거.
+            "return_requested_count": sum(
+                1 for row in members
+                if ((row.triage_state or {}).get("return") or {}).get("requested_at")),
             # 주문 만들기 POST 가 나갈 링크. 대표(최고금액)가 **이미 주문을 가진** 집에서
             # 대표 id 로 보내면 promote_link_to_order 가 그 주문을 멱등 반환만 하고
             # 형제는 하나도 안 옮긴다 — 화면은 "N건을 옮깁니다" 라고 말한 뒤 0건이 움직인다
@@ -2790,6 +2816,62 @@ def naver_ingest_cancel(link_id: int):
                              "rev": base_rev},
                     "error": None})
 
+
+
+@admin_bp.route("/admin/naver-ingest/<int:link_id>/return", methods=["POST"])
+@login_required
+@role_required(["ADMIN", "MANAGER", "STAFF"])
+def naver_ingest_return(link_id: int):
+    """판매자 **반품 접수**를 큐에 넣는다 (T8-S1).
+
+    네이버 HTTP 는 WORKER 에서만 나간다(호출 IP 3슬롯 계약). 사유 코드는 화면 select 를
+    믿지 않고 여기서 다시 본다 — 목록 밖 코드는 네이버 400 이고, **되돌릴 수 없는
+    경로라 400 을 받아 보고 배우지 않는다**. 서비스가 호출 직전에 한 번 더 본다.
+
+    회수 방법은 **화면이 고르지 않는다** — ``RETURN_COLLECT_METHOD`` 한 값이다.
+    다른 코드를 보내면 우리가 부르지 않은 택배차가 고객 집으로 간다.
+
+    접수는 ``RETURN_REQUEST`` 까지다. **승인·환불은 사람이 판매자센터에서** 한다.
+    FOMS 주문은 건드리지 않는다(취소와 같은 규율).
+    """
+    from foms.services.feature_flags import is_naver_workbench_enabled
+    from foms.services.integrations.naver_commerce.fulfillment import RETURN_REASONS
+
+    # 반품 접수는 워크벤치에만 있는 기능이다. 게이트를 끄는 것이 이 기능의 롤백 경로이므로
+    # 라우트도 함께 닫는다 — 열어 두면 열린 탭·북마크가 게이트를 우회한다(취소와 같다).
+    if not is_naver_workbench_enabled(session.get("user_id")):
+        return jsonify({"success": False, "data": None,
+                        "error": "이 화면에서는 반품을 접수할 수 없습니다."}), 403
+
+    payload = request.get_json(silent=True) or {}
+    reason = str(payload.get("reason") or "").strip().upper()
+    detail = str(payload.get("detail") or "").strip()[:500]
+    if reason not in RETURN_REASONS:
+        return jsonify({"success": False, "data": None,
+                        "error": "반품 사유를 고르세요."}), 400
+
+    from foms.services.jobs.queue import enqueue_naver_return
+
+    # 기준 지문은 enqueue 앞에서(취소와 같은 이유 — 워커가 뒤집기 전 값이어야 한다).
+    db = get_db()
+    link = _link_by_id(db, link_id)
+    base_rev = _fulfillment_state(db, link)["rev"] if link is not None else ""
+
+    queued = enqueue_naver_return(link_id, reason, detail or None, session.get("user_id"))
+    if not queued:
+        return jsonify({"success": False, "data": None,
+                        "error": "작업 큐를 쓸 수 없습니다(REDIS_URL 미설정 또는 큐 장애). "
+                                 "지금은 판매자센터에서 처리하세요."}), 503
+
+    log_access(
+        f"네이버 반품 접수 요청 (link {link_id}, {RETURN_REASONS[reason]})",
+        action="NAVER_INGEST_RETURN_ENQUEUE",
+        detail={"link_id": link_id, "reason": reason, "return_detail": detail},
+    )
+    return jsonify({"success": True,
+                    "data": {"link_id": link_id, "reason": reason, "queued": True,
+                             "rev": base_rev},
+                    "error": None})
 
 @admin_bp.route("/admin/naver-ingest/<int:link_id>/fulfillment-clear", methods=["POST"])
 @login_required

@@ -75,6 +75,20 @@ def test_return_reasons_are_not_the_cancel_reasons():
     assert "SOLD_OUT" not in RETURN_REASONS, "품절은 반품 사유가 아니다(취소 사유다)"
 
 
+def test_return_reasons_are_only_the_codes_we_actually_observed():
+    """**실물로 본 코드만** 보낸다 (사용자 결정 2026-08-27).
+
+    전체 범례를 아직 못 봤고 이 경로는 불가역이다 — 문서에서 이름만 본 코드를 목록에
+    두면 사람이 그것을 고르고, 우리는 400 을 **되돌릴 수 없는 자리에서** 처음 만난다.
+    네이버 문서로 표 전체를 확인하면 그때 늘린다.
+    """
+    assert set(RETURN_REASONS) == {"COLOR_AND_SIZE", "WRONG_DELAYED_DELIVERY"}
+    for never_observed in ("INTENT_CHANGED", "WRONG_ORDER", "PRODUCT_UNSATISFIED",
+                           "INCORRECT_INFO", "PRODUCT_DEFECT"):
+        assert never_observed not in RETURN_REASONS, (
+            f"{never_observed} 은 실물로 본 적이 없다 — 목록에 있으면 누가 고른다")
+
+
 def test_unknown_reason_is_rejected_before_any_call():
     """목록 밖 사유는 **네이버를 부르기 전에** 막는다."""
     client = _Client()
