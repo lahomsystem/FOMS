@@ -460,6 +460,58 @@ class NaverCommerceClient:
             headers={"Content-Type": "application/json"},
         )
 
+    def request_return_product_order(self, product_order_id: str, *, reason: str,
+                                     collect_method: str,
+                                     detail: Optional[str] = None,
+                                     quantity: Optional[int] = None) -> dict:
+        """판매자 반품 접수 — 상품주문 **1건**의 반품을 요청한다 (T8-S1).
+
+        취소와 **같은 모양**이다: 배치가 없어 집 단위 처리는 호출자가 돌면서 하고,
+        응답도 ``successProductOrderIds``/``failProductOrderInfos`` 로 온다.
+
+        **취소와 다른 점 둘.** ① 사유 코드 목록이 취소와 다르다
+        (:data:`fulfillment.RETURN_REASONS`). ② ``collectDeliveryMethod`` 가 있다 —
+        가구는 우리 차가 회수하러 가므로 ``RETURN_INDIVIDUAL`` 만 쓴다. 다른 값을 보내면
+        **API 값이 무시되고 상품에 설정된 택배사가 고객 집으로 자동 수거를 간다** —
+        되돌릴 수 없다. 그래서 호출자가 화이트리스트로 미리 막는다.
+
+        Args:
+            product_order_id: 반품할 ``productOrderId``.
+            reason: 반품 사유 코드(목록은 :data:`fulfillment.RETURN_REASONS`).
+            collect_method: 회수 방법 코드. 실질적으로 ``RETURN_INDIVIDUAL`` 하나다.
+            detail: 반품 상세 사유(500자 제한). 없으면 보내지 않는다.
+            quantity: 반품 수량. 없으면 전체 수량이다(네이버 기본값).
+
+        Returns:
+            응답 payload(원본). 건별 성공/실패는 ``data.successProductOrderIds`` 와
+            ``data.failProductOrderInfos`` 로 온다.
+
+        Raises:
+            ValueError: 상품주문번호·사유·회수방법 중 하나라도 비었을 때
+                (빈 요청으로 불가역 API 를 때리지 않는다).
+        """
+        pid = str(product_order_id or "").strip()
+        if not pid:
+            raise ValueError("반품할 상품주문번호가 없습니다.")
+        if not str(reason or "").strip():
+            raise ValueError("반품 사유가 없습니다.")
+        if not str(collect_method or "").strip():
+            # 비워 보내면 네이버가 상품 기본 택배사로 수거를 보낼 수 있다 — 막는다.
+            raise ValueError("회수 방법이 없습니다.")
+        body: dict[str, Any] = {
+            "returnReason": str(reason).strip(),
+            "collectDeliveryMethod": str(collect_method).strip(),
+        }
+        if detail:
+            body["returnDetailedReason"] = str(detail)[:500]
+        if quantity is not None:
+            body["returnQuantity"] = int(quantity)
+        return self._request(
+            "POST", f"/v1/pay-order/seller/product-orders/{pid}/claim/return/request",
+            json_body=body,
+            headers={"Content-Type": "application/json"},
+        )
+
     # -- HTTP ------------------------------------------------------------- #
 
     def _session(self) -> Any:

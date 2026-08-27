@@ -46,6 +46,9 @@ __all__ = [
     "cancel_order",
     "record_task_failure",
     "CANCEL_REASONS",
+    "RETURN_REASONS",
+    "RETURN_COLLECT_METHOD",
+    "request_return",
     "HEALTHY_SYNC_STATUSES",
     "CLOSE_NOW_RELATIONS",
 ]
@@ -82,6 +85,30 @@ CANCEL_REASONS = {
     "SOLD_OUT": "상품 품절",
     "INCORRECT_INFO": "상품 정보 상이",
 }
+
+#: 판매자 반품 접수 사유 코드 → 사람이 읽는 라벨 (T8-S1).
+#: **취소 코드와 다른 목록이다** — `CANCEL_REASONS` 를 재사용하지 않는다.
+#: 스테이징 실물 반품 33건에서 관측된 값은 `COLOR_AND_SIZE`(24)·`WRONG_DELAYED_DELIVERY`(9)
+#: 둘이고, 나머지는 공개 문서에서 이름으로 확인된 것이다. **전체 범례는 미확인이라**
+#: 목록 밖 코드는 보내지 않는다(불가역 경로라 400 을 받아 보고 배우지 않는다).
+RETURN_REASONS = {
+    "INTENT_CHANGED": "구매 의사 취소",
+    "COLOR_AND_SIZE": "색상 및 사이즈 변경",
+    "WRONG_ORDER": "다른 상품 잘못 주문",
+    "PRODUCT_UNSATISFIED": "서비스 불만족",
+    "WRONG_DELAYED_DELIVERY": "배송 오류·지연",
+    "INCORRECT_INFO": "상품 정보 상이",
+    "PRODUCT_DEFECT": "상품 불량",
+}
+
+#: 회수 방법 — **이 값 하나만 쓴다** (T8-S1). 가구는 우리 차가 회수하러 간다.
+#:
+#: 다른 코드(`RETURN_DESIGNATED`·`RETURN_DELIVERY`)를 보내면 **API 값이 무시되고
+#: 상품정보에 설정된 택배사가 고객 집으로 자동 수거를 간다** — 우리가 부르지 않은
+#: 택배차가 고객 집 앞에 서고, 되돌릴 수 없다. 그래서 다른 값은 **상수로도 두지 않는다**
+#: (목록에 있으면 언젠가 누가 고른다).
+#: 스테이징 실물 33건이 전부 이 값이고 송장번호는 한 건도 없다 — 네이버가 받는다는 관측이다.
+RETURN_COLLECT_METHOD = "RETURN_INDIVIDUAL"
 
 #: KST — 네이버는 발송일에 타임존이 붙은 ISO8601 을 요구한다.
 KST = timezone(timedelta(hours=9))
@@ -783,3 +810,134 @@ def cancel_order(session: Session, client: Any, *, link_id: int, reason: str,
     logger.info("[NAVER] 취소 완료 link=%s 건수=%d", link_id, len(ok_ids))
     return {"canceled": ok_ids,
             "skipped": [row.external_id for row in links if row not in todo]}
+
+
+def _return_state(link: ExternalOrderLink) -> dict[str, Any]:
+    """``triage_state['return']`` 을 준다(없으면 빈 dict) — T8-S1 자기표식.
+
+    ``fulfillment`` 축과 **다른 키**를 쓴다. 발송처리 상태와 반품 접수 상태는 서로
+    다른 축이고, 한 dict 에 섞으면 `clear_failure` 같은 기존 조작이 반품 표식을
+    같이 지운다.
+
+    Args:
+        link: 읽을 링크.
+
+    Returns:
+        반품 축 상태 dict(사본이 아니라 읽기용 참조).
+    """
+    state = link.triage_state or {}
+    value = state.get("return")
+    return value if isinstance(value, dict) else {}
+
+
+def _write_return_state(link: ExternalOrderLink, patch: dict[str, Any]) -> None:
+    """``triage_state['return']`` 에 patch 를 병합한다 (JSONB 수정 규약).
+
+    Args:
+        link: 쓸 링크.
+        patch: 병합할 키/값.
+    """
+    state = copy.deepcopy(link.triage_state or {})
+    bucket = state.get("return")
+    if not isinstance(bucket, dict):
+        bucket = {}
+    bucket.update(patch)
+    state["return"] = bucket
+    link.triage_state = state
+    flag_modified(link, "triage_state")
+
+
+def request_return(session: Session, client: Any, *, link_id: int, reason: str,
+                   detail: Optional[str] = None, actor_user_id: Optional[int] = None,
+                   now: Optional[datetime] = None) -> dict[str, Any]:
+    """한 집의 **반품을 판매자가 접수**한다 (WORKER 실행, T8-S1).
+
+    취소와 같은 모양이다 — 네이버 반품 접수는 상품주문 1건씩이라 집을 돌며 부르고,
+    한 건이 실패해도 나머지는 계속 부른다. 반쪽만 접수된 채 사람이 사유를 못 보는
+    상태가 제일 나쁘다.
+
+    **되돌릴 수 없다.** 접수하면 구매자에게 반품 진행이 보이고, 커머스API 로는 수거
+    정보를 다시 바꿀 수 없다. 그리고 접수는 `RETURN_REQUEST` 까지다 — **승인·환불은
+    사람이 판매자센터에서** 한다(네이버가 자동으로 완료 처리하지 않는다).
+
+    **FOMS 주문은 건드리지 않는다.** 네이버 쪽만 접수한다 — 취소와 같은 규율이다.
+
+    Args:
+        session: DB 세션(호출자가 commit 을 소유한다).
+        client: 커머스API 클라이언트.
+        link_id: 기준 링크 id(같은 집 전체가 함께 처리된다).
+        reason: 반품 사유 코드(:data:`RETURN_REASONS` 안의 값).
+        detail: 반품 상세 사유(선택, 500자).
+        actor_user_id: 누른 사람(기록용).
+        now: 시각 주입(테스트).
+
+    Returns:
+        ``{"returned": [...], "skipped": [...]}``.
+
+    Raises:
+        FulfillmentError: 링크가 없거나, 사유 코드가 목록 밖이거나, **아직 발송처리가
+            안 된 집**이거나, 클레임이 이미 도는 집이거나, 네이버 호출이 실패했을 때.
+    """
+    stamp = now or now_utc_naive()
+    code = str(reason or "").strip().upper()
+    if code not in RETURN_REASONS:
+        # 목록 밖 코드는 400 이다. 불가역 경로라 호출 전에 막는다(취소와 같은 규율).
+        raise FulfillmentError(f"반품 사유 코드가 올바르지 않습니다 ({reason}).")
+
+    links = _links_of_group(session, link_id)
+    # 이미 클레임(취소·반품·교환)이 도는 집에 반품을 또 걸지 않는다.
+    _claim_guard(session, links, action="return", stamp=stamp)
+
+    # **발송 전이면 반품이 아니라 취소다** — `cancel_order` 의 거울상 가드.
+    # 안 나간 물건을 반품으로 접수하면 구매자에게 없는 배송이 되돌아오는 것으로 보인다.
+    dispatched = [row for row in links
+                  if _state(row).get("dispatched_at") or _naver_dispatched_at(row)]
+    if not dispatched:
+        reason_text = ("아직 발송처리가 안 된 주문입니다 — 반품이 아니라 "
+                       "취소로 처리해야 합니다.")
+        _mark_failures({str(row.external_id): row for row in links},
+                       {str(row.external_id): reason_text for row in links},
+                       action="return", stamp=stamp)
+        session.flush()
+        raise FulfillmentError(reason_text)
+
+    # 멱등: 우리가 이미 접수한 건은 다시 부르지 않는다. 우리 표식으로만 판정한다 —
+    # 네이버 `requestChannel` 은 API 접수분과 판매자센터 수동분을 갈라 주지 않는다
+    # (문서가 보증하지 않는 값에 불가역 경로를 걸지 않는다).
+    todo = [row for row in links if not _return_state(row).get("requested_at")]
+    if not todo:
+        return {"returned": [], "skipped": [row.external_id for row in links]}
+
+    ok_ids: list[str] = []
+    failures: dict[str, str] = {}
+    by_id = {str(row.external_id): row for row in todo}
+    for pid, row in by_id.items():
+        try:
+            response = client.request_return_product_order(
+                pid, reason=code, collect_method=RETURN_COLLECT_METHOD, detail=detail)
+        except Exception as exc:  # noqa: BLE001 - 사유를 사람에게 그대로 보여준다
+            failures[pid] = str(exc)[:500]
+            logger.error("[NAVER] 반품 접수 실패 link=%s pid=%s: %s", link_id, pid, exc,
+                         exc_info=True)
+            continue
+        ok, fails = _split_result(response, [pid])
+        ok_ids.extend(ok)
+        failures.update(fails)
+
+    for pid in ok_ids:
+        _write_return_state(by_id[pid], {
+            "requested_at": stamp.isoformat(),
+            "requested_by": actor_user_id,
+            "reason": code,
+            "collect_method": RETURN_COLLECT_METHOD,
+        })
+    if failures:
+        _mark_failures(by_id, failures, action="return", stamp=stamp)
+    session.flush()
+
+    if failures and not ok_ids:
+        detail_text = "; ".join(f"{pid}: {why}" for pid, why in failures.items())
+        raise FulfillmentError(f"반품 접수가 실패했습니다 — {detail_text}")
+    logger.info("[NAVER] 반품 접수 link=%s 성공=%d 실패=%d", link_id, len(ok_ids),
+                len(failures))
+    return {"returned": ok_ids, "skipped": [pid for pid in failures]}
