@@ -317,12 +317,46 @@ def test_no_refspec_push_from_feature_branch_allows(tmp_path: Path) -> None:
     assert decision == "allow", label
 
 
-def test_deploy_push_allows_when_scope_empty() -> None:
-    """project_root 있고 origin/deploy..HEAD 비면 allow."""
+def _repo_on_deploy_tip(tmp_path: Path) -> Path:
+    """bare origin + deploy 클론을 만들고 **HEAD 를 origin/deploy 그대로** 둔다.
+
+    `origin/deploy..HEAD` 가 비는 상태를 결정적으로 만든다.
+
+    파라미터:
+        tmp_path: 임시 디렉터리.
+    반환:
+        작업 클론 경로.
+    """
+    bare, local = tmp_path / "remote-tip.git", tmp_path / "local-tip"
+    run = lambda cwd, *a: subprocess.run(["git", *a], cwd=cwd, check=True, capture_output=True, text=True)
+    run(tmp_path, "init", "--bare", str(bare))
+    run(tmp_path, "clone", str(bare), str(local))
+    run(local, "config", "user.email", "t@t")
+    run(local, "config", "user.name", "t")
+    (local / "README").write_text("base" + chr(10), encoding="utf-8")
+    run(local, "add", "README")
+    run(local, "commit", "-m", "base")
+    run(local, "branch", "-M", "deploy")
+    run(local, "push", "-u", "origin", "deploy")
+    return local
+
+
+def test_deploy_push_allows_when_scope_empty(tmp_path: Path) -> None:
+    """`origin/deploy..HEAD` 가 비면 allow.
+
+    2026-08-27: 이 테스트는 원래 **CI 체크아웃 자신**(`REPO_ROOT`)을 project_root 로 썼다.
+    그래서 `origin/deploy` 참조가 있는 환경(deploy 로의 push 런)에서만 통했고,
+    **base=production 인 PR 런에서는 그 참조가 없어** 정책이 안전측 `ask`("baseline 조회
+    실패")를 돌려주며 빨개졌다. 정책은 옳게 동작한 것이고 **틀린 것은 테스트의 환경
+    가정**이었다 — 운영 승격 PR 에 harness CI 를 붙이자마자 드러났다.
+
+    형제 테스트들처럼 저장소를 **직접 만들어** 쓴다. 어느 이벤트에서 돌든 결과가 같다.
+    """
     policy = _load_policy()
+    local = _repo_on_deploy_tip(tmp_path)
     decision, label = policy.classify_command(
         "git push origin deploy",
-        project_root=str(REPO_ROOT),
+        project_root=str(local),
         session_id="test-sess",
     )
     assert decision == "allow", label
