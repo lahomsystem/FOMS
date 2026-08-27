@@ -101,10 +101,6 @@
    있으면 집 전체를 거절한다(반품 흐름). 링크 기준으로 두면 안 나간 형제로 열었을 때
    버튼이 열려 있다가 서버에서 실패한다. #}
 {% set can_cancel = not locked and not dispatched_any %}
-{# 모달 제목은 관계 라벨을 **그대로** 쓴다. '추가결제' 를 손으로 적어 두면 close_now 대상이
-   바뀔 때 다른 관계의 집에도 "추가결제"라 뜬다 — 실제로 재결제 집에 그렇게 떴다
-   (D1 개정 2026-08-24 에서 걷어낸 결함). #}
-{% set close_now_title = (rel_label ~ '를 지금 닫습니다') if rel_label else '이 주문을 지금 닫습니다' %}
 
 <section class="card shadow-sm wb-detail">
     <div class="card-header py-2 wb-detail__head">
@@ -258,7 +254,9 @@
                        네이버 기록이 발주확인보다 앞이어야 한다 — 이미 발송된 집에
                        "발주확인이 먼저입니다"는 사람을 틀린 곳으로 보내는 말이다. #}
                     id="wb-dispatch" {% if can_dispatch %}data-bs-toggle="modal" data-bs-target="#wb-modal-dispatch"{% else %}disabled title="{% if locked %}{{ lock_why }}{% elif dispatched %}이미 발송처리가 끝났습니다{% elif naver_sent_at %}{{ naver_sent_why }}{% else %}발주확인이 먼저입니다(발주확인 전 상품주문이 있습니다){% endif %}"{% endif %}>
-                {{ '지금 닫기' if close_now else '발송처리' }}
+                {# 라벨은 close_now 여부와 무관하게 **발송처리** 하나다 — 같은 호출인데 이름이
+                   둘이면 사람이 다른 기능으로 읽는다(모달 본문은 이미 '발송처리' 어휘였다). #}
+                발송처리
             </button>
             {% endif %}
 
@@ -316,7 +314,7 @@
         </div>
         {% elif place_pending and close_now %}
         <div class="wb-acts__why small">
-            {{ rel_label }}는 물건이 따로 나가지 않습니다 — 발주확인 없이 여기서 바로 닫습니다.
+            {{ rel_label }}는 물건이 따로 나가지 않습니다 — 발주확인 없이 여기서 바로 발송처리를 보냅니다.
         </div>
         {% elif place_pending and relation == 'REPAY' %}
         {# 재결제 집도 여기로 떨어진다(D1 개정 2026-08-24). 예전에는 아래 '신규 집' 가지가
@@ -866,7 +864,7 @@
         <div class="modal-content">
             <div class="modal-header">
                 <h5 class="modal-title">
-                    {{ close_now_title if close_now else '발송처리를 보내기 전에 확인하세요' }}
+                    발송처리를 보내기 전에 확인하세요
                 </h5>
                 <button type="button" class="btn-close" data-bs-dismiss="modal" aria-label="닫기"></button>
             </div>
@@ -906,7 +904,7 @@
                 </div>
                 {% if close_now %}
                 <div class="alert alert-secondary py-2 mb-2" data-foms-no-autodismiss>
-                    {{ rel_label }}는 물건이 <b>따로 나가지 않습니다</b> — 확인을 끝냈으면 여기서 바로 닫습니다.
+                    {{ rel_label }}는 물건이 <b>따로 나가지 않습니다</b> — 확인을 끝냈으면 여기서 바로 발송처리를 보냅니다.
                     {% if place_pending %}
                     <div class="mt-1">
                         이 주문은 <b>발주확인 전</b>입니다. 발송처리를 보내면 네이버가 발주확인까지
@@ -926,7 +924,7 @@
                 <button type="button" class="btn btn-outline-secondary" data-bs-dismiss="modal">취소</button>
                 <button type="button" class="btn btn-primary" id="wb-dispatch-confirm"
                         data-link-id="{{ target_id }}">
-                    {{ '지금 닫기' if close_now else '발송처리 보내기' }}
+                    발송처리 보내기
                 </button>
             </div>
         </div>

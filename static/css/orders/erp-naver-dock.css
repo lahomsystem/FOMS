@@ -492,3 +492,97 @@
   font-size: 13px;
   color: #94a3b8;
 }
+
+/* ── 행 금액 칩 — 머리말 합계를 사람이 **검산**할 수 있게 (D2 · 2026-08-27)
+   0원 칩(.naver-dock-zero)은 담당자가 이미 아는 신호라 표기를 그대로 두고, 그 옆에
+   두 갈래를 더한다: 숫자와 **모름**. 모름을 0원과 같은 톤으로 그리면 안 된다 —
+   "원본에 값이 없다"와 "0원을 받았다"는 다른 사실이고, 뒤엣것만 합계에 들어간다. */
+.naver-dock-row .naver-dock-amt {
+  font-size: 12.5px;
+  font-weight: 700;
+  background: #f1f5f9;
+  color: #475569;
+  border-radius: 4px;
+  padding: 0 5px;
+  margin-left: 4px;
+  font-variant-numeric: tabular-nums;
+  white-space: nowrap;
+}
+
+.naver-dock-row .naver-dock-amt.is-unknown {
+  background: #fee2e2;
+  color: #b91c1c;
+}
+
+/* ── 그룹 머리말 합계 (D2) — 라벨(`본품+옵션`/`옵션 합`)이 붙은 숫자.
+   모르는 행이 섞이면 색으로도 말한다: 숫자만 보면 다 센 값으로 읽힌다. */
+.naver-dock-grp .naver-dock-grp-sub.is-partial {
+  color: #b45309;
+}
+
+/* 환불된 옛 집(재결제로 대체) — 합계는 보여주되 유효한 돈이 아니라고 못박는다.
+   `.naver-dock-row.is-superseded` 와는 다른 자리다(그쪽은 행, 이쪽은 머리말). */
+.naver-dock-grp .naver-dock-grp-sub.is-superseded {
+  color: #94a3b8;
+}
+
+.naver-dock-grp .naver-dock-grp-sub.is-superseded .naver-dock-grp-amt {
+  text-decoration: line-through;
+}
+
+/* ── 예약금(선금) 안내 카드 (D3) — 값이 **다를 때만** 선다.
+   정보 블록과 진행바 사이(스크롤 영역 밖)라 행을 훑는 동안에도 계속 보인다.
+   자동 기입은 하지 않는다 — 복사 버튼까지가 끝이다(폼 불가침 계약). */
+.naver-dock-deposit {
+  margin: 8px 14px;
+  padding: 8px 10px;
+  border: 1px solid #fcd34d;
+  background: #fffbeb;
+  border-radius: 8px;
+  flex-shrink: 0;
+}
+
+.naver-dock-deposit .naver-dock-deposit-hd {
+  font-size: 13px;
+  font-weight: 800;
+  color: #b45309;
+}
+
+/* 옮겨 적는 숫자다 — 재결제 계획 카드(.wb-fork__won)와 같은 크기로 세운다.
+   문장 안에 섞여 있으면 눈이 한 번 더 훑어야 하고, 그 사이 자릿수를 잘못 읽는다. */
+.naver-dock-deposit .naver-dock-deposit-won {
+  margin-top: 2px;
+  font-size: 18px;
+  font-weight: 800;
+  line-height: 1.25;
+  color: #78350f;
+  font-variant-numeric: tabular-nums;
+}
+
+.naver-dock-deposit .naver-dock-deposit-say {
+  margin-top: 3px;
+  font-size: 13px;
+  font-weight: 600;
+  color: #78350f;
+  font-variant-numeric: tabular-nums;
+}
+
+.naver-dock-deposit .naver-dock-deposit-note {
+  margin-top: 3px;
+  font-size: 12.5px;
+  font-weight: 600;
+  color: #92400e;
+}
+
+.naver-dock-deposit .naver-dock-deposit-acts {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: center;
+  gap: 6px;
+  margin-top: 6px;
+}
+
+.naver-dock-deposit .naver-dock-deposit-hint {
+  font-size: 12.5px;
+  color: #a16207;
+}
