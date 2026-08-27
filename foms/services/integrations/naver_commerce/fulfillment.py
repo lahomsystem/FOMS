@@ -49,6 +49,7 @@ __all__ = [
     "RETURN_REASONS",
     "RETURN_COLLECT_METHOD",
     "request_return",
+    "is_return_pending",
     "HEALTHY_SYNC_STATUSES",
     "CLOSE_NOW_RELATIONS",
 ]
@@ -88,17 +89,20 @@ CANCEL_REASONS = {
 
 #: 판매자 반품 접수 사유 코드 → 사람이 읽는 라벨 (T8-S1).
 #: **취소 코드와 다른 목록이다** — `CANCEL_REASONS` 를 재사용하지 않는다.
-#: 스테이징 실물 반품 33건에서 관측된 값은 `COLOR_AND_SIZE`(24)·`WRONG_DELAYED_DELIVERY`(9)
-#: 둘이고, 나머지는 공개 문서에서 이름으로 확인된 것이다. **전체 범례는 미확인이라**
-#: 목록 밖 코드는 보내지 않는다(불가역 경로라 400 을 받아 보고 배우지 않는다).
+#:
+#: **여기 있는 값은 스테이징 실물 반품 33건에서 실제로 관측된 것뿐이다**
+#: (`COLOR_AND_SIZE` 24건 · `WRONG_DELAYED_DELIVERY` 9건). 공개 문서에서 이름만 본 코드
+#: 5종(`INTENT_CHANGED`·`WRONG_ORDER`·`PRODUCT_UNSATISFIED`·`INCORRECT_INFO`·
+#: `PRODUCT_DEFECT`)은 **일부러 뺐다**(사용자 결정 2026-08-27): `returnReason` 전체 범례를
+#: 아직 못 봤고, 이 경로는 불가역이라 **400 을 받아 보고 배우지 않는다**. 네이버 문서에서
+#: 코드 표 전체를 확인하면 그때 늘린다(설계서 §6 Q3).
+#:
+#: **읽기 쪽은 좁히지 않는다** — `mapping` 이 스냅샷의 `returnReason` 을 그대로 보여주는
+#: 것은 우리가 보낸 값이 아니라 네이버가 준 값이고, 목록에 없다고 화면에서 지우면
+#: 사실이 사라진다. 좁히는 것은 **우리가 보내는 값**뿐이다.
 RETURN_REASONS = {
-    "INTENT_CHANGED": "구매 의사 취소",
     "COLOR_AND_SIZE": "색상 및 사이즈 변경",
-    "WRONG_ORDER": "다른 상품 잘못 주문",
-    "PRODUCT_UNSATISFIED": "서비스 불만족",
     "WRONG_DELAYED_DELIVERY": "배송 오류·지연",
-    "INCORRECT_INFO": "상품 정보 상이",
-    "PRODUCT_DEFECT": "상품 불량",
 }
 
 #: 회수 방법 — **이 값 하나만 쓴다** (T8-S1). 가구는 우리 차가 회수하러 간다.
@@ -847,6 +851,32 @@ def _write_return_state(link: ExternalOrderLink, patch: dict[str, Any]) -> None:
     flag_modified(link, "triage_state")
 
 
+
+def is_return_pending(link: ExternalOrderLink) -> bool:
+    """이 상품주문에 **반품 접수를 보낼 것인가** — 화면 재진술과 서버 처리의 공통 술어.
+
+    :func:`request_return` 이 실제로 보낼 대상(``todo``)을 고르는 조건 그대로다.
+    :func:`is_place_pending` 과 같은 이유로 여기 한 벌만 둔다 — 화면이 집 전체 수로
+    재진술하면 "3건 반품 접수합니다"라고 읽히는데 서버는 발송된 1건만 보낸다.
+    **불가역 경로라 그 과대 진술이 그대로 사고다**(계약 §0-2, 2026-08-27 CEO 지적).
+
+    두 조건이다:
+
+    - **나간 물건이어야 한다.** 안 나간 것은 반품이 아니라 취소다. 우리 표식과 네이버
+      원본(``delivery.sendDate``)을 함께 본다 — 판매자센터에서 손으로 발송한 건은
+      우리 표식이 없다.
+    - **아직 우리가 접수하지 않았어야 한다.** 멱등은 우리 표식으로만 판정한다.
+      네이버 ``requestChannel`` 은 API 접수분과 판매자센터 수동분을 갈라 주지 않는다.
+
+    Args:
+        link: 수집 링크.
+
+    Returns:
+        반품 접수를 보낼 건이면 True.
+    """
+    dispatched = bool(_state(link).get("dispatched_at") or _naver_dispatched_at(link))
+    return dispatched and not _return_state(link).get("requested_at")
+
 def request_return(session: Session, client: Any, *, link_id: int, reason: str,
                    detail: Optional[str] = None, actor_user_id: Optional[int] = None,
                    now: Optional[datetime] = None) -> dict[str, Any]:
@@ -904,13 +934,12 @@ def request_return(session: Session, client: Any, *, link_id: int, reason: str,
     # 멱등 + **행 단위** 발송 판정 (2026-08-27 CEO). 위 가드는 "집에 발송분이 하나라도
     # 있는가"만 본다 — 분할발송이라 집 안에서 나간 것과 안 나간 것이 섞이는데, 거기서
     # 집 단위로만 통과시키면 **안 나간 상품주문에도 반품 요청이 나간다**(불가역).
-    # 그래서 실제로 보낼 목록은 **그 행이 나갔는지**로 다시 거른다.
+    # 그래서 실제로 보낼 목록은 **그 행이 나갔는지**로 다시 거른다 —
+    # 술어는 :func:`is_return_pending` 한 벌이고 화면도 같은 것을 센다.
     #
     # 멱등은 우리 표식으로만 판정한다 — 네이버 `requestChannel` 은 API 접수분과
     # 판매자센터 수동분을 갈라 주지 않는다(문서가 보증하지 않는 값에 불가역 경로를 걸지 않는다).
-    dispatched_ids = {id(row) for row in dispatched}
-    todo = [row for row in links
-            if id(row) in dispatched_ids and not _return_state(row).get("requested_at")]
+    todo = [row for row in links if is_return_pending(row)]
     if not todo:
         return {"returned": [], "skipped": [row.external_id for row in links]}
 
