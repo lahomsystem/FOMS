@@ -324,7 +324,7 @@
                 var opensHere = nos.length > 1 && state.workbenchUrl
                     && no === state.workbenchOrderNo;
                 var one = el('span', opensHere ? 'naver-dock-orderno-open' : '', no);
-                if (opensHere) one.title = '워크벤치에서 열기가 여는 집';
+                if (opensHere) one.title = '워크벤치에서 열기가 여는 주문';
                 label.appendChild(one);
             });
             head.appendChild(label);
