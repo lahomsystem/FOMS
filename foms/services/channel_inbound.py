@@ -202,6 +202,55 @@ def parse_order_text(text: str) -> Tuple[bool, Dict[str, Any], list[str], Dict[s
     return success, data, missing, masked_data
 
 
+def _notify_parse_failure(log: Any, missing: list) -> None:
+    """
+    Surface an inbound parse failure to the sender and to the operator log.
+
+    지금까지 파싱 실패는 ``parse_failed`` 행 하나만 남기고 끝났다 — 보낸 사람은 접수된 줄
+    알고, 운영자에게는 볼 표면이 없었다(CH-LATENT-02). 최소한 로그에는 남기고, 그룹 채팅이면
+    같은 방으로 실패 사유를 회신한다.
+
+    **그룹 채팅에만 회신한다.** 고객 1:1 대화(userChat)에 자동 실패 안내가 나가면 안 되고,
+    ``channel_client`` 도 그룹 메시지 전송만 지원한다.
+
+    안내 전송 실패가 수신 처리를 깨뜨려선 안 되므로 ``send_group_message`` 의 fail-open
+    (내부 로깅 후 ``success=False`` 반환)을 그대로 쓴다.
+
+    Args:
+        log: ``ChannelInboundEventLog`` 행. ``chat_type``·``source_chat_id`` 를 읽는다.
+        missing: 빠진 필수 항목 이름 목록.
+    """
+    chat_type = str(getattr(log, "chat_type", "") or "").strip().lower()
+    chat_id = str(getattr(log, "source_chat_id", "") or "").strip()
+    logger.warning(
+        "[Inbound] parse_failed log=%s chat_type=%s chat_id=%s missing=%s",
+        getattr(log, "id", None),
+        chat_type or "-",
+        chat_id or "-",
+        ",".join(missing) or "-",
+    )
+
+    if chat_type != "group" or not chat_id:
+        return
+
+    from foms.services.channel_client import is_configured, send_group_message
+
+    if not is_configured():
+        logger.warning("[Inbound] 실패 안내 미전송 — 채널톡 환경변수 미설정")
+        return
+
+    missing_text = ", ".join(missing) or "알 수 없음"
+    send_group_message(
+        group_id=chat_id,
+        plain_text=(
+            "[FOMS] 주문 자동 접수 실패\n"
+            f"필수 항목이 없어 접수하지 못했습니다: {missing_text}\n"
+            "내용을 채워 다시 보내주세요."
+        ),
+        bot_name="FOMS",
+    )
+
+
 def process_inbound_job(log_id: int):
     """
     Worker에서 실행되는 실제 처리 로직 (CT-E-03)
@@ -243,7 +292,7 @@ def process_inbound_job(log_id: int):
             log.processed_at = datetime.now()
             db.commit()
 
-            # TODO: 채널톡 API를 통해 실패 안내 Quick Reply 전송 (channel_client 활용)
+            _notify_parse_failure(log, missing)
             return
 
         # 2. 생성 모드 판단

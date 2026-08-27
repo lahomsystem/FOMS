@@ -4,8 +4,8 @@
 > 조용한 실패가 더 있는가" 전수 점검. 대상 = `foms/api/channel/*` + `foms/services/channel_*`
 > + `foms/services/jobs/*` 30개 파일(약 7,400줄).
 >
-> **판정: 지금 터지고 있는 조용한 실패 0건.** 아래 2건은 잠복이며, 사용자 결정으로 **수정하지
-> 않고 기록만** 한다(2026-08-27). 되살릴 때 이 파일부터 읽는다.
+> **판정: 지금 터지고 있는 조용한 실패 0건.** 아래 2건은 잠복이었고, 처음에는 기록만 하기로
+> 했다가 같은 날 **둘 다 수정**했다(2026-08-27). 각 항목의 `수정` 절이 최종 상태다.
 
 ## CH-LATENT-01 — 푸시 라우트가 전송 결과를 확인하지 않는다
 
@@ -21,8 +21,14 @@
   `CHANNEL_GROUP_DRAWING/ESTIMATE/AS` 가 설정돼 있지 않아 폴백이 동작한다.
 * 발현 조건: 누군가 `CHANNEL_GROUP_*` 를 **빈 문자열로** 설정하면 열린다
   (`os.environ.get(key, default)` 는 빈 문자열이면 기본값을 주지 않는다).
-* 수정 방향(미적용): 전송 후 `result.get('success')` 가 거짓이면 502 + 실패 사유를 반환하고
-  `_record_push_metadata` 를 건너뛴다. 성공 경로는 무변경.
+* **수정 완료(2026-08-27)**: `_ensure_dispatch_sent(result, push_kind)` 신설
+  (`channel_integration.py`) — 전송 결과가 성공이 아니면 `RuntimeError` 로 올려 기존 502
+  경로를 그대로 태운다. 이력 기록은 건너뛰고, 견적서 라우트는 업로드 정리 try **안에서**
+  판정해 고아 파일이 남지 않는다. 성공 경로 무변경.
+* 테스트: `tests/domains/test_channel_integration_smoke.py`
+  ::`test_push_manual_reports_502_when_dispatch_did_not_send` ·
+  ::`test_push_estimate_cleans_up_upload_when_dispatch_did_not_send`
+  (판정 호출 2줄을 빼면 둘 다 red 인 것 확인).
 
 ## CH-LATENT-02 — 인바운드 파싱 실패가 아무에게도 보이지 않는다
 
@@ -35,8 +41,14 @@
 * 현재 미발현 이유: 운영 `channel_inbound_event_logs` **0행**(2026-08-27 읽기전용 조회).
   `CHANNEL_INBOUND_CREATE_ENABLED=true` 이지만 인바운드 트래픽 자체가 없다.
 * 발현 조건: 인바운드 수신이 실제로 시작되는 시점. 켜기 전에 되살릴 것.
-* 수정 방향(미적용): 보낸 사람에게 실패 안내(Quick Reply) + `parse_failed` 를 볼 수 있는
-  관리자 표면 또는 알림 중 최소 하나.
+* **수정 완료(2026-08-27)**: `_notify_parse_failure(log, missing)` 신설
+  (`channel_inbound.py`) — ① 항상 `logger.warning` 으로 `parse_failed`·빠진 항목·chat 정보를
+  남긴다(운영 로그에서 grep 가능) ② **그룹 채팅에만** 빠진 항목을 적어 회신한다.
+  고객 1:1 대화(userChat)에는 자동 안내를 보내지 않는다 — 자동 실패 메시지가 고객에게
+  나가면 안 되고, `channel_client` 도 그룹 전송만 지원한다. 환경변수 미설정이면 조용히
+  건너뛴다(수신 처리를 깨뜨리지 않는다).
+* 테스트: `tests/domains/test_channel_inbound_parse_failure.py` 6개 — 그룹 회신·userChat
+  무회신·chat_id 없음·미설정 skip·로그 항상 남김·worker 실제 경로(배선을 빼면 red).
 
 ## 깨끗하다고 확인한 것 (재조사 낭비 방지)
 
