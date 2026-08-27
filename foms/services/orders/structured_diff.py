@@ -38,10 +38,12 @@ __all__ = [
     "SENSITIVE_ITEM_OPS",
     "SENSITIVE_ITEM_TEMPLATE",
     "SITE_EXTRA_PATH",
+    "CONTENT_MODIFIED_MARK",
     "DiffResult",
     "diff_structured",
     "get_path",
     "normalize_for_ledger",
+    "strip_markup",
 ]
 
 #: 감사 대상 스칼라 경로(2026-08-11 staging 주문 3,412건 키 분포 조사 기반).
@@ -112,6 +114,8 @@ SCALAR_PATHS: tuple[str, ...] = (
     "shipment.as_pending",
     # AS 접수 본문(HTML). ``shipment.as_log`` 타임라인은 append-only 라 **덮어쓰기**를 잡지
     # 못한다 — 본문이 통째로 바뀐 사실은 이 경로에만 남는다 (AUDIT-GAP-01).
+    # 판정은 sanitize 된 HTML 원문으로 하고, 원장에 실을 **표시값**만 태그를 벗긴다
+    # (:data:`_MARKUP_TEXT_PATHS` · :func:`_display_for_ledger`).
     "shipment.as_content",
     # --- 비고(문자열 SSOT — dict 아님) ---
     "notes",
@@ -220,12 +224,32 @@ SITE_EXTRA_PATH = "shipment.site_extra"
 #: 사정을 먼저 겪은 ``spec_rows``(표시값 ``3행``, 라벨 ``규격표``)의 규칙을 따른다.
 _SITE_EXTRA_UNIT = "건"
 
-#: 건수는 같은데 내용만 바뀐 경우 ``after`` 에 붙이는 표식. 이게 없으면 감사 화면에
-#: ``현장 특이사항 3건 → 3건`` 이라는, 읽는 사람이 오타로 여길 행이 남는다.
-_SITE_EXTRA_CONTENT_MARK = "(내용 수정)"
+#: 표시값이 같아 보이는 변경 행의 ``after`` 에 붙이는 표식 — **공용 상수**.
+#:
+#: 원장은 값을 :data:`_VALUE_LIMIT` 에서 자르고 요약 축은 아예 건수만 싣는다. 그래서 실제로
+#: 바뀐 행이 화면에 ``3건 → 3건`` · ``A… → A…`` 로 나오고, 읽는 사람은 오타나 버그로 여긴다
+#: (무엇이 바뀌었는지는 어디에도 없다). 그 행에 이 표식을 붙여 "표시값은 같지만 저장된 값은
+#: 달라졌다"를 말한다.
+#:
+#: 처음엔 현장 특이사항 전용 이름(``_SITE_EXTRA_CONTENT_MARK``)이었는데 같은 사정이 네 곳에서
+#: 났다 — 건수 요약(site_extra·``spec_rows``) · 지방 메모 절단(``regional.py``) · 옵션/AS 본문
+#: 절단. 리터럴을 파일마다 두면 한쪽만 고쳐져 감사 화면에 표식이 두 종류로 뜬다.
+CONTENT_MODIFIED_MARK = "(내용 수정)"
 
 _EMPTY_TOKENS = frozenset({"", "none", "null", "-"})
 _VALUE_LIMIT = 120
+
+#: HTML 태그·연속 공백 제거용. :mod:`foms.services.audit_message_display` 가 **이 함수를
+#: 그대로 쓴다**(:func:`strip_markup`) — 태그 정규식이 두 벌이 되면 쓰기(원장 표시값)와
+#: 읽기(화면 요약)가 서로 다른 텍스트를 보게 된다.
+_TAG_RE = re.compile(r"<[^>]+>")
+_WS_RE = re.compile(r"\s+")
+
+#: 원장 값이 **HTML** 인 경로. 표시값에서 태그를 먼저 벗긴다(:func:`_display_for_ledger`).
+_MARKUP_TEXT_PATHS: frozenset[str] = frozenset({"shipment.as_content"})
+
+#: 원장 값이 **JSON 문자열** 인 경로(평면 컬럼). 빈 칸을 걷어낸 안정 직렬화로 다시 적는다.
+_JSON_TEXT_PATHS: frozenset[str] = frozenset({"options"})
 
 
 class DiffResult(NamedTuple):
@@ -364,16 +388,94 @@ def get_path(source: Any, path: str) -> Any:
 
 
 def normalize_for_ledger(value: Any, path: str) -> Any:
-    """원장에 실릴 정규 값(절단 포함)을 만든다.
+    """원장에 실릴 정규 값(경로별 축소 + 절단)을 만든다.
 
     diff 가 저장하는 값과 **같은 규칙**이어야 한다 — 복원 경로가 "지금 값이 원장의
-    after 와 같은가"를 물으려면 같은 정규화를 거친 뒤 비교해야 하기 때문이다.
+    after 와 같은가"를 물으려면 같은 정규화를 거친 뒤 비교해야 하기 때문이다. 평면 컬럼
+    경로(``edit.py``·``regional.py``)도 이 함수를 거치므로 축소 규칙이 한 곳에 모인다.
+
+    **판정에 쓰면 안 된다** — 여기서 나온 값은 이미 잘려 있어, 120자 뒤만 바뀐 저장이
+    '무변경'으로 사라진다(그게 곧 무기록이다). 변경 여부는 절단 전 원문으로 판정하고
+    (``diff_structured`` 의 스칼라 루프 · ``edit.py._compare_value``), 이 함수의 결과는
+    원장 칸에 담을 표현으로만 쓴다.
 
     :param value: 원시 값(``structured_data`` 에서 읽은 그대로).
-    :param path: 그 값의 점 경로(금액 경로 판정에 쓴다).
-    :return: 정규화·절단된 값(빈값은 ``None``).
+    :param path: 그 값의 점 경로(금액·HTML·JSON 규칙 판정에 쓴다).
+    :return: 정규화·축소·절단된 값(빈값은 ``None``).
     """
-    return _clip(_normalize(value, numeric=_is_numeric_path(path)))
+    return _display_for_ledger(path, _normalize(value, numeric=_is_numeric_path(path)))
+
+
+def strip_markup(text: str) -> str:
+    """HTML 태그를 지우고 공백을 접어 한 줄 텍스트로 만든다.
+
+    쓰기(원장 표시값)와 읽기(:func:`~foms.services.audit_message_display.format_value`)가
+    **같은 함수**를 써야 한다 — 태그 정규식이 두 벌이 되면 원장에 담긴 텍스트와 화면에 뜨는
+    텍스트가 서로 다른 규칙으로 잘린다.
+
+    :param text: HTML 이 섞여 있을 수 있는 문자열.
+    :return: 태그 없는 한 줄 문자열.
+    """
+    return _WS_RE.sub(" ", _TAG_RE.sub(" ", text)).strip()
+
+
+def _compact_json_text(text: str) -> str | None:
+    """JSON 문자열을 **빈 칸을 걷어낸** 안정 직렬화로 다시 적는다.
+
+    평면 ``options`` 컬럼은 값이 JSON 문자열이라 ``_normalize`` 의 dict 가지를 타지 못하고
+    원문 그대로 실린다. 그런데 ``direct`` 옵션의 **빈 스켈레톤만 162자**라(2026-08-26 실측)
+    :data:`_VALUE_LIMIT` 를 이미 넘는다 — ``misc``·``quote``·``option_detail`` 처럼 뒤쪽에
+    직렬화되는 칸은 무엇을 고쳐도 원장에 ``A… → A…`` 로 남았다. 빈 칸을 걷어내면 같은 값이
+    53자로 줄어 **바뀐 칸이 그대로 보인다**.
+
+    라벨을 굽지 않는다(모듈 docstring 규칙 3) — 여기서 만드는 것은 여전히 JSON 데이터이고,
+    사람 표기는 읽기 시점에 ``audit_message_display._format_structured_text`` 가 붙인다.
+
+    :param text: 값 문자열.
+    :return: 다시 적은 JSON. 내용이 하나도 없으면 ``None``, JSON 이 아니면 원문 그대로.
+    """
+    if not (text.startswith("{") or text.startswith("[")):
+        return text
+    try:
+        parsed = json.loads(text)
+    except (TypeError, ValueError):
+        return text
+    compact = _normalize(parsed, numeric=False)
+    if compact is None:
+        return None
+    return compact if isinstance(compact, str) else text
+
+
+def _display_for_ledger(path: str, value: Any) -> Any:
+    """원장 칸에 담을 **표시값**을 만든다(경로별 군살 제거 → 절단).
+
+    :data:`_VALUE_LIMIT` 는 컬럼 상한이라 늘릴 수 없다. 그러면 그 예산을 무엇에 쓰느냐가
+    문제인데, 두 경로는 예산을 **내용이 아닌 껍데기**에 쓰고 있었다:
+
+    * ``shipment.as_content`` = sanitize 된 HTML. 2026-08-26 실측에서 여는 태그
+      (``<div class="as-body"><p style="…">``)만 56자를 먹어 실텍스트가 64자밖에 남지 않았고,
+      본문 중간중간의 태그가 남은 예산도 갉아먹는다. 태그를 먼저 벗기면 같은 120자에
+      본문이 훨씬 많이 들어간다.
+    * ``options`` = JSON 문자열. :func:`_compact_json_text` 참조.
+
+    **판정은 건드리지 않는다.** 변경 여부는 호출부가 절단 전 원문으로 이미 판정했고
+    (``diff_structured`` 스칼라 루프 · ``edit.py._compare_value``), 이 함수는 그 결과를
+    사람이 읽을 칸에 옮기기만 한다 — 태그만 바뀐 저장도 변경으로 기록되고, 표시값이 같아지면
+    :func:`~foms.services.audit_message_display.describe_change` 가
+    :data:`CONTENT_MODIFIED_MARK` 로 구분한다.
+
+    :param path: 원장 경로.
+    :param value: :func:`_normalize` 를 거친 값.
+    :return: 절단된 표시값.
+    """
+    if isinstance(value, str):
+        if path in _MARKUP_TEXT_PATHS:
+            # 태그뿐인 본문(``<br>`` 만 남은 값)을 빈값으로 둔갑시키지 않는다 — 벗겨서 남는 게
+            # 없으면 원문을 그대로 싣고, 값이 없다는 판정은 호출부(_op_of)가 원문으로 한다.
+            value = strip_markup(value) or value
+        elif path in _JSON_TEXT_PATHS:
+            value = _compact_json_text(value)
+    return _clip(value)
 
 
 def _clip(value: Any) -> Any:
@@ -424,8 +526,10 @@ def _change(
     """
     entry: dict[str, Any] = {
         "path": path,
-        "before": _clip(before),
-        "after": _clip(after),
+        # 값은 경로별 표시 규칙을 거친다(HTML 태그 제거·JSON 압축 → 절단). ``op`` 는 **절단 전**
+        # 값으로 판정한다 — 잘린 값으로 판정하면 120자 뒤만 바뀐 저장이 통째로 사라진다.
+        "before": _display_for_ledger(path, before),
+        "after": _display_for_ledger(path, after),
         "op": op or _op_of(before, after),
     }
     if item:
@@ -533,7 +637,7 @@ def _diff_site_extra(old_sd: Any, new_sd: Any) -> Iterable[dict[str, Any]]:
     if old_key == new_key:
         return
     if new_display is not None and new_display == old_display:
-        new_display = f"{new_display}{_SITE_EXTRA_CONTENT_MARK}"
+        new_display = f"{new_display}{CONTENT_MODIFIED_MARK}"
     yield _change(SITE_EXTRA_PATH, old_display, new_display)
 
 

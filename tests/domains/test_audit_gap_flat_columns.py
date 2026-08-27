@@ -120,8 +120,9 @@ def test_self_measurement_off_lands_in_ledger(client):
     oid = _create_order(is_self_measurement=True)
     _login(client, "gap-self-off")
 
-    _put(client, oid, is_self_measurement=False)
+    res = _put(client, oid, is_self_measurement=False)
 
+    assert res.status_code == 200, res.get_data(as_text=True)
     assert _fresh(oid).is_self_measurement is False
     rows = _ledger(oid, "is_self_measurement")
     assert len(rows) == 1
@@ -134,8 +135,13 @@ def test_self_measurement_unchanged_writes_no_row(client):
     oid = _create_order(is_self_measurement=True)
     _login(client, "gap-self-same")
 
-    _put(client, oid, is_self_measurement=True)
+    res = _put(client, oid, is_self_measurement=True)
 
+    # 저장이 실제로 성공했는지부터 본다 — 403/500 으로 죽은 저장은 "행이 없다"를 공짜로
+    # 통과시켜서, 무기록 계약이 아니라 요청 실패를 통과시키는 테스트가 된다.
+    assert res.status_code == 200, res.get_data(as_text=True)
+    # 성공했더라도 서버가 값을 엉뚱하게 바꿔 놓았다면 그것도 결함이다.
+    assert _fresh(oid).is_self_measurement is True, "무변경 저장이 컬럼 값을 바꿨다"
     assert _ledger(oid, "is_self_measurement") == []
 
 
@@ -164,14 +170,18 @@ def test_order_notes_added_and_cleared_use_add_and_clear_ops(client):
     oid = _create_order(notes=None)
     _login(client, "gap-notes-add")
 
-    _put(client, oid, notes="새 비고")
+    res = _put(client, oid, notes="새 비고")
+    assert res.status_code == 200, res.get_data(as_text=True)
+    assert _fresh(oid).notes == "새 비고"
     added = _ledger(oid, "order_notes")
     assert len(added) == 1
     assert added[0].before_value is None
     assert added[0].after_value == "새 비고"
     assert added[0].op == "add"
 
-    _put(client, oid, notes="")
+    res = _put(client, oid, notes="")
+    assert res.status_code == 200, res.get_data(as_text=True)
+    assert _fresh(oid).notes is None
     cleared = _ledger(oid, "order_notes")
     assert len(cleared) == 2
     assert cleared[1].before_value == "새 비고"
@@ -184,8 +194,11 @@ def test_order_notes_unchanged_writes_no_row(client):
     oid = _create_order(notes="기존 비고")
     _login(client, "gap-notes-same")
 
-    _put(client, oid, notes="기존 비고")
+    res = _put(client, oid, notes="기존 비고")
 
+    # 죽은 저장이 "행이 없다"로 위장하지 못하게 상태부터 못 박는다.
+    assert res.status_code == 200, res.get_data(as_text=True)
+    assert _fresh(oid).notes == "기존 비고", "무변경 저장이 컬럼 값을 바꿨다"
     assert _ledger(oid, "order_notes") == []
 
 
@@ -194,8 +207,11 @@ def test_order_notes_blank_to_blank_writes_no_row(client):
     oid = _create_order(notes=None)
     _login(client, "gap-notes-blank")
 
-    _put(client, oid, notes="")
+    res = _put(client, oid, notes="")
 
+    assert res.status_code == 200, res.get_data(as_text=True)
+    # 빈 문자열은 ``None`` 으로 접혀 저장된다 — 빈값끼리라 컬럼도 그대로다.
+    assert _fresh(oid).notes is None, "빈값→빈값 저장이 컬럼 값을 바꿨다"
     assert _ledger(oid, "order_notes") == []
 
 
@@ -223,8 +239,10 @@ def test_received_date_unchanged_writes_no_row(client):
     oid = _create_order(received_date="2026-08-26")
     _login(client, "gap-rdate-same")
 
-    _put(client, oid, received_date="2026-08-26")
+    res = _put(client, oid, received_date="2026-08-26")
 
+    assert res.status_code == 200, res.get_data(as_text=True)
+    assert _fresh(oid).received_date == "2026-08-26", "무변경 저장이 컬럼 값을 바꿨다"
     assert _ledger(oid, "received_date") == []
 
 
@@ -233,8 +251,9 @@ def test_received_time_added_lands_in_ledger(client):
     oid = _create_order(received_time=None)
     _login(client, "gap-rtime-add")
 
-    _put(client, oid, received_time="14:30")
+    res = _put(client, oid, received_time="14:30")
 
+    assert res.status_code == 200, res.get_data(as_text=True)
     assert _fresh(oid).received_time == "14:30"
     rows = _ledger(oid, "received_time")
     assert len(rows) == 1
@@ -248,8 +267,9 @@ def test_received_time_cleared_lands_in_ledger(client):
     oid = _create_order(received_time="14:30")
     _login(client, "gap-rtime-clear")
 
-    _put(client, oid, received_time="")
+    res = _put(client, oid, received_time="")
 
+    assert res.status_code == 200, res.get_data(as_text=True)
     assert _fresh(oid).received_time is None
     rows = _ledger(oid, "received_time")
     assert len(rows) == 1
@@ -263,8 +283,10 @@ def test_received_time_unchanged_writes_no_row(client):
     oid = _create_order(received_time="14:30")
     _login(client, "gap-rtime-same")
 
-    _put(client, oid, received_time="14:30")
+    res = _put(client, oid, received_time="14:30")
 
+    assert res.status_code == 200, res.get_data(as_text=True)
+    assert _fresh(oid).received_time == "14:30", "무변경 저장이 컬럼 값을 바꿨다"
     assert _ledger(oid, "received_time") == []
 
 
@@ -290,6 +312,12 @@ def test_save_without_flat_changes_writes_no_flat_rows(client):
     )
 
     assert res.status_code == 200, res.get_data(as_text=True)
+    # 무변경 저장이 값을 조용히 갈아엎었는데 원장만 비어 있으면 그것도 결함이다.
+    saved = _fresh(oid)
+    assert saved.is_self_measurement is True
+    assert saved.notes == "기존 비고"
+    assert saved.received_date == "2026-08-26"
+    assert saved.received_time == "14:30"
     for path in ("is_self_measurement", "order_notes", "received_date", "received_time"):
         assert _ledger(oid, path) == [], f"{path} 가 무변경인데 원장에 쌓였다"
 
@@ -302,6 +330,9 @@ def test_regional_flat_columns_still_land_in_ledger(client):
     res = _put(client, oid, is_regional=True, construction_type="협력사 시공")
 
     assert res.status_code == 200, res.get_data(as_text=True)
+    saved = _fresh(oid)
+    assert saved.is_regional is True
+    assert saved.construction_type == "협력사 시공"
     regional_rows = _ledger(oid, "is_regional")
     assert len(regional_rows) == 1
     assert regional_rows[0].before_value == "False"
@@ -316,15 +347,19 @@ def test_flat_changes_share_the_save_change_set(client):
     oid = _create_order(is_self_measurement=False, notes=None, received_time=None)
     _login(client, "gap-changeset")
 
-    _put(client, oid, is_self_measurement=True, notes="새 비고", received_time="09:00")
+    res = _put(client, oid, is_self_measurement=True, notes="새 비고", received_time="09:00")
 
-    ids = {
-        rows[0].change_set_id
-        for rows in (
-            _ledger(oid, "is_self_measurement"),
-            _ledger(oid, "order_notes"),
-            _ledger(oid, "received_time"),
-        )
-        if rows
-    }
+    assert res.status_code == 200, res.get_data(as_text=True)
+    saved = _fresh(oid)
+    assert saved.is_self_measurement is True
+    assert saved.notes == "새 비고"
+    assert saved.received_time == "09:00"
+    ledgers = [
+        _ledger(oid, "is_self_measurement"),
+        _ledger(oid, "order_notes"),
+        _ledger(oid, "received_time"),
+    ]
+    # 세 경로가 다 실렸는지 먼저 본다 — 하나만 실려도 change_set 집합 크기는 1 이라 통과한다.
+    assert all(ledgers), [len(rows) for rows in ledgers]
+    ids = {rows[0].change_set_id for rows in ledgers}
     assert len(ids) == 1, "같은 저장인데 change_set 이 갈라졌다"
