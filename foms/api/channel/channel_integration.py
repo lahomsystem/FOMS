@@ -10,6 +10,7 @@ import json
 import logging
 import os
 import traceback
+from typing import Any
 
 from flask import Blueprint, g, jsonify, request
 from sqlalchemy.orm.attributes import flag_modified
@@ -179,6 +180,28 @@ def _push_mutation_hashes(
         ensure_ascii=False,
     )
     return scope, hashlib.sha256(request_payload.encode()).hexdigest()
+
+
+def _ensure_dispatch_sent(result: Any, push_kind: str) -> None:
+    """
+    Raise when ChannelTalk skipped the send without raising an error.
+
+    ``dispatch_order_event(raise_on_error=True)`` 는 **예외만** 올린다. 전송 대상 그룹이
+    비어 있으면 ``send_group_message`` 가 예외 없이 ``success=False`` 를 돌려주는데, 그때
+    라우트가 그대로 200 을 내면 "보냈다고 나오는데 아무것도 안 간" 상태가 되고 push 이력에는
+    ``message_id`` 없는 가짜 기록이 남는다 (CH-LATENT-01).
+
+    Args:
+        result: ``dispatch_order_event`` 반환 dict.
+        push_kind: 로그에 남길 push 종류.
+
+    Raises:
+        RuntimeError: 전송이 수행되지 않았을 때. 라우트의 502 경로로 흐른다.
+    """
+    if isinstance(result, dict) and result.get('success'):
+        return
+    logger.error("[채널톡 %s푸쉬] 전송이 수행되지 않았다 (result=%s)", push_kind, result)
+    raise RuntimeError('채널톡이 메시지를 보내지 않았습니다 (전송 대상 그룹 미지정 등).')
 
 
 def _record_push_metadata(
@@ -524,6 +547,7 @@ def api_channel_push_manual():
             data=dispatch_data,
             raise_on_error=True
         )
+        _ensure_dispatch_sent(result, push_kind)
 
         # 전송 성공 후 push 결과·metadata 를 typed command 로 원자 기록한다(push_kind별 분리):
         # structured_data 이력 + mutation_version bump + receipt + OrderEvent 1 + dedupe enqueue.
@@ -813,6 +837,7 @@ def api_channel_push_estimate():
                 data=dispatch_data,
                 raise_on_error=True,
             )
+            _ensure_dispatch_sent(result, 'estimate')
         except Exception:
             _safe_delete_estimate_upload(storage, upload_key)
             raise
