@@ -19,7 +19,7 @@
 {% block title %}네이버 수집{% endblock %}
 
 {% block styles %}
-<link rel="stylesheet" href="{{ url_for('static', filename='css/admin/naver-workbench.css') }}?v=20260826g">
+<link rel="stylesheet" href="{{ url_for('static', filename='css/admin/naver-workbench.css') }}?v=20260827a">
 {% endblock %}
 
 {% block content %}
@@ -527,7 +527,6 @@
         </div>
         <div class="wb-ingest__cell wb-ingest__cell--action">
             <button type="button" class="btn btn-success btn-sm" id="wb-run-now">지금 수집</button>
-            <div class="wb-ingest__sub">큐에 넣기만 합니다 — 실제 호출은 워커가 냅니다.</div>
             <div class="wb-ingest__sub" id="wb-run-result" data-foms-no-autodismiss></div>
         </div>
     </section>
@@ -536,12 +535,6 @@
     <section class="card shadow-sm">
         <div class="card-header py-2 d-flex flex-wrap align-items-center gap-2">
             <span class="fw-semibold">전체 이력</span>
-            {# 필터가 걸리면 history.total 은 걸러진 수다 — 헤더도 그렇게 말해야 한다.
-               칩만 고치고 헤더를 두면 두 줄 위에서 같은 거짓말이 남는다. #}
-            <span class="small text-muted">
-                {% if history.status or history.place_pending %}지금 목록 {{ history.total }}주문
-                {% else %}전체 {{ history.total }}주문{% endif %} — 숫자는 모두 주문 단위</span>
-            <span class="small text-muted ms-auto">읽기 전용 — 처리는 <b>처리</b> 탭에서 합니다</span>
         </div>
 
         {# 이력 표 필터. 처리 탭 칩과 생김새는 같지만 거르는 대상이 다르다(이력 행 vs 집 목록)
@@ -569,6 +562,19 @@
                    숫자가 어긋나 보인다 — 모집단을 라벨에 적는다. #}
                 발주확인 전(취소 포함) {{ history.place_pending_count }}주문
             </a>
+            {# 찾기는 **화면**이 한다 — 이 표는 서버가 쪽수로 잘라 보내므로 칸이 닿는
+               범위는 지금 페이지뿐이다. 그 사실은 좁혀진 순간에만 note 가 말한다
+               (placeholder 는 글자를 치면 사라져서 정작 오해가 나는 때에 화면에 없다).
+               서버 검색으로 만들지 않는다: 고객명·제품은 raw_snapshot 파생값이라
+               쪽을 먼저 자른 뒤에 생긴다 — 파이썬으로 거르면 total·pages 가 거짓말이 된다.
+               칩과 같은 줄에 둔다: 새 밴드를 만들면 글자를 덜어낸 자리에 줄이 하나 는다. #}
+            <label class="wb-find">
+                <span class="wb-find__label">찾기</span>
+                <input type="search" id="wb-find" class="wb-find__input" autocomplete="off"
+                       placeholder="이 목록에서 · 고객명 · 주문번호 · 제품"
+                       aria-label="이 목록에서 찾기">
+            </label>
+            <span class="wb-find__note" id="wb-find-note" role="status" aria-live="polite"></span>
         </div>
 
         <div class="table-responsive">
@@ -583,7 +589,11 @@
                 <tbody>
                     {% for row in history.rows %}
                     {# 결정 2: 취소·반품은 빼지 않는다. 회색으로 같은 자리에 남긴다. #}
-                    <tr class="{{ 'wb-hist--muted' if row.claim_blocking else '' }}">
+                    {# 찾기 대상 텍스트는 처리 탭 행(위)과 **같은 식**이다 — 한쪽만 고치면
+                       같은 낱말로 두 탭에서 다른 결과가 나온다. 주문번호는 행 어디에도
+                       글자로 없어서 여기서만 검색 대상이 된다. #}
+                    <tr class="{{ 'wb-hist--muted' if row.claim_blocking else '' }}"
+                        data-find="{{ (row.customer_name ~ ' ' ~ (row.external_order_no or '') ~ ' ' ~ (row.product or '') ~ ' ' ~ ('주문 ' ~ row.order_id if row.order_id else ''))|lower }}">
                         <td class="wb-cmp__k">{{ row.created_at }}</td>
                         <td>{{ row.customer_name }}</td>
                         <td>
@@ -690,5 +700,5 @@
 {% endblock %}
 
 {% block scripts %}
-<script src="{{ url_for('static', filename='js/admin/naver-workbench.js') }}?v=20260826g" defer></script>
+<script src="{{ url_for('static', filename='js/admin/naver-workbench.js') }}?v=20260827a" defer></script>
 {% endblock %}

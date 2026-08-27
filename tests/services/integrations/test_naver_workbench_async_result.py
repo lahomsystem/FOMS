@@ -303,6 +303,53 @@ def test_soft_refresh_keeps_the_find_word_and_the_scroll_place(): # noqa: E501
         "값만 옮기고 다시 좁히지 않으면 칸에는 낱말이 남았는데 전체 목록이 보인다")
 
 
+def test_find_narrows_the_history_rows_with_the_same_rule():
+    """찾기는 이력 표의 행도 좁힌다 — 이력 전용 분기를 새로 만들지 않는다 (2026-08-27).
+
+    두 탭은 배타 렌더라 셀렉터 합집합이면 언제나 한쪽 모집단만 잡힌다. 이력용 분기를 따로
+    만들면 같은 규칙이 두 벌이 되어, 한쪽만 고쳐졌을 때 조용히 어긋난다(v3 리뷰 H1 과
+    같은 부류의 실수다).
+
+    범위 고지는 note 가 진다: 이력은 서버가 페이지 단위로 잘라 주므로 화면 찾기가 닿는
+    곳은 **지금 페이지뿐**이다. placeholder 에 적는 안은 폐기됐다 — placeholder 는
+    타이핑하는 순간 사라져, 정작 오해가 나는 시점(좁혀진 뒤)에 화면에 없다.
+    """
+    source = JS_PATH.read_text(encoding="utf-8")
+    body = source.split("function applyFind")[1].split("    function ")[0]
+
+    assert "#wb-queue a.wb-row" in body, "처리 탭 모집단을 잃으면 안 된다"
+    assert "tbody tr[data-find]" in body, "이력 행도 같은 모집단으로 들어온다"
+    assert "wb-find-note" in body, "좁힌 결과를 말할 자리에 써야 한다"
+
+    # 문구 자체는 `applyFind` 가 직접 쓰든 바로 옆 헬퍼가 쓰든 상관없다 — 자리를 못 박으면
+    # 테스트가 "헬퍼로 빼지 말라"는 구조 지시가 된다. 찾기 기계(onInput~captureFind
+    # 사이) 안에 있기만 하면 된다.
+    machinery = source.split("function onInput")[1].split("function captureFind")[0]
+    assert "이 페이지" in machinery, "닿는 범위는 좁혀진 뒤에 말해야 한다"
+
+    # 이력에서도 `지금 수집` → watchRun → softRefresh 로 화면 루트가 통째로 갈린다.
+    # 복원 경로가 끊기면 이력에서 조작 한 번에 찾기 낱말이 날아간다.
+    restore = source.split("function restoreFind")[1].split("    function ")[0]
+    assert "applyFind(" in restore, "복원이 다시 좁히지 않으면 칸에 낱말만 남는다"
+
+
+def test_history_card_dropped_the_three_lines_of_prose():
+    """사용자가 지운 안내문 3줄이 템플릿 소스에 남아 있지 않다 (2026-08-27).
+
+    응답 단언으로는 다 못 잡는다: "큐에 넣기만 합니다" 는 ``ingest_status`` 가 있을 때만
+    나오는 블록 안이라, 그 블록이 빠진 화면에서는 무엇을 지우든 green 이다. 세 줄을 한
+    자리에서 세려면 소스를 읽는 수밖에 없다.
+
+    나머지 둘의 **화면 쪽** 가드는
+    ``test_naver_workbench.py::test_history_prose_the_user_deleted_stays_deleted`` 다.
+    """
+    markup = TEMPLATE_PATH.read_text(encoding="utf-8")
+
+    assert "큐에 넣기만 합니다" not in markup, "지운 수집 버튼 밑 설명이 돌아왔다"
+    assert "숫자는 모두 주문 단위" not in markup, "지운 카운트 문구가 돌아왔다"
+    assert "읽기 전용 — 처리는" not in markup, "지운 읽기 전용 고지가 돌아왔다"
+
+
 def test_review_done_does_not_reload_the_whole_page():
     """확인 완료는 화면 루트만 갈아 끼운다 — 통째 이동은 폴백에만 남는다 (2026-08-26).
 
@@ -354,7 +401,7 @@ def test_bulk_note_exists_and_asset_pin_moved():
 
     assert 'id="wb-bulk-note"' in markup
     assert 'id="wb-retry-note"' in markup
-    assert markup.count("?v=20260826g") == 2, "CSS·JS 핀을 함께 올린다"
+    assert markup.count("?v=20260827a") == 2, "CSS·JS 핀을 함께 올린다"
 
 
 # --------------------------------------------------------------------------- #

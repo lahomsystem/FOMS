@@ -353,13 +353,40 @@
     }
 
     /**
+     * 좁힌 결과를 말로 옮긴다.
+     *
+     * 이력 탭은 서버가 쪽수로 자른 목록이라 이 찾기가 닿는 데는 **지금 페이지뿐**이다.
+     * 그 사실을 placeholder 로 말하면 글자를 치는 순간 사라져, 정작 오해가 나는 때
+     * (좁혀진 뒤)에 화면에 없다 — 그래서 여기서, 그 순간에만 말한다. 0줄이고 다음
+     * 쪽이 있으면 "없다" 가 아니라 "다른 쪽에 있을 수 있다" 다.
+     * 처리 탭은 목록이 한 번에 다 와 있어 범위 고지가 필요 없다(문구 불변).
+     * @param {number} shown 좁히고 남은 줄 수.
+     * @param {number} total 좁히기 전 줄 수.
+     * @returns {string}
+     */
+    function findNote(shown, total) {
+        var root = document.querySelector('.naver-workbench');
+        if (!root || root.dataset.activeTab !== 'all') {
+            return shown + '주문 / ' + total + '주문';
+        }
+        var text = shown + '주문 / 이 페이지 ' + total + '주문';
+        if (shown === 0 && document.querySelector('.wb-pager')) {
+            text += ' — 다른 쪽에 있을 수 있습니다';
+        }
+        return text;
+    }
+
+    /**
      * 찾기 낱말로 행을 숨기고 결과 수를 고지한다.
+     *
+     * 모집단은 **두 탭 합집합**이다 — 처리 탭의 집 줄과 이력 탭의 표 행. 두 탭은 배타
+     * 렌더라 한 화면에는 언제나 한쪽만 있고, 그래서 분기를 따로 두지 않는다.
      * @param {string} raw 사용자가 친 문자열.
      */
     function applyFind(raw) {
         var needle = String(raw || '').trim().toLowerCase();
         var rows = Array.prototype.slice.call(
-            document.querySelectorAll('#wb-queue a.wb-row'));
+            document.querySelectorAll('#wb-queue a.wb-row, table.wb-hist tbody tr[data-find]'));
         var shown = 0;
         rows.forEach(function (row) {
             var hay = row.getAttribute('data-find') || '';
@@ -373,9 +400,7 @@
         var note = document.getElementById('wb-find-note');
         if (note) {
             // 조용히 좁히면 "집이 사라졌다"가 된다. 찾는 중일 때만 말한다.
-            note.textContent = needle
-                ? (shown + '주문 / ' + rows.length + '주문')
-                : '';
+            note.textContent = needle ? findNote(shown, rows.length) : '';
         }
         // 숨은 줄이 선택에 남아 있으면 벌크가 화면에 없는 집으로 나간다(계약 §0-5).
         clearHiddenPicks();
