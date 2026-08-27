@@ -179,3 +179,37 @@ def test_failure_leaves_a_reason_and_raises(app):
     db_session.expire_all()
     state = (db_session.get(ExternalOrderLink, lid).triage_state or {}).get("fulfillment") or {}
     assert state.get("last_error"), "실패 사유가 화면에 남지 않는다"
+
+
+def test_partially_dispatched_household_only_returns_dispatched_rows(app):
+    """**부분 발송 집**에서 미발송 상품주문에 반품이 나가면 안 된다 (2026-08-27 CEO).
+
+    집 단위 가드(`집 안에 하나라도 발송분이 있으면 통과`)만으로는 부족하다.
+    실무에서 분할발송은 흔하고, 안 나간 물건에 반품을 접수하면 구매자에게
+    **없는 배송이 되돌아오는 것**으로 보인다. 되돌릴 수 없다.
+    """
+    from foms.services.integrations.naver_commerce.mapping import group_key_text
+
+    client = _Client()
+    order_no = "N-RET-MIX"
+    snapshot = {"order": {"orderId": order_no},
+                "productOrder": {"productOrderId": "PO-MIX-1"}}
+    gk = group_key_text(snapshot)
+    ids = []
+    for pid, dispatched in (("PO-MIX-1", True), ("PO-MIX-2", False)):
+        snap = {"order": {"orderId": order_no}, "productOrder": {"productOrderId": pid}}
+        link = ExternalOrderLink(
+            channel="NAVER", external_id=pid, external_order_no=order_no,
+            sync_status="LINKED", place_order_status="OK",
+            raw_snapshot=snap, group_key=gk,
+            triage_state=({"fulfillment": {"dispatched_at": "2026-08-27T00:00:00"}}
+                          if dispatched else None),
+        )
+        db_session.add(link)
+        ids.append(link)
+    db_session.commit()
+
+    request_return(db_session, client, link_id=int(ids[0].id), reason="COLOR_AND_SIZE")
+    db_session.commit()
+    sent = [c["pid"] for c in client.calls]
+    assert sent == ["PO-MIX-1"], f"미발송 건에 반품이 나갔다: {sent}"
