@@ -34,6 +34,7 @@ logger = logging.getLogger(__name__)
 from db import get_db
 from foms.services.orders.order_mutation_policy import POLICY_REGISTRY, evaluate_policy
 from foms.services.orders.order_field_change_writer import ledger_text, record_field_changes
+from foms.services.orders.structured_diff import CONTENT_MODIFIED_MARK
 from foms.services.orders.revision import RevisionError, execute_order_mutation
 from foms.web.auth import get_user_by_id, log_access
 from foms.services.audit_message_display import describe_field_change
@@ -56,9 +57,6 @@ REGIONAL_CHECKLIST_EVENT = "REGIONAL_CHECKLIST_UPDATED"
 REGIONAL_MEMO_EVENT = "REGIONAL_MEMO_UPDATED"
 _MEMO_MAX = 2000
 
-#: 원장 표시값이 120자 절단으로 before==after 가 될 때 붙이는 표식. 값이 실제로 바뀐 것과
-#: 안 바뀐 것을 읽는 사람이 구분할 수 있어야 한다(``structured_diff`` 의 site_extra 와 같은 규약).
-_MEMO_CONTENT_MARK = "(내용 수정)"
 
 #: 감사 detail 에 남길 메모 발췌 상한. 원장은 본문 저장소가 아니다 — 무엇이 바뀌었는지
 #: 알아볼 만큼만 남기고, 전문은 주문 화면이 정본이다.
@@ -310,7 +308,7 @@ def update_regional_memo_response():
             if memo_after == memo_before:
                 # 절단 충돌: 원문은 달라졌는데 표시값이 같다. 그대로 두면 원장이
                 # ``A → A`` 로 거짓말을 한다.
-                memo_after = f"{memo_after} {_MEMO_CONTENT_MARK}" if memo_after else _MEMO_CONTENT_MARK
+                memo_after = f"{memo_after} {CONTENT_MODIFIED_MARK}" if memo_after else CONTENT_MODIFIED_MARK
             record_field_changes(
                 sess,
                 [{

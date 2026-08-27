@@ -27,6 +27,15 @@ from foms.services.orders.as_availability import (
     AS_AVAILABILITY_TIME_LABELS,
 )
 from foms.services.orders.status_constants import CABINET_STATUS, STATUS
+# 원장 값 규칙 SSOT. 의존 방향은 **표시 → diff** 한 쪽뿐이다 — ``structured_diff`` 는 이
+# 모듈을 import 하지 않는다(그쪽 모듈 docstring 규칙 3: 라벨은 읽기 시점에 붙인다).
+# 태그 제거·절단 표식을 여기에 다시 적으면 원장에 담긴 텍스트와 화면에 뜨는 텍스트가
+# 서로 다른 규칙으로 잘린다.
+from foms.services.orders.structured_diff import (
+    CONTENT_MODIFIED_MARK,
+    NUMERIC_PATH_SUFFIXES,
+    strip_markup,
+)
 
 __all__ = [
     "ACTION_LABELS",
@@ -437,9 +446,6 @@ _EMPTY_CONTENT_DISPLAY = "(내용 없음)"
 #: AS 내용처럼 긴 본문을 줄일 상한.
 _LONG_TEXT_LIMIT = 60
 
-_TAG_RE = re.compile(r"<[^>]+>")
-_WS_RE = re.compile(r"\s+")
-
 #: 과거 자유 텍스트 3종(운영 실측 상위 유형) 역파싱.
 #: 예) ``지방 주문 #4336의 'regional_blueprint_sent' 상태를 'True'(으)로 변경``
 _LEGACY_FIELD_CHANGE_RE = re.compile(
@@ -474,11 +480,6 @@ def field_label(field: str | None) -> str:
     return FIELD_LABELS.get(field, field)
 
 
-def _strip_markup(text: str) -> str:
-    """HTML 태그를 지우고 공백을 접어 한 줄 텍스트로 만든다."""
-    return _WS_RE.sub(" ", _TAG_RE.sub(" ", text)).strip()
-
-
 def _summarize_text(value: Any) -> str:
     """자유 텍스트를 한 줄 요약으로 만든다(태그 제거 + 상한 초과 시 말줄임).
 
@@ -487,7 +488,7 @@ def _summarize_text(value: Any) -> str:
     """
     text = str(value).strip()
     if "<" in text and ">" in text:
-        text = _strip_markup(text)
+        text = strip_markup(text)
     if len(text) > _LONG_TEXT_LIMIT:
         return f"{text[:_LONG_TEXT_LIMIT]}…"
     return text
@@ -843,8 +844,6 @@ def _format_money_text(path: str, text: str) -> str:
     :param text: 이미 표시형으로 옮긴 값.
     :return: 금액이면 ``100,000``, 아니면 원문 그대로.
     """
-    from foms.services.orders.structured_diff import NUMERIC_PATH_SUFFIXES
-
     if not any(path.endswith(suffix) for suffix in NUMERIC_PATH_SUFFIXES):
         return text
     probe = text.replace(",", "").strip()
@@ -855,6 +854,17 @@ def _format_money_text(path: str, text: str) -> str:
 
 def describe_change(change: Mapping[str, Any], *, label_override: str | None = None) -> str:
     """변경 1건을 ``라벨: 이전 → 이후`` 한 줄로 옮긴다 (ORDER-DIFF-00).
+
+    **표시값이 같아지는 행**에는 :data:`~foms.services.orders.structured_diff.CONTENT_MODIFIED_MARK`
+    를 붙인다. 원장에 행이 있다는 것은 절단 전 원문으로 이미 "바뀌었다"고 판정됐다는 뜻인데,
+    값은 두 번 줄어든다 — 쓰기 시점 120자 절단(``structured_diff._clip``)과 읽기 시점
+    :data:`_LONG_TEXT_LIMIT` 요약이다. 그래서 앞부분이 같은 긴 값은 화면에 ``A → A`` 로 나오고
+    읽는 사람은 오타나 버그로 여긴다. 표식은 "여기서 더 보여줄 수 없을 뿐 값은 달라졌다"를
+    말한다(본문은 주문 화면이 갖는다 — 요약은 은닉이 아니다).
+
+    쓰기 시점 표식(요약 축의 ``3건(내용 수정)``)과 겹치지 않는다: 그때는 ``before``/``after``
+    가 이미 다르므로 여기 조건에 걸리지 않는다. 반대로 그 표식이 읽기 요약에서 잘려 나간
+    긴 값(지방 메모)은 여기서 다시 붙는다.
 
     :param change: :func:`foms.services.orders.structured_diff.diff_structured` 가 만든 dict
         (``path``·``before``·``after``·``op``, 품목이면 ``item``).
@@ -873,8 +883,12 @@ def describe_change(change: Mapping[str, Any], *, label_override: str | None = N
     value_field = _PATH_VALUE_FIELD.get(path)
     before_text = _format_money_text(path, format_value(value_field, change.get("before")))
     after_text = _format_money_text(path, format_value(value_field, change.get("after")))
+    # 빈값 표기를 먼저 맞춘다 — 그래야 "빈값 → 빈값" 행(``(없음) → (지움)``)이 아래 비교에
+    # 걸려 엉뚱하게 "내용 수정" 으로 읽히지 않는다.
     if before_text == _EMPTY_DISPLAY:
         before_text = _EMPTY_BEFORE_DISPLAY
+    if before_text == after_text:
+        after_text = f"{after_text}{CONTENT_MODIFIED_MARK}"
     return f"{label} {before_text} → {after_text}"
 
 

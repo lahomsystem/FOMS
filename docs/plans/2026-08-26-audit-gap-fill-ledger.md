@@ -174,3 +174,31 @@
 
 **CI**: `574ceeef` 4/4 green (FOMS CI · PG Lane · Harness CI · perf-gate).
 **잔여**: 운영 승격 미실행 + 후속 별건 5건(위 T6 목록).
+
+## T10 후속 별건 처리 (2026-08-26, 워커 4대 병렬 + 오케스트레이터 정리 2건)
+
+T6 CEO 판정이 남긴 비차단 항목을 파일 소유권으로 나눠 처리. **각 워커가 수정을 되돌려 red 가 나는지 스스로 증명**하게 했다(가짜 통과 배제).
+
+| task | 소유 | 결과 |
+|---|---|---|
+| F1 | `structured_diff.py`·`audit_message_display.py` | 절단 충돌 표식을 **읽기 시점**으로. `options`=JSON 빈칸 제거 축(162자→53자), `as_content`=마크업 제거 축(`strip_markup` SSOT 공유). 되돌림 red 3+4건 |
+| F2 | `foms/api/cs/as_orders.py` | AS 본문 원장 배선(쓰기 지점 2곳, 둘 다 `_mutate` 안). 되돌림 red 7건 |
+| F3 | `shipment/settings.py`·`admin/storage.py` | 원장 쓰기를 `_mutate` 안으로(IntegrityError backstop 유령 행 창). 되돌림 red 2건 — **유령 행 실제 재현**(컬럼 15000, 원장 20000) |
+| F4 | `test_audit_gap_flat_columns.py` | 거짓 통과 11곳 보강(지적은 5곳). 단언 삭제 0/추가 28. 거짓 통과 실측 재현 후 차단 |
+| 정리 | `regional.py`·`field_update.py` | `(내용 수정)` 리터럴 → 공용 `CONTENT_MODIFIED_MARK` 재사용 / `change_set` 헤더 **6곳 전부 무조건**으로 통일 |
+
+### F1 이 잡은 오케스트레이터 실수
+T7 에서 지방 메모에 붙인 `(내용 수정)` 표식이 **화면에 안 보이고 있었다** — 값이 두 번 줄어든다(쓰기 `_clip` 120자 + 읽기 `_LONG_TEXT_LIMIT` 60자). 쓰기 시점 표식은 읽기 요약에서 잘린다. F1 이 표식을 읽기 시점으로 옮겨 해결했고, 덤으로 `items.*.spec_rows` 의 `2행 → 2행`(행 수 같고 내용만 변경)도 구분되게 됐다.
+
+### 검증
+- 신규 테스트 2파일 추가(`test_audit_gap_clip_collision.py`·`test_audit_gap_as_content.py`·`test_audit_gap_ghost_rows.py`)
+- F1↔F2 상호작용 확인(as_content 표시 축 변경 vs AS 본문 원장 단언) — 함께 114 passed, 충돌 없음
+- 전체 `tests/domains`+`tests/contracts` **5331 passed / 5 skipped / 0 failed**, `pre_push_smoke` exit 0
+- 인벤토리: state/mutation/audit_coverage 재생성(줄번호만). **failopen 은 재생성 시 `jobs/tasks.py` 항목이 빠지는 환경 의존 이상**이 있어 커밋본 유지(게이트 green) — 별건 조사 대상
+
+### 남은 별건
+1. **평면 diff 로직 4~5벌 중복** → `flat_ledger.py` 공통화. 전 파일을 건드려 병렬 작업과 충돌하므로 미실행. CEO 지적: 절단 유무·`_is_unset` 유무가 파일마다 갈렸고 **결함이 정확히 그 자리에서 났다**.
+2. `options` 화면 문장이 영문 키로 읽힘(`옵션 상세 details misc AAA → …`) — 렌더러는 `drawing_order_change.format_value_for_display`, 이번 변경 이전과 동일(회귀 아님).
+3. `as_orders.py:672-681` 첨부 승격 블록 **중복 2회**(기존 코드, 멱등).
+4. `as_cycle_service._apply_classification_projection` 파생 쓰기는 원장 미투영(의도적 — 라우트가 서비스 규칙을 흉내 내면 원장이 거짓말한다).
+5. failopen 인벤토리 재생성 환경 의존 이상(위).

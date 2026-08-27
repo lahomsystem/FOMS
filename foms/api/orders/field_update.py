@@ -790,11 +790,14 @@ def update_order_field_response(
             "field": field,
             "before": old_value,
             "after": value,
+            # 관리자 감사 화면이 detail->>'change_set' 으로 원장과 조인한다. 행이 0건이어도
+            # **무조건** 넣는다(2026-08-26 통일) — 조인 키가 있어야 감사 화면에서 원장으로
+            # 넘어가는 길이 항상 열리고, "헤더는 있는데 행이 0" 은 변경 없음을 뜻하는
+            # 정상 상태다. edit.py·regional.py·settings.py·storage.py 와 같은 규약.
+            "change_set": change_set_id,
+            "change_count": recorded_rows,
             **audit_context,
         }
-        if recorded_rows:
-            # 관리자 감사 화면이 detail->>'change_set' 으로 원장과 조인한다.
-            audit_detail["change_set"] = change_set_id
         log_access(
             describe_field_change(
                 order_id=order.id, field=field, before=old_value, after=value,
