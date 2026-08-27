@@ -901,3 +901,131 @@ R5~R7 미구현이 **정당한 축소**임을 실증(`request_return` 호출자�
 파일 경계 소스 겹침 0 · 승격 cherry-pick 원칙 준수(타 세션 커밋은 `01fd8e97` 하나, 사용자 명시) ·
 가드 뮤테이션 4회 전부 red 재현 · A 의 알림 생성 운영 경로 3/3 전수 · B 는 느슨해진 게
 아니라 **강해졌다**(옛 테스트는 의도가 아니라 환경을 테스트했다) · D 음성 테스트가 실제로 문다.
+
+---
+
+# 4차 세션 (2026-08-27 오후) — 운영 승격 4건 + T8 배선 완성
+
+> 사용자 지시: 승격 먼저(4건 전부) → T8 배선 → 남은 검증. 웹푸시 스위치는 그대로 둔다.
+
+## 1순위 — 운영 승격 4건 (완료, PR #168 → production `06159364`)
+
+| deploy SHA | 승격 SHA | 내용 |
+|---|---|---|
+| `9ef4f482` | `e02d21c8` | 회수지 우편번호 렌더 + `수집됨(생성 전)`·`생성됨` 라벨 |
+| `9483444c` | `59408411` | 네이버 클레임·앱만료 알림 웹푸시 enqueue |
+| `507c93d1` | `3db7eb28` | T8-S1 판매자 반품 접수 본체 |
+| `a53acb1d` | `575acfef` | T8 부분 발송 집에서 미발송 건까지 보내던 결함 |
+| — | `8794643d` | 승격 트리 기준 fail-open 인벤토리 **재생성** |
+
+### completeness `INCOMPLETE: missing=16` 을 통과시킨 근거
+
+16건 전부 **문서·생성물 의존이고 코드 의존은 0** 이었다:
+
+- 6건 = `foms_failopen_inventory.json` — 생성물이다. 승격 트리에서 **재생성**해 의존을 끊었다
+  (deploy 판은 운영에 없는 타 세션 코드 `order_share` bundle 의 줄 위치를 담고 있어 그대로 두면
+  드리프트 게이트 red). 재생성 결과 553 broad catches · 0 unclassified.
+  `order_mutation_writer`·`state_writer` 인벤토리는 재실행 후 무변경.
+- 9건 = 원장 `.md` — 런타임 0.
+- 1건 = `7451aac5` — **코드는 이미 운영에 있었다**. 확인:
+  `origin/production:…/mapping.py:260` 에 `RETURN_BLOCK_KEYS` 존재 + 실패 문구 3개 반영됨.
+  남은 delta 는 원장·SPEC 문서뿐.
+
+cherry-pick 충돌은 원장 `.md` 1건뿐이었고 `a53acb1d` 판을 그대로 채택했다(정규식 병합 안 함).
+naver 코드 파일은 `git diff origin/deploy` **차이 0** — 승격 트리 코드가 deploy 와 완전히 같다.
+
+### 승격 트리에서 직접 돌린 검증 (PR 체크에 맡기지 않았다)
+
+```
+python -c "import app; print('APP_OK')"           → APP_OK
+python -m pytest -k naver -q                      → 835 passed, 16 skipped
+python -m pytest tests/contracts tests/domains -q → 5314 passed, 5 skipped
+scripts/ops/pre_push_smoke.ps1                    → exit 0
+```
+
+PR #168 체크 4/4 pass(`harness`·`perf-gate`·`pg-lane`·`test`). 마이그레이션 0건.
+
+## Q1 — **열렸다** (T8 착수 차단 해제)
+
+사용자가 커머스API센터 `[애플리케이션 관리] → [API 그룹] → 주문 판매자` 화면을 확인:
+
+- (a) 리소스 유형 = **모든 리소스 유형** ✓
+- (b) 그룹 설명 문구에 '반품'이라는 낱말은 **없다**. 그러나 엔드포인트 목록에
+  **`POST /v1/pay-order/seller/product-orders/{productOrderId}/claim/return/request`** 가
+  명시돼 있다 — T8 이 쓰는 바로 그 경로다. `return/approve`·`reject`·`holdback`·
+  `holdback/release`, `exchange/*` 도 함께 열려 있다(이번 범위 아님).
+- (c) 인증 기한 **2027-02-10 ~ 2027-02-23**(재인증 창까지 167일). 지금 유효.
+
+**설명 문구로 판정했으면 '반품 없음'으로 오판했을 자리다** — 판정 근거는 엔드포인트 목록이다.
+
+## 2순위 — T8 배선 (R5~R8 + R9)
+
+| # | 자리 | 한 것 |
+|---|---|---|
+| R5 | `jobs/queue.py`·`jobs/tasks.py` | `enqueue_naver_return` → **취소와 같은 태스크**에 `action="return"`. 갈래를 새로 파면 `except FulfillmentError` 의 "실패 사유를 남기고 커밋" 규율이 두 벌이 된다 |
+| R6 | `POST /admin/naver-ingest/<int:link_id>/return` | 게이트 OFF=403 · 화이트리스트 밖=400(큐 전) · 큐 불가=503 · 감사 `NAVER_INGEST_RETURN_ENQUEUE` |
+| R7 | pane 버튼 `wb-return` + 모달 `wb-modal-return` + `submitReturn` | 불가역이라 모달 필수. 모달이 재진술: 되돌릴 수 없음 · 회수는 우리 차량 · **승인·환불은 사람이 판매자센터에서** |
+| R8 | `_fulfillment_state` | 지문에 `return.requested_at` 추가 + `returned` 카운트. **새 엔드포인트 0** |
+| R9 | `test_naver_return_wiring.py` 20건 | 아래 |
+
+### 화면 재진술 == 서버가 보낼 건수 (술어 한 벌)
+
+`fulfillment.is_return_pending(link)` 를 새로 뽑아 **서버와 화면이 같은 술어**를 쓴다.
+서버 `request_return` 의 `todo` 선택식이 그대로고, `_group_queue` 가 `return_pending_count`
+로 같은 것을 센다. 부분 발송 집에서 집 전체 수로 재진술하면 "3건 접수합니다"라고 읽히는데
+서버는 나간 1건만 보낸다 — **불가역 경로에서 그 과대 진술이 그대로 사고**다.
+
+### 낡은 문구 3곳 정정
+
+버튼이 생겼는데 화면이 아직 "반품은 판매자센터에서 처리하세요"라고 말하면 **화면이 자기
+자신과 모순**된다(3차 세션의 `반품 진행` 줄 사고와 같은 종류). 3곳을 고쳤고, 잠긴 집에는
+반품 버튼도 안 내므로 그 자리에서는 없는 버튼을 가리키지 않게 문구를 갈랐다.
+
+### 전수 규율 적용 — 술어 8조합 전부
+
+3차 세션이 두 번 걸린 자리(양성 후보만 돌아 음성 대조군을 통째로 놓침)를 테스트로 고정했다.
+`test_is_return_pending_over_every_state_combination` 이 (우리 발송 × 네이버 발송 × 이미 접수)
+**8가지를 전부** 만들고 기대값으로 갈라 **양성 3 / 음성 5 / 어긋남 0** 을 단언한다.
+화면 쪽도 **혼합 사례**(한 집에 나간 것·안 나간 것·이미 접수한 것)를 실제로 만들어
+모달이 `1건` 이라고 말하는지 본다.
+
+### 반품 사유를 2개로 좁혔다 (사용자 결정)
+
+`RETURN_REASONS` 를 7 → **2**(`COLOR_AND_SIZE`·`WRONG_DELAYED_DELIVERY`). 실물 33건에서
+관측된 값만 남긴다. 문서에서 이름만 본 5종은 뺐다 — 전체 범례 미확인 + 불가역 경로라
+**400 을 되돌릴 수 없는 자리에서 처음 만나지 않는다**. 계약 테스트가 이 사실을 잠근다.
+**읽기 쪽은 안 좁혔다** — `mapping` 이 보여주는 `returnReason` 은 네이버가 준 값이고,
+목록에 없다고 화면에서 지우면 사실이 사라진다.
+
+## 3순위 — 남은 검증
+
+### railway 로 실측한 것 — **전제가 하나 틀렸다**
+
+| 확인 | 값 |
+|---|---|
+| production `web` | `FOMS_WEB_PUSH_ENABLED=1` · `FOMS_NAVER_WORKBENCH_ENABLED=1` · `COHORT=all` |
+| production `WORKER` | `FOMS_WEB_PUSH_ENABLED=1` · `VAPID_PRIVATE_KEY` 설정됨 · `NAVER_COMMERCE_APP_EXPIRES_ON=2027-02-23` |
+| 운영 `notification_push_subscriptions` | 4행 중 **활성 2행 — 둘 다 `upperkill`**(android·windows). `chltkddyd` 2행은 revoked |
+
+**웹푸시는 꺼져 있지 않았다.** 3차 세션 인수인계는 "꺼져 있으면 `flag_off` 로 skip 된다"고
+적었는데, 운영은 이미 `1` 이고 VAPID 키도 있다. 즉 방금 승격한 `59408411` 은 **지금 살아 있다** —
+다음 네이버 클레임·앱만료 알림부터 `upperkill` 기기 2대로 실제 푸시가 나간다.
+사용자 판단: **그대로 둔다**(도달 범위가 본인 기기뿐이고, 실도착 확인에 오히려 좋다).
+
+`NAVER_COMMERCE_APP_EXPIRES_ON` 이 운영에 등록돼 있다 — D-7 경고가 운영에서는 작동한다
+(3차 세션이 "스테이징 미등록"이라 적은 것은 스테이징 한정 사실이었다).
+
+### 아직 안 한 것
+
+- **① 반증축 4개**(link_id 195·258·311·353) — 코호트를 열 일이 생기면 함께.
+- **웹푸시 실도착 1건** — enqueue 까지만 잠겨 있다. 운영이 켜져 있으므로 다음 실클레임이
+  사실상 첫 실도착 시험이 된다.
+- **Q4 스테이징 실호출 1건** — 실주문이 필요하고 대상은 사용자가 고른다.
+
+## 알고 넘어가는 것 (4차)
+
+- **`RETURN_REASONS` 2개는 업무 커버리지가 아니다.** 고객이 '상품 불량'으로 반품하려는데
+  화면에 그 사유가 없다. 네이버 문서의 `returnReason` 표 전체를 확인하면 늘린다(§6 Q3).
+- 웹푸시 중복 방지는 여전히 **워커 동시성 1 전제**다(3차 기록 그대로). 스케일아웃이 결정 게이트.
+- AST 단언 우회 가능성도 그대로 — 진짜 보증은 상수 1값 + client 가 그 값만 싣는 것.
+- `returnInfo`·`exchange` 블록은 여전히 미관측. `COLLECTING`·`COLLECT_DONE` 진행 중 반품도 못 봤다.

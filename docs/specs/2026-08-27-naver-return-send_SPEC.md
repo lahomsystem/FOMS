@@ -6,7 +6,11 @@
 
 ## 0. 한 줄
 
-**착수를 막는 것은 이제 게이트 ② 하나(권한 화면 1회 확인)뿐이다.** 나머지 물리적 조건
+> **2026-08-27 갱신 — 게이트 4개가 전부 닫혔고 R1~R9 를 배선했다.** Q1(권한 화면)은
+> 사용자 확인으로 열렸다(§1). 아래 본문은 착수 시점 기록이며, 구현 결과는 원장
+> `docs/plans/2026-08-26-naver-followup-multiagent-ledger.md` §4차 세션에 있다.
+
+**착수를 막던 것은 게이트 ② 하나(권한 화면 1회 확인)였다.** 나머지 물리적 조건
 셋은 스테이징 실데이터가 답했다. 다만 **FOMS 버튼 하나로 반품이 끝나는 갈래는 없다** —
 네이버가 `요청`과 `승인`을 갈라 놓았고, 그 사이에 **우리 차량 회수와 사람 검수**가 있다.
 
@@ -15,12 +19,13 @@
 | 게이트 | 판정 | 근거 |
 |---|---|---|
 | ① 판매자가 **먼저 접수**할 수 있는가 | **확인** | [실측] `return` 33건 중 **24건이 `requestChannel:"판매자"`** · [문서] #2281·#3106·#1457 |
-| ② 우리 앱 권한 그룹에 반품 포함인가 | **강한 정황 · 화면 1회 잔여** | #2281 공식 표가 반품 5종을 **우리가 오늘 성공 호출 중인 발주확인·발송처리·취소요청과 같은 `[주문]` 그룹**에 둔다. #3681 "별도 심사 없이 권한 추가로 이용 가능". #3562 제3자가 같은 앱·토큰으로 반품 승인·거부 성공 |
+| ② 우리 앱 권한 그룹에 반품 포함인가 | **확인 (2026-08-27)** | [화면] `주문 판매자` 그룹 · 리소스 유형 `모든 리소스 유형` · 엔드포인트 목록에 **`POST /v1/pay-order/seller/product-orders/{productOrderId}/claim/return/request`** 명시(`return/approve`·`reject`·`holdback`·`holdback/release` 도 함께). 인증 기한 2027-02-10~02-23. **설명 문구에는 '반품'이라는 낱말이 없다 — 문구로 판정했으면 오판했을 자리다** |
 | ③ **자사 회수**(택배사·송장 없음)를 받는가 | **확인** | [실측] `collectDeliveryMethod: RETURN_INDIVIDUAL` 28건, `collectTrackingNumber` **33건 전부 없음**, 전부 `RETURN_DONE` 완주 |
 | ④ `DIRECT_DELIVERY`/`NOT_TRACKING` 이 조건을 만족하는가 | **확인** | [실측] 배송 블록 **177건 전부** 그 조합, 그중 33건 반품 완료 |
 
 **[실측]은 판매자센터(사람) 경로의 결과다 — API 통로의 가능성을 증명하지 않는다.**
-물리적 가능성만 닫혔다. ②가 닫히면 통로도 닫힌다.
+물리적 가능성이 닫혔고, ②가 화면으로 닫히면서 통로도 닫혔다. **남은 것은 실호출 1건**
+(§6 Q4) — 권한이 붙어 있다는 것과 우리 body 가 200 을 받는다는 것은 아직 다른 사실이다.
 
 ## 2. 설계를 강제하는 사실 4가지
 
@@ -57,14 +62,14 @@
 
 | # | 조각 | 자리 | 비고 |
 |---|---|---|---|
-| R1 | `RETURN_REASONS` 화이트리스트 + `COLLECT_METHOD = "RETURN_INDIVIDUAL"` **상수 1값 고정** | `naver_commerce/constants.py` | `CANCEL_REASONS` 패턴. **다른 회수방법 코드는 코드에 존재조차 시키지 않는다**(§2-2) |
+| R1 | `RETURN_REASONS` 화이트리스트 + `COLLECT_METHOD = "RETURN_INDIVIDUAL"` **상수 1값 고정** | `naver_commerce/fulfillment.py` | `CANCEL_REASONS` 패턴. **다른 회수방법 코드는 코드에 존재조차 시키지 않는다**(§2-2). **구현 완료** — 사유는 실물로 관측된 **2개만**(`COLOR_AND_SIZE`·`WRONG_DELAYED_DELIVERY`, 사용자 결정 2026-08-27). Q3 이 답하면 늘린다 |
 | R2 | `request_return(session, client, *, link_id, reason, detail, actor_user_id)` | `naver_commerce/fulfillment.py` | `cancel_order`(`:704`) 를 본뜬다. 응답이 취소와 동형(`successProductOrderIds`/`failProductOrderInfos`)이라 **`_split_result`(`:320`) 재사용** |
 | R3 | 가드 3겹 | 같은 파일 | ① 이미 클레임 진행 중이면 거절(`_claim_guard`) ② **발송처리 전이면 거절** — 안 나간 물건은 반품이 아니라 취소다(`cancel_order:741` 의 거울) ③ **우리 표식 멱등**(`triage_state['return']['requested_at']`) |
 | R4 | 자기표식 | `triage_state['return']` | **`requestChannel` 에 기대지 않는다**(§2-4). 취소의 `_is_our_cancel`(`claim_watch.py:201·349`) 과 같은 방식 — 안 그러면 우리가 넣은 반품이 우리에게 클레임 알림으로 되돌아온다 |
-| R5 | 큐 | `jobs/queue.py` `enqueue_naver_return` + `tasks.py` `run_naver_return_task` | `enqueue_naver_fulfillment`(`:208`) 본뜬다 |
+| R5 | 큐 | `jobs/queue.py` `enqueue_naver_return` | **구현 완료.** 별도 태스크를 파지 않고 **취소와 같은 `run_naver_fulfillment_task` 에 `action="return"`** 으로 태웠다 — 그 자리의 `except FulfillmentError` 커밋 규율(실패 사유를 DB 에 남긴다)을 두 벌로 만들지 않으려는 것이다 |
 | R6 | 라우트 | `POST /admin/naver-ingest/<link_id>/return` | **신규 mutation 계약 4종 등재 필수**: policy manifest · write guard manifest · audit coverage inventory · 감사 라벨 `NAVER_INGEST_RETURN_ENQUEUE` |
 | R7 | 화면 | pane 버튼 + **확인 모달** | 모달이 재진술할 것: **되돌릴 수 없다 · 접수 후 API 로 정정 불가(§2-3) · 승인은 판매자센터에서 사람이 · 회수는 우리 차량** |
-| R8 | 진행 표시 | `_fulfillment_state.rev` 지문에 `return.requested_at` 추가 | T4 가 `claim_sync.refreshed_at` 로 한 것과 같은 수법 — **새 엔드포인트 0** |
+| R8 | 진행 표시 | `_fulfillment_state.rev` 지문에 `return.requested_at` 추가 | **구현 완료.** T4 가 `claim_sync.refreshed_at` 로 한 것과 같은 수법 — **새 엔드포인트 0**. `returned` 카운트도 함께 나간다(폴링 키 집합 계약 테스트 갱신) |
 | R9 | 테스트 | 서비스(가드 3겹 · 멱등 · 화이트리스트 거절) · 라우트(권한·계약) · 큐 | 빨강 먼저 |
 
 **핵심 규율**: `refresh_claims` 는 이번에도 **한 줄도 안 고친다**. 반품 접수 뒤 상태 추적은
@@ -83,7 +88,7 @@ API 로는 되돌릴 수 없다(§2-3). 그래서:
 
 > **Q1 하나만 착수를 막는다.** 나머지는 구현 입력값·업무 규칙이다.
 
-**Q1 (차단) — 권한 화면 1회.** 커머스API센터 → [애플리케이션 관리] → 우리 앱 → [API 그룹]
+**Q1 — 답 나왔다 (2026-08-27, §1 게이트 ② 참조). 아래는 물었던 내용이다.** 커머스API센터 → [애플리케이션 관리] → 우리 앱 → [API 그룹]
 에서 `주문 판매자` 행을 편다. (a) 리소스 유형이 **`모든 리소스 유형`** 인가 (b) 그룹 이름·설명이
 **'반품'을 포함**하는가 (c) **만료일**은 언제인가(스테이징 `NAVER_COMMERCE_APP_EXPIRES_ON`
 미등록 → D-7 경고 미발동).
@@ -92,7 +97,7 @@ API 로는 되돌릴 수 없다(§2-3). 그래서:
 `productOrderStatus` 에서 호출 가능한가(구매확정 후 불가 문장이 있는가). `collectDeliveryMethod`
 가 required 인가.
 
-**Q3 (구현 입력) — `returnReason` 코드 표 전체.** 취소 7종과 어떻게 다른가.
+**Q3 (미결 — 사유 2개로 좁혀 착수했다) — `returnReason` 코드 표 전체.** 취소 7종과 어떻게 다른가.
 **반품 배송비 귀책이 사유 코드로 갈리는가** — 갈리면 이건 코드가 아니라 업무 규칙이다.
 
 **Q4 (검증) — 스테이징 실호출 1건.** 가상 주문에 WORKER 에서 `RETURN_INDIVIDUAL` 로 1회
