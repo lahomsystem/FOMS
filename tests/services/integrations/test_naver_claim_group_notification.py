@@ -223,5 +223,7 @@ def test_unknown_reason_code_is_kept_verbatim(app):
     from foms.services.integrations.naver_commerce.mapping import claim_reason_text
 
     assert claim_reason_text("MISTAKE_ORDER") == "주문 실수"
+    # 운영 실물 코드(2026-08-27 id=422) — 추측 철자만 있으면 라벨이 안 붙는다.
+    assert claim_reason_text("COLOR_AND_SIZE") == "색상·사이즈 변경"
     assert claim_reason_text("SOMETHING_NEW_2027") == "SOMETHING_NEW_2027"
     assert claim_reason_text("") == ""
