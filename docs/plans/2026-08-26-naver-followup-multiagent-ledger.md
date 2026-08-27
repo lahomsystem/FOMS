@@ -997,6 +997,12 @@ PR #168 체크 4/4 pass(`harness`·`perf-gate`·`pg-lane`·`test`). 마이그레
 **읽기 쪽은 안 좁혔다** — `mapping` 이 보여주는 `returnReason` 은 네이버가 준 값이고,
 목록에 없다고 화면에서 지우면 사실이 사라진다.
 
+> **번복 (2026-08-27, 5차 세션) — 이 문단의 결론은 절반이 틀렸다.** `WRONG_DELAYED_DELIVERY`
+> 는 판매자가 **보낼 수 없는 코드**였다(네이버 범례 11종 밖 — #639). "실물로 관측된 값만
+> 남긴다"가 안전 근거로 쓰였지만, 관측된 값은 네이버가 **읽기로 준** 값이고 읽기 코드는
+> 쓰기 코드보다 많다(#1137). 최종은 `{INTENT_CHANGED, COLOR_AND_SIZE}` 다 — 아래
+> "5차 세션 · 확정 2" 절을 보라. **이 문단만 읽고 되살리지 마라.**
+
 ## 3순위 — 남은 검증
 
 ### railway 로 실측한 것 — **전제가 하나 틀렸다**
@@ -1226,3 +1232,142 @@ B1 의 위험이 **줄었지 사라지지 않았다.**
 3. **반품 사유 코드 재검토** — 실물 없는 반품에 맞는 코드인가.
 4. 실물 반품 1건이 들어오면 `holdbackStatus`·`claimDeliveryFeePayMethod`·`수거중/수거완료` 상태를
    **그때 잡아 기록하라.** 그게 B1 을 푸는 유일한 열쇠다.
+
+---
+
+# 5차 세션 (2026-08-27) — 운영 문구 정정 · 반품 사유 오값 발견 · 증거 기록(S2) 완성
+
+> 4차 세션 말미 "다음 세션이 이어받을 것" 4개 항목(운영 문구 확인·S2 재정의·사유 코드
+> 재검토·실물 대기)을 멀티에이전트로 병렬 처리했다 — 문구 정정(A-wording) · 사유 코드
+> 재검증(R-reasons) · 클레임 이력 기록(C-history) 갈래를 나누고 **CEO-review** 가 종합
+> 검수했다. 파일 경계 겹침 없이 진행(A=템플릿+`client.py` 문서, R=`fulfillment.py` 상수+
+> 테스트, C=`mapping.py`+`claim_watch.py`+신규 테스트).
+
+## 확정 0 — 업무 사실이 처음으로 명문화됐다
+
+> "우리 스토어에서 반품은 물건 자체가 없고 주문만 반품된다. 시공 제품이라 시공 전 반품은
+> 물건이 고객 집에 갈 수가 없다. **취소 = 발송 전 주문 취소 / 반품 = 발송 후 주문 취소.**"
+
+실제 반품 사유 3종(사용자 확인): ① 고객 단순 변심·주문 취소 ② 색상·사이즈가 달라서
+③ 주문 금액과 실측 후 최종 견적이 달라 재결제하려고(발송 후라 반품으로 처리). 아래 확정
+1~4 는 전부 이 한 문장에서 갈라져 나온다.
+
+## 확정 1 — 운영 문구가 거짓이었다 (고쳤다)
+
+4차 세션이 결함 후보로만 남겼던 `templates/admin/partials/naver_workbench_pane.html:1061`
+"회수는 우리 차량이 갑니다"를 이번 세션에서 고쳤다:
+
+> **물건은 오가지 않습니다** — 시공 전이라 고객에게 간 물건이 없고 **주문(금액)만 반품**됩니다
+> (택배 자동 수거도 아닙니다).
+
+`client.py` 의 `request_return_product_order` docstring 도 같은 취지로 갱신했다
+(`collectDeliveryMethod` 가 있는 이유는 실물 회수가 있어서가 아니라 오발송을 막기 위해서라는
+서술 추가). `RETURN_INDIVIDUAL` 고정 이유는 **바뀌지 않는다** — 실물 회수 때문이 아니라,
+다른 값을 보내면 네이버가 상품정보의 택배사로 부르지도 않은 자동 수거를 고객 집에 보내기
+때문이다(오발송 차단, §2-2 그대로 유효). 계약 테스트(`test_naver_return_wiring.py`)에
+**옛 문구 부정 단언**(`assert "회수는 우리 차량이 갑니다" not in body`)을 넣어 되살아나면
+빨강이 되게 했다.
+
+## 확정 2 — 운영 화이트리스트 2개 중 1개가 보낼 수 없는 코드였다 (이번 세션 최대 수확)
+
+R1(SPEC §4)이 "실물로 관측된 2개"로 확정했던 `RETURN_REASONS = {COLOR_AND_SIZE,
+WRONG_DELAYED_DELIVERY}` 가 틀렸다. 근거:
+
+- 네이버 직원 답변 [#639](https://github.com/commerce-api-naver/commerce-api/discussions/639)
+  가 `returnReason` **범례 11종**을 제시했다: `INTENT_CHANGED`·`COLOR_AND_SIZE`·
+  `WRONG_ORDER`·`PRODUCT_UNSATISFIED`·`DELAYED_DELIVERY`·`SOLD_OUT`·`DROPPED_DELIVERY`·
+  `BROKEN`·`INCORRECT_INFO`·`WRONG_DELIVERY`·`WRONG_OPTION`. **`WRONG_DELAYED_DELIVERY` 는
+  이 범례에 없다.** (주 세션이 원문 직접 확인 — 설계서 §6 Q3 의 답)
+- 릴리즈 노트 [#705](https://github.com/commerce-api-naver/commerce-api/discussions/705)
+  원문: "반품 요청 또는 취소 요청 시 대상 주문건의 클레임 요청 사유 중 **실제 사용이
+  불가능한 코드가 포함되어 제공된 것을 확인**하였습니다."
+- [#1137](https://github.com/commerce-api-naver/commerce-api/discussions/1137): 읽기 코드가
+  쓰기 코드보다 많다. **스냅샷에서 봤다 ≠ 보낼 수 있다.** 4차 세션이 "실물 관측된 것만
+  넣었다"를 안전 근거로 삼은 것이 바로 이 함정이었다.
+
+조치: `RETURN_REASONS = {INTENT_CHANGED: "구매 의사 취소(변심·주문 취소·재결제)",
+COLOR_AND_SIZE: "색상 및 사이즈 변경"}`. `OFFICIAL_RETURN_REASONS` 11종 상수 신설
+(`naver_commerce/fulfillment.py`) + 계약 테스트 3종(`tests/services/integrations/
+test_naver_return_send.py`): `test_every_sendable_reason_is_in_the_official_legend` ·
+`test_wrong_delayed_delivery_never_comes_back` ·
+`test_return_reasons_cover_only_what_our_business_actually_does`.
+
+나머지 9종은 안 넣는다: 실물이 오가야 생기는 사유이고, 사유 오선택은
+[#2823](https://github.com/commerce-api-naver/commerce-api/discussions/2823) 제재 대상
+("실제 사유와 다른 사유로 클레임을 처리… 고의적 부당행위로 간주하여 판매자 불이익이 발생할
+수 있습니다"). **돈**: `INTENT_CHANGED`·`COLOR_AND_SIZE` 둘 다 **구매자 귀책**
+([#1170](https://github.com/commerce-api-naver/commerce-api/discussions/1170): "클레임
+사유에 따라 대상 클레임의 귀책 주체를 판별하며 귀책 주체에 따라 클레임 배송비의 부담자가
+결정됩니다"). 실물 회수가 없는데도 반품배송비가 구매자에게 청구될 수 있다 — 실제 청구는
+`claimDeliveryFeeDemandAmount` 로만 판정(실물 1건 때 확인할 것). 상세는 설계서
+`docs/specs/2026-08-27-naver-return-send_SPEC.md` §6 Q3(답함, 2026-08-27).
+
+## 확정 3 — 스테이징 실측 재수행 (주 세션이 읽기전용 SQL 직접, `external_order_links` 392행 전수)
+
+| 필드 | 값 | 건수 | 링크 수 |
+|---|---|---|---|
+| `returnReason` | `COLOR_AND_SIZE` | 48 | 24 |
+| `returnReason` | **`MISTAKE_ORDER`** | 30 | 15 |
+| `returnReason` | `WRONG_DELAYED_DELIVERY` | 18 | 9 |
+
+전부 `return` 블록 안, `claimStatus=RETURN_DONE`. **`MISTAKE_ORDER` 는 4차 세션이 못 본
+값이다**(그들이 잰 뒤 들어온 데이터). 다만 이것도 **읽기 전용 코드**라 쓰기 목록에는 못
+올린다 — 11종 범례 밖이다.
+
+`holdbackStatus` **0건** · `claimDeliveryFeePayMethod` **0건** — 4차 세션(CEO 판정) 주장을
+독립 재확인했다. 그래서 CEO 가 권고했던 S2 "읽기 노출"은 **표시할 값이 없어 폐기**하고
+확정 4 로 재정의했다.
+
+`cancelReason` 실측: `COLOR_AND_SIZE` 38 · `MISTAKE_ORDER` 28 · `SIMPLE_INTENT_CHANGED` 24 ·
+`DELAYED_DELIVERY_BY_PURCHASER` 12 · `INTENT_CHANGED` 12.
+
+## 확정 4 — S2 재정의: 만들 것은 "읽기 노출"이 아니라 "증거 기록"이었다
+
+`claim_watch.py` 의 스윕이 매번 `raw_snapshot` 을 통째로 덮어쓰고 `triage_state` 엔
+`last_status` 하나만 남아서, **실물 반품 1건이 들어와도 지나간 상태와 그때의 값이 사라지는**
+상태였다. B1(4차 CEO 판정, 승인 기능 차단 요인)을 풀 유일한 열쇠가 실물 1바퀴인데 그 1바퀴를
+관측할 방법이 없었다는 뜻이다.
+
+만든 것:
+
+- 신설: `mapping.extract_claim_holdback(detail)` — 블록 탐색 규약대로 훑어
+  `holdback_status`·`fee_pay_method` 와 **각각의 출처 블록 이름**(`holdback_block`·
+  `fee_block`)을 뽑는다, 없으면 `None`(예외 금지).
+- 신설: `claim_watch._append_history(sync, claim, detail, *, stamp)` — **모양이 바뀔 때만**
+  append. 모양 = `(claimStatus, holdbackStatus, claimDeliveryFeePayMethod)` 셋.
+  캡 20(`_HISTORY_MAX`)이되 **첫 행 1건은 고정 보존**. 배포 전부터 진행 중이던 클레임의
+  첫 행은 `backfilled: True`. `last_status`·`notified_status`·알림 경로는 **무변경**.
+- 읽기 라벨 보강: `mapping.CLAIM_REASON_LABELS` 에 11종 범례 중 빠졌던 5개 + 읽기 전용
+  6개 추가(`WRONG_DELAYED_DELIVERY` 실측값이 화면에 영문 상수로 뜨고 있었다).
+  `INTENT_CHANGED` 라벨은 "단순 변심" → **"구매 의사 취소"**(범례 원문)로 정정 —
+  우리가 보내는 반품 사유이기도 해서, 재결제 대기 건이 담당자 알림에 "고객 변심"으로
+  뜨고 있었다.
+- 신규 계약 테스트 `tests/services/integrations/test_naver_claim_history.py` **10개**.
+
+### CEO 총괄 검수가 뒤집은 것 — 이 기능은 처음 판이면 목적을 못 이뤘다
+
+CEO-review 가 치명 2건을 잡았고 **둘 다 실물 재현으로 확인됐다**:
+
+| # | 무엇이 틀렸나 | 왜 치명인가 |
+|---|---|---|
+| 1 | 중복억제 키가 `status` **하나**뿐 | `claimStatus` 가 `RETURN_REQUEST` 에 멈춘 채 `holdbackStatus` 만 `None → HOLDBACK_REQUEST → HOLDBACK_RELEASE` 로 가는 전이가 **통째로 버려진다**. 3스윕 재현 결과 기록 1건·두 필드 전부 `None`. 그런데 그 축이 이 기능이 존재하는 유일한 이유이고(승인 분기 입력), `raw_snapshot` 은 매 스윕 덮어써져 그 조합은 **영구 소실**. 고치기 전과 똑같았다 |
+| 2 | 값의 **출처 블록을 기록 안 함** | 기록 축은 `cancel` 블록까지 훑는데(표시 축과 달리 안 좁힌다) 출처가 없으면 취소 블록 값이 반품 보류로 남아도 사후 구분 불가. 자기 docstring 이 "어느 블록에 실려 오는지조차 모른다"를 관측 목표로 선언해 놓고 답을 안 남기는 설계였다 |
+
+중(中) 3건도 반영: 캡이 첫 행을 버리던 것(처음 관측 시점 소실) · 배포 전 클레임의 첫 행
+`at` 이 가짜 전이 시각인 것(`backfilled` 표식) · `INTENT_CHANGED` 라벨 3벌 불일치.
+새 테스트가 지어낸 코드 `DEFECTIVE_PRODUCT` 를 쓰던 것도 범례 코드 `BROKEN` 으로 교체했다 —
+이번 변경의 주제가 "관측 안 된 코드를 지어내지 마라"인데 새 테스트가 그걸 하고 있었다.
+
+또 하나: `#2823` 인용이 **반쪽**이었다. 생략된 뒷절이 우리 매핑을 정면으로 겨눈다 —
+"구매자의 주문 취소(청약 철회) 의사가 없음에도 임의로 주문을 취소하는 경우". 재결제 목적
+반품이 정확히 그 모양으로 보일 수 있어, 주석을 전문으로 고치고 **반품 모달에 동의 조건
+경고를 넣었다**("고객이 취소에 동의한 건만 접수하세요" — 계약 테스트로 고정).
+
+## 다음 세션이 이어받을 것
+
+1. **실물 반품 1건** — 이제 이력이 자동으로 쌓인다. 들어오면
+   `triage_state['claim_sync']['history']` 를 읽어 `holdback_status`·`fee_pay_method`·
+   수거중/수거완료 통과 여부를 확정하라. 그게 승인 기능 차단 요인 B1 의 열쇠다.
+2. 반품 접수 **실호출 0회** 유지 — 사용자 결정. 다음 진짜 반품 때 함께 본다.
+3. 반품배송비 구매자 청구 여부 확인(`claimDeliveryFeeDemandAmount`).
+4. 승인·거부는 여전히 **착수 불가**(B1·B2 미해소, 4차 세션 판정 유지).
