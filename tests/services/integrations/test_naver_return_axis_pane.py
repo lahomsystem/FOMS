@@ -124,6 +124,8 @@ def test_collect_address_is_shown_for_our_own_pickup(app, client, workbench_on):
     assert "경기 성남시 분당구 2 302동 1503호" in body
     assert "박회수" in body
     assert "010-7777-8888" in body
+    # 우편번호도 같이 낸다 — 배차·경로를 잡는 값이고 원본에 이미 실려 온다.
+    assert "우편번호 13529" in body
     # 회수지만 왔으면 **진행 줄은 안 낸다** — 라벨만 있고 안이 빈 줄이 뜨던 자리다
     # (2026-08-26 CEO 리뷰 A3). 회수지는 자기 줄이 맡는다.
     assert "반품 진행" not in body
@@ -155,3 +157,21 @@ def test_cancel_only_order_shows_no_return_block(app, client, workbench_on):
     body = _body(client)
     assert "wb-return" not in body
     assert "반품 진행" not in body
+
+
+def test_collect_zip_code_is_omitted_when_missing(app, client, workbench_on):
+    """우편번호가 없는 회수지는 **그 자리를 아예 안 낸다**(빈 칸·`-` 금지).
+
+    이 줄의 다른 값들과 같은 규율이다 — 라벨만 남겨 두면 화면이 "우편번호가 없다"와
+    "우리가 모른다"를 같은 모양으로 말한다.
+    """
+    _login(client)
+    _link(claim={
+        "claimStatus": "COLLECTING",
+        "collectAddress": {"name": "박회수", "tel1": "010-7777-8888",
+                           "baseAddress": "경기 성남시 분당구 2",
+                           "detailedAddress": "302동 1503호"},
+    })
+    body = _body(client)
+    assert "경기 성남시 분당구 2 302동 1503호" in body   # 회수지 줄 자체는 뜬다
+    assert "우편번호" not in body
