@@ -6,7 +6,8 @@
 
 * 값이 없는 건은 **줄 자체를 안 낸다** — 빈 칸이나 `-` 로 채우면 "값이 없다"와
   "우리가 모른다"가 같은 모양이 된다(F-1~F-3 과 같은 규율).
-* 회수지는 **우리 차가 가야 할 곳**이라 주소·연락처를 같이 낸다(자사 배송·자사 회수).
+* 회수지는 **네이버가 준 값**이라 주소·연락처를 같이 낸다. (2026-08-27 정정: "우리 차가
+  가야 할 곳"이 아니다 — 시공 제품이라 실물이 오가지 않고 반품은 주문 취소다.)
 * 시각은 사람이 읽는 KST 로 편다. 못 읽는 값은 **원문 그대로** 남긴다.
 """
 
@@ -112,7 +113,7 @@ def test_collect_and_refund_facts_are_shown(app, client, workbench_on):
 
 
 def test_collect_address_is_shown_for_our_own_pickup(app, client, workbench_on):
-    """회수지는 **우리 차가 갈 곳**이다 — 주소와 연락처를 같이 낸다."""
+    """회수지는 **네이버가 준 값**이다 — 주소와 연락처를 같이 낸다(실물 회수는 없다)."""
     _login(client)
     _link(claim={
         "claimStatus": "COLLECTING",

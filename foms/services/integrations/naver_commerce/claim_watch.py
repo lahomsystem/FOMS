@@ -32,6 +32,7 @@ from foms.services.integrations.naver_commerce.grouping import resolve_group_key
 from foms.services.integrations.naver_commerce.mapping import (
     claim_reason_text,
     extract_claim,
+    extract_claim_holdback,
     extract_external_id,
     extract_place_status,
     group_key_text,
@@ -296,6 +297,75 @@ def _notify(session: Session, links: list[ExternalOrderLink], claim: dict,
     return len(holders) + len(admins)
 
 
+#: 이력 최대 보관 건수. 5분 스윕이 같은 링크를 계속 다시 읽으므로 상한이 없으면
+#: ``triage_state``(JSONB) 한 칸이 끝없이 커지고, 스냅샷을 갱신할 때마다 그 큰 값을
+#: 통째로 다시 써야 한다. 클레임 하나가 지나가는 상태는 요청 → 수거중 → 수거완료 →
+#: 완료 정도라 20건이면 취소 후 재결제 왕복까지 담고도 남는다.
+_HISTORY_MAX = 20
+
+
+def _append_history(sync: dict, claim: dict, detail: dict, *, stamp: datetime) -> None:
+    """클레임 **상태가 바뀐 순간에만** 이력을 1건 덧붙인다(``sync`` 를 제자리 수정).
+
+    지금까지 남는 것은 ``last_status`` **하나**(최신값)뿐이고 ``raw_snapshot`` 은 스윕마다
+    통째로 덮어써졌다. 그래서 클레임이 ``RETURN_REQUEST`` → 수거중 → 수거완료 를 지나가면
+    **지나간 상태와 그때의 값이 사라진다.** 스테이징에 진짜 반품이 0건이라 실물 1건이
+    유일한 관측 기회인데, 그 1건이 와도 증거가 안 남는 상태였다.
+
+    ``last_status`` 는 건드리지 않는다 — 호출자의 ``notified_status`` 중복 억제가 그 값에
+    의존해서, 손대면 알림이 두 번 나간다.
+
+    Args:
+        sync: ``triage_state[STATE_KEY]`` 사본(이 함수가 ``history`` 키만 바꾼다).
+        claim: :func:`mapping.extract_claim` 결과(``status``·``reason`` 사용).
+        detail: 네이버 상세 응답 1건(보류·배송비 귀책을 여기서 훑는다).
+        stamp: 이번 스윕 시각.
+
+    Returns:
+        None — ``sync['history']`` 를 제자리에서 갱신한다.
+    """
+    history = [row for row in (sync.get("history") or []) if isinstance(row, dict)]
+    status = claim["status"]
+    if not history and not status:
+        # 클레임이 없던 건의 첫 스윕까지 남기면 링크 전부가 빈 항목을 하나씩 갖는다 —
+        # 지나간 상태가 없으니 증거도 아니다. 클레임이 붙은 뒤 다시 빈 값이 되는 것
+        # (철회)은 진짜 전이라 그때는 남긴다.
+        return
+    holdback = extract_claim_holdback(detail)
+    # **중복 억제 키에 보류·귀책을 함께 넣는다.** `status` 하나로 막으면
+    # `claimStatus` 가 `RETURN_REQUEST` 에 머문 채 `holdbackStatus` 만
+    # `None` → `HOLDBACK_REQUEST` → `HOLDBACK_RELEASE` 로 가는 전이가 통째로 버려진다.
+    # 그런데 그 축이 바로 이 함수가 존재하는 **유일한 이유**다(승인 분기의 입력).
+    # 5분 스윕이 같은 모양을 계속 다시 보는 것은 이 키로도 그대로 막힌다.
+    fingerprint = (status, holdback["holdback_status"], holdback["fee_pay_method"])
+    if history:
+        last = history[-1]
+        if (last.get("status"), last.get("holdback_status"),
+                last.get("fee_pay_method")) == fingerprint:
+            return
+    row = {
+        "at": stamp.isoformat(),
+        "status": status,
+        "reason": claim["reason"],
+        "holdback_status": holdback["holdback_status"],
+        "holdback_block": holdback["holdback_block"],
+        "fee_pay_method": holdback["fee_pay_method"],
+        "fee_block": holdback["fee_block"],
+    }
+    if not history and sync.get("last_status") is not None:
+        # 이 기능이 배포되기 **전부터** 진행 중이던 클레임이다. 첫 행의 `at` 은 전이
+        # 시각이 아니라 배포 후 첫 스윕 시각이라, 표식을 안 남기면 나중에 "이 반품이
+        # 언제 요청됐나"에 틀린 날짜로 답한다.
+        row["backfilled"] = True
+    history.append(row)
+    if len(history) > _HISTORY_MAX:
+        # 캡을 넘으면 오래된 쪽을 버리되 **첫 행 1건은 고정 보존**한다. 첫 행이 그
+        # 클레임이 처음 관측된 시점이라, 그것까지 버리면 "증거를 남긴다"는 목적과
+        # 방향이 반대가 된다(상태가 진동하면 실제로 잘려 나간다).
+        history = history[:1] + history[-(_HISTORY_MAX - 1):]
+    sync["history"] = history
+
+
 def _refresh_link(link: ExternalOrderLink, detail: dict, *, stamp: datetime,
                   result: dict[str, int]) -> tuple[dict, dict, Optional[dict]]:
     """링크 1건에 상세를 반영하고 **알림이 필요한 claim** 을 돌려준다.
@@ -334,6 +404,8 @@ def _refresh_link(link: ExternalOrderLink, detail: dict, *, stamp: datetime,
     sync = dict(state.get(STATE_KEY) or {})
     sync["last_status"] = claim["status"]
     sync["refreshed_at"] = stamp.isoformat()
+    # 지나간 상태를 남긴다 — ``last_status`` 는 최신값 하나뿐이라 전이가 사라진다.
+    _append_history(sync, claim, detail, stamp=stamp)
     result["refreshed"] += 1
     if not claim["blocking"]:
         return state, sync, None
