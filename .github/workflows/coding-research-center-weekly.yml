@@ -12,6 +12,8 @@ permissions:
 jobs:
   weekly-research:
     runs-on: ubuntu-latest
+    # CI-TIMEOUT-01: 실측 median 0.7분.
+    timeout-minutes: 20
     steps:
       - name: Checkout
         uses: actions/checkout@v4

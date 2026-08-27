@@ -4,7 +4,11 @@ on:
   push:
     branches: [ "main", "deploy" ]
   pull_request:
-    branches: [ "main", "deploy" ]
+    # CI-PROMOTE-01: 승격 PR 은 base=production 이라 [main, deploy] 필터에 걸리지
+    # 않았다. 그래서 운영에 올라가는 코드가 이 5,329 개 스위트를 한 번도 통과한 적이
+    # 없다 — "deploy 는 green 인데 production 만 터진" 사고 3건(solapi 미설치·
+    # 마이그레이션 부모 누락·Docker 매니페스트)이 전부 이 구멍에서 나왔다.
+    branches: [ "main", "deploy", "production" ]
 
 permissions:
   contents: read
@@ -12,6 +16,8 @@ permissions:
 jobs:
   test:
     runs-on: ubuntu-latest
+    # CI-TIMEOUT-01: 실측 median 14.1분 / max 15.4분. P0-1 이후 약 5분이 되므로 여유는 더 커진다.
+    timeout-minutes: 25
 
     services:
       # RQ positive-path lane 전용 Redis. 2026-07-21 Redis 장애(레이트리미터 매 요청
