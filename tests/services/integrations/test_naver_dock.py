@@ -28,6 +28,7 @@ from foms.services.integrations.naver_commerce.dock import (
     ASSIGN_COMMON,
     build_dock_payload,
     build_width_hint,
+    main_product_name,
     parse_length_mm,
     split_option_copies,
 )
@@ -128,6 +129,33 @@ def test_split_option_copies_extracts_values():
 def test_split_option_copies_empty_input():
     assert split_option_copies("") == []
     assert split_option_copies(None) == []
+
+
+def test_split_option_copies_trims_product_name_to_main_name():
+    """``제품`` 칩은 메인 제품명만 남는다 — 규격(30cm)·꼬리 괄호 설명은 뗀다."""
+    copies = split_option_copies(
+        "제품: 보테가 슬라이딩 30cm （풀오토댐퍼 포함） / 컬러: 포그 그레이")
+    assert copies == ["보테가 슬라이딩", "포그 그레이"]
+
+    copies = split_option_copies(
+        "제품: 로라 무몰딩 여닫이 30cm / 컬러: 클린 화이트 / 손잡이: 푸쉬타입")
+    assert copies == ["로라 무몰딩 여닫이", "클린 화이트", "푸쉬타입"]
+
+
+def test_split_option_copies_keeps_non_product_keys_intact():
+    """제품명이 아닌 키의 값은 건드리지 않는다 — 규격·수량이 값 자체다."""
+    assert split_option_copies("사이즈: 1800mm 이하 / 색상: 화이트") == [
+        "1800mm 이하", "화이트"]
+    assert split_option_copies("서랍: 1단(소)") == ["1단(소)"]
+    assert split_option_copies("사이즈: 180（무몰딩）") == ["180（무몰딩）"]
+
+
+def test_main_product_name_falls_back_to_source():
+    """다 깎여 빈 값이 되면 원문을 돌려준다 — 칩이 사라지느니 원문이 낫다."""
+    assert main_product_name("30cm") == "30cm"
+    assert main_product_name("（상담）") == "（상담）"
+    assert main_product_name("") == ""
+    assert main_product_name("스타일러장") == "스타일러장"
 
 
 # --------------------------------------------------------------------------- #
