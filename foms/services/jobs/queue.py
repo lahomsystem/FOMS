@@ -278,6 +278,44 @@ def enqueue_naver_cancel(link_id: int, reason: str, detail: Optional[str] = None
         return False
 
 
+
+def enqueue_naver_return(link_id: int, reason: str, detail: Optional[str] = None,
+                         actor_user_id: Optional[int] = None) -> bool:
+    """판매자 반품 접수 job enqueue (T8-S1).
+
+    취소와 **같은 출구**(WORKER)를 쓴다 — 커머스API 에 등록된 호출 IP 가 WORKER 것뿐이다.
+    같은 태스크(``run_naver_fulfillment_task``)에 ``action="return"`` 으로 태운다:
+    실패 사유를 DB 에 남기고 커밋하는 규율이 그 자리에 이미 있고, 갈래를 새로 파면
+    그 규율이 두 벌이 된다(한쪽만 고쳐지는 자리가 된다).
+
+    큐가 없으면 False 를 돌려주고 화면이 "지금은 접수할 수 없다"를 그대로 보여준다 —
+    **불가역 경로라 조용히 성공한 척하는 것이 제일 나쁘다**.
+
+    Args:
+        link_id: 기준 수집 링크 id(그 링크가 속한 집 전체가 함께 처리된다).
+        reason: 반품 사유 코드(``fulfillment.RETURN_REASONS`` 안의 값 — 라우트가 이미 검사했고
+            서비스가 호출 직전에 한 번 더 본다).
+        detail: 반품 상세 사유(선택, 500자).
+        actor_user_id: 화면에서 누른 사람(기록용).
+
+    Returns:
+        큐에 넣었으면 True.
+    """
+    q = get_rq_queue()
+    if not q:
+        return False
+    try:
+        q.enqueue(
+            f"{_TASK_PATH_PREFIX}.run_naver_fulfillment_task",
+            int(link_id), "return", actor_user_id,
+            reason=str(reason), detail=detail,
+            job_timeout="5m",
+        )
+        return True
+    except Exception as e:
+        logger.error(f"[RQ] enqueue_naver_return error: {e}", exc_info=True)
+        return False
+
 def enqueue_naver_order_sync(dry_run: bool = False):
     """네이버 주문 수집 job enqueue (NAVER-INGEST-01 "지금 수집").
 
