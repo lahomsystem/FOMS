@@ -369,6 +369,130 @@ def _household_label(relation: str, *, superseded: bool, has_addon: bool) -> str
     return "원 주문" if has_addon else ""
 
 
+def _household_amounts(rows: list[dict[str, Any]]) -> dict[str, dict[str, int]]:
+    """집(``external_order_no``)마다 상품주문 결제액 합계와 **못 읽은 건수** (D3).
+
+    ``amount`` 는 원본 ``totalPaymentAmount`` 가 int 일 때만 실린다(:func:`_row_source` —
+    원본 파손이면 그 행 전체가 빈 값으로 온다). 못 읽은 행을 0 으로 더하면 합계가 **조용히
+    작아지고**, 그 숫자가 예약금(선금)을 타고 ``잔금 = 출고가 − 예약금`` 으로 흘러가
+    고객에게 과다 청구된다. 그래서 더하지 않고 **센다** — 화면·안내가 "모름 N건"을
+    말할 수 있으면 사람이 원본을 열어 본다.
+
+    Args:
+        rows: :func:`build_dock_payload` 가 만든 행 목록.
+
+    Returns:
+        ``{집 주문번호: {"amount_total": int, "amount_unknown": int}}``.
+    """
+    totals: dict[str, dict[str, int]] = {}
+    for row in rows:
+        key = _text(row.get("external_order_no"))
+        bucket = totals.setdefault(key, {"amount_total": 0, "amount_unknown": 0})
+        amount = row.get("amount")
+        if isinstance(amount, int):
+            bucket["amount_total"] += amount
+        else:
+            bucket["amount_unknown"] += 1
+    return totals
+
+
+#: 예약금(선금) 안내 상태 4종 — 화면은 이 값으로만 분기한다.
+DEPOSIT_HINT_STATES = ("match", "differs", "over", "unknown")
+
+#: 재결제로 대체된 집이 섞여 있을 때 합계에 붙는 단서.
+_DEPOSIT_SUPERSEDED_NOTE = "환불된 이전 주문은 뺀 금액입니다"
+
+
+def _deposit_note(*, has_superseded: bool, claim_label: str) -> str:
+    """예약금 합계가 **무엇을 빼고 무엇을 안 뺐는지** 말하는 단서 (D3).
+
+    Args:
+        has_superseded: 재결제로 대체된 옛 집이 있는가(그 집 금액은 합계에서 뺐다).
+        claim_label: 취소·반품 라벨(:func:`mapping.extract_claim` 의 ``label``).
+
+    Returns:
+        단서 문장. 붙일 근거가 없으면 빈 문자열.
+    """
+    parts: list[str] = []
+    if has_superseded:
+        parts.append(_DEPOSIT_SUPERSEDED_NOTE)
+    label = _text(claim_label)
+    if label:
+        # 클레임 환불액은 ``totalPaymentAmount`` 에서 아직 빠지지 않는다(결제 시점 값).
+        parts.append(f"{label} 건이 있어 환불액은 아직 빠지지 않은 금액입니다")
+    return " · ".join(parts)
+
+
+def _deposit_target(households: list[dict[str, Any]]) -> tuple[int, int]:
+    """살아 있는 집(대체되지 않은 집)들의 결제액 합계와 못 읽은 건수.
+
+    Args:
+        households: :func:`_household_facts` 결과에 :func:`_household_amounts` 가 병합된 목록.
+
+    Returns:
+        ``(합계, 모름 건수)``.
+    """
+    live = [fact for fact in households if not fact.get("superseded")]
+    return (sum(int(fact.get("amount_total") or 0) for fact in live),
+            sum(int(fact.get("amount_unknown") or 0) for fact in live))
+
+
+def _deposit_hint(order: Any, households: list[dict[str, Any]], *,
+                  claim_label: str = "") -> dict[str, Any]:
+    """예약금(선금)에 넣을 금액을 **문장으로** 말한다 — 넣지는 않는다 (D3).
+
+    도크는 붙인 뒤 **며칠 뒤** 화면이라 재결제 카드의 상대값(``current + amount``)을 쓰면
+    사람이 이미 고쳐 놓은 값에 한 번 더 더하게 된다. 그래서 **절대 target**(살아 있는 집들의
+    결제액 합)을 먼저 정하고 문장만 :func:`repay_reconcile.deposit_guidance` 에 위임한다.
+    ``over`` 에서 "낮추라"고 말하지 않는 이유: 네이버 밖 입금이 정당할 수 있고 그 지시가
+    ``잔금 = 출고가 − 예약금`` 을 타고 고객 청구로 나간다.
+
+    Args:
+        order: 도크가 실린 :class:`models.Order` (예약금 현재값을 읽는다).
+        households: ``amount_total``·``amount_unknown`` 이 병합된 집 사실 목록.
+        claim_label: 이 주문의 취소·반품 라벨(없으면 빈 문자열).
+
+    Returns:
+        ``{"state", "current", "target", "target_display", "diff", "sentence",
+        "copy_value", "unknown_count", "note"}``. ``copy_value`` 는 쉼표·단위 없는 정수
+        문자열이고 ``over``·``unknown`` 에서는 빈 문자열이다(복사할 정답이 없다).
+        ``target_display`` 는 사람이 읽는 표기(``"872,200원"``) — 화면이 돈을 다시
+        포맷하지 않게 서버가 문장과 **같은 자리에서** 만든다.
+    """
+    from foms.services.erp_display import erp_deposit_amount_from_structured
+    from foms.services.integrations.naver_commerce.repay_reconcile import deposit_guidance
+
+    current = int(erp_deposit_amount_from_structured(
+        getattr(order, "structured_data", None) or {}) or 0)
+    superseded = any(fact.get("superseded") for fact in households)
+    target, unknown = _deposit_target(households)
+    hint: dict[str, Any] = {
+        "state": "unknown", "current": current, "target": None, "diff": None,
+        "target_display": "", "sentence": "", "copy_value": "", "unknown_count": unknown,
+        "note": _deposit_note(has_superseded=superseded, claim_label=claim_label)}
+    if unknown:
+        hint["sentence"] = (f"금액을 못 읽은 상품주문이 {unknown}건 있어 네이버 결제액"
+                            " 합계를 내지 못했습니다 — 원본을 열어 확인하세요.")
+        return hint
+    diff = target - current
+    hint.update({"target": target, "diff": diff, "copy_value": str(target),
+                 "target_display": f"{target:,}원"})
+    if diff == 0:
+        hint["state"] = "match"
+        hint["sentence"] = f"예약금(선금) {current:,}원 — 네이버 결제액과 같습니다."
+    elif diff < 0:
+        hint.update({"state": "over", "copy_value": ""})
+        hint["sentence"] = (f"예약금(선금) {current:,}원이 네이버 결제액 {target:,}원보다"
+                            f" {-diff:,}원 많습니다 — 네이버 밖 입금이면 그대로 두세요.")
+    else:
+        hint["state"] = "differs"
+        hint["sentence"] = deposit_guidance(
+            order, new_amount=target if superseded else diff,
+            relation="REPAY" if superseded else "ADDON")["sentence"]
+    return hint
+
+
+
 def _main_qualifier(row: dict[str, Any], fact: dict[str, Any]) -> str:
     """이름이 겹치는 본품을 갈라 말하는 짧은 꼬리표.
 
@@ -610,6 +734,12 @@ def build_dock_payload(db: Any, order: Any, *,
     superseded_nos = {fact["order_no"] for fact in households if fact["superseded"]}
     for row in rows:
         row["superseded"] = row["external_order_no"] in superseded_nos
+    # 집 단위 결제액(D3). 못 읽은 금액은 0 으로 더하지 않고 센다 — 조용히 작아진 합계가
+    # 예약금(선금)을 타고 잔금 과다 청구로 흘러가는 것을 막는다.
+    amounts = _household_amounts(rows)
+    for fact in households:
+        fact.update(amounts.get(fact["order_no"],
+                                {"amount_total": 0, "amount_unknown": 0}))
     extra = _extra_payment_summary(order)
     return {
         # 추가결제(차액)·재결제 기록 — 금액은 기록만 하고 출고가·잔금은 사람이 반영한다(T16-F).
@@ -629,6 +759,9 @@ def build_dock_payload(db: Any, order: Any, *,
         # 집마다의 관계·라벨(N2). 화면은 이 목록으로 **이전 주문 / 이번 주문**을 가른다.
         # 집이 하나면 라벨이 전부 빈 문자열이라 화면이 오늘과 똑같이 그려진다.
         "households": households,
+        # 예약금(선금) 안내(D3). 문장은 **서버가** 만든다 — 재결제 화면과 같은 말을 써야
+        # 두 화면이 같은 규칙으로 읽힌다. 화면은 그리기와 복사까지고 **자동 기입은 없다**.
+        "deposit_hint": _deposit_hint(order, households, claim_label=claim_label),
         # 위 `workbench_url` 이 실제로 여는 집의 번호. 머리말에서 그 집을 표시해
         # "읽은 번호 != 열리는 집" 을 없앤다. **주소와 같은 행에서 끌어온다** — 둘이
         # 갈리면 이 수정이 무의미해지므로 `rows[-1]` 을 공통 출처로 못박는다.
