@@ -101,10 +101,20 @@ def _row_of(body: str, needle: str) -> str:
 
 
 def _hist_row(body: str, needle: str) -> str:
-    """이력 표에서 그 글자가 든 행(``<tr>…</tr>``)을 통째로 잘라 준다."""
-    head = body.split(needle)[0].rsplit("<tr", 1)[1]
-    tail = body.split(needle)[1].split("</tr>")[0]
-    return "<tr" + head + needle + tail
+    """이력 표에서 그 글자가 든 행(``<tr>…</tr>``)을 통째로 잘라 준다.
+
+    **행을 먼저 통째로 자르고 그 다음에 고른다** — 낱말이 나온 자리에서 자르면 안 된다.
+    같은 낱말이 한 행에 두 번 나오면(제품명은 ``data-find`` 속성과 제품 셀에 둘 다 있다)
+    그 **두 자리 사이**만 잘려, 뒤쪽 액션 칸이 빠진 조각이 나온다. 그러면 "버튼이 없다"
+    류 단언이 없는 자리를 보며 조용히 green 이 된다(2026-08-27 이력 행 ``data-find``
+    도입 때 실제로 그렇게 무너졌다).
+    """
+    tbody = body.split('class="wb-cmp wb-hist"')[1].split("<tbody>")[1].split("</tbody>")[0]
+    for chunk in tbody.split("<tr")[1:]:
+        row = "<tr" + chunk.split("</tr>")[0]
+        if needle in row:
+            return row
+    raise AssertionError(f"이력 표에 '{needle}' 이(가) 든 행이 없다")
 
 
 def _pane(body: str) -> str:
@@ -1443,17 +1453,93 @@ def test_place_pending_labels_say_which_population_they_count(client, workbench_
     assert "취소 포함" in chips, chips
 
 
-def test_history_header_does_not_call_a_filtered_list_the_whole_thing(client, workbench_on):
-    """카드 헤더도 필터를 알아야 한다 — 칩만 고치면 두 줄 위에서 같은 거짓말이 남는다."""
+def test_history_prose_the_user_deleted_stays_deleted(client, workbench_on):
+    """사용자가 지운 이력 카드 안내문은 다시 돌아오지 않는다 (2026-08-27).
+
+    이 자리에는 원래 "카드 헤더도 필터를 알아야 한다"는 계약이 있었다. 그런데 그 헤더 문구
+    자체를 사용자가 지웠다(카운트 span 을 숫자까지 통째로) — 그대로 두면 **지운 글자를
+    되살려야 green 이 되는 테스트**가 된다. 그래서 자리는 지우지 않고 부활 금지 가드로
+    바꿔 둔다.
+
+    원래 뜻(필터 걸린 총계를 '전체' 라고 부르지 않는다)은 :1417
+    ``test_history_total_chip_does_not_claim_a_filtered_number`` 가 그대로 이어받는다 —
+    칩이 같은 화면에서 같은 숫자를 더 정확한 라벨로 말하므로 계약이 비지 않는다.
+
+    지운 3줄 중 "큐에 넣기만 합니다" 만 여기서 안 잰다: 그 줄은 ``ingest_status`` 가 있을
+    때만 나오는 블록 안이라, 블록이 통째로 빠진 응답에서는 무엇을 지우든 green 이 되어
+    단언이 공허해진다. 그 줄은 템플릿 소스에서 잡는다
+    (``test_naver_workbench_async_result.py`` 의 안내문 부재 테스트).
+    """
     _login(client)
     link = _collected(order_no="N-HDR", product="실패 수집", amount=1000)
     link.sync_status = "FAILED"
     db_session.commit()
     _collected(order_no="N-HDR-2", product="정상 수집", amount=1000)
 
+    # 필터가 걸린 화면 — 지운 문구가 가장 되살아나기 쉬운 상태에서 잰다.
     body = client.get(f"{TRIAGE_PATH}?tab=all&status=FAILED").get_data(as_text=True)
-    # 카드 헤더는 "숫자는 모두 주문 단위" 문구를 달고 있는 그 줄이다(탭 이름과 헷갈리지 않게).
-    header = body.split("숫자는 모두 주문 단위")[0][-300:]
 
-    assert "전체 1주문" not in header, header
-    assert "지금 목록" in header, header
+    assert "숫자는 모두 주문 단위" not in body, "지운 카운트 문구가 돌아왔다"
+    assert "읽기 전용 — 처리는" not in body, "지운 읽기 전용 고지가 돌아왔다"
+
+
+# --------------------------------------------------------------------------- #
+# 이력 탭 찾기 칸 (2026-08-27) — 문구를 뺀 자리에 도구를 놓는다
+# --------------------------------------------------------------------------- #
+
+def test_history_tab_has_a_find_box_over_its_own_rows(client, workbench_on):
+    """이력 탭에도 찾기 칸이 있고, **칩 줄 안**에 있어야 한다.
+
+    처리 탭이 이미 "칩 + 찾기 한 줄" 이라 자리를 그대로 맞춘다. 표 위에 새 도구줄을 만들면
+    밴드 1줄·경계선 1개가 늘어, 문구를 빼서 조용하게 만든 이번 변경과 정면으로 어긋난다.
+
+    placeholder 는 사용자가 준 원문 그대로다 — 임의로 다듬으면 '이 목록에서' 라는 범위
+    고지가 사라지고, 사용자는 이 칸이 수집분 **전체**를 뒤진다고 읽게 된다.
+    """
+    _login(client)
+    _collected(order_no="N-FINDBOX", product="붙박이장", amount=100000)
+
+    body = client.get(f"{TRIAGE_PATH}?tab=all").get_data(as_text=True)
+
+    assert 'id="wb-find"' in body, "이력 탭에 찾기 칸이 없다"
+    assert 'class="wb-find__input"' in body, "처리 탭과 같은 부품을 써야 생김새가 갈리지 않는다"
+    assert 'id="wb-find-note"' in body, "좁힌 뒤 몇 주문이 남았는지 말할 자리가 있어야 한다"
+    assert "이 목록에서 · 고객명 · 주문번호 · 제품" in body, "placeholder 는 원문 그대로"
+
+    # 자리 계약: `.wb-filters` 가 닫히기 **전**에 있어야 한다(칩 줄 오른쪽 끝).
+    # 이 슬라이스는 `.wb-filters` 안에 `<div>` 가 없다는 전제로 첫 `</div>` 까지 자른다 —
+    # 찾기 블록을 div 로 감싸면 이 단언이 먼저 깨진다(의도된 가드).
+    chips = body.split('class="wb-filters"')[1].split("</div>")[0]
+    assert 'id="wb-find"' in chips, chips
+
+
+def test_history_rows_carry_the_same_find_text_as_work_rows(client, workbench_on):
+    """이력 행도 찾을 문자열을 **행이 직접** 들고 있다.
+
+    처리 탭 행과 같은 식을 쓴다(``group.`` → ``row.``). JS 가 자식 셀을 훑어 조립하는 쪽을
+    택하면 표 마크업이 바뀔 때마다 조용히 안 걸린다. 특히 네이버 주문번호는 이력 행 어디에도
+    글자로 나오지 않아서, 이 속성이 있어야만 주문번호로 찾을 수 있다.
+
+    빈 안내 행에는 달지 않는다 — 달면 수집 0건 화면에서 아무 낱말이나 쳤을 때
+    "0주문 / 1주문" 이 되어, 있지도 않은 한 줄이 분모에 남는다.
+    """
+    _login(client)
+    _collected(order_no="N-FIND-ROW", product="찾기 붙박이장", amount=100000)
+
+    body = client.get(f"{TRIAGE_PATH}?tab=all").get_data(as_text=True)
+    tbody = body.split('class="wb-cmp wb-hist"')[1].split("<tbody>")[1].split("</tbody>")[0]
+    # 여는 `<tr …>` 태그만 — 셀 안 어딘가가 아니라 **행**이 들고 있어야 한다.
+    tr_open = tbody.split("<tr")[1].split(">")[0]
+
+    assert "data-find=" in tr_open, tr_open
+    value = tr_open.split('data-find="')[1].split('"')[0]
+    assert "이수취" in value, value  # 이력 표의 고객명 = 수취인 이름(summarize_snapshot)
+    assert "n-find-row" in value, "주문번호가 대문자면 |lower 가 빠진 것 — JS 는 소문자로 비교한다"
+    assert "찾기 붙박이장" in value, value
+
+    # 수집 0건 화면: 빈 안내 행은 있지만 검색 모집단에는 들어오지 않는다.
+    empty = client.get(f"{TRIAGE_PATH}?tab=all&status=FAILED").get_data(as_text=True)
+    empty_tbody = empty.split('class="wb-cmp wb-hist"')[1].split("<tbody>")[1].split("</tbody>")[0]
+
+    assert "wb-empty" in empty_tbody, empty_tbody
+    assert "data-find" not in empty_tbody, "빈 안내 행이 분모에 섞이면 0건 화면이 '1주문' 이 된다"
