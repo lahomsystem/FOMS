@@ -314,5 +314,37 @@ def test_dock_asset_pin_moved_for_household_split():
     사람 화면은 그대로다.
     """
     tpl = _ORDER_JS_TPL.read_text(encoding="utf-8")
-    assert "js/orders/erp-naver-dock.js') }}?v=20260826a" in tpl
+    assert "js/orders/erp-naver-dock.js') }}?v=20260827b" in tpl
     assert "css/orders/erp-naver-dock.css') }}?v=20260826a" in tpl
+
+
+# ------------------------------------------- 확인 완료 게이트가 죽은 주문을 안 센다
+
+
+def test_dock_gate_counts_only_live_rows():
+    """`확인 완료` 게이트는 **살아 있는 주문 행만** 센다.
+
+    재결제로 주문이 둘 붙으면 옛 주문은 이미 취소·환불된 죽은 것이다. 그런데 게이트가
+    `state.rows.length` 를 그대로 세서 **죽은 행에도 "반영함" 체크를 찍어야** 버튼이
+    열렸다(스테이징 order 4485 실화면: `0 / 10 반영`, 그중 4행이 이전 주문).
+
+    담당자에게 "이 죽은 주문을 확인했다"고 찍으라고 요구하는 것은 거짓 확인을
+    강요하는 것이다 — 흐리게 그려 놓고 체크는 받는 모순이기도 하다.
+    """
+    source = _squash(_DOCK_JS.read_text(encoding="utf-8"))
+    assert "function liveRows()" in source, "살아 있는 행만 고르는 함수가 없다"
+    # 분자·분모가 같은 모집단이어야 한다 — 한쪽만 바꾸면 checked > total 이 된다.
+    assert "liveRows().length" in source, "총계가 여전히 전체 행 수다"
+    assert source.count("liveRows()") >= 4, (
+        "총계·체크수·귀속미정·완료판정 넷이 같은 모집단을 써야 한다")
+
+
+def test_dock_gate_does_not_claim_done_when_every_row_is_dead():
+    """행이 **전부** 죽은 경우엔 옛 판정으로 되돌린다(빈 `every` 는 true 라 위험).
+
+    `[].every(...)` 는 true 다 — 살아 있는 행이 0개면 게이트가 아무 확인 없이
+    "확인 완료됨"이라고 말한다. 실데이터에 그런 주문은 없지만, 없는 것을 근거로
+    안전장치를 빼지 않는다.
+    """
+    source = _squash(_DOCK_JS.read_text(encoding="utf-8"))
+    assert "live.length ? live : state.rows" in source, "전멸 시 폴백이 없다"

@@ -102,18 +102,39 @@
         return chip;
     }
 
+    /**
+     * 게이트가 세는 모집단 — **살아 있는 주문 행만**.
+     *
+     * 재결제로 주문이 둘 붙으면 옛 주문은 이미 취소·환불된 죽은 것이다(`superseded`).
+     * 화면은 그것을 흐리게 그려 놓고도 게이트는 체크를 요구했다 — 담당자에게 죽은
+     * 주문에 "반영함"을 찍으라고 강요하는 모순이었다(스테이징 order 4485: `0 / 10 반영`,
+     * 그중 4행이 이전 주문).
+     *
+     * 판정값(`row.superseded`)은 서버가 이미 행마다 실어 보낸다 — 새 조회 0, 백엔드 변경 0.
+     *
+     * 행이 **전부** 죽었으면 옛 모집단으로 되돌린다: `[].every(...)` 는 true 라
+     * 살아 있는 행이 0개일 때 게이트가 아무 확인 없이 "확인 완료됨"이라고 말한다.
+     * 실데이터에 그런 주문은 없지만, 없다는 것을 근거로 안전장치를 빼지 않는다.
+     *
+     * @returns {Array} 세기·판정에 쓸 행 목록.
+     */
+    function liveRows() {
+        var live = state.rows.filter(function (row) { return !row.superseded; });
+        return live.length ? live : state.rows;
+    }
+
     function blockers() {
-        return state.rows.filter(function (row) {
+        return liveRows().filter(function (row) {
             return row.role === 'addon' && !effectiveMain(row);
         });
     }
 
     function checkedCount() {
-        return state.rows.filter(function (row) { return row.checked; }).length;
+        return liveRows().filter(function (row) { return row.checked; }).length;
     }
 
     function allReviewed() {
-        return state.rows.every(function (row) { return row.reviewed; });
+        return liveRows().every(function (row) { return row.reviewed; });
     }
 
     /**
@@ -324,7 +345,7 @@
                 var opensHere = nos.length > 1 && state.workbenchUrl
                     && no === state.workbenchOrderNo;
                 var one = el('span', opensHere ? 'naver-dock-orderno-open' : '', no);
-                if (opensHere) one.title = '워크벤치에서 열기가 여는 집';
+                if (opensHere) one.title = '워크벤치에서 열기가 여는 주문';
                 label.appendChild(one);
             });
             head.appendChild(label);
@@ -415,7 +436,7 @@
     }
 
     function syncStatus() {
-        var total = state.rows.length;
+        var total = liveRows().length;
         var checked = checkedCount();
         var blocked = blockers().length;
         var reviewed = allReviewed();
