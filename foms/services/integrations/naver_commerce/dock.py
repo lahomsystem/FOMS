@@ -38,12 +38,50 @@ def _text(value: Any) -> str:
     return str(value or "").strip()
 
 
+#: 값이 **제품명**인 옵션 키. 이 키의 값만 메인 제품명으로 다듬는다 — ``사이즈``\ ·
+#: ``서랍`` 같은 키의 값(``1800mm 이하``\ ·``1단(소)``)까지 깎으면 칩이 통째로 망가진다.
+PRODUCT_NAME_KEYS = frozenset({"제품", "제품명", "상품", "상품명", "품목"})
+
+#: 제품명 뒤에 붙는 규격 토큰(``30cm``\ ·``2400mm``\ ·``2.4m``)부터 끝까지 — 여기서부터는
+#: 제품명이 아니라 규격·부가 설명이다.
+_PRODUCT_SPEC_TAIL_RE = re.compile(r"\s*\d+(?:\.\d+)?\s*(?:mm|cm|m)\b.*$", re.I)
+
+#: 꼬리 괄호 설명(``（풀오토댐퍼 포함）``\ ·``(푸쉬)``) — 전각·반각 모두.
+_TRAILING_PAREN_RE = re.compile(r"\s*[（(][^（()）]*[)）]\s*$")
+
+
+def main_product_name(value: str) -> str:
+    """옵션 ``제품`` 값에서 메인 제품명만 남긴다.
+
+    ``"보테가 슬라이딩 30cm （풀오토댐퍼 포함）"`` → ``"보테가 슬라이딩"``,
+    ``"로라 무몰딩 여닫이 30cm"`` → ``"로라 무몰딩 여닫이"``. 규격 토큰부터 뒤를 자르고,
+    남은 꼬리 괄호 설명도 지운다. 다 깎여 빈 값이 되면 원문을 그대로 돌려준다 —
+    칩이 사라지느니 원문이 낫다.
+
+    Args:
+        value: 옵션 한 조각의 값(키를 뗀 뒤).
+
+    Returns:
+        메인 제품명(다듬지 못하면 원문).
+    """
+    text = _text(value)
+    trimmed = _PRODUCT_SPEC_TAIL_RE.sub("", text).strip()
+    while True:
+        stripped = _TRAILING_PAREN_RE.sub("", trimmed).strip()
+        if stripped == trimmed:
+            break
+        trimmed = stripped
+    return trimmed or text
+
+
 def split_option_copies(option_text: str) -> list[str]:
     """옵션 원문을 복사 칩 값 목록으로 쪼갠다.
 
     ``"사이즈: 150 / 색상: 클린 화이트"`` → ``["150", "클린 화이트"]``.
-    콜론이 없는 조각은 통째로 하나의 칩이 된다. 파싱 실패해도 원문이 화면에 남으므로
-    칩은 편의 기능일 뿐이다(자동 기입 금지 — 스펙 확정 결정 3).
+    콜론이 없는 조각은 통째로 하나의 칩이 된다. ``제품`` 처럼 값이 제품명인 키는
+    :func:`main_product_name` 으로 메인 제품명만 남긴다(규격·괄호 설명 제거) —
+    이 칩은 ERP 제품명 칸에 그대로 붙여 넣는 값이다. 파싱 실패해도 원문이 화면에
+    남으므로 칩은 편의 기능일 뿐이다(자동 기입 금지 — 스펙 확정 결정 3).
 
     Args:
         option_text: 네이버 ``productOption`` 원문.
@@ -56,7 +94,13 @@ def split_option_copies(option_text: str) -> list[str]:
         segment = segment.strip()
         if not segment:
             continue
-        value = segment.split(":", 1)[1].strip() if ":" in segment else segment
+        if ":" in segment:
+            key, raw_value = segment.split(":", 1)
+            value = raw_value.strip()
+            if key.strip() in PRODUCT_NAME_KEYS:
+                value = main_product_name(value)
+        else:
+            value = segment
         if value:
             copies.append(value)
     return copies
@@ -841,7 +885,9 @@ __all__ = [
     "ASSIGN_COMMON",
     "SPEC_AXES",
     "build_dock_payload",
+    "PRODUCT_NAME_KEYS",
     "build_width_hint",
+    "main_product_name",
     "parse_length_mm",
     "split_option_copies",
 ]
