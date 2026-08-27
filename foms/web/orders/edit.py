@@ -1,6 +1,9 @@
 """주문 수정 페이지 Blueprint (canonical; SFC-B11B): edit_order (/edit/<order_id>)."""
 import copy
 import json
+import uuid
+from typing import Any
+
 from flask import (
     Blueprint,
     g,
@@ -32,6 +35,8 @@ from foms.services.jobs.queue import enqueue_geocode_order_address
 from foms.services.orders.as_cycle_view import as_cycle_detail_payload
 from foms.services.orders.construction_type import normalize_regional_construction_type
 from foms.services.orders.order_flag_permissions import can_toggle_order_flags
+from foms.services.orders.order_field_change_writer import record_field_changes
+from foms.services.orders.structured_diff import diff_structured, normalize_for_ledger
 from foms.services.order_geocode import (
     apply_erp_order_site_address_to_sd,
     clear_order_geocode_coords,
@@ -39,6 +44,155 @@ from foms.services.order_geocode import (
 )
 
 order_edit_bp = Blueprint('order_edit', __name__, url_prefix='')
+
+#: AUDIT-GAP-01: 이 폼이 쓰는 평면 컬럼 → 변경 원장 경로(점 없는 컬럼명 = ORDER-FLAG-01 규약).
+#:
+#: **빠진 것은 일부러 뺐다.** ``customer_name``·``phone``·``manager_name``·``product``·
+#: ``address``·``measurement_date``·``measurement_time``·``scheduled_date`` 는
+#: ``structured_data`` 쌍둥이(``parties.customer.name``·``schedule.measurement.date``·
+#: ``site.address_full`` …)가 아래 sd diff 로 이미 원장에 실린다 — 평면으로 또 넣으면 같은
+#: 사실이 경로 2벌이 되어 감사 화면의 ``path_template`` 필터가 반쪽만 잡는다.
+#:
+#: ``status`` 는 **자기 path 로** 남긴다(``workflow.stage`` 로 매핑하지 않는다). 두 축은 어휘가
+#: 달라서(AS 판정은 status, stage 는 MEASURE 로 남는다 — 2026-08-14 사고 축) 합치면 거짓 이력이 된다.
+_LEDGER_FLAT_PATHS: dict[str, str] = {
+    'received_date': 'received_date',
+    'received_time': 'received_time',
+    'status': 'status',
+    'options': 'options',
+    # Order.notes 컬럼(주문 비고)은 sd 의 ``notes`` 와 **다른 값**이다(sync 대상도 아니다).
+    # 같은 path 를 쓰면 서로 다른 두 필드가 한 이력으로 합쳐진다.
+    'notes': 'order_notes',
+    'completion_date': 'completion_date',
+    'as_received_date': 'as_received_date',
+    'as_completed_date': 'as_completed_date',
+    'shipping_scheduled_date': 'shipping_scheduled_date',
+    'payment_amount': 'payment_amount',
+    'is_cabinet': 'is_cabinet',
+    # 플래그 3종. path 이름이 PUT /structured(ORDER-FLAG-01)와 **같으므로** 경로가 2벌이 되지
+    # 않고 오히려 통일된다 — 이 폼만 빼 두면 다른 경로에서 메운 구멍이 여기에만 그대로 남는다.
+    # is_regional·construction_type 은 권한 게이트를 통과한 값만 바뀌므로(무권한이면 기존값이
+    # 강제되어 변경 자체가 없다) 무권한 저장에서는 행이 생기지 않는 것이 정상이다.
+    'is_regional': 'is_regional',
+    'construction_type': 'construction_type',
+    'is_self_measurement': 'is_self_measurement',
+}
+
+#: bool 컬럼. 양쪽을 bool 로 맞춰야 컬럼 NULL(``None``) → ``False`` 가 허위 변경으로 남지 않는다.
+_LEDGER_BOOL_KEYS: frozenset[str] = frozenset({
+    'is_cabinet', 'is_regional', 'is_self_measurement',
+})
+
+#: 금액 경로. 빈 금액 칸이 ``0`` 으로 채워지는 것을 변경으로 읽지 않기 위한 표식이다
+#: (``structured_diff._is_unset`` 의 numeric 규칙과 같은 뜻 — 경로에 점이 없어 그 판정을 못 탄다).
+_LEDGER_NUMERIC_PATHS: frozenset[str] = frozenset({'payment_amount'})
+
+#: 지방 체크리스트 6종 — 이 폼은 ``changes`` dict 에 담지 않고 setattr 만 한다(순서 = 저장 루프 순서).
+_REGIONAL_CHECKLIST_FIELDS: tuple[str, ...] = (
+    'measurement_completed',
+    'regional_sales_order_upload',
+    'regional_blueprint_sent',
+    'regional_order_upload',
+    'regional_cargo_sent',
+    'regional_construction_info_sent',
+)
+
+
+def _compare_value(value: Any) -> Any:
+    """변경 여부 **판정용** 값(절단 없음).
+
+    저장 표현은 :func:`normalize_for_ledger` 가 120자에서 자르지만, 판정까지 잘린 값으로 하면
+    120자 뒤만 바뀐 저장이 '무변경'으로 사라진다(그게 곧 무기록이다). 그래서 판정은 원문으로 한다.
+
+    :param value: 컬럼에서 읽은 원시 값.
+    :return: 비교 가능한 값(빈 문자열은 ``None``).
+    """
+    if value is None or isinstance(value, bool):
+        return value
+    if isinstance(value, (int, float)):
+        return normalize_for_ledger(value, '')
+    return str(value).strip() or None
+
+
+def _is_ledger_unset(value: Any, *, numeric: bool) -> bool:
+    """정규 값이 "지정하지 않음"과 같은 뜻인지(``structured_diff._is_unset`` 과 같은 규칙).
+
+    체크 안 한 체크박스(``False``)·빈 금액 칸(``0``)이 컬럼 기본값으로 채워지는 것을 변경으로
+    적으면 저장 한 번마다 소음이 쌓여 진짜 변경이 묻힌다 — **양쪽이 모두** 이 상태일 때만 뺀다.
+
+    :param value: :func:`normalize_for_ledger` 를 거친 값.
+    :param numeric: 금액 경로면 ``True`` — 이때만 ``"0"`` 을 미지정과 같게 본다.
+    :return: 미지정과 같은 뜻이면 ``True``.
+    """
+    if value is None or value is False:
+        return True
+    return bool(numeric and value == "0")
+
+
+def _flat_change(path: str, before: Any, after: Any) -> dict[str, Any] | None:
+    """평면 컬럼 변경 1건을 원장 change dict 로 만든다.
+
+    저장 값은 sd diff 와 **같은 함수**(:func:`normalize_for_ledger`)를 거친다 — 빈값 동치와
+    길이 절단 규칙이 갈라지면 같은 원장 안에서 두 갈래가 서로 다른 뜻으로 읽힌다.
+
+    :param path: 원장 경로(점 없는 컬럼명).
+    :param before: 저장 전 값.
+    :param after: 저장 후 값.
+    :return: ``{'path','before','after','op'}``. 실제 변경이 아니면 ``None``.
+    """
+    old_value = normalize_for_ledger(before, path)
+    new_value = normalize_for_ledger(after, path)
+    numeric = path in _LEDGER_NUMERIC_PATHS
+    if (_is_ledger_unset(old_value, numeric=numeric)
+            and _is_ledger_unset(new_value, numeric=numeric)):
+        return None
+    if _compare_value(before) == _compare_value(after):
+        return None
+    if old_value is None:
+        op = 'add'
+    elif new_value is None:
+        op = 'clear'
+    else:
+        op = 'set'
+    return {'path': path, 'before': old_value, 'after': new_value, 'op': op}
+
+
+def _flat_ledger_changes(changes: dict[str, dict[str, Any]]) -> list[dict[str, Any]]:
+    """폼이 모은 ``changes`` 중 sd 쌍둥이가 없는 평면 컬럼만 원장 change 목록으로 옮긴다.
+
+    :param changes: ``{필드: {'old','new'}}`` — 사람이 읽는 메시지용으로 이 라우트가 모은 dict.
+    :return: 원장 change dict 목록(:data:`_LEDGER_FLAT_PATHS` 순서).
+    """
+    rows: list[dict[str, Any]] = []
+    for field, path in _LEDGER_FLAT_PATHS.items():
+        values = changes.get(field)
+        if not values:
+            continue
+        before, after = values.get('old'), values.get('new')
+        if field in _LEDGER_BOOL_KEYS:
+            before, after = bool(before), bool(after)
+        row = _flat_change(path, before, after)
+        if row:
+            rows.append(row)
+    return rows
+
+
+def _checklist_ledger_changes(order: Order, before: dict[str, bool]) -> list[dict[str, Any]]:
+    """지방 체크리스트 6종 변경을 원장 change 목록으로 만든다.
+
+    이 6종은 ``changes`` dict 에 담기지 않고 setattr 만 되므로, 쓰기 **직전**에 뜬 스냅샷과
+    대조하는 것 말고는 before 를 알 방법이 없다.
+
+    :param order: 저장 대상 주문(체크리스트 쓰기가 끝난 상태).
+    :param before: 쓰기 직전 스냅샷(``{컬럼: bool}``).
+    :return: 원장 change dict 목록.
+    """
+    rows: list[dict[str, Any]] = []
+    for field in _REGIONAL_CHECKLIST_FIELDS:
+        row = _flat_change(field, before.get(field, False), bool(getattr(order, field, False)))
+        if row:
+            rows.append(row)
+    return rows
 
 
 @order_edit_bp.route('/erp/orders/<int:order_id>')
@@ -243,6 +397,9 @@ def edit_order(order_id):
             is_cabinet_new = 'is_cabinet' in request.form
             if bool(_od('is_cabinet', False)) != is_cabinet_new: changes['is_cabinet'] = {'old': _od('is_cabinet'), 'new': is_cabinet_new}
             setattr(order, 'is_cabinet', is_cabinet_new)
+            # AUDIT-GAP-01: 수납장 체크는 cabinet_status 를 **파생 변경**한다('RECEIVED'↔None).
+            # is_cabinet 만 원장에 남기면 그 파생이 무기록으로 남는다 — 쓰기 직전 값을 떠 둔다.
+            cabinet_status_before = getattr(order, 'cabinet_status', None)
             if is_cabinet_new and not getattr(order, 'cabinet_status', None):
                 setattr(order, 'cabinet_status', 'RECEIVED')
             elif not is_cabinet_new:
@@ -250,11 +407,17 @@ def edit_order(order_id):
             setattr(order, 'construction_type', construction_type_new)
             # ERP Order: 실측일/시공일 JSONB 반영 + Order.address ↔ site 주소 정합(AS·목록은 site 우선 표시)
             site_address_jsonb_changed = False
+            # AUDIT-GAP-01(갈래 1): 이 폼의 실측일·시공일·현장주소는 sd 를 고친다. 그 변경은
+            # PUT /structured 와 **같은 경로**(schedule.measurement.date 등)로 원장에 실어야
+            # 감사 화면 필터가 두 저장 경로를 한 벌로 잡는다(평면 컬럼명으로 적으면 2벌이 된다).
+            # 비ERP 주문은 sd 를 안 고치므로 자동으로 빈 결과다.
+            sd_ledger_changes: list[dict[str, Any]] = []
             _sd = getattr(order, 'structured_data', None)
             # structured_data가 빈 dict여도 실측/시공·site 정합이 필요함 (and _sd는 {}에서 falsy로 전체 스킵됨)
             if is_erp_order_record(order) and _sd is not None:
                 sd = _ensure_dict(_sd)
                 if isinstance(sd, dict):
+                    audit_old_sd = copy.deepcopy(sd)
                     schedule = sd.setdefault('schedule', {})
                     measurement = schedule.setdefault('measurement', {})
                     measurement['date'] = measurement_date or ''
@@ -267,12 +430,37 @@ def edit_order(order_id):
                     setattr(order, 'structured_data', copy.deepcopy(sd))
                     flag_modified(order, 'structured_data')
                     sync_erp_flat_columns(order, sd)
+                    # 원장에는 전량을 싣는다(상한은 화면용 detail 에만 거는 값이다).
+                    sd_ledger_changes = diff_structured(audit_old_sd, sd, max_changes=-1).changes
             if site_address_jsonb_changed and 'address' not in changes:
                 clear_order_geocode_coords(order)
+            # AUDIT-GAP-01: 체크리스트 6종은 changes dict 에 안 담기고 setattr 만 된다 —
+            # 쓰기 직전 값을 떠야 before/after 가 남는다(비지방 주문은 루프 자체가 안 돈다).
+            checklist_before = {
+                field: bool(getattr(order, field, False))
+                for field in _REGIONAL_CHECKLIST_FIELDS
+            }
             if bool(getattr(order, 'is_regional', False)):
-                for f in ['measurement_completed', 'regional_sales_order_upload', 'regional_blueprint_sent',
-                          'regional_order_upload', 'regional_cargo_sent', 'regional_construction_info_sent']:
+                for f in _REGIONAL_CHECKLIST_FIELDS:
                     setattr(order, f, f in request.form)
+
+            # AUDIT-GAP-01: 원장 행은 저장과 **같은 트랜잭션**에 싣는다(아래 commit 이 함께 커밋).
+            # record_field_changes 는 이미 fail-open 이라 여기서 다시 감싸지 않는다.
+            change_set_id = str(uuid.uuid4())
+            ledger_changes = list(sd_ledger_changes)
+            ledger_changes.extend(_flat_ledger_changes(changes))
+            cabinet_status_change = _flat_change(
+                'cabinet_status', cabinet_status_before, getattr(order, 'cabinet_status', None)
+            )
+            if cabinet_status_change:
+                ledger_changes.append(cabinet_status_change)
+            ledger_changes.extend(_checklist_ledger_changes(order, checklist_before))
+            record_field_changes(
+                db, ledger_changes,
+                order_id=int(order_id),
+                actor_user_id=session.get('user_id'),
+                change_set_id=change_set_id,
+            )
             db.commit()
 
             # MUT-CACHE-01: 이 폼 저장은 canonical mutation 엔진을 경유하지 않으므로
@@ -347,7 +535,18 @@ def edit_order(order_id):
             uname = u.name if u else "Unknown user"
             prefix = f"주문 #{order_id} ({customer_name}) 수정 - 담당자: {uname} (ID: {session.get('user_id')})"
             log_message = f"{prefix} | 변경내용: {'; '.join(change_descriptions)}" if change_descriptions else f"{prefix} | 변경내용 없음"
-            log_access(log_message, session.get('user_id'))
+            # AUDIT-GAP-01: 한글 자유문장은 사람이 읽는 용도로 그대로 두고, SQL 로 물을 수 있는
+            # 구조화 컬럼을 **추가**한다. detail['change_set'] 이 위 원장 행과 잇는 유일한 열쇠다
+            # (관리자 감사 화면이 detail->>'change_set' 으로 조인한다).
+            log_access(
+                log_message, session.get('user_id'),
+                action='ORDER_FIELD_UPDATED', target_type='order', target_id=int(order_id),
+                detail={
+                    'change_set': change_set_id,
+                    'change_count': len(ledger_changes),
+                    'source': 'order_edit_form',
+                },
+            )
             flash('주문이 성공적으로 수정되었습니다.', 'success')
             if request.headers.get('X-Requested-With') == 'XMLHttpRequest':
                 return jsonify({'status': 'success'})

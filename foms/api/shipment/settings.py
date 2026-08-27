@@ -3,9 +3,11 @@ ERP 출고 설정 페이지 및 API. (Phase 4-2)
 erp.py에서 분리. 서비스는 foms/services/erp_shipment_settings 사용.
 """
 
+import copy
 import hashlib
 import json
 import logging
+import uuid
 from typing import Any, Optional
 
 from flask import Blueprint, g, jsonify, make_response, render_template, request, session
@@ -21,8 +23,10 @@ from foms.services.erp_shipment_settings import (
     ERP_SHIPMENT_SETTINGS_KEY,
     load_erp_shipment_settings,
 )
+from foms.services.orders.order_field_change_writer import record_field_changes
 from foms.services.orders.order_mutation_policy import POLICY_REGISTRY, evaluate_policy
 from foms.services.orders.revision import RevisionError, execute_order_mutation
+from foms.services.orders.structured_diff import diff_structured
 from foms.services.shipment.writer import apply_shipment_settings
 from foms.services.shipment_reference import (
     SHIPMENT_REFERENCE_POLICY_ID,
@@ -225,11 +229,22 @@ def api_erp_shipment_update(order_id: int):
 
     actor_id = getattr(user, "id", None)
 
+    # AUDIT-GAP-01: 이 저장은 ``shipment.construction_time``·``construction_workers`` 처럼
+    # 이미 감사 대상인 sd 값을 바꾸는데도 원장에는 **필드 이름만** 남았다. 쓰기 전 sd 를 떠서
+    # diff 를 태워야 ERP 폼 저장(PUT)과 같은 점 경로로 이력이 한 축에 모인다.
+    #
+    # 감사 헤더 ``security_logs.detail['change_set']`` 과 원장 행을 잇는 열쇠. 관리자 감사
+    # 화면이 ``detail->>'change_set'`` 으로 조인한다(``foms/web/admin/audit.py``).
+    settings_change_set = str(uuid.uuid4())
+    captured: dict[str, Any] = {"rows": 0}
+
     def _mutate(session_, orders):
         target = orders[0]
+        old_sd = copy.deepcopy(getattr(target, "structured_data", None) or {})
         target.structured_data = apply_shipment_settings(
             getattr(target, "structured_data", None), payload
         )
+        changes = diff_structured(old_sd, target.structured_data, max_changes=-1).changes
         flag_modified(target, "structured_data")
         target.structured_updated_at = now_utc_naive()
         session_.add(OrderEvent(
@@ -238,6 +253,20 @@ def api_erp_shipment_update(order_id: int):
                      "change_method": "API", "source_screen": "erp_shipment_dashboard"},
             created_by_user_id=actor_id,
         ))
+        # AUDIT-GAP-01: 원장 쓰기는 sd write 와 **운명을 같이해야** 하므로 ``_mutate`` 안에
+        # 둔다. ``execute_order_mutation`` 이 반환한 뒤(바깥)에 쓰면 두 경로가 어긋난다:
+        # ① 같은 Idempotency-Key replay 는 ``mutation`` 을 아예 실행하지 않고 저장된 응답을
+        # 반환하고, ② receipt insert 의 IntegrityError backstop 은 ``mutation`` 을 **이미
+        # 실행한 뒤** ``session.rollback()`` 하고 replay 를 반환한다(``revision.py`` 의
+        # ``session.add(receipt)`` → ``flush()`` except 블록). ②에서는 sd 변경이 롤백됐는데
+        # 바깥 쓰기만 살아남아 **컬럼은 안 바뀌었는데 원장 행만 남는** 유령 행이 된다.
+        # 안에서 쓰면 FOR UPDATE 락 안·같은 tx 라 rollback 이 원장 행도 함께 지운다.
+        # 무변경 저장이면 ``changes`` 가 비어 행이 생기지 않는다.
+        captured["rows"] = record_field_changes(
+            session_, changes,
+            order_id=int(target.id), actor_user_id=actor_id,
+            change_set_id=settings_change_set,
+        )
         return {target.id: [f"ORDER_DETAIL:{target.id}", "ORDERS_INDEX"]}
 
     try:
@@ -252,12 +281,21 @@ def api_erp_shipment_update(order_id: int):
             mutation=_mutate,
         )
         settings_context = order_audit_context(order)
+        # AUDIT-GAP-01: 조인 키는 행 수와 **무관하게 항상** 넣는다 — 감사 화면에서 원장으로
+        # 넘어가는 길을 늘 열어두기 위해서다. 헤더만 있고 행이 0인 상태는 결함이 아니라
+        # "저장은 했는데 바뀐 값이 없다"는 정상 상태다(``edit.py``·``regional.py`` 와 같은 규약).
+        settings_detail: dict[str, Any] = {
+            "fields": sorted(payload.keys()),
+            "change_set": settings_change_set,
+            "change_count": captured["rows"],
+            **settings_context,
+        }
         log_access(
             describe_order_action(order_id=order_id, action="SHIPMENT_UPDATED", **settings_context),
             actor_id,
             auto_commit=False,
             action="SHIPMENT_UPDATED", target_type="order", target_id=int(order_id),
-            detail={"fields": sorted(payload.keys()), **settings_context},
+            detail=settings_detail,
         )
         db.commit()
     except RevisionError as err:

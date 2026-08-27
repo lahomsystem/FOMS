@@ -10,6 +10,7 @@ import hashlib
 import json
 import os
 import datetime
+import uuid
 from typing import Any, Optional
 
 from flask import Blueprint, render_template, request, redirect, url_for, flash, send_file, session, current_app, jsonify
@@ -21,6 +22,7 @@ from foms.web.auth import login_required, role_required, log_access, get_user_by
 from foms.services.audit_message_display import describe_order_action
 from foms.services.orders.audit_order_context import order_audit_context
 from foms.services.orders.status_constants import CABINET_STATUS, STATUS
+from foms.services.orders.order_field_change_writer import record_field_changes
 from foms.services.orders.order_mutation_policy import POLICY_REGISTRY, evaluate_policy, Decision
 from foms.services.orders.revision import RevisionError, execute_order_mutation
 
@@ -263,6 +265,36 @@ def _storage_hashes(order_id: int, field: str, value: Any) -> tuple[str, str]:
     return scope, hashlib.sha256(payload.encode()).hexdigest()
 
 
+def _storage_ledger_text(value: Any) -> Optional[str]:
+    """원장에 실을 문자열 표현(빈값은 ``None`` 으로 접는다).
+
+    ``cabinet_status`` 는 ``None``/``''`` 이 모두 "값 없음"이라 둘을 같은 뜻으로 접어야
+    빈값→빈값이 가짜 변경으로 남지 않는다. ``shipping_fee`` 의 ``0`` 은 **빈값이 아니다**
+    (무료 배송이라는 값) — 그래서 문자열로 만든 뒤에 판정한다.
+
+    Args:
+        value: 컬럼 값(``str``/``int``/``None``).
+
+    Returns:
+        문자열, 또는 빈값이면 ``None``.
+    """
+    if value is None:
+        return None
+    text = value if isinstance(value, str) else str(value)
+    return text or None
+
+
+def _storage_ledger_op(before: Any, after: Any) -> str:
+    """원장 op 판정 — ``add``(빈값→값) · ``clear``(값→빈값) · ``set``."""
+    before_text = _storage_ledger_text(before)
+    after_text = _storage_ledger_text(after)
+    if before_text is None:
+        return "add"
+    if after_text is None:
+        return "clear"
+    return "set"
+
+
 def _parse_if_match(order_id: int) -> tuple[Optional[dict], Optional[Any]]:
     """optional ``If-Match``(mutation_version) → expected_versions. 형식오류는 ``(None, 400)``."""
     raw = (request.headers.get("If-Match") or "").strip().strip('"')
@@ -286,16 +318,49 @@ def _commit_storage_field(
     user_id = session.get("user_id")
     command = STORAGE_CABINET_COMMAND if field == "cabinet_status" else STORAGE_SHIPPING_COMMAND
     scope_hash, request_hash = _storage_hashes(order_id, field, typed_value)
+    # AUDIT-GAP-01: 이전값은 row lock 아래에서만 읽을 수 있다(밖에서 다시 읽으면 그 사이의
+    # 동시 쓰기를 놓친다). OrderEvent 에만 있던 값을 감사 헤더·변경 원장까지 끌어올린다 —
+    # 배송비는 돈이라 before 가 없으면 분쟁에서 따질 근거가 없다.
+    # 원장 판정은 ``_mutate`` 안에서 끝나므로 밖으로 들고 나오는 것은 감사 헤더에 실을
+    # 이전값 하나뿐이다(replay 로 ``_mutate`` 가 안 돌면 ``None`` 으로 남는다).
+    captured: dict[str, Any] = {"before": None}
+    # AUDIT-GAP-01: 감사 헤더 ``detail['change_set']`` 과 원장 행을 잇는 열쇠(아래 참조).
+    storage_change_set = str(uuid.uuid4())
 
     def _mutate(sess: Session, orders: list) -> dict:
         o = orders[0]
         old_value = getattr(o, field)
+        captured["before"] = old_value
+        changed = old_value != typed_value
         setattr(o, field, typed_value)
         sess.add(OrderEvent(
             order_id=o.id, event_type=command,
             payload={"field": field, "from": old_value, "to": typed_value},
             created_by_user_id=user_id,
         ))
+        # AUDIT-GAP-01: 원장 쓰기는 컬럼 write 와 **운명을 같이해야** 하므로 ``_mutate`` 안에
+        # 둔다. ``execute_order_mutation`` 이 반환한 뒤(바깥)에 쓰면 두 경로가 어긋난다:
+        # ① 같은 Idempotency-Key replay 는 ``mutation`` 을 아예 실행하지 않고 저장된 응답을
+        # 반환하고, ② receipt insert 의 IntegrityError backstop 은 ``mutation`` 을 **이미
+        # 실행한 뒤** ``session.rollback()`` 하고 replay 를 반환한다(``revision.py`` 의
+        # ``session.add(receipt)`` → ``flush()`` except 블록). ②에서는 컬럼이 롤백됐는데
+        # 바깥 쓰기만 살아남아 **컬럼은 안 바뀌었는데 원장 행만 남는** 유령 행이 된다.
+        # 안에서 쓰면 FOR UPDATE 락 안·같은 tx 라 rollback 이 원장 행도 함께 지운다.
+        #
+        # 평면 컬럼이라 점 없는 컬럼명을 원장 path 로 쓴다(ORDER-FLAG-01 확정 규약).
+        # 무변경 저장은 행을 만들지 않는다.
+        if changed:
+            record_field_changes(
+                sess,
+                [{
+                    "path": field,
+                    "before": _storage_ledger_text(old_value),
+                    "after": _storage_ledger_text(typed_value),
+                    "op": _storage_ledger_op(old_value, typed_value),
+                }],
+                order_id=int(o.id), actor_user_id=user_id,
+                change_set_id=storage_change_set,
+            )
         return {o.id: [f"ORDER_DETAIL:{o.id}", "ORDERS_INDEX"]}
 
     try:
@@ -306,13 +371,21 @@ def _commit_storage_field(
         )
         order = db.get(Order, order_id)
         storage_context = order_audit_context(order)
+        before_value = captured["before"]
+        # AUDIT-GAP-01: 조인 키는 행 수와 **무관하게 항상** 넣는다 — 감사 화면에서 원장으로
+        # 넘어가는 길을 늘 열어두기 위해서다. 헤더만 있고 행이 0인 상태는 결함이 아니라
+        # "저장은 했는데 바뀐 값이 없다"는 정상 상태다(``edit.py``·``regional.py`` 와 같은 규약).
+        storage_detail: dict[str, Any] = {
+            "field": field, "before": before_value, "after": typed_value,
+            "change_set": storage_change_set, **storage_context,
+        }
         log_access(
             describe_order_action(order_id=order_id, action="STORAGE_SETTING_UPDATED",
                                   note=field, **storage_context),
             user_id,
             auto_commit=False,
             action="STORAGE_SETTING_UPDATED", target_type="order", target_id=int(order_id),
-            detail={"field": field, "after": typed_value, **storage_context},
+            detail=storage_detail,
         )
         db.commit()
     except RevisionError as rev:

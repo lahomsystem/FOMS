@@ -498,7 +498,13 @@ def _preserve_operational_structured_state(old_sd: dict, structured_data: dict) 
     # 2026-08-20 스테이징 실측: 네이버가 보존한 parties.orderer.phone(대리주문 주문자)과
     # parties.customer.phone2(보조 연락처, 수집 주석 왈 "버리면 다시 구할 방법이 없다")가
     # 주문을 한 번 열어 저장하는 것만으로 지워졌다. 키가 오면 덮고, 안 오면 남긴다.
-    for key in ('workflow', 'assignments', 'shipment', 'meta', 'parties'):
+    # AUDIT-GAP-01(2026-08-26): ``schedule`` 합류. PC 폼은 schedule 을
+    # ``{measurement, construction}`` 만 조립해 보내는데(erp-order-shared.js) 이 목록에
+    # 없어서, **AS 주문을 ERP 폼으로 한 번 저장할 때마다 ``schedule.as_visit`` 이 통째로
+    # 사라졌다** — 고객과 약속한 AS 방문일·시간·가능시간대가 흔적 없이 증발했다.
+    # 폼이 measurement/construction 의 date·time 키를 **항상** 보내므로(빈 문자열 포함)
+    # 값 비우기는 그대로 동작하고, 폼이 렌더하지 않는 as_visit 만 보존된다.
+    for key in ('workflow', 'assignments', 'shipment', 'meta', 'parties', 'schedule'):
         old_value = old_sd.get(key)
         incoming_value = structured_data.get(key)
         if isinstance(old_value, dict):
@@ -1180,38 +1186,68 @@ def _restore_locked_factory2(old_sd: Mapping[str, Any], structured_data: dict) -
         structured_data['flags'].pop('factory2', None)
 
 
-def _flat_flag_changes(
-    *,
-    old_is_regional: Any,
-    new_is_regional: Any,
-    old_construction_type: Any,
-    new_construction_type: Any,
-) -> list[dict[str, Any]]:
-    """평면 컬럼 변경을 원장 change dict 로 옮긴다 (ORDER-FLAG-01).
+#: PUT 이 setattr 하는 평면 컬럼 → 원장 ``path`` (ORDER-FLAG-01 · AUDIT-GAP-01).
+#:
+#: 경로는 점 없는 컬럼명을 그대로 쓴다 — 점 경로로 적으면 되돌리기가 없는
+#: ``structured_data`` 키를 만들어 두 벌 진실이 된다. ``notes`` 만 이름이 다른데,
+#: ``sd['notes']`` 는 phone/address/measurement/construction 4칸짜리 **객체**라 같은 path 를
+#: 쓰면 서로 다른 두 필드가 한 이력으로 합쳐지기 때문이다.
+_FLAT_LEDGER_PATHS: dict[str, str] = {
+    'is_regional': 'is_regional',
+    'construction_type': 'construction_type',
+    'is_self_measurement': 'is_self_measurement',
+    'received_date': 'received_date',
+    'received_time': 'received_time',
+    'notes': 'order_notes',
+}
 
-    ``is_regional``·``construction_type`` 은 ``structured_data`` 밖이라
-    :func:`diff_structured` 가 못 본다. 경로는 점 없는 컬럼명을 그대로 쓴다 — 점 경로로
-    적으면 되돌리기가 없는 ``structured_data`` 키를 만들어 두 벌 진실이 된다.
+#: 불리언으로 비교할 평면 컬럼. ``None`` 과 ``False`` 는 같은 뜻이라 op 는 항상 ``set`` 이다.
+_FLAT_BOOL_COLUMNS: frozenset[str] = frozenset({'is_regional', 'is_self_measurement'})
 
+
+def _flat_text_value(value: Any) -> Optional[str]:
+    """평면 텍스트 컬럼의 원장 비교값.
+
+    컬럼마다 빈값이 ``None`` 이기도 하고 ``''`` 이기도 하다(경로에 따라 다르게 쓰였다).
+    둘을 같은 뜻으로 접어야 빈값→빈값 저장이 가짜 변경으로 기록되지 않는다.
+
+    :param value: 컬럼에서 읽은 원시 값.
+    :return: 문자열 또는 ``None``(빈값).
+    """
+    if value is None:
+        return None
+    text_value = value if isinstance(value, str) else str(value)
+    return text_value or None
+
+
+def _flat_flag_changes(order: Order, old_values: Mapping[str, Any]) -> list[dict[str, Any]]:
+    """평면 컬럼 변경을 원장 change dict 로 옮긴다 (ORDER-FLAG-01 · AUDIT-GAP-01).
+
+    자가실측·지방주문·시공구분·접수일·접수시간·주문비고는 ``structured_data`` 밖이라
+    :func:`diff_structured` 가 못 본다. 값이 실제로 달라진 컬럼만 싣는다 — 저장 버튼만 눌러도
+    행이 쌓이면 진짜 변경이 묻힌다.
+
+    :param order: setattr 이 모두 끝난 주문(현재값 출처).
+    :param old_values: setattr **전에** 떠 둔 저장값 스냅샷(컬럼명 → 값).
     :return: ``{'path','before','after','op'}`` 목록(변경 없으면 빈 목록).
     """
     changes: list[dict[str, Any]] = []
-    if bool(old_is_regional) != bool(new_is_regional):
-        changes.append({
-            'path': 'is_regional',
-            'before': bool(old_is_regional),
-            'after': bool(new_is_regional),
-            'op': 'set',
-        })
-    old_ct = (old_construction_type or None)
-    new_ct = (new_construction_type or None)
-    if old_ct != new_ct:
-        changes.append({
-            'path': 'construction_type',
-            'before': old_ct,
-            'after': new_ct,
-            'op': 'add' if old_ct is None else ('clear' if new_ct is None else 'set'),
-        })
+    for column, path in _FLAT_LEDGER_PATHS.items():
+        old_raw = old_values.get(column)
+        new_raw = getattr(order, column, None)
+        if column in _FLAT_BOOL_COLUMNS:
+            before: Any = bool(old_raw)
+            after: Any = bool(new_raw)
+            if before == after:
+                continue
+            op = 'set'
+        else:
+            before = _flat_text_value(old_raw)
+            after = _flat_text_value(new_raw)
+            if before == after:
+                continue
+            op = 'add' if before is None else ('clear' if after is None else 'set')
+        changes.append({'path': path, 'before': before, 'after': after, 'op': op})
     return changes
 
 
@@ -1378,6 +1414,15 @@ def api_put_order_structured(order_id):
             old_notes = getattr(o, 'notes', None)
             old_is_regional = getattr(o, 'is_regional', None)
             old_construction_type = getattr(o, 'construction_type', None)
+            # AUDIT-GAP-01: 평면 컬럼 원장 비교의 기준값 — 아래 setattr 보다 **먼저** 떠야 한다.
+            old_flat_values: dict[str, Any] = {
+                'is_regional': old_is_regional,
+                'construction_type': old_construction_type,
+                'is_self_measurement': getattr(o, 'is_self_measurement', None),
+                'received_date': getattr(o, 'received_date', None),
+                'received_time': getattr(o, 'received_time', None),
+                'notes': old_notes,
+            }
 
             # provenance(raw_order_text): 폼의 빈 문자열이 원본 파싱 텍스트를 지우지 못하게 한다.
             # 실제 내용이 있고 기존이 비어 있을 때만 설정(client overwrite 금지 — DATA-01).
@@ -1488,14 +1533,10 @@ def api_put_order_structured(order_id):
                     captured['address_changed'] = True
                     reset_order_geocode_on_address_change(o, new_addr)
 
-            # ORDER-FLAG-01: 평면 컬럼 변경도 같은 change_set 에 싣는다 — structured 밖이라
-            # diff_structured 가 못 본다. structured_data 가 없는 요청에서도 남긴다.
-            captured['flat_changes'] = _flat_flag_changes(
-                old_is_regional=old_is_regional,
-                new_is_regional=getattr(o, 'is_regional', None),
-                old_construction_type=old_construction_type,
-                new_construction_type=getattr(o, 'construction_type', None),
-            )
+            # ORDER-FLAG-01 · AUDIT-GAP-01: 평면 컬럼 변경도 같은 change_set 에 싣는다 —
+            # structured 밖이라 diff_structured 가 못 본다. structured_data 가 없는 요청에서도
+            # 남긴다(접수일·접수시간·주문비고만 고치는 저장이 실제로 있다).
+            captured['flat_changes'] = _flat_flag_changes(o, old_flat_values)
 
             return {o.id: [f"ORDER_DETAIL:{o.id}", "ORDERS_INDEX"]}
 

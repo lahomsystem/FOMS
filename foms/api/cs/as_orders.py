@@ -17,6 +17,7 @@ import datetime
 import hashlib
 import json
 import logging
+import uuid
 from typing import Any, Callable, Dict, List, Optional
 
 from flask import Blueprint, jsonify, render_template, request, session
@@ -79,7 +80,9 @@ from foms.services.orders.as_schedule_link import (
     relink,
     write_link,
 )
+from foms.services.orders.order_field_change_writer import record_field_changes
 from foms.services.orders.revision import RevisionError, execute_order_mutation
+from foms.services.orders.structured_diff import diff_structured
 from models import Order
 
 logger = logging.getLogger(__name__)
@@ -558,6 +561,62 @@ def api_as_register(order_id):
     # append 를 건너뛴 무편집 재접수에서도 **기존 항목 id** 를 돌려줘야 그 파일이 고아가 되지 않는다.
     captured_register: Dict[str, Any] = {}
 
+    # AUDIT-GAP-01: 이번 접수 저장 1회를 묶는 원장 id. 아래 _audit_as 의
+    # detail['change_set'] 과 **같은 값**이어야 관리자 감사 화면이 헤더와 항목을 잇는다
+    # (foms/web/admin/audit.py 의 detail->>'change_set' 조인).
+    change_set_id = str(uuid.uuid4())
+
+    def _record_as_ledger(before_sd: Dict[str, Any], after_sd: Dict[str, Any]) -> None:
+        """접수 저장의 화이트리스트 변경을 ``order_field_changes`` 원장에 싣는다.
+
+        경로를 손으로 적지 않고 :func:`diff_structured` 엔진에 맡긴다 — 손으로 적으면
+        화이트리스트(``SCALAR_PATHS``)와 어긋나 원장이 감사 화면과 다른 말을 한다.
+        ``max_changes=-1`` 은 상한 없는 전량(화면 40건 상한은 표를 읽기 위한 것이지 기록을
+        줄이기 위한 것이 아니다). 변경이 없으면 행을 만들지 않는다.
+
+        ``db`` 는 :func:`execute_order_mutation` 이 mutation 에 넘기는 세션과 **같은 객체**라
+        (revision.py: ``mutation(session, locked)``) 이 쓰기는 sd 쓰기와 같은 tx·같은 row lock
+        안이다. 호출은 전부 mutation **안**에서만 한다(호출부 주석 참조).
+
+        Args:
+            before_sd: 쓰기 **전** structured_data 사본.
+            after_sd: 쓰기 후 structured_data(또는 저장될 모습을 투영한 사본).
+        """
+        changes = diff_structured(before_sd, after_sd, max_changes=-1).changes
+        if not changes:
+            return
+        record_field_changes(
+            db, changes, order_id=order_id, actor_user_id=user_id,
+            change_set_id=change_set_id,
+        )
+
+    def _register_ledger_after(sd: Dict[str, Any]) -> Dict[str, Any]:
+        """새 건 접수에서 **서비스가 hook 뒤에 쓸** 값을 투영한 비교용 사본.
+
+        :func:`register_as_cycle` 의 apply 는 sd_hook 이 돈 **뒤**에
+        ``shipment['as_content']`` (와 시공자)를 쓴다 — 이 순서는 legacy 영구화 계약이라
+        바꿀 수 없다(``as_cycle_service._run_as_command`` docstring). 그래서 hook 안에서 실제
+        sd 만 비교하면 접수 본문 변경이 통째로 안 보인다. 투영값은 이 라우트가 서비스에 넘긴
+        값 **그대로**이고, 실제 저장 sd 는 건드리지 않는다 — 여기서 미리 쓰면 위
+        ``already_logged`` 판정(직전 저장 본문과의 비교)이 무너진다.
+
+        서비스가 자체 파생으로 쓰는 값(``_apply_classification_projection`` 의
+        ``as_pending``·``sales_delivery`` 초기화)은 **투영하지 않는다** — 라우트가 모르는
+        규칙을 흉내 내면 서비스가 바뀌는 날 원장이 거짓말을 한다(없는 기록보다 나쁘다).
+
+        Args:
+            sd: hook 이 부수 기록까지 마친 잠긴 sd 사본.
+
+        Returns:
+            비교 전용 사본(저장되지 않는다).
+        """
+        projected = copy.deepcopy(sd)
+        shipment = ensure_path(projected, "shipment")
+        shipment["as_content"] = as_content
+        if cw_name:
+            shipment["construction_workers"] = [cw_name]
+        return projected
+
     def _register_side_records(sd: Dict[str, Any], *, new_cycle: bool) -> None:
         """cycle 전이와 같은 sd 사본에 접수 기록(reception·system·billing 시드)을 남긴다.
 
@@ -623,6 +682,26 @@ def api_as_register(order_id):
                 deleted_by=(user.name if user else "") or "시스템",
             )
 
+    def _register_with_ledger(sd: Dict[str, Any]) -> None:
+        """새 건 접수 hook: 부수 기록 + 변경 원장(같은 tx·같은 sd 사본).
+
+        원장 쓰기가 REV-00 mutation **안**이어야 하는 이유 — 밖(서비스 호출이 반환한 뒤)에
+        두면 두 경로에서 어긋난다: ① 같은 Idempotency-Key replay 는 mutation 을 아예 실행하지
+        않고 저장된 응답만 돌려주고(revision.py ``_lookup_receipt`` → ``_replay``), ② receipt
+        insert 의 IntegrityError backstop 은 ``session.rollback()`` 뒤 replay 를 반환한다. 두
+        경우 모두 sd 는 그대로인데 바깥 쓰기만 살아남아 **유령 행**이 된다(regional.py 가
+        먼저 내린 같은 판단). 안에서 쓰면 replay 는 애초에 도달하지 않고 rollback 은 함께 지운다.
+
+        비교 기준(before)은 hook 진입 시점이다 — 그 앞에서 도는 것은 새 cycle 발급
+        (``as_lifecycle``)뿐이고 그 경로는 원장 화이트리스트가 아니다.
+
+        Args:
+            sd: 잠긴 row 의 structured_data 사본.
+        """
+        before_sd = copy.deepcopy(sd)
+        _register_side_records(sd, new_cycle=True)
+        _record_as_ledger(before_sd, _register_ledger_after(sd))
+
     def _apply_reregistration(sd: Dict[str, Any], locked: Order) -> None:
         """열린 cycle 이 있는 재접수: 새 cycle 없이 접수 기록만 갱신한다.
 
@@ -630,6 +709,7 @@ def api_as_register(order_id):
         을 열면 한 건이 두 건으로 갈라진다. 상태·cycle 은 그대로 두고 접수 원문·타임라인·
         상차일만 갱신한다(서비스의 "중복 open cycle 거부" 불변식은 유지 — 라우트가 중재).
         """
+        before_sd = copy.deepcopy(sd)  # AUDIT-GAP-01: 원장 비교 기준은 쓰기 **전**이다.
         # as_content 를 덮기 전에 먼저(legacy 영구화 순서 계약). 같은 건이므로 새 cycle
         # 아님 → 비용 판정 잠금 유지, recurrence 도 스탬프하지 않는다.
         _register_side_records(sd, new_cycle=False)
@@ -641,6 +721,9 @@ def api_as_register(order_id):
         locked.as_completed_date = None
         if shipping:
             locked.shipping_scheduled_date = shipping
+        # AUDIT-GAP-01: 원장 쓰기는 이 apply 안 = _run_sd_mutation 의 mutation 안이다
+        # (바깥에 두면 replay·rollback backstop 에서 유령 행 — _register_with_ledger 주석).
+        _record_as_ledger(before_sd, sd)
 
     open_cycle = current_cycle(order.structured_data or {})
     reregistering = open_cycle is not None and cycle_status(open_cycle) in (
@@ -659,12 +742,13 @@ def api_as_register(order_id):
                 recurrence=recurrence,
                 scope_hash=_scope_hash("AS_REGISTER", order_id), request_hash=_request_hash(data),
                 idempotency_key=_idempotency_key(data),
-                sd_hook=lambda sd: _register_side_records(sd, new_cycle=True),
+                sd_hook=_register_with_ledger,
             )
     except Exception as exc:  # noqa: BLE001 — 계약 위반은 409, 그 외 500 으로 분기
         return _as_error_response(db, exc)
 
-    _audit_as(order, "AS_RECEIVED", user_id, note=f"접수일 {today}", extra={"received_date": str(today)})
+    _audit_as(order, "AS_RECEIVED", user_id, note=f"접수일 {today}",
+              extra={"received_date": str(today), "change_set": change_set_id})
     db.commit()
     _invalidate_shipment_asrec_caches("api_as_register")
     db.refresh(order)
