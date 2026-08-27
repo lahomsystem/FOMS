@@ -15,6 +15,7 @@ logger = logging.getLogger(__name__)
 
 _NATIVE_FUNCTIONS_URL = "https://app-store-api.channel.io/general/v1/native/functions"
 _TOKEN_TTL_SECONDS = 29 * 60  # 29-minute cache (30-minute expiry minus one-minute buffer)
+_TOKEN_EXPIRY_BUFFER_SECONDS = 60  # issueToken 이 준 expiresIn 에서 뺄 안전 버퍼
 
 CHANNEL_APP_SECRET = os.environ.get("CHANNEL_APP_SECRET", "")
 CHANNEL_ID = os.environ.get("CHANNEL_ID", "")
@@ -175,8 +176,13 @@ def _issue_token() -> tuple[str, float]:
     err = data.get("error") or {}
     if err.get("message"):
         raise RuntimeError(f"채널톡 issueToken 오류: {err['message']}")
-    access_token = data["result"]["accessToken"]
-    return access_token, time.time() + _TOKEN_TTL_SECONDS
+    result = data["result"]
+    access_token = result["accessToken"]
+    try:
+        ttl = int(result["expiresIn"]) - _TOKEN_EXPIRY_BUFFER_SECONDS
+    except (KeyError, TypeError, ValueError):
+        ttl = _TOKEN_TTL_SECONDS
+    return access_token, time.time() + max(ttl, 60)
 
 
 def _get_access_token() -> str:
@@ -192,6 +198,65 @@ def _get_access_token() -> str:
         access_token, expires_at = _issue_token()
         _token_cache[CHANNEL_ID] = (access_token, expires_at)
         return access_token
+
+
+def _invalidate_token(stale_token: str) -> None:
+    """
+    Drop the cached access token when ChannelTalk rejected it.
+
+    다른 스레드가 이미 새 토큰을 캐시했으면 그대로 둔다(방금 실패한 토큰만 버린다).
+
+    Args:
+        stale_token: 401 을 받은 토큰 값.
+    """
+    with _token_lock:
+        cached = _token_cache.get(CHANNEL_ID)
+        if cached and cached[0] == stale_token:
+            _token_cache.pop(CHANNEL_ID, None)
+
+
+def _is_unauthenticated_error(err: dict[str, Any]) -> bool:
+    """
+    Return whether a native-functions error means the access token is no longer valid.
+
+    ChannelTalk 은 토큰이 죽으면 ``{"type":"unauthenticatedError","status":401,...}`` 을
+    ``error.data`` 로 주거나 ``error.message`` 문자열 안에 그대로 실어 보낸다.
+
+    Args:
+        err: 응답 JSON 의 ``error`` 객체.
+
+    Returns:
+        토큰 재발급이 필요한 인증 오류면 True.
+    """
+    data = err.get("data") or {}
+    if str(data.get("type") or "").lower() == "unauthenticatederror":
+        return True
+    message = str(err.get("message") or "").lower()
+    return "unauthenticatederror" in message
+
+
+def _put_native_function(payload: dict[str, Any], access_token: str) -> dict[str, Any]:
+    """
+    Call the native-functions endpoint with an access token and return the parsed body.
+
+    Args:
+        payload: ``method``/``params`` 요청 본문.
+        access_token: ``x-access-token`` 헤더 값.
+
+    Returns:
+        응답 JSON dict.
+    """
+    resp = requests.put(
+        _NATIVE_FUNCTIONS_URL,
+        json=payload,
+        headers={
+            "Content-Type": "application/json",
+            "x-access-token": access_token,
+        },
+        timeout=10,
+    )
+    resp.raise_for_status()
+    return resp.json()
 
 
 def send_group_message(
@@ -224,18 +289,15 @@ def send_group_message(
                 },
             },
         }
-        resp = requests.put(
-            _NATIVE_FUNCTIONS_URL,
-            json=payload,
-            headers={
-                "Content-Type": "application/json",
-                "x-access-token": access_token,
-            },
-            timeout=10,
-        )
-        resp.raise_for_status()
-        data = resp.json()
+        data = _put_native_function(payload, access_token)
         err = data.get("error") or {}
+        if err.get("message") and _is_unauthenticated_error(err):
+            # 캐시된 토큰이 만료 전에 무효화되는 경우가 있다(채널톡이 세션을 끊음).
+            # 죽은 토큰을 버리고 재발급해 1회 재시도한다.
+            logger.warning("[채널톡] 액세스 토큰 무효 - 재발급 후 1회 재시도")
+            _invalidate_token(access_token)
+            data = _put_native_function(payload, _get_access_token())
+            err = data.get("error") or {}
         if err.get("message"):
             logger.error("[채널톡] writeGroupMessage 오류: %s", err["message"])
             if raise_on_error:
