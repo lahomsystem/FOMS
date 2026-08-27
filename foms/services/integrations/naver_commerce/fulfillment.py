@@ -901,10 +901,16 @@ def request_return(session: Session, client: Any, *, link_id: int, reason: str,
         session.flush()
         raise FulfillmentError(reason_text)
 
-    # 멱등: 우리가 이미 접수한 건은 다시 부르지 않는다. 우리 표식으로만 판정한다 —
-    # 네이버 `requestChannel` 은 API 접수분과 판매자센터 수동분을 갈라 주지 않는다
-    # (문서가 보증하지 않는 값에 불가역 경로를 걸지 않는다).
-    todo = [row for row in links if not _return_state(row).get("requested_at")]
+    # 멱등 + **행 단위** 발송 판정 (2026-08-27 CEO). 위 가드는 "집에 발송분이 하나라도
+    # 있는가"만 본다 — 분할발송이라 집 안에서 나간 것과 안 나간 것이 섞이는데, 거기서
+    # 집 단위로만 통과시키면 **안 나간 상품주문에도 반품 요청이 나간다**(불가역).
+    # 그래서 실제로 보낼 목록은 **그 행이 나갔는지**로 다시 거른다.
+    #
+    # 멱등은 우리 표식으로만 판정한다 — 네이버 `requestChannel` 은 API 접수분과
+    # 판매자센터 수동분을 갈라 주지 않는다(문서가 보증하지 않는 값에 불가역 경로를 걸지 않는다).
+    dispatched_ids = {id(row) for row in dispatched}
+    todo = [row for row in links
+            if id(row) in dispatched_ids and not _return_state(row).get("requested_at")]
     if not todo:
         return {"returned": [], "skipped": [row.external_id for row in links]}
 
