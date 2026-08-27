@@ -141,3 +141,111 @@ def test_send_group_message_returns_failure_when_api_returns_error_without_raise
     result = channel_client.send_group_message(group_id="group-1", plain_text="payload")
 
     assert result == {"success": False, "message_id": None}
+
+
+def test_issue_token_uses_expires_in_from_response(monkeypatch):
+    monkeypatch.setattr(channel_client, "CHANNEL_APP_SECRET", "secret")
+    monkeypatch.setattr(channel_client, "CHANNEL_ID", "channel-1")
+    monkeypatch.setattr(channel_client.time, "time", lambda: 1000.0)
+    monkeypatch.setattr(
+        channel_client.requests,
+        "put",
+        lambda *args, **kwargs: _FakeResponse(
+            {"result": {"accessToken": "token-1", "expiresIn": 1800}}
+        ),
+    )
+
+    access_token, expires_at = channel_client._issue_token()
+
+    assert access_token == "token-1"
+    assert expires_at == 1000.0 + 1800 - channel_client._TOKEN_EXPIRY_BUFFER_SECONDS
+
+
+def test_issue_token_falls_back_to_default_ttl_without_expires_in(monkeypatch):
+    monkeypatch.setattr(channel_client, "CHANNEL_APP_SECRET", "secret")
+    monkeypatch.setattr(channel_client, "CHANNEL_ID", "channel-1")
+    monkeypatch.setattr(channel_client.time, "time", lambda: 1000.0)
+    monkeypatch.setattr(
+        channel_client.requests,
+        "put",
+        lambda *args, **kwargs: _FakeResponse({"result": {"accessToken": "token-1"}}),
+    )
+
+    _, expires_at = channel_client._issue_token()
+
+    assert expires_at == 1000.0 + channel_client._TOKEN_TTL_SECONDS
+
+
+_UNAUTHENTICATED_ERROR = {
+    "error": {
+        "code": 1,
+        "message": (
+            'request failed, body: {"type":"unauthenticatedError","status":401,'
+            '"errors":[{"message":"Your credentials have changed and you have been '
+            'logged out. Please log in again."}],"language":"en"}'
+        ),
+        "data": {"type": "unauthenticatedError"},
+        "type": "common",
+    }
+}
+
+
+def test_send_group_message_reissues_token_and_retries_on_unauthenticated(monkeypatch):
+    """죽은 캐시 토큰으로 401 을 받으면 토큰을 버리고 재발급해 1회 재시도한다."""
+    monkeypatch.setattr(channel_client, "CHANNEL_ID", "channel-1")
+    monkeypatch.setattr(channel_client, "CHANNEL_APP_SECRET", "secret")
+    monkeypatch.setattr(channel_client, "_token_cache", {"channel-1": ("stale-token", 1e12)})
+    monkeypatch.setattr(
+        channel_client, "_issue_token", lambda: ("fresh-token", 1e12)
+    )
+
+    used_tokens = []
+
+    def _fake_put(url, *, json, headers, timeout):
+        used_tokens.append(headers["x-access-token"])
+        if headers["x-access-token"] == "stale-token":
+            return _FakeResponse(_UNAUTHENTICATED_ERROR)
+        return _FakeResponse({"result": {"message": {"id": "message-1"}}})
+
+    monkeypatch.setattr(channel_client.requests, "put", _fake_put)
+
+    result = channel_client.send_group_message(group_id="group-1", plain_text="payload")
+
+    assert result == {"success": True, "message_id": "message-1"}
+    assert used_tokens == ["stale-token", "fresh-token"]
+    assert channel_client._token_cache["channel-1"][0] == "fresh-token"
+
+
+def test_send_group_message_gives_up_when_retry_also_unauthenticated(monkeypatch):
+    monkeypatch.setattr(channel_client, "CHANNEL_ID", "channel-1")
+    monkeypatch.setattr(channel_client, "CHANNEL_APP_SECRET", "secret")
+    monkeypatch.setattr(channel_client, "_token_cache", {})
+    monkeypatch.setattr(channel_client, "_issue_token", lambda: ("fresh-token", 1e12))
+    monkeypatch.setattr(
+        channel_client.requests,
+        "put",
+        lambda *args, **kwargs: _FakeResponse(_UNAUTHENTICATED_ERROR),
+    )
+
+    with pytest.raises(RuntimeError, match="unauthenticatedError"):
+        channel_client.send_group_message(
+            group_id="group-1", plain_text="payload", raise_on_error=True
+        )
+
+
+def test_send_group_message_does_not_retry_non_auth_error(monkeypatch):
+    calls = []
+
+    monkeypatch.setattr(channel_client, "CHANNEL_ID", "channel-1")
+    monkeypatch.setattr(channel_client, "_get_access_token", lambda: "access-token")
+
+    def _fake_put(url, *, json, headers, timeout):
+        calls.append(headers["x-access-token"])
+        return _FakeResponse({"error": {"message": "api-failed"}})
+
+    monkeypatch.setattr(channel_client.requests, "put", _fake_put)
+
+    result = channel_client.send_group_message(group_id="group-1", plain_text="payload")
+
+    assert result == {"success": False, "message_id": None}
+    assert calls == ["access-token"]
