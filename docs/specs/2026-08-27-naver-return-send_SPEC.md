@@ -67,7 +67,7 @@
 | R3 | 가드 3겹 | 같은 파일 | ① 이미 클레임 진행 중이면 거절(`_claim_guard`) ② **발송처리 전이면 거절** — 안 나간 물건은 반품이 아니라 취소다(`cancel_order:741` 의 거울) ③ **우리 표식 멱등**(`triage_state['return']['requested_at']`) |
 | R4 | 자기표식 | `triage_state['return']` | **`requestChannel` 에 기대지 않는다**(§2-4). 취소의 `_is_our_cancel`(`claim_watch.py:201·349`) 과 같은 방식 — 안 그러면 우리가 넣은 반품이 우리에게 클레임 알림으로 되돌아온다 |
 | R5 | 큐 | `jobs/queue.py` `enqueue_naver_return` | **구현 완료.** 별도 태스크를 파지 않고 **취소와 같은 `run_naver_fulfillment_task` 에 `action="return"`** 으로 태웠다 — 그 자리의 `except FulfillmentError` 커밋 규율(실패 사유를 DB 에 남긴다)을 두 벌로 만들지 않으려는 것이다 |
-| R6 | 라우트 | `POST /admin/naver-ingest/<link_id>/return` | **신규 mutation 계약 4종 등재 필수**: policy manifest · write guard manifest · audit coverage inventory · 감사 라벨 `NAVER_INGEST_RETURN_ENQUEUE` |
+| R6 | 라우트 | `POST /admin/naver-ingest/<link_id>/return` | **구현 완료.** 신규 mutation 계약은 4종이 아니라 **5종**이었다: policy manifest · write guard manifest · audit coverage inventory · 감사 라벨 `NAVER_INGEST_RETURN_ENQUEUE` · **그 테스트가 `docs/` 를 읽으면 `ci.yml` 문서 전용 서브셋 등재**(CI-DOCSCOPE-01). 다섯째는 `pre_push_smoke` 사각이라 CI 가 처음 잡았다 |
 | R7 | 화면 | pane 버튼 + **확인 모달** | 모달이 재진술할 것: **되돌릴 수 없다 · 접수 후 API 로 정정 불가(§2-3) · 승인은 판매자센터에서 사람이 · 회수는 우리 차량** |
 | R8 | 진행 표시 | `_fulfillment_state.rev` 지문에 `return.requested_at` 추가 | **구현 완료.** T4 가 `claim_sync.refreshed_at` 로 한 것과 같은 수법 — **새 엔드포인트 0**. `returned` 카운트도 함께 나간다(폴링 키 집합 계약 테스트 갱신) |
 | R9 | 테스트 | 서비스(가드 3겹 · 멱등 · 화이트리스트 거절) · 라우트(권한·계약) · 큐 | 빨강 먼저 |
