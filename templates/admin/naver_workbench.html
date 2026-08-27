@@ -551,7 +551,9 @@
                {# 필터가 걸리면 history.total 은 '걸러진 총계'다 — 그걸 "전체" 라고 말하면
                   거짓말이 된다(옛 이력 화면도 같은 가드를 쓴다). #}
                href="{{ url_for('admin.naver_ingest_triage', tab='all') }}">전체 {{ (history.total ~ '주문') if not (history.status or history.place_pending) else '' }}</a>
-            {% for key, label in [('COLLECTED', '수집됨(주문 전)'), ('LINKED', '주문 생성됨'),
+            {# 라벨에 `주문` 을 쓰지 않는다 — 뒤에 붙는 `N주문`(세는 단위)과 두 뜻이 인접해
+               읽기 부담이 된다(naver_ingest.html 칩과 같은 말을 쓴다). #}
+            {% for key, label in [('COLLECTED', '수집됨(생성 전)'), ('LINKED', '생성됨'),
                                   ('PENDING_REVIEW', '확인 필요'), ('FAILED', '실패')] %}
             <a class="wb-chip" aria-pressed="{{ 'true' if history.status == key else 'false' }}"
                href="{{ url_for('admin.naver_ingest_triage', tab='all', status=key,
@@ -597,7 +599,7 @@
                         <td class="wb-cmp__num">{{ '{:,}'.format(row.amount) if row.amount is not none else '–' }}</td>
                         <td>
                             {% if row.sync_status == 'COLLECTED' %}<span class="badge bg-primary">수집됨</span>
-                            {% elif row.sync_status == 'LINKED' %}<span class="badge bg-success">주문 생성됨</span>
+                            {% elif row.sync_status == 'LINKED' %}<span class="badge bg-success">생성됨</span>
                             {% elif row.sync_status == 'PENDING_REVIEW' %}<span class="badge bg-warning text-dark">확인 필요</span>
                             {% else %}<span class="badge bg-danger">실패</span>{% endif %}
                             {% if row.claim_label %}

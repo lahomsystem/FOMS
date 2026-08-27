@@ -181,6 +181,14 @@
             <span class="wb-return__k">회수지</span>
             <span class="wb-return__v">
                 <span class="wb-return__i">{{ ra.collect_address.address }}</span>
+                {# 우편번호(T8 후속). 자사 회수라 **우리 차가 이 주소로 간다** — 배차·경로를
+                   잡는 사람이 실제로 묻는 값이고, 원본 스냅샷에 이미 실려 오는데(추출은
+                   `mapping.extract_return_axis` 의 `zip_code`) 화면이 안 읽어 소비처가
+                   0곳이었다. 없으면 이 조각을 **아예 내지 않는다** — 위 줄들과 같은 규율로
+                   빈 칸이나 `-` 를 그리면 "우편번호가 없다"와 "우리가 모른다"가 같은 모양이 된다. #}
+                {% if ra.collect_address.zip_code %}
+                <span class="wb-return__i">우편번호 {{ ra.collect_address.zip_code }}</span>
+                {% endif %}
                 {% if ra.collect_address.name %}
                 <span class="wb-return__i">{{ ra.collect_address.name }}</span>
                 {% endif %}

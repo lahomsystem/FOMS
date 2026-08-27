@@ -214,7 +214,7 @@ def test_status_counts_are_group_units_not_link_rows(auth_client):
     _link("PO-G2", "COLLECTED", external_order_no="N-G2")
 
     body = auth_client.get("/admin/naver-ingest").get_data(as_text=True)
-    assert "수집됨(주문 전) 2주문" in body
+    assert "수집됨(생성 전) 2주문" in body
     assert "전체 2주문" in body
 
 

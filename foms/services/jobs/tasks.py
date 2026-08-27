@@ -9,7 +9,7 @@ import logging
 import os
 import sys
 from pathlib import Path
-from typing import Optional
+from typing import Any, Optional
 
 logger = logging.getLogger(__name__)
 
@@ -231,6 +231,103 @@ def run_notification_escalation_task():
         raise
 
 
+#: 네이버 경로가 만드는 알림 중 **웹푸시까지** 내보내는 유형.
+#: 두 유형 모두 ``push_sender._DEFAULT_P1_TYPES`` 에 등재돼 있다 — 등재는 발송의
+#: 필요조건일 뿐이고(미등재면 no-op), 큐에 넣는 사람이 없으면 아무 일도 일어나지 않는다.
+#: 그게 이 파일이 메우는 구멍이다.
+_NAVER_PUSH_NOTIFICATION_TYPES = ("NAVER_ORDER_CLAIMED", "NAVER_APP_EXPIRY")
+
+
+def _naver_notification_baseline(db: Any) -> Optional[int]:
+    """이번 태스크가 **새로 만든** 알림만 가려내기 위한 기준선을 읽는다.
+
+    작업 **전에** 최대 Notification id 를 찍어 두고, 커밋 후 그보다 큰 id 만 push 대상으로
+    본다. 이미 있던 알림(지난 스윕에서 이미 job 이 걸린 것)을 다시 큐에 넣지 않는 장치다.
+
+    Args:
+        db: 태스크가 소유한 DB 세션.
+
+    Returns:
+        현재 Notification 최대 id(행이 없으면 0). 조회가 실패하면 None — 그때는 호출자가
+        push 를 건너뛴다(기준선 없이 훑으면 옛 알림까지 중복 발송된다).
+    """
+    try:
+        from sqlalchemy import func
+
+        from models import Notification
+
+        return int(db.query(func.max(Notification.id)).scalar() or 0)
+    except Exception as exc:  # noqa: BLE001 - 부가 배달의 준비 실패가 본체를 죽이지 않게
+        logger.error("[RQ] 네이버 push 기준선 조회 실패 — 이번 실행은 push 를 건너뛴다: %s",
+                     exc, exc_info=True)
+        return None
+
+
+def _enqueue_naver_push_after_commit(db: Any, baseline: Optional[int]) -> dict:
+    """커밋된 네이버 알림에 웹푸시 job 을 건다 — **커밋 이후에만** 부른다.
+
+    알림을 만드는 쪽(``claim_watch._notify`` · ``app_expiry.check_and_notify``)은 커밋을
+    소유하지 않는다. 거기서 enqueue 하면 아직 커밋되지 않은 id 로 job 이 나가고, 워커가
+    먼저 깨면 알림을 못 찾아 빈손으로 끝난다. 그래서 커밋을 소유한 이 파일이 건다.
+
+    실패는 **삼키되 반드시 남긴다**: push 는 부가 배달이라 여기서 예외를 올리면 이미
+    커밋된 클레임 동기화가 태스크 실패로 뒤집힌 것처럼 보이고, 재시도가 같은 구간을
+    또 훑는다. 대신 조용히 넘어가지 않는다(묵시적 무시 금지 — 로그가 유일한 흔적이다).
+
+    Args:
+        db: 커밋이 끝난 태스크 세션. enqueue 헬퍼에 **그대로 넘긴다** — 워커에는 요청
+            컨텍스트가 없어 헬퍼 기본값(``get_db()``)이 통하지 않는다.
+        baseline: :func:`_naver_notification_baseline` 이 준 기준선. None 이면 아무것도
+            걸지 않는다.
+
+    Returns:
+        ``{"candidates", "enqueued", "skipped", "failed"}`` 집계.
+        ``skipped`` 는 헬퍼가 정상 판정으로 안 건 경우(push 기능 off·큐 미가용),
+        ``failed`` 는 enqueue 가 예외로 터진 경우다.
+    """
+    summary = {"candidates": 0, "enqueued": 0, "skipped": 0, "failed": 0}
+    if baseline is None:
+        return summary
+
+    try:
+        from foms.services.notifications.push_sender import enqueue_push_for_notification
+        from models import Notification
+
+        rows = (
+            db.query(Notification.id)
+            .filter(
+                Notification.id > int(baseline),
+                Notification.notification_type.in_(_NAVER_PUSH_NOTIFICATION_TYPES),
+            )
+            .order_by(Notification.id)
+            .all()
+        )
+    except Exception as exc:  # noqa: BLE001 - 대상 조회 실패가 수집을 되돌리지 않게
+        logger.error("[RQ] 네이버 push 대상 조회 실패(동기화는 유지): %s", exc, exc_info=True)
+        return summary
+
+    for row in rows:
+        notification_id = int(row[0])
+        summary["candidates"] += 1
+        try:
+            result = enqueue_push_for_notification(notification_id, db=db) or {}
+        except Exception as exc:  # noqa: BLE001 - 배달 실패가 본체를 죽이지 않게
+            summary["failed"] += 1
+            logger.error("[RQ] 네이버 알림 push enqueue 실패 id=%s(동기화는 유지): %s",
+                         notification_id, exc, exc_info=True)
+            continue
+        if result.get("enqueued"):
+            summary["enqueued"] += 1
+        else:
+            # 예외는 아니지만 push 는 안 나갔다 — 이유를 남겨야 "왜 안 왔지"를 셀 수 있다.
+            summary["skipped"] += 1
+            logger.warning("[RQ] 네이버 알림 push 미발송 id=%s reason=%s",
+                           notification_id, result.get("reason"))
+    if summary["candidates"]:
+        logger.info("[RQ] 네이버 알림 push enqueue %s", summary)
+    return summary
+
+
 def run_naver_fulfillment_task(link_id: int, action: str, actor_user_id=None,
                                reason=None, detail=None):
     """발주확인·발송처리·취소 1건 실행 (NAVER-INGEST-02 T16-G, WORKER 전용).
@@ -315,7 +412,8 @@ def run_naver_refresh_task(link_id: int, actor_user_id: Optional[int] = None) ->
         actor_user_id: 화면에서 누른 사람(기록용 — 지금은 로그에만 남는다).
 
     Returns:
-        :func:`claim_watch.refresh_household` 집계 dict.
+        :func:`claim_watch.refresh_household` 집계 dict에 ``push``(웹푸시 enqueue 집계)를
+        더한 dict.
     """
     try:
         from db import db_session
@@ -324,8 +422,11 @@ def run_naver_refresh_task(link_id: int, actor_user_id: Optional[int] = None) ->
 
         db = db_session()
         try:
+            baseline = _naver_notification_baseline(db)
             result = refresh_household(db, client=NaverCommerceClient(), link_id=int(link_id))
             db.commit()
+            # 웹푸시는 **커밋 뒤**다 — 알림 row 가 확정된 다음이라야 워커가 찾을 수 있다.
+            result["push"] = _enqueue_naver_push_after_commit(db, baseline)
             logger.info("[RQ] 네이버 다시 읽기 완료 link=%s actor=%s %s",
                         link_id, actor_user_id, result)
             return result
@@ -341,11 +442,21 @@ def run_naver_refresh_task(link_id: int, actor_user_id: Optional[int] = None) ->
         raise
 
 
-def run_naver_order_sync_task(dry_run: bool = False):
+def run_naver_order_sync_task(dry_run: bool = False) -> dict:
     """네이버 스마트스토어 주문 수집 1회 실행 (NAVER-INGEST-01, WORKER 전용).
 
     화면의 "지금 수집" 버튼이 이 job 을 enqueue 한다. **web 프로세스에서 직접 호출하면
     안 된다** — 커머스API센터에 등록된 호출 IP 는 WORKER 것뿐이라 web 에서 나가면 차단된다.
+
+    5분 스윕이 만드는 알림은 두 종류다 — 수집 이후 취소·반품(``NAVER_ORDER_CLAIMED``)과
+    앱 인증 만료 임박(``NAVER_APP_EXPIRY``). 둘 다 만드는 쪽은 커밋을 소유하지 않으므로
+    **커밋한 이 자리**에서 웹푸시 job 을 건다.
+
+    Args:
+        dry_run: True 면 조회까지만 하고 아무것도 만들지 않는다(알림도 push 도 없다).
+
+    Returns:
+        :func:`ingest.run_sweep` 집계 dict에 ``push``(웹푸시 enqueue 집계)를 더한 dict.
     """
     try:
         from db import db_session
@@ -353,7 +464,12 @@ def run_naver_order_sync_task(dry_run: bool = False):
 
         db = db_session()
         try:
-            return run_sweep(db, dry_run=bool(dry_run))
+            baseline = _naver_notification_baseline(db)
+            # run_sweep 이 자기 안에서 커밋한다(러너·워커가 tx 를 소유하지 않는 단발 실행).
+            # 그래서 이 줄이 끝난 시점이 곧 "알림이 확정된 시점"이다.
+            payload = run_sweep(db, dry_run=bool(dry_run))
+            payload["push"] = _enqueue_naver_push_after_commit(db, baseline)
+            return payload
         except Exception:
             db.rollback()
             raise
