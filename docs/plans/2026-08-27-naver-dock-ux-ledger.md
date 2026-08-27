@@ -146,7 +146,8 @@ payload["deposit_hint"] = {
 8. `mapping.map_group` 의 `items[].price` 등식 — D2 는 화면 표시만.
 
 ## 수용하는 위험(기록)
-- `width_hints` 는 사람 재귀속 후 낡는다(선재 결함, 이번 범위 밖 — 다음 세션 후보).
+- ~~`width_hints` 는 사람 재귀속 후 낡는다(선재 결함, 이번 범위 밖 — 다음 세션 후보).~~
+  → **해소**: 같은 세션에서 W1 로 고쳤다(아래 `## W1` 절). 총폭도 화면이 다시 센다.
 - 예약금 `current` 는 로드 시점 값 → 문장이 비교 대상(`지금 값 N원`)을 명시해 사람이 알아채게 한다.
 - D2 그룹 합(귀속 기준·superseded 포함)과 D3 target(집 기준·superseded 제외)은 다를 수 있다 → note 로 명시.
 - 새 mutation 라우트 0건 → write manifest·감사 라벨 불필요(전부 읽기·표시).
@@ -171,3 +172,45 @@ payload["deposit_hint"] = {
 - 미검증으로 남긴 것: V1 의 "귀속을 옮기면 양쪽 합계가 즉시 바뀐다"는 정적 렌더 하네스에서
   저장 fetch 가 나가지 않아 화면으로 못 봤다. 코드 경로(change 위임 → 저장 성공 → `render()`)와
   `sumRows` 단위 검증으로 갈음했다. 실서버 스모크 때 확인 대상.
+
+## W1 — 총폭 힌트도 화면 계산으로 이관 (2026-08-27, 같은 세션 후속)
+
+**결함**: 서버가 페이지 로드 시점에 계산한 `width_hints` 는 사람이 옵션 귀속 드롭다운을
+다른 본품으로 옮겨도 갱신되지 않았다. 바로 옆 금액 합계는 D2 에서 화면이 세도록 바꿔
+즉시 갱신된다 — **한 화면의 두 숫자가 서로 다른 시점을 말했다**.
+
+**분업(금액과 동일)**: 파싱은 서버가 계속 한다. 화면은 합·문자열 조립만 다시 한다.
+
+### payload 새 필드 (행마다 — DOCKPY `_row_width_facts`)
+| 필드 | 형 | 뜻 |
+| --- | --- | --- |
+| `width_unit_mm` | int \| None | 이 행이 총폭에 내놓는 **1개당 길이**(mm). 본품=상품명·옵션에서 파싱, 추가옵션=**길이추가(1cm) 계열만**. 수납구성·거울도어는 None |
+| `width_label` | str | 계산식 `parts` 라벨(상품명 24자, 비면 `본품`/`길이추가`) |
+| `width_axes` | dict | 사양 축 값(`몰딩`·`문 방식`·`손잡이`) — 불일치 경고 대조용 |
+
+- 찍는 자리: `build_dock_payload` 의 `role` 폴백 **뒤**(승격된 행이 본품 규칙으로 계산되게).
+- `build_width_hint` · payload `width_hints` **유지**(계약 테스트 + 하위호환 폴백). 내부는
+  같은 `_row_width_facts` 를 쓰도록 바꿔 두 경로가 갈릴 수 없게 했다.
+
+### JS 계산 경로 (DOCKJS)
+`buildPanel` 그룹 루프 → `widthHintFor(group.key, rows, mainRow)`
+→ 본품 행에 `width_unit_mm` 키가 **있으면** `computeWidthHint(rows, mainRow)`,
+**없으면**(옛 응답) `state.widthHints[groupKey]` 그대로.
+`rows` 는 금액이 쓰는 그룹 목록과 **같은 변수**(`buildGroupAmount(sumRows(rows), mainRow)`)라
+두 숫자가 언제나 같은 모집단이다. `computeWidthHint` 는 `total_mm`·`formula`·`parts`·
+`mismatch` 를 서버와 **같은 문구**로 조립한다(`widthTerm` = `{unit:,}mm × {qty}`).
+
+### 검증
+- `node --check` OK · `tests/services/integrations` **854 passed** · `APP_OK`
+- 신규 `tests/services/integrations/test_naver_dock_width_live.py` 12건 —
+  Node 로 함수 실제 실행(재귀속 전후 3720/800 → 3600/920) + 서버 정본과 값 대조 4케이스
+  + 옛 응답 폴백 + 소스 배선 계약.
+- **음성 대조군**: `computeWidthHint` 의 그룹 술어를 `([mainRow])` 고정값으로 망가뜨리자
+  5건 red(재귀속·불일치 문구·정본 대조 3케이스) → 즉시 원복, md5 일치 확인.
+- 자산 핀 `?v=20260827c` → **`20260827d`** (PIN 2줄 + 핀 리터럴 테스트 6줄).
+
+### 지킨 경계
+- 폼 불가침: 도크 JS 는 여전히 `erp-` 폼 id 를 안 읽는다. 자동 기입 없음(복사 버튼까지).
+- 화면에 길이 파서를 만들지 않았다 — `computeWidthHint` 는 `product_name`·`option_text` 를
+  **한 번도 읽지 않는다**(테스트가 못박음).
+- CSS 변경 0(렌더 함수 `buildWidthHint` 는 입력 모양이 같아 그대로).

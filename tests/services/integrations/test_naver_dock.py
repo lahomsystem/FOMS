@@ -702,8 +702,8 @@ def test_dock_js_says_repay_separately_and_asset_pin_moved():
     tpl = _ORDER_JS_TPL.read_text(encoding="utf-8")
     # 핀은 R2(워크벤치 링크)에서 다시 움직였다 — 값은
     # ``test_dock_js_renders_workbench_anchor_and_asset_pin_moved`` 가 못박는다.
-    assert "js/orders/erp-naver-dock.js') }}?v=20260827c" in tpl
-    assert "css/orders/erp-naver-dock.css') }}?v=20260827c" in tpl
+    assert "js/orders/erp-naver-dock.js') }}?v=20260827d" in tpl
+    assert "css/orders/erp-naver-dock.css') }}?v=20260827d" in tpl
 
 
 # --------------------------------------------------------------------------- #
@@ -884,5 +884,5 @@ def test_dock_js_renders_workbench_anchor_and_asset_pin_moved():
     assert "workbenchUrl: payload.workbench_url || ''," in source
 
     tpl = _ORDER_JS_TPL.read_text(encoding="utf-8")
-    assert "js/orders/erp-naver-dock.js') }}?v=20260827c" in tpl
-    assert "css/orders/erp-naver-dock.css') }}?v=20260827c" in tpl
+    assert "js/orders/erp-naver-dock.js') }}?v=20260827d" in tpl
+    assert "css/orders/erp-naver-dock.css') }}?v=20260827d" in tpl

@@ -47,7 +47,8 @@
      *
      * **계산을 서버가 아니라 여기서 하는 이유**: 사람이 귀속 드롭다운을 바꾸면 change
      * 위임이 `render()` 를 다시 부른다. 서버가 페이지 로드 시점에 계산해 실어 보낸 값은
-     * 그 순간 낡는다(`width_hints` 가 실제로 그 상태다 — 선재 결함). 정본 등식
+     * 그 순간 낡는다(총폭이 실제로 그 상태였다 — 같은 이유로 `computeWidthHint` 로
+     * 옮겼다). 정본 등식
      * `본품 + Σ 귀속 옵션` 은 서버 `mapping.map_group` 에 그대로 남고 `items[].price` 도
      * 불변이다. 화면은 **같은 등식을 같은 행으로 다시 셀 뿐**이다.
      *
@@ -426,9 +427,89 @@
     }
 
     /**
+     * 계산식 한 항 — `3,600mm × 12`. 서버 f-string(`{unit:,}mm × {qty}`)과 같은 모양이다.
+     * @param {number} unitMm 1개당 길이(mm).
+     * @param {number} quantity 수량.
+     * @returns {string} 한 항 문자열.
+     */
+    function widthTerm(unitMm, quantity) {
+        return unitMm.toLocaleString('ko-KR') + 'mm × ' + quantity;
+    }
+
+    /**
+     * 그룹 하나의 총폭 — **지금 화면의 귀속**으로 다시 센다 (W1).
+     *
+     * **왜 여기서 다시 세나**: 서버가 페이지 로드 시점에 계산한 `width_hints` 는 사람이
+     * 귀속 드롭다운을 옮겨도 갱신되지 않았다. 그런데 같은 화면의 금액 합계는 화면이 세서
+     * 즉시 바뀐다(`sumRows`) — 한 화면의 두 숫자가 서로 다른 시점을 말하고 있었다.
+     *
+     * **분업은 금액과 같다**: 길이 해석(`parse_length_mm`·`_LENGTH_ADDON_HINTS`·사양 축)은
+     * 서버가 계속 한다. 서버가 행마다 실어 보낸 조각(`width_unit_mm`·`width_label`·
+     * `width_axes`)을 화면은 **더하고 문자열로 조립만** 한다 — 파서를 두 벌 두지 않는다.
+     *
+     * 결과 모양은 서버 `build_width_hint` 와 같다(`total_mm`·`formula`·`parts`·`mismatch`)
+     * — `buildWidthHint` 는 어느 쪽에서 왔는지 몰라도 된다.
+     *
+     * @param {Array} rows 그룹에 그려질 행들(본품 1 + 귀속 옵션 N).
+     * @param {?Object} mainRow 그룹의 본품 행(없으면 총폭이랄 게 없다).
+     * @returns {?Object} {total_mm, formula, parts, mismatch}. 길이를 못 읽으면 null.
+     */
+    function computeWidthHint(rows, mainRow) {
+        if (!mainRow || typeof mainRow.width_unit_mm !== 'number' || !mainRow.width_unit_mm) {
+            return null;
+        }
+        var mainQty = mainRow.quantity || 1;
+        var mainAxes = mainRow.width_axes || {};
+        var hint = {
+            total_mm: mainRow.width_unit_mm * mainQty,
+            formula: '',
+            parts: [{ label: mainRow.width_label || '본품',
+                      unit_mm: mainRow.width_unit_mm, quantity: mainQty }],
+            mismatch: []
+        };
+        (rows || []).forEach(function (row) {
+            // 길이추가가 아닌 옵션(수납구성·거울도어)은 서버가 조각을 안 준다 — 폭과 무관하다.
+            if (row === mainRow || row.role !== 'addon') return;
+            if (typeof row.width_unit_mm !== 'number' || !row.width_unit_mm) return;
+            var qty = row.quantity || 1;
+            hint.total_mm += row.width_unit_mm * qty;
+            hint.parts.push({ label: row.width_label || '길이추가',
+                              unit_mm: row.width_unit_mm, quantity: qty });
+            var addonAxes = row.width_axes || {};
+            Object.keys(mainAxes).forEach(function (axis) {
+                // 고객이 몰딩/무몰딩을 섞어 주문하는 사고가 실재한다 — 사람이 확인해야 한다.
+                var addonValue = addonAxes[axis];
+                if (!addonValue || addonValue === mainAxes[axis]) return;
+                var line = axis + ': 본품 ' + mainAxes[axis] + ' · 추가 ' + addonValue;
+                if (hint.mismatch.indexOf(line) < 0) hint.mismatch.push(line);
+            });
+        });
+        hint.formula = hint.parts.map(function (part) {
+            return widthTerm(part.unit_mm, part.quantity);
+        }).join(' + ');
+        return hint;
+    }
+
+    /**
+     * 이 그룹에 그릴 총폭 힌트 — 새 조각이 있으면 다시 계산, 없으면 서버 값 (W1).
+     *
+     * 하위호환: 배포 순서에 따라 옛 서버 응답(행 조각 없음)이 새 JS 로 올 수 있다. 그때는
+     * 로드 시점 `width_hints` 를 그대로 그려 **오늘과 똑같은 화면**을 낸다.
+     * @param {?string} groupKey 그룹 키(본품 external_id / COMMON / null).
+     * @param {Array} rows 그룹에 그려질 행들.
+     * @param {?Object} mainRow 그룹의 본품 행.
+     * @returns {?Object} 총폭 힌트(없으면 null).
+     */
+    function widthHintFor(groupKey, rows, mainRow) {
+        if (mainRow && 'width_unit_mm' in mainRow) return computeWidthHint(rows, mainRow);
+        return (groupKey !== null && state.widthHints[groupKey]) || null;
+    }
+
+    /**
      * 총폭 힌트 박스 — 본품 모듈 폭 × 수량 + 길이추가(1cm) × 수량.
      * 규격 SSOT 를 지키기 위해 **값을 폼에 넣지 않는다**. 계산식과 복사 버튼까지다.
-     * @param {Object} hint 서버가 계산한 {total_mm, formula, mismatch}.
+     * @param {Object} hint {total_mm, formula, mismatch} — 화면이 다시 센 값이거나(W1),
+     *     조각이 없는 옛 응답이면 서버가 로드 시점에 계산한 값.
      * @returns {Element} 힌트 박스.
      */
     function buildWidthHint(hint) {
@@ -563,7 +644,10 @@
             if (groupFact && groupFact.note) {
                 bd.appendChild(el('div', 'naver-dock-hh-note', '⚠ ' + groupFact.note));
             }
-            var hint = state.widthHints[group.key];
+            // 총폭도 **지금 화면의 그룹**으로 다시 센다(W1) — 금액 합계와 같은 모집단이다.
+            // 예전에는 로드 시점 서버 값을 그대로 그려, 사람이 귀속을 옮기면 한 화면의
+            // 두 숫자(금액·총폭)가 서로 다른 시점을 말했다.
+            var hint = widthHintFor(group.key, rows, mainRow);
             if (hint) bd.appendChild(buildWidthHint(hint));
             rows.forEach(function (row) { bd.appendChild(buildRow(row, groupNo)); });
         });

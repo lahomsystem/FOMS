@@ -91,11 +91,57 @@ def _row_axes(row: dict[str, Any]) -> dict[str, str]:
     return axis_values(row.get("product_name") or "", row.get("option_text") or "")
 
 
+def _width_unit_mm(row: dict[str, Any], *, is_main: bool) -> Optional[int]:
+    """이 행이 총폭에 내놓는 **1개당 길이**(mm). 낼 것이 없으면 None (W1).
+
+    본품은 상품명·옵션 어디에 적혀 있든 길이를 읽는다. 추가옵션은 **길이추가(1cm) 계열만**
+    폭을 늘린다 — 수납구성(TYPE A)·거울도어 같은 구성 옵션에 든 숫자를 더하면 총폭이 틀린다.
+
+    Args:
+        row: 도크 행(``product_name``·``option_text`` 만 읽는다).
+        is_main: 이 행이 본품인가.
+
+    Returns:
+        mm 정수. 길이추가가 아니거나 길이를 못 읽으면 None.
+    """
+    blob = f"{_text(row.get('product_name'))} {_text(row.get('option_text'))}"
+    if not is_main and not any(hint in blob for hint in _LENGTH_ADDON_HINTS):
+        return None
+    return parse_length_mm(blob)
+
+
+def _row_width_facts(row: dict[str, Any], *, is_main: bool) -> dict[str, Any]:
+    """행 하나가 총폭 계산에 내놓는 조각 — **화면이 이 값으로 합계를 다시 만든다** (W1).
+
+    왜 조각으로 싣나: 서버가 페이지 로드 시점에 계산해 보낸 ``width_hints`` 는 사람이 귀속
+    드롭다운을 옮긴 순간 낡는다(금액 합계와 같은 결함이었다 — D2 에서 화면 계산으로 옮겼다).
+    길이 **해석**(``parse_length_mm``·축 판정)은 여기 서버에 그대로 두고, 화면은 이 조각들로
+    합·문자열 조립만 다시 한다. 파서가 두 벌이 되지 않는다.
+
+    Args:
+        row: 도크 행.
+        is_main: 이 행이 본품인가(``role != "addon"``).
+
+    Returns:
+        ``{"width_unit_mm", "width_label", "width_axes"}``.
+    """
+    name = _text(row.get("product_name"))
+    return {
+        "width_unit_mm": _width_unit_mm(row, is_main=is_main),
+        "width_label": name[:24] or ("본품" if is_main else "길이추가"),
+        "width_axes": _row_axes(row),
+    }
+
+
 def build_width_hint(main: dict[str, Any], addons: list[dict[str, Any]]) -> Optional[dict[str, Any]]:
     """본품 + 길이추가 옵션으로 **총폭 후보**를 계산한다 (T14-I).
 
     CS 는 지금 이 계산을 손으로 한다: 30cm 모듈 12개 + 1cm 추가 12개 = 3,600 + 120 = 3,720.
     자동 기입은 하지 않는다(규격 SSOT 보호) — 계산식과 복사 버튼까지가 이 기능의 끝이다.
+
+    화면(``erp-naver-dock.js`` ``computeWidthHint``)이 **같은 등식을 지금 화면의 그룹으로**
+    다시 센다. 이 함수는 그 계산의 정본이자 로드 시점 폴백(payload ``width_hints``)이고,
+    조각은 :func:`_row_width_facts` 하나에서 나온다 — 두 경로가 갈리지 않게 하는 자리다.
 
     Args:
         main: 본품 행.
@@ -104,37 +150,28 @@ def build_width_hint(main: dict[str, Any], addons: list[dict[str, Any]]) -> Opti
     Returns:
         ``{"total_mm", "formula", "parts", "mismatch"}``. 길이를 못 읽으면 None.
     """
-    module_mm = parse_length_mm(f"{main['product_name']} {main['option_text']}")
+    main_facts = _row_width_facts(main, is_main=True)
+    module_mm = main_facts["width_unit_mm"]
     if not module_mm:
         return None
     main_qty = main["quantity"] or 1
-    parts = [{"label": main["product_name"][:24] or "본품",
-              "unit_mm": module_mm, "quantity": main_qty}]
+    parts = [{"label": main_facts["width_label"], "unit_mm": module_mm, "quantity": main_qty}]
     total = module_mm * main_qty
-
     mismatch: list[str] = []
-    main_axes = _row_axes(main)
+    main_axes = main_facts["width_axes"]
     for addon in addons:
-        blob = f"{addon['product_name']} {addon['option_text']}"
-        if not any(hint in blob for hint in _LENGTH_ADDON_HINTS):
-            continue
-        unit_mm = parse_length_mm(blob)
+        facts = _row_width_facts(addon, is_main=False)
+        unit_mm = facts["width_unit_mm"]
         if not unit_mm:
             continue
         quantity = addon["quantity"] or 1
-        parts.append({"label": addon["product_name"][:24] or "길이추가",
+        parts.append({"label": facts["width_label"],
                       "unit_mm": unit_mm, "quantity": quantity})
         total += unit_mm * quantity
-        addon_axes = _row_axes(addon)
         for axis, main_value in main_axes.items():
-            addon_value = addon_axes.get(axis)
+            addon_value = facts["width_axes"].get(axis)
             if addon_value and addon_value != main_value:
                 mismatch.append(f"{axis}: 본품 {main_value} · 추가 {addon_value}")
-
-    if len(parts) == 1:
-        # 길이추가 옵션이 없으면 계산이랄 게 없다 — 단순 환산은 칩으로 따로 준다.
-        return {"total_mm": total, "formula": f"{module_mm:,}mm × {main_qty}",
-                "parts": parts, "mismatch": []}
     formula = " + ".join(f"{part['unit_mm']:,}mm × {part['quantity']}" for part in parts)
     return {"total_mm": total, "formula": formula, "parts": parts,
             "mismatch": list(dict.fromkeys(mismatch))}
@@ -704,9 +741,17 @@ def build_dock_payload(db: Any, order: Any, *,
         lead["role"] = "main"
         mains = [lead]
 
+    # 총폭 조각(W1) — 행마다 싣는다. 화면이 사람 재귀속 뒤에 총폭을 **다시** 세는 근거이고,
+    # 길이 해석은 여기 서버에 남는다. `role` 폴백이 끝난 **뒤**에 찍어야 승격된 행이
+    # 본품 규칙(길이추가 힌트 없이도 길이를 읽는다)으로 계산된다.
+    for row in rows:
+        row.update(_row_width_facts(row, is_main=row["role"] != "addon"))
+
     _apply_attribution(rows)
 
     # 본품별 총폭 힌트(T14-I) — 귀속은 사람 지정 > 추정 순으로 본다(화면과 같은 규칙).
+    # **로드 시점 값**이다. 사람이 귀속을 옮긴 뒤의 총폭은 화면이 행 조각(`width_unit_mm`
+    # 등)으로 다시 센다(W1) — 이 dict 는 조각이 없는 옛 화면·옛 응답의 폴백으로 남는다.
     width_hints: dict[str, Any] = {}
     for main in mains:
         addons = [row for row in rows
@@ -780,6 +825,8 @@ def build_dock_payload(db: Any, order: Any, *,
                                 and recipient_name != orderer_name),
         "shipping_memo": "\n".join(memos),
         "claim_label": claim_label,
+        # 로드 시점 총폭(하위호환 폴백). 지금 화면의 총폭은 행마다 실린 `width_unit_mm`·
+        # `width_label`·`width_axes` 로 화면이 다시 만든다(W1).
         "width_hints": width_hints,
         "recipient_tel2": recipient_tel2,
         "paid_at": paid_at,
