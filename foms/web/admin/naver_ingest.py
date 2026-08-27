@@ -2474,13 +2474,13 @@ def _group_queue(links: list[ExternalOrderLink], orders: dict,
             # 관계 축(추가결제·재결제) — 이 값은 **배지 라벨**이다. 붙이기는 집 전체를 함께
             # 붙이지만(attach_link_to_order) 백필 전 데이터는 형제 일부만 값이 있을 수 있어
             # 멤버 전체를 본다. 둘이 섞이면 ADDON 을 대표로 적는다 — **표기 우선순위일 뿐**
-            # 버튼 동작은 바꾸지 않는다(옛 주석은 "ADDON 이 더 강한 제약"이라 했는데, 지금
-            # 닫기 대상이 ADDON 뿐이라 사실이 아니다 — D1 개정 2026-08-24).
-            # 아래 close_now 는 **집 전체**를 보므로 섞인 집은 어차피 '지금 닫기'가 아니다.
+            # 버튼 동작은 바꾸지 않는다(옛 주석은 "ADDON 이 더 강한 제약"이라 했는데,
+            # close_now 대상이 ADDON 뿐이라 사실이 아니다 — D1 개정 2026-08-24).
+            # 아래 close_now 는 **집 전체**를 보므로 섞인 집은 어차피 close_now 가 아니다.
             "relation": ("ADDON" if any((row.relation or "") == "ADDON" for row in members)
                          else next((row.relation for row in members
                                     if (row.relation or "") == "REPAY"), "")),
-            # 발송처리를 '지금 닫기'로 열지 여부는 **집 전체가** CLOSE_NOW_RELATIONS 일
+            # 발주확인 전에도 발송처리 버튼을 열지 여부는 **집 전체가** CLOSE_NOW_RELATIONS 일
             # 때만이다(서버 dispatch_order 와 **같은 상수·같은 all 규칙** — any 로 두면
             # 섞인 집의 NEW 형제까지 발주확인 없이 나간다). 튜플을 여기 손으로 다시 적으면
             # 다음 개정에서 서버와 화면이 조용히 갈린다 — 실제로 갈릴 뻔했다(D1 개정

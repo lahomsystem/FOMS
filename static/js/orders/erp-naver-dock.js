@@ -43,6 +43,37 @@
     }
 
     /**
+     * 그룹 하나의 금액 — 본품 + 그 본품에 귀속된 옵션들의 결제액 합 (D2).
+     *
+     * **계산을 서버가 아니라 여기서 하는 이유**: 사람이 귀속 드롭다운을 바꾸면 change
+     * 위임이 `render()` 를 다시 부른다. 서버가 페이지 로드 시점에 계산해 실어 보낸 값은
+     * 그 순간 낡는다(`width_hints` 가 실제로 그 상태다 — 선재 결함). 정본 등식
+     * `본품 + Σ 귀속 옵션` 은 서버 `mapping.map_group` 에 그대로 남고 `items[].price` 도
+     * 불변이다. 화면은 **같은 등식을 같은 행으로 다시 셀 뿐**이다.
+     *
+     * 두 가지를 지킨다.
+     * 1. `amount` 가 숫자가 아닌 행은 0 으로 더하지 않고 **모름으로 센다** — 0원과 모름은
+     *    다른 사실이고, 0 으로 더하면 합계가 조용히 작아진다.
+     * 2. `optionPrice` 는 쓰지 않는다 — 옵션 행의 `amount`(=`totalPaymentAmount`)에 이미
+     *    들어 있어 함께 더하면 옵션값을 두 번 센다.
+     *
+     * @param {Array} rows 그룹에 속한 행들(본품 1 + 옵션 N, 또는 옵션만).
+     * @returns {{total: number, known: number, unknown: number}} 합계·센 행 수·모름 행 수.
+     */
+    function sumRows(rows) {
+        var acc = { total: 0, known: 0, unknown: 0 };
+        (rows || []).forEach(function (row) {
+            if (typeof row.amount === 'number') {
+                acc.total += row.amount;
+                acc.known += 1;
+            } else {
+                acc.unknown += 1;
+            }
+        });
+        return acc;
+    }
+
+    /**
      * 결제 기록의 관계별 집계 한 칸 (R1).
      * payload 에 관계별 분해가 없으면(옛 서버 응답) 합계를 통째로 addon 으로 본다 —
      * 지금까지 화면이 그렇게 말해 왔으므로 그 경우 표기가 바뀌지 않는다.
@@ -138,6 +169,29 @@
     }
 
     /**
+     * 행 하나의 금액 칩 — 머리말 합계를 사람이 **검산**할 수 있게 행마다 붙인다 (D2).
+     *
+     * 본품 행에도 붙는 이유: 검산할 수 없는 합계는 담당자가 다시 믿지 않는다. 예전에는
+     * 옵션 행에 0원 표식만 있어서, 머리말 숫자가 어느 행들을 더한 값인지 알 길이 없었다.
+     *
+     * 세 갈래로 갈린다.
+     * - 0원: 기존 `.naver-dock-zero` `'0원'` 그대로 — 담당자가 이미 아는 신호다.
+     * - 모름: 원본에 결제액이 없는 행. **0원처럼 그리면 안 된다**(다른 사실이다).
+     * - 숫자: 결제액.
+     * @param {Object} row 도크 행.
+     * @returns {Element} 금액 칩.
+     */
+    function buildAmountChip(row) {
+        if (row.amount === 0) return el('span', 'naver-dock-zero', '0원');
+        if (typeof row.amount !== 'number') {
+            var unknown = el('span', 'naver-dock-amt is-unknown', '금액 모름');
+            unknown.title = '원본에 결제액이 없습니다 — 0원이라는 뜻이 아닙니다';
+            return unknown;
+        }
+        return el('span', 'naver-dock-amt', formatAmount(row.amount));
+    }
+
+    /**
      * 행 하나. 재결제로 대체된 옛 집의 행은 **흐려지되 살아 있다**(N2) —
      * 복사 버튼·체크·귀속 드롭다운을 그대로 둔다. 재결제는 "같은 주문을 다시 결제"라
      * 옛 옵션 원문이 여전히 유효한 규격일 수 있고, 담당자는 새 집과 **비교**해야 무엇이
@@ -161,9 +215,7 @@
         var body = el('div', 'naver-dock-row-body');
         var title = el('div', 'naver-dock-row-title',
             row.role === 'main' ? '본품 옵션 원문' : (row.product_name || '(이름 없음)'));
-        if (row.role === 'addon' && row.amount === 0) {
-            title.appendChild(el('span', 'naver-dock-zero', '0원'));
-        }
+        title.appendChild(buildAmountChip(row));
         // 그룹 머리말이 말해 주지 못하는 행에만 집 표식을 단다 — 공통·귀속 미정 그룹이거나,
         // 귀속이 집 경계를 넘어 다른 집 본품에 붙은 행이다. 모든 행에 달면 잡음이 된다.
         if (row.external_order_no !== groupNo) {
@@ -215,6 +267,24 @@
     }
 
     /**
+     * 예약금(선금) 한 줄 — 카드로 서지 않는 세 상태(`match`·`over`·`unknown`)의 문장.
+     *
+     * `differs` 만 카드로 세운다. 값이 맞는 보통 주문에까지 카드를 세우면 그 자리가
+     * 잡음이 되고 정작 틀린 날에 아무도 안 읽는다. 같은 말을 카드와 줄로 두 번 하지도
+     * 않는다 — 어느 쪽이 최신인지 사람이 의심한다.
+     *
+     * 문장은 **서버가 만든다**(payload `deposit_hint.sentence`) — 재결제 정본과 같은
+     * 규율이다(서버가 문장, 화면은 그리기만). 키가 없는 옛 응답이면 빈 문자열이라
+     * 줄 자체가 생기지 않는다(오늘과 같은 화면).
+     * @returns {string} 표시할 문장(없으면 빈 문자열).
+     */
+    function depositFactLine() {
+        var hint = state.depositHint;
+        if (!hint || hint.state === 'differs' || !hint.sentence) return '';
+        return hint.note ? hint.sentence + ' — ' + hint.note : hint.sentence;
+    }
+
+    /**
      * 머리말 정보 블록 — 수취인/주문자 이름과 배송메모.
      * 주문 대표 이름은 수취인이다. 주문자는 **다를 때만** 보조로 띄운다(대리주문 표식).
      * 배송메모는 원문 그대로 보여주고 복사만 제공한다 — 폼에 자동 기입하지 않는다.
@@ -224,8 +294,9 @@
         var hasWho = !!state.recipientName;
         var hasMemo = !!state.shippingMemo;
         var hasClaim = !!state.claimLabel;
+        var depositLine = depositFactLine();
         var hasFacts = !!(state.recipientTel2 || state.paidAt || state.payMeans || state.discount
-            || state.extraPaymentCount || state.couponCount);
+            || state.extraPaymentCount || state.couponCount || depositLine);
         if (!hasWho && !hasMemo && !hasClaim && !hasFacts) return null;
         var info = el('div', 'naver-dock-info');
         if (hasClaim) {
@@ -279,6 +350,12 @@
                 '원 — 원 주문 취소분 재결제입니다. 출고가·잔금에 더하지 마세요',
                 false, 'naver-dock-fact-warn']);
         }
+        // 예약금(선금) 안내 — **facts 맨 뒤에만** 붙인다(D3). 위 두 줄(추가결제·재결제)은
+        // 담당자가 자리째로 외운 문구라 순서를 흔들지 않는다(R1 회귀 방지).
+        if (depositLine) {
+            facts.push(['예약금(선금)', depositLine, false,
+                state.depositHint.state === 'match' ? '' : 'naver-dock-fact-warn']);
+        }
         facts.forEach(function (fact) {
             var row = el('div', fact[3] ? 'naver-dock-fact ' + fact[3] : 'naver-dock-fact');
             row.appendChild(el('span', 'naver-dock-fact-k', fact[0]));
@@ -306,6 +383,49 @@
     }
 
     /**
+     * 예약금(선금) 안내 카드 — **값이 다를 때(`differs`)만** 선다 (D3).
+     *
+     * 이 값이 들어갈 자리의 정본 이름은 **예약금(선금)**이다(출고가·잔금은 입력칸이
+     * 아니라 계산 표시다). 도크는 그 입력칸의 id 를 **읽지도 쓰지도 않는다** — 폼
+     * 불가침 계약이고, 자동 기입 금지는 명문 규약이다. 값은 사람이 복사로 옮긴다.
+     * 복사값은 서버가 만든 **쉼표 없는 정수**라 그대로 붙여넣을 수 있다.
+     *
+     * 카드가 스크롤 영역(`.naver-dock-bd`) 밖에 서는 이유: 행을 아래로 훑는 동안에도
+     * 이 안내가 화면에 남아 있어야 한다.
+     * @returns {Element|null} 카드(그릴 근거가 없으면 null — 옛 payload 포함).
+     */
+    function buildDepositCard() {
+        var hint = state.depositHint;
+        if (!hint || hint.state !== 'differs' || !hint.sentence) return null;
+        var card = el('div', 'naver-dock-deposit');
+        // 라벨·큰 숫자·문장 3단은 재결제 계획 카드(.wb-fork__money)와 같은 규격이다 —
+        // 옮겨 적는 숫자가 두 화면에서 다른 모양이면 사람이 다른 값으로 읽는다.
+        card.appendChild(el('div', 'naver-dock-deposit-hd', '💰 예약금(선금)에 넣을 금액'));
+        if (hint.target_display) {
+            // 돈 표기는 서버가 만든 것만 쓴다 — 화면이 다시 포맷하면 두 자리가 조용히 갈린다.
+            card.appendChild(el('div', 'naver-dock-deposit-won', hint.target_display));
+        }
+        card.appendChild(el('div', 'naver-dock-deposit-say', hint.sentence));
+        if (hint.note) {
+            card.appendChild(el('div', 'naver-dock-deposit-note', hint.note));
+        }
+        if (hint.copy_value) {
+            var acts = el('div', 'naver-dock-deposit-acts');
+            var copy = el('button', 'naver-dock-copy', '📋 ' + hint.copy_value);
+            copy.type = 'button';
+            copy.setAttribute('data-naver-dock-copy', hint.copy_value);
+            acts.appendChild(copy);
+            // 자동 기입은 하지 않는다(폼 불가침 계약) — 그 사실을 화면이 직접 말한다.
+            // 잔금은 사람이 따로 고칠 필요가 없다는 것까지 말해야 한 번에 끝난다.
+            acts.appendChild(el('span', 'naver-dock-deposit-hint',
+                '시스템이 넣지 않습니다 — 예약금(선금) 칸에 직접 입력하세요. '
+                + '잔금은 출고가 − 예약금으로 따라옵니다.'));
+            card.appendChild(acts);
+        }
+        return card;
+    }
+
+    /**
      * 총폭 힌트 박스 — 본품 모듈 폭 × 수량 + 길이추가(1cm) × 수량.
      * 규격 SSOT 를 지키기 위해 **값을 폼에 넣지 않는다**. 계산식과 복사 버튼까지다.
      * @param {Object} hint 서버가 계산한 {total_mm, formula, mismatch}.
@@ -326,6 +446,38 @@
             box.appendChild(el('div', 'naver-dock-width-warn', '⚠ 사양 불일치 — ' + line));
         });
         return box;
+    }
+
+    /**
+     * 그룹 머리말의 금액 칸 — **라벨이 붙은** 합계 (D2).
+     *
+     * 사람이 오해한 원인은 라벨 없는 숫자였다. 예전 머리말은 본품 결제액 하나만 라벨 없이
+     * 세워 두어, 그 숫자가 그룹 전체 값으로 읽혔다(귀속된 옵션값이 빠진 값이다).
+     * 이제 등식을 이름으로 말한다 — 본품이 있으면 `본품+옵션`, 본품이 없는 묶음
+     * (공통·귀속 미정)은 `옵션 합`.
+     *
+     * 모르는 행이 섞이면 `· 모름 N건` 을 덧붙이고 `is-partial` 로 표시한다. 전부 모르면
+     * 합계 자체를 내지 않는다 — 0원처럼 읽히면 안 된다.
+     * @param {{total: number, known: number, unknown: number}} sum `sumRows` 결과.
+     * @param {?Object} mainRow 이 그룹의 본품 행(없으면 공통·귀속 미정 그룹).
+     * @returns {Element|null} 금액 칸(말할 것이 없으면 null).
+     */
+    function buildGroupAmount(sum, mainRow) {
+        if (!sum.known && !sum.unknown) return null;
+        var superseded = !!(mainRow && mainRow.superseded);
+        var node = el('span', 'naver-dock-grp-sub' + (sum.unknown ? ' is-partial' : '')
+            + (superseded ? ' is-superseded' : ''));
+        if (sum.known) {
+            // 환불된 옛 집의 합계는 아직 유효한 돈이 아니다 — 취소선으로 못박는다.
+            if (superseded) node.appendChild(document.createTextNode('환불됨 · '));
+            node.appendChild(el('span', 'naver-dock-grp-amt',
+                (mainRow ? '본품+옵션 ' : '옵션 합 ') + formatAmount(sum.total)));
+        }
+        if (sum.unknown) {
+            node.appendChild(document.createTextNode(
+                (sum.known ? ' · ' : '') + '모름 ' + sum.unknown + '건'));
+        }
+        return node;
     }
 
     function buildPanel(withClose) {
@@ -370,6 +522,9 @@
         frag.appendChild(head);
         var info = buildInfo();
         if (info) frag.appendChild(info);
+        // 예약금 카드는 정보 블록과 진행바 사이 — 스크롤 영역 밖이라 늘 보인다(D3).
+        var deposit = buildDepositCard();
+        if (deposit) frag.appendChild(deposit);
 
         var pbar = el('div', 'naver-dock-pbar');
         pbar.appendChild(document.createElement('i'));
@@ -399,9 +554,10 @@
             var groupNo = mainRow ? mainRow.external_order_no : null;
             var groupChip = mainRow ? buildHouseholdChip(groupNo) : null;
             if (groupChip) header.appendChild(groupChip);
-            if (mainRow && typeof mainRow.amount === 'number' && mainRow.amount > 0) {
-                header.appendChild(el('span', 'naver-dock-grp-sub', formatAmount(mainRow.amount)));
-            }
+            // 합계는 **지금 화면에 그려질 행들**로 센다 — 사람이 귀속을 옮기면 rows 가
+            // 바뀌고 render() 가 다시 돌아, 머리말과 아래 행이 언제나 같은 모집단이다.
+            var groupSum = buildGroupAmount(sumRows(rows), mainRow);
+            if (groupSum) header.appendChild(groupSum);
             bd.appendChild(header);
             var groupFact = mainRow ? householdFact(groupNo) : null;
             if (groupFact && groupFact.note) {
@@ -639,7 +795,10 @@
             couponCount: payload.coupon_count || 0,
             couponDiscount: payload.coupon_discount || 0,
             couponSellerBurden: payload.coupon_seller_burden || 0,
-            widthHints: payload.width_hints || {}
+            widthHints: payload.width_hints || {},
+            // 예약금(선금) 안내(D3) — 문장·복사값까지 **서버가 만들어 보낸다**.
+            // 키가 없는 옛 응답이면 null 이고, 그러면 화면은 오늘과 똑같이 그린다.
+            depositHint: payload.deposit_hint || null
         };
         render();
         applyLayout();
