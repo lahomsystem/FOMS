@@ -218,6 +218,9 @@ CLAIM_REASON_LABELS = {
     "MISTAKE_ORDER": "주문 실수",
     "SIMPLE_INTENT_CHANGED": "단순 변심",
     "INTENT_CHANGED": "단순 변심",
+    # 2026-08-27 운영 실물로 확인한 코드다(id=422 본문에 원문 노출됐다) — 추측 철자
+    # ``COLOR_SIZE_CHANGE`` 만 있어서 라벨이 안 붙었다. 실측 코드를 정본으로 둔다.
+    "COLOR_AND_SIZE": "색상·사이즈 변경",
     "COLOR_SIZE_CHANGE": "색상·사이즈 변경",
     "WRONG_PRODUCT": "다른 상품 잘못 주문",
     "SOLD_OUT": "품절",
