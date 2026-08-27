@@ -37,6 +37,7 @@ logger = logging.getLogger(__name__)
 __all__ = [
     "FulfillmentError",
     "household_key",
+    "links_of_group",
     "STATE_KEY",
     "DIRECT_DELIVERY",
     "clear_failure",
@@ -170,6 +171,23 @@ def _links_of_group(session: Session, link_id: int) -> list[ExternalOrderLink]:
     return same_house or [link]
 
 
+def links_of_group(session: Session, link_id: int) -> list[ExternalOrderLink]:
+    """같은 **집**의 링크 전부 — 모듈 밖에서 쓰는 공개 이름.
+
+    발주확인·발송처리·취소가 쓰는 집 판정(:func:`_links_of_group`)을 그대로 내보낸다.
+    "다시 읽기"(T4)가 같은 집을 대상으로 삼아야 화면이 가른 집과 어긋나지 않는다 —
+    집 판정을 부르는 쪽에서 다시 짜면 분할배송에서 남의 집이 섞인다.
+
+    Args:
+        session: DB 세션(읽기만 한다).
+        link_id: 기준 수집 링크 id.
+
+    Returns:
+        같은 집의 링크 목록(수집 순서). 링크가 없으면 :class:`FulfillmentError`.
+    """
+    return _links_of_group(session, link_id)
+
+
 def _claim_guard(session: Session, links: list[ExternalOrderLink], *,
                  action: str, stamp: datetime) -> None:
     """집 안에 취소·반품이 하나라도 있으면 네이버를 부르지 않는다.
@@ -196,7 +214,7 @@ def _claim_guard(session: Session, links: list[ExternalOrderLink], *,
         claim = extract_claim(row.raw_snapshot or {})
         if not claim.get("blocking"):
             continue
-        reason = (f"취소·반품이 진행 중인 집입니다({claim.get('label') or '클레임'}) — "
+        reason = (f"취소·반품이 진행 중인 주문입니다({claim.get('label') or '클레임'}) — "
                   "판매자센터에서 처리하세요.")
         _mark_failures({str(r.external_id): r for r in links},
                        {str(r.external_id): reason for r in links},
@@ -234,7 +252,7 @@ def _broken_collection_guard(session: Session, links: list[ExternalOrderLink], *
               if (row.sync_status or "") not in HEALTHY_SYNC_STATUSES]
     if not broken:
         return
-    reason = ("수집이 완료되지 않은 상품주문이 있는 집입니다"
+    reason = ("수집이 완료되지 않은 상품주문이 있는 건입니다"
               f"({', '.join(sorted({str(r.sync_status) for r in broken}))}) — "
               "수집을 먼저 정상화하세요.")
     _mark_failures({str(r.external_id): r for r in links},
@@ -267,7 +285,7 @@ def _cancel_guard(session: Session, links: list[ExternalOrderLink], *,
     canceled = [row for row in links if _state(row).get("canceled_at")]
     if not canceled:
         return
-    reason = ("취소한 집입니다 — 발주확인·발송처리를 보내지 않습니다"
+    reason = ("취소한 주문입니다 — 발주확인·발송처리를 보내지 않습니다"
               f"(취소된 상품주문 {len(canceled)}건).")
     _mark_failures({str(row.external_id): row for row in links},
                    {str(row.external_id): reason for row in links},
@@ -722,7 +740,7 @@ def cancel_order(session: Session, client: Any, *, link_id: int, reason: str,
     # 발송처리가 나간 집은 취소가 아니라 반품 흐름이다(네이버도 거절한다).
     dispatched = [row for row in links if _state(row).get("dispatched_at")]
     if dispatched:
-        reason_text = ("이미 발송처리한 집입니다 — 취소가 아니라 반품으로 처리해야 합니다"
+        reason_text = ("이미 발송처리한 주문입니다 — 취소가 아니라 반품으로 처리해야 합니다"
                        "(판매자센터).")
         _mark_failures({str(row.external_id): row for row in dispatched},
                        {str(row.external_id): reason_text for row in dispatched},

@@ -214,8 +214,8 @@ def test_status_counts_are_group_units_not_link_rows(auth_client):
     _link("PO-G2", "COLLECTED", external_order_no="N-G2")
 
     body = auth_client.get("/admin/naver-ingest").get_data(as_text=True)
-    assert "수집됨(주문 전) 2집" in body
-    assert "전체 2집" in body
+    assert "수집됨(주문 전) 2주문" in body
+    assert "전체 2주문" in body
 
 
 def test_cancelled_group_cannot_be_promoted_from_history(auth_client):
@@ -395,7 +395,7 @@ def test_history_falls_back_to_order_no_when_group_key_missing(auth_client):
     _link("PO-NOGK-B", "COLLECTED", external_order_no="N-NOGK")
 
     body = auth_client.get("/admin/naver-ingest").get_data(as_text=True)
-    assert "전체 1집" in body
+    assert "전체 1주문" in body
 
 
 def test_history_splits_by_address_like_the_triage_queue(auth_client):
@@ -409,7 +409,7 @@ def test_history_splits_by_address_like_the_triage_queue(auth_client):
     _split_shipment_link("PO-SPLIT-B", order_no="N-SPLIT", address="부산 해운대구 9")
 
     body = auth_client.get("/admin/naver-ingest").get_data(as_text=True)
-    assert "전체 2집" in body, "배송지가 다르면 이력에서도 두 집이어야 한다"
+    assert "전체 2주문" in body, "배송지가 다르면 이력에서도 두 집이어야 한다"
 
 
 def test_history_still_groups_same_address_into_one(auth_client):
@@ -418,4 +418,4 @@ def test_history_still_groups_same_address_into_one(auth_client):
     _split_shipment_link("PO-SAME-B", order_no="N-SAME", address="서울 강남구 1")
 
     body = auth_client.get("/admin/naver-ingest").get_data(as_text=True)
-    assert "전체 1집" in body
+    assert "전체 1주문" in body

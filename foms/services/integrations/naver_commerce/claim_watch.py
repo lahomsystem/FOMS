@@ -431,9 +431,67 @@ def refresh_claims(
     return result
 
 
+def refresh_household(
+    session: Session, *, client: Any, link_id: int,
+    now: Optional[datetime] = None,
+) -> dict[str, int]:
+    """**집 1건을 지목해** 네이버에서 최신 상태를 다시 읽는다 — T4(읽기 전용).
+
+    5분 스윕(:func:`refresh_claims`)은 네이버가 **변경 이벤트를 줄 때만** 그 건을 다시
+    읽는다. 이벤트가 안 오는 건은 자동 경로로 **영영** 못 잡는다 — 이 모듈 머리말이
+    스스로 "취소가 변경 목록에 어떤 이름으로 실리는지 실물로 확인되지 않았다"고 적어
+    뒀다. 그 구멍을 사람이 손으로 메우는 자리다.
+
+    **`refresh_claims` 를 한 줄도 고치지 않는다.** 변경 이벤트 모양(``productOrderId``
+    만 있는 dict)으로 감싸서 넘기면 알림 묶기(집 단위)·자기취소 억제·같은 상태 중복
+    억제·스냅샷/발주상태/묶음키 갱신이 **전부 그대로** 따라온다. 새로 만드는 규칙이
+    없으니 자동 경로와 수동 경로가 갈릴 자리도 없다.
+
+    **네이버에 쓰는 것은 없다** — 나가는 호출은 상세 조회 하나뿐이다. 다만 "되돌릴 게
+    전혀 없다"는 아니다: 스냅샷·발주상태·묶음키를 최신으로 갈아 끼우고, **새로 발견된
+    취소·반품은 담당자·관리자 알림으로 나간다**(:func:`refresh_claims` 가 그렇게 만들어져
+    있다). 그게 이 버튼의 **목적**이다 — 변경 이벤트가 안 와서 자동 경로가 놓친 클레임을
+    사람이 끌어내는 자리다. 부작용이 아니라 기능이라는 뜻이지, 없다는 뜻이 아니다.
+
+    호출은 **WORKER 에서만** 한다 — 커머스API 에 등록된 호출 IP 가 WORKER 것뿐이다
+    (web 에서 부르면 차단된다). web 은 큐에 넣기만 한다.
+
+    Args:
+        session: DB 세션(커밋은 호출자).
+        client: 네이버 클라이언트(상세 조회만 쓴다).
+        link_id: 기준 수집 링크 id — **그 링크가 속한 집 전체**가 대상이다.
+        now: 반영 시각(테스트 주입).
+
+    Returns:
+        :func:`refresh_claims` 집계에 ``targets``(다시 읽기를 요청한 상품주문 수)를
+        더한 dict.
+
+    Raises:
+        FulfillmentError: 링크를 찾을 수 없을 때(네이버를 부르기 전에 멈춘다).
+    """
+    # 집 판정은 발송처리와 **같은 SSOT** 를 쓴다 — 여기서 다시 짜면 화면이 가른 집과
+    # 다시 읽는 대상이 어긋난다(분할배송: 같은 주문번호 다른 수취인).
+    from foms.services.integrations.naver_commerce.fulfillment import links_of_group
+
+    links = links_of_group(session, int(link_id))
+    ids = [str(link.external_id).strip() for link in links
+           if str(link.external_id or "").strip()]
+    if not ids:
+        return {"refreshed": 0, "claimed": 0, "notified": 0, "self_canceled": 0,
+                "targets": 0}
+    result = refresh_claims(
+        session, client=client,
+        changed=[{"productOrderId": external_id} for external_id in ids],
+        now=now,
+    )
+    result["targets"] = len(ids)
+    return result
+
+
 __all__ = [
     "NOTIFICATION_TYPE",
     "STATE_KEY",
     "changed_external_ids",
     "refresh_claims",
+    "refresh_household",
 ]

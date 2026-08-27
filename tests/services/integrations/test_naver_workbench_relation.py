@@ -269,7 +269,7 @@ def test_repay_stays_locked_before_place_confirmation(client, workbench_on):
     assert "재결제" in body, "관계 배지는 그대로 보여야 한다"
     assert "지금 닫기" not in body, "재결제 집에 '지금 닫기'가 떴다"
     assert is_disabled(body, "wb-dispatch"), open_tag(body, "wb-dispatch")
-    assert "신규 집이라" not in body, "재결제 집을 '신규 집'이라 불렀다"
+    assert "신규 주문이라" not in body, "재결제 집을 '신규 집'이라 불렀다"
 
 
 def test_new_dispatch_modal_warns_about_real_shipment(client, workbench_on):
@@ -407,7 +407,7 @@ def test_cancelled_household_cannot_be_dispatched(client, workbench_on):
 
     head = open_tag(body, "wb-dispatch")
     assert is_disabled(body, "wb-dispatch"), head
-    assert "취소한 집입니다" in head, "왜 잠겼는지 버튼이 말해야 한다"
+    assert "취소한 주문입니다" in head, "왜 잠겼는지 버튼이 말해야 한다"
     assert 'id="wb-modal-dispatch"' not in body
     assert 'id="wb-dispatch-confirm"' not in body
     assert "취소 완료" in body
@@ -421,7 +421,7 @@ def test_cancelled_household_cannot_create_an_order(client, workbench_on):
 
     body = _body(client, tab="work", link_id=link.id)
 
-    assert "취소한 집입니다" in body
+    assert "취소한 주문입니다" in body
 
 
 def test_cancelled_household_leaves_the_place_filter(client, workbench_on):
@@ -436,7 +436,7 @@ def test_cancelled_household_leaves_the_place_filter(client, workbench_on):
 
     for body in (_body(client, tab="work", f="place"), _body(client, tab="place")):
         assert body.count('<a class="wb-row') == 0, "취소한 집이 발주확인 목록에 남아 있다"
-        assert "0집" in body.split('data-filter="place"')[1].split("</a>")[0]
+        assert "0주문" in body.split('data-filter="place"')[1].split("</a>")[0]
         assert 'class="wb-pick"' not in body, "고를 수 있으면 벌크로 발주확인이 나간다"
 
 
@@ -459,7 +459,7 @@ def test_cancel_refusal_is_not_hidden_by_another_failure(client, workbench_on):
     _login(client)
     first = _collected(order_no="N-REL-MIXFAIL", amount=500000)
     second = _collected(order_no="N-REL-MIXFAIL", amount=100)
-    first.triage_state = {"fulfillment": {"last_error": "이미 발송처리한 집입니다",
+    first.triage_state = {"fulfillment": {"last_error": "이미 발송처리한 주문입니다",
                                           "last_error_action": "cancel",
                                           "last_error_at": "2026-08-22T02:00:00"}}
     second.triage_state = {"fulfillment": {"last_error": "발주확인이 먼저입니다",
@@ -469,7 +469,7 @@ def test_cancel_refusal_is_not_hidden_by_another_failure(client, workbench_on):
 
     body = _body(client, tab="work", link_id=first.id)
 
-    assert "이미 발송처리한 집입니다" in body
+    assert "이미 발송처리한 주문입니다" in body
     assert 'id="wb-retry-failed"' not in body, "취소 거절 집에 재시도 버튼을 내면 안 된다"
 
 

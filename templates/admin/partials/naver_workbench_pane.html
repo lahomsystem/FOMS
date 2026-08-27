@@ -81,7 +81,7 @@
 {# 잠긴 버튼에 이유가 없으면 사람은 계속 누른다. title 을 한 곳에서 만든다. #}
 {% set lock_why = '네이버에서 취소·반품이 진행 중입니다 — 판매자센터를 따릅니다'
                   if household_claimed
-                  else ('취소한 집입니다 — 주문 만들기·발주확인·발송처리가 모두 닫혀 있습니다'
+                  else ('취소한 주문입니다 — 주문 만들기·발주확인·발송처리가 모두 닫혀 있습니다'
                         if household_canceled else '') %}
 {# 네이버 기록으로 잠근 이유도 한 곳에서 만든다(버튼 title 과 화면 문구가 같은 문장을
    쓴다). **시각까지** 적는다 — "이미 있습니다"만으로는 사람이 판매자센터에서 어느 건을
@@ -104,7 +104,7 @@
 {# 모달 제목은 관계 라벨을 **그대로** 쓴다. '추가결제' 를 손으로 적어 두면 close_now 대상이
    바뀔 때 다른 관계의 집에도 "추가결제"라 뜬다 — 실제로 재결제 집에 그렇게 떴다
    (D1 개정 2026-08-24 에서 걷어낸 결함). #}
-{% set close_now_title = (rel_label ~ '를 지금 닫습니다') if rel_label else '이 집을 지금 닫습니다' %}
+{% set close_now_title = (rel_label ~ '를 지금 닫습니다') if rel_label else '이 주문을 지금 닫습니다' %}
 
 <section class="card shadow-sm wb-detail">
     <div class="card-header py-2 wb-detail__head">
@@ -148,6 +148,49 @@
         </div>
         {% endif %}
 
+        {# 반품 **진행**(T8-S0). 배지는 `반품 요청`까지만 말한다 — 그 다음 담당자가 실제로
+           묻는 것은 언제 회수됐나 · 어디로 가야 하나 · 환불이 언제 나가나 셋이다. 셋 다
+           원본 스냅샷에 이미 들어 있는데 화면이 안 읽어서, 지금까지 판매자센터를 따로
+           열어야 알 수 있었다(NAVER_FIELD_INVENTORY §2.5 — 회수지 15/281).
+           가구는 자사 배송이라 **회수도 우리 차가 간다** — 회수지 주소가 이 화면의 값어치다.
+           **없는 값은 줄 자체를 내지 않는다**(빈 칸·`-` 로 채우면 화면이 거짓말한다). #}
+        {# `known` 으로 열면 **회수지만 온 건**에서 라벨만 있고 안이 빈 줄이 뜬다.
+           진행 줄은 진행 사실이 하나라도 있을 때만 낸다 — 회수지는 아래 자기 줄이 맡는다. #}
+        {% set ra = selected.return_axis %}
+        {% if ra.collect_completed_at or ra.collect_method or ra.refund_expected_at or ra.refund_standby_status %}
+        <div class="wb-return small" data-foms-no-autodismiss>
+            <span class="wb-return__k">반품 진행</span>
+            <span class="wb-return__v">
+                {% if ra.collect_completed_at %}
+                <span class="wb-return__i">수거 완료 {{ ra.collect_completed_at }}</span>
+                {% endif %}
+                {% if ra.collect_method %}
+                <span class="wb-return__i">회수 방법 {{ ra.collect_method }}</span>
+                {% endif %}
+                {% if ra.refund_expected_at %}
+                <span class="wb-return__i">환불 예정 {{ ra.refund_expected_at }}</span>
+                {% endif %}
+                {% if ra.refund_standby_status %}
+                <span class="wb-return__i">환불 대기 {{ ra.refund_standby_status }}{% if ra.refund_standby_reason %} — {{ ra.refund_standby_reason }}{% endif %}</span>
+                {% endif %}
+            </span>
+        </div>
+        {% endif %}
+        {% if ra.collect_address.address %}
+        <div class="wb-return small" data-foms-no-autodismiss>
+            <span class="wb-return__k">회수지</span>
+            <span class="wb-return__v">
+                <span class="wb-return__i">{{ ra.collect_address.address }}</span>
+                {% if ra.collect_address.name %}
+                <span class="wb-return__i">{{ ra.collect_address.name }}</span>
+                {% endif %}
+                {% if ra.collect_address.tel %}
+                <span class="wb-return__i">{{ ra.collect_address.tel }}</span>
+                {% endif %}
+            </span>
+        </div>
+        {% endif %}
+
         {# 목록 밖 집(리뷰 M-3) — 이력 탭의 `처리 탭에서 열기`·북마크·필터가 바뀐 주소로
            들어오면 왼쪽에 없는 집이 여기 완전무장 상태로 열린다. 그 경로는 막지 않는다
            (이력에서 찾은 집을 처리하러 가는 유일한 길이다). 대신 사실을 말한다 —
@@ -159,8 +202,8 @@
            경고만 사라지고 불가역 버튼 4종은 무장한 채 남는다(2026-08-23 CEO 검수). #}
         <div class="wb-acts__why small" id="wb-offlist"
              {% if not (selected_offlist is defined and selected_offlist) %}hidden{% endif %}>
-            <b>지금 왼쪽 목록에 없는 집</b>입니다 — 주소로 바로 열었습니다.
-            아래 버튼은 이 집에 그대로 나갑니다.
+            <b>지금 왼쪽 목록에 없는 주문</b>입니다 — 주소로 바로 열었습니다.
+            아래 버튼은 이 주문에 그대로 나갑니다.
         </div>
 
         {#
@@ -174,7 +217,7 @@
                (리뷰 L-3). 마크업 포맷은 이제 테스트에 인질로 잡혀 있지 않다. #}
             <button type="button"
                     class="btn btn-sm {{ 'btn-primary' if can_create else 'btn-outline-secondary' }}"
-                    id="wb-create" {% if can_create %}data-bs-toggle="modal" data-bs-target="#wb-modal-create"{% else %}disabled title="{% if locked %}{{ lock_why }}{% elif selected.order_id %}이미 주문 #{{ selected.order_id }} 가 있습니다{% else %}이 집의 상품주문은 모두 이미 주문에 들어가 있습니다{% endif %}"{% endif %}>
+                    id="wb-create" {% if can_create %}data-bs-toggle="modal" data-bs-target="#wb-modal-create"{% else %}disabled title="{% if locked %}{{ lock_why }}{% elif selected.order_id %}이미 주문 #{{ selected.order_id }} 가 있습니다{% else %}이 건의 상품주문은 모두 이미 주문에 들어가 있습니다{% endif %}"{% endif %}>
                 + 주문 만들기
             </button>
             {# 주문이 생긴 뒤의 다음 걸음은 규격 입력이다 — 편집기가 규격의 SSOT 다. #}
@@ -223,13 +266,26 @@
             </button>
             {% endif %}
 
+            {# 다시 읽기(T4) — **항상** 낸다. 잠긴 주문에서 오히려 더 필요하다(취소·반품이
+               어디까지 갔는지를 이 버튼으로 본다). 네이버에 쓰는 것은 없다 — 상세 조회
+               하나뿐이라 되돌릴 게 없어 확인 모달도 두지 않는다.
+               자동 스윕은 네이버가 변경 이벤트를 줄 때만 다시 읽는다 — 이벤트가 안 오는
+               건은 자동으로는 영영 안 잡힌다. 그 구멍을 사람이 메우는 자리다.
+               **다만 "아무 일도 안 일어나는" 버튼은 아니다** — 이때 처음 발견된 취소·반품은
+               담당자·관리자 알림으로 나간다. 그게 목적이라 모달은 안 두되 title 이 말한다. #}
+            <button type="button" class="btn btn-outline-secondary btn-sm ms-auto" id="wb-refresh"
+                    data-link-id="{{ selected.link_id }}"
+                    title="네이버에서 이 주문의 최신 상태를 다시 받아옵니다. 네이버에는 아무것도 보내지 않습니다(조회만). 이때 취소·반품이 처음 발견되면 담당자·관리자에게 알림이 갑니다.">
+                다시 읽기
+            </button>
+
             {# 계약 §3.3: **항상** 낸다. 네이버로 나가는 호출이 아니라 우리 큐에서만 뺀다. #}
-            <button type="button" class="btn btn-outline-secondary btn-sm ms-auto" id="wb-review-done"
+            <button type="button" class="btn btn-outline-secondary btn-sm" id="wb-review-done"
                     data-link-ids="{{ group_link_ids | join(',') }}"
                     {# v3 에서 목록은 확인 큐 ∪ 발주확인 전 집이다. 확인만 끝내도 그 집이
                        아직 발주확인 전이면 목록에 그대로 남는다 — 옛 문구("목록에서 뺍니다")는
                        거짓이 됐고, 사람이 안 없어지니 같은 버튼을 반복해 눌렀다(리뷰 M-1). #}
-                    title="네이버에는 아무것도 보내지 않습니다 — 이 집을 &#39;확인함&#39;으로 표시합니다. 발주확인이 남아 있으면 목록에는 계속 보입니다.">
+                    title="네이버에는 아무것도 보내지 않습니다 — 이 주문을 &#39;확인함&#39;으로 표시합니다. 발주확인이 남아 있으면 목록에는 계속 보입니다.">
                 확인 완료 — 큐에서 빼기
             </button>
         </div>
@@ -237,7 +293,7 @@
         {# 안내 문구 — 계약 §3.3(목업 문장 그대로). 왜 잠겼는지 / 무엇이 먼저인지 한 줄. #}
         {% if locked %}
         <div class="wb-acts__why wb-acts__why--locked small">
-            이 집은 {{ claim_label if (household_claimed and claim_label) else '취소 완료' }}입니다.
+            이 주문은 {{ claim_label if (household_claimed and claim_label) else '취소 완료' }}입니다.
             발주확인·발송처리·주문 만들기가 모두 닫혀 있습니다.
         </div>
         {% elif naver_sent_at %}
@@ -258,18 +314,18 @@
         {# 재결제 집도 여기로 떨어진다(D1 개정 2026-08-24). 예전에는 아래 '신규 집' 가지가
            받아 화면이 재결제 집을 신규라고 불렀다 — 배지는 '재결제'인데 문장은 '신규'였다. #}
         <div class="wb-acts__why small">
-            재결제 집이라 발주확인이 먼저입니다 — 원 주문의 물건이 <b>나중에 한 번</b> 나갑니다.
+            재결제 주문이라 발주확인이 먼저입니다 — 원 주문의 물건이 <b>나중에 한 번</b> 나갑니다.
             발송처리는 <b>실제 출고·시공 시점</b>에 누르세요.
         </div>
         {% elif place_pending and rel_label %}
         {# 관계가 섞인 집(대표는 추가결제인데 신규 형제가 있어 close_now 가 아니다). #}
         <div class="wb-acts__why small">
-            이 집에는 <b>신규 상품주문이 섞여</b> 있어 발주확인이 먼저입니다.
+            이 주문에는 <b>신규 상품주문이 섞여</b> 있어 발주확인이 먼저입니다.
             발송처리는 <b>실제 출고·시공 시점</b>에 누르세요.
         </div>
         {% elif place_pending %}
         <div class="wb-acts__why small">
-            신규 집이라 발주확인이 먼저입니다. 발송처리는 <b>실제 출고·시공 시점</b>에 누르세요.
+            신규 주문이라 발주확인이 먼저입니다. 발송처리는 <b>실제 출고·시공 시점</b>에 누르세요.
         </div>
         {% endif %}
 
@@ -280,7 +336,7 @@
         <div class="wb-acts__why small">
             {% if selected.order_id %}이미 <b>주문 #{{ selected.order_id }}</b> 가 있습니다 —
             규격은 <b>ERP 규격 입력</b>에서 채웁니다.
-            {% else %}이 집의 상품주문은 <b>모두 이미 주문에 들어가</b> 있습니다.{% endif %}
+            {% else %}이 건의 상품주문은 <b>모두 이미 주문에 들어가</b> 있습니다.{% endif %}
         </div>
         {% endif %}
 
@@ -299,7 +355,7 @@
         </div>
         {% elif dispatched and not locked %}
         <div class="wb-acts__why small">
-            이 집은 발송처리가 끝났습니다 — 취소가 필요하면 <b>반품</b>으로 판매자센터에서 처리하세요.
+            이 주문은 발송처리가 끝났습니다 — 취소가 필요하면 <b>반품</b>으로 판매자센터에서 처리하세요.
         </div>
         {% elif locked and dispatched_any %}
         {# 잠금 안내는 취소를 언급하지 않는다. 잠김 + 발송분이 겹치면 취소 버튼이 사라진 이유가
@@ -331,7 +387,7 @@
 
         {# 결정 7 · 1단: 집 단위 값(한 집에 하나뿐인 것). #}
         <div class="wb-cmp-title" data-cmp-section="household">
-            집 단위 <span class="wb-cmp-title__sub">수취인·주소·결제 — 한 집에 하나뿐인 값</span>
+            주문 단위 <span class="wb-cmp-title__sub">수취인·주소·결제 — 한 주문에 하나뿐인 값</span>
         </div>
         <table class="wb-cmp">
             <thead>
@@ -462,7 +518,7 @@
         #}
         {% if rel_label %}
         <div class="wb-cmp-title" data-cmp-section="relation">
-            관계 <span class="wb-cmp-title__sub">이 집은 기존 주문의 후속이다 — 새 주문을 만들지 않았다</span>
+            관계 <span class="wb-cmp-title__sub">이 주문은 기존 주문의 후속이다 — 새 주문을 만들지 않았다</span>
         </div>
         <div class="wb-relation" data-foms-no-autodismiss>
             <span class="badge bg-info text-dark">{{ rel_label }}</span>
@@ -587,11 +643,11 @@
                     <div class="wb-plan__n">1</div>
                     <div class="wb-plan__body">
                         <div class="wb-plan__h">
-                            새 집을 주문 #{{ cand.order_id }} 에 붙인다
+                            새 주문을 주문 #{{ cand.order_id }} 에 붙인다
                             <span class="wb-plan__tag">되돌릴 수 있음</span>
                         </div>
                         <div class="wb-plan__d">
-                            집 {{ selected.household.external_order_no }} ·
+                            주문 {{ selected.household.external_order_no }} ·
                             상품주문 {{ selected.household.product_order_count }}건 ·
                             {{ '{:,}'.format(selected.household.amount_total) }}원 —
                             새 주문을 만들지 않는다.
@@ -599,7 +655,7 @@
                         {# 취소 처리 갈래는 붙이지 않는다 — 휴지통에 든 주문에 새 집을 묶으면
                            '주문 만들기' 가 막혀 사람이 되돌리기를 한 번 더 눌러야 한다. #}
                         <div class="wb-plan__d wb-plan__d--warn" data-plan-when="DISCARD">
-                            취소 처리를 고르면 <b>붙이지 않는다</b> — 새 집은 큐에 그대로 남는다.
+                            취소 처리를 고르면 <b>붙이지 않는다</b> — 새 주문은 큐에 그대로 남는다.
                             정리 뒤 <b>주문 만들기</b>를 누르면 된다.
                         </div>
                     </div>
@@ -673,7 +729,7 @@
                            href="{{ selected.seller_center_url }}">네이버 판매자센터 열기 ↗</a>
                         {% elif cand.naver_claim_label %}
                         <div class="wb-plan__d">
-                            옛 집 <b>{{ cand.naver_claim_label }}</b> — 고객이 이미 처리했습니다.
+                            옛 주문 <b>{{ cand.naver_claim_label }}</b> — 고객이 이미 처리했습니다.
                             <b>할 일 없음.</b>
                         </div>
                         {% else %}
@@ -728,7 +784,7 @@
                 </p>
                 {% if member_count > promotable_count %}
                 <p class="small mb-2">
-                    이 집의 나머지 <b>{{ member_count - promotable_count }}건</b>은 이미 주문이 있어
+                    나머지 <b>{{ member_count - promotable_count }}건</b>은 이미 주문이 있어
                     <b>이번에 옮기지 않습니다</b> — 같은 상품주문이 두 주문에 들어가지 않게 하는 규칙입니다.
                 </p>
                 {% endif %}
@@ -782,8 +838,8 @@
                 </div>
                 {# ③ 사후 경로 #}
                 <p class="small text-muted mb-0">
-                    보낸 뒤에는 상태가 <b>발주확인 완료</b>로 바뀌고, 이 집의 <b>발송처리</b>가 열립니다.
-                    실패하면 화면 위 실패 목록에 사유가 남고, 그 집만 다시 보낼 수 있습니다.
+                    보낸 뒤에는 상태가 <b>발주확인 완료</b>로 바뀌고, 이 주문의 <b>발송처리</b>가 열립니다.
+                    실패하면 화면 위 실패 목록에 사유가 남고, 그 주문만 다시 보낼 수 있습니다.
                 </p>
             </div>
             <div class="modal-footer">
@@ -829,11 +885,11 @@
                     {% if not close_now %}
                     <div class="mt-1">
                         {% if relation == 'REPAY' %}
-                        이 집은 <b>재결제</b>입니다 — 원 주문의 물건이 <b>나중에 한 번</b> 나갑니다.
+                        이 주문은 <b>재결제</b>입니다 — 원 주문의 물건이 <b>나중에 한 번</b> 나갑니다.
                         {% elif rel_label %}
-                        이 집에는 <b>신규 상품주문이 섞여</b> 있습니다.
+                        이 주문에는 <b>신규 상품주문이 섞여</b> 있습니다.
                         {% else %}
-                        이 집은 <b>신규 주문</b>입니다.
+                        이 주문은 <b>신규 주문</b>입니다.
                         {% endif %}
                         <b>실제 출고·시공 시점</b>에만 누르세요. 아직 물건이 나가지 않았다면
                         지금 누르면 안 됩니다.
@@ -845,7 +901,7 @@
                     {{ rel_label }}는 물건이 <b>따로 나가지 않습니다</b> — 확인을 끝냈으면 여기서 바로 닫습니다.
                     {% if place_pending %}
                     <div class="mt-1">
-                        이 집은 <b>발주확인 전</b>입니다. 발송처리를 보내면 네이버가 발주확인까지
+                        이 주문은 <b>발주확인 전</b>입니다. 발송처리를 보내면 네이버가 발주확인까지
                         함께 처리합니다. 네이버가 거절하면 사유가 화면 위 실패 목록에 남습니다.
                     </div>
                     {% endif %}
@@ -853,9 +909,9 @@
                 {% endif %}
                 {# ③ 사후 경로 #}
                 <p class="small text-muted mb-0">
-                    보낸 뒤에는 이 집이 <b>발송처리 완료</b>로 바뀝니다. 배송방법은 자사
+                    보낸 뒤에는 이 주문이 <b>발송처리 완료</b>로 바뀝니다. 배송방법은 자사
                     <b>직접 전달</b>(택배사·송장 없음)로 나갑니다. 실패하면 화면 위 실패 목록에
-                    사유가 남고, 그 집만 다시 보낼 수 있습니다.
+                    사유가 남고, 그 주문만 다시 보낼 수 있습니다.
                 </p>
             </div>
             <div class="modal-footer">
@@ -904,7 +960,7 @@
                           placeholder="예: 고객 통화 확인 — 재고 없음"></textarea>
                 {# ④ 사후 경로 #}
                 <p class="small text-muted mb-0">
-                    보낸 뒤에는 이 집이 <b>취소 완료</b>로 바뀝니다. <b>FOMS 주문은 그대로입니다</b> —
+                    보낸 뒤에는 이 주문이 <b>취소 완료</b>로 바뀝니다. <b>FOMS 주문은 그대로입니다</b> —
                     주문을 없애려면 주문 화면에서 따로 취소하세요. 실패하면 화면 위 실패 목록에
                     사유가 남습니다.
                 </p>
@@ -922,7 +978,7 @@
 {% else %}
 {# 프래그먼트 경로에서도 같은 껍데기를 돌려줘야 JS 가 #wb-pane 을 그대로 갈아 끼운다. #}
 <section class="card shadow-sm wb-detail">
-    <div class="card-body wb-empty">왼쪽에서 집을 하나 고르세요.</div>
+    <div class="card-body wb-empty">왼쪽에서 주문을 하나 고르세요.</div>
 </section>
 {% endif %}
 </div>

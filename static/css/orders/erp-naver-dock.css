@@ -286,6 +286,41 @@
   font-variant-numeric: tabular-nums;
 }
 
+/* ── 집(네이버 주문번호) 표식 — 이전 주문 / 이번 주문(재결제) / 추가결제분 (N2)
+   집이 둘 붙은 주문에서 본품 두 개가 같은 톤으로 나란히 서던 자리다. 관계에 따라
+   색이 다르다: 재결제로 **대체된** 옛 집만 회색으로 내려앉고, 추가결제로 붙은 집은
+   살아 있으므로 내려앉히지 않는다(원 결제가 유효하다 — repay_reconcile 근거). */
+.naver-dock-hh {
+  font-size: 11.5px;
+  font-weight: 700;
+  letter-spacing: 0;
+  border-radius: 999px;
+  padding: 1px 7px;
+  white-space: nowrap;
+  background: #eff6ff;
+  color: #1d4ed8;
+  border: 1px solid #bfdbfe;
+}
+
+.naver-dock-hh.is-superseded {
+  background: #f1f5f9;
+  color: #64748b;
+  border-color: #cbd5e1;
+}
+
+.naver-dock-row-title .naver-dock-hh {
+  margin-left: 6px;
+  vertical-align: middle;
+}
+
+/* 대체된 집 머리말 아래 한 줄 — 왜 흐린지 말한다(색만으로는 이유가 안 읽힌다). */
+.naver-dock-hh-note {
+  margin: 2px 14px 4px;
+  font-size: 12.5px;
+  font-weight: 600;
+  color: #64748b;
+}
+
 /* 총폭 힌트 — CS 가 손으로 하던 계산(모듈 × 수량 + 1cm × 수량)을 보여준다. */
 .naver-dock-width {
   margin: 4px 14px 6px;
@@ -372,6 +407,25 @@
 .naver-dock-row.is-checked .naver-dock-src {
   opacity: 0.5;
   text-decoration: line-through;
+}
+
+/* ── 이전 주문(재결제로 대체된 집) 행 — 흐리게, 그러나 살아 있다 (N2)
+   접지 않는 이유: 재결제는 "같은 주문을 다시 결제"라 옛 옵션 원문이 여전히 유효한
+   규격일 수 있고, 담당자는 새 집과 **비교**해야 무엇이 바뀌었는지 안다.
+   행 전체에 opacity 를 걸지 않는 이유: 복사 버튼·체크박스까지 흐려지면 못 누르는 것으로
+   읽힌다. 원문 글자만 내려앉히고 조작부는 또렷하게 둔다. */
+.naver-dock-row.is-superseded {
+  background: #f8fafc;
+  border-left: 3px solid #cbd5e1;
+}
+
+.naver-dock-row.is-superseded .naver-dock-row-title,
+.naver-dock-row.is-superseded .naver-dock-src {
+  color: #94a3b8;
+}
+
+.naver-dock-row.is-superseded .naver-dock-src {
+  background: #f1f5f9;
 }
 
 .naver-dock-acts {

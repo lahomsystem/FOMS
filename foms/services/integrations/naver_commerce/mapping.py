@@ -191,12 +191,23 @@ def extract_shipping_memo(detail: dict) -> str:
 #: 사람이 읽는 클레임 상태 라벨. 없는 값은 원문 그대로 보여준다(모르는 상태를 숨기지 않는다).
 CLAIM_STATUS_LABELS = {
     "CANCEL_REQUEST": "취소 요청",
+    "CANCEL_REQUESTED": "취소 요청",
+    "CANCELING": "취소 처리중",
     "CANCEL_DONE": "취소 완료",
     "CANCEL_REJECT": "취소 거부",
     "RETURN_REQUEST": "반품 요청",
+    "RETURN_REQUESTED": "반품 요청",
+    # 수거는 반품·교환 **양쪽**에서 온다. `반품 수거중` 이라고 적으면 교환 건에서
+    # 화면이 틀린 이름을 말한다 — 어느 쪽인지는 `type`(claimType)이 말한다.
+    "COLLECTING": "수거중",
+    "COLLECT_DONE": "수거 완료",
     "RETURN_DONE": "반품 완료",
+    # 거부 3종은 대칭이어야 한다. 지금까지 `CANCEL_REJECT` 만 있어서 반품·교환 거부는
+    # 배지에 영문 상수가 그대로 떴다(T8-S0).
+    "RETURN_REJECT": "반품 거부",
     "EXCHANGE_REQUEST": "교환 요청",
     "EXCHANGE_DONE": "교환 완료",
+    "EXCHANGE_REJECT": "교환 거부",
     "PURCHASE_DECISION_HOLDBACK": "구매확정 보류",
 }
 
@@ -231,7 +242,100 @@ def claim_reason_text(code: str) -> str:
     return CLAIM_REASON_LABELS.get(raw.upper(), raw)
 
 
+#: 클레임 상세가 실려 오는 **부모 블록 이름 후보**(우선순위 순).
+#:
+#: 실물로 관측된 것은 ``cancel`` 뿐이다 — F-1(고객이 쓴 사유 원문)이 그 경로로 읽고 있고,
+#: 스테이징 실데이터에서 확인된 반품은 전부 이미 끝난 것(``RETURN_DONE``)이라 반품 상세가
+#: 어느 이름으로 실려 오는지는 **아직 관측되지 않았다**. 나머지 이름은 반품·교환이 별도
+#: 블록으로 오는 변형 대비 폴백이다 — 없으면 빈 값이 되고 예외는 나지 않는다
+#: (모르는 모양을 추측해서 채우지 않는다).
+CLAIM_BLOCK_KEYS = ("cancel", "returnInfo", "return", "exchange")
+
+#: **반품 축 전용** 블록 이름 — ``cancel`` 이 없다 (2026-08-27 CEO A1).
+#: 취소 블록에도 ``refundExpectedDate``·``refundStandbyStatus`` 가 실려 온다. 그것을
+#: 반품 축으로 읽으면 **취소만 된 건이 "반품 진행" 이라고 말한다** — 스테이징 실데이터
+#: 344 링크 중 **50건**이 그랬다(머리의 배지는 `취소 완료` 인데 몸통은 `반품 진행`).
+#: 환불 시각은 취소에도 반품에도 있지만 **축이 다르다**: 취소 환불은 취소 줄이 맡는다.
+#: ``exchange`` 는 남긴다 — 수거는 반품·교환 **양쪽**에서 온다(N1 라벨 규칙과 같다).
+RETURN_BLOCK_KEYS = ("returnInfo", "return", "exchange")
+
+
+def _claim_blocks(detail: Any) -> list[dict]:
+    """클레임 상세가 들어 있을 수 있는 블록들을 **우선순위 순**으로 모은다.
+
+    ``cancel`` 이 먼저다 — 지금 값을 실제로 주고 있는 경로라 기존 동작이 그대로 유지된다.
+    그 다음이 반품·교환 블록, 마지막이 ``currentClaim`` 자체다.
+
+    Args:
+        detail: 상품주문 상세 1건(dict 가 아니면 빈 목록).
+
+    Returns:
+        비어 있지 않은 dict 블록 목록(중복 이름은 그대로 둔다 — 앞선 것이 이긴다).
+    """
+    if not isinstance(detail, dict):
+        return []
+    current = detail.get("currentClaim") if isinstance(detail.get("currentClaim"), dict) else {}
+    blocks: list[dict] = []
+    for holder in (detail, current):
+        for key in CLAIM_BLOCK_KEYS:
+            block = holder.get(key)
+            if isinstance(block, dict) and block:
+                blocks.append(block)
+    if current:
+        blocks.append(current)
+    return blocks
+
+
+def _return_blocks(detail: Any) -> list[dict]:
+    """**반품 축**이 읽을 블록만 우선순위 순으로 모은다 (2026-08-27 CEO A1).
+
+    :func:`_claim_blocks` 와 갈라 둔 이유: 그쪽은 ``cancel`` 이 첫 번째다(사유 원문을
+    실제로 주는 경로라 옳다). 반품 축이 같은 목록을 쓰면 **취소 블록의 환불 필드가
+    반품 진행으로 새어** 취소만 된 건에 "반품 진행" 줄이 뜬다.
+
+    ``currentClaim`` 자체는 넣지 않는다 — 실데이터에서 그것은 평평한 클레임이 아니라
+    ``{"return": …}``/``{"cancel": …}`` **래퍼**였다(2026-08-27 스테이징 83건 관측).
+    넣으면 래퍼 안의 ``cancel`` 이 다시 새는 길이 된다.
+
+    Args:
+        detail: 상품주문 상세 1건(dict 가 아니면 빈 목록).
+
+    Returns:
+        비어 있지 않은 dict 블록 목록. 앞선 것이 이긴다.
+    """
+    if not isinstance(detail, dict):
+        return []
+    current = detail.get("currentClaim") if isinstance(detail.get("currentClaim"), dict) else {}
+    blocks: list[dict] = []
+    for holder in (detail, current):
+        for key in RETURN_BLOCK_KEYS:
+            block = holder.get(key)
+            if isinstance(block, dict) and block:
+                blocks.append(block)
+    return blocks
+
+
+def _first_text(blocks: list[dict], *keys: str) -> str:
+    """블록 목록에서 주어진 키 중 **처음 만나는 비어 있지 않은 값**을 문자열로 준다.
+
+    Args:
+        blocks: :func:`_claim_blocks` 결과.
+        keys: 같은 뜻으로 쓰이는 키 이름들(취소·반품 이름이 다른 자리).
+
+    Returns:
+        찾은 값(없으면 빈 문자열).
+    """
+    for block in blocks:
+        for key in keys:
+            value = _text(block.get(key))
+            if value:
+                return value
+    return ""
+
+
 #: 주문을 만들면 안 되는 클레임 상태(취소·반품 진행/완료). 거부·철회는 정상 진행이라 뺀다.
+#: **여기 넣는 값은 반드시 ``CLAIM_STATUS_LABELS`` 에도 넣는다** — 차단은 되는데 라벨이
+#: 없으면 배지에 영문 상수가 뜨고, 담당자가 왜 잠겼는지 화면에서 못 읽는다(T8-S0).
 BLOCKING_CLAIM_STATUSES = frozenset({
     "CANCEL_REQUEST", "CANCEL_REQUESTED", "CANCELING", "CANCEL_DONE",
     "RETURN_REQUEST", "RETURN_REQUESTED", "RETURN_DONE", "COLLECTING", "COLLECT_DONE",
@@ -261,27 +365,76 @@ def extract_claim(detail: dict) -> dict:
         클레임이 없으면 ``status`` 와 ``detailed_reason`` 이 빈 문자열이고 ``blocking`` 은 False.
     """
     order, product_order, _shipping = unwrap_detail(detail)
-    cancel = detail.get("cancel") if isinstance(detail.get("cancel"), dict) else {}
-    current = detail.get("currentClaim") if isinstance(detail.get("currentClaim"), dict) else {}
-    current_cancel = current.get("cancel") if isinstance(current.get("cancel"), dict) else {}
-    source = cancel or current_cancel or {}
+    blocks = _claim_blocks(detail)
 
     status = (_text(product_order.get("claimStatus"))
-              or _text(source.get("claimStatus"))
+              or _first_text(blocks, "claimStatus")
               or _text(order.get("claimStatus")))
     upper = status.upper()
     return {
         "status": status,
-        "type": _text(product_order.get("claimType")) or _text(source.get("claimType")),
-        "reason": _text(source.get("cancelReason")) or _text(source.get("returnReason")),
-        "requested_at": _text(source.get("claimRequestDate")),
+        "type": _text(product_order.get("claimType")) or _first_text(blocks, "claimType"),
+        "reason": _first_text(blocks, "cancelReason", "returnReason"),
+        "requested_at": _first_text(blocks, "claimRequestDate"),
         "label": CLAIM_STATUS_LABELS.get(upper, status),
         "blocking": upper in BLOCKING_CLAIM_STATUSES,
-        # 고객이 쓴 사유 원문. ``reason`` 과 **같은 source 규칙**(cancel → currentClaim.cancel)
-        # 을 쓰고, 취소·반품 어느 이름으로 와도 잡는다. 없으면 빈 문자열(화면이 줄을 안 낸다).
-        "detailed_reason": (_text(source.get("cancelDetailedReason"))
-                            or _text(source.get("returnDetailedReason"))),
+        # 고객이 쓴 사유 원문. ``reason`` 과 **같은 블록 규칙**(:func:`_claim_blocks`)을 쓰고,
+        # 취소·반품 어느 이름으로 와도 잡는다. 없으면 빈 문자열(화면이 줄을 안 낸다).
+        # 반품이 별도 블록으로 오면 예전 규칙(``cancel`` 만 보던 시절)에서는 이 값이 영영
+        # 빈 문자열이었다 — 배송메모와 같은 모양의 조용한 유실이다(T8-S0).
+        "detailed_reason": _first_text(blocks, "cancelDetailedReason", "returnDetailedReason"),
     }
+
+
+def extract_return_axis(detail: Any) -> dict:
+    """반품 **진행** 축(수거·환불)을 뽑는다 — T8-S0.
+
+    클레임 배지는 "반품 요청"까지만 말한다. 그 다음에 사람이 실제로 묻는 것은
+    **언제 회수됐나 · 어디로 가야 하나 · 환불이 언제 나가나** 셋이다. 세 답은
+    원본 스냅샷에 이미 들어 있는데(인벤토리 §2.5 — 회수지 15/281) 화면이 안 읽었다.
+    F-1~F-3 와 같은 성질이라 **네이버로 나가는 호출은 0**이다.
+
+    회수지(``collectAddress``)만 싣고 반품 수취지(``returnReceiveAddress``)는 안 싣는다 —
+    앞은 "우리 차가 물건을 가지러 갈 곳", 뒤는 "우리 물류가 받는 곳"이라 축이 다르다.
+    둘을 한 칸에 합치면 화면이 틀린 주소를 말한다.
+
+    Args:
+        detail: 상품주문 상세 1건(dict 가 아니면 전부 빈 값으로 준다).
+
+    Returns:
+        ``{"collect_method", "collect_completed_at", "refund_expected_at",
+        "refund_standby_status", "refund_standby_reason", "collect_address", "known"}``.
+        시각은 **원문 문자열 그대로** 준다(사람이 읽는 형식 변환은 화면 몫).
+        ``known`` 이 False 면 화면은 줄 자체를 내지 않는다 — 빈 칸이나 ``-`` 로 채우면
+        "값이 없다"와 "우리가 모른다"가 같은 모양이 된다.
+    """
+    blocks = _return_blocks(detail)
+    raw_address: dict = {}
+    for block in blocks:
+        candidate = block.get("collectAddress")
+        if isinstance(candidate, dict) and candidate:
+            raw_address = candidate
+            break
+    address = {
+        "name": _text(raw_address.get("name")),
+        "tel": _text(raw_address.get("tel1")) or _text(raw_address.get("tel2")),
+        # 배송지와 **같은 규칙**으로 합친다 — 두 주소가 다른 모양이면 눈이 비교를 못 한다.
+        "address": build_address(raw_address),
+        "zip_code": _text(raw_address.get("zipCode")),
+    }
+    axis = {
+        "collect_method": _first_text(blocks, "collectDeliveryMethod"),
+        "collect_completed_at": _first_text(blocks, "collectCompletedDate"),
+        "refund_expected_at": _first_text(blocks, "refundExpectedDate"),
+        "refund_standby_status": _first_text(blocks, "refundStandbyStatus"),
+        "refund_standby_reason": _first_text(blocks, "refundStandbyReason"),
+        "collect_address": address,
+    }
+    axis["known"] = any(axis[key] for key in (
+        "collect_method", "collect_completed_at", "refund_expected_at",
+        "refund_standby_status", "refund_standby_reason",
+    )) or any(address.values())
+    return axis
 
 
 #: 사람이 읽는 발주 상태 라벨. 모르는 값은 원문을 그대로 보여준다(숨기지 않는다).
@@ -883,6 +1036,7 @@ __all__ = [
     "extract_claim",
     "extract_delivery",
     "extract_partial_cancel",
+    "extract_return_axis",
     "extract_place_status",
     "place_status_view",
     "PLACE_STATUS_LABELS",

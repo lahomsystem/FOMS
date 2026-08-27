@@ -225,7 +225,7 @@ def test_header_shows_both_units_once(client, workbench_on):
 
     body = client.get(TRIAGE_PATH).get_data(as_text=True)
 
-    assert "1집" in body
+    assert "1주문" in body
     assert "상품주문 3건" in body
 
 
@@ -374,7 +374,7 @@ def test_place_chip_counts_households(client, workbench_on):
         _collected(order_no="N-PL-ONE", product=f"구성 {idx}", amount=1000, place_status="")
 
     body = client.get(f"{TRIAGE_PATH}?tab=work&f=place").get_data(as_text=True)
-    assert "1집" in _chip(body, "place"), _chip(body, "place")
+    assert "1주문" in _chip(body, "place"), _chip(body, "place")
 
 
 def test_place_tab_has_a_checkbox_per_household(client, workbench_on):
@@ -484,7 +484,7 @@ def test_place_chip_count_matches_the_list_length(client, workbench_on):
 
     body = client.get(f"{TRIAGE_PATH}?tab=work&f=place").get_data(as_text=True)
 
-    assert "2집" in _chip(body, "place"), _chip(body, "place")
+    assert "2주문" in _chip(body, "place"), _chip(body, "place")
     assert _row_count(body) == 2
     assert body.count('class="wb-pick"') == 2
 
@@ -541,8 +541,8 @@ def test_chip_counts_match_their_own_filtered_lists(client, workbench_on):
     body = client.get(f"{TRIAGE_PATH}?tab=work").get_data(as_text=True)
 
     # 칩 숫자(필터 전 전체에서 센다)
-    assert "3집" in _chip(body, "all"), _chip(body, "all")
-    assert "1집" in _chip(body, "claim"), _chip(body, "claim")
+    assert "3주문" in _chip(body, "all"), _chip(body, "all")
+    assert "1주문" in _chip(body, "claim"), _chip(body, "claim")
     # 목록은 하나다 — 취소 집도 잠긴 줄로 함께 있다.
     assert _row_count(body) == 3, "처리 목록은 3줄(취소 집 포함)"
     claim_only = client.get(f"{TRIAGE_PATH}?tab=work&f=claim").get_data(as_text=True)
@@ -785,7 +785,7 @@ def test_result_strip_counts_failures(client, workbench_on):
 
     body = client.get(TRIAGE_PATH).get_data(as_text=True)
     strip = body.split('id="wb-result"')[1].split("</section>")[0]
-    assert "실패 2집" in strip, strip[:400]
+    assert "실패 2주문" in strip, strip[:400]
 
 
 def test_result_strip_lists_each_failure_with_its_reason(client, workbench_on):
@@ -1080,8 +1080,8 @@ def test_place_filter_drops_household_whose_sibling_is_claimed(client, workbench
     body = client.get(f"{TRIAGE_PATH}?tab=work&f=place").get_data(as_text=True)
 
     assert _row_count(body) == 0, "취소가 걸린 집이 발주확인 목록에 남아 있다"
-    assert "0집" in _chip(body, "place"), _chip(body, "place")
-    assert "이 필터에 해당하는 집이 없습니다" in body
+    assert "0주문" in _chip(body, "place"), _chip(body, "place")
+    assert "이 필터에 해당하는 주문이 없습니다" in body
     # 사라지지는 않는다 — 취소·반품 칩에 잠긴 줄로 있다.
     claim = client.get(f"{TRIAGE_PATH}?tab=work&f=claim").get_data(as_text=True)
     assert _row_count(claim) == 1
@@ -1098,7 +1098,7 @@ def test_place_chip_count_matches_the_list_after_the_claim_check(client, workben
 
     body = client.get(f"{TRIAGE_PATH}?tab=work&f=place").get_data(as_text=True)
 
-    assert "1집" in _chip(body, "place"), _chip(body, "place")
+    assert "1주문" in _chip(body, "place"), _chip(body, "place")
     assert _row_count(body) == 1
     assert "정상 집" in body
 
@@ -1194,8 +1194,8 @@ def test_place_filter_drops_household_when_the_claim_is_inside_the_population(cl
     body = client.get(f"{TRIAGE_PATH}?tab=work&f=place").get_data(as_text=True)
 
     assert _row_count(body) == 0
-    assert "0집" in _chip(body, "place"), _chip(body, "place")
-    assert "이 필터에 해당하는 집이 없습니다" in body
+    assert "0주문" in _chip(body, "place"), _chip(body, "place")
+    assert "이 필터에 해당하는 주문이 없습니다" in body
 
 
 # --------------------------------------------------------------------------- #
@@ -1344,7 +1344,7 @@ def test_failure_strip_folds_by_the_same_rule_the_actions_use(client, workbench_
     body = client.get(TRIAGE_PATH).get_data(as_text=True)
     strip = body.split('id="wb-result"')[1].split("</section>")[0]
 
-    assert "실패 2집" in strip, strip[:400]
+    assert "실패 2주문" in strip, strip[:400]
     ids = strip.split('id="wb-retry-failed"')[1].split('data-link-ids="')[1].split('"')[0]
     assert len(ids.split(",")) == 2, ids
 
@@ -1387,7 +1387,7 @@ def test_failure_strip_does_not_merge_different_orders(client, workbench_on):
     body = client.get(TRIAGE_PATH).get_data(as_text=True)
     strip = body.split('id="wb-result"')[1].split("</section>")[0]
 
-    assert "실패 2집" in strip, strip[:400]
+    assert "실패 2주문" in strip, strip[:400]
 
 
 # --------------------------------------------------------------------------- #
@@ -1426,7 +1426,7 @@ def test_history_total_chip_does_not_claim_a_filtered_number(client, workbench_o
     chip = body.split('class="wb-filters"')[1].split("</a>")[0]
 
     assert "전체" in chip
-    assert "1집" not in chip, chip
+    assert "1주문" not in chip, chip
 
 
 def test_place_pending_labels_say_which_population_they_count(client, workbench_on):
@@ -1452,8 +1452,8 @@ def test_history_header_does_not_call_a_filtered_list_the_whole_thing(client, wo
     _collected(order_no="N-HDR-2", product="정상 수집", amount=1000)
 
     body = client.get(f"{TRIAGE_PATH}?tab=all&status=FAILED").get_data(as_text=True)
-    # 카드 헤더는 "숫자는 모두 집 단위" 문구를 달고 있는 그 줄이다(탭 이름과 헷갈리지 않게).
-    header = body.split("숫자는 모두 집 단위")[0][-300:]
+    # 카드 헤더는 "숫자는 모두 주문 단위" 문구를 달고 있는 그 줄이다(탭 이름과 헷갈리지 않게).
+    header = body.split("숫자는 모두 주문 단위")[0][-300:]
 
-    assert "전체 1집" not in header, header
+    assert "전체 1주문" not in header, header
     assert "지금 목록" in header, header

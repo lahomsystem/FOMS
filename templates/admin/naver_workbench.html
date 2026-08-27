@@ -19,7 +19,7 @@
 {% block title %}네이버 수집{% endblock %}
 
 {% block styles %}
-<link rel="stylesheet" href="{{ url_for('static', filename='css/admin/naver-workbench.css') }}?v=20260826e">
+<link rel="stylesheet" href="{{ url_for('static', filename='css/admin/naver-workbench.css') }}?v=20260826g">
 {% endblock %}
 
 {% block content %}
@@ -32,12 +32,12 @@
         <span class="wb-bar__title">네이버 수집</span>
         <nav class="wb-tabs" role="tablist">
             <a class="wb-tab" role="tab" data-tab="work" aria-selected="{{ 'true' if active_tab == 'work' else 'false' }}"
-               href="{{ url_for('admin.naver_ingest_triage', tab='work') }}">처리<span class="wb-tab__n">{{ actionable_count }}집</span></a>
+               href="{{ url_for('admin.naver_ingest_triage', tab='work') }}">처리<span class="wb-tab__n">{{ actionable_count }}주문</span></a>
             {# 이력은 ADMIN 전용이다(수집 관리 화면과 같은 기준) — 열 수 없는 탭은 아예 안 보인다.
                탭만 숨기고 주소를 열어 두면 URL 을 아는 사람이 그대로 본다. 서버도 같이 막는다. #}
             {% if can_view_history %}
             <a class="wb-tab" role="tab" data-tab="all" aria-selected="{{ 'true' if active_tab == 'all' else 'false' }}"
-               href="{{ url_for('admin.naver_ingest_triage', tab='all') }}">이력{% if history and history.total is defined %}<span class="wb-tab__n">{{ history.total }}집</span>{% endif %}</a>
+               href="{{ url_for('admin.naver_ingest_triage', tab='all') }}">이력{% if history and history.total is defined %}<span class="wb-tab__n">{{ history.total }}주문</span>{% endif %}</a>
             {% endif %}
         </nav>
         {# 결정 3: 숫자 이중 표기(집 · 상품주문)는 화면에서 여기 한 곳만 한다.
@@ -53,8 +53,8 @@
         {% if active_tab == 'work' %}
         <span class="wb-bar__fact">상품주문 <b>{{ pending_count }}</b>건</span>
         {% if locked_count %}
-        <span class="wb-bar__locked" title="취소·반품이라 어떤 액션도 되지 않는 집입니다. 목록에는 남아 있습니다.">
-            손대지 않음 <b>{{ locked_count }}집</b>
+        <span class="wb-bar__locked" title="취소·반품이라 어떤 액션도 되지 않는 주문입니다. 목록에는 남아 있습니다.">
+            손대지 않음 <b>{{ locked_count }}주문</b>
         </span>
         {% endif %}
         {% endif %}
@@ -96,7 +96,7 @@
         </summary>
         <table class="wb-ghost__list">
             <thead>
-                <tr><th>주문</th><th>네이버 집</th><th>진행</th><th>재결제 짝</th><th class="text-end">할 일</th></tr>
+                <tr><th>주문</th><th>네이버 주문</th><th>진행</th><th>재결제 짝</th><th class="text-end">할 일</th></tr>
             </thead>
             <tbody>
                 {% for row in ghosts.rows %}
@@ -147,8 +147,8 @@
     {% if failures %}
     <section class="wb-result alert alert-danger" id="wb-result" data-foms-no-autodismiss>
         <div class="wb-result__head">
-            <span class="fw-semibold">네이버 처리 실패 {{ failures|length }}집</span>
-            <span class="small">아래 사유를 먼저 해결한 뒤 실패한 집만 다시 보내세요.</span>
+            <span class="fw-semibold">네이버 처리 실패 {{ failures|length }}주문</span>
+            <span class="small">아래 사유를 먼저 해결한 뒤 실패한 주문만 다시 보내세요.</span>
             <span class="small ms-auto">이 알림은 자동으로 사라지지 않습니다.</span>
         </div>
         <table class="wb-result__list">
@@ -180,16 +180,16 @@
             {% if retryable %}
             <button type="button" class="btn btn-danger btn-sm" id="wb-retry-failed"
                     data-link-ids="{% for row in retryable %}{{ row.link_id }}:{{ row.action }}{% if not loop.last %},{% endif %}{% endfor %}">
-                실패한 {{ retryable|length }}집만 다시 시도
+                실패한 {{ retryable|length }}주문만 다시 시도
             </button>
             {# 재시도도 큐에 들어간다 — 누른 직후의 화면은 아직 옛 상태다(벌크와 같은 규칙). #}
             <span class="wb-result__note small" id="wb-retry-note" role="status" aria-live="polite"></span>
             {% endif %}
             {% if failures|length > retryable|length %}
             <div class="small mt-1">
-                취소 실패 {{ failures|length - retryable|length }}집은 여기서 되보낼 수 없습니다 —
-                그 집을 열어 <b>사유를 다시 고른 뒤</b> 취소처리를 보내세요. 취소·반품이 이미 도는
-                집이라 취소처리 버튼이 없으면 <b>판매자센터</b>에서 처리한 뒤 <b>확인함</b>으로 닫으세요.
+                취소 실패 {{ failures|length - retryable|length }}주문은 여기서 되보낼 수 없습니다 —
+                그 주문을 열어 <b>사유를 다시 고른 뒤</b> 취소처리를 보내세요. 취소·반품이 이미 도는
+                주문이라 취소처리 버튼이 없으면 <b>판매자센터</b>에서 처리한 뒤 <b>확인함</b>으로 닫으세요.
             </div>
             {% endif %}
         </div>
@@ -219,7 +219,7 @@
            data-filter="{{ key }}"
            aria-pressed="{{ 'true' if active_filter == key else 'false' }}"
            href="{{ url_for('admin.naver_ingest_triage', tab='work', f=key) }}">
-            {{ label }} <b class="wb-chip__n">{{ filter_counts.get(key, 0) }}집</b>
+            {{ label }} <b class="wb-chip__n">{{ filter_counts.get(key, 0) }}주문</b>
         </a>
         {% endfor %}
         </span>
@@ -227,8 +227,8 @@
         <span class="wb-tools__label">정렬</span>
         <span class="wb-seg" role="group" aria-label="정렬">
         {% for key, label, hint in [
-            ('new', '접수순', '최근에 들어온 집부터'),
-            ('due', '발송기한 임박순', '기한이 가까운 집부터 — 기한을 넘기면 네이버가 자동 취소할 수 있다')] %}
+            ('new', '접수순', '최근에 들어온 주문부터'),
+            ('due', '발송기한 임박순', '기한이 가까운 주문부터 — 기한을 넘기면 네이버가 자동 취소할 수 있다')] %}
         <a class="wb-sort" data-sort="{{ key }}"
            aria-pressed="{{ 'true' if active_sort == key else 'false' }}"
            title="{{ hint }}"
@@ -254,27 +254,27 @@
       '전부 선택' 은 여기 두지 않는다: 0집일 때 이 바가 숨으면 전부 선택에 손이 닿지 않는다.
     #}
     <div class="wb-bulk" id="wb-bulk">
-        <span><b id="wb-bulk-n">0</b>집 선택됨</span>
+        <span><b id="wb-bulk-n">0</b>주문 선택됨</span>
         <button type="button" class="btn btn-primary btn-sm" id="wb-bulk-submit"
                 data-bs-toggle="modal" data-bs-target="#wb-modal-bulk">
-            선택한 집 발주확인 보내기
+            선택한 주문 발주확인 보내기
         </button>
         <button type="button" class="btn btn-outline-secondary btn-sm" id="wb-bulk-clear">선택 해제</button>
         {# 벌크는 폴링하지 않는다(집 수만큼 조회가 곱해진다) — 진행을 여기서 말로 남기고
            잠시 뒤 화면을 한 번 다시 받는다. 비어 있으면 자리를 차지하지 않는다. #}
         <span class="wb-bulk__note" id="wb-bulk-note" role="status" aria-live="polite"></span>
         <span class="wb-bulk__spacer"></span>
-        <span class="wb-bulk__why">여러 집을 한 번에 보낼 때만 씁니다. 한 집이면 오른쪽 상세에서 바로.</span>
+        <span class="wb-bulk__why">여러 주문을 한 번에 보낼 때만 씁니다. 한 주문이면 오른쪽 상세에서 바로.</span>
     </div>
 
     <div class="wb-split">
 
         <section class="card shadow-sm">
             <div class="card-header py-2 d-flex flex-wrap align-items-center gap-2">
-                <span class="small fw-semibold">처리할 집</span>
+                <span class="small fw-semibold">처리할 주문</span>
                 {# 스트립은 '손댈 수 있는 집'을 말하고 여기는 **지금 보이는 줄 수**다(칩으로
                    좁히면 줄어든다). 둘 다 "N집"이면 같은 말로 읽혀서 라벨을 갈랐다. #}
-                <span class="small text-muted">한 집이 한 줄 · 보이는 {{ work_groups|length }}줄</span>
+                <span class="small text-muted">한 주문이 한 줄 · 보이는 {{ work_groups|length }}줄</span>
                 {# 절대 규칙 5: 전부 선택은 **지금 필터로 보이는 행**만 고른다. #}
                 <label class="small text-muted mb-0 ms-auto d-flex align-items-center gap-1">
                     <input type="checkbox" id="wb-pick-all"> 전부 선택
@@ -286,7 +286,7 @@
             {# 보이는 줄수를 그대로 쓰면 "58집만 보입니다" 인데 위 탭도 58집이라 사람 눈에
                모순이 된다(2026-08-24 실화면). 상한에 닿았다는 사실만 말한다. #}
             <div class="wb-note" data-foms-no-autodismiss>
-                목록이 상한에 닿아 <b>일부 집이 안 보입니다</b> — 먼저 처리하면 나머지가 올라옵니다.
+                목록이 상한에 닿아 <b>일부 주문이 안 보입니다</b> — 먼저 처리하면 나머지가 올라옵니다.
             </div>
             {% endif %}
 
@@ -332,8 +332,8 @@
                            data-name="{{ group.customer_name }}"
                            data-count="{{ group.household_place_pending or group.household_count or group.count }}"
                            {% if not can_pick %}disabled
-                           title="{% if group.claim_blocking %}취소·반품 집은 고를 수 없습니다{% elif group.canceled %}취소한 집은 고를 수 없습니다{% else %}이미 발주확인이 끝났습니다{% endif %}"
-                           {% else %}title="여러 집을 한 번에 발주확인"{% endif %}
+                           title="{% if group.claim_blocking %}취소·반품 주문은 고를 수 없습니다{% elif group.canceled %}취소한 주문은 고를 수 없습니다{% else %}이미 발주확인이 끝났습니다{% endif %}"
+                           {% else %}title="여러 주문을 한 번에 발주확인"{% endif %}
                            aria-label="{{ group.customer_name }} 선택">
                     <span class="wb-row__body">
                         <span class="wb-row__line1">
@@ -413,7 +413,7 @@
                             <span class="badge bg-light text-dark">주문 #{{ group.order_id }}</span>
                             {% endif %}
                             <span class="wb-can wb-can--{{ row_kind }}">
-                                {% if group.canceled %}취소한 집
+                                {% if group.canceled %}취소한 주문
                                 {% elif row_kind == 'stop' %}손대지 않음
                                 {% elif row_kind == 'spec' %}규격 입력할 차례
                                 {% elif row_kind == 'wait' %}발주확인 먼저
@@ -425,7 +425,7 @@
                 {% else %}
                 <div class="wb-empty">
                     {% if active_filter == 'all' %}확인할 주문이 없습니다.
-                    {% else %}이 필터에 해당하는 집이 없습니다 — 위 <b>전체</b> 칩을 눌러 보세요.{% endif %}
+                    {% else %}이 필터에 해당하는 주문이 없습니다 — 위 <b>전체</b> 칩을 눌러 보세요.{% endif %}
                 </div>
                 {% endfor %}
             </div>
@@ -450,11 +450,11 @@
                     {# ① 건수 재진술 — 집 수만 읽히면 "2집" 이 실제로 상품주문 9건인 걸 모른다.
                        둘을 함께 읽힌다(절대 규칙 2 의 화면 쪽 짝). #}
                     <p class="fw-semibold mb-2">
-                        선택한 <span id="wb-bulk-count">0</span>집 ·
+                        선택한 <span id="wb-bulk-count">0</span>주문 ·
                         상품주문 <span id="wb-bulk-items">0</span>건
                         (<span id="wb-bulk-names"></span>)을 네이버에 <b>발주확인</b>으로 보냅니다.
                         <span class="d-block small fw-normal text-muted mt-1">
-                            이미 발주확인이 끝난 형제는 빠집니다 — 목록의 '건 묶음'(집 전체 수)보다
+                            이미 발주확인이 끝난 형제는 빠집니다 — 목록의 '건 묶음'(주문 전체 수)보다
                             적을 수 있습니다.
                         </span>
                     </p>
@@ -464,8 +464,8 @@
                     </div>
                     {# ③ 사후 경로 #}
                     <p class="small text-muted mb-0">
-                        보낸 뒤에는 상태가 <b>발주확인 완료</b>로 바뀌고, 그 집의 <b>발송처리</b>가 열립니다.
-                        실패한 집이 있으면 화면 위에 실패 목록과 사유가 남습니다.
+                        보낸 뒤에는 상태가 <b>발주확인 완료</b>로 바뀌고, 그 주문의 <b>발송처리</b>가 열립니다.
+                        실패한 주문이 있으면 화면 위에 실패 목록과 사유가 남습니다.
                     </p>
                 </div>
                 <div class="modal-footer">
@@ -539,8 +539,8 @@
             {# 필터가 걸리면 history.total 은 걸러진 수다 — 헤더도 그렇게 말해야 한다.
                칩만 고치고 헤더를 두면 두 줄 위에서 같은 거짓말이 남는다. #}
             <span class="small text-muted">
-                {% if history.status or history.place_pending %}지금 목록 {{ history.total }}집
-                {% else %}전체 {{ history.total }}집{% endif %} — 숫자는 모두 집 단위</span>
+                {% if history.status or history.place_pending %}지금 목록 {{ history.total }}주문
+                {% else %}전체 {{ history.total }}주문{% endif %} — 숫자는 모두 주문 단위</span>
             <span class="small text-muted ms-auto">읽기 전용 — 처리는 <b>처리</b> 탭에서 합니다</span>
         </div>
 
@@ -550,13 +550,13 @@
             <a class="wb-chip" aria-pressed="{{ 'true' if not history.status and not history.place_pending else 'false' }}"
                {# 필터가 걸리면 history.total 은 '걸러진 총계'다 — 그걸 "전체" 라고 말하면
                   거짓말이 된다(옛 이력 화면도 같은 가드를 쓴다). #}
-               href="{{ url_for('admin.naver_ingest_triage', tab='all') }}">전체 {{ (history.total ~ '집') if not (history.status or history.place_pending) else '' }}</a>
+               href="{{ url_for('admin.naver_ingest_triage', tab='all') }}">전체 {{ (history.total ~ '주문') if not (history.status or history.place_pending) else '' }}</a>
             {% for key, label in [('COLLECTED', '수집됨(주문 전)'), ('LINKED', '주문 생성됨'),
                                   ('PENDING_REVIEW', '확인 필요'), ('FAILED', '실패')] %}
             <a class="wb-chip" aria-pressed="{{ 'true' if history.status == key else 'false' }}"
                href="{{ url_for('admin.naver_ingest_triage', tab='all', status=key,
                                 place='PENDING' if history.place_pending else None) }}">
-                {{ label }} {{ history.counts.get(key, 0) }}집
+                {{ label }} {{ history.counts.get(key, 0) }}주문
             </a>
             {% endfor %}
             <a class="wb-chip" aria-pressed="{{ 'true' if history.place_pending else 'false' }}"
@@ -565,7 +565,7 @@
                 {# 처리 탭의 '발주확인 전' 칩은 **작업 대상**(취소·반품 제외)이고 이 칩은 이력
                    표를 거르는 술어라 취소 집도 포함한다. 같은 라벨을 쓰면 같은 화면에서 두
                    숫자가 어긋나 보인다 — 모집단을 라벨에 적는다. #}
-                발주확인 전(취소 포함) {{ history.place_pending_count }}집
+                발주확인 전(취소 포함) {{ history.place_pending_count }}주문
             </a>
         </div>
 
@@ -688,5 +688,5 @@
 {% endblock %}
 
 {% block scripts %}
-<script src="{{ url_for('static', filename='js/admin/naver-workbench.js') }}?v=20260826e" defer></script>
+<script src="{{ url_for('static', filename='js/admin/naver-workbench.js') }}?v=20260826g" defer></script>
 {% endblock %}

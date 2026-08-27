@@ -9,6 +9,7 @@ import logging
 import os
 import sys
 from pathlib import Path
+from typing import Optional
 
 logger = logging.getLogger(__name__)
 
@@ -299,6 +300,44 @@ def run_naver_fulfillment_task(link_id: int, action: str, actor_user_id=None,
             db_session.remove()
     except Exception as e:
         logger.error(f"[RQ] run_naver_fulfillment_task error: {e}", exc_info=True)
+        raise
+
+
+def run_naver_refresh_task(link_id: int, actor_user_id: Optional[int] = None) -> dict:
+    """집 1건을 네이버에서 다시 읽는다 (T4, WORKER 전용) — **읽기 전용**.
+
+    web 은 enqueue 만 한다(커머스API 호출 IP 가 WORKER 것뿐이다). 여기서 나가는 네이버
+    호출은 상세 조회 하나뿐이라 **되돌릴 수 없는 조작이 없다** — 실패하면 통째로 되돌려도
+    안전하다(발송처리 태스크가 실패분을 커밋해 두는 것과 다른 이유가 여기 있다).
+
+    Args:
+        link_id: 기준 수집 링크 id(같은 집 전체를 다시 읽는다).
+        actor_user_id: 화면에서 누른 사람(기록용 — 지금은 로그에만 남는다).
+
+    Returns:
+        :func:`claim_watch.refresh_household` 집계 dict.
+    """
+    try:
+        from db import db_session
+        from foms.services.integrations.naver_commerce.claim_watch import refresh_household
+        from foms.services.integrations.naver_commerce.client import NaverCommerceClient
+
+        db = db_session()
+        try:
+            result = refresh_household(db, client=NaverCommerceClient(), link_id=int(link_id))
+            db.commit()
+            logger.info("[RQ] 네이버 다시 읽기 완료 link=%s actor=%s %s",
+                        link_id, actor_user_id, result)
+            return result
+        except Exception:
+            # 불가역 호출이 없으므로 부분 상태를 남기지 않는다 — 다음 시도가 깨끗하다.
+            db.rollback()
+            raise
+        finally:
+            db.close()
+            db_session.remove()
+    except Exception as e:
+        logger.error(f"[RQ] run_naver_refresh_task error: {e}", exc_info=True)
         raise
 
 

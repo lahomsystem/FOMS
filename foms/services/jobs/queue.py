@@ -226,6 +226,35 @@ def enqueue_naver_fulfillment(link_id: int, action: str, actor_user_id=None):
         return False
 
 
+def enqueue_naver_refresh(link_id: int, actor_user_id: Optional[int] = None) -> bool:
+    """집 1건 **다시 읽기** job enqueue (T4).
+
+    읽기 전용이지만 큐를 거치는 이유는 같다 — 커머스API 에 등록된 호출 IP 가 WORKER
+    것뿐이라 web 에서 상세 조회를 내면 차단된다. 되돌릴 수 없는 호출은 **하나도 없다**.
+
+    Args:
+        link_id: 기준 수집 링크 id(그 링크가 속한 집 전체를 다시 읽는다).
+        actor_user_id: 화면에서 누른 사람(기록용).
+
+    Returns:
+        큐에 넣었으면 True. 큐가 없거나 실패하면 False — 화면이 "지금은 다시 읽을 수
+        없다"를 그대로 보여준다(조용히 성공한 척하지 않는다).
+    """
+    q = get_rq_queue()
+    if not q:
+        return False
+    try:
+        q.enqueue(
+            f"{_TASK_PATH_PREFIX}.run_naver_refresh_task",
+            int(link_id), actor_user_id,
+            job_timeout="5m",
+        )
+        return True
+    except Exception as e:
+        logger.error(f"[RQ] enqueue_naver_refresh error: {e}", exc_info=True)
+        return False
+
+
 def enqueue_naver_cancel(link_id: int, reason: str, detail: Optional[str] = None,
                          actor_user_id: Optional[int] = None) -> bool:
     """판매자 직접취소 job enqueue (스펙 §3.4).
