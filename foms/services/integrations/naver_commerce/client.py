@@ -471,9 +471,11 @@ class NaverCommerceClient:
 
         **취소와 다른 점 둘.** ① 사유 코드 목록이 취소와 다르다
         (:data:`fulfillment.RETURN_REASONS`). ② ``collectDeliveryMethod`` 가 있다 —
-        가구는 우리 차가 회수하러 가므로 ``RETURN_INDIVIDUAL`` 만 쓴다. 다른 값을 보내면
-        **API 값이 무시되고 상품에 설정된 택배사가 고객 집으로 자동 수거를 간다** —
-        되돌릴 수 없다. 그래서 호출자가 화이트리스트로 미리 막는다.
+        실물 회수가 있어서가 아니다(시공 전 발송이라 고객 집에 간 물건 자체가 없고,
+        반품은 주문(금액)만 움직인다). ``RETURN_INDIVIDUAL`` 만 쓰는 이유는 오발송을
+        막기 위해서다: 다른 값을 보내면 **API 값이 무시되고 상품에 설정된 택배사가
+        부르지도 않은 자동 수거를 고객 집으로 보낸다** — 되돌릴 수 없다. 그래서
+        호출자가 화이트리스트로 미리 막는다.
 
         Args:
             product_order_id: 반품할 ``productOrderId``.
