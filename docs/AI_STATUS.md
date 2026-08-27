@@ -1,6 +1,6 @@
 # FOMS 현재 상태
 > 자동 업데이트: 2026-08-14
-> 최신: **네이버 후속 2차 deploy(`aecd25f6`, CI 4/4 green)** — 반품 축 읽기(라벨 7종·수거/환불/회수지)·주문 1건 다시 읽기 버튼·도크 재결제 이전 주문 구분·네이버 탭 낱말 `집`→`주문`. CEO 2판정 리뷰 지적 6건 전부 재검증 후 수정. **스테이징 실화면 미확인**(다음 세션 첫 일)
+> 최신: **네이버 3차 — 운영 승격 2회 + 결함 4건(`aa90b3a1`)** — 스테이징 실화면 전수 확인 후 승격. 승격 중 잡은 것: 취소만 된 50건에 `반품 진행` 줄이 뜨던 결함 · `확인 완료` 게이트가 죽은 주문까지 세던 결함 · AI_STATUS 예산 red. **운영 승격 PR 에 본 스위트가 처음 붙었다**. 원장 `docs/plans/2026-08-26-naver-followup-multiagent-ledger.md`
 > 이 파일 상단 40줄이 세션 시작 컨텍스트의 전부다(hygiene 계약 테스트로 강제). 상세 이력: "## 최근 완료"·"## 기록 보관", 과거 헤더 상세는 기록 보관에 이관.
 
 ## 스택
@@ -9,7 +9,7 @@ Flask 2.3 + PostgreSQL + R2 + Railway (Web×2, Worker×1)
 
 ## 진행 중
 - [2026-08-26] **CI 14.07분 단축(감리 → P0+T1~T8 deploy)** — `Run tests` 839초의 73%가 테스트용 PBKDF2 60만회 해싱, 17%가 매 테스트 83테이블 DDL(실제 로직 11%). KDF 완화·스키마 세션화·xdist 로 로컬 927초→48초. 부수: 승격 PR 본 스위트 미실행 구멍 봉합·전 워크플로 timeout·`ci_watch` cancelled→green 오판 fail-closed·캐시 7.63→0.93GB. 원장 `docs/plans/2026-08-26-ci-speed-ledger.md`
-- [2026-08-26] **네이버 후속 2차 deploy(`aecd25f6`, CI 4/4 green) — 스테이징 실화면 미확인** — ① 반품 축 읽기: 차단은 되는데 라벨이 없어 배지에 **영문 상수**가 뜨던 상태 7종(`COLLECTING`·`COLLECT_DONE`·`CANCELING`·`*_REQUESTED`·`RETURN_REJECT`·`EXCHANGE_REJECT`) + 수거·환불·**회수지**(자사 회수라 우리 차가 갈 곳) 표시. `extract_claim` 이 사유 원문을 `cancel` 블록 안에서만 찾던 조용한 유실도 봉합. ② **주문 1건 다시 읽기**(T4): `refresh_claims` 불변 재사용, 네이버에 쓰는 것 0 — 단 새로 발견된 클레임은 알림으로 나간다(그게 목적). 큐 경유 필수(호출 IP 계약). ③ 도크에서 재결제 **이전 주문** 구분(추가결제는 안 흐린다 — 옛 결제가 살아 있다). ④ 네이버 탭 낱말 `집`→`주문` 86자리, 뜻 겹치는 6곳은 `건`. **다음 세션 첫 일 = 코호트 `38,58` 한 번 열고 T5(발송처리 잠금 41건)+오늘 것 전수 확인 후 `38` 원복.** 사각: 실물 반품 스냅샷이 없어 `returnInfo` 등 블록 이름은 가정 · `확인 완료` 게이트가 이전 주문 행까지 체크 요구 · push 실발송 미확인. 원장 `docs/plans/2026-08-26-naver-followup-multiagent-ledger.md`
+- [2026-08-27] **네이버 3차 — 운영 승격 2회·결함 4건·T8 착수** — 스테이징 실화면을 표본이 아니라 **전수**로 셌다(pane 이 읽기전용 GET 조각이라 가능). T5 잠금 대상 집 49 전수 잠김 · 반품 진행 줄 33 전수 · 빈 줄 0 · 사용자 표면 단독 `집` 0. **전수 확인이 놓친 것을 CEO 리뷰가 잡았다**: 검증이 `return` 있는 33건만 돌고 나머지 311건을 안 열어 `cancel` 만 있는 **50건에 `반품 진행` 줄이 뜨던 결함**을 못 봤다 — `RETURN_BLOCK_KEYS` 분리로 근본 수정. `확인 완료` 게이트가 재결제로 죽은 이전 주문까지 세던 것(`0/10`→`0/6`)도 고쳐 실화면 경계까지 검증. **운영 CI 구멍 승격**(PR #165): 승격 PR 이 본 스위트를 한 번도 안 돌던 것 — 켜자마자 `harness` red 1건이 드러났고 (테스트가 CI 체크아웃 환경에 기대던 자리) 근본 수정. 네이버 클레임·앱만료 알림이 **웹푸시로 안 나가던 결함**(`enqueue_push_for_notification` 호출부 0곳) 배선. **T8-S1** 판매자 반품 접수 본체(가드 3겹·사유 화이트리스트·회수방법 1값 고정·멱등) — 큐·라우트·버튼은 **권한 게이트 Q1 미확인이라 만들지 않았다**(도달 경로 0). 설계서 `docs/specs/2026-08-27-naver-return-send_SPEC.md`
 - [2026-08-26] **네이버 알림 전수 점검·손질 운영 반영(PR #152 `c1c71bd1`, 앞선 #147 집 단위 묶음 포함)** — 사람 수만큼 복제하던 곳은 `app_expiry` 하나뿐(ROLE 전환). 문안=사유 한국어화·미수집분 수취인/상품명. **미조치**: `URGENT_MENTION`·계정 2종·도면 취소 2종이 `_DEFAULT_P1_TYPES` 미등재라 폰 push 무음(현행 유지). 잔여: 08-25 옛 중복 알림 8건 보관(승인 대기)
 - [2026-08-25] **고객 문서 공유 T16 deploy 완료 — 템플릿 심사 대기** — 통합 열람 링크(`kind='bundle'`)·지방 주문 본사 CS 안내(라홈 1566-0792 / 그 외 1566-0703, 담당자 '고객센터')·버튼 2개 템플릿 배선(env `SOLAPI_TEMPLATE_SHARE_BOTH_ID_{brand}` 하나로 전환). 승인 후 사용자 작업 2건. 원장 `docs/plans/2026-08-11-customer-share-phase-a-ledger.md` T16
 - [2026-08-25] **네이버 수집 운영 개방·안정화** — 전량 승격(production `39fa919d`) 뒤 열쇠·플래그 투입(WORKER 수집 300초 · web 워크벤치 `COHORT=all`). 개방 직후 `주문 만들기` 가 `naver_ingest_bot` 부재로 막혀 있었다(설치 체크리스트 ① 미실행) → 운영 id 61·62 생성으로 해소. 워크벤치 머리줄이 전역 nav(z-index 1000) 밑에 깔리던 결함 · 도크 머리말↔링크 집 불일치 · 붙이기 중복 이력 수정 deploy(`6ed045c9`). 원장 `docs/plans/2026-08-25-naver-full-promotion-roadmap.md` §18
@@ -110,6 +110,8 @@ Flask 2.3 + PostgreSQL + R2 + Railway (Web×2, Worker×1)
 - [2026-04-15] **Strict final canonical tree `SFC-B11B` slice 2 (`dashboards`, §6.16):** 구현을 `foms/web/dashboards/routes.py`로 이전; `foms/web/dashboards/__init__.py`는 `routes`만 import; `apps/dashboards.py`는 `foms.web.dashboards` 재노출 shim. 검증: `APP_OK`, `verify_result.py --json`, `pytest tests` **586 passed**. 근거: batch11b **§Slice B11B-2**.
 
 ## 기록 보관 (strict canonical / 이전 배치 요약)
+
+- [2026-08-26] **네이버 후속 2차 deploy(`aecd25f6`, CI 4/4 green) — 스테이징 실화면 미확인** — ① 반품 축 읽기: 차단은 되는데 라벨이 없어 배지에 **영문 상수**가 뜨던 상태 7종(`COLLECTING`·`COLLECT_DONE`·`CANCELING`·`*_REQUESTED`·`RETURN_REJECT`·`EXCHANGE_REJECT`) + 수거·환불·**회수지**(자사 회수라 우리 차가 갈 곳) 표시. `extract_claim` 이 사유 원문을 `cancel` 블록 안에서만 찾던 조용한 유실도 봉합. ② **주문 1건 다시 읽기**(T4): `refresh_claims` 불변 재사용, 네이버에 쓰는 것 0 — 단 새로 발견된 클레임은 알림으로 나간다(그게 목적). 큐 경유 필수(호출 IP 계약). ③ 도크에서 재결제 **이전 주문** 구분(추가결제는 안 흐린다 — 옛 결제가 살아 있다). ④ 네이버 탭 낱말 `집`→`주문` 86자리, 뜻 겹치는 6곳은 `건`. **다음 세션 첫 일 = 코호트 `38,58` 한 번 열고 T5(발송처리 잠금 41건)+오늘 것 전수 확인 후 `38` 원복.** 사각: 실물 반품 스냅샷이 없어 `returnInfo` 등 블록 이름은 가정 · `확인 완료` 게이트가 이전 주문 행까지 체크 요구 · push 실발송 미확인. 원장 `docs/plans/2026-08-26-naver-followup-multiagent-ledger.md`
 - [2026-08-20] **에스컬레이션 알림 본문·중복 수정 운영 반영(`67ecaff3`)** — 빈 제목만 쌓이던 문제 해결(본문+원본당 1건). 잔여: 상류 `claim_watch.py` 가 클레임마다 ADMIN 수만큼 개별 긴급 알림 생성 → 스테이징 1073건 원천
 - [2026-08-21] **NOTIF-ROLE-01 운영 승격 완료(PR #127, production `1d35ed06`)** — 관리자 알림 사건 1건=row 1건(에스컬레이션 N²→N). `notifrole_00` 부모는 브랜치별로 다르다(deploy=`naver_relation_00` / 운영=`assort_00`) — 네이버 체인 운영 미반영. 네이버 `claim_watch` ROLE 전환은 네이버 승격 때. 승격 PR 은 pg-lane·perf-gate 만 돈다(FOMS CI·Harness CI 트리거가 main/deploy 한정)
 
