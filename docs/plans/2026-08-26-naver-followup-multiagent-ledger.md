@@ -1099,3 +1099,50 @@ CI-DOCSCOPE-01 계약이다. 새 테스트가 manifest JSON 2종을 직접 읽�
 | Q4 스테이징 실호출 1건 | 미실행 — 실주문이 필요하고 대상은 사용자가 고른다 |
 | Q3 `returnReason` 전체 범례 | 미확인 — 그래서 사유 2개로 좁혀 착수했다 |
 | T8 운영 승격 | 사용자 선택 "deploy 후 바로" — CI green 확인 뒤 진행 |
+
+## T8 운영 승격 (PR #171) — 그리고 **일부러 두고 온 것**
+
+deploy `1fc58d9e` CI green 확인 후 **코드 2건만** 승격했다.
+
+| 승격 SHA | deploy SHA | 내용 |
+|---|---|---|
+| `8d44147a` | `0656d773` | T8 반품 접수 배선(큐·라우트·버튼·모달·지문·테스트 20건) |
+| `3b84b14f` | `15660870` | 자산 핀 `20260827a → 20260827b` |
+
+### 두고 온 것과 이유
+
+- **`464d4c25`(ci.yml 문서 전용 서브셋 등재)** — production 에는 `Run docs-facing contracts`
+  스텝도 `tests/domains/test_docs_facing_registry.py` 도 **없다**. 타 세션 CI 작업
+  (`3a761b3a`·`c49ed3d4`)이 아직 운영에 안 올라갔다. 없는 스텝에 줄을 넣으면 ci.yml 이
+  깨지거나 무의미하다. production 은 문서 스코핑이 없어 전체 스위트를 돌므로 새 테스트는
+  어차피 실행된다 — **구멍이 아니라 그쪽 계보가 아직 없는 것**이다.
+- **문서 2건**(원장 4차 절 · SPEC) — `git cherry-pick` 이 `DU`(우리 쪽에 파일 없음)를 냈다.
+  T8 SPEC 은 production 에 **파일 자체가 없고**, AI_STATUS 는 타 세션과 발산해 있다.
+  런타임 0이라 deploy 에 둔다(3차 배치와 같은 판단).
+
+### completeness `INCOMPLETE: missing=29` 판정
+
+29건 중 코드로 얽힌 것처럼 보인 둘을 **내용으로 직접 확인**해 끊었다:
+
+- `7ac7abb8`(R-2 유령 주문 띠) → **이미 운영에 있다**
+  (`git grep -c ghost origin/production` 가 deploy 와 같은 12·3).
+- `c0df8ed8`(이력 탭 찾기 칸) → **이미 운영에 있다**(PR #169 `aa9556e6`). production 핀도
+  이미 `20260827a` 였다 — 그래서 내 핀을 `b` 로 한 칸 더 올린 것이 맞았다.
+
+나머지는 인벤토리·AI_STATUS·원장이다. 인벤토리는 승격 트리에서 4종 재생성으로 끊었다.
+
+### 승격 트리 검증
+
+`APP_OK` · `-k naver` **860 passed** · `tests/contracts tests/domains` **5314 passed** ·
+`pre_push_smoke` exit 0. naver 코드 파일 `git diff origin/deploy` **차이 0**. 마이그레이션 0건.
+
+## 스테이징 실서버 — 라우트가 살아 있다 (음성 대조군 포함)
+
+```
+403  POST /admin/naver-ingest/1/return          ← 새 라우트
+403  POST /admin/naver-ingest/1/cancel          ← 기존 라우트(같은 응답)
+404  POST /admin/naver-ingest/1/no-such-route   ← 음성 대조군
+```
+
+403 이 "전부 막힌 응답"이 아니라는 것을 404 가 증명한다. 라우트가 등록됐고 가드가 먼저 문다.
+**화면(버튼·모달) 실물 확인은 아직 안 했다** — 코호트를 열어야 하고, 그건 사용자 몫이다.
