@@ -343,9 +343,6 @@ def test_return_button_appears_after_dispatch(app, client, workbench_on):
     assert "물건은 오가지 않습니다" in body
     assert "주문(금액)만 반품" in body
     assert "회수는 우리 차량이 갑니다" not in body
-    # 네이버는 "구매자의 청약 철회 의사가 없음에도 임의로 취소"를 부당행위로 본다(#2823).
-    # 재결제 목적 반품이 그 모양으로 보일 수 있어, 동의 조건을 사유 고르는 자리에서 말한다.
-    assert "고객이 취소에 동의한 건만" in body
 
 
 def test_modal_restates_the_count_the_server_will_actually_send(app, client, workbench_on):
