@@ -227,7 +227,12 @@ def test_attached_household_does_not_offer_more_candidates(client, workbench_on)
 # --------------------------------------------------------------------------- #
 
 def test_addon_can_close_before_place_confirmation(client, workbench_on):
-    """추가결제는 발주확인 전에도 '지금 닫기'가 열린다 — 물건이 따로 나가지 않는다."""
+    """추가결제는 발주확인 전에도 발송처리가 열린다 — 물건이 따로 나가지 않는다.
+
+    D1 개정 2026-08-27: 버튼 라벨이 `발송처리` 하나로 통일돼 **라벨로는 close_now 를
+    못 가른다**(같은 호출인데 이름이 둘이면 다른 기능으로 읽힌다). 판별자는 close_now
+    가지에서만 나오는 안내 문장 `물건이 따로 나가지 않습니다` 다.
+    """
     _login(client)
     order = _order()
     link = _collected(order_no="N-REL-ADDON-DISP", relation="ADDON",
@@ -235,7 +240,7 @@ def test_addon_can_close_before_place_confirmation(client, workbench_on):
 
     body = _body(client, tab="work", link_id=link.id)
 
-    assert "지금 닫기" in body
+    assert "물건이 따로 나가지 않습니다" in body
     assert not is_disabled(body, "wb-dispatch"), open_tag(body, "wb-dispatch")
 
 
@@ -247,14 +252,14 @@ def test_new_household_stays_locked_before_place_confirmation(client, workbench_
     body = _body(client, tab="work", link_id=link.id)
 
     assert is_disabled(body, "wb-dispatch"), open_tag(body, "wb-dispatch")
-    assert "지금 닫기" not in body
+    assert "물건이 따로 나가지 않습니다" not in body
 
 
 def test_repay_stays_locked_before_place_confirmation(client, workbench_on):
-    """재결제는 '지금 닫기'가 뜨지 않고 발송처리가 잠긴다 (D1 개정 2026-08-24).
+    """재결제는 발송처리가 잠기고 '바로 닫는' 안내도 뜨지 않는다 (D1 개정 2026-08-24).
 
     재결제는 원 주문을 취소하고 그 물건값을 다시 낸 것이라 **원 주문의 물건이 나중에
-    한 번 나간다** — 발주확인이 먼저다. 화면에서 파란 '지금 닫기'가 켜져 있으면 두 번째
+    한 번 나간다** — 발주확인이 먼저다. 화면에서 발송처리 버튼이 파랗게 켜져 있으면 두 번째
     클릭이 그대로 불가역 호출이 된다(구매자에게 "배송 시작", 취소 버튼 소멸).
 
     배지('재결제')는 그대로 있어야 한다 — 관계를 숨기는 게 아니라 버튼만 닫는 것이다.
@@ -267,7 +272,7 @@ def test_repay_stays_locked_before_place_confirmation(client, workbench_on):
     body = _body(client, tab="work", link_id=link.id)
 
     assert "재결제" in body, "관계 배지는 그대로 보여야 한다"
-    assert "지금 닫기" not in body, "재결제 집에 '지금 닫기'가 떴다"
+    assert "물건이 따로 나가지 않습니다" not in body, "재결제 집에 close_now 안내가 떴다"
     assert is_disabled(body, "wb-dispatch"), open_tag(body, "wb-dispatch")
     assert "신규 주문이라" not in body, "재결제 집을 '신규 집'이라 불렀다"
 
@@ -441,7 +446,7 @@ def test_cancelled_household_leaves_the_place_filter(client, workbench_on):
 
 
 def test_a_mixed_relation_household_is_not_offered_close_now(client, workbench_on):
-    """형제 하나가 신규면 '지금 닫기'를 열지 않는다 — 서버 all 규칙과 같은 판정."""
+    """형제 하나가 신규면 close_now 를 열지 않는다 — 서버 all 규칙과 같은 판정."""
     _login(client)
     order = _order()
     lead = _collected(order_no="N-REL-MIXED", relation="ADDON", order_id=int(order.id),
@@ -450,7 +455,7 @@ def test_a_mixed_relation_household_is_not_offered_close_now(client, workbench_o
 
     body = _body(client, tab="work", link_id=lead.id)
 
-    assert "지금 닫기" not in body
+    assert "물건이 따로 나가지 않습니다" not in body
     assert is_disabled(body, "wb-dispatch"), open_tag(body, "wb-dispatch")
 
 
