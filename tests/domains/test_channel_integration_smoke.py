@@ -1356,3 +1356,84 @@ def test_push_preview_rejects_non_as_kind(client, monkeypatch):
     )
 
     assert response.status_code == 400
+
+
+def test_push_manual_reports_502_when_dispatch_did_not_send(client, monkeypatch):
+    """CH-LATENT-01: 전송이 예외 없이 건너뛰어졌으면 성공으로 위장하지 않는다.
+
+    ``send_group_message`` 는 group_id 가 비면 예외 대신 ``success=False`` 를 돌려준다.
+    라우트가 그 결과를 안 보면 화면엔 성공, 이력엔 message_id 없는 가짜 기록이 남는다.
+    """
+    _login_admin(client)
+    monkeypatch.setenv("CHANNEL_GROUP_MEASUREMENT", "group-1")
+    monkeypatch.setattr(channel_integration, "is_configured", lambda: True)
+    monkeypatch.setattr(channel_integration, "get_storage", lambda: _FakeStorage())
+    monkeypatch.setattr(
+        channel_integration,
+        "dispatch_order_event",
+        lambda event_type, data, raise_on_error=False: {"success": False, "message_id": None},
+    )
+
+    order = Order(
+        received_date="2026-08-27",
+        customer_name="미전송 고객",
+        phone="010-0000-0000",
+        address="Seoul",
+        product="Wardrobe",
+    )
+    db_session.add(order)
+    db_session.commit()
+    order_id = order.id
+
+    response = client.post(
+        "/api/channel/push-manual",
+        json={"order_id": order_id, "text": "발주방 변환 텍스트"},
+    )
+
+    assert response.status_code == 502
+    body = response.get_json()
+    assert body["success"] is False
+    assert "보내지 않았습니다" in body["message"]
+
+    # 가짜 push 이력이 남으면 안 된다.
+    db_session.expire_all()
+    saved = db_session.get(Order, order_id)
+    assert "channeltalk_push" not in (saved.structured_data or {})
+
+
+def test_push_estimate_cleans_up_upload_when_dispatch_did_not_send(client, monkeypatch):
+    """CH-LATENT-01(견적서): 미전송도 예외와 똑같이 업로드 정리 + 502."""
+    _login_admin(client)
+    monkeypatch.setenv("CHANNEL_GROUP_ESTIMATE", "group-estimate")
+    monkeypatch.setattr(channel_integration, "is_configured", lambda: True)
+    fake_storage = _FakeEstimateStorage()
+    monkeypatch.setattr(channel_integration, "get_storage", lambda: fake_storage)
+    monkeypatch.setattr(
+        channel_integration,
+        "dispatch_order_event",
+        lambda event_type, data, raise_on_error=False: {"success": False, "message_id": None},
+    )
+
+    order = Order(
+        received_date="2026-08-27",
+        customer_name="견적 미전송",
+        phone="010-0000-0000",
+        address="Seoul",
+        product="Wardrobe",
+    )
+    db_session.add(order)
+    db_session.commit()
+    order_id = order.id
+
+    response = client.post(
+        "/api/channel/push-estimate",
+        data={"order_id": str(order_id), "image": _png_upload()},
+        content_type="multipart/form-data",
+    )
+
+    assert response.status_code == 502
+    assert fake_storage.deleted == [f"estimate_push/{order_id}/estimate_{order_id}.png"]
+
+    db_session.expire_all()
+    saved = db_session.get(Order, order_id)
+    assert "channeltalk_push_estimate" not in (saved.structured_data or {})
