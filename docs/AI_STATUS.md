@@ -19,6 +19,7 @@ Flask 2.3 + PostgreSQL + R2 + Railway (Web×2, Worker×1)
 
 ## 알려진 이슈
 - 차단 이슈 없음. 남은 구조 부채는 `WR-B1`/`WR-J1`/`WR-H1` 처럼 explicit future-batch 조건으로만 존재한다. `wdcalculator_scripts_config.html` Jinja 변수 주입 구간의 JS lint false-positive 는 기존과 동일.
+- 채널톡 잠복 2건 수정 보류(2026-08-27): `docs/harness/channel_latent_findings.md`
 
 ## 아키텍처 요약
 - 파일 업로드: 브라우저→R2 Presigned PUT 직접 (배치+병렬, UUID키)
