@@ -159,6 +159,14 @@
   margin-bottom: 6px;
 }
 
+/* 거부·철회된 클레임 — 사실은 남기되 경고 색을 뗀다. 주문도 결제도 살아 있다(R-8). */
+.naver-dock-claim--settled {
+  background: #f1f5f9;
+  border-color: #cbd5e1;
+  color: #475569;
+  font-weight: 700;
+}
+
 .naver-dock-who {
   display: flex;
   flex-wrap: wrap;

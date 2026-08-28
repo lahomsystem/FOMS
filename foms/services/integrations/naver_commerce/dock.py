@@ -228,13 +228,15 @@ def _row_source(link: Any) -> dict[str, Any]:
         build_payment_info,
         extract_claim,
         extract_shipping_memo,
+        is_money_back_claim,
         unwrap_detail,
     )
 
     empty = {"product_name": "", "option_text": "", "quantity": None,
              "amount": None, "product_class": "", "seller_product_code": "",
              "recipient_name": "", "orderer_name": "", "shipping_memo": "",
-             "claim_label": "", "recipient_tel2": "", "paid_at": "", "pay_means": "",
+             "claim_label": "", "claim_money_back": False,
+             "recipient_tel2": "", "paid_at": "", "pay_means": "",
              "discount": 0}
     snapshot = link.raw_snapshot
     if not isinstance(snapshot, dict) or not snapshot:
@@ -265,6 +267,9 @@ def _row_source(link: Any) -> dict[str, Any]:
         "shipping_memo": shipping_memo,
         # 주문을 만든 뒤 취소되는 건도 있다 — 규격을 채우기 전에 눈에 걸려야 한다.
         "claim_label": claim["label"],
+        # 그 클레임 때문에 **돈이 되돌아가는가**. 라벨 존재만 보면 `반품 거부`(환불이 영영
+        # 없는 건)가 진행 중 클레임으로 세어진다(R-8).
+        "claim_money_back": is_money_back_claim(claim),
         # 연락·정산 확인용(T14-F). 폼에 자동 기입하지 않는다 — 복사 버튼까지다.
         "recipient_tel2": _text((shipping or {}).get("tel2")),
         "paid_at": payment["paid_at"][:16],
@@ -484,12 +489,18 @@ DEPOSIT_HINT_STATES = ("match", "differs", "over", "unknown")
 _DEPOSIT_SUPERSEDED_NOTE = "환불된 이전 주문은 뺀 금액입니다"
 
 
-def _deposit_note(*, has_superseded: bool, claim_label: str) -> str:
+def _deposit_note(*, has_superseded: bool, claim_label: str,
+                  claim_money_back: bool) -> str:
     """예약금 합계가 **무엇을 빼고 무엇을 안 뺐는지** 말하는 단서 (D3).
+
+    2026-08-28 (R-8): 예전에는 **라벨이 비어 있지 않으면** 환불 문장을 붙였다. 그래서
+    ``반품 거부``(환불이 영영 없는 건)에도 "환불액은 아직 빠지지 않은 금액입니다"라고
+    적었다. 판정은 :func:`mapping.is_money_back_claim` 이 한다.
 
     Args:
         has_superseded: 재결제로 대체된 옛 집이 있는가(그 집 금액은 합계에서 뺐다).
         claim_label: 취소·반품 라벨(:func:`mapping.extract_claim` 의 ``label``).
+        claim_money_back: 그 클레임 때문에 **돈이 되돌아가는가**. 거부·교환은 False.
 
     Returns:
         단서 문장. 붙일 근거가 없으면 빈 문자열.
@@ -498,7 +509,7 @@ def _deposit_note(*, has_superseded: bool, claim_label: str) -> str:
     if has_superseded:
         parts.append(_DEPOSIT_SUPERSEDED_NOTE)
     label = _text(claim_label)
-    if label:
+    if label and claim_money_back:
         # 클레임 환불액은 ``totalPaymentAmount`` 에서 아직 빠지지 않는다(결제 시점 값).
         parts.append(f"{label} 건이 있어 환불액은 아직 빠지지 않은 금액입니다")
     return " · ".join(parts)
@@ -519,7 +530,7 @@ def _deposit_target(households: list[dict[str, Any]]) -> tuple[int, int]:
 
 
 def _deposit_hint(order: Any, households: list[dict[str, Any]], *,
-                  claim_label: str = "") -> dict[str, Any]:
+                  claim_label: str = "", claim_money_back: bool = False) -> dict[str, Any]:
     """예약금(선금)에 넣을 금액을 **문장으로** 말한다 — 넣지는 않는다 (D3).
 
     도크는 붙인 뒤 **며칠 뒤** 화면이라 재결제 카드의 상대값(``current + amount``)을 쓰면
@@ -532,6 +543,7 @@ def _deposit_hint(order: Any, households: list[dict[str, Any]], *,
         order: 도크가 실린 :class:`models.Order` (예약금 현재값을 읽는다).
         households: ``amount_total``·``amount_unknown`` 이 병합된 집 사실 목록.
         claim_label: 이 주문의 취소·반품 라벨(없으면 빈 문자열).
+        claim_money_back: 그 클레임 때문에 돈이 되돌아가는가(거부·교환이면 False).
 
     Returns:
         ``{"state", "current", "target", "target_display", "diff", "sentence",
@@ -550,7 +562,8 @@ def _deposit_hint(order: Any, households: list[dict[str, Any]], *,
     hint: dict[str, Any] = {
         "state": "unknown", "current": current, "target": None, "diff": None,
         "target_display": "", "sentence": "", "copy_value": "", "unknown_count": unknown,
-        "note": _deposit_note(has_superseded=superseded, claim_label=claim_label)}
+        "note": _deposit_note(has_superseded=superseded, claim_label=claim_label,
+                              claim_money_back=claim_money_back)}
     if unknown:
         hint["sentence"] = (f"금액을 못 읽은 상품주문이 {unknown}건 있어 네이버 결제액"
                             " 합계를 내지 못했습니다 — 원본을 열어 확인하세요.")
@@ -727,6 +740,7 @@ def build_dock_payload(db: Any, order: Any, *,
     recipient_name = ""
     orderer_name = ""
     claim_label = ""
+    claim_money_back = False
     recipient_tel2 = ""
     paid_at = ""
     pay_means = ""
@@ -736,7 +750,10 @@ def build_dock_payload(db: Any, order: Any, *,
         source = _row_source(link)
         recipient_name = recipient_name or source["recipient_name"]
         orderer_name = orderer_name or source["orderer_name"]
-        claim_label = claim_label or source["claim_label"]
+        # 라벨과 그 판정을 **함께** 집는다 — 따로 집으면 A 건의 라벨에 B 건의 판정이 붙는다.
+        if not claim_label and source["claim_label"]:
+            claim_label = source["claim_label"]
+            claim_money_back = source["claim_money_back"]
         recipient_tel2 = recipient_tel2 or source["recipient_tel2"]
         paid_at = paid_at or source["paid_at"]
         pay_means = pay_means or source["pay_means"]
@@ -850,7 +867,8 @@ def build_dock_payload(db: Any, order: Any, *,
         "households": households,
         # 예약금(선금) 안내(D3). 문장은 **서버가** 만든다 — 재결제 화면과 같은 말을 써야
         # 두 화면이 같은 규칙으로 읽힌다. 화면은 그리기와 복사까지고 **자동 기입은 없다**.
-        "deposit_hint": _deposit_hint(order, households, claim_label=claim_label),
+        "deposit_hint": _deposit_hint(order, households, claim_label=claim_label,
+                                      claim_money_back=claim_money_back),
         # 위 `workbench_url` 이 실제로 여는 집의 번호. 머리말에서 그 집을 표시해
         # "읽은 번호 != 열리는 집" 을 없앤다. **주소와 같은 행에서 끌어온다** — 둘이
         # 갈리면 이 수정이 무의미해지므로 `rows[-1]` 을 공통 출처로 못박는다.
@@ -869,6 +887,8 @@ def build_dock_payload(db: Any, order: Any, *,
                                 and recipient_name != orderer_name),
         "shipping_memo": "\n".join(memos),
         "claim_label": claim_label,
+        # 화면이 ⚠ 경고를 붙일지 가르는 값. 라벨 존재만 보면 거부 건에도 경고가 붙는다(R-8).
+        "claim_money_back": claim_money_back,
         # 로드 시점 총폭(하위호환 폴백). 지금 화면의 총폭은 행마다 실린 `width_unit_mm`·
         # `width_label`·`width_axes` 로 화면이 다시 만든다(W1).
         "width_hints": width_hints,
