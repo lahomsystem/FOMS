@@ -101,7 +101,7 @@ def test_no_existing_link_means_no_extra_api_call(app):
     client = FakeClient([_detail("PO-UNKNOWN", claim="CANCEL_REQUEST")])
     stats = refresh_claims(db_session, client=client, changed=[_changed("PO-UNKNOWN")])
     assert client.calls == []
-    assert stats == {"refreshed": 0, "claimed": 0, "notified": 0, "self_canceled": 0}
+    assert stats == {"refreshed": 0, "claimed": 0, "notified": 0, "self_claimed": 0}
 
 
 def test_empty_change_list_short_circuits(app):
@@ -185,7 +185,7 @@ def test_normal_change_refreshes_without_notifying(app):
     stats = refresh_claims(db_session, client=client, changed=[_changed(link.external_id)])
     db_session.commit()
 
-    assert stats == {"refreshed": 1, "claimed": 0, "notified": 0, "self_canceled": 0}
+    assert stats == {"refreshed": 1, "claimed": 0, "notified": 0, "self_claimed": 0}
     assert link.raw_snapshot["productOrder"]["totalPaymentAmount"] == 777000
     assert db_session.query(Notification).filter(
         Notification.notification_type == NOTIFICATION_TYPE).count() == 0

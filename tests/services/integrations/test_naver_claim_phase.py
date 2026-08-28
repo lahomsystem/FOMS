@@ -283,3 +283,89 @@ def test_claim_badge_classes_all_have_css_rules():
 
     assert used, "배지 클래스를 하나도 못 찾았다 — 정규식이 낡았다"
     assert not missing, f"CSS 규칙이 없는 배지 클래스: {missing}"
+
+
+# ── 교환 축 (R-2 · 2026-08-28) ───────────────────────────────────────────────
+#
+# 단계 축을 도입할 때 취소·반품만 봤다. `EXCHANGE_DONE` 도 `done` 이라, 교환이 끝난 주문에
+# **폐기(soft delete) 버튼이 열렸다.** 교환 완료는 고객이 대체품을 받는다는 뜻이고 ERP 주문은
+# 살아서 생산·배송을 기다린다 — `CANCEL_REJECT` 와 정확히 같은 부류다.
+# 실데이터는 두 환경 모두 0건이라(교환 문자열 자체가 없다) **테스트가 유일한 관문**이다.
+
+def test_exchange_done_is_not_a_ghost(app):
+    """교환 완료 주문은 유령이 아니다 — 대체품을 보내야 하는 살아 있는 주문이다."""
+    tel = "010-8100-0021"
+    order = _order(tel=tel)
+    _link(order_no="N-CPX-1", amount=500_000, claim="EXCHANGE_DONE",
+          order_id=int(order.id), tel=tel)
+
+    assert _ghost_row(int(order.id)) is None, "교환 완료가 폐기 목록에 들어왔다"
+
+
+def test_exchange_request_is_not_a_ghost_either(app):
+    """교환 **요청**도 마찬가지다 — 돈이 되돌아가는 축이 아니다."""
+    tel = "010-8100-0022"
+    order = _order(tel=tel)
+    _link(order_no="N-CPX-2", amount=500_000, claim="EXCHANGE_REQUEST",
+          order_id=int(order.id), tel=tel)
+
+    assert _ghost_row(int(order.id)) is None
+
+
+def test_discard_route_refuses_an_exchange(app, client, workbench_on):
+    """서버도 거절한다 — 목록 계산이 나중에 바뀌어도 조용히 열리지 않게."""
+    _login(client)
+    tel = "010-8100-0023"
+    order = _order(tel=tel)
+    order_id = int(order.id)
+    _link(order_no="N-CPX-3", amount=500_000, claim="EXCHANGE_DONE",
+          order_id=order_id, tel=tel)
+
+    response = client.post(f"/admin/naver-ingest/ghost/{order_id}/discard", json={})
+
+    assert response.status_code == 400, response.get_data(as_text=True)
+    db_session.expire_all()
+    assert not db_session.get(Order, order_id).deleted_at, "교환 완료 주문이 접혔다"
+
+
+def test_exchange_done_reads_as_alive_in_candidates(app):
+    """후보 표도 같다 — 교환 완료를 `전부 취소 완료` 라고 세면 담당자가 재결제로 오해한다."""
+    tel = "010-8100-0024"
+    order = _order(tel=tel)
+    _link(order_no="N-CPX-4", amount=500_000, claim="EXCHANGE_DONE",
+          order_id=int(order.id), tel=tel)
+    new_link = _link(order_no="N-CPX-4-NEW", amount=80_000, tel=tel)
+
+    row = find_order_candidates(db_session, new_link)[0]
+
+    assert row["naver_claim_code"] == "alive"
+    assert row["naver_alive_count"] == 1
+    assert row["naver_canceled_count"] == 0
+
+
+def test_cancel_and_return_are_still_ghosts(app):
+    """**음성 대조군** — 교환을 빼면서 취소·반품까지 빠지면 유령 화면이 통째로 죽는다."""
+    for index, status in enumerate(("CANCEL_DONE", "RETURN_DONE")):
+        tel = f"010-8100-003{index}"
+        order = _order(tel=tel)
+        _link(order_no=f"N-CPX-5{index}", amount=500_000, claim=status,
+              order_id=int(order.id), tel=tel)
+
+        assert _ghost_row(int(order.id)) is not None, f"{status} 가 유령 목록에서 사라졌다"
+
+
+def test_collect_done_ghost_says_return_not_cancel(app):
+    """수거 단계 반품을 **취소**라 부르지 않는다 (R-1).
+
+    종류 판정이 `label.startswith("RETURN")` 이라 `COLLECTING`·`COLLECT_DONE` 이
+    취소로 떨어졌다 — 정답 축은 `claimType`(없으면 상태 이름)이다.
+    """
+    tel = "010-8100-0041"
+    order = _order(tel=tel)
+    _link(order_no="N-CPX-6", amount=500_000, claim="COLLECT_DONE",
+          order_id=int(order.id), tel=tel)
+
+    row = _ghost_row(int(order.id))
+
+    assert row is not None
+    assert row["claim_kind"] == "반품", "수거 중인 반품을 취소라고 불렀다"

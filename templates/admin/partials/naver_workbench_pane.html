@@ -166,21 +166,40 @@
            **없는 값은 줄 자체를 내지 않는다**(빈 칸·`-` 로 채우면 화면이 거짓말한다). #}
         {# `known` 으로 열면 **회수지만 온 건**에서 라벨만 있고 안이 빈 줄이 뜬다.
            진행 줄은 진행 사실이 하나라도 있을 때만 낸다 — 회수지는 아래 자기 줄이 맡는다. #}
+        {# 2026-08-28 (R-5·R-6): 이 줄 제목이 **고정 문자열 `반품 진행`** 이었다. 그래서
+           끝난 반품 25건(운영, 예외 0)이 `반품 진행 · 환불 예정 · 환불 대기 환불처리완료`
+           라고 떴다 — 틀린 말 넷(제목·자기모순·미래형·영문 상수). 제목은 이제 축이 주는
+           단계·종류를 따른다(`mapping.extract_return_axis`). 종류가 붙으면서 교환 건이
+           "반품"이라는 이름을 빌려 쓰던 누출(R-6)도 같이 닫힌다. #}
         {% set ra = selected.return_axis %}
-        {% if ra.collect_completed_at or ra.collect_method or ra.refund_expected_at or ra.refund_standby_status %}
+        {% if ra.collect_completed_at or ra.collect_method or ra.return_completed_at
+              or ra.refund_expected_pending or ra.refund_standby_status %}
         <div class="wb-return small" data-foms-no-autodismiss>
-            <span class="wb-return__k">반품 진행</span>
+            <span class="wb-return__k">{{ ra.progress_title }}</span>
             <span class="wb-return__v">
                 {% if ra.collect_completed_at %}
                 <span class="wb-return__i">수거 완료 {{ ra.collect_completed_at }}</span>
                 {% endif %}
                 {% if ra.collect_method %}
-                <span class="wb-return__i">회수 방법 {{ ra.collect_method }}</span>
+                <span class="wb-return__i">회수 방법 {{ ra.collect_method_label }}</span>
                 {% endif %}
-                {% if ra.refund_expected_at %}
+                {% if ra.return_completed_at %}
+                <span class="wb-return__i">{{ ra.kind_label }} 완료일 {{ ra.return_completed_at }}</span>
+                {% endif %}
+                {# 끝난 건에는 안 낸다 — 환불이 이미 나갔는데 "예정"이라 적으면 미래형 거짓말이다.
+                   값 자체는 축에 그대로 남아 있다(지운 것이 아니라 안 그리는 것이다). #}
+                {% if ra.refund_expected_pending %}
                 <span class="wb-return__i">환불 예정 {{ ra.refund_expected_at }}</span>
                 {% endif %}
-                {% if ra.refund_standby_status %}
+                {# 라벨 "대기" + 값 "완료" 자기모순 자리. 아는 완료값일 때만 `환불 완료` 라
+                   말하고, 모르는 값은 예전대로 원문을 그대로 보여준다(숨기지 않는다).
+                   **보류 사유는 완료 건에서 안 낸다** — 2026-08-28 스테이징 실화면 8건이
+                   전부 `환불 완료 — 반품 진행중건 존재` 로 떴다. 보류가 끝난 뒤의 보류
+                   사유는 낡은 값이고, 끝난 건 옆에서 "진행중"이라 말해 같은 자기모순을
+                   다시 만든다. 사유는 **대기 중일 때** 답이 되는 값이다. #}
+                {% if ra.refund_done %}
+                <span class="wb-return__i">환불 완료</span>
+                {% elif ra.refund_standby_status %}
                 <span class="wb-return__i">환불 대기 {{ ra.refund_standby_status }}{% if ra.refund_standby_reason %} — {{ ra.refund_standby_reason }}{% endif %}</span>
                 {% endif %}
             </span>

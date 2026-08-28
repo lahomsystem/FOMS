@@ -93,7 +93,7 @@ def test_our_own_cancel_does_not_page_anyone(app):
 
     assert stats["claimed"] == 1, "사실은 그대로 센다"
     assert stats["notified"] == 0, "우리가 누른 일이 경보로 돌아왔다"
-    assert stats["self_canceled"] == 1, "억제도 세어야 나중에 확인할 수 있다"
+    assert stats["self_claimed"] == 1, "억제도 세어야 나중에 확인할 수 있다"
     assert _notifications() == []
 
 
@@ -109,7 +109,7 @@ def test_a_real_customer_cancel_still_pages(app):
 
     assert stats["claimed"] == 1
     assert stats["notified"] >= 1, "고객 취소를 안 알리면 생산이 그대로 나간다"
-    assert stats["self_canceled"] == 0
+    assert stats["self_claimed"] == 0
     assert _notifications(), "알림 row 가 없다"
 
 

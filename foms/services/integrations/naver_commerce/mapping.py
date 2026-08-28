@@ -402,6 +402,44 @@ CLAIM_PHASES = {
 }
 
 
+#: 상태 이름 앞머리 → 클레임 종류. ``claimType`` 이 없을 때만 쓰는 폴백이다.
+#: ``COLLECTING``·``COLLECT_DONE`` 은 ``RETURN`` 으로 시작하지 않는다 — 접두어만 보면
+#: 수거 단계 반품이 종류 미상으로 떨어진다(그 실수가 유령 목록에 아직 남아 있다).
+_CLAIM_KIND_PREFIXES = (
+    ("CANCEL", "CANCEL"),
+    ("RETURN", "RETURN"),
+    ("COLLECT", "RETURN"),
+    ("EXCHANGE", "EXCHANGE"),
+)
+
+
+def claim_kind(claim: dict) -> str:
+    """이 클레임이 **취소인가 반품인가 교환인가**.
+
+    정답 축은 ``claimType`` 이다. 없을 때만 상태 이름으로 되짚는다 — 접두어 판정을
+    **먼저** 쓰면 ``COLLECTING``/``COLLECT_DONE`` 이 종류 미상이 된다.
+
+    쓰는 곳: 자기 접수 알림 억제(:mod:`claim_watch`)가 "우리가 낸 것과 같은 종류의
+    클레임인가"를 물을 때. 종류를 안 보면 표식 하나가 모든 클레임을 덮어, 반품을 한 번
+    접수한 링크는 그 뒤 진짜 고객 취소가 나도 영영 조용해진다.
+
+    Args:
+        claim: :func:`extract_claim` 결과.
+
+    Returns:
+        ``"CANCEL"``·``"RETURN"``·``"EXCHANGE"`` 중 하나. 모르면 빈 문자열
+        (**모르는 것을 아는 종류로 우기지 않는다** — 억제는 빈 문자열에서 열리지 않는다).
+    """
+    kind = (claim.get("type") or "").strip().upper()
+    if kind in ("CANCEL", "RETURN", "EXCHANGE"):
+        return kind
+    status = (claim.get("status") or "").strip().upper()
+    for prefix, resolved in _CLAIM_KIND_PREFIXES:
+        if status.startswith(prefix):
+            return resolved
+    return ""
+
+
 def extract_claim(detail: dict) -> dict:
     """취소·반품·교환(클레임) 상태를 뽑는다.
 
@@ -512,8 +550,55 @@ def extract_claim_holdback(detail: Any) -> dict:
     }
 
 
+#: 사람이 읽는 **회수 방법** 라벨. 모르는 값은 원문 그대로(다른 라벨 맵과 같은 규율).
+#:
+#: 실질적으로 값은 ``RETURN_INDIVIDUAL`` 하나다 — 우리가 내보내는 반품 접수는
+#: :data:`fulfillment.RETURN_COLLECT_METHOD` 로 그 값에 고정돼 있고(다른 코드를 보내면
+#: 네이버가 값을 무시하고 자동 수거를 보낸다), 운영 반품 25건도 전부 이 값이다.
+#: 그런데 라벨 맵이 없어서 **화면에 영문 상수가 그대로 떴다**(R-5 ④, 2026-08-28).
+#: ``CLAIM_STATUS_LABELS`` 가 배지에서 고친 것과 같은 결함이다.
+COLLECT_METHOD_LABELS = {
+    "RETURN_INDIVIDUAL": "자사 회수",
+}
+
+#: 클레임 **종류** 의 사람 말. 화면이 "취소"와 "반품"과 "교환"을 뭉치면 담당자가 다른
+#: 사실을 같은 낱말로 읽는다.
+#:
+#: 반품 축 줄 제목에도 이것을 쓴다. :data:`RETURN_BLOCK_KEYS` 가 ``exchange`` 를 싣는 것은
+#: 옳지만(수거는 반품·교환 양쪽에서 온다) 줄 제목이 고정 문자열 `반품 진행` 이라 교환 건의
+#: 수거 값이 "반품"이라는 이름으로 떴다 — ``cancel`` 을 뺀 이유(취소 50건이 "반품 진행"으로
+#: 뜬 사고)와 같은 형태의 누출이 교환 방향으로 남아 있었다(R-6, 2026-08-28).
+CLAIM_KIND_LABELS = {
+    "CANCEL": "취소",
+    "RETURN": "반품",
+    "EXCHANGE": "교환",
+}
+
+#: **돈이 되돌아가는** 클레임 종류. 교환은 아니다 — 고객이 대체품을 받고 우리 주문은
+#: 살아서 생산·배송을 기다린다.
+#:
+#: 이 구분이 없어서 ``EXCHANGE_DONE`` 이 `done` 단계라는 이유만으로 유령(폐기 대상) 목록에
+#: 들어갔고, 살아 있는 주문에 **폐기 버튼이 열렸다**(R-2, 2026-08-28). ``CANCEL_REJECT`` 를
+#: 뺀 것과 같은 판단이다 — 주문이 살아 있으면 유령이 아니다.
+MONEY_BACK_CLAIM_KINDS = frozenset({"CANCEL", "RETURN"})
+
+#: 반품 축 줄 제목의 **단계** 부분. 여기 없는 단계(요청·처리중·모름)는 `진행` 이다 —
+#: 모르는 상태를 완료라고 말하지 않는 쪽으로 틀린다.
+RETURN_AXIS_PHASE_WORDS = {
+    CLAIM_PHASE_DONE: "완료",
+    CLAIM_PHASE_REJECTED: "거부",
+}
+
+#: ``refundStandbyStatus`` 중 **환불이 끝났다**고 읽어도 되는 값.
+#:
+#: 운영 반품 25건이 전부 `환불처리완료` 단일값인데 화면이 `환불 대기 환불처리완료` 라고
+#: 적어 왔다 — 라벨은 "대기", 값은 "완료"인 자기모순이다(R-5 ②). 단계로 분기해 고치되
+#: **아는 값일 때만** 완료라 말한다(``CONFIRMED_PLACE_STATUSES`` 와 같은 규율).
+REFUND_DONE_STANDBY_STATUSES = frozenset({"환불처리완료"})
+
+
 def extract_return_axis(detail: Any) -> dict:
-    """반품 **진행** 축(수거·환불)을 뽑는다 — T8-S0.
+    """반품 **진행** 축(수거·환불·단계)을 뽑는다 — T8-S0.
 
     클레임 배지는 "반품 요청"까지만 말한다. 그 다음에 사람이 실제로 묻는 것은
     **언제 회수됐나 · 어디로 가야 하나 · 환불이 언제 나가나** 셋이다. 세 답은
@@ -528,13 +613,23 @@ def extract_return_axis(detail: Any) -> dict:
     아니었다**. 시공 제품이라 시공 전에는 물건이 고객 집에 갈 수 없고, 우리 반품은
     주문(금액)만 움직인다. 이 축은 배차 근거가 아니라 **네이버가 준 값의 반영**이다.
 
+    2026-08-28 (R-5): 이 축이 ``claimStatus`` 를 **한 번도 읽지 않았다.** 그래서 화면은
+    사실의 존재 여부로 단계를 암시할 수밖에 없었고, 끝난 반품 25건(운영, 예외 0)이
+    ``반품 진행 … 환불 예정 … 환불 대기 환불처리완료`` 라는 **틀린 말 네 개**를 달고 떴다.
+    단계(:data:`CLAIM_PHASES`)와 완료 시각(``returnCompletedDate`` — 읽는 코드가
+    저장소에 0곳이었다)을 함께 싣는다. 단계는 :func:`extract_claim` 과 **같은 입력·같은
+    함수**에서 오므로 배지와 본문이 다른 말을 할 수 없다.
+
     Args:
         detail: 상품주문 상세 1건(dict 가 아니면 전부 빈 값으로 준다).
 
     Returns:
-        ``{"collect_method", "collect_completed_at", "refund_expected_at",
-        "refund_standby_status", "refund_standby_reason", "collect_address", "known"}``.
+        ``{"collect_method", "collect_method_label", "collect_completed_at",
+        "return_completed_at", "refund_expected_at", "refund_expected_pending",
+        "refund_standby_status", "refund_standby_reason", "refund_done",
+        "collect_address", "phase", "kind_label", "progress_title", "known"}``.
         시각은 **원문 문자열 그대로** 준다(사람이 읽는 형식 변환은 화면 몫).
+        원문 값은 라벨을 붙여도 **지우지 않는다** — 판정은 원문으로 한다.
         ``known`` 이 False 면 화면은 줄 자체를 내지 않는다 — 빈 칸이나 ``-`` 로 채우면
         "값이 없다"와 "우리가 모른다"가 같은 모양이 된다.
     """
@@ -552,16 +647,32 @@ def extract_return_axis(detail: Any) -> dict:
         "address": build_address(raw_address),
         "zip_code": _text(raw_address.get("zipCode")),
     }
+    claim = extract_claim(detail)
+    phase = claim["phase"]
+    # 종류 판정은 :func:`claim_kind` 한 곳에만 둔다(``claimType`` 우선, 없으면 상태 이름).
+    kind = CLAIM_KIND_LABELS.get(claim_kind(claim), "반품")
+    collect_method = _first_text(blocks, "collectDeliveryMethod")
+    standby_status = _first_text(blocks, "refundStandbyStatus")
     axis = {
-        "collect_method": _first_text(blocks, "collectDeliveryMethod"),
+        "collect_method": collect_method,
+        "collect_method_label": COLLECT_METHOD_LABELS.get(collect_method.upper(), collect_method),
         "collect_completed_at": _first_text(blocks, "collectCompletedDate"),
+        # 끝났음을 말할 수 있는 유일한 값. 운영 25건 전부 갖고 있는데 소비처가 0곳이었다.
+        "return_completed_at": _first_text(blocks, "returnCompletedDate"),
         "refund_expected_at": _first_text(blocks, "refundExpectedDate"),
-        "refund_standby_status": _first_text(blocks, "refundStandbyStatus"),
+        "refund_standby_status": standby_status,
         "refund_standby_reason": _first_text(blocks, "refundStandbyReason"),
+        # 환불이 끝났다고 **말해도 되는가**. 모르는 값은 완료로 읽지 않는다.
+        "refund_done": standby_status in REFUND_DONE_STANDBY_STATUSES,
         "collect_address": address,
+        "phase": phase,
+        "kind_label": kind,
+        "progress_title": f"{kind} {RETURN_AXIS_PHASE_WORDS.get(phase, '진행')}",
     }
+    # 끝난 뒤의 "환불 예정"은 미래형 거짓말이다 — 값은 남기고 **화면이 안 낼 근거**만 준다.
+    axis["refund_expected_pending"] = bool(axis["refund_expected_at"]) and phase != CLAIM_PHASE_DONE
     axis["known"] = any(axis[key] for key in (
-        "collect_method", "collect_completed_at", "refund_expected_at",
+        "collect_method", "collect_completed_at", "return_completed_at", "refund_expected_at",
         "refund_standby_status", "refund_standby_reason",
     )) or any(address.values())
     return axis
@@ -1167,7 +1278,13 @@ __all__ = [
     "CLAIM_PHASE_REJECTED",
     "CLAIM_PHASE_OTHER",
     "CLAIM_REASON_LABELS",
+    "COLLECT_METHOD_LABELS",
+    "CLAIM_KIND_LABELS",
+    "MONEY_BACK_CLAIM_KINDS",
+    "RETURN_AXIS_PHASE_WORDS",
+    "REFUND_DONE_STANDBY_STATUSES",
     "claim_reason_text",
+    "claim_kind",
     "build_payment_info",
     "extract_claim",
     "extract_claim_holdback",
