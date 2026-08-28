@@ -19,7 +19,7 @@
 {% block title %}네이버 수집{% endblock %}
 
 {% block styles %}
-<link rel="stylesheet" href="{{ url_for('static', filename='css/admin/naver-workbench.css') }}?v=20260828a">
+<link rel="stylesheet" href="{{ url_for('static', filename='css/admin/naver-workbench.css') }}?v=20260828b">
 {% endblock %}
 
 {% block content %}
@@ -586,7 +586,7 @@
                     <tr>
                         <th>수집 시각</th><th>고객</th><th>제품</th>
                         <th class="wb-cmp__num">수량</th><th class="wb-cmp__num">금액</th>
-                        <th>상태</th><th>FOMS 주문</th><th>원본</th>
+                        <th>상태</th><th>FOMS 주문</th><th>열기</th>
                     </tr>
                 </thead>
                 <tbody>
@@ -626,15 +626,11 @@
                             {% if row.order_id %}
                             <a href="{{ url_for('order_edit.edit_order', order_id=row.order_id, open='erp-order') }}"
                                target="_blank" rel="noopener">#{{ row.order_id }}</a>
-                            {% elif row.pending_link_id %}
-                            {# 절대 규칙 3: 여기에 **버튼을 두지 않는다**. 처리 탭의 그 집으로
-                               가는 평범한 링크만 둔다(누르면 그 집이 열릴 뿐, 아무것도 보내지 않는다).
-                               취소·반품이면 링크도 두지 않고 사유만 적는다. #}
-                            {% if row.claim_blocking %}
+                            {% elif row.pending_link_id and row.claim_blocking %}
+                            {# 주문이 왜 없는지만 적는다. 처리 탭으로 가는 링크는 이 칸이
+                               아니라 마지막 '열기' 칸에 **모든 행이 같은 자리로** 갖는다 —
+                               여기에만 두면 주문이 이미 생긴 집·취소 집에는 길이 없다. #}
                             <span class="small text-danger">취소·반품 진행 중 — 주문을 만들 수 없습니다.</span>
-                            {% else %}
-                            <a href="{{ url_for('admin.naver_ingest_triage', tab='work', link_id=row.pending_link_id) }}">처리 탭에서 열기</a>
-                            {% endif %}
                             {% endif %}
                         </td>
                         {# 큐에서 빠진 집의 **네이버 원본**을 그 자리에서 연다. 지금까지는
@@ -643,6 +639,7 @@
                            스냅샷에만 있다. 조각은 **읽기 전용**이라 여기에 처리 버튼이
                            생기지 않는다(절대 규칙 3 유지). #}
                         <td>
+                            <span class="wb-hist-links">
                             {# **평범한 링크**다(절대 규칙 3 의 허용 모양). 버튼도 `data-link-id`
                                도 두지 않는다 — 이력 행에 그 둘이 있으면 그 자리가 곧 과거 주문
                                전체에 대한 취소·발송 조작면이 된다. 누르면 읽기 전용 조각을
@@ -652,6 +649,20 @@
                                href="{{ url_for('admin.naver_ingest_triage_detail', link_id=row.id) }}"
                                data-detail-id="{{ row.id }}"
                                data-customer="{{ row.customer_name }}">원본 보기</a>
+                            {# 처리 탭의 그 집으로 가는 **평범한 링크** — 모든 행에 둔다.
+                               큐에서 뺀 집(확인 완료)·주문이 이미 생긴 집·취소 집은 처리
+                               목록에 없어서, 지금까지 발주확인·발송처리·취소 버튼에 닿는
+                               길이 ERP 편집기 도크(ADMIN·MANAGER)뿐이었다. 이력 탭은
+                               ADMIN 전용이라 도크 링크와 같은 통로 규제 안에 있다.
+                               여기서 나가는 것은 **주소 이동뿐**이다(GET, 아무것도 보내지
+                               않는다) — 절대 규칙 3 은 그대로다. 여는 집은 링크가 아니라
+                               집 단위로 정해진다(`_household_of_link` 가 주문번호로 되찾는다).
+                               미생성 링크가 있으면 그것을 가리킨다 — 그 집에서 다음에 할 일이
+                               '주문 만들기'이고, pane 대조표가 그 링크 기준으로 그려진다. #}
+                            <a class="wb-hist-open"
+                               href="{{ url_for('admin.naver_ingest_triage', tab='work',
+                                                link_id=row.pending_link_id or row.id) }}">처리 탭에서 열기</a>
+                            </span>
                         </td>
                     </tr>
                     {% else %}
@@ -703,5 +714,5 @@
 {% endblock %}
 
 {% block scripts %}
-<script src="{{ url_for('static', filename='js/admin/naver-workbench.js') }}?v=20260828a" defer></script>
+<script src="{{ url_for('static', filename='js/admin/naver-workbench.js') }}?v=20260828b" defer></script>
 {% endblock %}
