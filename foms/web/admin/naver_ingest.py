@@ -568,6 +568,9 @@ def _return_axis_view(link: ExternalOrderLink) -> dict[str, Any]:
     axis = dict(extract_return_axis(link.raw_snapshot or {}))
     axis["collect_completed_at"] = _dispatch_time_text(axis["collect_completed_at"])
     axis["refund_expected_at"] = _dispatch_time_text(axis["refund_expected_at"])
+    # 반품 완료 시각(R-5). 앞의 둘과 **같은 파서**를 쓴다 — 한 줄 안에서 시각 모양이
+    # 갈리면 눈이 두 값을 비교하지 못한다.
+    axis["return_completed_at"] = _dispatch_time_text(axis["return_completed_at"])
     return axis
 
 

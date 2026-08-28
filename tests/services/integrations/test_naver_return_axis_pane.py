@@ -176,3 +176,100 @@ def test_collect_zip_code_is_omitted_when_missing(app, client, workbench_on):
     body = _body(client)
     assert "경기 성남시 분당구 2 302동 1503호" in body   # 회수지 줄 자체는 뜬다
     assert "우편번호" not in body
+
+
+# ------------------------------- 끝난 반품이 화면에서 어떻게 말하는가 (R-5 · 2026-08-28)
+
+def _done_claim() -> dict:
+    """운영 `RETURN_DONE` 25건과 같은 모양(D-live-data 실측: 네 값 전건 보유)."""
+    return {
+        "claimStatus": "RETURN_DONE",
+        "claimType": "RETURN",
+        "collectCompletedDate": "2026-08-26T09:17:35.539+09:00",
+        "collectDeliveryMethod": "RETURN_INDIVIDUAL",
+        "returnCompletedDate": "2026-08-27T10:02:11.000+09:00",
+        "refundExpectedDate": "2026-09-04T00:00:00.000+09:00",
+        "refundStandbyStatus": "환불처리완료",
+    }
+
+
+def test_finished_return_says_it_is_finished(app, client, workbench_on):
+    """끝난 반품 줄이 `반품 완료` 로 뜨고 완료 시각을 낸다.
+
+    운영 25건이 지금까지 `반품 진행` 이라는 고정 문자열을 달고 있었다 — 예외 0건.
+    """
+    _login(client)
+    _link(claim=_done_claim())
+    body = _body(client)
+    assert "반품 완료" in body
+    assert "2026-08-27 10:02" in body         # returnCompletedDate — 소비처가 0곳이었다
+    assert "wb-return__k\">반품 진행" not in body
+
+
+def test_finished_return_drops_the_self_contradiction(app, client, workbench_on):
+    """`환불 대기 환불처리완료` 가 사라진다 — 라벨은 "대기", 값은 "완료"였다.
+
+    운영 25건 전부 `refundStandbyStatus` 가 `환불처리완료` 단일값이라 **예외 0건**이었다.
+    """
+    _login(client)
+    _link(claim=_done_claim())
+    body = _body(client)
+    assert "환불 대기" not in body
+    assert "환불 완료" in body
+
+
+def test_finished_return_hides_the_future_refund_date(app, client, workbench_on):
+    """이미 환불이 끝난 건에 `환불 예정` 미래형을 쓰지 않는다.
+
+    값 자체는 축에 그대로 남는다(지우지 않는다) — 화면이 안 낼 뿐이다.
+    """
+    _login(client)
+    _link(claim=_done_claim())
+    body = _body(client)
+    assert "환불 예정" not in body
+    assert "2026-09-04" not in body
+
+
+def test_collect_method_is_not_an_english_constant(app, client, workbench_on):
+    """회수 방법이 `RETURN_INDIVIDUAL` 영문 상수로 뜨지 않는다."""
+    _login(client)
+    _link(claim=_done_claim())
+    body = _body(client)
+    assert "회수 방법 자사 회수" in body
+    assert "RETURN_INDIVIDUAL" not in body
+
+
+def test_in_progress_return_still_says_in_progress(app, client, workbench_on):
+    """**음성 대조군** — 아직 안 끝난 반품은 `반품 진행` 그대로다.
+
+    이 짝이 없으면 "제목을 통째로 완료로 바꾸는" 오수정이 통과한다. `COLLECT_DONE` 은
+    수거가 끝난 것이지 반품이 확정된 게 아니다(네이버 #3106 — 자동 완료 처리 없음).
+    """
+    _login(client)
+    _link(claim={
+        "claimStatus": "COLLECT_DONE",
+        "claimType": "RETURN",
+        "collectCompletedDate": "2026-08-26T09:17:35.539+09:00",
+        "collectDeliveryMethod": "RETURN_INDIVIDUAL",
+        "refundExpectedDate": "2026-09-04T00:00:00.000+09:00",
+        "refundStandbyStatus": "WAIT",
+    })
+    body = _body(client)
+    assert "반품 진행" in body
+    assert "반품 완료" not in body
+    assert "환불 예정 2026-09-04" in body      # 아직 안 끝났으니 예정일은 유효한 사실이다
+    assert "환불 대기 WAIT" in body
+
+
+def test_exchange_values_do_not_borrow_the_return_name(app, client, workbench_on):
+    """R-6 — 교환 건의 수거 값이 `반품` 이라는 이름으로 뜨지 않는다."""
+    _login(client)
+    _link(block="exchange", claim={
+        "claimStatus": "EXCHANGE_DONE",
+        "claimType": "EXCHANGE",
+        "collectCompletedDate": "2026-08-26T09:17:35.539+09:00",
+    })
+    body = _body(client)
+    assert "교환 완료" in body
+    assert "반품 진행" not in body
+    assert "반품 완료" not in body
