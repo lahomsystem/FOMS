@@ -402,6 +402,44 @@ CLAIM_PHASES = {
 }
 
 
+#: 상태 이름 앞머리 → 클레임 종류. ``claimType`` 이 없을 때만 쓰는 폴백이다.
+#: ``COLLECTING``·``COLLECT_DONE`` 은 ``RETURN`` 으로 시작하지 않는다 — 접두어만 보면
+#: 수거 단계 반품이 종류 미상으로 떨어진다(그 실수가 유령 목록에 아직 남아 있다).
+_CLAIM_KIND_PREFIXES = (
+    ("CANCEL", "CANCEL"),
+    ("RETURN", "RETURN"),
+    ("COLLECT", "RETURN"),
+    ("EXCHANGE", "EXCHANGE"),
+)
+
+
+def claim_kind(claim: dict) -> str:
+    """이 클레임이 **취소인가 반품인가 교환인가**.
+
+    정답 축은 ``claimType`` 이다. 없을 때만 상태 이름으로 되짚는다 — 접두어 판정을
+    **먼저** 쓰면 ``COLLECTING``/``COLLECT_DONE`` 이 종류 미상이 된다.
+
+    쓰는 곳: 자기 접수 알림 억제(:mod:`claim_watch`)가 "우리가 낸 것과 같은 종류의
+    클레임인가"를 물을 때. 종류를 안 보면 표식 하나가 모든 클레임을 덮어, 반품을 한 번
+    접수한 링크는 그 뒤 진짜 고객 취소가 나도 영영 조용해진다.
+
+    Args:
+        claim: :func:`extract_claim` 결과.
+
+    Returns:
+        ``"CANCEL"``·``"RETURN"``·``"EXCHANGE"`` 중 하나. 모르면 빈 문자열
+        (**모르는 것을 아는 종류로 우기지 않는다** — 억제는 빈 문자열에서 열리지 않는다).
+    """
+    kind = (claim.get("type") or "").strip().upper()
+    if kind in ("CANCEL", "RETURN", "EXCHANGE"):
+        return kind
+    status = (claim.get("status") or "").strip().upper()
+    for prefix, resolved in _CLAIM_KIND_PREFIXES:
+        if status.startswith(prefix):
+            return resolved
+    return ""
+
+
 def extract_claim(detail: dict) -> dict:
     """취소·반품·교환(클레임) 상태를 뽑는다.
 
@@ -523,16 +561,26 @@ COLLECT_METHOD_LABELS = {
     "RETURN_INDIVIDUAL": "자사 회수",
 }
 
-#: 반품 축 줄 제목의 **종류** 부분. 판정 축은 ``claimType`` 이다.
+#: 클레임 **종류** 의 사람 말. 화면이 "취소"와 "반품"과 "교환"을 뭉치면 담당자가 다른
+#: 사실을 같은 낱말로 읽는다.
 #:
-#: :data:`RETURN_BLOCK_KEYS` 가 ``exchange`` 를 싣는 것은 옳다(수거는 반품·교환 양쪽에서
-#: 온다). 틀렸던 것은 **줄 제목이 고정 문자열 `반품 진행`** 이라 교환 건의 수거 값이
-#: "반품"이라는 이름으로 뜬 것이다 — ``cancel`` 을 뺀 이유(취소 50건이 "반품 진행"으로
+#: 반품 축 줄 제목에도 이것을 쓴다. :data:`RETURN_BLOCK_KEYS` 가 ``exchange`` 를 싣는 것은
+#: 옳지만(수거는 반품·교환 양쪽에서 온다) 줄 제목이 고정 문자열 `반품 진행` 이라 교환 건의
+#: 수거 값이 "반품"이라는 이름으로 떴다 — ``cancel`` 을 뺀 이유(취소 50건이 "반품 진행"으로
 #: 뜬 사고)와 같은 형태의 누출이 교환 방향으로 남아 있었다(R-6, 2026-08-28).
-RETURN_AXIS_KIND_LABELS = {
-    "EXCHANGE": "교환",
+CLAIM_KIND_LABELS = {
+    "CANCEL": "취소",
     "RETURN": "반품",
+    "EXCHANGE": "교환",
 }
+
+#: **돈이 되돌아가는** 클레임 종류. 교환은 아니다 — 고객이 대체품을 받고 우리 주문은
+#: 살아서 생산·배송을 기다린다.
+#:
+#: 이 구분이 없어서 ``EXCHANGE_DONE`` 이 `done` 단계라는 이유만으로 유령(폐기 대상) 목록에
+#: 들어갔고, 살아 있는 주문에 **폐기 버튼이 열렸다**(R-2, 2026-08-28). ``CANCEL_REJECT`` 를
+#: 뺀 것과 같은 판단이다 — 주문이 살아 있으면 유령이 아니다.
+MONEY_BACK_CLAIM_KINDS = frozenset({"CANCEL", "RETURN"})
 
 #: 반품 축 줄 제목의 **단계** 부분. 여기 없는 단계(요청·처리중·모름)는 `진행` 이다 —
 #: 모르는 상태를 완료라고 말하지 않는 쪽으로 틀린다.
@@ -601,7 +649,8 @@ def extract_return_axis(detail: Any) -> dict:
     }
     claim = extract_claim(detail)
     phase = claim["phase"]
-    kind = RETURN_AXIS_KIND_LABELS.get(claim["type"].upper(), "반품")
+    # 종류 판정은 :func:`claim_kind` 한 곳에만 둔다(``claimType`` 우선, 없으면 상태 이름).
+    kind = CLAIM_KIND_LABELS.get(claim_kind(claim), "반품")
     collect_method = _first_text(blocks, "collectDeliveryMethod")
     standby_status = _first_text(blocks, "refundStandbyStatus")
     axis = {
@@ -1230,10 +1279,12 @@ __all__ = [
     "CLAIM_PHASE_OTHER",
     "CLAIM_REASON_LABELS",
     "COLLECT_METHOD_LABELS",
-    "RETURN_AXIS_KIND_LABELS",
+    "CLAIM_KIND_LABELS",
+    "MONEY_BACK_CLAIM_KINDS",
     "RETURN_AXIS_PHASE_WORDS",
     "REFUND_DONE_STANDBY_STATUSES",
     "claim_reason_text",
+    "claim_kind",
     "build_payment_info",
     "extract_claim",
     "extract_claim_holdback",

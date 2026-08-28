@@ -43,19 +43,28 @@ import logging
 from typing import Any, Optional
 
 from foms.services.integrations.naver_commerce.mapping import (
+    CLAIM_KIND_LABELS,
     CLAIM_PHASE_DONE,
     CLAIM_PHASE_PROGRESS,
     CLAIM_PHASE_REQUESTED,
+    MONEY_BACK_CLAIM_KINDS,
+    claim_kind,
     extract_claim,
 )
 from models import ExternalOrderLink, Order
 
 logger = logging.getLogger(__name__)
 
-__all__ = ["find_ghost_orders", "GHOST_LIST_LIMIT", "DISCARDABLE_STATUSES"]
+__all__ = ["find_ghost_orders", "GHOST_LIST_LIMIT", "DISCARDABLE_STATUSES",
+           "GHOST_CLAIM_KINDS"]
 
 #: 유령 모집단에 넣는 단계. ``rejected``(거부·철회)는 주문이 살아 있다는 뜻이라 뺀다.
 GHOST_CLAIM_PHASES = (CLAIM_PHASE_DONE, CLAIM_PHASE_REQUESTED, CLAIM_PHASE_PROGRESS)
+
+#: 유령 모집단에 넣는 **종류**. 단계만 보면 ``EXCHANGE_DONE`` 이 확정 취소와 같은 칸에
+#: 들어가 살아 있는 주문에 폐기 버튼이 열린다(R-2, 2026-08-28). 이 모듈 docstring 이
+#: 모집단을 "취소·반품"이라 적어 놓고 코드는 종류를 안 본 자리다.
+GHOST_CLAIM_KINDS = MONEY_BACK_CLAIM_KINDS
 
 #: 띠에서 펼쳐 보여줄 최대 건수. 더 많으면 사람이 못 훑는다(수는 배지가 말한다).
 GHOST_LIST_LIMIT = 20
@@ -66,8 +75,8 @@ GHOST_LIST_LIMIT = 20
 DISCARDABLE_STATUSES = ("RECEIVED",)
 
 
-def _claim_of(snapshot: Any) -> tuple[str, str]:
-    """상품주문 스냅샷의 클레임 **상태와 단계**.
+def _claim_of(snapshot: Any) -> tuple[str, str, str]:
+    """상품주문 스냅샷의 클레임 **상태·단계·종류**.
 
     판정 규칙은 :func:`mapping.extract_claim` 한 곳에만 둔다 — 예전에는 이 파일이
     "비어 있지 않은가"를 따로 판정해 SSOT 밖에 술어가 한 벌 더 있었다(2026-08-28).
@@ -76,17 +85,19 @@ def _claim_of(snapshot: Any) -> tuple[str, str]:
         snapshot: ``ExternalOrderLink.raw_snapshot``.
 
     Returns:
-        ``(상태 원문, 단계)``. 클레임이 없으면 ``("", "")``. 모르는 상태면 단계가 빈
+        ``(상태 원문, 단계, 종류)``. 클레임이 없으면 전부 빈 문자열. 모르는 상태면 단계가 빈
         문자열이고, **빈 단계는 ``done`` 이 아니다**(모르면 폐기 버튼을 열지 않는다).
+        종류도 같은 규율이다 — 모르는 종류는 모집단에 넣지 않는다.
     """
     if not isinstance(snapshot, dict) or not snapshot:
-        return "", ""
+        return "", "", ""
     try:
         claim = extract_claim(snapshot)
     except (ValueError, TypeError, AttributeError) as exc:  # 목록 보조라 흐름을 막지 않는다
         logger.warning("[NAVER] 유령 판정 클레임 추출 실패: %s", exc)
-        return "", ""
-    return str(claim.get("status") or "").strip(), str(claim.get("phase") or "")
+        return "", "", ""
+    return (str(claim.get("status") or "").strip(), str(claim.get("phase") or ""),
+            claim_kind(claim))
 
 
 def find_ghost_orders(session, *, limit: int = GHOST_LIST_LIMIT) -> dict[str, Any]:
@@ -110,14 +121,15 @@ def find_ghost_orders(session, *, limit: int = GHOST_LIST_LIMIT) -> dict[str, An
     for order_id, snapshot, order_no in rows:
         bucket = buckets.setdefault(int(order_id), {
             "link_count": 0, "canceled": 0, "amount_total": 0,
-            "order_nos": [], "claim_labels": set(), "phases": set(),
+            "order_nos": [], "claim_labels": set(), "phases": set(), "kinds": set(),
         })
         bucket["link_count"] += 1
-        claim, phase = _claim_of(snapshot)
-        if phase in GHOST_CLAIM_PHASES:
+        claim, phase, kind = _claim_of(snapshot)
+        if phase in GHOST_CLAIM_PHASES and kind in GHOST_CLAIM_KINDS:
             bucket["canceled"] += 1
             bucket["claim_labels"].add(claim)
             bucket["phases"].add(phase)
+            bucket["kinds"].add(kind)
         product_order = snapshot.get("productOrder") if isinstance(snapshot, dict) else None
         if isinstance(product_order, dict):
             amount = product_order.get("totalPaymentAmount")
@@ -145,9 +157,11 @@ def find_ghost_orders(session, *, limit: int = GHOST_LIST_LIMIT) -> dict[str, An
     for order in orders:
         bucket = buckets[int(order.id)]
         status = str(order.status or "")
-        # 반품(RETURN_*)과 취소(CANCEL_*)를 한 낱말로 뭉치지 않는다 — 사람이 보는 사실이 다르다.
-        kind = "반품" if any(label.startswith("RETURN")
-                             for label in bucket["claim_labels"]) else "취소"
+        # 반품과 취소를 한 낱말로 뭉치지 않는다 — 사람이 보는 사실이 다르다.
+        # 판정 축은 ``claimType``(:func:`mapping.claim_kind`)이다. 예전에는 상태 이름
+        # 접두어를 봐서 ``COLLECTING``·``COLLECT_DONE`` 이 **취소**로 떨어졌다(R-1).
+        kind = CLAIM_KIND_LABELS.get(
+            "RETURN" if "RETURN" in bucket["kinds"] else "CANCEL", "취소")
         phases = bucket["phases"]
         if phases == {CLAIM_PHASE_DONE}:
             claim_phase, claim_text = "done", f"{kind} 완료"
