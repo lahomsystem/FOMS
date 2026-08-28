@@ -295,6 +295,45 @@ def _build_rounds(
     return out
 
 
+def _assign_display_numbers(
+    cycle_groups: list[dict[str, Any]], unassigned_rounds: list[dict[str, Any]],
+) -> None:
+    """회차 dict 에 **표시 전용** 통합 번호(``display_no``)를 붙인다(제자리 변경).
+
+    사용자는 화면의 ``N차`` 를 "이 주문의 몇 번째 AS 처리인가"로 읽는다. 그런데 스탬프
+    번호(``as_log[].round`` = ``current_as_round``)는 **한 건 안의 판정 회차**라, 재접수로
+    새 건이 열려도 미결 판정이 없으면 그대로 1이다 — 지난 건도 1차, 새 건도 1차로 보인다
+    (production #4434 실사례: ``current_cycle_ordinal == 2`` 인데 배지는 ``1차``).
+    건 순번과 판정 회차가 같은 단어(``차``)를 쓰는 게 원인이다.
+
+    그래서 **스탬프는 그대로 두고**(``data-round`` 계약·서버 규약 불변) 표시용 번호만
+    오래된 건 → 그 건 안의 오래된 회차 순으로 1부터 다시 매긴다. 종결 건 회차에는
+    ``closed_cycle`` 을 세워 템플릿이 ``· 종결`` 을 붙일 수 있게 한다.
+
+    Args:
+        cycle_groups: ``[현재 건, 종결 건 최신순]`` — 각 그룹의 ``rounds`` 는 최신 회차 먼저.
+        unassigned_rounds: 건 표식이 없는 옛 기록 회차. 어느 건인지 모르므로 **번호를
+            주지 않고** ``unassigned`` 를 세운다 — 여기에 번호를 붙이면 통합 순번과 나란히
+            또 다른 "1차"가 떠서 방금 고친 혼동이 되살아난다(템플릿이 '옛 기록'으로 낸다).
+    """
+    counter = 0
+    # 오래된 건부터(= groups 역순), 건 안에서는 오래된 회차부터(= rounds 역순).
+    for group in reversed(cycle_groups):
+        closed = not group.get("is_current")
+        rounds = group.get("rounds") or []
+        for r in reversed(rounds):
+            counter += 1
+            r["display_no"] = counter
+            r["closed_cycle"] = closed
+        if not rounds:
+            # 기록이 한 줄도 없는 건도 번호 한 칸을 먹는다 — 안 그러면 "접수만 하고 아직
+            # 아무것도 안 쓴 건" 뒤에 열린 재접수가 다시 1차로 보인다(사용자 신고 그대로).
+            counter += 1
+    for r in unassigned_rounds:
+        r["closed_cycle"] = False
+        r["unassigned"] = True
+
+
 def _build_cycle_groups(
     sd: dict,
     *,
@@ -335,7 +374,24 @@ def _build_cycle_groups(
             "summary": summary, "is_current": False,
             "rounds": _rounds(str(summary.get("cycle_id") or ""), False),
         })
-    return groups, groups[0]["rounds"], _rounds("", False)
+    unassigned = _rounds("", False)
+    # 표시 전용 통합 번호는 그룹이 다 모인 뒤에 매긴다. rounds 객체는 groups[0]["rounds"]
+    # 와 **같은 객체**라 제자리 변경이면 최상위 rounds 에도 그대로 보인다.
+    _assign_display_numbers(groups, unassigned)
+    return groups, groups[0]["rounds"], unassigned
+
+
+def _current_display_round(rounds: list[dict[str, Any]], fallback: int) -> int:
+    """헤드/입력창이 쓸 **표시용 현재 회차**. 진행 중 회차의 ``display_no`` 가 정답이다.
+
+    진행 회차가 없으면(=현재 건이 완결) 마지막으로 매긴 번호, 재번호 자체가 없는
+    개편 전 주문이면 스탬프 값(``fallback`` = ``current_as_round``)을 그대로 쓴다.
+    """
+    open_round = next((r for r in rounds if r.get("open") and r.get("display_no")), None)
+    if open_round is not None:
+        return int(open_round["display_no"])
+    numbers = [r["display_no"] for r in rounds if r.get("display_no")]
+    return max(numbers) if numbers else fallback
 
 
 def build_as_round_chart_view(
@@ -355,8 +411,12 @@ def build_as_round_chart_view(
 
     Returns:
         ``{state_card, symptom_preview, rounds(최신 회차 먼저), cycle_groups,
-        unassigned_rounds, reception, legacy, current_round, verdict_prompt, count}``.
+        unassigned_rounds, reception, legacy, current_round, current_display_round,
+        verdict_prompt, count}``.
         rounds 항목은 ``{no, open, verdict, summary, visit_md, slots, entries}``.
+        건(cycle)에 속한 회차에는 표시 전용 ``display_no``·``closed_cycle`` 이 더 붙는다
+        (``_assign_display_numbers``). ``current_round``/``no`` 는 스탬프 그대로다 —
+        ``data-round``·``data-current-round`` 계약이 이 값을 읽는다.
 
         ``cycle_groups`` = ``[{summary, is_current, rounds}]`` — 현재 건이 맨 앞,
         그다음 종결 건 최신순. ``rounds`` 는 **현재 건 그룹의 rounds** 와 같은 객체다
@@ -472,6 +532,8 @@ def build_as_round_chart_view(
         "reception": reception,
         "legacy": legacy,
         "current_round": current,
+        # 화면 표기용 회차 — 스탬프(current_round)와 달리 건을 넘어 이어서 센다.
+        "current_display_round": _current_display_round(rounds, current),
         "verdict_prompt": verdict_prompt,
         "count": human_count + (1 if reception else 0) + len(legacy),
     }
