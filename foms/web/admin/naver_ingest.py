@@ -29,6 +29,10 @@ from db import get_db
 from foms.services.datetime_kst import format_datetime_kst, now_utc_naive
 from foms.services.integrations.naver_commerce.constants import SELLER_CENTER_URL
 from foms.services.integrations.naver_commerce.fulfillment import CLOSE_NOW_RELATIONS
+from foms.services.integrations.naver_commerce.mapping import (
+    CLAIM_BLOCK_KEYS,
+    RETURN_BLOCK_KEYS,
+)
 from foms.services.integrations.naver_commerce.order_candidates import find_order_candidates
 from foms.services.integrations.naver_commerce.promotion import (
     is_promotable,
@@ -751,6 +755,23 @@ _THIN_COLUMNS = (
 )
 
 
+#: 얇은 스냅샷이 **남기는** 최상위 키. 판정(:mod:`mapping`)이 읽는 것 전부다.
+#:
+#: 2026-08-28 (R-7): 여기에 `return`·`returnInfo`·`exchange`·`delivery` 가 **없었다.**
+#: :func:`mapping._claim_blocks` 가 바로 그 이름들을 읽으므로, 입력을 얇게 한 것이 곧 술어를
+#: 바꾼 것이었다 — `claimStatus` 가 top-level `return` 에만 실려 오는 반품에서 얇은 경로는
+#: "클레임 없음", 두꺼운 경로는 "반품"으로 갈린다(배지 수 ≠ 목록. 이 저장소가 두 번 겪었다).
+#: 목록은 :data:`mapping.CLAIM_BLOCK_KEYS`·:data:`mapping.RETURN_BLOCK_KEYS` 에서 만든다 —
+#: 손으로 적으면 블록 이름이 늘 때 또 갈린다(계약 테스트가 이 파생을 잠근다).
+SNAPSHOT_PROJECTION_BLOCK_KEYS = tuple(dict.fromkeys(
+    tuple(CLAIM_BLOCK_KEYS) + tuple(RETURN_BLOCK_KEYS) + ("currentClaim",)))
+
+#: 투영이 남기는 최상위 키 전체(블록 + 판정이 읽는 나머지).
+#: ``delivery`` 는 :func:`mapping.extract_delivery` 가 읽고 `is_return_pending` 이 그것을 본다 —
+#: 없으면 얇은 경로의 반품 대기 건수가 **항상 0** 이다.
+SNAPSHOT_PROJECTION_KEYS = ("order", "productOrder", "delivery") + SNAPSHOT_PROJECTION_BLOCK_KEYS
+
+
 def _snapshot_projection(db):
     """판정에 필요한 경로만 담은 **축소 스냅샷 문서**를 만드는 SQL 식.
 
@@ -793,8 +814,10 @@ def _snapshot_projection(db):
                                        raw["claimType"]),
             "placeOrderStatus", func.coalesce(raw["productOrder"]["placeOrderStatus"],
                                               raw["placeOrderStatus"])),
-        "cancel", raw["cancel"],
-        "currentClaim", raw["currentClaim"],
+        # 발송 사실(`extract_delivery`)과 클레임 상세 블록. 이것을 빼면 얇은 경로만
+        # 다른 답을 낸다 — 목록은 mapping 에서 파생해 손으로 적지 않는다(R-7).
+        "delivery", raw["delivery"],
+        *[arg for key in SNAPSHOT_PROJECTION_BLOCK_KEYS for arg in (key, raw[key])],
     )
 
 
