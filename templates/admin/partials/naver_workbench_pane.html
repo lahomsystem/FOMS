@@ -192,9 +192,13 @@
                 <span class="wb-return__i">환불 예정 {{ ra.refund_expected_at }}</span>
                 {% endif %}
                 {# 라벨 "대기" + 값 "완료" 자기모순 자리. 아는 완료값일 때만 `환불 완료` 라
-                   말하고, 모르는 값은 예전대로 원문을 그대로 보여준다(숨기지 않는다). #}
+                   말하고, 모르는 값은 예전대로 원문을 그대로 보여준다(숨기지 않는다).
+                   **보류 사유는 완료 건에서 안 낸다** — 2026-08-28 스테이징 실화면 8건이
+                   전부 `환불 완료 — 반품 진행중건 존재` 로 떴다. 보류가 끝난 뒤의 보류
+                   사유는 낡은 값이고, 끝난 건 옆에서 "진행중"이라 말해 같은 자기모순을
+                   다시 만든다. 사유는 **대기 중일 때** 답이 되는 값이다. #}
                 {% if ra.refund_done %}
-                <span class="wb-return__i">환불 완료{% if ra.refund_standby_reason %} — {{ ra.refund_standby_reason }}{% endif %}</span>
+                <span class="wb-return__i">환불 완료</span>
                 {% elif ra.refund_standby_status %}
                 <span class="wb-return__i">환불 대기 {{ ra.refund_standby_status }}{% if ra.refund_standby_reason %} — {{ ra.refund_standby_reason }}{% endif %}</span>
                 {% endif %}
