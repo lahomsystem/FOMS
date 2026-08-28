@@ -641,7 +641,12 @@
     (items || []).forEach(function (item) {
       itemsTotal += parseAmount(item && item.price);
     });
-    var deposit = Math.min(parseAmount(depositRaw), itemsTotal);
+    // 제품 가격 입력 전(itemsTotal=0)에는 예약금 상한이 없다. 0으로 clamp 하면
+    // 최초 입력한 예약금이 통째로 사라진다(placeholder "0원"과 구분 불가).
+    var deposit = parseAmount(depositRaw);
+    if (itemsTotal > 0) {
+      deposit = Math.min(deposit, itemsTotal);
+    }
     var balance = Math.max(0, itemsTotal - deposit);
     return {
       items_total: itemsTotal,
@@ -735,8 +740,12 @@
       items.forEach(function (item) {
         itemsTotal += parseAmount(item && item.price);
       });
-      var num = Math.min(parseAmount(this.value), itemsTotal);
-      this.value = formatDepositDisplay(num);
+      var num = parseAmount(this.value);
+      // 상한(출고가)이 아직 0이면 clamp 하지 않는다 — 최초 입력 시 값 증발 방지.
+      if (itemsTotal > 0) {
+        num = Math.min(num, itemsTotal);
+      }
+      this.value = num ? formatDepositDisplay(num) : "";
       recalcWizardAmounts(root);
     });
   }

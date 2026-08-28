@@ -228,7 +228,9 @@ def _draft_payload_to_structured(data: dict[str, Any]) -> dict[str, Any]:
 
     deposit_amount = _parse_money_amount(data.get("deposit"))
     items_total = _items_total_from_draft_items(items)
-    deposit_amount = min(deposit_amount, items_total)
+    # 제품 가격 미입력(items_total=0) 단계에서 clamp 하면 예약금이 0으로 증발한다.
+    if items_total > 0:
+        deposit_amount = min(deposit_amount, items_total)
     balance_amount = max(0, items_total - deposit_amount)
     structured["payment"] = {"deposit": deposit_amount}
     structured["totals"] = {
