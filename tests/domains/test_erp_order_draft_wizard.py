@@ -617,6 +617,15 @@ def test_draft_autosave_flushes_on_ios_hidden_events() -> None:
     assert 'document.visibilityState === "hidden"' in js
 
 
+def test_wizard_amount_caret_is_preserved_and_ios_reapplied() -> None:
+    """금액 재포맷 후 caret 은 끝 오프셋으로 보존되고, iOS 되돌림은 다음 프레임에 교정된다."""
+    js = (ROOT / "static/js/foms/wizard.js").read_text(encoding="utf-8")
+    assert "function restoreAmountCaret(" in js
+    assert "restoreAmountCaret(this, prevValue, prevCaret, formatted)" in js
+    assert "window.requestAnimationFrame(function () {" in js
+    assert "document.activeElement !== el || el.selectionStart === pos" in js
+
+
 def test_add_order_renders_wizard_when_flag_on(client, app, wizard_enabled) -> None:
     _login(client, app, "wizard_page_user")
     response = client.get("/add?wizard=1")
