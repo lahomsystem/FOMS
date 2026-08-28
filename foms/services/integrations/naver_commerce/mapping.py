@@ -364,6 +364,43 @@ BLOCKING_CLAIM_STATUSES = frozenset({
     "RETURN_REQUEST", "RETURN_REQUESTED", "RETURN_DONE", "COLLECTING", "COLLECT_DONE",
 })
 
+#: 클레임 **단계**. 라벨(무엇이 일어났나)·잠금(막을까)에 이은 세 번째 축이다 —
+#: "네이버가 이미 확정했나, 아직 요청 상태인가".
+#:
+#: 이 축이 없던 시절 화면 두 곳(`order_candidates`·`ghost_orders`)이 "claimStatus 가
+#: 비어 있지 않은가" 한 비트로 판정했고, 승인 전 취소가 `취소 완료` 로 표기됐다. 표기만
+#: 틀린 게 아니라 그 판정이 **주문 폐기(soft delete) 버튼의 허가증**이었다 — 아직 살아 있을
+#: 수 있는 주문이 휴지통으로 갈 수 있었다(2026-08-28, 운영 `link 79` / 주문 `#4998`).
+CLAIM_PHASE_REQUESTED = "requested"      # 접수됐고 네이버가 아직 확정하지 않았다
+CLAIM_PHASE_PROGRESS = "in_progress"     # 처리 중(수거 등) — 아직 확정이 아니다
+CLAIM_PHASE_DONE = "done"                # 네이버가 확정했다
+CLAIM_PHASE_REJECTED = "rejected"        # 거부·철회 = 주문은 살아 있다
+CLAIM_PHASE_OTHER = "other"              # 클레임이지만 위 넷 어디도 아니다
+
+#: 상태 → 단계. 키는 ``CLAIM_STATUS_LABELS`` 와 **1:1로 같아야 한다**(계약 테스트가 잠근다) —
+#: 라벨은 있는데 단계가 없으면 화면은 "취소 요청"이라 적으면서 판정은 모름으로 떨어진다.
+#: **모르는 상태는 여기 없다 = 빈 문자열**이고, 빈 문자열은 절대 ``done`` 취급하지 않는다
+#: (모르면 파괴적 동작을 열지 않는다).
+CLAIM_PHASES = {
+    "CANCEL_REQUEST": CLAIM_PHASE_REQUESTED,
+    "CANCEL_REQUESTED": CLAIM_PHASE_REQUESTED,
+    "RETURN_REQUEST": CLAIM_PHASE_REQUESTED,
+    "RETURN_REQUESTED": CLAIM_PHASE_REQUESTED,
+    "EXCHANGE_REQUEST": CLAIM_PHASE_REQUESTED,
+    "CANCELING": CLAIM_PHASE_PROGRESS,
+    # 수거가 끝난 것이지 반품이 확정된 게 아니다 — ``COLLECT_DONE`` 을 ``done`` 에 넣으면
+    # 환불 전 주문이 유령으로 접힌다.
+    "COLLECTING": CLAIM_PHASE_PROGRESS,
+    "COLLECT_DONE": CLAIM_PHASE_PROGRESS,
+    "CANCEL_DONE": CLAIM_PHASE_DONE,
+    "RETURN_DONE": CLAIM_PHASE_DONE,
+    "EXCHANGE_DONE": CLAIM_PHASE_DONE,
+    "CANCEL_REJECT": CLAIM_PHASE_REJECTED,
+    "RETURN_REJECT": CLAIM_PHASE_REJECTED,
+    "EXCHANGE_REJECT": CLAIM_PHASE_REJECTED,
+    "PURCHASE_DECISION_HOLDBACK": CLAIM_PHASE_OTHER,
+}
+
 
 def extract_claim(detail: dict) -> dict:
     """취소·반품·교환(클레임) 상태를 뽑는다.
@@ -383,9 +420,10 @@ def extract_claim(detail: dict) -> dict:
         detail: 상품주문 상세 1건.
 
     Returns:
-        ``{"status", "type", "reason", "requested_at", "label", "blocking",
+        ``{"status", "type", "reason", "requested_at", "label", "blocking", "phase",
         "detailed_reason"}``.
-        클레임이 없으면 ``status`` 와 ``detailed_reason`` 이 빈 문자열이고 ``blocking`` 은 False.
+        클레임이 없으면 ``status``·``phase``·``detailed_reason`` 이 빈 문자열이고
+        ``blocking`` 은 False.
     """
     order, product_order, _shipping = unwrap_detail(detail)
     blocks = _claim_blocks(detail)
@@ -401,6 +439,8 @@ def extract_claim(detail: dict) -> dict:
         "requested_at": _first_text(blocks, "claimRequestDate"),
         "label": CLAIM_STATUS_LABELS.get(upper, status),
         "blocking": upper in BLOCKING_CLAIM_STATUSES,
+        # 확정됐나 아직인가. 모르는 상태는 빈 문자열이고, 빈 문자열은 ``done`` 이 아니다.
+        "phase": CLAIM_PHASES.get(upper, ""),
         # 고객이 쓴 사유 원문. ``reason`` 과 **같은 블록 규칙**(:func:`_claim_blocks`)을 쓰고,
         # 취소·반품 어느 이름으로 와도 잡는다. 없으면 빈 문자열(화면이 줄을 안 낸다).
         # 반품이 별도 블록으로 오면 예전 규칙(``cancel`` 만 보던 시절)에서는 이 값이 영영
@@ -1120,6 +1160,12 @@ __all__ = [
     "build_structured_data",
     "BLOCKING_CLAIM_STATUSES",
     "CLAIM_STATUS_LABELS",
+    "CLAIM_PHASES",
+    "CLAIM_PHASE_REQUESTED",
+    "CLAIM_PHASE_PROGRESS",
+    "CLAIM_PHASE_DONE",
+    "CLAIM_PHASE_REJECTED",
+    "CLAIM_PHASE_OTHER",
     "CLAIM_REASON_LABELS",
     "claim_reason_text",
     "build_payment_info",

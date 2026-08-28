@@ -89,12 +89,17 @@ def test_detailed_reason_from_return_claim():
 
 
 def test_no_claim_keeps_legacy_keys_and_empty_detailed_reason():
-    """클레임이 없으면 원문은 빈 문자열이고 **기존 6키는 그대로**다(회귀 방지)."""
+    """클레임이 없으면 원문은 빈 문자열이고 **기존 6키는 그대로**다(회귀 방지).
+
+    2026-08-28 에 ``phase``(클레임 단계)가 늘었다. 늘어난 키는 여기 명시적으로 적는다 —
+    이 단언의 목적은 "키가 조용히 사라지거나 이름이 바뀌지 않는다"이지 "영원히 7개"가 아니다.
+    """
     claim = extract_claim(_snapshot())
     assert claim["detailed_reason"] == ""
-    assert set(claim) == set(LEGACY_CLAIM_KEYS) | {"detailed_reason"}
+    assert set(claim) == set(LEGACY_CLAIM_KEYS) | {"detailed_reason", "phase"}
     assert claim["status"] == "" and claim["type"] == "" and claim["reason"] == ""
     assert claim["requested_at"] == "" and claim["label"] == "" and claim["blocking"] is False
+    assert claim["phase"] == "", "클레임이 없는데 단계가 붙었다"
 
 
 def test_detailed_reason_does_not_move_legacy_values():
