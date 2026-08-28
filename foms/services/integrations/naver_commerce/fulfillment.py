@@ -46,6 +46,7 @@ __all__ = [
     "cancel_order",
     "record_task_failure",
     "CANCEL_REASONS",
+    "OFFICIAL_CANCEL_REASONS",
     "OFFICIAL_RETURN_REASONS",
     "RETURN_REASONS",
     "RETURN_COLLECT_METHOD",
@@ -76,15 +77,50 @@ DIRECT_DELIVERY = "DIRECT_DELIVERY"
 #: (``can_confirm``) 확인 뒤 발송처리가 열리므로 **막다른 길은 없다** — 비용은 클릭 1회다.
 CLOSE_NOW_RELATIONS = ("ADDON",)
 
+#: 판매자가 **보낼 수 있는** 취소 사유 코드 전체 (2026-08-28 확인).
+#: 출처: commerce-api 공개 토론 #1170 "반품/교환 배송비의 부담 주체는 어떻게 확인하나요?"
+#: (마지막 변경 2026-08-03) 의 **클레임 사유 코드별 귀책 주체** 표. 취소·반품·교환의 사유
+#: 코드 집합은 동일하다(#3335).
+#:
+#: **반품에는 있던 잠금이 취소에는 없었다.** :data:`OFFICIAL_RETURN_REASONS` 와 그 부분집합
+#: 계약 테스트가 반품 쪽에만 있어서, 취소는 "우리 목록 안인가"만 자기 자신과 대조하고 있었다
+#: (:func:`cancel_order` 의 화이트리스트 검사). 같은 축의 같은 구멍이다 —
+#: `WRONG_DELAYED_DELIVERY` 를 읽기 값만 보고 반품 목록에 넣었다가 뺀 사고(2026-08-27)가
+#: 취소에서 반복될 자리였다. **읽기로 오는 코드가 쓰기로 받는 코드보다 넓다**(공식 #1137).
+#:
+#: `ETC` 는 표에 있지만 **여기 넣지 않는다** — 취소 요청·반품 요청 API 호출 시 사유로
+#: 설정할 수 없다(#3335). 읽기로는 올 수 있어 매핑 쪽에서는 계속 다룬다.
+OFFICIAL_CANCEL_REASONS = (
+    # 구매자 귀책
+    "INTENT_CHANGED", "COLOR_AND_SIZE", "WRONG_ORDER", "SIMPLE_INTENT_CHANGED",
+    "MISTAKE_ORDER", "DELAYED_DELIVERY_BY_PURCHASER", "PRODUCT_UNSATISFIED_BY_PURCHASER",
+    # 판매자 귀책
+    "PRODUCT_UNSATISFIED", "DELAYED_DELIVERY", "SOLD_OUT", "DROPPED_DELIVERY", "BROKEN",
+    "INCORRECT_INFO", "WRONG_DELIVERY", "WRONG_OPTION", "WRONG_DELAYED_DELIVERY",
+    "BROKEN_AND_BAD", "UNDER_QUANTITY",
+)
+
 #: 판매자 직접취소 사유 코드 → 사람이 읽는 라벨 (커머스API 2.86.0 "취소 요청").
 #: 네이버가 아는 값만 보낸다 — 목록 밖 코드는 400 이고, 되돌릴 수 없는 경로라 미리 막는다.
+#: :data:`OFFICIAL_CANCEL_REASONS` 의 부분집합임을 계약 테스트가 잠근다.
+#:
+#: **`SOLD_OUT` 라벨이 결과를 말한다**(2026-08-28). 공식 #2823: "'상품 품절' 사유로 인한 판매
+#: 취소 시 대상 상품 또는 조합형/표준형 옵션 조합의 **재고는 품절 처리**됩니다. 조건에 따라
+#: 판매자 불이익이 발생할 수 있습니다(판매관리 프로그램 패널티)." 라벨이 "상품 품절"뿐이면
+#: 재결제 정리처럼 **품절이 아닌 자리에서** 담당자가 이걸 고른다 — 그 순간 팔던 상품이
+#: 네이버에서 내려간다. 코드를 지우지는 않는다: 진짜 품절 취소는 정당한 용례이고,
+#: 목록에서 없애면 그 경로가 함께 죽는다. **고르기 전에 결과가 보이게** 한다.
+#:
+#: 재결제 목적(구매자와 협의한 대리 취소)의 올바른 코드는 `INTENT_CHANGED` 다 —
+#: 구매자 귀책이고, 공식이 인정한 사용 사유 "구매자와의 협의하에 구매자의 주문 취소 의사를
+#: 대리하여 판매자가 클레임 처리를 진행하는 경우"(#2823)에 해당한다.
 CANCEL_REASONS = {
     "INTENT_CHANGED": "구매 의사 취소",
     "COLOR_AND_SIZE": "색상 및 사이즈 변경",
     "WRONG_ORDER": "다른 상품 잘못 주문",
     "PRODUCT_UNSATISFIED": "서비스 불만족",
     "DELAYED_DELIVERY": "배송 지연",
-    "SOLD_OUT": "상품 품절",
+    "SOLD_OUT": "상품 품절 — 이 상품이 네이버에서 품절 처리됩니다",
     "INCORRECT_INFO": "상품 정보 상이",
 }
 

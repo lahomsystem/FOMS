@@ -43,7 +43,7 @@ from models import ExternalOrderLink, Order
 
 logger = logging.getLogger(__name__)
 
-__all__ = ["find_order_candidates", "household_amount",
+__all__ = ["find_order_candidates", "household_amount", "origin_facts",
            "CANDIDATE_WINDOW_DAYS", "CANDIDATE_LIMIT"]
 
 #: 후보를 찾는 기간(일). 가구는 실측·제작·시공까지 몇 달이 걸려 차액 결제가 늦게 온다.
@@ -128,13 +128,52 @@ def household_amount(session, link: ExternalOrderLink) -> int:
     return total
 
 
-def _add_alive_row(rows: list[dict[str, Any]], external_order_no: Any, amount: int) -> None:
+def _merge_read_at(current: str, incoming: str) -> str:
+    """집 안에서 **가장 오래된** 조회 시각을 남긴다.
+
+    화면이 이 값으로 "이 상태는 언제 읽은 것"이라고 말한다. 낙관적으로 고르면 안 된다 —
+    형제 중 한 건만 최근에 읽혔어도 집 전체가 최신인 것처럼 보이면, 정작 취소가 나갈
+    다른 건은 낡은 값 위에서 나간다.
+
+    Args:
+        current: 지금까지 누적된 값(빈 문자열이면 없음).
+        incoming: 새로 합칠 값(빈 문자열이면 없음).
+
+    Returns:
+        둘 다 있으면 더 이른 쪽, 하나만 있으면 그것.
+    """
+    if not current:
+        return incoming
+    if not incoming:
+        return current
+    return min(current, incoming)
+
+
+def _add_alive_row(rows: list[dict[str, Any]], *, link_id: int, external_order_no: Any,
+                   external_id: Any, amount: int, dispatched: bool,
+                   read_at: str) -> None:
     """살아 있는 옛 집 하나를 주문번호로 묶어 넣는다(같은 집이면 금액만 더한다).
+
+    **식별자를 함께 싣는다**(2026-08-28 NVREPAY-01). 예전에는 주문번호·금액·건수만 남기고
+    ``link_id`` 와 ``external_id`` 를 버렸다. 그런데 취소·반품 라우트는 ``link_id`` 로만
+    주소를 잡아서, 화면이 "옛 주문이 살아 있습니다"라고 말하면서 **그 주문을 가리킬 수는
+    없었다** — 담당자는 판매자센터를 따로 열어 주문번호로 찾아 들어가고 있었다.
+    ``link_id`` 는 집 대표 1건이면 충분하다. 옛 집 pane 이 ``_group_of_link`` 로 형제
+    전체를 다시 모으기 때문이다.
+
+    ``dispatched`` 는 **취소냐 반품이냐**를 가른다(발송 전은 취소, 발송 후는 반품).
+    집 안에서 하나라도 나갔으면 집 전체를 발송으로 본다 — 서버 가드가 부분 발송 집의
+    취소를 집 단위로 거절하므로(``fulfillment.cancel_order``) 화면이 그와 같은 축으로
+    말해야 한다.
 
     Args:
         rows: 누적 목록(제자리 수정).
-        external_order_no: 네이버 주문번호.
+        link_id: 이 상품주문의 링크 id(집 대표로 첫 건만 남는다).
+        external_order_no: 네이버 주문번호(집 키).
+        external_id: 네이버 상품주문번호(productOrderId).
         amount: 이 상품주문 결제 금액.
+        dispatched: 이 상품주문이 발송 처리됐는가.
+        read_at: 이 링크를 네이버에서 **마지막으로 읽은** 시각(ISO, naive UTC).
 
     Returns:
         None.
@@ -142,13 +181,25 @@ def _add_alive_row(rows: list[dict[str, Any]], external_order_no: Any, amount: i
     order_no = str(external_order_no or "").strip()
     if not order_no:
         return
+    product_order_id = str(external_id or "").strip()
     for row in rows:
         if row["external_order_no"] == order_no:
             row["amount_total"] += int(amount or 0)
             row["product_order_count"] += 1
+            if product_order_id and product_order_id not in row["product_order_ids"]:
+                row["product_order_ids"].append(product_order_id)
+            row["dispatched"] = row["dispatched"] or bool(dispatched)
+            row["read_at"] = _merge_read_at(row["read_at"], read_at)
             return
-    rows.append({"external_order_no": order_no, "amount_total": int(amount or 0),
-                 "product_order_count": 1})
+    rows.append({
+        "link_id": int(link_id),
+        "external_order_no": order_no,
+        "product_order_ids": [product_order_id] if product_order_id else [],
+        "amount_total": int(amount or 0),
+        "product_order_count": 1,
+        "dispatched": bool(dispatched),
+        "read_at": read_at,
+    })
 
 
 #: ``claim_code`` → 화면 글자. **코드가 판정 축이고 라벨은 표시 축이다** — 템플릿이
@@ -194,7 +245,60 @@ def _claim_facts(raw_snapshot: Any) -> dict[str, str]:
         return empty
 
 
-def _naver_facts(session, order_ids: list[int]) -> dict[int, dict[str, Any]]:
+def _dispatch_facts(raw_snapshot: Any, triage_state: Any, created_at: Any) -> dict[str, Any]:
+    """링크 1건의 **발송 여부와 마지막 조회 시각**을 꺼낸다 (2026-08-28 NVREPAY-01).
+
+    발송 신호를 **둘** 본다. 우리 표식(``triage_state['fulfillment']['dispatched_at']``)은
+    우리가 눌러서 나간 발송만 알고, 판매자센터에서 사람이 직접 발송처리한 집은 우리 쪽에
+    흔적이 없다. 그래서 네이버 원본의 ``delivery.sendDate`` 도 함께 본다 — 서버 가드가
+    이미 같은 두 신호를 보므로(:func:`fulfillment._naver_dispatched_at`), 화면이 다른 축으로
+    말하면 "취소 버튼이 열려 있는데 눌렀더니 거절"이 된다.
+
+    추출은 :func:`mapping.extract_delivery` 한 곳에만 맡긴다 — 같은 값을 두 벌로 읽으면
+    화면과 서버가 갈린다.
+
+    **``read_at`` 은 ``claim_sync.refreshed_at`` 하나가 아니다.** 그 값은 ``claim_watch`` 가
+    이 링크를 **다시** 읽었을 때만 찍힌다(:mod:`claim_watch`) — 방금 수집된 링크에는 아예
+    없다. 그런데 수집도 네이버를 읽은 것이고 그 시각이 ``created_at`` 이다. 둘 중 **늦은**
+    쪽이 "우리가 마지막으로 네이버를 본 시각"이다. 이 구분을 놓치면 "읽은 기록 없음"이
+    정상 신규 건에도 붙어서, 담당자가 그 경고를 아무 데서나 보고 무시하게 된다.
+    재수집으로 스냅샷이 갱신된 경우 ``created_at`` 은 실제보다 **이르게** 잡히는데,
+    신선도를 과소평가하는 방향이라 안전하다.
+
+    Args:
+        raw_snapshot: ``ExternalOrderLink.raw_snapshot``.
+        triage_state: ``ExternalOrderLink.triage_state``.
+        created_at: ``ExternalOrderLink.created_at`` (수집 시각).
+
+    Returns:
+        ``{"dispatched": bool, "read_at": str}``. ``read_at`` 은 ISO(naive UTC) 문자열.
+    """
+    state = triage_state if isinstance(triage_state, dict) else {}
+    fulfillment_state = state.get("fulfillment")
+    ours = ""
+    if isinstance(fulfillment_state, dict):
+        ours = str(fulfillment_state.get("dispatched_at") or "").strip()
+    claim_state = state.get("claim_sync")
+    refreshed_at = ""
+    if isinstance(claim_state, dict):
+        refreshed_at = str(claim_state.get("refreshed_at") or "").strip()
+    collected_at = created_at.isoformat() if hasattr(created_at, "isoformat") else ""
+    read_at = max(refreshed_at, collected_at) if (refreshed_at and collected_at) \
+        else (refreshed_at or collected_at)
+
+    theirs = ""
+    if isinstance(raw_snapshot, dict) and raw_snapshot:
+        try:
+            from foms.services.integrations.naver_commerce.mapping import extract_delivery
+
+            theirs = str(extract_delivery(raw_snapshot).get("send_date") or "").strip()
+        except (ValueError, TypeError, AttributeError) as exc:  # 표시용 보조라 흐름을 막지 않는다
+            logger.warning("[NAVER] 후보 발송 추출 실패: %s", exc)
+    return {"dispatched": bool(ours or theirs), "read_at": read_at}
+
+
+def _naver_facts(session, order_ids: list[int], *,
+                 exclude_link_ids: Optional[set[int]] = None) -> dict[int, dict[str, Any]]:
     """후보 주문마다 **붙어 있는 네이버 집의 사실**을 모은다 (2026-08-25 R-1).
 
     지금까지 화면은 링크 **개수**만 냈다. 그런데 재결제·추가결제를 가르는 결정적 신호는
@@ -211,23 +315,35 @@ def _naver_facts(session, order_ids: list[int]) -> dict[int, dict[str, Any]]:
     Args:
         session: DB 세션.
         order_ids: 후보 주문 id 목록.
+        exclude_link_ids: 셈에서 뺄 링크 id. **지금 보고 있는 집을 빼고 옛 집만 보려고**
+            쓴다(:func:`origin_facts`) — 재결제로 붙인 뒤에는 새 집도 같은 주문에 달려
+            있어서, 빼지 않으면 "옛 주문이 살아 있다"가 자기 자신을 가리킨다.
 
     Returns:
         ``{order_id: {link_count, canceled, alive, amount_total, claim_label, alive_rows,
         cancel_reasons}}``.
         ``claim_label`` 은 화면 문구다: 전부 취소 / 일부 취소 / 살아 있음 / 빈 문자열(네이버 아님).
-        ``alive_rows`` 는 **살아 있는 옛 집**을 주문번호로 묶은 목록이다(R-3 안내용) —
-        우리가 취소를 걸지 않으므로 "네이버에서 처리하세요" 를 말할 대상이 필요하다.
+        ``alive_rows`` 는 **살아 있는 옛 집**을 주문번호로 묶은 목록이다. 각 행은
+        ``{link_id, external_order_no, product_order_ids, amount_total,
+        product_order_count, dispatched, read_at}`` 이다 — 화면이 그 집을
+        **가리키고**(``link_id``), **취소냐 반품이냐를 가르고**(``dispatched``),
+        **언제 읽은 값인지 말하기**(``read_at``) 위해서다(2026-08-28 NVREPAY-01).
         ``cancel_reasons`` 는 중복을 뺀 사유 원문 목록이다(본품·옵션이 같은 문장을 들고 온다).
     """
     facts: dict[int, dict[str, Any]] = {}
     if not order_ids:
         return facts
     rows = (session.query(ExternalOrderLink.order_id, ExternalOrderLink.raw_snapshot,
-                          ExternalOrderLink.external_order_no)
+                          ExternalOrderLink.external_order_no, ExternalOrderLink.id,
+                          ExternalOrderLink.external_id, ExternalOrderLink.triage_state,
+                          ExternalOrderLink.created_at)
             .filter(ExternalOrderLink.order_id.in_(order_ids))  # perf-ok: 후보 5건 batch
             .all())
-    for order_id, snapshot, external_order_no in rows:
+    skip = exclude_link_ids or set()
+    for (order_id, snapshot, external_order_no, link_id, external_id, triage_state,
+         created_at) in rows:
+        if int(link_id) in skip:
+            continue
         bucket = facts.setdefault(int(order_id), {
             "link_count": 0, "canceled": 0, "pending": 0, "alive": 0, "amount_total": 0,
             "claim_label": "", "claim_code": "", "alive_rows": [], "cancel_reasons": [],
@@ -258,8 +374,12 @@ def _naver_facts(session, order_ids: list[int]) -> dict[int, dict[str, Any]]:
             bucket["alive"] += 1
             # 상품주문 단위가 아니라 **집** 단위로 말한다 — 본품·옵션이 따로 들어와
             # 건별로 늘어놓으면 담당자가 같은 집을 여러 건으로 읽는다.
-            _add_alive_row(bucket["alive_rows"], external_order_no,
-                           amount if isinstance(amount, int) else 0)
+            dispatch = _dispatch_facts(snapshot, triage_state, created_at)
+            _add_alive_row(bucket["alive_rows"], link_id=int(link_id),
+                           external_order_no=external_order_no, external_id=external_id,
+                           amount=amount if isinstance(amount, int) else 0,
+                           dispatched=dispatch["dispatched"],
+                           read_at=dispatch["read_at"])
     for bucket in facts.values():
         if not bucket["link_count"]:
             continue
@@ -277,6 +397,55 @@ def _naver_facts(session, order_ids: list[int]) -> dict[int, dict[str, Any]]:
         bucket["claim_code"] = code
         bucket["claim_label"] = CLAIM_CODE_LABELS[code]
     return facts
+
+
+def origin_facts(session, order_id: Any, *, exclude_link_ids: set[int],
+                 since_at: Any = None) -> dict[str, Any]:
+    """붙인 뒤에도 **옛 네이버 주문**의 사실을 낸다 (2026-08-28 NVREPAY-01).
+
+    재결제를 주문에 붙이고 나면 화면에서 옛 결제 정보가 통째로 사라졌다 — 후보 표는
+    `아직 안 붙은 집` 갈래에서만 렌더되기 때문이다. 그런데 담당자가 옛 주문을 취소·반품해야
+    하는 시점은 **붙인 다음**이다. 그래서 같은 사실을 관계 블록에서 다시 쓸 수 있게 연다.
+
+    지금 보고 있는 집은 빼고 센다. 빼지 않으면 "옛 주문이 살아 있습니다"가 방금 붙인
+    새 결제 자신을 가리킨다.
+
+    Args:
+        session: DB 세션.
+        order_id: 이 수집분이 붙어 있는 FOMS 주문 id.
+        exclude_link_ids: 지금 집의 링크 id 전부(형제 포함).
+        since_at: 이 수집분의 수집 시각. 주면 각 행에 ``stale`` 을 채운다 —
+            **새 결제를 받은 뒤로 옛 주문을 한 번도 안 읽었는가**(SPEC §5.4 R2′).
+
+    Returns:
+        ``{"link_count", "claim_code", "claim_label", "alive_rows", "stale_any"}``.
+        붙은 주문이 없거나 옛 링크가 없으면 ``link_count == 0`` (화면은 그때
+        "네이버 주문 확인 안 됨"이라고 말한다 — **"없습니다"라고 말하지 않는다**).
+    """
+    empty = {"link_count": 0, "claim_code": "", "claim_label": "",
+             "alive_rows": [], "stale_any": False}
+    try:
+        oid = int(order_id)
+    except (TypeError, ValueError):
+        return empty
+    facts = _naver_facts(session, [oid], exclude_link_ids=set(exclude_link_ids or set()))
+    bucket = facts.get(oid)
+    if not bucket:
+        return empty
+    since = since_at.isoformat() if hasattr(since_at, "isoformat") else ""
+    rows = list(bucket.get("alive_rows") or [])
+    stale_any = False
+    for row in rows:
+        # 읽은 시각이 새 결제 수집보다 이르면, 그 뒤로 이 옛 주문을 본 적이 없다는 뜻이다.
+        row["stale"] = bool(since and row.get("read_at") and row["read_at"] < since)
+        stale_any = stale_any or row["stale"]
+    return {
+        "link_count": int(bucket.get("link_count") or 0),
+        "claim_code": bucket.get("claim_code") or "",
+        "claim_label": bucket.get("claim_label") or "",
+        "alive_rows": rows,
+        "stale_any": stale_any,
+    }
 
 
 def _order_view(order: Order, *, score: int, reason: str,
@@ -307,7 +476,8 @@ def _order_view(order: Order, *, score: int, reason: str,
         # 네이버가 아직 확정하지 않은 클레임(취소 요청·처리중) 건수.
         "naver_pending_count": int(facts.get("pending") or 0),
         "naver_alive_count": int(facts.get("alive") or 0),
-        # R-3: 살아 있는 옛 집 — 우리가 취소를 걸지 않으므로 "네이버에서 처리하세요" 대상.
+        # 살아 있는 옛 집 — 재결제로 붙인 뒤 **네이버에서 정리해야 할 대상**이다.
+        # 행마다 ``link_id`` 를 실어 화면이 그 집 pane 으로 보낼 수 있게 한다(NVREPAY-01).
         "naver_alive_rows": list(facts.get("alive_rows") or []),
         # 고객이 쓴 사유 원문 — 라벨이 못 말하는 **왜** 를 말한다(2026-08-26).
         "naver_cancel_reasons": list(facts.get("cancel_reasons") or []),

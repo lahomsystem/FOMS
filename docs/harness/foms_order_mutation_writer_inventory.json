@@ -109,13 +109,13 @@
     },
     {
       "path": "foms/services/integrations/naver_commerce/promotion.py",
-      "lineno": 363,
+      "lineno": 380,
       "kind": "flag_modified_structured_data",
       "owner": "UNASSIGNED"
     },
     {
       "path": "foms/services/integrations/naver_commerce/promotion.py",
-      "lineno": 402,
+      "lineno": 419,
       "kind": "flag_modified_structured_data",
       "owner": "UNASSIGNED"
     },
@@ -157,7 +157,7 @@
     },
     {
       "path": "foms/web/orders/edit.py",
-      "lineno": 431,
+      "lineno": 436,
       "kind": "flag_modified_structured_data",
       "owner": "ORDER-CREATE-01"
     }
@@ -165,7 +165,7 @@
   "writers": [
     {
       "path": "foms/api/channel/channel_integration.py",
-      "lineno": 281,
+      "lineno": 304,
       "kind": "flag_modified_structured_data",
       "classification": "CANONICAL",
       "owner": "CHANNEL-WRITER-01"
@@ -340,28 +340,28 @@
     },
     {
       "path": "foms/api/erp_orders_structured.py",
-      "lineno": 1070,
+      "lineno": 1076,
       "kind": "flag_modified_structured_data",
       "classification": "CANONICAL",
       "owner": "DATA-01"
     },
     {
       "path": "foms/api/erp_orders_structured.py",
-      "lineno": 1506,
+      "lineno": 1512,
       "kind": "flag_modified_structured_data",
       "classification": "CANONICAL",
       "owner": "DATA-01"
     },
     {
       "path": "foms/api/erp_orders_structured.py",
-      "lineno": 1767,
+      "lineno": 1773,
       "kind": "flag_modified_structured_data",
       "classification": "CANONICAL",
       "owner": "DATA-01"
     },
     {
       "path": "foms/api/erp_orders_structured.py",
-      "lineno": 2209,
+      "lineno": 2215,
       "kind": "flag_modified_structured_data",
       "classification": "CANONICAL",
       "owner": "DATA-01"
@@ -494,14 +494,14 @@
     },
     {
       "path": "foms/services/integrations/naver_commerce/promotion.py",
-      "lineno": 363,
+      "lineno": 380,
       "kind": "flag_modified_structured_data",
       "classification": "EXTERNAL",
       "owner": "UNASSIGNED"
     },
     {
       "path": "foms/services/integrations/naver_commerce/promotion.py",
-      "lineno": 402,
+      "lineno": 419,
       "kind": "flag_modified_structured_data",
       "classification": "EXTERNAL",
       "owner": "UNASSIGNED"
@@ -536,14 +536,14 @@
     },
     {
       "path": "foms/services/orders/as_cycle_service.py",
-      "lineno": 305,
+      "lineno": 306,
       "kind": "flag_modified_structured_data",
       "classification": "CANONICAL",
       "owner": "STATE-AS-01"
     },
     {
       "path": "foms/services/orders/as_cycle_service.py",
-      "lineno": 343,
+      "lineno": 344,
       "kind": "flag_modified_structured_data",
       "classification": "CANONICAL",
       "owner": "STATE-AS-01"
@@ -648,7 +648,7 @@
     },
     {
       "path": "foms/web/orders/edit.py",
-      "lineno": 431,
+      "lineno": 436,
       "kind": "flag_modified_structured_data",
       "classification": "EXTERNAL",
       "owner": "ORDER-CREATE-01"

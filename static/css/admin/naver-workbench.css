@@ -848,6 +848,17 @@ input.wb-pick:disabled,
 .wb-relation__text { font-size: calc(13px * var(--wb-fs, 1)); }
 .wb-relation__why { font-size: calc(12.5px * var(--wb-fs, 1)); margin: 0 0 8px; }
 .wb-relation__reason { color: var(--wb-muted); font-size: calc(11.5px * var(--wb-fs, 1)); }
+/* 원 주문 줄(NVREPAY-01) — 붙인 뒤 남은 **네이버 쪽 할 일**을 말한다.
+   경고색을 쓰지 않는 것은 위와 같은 이유다: 이 블록 자체는 아무것도 보내지 않고,
+   되돌릴 수 없는 것은 옛 주문 자기 화면의 버튼이다. */
+.wb-relation--origin { display: block; margin-top: 8px; }
+.wb-relation__origin-row + .wb-relation__origin-row {
+    margin-top: 10px; padding-top: 10px; border-top: 1px solid var(--wb-line-soft); }
+.wb-relation__origin-h { font-weight: 600; margin-bottom: 4px;
+                         font-size: calc(13px * var(--wb-fs, 1)); }
+/* 조회 시각은 사실이지 경고가 아니다 — 본문보다 낮은 대비로 둔다. */
+.wb-relation__stamp { display: block; margin-top: 4px; color: var(--wb-muted);
+                      font-size: calc(11.5px * var(--wb-fs, 1)); }
 /* 후보 표는 대조표와 같은 골격을 쓰되 첫 칸이 주문번호라 폭이 다르다. */
 .wb-cmp--cand { background: #fff; }
 .wb-cmp--cand td.wb-cmp__k { width: calc(132px * var(--wb-fs, 1)); color: inherit; }

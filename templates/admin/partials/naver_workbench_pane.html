@@ -572,6 +572,87 @@
             <button type="button" class="btn btn-outline-danger btn-sm ms-auto" id="wb-detach"
                     data-link-id="{{ selected.link_id }}">되돌리기</button>
         </div>
+        {#
+          원 주문 줄 (NVREPAY-01). 재결제로 붙인 뒤 담당자가 해야 할 **다음 일**이 여기 있다 —
+          옛 네이버 주문을 취소(발송 전)하거나 반품(발송 후)하는 것. 예전에는 붙이는 순간
+          옛 결제 정보가 화면에서 통째로 사라져서, 담당자가 판매자센터를 따로 열어 주문번호로
+          찾아 들어갔다.
+
+          **여기서 취소를 걸지 않는다.** 이 pane 의 확인 모달은 건수·이름을 자기 집으로
+          재진술하므로(불가역 4종 세트), 옛 집을 겨냥하면 새 결제 이름과 새 집 건수를
+          읽어주면서 옛 집을 환불하게 된다. 대신 옛 집 자신의 화면으로 보낸다 — 거기서는
+          같은 버튼이 자기 집을 말하고, 서버 가드도 그 집을 본다.
+        #}
+        <div class="wb-relation wb-relation--origin" data-foms-no-autodismiss
+             data-wb-origin="{{ selected_origin.link_count }}">
+            {% if not selected_origin.link_count %}
+            {# 링크 0행. **"없습니다"라고 단정하지 않는다** — 수집이 결제완료 상태만 가져오므로
+               첫 스윕 전에 이미 처리가 끝난 주문은 영영 안 들어오고, 그 관측이 "정말 없음"과
+               똑같다(설계서 §4.1). #}
+            <div class="wb-relation__origin-h">네이버 주문 확인 안 됨</div>
+            <p class="wb-relation__why">
+                이 주문에 붙은 네이버 수집분이 <b>0건</b>입니다. 네이버에 주문이 처음부터
+                없었을 수도 있고(예약금·전화로 받은 주문), 우리가 수집을 시작하기 전에 이미
+                처리가 끝나서 못 가져왔을 수도 있습니다.
+                <b>어느 쪽인지 이 화면은 알 수 없습니다.</b>
+                확인하려면 네이버 판매자센터에서 고객 이름·전화로 직접 찾아보세요.
+                {% if selected_origin.sweep.last_error %}
+                <br><b>마지막 수집이 실패했습니다{% if selected_origin.sweep.last_run_at %}
+                ({{ selected_origin.sweep.last_run_at }}){% endif %}.</b>
+                그래서 안 보이는 것일 수 있습니다.
+                {% endif %}
+            </p>
+            <a class="btn btn-sm btn-outline-secondary" target="_blank" rel="noopener"
+               href="{{ selected.seller_center_url }}">네이버 판매자센터 열기 ↗</a>
+            {% elif selected_origin.alive_rows %}
+            {% for row in selected_origin.alive_rows %}
+            <div class="wb-relation__origin-row">
+                <div class="wb-relation__origin-h">
+                    {% if row.dispatched %}
+                    네이버 옛 주문이 아직 살아 있습니다 — <b>이미 발송 처리된 주문입니다</b>
+                    {% else %}
+                    네이버 옛 주문이 아직 살아 있습니다
+                    {% endif %}
+                </div>
+                <p class="wb-relation__why">
+                    주문번호 {{ row.external_order_no }} · 상품주문 {{ row.product_order_count }}건 ·
+                    {{ '{:,}'.format(row.amount_total) }}원.
+                    {% if row.dispatched %}
+                    발송 뒤에는 취소가 아니라 <b>반품</b>으로 처리합니다.
+                    {% else %}
+                    새 결제를 받았으니 <b>이 옛 주문은 네이버에서 취소해야 합니다.</b>
+                    {% endif %}
+                    {% if row.stale %}
+                    <br><b>새 결제를 받은 뒤로 이 옛 주문을 확인한 적이 없습니다.</b>
+                    그 사이에 고객이 스스로 취소했을 수 있습니다.
+                    {% endif %}
+                    {% if row.read_at_text %}
+                    <span class="wb-relation__stamp">이 상태는 {{ row.read_at_text }} 에 읽은 것입니다.</span>
+                    {% endif %}
+                </p>
+                {% if row.stale %}
+                <button type="button" class="btn btn-sm btn-outline-primary wb-origin-open"
+                        data-link-id="{{ row.link_id }}"
+                        data-pane-url="{{ row.pane_url }}">옛 주문 다시 읽고 열기 →</button>
+                {% else %}
+                <a class="btn btn-sm btn-outline-primary" href="{{ row.pane_url }}">옛 주문 열기 →</a>
+                {% endif %}
+            </div>
+            {% endfor %}
+            {% elif selected_origin.claim_code in ('all_pending', 'all_mixed') %}
+            {# 확정 전에 "할 일 없음"이라고 적으면 화면이 거짓말을 한다 — 취소가 거부되면
+               그 결제는 살아 있다(2026-08-28). #}
+            <p class="wb-relation__why">
+                옛 주문 <b>{{ selected_origin.claim_label }}</b> — 네이버가 아직 확정하지
+                않았습니다. <b>확정된 뒤에 정리하세요.</b>
+            </p>
+            {% elif selected_origin.claim_label %}
+            <p class="wb-relation__why">
+                옛 주문 <b>{{ selected_origin.claim_label }}</b> — 고객이 이미 처리했습니다.
+                <b>할 일 없음.</b>
+            </p>
+            {% endif %}
+        </div>
         {% elif selected.candidates and not selected.order_id %}
         <div class="wb-cmp-title" data-cmp-section="relation">
             관계 <span class="wb-cmp-title__sub">이 고객의 기존 주문 {{ selected.candidates|length }}건 — 새 주문이 아닐 수 있다</span>
@@ -768,18 +849,23 @@
                     <div class="wb-plan__n wb-plan__n--info">i</div>
                     <div class="wb-plan__body">
                         <div class="wb-plan__h">
-                            네이버 옛 결제 — <b>우리가 손대지 않는다</b>
+                            네이버 옛 결제 — <b>이 버튼은 손대지 않는다</b>
                             <span class="wb-plan__tag">호출 0</span>
                         </div>
                         {% if cand.naver_alive_rows %}
+                        {# 예전에는 여기서 "고객이 취소하거나 판매자센터에서 처리합니다"라고
+                           말했다. NVREPAY-01 로 **정리 뒤 관계 블록에서 옛 주문을 열어
+                           처리**할 수 있게 됐으므로 그 문장은 거짓이 됐다. 화면이 자기
+                           자신과 모순되는 상태를 남기지 않는다. #}
                         <div class="wb-plan__d wb-plan__d--warn">
                             <b>살아 있는 옛 결제</b>가 있습니다:
                             {% for row in cand.naver_alive_rows %}
                             {{ row.external_order_no }}({{ row.product_order_count }}건 ·
                             {{ '{:,}'.format(row.amount_total) }}원){% if not loop.last %}, {% endif %}
                             {% endfor %}<br>
-                            이 건은 <b>네이버에서 처리</b>합니다 — 고객이 취소하거나 판매자센터에서
-                            처리합니다. ERP 정리는 그와 무관하게 지금 끝낼 수 있습니다.
+                            <b>정리 실행은 네이버로 나가지 않습니다.</b> 정리한 뒤 위쪽
+                            <b>관계</b> 줄에서 <b>옛 주문 열기</b>로 들어가 취소(발송 전)나
+                            반품(발송 후)을 하세요. 판매자센터에서 직접 처리해도 됩니다.
                         </div>
                         <a class="btn btn-sm btn-outline-secondary" target="_blank" rel="noopener"
                            href="{{ selected.seller_center_url }}">네이버 판매자센터 열기 ↗</a>
@@ -1020,7 +1106,15 @@
                 </label>
                 <textarea class="form-control form-control-sm mb-2" id="wb-cancel-detail"
                           rows="2" maxlength="500"
-                          placeholder="예: 고객 통화 확인 — 재고 없음"></textarea>
+                          placeholder="예: 고객과 통화 확인 — 새 주문으로 다시 결제하셨습니다"></textarea>
+                {# 공식 #2823: cancelDetailedReason 은 구매자에게 모든 내용이 그대로 전달된다
+                   (네이버페이 결제내역·네이버톡톡). 화면이 이 말을 안 하면 담당자는 사내
+                   메모처럼 쓴다. 예시 문구도 바꿨다 — 옛 예시("재고 없음")는 고객에게 나갈
+                   문장으로 오도적이고, 사유 코드까지 SOLD_OUT 으로 끌고 간다. #}
+                <p class="small text-danger mb-2" data-foms-no-autodismiss>
+                    여기 쓴 내용은 <b>고객에게 그대로 보입니다</b> — 네이버페이 결제내역과
+                    네이버톡톡에 그대로 뜹니다. 정중하게 써 주세요. (줄바꿈은 안 됩니다)
+                </p>
                 {# ④ 사후 경로 #}
                 <p class="small text-muted mb-0">
                     보낸 뒤에는 이 주문이 <b>취소 완료</b>로 바뀝니다. <b>FOMS 주문은 그대로입니다</b> —
@@ -1084,6 +1178,11 @@
                 <textarea class="form-control form-control-sm mb-2" id="wb-return-detail"
                           rows="2" maxlength="500"
                           placeholder="예: 고객 통화 확인 — 색상 교환 요청"></textarea>
+                {# 취소와 같은 규율(공식 #2823) — 상세 사유는 구매자에게 원문 그대로 간다. #}
+                <p class="small text-danger mb-2" data-foms-no-autodismiss>
+                    여기 쓴 내용은 <b>고객에게 그대로 보입니다</b> — 네이버페이 결제내역과
+                    네이버톡톡에 그대로 뜹니다. 정중하게 써 주세요. (줄바꿈은 안 됩니다)
+                </p>
                 {# ④ 사후 경로 — 여기서 끝나지 않는다는 것을 분명히 말한다.
                       시공 전 발송이라 실물이 고객 집에 간 적이 없다 — "우리 차량이
                       회수" 는 사실이 아니다. 그래도 collectDeliveryMethod 를
