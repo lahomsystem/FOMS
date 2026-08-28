@@ -33,6 +33,11 @@ from typing import Any, Optional
 from sqlalchemy import or_
 
 from foms.services.datetime_kst import now_utc_naive
+from foms.services.integrations.naver_commerce.mapping import (
+    CLAIM_PHASE_DONE,
+    CLAIM_PHASE_PROGRESS,
+    CLAIM_PHASE_REQUESTED,
+)
 from foms.services.phone_search import normalize_phone_digits
 from models import ExternalOrderLink, Order
 
@@ -146,27 +151,47 @@ def _add_alive_row(rows: list[dict[str, Any]], external_order_no: Any, amount: i
                  "product_order_count": 1})
 
 
-def _detailed_reason(raw_snapshot: Any) -> str:
-    """스냅샷 1건에서 **고객이 쓴 취소·반품 사유 원문**만 꺼낸다.
+#: ``claim_code`` → 화면 글자. **코드가 판정 축이고 라벨은 표시 축이다** — 템플릿이
+#: 한국어 문자열을 ``==`` 로 비교하던 시절에는 라벨 한 낱말만 바꿔도 분기가 조용히 죽어
+#: 취소 건이 전부 `살아 있음` 으로 떨어졌다(2026-08-28).
+CLAIM_CODE_LABELS = {
+    "alive": "살아 있음",
+    "partial": "일부 취소",
+    "all_done": "전부 취소 완료",
+    "all_pending": "전부 취소 요청 — 확정 전",
+    "all_mixed": "전부 취소 — 확정 전 포함",
+}
+
+
+def _claim_facts(raw_snapshot: Any) -> dict[str, str]:
+    """스냅샷 1건에서 **클레임 단계와 사유 원문**을 꺼낸다.
 
     추출 규칙은 :func:`mapping.extract_claim` 한 곳에만 둔다 — 같은 값을 두 벌로 읽으면
-    pane 위쪽(F-1)과 후보 표가 서로 다른 문장을 말하게 된다.
+    pane 위쪽(F-1)과 후보 표가 서로 다른 문장을 말하게 된다. 예전에는 이 함수가 사유
+    원문만 꺼내고 ``phase``·``status`` 를 버려서, 정작 판정은 "claimStatus 가 비어 있지
+    않은가" 한 비트로 따로 돌았다(2026-08-28 결함).
 
     Args:
         raw_snapshot: ``ExternalOrderLink.raw_snapshot``.
 
     Returns:
-        사유 원문. 없거나 읽을 수 없으면 빈 문자열(**빈 값은 화면이 줄을 안 낸다**).
+        ``{"phase": 단계, "detailed_reason": 사유 원문}``. 읽을 수 없으면 둘 다 빈 문자열
+        (**빈 값은 화면이 줄을 안 내고, 빈 단계는 취소로 세지 않는다**).
     """
+    empty = {"phase": "", "detailed_reason": ""}
     if not isinstance(raw_snapshot, dict) or not raw_snapshot:
-        return ""
+        return empty
     try:
         from foms.services.integrations.naver_commerce.mapping import extract_claim
 
-        return str(extract_claim(raw_snapshot).get("detailed_reason") or "").strip()
+        claim = extract_claim(raw_snapshot)
+        return {
+            "phase": str(claim.get("phase") or ""),
+            "detailed_reason": str(claim.get("detailed_reason") or "").strip(),
+        }
     except (ValueError, TypeError, AttributeError) as exc:  # 표시용 보조라 흐름을 막지 않는다
-        logger.warning("[NAVER] 후보 사유 원문 추출 실패: %s", exc)
-        return ""
+        logger.warning("[NAVER] 후보 클레임 추출 실패: %s", exc)
+        return empty
 
 
 def _naver_facts(session, order_ids: list[int]) -> dict[int, dict[str, Any]]:
@@ -204,8 +229,8 @@ def _naver_facts(session, order_ids: list[int]) -> dict[int, dict[str, Any]]:
             .all())
     for order_id, snapshot, external_order_no in rows:
         bucket = facts.setdefault(int(order_id), {
-            "link_count": 0, "canceled": 0, "alive": 0, "amount_total": 0, "claim_label": "",
-            "alive_rows": [], "cancel_reasons": [],
+            "link_count": 0, "canceled": 0, "pending": 0, "alive": 0, "amount_total": 0,
+            "claim_label": "", "claim_code": "", "alive_rows": [], "cancel_reasons": [],
         })
         bucket["link_count"] += 1
         product_order = snapshot.get("productOrder") if isinstance(snapshot, dict) else None
@@ -214,15 +239,22 @@ def _naver_facts(session, order_ids: list[int]) -> dict[int, dict[str, Any]]:
         amount = product_order.get("totalPaymentAmount")
         if isinstance(amount, int):
             bucket["amount_total"] += amount
-        # 클레임 상태가 있으면 그 상품주문은 취소·반품된 것이다(정상 주문은 비어 있다).
-        if str(product_order.get("claimStatus") or "").strip():
-            bucket["canceled"] += 1
+        # 클레임 **단계**로 가른다. 예전에는 "claimStatus 가 비어 있지 않은가" 한 비트라
+        # 승인 전 취소(CANCEL_REQUEST)와 취소 **거부**(CANCEL_REJECT — 주문은 살아 있다)가
+        # 확정 취소와 같은 칸에 들어갔다(2026-08-28).
+        phase = _claim_facts(snapshot)
+        if phase["phase"] in (CLAIM_PHASE_DONE, CLAIM_PHASE_REQUESTED, CLAIM_PHASE_PROGRESS):
+            if phase["phase"] == CLAIM_PHASE_DONE:
+                bucket["canceled"] += 1
+            else:
+                bucket["pending"] += 1
             # 왜 취소했는지는 고객이 써 놨다. 본품·옵션이 같은 문장을 각각 들고 오므로
             # 중복은 뺀다 — 같은 말을 세 번 늘어놓으면 표가 읽히지 않는다.
-            reason = _detailed_reason(snapshot)
+            reason = phase["detailed_reason"]
             if reason and reason not in bucket["cancel_reasons"]:
                 bucket["cancel_reasons"].append(reason)
         else:
+            # 거부·철회·클레임 없음은 전부 **살아 있는 결제**다.
             bucket["alive"] += 1
             # 상품주문 단위가 아니라 **집** 단위로 말한다 — 본품·옵션이 따로 들어와
             # 건별로 늘어놓으면 담당자가 같은 집을 여러 건으로 읽는다.
@@ -231,12 +263,19 @@ def _naver_facts(session, order_ids: list[int]) -> dict[int, dict[str, Any]]:
     for bucket in facts.values():
         if not bucket["link_count"]:
             continue
-        if bucket["canceled"] and not bucket["alive"]:
-            bucket["claim_label"] = "전부 취소"
-        elif bucket["canceled"]:
-            bucket["claim_label"] = "일부 취소"
+        done, pending, alive = bucket["canceled"], bucket["pending"], bucket["alive"]
+        if alive and (done or pending):
+            code = "partial"
+        elif not done and not pending:
+            code = "alive"
+        elif done and pending:
+            code = "all_mixed"
+        elif pending:
+            code = "all_pending"
         else:
-            bucket["claim_label"] = "살아 있음"
+            code = "all_done"
+        bucket["claim_code"] = code
+        bucket["claim_label"] = CLAIM_CODE_LABELS[code]
     return facts
 
 
@@ -261,8 +300,12 @@ def _order_view(order: Order, *, score: int, reason: str,
         "naver_link_count": link_count,
         # --- R-1(2026-08-25): 판정 근거 2열 ---
         # ② 이 주문에 붙은 네이버 집이 취소됐는가 — 재결제/추가결제를 가르는 결정 신호.
+        # **코드가 판정 축이고 라벨은 표시 축이다** — 템플릿은 코드로만 분기한다.
+        "naver_claim_code": facts.get("claim_code") or "",
         "naver_claim_label": facts.get("claim_label") or "",
         "naver_canceled_count": int(facts.get("canceled") or 0),
+        # 네이버가 아직 확정하지 않은 클레임(취소 요청·처리중) 건수.
+        "naver_pending_count": int(facts.get("pending") or 0),
         "naver_alive_count": int(facts.get("alive") or 0),
         # R-3: 살아 있는 옛 집 — 우리가 취소를 걸지 않으므로 "네이버에서 처리하세요" 대상.
         "naver_alive_rows": list(facts.get("alive_rows") or []),

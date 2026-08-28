@@ -77,7 +77,7 @@ def test_household_amount_sums_the_whole_household(app):
 
 
 def test_all_canceled_old_payment_reads_as_repay_signal(app):
-    """옛 결제가 전부 취소면 `전부 취소` — 재결제 신호."""
+    """옛 결제가 전부 취소 **확정**이면 `전부 취소 완료` — 재결제 신호."""
     order = _order(db_session)
     _link(db_session, order_no="N-OLD", amount=1_191_900, claim_status="CANCEL_DONE",
           order_id=int(order.id))
@@ -88,8 +88,10 @@ def test_all_canceled_old_payment_reads_as_repay_signal(app):
     assert candidates, "전화가 같은데 후보가 없다"
     row = candidates[0]
     assert row["order_id"] == int(order.id)
-    assert row["naver_claim_label"] == "전부 취소"
+    assert row["naver_claim_code"] == "all_done"
+    assert row["naver_claim_label"] == "전부 취소 완료"
     assert row["naver_canceled_count"] == 1
+    assert row["naver_pending_count"] == 0
     assert row["naver_alive_count"] == 0
 
 
@@ -206,7 +208,7 @@ def test_candidate_carries_the_customers_own_cancel_reason(app):
 
     row = find_order_candidates(db_session, new_link)[0]
 
-    assert row["naver_claim_label"] == "전부 취소"
+    assert row["naver_claim_label"] == "전부 취소 완료"
     assert row["naver_cancel_reasons"] == ["일시불 재결제 예정"]
 
 
