@@ -43,8 +43,8 @@
   },
   "fail_closed_sites": [
     "db.py:88",
-    "foms/api/channel/channel_integration.py:322",
-    "foms/api/channel/channel_integration.py:816",
+    "foms/api/channel/channel_integration.py:345",
+    "foms/api/channel/channel_integration.py:841",
     "foms/persistence/designer/repositories.py:173",
     "foms/persistence/designer/repositories.py:211",
     "foms/persistence/designer/repositories.py:505",
@@ -53,10 +53,10 @@
     "foms/services/channel_client.py:309",
     "foms/services/channel_dispatch.py:56",
     "foms/services/common/business_calendar.py:39",
-    "foms/services/integrations/naver_commerce/client.py:550",
-    "foms/services/integrations/naver_commerce/client.py:586",
-    "foms/services/integrations/naver_commerce/fulfillment.py:481",
-    "foms/services/integrations/naver_commerce/fulfillment.py:685",
+    "foms/services/integrations/naver_commerce/client.py:552",
+    "foms/services/integrations/naver_commerce/client.py:588",
+    "foms/services/integrations/naver_commerce/fulfillment.py:566",
+    "foms/services/integrations/naver_commerce/fulfillment.py:770",
     "foms/services/integrations/naver_commerce/ingest.py:372",
     "foms/services/jobs/tasks.py:62",
     "foms/services/jobs/tasks.py:121",
@@ -107,7 +107,7 @@
     },
     {
       "path": "foms/api/channel/channel_integration.py",
-      "lineno": 322,
+      "lineno": 345,
       "handler_type": "broad_exception",
       "disposition": "FAIL_CLOSED",
       "owner": "channel",
@@ -116,7 +116,7 @@
     },
     {
       "path": "foms/api/channel/channel_integration.py",
-      "lineno": 555,
+      "lineno": 579,
       "handler_type": "broad_exception",
       "disposition": "LOG_AND_CONTINUE",
       "owner": "channel",
@@ -125,7 +125,7 @@
     },
     {
       "path": "foms/api/channel/channel_integration.py",
-      "lineno": 685,
+      "lineno": 709,
       "handler_type": "broad_exception",
       "disposition": "LOG_AND_CONTINUE",
       "owner": "channel",
@@ -134,7 +134,7 @@
     },
     {
       "path": "foms/api/channel/channel_integration.py",
-      "lineno": 816,
+      "lineno": 841,
       "handler_type": "broad_exception",
       "disposition": "FAIL_CLOSED",
       "owner": "channel",
@@ -143,7 +143,7 @@
     },
     {
       "path": "foms/api/channel/channel_integration.py",
-      "lineno": 844,
+      "lineno": 869,
       "handler_type": "broad_exception",
       "disposition": "LOG_AND_CONTINUE",
       "owner": "channel",
@@ -152,7 +152,7 @@
     },
     {
       "path": "foms/api/channel/channel_integration.py",
-      "lineno": 994,
+      "lineno": 1019,
       "handler_type": "broad_exception",
       "disposition": "LOG_AND_CONTINUE",
       "owner": "channel",
@@ -161,7 +161,7 @@
     },
     {
       "path": "foms/api/channel/channel_integration.py",
-      "lineno": 1072,
+      "lineno": 1097,
       "handler_type": "broad_exception",
       "disposition": "LOG_AND_CONTINUE",
       "owner": "channel",
@@ -1151,7 +1151,7 @@
     },
     {
       "path": "foms/api/erp_orders_structured.py",
-      "lineno": 627,
+      "lineno": 633,
       "handler_type": "broad_exception",
       "disposition": "LOG_AND_CONTINUE",
       "owner": "api",
@@ -1160,7 +1160,7 @@
     },
     {
       "path": "foms/api/erp_orders_structured.py",
-      "lineno": 645,
+      "lineno": 651,
       "handler_type": "broad_exception",
       "disposition": "LOG_AND_CONTINUE",
       "owner": "api",
@@ -1169,7 +1169,7 @@
     },
     {
       "path": "foms/api/erp_orders_structured.py",
-      "lineno": 660,
+      "lineno": 666,
       "handler_type": "broad_exception",
       "disposition": "LOG_AND_CONTINUE",
       "owner": "api",
@@ -1178,7 +1178,7 @@
     },
     {
       "path": "foms/api/erp_orders_structured.py",
-      "lineno": 668,
+      "lineno": 674,
       "handler_type": "broad_exception",
       "disposition": "LOG_AND_CONTINUE",
       "owner": "api",
@@ -1187,7 +1187,7 @@
     },
     {
       "path": "foms/api/erp_orders_structured.py",
-      "lineno": 712,
+      "lineno": 718,
       "handler_type": "broad_exception",
       "disposition": "LOG_AND_CONTINUE",
       "owner": "api",
@@ -1196,7 +1196,7 @@
     },
     {
       "path": "foms/api/erp_orders_structured.py",
-      "lineno": 745,
+      "lineno": 751,
       "handler_type": "broad_exception",
       "disposition": "LOG_AND_CONTINUE",
       "owner": "api",
@@ -1205,7 +1205,7 @@
     },
     {
       "path": "foms/api/erp_orders_structured.py",
-      "lineno": 886,
+      "lineno": 892,
       "handler_type": "broad_exception",
       "disposition": "LOG_AND_CONTINUE",
       "owner": "api",
@@ -1214,7 +1214,7 @@
     },
     {
       "path": "foms/api/erp_orders_structured.py",
-      "lineno": 895,
+      "lineno": 901,
       "handler_type": "broad_exception",
       "disposition": "LOG_AND_CONTINUE",
       "owner": "api",
@@ -1223,7 +1223,7 @@
     },
     {
       "path": "foms/api/erp_orders_structured.py",
-      "lineno": 936,
+      "lineno": 942,
       "handler_type": "broad_exception",
       "disposition": "LOG_AND_CONTINUE",
       "owner": "api",
@@ -1232,7 +1232,7 @@
     },
     {
       "path": "foms/api/erp_orders_structured.py",
-      "lineno": 967,
+      "lineno": 973,
       "handler_type": "broad_exception",
       "disposition": "LOG_AND_CONTINUE",
       "owner": "api",
@@ -1241,7 +1241,7 @@
     },
     {
       "path": "foms/api/erp_orders_structured.py",
-      "lineno": 1118,
+      "lineno": 1124,
       "handler_type": "broad_exception",
       "disposition": "LOG_AND_CONTINUE",
       "owner": "api",
@@ -1250,7 +1250,7 @@
     },
     {
       "path": "foms/api/erp_orders_structured.py",
-      "lineno": 1136,
+      "lineno": 1142,
       "handler_type": "broad_exception",
       "disposition": "LOG_AND_CONTINUE",
       "owner": "api",
@@ -1259,7 +1259,7 @@
     },
     {
       "path": "foms/api/erp_orders_structured.py",
-      "lineno": 1666,
+      "lineno": 1672,
       "handler_type": "broad_exception",
       "disposition": "LOG_AND_CONTINUE",
       "owner": "api",
@@ -1268,7 +1268,7 @@
     },
     {
       "path": "foms/api/erp_orders_structured.py",
-      "lineno": 1698,
+      "lineno": 1704,
       "handler_type": "broad_exception",
       "disposition": "LOG_AND_CONTINUE",
       "owner": "api",
@@ -1277,7 +1277,7 @@
     },
     {
       "path": "foms/api/erp_orders_structured.py",
-      "lineno": 1721,
+      "lineno": 1727,
       "handler_type": "broad_exception",
       "disposition": "LOG_AND_CONTINUE",
       "owner": "api",
@@ -1286,7 +1286,7 @@
     },
     {
       "path": "foms/api/erp_orders_structured.py",
-      "lineno": 1803,
+      "lineno": 1809,
       "handler_type": "broad_exception",
       "disposition": "LOG_AND_CONTINUE",
       "owner": "api",
@@ -1295,7 +1295,7 @@
     },
     {
       "path": "foms/api/erp_orders_structured.py",
-      "lineno": 1878,
+      "lineno": 1884,
       "handler_type": "broad_exception",
       "disposition": "LOG_AND_CONTINUE",
       "owner": "api",
@@ -1304,7 +1304,7 @@
     },
     {
       "path": "foms/api/erp_orders_structured.py",
-      "lineno": 1881,
+      "lineno": 1887,
       "handler_type": "broad_exception",
       "disposition": "LOG_AND_CONTINUE",
       "owner": "api",
@@ -1313,7 +1313,7 @@
     },
     {
       "path": "foms/api/erp_orders_structured.py",
-      "lineno": 2221,
+      "lineno": 2227,
       "handler_type": "broad_exception",
       "disposition": "LOG_AND_CONTINUE",
       "owner": "api",
@@ -1322,7 +1322,7 @@
     },
     {
       "path": "foms/api/erp_orders_structured.py",
-      "lineno": 2224,
+      "lineno": 2230,
       "handler_type": "broad_exception",
       "disposition": "LOG_AND_CONTINUE",
       "owner": "api",
@@ -1331,7 +1331,7 @@
     },
     {
       "path": "foms/api/erp_orders_structured.py",
-      "lineno": 2253,
+      "lineno": 2259,
       "handler_type": "broad_exception",
       "disposition": "SWALLOW_BY_CONTROL_FLOW",
       "owner": "api",
@@ -1340,7 +1340,7 @@
     },
     {
       "path": "foms/api/erp_orders_structured.py",
-      "lineno": 2264,
+      "lineno": 2270,
       "handler_type": "broad_exception",
       "disposition": "LOG_AND_CONTINUE",
       "owner": "api",
@@ -1349,7 +1349,7 @@
     },
     {
       "path": "foms/api/erp_orders_structured.py",
-      "lineno": 2291,
+      "lineno": 2297,
       "handler_type": "broad_exception",
       "disposition": "LOG_AND_CONTINUE",
       "owner": "api",
@@ -1358,7 +1358,7 @@
     },
     {
       "path": "foms/api/erp_orders_structured.py",
-      "lineno": 2294,
+      "lineno": 2300,
       "handler_type": "broad_exception",
       "disposition": "LOG_AND_CONTINUE",
       "owner": "api",
@@ -2933,7 +2933,7 @@
     },
     {
       "path": "foms/services/channel_inbound.py",
-      "lineno": 268,
+      "lineno": 317,
       "handler_type": "broad_exception",
       "disposition": "LOG_AND_CONTINUE",
       "owner": "services",
@@ -3491,7 +3491,7 @@
     },
     {
       "path": "foms/services/integrations/naver_commerce/client.py",
-      "lineno": 550,
+      "lineno": 552,
       "handler_type": "broad_exception",
       "disposition": "FAIL_CLOSED",
       "owner": "services",
@@ -3500,7 +3500,7 @@
     },
     {
       "path": "foms/services/integrations/naver_commerce/client.py",
-      "lineno": 586,
+      "lineno": 588,
       "handler_type": "broad_exception",
       "disposition": "FAIL_CLOSED",
       "owner": "services",
@@ -3509,7 +3509,7 @@
     },
     {
       "path": "foms/services/integrations/naver_commerce/client.py",
-      "lineno": 597,
+      "lineno": 599,
       "handler_type": "broad_exception",
       "disposition": "LOG_AND_CONTINUE",
       "owner": "services",
@@ -3518,7 +3518,7 @@
     },
     {
       "path": "foms/services/integrations/naver_commerce/fulfillment.py",
-      "lineno": 481,
+      "lineno": 566,
       "handler_type": "broad_exception",
       "disposition": "FAIL_CLOSED",
       "owner": "services",
@@ -3527,7 +3527,7 @@
     },
     {
       "path": "foms/services/integrations/naver_commerce/fulfillment.py",
-      "lineno": 685,
+      "lineno": 770,
       "handler_type": "broad_exception",
       "disposition": "FAIL_CLOSED",
       "owner": "services",
@@ -3536,7 +3536,7 @@
     },
     {
       "path": "foms/services/integrations/naver_commerce/fulfillment.py",
-      "lineno": 792,
+      "lineno": 877,
       "handler_type": "broad_exception",
       "disposition": "LOG_AND_CONTINUE",
       "owner": "services",
@@ -3545,7 +3545,7 @@
     },
     {
       "path": "foms/services/integrations/naver_commerce/fulfillment.py",
-      "lineno": 953,
+      "lineno": 1038,
       "handler_type": "broad_exception",
       "disposition": "LOG_AND_CONTINUE",
       "owner": "services",
@@ -4571,7 +4571,7 @@
     },
     {
       "path": "foms/web/admin/naver_ingest.py",
-      "lineno": 2582,
+      "lineno": 2643,
       "handler_type": "broad_exception",
       "disposition": "LOG_AND_CONTINUE",
       "owner": "web",
@@ -4580,7 +4580,7 @@
     },
     {
       "path": "foms/web/admin/naver_ingest.py",
-      "lineno": 2594,
+      "lineno": 2655,
       "handler_type": "broad_exception",
       "disposition": "LOG_AND_CONTINUE",
       "owner": "web",
@@ -4589,7 +4589,7 @@
     },
     {
       "path": "foms/web/admin/naver_ingest.py",
-      "lineno": 2751,
+      "lineno": 2818,
       "handler_type": "broad_exception",
       "disposition": "LOG_AND_CONTINUE",
       "owner": "web",
@@ -4598,7 +4598,7 @@
     },
     {
       "path": "foms/web/admin/naver_ingest.py",
-      "lineno": 2994,
+      "lineno": 3061,
       "handler_type": "broad_exception",
       "disposition": "LOG_AND_CONTINUE",
       "owner": "web",
@@ -4607,7 +4607,7 @@
     },
     {
       "path": "foms/web/admin/naver_ingest.py",
-      "lineno": 3086,
+      "lineno": 3153,
       "handler_type": "broad_exception",
       "disposition": "LOG_AND_CONTINUE",
       "owner": "web",
@@ -4616,7 +4616,7 @@
     },
     {
       "path": "foms/web/admin/naver_ingest.py",
-      "lineno": 3148,
+      "lineno": 3215,
       "handler_type": "broad_exception",
       "disposition": "LOG_AND_CONTINUE",
       "owner": "web",
@@ -4625,7 +4625,7 @@
     },
     {
       "path": "foms/web/admin/naver_ingest.py",
-      "lineno": 3317,
+      "lineno": 3384,
       "handler_type": "broad_exception",
       "disposition": "LOG_AND_CONTINUE",
       "owner": "web",
@@ -4868,7 +4868,7 @@
     },
     {
       "path": "foms/web/orders/edit.py",
-      "lineno": 475,
+      "lineno": 480,
       "handler_type": "broad_exception",
       "disposition": "LOG_AND_CONTINUE",
       "owner": "web",
@@ -4877,7 +4877,7 @@
     },
     {
       "path": "foms/web/orders/edit.py",
-      "lineno": 520,
+      "lineno": 525,
       "handler_type": "broad_exception",
       "disposition": "SWALLOW_BY_CONTROL_FLOW",
       "owner": "web",
@@ -4886,7 +4886,7 @@
     },
     {
       "path": "foms/web/orders/edit.py",
-      "lineno": 564,
+      "lineno": 569,
       "handler_type": "broad_exception",
       "disposition": "SWALLOW_BY_CONTROL_FLOW",
       "owner": "web",

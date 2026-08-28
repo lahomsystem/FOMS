@@ -11,9 +11,24 @@ from __future__ import annotations
 #: 판매채널 코드. v1 은 네이버 하나뿐이지만 링크 테이블은 채널 확장을 막지 않는다.
 CHANNEL = "NAVER"
 
-#: 수집 주문임을 표시하는 ``structured_data['source']`` 마커.
+#: 수집 주문임을 표시하는 ``structured_data['source']`` 마커 — **출처 전용**.
 #: 대시보드(‘담당 미지정’ 뱃지)도 이 값을 읽으므로 매핑 모듈이 아니라 여기에 둔다.
+#:
+#: 이 값을 쓰는 곳은 **주문을 네이버가 만든 경로 하나뿐**이다(``mapping.build_structured_data``).
+#: 붙이기(attach)는 이 키를 건드리지 않는다 — ERP 에서 직접 받은 주문에 재결제를 붙였다고
+#: 출처가 네이버가 되지는 않기 때문이다(:data:`LINKED_MARKER_KEY` 참고).
 SOURCE_MARKER = "NAVER_SMARTSTORE"
+
+#: 네이버 원본 도크 **렌더 게이트** 키 — ``structured_data['naver_linked'] = True``.
+#:
+#: :data:`SOURCE_MARKER` 와 뜻이 다르다. 출처는 "이 주문을 누가 만들었나"이고, 이 키는
+#: "이 주문에 네이버 수집분이 붙어 있어 보여 줄 원본이 있나"다. 예약금 건처럼 ERP 에서
+#: 직접 받은 주문에 재결제를 붙이면 **뒤만 참**이다.
+#:
+#: 읽는 곳은 도크 게이트 하나(``foms/web/orders/edit.py``), 쓰는 곳은 붙이기 하나
+#: (``promotion._stamp_link_marker``)다. 출처를 주장하지 않으므로 주문 상세 뱃지
+#: (‘네이버 수집’)와 대시보드 ‘담당 미지정’ 모집단은 이 키를 보지 않는다.
+LINKED_MARKER_KEY = "naver_linked"
 
 #: 수집 주문의 이벤트 author·``assigned_by`` 로 쓰는 봇 계정(role=MANAGER).
 ACTOR_USERNAME = "naver_ingest_bot"
@@ -38,4 +53,4 @@ DEFAULT_ORDERER_NAME = "라홈"
 SELLER_CENTER_URL = "https://sell.smartstore.naver.com/"
 
 __all__ = ["ACTOR_USERNAME", "ADDON_PRODUCT_CLASS", "CHANNEL", "DEFAULT_ORDERER_NAME",
-           "OWNER_USERNAME", "SELLER_CENTER_URL", "SOURCE_MARKER"]
+           "LINKED_MARKER_KEY", "OWNER_USERNAME", "SELLER_CENTER_URL", "SOURCE_MARKER"]

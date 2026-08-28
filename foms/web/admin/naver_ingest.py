@@ -995,6 +995,62 @@ def _selected_offlist(link: Optional[ExternalOrderLink],
     return not any(house & set(group["link_ids"]) for group in visible)
 
 
+def _origin_view(db, link: Optional[ExternalOrderLink],
+                 household: Optional[dict[str, Any]]) -> dict[str, Any]:
+    """붙어 있는 주문의 **옛 네이버 주문** 사실 — 관계 블록이 쓴다 (2026-08-28 NVREPAY-01).
+
+    재결제로 붙인 뒤 담당자가 해야 할 다음 일은 **옛 주문을 네이버에서 취소(발송 전) 또는
+    반품(발송 후)** 하는 것이다. 그런데 지금까지 화면은 붙이는 순간 옛 결제 정보를 통째로
+    감췄다 — 그 정보가 `아직 안 붙은 집` 갈래에만 있었기 때문이다. 담당자는 판매자센터를
+    따로 열어 주문번호로 찾아 들어가고 있었다.
+
+    링크가 0건일 때 화면이 **"없습니다"라고 단정하지 않는** 이유는
+    :func:`order_candidates.origin_facts` 의 docstring 과 설계서 §4.1 에 있다 — 수집이
+    ``PAYED`` 만 가져오므로 첫 스윕 전에 이미 처리가 끝난 주문은 영영 안 들어오고,
+    그 관측이 "정말 없음"과 똑같다.
+
+    Args:
+        db: 요청 스코프 DB 세션.
+        link: pane 에 띄운 링크.
+        household: 그 링크가 속한 집(:func:`_group_of_link` 결과).
+
+    Returns:
+        ``{link_count, claim_code, claim_label, alive_rows, stale_any, sweep}``.
+        붙은 주문이 없으면 빈 값 — 템플릿은 관계 블록에서만 이걸 읽는다.
+    """
+    from foms.services.integrations.naver_commerce.order_candidates import origin_facts
+
+    empty = {"link_count": 0, "claim_code": "", "claim_label": "",
+             "alive_rows": [], "stale_any": False, "sweep": {}}
+    if link is None or not link.order_id:
+        return empty
+    exclude = set(int(i) for i in ((household or {}).get("link_ids") or []))
+    exclude.add(int(link.id))
+    facts = origin_facts(db, link.order_id, exclude_link_ids=exclude,
+                         since_at=link.created_at)
+    for row in facts["alive_rows"]:
+        row["read_at_text"] = _dispatch_time_text(row.get("read_at"))
+        # 옛 집 pane 주소. 새 라우트가 아니라 **같은 트리아지 화면**이다 — 확인 큐에서
+        # 빠진 집도 link_id 주소로 열리고(:func:`_selected_link`), pane 이 "목록에 없는
+        # 집"이라고 말하되 버튼을 막지 않는다(:func:`_selected_offlist`). 그래서 옛 주문의
+        # 취소·반품은 **그 집 자신의 화면에서** 기존 모달·기존 가드로 나간다.
+        row["pane_url"] = url_for("admin.naver_ingest_triage", link_id=row["link_id"])
+    # 링크가 0건일 때만 수집 상태를 곁들인다 — "안 보이는 이유"를 말할 수 있는 유일한 자리다.
+    # 있는 건에 붙이면 화면만 시끄러워진다.
+    sweep: dict[str, Any] = {}
+    if not facts["link_count"]:
+        from foms.services.integrations.naver_commerce.watermark import read_state
+
+        try:
+            state = read_state(db) or {}
+            sweep = {"last_error": str(state.get("last_error") or "")[:200],
+                     "last_run_at": _dispatch_time_text(state.get("last_run_at"))}
+        except (ValueError, TypeError, AttributeError) as exc:  # 보조 정보라 흐름을 막지 않는다
+            logger.warning("[NAVER] 수집 상태 조회 실패: %s", exc)
+    facts["sweep"] = sweep
+    return facts
+
+
 def _pane_context(db, link: Optional[ExternalOrderLink],
                   *, visible: Optional[list[dict[str, Any]]] = None) -> dict[str, Any]:
     """상세 pane 컨텍스트 — 전체 렌더와 프래그먼트 응답이 **이 함수 하나**를 쓴다.
@@ -1038,6 +1094,8 @@ def _pane_context(db, link: Optional[ExternalOrderLink],
         "return_reasons": RETURN_REASONS,
         # 목록 밖 집을 열었는지(리뷰 M-3). 버튼을 막지 않는다 — 사실만 말한다.
         "selected_offlist": _selected_offlist(link, household, visible),
+        # 붙어 있는 주문의 **옛 네이버 주문** — 재결제 뒤 정리 대상(NVREPAY-01).
+        "selected_origin": _origin_view(db, link, household),
         # sales_users 는 워크벤치 두 템플릿 어디서도 안 쓴다 — 넣어 두면
         # pane 조각 요청마다 User 전 행 조회가 1회씩 헛돈다(리뷰 M-5).
         # 게이트 OFF 경로(naver_triage.html)는 자기 자리에서 따로 부른다.

@@ -437,9 +437,14 @@ def test_alive_rows_group_one_house_into_one_line(app):
 
     rows = _candidate_for(fresh, order_id)["naver_alive_rows"]
 
-    assert rows == [{"external_order_no": "N-RC-OLD-A",
-                     "amount_total": 1_610_780,
-                     "product_order_count": 2}]
+    assert len(rows) == 1, "집 하나가 두 줄로 갈라졌다"
+    assert rows[0]["external_order_no"] == "N-RC-OLD-A"
+    assert rows[0]["amount_total"] == 1_610_780
+    assert rows[0]["product_order_count"] == 2
+    # 행은 그 집을 **가리킬 수 있어야** 한다 — 화면이 취소·반품을 그 집 pane 으로 보낸다
+    # (NVREPAY-01). 예전에는 주문번호·금액·건수만 남기고 식별자를 버렸다.
+    assert rows[0]["link_id"], "옛 집을 가리킬 link_id 가 없다"
+    assert len(rows[0]["product_order_ids"]) == 2
 
 
 def test_canceled_links_are_not_alive_rows(app):
