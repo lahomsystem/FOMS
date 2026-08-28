@@ -18,13 +18,22 @@ AS cycle 상태기계를 실제 HTTP 경로로 고정한다(PG DSN 불필요 —
 """
 from __future__ import annotations
 
+import copy
+
 import pytest
+from sqlalchemy.orm.attributes import flag_modified
 from werkzeug.security import generate_password_hash
 
 from db import db_session
-from foms.services.orders.as_cycle_service import ASCycleError, register_as_cycle
+from foms.services.datetime_kst import now_utc_naive
+from foms.services.orders.as_cycle_service import (
+    ASCycleError,
+    _visit_projection,
+    register_as_cycle,
+)
+from foms.services.orders.as_schedule_link import SOURCE_SHIPMENT, read_link, write_link
 from foms.services.orders.state_axes import read_as_status
-from models import Order, OrderEvent, User
+from models import Order, OrderEvent, OrderScheduleDate, User
 
 
 def _login_as_admin(client, username="state-as-admin"):
@@ -471,3 +480,102 @@ def test_register_persists_recurrence_flag_on_cycle(client):
     plain = _create_cs_order()
     client.post(f"/api/orders/{plain.id}/as/register", json={"as_content": "일반 접수"})
     assert _current_cycle(_reload(plain.id))["recurrence"] is False
+
+
+# ---------------------------------------------------------------------------
+# AS 재접수 T2: 새 건은 직전 건의 방문일을 물려받지 않는다
+# ---------------------------------------------------------------------------
+def _as_visit_rows(order_id):
+    """``order_schedule_dates`` 의 as_visit 파생 행 날짜 목록(before_flush 동기화 결과)."""
+    db_session.expire_all()
+    return [
+        row.date
+        for row in db_session.query(OrderScheduleDate)
+        .filter_by(order_id=order_id, kind="as_visit")
+        .order_by(OrderScheduleDate.date.asc())
+        .all()
+    ]
+
+
+def test_new_cycle_clears_previous_visit_date(client):
+    """새 cycle 발급은 직전 건의 방문일/시각·일정 링크를 비운다(가능시간은 유지).
+
+    ``schedule.as_visit`` 는 주문당 1슬롯이라, 새 AS 건이 열려도 직전 건 방문일이 그대로
+    남아 대시보드가 새 건을 "이미 방문 잡힌 건"으로 보여줬다(운영 #4434). 지난 건의 방문
+    이력은 그 cycle 의 transitions 에 남으므로 슬롯을 비워도 복원 가능하다.
+    """
+    user = _login_as_admin(client, "state-as-visit-reset")
+    user_id, user_name = user.id, user.name  # HTTP 요청 뒤에는 세션에서 떨어진다
+    order = _create_cs_order()
+    oid = order.id
+    client.post(f"/api/orders/{oid}/as/register", json={"as_content": "1차"})
+    client.post(f"/api/orders/{oid}/as/schedule",
+                json={"visit_date": "2026-08-01", "visit_time": "14:30"})
+    saved = _reload(oid)
+    first_id = saved.structured_data["as_lifecycle"]["current_cycle_id"]
+
+    # 가능시간(주문 속성)과 일정 매칭 링크를 함께 심는다 — 전자는 유지, 후자는 해제 대상.
+    sd = copy.deepcopy(saved.structured_data)
+    sd["schedule"]["as_visit"]["availability"] = "오후 2시 이후"
+    write_link(sd, ref_order_id=oid, ref_date="2026-08-01", source=SOURCE_SHIPMENT,
+               user_id=user_id, user_name=user_name, now=now_utc_naive())
+    saved.structured_data = sd
+    flag_modified(saved, "structured_data")
+    db_session.commit()
+    assert _as_visit_rows(oid) == ["2026-08-01"]  # 파생 행이 실제로 생겼다
+
+    client.post(f"/api/orders/{oid}/as/start", json={"reason": "r", "description": "d"})
+    client.post(f"/api/orders/{oid}/as/complete", json={"note": "완료"})
+    r = client.post(f"/api/orders/{oid}/as/register", json={"as_content": "2차"})
+    assert r.status_code == 200 and r.get_json()["success"] is True
+
+    saved = _reload(oid)
+    as_visit = saved.structured_data["schedule"]["as_visit"]
+    assert not as_visit["date"] and not as_visit["time"]  # 새 건은 방문일 미정
+    assert as_visit["availability"] == "오후 2시 이후"  # 가능시간(주문 속성)은 불변
+    assert read_link(saved.structured_data) is None  # 지워진 방문일을 가리키던 링크 해제
+    assert _as_visit_rows(oid) == []  # sd 파생 행도 함께 사라진다
+
+    # 실제로 지운 접수에만 표식이 남는다(AS_REGISTER payload).
+    new_cycle = _current_cycle(saved)
+    assert new_cycle["cycle_id"] != first_id
+    assert new_cycle["transitions"][0]["command"] == "AS_REGISTER"
+    assert new_cycle["transitions"][0]["payload"]["visit_cleared"] is True
+
+    # 지난 건의 방문 이력은 그 cycle transitions 에 그대로 남는다(복원 가능).
+    first = _cycle_by_id(saved, first_id)
+    assert _visit_projection(first) == {"visit_date": "2026-08-01", "visit_time": "14:30"}
+    assert [t["command"] for t in first["transitions"]] == [
+        "AS_REGISTER", "AS_SCHEDULE", "AS_START", "AS_COMPLETE",
+    ]
+
+
+def test_new_cycle_without_previous_visit_skips_cleared_stamp(client):
+    """지울 방문일도 링크도 없던 접수에는 ``visit_cleared`` 표식을 남기지 않는다."""
+    _login_as_admin(client, "state-as-visit-nostamp")
+    order = _create_cs_order()
+    oid = order.id
+    r = client.post(f"/api/orders/{oid}/as/register", json={"as_content": "첫 접수"})
+    assert r.status_code == 200
+
+    cycle = _current_cycle(_reload(oid))
+    assert cycle["transitions"][0]["command"] == "AS_REGISTER"
+    assert "visit_cleared" not in cycle["transitions"][0]["payload"]
+
+
+def test_open_cycle_reregistration_keeps_visit_date(client):
+    """열린 건 재접수(지방 AS 재상차)는 새 건이 아니므로 방문일을 그대로 둔다."""
+    _login_as_admin(client, "state-as-visit-keep")
+    order = _create_cs_order()
+    oid = order.id
+    client.post(f"/api/orders/{oid}/as/register", json={"as_content": "1차"})
+    client.post(f"/api/orders/{oid}/as/schedule",
+                json={"visit_date": "2026-08-03", "visit_time": "10:00"})
+
+    r = client.post(f"/api/orders/{oid}/as/register", json={"as_content": "재상차 접수"})
+    assert r.status_code == 200 and r.get_json()["success"] is True
+    saved = _reload(oid)
+    assert len(saved.structured_data["as_lifecycle"]["cycles"]) == 1  # 같은 건(새 cycle 없음)
+    as_visit = saved.structured_data["schedule"]["as_visit"]
+    assert as_visit["date"] == "2026-08-03" and as_visit["time"] == "10:00"
+    assert _as_visit_rows(oid) == ["2026-08-03"]

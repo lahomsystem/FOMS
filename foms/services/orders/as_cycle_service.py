@@ -37,6 +37,7 @@ from sqlalchemy.orm.attributes import flag_modified
 
 from foms.services.datetime_kst import now_utc_naive
 from foms.services.orders.as_log import append_system_log
+from foms.services.orders.as_schedule_link import clear_link, read_link
 from foms.services.orders.revision import MutationResult, execute_order_mutation
 from foms.services.orders.state_axes import (
     AS_VALUES,
@@ -447,6 +448,53 @@ def _issue_new_cycle(
     return cycle
 
 
+def _clear_visit_for_new_cycle(sd: Dict[str, Any], order: Order) -> bool:
+    """새 AS 건이 직전 건의 방문일/시각·일정 링크를 물려받지 않게 슬롯을 비운다.
+
+    ``schedule.as_visit`` 는 cycle 별이 아니라 **주문당 1슬롯**이라, 새 cycle 을 열어도
+    직전 건의 방문일이 그대로 남아 AS 대시보드가 새 건을 "이미 방문 잡힌 건"으로 보여줬다
+    (운영 #4434). 지운 방문일을 가리키던 ``schedule_link`` 도 함께 해제한다 — 남기면
+    기준일 드리프트 판정이 존재하지 않는 방문일로 계산된다.
+
+    지난 건의 방문 이력은 그 cycle 의 AS_SCHEDULE transition payload 에 남으므로
+    (:func:`_visit_projection`) 슬롯을 비워도 복원 가능하다. ``availability``(가능시간)는
+    한 방문이 아니라 고객의 상시 속성이라 보존한다 — :func:`_apply_visit_projection` 이
+    date/time/type 만 덮으므로 그대로 남는다.
+
+    Args:
+        sd: 잠긴 row 의 structured_data 사본(제자리 변형).
+        order: 대상 주문(projection writer 계약 인자).
+
+    Returns:
+        실제로 비운 값(비어 있지 않던 방문일/시각 또는 기존 링크)이 있었으면 True.
+        지울 것이 없었으면 False — sd 는 무변경이다.
+    """
+    as_visit = (sd.get("schedule") or {}).get("as_visit")
+    had_visit = isinstance(as_visit, dict) and bool(
+        str(as_visit.get("date") or "").strip() or str(as_visit.get("time") or "").strip()
+    )
+    had_link = read_link(sd) is not None
+    if not (had_visit or had_link):
+        return False
+    clear_link(sd)
+    _apply_visit_projection(sd, order, None, None)
+    return True
+
+
+def _stamp_visit_cleared(cycle: Dict[str, Any]) -> None:
+    """이번 접수의 AS_REGISTER transition payload 에 ``visit_cleared`` 표식을 남긴다.
+
+    방금 :func:`_issue_new_cycle` 이 append 한 **이번 커맨드의** transition 만 손댄다
+    (과거 transition mutate 금지 규약 준수). 실제로 지운 것이 있을 때만 호출된다.
+    """
+    for transition in reversed(cycle.get("transitions") or []):
+        if isinstance(transition, dict) and transition.get("command") == "AS_REGISTER":
+            payload = transition.get("payload")
+            if isinstance(payload, dict):
+                payload["visit_cleared"] = True
+            break
+
+
 # --------------------------------------------------------------------------- #
 # canonical AS command
 # --------------------------------------------------------------------------- #
@@ -469,6 +517,11 @@ def register_as_cycle(
 
     새 cycle 발급은 ``sd_hook`` **보다 먼저** 돈다 — endpoint 부수 기록(접수 reception·
     system 로그)이 새 건의 ``cycle_id`` 로 스탬프돼야 건별 묶음이 어긋나지 않는다.
+
+    새 건이므로 직전 건의 방문일/시각·일정 링크는 비운다
+    (:func:`_clear_visit_for_new_cycle`, 지웠을 때만 AS_REGISTER payload 에
+    ``visit_cleared`` 표식). 열린 건 재접수(지방 AS 재상차)는 이 함수를 타지 않으므로
+    방문일이 유지된다.
     """
     now = now or now_utc_naive()
     content = _require_text(as_content, field="AS 내용", min_len=0, max_len=_MAX_CONTENT)
@@ -497,6 +550,11 @@ def register_as_cycle(
         # 완료일 삭제가 reopen(COMPLETED 전용)으로 가 409 RECEIVED 가 된다.
         # (지난 건의 완료일은 그 cycle 의 completed_date 스냅샷에 봉인돼 있다.)
         order.as_completed_date = None
+        # 새 건은 직전 건의 방문일·일정 링크를 물려받지 않는다. sd_hook(_pre)은 sd 만 받아
+        # order 가 없으므로, projection writer 계약(_apply_visit_projection)을 만족하는
+        # 여기(_apply)에서 비운다 — 부수 기록(sd_hook)까지 끝난 뒤라 되덮일 여지도 없다.
+        if _clear_visit_for_new_cycle(sd, order):
+            _stamp_visit_cleared(cycle)
         if shipping:
             order.shipping_scheduled_date = shipping
         return {"command": "AS_REGISTER", "cycle_id": cycle.get("cycle_id"), "to": AS_RECEIVED,
