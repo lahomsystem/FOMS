@@ -11,6 +11,7 @@ import pytest
 
 from foms.services.integrations.naver_commerce.fulfillment import (
     FulfillmentError,
+    OFFICIAL_RETURN_REASONS,
     RETURN_COLLECT_METHOD,
     RETURN_REASONS,
     CANCEL_REASONS,
@@ -71,22 +72,42 @@ def test_collect_method_is_a_single_frozen_value():
 def test_return_reasons_are_not_the_cancel_reasons():
     """반품 사유 목록은 취소와 **다른 목록**이다 — 재사용하면 네이버가 400 을 준다."""
     assert RETURN_REASONS != CANCEL_REASONS
-    assert "WRONG_DELAYED_DELIVERY" in RETURN_REASONS
     assert "SOLD_OUT" not in RETURN_REASONS, "품절은 반품 사유가 아니다(취소 사유다)"
 
 
-def test_return_reasons_are_only_the_codes_we_actually_observed():
-    """**실물로 본 코드만** 보낸다 (사용자 결정 2026-08-27).
+def test_every_sendable_reason_is_in_the_official_legend():
+    """보내는 사유는 **네이버 범례 11종 안**이어야 한다 (2026-08-27).
 
-    전체 범례를 아직 못 봤고 이 경로는 불가역이다 — 문서에서 이름만 본 코드를 목록에
-    두면 사람이 그것을 고르고, 우리는 400 을 **되돌릴 수 없는 자리에서** 처음 만난다.
-    네이버 문서로 표 전체를 확인하면 그때 늘린다.
+    스냅샷에서 봤다는 것은 보낼 수 있다는 뜻이 아니다 — 읽기 코드가 쓰기 코드보다
+    많다(#1137). 이 계약이 없으면 관측값을 그대로 화이트리스트에 올리는 실수가 반복된다.
     """
-    assert set(RETURN_REASONS) == {"COLOR_AND_SIZE", "WRONG_DELAYED_DELIVERY"}
-    for never_observed in ("INTENT_CHANGED", "WRONG_ORDER", "PRODUCT_UNSATISFIED",
-                           "INCORRECT_INFO", "PRODUCT_DEFECT"):
-        assert never_observed not in RETURN_REASONS, (
-            f"{never_observed} 은 실물로 본 적이 없다 — 목록에 있으면 누가 고른다")
+    unsendable = sorted(set(RETURN_REASONS) - set(OFFICIAL_RETURN_REASONS))
+    assert not unsendable, f"범례 밖 코드가 목록에 있다 — 400 이 난다: {unsendable}"
+
+
+def test_wrong_delayed_delivery_never_comes_back():
+    """`WRONG_DELAYED_DELIVERY` 는 **읽기 전용 코드**다 — 다시 쓰기 목록에 오르면 안 된다.
+
+    스테이징 9건이 관측돼 한때 화이트리스트에 있었지만 범례 11종 밖이고, 릴리즈 노트
+    #705 가 "실제 사용이 불가능한 코드가 포함되어 제공된 것을 확인"이라고 못박았다.
+    반품 접수 실호출이 0회라 아무도 이 400 을 만난 적이 없었다.
+    """
+    assert "WRONG_DELAYED_DELIVERY" not in RETURN_REASONS
+    assert "WRONG_DELAYED_DELIVERY" not in OFFICIAL_RETURN_REASONS
+
+
+def test_return_reasons_cover_only_what_our_business_actually_does():
+    """실물이 없는 우리 반품에서 **실제로 생기는 사유만** 둔다 (사용자 확인 2026-08-27).
+
+    시공 제품이라 시공 전에는 물건이 고객 집에 갈 수 없다 — 반품은 발송 처리된 주문건의
+    주문 취소다. 배송 지연·품절·파손·오배송은 발생할 수 없고, 사유 오선택은 네이버 제재
+    대상이다(#2823). 목록에 있으면 언젠가 누가 고른다.
+    """
+    assert set(RETURN_REASONS) == {"INTENT_CHANGED", "COLOR_AND_SIZE"}
+    for impossible in ("DELAYED_DELIVERY", "SOLD_OUT", "DROPPED_DELIVERY",
+                       "BROKEN", "WRONG_DELIVERY", "WRONG_OPTION"):
+        assert impossible not in RETURN_REASONS, (
+            f"{impossible} 은 실물이 오가야 생기는 사유다 — 우리 업무에 없다")
 
 
 def test_unknown_reason_is_rejected_before_any_call():

@@ -217,7 +217,11 @@ CLAIM_STATUS_LABELS = {
 CLAIM_REASON_LABELS = {
     "MISTAKE_ORDER": "주문 실수",
     "SIMPLE_INTENT_CHANGED": "단순 변심",
-    "INTENT_CHANGED": "단순 변심",
+    # 2026-08-27 정정: 이 둘은 다른 코드다. `INTENT_CHANGED` 는 **우리가 보내는** 반품
+    # 사유이기도 해서(변심·주문취소·재결제 — `fulfillment.RETURN_REASONS`), "단순 변심"
+    # 으로 라벨을 붙이면 재결제 대기 건이 5분 뒤 담당자 알림에 **고객 변심**으로 뜬다.
+    # 네이버 범례 원문 그대로 "구매 의사 취소" 로 둔다.
+    "INTENT_CHANGED": "구매 의사 취소",
     # 2026-08-27 운영 실물로 확인한 코드다(id=422 본문에 원문 노출됐다) — 추측 철자
     # ``COLOR_SIZE_CHANGE`` 만 있어서 라벨이 안 붙었다. 실측 코드를 정본으로 둔다.
     "COLOR_AND_SIZE": "색상·사이즈 변경",
@@ -229,6 +233,22 @@ CLAIM_REASON_LABELS = {
     "PRODUCT_DEFECT": "상품 하자",
     "WRONG_DELIVERY": "오배송",
     "WRONG_DELIVERY_INFO": "배송지 정보 오류",
+    # 2026-08-27 보강. 위 목록에 없어서 화면·알림에 영문 상수가 그대로 뜨던 코드들이다.
+    # 앞 5개는 네이버 반품 사유 범례 11종(#639) 중 빠져 있던 것, 뒤 6개는 **읽기 전용**
+    # 코드다(#1137: 실제 주문 데이터의 사유 코드가 보낼 수 있는 코드보다 많다).
+    # `WRONG_DELAYED_DELIVERY` 는 스테이징 실측값인데(392행 전수: 등장 18회 / 링크 9건)
+    # 라벨이 없어 화면에 영문 상수가 그대로 떴다.
+    "WRONG_ORDER": "다른 상품 잘못 주문",
+    "DROPPED_DELIVERY": "배송 누락",
+    "BROKEN": "상품 파손",
+    "INCORRECT_INFO": "상품 정보 상이",
+    "WRONG_OPTION": "다른 상품 잘못 배송",
+    "WRONG_DELAYED_DELIVERY": "배송 오류·지연",
+    "DELAYED_DELIVERY_BY_PURCHASER": "배송 지연(구매자 사유)",
+    "PRODUCT_UNSATISFIED_BY_PURCHASER": "상품 불만족(구매자 사유)",
+    "BROKEN_AND_BAD": "파손·불량",
+    "UNDER_QUANTITY": "수량 부족",
+    "ETC": "기타",
 }
 
 
@@ -389,6 +409,69 @@ def extract_claim(detail: dict) -> dict:
     }
 
 
+def extract_claim_holdback(detail: Any) -> dict:
+    """반품 **보류**(``holdbackStatus``)와 **반품 배송비 귀책**(``claimDeliveryFeePayMethod``)
+    을 뽑는다 — 관측용(화면 없음).
+
+    이 두 값은 반품 **승인** 분기의 입력이다: 보류가 걸려 있으면 승인 결과가 달라지고,
+    배송비를 누가 무는지에 따라 돈의 방향이 갈린다. 그런데 스테이징 실데이터 392행에
+    이 두 값이 **0건**이라 우리는 진짜 반품의 모양을 본 적이 없다 — 어느 블록에 실려
+    오는지조차 모른다.
+
+    그래서 :func:`_claim_blocks` 의 블록 탐색 규약을 그대로 따라 훑고(``cancel`` →
+    ``returnInfo``/``return``/``exchange`` → ``currentClaim``), 마지막으로 상품주문·주문
+    본체까지 본 뒤 **없으면 ``None``** 을 준다. 값이 없다고 예외를 내면 실물 반품 1건이
+    들어온 바로 그 스윕이 통째로 실패해 관측 기회 자체가 사라진다 — 이 함수의 존재
+    이유를 스스로 부수는 셈이다.
+
+    표시 축이 아니라 **기록 축**이라 :data:`RETURN_BLOCK_KEYS` 로 좁히지 않는다. 취소
+    블록에 실려 온 보류도 그때 우리가 본 사실 그대로 남겨야 나중에 모양을 읽을 수 있다.
+
+    **그래서 값이 어느 블록에서 나왔는지도 함께 준다**(``*_block``). 좁히지 않은 대가로
+    ``cancel`` 블록 값이 반품 보류처럼 보일 수 있는데(:data:`RETURN_BLOCK_KEYS` 가
+    갈라져 나온 바로 그 누출), 출처 이름을 안 남기면 사후에 구분할 방법이 없다. 게다가
+    "어느 블록에 실려 오는지 모른다"가 이 함수의 관측 목표라 **출처가 곧 답**이다.
+
+    Args:
+        detail: 상품주문 상세 1건(dict 가 아니면 전부 ``None``).
+
+    Returns:
+        ``{"holdback_status", "holdback_block", "fee_pay_method", "fee_block"}`` —
+        값은 찾은 원문 문자열, 출처는 블록 이름(``cancel``·``returnInfo``·
+        ``productOrder`` 등). 못 찾으면 둘 다 ``None``.
+    """
+    order, product_order, _shipping = unwrap_detail(detail)
+    named: list[tuple[str, dict]] = []
+    if isinstance(detail, dict):
+        current = detail.get("currentClaim")
+        for prefix, holder in (("", detail),
+                               ("currentClaim.", current if isinstance(current, dict) else {})):
+            for key in CLAIM_BLOCK_KEYS:
+                block = holder.get(key) if isinstance(holder, dict) else None
+                if isinstance(block, dict) and block:
+                    named.append((prefix + key, block))
+        if isinstance(detail.get("currentClaim"), dict) and detail["currentClaim"]:
+            named.append(("currentClaim", detail["currentClaim"]))
+    named += [("productOrder", product_order or {}), ("order", order or {})]
+
+    def _pick(field: str) -> tuple[Optional[str], Optional[str]]:
+        """``named`` 를 우선순위 순으로 훑어 (값, 출처 블록 이름)을 준다."""
+        for name, block in named:
+            text = _text(block.get(field))
+            if text:
+                return text, name
+        return None, None
+
+    holdback_status, holdback_block = _pick("holdbackStatus")
+    fee_pay_method, fee_block = _pick("claimDeliveryFeePayMethod")
+    return {
+        "holdback_status": holdback_status,
+        "holdback_block": holdback_block,
+        "fee_pay_method": fee_pay_method,
+        "fee_block": fee_block,
+    }
+
+
 def extract_return_axis(detail: Any) -> dict:
     """반품 **진행** 축(수거·환불)을 뽑는다 — T8-S0.
 
@@ -398,8 +481,12 @@ def extract_return_axis(detail: Any) -> dict:
     F-1~F-3 와 같은 성질이라 **네이버로 나가는 호출은 0**이다.
 
     회수지(``collectAddress``)만 싣고 반품 수취지(``returnReceiveAddress``)는 안 싣는다 —
-    앞은 "우리 차가 물건을 가지러 갈 곳", 뒤는 "우리 물류가 받는 곳"이라 축이 다르다.
-    둘을 한 칸에 합치면 화면이 틀린 주소를 말한다.
+    앞은 "네이버가 회수 출발지로 준 곳", 뒤는 "받는 곳"이라 축이 다르다. 둘을 한 칸에
+    합치면 화면이 틀린 주소를 말한다.
+
+    2026-08-27 정정: 여기 있던 "우리 차가 물건을 가지러 갈 곳"이라는 설명은 **사실이
+    아니었다**. 시공 제품이라 시공 전에는 물건이 고객 집에 갈 수 없고, 우리 반품은
+    주문(금액)만 움직인다. 이 축은 배차 근거가 아니라 **네이버가 준 값의 반영**이다.
 
     Args:
         detail: 상품주문 상세 1건(dict 가 아니면 전부 빈 값으로 준다).
@@ -1037,6 +1124,7 @@ __all__ = [
     "claim_reason_text",
     "build_payment_info",
     "extract_claim",
+    "extract_claim_holdback",
     "extract_delivery",
     "extract_partial_cancel",
     "extract_return_axis",

@@ -327,7 +327,12 @@ def test_return_button_is_absent_before_dispatch(app, client, workbench_on):
 
 
 def test_return_button_appears_after_dispatch(app, client, workbench_on):
-    """발송분이 있는 집에는 버튼과 확인 모달이 함께 뜬다(불가역 경로 — 모달 필수)."""
+    """발송분이 있는 집에는 버튼과 확인 모달이 함께 뜬다(불가역 경로 — 모달 필수).
+
+    2026-08-27: "회수는 우리 차량이 갑니다" 문구는 사실이 아니었다(시공 전이라 실물이
+    고객 집에 간 적이 없다 — 반품은 주문(금액)만 움직인다). 새 문구로 교체했고, 옛
+    문구가 되살아나면 즉시 잡히도록 부정 단언을 함께 둔다.
+    """
     _login(client)
     _link(dispatched_ours=True)
     body = client.get(TRIAGE_PATH).get_data(as_text=True)
@@ -335,7 +340,9 @@ def test_return_button_appears_after_dispatch(app, client, workbench_on):
     assert 'id="wb-modal-return"' in body
     assert "되돌릴 수 없습니다" in body
     assert "승인·환불은 판매자센터에서 사람이" in body
-    assert "회수는 우리 차량이 갑니다" in body
+    assert "물건은 오가지 않습니다" in body
+    assert "주문(금액)만 반품" in body
+    assert "회수는 우리 차량이 갑니다" not in body
 
 
 def test_modal_restates_the_count_the_server_will_actually_send(app, client, workbench_on):

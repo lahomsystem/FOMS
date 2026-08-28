@@ -183,7 +183,9 @@ def test_return_axis_from_return_block():
 def test_return_axis_collect_address_is_joined_like_shipping():
     """회수지 주소는 배송지와 **같은 규칙**으로 합친다(base + detailed).
 
-    자사 회수라 우리 차가 직접 간다 — 이 주소가 없으면 담당자가 판매자센터를 연다.
+    2026-08-27 정정: "자사 회수라 우리 차가 직접 간다"는 사실이 아니었다(실물이 오가지
+    않는다). 그래도 합치는 규칙은 그대로다 — 네이버가 준 주소를 **틀리게 보여주지 않기**
+    위해서다. 이 주소가 없으면 담당자가 판매자센터를 연다.
     """
     detail = _snapshot(claimStatus="COLLECTING")
     detail["return"] = {
