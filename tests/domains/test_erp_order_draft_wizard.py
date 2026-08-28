@@ -608,6 +608,15 @@ def test_wizard_deposit_input_has_no_voice_mic() -> None:
     assert 'hasAttribute("data-foms-no-voice")' in voice
 
 
+def test_draft_autosave_flushes_on_ios_hidden_events() -> None:
+    """iOS Safari 는 beforeunload 를 흘린다 — pagehide·visibilitychange 로도 저장한다."""
+    js = (ROOT / "static/js/foms/draft.js").read_text(encoding="utf-8")
+    assert 'addEventListener("beforeunload", keepaliveSave)' in js
+    assert 'addEventListener("pagehide", keepaliveSave)' in js
+    assert 'visibilitychange' in js
+    assert 'document.visibilityState === "hidden"' in js
+
+
 def test_add_order_renders_wizard_when_flag_on(client, app, wizard_enabled) -> None:
     _login(client, app, "wizard_page_user")
     response = client.get("/add?wizard=1")
