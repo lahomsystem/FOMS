@@ -64,11 +64,11 @@
 |---|---|---|---|
 | T1 | 조사 — 코드·실데이터 대조 | `extract_return_axis`·pane·라이브 실측 25건 확인 | DONE |
 | T2 | 설계 승인 | 사용자 승인 1회 | DONE (R-6 포함으로 확대) |
-| T3 | 구현 D1~D5 | `python -c "import app; print('APP_OK')"` | PENDING |
-| T4 | 테스트 — 추출 단위 + pane 표시, **음성 대조군 `COLLECT_DONE` 포함** | 새 테스트가 수정 전 코드에서 red · 수정 후 green | PENDING |
-| T5 | 회귀 검증 | `-k naver` green · `tests/contracts tests/domains` green · `pre_push_smoke.ps1` exit 0 | PENDING |
-| T6 | 스테이징 실화면 | lahom-dev 에서 `RETURN_DONE` 링크 pane 이 `반품 완료` · 자기모순 문구 0 | PENDING |
-| T7 | deploy 푸시 + CI | `gh run list --commit <SHA>` 로 **전 워크플로 나열** green | PENDING |
+| T3 | 구현 D1~D5 | `APP_OK` | DONE `60d152de` |
+| T4 | 테스트 — 추출 단위 + pane 표시, **음성 대조군 `COLLECT_DONE` 포함** | 수정 전 red 17 확인 → 수정 후 green | DONE — 단위 12 · pane 8 |
+| T5 | 회귀 검증 | `-k naver` green · `tests/contracts tests/domains` green · `pre_push_smoke.ps1` exit 0 | DONE — 940 / 5356 / exit 0 |
+| T6 | 스테이징 실화면 | lahom-dev 에서 `RETURN_DONE` 링크 pane 이 `반품 완료` · 자기모순 문구 0 | DONE — 8건 확인, **결함 1건 추가 발견** |
+| T7 | deploy 푸시 + CI | 전 워크플로 나열 green | DONE `60d152de` 4/4 · 후속 커밋 확인 필요 |
 
 ## 규율
 
@@ -77,3 +77,32 @@
 - CSS·JS 를 건드리면 `naver_workbench.html:22·706` 의 `?v=` 를 범프하고
   `test_naver_workbench_async_result.py:406` 의 카운트 단언도 같이 고친다.
 - `"CI green"` 판정은 `ci_watch --quick` 이 아니라 `gh run list --commit <SHA>` 전 워크플로 나열.
+
+## T6 스테이징 실화면 (2026-08-28, `60d152de` 배포본)
+
+`upperkill` 로그인 → `/admin/naver-ingest/triage?tab=work` 의 링크 120개 중 반품 줄이 있는
+8건을 pane 으로 직접 열어 문자열을 읽었다. 8건 전부:
+
+```
+[반품 완료] 수거 완료 2026-08-26 09:17 | 회수 방법 자사 회수 | 반품 완료일 2026-08-26 09:17
+           | 환불 완료 — 반품 진행중건 존재
+```
+
+고친 넷은 전부 확인됐다 — 제목 `반품 완료` · `자사 회수` · 완료일 표시 · `환불 예정`과
+`환불 대기 환불처리완료` 소멸.
+
+### 실화면이 새로 보여준 결함 (같은 자리, 같은 부류 → 이어서 수정)
+
+`환불 완료 — 반품 진행중건 존재`. `refundStandbyReason` 은 **보류 중일 때** 답이 되는 값인데
+보류가 끝난 뒤에도 그대로 붙어, 끝난 건 옆에서 "진행중"이라 말한다 — 방금 지운 자기모순이
+사유 쪽으로 되살아난 모양이다(스테이징 8/8 전건). 완료 건에서는 사유를 안 낸다.
+대기 중 사유는 그대로 낸다(음성 대조군 테스트로 잠금).
+
+**로컬 테스트만으로는 못 봤다** — 픽스처에 `refundStandbyReason` 이 없었다. 실화면 확인이
+잡아낸 것이다.
+
+### 음성 대조군의 한계 (기록)
+
+스테이징·운영 어디에도 `RETURN_REQUEST`·`COLLECTING`·`COLLECT_DONE` 실표본이 **0건**이라
+"진행 중 반품이 여전히 `반품 진행` 이라 말하는가"는 **실화면으로 확인 불가**다. 테스트
+음성 대조군 4개(`COLLECT_DONE` 축 2 · 취소만 된 건 · 대기 사유)가 그 자리를 대신한다.

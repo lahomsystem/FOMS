@@ -273,3 +273,31 @@ def test_exchange_values_do_not_borrow_the_return_name(app, client, workbench_on
     assert "교환 완료" in body
     assert "반품 진행" not in body
     assert "반품 완료" not in body
+
+
+def test_finished_refund_does_not_carry_the_stale_standby_reason(app, client, workbench_on):
+    """환불이 끝나면 **보류 사유는 안 낸다** — 2026-08-28 스테이징 실화면 8건.
+
+    `환불 완료 — 반품 진행중건 존재` 로 떴다. 보류가 끝난 뒤의 보류 사유는 낡은 값이고,
+    끝난 건 옆에서 "진행중"이라 말해 방금 고친 자기모순을 다시 만든다.
+    """
+    _login(client)
+    claim = _done_claim()
+    claim["refundStandbyReason"] = "반품 진행중건 존재"
+    _link(claim=claim)
+    body = _body(client)
+    assert "환불 완료" in body
+    assert "반품 진행중건 존재" not in body
+
+
+def test_pending_refund_still_explains_why_it_waits(app, client, workbench_on):
+    """**음성 대조군** — 아직 대기 중이면 사유는 그대로 낸다(그때는 그게 답이다)."""
+    _login(client)
+    _link(claim={
+        "claimStatus": "COLLECT_DONE",
+        "claimType": "RETURN",
+        "refundStandbyStatus": "WAIT",
+        "refundStandbyReason": "회수 상품 검수 대기",
+    })
+    body = _body(client)
+    assert "환불 대기 WAIT — 회수 상품 검수 대기" in body
