@@ -141,6 +141,7 @@ ACTION_LABELS: dict[str, str] = {
     "NAVER_INGEST_RUN_NOW": "네이버 수집 수동 실행",
     "NAVER_INGEST_SNAPSHOT_VIEW": "네이버 수집 원본 열람",
     "NAVER_INGEST_MARK_REVIEWED": "네이버 수집 확인 완료",
+    "NAVER_INGEST_SET_APP_EXPIRY": "네이버 커머스API 인증 만료일 등록",
     "NAVER_INGEST_SET_ASSIGNEE": "네이버 수집 담당자 지정",
     "NAVER_INGEST_CREATE_ORDER": "네이버 수집분 주문 생성",
     "NAVER_INGEST_ATTACH_ORDER": "네이버 수집분 기존 주문 연결",
