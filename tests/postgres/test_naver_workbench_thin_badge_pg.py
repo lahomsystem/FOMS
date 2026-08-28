@@ -71,6 +71,28 @@ SNAPSHOT_SHAPES = {
         "shippingAddress": {"tel1": "010-6666-6666", "baseAddress": "서울 F로 6",
                             "detailedAddress": "606호"},
     },
+    # 2026-08-28 (R-7): 투영이 `return`·`exchange`·`delivery` 를 통째로 버려서, 이 모양은
+    # 얇은 경로에서 "클레임 없음"으로 읽혔다(두꺼운 경로는 "반품 완료"). 배지 수 ≠ 목록이
+    # 되는 바로 그 결함이고, top-level `return.claimStatus` 는 스테이징 실측 키다.
+    "return-블록": {
+        "order": {"orderId": "N-9"},
+        "productOrder": {"productOrderId": "P-9",
+                         "shippingAddress": {"tel1": "010-9999-9999",
+                                             "baseAddress": "서울 I로 9"}},
+        "return": {"claimStatus": "RETURN_DONE", "claimType": "RETURN",
+                   "returnReason": "PRODUCT_DEFECT", "claimRequestDate": "2026-08-26",
+                   "returnCompletedDate": "2026-08-27T10:02:11.000+09:00",
+                   "collectDeliveryMethod": "RETURN_INDIVIDUAL"},
+        "delivery": {"sendDate": "2026-08-20T10:00:00.000+09:00"},
+    },
+    "exchange-블록": {
+        "order": {"orderId": "N-10"},
+        "productOrder": {"productOrderId": "P-10",
+                         "shippingAddress": {"tel1": "010-1010-1010",
+                                             "baseAddress": "서울 J로 10"}},
+        "exchange": {"claimStatus": "EXCHANGE_REQUEST", "claimType": "EXCHANGE",
+                     "claimRequestDate": "2026-08-26"},
+    },
     "빈원본": {},
     "주소없음": {"order": {"orderId": "N-8"}, "productOrder": {"productOrderId": "P-8"}},
 }
@@ -111,6 +133,12 @@ def test_projection_decides_the_same_as_the_full_snapshot(pg_session, shape_name
 
     assert group_key(projected) == group_key(full), "집 키가 갈리면 뱃지와 목록이 어긋난다"
     assert extract_claim(projected) == extract_claim(full)
+    # 반품 축·발송 사실도 같아야 한다 — `is_return_pending` 이 둘 다 읽는다(R-7).
+    from foms.services.integrations.naver_commerce.mapping import (
+        extract_delivery, extract_return_axis,
+    )
+    assert extract_return_axis(projected) == extract_return_axis(full)
+    assert extract_delivery(projected) == extract_delivery(full)
     assert (extract_place_status(projected)["confirmed"]
             == extract_place_status(full)["confirmed"])
 
