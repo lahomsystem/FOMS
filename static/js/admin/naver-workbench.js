@@ -101,7 +101,7 @@
         'wb-bulk-clear': clearPicks,
         'wb-retry-failed': submitRetry,
         'wb-run-now': submitRunNow,
-        'wb-expiry-save': submitExpiry,
+        'wb-expiry-edit': toggleExpiryEdit,
         'wb-ghost-discard': submitGhostDiscard
     };
 
@@ -340,6 +340,11 @@
         // 않기 때문이다. 계획과 실제 동작이 어긋난 채로 실행 버튼을 누르는 자리를 막는다.
         if (target.classList.contains('wb-fork__pick')) {
             applyPlanFork(target.closest('.wb-plan'));
+            return;
+        }
+        // 만료일은 **고르는 순간 저장**한다 — 저장 버튼을 따로 두면 상태 카드가 폼이 된다.
+        if (target.id === 'wb-expiry-input') {
+            submitExpiry(target);
         }
     }
 
@@ -1756,35 +1761,58 @@
      * @param {string} message 사람이 읽는 문장.
      */
     /**
-     * 커머스API 인증 만료일 저장.
+     * 만료일 칸을 펼치고 달력을 연다 — 등록면은 이 버튼 하나뿐이다.
      *
-     * 값은 API 로 못 읽는다 — 사람이 커머스API센터에서 보고 옮겨 적는다. 저장하면 카드
-     * 문구(남은 일수·D-7 경고)가 서버 판정으로 바뀌어야 하므로 **부분 갱신**으로 다시
-     * 그린다. 통째 이동은 하지 않는다(찾기 낱말·글자 배율·스크롤을 잃는다).
+     * `showPicker()` 가 있으면 클릭 한 번으로 달력까지 뜬다(크롬·엣지). 없으면
+     * 포커스만 준다 — 그 브라우저에서도 칸을 눌러 고르면 그만이다.
      *
-     * @param {HTMLElement} btn 눌린 저장 버튼.
+     * @param {HTMLElement} btn 눌린 `수정`(또는 `등록`) 버튼.
      */
-    async function submitExpiry(btn) {
+    function toggleExpiryEdit(btn) {
         var input = document.getElementById('wb-expiry-input');
-        var value = input ? String(input.value || '').trim() : '';
-        if (!value) {
-            setExpiryNote('날짜를 고른 뒤 저장하세요.');
+        if (!input) {
             return;
         }
-        btn.disabled = true;
+        var opening = input.classList.contains('d-none');
+        input.classList.toggle('d-none', !opening);
+        btn.setAttribute('aria-expanded', opening ? 'true' : 'false');
+        if (!opening) {
+            return;
+        }
+        input.focus();
+        if (typeof input.showPicker === 'function') {
+            try {
+                input.showPicker();
+            } catch (error) {
+                /* 사용자 제스처 밖 호출은 브라우저가 막는다 — 포커스만으로 충분하다. */
+            }
+        }
+    }
+
+    /**
+     * 커머스API 인증 만료일 저장 — 날짜를 **고르는 순간** 나간다.
+     *
+     * 저장하면 카드 문구(남은 일수·D-7 경고)가 서버 판정으로 바뀌어야 하므로 **부분
+     * 갱신**으로 다시 그린다. 통째 이동은 하지 않는다(찾기 낱말·글자 배율·스크롤을 잃는다).
+     *
+     * @param {HTMLInputElement} input 날짜 칸.
+     */
+    async function submitExpiry(input) {
+        var value = String(input.value || '').trim();
+        if (!value) {
+            return;
+        }
+        input.disabled = true;
         setExpiryNote('저장하는 중…');
         const result = await postJson('/admin/naver-ingest/app-expiry', { expires_on: value });
         if (!result.ok) {
             setExpiryNote(result.error);
-            btn.disabled = false;
+            input.disabled = false;
             return;
         }
         // 문구는 **갱신 뒤에** 쓴다: softRefresh 가 이 칸을 서버가 준 것으로 갈아 끼우므로
         // 먼저 쓰면 그 자리에서 지워진다(지금 수집 버튼과 같은 순서 함정).
-        const refreshed = await softRefresh();
-        if (!refreshed) {
-            btn.disabled = false;
-        }
+        await softRefresh();
         setExpiryNote('만료일을 ' + result.data.expires_on + ' 로 저장했습니다'
             + (result.data.days_left === null ? '.' : ' (' + result.data.days_left + '일 남음).'));
     }

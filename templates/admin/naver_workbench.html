@@ -19,7 +19,7 @@
 {% block title %}네이버 수집{% endblock %}
 
 {% block styles %}
-<link rel="stylesheet" href="{{ url_for('static', filename='css/admin/naver-workbench.css') }}?v=20260828c">
+<link rel="stylesheet" href="{{ url_for('static', filename='css/admin/naver-workbench.css') }}?v=20260828d">
 {% endblock %}
 
 {% block content %}
@@ -514,7 +514,15 @@
             {% endif %}
         </div>
         <div class="wb-ingest__cell">
-            <div class="wb-ingest__k">커머스API 인증 만료일</div>
+            {# 라벨 오른쪽의 작은 글자 하나가 등록면 전부다 — 누르면 그 자리에서 달력이
+               열리고, 날짜를 고르는 순간 저장된다(저장 버튼 없음). 카드 한 칸에 라벨·값·
+               입력줄·버튼을 다 늘어놓으면 상태 카드가 폼이 된다. #}
+            <div class="wb-ingest__k">
+                커머스API 인증 만료일
+                <button type="button" class="wb-ingest__edit" id="wb-expiry-edit"
+                        aria-controls="wb-expiry-input" aria-expanded="false"
+                        title="커머스API센터의 `인증 기한` 끝 날짜를 적습니다">{{ '수정' if ingest_status.expiry.expires_on else '등록' }}</button>
+            </div>
             {% if ingest_status.expiry.expires_on %}
             <div class="wb-ingest__v">{{ ingest_status.expiry.expires_on }}</div>
             {% if ingest_status.expiry.days_left is not none and ingest_status.expiry.days_left <= 7 %}
@@ -527,17 +535,12 @@
             <div class="wb-ingest__v text-warning">미등록</div>
             <div class="wb-ingest__sub">만료일을 모르면 만료 경고를 보낼 수 없습니다.</div>
             {% endif %}
-            {# 등록면. 이 값은 API 로 못 읽는다 — 커머스API센터의 `인증 기한` 끝 날짜를
-               사람이 보고 옮겨 적는 수밖에 없다. 지금까지 저장 함수만 있고 넣을 자리가
-               없어서 카드가 늘 `미등록` 이었고, 그래서 D-7 경고가 뜰 수 없었다.
-               되돌릴 수 있는 쓰기라 확인 모달을 두지 않는다(다시 적으면 덮인다). #}
-            <div class="wb-expiry">
-                <label class="wb-expiry__label" for="wb-expiry-input">인증 기한 끝나는 날</label>
-                <input type="date" class="wb-expiry__input" id="wb-expiry-input"
-                       value="{{ ingest_status.expiry.expires_on or '' }}"
-                       aria-label="커머스API 인증 만료일">
-                <button type="button" class="btn btn-outline-secondary btn-sm" id="wb-expiry-save">저장</button>
-            </div>
+            {# 값은 API 로 못 읽는다 — 커머스API센터의 `인증 기한` 끝 날짜를 사람이 보고
+               옮겨 적는 수밖에 없다. 평소엔 접혀 있고 `수정` 을 눌러야 나온다.
+               되돌릴 수 있는 쓰기라 확인 모달도 저장 버튼도 두지 않는다(다시 고르면 덮인다). #}
+            <input type="date" class="wb-expiry__input d-none" id="wb-expiry-input"
+                   value="{{ ingest_status.expiry.expires_on or '' }}"
+                   aria-label="커머스API 인증 만료일">
             <div class="wb-ingest__sub" id="wb-expiry-note" role="status" aria-live="polite"
                  data-foms-no-autodismiss></div>
         </div>
@@ -727,5 +730,5 @@
 {% endblock %}
 
 {% block scripts %}
-<script src="{{ url_for('static', filename='js/admin/naver-workbench.js') }}?v=20260828c" defer></script>
+<script src="{{ url_for('static', filename='js/admin/naver-workbench.js') }}?v=20260828d" defer></script>
 {% endblock %}
