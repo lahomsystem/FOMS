@@ -75,7 +75,7 @@
 {% if r.open %}
 <div class="as-rchart-round as-rchart-round--open" data-round="{{ r.no }}">
   <div class="as-rchart-round__head">
-    <span class="as-rchart-round__num as-rchart-round__num--on">{{ r.no }}차 · 진행 중</span>
+    <span class="as-rchart-round__num as-rchart-round__num--on">{{ r.display_no or r.no }}차 · 진행 중</span>
     {% set next_slot = (r.slots | selectattr('state', 'equalto', 'next') | list | first) %}
     {% if next_slot %}<span class="as-rchart-round__next">다음: {{ next_slot.label }}</span>{% endif %}
   </div>
@@ -93,7 +93,7 @@
 {% else %}
 <details class="as-rchart-round as-rchart-round--closed" data-round="{{ r.no }}">
   <summary class="as-rchart-round__head">
-    <span class="as-rchart-round__num">{{ r.no }}차</span>
+    <span class="as-rchart-round__num">{% if r.unassigned %}옛 기록{% else %}{{ r.display_no or r.no }}차{% if r.closed_cycle %} · 종결{% endif %}{% endif %}</span>
     {% if r.summary %}<span class="as-rchart-round__summary">{{ r.summary }}</span>{% endif %}
     {% if r.verdict %}<span class="as-rchart-verdict-flag as-rchart-verdict-flag--{{ r.verdict.verdict }}">{{ r.verdict.verdict_label }}{% if r.verdict.reason_preview %} — {{ r.verdict.reason_preview }}{% endif %}</span>{% endif %}
   </summary>
@@ -145,7 +145,7 @@
     <span class="as-rchart-cycle-badge">{{ cyc.ordinal }}번째 AS</span>
     {% endif %}
     {% if cyc and cyc.recurrence %}<span class="as-rchart-cycle-recur">재발</span>{% endif %}
-    <span class="as-rchart-head__round">{{ v.current_round }}차{% if v.rounds and v.rounds[0].open %} · 진행 중{% else %} · 완결{% endif %}</span>
+    <span class="as-rchart-head__round">{{ v.current_display_round or v.current_round }}차{% if v.rounds and v.rounds[0].open %} · 진행 중{% else %} · 완결{% endif %}</span>
     {# 직전 건 한 줄 — 값이 없으면 줄 자체를 안 낸다(빈 칸·추정 금지). #}
     {% if cyc and cyc.history_unknown %}
     <span class="as-rchart-cycle-prev">이 건 접수일 <span class="as-rchart-cycle-unknown">불명</span></span>
@@ -266,8 +266,11 @@
 
   {# 예전 기록 — 건 표식(cycle_id)이 생기기 전 기록. 어느 건인지 **모르므로** 추정 배치하지
      않고 맨 아래 접힘 블록으로만 낸다(목업 3-B ③). #}
-  {% if v.unassigned_rounds %}
-  {% set unassigned_count = v.unassigned_rounds | map(attribute='entries') | map('length') | sum %}
+  {% set unassigned_count = (v.unassigned_rounds or []) | map(attribute='entries') | map('length') | sum %}
+  {% set unassigned_verdicts = (v.unassigned_rounds or []) | selectattr('verdict') | list | length %}
+  {# 기록도 판정도 0건이면 블록을 아예 내지 않는다 — 껍데기만 남은 '옛 기록' 아코디언은
+     회차 배지만 하나 더 띄워 사용자가 몇 번째 AS인지 다시 헷갈리게 만든다. #}
+  {% if unassigned_count or unassigned_verdicts %}
   <details class="as-rchart-cycle-past as-rchart-cycle-past--unassigned">
     {{ _rchart_cycle_divider('여기서부터는 옛 기록이라 어느 AS 건인지 구분이 없어요 · 기록 ' ~ unassigned_count ~ '건', 'unassigned') }}
     <div class="as-rchart-cycle-body">
@@ -276,7 +279,7 @@
   </details>
   {% endif %}
 
-  {% if not v.rounds and not v.reception and not v.legacy and not v.cycle_groups and not v.unassigned_rounds %}
+  {% if not v.rounds and not v.reception and not v.legacy and not v.cycle_groups and not unassigned_count and not unassigned_verdicts %}
   <div class="as-rchart-empty text-muted small">기록 없음 · 첫 기록을 남겨보세요.</div>
   {% endif %}
 
@@ -296,7 +299,7 @@
       <option value="material">자재</option>
       <option value="memo" selected>메모</option>
     </select>
-    <textarea class="as-timeline__text erp-pro-input" rows="2" aria-label="기록 내용" placeholder="기록 입력... (Ctrl/⌘+Enter로 추가 · {{ v.current_round }}차에 저장)"></textarea>
+    <textarea class="as-timeline__text erp-pro-input" rows="2" aria-label="기록 내용" placeholder="기록 입력... (Ctrl/⌘+Enter로 추가 · {{ v.current_display_round or v.current_round }}차에 저장)"></textarea>
     {# 입력과 함께 올리는 파일(AS-FRESH-01 T5) — 저장 후 그 기록에 결합된다.
        제출 전 미리보기는 로컬 objectURL 이라 업로드 왕복 없이 보인다. #}
     <input type="file" class="as-rchart-dock__file" accept="image/*,video/*,.pdf,.doc,.docx" multiple hidden>
