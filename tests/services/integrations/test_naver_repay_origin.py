@@ -173,6 +173,44 @@ def test_origin_does_not_count_the_household_we_are_looking_at(app):
     assert facts["alive_rows"] == []
 
 
+def test_addon_sibling_is_not_an_origin_order(app):
+    """추가결제는 **대체된 옛 주문이 아니다** — 원 주문 자리에 세우지 않는다.
+
+    2026-08-28 운영 실데이터에서 잡은 결함. 주문 #4854 는 재결제(REPAY)와 추가결제(ADDON)를
+    함께 달고 있었고, ADDON 집은 배송 중(살아 있음)이었다. 관계를 안 가렸더니 화면이 그
+    25,000원 차액 결제를 "옛 주문이 아직 살아 있습니다 — 반품으로 처리합니다"로 지목했다.
+    차액만 더 받은 결제를 반품하면 받은 돈이 도로 나간다.
+
+    판정 축은 도크와 같다 — 대체된 집은 ``relation == 'NEW'`` 인 집뿐이다.
+    """
+    order = _order(tel="010-9200-0005")
+    _link(order_no="N-ORG-5-ADDON", tel="010-9200-0005", amount=25_000,
+          order_id=int(order.id), relation="ADDON", dispatched=True)
+    new = _link(order_no="N-ORG-5-NEW", tel="010-9200-0005", amount=1_400_000,
+                order_id=int(order.id), relation="REPAY")
+
+    facts = origin_facts(db_session, order.id, exclude_link_ids={int(new.id)})
+
+    assert facts["link_count"] == 0, "추가결제를 옛 주문으로 셌다"
+    assert facts["alive_rows"] == []
+
+
+def test_addon_sibling_does_not_make_the_screen_ask_for_a_return(client, workbench_on):
+    """같은 결함의 화면 쪽 — 추가결제가 있어도 '반품하세요'가 뜨면 안 된다."""
+    _login(client)
+    order = _order(tel="010-9200-0006")
+    _link(order_no="N-ORG-6-ADDON", tel="010-9200-0006", amount=25_000,
+          order_id=int(order.id), relation="ADDON", dispatched=True)
+    new = _link(order_no="N-ORG-6-NEW", tel="010-9200-0006", amount=1_400_000,
+                order_id=int(order.id), relation="REPAY")
+
+    block = _origin_block(_body(client, link_id=int(new.id)))
+
+    assert "네이버 옛 주문이 아직 살아 있습니다" not in block
+    assert "N-ORG-6-ADDON" not in block
+    assert "네이버 주문 확인 안 됨" in block
+
+
 def test_origin_row_marks_a_dispatched_household(app):
     """발송된 옛 집은 취소가 아니라 반품 대상이다 — 행이 그 축을 들고 있어야 한다."""
     order = _order(tel="010-9200-0003")
