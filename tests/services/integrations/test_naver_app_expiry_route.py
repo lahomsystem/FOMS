@@ -31,6 +31,8 @@ from tests.services.integrations.test_naver_workbench import (  # noqa: F401 - f
 
 EXPIRY_PATH = "/admin/naver-ingest/app-expiry"
 TRIAGE_PATH = "/admin/naver-ingest/triage"
+#: onChange 함수 본문의 끝 표식(닫는 중괄호 한 줄).
+CHANGE_END = chr(10) + "    }"
 
 
 def _read(client):
@@ -67,15 +69,31 @@ def test_the_card_says_the_registered_date(client, workbench_on):
 
 
 def test_history_card_offers_the_input_even_when_unset(client, workbench_on):
-    """`미등록` 상태에서도 적을 칸이 있다 — 없으면 영원히 미등록이다."""
+    """`미등록` 상태에서도 적을 자리가 있다 — 없으면 영원히 미등록이다."""
     _login(client)
 
     body = client.get(TRIAGE_PATH, query_string={"tab": "all"}).get_data(as_text=True)
     card = body.split('id="wb-ingest-status"')[1].split("</section>")[0]
 
     assert "미등록" in card
-    assert 'id="wb-expiry-input"' in card and 'id="wb-expiry-save"' in card
-    assert 'type="date"' in card, "달력 칸이라야 형식 오타가 애초에 안 난다"
+    assert 'id="wb-expiry-edit"' in card and "등록</button>" in card
+    assert 'id="wb-expiry-input"' in card and 'type="date"' in card, (
+        "달력 칸이라야 형식 오타가 애초에 안 난다")
+
+
+def test_the_editor_is_folded_until_asked(client, workbench_on):
+    """평소엔 접혀 있다 — 상태 카드는 읽는 자리라 폼이 늘 펼쳐져 있으면 안 된다."""
+    _login(client)
+    target = datetime.date.today() + datetime.timedelta(days=100)
+    client.post(EXPIRY_PATH, json={"expires_on": target.isoformat()})
+
+    card = (client.get(TRIAGE_PATH, query_string={"tab": "all"})
+            .get_data(as_text=True).split('id="wb-ingest-status"')[1].split("</section>")[0])
+    input_tag = card.split('id="wb-expiry-input"')[0].rsplit("<input", 1)[1]
+
+    assert "d-none" in input_tag, "날짜 칸이 처음부터 보이면 안 된다"
+    assert "수정</button>" in card, "이미 등록된 값은 `수정` 으로 부른다"
+    assert "저장</button>" not in card, "고르는 순간 저장한다 — 저장 버튼은 없다"
 
 
 def test_broken_format_is_refused(client, workbench_on):
@@ -144,7 +162,10 @@ def test_js_wires_the_save_button_to_the_route() -> None:
     """저장 버튼이 그 라우트를 문다 — 화면에 칸만 있고 배선이 없으면 아무 일도 안 난다."""
     js = pathlib.Path("static/js/admin/naver-workbench.js").read_text(encoding="utf-8")
 
-    assert "'wb-expiry-save': submitExpiry" in js, "버튼 id 가 핸들러에 안 걸렸다"
+    assert "'wb-expiry-edit': toggleExpiryEdit" in js, "`수정` 버튼이 핸들러에 안 걸렸다"
+    change = js.split("function onChange(event)")[1].split(CHANGE_END)[0]
+    assert "target.id === 'wb-expiry-input'" in change and "submitExpiry(target)" in change, (
+        "날짜를 고르는 순간 저장돼야 한다(저장 버튼이 없으므로 change 가 유일한 신호다)")
     tail = js.split("async function submitExpiry")[1]
     body = tail.split("    /**")[0]
     assert "'/admin/naver-ingest/app-expiry'" in body

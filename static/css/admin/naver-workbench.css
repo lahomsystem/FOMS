@@ -817,22 +817,23 @@ input.wb-pick:disabled,
 .wb-ingest__sub { font-size: calc(11.5px * var(--wb-fs, 1)); opacity: .75; margin-top: 2px; }
 .wb-ingest__cell--action { display: flex; flex-direction: column; align-items: flex-start; gap: 4px; }
 
-/* 인증 만료일 등록 줄 — 라벨·날짜칸·저장이 한 줄, 칸이 좁으면 줄만 바뀐다.
-   같은 셀의 값(`미등록`·`D-7`)과 세로로 이어 붙어 보이도록 위 여백만 준다. */
-.wb-expiry {
-    display: flex;
-    flex-wrap: wrap;
-    align-items: center;
-    gap: 6px;
-    margin-top: 6px;
+/* 인증 만료일 등록면 — 라벨 옆 작은 글자 하나 + 접힌 날짜 칸.
+   상태 카드는 읽는 자리라 평소에 폼이 보이면 안 된다. */
+.wb-ingest__edit {
+    margin-left: 6px;
+    padding: 0;
+    border: 0;
+    background: none;
+    color: var(--wb-accent, #2563eb);
+    font-size: calc(11px * var(--wb-fs, 1));
+    text-decoration: underline;
+    cursor: pointer;
 }
 
-.wb-expiry__label {
-    font-size: calc(11.5px * var(--wb-fs, 1));
-    opacity: .7;
-}
+.wb-ingest__edit:hover { opacity: .75; }
 
 .wb-expiry__input {
+    margin-top: 4px;
     font-size: calc(12px * var(--wb-fs, 1));
     padding: 2px 6px;
     border: 1px solid var(--wb-line);
