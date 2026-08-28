@@ -67,8 +67,8 @@
 | T3 | 구현 D1~D5 | `APP_OK` | DONE `60d152de` |
 | T4 | 테스트 — 추출 단위 + pane 표시, **음성 대조군 `COLLECT_DONE` 포함** | 수정 전 red 17 확인 → 수정 후 green | DONE — 단위 12 · pane 8 |
 | T5 | 회귀 검증 | `-k naver` green · `tests/contracts tests/domains` green · `pre_push_smoke.ps1` exit 0 | DONE — 940 / 5356 / exit 0 |
-| T6 | 스테이징 실화면 | lahom-dev 에서 `RETURN_DONE` 링크 pane 이 `반품 완료` · 자기모순 문구 0 | DONE — 8건 확인, **결함 1건 추가 발견** |
-| T7 | deploy 푸시 + CI | 전 워크플로 나열 green | DONE `60d152de` 4/4 · 후속 커밋 확인 필요 |
+| T6 | 스테이징 실화면 | lahom-dev 에서 `RETURN_DONE` 링크 pane 이 `반품 완료` · 자기모순 문구 0 | DONE — 8건 확인(1차에서 결함 1건 추가 발견, 수정 후 재확인 8/8 깨끗) |
+| T7 | deploy 푸시 + CI | 전 워크플로 나열 green | DONE — `60d152de` 4/4 · `183e54f6` 4/4 (FOMS CI · PG Lane · Harness CI · perf-gate) |
 
 ## 규율
 
@@ -106,3 +106,18 @@
 스테이징·운영 어디에도 `RETURN_REQUEST`·`COLLECTING`·`COLLECT_DONE` 실표본이 **0건**이라
 "진행 중 반품이 여전히 `반품 진행` 이라 말하는가"는 **실화면으로 확인 불가**다. 테스트
 음성 대조군 4개(`COLLECT_DONE` 축 2 · 취소만 된 건 · 대기 사유)가 그 자리를 대신한다.
+
+## 최종 상태 (2026-08-28)
+
+재확인 후 스테이징 8건이 전부 이렇게 뜬다 — 자기모순·미래형·영문 상수 0:
+
+```
+[반품 완료] 수거 완료 2026-08-26 09:17 | 회수 방법 자사 회수 | 반품 완료일 2026-08-26 09:17 | 환불 완료
+```
+
+deploy 반영 완료(`60d152de` + `183e54f6`, CI 각 4/4 green). **운영 승격은 미착수** —
+사용자 명시 요청이 있을 때 세션 자기 커밋 cherry-pick 으로 올린다.
+
+다음 후보(원장 `2026-08-28-naver-claim-phase-ledger.md`): R-3(상, 우리가 낸 반품 접수가
+5분 뒤 자기 알림으로 돌아온다 — 버튼은 운영 활성) · R-2(상, `EXCHANGE_DONE` 이 폐기 버튼을
+연다) · R-4 · R-1 · R-7 · R-8.
