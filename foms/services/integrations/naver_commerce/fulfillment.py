@@ -306,11 +306,16 @@ def links_of_group(session: Session, link_id: int) -> list[ExternalOrderLink]:
 
 def _claim_guard(session: Session, links: list[ExternalOrderLink], *,
                  action: str, stamp: datetime) -> None:
-    """집 안에 취소·반품이 하나라도 있으면 네이버를 부르지 않는다.
+    """집 안에 진행 중인 클레임이 하나라도 있으면 네이버를 부르지 않는다.
 
     화면은 클레임 집을 잠그지만(집 단위), 화면만 믿으면 링크 id 를 아는 요청이 그대로
     통과한다. 발송처리는 구매자에게 "배송 시작"으로 보이고 되돌릴 수 없다 — 마지막 문을
     서버가 닫는다. 판정 기준은 화면과 같은 :func:`mapping.extract_claim` 이다.
+
+    판정은 :func:`mapping.blocks_irreversible` 이다. 예전에는 ``claim["blocking"]`` 을 봤는데
+    그 집합에 ``EXCHANGE_*`` 가 없어서 **교환이 도는 집에 불가역 반품 접수가 그대로
+    나갔다** — 바로 아래 :func:`request_return` 이 주석으로 막는다고 적어 둔 경우다
+    (R-4, 2026-08-28). ``blocking`` 은 "주문을 만들면 안 되는가"라 축이 다르다.
 
     **거절 사유를 상태에 남긴다.** web 은 enqueue 만 하고 즉시 "요청했습니다"로 답하므로,
     워커가 조용히 거절하면 사람은 보냈다고 믿는다 — 실패 띠가 유일한 통로다.
@@ -324,13 +329,15 @@ def _claim_guard(session: Session, links: list[ExternalOrderLink], *,
     Raises:
         FulfillmentError: 클레임이 걸린 상품주문이 있을 때.
     """
-    from foms.services.integrations.naver_commerce.mapping import extract_claim
+    from foms.services.integrations.naver_commerce.mapping import (
+        blocks_irreversible, extract_claim,
+    )
 
     for row in links:
         claim = extract_claim(row.raw_snapshot or {})
-        if not claim.get("blocking"):
+        if not blocks_irreversible(claim):
             continue
-        reason = (f"취소·반품이 진행 중인 주문입니다({claim.get('label') or '클레임'}) — "
+        reason = (f"취소·반품·교환이 걸린 주문입니다({claim.get('label') or '클레임'}) — "
                   "판매자센터에서 처리하세요.")
         _mark_failures({str(r.external_id): r for r in links},
                        {str(r.external_id): reason for r in links},
