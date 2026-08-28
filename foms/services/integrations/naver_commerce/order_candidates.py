@@ -302,7 +302,8 @@ def _dispatch_facts(raw_snapshot: Any, triage_state: Any, created_at: Any) -> di
 
 
 def _naver_facts(session, order_ids: list[int], *,
-                 exclude_link_ids: Optional[set[int]] = None) -> dict[int, dict[str, Any]]:
+                 exclude_link_ids: Optional[set[int]] = None,
+                 relations: Optional[tuple[str, ...]] = None) -> dict[int, dict[str, Any]]:
     """후보 주문마다 **붙어 있는 네이버 집의 사실**을 모은다 (2026-08-25 R-1).
 
     지금까지 화면은 링크 **개수**만 냈다. 그런데 재결제·추가결제를 가르는 결정적 신호는
@@ -322,6 +323,8 @@ def _naver_facts(session, order_ids: list[int], *,
         exclude_link_ids: 셈에서 뺄 링크 id. **지금 보고 있는 집을 빼고 옛 집만 보려고**
             쓴다(:func:`origin_facts`) — 재결제로 붙인 뒤에는 새 집도 같은 주문에 달려
             있어서, 빼지 않으면 "옛 주문이 살아 있다"가 자기 자신을 가리킨다.
+        relations: 셈에 넣을 ``relation`` 값. 주면 그 값만 본다(:func:`origin_facts` 가
+            ``NEW`` 만 쓴다). 후보 표는 관계를 가리지 않으므로 기본은 None 이다.
 
     Returns:
         ``{order_id: {link_count, canceled, alive, amount_total, claim_label, alive_rows,
@@ -337,12 +340,14 @@ def _naver_facts(session, order_ids: list[int], *,
     facts: dict[int, dict[str, Any]] = {}
     if not order_ids:
         return facts
-    rows = (session.query(ExternalOrderLink.order_id, ExternalOrderLink.raw_snapshot,
-                          ExternalOrderLink.external_order_no, ExternalOrderLink.id,
-                          ExternalOrderLink.external_id, ExternalOrderLink.triage_state,
-                          ExternalOrderLink.created_at)
-            .filter(ExternalOrderLink.order_id.in_(order_ids))  # perf-ok: 후보 5건 batch
-            .all())
+    query = (session.query(ExternalOrderLink.order_id, ExternalOrderLink.raw_snapshot,
+                           ExternalOrderLink.external_order_no, ExternalOrderLink.id,
+                           ExternalOrderLink.external_id, ExternalOrderLink.triage_state,
+                           ExternalOrderLink.created_at)
+             .filter(ExternalOrderLink.order_id.in_(order_ids)))  # perf-ok: 후보 5건 batch
+    if relations:
+        query = query.filter(ExternalOrderLink.relation.in_(relations))
+    rows = query.all()
     skip = exclude_link_ids or set()
     for (order_id, snapshot, external_order_no, link_id, external_id, triage_state,
          created_at) in rows:
@@ -418,6 +423,13 @@ def origin_facts(session, order_id: Any, *, exclude_link_ids: set[int],
     지금 보고 있는 집은 빼고 센다. 빼지 않으면 "옛 주문이 살아 있습니다"가 방금 붙인
     새 결제 자신을 가리킨다.
 
+    **``NEW`` 집만 본다**(2026-08-28 운영 실데이터에서 잡은 결함). 한 주문에는 재결제
+    말고 **추가결제(ADDON)** 도 함께 붙어 있을 수 있다. 그건 차액만 더 받은 살아 있는
+    결제이지 **대체된 옛 주문이 아니다.** 관계를 안 가렸더니 운영 주문 #4854 에서
+    배송 중인 25,000원 추가결제를 "옛 주문이 살아 있습니다 — 반품으로 처리하세요"로
+    지목했다. 판정 축은 도크와 같다 — ``superseded = has_repay and relation == "NEW"``
+    (:func:`dock._household_facts`).
+
     Args:
         session: DB 세션.
         order_id: 이 수집분이 붙어 있는 FOMS 주문 id.
@@ -427,8 +439,9 @@ def origin_facts(session, order_id: Any, *, exclude_link_ids: set[int],
 
     Returns:
         ``{"link_count", "claim_code", "claim_label", "alive_rows", "stale_any"}``.
-        붙은 주문이 없거나 옛 링크가 없으면 ``link_count == 0`` (화면은 그때
-        "네이버 주문 확인 안 됨"이라고 말한다 — **"없습니다"라고 말하지 않는다**).
+        붙은 주문이 없거나 **``NEW`` 집이 없으면** ``link_count == 0`` — 화면은 그때
+        "네이버 주문 확인 안 됨"이라고 말한다(**"없습니다"라고 말하지 않는다**).
+        추가결제만 함께 붙어 있는 주문도 여기 해당하며, 그게 맞다: 대체된 옛 주문이 없다.
     """
     empty = {"link_count": 0, "claim_code": "", "claim_label": "",
              "alive_rows": [], "stale_any": False}
@@ -436,7 +449,8 @@ def origin_facts(session, order_id: Any, *, exclude_link_ids: set[int],
         oid = int(order_id)
     except (TypeError, ValueError):
         return empty
-    facts = _naver_facts(session, [oid], exclude_link_ids=set(exclude_link_ids or set()))
+    facts = _naver_facts(session, [oid], exclude_link_ids=set(exclude_link_ids or set()),
+                         relations=("NEW",))
     bucket = facts.get(oid)
     if not bucket:
         return empty
