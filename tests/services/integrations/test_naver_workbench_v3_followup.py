@@ -149,7 +149,7 @@ def test_full_dispatch_shows_done_for_every_sibling(client, workbench_on):
 def test_offlist_household_says_it_is_not_in_the_list(client, workbench_on):
     """``?link_id=`` 로 목록 밖 집을 열면 pane 이 그 사실을 말한다.
 
-    이력 탭의 `처리 탭에서 열기` 가 실제로 이 경로다 — **막으면 안 된다**(이력에서 찾은
+    이력 탭의 `워크벤치` 링크가 실제로 이 경로다 — **막으면 안 된다**(이력에서 찾은
     집을 처리하러 가는 유일한 길). 대신 왼쪽에 없는 집에 불가역 버튼 4종이 열려 있다는
     사실을 사람이 알아야 한다(리뷰 M-3).
     """

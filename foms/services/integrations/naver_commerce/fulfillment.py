@@ -349,7 +349,7 @@ def _broken_collection_guard(session: Session, links: list[ExternalOrderLink], *
 
     화면(:func:`foms.web.admin.naver_ingest._place_groups`)이 ``FAILED``·``PENDING_REVIEW``
     를 목록에서 빼지만 **그건 화면일 뿐**이다. ``_links_of_group`` 은 상태를 안 보고,
-    이력 탭의 '처리 탭에서 열기' 는 ``PENDING_REVIEW`` 링크를 그대로 열어 준다 —
+    이력 탭의 '워크벤치' 링크는 ``PENDING_REVIEW`` 링크를 그대로 열어 준다 —
     그 집에서 발주확인 버튼이 열린다(2026-08-23 리뷰 H-B). 마지막 문은 서버가 닫는다.
 
     발주확인은 되돌릴 수 없다. 원본이 깨진 건을 네이버에 확정으로 보내면, 잘못 매핑된
