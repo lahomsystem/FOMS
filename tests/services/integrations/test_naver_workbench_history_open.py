@@ -74,6 +74,8 @@ def test_every_history_row_offers_the_work_tab_link(client, workbench_on):
     assert len(rows) == 3, "세 줄이 다 있어야 세 갈래를 다 문 것이다"
     for row in rows:
         assert "tab=work" in row and "link_id=" in row, row
+        # 글자도 못박는다 — 칸 이름이 '열기'라 링크는 이름만 말한다(`원본 보기` · `워크벤치`).
+        assert "워크벤치</a>" in row, row
     for link in (gone, pending, claim):
         assert f"tab=work&amp;link_id={link.id}" in tbody, f"link {link.id} 로 가는 길이 없다"
 
