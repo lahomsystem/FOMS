@@ -406,10 +406,13 @@ def test_rounds_key_unchanged_when_no_cycles():
         "done", "done", "next", "wait", "wait", "wait"]
     assert closed_r["open"] is False and closed_r["visit_md"] == "7/30"
     assert [e["type"] for e in closed_r["entries"]] == ["call", "plan"]
-    # 반환 키 집합 = 기존 8개 + 신설 2개 (기존 키 제거 금지)
+    # 반환 키 집합 = 기존 8개 + 신설 2개 + 표시용 회차 1개 (기존 키 제거 금지)
     assert set(view) == {
         "state_card", "symptom_preview", "rounds", "cycle_groups", "unassigned_rounds",
-        "reception", "legacy", "current_round", "verdict_prompt", "count"}
+        "reception", "legacy", "current_round", "current_display_round",
+        "verdict_prompt", "count"}
+    # 건 기록이 없는 주문은 재번호 대상이 아니다 — 표시도 스탬프 그대로.
+    assert view["current_display_round"] == view["current_round"] == 2
 
 
 # --------------------------------------------------------------------------- #
@@ -468,3 +471,102 @@ def test_single_cycle_has_no_duplicate_round_numbers():
     assert current_nos & unassigned_nos == set()
     # 기록이 어느 쪽에서도 사라지지 않는다(총 사람 기록 3건 = 방안2 + 판정1)
     assert view["count"] == 3
+
+
+# --------------------------------------------------------------------------- #
+# T1: 재접수(새 건) 뒤 회차 표기 — display_no 표시 전용 재번호
+# --------------------------------------------------------------------------- #
+def test_reintake_round_badge_advances_to_next_number():
+    """재접수하면 화면 회차가 2차로 전진하고, 지난 건 회차는 1차 · 종결이다.
+
+    스탬프(``no`` = ``as_log[].round``)는 두 건 모두 1 이다 — 재접수는 미결 판정을
+    만들지 않으므로 ``current_as_round`` 가 전진하지 않는다(production #4434).
+    전진해야 하는 것은 **표시 번호**뿐이다.
+    """
+    view = build_as_round_chart_view(_sd_two_cycles(), today=_TODAY)
+    cur, past = view["cycle_groups"]
+
+    cur_round, past_round = cur["rounds"][0], past["rounds"][0]
+    # 표시 번호: 오래된 건 → 새 건 순으로 1, 2
+    assert past_round["display_no"] == 1 and past_round["closed_cycle"] is True
+    assert cur_round["display_no"] == 2 and cur_round["closed_cycle"] is False
+    assert cur_round["open"] is True
+    # 최상위 rounds 는 현재 건 그룹과 같은 객체라 재번호가 그대로 보인다
+    assert view["rounds"][0]["display_no"] == 2
+    assert view["current_display_round"] == 2
+
+    # 스탬프는 손대지 않는다(서버 규약·data-round 계약)
+    assert cur_round["no"] == 1 and past_round["no"] == 1
+    assert view["current_round"] == 1
+    # '예전 기록'은 어느 건인지 모르므로 번호를 주지 않는다(템플릿이 no 로 폴백)
+    assert all("display_no" not in r for r in view["unassigned_rounds"])
+    assert all(r["closed_cycle"] is False for r in view["unassigned_rounds"])
+
+
+def test_render_reintake_badges_show_second_round_and_closed(app):
+    """렌더 결과가 사용자가 읽는 문구를 그대로 낸다 — 2차 · 진행 중 / 1차 · 종결."""
+    html = _render_chart(app, build_as_round_chart_view(_sd_two_cycles(), today=_TODAY))
+    assert "2차 · 진행 중" in html
+    assert "1차 · 종결" in html
+    # 재접수 전의 버그 문구(둘 다 1차)는 다시 나오지 않는다
+    assert "1차 · 진행 중" not in html
+    # 입력창 안내도 표시 번호를 따른다
+    assert "2차에 저장" in html
+
+
+def test_render_reintake_keeps_raw_round_stamps_in_data_attrs(app):
+    """표시 재번호는 data-* 계약을 건드리지 않는다(JS/CSS 가 이 값으로 묶인다)."""
+    html = _render_chart(app, build_as_round_chart_view(_sd_two_cycles(), today=_TODAY))
+    assert 'data-current-round="1"' in html          # = current_as_round 스탬프
+    assert 'data-round="1"' in html                  # 두 건 모두 스탬프 1
+    assert 'data-round="2"' not in html
+
+
+def test_unassigned_rounds_render_as_old_records_not_a_round_number():
+    """건 표식 없는 옛 기록은 '옛 기록'으로만 낸다 — 번호를 주면 '1차'가 또 생긴다."""
+    view = build_as_round_chart_view(_sd_two_cycles(), today=_TODAY)
+    assert view["unassigned_rounds"]
+    assert all(r["unassigned"] is True for r in view["unassigned_rounds"])
+
+
+def test_render_unassigned_block_labels_old_records(app):
+    """렌더 문구 핀: 옛 기록 블록에는 회차 번호 배지가 아니라 '옛 기록'이 붙는다."""
+    html = _render_chart(app, build_as_round_chart_view(_sd_two_cycles(), today=_TODAY))
+    assert "as-rchart-cycle-past--unassigned" in html
+    assert ">옛 기록<" in html
+
+
+def _sd_two_cycles_without_unassigned_entries() -> dict:
+    """건 표식 없는 **시스템 이벤트만** 남은 주문(production #4434 모양).
+
+    사람 기록이 0건이라 '옛 기록' 블록은 껍데기뿐인데, 종전에는 그 안에 회차 배지가
+    하나 더 떠서 화면에 '1차'가 두 벌 보였다.
+    """
+    sd = _base_sd()
+    append_system_log(sd, text="AS 접수됨")
+    sd["as_lifecycle"] = {
+        "current_cycle_id": "cyc-1",
+        "cycles": [
+            {"cycle_id": "cyc-1", "received_date": "2026-06-02",
+             "completed_date": "2026-06-11",
+             "transitions": [{"seq": 1, "command": "AS_COMPLETE", "to": "COMPLETED"}]},
+            {"cycle_id": "cyc-2", "received_date": "2026-08-01",
+             "transitions": [{"seq": 1, "command": "AS_REGISTER", "to": "RECEIVED"}]},
+        ],
+    }
+    sd["as_lifecycle"]["current_cycle_id"] = "cyc-2"
+    append_client_log(sd, log_type="plan", text="8월 재방문 방안", by="이", by_id=3)
+    return sd
+
+
+def test_render_hides_empty_unassigned_block(app):
+    """기록·판정 0건인 옛 기록 블록은 통째로 안 낸다(빈 회차 배지 제거)."""
+    view = build_as_round_chart_view(_sd_two_cycles_without_unassigned_entries(), today=_TODAY)
+    assert view["unassigned_rounds"]                     # 뷰에는 시스템 버킷이 남는다
+    assert sum(len(r["entries"]) for r in view["unassigned_rounds"]) == 0
+    html = _render_chart(app, view)
+    assert "as-rchart-cycle-past--unassigned" not in html
+    # 기록 0건인 지난 건도 번호 한 칸을 먹으므로 열린 재접수는 2차다(1차로 되돌아가지 않는다)
+    assert "2차 · 진행 중" in html
+    assert "1차 · 진행 중" not in html
+    assert "1번째 AS" in html and "이 건 기록 없음" in html
