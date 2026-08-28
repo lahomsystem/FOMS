@@ -37,6 +37,7 @@ from foms.services.integrations.naver_commerce.mapping import (
     CLAIM_PHASE_DONE,
     CLAIM_PHASE_PROGRESS,
     CLAIM_PHASE_REQUESTED,
+    MONEY_BACK_CLAIM_KINDS,
 )
 from foms.services.phone_search import normalize_phone_digits
 from models import ExternalOrderLink, Order
@@ -175,18 +176,21 @@ def _claim_facts(raw_snapshot: Any) -> dict[str, str]:
         raw_snapshot: ``ExternalOrderLink.raw_snapshot``.
 
     Returns:
-        ``{"phase": 단계, "detailed_reason": 사유 원문}``. 읽을 수 없으면 둘 다 빈 문자열
-        (**빈 값은 화면이 줄을 안 내고, 빈 단계는 취소로 세지 않는다**).
+        ``{"phase": 단계, "kind": 종류, "detailed_reason": 사유 원문}``. 읽을 수 없으면
+        전부 빈 문자열 (**빈 값은 화면이 줄을 안 내고, 빈 단계는 취소로 세지 않는다**).
     """
-    empty = {"phase": "", "detailed_reason": ""}
+    empty = {"phase": "", "kind": "", "detailed_reason": ""}
     if not isinstance(raw_snapshot, dict) or not raw_snapshot:
         return empty
     try:
-        from foms.services.integrations.naver_commerce.mapping import extract_claim
+        from foms.services.integrations.naver_commerce.mapping import (
+            claim_kind, extract_claim,
+        )
 
         claim = extract_claim(raw_snapshot)
         return {
             "phase": str(claim.get("phase") or ""),
+            "kind": claim_kind(claim),
             "detailed_reason": str(claim.get("detailed_reason") or "").strip(),
         }
     except (ValueError, TypeError, AttributeError) as exc:  # 표시용 보조라 흐름을 막지 않는다
@@ -242,8 +246,12 @@ def _naver_facts(session, order_ids: list[int]) -> dict[int, dict[str, Any]]:
         # 클레임 **단계**로 가른다. 예전에는 "claimStatus 가 비어 있지 않은가" 한 비트라
         # 승인 전 취소(CANCEL_REQUEST)와 취소 **거부**(CANCEL_REJECT — 주문은 살아 있다)가
         # 확정 취소와 같은 칸에 들어갔다(2026-08-28).
+        # 종류도 본다. 교환은 **돈이 되돌아가지 않는다** — 대체품을 보내야 하는 살아 있는
+        # 결제인데 `EXCHANGE_DONE` 이 `done` 이라는 이유로 `전부 취소 완료` 로 세어졌다
+        # (R-2, 2026-08-28). 유령 목록과 **같은 술어**를 쓴다.
         phase = _claim_facts(snapshot)
-        if phase["phase"] in (CLAIM_PHASE_DONE, CLAIM_PHASE_REQUESTED, CLAIM_PHASE_PROGRESS):
+        if (phase["phase"] in (CLAIM_PHASE_DONE, CLAIM_PHASE_REQUESTED, CLAIM_PHASE_PROGRESS)
+                and phase["kind"] in MONEY_BACK_CLAIM_KINDS):
             if phase["phase"] == CLAIM_PHASE_DONE:
                 bucket["canceled"] += 1
             else:

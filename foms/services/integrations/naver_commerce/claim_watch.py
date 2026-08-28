@@ -30,6 +30,7 @@ from foms.services.datetime_kst import now_utc_naive
 from foms.services.integrations.naver_commerce.constants import CHANNEL
 from foms.services.integrations.naver_commerce.grouping import resolve_group_key
 from foms.services.integrations.naver_commerce.mapping import (
+    claim_kind,
     claim_reason_text,
     extract_claim,
     extract_claim_holdback,
@@ -199,24 +200,47 @@ def _compose(session: Session, links: list[ExternalOrderLink],
     return title[:200], message
 
 
-def _is_our_cancel(link: ExternalOrderLink) -> bool:
-    """이 링크의 취소를 **우리가** 냈는가 (판매자 직접취소 표식).
+#: 클레임 종류 → **우리가 냈다는 표식**이 남는 자리 ``(버킷, 키)``.
+#:
+#: 두 자리가 다른 것이 R-3 의 원인이었다. 취소는 ``fulfillment.cancel_order`` 가
+#: ``triage_state['fulfillment']['canceled_at']`` 에, 반품은 ``fulfillment.request_return``
+#: 이 ``triage_state['return']['requested_at']`` 에 남긴다. 억제 판정이 앞쪽만 읽어서
+#: **반품 접수만 경보가 되어 돌아왔다**(2026-08-28).
+#:
+#: 교환은 우리가 내보내는 경로가 없어서 표식도 없다 — 생기면 여기 한 줄이다.
+OUR_CLAIM_MARKERS = {
+    "CANCEL": ("fulfillment", "canceled_at"),
+    "RETURN": ("return", "requested_at"),
+}
 
-    표식은 ``fulfillment.cancel_order`` 가 집 전체에 남긴다
-    (``triage_state['fulfillment']['canceled_at']``). 이 모듈의 상태 키
-    (:data:`STATE_KEY` = ``claim_sync``)와 **다른 축**이라 서로 덮어쓰지 않는다.
+
+def _is_our_claim(link: ExternalOrderLink, claim: dict) -> bool:
+    """이 클레임을 **우리가** 냈는가 (판매자 직접 접수 표식).
+
+    표식은 :mod:`fulfillment` 이 집 전체에 남긴다(자리는 :data:`OUR_CLAIM_MARKERS`).
+    이 모듈의 상태 키(:data:`STATE_KEY` = ``claim_sync``)와 **다른 축**이라 서로
+    덮어쓰지 않는다.
+
+    **종류가 맞을 때만 참이다.** 표식 하나가 모든 클레임을 덮으면, 반품을 한 번 접수한
+    링크는 그 뒤 진짜 고객 취소가 나도 영영 조용해진다 — 억제가 사고를 삼키는 쪽으로
+    틀리는 것이 이 함수의 유일한 위험이다. 종류를 모르면(빈 문자열) 억제하지 않는다.
 
     Args:
         link: 클레임이 감지된 링크.
+        claim: :func:`mapping.extract_claim` 결과(종류 판정에 쓴다).
 
     Returns:
-        bool: 우리 취소 표식이 있으면 True.
+        bool: 같은 종류의 우리 표식이 있으면 True.
     """
-    state = link.triage_state if isinstance(link.triage_state, dict) else {}
-    fulfillment = state.get("fulfillment")
-    if not isinstance(fulfillment, dict):
+    marker = OUR_CLAIM_MARKERS.get(claim_kind(claim))
+    if not marker:
         return False
-    return bool(fulfillment.get("canceled_at"))
+    bucket_name, key = marker
+    state = link.triage_state if isinstance(link.triage_state, dict) else {}
+    bucket = state.get(bucket_name)
+    if not isinstance(bucket, dict):
+        return False
+    return bool(bucket.get(key))
 
 
 def _pending_groups(
@@ -378,7 +402,7 @@ def _refresh_link(link: ExternalOrderLink, detail: dict, *, stamp: datetime,
         link: 갱신 대상 링크(스냅샷·컬럼은 이 함수가 바로 쓴다).
         detail: 네이버 상세 응답 1건.
         stamp: 이번 스윕 시각.
-        result: 집계 dict — ``refreshed``·``claimed``·``self_canceled`` 를 여기서 올린다.
+        result: 집계 dict — ``refreshed``·``claimed``·``self_claimed`` 를 여기서 올린다.
 
     Returns:
         ``(state, sync, claim)`` — ``state``·``sync`` 는 **아직 링크에 되쓰지 않은**
@@ -411,19 +435,20 @@ def _refresh_link(link: ExternalOrderLink, detail: dict, *, stamp: datetime,
         return state, sync, None
 
     result["claimed"] += 1
-    # **우리가 낸 취소는 알리지 않는다.** 판매자 직접취소(`fulfillment.cancel_order`)를
-    # 보내면 다음 스윕이 그 결과를 클레임으로 목격하고, 문안이 "일정·생산이 잡혀
-    # 있으면 진행을 멈추고 판매자센터에서 확인하세요"인 긴급 알림을 담당자에게
-    # 되돌려 보냈다. 방금 자기가 누른 일이 5분 뒤 경보로 돌아온다 — 진짜 고객
-    # 취소와 구분이 안 되니 경보 전체가 무뎌진다(2026-08-24 감사).
+    # **우리가 낸 클레임은 알리지 않는다.** 판매자 직접취소(`fulfillment.cancel_order`)나
+    # 반품 접수(`fulfillment.request_return`)를 보내면 다음 스윕이 그 결과를 클레임으로
+    # 목격하고, 문안이 "일정·생산이 잡혀 있으면 진행을 멈추고 판매자센터에서
+    # 확인하세요"인 긴급 알림을 담당자에게 되돌려 보냈다. 방금 자기가 누른 일이 5분 뒤
+    # 경보로 돌아온다 — 진짜 고객 클레임과 구분이 안 되니 경보 전체가 무뎌진다
+    # (2026-08-24 감사 = 취소, 2026-08-28 R-3 = 반품).
     # 상태 갱신(스냅샷·발주상태·묶음키·last_status)은 그대로 한다. 사실은 사실이고,
-    # 화면의 '취소 완료' 표시는 이 갱신에서 나온다. 막는 것은 **알림뿐**이다.
-    if _is_our_cancel(link):
+    # 화면의 '취소 완료'·'반품 요청' 표시는 이 갱신에서 나온다. 막는 것은 **알림뿐**이다.
+    if _is_our_claim(link, claim):
         # 조용히 넘기지 않는다 — 억제도 기록이 남아야 나중에 셀 수 있다.
-        logger.info("[NAVER] 우리가 낸 취소라 클레임 알림을 보내지 않는다 link=%s status=%s",
+        logger.info("[NAVER] 우리가 낸 클레임이라 알림을 보내지 않는다 link=%s status=%s",
                     link.id, claim["status"])
         sync["notified_status"] = claim["status"]
-        result["self_canceled"] += 1
+        result["self_claimed"] += 1
         return state, sync, None
     # 같은 상태로 두 번 알리지 않는다(5분 폴링이라 중복 방지가 필수).
     if sync.get("notified_status") == claim["status"]:
@@ -448,12 +473,12 @@ def refresh_claims(
         now: 알림 생성 시각(테스트 주입).
 
     Returns:
-        ``{"refreshed", "claimed", "notified", "self_canceled"}`` 집계.
-        ``self_canceled`` 는 **우리가 낸 취소라 알림을 막은 건수**다 — 억제도
+        ``{"refreshed", "claimed", "notified", "self_claimed"}`` 집계.
+        ``self_claimed`` 는 **우리가 낸 취소·반품이라 알림을 막은 건수**다 — 억제도
         세어야 "알림이 왜 안 왔지"를 나중에 확인할 수 있다.
     """
     stamp = now or now_utc_naive()
-    result = {"refreshed": 0, "claimed": 0, "notified": 0, "self_canceled": 0}
+    result = {"refreshed": 0, "claimed": 0, "notified": 0, "self_claimed": 0}
     ids = changed_external_ids(changed)
     if not ids:
         return result
@@ -549,7 +574,7 @@ def refresh_household(
     ids = [str(link.external_id).strip() for link in links
            if str(link.external_id or "").strip()]
     if not ids:
-        return {"refreshed": 0, "claimed": 0, "notified": 0, "self_canceled": 0,
+        return {"refreshed": 0, "claimed": 0, "notified": 0, "self_claimed": 0,
                 "targets": 0}
     result = refresh_claims(
         session, client=client,
