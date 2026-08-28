@@ -101,6 +101,7 @@
         'wb-bulk-clear': clearPicks,
         'wb-retry-failed': submitRetry,
         'wb-run-now': submitRunNow,
+        'wb-expiry-save': submitExpiry,
         'wb-ghost-discard': submitGhostDiscard
     };
 
@@ -1754,6 +1755,45 @@
      * 루트를 갈면 들고 있던 요소는 문서 밖이라, 거기 쓴 글자는 아무 데도 안 보인다.
      * @param {string} message 사람이 읽는 문장.
      */
+    /**
+     * 커머스API 인증 만료일 저장.
+     *
+     * 값은 API 로 못 읽는다 — 사람이 커머스API센터에서 보고 옮겨 적는다. 저장하면 카드
+     * 문구(남은 일수·D-7 경고)가 서버 판정으로 바뀌어야 하므로 **부분 갱신**으로 다시
+     * 그린다. 통째 이동은 하지 않는다(찾기 낱말·글자 배율·스크롤을 잃는다).
+     *
+     * @param {HTMLElement} btn 눌린 저장 버튼.
+     */
+    async function submitExpiry(btn) {
+        var input = document.getElementById('wb-expiry-input');
+        var value = input ? String(input.value || '').trim() : '';
+        if (!value) {
+            setExpiryNote('날짜를 고른 뒤 저장하세요.');
+            return;
+        }
+        btn.disabled = true;
+        setExpiryNote('저장하는 중…');
+        const result = await postJson('/admin/naver-ingest/app-expiry', { expires_on: value });
+        if (!result.ok) {
+            setExpiryNote(result.error);
+            btn.disabled = false;
+            return;
+        }
+        // 문구는 **갱신 뒤에** 쓴다: softRefresh 가 이 칸을 서버가 준 것으로 갈아 끼우므로
+        // 먼저 쓰면 그 자리에서 지워진다(지금 수집 버튼과 같은 순서 함정).
+        const refreshed = await softRefresh();
+        if (!refreshed) {
+            btn.disabled = false;
+        }
+        setExpiryNote('만료일을 ' + result.data.expires_on + ' 로 저장했습니다'
+            + (result.data.days_left === null ? '.' : ' (' + result.data.days_left + '일 남음).'));
+    }
+
+    /** 만료일 칸 안내 문구. */
+    function setExpiryNote(message) {
+        setText('wb-expiry-note', message || '');
+    }
+
     function setRunNote(message) {
         setText('wb-run-result', message || '');
     }

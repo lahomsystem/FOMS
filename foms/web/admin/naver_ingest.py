@@ -3553,6 +3553,67 @@ def naver_ingest_run_state():
     }})
 
 
+@admin_bp.route("/admin/naver-ingest/app-expiry", methods=["POST"])
+@login_required
+@role_required(["ADMIN"])
+def naver_ingest_set_app_expiry():
+    """커머스API 앱 인증 만료일을 사람이 적어 둔다 — 만료 경고(T7)의 **입력면**.
+
+    이 값은 API 로 못 읽는다. 커머스API센터 화면의 `인증 기한` 을 사람이 보고 옮겨 적는
+    수밖에 없다. 저장 함수(:func:`~foms.services.integrations.naver_commerce.app_expiry.
+    set_expiry_date`)는 처음부터 있었는데 **값을 넣을 자리가 화면에 없었다** — 그래서
+    운영 카드는 늘 `미등록` 이었고, 만료되면 앱이 자동 휴면되어 수집이 전면 중단되는데도
+    D-7 경고가 한 번도 뜰 수 없는 상태였다.
+
+    되돌릴 수 있는 쓰기다(잘못 적었으면 다시 적으면 덮인다). 그래도 감사에는 남긴다 —
+    수집이 멈춘 뒤 "누가 언제 무엇으로 바꿨나"를 묻게 되는 값이다.
+
+    날짜가 바뀌면 :func:`set_expiry_date` 가 임계값 알림 이력을 지운다(갱신했으면 다시
+    알려야 한다). 여기서 따로 손대지 않는다 — 규칙이 두 벌이 되면 갈린다.
+
+    Body:
+        ``expires_on``: ``YYYY-MM-DD`` (form 또는 JSON). 그 밖의 형식은 400.
+
+    Returns:
+        성공: ``{"success": True, "data": {"expires_on", "days_left"}, "error": None}``.
+        형식 오류·상식 밖 연도: 400 + 사람 말로 된 사유.
+    """
+    raw = request.form.get("expires_on")
+    if raw is None and request.is_json:
+        raw = (request.get_json(silent=True) or {}).get("expires_on")
+    raw = str(raw or "").strip()[:10]
+    try:
+        expires_on = datetime.datetime.strptime(raw, "%Y-%m-%d").date()
+    except ValueError:
+        return jsonify({
+            "success": False, "data": None,
+            "error": "날짜 형식이 올바르지 않습니다. 2027-02-23 처럼 적어 주세요.",
+        }), 400
+    # 오타 방지선. 연도 한 자리를 잘못 치면(2207) 화면이 `180일 남음` 대신 66,000일을
+    # 말하고 만료 경고는 영원히 안 뜬다 — 조용히 무력화되는 자리라 여기서 막는다.
+    today = datetime.date.today()
+    if not (today - datetime.timedelta(days=365 * 5)
+            <= expires_on <= today + datetime.timedelta(days=365 * 5)):
+        return jsonify({
+            "success": False, "data": None,
+            "error": "만료일이 오늘로부터 5년 밖입니다. 연도를 다시 확인해 주세요.",
+        }), 400
+
+    db = get_db()
+    from foms.services.integrations.naver_commerce import app_expiry
+
+    app_expiry.set_expiry_date(db, expires_on)
+    db.commit()
+    log_access(
+        f"네이버 커머스API 인증 만료일 등록 ({expires_on.isoformat()})",
+        action="NAVER_INGEST_SET_APP_EXPIRY",
+        detail={"expires_on": expires_on.isoformat()},
+    )
+    # 남은 일수는 화면과 **같은 함수**로 만든다 — 두 벌이 되면 저장 직후 화면과
+    # 새로고침한 화면이 다른 수를 말한다.
+    return jsonify({"success": True, "error": None, "data": _expiry_view(db)})
+
+
 __all__ = [
     "naver_ingest_dashboard",
     "naver_ingest_dock_state",
@@ -3561,6 +3622,7 @@ __all__ = [
     "naver_ingest_triage",
     "naver_ingest_triage_pane",
     "naver_ingest_run_now",
+    "naver_ingest_set_app_expiry",
     "naver_ingest_run_state",
     "naver_ingest_snapshot",
     "PAGE_SIZE",
