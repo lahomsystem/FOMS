@@ -901,3 +901,478 @@ R5~R7 미구현이 **정당한 축소**임을 실증(`request_return` 호출자�
 파일 경계 소스 겹침 0 · 승격 cherry-pick 원칙 준수(타 세션 커밋은 `01fd8e97` 하나, 사용자 명시) ·
 가드 뮤테이션 4회 전부 red 재현 · A 의 알림 생성 운영 경로 3/3 전수 · B 는 느슨해진 게
 아니라 **강해졌다**(옛 테스트는 의도가 아니라 환경을 테스트했다) · D 음성 테스트가 실제로 문다.
+
+---
+
+# 4차 세션 (2026-08-27 오후) — 운영 승격 4건 + T8 배선 완성
+
+> 사용자 지시: 승격 먼저(4건 전부) → T8 배선 → 남은 검증. 웹푸시 스위치는 그대로 둔다.
+
+## 1순위 — 운영 승격 4건 (완료, PR #168 → production `06159364`)
+
+| deploy SHA | 승격 SHA | 내용 |
+|---|---|---|
+| `9ef4f482` | `e02d21c8` | 회수지 우편번호 렌더 + `수집됨(생성 전)`·`생성됨` 라벨 |
+| `9483444c` | `59408411` | 네이버 클레임·앱만료 알림 웹푸시 enqueue |
+| `507c93d1` | `3db7eb28` | T8-S1 판매자 반품 접수 본체 |
+| `a53acb1d` | `575acfef` | T8 부분 발송 집에서 미발송 건까지 보내던 결함 |
+| — | `8794643d` | 승격 트리 기준 fail-open 인벤토리 **재생성** |
+
+### completeness `INCOMPLETE: missing=16` 을 통과시킨 근거
+
+16건 전부 **문서·생성물 의존이고 코드 의존은 0** 이었다:
+
+- 6건 = `foms_failopen_inventory.json` — 생성물이다. 승격 트리에서 **재생성**해 의존을 끊었다
+  (deploy 판은 운영에 없는 타 세션 코드 `order_share` bundle 의 줄 위치를 담고 있어 그대로 두면
+  드리프트 게이트 red). 재생성 결과 553 broad catches · 0 unclassified.
+  `order_mutation_writer`·`state_writer` 인벤토리는 재실행 후 무변경.
+- 9건 = 원장 `.md` — 런타임 0.
+- 1건 = `7451aac5` — **코드는 이미 운영에 있었다**. 확인:
+  `origin/production:…/mapping.py:260` 에 `RETURN_BLOCK_KEYS` 존재 + 실패 문구 3개 반영됨.
+  남은 delta 는 원장·SPEC 문서뿐.
+
+cherry-pick 충돌은 원장 `.md` 1건뿐이었고 `a53acb1d` 판을 그대로 채택했다(정규식 병합 안 함).
+naver 코드 파일은 `git diff origin/deploy` **차이 0** — 승격 트리 코드가 deploy 와 완전히 같다.
+
+### 승격 트리에서 직접 돌린 검증 (PR 체크에 맡기지 않았다)
+
+```
+python -c "import app; print('APP_OK')"           → APP_OK
+python -m pytest -k naver -q                      → 835 passed, 16 skipped
+python -m pytest tests/contracts tests/domains -q → 5314 passed, 5 skipped
+scripts/ops/pre_push_smoke.ps1                    → exit 0
+```
+
+PR #168 체크 4/4 pass(`harness`·`perf-gate`·`pg-lane`·`test`). 마이그레이션 0건.
+
+## Q1 — **열렸다** (T8 착수 차단 해제)
+
+사용자가 커머스API센터 `[애플리케이션 관리] → [API 그룹] → 주문 판매자` 화면을 확인:
+
+- (a) 리소스 유형 = **모든 리소스 유형** ✓
+- (b) 그룹 설명 문구에 '반품'이라는 낱말은 **없다**. 그러나 엔드포인트 목록에
+  **`POST /v1/pay-order/seller/product-orders/{productOrderId}/claim/return/request`** 가
+  명시돼 있다 — T8 이 쓰는 바로 그 경로다. `return/approve`·`reject`·`holdback`·
+  `holdback/release`, `exchange/*` 도 함께 열려 있다(이번 범위 아님).
+- (c) 인증 기한 **2027-02-10 ~ 2027-02-23**(재인증 창까지 167일). 지금 유효.
+
+**설명 문구로 판정했으면 '반품 없음'으로 오판했을 자리다** — 판정 근거는 엔드포인트 목록이다.
+
+## 2순위 — T8 배선 (R5~R8 + R9)
+
+| # | 자리 | 한 것 |
+|---|---|---|
+| R5 | `jobs/queue.py`·`jobs/tasks.py` | `enqueue_naver_return` → **취소와 같은 태스크**에 `action="return"`. 갈래를 새로 파면 `except FulfillmentError` 의 "실패 사유를 남기고 커밋" 규율이 두 벌이 된다 |
+| R6 | `POST /admin/naver-ingest/<int:link_id>/return` | 게이트 OFF=403 · 화이트리스트 밖=400(큐 전) · 큐 불가=503 · 감사 `NAVER_INGEST_RETURN_ENQUEUE` |
+| R7 | pane 버튼 `wb-return` + 모달 `wb-modal-return` + `submitReturn` | 불가역이라 모달 필수. 모달이 재진술: 되돌릴 수 없음 · 회수는 우리 차량 · **승인·환불은 사람이 판매자센터에서** |
+| R8 | `_fulfillment_state` | 지문에 `return.requested_at` 추가 + `returned` 카운트. **새 엔드포인트 0** |
+| R9 | `test_naver_return_wiring.py` 20건 | 아래 |
+
+### 화면 재진술 == 서버가 보낼 건수 (술어 한 벌)
+
+`fulfillment.is_return_pending(link)` 를 새로 뽑아 **서버와 화면이 같은 술어**를 쓴다.
+서버 `request_return` 의 `todo` 선택식이 그대로고, `_group_queue` 가 `return_pending_count`
+로 같은 것을 센다. 부분 발송 집에서 집 전체 수로 재진술하면 "3건 접수합니다"라고 읽히는데
+서버는 나간 1건만 보낸다 — **불가역 경로에서 그 과대 진술이 그대로 사고**다.
+
+### 낡은 문구 3곳 정정
+
+버튼이 생겼는데 화면이 아직 "반품은 판매자센터에서 처리하세요"라고 말하면 **화면이 자기
+자신과 모순**된다(3차 세션의 `반품 진행` 줄 사고와 같은 종류). 3곳을 고쳤고, 잠긴 집에는
+반품 버튼도 안 내므로 그 자리에서는 없는 버튼을 가리키지 않게 문구를 갈랐다.
+
+### 전수 규율 적용 — 술어 8조합 전부
+
+3차 세션이 두 번 걸린 자리(양성 후보만 돌아 음성 대조군을 통째로 놓침)를 테스트로 고정했다.
+`test_is_return_pending_over_every_state_combination` 이 (우리 발송 × 네이버 발송 × 이미 접수)
+**8가지를 전부** 만들고 기대값으로 갈라 **양성 3 / 음성 5 / 어긋남 0** 을 단언한다.
+화면 쪽도 **혼합 사례**(한 집에 나간 것·안 나간 것·이미 접수한 것)를 실제로 만들어
+모달이 `1건` 이라고 말하는지 본다.
+
+### 반품 사유를 2개로 좁혔다 (사용자 결정)
+
+`RETURN_REASONS` 를 7 → **2**(`COLOR_AND_SIZE`·`WRONG_DELAYED_DELIVERY`). 실물 33건에서
+관측된 값만 남긴다. 문서에서 이름만 본 5종은 뺐다 — 전체 범례 미확인 + 불가역 경로라
+**400 을 되돌릴 수 없는 자리에서 처음 만나지 않는다**. 계약 테스트가 이 사실을 잠근다.
+**읽기 쪽은 안 좁혔다** — `mapping` 이 보여주는 `returnReason` 은 네이버가 준 값이고,
+목록에 없다고 화면에서 지우면 사실이 사라진다.
+
+> **번복 (2026-08-27, 5차 세션) — 이 문단의 결론은 절반이 틀렸다.** `WRONG_DELAYED_DELIVERY`
+> 는 판매자가 **보낼 수 없는 코드**였다(네이버 범례 11종 밖 — #639). "실물로 관측된 값만
+> 남긴다"가 안전 근거로 쓰였지만, 관측된 값은 네이버가 **읽기로 준** 값이고 읽기 코드는
+> 쓰기 코드보다 많다(#1137). 최종은 `{INTENT_CHANGED, COLOR_AND_SIZE}` 다 — 아래
+> "5차 세션 · 확정 2" 절을 보라. **이 문단만 읽고 되살리지 마라.**
+
+## 3순위 — 남은 검증
+
+### railway 로 실측한 것 — **전제가 하나 틀렸다**
+
+| 확인 | 값 |
+|---|---|
+| production `web` | `FOMS_WEB_PUSH_ENABLED=1` · `FOMS_NAVER_WORKBENCH_ENABLED=1` · `COHORT=all` |
+| production `WORKER` | `FOMS_WEB_PUSH_ENABLED=1` · `VAPID_PRIVATE_KEY` 설정됨 · `NAVER_COMMERCE_APP_EXPIRES_ON=2027-02-23` |
+| 운영 `notification_push_subscriptions` | 4행 중 **활성 2행 — 둘 다 `upperkill`**(android·windows). `chltkddyd` 2행은 revoked |
+
+**웹푸시는 꺼져 있지 않았다.** 3차 세션 인수인계는 "꺼져 있으면 `flag_off` 로 skip 된다"고
+적었는데, 운영은 이미 `1` 이고 VAPID 키도 있다. 즉 방금 승격한 `59408411` 은 **지금 살아 있다** —
+다음 네이버 클레임·앱만료 알림부터 `upperkill` 기기 2대로 실제 푸시가 나간다.
+사용자 판단: **그대로 둔다**(도달 범위가 본인 기기뿐이고, 실도착 확인에 오히려 좋다).
+
+`NAVER_COMMERCE_APP_EXPIRES_ON` 이 운영에 등록돼 있다 — D-7 경고가 운영에서는 작동한다
+(3차 세션이 "스테이징 미등록"이라 적은 것은 스테이징 한정 사실이었다).
+
+### 아직 안 한 것
+
+- **① 반증축 4개**(link_id 195·258·311·353) — 코호트를 열 일이 생기면 함께.
+- **웹푸시 실도착 1건** — enqueue 까지만 잠겨 있다. 운영이 켜져 있으므로 다음 실클레임이
+  사실상 첫 실도착 시험이 된다.
+- **Q4 스테이징 실호출 1건** — 실주문이 필요하고 대상은 사용자가 고른다.
+
+## 알고 넘어가는 것 (4차)
+
+- **`RETURN_REASONS` 2개는 업무 커버리지가 아니다.** 고객이 '상품 불량'으로 반품하려는데
+  화면에 그 사유가 없다. 네이버 문서의 `returnReason` 표 전체를 확인하면 늘린다(§6 Q3).
+- 웹푸시 중복 방지는 여전히 **워커 동시성 1 전제**다(3차 기록 그대로). 스케일아웃이 결정 게이트.
+- AST 단언 우회 가능성도 그대로 — 진짜 보증은 상수 1값 + client 가 그 값만 싣는 것.
+- `returnInfo`·`exchange` 블록은 여전히 미관측. `COLLECTING`·`COLLECT_DONE` 진행 중 반품도 못 봤다.
+
+## ① 반증축 — **닫았다. 그리고 3차가 지목한 4개는 대조군이 아니었다**
+
+3차 세션이 남긴 숙제는 "열려야 하는 집 5개 중 1개(link 25)만 확인했다 — 나머지
+`195`·`258`·`311`·`353` 을 코호트 열 때 같이 보라"였다. 화면을 여는 대신 **스테이징
+전 링크를 읽어 소스 판정 함수로 전수 대조**했다(`_dispatch_view` 와
+`household_key` 를 그대로 호출 — 재구현하지 않았다).
+
+**모집단을 먼저 바로잡았다.** T5 잠금은 *네이버 발송 기록이 있는 집*에서만 발동한다.
+그 기록이 없는 집은 잠금이 논점이 아니라 열리는 게 당연하고, **반증이 되지 않는다.**
+
+| 모집단 | 수 | 결과 |
+|---|---|---|
+| 스테이징 네이버 링크 | 360 | 집 109 |
+| **네이버 발송 기록이 있는 집** | **54** | 아래가 전부 |
+| └ 잠겨야 하는 집(우리 표식 없음) | 51 | **51 전부 잠김** |
+| └ 열려야 하는 집(우리 표식 있음) | 3 | **3 전부 열림** |
+| **어긋남** | — | **0** |
+
+열려야 하는 집 전량(= 진짜 반증축):
+`[156,157]` · `[250,251]` · `[270,271,272]`. 셋 다 우리 표식과 네이버 시각이 함께 있고,
+화면 식 `naver_sent_at = '' if ours_at else naver_at` 이 정확히 그 이유로 잠금을 푼다.
+
+**`25`·`195`·`258`·`311`·`353` 은 이 모집단에 하나도 없다** — 네이버 발송 기록이 아예 없다.
+전수판(109집 전부)에서 다섯 다 '열림'으로 확인되긴 했지만, 그것은 잠길 이유가 없어서 열린
+것이라 T5 잠금의 반증이 아니다. **3차의 "열려야 하는 집 5개"는 화면에서 버튼이 열린 집을
+센 것이고, 그 목록으로는 잠금 로직을 반증할 수 없었다** — 모집단 정의가 어긋나 있었다.
+
+교훈: 음성 대조군은 **술어가 발동할 수 있는 모집단 안에서** 골라야 한다. 밖에서 고르면
+"전부 통과"가 아무것도 증명하지 않는다.
+
+## deploy CI red 1건 — **pre_push_smoke 가 못 보는 새 사각**
+
+`15660870` 푸시에서 `FOMS CI` 만 red(나머지 3개 green):
+
+```
+docs/ 를 읽는데 ci.yml 문서 전용 서브셋에 없는 테스트:
+tests/services/integrations/test_naver_return_wiring.py
+```
+
+CI-DOCSCOPE-01 계약이다. 새 테스트가 manifest JSON 2종을 직접 읽는데
+`.github/workflows/ci.yml` 의 `Run docs-facing contracts` 목록에 없었다 — **문서만 바뀐
+커밋에서는 전체 스위트가 안 돌고 그 서브셋만 도니, 신규 mutation 계약 등재 게이트가
+조용히 빠지는** 상태였다. `pre_push_smoke` 는 이 레지스트리 계약을 안 본다.
+**"신규 mutation 계약 4종"과 같은 종류의 사각이 하나 더 있었던 셈**이다 — 계약을 4종이라
+적었는데 실제로는 **"docs 를 읽는 테스트면 ci.yml 등재"까지 5종**이다.
+
+수정: `464d4c25`. 등재 후 `test_docs_facing_registry.py` 3 passed.
+
+### 이번에도 걸린 함정 2개 (원장에 남긴다)
+
+- **턴 경계에서 cwd 가 `c:\\DEV\\FOMS` 로 리셋된다.** `ls` 하나가 엉뚱한 트리에서 돌아
+  "파일이 없다"는 거짓 결론을 낼 뻔했다. 매 턴 첫 명령에 `pwd` 를 붙인 것이 잡았다.
+- **heredoc 이 백슬래시를 먹는다** (`<<'PYEOF'` 로 감싸도). ci.yml 의 줄바꿈 `\\` 를
+  다루는 패치가 anchor 를 0건으로 셌다. 파일로 써서 실행하고, 백슬래시는 `chr(92)` 로
+  만들어야 안전하다. **덤: ci.yml 은 CRLF 파일**이라 `newline=""` 로 읽고 써야 한다
+  (LF 로 가정한 첫 시도도 anchor 0건이었다).
+
+## 4차 세션 최종 상태
+
+| 항목 | 상태 |
+|---|---|
+| 운영 승격 4건 | **완료** — PR #168 → production `06159364` |
+| T8 배선 R5~R9 | **완료** — deploy `15660870` |
+| ci.yml 문서 서브셋 등재 | **완료** — deploy `464d4c25` |
+| ① 반증축 | **닫았다** — 54집 전수, 어긋남 0 (3차 지목 4개는 대조군이 아니었음을 밝힘) |
+| 웹푸시 실도착 | 미확인. **운영은 이미 켜져 있다**(활성 구독 2, 둘 다 `upperkill`) |
+| Q4 스테이징 실호출 1건 | 미실행 — 실주문이 필요하고 대상은 사용자가 고른다 |
+| Q3 `returnReason` 전체 범례 | 미확인 — 그래서 사유 2개로 좁혀 착수했다 |
+| T8 운영 승격 | 사용자 선택 "deploy 후 바로" — CI green 확인 뒤 진행 |
+
+## T8 운영 승격 (PR #171) — 그리고 **일부러 두고 온 것**
+
+deploy `1fc58d9e` CI green 확인 후 **코드 2건만** 승격했다.
+
+| 승격 SHA | deploy SHA | 내용 |
+|---|---|---|
+| `8d44147a` | `0656d773` | T8 반품 접수 배선(큐·라우트·버튼·모달·지문·테스트 20건) |
+| `3b84b14f` | `15660870` | 자산 핀 `20260827a → 20260827b` |
+
+### 두고 온 것과 이유
+
+- **`464d4c25`(ci.yml 문서 전용 서브셋 등재)** — production 에는 `Run docs-facing contracts`
+  스텝도 `tests/domains/test_docs_facing_registry.py` 도 **없다**. 타 세션 CI 작업
+  (`3a761b3a`·`c49ed3d4`)이 아직 운영에 안 올라갔다. 없는 스텝에 줄을 넣으면 ci.yml 이
+  깨지거나 무의미하다. production 은 문서 스코핑이 없어 전체 스위트를 돌므로 새 테스트는
+  어차피 실행된다 — **구멍이 아니라 그쪽 계보가 아직 없는 것**이다.
+- **문서 2건**(원장 4차 절 · SPEC) — `git cherry-pick` 이 `DU`(우리 쪽에 파일 없음)를 냈다.
+  T8 SPEC 은 production 에 **파일 자체가 없고**, AI_STATUS 는 타 세션과 발산해 있다.
+  런타임 0이라 deploy 에 둔다(3차 배치와 같은 판단).
+
+### completeness `INCOMPLETE: missing=29` 판정
+
+29건 중 코드로 얽힌 것처럼 보인 둘을 **내용으로 직접 확인**해 끊었다:
+
+- `7ac7abb8`(R-2 유령 주문 띠) → **이미 운영에 있다**
+  (`git grep -c ghost origin/production` 가 deploy 와 같은 12·3).
+- `c0df8ed8`(이력 탭 찾기 칸) → **이미 운영에 있다**(PR #169 `aa9556e6`). production 핀도
+  이미 `20260827a` 였다 — 그래서 내 핀을 `b` 로 한 칸 더 올린 것이 맞았다.
+
+나머지는 인벤토리·AI_STATUS·원장이다. 인벤토리는 승격 트리에서 4종 재생성으로 끊었다.
+
+### 승격 트리 검증
+
+`APP_OK` · `-k naver` **860 passed** · `tests/contracts tests/domains` **5314 passed** ·
+`pre_push_smoke` exit 0. naver 코드 파일 `git diff origin/deploy` **차이 0**. 마이그레이션 0건.
+
+## 스테이징 실서버 — 라우트가 살아 있다 (음성 대조군 포함)
+
+```
+403  POST /admin/naver-ingest/1/return          ← 새 라우트
+403  POST /admin/naver-ingest/1/cancel          ← 기존 라우트(같은 응답)
+404  POST /admin/naver-ingest/1/no-such-route   ← 음성 대조군
+```
+
+403 이 "전부 막힌 응답"이 아니라는 것을 404 가 증명한다. 라우트가 등록됐고 가드가 먼저 문다.
+**화면(버튼·모달) 실물 확인은 아직 안 했다** — 코호트를 열어야 하고, 그건 사용자 몫이다.
+
+---
+
+# 반품 승인·거부 착수 판정 (2026-08-27, 멀티에이전트 + CEO 총괄)
+
+> 사용자 지시: "반품 승인·거부까지 만들기" → "멀티에이전트로 나눠서 병렬로 처리해. ceo 에이전트가 총괄".
+> 조사 3갈래(파일 경계 겹침 0)를 병렬로 돌리고 CEO 가 착수 가부를 판정했다. **구현은 0줄.**
+
+## CEO 판정: **착수 불가 — `approve`·`reject`·`holdback`·`holdback/release` 4종 전부**
+
+### 차단 요인 3
+
+| # | 무엇이 막는가 | 무엇으로 풀리는가 |
+|---|---|---|
+| B1 | **승인은 얇은 호출이 아니라 분기다.** 보류 걸린 건은 승인 자체가 불가이고, 일부는 **처음부터 보류 상태로 요청**된다. 보류를 풀면 "환불금에서 차감" 방식일 때 **반품비가 0원으로 초기화**. 승인 전에 `holdbackStatus`·`claimDeliveryFeePayMethod` 를 읽고 갈라야 하는데 **스테이징 392행 0건 · 우리 코드 0건** | **실물 반품 1건** (조사로는 안 풀린다) |
+| B2 | **"거부부터"가 안전한 1단계가 아니다.** 반품비 카드 선결제면 거부가 환불을 유발. 네이버 장애 재처리 표: 거부=**API 재호출 필요**, 승인=재처리 불필요 → **거부의 복구가 승인보다 나쁘다.** 거부 사유는 **구매자에게 원문 그대로 전달·주문정보에 미기록** | 사람 규칙(누가 어떤 문장을 쓰는가) |
+| B3 | SPEC:54 가 "승인=안 만든다"로 못박았고 Q5(:108) 미답. 운영 모달 **2곳**(`naver_workbench_pane.html:395`·`:1062`)이 "승인·환불은 판매자센터에서 사람이"라고 말한다 | 사용자 확인 |
+
+### CEO 가 조사를 뒤집은 것 — **이게 이번 멀티에이전트의 최대 수확**
+
+- **조사가 로그를 거꾸로 인용했다.** 실제: 빈 body → **400**, `approvalData` 넣은 body → **200 승인 실행**.
+  "body 없이 보낸다"는 결론은 다른 근거로 유지되나 **안전 함의가 정반대다 — 네이버는 body 를 검증하지 않는다.**
+- **승인 사전조건이 `RETURN_REQUEST` 하나가 아니다.** 실제 오류 원문: **"반품요청/수거완료/수거중"**.
+  조사는 이를 "확인"으로 표기했으나 유추였고 너무 좁았다. **수거중·수거완료는 스테이징 0건** —
+  진짜 승인이 걸리는 상태를 우리는 본 적이 없다.
+- 인용 출처 오귀속 1건(#2443 → 실제 #3693). 결론은 유지.
+- **"되돌릴 수 없다"는 공식 문장은 여전히 미확인**으로 남겼다(엔드포인트 부재만 확인).
+  네이버가 다른 API 에선 불가역을 명시한다는 점은 **약한 증거**라며 승격하지 않았다. 이 절제가 옳다.
+- `holdback` 0건은 **미재검증**으로 남겼다 — 그 워크트리 railway CLI 가 FOMS-PRODUCTION 에
+  링크돼 있어 CEO 가 손대지 않았다. (B1 은 이 수치에 의존하지 않는다)
+
+주 세션 재검증: SPEC:54·:108 인용 정확 · `holdback`/`claimDeliveryFeePayMethod` 코드 부재 확인 ·
+모달 문구는 CEO 가 센 1곳이 아니라 **2곳**(`:395`·`:1062`).
+
+## 사용자 답이 설계를 바꿨다 — **실물 반품이 없다**
+
+> "우리는 제작 가구라 실제 물건을 반품 하는것이 아님. 따라서 보류 이런게 필요가 없음.
+> 실제 물건은 없고 주문건(금액)만 반품 하는 것"
+
+이 한 문장이 지우는 것:
+
+- **검수 단계가 없다** → CEO 가 권고한 S2 의 "검수 기록 축(`triage_state['inspection']`)"은 **불필요**.
+- **보류 운용이 없다** → 우리가 `holdback` 을 걸 이유가 없다.
+
+**지우지 못하는 것 (정직하게)**: 우리가 안 걸어도 **네이버가 처음부터 보류 상태로 요청을 만들 수 있다.**
+보류 걸린 건은 승인 자체가 불가라, 승인 기능을 만들 때는 여전히 `holdbackStatus` 를 읽어야 한다.
+B1 의 위험이 **줄었지 사라지지 않았다.**
+
+### 이 사실이 만든 **운영 문구 결함 후보**
+
+`templates/admin/partials/naver_workbench_pane.html:1061` — 지금 운영에 이렇게 나가 있다:
+
+> **회수는 우리 차량이 갑니다**(택배 자동 수거가 아닙니다).
+
+실물이 안 온다면 **앞 절이 사실이 아니다.** 괄호 안은 여전히 맞다(그래서 `RETURN_INDIVIDUAL` 을
+쓰는 것이 옳다 — 다른 코드는 진짜 택배차를 고객 집으로 보낸다). `fulfillment.py` 의
+`RETURN_COLLECT_METHOD` 주석 "가구는 우리 차가 회수하러 간다"도 같다.
+**고칠 문안이 무엇이어야 하는지는 업무 사실이라 임의로 안 고쳤다 — 다음 세션에서 확인받는다.**
+
+반품 **사유 코드**도 재검토 대상이다. 실물 하자가 아니라 주문 취소 성격이면
+`COLOR_AND_SIZE`(색상 및 사이즈 변경)가 맞는 사유인지 확인이 필요하다.
+
+## 사용자 결정
+
+| 질문 | 답 |
+|---|---|
+| 범위 | **돈 안 움직이는 것만**(S2) — 다만 검수 축은 위 사실로 불필요해졌다 |
+| 실물 1바퀴 | **다음 진짜 반품 때 같이 본다** |
+| 검수 주체 | 해당 없음 — 실물이 없다 |
+| 세션 | 여기서 마감, 다음 세션 프롬프트는 화면에 표시(파일 아님) |
+
+## 다음 세션이 이어받을 것
+
+1. **운영 문구 결함 확인·수정** — "회수는 우리 차량이 갑니다"를 실제 업무에 맞게. 사용자 확인 먼저.
+2. **S2 재정의** — 검수 축이 빠졌으니 남는 것은 `holdbackStatus`·반품 배송비 **읽기 노출**뿐이다.
+   그런데 그 필드가 스테이징에 0건이라 **표시할 값이 없다.** 실물 1건 관측 전에는 만들 게 없을 수 있다 —
+   그 판정부터 하라.
+3. **반품 사유 코드 재검토** — 실물 없는 반품에 맞는 코드인가.
+4. 실물 반품 1건이 들어오면 `holdbackStatus`·`claimDeliveryFeePayMethod`·`수거중/수거완료` 상태를
+   **그때 잡아 기록하라.** 그게 B1 을 푸는 유일한 열쇠다.
+
+---
+
+# 5차 세션 (2026-08-27) — 운영 문구 정정 · 반품 사유 오값 발견 · 증거 기록(S2) 완성
+
+> 4차 세션 말미 "다음 세션이 이어받을 것" 4개 항목(운영 문구 확인·S2 재정의·사유 코드
+> 재검토·실물 대기)을 멀티에이전트로 병렬 처리했다 — 문구 정정(A-wording) · 사유 코드
+> 재검증(R-reasons) · 클레임 이력 기록(C-history) 갈래를 나누고 **CEO-review** 가 종합
+> 검수했다. 파일 경계 겹침 없이 진행(A=템플릿+`client.py` 문서, R=`fulfillment.py` 상수+
+> 테스트, C=`mapping.py`+`claim_watch.py`+신규 테스트).
+
+## 확정 0 — 업무 사실이 처음으로 명문화됐다
+
+> "우리 스토어에서 반품은 물건 자체가 없고 주문만 반품된다. 시공 제품이라 시공 전 반품은
+> 물건이 고객 집에 갈 수가 없다. **취소 = 발송 전 주문 취소 / 반품 = 발송 후 주문 취소.**"
+
+실제 반품 사유 3종(사용자 확인): ① 고객 단순 변심·주문 취소 ② 색상·사이즈가 달라서
+③ 주문 금액과 실측 후 최종 견적이 달라 재결제하려고(발송 후라 반품으로 처리). 아래 확정
+1~4 는 전부 이 한 문장에서 갈라져 나온다.
+
+## 확정 1 — 운영 문구가 거짓이었다 (고쳤다)
+
+4차 세션이 결함 후보로만 남겼던 `templates/admin/partials/naver_workbench_pane.html:1061`
+"회수는 우리 차량이 갑니다"를 이번 세션에서 고쳤다:
+
+> **물건은 오가지 않습니다** — 시공 전이라 고객에게 간 물건이 없고 **주문(금액)만 반품**됩니다
+> (택배 자동 수거도 아닙니다).
+
+`client.py` 의 `request_return_product_order` docstring 도 같은 취지로 갱신했다
+(`collectDeliveryMethod` 가 있는 이유는 실물 회수가 있어서가 아니라 오발송을 막기 위해서라는
+서술 추가). `RETURN_INDIVIDUAL` 고정 이유는 **바뀌지 않는다** — 실물 회수 때문이 아니라,
+다른 값을 보내면 네이버가 상품정보의 택배사로 부르지도 않은 자동 수거를 고객 집에 보내기
+때문이다(오발송 차단, §2-2 그대로 유효). 계약 테스트(`test_naver_return_wiring.py`)에
+**옛 문구 부정 단언**(`assert "회수는 우리 차량이 갑니다" not in body`)을 넣어 되살아나면
+빨강이 되게 했다.
+
+## 확정 2 — 운영 화이트리스트 2개 중 1개가 보낼 수 없는 코드였다 (이번 세션 최대 수확)
+
+R1(SPEC §4)이 "실물로 관측된 2개"로 확정했던 `RETURN_REASONS = {COLOR_AND_SIZE,
+WRONG_DELAYED_DELIVERY}` 가 틀렸다. 근거:
+
+- 네이버 직원 답변 [#639](https://github.com/commerce-api-naver/commerce-api/discussions/639)
+  가 `returnReason` **범례 11종**을 제시했다: `INTENT_CHANGED`·`COLOR_AND_SIZE`·
+  `WRONG_ORDER`·`PRODUCT_UNSATISFIED`·`DELAYED_DELIVERY`·`SOLD_OUT`·`DROPPED_DELIVERY`·
+  `BROKEN`·`INCORRECT_INFO`·`WRONG_DELIVERY`·`WRONG_OPTION`. **`WRONG_DELAYED_DELIVERY` 는
+  이 범례에 없다.** (주 세션이 원문 직접 확인 — 설계서 §6 Q3 의 답)
+- 릴리즈 노트 [#705](https://github.com/commerce-api-naver/commerce-api/discussions/705)
+  원문: "반품 요청 또는 취소 요청 시 대상 주문건의 클레임 요청 사유 중 **실제 사용이
+  불가능한 코드가 포함되어 제공된 것을 확인**하였습니다."
+- [#1137](https://github.com/commerce-api-naver/commerce-api/discussions/1137): 읽기 코드가
+  쓰기 코드보다 많다. **스냅샷에서 봤다 ≠ 보낼 수 있다.** 4차 세션이 "실물 관측된 것만
+  넣었다"를 안전 근거로 삼은 것이 바로 이 함정이었다.
+
+조치: `RETURN_REASONS = {INTENT_CHANGED: "구매 의사 취소(변심·주문 취소·재결제)",
+COLOR_AND_SIZE: "색상 및 사이즈 변경"}`. `OFFICIAL_RETURN_REASONS` 11종 상수 신설
+(`naver_commerce/fulfillment.py`) + 계약 테스트 3종(`tests/services/integrations/
+test_naver_return_send.py`): `test_every_sendable_reason_is_in_the_official_legend` ·
+`test_wrong_delayed_delivery_never_comes_back` ·
+`test_return_reasons_cover_only_what_our_business_actually_does`.
+
+나머지 9종은 안 넣는다: 실물이 오가야 생기는 사유이고, 사유 오선택은
+[#2823](https://github.com/commerce-api-naver/commerce-api/discussions/2823) 제재 대상
+("실제 사유와 다른 사유로 클레임을 처리… 고의적 부당행위로 간주하여 판매자 불이익이 발생할
+수 있습니다"). **돈**: `INTENT_CHANGED`·`COLOR_AND_SIZE` 둘 다 **구매자 귀책**
+([#1170](https://github.com/commerce-api-naver/commerce-api/discussions/1170): "클레임
+사유에 따라 대상 클레임의 귀책 주체를 판별하며 귀책 주체에 따라 클레임 배송비의 부담자가
+결정됩니다"). 실물 회수가 없는데도 반품배송비가 구매자에게 청구될 수 있다 — 실제 청구는
+`claimDeliveryFeeDemandAmount` 로만 판정(실물 1건 때 확인할 것). 상세는 설계서
+`docs/specs/2026-08-27-naver-return-send_SPEC.md` §6 Q3(답함, 2026-08-27).
+
+## 확정 3 — 스테이징 실측 재수행 (주 세션이 읽기전용 SQL 직접, `external_order_links` 392행 전수)
+
+| 필드 | 값 | 건수 | 링크 수 |
+|---|---|---|---|
+| `returnReason` | `COLOR_AND_SIZE` | 48 | 24 |
+| `returnReason` | **`MISTAKE_ORDER`** | 30 | 15 |
+| `returnReason` | `WRONG_DELAYED_DELIVERY` | 18 | 9 |
+
+전부 `return` 블록 안, `claimStatus=RETURN_DONE`. **`MISTAKE_ORDER` 는 4차 세션이 못 본
+값이다**(그들이 잰 뒤 들어온 데이터). 다만 이것도 **읽기 전용 코드**라 쓰기 목록에는 못
+올린다 — 11종 범례 밖이다.
+
+`holdbackStatus` **0건** · `claimDeliveryFeePayMethod` **0건** — 4차 세션(CEO 판정) 주장을
+독립 재확인했다. 그래서 CEO 가 권고했던 S2 "읽기 노출"은 **표시할 값이 없어 폐기**하고
+확정 4 로 재정의했다.
+
+`cancelReason` 실측: `COLOR_AND_SIZE` 38 · `MISTAKE_ORDER` 28 · `SIMPLE_INTENT_CHANGED` 24 ·
+`DELAYED_DELIVERY_BY_PURCHASER` 12 · `INTENT_CHANGED` 12.
+
+## 확정 4 — S2 재정의: 만들 것은 "읽기 노출"이 아니라 "증거 기록"이었다
+
+`claim_watch.py` 의 스윕이 매번 `raw_snapshot` 을 통째로 덮어쓰고 `triage_state` 엔
+`last_status` 하나만 남아서, **실물 반품 1건이 들어와도 지나간 상태와 그때의 값이 사라지는**
+상태였다. B1(4차 CEO 판정, 승인 기능 차단 요인)을 풀 유일한 열쇠가 실물 1바퀴인데 그 1바퀴를
+관측할 방법이 없었다는 뜻이다.
+
+만든 것:
+
+- 신설: `mapping.extract_claim_holdback(detail)` — 블록 탐색 규약대로 훑어
+  `holdback_status`·`fee_pay_method` 와 **각각의 출처 블록 이름**(`holdback_block`·
+  `fee_block`)을 뽑는다, 없으면 `None`(예외 금지).
+- 신설: `claim_watch._append_history(sync, claim, detail, *, stamp)` — **모양이 바뀔 때만**
+  append. 모양 = `(claimStatus, holdbackStatus, claimDeliveryFeePayMethod)` 셋.
+  캡 20(`_HISTORY_MAX`)이되 **첫 행 1건은 고정 보존**. 배포 전부터 진행 중이던 클레임의
+  첫 행은 `backfilled: True`. `last_status`·`notified_status`·알림 경로는 **무변경**.
+- 읽기 라벨 보강: `mapping.CLAIM_REASON_LABELS` 에 11종 범례 중 빠졌던 5개 + 읽기 전용
+  6개 추가(`WRONG_DELAYED_DELIVERY` 실측값이 화면에 영문 상수로 뜨고 있었다).
+  `INTENT_CHANGED` 라벨은 "단순 변심" → **"구매 의사 취소"**(범례 원문)로 정정 —
+  우리가 보내는 반품 사유이기도 해서, 재결제 대기 건이 담당자 알림에 "고객 변심"으로
+  뜨고 있었다.
+- 신규 계약 테스트 `tests/services/integrations/test_naver_claim_history.py` **10개**.
+
+### CEO 총괄 검수가 뒤집은 것 — 이 기능은 처음 판이면 목적을 못 이뤘다
+
+CEO-review 가 치명 2건을 잡았고 **둘 다 실물 재현으로 확인됐다**:
+
+| # | 무엇이 틀렸나 | 왜 치명인가 |
+|---|---|---|
+| 1 | 중복억제 키가 `status` **하나**뿐 | `claimStatus` 가 `RETURN_REQUEST` 에 멈춘 채 `holdbackStatus` 만 `None → HOLDBACK_REQUEST → HOLDBACK_RELEASE` 로 가는 전이가 **통째로 버려진다**. 3스윕 재현 결과 기록 1건·두 필드 전부 `None`. 그런데 그 축이 이 기능이 존재하는 유일한 이유이고(승인 분기 입력), `raw_snapshot` 은 매 스윕 덮어써져 그 조합은 **영구 소실**. 고치기 전과 똑같았다 |
+| 2 | 값의 **출처 블록을 기록 안 함** | 기록 축은 `cancel` 블록까지 훑는데(표시 축과 달리 안 좁힌다) 출처가 없으면 취소 블록 값이 반품 보류로 남아도 사후 구분 불가. 자기 docstring 이 "어느 블록에 실려 오는지조차 모른다"를 관측 목표로 선언해 놓고 답을 안 남기는 설계였다 |
+
+중(中) 3건도 반영: 캡이 첫 행을 버리던 것(처음 관측 시점 소실) · 배포 전 클레임의 첫 행
+`at` 이 가짜 전이 시각인 것(`backfilled` 표식) · `INTENT_CHANGED` 라벨 3벌 불일치.
+새 테스트가 지어낸 코드 `DEFECTIVE_PRODUCT` 를 쓰던 것도 범례 코드 `BROKEN` 으로 교체했다 —
+이번 변경의 주제가 "관측 안 된 코드를 지어내지 마라"인데 새 테스트가 그걸 하고 있었다.
+
+또 하나: `#2823` 인용이 **반쪽**이었다. 생략된 뒷절이 우리 매핑을 정면으로 겨눈다 —
+"구매자의 주문 취소(청약 철회) 의사가 없음에도 임의로 주문을 취소하는 경우". 재결제 목적
+반품이 정확히 그 모양으로 보일 수 있어 주석을 전문으로 고쳤다. 반품 모달에 동의 조건
+경고를 넣었다가 **사용자 결정으로 뺐다**(2026-08-27): 담당자가 이미 아는 내용이라 화면만
+복잡해진다 — 조건은 **업무 규칙**으로 지킨다(코드·화면이 강제하지 않는다).
+
+사례 ③(재결제)의 사유 코드는 **담당자가 `INTENT_CHANGED` 와 `COLOR_AND_SIZE` 중 실제에
+맞는 쪽을 고른다**(사용자 결정 2026-08-27). 규격이 실제로 바뀌어 금액이 달라진 건이면
+색상·사이즈 변경이 사실이고, 그냥 그 주문을 접는 것이면 구매 의사 취소가 사실이다.
+
+## 다음 세션이 이어받을 것
+
+1. **실물 반품 1건** — 이제 이력이 자동으로 쌓인다. 들어오면
+   `triage_state['claim_sync']['history']` 를 읽어 `holdback_status`·`fee_pay_method`·
+   수거중/수거완료 통과 여부를 확정하라. 그게 승인 기능 차단 요인 B1 의 열쇠다.
+2. 반품 접수 **실호출 0회** 유지 — 사용자 결정. 다음 진짜 반품 때 함께 본다.
+3. 반품배송비 구매자 청구 여부 확인(`claimDeliveryFeeDemandAmount`).
+4. 승인·거부는 여전히 **착수 불가**(B1·B2 미해소, 4차 세션 판정 유지).
