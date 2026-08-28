@@ -45,6 +45,10 @@ param(
     [switch]$Visual,
     [switch]$PerfGate
 )
+# Win11 cp949 console: force UTF-8 output so Korean text is not mangled.
+$OutputEncoding = New-Object System.Text.UTF8Encoding $false
+[Console]::OutputEncoding = New-Object System.Text.UTF8Encoding $false
+
 
 $ErrorActionPreference = "Stop"
 
@@ -229,6 +233,7 @@ if ($Full) {
         # 2026-08-20 에 4커밋 연속 red 를 냈다(as_upload_anchor 의 append_client_log).
         "tests/domains/test_as_timeline_contract.py::test_as_log_write_call_sites_are_the_known_set",
         "tests/harness/test_hook_log_hygiene.py::test_ai_status_head_budget",
+        "tests/harness/test_powershell_encoding_contract.py",
         "tests/visual/test_staging_mobile_v2_assets.py",
         "tests/visual/test_p1_mockup_structure.py",
         "tests/visual/test_p1_mockup_png_baseline.py",

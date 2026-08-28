@@ -1,4 +1,4 @@
-# Staging mobile v2 visual smoke — static assets + login page cohort markers
+﻿# Staging mobile v2 visual smoke — static assets + login page cohort markers
 # Usage:
 #   powershell -NoProfile -File scripts/ops/staging_mobile_v2_smoke.ps1
 #   powershell -NoProfile -File scripts/ops/staging_mobile_v2_smoke.ps1 -BaseUrl "https://lahom-dev.up.railway.app"
@@ -6,6 +6,10 @@
 param(
     [string]$BaseUrl = "https://lahom-dev.up.railway.app"
 )
+# Win11 cp949 console: force UTF-8 output so Korean text is not mangled.
+$OutputEncoding = New-Object System.Text.UTF8Encoding $false
+[Console]::OutputEncoding = New-Object System.Text.UTF8Encoding $false
+
 
 $ErrorActionPreference = "Stop"
 $root = Split-Path (Split-Path $PSScriptRoot -Parent) -Parent

@@ -1,4 +1,4 @@
-#requires -Version 5.1
+﻿#requires -Version 5.1
 <#
 .SYNOPSIS
   Probes repo working tree for forbidden workspace residue (PTC plan §4.4 / §3.5).
@@ -29,6 +29,10 @@ param(
     [string]$RepoRoot = "",
     [switch]$RecursePyCache
 )
+
+# Win11 cp949 console: force UTF-8 output so Korean text is not mangled.
+$OutputEncoding = New-Object System.Text.UTF8Encoding $false
+[Console]::OutputEncoding = New-Object System.Text.UTF8Encoding $false
 
 Set-StrictMode -Version Latest
 $ErrorActionPreference = "Stop"

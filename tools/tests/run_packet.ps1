@@ -1,4 +1,4 @@
-<#
+﻿<#
 .SYNOPSIS
     Local PR gate runner for a single FOMS bug-audit packet.
 
@@ -18,6 +18,10 @@ param(
     [Parameter(Mandatory = $true)]
     [string]$PacketId
 )
+
+# Win11 cp949 console: force UTF-8 output so Korean text is not mangled.
+$OutputEncoding = New-Object System.Text.UTF8Encoding $false
+[Console]::OutputEncoding = New-Object System.Text.UTF8Encoding $false
 
 $repoRoot = (Resolve-Path (Join-Path $PSScriptRoot '..\..')).Path
 $manifestPath = Join-Path $repoRoot 'docs\harness\foms_bugfix_packet_tests.json'
