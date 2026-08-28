@@ -79,7 +79,7 @@
 {% include 'partials/shared/alpine_layout.html' %}
 {% include 'partials/shared/foms_alpine_toast.html' %}
 <script src="{{ url_for('static', filename='js/foms/haptic.js') }}?v=20260530a" defer></script>
-<script src="{{ url_for('static', filename='js/foms/voice-input.js') }}?v=20260609a" defer></script>
+<script src="{{ url_for('static', filename='js/foms/voice-input.js') }}?v=20260828a" defer></script>
 {% if flag_offline_sw %}
 <script src="{{ url_for('static', filename='js/foms/sync.js') }}?v=20260724a" defer></script>
 {% endif %}
@@ -91,6 +91,6 @@
 <script src="{{ url_for('static', filename='js/foms/wizard-attachments.js') }}?v=20260617a" defer></script>
 <script src="//t1.daumcdn.net/mapjsapi/bundle/postcode/prod/postcode.v2.js" defer></script>
 <script src="{{ url_for('static', filename='js/foms/wizard-enrich.js') }}?v=20260608c" defer></script>
-<script src="{{ url_for('static', filename='js/foms/wizard.js') }}?v=20260823c" defer></script>
+<script src="{{ url_for('static', filename='js/foms/wizard.js') }}?v=20260828a" defer></script>
 {% endblock %}
 

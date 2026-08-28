@@ -85,6 +85,8 @@
   // 동적으로 추가된 제품 카드(scope=클론)에도 재호출 가능.
   function isWizardVoiceTarget(el) {
     if (!el) return false;
+    // 명시적 opt-out(금액칸 등 숫자 전용): data-foms-no-voice.
+    if (el.hasAttribute("data-foms-no-voice")) return false;
     if (el.tagName === "TEXTAREA") return true;
     if (el.tagName !== "INPUT") return false;
     // 숨김 입력(콤보 '직접입력' custom 등) 제외 — 숨겨진 칸에 마이크만 떠다니는 것 방지.
