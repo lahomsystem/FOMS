@@ -323,45 +323,62 @@ def _apply_extra_payments(order: Order, links: list[ExternalOrderLink], *, relat
     return added
 
 
-def _stamp_source_marker(order: Optional[Order]) -> bool:
-    """주문에 네이버 출처 표식(``structured_data['source']``)이 없으면 찍는다.
+def _stamp_link_marker(order: Optional[Order]) -> bool:
+    """붙인 주문의 **도크 렌더 게이트**(``structured_data['naver_linked']``)를 켠다.
 
     **이 한 줄이 없으면 붙이기 결과가 화면에 아예 나타나지 않는다.** 주문 편집 화면은
-    ``structured_data['source'] == SOURCE_MARKER`` 일 때만 네이버 원본 도크를 렌더하고
-    (``foms/web/orders/edit.py``), 방금 기록한 추가결제(:data:`EXTRA_PAYMENTS_KEY`)를
-    읽는 코드는 그 도크 하나뿐이다(``dock.py._extra_payment_summary``). 표식이 없으면
-    붙이기는 성공했는데 사람이 볼 자리가 없다 — 2026-08-24 스테이징 실사례
-    (주문 4485: 링크 264~269 가 REPAY 로 붙고 1,610,780원이 기록됐는데 화면은 빈손).
+    게이트가 참일 때만 네이버 원본 도크를 렌더하고(``foms/web/orders/edit.py``), 방금
+    기록한 추가결제(:data:`EXTRA_PAYMENTS_KEY`)를 읽는 코드는 그 도크 하나뿐이다
+    (``dock.py._extra_payment_summary``). 게이트가 없으면 붙이기는 성공했는데 사람이 볼
+    자리가 없다 — 2026-08-24 스테이징 실사례(주문 4485: 링크 264~269 가 REPAY 로 붙고
+    1,610,780원이 기록됐는데 화면은 빈손).
 
-    표식은 원래 **주문 생성 매핑**에서만 찍혔다(``mapping.py`` 의 ``"source": SOURCE_MARKER``).
-    그래서 ① 사람이 ERP 에서 만든 주문에 수집분을 붙이거나 ② 폼 저장이 표식을 지운 뒤
-    붙이면 도크가 영영 닫힌 채로 남았다.
+    **2026-08-28 이전에는 이 자리가 출처 키를 찍었다.** 원래 도크 게이트가
+    ``structured_data['source'] == SOURCE_MARKER`` 하나였기 때문에, 게이트를 켜려면 출처를
+    덮어쓰는 수밖에 없었다. 그런데 그 키는 뜻이 둘이었다 — ① 주문 **출처**(누가 만들었나)
+    ② 도크 **렌더 게이트**(보여 줄 원본이 있나). 그래서 예약금 건처럼 **ERP 에 직접 등록한
+    주문**에 재결제를 붙이는 순간 그 주문이 네이버 출신으로 뒤집혔고, 주문 상세 뱃지가
+    "네이버 스마트스토어에서 자동 수집된 주문입니다"라고 **거짓을 말했다**.
 
-    **있는 값은 덮지 않는다** — 다른 채널 표식을 네이버로 바꿔 쓰면 그 주문의 출처가
-    거짓이 된다. 비어 있을 때만 채운다.
+    **그렇다고 "그냥 안 찍기"는 오답이다** — 위 실사례가 정확히 그 상태였다. 그래서 뜻
+    둘을 키 둘로 갈랐다(설계서 ``docs/specs/2026-08-28-naver-repay-origin-cancel_SPEC.md`` §7):
+
+    * ``source`` = **출처 전용**. 작성자는 ``mapping.build_structured_data`` 하나뿐이고
+      붙이기는 더 이상 이 키를 쓰지 않는다. 주문 상세 뱃지와 대시보드 ‘담당 미지정’
+      모집단이 이 키를 계속 본다 — 둘 다 "자동 수집된 주문"을 뜻하므로 그게 맞다.
+    * :data:`~foms.services.integrations.naver_commerce.constants.LINKED_MARKER_KEY`
+      = **게이트 전용**. 여기서 찍는다. 출처를 주장하지 않는다.
+
+    이미 옛 코드가 출처를 덮어써 버린 주문은 **소급 구별이 불가능하다**. 추정으로 되돌리면
+    (‘링크가 붙어 있는데 NEW 관계가 없으면 ERP 출신’ 류) 추정이 데이터로 굳어 나중에 진짜와
+    구별할 수 없으므로, 백필하지 않고 신규분부터 정확해지는 쪽을 택했다(설계서 §7.3).
+
+    폼 저장이 이 키를 지우면 도크가 다시 닫힌다. 그래서 ``naver_linked`` 는 ERP 폼 저장
+    보존 목록에 함께 올려 뒀다(``foms/api/erp_orders_structured.py`` 의
+    ``_OPERATIONAL_TOP_LEVEL_KEYS``) — 2026-08-24 사고의 재발 경로가 정확히 그것이었다.
 
     Args:
         order: 대상 주문(None 이면 아무것도 하지 않는다).
 
     Returns:
-        bool: 새로 찍었으면 True.
+        bool: 이번에 새로 켰으면 True(이미 켜져 있었으면 False — 멱등).
     """
     import copy
 
     from sqlalchemy.orm.attributes import flag_modified
 
-    from foms.services.integrations.naver_commerce.constants import SOURCE_MARKER
+    from foms.services.integrations.naver_commerce.constants import LINKED_MARKER_KEY
 
     if order is None:
         return False
     data = order.structured_data
-    if isinstance(data, dict) and data.get("source"):
+    if isinstance(data, dict) and data.get(LINKED_MARKER_KEY):
         return False
     updated = copy.deepcopy(data) if isinstance(data, dict) else {}
-    updated["source"] = SOURCE_MARKER
+    updated[LINKED_MARKER_KEY] = True
     order.structured_data = updated
     flag_modified(order, "structured_data")
-    logger.info("[NAVER] 주문 출처 표식 각인 order=%s", getattr(order, "id", None))
+    logger.info("[NAVER] 네이버 도크 게이트 각인 order=%s", getattr(order, "id", None))
     return True
 
 
@@ -570,7 +587,7 @@ def attach_link_to_order(session: Session, *, link_id: int, order_id: int,
         row.failure_reason = None
         attached += 1
     session.flush()
-    stamped = _stamp_source_marker(order)
+    stamped = _stamp_link_marker(order)
     # 금액은 **기록만** 한다 — 출고가·잔금 계산식은 그대로다(T16-F).
     # 기록 자체는 REV-00 mutation 계약(row lock·version bump·receipt)을 탄다.
     recorded = _record_extra_payments(session, order_id=int(order_id), links=siblings,
@@ -578,7 +595,7 @@ def attach_link_to_order(session: Session, *, link_id: int, order_id: int,
                                       now=now or now_utc_naive())
     logger.info("[NAVER] 수집분 기존 주문 연결 link=%s(+%d) order=%s relation=%s 결제기록 %d건",
                 link_id, attached - 1, order_id, relation, recorded)
-    # 표식 찍기·금액 기록도 '바뀜'이다 — 링크 행이 그대로여도 주문 쪽이 움직였으면
+    # 도크 게이트 켜기·금액 기록도 '바뀜'이다 — 링크 행이 그대로여도 주문 쪽이 움직였으면
     # 이력에 남을 값이 있다.
     return (attached, int(order_id), bool(changed or recorded or stamped))
 

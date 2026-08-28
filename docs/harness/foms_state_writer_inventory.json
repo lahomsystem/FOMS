@@ -62,28 +62,28 @@
     },
     {
       "path": "foms/api/erp_orders_structured.py",
-      "lineno": 313,
+      "lineno": 319,
       "axis": "MAIN",
       "kind": "subscript_stage",
       "owner": "STATE-FORM"
     },
     {
       "path": "foms/api/erp_orders_structured.py",
-      "lineno": 883,
+      "lineno": 889,
       "axis": "MAIN",
       "kind": "attr_status",
       "owner": "STATE-FORM"
     },
     {
       "path": "foms/api/erp_orders_structured.py",
-      "lineno": 2213,
+      "lineno": 2219,
       "axis": "MAIN",
       "kind": "attr_status",
       "owner": "STATE-FORM"
     },
     {
       "path": "foms/api/erp_orders_structured.py",
-      "lineno": 2286,
+      "lineno": 2292,
       "axis": "MAIN",
       "kind": "attr_status",
       "owner": "STATE-FORM"
@@ -238,7 +238,7 @@
     },
     {
       "path": "foms/api/erp_orders_structured.py",
-      "lineno": 313,
+      "lineno": 319,
       "kind": "subscript_stage",
       "axis": "MAIN",
       "classification": "EXTERNAL",
@@ -246,7 +246,7 @@
     },
     {
       "path": "foms/api/erp_orders_structured.py",
-      "lineno": 883,
+      "lineno": 889,
       "kind": "attr_status",
       "axis": "MAIN",
       "classification": "EXTERNAL",
@@ -254,7 +254,7 @@
     },
     {
       "path": "foms/api/erp_orders_structured.py",
-      "lineno": 2213,
+      "lineno": 2219,
       "kind": "attr_status",
       "axis": "MAIN",
       "classification": "EXTERNAL",
@@ -262,7 +262,7 @@
     },
     {
       "path": "foms/api/erp_orders_structured.py",
-      "lineno": 2286,
+      "lineno": 2292,
       "kind": "attr_status",
       "axis": "MAIN",
       "classification": "EXTERNAL",
@@ -366,7 +366,7 @@
     },
     {
       "path": "foms/services/orders/as_cycle_service.py",
-      "lineno": 293,
+      "lineno": 294,
       "kind": "attr_status",
       "axis": "MAIN",
       "classification": "CANONICAL",
@@ -374,7 +374,7 @@
     },
     {
       "path": "foms/services/orders/as_cycle_service.py",
-      "lineno": 304,
+      "lineno": 305,
       "kind": "subscript_stage",
       "axis": "MAIN",
       "classification": "CANONICAL",

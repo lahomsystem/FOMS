@@ -329,27 +329,31 @@ def _order_sd(order_id: int) -> dict:
     return db_session.get(Order, order_id).structured_data or {}
 
 
-def test_attach_stamps_the_channel_source_marker(auth_client):
-    """붙이면 주문에 네이버 출처 표식이 남는다 — 없으면 결과를 볼 자리가 없다.
+def test_attach_opens_the_dock_gate(auth_client):
+    """붙이면 도크 렌더 게이트가 켜진다 — 없으면 결과를 볼 자리가 없다.
 
-    주문 편집 화면은 ``structured_data['source'] == 'NAVER_SMARTSTORE'`` 일 때만 네이버
-    원본 도크를 렌더하고(``foms/web/orders/edit.py``), 붙이기가 기록한 추가결제를 읽는
-    코드는 그 도크 하나뿐이다. 표식이 없으면 붙이기는 성공했는데 화면은 빈손이다 —
+    주문 편집 화면은 게이트가 참일 때만 네이버 원본 도크를 렌더하고
+    (``foms/web/orders/edit.py``), 붙이기가 기록한 추가결제를 읽는 코드는 그 도크
+    하나뿐이다. 게이트가 없으면 붙이기는 성공했는데 화면은 빈손이다 —
     2026-08-24 스테이징 실사례(주문 4485: REPAY 6건·1,610,780원 기록, 화면 아무것도 없음).
+
+    2026-08-28 이전에는 이 자리가 출처 키(``source``)를 찍었다. 출처와 게이트를 가른
+    뒤로는 ``naver_linked`` 가 그 몫이다(설계서 §7, NVREPAY-06 은
+    ``test_naver_origin_marker_split.py``).
     """
     order_id = _order()
-    assert "source" not in _order_sd(order_id), "사전 조건: 표식 없는 주문"
+    assert "naver_linked" not in _order_sd(order_id), "사전 조건: 게이트 꺼진 주문"
     link_id = _link("PO-SRC-1")
 
     response = auth_client.post(f"/admin/naver-ingest/{link_id}/attach",
                                 json={"order_id": order_id, "relation": "REPAY"})
 
     assert response.status_code == 200, response.get_data(as_text=True)
-    assert _order_sd(order_id).get("source") == "NAVER_SMARTSTORE"
+    assert _order_sd(order_id).get("naver_linked") is True
 
 
 def test_attach_records_money_where_the_screen_can_read_it(auth_client):
-    """표식과 금액 기록이 **같은 저장에서** 함께 남는다(한쪽만 남으면 또 빈손이다)."""
+    """게이트와 금액 기록이 **같은 저장에서** 함께 남는다(한쪽만 남으면 또 빈손이다)."""
     order_id = _order()
     link_id = _link("PO-SRC-2")
 
@@ -357,13 +361,17 @@ def test_attach_records_money_where_the_screen_can_read_it(auth_client):
                      json={"order_id": order_id, "relation": "REPAY"})
 
     data = _order_sd(order_id)
-    assert data.get("source") == "NAVER_SMARTSTORE"
+    assert data.get("naver_linked") is True
     assert isinstance(data.get("pricing", {}).get("extra_payments"), list)
     assert data["pricing"]["extra_payments"], "붙였는데 결제 기록이 비었다"
 
 
-def test_attach_never_overwrites_an_existing_source(auth_client):
-    """다른 채널 표식은 덮지 않는다 — 덮으면 그 주문의 출처가 거짓이 된다."""
+def test_attach_never_touches_an_existing_source(auth_client):
+    """다른 채널 표식은 건드리지 않는다 — 덮으면 그 주문의 출처가 거짓이 된다.
+
+    붙이기는 이제 출처 키를 **아예 쓰지 않으므로** 값이 무엇이든 그대로 남는다.
+    켜지는 것은 게이트뿐이다.
+    """
     order_id = _order()
     order = db_session.get(Order, order_id)
     order.structured_data = {"source": "OTHER_CHANNEL"}
@@ -373,4 +381,6 @@ def test_attach_never_overwrites_an_existing_source(auth_client):
     auth_client.post(f"/admin/naver-ingest/{link_id}/attach",
                      json={"order_id": order_id, "relation": "ADDON"})
 
-    assert _order_sd(order_id).get("source") == "OTHER_CHANNEL"
+    data = _order_sd(order_id)
+    assert data.get("source") == "OTHER_CHANNEL"
+    assert data.get("naver_linked") is True

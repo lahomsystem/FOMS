@@ -29,6 +29,11 @@ from models import Order
 from foms.services.audit_message_display import FIELD_LABELS as AUDIT_FIELD_LABELS
 from foms.services.orders.status_constants import STATUS
 from foms.services.erp_order_deeplink import resolve_edit_return_back_endpoint
+# 의존성 없는 상수 모듈이다(수집 파이프라인을 끌어오지 않는다 — constants.py 도입부 참고).
+from foms.services.integrations.naver_commerce.constants import (
+    LINKED_MARKER_KEY,
+    SOURCE_MARKER,
+)
 from foms.services.request_utils import get_preserved_filter_args, redirect_if_legacy_open_erp_beta
 from foms.services.order_edit_view_context import build_order_edit_get_context
 from foms.services.jobs.queue import enqueue_geocode_order_address
@@ -655,9 +660,16 @@ def _build_erp_order_bootstrap(order, user=None):
             'is_admin': getattr(user, 'role', None) == 'ADMIN',
             'is_order_manager': can_manage_order_attachments(user, order),
         }
-    # 네이버 수집 주문이면 원본 도크 데이터를 동봉한다(T14-B — 추가 fetch 0).
-    # source 게이트로 일반 주문은 링크 쿼리조차 내지 않는다(hot path 비용 0).
-    if (order.structured_data or {}).get('source') == 'NAVER_SMARTSTORE':
+    # 네이버 수집분이 있는 주문이면 원본 도크 데이터를 동봉한다(T14-B — 추가 fetch 0).
+    # 게이트는 딕셔너리 조회 두 번뿐이라 일반 주문은 링크 쿼리조차 내지 않는다(hot path 비용 0).
+    #
+    # 키가 둘인 이유(설계서 2026-08-28-naver-repay-origin-cancel §7): ``source`` 는 주문
+    # **출처**(네이버가 만든 주문), ``naver_linked`` 는 붙이기가 켜는 **도크 게이트**다.
+    # 예약금 건처럼 ERP 에 직접 등록한 주문에 재결제를 붙이면 뒤만 참이고, 그때도 도크는
+    # 떠야 한다 — 붙이기가 기록한 추가결제를 읽는 코드가 이 도크 하나뿐이기 때문이다.
+    naver_gate_sd = order.structured_data or {}
+    if (naver_gate_sd.get('source') == SOURCE_MARKER
+            or naver_gate_sd.get(LINKED_MARKER_KEY)):
         from foms.services.integrations.naver_commerce.dock import build_dock_payload
 
         # viewer 는 워크벤치 링크(R2) 판정에만 쓴다 — ADMIN·MANAGER 가 아니거나 게이트가

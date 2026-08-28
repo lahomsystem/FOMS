@@ -298,6 +298,11 @@
                 closePlan(btn.closest('.wb-plan'));
                 return;
             }
+            // 옛 주문이 여럿일 수 있어 id 를 달면 문서에 중복이 생긴다(절대 규칙 1).
+            if (btn.classList.contains('wb-origin-open')) {
+                openOrigin(btn);
+                return;
+            }
             // 나머지 버튼(모달 열기·닫기)은 Bootstrap 이 맡는다.
         }
 
@@ -1208,6 +1213,35 @@
         }
         watchFulfillment(id, result.data && result.data.rev, '다시 읽기',
                          result.data && result.data.err_at);
+    }
+
+    /**
+     * 옛 주문을 **다시 읽고** 그 집 화면으로 간다 (NVREPAY-01).
+     *
+     * 새 결제를 받은 뒤로 그 옛 주문을 한 번도 안 읽은 경우에만 이 버튼이 나온다. 그
+     * 구간이 "고객이 스스로 취소했는데 우리가 또 취소를 거는" 위험이 사는 자리라, 사람이
+     * 불가역 버튼 앞에 서기 전에 최신 값을 한 번 가져온다. `다시 읽기` 는 읽기 전용이라
+     * 되돌릴 것이 없다.
+     *
+     * 큐가 막혀 있어도 **이동은 막지 않는다** — 옛 주문 화면 자체는 봐야 하고, 그 화면이
+     * 마지막으로 읽은 시각을 그대로 말해 준다. 대신 왜 못 읽었는지는 알린다.
+     *
+     * @param {HTMLElement} btn 링크 id 와 이동 주소를 물고 있는 버튼.
+     * @returns {Promise<void>}
+     */
+    async function openOrigin(btn) {
+        var id = safeId(btn.dataset.linkId);
+        var url = btn.dataset.paneUrl;
+        if (!id || !url) {
+            return;
+        }
+        btn.disabled = true;
+        const result = await postJson(BASE + id + '/refresh', {});
+        if (!result.ok) {
+            window.alert('다시 읽기를 넣지 못했습니다: ' + result.error
+                         + '\n옛 주문 화면은 그대로 엽니다 — 화면이 말하는 조회 시각을 보세요.');
+        }
+        window.location.href = url;
     }
 
     /**

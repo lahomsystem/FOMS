@@ -63,7 +63,7 @@ strip 된 키: []            ← 경고 0
 |---|---|---|---|
 | A1 | 붙이기가 `source` 각인(`_stamp_source_marker`) | 회귀 3건 green · 기존 값 안 덮음 | DONE |
 | A2 | 폼 저장이 `source`·`naver`·`pricing` 보존 | 회귀 6건 green · 폼이 보낸 값은 여전히 우선 | DONE |
-| A3 | 이미 잃은 주문 백필(`tools/ops/backfill_naver_source_marker.py`) | 스테이징 5건 복구 · 재실행 0건(멱등) | DONE |
+| A3 | 이미 잃은 주문 백필(`tools/ops/backfill_naver_source_marker.py` → 2026-08-28 `backfill_naver_link_marker.py` 로 개명·용도 변경) | 스테이징 5건 복구 · 재실행 0건(멱등) | DONE |
 | A4 | 검증 전수 + 커밋 + deploy 푸시 + CI green | `gh run list` 4종 | PENDING |
 
 ## 기록
