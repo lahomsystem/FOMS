@@ -549,6 +549,74 @@ def test_order_draft_submit_persists_deposit_and_totals(client, app, wizard_enab
         assert totals.get("final_amount") == 555000
 
 
+def test_order_draft_submit_keeps_deposit_without_item_prices(client, app, wizard_enabled) -> None:
+    """제품 가격 미입력이어도 예약금은 보존된다(상한 0으로 clamp 금지)."""
+    from db import db_session
+    from models import Order
+
+    _login(client, app, "wizard_deposit_only_user")
+    key = "new.test-deposit-only"
+    payload = {
+        "schema_version": 1,
+        "step": 4,
+        "data": {
+            "customer_name": "예약금선입력",
+            "phone": "010-3333-4444",
+            "address": "서울시 서초구",
+            "received_date": "2026-06-26",
+            "deposit": "300,000원",
+            "items": [{"product_name": "붙박이장", "spec_rows": [{}], "price": ""}],
+            "schedule": {},
+        },
+    }
+    client.put(
+        "/api/erp/order-draft",
+        data=json.dumps({"draft_key": key, "step": 4, "payload": payload}),
+        content_type="application/json",
+    )
+    submit = client.post(
+        "/api/erp/order-draft/submit",
+        data=json.dumps({"draft_key": key}),
+        content_type="application/json",
+    )
+    assert submit.status_code == 200
+    order_id = submit.get_json()["data"]["order_id"]
+    with app.app_context():
+        order = db_session.query(Order).filter_by(id=order_id).one()
+        sd = order.structured_data or {}
+        assert sd.get("payment", {}).get("deposit") == 300000
+        totals = sd.get("totals") or {}
+        assert totals.get("items_total") == 0
+        assert totals.get("deposit_amount") == 300000
+
+
+def test_wizard_deposit_clamp_is_conditional_in_js() -> None:
+    """wizard.js 예약금 clamp 는 itemsTotal > 0 일 때만 (최초 입력 증발 방지)."""
+    js = (ROOT / "static/js/foms/wizard.js").read_text(encoding="utf-8")
+    assert "Math.min(parseAmount(depositRaw), itemsTotal)" not in js
+    assert "Math.min(parseAmount(this.value), itemsTotal)" not in js
+    assert js.count("if (itemsTotal > 0)") >= 2
+
+
+def test_wizard_deposit_input_has_no_voice_mic() -> None:
+    """예약금 입력칸은 마이크(음성 입력) 대상에서 제외된다."""
+    step2 = (ROOT / "templates/orders/wizard/step2_products.html").read_text(encoding="utf-8")
+    assert 'id="wiz-deposit-amount"' in step2
+    deposit_block = step2.split('id="wiz-deposit-amount"', 1)[1].split(">", 1)[0]
+    assert "data-foms-no-voice" in deposit_block
+    voice = (ROOT / "static/js/foms/voice-input.js").read_text(encoding="utf-8")
+    assert 'hasAttribute("data-foms-no-voice")' in voice
+
+
+def test_draft_autosave_flushes_on_ios_hidden_events() -> None:
+    """iOS Safari 는 beforeunload 를 흘린다 — pagehide·visibilitychange 로도 저장한다."""
+    js = (ROOT / "static/js/foms/draft.js").read_text(encoding="utf-8")
+    assert 'addEventListener("beforeunload", keepaliveSave)' in js
+    assert 'addEventListener("pagehide", keepaliveSave)' in js
+    assert 'visibilitychange' in js
+    assert 'document.visibilityState === "hidden"' in js
+
+
 def test_add_order_renders_wizard_when_flag_on(client, app, wizard_enabled) -> None:
     _login(client, app, "wizard_page_user")
     response = client.get("/add?wizard=1")
