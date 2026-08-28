@@ -57,8 +57,8 @@ PAYED              / CANCEL_REQUEST     1   ← link 79 / 주문 #4998
 | R-5 ✅ | **끝난 반품을 pane 이 네 가지로 틀리게 말한다.** (초고의 "줄이 통째로 안 뜬다"는 실데이터로 반증됨 — 필요한 필드 3개가 25/25 전건 보유라 줄은 뜬다. 결함은 사라진 게 아니라 모양이 바뀌었다.) 운영 25건이 지금 이렇게 그려진다: `반품 진행 | 수거 완료 … | 회수 방법 RETURN_INDIVIDUAL | 환불 예정 … | 환불 대기 환불처리완료` — ① 제목 `반품 진행` 고정(`pane:172`) ② **`환불 대기 환불처리완료` 자기모순**(`:183-184`, 값이 단일값이라 25건 예외 0) ③ `환불 예정` 미래형(`:180`) ④ `RETURN_INDIVIDUAL` 영문 상수(`:177`, `collectDeliveryMethod` 라벨 맵 부재). 넷을 한 번에 푸는 `returnCompletedDate` 를 읽는 코드는 **0곳**(전수 grep 확인) | `mapping.py` return axis · `pane:170-187` | 중 | **있음 — 운영 25건, 예외 0. 유일하게 오늘 사람이 만나는 것** |
 | R-1 ✅ | 수거 단계 반품을 **"취소"**라 표기. `label.startswith("RETURN")` 인데 `COLLECTING`/`COLLECT_DONE` 은 `RETURN` 으로 시작하지 않는다. 정답 축 `claimType` 을 버린다 | `ghost_orders.py` `claim_kind` | 중 | 없음(표본 0) |
 | R-6 ✅ | `exchange` 블록 값이 `반품 진행` 이름으로 뜬다 — `cancel` 을 뺀 이유(50건 사고)와 같은 누출이 교환 방향으로 남음 | `mapping.py:283` · `pane:172` | 하 | 없음 |
-| R-7 | 얇은 스냅샷 투영이 `return`/`returnInfo`/`exchange`/`delivery` 를 버린다 — docstring 은 "술어가 아니라 입력만 얇게 한다"는데 `_claim_blocks` 가 그 블록을 읽으므로 입력을 얇게 한 것이 곧 술어 변경 | `naver_ingest.py:781-793` | 하(잠복) | 없음 |
-| R-8 | 라벨 truthiness 가 "거부"를 진행 중 클레임으로 센다 — 도크가 "반품 거부 건이 있어 환불액은 아직 빠지지 않았습니다"(환불이 영영 없는데) | `dock.py:498-503` · `erp-naver-dock.js:297` | 하 | 없음 |
+| R-7 ✅ | 얇은 스냅샷 투영이 `return`/`returnInfo`/`exchange`/`delivery` 를 버린다 — docstring 은 "술어가 아니라 입력만 얇게 한다"는데 `_claim_blocks` 가 그 블록을 읽으므로 입력을 얇게 한 것이 곧 술어 변경 | `naver_ingest.py:781-793` | 하(잠복) | 없음 |
+| R-8 ✅ | 라벨 truthiness 가 "거부"를 진행 중 클레임으로 센다 — 도크가 "반품 거부 건이 있어 환불액은 아직 빠지지 않았습니다"(환불이 영영 없는데) | `dock.py:498-503` · `erp-naver-dock.js:297` | 하 | 없음 |
 
 ### T8(판매자 반품 접수) 배선 — 설계서 기록이 낡았다
 
@@ -92,8 +92,8 @@ PAYED              / CANCEL_REQUEST     1   ← link 79 / 주문 #4998
 | R-2 | **닫힘 + 운영 반영**(PR #183) — 유령 모집단·후보표가 종류를 본다(교환 제외) | 아래 |
 | R-1 | **닫힘**(R-2 와 같은 줄에서) — 종류 판정이 접두어 대신 `claimType` | 아래 |
 | R-4 | **닫힘 + 운영 반영** — PR #186 `2ad638c4` | 아래 |
-| R-7 | 미착수 — 얇은 스냅샷 투영이 반품·교환·배송 블록을 버린다 | — |
-| R-8 | 미착수 — 라벨 truthiness 가 "거부"를 진행 중 클레임으로 센다 | — |
+| R-7 | **닫힘** — 투영 키를 `mapping` 에서 파생(deploy `a1502a65`, PG 레인 green) | — |
+| R-8 | **닫힘** — 세 화면이 `is_money_back_claim` 을 본다(deploy) | 아래 |
 
 ### R-3 — 우리가 낸 클레임은 경보로 돌아오지 않는다
 
@@ -177,3 +177,29 @@ R-3·R-2 는 실화면 확인이 불가능하다 — 교환 실데이터 0건, �
 
 R-4 는 화면 변화가 없어 실화면 확인 대상이 아니다(교환 실데이터 0건). 운영 배포 후
 `/login` 200 으로 부팅만 확인했다.
+
+### R-8 — 거부된 클레임을 진행 중으로 세지 않는다
+
+세 화면이 전부 **라벨 존재 여부**로 분기했다. `RETURN_REJECT`("반품 거부")면 환불이 영영
+없는데 도크는 "환불액은 아직 빠지지 않은 금액입니다"라고 말하고, ⚠ 경고를 살아 있는 주문에
+붙이고, 목록은 빨강 배지를 달았다.
+
+`mapping.is_money_back_claim(claim)` 신설 — **돈이 되돌아가는가**. 취소·반품의 요청·처리중·
+완료가 참이고, 거부 3종·교환·모르는 상태는 거짓이다. `blocks_irreversible` 과는 다른 질문이다
+(그쪽은 불가역 호출 게이트라 진행 중 교환도 막는다).
+
+- `dock._deposit_note`: 돈이 되돌아가는 클레임일 때만 환불 문장을 붙인다.
+- `dock` payload 에 `claim_money_back` 을 싣고 `erp-naver-dock.js` 가 그것으로 ⚠ 와 빨강을
+  가른다. 거부 건은 `--settled` 로 회색이 되고 **사실은 그대로 남는다**.
+- 목록·상세 배지 4곳(`naver_ingest`·`naver_triage`·`naver_workbench` ×2·`workbench_detail`)은
+  `claim_blocking` 일 때만 빨강, 아니면 중립.
+- 자산 핀 `?v=20260827d` → `20260828a`(JS·CSS 동반), 핀 계약 테스트 3곳 갱신.
+
+음성 대조군 5개: 진짜 취소는 여전히 빨강·환불 문장이 붙는다 · 교환은 환불 축이 아니다 ·
+모르는 상태는 안 센다 · 완료 취소도 센다(결제액에서 아직 안 빠졌다).
+
+### 이번 세션 범위 밖 (기록)
+
+`tests/visual/test_erp_order_edit_mobile_form.py::test_edit_erp_order_ships_responsive_form_mounts_for_cohort`
+가 **deploy tip 에서도 빨갛다**(`erp-share-url` 의 `form-control form-control-sm` 이 모바일 폼
+마운트 안에 있다). 내 변경 전후로 같으므로 별건이고, CI 스위트에는 안 들어 있다.

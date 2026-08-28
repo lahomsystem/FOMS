@@ -302,7 +302,12 @@
         var info = el('div', 'naver-dock-info');
         if (hasClaim) {
             // 취소·반품은 productOrderStatus 로는 안 보인다 — 규격을 채우기 전에 걸려야 한다.
-            info.appendChild(el('div', 'naver-dock-claim', '⚠ 네이버 ' + state.claimLabel));
+            // 다만 **거부된 클레임은 경고가 아니다** — 주문도 결제도 살아 있다(R-8).
+            // 사실은 그대로 보여주고 ⚠ 와 빨강만 뗀다.
+            var claimText = (state.claimMoneyBack ? '⚠ 네이버 ' : '네이버 ') + state.claimLabel;
+            var claimClass = 'naver-dock-claim'
+                + (state.claimMoneyBack ? '' : ' naver-dock-claim--settled');
+            info.appendChild(el('div', claimClass, claimText));
         }
         if (hasWho) {
             var who = el('div', 'naver-dock-who');
@@ -865,6 +870,8 @@
             ordererDiffers: !!payload.orderer_differs,
             shippingMemo: payload.shipping_memo || '',
             claimLabel: payload.claim_label || '',
+            // 돈이 되돌아가는 클레임인가. 라벨 존재만 보면 `반품 거부` 에도 경고가 붙는다.
+            claimMoneyBack: payload.claim_money_back === true,
             recipientTel2: payload.recipient_tel2 || '',
             paidAt: payload.paid_at || '',
             extraPaymentCount: payload.extra_payment_count || 0,
