@@ -533,7 +533,7 @@ def test_history_rows_are_read_only(client, workbench_on):
     assert "<button" not in tbody, tbody
     assert 'class="btn' not in tbody, tbody
     # 기능은 안 죽는다 — 평범한 링크는 남는다(주문 열기 · 처리 탭의 그 집 열기).
-    assert "처리 탭에서 열기" in tbody
+    assert "워크벤치" in tbody
     assert "open=erp-order" in tbody
 
 
