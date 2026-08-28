@@ -678,10 +678,35 @@
       return;
     }
     inputEl.dataset.fomsWizardAmountBound = "1";
+    // caret 을 실제로 옮긴다. iOS Safari 는 값 재대입 직후 caret 을 끝으로 되돌리는 경우가
+    // 있어(접미사 "원" 뒤로 밀림) 다음 프레임에 한 번 더 확인해 바로잡는다.
+    function applyAmountCaret(el, pos) {
+      if (!el || typeof el.setSelectionRange !== "function") return;
+      try {
+        el.setSelectionRange(pos, pos);
+      } catch (_e) {
+        return; /* 포커스 밖 — caret 복원 실패는 무해 */
+      }
+      if (typeof window.requestAnimationFrame !== "function") return;
+      window.requestAnimationFrame(function () {
+        if (document.activeElement !== el || el.selectionStart === pos) return;
+        try {
+          el.setSelectionRange(pos, pos);
+        } catch (_e2) {
+          /* 무해 */
+        }
+      });
+    }
     function setAmountCaretBeforeSuffix(el) {
       if (!el || typeof el.setSelectionRange !== "function" || !String(el.value || "").endsWith("원")) return;
-      var caretPos = Math.max(0, String(el.value || "").length - 1);
-      el.setSelectionRange(caretPos, caretPos);
+      applyAmountCaret(el, Math.max(0, String(el.value || "").length - 1));
+    }
+    // 재포맷 후 caret 을 "끝에서부터의 오프셋"으로 보존한다(중간 자릿수 수정 시 끝으로
+    // 튀지 않게). 접미사 "원" 뒤로는 절대 두지 않는다.
+    function restoreAmountCaret(el, prevValue, prevCaret, formatted) {
+      var caret = prevCaret == null ? prevValue.length : prevCaret;
+      var fromEnd = Math.max(1, prevValue.length - caret);
+      applyAmountCaret(el, Math.max(0, formatted.length - fromEnd));
     }
     function deleteAmountDigitBeforeSuffix(el) {
       var value = String(el.value || "");
@@ -707,7 +732,9 @@
       if (deleteAmountDigitBeforeSuffix(this)) event.preventDefault();
     });
     inputEl.addEventListener("input", function () {
-      var raw = (this.value || "").replace(/[^0-9]/g, "");
+      var prevValue = String(this.value || "");
+      var prevCaret = this.selectionStart;
+      var raw = prevValue.replace(/[^0-9]/g, "");
       if (!raw) {
         this.value = "";
         if (onRecalc) onRecalc();
@@ -717,7 +744,7 @@
       var num = parseInt(raw, 10);
       var formatted = formatDepositDisplay(num);
       this.value = formatted;
-      setAmountCaretBeforeSuffix(this);
+      restoreAmountCaret(this, prevValue, prevCaret, formatted);
       if (onRecalc) onRecalc();
       if (scheduleSave) scheduleSave();
     });
