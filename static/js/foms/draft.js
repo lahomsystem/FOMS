@@ -165,9 +165,15 @@
         self.flush();
       });
     });
-    window.addEventListener("beforeunload", function () {
+    // iOS Safari 는 앱 전환·홈버튼 이탈에서 beforeunload 를 신뢰성 있게 쏘지 않는다.
+    // pagehide + visibilitychange(hidden) 를 함께 걸어 디바운스 대기 중인 입력을 지킨다.
+    function keepaliveSave() {
       if (!self.draftKey) {
         return;
+      }
+      if (self._debounceTimer) {
+        clearTimeout(self._debounceTimer);
+        self._debounceTimer = null;
       }
       var payload = JSON.stringify(self._body());
       var req = {
@@ -184,6 +190,13 @@
         fetch(API_BASE, Object.assign({ keepalive: true }, req));
       } catch (_e) {
         /* keepalive optional */
+      }
+    }
+    window.addEventListener("beforeunload", keepaliveSave);
+    window.addEventListener("pagehide", keepaliveSave);
+    document.addEventListener("visibilitychange", function () {
+      if (document.visibilityState === "hidden") {
+        keepaliveSave();
       }
     });
   };
