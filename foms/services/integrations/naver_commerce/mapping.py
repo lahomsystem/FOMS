@@ -440,6 +440,32 @@ def claim_kind(claim: dict) -> str:
     return ""
 
 
+def is_money_back_claim(claim: dict) -> bool:
+    """이 클레임 때문에 **돈이 되돌아가는가(또는 갔는가)**.
+
+    화면 세 곳이 "라벨이 비어 있지 않은가" 한 비트로 이것을 판정했다. 그래서
+    ``RETURN_REJECT``("반품 거부")에 도크가 "환불액은 아직 빠지지 않은 금액입니다"라고
+    적고, ⚠ 경고 배지를 **살아 있는 주문**에 붙였다 — 환불이 영영 없는 건이다
+    (R-8, 2026-08-28).
+
+    :func:`blocks_irreversible` 과 다른 질문이다. 그쪽은 "불가역 호출을 보내도 되는가"라
+    **진행 중인 교환도 막는다**. 여기는 돈의 축이라 교환은 아니다(대체품을 받는다).
+
+    ``done`` 도 참이다 — 환불이 이미 나갔어도 ``totalPaymentAmount`` 는 결제 시점 값이라
+    "그 금액에서 아직 안 빠졌다"는 설명이 그대로 맞다.
+
+    Args:
+        claim: :func:`extract_claim` 결과.
+
+    Returns:
+        bool: 취소·반품이 요청·처리중·완료 중 하나면 True. 거부·모르는 상태는 False.
+    """
+    if (claim.get("phase") or "") not in (CLAIM_PHASE_REQUESTED, CLAIM_PHASE_PROGRESS,
+                                          CLAIM_PHASE_DONE):
+        return False
+    return claim_kind(claim) in MONEY_BACK_CLAIM_KINDS
+
+
 def blocks_irreversible(claim: dict) -> bool:
     """이 클레임이 걸린 집에 **되돌릴 수 없는 호출**(발주확인·발송처리·취소·반품 접수)을
     보내면 안 되는가.
@@ -1318,6 +1344,7 @@ __all__ = [
     "claim_reason_text",
     "claim_kind",
     "blocks_irreversible",
+    "is_money_back_claim",
     "build_payment_info",
     "extract_claim",
     "extract_claim_holdback",
