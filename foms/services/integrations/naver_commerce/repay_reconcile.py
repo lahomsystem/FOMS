@@ -129,7 +129,7 @@ def build_reconcile_plan(order: Order, candidate: dict[str, Any], *,
 
     Returns:
         ``{"relation", "deposit", "can_discard", "discard_block", "naver_alive_rows",
-        "naver_claim_label"}``.
+        "naver_claim_code", "naver_claim_label"}``.
     """
     can_discard, block = discard_gate(candidate.get("status") or "")
     return {
@@ -140,6 +140,8 @@ def build_reconcile_plan(order: Order, candidate: dict[str, Any], *,
         "discard_block": block,
         # i 단계 — 우리가 손대지 않는다. 살아 있으면 판매자센터로 안내만 한다.
         "naver_alive_rows": _alive_rows(candidate),
+        # 코드·라벨을 **함께** 싣는다 — 빠뜨리면 이 화면만 옛 축(한국어 문자열 비교)을 본다.
+        "naver_claim_code": candidate.get("naver_claim_code") or "",
         "naver_claim_label": candidate.get("naver_claim_label") or "",
     }
 

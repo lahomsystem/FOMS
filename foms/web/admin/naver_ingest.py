@@ -2739,6 +2739,12 @@ def naver_ingest_ghost_discard(order_id: int):
     if target is None:
         return jsonify({"success": False, "data": None,
                         "error": "이 주문은 '네이버 결제가 전부 취소된 주문' 목록에 없습니다."}), 400
+    # 확정 전 클레임에는 절대 열지 않는다. `can_discard` 가 이미 같은 판정을 담지만,
+    # 이 라우트는 **되돌리기 어려운 동작**이라 목록 계산이 나중에 바뀌어도 조용히 열리지
+    # 않게 여기서 한 번 더 잠근다(2026-08-28).
+    if target.get("claim_phase") != "done":
+        return jsonify({"success": False, "data": None,
+                        "error": "네이버가 아직 취소를 확정하지 않았습니다 — 확정 후에 접으세요."}), 400
     if not target["can_discard"]:
         return jsonify({"success": False, "data": None,
                         "error": f"{target['discard_block']} — 재결제로 정리하세요."}), 400

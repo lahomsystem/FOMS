@@ -611,13 +611,27 @@
                         <td>
                             {% if not cand.naver_link_count %}
                             <span class="wb-relation__reason">네이버 수집분 없음</span>
-                            {% elif cand.naver_claim_label == '전부 취소' %}
-                            <span class="wb-cand__claim wb-cand__claim--dead">전부 취소</span>
+                            {# 분기는 **코드**로 한다(2026-08-28). 예전에는 한국어 라벨을 `==` 로
+                               비교해서, 라벨 한 낱말만 바꿔도 두 분기가 조용히 죽고 취소 건이
+                               전부 `살아 있음` 으로 떨어졌다. #}
+                            {% elif cand.naver_claim_code == 'all_done' %}
+                            <span class="wb-cand__claim wb-cand__claim--dead">{{ cand.naver_claim_label }}</span>
                             <div class="wb-relation__reason">{{ cand.naver_canceled_count }}건 전부 · <b>재결제 신호</b></div>
                             {{ customer_cancel_sentences(cand) }}
-                            {% elif cand.naver_claim_label == '일부 취소' %}
-                            <span class="wb-cand__claim wb-cand__claim--part">일부 취소</span>
-                            <div class="wb-relation__reason">취소 {{ cand.naver_canceled_count }} · 살아있음 {{ cand.naver_alive_count }}</div>
+                            {% elif cand.naver_claim_code in ('all_pending', 'all_mixed') %}
+                            <span class="wb-cand__claim wb-cand__claim--pending">{{ cand.naver_claim_label }}</span>
+                            <div class="wb-relation__reason">
+                                {% if cand.naver_claim_code == 'all_mixed' %}
+                                취소 완료 {{ cand.naver_canceled_count }} · 확정 전 {{ cand.naver_pending_count }} ·
+                                {% else %}
+                                {{ cand.naver_pending_count }}건 전부 ·
+                                {% endif %}
+                                <b>네이버가 아직 확정하지 않았습니다</b>
+                            </div>
+                            {{ customer_cancel_sentences(cand) }}
+                            {% elif cand.naver_claim_code == 'partial' %}
+                            <span class="wb-cand__claim wb-cand__claim--part">{{ cand.naver_claim_label }}</span>
+                            <div class="wb-relation__reason">취소 {{ cand.naver_canceled_count }}{% if cand.naver_pending_count %} · 확정 전 {{ cand.naver_pending_count }}{% endif %} · 살아있음 {{ cand.naver_alive_count }}</div>
                             {{ customer_cancel_sentences(cand) }}
                             {% else %}
                             <span class="wb-cand__claim wb-cand__claim--alive">살아 있음</span>
@@ -769,6 +783,13 @@
                         </div>
                         <a class="btn btn-sm btn-outline-secondary" target="_blank" rel="noopener"
                            href="{{ selected.seller_center_url }}">네이버 판매자센터 열기 ↗</a>
+                        {% elif cand.naver_claim_code in ('all_pending', 'all_mixed') %}
+                        {# 확정 전에 "할 일 없음"이라고 적으면 화면이 거짓말을 한다 — 취소가
+                           거부되면 그 결제는 살아 있다(2026-08-28). #}
+                        <div class="wb-plan__d wb-plan__d--warn">
+                            옛 주문 <b>{{ cand.naver_claim_label }}</b> — 네이버가 아직 확정하지
+                            않았습니다. <b>확정된 뒤에 정리하세요.</b>
+                        </div>
                         {% elif cand.naver_claim_label %}
                         <div class="wb-plan__d">
                             옛 주문 <b>{{ cand.naver_claim_label }}</b> — 고객이 이미 처리했습니다.

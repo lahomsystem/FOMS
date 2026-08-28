@@ -20,6 +20,20 @@
 부분 취소는 제외한다 — 일부만 취소된 주문은 정상 진행 중일 수 있고, 그걸 유령이라 부르면
 띠가 거짓말을 한다.
 
+확정 전 클레임 (2026-08-28)
+---------------------------
+예전에는 판정이 "``claimStatus`` 가 비어 있지 않은가" 한 비트였다. 그래서 **승인 전 취소
+요청**(``CANCEL_REQUEST``)이 확정 취소와 같은 칸에 들어갔고, 템플릿이 `" 완료"` 를 덧붙여
+화면은 `취소 완료` 라고 말했다. 그 목록이 곧 폐기(soft delete) 허가증이라, 아직 살아 있을
+수 있는 주문에 폐기 버튼이 열렸다(운영 ``link 79`` / 주문 ``#4998``).
+
+이제 단계(:data:`mapping.CLAIM_PHASES`)를 본다:
+
+* ``done`` — 네이버가 확정. 폐기 버튼을 연다.
+* ``requested``·``in_progress`` — 확정 전. **목록에는 남기고**(담당자가 알아야 한다)
+  버튼은 잠근다.
+* ``rejected`` — 거부·철회는 **주문이 살아 있다는 뜻**이라 클레임으로 세지 않는다.
+
 **자동으로 지우지 않는다.** 목록과 근거를 내놓고 사람이 고른다.
 """
 
@@ -28,11 +42,20 @@ from __future__ import annotations
 import logging
 from typing import Any, Optional
 
+from foms.services.integrations.naver_commerce.mapping import (
+    CLAIM_PHASE_DONE,
+    CLAIM_PHASE_PROGRESS,
+    CLAIM_PHASE_REQUESTED,
+    extract_claim,
+)
 from models import ExternalOrderLink, Order
 
 logger = logging.getLogger(__name__)
 
 __all__ = ["find_ghost_orders", "GHOST_LIST_LIMIT", "DISCARDABLE_STATUSES"]
+
+#: 유령 모집단에 넣는 단계. ``rejected``(거부·철회)는 주문이 살아 있다는 뜻이라 뺀다.
+GHOST_CLAIM_PHASES = (CLAIM_PHASE_DONE, CLAIM_PHASE_REQUESTED, CLAIM_PHASE_PROGRESS)
 
 #: 띠에서 펼쳐 보여줄 최대 건수. 더 많으면 사람이 못 훑는다(수는 배지가 말한다).
 GHOST_LIST_LIMIT = 20
@@ -43,14 +66,27 @@ GHOST_LIST_LIMIT = 20
 DISCARDABLE_STATUSES = ("RECEIVED",)
 
 
-def _claim_of(snapshot: Any) -> str:
-    """상품주문 스냅샷의 클레임 상태 문자열(정상이면 빈 문자열)."""
-    if not isinstance(snapshot, dict):
-        return ""
-    product_order = snapshot.get("productOrder")
-    if not isinstance(product_order, dict):
-        return ""
-    return str(product_order.get("claimStatus") or "").strip()
+def _claim_of(snapshot: Any) -> tuple[str, str]:
+    """상품주문 스냅샷의 클레임 **상태와 단계**.
+
+    판정 규칙은 :func:`mapping.extract_claim` 한 곳에만 둔다 — 예전에는 이 파일이
+    "비어 있지 않은가"를 따로 판정해 SSOT 밖에 술어가 한 벌 더 있었다(2026-08-28).
+
+    Args:
+        snapshot: ``ExternalOrderLink.raw_snapshot``.
+
+    Returns:
+        ``(상태 원문, 단계)``. 클레임이 없으면 ``("", "")``. 모르는 상태면 단계가 빈
+        문자열이고, **빈 단계는 ``done`` 이 아니다**(모르면 폐기 버튼을 열지 않는다).
+    """
+    if not isinstance(snapshot, dict) or not snapshot:
+        return "", ""
+    try:
+        claim = extract_claim(snapshot)
+    except (ValueError, TypeError, AttributeError) as exc:  # 목록 보조라 흐름을 막지 않는다
+        logger.warning("[NAVER] 유령 판정 클레임 추출 실패: %s", exc)
+        return "", ""
+    return str(claim.get("status") or "").strip(), str(claim.get("phase") or "")
 
 
 def find_ghost_orders(session, *, limit: int = GHOST_LIST_LIMIT) -> dict[str, Any]:
@@ -74,13 +110,14 @@ def find_ghost_orders(session, *, limit: int = GHOST_LIST_LIMIT) -> dict[str, An
     for order_id, snapshot, order_no in rows:
         bucket = buckets.setdefault(int(order_id), {
             "link_count": 0, "canceled": 0, "amount_total": 0,
-            "order_nos": [], "claim_labels": set(),
+            "order_nos": [], "claim_labels": set(), "phases": set(),
         })
         bucket["link_count"] += 1
-        claim = _claim_of(snapshot)
-        if claim:
+        claim, phase = _claim_of(snapshot)
+        if phase in GHOST_CLAIM_PHASES:
             bucket["canceled"] += 1
             bucket["claim_labels"].add(claim)
+            bucket["phases"].add(phase)
         product_order = snapshot.get("productOrder") if isinstance(snapshot, dict) else None
         if isinstance(product_order, dict):
             amount = product_order.get("totalPaymentAmount")
@@ -108,7 +145,25 @@ def find_ghost_orders(session, *, limit: int = GHOST_LIST_LIMIT) -> dict[str, An
     for order in orders:
         bucket = buckets[int(order.id)]
         status = str(order.status or "")
-        can_discard = status in DISCARDABLE_STATUSES
+        # 반품(RETURN_*)과 취소(CANCEL_*)를 한 낱말로 뭉치지 않는다 — 사람이 보는 사실이 다르다.
+        kind = "반품" if any(label.startswith("RETURN")
+                             for label in bucket["claim_labels"]) else "취소"
+        phases = bucket["phases"]
+        if phases == {CLAIM_PHASE_DONE}:
+            claim_phase, claim_text = "done", f"{kind} 완료"
+        elif CLAIM_PHASE_DONE in phases:
+            claim_phase, claim_text = "mixed", f"{kind} — 확정 전 포함"
+        else:
+            claim_phase, claim_text = "pending", f"{kind} 요청 — 확정 전"
+        # **확정된 취소에만** 폐기 버튼을 연다. 확정 전에 접으면 취소가 거부됐을 때
+        # 살아 있어야 할 주문이 휴지통에 있다.
+        can_discard = status in DISCARDABLE_STATUSES and claim_phase == "done"
+        if status not in DISCARDABLE_STATUSES:
+            discard_block = f"{status} 단계라 이력이 붙어 있습니다"
+        elif claim_phase != "done":
+            discard_block = "네이버가 아직 취소를 확정하지 않았습니다 — 확정 후에 접으세요"
+        else:
+            discard_block = ""
         views.append({
             "order_id": int(order.id),
             "customer_name": order.customer_name or "",
@@ -119,11 +174,13 @@ def find_ghost_orders(session, *, limit: int = GHOST_LIST_LIMIT) -> dict[str, An
             "naver_order_nos": bucket["order_nos"],
             "naver_link_count": bucket["link_count"],
             "naver_amount_total": bucket["amount_total"],
-            # 반품(RETURN_*)과 취소(CANCEL_*)를 한 낱말로 뭉치지 않는다 — 사람이 보는 사실이 다르다.
-            "claim_kind": "반품" if any(label.startswith("RETURN")
-                                        for label in bucket["claim_labels"]) else "취소",
+            "claim_kind": kind,
+            # 단계와 **완성 문구**를 함께 낸다. 템플릿이 `" 완료"` 를 덧붙이던 시절에는
+            # 확정 전 취소가 화면에서 `취소 완료` 로 읽혔다(2026-08-28).
+            "claim_phase": claim_phase,
+            "claim_text": claim_text,
             "can_discard": can_discard,
-            "discard_block": "" if can_discard else f"{status} 단계라 이력이 붙어 있습니다",
+            "discard_block": discard_block,
         })
 
     # 금액 큰 것부터 — 돈이 큰 유령이 더 급하다.
@@ -169,8 +226,9 @@ def find_repay_candidate_links(session, phones: list[str]) -> dict[str, list[dic
         tel = normalize_phone_digits((shipping or {}).get("tel1")) if isinstance(shipping, dict) else ""
         if not tel or tel not in wanted:
             continue
-        # 이미 취소된 집은 재결제 짝이 아니다 — 그것도 유령이다.
-        if _claim_of(snapshot):
+        # 이미 취소된 집은 재결제 짝이 아니다 — 그것도 유령이다. 확정 전 취소도 같이
+        # 뺀다(동작 불변). 거부·철회는 살아 있는 집이라 이제 후보에 남는다.
+        if _claim_of(snapshot)[1] in GHOST_CLAIM_PHASES:
             continue
         seen = pairs.setdefault(tel, [])
         order_no = str(link.external_order_no or "")

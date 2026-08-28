@@ -19,7 +19,7 @@
 {% block title %}네이버 수집{% endblock %}
 
 {% block styles %}
-<link rel="stylesheet" href="{{ url_for('static', filename='css/admin/naver-workbench.css') }}?v=20260827b">
+<link rel="stylesheet" href="{{ url_for('static', filename='css/admin/naver-workbench.css') }}?v=20260828a">
 {% endblock %}
 
 {% block content %}
@@ -92,7 +92,8 @@
         <summary class="wb-ghost__head">
             <span class="wb-ghost__badge">{{ ghosts.count }}건</span>
             <b>네이버 결제가 전부 취소된 주문</b>
-            <span class="wb-ghost__sub">결제는 취소됐는데 ERP 주문이 살아 있습니다 — 재결제로 정리하거나 접으세요.</span>
+            <span class="wb-ghost__sub">결제는 취소됐는데 ERP 주문이 살아 있습니다 — 재결제로 정리하거나 접으세요.
+                네이버가 아직 확정하지 않은 취소 요청도 함께 보이고, 그 행은 접기가 잠깁니다.</span>
         </summary>
         <table class="wb-ghost__list">
             <thead>
@@ -108,7 +109,9 @@
                         <div class="wb-ghost__dim">{{ '{:,}'.format(row.naver_amount_total) }}원</div>
                     </td>
                     <td>
-                        <span class="wb-ghost__claim">{{ row.claim_kind }} 완료</span>
+                        {# 문구는 서버가 만든다(`claim_text`). 여기서 `" 완료"` 를 덧붙이던
+                           시절에는 확정 전 취소가 `취소 완료` 로 읽혔다(2026-08-28). #}
+                        <span class="wb-ghost__claim{% if row.claim_phase != 'done' %} wb-ghost__claim--pending{% endif %}">{{ row.claim_text }}</span>
                         <div class="wb-ghost__dim">{{ row.naver_link_count }}건 전부</div>
                     </td>
                     <td>
@@ -700,5 +703,5 @@
 {% endblock %}
 
 {% block scripts %}
-<script src="{{ url_for('static', filename='js/admin/naver-workbench.js') }}?v=20260827b" defer></script>
+<script src="{{ url_for('static', filename='js/admin/naver-workbench.js') }}?v=20260828a" defer></script>
 {% endblock %}
