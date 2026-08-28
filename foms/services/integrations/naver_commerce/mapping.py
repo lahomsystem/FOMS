@@ -440,6 +440,38 @@ def claim_kind(claim: dict) -> str:
     return ""
 
 
+def blocks_irreversible(claim: dict) -> bool:
+    """이 클레임이 걸린 집에 **되돌릴 수 없는 호출**(발주확인·발송처리·취소·반품 접수)을
+    보내면 안 되는가.
+
+    :data:`BLOCKING_CLAIM_STATUSES` 와 **다른 축**이다. 그쪽은 "주문을 만들면 안 되는가"라
+    돈이 되돌아간 클레임(취소·반품)만 담는다 — 교환은 고객이 대체품을 받으므로 ERP 주문이
+    **있어야** 하고, 거기에 넣으면 교환 건이 주문 만들기에서 막힌다.
+
+    이 함수의 규칙은 둘이다:
+
+    * **진행 중인 클레임은 종류 불문 막는다.** 불가역 호출 앞에서는 안전한 쪽으로 튼다.
+      ``request_return`` 은 주석에 "이미 클레임(취소·반품·**교환**)이 도는 집에 반품을 또
+      걸지 않는다"고 적어 놓고 교환을 안 막았다 — 그 약속을 코드로 만든다(R-4, 2026-08-28).
+    * **끝난 클레임은 돈이 되돌아간 종류만 막는다.** 취소·반품 완료는 주문이 죽었다.
+      교환 완료는 대체품 발송이 남아 있을 수 있어 막지 않는다(막으면 보낼 길이 없어진다).
+
+    모르는 상태는 단계가 빈 문자열이라 막지 않는다 — 예전 ``blocking`` 판정과 같다.
+
+    Args:
+        claim: :func:`extract_claim` 결과.
+
+    Returns:
+        bool: 막아야 하면 True.
+    """
+    phase = claim.get("phase") or ""
+    if phase in (CLAIM_PHASE_REQUESTED, CLAIM_PHASE_PROGRESS):
+        return True
+    if phase == CLAIM_PHASE_DONE:
+        return claim_kind(claim) in MONEY_BACK_CLAIM_KINDS
+    return False
+
+
 def extract_claim(detail: dict) -> dict:
     """취소·반품·교환(클레임) 상태를 뽑는다.
 
@@ -1285,6 +1317,7 @@ __all__ = [
     "REFUND_DONE_STANDBY_STATUSES",
     "claim_reason_text",
     "claim_kind",
+    "blocks_irreversible",
     "build_payment_info",
     "extract_claim",
     "extract_claim_holdback",
