@@ -659,6 +659,18 @@ input.wb-pick:disabled,
     white-space: nowrap;
 }
 
+/* 이력 '열기' 칸 — 링크 둘(원본 보기 · 처리 탭에서 열기)이 좁은 칸에서 글자 중간에
+   끊기지 않게 한다. 칸이 좁으면 줄만 바뀌고 낱말은 붙어 있다. */
+.wb-hist-links {
+    display: flex;
+    flex-wrap: wrap;
+    gap: 2px 10px;
+}
+
+.wb-hist-open {
+    white-space: nowrap;
+}
+
 .wb-detail__links {
     display: flex;
     flex-wrap: wrap;
