@@ -890,10 +890,35 @@ var erpBindAmountInput =
         inputEl.dataset.erpAmountBound = '1';
         const recalc = typeof onRecalc === 'function' ? onRecalc : erpCalculateRemaining;
 
+        // iOS Safari 는 값 재대입 직후 caret 을 끝('원' 뒤)으로 되돌리는 경우가 있어
+        // 다음 프레임에 한 번 더 확인해 바로잡는다.
+        function applyAmountCaret(el, pos) {
+            if (!el || typeof el.setSelectionRange !== 'function') return;
+            try {
+                el.setSelectionRange(pos, pos);
+            } catch (_e) {
+                return; /* 포커스 밖 — 복원 실패는 무해 */
+            }
+            if (typeof window.requestAnimationFrame !== 'function') return;
+            window.requestAnimationFrame(function () {
+                if (document.activeElement !== el || el.selectionStart === pos) return;
+                try {
+                    el.setSelectionRange(pos, pos);
+                } catch (_e2) {
+                    /* 무해 */
+                }
+            });
+        }
         function setAmountCaretBeforeSuffix(el) {
             if (!el || typeof el.setSelectionRange !== 'function' || !String(el.value || '').endsWith('원')) return;
-            const caretPos = Math.max(0, String(el.value || '').length - 1);
-            el.setSelectionRange(caretPos, caretPos);
+            applyAmountCaret(el, Math.max(0, String(el.value || '').length - 1));
+        }
+        // 재포맷 후 caret 을 '끝에서부터의 오프셋'으로 보존한다(중간 자릿수 수정 시 끝으로
+        // 튀지 않게). 하한 1 이라 접미사 '원' 뒤로는 가지 않는다.
+        function restoreAmountCaret(el, prevValue, prevCaret, formatted) {
+            const caret = prevCaret == null ? prevValue.length : prevCaret;
+            const fromEnd = Math.max(1, prevValue.length - caret);
+            applyAmountCaret(el, Math.max(0, formatted.length - fromEnd));
         }
         function deleteErpAmountDigitBeforeSuffix(el) {
             const value = String(el.value || '');
@@ -919,7 +944,9 @@ var erpBindAmountInput =
             if (deleteErpAmountDigitBeforeSuffix(this)) event.preventDefault();
         });
         inputEl.addEventListener('input', function () {
-            const raw = (this.value || '').replace(/[^0-9]/g, '');
+            const prevValue = String(this.value || '');
+            const prevCaret = this.selectionStart;
+            const raw = prevValue.replace(/[^0-9]/g, '');
             if (!raw) {
                 if (this.value !== '') this.value = '';
                 recalc();
@@ -928,7 +955,7 @@ var erpBindAmountInput =
             const num = parseInt(raw, 10);
             const formatted = erpFormatDepositDisplay(num);
             if (this.value !== formatted) this.value = formatted;
-            setAmountCaretBeforeSuffix(this);
+            restoreAmountCaret(this, prevValue, prevCaret, formatted);
             recalc();
         });
         inputEl.addEventListener('change', function () {
