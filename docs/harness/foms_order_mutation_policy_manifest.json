@@ -55,6 +55,11 @@
       "policy_id": "STAFF_MUTATION",
       "rule": "/admin/naver-ingest/<int:link_id>/refresh"
     },
+    "admin.naver_ingest_origin_cleanup_refresh": {
+      "mode": "guard",
+      "policy_id": "STAFF_MUTATION",
+      "rule": "/admin/naver-ingest/origin-cleanup/refresh"
+    },
     "admin.naver_ingest_run_now": {
       "mode": "guard",
       "policy_id": "ADMIN_OPS",
