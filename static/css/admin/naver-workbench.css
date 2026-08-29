@@ -771,6 +771,19 @@ input.wb-pick:disabled,
 }
 .wb-ghost__list th { color: var(--wb-muted); font-weight: 600; font-size: calc(11px * var(--wb-fs, 1)); }
 
+/* ── 옛 주문 정리 대기 띠 (NVREPAY-02) ────────────────────────────────
+   유령 띠와 **같은 무게**다(쌓여 있던 사실 · 접힌 채 기다린다). 다른 것은 색뿐이다 —
+   유령은 이미 취소된 결제라 빨강, 이건 아직 살아 있어 사람이 접어야 할 일이라 주황. */
+.wb-origins { border-left-color: var(--wb-warn); }
+.wb-origins .wb-ghost__badge {
+    background: var(--wb-warn-soft);
+    border-color: var(--wb-warn-line);
+    color: var(--wb-warn);
+}
+.wb-origins .wb-ghost__claim { color: var(--wb-warn); }
+/* 접기 삼각형 옆 버튼이 summary 클릭(펼치기)을 삼키지 않게 자기 영역만 먹는다. */
+.wb-origins .wb-ghost__head > .btn { flex: none; }
+
 .wb-empty { padding: 40px 16px; text-align: center; color: var(--wb-muted); }
 
 /* ── 전체 이력 (W4) ──────────────────────────────────────────────────── */

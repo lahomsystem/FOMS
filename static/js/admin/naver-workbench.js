@@ -102,7 +102,8 @@
         'wb-retry-failed': submitRetry,
         'wb-run-now': submitRunNow,
         'wb-expiry-edit': toggleExpiryEdit,
-        'wb-ghost-discard': submitGhostDiscard
+        'wb-ghost-discard': submitGhostDiscard,
+        'wb-origin-refresh-all': submitOriginRefreshAll
     };
 
     document.addEventListener('click', onClick);
@@ -145,6 +146,34 @@
        네이버 결제가 전부 취소됐는데 살아 있는 ERP 주문을 접는다. soft delete 라
        휴지통에서 복구된다 — 그래서 불가역 4종 세트 모달이 아니라 확인창 1회다.
        (되돌릴 수 없는 것만 모달을 쓴다는 이 화면의 규율.) */
+    /**
+     * 정리 대기 중인 **옛 주문 전부**를 네이버에서 다시 읽는다 (NVREPAY-02).
+     *
+     * 확인 모달을 두지 않는다 — 나가는 호출이 상세 조회뿐이라 되돌릴 것이 없다(단건
+     * `다시 읽기` 와 같은 규율). 대신 **대상을 여기서 고르지 않는다**: 서버가 정리 대기
+     * 집을 다시 세어 그 집들만 큐에 넣는다.
+     *
+     * 결과는 새로고침으로 확인한다 — 워커가 읽고 나면 이 띠의 건수 자체가 바뀌므로
+     * 조각 교체보다 전체 렌더가 정직하다. 큐에 넣은 직후에는 아직 옛 값이라 **바로
+     * 새로고침하지 않고** 무엇을 기다리는지 말한다.
+     *
+     * @param {HTMLElement} button 눌린 버튼.
+     * @returns {Promise<void>}
+     */
+    async function submitOriginRefreshAll(button) {
+        button.disabled = true;
+        const result = await postJson(BASE + 'origin-cleanup/refresh', {});
+        if (!result.ok) {
+            window.alert(result.error);
+            button.disabled = false;
+            return;
+        }
+        var queued = (result.data && result.data.queued) || 0;
+        button.textContent = queued
+            ? '다시 읽는 중 — ' + queued + '집 (끝나면 새로고침)'
+            : '다시 읽을 집 없음';
+    }
+
     function submitGhostDiscard(button) {
         var orderId = safeId(button.dataset.orderId);
         if (!orderId) {

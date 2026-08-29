@@ -19,7 +19,7 @@
 {% block title %}네이버 수집{% endblock %}
 
 {% block styles %}
-<link rel="stylesheet" href="{{ url_for('static', filename='css/admin/naver-workbench.css') }}?v=20260828d">
+<link rel="stylesheet" href="{{ url_for('static', filename='css/admin/naver-workbench.css') }}?v=20260829a">
 {% endblock %}
 
 {% block content %}
@@ -139,6 +139,65 @@
                         {% else %}
                         <span class="wb-ghost__dim">취소 처리 잠김</span>
                         {% endif %}
+                    </td>
+                </tr>
+                {% endfor %}
+            </tbody>
+        </table>
+    </details>
+    {% endif %}
+
+    {#
+      재결제 뒤 정리 안 된 옛 네이버 주문 띠 (NVREPAY-02).
+      관계 블록은 그 주문 pane 을 연 사람에게만 말한다 — 아무도 안 열면 아무도 모른다.
+      옛 주문을 안 접으면 고객 돈이 두 번 묶이고 옛 주문은 네이버에서 그대로 돈다.
+      `다시 읽기` 는 읽기 전용이라 확인 모달을 두지 않는다(단건 버튼과 같은 규율).
+      불가역(취소·반품)은 여기서 안 누른다 — 그 집 pane 으로 보낸다.
+    #}
+    {% if origin_cleanup and origin_cleanup.count %}
+    <details class="wb-ghost wb-origins" data-foms-no-autodismiss data-wb-origin-cleanup="{{ origin_cleanup.count }}">
+        <summary class="wb-ghost__head">
+            <span class="wb-ghost__badge">{{ origin_cleanup.count }}건</span>
+            <b>재결제 뒤 정리 안 된 옛 네이버 주문</b>
+            <span class="wb-ghost__sub">새 결제는 받았는데 옛 주문이 네이버에서 아직 살아 있습니다 —
+                발송 전이면 취소, 발송 후면 반품으로 접으세요.
+                {% if origin_cleanup.truncated %}많아서 일부만 보입니다.{% endif %}</span>
+            <button type="button" class="btn btn-sm btn-outline-primary ms-auto"
+                    id="wb-origin-refresh-all">전부 다시 읽기</button>
+        </summary>
+        <table class="wb-ghost__list">
+            <thead>
+                <tr><th>주문</th><th>옛 네이버 주문</th><th>할 일</th><th>마지막으로 읽은 때</th><th class="text-end">열기</th></tr>
+            </thead>
+            <tbody>
+                {% for row in origin_cleanup.rows %}
+                <tr data-origin-link-id="{{ row.link_id }}">
+                    <td>
+                        <a href="{{ url_for('order_edit.edit_order', order_id=row.order_id, open='erp-order') }}"
+                           target="_blank" rel="noopener">#{{ row.order_id }}</a>
+                        {{ row.customer_name }}
+                        <div class="wb-ghost__dim">{{ row.status }}</div>
+                    </td>
+                    <td>
+                        {{ row.external_order_no }}
+                        <div class="wb-ghost__dim">상품주문 {{ row.product_order_count }}건 ·
+                            {{ '{:,}'.format(row.amount_total) }}원</div>
+                    </td>
+                    <td>
+                        <span class="wb-ghost__claim">{% if row.dispatched %}반품{% else %}취소{% endif %}</span>
+                        <div class="wb-ghost__dim">{% if row.dispatched %}이미 발송 처리된 주문{% else %}발송 전{% endif %}</div>
+                    </td>
+                    <td>
+                        {% if row.stale %}
+                        <span class="wb-ghost__claim wb-ghost__claim--pending">새 결제 뒤로 확인 안 함</span>
+                        <div class="wb-ghost__dim">그 사이 고객이 스스로 취소했을 수 있습니다.</div>
+                        {% else %}
+                        <span class="wb-ghost__dim">{{ row.read_at[:16].replace('T', ' ') }}</span>
+                        {% endif %}
+                    </td>
+                    <td class="text-end">
+                        <a class="btn btn-sm btn-outline-primary"
+                           href="{{ url_for('admin.naver_ingest_triage', tab='work', link_id=row.link_id) }}">옛 주문 열기 →</a>
                     </td>
                 </tr>
                 {% endfor %}
@@ -730,5 +789,5 @@
 {% endblock %}
 
 {% block scripts %}
-<script src="{{ url_for('static', filename='js/admin/naver-workbench.js') }}?v=20260828d" defer></script>
+<script src="{{ url_for('static', filename='js/admin/naver-workbench.js') }}?v=20260829a" defer></script>
 {% endblock %}
