@@ -70,7 +70,7 @@ def _assert_shared_form_script_contract(body: str) -> None:
     assert "html2canvas.min.js" not in body
     assert "js/orders/erp-channel-push-confirm.js?v=20260821a" in body
     assert "js/cs/as-push-confirm.js?v=20260820a" in body
-    assert "js/orders/erp-order-shared.js?v=20260826b" in body
+    assert "js/orders/erp-order-shared.js?v=20260829a" in body
     assert "js/cs/as-attachment-order.js?v=20260819a" in body
     assert "js/orders/erp-alimtalk-send.js?v=20260824b" in body
     # T15 발송 흔적: 칩 자리·이력 패널이 실제 렌더에 붙어 있어야 한다(템플릿 계약만으로는
@@ -112,6 +112,16 @@ def _assert_shared_form_script_contract(body: str) -> None:
     assert 'id="erp-save-btn"' in body
     assert 'id="erp-attachments-input"' in body
 
+
+
+def test_erp_amount_caret_is_preserved_and_ios_reapplied() -> None:
+    """금액칸 재포맷 후 caret 은 끝 오프셋으로 보존되고, iOS 되돌림은 다음 프레임에 교정된다."""
+    root = Path(__file__).resolve().parents[2]
+    js = (root / "static/js/orders/erp-order-shared.js").read_text(encoding="utf-8")
+    assert "function restoreAmountCaret(" in js
+    assert "restoreAmountCaret(this, prevValue, prevCaret, formatted)" in js
+    assert "window.requestAnimationFrame(function () {" in js
+    assert "document.activeElement !== el || el.selectionStart === pos" in js
 
 def test_add_order_page_renders_thin_erp_order_partial_contract(erp_editor_client) -> None:
     response = erp_editor_client.get("/add")
@@ -1180,11 +1190,12 @@ def test_shared_erp_amount_input_allows_empty_value_while_deleting() -> None:
     assert "event.key !== 'Backspace'" in bind_block
     assert "event.inputType !== 'deleteContentBackward'" in bind_block
     assert "if (deleteErpAmountDigitBeforeSuffix(this)) event.preventDefault();" in bind_block
-    assert "const raw = (this.value || '').replace(/[^0-9]/g, '');" in bind_block
+    assert "const raw = prevValue.replace(/[^0-9]/g, '');" in bind_block
     assert "if (!raw) {" in bind_block
     assert "if (this.value !== '') this.value = '';" in bind_block
     assert "return;" in bind_block
-    assert "setAmountCaretBeforeSuffix(this);" in bind_block
+    assert "restoreAmountCaret(this, prevValue, prevCaret, formatted);" in bind_block
+    assert "setAmountCaretBeforeSuffix(el);" in bind_block
     assert "this.value = erpFormatDepositDisplay(num);" in bind_block
 
 
