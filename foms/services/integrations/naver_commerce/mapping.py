@@ -309,6 +309,73 @@ def _claim_blocks(detail: Any) -> list[dict]:
     return blocks
 
 
+#: 취소 축 전용 블록. 반품 축(:data:`RETURN_BLOCK_KEYS`)과 **겹치지 않게** 갈라 둔다 —
+#: 한 목록으로 합치면 취소 블록의 환불 필드가 반품 진행으로 새어 취소만 된 건에
+#: "반품 진행" 줄이 뜬다(2026-08-27 CEO A1 이 고친 그 결함).
+CANCEL_BLOCK_KEYS = ("cancel",)
+
+
+def _cancel_blocks(detail: Any) -> list[dict]:
+    """**취소 축**이 읽을 블록만 모은다 — 반품 블록은 넣지 않는다.
+
+    ``currentClaim`` 은 실데이터에서 ``{"cancel": …}`` 래퍼라 그 안의 ``cancel`` 까지 본다
+    (2026-08-27 스테이징 83건 관측). 래퍼 자체는 넣지 않는다 — 평평한 클레임이 아니다.
+
+    Args:
+        detail: 상품주문 상세 1건(dict 가 아니면 빈 목록).
+
+    Returns:
+        비어 있지 않은 dict 블록 목록. 앞선 것이 이긴다.
+    """
+    if not isinstance(detail, dict):
+        return []
+    current = detail.get("currentClaim") if isinstance(detail.get("currentClaim"), dict) else {}
+    blocks: list[dict] = []
+    for holder in (detail, current):
+        for key in CANCEL_BLOCK_KEYS:
+            block = holder.get(key)
+            if isinstance(block, dict) and block:
+                blocks.append(block)
+    return blocks
+
+
+def extract_cancel_axis(detail: Any) -> dict:
+    """취소 **확정** 축 — 언제 끝났나 · 환불이 끝났나 (2026-08-30).
+
+    반품 축(:func:`extract_return_axis`)이 취소 블록을 일부러 빼기 때문에, 순수 취소 건은
+    확정 시각도 환불 상태도 화면에 **영영 빈 값**이었다. 목업 확정본이 요구하는
+    ``취소 완료 08-27`` · ``취소 완료 08-26 · 환불 완료`` 가 그래서 안 나왔다.
+
+    반품 축에 ``cancel`` 을 도로 넣어 고치지 않는다 — 그건 2026-08-27 에 고친 누출을
+    되살리는 짓이다(취소 블록의 환불 필드가 반품 진행으로 샌다). **축을 따로 둔다.**
+    읽는 쪽은 클레임 종류가 취소일 때만 이 축을 본다.
+
+    ``cancelCompletedDate`` 는 실데이터에 있는 값이다(운영 ``CANCEL_DONE`` 15건 ·
+    ``docs/specs/2026-08-28-naver-claim-phase-labeling_SPEC.md`` §1.1) — 읽는 코드가 0곳이었다.
+    승인 전 요청 건은 그 값이 없어서 빈 문자열이 되고, 화면은 날짜 조각을 통째로 안 낸다.
+
+    Args:
+        detail: 상품주문 상세 1건(dict 가 아니면 전부 빈 값으로 준다).
+
+    Returns:
+        ``{"cancel_completed_at", "cancel_approved_at", "refund_standby_status",
+        "refund_done", "known"}``. 시각은 **원문 문자열 그대로**(형식 변환은 화면 몫).
+        ``known`` 이 False 면 화면은 그 조각을 안 낸다.
+    """
+    blocks = _cancel_blocks(detail)
+    standby_status = _first_text(blocks, "refundStandbyStatus")
+    completed_at = _first_text(blocks, "cancelCompletedDate")
+    approved_at = _first_text(blocks, "cancelApprovalDate")
+    return {
+        "cancel_completed_at": completed_at,
+        "cancel_approved_at": approved_at,
+        "refund_standby_status": standby_status,
+        # 환불이 끝났다고 **말해도 되는가**. 모르는 값은 완료로 읽지 않는다(반품 축과 같은 규율).
+        "refund_done": standby_status in REFUND_DONE_STANDBY_STATUSES,
+        "known": bool(completed_at or approved_at or standby_status),
+    }
+
+
 def _return_blocks(detail: Any) -> list[dict]:
     """**반품 축**이 읽을 블록만 우선순위 순으로 모은다 (2026-08-27 CEO A1).
 
@@ -1350,6 +1417,7 @@ __all__ = [
     "extract_claim_holdback",
     "extract_delivery",
     "extract_partial_cancel",
+    "extract_cancel_axis",
     "extract_return_axis",
     "extract_place_status",
     "place_status_view",
