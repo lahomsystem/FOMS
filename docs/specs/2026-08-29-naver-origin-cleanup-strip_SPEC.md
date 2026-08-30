@@ -2,7 +2,8 @@
 
 - 작성 2026-08-29 · 워크트리 `C:/tmp/nvrepay` (session/nvrepay-cancel)
 - 앞선 작업: `docs/plans/2026-08-28-naver-repay-origin-cancel-ledger.md`(NVREPAY-01, 운영 반영 완료)
-- 상태: **완료 — 스테이징 반영·실화면 확인**(`9745f4df` + CI 등재 `73bd35a3`). 운영 승격은 사용자 승인 대기.
+- 상태: **완료 — 스테이징 반영·실화면 확인**(NVREPAY-02 `9745f4df` + CI 등재 `73bd35a3`,
+  NVREPAY-03 `12eebe39`). 운영 승격은 사용자 승인 대기.
 
 ## 1. 무엇이 문제였나
 
@@ -134,6 +135,40 @@ staticCacheFirst 라 핀을 안 올리면 옛 파일이 계속 나온다.
 - 캡 `REFRESH_ALL_LIMIT = 200`(집). 넘으면 최신부터 자르고 **잘랐다고 말한다**.
 - 운영 실측 2026-08-30: 전체 **58집 / 링크 200건** — 캡에 닿지 않는다.
 - 계약 10건: `tests/services/integrations/test_naver_refresh_all.py`(ci.yml docs 서브셋 등재 포함).
+
+### 스테이징 실화면 확인 (2026-08-30) — 버튼·모달·큐·워커까지 전 구간
+
+`claude_master`(staging id 58)로 실브라우저(Playwright, 1440×900)에서 확인했다.
+
+1. **머리줄에 버튼이 뜬다** — 라벨 `전체 다시 읽기 131주문`, `data-count="131"`.
+   DB 실측과 일치한다(`external_order_links` NAVER 444행 / `external_order_no` 131집).
+2. **확인 모달이 뜬다** — 네이티브 `confirm`, 본문 3줄:
+   `수집된 131개 주문을 네이버에서 다시 읽습니다.` / `조회만 하며 네이버에는 아무것도 보내지 않습니다.` /
+   `취소·반품이 처음 발견되면 담당자·관리자에게 알림이 갑니다.`
+3. **큐에 들어간다** — `POST /admin/naver-ingest/refresh-all` → 200
+   `{"count":131,"queued":131,"failed":0,"truncated":false}`. 버튼 라벨이
+   `다시 읽는 중 — 131주문 (끝나면 새로고침)` 으로 바뀌고 disabled. 콘솔 에러 0.
+4. **워커가 실제로 다시 읽었다** — 링크 **444/444행 전부**, 집 **131/131 전부**의
+   `updated_at` 이 갱신됐다(03:13:20 요청 → 03:15:29 마지막 쓰기, 약 2분 9초).
+   갱신 판정은 요청 직전에 뜬 링크별 `updated_at` 스냅샷과의 대조다.
+5. **자동 스윕이 놓친 클레임이 실제로 나왔다** — 알림 1건 신규
+   (`NAVER_ORDER_CLAIMED` id 1542, `네이버 취소 완료 — 문기범`, 사유 `주문 실수`,
+   아직 주문으로 만들지 않은 수집분). 직전 같은 이름 알림(id 1541)과 **다른 집·다른 사유**라
+   중복이 아니다 — 이 버튼을 만든 이유가 그대로 관측됐다.
+6. 감사 1건: `security_logs` `NAVER_INGEST_REFRESH_ALL_ENQUEUE`
+   `네이버 전체 다시 읽기 요청 (131집 / 전체 131집)` · `detail={"total":131,"queued":131,"failed":0}`.
+7. 새로고침하면 버튼은 다시 `전체 다시 읽기 131주문`(집 수는 다시 읽기로 줄지 않는다).
+   정리 대기 띠는 스테이징에도 0건이라 안 뜬다.
+
+네이버에 쓰는 호출은 0회(상세 조회만). 캡 200에 닿지 않았다(`truncated=false`).
+
+**게이트 원복**: 확인용으로 넓혔던 `FOMS_NAVER_WORKBENCH_COHORT=38,58` 을 **`38` 로 되돌리고
+재배포**했다(변수만 바꾸면 안 먹는다). 원복 후 `claude_master` 로 열면 워크벤치 자산 핀
+(`naver-workbench.css?v=`)이 문서에서 사라진다 — 옛 트리아지 화면으로 닫혔음을 확인했다.
+
+**곁가지 관측(이번 변경과 무관, 미수정)**: `foms/web/admin/naver_ingest.py` 의 `log_access`
+호출 19곳이 전부 `user_id` 를 넘기지 않아 네이버 감사 행에 행위자가 없다(staging 실측:
+`NAVER_*` 액션 전량 `user_id IS NULL`). 파일 전역의 기존 관행이라 이번 범위에서 손대지 않는다.
 
 ## 8. 안 하는 것
 
