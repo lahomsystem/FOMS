@@ -467,9 +467,11 @@ def _history_member_axes(link: ExternalOrderLink,
         # "끝난 뒤의 환불 예정"은 미래형 거짓말이라 확정된 집에서는 빈 값으로 준다.
         "claim_done_at": (_dispatch_time_text(cancel["cancel_completed_at"])
                           if cancel else axis["return_completed_at"]),
-        "claim_refund_expected_at": (axis["refund_expected_at"]
+        "claim_refund_expected_at": ("" if cancel else axis["refund_expected_at"]
                                      if axis["refund_expected_pending"] else ""),
-        "claim_collect_done_at": axis["collect_completed_at"],
+        # 취소 건에는 수거가 없다 — 반품 축 값을 그대로 쓰면 취소 집에 `수거 완료` 가 뜬다
+        # (2026-08-27 에 고친 누출의 거울상). 취소로 판정된 멤버는 반품 조각을 안 낸다.
+        "claim_collect_done_at": ("" if cancel else axis["collect_completed_at"]),
         # 환불 완료도 축을 따라간다 — 취소 건의 환불 상태는 취소 블록에만 있다.
         "claim_refund_done": (cancel["refund_done"] if cancel else axis["refund_done"]),
         "shipping_due": summary["shipping_due"],
@@ -531,7 +533,9 @@ def _history_fail(members: list[dict[str, Any]]) -> dict[str, str]:
             "action": action,
             "action_label": FULFILLMENT_ACTION_LABELS[action],
             "reason": reason,
-            "at": str(state.get("last_error_at") or "")[:16].replace("T", " "),
+            # 시각 파서는 한 벌이다. 원문을 슬라이스하면 ① UTC 를 그대로 찍어
+            # 같은 칸의 발송 시각(KST)과 9시간 어긋나고 ② 못 읽는 값도 잘라 낸다.
+            "at": _dispatch_time_text(state.get("last_error_at")),
         }
     return {"action": "", "action_label": "", "reason": "", "at": ""}
 
@@ -909,10 +913,9 @@ def _history_pipe_fields(*, group_size: int, place_done_count: int,
         "place_total": group_size,
         "place_state": place_state,
         "place_text": place_text,
-        # 발송 두 시각(가장 이른 값) + 어긋남. N/M 은 `dispatch_text` 안에 이미 들어 있어
-        # 행에 또 싣지 않는다 — 읽는 곳 없는 값을 남기면 다음 사람이 화면에 있다고 오독한다.
-        "dispatch_ours_at": dispatch["ours_at"],
-        "dispatch_naver_at": dispatch["naver_at"],
+        # 두 시각과 N/M 은 행에 싣지 않는다 — 부속 문구(`pipe_note_*`)와 파이프 낱말
+        # (`dispatch_text`)이 이미 그 값을 담고 있고, 화면이 안 읽는 값을 남기면 다음
+        # 사람이 "화면에 이미 있다"고 오독한다(같은 지적이 세 번째다).
         "dispatch_mismatch": dispatch["mismatch"],
         # 경고 줄 전용 시각 — **어긋난 그 링크**의 것이다. ``dispatch_ours_at`` 을 쓰면
         # 정상 발송된 형제의 시각을 "네이버 기록 없음" 이라 말한다.
@@ -980,10 +983,7 @@ def _history_group_axes(group: list[dict[str, Any]], *, lead: dict[str, Any],
         "claim_phase": claim["phase"],
         "claim_badge_text": claim_badge_text,
         "claim_tail_text": claim_tail_text,
-        # 발송기한 — 멤버 중 **가장 이른** 값. 원문(`shipping_due`)은 행에 싣지 않는다:
-        # 화면이 읽는 것은 아래 둘뿐이다.
-        "shipping_due_text": due["shipping_due_text"],
-        "shipping_due_over_days": due["shipping_due_over_days"],
+        # 발송기한은 부속 문구(`pipe_note_*`)가 이미 담는다 — 행에 따로 싣지 않는다.
     }
 
 
@@ -2427,7 +2427,9 @@ def _failure_rows(db) -> list[dict[str, Any]]:
             # 목록에 넣으면 그 집이 **발주확인**으로 나간다 — 취소·반품하려던 집에
             # 되돌릴 수 없는 반대 조작이 나가는 자리다. 상세 pane 에서 사유와 함께 다시 보낸다.
             "retryable": action in ("confirm", "dispatch"),
-            "at": str(state.get("last_error_at") or "")[:16].replace("T", " "),
+            # 시각 파서는 한 벌이다. 원문을 슬라이스하면 ① UTC 를 그대로 찍어
+            # 같은 칸의 발송 시각(KST)과 9시간 어긋나고 ② 못 읽는 값도 잘라 낸다.
+            "at": _dispatch_time_text(state.get("last_error_at")),
         })
     return rows
 
