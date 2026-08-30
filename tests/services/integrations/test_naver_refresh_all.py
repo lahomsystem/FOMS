@@ -414,3 +414,22 @@ def test_progress_rejects_missing_arguments(client, workbench_on):
     assert client.get(PROGRESS_PATH, query_string={"link_ids": "1"}).status_code == 400
     assert client.get(PROGRESS_PATH, query_string={
         "link_ids": "1", "since": "어제"}).status_code == 400
+
+
+def test_idle_state_says_why_the_button_is_gone(client, workbench_on, monkeypatch):
+    """쿨다운으로 대상이 0 이면 **말은 한다** — 버튼이 그냥 사라지면 기능이 없어진 걸로 읽는다.
+
+    술어가 아니라 **화면 분기**를 보는 테스트다. 공유 세션의 다른 링크를 건드려 0 을
+    만들면 같은 파일의 다른 테스트가 깨진다(실제로 깨뜨려 봤다) — 대상 계산만 갈아 끼운다.
+    """
+    monkeypatch.setattr(
+        "foms.services.integrations.naver_commerce.claim_watch"
+        ".refreshable_household_link_ids",
+        lambda *a, **k: ([], 0, {"done": 0, "recent": 3}))
+    _login(client, role="ADMIN")
+
+    body = client.get(TRIAGE_PATH, query_string={"tab": "work"}).get_data(as_text=True)
+
+    assert 'id="wb-refresh-all-idle"' in body
+    assert "방금 다 읽었습니다" in body
+    assert 'id="wb-refresh-all"' not in body
