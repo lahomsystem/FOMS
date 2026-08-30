@@ -283,13 +283,17 @@ def test_return_route_is_audited(app, client, workbench_on, monkeypatch):
     monkeypatch.setattr(jobs_queue, "enqueue_naver_return", lambda *a, **k: True)
 
     logged: list[dict] = []
-    monkeypatch.setattr("foms.web.admin.naver_ingest.log_access",
-                        lambda message, **kw: logged.append({"message": message, **kw}))
+    monkeypatch.setattr(
+        "foms.web.admin.naver_ingest.log_access",
+        lambda message, actor=None, **kw: logged.append(
+            {"message": message, "actor": actor, **kw}))
 
     client.post(f"/admin/naver-ingest/{link_id}/return", json={"reason": "COLOR_AND_SIZE"})
 
     assert logged and logged[0]["action"] == "NAVER_INGEST_RETURN_ENQUEUE"
     assert logged[0]["detail"]["reason"] == "COLOR_AND_SIZE"
+    # 감사 행에 **행위자**가 남아야 한다 — 누가 눌렀는지 없는 감사는 절반짜리다.
+    assert logged[0]["actor"]
 
 
 # ─────────────────────────────────────────────────────── R8 폴링 지문
