@@ -3504,6 +3504,7 @@ def naver_ingest_create_order(link_id: int):
 
     log_access(
         f"네이버 수집분 주문 생성 (link {link_id} → order {order_id})",
+        session.get("user_id"),
         action="NAVER_INGEST_CREATE_ORDER",
         target_type="order", target_id=order_id,
         detail={"link_id": link_id, "order_id": order_id, "created": created},
@@ -3559,6 +3560,7 @@ def naver_ingest_refresh(link_id: int):
 
     log_access(
         f"네이버 다시 읽기 요청 (link {link_id})",
+        session.get("user_id"),
         action="NAVER_INGEST_REFRESH_ENQUEUE",
         detail={"link_id": link_id},
     )
@@ -3634,6 +3636,7 @@ def naver_ingest_refresh_all():
     log_access(
         f"네이버 전체 다시 읽기 요청 ({len(queued)}집 / 대상 {total}집 · "
         f"종결 {base['skipped_done']}집·최근 {base['skipped_recent']}집 제외)",
+        session.get("user_id"),
         action="NAVER_INGEST_REFRESH_ALL_ENQUEUE",
         detail={"queued": len(queued), "total": total, "failed": failed,
                 "skipped_done": base["skipped_done"],
@@ -3789,6 +3792,7 @@ def naver_ingest_origin_cleanup_refresh():
 
     log_access(
         f"옛 주문 일괄 다시 읽기 요청 ({len(queued)}집)",
+        session.get("user_id"),
         action="NAVER_ORIGIN_CLEANUP_REFRESH_ENQUEUE",
         detail={"link_ids": queued, "failed": failed},
     )
@@ -3831,6 +3835,7 @@ def naver_ingest_fulfillment(link_id: int):
     label = "발주확인" if action == "confirm" else "발송처리"
     log_access(
         f"네이버 {label} 요청 (link {link_id})",
+        session.get("user_id"),
         action="NAVER_INGEST_FULFILLMENT_ENQUEUE",
         detail={"link_id": link_id, "action": action},
     )
@@ -3892,6 +3897,7 @@ def naver_ingest_ghost_discard(order_id: int):
 
     log_access(
         f"네이버 유령 주문 취소 처리 (order {order_id}, 결제 전부 취소)",
+        session.get("user_id"),
         action="NAVER_INGEST_GHOST_DISCARD",
         target_type="order", target_id=int(order_id),
         detail={"order_id": int(order_id),
@@ -3945,6 +3951,7 @@ def naver_ingest_cancel(link_id: int):
 
     log_access(
         f"네이버 취소 요청 (link {link_id}, {CANCEL_REASONS[reason]})",
+        session.get("user_id"),
         action="NAVER_INGEST_CANCEL_ENQUEUE",
         detail={"link_id": link_id, "reason": reason, "cancel_detail": detail},
     )
@@ -4002,6 +4009,7 @@ def naver_ingest_return(link_id: int):
 
     log_access(
         f"네이버 반품 접수 요청 (link {link_id}, {RETURN_REASONS[reason]})",
+        session.get("user_id"),
         action="NAVER_INGEST_RETURN_ENQUEUE",
         detail={"link_id": link_id, "reason": reason, "return_detail": detail},
     )
@@ -4033,6 +4041,7 @@ def naver_ingest_fulfillment_clear(link_id: int):
     db.commit()
     log_access(
         f"네이버 발주확인·발송처리 실패 기록 지움 (link {link_id})",
+        session.get("user_id"),
         action="NAVER_INGEST_FULFILLMENT_CLEAR",
         detail={"link_id": link_id, "cleared": result["cleared"]},
     )
@@ -4136,6 +4145,7 @@ def naver_ingest_attach_order(link_id: int):
 
     log_access(
         f"네이버 수집분 기존 주문 연결 (link {link_id} → order {target_order_id}, {relation})",
+        session.get("user_id"),
         action="NAVER_INGEST_ATTACH_ORDER",
         target_type="order", target_id=target_order_id,
         detail={"link_id": link_id, "order_id": target_order_id,
@@ -4234,6 +4244,7 @@ def naver_ingest_repay_reconcile(link_id: int):
 
     log_access(
         f"네이버 재결제 정리 (link {link_id} → order {order_id}, {relation}/{fork})",
+        session.get("user_id"),
         action="NAVER_INGEST_REPAY_RECONCILE",
         target_type="order", target_id=int(order_id),
         detail={"link_id": link_id, "order_id": int(order_id), "relation": relation,
@@ -4289,6 +4300,7 @@ def naver_ingest_detach_order(link_id: int):
 
     log_access(
         f"네이버 수집분 연결 되돌림 (link {link_id} ← order {previous_order_id})",
+        session.get("user_id"),
         action="NAVER_INGEST_DETACH_ORDER",
         target_type="order", target_id=previous_order_id,
         detail={"link_id": link_id, "order_id": previous_order_id, "detached": detached},
@@ -4322,6 +4334,7 @@ def naver_ingest_mark_reviewed(link_id: int):
         db.commit()
     log_access(
         f"네이버 수집 확인 완료 (link {link_id})",
+        session.get("user_id"),
         action="NAVER_INGEST_MARK_REVIEWED",
         detail={"link_id": link_id, "external_id": link.external_id},
     )
@@ -4398,6 +4411,7 @@ def naver_ingest_dock_state(link_id: int):
     db.commit()
     log_access(
         f"네이버 도크 상태 저장 (link {link_id})",
+        session.get("user_id"),
         action="NAVER_DOCK_STATE_SET",
         detail={"link_id": link_id, "external_id": link.external_id,
                 "checked": state.get("checked"), "assigned_main": state.get("assigned_main")},
@@ -4458,6 +4472,7 @@ def naver_ingest_set_assignee(order_id: int):
 
     log_access(
         f"네이버 수집 주문 담당자 지정 (order {order_id})",
+        session.get("user_id"),
         action="NAVER_INGEST_SET_ASSIGNEE",
         target_type="order", target_id=order_id,
         detail={"order_id": order_id, "user_id": user_id},
@@ -4485,6 +4500,7 @@ def naver_ingest_snapshot(link_id: int):
         return jsonify({"success": False, "data": None, "error": "수집 이력을 찾을 수 없습니다."}), 404
     log_access(
         f"네이버 수집 원본 스냅샷 열람 (link {link_id})",
+        session.get("user_id"),
         action="NAVER_INGEST_SNAPSHOT_VIEW",
         detail={"link_id": link_id, "external_id": link.external_id},
     )
@@ -4538,6 +4554,7 @@ def naver_ingest_run_now():
     if status.get("state") == "reachable" and worker_count_known and worker_count == 0:
         log_access(
             "네이버 주문 수집 수동 실행 실패(워커 없음)",
+            session.get("user_id"),
             action="NAVER_INGEST_RUN_NOW",
             detail={"queued": False, "reason": "no_worker", "worker_count": 0},
         )
@@ -4554,6 +4571,7 @@ def naver_ingest_run_now():
     queued = enqueue_naver_order_sync(dry_run=False)
     log_access(
         "네이버 주문 수집 수동 실행" + ("" if queued else " 실패(큐 없음)"),
+        session.get("user_id"),
         action="NAVER_INGEST_RUN_NOW",
         detail={"queued": bool(queued), "worker_count": worker_count,
                 "worker_count_known": worker_count_known},
@@ -4653,6 +4671,7 @@ def naver_ingest_set_app_expiry():
     db.commit()
     log_access(
         f"네이버 커머스API 인증 만료일 등록 ({expires_on.isoformat()})",
+        session.get("user_id"),
         action="NAVER_INGEST_SET_APP_EXPIRY",
         detail={"expires_on": expires_on.isoformat()},
     )

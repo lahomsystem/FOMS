@@ -433,3 +433,40 @@ def test_idle_state_says_why_the_button_is_gone(client, workbench_on, monkeypatc
     assert 'id="wb-refresh-all-idle"' in body
     assert "방금 다 읽었습니다" in body
     assert 'id="wb-refresh-all"' not in body
+
+
+# --------------------------------------------------------------------------- #
+# 감사 행위자 — 누가 눌렀는지 없는 감사는 절반짜리다
+# --------------------------------------------------------------------------- #
+
+def test_every_naver_audit_call_records_the_actor():
+    """`naver_ingest.py` 의 모든 `log_access` 는 **행위자**를 넘긴다.
+
+    ``log_access`` 는 ``user_id`` 를 생략하면 NULL 로 남긴다. 이 파일만 19곳 전부가
+    생략해서 네이버 감사 행에 행위자가 없었다(운영 실측 2026-08-30: `NAVER_*` 액션
+    전량 ``user_id IS NULL``). 저장소 전체로는 127곳 중 90곳이 넘기고 있었으니 관행이
+    아니라 **이 파일의 누락**이었다.
+
+    되돌아가는 것을 막는 게이트다 — 새 라우트를 붙일 때 빠뜨리면 여기서 빨개진다.
+    """
+    import re
+
+    source = (REPO_ROOT / "foms" / "web" / "admin" / "naver_ingest.py").read_text(
+        encoding="utf-8")
+    missing = []
+    for match in re.finditer(r"log_access\(", source):
+        depth = 0
+        for offset, char in enumerate(source[match.start():match.start() + 900]):
+            if char == "(":
+                depth += 1
+            elif char == ")":
+                depth -= 1
+                if depth == 0:
+                    call = source[match.start():match.start() + offset]
+                    break
+        else:  # pragma: no cover - 900자 안에 닫히지 않는 호출은 없다
+            call = ""
+        if 'session.get("user_id")' not in call:
+            missing.append(source[:match.start()].count("\n") + 1)
+
+    assert not missing, f"행위자 없는 log_access 라인: {missing}"
