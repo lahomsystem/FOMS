@@ -63,6 +63,15 @@
            이벤트가 안 오는 집은 영영 낡은 채로 남는다. 단건 `다시 읽기` 는 그 집 pane 에 서야
            눌러서 목록 전체를 최신화할 자리가 없었다. ADMIN 전용('지금 수집'과 같은 기준) —
            한 번에 집 수십 개의 상세 조회가 나간다. 네이버에 쓰는 것은 없다(조회만). #}
+        {# 대상이 0 이어도 **말은 한다**. 쿨다운이 생기면서 "방금 다 읽어서 0" 이 흔해졌는데,
+           버튼이 그냥 사라지면 관리자는 기능이 없어진 걸로 읽는다(조용한 소멸 금지). #}
+        {% if refresh_all and not refresh_all.count and refresh_all.skipped_recent %}
+        <button type="button" class="btn btn-outline-secondary btn-sm" id="wb-refresh-all-idle"
+                disabled
+                title="방금 다 읽어서 지금 다시 읽을 주문이 없습니다. 잠시 뒤에 다시 눌러 주세요.">
+            방금 다 읽었습니다
+        </button>
+        {% endif %}
         {% if refresh_all and refresh_all.count %}
         <button type="button" class="btn btn-outline-secondary btn-sm" id="wb-refresh-all"
                 data-count="{{ refresh_all.count }}"

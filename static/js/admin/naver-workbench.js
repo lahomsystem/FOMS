@@ -170,7 +170,7 @@
      */
     async function submitRefreshAll(button) {
         var count = safeId(button.dataset.count) || '';
-        var message = '수집된 ' + (count || '전체') + '개 주문을 네이버에서 다시 읽습니다.\n'
+        var message = '아직 변할 수 있는 ' + (count || '전체') + '개 주문을 네이버에서 다시 읽습니다.\n'
             + '조회만 하며 네이버에는 아무것도 보내지 않습니다.\n'
             + '취소·반품이 처음 발견되면 담당자·관리자에게 알림이 갑니다.';
         if (!window.confirm(message)) {
