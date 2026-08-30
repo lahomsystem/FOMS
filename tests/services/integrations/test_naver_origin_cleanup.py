@@ -11,6 +11,7 @@ pane 을 안 열면 아무도 모르는 사실이었다. 이 파일은 그 수�
 from __future__ import annotations
 
 import json
+from datetime import datetime
 from pathlib import Path
 
 import pytest
@@ -68,7 +69,7 @@ def _order(*, name: str = "정리대상") -> Order:
 
 def _link(*, order_no: str, order_id: int, relation: str, claim_status: str = "",
           amount: int = 500000, send_date: str = "",
-          refreshed_at: str = "") -> ExternalOrderLink:
+          refreshed_at: str = "", collected_at: str = "") -> ExternalOrderLink:
     """붙어 있는 수집 링크 1건.
 
     Args:
@@ -79,6 +80,11 @@ def _link(*, order_no: str, order_id: int, relation: str, claim_status: str = ""
         amount: 결제 금액.
         send_date: 있으면 발송 처리된 집으로 본다(반품 갈래).
         refreshed_at: 마지막으로 다시 읽은 시각(ISO). 없으면 수집 시각이 기준이 된다.
+        collected_at: 이 링크를 **수집한** 시각(ISO). 비우면 지금(``created_at`` 기본값).
+            ``order_candidates._dispatch_view`` 의 ``read_at`` 은
+            ``max(refreshed_at, created_at)`` 이라, "언제 읽었나"를 시험하려면 수집 시각도
+            함께 과거로 못 박아야 한다. 안 그러면 두 링크의 ``created_at`` 이 같은 1ms
+            눈금에 떨어질 때만 판정이 뒤집혀 간헐 실패가 된다.
 
     Returns:
         저장된 링크.
@@ -102,6 +108,8 @@ def _link(*, order_no: str, order_id: int, relation: str, claim_status: str = ""
                              relation=relation, order_id=order_id,
                              triage_state={"claim_sync": {"refreshed_at": refreshed_at}}
                              if refreshed_at else None)
+    if collected_at:
+        link.created_at = datetime.fromisoformat(collected_at)
     db_session.add(link)
     db_session.commit()
     return link
@@ -177,9 +185,9 @@ def test_origin_read_before_new_payment_is_stale(app):
     """
     order = _order()
     _link(order_no=f"N-ORIG-F-{_uid()}", order_id=int(order.id), relation="NEW",
-          refreshed_at="2026-08-01T00:00:00")
+          refreshed_at="2026-08-01T00:00:00", collected_at="2026-08-01T00:00:00")
     _link(order_no=f"N-REPAY-F-{_uid()}", order_id=int(order.id), relation="REPAY",
-          refreshed_at="2026-08-27T00:00:00")
+          refreshed_at="2026-08-27T00:00:00", collected_at="2026-08-27T00:00:00")
 
     result = pending_origin_cleanup(db_session)
 
@@ -310,4 +318,4 @@ def test_template_pins_moved_together():
     """CSS·JS 를 고쳤으면 ``?v`` 핀이 함께 움직인다(SW staticCacheFirst)."""
     markup = TEMPLATE_PATH.read_text(encoding="utf-8")
 
-    assert markup.count("?v=20260830b") == 2
+    assert markup.count("?v=20260830c") == 2

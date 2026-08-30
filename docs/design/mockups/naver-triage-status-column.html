@@ -1,0 +1,372 @@
+<!doctype html>
+<html lang="ko">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>네이버 이력 탭 — 상태 칸 재설계 (목업)</title>
+<style>
+  :root {
+    --bg: #eef2f7;
+    --surface: #fff;
+    --surface-soft: #f6f8fb;
+    --text: #111827;
+    --muted: #6b7280;
+    --line: #dbe1ea;
+    --line-soft: #edf1f6;
+    --blue: #2563eb;
+    --blue-soft: #eaf1ff;
+    --green: #15803d;
+    --green-soft: #e7f6ec;
+    --amber: #b45309;
+    --amber-soft: #fdf3e3;
+    --red: #b91c1c;
+    --red-soft: #fdeaea;
+    --violet: #6d28d9;
+    --violet-soft: #f1ebfd;
+    --slate: #475569;
+    --slate-soft: #eef2f6;
+    --radius: 10px;
+    font-family: Pretendard, -apple-system, BlinkMacSystemFont, "Segoe UI", "Malgun Gothic", sans-serif;
+  }
+  * { box-sizing: border-box; }
+  body { margin: 0; background: var(--bg); color: var(--text); font-size: 13px; line-height: 1.5; }
+  a { color: var(--blue); }
+
+  .wrap { max-width: 1400px; margin: 0 auto; padding: 18px 20px 80px; }
+  h1 { font-size: 20px; margin: 0 0 4px; }
+  h2 { font-size: 15px; margin: 0 0 10px; }
+  h3 { font-size: 13px; margin: 0 0 6px; }
+  .sub { color: var(--muted); margin: 0 0 18px; }
+
+  .card { background: var(--surface); border: 1px solid var(--line); border-radius: var(--radius); margin-bottom: 18px; overflow: hidden; }
+  .card__head { padding: 10px 14px; border-bottom: 1px solid var(--line-soft); display: flex; align-items: center; gap: 10px; flex-wrap: wrap; }
+  .card__head b { font-size: 14px; }
+  .card__body { padding: 14px; }
+  .tag { font-size: 11px; padding: 2px 7px; border-radius: 999px; font-weight: 600; }
+  .tag--now { background: var(--slate-soft); color: var(--slate); }
+  .tag--a { background: var(--blue-soft); color: var(--blue); }
+  .tag--b { background: var(--green-soft); color: var(--green); }
+  .tag--pick { background: var(--green); color: #fff; }
+
+  .persona { display: grid; grid-template-columns: repeat(auto-fit, minmax(280px, 1fr)); gap: 12px; }
+  .p { background: var(--surface-soft); border: 1px solid var(--line-soft); border-radius: 8px; padding: 11px 12px; }
+  .p__who { font-weight: 700; margin-bottom: 2px; }
+  .p__when { color: var(--muted); font-size: 12px; margin-bottom: 8px; }
+  .p ul { margin: 0; padding-left: 16px; }
+  .p li { margin-bottom: 3px; }
+  .p li b { background: #fff5c2; padding: 0 3px; border-radius: 3px; font-weight: 600; }
+
+  .qa { width: 100%; border-collapse: collapse; margin-top: 12px; }
+  .qa th, .qa td { border-bottom: 1px solid var(--line-soft); padding: 7px 8px; text-align: left; vertical-align: top; }
+  .qa thead th { background: var(--surface-soft); font-size: 12px; color: var(--muted); font-weight: 600; }
+  .qa .no { color: var(--red); font-weight: 700; }
+  .qa .yes { color: var(--green); font-weight: 700; }
+  .qa .part { color: var(--amber); font-weight: 700; }
+
+  table.hist { width: 100%; border-collapse: collapse; font-size: 12.5px; }
+  table.hist th, table.hist td { border-bottom: 1px solid var(--line-soft); padding: 8px 9px; text-align: left; vertical-align: top; }
+  table.hist thead th { background: var(--surface-soft); color: var(--muted); font-weight: 600; font-size: 12px; white-space: nowrap; }
+  table.hist td.num { text-align: right; font-variant-numeric: tabular-nums; white-space: nowrap; }
+  table.hist tr.muted td { color: #9aa3af; background: #fafbfc; }
+  .k { color: var(--muted); white-space: nowrap; }
+  .prod { max-width: 260px; }
+  .prod small { display: block; color: var(--muted); }
+
+  .b { display: inline-flex; align-items: center; gap: 4px; font-size: 11px; font-weight: 600;
+       padding: 2px 7px; border-radius: 5px; white-space: nowrap; border: 1px solid transparent; }
+  .b--blue { background: var(--blue-soft); color: var(--blue); }
+  .b--green { background: var(--green-soft); color: var(--green); }
+  .b--amber { background: var(--amber-soft); color: var(--amber); }
+  .b--red { background: var(--red-soft); color: var(--red); }
+  .b--violet { background: var(--violet-soft); color: var(--violet); }
+  .b--slate { background: var(--slate-soft); color: var(--slate); }
+  .b--ghost { background: #fff; color: var(--muted); border-color: var(--line); }
+
+  .st { display: grid; grid-template-columns: 78px 1fr; gap: 3px 8px; align-items: start; min-width: 330px; }
+  .st__k { color: #9aa3af; font-size: 11px; padding-top: 2px; letter-spacing: -.2px; }
+  .st__v { display: flex; flex-wrap: wrap; gap: 4px; align-items: center; }
+  .st__v .when { color: var(--muted); font-size: 11px; }
+
+  .pipe { display: inline-flex; align-items: center; }
+  .pipe__s { display: inline-flex; align-items: center; gap: 3px; font-size: 11px; font-weight: 600;
+             padding: 2px 8px; border: 1px solid var(--line); background: #fff; color: #a7aeb8; }
+  .pipe__s:first-child { border-radius: 5px 0 0 5px; }
+  .pipe__s:last-child { border-radius: 0 5px 5px 0; border-left: 0; }
+  .pipe__s--done { background: var(--green-soft); border-color: #bfe3ca; color: var(--green); }
+  .pipe__s--now { background: var(--amber-soft); border-color: #f0d9ae; color: var(--amber); }
+  .pipe__s--skip { background: var(--slate-soft); border-color: var(--line); color: var(--slate); }
+  .pipe__s--bad { background: var(--red-soft); border-color: #f0c2c2; color: var(--red); }
+
+  .note { color: var(--muted); font-size: 11.5px; margin-top: 3px; }
+  .warn { color: var(--red); font-size: 11.5px; font-weight: 600; margin-top: 3px; }
+
+  .cri { background: var(--red-soft); border-left: 3px solid var(--red); padding: 8px 10px; border-radius: 0 6px 6px 0; margin: 10px 0 0; }
+  .cri b { color: var(--red); }
+  .cri ol, .ok ol { margin: 6px 0 0; padding-left: 18px; }
+  .ok { background: var(--green-soft); border-left: 3px solid var(--green); padding: 8px 10px; border-radius: 0 6px 6px 0; margin: 10px 0 0; }
+
+  .legend { display: grid; grid-template-columns: repeat(auto-fit, minmax(250px, 1fr)); gap: 10px; }
+  .legend__box { border: 1px solid var(--line-soft); border-radius: 8px; padding: 10px 11px; background: var(--surface-soft); }
+  .legend__row { display: flex; gap: 7px; align-items: baseline; margin-bottom: 5px; flex-wrap: wrap; }
+  .legend__row span.d { color: var(--muted); font-size: 11.5px; }
+
+  table.src { width: 100%; border-collapse: collapse; font-size: 12px; }
+  table.src th, table.src td { border-bottom: 1px solid var(--line-soft); padding: 6px 8px; text-align: left; vertical-align: top; }
+  table.src thead th { background: var(--surface-soft); color: var(--muted); font-weight: 600; }
+  code { background: var(--surface-soft); border: 1px solid var(--line-soft); border-radius: 4px; padding: 0 4px; font-size: 11.5px; }
+
+  .widthbar { display: flex; align-items: center; gap: 6px; flex-wrap: wrap; margin-bottom: 10px; }
+  .widthbar__label { color: var(--muted); font-size: 12px; font-weight: 600; }
+  .widthbar__now { font-size: 12px; color: var(--blue); font-weight: 700; font-variant-numeric: tabular-nums; }
+  .widthbar__hint { color: var(--muted); font-size: 11.5px; margin-left: auto; }
+  .wbtn { font-size: 11.5px; font-weight: 600; padding: 4px 9px; border-radius: 6px; cursor: pointer;
+          border: 1px solid var(--line); background: #fff; color: var(--slate); }
+  .wbtn:hover { background: var(--surface-soft); }
+  .wbtn[aria-pressed="true"] { background: var(--blue); border-color: var(--blue); color: #fff; }
+  .frame { border: 1px solid var(--line); border-radius: 8px; background: #fff; overflow: hidden;
+           resize: horizontal; width: 100%; max-width: 100%; min-width: 360px; }
+  .frame iframe { display: block; width: 100%; height: 620px; border: 0; }
+</style>
+</head>
+<body>
+<div class="wrap">
+
+  <h1>네이버 수집 · 이력 탭 <span class="k">/admin/naver-ingest/triage?tab=all</span> — 상태 칸 재설계</h1>
+  <p class="sub">지금 상태 칸은 배지를 <b>있으면 붙이는</b> 방식이라 ① 자리·순서가 행마다 달라 눈이 세로로 못 훑고 ② 재결제·추가결제가 아예 없고 ③ 발송처리 축이 통째로 빠져 있다.
+     아래는 페르소나가 이 칸에 던지는 질문 → 그 질문에 답하는 칸 설계다. <b>새로 부르는 네이버 API는 0건</b> — 전부 이미 저장된 값이다.</p>
+
+  <div class="card">
+    <div class="card__head"><b>1. 이 칸을 읽는 사람 (페르소나 3)</b><span class="k">이력 탭은 ADMIN 전용 · 읽기 전용 표</span></div>
+    <div class="card__body">
+      <div class="persona">
+        <div class="p">
+          <div class="p__who">P1 · 운영 실장 (주 사용자)</div>
+          <div class="p__when">고객 전화 받는 중 — 3초 안에 답해야 한다</div>
+          <ul>
+            <li>"제 주문 지금 어떻게 됐나요?" → <b>주문 만들었나 · 네이버에 발송처리 했나</b></li>
+            <li>"언제 나가요?" → <b>발송기한 · 발송처리 시각</b></li>
+            <li>화면 규칙을 외우지 않고 읽고 싶다 (지금은 "배지 없음 = 완료" 규칙이 있다)</li>
+          </ul>
+        </div>
+        <div class="p">
+          <div class="p__who">P2 · CS 응대</div>
+          <div class="p__when">결제가 두 번 찍힌 건을 해명해야 한다</div>
+          <ul>
+            <li>"왜 두 번 결제됐죠?" → <b>신규인가, 추가결제(차액)인가, 재결제인가</b></li>
+            <li>붙은 상대 주문이 <b>몇 번</b>인가 (지금 이력 칸에 없음)</li>
+            <li>취소·반품이 <b>요청</b>인가 <b>확정</b>인가 — 환불 언제 나가나</li>
+          </ul>
+        </div>
+        <div class="p">
+          <div class="p__who">P3 · 정산 / 대표</div>
+          <div class="p__when">월말 매출 대조</div>
+          <ul>
+            <li>재결제·추가결제를 <b>매출 2건으로 세면 안 된다</b> → 관계 표시 필수</li>
+            <li>취소·반품 확정분이 빠졌나</li>
+            <li>우리는 발송처리 했다는데 <b>네이버엔 안 찍힌</b> 건이 있나 (불가역 호출이 유실된 자리)</li>
+          </ul>
+        </div>
+      </div>
+
+      <table class="qa">
+        <thead><tr><th style="width:38%">상태 칸에 던지는 질문</th><th style="width:13%">지금 답하나</th><th>지금 화면의 실제 모양</th></tr></thead>
+        <tbody>
+          <tr><td>Q1 우리가 ERP 주문을 만들었나?</td><td class="yes">답한다</td><td>수집됨 / 생성됨 / 확인 필요 / 실패 배지</td></tr>
+          <tr><td>Q2 신규인가, 추가결제인가, 재결제인가? 상대 주문은?</td><td class="no">못 답한다</td><td><code>relation</code> 값이 이력 행에 실리지 않는다 (처리 탭에만 배지가 있다)</td></tr>
+          <tr><td>Q3 네이버에 발주확인 보냈나?</td><td class="part">반만</td><td>"발주확인 전"만 표시 → <b>완료는 무표시</b>. 배지가 없다는 사실로 읽어야 한다</td></tr>
+          <tr><td>Q4 네이버에 발송처리 보냈나? 네이버도 그렇게 아나?</td><td class="no">못 답한다</td><td>발송 축이 이력 표에 아예 없다 (<code>dispatched_at</code>·<code>delivery.sendDate</code> 미사용)</td></tr>
+          <tr><td>Q5 취소·반품이 요청인가 확정인가?</td><td class="part">반만</td><td>라벨 글자 안에만 있고("취소 요청" vs "취소 완료"), 색은 차단 여부라 뜻이 겹친다</td></tr>
+          <tr><td>Q6 환불이 언제 나가나 / 수거는 됐나</td><td class="no">못 답한다</td><td>반품 축(<code>collect_completed_at</code>·<code>refund_expected_at</code>)은 상세 pane 에만</td></tr>
+        </tbody>
+      </table>
+    </div>
+  </div>
+
+  <div class="card">
+    <div class="card__head"><span class="tag tag--now">지금</span><b>2. 현재 상태 칸 (실제 렌더 재현)</b></div>
+    <div class="card__body" style="padding:0">
+      <table class="hist">
+        <thead><tr><th>수집 시각</th><th>고객</th><th>제품</th><th class="num">수량</th><th class="num">금액</th><th style="width:230px">상태</th><th>FOMS 주문</th></tr></thead>
+        <tbody>
+          <tr><td class="k">08-28 14:02</td><td>김수현</td><td class="prod">3연동 슬라이딩 도어</td><td class="num">1</td><td class="num">1,240,000</td>
+              <td><span class="b b--green">생성됨</span> <span class="b b--amber">발주확인 전</span></td><td><a href="#">#4381</a></td></tr>
+          <tr><td class="k">08-28 11:40</td><td>박정민</td><td class="prod">붙박이장 옵션 차액</td><td class="num">1</td><td class="num">180,000</td>
+              <td><span class="b b--green">생성됨</span></td><td><a href="#">#4362</a></td></tr>
+          <tr><td class="k">08-27 19:11</td><td>이하늘</td><td class="prod">중문 3연동 <span class="b b--ghost">2건 묶음</span></td><td class="num">2</td><td class="num">2,050,000</td>
+              <td><span class="b b--green">생성됨</span></td><td><a href="#">#4355</a></td></tr>
+          <tr class="muted"><td class="k">08-27 09:24</td><td>정유진</td><td class="prod">시스템 행거</td><td class="num">1</td><td class="num">640,000</td>
+              <td><span class="b b--blue">수집됨</span> <span class="b b--red">반품 요청</span></td><td><span style="color:var(--red)">취소·반품 진행 중 — 주문을 만들 수 없습니다.</span></td></tr>
+          <tr><td class="k">08-26 16:05</td><td>최민석</td><td class="prod">중문 슬림 2연동</td><td class="num">1</td><td class="num">1,480,000</td>
+              <td><span class="b b--amber">확인 필요</span></td><td></td></tr>
+        </tbody>
+      </table>
+      <div style="padding:0 14px 14px">
+        <div class="cri">
+          <b>안 읽히는 이유 4가지</b>
+          <ol>
+            <li><b>2행</b>은 추가결제(차액 18만원)인데 화면상 신규 주문과 구분이 0 — P2·P3가 매출을 두 번 센다.</li>
+            <li><b>2·3행</b>은 발주확인이 끝났고 3행은 발송처리까지 나갔는데, 둘 다 배지가 없어 <b>"아무것도 안 한 행"</b>과 같은 모양이다.</li>
+            <li>배지가 있고 없고로 뜻이 갈려 <b>자리 위치가 행마다 달라진다</b> — 100행을 세로로 훑을 수 없다.</li>
+            <li>4행 "반품 요청"이 <b>요청</b>인지 <b>확정</b>인지, 환불이 언제인지가 이 칸에서 안 끝난다.</li>
+          </ol>
+        </div>
+      </div>
+    </div>
+  </div>
+
+  <div class="card">
+    <div class="card__head"><span class="tag tag--a">A안</span><b>3. 배지 고정 슬롯 — 자리만 정해 준다</b>
+      <span class="k">배지 어휘 유지 · 순서를 [단계][관계][발주][발송][클레임] 으로 못 박고 완료도 표시</span></div>
+    <div class="card__body" style="padding:0">
+      <table class="hist">
+        <thead><tr><th>수집 시각</th><th>고객</th><th>제품</th><th class="num">금액</th><th style="width:400px">상태</th><th>FOMS 주문</th></tr></thead>
+        <tbody>
+          <tr><td class="k">08-28 14:02</td><td>김수현</td><td class="prod">3연동 슬라이딩 도어</td><td class="num">1,240,000</td>
+              <td><span class="b b--green">생성됨</span> <span class="b b--ghost">신규</span> <span class="b b--amber">발주확인 전</span> <span class="b b--ghost">발송 전</span>
+                  <div class="note">발송기한 09-02</div></td><td><a href="#">#4381</a></td></tr>
+          <tr><td class="k">08-28 11:40</td><td>박정민</td><td class="prod">붙박이장 옵션 차액</td><td class="num">180,000</td>
+              <td><span class="b b--green">생성됨</span> <span class="b b--violet">추가결제 → #4362</span> <span class="b b--green">발주확인 완료</span> <span class="b b--green">발송처리 완료</span></td><td><a href="#">#4362</a></td></tr>
+          <tr><td class="k">08-27 19:11</td><td>이하늘</td><td class="prod">중문 3연동 <span class="b b--ghost">2건 묶음</span></td><td class="num">2,050,000</td>
+              <td><span class="b b--green">생성됨</span> <span class="b b--ghost">신규</span> <span class="b b--green">발주확인 완료</span> <span class="b b--amber">부분 발송 1/2</span></td><td><a href="#">#4355</a></td></tr>
+          <tr class="muted"><td class="k">08-27 09:24</td><td>정유진</td><td class="prod">시스템 행거</td><td class="num">640,000</td>
+              <td><span class="b b--blue">수집됨</span> <span class="b b--ghost">신규</span> <span class="b b--slate">발주확인 —</span> <span class="b b--slate">발송 —</span> <span class="b b--red">반품 요청(미확정)</span></td><td></td></tr>
+          <tr><td class="k">08-26 16:05</td><td>최민석</td><td class="prod">중문 슬림 2연동</td><td class="num">1,480,000</td>
+              <td><span class="b b--amber">확인 필요</span> <span class="b b--violet">재결제 후보 2건</span> <span class="b b--amber">발주확인 전</span> <span class="b b--ghost">발송 전</span></td><td></td></tr>
+        </tbody>
+      </table>
+      <div style="padding:0 14px 14px">
+        <div class="note"><b>장점</b> — 코드를 가장 적게 고친다(배지 추가 + 순서 고정). <b>약점</b> — 행마다 배지가 4~5개라 폭을 먹고, 배지가 늘수록 "전부 중요"가 되어 정작 눈에 안 띈다. 축이 섞여 있어 "네이버 쪽 일"과 "우리 쪽 일"이 한 줄에 붙는다.</div>
+      </div>
+    </div>
+  </div>
+
+  <div class="card">
+    <div class="card__head"><span class="tag tag--b">B안</span><span class="tag tag--pick">확정</span><b>4. 축을 줄로 가른다 — 1줄 우리 / 2줄 네이버 / 3줄 예외</b>
+      <span class="k">예외 20가지 · 아래 버튼으로 화면 폭을 줄여 보세요</span></div>
+    <div class="card__body">
+      <div class="widthbar">
+        <span class="widthbar__label">화면 폭</span>
+        <button type="button" class="wbtn" data-w="100%">꽉 채움</button>
+        <button type="button" class="wbtn" data-w="1280">1280 · 노트북</button>
+        <button type="button" class="wbtn" data-w="1024">1024 · 태블릿 가로</button>
+        <button type="button" class="wbtn" data-w="820">820 · 태블릿 세로</button>
+        <button type="button" class="wbtn" data-w="640">640 · 좁은 창</button>
+        <span class="widthbar__now" id="wnow"></span>
+        <span class="widthbar__hint">틀 오른쪽 아래 모서리를 끌어서 아무 폭이나 시험할 수 있습니다.</span>
+      </div>
+      <div class="frame" id="frame">
+        <iframe id="tbl" src="naver-triage-status-column--table.html" title="B안 이력 표"></iframe>
+      </div>
+      <div class="ok">
+        <b>B안이 푸는 것</b>
+        <ol>
+          <li><b>축이 줄로 갈린다</b> — 왼쪽 라벨(FOMS / 네이버 / 취소·반품 / 옛 결제)이 고정이라 100행을 세로로 훑을 수 있다.</li>
+          <li><b>관계가 문장으로</b> — "추가결제 · #4362 에 붙음". 상대 주문번호까지 이 칸에서 끝난다(P2·P3).</li>
+          <li><b>발주확인 → 발송처리 파이프</b>라 다음에 무엇이 남았는지가 색+글자 둘 다로 보인다. 완료도 <b>보인다</b>("무표시 = 완료" 규칙 제거).</li>
+          <li><b>부분 발송·부분 발주확인·어긋남·실패</b>가 제 상태로 산다 — 지금 표에는 존재조차 없다.</li>
+          <li>예외 줄(취소·반품 / 옛 결제)은 <b>있을 때만</b> 나온다 — 평범한 행은 2줄로 끝나 표가 안 길어진다.</li>
+        </ol>
+      </div>
+      <div class="cri" style="background:var(--surface-soft);border-left-color:var(--slate)">
+        <b style="color:var(--slate)">좁은 폭에서 무엇이 일어나는가</b>
+        <ol>
+          <li>상태 칸에 <code>container-type: inline-size</code> 를 건다 — 접힘 기준은 <b>뷰포트가 아니라 칸 폭</b>이다.
+              같은 부품이 이력 표·처리 탭·도크(폭 358)에 실리므로 뷰포트 기준으로 짜면 한 곳에서만 맞는다.</li>
+          <li>칸이 <b>330px 밑</b>으로 내려가면 라벨(FOMS/네이버/…)이 값 위로 올라가 한 열로 쌓인다.
+              라벨 열을 그대로 두면 1fr 이 굶어서 배지 글자가 세로로 선다.</li>
+          <li>표 자체는 <code>min-width: 720px</code> + 가로 스크롤 — 칸을 무한정 짜내지 않는다.
+              이력 탭은 ADMIN 전용 PC 화면이라 이 선에서 끊는 것이 맞다.</li>
+        </ol>
+      </div>
+    </div>
+  </div>
+
+  <div class="card">
+    <div class="card__head"><b>5. 상태 어휘 사전 (라벨은 기존 코드 값 그대로)</b></div>
+    <div class="card__body">
+      <div class="legend">
+        <div class="legend__box">
+          <h3>축 1 · FOMS 처리 <span class="k">sync_status</span></h3>
+          <div class="legend__row"><span class="b b--blue">받아옴</span><span class="d">주문 아직 없음</span></div>
+          <div class="legend__row"><span class="b b--green">주문 만듦</span><span class="d">ERP 주문 있음</span></div>
+          <div class="legend__row"><span class="b b--amber">확인 필요</span><span class="d">사람이 골라야 함</span></div>
+          <div class="legend__row"><span class="b b--red">받기 실패</span><span class="d">사유는 제품칸에</span></div>
+          <div class="legend__row"><span class="b b--slate">주문 접음</span><span class="d">ERP 쪽에서 접은 건</span></div>
+        </div>
+        <div class="legend__box">
+          <h3>축 2 · 결제 관계 <span class="k">relation</span> <b style="color:var(--red)">신규</b></h3>
+          <div class="legend__row"><span class="b b--ghost">신규 결제</span><span class="d">relation 없음 · 회색(대부분)</span></div>
+          <div class="legend__row"><span class="b b--violet">추가결제 → #N</span><span class="d">ADDON — 차액. 새 주문 아님</span></div>
+          <div class="legend__row"><span class="b b--violet">재결제 → #N</span><span class="d">REPAY — 취소 후 다시 결제</span></div>
+          <div class="legend__row"><span class="b b--violet">기존 주문 후보 N건</span><span class="d">아직 안 붙임 — 사람이 골라야</span></div>
+        </div>
+        <div class="legend__box">
+          <h3>축 3 · 네이버 진행 <span class="k">place / dispatch</span> <b style="color:var(--red)">발송 신규</b></h3>
+          <div class="legend__row"><span class="pipe"><span class="pipe__s pipe__s--now">발주확인 할 차례</span><span class="pipe__s">발송처리</span></span></div>
+          <div class="legend__row"><span class="pipe"><span class="pipe__s pipe__s--done">발주확인 완료</span><span class="pipe__s pipe__s--done">발송처리 완료</span></span></div>
+          <div class="legend__row"><span class="pipe"><span class="pipe__s pipe__s--done">발주확인 완료</span><span class="pipe__s pipe__s--now">발송처리 1/2</span></span><span class="d">부분 발송</span></div>
+          <div class="legend__row"><span class="pipe"><span class="pipe__s pipe__s--done">발주확인 완료</span><span class="pipe__s pipe__s--bad">네이버 기록 없음</span></span><span class="d">우리만 보냄</span></div>
+          <div class="legend__row"><span class="b b--slate">네이버 처리 없음</span><span class="d">취소·실패 행</span></div>
+        </div>
+        <div class="legend__box">
+          <h3>축 4 · 취소·반품 <span class="k">claim_label + phase</span></h3>
+          <div class="legend__row"><span class="b b--red">취소 요청 · 확정 전</span><span class="d">phase=requested</span></div>
+          <div class="legend__row"><span class="b b--red">반품 수거중 · 확정 전</span><span class="d">phase=in_progress</span></div>
+          <div class="legend__row"><span class="b b--slate">취소 완료 · 반품 완료</span><span class="d">phase=done — 회색(끝난 일)</span></div>
+          <div class="legend__row"><span class="b b--ghost">취소 거부</span><span class="d">phase=rejected — 주문은 살아 있음</span></div>
+          <div class="legend__row"><span class="d">뒤에 환불 예정일 · 수거 완료 시각을 작은 글자로</span></div>
+        </div>
+      </div>
+      <div class="note" style="margin-top:12px"><b>색 규칙</b> — 빨강 = 지금 사람이 봐야 함 / 주황 = 다음 차례 / 초록 = 끝남 / 회색 = 끝났고 손댈 것 없음 / 보라 = 돈 관계(신규 아님). 색맹 대비로 <b>모든 색에 글자 라벨을 같이</b> 둔다(기존 결정 4 유지).</div>
+    </div>
+  </div>
+
+  <div class="card">
+    <div class="card__head"><b>6. 표시값 출처 — 네이버 API 호출 0건</b><span class="k">전부 이미 DB·스냅샷에 있는 값</span></div>
+    <div class="card__body" style="padding:0 0 4px">
+      <table class="src">
+        <thead><tr><th style="width:22%">화면 표시</th><th style="width:40%">출처</th><th>지금 상태</th></tr></thead>
+        <tbody>
+          <tr><td>주문 생성됨 / 수집됨 …</td><td><code>ExternalOrderLink.sync_status</code></td><td>이력 행에 이미 실림</td></tr>
+          <tr><td>추가결제 / 재결제 · 상대 주문번호</td><td><code>ExternalOrderLink.relation</code> + <code>order_id</code></td><td><b style="color:var(--red)">행에 안 실림 — <code>_link_rows()</code> 에 필드 추가</b></td></tr>
+          <tr><td>발주확인 ✓ / 대기</td><td><code>place_order_status</code> → <code>_place_view()</code></td><td>이미 실림(<code>place_pending</code>). 완료 표시만 추가</td></tr>
+          <tr><td>발송처리 ✓ / 시각</td><td><code>triage_state.fulfillment.dispatched_at</code></td><td><b style="color:var(--red)">이력 행에 없음 — <code>_dispatch_view()</code> 재사용</b></td></tr>
+          <tr><td>발송처리 어긋남</td><td><code>_dispatch_view().mismatch</code> (우리 기록만 있고 <code>delivery.sendDate</code> 없음)</td><td><b style="color:var(--red)">상세 pane 에만 있음</b></td></tr>
+          <tr><td>부분 발송 N/M</td><td>집 안 링크별 <code>dispatched_at</code> 개수</td><td><b style="color:var(--red)">집계 추가 필요</b></td></tr>
+          <tr><td>취소·반품 라벨 + (미확정)</td><td><code>claim_label</code> + <code>CLAIM_PHASES</code></td><td>라벨만 실림 — <code>phase</code> 추가</td></tr>
+          <tr><td>환불 예정 · 수거 완료</td><td><code>extract_return_axis()</code></td><td><b style="color:var(--red)">상세 pane 에만 있음</b></td></tr>
+          <tr><td>발송기한</td><td><code>raw_snapshot … shippingDueDate</code></td><td>처리 탭에만 있음</td></tr>
+          <tr><td>칩 · 발송처리 남음</td><td><code>triage_state.fulfillment.dispatched_at</code> 없는 링크가 있는 집</td><td><b style="color:var(--amber)">JSONB 술어 — 부분 인덱스 식과 정확히 일치해야 함</b></td></tr>
+          <tr><td>칩 · 추가결제·재결제</td><td><code>relation in (ADDON, REPAY)</code></td><td>컬럼이라 SQL 로 그대로 셀 수 있음</td></tr>
+          <tr><td>칩 · 네이버 기록 없음</td><td><code>_dispatch_view().mismatch</code> — <code>raw_snapshot</code> 파생값</td><td><b style="color:var(--red)">SQL 로 못 거른다. 쪽을 자른 뒤 파이썬으로 세면 total 이 거짓말이 된다 — 칩 대신 행 배지로만 두는 것이 정직하다</b></td></tr>
+        </tbody>
+      </table>
+    </div>
+  </div>
+
+  <p class="note">목업입니다 — 실제 화면 코드는 아직 안 건드렸습니다. <code>docs/design/mockups/naver-triage-status-column.html</code></p>
+</div>
+<script>
+  (function () {
+    var frame = document.getElementById('frame');
+    var now = document.getElementById('wnow');
+    var btns = Array.prototype.slice.call(document.querySelectorAll('.wbtn'));
+
+    function paint() {
+      now.textContent = Math.round(frame.getBoundingClientRect().width) + 'px';
+    }
+    btns.forEach(function (btn) {
+      btn.addEventListener('click', function () {
+        var w = btn.dataset.w;
+        frame.style.width = (w === '100%') ? '100%' : w + 'px';
+        btns.forEach(function (other) { other.setAttribute('aria-pressed', String(other === btn)); });
+        paint();
+      });
+    });
+    btns[0].setAttribute('aria-pressed', 'true');
+    if (window.ResizeObserver) { new ResizeObserver(paint).observe(frame); }
+    paint();
+  })();
+</script>
+</body>
+</html>
