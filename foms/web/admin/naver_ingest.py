@@ -1008,6 +1008,30 @@ def _origin_cleanup_view(db) -> dict[str, Any]:
         return {"count": 0, "rows": [], "truncated": False}
 
 
+def _refresh_all_view(db) -> dict[str, Any]:
+    """**전체 다시 읽기** 버튼이 말할 집 수 (NVREPAY-03).
+
+    ADMIN 화면 조작이라 여기서만 센다 — STAFF·MANAGER 에게는 버튼 자체가 없다
+    (수집 운영 조작은 '지금 수집'과 같은 기준).
+
+    Args:
+        db: 요청 스코프 DB 세션.
+
+    Returns:
+        ``{"count": 수집된 집 수}``. 실패해도 화면을 죽이지 않는다(버튼만 빠진다).
+    """
+    from foms.services.integrations.naver_commerce.claim_watch import (
+        refreshable_household_link_ids,
+    )
+
+    try:
+        _link_ids, total = refreshable_household_link_ids(db)
+        return {"count": int(total)}
+    except SQLAlchemyError as exc:  # 보조 정보라 흐름을 막지 않는다(failopen — 로그로 남긴다)
+        logger.warning("[NAVER] 전체 다시 읽기 대상 조회 실패(버튼 생략): %s", exc, exc_info=True)
+        return {"count": 0}
+
+
 def _selected_offlist(link: Optional[ExternalOrderLink],
                       household: Optional[dict[str, Any]],
                       visible: Optional[list[dict[str, Any]]]) -> bool:
@@ -1220,6 +1244,9 @@ def _render_workbench(db) -> str:
         # 처리 탭에서만 낸다(이력 탭은 할 일을 띄우는 자리가 아니다).
         origin_cleanup=(_origin_cleanup_view(db) if active_tab == "work"
                         else {"count": 0, "rows": [], "truncated": False}),
+        # 전체 다시 읽기(NVREPAY-03) — 탭과 무관한 수집 전체 조작이라 두 탭 모두에서 낸다.
+        # ADMIN 이 아니면 세지도 않는다(버튼이 없으므로 쿼리도 필요 없다).
+        refresh_all=(_refresh_all_view(db) if _can_view_history() else {"count": 0}),
         **_pane_context(db, _selected_link(db, visible), visible=visible),
     )
 
@@ -2777,6 +2804,61 @@ def naver_ingest_refresh(link_id: int):
                     "data": {"link_id": link_id, "queued": True,
                              "rev": base_state["rev"],
                              "err_at": base_state["last_error_at"]},
+                    "error": None})
+
+
+@admin_bp.route("/admin/naver-ingest/refresh-all", methods=["POST"])
+@login_required
+@role_required(["ADMIN"])
+def naver_ingest_refresh_all():
+    """**수집된 집 전부**를 네이버에서 다시 읽는다 — NVREPAY-03(읽기 전용).
+
+    단건 :func:`naver_ingest_refresh` 와 나가는 호출이 **같다**(상세 조회뿐, 네이버에
+    쓰는 것 없음). 다른 점은 대상이 집 하나가 아니라 **수집 목록 전체**라는 것이다.
+
+    왜 필요한가: 자동 스윕은 네이버가 변경 이벤트를 준 건만 다시 읽는다
+    (:func:`claim_watch.refresh_claims`). 이벤트가 안 오는 집은 자동 경로로 **영영**
+    안 갱신되고, 그러면 화면의 상태·금액·클레임이 낡은 채로 남는다. 단건 버튼은 그 집
+    pane 에 서 있어야 눌러서, "지금 이 목록 전체가 진짜인가"를 확인할 방법이 없었다.
+
+    **ADMIN 전용**이다. 한 번에 수십~수백 집의 상세 조회가 나가므로 '지금 수집'
+    (:func:`naver_ingest_run_now`)과 같은 기준으로 묶는다. STAFF·MANAGER 는 각 집의
+    `다시 읽기` 를 그대로 쓴다.
+
+    Returns:
+        ``{"success": True, "data": {"count", "queued", "failed", "truncated"}}``.
+        ``count`` 는 수집된 집 총수, ``queued`` 는 큐에 들어간 수다. 큐가 아예 막혀
+        하나도 못 넣으면 503.
+    """
+    from foms.services.integrations.naver_commerce.claim_watch import (
+        REFRESH_ALL_LIMIT,
+        refreshable_household_link_ids,
+    )
+    from foms.services.jobs.queue import enqueue_naver_refresh
+
+    db = get_db()
+    link_ids, total = refreshable_household_link_ids(db)
+    if not link_ids:
+        return jsonify({"success": True,
+                        "data": {"count": 0, "queued": 0, "failed": 0, "truncated": False},
+                        "error": None})
+
+    user_id = session.get("user_id")
+    queued = [link_id for link_id in link_ids if enqueue_naver_refresh(link_id, user_id)]
+    failed = len(link_ids) - len(queued)
+    if not queued:
+        return jsonify({"success": False, "data": None,
+                        "error": "작업 큐를 쓸 수 없습니다(REDIS_URL 미설정 또는 큐 장애). "
+                                 "잠시 후 다시 시도하세요."}), 503
+
+    log_access(
+        f"네이버 전체 다시 읽기 요청 ({len(queued)}집 / 전체 {total}집)",
+        action="NAVER_INGEST_REFRESH_ALL_ENQUEUE",
+        detail={"queued": len(queued), "total": total, "failed": failed},
+    )
+    return jsonify({"success": True,
+                    "data": {"count": total, "queued": len(queued), "failed": failed,
+                             "truncated": total > REFRESH_ALL_LIMIT},
                     "error": None})
 
 

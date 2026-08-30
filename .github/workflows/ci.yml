@@ -134,6 +134,7 @@ jobs:
           tests/domains/test_stored_xss_sinks.py \
           tests/performance/test_perf_regression_guard.py \
           tests/services/integrations/test_naver_origin_cleanup.py \
+          tests/services/integrations/test_naver_refresh_all.py \
           tests/services/integrations/test_naver_return_wiring.py
 
     - name: Run Redis lane (RQ positive path / rq API drift)
