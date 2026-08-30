@@ -1135,3 +1135,110 @@ def test_cancel_request_without_approval_shows_no_date(client, workbench_on):
 
     assert _badges(claim_row) == [_tight("취소 요청 · 확정 전")], claim_row
     assert _whens(claim_row) == [], claim_row
+
+
+def test_failure_time_is_kst_like_every_other_time_in_the_cell(client, workbench_on):
+    """실패 시각도 **KST** 다 — 한 칸 안에서 두 시각이 9시간 어긋나면 안 된다.
+
+    워커가 남기는 `last_error_at` 은 `now_utc_naive().isoformat()` 즉 UTC 다. 예전 코드는
+    그 원문을 `[:16]` 으로 잘라 그대로 찍었고, 같은 칸의 발송 시각은 `_dispatch_time_text`
+    로 KST 로 펴져 나왔다 — 같은 모양의 두 시각이 9시간 어긋났다(2026-08-30 CEO 최종 검수).
+    슬라이스가 아니라 **같은 파서**를 쓰는 것이 고침이다.
+    """
+    _login(client)
+    order = _order(product="실패 시각")
+    _link(order_no="N-HSA-FAILKST", product="실패 시각 집", order_id=order.id,
+          place_status="", fail_reason="이미 발주확인된 상품주문입니다",
+          fail_action="confirm", fail_at="2026-08-30T02:15:33", reviewed=True)
+
+    cell = _status_cell(_row(_open(client), "N-HSA-FAILKST"))
+
+    assert "2026-08-30 11:15" in cell, cell
+    assert "2026-08-30 02:15" not in cell, cell
+
+
+def test_cancel_axis_is_parsed_only_for_cancel_claims(client, workbench_on, monkeypatch):
+    """취소 축은 **취소 클레임에만** 판다 — 반품 건에서는 0회.
+
+    반품 축에는 같은 모양의 계측 테스트가 있는데(클레임 없는 링크 0회) 취소 축의 게이트
+    (`kind == 'CANCEL'`)를 잠그는 대응이 없었다(2026-08-30 CEO 최종 검수). 게이트가 풀리면
+    링크마다 파싱이 하나 더 붙고, 취소 축 값이 반품 집에 새는 길도 열린다.
+    """
+    import foms.services.integrations.naver_commerce.mapping as mapping_mod
+
+    calls: list[int] = []
+    real = mapping_mod.extract_cancel_axis
+
+    def counted(detail):
+        calls.append(1)
+        return real(detail)
+
+    monkeypatch.setattr(mapping_mod, "extract_cancel_axis", counted)
+
+    _login(client)
+    _link(order_no="N-HSA-AXIS-RETURN", product="반품 집", place_status="OK",
+          claim_status="RETURN_DONE", reviewed=True,
+          return_block={"claimStatus": "RETURN_DONE", "claimType": "RETURN",
+                        "returnCompletedDate": "2026-08-26T22:10:00+09:00"})
+    _open(client)
+    assert calls == [], "반품 건에서 취소 축을 팠다"
+
+    _link(order_no="N-HSA-AXIS-CANCEL", product="취소 집", place_status="OK",
+          claim_status="CANCEL_DONE", reviewed=True,
+          cancel_block={"claimStatus": "CANCEL_DONE", "claimType": "CANCEL",
+                        "cancelCompletedDate": "2026-08-26T20:31:00+09:00"})
+    _open(client)
+    assert calls, "취소 건인데 취소 축을 안 팠다 — 양성 대조군이 음성이면 계측이 무의미하다"
+
+
+def test_cancel_household_never_shows_return_words(client, workbench_on):
+    """취소 집에 반품 낱말이 새지 않는다 — 2026-08-27 누출의 **거울상** 감시.
+
+    스냅샷에 `cancel` 과 `return` 블록이 함께 있으면, 환불 예정·수거 완료를 반품 축에서
+    그대로 가져오던 코드는 취소 집에 `수거 완료 08-25` 를 달았다(in-process 재현됨).
+    취소로 판정된 집은 반품 조각을 내지 않는다.
+    """
+    _login(client)
+    _link(order_no="N-HSA-BOTHBLOCKS", product="두 블록 집", place_status="OK",
+          claim_status="CANCEL_DONE", reviewed=True,
+          cancel_block={"claimStatus": "CANCEL_DONE", "claimType": "CANCEL",
+                        "cancelCompletedDate": "2026-08-26T20:31:00+09:00",
+                        "refundStandbyStatus": "환불처리완료"},
+          return_block={"collectCompletedDate": "2026-08-25T09:00:00+09:00",
+                        "refundExpectedDate": "2026-08-30T00:00:00+09:00"})
+
+    claim_row = _axis_row(_status_cell(_row(_open(client), "N-HSA-BOTHBLOCKS")), "취소·반품")
+
+    assert _badges(claim_row) == [_tight("취소 완료 08-26")], claim_row
+    assert "수거 완료" not in claim_row, claim_row
+    assert "환불 예정" not in claim_row, claim_row
+
+
+def test_partial_index_condition_matches_the_rendered_predicate():
+    """부분 인덱스 조건식이 술어 렌더 결과와 **글자까지** 같다.
+
+    마이그레이션 파일과 `_dispatch_pending_clause` docstring 이 둘 다 "글자까지 같아야
+    한다" 고 못 박아 놓고 그것을 지키는 테스트가 없었다(2026-08-30 CEO 최종 검수).
+    술어를 한 글자만 손대면 PostgreSQL 이 부분 인덱스를 증명하지 못해 통째로 무시하고,
+    그때 나오는 Seq Scan 은 "선택도가 낮아서" 로 오독된다 — 원인이 안 보이는 고장이다.
+    """
+    import pathlib
+
+    from sqlalchemy.dialects import postgresql
+
+    from foms.web.admin.naver_ingest import _dispatch_pending_clause, _relation_clause
+
+    source = pathlib.Path(
+        "migrations/versions/naverdisp_00_history_chip_indexes.py").read_text(encoding="utf-8")
+
+    def rendered(clause) -> str:
+        text = str(clause.compile(dialect=postgresql.dialect(),
+                                  compile_kwargs={"literal_binds": True}))
+        # 마이그레이션은 인덱스 조건식이라 테이블 수식어를 뗀 모양으로 적는다.
+        return " ".join(text.replace("external_order_links.", "").split())
+
+    for clause, name in ((_dispatch_pending_clause(), "dispatch"),
+                         (_relation_clause(), "relation")):
+        want = rendered(clause)
+        got = " ".join(source.split())
+        assert want in got, (name, want)

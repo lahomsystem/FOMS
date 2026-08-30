@@ -748,3 +748,64 @@ CSS 를 고치고 핀을 안 올리면 서비스워커(`staticCacheFirst`)가 �
 | 행 `claim_kind`·`claim_reason`·`claim_done_text`·`claim_refund_expected_text`·`claim_collect_done_text`·`claim_refund_done` | 행 `claim_badge_text`·`claim_tail_text` (원재료는 멤버 dict 로 내려갔다) | 조립을 서버가 끝낸다(§10.1-5). `claim_label`·`claim_phase` 는 그대로다 |
 
 계약 테스트는 **행 dict 키가 아니라 렌더된 낱말**로 단언한다 — 이름이 바뀌어도 화면이 옳으면 초록이어야 한다.
+
+
+---
+
+## 15. 2026-08-30 최종 검수 반영 — 앞 절보다 **이 절이 우선한다**
+
+CEO 최종 2판정이 "계약서가 실제 구현과 반대되는 말을 한다"를 major 로 짚었다.
+아래는 그 정정이다. 앞 절(§2·§3·§5·§8·§10)과 충돌하면 **이 절이 정본**이다.
+
+### 15.1 취소 확정 날짜 — §3.3·§10.1 뒤집힘
+
+§3.3 갈림표는 「목업 E14 `취소 완료 08-26` → 실화면 `취소 완료`」로 적고 근거를
+「확정 날짜의 유일한 출처가 `returnCompletedDate`(반품 축)다」로 못 박았다. **틀렸다.**
+
+취소 확정 시각은 `cancelCompletedDate` 에 있다(운영 `CANCEL_DONE` 15건 실측 —
+`docs/specs/2026-08-28-naver-claim-phase-labeling_SPEC.md` §1.1). 읽는 코드가 0곳이었을 뿐이다.
+`mapping.extract_cancel_axis()` 를 신설해 **취소 블록만** 읽고, `_history_member_axes` 가
+클레임 종류가 취소일 때만 그 축을 본다. 화면은 이제 목업대로 `취소 완료 08-26 · 환불 완료` 를 낸다.
+
+**반품 축에 `cancel` 을 도로 넣지 않는다** — 2026-08-27 에 고친 누출(취소 블록 환불 필드가
+반품 진행으로 샘)을 되살린다. 그 거울상(취소 집에 반품 낱말)도 막았다:
+`claim_refund_expected_at`·`claim_collect_done_at` 은 취소로 판정된 멤버에서 빈 값이다.
+
+- `취소 거부` 에 날짜가 안 붙는 근거도 정정: `returnCompletedDate` 부재가 아니라
+  **거부 스냅샷에 `cancelCompletedDate` 가 없기 때문**이다.
+- 잠근 테스트: `test_settled_cancel_household_shows_the_cancel_date_and_refund` ·
+  `test_cancel_request_without_approval_shows_no_date` ·
+  `test_cancel_axis_is_parsed_only_for_cancel_claims` · `test_cancel_household_never_shows_return_words`.
+
+### 15.2 행 dict 필드 — §2.2 정정
+
+행에서 **뺀** 것(읽는 곳 0): `dispatch_done_count` · `dispatch_total` · `dispatch_moot` ·
+`shipping_due` · `dispatch_ours_at` · `dispatch_naver_at` · `shipping_due_text` ·
+`shipping_due_over_days`. 이 값들은 집계 dict 안에만 남고, 부속 문구·파이프 낱말이 그 뜻을 담는다.
+
+행에 **더한** 것:
+
+| 이름 | 모양 | 값 예 |
+|---|---|---|
+| `pipe_note_kind` | `str` — `"when"` · `"over"` · `""` | `"when"` |
+| `pipe_note_text` | `str` | `"발송기한 09-02"` · `"발송기한 2일 지남"` |
+
+판정은 `_history_pipe_note()` 가 한다(계약 §3.2 표를 서버로 옮긴 것). 템플릿은 종류를
+CSS 클래스로만 옮긴다.
+
+### 15.3 CSS — §5 정정
+
+`.wb-st__note` 는 **없다**(소비처가 0이라 규칙째 삭제). §5 표의 그 줄은 무효다.
+
+### 15.4 목업 대비 아직 안 실은 것 — §8 추가
+
+목업의 격자 아래 회색 보조 줄(`.note`) 3건: E2 `발주확인 뒤 바로 닫은 건` ·
+E13 `금액만 환급` · E17 `추가결제·재결제 고르기`. 파생 출처가 각각 관계 규칙 · 반품 금액환급
+성질 · 다음 할 일 힌트로 **축이 셋**이라 별건으로 뺐다.
+
+### 15.5 수용한 것 (고치지 않기로 함)
+
+옛 수집 화면(`naver_ingest_dashboard`)도 `_link_rows` 를 거치므로 링크당 축 파싱을 함께
+치른다. 축 계산에 게이트를 걸어 봤으나 **집 조립(`_history_group_axes`)까지 두 갈래**가 되어
+그 화면이 500 으로 떨어졌다(18 테스트 red, 되돌림). 그 화면은 워크벤치 게이트가 켜지면
+리다이렉트로 닫히는 화면이라 수명이 짧다 — 파싱은 순수 파이썬이고 쿼리는 0이다.
