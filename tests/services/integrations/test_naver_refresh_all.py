@@ -19,6 +19,7 @@ from werkzeug.security import generate_password_hash
 
 from db import db_session
 from foms.services.integrations.naver_commerce.claim_watch import (
+    STATE_KEY,
     refreshable_household_link_ids,
 )
 from foms.services.integrations.naver_commerce.constants import CHANNEL
@@ -58,18 +59,32 @@ def _login(client, *, role: str = "ADMIN") -> User:
     return user
 
 
-def _link(*, order_no: str) -> ExternalOrderLink:
-    """수집 링크 1건(붙지 않은 상태). 같은 ``order_no`` 를 주면 같은 집이 된다."""
+def _link(*, order_no: str, order_status: str = "PAYED",
+          claim_status: str | None = None,
+          refreshed_at: object = None) -> ExternalOrderLink:
+    """수집 링크 1건(붙지 않은 상태). 같은 ``order_no`` 를 주면 같은 집이 된다.
+
+    ``order_status``·``claim_status`` 는 종결 판정을, ``refreshed_at`` 은 쿨다운 판정을
+    태우는 자리다(둘 다 NVREPAY-03 후속).
+    """
     external_id = f"PO-ALL-{_uid()}"
     snapshot = {
         "order": {"orderId": order_no, "ordererName": "김주문",
                   "ordererTel": "010-1111-2222"},
         "productOrder": {"productOrderId": external_id, "productName": "붙박이장",
+                         "productOrderStatus": order_status,
                          "totalPaymentAmount": 100000},
     }
+    sync = {}
+    if claim_status is not None:
+        sync["last_status"] = claim_status
+    if refreshed_at is not None:
+        sync["refreshed_at"] = (refreshed_at.isoformat()
+                                if hasattr(refreshed_at, "isoformat") else refreshed_at)
     link = ExternalOrderLink(channel=CHANNEL, external_id=external_id,
                              sync_status="COLLECTED", external_order_no=order_no,
-                             raw_snapshot=snapshot, group_key=group_key_text(snapshot))
+                             raw_snapshot=snapshot, group_key=group_key_text(snapshot),
+                             triage_state={STATE_KEY: sync} if sync else None)
     db_session.add(link)
     db_session.commit()
     return link
@@ -90,7 +105,7 @@ def test_one_link_per_household(app):
     _link(order_no=order_no)
     _link(order_no=order_no)
 
-    link_ids, total = refreshable_household_link_ids(db_session)
+    link_ids, total, _skipped = refreshable_household_link_ids(db_session)
 
     assert link_ids.count(int(first.id)) == 1
     assert total >= 1
@@ -101,7 +116,7 @@ def test_counts_every_collected_household(app):
     _link(order_no=f"N-ALL-B-{_uid()}")
     _link(order_no=f"N-ALL-C-{_uid()}")
 
-    link_ids, total = refreshable_household_link_ids(db_session)
+    link_ids, total, _skipped = refreshable_household_link_ids(db_session)
 
     assert total == len(set(link_ids)) == len(link_ids)
     assert total >= 2
@@ -112,7 +127,7 @@ def test_limit_truncates_but_reports_total(app):
     _link(order_no=f"N-ALL-D-{_uid()}")
     _link(order_no=f"N-ALL-E-{_uid()}")
 
-    link_ids, total = refreshable_household_link_ids(db_session, limit=1)
+    link_ids, total, _skipped = refreshable_household_link_ids(db_session, limit=1)
 
     assert len(link_ids) == 1
     assert total >= 2
@@ -180,7 +195,7 @@ def test_button_shows_for_admin_with_count(client, workbench_on):
     body = client.get(TRIAGE_PATH, query_string={"tab": "work"}).get_data(as_text=True)
 
     assert 'id="wb-refresh-all"' in body
-    assert "전체 다시 읽기" in body
+    assert "다시 읽기" in body
 
 
 def test_button_hidden_for_staff(client, workbench_on):
@@ -213,3 +228,208 @@ def test_audit_action_has_a_korean_label():
     from foms.services.audit_message_display import ACTION_LABELS
 
     assert ACTION_LABELS.get("NAVER_INGEST_REFRESH_ALL_ENQUEUE")
+
+
+# --------------------------------------------------------------------------- #
+# 대상 축소 — 종결·쿨다운 (NVREPAY-03 후속, 2026-08-30)
+# --------------------------------------------------------------------------- #
+
+def test_terminal_household_is_skipped(app):
+    """취소·반품 완료, 구매확정된 집은 대상에서 빠진다 — 다시 읽어도 안 바뀐다."""
+    order_no = f"N-ALL-T1-{_uid()}"
+    _link(order_no=order_no, order_status="CANCELED")
+    _link(order_no=order_no, order_status="RETURNED")
+
+    link_ids, total, skipped = refreshable_household_link_ids(db_session)
+
+    assert not any(link.external_order_no == order_no
+                   for link in db_session.query(ExternalOrderLink)
+                   .filter(ExternalOrderLink.id.in_(link_ids or [0])).all())
+    assert skipped["done"] >= 1
+    assert total == len(link_ids) or total >= len(link_ids)
+
+
+def test_purchase_decided_is_terminal(app):
+    """구매확정은 클레임 창이 닫혔다는 네이버 쪽 사실이라 종결로 본다."""
+    order_no = f"N-ALL-T2-{_uid()}"
+    _link(order_no=order_no, order_status="PURCHASE_DECIDED")
+
+    _ids, _total, skipped = refreshable_household_link_ids(db_session)
+
+    assert skipped["done"] >= 1
+
+
+def test_claim_done_status_is_terminal_even_when_order_status_lives(app):
+    """``productOrderStatus`` 가 살아 있어도 클레임이 확정이면 종결이다(두 축 OR)."""
+    order_no = f"N-ALL-T3-{_uid()}"
+    _link(order_no=order_no, order_status="DELIVERING", claim_status="RETURN_DONE")
+
+    _ids, _total, skipped = refreshable_household_link_ids(db_session)
+
+    assert skipped["done"] >= 1
+
+
+def test_partly_terminal_household_is_still_read(app):
+    """한 건이라도 살아 있으면 **읽는다** — 분할 취소된 집의 남은 취소를 놓치지 않는다."""
+    order_no = f"N-ALL-T4-{_uid()}"
+    first = _link(order_no=order_no, order_status="CANCELED")
+    _link(order_no=order_no, order_status="PAYED")
+
+    link_ids, _total, _skipped = refreshable_household_link_ids(db_session)
+
+    assert int(first.id) in link_ids
+
+
+def test_unknown_status_is_not_terminal(app):
+    """모르는 상태는 종결이 아니다 — 모르면 읽는 쪽으로 기운다."""
+    order_no = f"N-ALL-T5-{_uid()}"
+    live = _link(order_no=order_no, order_status="SOMETHING_NEW")
+
+    link_ids, _total, _skipped = refreshable_household_link_ids(db_session)
+
+    assert int(live.id) in link_ids
+
+
+def test_recently_refreshed_household_is_skipped(app):
+    """쿨다운 안에 이미 읽은 집은 건너뛴다 — 연타가 같은 조회를 곱하지 않는다."""
+    from foms.services.datetime_kst import now_utc_naive
+
+    order_no = f"N-ALL-T6-{_uid()}"
+    _link(order_no=order_no, refreshed_at=now_utc_naive())
+
+    link_ids, _total, skipped = refreshable_household_link_ids(db_session)
+
+    assert skipped["recent"] >= 1
+    assert not any(link.external_order_no == order_no
+                   for link in db_session.query(ExternalOrderLink)
+                   .filter(ExternalOrderLink.id.in_(link_ids or [0])).all())
+
+
+def test_cooldown_expires(app):
+    """쿨다운이 지난 집은 다시 대상이 된다."""
+    from datetime import timedelta
+
+    from foms.services.datetime_kst import now_utc_naive
+    from foms.services.integrations.naver_commerce.claim_watch import (
+        REFRESH_ALL_COOLDOWN_SECONDS,
+    )
+
+    order_no = f"N-ALL-T7-{_uid()}"
+    stale = now_utc_naive() - timedelta(seconds=REFRESH_ALL_COOLDOWN_SECONDS + 60)
+    link = _link(order_no=order_no, refreshed_at=stale)
+
+    link_ids, _total, _skipped = refreshable_household_link_ids(db_session)
+
+    assert int(link.id) in link_ids
+
+
+def test_never_refreshed_is_never_recent(app):
+    """한 번도 안 읽은 집은 쿨다운에 걸리지 않는다."""
+    link = _link(order_no=f"N-ALL-T8-{_uid()}")
+
+    link_ids, _total, _skipped = refreshable_household_link_ids(db_session)
+
+    assert int(link.id) in link_ids
+
+
+def test_response_says_what_it_skipped(client, workbench_on, monkeypatch):
+    """조용히 줄이지 않는다 — 응답이 뺀 수를 말한다."""
+    monkeypatch.setattr("foms.services.jobs.queue.enqueue_naver_refresh",
+                        lambda *a, **k: True)
+    _login(client, role="ADMIN")
+    done_no = f"N-ALL-T9-{_uid()}"
+    _link(order_no=done_no, order_status="CANCELED")
+    _link(order_no=f"N-ALL-TA-{_uid()}")
+
+    payload = client.post(REFRESH_ALL_PATH, json={}).get_json()
+
+    assert payload["success"] is True
+    assert payload["data"]["skipped_done"] >= 1
+    assert "since" in payload["data"]
+    assert payload["data"]["link_ids"]
+
+
+# --------------------------------------------------------------------------- #
+# 진행 조회 — 화면이 '끝났다'를 스스로 말한다
+# --------------------------------------------------------------------------- #
+
+PROGRESS_PATH = "/admin/naver-ingest/triage/refresh-progress"
+
+
+def test_progress_counts_household_as_done_only_when_all_links_refreshed(client, workbench_on):
+    """집은 **형제 전부**가 다시 읽혔을 때만 끝난 것이다(대표 하나만 보면 거짓말)."""
+    from datetime import timedelta
+
+    from foms.services.datetime_kst import now_utc_naive
+
+    since = now_utc_naive()
+    order_no = f"N-ALL-P1-{_uid()}"
+    first = _link(order_no=order_no, refreshed_at=since + timedelta(seconds=5))
+    _link(order_no=order_no)
+    _login(client, role="ADMIN")
+
+    payload = client.get(PROGRESS_PATH, query_string={
+        "link_ids": str(first.id), "since": since.isoformat()}).get_json()
+
+    assert payload["data"]["total"] == 1
+    assert payload["data"]["done"] == 0
+    assert payload["data"]["pending"] == 1
+
+
+def test_progress_reports_done_when_every_link_is_newer(client, workbench_on):
+    """형제 전부가 ``since`` 뒤에 읽히면 끝났다고 말한다."""
+    from datetime import timedelta
+
+    from foms.services.datetime_kst import now_utc_naive
+
+    since = now_utc_naive()
+    order_no = f"N-ALL-P2-{_uid()}"
+    first = _link(order_no=order_no, refreshed_at=since + timedelta(seconds=5))
+    _link(order_no=order_no, refreshed_at=since + timedelta(seconds=7))
+    _login(client, role="ADMIN")
+
+    payload = client.get(PROGRESS_PATH, query_string={
+        "link_ids": str(first.id), "since": since.isoformat()}).get_json()
+
+    assert payload["data"]["done"] == 1
+    assert payload["data"]["pending"] == 0
+
+
+def test_progress_is_admin_only(client, workbench_on):
+    """진행 조회도 버튼과 같은 급이다 — STAFF 는 못 본다."""
+    link = _link(order_no=f"N-ALL-P3-{_uid()}")
+    _login(client, role="STAFF")
+
+    response = client.get(PROGRESS_PATH, query_string={
+        "link_ids": str(link.id), "since": "2026-08-30T00:00:00"})
+
+    assert response.status_code in (302, 403)
+
+
+def test_progress_rejects_missing_arguments(client, workbench_on):
+    """인자가 없으면 400 — 조용히 0 을 주면 화면이 '끝났다'로 읽는다."""
+    _login(client, role="ADMIN")
+
+    assert client.get(PROGRESS_PATH).status_code == 400
+    assert client.get(PROGRESS_PATH, query_string={"link_ids": "1"}).status_code == 400
+    assert client.get(PROGRESS_PATH, query_string={
+        "link_ids": "1", "since": "어제"}).status_code == 400
+
+
+def test_idle_state_says_why_the_button_is_gone(client, workbench_on, monkeypatch):
+    """쿨다운으로 대상이 0 이면 **말은 한다** — 버튼이 그냥 사라지면 기능이 없어진 걸로 읽는다.
+
+    술어가 아니라 **화면 분기**를 보는 테스트다. 공유 세션의 다른 링크를 건드려 0 을
+    만들면 같은 파일의 다른 테스트가 깨진다(실제로 깨뜨려 봤다) — 대상 계산만 갈아 끼운다.
+    """
+    monkeypatch.setattr(
+        "foms.services.integrations.naver_commerce.claim_watch"
+        ".refreshable_household_link_ids",
+        lambda *a, **k: ([], 0, {"done": 0, "recent": 3}))
+    _login(client, role="ADMIN")
+
+    body = client.get(TRIAGE_PATH, query_string={"tab": "work"}).get_data(as_text=True)
+
+    assert 'id="wb-refresh-all-idle"' in body
+    assert "방금 다 읽었습니다" in body
+    assert 'id="wb-refresh-all"' not in body

@@ -19,7 +19,7 @@
 {% block title %}네이버 수집{% endblock %}
 
 {% block styles %}
-<link rel="stylesheet" href="{{ url_for('static', filename='css/admin/naver-workbench.css') }}?v=20260830a">
+<link rel="stylesheet" href="{{ url_for('static', filename='css/admin/naver-workbench.css') }}?v=20260830b">
 {% endblock %}
 
 {% block content %}
@@ -63,11 +63,20 @@
            이벤트가 안 오는 집은 영영 낡은 채로 남는다. 단건 `다시 읽기` 는 그 집 pane 에 서야
            눌러서 목록 전체를 최신화할 자리가 없었다. ADMIN 전용('지금 수집'과 같은 기준) —
            한 번에 집 수십 개의 상세 조회가 나간다. 네이버에 쓰는 것은 없다(조회만). #}
+        {# 대상이 0 이어도 **말은 한다**. 쿨다운이 생기면서 "방금 다 읽어서 0" 이 흔해졌는데,
+           버튼이 그냥 사라지면 관리자는 기능이 없어진 걸로 읽는다(조용한 소멸 금지). #}
+        {% if refresh_all and not refresh_all.count and refresh_all.skipped_recent %}
+        <button type="button" class="btn btn-outline-secondary btn-sm" id="wb-refresh-all-idle"
+                disabled
+                title="방금 다 읽어서 지금 다시 읽을 주문이 없습니다. 잠시 뒤에 다시 눌러 주세요.">
+            방금 다 읽었습니다
+        </button>
+        {% endif %}
         {% if refresh_all and refresh_all.count %}
         <button type="button" class="btn btn-outline-secondary btn-sm" id="wb-refresh-all"
                 data-count="{{ refresh_all.count }}"
-                title="수집된 {{ refresh_all.count }}개 주문을 네이버에서 다시 읽어 상태를 갱신합니다. 네이버에는 아무것도 보내지 않습니다(조회만). 취소·반품이 처음 발견되면 담당자·관리자에게 알림이 갑니다.">
-            전체 다시 읽기 <b>{{ refresh_all.count }}주문</b>
+                title="아직 변할 수 있는 {{ refresh_all.count }}개 주문을 네이버에서 다시 읽어 상태를 갱신합니다. 취소·반품이 끝났거나 구매확정된 주문{% if refresh_all.skipped_done %} {{ refresh_all.skipped_done }}건{% endif %}은 다시 읽어도 값이 바뀌지 않아 대상에서 뺍니다. 네이버에는 아무것도 보내지 않습니다(조회만). 취소·반품이 처음 발견되면 담당자·관리자에게 알림이 갑니다.">
+            다시 읽기 <b>{{ refresh_all.count }}주문</b>
         </button>
         {% endif %}
         {# 글자 크기 조절 — 브라우저를 80% 로 축소해 쓰면 11~12px 가 9~10px 로 보인다.
@@ -800,5 +809,5 @@
 {% endblock %}
 
 {% block scripts %}
-<script src="{{ url_for('static', filename='js/admin/naver-workbench.js') }}?v=20260830a" defer></script>
+<script src="{{ url_for('static', filename='js/admin/naver-workbench.js') }}?v=20260830b" defer></script>
 {% endblock %}

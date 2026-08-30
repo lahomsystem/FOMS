@@ -43,6 +43,11 @@
     /** 벌크는 워커가 집을 하나씩 처리한다 — 단건보다 창이 넓어야 끝을 본다. */
     var BULK_POLL_INTERVAL_MS = 3000;
     var BULK_POLL_TIMEOUT_MS = 90000;
+    /** 전체 다시 읽기 진행 조회(집 수와 무관하게 서버 조회 1회). */
+    var REFRESH_PROGRESS_URL = '/admin/naver-ingest/triage/refresh-progress';
+    /** 운영 실측 2026-08-30: 58집 62초. 캡 200집이면 그 3배 남짓이라 창을 여유 있게. */
+    var REFRESH_POLL_INTERVAL_MS = 3000;
+    var REFRESH_POLL_TIMEOUT_MS = 300000;
 
     /** 수집 워터마크만 묻는 읽기 전용 경로('지금 수집' 결과 폴링 대상). */
     var RUN_STATE_URL = '/admin/naver-ingest/run-state';
@@ -73,6 +78,9 @@
     /** 벌크 폴링 토큰·타이머(단건과 따로 — 서로를 끊지 않는다). */
     var bulkToken = 0;
     var bulkTimer = null;
+    /** 전체 다시 읽기 폴링 토큰·타이머(벌크·단건과 따로 둔다 — 서로를 끊으면 안 된다). */
+    var refreshAllToken = 0;
+    var refreshAllTimer = null;
 
     /** 수집 폴링 토큰·타이머. 단건(pollToken)·벌크(bulkToken)와 **따로 둔다** —
         하나를 나눠 쓰면 '지금 수집' 을 누른 순간 돌고 있던 집 조작 폴링이 끊기고(그
@@ -162,7 +170,7 @@
      */
     async function submitRefreshAll(button) {
         var count = safeId(button.dataset.count) || '';
-        var message = '수집된 ' + (count || '전체') + '개 주문을 네이버에서 다시 읽습니다.\n'
+        var message = '아직 변할 수 있는 ' + (count || '전체') + '개 주문을 네이버에서 다시 읽습니다.\n'
             + '조회만 하며 네이버에는 아무것도 보내지 않습니다.\n'
             + '취소·반품이 처음 발견되면 담당자·관리자에게 알림이 갑니다.';
         if (!window.confirm(message)) {
@@ -177,10 +185,114 @@
             button.textContent = label;
             return;
         }
-        var queued = (result.data && result.data.queued) || 0;
-        button.textContent = queued
-            ? '다시 읽는 중 — ' + queued + '주문 (끝나면 새로고침)'
-            : '다시 읽을 주문 없음';
+        var data = result.data || {};
+        var queued = data.queued || 0;
+        if (!queued) {
+            button.textContent = skipNote(data) || '다시 읽을 주문 없음';
+            return;
+        }
+        button.textContent = '다시 읽는 중 — ' + queued + '주문';
+        watchRefreshAll(data);
+    }
+
+    /**
+     * 대상에서 뺀 집을 사람이 읽는 한 마디로 만든다.
+     *
+     * **조용히 줄이지 않는다** — "전체"라 적고 덜 읽으면 그게 거짓말이다. 뺀 이유가
+     * 둘(종결·쿨다운)이라 각각 이름을 준다.
+     *
+     * @param {object} data refresh-all 응답의 data.
+     * @returns {string} 뺀 게 없으면 빈 문자열.
+     */
+    function skipNote(data) {
+        var parts = [];
+        if (data.skipped_done) {
+            parts.push('끝난 주문 ' + data.skipped_done + '건');
+        }
+        if (data.skipped_recent) {
+            parts.push('방금 읽은 주문 ' + data.skipped_recent + '건');
+        }
+        return parts.length ? parts.join(' · ') + ' 제외' : '';
+    }
+
+    /**
+     * 전체 다시 읽기가 끝나는 것을 기다렸다가 **화면을 스스로 새로 그린다**.
+     *
+     * 왜: 예전에는 라벨을 `다시 읽는 중 … (끝나면 새로고침)` 으로 바꿔 두고 끝났는지는
+     * 아무도 말하지 않았다. 사람은 그걸 멈춘 걸로 읽는다 — 운영 2026-08-30 에 28초
+     * 간격으로 두 번 눌렸고 두 번째는 통째로 낭비였다.
+     *
+     * 배선은 벌크 발주확인(:func:`watchBulk`)과 **같은 모양**이다. 서버 조회는 집 수와
+     * 무관하게 회차당 1회이고, 마감이 있다(무한 폴링 금지).
+     *
+     * @param {object} data refresh-all 응답의 data(`link_ids` 대신 `queued`·`since`).
+     * @returns {void}
+     */
+    function watchRefreshAll(data) {
+        var button = document.getElementById('wb-refresh-all');
+        var ids = data.link_ids || [];
+        if (!ids.length || !data.since) {
+            return;
+        }
+        stopRefreshAllWatch();
+        var mine = refreshAllToken;
+        var deadline = Date.now() + REFRESH_POLL_TIMEOUT_MS;
+        refreshAllTimer = window.setTimeout(tick, REFRESH_POLL_INTERVAL_MS);
+
+        async function tick() {
+            if (mine !== refreshAllToken) {
+                return;
+            }
+            const progress = await readRefreshProgress(ids, data.since);
+            if (mine !== refreshAllToken) {
+                return;
+            }
+            if (progress) {
+                if (!progress.pending) {
+                    stopRefreshAllWatch();
+                    await softRefresh();
+                    return;
+                }
+                if (button) {
+                    button.textContent = '다시 읽는 중 — ' + progress.total + '주문 중 '
+                        + progress.done + '주문 완료';
+                }
+            }
+            if (Date.now() >= deadline) {
+                // 무한 폴링 금지. 지금 시점의 서버 사실로 한 번 맞추고 접는다.
+                stopRefreshAllWatch();
+                await softRefresh();
+                return;
+            }
+            refreshAllTimer = window.setTimeout(tick, REFRESH_POLL_INTERVAL_MS);
+        }
+    }
+
+    /** 돌고 있는 전체 다시 읽기 폴링을 끊는다(완료·마감·다시 누름). */
+    function stopRefreshAllWatch() {
+        refreshAllToken += 1;
+        if (refreshAllTimer !== null) {
+            window.clearTimeout(refreshAllTimer);
+            refreshAllTimer = null;
+        }
+    }
+
+    /** 전체 다시 읽기 진행을 읽는다(일시 오류는 다음 회차에 다시 묻는다). */
+    async function readRefreshProgress(ids, since) {
+        try {
+            const response = await fetch(REFRESH_PROGRESS_URL + '?link_ids=' + ids.join(',')
+                + '&since=' + encodeURIComponent(since), {
+                credentials: 'same-origin',
+                headers: { 'X-Requested-With': 'XMLHttpRequest' }
+            });
+            if (!response.ok) {
+                return null;
+            }
+            const payload = await response.json();
+            return payload && payload.success ? payload.data : null;
+        } catch (error) {
+            return null;
+        }
     }
 
     /**
