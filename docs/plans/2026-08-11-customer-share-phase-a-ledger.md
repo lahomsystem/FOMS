@@ -108,6 +108,10 @@
   본 승격이 바꾼 `erp-share.js` 핀만 `20260825a`). 검증: APP_OK · alembic 단일 head
   `merge_drawq_naverfail` · 공유 도메인 테스트 86 passed · pre_push_smoke exit 0(324 passed) ·
   전체 스위트 5,419 passed · PR 검사 4종(test·harness·pg-lane·perf-gate) 전부 pass, `MERGEABLE/CLEAN`.
+- **독립 재검증(2026-08-31, 별 세션)** — 승격 head `007f092e` 를 별도 워크트리로 받아 다시 돌렸다:
+  `APP_OK` · 공유 스위트 99 passed(`test_order_share_{alimtalk,api,view,sms}` + `test_alimtalk_ui_contract`) ·
+  `tests/contracts`+`tests/domains` **5350 passed · 5 skipped**(17분 7초). PR base 가 아직 현재 운영 tip
+  `5acef038` 과 같아 재배열 불필요. 머지는 사용자 승인 대기.
 - **승격 트리 전체 스위트에서 나온 빨강 2종은 T16 무관** — ①
   `tests/visual/test_erp_order_edit_mobile_form.py::test_edit_erp_order_ships_responsive_form_mounts_for_cohort`
   은 **운영 기준선 `5acef038` 에 그대로 있던 빨강**이다(승격 트리·기준선 둘 다 동일 실패, T16 커밋과 무관).
