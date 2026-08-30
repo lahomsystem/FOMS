@@ -11,6 +11,7 @@ flat 모듈이다 — namespace 닫힌집합 게이트는 디렉토리만 검사
 from __future__ import annotations
 
 import logging
+import re
 import time
 import urllib.parse
 from typing import Any, Optional
@@ -187,6 +188,14 @@ def view_shared_order(token: str):
         )
         return render_template('orders/share_estimate_view.html', snap=snap)
 
+    snapshot = None
+    if row.kind == 'bundle':
+        # 계약서 쪽은 estimate 와 같은 동결 규칙 — 스냅샷 없는 링크는 존재하면 안 된다.
+        snapshot = row.snapshot
+        if not isinstance(snapshot, dict) or not snapshot:
+            logger.error('bundle 공유 스냅샷 부재: share_id=%s', row.id)
+            return _error_page(_MSG_UNAVAILABLE, 503)
+
     storage = get_storage()
     if storage.storage_type not in ('r2', 's3'):
         # fail-closed(스펙 §3.2): 로컬 경로 노출 금지 — 503 + 안내 + 로그 1건.
@@ -230,9 +239,13 @@ def view_shared_order(token: str):
         user_agent=request.headers.get('User-Agent'),
         order_id=order.id,
     )
+    # bundle 은 같은 도면 렌더 위에 동결 계약서를 얹는다(링크 하나로 둘 다 — 2026-08-25).
+    template = ('orders/share_bundle_view.html' if row.kind == 'bundle'
+                else 'orders/share_view.html')
     return render_template(
-        'orders/share_view.html',
+        template,
         share_kind=row.kind,
+        snap=snapshot,
         drawing_preview_cards=cards,
         share_extra_files=extra_files,
         share_download_files=download_files,
@@ -292,7 +305,7 @@ def api_share_create(order_id: int):
         return _envelope(None, 'order_not_found', 404)
 
     snapshot = None
-    if kind == 'estimate':
+    if kind in share_service.SNAPSHOT_KINDS:
         # D6: 발송 시점 동결 — 스냅샷 없는 견적 링크는 존재하지 않는다.
         try:
             snapshot = share_service.build_estimate_snapshot(order)
@@ -377,7 +390,7 @@ def api_share_list(order_id: int):
 #: send-sms 멱등 시간버킷(초) — 같은 버킷 내 재요청은 outbox UNIQUE 가 DB 로 차단(플랜 §1).
 _SMS_BUCKET_SECONDS = 5
 
-_SMS_KIND_LABEL = {'drawing': '도면', 'estimate': '견적서'}
+_SMS_KIND_LABEL = {'drawing': '도면', 'estimate': '견적서', 'bundle': '도면·계약서'}
 #: 문자 본문 첫 줄의 발주사 표기(알림톡 승인 템플릿 문구와 같은 표기).
 _BRAND_LABEL = {'LAHOM': '라홈', 'HAUD': '하우드'}
 
@@ -410,6 +423,7 @@ def _manager_sender_phone(order: Order) -> Optional[str]:
 def _resolve_sender(order: Order, brand: str) -> tuple[Optional[str], Optional[str]]:
     """발신번호 3단 우선순위 결정(T8.1 — 원장 '문자 발신번호 확정' 섹션이 정본).
 
+    지방 주문이면 그 앞에 본사 CS 번호가 온다(안내 연락처와 같은 번호 — 2026-08-25).
     ① 주문 담당자(``manager_name``)와 이름이 일치하는 활성 사용자의 ``sender_phone``
     (발송 버튼 누른 직원 기준 아님 — 동명이인은 id 오름차순 첫 등록자) ② 브랜드
     대표번호 ``SOLAPI_SENDER_PHONE_{brand}`` ③ 구 ``SOLAPI_SENDER_PHONE`` 최후 폴백.
@@ -420,9 +434,16 @@ def _resolve_sender(order: Order, brand: str) -> tuple[Optional[str], Optional[s
         brand: :func:`ka.resolve_brand` 결과(``LAHOM``/``HAUD``).
 
     Returns:
-        ``(발신번호, 출처)`` — 출처는 ``manager``/``brand``/``legacy``.
+        ``(발신번호, 출처)`` — 출처는 ``regional_cs``/``manager``/``brand``/``legacy``.
         결정 불가면 ``(None, None)`` (호출자가 503 처리).
     """
+    if _is_regional_order(order):
+        # 지방 주문은 안내 연락처가 본사 CS 다. 카톡이 실패해 문자로 대체발송될 때
+        # 발신번호가 담당자 번호면 고객 화면에는 두 번호가 따로 뜬다 — 같은 번호로 맞춘다
+        # (사용자 결정 2026-08-25). 벤더에는 숫자만 넘긴다.
+        digits = re.sub(r'\D', '', _regional_contact_phone(brand))
+        if digits:
+            return digits, 'regional_cs'
     phone = _manager_sender_phone(order)
     if phone:
         return phone, 'manager'
@@ -455,7 +476,8 @@ def _send_sms_with_fallback(
         to_phone: 수신 휴대폰(숫자만).
         text: 발송 본문.
         from_phone: 1차 발신번호(:func:`_resolve_sender` 결과).
-        sender_source: 1차 발신 출처(``manager``/``brand``/``legacy``).
+        sender_source: 1차 발신 출처(``regional_cs``/``manager``/``brand``/``legacy``).
+            백업 재시도는 ``brand`` 일 때만 — 본사 CS·담당자 번호는 대체 후보가 없다.
         brand: 브랜드 판정(백업 env 키 ``SOLAPI_SENDER_FALLBACK_{brand}`` 결정).
 
     Returns:
@@ -633,6 +655,71 @@ def share_link_message(order: Order, *, kind: str, url: str, brand: str) -> str:
     ]
     return '\n'.join(lines)
 
+#: 지방(협력사 시공) 주문의 안내 연락처 — 브랜드별 본사 CS 대표번호(사용자 결정 2026-08-25).
+#: 발주사에 '라홈'이 들어가면 라홈, 그 외 전부 하우드다(:func:`ka.resolve_brand` 규칙).
+_REGIONAL_CONTACT_PHONE_DEFAULTS = {
+    'LAHOM': '1566-0792',
+    'HAUD': '1566-0703',
+}
+
+#: 대표번호가 바뀌면 코드 재배포 없이 갈아끼우는 env 접두(뒤에 브랜드가 붙는다).
+_REGIONAL_CONTACT_PHONE_ENV_PREFIX = 'FOMS_REGIONAL_CONTACT_PHONE_'
+
+
+def _is_regional_order(order: Order) -> bool:
+    """지방(협력사 시공) 주문인지 — 안내 문구·발신번호를 본사 CS 로 돌리는 기준."""
+    return bool(getattr(order, 'is_regional', False))
+
+
+def _regional_contact_phone(brand: str) -> str:
+    """지방 주문 안내에 쓸 본사 CS 대표번호(표시 형식 그대로).
+
+    Args:
+        brand: :func:`ka.resolve_brand` 결과(``LAHOM``/``HAUD``).
+
+    Returns:
+        브랜드 대표번호. 모르는 브랜드는 하우드 쪽으로 떨어뜨린다(라홈 외 전부 하우드).
+    """
+    fallback = _REGIONAL_CONTACT_PHONE_DEFAULTS.get(
+        brand, _REGIONAL_CONTACT_PHONE_DEFAULTS['HAUD'])
+    return ka._env(_REGIONAL_CONTACT_PHONE_ENV_PREFIX + brand) or fallback
+
+
+def _share_contact_name(order: Order) -> str:
+    """고객에게 보여줄 담당자 표기.
+
+    지방 주문은 번호가 본사 CS 인데 이름만 현장 담당자면 고객이 누구에게 연락하는지
+    헷갈린다 — 이름도 '고객센터' 로 맞춘다(사용자 결정 2026-08-25).
+    """
+    if _is_regional_order(order):
+        return '고객센터'
+    return (order.manager_name or '').strip() or '고객센터'
+
+
+def _share_contact_phone(order: Order, brand: str) -> str:
+    """고객에게 **보여줄** 문의 연락처.
+
+    지방 주문은 협력사가 시공하지만 도면 컨펌은 본사 CS 가 받는다. 현장 담당자 번호를
+    안내하면 컨펌 문의가 CS 를 건너뛰므로, 지방 주문에는 본사 대표번호를 넣는다
+    (사용자 결정 2026-08-25). 그 외에는 담당자 등록번호 → 브랜드 대표 → 구 폴백 순.
+
+    Args:
+        order: 대상 주문.
+        brand: :func:`ka.resolve_brand` 결과(``LAHOM``/``HAUD``).
+
+    Returns:
+        표시용 연락처 문자열(빈값 금지 — 알림톡 변수는 비울 수 없다).
+    """
+    if _is_regional_order(order):
+        return _regional_contact_phone(brand)
+    return (
+        _manager_sender_phone(order)
+        or ka._env(f'SOLAPI_SENDER_PHONE_{brand}')
+        or ka._env('SOLAPI_SENDER_PHONE')
+        or '고객센터'
+    )
+
+
 def _share_alimtalk_variables(order: Order, *, kind: str, token: str,
                               brand: str) -> dict[str, str]:
     """공유 알림톡 템플릿 변수(심사 승인 템플릿과 1:1 — 빈값 금지 폴백 포함).
@@ -651,13 +738,8 @@ def _share_alimtalk_variables(order: Order, *, kind: str, token: str,
     """
     sd = order.structured_data or {}
     customer = str(ka._node(sd, 'parties', 'customer').get('name') or '').strip() or '고객'
-    manager = (order.manager_name or '').strip() or '고객센터'
-    manager_phone = (
-        _manager_sender_phone(order)
-        or ka._env(f'SOLAPI_SENDER_PHONE_{brand}')
-        or ka._env('SOLAPI_SENDER_PHONE')
-        or '고객센터'
-    )
+    manager = _share_contact_name(order)
+    manager_phone = _share_contact_phone(order, brand)
     return {
         '#{고객명}': customer,
         '#{문서종류}': _SMS_KIND_LABEL.get(kind, '문서'),
@@ -668,6 +750,65 @@ def _share_alimtalk_variables(order: Order, *, kind: str, token: str,
     }
 
 
+#: 버튼 2개짜리 통합 템플릿 env 접두(뒤에 브랜드가 붙는다). 심사 승인 뒤 이 env 를 넣으면
+#: bundle 발송이 '링크 1개' 에서 '도면·계약서 버튼 2개' 로 갈아탄다 — 코드 변경 없이 env 스위치.
+_BOTH_TEMPLATE_ENV_PREFIX = 'SOLAPI_TEMPLATE_SHARE_BOTH_ID_'
+
+
+def _both_template_id(brand: str) -> str:
+    """브랜드별 통합(버튼 2개) 템플릿 id. 미설정이면 빈 문자열(= 구 경로 유지)."""
+    return ka._env(_BOTH_TEMPLATE_ENV_PREFIX + brand)
+
+
+def _share_both_variables(order: Order, *, drawing_token: str, estimate_token: str,
+                          brand: str) -> dict[str, str]:
+    """버튼 2개 템플릿 변수(승인 템플릿과 1:1).
+
+    문서종류는 본문에 고정 문구로 들어가므로 변수가 없고, 토큰이 둘이다.
+
+    Args:
+        order: 대상 주문.
+        drawing_token: 도면 링크 토큰 원문.
+        estimate_token: 계약서 링크 토큰 원문.
+        brand: :func:`ka.resolve_brand` 결과.
+
+    Returns:
+        치환 dict — 빈값 금지 폴백은 :func:`_share_alimtalk_variables` 와 같은 규칙.
+    """
+    sd = order.structured_data or {}
+    customer = str(ka._node(sd, 'parties', 'customer').get('name') or '').strip() or '고객'
+    return {
+        '#{고객명}': customer,
+        '#{유효기간}': str(share_service.token_days()),
+        '#{담당자}': _share_contact_name(order),
+        '#{담당자연락처}': _share_contact_phone(order, brand),
+        '#{도면토큰}': drawing_token,
+        '#{계약서토큰}': estimate_token,
+    }
+
+
+def _issue_pair_tokens(order: Order) -> tuple[Any, str, Any, str]:
+    """버튼 2개 발송용 도면·계약서 링크를 새로 발급한다(커밋은 호출자 몫).
+
+    계약서 링크는 발급 시점 동결 스냅샷을 동반한다 — 단독 발급과 같은 규칙(D6).
+
+    Args:
+        order: 대상 주문.
+
+    Returns:
+        ``(도면 row, 도면 토큰, 계약서 row, 계약서 토큰)``.
+
+    Raises:
+        share_service.SnapshotTooLargeError: 견적 항목이 스냅샷 상한을 넘을 때.
+    """
+    drawing_row, drawing_token = share_service.create_share_token(
+        db_session, order.id, 'drawing')
+    snapshot = share_service.build_estimate_snapshot(order)
+    estimate_row, estimate_token = share_service.create_share_token(
+        db_session, order.id, 'estimate', snapshot=snapshot)
+    return drawing_row, drawing_token, estimate_row, estimate_token
+
+
 @share_api_bp.route('/send-alimtalk/<int:share_id>', methods=['POST'])
 @login_required
 @role_required(_SHARE_ROLES)
@@ -675,7 +816,9 @@ def api_share_send_alimtalk(share_id: int):
     """공유 링크 알림톡 발송 — 발급 직후 화면에서만 가능(send-sms 와 대칭).
 
     body ``{'token': <원문>}`` 재해시 검증 후 심사 승인 템플릿
-    (``SOLAPI_TEMPLATE_SHARE_ID_{brand}``)으로 발송한다. 발신번호는 T8.1 3단
+    (``SOLAPI_TEMPLATE_SHARE_ID_{brand}``)으로 발송한다. ``kind='bundle'`` 이고 통합
+    템플릿(``SOLAPI_TEMPLATE_SHARE_BOTH_ID_{brand}``)이 등록돼 있으면 도면·계약서 링크를
+    그 자리에서 발급해 **버튼 2개** 템플릿으로 내보낸다(승인 전후 전환이 env 하나). 발신번호는 T8.1 3단
     우선순위(:func:`_resolve_sender`) — Solapi 가 알림톡 실패 시 이 번호로 SMS
     대체발송(failover)한다(담당자 번호 발신 요구). 멱등 = 선점 insert +
     ``share_alimtalk:{share_id}:{bucket}`` UNIQUE(409).
@@ -714,12 +857,27 @@ def api_share_send_alimtalk(share_id: int):
     actor_user_id = session.get('user_id')
     brand = ka.resolve_brand(order.structured_data or {})
     pf_id = ka._env(f'SOLAPI_PF_ID_{brand}')
-    template_id = ka._env(f'SOLAPI_TEMPLATE_SHARE_ID_{brand}')
+    # bundle 은 통합 템플릿(버튼 2개)이 승인·등록돼 있으면 그쪽으로 나간다. env 가 없으면
+    # 지금처럼 링크 1개(통합 열람 페이지)로 나간다 — 승인 전후 전환이 env 하나다.
+    use_both = row.kind == 'bundle' and bool(_both_template_id(brand))
+    template_id = (_both_template_id(brand) if use_both
+                   else ka._env(f'SOLAPI_TEMPLATE_SHARE_ID_{brand}'))
     from_phone, sender_source = _resolve_sender(order, brand)
     if not (pf_id and template_id and from_phone):
         return _envelope(None, 'not_configured', 503)
 
-    variables = _share_alimtalk_variables(order, kind=row.kind, token=token, brand=brand)
+    pair_ids: dict[str, int] = {}
+    if use_both:
+        try:
+            drawing_row, drawing_token, estimate_row, estimate_token = _issue_pair_tokens(order)
+        except share_service.SnapshotTooLargeError:
+            db_session.rollback()
+            return _envelope(None, 'snapshot_too_large', 400)
+        variables = _share_both_variables(order, drawing_token=drawing_token,
+                                          estimate_token=estimate_token, brand=brand)
+        pair_ids = {'drawing_share_id': drawing_row.id, 'estimate_share_id': estimate_row.id}
+    else:
+        variables = _share_alimtalk_variables(order, kind=row.kind, token=token, brand=brand)
 
     # --- 선점 insert (send-sms 와 동일 계약 — 벤더 호출 전 commit) ---
     bucket = int(time.time()) // _SMS_BUCKET_SECONDS
@@ -772,7 +930,8 @@ def api_share_send_alimtalk(share_id: int):
         action='SHARE_ALIMTALK_SENT', target_type='order', target_id=int(order.id),
         detail={'share_id': row.id, 'kind': row.kind, 'sent': error is None,
                 'error': error, 'to': ka._mask_phone(to_phone),
-                'sender_source': sender_source, **context},
+                'template': 'share_both' if use_both else 'share',
+                'sender_source': sender_source, **pair_ids, **context},
     )
     return _envelope({'sent': error is None, 'error': error}, error)
 

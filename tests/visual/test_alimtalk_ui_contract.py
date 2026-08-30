@@ -52,11 +52,12 @@ def test_mobile_alimtalk_picker_sheet_reuses_push_sheet_markup() -> None:
     assert "erp-channel-push-picker-options" in sheet
     # 선택지는 기존 위임 핸들러가 그대로 처리하는 클래스를 단다.
     assert BUTTON_CLASS in sheet
-    # 알림톡 발송 2종(도면·계약서) + 내 문자로 보내기 2종.
-    assert sheet.count('class="foms-btn foms-btn--secondary erp-share-alimtalk-quick-btn"') == 2
-    assert sheet.count("data-share-kind=") == 4
+    # 알림톡 발송 3종(도면·계약서·둘 다) + 내 문자로 보내기 2종.
+    assert sheet.count('class="foms-btn foms-btn--secondary erp-share-alimtalk-quick-btn"') == 3
+    assert sheet.count("data-share-kind=") == 5
     assert 'data-share-kind="drawing"' in sheet
     assert 'data-share-kind="estimate"' in sheet
+    assert 'data-share-kind="bundle"' in sheet
 
     js = _read("static/js/orders/erp-alimtalk-send.js")
     assert "erpOpenAlimtalkPicker" in js
@@ -330,3 +331,13 @@ def test_trace_update_with_no_record_clears_stale_chip() -> None:
     # 반대로, 이력이 없는 발송 응답이 멀쩡한 칩을 지우면 안 된다.
     send = _read("static/js/orders/erp-alimtalk-send.js")
     assert "if (body && body.data && body.data.last) _publishTrace(body.data.last);" in send
+
+
+def test_bundle_share_offered_on_both_alimtalk_surfaces() -> None:
+    """도면+계약서 한 링크 항목은 PC 드롭다운·모바일 시트 양쪽에 있어야 한다."""
+    for surface in ("templates/orders/partials/erp_order_tab.html",
+                    "templates/orders/partials/erp_alimtalk_picker_modal.html"):
+        assert 'data-share-kind="bundle"' in _read(surface), surface
+    # 발송 흐름은 kind 를 그대로 서버에 넘긴다 — 종류별 분기를 JS 에 두지 않는다.
+    js = _read("static/js/orders/erp-share.js")
+    assert "bundle: '도면·계약서'" in js

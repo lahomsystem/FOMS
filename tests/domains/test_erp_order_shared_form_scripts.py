@@ -78,7 +78,7 @@ def _assert_shared_form_script_contract(body: str) -> None:
     assert "js/orders/erp-alimtalk-trace.js?v=20260824a" in body
     assert "data-erp-alimtalk-trace" in body
     assert 'id="erpAlimtalkTraceModal"' in body
-    assert "js/orders/erp-share.js?v=20260824a" in body
+    assert "js/orders/erp-share.js?v=20260825a" in body
     assert "css/orders/erp-share.css?v=20260821a" in body
     assert "js/orders/erp-stage-override.js?v=20260825a" in body
     assert "erp_stage_override_modal.html" not in body  # include renders modal markup, not path

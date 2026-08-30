@@ -113,6 +113,33 @@ def test_send_legacy_fallback_when_no_manager_no_brand_env(client, db, sms_stub,
     assert '도면' in sms_stub[0]['text']
 
 
+def test_send_regional_uses_head_office_sender(client, db, sms_stub, clock):
+    """지방 주문 문자는 본사 CS 번호로 나간다 — 안내 번호와 발신 번호가 갈리지 않게."""
+    manager = User(username='smsrgnmgr', password=generate_password_hash('pw'),
+                   role='STAFF', team='CS', name='박협력', is_active=True,
+                   sender_phone='01055557777')
+    db_session.add(manager)
+    db_session.commit()
+    order_id = _mk_order(manager_name='박협력', is_regional=True).id
+    _login(client, 'sms-regional-from')
+    share_id, token = _mk_share(order_id)
+    _send(client, share_id, token)
+
+    assert sms_stub[0]['from_'] == '15660703'
+
+
+def test_regional_self_sms_body_shows_head_office_contact(client, db, clock):
+    """'내 문자로 보내기' 본문(알림톡 문구 미러)도 지방 주문이면 본사 CS 번호를 안내한다."""
+    from foms.api.share import share_link_message
+
+    order = _mk_order(is_regional=True, manager_name='박협력')
+    with client.application.test_request_context():
+        body = share_link_message(order, kind='drawing',
+                                  url='https://example.test/s/tok', brand='HAUD')
+
+    assert '담당자 연락처 : 1566-0703' in body
+
+
 def test_send_ignores_actor_sender_phone(client, db, sms_stub, clock):
     # 구 규칙 폐기 확인: 발송 버튼 누른 직원의 sender_phone 은 더 이상 안 쓴다.
     order_id = _mk_order().id

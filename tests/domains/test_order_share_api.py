@@ -137,6 +137,18 @@ def test_create_estimate_returns_token_with_snapshot(client, db):
     assert row.snapshot is not None
 
 
+def test_create_bundle_freezes_estimate_snapshot(client, db):
+    """도면+계약서 한 링크도 계약서 쪽은 발급 시점에 굳힌다(estimate 와 같은 규칙)."""
+    order = _mk_order()
+    _login(client, 'staff-bundle')
+    resp = client.post(f'{_CREATE}/{order.id}', json={'kind': 'bundle'})
+    assert resp.status_code == 200
+    data = resp.get_json()['data']
+    assert data['kind'] == 'bundle'
+    row = db_session.get(OrderShareToken, data['share_id'])
+    assert row.snapshot is not None
+
+
 def test_create_unknown_kind_400(client, db):
     order = _mk_order()
     _login(client, 'staff4')

@@ -268,6 +268,74 @@ def test_view_estimate_renders_snapshot_only(client, db, r2):
     assert resp.headers['X-Robots-Tag'] == 'noindex, nofollow'
 
 
+# --- bundle 열람 (도면 + 계약서 한 링크, 2026-08-25) ------------------------------
+
+
+def _mk_bundle_share(order) -> tuple[OrderShareToken, str]:
+    from foms.services.order_share import build_estimate_snapshot
+    snap = build_estimate_snapshot(order)
+    row, token = osvc.create_share_token(db_session, order.id, 'bundle', snapshot=snap)
+    db_session.commit()
+    return row, token
+
+
+def test_view_bundle_renders_drawing_and_estimate_together(client, db, r2):
+    """링크 하나에 두 문서 — 도면 파일과 동결 계약서가 같은 페이지에 나온다."""
+    import copy as _copy
+    order = _mk_order(structured_data=_copy.deepcopy(_EST_SD))
+    _add_drawing_attachment(order, 'plan-bundle.png')
+    _, token = _mk_bundle_share(order)
+
+    resp = client.get(f'/s/{token}')
+    body = resp.get_data(as_text=True)
+
+    assert resp.status_code == 200
+    assert f'orders/{order.id}/drawing/plan-bundle.png' in body   # 도면 섹션
+    assert '1,000,000' in body                                    # 계약서 섹션(동결 품목합)
+    assert '임다슬' in body
+    assert resp.headers['X-Robots-Tag'] == 'noindex, nofollow'
+
+
+def test_view_bundle_estimate_side_is_frozen(client, db, r2):
+    """계약서 쪽 동결 규칙은 단독 링크와 같다 — 발급 후 수정은 반영되지 않는다(D6)."""
+    import copy as _copy
+    from sqlalchemy.orm.attributes import flag_modified
+
+    order = _mk_order(structured_data=_copy.deepcopy(_EST_SD))
+    _add_drawing_attachment(order, 'plan-frozen.png')
+    _, token = _mk_bundle_share(order)
+
+    sd = _copy.deepcopy(order.structured_data)
+    sd['items'][0]['price'] = 9_999_999
+    order.structured_data = sd
+    flag_modified(order, 'structured_data')
+    db.commit()
+
+    body = client.get(f'/s/{token}').get_data(as_text=True)
+    assert '1,000,000' in body and '9,999,999' not in body
+
+
+def test_view_bundle_without_drawing_still_shows_estimate(client, db, r2):
+    """도면이 아직 없어도 계약서는 보여준다(빈 도면 안내 + 계약서 본문)."""
+    import copy as _copy
+    order = _mk_order(structured_data=_copy.deepcopy(_EST_SD))
+    _, token = _mk_bundle_share(order)
+
+    body = client.get(f'/s/{token}').get_data(as_text=True)
+    assert '아직 등록된 도면이 없습니다' in body
+    assert '1,000,000' in body
+
+
+def test_view_bundle_missing_snapshot_503(client, db, r2):
+    """스냅샷 없는 bundle 링크는 존재하면 안 되는 상태 — 조용히 도면만 보여주지 않는다."""
+    order = _mk_order()
+    _add_drawing_attachment(order, 'plan-nosnap.png')
+    row, token = osvc.create_share_token(db_session, order.id, 'bundle')
+    db_session.commit()
+
+    assert client.get(f'/s/{token}').status_code == 503
+
+
 def test_view_estimate_missing_snapshot_503(client, db, r2):
     order = _mk_order()
     row, token = osvc.create_share_token(db_session, order.id, 'estimate')
