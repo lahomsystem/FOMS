@@ -867,3 +867,27 @@ def test_confirm_still_runs_for_a_healthy_household(app):
     db_session.commit()
 
     assert client.confirm_calls, "정상 집인데 호출이 안 나갔다"
+
+
+# --------------------------------------------------------------------------- #
+# ④ 의 마지막 한 겹 — 사유를 못 남길 때도 조용하지 않다
+# --------------------------------------------------------------------------- #
+
+def test_record_task_failure_is_not_silent_when_the_group_is_gone(app, caplog):
+    """집을 못 찾아 사유를 못 남기면 **못 남겼다는 것을 로그로 남긴다**.
+
+    `record_task_failure` 는 워커가 서비스 바깥에서 죽었을 때의 **마지막 통지 경로**다
+    (docstring 이 스스로 "실패해도 조용하지 않게 한다"고 적어 뒀다). 그런데 링크 조회가
+    `FulfillmentError` 면 아무 말 없이 돌아섰다 — 화면은 "요청했습니다"로 멈춰 있고
+    취소는 재시도 버튼도 없으니, 그 조합이면 실패가 어디에도 안 남는다.
+    """
+    import logging
+
+    from foms.services.integrations.naver_commerce.fulfillment import record_task_failure
+
+    with caplog.at_level(logging.WARNING):
+        record_task_failure(db_session, link_id=99999999,
+                            action="cancel", reason="인증 만료")
+
+    assert any("실패 사유 기록 실패" in record.getMessage()
+               for record in caplog.records), "집을 못 찾은 것을 조용히 넘겼다"
