@@ -24,9 +24,11 @@ from flask import (abort, g, jsonify, redirect, render_template, request, sessio
                    url_for)
 from sqlalchemy.exc import SQLAlchemyError
 from sqlalchemy.orm import Session
+from sqlalchemy.sql.elements import ColumnElement
 
 from db import get_db
-from foms.services.datetime_kst import format_datetime_kst, now_utc_naive
+from foms.services.datetime_kst import (format_datetime_kst, get_today_kst,
+                                        now_utc_naive)
 from foms.services.integrations.naver_commerce.constants import SELLER_CENTER_URL
 from foms.services.integrations.naver_commerce.fulfillment import CLOSE_NOW_RELATIONS
 from foms.services.integrations.naver_commerce.mapping import (
@@ -72,6 +74,39 @@ VALID_STATUSES = ("COLLECTED", "LINKED", "PENDING_REVIEW", "FAILED")
 #: 발주확인이 끝난 것으로 보는 컬럼 값(mapping.CONFIRMED_PLACE_STATUSES 와 같은 집합).
 #: 이 값이 아니면 전부 "아직"이다 — NULL(모름)도 아직으로 본다(놓치는 쪽보다 낫다).
 CONFIRMED_PLACE_VALUES = ("OK",)
+
+#: 이력 탭 FOMS 축 낱말(계약 §2.4). 칩과 행 배지가 이 dict **한 벌**을 함께 쓴다 —
+#: 두 벌로 적으면 한 화면이 같은 축을 두 낱말로 부른다.
+HISTORY_FOMS_LABELS = {
+    "collected": "받아옴",
+    "linked": "주문 만듦",
+    "closed": "주문 접음",
+    "review": "확인 필요",
+    "failed": "받기 실패",
+}
+
+#: 이력 탭 상태 칩 정의 — ``(질의값, FOMS 축 키, 꼬리)``. 순서가 곧 화면 순서다.
+#: 라벨을 여기 손으로 적지 않는 이유: 칩 라벨이 **배지 낱말에서 파생**돼야
+#: "칩과 행이 같은 낱말을 쓴다"를 계약 테스트가 검증할 수 있다(2026-08-30 CEO 지적 3).
+#: 손으로 두 벌 적으면 칩만 '받아옴 · 주문 전', 배지만 '받아옴' 으로 조용히 갈린다.
+_HISTORY_STATUS_CHIP_SPECS = (
+    ("COLLECTED", "collected", " · 주문 전"),
+    ("LINKED", "linked", ""),
+    ("PENDING_REVIEW", "review", ""),
+    ("FAILED", "failed", ""),
+)
+
+#: 이력 탭 상태 칩(화면 순서). ``(질의값, 화면 낱말)`` 쌍.
+#: **모든 라벨은 대응하는 배지 낱말로 시작한다** — 꼬리는 붙일 수 있어도 앞머리는 못 바꾼다.
+HISTORY_STATUS_CHIPS = tuple(
+    (query, HISTORY_FOMS_LABELS[state] + tail)
+    for query, state, tail in _HISTORY_STATUS_CHIP_SPECS
+)
+
+#: 관계 축 낱말. 이력 집의 ``relation`` 은 **항상 세 값 중 하나**다(신규는 ``NEW``) —
+#: 처리 탭 집(:func:`_group_queue`)이 신규를 빈 문자열로 주는 것과 규약이 다르다.
+#: 화면이 `신규 결제` 배지를 찍어야 하기 때문이다. 두 규약을 서로 옮기지 마라.
+HISTORY_RELATION_LABELS = {"NEW": "신규 결제", "ADDON": "추가결제", "REPAY": "재결제"}
 
 
 def order_has_spec_rows(order: Any) -> bool:
@@ -281,14 +316,741 @@ def _place_pending_group_count(db) -> int:
     )
 
 
+def _dispatch_pending_clause() -> ColumnElement[bool]:
+    """'발송처리 전' 조건 — 우리 표식도 네이버 ``sendDate`` 도 없는 링크.
+
+    부분 인덱스 ``ix_external_order_link_dispatch_pending`` 의 조건식과 **글자까지 같아야**
+    한다. 조건식이 어긋나면 PostgreSQL 이 부분 인덱스를 증명하지 못해 통째로 무시하고,
+    그때 나오는 Seq Scan 은 "선택도가 낮아서"로 오독된다(2026-08-30 CEO 지적 1).
+
+    :data:`models.JSONColumn` 의 베이스 타입이 ``JSON`` 이라(``JSON().with_variant(JSONB,…)``)
+    ``.as_string()`` 이 ``CAST(… AS VARCHAR)`` 를 붙인다 — 인덱스 조건식도 **그 모양**이어야
+    한다. 마이그레이션에 손으로 적지 말고 아래 렌더 결과를 그대로 붙인다::
+
+        coalesce(CAST(((external_order_links.triage_state -> 'fulfillment')
+                       ->> 'dispatched_at') AS VARCHAR), '') = ''
+        AND coalesce(CAST(((external_order_links.raw_snapshot -> 'delivery')
+                       ->> 'sendDate') AS VARCHAR), '') = ''
+
+    (``str(clause.compile(dialect=postgresql.dialect(),
+    compile_kwargs={"literal_binds": True}))`` 로 언제든 다시 뽑을 수 있다.)
+
+    **알려진 어긋남 1개(수용)**: :func:`mapping.extract_delivery` 는 최상위 ``delivery`` 가
+    없으면 ``productOrder.delivery`` → ``order.delivery`` 로 내려가지만 이 SQL 은 최상위만
+    본다. 수집 파이프라인이 저장하는 모양은 최상위라 실데이터는 같다. 경로 셋을
+    ``coalesce`` 로 잇지 않는 이유는 조건식이 세 배로 길어져 "정확히 일치" 규율이 먼저
+    깨지기 때문이다.
+
+    Returns:
+        SQLAlchemy 불리언 식(``and_`` 두 조각).
+    """
+    from sqlalchemy import and_, func
+
+    ours = ExternalOrderLink.triage_state["fulfillment"]["dispatched_at"].as_string()
+    naver = ExternalOrderLink.raw_snapshot["delivery"]["sendDate"].as_string()
+    return and_(func.coalesce(ours, "") == "", func.coalesce(naver, "") == "")
+
+
+def _dispatch_pending_group_count(db) -> int:
+    """'발송처리 전' 묶음 수 — 칩 숫자(다른 칩과 **같은 집 단위**).
+
+    링크 행으로 세면 부분이 전체보다 커 보인다(2026-08-19 스테이징 실화면). 필터는
+    "그 조건 링크가 하나라도 있는 집"을 고르므로(:func:`_link_rows`) 숫자도 같은 술어로
+    ``(묶음키)`` 를 한 번씩만 세야 한다.
+
+    Args:
+        db: 요청 스코프 DB 세션.
+
+    Returns:
+        발송 기록이 아직 없는 링크를 하나 이상 가진 묶음 수.
+    """
+    key_col = _group_key_col()
+    return (
+        db.query(key_col)
+        .filter(ExternalOrderLink.channel == "NAVER", _dispatch_pending_clause())
+        .group_by(key_col)
+        .count()
+    )
+
+
+def _relation_clause() -> ColumnElement[bool]:
+    """추가결제·재결제 링크 조건 — 관계 컬럼 하나로 끝난다(JSONB 를 안 탄다).
+
+    값은 ``CheckConstraint`` 가 이미 막는 닫힌집합이라 그대로 센다.
+
+    Returns:
+        SQLAlchemy 불리언 식(``relation IN ('ADDON','REPAY')``).
+    """
+    return ExternalOrderLink.relation.in_(("ADDON", "REPAY"))
+
+
+def _relation_group_count(db) -> int:
+    """추가결제·재결제 묶음 수 — 칩 숫자(다른 칩과 같은 집 단위).
+
+    Args:
+        db: 요청 스코프 DB 세션.
+
+    Returns:
+        ``relation`` 이 ADDON·REPAY 인 링크를 하나 이상 가진 묶음 수.
+    """
+    key_col = _group_key_col()
+    return (
+        db.query(key_col)
+        .filter(ExternalOrderLink.channel == "NAVER", _relation_clause())
+        .group_by(key_col)
+        .count()
+    )
+
+
+#: 클레임이 없는 링크가 쓰는 반품 축 자리값 — :func:`_return_axis_view` 를 **부르지
+#: 않기 위한** 것이다. 링크마다 부르면 쪽당 50집 × 멤버 수만큼 빈 값을 만드는 헛일이
+#: 붙는다(2026-08-30 CEO 지적 — 링크당 파싱). 키는 이력 표가 읽는 것만 담는다.
+_EMPTY_RETURN_AXIS: dict[str, Any] = {
+    "return_completed_at": "",
+    "refund_expected_at": "",
+    "refund_expected_pending": False,
+    "collect_completed_at": "",
+    "refund_done": False,
+}
+
+
+def _history_member_axes(link: ExternalOrderLink,
+                         summary: dict[str, Any]) -> dict[str, Any]:
+    """이력 멤버(링크) 한 건의 축 원재료 — 집계에 쓸 값만 뽑는다(**추가 쿼리 0**).
+
+    ``claim_label``(이미 실려 있다)·``claim_phase``·``claim_kind`` 는 **같은 링크의 같은**
+    :func:`mapping.extract_claim` **결과**여야 한다. 라벨은 A 링크에서, 단계는 B 링크에서
+    뽑으면 화면이 "취소 요청"이라 적으면서 "확정됨"으로 칠한다(계약 §2.1).
+
+    :func:`extract_claim` 은 :func:`promotion.summarize_snapshot` 안에서 이미 한 번 돈다.
+    여기서 한 번 더 부르는 것은 **순수 파이썬 파싱**이라 쿼리가 0이고, 대신 여러 화면이
+    공유하는 ``summarize_snapshot`` 을 안 건드린다(레인 격리).
+
+    Args:
+        link: 이력 페이지가 **이미 읽어 둔** 링크(여기서 새로 조회하지 않는다).
+        summary: 같은 링크의 :func:`promotion.summarize_snapshot` 결과(재계산 금지).
+            ``claim_label`` 이 비어 있으면 반품 축을 **아예 파싱하지 않는다**.
+
+    Returns:
+        멤버 dict 에 합칠 축 값들 — ``relation``·``claim_*``·``shipping_due``·
+        ``dispatch``(:func:`_dispatch_view` 결과 그대로)·``fulfillment``.
+    """
+    from foms.services.integrations.naver_commerce.mapping import (
+        claim_kind,
+        claim_reason_text,
+        extract_claim,
+    )
+
+    claim = extract_claim(link.raw_snapshot or {})
+    # 반품 축은 **클레임이 있는 링크에만** 판다. 판정에 쓰는 술어(``claim_label``)는
+    # :func:`_history_claim` 이 멤버를 고를 때 쓰는 것과 **같은 값**이라, 라벨을 준 멤버는
+    # 반드시 축도 갖는다(둘이 갈리면 화면이 라벨만 있고 날짜가 없는 집을 만든다).
+    axis = _return_axis_view(link) if summary["claim_label"] else _EMPTY_RETURN_AXIS
+    return {
+        "relation": (link.relation or "").strip().upper(),
+        "claim_phase": claim["phase"],
+        "claim_kind": claim_kind(claim),
+        # 사유는 **코드 라벨**이다 — 목업 확정본의 `단순 변심`·`색상·사이즈 변경` 이
+        # :data:`mapping.CLAIM_REASON_LABELS` 의 낱말이다. 고객이 쓴 원문
+        # (``detailed_reason``)은 길이가 안 정해져 있어 좁은 상태 칸에 못 싣는다 —
+        # 원문은 pane 이 그대로 낸다(축이 다르다).
+        "claim_reason": claim_reason_text(claim["reason"]),
+        # 반품 축 시각 3종 — 이미 KST `YYYY-MM-DD HH:MM` 로 펴진 값이다.
+        # "끝난 뒤의 환불 예정"은 미래형 거짓말이라 확정된 집에서는 빈 값으로 준다.
+        "claim_done_at": axis["return_completed_at"],
+        "claim_refund_expected_at": (axis["refund_expected_at"]
+                                     if axis["refund_expected_pending"] else ""),
+        "claim_collect_done_at": axis["collect_completed_at"],
+        "claim_refund_done": axis["refund_done"],
+        "shipping_due": summary["shipping_due"],
+        # 발송 판정은 **재작성하지 않는다** — pane 과 같은 파서를 그대로 접는다.
+        "dispatch": _dispatch_view(link),
+        "fulfillment": (link.triage_state or {}).get("fulfillment") or {},
+    }
+
+
+def _history_relation(members: list[dict[str, Any]]) -> tuple[str, Optional[int]]:
+    """집의 관계 축 — ``NEW``/``ADDON``/``REPAY`` 와 **그 관계를 정한 멤버**의 주문 id.
+
+    우선순위는 처리 탭(:func:`_group_queue`)과 같다: ``ADDON`` 이 하나라도 있으면 ``ADDON``,
+    없고 ``REPAY`` 가 있으면 ``REPAY``, 아니면 ``NEW``.
+
+    상대 주문번호는 **대표(lead)가 아니라 관계를 정한 그 멤버**에서 뽑는다. 대표는 금액
+    최대 링크라, 형제 일부만 ADDON 인 섞인 집에서는 ``NEW`` 형제일 수 있다. 그러면 화면이
+    "추가결제 → #(엉뚱한 주문번호)"를 찍는데 사람이 눌러서 실제로 들어가는 번호다
+    (2026-08-30 CEO 지적 2). 백필 전 데이터는 형제 일부만 값이 있어 섞인 집이 실재한다.
+
+    Args:
+        members: **대표 먼저** 정렬된 집 멤버 목록.
+
+    Returns:
+        ``(relation, related_order_id)``. ``NEW`` 이거나 관계 멤버에 아직 주문이 없으면
+        두 번째 값은 ``None`` — 그때 화면은 화살표와 번호를 **아예 내지 않는다**(배지 낱말만).
+    """
+    for name in ("ADDON", "REPAY"):
+        matched = [row for row in members if row["relation"] == name]
+        if not matched:
+            continue
+        # 관계 멤버 중 주문이 붙은 첫 건. 전부 미생성이면 번호를 지어내지 않는다.
+        linked = next((row["order_id"] for row in matched if row["order_id"]), None)
+        return (name, int(linked) if linked else None)
+    return ("NEW", None)
+
+
+def _history_fail(members: list[dict[str, Any]]) -> dict[str, str]:
+    """집의 실패 축 — 발주확인·발송처리 공용(계약 §2.3-E).
+
+    ``fulfillment['last_error']`` 가 비어 있지 않은 **첫 멤버**(대표 먼저)를 쓴다. 작업이
+    안 적힌 옛 기록은 ``confirm`` 으로 본다 — :func:`_failure_rows` 와 **같은 규칙**이다
+    (규칙이 두 벌이 되면 같은 실패를 두 화면이 다른 작업 이름으로 부른다).
+
+    Args:
+        members: **대표 먼저** 정렬된 집 멤버 목록.
+
+    Returns:
+        ``{"action", "action_label", "reason", "at"}``. 실패가 없으면 네 값 모두 빈 문자열.
+    """
+    for row in members:
+        state = row["fulfillment"]
+        reason = str(state.get("last_error") or "").strip()
+        if not reason:
+            continue
+        action = str(state.get("last_error_action") or "confirm").strip().lower()
+        action = action if action in FULFILLMENT_ACTION_LABELS else "confirm"
+        return {
+            "action": action,
+            "action_label": FULFILLMENT_ACTION_LABELS[action],
+            "reason": reason,
+            "at": str(state.get("last_error_at") or "")[:16].replace("T", " "),
+        }
+    return {"action": "", "action_label": "", "reason": "", "at": ""}
+
+
+def _history_dispatch(members: list[dict[str, Any]]) -> dict[str, Any]:
+    """집의 발송 축 집계 — :func:`_dispatch_view` 결과를 **그대로 접는다**.
+
+    새 파서를 만들지 않는 이유: 우리 표식과 네이버 ``sendDate`` 를 나란히 놓는 규칙이 두
+    벌이 되면 pane 과 이력 표가 서로 다른 발송 사실을 말한다.
+
+    Args:
+        members: 집 멤버 목록(순서 무관 — 전부 합·최솟값·any 다).
+
+    ``mismatch_ours_at`` 을 ``ours_at`` 과 **따로** 센다: 경고 줄이 둘을 한 문장에 붙이는데,
+    멤버가 [정상 발송 09:00, 어긋남 16:02] 이면 접힌 ``ours_at`` 은 09:00 이고 화면은
+    **네이버가 기록한 그 09:00** 을 "네이버 기록 없음" 이라 말한다(2026-08-30 CEO 지적).
+    되돌릴 수 없는 호출의 유실 자리를 가리키는 문장이라 틀린 시각이 특히 나쁘다.
+
+    Returns:
+        ``{"done_count", "total", "ours_at", "naver_at", "mismatch", "mismatch_ours_at"}``.
+        시각은 빈 값이 아닌 것 중 **가장 이른 값**이고, 하나도 없으면 빈 문자열.
+    """
+    views = [row["dispatch"] for row in members]
+    ours = [view["ours_at"] for view in views if view["ours_at"]]
+    naver = [view["naver_at"] for view in views if view["naver_at"]]
+    mismatch_ours = [view["ours_at"] for view in views
+                     if view["mismatch"] and view["ours_at"]]
+    return {
+        "done_count": sum(1 for view in views if view["ours_at"] or view["naver_at"]),
+        "total": len(members),
+        "ours_at": min(ours) if ours else "",
+        "naver_at": min(naver) if naver else "",
+        # 우리는 보냈다는데 네이버가 침묵하는 링크가 하나라도 있으면 집 전체에 표식을 단다.
+        "mismatch": any(view["mismatch"] for view in views),
+        # 경고 줄이 쓰는 유일한 시각 — **어긋난 그 링크**의 우리 발송 시각이다.
+        "mismatch_ours_at": min(mismatch_ours) if mismatch_ours else "",
+    }
+
+
+def _history_shipping_due(members: list[dict[str, Any]]) -> dict[str, Any]:
+    """집의 발송기한 — 멤버 중 **가장 이른 기한**(계약 §2.2).
+
+    처리 탭(:func:`_group_queue`)은 ``next()``(첫 값)를 쓰지만 이력은 가장 이른 값이다 —
+    이력은 "이 집이 언제까지였나"를 묻는 화면이라 제일 급한 날짜가 답이다.
+
+    Args:
+        members: 집 멤버 목록(순서 무관).
+
+    날짜는 **한 번만** 판다. 예전에는 초과일수만 ``try`` 로 감싸고 표시값은 무방비
+    슬라이스(``due[5:]``)라, ``due='20260902'`` 같은 값이 오면 화면에 `발송기한 902` 가
+    찍혔다 — 못 읽는 값을 "지났다"고 단정하지 않겠다는 의도가 옆 필드에서 샜다
+    (2026-08-30 CEO 지적). 못 읽으면 **표시값도 빈 값**이고 원문은 ``shipping_due`` 에
+    그대로 남는다.
+
+    Returns:
+        ``{"shipping_due"(원문 그대로), "shipping_due_text"(MM-DD|""),
+        "shipping_due_over_days"(int, 음수는 0)}``.
+    """
+    dues = [row["shipping_due"] for row in members if row["shipping_due"]]
+    due = min(dues) if dues else ""
+    parsed: Optional[datetime.date] = None
+    if due:
+        try:
+            parsed = datetime.date.fromisoformat(due)
+        except (TypeError, ValueError):
+            parsed = None
+    if parsed is None:
+        return {"shipping_due": due, "shipping_due_text": "", "shipping_due_over_days": 0}
+    return {"shipping_due": due, "shipping_due_text": parsed.strftime("%m-%d"),
+            "shipping_due_over_days": max(0, (get_today_kst() - parsed).days)}
+
+
+def _history_foms_state(lead: dict[str, Any], statuses: list[str]) -> str:
+    """집의 FOMS 축 상태(계약 §2.3-A) — 위에서부터 먼저 맞는 것.
+
+    3번(``closed``)은 :func:`_link_rows` 가 **이미 읽어 둔** ``Order`` 객체로 판정한다
+    (추가 쿼리 0). 그 조회는 soft delete 를 안 거르므로 삭제된 주문도 객체로 잡히는데,
+    화면이 그것을 ``주문 만듦`` 이라 말하면 접힌 주문이 살아 있는 것처럼 보인다.
+
+    Args:
+        lead: 대표 멤버 dict(``order_id``·``_order`` 를 읽는다).
+        statuses: 집 안 링크 상태 목록(중복 제거된 것).
+
+    Returns:
+        :data:`HISTORY_FOMS_LABELS` 의 키 하나.
+    """
+    if "FAILED" in statuses:
+        return "failed"
+    if "PENDING_REVIEW" in statuses:
+        return "review"
+    if not lead["order_id"]:
+        return "collected"
+    order = lead["_order"]
+    # ``status``·``deleted_at`` 은 :class:`models.Order` 의 **실제 컬럼**이라 기본값이
+    # 붙는 ``getattr`` 은 영영 안 쓰이고, 컬럼 이름이 바뀌면 예외 대신 조용히
+    # ``linked`` 로 떨어진다(2026-08-30 CEO 지적). 없을 수 있는 것은 주문 자체뿐이다.
+    if order is None or str(order.status or "").upper() == "DELETED" or order.deleted_at:
+        return "closed"
+    return "linked"
+
+
+def _history_claim(members: list[dict[str, Any]]) -> dict[str, Any]:
+    """집의 취소·반품 축 — **라벨을 준 그 멤버**의 단계·종류·사유를 함께 가져온다.
+
+    라벨은 A 링크, 단계는 B 링크에서 뽑으면 화면이 "취소 요청"이라 적으면서 "확정됨"으로
+    칠한다(계약 §2.1). 그래서 멤버를 먼저 고르고 그 멤버에서 전부 뽑는다.
+
+    날짜·사유는 순수 파싱이라 **추가 쿼리가 0**이다(목업 확정본의 ``반품 완료 08-26`` ·
+    ``단순 변심 · 환불 예정 08-30`` 이 이 값들이다 — 2026-08-30 CEO 지적 4).
+
+    Args:
+        members: 집 멤버 목록. 순서는 **기존 ``claim_label`` 선택과 같아야** 한다
+            (표시 순서 그대로 — 대표 먼저로 바꾸면 라벨이 조용히 다른 건으로 바뀐다).
+
+    Returns:
+        ``{"label","phase","kind","reason","done_text","refund_expected_text",
+        "collect_done_text","refund_done"}``. 클레임이 없으면 문자열은 전부 빈 값이다.
+    """
+    row = next((row for row in members if row["claim_label"]), None)
+    if row is None:
+        return {"label": "", "phase": "", "kind": "", "reason": "",
+                "done_text": "", "refund_expected_text": "", "collect_done_text": "",
+                "refund_done": False}
+    return {
+        "label": row["claim_label"],
+        "phase": row["claim_phase"],
+        "kind": row["claim_kind"],
+        "reason": row["claim_reason"],
+        # `YYYY-MM-DD HH:MM` → `MM-DD`. 날짜로 못 읽으면 빈 문자열이라 화면이 줄을 안 낸다
+        # (슬라이스로 자르면 원문 그대로 온 값이 잘려 거짓 날짜가 된다 — CEO 지적 7).
+        "done_text": _history_month_day(row["claim_done_at"]),
+        "refund_expected_text": _history_month_day(row["claim_refund_expected_at"]),
+        "collect_done_text": _history_month_day(row["claim_collect_done_at"]),
+        "refund_done": row["claim_refund_done"],
+    }
+
+
+def _history_pipe_note(*, fail: dict[str, Any], dispatch_state: str,
+                       dispatch: dict[str, Any], due: dict[str, Any]) -> tuple[str, str]:
+    """파이프 옆 부속 문구 ``(종류, 낱말)`` — 위에서부터 먼저 맞는 것 **하나만**(계약 §3.2).
+
+    판정표와 같은 이유로 서버가 정한다: 템플릿 ``{% elif %}`` 사슬에 두면 HTML 문자열
+    매칭 말고는 시험할 방법이 없다(2026-08-30 CEO 지적 4 — 판정을 옮기고도 이 다섯 줄이
+    템플릿에 남아 있었다).
+
+    Args:
+        fail: :func:`_history_fail` 결과.
+        dispatch_state: :func:`_history_dispatch_step` 이 정한 상태 키.
+        dispatch: :func:`_history_dispatch` 결과.
+        due: :func:`_history_shipping_due` 결과.
+
+    Returns:
+        ``(종류, 낱말)``. 종류는 ``when``(문장 톤) · ``over``(빨강 배지) · ``""``(안 낸다).
+    """
+    if fail["action"] in ("confirm", "dispatch") and fail["at"]:
+        return ("when", fail["at"])
+    if dispatch_state == "done" and dispatch["naver_at"]:
+        # 우리 기록이 함께 있으면 우리가 보낸 것이고, 없으면 판매자센터에서 직접 나간 것이다.
+        tail = "네이버 확인됨" if dispatch["ours_at"] else "판매자센터에서 직접"
+        return ("when", f"{dispatch['naver_at']} · {tail}")
+    if dispatch_state == "done":
+        return ("", "")
+    if due["shipping_due_over_days"] > 0:
+        return ("over", f"발송기한 {due['shipping_due_over_days']}일 지남")
+    if due["shipping_due_text"]:
+        return ("when", f"발송기한 {due['shipping_due_text']}")
+    return ("", "")
+
+
+def _history_place_step(*, done: int, total: int, fail_action: str) -> tuple[str, str]:
+    """발주확인 칸의 ``(상태 키, 낱말)`` — 위에서부터 먼저 맞는 것 하나(계약 §2.3-B).
+
+    판정을 템플릿 ``{% set %}`` 사슬에 두면 HTML 문자열 매칭 말고는 시험할 방법이 없고,
+    같은 부품이 처리 탭·도크에 실릴 때 판정이 두 벌이 된다(2026-08-30 CEO 지적).
+    낱말은 목업 확정본이 정본이라 **한 글자도 바꾸지 않는다**.
+
+    Args:
+        done: 집 안 발주확인 완료 링크 수.
+        total: 집 안 링크 수.
+        fail_action: :func:`_history_fail` 이 준 작업 이름(``confirm``·``dispatch``·…).
+
+    Returns:
+        ``(상태 키, 화면 낱말)``. 상태 키는 레인 B 의 ``.wb-pipe__s--*`` 와 짝이다.
+    """
+    if fail_action == "confirm":
+        return ("bad", "발주확인 실패")
+    if done == total:
+        # 여러 건이 묶인 집만 N/M 을 붙인다 — `1/1` 은 세는 재미밖에 없다.
+        return ("done", f"발주확인 완료 {done}/{total}" if total > 1 else "발주확인 완료")
+    if done > 0:
+        return ("now", f"발주확인 {done}/{total}")
+    return ("now", "발주확인 할 차례")
+
+
+def _history_dispatch_step(*, dispatch: dict[str, Any], moot: bool, fail_action: str,
+                           place_done: int, place_total: int) -> tuple[str, str]:
+    """발송 칸의 ``(상태 키, 낱말)`` — 위에서부터 먼저 맞는 것 하나(계약 §2.3-C).
+
+    완료를 **글자로** 낸다: "배지가 없으면 완료" 는 화면 규칙을 외운 사람만 읽는다.
+    ``moot`` 인 집은 ``발송 안 함``(회색)이다 — ``발송처리 할 차례``(주황)로 두면
+    "지금 해라"는 뜻이 되어 되돌릴 수 없는 호출을 부른다.
+
+    Args:
+        dispatch: :func:`_history_dispatch` 결과.
+        moot: 클레임이 걸려 이제 발송이 안 나가는 집인가(:func:`_history_naver_axis`).
+        fail_action: :func:`_history_fail` 이 준 작업 이름.
+        place_done: 집 안 발주확인 완료 링크 수.
+        place_total: 집 안 링크 수.
+
+    Returns:
+        ``(상태 키, 화면 낱말)``. ``todo`` 는 **회색 이름만** 내는 자리라 클래스가 없다.
+    """
+    done, total = dispatch["done_count"], dispatch["total"]
+    if fail_action == "dispatch":
+        return ("bad", "발송처리 실패")
+    if dispatch["mismatch"]:
+        return ("bad", "네이버 기록 없음")
+    if moot:
+        return ("skip", "발송 안 함")
+    if done == total and done > 0:
+        return ("done", f"발송처리 완료 {done}/{total}" if total > 1 else "발송처리 완료")
+    if done > 0:
+        return ("now", f"발송처리 {done}/{total}")
+    if place_done == place_total:
+        return ("now", "발송처리 할 차례")
+    return ("todo", "발송처리")
+
+
+#: 클레임 배지에 붙는 미확정 꼬리(목업 `취소 요청 · 확정 전`). 네이버가 아직 확정하지
+#: 않은 두 단계에만 붙고, 라벨 자체는 손대지 않는다 — 정본은 ``CLAIM_STATUS_LABELS`` 다.
+_CLAIM_UNSETTLED_TAIL = " · 확정 전"
+
+#: 수거 완료 배지 낱말(``CLAIM_STATUS_LABELS['COLLECT_DONE']``). 꼬리와 겹치는지 볼 때 쓴다.
+_CLAIM_COLLECT_DONE_LABEL = "수거 완료"
+
+
+def _history_month_day(value: str) -> str:
+    """``YYYY-MM-DD HH:MM`` 을 ``MM-DD`` 로 줄인다 — **읽히는 값만**.
+
+    :func:`_history_shipping_due` 가 이미 같은 함정을 한 번 밟았다(2026-08-30 CEO 지적 7):
+    ``[5:10]`` 슬라이스는 날짜가 아닌 값도 잘라 낸다. 시각은 못 읽으면 원문을 그대로
+    남기는 규약이라(:func:`_dispatch_time_text`) ``PENDING_REFUND_2026`` 같은 원문이
+    그대로 올 수 있고, 그때 화면은 ``반품 완료 NG_RE`` 라고 적는다.
+
+    Args:
+        value: ``_dispatch_time_text`` 가 준 문자열(빈 값·원문일 수 있다).
+
+    Returns:
+        ``MM-DD``. 날짜로 못 읽으면 빈 문자열 — 화면은 그 조각을 통째로 안 낸다.
+    """
+    text = (value or "").strip()
+    if len(text) < 10:
+        return ""
+    try:
+        parsed = datetime.date.fromisoformat(text[:10])
+    except (TypeError, ValueError):
+        return ""
+    return parsed.strftime("%m-%d")
+
+
+def _history_claim_text(claim: dict[str, Any]) -> tuple[str, str]:
+    """취소·반품 줄이 찍는 두 문자열 — 배지 낱말과 그 뒤 작은 글자(계약 §3.3).
+
+    목업 확정본이 정본이다: 배지는 `반품 완료 08-26` 처럼 **확정 라벨 뒤에 날짜**를 달고,
+    작은 글자는 `단순 변심 · 환불 예정 08-30` · `수거 완료 08-25 · 환불 완료` 처럼
+    사유·수거·환불 조각을 잇는다. 서버가 조립하는 이유는 판정표와 같다 — 템플릿에 두면
+    HTML 문자열 매칭 말고는 시험할 방법이 없다(2026-08-30 CEO 지적 4).
+
+    **값이 있는 조각만 낸다.** 빈 조각을 빈 칸이나 ``–`` 로 채우면 "값이 없다"와 "우리가
+    모른다"가 화면에서 같은 모양이 된다. 날짜는 **확정된 건에만** 붙인다 — 미확정 건에
+    붙이면 아직 안 끝난 일에 끝난 날짜를 적는 셈이다.
+
+    Args:
+        claim: :func:`_history_claim` 결과.
+
+    Returns:
+        ``(배지 낱말, 작은 글자)``. 클레임이 없으면 둘 다 빈 문자열이다.
+    """
+    from foms.services.integrations.naver_commerce.mapping import (
+        CLAIM_PHASE_PROGRESS,
+        CLAIM_PHASE_REQUESTED,
+    )
+
+    if not claim["label"]:
+        return ("", "")
+    badge = claim["label"]
+    collect_text = claim["collect_done_text"]
+    # `수거 완료` 집은 배지 낱말이 이미 그 사건이다. 꼬리에 `수거 완료 08-25` 를 또 적으면
+    # 한 줄에 같은 낱말이 두 번 선다(2026-08-30 CEO 지적 3). 날짜는 배지로 올리고 꼬리에서
+    # 뺀다 — 그 날짜는 **끝난 하위 사건의 시각**이라 미확정 건에 붙어도 거짓이 아니다.
+    collect_on_badge = bool(collect_text) and badge.startswith(_CLAIM_COLLECT_DONE_LABEL)
+    if collect_on_badge:
+        badge += " " + collect_text
+    if claim["phase"] in (CLAIM_PHASE_REQUESTED, CLAIM_PHASE_PROGRESS):
+        badge += _CLAIM_UNSETTLED_TAIL
+    elif claim["done_text"]:
+        badge += " " + claim["done_text"]
+    parts = [part for part in (
+        claim["reason"],
+        f"수거 완료 {collect_text}" if collect_text and not collect_on_badge else "",
+        f"환불 예정 {claim['refund_expected_text']}" if claim["refund_expected_text"] else "",
+        "환불 완료" if claim["refund_done"] else "",
+    ) if part]
+    return (badge, " · ".join(parts))
+
+
+def _history_naver_axis(*, place_done_count: int, dispatch: dict[str, Any],
+                        fail: dict[str, str], claim: dict[str, Any],
+                        statuses: list[str]) -> dict[str, bool]:
+    """네이버 축의 두 예외 판정(계약 §2.3-C·D).
+
+    - ``dispatch_moot``: 발송이 0건인데 클레임이 걸려 **더 안 나가는** 집.
+      ``발송처리 할 차례``(주황)로 두면 "지금 해라"는 뜻이 되어 되돌릴 수 없는 호출을 부른다.
+    - ``naver_skipped``: 네이버 축에 말할 것이 **아예 없는** 집 — 수집 자체가 실패했거나,
+      발주확인·발송 전에 취소가 확정됐다. 반대로 발주확인·발송이 이미 있었던 집(반품 완료)은
+      파이프를 그대로 낸다 — 그 일은 실제로 일어났다.
+
+    Args:
+        place_done_count: 집 안 발주확인 완료 링크 수.
+        dispatch: :func:`_history_dispatch` 결과.
+        fail: :func:`_history_fail` 결과.
+        claim: :func:`_history_claim` 결과.
+        statuses: 집 안 링크 상태 목록(중복 제거된 것).
+
+    Returns:
+        ``{"dispatch_moot": bool, "naver_skipped": bool}``.
+    """
+    from foms.services.integrations.naver_commerce.mapping import (
+        CLAIM_PHASE_DONE,
+        CLAIM_PHASE_PROGRESS,
+        CLAIM_PHASE_REQUESTED,
+    )
+
+    phase = claim["phase"]
+    moot = dispatch["done_count"] == 0 and phase in (
+        CLAIM_PHASE_REQUESTED, CLAIM_PHASE_PROGRESS, CLAIM_PHASE_DONE)
+    quiet = (place_done_count == 0 and dispatch["done_count"] == 0
+             and not fail["action"]) and (
+        all(status == "FAILED" for status in statuses)
+        or (phase == CLAIM_PHASE_DONE and claim["kind"] in ("CANCEL", "RETURN")))
+    return {"dispatch_moot": moot, "naver_skipped": quiet}
+
+
+def _history_pipe_fields(*, group_size: int, place_done_count: int,
+                         dispatch: dict[str, Any], fail: dict[str, str],
+                         naver_axis: dict[str, bool],
+                         due: dict[str, Any]) -> dict[str, Any]:
+    """네이버 파이프 두 칸이 행에 싣는 필드 한 벌 — **재료와 판정 결과를 함께** 준다.
+
+    판정(``*_state``·``*_text``)을 재료 옆에서 만드는 이유: 둘이 떨어지면 재료만 보고
+    화면 낱말을 다시 짐작하는 코드가 다른 곳에 생긴다(그 짐작이 템플릿 ``{% set %}``
+    사슬이었다 — 2026-08-30 CEO 지적).
+
+    Args:
+        group_size: 집 안 링크 수(발주확인·발송 분모).
+        place_done_count: 집 안 발주확인 완료 링크 수.
+        dispatch: :func:`_history_dispatch` 결과.
+        fail: :func:`_history_fail` 결과.
+        naver_axis: :func:`_history_naver_axis` 결과.
+
+    Returns:
+        ``place_*``·``dispatch_*``·``naver_skipped`` 필드 dict.
+    """
+    place_state, place_text = _history_place_step(
+        done=place_done_count, total=group_size, fail_action=fail["action"])
+    dispatch_state, dispatch_text = _history_dispatch_step(
+        dispatch=dispatch, moot=naver_axis["dispatch_moot"], fail_action=fail["action"],
+        place_done=place_done_count, place_total=group_size)
+    note_kind, note_text = _history_pipe_note(
+        fail=fail, dispatch_state=dispatch_state, dispatch=dispatch, due=due)
+    return {
+        # 발주확인 N/M — ``place_pending`` 과 **같은 재료**로 센다
+        # (``place_pending == (place_done_count < place_total)`` 이 항상 참이어야 한다).
+        "place_done_count": place_done_count,
+        "place_total": group_size,
+        "place_state": place_state,
+        "place_text": place_text,
+        # 발송 두 시각(가장 이른 값) + 어긋남. N/M 은 `dispatch_text` 안에 이미 들어 있어
+        # 행에 또 싣지 않는다 — 읽는 곳 없는 값을 남기면 다음 사람이 화면에 있다고 오독한다.
+        "dispatch_ours_at": dispatch["ours_at"],
+        "dispatch_naver_at": dispatch["naver_at"],
+        "dispatch_mismatch": dispatch["mismatch"],
+        # 경고 줄 전용 시각 — **어긋난 그 링크**의 것이다. ``dispatch_ours_at`` 을 쓰면
+        # 정상 발송된 형제의 시각을 "네이버 기록 없음" 이라 말한다.
+        "dispatch_mismatch_ours_at": dispatch["mismatch_ours_at"],
+        "dispatch_state": dispatch_state,
+        "dispatch_text": dispatch_text,
+        # 파이프 옆 부속 문구 — 종류는 템플릿이 CSS 클래스로만 옮긴다.
+        "pipe_note_kind": note_kind,
+        "pipe_note_text": note_text,
+        "naver_skipped": naver_axis["naver_skipped"],
+    }
+
+
+def _history_group_axes(group: list[dict[str, Any]], *, lead: dict[str, Any],
+                        ordered: list[dict[str, Any]],
+                        statuses: list[str]) -> dict[str, Any]:
+    """상태 칸이 읽는 축 필드 한 벌(계약 §2.2) — 재료는 **이 집의 멤버뿐**이다.
+
+    집계를 행 조립에서 떼어 놓는 이유: 축이 늘어날 때마다 행 dict 이 부풀면 "무엇이
+    기존 필드고 무엇이 새 축인지"가 안 보이고, 축끼리의 판정 순서(실패 > 어긋남 > 해당
+    없음)가 dict 리터럴 사이에 흩어진다.
+
+    **판정 결과를 싣는다**(재료가 아니라): 발주확인·발송 칸의 상태 키와 낱말, 취소·반품
+    줄의 두 문자열이 전부 여기서 정해진다. 템플릿은 상태 키 → CSS 클래스 대응만 한다
+    (계약 §5 의 "레인 C 가 매핑" 은 클래스 대응을 뜻하지 판정 자체를 뜻하지 않는다).
+
+    Args:
+        group: 집 멤버 목록(**표시 순서 그대로** — 클레임 라벨 선택이 이 순서에 걸린다).
+        lead: 대표(금액 최대) 멤버.
+        ordered: **대표 먼저** 정렬한 같은 멤버 목록(관계·실패가 이 순서를 쓴다).
+        statuses: 집 안 링크 상태 목록(중복 제거된 것).
+
+    Returns:
+        행 dict 에 그대로 합칠 축 필드들(``foms_*``·``relation*``·``place_*``·
+        ``dispatch_*``·``fail``·``claim_*``·``shipping_due*``).
+    """
+    claim = _history_claim(group)
+    fail = _history_fail(ordered)
+    dispatch = _history_dispatch(group)
+    due = _history_shipping_due(group)
+    relation, related_order_id = _history_relation(ordered)
+    place_done_count = sum(1 for row in group if row["place_confirmed"])
+    foms_state = _history_foms_state(lead, statuses)
+    naver_axis = _history_naver_axis(place_done_count=place_done_count, dispatch=dispatch,
+                                     fail=fail, claim=claim, statuses=statuses)
+    claim_badge_text, claim_tail_text = _history_claim_text(claim)
+    return {
+        # FOMS 축. 라벨은 **서버가 실어** 준다 — 템플릿이 dict 를 다시 뒤지지 않는다.
+        "foms_state": foms_state,
+        "foms_label": HISTORY_FOMS_LABELS[foms_state],
+        # 관계 축. 이력 집은 신규도 ``NEW`` 다(처리 탭 집은 빈 문자열 — 규약이 다르다).
+        "relation": relation,
+        "relation_label": HISTORY_RELATION_LABELS[relation],
+        "related_order_id": related_order_id,
+        # 네이버 파이프(발주확인·발송) 재료 + 판정 결과.
+        **_history_pipe_fields(group_size=len(group), place_done_count=place_done_count,
+                               dispatch=dispatch, fail=fail, naver_axis=naver_axis,
+                               due=due),
+        # 실패 축(발주확인·발송처리 공용). 실패가 없으면 네 값 모두 빈 문자열.
+        "fail": fail,
+        # 취소·반품 축 — 라벨·단계·사유가 전부 **같은 멤버**에서 나온 값들이다.
+        # 화면이 읽는 것은 아래 넷뿐이다. 원재료(사유 코드·시각 3종)를 행에 또 실으면
+        # 아무도 안 읽는 값이 되고, 다음 사람이 "화면에 이미 있다"고 오독한다.
+        "claim_label": claim["label"],
+        "claim_phase": claim["phase"],
+        "claim_badge_text": claim_badge_text,
+        "claim_tail_text": claim_tail_text,
+        # 발송기한 — 멤버 중 **가장 이른** 값. 원문(`shipping_due`)은 행에 싣지 않는다:
+        # 화면이 읽는 것은 아래 둘뿐이다.
+        "shipping_due_text": due["shipping_due_text"],
+        "shipping_due_over_days": due["shipping_due_over_days"],
+    }
+
+
+def _history_group_row(group: list[dict[str, Any]]) -> dict[str, Any]:
+    """집(묶음) 하나를 이력 표의 **한 줄**로 접는다 — 재료는 ``group`` 뿐(추가 쿼리 0).
+
+    Args:
+        group: 한 집의 멤버 dict 목록(:func:`_link_rows` 가 이미 만들어 둔 것).
+
+    Returns:
+        이력 표 한 행. 기존 필드 + :func:`_history_group_axes` 의 축 필드.
+    """
+    # 대표(본품) = 금액 최대. 0원 구성이 제목이 되면 무슨 주문인지 알 수 없다.
+    lead = max(group, key=lambda row: (row["amount"] or 0, -row["id"]))
+    rest = [row for row in group if row["id"] != lead["id"]]
+    amounts = [row["amount"] for row in group if row["amount"] is not None]
+    quantities = [row["quantity"] for row in group if row["quantity"] is not None]
+    pending = [row for row in group if not row["order_id"]
+               and row["sync_status"] in ("COLLECTED", "PENDING_REVIEW")]
+    # 묶음 안 상태를 중복 없이(표시 순서 유지) — 한 집에 성공/실패가 섞일 수 있다.
+    statuses = list(dict.fromkeys(row["sync_status"] for row in group))
+    return {
+        "id": lead["id"],
+        "external_id": lead["external_id"],
+        "external_order_no": lead["external_order_no"],
+        "sync_status": lead["sync_status"],
+        "created_at": lead["created_at"],
+        "order_id": lead["order_id"],
+        "customer_name": lead["customer_name"],
+        "product": lead["product"],
+        "quantity": sum(quantities) if quantities else None,
+        "amount": sum(amounts) if amounts else None,
+        "payment": lead["payment"],
+        "discount_total": sum(row["payment"]["discount"] for row in group),
+        # 승격은 집 단위다 — 한 건이라도 취소·반품이면 promote_link_to_order 가 막는다
+        # (promotion.py). 화면도 같은 판정으로 버튼을 잠가야 헛클릭이 안 난다.
+        "claim_blocking": any(row["claim_blocking"] for row in group),
+        # 발주확인은 상품주문 단위라 한 건만 남아도 그 집은 아직 끝난 게 아니다(T16-A).
+        "place_pending": any(not row["place_confirmed"] for row in group),
+        "failure_reason": next((row["failure_reason"] for row in group
+                                if row["failure_reason"]), ""),
+        "count": len(group),
+        "extra_count": len(rest),
+        "statuses": statuses,
+        **_history_group_axes(group, lead=lead, ordered=[lead, *rest],
+                              statuses=statuses),
+        "pending_link_id": pending[0]["id"] if pending else None,
+        "pending_count": len(pending),
+        "next_step": ("주문 만들기" if pending
+                      else ("규격 입력" if lead["order_id"]
+                            and not order_has_spec_rows(lead["_order"]) else "")),
+        # 펼침 목록도 대표 먼저(map_group·도크·확인 화면과 같은 순서 규칙).
+        "members": [lead, *rest],
+    }
+
+
 def _link_rows(db, *, status: Optional[str], page: int,
-               place_pending: bool = False) -> tuple[list[dict], int]:
+               place_pending: bool = False, dispatch_pending: bool = False,
+               relation_filter: bool = False) -> tuple[list[dict], int]:
     """수집 이력을 **한 집 = 한 줄**로 묶어 돌려준다(T14-H).
 
     페이지는 묶음(네이버 주문번호) 단위로 센다 — 상품주문 단위로 자르면 페이지 끝에서 한
     집의 일부만 보인다. 상태 필터는 **묶음 선정에만** 쓰고, 뽑힌 묶음의 상품주문은 상태와
     무관하게 전부 싣는다(2026-08-18 사용자 확정: "해당 줄이 하나라도 있으면 보이기" —
     문제가 어느 집에서 났는지 맥락까지 보여야 한다).
+
+    상태 칸이 읽는 축 필드(관계·발주확인/발송 N/M·어긋남·실패·클레임·발송기한)는 **이미
+    읽은 페이지 링크로만** 만든다 — 추가 쿼리 0. 행마다 도는 함수(``origin_facts`` ·
+    ``find_ghost_orders`` · ``find_order_candidates``)는 여기서 부르지 않는다(계약 §8).
+
+    Args:
+        db: 요청 스코프 DB 세션.
+        status: 수집 상태 필터(:data:`VALID_STATUSES`) 또는 ``None``.
+        page: 1부터 세는 쪽 번호.
+        place_pending: '발주확인 남음' 칩.
+        dispatch_pending: '발송처리 남음' 칩(:func:`_dispatch_pending_clause`).
+        relation_filter: '추가결제·재결제' 칩(:func:`_relation_clause`).
 
     Returns:
         ``(묶음 목록, 묶음 총 개수)``.
@@ -306,6 +1068,11 @@ def _link_rows(db, *, status: Optional[str], page: int,
     if place_pending:
         # 상태 필터와 같은 규약: "해당 링크가 하나라도 있는 집"을 고른다.
         key_query = key_query.filter(_place_pending_clause())
+    if dispatch_pending:
+        # 같은 규약 — 발송 기록이 아직 없는 링크가 하나라도 있으면 그 집을 고른다.
+        key_query = key_query.filter(_dispatch_pending_clause())
+    if relation_filter:
+        key_query = key_query.filter(_relation_clause())
     key_query = key_query.group_by(key_col)
 
     total = key_query.count()
@@ -380,53 +1147,13 @@ def _link_rows(db, *, status: Optional[str], page: int,
             "claim_blocking": summary["claim_blocking"],
             "place_confirmed": _place_view(link)["confirmed"],
             "place_label": _place_view(link)["label"],
+            # 상태 칸이 쓰는 축 원재료(관계·클레임 단계·발송·실패·발송기한).
+            # 화면은 멤버를 직접 안 읽는다 — 아래 집계의 재료다(계약 §2.1).
+            **_history_member_axes(link, summary),
             "_order": order,
         })
 
-    rows = []
-    for key in order_of_key:
-        group = members[key]
-        # 대표(본품) = 금액 최대. 0원 구성이 제목이 되면 무슨 주문인지 알 수 없다.
-        lead = max(group, key=lambda row: (row["amount"] or 0, -row["id"]))
-        rest = [row for row in group if row["id"] != lead["id"]]
-        amounts = [row["amount"] for row in group if row["amount"] is not None]
-        quantities = [row["quantity"] for row in group if row["quantity"] is not None]
-        pending = [row for row in group if not row["order_id"]
-                   and row["sync_status"] in ("COLLECTED", "PENDING_REVIEW")]
-        lead_order = lead["_order"]
-        rows.append({
-            "id": lead["id"],
-            "external_id": lead["external_id"],
-            "external_order_no": lead["external_order_no"],
-            "sync_status": lead["sync_status"],
-            "created_at": lead["created_at"],
-            "order_id": lead["order_id"],
-            "customer_name": lead["customer_name"],
-            "product": lead["product"],
-            "quantity": sum(quantities) if quantities else None,
-            "amount": sum(amounts) if amounts else None,
-            "payment": lead["payment"],
-            "discount_total": sum(row["payment"]["discount"] for row in group),
-            "claim_label": next((row["claim_label"] for row in group if row["claim_label"]), ""),
-            # 승격은 집 단위다 — 한 건이라도 취소·반품이면 promote_link_to_order 가 막는다
-            # (promotion.py). 화면도 같은 판정으로 버튼을 잠가야 헛클릭이 안 난다.
-            "claim_blocking": any(row["claim_blocking"] for row in group),
-            # 발주확인은 상품주문 단위라 한 건만 남아도 그 집은 아직 끝난 게 아니다(T16-A).
-            "place_pending": any(not row["place_confirmed"] for row in group),
-            "failure_reason": next((row["failure_reason"] for row in group
-                                    if row["failure_reason"]), ""),
-            "count": len(group),
-            "extra_count": len(rest),
-            # 묶음 안 상태를 중복 없이(표시 순서 유지) — 한 집에 성공/실패가 섞일 수 있다.
-            "statuses": list(dict.fromkeys(row["sync_status"] for row in group)),
-            "pending_link_id": pending[0]["id"] if pending else None,
-            "pending_count": len(pending),
-            "next_step": ("주문 만들기" if pending
-                          else ("규격 입력" if lead["order_id"]
-                                and not order_has_spec_rows(lead_order) else "")),
-            # 펼침 목록도 대표 먼저(map_group·도크·확인 화면과 같은 순서 규칙).
-            "members": [lead, *rest],
-        })
+    rows = [_history_group_row(members[key]) for key in order_of_key]
     return (rows, total)
 
 
@@ -1707,19 +2434,34 @@ def _history_view(db) -> dict[str, Any]:
     Args:
         db: 요청 스코프 DB 세션.
 
+    칩은 8개다: 전체 · 상태 4종(:data:`HISTORY_STATUS_CHIPS`) · 발주확인 남음 ·
+    **발송처리 남음** · **추가결제·재결제**. 새 칩 둘의 숫자도 다른 칩과 **같은 집 단위**다 —
+    링크 행으로 세면 부분이 전체보다 커 보인다(2026-08-19 스테이징 실화면).
+
+    ``네이버 기록 없음`` 은 칩으로 만들지 않는다: 판정이 ``raw_snapshot`` 파생값(mismatch)이라
+    SQL 로 못 거르고, 쪽을 자른 뒤 파이썬으로 세면 ``total``·``pages`` 가 거짓말이 된다
+    (캡 뒤 파이썬 분류 함정). **행 배지로만** 둔다.
+
     Returns:
-        ``rows``·``total``·``page``·``page_size``·``status``·``place_pending``·``counts`` 를 담은 dict.
+        ``rows``·``total``·``page``·``page_size``·``status``·``place_pending``·
+        ``dispatch_pending``·``relation_filter``·``counts``·``status_chips`` 와
+        칩 숫자 3종을 담은 dict.
     """
     status = (request.args.get("status") or "").strip().upper()
     status = status if status in VALID_STATUSES else ""
     place_pending = (request.args.get("place") or "").strip().upper() == "PENDING"
+    # 읽기 규약은 기존과 같다 — 닫힌집합이고 모르는 값은 무시한다(필터가 조용히 안 걸린다).
+    dispatch_pending = (request.args.get("dispatch") or "").strip().upper() == "PENDING"
+    relation_filter = (request.args.get("rel") or "").strip().upper() == "ADDON_REPAY"
     try:
         page = max(1, int(request.args.get("page", 1)))
     except (TypeError, ValueError):
         page = 1
 
     rows, total = _link_rows(db, status=status or None, page=page,
-                             place_pending=place_pending)
+                             place_pending=place_pending,
+                             dispatch_pending=dispatch_pending,
+                             relation_filter=relation_filter)
     return {
         "rows": rows,
         "total": total,
@@ -1728,8 +2470,15 @@ def _history_view(db) -> dict[str, Any]:
         "pages": ((total - 1) // PAGE_SIZE) + 1 if total else 1,
         "status": status,
         "place_pending": place_pending,
+        "dispatch_pending": dispatch_pending,
+        "relation_filter": relation_filter,
         "counts": _status_group_counts(db),
+        # 칩 낱말의 **단일 출처**. 템플릿이 두 벌째 적으면 칩만 `받아옴 · 주문 전`,
+        # 배지만 `받아옴` 으로 조용히 갈린다(상수 주석이 경고한 그 실패 모양).
+        "status_chips": HISTORY_STATUS_CHIPS,
         "place_pending_count": _place_pending_group_count(db),
+        "dispatch_pending_count": _dispatch_pending_group_count(db),
+        "relation_count": _relation_group_count(db),
     }
 
 
