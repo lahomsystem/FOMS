@@ -20,7 +20,7 @@ from __future__ import annotations
 
 import copy
 import logging
-from datetime import datetime
+from datetime import datetime, timedelta
 from typing import Any, Optional
 
 from sqlalchemy.orm.attributes import flag_modified
@@ -533,10 +533,51 @@ def refresh_claims(
 #: 2026-08-30 기준 전체 58집이라 지금은 캡에 닿지 않는다.
 REFRESH_ALL_LIMIT = 200
 
+#: 다시 읽어도 값이 안 바뀌는 **종결** 상품주문 상태(네이버 ``productOrderStatus``).
+#: ``PURCHASE_DECIDED``(구매확정)까지 넣는 이유: 구매확정은 클레임 창이 닫혔다는 **네이버
+#: 쪽 사실**이다. "수집 후 N일" 같은 나이 기준을 쓰지 않는 이유도 같다 — 나이는 추측이고,
+#: 자사 배송·시공이라 ``DELIVERING`` 으로 몇 달을 끄는 집이 정상으로 존재한다(운영 실측
+#: 2026-08-30: 58집 중 DELIVERING 23집). 나이로 자르면 그 집들의 진짜 취소를 놓친다.
+TERMINAL_ORDER_STATUSES = frozenset({"CANCELED", "RETURNED", "PURCHASE_DECIDED"})
 
-def refreshable_household_link_ids(session: Session, *,
-                                   limit: int = REFRESH_ALL_LIMIT) -> tuple[list[int], int]:
-    """**수집된 집 전부**의 대표 링크 id 를 최신 순으로 준다 (NVREPAY-03).
+#: 같은 집을 이 시간 안에 두 번 읽지 않는다. 화면이 끝을 안 말하던 시절 사용자가 28초
+#: 간격으로 두 번 눌렀고(운영 2026-08-30 04:20:13·04:20:41) 두 번째는 통째로 낭비였다.
+REFRESH_ALL_COOLDOWN_SECONDS = 600
+
+
+def _is_terminal_link(claim_status: str, order_status: str) -> bool:
+    """이 상품주문이 **더 변하지 않는 자리**에 있는가 — 두 축 중 하나라도 종결이면 True.
+
+    두 축을 함께 보는 이유: ``claimStatus`` 는 클레임이 걸린 건에만 있고
+    ``productOrderStatus`` 는 클레임 없이 끝난 건(구매확정)까지 말한다. 한 축만 보면
+    각각 반대쪽을 통째로 놓친다.
+
+    **모르는 값은 종결이 아니다.** :data:`mapping.CLAIM_PHASES` 규율과 같다 — 모르면
+    읽는 쪽으로 기운다(헛읽기는 조회 한 번, 못 읽으면 취소를 놓친다).
+
+    Args:
+        claim_status: 스냅샷 동기화가 남긴 ``claim_sync.last_status``.
+        order_status: 스냅샷의 ``productOrderStatus``.
+
+    Returns:
+        종결이면 True.
+    """
+    from foms.services.integrations.naver_commerce.mapping import (
+        CLAIM_PHASE_DONE,
+        CLAIM_PHASES,
+    )
+
+    if CLAIM_PHASES.get((claim_status or "").strip().upper()) == CLAIM_PHASE_DONE:
+        return True
+    return (order_status or "").strip().upper() in TERMINAL_ORDER_STATUSES
+
+
+def refreshable_household_link_ids(
+    session: Session, *,
+    limit: int = REFRESH_ALL_LIMIT,
+    now: Optional[datetime] = None,
+) -> tuple[list[int], int, dict[str, int]]:
+    """**다시 읽을 값어치가 있는 집**의 대표 링크 id 를 최신 순으로 준다 (NVREPAY-03).
 
     `다시 읽기` 는 집 1건짜리라 담당자가 그 집 pane 에 서 있어야 누른다. 그런데 자동
     스윕은 네이버가 **변경 이벤트를 준 건만** 다시 읽으므로(:func:`refresh_claims`),
@@ -548,25 +589,95 @@ def refreshable_household_link_ids(session: Session, *,
     속한 집 전체(형제 상품주문 전부)를 다시 읽기 때문이다. 집을 주문번호
     (``external_order_no``)로 묶는 규칙은 화면 목록과 같다.
 
+    **집 전부를 읽지는 않는다**(2026-08-30 사용자 지적). 두 가지를 뺀다:
+
+    * **종결** — 집의 **모든** 상품주문이 :func:`_is_terminal_link` 인 집. 다시 읽어도
+      값이 안 바뀐다(운영 실측 58집 중 12집). 하나라도 살아 있으면 **읽는다** — 분할
+      취소된 집에서 남은 건의 취소를 놓치지 않으려는 방향이다.
+    * **쿨다운** — 집의 모든 상품주문을 :data:`REFRESH_ALL_COOLDOWN_SECONDS` 안에 이미
+      읽었을 때. 연타가 같은 조회를 곱하는 것을 막는다.
+
+    뺀 수는 **말해야 한다** — 조용히 줄이면 화면의 "전체"가 거짓이 된다.
+
     Args:
         session: DB 세션.
         limit: 돌려줄 최대 집 수.
+        now: 쿨다운 기준 시각(테스트 주입). 생략하면 지금(UTC naive).
 
     Returns:
-        ``(대표 link_id 목록, 전체 집 수)``. 목록은 잘렸을 수 있고, 두 번째 값이 자르기
-        전 총량이라 화면이 "N집 중 M집"을 말할 수 있다.
+        ``(대표 link_id 목록, 대상 집 수, 뺀 수)``. 대상 집 수는 **제외를 거친 뒤**의
+        수라 화면 라벨이 그대로 쓸 수 있고, 목록은 ``limit`` 에서 잘렸을 수 있다.
+        뺀 수는 ``{"done": 종결로 뺀 집, "recent": 쿨다운으로 뺀 집}``.
     """
-    from sqlalchemy import func
+    stamp = now or now_utc_naive()
+    cutoff = stamp - timedelta(seconds=REFRESH_ALL_COOLDOWN_SECONDS)
 
-    rows = (session.query(func.min(ExternalOrderLink.id).label("link_id"),
-                          func.max(ExternalOrderLink.created_at).label("seen_at"))
+    # raw_snapshot 전체를 끌어오지 않는다 — 집 200링크면 스냅샷이 수 MB 다. 필요한
+    # 스칼라 두 개만 JSON 경로로 뽑는다(중첩·평평 두 모양 모두 받는다: 응답 변형은
+    # ``mapping.extract_*`` 가 이미 겪은 자리다).
+    nested = ExternalOrderLink.raw_snapshot["productOrder"]["productOrderStatus"].as_string()
+    flat = ExternalOrderLink.raw_snapshot["productOrderStatus"].as_string()
+    claim_status = ExternalOrderLink.triage_state[STATE_KEY]["last_status"].as_string()
+    refreshed_at = ExternalOrderLink.triage_state[STATE_KEY]["refreshed_at"].as_string()
+
+    rows = (session.query(ExternalOrderLink.id,
+                          ExternalOrderLink.external_order_no,
+                          ExternalOrderLink.created_at,
+                          nested, flat, claim_status, refreshed_at)
             .filter(ExternalOrderLink.channel == CHANNEL,
                     ExternalOrderLink.external_order_no.isnot(None))
-            .group_by(ExternalOrderLink.external_order_no)
-            .all())  # perf-ok: 집 단위 집계(운영 58집), 관리자 전용 조작 경로
-    total = len(rows)
-    ordered = sorted(rows, key=lambda row: (row.seen_at is not None, row.seen_at), reverse=True)
-    return [int(row.link_id) for row in ordered[:limit]], total
+            .all())  # perf-ok: 링크 단위 스칼라 투영(운영 200행), 관리자 전용 조작 경로
+
+    households: dict[str, dict[str, Any]] = {}
+    for link_id, order_no, created_at, nested_st, flat_st, claim_st, seen_at in rows:
+        house = households.setdefault(str(order_no), {
+            "link_id": int(link_id), "seen_at": created_at,
+            "all_terminal": True, "all_recent": True,
+        })
+        house["link_id"] = min(house["link_id"], int(link_id))
+        if created_at is not None and (house["seen_at"] is None or created_at > house["seen_at"]):
+            house["seen_at"] = created_at
+        if not _is_terminal_link(claim_st, nested_st or flat_st):
+            house["all_terminal"] = False
+        if not _is_recent_refresh(seen_at, cutoff):
+            house["all_recent"] = False
+
+    skipped = {"done": 0, "recent": 0}
+    live: list[dict[str, Any]] = []
+    for house in households.values():
+        if house["all_terminal"]:
+            skipped["done"] += 1
+        elif house["all_recent"]:
+            skipped["recent"] += 1
+        else:
+            live.append(house)
+
+    ordered = sorted(live, key=lambda h: (h["seen_at"] is not None, h["seen_at"]), reverse=True)
+    return [int(h["link_id"]) for h in ordered[:limit]], len(live), skipped
+
+
+def _is_recent_refresh(refreshed_at: Optional[str], cutoff: datetime) -> bool:
+    """이 상품주문을 쿨다운 안에 이미 읽었는가.
+
+    값이 없으면(한 번도 안 읽음) **최근이 아니다** — 안 읽은 건 반드시 읽는다.
+    깨진 값도 같다: 파싱 못 하면 읽는 쪽으로 기운다.
+
+    Args:
+        refreshed_at: ``claim_sync.refreshed_at`` 문자열(ISO) 또는 ``None``.
+        cutoff: 이 시각보다 뒤면 "최근".
+
+    Returns:
+        쿨다운 안에 이미 읽었으면 True.
+    """
+    if not refreshed_at:
+        return False
+    try:
+        stamp = datetime.fromisoformat(str(refreshed_at))
+    except (TypeError, ValueError):
+        return False
+    if stamp.tzinfo is not None:
+        stamp = stamp.replace(tzinfo=None)
+    return stamp >= cutoff
 
 
 def refresh_household(

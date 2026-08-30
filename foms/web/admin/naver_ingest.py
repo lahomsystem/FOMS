@@ -1018,18 +1018,23 @@ def _refresh_all_view(db) -> dict[str, Any]:
         db: 요청 스코프 DB 세션.
 
     Returns:
-        ``{"count": 수집된 집 수}``. 실패해도 화면을 죽이지 않는다(버튼만 빠진다).
+        ``{"count": 대상 집 수, "skipped_done": 종결로 뺀 집, "skipped_recent":
+        쿨다운으로 뺀 집}``. ``count`` 는 **제외를 거친 뒤**의 수라 버튼이 그대로 쓴다 —
+        "전체"라 적고 덜 읽으면 그게 조용한 절단이다. 실패해도 화면을 죽이지 않는다
+        (버튼만 빠진다).
     """
     from foms.services.integrations.naver_commerce.claim_watch import (
         refreshable_household_link_ids,
     )
 
     try:
-        _link_ids, total = refreshable_household_link_ids(db)
-        return {"count": int(total)}
+        _link_ids, total, skipped = refreshable_household_link_ids(db)
+        return {"count": int(total),
+                "skipped_done": int(skipped.get("done", 0)),
+                "skipped_recent": int(skipped.get("recent", 0))}
     except SQLAlchemyError as exc:  # 보조 정보라 흐름을 막지 않는다(failopen — 로그로 남긴다)
         logger.warning("[NAVER] 전체 다시 읽기 대상 조회 실패(버튼 생략): %s", exc, exc_info=True)
-        return {"count": 0}
+        return {"count": 0, "skipped_done": 0, "skipped_recent": 0}
 
 
 def _selected_offlist(link: Optional[ExternalOrderLink],
@@ -2825,10 +2830,16 @@ def naver_ingest_refresh_all():
     (:func:`naver_ingest_run_now`)과 같은 기준으로 묶는다. STAFF·MANAGER 는 각 집의
     `다시 읽기` 를 그대로 쓴다.
 
+    **집 전부를 읽지는 않는다** — :func:`claim_watch.refreshable_household_link_ids` 가
+    종결된 집(취소·반품 완료, 구매확정)과 쿨다운 안에 이미 읽은 집을 뺀다. 뺀 수는
+    응답에 실어 화면이 말하게 한다(조용한 절단 금지).
+
     Returns:
-        ``{"success": True, "data": {"count", "queued", "failed", "truncated"}}``.
-        ``count`` 는 수집된 집 총수, ``queued`` 는 큐에 들어간 수다. 큐가 아예 막혀
-        하나도 못 넣으면 503.
+        ``{"success": True, "data": {"count", "queued", "failed", "truncated",
+        "skipped_done", "skipped_recent", "since"}}``. ``count`` 는 제외를 거친 대상 집
+        수, ``queued`` 는 큐에 들어간 수, ``since`` 는 진행 조회
+        (:func:`naver_ingest_refresh_progress`)가 기준으로 쓸 시각이다. 큐가 아예 막혀
+        하나도 못 넣으면 503. 대상이 0이면 큐를 건드리지 않고 200 으로 그렇게 말한다.
     """
     from foms.services.integrations.naver_commerce.claim_watch import (
         REFRESH_ALL_LIMIT,
@@ -2837,10 +2848,18 @@ def naver_ingest_refresh_all():
     from foms.services.jobs.queue import enqueue_naver_refresh
 
     db = get_db()
-    link_ids, total = refreshable_household_link_ids(db)
+    # 큐에 넣기 **전에** 시각을 잡는다 — 뒤에 잡으면 그 사이에 끝난 집이 진행 조회에서
+    # 안 끝난 것으로 보인다(폴링이 영원히 안 끝난다).
+    since = now_utc_naive()
+    link_ids, total, skipped = refreshable_household_link_ids(db, now=since)
+    base = {"count": int(total),
+            "skipped_done": int(skipped.get("done", 0)),
+            "skipped_recent": int(skipped.get("recent", 0)),
+            "since": since.isoformat()}
     if not link_ids:
         return jsonify({"success": True,
-                        "data": {"count": 0, "queued": 0, "failed": 0, "truncated": False},
+                        "data": {**base, "queued": 0, "failed": 0, "truncated": False,
+                                 "link_ids": []},
                         "error": None})
 
     user_id = session.get("user_id")
@@ -2852,14 +2871,115 @@ def naver_ingest_refresh_all():
                                  "잠시 후 다시 시도하세요."}), 503
 
     log_access(
-        f"네이버 전체 다시 읽기 요청 ({len(queued)}집 / 전체 {total}집)",
+        f"네이버 전체 다시 읽기 요청 ({len(queued)}집 / 대상 {total}집 · "
+        f"종결 {base['skipped_done']}집·최근 {base['skipped_recent']}집 제외)",
         action="NAVER_INGEST_REFRESH_ALL_ENQUEUE",
-        detail={"queued": len(queued), "total": total, "failed": failed},
+        detail={"queued": len(queued), "total": total, "failed": failed,
+                "skipped_done": base["skipped_done"],
+                "skipped_recent": base["skipped_recent"]},
     )
     return jsonify({"success": True,
-                    "data": {"count": total, "queued": len(queued), "failed": failed,
-                             "truncated": total > REFRESH_ALL_LIMIT},
+                    "data": {**base, "queued": len(queued), "failed": failed,
+                             "truncated": total > REFRESH_ALL_LIMIT,
+                             # 진행 조회가 물을 대상이다. 화면이 고른 게 아니라 **서버가
+                             # 넣은 것**을 그대로 돌려준다 — 두 목록이 갈리면 진행률이
+                             # 영원히 안 찬다.
+                             "link_ids": queued},
                     "error": None})
+
+
+@admin_bp.route("/admin/naver-ingest/triage/refresh-progress")
+@login_required
+@role_required(["ADMIN"])
+def naver_ingest_refresh_progress():
+    """**전체 다시 읽기**가 어디까지 갔는지 — 읽기 전용 GET, 조회 1회.
+
+    왜 필요한가: 버튼은 큐에 넣고 라벨만 `다시 읽는 중` 으로 바꿔 뒀고, 끝났는지는
+    아무도 말하지 않았다. 사람은 그걸 **멈춘 걸로 읽는다**(2026-08-30 운영에서 실제로
+    그렇게 읽혀 28초 만에 다시 눌렸다). 벌크 발주확인이 이미 같은 문제를 같은 모양으로
+    풀어놨다(:func:`naver_ingest_fulfillment_progress`) — 그 배선을 그대로 따른다.
+
+    판정을 두 벌로 만들지 않는다: 끝난 집의 정의는 "그 집의 상품주문이 ``since`` 이후에
+    다시 읽혔다" 하나뿐이고, 시각은 워커가 :func:`claim_watch._refresh_link` 에서 쓰는
+    ``claim_sync.refreshed_at`` 를 그대로 본다. 새 상태 저장소를 만들지 않는다.
+
+    Query:
+        ``link_ids``: 요청이 큐에 넣은 대표 링크 id(쉼표 구분, 최대
+        :data:`PROGRESS_LINK_ID_LIMIT` 개).
+        ``since``: 요청 응답이 준 ISO 시각.
+
+    Returns:
+        ``{"success": True, "data": {"total", "done", "pending"}}``. 게이트 OFF 는 404,
+        인자 누락·형식 오류는 400.
+    """
+    from foms.services.feature_flags import is_naver_workbench_enabled
+    from foms.services.integrations.naver_commerce.claim_watch import STATE_KEY
+
+    if not is_naver_workbench_enabled(session.get("user_id")):
+        return jsonify({"success": False, "data": None,
+                        "error": "이 화면에서는 쓸 수 없습니다."}), 404
+    ids = [int(chunk) for chunk in (request.args.get("link_ids") or "").split(",")
+           if chunk.strip().isdigit()]
+    raw_since = (request.args.get("since") or "").strip()
+    if not ids or not raw_since:
+        return jsonify({"success": False, "data": None,
+                        "error": "link_ids·since 가 필요합니다."}), 400
+    try:
+        since = datetime.datetime.fromisoformat(raw_since)
+    except ValueError:
+        return jsonify({"success": False, "data": None,
+                        "error": "since 형식이 올바르지 않습니다."}), 400
+    if since.tzinfo is not None:
+        since = since.replace(tzinfo=None)
+
+    db = get_db()
+    ids = ids[:PROGRESS_LINK_ID_LIMIT]
+    # 대표 링크가 아니라 **그 집 전체**가 대상이다 — 워커는 형제 상품주문을 같이 읽고
+    # `refreshed_at` 도 형제마다 찍힌다. 대표 하나만 보면 끝났는데 안 끝난 것으로 보인다.
+    order_nos = [row[0] for row in
+                 db.query(ExternalOrderLink.external_order_no)
+                 .filter(ExternalOrderLink.id.in_(ids)).distinct().all()]
+    if not order_nos:
+        return jsonify({"success": True, "data": {"total": 0, "done": 0, "pending": 0},
+                        "error": None})
+    refreshed_at = ExternalOrderLink.triage_state[STATE_KEY]["refreshed_at"].as_string()
+    rows = (db.query(ExternalOrderLink.external_order_no, refreshed_at)
+            .filter(ExternalOrderLink.channel == "NAVER",
+                    ExternalOrderLink.external_order_no.in_(order_nos))
+            .all())  # perf-ok: 집 목록 IN 배치(캡 200집), 관리자 전용 폴링
+    done_by_house: dict[str, bool] = {}
+    for order_no, stamp in rows:
+        key = str(order_no)
+        done_by_house[key] = done_by_house.get(key, True) and _refreshed_since(stamp, since)
+    done = sum(1 for value in done_by_house.values() if value)
+    total = len(done_by_house)
+    return jsonify({"success": True,
+                    "data": {"total": total, "done": done, "pending": total - done},
+                    "error": None})
+
+
+def _refreshed_since(stamp: Optional[str], since: datetime.datetime) -> bool:
+    """이 상품주문이 ``since`` 이후에 다시 읽혔는가.
+
+    값이 없거나 깨졌으면 **아직 안 읽은 것**으로 본다 — 진행 표시가 실제보다 앞서
+    가면 사람이 낡은 화면을 최신으로 믿는다.
+
+    Args:
+        stamp: ``claim_sync.refreshed_at`` 문자열(ISO) 또는 ``None``.
+        since: 요청이 큐에 들어간 시각.
+
+    Returns:
+        ``since`` 이후에 읽혔으면 True.
+    """
+    if not stamp:
+        return False
+    try:
+        parsed = datetime.datetime.fromisoformat(str(stamp))
+    except (TypeError, ValueError):
+        return False
+    if parsed.tzinfo is not None:
+        parsed = parsed.replace(tzinfo=None)
+    return parsed >= since
 
 
 @admin_bp.route("/admin/naver-ingest/origin-cleanup/refresh", methods=["POST"])
