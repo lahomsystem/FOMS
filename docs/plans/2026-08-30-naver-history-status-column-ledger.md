@@ -741,7 +741,11 @@ CEO 재판정이 남긴 minor 8건을 사람이 직접 닫았다.
 | 7 | 원장 EXPLAIN 에 스캔 노드 줄 없음 | §12 에 원문 첨부(위) |
 | 8 | 미단언 분기 4종 | §13 아래 테스트 절 참고 |
 
-**사람이 직접 돌린 검증**: `import app` → `APP_OK` · `pytest tests/services/integrations/ -q` → **1038 passed**
+**사람이 직접 돌린 검증**: `import app` → `APP_OK` · `pytest tests/services/integrations/ -q` → **1044 passed**
+
+> 정정(2026-08-30 CEO 최종 검수): 이 줄에 처음 적힌 `1038 passed` 는 이 라운드에서 나올 수 없는
+> 숫자였다 — 미단언 분기 테스트 6개를 더해 놓고 앞 절(§11 시점)의 값을 옮겨 적었다.
+> **라운드마다 숫자를 새로 뽑는다. 앞 절에서 복사하지 않는다.**
 
 
 ## 14. 취소 축 확정 날짜 (2026-08-30) — 목업 대비 마지막 빈자리
@@ -772,3 +776,64 @@ CEO 재판정이 남긴 minor 8건을 사람이 직접 닫았다.
 - `test_cancel_request_without_approval_shows_no_date` — 승인 전에는 날짜를 안 낸다.
 
 **검증**: `import app` → APP_OK · `tests/services/integrations` + perf guard → **1051 passed**.
+
+
+## 15. CEO 최종 검수 (2026-08-30 · 3차) — 판정과 처리
+
+### 스펙 준수 (목업 어휘 · 사용자 요구 3가지 · 어휘 단일성 · 읽기 전용 · 문서 정합) → `PASS_WITH_NOTES` (ship_ready=True)
+
+> 코드는 검증 전부 초록(APP_OK · integrations 1046 passed · pre_push_smoke exit 0 · alembic 단일 head naverdisp_00)이고 목업 미구현분은 §8·§3.3 에 근거가 있어 스테이징 배포는 안전하다 — 다만 계약서가 이번 라운드의 취소 축을 아직 "안 하기로 한 일"로 적고 있어(다음 라운드가 되돌릴 자리) 문서 4건을 같은 푸시에 함께 고쳐라.
+
+- **major** `C:/tmp/foms-naver-status/docs/plans/2026-08-30-naver-history-status-contract.md`
+  - 무엇: 계약서가 이번 라운드의 핵심 변경과 정면으로 반대되는 말을 하고 있다. §3.3 갈림표 381행이 「목업 E14 `취소 완료 08-26` → 실화면 `취소 완료`」로, 근거를 「확정 날짜의 유일한 출처가 returnCompletedDate(반품 축)다. 취소 확정 스냅샷에는 그 필드가 없다」로 못 박았고 §10.1 표 736행(#6)도 「확정 날짜는 returnCompletedDate 하나에서만 온다 → 취소 확정·거부에는 날짜가 안 붙는다」로 확정 기록해 두었다. 그런데 커밋 928f2706 이 mapping.extract_cancel_axis(cancelCompletedDate·refundStandbyStatus)를 신설하고 _history_member_axes 가 kind=='CANCEL' 일 때 그 축을 쓰도록 바꿔, 화면은 이제 목업대로 `취소 완료 08-26` + `환불 완료` 를 낸다 — test_settled_cancel_household_shows_the_cancel_date_and_refund(테스트 파일 1097행)가 그 문자열을 그대로 잠그고 있고 실행해서 초록을 확인했다. 계약서를 정본으로 읽는 다음 사람은 이 동작을 계약 위반으로 보고 되돌릴 수 있다(원장 §14 는 맞게 적혀 있으나 계약서는 §14 를 모른다). 커밋 928f2706 의 --stat 에 계약서가 없다 = 두 번째 커밋이 계약서를 건드리지 않았다.
+  - 고칠 방법: §3.3 갈림표에서 E14 줄을 지우고(이제 목업과 일치한다), E15 `취소 거부` 줄의 근거를 `returnCompletedDate 부재`가 아니라 `거부 스냅샷에 cancelCompletedDate 가 없다`로 다시 쓴다. §10.1 표에 #13 으로 취소 축 신설(반품 축에 cancel 을 도로 넣지 않는 이유 포함)을 추가하고, 원장 §10.8-2 「취소 확정 건의 날짜·환불 완료 미표시 … 이번 범위 밖」도 닫는다.
+- **minor** `C:/tmp/foms-naver-status/docs/plans/2026-08-30-naver-history-status-contract.md`
+  - 무엇: §2.2 「집(그룹) dict 에 더하는 것 — 템플릿이 읽는 것」 표가 실제 행 dict 과 다르다. 표에 아직 `dispatch_done_count`·`dispatch_total`·`dispatch_moot`·`shipping_due` 네 줄이 남아 있는데 원장 §13-2 가 그 넷을 행에서 뺐다(코드 확인: _history_pipe_fields·_history_group_axes 가 싣는 키에 없다. shipping_due 는 멤버 dict 475행에만 남는다). 반대로 이번에 새로 생긴 행 필드 `pipe_note_kind`·`pipe_note_text`(_history_pipe_note)는 표에 한 줄도 없다. 같은 문서 §5 CSS 계약 표 553행은 `.wb-st__note` 를 클래스 계약으로 올려 두었으나 그 규칙은 §13-6 에서 CSS 에서 삭제됐다(grep: naver-workbench.css 에 wb-st__note 0건).
+  - 고칠 방법: §2.2 표에서 죽은 네 줄을 지우고 pipe_note_kind·pipe_note_text 두 줄을 더한다(값 예: `"when"`/`"발송기한 09-02"`, `"over"`/`"발송기한 2일 지남"`). §5 표에서 `.wb-st__note` 행을 지운다.
+- **minor** `C:/tmp/foms-naver-status/docs/plans/2026-08-30-naver-history-status-column-ledger.md`
+  - 무엇: §13(minor 정리 라운드) 끝의 「사람이 직접 돌린 검증: pytest tests/services/integrations/ -q → 1038 passed」는 그 라운드 상태에서 나올 수 없는 숫자다 — 재실행 없이 앞 라운드 숫자를 옮겨 적었다. 산술로 확인했다: HEAD 에서 그 스위트는 1046 passed 이고 신규 계약 파일은 32 케이스(직접 실행·collect-only 확인) → 다른 파일 몫이 1014. aed62a0e 시점 그 파일은 30 케이스(git show 로 확인)이므로 §13 라운드 직후 값은 1044 여야 한다. 1038 은 §11 시점(파일 24 케이스, 원장이 「신규 계약 테스트 24 passed」로 스스로 적은 그 상태)의 값 1014+24 와 정확히 일치한다. 즉 §13 이 미단언 분기 테스트 6개를 더해 놓고 그 전 숫자를 검증란에 적었다.
+  - 고칠 방법: §13 의 검증 줄을 실제 재실행 값으로 바꾼다(현재 트리 기준 `1046 passed`). 라운드마다 숫자를 새로 뽑고, 앞 절에서 복사하지 않는다.
+- **minor** `C:/tmp/foms-naver-status/docs/plans/2026-08-30-naver-history-status-column-ledger.md`
+  - 무엇: 이미 닫힌 항목 2개가 원장 앞쪽에 미해결로 그대로 남아 있어, 위에서부터 읽는 사람이 승격 차단 사유로 오독한다. ① §10.2 「미확정 1건 — 승격 전에 반드시 닫아라 … EXPLAIN 원문이 잘려 있다 … 결론만 근거로 승격하지 마라」 → §12 가 스캔 노드 원문을 붙여 닫았다(§11 findings 의 고칠 방법도 '§10.2 의 미확정 1건을 닫는다' 였는데 §12 추가만 하고 §10.2 본문은 안 고쳤다). ② §10.8-2 「취소 확정 건의 날짜·환불 완료 미표시 … 이번 범위 밖」 → §14 가 닫았다.
+  - 고칠 방법: §10.2 의 '미확정 1건' 블록을 '→ §12 에서 닫힘'으로 바꾸고, §10.8 목록 2번을 지우거나 '§14 에서 닫힘'으로 표시한다.
+- **minor** `C:/tmp/foms-naver-status/docs/design/mockups/naver-triage-status-column--table.html`
+  - 무엇: 목업 20케이스를 훑은 결과 화면에 아직 없는 것은 전부 §8·§4.1·§3.2·§3.3 에 근거와 함께 등재돼 있는데(옛 결제 축 E3·E4, 재결제 짝 E14, 기존 주문 후보 E17, 고스트 E19, 네이버 기록 없음 칩, 네이버 자동 취소 가능 warn, 배지 낱말 4곳), 딱 한 종류만 어디에도 없다: 격자 아래 회색 보조 줄(`.note`) 3건 — E2 `발주확인 뒤 바로 닫은 건`, E13 `금액만 환급`, E17 `추가결제·재결제 고르기`. 계약 §5 가 `.wb-st__note` 를 「이번 라운드 소비처 0 — 옛 결제 줄이 쓸 자리」라고만 적어 뒀는데 목업에서 그 세 줄이 붙은 행에는 옛 결제 줄이 없다(옛 결제 줄이 있는 E3·E4 는 `.warn` 을 쓴다) — 근거가 사실과 안 맞고, 이번에 그 CSS 규칙까지 지워져 흔적도 사라졌다. 화면 동작에는 영향이 없다(전부 부연 문구).
+  - 고칠 방법: 계약 §8 '이번에 안 싣는 것' 표에 「목업 `.note` 회색 보조 줄 3건(E2·E13·E17) — 파생 출처가 각각 CLOSE_NOW_RELATIONS·반품 금액환급 성질·다음 할 일 힌트로 축이 셋이라 별건」 한 줄을 넣고, §5 의 `.wb-st__note` 설명(옛 결제 줄이 쓸 자리)은 삭제한다.
+
+### 코드 품질 → `PASS_WITH_NOTES` (ship_ready=True)
+
+> 취소 축 분리는 옛 누출을 되살리지 않았고(직접 호출로 확인) 새 함수는 전부 50줄·타입힌트·docstring을 지켰다 — 다만 실패 시각만 KST 변환을 안 거쳐 같은 칸에 9시간 어긋난 시각이 뜨고, 죽은 필드 4종이 다시 생겼다.
+
+- **major** `foms/web/admin/naver_ingest.py:534`
+  - 무엇: `_history_fail` 이 실패 시각을 `str(last_error_at)[:16].replace('T',' ')` 로 만든다. 그 값은 `fulfillment.py:523` 이 `now_utc_naive().isoformat()` 로 쓴 **UTC** 다. 같은 상태 칸의 다른 시각(발송·어긋남 경고)은 전부 `_dispatch_time_text` 로 KST 로 펴진다. 실제로 돌려 확인: `2026-08-30T02:15:33` 한 값이 파이프 옆 문구에는 `2026-08-30 02:15`, 발송 파서로는 `2026-08-30 11:15` — 한 칸 안에서 같은 모양의 두 시각이 9시간 어긋난다. 이번 라운드가 없앤 '무방비 슬라이스' 도 이 자리에 그대로 남아 있다(새 코드의 마지막 1곳).
+  - 고칠 방법: `"at": _dispatch_time_text(state.get("last_error_at"))` 로 바꾼다 — 시각 파서를 한 벌로 만들면 슬라이스와 시간대가 동시에 해결된다. 옆 화면(`_failure_rows`, 2398줄)도 같은 원문 슬라이스라 함께 본다.
+- **minor** `foms/web/admin/naver_ingest.py:914`
+  - 무엇: 행에 실렸는데 읽는 곳이 없는 필드가 다시 4종 생겼다: `dispatch_ours_at`·`dispatch_naver_at`(914-915), `shipping_due_text`·`shipping_due_over_days`(985-986). 워크벤치 템플릿·구 `templates/admin/naver_ingest.html`·`naver-workbench.js`·테스트 전수 대조로 확인했고, 이 값들은 `_history_pipe_note` 가 `dispatch`/`due` 원본 dict 에서 직접 읽는다. 바로 그 자리 주석이 '읽는 곳 없는 값을 남기면 다음 사람이 화면에 있다고 오독한다' 고 적혀 있고, `shipping_due*` 옆 주석은 '화면이 읽는 것은 아래 둘뿐' 이라고 사실과 반대로 말한다. 덤으로 `sync_status` 도 상태 칸 재설계로 두 템플릿 모두에서 읽는 곳이 사라졌다(구 화면은 `statuses` 를 쓴다).
+  - 고칠 방법: 네 필드를 `_history_pipe_fields`·`_history_group_axes` 반환에서 뺀다(집계 dict 안에는 그대로 두면 된다). `sync_status` 는 구 템플릿 대조 후 함께 정리.
+- **minor** `foms/web/admin/naver_ingest.py:470`
+  - 무엇: 취소 축은 갈랐는데 `claim_refund_expected_at`(470)·`claim_collect_done_at`(472)은 종류와 무관하게 **반품 축**에서 온다. 스냅샷에 `cancel` 과 `return`/`exchange` 블록이 함께 있으면 취소 집에 반품 낱말이 뜬다 — in-process 로 재현했다: `_history_claim_text` → `('취소 완료 08-26', '수거 완료 08-25 · 환불 완료')`. 2026-08-27 에 고친 누출의 거울상이다(방향만 반대). 그런 스냅샷이 실데이터에 있는지는 관측 근거를 못 찾았다.
+  - 고칠 방법: `cancel` 이 잡힌 멤버는 두 값도 취소 축 기준으로 준다(취소 블록에 대응 값이 없으면 빈 문자열). 즉 `claim_done_at` 과 같은 `if cancel else` 분기를 두 줄에도 건다.
+- **minor** `tests/services/integrations/test_naver_history_status_axes.py:1123`
+  - 무엇: 새 취소 축 테스트 2개 중 `test_cancel_request_without_approval_shows_no_date` 는 옛 코드에서도 초록이다. `extract_cancel_axis` 를 빈 값 반환으로 바꾼 플러그인으로 돌려 확인했다 — 빨강은 `test_settled_cancel_household_shows_the_cancel_date_and_refund` 1개뿐이고 이쪽은 통과한다(회귀 감시가 아니라 지어내기 방지 가드다). 또 반품 축에는 '클레임 없는 링크는 파싱하지 않는다' 계측 테스트(908줄)가 있는데 취소 축의 게이트(`kind == 'CANCEL'` 일 때만)를 잠그는 대응 테스트가 없다.
+  - 고칠 방법: 취소 축에도 908줄과 같은 모양의 계측 테스트를 둔다(반품 종류 링크에서 `extract_cancel_axis` 호출 0회 + 취소 링크 1회 양성 대조군). 게이트가 풀리면 그때 빨강이 된다.
+- **minor** `migrations/versions/naverdisp_00_history_chip_indexes.py`
+  - 무엇: 부분 인덱스 조건식이 `_dispatch_pending_clause()` 렌더 결과와 글자까지 같아야 한다고 파일 두 곳이 못 박았는데, 그것을 지키는 테스트가 없다(`grep dispatch_pending tests/` 0건). 지금은 실제로 일치한다 — postgresql 방언으로 렌더해 대조 확인했다. 술어를 한 글자만 손대면 PostgreSQL 이 인덱스를 통째로 무시하고, 그때 나오는 Seq Scan 은 원인이 안 보인다.
+  - 고칠 방법: 렌더한 조건식이 마이그레이션의 `DISPATCH_SQL`·`RELATION_SQL` 에 들어 있는지 확인하는 계약 테스트 1개(테이블 수식어만 제거해 비교).
+- **minor** `foms/web/admin/naver_ingest.py:1162`
+  - 무엇: `_history_member_axes` 를 `_link_rows` 안에 넣어서, 워크벤치 게이트가 꺼진 사용자용 구 화면(`naver_ingest_dashboard` → `templates/admin/naver_ingest.html`)도 링크마다 `extract_claim` 1회 추가·`claim_kind`·`claim_reason_text`·`_dispatch_view`(`extract_delivery`)를 치른다. 그 템플릿이 읽는 필드를 전수로 뽑아 확인했는데 새 축 필드는 하나도 안 쓴다.
+  - 고칠 방법: 축 계산을 이력 탭 경로에서만 켠다(`_link_rows(..., with_axes=False)` 기본값 또는 `_history_view` 전용 분기). 취소 축 자체는 이미 클레임·취소 건에만 도는 것을 확인했다.
+
+### 처리 결과 (사람이 직접)
+
+| findings | 처리 |
+|---|---|
+| major · 계약서가 취소 축을 "안 하기로 한 일"로 적음 | 계약서 **§15** 신설 — 앞 절보다 우선. §3.3·§10.1 뒤집힘을 명시 |
+| major · 실패 시각만 UTC 원문 슬라이스(같은 칸 9시간 어긋남) | `_dispatch_time_text` 로 통일(2곳). 계약 테스트로 잠금 |
+| minor · 취소 축 거울상 누출(환불예정·수거완료가 반품 축) | 취소로 판정된 멤버는 반품 조각을 빈 값으로. 두 블록 동시 스냅샷 테스트 추가 |
+| minor · 죽은 행 필드 4종 재발 | `dispatch_ours_at`·`dispatch_naver_at`·`shipping_due_text`·`shipping_due_over_days` 제거 |
+| minor · 취소 축 게이트 계측 테스트 없음 | `test_cancel_axis_is_parsed_only_for_cancel_claims` 추가(음성·양성 대조군) |
+| minor · 마이그레이션 조건식 일치 테스트 없음 | `test_partial_index_condition_matches_the_rendered_predicate` 추가 |
+| minor · 원장 §13 검증 숫자가 앞 절 복사(1038) | **정정 완료** — 실제 재실행 값으로 바꾸고 재발 방지 규칙 명시 |
+| minor · 계약서 §2.2/§5 표가 코드와 어긋남 | §15.2·§15.3 에서 정정 |
+| minor · 목업 `.note` 3건 미등재 | §15.4 에 근거와 함께 등재 |
+| minor · 옛 수집 화면도 축 파싱을 치름 | **수용** — 게이트를 걸면 집 조립까지 두 갈래가 되어 그 화면이 500(18 red, 되돌림). 근거는 §15.5 |
