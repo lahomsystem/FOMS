@@ -837,3 +837,25 @@ CEO 재판정이 남긴 minor 8건을 사람이 직접 닫았다.
 | minor · 계약서 §2.2/§5 표가 코드와 어긋남 | §15.2·§15.3 에서 정정 |
 | minor · 목업 `.note` 3건 미등재 | §15.4 에 근거와 함께 등재 |
 | minor · 옛 수집 화면도 축 파싱을 치름 | **수용** — 게이트를 걸면 집 조립까지 두 갈래가 되어 그 화면이 500(18 red, 되돌림). 근거는 §15.5 |
+
+
+## 16. 스테이징 배포 (2026-08-30) — 완료
+
+- 푸시: `032b43d0..9d19da0b` → `origin/deploy` (커밋 3개)
+- **리베이스**: 푸시 직전 origin/deploy 가 9커밋 앞서 있었다(타 세션). 리베이스 충돌 4건은
+  **전부 자산 `?v` 핀뿐** — 기능 의존 아님. 타 세션이 `20260830b` 까지 올려서 내 몫을
+  `20260830c` 로 범프했다(템플릿 2줄 + 핀 잠근 테스트 2곳 = 4자리).
+- **리베이스 후 재검증**(리베이스 전 초록은 근거가 안 된다):
+  `APP_OK` · `alembic heads` 단일 `naverdisp_00` · `tests/services/integrations` + perf guard
+  **1079 passed** · `pre_push_smoke.ps1` **exit 0**.
+- **CI 전 워크플로 green**(`gh run list --branch deploy` 로 전수 — deploy 는 이 4개가 전부):
+  FOMS CI · FOMS PostgreSQL Lane · Harness CI · perf-gate (staging) 모두 `completed/success`.
+
+### 남은 일
+
+1. **운영 승격** — 사용자 명시 요청 시에만. 승격 시 `naverdisp_00` 마이그레이션의
+   `down_revision`(`merge_drawq_naverfail`)이 **운영 계보에 있는지 먼저 확인**할 것.
+   부모가 없으면 부팅이 파산한다.
+2. **스테이징 실화면 확인** — 목업 20케이스 중 실데이터로 재현되는 것을 눈으로 대조.
+3. 계약서 **§15 가 정본**이다(앞 절과 충돌하면 §15 우선). 다음 세션이 §3.3 을 읽고
+   취소 축을 되돌리지 않도록 이 줄을 남긴다.

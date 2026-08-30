@@ -9,6 +9,8 @@ Flask 2.3 + PostgreSQL + R2 + Railway (Web×2, Worker×1)
 브랜치: deploy (스테이징) → production (운영)
 
 ## 진행 중
+
+- [2026-08-30] **네이버 이력 탭 상태 칸 재설계 deploy(`9d19da0b`)** — 재결제·추가결제·발송처리 축 신설, 축별 3줄. 부분 인덱스 2벌(`naverdisp_00`). 취소 확정 날짜는 축을 따로 판다(반품 축에 `cancel` 금지 — 08-27 누출). **잔여: 운영 승격·실화면 대조**. 원장 `2026-08-30-naver-history-status-column-ledger.md`(계약서 §15 정본)
 - [2026-08-30] **네이버 전체 다시 읽기 운영 반영(PR #195 `5acef038`)** — 이벤트 안 오는 집은 자동 갱신 불가. 실측 58집 62초. 상세: 설계서 §7-B
 - [2026-08-29] **모바일 마법사 예약금 증발 핫픽스 운영 반영(PR #189·#191)** — 상한 0 clamp 로 예약금이 사라지던 결함(클라 2곳·서버 1곳), 예약금 칸 마이크 제거, iOS `beforeunload` 유실 보강(`pagehide`·`visibilitychange`), 금액칸 커서 보존(마법사+공유 주문 폼). **잔여**: 공유 주문 폼 커서분 `c335cd83` 운영 승격 대기
 - [2026-08-28] **재결제 원 주문 취소·반품 길내기 운영 반영(PR #185·핫픽스 #187)** — 붙인 뒤 옛 네이버 주문을 화면이 가리키고 그 집 pane 으로 보낸다. 미수집 건은 '네이버 주문 확인 안 됨'. 원장 `docs/plans/2026-08-28-naver-repay-origin-cancel-ledger.md`
@@ -16,7 +18,6 @@ Flask 2.3 + PostgreSQL + R2 + Railway (Web×2, Worker×1)
 - [2026-08-27] **네이버 도크·이력 UX 4건(deploy `eaed04ab`)** — 이력 탭 안내문 3줄 제거+찾기 칸(**운영 승격 완료** PR #169), 도크 그룹 금액=본품+귀속 옵션 합·행별 금액칩, 예약금(선금) 안내 카드(자동 기입 금지·복사만), `지금 닫기`→`발송처리` 통일. 총폭 힌트 낡음도 같은 분업으로 해소. 원장 `docs/plans/2026-08-27-naver-dock-ux-ledger.md`. 남은 것: 스테이징 실화면 확인 → 운영 승격.
 - [2026-08-26] **네이버 알림 전수 점검·손질 운영 반영(PR #152 `c1c71bd1`, 앞선 #147 집 단위 묶음 포함)** — 사람 수만큼 복제하던 곳은 `app_expiry` 하나뿐(ROLE 전환). 문안=사유 한국어화·미수집분 수취인/상품명. **미조치**: `URGENT_MENTION`·계정 2종·도면 취소 2종이 `_DEFAULT_P1_TYPES` 미등재라 폰 push 무음(현행 유지). 잔여: 08-25 옛 중복 알림 8건 보관(승인 대기)
 - [2026-08-28] **고객 문서 공유 T16 — 템플릿 승인·env 로컬/스테이징 등록** — 통합 열람 링크(`kind='bundle'`)·지방 본사 CS 안내(라홈 1566-0792 / 그 외 1566-0703)·버튼 2개 배선(`SOLAPI_TEMPLATE_SHARE_BOTH_ID_{brand}` 등록으로 전환). 코드는 deploy 만 — 운영 승격 PR 미작성.
-- [2026-08-25] **네이버 수집 운영 개방·안정화** — 전량 승격(production `39fa919d`) 뒤 열쇠·플래그 투입(WORKER 수집 300초 · web 워크벤치 `COHORT=all`). 개방 직후 `주문 만들기` 가 `naver_ingest_bot` 부재로 막혀 있었다(설치 체크리스트 ① 미실행) → 운영 id 61·62 생성으로 해소. 워크벤치 머리줄이 전역 nav(z-index 1000) 밑에 깔리던 결함 · 도크 머리말↔링크 집 불일치 · 붙이기 중복 이력 수정 deploy(`6ed045c9`). 원장 `docs/plans/2026-08-25-naver-full-promotion-roadmap.md` §18
 - ⚠️ [2026-08-23] **로컬 dev DB 행 소실(로컬 한정)** — pytest 파일이 conftest 보다 먼저 `db` import → 로컬 PG 에 `drop_all`. 스테이징·운영 무관. 근본 수정: `assert_engine_not_postgresql`(env 문자열 아닌 엔진 판정)
 - [2026-08-30] **낡은 승격 PR 3건 정리(#133·#144·#49 닫음)** — 셋 다 내용이 이미 운영에 있었다(파일 누락 0·마이그레이션 9종 운영 확인). 남은 diff 는 운영이 앞선 방향이라 머지가 되레 되돌림 위험. 운영 alembic 은 85 리비전·head 1개로 성함. 열린 승격 PR 은 `#1`(리서치 봇)뿐. 근거는 원장에.
 - ⚠️ **미결: `as-delete-reapply`의 `8c1ef69a`**(삭제 라우트 WRITE-GUARD-01 manifest 등재) deploy 미반영. worktree 정리 중 발견, 타 세션 몫이라 미처리. 브랜치 ref 보존됨.
@@ -117,6 +118,8 @@ Flask 2.3 + PostgreSQL + R2 + Railway (Web×2, Worker×1)
 - [2026-04-15] **Strict final canonical tree `SFC-B11B` slice 2 (`dashboards`, §6.16):** 구현을 `foms/web/dashboards/routes.py`로 이전; `foms/web/dashboards/__init__.py`는 `routes`만 import; `apps/dashboards.py`는 `foms.web.dashboards` 재노출 shim. 검증: `APP_OK`, `verify_result.py --json`, `pytest tests` **586 passed**. 근거: batch11b **§Slice B11B-2**.
 
 ## 기록 보관 (strict canonical / 이전 배치 요약)
+
+- [2026-08-25] **네이버 수집 운영 개방·안정화** — 전량 승격(production `39fa919d`) 뒤 열쇠·플래그 투입(WORKER 수집 300초 · web 워크벤치 `COHORT=all`). 개방 직후 `주문 만들기` 가 `naver_ingest_bot` 부재로 막혀 있었다(설치 체크리스트 ① 미실행) → 운영 id 61·62 생성으로 해소. 워크벤치 머리줄이 전역 nav(z-index 1000) 밑에 깔리던 결함 · 도크 머리말↔링크 집 불일치 · 붙이기 중복 이력 수정 deploy(`6ed045c9`). 원장 `docs/plans/2026-08-25-naver-full-promotion-roadmap.md` §18
 
 - [2026-08-27] **네이버 4차 — 운영 승격 2회(PR #168·#171, production `9f07de59`)·T8 반품 접수를 사람이 쓸 수 있게** — #168 로 회수지 우편번호·웹푸시 enqueue·T8-S1 본체·부분 발송 결함을 올리고, **Q1 권한 게이트가 열려**(`주문 판매자` 그룹에 `claim/return/request` 명시, 기한 2027-02-23 — **설명 문구엔 '반품'이 없어 문구로 판정했으면 오판**) 큐·라우트·버튼·확인 모달·폴링 지문까지 배선해 #171 로 승격했다. 재진술 건수는 서버 술어 `is_return_pending` 한 벌(부분 발송 과대 진술 차단). 반품 사유는 **실물 관측 2개만**(범례 미확인·불가역). 신규 mutation 계약은 **5종**이었다 — 다섯째가 `docs` 읽는 테스트의 ci.yml 서브셋 등재(CI-DOCSCOPE-01, smoke 사각). **① 반증축 닫음**: 54집 전수 51 잠김/3 열림/어긋남 0 — 3차 지목 4개는 발송 기록이 없어 **대조군이 아니었다**. 운영·스테이징 라우트 실확인(403 vs 404). **웹푸시는 운영에서 이미 켜져 있었다**(활성 구독 2, 둘 다 `upperkill`). 원장 `docs/plans/2026-08-26-naver-followup-multiagent-ledger.md`
 
