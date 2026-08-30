@@ -47,6 +47,20 @@ TOKEN_REFRESH_MARGIN_SECONDS = 300
 #: 재시도 대상 HTTP 상태. 429=rate limit, 5xx=서버측 일시 오류.
 RETRYABLE_STATUS = frozenset({429, 500, 502, 503, 504})
 
+#: 커머스API 호출 한도 응답 헤더(2026-08-31 조사). 게이트웨이가 매 응답에 실어 준다.
+#: 한도는 **앱당·API당 초당 호출수**(Token Bucket)이고, 자사 스토어 애플리케이션은 전 API
+#: 2 RPS 고정이다. 넘으면 429 로 **처리되지 않고** 실패한다.
+#:
+#: 이 헤더를 로그로 남기는 이유: 일괄 발송처리처럼 호출이 연달아 나가는 경로에서 "한도에
+#: 얼마나 붙어 있었나"를 사후에 알 창이 여기밖에 없다. 429 를 맞고 나서야 아는 것과
+#: 여유가 줄어드는 것을 미리 보는 것은 다르다.
+RATE_LIMIT_REPLENISH_HEADER = "GNCP-GW-RateLimit-Replenish-Rate"
+RATE_LIMIT_REMAINING_HEADER = "GNCP-GW-RateLimit-Remaining"
+RATE_LIMIT_BURST_HEADER = "GNCP-GW-RateLimit-Burst-Capacity"
+
+#: 남은 호출이 이 값 이하로 떨어지면 경고로 올린다(0 = 다음 호출이 429).
+RATE_LIMIT_WARN_REMAINING = 1
+
 DEFAULT_TIMEOUT_SECONDS = 30
 DEFAULT_MAX_RETRIES = 3
 #: 지수 백오프 기본 간격(초). 재시도 n회차 대기 = BACKOFF_BASE * 2**(n-1).
@@ -215,6 +229,43 @@ def _format_ts(value: datetime) -> str:
     """API가 받는 밀리초 정밀도 ISO-8601(타임존 포함) 문자열로 만든다."""
     aware = value if value.tzinfo else value.replace(tzinfo=KST)
     return aware.astimezone(KST).isoformat(timespec="milliseconds")
+
+
+def _header_int(response: Any, name: str) -> Optional[int]:
+    """응답 헤더 하나를 정수로 읽는다 — 없거나 숫자가 아니면 ``None``.
+
+    대소문자를 가리지 않는다. ``requests`` 의 헤더는 대소문자 무시 매핑이지만 주입 전송
+    (테스트·다른 구현)은 보통 그냥 dict 라, 정확한 철자에만 걸리면 이 로그가 조용히
+    빈 값이 된다.
+
+    Args:
+        response: 전송 계층 응답 객체(``headers`` 속성이 없으면 ``None``).
+        name: 헤더 이름.
+
+    Returns:
+        정수 값 또는 ``None``.
+    """
+    headers = getattr(response, "headers", None)
+    if not headers:
+        return None
+    value = None
+    getter = getattr(headers, "get", None)
+    if callable(getter):
+        value = getter(name)
+    if value is None:
+        lowered = name.lower()
+        items = getattr(headers, "items", None)
+        if callable(items):
+            for key, candidate in items():
+                if str(key).lower() == lowered:
+                    value = candidate
+                    break
+    if value is None:
+        return None
+    try:
+        return int(str(value).strip())
+    except (TypeError, ValueError):
+        return None
 
 
 class NaverCommerceClient:
@@ -557,6 +608,7 @@ class NaverCommerceClient:
                 continue
 
             status = int(getattr(response, "status_code", 0))
+            self._log_rate_limit(response, method=method, path=path, status=status)
             if 200 <= status < 300:
                 return self._parse_json(response, url)
 
@@ -573,6 +625,42 @@ class NaverCommerceClient:
             if status == 401:
                 raise NaverCommerceAuthError(f"{method} {url} 인증 실패(401): {body[:300]}")
             raise NaverCommerceHTTPError(status, body, url=url)
+
+    def _log_rate_limit(self, response: Any, *, method: str, path: str,
+                        status: int) -> None:
+        """호출 한도 응답 헤더를 로그에 남긴다 — **관측 전용**(호출 동작은 바뀌지 않는다).
+
+        헤더가 없으면 아무것도 남기지 않는다. 커머스API 밖(토큰 발급 등)이나 테스트용
+        전송처럼 헤더를 안 싣는 응답에서 매 호출 잡음을 만들지 않기 위해서다.
+
+        Args:
+            response: 전송 계층 응답 객체.
+            method: HTTP 메서드(로그 식별용).
+            path: 호출 경로(로그 식별용).
+            status: 응답 상태 코드 — 429 는 남은 값과 무관하게 경고로 남긴다.
+
+        Returns:
+            None. 헤더 추출이 실패해도 예외를 올리지 않는다(진단 로그가 본 호출을 막으면
+            안 된다 — 실패 사실 자체는 debug 로 남긴다).
+        """
+        try:
+            remaining = _header_int(response, RATE_LIMIT_REMAINING_HEADER)
+            replenish = _header_int(response, RATE_LIMIT_REPLENISH_HEADER)
+            burst = _header_int(response, RATE_LIMIT_BURST_HEADER)
+        except Exception as exc:  # noqa: BLE001 - 진단 실패가 API 호출을 깨지 않게
+            logger.debug("[NAVER] 한도 헤더 추출 실패(무시): %s", exc, exc_info=True)
+            return
+        if remaining is None and replenish is None and burst is None:
+            return
+        line = ("[NAVER] 호출 한도 %s %s status=%d 남음=%s 초당배정=%s 버스트=%s")
+        args = (method, path, status,
+                "?" if remaining is None else remaining,
+                "?" if replenish is None else replenish,
+                "?" if burst is None else burst)
+        if status == 429 or (remaining is not None and remaining <= RATE_LIMIT_WARN_REMAINING):
+            logger.warning(line, *args)
+        else:
+            logger.debug(line, *args)
 
     def _backoff(self, attempt: int, *, reason: str) -> None:
         """지수 백오프 대기(상한 있음). 재시도 사유를 남긴다."""
