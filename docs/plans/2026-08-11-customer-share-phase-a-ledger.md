@@ -123,6 +123,10 @@
   **함정: `railway variables --set` 은 재배포를 안 건다.** 변수는 들어갔는데 마지막 부팅이 23:34:29 그대로였다
   → `railway redeploy --service web` 로 23:41:03 재부팅. env 는 `ka._env` 로 호출 시점에 읽으므로 이제 유효하다.
   운영 라이브 확인: `/static/js/orders/erp-share.js` 에 `bundle: '도면·계약서'` 존재 · `/login` 200.
+- **운영 화면 확인 완료(2026-08-31, 발송 없음)** — `claude_master`(id 57) 해제 → 주문 `/edit/4921?open=erp-order`
+  열람 → 재잠금. 알림톡 드롭다운에 `data-share-kind="bundle"` + 문구 `도면 + 계약서 (한 링크로)` 존재,
+  자산 핀 `erp-share.js?v=20260825a` 서빙. 대조군으로 기존 `drawing`·`estimate` 항목도 그대로 있는 것을 같이 확인했다
+  (새 항목이 옛 항목을 밀어낸 게 아니다). 재잠금은 잠금 오라클로 검증(로그인 302 아닌 **200**).
 - 잔여: 운영 실발송 1건 육안(실제 고객 발송이라 사용자 판단). 스테이징 실발송은 08-30 에 벤더 기록으로 확인 완료.
 - **승격 트리 전체 스위트에서 나온 빨강 2종은 T16 무관** — ①
   `tests/visual/test_erp_order_edit_mobile_form.py::test_edit_erp_order_ships_responsive_form_mounts_for_cohort`
