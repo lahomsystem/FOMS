@@ -10,8 +10,14 @@ ERP Order Tab Pane (shared between add_order and edit_order)
 {% set erp_order_active = erp_order_active or false %}
 {% set erp_as_status_label = {'AS_RECEIVED': '접수', 'AS': '처리', 'AS_COMPLETED': '완료'}.get(order.status) if order is defined and order else none %}
 {% set erp_as_can_reregister = order is defined and order and order.status in ['AS_RECEIVED', 'AS'] %}
-{# 네이버 스마트스토어 수집분 표식(naver_commerce.constants.SOURCE_MARKER). 사람이 손으로 받은
-   주문과 자동 수집분을 상세에서 구분하기 위한 읽기 전용 표시다. #}
+{# 네이버 스마트스토어 표식(naver_commerce.constants.SOURCE_MARKER) — 읽기 전용 표시.
+
+   **"자동 수집된 주문"이라고 단정하지 않는다**(2026-08-30). 2026-08-28 에 도크 게이트를
+   `naver_linked` 로 가르기 전에는 **붙이기가 이 키를 덮어썼다** — 예약금 건처럼 ERP 에
+   직접 등록한 주문에 재결제를 붙이면 그 주문이 네이버 출신으로 뒤집혔다. 과거 오염분은
+   소급 구별이 불가능하다(운영 실측 2026-08-30: 의심 최대 3건). 그래서 뱃지는 둘 다 참인
+   말만 한다 — "네이버 수집분이 연결돼 있다". 신규분은 붙이기가 이 키를 안 쓰므로 정확하다.
+   상세: docs/plans/2026-08-28-structured-source-dual-meaning-followup.md #}
 {% set erp_is_naver_intake = order is defined and order and (order.structured_data or {}).get('source') == 'NAVER_SMARTSTORE' %}
 <div class="tab-pane fade{% if erp_order_active %} show active{% endif %}" id="erp-order" role="tabpanel" lang="ko" data-erp-surface="1"{% if erp_order_active %} data-erp-ready="1"{% endif %}>
     <div class="card border-secondary" data-erp-order-id="{{ order.id if order is defined and order else 0 }}">
@@ -22,8 +28,8 @@ ERP Order Tab Pane (shared between add_order and edit_order)
             <div class="d-flex align-items-center gap-2">
                 {% if erp_is_naver_intake %}
                 <span class="badge bg-dark" data-erp-order-source="NAVER_SMARTSTORE"
-                    title="네이버 스마트스토어에서 자동 수집된 주문입니다">
-                    <i class="fas fa-store"></i> 네이버 수집
+                    title="네이버 스마트스토어 수집분이 연결된 주문입니다 — 자동 수집으로 만들어졌거나, 나중에 수집분을 붙였습니다">
+                    <i class="fas fa-store"></i> 네이버 연결
                 </span>
                 {% endif %}
                 <span class="badge bg-success d-none erp-autosave-toast" id="erp-autosave-indicator" aria-live="polite">✓ 자동저장됨</span>
