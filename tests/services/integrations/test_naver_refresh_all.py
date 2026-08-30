@@ -470,3 +470,25 @@ def test_every_naver_audit_call_records_the_actor():
             missing.append(source[:match.start()].count("\n") + 1)
 
     assert not missing, f"행위자 없는 log_access 라인: {missing}"
+
+
+def test_audit_row_actually_carries_the_actor(client, workbench_on, monkeypatch):
+    """소스가 아니라 **실제로 남은 감사 행**에 행위자가 있는지 본다.
+
+    앞의 소스 스캔은 모양만 본다 — `log_access` 의 인자 순서가 바뀌면 스캔은 통과하고
+    행은 여전히 비게 된다. 라우트를 실제로 눌러 ``SecurityLog`` 행을 읽는다.
+    """
+    from models import SecurityLog
+
+    monkeypatch.setattr("foms.services.jobs.queue.enqueue_naver_refresh",
+                        lambda *a, **k: True)
+    user_id = _login(client, role="ADMIN").id   # 요청 뒤에는 detach 된다 — id 를 먼저 뜬다
+    _link(order_no=f"N-ALL-AC-{_uid()}")
+
+    assert client.post(REFRESH_ALL_PATH, json={}).get_json()["success"] is True
+
+    row = (db_session.query(SecurityLog)
+           .filter(SecurityLog.action == "NAVER_INGEST_REFRESH_ALL_ENQUEUE")
+           .order_by(SecurityLog.id.desc()).first())
+    assert row is not None
+    assert row.user_id == user_id
