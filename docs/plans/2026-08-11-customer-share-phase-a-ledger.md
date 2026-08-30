@@ -87,8 +87,37 @@
   (`railway variables --set` 2건, `--kv` 로 재확인). **운영 `web` 은 아직 안 켠다** —
   문자 대체발송 문구(`replacements`)가 콘솔에 등록되기 전에 켜면 카톡 실패 시 빈 본문이 나간다.
   `update_kakao_template` MCP 도구에 `replacements` 파라미터가 없음을 재확인 → **콘솔 작업 확정**.
-- 잔여: ① replacements 콘솔 등록(사용자) ② 스테이징 실발송 1건으로 버튼 2개 확인(대상 번호 필요)
-  ③ T16 운영 승격 PR(코드) — ②·③ 뒤에 운영 env 등록.
+- **대체발송(replacements) 현황(2026-08-30 콘솔 직접 조회)** — 통합 2종은 `replacements=[]` ·
+  `disableReplacements=null`(대체발송 켜짐). 반면 **기존 공유 단일링크 2종은 `disableReplacements=true`**
+  (문구를 넣는 대신 대체발송 자체를 꺼둔 상태), 실측 2종은 `replacements` 본문이 채워져 있고
+  `disableReplacements=false`. 즉 공유 계열의 기존 관례는 '대체발송 끄기' 다. `update_kakao_template`
+  MCP 도구엔 `replacements`·`disableReplacements` 둘 다 파라미터가 없다 — 콘솔 전용.
+  **사용자가 직접 설정하기로 결정(2026-08-30).**
+- **스테이징 실발송 검증 완료(2026-08-30)** — 주문 4495(`CLAUDE-TEST-T16-BOTH`, 라홈) →
+  `POST /api/share/create` `kind=bundle` → `POST /api/share/send-alimtalk`. 벤더 기록
+  `M4V202608301622066XNYRYDZA0VBGUA`: **templateId 가 통합 템플릿**(`KA01TP260825021747177Iu2C2ykuJfS`),
+  버튼 2개(`도면 보기`·`계약서 보기`)에 **서로 다른 토큰**, `from=15660792`, `status=COMPLETE·4000`, 수신 완료.
+  DB: `bundle` 앵커 share 1개 + 도면·계약서 share 2개, 계약서만 스냅샷 동결,
+  `OrderEvent SHARE_ALIMTALK status=sent sender_source=brand`. 담당자 미지정 주문이라
+  표기는 `고객센터`+브랜드 대표번호(지방 분기 아닌 정상 폴백). 수신자 실기기에서 버튼 2개 확인.
+  정리: 주문 4495 soft delete 완료. 버튼 링크는 WL 링크가 운영 도메인 고정이라 스테이징 토큰으로는 404(알려진 한계).
+- **운영 승격 PR #196 생성(2026-08-30, 머지 대기)** — base `production`(tip `5acef038`),
+  코드 5커밋 cherry-pick(`c7e40709→ec7f2971` · `b7b37042→3767a780` · `70b94b14→4fc73c0b` ·
+  `703e61e3→36748528` · `db17611e→0f17bf99`) + 인벤토리 재생성 `007f092e`. 문서 커밋 미포함.
+  충돌은 알려진 2종뿐: 인벤토리 JSON 2개(승격 트리 재생성) · 자산 `?v` 핀(운영 목록 유지 +
+  본 승격이 바꾼 `erp-share.js` 핀만 `20260825a`). 검증: APP_OK · alembic 단일 head
+  `merge_drawq_naverfail` · 공유 도메인 테스트 86 passed · pre_push_smoke exit 0(324 passed) ·
+  전체 스위트 5,419 passed · PR 검사 4종(test·harness·pg-lane·perf-gate) 전부 pass, `MERGEABLE/CLEAN`.
+- **승격 트리 전체 스위트에서 나온 빨강 2종은 T16 무관** — ①
+  `tests/visual/test_erp_order_edit_mobile_form.py::test_edit_erp_order_ships_responsive_form_mounts_for_cohort`
+  은 **운영 기준선 `5acef038` 에 그대로 있던 빨강**이다(승격 트리·기준선 둘 다 동일 실패, T16 커밋과 무관).
+  **원인은 계약 테스트가 폼 구간을 자르는 자리를 잘못 잡아 공유 모달을 폼으로 세던 것** — deploy 에서
+  타 세션이 `a5125de8`(test(erp): 모바일 폼 계약이 자르는 자리를 고친다)로 이미 고쳤고, 그 수정은
+  아직 production 에 없다. 승격 PR 은 이 파일을 안 탄다(production `ci.yml` 은 `--ignore=tests/visual`
+  + 4파일 허용목록). deploy 는 2026-08-30 `6abc2b43` 으로 visual 14개를 CI 에 등재했다.
+  ② visual 24 errors 는 `DATABASE_URL` file-backed SQLite 미설정(로컬 환경) 때문.
+- 잔여: ① 대체발송 콘솔 설정(사용자 직접) ② PR #196 머지(사용자) → 머지 후 운영 `web` 에
+  `SOLAPI_TEMPLATE_SHARE_BOTH_ID_{LAHOM,HAUD}` 등록 → 운영 실발송 1건으로 종결 확인.
 
 ### 개정 템플릿 4종 교체 (2026-08-24 — 승인 완료, PR #140)
 - Solapi 심사 승인: 실측 라홈 `KA01TP260819235109543IZ09ZS2GGxU` · 실측 하우드 `KA01TP260819083609155X1JFCnksFJ2` · 공유 라홈 `KA01TP260819084043806JpKvOqz3TDo` · 공유 하우드 `KA01TP260819084128244ThoZdhdBocC`.
