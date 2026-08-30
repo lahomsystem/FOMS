@@ -112,6 +112,29 @@ staticCacheFirst 라 핀을 안 올리면 옛 파일이 계속 나온다.
 `Run docs-facing contracts` 목록에 **등재해야 한다**. 빠뜨려서 첫 푸시가 FOMS CI red 였다
 (`pre_push_smoke` 는 이 게이트를 안 본다). 신규 mutation 라우트 계약 4종 + 이것까지 **5종**이다.
 
+## 7-B. 후속 — 전체 다시 읽기 (NVREPAY-03, 2026-08-30)
+
+§8 에서 "안 한다"고 적었던 **자동** 주기 조회는 여전히 안 한다. 대신 사람이 누르는
+**전체 다시 읽기**를 냈다 — 사용자 지적: 정리 대기 띠의 `전부 다시 읽기` 는 그 띠의
+모집단(살아 있는 옛 주문)만 대상이고, 0건이면 버튼 자체가 안 보인다. 목록 전체의 상태를
+갱신할 자리가 아니었다.
+
+| 무엇 | 어디 |
+|---|---|
+| 집 전부의 대표 링크 뽑기(집당 1건) | `claim_watch.refreshable_household_link_ids` |
+| 머리줄 버튼 `전체 다시 읽기 N주문`(ADMIN 전용) | `templates/admin/naver_workbench.html` 머리줄 |
+| `POST /admin/naver-ingest/refresh-all` | `naver_ingest.naver_ingest_refresh_all` |
+
+- **집당 대표 하나**만 큐에 간다 — `refresh_household` 가 형제 상품주문 전체를 읽으므로
+  건별로 넣으면 같은 집을 건수만큼 중복 호출한다.
+- **ADMIN 전용**(policy `ADMIN_OPS`, '지금 수집'과 같은 급). STAFF·MANAGER 는 단건 버튼 유지.
+  화면에서 버튼을 숨기는 데 그치지 않고 라우트도 막는다.
+- 확인 모달을 **둔다** — 단건과 다른 이유는 되돌림이 아니라 **규모**다(집 수십 개 조회 + 새로
+  발견된 취소·반품 알림). 네이버에 쓰는 것은 여전히 0.
+- 캡 `REFRESH_ALL_LIMIT = 200`(집). 넘으면 최신부터 자르고 **잘랐다고 말한다**.
+- 운영 실측 2026-08-30: 전체 **58집 / 링크 200건** — 캡에 닿지 않는다.
+- 계약 10건: `tests/services/integrations/test_naver_refresh_all.py`(ci.yml docs 서브셋 등재 포함).
+
 ## 8. 안 하는 것
 
 - 실시간 알림(붙이기 훅에서 즉시 push). 이 일의 병목은 속도가 아니라 도달이고, 훅은 우리
