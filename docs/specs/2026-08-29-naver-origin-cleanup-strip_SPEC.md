@@ -2,8 +2,7 @@
 
 - 작성 2026-08-29 · 워크트리 `C:/tmp/nvrepay` (session/nvrepay-cancel)
 - 앞선 작업: `docs/plans/2026-08-28-naver-repay-origin-cancel-ledger.md`(NVREPAY-01, 운영 반영 완료)
-- 상태: **완료 — 스테이징 반영·실화면 확인**(NVREPAY-02 `9745f4df` + CI 등재 `73bd35a3`,
-  NVREPAY-03 `12eebe39`). 운영 승격은 사용자 승인 대기.
+- 상태: **완료 — 운영 반영·운영 실화면 확인**(NVREPAY-02 PR #194 `f03c3de8`, NVREPAY-03 PR #195 `5acef038`).
 
 ## 1. 무엇이 문제였나
 
@@ -169,6 +168,22 @@ staticCacheFirst 라 핀을 안 올리면 옛 파일이 계속 나온다.
 **곁가지 관측(이번 변경과 무관, 미수정)**: `foms/web/admin/naver_ingest.py` 의 `log_access`
 호출 19곳이 전부 `user_id` 를 넘기지 않아 네이버 감사 행에 행위자가 없다(staging 실측:
 `NAVER_*` 액션 전량 `user_id IS NULL`). 파일 전역의 기존 관행이라 이번 범위에서 손대지 않는다.
+
+### 운영 실화면 확인 (2026-08-30) — 승격 직후
+
+`claude_master`(production id 57)를 정책대로 **해제 → 측정 1회 → 재잠금**하고 실브라우저로 눌렀다.
+
+- 버튼 `전체 다시 읽기 58주문`(`data-count="58"`) — 운영 DB 200링크 / 58집과 일치.
+- `POST refresh-all` 200 `{"count":58,"queued":58,"failed":0,"truncated":false}` (04:14:21 UTC).
+- **워커 재조회 완료** — 링크 200/200 · 집 58/58 `updated_at` 갱신, 04:15:23 UTC 종료(**약 62초**).
+- **자동 스윕이 놓쳤던 취소가 실제로 나왔다** — 알림 id 470, 요청 4초 뒤. `네이버 취소 완료 —
+  문기범 · 사유 주문 실수`(아직 주문으로 만들지 않은 수집분). 스테이징에서 본 것과 같은 건이다.
+- 감사 1건(`security_logs` id 32063). 콘솔 에러 0. 네이버 쓰기 호출 0회.
+- 계정은 `is_active=false` 로 재잠금하고 로그인 오라클 **200**(잠김)으로 확인했다.
+
+승격에서 `.github/workflows/ci.yml` 한 줄은 **가져오지 않았다** — 운영 ci.yml 에는 그 스텝이
+없다(충돌은 이 파일에서만 났고 운영 내용을 유지, `git diff origin/production` 0줄). 운영 CI 는
+전체 스위트를 돌므로 신규 계약 10건은 그대로 실행된다.
 
 ## 8. 안 하는 것
 
