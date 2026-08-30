@@ -77,6 +77,7 @@ def _link(*, order_no: str, product: str, amount: int = 100000,
           fail_action: str = "confirm", fail_at: str = "2026-08-27T11:20:00",
           shipping_due: str = "",
           return_block: Optional[dict[str, Any]] = None,
+          cancel_block: Optional[dict[str, Any]] = None,
           reviewed: bool = False) -> ExternalOrderLink:
     """수집 링크 1건을 원하는 축 상태로 만든다.
 
@@ -136,6 +137,10 @@ def _link(*, order_no: str, product: str, amount: int = 100000,
                                 "deliveryStatus": "NOT_TRACKING"}
     if return_block:
         snapshot["return"] = dict(return_block)
+    if cancel_block:
+        # 취소 축 전용 자리. `return` 에 넣으면 `mapping.RETURN_BLOCK_KEYS` 가 읽어 버려
+        # 취소 건이 반품 진행으로 보이는 그 결함을 테스트가 스스로 만든다.
+        snapshot["cancel"] = dict(cancel_block)
     fulfillment: dict[str, Any] = {}
     if dispatched_at:
         fulfillment["dispatched_at"] = dispatched_at
@@ -1087,3 +1092,46 @@ def test_unreadable_claim_time_never_becomes_a_fake_date(client, workbench_on):
 
     assert _badges(claim_row) == [_tight("반품 완료")], claim_row
     assert "NG_RE" not in cell, cell
+
+
+def test_settled_cancel_household_shows_the_cancel_date_and_refund(client, workbench_on):
+    """확정된 **취소** 집도 날짜와 환불 완료를 낸다 — 반품만 되던 자리다.
+
+    반품 축(`extract_return_axis`)은 `cancel` 블록을 **일부러 뺀다**: 취소 블록의 환불
+    필드가 반품 진행으로 새어 취소만 된 건에 "반품 진행" 줄이 뜨던 결함(2026-08-27) 때문이다.
+    그 결과 순수 취소 건은 확정 시각도 환불 상태도 영영 빈 값이었고, 목업 확정본의
+    `취소 완료 08-26 · 환불 완료` 가 배지 한 낱말로 줄어 있었다.
+
+    고치는 방향은 **축을 하나 더 두는 것**이지 반품 축에 `cancel` 을 도로 넣는 것이 아니다 —
+    그건 고친 누출을 되살린다. 이 테스트는 두 사실을 함께 잠근다:
+    ① 취소 확정 집에 날짜·환불 완료가 뜬다 ② 그 집에 반품 진행 낱말(`수거 완료`)이 안 뜬다.
+    """
+    _login(client)
+    _link(order_no="N-HSA-CANCELDONE", product="취소 확정 집", place_status="OK",
+          claim_status="CANCEL_DONE", reviewed=True,
+          cancel_block={"claimStatus": "CANCEL_DONE", "claimType": "CANCEL",
+                        "cancelCompletedDate": "2026-08-26T20:31:00.000+09:00",
+                        "refundStandbyStatus": "환불처리완료"})
+
+    claim_row = _axis_row(_status_cell(_row(_open(client), "N-HSA-CANCELDONE")), "취소·반품")
+
+    assert _badges(claim_row) == [_tight("취소 완료 08-26")], claim_row
+    assert _whens(claim_row) == [_tight("환불 완료")], claim_row
+    assert "수거 완료" not in claim_row, claim_row
+
+
+def test_cancel_request_without_approval_shows_no_date(client, workbench_on):
+    """승인 전 취소 요청은 **날짜를 안 낸다** — 없는 값을 지어내지 않는다.
+
+    운영 실데이터에 `cancelApprovalDate`·`cancelCompletedDate` 가 둘 다 없는 요청 건이
+    실제로 있다(link 79). 그 집에 날짜가 뜨면 아직 안 끝난 일에 끝난 날짜를 적는 셈이다.
+    """
+    _login(client)
+    _link(order_no="N-HSA-CANCELREQ", product="취소 요청 집", place_status="OK",
+          claim_status="CANCEL_REQUEST", reviewed=True,
+          cancel_block={"claimStatus": "CANCEL_REQUEST", "claimType": "CANCEL"})
+
+    claim_row = _axis_row(_status_cell(_row(_open(client), "N-HSA-CANCELREQ")), "취소·반품")
+
+    assert _badges(claim_row) == [_tight("취소 요청 · 확정 전")], claim_row
+    assert _whens(claim_row) == [], claim_row
