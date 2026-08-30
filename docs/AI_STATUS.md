@@ -20,7 +20,7 @@ Flask 2.3 + PostgreSQL + R2 + Railway (Web×2, Worker×1)
 - [2026-08-28] **고객 문서 공유 T16 — 템플릿 승인·env 로컬/스테이징 등록** — 통합 열람 링크(`kind='bundle'`)·지방 본사 CS 안내(라홈 1566-0792 / 그 외 1566-0703)·버튼 2개 배선(`SOLAPI_TEMPLATE_SHARE_BOTH_ID_{brand}` 등록으로 전환). 코드는 deploy 만 — 운영 승격 PR 미작성.
 - ⚠️ [2026-08-23] **로컬 dev DB 행 소실(로컬 한정)** — pytest 파일이 conftest 보다 먼저 `db` import → 로컬 PG 에 `drop_all`. 스테이징·운영 무관. 근본 수정: `assert_engine_not_postgresql`(env 문자열 아닌 엔진 판정)
 - [2026-08-30] **낡은 승격 PR 3건 정리(#133·#144·#49 닫음)** — 셋 다 내용이 이미 운영에 있었다(파일 누락 0·마이그레이션 9종 운영 확인). 남은 diff 는 운영이 앞선 방향이라 머지가 되레 되돌림 위험. 운영 alembic 은 85 리비전·head 1개로 성함. 열린 승격 PR 은 `#1`(리서치 봇)뿐. 근거는 원장에.
-- ⚠️ **미결: `as-delete-reapply`의 `8c1ef69a`**(삭제 라우트 WRITE-GUARD-01 manifest 등재) deploy 미반영. worktree 정리 중 발견, 타 세션 몫이라 미처리. 브랜치 ref 보존됨.
+- [2026-08-30] **`tests/visual` CI 등재 14개(CI-VISUAL-01)** — 브라우저 없이 도는 파일을 ci.yml 에. 2주 반 산 red 의 자리다. 미결 `8c1ef69a` 는 `0e98c108` 중복.
 
 ## 알려진 이슈
 - 차단 이슈 없음. 남은 구조 부채는 `WR-B1`/`WR-J1`/`WR-H1` 처럼 explicit future-batch 조건으로만 존재한다. `wdcalculator_scripts_config.html` Jinja 변수 주입 구간의 JS lint false-positive 는 기존과 동일.

@@ -239,6 +239,65 @@ R-4 는 화면 변화가 없어 실화면 확인 대상이 아니다(교환 실�
 `git fetch` 후 `git diff <내base> origin/production -- <내가 건드린 경로>` 를 보고, 겹치면
 재배열·재검증한다. force push 는 가드가 막으니 **새 브랜치**로 올린다.
 
+
+## 후속 정리 (2026-08-30)
+
+### ① `8c1ef69a` 한 달 미결 — 중복 커밋이었다 (등재 불필요)
+
+**판정은 커밋이 아니라 내용으로 했다.** 로컬 `as-delete-reapply` 의 `8c1ef69a`(2026-07-28,
+"삭제 라우트를 WRITE-GUARD-01 manifest 에 등재")가 `origin/deploy` 에 없는 것은 사실이다.
+그런데 **같은 내용의 다른 SHA `0e98c108`** 가 같은 날짜로 deploy·production 양쪽에 있다
+(`git branch -r --contains 0e98c108` → `origin/deploy`·`origin/production`).
+
+- 현재 `docs/harness/foms_write_guard_manifest.json:302` 에 `erp_orders_as.api_as_log_delete`
+  가 `mode=guard` · `rule=/api/orders/<int:order_id>/as/log/<log_id>/delete` 로 실재한다.
+  그 커밋이 등재하려던 것과 같다(당시 `guard_count` 157→158, 지금은 191 로 자란 상태).
+- 그래서 지금 CI 가 green 인 것이고, 다시 올릴 것이 없다. 승격 불필요.
+- `AI_STATUS.md` 의 ⚠️ 미결 줄을 종결 기록으로 교체했다.
+
+**남는 교훈**: 같은 수정을 두 워크트리에서 각각 커밋하면 SHA 만 갈라지고 내용은 하나다.
+"deploy 에 없는 커밋"은 미반영의 **증거가 아니다** — 등재 대상 자체가 지금 있는지를 본다.
+
+### ② `tests/visual` CI 등재 — 브라우저 없이 도는 14개를 넣었다
+
+**측정 먼저 했다.** 21개 파일을 CI 와 같은 조건(`DATABASE_URL=sqlite:///:memory:` ·
+`-p no:playwright`)으로 하나씩 돌려 갈랐다.
+
+| 갈래 | 파일 | 결과 |
+|---|---|---|
+| 브라우저 없이 green | 14 | 135 passed · 2 skipped · **3.4초** |
+| `page` + 파일 SQLite 라이브 서버 필요 | 5 | 24 tests 전부 setup error |
+
+등재 전 4개(`test_p1_mockup_structure`·`_png_baseline`·`_chrome_parity`·
+`test_staging_mobile_v2_assets`) → **14개**. 새로 든 10개:
+`test_alimtalk_ui_contract` · `test_baseline_policy` · `test_baseline_stale_policy` ·
+`test_edit_order_mobile_v2_shell` · **`test_erp_order_edit_mobile_form`**(2주 반 red 를
+살렸던 그 파일) · `test_mobile_notification_center` · `test_p1_mockup_home_parity` ·
+`test_p1_mockup_png_gate` · `test_p1_mockup_visual_gate` · `test_share_ui_contract`.
+
+전체 등재는 하지 않았다 — 브라우저 5개는 `-p no:playwright` 에서 error 라 넣으면 CI 가
+곧장 빨강이 된다. CI 시간 증가는 **약 2초**(단독 실행 3.4초, 기존 4개분 포함).
+
+**혼재 파일도 넣을 수 있다.** `test_erp_order_edit_mobile_form.py` 는 브라우저 테스트
+1개를 갖고 있지만 `@pytest.mark.skipif(DATABASE_URL 이 tests/visual 파일 SQLite 가 아니면)`
+가드가 있어 CI 에서 skip 된다. `test_p1_mockup_png_gate.py` 도 `FOMS_PLAYWRIGHT_BASELINE=1`
+가드로 같다.
+
+#### CI-VISUAL-01 — 목록이 다시 낡지 않게
+
+등재만 하면 **다음 새 파일이 또 조용히 샌다**(이번 red 가 2주 반 산 이유가 그것이다).
+`tests/domains/test_visual_lane_registry.py` 신설 — CI-DOCSCOPE-01 과 같은 모양이다.
+
+- `tests/visual/test_*.py` 는 ci.yml 스텝에 **등재**됐거나 `_BROWSER_REQUIRED` 에
+  **이유와 함께 제외**돼야 한다. 새 파일은 둘 중 하나를 고르기 전까지 빨강.
+- 분류가 장부로만 남지 않게 `ast` 로 대조한다: 제외 파일은 **정말** 브라우저 픽스처를
+  테스트 시그니처에서 요구해야 하고(안 그러면 "등재하라" 빨강), 등재 파일의 브라우저
+  테스트는 **skip 가드**를 달고 있어야 한다(가드 없이 등재 = CI error).
+- `pre_push_smoke.ps1` 대상에 추가(0.1초) — 인벤토리 드리프트 계열과 같은 자리.
+
+음성 대조군 확인: ci.yml 에서 `test_share_ui_contract.py` 한 줄을 지우고 빈 파일
+`test_zz_negctl_tmp.py` 를 만든 상태로 돌려 **둘 다 이름을 대며 빨강**을 확인한 뒤 원상복구했다.
+
 ## 낡은 승격 PR 정리 (2026-08-30)
 
 열린 채 방치된 운영 승격 PR 3건을 근거를 붙여 닫았다. 셋 다 **내용이 이미 운영에 있었다.**

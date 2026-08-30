@@ -154,7 +154,7 @@ A2가 내 가설을 확인해주지 않았다.
 ### A5 잔여 결함
 
 - **`str(None)` 유령 휴무일**: 배차는 무사(`shipment_read_model.py:135`가 `'YYYY-MM-DD'`와만 비교 → inert). **UI 휴무일수만 틀리고 클릭으로 못 지운다.** 내 T1 수정은 신규만 막고, 기존 오염은 재저장 때마다 영속(이미 문자열이라 가드 통과). 과거 오염 여부 **미확정** — 확인 쿼리 설계됨(`@>` 멤버십), 미실행.
-- **정리 대상** ✅ 2026-08-04 실행 — worktree 4개 제거(브랜치 ref는 전부 보존). **단 "전부 병합·clean"이라던 이 원장 기록이 틀렸다**: `as-delete-reapply`에는 deploy 미반영 커밋 1개(`8c1ef69a` "삭제 라우트를 WRITE-GUARD-01 manifest 에 등재")가 있었고, `bugfix/full-system-remediation`에는 미추적 파일 5개가 있었다(`/c/tmp/foms-backups/worktree-untracked-20260804/`로 백업 후 제거). **삭제 전 실제 상태를 매번 확인하라 — 원장의 "clean" 표기를 믿지 마라.** 잔여: `C:\tmp\foms-bugfix-remediation` 디렉터리가 타 프로세스 점유로 미삭제(git 목록에선 이미 빠짐). `fomstest`(5433 PG15 빈 DB)는 가드로 Claude Code에선 못 지움. stash 41개는 타 세션 WIP 혼재로 손대지 않음.
+- **정리 대상** ✅ 2026-08-04 실행 — worktree 4개 제거(브랜치 ref는 전부 보존). **단 "전부 병합·clean"이라던 이 원장 기록이 틀렸다**: `as-delete-reapply`에는 deploy 미반영 커밋 1개(`8c1ef69a` "삭제 라우트를 WRITE-GUARD-01 manifest 에 등재")가 있었고, `bugfix/full-system-remediation`에는 미추적 파일 5개가 있었다(`/c/tmp/foms-backups/worktree-untracked-20260804/`로 백업 후 제거) **[2026-08-30 후속]** 그 `8c1ef69a` 는 미반영이 아니라 **중복 커밋**이었다 — 같은 내용이 `0e98c108` 로 deploy·production 양쪽에 있다(manifest 엔트리 실물 확인). 근거는 `docs/plans/2026-08-28-naver-claim-phase-ledger.md` §후속 정리 ①.. **삭제 전 실제 상태를 매번 확인하라 — 원장의 "clean" 표기를 믿지 마라.** 잔여: `C:\tmp\foms-bugfix-remediation` 디렉터리가 타 프로세스 점유로 미삭제(git 목록에선 이미 빠짐). `fomstest`(5433 PG15 빈 DB)는 가드로 Claude Code에선 못 지움. stash 41개는 타 세션 WIP 혼재로 손대지 않음.
 
 ---
 

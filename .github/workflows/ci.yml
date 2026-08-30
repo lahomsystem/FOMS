@@ -147,6 +147,10 @@ jobs:
       run: |
         python -m pytest tests/domains/test_jobs_queue_redis_lane.py -q -p no:playwright
 
+    # CI-VISUAL-01: tests/visual 은 본 스위트에서 --ignore 되므로, 브라우저 없이 도는
+    # 파일은 여기 전부 등재한다. 목록이 낡으면 red 가 조용히 산다 —
+    # test_erp_order_edit_mobile_form.py 의 red 가 2주 반 살았다.
+    # tests/domains/test_visual_lane_registry.py 가 이 목록과 실제 파일 집합을 못 박는다.
     - name: Run UI structural tests (no Playwright PNG regression)
       env:
         DATABASE_URL: "sqlite:///:memory:"
@@ -154,8 +158,18 @@ jobs:
         FLASK_ENV: "testing"
       run: |
         python -m pytest -q \
-          tests/visual/test_p1_mockup_structure.py \
-          tests/visual/test_p1_mockup_png_baseline.py \
+          tests/visual/test_alimtalk_ui_contract.py \
+          tests/visual/test_baseline_policy.py \
+          tests/visual/test_baseline_stale_policy.py \
+          tests/visual/test_edit_order_mobile_v2_shell.py \
+          tests/visual/test_erp_order_edit_mobile_form.py \
+          tests/visual/test_mobile_notification_center.py \
           tests/visual/test_p1_mockup_chrome_parity.py \
+          tests/visual/test_p1_mockup_home_parity.py \
+          tests/visual/test_p1_mockup_png_baseline.py \
+          tests/visual/test_p1_mockup_png_gate.py \
+          tests/visual/test_p1_mockup_structure.py \
+          tests/visual/test_p1_mockup_visual_gate.py \
+          tests/visual/test_share_ui_contract.py \
           tests/visual/test_staging_mobile_v2_assets.py \
           -p no:playwright

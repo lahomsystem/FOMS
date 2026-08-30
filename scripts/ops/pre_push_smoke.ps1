@@ -222,6 +222,9 @@ if ($Full) {
         "tests/domains/test_rev_99.py",
         "tests/domains/test_state_guard.py",
         "tests/domains/test_write_guard.py",
+        # CI-VISUAL-01: tests/visual 은 본 스위트 밖이라 ci.yml 등재 목록이 낡으면
+        # red 가 조용히 산다(2주 반 사례). 레지스트리 드리프트는 여기서 초 단위로 잡는다.
+        "tests/domains/test_visual_lane_registry.py",
         # 호출부 명단 계약: 새 호출 지점이 명단에 없으면 CI red. smoke 사각이라
         # 2026-08-20 에 4커밋 연속 red 를 냈다(as_upload_anchor 의 append_client_log).
         "tests/domains/test_as_timeline_contract.py::test_as_log_write_call_sites_are_the_known_set",
