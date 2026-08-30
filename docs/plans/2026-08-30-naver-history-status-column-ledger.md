@@ -742,3 +742,33 @@ CEO 재판정이 남긴 minor 8건을 사람이 직접 닫았다.
 | 8 | 미단언 분기 4종 | §13 아래 테스트 절 참고 |
 
 **사람이 직접 돌린 검증**: `import app` → `APP_OK` · `pytest tests/services/integrations/ -q` → **1038 passed**
+
+
+## 14. 취소 축 확정 날짜 (2026-08-30) — 목업 대비 마지막 빈자리
+
+**증상**: 목업 확정본의 `취소 완료 08-27` · `취소 완료 08-26 · 환불 완료` 가 화면에서
+배지 한 낱말(`취소 완료`)로 줄어 있었다.
+
+**원인**: 클레임 꼬리 재료가 전부 `extract_return_axis` 에서 오는데, 그 함수의
+`RETURN_BLOCK_KEYS = ('returnInfo','return','exchange')` 는 `cancel` 을 **일부러 뺀다**.
+취소 블록의 환불 필드가 반품 진행으로 새어 스테이징 344 링크 중 50건이 "취소 완료 배지 +
+반품 진행 본문" 이던 결함(2026-08-27 CEO A1)을 고친 자리다. 그래서 순수 취소 건은
+`return_completed_at`·`refund_done` 이 영영 빈 값이었다.
+
+**고친 방향**: 반품 축에 `cancel` 을 도로 넣지 **않는다** — 고친 누출을 되살리는 짓이다.
+축을 하나 더 둔다.
+
+- `mapping.extract_cancel_axis()` 신설 — `cancel` 블록만 읽는다(`CANCEL_BLOCK_KEYS`).
+  `cancelCompletedDate` · `cancelApprovalDate` · `refundStandbyStatus` → `refund_done`.
+  `cancelCompletedDate` 는 운영 `CANCEL_DONE` 15건이 실제로 갖고 있는 값인데
+  (`docs/specs/2026-08-28-naver-claim-phase-labeling_SPEC.md` §1.1) 읽는 코드가 0곳이었다.
+- `_history_member_axes` 가 **클레임 종류가 취소일 때만** 이 축을 본다.
+  `claim_done_at` · `claim_refund_done` 이 축을 따라간다.
+- 승인 전 요청 건(운영 link 79)은 두 날짜가 다 없어 빈 값 → 화면이 날짜 조각을 안 낸다.
+
+**잠근 것**(`test_naver_history_status_axes.py`):
+- `test_settled_cancel_household_shows_the_cancel_date_and_refund` — 날짜·환불 완료가 뜨고,
+  **그 집에 반품 낱말(`수거 완료`)이 안 뜬다**(누출 재발 감시).
+- `test_cancel_request_without_approval_shows_no_date` — 승인 전에는 날짜를 안 낸다.
+
+**검증**: `import app` → APP_OK · `tests/services/integrations` + perf guard → **1051 passed**.
