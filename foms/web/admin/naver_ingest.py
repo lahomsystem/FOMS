@@ -983,6 +983,31 @@ def _ghost_view(db) -> dict[str, Any]:
         return {"count": 0, "rows": []}
 
 
+def _origin_cleanup_view(db) -> dict[str, Any]:
+    """재결제 뒤 **정리 안 된 옛 네이버 주문** 띠 데이터 (NVREPAY-02).
+
+    관계 블록(:func:`_origin_view`)은 그 주문 pane 을 연 사람에게만 말한다. 그런데 옛
+    주문을 취소·반품하지 않으면 고객 돈이 두 번 묶이고 옛 주문은 네이버에서 그대로 돈다.
+    **아무도 pane 을 안 열면 아무도 모른다** — 그 수를 목록 화면이 늘 말하게 하는 자리다.
+
+    Args:
+        db: 요청 스코프 DB 세션.
+
+    Returns:
+        ``{"count", "rows", "truncated"}``. 유령 띠와 같은 규율로 **실패해도 화면을
+        죽이지 않는다**(failopen — 로그로 남긴다). 이게 목록을 막으면 본업이 멈춘다.
+    """
+    from foms.services.integrations.naver_commerce.order_candidates import (
+        pending_origin_cleanup,
+    )
+
+    try:
+        return pending_origin_cleanup(db)
+    except SQLAlchemyError as exc:  # 보조 정보라 흐름을 막지 않는다(failopen — 로그로 남긴다)
+        logger.warning("[NAVER] 옛 주문 정리 대기 조회 실패(띠 생략): %s", exc, exc_info=True)
+        return {"count": 0, "rows": [], "truncated": False}
+
+
 def _selected_offlist(link: Optional[ExternalOrderLink],
                       household: Optional[dict[str, Any]],
                       visible: Optional[list[dict[str, Any]]]) -> bool:
@@ -1191,6 +1216,10 @@ def _render_workbench(db) -> str:
         # 유령 주문(R-2): 네이버 결제가 전부 취소됐는데 살아 있는 ERP 주문.
         # 처리 탭에서만 낸다 — 이력 탭은 지난 기록을 보는 자리라 할 일을 띄우지 않는다.
         ghosts=_ghost_view(db) if active_tab == "work" else {"count": 0, "rows": []},
+        # 재결제 뒤 정리 안 된 옛 네이버 주문(NVREPAY-02). 유령 띠와 같은 자리·같은 규율 —
+        # 처리 탭에서만 낸다(이력 탭은 할 일을 띄우는 자리가 아니다).
+        origin_cleanup=(_origin_cleanup_view(db) if active_tab == "work"
+                        else {"count": 0, "rows": [], "truncated": False}),
         **_pane_context(db, _selected_link(db, visible), visible=visible),
     )
 
@@ -2748,6 +2777,61 @@ def naver_ingest_refresh(link_id: int):
                     "data": {"link_id": link_id, "queued": True,
                              "rev": base_state["rev"],
                              "err_at": base_state["last_error_at"]},
+                    "error": None})
+
+
+@admin_bp.route("/admin/naver-ingest/origin-cleanup/refresh", methods=["POST"])
+@login_required
+@role_required(["ADMIN", "MANAGER", "STAFF"])
+def naver_ingest_origin_cleanup_refresh():
+    """정리 대기 중인 **옛 주문 전부**를 네이버에서 다시 읽는다 — NVREPAY-02(읽기 전용).
+
+    단건 :func:`naver_ingest_refresh` 와 나가는 호출이 **같다**(상세 조회뿐, 네이버에
+    쓰는 것 없음). 다른 점은 대상을 사람이 고르지 않는다는 것이다 — 재결제를 붙인 뒤
+    아직 살아 있는 옛 집을 **서버가 다시 세어서** 그 집들만 큐에 넣는다.
+
+    **화면이 보낸 목록을 믿지 않는다.** 클라이언트가 link_id 를 실어 보내면 그 사이에
+    정리된 집이나 남의 집을 읽게 할 수 있다. 목록은 여기서 새로 만든다.
+
+    왜 필요한가: 옛 주문의 살아 있음 판정은 **우리 스냅샷**이 근거인데, 자동 스윕은
+    네이버가 변경 이벤트를 준 건만 다시 읽는다. 이벤트가 안 오면 영영 낡은 채로 남고,
+    화면은 이미 고객이 취소한 주문을 "살아 있습니다"라고 말한다. 불가역 버튼 앞에 서기
+    전에 모집단 전체를 한 번에 최신화하는 자리다.
+
+    Returns:
+        ``{"success": True, "data": {"count", "queued", "failed"}}``.
+        ``count`` 는 정리 대기 집 수, ``queued`` 는 큐에 들어간 수다. 큐가 아예 막혀
+        있으면(하나도 못 넣음) 503.
+    """
+    from foms.services.integrations.naver_commerce.order_candidates import (
+        pending_origin_cleanup,
+    )
+    from foms.services.jobs.queue import enqueue_naver_refresh
+
+    db = get_db()
+    pending = pending_origin_cleanup(db)
+    link_ids = [int(row["link_id"]) for row in pending["rows"] if row.get("link_id")]
+    if not link_ids:
+        return jsonify({"success": True,
+                        "data": {"count": 0, "queued": 0, "failed": 0},
+                        "error": None})
+
+    user_id = session.get("user_id")
+    queued = [link_id for link_id in link_ids if enqueue_naver_refresh(link_id, user_id)]
+    failed = len(link_ids) - len(queued)
+    if not queued:
+        return jsonify({"success": False, "data": None,
+                        "error": "작업 큐를 쓸 수 없습니다(REDIS_URL 미설정 또는 큐 장애). "
+                                 "잠시 후 다시 시도하세요."}), 503
+
+    log_access(
+        f"옛 주문 일괄 다시 읽기 요청 ({len(queued)}집)",
+        action="NAVER_ORIGIN_CLEANUP_REFRESH_ENQUEUE",
+        detail={"link_ids": queued, "failed": failed},
+    )
+    return jsonify({"success": True,
+                    "data": {"count": pending["count"], "queued": len(queued),
+                             "failed": failed},
                     "error": None})
 
 

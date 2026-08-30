@@ -45,7 +45,8 @@ from models import ExternalOrderLink, Order
 logger = logging.getLogger(__name__)
 
 __all__ = ["find_order_candidates", "household_amount", "origin_facts",
-           "CANDIDATE_WINDOW_DAYS", "CANDIDATE_LIMIT"]
+           "pending_origin_cleanup",
+           "CANDIDATE_WINDOW_DAYS", "CANDIDATE_LIMIT", "ORIGIN_CLEANUP_LIMIT"]
 
 #: 후보를 찾는 기간(일). 가구는 실측·제작·시공까지 몇 달이 걸려 차액 결제가 늦게 온다.
 CANDIDATE_WINDOW_DAYS = 180
@@ -55,6 +56,10 @@ CANDIDATE_LIMIT = 5
 
 #: 주소 비교에 쓰는 앞부분 길이. 상세주소(동·호)는 빼고 건물까지만 본다.
 ADDRESS_PREFIX_LEN = 10
+
+#: 정리 대기 띠에 실을 최대 집 수(NVREPAY-02). 넘으면 잘라내고 **잘랐다고 말한다** —
+#: 조용한 절단은 "이게 전부"로 읽힌다.
+ORIGIN_CLEANUP_LIMIT = 20
 
 #: 점수 — 값 자체보다 순서가 의미다.
 SCORE_RECIPIENT_PHONE = 100
@@ -468,6 +473,81 @@ def origin_facts(session, order_id: Any, *, exclude_link_ids: set[int],
         "alive_rows": rows,
         "stale_any": stale_any,
     }
+
+
+def pending_origin_cleanup(session, *, limit: int = ORIGIN_CLEANUP_LIMIT) -> dict[str, Any]:
+    """재결제를 붙인 뒤 **아직 네이버에서 정리 안 된 옛 주문**을 전수로 모은다 (NVREPAY-02).
+
+    :func:`origin_facts` 는 담당자가 **그 주문 pane 을 열었을 때만** 말한다. 그런데 옛
+    주문을 취소·반품하지 않으면 고객은 같은 물건값을 두 번 낸 상태로 남고, 옛 주문은
+    네이버에서 정산·발송이 그대로 돈다. **아무도 pane 을 안 열면 아무도 모른다** — 목록
+    어디에도 그 수가 없었다. 이 함수는 그 수를 화면이 늘 말할 수 있게 한다.
+
+    판정 술어는 pane 과 **같은 것**을 쓴다(:func:`_naver_facts` 의 ``relations=("NEW",)``).
+    한 벌 더 쓰면 띠와 pane 이 다른 말을 한다. 재결제 집 자체는 관계 필터가 이미 걷어내므로
+    ``exclude_link_ids`` 를 따로 넘기지 않는다.
+
+    ``stale`` 은 **새 결제를 받은 뒤로 그 옛 주문을 한 번도 안 읽었는가**다(SPEC §5.4 R2′).
+    기준 시각은 그 주문에 붙은 재결제 링크 중 **가장 늦게 수집된** 것이다 — 여러 번 붙였으면
+    마지막 결제 이후를 봐야 한다.
+
+    Args:
+        session: DB 세션.
+        limit: 돌려줄 최대 집 수.
+
+    Returns:
+        ``{"count", "rows", "truncated"}``. ``count`` 는 **자르기 전 전체 수**이고
+        ``rows`` 는 ``{order_id, customer_name, status, link_id, external_order_no,
+        amount_total, product_order_count, dispatched, read_at, stale}`` 목록이다.
+        재결제가 붙은 주문이 없거나 옛 주문이 전부 정리됐으면 ``count == 0``.
+    """
+    repay_rows = (session.query(ExternalOrderLink.order_id, ExternalOrderLink.created_at)
+                  .filter(ExternalOrderLink.relation == "REPAY",
+                          ExternalOrderLink.order_id.isnot(None))
+                  .all())
+    if not repay_rows:
+        return {"count": 0, "rows": [], "truncated": False}
+    since_by_order: dict[int, str] = {}
+    for order_id, created_at in repay_rows:
+        stamp = created_at.isoformat() if hasattr(created_at, "isoformat") else ""
+        key = int(order_id)
+        if stamp > since_by_order.get(key, ""):
+            since_by_order[key] = stamp
+    order_ids = sorted(since_by_order)
+
+    facts = _naver_facts(session, order_ids, relations=("NEW",))  # perf-ok: 재결제 붙은 주문만
+    pending: list[tuple[int, dict[str, Any]]] = []
+    for order_id in order_ids:
+        bucket = facts.get(order_id)
+        if not bucket:
+            continue
+        since = since_by_order.get(order_id, "")
+        for row in bucket.get("alive_rows") or []:
+            row = dict(row)
+            row["stale"] = bool(since and row.get("read_at") and row["read_at"] < since)
+            pending.append((order_id, row))
+    if not pending:
+        return {"count": 0, "rows": [], "truncated": False}
+
+    orders = {order.id: order for order in session.query(Order)
+              .filter(Order.id.in_({oid for oid, _row in pending})).all()}  # perf-ok: 소수 batch
+    rows = []
+    # 손이 급한 것부터 — 미확인(stale)이 위, 그다음 최근 주문.
+    for order_id, row in sorted(pending, key=lambda item: (not item[1]["stale"], -item[0])):
+        order = orders.get(order_id)
+        rows.append({
+            "order_id": order_id,
+            "customer_name": getattr(order, "customer_name", "") or "",
+            "status": getattr(order, "status", "") or "",
+            "link_id": row.get("link_id"),
+            "external_order_no": row.get("external_order_no"),
+            "amount_total": int(row.get("amount_total") or 0),
+            "product_order_count": int(row.get("product_order_count") or 0),
+            "dispatched": bool(row.get("dispatched")),
+            "read_at": row.get("read_at") or "",
+            "stale": bool(row.get("stale")),
+        })
+    return {"count": len(rows), "rows": rows[:limit], "truncated": len(rows) > limit}
 
 
 def _order_view(order: Order, *, score: int, reason: str,
