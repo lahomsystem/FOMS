@@ -206,6 +206,25 @@ def test_naver_created_order_keeps_its_source(auth_client):
     assert data.get(LINKED_MARKER_KEY) is True
 
 
+def test_intake_badge_does_not_claim_automatic_collection(auth_client):
+    """뱃지는 **"자동 수집된 주문"이라고 단정하지 않는다**(2026-08-30).
+
+    2026-08-28 이전 붙이기가 ``source`` 를 덮어써서 ERP 직접 등록 주문이 네이버 출신으로
+    뒤집힌 과거분이 남아 있고, 소급 구별이 불가능하다(운영 실측 의심 최대 3건). 그래서
+    문구를 둘 다 참인 말로 낮췄다 — "수집분이 연결돼 있다". 판정 키(``source``)는 그대로다.
+    """
+    order_id = _erp_order()
+    order = db_session.get(Order, order_id)
+    order.structured_data = {"source": SOURCE_MARKER}
+    db_session.commit()
+
+    html = auth_client.get(f"/edit/{order_id}").get_data(as_text=True)
+
+    assert f'data-erp-order-source="{SOURCE_MARKER}"' in html, "뱃지 자체는 그대로 뜬다"
+    assert "자동 수집된 주문입니다" not in html, "단정 문구는 사라져야 한다"
+    assert "수집분이 연결된 주문입니다" in html
+
+
 def test_attach_is_idempotent_on_the_gate(auth_client):
     """두 번 눌러도 게이트는 하나다(같은 버튼 재전송 방어)."""
     order_id = _erp_order()

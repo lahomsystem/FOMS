@@ -103,7 +103,8 @@
         'wb-run-now': submitRunNow,
         'wb-expiry-edit': toggleExpiryEdit,
         'wb-ghost-discard': submitGhostDiscard,
-        'wb-origin-refresh-all': submitOriginRefreshAll
+        'wb-origin-refresh-all': submitOriginRefreshAll,
+        'wb-refresh-all': submitRefreshAll
     };
 
     document.addEventListener('click', onClick);
@@ -146,6 +147,42 @@
        네이버 결제가 전부 취소됐는데 살아 있는 ERP 주문을 접는다. soft delete 라
        휴지통에서 복구된다 — 그래서 불가역 4종 세트 모달이 아니라 확인창 1회다.
        (되돌릴 수 없는 것만 모달을 쓴다는 이 화면의 규율.) */
+    /**
+     * **수집된 집 전부**를 네이버에서 다시 읽는다 (NVREPAY-03).
+     *
+     * 되돌릴 것은 없지만(조회만) 한 번에 수십 집의 호출이 나가고 새로 발견된 취소·반품은
+     * 알림으로 나가므로, 몇 집인지 말하고 한 번 묻는다. 단건 `다시 읽기` 가 모달을 두지
+     * 않는 것과 다른 이유는 **되돌림이 아니라 규모**다.
+     *
+     * 결과는 새로고침으로 확인한다 — 워커가 읽고 나면 목록의 상태·금액이 바뀌므로 조각
+     * 교체보다 전체 렌더가 정직하다.
+     *
+     * @param {HTMLElement} button 눌린 버튼(집 수를 물고 있다).
+     * @returns {Promise<void>}
+     */
+    async function submitRefreshAll(button) {
+        var count = safeId(button.dataset.count) || '';
+        var message = '수집된 ' + (count || '전체') + '개 주문을 네이버에서 다시 읽습니다.\n'
+            + '조회만 하며 네이버에는 아무것도 보내지 않습니다.\n'
+            + '취소·반품이 처음 발견되면 담당자·관리자에게 알림이 갑니다.';
+        if (!window.confirm(message)) {
+            return;
+        }
+        button.disabled = true;
+        var label = button.textContent;
+        const result = await postJson(BASE + 'refresh-all', {});
+        if (!result.ok) {
+            window.alert(result.error);
+            button.disabled = false;
+            button.textContent = label;
+            return;
+        }
+        var queued = (result.data && result.data.queued) || 0;
+        button.textContent = queued
+            ? '다시 읽는 중 — ' + queued + '주문 (끝나면 새로고침)'
+            : '다시 읽을 주문 없음';
+    }
+
     /**
      * 정리 대기 중인 **옛 주문 전부**를 네이버에서 다시 읽는다 (NVREPAY-02).
      *

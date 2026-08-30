@@ -528,6 +528,47 @@ def refresh_claims(
     return result
 
 
+#: 한 번의 **전체 다시 읽기**가 큐에 넣을 최대 집 수(NVREPAY-03). 넘으면 최신 집부터
+#: 자르고 **잘랐다고 말한다** — 조용한 절단은 "전부 읽었다"로 읽힌다. 운영 실측
+#: 2026-08-30 기준 전체 58집이라 지금은 캡에 닿지 않는다.
+REFRESH_ALL_LIMIT = 200
+
+
+def refreshable_household_link_ids(session: Session, *,
+                                   limit: int = REFRESH_ALL_LIMIT) -> tuple[list[int], int]:
+    """**수집된 집 전부**의 대표 링크 id 를 최신 순으로 준다 (NVREPAY-03).
+
+    `다시 읽기` 는 집 1건짜리라 담당자가 그 집 pane 에 서 있어야 누른다. 그런데 자동
+    스윕은 네이버가 **변경 이벤트를 준 건만** 다시 읽으므로(:func:`refresh_claims`),
+    이벤트가 안 오는 집은 자동 경로로 영영 안 갱신된다. 화면 전체를 한 번에 최신화하는
+    자리가 없어서, 사람이 "지금 이 목록이 진짜인가"를 확인할 방법이 목록을 하나씩 여는
+    것뿐이었다.
+
+    집 대표는 **가장 작은 링크 id** 하나면 된다 — :func:`refresh_household` 가 그 링크가
+    속한 집 전체(형제 상품주문 전부)를 다시 읽기 때문이다. 집을 주문번호
+    (``external_order_no``)로 묶는 규칙은 화면 목록과 같다.
+
+    Args:
+        session: DB 세션.
+        limit: 돌려줄 최대 집 수.
+
+    Returns:
+        ``(대표 link_id 목록, 전체 집 수)``. 목록은 잘렸을 수 있고, 두 번째 값이 자르기
+        전 총량이라 화면이 "N집 중 M집"을 말할 수 있다.
+    """
+    from sqlalchemy import func
+
+    rows = (session.query(func.min(ExternalOrderLink.id).label("link_id"),
+                          func.max(ExternalOrderLink.created_at).label("seen_at"))
+            .filter(ExternalOrderLink.channel == CHANNEL,
+                    ExternalOrderLink.external_order_no.isnot(None))
+            .group_by(ExternalOrderLink.external_order_no)
+            .all())  # perf-ok: 집 단위 집계(운영 58집), 관리자 전용 조작 경로
+    total = len(rows)
+    ordered = sorted(rows, key=lambda row: (row.seen_at is not None, row.seen_at), reverse=True)
+    return [int(row.link_id) for row in ordered[:limit]], total
+
+
 def refresh_household(
     session: Session, *, client: Any, link_id: int,
     now: Optional[datetime] = None,

@@ -45,6 +45,10 @@
       "mode": "guard",
       "rule": "/admin/naver-ingest/<int:link_id>/refresh"
     },
+    "admin.naver_ingest_refresh_all": {
+      "mode": "guard",
+      "rule": "/admin/naver-ingest/refresh-all"
+    },
     "admin.naver_ingest_origin_cleanup_refresh": {
       "mode": "guard",
       "rule": "/admin/naver-ingest/origin-cleanup/refresh"
