@@ -7,6 +7,7 @@
 from __future__ import annotations
 
 import base64
+import logging
 from datetime import datetime, timedelta
 
 import bcrypt
@@ -35,11 +36,15 @@ QUERY_PATH = "/v1/pay-order/seller/product-orders/query"
 class FakeResponse:
     """requests.Response 최소 계약(status_code / json() / text)만 흉내낸다."""
 
-    def __init__(self, status_code: int, payload=None, text: str = "", raise_on_json: bool = False):
+    def __init__(self, status_code: int, payload=None, text: str = "", raise_on_json: bool = False,
+                 headers: dict | None = None):
         self.status_code = status_code
         self._payload = payload
         self.text = text or ""
         self._raise_on_json = raise_on_json
+        # 실 게이트웨이는 매 응답에 호출 한도 헤더를 싣는다. 기본은 빈 dict —
+        # 헤더 없는 응답에서도 클라이언트가 죽지 않는 것이 계약이다.
+        self.headers = dict(headers or {})
 
     def json(self):
         if self._raise_on_json:
@@ -392,3 +397,65 @@ def test_redis_cache_failure_falls_back_to_reissue():
     assert client.get_access_token() == "tok-abc"
     assert client.get_access_token() == "tok-abc"
     assert len(transport.calls_to(TOKEN_PATH)) == 2  # 캐시가 죽어 매번 재발급하지만 동작은 유지
+
+
+# --------------------------------------------------------------------------- #
+# 호출 한도 헤더 관측 (2026-08-31) — 일괄 발송처리 대비
+# --------------------------------------------------------------------------- #
+
+def test_rate_limit_headers_are_logged_when_present(caplog):
+    """여유가 남아 있으면 debug 로 남긴다 — 매 호출 경고를 만들지 않는다."""
+    headers = {"GNCP-GW-RateLimit-Remaining": "2",
+               "GNCP-GW-RateLimit-Replenish-Rate": "2",
+               "GNCP-GW-RateLimit-Burst-Capacity": "4"}
+    client, _, _ = make_client({
+        TOKEN_PATH: [token_response()],
+        QUERY_PATH: [FakeResponse(200, {"data": []}, headers=headers)],
+    })
+    with caplog.at_level(logging.DEBUG,
+                         logger="foms.services.integrations.naver_commerce.client"):
+        client.get_product_orders(["1"])
+    line = next(r for r in caplog.records if "호출 한도" in r.getMessage())
+    assert line.levelno == logging.DEBUG
+    assert "남음=2" in line.getMessage()
+    assert "초당배정=2" in line.getMessage()
+    assert "버스트=4" in line.getMessage()
+
+
+def test_rate_limit_headers_warn_when_budget_nearly_gone(caplog):
+    """남은 호출이 바닥이면 경고다 — 다음 호출이 429 로 **처리 없이** 실패한다."""
+    client, _, _ = make_client({
+        TOKEN_PATH: [token_response()],
+        QUERY_PATH: [FakeResponse(200, {"data": []},
+                                  headers={"GNCP-GW-RateLimit-Remaining": "0"})],
+    })
+    with caplog.at_level(logging.DEBUG,
+                         logger="foms.services.integrations.naver_commerce.client"):
+        client.get_product_orders(["1"])
+    line = next(r for r in caplog.records if "호출 한도" in r.getMessage())
+    assert line.levelno == logging.WARNING
+
+
+def test_rate_limit_header_lookup_is_case_insensitive(caplog):
+    """주입 전송은 보통 그냥 dict 다 — 철자 대소문자로 로그가 조용히 비면 안 된다."""
+    client, _, _ = make_client({
+        TOKEN_PATH: [token_response()],
+        QUERY_PATH: [FakeResponse(200, {"data": []},
+                                  headers={"gncp-gw-ratelimit-remaining": "7"})],
+    })
+    with caplog.at_level(logging.DEBUG,
+                         logger="foms.services.integrations.naver_commerce.client"):
+        client.get_product_orders(["1"])
+    assert any("남음=7" in r.getMessage() for r in caplog.records)
+
+
+def test_no_rate_limit_headers_logs_nothing(caplog):
+    """헤더가 없으면 한 줄도 남기지 않는다(토큰 발급 등 매 호출 잡음 방지)."""
+    client, _, _ = make_client({
+        TOKEN_PATH: [token_response()],
+        QUERY_PATH: [FakeResponse(200, {"data": []})],
+    })
+    with caplog.at_level(logging.DEBUG,
+                         logger="foms.services.integrations.naver_commerce.client"):
+        client.get_product_orders(["1"])
+    assert not [r for r in caplog.records if "호출 한도" in r.getMessage()]
