@@ -438,18 +438,26 @@ def _history_member_axes(link: ExternalOrderLink,
     from foms.services.integrations.naver_commerce.mapping import (
         claim_kind,
         claim_reason_text,
+        extract_cancel_axis,
         extract_claim,
     )
 
     claim = extract_claim(link.raw_snapshot or {})
+    kind = claim_kind(claim)
     # 반품 축은 **클레임이 있는 링크에만** 판다. 판정에 쓰는 술어(``claim_label``)는
     # :func:`_history_claim` 이 멤버를 고를 때 쓰는 것과 **같은 값**이라, 라벨을 준 멤버는
     # 반드시 축도 갖는다(둘이 갈리면 화면이 라벨만 있고 날짜가 없는 집을 만든다).
     axis = _return_axis_view(link) if summary["claim_label"] else _EMPTY_RETURN_AXIS
+    # 취소 축은 **따로** 판다. 반품 축이 ``cancel`` 블록을 일부러 빼기 때문에(취소 블록의
+    # 환불 필드가 반품 진행으로 새던 결함) 순수 취소 건은 확정 시각도 환불 상태도 영영
+    # 빈 값이었다 — 목업의 `취소 완료 08-27` 이 그래서 안 나왔다(2026-08-30).
+    # 반품 축에 ``cancel`` 을 도로 넣지 않는다: 고친 누출을 되살리는 짓이다.
+    cancel = (extract_cancel_axis(link.raw_snapshot or {})
+              if summary["claim_label"] and kind == "CANCEL" else None)
     return {
         "relation": (link.relation or "").strip().upper(),
         "claim_phase": claim["phase"],
-        "claim_kind": claim_kind(claim),
+        "claim_kind": kind,
         # 사유는 **코드 라벨**이다 — 목업 확정본의 `단순 변심`·`색상·사이즈 변경` 이
         # :data:`mapping.CLAIM_REASON_LABELS` 의 낱말이다. 고객이 쓴 원문
         # (``detailed_reason``)은 길이가 안 정해져 있어 좁은 상태 칸에 못 싣는다 —
@@ -457,11 +465,13 @@ def _history_member_axes(link: ExternalOrderLink,
         "claim_reason": claim_reason_text(claim["reason"]),
         # 반품 축 시각 3종 — 이미 KST `YYYY-MM-DD HH:MM` 로 펴진 값이다.
         # "끝난 뒤의 환불 예정"은 미래형 거짓말이라 확정된 집에서는 빈 값으로 준다.
-        "claim_done_at": axis["return_completed_at"],
+        "claim_done_at": (_dispatch_time_text(cancel["cancel_completed_at"])
+                          if cancel else axis["return_completed_at"]),
         "claim_refund_expected_at": (axis["refund_expected_at"]
                                      if axis["refund_expected_pending"] else ""),
         "claim_collect_done_at": axis["collect_completed_at"],
-        "claim_refund_done": axis["refund_done"],
+        # 환불 완료도 축을 따라간다 — 취소 건의 환불 상태는 취소 블록에만 있다.
+        "claim_refund_done": (cancel["refund_done"] if cancel else axis["refund_done"]),
         "shipping_due": summary["shipping_due"],
         # 발송 판정은 **재작성하지 않는다** — pane 과 같은 파서를 그대로 접는다.
         "dispatch": _dispatch_view(link),
