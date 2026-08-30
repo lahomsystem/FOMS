@@ -818,6 +818,11 @@ def record_task_failure(session: Session, *, link_id: int, action: str, reason: 
     try:
         links = _links_of_group(session, link_id)
     except FulfillmentError:
+        # 이 함수 자체가 **마지막 통지 경로**다. 여기서 조용히 돌아서면 워커가 죽은
+        # 사실이 어디에도 안 남는다 — 화면은 "요청했습니다"로 멈춰 있고, 취소는
+        # 재시도 버튼도 없다. 사유를 못 남기더라도 **못 남겼다는 것은 남긴다**.
+        logger.warning("[NAVER] 실패 사유 기록 실패(집을 못 찾음) link=%s action=%s 사유=%s",
+                       link_id, action, str(reason)[:200], exc_info=True)
         return
     _mark_failures({str(row.external_id): row for row in links},
                    {str(row.external_id): str(reason)[:500] for row in links},
