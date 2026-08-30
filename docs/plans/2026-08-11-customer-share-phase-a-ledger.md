@@ -112,6 +112,18 @@
   `APP_OK` · 공유 스위트 99 passed(`test_order_share_{alimtalk,api,view,sms}` + `test_alimtalk_ui_contract`) ·
   `tests/contracts`+`tests/domains` **5350 passed · 5 skipped**(17분 7초). PR base 가 아직 현재 운영 tip
   `5acef038` 과 같아 재배열 불필요. 머지는 사용자 승인 대기.
+- **운영 반영 완료(2026-08-31, 사용자 지시)** — PR #196 머지 → production `d6f1c84e`.
+  머지 직전 운영이 #197 로 움직여 base 가 낡아 있었다(`5acef038` → `4be86ab2`). 파일 겹침은 0 이었지만
+  **인벤토리 2종은 겹치지 않아도 밀린다**(#197 이 `claim_watch.py`·`naver_ingest.py` 를 건드렸다) —
+  그래서 현재 운영 tip 위에서 병합을 먼저 시뮬레이션해 확인했다: `APP_OK` · 드리프트 게이트 6종 68 passed ·
+  `tests/contracts`+공유 4종+`tests/services/integrations` **1175 passed**. 드리프트 없음(lineno-무관 게이트 덕).
+- **운영 env 등록 + 재배포(2026-08-31)** — `SOLAPI_TEMPLATE_SHARE_BOTH_ID_{LAHOM,HAUD}` 를 `FOMS-PRODUCTION`
+  `web` 에 등록(`--kv` 재확인, `RAILWAY_PROJECT_NAME` 가드 확인). **막고 있던 조건은 해소돼 있었다** —
+  통합 템플릿 2종 모두 `replacements` 본문이 채워지고 `disableReplacements=false`·`APPROVED`(콘솔 직접 조회).
+  **함정: `railway variables --set` 은 재배포를 안 건다.** 변수는 들어갔는데 마지막 부팅이 23:34:29 그대로였다
+  → `railway redeploy --service web` 로 23:41:03 재부팅. env 는 `ka._env` 로 호출 시점에 읽으므로 이제 유효하다.
+  운영 라이브 확인: `/static/js/orders/erp-share.js` 에 `bundle: '도면·계약서'` 존재 · `/login` 200.
+- 잔여: 운영 실발송 1건 육안(실제 고객 발송이라 사용자 판단). 스테이징 실발송은 08-30 에 벤더 기록으로 확인 완료.
 - **승격 트리 전체 스위트에서 나온 빨강 2종은 T16 무관** — ①
   `tests/visual/test_erp_order_edit_mobile_form.py::test_edit_erp_order_ships_responsive_form_mounts_for_cohort`
   은 **운영 기준선 `5acef038` 에 그대로 있던 빨강**이다(승격 트리·기준선 둘 다 동일 실패, T16 커밋과 무관).
