@@ -18,7 +18,7 @@ Flask 2.3 + PostgreSQL + R2 + Railway (Web×2, Worker×1)
 - [2026-08-28] **고객 문서 공유 T16 — 템플릿 승인·env 로컬/스테이징 등록** — 통합 열람 링크(`kind='bundle'`)·지방 본사 CS 안내(라홈 1566-0792 / 그 외 1566-0703)·버튼 2개 배선(`SOLAPI_TEMPLATE_SHARE_BOTH_ID_{brand}` 등록으로 전환). 코드는 deploy 만 — 운영 승격 PR 미작성.
 - [2026-08-25] **네이버 수집 운영 개방·안정화** — 전량 승격(production `39fa919d`) 뒤 열쇠·플래그 투입(WORKER 수집 300초 · web 워크벤치 `COHORT=all`). 개방 직후 `주문 만들기` 가 `naver_ingest_bot` 부재로 막혀 있었다(설치 체크리스트 ① 미실행) → 운영 id 61·62 생성으로 해소. 워크벤치 머리줄이 전역 nav(z-index 1000) 밑에 깔리던 결함 · 도크 머리말↔링크 집 불일치 · 붙이기 중복 이력 수정 deploy(`6ed045c9`). 원장 `docs/plans/2026-08-25-naver-full-promotion-roadmap.md` §18
 - ⚠️ [2026-08-23] **로컬 dev DB 행 소실(로컬 한정)** — pytest 파일이 conftest 보다 먼저 `db` import → 로컬 PG 에 `drop_all`. 스테이징·운영 무관. 근본 수정: `assert_engine_not_postgresql`(env 문자열 아닌 엔진 판정)
-- [2026-08-23] **운영 승격 PR #133 대기(머지=사용자)** — 체인을 운영 head `notifrole_00` 위로 재직렬화, 운영 재현 upgrade 9리비전 + 스위트 5392 green. **승격은 당일 머지하거나 직전 head 재확인**(#113·#121 무효 전례). 원장 `docs/plans/2026-08-21-production-promotion-ledger.md`
+- [2026-08-30] **낡은 승격 PR 3건 정리(#133·#144·#49 닫음)** — 셋 다 내용이 이미 운영에 있었다(파일 누락 0·마이그레이션 9종 운영 확인). 남은 diff 는 운영이 앞선 방향이라 머지가 되레 되돌림 위험. 운영 alembic 은 85 리비전·head 1개로 성함. 열린 승격 PR 은 `#1`(리서치 봇)뿐. 근거는 원장에.
 - ⚠️ **미결: `as-delete-reapply`의 `8c1ef69a`**(삭제 라우트 WRITE-GUARD-01 manifest 등재) deploy 미반영. worktree 정리 중 발견, 타 세션 몫이라 미처리. 브랜치 ref 보존됨.
 
 ## 알려진 이슈
