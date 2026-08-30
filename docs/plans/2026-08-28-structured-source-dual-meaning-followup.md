@@ -1,6 +1,7 @@
 # `structured_data['source']` 이중 의미 잔재 — 별건 등재
 
 - 등재 2026-08-28 · 상태 **B안 적용 완료(2026-08-30)** — 아래 §착수 결과
+- **운영 승격 대기**: 뱃지 문구 수정은 deploy 에만 있다(`3aba2645`). 사용자 결정으로 다음 승격 때 다른 변경과 함께 올린다.
 - 출처: `docs/plans/2026-08-28-naver-repay-origin-cancel-ledger.md` §6 (재결제 원 주문 취소·반품 작업에서 갈라져 나온 별건)
 - 설계 근거: `docs/specs/2026-08-28-naver-repay-origin-cancel_SPEC.md` §7
 
