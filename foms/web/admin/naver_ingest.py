@@ -1741,47 +1741,21 @@ def _origin_cleanup_view(db) -> dict[str, Any]:
 def _bulk_dispatch_view(db) -> dict[str, Any]:
     """**오늘 실측한 네이버 건** 띠가 말할 값 (NAVER-BULKDISPATCH-01 T2) — 읽기 전용.
 
-    아직 버튼이 없다. 이 띠의 일은 "5시에 무엇이 나갈 것인가"를 **미리 보여주는 것**이고,
-    지금 단계에서는 그것만으로 쓸모가 있다 — 하루 대상이 몇 집인지 아무도 세어 본 적이
-    없어서, 상한·자동화 판단이 추측 위에 서 있다.
+    아직 버튼이 없다. 이 띠의 일은 "5시에 무엇이 나갈 것인가"를 **미리 보여주는 것**이다.
 
-    집 수는 :func:`bulk_dispatch.select_targets` 가 센다. 화면이 따로 세지 않는 이유는
-    화면 큐(우리 표식만)와 워커(두 신호)가 이미 갈려 있던 결함과 같기 때문이다.
+    조립은 :func:`bulk_dispatch.build_preview` 가 한다 — 실측 대시보드의 같은 띠와 **한
+    함수를 공유**한다. 화면마다 따로 세면 두 화면이 다른 수를 말한다.
 
     Args:
         db: 요청 스코프 DB 세션.
 
     Returns:
-        ``{"date", "count", "eligible", "blocked", "rows"}``. ``count`` 는 집 수이고
-        ``eligible`` 은 그중 지금 보낼 수 있는 집이다. 실패해도 화면을 죽이지 않는다
-        (띠만 빠진다 — 보조 정보다).
+        ``{"date", "count", "eligible", "blocked", "rows"}``.
     """
     from foms.services.datetime_kst import get_today_kst
-    from foms.services.integrations.naver_commerce.bulk_dispatch import select_targets
+    from foms.services.integrations.naver_commerce.bulk_dispatch import build_preview
 
-    today = get_today_kst().strftime("%Y-%m-%d")
-    empty = {"date": today, "count": 0, "eligible": 0, "blocked": 0, "rows": []}
-    try:
-        targets = select_targets(db, on_date=today)
-    except SQLAlchemyError as exc:  # 보조 정보라 흐름을 막지 않는다(failopen — 로그로 남긴다)
-        logger.warning("[NAVER] 오늘 실측 발송 대상 조회 실패(띠 생략): %s", exc, exc_info=True)
-        return empty
-    rows = [
-        {
-            "link_id": target.link_id,
-            "order_no": target.external_order_no,
-            "order_ids": target.order_ids,
-            "customer": " · ".join(target.customer_names) or "(주문 미생성)",
-            "product_orders": len(target.pending_link_ids),
-            "measurement_done": target.measurement_done,
-            "eligible": target.eligible,
-            "reason": target.reason,
-        }
-        for target in targets
-    ]
-    eligible = sum(1 for row in rows if row["eligible"])
-    return {"date": today, "count": len(rows), "eligible": eligible,
-            "blocked": len(rows) - eligible, "rows": rows}
+    return build_preview(db, on_date=get_today_kst().strftime("%Y-%m-%d"))
 
 
 def _refresh_all_view(db) -> dict[str, Any]:

@@ -1,0 +1,71 @@
+{#
+  오늘 실측한 네이버 건 — 발송처리 미리보기 (NAVER-BULKDISPATCH-01 T3).
+
+  워크벤치의 같은 띠와 **같은 값**을 쓴다(`bulk_dispatch.select_targets`). 화면마다 따로
+  세면 두 화면이 다른 수를 말한다 — 네이버 집 수가 45집 vs 43집으로 갈렸던 그 결함이다.
+
+  이 파셜은 **읽기 전용이고 실행 수단이 없다.** 버튼이 생기는 날에는 v3 풀페이지에서
+  버튼만 감춰야 한다(그 셸은 페이지 스크립트를 통째로 싣지 않아, 보이는데 안 눌리는
+  상태가 된다).
+
+  변수: `bulk_dispatch` (없으면 아무것도 렌더하지 않는다 — 다른 화면에서 include 해도 안전).
+#}
+{% if bulk_dispatch and bulk_dispatch.count %}
+<details class="alert alert-light border erp-naver-dispatch" data-foms-no-autodismiss
+         data-naver-dispatch-count="{{ bulk_dispatch.count }}"
+         data-naver-dispatch-date="{{ bulk_dispatch.date }}">
+  <summary class="fw-semibold">
+    <i class="fas fa-truck text-primary"></i>
+    오늘 실측한 네이버 건 {{ bulk_dispatch.count }}집
+    <span class="text-muted small ms-1">
+      (보낼 수 있음 {{ bulk_dispatch.eligible }}집{% if bulk_dispatch.blocked %} ·
+      먼저 해결할 집 {{ bulk_dispatch.blocked }}집{% endif %})
+    </span>
+    <div class="text-muted small fw-normal mt-1">
+      네이버에 발송처리할 대상입니다. <b>미리보기이며 아직 아무것도 나가지 않습니다.</b>
+      발송처리 후에는 FOMS에서 취소할 수 없습니다(반품으로만 처리).
+    </div>
+  </summary>
+  <div class="table-responsive mt-2">
+    <table class="table table-sm mb-0">
+      <thead>
+        <tr>
+          <th>주문</th><th>네이버 주문</th><th>실측</th><th>지금 보낼 수 있나</th>
+        </tr>
+      </thead>
+      <tbody>
+        {% for row in bulk_dispatch.rows %}
+        <tr data-naver-dispatch-link-id="{{ row.link_id }}">
+          <td>
+            {% for oid in row.order_ids %}
+            <a href="{{ url_for('order_edit.edit_order', order_id=oid, open='erp-order') }}"
+               target="_blank" rel="noopener">#{{ oid }}</a>
+            {% endfor %}
+            <div class="text-muted small">{{ row.customer }}</div>
+          </td>
+          <td>
+            {{ row.order_no or '-' }}
+            <div class="text-muted small">보낼 상품주문 {{ row.product_orders }}건</div>
+          </td>
+          <td>
+            {% if row.measurement_done %}
+            <span class="text-muted small">실측완료</span>
+            {% else %}
+            <span class="badge bg-warning text-dark">완료 표시 없음</span>
+            {% endif %}
+          </td>
+          <td>
+            {% if row.eligible %}
+            <span class="text-muted small">보낼 수 있음</span>
+            {% else %}
+            <span class="badge bg-secondary">보낼 수 없음</span>
+            <div class="text-muted small">{{ row.reason }}</div>
+            {% endif %}
+          </td>
+        </tr>
+        {% endfor %}
+      </tbody>
+    </table>
+  </div>
+</details>
+{% endif %}

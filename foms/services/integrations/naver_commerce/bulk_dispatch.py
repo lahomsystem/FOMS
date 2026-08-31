@@ -24,6 +24,7 @@ from dataclasses import dataclass, field
 from typing import Any, Optional
 
 from sqlalchemy import and_, func
+from sqlalchemy.exc import SQLAlchemyError
 from sqlalchemy.orm import Session
 
 from models import ExternalOrderLink, Order, OrderScheduleDate
@@ -40,6 +41,7 @@ logger = logging.getLogger(__name__)
 
 __all__ = [
     "BulkDispatchTarget",
+    "build_preview",
     "dispatch_pending_clause",
     "select_targets",
 ]
@@ -371,3 +373,46 @@ def select_targets(session: Session, *, on_date: str) -> list[BulkDispatchTarget
         on_date, len(targets), sum(1 for t in targets if t.eligible),
     )
     return targets
+
+
+def build_preview(session: Session, *, on_date: str) -> dict[str, Any]:
+    """미리보기 띠가 그대로 렌더할 값 — **화면 두 곳이 이 함수 하나를 쓴다**.
+
+    워크벤치와 실측 대시보드가 각자 조립하면 두 화면이 다른 수를 말한다. 네이버 집 수가
+    45집 vs 43집으로 갈렸던 것이 정확히 그 결함이었다.
+
+    조회 실패는 여기서 삼키고 빈 값을 준다(**failopen — 로그로 남긴다**). 이 띠는 보조
+    정보라 화면 전체를 죽일 이유가 없다. 반대로 대상을 **줄여서** 보여주는 일은 없다 —
+    실패하면 0집이 되고 띠 자체가 안 뜬다.
+
+    Args:
+        session: DB 세션.
+        on_date: ``YYYY-MM-DD``.
+
+    Returns:
+        ``{"date", "count", "eligible", "blocked", "rows"}``. ``rows`` 는 템플릿이 읽는
+        평평한 dict 목록.
+    """
+    empty: dict[str, Any] = {"date": on_date, "count": 0, "eligible": 0,
+                             "blocked": 0, "rows": []}
+    try:
+        targets = select_targets(session, on_date=on_date)
+    except SQLAlchemyError as exc:  # 보조 정보라 화면을 막지 않는다(failopen — 로그로 남긴다)
+        logger.warning("[NAVER] 발송 대상 미리보기 조회 실패(띠 생략): %s", exc, exc_info=True)
+        return empty
+    rows = [
+        {
+            "link_id": target.link_id,
+            "order_no": target.external_order_no,
+            "order_ids": target.order_ids,
+            "customer": " · ".join(target.customer_names) or "(주문 미생성)",
+            "product_orders": len(target.pending_link_ids),
+            "measurement_done": target.measurement_done,
+            "eligible": target.eligible,
+            "reason": target.reason,
+        }
+        for target in targets
+    ]
+    eligible = sum(1 for row in rows if row["eligible"])
+    return {"date": on_date, "count": len(rows), "eligible": eligible,
+            "blocked": len(rows) - eligible, "rows": rows}
