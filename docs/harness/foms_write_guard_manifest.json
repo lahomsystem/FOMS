@@ -2,8 +2,8 @@
   "version": 1,
   "guard": "CSRF_TOKEN+ORIGIN",
   "description": "WRITE-GUARD-01 정본: 모든 cookie-auth state-changing route 의 write_guard metadata. mode=guard 는 공용 CSRF+Origin before_request 가드(enforce_csrf_origin) 적용, mode=exempt 는 자기 정책(서명/ingest/anon)으로 명시 우회. url_map 의 모든 POST/PUT/PATCH/DELETE endpoint 가 여기 등재되어야 하며 누락은 static gate fail(fail-safe: 미등재 endpoint 는 런타임에서 guard).",
-  "exempt_count": 8,
-  "guard_count": 194,
+  "exempt_count": 9,
+  "guard_count": 192,
   "routes": {
     "admin.naver_ingest_attach_order": {
       "mode": "guard",
@@ -629,8 +629,9 @@
       "rule": "/erp/api/orders/<int:order_id>/urgent-mention"
     },
     "notifications_push.push_event": {
-      "mode": "guard",
-      "rule": "/erp/api/notifications/push/event"
+      "mode": "exempt",
+      "rule": "/erp/api/notifications/push/event",
+      "reason": "서비스워커(static/sw.js reportPushEvent)가 유일한 호출자 — SW 실행 컨텍스트에는 <meta name=\"csrf-token\"> 도 페이지 fetch 래퍼도 없어 공용 토큰을 실을 수 없다. 라우트 자체가 require_same_origin_write(X-FOMS-Notification-Write) 로 커스텀 헤더 + Origin/Referer same-origin 을 요구하고(단순 폼 POST 불가·교차출처 fetch 는 preflight 로 차단), login_required + 본인 user_state 소유 검사(없으면 404)가 범위를 자기 알림으로 묶는다. 같은 성격의 sendBeacon/telemetry ingest(foms_rum.ingest_rum_event, channel_wam_api.wam_telemetry)와 동일 취급."
     },
     "notifications_push.push_test": {
       "mode": "guard",
