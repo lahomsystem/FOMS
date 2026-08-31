@@ -326,22 +326,43 @@ def test_shipping_price_none_stays_none_instead_of_zero(client, app):
 
 
 # ==========================================================================
-# 6. 정렬 — 경과일 오래된 순, 완료일 미상은 맨 뒤
+# 6. 정렬 — 미수 먼저, 그 안에서 경과일 오래된 순, 완료일 미상은 묶음 뒤
 # ==========================================================================
-def test_rows_are_sorted_oldest_elapsed_first_with_unknown_last(client, app):
-    """회수 우선순위 그대로 정렬된다 — 오래 밀린 건이 위, 완료일 미상은 맨 뒤."""
+def test_receivable_rows_come_before_settled_ones(client, app):
+    """받을 돈이 있는 건이 위다 — 이 화면의 목적은 회수다.
+
+    목업은 "경과일 오래된 순"만 말했다. 그대로 두면 잔금 0 인 옛 주문이 첫 페이지를
+    통째로 차지한다(스테이징 실화면에서 1,263일 전 0원 주문부터 나왔다). 회수할 게
+    없는 건이 회수 목록의 맨 위에 서는 것을 red 로 잡는다.
+    """
+    # 회수할 게 없는 아주 오래된 건(잔금 0) vs 최근이지만 미수인 건.
+    _seed_order(completion="2023-01-05", sd=_money(items_total=1_000_000, deposit=1_000_000))
+    _seed_order(completion="2026-08-20", sd=_money(items_total=1_000_000, deposit=0))
+    _login(client, _make_user(role="ADMIN"))
+
+    rows = _get(client).get_json()["data"]["rows"]
+    flags = [r["receivable"] for r in rows]
+
+    assert rows[0]["receivable"] is True, (
+        "회수할 돈이 없는 건이 목록 맨 위에 있다 — 경과일만 보고 정렬했다"
+    )
+    assert flags == sorted(flags, reverse=True), "미수 묶음이 뒤섞였다"
+
+
+def test_rows_are_sorted_oldest_elapsed_first_within_each_group(client, app):
+    """묶음 안에서는 목업 그대로 경과일 오래된 순이고, 완료일 미상은 묶음 뒤다."""
     _seed_order(completion="2026-08-30", sd=_money(items_total=1_000_000, deposit=0))
     _seed_order(completion="2026-02-01", sd=_money(items_total=1_000_000, deposit=0))
     _seed_order(completion=None, sd=_money(items_total=1_000_000, deposit=0))
     _login(client, _make_user(role="ADMIN"))
 
-    rows = _get(client).get_json()["data"]["rows"]
+    rows = [r for r in _get(client).get_json()["data"]["rows"] if r["receivable"]]
     known = [r["elapsed_days"] for r in rows if r["elapsed_days"] is not None]
     unknown_positions = [i for i, r in enumerate(rows) if r["elapsed_days"] is None]
 
     assert known == sorted(known, reverse=True), "경과일 내림차순이 아니다"
     if unknown_positions:
-        assert min(unknown_positions) >= len(known), "완료일 미상이 맨 뒤가 아니다"
+        assert min(unknown_positions) >= len(known), "완료일 미상이 묶음 뒤가 아니다"
 
 
 # ==========================================================================

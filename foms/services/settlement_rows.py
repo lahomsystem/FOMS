@@ -281,9 +281,26 @@ def _matches_filters(row: dict, period: str, settlement: str, channel: str,
 
 
 def _sort_key(row: dict) -> tuple:
-    """경과일 오래된 순. 완료일 미상은 맨 뒤(주문번호 내림차순으로 안정화)."""
+    """**미수 먼저**, 그 안에서 경과일 오래된 순. 완료일 미상은 각 묶음의 맨 뒤.
+
+    목업은 "경과일 오래된 순"만 말했지만, 그대로 두면 잔금이 0 인 옛 주문(회수할 돈이
+    없는 건)이 목록 첫 페이지를 통째로 차지한다 — 스테이징 실화면에서 1,263일 전 0원
+    주문부터 나왔다. 이 화면의 목적은 회수라서 **받을 돈이 있는 건**이 위에 와야 한다.
+    묶음 안의 정렬은 목업 그대로다.
+
+    Args:
+        row: ``_settlement_row`` 결과.
+
+    Returns:
+        정렬 키 튜플(오름차순 정렬에 그대로 쓴다).
+    """
     elapsed = row["elapsed_days"]
-    return (0 if elapsed is not None else 1, -(elapsed or 0), -row["order_id"])
+    return (
+        0 if row["receivable"] else 1,          # 미수 먼저
+        0 if elapsed is not None else 1,        # 완료일 미상은 묶음 뒤로
+        -(elapsed or 0),                        # 오래 밀린 순
+        -row["order_id"],                       # 안정화
+    )
 
 
 def _totals(rows: list[dict]) -> dict:

@@ -872,11 +872,15 @@ def test_dashboard_js_bounds_comparison_series_to_axis_groups():
     리팩터로 이 루프를 다시 쓸 때 **두 상한을 함께 두는 성질**을 유지하라 — 변수 이름은
     자유롭게 바꿔도 된다(이 검사는 조건식의 구성만 본다).
     """
-    js = _read_code(f"static/{JS_ASSET}")
+    body = _js_function_body(_read_code(f"static/{JS_ASSET}"), "columnChart")
 
-    loop = re.search(r"for\s*\(([^)]*)\)\s*\{[^}]*?pts\.push", js, re.S)
-    assert loop, "비교 라인 점을 만드는 루프를 찾지 못했다"
-    condition = loop.group(1)
+    # 루프 본문에 `if (...) {}` 가 끼어도 어긋나지 않게, `pts.push` 앞의 마지막 `for(...)`
+    # 헤더를 잡는다(본문을 정규식으로 넘겨짚지 않는다).
+    push_at = body.find("pts.push")
+    assert push_at > 0, "비교 라인 점을 만드는 pts.push 를 찾지 못했다"
+    headers = list(re.finditer(r"for\s*\(([^)]*)\)", body[:push_at]))
+    assert headers, "비교 라인 점을 만드는 루프를 찾지 못했다"
+    condition = headers[-1].group(1)
     assert "values.length" in condition, condition
     assert re.search(r"<\s*g\b", condition), (
         f"루프 상한에 축 그룹 수(g)가 없다 — 시리즈 길이만 보면 축을 넘는다: {condition}"
@@ -1720,3 +1724,42 @@ def test_analytics_table_wrapper_is_scoped_to_its_own_card():
     assert not re.search(r"q\(\s*'\.s-tblv'\s*\)", js), (
         "스코프 없는 `.s-tblv` 선택이 남아 있다"
     )
+
+
+# ==========================================================================
+# 비교 라인이 축을 끌고 올라가는 문제 (스테이징 실화면 지적 2026-08-31)
+# ==========================================================================
+def test_comparison_line_cannot_dominate_the_axis():
+    """전월의 큰 하루 하나가 y축 상한을 잡아 당월 막대를 납작하게 만들지 못한다.
+
+    목업은 `max(barMax, lineMax)` 로 충분했다 — 두 시리즈가 비슷한 규모의 가정치였기
+    때문이다. 실데이터에서는 전월 스파이크 하나가 축을 끌어올려 **당월 막대 전체**가
+    눌린다(스테이징 2026-08 실측: 라인 2,200만 → 축 3,000만 → 막대 전부 눌림).
+    막대가 주 마크이므로 라인이 축을 올릴 수 있는 한도를 둔다.
+    """
+    body = _js_function_body(_read_code(f"static/{JS_ASSET}"), "columnChart")
+
+    assert "LINE_HEADROOM" in body, (
+        "축 상한이 비교 라인 최댓값을 그대로 받는다 — 막대가 눌리는 것을 막는 한도가 없다"
+    )
+    assert re.search(r"Math\.min\(\s*lineMax\s*,\s*barMax\s*\*\s*LINE_HEADROOM\s*\)", body), (
+        "라인 최댓값을 막대 기준 배수로 제한하는 식이 없다"
+    )
+    assert re.search(r"Math\.max\(\s*barMax\s*,", body), (
+        "막대 최댓값이 축 상한의 하한이 아니다 — 막대가 잘릴 수 있다"
+    )
+
+
+def test_clipped_comparison_points_are_marked_not_silently_flattened():
+    """축을 넘는 비교 구간은 상단에 고정하되 **표식을 남긴다**.
+
+    잘라놓고 아무 말도 안 하면 그 구간이 "축 상한과 같았다"로 읽힌다 — 눌림을 고치려다
+    새 거짓말을 만드는 셈이다. 툴팁은 축이 아니라 원본 값을 읽으므로 숫자는 그대로 나온다.
+    """
+    body = _js_function_body(_read_code(f"static/{JS_ASSET}"), "columnChart")
+    css = _read_code(f"static/{CSS_ASSET}")
+
+    assert re.search(r"if\s*\(\s*lv\s*>\s*sc\.top\s*\)", body), "축을 넘는 값을 감지하지 않는다"
+    assert "s-clip-mark" in body, "축을 넘어간 구간 표식을 그리지 않는다"
+    assert "s-clip-mark" in css, "표식 CSS 규칙이 없다"
+    assert "<title>" in body, "표식에 접근 가능한 설명(title)이 없다"
