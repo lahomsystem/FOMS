@@ -1,7 +1,11 @@
-{# 도면 갤러리·파일 목록 본문 — 공유 열람 페이지 2곳(도면 단독·도면+계약서 통합) 공용.
-   presigned URL 만료(5분) 후 이미지는 onerror 로 새로고침 안내를 표면화한다. #}
+{# 도면 갤러리·저장 섹션 본문 — 공유 열람 페이지 2곳(도면 단독·도면+계약서 통합) 공용.
+   presigned URL 만료(5분) 후 이미지는 onerror 로 새로고침 안내를 표면화한다.
+   이 파셜은 단독 렌더돼도 터지지 않게 필요한 지역 변수를 자기 안에서 만든다. #}
+{% set dl_files = share_download_files or [] %}
+{% set zip_url = share_zip_url or '' %}
+{% set drawing_count = share_drawing_count or (dl_files | length) %}
     {% if drawing_preview_cards or share_extra_files %}
-      {% include 'drawing/partials/drawing_mobile_v2_gallery.html' %}
+      {% with share_mode = True %}{% include 'drawing/partials/drawing_mobile_v2_gallery.html' %}{% endwith %}
       {% if share_extra_files %}
         <section class="foms-share-view__files" aria-label="도면 파일">
           <ul class="foms-share-view__file-list">
@@ -11,14 +15,39 @@
           </ul>
         </section>
       {% endif %}
-      {% if share_download_files %}
-        <section class="foms-share-view__files foms-share-view__downloads" aria-label="파일 다운로드">
-          <h2 class="foms-share-view__files-title">파일 다운로드</h2>
-          <ul class="foms-share-view__file-list">
-            {% for f in share_download_files %}
-              <li><a href="{{ f.url }}" rel="noreferrer" download>{{ f.label }} 내려받기</a></li>
-            {% endfor %}
-          </ul>
+      {% if dl_files or zip_url %}
+        {# 저장 카드 — 주 버튼(일괄) 하나가 시각 위계의 꼭대기, 개별 목록은 접어 둔다.
+           도면이 1개뿐이면 압축할 이유가 없으므로 그 파일 저장 버튼 하나만 낸다. #}
+        <section class="foms-share-dl" aria-label="도면 저장">
+          <h2 class="foms-share-dl__title">도면 저장</h2>
+          {% if drawing_count == 1 and dl_files %}
+            <a class="foms-share-dl__primary" href="{{ dl_files[0].url }}"
+               rel="noreferrer" download data-share-download-single>
+              도면 저장 (1개)
+            </a>
+          {% elif zip_url %}
+            <a class="foms-share-dl__primary" href="{{ zip_url }}" data-share-zip>
+              도면 전체 저장 ({{ drawing_count }}개 · ZIP)
+            </a>
+            <p class="foms-share-dl__status" data-share-zip-status hidden role="status">
+              도면을 모으는 중입니다. 잠시만 기다려 주세요…
+            </p>
+          {% endif %}
+          {% if share_is_kakao_inapp %}
+            <p class="foms-share-dl__inapp" data-share-inapp-note>
+              저장이 안 되면 오른쪽 위 메뉴에서 다른 브라우저로 열어 주세요.
+            </p>
+          {% endif %}
+          {% if dl_files and drawing_count > 1 %}
+            <details class="foms-share-dl__each">
+              <summary class="foms-share-dl__each-summary">하나씩 저장</summary>
+              <ul class="foms-share-dl__list">
+                {% for f in dl_files %}
+                  <li><a href="{{ f.url }}" rel="noreferrer" download>{{ f.label }} 내려받기</a></li>
+                {% endfor %}
+              </ul>
+            </details>
+          {% endif %}
         </section>
       {% endif %}
       <p class="foms-share-view__expiry-note" data-share-expiry-note hidden>

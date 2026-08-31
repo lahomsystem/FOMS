@@ -1,7 +1,7 @@
 # FOMS 현재 상태
 > 자동 업데이트: 2026-08-14
-> 최신: **네이버 일괄 발송처리 deploy·운영 PR #205** — 당일 실측 네이버 건을 집 단위로 모아 한 번에 발송. 실행은 킬스위치 `FOMS_NAVER_BULK_DISPATCH_ENABLED` 기본 꺼짐. 설계서 `docs/specs/2026-08-31-naver-bulk-dispatch_SPEC.md`
-> 직전: **재결제 원 주문 취소·반품 길내기 운영 반영(PR #185·#187)** — 재결제로 붙인 뒤 옛 네이버 주문을 화면에서 가리키고 그 집 pane 으로 보낸다. 예약금 등 미수집 건은 '네이버 주문 확인 안 됨'. 원장 `docs/plans/2026-08-28-naver-repay-origin-cancel-ledger.md`
+> 최신: **고객 공유 링크 UX 개편 — 계약서 폼 이식·도면 일괄 저장(ZIP)** — 카톡으로 보내는 계약서 링크가 ERP 계약서 폼 그대로 뜨고(계좌 복사·PNG 저장), 도면 링크에 일괄 저장 버튼. 무반응이던 `window.print()` 제거. 원장 `docs/plans/2026-08-31-share-contract-drawing-ux-ledger.md`
+> 직전: **네이버 일괄 발송처리 deploy·운영 PR #205** — 당일 실측 네이버 건을 집 단위로 모아 한 번에 발송. 실행은 킬스위치 `FOMS_NAVER_BULK_DISPATCH_ENABLED` 기본 꺼짐. 설계서 `docs/specs/2026-08-31-naver-bulk-dispatch_SPEC.md`
 > 이 파일 상단 40줄이 세션 시작 컨텍스트의 전부다(hygiene 계약 테스트로 강제). 상세 이력: "## 최근 완료"·"## 기록 보관", 과거 헤더 상세는 기록 보관에 이관.
 
 ## 스택
@@ -10,6 +10,7 @@ Flask 2.3 + PostgreSQL + R2 + Railway (Web×2, Worker×1)
 
 ## 진행 중
 - [2026-08-31] **지오코딩 사전변환 복원 T1~T3 deploy** — 2026-07-27 커밋 4개가 주문 생성·주소수정의 지오코딩 예약을 RQ→SIDEFX outbox 로 옮겼는데 **그 워커가 운영에 배포된 적이 없다**(heartbeat 0행, outbox 전 행 PENDING·attempts=0). 그래서 지도를 열어야 건당 2.9초씩 변환됐다. T1=워커 컨테이너 좌표 스윕(`FOMS_GEOCODE_SWEEP_ENABLED`), T2=지도 폴링 부분갱신, T3=GEOCODE handler 등록+failed 24h 백오프. 잔여=production 승격·SIDEFX 서비스 등록. 원장 `2026-08-31-geocode-prefetch-restore-ledger.md`
+- [2026-08-31] **고객 공유 링크 UX** — 계약서 폼 이식·계좌 복사·PNG 저장(700px 클론)·도면 ZIP 일괄 저장. deploy 반영, 실기기(iOS·Android 카톡 인앱) 확인 대기. 원장에 미검증 5건
 - [2026-08-31] **네이버 일괄 발송처리** — 미리보기 2화면 + 일괄 버튼. 킬스위치 기본 꺼짐. 운영 PR #205. 상세는 설계서
 - [2026-08-30] **네이버 이력 탭 상태 칸 재설계 deploy(`9d19da0b`)** — 재결제·추가결제·발송처리 축 신설, 축별 3줄. 부분 인덱스 2벌(`naverdisp_00`). 취소 확정 날짜는 축을 따로 판다(반품 축에 `cancel` 금지 — 08-27 누출). **운영 승격·실화면 대조 완료**(PR #200 · 08-31 운영 50행 실측). 원장 `2026-08-30-naver-history-status-column-ledger.md`(계약서 §15 정본)
 - [2026-08-31] **고객 문서 공유 T16 운영 반영 완료** — PR #196 머지(production `d6f1c84e`) + 운영 `web` env `SOLAPI_TEMPLATE_SHARE_BOTH_ID_{LAHOM,HAUD}` 등록 후 재배포. 이제 도면+계약서가 **버튼 2개 한 통**으로 나간다. 운영 화면 확인 완료(드롭다운 항목·자산 핀·재잠금 오라클 200). 함정: `railway variables --set` 은 재배포를 안 건다. **운영 실발송·두 링크 실열람까지 확인 — T16 종결(08-31)**

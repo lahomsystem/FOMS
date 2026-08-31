@@ -1,6 +1,7 @@
 {# 고객 공유 열람 — 도면 + 계약서 한 페이지(kind='bundle', 2026-08-25).
    링크 두 개를 보내지 않으려고 만든 페이지다. 도면은 라이브 첨부 presign, 계약서는 발급
-   시점 동결 스냅샷(D6) — 두 규칙 모두 단독 페이지와 같다(본문 파셜을 그대로 공유한다). #}
+   시점 동결 스냅샷(D6) — 두 규칙 모두 단독 페이지와 같다(본문 파셜을 그대로 공유한다).
+   계약서 조작(계좌 복사·PNG 저장·인쇄)은 단독 페이지와 같은 share-contract.js 가 맡는다. #}
 <!DOCTYPE html>
 <html lang="ko">
 <head>
@@ -10,7 +11,8 @@
   <title>도면·계약서 확인</title>
   <link rel="stylesheet" href="{{ url_for('static', filename='css/components/foms-drawing-mobile.css') }}?v=20260811a">
   <link rel="stylesheet" href="{{ url_for('static', filename='css/components/foms-lightbox.css') }}?v=20260811a">
-  <link rel="stylesheet" href="{{ url_for('static', filename='css/orders/foms-share-view.css') }}?v=20260825a">
+  <link rel="stylesheet" href="{{ url_for('static', filename='css/orders/foms-share-view.css') }}?v=20260831a">
+  <link rel="stylesheet" href="{{ url_for('static', filename='css/orders/foms-share-contract.css') }}?v=20260831a">
 </head>
 <body class="foms-share-view foms-share-bundle">
   <header class="foms-share-view__header">
@@ -28,12 +30,7 @@
     </section>
   </main>
   <script src="{{ url_for('static', filename='js/foms/lightbox.js') }}?v=20260701a" defer></script>
-  <script src="{{ url_for('static', filename='js/orders/share-view.js') }}?v=20260811a" defer></script>
-  {# 페이지 로컬 스크립트 — 계약서 저장·인쇄(단독 페이지와 같은 동작). #}
-  <script>
-    document.querySelector('[data-share-print]')?.addEventListener('click', function () {
-      window.print();
-    });
-  </script>
+  <script src="{{ url_for('static', filename='js/orders/share-view.js') }}?v=20260831a" defer></script>
+  <script src="{{ url_for('static', filename='js/orders/share-contract.js') }}?v=20260831a" defer></script>
 </body>
 </html>

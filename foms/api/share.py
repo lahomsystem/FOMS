@@ -12,9 +12,11 @@ from __future__ import annotations
 
 import logging
 import re
+import tempfile
 import time
 import urllib.parse
-from typing import Any, Optional
+import zipfile
+from typing import Any, Iterator, Optional
 
 from flask import Blueprint, Response, jsonify, render_template, request, session, url_for
 from sqlalchemy.exc import IntegrityError
@@ -43,9 +45,30 @@ _PRESIGN_SECONDS = 300
 
 _IMAGE_EXTS = ('.png', '.jpg', '.jpeg', '.gif', '.webp', '.bmp', '.avif')
 
+#: 도면 일괄 저장(ZIP) 을 허용하는 공유 종류. estimate 는 도면이 없으므로 제외(404).
+_ZIP_KINDS = ('drawing', 'bundle')
+
+#: ZIP 에 담을 원본 총 바이트 상한. 넘으면 503 + 로그 1건(무한 메모리·무한 대기 금지).
+#: 도면 1장이 보통 1~5MB 라 200MB 는 40~200장에 해당한다 — 실사용 상한을 크게 웃돈다.
+_ZIP_MAX_TOTAL_BYTES = 200 * 1024 * 1024
+
+#: 스풀이 메모리에 머무는 상한. 넘으면 SpooledTemporaryFile 이 디스크로 롤오버한다.
+_ZIP_SPOOL_MAX_BYTES = 16 * 1024 * 1024
+
+#: 응답 스트리밍 청크 크기.
+_ZIP_CHUNK_BYTES = 64 * 1024
+
+#: zip 항목명·다운로드 파일명에서 지우는 문자(경로 구분자·윈도 예약문자·제어문자).
+_UNSAFE_NAME_CHARS = re.compile(r'[\\/:*?"<>|\x00-\x1f]')
+
 _MSG_NOT_FOUND = '링크를 찾을 수 없습니다. 담당자에게 새 링크를 요청해 주세요.'
 _MSG_GONE = '만료되었거나 회수된 링크입니다. 담당자에게 새 링크를 요청해 주세요.'
 _MSG_UNAVAILABLE = '일시적으로 열람할 수 없습니다. 잠시 후 다시 시도해 주세요.'
+_MSG_ZIP_TOO_LARGE = ('도면 용량이 너무 커서 한 번에 저장할 수 없습니다. '
+                      '아래 목록에서 하나씩 저장해 주세요.')
+#: 일부만 담긴 zip 을 내보내지 않는다 — 고객이 전부 받았다고 오해한다.
+_MSG_ZIP_PARTIAL = ('일부 도면을 불러오지 못해 한 번에 저장할 수 없습니다. '
+                    '이전 화면에서 하나씩 저장해 주세요.')
 
 
 @share_view_bp.after_request
@@ -145,6 +168,98 @@ def _collect_drawing_files(order: Order) -> list[dict[str, str]]:
     return files
 
 
+def _resolve_share_target(
+    token: str,
+) -> tuple[Optional[OrderShareToken], Optional[Order], Optional[tuple[str, int]]]:
+    """공유 토큰 검증 체인 **단일 정본** — 해시 → 회수 → 만료 → 주문 활성.
+
+    열람 페이지(:func:`view_shared_order`)와 ZIP 일괄 저장
+    (:func:`download_shared_drawings_zip`)이 같은 체인을 쓰게 하려고 뽑아냈다.
+    체인이 두 벌이면 한쪽만 고쳐 회수된 링크가 파일을 계속 내주는 구멍이 난다.
+
+    Args:
+        token: URL 경로의 토큰 원문.
+
+    Returns:
+        성공이면 ``(row, order, None)``. 실패면 ``(None, None, (본문, 상태코드))`` —
+        호출자는 그 튜플을 그대로 반환하면 된다(404 없음/410 회수·만료).
+    """
+    row, code = share_service.verify_token(db_session, token)
+    if code == share_service.VERIFY_NOT_FOUND:
+        return None, None, _error_page(_MSG_NOT_FOUND, 404)
+    if code in (share_service.VERIFY_REVOKED, share_service.VERIFY_EXPIRED):
+        return None, None, _error_page(_MSG_GONE, 410)
+
+    order = (
+        db_session.query(Order)
+        .filter(Order.id == row.order_id, Order.active_filter())
+        .one_or_none()
+    )
+    if order is None:
+        return None, None, _error_page(_MSG_NOT_FOUND, 404)
+    return row, order, None
+
+
+def _safe_name_part(value: Any, fallback: str, *, limit: int = 40) -> str:
+    """다운로드 파일명에 넣을 조각을 살균한다(고객명 등 사용자 입력 유래).
+
+    경로 구분자·윈도 예약문자·제어문자를 지우고 길이를 자른다. 남는 게 없으면
+    ``fallback`` 을 쓴다 — 빈 조각이 ``도면__4114.zip`` 같은 모양을 만들지 않게.
+
+    Args:
+        value: 원본 값(고객명 등).
+        fallback: 살균 후 비었을 때 쓸 대체 문자열.
+        limit: 최대 길이.
+
+    Returns:
+        파일명에 넣어도 안전한 문자열.
+    """
+    cleaned = _UNSAFE_NAME_CHARS.sub('', str(value or '')).strip().strip('.')
+    return cleaned[:limit] or fallback
+
+
+def _zip_entry_name(filename: Any, index: int, used: set[str]) -> str:
+    """zip 내부 항목명 — 살균 + 중복 시 ``이름 (2).png`` 번호 부여.
+
+    항목명에 경로가 남으면 압축 해제 시 디렉토리가 생기거나(zip slip 계열) 뷰어가
+    깨진다. basename 만 남기고 예약문자를 지운다.
+
+    Args:
+        filename: 원본 파일명(또는 storage key 꼬리).
+        index: 살균 후 이름이 통째로 비었을 때 쓸 순번.
+        used: 이미 담은 항목명 집합(호출자가 유지, 이 함수가 갱신한다).
+
+    Returns:
+        이 zip 안에서 유일한 항목명.
+    """
+    base = str(filename or '').rsplit('/', 1)[-1].rsplit('\\', 1)[-1]
+    base = _UNSAFE_NAME_CHARS.sub('', base).strip().strip('.')
+    if not base:
+        base = f'도면-{index}'
+    stem, dot, ext = base.rpartition('.')
+    candidate = base
+    counter = 2
+    while candidate in used:
+        candidate = f'{stem} ({counter}).{ext}' if dot else f'{base} ({counter})'
+        counter += 1
+    used.add(candidate)
+    return candidate
+
+
+def _is_kakao_inapp(user_agent: Optional[str]) -> bool:
+    """카카오톡 인앱 브라우저인지 — 저장 실패 시 "다른 브라우저" 안내를 켜는 기준.
+
+    판정은 서버에서 한다(클라 분기는 스크립트가 죽으면 통째로 사라진다).
+
+    Args:
+        user_agent: 요청 User-Agent 원문(없을 수 있다).
+
+    Returns:
+        UA 에 ``KAKAOTALK`` 이 있으면 True.
+    """
+    return 'KAKAOTALK' in (user_agent or '').upper()
+
+
 @share_view_bp.get('/s/<token>')
 def view_shared_order(token: str):
     """비로그인 공유 열람 — 검증 체인(해시→회수→만료→주문 활성) 후 도면 렌더.
@@ -155,19 +270,9 @@ def view_shared_order(token: str):
     Returns:
         200 열람 페이지, 404/410 wam_error, 503 fail-closed 안내.
     """
-    row, code = share_service.verify_token(db_session, token)
-    if code == share_service.VERIFY_NOT_FOUND:
-        return _error_page(_MSG_NOT_FOUND, 404)
-    if code in (share_service.VERIFY_REVOKED, share_service.VERIFY_EXPIRED):
-        return _error_page(_MSG_GONE, 410)
-
-    order = (
-        db_session.query(Order)
-        .filter(Order.id == row.order_id, Order.active_filter())
-        .one_or_none()
-    )
-    if order is None:
-        return _error_page(_MSG_NOT_FOUND, 404)
+    row, order, failure = _resolve_share_target(token)
+    if failure is not None:
+        return failure
 
     if row.kind == 'estimate':
         # D6: 스냅샷만 렌더 — 라이브 재조회 없음(발급 이후 주문 수정은 반영되지 않는다).
@@ -249,7 +354,121 @@ def view_shared_order(token: str):
         drawing_preview_cards=cards,
         share_extra_files=extra_files,
         share_download_files=download_files,
+        # 일괄 저장 버튼은 presign 성공 여부와 무관하다 — ZIP 라우트가 바이트를 직접 읽는다.
+        share_drawing_count=len(collected),
+        share_zip_url=url_for('share_view.download_shared_drawings_zip', token=token),
+        share_is_kakao_inapp=_is_kakao_inapp(request.headers.get('User-Agent')),
     )
+
+
+@share_view_bp.get('/s/<token>/drawings.zip')
+def download_shared_drawings_zip(token: str):
+    """도면 전체를 zip 한 파일로 내려준다(비로그인 — 열람과 같은 검증 체인).
+
+    카카오톡으로 받은 링크에서 도면을 한 장씩 길게 눌러 저장하던 것을 버튼 하나로
+    바꾼다. 파일 수집은 :func:`_collect_drawing_files` 재사용이라 주문 격리
+    allow-list 를 그대로 물려받는다.
+
+    압축 방식은 ``ZIP_STORED``(무압축) 다 — 도면은 PNG/JPG 로 **이미 압축된**
+    바이트라 DEFLATE 를 돌려도 크기는 거의 안 줄고 CPU 만 쓴다.
+
+    바이트는 ``SpooledTemporaryFile`` 에 쌓아 :data:`_ZIP_SPOOL_MAX_BYTES` 를 넘으면
+    디스크로 흘리고, 총합이 :data:`_ZIP_MAX_TOTAL_BYTES` 를 넘으면 만들다 말고 503 이다
+    (메모리 무한 적재 금지). 완성된 스풀은 청크 단위로 스트리밍한다.
+
+    Args:
+        token: URL 경로의 토큰 원문.
+
+    Returns:
+        200 ``application/zip`` 스트림, 404(없는 토큰·estimate·도면 0건),
+        410(회수·만료), 503(fail-closed·용량 초과·한 장이라도 읽기 실패).
+    """
+    row, order, failure = _resolve_share_target(token)
+    if failure is not None:
+        return failure
+
+    if row.kind not in _ZIP_KINDS:
+        # estimate 링크에는 도면이 없다 — 존재 자체를 숨긴다(404, 405 아님).
+        return _error_page(_MSG_NOT_FOUND, 404)
+
+    storage = get_storage()
+    if storage.storage_type not in ('r2', 's3'):
+        # fail-closed(스펙 §3.2): 로컬 경로 노출 금지 — 열람 라우트와 같은 규약.
+        logger.error('공유 ZIP fail-closed: storage_type=%s (r2/s3 아님, share_id=%s)',
+                     storage.storage_type, row.id)
+        return _error_page(_MSG_UNAVAILABLE, 503)
+
+    collected = _collect_drawing_files(order)
+    if not collected:
+        return _error_page(_MSG_NOT_FOUND, 404)
+
+    spool = tempfile.SpooledTemporaryFile(max_size=_ZIP_SPOOL_MAX_BYTES)
+    used_names: set[str] = set()
+    total_bytes = 0
+    packed = 0
+    too_large = False
+    # 상한 초과에도 여기서 곧장 return 하지 않는다 — ZipFile.__exit__ 가 중앙 디렉토리를
+    # 쓰려고 스풀에 seek 하므로, 블록 안에서 스풀을 닫으면 ValueError 로 500 이 난다.
+    with zipfile.ZipFile(spool, 'w', zipfile.ZIP_STORED) as archive:
+        for index, entry in enumerate(collected, start=1):
+            blob = storage.read_file_bytes(entry['key'])
+            if blob is None:
+                # 한 장이라도 실패하면 아래에서 503 — 불완전한 zip 을 내보내지 않는다.
+                logger.warning('공유 ZIP 원본 읽기 실패: share_id=%s key=%s',
+                               row.id, entry['key'])
+                continue
+            total_bytes += len(blob)
+            if total_bytes > _ZIP_MAX_TOTAL_BYTES:
+                logger.error('공유 ZIP 용량 초과: share_id=%s bytes=%s limit=%s files=%s',
+                             row.id, total_bytes, _ZIP_MAX_TOTAL_BYTES, len(collected))
+                too_large = True
+                break
+            archive.writestr(_zip_entry_name(entry['filename'], index, used_names), blob)
+            packed += 1
+    if too_large:
+        spool.close()
+        return _error_page(_MSG_ZIP_TOO_LARGE, 503)
+    if packed < len(collected):
+        # 일부만 담긴 zip 을 200 으로 내보내면 고객은 전부 받았다고 믿는다 — 버튼 라벨이
+        # "전체 저장 (N개)" 이라 더 그렇다. 하나라도 빠지면 내보내지 않고 개별 저장으로
+        # 안내한다(조용한 실패 금지).
+        logger.error('공유 ZIP 일부 누락: share_id=%s packed=%d/%d',
+                     row.id, packed, len(collected))
+        spool.close()
+        return _error_page(_MSG_ZIP_PARTIAL if packed else _MSG_UNAVAILABLE, 503)
+
+    zip_size = spool.tell()  # ZipFile.close 가 중앙 디렉토리까지 쓴 뒤의 위치 = 총 크기
+    spool.seek(0)
+
+    # 열람과 같은 규약의 감사 1건. 액션은 이미 라벨 맵에 있는 FILE_DOWNLOAD 재사용
+    # (새 액션 문자열은 audit_message_display 등재가 없으면 CI red).
+    record_file_access(
+        'FILE_DOWNLOAD',
+        storage_key=f'share/{row.id}',
+        user_id=None,
+        ip=request.remote_addr,
+        user_agent=request.headers.get('User-Agent'),
+        order_id=order.id,
+    )
+
+    filename = f'도면_{_safe_name_part(order.customer_name, "고객")}_{order.id}.zip'
+
+    def _stream() -> Iterator[bytes]:
+        """스풀을 청크로 흘리고 끝나면 반드시 닫는다(임시파일 누수 금지)."""
+        try:
+            while True:
+                chunk = spool.read(_ZIP_CHUNK_BYTES)
+                if not chunk:
+                    break
+                yield chunk
+        finally:
+            spool.close()
+
+    response = Response(_stream(), mimetype='application/zip')
+    response.headers['Content-Disposition'] = _attachment_disposition(filename)
+    response.headers['Content-Length'] = str(zip_size)
+    response.headers['Cache-Control'] = 'no-store'
+    return response
 
 
 # ---------------------------------------------------------------------------
