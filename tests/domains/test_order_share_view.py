@@ -967,3 +967,383 @@ def test_contract_print_button_is_desktop_only():
     assert '@media (max-width: 599.98px)' in block
     assert '[data-share-print]' in block
     assert 'display: none' in block
+
+
+# ---------------------------------------------------------------------------
+# 합본 사진 GET /s/<token>/drawings-sheet.png (2026-08-31)
+#
+# 카톡 인앱 웹뷰는 <a download> 를 무시하고 window.print() 도 없다 — 폰에서 도면을
+# 가져가는 유일하게 확실한 길이 "이미지를 길게 눌러 사진첩 저장"이라 여러 장을 한 장
+# PNG 로 합친다. ZIP 라우트와 **같은 검증 체인·주문 격리·fail-closed** 규약이다.
+# ---------------------------------------------------------------------------
+
+
+def _png_bytes(width: int, height: int, color=(200, 30, 30)) -> bytes:
+    """지정 크기의 진짜 PNG 바이트(합본 높이 계산을 결정적으로 만들기 위해)."""
+    from PIL import Image
+    buf = io.BytesIO()
+    Image.new('RGB', (width, height), color).save(buf, format='PNG')
+    return buf.getvalue()
+
+
+class SheetR2Storage(FakeR2Storage):
+    """합본 사진용 storage stub — key 마다 크기가 다른 **진짜 PNG** 를 돌려준다.
+
+    ``FakeR2Storage`` 는 ``b'BYTES:<key>'`` 를 주므로 Pillow 가 열지 못한다.
+    읽은 key 를 기록해 두면 주문 격리를 바이트가 아니라 **호출 자체로** 판정할 수 있다.
+    """
+
+    #: 파일명 꼬리 → (폭, 높이). 폭을 같게 두면 합본 높이 = 원본 높이합 + 여백이라
+    #: "정말 이어붙였는가"를 축소 효과와 섞이지 않게 볼 수 있다.
+    SIZES = {'sheet-a.png': (300, 200), 'sheet-b.png': (300, 150)}
+
+    def __init__(self):
+        self.read_keys = []
+
+    def read_file_bytes(self, key: str) -> bytes:
+        self.read_keys.append(key)
+        width, height = self.SIZES.get(key.rsplit('/', 1)[-1], (120, 90))
+        return _png_bytes(width, height)
+
+
+@pytest.fixture
+def sheet_r2(monkeypatch):
+    stub = SheetR2Storage()
+    monkeypatch.setattr(share_routes, 'get_storage', lambda: stub)
+    return stub
+
+
+def _sheet_image(resp):
+    """응답 바이트를 PIL 로 연다 — Content-Type 헤더만 믿지 않는다."""
+    from PIL import Image
+    return Image.open(io.BytesIO(resp.data))
+
+
+def test_sheet_is_png_taller_than_sum_of_pages(client, db, sheet_r2):
+    """200 + image/png + 높이가 개별 장 높이 합보다 크다(정말 이어붙였는지)."""
+    order = _mk_order()
+    _add_drawing_attachment(order, 'sheet-a.png')
+    _add_drawing_attachment(order, 'sheet-b.png')
+    _, token = _mk_share(order)
+
+    resp = client.get(f'/s/{token}/drawings-sheet.png')
+
+    assert resp.status_code == 200
+    assert resp.headers['Content-Type'] == 'image/png'
+    assert resp.headers['Cache-Control'] == 'no-store'
+    with _sheet_image(resp) as sheet:
+        assert sheet.format == 'PNG'
+        assert sheet.width == 300           # 가장 넓은 장 기준 통일(상한 미만)
+        assert sheet.height > 200 + 150     # 개별 장 높이 합보다 크다
+        assert sheet.height == 200 + 150 + share_routes._SHEET_GAP
+
+
+def test_sheet_default_is_inline_not_attachment(client, db, sheet_r2):
+    """기본은 inline — 길게 눌러 저장하려면 화면에 떠 있어야 한다."""
+    order = _mk_order()
+    _add_drawing_attachment(order, 'sheet-a.png')
+    _add_drawing_attachment(order, 'sheet-b.png')
+    _, token = _mk_share(order)
+
+    disposition = client.get(f'/s/{token}/drawings-sheet.png').headers['Content-Disposition']
+    assert disposition.startswith('inline;')
+    assert 'attachment' not in disposition
+
+
+def test_sheet_download_param_forces_attachment(client, db, sheet_r2):
+    """``?download=1`` 이면 attachment — 되는 브라우저에서는 바로 파일로 저장된다."""
+    order = _mk_order(customer_name='임/다:슬')
+    _add_drawing_attachment(order, 'sheet-a.png')
+    _add_drawing_attachment(order, 'sheet-b.png')
+    _, token = _mk_share(order)
+
+    disposition = client.get(
+        f'/s/{token}/drawings-sheet.png?download=1').headers['Content-Disposition']
+    assert disposition.startswith("attachment; filename*=UTF-8''")
+    decoded = urllib.parse.unquote(disposition.split("UTF-8''", 1)[1])
+    assert decoded == f'도면_임다슬_{order.id}.png'
+
+
+def test_sheet_bundle_kind_allowed(client, db, sheet_r2):
+    """bundle 링크도 도면을 들고 있으므로 합본이 된다."""
+    import copy as _copy
+    order = _mk_order(structured_data=_copy.deepcopy(_EST_SD))
+    _add_drawing_attachment(order, 'sheet-a.png')
+    _, token = _mk_bundle_share(order)
+    assert client.get(f'/s/{token}/drawings-sheet.png').status_code == 200
+
+
+def test_sheet_estimate_kind_404(client, db, sheet_r2):
+    """계약서 링크에는 도면이 없다 — 존재 자체를 숨긴다(404)."""
+    import copy as _copy
+    order = _mk_order(structured_data=_copy.deepcopy(_EST_SD))
+    _add_drawing_attachment(order, 'sheet-a.png')
+    _, token = _mk_estimate_share(order)
+    assert client.get(f'/s/{token}/drawings-sheet.png').status_code == 404
+
+
+def test_sheet_unknown_token_404(client, db, sheet_r2):
+    resp = client.get('/s/definitely-not-a-token/drawings-sheet.png')
+    assert resp.status_code == 404
+    assert resp.headers['X-Robots-Tag'] == 'noindex, nofollow'
+
+
+def test_sheet_revoked_410(client, db, sheet_r2):
+    order = _mk_order()
+    _add_drawing_attachment(order, 'sheet-a.png')
+    row, token = _mk_share(order)
+    osvc.revoke_token(row)
+    db.commit()
+    assert client.get(f'/s/{token}/drawings-sheet.png').status_code == 410
+
+
+def test_sheet_expired_410(client, db, sheet_r2):
+    order = _mk_order()
+    _add_drawing_attachment(order, 'sheet-a.png')
+    row, token = _mk_share(order)
+    row.expires_at = now_utc_naive() - datetime.timedelta(seconds=1)
+    db.commit()
+    assert client.get(f'/s/{token}/drawings-sheet.png').status_code == 410
+
+
+def test_sheet_deleted_order_404(client, db, sheet_r2):
+    order = _mk_order()
+    _add_drawing_attachment(order, 'sheet-a.png')
+    _, token = _mk_share(order)
+    order.deleted_at = now_utc_naive()
+    db.commit()
+    assert client.get(f'/s/{token}/drawings-sheet.png').status_code == 404
+
+
+def test_sheet_no_images_404(client, db, sheet_r2):
+    """PDF 만 있으면 합칠 게 없다 — 404(PDF→이미지 변환은 이번 범위 밖)."""
+    order = _mk_order()
+    _add_drawing_attachment(order, 'spec.pdf')
+    _, token = _mk_share(order)
+
+    assert client.get(f'/s/{token}/drawings-sheet.png').status_code == 404
+    # 대조군: 같은 주문에 이미지가 하나라도 있으면 200 이다(404 가 다른 이유로 난 게 아님).
+    _add_drawing_attachment(order, 'sheet-a.png')
+    assert client.get(f'/s/{token}/drawings-sheet.png').status_code == 200
+
+
+def test_sheet_no_drawings_at_all_404(client, db, sheet_r2):
+    order = _mk_order()
+    _, token = _mk_share(order)
+    assert client.get(f'/s/{token}/drawings-sheet.png').status_code == 404
+
+
+def test_sheet_local_storage_fail_closed_503(client, db, monkeypatch):
+    """로컬 스토리지면 fail-closed — 열람·ZIP 과 같은 규약."""
+    monkeypatch.setattr(share_routes, 'get_storage', lambda: LocalStorage())
+    order = _mk_order()
+    _add_drawing_attachment(order, 'sheet-a.png')
+    _, token = _mk_share(order)
+    resp = client.get(f'/s/{token}/drawings-sheet.png')
+    assert resp.status_code == 503
+    assert '일시적으로 열람할 수 없습니다' in resp.get_data(as_text=True)
+
+
+def test_sheet_partial_read_failure_503(client, db, sheet_r2, monkeypatch):
+    """한 장이라도 못 읽으면 503 — 일부만 담긴 사진을 내보내지 않는다(ZIP 과 같은 규칙)."""
+    order = _mk_order()
+    _add_drawing_attachment(order, 'sheet-a.png')
+    _add_drawing_attachment(order, 'sheet-b.png')
+    _, token = _mk_share(order)
+
+    original = sheet_r2.read_file_bytes
+
+    def _one_fails(key):
+        return None if key.endswith('sheet-b.png') else original(key)
+
+    monkeypatch.setattr(sheet_r2, 'read_file_bytes', _one_fails)
+    resp = client.get(f'/s/{token}/drawings-sheet.png')
+    assert resp.status_code == 503
+    assert '하나씩 저장' in resp.get_data(as_text=True)
+
+
+def test_sheet_undecodable_bytes_503(client, db, sheet_r2, monkeypatch):
+    """PNG 가 아닌 바이트가 오면 좁은 예외로 잡아 503 — 500 스택트레이스 금지."""
+    order = _mk_order()
+    _add_drawing_attachment(order, 'sheet-a.png')
+    _, token = _mk_share(order)
+
+    monkeypatch.setattr(sheet_r2, 'read_file_bytes', lambda key: b'NOT-AN-IMAGE')
+    resp = client.get(f'/s/{token}/drawings-sheet.png')
+    assert resp.status_code == 503
+    assert '하나씩 저장' in resp.get_data(as_text=True)
+
+
+def test_sheet_isolates_other_order_keys(client, db, sheet_r2):
+    """타 주문·비도면·traversal key 는 합본에 섞이지 않는다(allow-list 승계)."""
+    order = _mk_order()
+    other = _mk_order()
+    _add_drawing_attachment(order, 'sheet-a.png')
+    _add_drawing_attachment(other, 'sheet-b.png')
+    order.structured_data = {
+        'drawing_current_files': [
+            {'key': f'orders/{other.id}/drawing/sheet-b.png', 'filename': 'sheet-b.png'},
+            {'key': f'orders/{order.id}/attachments/measure.png', 'filename': 'measure.png'},
+            {'key': f'orders/{order.id}/drawing/../../etc/passwd.png', 'filename': 'evil.png'},
+        ],
+    }
+    db.commit()
+    _, token = _mk_share(order)
+
+    resp = client.get(f'/s/{token}/drawings-sheet.png')
+    assert resp.status_code == 200
+    # 내 도면 한 장만 읽었다 — 남의 key 는 storage 호출조차 없어야 한다.
+    assert sheet_r2.read_keys == [f'orders/{order.id}/drawing/sheet-a.png']
+    with _sheet_image(resp) as sheet:
+        assert (sheet.width, sheet.height) == (300, 200)   # 여백 없음 = 한 장
+
+
+def test_sheet_over_pixel_budget_shrinks_instead_of_refusing(client, db, sheet_r2,
+                                                             monkeypatch):
+    """총 픽셀 상한을 넘으면 거절하지 않고 줄여서 맞춘다 — 거절하면 받을 길이 없다."""
+    monkeypatch.setattr(share_routes, '_SHEET_MAX_PIXELS', 20_000)
+    order = _mk_order()
+    _add_drawing_attachment(order, 'sheet-a.png')
+    _add_drawing_attachment(order, 'sheet-b.png')
+    _, token = _mk_share(order)
+
+    resp = client.get(f'/s/{token}/drawings-sheet.png')
+    assert resp.status_code == 200
+    with _sheet_image(resp) as sheet:
+        assert sheet.width * sheet.height <= 20_000
+        assert sheet.width < 300     # 정말 줄었다
+
+
+def test_sheet_width_capped_at_max_width(client, db, sheet_r2, monkeypatch):
+    """가장 넓은 장이 상한보다 넓으면 비율 유지로 줄인다."""
+    monkeypatch.setattr(share_routes, '_SHEET_MAX_WIDTH', 150)
+    order = _mk_order()
+    _add_drawing_attachment(order, 'sheet-a.png')
+    _, token = _mk_share(order)
+
+    with _sheet_image(client.get(f'/s/{token}/drawings-sheet.png')) as sheet:
+        assert sheet.width == 150
+        assert sheet.height == 100   # 300x200 → 비율 유지
+
+
+def test_sheet_records_file_download_audit_without_view_bump(client, db, sheet_r2):
+    """감사 1건(FILE_DOWNLOAD 재사용) + 저장은 열람이 아니다(view_count 그대로)."""
+    order = _mk_order()
+    _add_drawing_attachment(order, 'sheet-a.png')
+    row, token = _mk_share(order)
+
+    assert client.get(f'/s/{token}/drawings-sheet.png').status_code == 200
+
+    logs = db.query(AccessLog).filter(AccessLog.action == 'FILE_DOWNLOAD').all()
+    assert len(logs) == 1
+    assert f'share/{row.id}' in (logs[0].additional_data or '')
+    assert token not in (logs[0].additional_data or '')
+
+    db.expire_all()
+    assert (db.get(OrderShareToken, row.id).view_count or 0) == 0
+
+
+# --- 열람 페이지의 합본 버튼 · 카드 저장 아이콘 --------------------------------------
+
+
+def test_view_has_sheet_button_and_card_save_icons(client, db, r2):
+    """열람 페이지에 합본 버튼 마커·장수 라벨·카드 저장 아이콘 마커가 있다."""
+    order = _mk_order()
+    _add_drawing_attachment(order, 'plan-a.png')
+    _add_drawing_attachment(order, 'plan-b.png')
+    _, token = _mk_share(order)
+
+    body = client.get(f'/s/{token}').get_data(as_text=True)
+    assert 'data-share-sheet' in body
+    assert f'/s/{token}/drawings-sheet.png' in body
+    assert '도면 전체 저장 (2장 · 사진 1장)' in body
+    assert '이미지를 길게 눌러 사진첩에 저장하세요' in body
+    # 카드 저장 아이콘 — 카드마다 하나, 카드 <button> 바깥 형제다(중첩 인터랙티브 금지).
+    assert body.count('data-share-card-save') == 2
+    assert body.count('foms-share-card-wrap') == 2
+    # 중첩 인터랙티브 금지: 아이콘 <a> 앞의 마지막 button 태그는 **닫는** 쪽이어야 한다
+    # (열린 <button> 안이면 </button> 보다 <button 이 뒤에 온다).
+    for icon_at in [i for i in range(len(body))
+                    if body.startswith('data-share-card-save', i)]:
+        prefix = body[:icon_at]
+        assert prefix.rindex('</button>') > prefix.rindex('<button'), (
+            '카드 저장 아이콘이 <button> 안에 들어갔다 — HTML 이 깨진다')
+    # ZIP 버튼은 마크업에 남아 있고(PC 용) 폰에서는 CSS 로만 감춘다
+    assert 'foms-share-dl__primary--zip' in body
+
+
+def test_view_pdf_only_keeps_zip_button_unhidden(client, db, r2):
+    """이미지가 없으면 합본 버튼도 없고, ZIP 을 감추는 수식어도 붙지 않는다.
+
+    폰에서 일괄 저장 수단이 통째로 사라지는 것을 막는 음성 대조군이다.
+    """
+    order = _mk_order()
+    _add_drawing_attachment(order, 'spec-a.pdf')
+    _add_drawing_attachment(order, 'spec-b.pdf')
+    _, token = _mk_share(order)
+
+    body = client.get(f'/s/{token}').get_data(as_text=True)
+    assert 'data-share-sheet' not in body
+    assert 'data-share-zip' in body
+    assert 'foms-share-dl__primary--zip' not in body
+
+
+def test_view_single_image_shows_no_sheet_button(client, db, r2):
+    """이미지가 1장이면 합칠 이유가 없다 — 단건 저장 버튼 그대로."""
+    order = _mk_order()
+    _add_drawing_attachment(order, 'only.png')
+    _, token = _mk_share(order)
+
+    body = client.get(f'/s/{token}').get_data(as_text=True)
+    assert 'data-share-sheet' not in body
+    assert 'data-share-download-single' in body
+
+
+def test_erp_gallery_has_no_card_save_icon():
+    """ERP 렌더(share_mode 아님)에는 카드 저장 아이콘이 없다 — 카드 마크업은 공용이다."""
+    from flask import render_template_string
+    import app as app_module
+
+    tpl = "{% include 'drawing/partials/drawing_mobile_v2_gallery.html' %}"
+    cards = [{'url': 'http://x/a.png', 'label': 'a.png',
+              'download_url': 'http://x/a.png?dl=1'}]
+    with app_module.app.test_request_context():
+        erp = render_template_string(tpl, drawing_preview_cards=cards)
+        shared = render_template_string(tpl, drawing_preview_cards=cards, share_mode=True)
+
+    assert 'data-share-card-save' not in erp
+    assert 'foms-share-card-wrap' not in erp
+    # 음성 대조군: 같은 카드가 share_mode 에서는 아이콘을 낸다(선택자 오타로 통과 금지)
+    assert 'data-share-card-save' in shared
+
+
+def test_share_view_css_splits_sheet_and_zip_by_breakpoint():
+    """모바일=합본 사진 / PC=ZIP 분기는 CSS breakpoint 로만 한다(UA 스니핑 금지)."""
+    import pathlib
+    root = pathlib.Path(__file__).resolve().parents[2]
+    css = (root / 'static/css/orders/foms-share-view.css').read_text(encoding='utf-8')
+    common = (root / 'static/css/components/foms-drawing-mobile.css').read_text(encoding='utf-8')
+
+    block = css[css.index('모바일 = 합본 사진'):]
+    assert '@media (max-width: 599.98px)' in block
+    assert '.foms-share-view .foms-share-dl__primary--zip' in block
+    assert '@media (min-width: 600px)' in block
+    assert '.foms-share-view .foms-share-dl__primary--sheet' in block
+    # 카드 저장 아이콘은 공유 스코프에만 — 공용 갤러리 CSS 는 무변경이어야 한다
+    assert '.foms-share-view .foms-share-card-save' in css
+    assert 'foms-share-card-save' not in common
+    assert 'foms-share-card-wrap' not in common
+
+
+def test_sheet_pixel_budget_matches_ios_ceiling():
+    """합본 픽셀 예산은 아이폰이 디코딩할 수 있는 크기여야 한다.
+
+    이 사진은 폰에서 화면에 띄워 길게 눌러 저장하는 것이 본 경로다. 아이폰이 못 여는
+    크기를 만들면 기능 자체가 무의미해진다 — 계약서 캡처가 쓰는 iOS 상한과 같은 값.
+    """
+    import pathlib
+    import re
+    root = pathlib.Path(__file__).resolve().parents[2]
+    js = (root / 'static/js/orders/share-contract.js').read_text(encoding='utf-8')
+    canvas_ceiling = int(re.search(r'MAX_CANVAS_PIXELS = (\d+)', js).group(1))
+    assert share_routes._SHEET_MAX_PIXELS <= canvas_ceiling

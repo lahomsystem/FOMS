@@ -12,6 +12,11 @@
   {% endif %}
   <div class="foms-drawing-card-grid attach-grid foms-attach-grid" data-foms-lightbox-gallery>
     {% for card in drawing_preview_cards %}
+      {# 카드 저장 아이콘은 공유 열람(share_mode)에서만 — ERP 화면 마크업은 무변경.
+         카드는 <button> 이라 그 안에 <a> 를 넣으면 중첩 인터랙티브로 HTML 이 깨진다.
+         래퍼(position:relative)를 두고 아이콘을 카드의 **형제**로 얹는다. #}
+      {% set save_url = card.download_url if share_mode else '' %}
+      {% if save_url %}<div class="foms-share-card-wrap">{% endif %}
       <button
         type="button"
         class="foms-drawing-card attach-item foms-attach-item"
@@ -23,6 +28,17 @@
           <span class="attach-item__label foms-attach-item__label">{{ card.label }}</span>
         {% endif %}
       </button>
+      {% if save_url %}
+        <a class="foms-share-card-save" href="{{ save_url }}" download rel="noreferrer"
+           aria-label="{{ card.label }} 저장" data-share-card-save>
+          <svg class="foms-share-card-save__icon" viewBox="0 0 24 24" aria-hidden="true" focusable="false">
+            <path d="M12 4v10"></path>
+            <path d="M8 10l4 4 4-4"></path>
+            <path d="M5 19h14"></path>
+          </svg>
+        </a>
+      </div>
+      {% endif %}
     {% endfor %}
   </div>
   {# 공유 페이지는 같은 안내를 머리글이 이미 하고 있다 — 두 번 쓰지 않는다. #}
