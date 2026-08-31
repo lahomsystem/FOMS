@@ -19,7 +19,7 @@
 {% block title %}네이버 수집{% endblock %}
 
 {% block styles %}
-<link rel="stylesheet" href="{{ url_for('static', filename='css/admin/naver-workbench.css') }}?v=20260831d">
+<link rel="stylesheet" href="{{ url_for('static', filename='css/admin/naver-workbench.css') }}?v=20260831e">
 {% endblock %}
 
 {% block content %}
@@ -245,23 +245,40 @@
     {% endif %}
 
     {#
-      오늘 실측한 네이버 건(NAVER-BULKDISPATCH-01 T2) — **미리보기 전용, 버튼 없음**.
-      5시 일괄 발송처리가 무엇을 보낼지 미리 보여주는 자리다. 하루 대상이 몇 집인지
-      아무도 세어 본 적이 없어서, 상한·자동화 판단이 여기 숫자 위에 서게 된다.
-      보낼 수 없는 집도 사유와 함께 **함께** 보여준다 — 조용히 빼면 "대상 N집"이라
-      말하면서 실제로는 다른 수를 보내게 된다.
+      오늘 실측한 네이버 건(NAVER-BULKDISPATCH-02) — **대상이 0이 돼도 사라지지 않는다**.
+
+      1회차 운영(2026-08-31)에서 버튼을 누르고 새로고침했더니 띠가 통째로 사라졌다.
+      발송된 집이 대상에서 빠져 0집이 됐기 때문인데, 그 "사라짐"이 두 가지를 동시에
+      뜻했다 — ①다 잘 나갔다 ②애초에 대상이 없었다. 되돌릴 수 없는 조작에서 이 둘이
+      구분 안 되면 사람이 판매자센터를 다시 열게 되고, 이 기능이 없앤 일이 되살아난다.
+
+      그래서 오늘 네이버 건이 하나라도 있으면 띠를 **항상** 띄우고(`show`), 안의 내용이
+      상태(`state`)에 따라 바뀐다. 보낼 수 없는 집도 사유와 **함께** 보여준다.
     #}
-    {% if bulk_dispatch and bulk_dispatch.count %}
-    <details class="wb-ghost wb-bulkdispatch" data-foms-no-autodismiss
+    {% if bulk_dispatch and bulk_dispatch.show %}
+    <details class="wb-ghost wb-bulkdispatch wb-bulkdispatch--{{ bulk_dispatch.state }}"
+             data-foms-no-autodismiss
              data-wb-bulk-dispatch="{{ bulk_dispatch.count }}"
+             data-wb-bulk-dispatch-state="{{ bulk_dispatch.state }}"
+             data-wb-bulk-dispatch-sent="{{ bulk_dispatch.sent }}"
              data-wb-bulk-dispatch-date="{{ bulk_dispatch.date }}">
         <summary class="wb-ghost__head">
+            {% if bulk_dispatch.state == 'done' %}
+            <span class="wb-ghost__badge">완료</span>
+            <b>오늘 실측한 네이버 건 ({{ bulk_dispatch.date }})</b>
+            <span class="wb-ghost__sub">{{ bulk_dispatch.sent }}집 발송처리 완료{% if bulk_dispatch.last_sent_time %}
+                ({{ bulk_dispatch.last_sent_time }}){% endif %} —
+                판매자센터를 다시 열 필요 없습니다.</span>
+            {% else %}
             <span class="wb-ghost__badge">{{ bulk_dispatch.count }}집</span>
             <b>오늘 실측한 네이버 건 ({{ bulk_dispatch.date }})</b>
-            <span class="wb-ghost__sub">지금 보낼 수 있는 집 {{ bulk_dispatch.eligible }}집{% if bulk_dispatch.blocked %} ·
+            <span class="wb-ghost__sub">{% if bulk_dispatch.sent %}오늘 {{ bulk_dispatch.day_total }}집 중
+                {{ bulk_dispatch.sent }}집 발송됨 · {{ bulk_dispatch.count }}집 남음 —
+                {% endif %}지금 보낼 수 있는 집 {{ bulk_dispatch.eligible }}집{% if bulk_dispatch.blocked %} ·
                 먼저 해결할 집 {{ bulk_dispatch.blocked }}집{% endif %} —
                 {% if not (naver_bulk_dispatch_enabled and bulk_dispatch.eligible) %}<b>미리보기입니다. 아직 아무것도 나가지 않습니다.</b>{% endif %}
                 발송처리하면 FOMS에서는 취소할 수 없습니다(반품으로만 처리).</span>
+            {% endif %}
             {% if naver_bulk_dispatch_enabled and bulk_dispatch.eligible %}
             <button type="button" class="btn btn-sm btn-primary ms-auto"
                     data-naver-bulk-dispatch-run
@@ -270,16 +287,21 @@
             </button>
             {% endif %}
         </summary>
+        {% if bulk_dispatch.failed %}
+        <div class="wb-bulkdispatch__failline">발송처리 실패 {{ bulk_dispatch.failed }}집 —
+            아래 사유를 해결한 뒤 다시 보내세요.</div>
+        {% endif %}
         {% if naver_bulk_dispatch_enabled and bulk_dispatch.eligible %}
+        <div class="wb-bulkdispatch__status" data-naver-bulk-dispatch-status hidden></div>
         {% include 'partials/shared/naver_bulk_dispatch_button.html' %}
         {% endif %}
         <table class="wb-ghost__list">
             <thead>
-                <tr><th>주문</th><th>네이버 주문</th><th>실측</th><th>지금 보낼 수 있나</th><th class="text-end">열기</th></tr>
+                <tr><th>주문</th><th>네이버 주문</th><th>실측</th><th>발송</th><th class="text-end">열기</th></tr>
             </thead>
             <tbody>
-                {% for row in bulk_dispatch.rows %}
-                <tr data-bulk-link-id="{{ row.link_id }}">
+                {% for row in bulk_dispatch.day_rows %}
+                <tr data-bulk-link-id="{{ row.link_id }}" data-naver-dispatch-row="{{ row.link_id }}">
                     <td>
                         {% for oid in row.order_ids %}
                         <a href="{{ url_for('order_edit.edit_order', order_id=oid, open='erp-order') }}"
@@ -289,7 +311,7 @@
                     </td>
                     <td>
                         {{ row.order_no or '-' }}
-                        <div class="wb-ghost__dim">보낼 상품주문 {{ row.product_orders }}건</div>
+                        <div class="wb-ghost__dim">{% if row.state == 'sent' %}발송 상품주문 {{ row.sent_orders }}건{% else %}보낼 상품주문 {{ row.product_orders }}건{% endif %}</div>
                     </td>
                     <td>
                         {% if row.measurement_done %}
@@ -299,8 +321,14 @@
                         <div class="wb-ghost__dim">일정만 잡혀 있습니다 — 방문했는지 확인하세요.</div>
                         {% endif %}
                     </td>
-                    <td>
-                        {% if row.eligible %}
+                    <td data-naver-dispatch-state-cell>
+                        {% if row.state == 'sent' %}
+                        <span class="wb-bulkdispatch__sent">발송됨</span>
+                        <div class="wb-ghost__dim">{{ row.sent_at }}{% if row.sent_by_naver %} · 판매자센터에서 보낸 건입니다{% endif %}</div>
+                        {% elif row.state == 'failed' %}
+                        <span class="wb-ghost__claim">실패</span>
+                        <div class="wb-ghost__dim">{{ row.failure_reason }}</div>
+                        {% elif row.eligible %}
                         <span class="wb-ghost__dim">보낼 수 있음</span>
                         {% else %}
                         <span class="wb-ghost__claim">보낼 수 없음</span>
@@ -999,5 +1027,5 @@
 {% endblock %}
 
 {% block scripts %}
-<script src="{{ url_for('static', filename='js/admin/naver-workbench.js') }}?v=20260831d" defer></script>
+<script src="{{ url_for('static', filename='js/admin/naver-workbench.js') }}?v=20260831e" defer></script>
 {% endblock %}
