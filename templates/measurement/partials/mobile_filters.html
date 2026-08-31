@@ -40,9 +40,11 @@
     <a class="chip foms-chip" href="{{ measurement_map_url }}">
       <i class="fas fa-map-marked-alt" aria-hidden="true"></i>지도
     </a>
-    <button type="button" class="chip foms-chip" data-route-plan-trigger="measurement">
-      <i class="fas fa-route" aria-hidden="true"></i>동선
-    </button>
+    <a class="chip foms-chip"
+      href="/map_view?date={{ selected_date }}&status=ALL&dashboard=measurement&route=1{% if erp_mine_only %}&mine=1{% endif %}"
+      target="_blank" rel="noopener">
+      <i class="fas fa-route" aria-hidden="true"></i>동선 지도
+    </a>
   </nav>
 
   <div

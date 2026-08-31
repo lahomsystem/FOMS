@@ -1,11 +1,15 @@
-"""ROUTE-01: scheduled hero/next 정합 + optimized 별도 label·sequence 계약.
+"""ROUTE-01/03: scheduled hero/next 정합 + 저장 좌표 우선 계약.
 
 `measurement_route.py`의 예전 버그: `route`가 최근접 이웃(NN)으로 재배열되어
 반환되어, '다음 방문'/히어로 판정(첫 미완료 지점)이 예약 순서가 아니라 NN 순서를
 따랐다 — 다른 화면의 예약시각 기반 히어로 위젯과 어긋나는 원인(P1-6).
 
-수정: `route`는 항상 예약 순서(측정 시각 오름차순)를 유지하고, NN 재배열은
-`optimized_route`/`optimized_total_distance_km`로 별도 제공한다.
+수정: `route`는 항상 예약 순서(측정 시각 오름차순)다. NN 재배열 추정 동선
+(`optimized_route`)은 2026-08-31 제거했다 — 직선거리 근사가 실제 동선과 크게
+달라 쓸모가 없었다. 여기서는 예약 순서 유지만 계약으로 못 박는다.
+
+ROUTE-03: API 빌더는 주문에 저장된 lat/lng 가 있으면 외부 주소 변환기를 부르지
+않는다(응답 중앙값 5초의 원인). 좌표가 없는 주문만 폴백으로 지오코딩한다.
 """
 
 from __future__ import annotations
@@ -20,8 +24,8 @@ from models import Order, OrderScheduleDate
 
 MEASURE_DATE = "2026-07-24"
 
-# 지리적으로 A(시작) 기준 C가 B보다 훨씬 가깝다 → NN은 A→C→B, 예약순서는 A→B→C.
-# (schedule 순서와 NN 순서가 실제로 달라야 분리가 증명됨)
+# 지리적으로 A(시작) 기준 C가 B보다 훨씬 가깝다 — 거리 기준 재배열이라면 A→C→B가
+# 됐을 배치다. route는 그와 무관하게 예약순서 A→B→C를 유지해야 한다.
 _COORDS = {
     "서울시 루트구 A": (37.50, 127.00),
     "서울시 루트구 B": (37.80, 127.00),  # A와 매우 멀다
@@ -29,7 +33,15 @@ _COORDS = {
 }
 
 
-def _make_order(idx: str, time_str: str, *, completed: bool = False) -> Order:
+def _make_order(
+    idx: str,
+    time_str: str,
+    *,
+    completed: bool = False,
+    lat: float | None = None,
+    lng: float | None = None,
+) -> Order:
+    """실측일 주문 1건 생성. lat/lng 를 주면 '이미 지오코딩된 주문'이 된다."""
     address = f"서울시 루트구 {idx}"
     order = Order(
         received_date="2026-07-23",
@@ -44,6 +56,9 @@ def _make_order(idx: str, time_str: str, *, completed: bool = False) -> Order:
         manager_name="실측담당",
         is_erp_order=True,
         erp_stage_code="MEASURE",
+        lat=lat,
+        lng=lng,
+        geocode_status="success" if lat is not None and lng is not None else "pending",
         structured_data={
             "workflow": {"stage": "MEASURE"},
             "parties": {"manager": {"name": "실측담당"}},
@@ -87,30 +102,8 @@ def test_scheduled_route_matches_appointment_order_not_nearest_neighbor(app, mon
     assert scheduled_ids == [order_a.id, order_b.id, order_c.id]
 
 
-def test_optimized_route_is_separate_sequence_from_scheduled(app, monkeypatch):
-    """optimized_route는 NN 재배열 — scheduled route와 다른 label·sequence로 분리."""
-    monkeypatch.setattr(FOMSAddressConverter, "convert_address", _stub_convert_address)
-    with app.app_context():
-        order_a = _make_order("A", "09:00")
-        order_b = _make_order("B", "10:00")
-        order_c = _make_order("C", "11:00")
-
-        payload = build_measurement_route_payload(db_session, date_filter=MEASURE_DATE)
-
-    scheduled_ids = [p["id"] for p in payload["route"]]
-    optimized_ids = [p["id"] for p in payload["optimized_route"]]
-
-    # NN은 A에서 시작해 더 가까운 C를 B보다 먼저 방문한다 — 예약 순서와 달라야 분리 증명.
-    assert scheduled_ids == [order_a.id, order_b.id, order_c.id]
-    assert optimized_ids == [order_a.id, order_c.id, order_b.id]
-    assert optimized_ids != scheduled_ids
-    assert payload["optimized_total_distance_km"] > 0
-    # 별도 label(키 이름) — route/optimized_route가 혼동 없이 공존.
-    assert "route" in payload and "optimized_route" in payload
-
-
-def test_scheduled_hero_next_ignores_optimized_order(app, monkeypatch):
-    """'다음 방문'(첫 미완료) 판정은 scheduled route 기준 — optimized 순서와 무관."""
+def test_scheduled_hero_next_is_first_incomplete_in_appointment_order(app, monkeypatch):
+    """'다음 방문'(첫 미완료) 판정은 예약 순서 route 기준 — 좌표 근접도와 무관."""
     monkeypatch.setattr(FOMSAddressConverter, "convert_address", _stub_convert_address)
     with app.app_context():
         order_a = _make_order("A", "09:00", completed=True)
@@ -120,15 +113,67 @@ def test_scheduled_hero_next_ignores_optimized_order(app, monkeypatch):
         payload = build_measurement_route_payload(db_session, date_filter=MEASURE_DATE)
 
     scheduled = payload["route"]
+    assert [p["id"] for p in scheduled] == [order_a.id, order_b.id, order_c.id]
+
+    # C가 A에 훨씬 가깝지만(거리 재배열이라면 C가 앞) '다음 방문'은 예약상 다음인 B다.
     next_scheduled = next(p for p in scheduled if not p["measurement_completed"])
     assert next_scheduled["id"] == order_b.id  # 예약상 다음 = B (A는 완료됨)
 
-    # optimized 순서에서 첫 미완료는 다를 수 있다(A→C→B, A는 완료라 첫 미완료는 C) —
-    # hero/next 판정은 반드시 scheduled 기준이어야 하며 optimized 기준과 섞이면 안 된다.
-    optimized = payload["optimized_route"]
-    next_optimized = next(p for p in optimized if not p["measurement_completed"])
-    assert next_optimized["id"] == order_c.id
-    assert next_scheduled["id"] != next_optimized["id"]
+
+def test_route_payload_skips_geocoding_when_coords_already_stored(app, monkeypatch):
+    """ROUTE-03: 저장 좌표가 있는 주문은 주소 변환기를 단 한 번도 호출하지 않는다.
+
+    운영에서 이 API 가 min 187ms / 중앙값 5초의 이중 분포를 보인 원인 — 저장해 둔
+    좌표를 무시하고 매번 외부 지오코딩을 왕복했다(프로세스 LRU 캐시가 살아 있는
+    replica 에서만 빨랐다).
+    """
+    calls: list[str] = []
+
+    def _counting_convert(self, address):  # pragma: no cover - 호출되면 회귀
+        calls.append(address)
+        return _stub_convert_address(self, address)
+
+    monkeypatch.setattr(FOMSAddressConverter, "convert_address", _counting_convert)
+    with app.app_context():
+        order_a = _make_order("A", "09:00", lat=37.50, lng=127.00)
+        order_b = _make_order("B", "10:00", lat=37.80, lng=127.00)
+
+        payload = build_measurement_route_payload(db_session, date_filter=MEASURE_DATE)
+
+    assert calls == []  # 외부 지오코딩 왕복 0회
+    assert [p["id"] for p in payload["route"]] == [order_a.id, order_b.id]
+    assert [(p["lat"], p["lng"]) for p in payload["route"]] == [(37.50, 127.00), (37.80, 127.00)]
+    # 저장 좌표 경로의 geo_status 는 인라인 fast path 와 동일 기준(주문의 geocode_status).
+    assert [p["geo_status"] for p in payload["route"]] == ["success", "success"]
+
+
+def test_route_payload_geocodes_only_orders_without_stored_coords(app, monkeypatch):
+    """ROUTE-03: 좌표 없는 주문만 폴백 지오코딩 — 저장 좌표 주문은 건너뛴다."""
+    calls: list[str] = []
+
+    def _counting_convert(self, address):
+        calls.append(address)
+        return _stub_convert_address(self, address)
+
+    monkeypatch.setattr(FOMSAddressConverter, "convert_address", _counting_convert)
+    with app.app_context():
+        order_a = _make_order("A", "09:00", lat=37.50, lng=127.00)
+        order_b = _make_order("B", "10:00")  # 좌표 없음 → 폴백 대상
+        ids = (order_a.id, order_b.id)
+
+        payload = build_measurement_route_payload(db_session, date_filter=MEASURE_DATE)
+
+        assert [p["id"] for p in payload["route"]] == [order_a.id, order_b.id]
+
+        db_session.expire_all()
+        saved = {o.id: o for o in db_session.query(Order).filter(Order.id.in_(ids)).all()}
+        # 폴백 성공 좌표는 다음 요청의 fast path 를 위해 저장된다.
+        assert (saved[order_b.id].lat, saved[order_b.id].lng) == _COORDS["서울시 루트구 B"]
+        # 이미 좌표가 있던 주문은 그대로.
+        assert (saved[order_a.id].lat, saved[order_a.id].lng) == (37.50, 127.00)
+
+    # 변환기는 좌표 없는 B 주소로만 1회 호출됐다.
+    assert calls == ["서울시 루트구 B"]
 
 
 def test_route_payload_does_not_mutate_order_stage_or_status(app, monkeypatch):

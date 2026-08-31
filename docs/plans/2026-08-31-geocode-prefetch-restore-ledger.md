@@ -286,3 +286,62 @@ powershell -File scripts/ops/pre_push_smoke.ps1   # push 직전 exit 0
 ## 13. 조사 방법 메모
 
 CEO 총괄 + 4개 조사팀 병렬(읽기 경로 / outbox 파이프라인 / 프론트 렌더 / git 회귀 이력) + CEO 직접 운영 DB 조회. 커밋 특정은 서브에이전트 보고를 그대로 쓰지 않고 `git log`·`git show`·`git branch --contains` 로 재검증했다.
+
+---
+
+## 14. 후속 — 실측 대시보드 체감 지연 조사와 "동선 추천" 제거 (2026-08-31)
+
+사용자가 "실측 대시보드에서 날짜 클릭이 예전보다 느려진 것 같다, 자연스러운 건지 측정하라"고 했다.
+
+### 14.1 측정 결과 — 날짜 클릭 자체는 회귀가 아니다
+
+production 실측(claude_master 해제 → 측정 → **재잠금 완료**):
+
+| 항목 | 실측 | 예산 | 판정 |
+|---|---|---|---|
+| dTTFB(날짜 프래그먼트 − healthz) | 100~171ms | 200ms | 이내 |
+| 전송 바이트(br) | 22.7~34.3KB | 50KB | 이내 |
+| 압축 | `content-encoding: br` | — | 정상 |
+| 간헐 최대 | 1.5~1.7s | — | 알려진 한국↔싱가포르 tail |
+
+오늘 날짜에서만 도는 발송처리 미리보기 추가 쿼리(`1c1d21bf`)도 A/B 결과 벌점이 없었다(오늘 160ms vs 다른 날 171/151/100ms). 지오코딩 커밋은 실측 대시보드를 건드리지 않았다(지도 전용).
+
+### 14.2 진짜로 찾은 것 — 동선 API 중앙값 5초
+
+```
+/api/erp/measurement/route  (production 실측)
+  2026-09-01: min 224ms / 중앙값 4867ms / 최대 5029ms
+  2026-09-02: min 187ms / 중앙값 5376ms / 최대 5782ms
+  2026-08-31: min 267ms / 중앙값 490ms  / 최대 11239ms
+```
+
+꼬리만 느린 게 아니라 **중앙값이 5초**라 알려진 네트워크 tail과 성격이 다르다. 원인은 `_build_route_points` 가 주문에 **이미 저장된 `lat`/`lng` 를 확인하지 않고** 매번 `convert_address()` 를 부른 것 — 바로 아래에서 `_store_geocode_coords` 로 저장해 놓고 다음 호출 때 자기가 저장한 값을 안 썼다. 프로세스 내 LRU 가 살아 있을 때만 빨라서 min 과 중앙값이 이중 분포로 갈렸다.
+
+### 14.3 사용자 결정 — "동선 추천 (MVP) 모달과 관련된 모든 것 삭제"
+
+근거: "제대로 맞지도 않고 실제 동선과 크게 달라 의미 없다"(최근접 이웃 직선거리 추정).
+
+**착수 전 조사로 막은 오삭제 3건**:
+1. **`/api/erp/measurement/route` 엔드포인트를 지우면 안 된다.** 응답의 `route` 키(추정이 아니라 예약 순서)를 동선 스트립이 쓰고, **v3 영업 홈 마운트(`persona_home_sales.html:122`)에는 `data-route-inline` 속성이 없어 항상 이 API 로 폴백**한다(직접 확인). 지우면 그 화면의 띠가 죽는다 → 엔드포인트는 유지하고 `optimized_*` 키만 제거.
+2. **`static/js/measurement/foms-route-strip.js` 를 파일 통째로 지우면 안 된다.** 안에 히어로 방문 카운트다운(`paintCountdown`)이 살고 v2·v3 두 표면이 쓴다.
+3. **`static/css/measurement/foms-route-strip.css` 도 마찬가지.** 절반이 히어로·진행요약·완료배지이고, `.foms-route-c0~c7` 팔레트는 지도(`map-view-kakao.js`)와 공유하는 SSOT 다.
+
+또 **`/api/erp/measurement/route-eta` 는 추정과 무관**하다(스트립의 실도로 ETA 전용) — 보존.
+
+### 14.4 제거·수리한 것
+
+- 모달 `#routePlanModal`("동선 추천 (MVP)") + PC "동선" 버튼 + 모바일 동선 칩
+- `dashboard.js` 의 Route Plan 블록(`loadRoutePlan`)
+- `_haversine_km`·`_order_nearest_neighbor`, 응답의 `optimized_route`·`optimized_total_distance_km`
+- 호출자 0건이던 dead code `_query_route_orders`
+- **5초 수리**: `_build_route_points` 가 저장 좌표를 먼저 쓰고, 없을 때만 변환 폴백. 판정 기준은 `_stored_coords` 헬퍼 하나로 인라인 fast path 와 통일했다(두 벌로 갈리면 화면마다 지점 집합이 달라진다). 변환기 객체 생성도 폴백이 실제로 필요할 때로 지연.
+
+**판단해서 살린 것**: 모달 푸터의 "동선 지도 보기"(`route=1`)는 추정이 아니라 **방문 시간순** 폴리라인이고 저장소 전체에서 유일한 입구였다. 모달과 함께 지우면 멀쩡한 기능이 고아가 되므로 툴바·모바일 칩 옆으로 이관했다. (푸터의 "지도(핀) 보기"는 툴바 지도 버튼이 같은 목적지로 리다이렉트해 중복이라 함께 삭제.)
+
+### 14.5 남은 진단 공백
+
+**실측 대시보드에만 `X-FOMS-EPT-B7-RENDER-MS` 헤더가 없다.** 주문·출고·생산·건설·AS·이력 6개에는 붙어 있는데 `foms/web/measurement/dashboard.py` 만 빠졌다 — 이 화면은 서버 렌더와 네트워크를 분리할 수단이 원천적으로 없어 이번에도 간접 지표로 우회했다. **다음에 붙일 거리.**
+
+### 14.6 캐시 핀
+
+`dashboard.js` 를 고쳤으므로 SW `staticCacheFirst` 함정에 대비해 핀 3곳을 범프했다(`20260810b`→`20260831a`): `measurement-entry.js:10 MEAS_JS_V`, `dashboard.html:17`, 그리고 **`dashboard_scripts.html:1 measurement_js_v`** — 마지막 것은 entry 자체의 핀이라 안 올리면 SW 가 옛 entry 를 주어 앞의 두 범프가 무효가 된다.
