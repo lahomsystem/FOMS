@@ -345,3 +345,40 @@ production 실측(claude_master 해제 → 측정 → **재잠금 완료**):
 ### 14.6 캐시 핀
 
 `dashboard.js` 를 고쳤으므로 SW `staticCacheFirst` 함정에 대비해 핀 3곳을 범프했다(`20260810b`→`20260831a`): `measurement-entry.js:10 MEAS_JS_V`, `dashboard.html:17`, 그리고 **`dashboard_scripts.html:1 measurement_js_v`** — 마지막 것은 entry 자체의 핀이라 안 올리면 SW 가 옛 entry 를 주어 앞의 두 범프가 무효가 된다.
+
+---
+
+## 15. 승격 진행 현황 (2026-08-31 마감 시점)
+
+| 작업 | deploy | production |
+|---|---|---|
+| 지도 지연 근본 수정 | `44f8d1ee` | **`365b1280` 운영 반영 완료** (좌표 소진 121→0, 스윕 정상 순환) |
+| 엑셀 업로드 제거 | `d61dccd8` (CI 4/4) | 승격 PR 대기 |
+| 동선 추천 제거 + 5초 수리 | `be52d9c3` (CI 4/4) | 승격 PR 대기 |
+
+승격 워크트리 `c:/tmp/promo2` 에 세 커밋을 체리픽했다(`e5fe53a0`·`dc2777d1`·`316ac61e`).
+
+### 15.1 리베이스에서 막은 충돌 (동선 제거)
+
+타 세션이 **같은 자리**에 "실측일 미정 주문 모아보기" 버튼·모달을 넣어 3구간이 충돌했다. 자동 병합에 맡겼으면 한쪽이 통째로 사라질 자리라 손으로 갈랐다:
+
+- 버튼 줄 — 내 "동선 지도" 링크 + 타 세션 "실측일 미정" 버튼 **둘 다 보존**
+- 모달 구간 — 동선 추천 모달 40줄만 제거, 새 모달 49줄 보존
+- JS 블록 — 동선 블록 61줄 제거, 실측일 미정 166줄 보존 + 주석 번호 재정합(중복 1줄 포함)
+
+추가로 두 가지가 딸려 나왔다:
+
+1. **타 세션 계약 파손** — `tests/domains/test_measurement_undated_ui_contract.py::test_undated_button_is_last_in_filter_actions` 가 내가 지운 `id="btn-route-plan"` 을 **위치 기준점**으로 삼고 있었다(`ValueError: substring not found`). 기준점을 현재 요소(`&route=1` 동선 지도 링크)로 갱신했다. **삭제가 남의 위치 계약을 깨뜨릴 수 있다는 사례다.**
+2. **인벤토리 줄밀림** — 코드 삭제로 `foms_failopen_inventory.json`·`foms_order_mutation_writer_inventory.json` 의 `lineno` 가 밀렸다. 스모크가 재생성한 결과를 커밋에 포함해야 CI 가 green 이다.
+
+### 15.2 승격 체리픽 충돌 3건 (성격별 처리)
+
+- `foms_audit_coverage_inventory.json` — 생성물. 승격 트리에서 **재생성**(가져오지 않음).
+- `tests/domains/test_settlement_aggregation.py` — 정산 대시보드가 아직 운영에 없어 파일 자체가 없다. 그 변경은 **가져오지 않음**.
+- `docs/AI_STATUS.md` — 문서 계보 차이. 규칙대로 **코드만 승격, 문서는 production 버전 유지**(2회 발생).
+
+### 15.3 남은 일
+
+1. 승격 트리 본 스위트 + 스모크 (진행 중)
+2. 승격 PR 생성 → 검사 4종 → 머지
+3. 승격 후 운영 화면 확인 — 실측 대시보드에서 "동선" 버튼이 사라지고 "동선 지도" 링크가 그 자리에 있는지, 엑셀 다운로드는 살아 있는지
