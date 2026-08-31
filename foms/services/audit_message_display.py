@@ -157,6 +157,9 @@ ACTION_LABELS: dict[str, str] = {
     "NAVER_INGEST_RETURN_ENQUEUE": "네이버 판매자 반품 접수 요청",
     # 접수와 **가른다** — 승인은 환불이 나가는 사건이라 감사 원장에서 따로 읽혀야 한다.
     "NAVER_INGEST_RETURN_APPROVE_ENQUEUE": "네이버 판매자 반품 접수+승인 요청",
+    # 거부는 **다른 사건**이다 — 접수·승인과 갈라 읽을 수 있어야 "누가 무슨 문장을
+    # 고객에게 보냈나"에 답할 수 있다(문장 원문은 detail 에 남는다).
+    "NAVER_INGEST_RETURN_REJECT_ENQUEUE": "네이버 판매자 반품 거부 요청",
     "NAVER_INGEST_FULFILLMENT_CLEAR": "네이버 발주확인·발송처리 실패 기록 지움",
     "NAVER_DOCK_STATE_SET": "네이버 도크 반영 상태 저장",
     # --- 결제 ---

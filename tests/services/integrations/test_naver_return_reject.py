@@ -1,0 +1,423 @@
+"""T8-S3 — 네이버 반품 **거부** 계약.
+
+설계서: `docs/specs/2026-08-31-naver-return-reject_SPEC.md`.
+
+거부는 접수·승인과 **대상이 다르다**: 접수는 *우리가* 반품을 내는 것이고, 거부는 *고객이 낸*
+요청을 되돌려보내는 것이다. 그리고 사유가 **코드가 아니라 문장**이라 화이트리스트로 거를 수
+없다 — 그 문장이 구매자에게 그대로 간다.
+
+그래서 이 파일이 무는 것은 넷이다.
+
+* **규격이 안 채워졌으면 나가지 않는다** — 클라이언트가 부르지 못하게 막혀 있고(§2),
+  게이트가 화면과 라우트를 함께 닫는다. 눌러도 안 나가는 버튼을 보여 주지 않는다.
+* **빈 문장으로 불가역 API 를 때리지 않는다** — 화면·라우트·서비스 세 겹.
+* **보류 걸린 건은 우리가 건드리지 않는다** — 승인과 같은 규율(안심케어 보류해제 금지).
+* **보낸 문장이 남는다** — 상태·감사 로그·주문 이력. 분쟁에서 필요한 것은 요약이 아니다.
+"""
+
+from __future__ import annotations
+
+import pytest
+from werkzeug.security import generate_password_hash
+
+from db import db_session
+from foms.services.integrations.naver_commerce import fulfillment
+from foms.services.integrations.naver_commerce.constants import CHANNEL
+from foms.services.integrations.naver_commerce.mapping import group_key_text
+from models import ExternalOrderLink, Order, OrderEvent, SecurityLog, User
+
+REJECT_PATH = "/admin/naver-ingest/{link_id}/return-reject"
+
+_SEQ = [0]
+
+
+def _uid() -> str:
+    _SEQ[0] += 1
+    return str(_SEQ[0])
+
+
+@pytest.fixture()
+def workbench_on(monkeypatch):
+    """워크벤치 게이트 + 거부 게이트를 켠다."""
+    monkeypatch.setenv("FOMS_NAVER_WORKBENCH_ENABLED", "1")
+    monkeypatch.setenv("FOMS_NAVER_WORKBENCH_COHORT", "all")
+    monkeypatch.setenv("FOMS_NAVER_RETURN_REJECT_ENABLED", "1")
+    yield
+
+
+@pytest.fixture()
+def queued(monkeypatch):
+    """큐를 가로채 enqueue 인자를 그대로 붙잡는다(워커는 돌지 않는다)."""
+    calls: list[dict] = []
+
+    def _fake(link_id, reason, actor_user_id=None):
+        calls.append({"link_id": int(link_id), "reason": reason,
+                      "actor_user_id": actor_user_id})
+        return True
+
+    import foms.services.jobs.queue as queue_mod
+    import foms.web.admin.naver_ingest as web_mod
+
+    monkeypatch.setattr(queue_mod, "enqueue_naver_return_reject", _fake, raising=True)
+    monkeypatch.setattr(web_mod, "enqueue_naver_return_reject", _fake, raising=False)
+    return calls
+
+
+def _login(client, *, role: str = "ADMIN") -> User:
+    user = User(username=f"wbrej_{role.lower()}_{_uid()}",
+                password=generate_password_hash("pw"), role=role, team="CS",
+                name=f"{role} 사용자", is_active=True)
+    db_session.add(user)
+    db_session.commit()
+    with client.session_transaction() as sess:
+        sess["user_id"] = user.id
+        sess["username"] = user.username
+        sess["role"] = user.role
+    return user
+
+
+def _link(*, claim: str = "RETURN_REQUEST", holdback: str = "",
+          order_id: int | None = None, order_no: str = "",
+          state: dict | None = None) -> ExternalOrderLink:
+    """고객이 반품을 걸어 온 수집 링크 1건."""
+    external_id = f"PO-REJ-{_uid()}"
+    product_order = {"productOrderId": external_id, "productName": "로라 무몰딩 1cm",
+                     "totalPaymentAmount": 900000}
+    if claim:
+        product_order["claimStatus"] = claim
+        product_order["claimType"] = "RETURN"
+    if holdback:
+        product_order["holdbackStatus"] = holdback
+    snapshot = {"order": {"orderId": order_no or f"N-REJ-{_uid()}"},
+                "productOrder": product_order}
+    link = ExternalOrderLink(channel=CHANNEL, external_id=external_id,
+                             sync_status="LINKED" if order_id else "COLLECTED",
+                             external_order_no=snapshot["order"]["orderId"],
+                             raw_snapshot=snapshot, group_key=group_key_text(snapshot),
+                             order_id=order_id, triage_state=state or {})
+    db_session.add(link)
+    db_session.commit()
+    return link
+
+
+def _order() -> int:
+    order = Order(received_date="2026-06-01", customer_name="김반품",
+                  phone="010-1111-2222", address="서울 강남구 1", product="붙박이장",
+                  status="RECEIVED")
+    db_session.add(order)
+    db_session.commit()
+    return int(order.id)
+
+
+class _Client:
+    """거부 호출을 기록하는 가짜 클라이언트(규격이 채워지기 전의 대역)."""
+
+    def __init__(self, *, fail: str = ""):
+        self.calls: list[tuple[str, str]] = []
+        self.fail = fail
+
+    def reject_return_product_order(self, product_order_id, *, reason):
+        self.calls.append((product_order_id, reason))
+        if self.fail:
+            raise RuntimeError(self.fail)
+        return {"data": {"successProductOrderIds": [product_order_id],
+                         "failProductOrderInfos": []}}
+
+
+# --------------------------------------------------------------------------- #
+# 1. 규격이 안 채워졌으면 나가지 않는다
+# --------------------------------------------------------------------------- #
+
+def test_client_refuses_to_call_before_the_spec_is_confirmed():
+    """진짜 클라이언트는 **부르지 못한다** — 규격 미확인(설계서 §2).
+
+    추측으로 만든 body 를 불가역 API 에 보내지 않는다. 승인 때 `approvalData` 가 정확히
+    이 자리에서 났다(근거가 출처에 없었다).
+    """
+    from foms.services.integrations.naver_commerce.client import NaverCommerceClient
+
+    client = NaverCommerceClient.__new__(NaverCommerceClient)
+
+    with pytest.raises(NotImplementedError) as exc:
+        client.reject_return_product_order("PO-1", reason="반품이 어렵습니다.")
+
+    assert "규격" in str(exc.value)
+    assert "2026-08-31-naver-return-reject_SPEC" in str(exc.value)
+
+
+def test_client_rejects_empty_input_before_anything_else():
+    """빈 상품주문번호·빈 문장은 규격과 무관하게 먼저 막는다."""
+    from foms.services.integrations.naver_commerce.client import NaverCommerceClient
+
+    client = NaverCommerceClient.__new__(NaverCommerceClient)
+
+    with pytest.raises(ValueError):
+        client.reject_return_product_order("", reason="문장")
+    with pytest.raises(ValueError):
+        client.reject_return_product_order("PO-1", reason="   ")
+
+
+def test_route_is_closed_while_the_gate_is_off(client, monkeypatch, queued):
+    """게이트가 꺼져 있으면 라우트가 403 — 화면 버튼과 **같은 조건**이다."""
+    monkeypatch.setenv("FOMS_NAVER_WORKBENCH_ENABLED", "1")
+    monkeypatch.setenv("FOMS_NAVER_WORKBENCH_COHORT", "all")
+    monkeypatch.delenv("FOMS_NAVER_RETURN_REJECT_ENABLED", raising=False)
+    _login(client)
+    link = _link()
+
+    response = client.post(REJECT_PATH.format(link_id=link.id),
+                           json={"reason": "반품이 어렵습니다."})
+
+    assert response.status_code == 403
+    assert not queued, "게이트가 꺼졌는데 큐에 들어갔다"
+
+
+def test_pane_hides_the_button_while_the_gate_is_off(client, monkeypatch):
+    """게이트가 꺼져 있으면 **버튼 자체가 없다** — 눌러도 안 나가는 버튼은 거짓말이다."""
+    monkeypatch.setenv("FOMS_NAVER_WORKBENCH_ENABLED", "1")
+    monkeypatch.setenv("FOMS_NAVER_WORKBENCH_COHORT", "all")
+    monkeypatch.delenv("FOMS_NAVER_RETURN_REJECT_ENABLED", raising=False)
+    _login(client)
+    link = _link()
+
+    body = client.get(f"/admin/naver-ingest/triage?tab=work&link_id={link.id}") \
+        .get_data(as_text=True)
+
+    assert 'id="wb-return-reject"' not in body
+    assert 'id="wb-modal-return-reject"' not in body
+
+
+# --------------------------------------------------------------------------- #
+# 2. 화면 — 버튼과 모달이 같은 조건, 재진술 건수가 서버 술어와 같다
+# --------------------------------------------------------------------------- #
+
+def test_pane_offers_reject_when_the_customer_asked_for_one(client, workbench_on):
+    """고객이 반품을 걸어 온 집에는 거부 버튼과 모달이 함께 뜬다."""
+    _login(client)
+    link = _link()
+
+    body = client.get(f"/admin/naver-ingest/triage?tab=work&link_id={link.id}") \
+        .get_data(as_text=True)
+
+    assert 'id="wb-return-reject"' in body
+    assert 'id="wb-modal-return-reject"' in body
+    assert 'id="wb-reject-reason"' in body, "사유 입력칸이 없다"
+    assert "구매자에게 그대로 전달됩니다" in body, "문장이 고객에게 간다는 사실을 안 말한다"
+    assert "되돌릴 수 없습니다" in body
+
+
+def test_pane_hides_reject_when_no_claim_is_pending(client, workbench_on):
+    """반품 요청이 없는 집에는 거부가 없다 — 없는 요청을 거부할 수 없다."""
+    _login(client)
+    link = _link(claim="")
+
+    body = client.get(f"/admin/naver-ingest/triage?tab=work&link_id={link.id}") \
+        .get_data(as_text=True)
+
+    assert 'id="wb-return-reject"' not in body
+
+
+def test_pane_hides_reject_when_naver_put_it_on_hold(client, workbench_on):
+    """보류 걸린 건은 버튼도 없다 — 보류는 우리가 풀지 않는다(안심케어 금지)."""
+    _login(client)
+    link = _link(holdback="HOLDBACK")
+
+    body = client.get(f"/admin/naver-ingest/triage?tab=work&link_id={link.id}") \
+        .get_data(as_text=True)
+
+    assert 'id="wb-return-reject"' not in body
+
+
+def test_modal_offers_fill_sentences_without_forcing_them(client, workbench_on):
+    """상용구는 **채워 넣기 버튼**이다 — select 가 아니라 입력칸이 정본이다."""
+    _login(client)
+    link = _link()
+
+    body = client.get(f"/admin/naver-ingest/triage?tab=work&link_id={link.id}") \
+        .get_data(as_text=True)
+
+    assert "wb-reject-fill" in body
+    assert "<textarea" in body.replace("\n", "")
+    for fill in fulfillment.RETURN_REJECT_FILLS:
+        assert fill["label"] in body
+
+
+# --------------------------------------------------------------------------- #
+# 3. 라우트 — 권한·빈 문장·기록
+# --------------------------------------------------------------------------- #
+
+def test_staff_cannot_reject(client, workbench_on, queued):
+    """실무자(STAFF)는 못 누른다 — 접수·승인보다 좁다(사용자 결정 2026-08-31)."""
+    _login(client, role="STAFF")
+    link = _link()
+
+    response = client.post(REJECT_PATH.format(link_id=link.id),
+                           json={"reason": "반품이 어렵습니다."})
+
+    assert response.status_code in (302, 403)
+    assert not queued
+
+
+@pytest.mark.parametrize("role", ["ADMIN", "MANAGER"])
+def test_admin_and_manager_can_reject(client, workbench_on, queued, role):
+    """관리자·책임자는 누를 수 있다."""
+    _login(client, role=role)
+    link = _link()
+
+    response = client.post(REJECT_PATH.format(link_id=link.id),
+                           json={"reason": "시공이 완료된 건으로 반품이 어렵습니다."})
+
+    assert response.status_code == 200, response.get_data(as_text=True)
+    assert response.get_json()["success"] is True
+    assert queued and queued[-1]["reason"] == "시공이 완료된 건으로 반품이 어렵습니다."
+
+
+def test_empty_reason_never_reaches_the_queue(client, workbench_on, queued):
+    """빈 문장으로 불가역 API 를 때리지 않는다 — 라우트가 먼저 막는다."""
+    _login(client)
+    link = _link()
+
+    response = client.post(REJECT_PATH.format(link_id=link.id), json={"reason": "   "})
+
+    assert response.status_code == 400
+    assert not queued
+
+
+def test_reject_records_the_sentence_in_audit_and_order_history(client, workbench_on,
+                                                                queued):
+    """보낸 문장이 **감사 로그와 주문 이력 양쪽**에 남는다 — 분쟁의 유일한 방어선이다."""
+    user_id = int(_login(client).id)
+    order_id = _order()
+    link = _link(order_id=order_id)
+    sentence = "제품에 사용 흔적이 확인되어 반품 조건에 해당하지 않습니다."
+
+    client.post(REJECT_PATH.format(link_id=link.id), json={"reason": sentence})
+
+    db_session.expire_all()
+    log = (db_session.query(SecurityLog)
+           .filter(SecurityLog.action == "NAVER_INGEST_RETURN_REJECT_ENQUEUE")
+           .order_by(SecurityLog.id.desc()).first())
+    assert log is not None, "감사 로그가 없다"
+    assert sentence in str(log.detail or ""), "보낸 문장이 감사 로그에 없다"
+
+    event = (db_session.query(OrderEvent)
+             .filter(OrderEvent.order_id == order_id,
+                     OrderEvent.event_type == "NAVER_RETURN_REJECTED")
+             .order_by(OrderEvent.id.desc()).first())
+    assert event is not None, "주문 이력에 거부 표식이 없다"
+    assert event.payload.get("reason") == sentence
+    assert event.created_by_user_id == user_id
+
+
+def test_order_history_sentence_quotes_what_we_sent():
+    """주문 이력 문장이 **보낸 문장을 그대로** 싣는다(요약하면 쓸모를 잃는다)."""
+    from foms.services.order_event_display import (
+        generate_change_description,
+        translate_event_type_to_korean,
+    )
+
+    text = translate_event_type_to_korean("NAVER_RETURN_REJECTED")
+    sentence = generate_change_description(
+        "NAVER_RETURN_REJECTED", "", "", "",
+        {"reason": "시공이 완료된 건으로 원상 복구가 불가능하여 반품이 어렵습니다.",
+         "external_order_no": "N-REJ-1", "product_order_count": 2})
+
+    assert text and text != "기타 변경", "이벤트 라벨 미등재 — 주문 이력이 뭉갠다"
+    assert "원상 복구가 불가능하여" in sentence
+    assert "N-REJ-1" in sentence
+
+
+# --------------------------------------------------------------------------- #
+# 4. 서비스 — 술어·멱등·부분 실패
+# --------------------------------------------------------------------------- #
+
+def test_service_rejects_only_the_rows_with_a_pending_request():
+    """요청이 걸린 행만 보낸다 — 화면 재진술과 **같은 술어**다."""
+    link = _link()
+    sibling = _link(claim="", order_no=link.external_order_no)
+    sibling.group_key = link.group_key
+    db_session.commit()
+    fake = _Client()
+
+    result = fulfillment.reject_return(db_session, fake, link_id=int(link.id),
+                                       reason="반품이 어렵습니다.", actor_user_id=1)
+    db_session.commit()
+
+    assert result["rejected"] == [link.external_id]
+    assert [pid for pid, _ in fake.calls] == [link.external_id]
+
+
+def test_service_refuses_an_empty_sentence():
+    """서비스도 빈 문장을 막는다(라우트를 우회한 호출에도 마지막 문이 있다)."""
+    link = _link()
+    fake = _Client()
+
+    with pytest.raises(fulfillment.FulfillmentError):
+        fulfillment.reject_return(db_session, fake, link_id=int(link.id), reason="  ")
+
+    assert fake.calls == []
+
+
+def test_service_never_touches_a_held_back_claim():
+    """보류 걸린 건은 부르지 않는다 — 우리가 보류를 풀지 않는다."""
+    link = _link(holdback="HOLDBACK")
+    fake = _Client()
+
+    with pytest.raises(fulfillment.FulfillmentError):
+        fulfillment.reject_return(db_session, fake, link_id=int(link.id),
+                                  reason="반품이 어렵습니다.")
+
+    assert fake.calls == []
+
+
+def test_service_is_idempotent():
+    """두 번 눌러도 한 번만 나간다 — 표식은 우리 것으로만 판정한다."""
+    link = _link()
+    fake = _Client()
+
+    fulfillment.reject_return(db_session, fake, link_id=int(link.id),
+                              reason="반품이 어렵습니다.")
+    db_session.commit()
+    with pytest.raises(fulfillment.FulfillmentError):
+        fulfillment.reject_return(db_session, fake, link_id=int(link.id),
+                                  reason="반품이 어렵습니다.")
+
+    assert len(fake.calls) == 1
+
+
+def test_service_writes_the_sentence_on_the_row():
+    """상태에 **문장 원문**이 남는다(요약하지 않는다)."""
+    link = _link()
+    sentence = "반품 가능 기간이 지나 단순 변심에 의한 반품이 어렵습니다."
+
+    fulfillment.reject_return(db_session, _Client(), link_id=int(link.id),
+                              reason=sentence, actor_user_id=7)
+    db_session.commit()
+
+    db_session.expire_all()
+    state = (db_session.get(ExternalOrderLink, int(link.id)).triage_state or {}).get("return")
+    assert state["reject_reason"] == sentence
+    assert state["rejected_at"] and state["rejected_by"] == 7
+
+
+def test_service_records_the_failure_reason():
+    """호출이 실패하면 사유가 DB 에 남는다 — 로그·RQ 에만 남기지 않는다."""
+    link = _link()
+    fake = _Client(fail="네이버 400: 처리 권한 없음")
+
+    with pytest.raises(fulfillment.FulfillmentError) as exc:
+        fulfillment.reject_return(db_session, fake, link_id=int(link.id),
+                                  reason="반품이 어렵습니다.")
+    db_session.commit()
+
+    assert "처리 권한 없음" in str(exc.value)
+    db_session.expire_all()
+    row = db_session.get(ExternalOrderLink, int(link.id))
+    assert "처리 권한 없음" in str(row.triage_state)
+
+
+def test_reject_is_followed_by_a_refresh():
+    """거부 뒤 그 집을 다시 읽는다 — 불가역 경로에서 재조회는 확인이다(T3 규율)."""
+    from foms.services.jobs.tasks import REFRESH_AFTER_ACTIONS
+
+    assert "return-reject" in REFRESH_AFTER_ACTIONS

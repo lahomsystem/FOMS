@@ -346,6 +346,26 @@ def is_naver_bulk_dispatch_enabled() -> bool:
     return env_bool("FOMS_NAVER_BULK_DISPATCH_ENABLED")
 
 
+def is_naver_return_reject_enabled() -> bool:
+    """네이버 **반품 거부**가 켜져 있나 (T8-S3).
+
+    **기본값은 꺼짐이고, 지금은 켜면 안 된다.** 거부 API 규격(엔드포인트·body 필드·글자수)이
+    아직 확인되지 않았다(설계서 §2). 화면·권한·기록·계약은 다 만들어 두고 **네이버로 나가는
+    한 줄만** 비워 뒀는데, 그 상태로 버튼이 보이면 담당자가 눌러 놓고 안 나간 줄 모른다.
+    이 스위치가 그 자리를 닫는다.
+
+    켜는 순서: ① 문서 원문으로 §2 를 채운다 ② `client.reject_return_product_order` 의
+    요청 한 줄을 채운다 ③ Railway 에 ``FOMS_NAVER_RETURN_REJECT_ENABLED=1``.
+
+    코호트를 쓰지 않는 이유는 일괄 발송처리와 같다 — 이 스위치의 일은 "기능 자체를 당장
+    끌 수 있는가" 하나이고, 누가 누를 수 있는지는 **롤**(ADMIN·MANAGER)이 정한다.
+
+    Returns:
+        켜져 있으면 True.
+    """
+    return env_bool("FOMS_NAVER_RETURN_REJECT_ENABLED")
+
+
 def is_mobile_v2_shell(variant: str) -> bool:
     """shell variant가 v2 셸 계열(``v2``/``v3``)인지 판정한다.
 

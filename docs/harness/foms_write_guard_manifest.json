@@ -65,6 +65,10 @@
       "mode": "guard",
       "rule": "/admin/naver-ingest/<int:link_id>/return"
     },
+    "admin.naver_ingest_return_reject": {
+      "mode": "guard",
+      "rule": "/admin/naver-ingest/<int:link_id>/return-reject"
+    },
     "admin.naver_ingest_run_now": {
       "mode": "guard",
       "rule": "/admin/naver-ingest/run"

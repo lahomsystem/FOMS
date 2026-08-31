@@ -303,9 +303,9 @@ def _enqueue_naver_push_after_commit(db: Any, baseline: Optional[int]) -> dict:
     return summary
 
 
-#: 끝난 뒤 그 집을 **다시 읽어야 하는** 조작. 네 가지 모두 네이버 쪽 사실을 바꾼다.
-#: (사용자 결정 2026-08-31 — "네 가지 모두")
-REFRESH_AFTER_ACTIONS = ("confirm", "dispatch", "cancel", "return")
+#: 끝난 뒤 그 집을 **다시 읽어야 하는** 조작. 전부 네이버 쪽 사실을 바꾼다.
+#: (사용자 결정 2026-08-31 — "네 가지 모두" · ``return-reject`` 는 T8-S3 에서 같은 규율로 추가)
+REFRESH_AFTER_ACTIONS = ("confirm", "dispatch", "cancel", "return", "return-reject")
 
 
 def _enqueue_refresh_after(action: str, link_id: int, actor_user_id=None) -> bool:
@@ -352,9 +352,10 @@ def run_naver_fulfillment_task(link_id: int, action: str, actor_user_id=None,
     Args:
         link_id: 기준 수집 링크 id(같은 집 전체가 함께 처리된다).
         action: ``confirm``(발주확인) · ``dispatch``(발송처리) · ``cancel``(판매자 직접취소) ·
-            ``return``(판매자 반품 접수, T8-S1).
+            ``return``(판매자 반품 접수, T8-S1) · ``return-reject``(반품 거부, T8-S3).
         actor_user_id: 화면에서 누른 사람(기록용).
-        reason: 사유 코드(``cancel``·``return`` 일 때만 — 목록이 서로 다르다).
+        reason: 사유 코드(``cancel``·``return``) 또는 **거부 사유 문장**(``return-reject`` —
+            코드가 아니라 구매자에게 그대로 가는 문장이다).
         detail: 상세 사유(``cancel``·``return`` 일 때만, 선택).
 
     Returns:
@@ -387,6 +388,12 @@ def run_naver_fulfillment_task(link_id: int, action: str, actor_user_id=None,
                     db, client, link_id=int(link_id), reason=str(reason or ""),
                     detail=detail, actor_user_id=actor_user_id,
                     approve=bool(approve))
+            elif action == "return-reject":
+                # 반품 **거부**(T8-S3). 접수·승인과 같은 자리를 쓰는 이유는 아래
+                # ``except FulfillmentError`` 의 커밋 규율이다 — 실패 사유가 DB 에 남는다.
+                result = naver_fulfillment.reject_return(
+                    db, client, link_id=int(link_id), reason=str(reason or ""),
+                    actor_user_id=actor_user_id)
             else:
                 raise ValueError(f"알 수 없는 작업입니다: {action}")
             db.commit()
