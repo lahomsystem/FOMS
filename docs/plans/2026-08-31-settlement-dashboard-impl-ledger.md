@@ -984,3 +984,30 @@ HTTP 구간 계측(`c:\tmp\settle_perf_probe.py`, `staging_perf_gate` 와 같은
 `_balance_after_payments` 는 `-> int` 이고 기존 `_totals` 와 같은 규약이다(`None` = 금액 미상 제외).
 (2) 부분 실패 분기 소멸 → 사실이며 위에 의도로 기록. (3) 빈 상태 도달 가능성 → 도달한다
 (스코프 안 미수 0건이면 5버킷 전부 0 → 빈 상태 문구).
+
+### P1-6 배포 · 스테이징 재측정
+
+- 커밋 `0784ea5e` → `origin/deploy` (자기 세션 커밋 1건만 push).
+- CI **전 워크플로 green**(`gh run list --branch deploy` 로 headSha 대조):
+  FOMS CI · FOMS PostgreSQL Lane · Harness CI · perf-gate (staging) 4종 success.
+- 스테이징 배포 확인: `/healthz` commit == `0784ea5e357adcf6e8bd5bff6e66cc5720ba8d67`.
+
+스테이징 전/후(같은 스크립트·같은 측정 정의, 탭 클릭 기준):
+
+| | 요청 수 | 표 첫 행 | aging 막대 |
+|---|---|---|---|
+| 전 | 6 (직렬) | 355ms | **3,539ms** |
+| 후 | **1** | 480ms | **480ms** |
+
+막대가 표와 **같은 시점**에 뜬다. 운영 예상치는 아래 실측 기반: 운영 전(前) 2,855ms →
+요청 1건이면 그리드 응답 시점(운영 전 실측 368ms) 수준.
+
+**운영 재측정은 production 승격 이후**에만 가능하다(현재 운영은 옛 코드). 승격은 별도 승인 대기.
+
+### P1-7 부수 — 로컬 환경 정리 기록
+
+검증용으로 띄운 로컬 dev 서버(5002)와 5001 포트 정리 과정에서, **다른 세션이 15:33 에 띄워둔
+로컬 dev 서버(5001)도 함께 종료됐다.** 로컬 개발 서버라 데이터 영향은 없다 —
+다시 필요하면 `PORT=5001 python run.py` 로 띄우면 된다. 로컬 시드 705건은 검증 후 삭제 완료
+(`seed_settlement.py --purge`, `population=10 seeded=0` 확인). 로컬 `qa_v3` 비밀번호를
+문서값 `qa!2026` 으로 재설정했다(로컬 dev DB 한정).
