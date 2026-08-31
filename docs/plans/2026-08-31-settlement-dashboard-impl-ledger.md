@@ -21,9 +21,9 @@
 | T2 | Q2 | 운영 DB 읽기전용 실측 — ExternalOrderLink 채널 분포, `order_id IS NULL` 비율, `naver.source` 전수성 | 카운트 3종 기록 + 채널 오귀속 리스크 판정 | **DONE** — 링크 206(NULL 74)·모집단 교차 0건·`naver.source` 운영 0건. 채널 오귀속 리스크 실질 0 |
 | T3 | 사전조사 | 코드 계약 인벤토리 4종(금액 SSOT / completion_dashboard 파생 / 스키마·상수 / 정책 레지스트리) | 조사 결과가 CEO에 의해 Read/Grep 재검증됨 | **DONE (단서부)** — 4기 조사 완료. **단 조사는 낙후 메인 트리 기준**이라 워크트리 기준 재검증이 T5 에 포함됨 |
 | T4 | Q5·Q6 | 소결정 확정: 수금 근사 표기(§3.5), 주(week) 버킷 정의 | 결정 + 근거가 원장에 기록, M1 테스트에 고정 | **DONE** — D1(월 내 주차)·D2(완료월 귀속 근사) |
-| T5 | M1 | `foms/services/settlement/aggregation.py` 집계 서비스 구현 | `python -m pytest tests/domains/test_settlement_aggregation.py -q` green | PENDING |
-| T6 | M1 | 단위·계약 테스트: 모집단 술어·201건 캡 무관성·금액 파리티·이중계상 방지·채널 조인·aging 경계·완료일 미상 버킷 | 위 pytest green + `python -c "import app; print('APP_OK')"` | PENDING |
-| T7 | M1 | M1 커밋 (pre_push_smoke exit 0) | 커밋 SHA + smoke exit 0 기록 | PENDING |
+| T5 | M1 | `foms/services/settlement_aggregation.py` 집계 서비스 구현 (D6 로 경로 교정) | `python -m pytest tests/domains/test_settlement_aggregation.py -q` green | **DONE** — 818줄·함수 31개, 전 함수 50줄 이하, `try/except` 0, 쓰기 0 |
+| T6 | M1 | 단위·계약 테스트: 모집단 술어·201건 캡 무관성·금액 파리티·이중계상 방지·채널 조인·aging 경계·완료일 미상 버킷 | 위 pytest green + `APP_OK` | **DONE** — 42 함수/67건 green, mutation 11종 전부 검출 |
+| T7 | M1 | M1 커밋 (pre_push_smoke exit 0) | 커밋 SHA + smoke exit 0 기록 | **DONE** — 아래 커밋 로그 |
 | T8 | M2 | 정책 `SETTLEMENT_DASHBOARD_READ` 등재 + 페이지/API 라우트 + 핸들러 내 가드 | 라우트 200/403 실동작 | PENDING |
 | T9 | M2 | 권한 매트릭스 테스트(허용 4·거부 5 × 전 GET 라우트) + 기존 게이트 무회귀 | `python -m pytest tests/domains/test_settlement_dashboard_api.py tests/domains/test_auth_finance.py tests/domains/test_write_guard.py -q` green | PENDING |
 | T10 | M2 | M2 커밋 | 커밋 SHA + smoke exit 0 | PENDING |
@@ -187,11 +187,79 @@ JSONB 파싱 비용이 지배적이지 않다. 12개월 상한(§4.2)이면 커�
   (실측: 모집단 2,168 중 ERP 여부별 분해는 M1 테스트에서 고정.)
 - **D5 (완료일 미상)**: 운영 254건(11.7%)이라 무시 불가. 커널은 `UNKNOWN` 버킷으로 **분리 반환**하고
   화면이 이를 표기한다(암묵 drop 금지). 기간 합계에는 넣지 않되 "완료일 미상 N건 / M원"을 카드 각주로 노출.
+- **D7 (날짜 술어를 SQL 에 걸지 않는다)**: 스펙 §4.1 은 `order_schedule_dates` EXISTS 로 기간을 SQL 에서 자르라고 했으나
+  **커널은 대상 모집단 전량을 한 번에 읽고 기간은 파이썬 버킷에서만 적용한다.** 근거 3가지:
+  1. 미수금·aging 이 **기간 무관** 지표(§3.5)라 어차피 전량이 필요하다 — 기간 술어를 걸면 쿼리가 2개가 된다.
+  2. `order_schedule_dates.date` 가 `varchar(20)` 이고 `'미정'`·`'000원'` 같은 오염값이 섞여 있어
+     SQL 범위 술어에 형식 가드가 추가로 필요하다(취약면 증가).
+  3. 실측상 전량이 2,168행·1.9MB·커널 0.016초다. 전량 로드가 저렴하다.
+  **성장 여유 계산**: 대상 상태가 월 ~300건씩 누적되므로 5년 후 약 2만행·18MB·커널 ~0.2초.
+  그 지점이 오면 스펙 §10 Q4(플랫 컬럼/집계 테이블)를 착수한다. **M4 에서 TTFB 실측으로 재확인**한다.
+  기간 상한 12개월(§4.2)은 **반환 버킷 개수 상한**으로 살아 있다.
+- **D8 (M3 자산 배치)**: `static/` 은 닫힌집합 게이트가 **아니다**(`test_strict_canonical_static_js_css_taxonomy`·
+  `..._sfc_b8` 은 특정 경로의 *존재*만 단언). 따라서 스펙 §6 의 `static/css/settlement/`·`static/js/settlement/` 는 그대로 가능.
+  단 `templates/` 최상위는 닫힌집합이므로 템플릿은 `templates/cs/` 아래로 간다(D6).
 
 ## 커밋 로그
 
-_(T별 SHA)_
+| T | SHA | 내용 |
+|---|---|---|
+| T0 | `f5a292ca` | docs(settlement): 목업 5·리서치 5·스펙·원장 2 등재 (워크트리 `session/settle-dash`) |
+| T5~T7 | (아래) | feat(settlement): M1 집계 서비스 + 계약 테스트 |
+
+### M1 검증 기록 (CEO 직접 실행, 서브에이전트 보고와 별개)
+
+```
+cd c:/tmp/foms-s-settle-dash
+python -m pytest tests/domains/test_settlement_aggregation.py -q   → 67 passed
+python -c "import app; print('APP_OK')"                            → APP_OK
+python -c "from foms.services.settlement_aggregation import aggregate_settlement"  → SOLO_IMPORT_OK (app 없이 단독 import 성공)
+python -m pytest tests/domains/test_failopen_inventory.py tests/domains/test_state_guard.py \
+  tests/domains/test_rev_99.py tests/domains/test_foms_namespace_imports.py \
+  tests/domains/test_write_guard.py tests/domains/test_auth_enforcement.py tests/contracts -q  → 328 passed
+powershell scripts/ops/pre_push_smoke.ps1                          → 330 passed / === PRE-PUSH SMOKE PASSED === / exit 0
+```
+
+**CEO 가 되돌린 것 1건**: 구현 에이전트가 `docs/harness/foms_failopen_inventory.json` 을 재생성했는데
+변경분이 **건드리지도 않은 파일들(`naver_commerce/fulfillment.py`·`web/admin/naver_ingest.py`)의 줄번호**였다.
+원본으로 되돌린 뒤 드리프트 게이트 3종 44건이 그대로 통과함을 확인 → 불필요한 변경이라 커밋에서 제외.
+(신규 모듈에 `try/except` 가 0개라 애초에 인벤토리 등재 대상이 아니다.)
+
+### M1 설계 확정 사항 (브리프에 없어 구현 중 정한 것)
+
+| 항목 | 선택 | 이유 |
+|---|---|---|
+| 기간 귀속 판정자 | `day_key` 단일 기준 | 월/일 두 판정자를 섞으면 granularity 별로 KPI 합 ≠ 버킷 합. 깨진 날짜는 유령 버킷 대신 `unknown_completion` 으로 **드러난다** |
+| `completion_day_key` | 형식뿐 아니라 **실재 날짜** 검증(`2026-02-30` → `""`) | 안 하면 aging 은 미상인데 unknown 엔 안 잡히는 모순 |
+| `channels`·`settlement_status` 기간 스코프 | **기간 내**(미수·aging 만 기간 무관) | `채널 count 합 == completed_count`, `issued+pending == completed_count` 불변식 성립 |
+| 채널 조인 | LEFT JOIN 대신 **별도 배치 쿼리 + setdefault** | 한 주문에 링크가 여럿(ADDON/REPAY) 붙으면 조인이 행을 복제해 매출이 부풀어난다 |
+| 출고가 `None` | revenue 에서 제외, `completed_count` 에는 포함 | §3 이 `avg = revenue // completed_count` 로 못박음 |
+| import 순서 | `foms.services.orders.*` 를 `erp_display` 앞에 배치 | 기존 순환(`erp_display → erp_policy → services.orders → erp_order_detail → erp_display`) 때문. 이 배치라야 `import app` 없이 단독 import 성공 |
+| services → web import | 허용 | 파리티를 위해 `completion_dashboard` 의 `_cash_receipt_state`·`_completion_month_key`·`SETTLEMENT_DEPARTMENT_OPTIONS` 를 **재사용**(복제 금지). 저장소 선례 5건(`erp_permissions`·`context_processors`·`order_edit_view_context` 등) |
 
 ## BLOCKED / 미결
 
-_(없음)_
+- **메인 트리 `C:\DEV\FOMS` 의 로컬 `deploy` 에 미푸시 커밋 72개 (본 작업 범위 밖, 사용자 판단 필요)**:
+  `origin/deploy` 보다 1,282 커밋 뒤, 로컬 전용 248 커밋(2026-07-30~08-28), 트리 차이 505 파일 / +88,826줄.
+  `git cherry origin/deploy HEAD` 판정 — **176개는 upstream 에 동등 패치가 있고(승격/재적용됨), 72개는 없다.**
+  미반영 72개에는 최근 실수정이 포함된다:
+  ```
+  2026-08-28 fcba31e0 fix(wizard): 예약금 최초 입력값 증발 — 출고가 0일 때 clamp 금지
+  2026-08-28 478d953b fix(encoding): Windows 한글 깨짐 근본 차단 — PS BOM·콘솔 UTF-8·python 스트림
+  2026-08-26 489d4280 fix(ui): 안내·오류 배너가 5초 자동닫힘에 지워지던 결함 13곳
+  2026-08-25 2ddfbe20 fix(erp): 단계 강제 변경이 400으로 막히던 결함
+  2026-08-25 63e121d3 feat(as): 재접수 동선 — 완료 탭 재접수 버튼·완료일 3갈래 팝업
+  ... (총 72개)
+  ```
+  본 세션은 워크트리에서만 작업해 이 문제를 건드리지 않았다. **승격 여부는 사용자 결정 사항.**
+
+- **M2 로 넘기는 미결 5건 (M1 구현 중 드러남)**
+  1. **출고가 미산출 건수가 반환값에 없다.** 운영 191건이 `revenue` 에서는 빠지고 `completed_count` 에는 들어가
+     `avg_shipping_price` 가 그만큼 낮게 나온다. 스펙 §3 스키마에 키가 없어 노출하지 않았다 —
+     화면 각주 또는 `shipping_price_unknown_count` 키 추가를 M2 에서 결정.
+  2. **월 라벨에 연도가 없다**(`"7월"`). 해를 걸치는 12개월 범위에서 축 라벨이 중복된다.
+  3. **`SETTLEMENT_DEPARTMENTS` 5종 밖 부서 코드의 차감액은 집계에서 빠진다.** 쓰기 API 가 400 으로 막으므로
+     앱 경로로는 생길 수 없으나 과거·수동 데이터에는 가능. `기타` 행 필요 여부 결정.
+  4. **`stages` 카드가 두 번째 전량 쿼리다**(진행 중 ERP 주문 전량 + 행마다 출고가 파생). 운영 실측상
+     대상은 699건이라 저렴할 것으로 보이나 **미측정** — M4 TTFB 에 포함.
+  5. **aging 라벨·버킷 label 문자열이 계약에 고정되지 않았다**(코드와 5종 순서만 고정). 화면 문구 확정 시 함께.
