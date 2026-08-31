@@ -5,14 +5,21 @@
 대시보드 서버 인라인은 HTML 렌더 hot path 이므로 저장 좌표만 사용하고,
 주소 변환/외부 지오코딩은 API·백그라운드 계보에만 둔다.
 
-쿼리·points 구성·최근접 이웃 순서 결정은 기존 API 구현을 동작 보존으로
-추출한 것이다(중복 구현 금지).
+쿼리·points 구성은 기존 API 구현을 동작 보존으로 추출한 것이다(중복 구현 금지).
 
 ROUTE-01: `route`(양쪽 빌더 공통 키)는 항상 예약 순서(측정 시각 오름차순)다.
 '다음 방문'/히어로(대표 다음 목적지) 판정은 반드시 이 배열 기준이어야 다른
-화면의 히어로 위젯과 일치한다. 최근접 이웃(NN) 재배열은
-`build_measurement_route_payload`의 `optimized_route`/`optimized_total_distance_km`로만
-별도 제공한다(데스크톱 "경로 계획" 근사 직선거리 참고용 — hero/next 판정 금지).
+화면의 히어로 위젯과 일치한다. 최근접 이웃(NN)으로 재배열한 '추정 동선'을
+`optimized_route`/`optimized_total_distance_km`로 곁들이던 계보는 2026-08-31
+제거했다 — 직선거리 근사가 실제 동선과 크게 달라 쓸모가 없었다. 이 모듈의
+두 빌더는 이제 예약 순서 `route` 한 갈래만 낸다.
+
+ROUTE-03(2026-08-31 운영 실측): API 계보(`build_measurement_route_payload`)는
+주문에 이미 저장된 lat/lng 를 먼저 쓰고, 좌표가 없을 때만 외부 지오코딩으로
+폴백한다. 예전에는 저장 좌표를 무시하고 매번 `convert_address()`를 불러
+프로세스 LRU 캐시가 비어 있는 replica 에서 응답 중앙값이 5초(최대 11초)까지
+치솟았다. 저장 좌표 판정은 `_stored_coords`(SSOT) 하나로 인라인 fast path 와
+공유한다 — 두 벌로 갈리면 화면마다 다른 지점 집합이 나온다.
 
 ROUTE-02(2026-08-10 운영 확인): 예약 순서 정렬 키는 SQL 컬럼이 아니라
 `measurement_time.measurement_time_sort_key`(structured_data 우선 파서)다.
@@ -23,7 +30,6 @@ from __future__ import annotations
 
 import datetime
 import logging
-import math
 from typing import Any
 
 from sqlalchemy import or_
@@ -113,21 +119,6 @@ def _collect_route_orders(
     return candidates[:limit], len(candidates)
 
 
-def _query_route_orders(
-    db,
-    date_filter: str,
-    manager_filter: str,
-    limit: int,
-    current_user,
-    mine_active: bool,
-) -> list[Order]:
-    """`_collect_route_orders`의 주문 리스트만 (총 건수 불필요한 호출부용)."""
-    orders, _total = _collect_route_orders(
-        db, date_filter, manager_filter, limit, current_user, mine_active
-    )
-    return orders
-
-
 def _route_order_display_fields(o: Order) -> dict[str, Any]:
     """동선 point 표시 필드 추출(ERP structured_data 우선)."""
     address_to_use = o.address
@@ -213,26 +204,61 @@ def _store_geocode_coords(o: Order, lat: float, lng: float) -> bool:
     return True
 
 
-def _build_route_points(orders: list[Order], db=None) -> list[dict[str, Any]]:
-    """주문 → 좌표 points 변환 (API용: 좌표 없으면 즉시 지오코딩 시도).
+def _stored_coords(o: Order) -> tuple[float, float, str] | None:
+    """주문에 저장된 동선 좌표 (없으면 None) — 저장 좌표 판정 SSOT(ROUTE-03).
 
-    지오코딩에 성공한 좌표는 `db`가 주어졌을 때 주문에 1회 저장한다. 다음 방문부터는
-    저장 좌표 fast path(`build_inline_route_strip_payload`)가 바로 렌더한다.
-    실패 상태(`geocode_status='failed'`)는 기록하지 않는다 — 실패 판정은 RQ 태스크
-    `geocode_order_address` 소관이며, 일시 네트워크 오류로 정상 주소를 오염시킬 수 있다.
+    두 빌더(API·인라인 fast path)가 같은 기준으로 "쓸 수 있는 좌표"를 판정해야
+    화면마다 지점 집합이 갈리지 않는다. 판정은 lat/lng 존재 여부만 본다 —
+    `geocode_status`는 표시용 꼬리표일 뿐 유효성 게이트가 아니다(백필된 좌표는
+    상태가 비어 있을 수 있다).
 
     Args:
-        orders: `_query_route_orders` 결과.
+        o: 대상 주문.
+
+    Returns:
+        `(lat, lng, geo_status)` 또는 좌표가 없으면 None.
+    """
+    lat = getattr(o, "lat", None)
+    lng = getattr(o, "lng", None)
+    if lat is None or lng is None:
+        return None
+    return float(lat), float(lng), getattr(o, "geocode_status", None) or "success"
+
+
+def _build_route_points(orders: list[Order], db=None) -> list[dict[str, Any]]:
+    """주문 → 좌표 points 변환 (API용: 저장 좌표 우선, 없을 때만 지오코딩 폴백).
+
+    ROUTE-03: 이미 저장된 lat/lng 가 있으면 외부 변환기를 부르지 않는다. 예전에는
+    매번 `convert_address()`를 불러 (바로 아래에서 자기가 저장해 둔 좌표를 다음
+    호출에서 무시했다) 프로세스 LRU 캐시가 비어 있는 replica 마다 카카오 왕복이
+    되살아났고, 운영 실측에서 응답 중앙값 5초·최대 11초를 만들었다.
+
+    좌표가 없는 주문만 지오코딩하고, 성공 좌표는 `db`가 주어졌을 때 1회 저장한다
+    (아직 지오코딩되지 않은 날짜에도 동선 띠를 띄우는 유일한 즉시 수단이라 폴백은
+    남긴다). 실패 상태(`geocode_status='failed'`)는 기록하지 않는다 — 실패 판정은
+    RQ 태스크 `geocode_order_address` 소관이며, 일시 네트워크 오류로 정상 주소를
+    오염시킬 수 있다.
+
+    Args:
+        orders: `_collect_route_orders` 결과.
         db: SQLAlchemy 세션. None 이면 좌표를 저장하지 않는다.
 
     Returns:
         {id, customer_name, phone, address, measurement_time, manager_name,
          status, measurement_completed, lat, lng, geo_status} 리스트.
     """
-    converter = FOMSAddressConverter()
+    converter: FOMSAddressConverter | None = None
     points: list[dict[str, Any]] = []
     stored = 0
     for o in orders:
+        cached = _stored_coords(o)
+        if cached is not None:
+            lat, lng, status = cached
+            points.append(_point_from_order(o, lat=lat, lng=lng, geo_status=status))
+            continue
+
+        if converter is None:
+            converter = FOMSAddressConverter()
         address_to_use = _route_order_display_fields(o)["address"]
         lat, lng, status = converter.convert_address(address_to_use)
         if lat is None or lng is None:
@@ -254,48 +280,12 @@ def _build_route_points_from_stored_coords(orders: list[Order]) -> list[dict[str
     """대시보드 렌더용 fast path: 저장 좌표만 사용하고 외부 지오코딩은 호출하지 않는다."""
     points: list[dict[str, Any]] = []
     for o in orders:
-        lat = getattr(o, "lat", None)
-        lng = getattr(o, "lng", None)
-        if lat is None or lng is None:
+        cached = _stored_coords(o)
+        if cached is None:
             continue
-        status = getattr(o, "geocode_status", None) or "success"
+        lat, lng, status = cached
         points.append(_point_from_order(o, lat=lat, lng=lng, geo_status=status))
     return points
-
-
-def _haversine_km(a: dict[str, Any], b: dict[str, Any]) -> float:
-    """두 points 간 haversine 거리(km)."""
-    R = 6371.0
-    lat1 = math.radians(a["lat"])
-    lon1 = math.radians(a["lng"])
-    lat2 = math.radians(b["lat"])
-    lon2 = math.radians(b["lng"])
-    dlat = lat2 - lat1
-    dlon = lon2 - lon1
-    h = math.sin(dlat / 2) ** 2 + math.cos(lat1) * math.cos(lat2) * math.sin(dlon / 2) ** 2
-    return 2 * R * math.asin(math.sqrt(h))
-
-
-def _order_nearest_neighbor(points: list[dict[str, Any]]) -> tuple[list[dict[str, Any]], float]:
-    """최근접 이웃 휴리스틱 방문 순서 + 총거리(km, 소수 2자리)."""
-    remaining = points[:]
-    route = [remaining.pop(0)]
-
-    while remaining:
-        last = route[-1]
-        best_i = 0
-        best_d = float("inf")
-        for i, cand in enumerate(remaining):
-            d = _haversine_km(last, cand)
-            if d < best_d:
-                best_d = d
-                best_i = i
-        route.append(remaining.pop(best_i))
-
-    km_h = 0.0
-    for i in range(len(route) - 1):
-        km_h += _haversine_km(route[i], route[i + 1])
-    return route, round(km_h, 2)
 
 
 def build_measurement_route_payload(
@@ -309,13 +299,12 @@ def build_measurement_route_payload(
 ) -> dict[str, Any]:
     """실측 동선 페이로드(dict) — API 응답 본문(`success` 제외)과 동일 형태.
 
-    `route`는 예약 순서(측정 시각 오름차순 — `_query_route_orders` SSOT)를 그대로
+    `route`는 예약 순서(측정 시각 오름차순 — `_collect_route_orders` SSOT)를 그대로
     반환한다. 히어로/'다음 방문' 판정(첫 미완료 지점)은 반드시 이 순서를 기준으로
     해야 한다 — 스케줄 히어로와 실제 다음 방문지가 어긋나던 버그(ROUTE-01)의 원인이
     바로 이 배열을 최근접 이웃으로 재배열해 반환하던 것이었다.
-    `optimized_route`/`optimized_total_distance_km`는 최근접 이웃 휴리스틱으로
-    재배열한 별도 동선(데스크톱 "경로 계획" 모달의 근사 직선거리 참고용)이다 —
-    예약 순서와 다른 label·sequence로 분리해 제공하며, hero/next 판정에는 쓰지 않는다.
+    최근접 이웃 추정 동선(`optimized_route`/`optimized_total_distance_km`)은
+    2026-08-31 제거했다 — 직선거리 근사가 실제 동선과 크게 달라 쓸모가 없었다.
 
     Args:
         db: SQLAlchemy 세션.
@@ -326,7 +315,7 @@ def build_measurement_route_payload(
 
     Returns:
         {date, manager, total_points, total_scheduled, missing_coords, truncated,
-         route, optimized_route, optimized_total_distance_km}
+         route}
     """
     limit = max(1, min(int(limit), 30))
     orders, total_scheduled = _collect_route_orders(
@@ -342,20 +331,7 @@ def build_measurement_route_payload(
         "missing_coords": max(0, len(orders) - len(points)),
         "truncated": max(0, total_scheduled - len(orders)),
     }
-    if len(points) <= 1:
-        return {
-            **meta,
-            "route": points,
-            "optimized_route": points,
-            "optimized_total_distance_km": 0,
-        }
-    optimized_route, optimized_total_km = _order_nearest_neighbor(points)
-    return {
-        **meta,
-        "route": points,
-        "optimized_route": optimized_route,
-        "optimized_total_distance_km": optimized_total_km,
-    }
+    return {**meta, "route": points}
 
 
 def build_inline_route_strip_payload(
@@ -375,8 +351,7 @@ def build_inline_route_strip_payload(
     `route`는 예약 순서(측정 시각 오름차순) 그대로다 — 최근접 이웃 재배열을 하지
     않는다(ROUTE-01). 스트립의 히어로/'다음 방문' 캡션이 이 배열의 첫 미완료
     지점에서 파생되므로, 재배열하면 다른 히어로 위젯이 말하는 '다음 방문'과
-    어긋난다. 최적 동선(최근접 이웃)이 필요하면 `build_measurement_route_payload`의
-    `optimized_route`를 쓴다.
+    어긋난다. 추정 동선(최근접 이웃) 계보는 2026-08-31 제거돼 어느 빌더에도 없다.
 
     좌표가 없어 빠진 건수(`missing_coords`)와 상한에 잘린 건수(`truncated`)를 함께
     내려 스트립이 "좌표 없는 N곳 제외"를 표기한다 — 조용히 사라지면 사용자는 동선

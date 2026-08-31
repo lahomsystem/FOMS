@@ -9,6 +9,7 @@ Flask 2.3 + PostgreSQL + R2 + Railway (Web×2, Worker×1)
 브랜치: deploy (스테이징) → production (운영)
 
 ## 진행 중
+- [2026-08-31] **실측 동선 추천 제거 + 동선 API 5초 수리** — NN 직선거리 추정이 실제와 달라 폐지(모달·트리거·계산). **엔드포인트는 유지**(v3 영업 홈 띠가 인라인 없이 이 API 폴백). `_build_route_points` 가 저장 좌표를 무시해 중앙값 5초였던 것 수리. 원장 §14
 - [2026-08-31] **엑셀 업로드(가져오기) 제거 deploy(`d61dccd8`)** — 운영 15개월 미사용(아티팩트 0행, 마지막 2025-05-28). **엑셀 다운로드는 유지**(2026-07-03까지 실사용) — `excel_import.py` 는 같은 Blueprint 라 통째 삭제 금지. DB 표는 남겼다(빈 표). 감사 원장 패킷 124→123. 잔여=production 승격. 원장 §12
 - [2026-08-31] **지오코딩 사전변환 복원 T1~T3 deploy** — 2026-07-27 커밋 4개가 주문 생성·주소수정의 지오코딩 예약을 RQ→SIDEFX outbox 로 옮겼는데 **그 워커가 운영에 배포된 적이 없다**(heartbeat 0행, outbox 전 행 PENDING·attempts=0). 그래서 지도를 열어야 건당 2.9초씩 변환됐다. T1=워커 컨테이너 좌표 스윕(`FOMS_GEOCODE_SWEEP_ENABLED`), T2=지도 폴링 부분갱신, T3=GEOCODE handler 등록+failed 24h 백오프. 잔여=production 승격·SIDEFX 서비스 등록. 원장 `2026-08-31-geocode-prefetch-restore-ledger.md`
 - [2026-08-31] **고객 공유 링크 UX 운영 반영(PR #208·#209·#211)** — 계약서 폼 이식·계좌 복사·PNG 저장(700px 클론)·도면 ZIP·미리보기 flexible·폰 인쇄버튼 제거. **잔여=실기기(카톡 인앱) 확인**, 미검증 5건은 원장에

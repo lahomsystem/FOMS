@@ -1,7 +1,7 @@
 """
 ERP 실측 API package (canonical: foms.api.measurement).
 
-실측 대시보드 업데이트, 실측 동선 추천. Map helpers live in `foms.api.measurement.map`.
+실측 대시보드 업데이트, 실측 동선(예약 순서). Map helpers live in `foms.api.measurement.map`.
 
 Import order: canonical service bindings first, then routes (routes may import from this package).
 """
