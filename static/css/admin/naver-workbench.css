@@ -1256,6 +1256,17 @@ input.wb-pick:disabled,
 .wb-pipe__s--skip { background: var(--wb-slate-soft); border-color: var(--wb-slate-line); color: var(--wb-slate); }
 .wb-pipe__s--bad { background: var(--wb-danger-soft); border-color: var(--wb-danger-line); color: var(--wb-danger); }
 
+/* 두 칸이 다 끝나면 초록이 나란히 둘이라 어느 칸이 어느 칸인지 안 보인다
+   (2026-08-31 사용자 지적). **중간 단계(발주확인)는 파랑, 마지막 단계(발송)는 초록**으로
+   가른다 — 색이 곧 파이프의 진행 방향이다. 축 표식은 템플릿이 칸마다 붙인다
+   (`--place`/`--ship`): 순서 선택자(`:first-child`)로 칠하면 나중에 칸이 하나 늘거나
+   순서가 바뀔 때 조용히 엉뚱한 칸이 파랗게 된다. */
+.wb-pipe__s--place.wb-pipe__s--done {
+    background: var(--wb-accent-soft);
+    border-color: var(--wb-accent-line);
+    color: var(--wb-accent);
+}
+
 /* ── 이력 표 폭 ────────────────────────────────────────────────────────
    좁은 화면에서 **열을 짜내지 않는다.** 열을 줄이면 고객명이 한 자씩 세로로 선다
    (고정폭이 1fr 을 굶기는 그 함정). 표는 최소 폭을 지키고, 넘치는 만큼은

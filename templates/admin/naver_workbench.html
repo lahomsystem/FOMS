@@ -19,7 +19,7 @@
 {% block title %}네이버 수집{% endblock %}
 
 {% block styles %}
-<link rel="stylesheet" href="{{ url_for('static', filename='css/admin/naver-workbench.css') }}?v=20260831a">
+<link rel="stylesheet" href="{{ url_for('static', filename='css/admin/naver-workbench.css') }}?v=20260831b">
 {% endblock %}
 
 {% block content %}
@@ -789,8 +789,8 @@
                                         <span class="wb-st__b wb-st__b--slate">네이버 처리 없음</span>
                                         {% else %}
                                         <span class="wb-pipe">
-                                            <span class="wb-pipe__s wb-pipe__s--{{ row.place_state }}">{{ row.place_text }}</span>
-                                            <span class="wb-pipe__s{{ ' wb-pipe__s--' ~ row.dispatch_state if row.dispatch_state != 'todo' else '' }}">{{ row.dispatch_text }}</span>
+                                            <span class="wb-pipe__s wb-pipe__s--place wb-pipe__s--{{ row.place_state }}">{{ row.place_text }}</span>
+                                            <span class="wb-pipe__s wb-pipe__s--ship{{ ' wb-pipe__s--' ~ row.dispatch_state if row.dispatch_state != 'todo' else '' }}">{{ row.dispatch_text }}</span>
                                         </span>
                                         {# 부속 문구는 서버가 하나만 골라 준다(계약 §3.2) —
                                            여기서는 종류를 CSS 클래스로 옮기기만 한다. #}
@@ -925,5 +925,5 @@
 {% endblock %}
 
 {% block scripts %}
-<script src="{{ url_for('static', filename='js/admin/naver-workbench.js') }}?v=20260831a" defer></script>
+<script src="{{ url_for('static', filename='js/admin/naver-workbench.js') }}?v=20260831b" defer></script>
 {% endblock %}
