@@ -1732,6 +1732,52 @@ def _origin_cleanup_view(db) -> dict[str, Any]:
         return {"count": 0, "rows": [], "truncated": False}
 
 
+def _bulk_dispatch_view(db) -> dict[str, Any]:
+    """**오늘 실측한 네이버 건** 띠가 말할 값 (NAVER-BULKDISPATCH-01 T2) — 읽기 전용.
+
+    아직 버튼이 없다. 이 띠의 일은 "5시에 무엇이 나갈 것인가"를 **미리 보여주는 것**이고,
+    지금 단계에서는 그것만으로 쓸모가 있다 — 하루 대상이 몇 집인지 아무도 세어 본 적이
+    없어서, 상한·자동화 판단이 추측 위에 서 있다.
+
+    집 수는 :func:`bulk_dispatch.select_targets` 가 센다. 화면이 따로 세지 않는 이유는
+    화면 큐(우리 표식만)와 워커(두 신호)가 이미 갈려 있던 결함과 같기 때문이다.
+
+    Args:
+        db: 요청 스코프 DB 세션.
+
+    Returns:
+        ``{"date", "count", "eligible", "blocked", "rows"}``. ``count`` 는 집 수이고
+        ``eligible`` 은 그중 지금 보낼 수 있는 집이다. 실패해도 화면을 죽이지 않는다
+        (띠만 빠진다 — 보조 정보다).
+    """
+    from foms.services.datetime_kst import get_today_kst
+    from foms.services.integrations.naver_commerce.bulk_dispatch import select_targets
+
+    today = get_today_kst().strftime("%Y-%m-%d")
+    empty = {"date": today, "count": 0, "eligible": 0, "blocked": 0, "rows": []}
+    try:
+        targets = select_targets(db, on_date=today)
+    except SQLAlchemyError as exc:  # 보조 정보라 흐름을 막지 않는다(failopen — 로그로 남긴다)
+        logger.warning("[NAVER] 오늘 실측 발송 대상 조회 실패(띠 생략): %s", exc, exc_info=True)
+        return empty
+    rows = [
+        {
+            "link_id": target.link_id,
+            "order_no": target.external_order_no,
+            "order_ids": target.order_ids,
+            "customer": " · ".join(target.customer_names) or "(주문 미생성)",
+            "product_orders": len(target.pending_link_ids),
+            "measurement_done": target.measurement_done,
+            "eligible": target.eligible,
+            "reason": target.reason,
+        }
+        for target in targets
+    ]
+    eligible = sum(1 for row in rows if row["eligible"])
+    return {"date": today, "count": len(rows), "eligible": eligible,
+            "blocked": len(rows) - eligible, "rows": rows}
+
+
 def _refresh_all_view(db) -> dict[str, Any]:
     """**전체 다시 읽기** 버튼이 말할 집 수 (NVREPAY-03).
 
@@ -1973,6 +2019,11 @@ def _render_workbench(db) -> str:
         # 처리 탭에서만 낸다(이력 탭은 할 일을 띄우는 자리가 아니다).
         origin_cleanup=(_origin_cleanup_view(db) if active_tab == "work"
                         else {"count": 0, "rows": [], "truncated": False}),
+        # 오늘 실측한 네이버 건(NAVER-BULKDISPATCH-01 T2). 처리 탭에서만 센다 — 이력 탭은
+        # 지난 일을 보는 자리라 '오늘 5시에 나갈 것'이 낄 자리가 아니다.
+        bulk_dispatch=(_bulk_dispatch_view(db) if active_tab == "work"
+                       else {"date": "", "count": 0, "eligible": 0,
+                             "blocked": 0, "rows": []}),
         # 전체 다시 읽기(NVREPAY-03) — 탭과 무관한 수집 전체 조작이라 두 탭 모두에서 낸다.
         # ADMIN 이 아니면 세지도 않는다(버튼이 없으므로 쿼리도 필요 없다).
         refresh_all=(_refresh_all_view(db) if _can_view_history() else {"count": 0}),
