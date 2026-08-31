@@ -34,13 +34,34 @@ POST /v1/pay-order/seller/product-orders/:productOrderId/claim/return/reject
 
 | # | 확인할 것 | 왜 |
 |---|---|---|
-| 1 | 엔드포인트 경로와 메서드 | 접수·승인과 형제인지 |
+| 1 | ~~엔드포인트 경로와 메서드~~ **확인됨 (2026-09-01)** | 아래 §2-1 |
 | 2 | Request Body **필드명**(`rejectReturnReason` 맞는가)·**필수 여부** | 승인은 body 자체가 없었다 |
 | 3 | 사유 문장 **글자수 제한**·허용 문자 | 자유 입력이라 상한이 곧 화면 제약 |
 | 4 | 사유가 **구매자에게 노출되는가**(어디에 어떻게) | 문안 규칙의 전제 |
 | 5 | 응답 형태 — `successProductOrderIds`/`failProductOrderInfos` 동형인가 | 동형이면 `_split_result` 재사용 |
 | 6 | 거부 뒤 `claimStatus` 가 무엇이 되는가 | 화면 배지·유령 판정이 그 값을 읽는다 |
 | 7 | 되돌리는 엔드포인트가 있는가 | 없다고 보고 설계하되 확인은 필요 |
+
+### 2-1. 확인된 것 — 경로와 **권한 스코프** (2026-09-01, 사용자 제공 API 그룹 목록)
+
+커머스API센터의 우리 애플리케이션 **API 그룹 `주문 판매자`** 목록에 이 줄이 있다:
+
+```
+POST /v1/pay-order/seller/product-orders/{productOrderId}/claim/return/reject
+```
+
+두 가지가 확정된다 —
+
+* **경로·메서드가 우리가 가정한 것과 정확히 같다**(접수 `claim/return/request`,
+  승인 `claim/return/approve` 와 형제).
+* **권한이 이미 열려 있다.** 같은 API 그룹 안에 있으므로 스코프를 새로 신청할 필요가 없다.
+
+같은 목록에 `claim/return/holdback` 과 `claim/return/holdback/release` 도 있다 —
+**호출할 수 있다는 것과 호출해야 한다는 것은 다르다.** §3 대로 보류·보류해제는 영구히
+만들지 않는다(안심케어 건은 보류해제 자체가 금지).
+
+**아직 비어 있는 것은 #2~#7이다**(body 필드·글자수·노출 위치·응답·거부 뒤 상태·되돌리기).
+목록 화면에는 그 값이 없다 — 그 줄을 눌러 들어간 **상세 문서**에 있다.
 
 ## 3. 범위
 
