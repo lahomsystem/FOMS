@@ -1,10 +1,16 @@
-"""정산 대시보드 집계 API — SETTLE-DASH-01 M2 (읽기 전용).
+"""정산 대시보드 조회 API — SETTLE-DASH-01 M2 + SETTLE-TABS (읽기 전용).
 
-``GET /api/settlement/aggregates?month_from=YYYY-MM&month_to=YYYY-MM&granularity=day|week|month``
+- ``GET /api/settlement/aggregates?month_from=YYYY-MM&month_to=YYYY-MM&granularity=day|week|month``
+- ``GET /api/settlement/rows?period=&settlement=&channel=&aging=&page=`` (실무 탭)
 
 집계 커널은 :func:`foms.services.settlement_aggregation.aggregate_settlement` (M1)이고
-이 모듈은 파라미터 파싱·권한 판정·응답 포장만 한다. **주문 행 원본을 응답에 넣지 않는다**
-— 집계 버킷만 내보내는 것이 §5 권한 설계와 정합이다.
+이 모듈은 파라미터 파싱·권한 판정·응답 포장만 한다.
+
+**두 엔드포인트의 노출 계약이 다르다(스펙 개정 A §13.1).**
+``aggregates`` 는 앞으로도 **주문 행 원본을 절대 넣지 않는다** — 집계 버킷만 낸다.
+``rows`` 는 실무 탭이 쓰는 행 표면이라 고객 **성명 + 주문번호**까지 낸다.
+연락처·주소·현금영수증 요청 자유텍스트 원문은 ``rows`` 에서도 내지 않는다
+(§13.3-1). 두 계약은 각자 전용 테스트로 고정돼 있다 — 한쪽을 다른 쪽 근거로 완화하지 마라.
 
 **권한(§5)**: GET 은 ``enforce_order_mutation_policy`` 의 ``_WRITE_METHODS`` 밖이라
 before_request 가드에 도달하지 않는다. 그래서 이 핸들러가 페이지와 **같은 policy_id
@@ -21,6 +27,7 @@ from flask import Blueprint, g, jsonify, request
 from db import get_db
 from foms.services.datetime_kst import get_today_kst
 from foms.services.settlement_aggregation import aggregate_settlement
+from foms.services.settlement_rows import PER_PAGE, list_settlement_rows
 from foms.web.auth import login_required
 from foms.web.cs.settlement_dashboard import can_view_settlement_dashboard
 
@@ -96,6 +103,44 @@ def api_settlement_aggregates():
         )
     except ValueError as exc:
         # 집계 커널이 사람이 읽는 한글 사유를 담아 던진다 — 그대로 전달한다(내부 스택 노출 없음).
+        return _error(str(exc), 400)
+
+    return jsonify({"success": True, "data": data, "error": None})
+
+
+@settlement_api_bp.route("/rows", methods=["GET"])
+@login_required
+def api_settlement_rows():
+    """정산 실무 탭의 주문 행 목록(읽기 전용).
+
+    ``aggregates`` 와 **같은 권한 게이트**를 쓰되 노출 계약이 다르다 — 고객 성명과
+    주문번호까지 낸다(스펙 개정 A §13). 연락처·주소·현금영수증 원문은 내지 않는다.
+
+    Query Args:
+        period: "all" | "7" | "30" | "31" — 완료 후 **경과일** 기준(기본 "all").
+        settlement: "all" | "pending" | "issued"(기본 "all").
+        channel: "all" 또는 채널 코드(기본 "all").
+        aging: aging 버킷 코드 또는 빈 값(기본 빈 값).
+        page: 1부터(기본 1).
+
+    Returns:
+        200 ``{'success': True, 'data': <list_settlement_rows 반환값>, 'error': None}``.
+        권한 거부 403, 필터 값 오류 400 — 모두 같은 형식이다.
+    """
+    if not can_view_settlement_dashboard(getattr(g, "current_user", None)):
+        return _error("정산 대시보드 열람 권한이 없습니다.", 403)
+
+    try:
+        data = list_settlement_rows(
+            get_db(),
+            period=(request.args.get("period") or "").strip() or "all",
+            settlement=(request.args.get("settlement") or "").strip() or "all",
+            channel=(request.args.get("channel") or "").strip() or "all",
+            aging=(request.args.get("aging") or "").strip(),
+            page=request.args.get("page", type=int) or 1,
+            per_page=PER_PAGE,
+        )
+    except ValueError as exc:
         return _error(str(exc), 400)
 
     return jsonify({"success": True, "data": data, "error": None})
