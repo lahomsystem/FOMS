@@ -774,3 +774,240 @@ perf-gate 커버리지는 후손 커밋 `3cb6e428`(내 커밋 전부 포함)의 
 4. 실무 탭 스테이징 성능 실측 — 스코프 변경 1회당 rows API 6회(직렬). 로컬 1초 남짓이나
    싱가포르 tail 에서는 aging 스트립이 수 초 걸릴 수 있다(그리드는 첫 응답에 뜬다)
 5. 실무 탭 980px 미만 좁은 폭 실측
+
+---
+
+## 스테이징 지적 2건 수정 + production 승격 (2026-08-31, 사용자 승인 후)
+
+### 수정 (deploy `846f8262`, CI 4/4 success)
+
+**1. 비교선이 y축 상한을 잡아 막대를 누르던 문제.**
+축 상한을 `max(barMax, min(lineMax, barMax * 1.5))` 로 바꿨다. 목업의
+`max(barMax, lineMax)` 는 두 시리즈가 비슷한 규모의 가정치라서 문제가 없었을 뿐이다.
+넘치는 라인 구간은 축 상단에 고정하되 **캐럿으로 표시**한다 — 잘라놓고 말 안 하면
+"그날은 축 상한이었다"로 읽혀서 눌림을 고치려다 새 거짓말이 된다. 툴팁은 축이 아니라
+원본 값을 읽으므로 실제 숫자는 그대로 확인된다.
+로컬 실측(7/14 에 4,000만 시드): 축이 4,000만으로 뛰지 않고 1,500만에 머물고 캐럿 1개.
+수정 전이면 같은 데이터에서 막대가 지금의 1/4 높이였다.
+
+**2. 실무 탭 첫 페이지가 금액 0인 옛 주문으로 채워지던 문제.**
+정렬을 **미수 먼저 → 묶음 안에서 경과일 오래된 순**으로 바꿨다. "경과일 오래된 순"은
+목업 사양이지만 그대로 두면 잔금 0(회수할 게 없는 건)이 회수 목록 맨 위를 차지한다 —
+스테이징에서 1,263일 전 0원 주문부터 나왔다.
+
+계약 테스트: 축 한도·캐럿 2건 신설, 정렬 테스트 2건으로 분리. 비교선 루프 상한 테스트는
+루프 본문에 if 블록이 생겨 정규식이 어긋났는데 **느슨하게 푸는 대신** 중괄호 균형으로
+함수 본문을 잘라 잡도록 고쳤다(음성 대조군으로 `&& li < g` 제거 시 red 확인).
+
+### production 승격 — PR #215 (머지는 사용자 확인 대기)
+
+**착수 전에 드러난 사실: production 에 정산 대시보드가 아예 없었다.**
+1단계(M1~M3)가 승격된 적이 없어 2단계만 올리는 것이 불가능했다. 사용자 승인으로
+1단계 + 2단계를 함께 올린다(20커밋).
+
+**뺀 것 2가지**
+
+| 뺀 커밋 | 이유 |
+|---|---|
+| `86e91a1f`·`f665c741` (ci.yml docs 서브셋 등재) | production ci.yml 에 "Run docs-facing contracts" 스텝 자체가 없고 게이트 파일(`test_docs_facing_registry.py`)도 없다. 등재 대상이 없어 충돌만 난다 |
+| `d61dccd8` (엑셀 업로드 기능 제거) | **정산과 무관한 기능 제거.** `promote_completeness` 가 같은 파일(`test_settlement_aggregation.py`·`order_mutation_policy.py`)을 건드린다는 이유로 의존으로 표시하지만, 정산 승격의 부작용으로 운영 기능을 없애면 안 된다. 빼고 돌린 트리가 전량 green 이라 실제 의존이 아니다 → `--allow-incomplete` 로 진행 |
+
+정산 원장 docs 3건(`20cdd810`·`3f947d77`·`7e7aed9c`)은 **넣었다** — 빼면 production
+원장에 구멍이 생긴다(docs 계보 함정).
+
+**승격 트리에서 직접 검증**(`origin/production` 위 cherry-pick, `c:\tmp\promo-dry`):
+
+```
+cherry-pick 충돌 0건 (20커밋)
+python -c "import app; print('APP_OK')"   → APP_OK
+정산 5스위트                                → 431 passed
+pytest -q --ignore=tests/visual --ignore=tests/harness -n auto → 7,328 passed / 601 skipped
+```
+
+의존 심볼 6종이 production 에 실재함을 사전 확인:
+`_balance_after_payments` · `_overpaid_after_payments` · `as_billing_badge_kind` ·
+`erp_as_scope_condition` · `FINANCE_MUTATION` · `erp_shipping_price_from_structured`.
+
+**승격 후 확인 대상**: 실무 탭 운영 tail 실측(스코프 변경 1회당 행 API 6회 직렬 —
+그리드는 첫 응답에 뜨고 aging 스트립이 뒤따른다).
+
+---
+
+## production 반영 완료 + 운영 실측 (2026-08-31, 사용자 지시로 CEO 가 머지)
+
+PR **#215 머지 완료** — `origin/production` `e71e88fe`. 20커밋(1단계 6 + 2단계 11 + docs 3).
+머지 전 PR 체크 4종(test·pg-lane·harness·perf-gate) 전부 pass.
+`ci_watch.py e71e88fe production --quick` → exit 0(production 은 코드 CI 부재, PR 게이트가 관문).
+
+### 운영 실화면 실측 (읽기만 · 주문 데이터 무변경)
+
+`claude_master`(id 57) 를 **해제 → 측정 → 재잠금**했다. 건드린 행은 그 계정 1행뿐이다.
+호스트 가드(`yamanote.proxy.rlwy.net` 아니면 즉시 중단)를 스크립트에 넣고 실행했다.
+
+| 항목 | 값 |
+|---|---|
+| 페이지 로드 | **2.05초** |
+| 탭 | 3개 정상 |
+| 요약 메인 차트 | 막대 **31개**, svg 881 == host 881 |
+| 기간 매출 / 완료 건수 | 2억 2,948만원 / 104건 |
+| 미수 | **760건 · 16억 1,512만원** (모집단 1,980건) |
+| 과입금 | 160만원 |
+| 완료일 미상 | 85건 · 4,411만원 |
+| 분석 추이 차트 | 막대 31개 |
+| 실패 요청 / 콘솔 에러 / 가로 스크롤 | 0 / 0 / 없음 |
+
+새 축 한도 로직이 운영 데이터에서 실제로 작동하는 것이 보인다 — 7월 비교선이 5,500만까지
+치솟는데 축은 6,000만에서 멈추고 8월 막대가 판독 가능한 높이를 유지한다.
+
+### ⚠️ 운영에서 확인된 성능 문제 — 다음 작업 1순위
+
+**실무 탭의 행이 뜨기까지 12초.** 스테이징 단계에서 "싱가포르 tail 에서 수 초 걸릴 수
+있다"고 남긴 미검증 항목이 운영에서 현실로 확인됐다.
+
+구조적 원인:
+1. 스코프 변경 1회당 `GET /api/settlement/rows` 를 **6번 직렬 호출**한다
+   (그리드 1 + aging 버킷 5). 직렬화는 동시 요청 버스트를 막으려던 의도적 선택이었다.
+2. 각 호출이 **모집단 전량(운영 1,980건)** 을 읽고 파이썬에서 좁힌다.
+   즉 같은 전량 스캔이 6번 반복된다.
+3. 한국↔싱가포르 왕복 tail 이 그 위에 6번 곱해진다.
+
+그리드 자체는 첫 응답에 뜨므로 체감은 "표는 보이는데 aging 스트립이 한참 뒤에 채워짐"이다.
+
+**개선 후보(미착수, 설계 필요)**:
+- `list_settlement_rows` 가 aging 버킷 분해를 **한 응답에 함께** 내면 6회 → 1회가 된다
+  (모집단을 한 번만 읽고 버킷은 파이썬에서 나눈다 — 집계 커널이 이미 쓰는 구조).
+  반환 스키마가 바뀌므로 계약 테스트 동반 갱신 필요.
+- 또는 aging 스트립을 집계 API(`/api/settlement/aggregates`)의 `aging[]` 으로 대체.
+  다만 그쪽은 기간 무관 전체이고 실무 탭 필터(기간·정산상태·채널)와 스코프가 다르다 —
+  **숫자가 갈리면 안 되므로** 스코프 정합을 먼저 판정해야 한다.
+- 측정 먼저: 6회 각각의 서버 시간 vs 네트워크 tail 분해(추정 금지 — 구간 계측).
+
+---
+
+## 성능 작업 P1 — 구간 계측 (2026-08-31, 워크트리 `c:\tmp\foms-s-settle-perf`, base `origin/deploy` f076c07d)
+
+### P1-1 먼저 정정: "운영 12초" 는 측정 아티팩트였다
+
+직전 세션의 측정 스크립트가 실무 탭을 누른 뒤 **고정 대기 12초**를 걸고 그 elapsed 를
+찍었다(`c:\tmp\prod_probe.py:21` — `pg.click(...); pg.wait_for_timeout(12000)`).
+따라서 "12초"는 화면이 뜨는 데 걸린 시간이 아니라 **스크립트가 기다린 시간**이다.
+이번에는 고정 대기 없이 **조건 성립 시각을 폴링**해 다시 쟀다(`c:\tmp\settle_ops_browser_probe.py`).
+
+### P1-2 운영 실측 (production, `claude_master` 해제→측정→재잠금, 읽기 전용 GET 만)
+
+브라우저 계측 — 실무 탭 클릭(t0) 기준:
+
+| 항목 | 운영 | 스테이징 |
+|---|---|---|
+| 표(그리드) 첫 행 | **368ms** | 355ms |
+| aging 스트립 막대 | **2,855ms** | 3,539ms |
+| 그 사이 요청 | rows 6회 직렬(그리드 1 + 버킷 5) | 동일 |
+
+요청별(운영, resource timing): 324 / 696 / 381 / 328 / 514 / 561ms — 마지막 응답 2,811ms.
+
+HTTP 구간 계측(`c:\tmp\settle_perf_probe.py`, `staging_perf_gate` 와 같은 healthz 델타 방법론.
+서버시간 = ttfb_min(대상) − ttfb_min(/healthz)):
+
+| 호출 | ttfb min | 서버시간 | 응답(해압) | 전송(zstd) |
+|---|---|---|---|---|
+| 네트워크 베이스(`/healthz` min) | 118.8ms | — | — | — |
+| grid (aging=) | 320.7ms | **201.9ms** | 25,825B | 1,677B |
+| bucket LE7 | 315.5ms | 196.7ms | 3,909B | 764B |
+| bucket D8_30 | 320.3ms | 201.5ms | 6,322B | 1,015B |
+| bucket D31_60 | 333.5ms | 214.7ms | 25,073B | 2,283B |
+| bucket D61_90 | 352.3ms | 233.5ms | 24,907B | 2,056B |
+| bucket D91_PLUS | 329.1ms | 210.3ms | 25,820B | 1,666B |
+| **6회 합** | — | **서버 1,259ms + 네트워크 713ms** | | |
+| 6회 직렬 wall (min/중앙/max) | **2,468 / 2,920 / 2,958ms** | | | |
+| 참고: `/api/settlement/aggregates` | 412.3ms | 293.5ms | 11,251B | 2,495B |
+
+**분해 결론**: 12초가 아니라 **약 2.9초**이고, 그중 **서버 시간이 1.26초(43%)·네트워크 왕복이
+0.71초(24%)**다. 나머지는 직렬 사이 tail 변동. 전송 바이트는 zstd 로 1~2KB라 무시할 수준 —
+**payload 가 아니라 "같은 전량 스캔을 6번" 하는 구조가 값의 절반**이다.
+
+부하는 체감보다 크다: 스코프 변경뿐 아니라 **막대 클릭·페이지 이동·입금확인/청구 직후에도
+매번 6회**가 다시 돈다(`operations.js:239` 가 `loadRows` 성공 경로 안에 있다 — 호출 경로 6곳).
+
+### P1-3 개선안 판정
+
+- **(b) 집계 API `aging[]` 로 대체 = 기각.** 스코프가 실제로 다르다:
+  집계 커널은 `_build_aging(all_rows, ...)` 로 **기간·정산상태·채널을 하나도 안 건다**
+  (`foms/services/settlement_aggregation.py:1013` — 같은 함수에서 KPI 는 `in_period` 를 받는데
+  aging 만 `all_rows` 다. 화면도 "기간 무관 전체"라고 쓴다: `static/js/settlement/dashboard.js:860`).
+  또 완료일 미상 미수를 집계는 `aging_unknown` 레인으로 따로 세고 실무 탭은 어느 막대에도 넣지 않는다.
+  → 붙이면 같은 화면에서 숫자가 갈린다.
+- **(a) `list_settlement_rows` 가 버킷 분해를 함께 낸다 = 채택.** 모집단 3조건·버킷 경계·미수 술어가
+  이미 완전히 같으므로(양쪽 다 `active_filter + is_erp_order + ORDER_SETTLEMENT_ALERT_TARGET_STATUSES`),
+  현재 5회 호출이 내는 값과 **정의상 동일**하다: 버킷 값 = 스코프(기간·정산상태·채널) 통과 행을
+  `row["aging"]` 로 묶은 건수·잔금합. aging 선택과 무관하다는 현재 규율도 그대로 유지된다.
+  덤: 지금은 스코프가 바뀌면 5회 루프가 중도 abort 돼 **막대만 옛 스코프 값으로 남는 창**이 있는데
+  (`operations.js:273` 가드가 걸리면 `renderAging` 미호출), 한 응답이면 그 창 자체가 사라진다.
+
+
+### P1-4 구현 — 6회를 1회로 (`aging_summary`)
+
+| 파일 | 변경 |
+|---|---|
+| `foms/services/settlement_rows.py` | `_aging_summary(scoped_rows)` 신설. `list_settlement_rows` 가 모집단을 **2단으로 좁힌다**: `scoped`(기간·정산상태·채널) → `matched`(거기서 고른 aging). 응답에 `aging_summary` 추가 |
+| `static/js/settlement/operations.js` | `loadBuckets` 삭제(직렬 5요청 루프). `renderAll` 이 `data.aging_summary` 로 막대를 그린다. `bucketSeq`·`emptyAgingText`·`buildUrl` overrides 동반 제거 |
+| `templates/cs/partials/settlement_dashboard_body.html` | 자산 핀 4곳 `20260831f` → `20260831g` |
+| `tests/domains/test_settlement_rows_api.py` | 계약 5건 추가(핵심 = **옛 5회 호출과 값이 같다**는 파리티) |
+| `tests/domains/test_settlement_operations_render.py` | 계약 3건 추가(`aging_summary` 사용·조회 호출부 1개·`renderAll` 이 막대까지) + 응답 키 목록에 `aging_summary` 등재 |
+
+값이 같은 이유: 옛 `aging=<code>` 호출의 `total_count`·`totals.balance` 는 "스코프 통과 + 그 코드"
+행의 수·잔금합이다. `_aging_summary` 는 같은 스코프 행을 `row["aging"]` 로 묶는다 — 같은 정의다.
+`aging` 선택은 `scoped` 이후에만 걸리므로 막대는 선택과 무관하다(옛 화면이 파라미터 덮어쓰기로
+지키던 성질을 서버가 대신 보장).
+
+**바뀐 것 1가지(의도)**: 예전에는 목록 성공 + 구간 실패가 가능해 "구간별 미수 합계를 불러오지
+못했습니다" 안내가 있었다. 이제 한 응답이라 그 분기가 사라진다 — 실패하면 기존 목록 실패 경로가
+패널 전체를 감추고 사유·재시도 버튼을 낸다(`showState(ctx,'error')`). 부분 성공 상태 자체가 없다.
+
+### P1-5 검증
+
+**로컬 (워크트리 `c:\tmp\foms-s-settle-perf`, 실제 주문 705건 시드 → 검증 후 삭제)**
+
+- 파리티(실서버 API 대조, 필터 4조합): `period=all/31/30`·`settlement=pending` 전부
+  `aging_summary` == 구간별 개별 호출(`total_count`·`totals.balance`). **불일치 0**.
+- 실화면(playwright, DOM 주입 없음): 탭 클릭 → **rows 요청 1건**으로 표와 막대가 **동시에**
+  (grid 319.5ms == aging 319.5ms, 이전엔 막대만 2.9초 뒤). 스코프 변경(기간 칩 `31`) → 요청 **1건**.
+  막대 클릭 → 요청 1건이고 **막대 값은 그대로**(0원·0건 구간 표기 유지). 콘솔 에러 0.
+- 계약 테스트: 정산 5스위트 + 권한·현금영수증 = **484 passed**. `import app` → `APP_OK`.
+- 음성 대조군: `_aging_summary(scoped)` 를 `matched` 로 바꾸면
+  `test_aging_summary_is_unchanged_when_one_bucket_is_selected` 가 red(확인함).
+
+**함정 기록**: 로컬 5001 포트를 **다른 세션의 낡은 서버(15:33 기동)** 가 잡고 있었다. Windows 라
+새 서버도 "Running on 5001" 을 찍고 뜨지만 요청은 낡은 프로세스가 받는다 — 응답에 `aging_summary`
+가 없어 잠깐 코드 문제로 오판할 뻔했다. 남의 서버를 죽이지 않고 **5002 로 옮겨** 검증했다.
+
+**리뷰 지적 3건 처리**: (1) `isinstance(balance, int)` 가 float 를 버린다 → 오판.
+`_balance_after_payments` 는 `-> int` 이고 기존 `_totals` 와 같은 규약이다(`None` = 금액 미상 제외).
+(2) 부분 실패 분기 소멸 → 사실이며 위에 의도로 기록. (3) 빈 상태 도달 가능성 → 도달한다
+(스코프 안 미수 0건이면 5버킷 전부 0 → 빈 상태 문구).
+
+### P1-6 배포 · 스테이징 재측정
+
+- 커밋 `0784ea5e` → `origin/deploy` (자기 세션 커밋 1건만 push).
+- CI **전 워크플로 green**(`gh run list --branch deploy` 로 headSha 대조):
+  FOMS CI · FOMS PostgreSQL Lane · Harness CI · perf-gate (staging) 4종 success.
+- 스테이징 배포 확인: `/healthz` commit == `0784ea5e357adcf6e8bd5bff6e66cc5720ba8d67`.
+
+스테이징 전/후(같은 스크립트·같은 측정 정의, 탭 클릭 기준):
+
+| | 요청 수 | 표 첫 행 | aging 막대 |
+|---|---|---|---|
+| 전 | 6 (직렬) | 355ms | **3,539ms** |
+| 후 | **1** | 480ms | **480ms** |
+
+막대가 표와 **같은 시점**에 뜬다. 운영 예상치는 아래 실측 기반: 운영 전(前) 2,855ms →
+요청 1건이면 그리드 응답 시점(운영 전 실측 368ms) 수준.
+
+**운영 재측정은 production 승격 이후**에만 가능하다(현재 운영은 옛 코드). 승격은 별도 승인 대기.
+
+### P1-7 부수 — 로컬 환경 정리 기록
+
+검증용으로 띄운 로컬 dev 서버(5002)와 5001 포트 정리 과정에서, **다른 세션이 15:33 에 띄워둔
+로컬 dev 서버(5001)도 함께 종료됐다.** 로컬 개발 서버라 데이터 영향은 없다 —
+다시 필요하면 `PORT=5001 python run.py` 로 띄우면 된다. 로컬 시드 705건은 검증 후 삭제 완료
+(`seed_settlement.py --purge`, `population=10 seeded=0` 확인). 로컬 `qa_v3` 비밀번호를
+문서값 `qa!2026` 으로 재설정했다(로컬 dev DB 한정).
