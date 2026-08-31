@@ -1,81 +1,234 @@
-{# 계약서(견적서) 본문 — 공유 열람 페이지 2곳(계약서 단독·도면+계약서 통합)이 함께 쓴다.
-   렌더 소스는 발급 시점 동결 스냅샷(snap)뿐이다(D6). 이 파셜은 단독 렌더돼도 터지지 않게
-   필요한 지역 변수를 자기 안에서 만든다. #}
-{% set company = snap.company_info or {} %}
-    <section class="foms-share-est__info" aria-label="계약 정보">
-      <table class="foms-share-est__tbl">
-        <tbody>
-          <tr><th>고객명</th><td>{{ snap.customer_name }}</td></tr>
-          <tr><th>연락처</th><td>{{ snap.customer_phone }}</td></tr>
-          <tr><th>시공현장</th><td>{{ snap.site_address }}</td></tr>
-          {% if snap.construction_date %}<tr><th>시공일자</th><td>{{ snap.construction_date }}</td></tr>{% endif %}
-          {% if snap.manager_name %}<tr><th>담당자</th><td>{{ snap.manager_name }}{% if snap.manager_phone %} ({{ snap.manager_phone }}){% endif %}</td></tr>{% endif %}
-        </tbody>
-      </table>
-    </section>
+{# 계약서 본문 — 공유 열람 페이지 2곳(계약서 단독·도면+계약서 통합)이 함께 쓴다.
 
-    <section class="foms-share-est__items" aria-label="계약 내용">
-      <h2 class="foms-share-est__section-title">계약 내용</h2>
-      <div class="foms-share-est__scroll">
-        <table class="foms-share-est__tbl foms-share-est__tbl--items">
+   구성은 ERP 견적서 탭 계약서 폼(`orders/partials/estimate_pane.html` 의 `#est-document`)을
+   그대로 옮긴 것이다. ERP 는 JS 가 빈 폼을 채우지만 여기는 비로그인 페이지라 **발급 시점
+   동결 스냅샷(snap)** 으로 서버에서 전부 렌더한다(D6 — 주문 라이브 재조회 금지).
+
+   스냅샷 화이트리스트(`order_share.build_estimate_snapshot`) 밖의 필드는 참조하지 않는다.
+   `snap.items` 는 dict 의 `.items` 메서드로 잡히므로 반드시 `.get('items')` 로 읽는다.
+   이 파셜은 단독 렌더돼도 터지지 않게 필요한 지역 변수를 자기 안에서 만든다. #}
+{% set snap = snap | default({}, true) %}
+{% set company = snap.get('company_info') or {} %}
+{% set pay = snap.get('payment_info') or {} %}
+{% set est_items = snap.get('items') or [] %}
+{% set free_lines = snap.get('free_input_lines') or [] %}
+{% set issued_date = snap.get('issued_date') or '' %}
+{# 발주사 분기 — 스냅샷 상호가 '라홈시스템'이면 2공장(선례: 구 share_estimate_view.html). #}
+{% set is_factory2 = (company.get('name') == '라홈시스템') %}
+{# 계약번호는 스냅샷 필드가 아니다 — ERP(estimate-preview.js `_applyCustomerInfo`)와 같은
+   식(발행일 YYYYMMDD + '_' + 연락처 숫자)으로 동결 스냅샷 값에서 그대로 재현한다.
+   두 재료가 다 없으면 줄 자체를 생략한다(가짜 번호를 만들지 않는다). #}
+{% set phone_digits = (snap.get('customer_phone') or '') | select('in', '0123456789') | join('') %}
+{% set contract_no = (issued_date | replace('-', '')) ~ ('_' ~ phone_digits if phone_digits else '') %}
+
+<div class="foms-share-contract" data-share-contract>
+
+  <div class="erp-est-doc"
+       data-share-contract-doc
+       data-share-customer-name="{{ snap.get('customer_name') or '' }}"
+       data-share-issued-date="{{ issued_date }}">
+
+    {# 상단 컬러 바 #}
+    <div class="erp-est-topbar"></div>
+
+    {# 헤더: 로고 + 웹사이트 #}
+    <div class="erp-est-header">
+      {# 2공장(라홈) 로고 파일은 ERP 계약서 폼과 같은 것을 쓴다
+         (estimate_pane.html data-factory2-src = lahom-logo-en.png). #}
+      {% if is_factory2 %}
+        <img src="{{ url_for('static', filename='images/lahom-logo-en.png') }}"
+             alt="라홈시스템" class="erp-est-logo-img erp-est-logo--lahom"
+             data-share-hide-on-error>
+      {% else %}
+        <img src="{{ url_for('static', filename='images/haud-logo.png') }}"
+             alt="하우드시스템" class="erp-est-logo-img erp-est-logo--haud"
+             data-share-hide-on-error>
+      {% endif %}
+      {% if company.get('website') %}
+        <div class="erp-est-website">{{ company.get('website') }}</div>
+      {% endif %}
+    </div>
+
+    {# 계약번호 #}
+    {% if contract_no %}
+      <div class="erp-est-num-row">
+        <span class="erp-est-num-label">계약번호</span>
+        <span class="erp-est-num-value">{{ contract_no }}</span>
+      </div>
+    {% endif %}
+
+    {# 사업자 정보 + 고객 정보 #}
+    <div class="erp-est-info-box">
+      <div class="erp-est-info-left">
+        <div class="erp-est-info-title">사업자 정보</div>
+        <table class="erp-est-info-tbl">
+          <tbody>
+            <tr><td class="erp-est-lbl">상호</td><td>{{ company.get('name') or '-' }}</td></tr>
+            <tr><td class="erp-est-lbl">대표자</td><td>{{ company.get('ceo') or '-' }}</td></tr>
+            <tr><td class="erp-est-lbl">등록번호</td><td>{{ company.get('business_number') or '-' }}</td></tr>
+            <tr><td class="erp-est-lbl">소재지</td><td>{{ company.get('address') or '-' }}</td></tr>
+            <tr><td class="erp-est-lbl">업태</td><td>{{ company.get('industry') or '-' }}</td></tr>
+            <tr class="erp-est-spacer"><td colspan="2"></td></tr>
+            <tr><td class="erp-est-lbl">전화번호</td><td>{{ company.get('phone') or '-' }}</td></tr>
+            <tr><td class="erp-est-lbl">고객센터</td><td>{{ company.get('customer_center') or '-' }}</td></tr>
+          </tbody>
+        </table>
+        {# 인감 — 로드 실패 시 숨김(share-contract.js 가 처리, 인라인 핸들러 없음). #}
+        {% if is_factory2 %}
+          <img src="{{ url_for('static', filename='images/lahom-company-stamp.png') }}"
+               alt="인감" class="erp-est-stamp erp-est-stamp--factory2" data-share-hide-on-error>
+        {% else %}
+          <img src="{{ url_for('static', filename='images/company-stamp.png') }}"
+               alt="인감" class="erp-est-stamp" data-share-hide-on-error>
+        {% endif %}
+      </div>
+      <div class="erp-est-info-right">
+        <div class="erp-est-info-title">고객 정보</div>
+        <table class="erp-est-info-tbl">
+          <tbody>
+            <tr><td class="erp-est-lbl">고객명</td><td>{{ snap.get('customer_name') or '-' }}</td></tr>
+            <tr><td class="erp-est-lbl">연락처</td><td>{{ snap.get('customer_phone') or '-' }}</td></tr>
+            <tr><td class="erp-est-lbl">시공현장</td><td>{{ snap.get('site_address') or '-' }}</td></tr>
+            <tr><td class="erp-est-lbl">견적일자</td><td>{{ issued_date or '-' }}</td></tr>
+            <tr><td class="erp-est-lbl">시공일자</td><td>{{ snap.get('construction_date') or '-' }}</td></tr>
+            <tr class="erp-est-spacer"><td colspan="2"></td></tr>
+            <tr><td class="erp-est-lbl">담당자</td><td>{{ snap.get('manager_name') or '-' }}</td></tr>
+            <tr><td class="erp-est-lbl">연락처</td><td>{{ snap.get('manager_phone') or '-' }}</td></tr>
+          </tbody>
+        </table>
+      </div>
+    </div>
+
+    {# 안내 문구 #}
+    <div class="erp-est-notice-text">
+      아래와 같이 계약서를 발부하오니 양지하여 주십시오.
+    </div>
+
+    {# 계약 내용 — 열 폭은 백분율 고정이라 좁은 화면에서도 "금액"칸이 잘리지 않는다.
+       스크롤 컨테이너는 병적으로 긴 내용용 안전망이며, 실제로 넘칠 때만 안내가 뜬다. #}
+    <div class="erp-est-contract">
+      <div class="erp-est-contract-title">계약 내용</div>
+      <div class="foms-share-contract__scroll" data-share-contract-scroll>
+        <table class="erp-est-tbl">
+          <colgroup>
+            <col class="erp-est-col--name">
+            <col class="erp-est-col--spec">
+            <col class="erp-est-col--color">
+            <col class="erp-est-col--qty">
+            <col class="erp-est-col--amount">
+          </colgroup>
           <thead>
-            <tr><th>품명</th><th>규격</th><th>색상</th><th>수량</th><th>금액</th></tr>
+            <tr>
+              <th class="erp-est-th-name">품명</th>
+              <th class="erp-est-th-spec">규격</th>
+              <th class="erp-est-th-color">색상</th>
+              <th class="erp-est-th-qty">수량</th>
+              <th class="erp-est-th-amount">금액 <span class="erp-est-th-vat">(VAT 포함)</span></th>
+            </tr>
           </thead>
           <tbody>
-            {% for item in snap['items'] %}
-            <tr>
-              <td>{{ item.product_name }}</td>
-              <td>{{ item.spec }}</td>
-              <td>{{ item.color }}</td>
-              <td class="foms-share-est__num">{{ item.quantity }}</td>
-              <td class="foms-share-est__num">{{ '{:,}'.format(item.amount or 0) }}원</td>
-            </tr>
+            {% for item in est_items %}
+              <tr>
+                <td>{{ item.get('product_name') or '-' }}</td>
+                <td class="erp-est-td-spec">{{ item.get('spec') or '-' }}</td>
+                <td>{{ item.get('color') or '-' }}</td>
+                <td>{{ item.get('quantity') or 1 }}</td>
+                <td class="text-end">{{ '₩{:,}'.format(item.get('amount') or item.get('unit_price') or 0) }}</td>
+              </tr>
             {% else %}
-            <tr><td colspan="5" class="foms-share-est__empty">등록된 제품이 없습니다</td></tr>
-            {% endfor %}
-            {% for line in snap.free_input_lines %}
-            <tr>
-              <td>{{ line.label }}</td><td></td><td></td><td></td>
-              <td class="foms-share-est__num">{{ '{:,}'.format(line.amount or 0) }}원</td>
-            </tr>
+              <tr><td colspan="5" class="erp-est-empty-msg">등록된 제품이 없습니다</td></tr>
             {% endfor %}
           </tbody>
         </table>
       </div>
-    </section>
-
-    <section class="foms-share-est__sum" aria-label="결제 금액">
-      <table class="foms-share-est__tbl">
-        <tbody>
-          {% if snap.discount_amount %}<tr><th>할인</th><td class="foms-share-est__num">-{{ '{:,}'.format(snap.discount_amount) }}원</td></tr>{% endif %}
-          <tr><th>출고가</th><td class="foms-share-est__num foms-share-est__total">{{ '{:,}'.format(snap.shipping_price or 0) }}원</td></tr>
-          {% if snap.deposit_amount %}<tr><th>예약금</th><td class="foms-share-est__num">{{ '{:,}'.format(snap.deposit_amount) }}원</td></tr>{% endif %}
-          <tr><th>잔금</th><td class="foms-share-est__num foms-share-est__total">{{ '{:,}'.format(snap.balance_amount or 0) }}원</td></tr>
-        </tbody>
-      </table>
-    </section>
-
-    {% set pay = snap.payment_info or {} %}
-    <section class="foms-share-est__pay" aria-label="결제 정보">
-      <h2 class="foms-share-est__section-title">결제 정보</h2>
-      {% for acc in pay.accounts %}
-      <div class="foms-share-est__account">
-        <span class="foms-share-est__bank">{{ acc.bank }}</span>
-        <span class="foms-share-est__accnum">{{ acc.account }}</span>
-        <span class="foms-share-est__holder">예금주: {{ acc.holder }}</span>
-      </div>
-      {% endfor %}
-      {% if pay.notice %}<p class="foms-share-est__notice">{{ pay.notice }}</p>{% endif %}
-    </section>
-
-    <footer class="foms-share-est__company" aria-label="사업자 정보">
-      <p>{{ company.name }} · 대표 {{ company.ceo }} · {{ company.business_number }}</p>
-      <p>{{ company.address }}</p>
-      <p>전화 {{ company.phone }} · 고객센터 {{ company.customer_center }} · {{ company.website }}</p>
-    </footer>
-
-    <div class="foms-share-est__actions">
-      <button type="button" class="foms-share-est__print-btn" data-share-print>
-        견적서 저장·인쇄 (PDF)
-      </button>
+      <p class="foms-share-contract__scroll-hint">← 좌우로 밀어서 보실 수 있습니다</p>
     </div>
+
+    {# 결제정보 + 합계 #}
+    <div class="erp-est-pay-box">
+      <div class="erp-est-pay-left">
+        <div class="erp-est-pay-title">결제정보</div>
+        <div>
+          {% for acc in (pay.get('accounts') or []) %}
+            <div class="erp-est-pay-account-block">
+              <div class="erp-est-bank-line">
+                <span class="fw-bold">{{ acc.get('bank') or '' }}</span>
+                <span class="erp-est-sep">|</span>
+                <span>{{ acc.get('account') or '' }}</span>
+                {% if acc.get('account') %}
+                  <button type="button" class="foms-share-contract__copy"
+                          data-share-copy
+                          data-share-copy-value="{{ acc.get('account') }}"
+                          aria-label="{{ acc.get('bank') or '' }} 계좌번호 복사">복사</button>
+                {% endif %}
+              </div>
+              <div class="erp-est-pay-holder">예금주 : {{ acc.get('holder') or '' }}</div>
+            </div>
+          {% endfor %}
+        </div>
+        {% if pay.get('notice') %}
+          <div class="erp-est-pay-warn">{{ pay.get('notice') }}</div>
+        {% endif %}
+      </div>
+      <div class="erp-est-pay-right">
+        <div class="erp-est-sum-row">
+          <span class="erp-est-sum-label">출고가</span>
+          <span class="erp-est-sum-value">{{ '₩{:,}'.format(snap.get('shipping_price') or 0) }}</span>
+        </div>
+        {% for line in free_lines %}
+          {% if (line.get('amount') or 0) > 0 %}
+            <div class="erp-est-sum-row erp-est-sum-free-input">
+              <span class="erp-est-sum-label">{{ line.get('label') or '추가' }} (총견적 포함)</span>
+              <span class="erp-est-sum-value erp-est-sum-free-input-val">{{ '₩{:,}'.format(line.get('amount')) }}</span>
+            </div>
+          {% endif %}
+        {% endfor %}
+        {% if (snap.get('deposit_amount') or 0) > 0 %}
+          <div class="erp-est-sum-row erp-est-sum-deposit">
+            <span class="erp-est-sum-label">예약금</span>
+            <span class="erp-est-sum-value erp-est-sum-deposit-val">{{ '₩{:,}'.format(snap.get('deposit_amount')) }}</span>
+          </div>
+        {% endif %}
+        {# 할인은 출고가에 이미 흡수돼 있다 — 별도 줄을 두면 고객이 두 번 빼는 것으로 읽는다.
+           ERP 읽기전용 요약(estimate-preview.js '할인은 출고가에 이미 흡수됨')과 같은 규칙. #}
+        <div class="erp-est-sum-row erp-est-sum-balance">
+          <span class="erp-est-sum-label">잔금</span>
+          <span class="erp-est-sum-value erp-est-sum-balance-val">{{ '₩{:,}'.format(snap.get('balance_amount') or 0) }}</span>
+        </div>
+      </div>
+    </div>
+
+    {# 하단: 작성일자 + 법적 효력 #}
+    <div class="erp-est-footer">
+      <div class="erp-est-footer-date">
+        <span class="erp-est-lbl">작성 일자</span>
+        <span>{{ issued_date or '-' }}</span>
+      </div>
+      <div class="erp-est-footer-legal">
+        본 계약서는 공급자와 계약자간에 법적 효력을 지니고 있습니다.
+      </div>
+    </div>
+
+  </div>{# /.erp-est-doc — PNG 캡처 대상은 여기까지. 아래 조작부는 그림에 안 찍힌다. #}
+
+  <div class="foms-share-contract__actions">
+    <button type="button" class="foms-share-contract__btn foms-share-contract__btn--primary"
+            data-share-contract-save>
+      <span data-share-btn-label>이미지로 저장</span>
+    </button>
+    <button type="button" class="foms-share-contract__btn" data-share-print>인쇄</button>
+  </div>
+  <p class="foms-share-contract__note">
+    저장한 이미지는 사진첩(또는 다운로드 폴더)에서 확인하실 수 있습니다.
+  </p>
+  {# 인앱 브라우저 폴백: 카카오톡 등 앱 안 브라우저는 download 속성을 무시하는 사례가 있어
+     만들어진 이미지를 화면에 붙여 준다. 고객은 길게 눌러 사진첩에 저장할 수 있다. #}
+  <div class="foms-share-contract__fallback" data-share-contract-fallback hidden>
+    <p class="foms-share-contract__fallback-hint">
+      저장이 안 되면 아래 이미지를 <strong>길게 눌러</strong> 사진첩에 저장해 주세요.
+    </p>
+    <img class="foms-share-contract__fallback-img" alt="계약서 이미지" data-share-contract-fallback-img>
+  </div>
+  <p class="foms-share-contract__error" data-share-contract-error hidden></p>
+
+</div>
