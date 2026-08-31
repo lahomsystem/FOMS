@@ -41,6 +41,32 @@ def apply_measurement_dashboard_order_scope(query):
     )
 
 
+def measurement_schedule_on_dates(dates) -> object:
+    """실측 일정이 ``dates`` 중 하루라도 걸리는 주문 EXISTS 술어.
+
+    날짜 술어의 정본은 **복수 일정을 행으로 펼친** ``order_schedule_dates`` 다
+    (싱크 컬럼 ``measurement_date`` 는 콤마 복수 중 첫 날짜만 담는다). 같은 술어를
+    관제탑이 이미 쓴다 — `foms.services.orders.dashboard_control_tower._sched_any`.
+    행은 `order_date_sync` 리스너가 쓰기마다 갱신하고, 부분 인덱스
+    ``(date, order_id) WHERE kind='measurement'`` 가 이 조회를 받는다.
+
+    ``date`` 컬럼이 varchar 라 범위 비교 대신 **정확 일치 IN** 을 쓴다 — 컬럼에 섞인
+    비-ISO 오염값('미정' 등)이 술어에 걸리지 않는다.
+
+    Args:
+        dates: 'YYYY-MM-DD' 문자열 목록.
+
+    Returns:
+        SQLAlchemy EXISTS 술어.
+    """
+    return Order.schedule_dates.any(
+        and_(
+            OrderScheduleDate.kind == "measurement",
+            OrderScheduleDate.date.in_(list(dates)),
+        )
+    )
+
+
 def _order_is_regional_for_panel(order) -> bool:
     """패널 건수 분류용 지방주문 여부."""
     return getattr(order, 'is_regional', False) is True
