@@ -17,7 +17,10 @@
   `naver_bulk_dispatch_enabled` (전역 킬스위치), `shell_variant`.
 #}
 {% if bulk_dispatch and bulk_dispatch.show %}
+{# can_run = 오늘치 일괄 실행 버튼을 그려도 되는가. can_act = **배선**을 실어도 되는가 —
+   실패한 집의 줄마다 붙는 재시도 버튼이 같은 배선을 쓰므로 보낼 집이 0이어도 실어야 한다. #}
 {% set can_run = naver_bulk_dispatch_enabled and bulk_dispatch.eligible and shell_variant != 'v3' %}
+{% set can_act = naver_bulk_dispatch_enabled and (bulk_dispatch.eligible or bulk_dispatch.failed) and shell_variant != 'v3' %}
 <details class="alert {% if bulk_dispatch.state == 'done' %}alert-success{% else %}alert-light{% endif %} border erp-naver-dispatch"
          data-foms-no-autodismiss
          data-naver-dispatch-count="{{ bulk_dispatch.count }}"
@@ -65,6 +68,8 @@
     </button>
     <span class="text-muted small ms-2">누르면 되돌릴 수 없습니다.</span>
   </div>
+  {% endif %}
+  {% if can_act %}
   <div class="small fw-semibold text-primary mt-2" data-naver-bulk-dispatch-status hidden></div>
   {% include 'partials/shared/naver_bulk_dispatch_button.html' %}
   {% endif %}
@@ -103,11 +108,18 @@
             {% elif row.state == 'failed' %}
             <span class="badge bg-danger">실패</span>
             <div class="text-muted small">{{ row.failure_reason }}</div>
+            {% if can_act %}
+            <button type="button" class="btn btn-sm btn-outline-danger mt-1"
+                    data-naver-dispatch-retry="{{ row.link_id }}">이 집 다시 보내기</button>
+            {% endif %}
             {% elif row.eligible %}
             <span class="text-muted small">보낼 수 있음</span>
             {% else %}
             <span class="badge bg-secondary">보낼 수 없음</span>
             <div class="text-muted small">{{ row.reason }}</div>
+            {% if row.failure_reason %}
+            <div class="text-muted small">직전 실패: {{ row.failure_reason }}</div>
+            {% endif %}
             {% endif %}
           </td>
         </tr>

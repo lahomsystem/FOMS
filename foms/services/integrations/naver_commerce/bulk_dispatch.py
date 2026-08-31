@@ -499,12 +499,16 @@ def _build_target(key: tuple[str, str, str], links: list[ExternalOrderLink],
             if failure:
                 break
     reason = _blocking_reason(links) if pending else ""
+    # 순서가 뜻이다: **막힘이 실패를 이긴다.** 둘 다인 집에 "실패"라고 쓰면 화면이 다시
+    # 보내기를 권하게 되고, 그 재시도는 서버 가드에 그대로 막힌다(발주확인이 먼저다).
+    # 이 순서 덕에 ``state == "failed"`` 인 집은 **항상** 보낼 수 있는 집이고, 그래서
+    # 줄마다 붙는 재시도 버튼이 언제나 뜻이 있다.
     if not pending:
         state = "sent"
-    elif failure:
-        state = "failed"
     elif reason:
         state = "blocked"
+    elif failure:
+        state = "failed"
     else:
         state = "pending"
     return BulkDispatchTarget(
