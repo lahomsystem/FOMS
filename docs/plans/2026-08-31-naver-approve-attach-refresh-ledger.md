@@ -24,7 +24,39 @@
 | T1a | 승인 서비스 — `client.approve_return_product_order` + `fulfillment._approve_returns` | 보류면 승인 안 함 · 상태 미도달이면 승인 안 함 · 재조회 실패 시 미승인 · body 없음 | **DONE** |
 | T1b | 승인 배선 — 큐·태스크·라우트 payload `approve` + 감사 라벨 분리 | 라우트가 `approve` 전달 · 문자열 `"false"` 방어 · `NAVER_INGEST_RETURN_APPROVE_ENQUEUE` 등재 | **DONE** |
 | T1c | 승인 화면 — 체크박스(기본 꺼짐)·빨간 띠 한 줄·중간 상태 띠·자산 핀 범프 | 모달 문구 계약 갱신 · `?v=` 핀 2곳 + 계약 2곳 함께 범프 | **DONE** |
-| T2 | 후보 0건일 때 주문 찾아서 붙이기 (검색 → 붙이기) | 검색 라우트 계약 · 후보 0건 화면에 진입점 노출 · 붙인 뒤 기존 흐름과 동일 | PENDING |
+| T2 | 후보 0건일 때 주문 찾아서 붙이기 (검색 → 붙이기) | 검색 라우트 계약 · 후보 0건 화면에 진입점 노출 · 붙인 뒤 기존 흐름과 동일 | **PENDING — 다음 세션** |
+
+## 배포 상태 (2026-08-31)
+
+`deploy` **6f57798b** — T3(`9463f5c9`) + T1(`6f57798b`).
+검증: `tests/services/integrations` + `tests/domains` **6699 passed, 5 skipped** ·
+`pre_push_smoke` exit 0 · **CI 4/4 green**(Harness · FOMS CI · PostgreSQL Lane · perf-gate).
+production 승격은 **안 했다** — 사용자 명시 요청 시에만.
+
+## T2 를 시작할 때 필요한 사실 (조사 다시 하지 마라)
+
+- 매칭 세 축뿐(`order_candidates.find_order_candidates`, 180일 창):
+  수취인 전화 **100** · 주문자 전화 **80** · **이름+주소 앞부분** 동시 일치 **60**.
+- 못 잡는 조합: **주소만 같고 이름 다름**(가족 대리결제·같은 시공지) ·
+  **이름만 같고 주소 다름**(본인·시공지 변경) · 셋 다 다름.
+- **막힌 건 서버가 아니라 화면이다.** `POST /admin/naver-ingest/<link_id>/attach` 는
+  `order_id` 를 **임의로** 받는다(후보 목록과 무관). 붙이기 버튼(`.wb-attach`)이 후보 표
+  행에만 달려 있을 뿐이고, 주문을 검색해 붙이는 UI 가 없다.
+- 그래서 T2 는 **읽기 전용 검색 라우트 + pane 진입점 + JS** 면 된다. 붙이기는 기존 라우트
+  그대로. 신규 mutation 이 아니라 mutation 계약 5종은 해당 없지만, 검색이 개인정보를
+  노출하므로 권한·결과 상한은 기존 워크벤치 규율대로.
+
+## 이번 세션이 비싸게 배운 것 (다음 세션이 반복하지 마라)
+
+- **승인 body 는 없는 것이 공식이다.** 원장의 `approvalData` 근거는 출처(#3693)에 없었다 —
+  그 문서는 **취소** 승인 얘기다. 서브에이전트·CEO 보고도 출처를 직접 열어 확인해야 한다.
+- **자산 `?v=` 핀은 계약 테스트 2곳이 물고 있다**
+  (`test_naver_origin_cleanup.py:321` · `test_naver_workbench_async_result.py:406`).
+  템플릿 2곳(CSS·JS)과 함께 범프해야 한다.
+- `except` 를 추가하면 **failopen 인벤토리가 드리프트**한다 →
+  `python tools/harness/failopen_scan.py` 로 재생성(클린 워크트리에서).
+- **`origin/deploy` 가 빠르게 움직인다.** push 전 fetch → rebase → 재검증. 이번에 2회 밀렸다.
+- **heredoc 이 문자열을 먹는다.** 편집은 Edit 도구로.
 
 ## T3 에서 계약이 뒤집힌 것
 
