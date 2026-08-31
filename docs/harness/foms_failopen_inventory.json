@@ -5,14 +5,14 @@
   "overlap_api_error_01": "API-ERROR-01 owns response/stdout exposure (print_exc/str(e) -> log_handled_exception). This packet owns swallow classification. Sites that log via log_handled_exception are LOG_AND_CONTINUE here.",
   "marker_convention": "Silent-by-design catches carry an inline `# failopen: intentional: <reason>` (or `fail-closed`) marker; the scanner reads it as the justification. No bare allowlist, no lint-disable.",
   "baselines": {
-    "broad_total": 558,
+    "broad_total": 559,
     "unclassified": 0,
     "swallow_by_control_flow": 180
   },
   "disposition_counts": {
     "FAIL_CLOSED": 31,
     "INTENTIONAL": 17,
-    "LOG_AND_CONTINUE": 330,
+    "LOG_AND_CONTINUE": 331,
     "SWALLOW_BY_CONTROL_FLOW": 180
   },
   "owner_counts": {
@@ -27,7 +27,7 @@
     "services": 142,
     "storage": 21,
     "telemetry": 30,
-    "web": 38
+    "web": 39
   },
   "swallow_by_control_flow_owner_counts": {
     "api": 59,
@@ -4605,7 +4605,7 @@
     },
     {
       "path": "foms/web/admin/naver_ingest.py",
-      "lineno": 3576,
+      "lineno": 3583,
       "handler_type": "broad_exception",
       "disposition": "LOG_AND_CONTINUE",
       "owner": "web",
@@ -4614,7 +4614,7 @@
     },
     {
       "path": "foms/web/admin/naver_ingest.py",
-      "lineno": 3588,
+      "lineno": 3595,
       "handler_type": "broad_exception",
       "disposition": "LOG_AND_CONTINUE",
       "owner": "web",
@@ -4623,7 +4623,7 @@
     },
     {
       "path": "foms/web/admin/naver_ingest.py",
-      "lineno": 4080,
+      "lineno": 4087,
       "handler_type": "broad_exception",
       "disposition": "LOG_AND_CONTINUE",
       "owner": "web",
@@ -4632,7 +4632,7 @@
     },
     {
       "path": "foms/web/admin/naver_ingest.py",
-      "lineno": 4476,
+      "lineno": 4277,
       "handler_type": "broad_exception",
       "disposition": "LOG_AND_CONTINUE",
       "owner": "web",
@@ -4641,7 +4641,7 @@
     },
     {
       "path": "foms/web/admin/naver_ingest.py",
-      "lineno": 4569,
+      "lineno": 4545,
       "handler_type": "broad_exception",
       "disposition": "LOG_AND_CONTINUE",
       "owner": "web",
@@ -4650,7 +4650,7 @@
     },
     {
       "path": "foms/web/admin/naver_ingest.py",
-      "lineno": 4632,
+      "lineno": 4638,
       "handler_type": "broad_exception",
       "disposition": "LOG_AND_CONTINUE",
       "owner": "web",
@@ -4659,7 +4659,16 @@
     },
     {
       "path": "foms/web/admin/naver_ingest.py",
-      "lineno": 4804,
+      "lineno": 4701,
+      "handler_type": "broad_exception",
+      "disposition": "LOG_AND_CONTINUE",
+      "owner": "web",
+      "has_logging": true,
+      "justification": "logs via logger/log_handled_exception"
+    },
+    {
+      "path": "foms/web/admin/naver_ingest.py",
+      "lineno": 4873,
       "handler_type": "broad_exception",
       "disposition": "LOG_AND_CONTINUE",
       "owner": "web",

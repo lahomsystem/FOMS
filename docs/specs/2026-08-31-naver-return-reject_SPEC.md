@@ -119,6 +119,24 @@ POST /v1/pay-order/seller/product-orders/{productOrderId}/claim/return/reject
 - **보낸 문장 원문을 남긴다** — `triage_state['return']['reject_reason']` 과 감사 로그
   `detail` 양쪽. 자유 입력에서 분쟁이 나면 **무슨 말을 보냈는가**가 유일한 방어선이다.
 
+### 4-3a. 상용구는 **회사 전체가 공유하고 관리자만 고친다** (사용자 결정 2026-09-01)
+
+문장은 구매자에게 그대로 간다. 담당자마다 다른 목록을 들면 같은 상황에서 회사가 다른 말을
+하게 되고, 그 차이가 그대로 분쟁 재료다. 그래서 —
+
+- **저장 자리**: 새 표를 파지 않고 ``SystemSetting`` 키 하나
+  (`naver_return_reject_templates`). 값 스키마는 도면 마법사 공유 프리셋과 **같은 모양**
+  (``[{"label", "text"}]``)이라 다음 사람이 둘 중 하나를 읽으면 나머지도 읽는다.
+- **저장한 적이 없으면 코드 기본 5종**을 보여준다. DB 에 미리 심지 않는다 — 심으면
+  "기본으로 되돌리기"가 사라지고, 다음 배포가 지운 문장을 되살린다.
+- **편집은 `ADMIN` 만**(거부 실행은 `ADMIN`·`MANAGER`). 쓰는 사람과 정하는 사람을 나눈다.
+  화면도 같은 조건으로 컨트롤을 낸다 — 보이는데 403 이 나면 그게 더 나쁘다.
+- **목록 전체를 덮어쓴다.** 항목 병합은 삭제를 표현하지 못한다.
+- **동시 저장은 `version` 으로 막는다**(409). 관리자 둘이 각자 저장하면 뒤에 누른 쪽이
+  앞사람 문장을 조용히 지운다 — "왜 내 문장이 사라졌지"가 그 사고의 이름이다.
+- 저장 상한과 **보낼 때 상한이 같다**(`RETURN_REJECT_REASON_MAX`). 저장은 되고 보낼 때
+  잘리는 문장을 만들지 않는다.
+
 ### 4-4. 경로 — 새 mutation 하나
 
 `POST /admin/naver-ingest/<link_id>/return-reject` (payload: `reason` 문장).
@@ -184,13 +202,14 @@ T3 규율 그대로 — 성공·실패와 무관하게 그 집을 다시 읽는�
 | 서비스 | `fulfillment.reject_return` · `is_return_rejectable` · `RETURN_REJECTABLE_STATUSES` · `RETURN_REJECT_FILLS` | 완료 |
 | 큐·워커 | `enqueue_naver_return_reject` · `run_naver_fulfillment_task(action="return-reject")` · `REFRESH_AFTER_ACTIONS` | 완료 |
 | 라우트 | `POST /admin/naver-ingest/<link_id>/return-reject` (ADMIN·MANAGER, 게이트 2겹) | 완료 |
-| 계약 6종 | policy manifest · write guard manifest · audit coverage · 감사 라벨 · **주문 이벤트 라벨** · 자산 핀 | 완료 |
+| 상용구 저장 | `reject_templates.py`(SystemSetting) + `POST /admin/naver-ingest/reject-templates`(ADMIN) + 모달 안 저장·지우기 | 완료 |
+| 계약 6종 ×2 라우트 | policy manifest · write guard manifest · audit coverage · 감사 라벨 2종 · **주문 이벤트 라벨** · 자산 핀 | 완료 |
 | 화면 | pane 버튼 + 모달(4종 세트 + 자유 입력 + 상용구 채우기 + 보낼 문장 되읽기) | 완료 |
-| 계약 테스트 | `tests/services/integrations/test_naver_return_reject.py` 21종 | 완료 |
+| 계약 테스트 | `tests/services/integrations/test_naver_return_reject.py` 30종 | 완료 |
 
 **켜는 순서**: ① §2 표를 문서 원문으로 채운다 ② `reject_return_product_order` 의 요청
-한 줄을 채운다(그 함수의 `NotImplementedError` 를 지운다) ③ 상용구 문장 확정(§7 Q1)
-④ Railway `FOMS_NAVER_RETURN_REJECT_ENABLED=1`.
+한 줄을 채운다(그 함수의 `NotImplementedError` 를 지운다) ③ Railway `FOMS_NAVER_RETURN_REJECT_ENABLED=1` ④ 관리자가 화면에서 상용구 문장을
+확정한다(코드 5종은 그때까지의 기본값일 뿐이다).
 
 **규격이 채워지면 같이 볼 것**: `RETURN_REJECTABLE_STATUSES` 를 넓힐지(§4-2 는 지금
 `RETURN_REQUEST` 축만 연다) · `RETURN_REJECT_REASON_MAX`(지금은 우리 상한 500).
@@ -198,6 +217,9 @@ T3 규율 그대로 — 성공·실패와 무관하게 그 집을 다시 읽는�
 ## 7. 미결 (사람만 답한다)
 
 - **Q1** 상용구 5종 **문장 확정**(§4-3 표는 초안이다). 글자수 제한(§2-3)을 본 뒤 확정한다.
+  → 2026-09-01 사용자 결정으로 **성격이 바뀌었다**: 문장은 이제 코드 상수가 아니라
+  **관리자가 화면에서 저장**하는 값이다(§4-3a). 코드의 5종은 *아무도 저장하지 않았을 때*
+  보이는 기본값으로만 남는다 — 확정은 운영에서 관리자가 한다.
 - ~~**Q2** 거부 권한~~ → **닫힘**: `ADMIN`·`MANAGER` 만(2026-08-31).
 - ~~**Q3** 거부 뒤 FOMS 주문~~ → **닫힘**: 주문은 살려 두고 **주문 이력에 거부 표식**을
   남긴다(2026-08-31).

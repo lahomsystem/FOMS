@@ -1931,8 +1931,11 @@ def _pane_context(db, link: Optional[ExternalOrderLink],
     from foms.services.integrations.naver_commerce.fulfillment import (
         CANCEL_REASONS,
         RETURN_REASONS,
-        RETURN_REJECT_FILLS,
         RETURN_REJECT_REASON_MAX,
+    )
+    from foms.services.integrations.naver_commerce.reject_templates import (
+        load_templates as load_reject_templates,
+        templates_version as reject_templates_version,
     )
 
     household = _group_of_link(db, link) if link is not None else None
@@ -1961,7 +1964,11 @@ def _pane_context(db, link: Optional[ExternalOrderLink],
         "return_reject_enabled": is_naver_return_reject_enabled(),
         # 자주 쓰는 거부 문장(채워 넣기 전용)과 우리 글자수 상한. 화면이 목록을 따로 들면
         # 서버 상한과 갈린다 — 잘려 나간 문장이 그대로 구매자에게 간다.
-        "return_reject_fills": RETURN_REJECT_FILLS,
+        # 목록은 **DB 가 정본**이다(전역 공유). 저장된 적이 없으면 코드 기본 5종이 온다.
+        "return_reject_fills": load_reject_templates(db),
+        "return_reject_templates_version": reject_templates_version(db),
+        # 문장을 고치는 것은 ADMIN 만(거부 실행은 MANAGER 까지). 라우트도 같은 조건이다.
+        "return_reject_can_manage": (session.get("role") or "") == "ADMIN",
         "return_reject_reason_max": RETURN_REJECT_REASON_MAX,
         # sales_users 는 워크벤치 두 템플릿 어디서도 안 쓴다 — 넣어 두면
         # pane 조각 요청마다 User 전 행 조회가 1회씩 헛돈다(리뷰 M-5).
@@ -4219,6 +4226,68 @@ def naver_ingest_return(link_id: int):
                     "data": {"link_id": link_id, "reason": reason, "queued": True,
                              "approve": approve, "rev": base_rev},
                     "error": None})
+
+@admin_bp.route("/admin/naver-ingest/reject-templates", methods=["POST"])
+@login_required
+@role_required(["ADMIN"])
+def naver_ingest_save_reject_templates():
+    """반품 거부 **상용구 문장**을 저장한다 — 회사 전체가 쓰는 한 벌 (T8-S3).
+
+    거부 실행은 ``ADMIN``·``MANAGER`` 인데 **문장 편집은 ``ADMIN`` 만**이다
+    (사용자 결정 2026-09-01). 문장은 구매자에게 그대로 가므로, 쓰는 사람과 정하는
+    사람을 나눈다.
+
+    **목록 전체를 덮어쓴다.** 항목 단위 병합은 삭제를 표현하지 못한다.
+    동시 저장은 ``version`` 으로 막는다 — 관리자 둘이 각자 저장하면 뒤에 누른 쪽이
+    앞사람 문장을 조용히 지운다(409 로 되돌려보내고 화면이 새로 고치라고 말한다).
+
+    네이버로 나가는 호출은 **0** 이다. 우리 설정만 바꾼다.
+    """
+    from foms.services.feature_flags import is_naver_workbench_enabled
+    from foms.services.integrations.naver_commerce.reject_templates import (
+        RejectTemplateConflict,
+        RejectTemplateError,
+        save_templates,
+    )
+
+    if not is_naver_workbench_enabled(session.get("user_id")):
+        return jsonify({"success": False, "data": None,
+                        "error": "이 화면에서는 문장을 저장할 수 없습니다."}), 403
+
+    payload = request.get_json(silent=True) or {}
+    raw_version = payload.get("version")
+    try:
+        if_match = int(raw_version) if raw_version is not None else None
+    except (TypeError, ValueError):
+        if_match = None
+
+    db = get_db()
+    try:
+        result = save_templates(db, items=payload.get("templates"),
+                                actor_user_id=session.get("user_id"),
+                                if_match_version=if_match)
+        db.commit()
+    except RejectTemplateConflict as exc:
+        db.rollback()
+        return jsonify({"success": False, "data": {"version": exc.current_version},
+                        "error": str(exc)}), 409
+    except RejectTemplateError as exc:
+        db.rollback()
+        return jsonify({"success": False, "data": None, "error": str(exc)}), 400
+    except Exception as exc:  # noqa: BLE001 - 실패 사유를 사람에게 그대로 보여준다
+        db.rollback()
+        logger.warning("[NAVER] 거부 상용구 저장 실패: %s", exc, exc_info=True)
+        return jsonify({"success": False, "data": None, "error": str(exc)}), 400
+
+    log_access(
+        f"네이버 반품 거부 상용구 저장 ({len(result['templates'])}개)",
+        session.get("user_id"),
+        action="NAVER_INGEST_REJECT_TEMPLATES_SAVE",
+        # 어떤 문장이 언제 들어갔는지가 곧 "고객이 무슨 말을 받았나"의 뿌리다.
+        detail={"templates": result["templates"], "version": result["version"]},
+    )
+    return jsonify({"success": True, "data": result, "error": None})
+
 
 @admin_bp.route("/admin/naver-ingest/<int:link_id>/return-reject", methods=["POST"])
 @login_required

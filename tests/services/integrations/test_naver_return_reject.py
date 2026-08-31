@@ -421,3 +421,120 @@ def test_reject_is_followed_by_a_refresh():
     from foms.services.jobs.tasks import REFRESH_AFTER_ACTIONS
 
     assert "return-reject" in REFRESH_AFTER_ACTIONS
+
+
+# --------------------------------------------------------------------------- #
+# 5. 상용구 문장 — 회사 전체가 같이 쓰고, 관리자만 고친다 (2026-09-01)
+# --------------------------------------------------------------------------- #
+
+TEMPLATES_PATH = "/admin/naver-ingest/reject-templates"
+
+
+def test_default_sentences_show_until_someone_saves(workbench_on):
+    """저장한 적이 없으면 코드 기본 5종이 보인다 — DB 에 미리 심지 않는다."""
+    from foms.services.integrations.naver_commerce.reject_templates import load_templates
+
+    rows = load_templates(db_session)
+
+    assert [r["label"] for r in rows] == [f["label"] for f in fulfillment.RETURN_REJECT_FILLS]
+
+
+def test_admin_saves_a_sentence_for_everyone(client, workbench_on):
+    """관리자가 저장하면 **모두의 화면**이 그 목록을 쓴다(전역 저장)."""
+    from foms.services.integrations.naver_commerce.reject_templates import load_templates
+
+    _login(client, role="ADMIN")
+    body = {"templates": [{"label": "우리 문장", "text": "이 건은 반품이 어렵습니다."}],
+            "version": 0}
+
+    response = client.post(TEMPLATES_PATH, json=body)
+
+    assert response.status_code == 200, response.get_data(as_text=True)
+    assert response.get_json()["data"]["version"] == 1
+    db_session.expire_all()
+    assert load_templates(db_session) == [{"label": "우리 문장",
+                                           "text": "이 건은 반품이 어렵습니다."}]
+
+
+def test_manager_can_reject_but_cannot_edit_the_list(client, workbench_on):
+    """책임자는 거부는 눌러도 **문장은 못 고친다**(사용자 결정 2026-09-01)."""
+    _login(client, role="MANAGER")
+
+    response = client.post(TEMPLATES_PATH,
+                           json={"templates": [{"label": "x", "text": "y"}], "version": 0})
+
+    assert response.status_code in (302, 403)
+
+
+def test_second_admin_cannot_silently_overwrite(client, workbench_on):
+    """관리자 둘이 따로 저장하면 뒤에 누른 쪽을 막는다 — 조용한 덮어쓰기가 사고다."""
+    _login(client, role="ADMIN")
+    client.post(TEMPLATES_PATH, json={"templates": [{"label": "첫", "text": "첫 문장입니다."}],
+                                      "version": 0})
+
+    stale = client.post(TEMPLATES_PATH,
+                        json={"templates": [{"label": "둘", "text": "둘째 문장입니다."}],
+                              "version": 0})
+
+    assert stale.status_code == 409
+    assert stale.get_json()["data"]["version"] == 1
+
+
+def test_saving_rejects_an_empty_list(client, workbench_on):
+    """빈 목록으로 덮어쓰지 않는다 — 화면에 기본 문장이 되살아나 '지웠다'와 뜻이 갈린다."""
+    _login(client, role="ADMIN")
+
+    response = client.post(TEMPLATES_PATH, json={"templates": [], "version": 0})
+
+    assert response.status_code == 400
+
+
+def test_saved_sentence_cannot_exceed_the_send_limit():
+    """저장 상한과 **보낼 때 상한이 같다** — 저장은 되고 보낼 때 잘리면 안 된다."""
+    from foms.services.integrations.naver_commerce.reject_templates import sanitize_templates
+
+    too_long = "가" * (fulfillment.RETURN_REJECT_REASON_MAX + 1)
+
+    assert sanitize_templates([{"label": "긴 문장", "text": too_long}]) == []
+
+
+def test_same_label_overwrites_instead_of_piling_up():
+    """같은 이름으로 저장하면 덮어쓴다 — 같은 이름 버튼이 두 개 나오지 않는다."""
+    from foms.services.integrations.naver_commerce.reject_templates import sanitize_templates
+
+    rows = sanitize_templates([{"label": "제작", "text": "옛 문장입니다."},
+                               {"label": "제작", "text": "새 문장입니다."}])
+
+    assert rows == [{"label": "제작", "text": "새 문장입니다."}]
+
+
+def test_modal_shows_manage_controls_only_to_admin(client, workbench_on):
+    """저장·지우기는 관리자에게만 보인다 — 책임자에게 보이면 눌렀다가 403 을 받는다."""
+    _login(client, role="MANAGER")
+    link = _link()
+    manager_body = client.get(f"/admin/naver-ingest/triage?tab=work&link_id={link.id}") \
+        .get_data(as_text=True)
+
+    _login(client, role="ADMIN")
+    admin_body = client.get(f"/admin/naver-ingest/triage?tab=work&link_id={link.id}") \
+        .get_data(as_text=True)
+
+    assert 'id="wb-reject-save"' not in manager_body
+    assert "wb-reject-drop" not in manager_body
+    assert 'id="wb-reject-save"' in admin_body
+    assert "wb-reject-drop" in admin_body
+
+
+def test_audit_log_keeps_what_the_list_became(client, workbench_on):
+    """저장 기록에 **문장 원문**이 남는다 — 고객이 받은 말의 뿌리다."""
+    _login(client, role="ADMIN")
+    sentence = "제작이 시작되어 반품이 어렵습니다."
+
+    client.post(TEMPLATES_PATH, json={"templates": [{"label": "제작", "text": sentence}],
+                                      "version": 0})
+
+    db_session.expire_all()
+    log = (db_session.query(SecurityLog)
+           .filter(SecurityLog.action == "NAVER_INGEST_REJECT_TEMPLATES_SAVE")
+           .order_by(SecurityLog.id.desc()).first())
+    assert log is not None and sentence in str(log.detail or "")

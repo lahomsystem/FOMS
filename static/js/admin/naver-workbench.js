@@ -107,6 +107,7 @@
         'wb-cancel-confirm': submitCancel,
         'wb-return-confirm': submitReturn,
         'wb-reject-confirm': submitReturnReject,
+        'wb-reject-save': saveRejectTemplate,
         'wb-review-done': submitReviewDone,
         'wb-refresh': submitRefresh,
         'wb-detach': submitDetach,
@@ -575,6 +576,11 @@
             // **채워 넣기만 한다** — 넣은 뒤 그 자리에서 고칠 수 있어야 자유 입력이다.
             if (btn.classList.contains('wb-reject-fill')) {
                 fillRejectReason(btn.dataset.text || '');
+                return;
+            }
+            // 목록에서 지우기(관리자만 보인다). 지우면 **모두에게** 적용된다.
+            if (btn.classList.contains('wb-reject-drop')) {
+                dropRejectTemplate(btn.dataset.label || '');
                 return;
             }
             if (btn.classList.contains('wb-plan-close')) {
@@ -1935,6 +1941,124 @@
         var text = String(box.value || '').trim();
         echo.textContent = text ? '보낼 문장: “' + text + '”' : '';
         echo.hidden = !text;
+    }
+
+    /** 지금 화면에 그려진 상용구 목록을 그대로 읽는다(마크업이 정본이다). */
+    function readRejectTemplates() {
+        var box = document.getElementById('wb-reject-fills');
+        if (!box) {
+            return [];
+        }
+        return Array.prototype.map.call(
+            box.querySelectorAll('.wb-reject-fill'),
+            function (el) {
+                return { label: el.dataset.label || '', text: el.dataset.text || '' };
+            });
+    }
+
+    /**
+     * 목록을 다시 그린다. 저장 응답이 정본이라 그것으로 갈아 끼운다 — 화면에서 만든
+     * 목록을 그대로 두면 서버가 거른 항목(빈 문장·길이 초과)이 화면에만 남는다.
+     */
+    function renderRejectTemplates(templates, version) {
+        var box = document.getElementById('wb-reject-fills');
+        if (!box) {
+            return;
+        }
+        var canManage = !!box.dataset.canManage;
+        Array.prototype.forEach.call(box.querySelectorAll('.wb-reject__chip'),
+                                     function (el) { el.remove(); });
+        (templates || []).forEach(function (item) {
+            var chip = document.createElement('span');
+            chip.className = 'wb-reject__chip';
+            var pick = document.createElement('button');
+            pick.type = 'button';
+            pick.className = 'btn btn-sm btn-outline-secondary wb-reject-fill';
+            pick.dataset.text = item.text || '';
+            pick.dataset.label = item.label || '';
+            pick.textContent = item.label || '';
+            chip.appendChild(pick);
+            if (canManage) {
+                var drop = document.createElement('button');
+                drop.type = 'button';
+                drop.className = 'btn btn-sm btn-link wb-reject-drop';
+                drop.dataset.label = item.label || '';
+                drop.title = '이 문장을 목록에서 지웁니다(모두에게 적용)';
+                drop.textContent = '×';
+                chip.appendChild(drop);
+            }
+            box.appendChild(chip);
+        });
+        if (version !== undefined && version !== null) {
+            box.dataset.version = String(version);
+        }
+    }
+
+    /**
+     * 목록 전체를 저장한다 — 항목 단위 병합이 아니라 **통째로 덮어쓴다**(삭제를
+     * 표현할 수 있는 유일한 방법이다). 버전이 어긋나면 서버가 409 로 막는다.
+     */
+    async function postRejectTemplates(templates) {
+        var box = document.getElementById('wb-reject-fills');
+        var version = box ? Number(box.dataset.version || 0) : 0;
+        const result = await postJson(BASE + 'reject-templates', {
+            templates: templates,
+            version: version
+        });
+        if (!result.ok) {
+            window.alert(result.error);
+            return false;
+        }
+        renderRejectTemplates(result.data && result.data.templates,
+                              result.data && result.data.version);
+        return true;
+    }
+
+    /** 지금 쓴 문장을 이름을 달아 목록에 넣는다(같은 이름이면 덮어쓴다). */
+    async function saveRejectTemplate(btn) {
+        var reason = document.getElementById('wb-reject-reason');
+        var name = document.getElementById('wb-reject-name');
+        var text = reason ? String(reason.value || '').trim() : '';
+        var label = name ? String(name.value || '').trim() : '';
+        if (!text) {
+            window.alert('저장할 문장을 먼저 쓰세요.');
+            return;
+        }
+        if (!label) {
+            window.alert('이름을 넣으세요 — 버튼에 보일 짧은 말입니다(예: 제작 착수).');
+            if (name) {
+                name.focus();
+            }
+            return;
+        }
+        var next = readRejectTemplates().filter(function (item) {
+            return item.label !== label;
+        });
+        next.push({ label: label, text: text });
+        btn.disabled = true;
+        var ok = await postRejectTemplates(next);
+        btn.disabled = false;
+        if (ok && name) {
+            name.value = '';
+        }
+    }
+
+    /** 목록에서 문장 하나를 뺀다 — **모두에게** 적용되므로 한 번 묻는다. */
+    async function dropRejectTemplate(label) {
+        if (!label) {
+            return;
+        }
+        var next = readRejectTemplates().filter(function (item) {
+            return item.label !== label;
+        });
+        if (!next.length) {
+            window.alert('마지막 문장은 지울 수 없습니다 — 목록이 비면 기본 문장이 다시 보입니다.');
+            return;
+        }
+        if (!window.confirm('“' + label + '” 문장을 목록에서 지웁니다.\n\n모든 담당자 화면에서 사라집니다.')) {
+            return;
+        }
+        await postRejectTemplates(next);
     }
 
     /**
