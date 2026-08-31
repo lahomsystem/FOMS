@@ -317,38 +317,25 @@ def _place_pending_group_count(db) -> int:
 
 
 def _dispatch_pending_clause() -> ColumnElement[bool]:
-    """'발송처리 전' 조건 — 우리 표식도 네이버 ``sendDate`` 도 없는 링크.
+    """'발송처리 전' 조건 — **정본은 서비스 계층**이다.
 
-    부분 인덱스 ``ix_external_order_link_dispatch_pending`` 의 조건식과 **글자까지 같아야**
-    한다. 조건식이 어긋나면 PostgreSQL 이 부분 인덱스를 증명하지 못해 통째로 무시하고,
-    그때 나오는 Seq Scan 은 "선택도가 낮아서"로 오독된다(2026-08-30 CEO 지적 1).
+    본문은 :func:`foms.services.integrations.naver_commerce.bulk_dispatch.dispatch_pending_clause`
+    로 옮겼다(2026-08-31, NAVER-BULKDISPATCH-01 T1). 일괄 발송처리 선별이 같은 술어를
+    써야 하는데, 서비스가 web 을 import 할 수는 없어서다. 여기 한 벌을 더 적으면 두 술어가
+    갈라지고, 그건 화면 큐(우리 표식만)와 워커(두 신호)가 이미 어긋나 있던 결함과 같은
+    모양이다.
 
-    :data:`models.JSONColumn` 의 베이스 타입이 ``JSON`` 이라(``JSON().with_variant(JSONB,…)``)
-    ``.as_string()`` 이 ``CAST(… AS VARCHAR)`` 를 붙인다 — 인덱스 조건식도 **그 모양**이어야
-    한다. 마이그레이션에 손으로 적지 말고 아래 렌더 결과를 그대로 붙인다::
-
-        coalesce(CAST(((external_order_links.triage_state -> 'fulfillment')
-                       ->> 'dispatched_at') AS VARCHAR), '') = ''
-        AND coalesce(CAST(((external_order_links.raw_snapshot -> 'delivery')
-                       ->> 'sendDate') AS VARCHAR), '') = ''
-
-    (``str(clause.compile(dialect=postgresql.dialect(),
-    compile_kwargs={"literal_binds": True}))`` 로 언제든 다시 뽑을 수 있다.)
-
-    **알려진 어긋남 1개(수용)**: :func:`mapping.extract_delivery` 는 최상위 ``delivery`` 가
-    없으면 ``productOrder.delivery`` → ``order.delivery`` 로 내려가지만 이 SQL 은 최상위만
-    본다. 수집 파이프라인이 저장하는 모양은 최상위라 실데이터는 같다. 경로 셋을
-    ``coalesce`` 로 잇지 않는 이유는 조건식이 세 배로 길어져 "정확히 일치" 규율이 먼저
-    깨지기 때문이다.
+    이 이름을 남겨 두는 이유: 이력 탭 칩과 **부분 인덱스 조건식 일치 계약 테스트**가
+    이 자리에서 import 한다.
 
     Returns:
         SQLAlchemy 불리언 식(``and_`` 두 조각).
     """
-    from sqlalchemy import and_, func
+    from foms.services.integrations.naver_commerce.bulk_dispatch import (
+        dispatch_pending_clause,
+    )
 
-    ours = ExternalOrderLink.triage_state["fulfillment"]["dispatched_at"].as_string()
-    naver = ExternalOrderLink.raw_snapshot["delivery"]["sendDate"].as_string()
-    return and_(func.coalesce(ours, "") == "", func.coalesce(naver, "") == "")
+    return dispatch_pending_clause()
 
 
 def _dispatch_pending_group_count(db) -> int:
@@ -1751,6 +1738,26 @@ def _origin_cleanup_view(db) -> dict[str, Any]:
         return {"count": 0, "rows": [], "truncated": False}
 
 
+def _bulk_dispatch_view(db) -> dict[str, Any]:
+    """**오늘 실측한 네이버 건** 띠가 말할 값 (NAVER-BULKDISPATCH-01 T2) — 읽기 전용.
+
+    아직 버튼이 없다. 이 띠의 일은 "5시에 무엇이 나갈 것인가"를 **미리 보여주는 것**이다.
+
+    조립은 :func:`bulk_dispatch.build_preview` 가 한다 — 실측 대시보드의 같은 띠와 **한
+    함수를 공유**한다. 화면마다 따로 세면 두 화면이 다른 수를 말한다.
+
+    Args:
+        db: 요청 스코프 DB 세션.
+
+    Returns:
+        ``{"date", "count", "eligible", "blocked", "rows"}``.
+    """
+    from foms.services.datetime_kst import get_today_kst
+    from foms.services.integrations.naver_commerce.bulk_dispatch import build_preview
+
+    return build_preview(db, on_date=get_today_kst().strftime("%Y-%m-%d"))
+
+
 def _refresh_all_view(db) -> dict[str, Any]:
     """**전체 다시 읽기** 버튼이 말할 집 수 (NVREPAY-03).
 
@@ -1984,6 +1991,8 @@ def _render_workbench(db) -> str:
     Returns:
         렌더된 HTML.
     """
+    from foms.services.feature_flags import is_naver_bulk_dispatch_enabled
+
     active_tab = _active_tab()
     active_filter = _active_filter()
     active_sort = _active_sort()
@@ -2021,6 +2030,14 @@ def _render_workbench(db) -> str:
         # 처리 탭에서만 낸다(이력 탭은 할 일을 띄우는 자리가 아니다).
         origin_cleanup=(_origin_cleanup_view(db) if active_tab == "work"
                         else {"count": 0, "rows": [], "truncated": False}),
+        # 오늘 실측한 네이버 건(NAVER-BULKDISPATCH-01 T2). 처리 탭에서만 센다 — 이력 탭은
+        # 지난 일을 보는 자리라 '오늘 5시에 나갈 것'이 낄 자리가 아니다.
+        bulk_dispatch=(_bulk_dispatch_view(db) if active_tab == "work"
+                       else {"date": "", "count": 0, "eligible": 0,
+                             "blocked": 0, "rows": []}),
+        # 전역 킬스위치. 코호트가 아니다 — 코호트를 쓰면 그 밖의 실측 담당자에게 실행
+        # 라우트가 403 이 되어 진입점 두 곳 중 하나가 조용히 죽는다.
+        naver_bulk_dispatch_enabled=is_naver_bulk_dispatch_enabled(),
         # 전체 다시 읽기(NVREPAY-03) — 탭과 무관한 수집 전체 조작이라 두 탭 모두에서 낸다.
         # ADMIN 이 아니면 세지도 않는다(버튼이 없으므로 쿼리도 필요 없다).
         refresh_all=(_refresh_all_view(db) if _can_view_history() else {"count": 0}),
@@ -3886,6 +3903,75 @@ def naver_ingest_fulfillment(link_id: int):
                     "data": {"link_id": link_id, "action": action, "queued": True,
                              "rev": base_rev},
                     "error": None})
+
+
+@admin_bp.route("/admin/naver-ingest/bulk-dispatch", methods=["POST"])
+@login_required
+@role_required(["ADMIN", "MANAGER"])
+def naver_ingest_bulk_dispatch():
+    """오늘 실측한 네이버 건을 **집마다 큐에 넣는다** (NAVER-BULKDISPATCH-01 T4).
+
+    되돌릴 수 없는 조작이라 규율이 셋이다:
+
+    1. **대상은 서버가 다시 계산한다.** 화면이 보낸 목록을 받지 않는다 — 화면이 낡았거나
+       조작됐을 때 그대로 네이버로 나간다(옛 주문 정리 라우트가 같은 이유로 그렇게 한다).
+    2. **상한**(:data:`bulk_dispatch.BULK_DISPATCH_LIMIT`)에 닿으면 잘린 사실을 응답·로그에
+       남긴다. 조용한 절단은 "전부 보냈다"로 읽힌다.
+    3. 네이버 HTTP 는 WORKER 에서만 나간다(호출 IP 3슬롯 계약) — web 은 enqueue 만 한다.
+
+    권한은 ADMIN·MANAGER 다. 읽기 전용인 전체 다시 읽기조차 규모를 이유로 ADMIN 인데,
+    불가역 조작이 그보다 느슨할 수 없다.
+
+    Returns:
+        ``{"success": True, "data": {"date","queued","sent","total","truncated",
+        "failed","limit"}}``. 큐가 통째로 죽었으면 503.
+    """
+    from foms.services.datetime_kst import get_today_kst
+    from foms.services.feature_flags import is_naver_bulk_dispatch_enabled
+    from foms.services.integrations.naver_commerce.bulk_dispatch import (
+        BULK_DISPATCH_LIMIT,
+        select_sendable,
+    )
+    from foms.services.jobs.queue import enqueue_naver_fulfillment
+
+    if not is_naver_bulk_dispatch_enabled():
+        return jsonify({"success": False, "data": None,
+                        "error": "일괄 발송처리가 꺼져 있습니다."}), 404
+
+    db = get_db()
+    today = get_today_kst().strftime("%Y-%m-%d")
+    targets, total = select_sendable(db, on_date=today)
+    if not targets:
+        return jsonify({"success": True, "error": None,
+                        "data": {"date": today, "queued": 0, "sent": [], "total": 0,
+                                 "truncated": False, "failed": 0,
+                                 "limit": BULK_DISPATCH_LIMIT}})
+
+    actor = session.get("user_id")
+    queued = [target.link_id for target in targets
+              if enqueue_naver_fulfillment(target.link_id, "dispatch", actor)]
+    failed = len(targets) - len(queued)
+    if not queued:
+        return jsonify({"success": False, "data": None,
+                        "error": "작업 큐를 쓸 수 없습니다(REDIS_URL 미설정 또는 큐 장애). "
+                                 "지금은 판매자센터에서 처리하세요."}), 503
+
+    truncated = total > len(targets)
+    log_access(
+        f"네이버 일괄 발송처리 요청 ({len(queued)}집 / 대상 {total}집"
+        + (f" · 상한 {BULK_DISPATCH_LIMIT}집으로 잘림" if truncated else "")
+        + (f" · 큐 실패 {failed}집" if failed else "") + ")",
+        action="NAVER_INGEST_BULK_DISPATCH_ENQUEUE",
+        user_id=session.get("user_id"),
+        detail={"date": today, "link_ids": queued, "total": total,
+                "failed": failed, "truncated": truncated},
+    )
+    logger.info("[NAVER] 일괄 발송처리 enqueue %s: 요청 %d집 / 대상 %d집 잘림=%s 실패=%d",
+                today, len(queued), total, truncated, failed)
+    return jsonify({"success": True, "error": None,
+                    "data": {"date": today, "queued": len(queued), "sent": queued,
+                             "total": total, "truncated": truncated,
+                             "failed": failed, "limit": BULK_DISPATCH_LIMIT}})
 
 
 @admin_bp.route("/admin/naver-ingest/ghost/<int:order_id>/discard", methods=["POST"])

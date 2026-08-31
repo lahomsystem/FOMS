@@ -30,6 +30,8 @@
   </header>
   {% set erp_sub_nav_active = 'measurement' %}
   {% include 'partials/shared/erp_sub_nav.html' %}
+  {# 오늘 실측한 네이버 건 발송처리 미리보기(T3) — 워크벤치와 같은 값·읽기 전용 #}
+  {% include 'measurement/partials/naver_dispatch_strip.html' %}
   </div>{# /.foms-shell-desktop-only #}
 
   {% if not erp_order_enabled %}

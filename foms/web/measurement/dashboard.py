@@ -90,6 +90,31 @@ def _measurement_user_visibility_fingerprint(current_user) -> dict:
     }
 
 
+def _naver_dispatch_preview(selected_date: str, today_date: str) -> dict:
+    """오늘 실측한 네이버 건 미리보기 값 — **오늘을 볼 때만** 채운다.
+
+    다른 날짜를 보는 중에 "오늘 실측한 네이버 건"을 띄우면 화면이 거짓말을 한다. 실행
+    버튼이 붙는 날에는 더 나쁘다 — 옆에 다른 날짜 목록을 두고 오늘 것을 보내게 된다.
+
+    값 조립은 :func:`bulk_dispatch.build_preview` 가 한다(워크벤치와 **같은 함수**).
+
+    Args:
+        selected_date: 지금 화면이 보고 있는 날짜(``YYYY-MM-DD``).
+        today_date: 오늘(KST) 날짜 문자열.
+
+    Returns:
+        띠 렌더 값. 오늘이 아니면 ``count`` 가 0이라 띠가 렌더되지 않는다.
+    """
+    empty = {"date": today_date, "count": 0, "eligible": 0, "blocked": 0, "rows": []}
+    if selected_date != today_date:
+        return empty
+    from foms.services.integrations.naver_commerce.bulk_dispatch import build_preview
+
+    from foms.services.integrations.naver_commerce.bulk_dispatch import build_preview
+
+    return build_preview(get_db(), on_date=today_date)
+
+
 @erp_measurement_dashboard_bp.route('/measurement')
 @login_required
 def erp_measurement_dashboard():
@@ -349,6 +374,7 @@ def erp_measurement_dashboard():
     # 모바일 v2 큐: 홈과 동일한 깔끔한 queue-card-v2용 view-model (cohort에서만 계산)
     from foms.services.feature_flags import (
         is_mobile_v2_shell,
+        is_naver_bulk_dispatch_enabled,
         resolve_shell_variant_cached,
     )
     from foms.services.erp_mobile_order_display import (
@@ -481,6 +507,8 @@ def erp_measurement_dashboard():
             erp_mine_only=mine_filter_active,
             kakao_js_key=KAKAO_JS_API_KEY,
             route_strip_inline=route_strip_inline,
+            bulk_dispatch=_naver_dispatch_preview(selected_date, today_date),
+            naver_bulk_dispatch_enabled=is_naver_bulk_dispatch_enabled(),
         )
     )
     apply_erp_shell_fragment_headers(response, request)

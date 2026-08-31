@@ -3,22 +3,22 @@
   "policy_ssot": "foms/services/orders/order_mutation_policy.py",
   "description": "AUTH-01 URL-map inventory: 모든 cookie-auth state-changing route 의 policy_id. mode=guard 는 order_mutation_policy.evaluate_policy 로 §2.1 정책 enforce(before_request enforce_order_mutation_policy). mode=exempt 는 서명 검증 webhook/Function·anonymous RUM 처럼 쿠키 세션 미사용 자기 정책으로 우회. url_map 의 모든 POST/PUT/PATCH/DELETE endpoint 가 여기 등재되어야 하며 미분류=static gate fail(tests/domains/test_auth_enforcement.py).",
   "exempt_count": 5,
-  "guard_count": 194,
+  "guard_count": 197,
   "routes": {
     "admin.naver_ingest_attach_order": {
       "mode": "guard",
       "policy_id": "STAFF_MUTATION",
       "rule": "/admin/naver-ingest/<int:link_id>/attach"
     },
+    "admin.naver_ingest_bulk_dispatch": {
+      "mode": "guard",
+      "policy_id": "MANAGER_MUTATION",
+      "rule": "/admin/naver-ingest/bulk-dispatch"
+    },
     "admin.naver_ingest_cancel": {
       "mode": "guard",
       "policy_id": "STAFF_MUTATION",
       "rule": "/admin/naver-ingest/<int:link_id>/cancel"
-    },
-    "admin.naver_ingest_return": {
-      "mode": "guard",
-      "policy_id": "STAFF_MUTATION",
-      "rule": "/admin/naver-ingest/<int:link_id>/return"
     },
     "admin.naver_ingest_create_order": {
       "mode": "guard",
@@ -45,25 +45,40 @@
       "policy_id": "STAFF_MUTATION",
       "rule": "/admin/naver-ingest/<int:link_id>/fulfillment-clear"
     },
+    "admin.naver_ingest_ghost_discard": {
+      "mode": "guard",
+      "policy_id": "STAFF_MUTATION",
+      "rule": "/admin/naver-ingest/ghost/<int:order_id>/discard"
+    },
     "admin.naver_ingest_mark_reviewed": {
       "mode": "guard",
       "policy_id": "STAFF_MUTATION",
       "rule": "/admin/naver-ingest/<int:link_id>/review"
-    },
-    "admin.naver_ingest_refresh": {
-      "mode": "guard",
-      "policy_id": "STAFF_MUTATION",
-      "rule": "/admin/naver-ingest/<int:link_id>/refresh"
     },
     "admin.naver_ingest_origin_cleanup_refresh": {
       "mode": "guard",
       "policy_id": "STAFF_MUTATION",
       "rule": "/admin/naver-ingest/origin-cleanup/refresh"
     },
+    "admin.naver_ingest_refresh": {
+      "mode": "guard",
+      "policy_id": "STAFF_MUTATION",
+      "rule": "/admin/naver-ingest/<int:link_id>/refresh"
+    },
     "admin.naver_ingest_refresh_all": {
       "mode": "guard",
       "policy_id": "ADMIN_OPS",
       "rule": "/admin/naver-ingest/refresh-all"
+    },
+    "admin.naver_ingest_repay_reconcile": {
+      "mode": "guard",
+      "policy_id": "STAFF_MUTATION",
+      "rule": "/admin/naver-ingest/<int:link_id>/reconcile"
+    },
+    "admin.naver_ingest_return": {
+      "mode": "guard",
+      "policy_id": "STAFF_MUTATION",
+      "rule": "/admin/naver-ingest/<int:link_id>/return"
     },
     "admin.naver_ingest_run_now": {
       "mode": "guard",
@@ -715,15 +730,15 @@
       "reason": "anonymous RUM/Web-Vitals ingest - 무인증·부작용 없음(ingest policy).",
       "rule": "/api/foms/rum"
     },
-    "kakao.api_alimtalk_send_manual": {
-      "mode": "guard",
-      "policy_id": "STAFF_MUTATION",
-      "rule": "/api/kakao/alimtalk/send-manual/<int:order_id>"
-    },
     "kakao.api_alimtalk_confirm_channel": {
       "mode": "guard",
       "policy_id": "STAFF_MUTATION",
       "rule": "/api/kakao/alimtalk/confirm-channel/<int:order_id>"
+    },
+    "kakao.api_alimtalk_send_manual": {
+      "mode": "guard",
+      "policy_id": "STAFF_MUTATION",
+      "rule": "/api/kakao/alimtalk/send-manual/<int:order_id>"
     },
     "notifications.api_notification_ack": {
       "mode": "guard",
@@ -999,16 +1014,6 @@
       "mode": "guard",
       "policy_id": "WDC_ESTIMATE",
       "rule": "/api/wdcalculator/unmatch-order"
-    },
-    "admin.naver_ingest_ghost_discard": {
-      "mode": "guard",
-      "policy_id": "STAFF_MUTATION",
-      "rule": "/admin/naver-ingest/ghost/<int:order_id>/discard"
-    },
-    "admin.naver_ingest_repay_reconcile": {
-      "mode": "guard",
-      "policy_id": "STAFF_MUTATION",
-      "rule": "/admin/naver-ingest/<int:link_id>/reconcile"
     }
   }
 }
