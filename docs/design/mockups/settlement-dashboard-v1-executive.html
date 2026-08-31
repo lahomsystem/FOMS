@@ -1,0 +1,905 @@
+<!doctype html>
+<html lang="ko">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>정산 대시보드 V1 — 경영진 (목업)</title>
+<style>
+  /* ── 토큰 (naver-ingest-workbench 톤 + dataviz 크롬) ─────────────── */
+  :root {
+    color-scheme: light;
+    --bg: #eef2f7;
+    --surface: #fff;
+    --surface-soft: #f6f8fb;
+    --text: #111827;
+    --muted: #6b7280;
+    --faint: #9aa3af;
+    --line: #dbe1ea;
+    --line-soft: #edf1f6;
+    --grid: #edf1f6;
+    --axis: #d6dce6;
+    --accent: #2a78d6;        /* categorical slot 1 (dataviz 기본 팔레트) */
+    --accent-soft: #eaf2fc;
+    --series-2: #eb6834;      /* categorical slot 2 */
+    --ctx: #8a94a3;           /* 전월 비교 = 강조(emphasis)용 회색 — 시리즈 슬롯 아님 */
+    --meter-track: #cde2fb;   /* 미충족 트랙 = 같은 램프의 밝은 스텝 */
+    --good: #006300;
+    --bad: #b91c1c;
+    --amber: #b45309; --amber-soft: #fdf3e3;
+    --radius: 10px;
+    font-family: Pretendard, -apple-system, BlinkMacSystemFont, "Segoe UI", "Malgun Gothic", sans-serif;
+  }
+  * { box-sizing: border-box; }
+  body { margin: 0; background: var(--bg); color: var(--text); font-size: 13px; }
+  svg text { font-family: inherit; }
+
+  /* ── 상단 스트립: 제목 + 필터 한 줄 (차트 위 단일 필터 행) ───────── */
+  .strip {
+    display: flex; align-items: center; gap: 12px; flex-wrap: wrap;
+    background: var(--surface); border-bottom: 1px solid var(--line);
+    padding: 10px 18px;
+  }
+  .strip .title { font-size: 16px; font-weight: 800; letter-spacing: -0.01em; }
+  .vbadge {
+    background: var(--accent-soft); color: var(--accent);
+    font-size: 11px; font-weight: 800; padding: 2px 9px; border-radius: 999px;
+  }
+  .strip .who { color: var(--muted); font-size: 12px; }
+  .strip .spacer { flex: 1; }
+  .strip .stamp { color: var(--faint); font-size: 11.5px; font-variant-numeric: tabular-nums; }
+  /* ── 필터바 (V3 filterbar 룩의 라이트 번안) ──────────────────── */
+  .filterbar {
+    display: flex; align-items: center; gap: 10px; flex-wrap: wrap;
+    background: var(--surface); border-bottom: 1px solid var(--line);
+    padding: 8px 18px;
+  }
+  .seg { display: inline-flex; background: var(--surface-soft); border: 1px solid var(--line); border-radius: 8px; padding: 2px; }
+  .seg button {
+    border: none; background: none; color: var(--muted); font: inherit; font-size: 12px; font-weight: 700;
+    padding: 5px 14px; border-radius: 6px; cursor: pointer;
+  }
+  .seg button[aria-pressed="true"] { background: var(--accent); color: #fff; }
+  .seg button:not([aria-pressed="true"]):hover { color: var(--text); }
+  .toggle {
+    display: inline-flex; align-items: center; gap: 8px; cursor: pointer;
+    border: 1px solid var(--line); background: var(--surface); border-radius: 8px;
+    padding: 5px 12px; color: var(--muted); font: inherit; font-size: 12px; font-weight: 700;
+  }
+  .toggle .knob {
+    width: 26px; height: 15px; border-radius: 999px; background: #cbd5e1;
+    position: relative; transition: background .15s; flex: none;
+  }
+  .toggle .knob::after {
+    content: ""; position: absolute; top: 2px; left: 2px; width: 11px; height: 11px;
+    border-radius: 50%; background: #fff; box-shadow: 0 1px 2px rgba(16,24,40,.25); transition: left .15s;
+  }
+  .toggle[aria-pressed="true"] { color: var(--text); }
+  .toggle[aria-pressed="true"] .knob { background: var(--accent); }
+  .toggle[aria-pressed="true"] .knob::after { left: 13px; }
+  .toggle[disabled] { opacity: .4; cursor: not-allowed; }
+  .filterbar .fact { color: var(--muted); font-size: 12px; }
+  .filterbar .note { color: var(--faint); font-size: 11.5px; margin-left: auto; }
+
+  /* ── bento 그리드 ─────────────────────────────────────────────── */
+  .grid {
+    display: grid; grid-template-columns: repeat(12, minmax(0, 1fr));
+    gap: 14px; padding: 16px 18px 6px; max-width: 1440px; margin: 0 auto;
+  }
+  .card { background: var(--surface); border: 1px solid var(--line); border-radius: var(--radius); padding: 13px 16px 15px; min-width: 0; }
+  .card-head { display: flex; align-items: baseline; gap: 8px; flex-wrap: wrap; }
+  .card-title { font-size: 13.5px; font-weight: 800; }
+  .card-sub { font-size: 11.5px; color: var(--muted); font-weight: 500; }
+  .card-head .right { margin-left: auto; display: flex; gap: 12px; align-items: center; }
+
+  .badge-soon {
+    border: 1px dashed #d9a44a; color: var(--amber); background: var(--amber-soft);
+    font-size: 10.5px; font-weight: 800; padding: 1px 8px; border-radius: 999px; white-space: nowrap;
+  }
+
+  /* ── KPI 히어로 ──────────────────────────────────────────────── */
+  .kpis { grid-column: 1 / -1; display: grid; grid-template-columns: repeat(5, minmax(0,1fr)); gap: 14px; }
+  .kpi { background: var(--surface); border: 1px solid var(--line); border-radius: var(--radius); padding: 12px 15px 11px; min-width: 0; }
+  /* 전략 D: 지표 가족 틴트 + 상단 액센트 바 (데이터 잉크가 아닌 서피스 층위) */
+  .kpi.fam { border-top: 3px solid var(--fam, var(--line)); background: var(--fam-tint, var(--surface)); }
+  .kpi-label { font-size: 11.5px; font-weight: 700; color: var(--muted); }
+  .kpi-mid { display: flex; align-items: flex-end; justify-content: space-between; gap: 8px; margin-top: 5px; }
+  .kpi-value { font-size: 23px; font-weight: 800; letter-spacing: -0.02em; line-height: 1.1; white-space: nowrap; }
+  .kpi-value i { font-style: normal; font-size: 12px; font-weight: 700; color: var(--muted); margin-left: 1px; }
+  .kpi-spark { flex: none; line-height: 0; }
+  .kpi-delta { margin-top: 6px; font-size: 12px; font-weight: 800; }
+  .kpi-delta span { color: var(--faint); font-weight: 600; margin-left: 3px; }
+  .kpi-delta.good { color: var(--good); }
+  .kpi-delta.bad { color: var(--bad); }
+  .kpi-sub { margin-top: 3px; font-size: 11px; color: var(--faint); white-space: nowrap; overflow: hidden; text-overflow: ellipsis; }
+
+  /* ── 메인 차트 카드 ──────────────────────────────────────────── */
+  #card-main { grid-column: span 8; }
+  .side { grid-column: span 4; display: grid; gap: 14px; align-content: start; }
+  .legend { display: flex; gap: 12px; font-size: 11.5px; color: var(--muted); font-weight: 600; }
+  .legend .lg { display: inline-flex; align-items: center; gap: 5px; }
+  .lg-line { width: 14px; height: 3px; border-radius: 2px; display: inline-block; }
+  .lg-rect { width: 10px; height: 10px; border-radius: 3px; display: inline-block; }
+
+  .goalrow { display: flex; align-items: center; gap: 10px; margin: 10px 0 2px; font-size: 12px; color: var(--muted); flex-wrap: wrap; }
+  .goalrow b { color: var(--text); }
+  .meter { flex: 1; min-width: 90px; height: 8px; border-radius: 999px; background: var(--meter-track); overflow: hidden; }
+  .meter-fill { height: 100%; background: var(--accent); border-radius: 999px; }
+  .goal-pct { font-weight: 800; color: var(--text); font-size: 12.5px; }
+  .goal-note { font-size: 10.5px; color: var(--faint); }
+
+  .chart-host { line-height: 0; }
+  .axis-t { font-size: 10.5px; fill: var(--faint); font-variant-numeric: tabular-nums; }
+  .axis-sub { font-size: 10px; fill: var(--faint); }
+  .cap-t { font-size: 10.5px; font-weight: 700; fill: var(--muted); font-variant-numeric: tabular-nums; }
+  .cgrp path { transition: filter .12s; }
+  .cgrp.on path { filter: brightness(1.12); }
+  .hit:focus, .ghit:focus { outline: 1.5px solid var(--accent); outline-offset: -1.5px; }
+  .hit, .ghit { cursor: crosshair; }
+
+  details.tblv { margin-top: 6px; }
+  details.tblv summary { font-size: 11.5px; color: var(--muted); cursor: pointer; font-weight: 600; }
+  .tblwrap { max-height: 190px; overflow: auto; margin-top: 6px; border: 1px solid var(--line-soft); border-radius: 8px; }
+  table.dt { width: 100%; border-collapse: collapse; font-size: 11.5px; }
+  table.dt th, table.dt td { padding: 4px 10px; border-bottom: 1px solid var(--line-soft); text-align: right; font-variant-numeric: tabular-nums; }
+  table.dt th:first-child, table.dt td:first-child { text-align: left; }
+  table.dt thead th { position: sticky; top: 0; background: var(--surface-soft); color: var(--muted); font-size: 10.5px; }
+
+  /* ── 정산 처리 / 티저 카드 ───────────────────────────────────── */
+  .srow { display: flex; align-items: center; gap: 10px; margin-top: 12px; font-size: 12.5px; }
+  .srow b { font-weight: 800; }
+  .srow .pct { font-weight: 800; font-size: 13px; }
+  .srow-sub { margin-top: 5px; font-size: 11.5px; color: var(--faint); }
+  .fact { display: flex; align-items: baseline; gap: 7px; font-size: 12px; margin-top: 9px; color: var(--muted); }
+  .fact b { color: var(--text); font-weight: 800; }
+  .fdot { width: 7px; height: 7px; border-radius: 50%; flex: none; align-self: center; }
+  .fact .tail { color: var(--faint); font-size: 11px; }
+
+  /* ── row B ───────────────────────────────────────────────────── */
+  #card-aging { grid-column: span 4; }
+  #card-stages { grid-column: span 5; }
+  #card-channel { grid-column: span 3; }
+  .aging-note { display: flex; align-items: center; gap: 7px; margin-top: 8px; font-size: 11.5px; color: var(--muted); }
+  .aging-note .fdot { background: #d03b3b; }
+  .aging-note b { color: var(--text); }
+
+  .stages { margin-top: 12px; display: grid; gap: 7px; }
+  .stage-row { display: grid; grid-template-columns: 58px 1fr; align-items: center; gap: 8px; border-radius: 6px; padding: 1px 4px; }
+  .stage-row:hover { background: var(--surface-soft); }
+  .stage-lbl { font-size: 11.5px; font-weight: 700; color: var(--muted); }
+  .stage-track { display: flex; align-items: center; gap: 7px; min-width: 0; }
+  .stage-bar { height: 15px; border-radius: 0 4px 4px 0; background: var(--accent); flex: none; }
+  .stage-val { font-size: 11px; font-weight: 700; color: var(--text); white-space: nowrap; font-variant-numeric: tabular-nums; }
+  .stage-val span { color: var(--faint); font-weight: 600; }
+
+  .chbar { display: flex; gap: 2px; height: 30px; border-radius: 7px; overflow: hidden; margin-top: 12px; }
+  .chseg { display: flex; align-items: center; justify-content: center; color: #fff; font-weight: 800; font-size: 12px; min-width: 0; }
+  .chlegend { margin-top: 11px; display: grid; gap: 7px; }
+  .chrow { display: flex; align-items: center; gap: 7px; font-size: 12px; color: var(--muted); }
+  .chrow b { color: var(--text); font-weight: 800; }
+  .chrow .sw { width: 10px; height: 10px; border-radius: 3px; flex: none; }
+
+  /* ── 푸터/배지/툴팁 ──────────────────────────────────────────── */
+  .foot { max-width: 1440px; margin: 0 auto; padding: 6px 18px 34px; color: var(--faint); font-size: 11.5px; }
+  .mockup-badge {
+    position: fixed; right: 14px; bottom: 12px; z-index: 60;
+    background: #111827; color: #fff; font-size: 11px; font-weight: 800;
+    padding: 4px 11px; border-radius: 999px; opacity: .88; letter-spacing: .04em;
+  }
+  #tt {
+    position: fixed; z-index: 50; display: none; pointer-events: none;
+    background: var(--surface); border: 1px solid var(--line); border-radius: 8px;
+    box-shadow: 0 6px 20px rgba(16,24,40,.13); padding: 8px 11px; font-size: 12px; min-width: 120px;
+  }
+  .tt-title { color: var(--muted); font-size: 11px; font-weight: 700; margin-bottom: 4px; white-space: nowrap; }
+  .tt-row { display: flex; align-items: center; gap: 6px; margin-top: 3px; white-space: nowrap; }
+  .tt-key { width: 12px; height: 3px; border-radius: 2px; flex: none; }
+  .tt-val { font-weight: 800; font-variant-numeric: tabular-nums; }
+  .tt-lbl { color: var(--muted); }
+
+  /* ── 반응형 ──────────────────────────────────────────────────── */
+  @media (max-width: 1120px) {
+    .kpis { grid-template-columns: repeat(auto-fit, minmax(200px, 1fr)); }
+    #card-main { grid-column: 1 / -1; }
+    .side { grid-column: 1 / -1; grid-template-columns: 1fr 1fr; }
+    #card-aging, #card-stages { grid-column: span 6; }
+    #card-channel { grid-column: 1 / -1; }
+  }
+  @media (max-width: 720px) {
+    .side { grid-template-columns: 1fr; }
+    #card-aging, #card-stages { grid-column: 1 / -1; }
+  }
+</style>
+</head>
+<body>
+
+<!-- ── 헤더 스트립 ─────────────────────────────────────────────── -->
+<div class="strip">
+  <span class="title">정산 대시보드</span>
+  <span class="vbadge">V1 경영진</span>
+  <span class="who">ADMIN·MANAGER 전용 · 매출 인식: 완료일 기준 (완료·AS접수·AS완료)</span>
+  <span class="spacer"></span>
+  <span class="stamp">기준 2026-08-31 09:00</span>
+</div>
+
+<!-- ── 필터바 (V3 룩 라이트 번안): 차트 위 한 줄, 아래 전 카드를 스코프 ── -->
+<nav class="filterbar" aria-label="기간 필터">
+  <div class="seg" role="group" aria-label="기간 단위">
+    <button type="button" data-gran="day" aria-pressed="true">일별</button>
+    <button type="button" data-gran="week" aria-pressed="false">주별</button>
+    <button type="button" data-gran="month" aria-pressed="false">월별</button>
+  </div>
+  <button type="button" class="toggle" id="cmpToggle" aria-pressed="true">전월 비교 <span class="knob" aria-hidden="true"></span></button>
+  <button type="button" class="toggle" id="cumToggle" aria-pressed="false">누적 보기 <span class="knob" aria-hidden="true"></span></button>
+  <span class="fact">2026년 8월 (당월) · 비교 대상 7월</span>
+  <span class="note">모든 카드가 같은 기간 스코프를 따릅니다 · 하단 집계 카드 = 8월</span>
+</nav>
+
+<div class="grid">
+
+  <!-- ── KPI 히어로 5장 ──────────────────────────────────────────── -->
+  <div class="kpis" id="kpis"></div>
+
+  <!-- ── 메인: 일별 출고가 매출 (당월 vs 전월) ───────────────────── -->
+  <div class="card" id="card-main">
+    <div class="card-head">
+      <span class="card-title">출고가 매출 추이</span>
+      <span class="card-sub" id="main-sub">8월 일별 vs 7월 동일자 · 완료일 기준</span>
+      <span class="right"><span class="legend" id="main-legend"></span></span>
+    </div>
+    <div class="goalrow">
+      <span>월 매출 목표 <b>2.3억</b></span>
+      <span class="badge-soon">예정</span>
+      <div class="meter" role="img" aria-label="목표 대비 93.2% 달성"><div class="meter-fill" style="width:93.2%"></div></div>
+      <span class="goal-pct">93.2%</span>
+      <span class="goal-note">목표 입력 기능 기획 중 — 가정치</span>
+    </div>
+    <div class="chart-host" id="main-chart"></div>
+    <details class="tblv">
+      <summary>표로 보기</summary>
+      <div class="tblwrap"><table class="dt" id="main-table"></table></div>
+    </details>
+  </div>
+
+  <!-- ── 우측 스택: 정산 파이프라인 + 현금흐름 티저 ──────────────── -->
+  <div class="side">
+    <div class="card" id="card-settle">
+      <div class="card-head">
+        <span class="card-title">정산 처리 현황</span>
+        <span class="card-sub">8월 완료 152건 기준</span>
+      </div>
+      <div class="srow">
+        <span>청구완료 <b>118건</b></span>
+        <div class="meter" role="img" aria-label="청구완료 77.6%"><div class="meter-fill" style="width:77.6%"></div></div>
+        <span class="pct">77.6%</span>
+      </div>
+      <div class="srow-sub">청구 대기 34건 — 대기분 금액 확정 시 자동 반영</div>
+      <div class="fact"><i class="fdot" style="background:#fab219"></i><span>현금영수증 발행 대기 <b>9건</b></span></div>
+      <div class="fact"><i class="fdot" style="background:#2a78d6"></i><span>AS 유상 확정 <b>6건 · 190만</b></span><span class="tail">무상 18건</span></div>
+      <div class="fact"><i class="fdot" style="background:#9aa3af"></i><span>부서 귀속 차감 계 <b>440만</b></span><span class="tail">시공 185 · 생산 120 · 영업 60 · 고객 40 · 도면 35</span></div>
+    </div>
+    <div class="card" id="card-cash">
+      <div class="card-head">
+        <span class="card-title">현금흐름 30일 예측</span>
+        <span class="badge-soon">예정</span>
+        <span class="card-sub">누적 예상 수금 — 가정치</span>
+      </div>
+      <div class="chart-host" id="cash-chart"></div>
+      <div class="srow-sub">잔금 예정일·과거 수금 패턴 기반 추정 — 기획 중</div>
+    </div>
+  </div>
+
+  <!-- ── 미수금 aging ────────────────────────────────────────────── -->
+  <div class="card" id="card-aging">
+    <div class="card-head">
+      <span class="card-title">미수금 aging</span>
+      <span class="card-sub">잔금 미확인 3,872만 · 27건</span>
+    </div>
+    <div class="chart-host" id="aging-chart"></div>
+    <div class="aging-note"><i class="fdot"></i><span><b>91일 이상 장기 미수 1건 · 150만</b> — 우선 회수 대상</span></div>
+  </div>
+
+  <!-- ── 진행 단계별 물린 금액 ───────────────────────────────────── -->
+  <div class="card" id="card-stages">
+    <div class="card-head">
+      <span class="card-title">진행 단계별 물린 금액</span>
+      <span class="card-sub">완료 전 주문의 출고가 합 — 1억 8,850만 · 131건</span>
+    </div>
+    <div class="stages" id="stages"></div>
+  </div>
+
+  <!-- ── 채널 비중 ───────────────────────────────────────────────── -->
+  <div class="card" id="card-channel">
+    <div class="card-head">
+      <span class="card-title">채널별 매출 비중</span>
+      <span class="card-sub">8월 · 출고가</span>
+    </div>
+    <div class="chbar" id="chbar"></div>
+    <div class="chlegend" id="chlegend"></div>
+  </div>
+
+</div>
+
+<div class="foot">
+  본 화면은 목업입니다 — 모든 수치는 가정치. 출고가 = 품목합 + 배송 − 할인 · 잔금 = 출고가 − 예약금 ·
+  매출 인식: 완료일(schedule.construction.date) 기준 · 정산 대상 상태: COMPLETED · AS_RECEIVED · AS_COMPLETED
+</div>
+
+<div class="mockup-badge">MOCKUP V1</div>
+<div id="tt" role="tooltip"></div>
+
+<script>
+'use strict';
+
+/* ═══════════════ 1. 목업 데이터 (전부 만원 단위 정수) ═══════════════
+   일별 배열 합계는 월계와 정확히 일치: 8월 21,430만 / 7월 19,685만 */
+const AUG_DAILY = [455,309,796,734,824,787,921,499,329,827,831,850,713,901,457,318,844,925,695,828,756,498,301,952,830,838,701,861,453,284,1113]; // 합 21430
+const JUL_DAILY = [583,596,710,387,274,803,758,637,686,602,360,258,834,761,755,658,657,387,227,852,850,702,704,709,367,253,772,928,919,880,816]; // 합 19685
+const MONTHLY = [
+  { label: '3월', v: 17820 }, { label: '4월', v: 18560 }, { label: '5월', v: 17240 },
+  { label: '6월', v: 19030 }, { label: '7월', v: 19685 }, { label: '8월', v: 21430 },
+];
+const WEEK_BUCKETS = [[1,7],[8,14],[15,21],[22,28],[29,31]];
+const WEEK_LABELS = ['1–7일','8–14일','15–21일','22–28일','29–31일'];
+
+const AGING = [ // 합 3,872만 · 27건
+  { label: '7일 이하', v: 1242, n: 9 },
+  { label: '8–30일',  v: 1490, n: 10 },
+  { label: '31–60일', v: 710,  n: 5 },
+  { label: '61–90일', v: 280,  n: 2 },
+  { label: '91일 이상', v: 150, n: 1 },
+];
+const CHANNELS = [ // 합 21,430만 · 152건
+  { label: '일반',   v: 15220, n: 98, pct: 71, color: '#2a78d6' },
+  { label: '네이버', v: 6210,  n: 54, pct: 29, color: '#eb6834' },
+];
+const STAGES = [ // 완료 전 잔여 — 합 1억 8,850만 · 131건
+  { label: '접수',   v: 1840, n: 14 },
+  { label: '해피콜', v: 1210, n: 9 },
+  { label: '실측',   v: 2460, n: 17 },
+  { label: '도면',   v: 3120, n: 21 },
+  { label: '컨펌',   v: 2870, n: 18 },
+  { label: '생산',   v: 4250, n: 26 },
+  { label: '시공',   v: 2290, n: 15 },
+  { label: 'CS',    v: 810,  n: 11 },
+];
+const CASH30 = [0,1400,3300,5600,7600,9500,11800,13600,15900,17900,19800]; // 0=오늘, 3일 간격 누적
+const KPIS = [
+  { label: '당월 매출', value: '2억 1,430만', unit: '원', delta: { arrow: '▲', text: '+8.9%', good: true, vs: 'vs 7월' },
+    sub: '완료일 기준 · 152건', fam: 'rev', spark: [4390,4610,4520,4780,4470,4655,4700,4860,4420,4980,5140,5310] },
+  { label: '미수금 잔액', value: '3,872만', unit: '원', delta: { arrow: '▼', text: '−6.0%', good: true, vs: 'vs 7월 말' },
+    sub: '27건 · 잔금 입금 미확인', fam: 'ar', spark: [4470,4390,4520,4310,4260,4180,4120,4390,4210,4050,3980,3872] },
+  { label: '완료 건수', value: '152', unit: '건', delta: { arrow: '▲', text: '+7.8%', good: true, vs: 'vs 7월 141건' },
+    sub: '완료 · AS접수 · AS완료', fam: 'vol', spark: [31,33,32,35,33,34,35,36,33,37,38,39] },
+  { label: '평균 출고가', value: '141.0만', unit: '원', delta: { arrow: '▲', text: '+1.0%', good: true, vs: 'vs 7월 139.6만' },
+    sub: '출고가 = 품목합 + 배송 − 할인', fam: 'rev', spark: [136,141,138,143,139,137,140,142,138,141,143,141] },
+  { label: '당월 수금', value: '2억 640만', unit: '원', delta: { arrow: '▲', text: '+5.3%', good: true, vs: 'vs 7월' },
+    sub: '예약금 6,410만 · 잔금 1억 4,230만', fam: 'col', spark: [4200,4350,4290,4510,4400,4480,4560,4720,4390,4810,4950,5120] },
+];
+
+/* ── 색 사전 (전략 B: 색은 값이 아니라 지표 가족을 따라간다 — 정본: settlement-color-study.html) ── */
+const ACCENT = '#2a78d6';                                                 // 매출 가족 (slot-1)
+const CTX = '#8a94a3';                                                    // 전월 비교 = 강조용 그레이 (유지)
+const AQUA = '#1baf7a';                                                   // 수금 가족 (slot-3, 2.82:1 relief — 값 라벨 병기)
+const BLUE_BUCKET4 = ['#86b6ef','#5598e7','#2a78d6','#104281'];           // 매출 금액구간 램프 (사용자 명시 선택)
+const BUCKET_EDGES = [450, 700, 900];
+const BUCKET_LABELS = ['~449만','450~699만','700~899만','900만~'];
+const ORANGE_RAMP5 = ['#f19979','#eb6834','#c74b12','#9f3701','#752600']; // 미수 가족 aging ordinal 램프 (slot-2 hue)
+const FAM = { rev: '#2a78d6', ar: '#eb6834', col: '#1baf7a', vol: '#6b7280' };      // 지표 가족 → 색
+const FAM_TINT = { rev: '#f1f6fd', ar: '#fdf3ed', col: '#eefaf5', vol: '#f4f6f8' }; // 표면 틴트 (전략 D)
+const DOW = ['일','월','화','수','목','금','토'];
+function bucketColor(v){
+  for (let i = 0; i < BUCKET_EDGES.length; i++){ if (v < BUCKET_EDGES[i]) return BLUE_BUCKET4[i]; }
+  return BLUE_BUCKET4[BLUE_BUCKET4.length - 1];
+}
+
+/* ═══════════════ 2. 헬퍼 ═══════════════ */
+const $ = (sel) => document.querySelector(sel);
+
+function fmtMan(v){ // 만원 → "2억 1,430만" / "838만"
+  v = Math.round(v);
+  if (v >= 10000){
+    const eok = Math.floor(v / 10000), man = v % 10000;
+    return man ? eok + '억 ' + man.toLocaleString('ko-KR') + '만' : eok + '억';
+  }
+  return v.toLocaleString('ko-KR') + '만';
+}
+function fmtTick(v){
+  if (v === 0) return '0';
+  if (v >= 10000){ const e = v / 10000; return (Number.isInteger(e) ? e : e.toFixed(1)) + '억'; }
+  return v.toLocaleString('ko-KR') + '만';
+}
+function niceScale(maxV, tickCount){
+  tickCount = tickCount || 5;
+  const rough = maxV / tickCount;
+  const mag = Math.pow(10, Math.floor(Math.log10(rough)));
+  let step = mag * 10;
+  for (const m of [1, 2, 2.5, 5, 10]){ if (maxV / (m * mag) <= tickCount){ step = m * mag; break; } }
+  const top = Math.ceil(maxV / step) * step;
+  const ticks = []; for (let v = 0; v <= top + 1e-9; v += step) ticks.push(Math.round(v));
+  return { top, ticks };
+}
+function cumsum(arr){ let s = 0; return arr.map(v => (s += v)); }
+function sumRange(arr, a, b){ let s = 0; for (let i = a - 1; i < b; i++) s += arr[i]; return s; }
+function roundTopRect(x, y, w, h, r){
+  r = Math.min(r, w / 2, h);
+  return 'M' + x + ',' + (y + h) + ' L' + x + ',' + (y + r) +
+    ' Q' + x + ',' + y + ' ' + (x + r) + ',' + y +
+    ' L' + (x + w - r) + ',' + y +
+    ' Q' + (x + w) + ',' + y + ' ' + (x + w) + ',' + (y + r) +
+    ' L' + (x + w) + ',' + (y + h) + ' Z';
+}
+
+/* ── 툴팁 (라벨은 전부 textContent — innerHTML 미사용) ── */
+const tt = document.getElementById('tt');
+function showTip(x, y, title, rows){
+  tt.textContent = '';
+  const t = document.createElement('div'); t.className = 'tt-title'; t.textContent = title; tt.appendChild(t);
+  rows.forEach(r => {
+    const row = document.createElement('div'); row.className = 'tt-row';
+    if (r.color){ const k = document.createElement('i'); k.className = 'tt-key'; k.style.background = r.color; row.appendChild(k); }
+    const v = document.createElement('span'); v.className = 'tt-val'; v.textContent = r.val; row.appendChild(v);
+    if (r.lbl){ const l = document.createElement('span'); l.className = 'tt-lbl'; l.textContent = r.lbl; row.appendChild(l); }
+    tt.appendChild(row);
+  });
+  tt.style.display = 'block';
+  const r = tt.getBoundingClientRect();
+  let px = x + 14, py = y + 16;
+  if (px + r.width > innerWidth - 8) px = x - r.width - 12;
+  if (py + r.height > innerHeight - 8) py = y - r.height - 12;
+  tt.style.left = px + 'px'; tt.style.top = py + 'px';
+}
+function hideTip(){ tt.style.display = 'none'; }
+
+/* ═══════════════ 3. 차트 렌더러 (데이터 배열 → SVG, 좌표 하드코딩 없음) ═══════════════ */
+
+/* 라인 차트: crosshair 스냅 + 전 시리즈 툴팁 + 키보드(←→) */
+function lineChart(host, cfg){
+  const w = host.clientWidth || 640, h = cfg.height;
+  const pad = { t: 16, r: 16, b: 28, l: 48 };
+  const pw = w - pad.l - pad.r, ph = h - pad.t - pad.b;
+  const n = cfg.series[0].values.length;
+  const maxV = Math.max.apply(null, cfg.series.flatMap(s => s.values));
+  const sc = niceScale(maxV, cfg.tickCount || 5);
+  const X = i => pad.l + (n === 1 ? pw / 2 : i * pw / (n - 1));
+  const Y = v => pad.t + ph - v / sc.top * ph;
+
+  let s = '<svg width="' + w + '" height="' + h + '" role="img" aria-label="' + (cfg.aria || '') + '">';
+  sc.ticks.forEach(tv => {
+    s += '<line x1="' + pad.l + '" x2="' + (w - pad.r) + '" y1="' + Y(tv) + '" y2="' + Y(tv) +
+      '" stroke="' + (tv === 0 ? 'var(--axis)' : 'var(--grid)') + '" stroke-width="1"/>';
+    if (tv > 0) s += '<text class="axis-t" x="' + (pad.l - 6) + '" y="' + (Y(tv) + 3.5) + '" text-anchor="end">' + fmtTick(tv) + '</text>';
+  });
+  for (let i = 0; i < n; i++){
+    if (cfg.xTick(i)) s += '<text class="axis-t" x="' + X(i) + '" y="' + (h - 8) + '" text-anchor="middle">' + cfg.xLabel(i) + '</text>';
+  }
+  cfg.series.forEach(ser => {
+    if (ser.area){
+      let d = 'M' + X(0) + ',' + Y(ser.values[0]);
+      ser.values.forEach((v, i) => { d += ' L' + X(i).toFixed(1) + ',' + Y(v).toFixed(1); });
+      d += ' L' + X(n - 1) + ',' + Y(0) + ' L' + X(0) + ',' + Y(0) + ' Z';
+      s += '<path d="' + d + '" fill="' + ser.color + '" opacity="0.1"/>';
+    }
+    const pts = ser.values.map((v, i) => X(i).toFixed(1) + ',' + Y(v).toFixed(1)).join(' ');
+    s += '<polyline points="' + pts + '" fill="none" stroke="' + ser.color + '" stroke-width="2" stroke-linejoin="round" stroke-linecap="round"' +
+      (ser.dash ? ' stroke-dasharray="6 5"' : '') + '/>';
+    if (ser.endDot){
+      s += '<circle cx="' + X(n - 1) + '" cy="' + Y(ser.values[n - 1]) + '" r="4.5" fill="' + ser.color + '" stroke="var(--surface)" stroke-width="2"/>';
+    }
+    if (ser.endLabel){ // 종점 직접 라벨 (텍스트 토큰 색 — relief 채널)
+      s += '<text class="cap-t" x="' + (X(n - 1) - 9) + '" y="' + (Y(ser.values[n - 1]) - 9) + '" text-anchor="end">' + ser.endLabel + '</text>';
+    }
+  });
+  s += '<line class="cross" x1="0" x2="0" y1="' + pad.t + '" y2="' + (pad.t + ph) + '" stroke="#b9c4d4" stroke-width="1" style="display:none"/>';
+  s += '<rect class="hit" x="' + pad.l + '" y="' + pad.t + '" width="' + pw + '" height="' + ph + '" fill="transparent" tabindex="0" aria-label="차트 값 탐색 — 좌우 화살표 키"/>';
+  s += '</svg>';
+  host.innerHTML = s;
+
+  const svg = host.firstElementChild;
+  const cross = svg.querySelector('.cross');
+  const hit = svg.querySelector('.hit');
+  function activate(i, cx, cy){
+    cross.setAttribute('x1', X(i)); cross.setAttribute('x2', X(i)); cross.style.display = '';
+    showTip(cx, cy, cfg.tipTitle(i), cfg.tipRows(i));
+  }
+  function deactivate(){ cross.style.display = 'none'; hideTip(); }
+  hit.addEventListener('pointermove', e => {
+    const r = svg.getBoundingClientRect();
+    const i = Math.max(0, Math.min(n - 1, Math.round((e.clientX - r.left - pad.l) / (pw / (n - 1)))));
+    activate(i, e.clientX, e.clientY);
+  });
+  hit.addEventListener('pointerleave', deactivate);
+  let fi = n - 1;
+  hit.addEventListener('focus', () => { const r = svg.getBoundingClientRect(); activate(fi, r.left + X(fi), r.top + pad.t + 40); });
+  hit.addEventListener('blur', deactivate);
+  hit.addEventListener('keydown', e => {
+    if (e.key === 'ArrowLeft') fi = Math.max(0, fi - 1);
+    else if (e.key === 'ArrowRight') fi = Math.min(n - 1, fi + 1);
+    else return;
+    e.preventDefault();
+    const r = svg.getBoundingClientRect(); activate(fi, r.left + X(fi), r.top + pad.t + 40);
+  });
+}
+
+/* 컬럼 차트: 그룹 단위 hit 영역(≥밴드폭), hover 리프트 + 툴팁 + 포커스
+   cfg.line = { color, values } 로 동일 축·동일 단위의 비교 라인 오버레이 지원 (이중 y축 아님) */
+function columnChart(host, cfg){
+  const w = host.clientWidth || 400, h = cfg.height;
+  const pad = { t: cfg.caps ? 26 : 16, r: 10, b: cfg.twoLineX ? 40 : 28, l: 48 };
+  const pw = w - pad.l - pad.r, ph = h - pad.t - pad.b;
+  const g = cfg.groups.length;
+  const band = pw / g;
+  const barMax = Math.max.apply(null, cfg.groups.flatMap(gr => gr.bars.map(b => b.v)));
+  const lineMax = cfg.line ? Math.max.apply(null, cfg.line.values) : 0;
+  const sc = niceScale(Math.max(barMax, lineMax), cfg.tickCount || 4);
+  const Y = v => pad.t + ph - v / sc.top * ph;
+  const centerX = gi => pad.l + gi * band + band / 2;
+
+  let s = '<svg width="' + w + '" height="' + h + '" role="img" aria-label="' + (cfg.aria || '') + '">';
+  sc.ticks.forEach(tv => {
+    s += '<line x1="' + pad.l + '" x2="' + (w - pad.r) + '" y1="' + Y(tv) + '" y2="' + Y(tv) +
+      '" stroke="' + (tv === 0 ? 'var(--axis)' : 'var(--grid)') + '" stroke-width="1"/>';
+    if (tv > 0) s += '<text class="axis-t" x="' + (pad.l - 6) + '" y="' + (Y(tv) + 3.5) + '" text-anchor="end">' + fmtTick(tv) + '</text>';
+  });
+  cfg.groups.forEach((gr, gi) => {
+    const nb = gr.bars.length;
+    const inset = Math.min(12, band * 0.25); // 밴드가 좁아도(일별 31개) 인접 막대 갭 ≥2px 보장
+    const bw = Math.min(24, (band - inset - (nb - 1) * 2) / nb);
+    const total = nb * bw + (nb - 1) * 2;
+    const x0 = pad.l + gi * band + (band - total) / 2;
+    const cx = centerX(gi);
+    s += '<g class="cgrp">';
+    gr.bars.forEach((b, bi) => {
+      const bx = x0 + bi * (bw + 2);
+      const bh = Math.max(1.5, b.v / sc.top * ph);
+      s += '<path d="' + roundTopRect(bx, pad.t + ph - bh, bw, bh, 4) + '" fill="' + b.color + '"/>';
+      if (b.cap) s += '<text class="cap-t" x="' + (bx + bw / 2) + '" y="' + (pad.t + ph - bh - 6) + '" text-anchor="middle">' + b.cap + '</text>';
+    });
+    if (gr.label) s += '<text class="axis-t" x="' + cx + '" y="' + (h - (cfg.twoLineX ? 20 : 8)) + '" text-anchor="middle">' + gr.label + '</text>';
+    if (cfg.twoLineX && gr.sub) s += '<text class="axis-sub" x="' + cx + '" y="' + (h - 7) + '" text-anchor="middle">' + gr.sub + '</text>';
+    s += '</g>';
+  });
+  if (cfg.line){
+    const pts = cfg.line.values.map((v, i) => centerX(i).toFixed(1) + ',' + Y(v).toFixed(1)).join(' ');
+    s += '<polyline points="' + pts + '" fill="none" stroke="' + cfg.line.color +
+      '" stroke-width="2" stroke-linejoin="round" stroke-linecap="round"/>';
+  }
+  cfg.groups.forEach((gr, gi) => { // hit 레이어는 라인 위 — 밴드 전체가 타깃
+    s += '<rect class="ghit" x="' + (pad.l + gi * band) + '" y="' + pad.t + '" width="' + band + '" height="' + ph + '" fill="transparent" tabindex="0"/>';
+  });
+  s += '</svg>';
+  host.innerHTML = s;
+
+  const grps = host.querySelectorAll('.cgrp');
+  host.querySelectorAll('.ghit').forEach((hit, gi) => {
+    const grp = grps[gi];
+    const on = (x, y) => { grp.classList.add('on'); showTip(x, y, cfg.tipTitle(gi), cfg.tipRows(gi)); };
+    const off = () => { grp.classList.remove('on'); hideTip(); };
+    hit.addEventListener('pointermove', e => on(e.clientX, e.clientY));
+    hit.addEventListener('pointerleave', off);
+    hit.addEventListener('focus', () => { const r = hit.getBoundingClientRect(); on(r.left + r.width / 2, r.top + 30); });
+    hit.addEventListener('blur', off);
+  });
+}
+
+/* 스파크라인: 12포인트, 회색 추세 + 현재 구간 강조 (accent = 지표 가족색) */
+function sparkSvg(values, accent){
+  const w = 92, h = 30, p = 3;
+  const min = Math.min.apply(null, values), max = Math.max.apply(null, values);
+  const span = (max - min) || 1;
+  const n = values.length;
+  const X = i => p + i * (w - 2 * p) / (n - 1);
+  const Y = v => h - p - (v - min) / span * (h - 2 * p);
+  const pts = values.map((v, i) => X(i).toFixed(1) + ',' + Y(v).toFixed(1)).join(' ');
+  const lastPts = [n - 2, n - 1].map(i => X(i).toFixed(1) + ',' + Y(values[i]).toFixed(1)).join(' ');
+  return '<svg width="' + w + '" height="' + h + '" aria-hidden="true">' +
+    '<polyline points="' + pts + '" fill="none" stroke="#c3cad4" stroke-width="1.5" stroke-linejoin="round" stroke-linecap="round"/>' +
+    '<polyline points="' + lastPts + '" fill="none" stroke="' + accent + '" stroke-width="2" stroke-linecap="round"/>' +
+    '<circle cx="' + X(n - 1) + '" cy="' + Y(values[n - 1]) + '" r="3" fill="' + accent + '" stroke="var(--surface)" stroke-width="1.5"/>' +
+    '</svg>';
+}
+
+/* ═══════════════ 4. 섹션 렌더 ═══════════════ */
+
+function renderKpis(){
+  const wrap = document.getElementById('kpis');
+  wrap.textContent = '';
+  KPIS.forEach(k => {
+    const tile = document.createElement('div'); tile.className = 'kpi fam'; // 전략 D: 가족 틴트 + 액센트 바
+    tile.style.setProperty('--fam', FAM[k.fam]);
+    tile.style.setProperty('--fam-tint', FAM_TINT[k.fam]);
+    const lb = document.createElement('div'); lb.className = 'kpi-label'; lb.textContent = k.label; tile.appendChild(lb);
+    const mid = document.createElement('div'); mid.className = 'kpi-mid';
+    const val = document.createElement('span'); val.className = 'kpi-value'; val.textContent = k.value;
+    const unit = document.createElement('i'); unit.textContent = k.unit; val.appendChild(unit);
+    mid.appendChild(val);
+    const sp = document.createElement('span'); sp.className = 'kpi-spark'; sp.innerHTML = sparkSvg(k.spark, FAM[k.fam]);
+    mid.appendChild(sp); tile.appendChild(mid);
+    const dl = document.createElement('div'); dl.className = 'kpi-delta ' + (k.delta.good ? 'good' : 'bad');
+    dl.textContent = k.delta.arrow + ' ' + k.delta.text;
+    const vs = document.createElement('span'); vs.textContent = k.delta.vs; dl.appendChild(vs);
+    tile.appendChild(dl);
+    const sub = document.createElement('div'); sub.className = 'kpi-sub'; sub.textContent = k.sub; tile.appendChild(sub);
+    wrap.appendChild(tile);
+  });
+}
+
+/* 메인 차트 상태 + 렌더 (일/주/월 실동작 재집계, cmp=전월 비교, cum=누적) */
+const state = { gran: 'day', cum: false, cmp: true };
+
+function renderLegend(mode){
+  const lg = document.getElementById('main-legend');
+  lg.textContent = '';
+  if (mode === 'none') return;
+  const mk = (color, label, keyCls) => {
+    const spn = document.createElement('span'); spn.className = 'lg';
+    const key = document.createElement('i'); key.className = keyCls; key.style.background = color;
+    spn.appendChild(key); spn.appendChild(document.createTextNode(label));
+    return spn;
+  };
+  // 범례 키는 마크를 그대로 반영: 막대=사각 스와치, 라인=선 키
+  if (mode === 'bucket' || mode === 'bucketcmp'){
+    // 금액구간 램프 범례 (사용자 명시 선택 — 구간 경계 병기)
+    BUCKET_LABELS.forEach((lb, i) => lg.appendChild(mk(BLUE_BUCKET4[i], lb, 'lg-rect')));
+    if (mode === 'bucketcmp') lg.appendChild(mk(CTX, '7월(전월)', 'lg-line'));
+    return;
+  }
+  lg.appendChild(mk(ACCENT, '8월(당월)', mode === 'line' ? 'lg-line' : 'lg-rect'));
+  lg.appendChild(mk(CTX, '7월(전월)', 'lg-line'));
+}
+
+function renderMainTable(gran, cmp){
+  const table = document.getElementById('main-table');
+  table.textContent = '';
+  const thead = document.createElement('thead');
+  const tbody = document.createElement('tbody');
+  const headRow = document.createElement('tr');
+  const addTh = t => { const th = document.createElement('th'); th.textContent = t; headRow.appendChild(th); };
+  const addRow = cells => {
+    const tr = document.createElement('tr');
+    cells.forEach(c => { const td = document.createElement('td'); td.textContent = c; tr.appendChild(td); });
+    tbody.appendChild(tr);
+  };
+  if (gran === 'day'){
+    (cmp ? ['일자', '8월 (만원)', '7월 (만원)'] : ['일자', '8월 (만원)']).forEach(addTh);
+    for (let i = 0; i < 31; i++){
+      const cells = [(i + 1) + '일', AUG_DAILY[i].toLocaleString('ko-KR')];
+      if (cmp) cells.push(JUL_DAILY[i].toLocaleString('ko-KR'));
+      addRow(cells);
+    }
+  } else if (gran === 'week'){
+    (cmp ? ['주차', '8월 (만원)', '7월 (만원)'] : ['주차', '8월 (만원)']).forEach(addTh);
+    WEEK_BUCKETS.forEach((b, i) => {
+      const cells = [WEEK_LABELS[i], sumRange(AUG_DAILY, b[0], b[1]).toLocaleString('ko-KR')];
+      if (cmp) cells.push(sumRange(JUL_DAILY, b[0], b[1]).toLocaleString('ko-KR'));
+      addRow(cells);
+    });
+  } else {
+    ['월', '매출 (만원)'].forEach(addTh);
+    MONTHLY.forEach(m => addRow([m.label, m.v.toLocaleString('ko-KR')]));
+  }
+  thead.appendChild(headRow); table.appendChild(thead); table.appendChild(tbody);
+}
+
+function renderMainChart(){
+  const host = document.getElementById('main-chart');
+  const sub = document.getElementById('main-sub');
+  const cmp = state.cmp && state.gran !== 'month';
+  if (state.gran === 'day' && state.cum){
+    // 누적 = 영역 라인차트 유지 (순증=막대, 누적=영역)
+    const augV = cumsum(AUG_DAILY), julV = cumsum(JUL_DAILY);
+    sub.textContent = cmp ? '8월 누적 vs 7월 누적 · 완료일 기준' : '8월 누적 · 완료일 기준';
+    renderLegend(cmp ? 'line' : 'none');
+    const series = [];
+    if (cmp) series.push({ color: CTX, values: julV });
+    series.push({ color: ACCENT, values: augV, endDot: true, area: true });
+    lineChart(host, {
+      height: 268, aria: '누적 출고가 매출' + (cmp ? ' — 8월과 7월 비교' : ''), series,
+      xLabel: i => (i + 1) + '일',
+      xTick: i => i % 5 === 0 || i === 30,
+      tipTitle: i => '8월 ' + (i + 1) + '일 (' + DOW[new Date(2026, 7, i + 1).getDay()] + ') · 누적',
+      tipRows: i => {
+        const rows = [{ color: ACCENT, val: fmtMan(augV[i]), lbl: '8월' }];
+        if (cmp) rows.push({ color: CTX, val: fmtMan(julV[i]), lbl: '7월 동일자' });
+        return rows;
+      },
+    });
+  } else if (state.gran === 'day'){
+    // 순증 = 8월 막대(금액구간 파랑 램프 — 사용자 명시 선택, 단일 hue) + 7월 회색 라인 (동일 축·동일 단위)
+    sub.textContent = cmp ? '8월 일별(막대) vs 7월 동일자(라인) · 완료일 기준' : '8월 일별 · 완료일 기준';
+    renderLegend(cmp ? 'bucketcmp' : 'bucket');
+    const groups = AUG_DAILY.map((v, i) => ({
+      label: (i % 5 === 0 || i === 30) ? (i + 1) + '일' : '',
+      bars: [{ name: '8월', color: bucketColor(v), v }],
+    }));
+    columnChart(host, {
+      height: 268, aria: '일별 출고가 매출 — 8월 막대(금액구간 램프), 7월 라인', groups,
+      line: cmp ? { color: CTX, values: JUL_DAILY } : null,
+      tipTitle: gi => '8월 ' + (gi + 1) + '일 (' + DOW[new Date(2026, 7, gi + 1).getDay()] + ')',
+      tipRows: gi => {
+        const rows = [{ color: bucketColor(AUG_DAILY[gi]), val: fmtMan(AUG_DAILY[gi]), lbl: '8월' }];
+        if (cmp) rows.push({ color: CTX, val: fmtMan(JUL_DAILY[gi]), lbl: '7월 동일자' });
+        return rows;
+      },
+    });
+  } else if (state.gran === 'week'){
+    sub.textContent = cmp ? '8월 주차별(막대) vs 7월 동주차(라인) · 완료일 기준' : '8월 주차별 · 완료일 기준';
+    renderLegend(cmp ? 'barline' : 'none');
+    const groups = WEEK_BUCKETS.map((b, i) => {
+      const a = sumRange(AUG_DAILY, b[0], b[1]), j = sumRange(JUL_DAILY, b[0], b[1]);
+      return { label: WEEK_LABELS[i], a, j, bars: [
+        { name: '8월', color: ACCENT, v: a, cap: fmtMan(a) },
+      ]};
+    });
+    columnChart(host, {
+      height: 268, caps: true, aria: '주차별 출고가 매출 — 8월 막대' + (cmp ? ', 7월 라인' : ''), groups,
+      line: cmp ? { color: CTX, values: groups.map(g => g.j) } : null,
+      tipTitle: gi => '8월 ' + WEEK_LABELS[gi] + (cmp ? ' (7월 동주차 비교)' : ''),
+      tipRows: gi => {
+        const g = groups[gi];
+        const rows = [{ color: ACCENT, val: fmtMan(g.a), lbl: '8월' }];
+        if (cmp){
+          const pct = ((g.a / g.j - 1) * 100).toFixed(1);
+          rows.push({ color: CTX, val: fmtMan(g.j), lbl: '7월' });
+          rows.push({ val: (pct >= 0 ? '+' : '') + pct + '%', lbl: '증감' });
+        }
+        return rows;
+      },
+    });
+  } else {
+    sub.textContent = '최근 6개월 · 완료일 기준';
+    renderLegend('none');
+    const groups = MONTHLY.map(m => ({ label: m.label, bars: [{ name: m.label, color: ACCENT, v: m.v, cap: fmtTick(m.v) }] }));
+    columnChart(host, {
+      height: 268, caps: true, aria: '월별 출고가 매출 — 최근 6개월', groups,
+      tipTitle: gi => '2026년 ' + MONTHLY[gi].label,
+      tipRows: gi => {
+        const rows = [{ color: ACCENT, val: fmtMan(MONTHLY[gi].v), lbl: '매출' }];
+        if (gi > 0){
+          const pct = ((MONTHLY[gi].v / MONTHLY[gi - 1].v - 1) * 100).toFixed(1);
+          rows.push({ val: (pct >= 0 ? '+' : '') + pct + '%', lbl: '전월 대비' });
+        }
+        return rows;
+      },
+    });
+  }
+  renderMainTable(state.gran, cmp);
+}
+
+function renderAging(){
+  // 미수 가족 = 주황 ordinal 램프 (경과일 버킷이 의미 단위 — 오래될수록 진하게)
+  const groups = AGING.map((b, i) => ({
+    label: b.label, sub: b.n + '건',
+    bars: [{ name: b.label, color: ORANGE_RAMP5[i], v: b.v, cap: b.v.toLocaleString('ko-KR') }],
+  }));
+  columnChart(document.getElementById('aging-chart'), {
+    height: 208, caps: true, twoLineX: true, tickCount: 3,
+    aria: '미수금 aging 5구간 — 주황 램프', groups,
+    tipTitle: gi => '경과 ' + AGING[gi].label,
+    tipRows: gi => [
+      { color: ORANGE_RAMP5[gi], val: fmtMan(AGING[gi].v), lbl: '미수 잔금' },
+      { val: AGING[gi].n + '건', lbl: '주문 수' },
+    ],
+  });
+}
+
+function renderStages(){
+  const wrap = document.getElementById('stages');
+  wrap.textContent = '';
+  const maxV = Math.max.apply(null, STAGES.map(s => s.v));
+  STAGES.forEach(st => {
+    const row = document.createElement('div'); row.className = 'stage-row';
+    const lb = document.createElement('span'); lb.className = 'stage-lbl'; lb.textContent = st.label; row.appendChild(lb);
+    const track = document.createElement('div'); track.className = 'stage-track';
+    const bar = document.createElement('div'); bar.className = 'stage-bar'; bar.style.width = (st.v / maxV * 62) + '%';
+    track.appendChild(bar);
+    const val = document.createElement('span'); val.className = 'stage-val'; val.textContent = fmtMan(st.v) + ' ';
+    const nn = document.createElement('span'); nn.textContent = '· ' + st.n + '건'; val.appendChild(nn);
+    track.appendChild(val); row.appendChild(track);
+    row.addEventListener('pointermove', e => showTip(e.clientX, e.clientY, st.label + ' 단계', [
+      { color: ACCENT, val: fmtMan(st.v), lbl: '물린 금액' },
+      { val: st.n + '건', lbl: '진행 주문' },
+      { val: fmtMan(Math.round(st.v / st.n)), lbl: '건당 평균' },
+    ]));
+    row.addEventListener('pointerleave', hideTip);
+    wrap.appendChild(row);
+  });
+}
+
+function renderChannel(){
+  const bar = document.getElementById('chbar');
+  const legend = document.getElementById('chlegend');
+  bar.textContent = ''; legend.textContent = '';
+  CHANNELS.forEach(ch => {
+    const seg = document.createElement('div'); seg.className = 'chseg';
+    seg.style.width = ch.pct + '%'; seg.style.background = ch.color;
+    seg.textContent = ch.pct + '%';
+    seg.addEventListener('pointermove', e => showTip(e.clientX, e.clientY, ch.label + ' 채널', [
+      { color: ch.color, val: fmtMan(ch.v), lbl: '매출' },
+      { val: ch.n + '건', lbl: '완료 주문' },
+      { val: ch.pct + '%', lbl: '비중' },
+    ]));
+    seg.addEventListener('pointerleave', hideTip);
+    bar.appendChild(seg);
+    const row = document.createElement('div'); row.className = 'chrow';
+    const sw = document.createElement('i'); sw.className = 'sw'; sw.style.background = ch.color; row.appendChild(sw);
+    const nm = document.createElement('b'); nm.textContent = ch.label; row.appendChild(nm);
+    row.appendChild(document.createTextNode(fmtMan(ch.v) + ' · ' + ch.n + '건 · ' + ch.pct + '%'));
+    legend.appendChild(row);
+  });
+}
+
+function renderCash(){
+  // 수금 가족 = 아쿠아 (2.82:1 relief — 종점 직접 라벨 병기)
+  const n = CASH30.length;
+  lineChart(document.getElementById('cash-chart'), {
+    height: 150, tickCount: 3, aria: '향후 30일 누적 예상 수금 (예정 기능)',
+    series: [{ color: AQUA, values: CASH30, dash: true, area: true, endDot: true, endLabel: fmtMan(CASH30[n - 1]) }],
+    xLabel: i => i === 0 ? '오늘' : '9/' + (i * 3),
+    xTick: i => i === 0 || i === 4 || i === 7 || i === n - 1,
+    tipTitle: i => i === 0 ? '오늘 (8/31)' : '9월 ' + (i * 3) + '일까지',
+    tipRows: i => [{ color: ACCENT, val: fmtMan(CASH30[i]), lbl: '누적 예상 수금' }],
+  });
+}
+
+/* ═══════════════ 5. 필터바 배선 (일/주/월 + 전월 비교 + 누적 — 실동작) ═══════════════ */
+const granSeg = document.querySelector('.filterbar .seg');
+const cmpToggle = document.getElementById('cmpToggle');
+const cumToggle = document.getElementById('cumToggle');
+
+function syncToggles(){
+  granSeg.querySelectorAll('button').forEach(b => b.setAttribute('aria-pressed', String(b.dataset.gran === state.gran)));
+  const cumAllowed = state.gran === 'day';
+  if (!cumAllowed) state.cum = false;
+  cumToggle.disabled = !cumAllowed;
+  cumToggle.setAttribute('aria-pressed', String(state.cum));
+  const cmpAllowed = state.gran !== 'month'; // 월 모드는 최근 6개월 단일 시리즈 — 비교 토글 비활성
+  cmpToggle.disabled = !cmpAllowed;
+  cmpToggle.setAttribute('aria-pressed', String(cmpAllowed && state.cmp));
+}
+granSeg.addEventListener('click', e => {
+  const b = e.target.closest('button'); if (!b) return;
+  state.gran = b.dataset.gran;
+  syncToggles(); renderMainChart();
+});
+cmpToggle.addEventListener('click', () => {
+  if (cmpToggle.disabled) return;
+  state.cmp = !state.cmp;
+  syncToggles(); renderMainChart();
+});
+cumToggle.addEventListener('click', () => {
+  if (cumToggle.disabled) return;
+  state.cum = !state.cum;
+  syncToggles(); renderMainChart();
+});
+
+/* ═══════════════ 6. 부트 + 리사이즈 ═══════════════ */
+function renderAll(){
+  renderKpis(); renderMainChart(); renderAging(); renderStages(); renderChannel(); renderCash();
+}
+let rzTimer = null;
+addEventListener('resize', () => { clearTimeout(rzTimer); rzTimer = setTimeout(renderAll, 150); });
+renderAll();
+syncToggles();
+</script>
+
+<!--
+  ═══ 팔레트 검증 기록 (dataviz validate_palette.js, node v24.19.0, 2026-08-31 — 색 전략 정본: settlement-color-study.html / color_study.md) ═══
+  1) 카테고리(채널 2슬롯): "#2a78d6,#eb6834" ==>mode light ==>surface "#ffffff"
+     → ALL CHECKS PASS, exit 0 (worst adjacent CVD ΔE 24.7 / normal-vision 33.6 / contrast ≥3:1)
+  2) 지표 가족 트리오(매출 파랑·미수 주황·수금 아쿠아): "#2a78d6,#eb6834,#1baf7a" ==>pairs all ==>mode light ==>surface "#ffffff"
+     → PASS, exit 0 (#1baf7a 2.82:1 relief 밴드 — 현금흐름 차트에 종점 직접 라벨 병기로 충족)
+  3) 매출 금액구간 램프(일별 막대, 사용자 명시 선택): "#86b6ef,#5598e7,#2a78d6,#104281" ==>ordinal ==>mode light ==>surface "#ffffff"
+     → ALL CHECKS PASS, exit 0 · 구간 경계 450/700/900만, 범례 병기. 연구 판정상 값-램프 경고였으나 사용자 명시 선택(단일 hue 한정).
+  4) 미수금 aging 주황 램프: "#f19979,#eb6834,#c74b12,#9f3701,#752600" ==>ordinal ==>mode light ==>surface "#ffffff"
+     → ALL CHECKS PASS, exit 0 (monotone L, adjacent ΔL ≥0.06, light-end 2.19:1, single hue)
+  * 색 사전(전략 B): 파랑=매출 · 주황=미수 · 아쿠아=수금 · 뉴트럴=건수 · critical #d03b3b=위험(아이콘+라벨 동반).
+  * KPI 표면 틴트(전략 D)는 데이터 잉크가 아닌 서피스 층위 — 텍스트는 전부 텍스트 토큰 색 유지.
+  * 전월 비교 시리즈 #8a94a3 는 강조(emphasis)용 회색 — 카테고리 슬롯이 아니며 범례·직접 라벨 동반.
+  * 상태/텍스트 색(good #006300, bad #b91c1c)은 흰 서피스 WCAG 텍스트 대비 충족, 화살표(▲▼)+텍스트 이중 신호.
+  * 이중 y축 없음 · 파이 없음 · 데이터 배열→렌더 함수 (SVG 좌표 하드코딩 없음) · 외부 요청 0건.
+  * 메인 차트 bar+line 혼합(8월 막대 + 7월 라인)은 동일 축·동일 단위(만원) — 이중 y축 아님.
+  * 필터바는 V3(settlement-dashboard-v3-analytics.html) filterbar 룩의 라이트 번안 — 전월 비교/누적 토글 실동작.
+  (==> 표기는 CLI 이중 하이픈 플래그 — HTML 주석 제약으로 치환)
+-->
+</body>
+</html>

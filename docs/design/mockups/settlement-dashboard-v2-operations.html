@@ -1,0 +1,1096 @@
+<!doctype html>
+<html lang="ko">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>정산 수금 워크벤치 V2 (목업)</title>
+<style>
+  :root {
+    color-scheme: light;
+    --bg: #eef2f7;
+    --surface: #fff;
+    --surface-soft: #f6f8fb;
+    --text: #111827;
+    --muted: #6b7280;
+    --faint: #9aa3af;
+    --line: #dbe1ea;
+    --line-soft: #edf1f6;
+    --blue: #2563eb;
+    --blue-soft: #eaf1ff;
+    --green: #15803d;
+    --green-soft: #e7f6ec;
+    --amber: #b45309;
+    --amber-soft: #fdf3e3;
+    --orange: #c2410c;
+    --orange-soft: #fdeee6;
+    --red: #b91c1c;
+    --red-soft: #fdeaea;
+    --radius: 10px;
+    /* dataviz 시리즈 토큰 (검증: 하단 주석) */
+    --s1: #2a78d6;        /* categorical slot 1 — 실적/일반/매출 */
+    --s2: #eb6834;        /* categorical slot 2 — 예정/네이버 */
+    --s1-dim: #9ec5f4;    /* sequential step 200 — 강조 대비 de-emphasis */
+    --grid-hair: #edf1f6;
+    --axis: #c9cfd9;
+    font-family: Pretendard, -apple-system, BlinkMacSystemFont, "Segoe UI", "Malgun Gothic", sans-serif;
+  }
+  * { box-sizing: border-box; }
+  body { margin: 0; background: var(--bg); color: var(--text); font-size: 13px; }
+
+  /* ── 상단 스트립 ─────────────────────────────────────────── */
+  .strip {
+    display: flex; align-items: center; gap: 14px; flex-wrap: wrap;
+    background: var(--surface); border-bottom: 1px solid var(--line);
+    padding: 8px 16px;
+  }
+  .strip .title { font-size: 15px; font-weight: 700; }
+  .strip .persona { color: var(--muted); font-size: 12px; }
+  .strip .fact { color: var(--muted); font-size: 12px; }
+  .strip .fact b { color: var(--text); font-weight: 600; }
+  .strip .spacer { flex: 1; }
+  .btn {
+    border: 1px solid var(--line); background: var(--surface); color: var(--text);
+    padding: 5px 11px; border-radius: 7px; font-size: 12px; cursor: pointer; font-weight: 600;
+  }
+  .btn:hover { background: var(--surface-soft); }
+  .btn-primary { background: var(--blue); border-color: var(--blue); color: #fff; }
+  .btn-primary:hover { background: #1d4fd8; }
+  .btn-xs { padding: 2.5px 8px; font-size: 11px; border-radius: 6px; }
+  .btn .soon { margin-left: 4px; }
+
+  .soon {
+    display: inline-block; font-size: 10px; font-weight: 700; padding: 1px 5px;
+    border-radius: 4px; background: var(--amber-soft); color: var(--amber); vertical-align: 1px;
+  }
+
+  /* ── KPI 스트립 ──────────────────────────────────────────── */
+  .kpis { display: grid; grid-template-columns: repeat(4, 1fr); gap: 10px; padding: 12px 16px 0; }
+  .kpi { background: var(--surface); border: 1px solid var(--line); border-radius: var(--radius); padding: 10px 14px; }
+  .kpi .k { font-size: 11.5px; color: var(--muted); font-weight: 600; }
+  .kpi .v { font-size: 21px; font-weight: 700; margin-top: 2px; letter-spacing: -0.2px; }
+  .kpi .v small { font-size: 13px; font-weight: 600; color: var(--muted); }
+  .kpi .sub { font-size: 11.5px; color: var(--faint); margin-top: 2px; }
+  .kpi.warn .v { color: var(--red); }
+
+  /* ── 카드/패널 공통 ──────────────────────────────────────── */
+  .wrap { padding: 12px 16px 4px; display: grid; gap: 12px; }
+  .cols-2 { display: grid; grid-template-columns: 5fr 7fr; gap: 12px; align-items: stretch; }
+  .cols-overview { display: grid; grid-template-columns: 7fr 5fr; gap: 12px; align-items: stretch; }
+  @media (max-width: 980px) { .cols-2, .cols-overview { grid-template-columns: 1fr; } .kpis { grid-template-columns: repeat(2, 1fr); } }
+  .panel { background: var(--surface); border: 1px solid var(--line); border-radius: var(--radius); min-width: 0; }
+  .panel-head {
+    display: flex; align-items: center; gap: 8px; padding: 9px 12px;
+    border-bottom: 1px solid var(--line-soft); font-weight: 700; flex-wrap: wrap;
+  }
+  .panel-head .sub { font-weight: 500; color: var(--muted); font-size: 11.5px; }
+  .panel-head .spacer { flex: 1; }
+  .panel-body { padding: 12px; }
+
+  .legend { display: flex; gap: 12px; align-items: center; font-size: 11.5px; color: var(--muted); font-weight: 500; }
+  .legend .sw { display: inline-block; width: 10px; height: 10px; border-radius: 2.5px; margin-right: 5px; vertical-align: -1px; }
+
+  /* ── AR aging (HTML 가로 막대) ───────────────────────────── */
+  .aging-row {
+    display: grid; grid-template-columns: 74px 1fr; gap: 10px; align-items: center;
+    padding: 4px 4px; border-radius: 7px; cursor: pointer; border: 1px solid transparent;
+    min-height: 30px;
+  }
+  .aging-row:hover { background: var(--surface-soft); }
+  .aging-row[aria-pressed="true"] { background: var(--blue-soft); border-color: #c7dbff; }
+  .aging-row .lbl { font-size: 12px; color: var(--muted); font-weight: 600; text-align: right; }
+  .aging-row .track { display: flex; align-items: center; gap: 8px; min-width: 0; }
+  .aging-row .bar { height: 18px; border-radius: 0 4px 4px 0; min-width: 3px; }
+  .aging-row .val { font-size: 11.5px; color: var(--text); font-weight: 600; white-space: nowrap; }
+  .aging-row .val small { color: var(--faint); font-weight: 500; }
+  .aging.has-sel .aging-row:not([aria-pressed="true"]) .bar { opacity: .3; }
+  .aging-note { font-size: 11.5px; color: var(--faint); padding: 6px 4px 0; }
+
+  /* ── SVG 차트 공통 ───────────────────────────────────────── */
+  svg.chart { display: block; width: 100%; height: auto; }
+  .chart .grid-line { stroke: var(--grid-hair); stroke-width: 1; }
+  .chart .axis-line { stroke: var(--axis); stroke-width: 1; }
+  .chart .tick { font-size: 10px; fill: var(--faint); }
+  .chart .tick.today { font-weight: 700; fill: var(--text); }
+  .chart .band { fill: transparent; }
+  .chart .band:hover { fill: rgba(37, 99, 235, 0.05); }
+  .chart .ref-lbl { font-size: 9.5px; fill: var(--faint); }
+  .chart .end-lbl { font-size: 10px; fill: var(--muted); font-weight: 600; }
+
+  /* ── 필터 칩 ─────────────────────────────────────────────── */
+  .filterbar { display: flex; gap: 6px; padding: 8px 10px; border-bottom: 1px solid var(--line-soft); flex-wrap: wrap; align-items: center; }
+  .filterbar .grp { display: flex; gap: 4px; align-items: center; }
+  .filterbar .grp-lbl { font-size: 11px; color: var(--faint); font-weight: 600; margin: 0 2px 0 6px; }
+  .chip {
+    border: 1px solid var(--line); background: var(--surface); border-radius: 999px;
+    padding: 3px 10px; font-size: 11.5px; color: var(--muted); cursor: pointer;
+  }
+  .chip[aria-pressed="true"] { background: #111827; border-color: #111827; color: #fff; font-weight: 600; }
+  .chip-clear { border: none; background: var(--blue-soft); color: var(--blue); font-weight: 600; border-radius: 999px; padding: 3px 10px; font-size: 11.5px; cursor: pointer; }
+
+  /* ── 수금 그리드 (주인공) ────────────────────────────────── */
+  .gridwrap { max-height: 620px; overflow: auto; }
+  table.grid { width: 100%; border-collapse: collapse; }
+  table.grid th, table.grid td { padding: 6px 9px; border-bottom: 1px solid var(--line-soft); white-space: nowrap; }
+  table.grid thead th {
+    position: sticky; top: 0; z-index: 2; background: var(--surface-soft);
+    font-size: 11px; color: var(--muted); text-align: left; font-weight: 700;
+    border-bottom: 1px solid var(--line);
+  }
+  table.grid td { font-size: 12.5px; vertical-align: middle; }
+  table.grid .num { text-align: right; font-variant-numeric: tabular-nums; }
+  table.grid td.balance { font-weight: 700; }
+  table.grid td.balance.paid-amt { color: var(--faint); font-weight: 500; }
+  table.grid tbody tr:hover { background: var(--surface-soft); }
+  table.grid tr.overdue-hard { background: #fff7f7; }
+  table.grid tr.overdue-hard:hover { background: #fdefef; }
+  .cust .nm { font-weight: 700; }
+  .cust .no { color: var(--faint); font-size: 11px; margin-left: 5px; font-variant-numeric: tabular-nums; }
+  .sub-line { font-size: 10.5px; margin-top: 1px; }
+  .ok-txt { color: var(--green); font-weight: 600; }
+  .warn-txt { color: var(--amber); font-weight: 600; }
+
+  .b { display: inline-block; font-size: 11px; font-weight: 700; border-radius: 5px; padding: 1.5px 7px; white-space: nowrap; }
+  .b-ch-normal { background: #f1f3f7; color: #4b5563; }
+  .b-ch-naver { background: var(--green-soft); color: var(--green); }
+  .b-e0 { background: #f1f3f7; color: #4b5563; }
+  .b-e1 { background: var(--amber-soft); color: var(--amber); }
+  .b-e2 { background: var(--orange-soft); color: var(--orange); }
+  .b-e3 { background: var(--red-soft); color: var(--red); }
+  .b-paid { background: var(--green-soft); color: var(--green); }
+  .b-cash-req { background: var(--amber-soft); color: var(--amber); }
+  .b-cash-ok { background: var(--green-soft); color: var(--green); }
+  .b-settle-wait { background: var(--amber-soft); color: var(--amber); }
+  .b-settle-ok { background: var(--blue-soft); color: var(--blue); }
+  .dash { color: var(--faint); }
+
+  .actions-cell { display: flex; gap: 5px; align-items: center; }
+  .gridfoot { display: flex; gap: 14px; align-items: center; padding: 8px 12px; color: var(--muted); font-size: 11.5px; border-top: 1px solid var(--line-soft); flex-wrap: wrap; }
+  .gridfoot b { color: var(--text); }
+
+  /* ── 개요 밴드 (매출/파이프라인) ─────────────────────────── */
+  .toggle { display: flex; gap: 2px; background: var(--surface-soft); border-radius: 7px; padding: 2px; }
+  .toggle button { border: none; background: none; font-size: 11.5px; font-weight: 600; color: var(--muted); padding: 3px 10px; border-radius: 5px; cursor: pointer; }
+  .toggle button[aria-pressed="true"] { background: var(--surface); color: var(--text); box-shadow: 0 1px 2px rgba(17,24,39,.08); }
+
+  .chan-strip { padding: 10px 12px 12px; border-top: 1px solid var(--line-soft); }
+  .chan-strip .cap { font-size: 11.5px; color: var(--muted); font-weight: 600; margin-bottom: 6px; }
+  .chan-bar { display: flex; height: 16px; border-radius: 4px; overflow: hidden; gap: 2px; background: var(--surface); }
+  .chan-bar .seg { height: 100%; }
+  .chan-lbls { display: flex; justify-content: space-between; font-size: 11.5px; color: var(--muted); margin-top: 5px; }
+  .chan-lbls b { color: var(--text); }
+
+  .stage-row { display: grid; grid-template-columns: 62px 1fr; gap: 10px; align-items: center; padding: 3.5px 2px; min-height: 26px; }
+  .stage-row .lbl { font-size: 12px; color: var(--muted); font-weight: 600; text-align: right; }
+  .stage-row .track { display: flex; align-items: center; gap: 8px; min-width: 0; }
+  .stage-row .bar { height: 14px; border-radius: 0 4px 4px 0; background: var(--s1); min-width: 3px; }
+  .stage-row .val { font-size: 11.5px; color: var(--muted); font-weight: 600; white-space: nowrap; }
+  .stage-note { font-size: 11.5px; color: var(--faint); padding: 8px 2px 0; }
+
+  details.tblview { margin-top: 8px; }
+  details.tblview summary { font-size: 11.5px; color: var(--faint); cursor: pointer; }
+  details.tblview table { border-collapse: collapse; margin-top: 6px; width: 100%; }
+  details.tblview th, details.tblview td { font-size: 11.5px; padding: 3px 8px; border-bottom: 1px solid var(--line-soft); text-align: right; font-variant-numeric: tabular-nums; }
+  details.tblview th:first-child, details.tblview td:first-child { text-align: left; }
+  details.tblview th { color: var(--muted); background: var(--surface-soft); }
+
+  /* ── 미래 티저 ───────────────────────────────────────────── */
+  .teasers { display: grid; grid-template-columns: repeat(3, 1fr); gap: 10px; padding: 0 16px 16px; }
+  @media (max-width: 980px) { .teasers { grid-template-columns: 1fr; } }
+  .teaser { border: 1px dashed var(--line); border-radius: var(--radius); background: var(--surface); padding: 10px 14px; }
+  .teaser .t { font-weight: 700; font-size: 12.5px; }
+  .teaser .d { color: var(--muted); font-size: 11.5px; margin-top: 3px; line-height: 1.5; }
+
+  /* ── 툴팁·토스트·배지 ────────────────────────────────────── */
+  .tip {
+    position: fixed; z-index: 50; pointer-events: none; display: none;
+    background: #111827; color: #fff; border-radius: 7px; padding: 7px 10px;
+    font-size: 11.5px; line-height: 1.55; max-width: 240px; box-shadow: 0 4px 14px rgba(17,24,39,.25);
+  }
+  .tip .tt-title { font-weight: 700; margin-bottom: 2px; }
+  .tip .tt-row { display: flex; align-items: center; gap: 6px; }
+  .tip .tt-key { display: inline-block; width: 10px; height: 3px; border-radius: 2px; }
+  .tip .tt-val { font-weight: 700; font-variant-numeric: tabular-nums; }
+  .tip .tt-lbl { color: #c7cdd6; }
+  .tip .tt-hint { color: #9aa3af; margin-top: 3px; }
+
+  .toast {
+    position: fixed; left: 50%; bottom: 22px; transform: translateX(-50%);
+    background: #111827; color: #fff; border-radius: 8px; padding: 8px 16px;
+    font-size: 12px; z-index: 60; display: none; box-shadow: 0 6px 18px rgba(17,24,39,.3);
+  }
+
+  .mockup-badge {
+    position: fixed; right: 12px; bottom: 12px; z-index: 40;
+    background: #111827; color: #fff; font-size: 10.5px; font-weight: 700;
+    padding: 3px 9px; border-radius: 6px; letter-spacing: .4px; opacity: .85;
+  }
+  .foot-note { padding: 0 16px 18px; color: var(--faint); font-size: 11px; }
+</style>
+</head>
+<body>
+
+<!-- 상단 스트립: 정체성 + 기준일 + 전역 액션 -->
+<div class="strip">
+  <span class="title">💰 정산 수금 워크벤치</span>
+  <span class="persona">V2 실무 · 경리/수금 담당 — STAFF(CS·SALES)·MANAGER·ADMIN (FINANCE_MUTATION 권한 집합)</span>
+  <span class="spacer"></span>
+  <span class="fact">기준일 <b>2026-08-31 (월)</b> · 완료일(schedule.construction.date) 기준 · 정산 대상 상태 <b>COMPLETED·AS_RECEIVED·AS_COMPLETED</b></span>
+  <button class="btn" id="btn-lock">8월 마감 잠금<span class="soon">예정</span></button>
+</div>
+
+<!-- KPI 컴팩트 스트립: 값은 아래 그리드 데이터에서 파생 (정산 대기만 전사 상수) -->
+<div class="kpis" id="kpis"></div>
+
+<div class="wrap">
+
+  <!-- ── 오늘의 작업 축: aging + 일별 수금 ─────────────────── -->
+  <div class="cols-2">
+    <section class="panel">
+      <div class="panel-head">미수금 aging <span class="sub">잔금 미확인 27건 · 완료 후 경과일 버킷</span></div>
+      <div class="panel-body">
+        <div class="aging" id="aging"></div>
+        <div class="aging-note">막대를 클릭하면 아래 그리드가 해당 버킷만 표시됩니다. 다시 클릭하면 해제.</div>
+      </div>
+    </section>
+
+    <section class="panel">
+      <div class="panel-head">일별 수금 실적 vs 수금 예정
+        <span class="sub">단위: 백만원 · 8/25–9/5</span>
+        <span class="spacer"></span>
+        <span class="legend">
+          <span><span class="sw" style="background: var(--s1)"></span>수금 실적</span>
+          <span><span class="sw" style="background: var(--s2)"></span>수금 예정</span>
+        </span>
+      </div>
+      <div class="panel-body">
+        <div id="daily-chart"></div>
+        <details class="tblview">
+          <summary>표로 보기</summary>
+          <table id="daily-table"></table>
+        </details>
+      </div>
+    </section>
+  </div>
+
+  <!-- ── 주인공: 주문 단위 수금 그리드 ─────────────────────── -->
+  <section class="panel">
+    <div class="panel-head">주문 단위 수금 그리드
+      <span class="sub">한 주문 = 한 줄 · 경과일 오래된 순 · 잔금 = 출고가 − 예약금</span>
+      <span class="spacer"></span>
+      <button class="btn" id="btn-csv">⬇ CSV 내보내기</button>
+    </div>
+    <div class="filterbar" id="filterbar">
+      <span class="grp-lbl">기간</span>
+      <div class="grp" data-filter="period">
+        <button class="chip" data-v="all" aria-pressed="true">전체</button>
+        <button class="chip" data-v="7" aria-pressed="false">7일 이내</button>
+        <button class="chip" data-v="30" aria-pressed="false">30일 이내</button>
+        <button class="chip" data-v="31" aria-pressed="false">31일 이상</button>
+      </div>
+      <span class="grp-lbl">정산상태</span>
+      <div class="grp" data-filter="settle">
+        <button class="chip" data-v="all" aria-pressed="true">전체</button>
+        <button class="chip" data-v="pending" aria-pressed="false">대기</button>
+        <button class="chip" data-v="issued" aria-pressed="false">청구완료</button>
+      </div>
+      <span class="grp-lbl">채널</span>
+      <div class="grp" data-filter="ch">
+        <button class="chip" data-v="all" aria-pressed="true">전체</button>
+        <button class="chip" data-v="일반" aria-pressed="false">일반</button>
+        <button class="chip" data-v="네이버" aria-pressed="false">네이버</button>
+      </div>
+      <span id="bucket-chip-slot"></span>
+    </div>
+    <div class="gridwrap">
+      <table class="grid">
+        <thead>
+          <tr>
+            <th>고객</th>
+            <th>채널</th>
+            <th>완료일</th>
+            <th class="num">출고가</th>
+            <th class="num">예약금</th>
+            <th class="num">잔금</th>
+            <th>경과일</th>
+            <th>현금영수증</th>
+            <th>정산상태</th>
+            <th>액션</th>
+          </tr>
+        </thead>
+        <tbody id="grid-body"></tbody>
+      </table>
+    </div>
+    <div class="gridfoot" id="gridfoot"></div>
+  </section>
+
+  <!-- ── 개요 밴드: 매출(공통 콘텐츠) + 단계별 물린 금액 ────── -->
+  <div class="cols-overview">
+    <section class="panel">
+      <div class="panel-head">매출 추이 <span class="sub">출고가 · 완료일 기준</span>
+        <span class="spacer"></span>
+        <span class="sub" id="rev-caption"></span>
+        <div class="toggle" id="rev-toggle">
+          <button data-v="day" aria-pressed="true">일</button>
+          <button data-v="month" aria-pressed="false">월</button>
+        </div>
+      </div>
+      <div class="panel-body">
+        <div id="rev-chart"></div>
+        <details class="tblview">
+          <summary>표로 보기</summary>
+          <table id="rev-table"></table>
+        </details>
+      </div>
+      <div class="chan-strip">
+        <div class="cap">8월 채널 구분 (출고가)</div>
+        <div class="chan-bar" id="chan-bar"></div>
+        <div class="chan-lbls">
+          <span><span class="sw" style="background: var(--s1)"></span>일반 <b>₩152.2M · 98건 (71%)</b></span>
+          <span><span class="sw" style="background: var(--s2)"></span>네이버 <b>₩62.1M · 54건 (29%)</b></span>
+        </div>
+        <div class="chan-lbls" style="margin-top: 3px;"><span class="dash">네이버 예상 수수료 ₩3.1M — 자동 대사<span class="soon">예정</span></span></div>
+      </div>
+    </section>
+
+    <section class="panel">
+      <div class="panel-head">단계별 물린 금액 <span class="sub">진행 중 주문 출고가 합 · 파이프라인</span></div>
+      <div class="panel-body">
+        <div id="stages"></div>
+        <div class="stage-note">진행 중 합계 <b>₩173.4M</b> · 8월 완료(매출 확정) <b>₩214.3M</b>은 별도 축.</div>
+      </div>
+    </section>
+  </div>
+
+</div>
+
+<!-- ── 미래 티저: 실제 UI 결이되 "예정" 배지 ─────────────────── -->
+<div class="teasers">
+  <div class="teaser">
+    <div class="t">입금 확인일 자동 기록 <span class="soon">예정</span></div>
+    <div class="d">입금 확인 버튼을 누르면 수금일이 자동 저장됩니다. 현재는 확인 토글만 존재하고 "언제" 확인했는지는 이벤트 로그 역산이 필요합니다.</div>
+  </div>
+  <div class="teaser">
+    <div class="t">연체 알림톡 <span class="soon">예정</span></div>
+    <div class="d">경과 31일 이상 미수 건에 잔금 안내 알림톡을 자동 발송합니다. 그리드의 [알림] 버튼이 이 기능의 자리입니다.</div>
+  </div>
+  <div class="teaser">
+    <div class="t">월 마감 잠금 <span class="soon">예정</span></div>
+    <div class="d">월 정산 마감 후 해당 월 주문의 금액 수정을 차단합니다. 상단 [8월 마감 잠금] 버튼이 이 기능의 자리입니다.</div>
+  </div>
+</div>
+
+<div class="foot-note">목업 데이터입니다 — 고객명은 마스킹, 금액·건수는 2026-08 가정치. 실서비스 값과 무관합니다.</div>
+
+<div class="tip" id="tip"></div>
+<div class="toast" id="toast"></div>
+<div class="mockup-badge">MOCKUP V2</div>
+
+<script>
+'use strict';
+
+/* ═══════════════ 데이터 (상수 — 렌더 함수가 그린다) ═══════════════ */
+
+const BASE_DATE = '2026-08-31';
+
+/* 주문 단위 수금 행. 잔금 = 출고가(ship) − 예약금(dep) 불변식.
+   미수(balOk=false) 27건 — aging 버킷 합계가 공통 데이터셋과 일치:
+   ≤7일 ₩12.4M·9건 / 8–30일 ₩14.92M·10건 / 31–60일 ₩7.1M·5건 / 61–90일 ₩2.8M·2건 / 91일+ ₩1.5M·1건
+   = 총 ₩38,720,000 · 27건. 현금영수증 요청(미발행) 9건. */
+const ROWS = [
+  // ── 경과 1–7일 (9건, 잔금 합 12,400,000)
+  { id: '4972', name: '김OO', ch: '일반',   done: '2026-08-30', ship: 2350000, dep: 500000, depOk: true,  balOk: false, cash: 'req',  settle: 'pending' },
+  { id: '4968', name: '이OO', ch: '네이버', done: '2026-08-29', ship: 2700000, dep: 600000, depOk: true,  balOk: false, cash: 'none', settle: 'issued' },
+  { id: '4965', name: '박OO', ch: '일반',   done: '2026-08-29', ship: 1250000, dep: 300000, depOk: true,  balOk: false, cash: 'ok',   settle: 'issued' },
+  { id: '4961', name: '최OO', ch: '일반',   done: '2026-08-28', ship: 1700000, dep: 400000, depOk: true,  balOk: false, cash: 'none', settle: 'pending' },
+  { id: '4957', name: '정OO', ch: '네이버', done: '2026-08-27', ship: 2250000, dep: 500000, depOk: true,  balOk: false, cash: 'req',  settle: 'issued' },
+  { id: '4952', name: '강OO', ch: '일반',   done: '2026-08-27', ship: 1000000, dep: 200000, depOk: false, balOk: false, cash: 'none', settle: 'pending' },
+  { id: '4948', name: '조OO', ch: '일반',   done: '2026-08-26', ship: 1900000, dep: 450000, depOk: true,  balOk: false, cash: 'none', settle: 'issued' },
+  { id: '4943', name: '윤OO', ch: '네이버', done: '2026-08-25', ship: 1550000, dep: 350000, depOk: true,  balOk: false, cash: 'ok',   settle: 'issued' },
+  { id: '4939', name: '장OO', ch: '일반',   done: '2026-08-24', ship: 1300000, dep: 300000, depOk: true,  balOk: false, cash: 'none', settle: 'pending' },
+  // ── 경과 8–30일 (10건, 잔금 합 14,920,000)
+  { id: '4921', name: '임OO', ch: '일반',   done: '2026-08-22', ship: 3100000, dep: 700000, depOk: true,  balOk: false, cash: 'req',  settle: 'issued' },
+  { id: '4915', name: '한OO', ch: '일반',   done: '2026-08-20', ship: 1500000, dep: 350000, depOk: true,  balOk: false, cash: 'none', settle: 'issued' },
+  { id: '4907', name: '오OO', ch: '네이버', done: '2026-08-18', ship: 2450000, dep: 550000, depOk: true,  balOk: false, cash: 'none', settle: 'pending' },
+  { id: '4898', name: '서OO', ch: '일반',   done: '2026-08-16', ship: 1100000, dep: 250000, depOk: true,  balOk: false, cash: 'ok',   settle: 'issued' },
+  { id: '4890', name: '신OO', ch: '일반',   done: '2026-08-14', ship: 2650000, dep: 600000, depOk: true,  balOk: false, cash: 'req',  settle: 'pending' },
+  { id: '4881', name: '권OO', ch: '네이버', done: '2026-08-12', ship: 1720000, dep: 400000, depOk: true,  balOk: false, cash: 'none', settle: 'issued' },
+  { id: '4872', name: '황OO', ch: '일반',   done: '2026-08-10', ship: 2080000, dep: 480000, depOk: true,  balOk: false, cash: 'none', settle: 'issued' },
+  { id: '4860', name: '안OO', ch: '일반',   done: '2026-08-07', ship: 1430000, dep: 330000, depOk: false, balOk: false, cash: 'req',  settle: 'pending' },
+  { id: '4851', name: '송OO', ch: '네이버', done: '2026-08-05', ship: 1880000, dep: 430000, depOk: true,  balOk: false, cash: 'none', settle: 'issued' },
+  { id: '4842', name: '전OO', ch: '일반',   done: '2026-08-03', ship: 1400000, dep: 300000, depOk: true,  balOk: false, cash: 'ok',   settle: 'issued' },
+  // ── 경과 31–60일 (5건, 잔금 합 7,100,000)
+  { id: '4801', name: '홍OO', ch: '일반',   done: '2026-07-28', ship: 2860000, dep: 660000, depOk: true,  balOk: false, cash: 'req',  settle: 'issued' },
+  { id: '4788', name: '유OO', ch: '네이버', done: '2026-07-22', ship: 1950000, dep: 450000, depOk: true,  balOk: false, cash: 'none', settle: 'pending' },
+  { id: '4771', name: '고OO', ch: '일반',   done: '2026-07-15', ship: 1490000, dep: 340000, depOk: true,  balOk: false, cash: 'none', settle: 'issued' },
+  { id: '4756', name: '문OO', ch: '일반',   done: '2026-07-09', ship: 1820000, dep: 420000, depOk: true,  balOk: false, cash: 'req',  settle: 'issued' },
+  { id: '4744', name: '양OO', ch: '네이버', done: '2026-07-03', ship: 1100000, dep: 250000, depOk: true,  balOk: false, cash: 'none', settle: 'issued' },
+  // ── 경과 61–90일 (2건, 잔금 합 2,800,000)
+  { id: '4702', name: '배OO', ch: '일반',   done: '2026-06-25', ship: 2150000, dep: 500000, depOk: true,  balOk: false, cash: 'req',  settle: 'issued' },
+  { id: '4680', name: '백OO', ch: '일반',   done: '2026-06-10', ship: 1500000, dep: 350000, depOk: true,  balOk: false, cash: 'none', settle: 'issued' },
+  // ── 경과 91일+ (1건, 잔금 합 1,500,000)
+  { id: '4611', name: '남OO', ch: '네이버', done: '2026-05-18', ship: 1950000, dep: 450000, depOk: true,  balOk: false, cash: 'req',  settle: 'issued' },
+  // ── 최근 수금 완료 (그리드 결 확인용 4건 — 미수 집계에서 제외)
+  { id: '4970', name: '손OO', ch: '일반',   done: '2026-08-30', ship: 1680000, dep: 400000, depOk: true,  balOk: true,  cash: 'ok',   settle: 'issued' },
+  { id: '4963', name: '곽OO', ch: '네이버', done: '2026-08-28', ship: 2220000, dep: 500000, depOk: true,  balOk: true,  cash: 'none', settle: 'issued' },
+  { id: '4955', name: '성OO', ch: '일반',   done: '2026-08-27', ship: 1290000, dep: 300000, depOk: true,  balOk: true,  cash: 'ok',   settle: 'pending' },
+  { id: '4946', name: '차OO', ch: '일반',   done: '2026-08-26', ship: 2650000, dep: 600000, depOk: true,  balOk: true,  cash: 'none', settle: 'issued' },
+];
+
+/* 전사 정산 상태 (그리드는 발췌라 전사 수치는 상수) — 청구완료 118 / 대기 34 */
+const SETTLE_PENDING_COMPANY = 34;
+const SETTLE_ISSUED_COMPANY = 118;
+
+/* aging 버킷 정의 — 완료 후 경과일 */
+const BUCKETS = [
+  { label: '7일 이내', min: 0,  max: 7 },
+  { label: '8–30일',  min: 8,  max: 30 },
+  { label: '31–60일', min: 31, max: 60 },
+  { label: '61–90일', min: 61, max: 90 },
+  { label: '91일 이상', min: 91, max: 99999 },
+];
+/* ordinal 램프 (한 색상 명암, 밝음→어두움 = 최근→오래됨) — 검증: 하단 주석 */
+const BUCKET_RAMP = ['#86b6ef', '#5598e7', '#2a78d6', '#1c5cab', '#104281'];
+
+/* 일별 수금 실적/예정 (백만원). act=null → 미래(예정만). 8/29·30·9/5 주말 저조 */
+const DAILY = [
+  { d: '8/25', wd: '화', exp: 7.2, act: 6.8 },
+  { d: '8/26', wd: '수', exp: 8.1, act: 8.4 },
+  { d: '8/27', wd: '목', exp: 6.5, act: 5.9 },
+  { d: '8/28', wd: '금', exp: 9.3, act: 8.7 },
+  { d: '8/29', wd: '토', exp: 1.5, act: 0.9 },
+  { d: '8/30', wd: '일', exp: 0.8, act: 0.4 },
+  { d: '8/31', wd: '월', exp: 8.6, act: 5.2, today: true },
+  { d: '9/1',  wd: '화', exp: 7.8, act: null },
+  { d: '9/2',  wd: '수', exp: 6.9, act: null },
+  { d: '9/3',  wd: '목', exp: 8.4, act: null },
+  { d: '9/4',  wd: '금', exp: 9.1, act: null },
+  { d: '9/5',  wd: '토', exp: 1.2, act: null },
+];
+
+/* 8월 일별 매출(출고가, 백만원) — 합계 214.3M · 152건, 주말 저조. 7월 합계 196.85M(141건) → 일평균 6.35M */
+const REV_AUG_DAILY = [
+  1.8, 1.2, 8.4, 9.6, 9.7, 8.9, 10.1,   // 8/1(토)–8/7
+  2.4, 1.6, 7.8, 9.1, 9.8, 9.4, 10.9,   // 8/8(토)–8/14
+  2.1, 1.4, 8.2, 9.8, 9.6, 8.7, 10.3,   // 8/15(토)–8/21
+  2.6, 1.9, 7.9, 9.3, 9.6, 8.8, 10.2,   // 8/22(토)–8/28
+  2.2, 1.3, 9.7,                          // 8/29(토)–8/31(월)
+];
+const REV_JUL_DAILY_AVG = 6.35;
+/* 월별 매출(백만원) — 7·8월은 공통 데이터셋, 3–6월은 목업 가정치 */
+const REV_MONTHLY = [
+  { m: '3월', v: 158.2 }, { m: '4월', v: 171.4 }, { m: '5월', v: 165.8 },
+  { m: '6월', v: 182.6 }, { m: '7월', v: 196.85 }, { m: '8월', v: 214.3, current: true },
+];
+
+/* 채널 (8월 출고가) */
+const CHANNELS = [
+  { name: '일반',   amt: 152200000, cnt: 98 },
+  { name: '네이버', amt: 62100000,  cnt: 54 },
+];
+
+/* 단계별 물린 금액(진행 중 파이프라인, 백만원) — 목업 가정치, 합 173.4M */
+const STAGES = [
+  { code: 'RECEIVED',     label: '주문접수', v: 12.8 },
+  { code: 'MEASURE',      label: '실측',     v: 21.5 },
+  { code: 'DRAWING',      label: '도면',     v: 34.2 },
+  { code: 'CONFIRM',      label: '고객컨펌', v: 18.9 },
+  { code: 'PRODUCTION',   label: '생산',     v: 48.6 },
+  { code: 'CONSTRUCTION', label: '시공',     v: 29.3 },
+  { code: 'CS',           label: 'CS',       v: 8.1 },
+];
+
+/* ═══════════════ 유틸 ═══════════════ */
+
+const $ = (sel) => document.querySelector(sel);
+const won = (n) => '₩' + n.toLocaleString('ko-KR');
+const mfmt = (n) => '₩' + (n / 1e6).toFixed(1) + 'M';
+const balanceOf = (r) => r.ship - r.dep;
+const elapsedOf = (r) => Math.round((new Date(BASE_DATE) - new Date(r.done)) / 864e5);
+const bucketOf = (days) => days <= 7 ? 0 : days <= 30 ? 1 : days <= 60 ? 2 : days <= 90 ? 3 : 4;
+const fmtDone = (d) => d.slice(5).replace('-', '/');
+
+/* ═══════════════ 툴팁 엔진 (textContent만 사용) ═══════════════ */
+
+const tip = $('#tip');
+function showTip(evt, title, rows, hint) {
+  tip.replaceChildren();
+  if (title) {
+    const t = document.createElement('div'); t.className = 'tt-title'; t.textContent = title; tip.appendChild(t);
+  }
+  (rows || []).forEach((r) => {
+    const row = document.createElement('div'); row.className = 'tt-row';
+    if (r.color) { const k = document.createElement('span'); k.className = 'tt-key'; k.style.background = r.color; row.appendChild(k); }
+    const v = document.createElement('span'); v.className = 'tt-val'; v.textContent = r.value; row.appendChild(v);
+    if (r.label) { const l = document.createElement('span'); l.className = 'tt-lbl'; l.textContent = r.label; row.appendChild(l); }
+    tip.appendChild(row);
+  });
+  if (hint) { const h = document.createElement('div'); h.className = 'tt-hint'; h.textContent = hint; tip.appendChild(h); }
+  tip.style.display = 'block';
+  moveTip(evt);
+}
+function moveTip(evt) {
+  const pad = 14, w = tip.offsetWidth, h = tip.offsetHeight;
+  let x = evt.clientX + pad, y = evt.clientY + pad;
+  if (x + w > window.innerWidth - 8) x = evt.clientX - w - pad;
+  if (y + h > window.innerHeight - 8) y = evt.clientY - h - pad;
+  tip.style.left = x + 'px'; tip.style.top = y + 'px';
+}
+function hideTip() { tip.style.display = 'none'; }
+function bindTip(el, build) {
+  el.addEventListener('pointerenter', (e) => { const a = build(); showTip(e, a.title, a.rows, a.hint); });
+  el.addEventListener('pointermove', moveTip);
+  el.addEventListener('pointerleave', hideTip);
+}
+
+const toast = $('#toast');
+let toastTimer = null;
+function showToast(msg) {
+  toast.textContent = msg;
+  toast.style.display = 'block';
+  clearTimeout(toastTimer);
+  toastTimer = setTimeout(() => { toast.style.display = 'none'; }, 2600);
+}
+
+/* ═══════════════ 필터 상태 ═══════════════ */
+
+const state = { period: 'all', settle: 'all', ch: 'all', bucket: null };
+
+function visibleRows() {
+  return ROWS.filter((r) => {
+    const e = elapsedOf(r);
+    if (state.period === '7' && e > 7) return false;
+    if (state.period === '30' && e > 30) return false;
+    if (state.period === '31' && e <= 30) return false;
+    if (state.settle !== 'all' && r.settle !== state.settle) return false;
+    if (state.ch !== 'all' && r.ch !== state.ch) return false;
+    if (state.bucket !== null && (r.balOk || bucketOf(e) !== state.bucket)) return false;
+    return true;
+  }).sort((a, b) => (a.balOk - b.balOk) || (elapsedOf(b) - elapsedOf(a)));
+}
+
+/* ═══════════════ KPI 스트립 ═══════════════ */
+
+function renderKpis() {
+  const unpaid = ROWS.filter((r) => !r.balOk);
+  const total = unpaid.reduce((s, r) => s + balanceOf(r), 0);
+  const over60 = unpaid.filter((r) => elapsedOf(r) > 60);
+  const over60Amt = over60.reduce((s, r) => s + balanceOf(r), 0);
+  const cashReq = ROWS.filter((r) => r.cash === 'req').length;
+  const el = $('#kpis');
+  el.replaceChildren();
+  const tiles = [
+    { k: '미수금 총액', v: won(total), sub: '잔금 미확인 · 출고가 − 예약금', warn: true },
+    { k: '미수 건수', v: unpaid.length + '건', sub: '61일 이상 ' + over60.length + '건 · ' + mfmt(over60Amt) },
+    { k: '현금영수증 미발행', v: cashReq + '건', sub: '요청 접수 후 미발행' },
+    { k: '정산 대기', v: SETTLE_PENDING_COMPANY + '건', sub: '전사 기준 · 청구완료 ' + SETTLE_ISSUED_COMPANY + '건' },
+  ];
+  tiles.forEach((t) => {
+    const d = document.createElement('div');
+    d.className = 'kpi' + (t.warn ? ' warn' : '');
+    const k = document.createElement('div'); k.className = 'k'; k.textContent = t.k;
+    const v = document.createElement('div'); v.className = 'v'; v.textContent = t.v;
+    const s = document.createElement('div'); s.className = 'sub'; s.textContent = t.sub;
+    d.append(k, v, s);
+    el.appendChild(d);
+  });
+}
+
+/* ═══════════════ AR aging 차트 (클릭 = 그리드 필터, 실동작) ═══════════════ */
+
+function agingData() {
+  const acc = BUCKETS.map(() => ({ amt: 0, cnt: 0 }));
+  ROWS.filter((r) => !r.balOk).forEach((r) => {
+    const b = bucketOf(elapsedOf(r));
+    acc[b].amt += balanceOf(r);
+    acc[b].cnt += 1;
+  });
+  return acc;
+}
+
+function renderAging() {
+  const data = agingData();
+  const max = Math.max(...data.map((d) => d.amt), 1);
+  const box = $('#aging');
+  box.replaceChildren();
+  box.classList.toggle('has-sel', state.bucket !== null);
+  data.forEach((d, i) => {
+    const row = document.createElement('div');
+    row.className = 'aging-row';
+    row.setAttribute('role', 'button');
+    row.setAttribute('aria-pressed', String(state.bucket === i));
+    const lbl = document.createElement('span'); lbl.className = 'lbl'; lbl.textContent = BUCKETS[i].label;
+    const track = document.createElement('div'); track.className = 'track';
+    const bar = document.createElement('div'); bar.className = 'bar';
+    bar.style.width = Math.max(2, (d.amt / max) * 100 * 0.72) + '%';
+    bar.style.background = BUCKET_RAMP[i];
+    const val = document.createElement('span'); val.className = 'val';
+    val.textContent = mfmt(d.amt) + ' ';
+    const small = document.createElement('small'); small.textContent = '· ' + d.cnt + '건';
+    val.appendChild(small);
+    track.append(bar, val);
+    row.append(lbl, track);
+    row.addEventListener('click', () => {
+      state.bucket = (state.bucket === i) ? null : i;
+      renderAging(); renderTable();
+    });
+    bindTip(row, () => ({
+      title: '완료 후 ' + BUCKETS[i].label,
+      rows: [
+        { color: BUCKET_RAMP[i], value: won(d.amt), label: '미수 잔금' },
+        { value: d.cnt + '건', label: '주문' },
+      ],
+      hint: state.bucket === i ? '클릭하여 필터 해제' : '클릭하면 그리드가 이 버킷만 표시',
+    }));
+    box.appendChild(row);
+  });
+}
+
+/* ═══════════════ 일별 수금 실적 vs 예정 (SVG 그룹 막대) ═══════════════
+   SVG는 HTML 파서의 foreign content 규칙으로 innerHTML 삽입 — 데이터는 전부
+   위의 저작 상수라 안전하고, 네임스페이스 URI 문자열이 필요 없다(외부 요청 0 게이트). */
+
+/* 밑단 직각 + 데이터 끝 4px 라운드 막대 마크업 */
+function barMark(x, yTop, w, h, color) {
+  const cap = Math.min(h, 4);
+  return '<rect x="' + x + '" y="' + yTop + '" width="' + w + '" height="' + h + '" rx="4" fill="' + color + '"></rect>'
+       + '<rect x="' + x + '" y="' + (yTop + h - cap) + '" width="' + w + '" height="' + cap + '" fill="' + color + '"></rect>';
+}
+
+function renderDailyChart() {
+  const W = 660, H = 186, padL = 30, padR = 6, padT = 8, padB = 26;
+  const plotW = W - padL - padR, plotH = H - padT - padB;
+  const yMax = 10;                       // 백만원
+  const y = (v) => padT + plotH - (v / yMax) * plotH;
+  const band = plotW / DAILY.length;
+  const barW = 10, gap = 2;
+
+  let s = '<svg viewBox="0 0 ' + W + ' ' + H + '" class="chart" role="img" aria-label="일별 수금 실적과 수금 예정 그룹 막대 차트">';
+
+  // 그리드 + y축 눈금 (실선 헤어라인)
+  [0, 3, 6, 9].forEach((v) => {
+    s += '<line x1="' + padL + '" x2="' + (W - padR) + '" y1="' + y(v) + '" y2="' + y(v) + '" class="' + (v === 0 ? 'axis-line' : 'grid-line') + '"></line>';
+    s += '<text x="' + (padL - 5) + '" y="' + (y(v) + 3) + '" text-anchor="end" class="tick">' + v + '</text>';
+  });
+
+  DAILY.forEach((d, i) => {
+    const cx = padL + band * i + band / 2;
+    if (d.act !== null) {
+      const h = Math.max(1.5, (d.act / yMax) * plotH);
+      s += barMark(cx - barW - gap / 2, y(0) - h, barW, h, 'var(--s1)');
+    }
+    const he = Math.max(1.5, (d.exp / yMax) * plotH);
+    s += barMark(cx + gap / 2, y(0) - he, barW, he, 'var(--s2)');
+    s += '<text x="' + cx + '" y="' + (H - 10) + '" text-anchor="middle" class="tick' + (d.today ? ' today' : '') + '">' + (d.today ? d.d + ' 오늘' : d.d) + '</text>';
+    // 히트 밴드 (마크보다 큰 타깃, 한 툴팁에 전 시리즈)
+    s += '<rect class="band" data-i="' + i + '" x="' + (padL + band * i) + '" y="' + padT + '" width="' + band + '" height="' + (plotH + padB) + '"></rect>';
+  });
+  s += '</svg>';
+
+  const host = $('#daily-chart');
+  host.innerHTML = s;
+  host.querySelectorAll('.band').forEach((el) => {
+    const d = DAILY[Number(el.dataset.i)];
+    bindTip(el, () => ({
+      title: '2026년 ' + d.d + ' (' + d.wd + ')' + (d.today ? ' · 오늘' : ''),
+      rows: [
+        d.act !== null ? { color: '#2a78d6', value: won(Math.round(d.act * 1e6)), label: '수금 실적' } : { value: '—', label: '수금 실적 (미래)' },
+        { color: '#eb6834', value: won(Math.round(d.exp * 1e6)), label: '수금 예정' },
+      ],
+    }));
+  });
+
+  // 표 뷰 (툴팁 없이도 전 값 접근)
+  const tbl = $('#daily-table');
+  tbl.replaceChildren();
+  const thead = document.createElement('thead');
+  const trh = document.createElement('tr');
+  ['날짜', '수금 실적', '수금 예정'].forEach((h) => { const th = document.createElement('th'); th.textContent = h; trh.appendChild(th); });
+  thead.appendChild(trh); tbl.appendChild(thead);
+  const tbody = document.createElement('tbody');
+  DAILY.forEach((d) => {
+    const tr = document.createElement('tr');
+    [d.d + ' (' + d.wd + ')', d.act !== null ? won(Math.round(d.act * 1e6)) : '—', won(Math.round(d.exp * 1e6))]
+      .forEach((v) => { const td = document.createElement('td'); td.textContent = v; tr.appendChild(td); });
+    tbody.appendChild(tr);
+  });
+  tbl.appendChild(tbody);
+}
+
+/* ═══════════════ 매출 추이 (일/월 토글 실동작 + 7월 비교) ═══════════════ */
+
+let revMode = 'day';
+
+function renderRevChart() {
+  const W = 660, H = 190, padL = 34, padR = 52, padT = 10, padB = 24;
+  const plotW = W - padL - padR, plotH = H - padT - padB;
+  let s = '<svg viewBox="0 0 ' + W + ' ' + H + '" class="chart" role="img" aria-label="매출 추이 차트">';
+
+  if (revMode === 'day') {
+    $('#rev-caption').textContent = '8월 합계 ₩214.3M · 152건 (7월 ₩196.85M · +8.9%)';
+    const yMax = 12;
+    const y = (v) => padT + plotH - (v / yMax) * plotH;
+    [0, 4, 8, 12].forEach((v) => {
+      s += '<line x1="' + padL + '" x2="' + (W - padR) + '" y1="' + y(v) + '" y2="' + y(v) + '" class="' + (v === 0 ? 'axis-line' : 'grid-line') + '"></line>';
+      s += '<text x="' + (padL - 5) + '" y="' + (y(v) + 3) + '" text-anchor="end" class="tick">' + v + '</text>';
+    });
+    const band = plotW / REV_AUG_DAILY.length;
+    const barW = Math.min(12, band - 2);
+    REV_AUG_DAILY.forEach((v, i) => {
+      const x = padL + band * i + (band - barW) / 2;
+      const h = Math.max(1.5, (v / yMax) * plotH);
+      s += barMark(x, y(0) - h, barW, h, 'var(--s1)');
+      const day = i + 1;
+      if (day === 1 || day % 7 === 0 || day === 31) {
+        s += '<text x="' + (padL + band * i + band / 2) + '" y="' + (H - 8) + '" text-anchor="middle" class="tick">8/' + day + '</text>';
+      }
+      s += '<rect class="band" data-i="' + i + '" x="' + (padL + band * i) + '" y="' + padT + '" width="' + band + '" height="' + (plotH + padB) + '"></rect>';
+    });
+    // 7월 일평균 비교선 (실선 헤어라인 + 라벨)
+    const refY = y(REV_JUL_DAILY_AVG);
+    s += '<line x1="' + padL + '" x2="' + (W - padR) + '" y1="' + refY + '" y2="' + refY + '" stroke="#9aa3af" stroke-width="1"></line>';
+    s += '<text x="' + (W - padR + 4) + '" y="' + (refY + 3) + '" class="ref-lbl">7월 일평균 6.35</text>';
+  } else {
+    $('#rev-caption').textContent = '8월 ₩214.3M — 전월 대비 +8.9%';
+    const yMax = 240;
+    const y = (v) => padT + plotH - (v / yMax) * plotH;
+    [0, 80, 160, 240].forEach((v) => {
+      s += '<line x1="' + padL + '" x2="' + (W - padR) + '" y1="' + y(v) + '" y2="' + y(v) + '" class="' + (v === 0 ? 'axis-line' : 'grid-line') + '"></line>';
+      s += '<text x="' + (padL - 5) + '" y="' + (y(v) + 3) + '" text-anchor="end" class="tick">' + v + '</text>';
+    });
+    const band = plotW / REV_MONTHLY.length;
+    const barW = 24;
+    REV_MONTHLY.forEach((m, i) => {
+      const x = padL + band * i + (band - barW) / 2;
+      const h = Math.max(2, (m.v / yMax) * plotH);
+      const fill = m.current ? 'var(--s1)' : 'var(--s1-dim)';   // 강조: 당월만 진하게
+      s += barMark(x, y(0) - h, barW, h, fill);
+      s += '<text x="' + (padL + band * i + band / 2) + '" y="' + (H - 8) + '" text-anchor="middle" class="tick' + (m.current ? ' today' : '') + '">' + m.m + '</text>';
+      if (m.current) {
+        s += '<text x="' + (padL + band * i + band / 2) + '" y="' + (y(m.v) - 5) + '" text-anchor="middle" class="end-lbl">₩214.3M</text>';
+      }
+      s += '<rect class="band" data-i="' + i + '" x="' + (padL + band * i) + '" y="' + padT + '" width="' + band + '" height="' + (plotH + padB) + '"></rect>';
+    });
+  }
+  s += '</svg>';
+
+  const host = $('#rev-chart');
+  host.innerHTML = s;
+  host.querySelectorAll('.band').forEach((el) => {
+    const i = Number(el.dataset.i);
+    if (revMode === 'day') {
+      const v = REV_AUG_DAILY[i];
+      bindTip(el, () => ({
+        title: '8월 ' + (i + 1) + '일',
+        rows: [
+          { color: '#2a78d6', value: won(Math.round(v * 1e6)), label: '출고가 매출' },
+          { value: mfmt(REV_JUL_DAILY_AVG * 1e6), label: '7월 일평균' },
+        ],
+      }));
+    } else {
+      const m = REV_MONTHLY[i];
+      bindTip(el, () => ({
+        title: '2026년 ' + m.m,
+        rows: [{ color: m.current ? '#2a78d6' : '#9ec5f4', value: mfmt(m.v * 1e6), label: '출고가 매출' }],
+      }));
+    }
+  });
+
+  // 표 뷰
+  const tbl = $('#rev-table');
+  tbl.replaceChildren();
+  const thead = document.createElement('thead');
+  const trh = document.createElement('tr');
+  (revMode === 'day' ? ['일자', '출고가 매출'] : ['월', '출고가 매출']).forEach((h) => {
+    const th = document.createElement('th'); th.textContent = h; trh.appendChild(th);
+  });
+  thead.appendChild(trh); tbl.appendChild(thead);
+  const tbody = document.createElement('tbody');
+  if (revMode === 'day') {
+    REV_AUG_DAILY.forEach((v, i) => {
+      const tr = document.createElement('tr');
+      ['8/' + (i + 1), won(Math.round(v * 1e6))].forEach((x) => { const td = document.createElement('td'); td.textContent = x; tr.appendChild(td); });
+      tbody.appendChild(tr);
+    });
+  } else {
+    REV_MONTHLY.forEach((m) => {
+      const tr = document.createElement('tr');
+      [m.m, won(Math.round(m.v * 1e6))].forEach((x) => { const td = document.createElement('td'); td.textContent = x; tr.appendChild(td); });
+      tbody.appendChild(tr);
+    });
+  }
+  tbl.appendChild(tbody);
+}
+
+$('#rev-toggle').addEventListener('click', (e) => {
+  const btn = e.target.closest('button[data-v]');
+  if (!btn) return;
+  revMode = btn.dataset.v;
+  $('#rev-toggle').querySelectorAll('button').forEach((b) => b.setAttribute('aria-pressed', String(b === btn)));
+  renderRevChart();
+});
+
+/* ═══════════════ 채널 스택 바 ═══════════════ */
+
+function renderChannels() {
+  const total = CHANNELS.reduce((s, c) => s + c.amt, 0);
+  const bar = $('#chan-bar');
+  bar.replaceChildren();
+  const colors = ['var(--s1)', 'var(--s2)'];
+  const tipColors = ['#2a78d6', '#eb6834'];
+  CHANNELS.forEach((c, i) => {
+    const seg = document.createElement('div');
+    seg.className = 'seg';
+    seg.style.width = (c.amt / total * 100) + '%';
+    seg.style.background = colors[i];
+    bindTip(seg, () => ({
+      title: c.name + ' 채널 (8월)',
+      rows: [
+        { color: tipColors[i], value: won(c.amt), label: '출고가' },
+        { value: c.cnt + '건', label: Math.round(c.amt / total * 100) + '%' },
+      ],
+    }));
+    bar.appendChild(seg);
+  });
+}
+
+/* ═══════════════ 단계별 물린 금액 ═══════════════ */
+
+function renderStages() {
+  const box = $('#stages');
+  box.replaceChildren();
+  const max = Math.max(...STAGES.map((s) => s.v));
+  STAGES.forEach((s) => {
+    const row = document.createElement('div'); row.className = 'stage-row';
+    const lbl = document.createElement('span'); lbl.className = 'lbl'; lbl.textContent = s.label;
+    const track = document.createElement('div'); track.className = 'track';
+    const bar = document.createElement('div'); bar.className = 'bar';
+    bar.style.width = Math.max(2, (s.v / max) * 100 * 0.7) + '%';
+    const val = document.createElement('span'); val.className = 'val'; val.textContent = mfmt(s.v * 1e6);
+    track.append(bar, val);
+    row.append(lbl, track);
+    bindTip(row, () => ({
+      title: s.label + ' (' + s.code + ')',
+      rows: [{ color: '#2a78d6', value: won(Math.round(s.v * 1e6)), label: '진행 중 출고가 합' }],
+    }));
+    box.appendChild(row);
+  });
+}
+
+/* ═══════════════ 수금 그리드 (주인공) ═══════════════ */
+
+function elapsedBadge(r) {
+  if (r.balOk) return { cls: 'b-paid', txt: '✓ 수금완료' };
+  const e = elapsedOf(r);
+  if (e <= 7) return { cls: 'b-e0', txt: e + '일' };
+  if (e <= 30) return { cls: 'b-e1', txt: '△ ' + e + '일' };
+  if (e <= 60) return { cls: 'b-e2', txt: '⚠ ' + e + '일' };
+  return { cls: 'b-e3', txt: '⛔ ' + e + '일' };
+}
+
+function renderTable() {
+  const rows = visibleRows();
+  const tbody = $('#grid-body');
+  tbody.replaceChildren();
+
+  rows.forEach((r) => {
+    const e = elapsedOf(r);
+    const bal = balanceOf(r);
+    const tr = document.createElement('tr');
+    if (!r.balOk && e > 60) tr.className = 'overdue-hard';
+
+    // 고객
+    const tdC = document.createElement('td'); tdC.className = 'cust';
+    const nm = document.createElement('span'); nm.className = 'nm'; nm.textContent = r.name;
+    const no = document.createElement('span'); no.className = 'no'; no.textContent = '#' + r.id;
+    tdC.append(nm, no);
+
+    // 채널
+    const tdCh = document.createElement('td');
+    const chB = document.createElement('span');
+    chB.className = 'b ' + (r.ch === '네이버' ? 'b-ch-naver' : 'b-ch-normal');
+    chB.textContent = r.ch;
+    tdCh.appendChild(chB);
+
+    // 완료일
+    const tdD = document.createElement('td'); tdD.className = 'num'; tdD.textContent = fmtDone(r.done);
+
+    // 출고가
+    const tdS = document.createElement('td'); tdS.className = 'num'; tdS.textContent = won(r.ship);
+
+    // 예약금 + 확인 여부
+    const tdDep = document.createElement('td'); tdDep.className = 'num';
+    const depAmt = document.createElement('div'); depAmt.textContent = won(r.dep);
+    const depSt = document.createElement('div');
+    depSt.className = 'sub-line ' + (r.depOk ? 'ok-txt' : 'warn-txt');
+    depSt.textContent = r.depOk ? '✓ 확인' : '! 미확인';
+    tdDep.append(depAmt, depSt);
+
+    // 잔금
+    const tdB = document.createElement('td'); tdB.className = 'num balance' + (r.balOk ? ' paid-amt' : '');
+    tdB.textContent = won(bal);
+
+    // 경과일 배지 (색 + 아이콘 이중 신호)
+    const tdE = document.createElement('td');
+    const eb = elapsedBadge(r);
+    const ebEl = document.createElement('span'); ebEl.className = 'b ' + eb.cls; ebEl.textContent = eb.txt;
+    tdE.appendChild(ebEl);
+
+    // 현금영수증
+    const tdCash = document.createElement('td');
+    if (r.cash === 'req') { const b = document.createElement('span'); b.className = 'b b-cash-req'; b.textContent = '요청 · 미발행'; tdCash.appendChild(b); }
+    else if (r.cash === 'ok') { const b = document.createElement('span'); b.className = 'b b-cash-ok'; b.textContent = '발행됨'; tdCash.appendChild(b); }
+    else { const s = document.createElement('span'); s.className = 'dash'; s.textContent = '—'; tdCash.appendChild(s); }
+
+    // 정산상태
+    const tdSt = document.createElement('td');
+    const stB = document.createElement('span');
+    stB.className = 'b ' + (r.settle === 'issued' ? 'b-settle-ok' : 'b-settle-wait');
+    stB.textContent = r.settle === 'issued' ? '청구완료' : '대기';
+    tdSt.appendChild(stB);
+
+    // 액션
+    const tdA = document.createElement('td');
+    const cell = document.createElement('div'); cell.className = 'actions-cell';
+    if (!r.balOk) {
+      const b1 = document.createElement('button');
+      b1.className = 'btn btn-primary btn-xs'; b1.textContent = '입금 확인';
+      b1.addEventListener('click', () => {
+        r.balOk = true;
+        renderKpis(); renderAging(); renderTable();
+        showToast(r.name + ' #' + r.id + ' 잔금 입금 확인 — 목업 (저장 안 됨) · 확인일 자동 기록은 예정 기능');
+      });
+      cell.appendChild(b1);
+      if (e > 30) {
+        const b3 = document.createElement('button');
+        b3.className = 'btn btn-xs'; b3.textContent = '알림';
+        const soon = document.createElement('span'); soon.className = 'soon'; soon.textContent = '예정';
+        b3.appendChild(soon);
+        b3.addEventListener('click', () => showToast('연체 알림톡 — 예정 기능입니다 (목업)'));
+        cell.appendChild(b3);
+      }
+    }
+    if (r.settle === 'pending') {
+      const b2 = document.createElement('button');
+      b2.className = 'btn btn-xs'; b2.textContent = '정산 청구';
+      b2.addEventListener('click', () => {
+        r.settle = 'issued';
+        renderTable();
+        showToast(r.name + ' #' + r.id + ' 정산 청구 처리 — 목업 (저장 안 됨)');
+      });
+      cell.appendChild(b2);
+    }
+    if (!cell.childElementCount) { const s = document.createElement('span'); s.className = 'dash'; s.textContent = '—'; cell.appendChild(s); }
+    tdA.appendChild(cell);
+
+    tr.append(tdC, tdCh, tdD, tdS, tdDep, tdB, tdE, tdCash, tdSt, tdA);
+    tbody.appendChild(tr);
+  });
+
+  // 푸터 합계
+  const unpaidVisible = rows.filter((r) => !r.balOk);
+  const sumBal = unpaidVisible.reduce((s, r) => s + balanceOf(r), 0);
+  const foot = $('#gridfoot');
+  foot.replaceChildren();
+  const parts = [
+    ['표시', rows.length + '건'],
+    ['미수', unpaidVisible.length + '건 · ' + won(sumBal)],
+    ['정산 대기(표시분)', rows.filter((r) => r.settle === 'pending').length + '건'],
+  ];
+  parts.forEach(([k, v]) => {
+    const sp = document.createElement('span');
+    sp.textContent = k + ' ';
+    const b = document.createElement('b'); b.textContent = v;
+    sp.appendChild(b);
+    foot.appendChild(sp);
+  });
+
+  renderBucketChip();
+}
+
+function renderBucketChip() {
+  const slot = $('#bucket-chip-slot');
+  slot.replaceChildren();
+  if (state.bucket === null) return;
+  const btn = document.createElement('button');
+  btn.className = 'chip-clear';
+  btn.textContent = 'aging: ' + BUCKETS[state.bucket].label + ' ✕';
+  btn.addEventListener('click', () => { state.bucket = null; renderAging(); renderTable(); });
+  slot.appendChild(btn);
+}
+
+/* 필터 칩 배선 */
+$('#filterbar').addEventListener('click', (e) => {
+  const chip = e.target.closest('.chip[data-v]');
+  if (!chip) return;
+  const grp = chip.closest('.grp');
+  const key = grp.dataset.filter;
+  state[key] = chip.dataset.v;
+  grp.querySelectorAll('.chip').forEach((c) => c.setAttribute('aria-pressed', String(c === chip)));
+  renderTable();
+});
+
+/* ═══════════════ CSV 내보내기 (현재 필터 기준, 로컬 생성) ═══════════════ */
+
+$('#btn-csv').addEventListener('click', () => {
+  const rows = visibleRows();
+  const head = ['주문번호', '고객명', '채널', '완료일', '출고가', '예약금', '예약금확인', '잔금', '잔금확인', '경과일', '현금영수증', '정산상태'];
+  const lines = [head.join(',')];
+  rows.forEach((r) => {
+    lines.push([
+      r.id, r.name, r.ch, r.done, r.ship, r.dep, r.depOk ? 'Y' : 'N',
+      balanceOf(r), r.balOk ? 'Y' : 'N', elapsedOf(r),
+      r.cash === 'req' ? '요청' : r.cash === 'ok' ? '발행' : '-',
+      r.settle === 'issued' ? '청구완료' : '대기',
+    ].join(','));
+  });
+  const blob = new Blob(['﻿' + lines.join('\r\n')], { type: 'text/csv;charset=utf-8' });
+  const a = document.createElement('a');
+  a.href = URL.createObjectURL(blob);
+  a.download = '정산수금_' + BASE_DATE + '.csv';
+  a.click();
+  URL.revokeObjectURL(a.href);
+  showToast('CSV 내보내기 완료 — 현재 필터 기준 ' + rows.length + '건 (목업 데이터)');
+});
+
+/* ═══════════════ 미래 티저 버튼 ═══════════════ */
+
+$('#btn-lock').addEventListener('click', () => showToast('월 마감 잠금 — 예정 기능입니다 (마감 후 금액 수정 차단)'));
+
+/* ═══════════════ 초기 렌더 ═══════════════ */
+
+renderKpis();
+renderAging();
+renderDailyChart();
+renderRevChart();
+renderChannels();
+renderStages();
+renderTable();
+</script>
+
+<!--
+  ═══════════════ 팔레트 검증 기록 (dataviz 스킬 게이트) ═══════════════
+  검증 도구: dataviz 스킬 scripts/validate_palette.js (node) — 2026-08-31 실행, 카드 서피스 #ffffff 기준
+
+  1) 범주 시리즈 2종 (slot1 #2a78d6 = 실적/일반/매출, slot2 #eb6834 = 예정/네이버)
+     node validate_palette.js "#2a78d6,#eb6834" - -mode light - -surface "#ffffff"
+     → ALL CHECKS PASS (exit 0)
+       Lightness band PASS · Chroma floor PASS
+       CVD separation PASS (worst adjacent ΔE 24.7 protan · tritan 32.7)
+       Normal-vision floor PASS (ΔE 33.6) · Contrast vs surface PASS (2/2 ≥ 3:1)
+
+  2) aging 버킷 ordinal 램프 (#86b6ef, #5598e7, #2a78d6, #1c5cab, #104281 — 시퀀셜 blue 250/350/450/550/650)
+     node validate_palette.js "#86b6ef,#5598e7,#2a78d6,#1c5cab,#104281" - -ordinal - -mode light - -surface "#ffffff"
+     → ALL CHECKS PASS (exit 0)
+       Lightness monotone PASS · Adjacent ΔL PASS (전 구간 ≥ 0.06)
+       Light-end contrast PASS (#86b6ef 2.11:1) · Single hue PASS (hue spread 3°)
+
+  비고:
+  - 그리드 경과일/현금영수증/정산 배지는 차트 시리즈가 아닌 UI 상태 배지 —
+    기존 목업 관례(naver-ingest-workbench.html)의 soft 배지 색을 따르고, 아이콘+텍스트 이중 신호 동반
+    (상태색을 시리즈로 재사용하지 않음 — dataviz 규칙 8).
+  - 이중 y축 없음. 모든 차트 단일 축·단일 단위(백만원). 월 뷰는 당월 강조(emphasis) 패턴.
+  - 외부 요청 0건: CDN/폰트/이미지/fetch/네임스페이스 URI 문자열 없음 (SVG는 HTML 파서 foreign content로 삽입).
+  - 명령 예시 안의 이중 하이픈은 HTML 주석 제약으로 "- -" 로 표기했다. 실제 실행은 붙여서.
+-->
+</body>
+</html>

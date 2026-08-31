@@ -1,0 +1,557 @@
+<!doctype html>
+<html lang="ko">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>정산 대시보드 색상 연구 — 전략 비교 보드</title>
+<style>
+  /* ── 토큰 (V1 executive 톤 공유) ──────────────────────────────── */
+  :root {
+    color-scheme: light;
+    --bg: #eef2f7;
+    --surface: #fff;
+    --surface-soft: #f6f8fb;
+    --text: #111827;
+    --muted: #6b7280;
+    --faint: #9aa3af;
+    --line: #dbe1ea;
+    --line-soft: #edf1f6;
+    --grid: #edf1f6;
+    --axis: #d6dce6;
+    --accent: #2a78d6;        /* slot-1 파랑 (매출 가족) */
+    --accent-dark: #1c5cab;   /* 파랑 다크 스텝 (전월 = 1 hue 2 shades) */
+    --s2: #eb6834;            /* slot-2 주황 (미수 가족) */
+    --aqua: #1baf7a;          /* slot-3 아쿠아 (수금 가족) */
+    --neutral: #6b7280;       /* 뉴트럴 (볼륨 가족 / C 라인) */
+    --gray-mark: #8a94a3;     /* C 강조전략 de-emphasis 막대 (흰 서피스 3.07:1) */
+    --crit: #d03b3b;          /* status critical — 상태 의미일 때만 */
+    --good: #006300;
+    --bad: #b91c1c;
+    --radius: 10px;
+    font-family: Pretendard, -apple-system, BlinkMacSystemFont, "Segoe UI", "Malgun Gothic", sans-serif;
+  }
+  * { box-sizing: border-box; }
+  body { margin: 0; background: var(--bg); color: var(--text); font-size: 13px; }
+  svg text { font-family: inherit; }
+
+  /* ── 헤더 스트립 ─────────────────────────────────────────────── */
+  .strip {
+    display: flex; align-items: center; gap: 12px; flex-wrap: wrap;
+    background: var(--surface); border-bottom: 1px solid var(--line);
+    padding: 10px 18px;
+  }
+  .strip .title { font-size: 16px; font-weight: 800; letter-spacing: -0.01em; }
+  .vbadge {
+    background: #eaf2fc; color: var(--accent);
+    font-size: 11px; font-weight: 800; padding: 2px 9px; border-radius: 999px;
+  }
+  .strip .who { color: var(--muted); font-size: 12px; }
+  .strip .spacer { flex: 1; }
+  .strip .stamp { color: var(--faint); font-size: 11.5px; font-variant-numeric: tabular-nums; }
+
+  .wrap { max-width: 1440px; margin: 0 auto; padding: 14px 18px 40px; }
+  .intro { color: var(--muted); font-size: 12.5px; margin: 2px 2px 14px; line-height: 1.6; }
+  .intro b { color: var(--text); }
+
+  h2.sect {
+    font-size: 14px; font-weight: 800; margin: 26px 2px 4px;
+    display: flex; align-items: center; gap: 8px; flex-wrap: wrap;
+  }
+  .sect-sub { font-size: 12px; color: var(--muted); font-weight: 500; margin: 0 2px 12px; line-height: 1.55; }
+
+  /* ── 전략 3열 ────────────────────────────────────────────────── */
+  .cols { display: grid; grid-template-columns: repeat(auto-fit, minmax(340px, 1fr)); gap: 14px; align-items: start; }
+  .scol { display: grid; gap: 10px; min-width: 0; }
+  .shead {
+    background: var(--surface); border: 1px solid var(--line); border-radius: var(--radius);
+    padding: 11px 14px 12px;
+  }
+  .sname { font-size: 13.5px; font-weight: 800; display: flex; align-items: center; gap: 7px; flex-wrap: wrap; }
+  .stag { font-size: 10.5px; font-weight: 800; padding: 1px 8px; border-radius: 999px; }
+  .stag.rec { background: #eaf2fc; color: var(--accent); }
+  .stag.part { background: #fdf3e3; color: #b45309; }
+  .stag.aux { background: #f1f3f6; color: var(--muted); }
+  .sdesc { margin-top: 5px; font-size: 12px; color: var(--muted); line-height: 1.55; }
+
+  .card { background: var(--surface); border: 1px solid var(--line); border-radius: var(--radius); padding: 12px 14px 13px; min-width: 0; }
+  .card-head { display: flex; align-items: center; gap: 7px; flex-wrap: wrap; }
+  .card-title { font-size: 12.5px; font-weight: 800; }
+  .chip { font-size: 10px; font-weight: 800; padding: 1px 7px; border-radius: 999px; border: 1px solid transparent; white-space: nowrap; }
+  .chip-ok  { color: var(--good); background: #eef7ee; border-color: #cfe6cf; }
+  .chip-bad { color: var(--bad); background: #fdf0ef; border-color: #f2d4d2; }
+  .legend { display: flex; gap: 10px 12px; font-size: 11px; color: var(--muted); font-weight: 600; flex-wrap: wrap; margin: 7px 0 2px; }
+  .legend .lg { display: inline-flex; align-items: center; gap: 5px; }
+  .lg-line { width: 14px; height: 3px; border-radius: 2px; display: inline-block; }
+  .lg-rect { width: 9px; height: 9px; border-radius: 3px; display: inline-block; }
+  .chart-host { line-height: 0; }
+  .axis-t { font-size: 10px; fill: var(--faint); font-variant-numeric: tabular-nums; }
+  .axis-sub { font-size: 9.5px; fill: var(--faint); }
+  .cap-t { font-size: 10px; font-weight: 700; fill: var(--muted); font-variant-numeric: tabular-nums; }
+  .cnote { margin-top: 7px; font-size: 11px; color: var(--muted); line-height: 1.55; }
+  .cnote b { color: var(--text); }
+  .cnote .dot { display: inline-block; width: 7px; height: 7px; border-radius: 50%; margin-right: 4px; vertical-align: baseline; }
+
+  .verdict {
+    background: var(--surface-soft); border: 1px solid var(--line-soft); border-radius: var(--radius);
+    padding: 10px 13px; font-size: 11.5px; color: var(--muted); line-height: 1.6;
+  }
+  .verdict b { color: var(--text); }
+  .verdict .pro { color: var(--good); font-weight: 800; }
+  .verdict .con { color: var(--bad); font-weight: 800; }
+
+  /* ── KPI (전략 D 데모) ───────────────────────────────────────── */
+  .dpanel { display: grid; gap: 16px; }
+  .dlabel { font-size: 12px; font-weight: 800; color: var(--muted); margin-bottom: 8px; display: flex; align-items: center; gap: 7px; }
+  .kpis { display: grid; grid-template-columns: repeat(5, minmax(0,1fr)); gap: 12px; }
+  .kpi { background: var(--surface); border: 1px solid var(--line); border-radius: var(--radius); padding: 11px 14px 10px; min-width: 0; }
+  .kpi-label { font-size: 11px; font-weight: 700; color: var(--muted); }
+  .kpi-mid { display: flex; align-items: flex-end; justify-content: space-between; gap: 8px; margin-top: 5px; }
+  .kpi-value { font-size: 21px; font-weight: 800; letter-spacing: -0.02em; line-height: 1.1; white-space: nowrap; }
+  .kpi-value i { font-style: normal; font-size: 11.5px; font-weight: 700; color: var(--muted); margin-left: 1px; }
+  .kpi-spark { flex: none; line-height: 0; }
+  .kpi-delta { margin-top: 6px; font-size: 11.5px; font-weight: 800; }
+  .kpi-delta span { color: var(--faint); font-weight: 600; margin-left: 3px; }
+  .kpi-delta.good { color: var(--good); }
+  .kpi-delta.bad { color: var(--bad); }
+  .kpi-sub { margin-top: 3px; font-size: 10.5px; color: var(--faint); white-space: nowrap; overflow: hidden; text-overflow: ellipsis; }
+  /* D 적용: 가족 틴트 + 상단 액센트 바 (데이터 잉크는 서피스 층위 — 마크 아님) */
+  .kpi.fam { border-top: 3px solid var(--fam, var(--line)); background: var(--fam-tint, var(--surface)); }
+  .dband {
+    background: linear-gradient(180deg, #e9f1fa, rgba(233,241,250,0));
+    border-radius: 14px; padding: 13px 13px 6px;
+  }
+
+  /* ── CEO 추천 스트립 ─────────────────────────────────────────── */
+  .ceo {
+    margin-top: 26px; background: var(--surface); border: 1px solid var(--line);
+    border-left: 4px solid var(--accent); border-radius: var(--radius);
+    padding: 13px 16px; font-size: 12.5px; line-height: 1.65; color: var(--muted);
+  }
+  .ceo b { color: var(--text); }
+
+  .foot { max-width: 1440px; margin: 0 auto; padding: 10px 18px 34px; color: var(--faint); font-size: 11.5px; line-height: 1.6; }
+  .mockup-badge {
+    position: fixed; right: 14px; bottom: 12px; z-index: 60;
+    background: #111827; color: #fff; font-size: 11px; font-weight: 800;
+    padding: 4px 11px; border-radius: 999px; opacity: .88; letter-spacing: .04em;
+  }
+  @media (max-width: 1120px) { .kpis { grid-template-columns: repeat(auto-fit, minmax(190px, 1fr)); } }
+</style>
+</head>
+<body>
+
+<div class="strip">
+  <span class="title">정산 대시보드 색상 연구</span>
+  <span class="vbadge">전략 비교 보드</span>
+  <span class="who">피드백 "그래프 색상이 너무 획일화" 대응 — V1 실데이터(가정치) 동일 적용</span>
+  <span class="spacer"></span>
+  <span class="stamp">기준 2026-08-31</span>
+</div>
+
+<div class="wrap">
+  <p class="intro">
+    같은 두 차트(<b>출고가 매출 추이</b> = 8월 막대 + 7월 라인, <b>미수금 aging</b>)에 색 전략
+    <b>A·B·C</b>를 각각 적용해 나란히 비교합니다. 하단은 차트 밖 단조로움을 해소하는 <b>전략 D</b>(표면 층위) 데모.
+    모든 팔레트는 dataviz <code>validate_palette.js</code>로 검증했습니다(기록: 소스 하단 주석 · <code>color_study.md</code>).
+  </p>
+
+  <div class="cols">
+
+    <!-- ═════════ 전략 A ═════════ -->
+    <div class="scol">
+      <div class="shead">
+        <div class="sname">전략 A — 금액구간별 램프 <span class="stag part">부분 채택</span></div>
+        <div class="sdesc">금액을 구간으로 나눠 같은 파랑의 명암으로 칠한다(사용자 제안) — 큰 금액일수록 진하게.</div>
+      </div>
+      <div class="card">
+        <div class="card-head">
+          <span class="card-title">출고가 매출 추이</span>
+          <span class="chip chip-bad">안티패턴 시연</span>
+        </div>
+        <div class="legend" id="lg-a-rev"></div>
+        <div class="chart-host" id="ch-a-rev"></div>
+        <div class="cnote">막대 <b>높이가 이미 금액</b>인데 색이 또 금액을 말한다 — 이중 인코딩.
+          699만 vs 701만이 경계에서 다른 색을 입어 날짜들이 <b>가짜 범주</b>처럼 읽힌다.</div>
+      </div>
+      <div class="card">
+        <div class="card-head">
+          <span class="card-title">미수금 aging</span>
+          <span class="chip chip-ok">합법 — 현행 유지</span>
+        </div>
+        <div class="chart-host" id="ch-a-aging"></div>
+        <div class="cnote"><span class="dot" style="background:#d03b3b"></span><b>91일 이상 1건 · 150만</b> — 우선 회수 대상.
+          경과일 <b>버킷 자체가 의미 단위</b>(ordinal)라 램프가 정당 — V1이 이미 이렇게 한다.</div>
+      </div>
+      <div class="verdict">
+        <span class="pro">장점</span> 직관적("클수록 진하게") · aging엔 이미 합법 적용 · 새 색상 불필요<br>
+        <span class="con">단점</span> 합법 표면이 aging뿐이라 확장성 없음 · 추이 막대에 쓰면 규칙 위반 · 같은 파랑 명암이라 체감 변화도 작음<br>
+        <b>판정</b> aging 현행 유지로 종결, 그 외 확대 금지.
+      </div>
+    </div>
+
+    <!-- ═════════ 전략 B ═════════ -->
+    <div class="scol">
+      <div class="shead">
+        <div class="sname">전략 B — 지표 계열별 색 <span class="stag rec">CEO 추천</span></div>
+        <div class="sdesc">색이 값이 아니라 <b>지표 가족(엔티티)</b>을 따라간다: 매출=파랑 · 미수=주황 램프 · 수금=아쿠아 · 위험=빨강 status · 채널=범주 슬롯.</div>
+      </div>
+      <div class="card">
+        <div class="card-head">
+          <span class="card-title">출고가 매출 추이</span>
+          <span class="chip chip-ok">정석 — 1 hue 2 shades</span>
+        </div>
+        <div class="legend" id="lg-b-rev"></div>
+        <div class="chart-host" id="ch-b-rev"></div>
+        <div class="cnote">두 시리즈 모두 <b>매출 가족 = 파랑</b>. 색은 엔티티를, <b>명암이 기간</b>(당월/전월)을 맡는다
+          — before→after 표준형. 검증 <code>#2a78d6,#1c5cab --ordinal</code> PASS.</div>
+      </div>
+      <div class="card">
+        <div class="card-head">
+          <span class="card-title">미수금 aging</span>
+          <span class="chip chip-ok">정석 — 두 번째 시퀀셜=slot-2 hue</span>
+        </div>
+        <div class="chart-host" id="ch-b-aging"></div>
+        <div class="cnote"><span class="dot" style="background:#d03b3b"></span><b>91일 이상 1건 · 150만</b> — 우선 회수 대상.
+          미수는 <b>주황 가족</b> — 파랑(매출)과 한눈에 구분되고, 화면 어디서든 "주황=미수"가 학습된다.</div>
+      </div>
+      <div class="verdict">
+        <span class="pro">장점</span> 색=의미 사전("파랑=매출·주황=미수·아쿠아=수금") · 4개 목업 전 카드에 일반화 · 팔레트 전부 검증 PASS<br>
+        <span class="con">단점</span> 색 사전 유지 규율 필요(새 카드마다 가족 판정) · 한 화면 시퀀셜 램프는 2개까지로 절제<br>
+        <b>판정</b> 기본 전략으로 채택 — D와 병행.
+      </div>
+    </div>
+
+    <!-- ═════════ 전략 C ═════════ -->
+    <div class="scol">
+      <div class="shead">
+        <div class="sname">전략 C — 강조(emphasis) <span class="stag aux">보조 채택</span></div>
+        <div class="sdesc">대부분을 뉴트럴 그레이로 눕히고, <b>이야기가 있는 지점만</b> 색을 준다 — 모노톤의 세련된 해법.</div>
+      </div>
+      <div class="card">
+        <div class="card-head">
+          <span class="card-title">출고가 매출 추이</span>
+          <span class="chip chip-ok">합법 — 강조 1점</span>
+        </div>
+        <div class="legend" id="lg-c-rev"></div>
+        <div class="chart-host" id="ch-c-rev"></div>
+        <div class="cnote">31개 막대를 그레이로 눕히고 <b>월 최고 매출일(8/31)</b>만 파랑 + 직접 라벨.
+          시선이 정확히 한 점에 꽂힌다 — 경영진 뷰와 궁합 최상.</div>
+      </div>
+      <div class="card">
+        <div class="card-head">
+          <span class="card-title">미수금 aging</span>
+          <span class="chip chip-ok">합법 — status 강조</span>
+        </div>
+        <div class="chart-host" id="ch-c-aging"></div>
+        <div class="cnote"><span class="dot" style="background:#d03b3b"></span><b>91일 이상 1건 · 150만</b> — 우선 회수 대상.
+          위험을 <b>의미</b>하는 막대만 critical 빨강 + 아이콘·라벨 — 상태색 원칙과 정확히 일치.</div>
+      </div>
+      <div class="verdict">
+        <span class="pro">장점</span> 시선 집중·절제된 고급감 · "이번 달 이야기"가 명확 · 상태색 원칙과 자연 결합<br>
+        <span class="con">단점</span> 전 카드에 쓰면 <b>더 모노톤</b>(회색 대시보드 — 불만의 역방향) · 강조 대상 선정 로직 필요 · 색=의미 사전이 안 생김<br>
+        <b>판정</b> B 위에 국소(카드 1~2곳) 강조로만.
+      </div>
+    </div>
+  </div>
+
+  <!-- ═════════ 전략 D ═════════ -->
+  <h2 class="sect">전략 D — 표면/배경 층위 변화 <span class="stag aux" style="align-self:center">B와 병행</span></h2>
+  <p class="sect-sub">
+    데이터 잉크(마크)는 그대로 두고 <b>카드·섹션 표면</b>으로 리듬을 만든다 — 차트 규칙과 직교라 위반 리스크 0.
+    아래는 V1 상단 KPI 5장 미니 재현: 현재 vs D 적용(가족 틴트 5~8% 워시 + 상단 액센트 바 + 가족색 스파크라인 + 섹션 밴드).
+    틴트 가족은 전략 B의 색 사전을 그대로 재사용한다(따로 놀면 혼란).
+  </p>
+  <div class="dpanel">
+    <div>
+      <div class="dlabel">현재 — V1 그대로 (전 카드 동일 흰 표면 · 스파크라인 전부 파랑)</div>
+      <div class="kpis" id="kpis-now"></div>
+    </div>
+    <div class="dband">
+      <div class="dlabel">전략 D 적용 — 매출·평균출고가=파랑 · 미수금=주황 · 수금=아쿠아 · 건수=뉴트럴</div>
+      <div class="kpis" id="kpis-d"></div>
+    </div>
+    <div class="verdict" style="max-width: 980px">
+      <span class="pro">장점</span> 리스크 최소(마크가 아니라 서피스 — dataviz 검증 대상 밖, 텍스트 대비만 유지) · "화면이 평평하다"는 불만의 직접 해답<br>
+      <span class="con">단점</span> 틴트가 8%를 넘으면 촌스러움 · 빨강 계열 틴트 카드는 금지(상태색 오독) — 미수 카드 주황 틴트는 실제 위험 지표라 허용<br>
+      <b>판정</b> B와 같은 색 사전으로 병행 채택. 델타(▲▼)의 good/bad 상태색은 그대로 둔다.
+    </div>
+  </div>
+
+  <div class="ceo">
+    <b>CEO 추천 — 전략 B(지표 계열별 색 배정) 기본 + D(표면 층위) 병행.</b>
+    ① B만이 "색이 엔티티를 따라간다"는 규칙의 정석이면서 4개 목업 전 카드에 일반화되고, 사용 팔레트 전부 validate_palette.js PASS.
+    ② "파랑=매출·주황=미수·아쿠아=수금" 색 사전이 생겨 단조로움 해소가 장식이 아니라 <b>정보</b>가 된다.
+    ③ A는 합법 표면이 aging 한 곳뿐(추이 적용은 안티패턴), C는 전면 적용 시 더 모노톤 — B 기본 + D 표면 리듬 + C 국소 강조가 재사용 가능한 최소 규칙 세트.
+  </div>
+</div>
+
+<div class="foot">
+  본 화면은 색상 연구용 목업 보드입니다 — 수치는 V1과 동일한 가정치.
+  막대 ≤24px·상단 4px 라운드·2px 서피스 갭 · 격자=실선 헤어라인 · 2시리즈 이상 범례 필수 · 외부 요청 0건.
+  전략 문서: 세션 스크래치패드 <code>color_study.md</code>.
+</div>
+
+<div class="mockup-badge">COLOR STUDY</div>
+
+<script>
+'use strict';
+
+/* ═══════════ 1. 데이터 — V1과 동일 (만원 단위 가정치) ═══════════ */
+const AUG_DAILY = [455,309,796,734,824,787,921,499,329,827,831,850,713,901,457,318,844,925,695,828,756,498,301,952,830,838,701,861,453,284,1113]; // 합 21430
+const JUL_DAILY = [583,596,710,387,274,803,758,637,686,602,360,258,834,761,755,658,657,387,227,852,850,702,704,709,367,253,772,928,919,880,816]; // 합 19685
+const AGING = [ // 합 3,872만 · 27건
+  { label: '7일 이하', v: 1242, n: 9 },
+  { label: '8–30일',  v: 1490, n: 10 },
+  { label: '31–60일', v: 710,  n: 5 },
+  { label: '61–90일', v: 280,  n: 2 },
+  { label: '91일 이상', v: 150, n: 1 },
+];
+const KPIS = [
+  { label: '당월 매출', value: '2억 1,430만', unit: '원', delta: { arrow: '▲', text: '+8.9%', good: true, vs: 'vs 7월' },
+    sub: '완료일 기준 · 152건', fam: 'rev', spark: [4390,4610,4520,4780,4470,4655,4700,4860,4420,4980,5140,5310] },
+  { label: '미수금 잔액', value: '3,872만', unit: '원', delta: { arrow: '▼', text: '−6.0%', good: true, vs: 'vs 7월 말' },
+    sub: '27건 · 잔금 입금 미확인', fam: 'ar', spark: [4470,4390,4520,4310,4260,4180,4120,4390,4210,4050,3980,3872] },
+  { label: '완료 건수', value: '152', unit: '건', delta: { arrow: '▲', text: '+7.8%', good: true, vs: 'vs 7월 141건' },
+    sub: '완료 · AS접수 · AS완료', fam: 'vol', spark: [31,33,32,35,33,34,35,36,33,37,38,39] },
+  { label: '평균 출고가', value: '141.0만', unit: '원', delta: { arrow: '▲', text: '+1.0%', good: true, vs: 'vs 7월 139.6만' },
+    sub: '출고가 = 품목합 + 배송 − 할인', fam: 'rev', spark: [136,141,138,143,139,137,140,142,138,141,143,141] },
+  { label: '당월 수금', value: '2억 640만', unit: '원', delta: { arrow: '▲', text: '+5.3%', good: true, vs: 'vs 7월' },
+    sub: '예약금 6,410만 · 잔금 1억 4,230만', fam: 'col', spark: [4200,4350,4290,4510,4400,4480,4560,4720,4390,4810,4950,5120] },
+];
+
+/* ═══════════ 2. 팔레트 (전부 validate_palette.js 검증 — 소스 하단 주석) ═══════════ */
+const ACCENT = '#2a78d6';                 // slot-1 파랑
+const ACCENT_DARK = '#1c5cab';            // 파랑 다크 스텝 (B 전월 라인)
+const GRAY_MARK = '#8a94a3';              // C de-emphasis 막대 (3.07:1)
+const GRAY_LINE = '#6b7280';              // C 전월 라인 (4.83:1)
+const CTX = '#8a94a3';                    // A 전월 라인 (V1 현행 컨텍스트 그레이)
+const CRIT = '#d03b3b';                   // status critical (4.80:1, 아이콘+라벨 동반)
+const BLUE_RAMP5 = ['#86b6ef','#5598e7','#2a78d6','#1c5cab','#104281'];   // A aging (현행)
+const BLUE_BUCKET4 = ['#86b6ef','#5598e7','#2a78d6','#104281'];           // A 금액버킷
+const BUCKET_EDGES = [450, 700, 900];                                     // <450 / 450–699 / 700–899 / 900+
+const BUCKET_LABELS = ['~449만','450~699만','700~899만','900만~'];
+const ORANGE_RAMP5 = ['#f19979','#eb6834','#c74b12','#9f3701','#752600']; // B aging (slot-2 hue)
+const FAM = { rev: '#2a78d6', ar: '#eb6834', col: '#1baf7a', vol: '#6b7280' };
+const FAM_TINT = { rev: '#f1f6fd', ar: '#fdf3ed', col: '#eefaf5', vol: '#f4f6f8' };
+
+/* ═══════════ 3. 헬퍼 ═══════════ */
+function fmtTick(v){
+  if (v === 0) return '0';
+  if (v >= 10000){ const e = v / 10000; return (Number.isInteger(e) ? e : e.toFixed(1)) + '억'; }
+  return v.toLocaleString('ko-KR') + '만';
+}
+function niceScale(maxV, tickCount){
+  tickCount = tickCount || 4;
+  const rough = maxV / tickCount;
+  const mag = Math.pow(10, Math.floor(Math.log10(rough)));
+  let step = mag * 10;
+  for (const m of [1, 2, 2.5, 5, 10]){ if (maxV / (m * mag) <= tickCount){ step = m * mag; break; } }
+  const top = Math.ceil(maxV / step) * step;
+  const ticks = []; for (let v = 0; v <= top + 1e-9; v += step) ticks.push(Math.round(v));
+  return { top, ticks };
+}
+function roundTopRect(x, y, w, h, r){
+  r = Math.min(r, w / 2, h);
+  return 'M' + x + ',' + (y + h) + ' L' + x + ',' + (y + r) +
+    ' Q' + x + ',' + y + ' ' + (x + r) + ',' + y +
+    ' L' + (x + w - r) + ',' + y +
+    ' Q' + (x + w) + ',' + y + ' ' + (x + w) + ',' + (y + r) +
+    ' L' + (x + w) + ',' + (y + h) + ' Z';
+}
+function bucketColor(v){
+  for (let i = 0; i < BUCKET_EDGES.length; i++){ if (v < BUCKET_EDGES[i]) return BLUE_BUCKET4[i]; }
+  return BLUE_BUCKET4[BLUE_BUCKET4.length - 1];
+}
+
+/* 정적 컬럼 차트 (막대 ≤24px·4px 라운드 탑·2px 갭·실선 헤어라인 격자, 동일 축 라인 오버레이) */
+function columnChart(host, cfg){
+  const w = host.clientWidth || 380, h = cfg.height;
+  const pad = { t: cfg.caps ? 24 : 12, r: 8, b: cfg.twoLineX ? 38 : 24, l: 44 };
+  const pw = w - pad.l - pad.r, ph = h - pad.t - pad.b;
+  const g = cfg.groups.length;
+  const band = pw / g;
+  const barMax = Math.max.apply(null, cfg.groups.map(gr => gr.v));
+  const lineMax = cfg.line ? Math.max.apply(null, cfg.line.values) : 0;
+  const sc = niceScale(Math.max(barMax, lineMax), cfg.tickCount || 4);
+  const Y = v => pad.t + ph - v / sc.top * ph;
+  const centerX = gi => pad.l + gi * band + band / 2;
+
+  let s = '<svg width="' + w + '" height="' + h + '" role="img" aria-label="' + (cfg.aria || '') + '">';
+  sc.ticks.forEach(tv => {
+    s += '<line x1="' + pad.l + '" x2="' + (w - pad.r) + '" y1="' + Y(tv) + '" y2="' + Y(tv) +
+      '" stroke="' + (tv === 0 ? 'var(--axis)' : 'var(--grid)') + '" stroke-width="1"/>';
+    if (tv > 0) s += '<text class="axis-t" x="' + (pad.l - 5) + '" y="' + (Y(tv) + 3.5) + '" text-anchor="end">' + fmtTick(tv) + '</text>';
+  });
+  cfg.groups.forEach((gr, gi) => {
+    const bw = Math.min(24, Math.max(2.5, band - Math.max(2, band * 0.22)));
+    const bx = pad.l + gi * band + (band - bw) / 2;
+    const bh = Math.max(1.5, gr.v / sc.top * ph);
+    s += '<path d="' + roundTopRect(bx, pad.t + ph - bh, bw, bh, 4) + '" fill="' + gr.color + '"/>';
+    if (gr.cap){
+      // 라벨이 차트 밖으로 잘리지 않게 앵커 클램프 (폭 추정: 글자당 ~6px)
+      const halfW = gr.cap.length * 6 / 2;
+      const cx = centerX(gi);
+      let anchor = 'middle', tx = cx;
+      if (cx + halfW > w - 3){ anchor = 'end'; tx = w - 3; }
+      else if (cx - halfW < 3){ anchor = 'start'; tx = 3; }
+      s += '<text class="cap-t" x="' + tx + '" y="' + (pad.t + ph - bh - 6) + '" text-anchor="' + anchor + '">' + gr.cap + '</text>';
+    }
+    if (gr.label) s += '<text class="axis-t" x="' + centerX(gi) + '" y="' + (h - (cfg.twoLineX ? 18 : 6)) + '" text-anchor="middle">' + gr.label + '</text>';
+    if (cfg.twoLineX && gr.sub) s += '<text class="axis-sub" x="' + centerX(gi) + '" y="' + (h - 5) + '" text-anchor="middle">' + gr.sub + '</text>';
+  });
+  if (cfg.line){
+    const pts = cfg.line.values.map((v, i) => centerX(i).toFixed(1) + ',' + Y(v).toFixed(1)).join(' ');
+    s += '<polyline points="' + pts + '" fill="none" stroke="' + cfg.line.color +
+      '" stroke-width="2" stroke-linejoin="round" stroke-linecap="round"/>';
+  }
+  s += '</svg>';
+  host.innerHTML = s;
+}
+
+/* 범례 (2시리즈 이상 필수 — HTML, 마크 모양 그대로: 막대=사각, 라인=선) */
+function legend(hostId, items){
+  const lg = document.getElementById(hostId);
+  lg.textContent = '';
+  items.forEach(it => {
+    const spn = document.createElement('span'); spn.className = 'lg';
+    const key = document.createElement('i'); key.className = it.line ? 'lg-line' : 'lg-rect';
+    key.style.background = it.color;
+    spn.appendChild(key); spn.appendChild(document.createTextNode(it.label));
+    lg.appendChild(spn);
+  });
+}
+
+/* 스파크라인: 회색 추세 + 마지막 구간 액센트 (accent = 가족색) */
+function sparkSvg(values, accent){
+  const w = 88, h = 28, p = 3;
+  const min = Math.min.apply(null, values), max = Math.max.apply(null, values);
+  const span = (max - min) || 1;
+  const n = values.length;
+  const X = i => p + i * (w - 2 * p) / (n - 1);
+  const Y = v => h - p - (v - min) / span * (h - 2 * p);
+  const pts = values.map((v, i) => X(i).toFixed(1) + ',' + Y(v).toFixed(1)).join(' ');
+  const lastPts = [n - 2, n - 1].map(i => X(i).toFixed(1) + ',' + Y(values[i]).toFixed(1)).join(' ');
+  return '<svg width="' + w + '" height="' + h + '" aria-hidden="true">' +
+    '<polyline points="' + pts + '" fill="none" stroke="#c3cad4" stroke-width="1.5" stroke-linejoin="round" stroke-linecap="round"/>' +
+    '<polyline points="' + lastPts + '" fill="none" stroke="' + accent + '" stroke-width="2" stroke-linecap="round"/>' +
+    '<circle cx="' + X(n - 1) + '" cy="' + Y(values[n - 1]) + '" r="3" fill="' + accent + '" stroke="#fff" stroke-width="1.5"/>' +
+    '</svg>';
+}
+
+/* ═══════════ 4. 렌더 — 매출 추이 3종 ═══════════ */
+const dayLabel = i => (i % 5 === 0 || i === 30) ? (i + 1) + '일' : '';
+
+function renderRevA(){
+  legend('lg-a-rev', BUCKET_LABELS.map((lb, i) => ({ color: BLUE_BUCKET4[i], label: lb }))
+    .concat([{ color: CTX, label: '7월(전월)', line: true }]));
+  columnChart(document.getElementById('ch-a-rev'), {
+    height: 190, aria: '전략 A — 일별 매출, 금액구간별 램프 (안티패턴 시연)',
+    groups: AUG_DAILY.map((v, i) => ({ v, color: bucketColor(v), label: dayLabel(i) })),
+    line: { color: CTX, values: JUL_DAILY },
+  });
+}
+function renderRevB(){
+  legend('lg-b-rev', [
+    { color: ACCENT, label: '8월(당월)' },
+    { color: ACCENT_DARK, label: '7월(전월)', line: true },
+  ]);
+  columnChart(document.getElementById('ch-b-rev'), {
+    height: 190, aria: '전략 B — 일별 매출, 매출 가족 파랑 + 전월은 다크 스텝 라인',
+    groups: AUG_DAILY.map((v, i) => ({ v, color: ACCENT, label: dayLabel(i) })),
+    line: { color: ACCENT_DARK, values: JUL_DAILY },
+  });
+}
+function renderRevC(){
+  legend('lg-c-rev', [
+    { color: GRAY_MARK, label: '8월(당월)' },
+    { color: ACCENT, label: '최고 매출일' },
+    { color: GRAY_LINE, label: '7월(전월)', line: true },
+  ]);
+  const maxI = AUG_DAILY.indexOf(Math.max.apply(null, AUG_DAILY));
+  columnChart(document.getElementById('ch-c-rev'), {
+    height: 190, caps: true, aria: '전략 C — 일별 매출, 그레이 + 최고일만 파랑 강조',
+    groups: AUG_DAILY.map((v, i) => ({
+      v, color: i === maxI ? ACCENT : GRAY_MARK, label: dayLabel(i),
+      cap: i === maxI ? '최고 1,113만' : '',
+    })),
+    line: { color: GRAY_LINE, values: JUL_DAILY },
+  });
+}
+
+/* ═══════════ 5. 렌더 — aging 3종 (버킷=의미 단위, 값 라벨=릴리프 채널) ═══════════ */
+function renderAging(hostId, colorAt, aria){
+  columnChart(document.getElementById(hostId), {
+    height: 175, caps: true, twoLineX: true, tickCount: 3, aria,
+    groups: AGING.map((b, i) => ({
+      v: b.v, color: colorAt(i), label: b.label, sub: b.n + '건',
+      cap: b.v.toLocaleString('ko-KR'),
+    })),
+  });
+}
+
+/* ═══════════ 6. 렌더 — 전략 D: KPI 5장 (현재 vs 적용) ═══════════ */
+function renderKpis(hostId, applyD){
+  const wrap = document.getElementById(hostId);
+  wrap.textContent = '';
+  KPIS.forEach(k => {
+    const tile = document.createElement('div');
+    tile.className = 'kpi' + (applyD ? ' fam' : '');
+    if (applyD){
+      tile.style.setProperty('--fam', FAM[k.fam]);
+      tile.style.setProperty('--fam-tint', FAM_TINT[k.fam]);
+    }
+    const lb = document.createElement('div'); lb.className = 'kpi-label'; lb.textContent = k.label; tile.appendChild(lb);
+    const mid = document.createElement('div'); mid.className = 'kpi-mid';
+    const val = document.createElement('span'); val.className = 'kpi-value'; val.textContent = k.value;
+    const unit = document.createElement('i'); unit.textContent = k.unit; val.appendChild(unit);
+    mid.appendChild(val);
+    const sp = document.createElement('span'); sp.className = 'kpi-spark';
+    sp.innerHTML = sparkSvg(k.spark, applyD ? FAM[k.fam] : ACCENT);
+    mid.appendChild(sp); tile.appendChild(mid);
+    const dl = document.createElement('div'); dl.className = 'kpi-delta ' + (k.delta.good ? 'good' : 'bad');
+    dl.textContent = k.delta.arrow + ' ' + k.delta.text;
+    const vs = document.createElement('span'); vs.textContent = k.delta.vs; dl.appendChild(vs);
+    tile.appendChild(dl);
+    const sub = document.createElement('div'); sub.className = 'kpi-sub'; sub.textContent = k.sub; tile.appendChild(sub);
+    wrap.appendChild(tile);
+  });
+}
+
+/* ═══════════ 7. 부트 + 리사이즈 ═══════════ */
+function renderAll(){
+  renderRevA(); renderRevB(); renderRevC();
+  renderAging('ch-a-aging', i => BLUE_RAMP5[i], '전략 A — 미수금 aging, 파랑 ordinal 램프 (현행)');
+  renderAging('ch-b-aging', i => ORANGE_RAMP5[i], '전략 B — 미수금 aging, 주황 ordinal 램프 (미수 가족)');
+  renderAging('ch-c-aging', i => i === AGING.length - 1 ? CRIT : GRAY_MARK, '전략 C — 미수금 aging, 그레이 + 91일 이상만 critical 강조');
+  renderKpis('kpis-now', false);
+  renderKpis('kpis-d', true);
+}
+let rzTimer = null;
+addEventListener('resize', () => { clearTimeout(rzTimer); rzTimer = setTimeout(renderAll, 150); });
+renderAll();
+</script>
+
+<!--
+  ═══ 팔레트 검증 기록 (dataviz validate_palette.js, node v24.19.0, 2026-08-31, 전부 라이트 모드 · 서피스 #ffffff) ═══
+  1) 범주 2슬롯 (채널·가족 파랑/주황): "#2a78d6,#eb6834"
+     → ALL CHECKS PASS, exit 0 — 인접 CVD ΔE 24.7(protan) · normal-vision 33.6 · 대비 전부 ≥3:1
+  2) B/D 가족 트리오 (파랑·주황·아쿠아, 별개 카드지만 가혹한 all-pairs로): "#2a78d6,#eb6834,#1baf7a" ==>pairs all
+     → PASS, exit 0 — all-pairs CVD ΔE 9.2(deutan) · normal 24.0 · #1baf7a 2.82:1 WARN(relief) → KPI 값 병기로 충족
+  3) A/현행 aging 파랑 ordinal 5스텝: "#86b6ef,#5598e7,#2a78d6,#1c5cab,#104281" ==>ordinal
+     → ALL CHECKS PASS, exit 0 — monotone L · ΔL ≥0.06 · light-end 2.11:1 · 단일 hue
+  4) A 금액버킷 파랑 ordinal 4스텝: "#86b6ef,#5598e7,#2a78d6,#104281" ==>ordinal
+     → ALL CHECKS PASS, exit 0 (팔레트 자체는 합법 — 매출 추이 적용처가 안티패턴이라는 점을 보드에서 시연)
+  5) B aging 주황 ordinal 5스텝 (OKLCH로 blue 램프 L 프로파일 0.765→0.385를 hue 41°에 이식, step-2=slot-2 원본 #eb6834):
+     "#f19979,#eb6834,#c74b12,#9f3701,#752600" ==>ordinal
+     → ALL CHECKS PASS, exit 0 — monotone L · ΔL ≥0.06 · light-end 2.19:1 · hue 스프레드 0°
+  6) B 기간 비교 2스텝 (1 hue 2 shades): "#2a78d6,#1c5cab" ==>ordinal
+     → ALL CHECKS PASS, exit 0 — light-end 4.42:1
+  단색 대비(흰 서피스): C 강조 그레이 #8a94a3 = 3.07:1 (마크 ≥3:1 충족, 채도는 의도된 de-emphasis라 카테고리 슬롯 아님)
+    · C 전월 라인 #6b7280 = 4.83:1 · status critical #d03b3b = 4.80:1 (아이콘 점 + 라벨 동반)
+    · 델타 텍스트 good #006300 = 7.54:1 / bad #b91c1c = 6.47:1 (화살표+텍스트 이중 신호)
+  규칙 준수: 무지개 없음 · 범주색 순환 없음 · 시퀀셜=단일 hue 명암만 · 상태색은 상태 의미에만(critical=91일+ 연체)
+    · 이중 y축 없음(라인 오버레이는 동일 축·동일 단위 만원) · 격자 실선 헤어라인 · 막대 ≤24px·4px 라운드 탑
+    · 2시리즈 이상 범례 존재 · 외부 요청 0건. (==> 표기는 CLI 이중 하이픈 플래그 — HTML 주석 제약으로 치환)
+-->
+</body>
+</html>

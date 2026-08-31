@@ -1,0 +1,1001 @@
+<!doctype html>
+<html lang="ko">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<meta name="color-scheme" content="light">
+<title>정산 분석 스테이션 V3 — 라이트 (목업)</title>
+<style>
+  /* ── 토큰: 라이트 전용 — V1 계열 톤(플레인 #eef2f7 · 흰 카드), dataviz 라이트 슬롯을 흰 서피스로 재검증(하단 주석) ── */
+  :root {
+    color-scheme: light;
+    --bg: #eef2f7;            /* 페이지 플레인 */
+    --surface: #ffffff;       /* 카드 서피스 (팔레트 검증 기준면) */
+    --surface-soft: #f6f8fb;  /* hover/soft */
+    --line: #dbe1ea;
+    --line-soft: #edf1f6;
+    --text: #111827;          /* primary ink 17.74:1 */
+    --text-2: #475569;        /* secondary ink 7.58:1 */
+    --muted: #64748b;         /* axis/labels 4.76:1 */
+    --grid: #edf1f6;          /* hairline gridline */
+    --axis: #c3cddd;
+    --s1: #2a78d6;            /* categorical slot 1 (blue, light step) */
+    --s2: #eb6834;            /* categorical slot 2 (orange, light step) */
+    --deemph: #8a94a3;        /* 뉴트럴 de-emphasis(스파크 추세·완료 막대) — 3.07:1 */
+    --s1-soft: rgba(42,120,214,.14);
+    --s2-soft: rgba(235,104,52,.14);
+    --good: #006300;          /* status — 아이콘+라벨 동반 필수 */
+    --warn: #b45309;
+    --serious: #c2410c;
+    --crit: #d03b3b;          /* status critical 4.80:1 — 아이콘+라벨 동반 */
+    --cmp: #1c5cab;           /* 기간 비교(전월) = 같은 파랑 다크 스텝 (1 hue 2 shades) */
+    --seq-1: #86b6ef;         /* 금액구간 파랑 ordinal 램프: 연함=낮음 */
+    --seq-2: #5598e7;
+    --seq-3: #2a78d6;
+    --seq-4: #104281;         /* 진함=높음 */
+    --ag-1: #f19979;          /* 미수 aging 주황 ordinal 램프 (slot-2 hue 41°) */
+    --ag-2: #eb6834;
+    --ag-3: #c74b12;
+    --ag-4: #9f3701;
+    --ag-5: #752600;
+    --aqua: #1baf7a;          /* 수금 가족 액센트 (relief: 값 병기) */
+    --radius: 10px;
+    font-family: Pretendard, -apple-system, BlinkMacSystemFont, "Segoe UI", "Malgun Gothic", sans-serif;
+  }
+  * { box-sizing: border-box; }
+  body { margin: 0; background: var(--bg); color: var(--text); font-size: 13px; }
+
+  /* ── 상단 스트립 ─────────────────────────────────────────────── */
+  .strip {
+    display: flex; align-items: center; gap: 14px; flex-wrap: wrap;
+    background: var(--surface); border-bottom: 1px solid var(--line);
+    padding: 10px 18px;
+  }
+  .strip h1 { font-size: 16px; margin: 0; font-weight: 800; letter-spacing: -.2px; }
+  .strip .persona { color: var(--text-2); font-size: 12px; }
+  .strip .fact { color: var(--muted); font-size: 12px; }
+  .strip .spacer { flex: 1; }
+  .scope-chip {
+    display: inline-flex; align-items: center; gap: 6px;
+    background: var(--s1-soft); color: #1c5cab; border: 1px solid rgba(42,120,214,.35);
+    border-radius: 999px; padding: 4px 12px; font-size: 12px; font-weight: 600;
+  }
+  .scope-chip svg { flex: none; }
+
+  /* ── 필터 행: 차트 위 한 줄, 전 화면 스코프 ───────────────────── */
+  .filterbar {
+    display: flex; align-items: center; gap: 10px; flex-wrap: wrap;
+    padding: 10px 18px; border-bottom: 1px solid var(--line-soft);
+  }
+  .seg { display: inline-flex; background: var(--surface); border: 1px solid var(--line); border-radius: 8px; padding: 2px; }
+  .seg button {
+    border: none; background: none; color: var(--muted); font: inherit; font-weight: 600;
+    padding: 5px 14px; border-radius: 6px; cursor: pointer;
+  }
+  .seg button[aria-pressed="true"] { background: #256abf; color: #fff; }
+  .seg button:not([aria-pressed="true"]):hover { color: var(--text-2); }
+  .toggle {
+    display: inline-flex; align-items: center; gap: 8px; cursor: pointer;
+    border: 1px solid var(--line); background: var(--surface); border-radius: 8px;
+    padding: 5px 12px; color: var(--text-2); font: inherit; font-weight: 600;
+  }
+  .toggle .knob {
+    width: 26px; height: 15px; border-radius: 999px; background: var(--axis); position: relative; transition: background .15s;
+  }
+  .toggle .knob::after {
+    content: ""; position: absolute; top: 2px; left: 2px; width: 11px; height: 11px;
+    border-radius: 50%; background: #ffffff; transition: left .15s;
+  }
+  .toggle[aria-pressed="true"] .knob { background: var(--s1); }
+  .toggle[aria-pressed="true"] .knob::after { left: 13px; }
+  .toggle[aria-disabled="true"] { opacity: .4; cursor: not-allowed; }
+  .filterbar .note { color: var(--muted); font-size: 12px; margin-left: auto; }
+
+  /* ── 레이아웃 ────────────────────────────────────────────────── */
+  .wrap { max-width: 1440px; margin: 0 auto; padding: 14px 18px 40px; }
+  .kpis { display: grid; grid-template-columns: repeat(4, 1fr); gap: 12px; margin-bottom: 12px; }
+  .grid { display: grid; grid-template-columns: repeat(12, 1fr); gap: 12px; }
+  .card {
+    background: var(--surface); border: 1px solid var(--line); border-radius: var(--radius);
+    min-width: 0; display: flex; flex-direction: column;
+  }
+  .span8 { grid-column: span 8; } .span4 { grid-column: span 4; }
+  @media (max-width: 1120px) {
+    .kpis { grid-template-columns: repeat(2, 1fr); }
+    .span8, .span4 { grid-column: span 12; }
+  }
+  .card-head {
+    display: flex; align-items: baseline; gap: 8px; flex-wrap: wrap;
+    padding: 11px 14px 8px; border-bottom: 1px solid var(--line-soft);
+  }
+  .card-head h2 { font-size: 13.5px; margin: 0; font-weight: 700; }
+  .card-head .sub { color: var(--muted); font-size: 11.5px; font-weight: 500; }
+  .card-head .right { margin-left: auto; display: flex; align-items: center; gap: 10px; }
+  .card-body { padding: 12px 14px; flex: 1; min-width: 0; }
+  .card-foot {
+    padding: 8px 14px 10px; border-top: 1px solid var(--line-soft);
+    color: var(--muted); font-size: 11.5px; display: flex; align-items: center; gap: 8px; flex-wrap: wrap;
+  }
+  .card-foot b { color: var(--text-2); font-weight: 600; }
+
+  /* ── KPI 스탯 타일 ───────────────────────────────────────────── */
+  .tile { background: var(--surface); border: 1px solid var(--line); border-radius: var(--radius); padding: 12px 14px; min-width: 0; }
+  .tile .label { color: var(--muted); font-size: 11.5px; font-weight: 600; }
+  .tile .value { font-size: 24px; font-weight: 700; letter-spacing: -.4px; margin-top: 3px; } /* proportional figures */
+  .tile .row2 { display: flex; align-items: center; gap: 8px; margin-top: 4px; min-height: 28px; }
+  .delta { font-size: 12px; font-weight: 700; }
+  .delta.up { color: var(--good); }
+  .delta.dn-good { color: var(--good); }
+  .delta .vs { color: var(--muted); font-weight: 500; }
+  .tile svg { margin-left: auto; }
+  /* 전략 D — 표면 층위: 가족 틴트(≤8% 워시) + 3px 액센트 바 (데이터 잉크 아님, 텍스트는 텍스트 토큰) */
+  .tile.fam-rev { border-top: 3px solid var(--s1); background: #f1f6fd; }
+  .tile.fam-ar  { border-top: 3px solid var(--s2); background: #fdf3ed; }
+  .tile.fam-vol { border-top: 3px solid #6b7280; background: #f4f6f8; }
+
+  /* ── 범례·배지 ──────────────────────────────────────────────── */
+  .legend { display: flex; align-items: center; gap: 12px; font-size: 11.5px; color: var(--text-2); }
+  .legend .key { display: inline-flex; align-items: center; gap: 5px; }
+  .key .lk { width: 14px; height: 0; border-top: 2px solid; border-radius: 2px; }   /* 라인 키 */
+  .key .rk { width: 10px; height: 10px; border-radius: 2px; }                        /* 사각 키(막대) */
+  .badge-soon {
+    display: inline-flex; align-items: center; font-size: 10.5px; font-weight: 700;
+    color: var(--warn); border: 1px dashed rgba(180,83,9,.45); border-radius: 5px;
+    padding: 1px 6px; letter-spacing: .3px;
+  }
+  .chip-status { display: inline-flex; align-items: center; gap: 4px; font-size: 11px; font-weight: 700; }
+  .chip-status.warn { color: var(--warn); } .chip-status.serious { color: var(--serious); }
+  .chip-status.crit { color: var(--crit); } .chip-status.good { color: var(--good); }
+
+  /* ── 가로 막대 리스트 (HTML 마크) ────────────────────────────── */
+  .brows { display: flex; flex-direction: column; gap: 7px; }
+  .brow {
+    display: grid; grid-template-columns: 92px 1fr auto; align-items: center; gap: 10px;
+    border-radius: 6px; padding: 2px 4px; outline: none;
+  }
+  .brow:hover, .brow:focus-visible { background: var(--surface-soft); }
+  .brow:focus-visible { box-shadow: 0 0 0 2px var(--s1); }
+  .brow .blab { color: var(--text-2); font-size: 12px; white-space: nowrap; overflow: hidden; text-overflow: ellipsis; }
+  .brow .track { position: relative; height: 14px; min-width: 0; }
+  .brow .bar { position: absolute; left: 0; top: 0; height: 14px; border-radius: 0 4px 4px 0; }
+  .brow:hover .bar, .brow:focus-visible .bar { filter: brightness(.9); }
+  .brow .bval {
+    font-variant-numeric: tabular-nums; font-size: 12px; font-weight: 700; color: var(--text);
+    display: inline-flex; align-items: center; gap: 6px; white-space: nowrap;
+  }
+  .brow .bcnt { color: var(--muted); font-weight: 500; }
+
+  /* ── 미터 ───────────────────────────────────────────────────── */
+  .meter { height: 8px; border-radius: 4px; background: var(--s1-soft); overflow: hidden; }
+  .meter > i { display: block; height: 100%; background: var(--s1); border-radius: 4px; }
+
+  /* ── 메인 차트 ──────────────────────────────────────────────── */
+  .chart-wrap { outline: none; border-radius: 8px; }
+  .chart-wrap:focus-visible { box-shadow: 0 0 0 2px var(--s1); }
+  .chart-wrap svg { display: block; }
+  .btn-mini {
+    border: 1px solid var(--line); background: none; color: var(--text-2); cursor: pointer;
+    font: inherit; font-size: 11.5px; font-weight: 600; padding: 3px 10px; border-radius: 6px;
+  }
+  .btn-mini:hover { background: var(--surface-soft); }
+  .btn-mini[aria-pressed="true"] { background: var(--s1-soft); color: #1c5cab; border-color: rgba(42,120,214,.4); }
+  .tablewrap { max-height: 252px; overflow: auto; border: 1px solid var(--line-soft); border-radius: 8px; }
+  table.tv { width: 100%; border-collapse: collapse; font-size: 12px; }
+  table.tv th {
+    position: sticky; top: 0; background: var(--surface-soft); color: var(--muted); text-align: right;
+    font-weight: 600; padding: 6px 10px; border-bottom: 1px solid var(--line);
+  }
+  table.tv th:first-child, table.tv td:first-child { text-align: left; }
+  table.tv td {
+    padding: 5px 10px; text-align: right; font-variant-numeric: tabular-nums;
+    border-bottom: 1px solid var(--line-soft); color: var(--text-2);
+  }
+  table.tv td:first-child { color: var(--muted); }
+
+  /* ── 채널 미니 멀티플 ────────────────────────────────────────── */
+  .mini2 { display: grid; grid-template-columns: 1fr 1fr; gap: 14px; }
+  .mini2 h3 { font-size: 11.5px; color: var(--muted); margin: 0 0 7px; font-weight: 600; }
+  .share { display: flex; height: 10px; border-radius: 5px; overflow: hidden; gap: 2px; margin-top: 6px; } /* 2px 서피스 갭 */
+  .share i { display: block; height: 100%; }
+  .share-lab { display: flex; justify-content: space-between; color: var(--muted); font-size: 11px; margin-top: 4px; }
+
+  /* ── AS·정산 스탯 ───────────────────────────────────────────── */
+  .duo { display: grid; grid-template-columns: 1fr 1fr; gap: 10px; }
+  .duo .box { background: var(--surface-soft); border-radius: 8px; padding: 10px 12px; }
+  .duo .box .label { color: var(--muted); font-size: 11px; font-weight: 600; }
+  .duo .box .v { font-size: 19px; font-weight: 700; margin-top: 2px; }
+  .duo .box .s { color: var(--muted); font-size: 11.5px; margin-top: 1px; }
+  .duo .box.fam-col { background: #eefaf5; border-left: 3px solid var(--aqua); } /* 수금 가족 = 아쿠아 (값 병기로 relief 충족) */
+  .mrow { margin-top: 12px; }
+  .mrow .mlab { display: flex; justify-content: space-between; color: var(--text-2); font-size: 11.5px; margin-bottom: 4px; }
+
+  /* ── 연체 위험 티저 ─────────────────────────────────────────── */
+  .risk-row {
+    display: grid; grid-template-columns: 1fr 90px auto; align-items: center; gap: 10px;
+    padding: 7px 4px; border-bottom: 1px solid var(--line-soft);
+  }
+  .risk-row:last-of-type { border-bottom: none; }
+  .risk-row .who { min-width: 0; }
+  .risk-row .who b { font-size: 12.5px; }
+  .risk-row .who .s { color: var(--muted); font-size: 11px; margin-top: 1px; }
+  .risk-row .score { font-variant-numeric: tabular-nums; font-weight: 700; font-size: 12px; text-align: right; }
+
+  /* ── 툴팁 ───────────────────────────────────────────────────── */
+  #tip {
+    position: fixed; z-index: 50; pointer-events: none; display: none;
+    background: rgba(255,255,255,.97); border: 1px solid var(--line); border-radius: 8px;
+    padding: 8px 11px; min-width: 128px; box-shadow: 0 6px 24px rgba(16,24,40,.16);
+  }
+  #tip .t { color: var(--muted); font-size: 11px; font-weight: 600; margin-bottom: 5px; }
+  #tip .r { display: flex; align-items: center; gap: 7px; margin-top: 3px; font-size: 12px; }
+  #tip .r .lk { width: 12px; height: 0; border-top: 2px solid; border-radius: 2px; flex: none; }
+  #tip .r .v { font-weight: 700; color: var(--text); font-variant-numeric: tabular-nums; }
+  #tip .r .n { color: var(--text-2); }
+
+  /* ── 목업 배지 ──────────────────────────────────────────────── */
+  .mockup-badge {
+    position: fixed; right: 12px; bottom: 12px; z-index: 60;
+    background: var(--surface-soft); border: 1px solid var(--line); color: var(--muted);
+    font-size: 10.5px; font-weight: 800; letter-spacing: 1px; padding: 4px 9px; border-radius: 6px;
+  }
+</style>
+</head>
+<body>
+
+<header class="strip">
+  <h1>정산 분석 스테이션</h1>
+  <span class="persona">V3 · 영업 팀장 + 생산/시공 매니저용 (MANAGER · STAFF: SALES/PRODUCTION/CONSTRUCTION)</span>
+  <span class="spacer"></span>
+  <span class="fact">기준일 <b>2026-08-31</b> · 완료일 기준 집계</span>
+  <span class="scope-chip">
+    <svg width="11" height="12" viewBox="0 0 11 12" aria-hidden="true"><path d="M2 5V3.5a3.5 3.5 0 0 1 7 0V5h.5a1 1 0 0 1 1 1v4.5a1 1 0 0 1-1 1h-8a1 1 0 0 1-1-1V6a1 1 0 0 1 1-1H2Zm1.4 0h4.2V3.5a2.1 2.1 0 0 0-4.2 0V5Z" fill="#1c5cab"/></svg>
+    팀 스코프 적용: 본인 팀 데이터만 표시
+  </span>
+</header>
+
+<nav class="filterbar" aria-label="기간 필터">
+  <div class="seg" role="group" aria-label="기간 단위">
+    <button type="button" data-gran="day" aria-pressed="true">일별</button>
+    <button type="button" data-gran="week" aria-pressed="false">주별</button>
+    <button type="button" data-gran="month" aria-pressed="false">월별</button>
+  </div>
+  <button type="button" class="toggle" id="cmpToggle" aria-pressed="true">
+    전월 비교 <span class="knob" aria-hidden="true"></span>
+  </button>
+  <span class="fact" style="color:var(--muted);font-size:12px;">2026년 8월 (당월) · 비교 대상 7월</span>
+  <span class="note">모든 카드가 같은 기간 스코프를 따릅니다 · 하단 집계 카드 = 8월</span>
+</nav>
+
+<main class="wrap">
+
+  <!-- KPI 스탯 타일 4장 -->
+  <section class="kpis" aria-label="핵심 지표">
+    <div class="tile fam-rev">
+      <div class="label">8월 매출 (출고가 · 완료일 기준)</div>
+      <div class="value" id="kpiRev"></div>
+      <div class="row2">
+        <span class="delta up">▲ +8.9% <span class="vs">vs 7월</span></span>
+        <svg id="spark" width="96" height="28" aria-label="최근 12일 매출 스파크라인"></svg>
+      </div>
+    </div>
+    <div class="tile fam-vol">
+      <div class="label">완료 건수</div>
+      <div class="value">152건</div>
+      <div class="row2"><span class="delta up">▲ +7.8% <span class="vs">vs 7월 141건</span></span></div>
+    </div>
+    <div class="tile fam-rev">
+      <div class="label">평균 출고가</div>
+      <div class="value">₩141만</div>
+      <div class="row2"><span class="delta up">▲ +1.0% <span class="vs">vs 7월 ₩140만</span></span></div>
+    </div>
+    <div class="tile fam-ar">
+      <div class="label">부서 차감 합계</div>
+      <div class="value" id="kpiDeduct"></div>
+      <div class="row2"><span class="delta dn-good">▼ −13.7% <span class="vs">vs 7월 ₩510만</span></span></div>
+    </div>
+  </section>
+
+  <div class="grid">
+
+    <!-- 메인: 매출 추이 비교 -->
+    <section class="card span8" aria-label="매출 추이 비교">
+      <div class="card-head">
+        <h2>매출 추이 비교</h2>
+        <span class="sub" id="trendSub">일별 · 8월 vs 7월 오버레이</span>
+        <div class="right">
+          <div class="legend" id="trendLegend">
+            <span class="key"><i class="lk" style="border-color:var(--s1)"></i>8월</span>
+            <span class="key" id="legendJul"><i class="lk" style="border-color:var(--cmp)"></i>7월</span>
+          </div>
+          <button type="button" class="btn-mini" id="tableToggle" aria-pressed="false">표로 보기</button>
+        </div>
+      </div>
+      <div class="card-body">
+        <div class="chart-wrap" id="trendWrap" tabindex="0" role="application"
+             aria-label="매출 추이 차트. 좌우 화살표 키로 구간을 이동하며 값을 읽을 수 있습니다.">
+          <div id="trendChart"></div>
+        </div>
+        <div class="tablewrap" id="trendTable" hidden></div>
+      </div>
+      <div class="card-foot" id="trendFoot"></div>
+    </section>
+
+    <!-- 채널 비교 -->
+    <section class="card span4" aria-label="채널 비교">
+      <div class="card-head">
+        <h2>채널 비교</h2>
+        <span class="sub">8월 · 일반 vs 네이버</span>
+        <div class="right legend">
+          <span class="key"><i class="rk" style="background:var(--s1)"></i>일반</span>
+          <span class="key"><i class="rk" style="background:var(--s2)"></i>네이버</span>
+        </div>
+      </div>
+      <div class="card-body">
+        <div class="mini2">
+          <div><h3>매출 (출고가)</h3><div class="brows" id="chRev"></div></div>
+          <div><h3>건수</h3><div class="brows" id="chCnt"></div></div>
+        </div>
+        <div class="mini2" style="margin-top:14px">
+          <div><h3>평균 출고가 (건당)</h3><div class="brows" id="chAvg"></div></div>
+          <div>
+            <h3>매출 비중</h3>
+            <div class="share" id="chShare" aria-hidden="true"></div>
+            <div class="share-lab"><span>일반 71%</span><span>네이버 29%</span></div>
+          </div>
+        </div>
+      </div>
+      <div class="card-foot">
+        <b>네이버 예상 수수료 ₩310만</b> · 채널 정산 내역 자동 대사 <span class="badge-soon">예정</span>
+      </div>
+    </section>
+
+    <!-- 담당자별 매출 -->
+    <section class="card span4" aria-label="담당자별 매출">
+      <div class="card-head">
+        <h2>담당자별 매출</h2>
+        <span class="sub">영업 · 8월 · 완료일 기준</span>
+        <div class="right legend" aria-label="금액 구간 범례 (파랑 명암 = 금액)">
+          <span class="key"><i class="rk" style="background:var(--seq-1)"></i>~1,999만</span>
+          <span class="key"><i class="rk" style="background:var(--seq-2)"></i>2,000~3,499만</span>
+          <span class="key"><i class="rk" style="background:var(--seq-3)"></i>3,500~4,999만</span>
+          <span class="key"><i class="rk" style="background:var(--seq-4)"></i>5,000만~</span>
+        </div>
+      </div>
+      <div class="card-body"><div class="brows" id="repBars"></div></div>
+      <div class="card-foot">팀 합계 <b id="repTotal"></b> = 8월 매출 100%</div>
+    </section>
+
+    <!-- 단계 파이프라인 -->
+    <section class="card span4" aria-label="단계별 파이프라인 금액">
+      <div class="card-head">
+        <h2>단계별 파이프라인 금액</h2>
+        <span class="sub">RECEIVED→COMPLETED</span>
+        <div class="right legend" aria-label="금액 구간 범례 (파랑 명암 = 금액)">
+          <span class="key"><i class="rk" style="background:var(--seq-1)"></i>~1,999만</span>
+          <span class="key"><i class="rk" style="background:var(--seq-2)"></i>2,000~3,499만</span>
+          <span class="key"><i class="rk" style="background:var(--seq-3)"></i>3,500~4,999만</span>
+          <span class="key"><i class="rk" style="background:var(--seq-4)"></i>5,000만~</span>
+          <span class="key"><i class="rk" style="background:var(--deemph)"></i>완료(당월)</span>
+        </div>
+      </div>
+      <div class="card-body"><div class="brows" id="pipeBars"></div></div>
+      <div class="card-foot">진행 중 합계 <b id="pipeTotal"></b> · 금액은 견적 합계 기준(가정치)</div>
+    </section>
+
+    <!-- 부서별 정산 차감 -->
+    <section class="card span4" aria-label="부서별 정산 차감">
+      <div class="card-head">
+        <h2>부서별 정산 차감</h2>
+        <span class="sub">8월 귀속</span>
+      </div>
+      <div class="card-body"><div class="brows" id="dedBars"></div></div>
+      <div class="card-foot">차감 합계 <b id="dedTotal"></b> · 귀속 부서 = 시공/생산/영업/고객/도면</div>
+    </section>
+
+    <!-- 수금·미수 현황 -->
+    <section class="card span4" aria-label="수금 및 미수 현황">
+      <div class="card-head">
+        <h2>수금 · 미수 현황</h2>
+        <span class="sub">8월 · 잔금 = 출고가 − 예약금</span>
+      </div>
+      <div class="card-body">
+        <div class="duo">
+          <div class="box fam-col"><div class="label">당월 수금 (예약금)</div><div class="v">₩6,410만</div></div>
+          <div class="box fam-col"><div class="label">당월 수금 (잔금)</div><div class="v">₩1.423억</div></div>
+        </div>
+        <div class="mrow">
+          <div class="mlab"><span>미수금 (잔금 미확인) <b style="color:var(--text)">₩3,872만 · 27건</b></span><span>경과일 구간</span></div>
+          <div class="brows" id="agingBars"></div>
+        </div>
+      </div>
+      <div class="card-foot">61일 이상 구간은 상태 라벨로 별도 표기 (색+아이콘 이중 신호)</div>
+    </section>
+
+    <!-- AS·정산 처리 -->
+    <section class="card span4" aria-label="AS 및 정산 처리 현황">
+      <div class="card-head">
+        <h2>AS · 정산 처리 현황</h2>
+        <span class="sub">8월</span>
+      </div>
+      <div class="card-body">
+        <div class="duo">
+          <div class="box"><div class="label">AS 유상 확정</div><div class="v">₩190만</div><div class="s">6건</div></div>
+          <div class="box"><div class="label">AS 무상</div><div class="v">18건</div><div class="s">청구 없음</div></div>
+        </div>
+        <div class="mrow">
+          <div class="mlab"><span>유상 비중 (AS 24건 중)</span><span><b style="color:var(--text)">25%</b></span></div>
+          <div class="meter"><i style="width:25%"></i></div>
+        </div>
+        <div class="mrow">
+          <div class="mlab"><span>정산 청구완료 118 / 대기 34</span><span><b style="color:var(--text)">78%</b></span></div>
+          <div class="meter"><i style="width:78%"></i></div>
+        </div>
+      </div>
+      <div class="card-foot">유상 AS 금액은 매출 합계에 포함되지 않은 별도 청구 흐름</div>
+    </section>
+
+    <!-- 연체 위험 스코어 (티저) -->
+    <section class="card span4" aria-label="연체 위험 스코어 (예정 기능)">
+      <div class="card-head">
+        <h2>연체 위험 스코어</h2>
+        <span class="badge-soon">예정</span>
+        <span class="sub">과거 결제 패턴 기반</span>
+      </div>
+      <div class="card-body" id="riskRows"></div>
+      <div class="card-foot">입금 확인일 기록 축적 후 제공 예정 · 수금 우선순위 자동 정렬</div>
+    </section>
+
+  </div>
+</main>
+
+<div id="tip" role="status" aria-hidden="true"></div>
+<div class="mockup-badge">MOCKUP V3-LIGHT</div>
+
+<script>
+"use strict";
+/* ═══════════════════════════════════════════════════════════════════
+   데이터 (공통 브리프 데이터셋 — 가정치, 3버전 공통 수치)
+   차트는 전부 아래 배열 → 렌더 함수. SVG 좌표 하드코딩 없음.
+   ═══════════════════════════════════════════════════════════════════ */
+const AUG_TOTAL = 214300000, JUL_TOTAL = 196850000;
+
+/* 결정적 시드 난수 — 매 로드 동일한 일별 배열 생성 */
+function mulberry32(seed) {
+  return function () {
+    seed |= 0; seed = (seed + 0x6D2B79F5) | 0;
+    let t = Math.imul(seed ^ (seed >>> 15), 1 | seed);
+    t = (t + Math.imul(t ^ (t >>> 7), 61 | t)) ^ t;
+    return ((t ^ (t >>> 14)) >>> 0) / 4294967296;
+  };
+}
+
+/* 일별 매출 배열 생성: 주말 저조·평일 파동, 합계가 월계와 정확히 일치하도록 정규화 */
+function genDaily(year, monthIdx, days, total, seed) {
+  const rng = mulberry32(seed);
+  const w = [];
+  for (let d = 1; d <= days; d++) {
+    const dow = new Date(year, monthIdx, d).getDay();
+    let base = (dow === 0) ? 0.20 : (dow === 6) ? 0.36 : 1.0 + 0.32 * Math.sin(d / 2.6);
+    base *= 0.82 + 0.36 * rng();
+    w.push(Math.max(0.08, base));
+  }
+  const s = w.reduce((a, b) => a + b, 0);
+  const vals = w.map(x => Math.round(total * x / s / 10000) * 10000);
+  let diff = total - vals.reduce((a, b) => a + b, 0);
+  vals[17] += diff; /* 잔차는 월 중순 평일에 흡수 (1만원 단위 잔차) */
+  return vals;
+}
+const AUG_DAILY = genDaily(2026, 7, 31, AUG_TOTAL, 20260801);
+const JUL_DAILY = genDaily(2026, 6, 31, JUL_TOTAL, 20260701);
+
+const MONTHLY = [
+  { lab: "3월", v: 178400000 }, { lab: "4월", v: 183200000 }, { lab: "5월", v: 190100000 },
+  { lab: "6월", v: 187600000 }, { lab: "7월", v: JUL_TOTAL }, { lab: "8월", v: AUG_TOTAL },
+];
+
+const REPS = [
+  { label: "김성훈", v: 58200000 }, { label: "이지연", v: 47900000 }, { label: "박준호", v: 41500000 },
+  { label: "최유나", v: 35300000 }, { label: "정민재", v: 31400000 },
+];
+
+const PIPELINE = [
+  { label: "접수",   en: "RECEIVED",     v: 18200000,  n: 14 },
+  { label: "해피콜", en: "HAPPYCALL",    v: 24600000,  n: 17 },
+  { label: "실측",   en: "MEASURE",      v: 31900000,  n: 21 },
+  { label: "도면",   en: "DRAWING",      v: 28400000,  n: 19 },
+  { label: "컨펌",   en: "CONFIRM",      v: 42700000,  n: 26 },
+  { label: "생산",   en: "PRODUCTION",   v: 55300000,  n: 31 },
+  { label: "시공",   en: "CONSTRUCTION", v: 38900000,  n: 23 },
+  { label: "CS",     en: "CS",           v: 12100000,  n: 9 },
+  { label: "완료",   en: "COMPLETED",    v: AUG_TOTAL, n: 152, done: true },
+];
+
+const CHANNELS = [
+  { label: "일반",   rev: 152200000, n: 98, color: "var(--s1)" },
+  { label: "네이버", rev: 62100000,  n: 54, color: "var(--s2)" },
+];
+
+const DEDUCT = [
+  { label: "시공", v: 1850000 }, { label: "생산", v: 1200000 }, { label: "영업", v: 600000 },
+  { label: "고객", v: 400000 },  { label: "도면", v: 350000 },
+];
+
+const AGING = [
+  { label: "7일 이내", v: 12400000, n: 9 },
+  { label: "8–30일",   v: 14900000, n: 10 },
+  { label: "31–60일",  v: 7100000,  n: 5 },
+  { label: "61–90일",  v: 2800000,  n: 2, chip: { cls: "serious", icon: "▲", text: "주의" } },
+  { label: "91일 이상", v: 1500000, n: 1, chip: { cls: "crit", icon: "◆", text: "심각" } },
+];
+
+const RISK = [
+  { order: "#4471", name: "김O진", days: 96, score: 91, level: "높음", cls: "crit",    icon: "◆" },
+  { order: "#4502", name: "박O수", days: 64, score: 74, level: "중간", cls: "serious", icon: "▲" },
+  { order: "#4519", name: "이O훈", days: 22, score: 38, level: "낮음", cls: "good",    icon: "●" },
+];
+
+/* 금액구간 → 파랑 ordinal 램프 (연함=낮음 → 진함=높음, 단일 hue — validate --ordinal PASS) */
+const BUCKET_EDGES = [20000000, 35000000, 50000000];
+const SEQ_RAMP = ["var(--seq-1)", "var(--seq-2)", "var(--seq-3)", "var(--seq-4)"];
+const bucketColor = v => SEQ_RAMP[BUCKET_EDGES.filter(e => v >= e).length];
+/* 미수 aging → 주황 ordinal 램프 (경과일 버킷 순서 = 램프 순서) */
+const AGING_RAMP = ["var(--ag-1)", "var(--ag-2)", "var(--ag-3)", "var(--ag-4)", "var(--ag-5)"];
+
+/* ═══════════════ 헬퍼 ═══════════════ */
+const $ = s => document.querySelector(s);
+/* 외부 요청 0건 계약: SVG 네임스페이스 리터럴 대신 파서에서 취득 */
+const SVGNS = (() => { const d = document.createElement("div"); d.innerHTML = "<svg></svg>"; return d.firstChild.namespaceURI; })();
+function mk(tag, attrs = {}, parent) {
+  const el = document.createElementNS(SVGNS, tag);
+  for (const [k, v] of Object.entries(attrs)) el.setAttribute(k, v);
+  if (parent) parent.appendChild(el);
+  return el;
+}
+function fmtFull(v) { return "₩" + v.toLocaleString("ko-KR"); }
+function fmtCompact(v) {
+  if (v >= 1e8) {
+    const s = (v / 1e8).toFixed(4).replace(/0+$/, "").replace(/\.$/, "");
+    return "₩" + s + "억"; /* ₩n억 */
+  }
+  if (v >= 1e4) return "₩" + Math.round(v / 1e4).toLocaleString("ko-KR") + "만"; /* ₩n만 */
+  return "₩" + v.toLocaleString("ko-KR");
+}
+function fmtTick(v) {
+  if (v === 0) return "0";
+  if (v >= 1e8) return (v / 1e8).toFixed(1).replace(/\.0$/, "") + "억";
+  return (v / 1e4).toLocaleString("ko-KR") + "만";
+}
+function niceScale(maxV) {
+  const raw = maxV / 4;
+  const mag = Math.pow(10, Math.floor(Math.log10(raw)));
+  const norm = raw / mag;
+  const step = mag * (norm <= 1 ? 1 : norm <= 2 ? 2 : norm <= 2.5 ? 2.5 : norm <= 5 ? 5 : 10);
+  return { step, max: Math.ceil(maxV / step) * step };
+}
+function weekly(daily) {
+  const out = [];
+  for (let i = 0; i < daily.length; i += 7) out.push(daily.slice(i, i + 7).reduce((a, b) => a + b, 0));
+  return out;
+}
+const cssVar = name => getComputedStyle(document.documentElement).getPropertyValue(name).trim();
+
+/* ═══════════════ 툴팁 (textContent만 사용 — 라벨은 비신뢰 데이터 취급) ═══════════════ */
+const tip = $("#tip");
+function tipShow(cx, cy, title, rows) {
+  tip.textContent = "";
+  const t = document.createElement("div"); t.className = "t"; t.textContent = title; tip.appendChild(t);
+  for (const r of rows) {
+    const line = document.createElement("div"); line.className = "r";
+    if (r.color) { const k = document.createElement("i"); k.className = "lk"; k.style.borderColor = r.color; line.appendChild(k); }
+    const v = document.createElement("span"); v.className = "v"; v.textContent = r.value; line.appendChild(v);
+    const n = document.createElement("span"); n.className = "n"; n.textContent = r.name; line.appendChild(n);
+    tip.appendChild(line);
+  }
+  tip.style.display = "block";
+  const w = tip.offsetWidth, h = tip.offsetHeight;
+  let x = cx + 14, y = cy + 12;
+  if (x + w > innerWidth - 8) x = cx - w - 14;
+  if (y + h > innerHeight - 8) y = cy - h - 12;
+  tip.style.left = x + "px"; tip.style.top = y + "px";
+  tip.setAttribute("aria-hidden", "false");
+}
+function tipHide() { tip.style.display = "none"; tip.setAttribute("aria-hidden", "true"); }
+
+/* ═══════════════ 메인 추이 차트 ═══════════════ */
+const state = { gran: "day", compare: true, table: false, focusIdx: -1 };
+
+function trendPoints() {
+  if (state.gran === "day")  return AUG_DAILY.map((v, i) => ({ lab: (i + 1) + "일", a: v, b: JUL_DAILY[i] }));
+  if (state.gran === "week") {
+    const wa = weekly(AUG_DAILY), wb = weekly(JUL_DAILY);
+    return wa.map((v, i) => ({ lab: (i + 1) + "주차", a: v, b: wb[i] }));
+  }
+  return MONTHLY.map(m => ({ lab: m.lab, a: m.v, b: null }));
+}
+
+let chartCtx = null; /* 크로스헤어 갱신용 컨텍스트 */
+
+function drawTrend() {
+  const host = $("#trendChart");
+  host.textContent = "";
+  const cmp = state.compare && state.gran !== "month";
+  const pts = trendPoints();
+  const n = pts.length;
+
+  const W = Math.max(560, host.clientWidth || host.parentElement.clientWidth || 860);
+  const M = { l: 58, r: 78, t: 16, b: 34 }, Hp = 232, H = Hp + M.t + M.b;
+  const svg = mk("svg", { width: W, height: H, role: "img", "aria-label": "매출 추이 비교 차트" }, host);
+
+  const maxV = Math.max(...pts.map(p => Math.max(p.a, cmp ? (p.b || 0) : 0)));
+  const sc = niceScale(maxV);
+  const y = v => M.t + Hp - (v / sc.max) * Hp;
+  const innerW = W - M.l - M.r;
+  const xAt = i => (state.gran === "day")
+    ? M.l + i * (innerW / (n - 1))
+    : M.l + (i + 0.5) * (innerW / n);
+
+  const C1 = cssVar("--s1"), CDE = cssVar("--cmp"), CGRID = cssVar("--grid"),
+        CAXIS = cssVar("--axis"), CMUT = cssVar("--muted"), CT2 = cssVar("--text-2"),
+        CSURF = cssVar("--surface");
+
+  /* 주말 음영 (일별 뷰, 8월 기준) */
+  if (state.gran === "day") {
+    const half = innerW / (n - 1) / 2;
+    pts.forEach((p, i) => {
+      const dow = new Date(2026, 7, i + 1).getDay();
+      if (dow === 0 || dow === 6) {
+        mk("rect", { x: xAt(i) - half, y: M.t, width: half * 2, height: Hp, fill: "rgba(15,23,42,.035)" }, svg);
+      }
+    });
+  }
+
+  /* 그리드 (헤어라인·실선) + y 눈금 */
+  for (let v = 0; v <= sc.max + 1; v += sc.step) {
+    mk("line", { x1: M.l, x2: W - M.r, y1: y(v), y2: y(v), stroke: v === 0 ? CAXIS : CGRID, "stroke-width": 1 }, svg);
+    mk("text", { x: M.l - 8, y: y(v) + 4, "text-anchor": "end", fill: CMUT, "font-size": 11,
+      style: "font-variant-numeric:tabular-nums" }, svg).textContent = fmtTick(v);
+  }
+
+  /* x 라벨 */
+  const xLabelIdx = (state.gran === "day") ? [0, 4, 9, 14, 19, 24, 30] : pts.map((_, i) => i);
+  for (const i of xLabelIdx) {
+    mk("text", { x: xAt(i), y: M.t + Hp + 20, "text-anchor": "middle", fill: CMUT, "font-size": 11 }, svg).textContent = pts[i].lab;
+  }
+
+  const barRefs = []; /* 주별 컬럼 lift용 */
+  if (state.gran === "week") {
+    /* 그룹 컬럼: 8월(슬롯1) + 7월(de-emphasis), 막대 ≤24px, 인접 갭 2px, 상단 4px 라운드 */
+    const bw = 20, gap = 2;
+    pts.forEach((p, i) => {
+      const cx = xAt(i);
+      const roundTop = (x, v, wpx) => {
+        const yy = y(v), hh = M.t + Hp - yy, r = Math.min(4, hh);
+        return `M${x},${yy + r} Q${x},${yy} ${x + r},${yy} L${x + wpx - r},${yy} Q${x + wpx},${yy} ${x + wpx},${yy + r} L${x + wpx},${yy + hh} L${x},${yy + hh} Z`;
+      };
+      const group = { a: null, b: null };
+      if (cmp) {
+        group.b = mk("path", { d: roundTop(cx + gap / 2, p.b, bw), fill: CDE }, svg);
+        group.a = mk("path", { d: roundTop(cx - gap / 2 - bw, p.a, bw), fill: C1 }, svg);
+      } else {
+        group.a = mk("path", { d: roundTop(cx - bw / 2, p.a, bw), fill: C1 }, svg);
+      }
+      /* 8월 캡 라벨 (직접 라벨은 주체 시리즈만 — 선택적 라벨링) */
+      mk("text", { x: cmp ? cx - gap / 2 - bw / 2 : cx, y: y(p.a) - 7, "text-anchor": "middle",
+        fill: CT2, "font-size": 10.5, style: "font-variant-numeric:tabular-nums" }, svg)
+        .textContent = Math.round(p.a / 1e4).toLocaleString("ko-KR") + "만";
+      barRefs.push(group);
+    });
+  } else {
+    /* 라인: 2px 라운드 조인, 7월은 de-emphasis 그레이 먼저 */
+    const pathOf = key => pts.map((p, i) => (i ? "L" : "M") + xAt(i) + "," + y(p[key])).join("");
+    if (cmp) mk("path", { d: pathOf("b"), fill: "none", stroke: CDE, "stroke-width": 2,
+      "stroke-linejoin": "round", "stroke-linecap": "round" }, svg);
+    mk("path", { d: pathOf("a"), fill: "none", stroke: C1, "stroke-width": 2,
+      "stroke-linejoin": "round", "stroke-linecap": "round" }, svg);
+
+    if (state.gran === "month") {
+      /* 월별: 각 포인트 마커 (r=4 + 서피스 링 2px) */
+      pts.forEach((p, i) => mk("circle", { cx: xAt(i), cy: y(p.a), r: 4, fill: C1, stroke: CSURF, "stroke-width": 2 }, svg));
+    }
+    /* 엔드포인트 마커 + 값 직접 라벨 (8월/최근월) */
+    const li = n - 1;
+    mk("circle", { cx: xAt(li), cy: y(pts[li].a), r: 4.5, fill: C1, stroke: CSURF, "stroke-width": 2 }, svg);
+    mk("text", { x: xAt(li) + 10, y: y(pts[li].a) + 4, fill: CT2, "font-size": 11, "font-weight": 700,
+      style: "font-variant-numeric:tabular-nums" }, svg).textContent = fmtCompact(pts[li].a);
+  }
+
+  /* 크로스헤어 레이어 */
+  const ch = mk("g", { style: "display:none" }, svg);
+  const vline = mk("line", { y1: M.t, y2: M.t + Hp, stroke: CAXIS, "stroke-width": 1 }, ch);
+  const dotA = mk("circle", { r: 4.5, fill: C1, stroke: CSURF, "stroke-width": 2 }, ch);
+  const dotB = mk("circle", { r: 4, fill: CDE, stroke: CSURF, "stroke-width": 2, style: cmp ? "" : "display:none" }, ch);
+
+  /* 히트 레이어: 포인터는 X만 조준 (2px 마크 조준 불필요) */
+  const hit = mk("rect", { x: M.l - 10, y: M.t, width: innerW + 20, height: Hp + M.b, fill: "transparent" }, svg);
+
+  chartCtx = { pts, n, cmp, xAt, y, ch, vline, dotA, dotB, barRefs, svg, M, Hp, C1, CDE };
+
+  function showAt(i, clientX, clientY) {
+    i = Math.max(0, Math.min(n - 1, i));
+    state.focusIdx = i;
+    const p = pts[i], px = xAt(i);
+    ch.style.display = "";
+    vline.setAttribute("x1", px); vline.setAttribute("x2", px);
+    if (state.gran === "week") {
+      vline.setAttribute("y2", M.t + Hp); dotA.style.display = "none"; dotB.style.display = "none";
+      barRefs.forEach((g, gi) => {
+        const f = gi === i ? "brightness(.88)" : "";
+        if (g.a) g.a.style.filter = f; if (g.b) g.b.style.filter = f;
+      });
+    } else {
+      dotA.style.display = "";
+      dotA.setAttribute("cx", px); dotA.setAttribute("cy", y(p.a));
+      if (cmp) { dotB.style.display = ""; dotB.setAttribute("cx", px); dotB.setAttribute("cy", y(p.b)); }
+      else dotB.style.display = "none";
+    }
+    const rows = [{ color: C1, value: fmtFull(p.a), name: state.gran === "month" ? "매출" : "8월" }];
+    if (cmp && p.b != null) rows.push({ color: CDE, value: fmtFull(p.b), name: "7월" });
+    const rect = svg.getBoundingClientRect();
+    const ax = clientX != null ? clientX : rect.left + px;
+    const ay = clientY != null ? clientY : rect.top + y(p.a);
+    tipShow(ax, ay, p.lab, rows);
+  }
+  function hide() {
+    ch.style.display = "none"; tipHide(); state.focusIdx = -1;
+    barRefs.forEach(g => { if (g.a) g.a.style.filter = ""; if (g.b) g.b.style.filter = ""; });
+  }
+  hit.addEventListener("pointermove", e => {
+    const rect = svg.getBoundingClientRect();
+    const rel = e.clientX - rect.left;
+    const i = (state.gran === "day")
+      ? Math.round((rel - M.l) / (innerW / (n - 1)))
+      : Math.floor((rel - M.l) / (innerW / n));
+    showAt(i, e.clientX, e.clientY);
+  });
+  hit.addEventListener("pointerleave", hide);
+  chartCtx.showAt = showAt; chartCtx.hide = hide;
+
+  drawTrendTable(pts, cmp);
+  drawTrendFoot();
+}
+
+function drawTrendTable(pts, cmp) {
+  const wrap = $("#trendTable");
+  wrap.textContent = "";
+  const tbl = document.createElement("table"); tbl.className = "tv";
+  const thead = tbl.createTHead(); const hr = thead.insertRow();
+  const heads = state.gran === "month" ? ["월", "매출"] :
+    cmp ? ["구간", "8월", "7월", "증감"] : ["구간", "8월"];
+  for (const h of heads) { const th = document.createElement("th"); th.textContent = h; hr.appendChild(th); }
+  const tb = tbl.createTBody();
+  for (const p of pts) {
+    const r = tb.insertRow();
+    r.insertCell().textContent = p.lab;
+    r.insertCell().textContent = fmtFull(p.a);
+    if (state.gran !== "month" && cmp) {
+      r.insertCell().textContent = fmtFull(p.b);
+      const d = p.b ? ((p.a - p.b) / p.b * 100) : 0;
+      const c = r.insertCell(); c.textContent = (d >= 0 ? "+" : "") + d.toFixed(1) + "%";
+    }
+  }
+  wrap.appendChild(tbl);
+}
+
+function drawTrendFoot() {
+  const foot = $("#trendFoot");
+  foot.textContent = "";
+  const augSum = AUG_DAILY.reduce((a, b) => a + b, 0);
+  const julSum = JUL_DAILY.reduce((a, b) => a + b, 0);
+  const parts = [
+    ["8월 합계 ", fmtCompact(augSum)],
+    [" · 7월 합계 ", fmtCompact(julSum)],
+    [" · 완료일 기준", ""],
+  ];
+  if (state.gran === "day") parts.push([" · 음영 = 8월 주말", ""]);
+  for (const [txt, strong] of parts) {
+    foot.appendChild(document.createTextNode(txt));
+    if (strong) { const b = document.createElement("b"); b.textContent = strong; foot.appendChild(b); }
+  }
+}
+
+/* 키보드: 좌우 화살표로 구간 이동 (호버와 동일한 정보) */
+$("#trendWrap").addEventListener("keydown", e => {
+  if (!chartCtx) return;
+  if (e.key === "ArrowRight" || e.key === "ArrowLeft") {
+    e.preventDefault();
+    const next = state.focusIdx < 0
+      ? (e.key === "ArrowRight" ? 0 : chartCtx.n - 1)
+      : state.focusIdx + (e.key === "ArrowRight" ? 1 : -1);
+    chartCtx.showAt(next);
+  } else if (e.key === "Escape") chartCtx.hide();
+});
+$("#trendWrap").addEventListener("blur", () => { if (chartCtx) chartCtx.hide(); });
+
+/* ═══════════════ 가로 막대 리스트 (담당자/파이프라인/차감/에이징/채널) ═══════════════ */
+function barList(hostSel, rows, opts = {}) {
+  const host = $(hostSel);
+  host.textContent = "";
+  const max = opts.max ?? Math.max(...rows.map(r => r.v));
+  const total = opts.total ?? rows.reduce((a, r) => a + r.v, 0);
+  for (const r of rows) {
+    const row = document.createElement("div");
+    row.className = "brow"; row.tabIndex = 0;
+    row.setAttribute("role", "img");
+    row.setAttribute("aria-label", r.label + " " + fmtFull(r.v) + (r.n != null ? " · " + r.n + "건" : ""));
+
+    const lab = document.createElement("span"); lab.className = "blab"; lab.textContent = r.label; row.appendChild(lab);
+
+    const track = document.createElement("div"); track.className = "track";
+    const bar = document.createElement("i"); bar.className = "bar";
+    bar.style.width = Math.max(1.2, r.v / max * 100) + "%";
+    bar.style.background = r.color || "var(--s1)";
+    track.appendChild(bar); row.appendChild(track);
+
+    const val = document.createElement("span"); val.className = "bval";
+    val.textContent = (opts.fmt || fmtCompact)(r.v);
+    if (r.n != null) { const c = document.createElement("span"); c.className = "bcnt"; c.textContent = r.n + "건"; val.appendChild(c); }
+    if (r.chip) {
+      const chip = document.createElement("span"); chip.className = "chip-status " + r.chip.cls;
+      chip.textContent = r.chip.icon + " " + r.chip.text; val.appendChild(chip);
+    }
+    row.appendChild(val);
+
+    const showTip = (cx, cy) => {
+      const rows2 = [{ color: null, value: (opts.fmt || fmtFull)(r.v), name: opts.tipName || "" }];
+      if (opts.share !== false && total > 0) rows2.push({ color: null, value: (r.v / total * 100).toFixed(1) + "%", name: opts.shareName || "비중" });
+      if (r.n != null) rows2.push({ color: null, value: r.n + "건", name: "건수" });
+      tipShow(cx, cy, r.label, rows2);
+    };
+    row.addEventListener("pointermove", e => showTip(e.clientX, e.clientY));
+    row.addEventListener("pointerleave", tipHide);
+    row.addEventListener("focus", () => { const rc = row.getBoundingClientRect(); showTip(rc.right - 140, rc.top); });
+    row.addEventListener("blur", tipHide);
+    host.appendChild(row);
+  }
+}
+
+/* ═══════════════ KPI 스파크라인 (최근 12일, de-emphasis + 현재 액센트) ═══════════════ */
+function drawSpark() {
+  const svg = $("#spark");
+  svg.textContent = "";
+  const data = AUG_DAILY.slice(-12);
+  const W = 96, H = 28, P = 3;
+  const max = Math.max(...data), min = Math.min(...data);
+  const x = i => P + i * (W - P * 2) / (data.length - 1);
+  const y = v => P + (H - P * 2) * (1 - (v - min) / (max - min || 1));
+  const d = data.map((v, i) => (i ? "L" : "M") + x(i).toFixed(1) + "," + y(v).toFixed(1)).join("");
+  mk("path", { d, fill: "none", stroke: cssVar("--deemph"), "stroke-width": 1.5, "stroke-linejoin": "round", "stroke-linecap": "round" }, svg);
+  mk("circle", { cx: x(data.length - 1), cy: y(data[data.length - 1]), r: 3, fill: cssVar("--s1"), stroke: cssVar("--surface"), "stroke-width": 1.5 }, svg);
+}
+
+/* ═══════════════ 채널 미니 멀티플 (매출/건수 — 스케일이 달라 차트 분리, 이중축 금지) ═══════════════ */
+function drawChannels() {
+  barList("#chRev", CHANNELS.map(c => ({ label: c.label, v: c.rev, color: c.color })), { tipName: "매출" });
+  barList("#chCnt", CHANNELS.map(c => ({ label: c.label, v: c.n, color: c.color })), {
+    fmt: v => v.toLocaleString("ko-KR") + "건", tipName: "건수",
+  });
+  barList("#chAvg", CHANNELS.map(c => ({ label: c.label, v: Math.round(c.rev / c.n / 1e4) * 1e4, color: c.color })), {
+    tipName: "건당 평균", share: false,
+  });
+  const share = $("#chShare");
+  share.textContent = "";
+  const total = CHANNELS.reduce((a, c) => a + c.rev, 0);
+  for (const c of CHANNELS) {
+    const i = document.createElement("i");
+    i.style.width = (c.rev / total * 100) + "%"; i.style.background = c.color;
+    share.appendChild(i);
+  }
+}
+
+/* ═══════════════ 연체 위험 티저 ═══════════════ */
+function drawRisk() {
+  const host = $("#riskRows");
+  host.textContent = "";
+  const RAMP = { crit: "var(--crit)", serious: "var(--serious)", good: "var(--good)" };
+  const SOFT = { crit: "rgba(208,59,59,.16)", serious: "rgba(194,65,12,.14)", good: "rgba(0,99,0,.12)" };
+  for (const r of RISK) {
+    const row = document.createElement("div"); row.className = "risk-row";
+    const who = document.createElement("div"); who.className = "who";
+    const b = document.createElement("b"); b.textContent = r.order + " " + r.name; who.appendChild(b);
+    const s = document.createElement("div"); s.className = "s"; s.textContent = "잔금 경과 " + r.days + "일"; who.appendChild(s);
+    row.appendChild(who);
+    /* 스코어 미터: 채움 = 심각도색, 트랙 = 같은 램프의 옅은 단계 */
+    const m = document.createElement("div"); m.className = "meter";
+    m.style.background = SOFT[r.cls];
+    const fill = document.createElement("i"); fill.style.width = r.score + "%"; fill.style.background = RAMP[r.cls];
+    m.appendChild(fill); row.appendChild(m);
+    const sc = document.createElement("div"); sc.className = "score";
+    const chip = document.createElement("span"); chip.className = "chip-status " + r.cls;
+    chip.textContent = r.icon + " " + r.level + " " + r.score;
+    sc.appendChild(chip); row.appendChild(sc);
+    host.appendChild(row);
+  }
+}
+
+/* ═══════════════ 컨트롤 배선 ═══════════════ */
+/* 단일 시리즈(월별 뷰 또는 비교 off)면 범례 박스 자체를 숨긴다 — 1시리즈는 범례 불필요 */
+function syncTrendHead() {
+  const monthMode = state.gran === "month";
+  const single = monthMode || !state.compare;
+  $("#trendLegend").style.display = single ? "none" : "";
+  $("#trendSub").textContent = monthMode
+    ? "월별 · 최근 6개월"
+    : (state.gran === "day" ? "일별" : "주별") + (state.compare ? " · 8월 vs 7월 오버레이" : " · 8월");
+}
+document.querySelectorAll(".seg button").forEach(btn => {
+  btn.addEventListener("click", () => {
+    state.gran = btn.dataset.gran;
+    document.querySelectorAll(".seg button").forEach(b => b.setAttribute("aria-pressed", String(b === btn)));
+    $("#cmpToggle").setAttribute("aria-disabled", String(state.gran === "month"));
+    syncTrendHead();
+    drawTrend();
+  });
+});
+$("#cmpToggle").addEventListener("click", function () {
+  if (this.getAttribute("aria-disabled") === "true") return;
+  state.compare = !state.compare;
+  this.setAttribute("aria-pressed", String(state.compare));
+  syncTrendHead();
+  drawTrend();
+});
+$("#tableToggle").addEventListener("click", function () {
+  state.table = !state.table;
+  this.setAttribute("aria-pressed", String(state.table));
+  this.textContent = state.table ? "차트로 보기" : "표로 보기";
+  $("#trendTable").hidden = !state.table;
+  $("#trendWrap").style.display = state.table ? "none" : "";
+});
+
+/* 리사이즈 시 메인 차트 재렌더 (이전 프레임 유지 후 동기 교체 — 스켈레톤 없음) */
+let rzT = null;
+new ResizeObserver(() => { clearTimeout(rzT); rzT = setTimeout(drawTrend, 80); }).observe($("#trendChart"));
+
+/* ═══════════════ 초기 렌더 ═══════════════ */
+$("#kpiRev").textContent = fmtCompact(AUG_TOTAL);
+$("#kpiDeduct").textContent = fmtCompact(DEDUCT.reduce((a, d) => a + d.v, 0));
+drawSpark();
+drawTrend();
+drawChannels();
+barList("#repBars", REPS.map(r => ({ ...r, color: bucketColor(r.v) })), { tipName: "매출", shareName: "팀 내 비중" });
+$("#repTotal").textContent = fmtCompact(REPS.reduce((a, r) => a + r.v, 0));
+barList("#pipeBars", PIPELINE.map(p => ({
+  label: p.label, v: p.v, n: p.n, color: p.done ? "var(--deemph)" : bucketColor(p.v),
+})), { tipName: "금액", share: false });
+$("#pipeTotal").textContent = fmtCompact(PIPELINE.filter(p => !p.done).reduce((a, p) => a + p.v, 0));
+barList("#dedBars", DEDUCT.map(d => ({ label: d.label, v: d.v, color: "var(--s2)" })), { tipName: "차감액", shareName: "차감 내 비중" });
+$("#dedTotal").textContent = fmtCompact(DEDUCT.reduce((a, d) => a + d.v, 0));
+barList("#agingBars", AGING.map((a, i) => ({ ...a, color: AGING_RAMP[i] })), { tipName: "미수액", shareName: "미수 내 비중" });
+drawRisk();
+</script>
+
+<!--
+  ═══════════════════════════════════════════════════════════════════
+  팔레트 검증 기록 (dataviz 스킬 validate_palette.js — 라이트/흰 카드 서피스, 전부 exit 0)
+  색상 전략: color_study.md 정본 — B(지표 계열색) + D(표면 층위) + 특별지시(금액구간 램프)
+
+  1) 범주 슬롯 1–2 (채널 일반/네이버): "#2a78d6,#eb6834" --mode light --surface "#ffffff"
+     -> 전 5항목 [PASS] (CVD dE 24.7 / normal 33.6 / 대비 >=3:1), ALL CHECKS PASS
+  2) B/D 가족 트리오 (파랑·주황·아쿠아): "#2a78d6,#eb6834,#1baf7a" --pairs all
+     -> ALL CHECKS PASS — all-pairs CVD dE 9.2(deutan) / normal 24.0
+        #1baf7a 2.82:1 WARN(relief) -> 아쿠아는 마크 아닌 표면 액센트 + 수금 값 텍스트 병기로 충족
+  3) 금액구간 파랑 ordinal 4스텝 (담당자별·파이프라인): "#86b6ef,#5598e7,#2a78d6,#104281" --ordinal
+     -> ALL CHECKS PASS — monotone L · dL>=0.06 · light-end 2.11:1 · hue 3°
+  4) 미수 aging 주황 ordinal 5스텝: "#f19979,#eb6834,#c74b12,#9f3701,#752600" --ordinal
+     -> ALL CHECKS PASS — monotone L · light-end 2.19:1 · hue 0°
+  5) 기간 비교 2스텝 (8월 #2a78d6 / 7월 #1c5cab): "#2a78d6,#1c5cab" --ordinal
+     -> ALL CHECKS PASS — 1 hue 2 shades, light-end 4.42:1
+
+  색 사전(전략 B): 파랑=매출(추이·담당자·파이프라인, 금액구간은 파랑 명암만) ·
+  주황=미수/차감(aging 램프·부서 차감 slot-2 유지) · 아쿠아=수금(표면 액센트) ·
+  뉴트럴 #6b7280=볼륨(건수 KPI) · status(#d03b3b critical 4.80:1 등)=61일+·연체 위험 전용, 아이콘+라벨 동반.
+  전략 D: KPI 가족 틴트(#f1f6fd/#fdf3ed/#f4f6f8, <=8% 워시) + 3px 액센트 바 — 비데이터 표면,
+  텍스트는 전부 텍스트 토큰(primary #111827 17.74:1 / secondary #475569 7.58 / muted #64748b 4.76).
+  보조 대비: de-emphasis #8a94a3 = 3.07 / good #006300 = 7.54 / warning #b45309 = 5.02
+    serious #c2410c = 5.18 / critical #d03b3b = 4.80 / seg 활성 #256abf 위 #fff = 5.39
+  금액구간 램프는 두 카드 공용 스케일(~1,999 / 2,000~3,499 / 3,500~4,999 / 5,000만~) + 구간 범례 병기.
+  매출 추이는 라인 유지(램프 미적용 — 사용자 지시 그대로), 채널 비교=범주 슬롯 유지.
+  이중 y축 없음, 파이 없음, 무지개 없음, 범주색 순환 없음. 데이터는 전부 JS 상수/생성 배열 → 렌더 함수.
+  ═══════════════════════════════════════════════════════════════════
+-->
+</body>
+</html>
