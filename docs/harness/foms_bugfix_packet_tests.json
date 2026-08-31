@@ -407,7 +407,6 @@
    "REQUEST-LIMIT-01",
    "REV-00",
    "REV-CLEANUP-01",
-   "ROUTE-01",
    "RUM-INGEST-01",
    "SECRET-01",
    "SECRET-02",
@@ -2870,28 +2869,6 @@
    "tests/domains/test_p3_gate.py"
   ],
   "created_tests": [],
-  "browser_scenarios": [],
-  "deploy_check_ids": [],
-  "deployment_evidence_mode": "PROVIDER_BOOTSTRAP"
- },
- "ROUTE-01": {
-  "depends_on": [],
-  "dependency_classes": {
-   "packet_harness": true,
-   "backfill_artifact": false,
-   "write_guard": false,
-   "postgres": false
-  },
-  "commands": [
-   "python -m pytest tests/domains/test_measurement_route.py -q"
-  ],
-  "existing_regressions": [],
-  "created_tests": [
-   {
-    "path": "tests/domains/test_measurement_route.py",
-    "owner_packet": "ROUTE-01"
-   }
-  ],
   "browser_scenarios": [],
   "deploy_check_ids": [],
   "deployment_evidence_mode": "PROVIDER_BOOTSTRAP"

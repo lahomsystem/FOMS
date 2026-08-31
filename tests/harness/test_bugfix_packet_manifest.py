@@ -50,7 +50,7 @@ EXPECTED_PACKETS = frozenset({
     "STORAGE-WRITER-01", "STATE-LEGACY-01", "STATE-CONTROLS-01", "STATE-GUARD-01", "WIZ-01",
     "WIZ-PRESET-01", "WIZ-TRANSFER-01", "WIZ-DELETE-01", "UPLOAD-01", "FILE-LEGACY-AUDIT-00",
     "FILE-LEGACY-BACKFILL-01", "FILE-01", "UPLOAD-INTENT-01", "UPLOAD-02", "BLUEPRINT-01",
-    "UPLOAD-CHAT-01", "CHAT-FILE-01", "SHELL-01", "HISTORY-01", "ROUTE-01",
+    "UPLOAD-CHAT-01", "CHAT-FILE-01", "SHELL-01", "HISTORY-01",
     "SW-01", "OFFLINE-01", "STARTUP-SCHEMA-01", "STARTUP-BACKFILL-01", "STARTUP-ADMIN-01",
     "STARTUP-PURE-01", "SCALE-AS-01", "SCALE-CHANNEL-01", "SCALE-SKETCHUP-01", "BACKUP-01",
     "PROXY-01", "RUM-INGEST-01", "WAM-TELEMETRY-01", "INDEX-OPS-01",
@@ -84,7 +84,7 @@ REV99_DEPENDS_ON = frozenset({
     "CHANNEL-INBOUND-ORDER-01", "STATE-FORM-01", "STATE-OVERLAY-01", "DRAFT-LIFECYCLE-01", "STORAGE-WRITER-01",
     "STATE-LEGACY-01", "STATE-CONTROLS-01", "STATE-GUARD-01", "WIZ-01", "WIZ-PRESET-01", "WIZ-TRANSFER-01",
     "WIZ-DELETE-01", "UPLOAD-01", "FILE-LEGACY-AUDIT-00", "FILE-LEGACY-BACKFILL-01", "FILE-01", "UPLOAD-INTENT-01",
-    "UPLOAD-02", "BLUEPRINT-01", "UPLOAD-CHAT-01", "CHAT-FILE-01", "SHELL-01", "HISTORY-01", "ROUTE-01",
+    "UPLOAD-02", "BLUEPRINT-01", "UPLOAD-CHAT-01", "CHAT-FILE-01", "SHELL-01", "HISTORY-01",
     "SW-01", "OFFLINE-01", "PROXY-01", "RUM-INGEST-01", "WAM-TELEMETRY-01",
 })
 
@@ -185,7 +185,7 @@ def test_packet_set_exact(manifest):
         "missing": EXPECTED_PACKETS - keys,
         "extra": keys - EXPECTED_PACKETS,
     }
-    assert len(manifest) == 123
+    assert len(manifest) == 122
 
 
 def test_entry_schema(manifest):
@@ -220,7 +220,7 @@ def test_explicit_deps_reference_existing_packets(manifest):
 
 def test_graph_is_acyclic(manifest):
     order = toposort(manifest)
-    assert len(order) == 123
+    assert len(order) == 122
 
 
 def test_backfill_artifact_set_exact(manifest):
@@ -242,7 +242,7 @@ def test_packet_harness_rule(manifest):
 
 def test_rev99_depends_on_exact(manifest):
     got = manifest["REV-99"]["depends_on"]
-    assert len(got) == len(set(got)) == 110
+    assert len(got) == len(set(got)) == 109
     assert set(got) == REV99_DEPENDS_ON, {
         "missing": REV99_DEPENDS_ON - set(got),
         "extra": set(got) - REV99_DEPENDS_ON,

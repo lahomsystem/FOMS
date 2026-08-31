@@ -25,7 +25,6 @@ from foms.services.erp_order_flags import is_erp_order_record
 from foms.services.common.erp_mine_filter import erp_mine_only_from_request
 from foms.services.erp_permissions import is_order_related_to_user
 from foms.services.erp_sync_columns import sync_erp_flat_columns
-from foms.services.common.address_converter import FOMSAddressConverter
 from foms.services.order_geocode import reset_order_geocode_on_address_change
 from foms.services.order_geocode_outbox import enqueue_order_address_geocode
 from foms.services.orders.revision import RevisionError, execute_order_mutation
@@ -35,7 +34,6 @@ from foms.services.measurement_read_model import (
     measurement_schedule_on_dates,
 )
 from foms.services.measurement_undated import build_measurement_undated_payload
-from foms.services.measurement_route import build_measurement_route_payload
 from foms.services.measurement_time import parse_measurement_time_minutes
 from foms.services.common.business_calendar import get_holidays_kr
 
@@ -524,90 +522,6 @@ def api_erp_measurement_update(order_id):
     for header, hvalue in outcome.headers.items():
         resp.headers[header] = hvalue
     return resp
-
-
-@erp_measurement_bp.route('/route')
-@login_required
-def api_erp_measurement_route():
-    """ERP 실측 동선(예약 순서) 조회 — 동선 스트립 폴백 계보.
-
-    빌더는 `foms.services.measurement_route`(SSOT) — 실측 대시보드 뷰의
-    서버 인라인(data-route-inline)과 동일 계보의 points 를 반환한다.
-    '내 주문' 필터는 대시보드 뷰(foms.web.measurement.dashboard)와 동일 predicate,
-    기본값(파라미터/쿠키 미설정)은 기존 동작 유지 — 필터 미적용.
-
-    응답의 `route`는 예약 순서(측정 시각 오름차순) — 히어로/'다음 방문' SSOT.
-    `data-route-inline`이 없는 표면(v3 영업 홈 등)은 항상 이 API 로 폴백하므로
-    엔드포인트를 지우면 그 화면의 동선 띠가 죽는다. 최근접 이웃 추정 동선
-    (`optimized_route`)은 2026-08-31 제거 — 실제 동선과 크게 달라 쓸모가 없었다.
-    """
-    db = get_db()
-    date_filter = request.args.get('date') or measurement_api.get_today_kst().strftime('%Y-%m-%d')
-    manager_filter = (request.args.get('manager') or '').strip()
-    limit = int(request.args.get('limit', 20))
-
-    current_user = getattr(g, 'current_user', None)
-    mine_filter_active = bool(erp_mine_only_from_request(request) and current_user)
-    payload = build_measurement_route_payload(
-        db,
-        date_filter=date_filter,
-        manager_filter=manager_filter,
-        limit=limit,
-        current_user=current_user,
-        mine_active=mine_filter_active,
-    )
-    return jsonify({"success": True, **payload})
-
-
-@erp_measurement_bp.route('/route-eta')
-@login_required
-def api_erp_measurement_route_eta():
-    """현재 위치 → 대상 주문까지 카카오 실도로 거리·소요시간 (동선 스트립 캡션 장식용).
-
-    파라미터
-        order_id: 대상 주문 id (int, 필수)
-        from_lat/from_lng: 현재 위치 좌표 (float, 필수)
-
-    반환
-        200 {success:true, data:{distance_km, duration_min}} — 카카오 성공
-        200 {success:false, error} — 좌표 없음/카카오 실패 (장식 요소라 UX 차단 금지, 폴백)
-        400 {success:false, error} — 파라미터 누락/범위 오류
-
-    카카오 호출 실패는 logger.info로 남기되(에러 삼킴 금지) 200 폴백으로 응답한다.
-    """
-    order_id = request.args.get('order_id', type=int)
-    from_lat = request.args.get('from_lat', type=float)
-    from_lng = request.args.get('from_lng', type=float)
-    if order_id is None or from_lat is None or from_lng is None:
-        return jsonify({'success': False, 'error': '필수 파라미터 누락'}), 400
-    if not (-90.0 <= from_lat <= 90.0) or not (-180.0 <= from_lng <= 180.0):
-        return jsonify({'success': False, 'error': '좌표 범위 오류'}), 400
-
-    db = get_db()
-    order = db.query(Order).filter(Order.id == order_id).first()
-    if order is None or order.lat is None or order.lng is None:
-        return jsonify({'success': False, 'error': '대상 좌표 없음'})
-
-    try:
-        result = FOMSAddressConverter().calculate_route(
-            from_lat, from_lng, float(order.lat), float(order.lng), timeout=5
-        )
-    except Exception as e:  # noqa: BLE001 — 장식용 폴백, 아래 logger.info로 기록
-        logger.info('[ROUTE_ETA] 카카오 경로 계산 예외 order=%s: %s', order_id, e)
-        return jsonify({'success': False, 'error': '경로 계산 실패'})
-
-    if not result or result.get('status') != 'success':
-        logger.info('[ROUTE_ETA] 카카오 응답 실패 order=%s: %s',
-                    order_id, (result or {}).get('message'))
-        return jsonify({'success': False, 'error': '경로 계산 실패'})
-
-    return jsonify({
-        'success': True,
-        'data': {
-            'distance_km': result.get('distance_km'),
-            'duration_min': result.get('duration_min'),
-        },
-    })
 
 
 @erp_measurement_bp.route('/undated')

@@ -133,14 +133,12 @@ def measurement_generate_map_response(
     dashboard: str | None,
     limit: int,
     title: str,
-    route_mode: bool = False,
     mine: bool = False,
     current_user=None,
 ):
     """JSON response for `/api/generate_map` when `dashboard=measurement` and date is set.
 
-    ``route_mode``면 오늘(조회일) 실측 주문을 방문 시간순으로 잇는 동선 오버레이
-    (순번 배지 + 폴리라인)를 지도에 그린다. ``mine``이면 내 담당 주문만 표시한다.
+    ``mine``이면 내 담당 주문만 표시한다.
     """
     db = get_db()
     query = build_measurement_map_query(
@@ -155,15 +153,8 @@ def measurement_generate_map_response(
     map_generator = FOMSMapGenerator()
     map_data = snapshot['markers']
     orders_list = snapshot['orders']
-    # 좌표 없어 동선에서 빠지는 주문 수(범례에 표기 — 조용한 누락 금지)
-    route_skipped_count = len(orders_list) - len(map_data)
-
     if map_data:
-        folium_map = map_generator.create_map(
-            map_data, title,
-            route_mode=route_mode,
-            route_skipped_count=route_skipped_count,
-        )
+        folium_map = map_generator.create_map(map_data, title)
         map_html = folium_map._repr_html_() if folium_map else '<div class="error-message">지도를 생성할 수 없습니다.</div>'
         return jsonify({
             'success': True,

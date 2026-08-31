@@ -405,7 +405,7 @@ def test_measurement_shell_fragment_includes_page_local_css(client, monkeypatch)
     """FOUC 가드: 셸 fragment(head 없음)에도 page-local CSS link가 실려야 한다.
 
     X1 preloadFragmentStylesheets는 fragment HTML의 <link rel=stylesheet>만
-    swap 전 head에 선로드한다. 실측 heroes/route-strip가 dashboard.html styles
+    swap 전 head에 선로드한다. 실측 heroes/히어로 보조 CSS가 dashboard.html styles
     블록에만 있으면 하단탭 첫 진입에서 미스타일로 뜬다(AS/출고와 동일 계약).
     ?v= 는 dashboard.html styles 블록과 fragment가 동기여야 캐시 드리프트 없다.
     """
@@ -419,7 +419,7 @@ def test_measurement_shell_fragment_includes_page_local_css(client, monkeypatch)
     ).read_text(encoding="utf-8")
     for token in (
         "foms-v2-domain-heroes.css') }}?v=20260712a",
-        "foms-route-strip.css') }}?v=20260805a",
+        "foms-route-strip.css') }}?v=20260901a",
     ):
         assert token in dash
         assert token in frag_src
@@ -428,7 +428,7 @@ def test_measurement_shell_fragment_includes_page_local_css(client, monkeypatch)
     assert "foms-v2-domain-heroes.css" in full
     assert "foms-route-strip.css" in full
     assert "v=20260712a" in full
-    assert "v=20260805a" in full
+    assert "v=20260901a" in full
 
     frag_resp = client.get(
         "/erp/measurement?view=fragment",
@@ -439,5 +439,5 @@ def test_measurement_shell_fragment_includes_page_local_css(client, monkeypatch)
     assert "foms-v2-domain-heroes.css" in frag
     assert "foms-route-strip.css" in frag
     assert "v=20260712a" in frag
-    assert "v=20260805a" in frag
+    assert "v=20260901a" in frag
     assert "<html" not in frag.lower()
