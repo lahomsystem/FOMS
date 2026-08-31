@@ -42,6 +42,7 @@ logger = logging.getLogger(__name__)
 __all__ = [
     "BULK_DISPATCH_LIMIT",
     "BulkDispatchTarget",
+    "build_day_summary",
     "build_preview",
     "dispatch_pending_clause",
     "select_sendable",
@@ -107,6 +108,18 @@ class BulkDispatchTarget:
         external_order_no: 네이버 묶음 주문번호(표시·묶기용).
         link_ids: 집에 속한 전체 링크 id.
         pending_link_ids: 그중 아직 발송 전인 링크 id(양쪽 신호 모두 빈 것).
+        sent_link_ids: 이미 발송된 링크 id — **우리가 보낸 것과 판매자센터에서 사람이
+            보낸 것을 함께** 센다. 우리 표식만 보면 손으로 보낸 집이 영원히 "남음"으로
+            뜬다(화면 큐가 이미 그 실수를 하고 있다).
+        sent_at: 그 집의 마지막 발송 시각(KST ``YYYY-MM-DD HH:MM``). 없으면 빈 문자열 —
+            **없는 값을 지어내지 않는다**.
+        sent_by_naver: 발송된 건이 **전부** 네이버 원본 기록뿐인가(= 판매자센터 수동 발송).
+            우리가 한 일과 사람이 한 일을 화면이 구별해서 말하기 위한 값이다.
+        failure_reason: 마지막 발송처리 실패 사유. **아직 보낼 게 남은 집에만** 채운다 —
+            전부 나간 집의 옛 실패 기록은 지금 사실이 아니고, 그걸 빨갛게 띄우면 화면이
+            "발송됐는데 실패"라고 말한다.
+        state: ``"sent"``(다 나감) · ``"failed"``(남았고 실패 기록 있음) ·
+            ``"blocked"``(남았고 지금 못 보냄) · ``"pending"``(남았고 보낼 수 있음).
         order_ids: 이 집이 붙은 FOMS 주문 id(0개일 수 있다 — 주문 미생성 수집분).
         customer_names: 붙은 주문의 고객명(화면이 집을 알아보게 — 표시 전용).
         measurement_done: 붙은 주문이 **모두** 실측완료로 찍혀 있는가. **표시 전용이고
@@ -126,6 +139,11 @@ class BulkDispatchTarget:
     measurement_done: bool = False
     eligible: bool = True
     reason: str = ""
+    sent_link_ids: list[int] = field(default_factory=list)
+    sent_at: str = ""
+    sent_by_naver: bool = False
+    failure_reason: str = ""
+    state: str = "pending"
 
 
 def _measurement_order_ids(session: Session, *, on_date: str) -> list[int]:
@@ -157,8 +175,13 @@ def _measurement_order_ids(session: Session, *, on_date: str) -> list[int]:
     return [row[0] for row in query.distinct().all()]
 
 
-def _candidate_links(session: Session, order_ids: list[int]) -> list[ExternalOrderLink]:
-    """모집단 주문에 붙은 **발송 전** 네이버 링크.
+def _day_links(session: Session, order_ids: list[int]) -> list[ExternalOrderLink]:
+    """모집단 주문에 붙은 네이버 링크 **전부** — 발송 전도 발송 후도 함께.
+
+    발송 전만 걷으면 "다 나갔다"와 "애초에 대상이 없었다"를 구별할 수 없다. 그 둘이 화면에서
+    같은 모양(띠 사라짐)으로 보인 것이 2026-08-31 운영 1회차의 결함이다 — 되돌릴 수 없는
+    조작에서 결과가 안 보이면 사람이 판매자센터를 다시 열게 되고, 이 기능이 없앤 일이
+    되살아난다.
 
     ``order_id`` 로 거르는 것이 "네이버 유래" 판정의 전부다 —
     ``structured_data['source']`` 는 쓰지 않는다(2026-08-28 운영 실측에서 오염 의심분이
@@ -169,7 +192,7 @@ def _candidate_links(session: Session, order_ids: list[int]) -> list[ExternalOrd
         order_ids: 모집단 주문 id.
 
     Returns:
-        후보 링크 목록. 입력이 비면 빈 목록(쿼리하지 않는다).
+        링크 목록. 입력이 비면 빈 목록(쿼리하지 않는다).
     """
     if not order_ids:
         return []
@@ -178,11 +201,83 @@ def _candidate_links(session: Session, order_ids: list[int]) -> list[ExternalOrd
         .filter(
             ExternalOrderLink.channel == CHANNEL,
             ExternalOrderLink.order_id.in_(order_ids),  # perf-ok: 당일 실측분 batch
-            dispatch_pending_clause(),
         )
         .order_by(ExternalOrderLink.id.asc())
         .all()
     )
+
+
+def _naver_send_date(link: ExternalOrderLink) -> str:
+    """네이버 **원본이 말하는** 발송 시각 원문 — 없으면 빈 문자열.
+
+    :func:`fulfillment._naver_dispatched_at` 과 **같은 자리**를 읽는다(``extract_delivery``).
+    워커가 멱등 판정에 쓰는 그 신호와 어긋나면, 선별이 "보낼 수 있다"고 말한 집을 워커가
+    ``FulfillmentError`` 로 되돌려보낸다.
+
+    :func:`dispatch_pending_clause` 의 SQL 은 최상위 ``delivery`` 만 보는 반면 이쪽은
+    ``productOrder``·``order`` 아래까지 내려간다 — **더 넓게 '발송됨'으로 세는 쪽**이라
+    어긋나도 안전한 방향이다(안 보낸 것을 보냈다고 하지, 보낸 것을 안 보냈다고 하지 않는다).
+
+    Args:
+        link: 링크 1건.
+
+    Returns:
+        ``delivery.sendDate`` 원문(공백 제거).
+    """
+    return str(mapping.extract_delivery(link.raw_snapshot or {}).get("send_date") or "").strip()
+
+
+def _is_dispatched(link: ExternalOrderLink) -> bool:
+    """이 상품주문이 이미 발송처리됐는가 — **신호 두 벌**.
+
+    ①우리 표식(``triage_state.fulfillment.dispatched_at``) ②네이버 원본(``delivery.sendDate``).
+    ②를 빼면 판매자센터에서 사람이 보낸 집이 영원히 "남음"으로 뜬다.
+
+    Args:
+        link: 링크 1건.
+
+    Returns:
+        둘 중 하나라도 있으면 참.
+    """
+    if str(_fulfillment_state(link).get("dispatched_at") or "").strip():
+        return True
+    return bool(_naver_send_date(link))
+
+
+def _sent_stamp(link: ExternalOrderLink) -> tuple[str, bool]:
+    """발송된 링크 1건의 시각과 출처.
+
+    Args:
+        link: 이미 발송된 링크.
+
+    Returns:
+        ``(KST 'YYYY-MM-DD HH:MM' 문자열, 네이버 원본에서만 온 값인가)``.
+        시각을 못 읽으면 첫 값이 빈 문자열이다 — 없는 값을 지어내지 않는다.
+    """
+    from foms.services.datetime_kst import format_datetime_kst
+
+    ours = str(_fulfillment_state(link).get("dispatched_at") or "").strip()
+    raw = ours or _naver_send_date(link)
+    text = (format_datetime_kst(raw, "%Y-%m-%d %H:%M") or "") if raw else ""
+    return text, not ours
+
+
+def _dispatch_failure(link: ExternalOrderLink) -> str:
+    """이 링크에 남은 **발송처리** 실패 사유 — 다른 작업의 실패는 세지 않는다.
+
+    ``last_error_action`` 을 안 보면 발주확인 실패가 발송 실패 줄에 뜬다. 화면의
+    '실패한 집만 다시 시도' 가 같은 값을 보고 작업을 고른다.
+
+    Args:
+        link: 링크 1건.
+
+    Returns:
+        사유 문장. 없으면 ``""``.
+    """
+    state = _fulfillment_state(link)
+    if str(state.get("last_error_action") or "").strip() != "dispatch":
+        return ""
+    return str(state.get("last_error") or "").strip()
 
 
 def _expand_households(
@@ -320,8 +415,12 @@ def _order_display(session: Session, order_ids: set[int]) -> dict[int, tuple[str
     return {int(row[0]): (str(row[1] or ""), bool(row[2])) for row in rows}
 
 
-def select_targets(session: Session, *, on_date: str) -> list[BulkDispatchTarget]:
-    """그날 실측 스케줄의 네이버 주문을 집 단위로 모은다 — **읽기 전용**.
+def build_day_summary(session: Session, *, on_date: str) -> list[BulkDispatchTarget]:
+    """그날 실측 스케줄의 네이버 주문을 집 단위로 **전부** 모은다 — **읽기 전용**.
+
+    :func:`select_targets` 와 달리 **이미 발송된 집도 함께** 돌려준다. 그게 이 함수가
+    있는 이유다 — "다 나갔다"와 "애초에 대상이 없었다"는 다른 사실인데, 발송 전만 세면
+    둘 다 0집이 되어 화면이 그 둘을 구별해 말할 수 없다.
 
     보낼 수 없는 집도 :attr:`BulkDispatchTarget.eligible` 거짓으로 **함께 돌려준다**.
     조용히 빼면 화면이 "대상 N집"이라고 말하면서 실제로는 다른 수를 보내게 된다.
@@ -331,65 +430,155 @@ def select_targets(session: Session, *, on_date: str) -> list[BulkDispatchTarget
         on_date: ``YYYY-MM-DD``.
 
     Returns:
-        집 목록. 정렬은 대표 링크 id 오름차순(재현 가능하도록).
+        집 목록(발송 완료분 포함). 정렬은 대표 링크 id 오름차순(재현 가능하도록).
     """
     order_ids = _measurement_order_ids(session, on_date=on_date)
-    candidates = _candidate_links(session, order_ids)
-    if not candidates:
+    day_links = _day_links(session, order_ids)
+    if not day_links:
         return []
 
-    candidate_ids = {row.id for row in candidates}
+    day_ids = {row.id for row in day_links}
     groups: dict[tuple[str, str, str], list[ExternalOrderLink]] = {}
-    for row in _expand_households(session, candidates):
+    for row in _expand_households(session, day_links):
         groups.setdefault(household_key(row), []).append(row)
 
     kept: list[tuple[tuple[str, str, str], list[ExternalOrderLink], list[int]]] = []
     for key, links in groups.items():
-        pending = [row.id for row in links if row.id in candidate_ids]
-        if not pending:
-            # 후보가 하나도 없는 집은 애초에 우리 모집단이 아니다(1차 축이 넓게 걷어온
-            # 형제 집). 여기서 안 거르면 남의 집이 대상 목록에 뜬다.
+        mine = [row.id for row in links if row.id in day_ids]
+        if not mine:
+            # 그날 모집단 링크가 하나도 없는 집은 애초에 우리 대상이 아니다(1차 축이
+            # 넓게 걷어온 형제 집). 여기서 안 거르면 남의 집이 목록에 뜬다.
             continue
         links.sort(key=lambda row: row.id)
-        kept.append((key, links, sorted(pending)))
+        kept.append((key, links, sorted(mine)))
 
     display = _order_display(
         session,
         {row.order_id for _, links, _ in kept for row in links if row.order_id},
     )
-    targets: list[BulkDispatchTarget] = []
-    for key, links, pending in kept:
-        order_ids = sorted({row.order_id for row in links if row.order_id})
-        seen = [display[oid] for oid in order_ids if oid in display]
-        reason = _blocking_reason(links)
-        targets.append(
-            BulkDispatchTarget(
-                link_id=links[0].id,
-                household=key,
-                external_order_no=(links[0].external_order_no or "").strip(),
-                link_ids=[row.id for row in links],
-                pending_link_ids=pending,
-                order_ids=order_ids,
-                customer_names=[name for name, _done in seen if name],
-                # 붙은 주문이 하나도 없으면 '완료'라고 말하지 않는다 — all([]) 은 참이다.
-                measurement_done=bool(seen) and all(done for _name, done in seen),
-                eligible=not reason,
-                reason=reason,
-            )
-        )
+    targets = [_build_target(key, links, mine, display) for key, links, mine in kept]
     targets.sort(key=lambda target: target.link_id)
     logger.info(
-        "[NAVER] 일괄 발송처리 대상 %s: 집 %d(보낼 수 있음 %d)",
-        on_date, len(targets), sum(1 for t in targets if t.eligible),
+        "[NAVER] 일괄 발송처리 %s: 오늘 네이버 집 %d(보낼 수 있음 %d · 이미 나감 %d)",
+        on_date, len(targets),
+        sum(1 for t in targets if t.eligible),
+        sum(1 for t in targets if t.state == "sent"),
     )
     return targets
 
 
+def _build_target(key: tuple[str, str, str], links: list[ExternalOrderLink],
+                  day_link_ids: list[int],
+                  display: dict[int, tuple[str, bool]]) -> BulkDispatchTarget:
+    """집 1개의 상태를 조립한다.
+
+    Args:
+        key: :func:`fulfillment.household_key` 결과.
+        links: 집 전체 링크(id 오름차순).
+        day_link_ids: 그중 그날 모집단에 속한 링크 id.
+        display: :func:`_order_display` 결과.
+
+    Returns:
+        조립된 집 1개.
+    """
+    by_id = {row.id: row for row in links}
+    pending = [lid for lid in day_link_ids if not _is_dispatched(by_id[lid])]
+    sent = [lid for lid in day_link_ids if lid not in set(pending)]
+    order_ids = sorted({row.order_id for row in links if row.order_id})
+    seen = [display[oid] for oid in order_ids if oid in display]
+
+    stamps = [_sent_stamp(by_id[lid]) for lid in sent]
+    times = sorted(text for text, _naver in stamps if text)
+    # 실패는 **아직 보낼 게 남은 집에만** 말한다. 전부 나간 집의 옛 실패 기록을 빨갛게
+    # 띄우면 화면이 "발송됐는데 실패했다"고 말한다 — 판매자센터 수동 발송분이 정확히
+    # 그 모양으로 실패 표식을 남긴다(워커가 "이미 발송 기록이 있습니다"로 되돌려보낸다).
+    failure = ""
+    if pending:
+        for lid in day_link_ids:
+            failure = _dispatch_failure(by_id[lid])
+            if failure:
+                break
+    reason = _blocking_reason(links) if pending else ""
+    if not pending:
+        state = "sent"
+    elif failure:
+        state = "failed"
+    elif reason:
+        state = "blocked"
+    else:
+        state = "pending"
+    return BulkDispatchTarget(
+        link_id=links[0].id,
+        household=key,
+        external_order_no=(links[0].external_order_no or "").strip(),
+        link_ids=[row.id for row in links],
+        pending_link_ids=pending,
+        order_ids=order_ids,
+        customer_names=[name for name, _done in seen if name],
+        # 붙은 주문이 하나도 없으면 '완료'라고 말하지 않는다 — all([]) 은 참이다.
+        measurement_done=bool(seen) and all(done for _name, done in seen),
+        eligible=bool(pending) and not reason,
+        reason=reason,
+        sent_link_ids=sent,
+        sent_at=times[-1] if times else "",
+        sent_by_naver=bool(stamps) and all(is_naver for _text, is_naver in stamps),
+        failure_reason=failure,
+        state=state,
+    )
+
+
+def select_targets(session: Session, *, on_date: str) -> list[BulkDispatchTarget]:
+    """그날 **아직 보낼 게 남은** 집만 — :func:`build_day_summary` 위의 얇은 필터.
+
+    술어를 여기서 다시 짜지 않는다. 같은 축의 판정을 두 벌 두면 두 화면이 다른 수를
+    말하게 되고, 그게 화면 큐와 워커가 갈렸던 결함의 모양이다.
+
+    Args:
+        session: DB 세션.
+        on_date: ``YYYY-MM-DD``.
+
+    Returns:
+        보낼 게 남은 집 목록(막힌 집도 사유와 함께 **포함**).
+    """
+    return [target for target in build_day_summary(session, on_date=on_date)
+            if target.pending_link_ids]
+
+
+def _row_of(target: BulkDispatchTarget) -> dict[str, Any]:
+    """집 1개를 템플릿이 읽는 평평한 dict 로 편다.
+
+    Args:
+        target: 집 1개.
+
+    Returns:
+        렌더 값 dict.
+    """
+    return {
+        "link_id": target.link_id,
+        "order_no": target.external_order_no,
+        "order_ids": target.order_ids,
+        "customer": " · ".join(target.customer_names) or "(주문 미생성)",
+        "product_orders": len(target.pending_link_ids),
+        "sent_orders": len(target.sent_link_ids),
+        "measurement_done": target.measurement_done,
+        "eligible": target.eligible,
+        "reason": target.reason,
+        "state": target.state,
+        "sent_at": target.sent_at,
+        "sent_by_naver": target.sent_by_naver,
+        "failure_reason": target.failure_reason,
+    }
+
+
 def build_preview(session: Session, *, on_date: str) -> dict[str, Any]:
-    """미리보기 띠가 그대로 렌더할 값 — **화면 두 곳이 이 함수 하나를 쓴다**.
+    """띠가 그대로 렌더할 값 — **화면 두 곳이 이 함수 하나를 쓴다**.
 
     워크벤치와 실측 대시보드가 각자 조립하면 두 화면이 다른 수를 말한다. 네이버 집 수가
     45집 vs 43집으로 갈렸던 것이 정확히 그 결함이었다.
+
+    **기존 키 넷(``count``·``eligible``·``blocked``·``rows``)의 뜻은 바뀌지 않는다** —
+    지금도 앞으로도 "지금 보낼 대상"이다. 결과 표시는 새 키로만 온다. 뜻을 조용히 바꾸면
+    이 값을 읽는 두 화면이 각각 다르게 틀린다.
 
     조회 실패는 여기서 삼키고 빈 값을 준다(**failopen — 로그로 남긴다**). 이 띠는 보조
     정보라 화면 전체를 죽일 이유가 없다. 반대로 대상을 **줄여서** 보여주는 일은 없다 —
@@ -400,32 +589,44 @@ def build_preview(session: Session, *, on_date: str) -> dict[str, Any]:
         on_date: ``YYYY-MM-DD``.
 
     Returns:
-        ``{"date", "count", "eligible", "blocked", "rows"}``. ``rows`` 는 템플릿이 읽는
-        평평한 dict 목록.
+        ``{"date", "count", "eligible", "blocked", "rows", "day_total", "sent",
+        "failed", "last_sent_at", "state", "day_rows", "show"}``.
+
+        * ``count``/``rows``: **보낼 게 남은** 집(막힌 집 포함).
+        * ``day_total``/``day_rows``: 오늘 네이버 집 **전체**(이미 나간 집 포함).
+        * ``state``: ``"none"``(오늘 대상 자체가 없음 — 띠를 띄우지 않는다) ·
+          ``"done"``(전부 나감) · ``"partial"``(일부 나감) · ``"pending"``(아직 안 나감).
+        * ``show``: 띠를 띄울지. **"다 나갔다"와 "대상이 없었다"를 가르는 값이다.**
     """
-    empty: dict[str, Any] = {"date": on_date, "count": 0, "eligible": 0,
-                             "blocked": 0, "rows": []}
+    empty: dict[str, Any] = {"date": on_date, "count": 0, "eligible": 0, "blocked": 0,
+                             "rows": [], "day_total": 0, "sent": 0, "failed": 0,
+                             "last_sent_at": "", "state": "none", "day_rows": [],
+                             "show": False}
     try:
-        targets = select_targets(session, on_date=on_date)
+        targets = build_day_summary(session, on_date=on_date)
     except SQLAlchemyError as exc:  # 보조 정보라 화면을 막지 않는다(failopen — 로그로 남긴다)
         logger.warning("[NAVER] 발송 대상 미리보기 조회 실패(띠 생략): %s", exc, exc_info=True)
         return empty
-    rows = [
-        {
-            "link_id": target.link_id,
-            "order_no": target.external_order_no,
-            "order_ids": target.order_ids,
-            "customer": " · ".join(target.customer_names) or "(주문 미생성)",
-            "product_orders": len(target.pending_link_ids),
-            "measurement_done": target.measurement_done,
-            "eligible": target.eligible,
-            "reason": target.reason,
-        }
-        for target in targets
-    ]
+    if not targets:
+        return empty
+
+    day_rows = [_row_of(target) for target in targets]
+    rows = [row for row in day_rows if row["state"] != "sent"]
     eligible = sum(1 for row in rows if row["eligible"])
+    sent_times = sorted(row["sent_at"] for row in day_rows if row["sent_at"])
+    sent = sum(1 for row in day_rows if row["state"] == "sent")
+    if not rows:
+        state = "done"
+    elif sent:
+        state = "partial"
+    else:
+        state = "pending"
     return {"date": on_date, "count": len(rows), "eligible": eligible,
-            "blocked": len(rows) - eligible, "rows": rows}
+            "blocked": len(rows) - eligible, "rows": rows,
+            "day_total": len(day_rows), "sent": sent,
+            "failed": sum(1 for row in day_rows if row["state"] == "failed"),
+            "last_sent_at": sent_times[-1] if sent_times else "",
+            "state": state, "day_rows": day_rows, "show": True}
 
 
 def select_sendable(session: Session, *, on_date: str,
