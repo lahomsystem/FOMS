@@ -69,3 +69,18 @@
   또 실패하면 버튼을 **다시 그린다**(폴링이 칸을 갈아 끼우므로 안 그리면 두 번째 길이 사라진다).
 - 검증: bulk_dispatch 관련 70 passed(신규 8), CI 본 레인 7231 passed, pre_push_smoke exit 0.
   red-check: 우선순위를 되돌리면 막힘/재시도 계약 2개가 빨개진다(확인함).
+
+## 운영 승격 (2026-09-01)
+
+- PR #219 머지 — production `376362c3`. 검사 4종(test·pg-lane·harness·perf-gate) 전부 SUCCESS,
+  mergeStateStatus=CLEAN.
+- 승격 트리에서 **본 스위트 직접 실행 7232 passed**(승격 PR 이 안 도는 관문) + pre_push_smoke exit 0.
+- completeness 는 `INCOMPLETE: missing baseline deps=84` 로 멈췄다. 운영이 cherry-pick 으로 받아
+  SHA 만 다른 잔재라, **내 diff 가 기대는 것들을 내용으로 확인**하고 `--allow-incomplete` 로 진행했다:
+  `bulk_dispatch.py` 존재 · `naver_ingest_bulk_dispatch` 라우트 1 · `is_naver_bulk_dispatch_enabled` 1 ·
+  두 템플릿 파셜 존재.
+- 승격 충돌 3건(전부 docs 계보): `AI_STATUS`(운영 계보 진행 중 목록은 그대로 두고 머리말만 한 칸 밀었다 —
+  상단 40줄 예산이 3985/4000 이라 새 줄이 안 들어간다), `AI_CHANGELOG`(이번 승격분 한 줄만),
+  `foms_failopen_inventory.json`(운영본 기준 재생성).
+- 운영 킬스위치는 이미 켜져 있어(`FOMS_NAVER_BULK_DISPATCH_ENABLED=1`) 배포 즉시 화면에 반영된다.
+- **여전히 미검증**: 실브라우저 폴링·진행 문구. 다음 일괄 때 화면 확인이 남는다.
