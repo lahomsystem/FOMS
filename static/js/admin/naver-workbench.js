@@ -602,6 +602,15 @@
             syncBulk();
             return;
         }
+        // 승인 체크를 켜면 빨간 띠가 한 줄 더 말한다 — 접수보다 무겁다(환불이 나간다).
+        // 위임으로 붙이는 이유: 이 모달은 pane 프래그먼트라 교체될 때마다 다시 그려진다.
+        if (target.id === 'wb-return-approve') {
+            var warn = document.getElementById('wb-return-approve-warn');
+            if (warn) {
+                warn.hidden = !target.checked;
+            }
+            return;
+        }
         // 갈래(승계/취소 처리)를 바꾸면 1번 칸의 안내 문장이 달라진다 — 취소 처리는 붙이지
         // 않기 때문이다. 계획과 실제 동작이 어긋난 채로 실행 버튼을 누르는 자리를 막는다.
         if (target.classList.contains('wb-fork__pick')) {
@@ -1596,17 +1605,23 @@
             window.alert('반품 사유를 고르세요.');
             return;
         }
+        // 승인까지 한 번에 (T8-S2). 체크박스가 없으면 **끈 것으로 본다** — 환불이 나가는
+        // 갈래라 "모르면 안 켠다"가 안전한 기본값이다.
+        var approveEl = document.getElementById('wb-return-approve');
+        var approve = !!(approveEl && approveEl.checked);
         btn.disabled = true;
         const result = await postJson(BASE + id + '/return', {
             reason: reasonEl.value,
-            detail: detailEl ? detailEl.value : ''
+            detail: detailEl ? detailEl.value : '',
+            approve: approve
         });
         if (!result.ok) {
             window.alert(result.error);
             btn.disabled = false;
             return;
         }
-        watchFulfillment(id, result.data && result.data.rev, '반품 접수');
+        watchFulfillment(id, result.data && result.data.rev,
+                         approve ? '반품 접수+승인' : '반품 접수');
         await hideModal(document.getElementById('wb-modal-return'));
     }
 
