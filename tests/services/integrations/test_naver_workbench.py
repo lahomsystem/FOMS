@@ -177,7 +177,7 @@ def test_two_tabs_and_four_chips_with_work_as_default(client, workbench_on):
     assert 'data-tab="place"' not in body, "발주확인 전은 탭이 아니라 칩이다"
     assert 'data-tab="claim"' not in body, "취소·반품은 탭이 아니라 칩이다"
     # 네 갈래는 같은 목록의 필터 칩으로 남는다 — 라벨도 그대로 읽힌다.
-    for key, label in (("all", "전체"), ("place", "발주확인 전"),
+    for key, label in (("all", "전체"), ("place", "발주확인 할 차례"),
                        ("rel", "추가결제·재결제"), ("claim", "취소·반품")):
         assert f'data-filter="{key}"' in body, key
         assert label in _chip(body, key), key
