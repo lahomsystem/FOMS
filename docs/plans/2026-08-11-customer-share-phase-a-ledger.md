@@ -55,7 +55,7 @@
 - 수정: production 브랜치 `requirements.txt` 에 한 줄 추가(두 브랜치 diff 는 이 줄뿐) → 재배포 빌드에 `solapi-5.0.3` 설치 확인.
 - **운영 실검증 완료**: 주문 4870(CLAUDE-TEST-PROD-T13, 라홈 발주사) 미저장 실측시간 `11시 20분` → 알림톡 클릭 → 자동 저장 후 본문 반영(T13) → 발송 성공. Solapi ATA `status=COMPLETE·수신 완료`, **from=15660792**(T14 라홈 분기), to=010-8327-7282(사용자 변경 번호). 정리 완료: 주문 soft delete·로그아웃·`claude_master`(id57) 재잠금.
 
-### T16 도면+계약서 한 번에 (2026-08-25 — 통합 링크 deploy, 새 템플릿 심사 중)
+### T16 도면+계약서 한 번에 (2026-08-31 — 운영 승격·실발송 검증 완료, 종결)
 
 - 사용자 요구: 알림톡으로 도면·계약서를 **한 번에** 보내고 싶다. 두 갈래를 **둘 다** 하기로 결정.
 - **① 통합 열람 링크(deploy `703e61e3`)** — `SHARE_KINDS` 에 `bundle` 추가. 계약서 쪽 동결 규칙은
@@ -149,8 +149,20 @@
   `SOLAPI_TEMPLATE_SHARE_BOTH_ID_LAHOM=KA01TP260825021747177Iu2C2ykuJfS` ·
   `_HAUD=KA01TP260825021755111MLTAvg2dLLn` (`railway variables --set` 2건, `--kv` 재확인).
   `--skip-deploys` 없이 걸어 `web` 재배포 유발(env 즉시 반영).
-- 잔여: 운영 실발송 1건으로 종결 확인(가상 주문 `CLAUDE-TEST-` + 버튼 2개 링크가 운영 도메인에서
-  실제로 열리는지 — 스테이징에서는 WL 링크 도메인 고정 때문에 확인 불가였던 부분).
+- **운영 실발송 검증 완료 — T16 종결(2026-08-31)**. 사용자 요청 1건에 대한 production 측정
+  (`claude_master` id57 해제 → 측정 → 재잠금). 가상 주문 5070 `CLAUDE-TEST-T16-PROD`, 라홈,
+  **수신번호는 사용자 본인 번호 010-8327-7282**(더미 번호 규칙의 예외 — 실발송 자체가 검증 목적이라
+  사용자가 명시 지정). 가짜 도면 PNG 1장 첨부(`category=drawing`) + 견적 항목 2건(1,200,000 / 800,000).
+  - 벤더 `M4V20260831122310N9WJBTWTE5JJEOG`: templateId **통합 라홈**, 버튼 2개에 운영 도메인 URL,
+    변수 6종 치환, `from=15660792`, `to=01083277282`. **`replacements` LMS 본문이 요청에 실려 나갔다**
+    (대체발송 등록분이 실제로 붙는 것까지 확인 — 빈 본문 위험이 코드 경로에서도 해소).
+  - DB: `bundle` 앵커 share 5 + 도면 6 + 계약서 7, 계약서만 스냅샷 동결,
+    `OrderEvent SHARE_ALIMTALK status=sent sender_source=brand`.
+  - **버튼 링크 2개를 비로그인으로 실제 열람** — 도면 `HTTP 200`(첨부 도면 렌더),
+    계약서 `HTTP 200`(고객명·품목 2건·1,200,000·합계 2,000,000 렌더). **스테이징에서 도메인 고정
+    때문에 못 봤던 마지막 구멍**이 여기서 닫혔다.
+  - 정리 완료: 첨부 soft delete · share 3개 전부 revoke · 주문 5070 soft delete · 로그아웃 ·
+    `claude_master` 재잠금(`is_active=false`) 확인.
 
 ### 개정 템플릿 4종 교체 (2026-08-24 — 승인 완료, PR #140)
 - Solapi 심사 승인: 실측 라홈 `KA01TP260819235109543IZ09ZS2GGxU` · 실측 하우드 `KA01TP260819083609155X1JFCnksFJ2` · 공유 라홈 `KA01TP260819084043806JpKvOqz3TDo` · 공유 하우드 `KA01TP260819084128244ThoZdhdBocC`.
