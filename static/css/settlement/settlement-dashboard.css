@@ -1,0 +1,288 @@
+/*
+ * 정산 대시보드 (SETTLE-DASH-01 M3) — 목업 확정본 이식.
+ *
+ * 원본: docs/design/mockups/settlement-dashboard-v1-executive.html <style> :7-211.
+ * 값(색·크기·간격·반응형 브레이크포인트)은 **한 픽셀도 바꾸지 않았다.** 확정본이다.
+ *
+ * 이식하며 강제로 바꾼 것은 두 가지뿐이고, 둘 다 안 바꾸면 화면이 깨진다:
+ *
+ * 1) **클래스 네임스페이스** — 목업은 독립 문서라 `.card` / `.grid` / `.legend` / `.toggle`
+ *    같은 맨이름을 썼다. FOMS 문서에는 Bootstrap 5 와 `css/foundation/erp-pro.css` 가
+ *    **전역으로** 먼저 실려 있어서(`layout_head.html:239,248`) 같은 이름을 그대로 쓰면
+ *    Bootstrap `.card`(패딩·보더·radius)와 `.badge`(색·display)가 내 요소에 그대로 걸린다.
+ *    네임스페이스만으로는 못 막는다 — Bootstrap 의 `.card` 는 내 `.foms-settle` 안에서도
+ *    매칭되기 때문이다. 그래서 **클래스 이름 자체를 `s-` 접두어로 바꿨다.**
+ * 2) **토큰 스코프** — 목업의 `:root` 변수(`--accent` 등)를 전역에 풀면 FOMS 토큰
+ *    (`foundation/foms-tokens.css`)과 이름이 겹칠 수 있다. 전부 `--s-` 접두어로 바꾸고
+ *    `.foms-settle` 에만 선언한다. `body`/`*` 전역 선택자도 같은 이유로 스코프했다.
+ *
+ * 목업에서 **제거**한 것(스펙 §7 "X 제외/제거"):
+ *   - `.goalrow`/`.goal-pct`/`.goal-note`  → 월 매출 목표 미터(목표 데이터가 시스템에 없다)
+ *   - `.badge-soon`                        → 미출시 표시 배지(해당 카드를 통째로 뺐다)
+ *   - `.mockup-badge`                      → 목업 워터마크 배지
+ *   `.s-meter`/`.s-meter-fill` 은 남긴다 — 목표 미터가 아니라 '정산 처리 현황' 청구 비율이 쓴다.
+ *
+ * 목업에 **없어서 추가**한 것: 상태 3종(`.s-state--loading/--error/--denied`)과 카드별 빈 상태
+ * (`.s-empty`). 운영 실데이터에서 정산 처리 현황이 전부 0 이라, 빈 상태 표기가 없으면
+ * 실화면이 그냥 빈 카드로 보인다. Bootstrap `.alert` 는 쓰지 않는다 —
+ * `static/js/runtime/script.js:10` 이 5초 뒤 자동으로 닫아 상시 안내가 사라진다.
+ *
+ * 변경 시 `templates/cs/partials/settlement_dashboard_body.html` 의 `?v=` 핀을 반드시 범프한다
+ * (Service Worker staticCacheFirst 라 핀 없이는 배포가 반영되지 않는다).
+ */
+
+/* ── 토큰 (naver-ingest-workbench 톤 + dataviz 크롬) ─────────────── */
+.foms-settle {
+  color-scheme: light;
+  --s-bg: #eef2f7;
+  --s-surface: #fff;
+  --s-surface-soft: #f6f8fb;
+  --s-text: #111827;
+  --s-muted: #6b7280;
+  --s-faint: #9aa3af;
+  --s-line: #dbe1ea;
+  --s-line-soft: #edf1f6;
+  --s-grid: #edf1f6;
+  --s-axis: #d6dce6;
+  --s-accent: #2a78d6;        /* categorical slot 1 (dataviz 기본 팔레트) */
+  --s-accent-soft: #eaf2fc;
+  --s-series-2: #eb6834;      /* categorical slot 2 */
+  --s-ctx: #8a94a3;           /* 전월 비교 = 강조(emphasis)용 회색 — 시리즈 슬롯 아님 */
+  --s-meter-track: #cde2fb;   /* 미충족 트랙 = 같은 램프의 밝은 스텝 */
+  --s-good: #006300;
+  --s-bad: #b91c1c;
+  --s-amber: #b45309;
+  --s-amber-soft: #fdf3e3;
+  --s-critical: #d03b3b;
+  --s-radius: 10px;
+
+  background: var(--s-bg);
+  color: var(--s-text);
+  font-size: 13px;
+  font-family: Pretendard, -apple-system, BlinkMacSystemFont, "Segoe UI", "Malgun Gothic", sans-serif;
+}
+.foms-settle *,
+.foms-settle *::before,
+.foms-settle *::after { box-sizing: border-box; }
+.foms-settle svg text { font-family: inherit; }
+
+/* 상태 토글 전용 — 인라인 스타일 금지 규칙 때문에 JS 는 이 클래스만 붙였다 뗀다. */
+.foms-settle .s-hidden { display: none !important; }
+
+/* ── 상단 스트립: 권한 부제 + 기준 시각 ─────────────────────────── */
+.foms-settle .s-strip {
+  display: flex; align-items: center; gap: 12px; flex-wrap: wrap;
+  background: var(--s-surface); border-bottom: 1px solid var(--s-line);
+  padding: 10px 18px;
+}
+.foms-settle .s-who { color: var(--s-muted); font-size: 12px; }
+.foms-settle .s-spacer { flex: 1; }
+.foms-settle .s-stamp { color: var(--s-faint); font-size: 11.5px; font-variant-numeric: tabular-nums; }
+
+/* ── 필터바 (V3 filterbar 룩의 라이트 번안) ──────────────────── */
+.foms-settle .s-filterbar {
+  display: flex; align-items: center; gap: 10px; flex-wrap: wrap;
+  background: var(--s-surface); border-bottom: 1px solid var(--s-line);
+  padding: 8px 18px;
+}
+.foms-settle .s-seg {
+  display: inline-flex; background: var(--s-surface-soft);
+  border: 1px solid var(--s-line); border-radius: 8px; padding: 2px;
+}
+.foms-settle .s-seg button {
+  border: none; background: none; color: var(--s-muted); font: inherit; font-size: 12px; font-weight: 700;
+  padding: 5px 14px; border-radius: 6px; cursor: pointer;
+}
+.foms-settle .s-seg button[aria-pressed="true"] { background: var(--s-accent); color: #fff; }
+.foms-settle .s-seg button:not([aria-pressed="true"]):hover { color: var(--s-text); }
+.foms-settle .s-toggle {
+  display: inline-flex; align-items: center; gap: 8px; cursor: pointer;
+  border: 1px solid var(--s-line); background: var(--s-surface); border-radius: 8px;
+  padding: 5px 12px; color: var(--s-muted); font: inherit; font-size: 12px; font-weight: 700;
+}
+.foms-settle .s-toggle .s-knob {
+  width: 26px; height: 15px; border-radius: 999px; background: #cbd5e1;
+  position: relative; transition: background .15s; flex: none;
+}
+.foms-settle .s-toggle .s-knob::after {
+  content: ""; position: absolute; top: 2px; left: 2px; width: 11px; height: 11px;
+  border-radius: 50%; background: #fff; box-shadow: 0 1px 2px rgba(16, 24, 40, .25); transition: left .15s;
+}
+.foms-settle .s-toggle[aria-pressed="true"] { color: var(--s-text); }
+.foms-settle .s-toggle[aria-pressed="true"] .s-knob { background: var(--s-accent); }
+.foms-settle .s-toggle[aria-pressed="true"] .s-knob::after { left: 13px; }
+.foms-settle .s-toggle[disabled] { opacity: .4; cursor: not-allowed; }
+.foms-settle .s-filterbar .s-scope { color: var(--s-muted); font-size: 12px; }
+.foms-settle .s-filterbar .s-note { color: var(--s-faint); font-size: 11.5px; margin-left: auto; }
+
+/* ── bento 그리드 ─────────────────────────────────────────────── */
+.foms-settle .s-grid {
+  display: grid; grid-template-columns: repeat(12, minmax(0, 1fr));
+  gap: 14px; padding: 16px 18px 6px; max-width: 1440px; margin: 0 auto;
+}
+.foms-settle .s-card {
+  background: var(--s-surface); border: 1px solid var(--s-line);
+  border-radius: var(--s-radius); padding: 13px 16px 15px; min-width: 0;
+}
+.foms-settle .s-card-head { display: flex; align-items: baseline; gap: 8px; flex-wrap: wrap; }
+.foms-settle .s-card-title { font-size: 13.5px; font-weight: 800; }
+.foms-settle .s-card-sub { font-size: 11.5px; color: var(--s-muted); font-weight: 500; }
+.foms-settle .s-card-head .s-head-right { margin-left: auto; display: flex; gap: 12px; align-items: center; }
+
+/* ── KPI 히어로 ──────────────────────────────────────────────── */
+.foms-settle .s-kpis {
+  grid-column: 1 / -1; display: grid;
+  grid-template-columns: repeat(5, minmax(0, 1fr)); gap: 14px;
+}
+.foms-settle .s-kpi {
+  background: var(--s-surface); border: 1px solid var(--s-line);
+  border-radius: var(--s-radius); padding: 12px 15px 11px; min-width: 0;
+}
+/* 전략 D: 지표 가족 틴트 + 상단 액센트 바 (데이터 잉크가 아닌 서피스 층위) */
+.foms-settle .s-kpi.s-fam { border-top: 3px solid var(--s-fam, var(--s-line)); background: var(--s-fam-tint, var(--s-surface)); }
+.foms-settle .s-kpi-label { font-size: 11.5px; font-weight: 700; color: var(--s-muted); }
+.foms-settle .s-kpi-mid { display: flex; align-items: flex-end; justify-content: space-between; gap: 8px; margin-top: 5px; }
+.foms-settle .s-kpi-value { font-size: 23px; font-weight: 800; letter-spacing: -0.02em; line-height: 1.1; white-space: nowrap; }
+.foms-settle .s-kpi-value i { font-style: normal; font-size: 12px; font-weight: 700; color: var(--s-muted); margin-left: 1px; }
+.foms-settle .s-kpi-spark { flex: none; line-height: 0; }
+.foms-settle .s-kpi-delta { margin-top: 6px; font-size: 12px; font-weight: 800; }
+.foms-settle .s-kpi-delta span { color: var(--s-faint); font-weight: 600; margin-left: 3px; }
+.foms-settle .s-kpi-delta.s-good { color: var(--s-good); }
+.foms-settle .s-kpi-delta.s-bad { color: var(--s-bad); }
+.foms-settle .s-kpi-delta.s-flat { color: var(--s-faint); font-weight: 600; }
+.foms-settle .s-kpi-sub { margin-top: 3px; font-size: 11px; color: var(--s-faint); white-space: nowrap; overflow: hidden; text-overflow: ellipsis; }
+
+/* ── 메인 차트 카드 ──────────────────────────────────────────── */
+.foms-settle .s-card--main { grid-column: span 8; }
+.foms-settle .s-side { grid-column: span 4; display: grid; gap: 14px; align-content: start; }
+.foms-settle .s-legend { display: flex; gap: 12px; font-size: 11.5px; color: var(--s-muted); font-weight: 600; flex-wrap: wrap; }
+.foms-settle .s-legend .s-lg { display: inline-flex; align-items: center; gap: 5px; }
+.foms-settle .s-lg-line { width: 14px; height: 3px; border-radius: 2px; display: inline-block; }
+.foms-settle .s-lg-rect { width: 10px; height: 10px; border-radius: 3px; display: inline-block; }
+
+.foms-settle .s-meter { flex: 1; min-width: 90px; height: 8px; border-radius: 999px; background: var(--s-meter-track); overflow: hidden; }
+.foms-settle .s-meter-fill { height: 100%; background: var(--s-accent); border-radius: 999px; width: var(--s-meter-pct, 0%); }
+
+.foms-settle .s-chart-host { line-height: 0; min-height: 24px; }
+.foms-settle .s-axis-t { font-size: 10.5px; fill: var(--s-faint); font-variant-numeric: tabular-nums; }
+.foms-settle .s-axis-sub { font-size: 10px; fill: var(--s-faint); }
+.foms-settle .s-cap-t { font-size: 10.5px; font-weight: 700; fill: var(--s-muted); font-variant-numeric: tabular-nums; }
+.foms-settle .s-cgrp path { transition: filter .12s; }
+.foms-settle .s-cgrp.s-on path { filter: brightness(1.12); }
+.foms-settle .s-hit:focus,
+.foms-settle .s-ghit:focus { outline: 1.5px solid var(--s-accent); outline-offset: -1.5px; }
+.foms-settle .s-hit,
+.foms-settle .s-ghit { cursor: crosshair; }
+
+.foms-settle .s-tblv { margin-top: 6px; }
+.foms-settle .s-tblv summary { font-size: 11.5px; color: var(--s-muted); cursor: pointer; font-weight: 600; }
+.foms-settle .s-tblwrap { max-height: 190px; overflow: auto; margin-top: 6px; border: 1px solid var(--s-line-soft); border-radius: 8px; }
+.foms-settle .s-dt { width: 100%; border-collapse: collapse; font-size: 11.5px; }
+.foms-settle .s-dt th,
+.foms-settle .s-dt td { padding: 4px 10px; border-bottom: 1px solid var(--s-line-soft); text-align: right; font-variant-numeric: tabular-nums; }
+.foms-settle .s-dt th:first-child,
+.foms-settle .s-dt td:first-child { text-align: left; }
+.foms-settle .s-dt thead th { position: sticky; top: 0; background: var(--s-surface-soft); color: var(--s-muted); font-size: 10.5px; }
+
+/* ── 정산 처리 카드 ──────────────────────────────────────────── */
+.foms-settle .s-srow { display: flex; align-items: center; gap: 10px; margin-top: 12px; font-size: 12.5px; }
+.foms-settle .s-srow b { font-weight: 800; }
+.foms-settle .s-srow .s-pct { font-weight: 800; font-size: 13px; }
+.foms-settle .s-srow-sub { margin-top: 5px; font-size: 11.5px; color: var(--s-faint); }
+.foms-settle .s-fact { display: flex; align-items: baseline; gap: 7px; font-size: 12px; margin-top: 9px; color: var(--s-muted); }
+.foms-settle .s-fact b { color: var(--s-text); font-weight: 800; }
+.foms-settle .s-fdot { width: 7px; height: 7px; border-radius: 50%; flex: none; align-self: center; background: var(--s-dot, var(--s-faint)); }
+.foms-settle .s-fact .s-tail { color: var(--s-faint); font-size: 11px; }
+
+/* ── row B ───────────────────────────────────────────────────── */
+.foms-settle .s-card--aging { grid-column: span 4; }
+.foms-settle .s-card--stages { grid-column: span 5; }
+.foms-settle .s-card--channel { grid-column: span 3; }
+.foms-settle .s-aging-note { display: flex; align-items: center; gap: 7px; margin-top: 8px; font-size: 11.5px; color: var(--s-muted); }
+.foms-settle .s-aging-note .s-fdot { background: var(--s-critical); }
+.foms-settle .s-aging-note b { color: var(--s-text); }
+
+.foms-settle .s-stages { margin-top: 12px; display: grid; gap: 7px; }
+.foms-settle .s-stage-row { display: grid; grid-template-columns: 58px 1fr; align-items: center; gap: 8px; border-radius: 6px; padding: 1px 4px; }
+.foms-settle .s-stage-row:hover { background: var(--s-surface-soft); }
+.foms-settle .s-stage-lbl { font-size: 11.5px; font-weight: 700; color: var(--s-muted); }
+.foms-settle .s-stage-track { display: flex; align-items: center; gap: 7px; min-width: 0; }
+.foms-settle .s-stage-bar { height: 15px; border-radius: 0 4px 4px 0; background: var(--s-accent); flex: none; width: var(--s-bar-pct, 0%); }
+.foms-settle .s-stage-val { font-size: 11px; font-weight: 700; color: var(--s-text); white-space: nowrap; font-variant-numeric: tabular-nums; }
+.foms-settle .s-stage-val span { color: var(--s-faint); font-weight: 600; }
+
+.foms-settle .s-chbar { display: flex; gap: 2px; height: 30px; border-radius: 7px; overflow: hidden; margin-top: 12px; }
+.foms-settle .s-chseg {
+  display: flex; align-items: center; justify-content: center; color: #fff;
+  font-weight: 800; font-size: 12px; min-width: 0;
+  width: var(--s-seg-pct, 0%); background: var(--s-seg-color, var(--s-accent));
+}
+.foms-settle .s-chlegend { margin-top: 11px; display: grid; gap: 7px; }
+.foms-settle .s-chrow { display: flex; align-items: center; gap: 7px; font-size: 12px; color: var(--s-muted); flex-wrap: wrap; }
+.foms-settle .s-chrow b { color: var(--s-text); font-weight: 800; }
+.foms-settle .s-chrow .s-sw { width: 10px; height: 10px; border-radius: 3px; flex: none; background: var(--s-sw-color, var(--s-accent)); }
+
+/* ── 각주 / 빈 상태 / 실패 상태 ──────────────────────────────── */
+.foms-settle .s-foot { max-width: 1440px; margin: 0 auto; padding: 6px 18px 34px; color: var(--s-faint); font-size: 11.5px; }
+.foms-settle .s-cardnote { margin-top: 9px; font-size: 11.5px; color: var(--s-muted); }
+.foms-settle .s-cardnote b { color: var(--s-text); font-weight: 800; }
+
+/* 빈 상태 = 오류가 아니다. 회색 점선 박스로 "데이터가 없다"만 말한다. */
+.foms-settle .s-empty {
+  margin-top: 12px; padding: 14px 12px; border: 1px dashed var(--s-line);
+  border-radius: 8px; background: var(--s-surface-soft);
+  color: var(--s-muted); font-size: 12px; line-height: 1.55; text-align: center;
+}
+.foms-settle .s-empty b { color: var(--s-text); font-weight: 800; }
+
+/* 상태 3종은 서로 **다르게** 생겨야 한다 — 무음 실패도, 오류와 권한거부의 혼동도 금지. */
+.foms-settle .s-state {
+  max-width: 1440px; margin: 0 auto; padding: 14px 16px;
+  border-radius: var(--s-radius); font-size: 12.5px; line-height: 1.6;
+  border: 1px solid var(--s-line); background: var(--s-surface); color: var(--s-text);
+}
+.foms-settle .s-state + .s-grid { padding-top: 10px; }
+.foms-settle .s-state-title { font-weight: 800; font-size: 13px; margin-bottom: 4px; }
+.foms-settle .s-state-detail { color: var(--s-muted); font-size: 11.5px; }
+.foms-settle .s-state--loading { color: var(--s-muted); }
+.foms-settle .s-state--error { border-color: #f0c2c2; background: #fdf1f1; }
+.foms-settle .s-state--error .s-state-title { color: var(--s-bad); }
+.foms-settle .s-state--denied { border-color: #d9a44a; background: var(--s-amber-soft); }
+.foms-settle .s-state--denied .s-state-title { color: var(--s-amber); }
+.foms-settle .s-retry {
+  margin-top: 8px; border: 1px solid var(--s-line); background: var(--s-surface);
+  color: var(--s-text); font: inherit; font-size: 12px; font-weight: 700;
+  padding: 5px 14px; border-radius: 8px; cursor: pointer;
+}
+.foms-settle .s-retry:hover { background: var(--s-surface-soft); }
+
+/* ── 툴팁 ────────────────────────────────────────────────────── */
+.foms-settle .s-tt,
+.foms-settle.s-tt {
+  position: fixed; z-index: 50; display: none; pointer-events: none;
+  background: var(--s-surface); border: 1px solid var(--s-line); border-radius: 8px;
+  box-shadow: 0 6px 20px rgba(16, 24, 40, .13); padding: 8px 11px; font-size: 12px; min-width: 120px;
+}
+.foms-settle .s-tt.s-on,
+.foms-settle.s-tt.s-on { display: block; }
+.foms-settle .s-tt-title { color: var(--s-muted); font-size: 11px; font-weight: 700; margin-bottom: 4px; white-space: nowrap; }
+.foms-settle .s-tt-row { display: flex; align-items: center; gap: 6px; margin-top: 3px; white-space: nowrap; }
+.foms-settle .s-tt-key { width: 12px; height: 3px; border-radius: 2px; flex: none; background: var(--s-key-color, transparent); }
+.foms-settle .s-tt-val { font-weight: 800; font-variant-numeric: tabular-nums; }
+.foms-settle .s-tt-lbl { color: var(--s-muted); }
+
+/* ── 반응형 ──────────────────────────────────────────────────── */
+@media (max-width: 1120px) {
+  .foms-settle .s-kpis { grid-template-columns: repeat(auto-fit, minmax(200px, 1fr)); }
+  .foms-settle .s-card--main { grid-column: 1 / -1; }
+  .foms-settle .s-side { grid-column: 1 / -1; grid-template-columns: 1fr 1fr; }
+  .foms-settle .s-card--aging,
+  .foms-settle .s-card--stages { grid-column: span 6; }
+  .foms-settle .s-card--channel { grid-column: 1 / -1; }
+}
+@media (max-width: 720px) {
+  .foms-settle .s-side { grid-template-columns: 1fr; }
+  .foms-settle .s-card--aging,
+  .foms-settle .s-card--stages { grid-column: 1 / -1; }
+  .foms-settle .s-filterbar .s-note { margin-left: 0; }
+}
