@@ -24,6 +24,11 @@ from foms.services.common.erp_shell_http import (
     wants_erp_shell_tab_body,
 )
 from foms.services.orders.order_mutation_policy import user_can
+# 실무 탭 [정산 청구] 폼의 귀속 부서는 **서버 상수가 SSOT** 다. 화면에 코드를 적으면
+# 5종 집합이 갈려 400 이 나는 부서가 생긴다(쓰기 API 가 이 집합으로 검증한다).
+# 최상단 import 가 안전한 이유: 앱 부팅 시 `completion_dashboard` 가 이미
+# `settlement_rows` 경유로 먼저 로드돼 `erp_display` 순환에 걸리지 않는다.
+from foms.web.cs.completion_dashboard import SETTLEMENT_DEPARTMENT_OPTIONS
 from foms.web.auth import login_required
 
 #: 정산 대시보드 열람 정책 id — 페이지·API·템플릿이 **이 상수 하나**를 공유한다.
@@ -98,6 +103,7 @@ def erp_settlement_dashboard():
         render_template(
             template_name,
             erp_sub_nav_active='settlement',
+            department_options=SETTLEMENT_DEPARTMENT_OPTIONS,
         )
     )
     apply_erp_shell_fragment_headers(response, request)
