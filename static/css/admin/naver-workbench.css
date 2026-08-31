@@ -1313,3 +1313,41 @@ input.wb-pick:disabled,
 .wb-hist thead th,
 .wb-hist td.wb-cmp__k,
 .wb-hist td.wb-cmp__num { white-space: nowrap; }
+
+/* ── 오늘 실측 네이버 건 띠 (NAVER-BULKDISPATCH-02) ──────────────────
+   유령·옛 주문 띠와 같은 몸이되 **색이 상태를 말한다**. 대상이 0이 돼도 사라지지 않고
+   초록으로 바뀌는 것이 이 띠의 요점이다 — 사라짐이 "다 나갔다"와 "대상이 없었다"를
+   동시에 뜻하던 것이 2026-08-31 운영 1회차의 결함이었다.
+   색만으로 구분하지 않는다 — 초록 자리에는 항상 "완료"·"발송됨" 글자가 함께 있다. */
+.wb-bulkdispatch { border-left-color: var(--wb-accent); }
+.wb-bulkdispatch .wb-ghost__badge {
+    background: var(--wb-accent-soft);
+    border-color: var(--wb-accent-line);
+    color: var(--wb-accent);
+}
+
+.wb-bulkdispatch--done { border-left-color: var(--wb-green); }
+.wb-bulkdispatch--done .wb-ghost__badge {
+    background: var(--wb-green-soft);
+    border-color: var(--wb-green-line);
+    color: var(--wb-green);
+}
+
+.wb-bulkdispatch__sent { color: var(--wb-green); font-weight: 600; }
+
+/* 실패는 접기 안이 아니라 **머리말 바로 밑**에 산다. 접힌 채로도 보여야 하는 사실이다. */
+.wb-bulkdispatch__failline {
+    padding: 7px 12px;
+    background: var(--wb-danger-soft);
+    border-top: 1px solid var(--wb-danger-line);
+    color: var(--wb-danger);
+    font-weight: 600;
+}
+
+/* 버튼을 누른 뒤 결과가 여기 쌓인다(알림창 대신). 실패 줄과 같은 자리·다른 색. */
+.wb-bulkdispatch__status {
+    padding: 7px 12px;
+    border-top: 1px solid var(--wb-line-soft);
+    color: var(--wb-accent);
+    font-weight: 600;
+}

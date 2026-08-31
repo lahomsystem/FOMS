@@ -3921,6 +3921,33 @@ def naver_ingest_fulfillment(link_id: int):
                     "error": None})
 
 
+@admin_bp.route("/admin/naver-ingest/bulk-dispatch/state", methods=["GET"])
+@login_required
+@role_required(["ADMIN", "MANAGER"])
+def naver_ingest_bulk_dispatch_state():
+    """오늘 발송처리 상황을 **띠와 같은 값**으로 돌려준다 (NAVER-BULKDISPATCH-02 T2).
+
+    버튼을 누른 뒤 화면이 이걸 몇 초 간격으로 읽어 "요청했습니다"를 "N집 발송 완료"까지
+    바꾼다. 사람이 새로고침해서 확인하던 것을 화면이 대신한다 — 1회차 운영에서 새로고침
+    뒤에 띠가 통째로 사라져 결과를 알 수 없었던 것이 이 라우트가 생긴 이유다.
+
+    **술어를 새로 만들지 않는다.** :func:`bulk_dispatch.build_preview` 를 그대로 부른다.
+    진행률용 판정을 한 벌 더 두면 화면과 워커가 갈렸던 그 결함을 재생산한다.
+
+    읽기 전용이라 감사 기록·매니페스트 등재 대상이 아니다(둘 다 상태 변경 메서드만 본다).
+    권한은 실행과 같은 ADMIN·MANAGER — 이 값을 읽는 사람은 버튼을 가진 사람이다.
+
+    Returns:
+        ``{"success": True, "data": <build_preview 결과>, "error": None}``.
+    """
+    from foms.services.datetime_kst import get_today_kst
+    from foms.services.integrations.naver_commerce.bulk_dispatch import build_preview
+
+    today = get_today_kst().strftime("%Y-%m-%d")
+    return jsonify({"success": True, "error": None,
+                    "data": build_preview(get_db(), on_date=today)})
+
+
 @admin_bp.route("/admin/naver-ingest/bulk-dispatch", methods=["POST"])
 @login_required
 @role_required(["ADMIN", "MANAGER"])

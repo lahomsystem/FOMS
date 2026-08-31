@@ -1,7 +1,7 @@
 # FOMS 현재 상태
 > 자동 업데이트: 2026-08-14
-> 최신: **고객 공유 링크 UX — 계약서 폼 이식·도면 ZIP 일괄 저장** — 카톡 계약서 링크가 ERP 폼 그대로(계좌 복사·PNG 저장), 도면은 일괄 저장. 무반응이던 `window.print()` 제거. 원장 `2026-08-31-share-contract-drawing-ux-ledger.md`
-> 직전: **알림톡 발송 흔적 칩 deploy(`431e1fc0`)** — 주문 화면 알림톡 버튼 아래 상시 칩 4상태, PC·모바일·태블릿 동일. 잔여=실발송 1건 E2E·태블릿 육안. 원장 `docs/plans/2026-08-24-alimtalk-trace-t15-ledger.md`
+> 최신: **네이버 일괄 발송처리 결과 UI** — 발송 뒤 띠가 사라져 성공/미대상을 구분 못 하던 결함 제거. 원장 `docs/plans/2026-08-31-naver-bulk-dispatch-result-ui-ledger.md`
+> 직전: **고객 공유 링크 UX — 계약서 폼 이식·도면 ZIP 일괄 저장** — 카톡 계약서 링크가 ERP 폼 그대로(계좌 복사·PNG 저장), 도면은 일괄 저장. 무반응이던 `window.print()` 제거. 원장 `2026-08-31-share-contract-drawing-ux-ledger.md`
 > 이 파일 상단 40줄이 세션 시작 컨텍스트의 전부다(hygiene 계약 테스트로 강제). 상세 이력: "## 최근 완료"·"## 기록 보관", 과거 헤더 상세는 기록 보관에 이관.
 
 ## 스택
