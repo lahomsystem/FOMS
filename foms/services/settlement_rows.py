@@ -303,6 +303,46 @@ def _sort_key(row: dict) -> tuple:
     )
 
 
+def _aging_summary(scoped_rows: list[dict]) -> list[dict]:
+    """스코프 안의 aging 버킷별 미수 건수·잔금합.
+
+    **입력은 aging 필터를 걸기 전 행**이다(기간·정산상태·채널만 통과한 행). 막대를 눌러
+    목록을 좁혀도 막대 값은 그대로여야 하기 때문이다 — 고른 구간까지 반영하면 그 구간만
+    남고 나머지 막대가 0 으로 무너진다.
+
+    화면이 예전에 구간마다 ``aging=<code>`` 로 한 번씩 물어 얻던 값과 **정의상 같다**:
+    그 호출의 ``total_count`` 는 같은 스코프에서 해당 코드 행의 수이고 ``totals.balance``
+    는 그 행들의 잔금합이다. 여기서는 이미 읽은 모집단을 한 번 훑어 같은 값을 만든다
+    (요청 6회 → 1회. 2026-08-31 운영 실측: 전량 스캔 1회당 서버 약 210ms).
+
+    Args:
+        scoped_rows: ``_matches_filters`` 를 aging="" 로 통과한 행들.
+
+    Returns:
+        ``AGING_BUCKETS`` 순서대로 ``{code,label,count,amount}`` 5개. 값이 0 인 구간도
+        생략하지 않는다(화면이 "구간이 비었다"를 직접 말해야 한다).
+    """
+    counts = {code: 0 for code in _AGING_CODES}
+    amounts = {code: 0 for code in _AGING_CODES}
+    for row in scoped_rows:
+        code = row["aging"]
+        if code not in counts:
+            continue                       # 미수가 아니거나 완료일 미상 — 어느 버킷도 아니다
+        counts[code] += 1
+        balance = row["balance"]
+        if isinstance(balance, int):
+            amounts[code] += balance
+    return [
+        {
+            "code": code,
+            "label": _AGING_LABELS[code],
+            "count": counts[code],
+            "amount": amounts[code],
+        }
+        for code in _AGING_CODES
+    ]
+
+
 def _totals(rows: list[dict]) -> dict:
     """필터 적용 후 행들의 금액 합. `None`(금액 미상)은 합산에서 뺀다."""
     def _sum(field: str) -> int:
@@ -340,7 +380,9 @@ def list_settlement_rows(
         per_page: 페이지 크기(상한 PER_PAGE).
 
     Returns:
-        rows/page/per_page/total_count/total_pages/totals/filters/as_of 를 가진 dict.
+        rows/page/per_page/total_count/total_pages/totals/filters/aging_options/
+        **aging_summary**/as_of 를 가진 dict. ``aging_summary`` 는 aging 선택과 무관한
+        스코프 기준 구간 합계라, 화면이 구간마다 따로 묻지 않는다.
 
     Raises:
         ValueError: 필터 값이 허용 집합 밖일 때.
@@ -356,10 +398,13 @@ def list_settlement_rows(
 
     today = get_today_kst()
     all_rows = _load_rows(db, today)
-    matched = [
+    # 2단으로 좁힌다: 스코프(기간·정산상태·채널)까지가 aging 막대의 모집단이고, 거기서
+    # 고른 구간을 더 좁힌 것이 목록이다. 한 번 읽은 모집단으로 둘 다 낸다.
+    scoped = [
         row for row in all_rows
-        if _matches_filters(row, period, settlement, channel, aging)
+        if _matches_filters(row, period, settlement, channel, "")
     ]
+    matched = [row for row in scoped if not aging or row["aging"] == aging]
     matched.sort(key=_sort_key)
 
     per_page = max(1, min(int(per_page or PER_PAGE), PER_PAGE))
@@ -384,5 +429,6 @@ def list_settlement_rows(
         "aging_options": [
             {"code": code, "label": label} for code, label in AGING_BUCKETS
         ],
+        "aging_summary": _aging_summary(scoped),
         "as_of": today.isoformat(),
     }

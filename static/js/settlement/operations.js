@@ -184,15 +184,15 @@
 
   /* ═══════════════ 3. 조회 ═══════════════ */
 
-  function buildUrl(ctx, overrides) {
+  function buildUrl(ctx) {
     var state = ctx.state;
     var base = ctx.root.getAttribute('data-rows-url') || ROWS_FALLBACK;
     var params = [
       'period=' + encodeURIComponent(state.period),
       'settlement=' + encodeURIComponent(state.settlement),
       'channel=' + encodeURIComponent(state.channel),
-      'aging=' + encodeURIComponent(overrides && overrides.aging != null ? overrides.aging : state.bucket),
-      'page=' + encodeURIComponent(overrides && overrides.page != null ? overrides.page : state.page),
+      'aging=' + encodeURIComponent(state.bucket),
+      'page=' + encodeURIComponent(state.page),
     ];
     return base + (base.indexOf('?') === -1 ? '?' : '&') + params.join('&');
   }
@@ -236,57 +236,11 @@
       syncChips(ctx);
       showState(ctx, 'ready');
       renderAll(ctx);
-      loadBuckets(ctx);
     } catch (err) {
       if (seq !== state.seq) return;
       showState(ctx, 'error', err && err.handled
         ? err.message
         : '정산 서버에 연결하지 못했습니다. 네트워크를 확인한 뒤 다시 시도하세요.');
-    }
-  }
-
-  /**
-   * aging 구간별 합계. 행 API 는 구간 분해를 내주지 않으므로 **같은 엔드포인트**에
-   * `aging=<code>` 로 구간마다 한 번씩 묻는다(집계 API 를 부르지 않는다는 규율 유지).
-   *
-   * 구간 값은 현재 선택된 구간과 무관한 **스코프(기간·정산상태·채널) 기준**이라, 막대를
-   * 눌러 목록만 좁힐 때는 다시 묻지 않는다 — 그때 다시 물으면 고른 구간만 남고 나머지
-   * 막대가 0 으로 무너진다.
-   *
-   * **한 번에 하나씩 보낸다(Promise.all 금지).** 한 요청이 모집단 전량 스캔이라 5개를 한꺼번에
-   * 던지면 목록 조회까지 합쳐 6개 동시 스캔이 된다 — 로컬 개발 서버에서 실제로 연결이 끊기고
-   * 목록이 실패 상태로 넘어갔다(2026-08-31 실측). 직렬이면 이 화면이 만드는 동시 요청은 항상
-   * 1개이고, 목록은 이미 그려진 뒤라 사용자는 막대만 조금 늦게 본다.
-   */
-  async function loadBuckets(ctx) {
-    var state = ctx.state;
-    var options = (state.data && state.data.aging_options) || [];
-    var seq = ++state.bucketSeq;
-    if (!options.length) {
-      renderAging(ctx, []);
-      return;
-    }
-    try {
-      var buckets = [];
-      for (var i = 0; i < options.length; i++) {
-        var slice = await getJson(buildUrl(ctx, { aging: options[i].code, page: 1 }));
-        if (seq !== state.bucketSeq) return;   // 스코프가 바뀌었다 — 낡은 값을 그리지 않는다
-        buckets.push({
-          code: options[i].code,
-          label: options[i].label,
-          amount: (slice.totals || {}).balance || 0,
-          count: slice.total_count || 0,
-        });
-      }
-      renderAging(ctx, buckets);
-    } catch (err) {
-      if (seq !== state.bucketSeq) return;
-      // 구간 합계는 목록의 부속이다 — 목록이 살아 있는데 여기서 화면 전체를 실패로 만들지 않고,
-      // 대신 **비어 있는 이유**를 그 자리에서 말한다(무음 실패 금지).
-      renderAging(ctx, []);
-      if (ctx.els.emptyAging) {
-        ctx.els.emptyAging.textContent = '구간별 미수 합계를 불러오지 못했습니다. 아래 목록은 정상입니다.';
-      }
     }
   }
 
@@ -332,6 +286,16 @@
     });
   }
 
+  /**
+   * aging 구간 막대. 값은 **목록과 같은 응답**(`aging_summary`)에서 온다 — 구간마다 따로
+   * 묻지 않는다. 예전에는 구간별로 `aging=<code>` 요청을 5번 직렬로 보냈는데, 한 요청이
+   * 모집단 전량 스캔이라 스코프를 한 번 바꿀 때마다 같은 스캔이 6번 돌았다
+   * (2026-08-31 운영 실측: 막대가 다 차기까지 2.9초, 그중 서버 1.26초).
+   *
+   * 서버가 내는 `aging_summary` 는 **선택된 구간과 무관한 스코프(기간·정산상태·채널) 기준**
+   * 이라 막대를 눌러 목록만 좁혀도 값이 무너지지 않는다 — 옛 직렬 호출이 `aging` 파라미터를
+   * 구간 코드로 덮어써서 지키던 성질을 서버가 대신 보장한다.
+   */
   function renderAging(ctx, buckets) {
     var host = ctx.els.aging;
     if (!host) return;
@@ -340,8 +304,6 @@
     toggle(ctx.els.emptyAging, total > 0);
     host.classList.toggle('s-ops-aging--has-sel', !!ctx.state.bucket);
     if (!total) return;
-    // 실패 안내로 덮어썼던 빈 상태 문구를 원래대로 되돌린다(그 사이 성공했다는 뜻).
-    if (ctx.els.emptyAging && ctx.emptyAgingText) ctx.els.emptyAging.textContent = ctx.emptyAgingText;
 
     var max = Math.max.apply(null, buckets.map(function (b) { return b.amount || 0; }).concat([1]));
     buckets.forEach(function (bucket, index) {
@@ -598,6 +560,7 @@
   function renderAll(ctx) {
     renderKpis(ctx);
     renderRows(ctx);
+    renderAging(ctx, (ctx.state.data && ctx.state.data.aging_summary) || []);
     renderFoot(ctx);
     renderPager(ctx);
     renderBucketChip(ctx);
@@ -920,14 +883,11 @@
       els: collectEls(root),
       state: {
         period: 'all', settlement: 'all', channel: 'all', bucket: '',
-        page: 1, data: null, seq: 0, bucketSeq: 0, loaded: false, busy: false,
+        page: 1, data: null, seq: 0, loaded: false, busy: false,
         issueOrderId: null,
       },
       observer: null,
-      // 빈 상태 기본 문구 원본 — 구간 합계 실패 안내로 덮어썼다가 되돌리는 데 쓴다.
-      emptyAgingText: null,
     };
-    ctx.emptyAgingText = ctx.els.emptyAging ? ctx.els.emptyAging.textContent : null;
     mounts.push(ctx);
     syncChips(ctx);
     bindControls(ctx);
