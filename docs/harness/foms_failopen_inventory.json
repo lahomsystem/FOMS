@@ -3536,7 +3536,7 @@
     },
     {
       "path": "foms/services/integrations/naver_commerce/fulfillment.py",
-      "lineno": 884,
+      "lineno": 889,
       "handler_type": "broad_exception",
       "disposition": "LOG_AND_CONTINUE",
       "owner": "services",
@@ -3545,7 +3545,7 @@
     },
     {
       "path": "foms/services/integrations/naver_commerce/fulfillment.py",
-      "lineno": 1045,
+      "lineno": 1050,
       "handler_type": "broad_exception",
       "disposition": "LOG_AND_CONTINUE",
       "owner": "services",
@@ -4571,7 +4571,7 @@
     },
     {
       "path": "foms/web/admin/naver_ingest.py",
-      "lineno": 3488,
+      "lineno": 3494,
       "handler_type": "broad_exception",
       "disposition": "LOG_AND_CONTINUE",
       "owner": "web",
@@ -4580,7 +4580,7 @@
     },
     {
       "path": "foms/web/admin/naver_ingest.py",
-      "lineno": 3500,
+      "lineno": 3506,
       "handler_type": "broad_exception",
       "disposition": "LOG_AND_CONTINUE",
       "owner": "web",
@@ -4589,7 +4589,7 @@
     },
     {
       "path": "foms/web/admin/naver_ingest.py",
-      "lineno": 3888,
+      "lineno": 3899,
       "handler_type": "broad_exception",
       "disposition": "LOG_AND_CONTINUE",
       "owner": "web",
@@ -4598,7 +4598,7 @@
     },
     {
       "path": "foms/web/admin/naver_ingest.py",
-      "lineno": 4131,
+      "lineno": 4146,
       "handler_type": "broad_exception",
       "disposition": "LOG_AND_CONTINUE",
       "owner": "web",
@@ -4607,7 +4607,7 @@
     },
     {
       "path": "foms/web/admin/naver_ingest.py",
-      "lineno": 4223,
+      "lineno": 4239,
       "handler_type": "broad_exception",
       "disposition": "LOG_AND_CONTINUE",
       "owner": "web",
@@ -4616,7 +4616,7 @@
     },
     {
       "path": "foms/web/admin/naver_ingest.py",
-      "lineno": 4285,
+      "lineno": 4302,
       "handler_type": "broad_exception",
       "disposition": "LOG_AND_CONTINUE",
       "owner": "web",
@@ -4625,7 +4625,7 @@
     },
     {
       "path": "foms/web/admin/naver_ingest.py",
-      "lineno": 4454,
+      "lineno": 4474,
       "handler_type": "broad_exception",
       "disposition": "LOG_AND_CONTINUE",
       "owner": "web",
