@@ -313,6 +313,171 @@
             });
         }
 
+        // ── 4-1. 실측일 미정 ──
+        // 실측일(정규화된 YYYY-MM-DD)이 하나도 없는 미완료 주문을 모달로 보여준다.
+        // '추후통보'·'미정' 같은 텍스트 건도 서버에서 정규화 실패 → 여기 포함된다.
+
+        const undatedTriggers = Array.from(
+            document.querySelectorAll('#btn-undated-measurement, [data-undated-trigger="measurement"]')
+        ).filter(function (element, index, list) {
+            return list.indexOf(element) === index;
+        });
+        const undatedModalEl = document.getElementById('undatedMeasurementModal');
+
+        if (undatedTriggers.length && undatedModalEl && typeof bootstrap !== 'undefined') {
+            const undatedModal = new bootstrap.Modal(undatedModalEl);
+
+            // ERPUtils.setVisible 은 style.display 를 직접 건드리므로(인라인 스타일 금지)
+            // 이 블록은 부트스트랩 d-none 클래스만 토글한다.
+            function undatedShow(id, visible) {
+                const el = document.getElementById(id);
+                if (el) el.classList.toggle('d-none', !visible);
+            }
+
+            function undatedText(id, text) {
+                const el = document.getElementById(id);
+                if (el) el.textContent = text;
+            }
+
+            function undatedCell(tr, value) {
+                const td = document.createElement('td');
+                td.textContent = String(value == null || value === '' ? '-' : value);
+                tr.appendChild(td);
+                return td;
+            }
+
+            function undatedBadge(td, label, className) {
+                const span = document.createElement('span');
+                span.className = 'badge ' + className + ' ms-1';
+                span.textContent = label;
+                td.appendChild(span);
+            }
+
+            /** 응답 payload 를 표로 렌더한다. 값은 전부 textContent (저장형 XSS 차단). */
+            function renderUndated(payload) {
+                const rows = Array.isArray(payload.rows) ? payload.rows : [];
+                // 절단된 경우 뱃지는 실제 전체 건수를 말한다(표시 건수만 보이면 축소가 조용해진다).
+                const badgeTotal = payload.total != null ? payload.total : (payload.count || 0);
+                undatedText('undated-count-badge', String(badgeTotal) + '건');
+
+                let truncMsg = '';
+                if (payload.truncated) {
+                    truncMsg = '전체 ' + payload.total + '건 중 ' + payload.display_cap
+                        + '건만 표시됩니다. 검색어나 담당자로 범위를 줄여 주세요.';
+                }
+                if (payload.scan_capped) {
+                    truncMsg += ' (조회 대상이 많아 일부만 검사했습니다.)';
+                }
+                undatedText('undated-truncated', truncMsg.trim());
+                undatedShow('undated-truncated', !!truncMsg);
+
+                const tbody = document.getElementById('undated-tbody');
+                if (tbody) tbody.textContent = '';
+
+                if (!rows.length) {
+                    undatedShow('undated-result', false);
+                    undatedShow('undated-empty', true);
+                    return;
+                }
+                undatedShow('undated-empty', false);
+
+                rows.forEach(function (row) {
+                    const tr = document.createElement('tr');
+
+                    const idTd = document.createElement('td');
+                    idTd.textContent = '#' + row.id;
+                    tr.appendChild(idTd);
+
+                    undatedCell(tr, row.customer_name);
+                    undatedCell(tr, row.phone);
+                    undatedCell(tr, row.address);
+                    undatedCell(tr, row.manager_name);
+
+                    const statusTd = undatedCell(tr, row.status_label);
+                    if (row.is_regional) undatedBadge(statusTd, '지방', 'bg-success text-white');
+                    if (row.is_self_measurement) undatedBadge(statusTd, '자가실측', 'bg-info text-white');
+
+                    undatedCell(tr, row.received_date);
+                    undatedCell(tr, row.product);
+
+                    const editTd = document.createElement('td');
+                    if (row.edit_url) {
+                        // edit_url 은 서버가 url_for 로 만든 값 — 클라이언트에서 조립하지 않는다.
+                        const link = document.createElement('a');
+                        link.href = row.edit_url;
+                        link.target = '_blank';
+                        link.rel = 'noopener';
+                        link.className = 'btn btn-sm btn-outline-primary';
+                        link.title = '주문 수정 (새 탭)';
+                        const icon = document.createElement('i');
+                        icon.className = 'fas fa-edit';
+                        link.appendChild(icon);
+                        editTd.appendChild(link);
+                    } else {
+                        editTd.textContent = '-';
+                    }
+                    tr.appendChild(editTd);
+
+                    if (tbody) tbody.appendChild(tr);
+                });
+
+                undatedShow('undated-result', true);
+            }
+
+            /** 현재 조회 조건(검색어·담당자·mine)으로 실측일 미정 목록을 불러온다. */
+            async function loadUndated() {
+                undatedShow('undated-error', false);
+                undatedShow('undated-result', false);
+                undatedShow('undated-empty', false);
+                undatedShow('undated-truncated', false);
+                undatedShow('undated-loading', true);
+                undatedText('undated-count-badge', '…');
+
+                const trigger = undatedTriggers[0];
+                const params = new URLSearchParams();
+                const q = (trigger && trigger.dataset.undatedQ) || '';
+                if (q) params.set('q', q);
+                if (config.managerFilter) params.set('manager_filter', config.managerFilter);
+                // mine 은 URL 에 명시된 경우에만 전달 — 없으면 서버가 쿠키 기준으로 화면과 동일하게 판정한다.
+                const mineParam = new URLSearchParams(window.location.search).get('mine');
+                if (mineParam !== null) params.set('mine', mineParam);
+
+                undatedText('undated-meta', '조회 조건: 검색어 ' + (q || '-') + ' / 담당자 ' + (config.managerFilter || '-'));
+
+                try {
+                    const res = await fetch('/api/erp/measurement/undated?' + params.toString());
+                    if (!res.ok) {
+                        // 세션 만료 시 로그인 HTML 이 와서 JSON 파서 메시지가 그대로 노출되던 문제.
+                        throw new Error(res.status === 401 || res.status === 403
+                            ? '로그인이 만료되었습니다. 새로고침 후 다시 시도해 주세요.'
+                            : '실측일 미정 목록을 불러오지 못했습니다. (HTTP ' + res.status + ')');
+                    }
+                    let data;
+                    try {
+                        data = await res.json();
+                    } catch (parseError) {
+                        console.error('[undated] 응답 파싱 실패', parseError);
+                        throw new Error('실측일 미정 목록 응답을 읽지 못했습니다. 새로고침 후 다시 시도해 주세요.');
+                    }
+                    if (!data.success) throw new Error(data.error || '실측일 미정 목록을 불러오지 못했습니다.');
+                    undatedShow('undated-loading', false);
+                    renderUndated(data.data || {});
+                } catch (e) {
+                    undatedShow('undated-loading', false);
+                    undatedText('undated-count-badge', '-');
+                    undatedText('undated-error', String(e && e.message ? e.message : e));
+                    undatedShow('undated-error', true);
+                }
+            }
+
+            undatedTriggers.forEach(function (trigger) {
+                trigger.addEventListener('click', function () {
+                    undatedModal.show();
+                    loadUndated();
+                });
+            });
+        }
+
         // ── 5. 담당자 목록 로드 ──
 
         fetch('/api/erp/shipment-settings')
