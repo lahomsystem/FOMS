@@ -136,8 +136,21 @@
   아직 production 에 없다. 승격 PR 은 이 파일을 안 탄다(production `ci.yml` 은 `--ignore=tests/visual`
   + 4파일 허용목록). deploy 는 2026-08-30 `6abc2b43` 으로 visual 14개를 CI 에 등재했다.
   ② visual 24 errors 는 `DATABASE_URL` file-backed SQLite 미설정(로컬 환경) 때문.
-- 잔여: ① 대체발송 콘솔 설정(사용자 직접) ② PR #196 머지(사용자) → 머지 후 운영 `web` 에
-  `SOLAPI_TEMPLATE_SHARE_BOTH_ID_{LAHOM,HAUD}` 등록 → 운영 실발송 1건으로 종결 확인.
+- **대체발송 문구 등록 완료(2026-08-30, 사용자 콘솔 작업 → API 로 검증)** — 두 템플릿 다
+  `replacements` 1벌 + `disableReplacements=false`. 라홈 `from=15660792` · 하우드 `from=15660703`,
+  본문에 도면·계약서 URL 2개가 `#{도면토큰}`·`#{계약서토큰}` 로 들어갔고 **변수 6종이 코드의
+  `_share_both_variables` 와 정확히 일치**한다(빈 본문 위험 해소).
+  주의: `replacements.from` 은 브랜드 대표번호 고정인데 알림톡 발신은 담당자 등록번호가 우선이다 —
+  담당자 `sender_phone` 이 등록되면 카톡은 담당자 번호, 대체 문자는 대표번호로 갈린다(현재 등록자 0명).
+- **운영 승격 완료(2026-08-30)** — PR #196 머지 → production `d6f1c84e`.
+  운영 코드에 `SHARE_KINDS = ('drawing', 'estimate', 'bundle')` 확인. 직전 운영 tip 은 타 세션 PR #197
+  (`4be86ab2`)로 움직였지만 #196 은 충돌 없이 `MERGEABLE/CLEAN` 유지했다.
+- **운영 env 등록 완료(2026-08-30)** — FOMS-PRODUCTION `web` 서비스에
+  `SOLAPI_TEMPLATE_SHARE_BOTH_ID_LAHOM=KA01TP260825021747177Iu2C2ykuJfS` ·
+  `_HAUD=KA01TP260825021755111MLTAvg2dLLn` (`railway variables --set` 2건, `--kv` 재확인).
+  `--skip-deploys` 없이 걸어 `web` 재배포 유발(env 즉시 반영).
+- 잔여: 운영 실발송 1건으로 종결 확인(가상 주문 `CLAUDE-TEST-` + 버튼 2개 링크가 운영 도메인에서
+  실제로 열리는지 — 스테이징에서는 WL 링크 도메인 고정 때문에 확인 불가였던 부분).
 
 ### 개정 템플릿 4종 교체 (2026-08-24 — 승인 완료, PR #140)
 - Solapi 심사 승인: 실측 라홈 `KA01TP260819235109543IZ09ZS2GGxU` · 실측 하우드 `KA01TP260819083609155X1JFCnksFJ2` · 공유 라홈 `KA01TP260819084043806JpKvOqz3TDo` · 공유 하우드 `KA01TP260819084128244ThoZdhdBocC`.
