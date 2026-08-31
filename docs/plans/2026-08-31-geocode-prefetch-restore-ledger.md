@@ -382,3 +382,47 @@ production 실측(claude_master 해제 → 측정 → **재잠금 완료**):
 1. 승격 트리 본 스위트 + 스모크 (진행 중)
 2. 승격 PR 생성 → 검사 4종 → 머지
 3. 승격 후 운영 화면 확인 — 실측 대시보드에서 "동선" 버튼이 사라지고 "동선 지도" 링크가 그 자리에 있는지, 엑셀 다운로드는 살아 있는지
+
+---
+
+## 16. SIDEFX 워커 서비스 등록 (2026-08-31) — T5 해소
+
+사용자 승인("지금 만들어 켜라") 후 실행했다. §10 에서 "CLI 로는 불가"라고 적었던 판단은 **API 수준에서 뒤집혔다** — Railway public GraphQL 로 서비스 생성·설정·배포가 전부 가능하다.
+
+### 16.1 Railway 가 Config as Code 를 폐기했다 (중요)
+
+`serviceInstanceUpdate` 에 `railwayConfigFile: "railway-domain-sidefx.toml"` 을 넣자 거부됐다:
+
+```
+Config as Code (railway.json / railway.toml) is deprecated.
+Use Infrastructure as Code (.railway/railway.ts) instead.
+```
+
+즉 **저장소의 `railway-domain-sidefx.toml` 은 사문이다.** 같은 결과를 `startCommand` 직접 지정으로 얻었다.
+
+**더 넓은 함의**: `railway.toml`·`railway-worker.toml`·`railway-cron.toml` 도 같은 운명이다. 기존 서비스들이 지금 저장소 toml 이 아니라 **각자 대시보드/API 설정으로 돌고 있을** 가능성이 크다 — 저장소 toml 을 고쳐도 운영에 반영되지 않는다는 뜻이라 **다음 세션이 반드시 확인해야 한다.**
+
+### 16.2 실행한 것
+
+| 단계 | 내용 |
+|---|---|
+| 서비스 생성 | `serviceCreate` — name `SIDEFX`, 변수 5개 동봉(`DATABASE_URL` + `R2_*` 4개, WORKER 에서 복사) |
+| 설정 | `serviceInstanceUpdate` — source repo `lahomsystem/FOMS`, `numReplicas: 1`, startCommand: `python tools/ops/run_domain_side_effect_outbox.py --loop --interval 5 --expiry-scan-interval 300 --retention-scan-interval 86400` |
+| 배포 | `serviceInstanceDeployV2` → SUCCESS |
+
+**순서가 중요했다**: 소스를 먼저 붙이면 루트 `railway.toml`(`sh start.sh`)로 gunicorn 이 하나 더 뜬다. 그래서 변수·설정을 먼저 넣고 소스를 마지막에 붙였다.
+
+### 16.3 결과 — 워커가 사상 처음 돌았다
+
+`side_effect_worker_heartbeats` 에 3행 생성(`DELIVERY`·`EXPIRY_SCAN`·`RETENTION`). 그 전까지 0행이었다.
+
+소진 시작 직후 관측: `GEOCODE` 7 DONE, `STORAGE_DELETE` 2 DONE + 8 PROCESSING.
+
+로그에는 `NoHandlerError` 가 반복되는데 **정상이다** — 핸들러가 없는 `CHANNEL_PUSH_RECORDED`·`STAGE_NOTIFICATION`(1224건)이 재시도 후 DEAD 로 가는 승인된 경로다.
+
+**삭제 안전성 재확인**: 켜기 직전 조회에서 `STORAGE_DELETE` 대상 424건 중 살아있는 첨부(`order_attachments`·`chat_attachments`)가 참조하는 키는 **0건**이었다.
+
+### 16.4 남은 확인
+
+- `CHANNEL_PUSH_RECORDED`·`STAGE_NOTIFICATION` 이 DEAD 로 확정되기까지 한 행당 최소 0.7시간(백오프 5초→3600초 cap, 10회). 몇 시간 로그가 이어진다.
+- 핸들러가 나중에 배포돼도 DEAD 행은 자동 실행되지 않는다.
