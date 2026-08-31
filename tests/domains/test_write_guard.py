@@ -302,3 +302,73 @@ def test_update_address_without_token_is_still_blocked(client, app, guard_on):
 
     assert resp.status_code == 403
     assert resp.headers.get("X-Write-Guard") == "blocked"
+
+
+# --------------------------------------------------------------------------
+# exempt: 서비스워커 push 이벤트 보고
+#
+# static/sw.js reportPushEvent() 가 유일한 호출자다. SW 실행 컨텍스트에는 토큰 meta 도
+# 페이지 fetch 래퍼도 없어 공용 CSRF 토큰을 실을 수 없다. 라우트 자체가 커스텀 헤더
+# X-FOMS-Notification-Write + Origin/Referer same-origin 을 요구하므로 공용 가드에서는
+# exempt 로 둔다. 운영 실기록: 2026-08-30 uid 38, invalid_csrf_token 으로 버려졌다.
+# --------------------------------------------------------------------------
+@pytest.fixture
+def web_push_on(monkeypatch):
+    """이 테스트 동안만 웹푸시 feature flag 를 켠다(기본 off → 404 게이트)."""
+    monkeypatch.setenv("FOMS_WEB_PUSH_ENABLED", "1")
+    yield
+
+
+def test_push_event_exempt_from_shared_csrf_guard(client, app, guard_on, web_push_on):
+    """SW 모양 요청(커스텀 헤더만, CSRF 토큰 없음)이 공용 가드에 막히지 않는다."""
+    _login(client)
+
+    resp = client.post(
+        "/erp/api/notifications/push/event",
+        json={"notification_id": 999999, "event": "opened"},
+        headers={"X-FOMS-Notification-Write": "1"},
+    )
+
+    assert resp.headers.get("X-Write-Guard") is None, "공용 write guard 가 SW 요청을 막았다"
+    # 소유한 user_state 가 없으므로 핸들러가 404 를 낸다 = 핸들러까지 도달했다는 증거.
+    assert resp.status_code == 404
+    assert resp.get_json()["error"] == "notification_not_found"
+
+
+def test_push_event_still_requires_custom_write_header(client, app, guard_on, web_push_on):
+    """음성 대조군: 커스텀 헤더가 없으면 라우트 자체 가드가 403 을 낸다."""
+    _login(client)
+
+    resp = client.post(
+        "/erp/api/notifications/push/event",
+        json={"notification_id": 999999, "event": "opened"},
+    )
+
+    assert resp.status_code == 403
+    assert resp.get_json()["error"] == "write header is required"
+
+
+def test_push_event_rejects_cross_origin(client, app, guard_on, web_push_on):
+    """음성 대조군: 헤더가 있어도 교차출처 Origin 이면 403."""
+    _login(client)
+
+    resp = client.post(
+        "/erp/api/notifications/push/event",
+        json={"notification_id": 999999, "event": "opened"},
+        headers={"X-FOMS-Notification-Write": "1", "Origin": "https://evil.example.com"},
+    )
+
+    assert resp.status_code == 403
+    assert resp.get_json()["error"] == "invalid request origin"
+
+
+def test_service_worker_push_report_sends_no_csrf_token() -> None:
+    """sw.js 가 토큰을 실지 않는다는 사실을 고정 — exempt 판단의 전제."""
+    from pathlib import Path
+
+    sw = Path("static/sw.js").read_text(encoding="utf-8")
+    assert "PUSH_EVENT_URL" in sw
+    assert "X-FOMS-Notification-Write" in sw
+    assert "X-CSRF-Token" not in sw, (
+        "sw.js 가 토큰을 싣기 시작했다면 manifest 의 exempt 판단을 재검토하라"
+    )
