@@ -31,6 +31,7 @@ from foms.services.order_geocode_outbox import enqueue_order_address_geocode
 from foms.services.orders.revision import RevisionError, execute_order_mutation
 from foms.services.measurement_dates import extract_all_measurement_dates
 from foms.services.measurement_read_model import apply_measurement_dashboard_order_scope
+from foms.services.measurement_undated import build_measurement_undated_payload
 from foms.services.measurement_route import build_measurement_route_payload
 from foms.services.measurement_time import parse_measurement_time_minutes
 from foms.services.common.business_calendar import get_holidays_kr
@@ -575,3 +576,32 @@ def api_erp_measurement_route_eta():
             'duration_min': result.get('duration_min'),
         },
     })
+
+
+@erp_measurement_bp.route('/undated')
+@login_required
+def api_erp_measurement_undated():
+    """실측일이 아직 정해지지 않은 진행 중 주문 목록.
+
+    '추후통보'/'미정' 같은 텍스트 건도 날짜 정규화에 실패하므로 여기 포함된다.
+    날짜 축 SQL 선스코프 금지 — 판정은 `is_measurement_undated`(파이썬)가 한다.
+
+    파라미터(query):
+        q: 검색어(선택). 대시보드 메인 검색과 동일 술어.
+        manager_filter: 담당자 정확 일치(선택).
+        mine: '1' 이면 내 주문만. 생략 시 쿠키 기준(erp_mine_only_from_request).
+
+    반환:
+        200 {success: true, data: {rows, count, total, truncated, scan_capped, display_cap}}
+    """
+    db = get_db()
+    current_user = getattr(g, 'current_user', None)
+    mine_filter_active = bool(erp_mine_only_from_request(request) and current_user)
+    payload = build_measurement_undated_payload(
+        db,
+        search_q=(request.args.get('q') or '').strip(),
+        manager_filter=(request.args.get('manager_filter') or '').strip(),
+        current_user=current_user,
+        mine_filter_active=mine_filter_active,
+    )
+    return jsonify({'success': True, 'data': payload})
