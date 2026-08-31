@@ -679,3 +679,98 @@ tabs:              [['summary','true'], ['ops','false'], ['analytics','false']]
 
 **숨은 pane 폭 0 함정**을 통과했다 — `columnChart` 는 `clientWidth === 0` 이면 조기반환해
 빈 SVG 를 남긴다. 탭 왕복 후에도 막대 31개가 그대로라는 것이 그 경로가 배선됐다는 증거다.
+
+---
+
+## 2단계 마감 (SETTLE-TABS, 2026-08-31)
+
+**탭 3개 구현 완료 · deploy push 완료 · 스테이징 실화면 검증 완료.**
+
+- 워크트리 `c:\tmp\foms-s-settle-tabs`, 브랜치 `session/settle-tabs` (base `origin/deploy` `7e7aed9c`)
+- `origin/deploy` 반영 SHA(cherry-pick 후 재작성됨): `aa12fe80`(S1 차트) `140f0007`(원장)
+  `2a927d55`(행 API) `ffea1e0a`(결정) `4e9a32fa`(집계 확장) `eb2b7380`(검증기록)
+  `8a5d0650`(탭 셸) `0347d749`(분석 탭) `7c09a312`(실무 탭) `2853f28a`(분석 추이 카드)
+  `f665c741`(ci.yml)
+
+### 최종 상태
+
+| 탭 | 내용 | 데이터 소스 |
+|---|---|---|
+| 요약(경영진) | 목업 v1 — 메인 차트 막대화 수정 완료 | `/api/settlement/aggregates` |
+| 실무(경리·수금) | 목업 v2 — 주문 행 목록 + 입금 확인·정산 청구 | `/api/settlement/rows`(신설) |
+| 분석 | 목업 v3 — 카드 7장(추이 포함) | `/api/settlement/aggregates` |
+
+신규 테스트 파일 2개(`test_settlement_rows_api.py` 25건, `test_settlement_operations_render.py` 130건)
++ 기존 3파일 확장. 정산 5스위트 합계 **425+ green**.
+
+### 검증 기록 (CEO 직접 실행)
+
+```
+python -m pytest -q --ignore=tests/visual --ignore=tests/harness -p no:playwright -n auto
+    → 7,258 passed / 601 skipped   (CI 본 스위트와 같은 조건)
+CI-VISUAL-01 브라우저 없는 서브셋 → 135 passed
+powershell scripts/ops/pre_push_smoke.ps1 → 349 passed / exit 0
+python -c "import app; print('APP_OK')" → APP_OK
+```
+
+**push 전 전량 실행이 잡은 것 — CI-DOCSCOPE-01 재현**:
+`test_settlement_operations_render.py` 가 "docs/ 를 읽는 테스트"로 판정돼 ci.yml 문서 전용
+서브셋 등재를 요구했다. `pre_push_smoke` 는 이 게이트를 **포함하지 않는다**(알려진 사각).
+1단계와 같은 지점에서 같은 게이트가 다시 걸렸다 — 이 사각은 여전히 살아 있다.
+ci.yml 은 CRLF 파일이라 개행을 바이트로 맞춰 넣고 CRLF 177 / 단독 LF 0 과 YAML 파싱을 확인했다.
+
+**되돌린 것 1건**: 작업 중 `docs/harness/foms_failopen_inventory.json` 이 재생성돼
+**건드리지도 않은 파일들의 줄번호**(`jobs/tasks.py`·`api/share.py`)가 바뀌었다.
+원본으로 되돌린 뒤 드리프트 게이트 13건 통과 확인 — 1단계와 **똑같은 사고**다.
+
+### CI 판정 (전 워크플로 나열)
+
+내 커밋 `f665c741`:
+
+| 워크플로 | 결과 |
+|---|---|
+| FOMS CI | success |
+| FOMS PostgreSQL Lane | success |
+| Harness CI | success |
+| perf-gate (staging) | **cancelled** — push 1분 뒤 타 세션 push 에 동시성 그룹으로 밀림 |
+
+perf-gate 커버리지는 후손 커밋 `3cb6e428`(내 커밋 전부 포함)의 green 으로 확보됐다.
+
+⚠️ **브랜치 머리 `3cb6e428` 은 FOMS CI red 이고 원인은 본 작업이 아니다**:
+타 세션이 `foms/services/common/address_query.py` 를 신설하면서 닫힌집합 인벤토리
+(`test_ptc_physical_exactness.py::test_ptc_foms_services_common_inventory_exact`)를
+갱신하지 않았다. 내 커밋은 `foms/services/common/` 을 한 줄도 건드리지 않았고(diff 확인),
+내 트리에서 그 테스트는 7건 전부 통과한다. **타 세션 몫이라 손대지 않았다.**
+
+### 스테이징 실화면 검증 (lahom-dev, 2026-08-31)
+
+스테이징은 3~6월이 월 330~350건인데 **8월만 2건**이라 8·7월만 임시 시드(220건)했다.
+확인 후 **전량 삭제**(모집단 1,583 기준선 복귀), QA 계정 `settle_qa_stg` 비활성화.
+시드 스크립트에 운영 프록시 호스트(`yamanote`) 접속 시 즉시 중단하는 가드를 넣었다.
+
+| 항목 | 결과 |
+|---|---|
+| 요약 탭 메인 차트 | **막대 31개** (사용자 지적 "선형 그래프" 해소) |
+| 실무 탭 | 60행 / 조건 전체 1,803건 · 31페이지 |
+| 분석 탭 | 추이 + 카드 6장 전부 렌더 |
+| 실패 요청 / 콘솔 에러 | 0 / 0 |
+| 가로 스크롤 | 없음 |
+
+### 스테이징에서 눈으로 본 남은 개선점 2건 (미수정, 사용자 판단 대상)
+
+1. **전월 비교선이 y축 상한을 잡는다.** 7월에 2,200만원짜리 하루가 있어 y축 top 이
+   3,000만으로 잡히고 8월 막대가 전반적으로 눌린다. `niceScale(max(barMax, lineMax))` 는
+   **목업과 같은 식**이라 사양대로지만, 목업은 두 시리즈 규모가 비슷한 가정치여서 이
+   현상이 드러나지 않았다. 실데이터에서만 보인다.
+2. **실무 탭 첫 페이지가 금액 0인 오래된 주문으로 채워진다.** 정렬 "경과일 오래된 순"은
+   목업 사양이지만, 스테이징 레거시 주문은 출고가·잔금이 0이라 수금 대상이 아니다.
+   수금 워크벤치로서는 미수 건 우선 정렬(또는 미수 기본 필터)이 맞을 수 있다.
+
+### 남은 것
+
+1. production 승격 — **별도 사용자 승인 사항**(이번 세션 범위 밖)
+2. 위 개선점 2건 판단
+3. 다크 테마 — 사용자 결정 "나중에" (1단계에서 이월)
+4. 실무 탭 스테이징 성능 실측 — 스코프 변경 1회당 rows API 6회(직렬). 로컬 1초 남짓이나
+   싱가포르 tail 에서는 aging 스트립이 수 초 걸릴 수 있다(그리드는 첫 응답에 뜬다)
+5. 실무 탭 980px 미만 좁은 폭 실측
