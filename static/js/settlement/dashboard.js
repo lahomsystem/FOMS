@@ -187,6 +187,18 @@
     return parseInt(monthKey.slice(0, 4), 10) + '년 ' + parseInt(monthKey.slice(5, 7), 10) + '월';
   }
 
+  /** 짧은 월 라벨 "8월" — 범례처럼 폭이 좁은 자리용(긴 라벨은 범례를 두 줄로 접는다). */
+  function shortMonthLabel(monthKey) {
+    if (!/^\d{4}-\d{2}$/.test(monthKey || '')) return '';
+    return parseInt(monthKey.slice(5, 7), 10) + '월';
+  }
+
+  /** 서버 일별 라벨 "8/1" → 목업 x축 표기 "1일". 다른 형식이면 그대로 둔다. */
+  function dayLabel(label) {
+    var m = /^(\d{1,2})\/(\d{1,2})$/.exec(String(label || ''));
+    return m ? parseInt(m[2], 10) + '일' : label;
+  }
+
   /* ═══════════════ 2. 툴팁 (라벨은 전부 textContent — innerHTML 미사용) ═══════════════ */
 
   function showTip(ctx, x, y, title, rows) {
@@ -373,9 +385,16 @@
       s += '<g class="s-cgrp">';
       gr.bars.forEach(function (b, bi) {
         var bx = x0 + bi * (bw + 2);
+        // 0 은 기본적으로 그리지 않는다(aging 처럼 한 버킷이 압도하는 서열 차트에서
+        // 최소 높이 하한은 "적지만 있다"는 거짓 신호가 된다).
+        // 시계열 차트만 cfg.zeroFloor 로 목업과 같은 baseline 스텁을 켠다 — 거기서는
+        // "그날 0원"이 실재하는 사실이고, 스텁이 없으면 빈 날이 통째로 사라져
+        // 막대의 리듬이 무너지고 비교 라인만 남아 라인 차트로 읽힌다.
         var bh = b.v > 0 ? Math.max(3, b.v / sc.top * ph) : 0;
         if (bh > 0) {
           s += '<path d="' + roundTopRect(bx, pad.t + ph - bh, bw, bh, 4) + '" fill="' + b.color + '"/>';
+        } else if (cfg.zeroFloor) {
+          s += '<path d="' + roundTopRect(bx, pad.t + ph - 1.5, bw, 1.5, 0) + '" fill="var(--s-zero-bar)"/>';
         }
         if (b.cap) {
           s += '<text class="s-cap-t" x="' + (bx + bw / 2) + '" y="' + (pad.t + ph - bh - 6) +
@@ -571,8 +590,12 @@
     if (!lg) return;
     clear(lg);
     if (mode === 'none') return;
-    var curLabel = monthLabel(ctx.state.month) || '당월';
-    var prevLabel = monthLabel(shiftMonth(ctx.state.month, -1)) || '전월';
+    // 목업과 같은 축약형("8월(당월)"/"7월(전월)"). 긴 형식은 스와치 4개가 붙는
+    // bucketcmp 모드에서 범례가 두 줄로 접혀 카드 헤드 높이가 밀린다.
+    var curMonth = shortMonthLabel(ctx.state.month);
+    var prevMonth = shortMonthLabel(shiftMonth(ctx.state.month, -1));
+    var curLabel = curMonth ? curMonth + '(당월)' : '당월';
+    var prevLabel = prevMonth ? prevMonth + '(전월)' : '전월';
     function mk(color, label, keyCls) {
       var span = document.createElement('span');
       span.className = 's-lg';
@@ -645,12 +668,20 @@
     var cmp = state.cmp && state.gran !== 'month' && prevBuckets.length > 0;
     var series = mainSeries(ctx);
     var granWord = state.gran === 'day' ? '일별' : (state.gran === 'week' ? '주별' : '월별');
-    var prevWord = monthLabel(shiftMonth(state.month, -1)) || '전월';
-    var xLabelOf = function (i) { return buckets[i] ? buckets[i].label : ''; };
+    // 목업 부제: "8월 일별(막대) vs 7월 동일자(라인) · 완료일 기준" / 누적은 "8월 누적 vs 7월 누적".
+    var curWord = shortMonthLabel(state.month);
+    var prevMonthWord = shortMonthLabel(shiftMonth(state.month, -1)) || '전월';
+    var prevWord = prevMonthWord +
+      (state.gran === 'day' ? ' 동일자' : (state.gran === 'week' ? ' 동주차' : ''));
+    // 누적(라인) 축도 목업과 같은 "1일" 표기를 쓴다 — 막대 축과 어긋나면 토글할 때 축이 바뀐다.
+    var xLabelOf = function (i) {
+      if (!buckets[i]) return '';
+      return state.gran === 'day' ? dayLabel(buckets[i].label) : buckets[i].label;
+    };
     var tipTitleOf = function (i) { return (buckets[i] ? buckets[i].label : '') + ' · 완료일 기준'; };
     var prevRow = function (i) {
       if (!cmp || !prevBuckets[i]) return null;
-      return { color: CTX, val: fmtMan(series.prev[i]) + '만', lbl: prevBuckets[i].label + '(이전)' };
+      return { color: CTX, val: fmtMan(series.prev[i]), lbl: prevBuckets[i].label + '(이전)' };
     };
 
     if (state.gran === 'day' && state.cum) {
@@ -658,9 +689,10 @@
       var curCum = cumsum(series.cur);
       var prevCum = cumsum(series.prev);
       if (ctx.els.mainSub) {
+        var cumHead = curWord ? curWord + ' 누적' : granWord + ' 누적';
         ctx.els.mainSub.textContent = cmp
-          ? granWord + ' 누적 vs ' + prevWord + ' 누적 · 완료일 기준'
-          : granWord + ' 누적 · 완료일 기준';
+          ? cumHead + ' vs ' + prevMonthWord + ' 누적 · 완료일 기준'
+          : cumHead + ' · 완료일 기준';
       }
       renderLegend(ctx, cmp ? 'line' : 'none');
       var lineSeries = [];
@@ -674,8 +706,8 @@
         xTick: function (i, n) { return i % 5 === 0 || i === n - 1; },
         tipTitle: function (i) { return tipTitleOf(i) + ' · 누적'; },
         tipRows: function (i) {
-          var rows = [{ color: ACCENT, val: fmtMan(curCum[i]) + '만', lbl: '누적' }];
-          if (cmp && prevCum[i] != null) rows.push({ color: CTX, val: fmtMan(prevCum[i]) + '만', lbl: '이전 누적' });
+          var rows = [{ color: ACCENT, val: fmtMan(curCum[i]), lbl: '누적' }];
+          if (cmp && prevCum[i] != null) rows.push({ color: CTX, val: fmtMan(prevCum[i]), lbl: '이전 누적' });
           return rows;
         },
       });
@@ -683,35 +715,43 @@
       return;
     }
 
-    var dense = buckets.length > 12;
+    // 목업의 분기 기준은 granularity 다(일별=금액구간 램프·캡 없음, 주/월별=단색·캡 있음).
+    // 버킷 수로 가르면 범위 UI 가 붙어 13주 이상을 볼 때 주별 차트가 조용히 램프로 바뀐다.
+    var dense = state.gran === 'day';
     if (ctx.els.mainSub) {
+      // 월별은 당월이 아니라 최근 N개월을 본다(buildUrl 이 6개월을 요청한다) — 목업과 같이
+      // 구간 길이를 말한다. 일/주별만 "8월 일별" 처럼 당월을 앞에 붙인다.
+      var head = state.gran === 'month'
+        ? '최근 ' + buckets.length + '개월'
+        : (curWord ? curWord + ' ' + granWord : granWord);
       ctx.els.mainSub.textContent = cmp
-        ? granWord + '(막대) vs ' + prevWord + '(라인) · 완료일 기준'
-        : granWord + ' · 완료일 기준';
+        ? head + '(막대) vs ' + prevWord + '(라인) · 완료일 기준'
+        : head + ' · 완료일 기준';
     }
     renderLegend(ctx, dense ? (cmp ? 'bucketcmp' : 'bucket') : (cmp ? 'barline' : 'none'));
     var groups = buckets.map(function (b, i) {
       var v = series.cur[i];
       return {
         // 일별 31개는 라벨이 겹친다 — 목업과 같이 5칸마다·마지막만 낸다.
-        label: dense ? ((i % 5 === 0 || i === buckets.length - 1) ? b.label : '') : b.label,
+        label: dense ? ((i % 5 === 0 || i === buckets.length - 1) ? dayLabel(b.label) : '') : b.label,
         bars: [{
           name: b.label,
           color: dense ? bucketColor(v) : ACCENT,
+          // 목업은 주별 캡이 fmtMan("8,240만"), 월별 캡이 fmtTick("1.2억") 이다.
           v: v,
-          cap: dense ? '' : fmtTick(v),
+          cap: dense ? '' : (state.gran === 'week' ? fmtMan(v) : fmtTick(v)),
         }],
       };
     });
     columnChart(ctx, host, {
-      height: 268, caps: !dense, tickCount: 4,
+      height: 268, caps: !dense, tickCount: 4, zeroFloor: true,
       aria: '출고가 매출 ' + granWord + (cmp ? ' — 막대는 이번 구간, 라인은 이전 구간' : ''),
       groups: groups,
       line: cmp ? { color: CTX, values: series.prev } : null,
       tipTitle: tipTitleOf,
       tipRows: function (i) {
         var rows = [
-          { color: dense ? bucketColor(series.cur[i]) : ACCENT, val: fmtMan(series.cur[i]) + '만', lbl: '매출' },
+          { color: dense ? bucketColor(series.cur[i]) : ACCENT, val: fmtMan(series.cur[i]), lbl: '매출' },
           { val: fmtCount(buckets[i].count) + '건', lbl: '완료' },
         ];
         var pr = prevRow(i);

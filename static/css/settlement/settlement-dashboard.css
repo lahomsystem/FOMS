@@ -48,6 +48,7 @@
   --s-accent-soft: #eaf2fc;
   --s-series-2: #eb6834;      /* categorical slot 2 */
   --s-ctx: #8a94a3;           /* 전월 비교 = 강조(emphasis)용 회색 — 시리즈 슬롯 아님 */
+  --s-zero-bar: #d9e0ea;      /* 완료 0건인 날의 baseline 스텁 — 시리즈 색이 아니다(매출 0을 파랑으로 칠하지 않는다) */
   --s-meter-track: #cde2fb;   /* 미충족 트랙 = 같은 램프의 밝은 스텝 */
   --s-good: #006300;
   --s-bad: #b91c1c;
@@ -257,9 +258,12 @@
 .foms-settle .s-retry:hover { background: var(--s-surface-soft); }
 
 /* ── 툴팁 ────────────────────────────────────────────────────── */
+/* 좌표는 JS 가 --s-tt-x/--s-tt-y 로 넣는다(인라인 스타일 금지 규칙). 여기서 소비하지
+   않으면 left/top 이 auto 로 남아 툴팁이 커서를 못 따라가고 문서 끝에 고정된다. */
 .foms-settle .s-tt,
 .foms-settle.s-tt {
   position: fixed; z-index: 50; display: none; pointer-events: none;
+  left: var(--s-tt-x, 0px); top: var(--s-tt-y, 0px);
   background: var(--s-surface); border: 1px solid var(--s-line); border-radius: 8px;
   box-shadow: 0 6px 20px rgba(16, 24, 40, .13); padding: 8px 11px; font-size: 12px; min-width: 120px;
 }
