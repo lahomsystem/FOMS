@@ -929,6 +929,18 @@ input.wb-pick:disabled,
 .modal .wb-reject__fills .btn { white-space: nowrap;
                                 font-size: calc(11.5px * var(--wb-fs, 1)); }
 /* 되읽어 주는 줄 — 입력칸과 **다른 색**이어야 눈이 한 번 더 멈춘다. */
+/* 칩 = [문장 넣기][×]. 지우기는 관리자에게만 보이고, **모두에게** 적용된다. */
+.wb-reject__chip { display: inline-flex; align-items: center; }
+.naver-workbench .wb-reject__chip .wb-reject-drop,
+.modal .wb-reject__chip .wb-reject-drop { padding: 0 4px !important; line-height: 1;
+                                          color: var(--wb-muted); text-decoration: none; }
+.modal .wb-reject__chip .wb-reject-drop:hover { color: var(--wb-danger, #b91c1c); }
+/* 저장 줄 — 목록을 바꾸는 자리라 입력칸보다 아래, 안내 문장과 한 덩어리로 둔다. */
+.wb-reject__save { display: flex; flex-wrap: wrap; gap: 6px; align-items: center;
+                   margin-top: 8px; }
+.wb-reject__name { max-width: 180px; }
+.wb-reject__save-why { color: var(--wb-muted); font-size: calc(11.5px * var(--wb-fs, 1)); }
+
 .wb-reject__echo { margin-top: 6px; padding: 6px 8px; border-radius: 6px;
                    background: var(--wb-danger-soft, #fdeaea);
                    border: 1px solid var(--wb-danger-line, #f3c2c2);
