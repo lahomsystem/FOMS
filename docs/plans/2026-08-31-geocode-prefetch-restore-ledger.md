@@ -426,3 +426,60 @@ Use Infrastructure as Code (.railway/railway.ts) instead.
 
 - `CHANNEL_PUSH_RECORDED`·`STAGE_NOTIFICATION` 이 DEAD 로 확정되기까지 한 행당 최소 0.7시간(백오프 5초→3600초 cap, 10회). 몇 시간 로그가 이어진다.
 - 핸들러가 나중에 배포돼도 DEAD 행은 자동 실행되지 않는다.
+
+---
+
+## 17. 다음 작업 지시 — 엑셀 내보내기·동선 전면 삭제 (2026-09-01 사용자 결정)
+
+### 17.1 결정 배경
+
+사용자가 세 가지를 밝혔다:
+1. **엑셀 다운로드(내보내기)도 필요 없다** — 앞선 §12 에서 "2026-07-03 까지 실사용"이라 보존했으나, 사용자가 불필요하다고 확인했다.
+2. **모바일 v3 를 쓰지 않는다** — §14 에서 `/api/erp/measurement/route` 엔드포인트를 남긴 **유일한 근거**가 "v3 영업 홈 띠가 `data-route-inline` 없이 이 API 로 폴백한다"였다. 그 전제가 사라졌으므로 **엔드포인트도 삭제 가능**하다.
+3. **동선을 쓰지 않는다** — 히어로 카운트다운과 지도 동선 오버레이까지 **전부 삭제**(사용자 명시 선택).
+
+### 17.2 삭제 범위 A — 엑셀 내보내기 (남은 절반)
+
+| 대상 | 위치 |
+|---|---|
+| `download_excel()` 라우트 | `foms/web/admin/excel_import.py` (이제 이 파일에 남은 유일한 라우트 → **파일·Blueprint·등록 3곳까지 제거**: `foms/web/admin/__init__.py`, `foms/platform/blueprints.py`) |
+| 수납장 대시보드 엑셀 내보내기 | `foms/web/admin/storage.py:87-190` |
+| 버튼 2곳 | `templates/orders/index.html`(엑셀 다운로드), `templates/admin/storage_dashboard.html:135` |
+| 의존성 | `pandas`·`openpyxl` — **다른 소비자가 있는지 먼저 전수 확인**(있으면 `requirements.txt` 유지) |
+| 매니페스트 | GET 라우트라 audit 스코프 밖. `foms_api_error_leak_inventory.json` 등재 여부 확인 |
+
+### 17.3 삭제 범위 B — 동선 전면
+
+**엔드포인트**: `/api/erp/measurement/route`, `/api/erp/measurement/route-eta` (`foms/api/measurement/routes.py:496-577`)
+
+**서비스**: `foms/services/measurement_route.py` — 이제 소비자가 전부 사라지므로 **파일 통째**. 단 `foms/web/measurement/dashboard.py` 의 `build_inline_route_strip_payload` 호출(`:17, 424-435, 509`)과 히어로 산출(`:404-419`)도 함께 제거해야 한다.
+
+**JS**: `static/js/measurement/foms-route-strip.js` **파일 통째**(카운트다운 포함 — 사용자 승인). `static/js/measurement/measurement-entry.js` 의 로드 배선, `templates/measurement/dashboard.html`·`partials/dashboard_scripts.html` 의 `?v=` 핀 정리.
+
+**CSS**: `static/css/measurement/foms-route-strip.css` — **파일 통째 삭제 금지.** 다음은 동선이 아니므로 판정 필요:
+- `.foms-visit-summary*`(8-24) 진행 요약 — 동선 아님, 보존 검토
+- `.foms-measure-done`(203-215) 큐 카드 완료 배지 — 동선 아님, **보존**
+- `.foms-hero-*`(32-103) — 히어로. 카운트다운만 지울지 히어로 전체인지 판정
+- `:root{--foms-route-line}` + `.foms-route-c0~c7`(142-150) — 지도 동선 팔레트. 지도 동선도 지우므로 함께 제거 가능
+
+**템플릿 마운트·진입점**: `templates/measurement/partials/mobile_list.html`(히어로·스트립 마운트), `templates/partials/v3/persona_home_sales.html:79-122`, `templates/measurement/partials/dashboard_main.html`(동선 지도 링크), `templates/measurement/partials/mobile_filters.html`(동선 지도 칩)
+
+**지도 동선 오버레이(route=1)**: `foms/api/erp_map.py:573-586`, `foms/api/measurement/map.py:136-164`, `foms/services/common/map_generator.py:207-258, 288-289, 350-355, 452-455, 475-495`(`_route_sort_key`·범례), `static/js/measurement/map-view-kakao.js:247-266, 819-836, 878-931`(`routeSortKey`·`sortForRoute`), `templates/measurement/map_view.html:1103-1104, 1316-1317, 1612-1613, 1954, 2062, 2092`
+
+### 17.4 절대 건드리면 안 되는 것
+
+- **`/api/calculate_route`**(`foms/api/erp_map.py:657-669`)와 `.foms-kmap-routecalc*` — 주문↔주문 2점 실도로 거리 측정으로 **동선과 다른 기능**이다. AS 대시보드·출고 대시보드·`schedule_recommendations.py`·`shipment_as_recommendation_cache.py` 가 공유한다.
+- **`foms/services/measurement_time.py`** — 방문시각 파서 SSOT. 리프 모듈이고 다른 소비자가 있다.
+- 지도 **핀 보기**(`/map_view` 기본) — 동선 오버레이만 지우고 지도 자체는 남긴다.
+
+### 17.5 동반 작업 (놓치면 CI red)
+
+1. **ROUTE-01 패킷 제거** — `docs/harness/foms_bugfix_packet_tests.json` 의 `created_tests` 가 `tests/domains/test_measurement_route.py` 를 참조한다. 파일을 지우면 릴리스 게이트가 red. §12.3 과 같은 방식으로 패킷 제거 + 하드코딩 개수 하향(`tests/harness/test_bugfix_packet_manifest.py` 의 `EXPECTED_PACKETS`·`len(manifest)`·`REV99_DEPENDS_ON`, `tools/ops/check_foms_remediation_readiness.py:66`). **현재 123 → 122**, REV-99 의존도 함께.
+2. **인벤토리 재생성** — 코드 삭제로 `lineno` 가 밀린다: `python tools/harness/failopen_scan.py`, `python tools/harness/audit_coverage_scan.py`. 재생성분을 **커밋에 포함**해야 한다.
+3. **위치 고정 계약 주의** — `tests/domains/test_measurement_undated_ui_contract.py` 가 `&route=1`(동선 지도 링크)을 위치 기준점으로 쓴다. 링크를 지우면 이 계약이 깨진다(§15.1 과 같은 함정, 이번엔 미리 안다).
+4. **`?v=` 핀** — JS/CSS 를 지우거나 고치면 `measurement-entry.js` 의 `MEAS_JS_V`, `dashboard.html`, `dashboard_scripts.html` **3곳 동반 범프**.
+5. 테스트 정리: `test_measurement_route.py`, `test_measurement_route_inline.py`, `test_measurement_route_eta.py`, `test_measurement_time_sort.py`(인라인 부분), `test_erp_measurement_mobile_render.py`(핀 계약), `test_foms_map_generator.py`(route_mode), `test_shell_v3_contract.py:56`("오늘 동선" 문자열 확인 — 깨진다)
+
+### 17.6 검증 기준
+
+`import app` APP_OK · `pre_push_smoke` exit 0 · `tests/domains`+`tests/contracts`+`tests/harness` 전량 green · 잔존 grep 0건 · 승격 트리에서 본 스위트 재실행 후 승격 PR.
