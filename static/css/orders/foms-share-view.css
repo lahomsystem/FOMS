@@ -184,3 +184,75 @@
     display: none;
   }
 }
+
+/* ── 공유 열람 도면 미리보기 크기 (2026-08-31) ──────────────────────────────
+   공용 갤러리 CSS(foms-drawing-mobile.css)는 ERP 큐 화면 기준이라 카드 하한이
+   140px 다 — 고객 페이지에서는 PC 에서 우표만 하게 보인다. 여기서만 덮어쓴다
+   (공용 파일을 고치면 ERP 큐 카드가 같이 커진다).
+
+   `minmax(min(100%, 300px), 1fr)` 이 장수에 따라 알아서 나뉜다: 1장이면 한 칸을
+   가득, 2장이면 좁은 화면에서 세로로 쌓이고 넓은 화면에서 나란히. */
+.foms-share-view .foms-drawing-mobile-v2 {
+  padding: 0;
+}
+
+.foms-share-view .foms-drawing-card-grid {
+  grid-template-columns: repeat(auto-fit, minmax(min(100%, 300px), 1fr));
+  gap: 10px;
+}
+
+.foms-share-view .foms-drawing-card {
+  aspect-ratio: 4 / 3;
+}
+
+/* 1장뿐이면 비율을 고정하지 않는다 — 세로로 긴 도면이 16:9 안에서 쭈그러들지 않게
+   원본 비율대로 두고 화면 높이로만 상한을 건다. */
+.foms-share-view .foms-drawing-card-grid > .foms-drawing-card:only-child {
+  aspect-ratio: auto;
+  max-height: 72vh;
+  /* 카드가 이미지에 맞춰 줄어들게 — 세로 도면 옆에 흰 카드가 넓게 남지 않는다.
+     이미지가 안 뜨는 경우(presign 만료)에도 카드가 0 으로 접히지 않게 하한을 둔다. */
+  width: fit-content;
+  min-width: 160px;
+  min-height: 160px;
+  max-width: 100%;
+  margin-inline: auto;
+}
+
+.foms-share-view .foms-drawing-card-grid > .foms-drawing-card:only-child
+  .foms-drawing-card__img {
+  height: auto;
+  max-height: 72vh;
+}
+
+/* 1장뿐일 때 세로 도면이 좌우 흰 여백을 만들지 않게 이미지 폭을 내용에 맞춘다. */
+.foms-share-view .foms-drawing-card-grid > .foms-drawing-card:only-child
+  .foms-drawing-card__img {
+  width: auto;
+  max-width: 100%;
+  margin-inline: auto;
+}
+
+/* 저장 버튼 — 화면 폭을 다 먹는 검은 덩어리는 과하다. 터치 하한(44px)은 지키고
+   폭은 내용에 맞춰 가운데로.
+
+   이 페이지는 ERP 셸 밖이라 CSS 리셋이 없다 → 기본이 `content-box` 다. box-sizing 을
+   안 걸면 max-width 340 이 패딩만큼 커져 380 으로 나온다(실측). */
+.foms-share-dl,
+.foms-share-dl *,
+.foms-share-dl *::before,
+.foms-share-dl *::after {
+  box-sizing: border-box;
+}
+
+.foms-share-dl__primary {
+  min-height: 44px;
+  max-width: 340px;
+  margin-inline: auto;
+  padding: 10px 20px;
+  font-size: 0.94rem;
+}
+
+.foms-share-dl {
+  padding: 14px;
+}
