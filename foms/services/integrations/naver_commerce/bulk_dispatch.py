@@ -96,6 +96,10 @@ class BulkDispatchTarget:
         link_ids: 집에 속한 전체 링크 id.
         pending_link_ids: 그중 아직 발송 전인 링크 id(양쪽 신호 모두 빈 것).
         order_ids: 이 집이 붙은 FOMS 주문 id(0개일 수 있다 — 주문 미생성 수집분).
+        customer_names: 붙은 주문의 고객명(화면이 집을 알아보게 — 표시 전용).
+        measurement_done: 붙은 주문이 **모두** 실측완료로 찍혀 있는가. **표시 전용이고
+            대상을 거르지 않는다** — 실측 '일정'과 실측 '완료'는 다른 축이고, 방문 취소·부재
+            건을 자동으로 빼는 것은 사람의 결정이지 이 함수의 결정이 아니다.
         eligible: 지금 발송처리를 보낼 수 있는가.
         reason: ``eligible`` 이 거짓일 때 사람이 읽는 사유. 참이면 빈 문자열.
     """
@@ -106,6 +110,8 @@ class BulkDispatchTarget:
     link_ids: list[int] = field(default_factory=list)
     pending_link_ids: list[int] = field(default_factory=list)
     order_ids: list[int] = field(default_factory=list)
+    customer_names: list[str] = field(default_factory=list)
+    measurement_done: bool = False
     eligible: bool = True
     reason: str = ""
 
@@ -282,6 +288,26 @@ def _fulfillment_state(link: ExternalOrderLink) -> dict[str, Any]:
     return ((link.triage_state or {}).get("fulfillment") or {})
 
 
+def _order_display(session: Session, order_ids: set[int]) -> dict[int, tuple[str, bool]]:
+    """대상 주문의 표시용 값을 한 번에 읽는다 (N+1 금지).
+
+    Args:
+        session: DB 세션.
+        order_ids: 대상 주문 id 전체.
+
+    Returns:
+        ``{order_id: (고객명, 실측완료)}``. 입력이 비면 빈 dict(쿼리하지 않는다).
+    """
+    if not order_ids:
+        return {}
+    rows = (
+        session.query(Order.id, Order.customer_name, Order.measurement_completed)
+        .filter(Order.id.in_(sorted(order_ids)))  # perf-ok: 당일 대상 batch
+        .all()
+    )
+    return {int(row[0]): (str(row[1] or ""), bool(row[2])) for row in rows}
+
+
 def select_targets(session: Session, *, on_date: str) -> list[BulkDispatchTarget]:
     """그날 실측 스케줄의 네이버 주문을 집 단위로 모은다 — **읽기 전용**.
 
@@ -305,7 +331,7 @@ def select_targets(session: Session, *, on_date: str) -> list[BulkDispatchTarget
     for row in _expand_households(session, candidates):
         groups.setdefault(household_key(row), []).append(row)
 
-    targets: list[BulkDispatchTarget] = []
+    kept: list[tuple[tuple[str, str, str], list[ExternalOrderLink], list[int]]] = []
     for key, links in groups.items():
         pending = [row.id for row in links if row.id in candidate_ids]
         if not pending:
@@ -313,6 +339,16 @@ def select_targets(session: Session, *, on_date: str) -> list[BulkDispatchTarget
             # 형제 집). 여기서 안 거르면 남의 집이 대상 목록에 뜬다.
             continue
         links.sort(key=lambda row: row.id)
+        kept.append((key, links, sorted(pending)))
+
+    display = _order_display(
+        session,
+        {row.order_id for _, links, _ in kept for row in links if row.order_id},
+    )
+    targets: list[BulkDispatchTarget] = []
+    for key, links, pending in kept:
+        order_ids = sorted({row.order_id for row in links if row.order_id})
+        seen = [display[oid] for oid in order_ids if oid in display]
         reason = _blocking_reason(links)
         targets.append(
             BulkDispatchTarget(
@@ -320,8 +356,11 @@ def select_targets(session: Session, *, on_date: str) -> list[BulkDispatchTarget
                 household=key,
                 external_order_no=(links[0].external_order_no or "").strip(),
                 link_ids=[row.id for row in links],
-                pending_link_ids=sorted(pending),
-                order_ids=sorted({row.order_id for row in links if row.order_id}),
+                pending_link_ids=pending,
+                order_ids=order_ids,
+                customer_names=[name for name, _done in seen if name],
+                # 붙은 주문이 하나도 없으면 '완료'라고 말하지 않는다 — all([]) 은 참이다.
+                measurement_done=bool(seen) and all(done for _name, done in seen),
                 eligible=not reason,
                 reason=reason,
             )

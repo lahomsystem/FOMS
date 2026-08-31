@@ -244,6 +244,70 @@
     </details>
     {% endif %}
 
+    {#
+      오늘 실측한 네이버 건(NAVER-BULKDISPATCH-01 T2) — **미리보기 전용, 버튼 없음**.
+      5시 일괄 발송처리가 무엇을 보낼지 미리 보여주는 자리다. 하루 대상이 몇 집인지
+      아무도 세어 본 적이 없어서, 상한·자동화 판단이 여기 숫자 위에 서게 된다.
+      보낼 수 없는 집도 사유와 함께 **함께** 보여준다 — 조용히 빼면 "대상 N집"이라
+      말하면서 실제로는 다른 수를 보내게 된다.
+    #}
+    {% if bulk_dispatch and bulk_dispatch.count %}
+    <details class="wb-ghost wb-bulkdispatch" data-foms-no-autodismiss
+             data-wb-bulk-dispatch="{{ bulk_dispatch.count }}"
+             data-wb-bulk-dispatch-date="{{ bulk_dispatch.date }}">
+        <summary class="wb-ghost__head">
+            <span class="wb-ghost__badge">{{ bulk_dispatch.count }}집</span>
+            <b>오늘 실측한 네이버 건 ({{ bulk_dispatch.date }})</b>
+            <span class="wb-ghost__sub">지금 보낼 수 있는 집 {{ bulk_dispatch.eligible }}집{% if bulk_dispatch.blocked %} ·
+                먼저 해결할 집 {{ bulk_dispatch.blocked }}집{% endif %} —
+                <b>미리보기입니다. 아직 아무것도 나가지 않습니다.</b>
+                발송처리하면 FOMS에서는 취소할 수 없습니다(반품으로만 처리).</span>
+        </summary>
+        <table class="wb-ghost__list">
+            <thead>
+                <tr><th>주문</th><th>네이버 주문</th><th>실측</th><th>지금 보낼 수 있나</th><th class="text-end">열기</th></tr>
+            </thead>
+            <tbody>
+                {% for row in bulk_dispatch.rows %}
+                <tr data-bulk-link-id="{{ row.link_id }}">
+                    <td>
+                        {% for oid in row.order_ids %}
+                        <a href="{{ url_for('order_edit.edit_order', order_id=oid, open='erp-order') }}"
+                           target="_blank" rel="noopener">#{{ oid }}</a>
+                        {% endfor %}
+                        <div class="wb-ghost__dim">{{ row.customer }}</div>
+                    </td>
+                    <td>
+                        {{ row.order_no or '-' }}
+                        <div class="wb-ghost__dim">보낼 상품주문 {{ row.product_orders }}건</div>
+                    </td>
+                    <td>
+                        {% if row.measurement_done %}
+                        <span class="wb-ghost__dim">실측완료</span>
+                        {% else %}
+                        <span class="wb-ghost__claim wb-ghost__claim--pending">완료 표시 없음</span>
+                        <div class="wb-ghost__dim">일정만 잡혀 있습니다 — 방문했는지 확인하세요.</div>
+                        {% endif %}
+                    </td>
+                    <td>
+                        {% if row.eligible %}
+                        <span class="wb-ghost__dim">보낼 수 있음</span>
+                        {% else %}
+                        <span class="wb-ghost__claim">보낼 수 없음</span>
+                        <div class="wb-ghost__dim">{{ row.reason }}</div>
+                        {% endif %}
+                    </td>
+                    <td class="text-end">
+                        <a class="btn btn-sm btn-outline-primary"
+                           href="{{ url_for('admin.naver_ingest_triage', tab='work', link_id=row.link_id) }}">집 열기 →</a>
+                    </td>
+                </tr>
+                {% endfor %}
+            </tbody>
+        </table>
+    </details>
+    {% endif %}
+
     {% if failures %}
     <section class="wb-result alert alert-danger" id="wb-result" data-foms-no-autodismiss>
         <div class="wb-result__head">
