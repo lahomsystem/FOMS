@@ -1756,11 +1756,14 @@ def _refresh_all_view(db) -> dict[str, Any]:
 
     Returns:
         ``{"count": 대상 집 수, "skipped_done": 종결로 뺀 집, "skipped_recent":
-        쿨다운으로 뺀 집}``. ``count`` 는 **제외를 거친 뒤**의 수라 버튼이 그대로 쓴다 —
-        "전체"라 적고 덜 읽으면 그게 조용한 절단이다. 실패해도 화면을 죽이지 않는다
-        (버튼만 빠진다).
+        쿨다운으로 뺀 집, "eta": 걸릴 시간 한 마디}``. ``count`` 는 **제외를 거친 뒤**의
+        수라 버튼이 그대로 쓴다 — "전체"라 적고 덜 읽으면 그게 조용한 절단이다.
+        ``eta`` 는 툴팁·모달·라벨이 **같은 값**을 말하도록 서버에서 한 번만 만든다
+        (NVREPAY-05 T2 — 세 자리가 따로 계산하면 같은 화면이 세 말을 한다).
+        실패해도 화면을 죽이지 않는다(버튼만 빠진다).
     """
     from foms.services.integrations.naver_commerce.claim_watch import (
+        refresh_all_eta_text,
         refreshable_household_link_ids,
     )
 
@@ -1768,10 +1771,36 @@ def _refresh_all_view(db) -> dict[str, Any]:
         _link_ids, total, skipped = refreshable_household_link_ids(db)
         return {"count": int(total),
                 "skipped_done": int(skipped.get("done", 0)),
-                "skipped_recent": int(skipped.get("recent", 0))}
+                "skipped_recent": int(skipped.get("recent", 0)),
+                "eta": refresh_all_eta_text(int(total))}
     except SQLAlchemyError as exc:  # 보조 정보라 흐름을 막지 않는다(failopen — 로그로 남긴다)
         logger.warning("[NAVER] 전체 다시 읽기 대상 조회 실패(버튼 생략): %s", exc, exc_info=True)
-        return {"count": 0, "skipped_done": 0, "skipped_recent": 0}
+        return {"count": 0, "skipped_done": 0, "skipped_recent": 0, "eta": ""}
+
+
+def _refresh_running_view(db) -> dict[str, Any]:
+    """지금 **누가** 전체 다시 읽기를 돌리고 있나 (NVREPAY-05 T1).
+
+    진행 표시가 누른 브라우저 안에만 있어서, 다른 관리자에게는 돌고 있는 중에도
+    `다시 읽기 45주문` 으로 보였다 — 그래서 또 누른다. 감사 원장의 최근 요청과 워커
+    스탬프만으로 세므로 새 저장소가 없다(:func:`claim_watch.running_refresh_all`).
+
+    Args:
+        db: 요청 스코프 DB 세션.
+
+    Returns:
+        돌고 있으면 ``{"running": True, "actor", "total", "done", "pending", "eta",
+        "elapsed_seconds", "started_at"}``, 아니면 ``{"running": False}``. 실패해도
+        화면을 죽이지 않는다(띠만 빠지고 버튼은 평소대로 보인다).
+    """
+    from foms.services.integrations.naver_commerce.claim_watch import running_refresh_all
+
+    try:
+        running = running_refresh_all(db)
+    except SQLAlchemyError as exc:  # 보조 정보라 흐름을 막지 않는다(failopen — 로그로 남긴다)
+        logger.warning("[NAVER] 전체 다시 읽기 진행 조회 실패(띠 생략): %s", exc, exc_info=True)
+        return {"running": False}
+    return {"running": True, **running} if running else {"running": False}
 
 
 def _selected_offlist(link: Optional[ExternalOrderLink],
@@ -1989,6 +2018,10 @@ def _render_workbench(db) -> str:
         # 전체 다시 읽기(NVREPAY-03) — 탭과 무관한 수집 전체 조작이라 두 탭 모두에서 낸다.
         # ADMIN 이 아니면 세지도 않는다(버튼이 없으므로 쿼리도 필요 없다).
         refresh_all=(_refresh_all_view(db) if _can_view_history() else {"count": 0}),
+        # 남이 눌러 놓은 다시 읽기(NVREPAY-05 T1) — 돌고 있으면 버튼 대신 진행을 그린다.
+        # 버튼과 같은 자리·같은 권한이라 같은 조건에서만 센다.
+        refresh_running=(_refresh_running_view(db) if _can_view_history()
+                         else {"running": False}),
         **_pane_context(db, _selected_link(db, visible), visible=visible),
     )
 
@@ -3605,6 +3638,7 @@ def naver_ingest_refresh_all():
         하나도 못 넣으면 503. 대상이 0이면 큐를 건드리지 않고 200 으로 그렇게 말한다.
     """
     from foms.services.integrations.naver_commerce.claim_watch import (
+        REFRESH_ALL_AUDIT_ACTION,
         REFRESH_ALL_LIMIT,
         refreshable_household_link_ids,
     )
@@ -3637,7 +3671,9 @@ def naver_ingest_refresh_all():
         f"네이버 전체 다시 읽기 요청 ({len(queued)}집 / 대상 {total}집 · "
         f"종결 {base['skipped_done']}집·최근 {base['skipped_recent']}집 제외)",
         session.get("user_id"),
-        action="NAVER_INGEST_REFRESH_ALL_ENQUEUE",
+        # 이 행이 **남의 화면이 읽는 진행 상태의 유일한 원천**이다(NVREPAY-05 T1) —
+        # 태그·`queued` 를 바꾸면 다른 관리자 화면이 조용히 빈손이 된다.
+        action=REFRESH_ALL_AUDIT_ACTION,
         detail={"queued": len(queued), "total": total, "failed": failed,
                 "skipped_done": base["skipped_done"],
                 "skipped_recent": base["skipped_recent"]},
@@ -3677,7 +3713,9 @@ def naver_ingest_refresh_progress():
         인자 누락·형식 오류는 400.
     """
     from foms.services.feature_flags import is_naver_workbench_enabled
-    from foms.services.integrations.naver_commerce.claim_watch import STATE_KEY
+    from foms.services.integrations.naver_commerce.claim_watch import (
+        refreshed_household_counts,
+    )
 
     if not is_naver_workbench_enabled(session.get("user_id")):
         return jsonify({"success": False, "data": None,
@@ -3706,44 +3744,42 @@ def naver_ingest_refresh_progress():
     if not order_nos:
         return jsonify({"success": True, "data": {"total": 0, "done": 0, "pending": 0},
                         "error": None})
-    refreshed_at = ExternalOrderLink.triage_state[STATE_KEY]["refreshed_at"].as_string()
-    rows = (db.query(ExternalOrderLink.external_order_no, refreshed_at)
-            .filter(ExternalOrderLink.channel == "NAVER",
-                    ExternalOrderLink.external_order_no.in_(order_nos))
-            .all())  # perf-ok: 집 목록 IN 배치(캡 200집), 관리자 전용 폴링
-    done_by_house: dict[str, bool] = {}
-    for order_no, stamp in rows:
-        key = str(order_no)
-        done_by_house[key] = done_by_house.get(key, True) and _refreshed_since(stamp, since)
-    done = sum(1 for value in done_by_house.values() if value)
-    total = len(done_by_house)
+    # 세는 규칙은 남의 화면(:func:`naver_ingest_refresh_running`)과 **같은 함수**다.
+    done, total = refreshed_household_counts(db, since, order_nos=order_nos)
     return jsonify({"success": True,
                     "data": {"total": total, "done": done, "pending": total - done},
                     "error": None})
 
 
-def _refreshed_since(stamp: Optional[str], since: datetime.datetime) -> bool:
-    """이 상품주문이 ``since`` 이후에 다시 읽혔는가.
+@admin_bp.route("/admin/naver-ingest/triage/refresh-running")
+@login_required
+@role_required(["ADMIN"])
+def naver_ingest_refresh_running():
+    """**남이 눌러 놓은** 전체 다시 읽기가 돌고 있나 — 읽기 전용 GET (NVREPAY-05 T1).
 
-    값이 없거나 깨졌으면 **아직 안 읽은 것**으로 본다 — 진행 표시가 실제보다 앞서
-    가면 사람이 낡은 화면을 최신으로 믿는다.
+    :func:`naver_ingest_refresh_progress` 는 자기가 방금 큐에 넣은 링크 id 를 들고 물어야
+    답한다. 그래서 진행 표시가 **누른 브라우저 안에만** 있었다: 다른 관리자가 같은 목록을
+    열면 돌고 있는 중인데도 `다시 읽기 45주문` 이라 적혀 있고, 그래서 또 누른다. 한 사람이
+    28초 만에 두 번 눌러 낭비된 것과 같은 낭비를 두 사람이 낸다.
 
-    Args:
-        stamp: ``claim_sync.refreshed_at`` 문자열(ISO) 또는 ``None``.
-        since: 요청이 큐에 들어간 시각.
+    인자 없이 묻는다 — 답은 감사 원장의 **가장 최근 요청**과 워커 스탬프로 만든다
+    (:func:`claim_watch.running_refresh_all`). 새 상태 저장소는 없다.
 
     Returns:
-        ``since`` 이후에 읽혔으면 True.
+        ``{"success": True, "data": {"running": bool, ...}}``. 돌고 있으면 ``actor``·
+        ``total``·``done``·``pending``·``eta``·``elapsed_seconds`` 가 함께 온다.
+        게이트 OFF 는 404.
     """
-    if not stamp:
-        return False
-    try:
-        parsed = datetime.datetime.fromisoformat(str(stamp))
-    except (TypeError, ValueError):
-        return False
-    if parsed.tzinfo is not None:
-        parsed = parsed.replace(tzinfo=None)
-    return parsed >= since
+    from foms.services.feature_flags import is_naver_workbench_enabled
+    from foms.services.integrations.naver_commerce.claim_watch import running_refresh_all
+
+    if not is_naver_workbench_enabled(session.get("user_id")):
+        return jsonify({"success": False, "data": None,
+                        "error": "이 화면에서는 쓸 수 없습니다."}), 404
+    running = running_refresh_all(get_db())
+    return jsonify({"success": True,
+                    "data": {"running": bool(running), **(running or {})},
+                    "error": None})
 
 
 @admin_bp.route("/admin/naver-ingest/origin-cleanup/refresh", methods=["POST"])

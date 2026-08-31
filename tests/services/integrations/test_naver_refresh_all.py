@@ -492,3 +492,220 @@ def test_audit_row_actually_carries_the_actor(client, workbench_on, monkeypatch)
            .order_by(SecurityLog.id.desc()).first())
     assert row is not None
     assert row.user_id == user_id
+
+
+# --------------------------------------------------------------------------- #
+# 걸리는 시간 — 침묵은 "곧 끝난다"로 읽힌다 (NVREPAY-05 T2)
+# --------------------------------------------------------------------------- #
+
+def test_eta_speaks_a_range_not_one_number():
+    """실측 두 벌(운영 45집 42.3초·스테이징 85집 81.7초)을 범위로 말한다.
+
+    한 값으로 말하면 워커가 밀린 날 화면이 거짓말한 것이 된다 — 워커는 하나뿐이라
+    앞선 작업이 있으면 시작이 통째로 밀린다(운영 실측 첫 스탬프 +40.5초·+69.0초).
+    """
+    from foms.services.integrations.naver_commerce.claim_watch import refresh_all_eta_text
+
+    assert refresh_all_eta_text(45) == "약 1~2분"
+    assert refresh_all_eta_text(85) == "약 2~3분"
+
+
+def test_eta_for_a_small_batch_says_under_a_minute():
+    """느린 쪽으로 재도 1분이 안 되면 분 단위로 말하지 않는다."""
+    from foms.services.integrations.naver_commerce.claim_watch import refresh_all_eta_text
+
+    assert refresh_all_eta_text(20) == "약 1분 안"
+
+
+def test_eta_is_silent_when_there_is_nothing_to_read():
+    """대상이 0 이면 아무 말도 안 한다 — 없는 일에 시간을 붙이지 않는다."""
+    from foms.services.integrations.naver_commerce.claim_watch import refresh_all_eta_text
+
+    assert refresh_all_eta_text(0) == ""
+
+
+def test_tooltip_and_modal_say_the_same_eta(client, workbench_on, monkeypatch):
+    """툴팁·모달·라벨이 **서버가 만든 같은 값**을 말한다.
+
+    화면이 세 자리에서 따로 계산하면 같은 버튼이 세 말을 한다. 서버가 한 번 만들고
+    (``refresh_all.eta``) 툴팁은 그대로 쓰며 모달은 ``data-eta`` 로 읽는다.
+    """
+    monkeypatch.setattr(
+        "foms.services.integrations.naver_commerce.claim_watch"
+        ".refreshable_household_link_ids",
+        lambda *a, **k: ([1], 45, {"done": 0, "recent": 0}))
+    _login(client, role="ADMIN")
+
+    body = client.get(TRIAGE_PATH, query_string={"tab": "work"}).get_data(as_text=True)
+
+    assert 'data-eta="약 1~2분"' in body
+    assert "약 1~2분 걸립니다" in body
+    source = (REPO_ROOT / "static" / "js" / "admin" / "naver-workbench.js").read_text(
+        encoding="utf-8")
+    assert "button.dataset.eta" in source, "모달은 서버가 만든 값을 읽는다(재계산 금지)"
+
+
+# --------------------------------------------------------------------------- #
+# 남이 눌러도 보인다 — 진행이 누른 브라우저 안에만 있던 자리 (NVREPAY-05 T1)
+# --------------------------------------------------------------------------- #
+
+RUNNING_PATH = "/admin/naver-ingest/triage/refresh-running"
+
+
+def _enqueue_log(*, user_id, queued: int, age_seconds: int = 10):
+    """전체 다시 읽기 요청 감사 행 1건을 심는다(진행 표시의 유일한 원천)."""
+    from datetime import timedelta
+
+    from foms.services.datetime_kst import now_utc_naive
+    from foms.services.integrations.naver_commerce.claim_watch import (
+        REFRESH_ALL_AUDIT_ACTION,
+    )
+    from models import SecurityLog
+
+    row = SecurityLog(user_id=user_id, message="네이버 전체 다시 읽기 요청(계약 테스트)",
+                      action=REFRESH_ALL_AUDIT_ACTION,
+                      timestamp=now_utc_naive() - timedelta(seconds=age_seconds),
+                      detail={"queued": queued, "total": queued})
+    db_session.add(row)
+    db_session.commit()
+    return row
+
+
+def test_other_admin_sees_that_someone_is_reading(client, workbench_on):
+    """다른 관리자의 화면도 **돌고 있다**고 말한다 — 그리고 버튼을 잠근다.
+
+    진행 표시가 누른 브라우저 안에만 있어서, 남의 화면에는 돌고 있는 중에도
+    `다시 읽기 45주문` 이라 적혀 있었다. 그래서 또 누른다 — 한 사람이 28초 만에 두 번
+    눌러 낭비된 것과 **같은 낭비를 두 사람이** 낸다.
+    """
+    presser = _login(client, role="ADMIN")
+    presser_name = presser.name
+    _link(order_no=f"N-ALL-R1-{_uid()}")
+    _enqueue_log(user_id=presser.id, queued=50)
+    _login(client, role="ADMIN")   # 다른 브라우저에서 보는 다른 관리자
+
+    body = client.get(TRIAGE_PATH, query_string={"tab": "work"}).get_data(as_text=True)
+
+    assert 'id="wb-refresh-all-running"' in body
+    assert "다시 읽는 중" in body
+    assert presser_name in body, "누가 눌렀는지까지 말한다(감사 행위자가 남으므로)"
+    assert 'id="wb-refresh-all"' not in body, "돌고 있는 동안 같은 조회를 또 걸지 않는다"
+
+
+def test_running_strip_names_the_unknown_presser(client, workbench_on):
+    """행위자가 없던 시절(2026-08-31 이전) 행도 그대로 읽는다 — 이름만 모른다."""
+    _link(order_no=f"N-ALL-R2-{_uid()}")
+    _enqueue_log(user_id=None, queued=50)
+    _login(client, role="ADMIN")
+
+    body = client.get(TRIAGE_PATH, query_string={"tab": "work"}).get_data(as_text=True)
+
+    assert 'id="wb-refresh-all-running"' in body
+    assert "다른 관리자 시작" in body
+
+
+def test_running_strip_ignores_a_request_that_is_too_old(app):
+    """창(5분) 밖 요청은 돌고 있는 게 아니다 — 화면 폴링 마감과 같은 값이다."""
+    from foms.services.integrations.naver_commerce.claim_watch import running_refresh_all
+
+    _link(order_no=f"N-ALL-R3-{_uid()}")
+    _enqueue_log(user_id=None, queued=50, age_seconds=600)
+
+    assert running_refresh_all(db_session) is None
+
+
+def test_running_strip_folds_when_every_household_is_read(app):
+    """다 읽으면 띠가 접힌다 — 그 순간이 버튼이 돌아오는 순간이다."""
+    from datetime import timedelta
+
+    from foms.services.datetime_kst import now_utc_naive
+    from foms.services.integrations.naver_commerce.claim_watch import running_refresh_all
+
+    started = now_utc_naive()
+    _enqueue_log(user_id=None, queued=1, age_seconds=0)
+    _link(order_no=f"N-ALL-R4-{_uid()}", refreshed_at=started + timedelta(seconds=5))
+
+    assert running_refresh_all(db_session) is None
+
+
+def test_running_progress_never_passes_what_was_queued(app):
+    """센 집이 넣은 집보다 많아도 100%를 넘지 않는다.
+
+    어떤 집을 넣었는지는 감사 행에 없어서 수집된 집 전부를 센다 — 그 사이 단건
+    `다시 읽기` 나 자동 스윕이 찍은 스탬프가 섞이면 진행이 넘칠 수 있다.
+    """
+    from datetime import timedelta
+
+    from foms.services.datetime_kst import now_utc_naive
+    from foms.services.integrations.naver_commerce.claim_watch import running_refresh_all
+
+    started = now_utc_naive()
+    _enqueue_log(user_id=None, queued=2, age_seconds=0)
+    for _ in range(3):
+        _link(order_no=f"N-ALL-R5-{_uid()}", refreshed_at=started + timedelta(seconds=5))
+
+    assert running_refresh_all(db_session) is None
+
+
+def test_running_counts_a_household_only_when_all_siblings_are_read(app):
+    """집 판정은 누른 사람 화면과 **같은 함수**다 — 형제 하나가 남으면 안 끝났다."""
+    from datetime import timedelta
+
+    from foms.services.datetime_kst import now_utc_naive
+    from foms.services.integrations.naver_commerce.claim_watch import (
+        refreshed_household_counts,
+    )
+
+    since = now_utc_naive()
+    order_no = f"N-ALL-R6-{_uid()}"
+    _link(order_no=order_no, refreshed_at=since + timedelta(seconds=5))
+    _link(order_no=order_no)
+
+    assert refreshed_household_counts(db_session, since, order_nos=[order_no]) == (0, 1)
+
+
+def test_progress_and_running_share_one_predicate():
+    """세는 규칙이 라우트에 두 벌로 남지 않는다(조용히 갈리는 자리)."""
+    source = (REPO_ROOT / "foms" / "web" / "admin" / "naver_ingest.py").read_text(
+        encoding="utf-8")
+
+    assert "done_by_house" not in source, "집 세기는 claim_watch 한 곳에서만 한다"
+    assert source.count("refreshed_household_counts") >= 1
+
+
+def test_running_endpoint_answers_without_arguments(client, workbench_on):
+    """남의 요청은 링크 id 를 모른다 — 인자 없이 물어도 답해야 한다."""
+    _login(client, role="ADMIN")
+
+    payload = client.get(RUNNING_PATH).get_json()
+
+    assert payload["success"] is True
+    assert "running" in payload["data"]
+
+
+def test_running_endpoint_is_admin_only(client, workbench_on):
+    """진행 조회도 버튼과 같은 급이다 — STAFF 는 못 본다."""
+    _login(client, role="STAFF")
+
+    assert client.get(RUNNING_PATH).status_code in (302, 403)
+
+
+def test_running_endpoint_is_closed_when_the_gate_is_off(client, monkeypatch):
+    """워크벤치 게이트 밖에서는 없는 화면이다(404)."""
+    monkeypatch.setenv("FOMS_NAVER_WORKBENCH_ENABLED", "0")
+    _login(client, role="ADMIN")
+
+    assert client.get(RUNNING_PATH).status_code == 404
+
+
+def test_screen_follows_a_running_refresh_from_any_browser():
+    """첫 화면과 교체 뒤 화면 **둘 다** 남의 진행을 따라간다.
+
+    `softRefresh` 는 워크벤치 루트를 통째로 갈아 끼운다 — 거기서 다시 걸지 않으면
+    폴링이 한 번 돌고 죽어 띠가 영원히 멈춘 채로 남는다.
+    """
+    source = (REPO_ROOT / "static" / "js" / "admin" / "naver-workbench.js").read_text(
+        encoding="utf-8")
+
+    assert "/admin/naver-ingest/triage/refresh-running" in source
+    assert source.count("syncRefreshRunning();") >= 2
