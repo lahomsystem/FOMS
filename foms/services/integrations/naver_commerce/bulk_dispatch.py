@@ -40,9 +40,11 @@ from .fulfillment import (
 logger = logging.getLogger(__name__)
 
 __all__ = [
+    "BULK_DISPATCH_LIMIT",
     "BulkDispatchTarget",
     "build_preview",
     "dispatch_pending_clause",
+    "select_sendable",
     "select_targets",
 ]
 
@@ -52,6 +54,14 @@ MEASUREMENT_KIND = "measurement"
 
 #: 완료 주문 컷오프(일). 실측 대시보드 `Order.dashboard_active_filter(days=60)` 와 맞춘다.
 ACTIVE_WINDOW_DAYS = 60
+
+#: 한 번에 보낼 수 있는 집 수 상한 (2026-08-31 운영 실측으로 확정).
+#:
+#: 관측된 하루 최대는 **7집**이고 50 은 그 7배다 — "평소엔 안 닿는 안전장치" 조건을
+#: 만족한다. 이 값에 **닿는 것 자체가 경보다**: 술어가 틀렸거나 데이터가 이상하다는 뜻이라
+#: 사람이 봐야 한다. 그래서 잘렸을 때 응답·로그·화면 문구 **셋 다** 에 남긴다(옛 주문 정리
+#: 라우트가 20건만 넣으면서 count 는 전체를 줘 화면과 어긋났던 실수를 반복하지 않는다).
+BULK_DISPATCH_LIMIT = 50
 
 
 def dispatch_pending_clause():
@@ -416,3 +426,30 @@ def build_preview(session: Session, *, on_date: str) -> dict[str, Any]:
     eligible = sum(1 for row in rows if row["eligible"])
     return {"date": on_date, "count": len(rows), "eligible": eligible,
             "blocked": len(rows) - eligible, "rows": rows}
+
+
+def select_sendable(session: Session, *, on_date: str,
+                    limit: Optional[int] = None) -> tuple[list[BulkDispatchTarget], int]:
+    """지금 **보낼 수 있는** 집만 상한까지 골라 준다 — 실행 경로 전용.
+
+    화면이 보낸 목록을 믿지 않고 서버가 **다시 계산**한다. 되돌릴 수 없는 조작의 대상을
+    화면이 정하게 두면, 화면이 낡았거나 조작됐을 때 그대로 네이버로 나간다.
+
+    Args:
+        session: DB 세션.
+        on_date: ``YYYY-MM-DD``.
+        limit: 상한. ``None`` 이면 :data:`BULK_DISPATCH_LIMIT` 를 **호출 시점에** 읽는다
+            (기본 인자로 묶으면 def 시점에 값이 굳어 상한을 바꿔도 안 먹는다).
+
+    Returns:
+        ``(보낼 집 목록, 상한 전 전체 수)``. 두 번째 값이 목록보다 크면 잘린 것이다 —
+        부르는 쪽이 그 사실을 사람에게 **반드시** 말해야 한다.
+    """
+    limit = BULK_DISPATCH_LIMIT if limit is None else limit
+    sendable = [target for target in select_targets(session, on_date=on_date)
+                if target.eligible]
+    total = len(sendable)
+    if total > limit:
+        logger.warning("[NAVER] 일괄 발송처리 대상 %d집이 상한 %d집을 넘어 잘렸다 (%s)",
+                       total, limit, on_date)
+    return sendable[:limit], total

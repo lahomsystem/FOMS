@@ -327,6 +327,25 @@ def is_naver_workbench_enabled(user_id: int | None) -> bool:
     )
 
 
+def is_naver_bulk_dispatch_enabled() -> bool:
+    """네이버 **일괄 발송처리 실행**이 켜져 있나 (NAVER-BULKDISPATCH-01 T4).
+
+    **코호트를 쓰지 않는다 — 전역 킬스위치 하나뿐이다.** 워크벤치 게이트
+    (:func:`is_naver_workbench_enabled`)는 user-id 코호트라, 그걸 재사용하면 코호트 밖
+    실측 담당자에게 실행 라우트가 403 이 된다. 진입점이 두 곳(워크벤치·실측 대시보드)인
+    기능에서 한쪽을 조용히 죽이는 게이트는 쓸 수 없다.
+
+    누가 누를 수 있는지는 **롤**이 정한다(ADMIN·MANAGER). 이 스위치의 일은 "기능 자체를
+    당장 끌 수 있는가" 하나다 — 되돌릴 수 없는 조작이라 그 손잡이가 필요하다.
+
+    기본값은 **꺼짐**이다. 켜려면 Railway 에 ``FOMS_NAVER_BULK_DISPATCH_ENABLED=1``.
+
+    Returns:
+        켜져 있으면 True.
+    """
+    return env_bool("FOMS_NAVER_BULK_DISPATCH_ENABLED")
+
+
 def is_mobile_v2_shell(variant: str) -> bool:
     """shell variant가 v2 셸 계열(``v2``/``v3``)인지 판정한다.
 

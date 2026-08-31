@@ -1,0 +1,78 @@
+{#
+  네이버 일괄 발송처리 실행 버튼 + 확인 (NAVER-BULKDISPATCH-01 T4).
+
+  **두 화면(워크벤치·실측 대시보드)이 이 파셜 하나를 include 한다.** 되돌릴 수 없는 조작의
+  확인 문구와 요청 코드를 두 벌로 두면 한쪽만 고쳐지는 날이 온다.
+
+  배선 규율 2개:
+  * **document 위임 + 싱글톤.** 이 화면들은 셸 프래그먼트로 갈아끼워진다 —
+    `DOMContentLoaded` 에 매달면 스왑 진입에서 죽고, 매번 다시 바인딩하면 클릭이 여러 번
+    나간다(불가역 조작에서 치명적).
+  * **버튼은 렌더 쪽이 판단한다.** 이 파셜은 버튼이 이미 그려져 있을 때만 동작한다 —
+    v3 풀페이지처럼 스크립트가 통째로 빠지는 셸에서는 버튼 자체가 렌더되지 않는다.
+
+  변수: `bulk_dispatch` (문구의 집 수 재진술용).
+#}
+<script>
+(function () {
+  'use strict';
+  if (window.__fomsNaverBulkDispatchBound) { return; }
+  window.__fomsNaverBulkDispatchBound = true;
+
+  var ENDPOINT = '/admin/naver-ingest/bulk-dispatch';
+
+  function confirmText(count) {
+    return '오늘 실측한 네이버 건 ' + count + '집을 발송처리합니다.\n\n'
+      + '되돌릴 수 없습니다. 구매자에게 "배송 시작"으로 보이고,\n'
+      + 'FOMS에서는 취소할 수 없게 됩니다(반품으로만 처리).\n\n'
+      + '보내시겠습니까?';
+  }
+
+  function report(data) {
+    var lines = ['발송처리를 요청했습니다 — ' + data.queued + '집.'];
+    if (data.truncated) {
+      lines.push('대상 ' + data.total + '집 중 상한 ' + data.limit + '집까지만 보냈습니다. '
+        + '남은 건은 다시 눌러 주세요.');
+    }
+    if (data.failed) {
+      lines.push('큐에 넣지 못한 집 ' + data.failed + '집이 있습니다.');
+    }
+    lines.push('처리에는 잠시 걸립니다. 새로고침하면 결과가 보입니다.');
+    window.alert(lines.join('\n'));
+  }
+
+  document.addEventListener('click', function (event) {
+    var btn = event.target && event.target.closest
+      ? event.target.closest('[data-naver-bulk-dispatch-run]') : null;
+    if (!btn || btn.disabled) { return; }
+    event.preventDefault();
+    var count = btn.getAttribute('data-naver-bulk-dispatch-count') || '0';
+    if (!window.confirm(confirmText(count))) { return; }
+    btn.disabled = true;
+    var label = btn.textContent;
+    btn.textContent = '보내는 중…';
+    fetch(ENDPOINT, {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/json' },
+      credentials: 'same-origin',
+      body: '{}'
+    }).then(function (res) {
+      return res.json().then(function (body) { return { ok: res.ok, body: body }; });
+    }).then(function (result) {
+      if (!result.ok || !result.body || !result.body.success) {
+        var msg = (result.body && result.body.error) || '요청에 실패했습니다.';
+        window.alert(msg);
+        btn.disabled = false;
+        btn.textContent = label;
+        return;
+      }
+      report(result.body.data || {});
+      btn.textContent = '요청됨 — 새로고침하세요';
+    }).catch(function (err) {
+      window.alert('요청에 실패했습니다: ' + err);
+      btn.disabled = false;
+      btn.textContent = label;
+    });
+  });
+})();
+</script>

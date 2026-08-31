@@ -4,11 +4,12 @@
   워크벤치의 같은 띠와 **같은 값**을 쓴다(`bulk_dispatch.select_targets`). 화면마다 따로
   세면 두 화면이 다른 수를 말한다 — 네이버 집 수가 45집 vs 43집으로 갈렸던 그 결함이다.
 
-  이 파셜은 **읽기 전용이고 실행 수단이 없다.** 버튼이 생기는 날에는 v3 풀페이지에서
-  버튼만 감춰야 한다(그 셸은 페이지 스크립트를 통째로 싣지 않아, 보이는데 안 눌리는
-  상태가 된다).
+  **v3 풀페이지에서는 버튼을 감춘다.** 그 셸은 페이지 스크립트를 통째로 싣지 않아
+  (`dashboard.html` 의 `shell_variant != 'v3'` 게이트), 버튼을 그리면 보이는데 안 눌린다 —
+  되돌릴 수 없는 조작에서 가장 나쁜 실패 모양이다. 목록은 그대로 보여준다(읽기는 되니까).
 
-  변수: `bulk_dispatch` (없으면 아무것도 렌더하지 않는다 — 다른 화면에서 include 해도 안전).
+  변수: `bulk_dispatch` (없으면 아무것도 렌더하지 않는다 — 다른 화면에서 include 해도 안전),
+  `naver_bulk_dispatch_enabled` (전역 킬스위치), `shell_variant`.
 #}
 {% if bulk_dispatch and bulk_dispatch.count %}
 <details class="alert alert-light border erp-naver-dispatch" data-foms-no-autodismiss
@@ -22,10 +23,25 @@
       먼저 해결할 집 {{ bulk_dispatch.blocked }}집{% endif %})
     </span>
     <div class="text-muted small fw-normal mt-1">
-      네이버에 발송처리할 대상입니다. <b>미리보기이며 아직 아무것도 나가지 않습니다.</b>
+      네이버에 발송처리할 대상입니다.
       발송처리 후에는 FOMS에서 취소할 수 없습니다(반품으로만 처리).
+      {% if not (naver_bulk_dispatch_enabled and bulk_dispatch.eligible and shell_variant != 'v3') %}
+      <b>미리보기이며 아직 아무것도 나가지 않습니다.</b>
+      {% endif %}
     </div>
   </summary>
+  {% if naver_bulk_dispatch_enabled and bulk_dispatch.eligible and shell_variant != 'v3' %}
+  <div class="mt-2">
+    <button type="button" class="btn btn-sm btn-primary"
+            data-naver-bulk-dispatch-run
+            data-naver-bulk-dispatch-count="{{ bulk_dispatch.eligible }}">
+      <i class="fas fa-paper-plane"></i>
+      오늘 {{ bulk_dispatch.eligible }}집 네이버 발송처리
+    </button>
+    <span class="text-muted small ms-2">누르면 되돌릴 수 없습니다.</span>
+  </div>
+  {% include 'partials/shared/naver_bulk_dispatch_button.html' %}
+  {% endif %}
   <div class="table-responsive mt-2">
     <table class="table table-sm mb-0">
       <thead>

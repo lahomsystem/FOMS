@@ -1991,6 +1991,8 @@ def _render_workbench(db) -> str:
     Returns:
         렌더된 HTML.
     """
+    from foms.services.feature_flags import is_naver_bulk_dispatch_enabled
+
     active_tab = _active_tab()
     active_filter = _active_filter()
     active_sort = _active_sort()
@@ -2033,6 +2035,9 @@ def _render_workbench(db) -> str:
         bulk_dispatch=(_bulk_dispatch_view(db) if active_tab == "work"
                        else {"date": "", "count": 0, "eligible": 0,
                              "blocked": 0, "rows": []}),
+        # 전역 킬스위치. 코호트가 아니다 — 코호트를 쓰면 그 밖의 실측 담당자에게 실행
+        # 라우트가 403 이 되어 진입점 두 곳 중 하나가 조용히 죽는다.
+        naver_bulk_dispatch_enabled=is_naver_bulk_dispatch_enabled(),
         # 전체 다시 읽기(NVREPAY-03) — 탭과 무관한 수집 전체 조작이라 두 탭 모두에서 낸다.
         # ADMIN 이 아니면 세지도 않는다(버튼이 없으므로 쿼리도 필요 없다).
         refresh_all=(_refresh_all_view(db) if _can_view_history() else {"count": 0}),
@@ -3898,6 +3903,75 @@ def naver_ingest_fulfillment(link_id: int):
                     "data": {"link_id": link_id, "action": action, "queued": True,
                              "rev": base_rev},
                     "error": None})
+
+
+@admin_bp.route("/admin/naver-ingest/bulk-dispatch", methods=["POST"])
+@login_required
+@role_required(["ADMIN", "MANAGER"])
+def naver_ingest_bulk_dispatch():
+    """오늘 실측한 네이버 건을 **집마다 큐에 넣는다** (NAVER-BULKDISPATCH-01 T4).
+
+    되돌릴 수 없는 조작이라 규율이 셋이다:
+
+    1. **대상은 서버가 다시 계산한다.** 화면이 보낸 목록을 받지 않는다 — 화면이 낡았거나
+       조작됐을 때 그대로 네이버로 나간다(옛 주문 정리 라우트가 같은 이유로 그렇게 한다).
+    2. **상한**(:data:`bulk_dispatch.BULK_DISPATCH_LIMIT`)에 닿으면 잘린 사실을 응답·로그에
+       남긴다. 조용한 절단은 "전부 보냈다"로 읽힌다.
+    3. 네이버 HTTP 는 WORKER 에서만 나간다(호출 IP 3슬롯 계약) — web 은 enqueue 만 한다.
+
+    권한은 ADMIN·MANAGER 다. 읽기 전용인 전체 다시 읽기조차 규모를 이유로 ADMIN 인데,
+    불가역 조작이 그보다 느슨할 수 없다.
+
+    Returns:
+        ``{"success": True, "data": {"date","queued","sent","total","truncated",
+        "failed","limit"}}``. 큐가 통째로 죽었으면 503.
+    """
+    from foms.services.datetime_kst import get_today_kst
+    from foms.services.feature_flags import is_naver_bulk_dispatch_enabled
+    from foms.services.integrations.naver_commerce.bulk_dispatch import (
+        BULK_DISPATCH_LIMIT,
+        select_sendable,
+    )
+    from foms.services.jobs.queue import enqueue_naver_fulfillment
+
+    if not is_naver_bulk_dispatch_enabled():
+        return jsonify({"success": False, "data": None,
+                        "error": "일괄 발송처리가 꺼져 있습니다."}), 404
+
+    db = get_db()
+    today = get_today_kst().strftime("%Y-%m-%d")
+    targets, total = select_sendable(db, on_date=today)
+    if not targets:
+        return jsonify({"success": True, "error": None,
+                        "data": {"date": today, "queued": 0, "sent": [], "total": 0,
+                                 "truncated": False, "failed": 0,
+                                 "limit": BULK_DISPATCH_LIMIT}})
+
+    actor = session.get("user_id")
+    queued = [target.link_id for target in targets
+              if enqueue_naver_fulfillment(target.link_id, "dispatch", actor)]
+    failed = len(targets) - len(queued)
+    if not queued:
+        return jsonify({"success": False, "data": None,
+                        "error": "작업 큐를 쓸 수 없습니다(REDIS_URL 미설정 또는 큐 장애). "
+                                 "지금은 판매자센터에서 처리하세요."}), 503
+
+    truncated = total > len(targets)
+    log_access(
+        f"네이버 일괄 발송처리 요청 ({len(queued)}집 / 대상 {total}집"
+        + (f" · 상한 {BULK_DISPATCH_LIMIT}집으로 잘림" if truncated else "")
+        + (f" · 큐 실패 {failed}집" if failed else "") + ")",
+        action="NAVER_INGEST_BULK_DISPATCH_ENQUEUE",
+        user_id=session.get("user_id"),
+        detail={"date": today, "link_ids": queued, "total": total,
+                "failed": failed, "truncated": truncated},
+    )
+    logger.info("[NAVER] 일괄 발송처리 enqueue %s: 요청 %d집 / 대상 %d집 잘림=%s 실패=%d",
+                today, len(queued), total, truncated, failed)
+    return jsonify({"success": True, "error": None,
+                    "data": {"date": today, "queued": len(queued), "sent": queued,
+                             "total": total, "truncated": truncated,
+                             "failed": failed, "limit": BULK_DISPATCH_LIMIT}})
 
 
 @admin_bp.route("/admin/naver-ingest/ghost/<int:order_id>/discard", methods=["POST"])
