@@ -1,6 +1,6 @@
 """
 HTTP routes for ERP 실측 API (`foms.api.measurement` package).
-실측 대시보드 업데이트, 실측 동선 추천.
+실측 대시보드 업데이트, 실측 동선(예약 순서).
 """
 import copy
 import datetime
@@ -497,7 +497,7 @@ def api_erp_measurement_update(order_id):
 @erp_measurement_bp.route('/route')
 @login_required
 def api_erp_measurement_route():
-    """ERP 실측 동선 추천 (MVP).
+    """ERP 실측 동선(예약 순서) 조회 — 동선 스트립 폴백 계보.
 
     빌더는 `foms.services.measurement_route`(SSOT) — 실측 대시보드 뷰의
     서버 인라인(data-route-inline)과 동일 계보의 points 를 반환한다.
@@ -505,9 +505,9 @@ def api_erp_measurement_route():
     기본값(파라미터/쿠키 미설정)은 기존 동작 유지 — 필터 미적용.
 
     응답의 `route`는 예약 순서(측정 시각 오름차순) — 히어로/'다음 방문' SSOT.
-    `optimized_route`/`optimized_total_distance_km`는 최근접 이웃으로 재배열한
-    별도 동선(데스크톱 "경로 계획" 모달 전용, 근사 직선거리) — hero/next 판정에
-    쓰지 말 것(ROUTE-01).
+    `data-route-inline`이 없는 표면(v3 영업 홈 등)은 항상 이 API 로 폴백하므로
+    엔드포인트를 지우면 그 화면의 동선 띠가 죽는다. 최근접 이웃 추정 동선
+    (`optimized_route`)은 2026-08-31 제거 — 실제 동선과 크게 달라 쓸모가 없었다.
     """
     db = get_db()
     date_filter = request.args.get('date') or measurement_api.get_today_kst().strftime('%Y-%m-%d')

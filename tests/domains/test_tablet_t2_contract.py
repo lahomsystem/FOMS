@@ -1247,7 +1247,7 @@ CONSTRUCTION_DASHBOARD_BODY = "templates/construction/partials/dashboard_body.ht
 
 
 def test_ctower_topbar_partial_exists_with_pcbar_and_five_tiles() -> None:
-    """상단 바 파샬: pcbar(제목/sub/밀도 토글 include/엑셀 임포트/지도 생성/주문 생성) + KPI 5타일
+    """상단 바 파샬: pcbar(제목/sub/밀도 토글 include/지도 생성/주문 생성) + KPI 5타일
     (전체 + 경보 3 + 도면 지연). 신규 쿼리 없이 기존 컨텍스트(total_orders/kpis/today_iso) 재소비."""
     body = _read(CTOWER_TOPBAR_PARTIAL)
     assert "foms-tdash-top" in body
@@ -1257,8 +1257,8 @@ def test_ctower_topbar_partial_exists_with_pcbar_and_five_tiles() -> None:
     # 밀도 토글 재배치(작업 큐 헤더 → pcbar).
     assert "partials/shared/foms_density_toggle.html" in body
     assert "order_pages.add_order" in body
-    # 목업 01 pcbar = [밀도][엑셀 임포트][지도 생성][주문 생성] — 임포트/지도는 기존 라우트 재사용.
-    assert "엑셀 임포트" in body and "excel.upload_excel" in body
+    # 목업 01 pcbar = [밀도][지도 생성][주문 생성] — 지도는 기존 라우트 재사용.
+    # (엑셀 임포트 버튼은 엑셀 가져오기 기능 폐지로 제거 — 계약에서도 삭제)
     assert "지도 생성" in body and "erp_map.map_view" in body
     # KPI 5타일 = 전체 + 경보(긴급/실측 D-4/시공 D-3) + 도면 지연(drawing_overdue_count).
     # read-model 이 기존 overdue_cnt 집계를 drawing_overdue_count 로 합산(신규 쿼리 0).

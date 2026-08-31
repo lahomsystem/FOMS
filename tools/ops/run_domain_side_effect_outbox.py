@@ -68,7 +68,6 @@ from foms.services.sidefx_worker import (  # noqa: E402
 from foms.services.geocode_delivery_handler import handle_geocode  # noqa: E402
 from foms.services.storage_delete_handler import handle_storage_delete  # noqa: E402
 from foms.services.upload_cleanup import run_upload_expiry_scan_once  # noqa: E402
-from foms.services.order_import_cleanup import run_order_import_expiry_scan_once  # noqa: E402
 from sqlalchemy.engine import Engine  # noqa: E402
 from sqlalchemy.orm import sessionmaker  # noqa: E402
 
@@ -207,9 +206,6 @@ def main(argv: Optional[list[str]] = None) -> int:
     # UPLOAD-02: 만료 ticket/draft cleanup 을 300s expiry scan 에 배선(별도 scheduler 없음).
     # replace=True 로 재시작·재-import 시 중복 등록을 idempotent 하게 처리한다.
     register_expiry_scan_provider("upload_expiry", run_upload_expiry_scan_once, replace=True)
-    # ORDER-IMPORT-01: 만료 import artifact cleanup 을 같은 300s expiry scan 에 배선(별도 scheduler 없음).
-    register_expiry_scan_provider(
-        "order_import_expiry", run_order_import_expiry_scan_once, replace=True)
     try:
         engine = make_engine_from_env()
     except Exception:

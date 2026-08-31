@@ -44,7 +44,7 @@
 | Package marker | `foms/services/files/__init__.py` |
 | Flat compat | ~~`foms/services/file_utils.py`~~ — **Wave 8 W8-B3 제거됨** |
 | Root compat | ~~`services/file_utils.py`~~ — **Wave 8 W8-B3 제거됨** |
-| 주요 caller | `apps/excel_import.py` — `from foms.services.files.file_utils import allowed_file` |
+| 주요 caller | 없음 — 유일 caller 였던 엑셀 업로드(`excel_import.upload_excel`)가 2026-08-31 제거됐다. 계약 테스트가 `__all__` 을 고정하고 있어 심볼은 남긴다 |
 | Import smoke 대표 심볼 | **`allowed_file`** (고정) |
 
 ## 패키지 맵 (provisional authoritative — Wave 6)

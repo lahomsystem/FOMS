@@ -101,7 +101,9 @@ RED 조건 = ① SIDEFX heartbeat 0행 ② GEOCODE outbox PENDING > 0 ③ 좌표
 | T2 | 프론트 부분 갱신 (`templates/measurement/map_view.html` 폴링 분기) | 기존 map 계약 테스트 2종 무회귀 + 신규 계약 테스트 통과 | **DONE** |
 | T3 | GEOCODE 핸들러 등록 + measurement failed 재큐 백오프 | SIDEFX 테스트 + domains 지도 테스트 통과 | **DONE** |
 | T4 | 밀린 121건 소진 | 좌표 없는 주문 0건 | T1 배포로 자동 해소(수동 백필 선택) |
-| T5 | SIDEFX 워커 서비스 Railway 등록 (사용자 결정 필요 — §7) | heartbeat 행 생성 + outbox PENDING 소진 | BLOCKED (사용자 승인) |
+| T5 | SIDEFX 워커 서비스 Railway 등록 | heartbeat 행 생성 + outbox PENDING 소진 | BLOCKED (§10 — CLI로 Config Path 지정 불가) |
+| T7 | deploy 푸시 · production 승격 | CI green + PR 머지 | **DONE** — deploy `44f8d1ee`, production `365b1280` (PR #207) |
+| T8 | 운영 스윕 켜기 (`FOMS_GEOCODE_SWEEP_ENABLED=1` + 재배포) | 지도에 뜰 수 있는 주문의 좌표 미달 0건 | **DONE** — §12 |
 | T6 | `docs/AI_STATUS.md` 갱신 | 상단 40줄에 현재 상태 반영 | **DONE** |
 
 T1~T3 는 서로 파일이 겹치지 않아 병렬 진행한다. T4 는 T1 의 스윕 루프가 배포되면 자동으로 소진되므로 별도 실행은 선택 사항이다.
@@ -195,6 +197,151 @@ powershell -File scripts/ops/pre_push_smoke.ps1   # push 직전 exit 0
 
 ---
 
-## 9. 조사 방법 메모
+## 9. 승격 기록 (2026-08-31)
+
+- 로컬 커밋 `b6fc4ae3` → deploy `44f8d1ee` → production `365b1280`(PR #207, `b8b57b83`).
+- **로컬 스모크는 red 였는데 내 변경 때문이 아니었다.** 타 세션의 미추적 디렉토리 `foms/services/integrations/` 가 네임스페이스 폐쇄집합 계약을 깨고 있었다. 남의 계약을 대신 고치거나 남의 작업 파일을 옮기지 않고, **원격 tip 기준 클린 워크트리**(`c:/tmp/geo-push`)에서 검증했다 — 그 트리에는 미추적 디렉토리가 없으므로 계약이 정상 통과한다(330 passed).
+- **`start.sh` cherry-pick 충돌**: 타 세션이 같은 자리에 네이버 수집 블록을 넣어뒀다. 기능 의존이 아니라 **같은 삽입 지점의 독립 블록 2개**였으므로, 정규식 keep-both 없이 손으로 두 개의 독립 `if` 로 명시 병합하고 `bash -n` 으로 검증했다.
+- **AI_STATUS 충돌 2회**: deploy 계보에서는 원격 버전을 취해 내 줄만 다시 넣었고(원격 tip 은 이미 정리돼 2627자라 여유가 있었다 — 로컬에서 하던 압축은 낡은 계보 기준이었다), production 승격에서는 규칙대로 코드만 옮기고 문서는 production 버전을 유지했다.
+- 승격 도중 `origin/deploy` 가 두 번 움직여 rebase 후 재검증·재푸시했다.
+- **승격 트리에서 본 스위트 직접 실행**: `tests/domains` + `tests/contracts` → **5389 passed, 5 skipped**. 승격 PR 이 본 스위트를 안 도는 알려진 구멍을 이걸로 메웠다. PR 검사 4종(test·pg-lane·harness·perf-gate) 전부 SUCCESS.
+- **deploy 의 FOMS CI red 는 내 것이 아니었다**: 내 푸시 직전 tip `f6c49ae5` 에서 이미 red(타 세션 정산 대시보드 커밋이 `test_settlement_dashboard_render.py` 를 docs 전용 서브셋에 등재하지 않음). 그 세션이 `86e91a1f` 로 자체 수정했다.
+
+## 10. T5 가 막힌 이유 — CLI 로는 SIDEFX 서비스를 만들 수 없다
+
+`railway add` 는 서비스 생성·repo 연결·변수 설정까지만 지원하고 **Config Path 지정 옵션이 없다**. Config Path 없이 만들면 공용 `railway.toml`(`startCommand = "sh start.sh"`)을 상속해 gunicorn 이 하나 더 뜰 뿐 SIDEFX 워커가 되지 않는다. 필요한 변수는 `DATABASE_URL`(+ STORAGE_DELETE 핸들러용 `R2_*`)이고 WORKER 가 이미 전부 갖고 있다.
+
+선택지는 둘이다:
+1. **대시보드에서 등록**(설계 정본): 새 service → Settings → Config Path = `railway-domain-sidefx.toml`, 변수는 WORKER 것 복사.
+2. **`start.sh` 에 배선**(설계 이탈): escalation·네이버·좌표 스윕과 같은 패턴으로 WORKER 컨테이너에 얹는다. 코드 변경이라 승격 사이클이 한 번 더 필요하다.
+
+## 11. 운영 반영 결과 (2026-08-31)
+
+- production 머지 `365b1280` → Railway 자동 배포. WORKER 는 `FOMS_GEOCODE_SWEEP_ENABLED=1` 설정이 재배포를 한 번 더 트리거해 05:23:32 배포가 **새 코드 + 새 변수**를 함께 실었다(SUCCESS 확인).
+  - 참고: 기존 기록은 `railway variables --set` 이 재배포를 안 건다고 돼 있으나, 이번에는 새 배포가 생성됐다. 어느 쪽이든 **부팅 시각으로 확인**하는 규율은 그대로 유효하다.
+- 워커 로그에서 스윕 기동 확인: `[geocode-sweep] started (interval=60s batch=50 include_failed=False pending_retry=600s)`, 첫 라운드 `scanned=50 queued=50 skipped=0 failed=0`.
+- **좌표 소진**: 좌표 없는 주문 121건 → 약 20분 만에 소진. 최종 판정(2026-08-31):
+
+  | 지표 | 값 |
+  |---|---|
+  | 지도에 뜰 수 있는(active) 주문 중 좌표 없음 — 실패 제외 | **0건** |
+  | 같은 모집단, 실패 포함 | 23건 (주소 자체가 틀려 카카오가 못 찾는 건, 24시간 백오프로 재시도) |
+  | 최근 20분 변환 | 78건 |
+
+- **남은 5건은 유령이다**: `geocode_status` 가 NULL 로 남은 5건(4237·4266·4301·4409·4600)은 전부 `structured_data.meta.draft = true` 인 ERP draft 라 `Order.active_filter()` 가 제외한다. 지도 쿼리도 같은 필터를 쓰므로 화면에 뜨지 않는다 — 스윕이 안 집는 것이 정상이다.
+- **판정 루프 주의**: `geocode_red.py` 는 SIDEFX heartbeat > 0 을 GREEN 조건에 넣었기 때문에, SIDEFX 서비스가 없는 한 영원히 RED 다. 이 단계의 올바른 지표는 위 표의 "active 주문 중 좌표 없음(실패 제외) = 0" 이다.
+
+---
+
+## 12. 후속 작업 — 엑셀 업로드(가져오기) 기능 제거 (2026-08-31)
+
+지오코딩 조사 중 SIDEFX 워커 미배포의 부작용으로 "엑셀 업로드가 `ScanNotReadyError` 로 막힌다"는 사실이 드러났고, 사용자가 **"엑셀 업로드는 FOMS 어디에도 필요 없으니 기능과 코드 모두 삭제"** 를 지시했다. deploy 커밋 `d61dccd8`.
+
+### 12.1 착수 전 확인한 것 (오삭제 방지)
+
+- **`foms/web/admin/excel_import.py` 는 통째로 지우면 안 된다.** 같은 파일·같은 Blueprint 에 보존 대상인 `download_excel()`(주문목록 엑셀 내보내기)이 있다.
+- 운영 실사용 판정(읽기 전용 조회):
+
+  | 지표 | 값 |
+  |---|---|
+  | `order_import_artifacts` 행 수 | **0** |
+  | 마지막 업로드 감사 기록 | **2025-05-28** (15개월 전) |
+  | 마지막 엑셀 **다운로드** 기록 | **2026-07-03** → 보존 확정 |
+  | `domain_side_effect_outbox.order_import_artifact_id` non-null | 0 |
+  | R2 `order_imports/` 오브젝트 | 0 |
+
+- **기존 주문 안전**: `orders` 에는 아티팩트 참조 컬럼이 없다. 링크는 아티팩트→주문 단방향 JSONB(`resource_order_ids`) 뿐이라 삭제해도 주문 행은 무사하다.
+
+### 12.2 사용자 결정 2건
+
+1. **화면·코드는 전부 삭제하되 DB 표는 남긴다** — 표를 지우려면 신규 마이그레이션과 outbox one-of CHECK 8→7 재작성이 따라오는데, 표가 비어 있어 실익이 없다.
+2. **감사 원장의 패킷도 정리한다** — `ORDER-IMPORT-01` 제거 + 하드코딩 개수 하향.
+
+### 12.3 감사 원장 정리가 필요했던 이유
+
+`ORDER-IMPORT-01` 이 `tests/harness/test_bugfix_packet_manifest.py` 의 하드코딩 목록(`EXPECTED_PACKETS` 124개·`REV99_DEPENDS_ON` 111개)과 `tools/ops/check_foms_remediation_readiness.py:66 EXPECTED_PACKETS = 124` 에 박혀 있어 **어느 쪽이든 red 가 나는 구조**였다:
+- 패킷을 두면 → `created_tests` 경로 부재로 배포 게이트 red
+- 패킷을 지우면 → 하드코딩 개수 3곳이 red
+
+해결: 패킷 제거 + 124→123 + 111→110. `REV-99` 와 `STATE-GUARD-01` 의 `depends_on` 에서도 제거했다(두 패킷이 참조 중이었다). `STATE-GUARD-01` 의 transitive closure 단언은 부분집합(`<=`)이라 영향 없음을 먼저 확인했다.
+
+### 12.4 함정 — JSON 통째 재작성
+
+`json.dumps(indent=2)` 로 `foms_bugfix_packet_tests.json` 을 다시 쓰자 **6495줄이 바뀌었다**(원본은 1-space 들여쓰기). 되돌린 뒤 줄 단위 국소 편집으로 다시 해서 **−29줄**로 맞췄다. 생성물이 아닌 수기 JSON 은 파싱→덤프 왕복을 하지 마라.
+
+### 12.5 남긴 것 (의도적)
+
+- 엑셀 다운로드 전부(주문목록·수납장 내보내기)
+- `OrderImportArtifact` 모델·테이블·마이그레이션 (빈 표)
+- `allowed_file` / `ALLOWED_EXTENSIONS` — **유일 소비자가 사라져 dead code 가 됐다.** `tests/contracts/runtime/foms_namespace_surface_tests.py` 가 `file_utils.__all__` 을 정확일치로 고정하고 있어 지우려면 계약 2곳을 함께 고쳐야 한다. `foms/services/README.md` 에 "caller 없음"으로 명시해 뒀다. **다음에 정리할 거리.**
+
+### 12.6 커버리지 소실 없음
+
+삭제된 `tests/postgres/test_order_import.py::test_worker_expiry_scan_dispatches_provider` 는 `tests/postgres/test_upload_02.py:384` 에 동명의 **상위집합** 테스트가 이미 있다(`"reclaim" in res` 를 추가로 검증). 이관하지 않았다.
+
+### 12.7 검증
+
+`pre_push_smoke` PASSED(349 passed) · `tests/domains` + `tests/contracts` + `tests/harness` **6034 passed, 5 skipped** · 잔존 참조 전수 grep 0건(DB 표 계약 제외) · SIDEFX 워커 진입점 import 정상.
+
+## 13. 조사 방법 메모
 
 CEO 총괄 + 4개 조사팀 병렬(읽기 경로 / outbox 파이프라인 / 프론트 렌더 / git 회귀 이력) + CEO 직접 운영 DB 조회. 커밋 특정은 서브에이전트 보고를 그대로 쓰지 않고 `git log`·`git show`·`git branch --contains` 로 재검증했다.
+
+---
+
+## 14. 후속 — 실측 대시보드 체감 지연 조사와 "동선 추천" 제거 (2026-08-31)
+
+사용자가 "실측 대시보드에서 날짜 클릭이 예전보다 느려진 것 같다, 자연스러운 건지 측정하라"고 했다.
+
+### 14.1 측정 결과 — 날짜 클릭 자체는 회귀가 아니다
+
+production 실측(claude_master 해제 → 측정 → **재잠금 완료**):
+
+| 항목 | 실측 | 예산 | 판정 |
+|---|---|---|---|
+| dTTFB(날짜 프래그먼트 − healthz) | 100~171ms | 200ms | 이내 |
+| 전송 바이트(br) | 22.7~34.3KB | 50KB | 이내 |
+| 압축 | `content-encoding: br` | — | 정상 |
+| 간헐 최대 | 1.5~1.7s | — | 알려진 한국↔싱가포르 tail |
+
+오늘 날짜에서만 도는 발송처리 미리보기 추가 쿼리(`1c1d21bf`)도 A/B 결과 벌점이 없었다(오늘 160ms vs 다른 날 171/151/100ms). 지오코딩 커밋은 실측 대시보드를 건드리지 않았다(지도 전용).
+
+### 14.2 진짜로 찾은 것 — 동선 API 중앙값 5초
+
+```
+/api/erp/measurement/route  (production 실측)
+  2026-09-01: min 224ms / 중앙값 4867ms / 최대 5029ms
+  2026-09-02: min 187ms / 중앙값 5376ms / 최대 5782ms
+  2026-08-31: min 267ms / 중앙값 490ms  / 최대 11239ms
+```
+
+꼬리만 느린 게 아니라 **중앙값이 5초**라 알려진 네트워크 tail과 성격이 다르다. 원인은 `_build_route_points` 가 주문에 **이미 저장된 `lat`/`lng` 를 확인하지 않고** 매번 `convert_address()` 를 부른 것 — 바로 아래에서 `_store_geocode_coords` 로 저장해 놓고 다음 호출 때 자기가 저장한 값을 안 썼다. 프로세스 내 LRU 가 살아 있을 때만 빨라서 min 과 중앙값이 이중 분포로 갈렸다.
+
+### 14.3 사용자 결정 — "동선 추천 (MVP) 모달과 관련된 모든 것 삭제"
+
+근거: "제대로 맞지도 않고 실제 동선과 크게 달라 의미 없다"(최근접 이웃 직선거리 추정).
+
+**착수 전 조사로 막은 오삭제 3건**:
+1. **`/api/erp/measurement/route` 엔드포인트를 지우면 안 된다.** 응답의 `route` 키(추정이 아니라 예약 순서)를 동선 스트립이 쓰고, **v3 영업 홈 마운트(`persona_home_sales.html:122`)에는 `data-route-inline` 속성이 없어 항상 이 API 로 폴백**한다(직접 확인). 지우면 그 화면의 띠가 죽는다 → 엔드포인트는 유지하고 `optimized_*` 키만 제거.
+2. **`static/js/measurement/foms-route-strip.js` 를 파일 통째로 지우면 안 된다.** 안에 히어로 방문 카운트다운(`paintCountdown`)이 살고 v2·v3 두 표면이 쓴다.
+3. **`static/css/measurement/foms-route-strip.css` 도 마찬가지.** 절반이 히어로·진행요약·완료배지이고, `.foms-route-c0~c7` 팔레트는 지도(`map-view-kakao.js`)와 공유하는 SSOT 다.
+
+또 **`/api/erp/measurement/route-eta` 는 추정과 무관**하다(스트립의 실도로 ETA 전용) — 보존.
+
+### 14.4 제거·수리한 것
+
+- 모달 `#routePlanModal`("동선 추천 (MVP)") + PC "동선" 버튼 + 모바일 동선 칩
+- `dashboard.js` 의 Route Plan 블록(`loadRoutePlan`)
+- `_haversine_km`·`_order_nearest_neighbor`, 응답의 `optimized_route`·`optimized_total_distance_km`
+- 호출자 0건이던 dead code `_query_route_orders`
+- **5초 수리**: `_build_route_points` 가 저장 좌표를 먼저 쓰고, 없을 때만 변환 폴백. 판정 기준은 `_stored_coords` 헬퍼 하나로 인라인 fast path 와 통일했다(두 벌로 갈리면 화면마다 지점 집합이 달라진다). 변환기 객체 생성도 폴백이 실제로 필요할 때로 지연.
+
+**판단해서 살린 것**: 모달 푸터의 "동선 지도 보기"(`route=1`)는 추정이 아니라 **방문 시간순** 폴리라인이고 저장소 전체에서 유일한 입구였다. 모달과 함께 지우면 멀쩡한 기능이 고아가 되므로 툴바·모바일 칩 옆으로 이관했다. (푸터의 "지도(핀) 보기"는 툴바 지도 버튼이 같은 목적지로 리다이렉트해 중복이라 함께 삭제.)
+
+### 14.5 남은 진단 공백
+
+**실측 대시보드에만 `X-FOMS-EPT-B7-RENDER-MS` 헤더가 없다.** 주문·출고·생산·건설·AS·이력 6개에는 붙어 있는데 `foms/web/measurement/dashboard.py` 만 빠졌다 — 이 화면은 서버 렌더와 네트워크를 분리할 수단이 원천적으로 없어 이번에도 간접 지표로 우회했다. **다음에 붙일 거리.**
+
+### 14.6 캐시 핀
+
+`dashboard.js` 를 고쳤으므로 SW `staticCacheFirst` 함정에 대비해 핀 3곳을 범프했다(`20260810b`→`20260831a`): `measurement-entry.js:10 MEAS_JS_V`, `dashboard.html:17`, 그리고 **`dashboard_scripts.html:1 measurement_js_v`** — 마지막 것은 entry 자체의 핀이라 안 올리면 SW 가 옛 entry 를 주어 앞의 두 범프가 무효가 된다.
