@@ -565,6 +565,36 @@ class NaverCommerceClient:
             headers={"Content-Type": "application/json"},
         )
 
+    def approve_return_product_order(self, product_order_id: str) -> dict:
+        """판매자 반품 **승인** — 상품주문 1건의 반품 요청을 승인한다 (T8-S2).
+
+        **환불이 확정된다. 되돌리는 엔드포인트가 없다.**
+
+        **body 를 보내지 않는다.** 공식 문서(커머스API v2.86.0, 2026-08-31 원문 확인)의
+        Request 항목은 Path 파라미터 ``productOrderId`` 하나뿐이고, curl 예시에도
+        ``Content-Type`` 도 ``-d`` 도 없다. 2026-08-27 원장이 "빈 body 는 400 이고
+        ``approvalData`` 를 넣어야 200"이라고 적었으나 그 출처(#3693)는 **취소** 승인
+        문서였고 해당 문장이 없다 — 근거 폐기. 없는 필드를 지어내 보내지 않는다.
+
+        응답은 접수·취소와 **동형**이라 호출자가 ``_split_result`` 를 그대로 쓴다.
+
+        Args:
+            product_order_id: 승인할 ``productOrderId``.
+
+        Returns:
+            응답 payload(원본). 건별 성공/실패는 ``data.successProductOrderIds`` 와
+            ``data.failProductOrderInfos`` 로 온다.
+
+        Raises:
+            ValueError: 상품주문번호가 비었을 때(빈 요청으로 불가역 API 를 때리지 않는다).
+        """
+        pid = str(product_order_id or "").strip()
+        if not pid:
+            raise ValueError("승인할 상품주문번호가 없습니다.")
+        return self._request(
+            "POST", f"/v1/pay-order/seller/product-orders/{pid}/claim/return/approve",
+        )
+
     # -- HTTP ------------------------------------------------------------- #
 
     def _session(self) -> Any:

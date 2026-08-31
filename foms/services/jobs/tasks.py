@@ -303,8 +303,47 @@ def _enqueue_naver_push_after_commit(db: Any, baseline: Optional[int]) -> dict:
     return summary
 
 
+#: 끝난 뒤 그 집을 **다시 읽어야 하는** 조작. 네 가지 모두 네이버 쪽 사실을 바꾼다.
+#: (사용자 결정 2026-08-31 — "네 가지 모두")
+REFRESH_AFTER_ACTIONS = ("confirm", "dispatch", "cancel", "return")
+
+
+def _enqueue_refresh_after(action: str, link_id: int, actor_user_id=None) -> bool:
+    """조작이 끝난 집을 **자동으로 다시 읽게** 큐에 넣는다.
+
+    왜: ``dispatch_order`` 같은 조작은 ``triage_state`` 만 쓰고 ``raw_snapshot`` 은 손대지
+    않는다. 그래서 발송처리를 하고 이력으로 가면 화면의 네이버 축이 **발송 전 사실**을
+    계속 말한다. 지금까지는 사람이 `다시 읽기` 를 손으로 눌러야 최신화됐다.
+
+    **실패해도 원래 작업을 깨지 않는다** — 조작은 이미 네이버에 나갔고 커밋됐다. 다시 읽기는
+    편의이지 정합성 조건이 아니다. 다만 조용히 삼키지 않고 **로그로 남긴다**(fail-open 규율).
+
+    Args:
+        action: 방금 끝난 조작(:data:`REFRESH_AFTER_ACTIONS` 안의 값일 때만 넣는다).
+        link_id: 기준 수집 링크 id(그 집 전체가 함께 다시 읽힌다).
+        actor_user_id: 누가 눌렀는지(기록용).
+
+    Returns:
+        큐에 넣었으면 True.
+    """
+    if str(action or "").strip().lower() not in REFRESH_AFTER_ACTIONS:
+        return False
+    try:
+        from foms.services.jobs.queue import enqueue_naver_refresh
+
+        queued = bool(enqueue_naver_refresh(int(link_id), actor_user_id=actor_user_id))
+    except Exception as exc:  # noqa: BLE001 - 다시 읽기 실패가 조작 결과를 덮으면 안 된다
+        logger.warning("[RQ] 조작 뒤 자동 다시읽기 enqueue 실패 link=%s action=%s: %s",
+                       link_id, action, exc)
+        return False
+    if not queued:
+        logger.warning("[RQ] 조작 뒤 자동 다시읽기 enqueue 안 됨(큐 없음) link=%s action=%s",
+                       link_id, action)
+    return queued
+
+
 def run_naver_fulfillment_task(link_id: int, action: str, actor_user_id=None,
-                               reason=None, detail=None):
+                               reason=None, detail=None, approve=False):
     """발주확인·발송처리·취소·반품접수 1건 실행 (NAVER-INGEST-02 T16-G, WORKER 전용).
 
     web 은 enqueue 만 한다 — 커머스API 에 등록된 호출 IP 가 WORKER 것뿐이라 web 에서 나가면
@@ -346,10 +385,12 @@ def run_naver_fulfillment_task(link_id: int, action: str, actor_user_id=None,
                 # ``except FulfillmentError`` 의 커밋 규율이다(실패 사유를 DB 에 남긴다).
                 result = naver_fulfillment.request_return(
                     db, client, link_id=int(link_id), reason=str(reason or ""),
-                    detail=detail, actor_user_id=actor_user_id)
+                    detail=detail, actor_user_id=actor_user_id,
+                    approve=bool(approve))
             else:
                 raise ValueError(f"알 수 없는 작업입니다: {action}")
             db.commit()
+            _enqueue_refresh_after(action, link_id, actor_user_id)
             return result
         except FulfillmentError:
             # 서비스가 실패 사유를 **일부러** 상태에 적고 올린다(fulfillment.py 의 except 절).
@@ -358,6 +399,9 @@ def run_naver_fulfillment_task(link_id: int, action: str, actor_user_id=None,
             # 부분 실패(HTTP 200 + failProductOrderInfos)도 이 경로로 온다 — 그때는 성공한
             # 상품주문의 표식도 함께 커밋해야 재시도가 실패한 건만 다시 보낸다.
             db.commit()
+            # 부분 성공분은 **네이버에서 이미 바뀌었다**. 여기서 다시 읽지 않으면 그 건들의
+            # 스냅샷이 옛 사실로 남아, 실패 띠를 보고 온 사람이 옛 상태를 보게 된다.
+            _enqueue_refresh_after(action, link_id, actor_user_id)
             raise
         except Exception as exc:
             # 그 밖의 예외(프로그래밍 오류·DB 오류)는 무엇이 쓰였는지 알 수 없어 되돌린다.

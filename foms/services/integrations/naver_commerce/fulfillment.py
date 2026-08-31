@@ -974,18 +974,126 @@ def is_return_pending(link: ExternalOrderLink) -> bool:
     dispatched = bool(_state(link).get("dispatched_at") or _naver_dispatched_at(link))
     return dispatched and not _return_state(link).get("requested_at")
 
+#: 반품 **승인**을 걸 수 있는 클레임 상태. 이 밖이면 부르지 않는다.
+#:
+#: 접수 직후에는 네이버 쪽 상태가 아직 안 넘어와 있을 수 있다. 그때 승인을 부르면
+#: 400 이 나는데, 불가역 경로에서 400 을 받아 보고 배우지 않는다 — 상태를 먼저 읽고 건다.
+#: 수거중·수거완료가 함께 있는 이유: 실물이 없는 우리 반품은 접수 직후 네이버가
+#: `collectCompletedDate` 를 `returnCompletedDate` 와 같은 시각으로 찍고 지나간다
+#: (운영 25건 전수 관측). 그 순간을 통과하는 건을 상태만 보고 막으면 안 된다.
+RETURN_APPROVABLE_STATUSES = ("RETURN_REQUEST", "RETURN_REQUESTED",
+                              "COLLECTING", "COLLECT_DONE")
+
+
+def _approve_returns(client: Any, by_id: dict[str, ExternalOrderLink],
+                     pids: list[str], *, stamp: datetime,
+                     actor_user_id: Optional[int], link_id: int) -> list[str]:
+    """접수 성공분을 **승인**한다 — 환불 확정 (T8-S2).
+
+    건마다 **상세를 다시 읽고** 두 가지를 본 뒤에만 부른다:
+
+    * **보류(`holdbackStatus`)가 걸려 있으면 승인하지 않는다.** 네이버는 보류가 걸린 건의
+      승인을 막고, 우리는 **보류를 풀지 않는다** — 반품안심케어 건은 보류해제 자체가
+      금지이고(공식), 해제가 반품비를 0원으로 초기화하는 갈래도 있다. 사람이
+      판매자센터에서 판단할 일이다. (운영 25건 전수에 보류는 0건이고 사용자도 "한 번도
+      걸린 적 없다"고 했다 — 그래서 **주 경로가 아니라 가드**다.)
+    * 클레임 상태가 :data:`RETURN_APPROVABLE_STATUSES` 안이어야 한다.
+
+    **여기서 기다리지 않는다.** 상태가 아직 안 넘어왔으면 그대로 두고 사유를 남긴다.
+    sleep 루프를 돌면 워커를 점유하고, 실패를 "성공한 것처럼" 늦춘다. 접수는 이미 됐으니
+    사람이 나중에 승인만 다시 누르면 된다 — 화면이 `승인 남음` 과 사유를 말한다.
+
+    Args:
+        client: 네이버 클라이언트.
+        by_id: ``productOrderId`` → 링크 행.
+        pids: 접수에 성공한 상품주문번호 목록.
+        stamp: 이번 작업 시각.
+        actor_user_id: 누른 사람.
+        link_id: 기준 링크 id(로그용).
+
+    Returns:
+        승인에 성공한 ``productOrderId`` 목록.
+    """
+    from foms.services.integrations.naver_commerce.mapping import (
+        extract_claim,
+        extract_claim_holdback,
+        extract_external_id,
+    )
+
+    try:
+        details = client.get_product_orders(pids)
+    except Exception as exc:  # noqa: BLE001 - 못 읽으면 승인하지 않는다(사유는 남긴다)
+        logger.error("[NAVER] 승인 전 재조회 실패 link=%s: %s", link_id, exc, exc_info=True)
+        for pid in pids:
+            _write_return_state(by_id[pid],
+                                {"approve_skipped_reason": f"상태를 다시 읽지 못했습니다: {exc}"[:500]})
+        return []
+
+    by_pid = {extract_external_id(d): d for d in (details or []) if isinstance(d, dict)}
+    approved: list[str] = []
+    for pid in pids:
+        row = by_id[pid]
+        detail = by_pid.get(pid)
+        if detail is None:
+            _write_return_state(row, {"approve_skipped_reason": "승인 전 상태를 읽지 못했습니다."})
+            continue
+        holdback = extract_claim_holdback(detail)
+        if holdback.get("holdback_status"):
+            _write_return_state(row, {
+                "approve_skipped_reason": (
+                    f"네이버가 보류를 걸어 둔 건입니다({holdback['holdback_status']}) — "
+                    "판매자센터에서 처리하세요. 보류 해제는 FOMS 가 하지 않습니다."),
+                "holdback_status": holdback["holdback_status"],
+                "holdback_block": holdback.get("holdback_block"),
+            })
+            logger.warning("[NAVER] 보류 걸린 건이라 승인 안 함 link=%s pid=%s status=%s",
+                           link_id, pid, holdback["holdback_status"])
+            continue
+        status = str(extract_claim(detail).get("status") or "")
+        if status not in RETURN_APPROVABLE_STATUSES:
+            _write_return_state(row, {
+                "approve_skipped_reason": (
+                    f"승인할 수 있는 상태가 아닙니다(지금 {status or '알 수 없음'}) — "
+                    "잠시 뒤 다시 승인하세요."),
+            })
+            continue
+        try:
+            response = client.approve_return_product_order(pid)
+        except Exception as exc:  # noqa: BLE001 - 사유를 사람에게 그대로 보여준다
+            _write_return_state(row, {"approve_skipped_reason": f"승인 실패: {exc}"[:500]})
+            logger.error("[NAVER] 반품 승인 실패 link=%s pid=%s: %s", link_id, pid, exc,
+                         exc_info=True)
+            continue
+        ok, fails = _split_result(response, [pid])
+        if ok:
+            _write_return_state(row, {"approved_at": stamp.isoformat(),
+                                      "approved_by": actor_user_id,
+                                      "approve_skipped_reason": ""})
+            approved.extend(ok)
+        for failed_pid, why in fails.items():
+            _write_return_state(by_id[failed_pid],
+                                {"approve_skipped_reason": f"승인 실패: {why}"[:500]})
+    return approved
+
+
 def request_return(session: Session, client: Any, *, link_id: int, reason: str,
                    detail: Optional[str] = None, actor_user_id: Optional[int] = None,
-                   now: Optional[datetime] = None) -> dict[str, Any]:
+                   now: Optional[datetime] = None,
+                   approve: bool = False) -> dict[str, Any]:
     """한 집의 **반품을 판매자가 접수**한다 (WORKER 실행, T8-S1).
+    ``approve=True`` 면 접수 성공분을 **이어서 승인**한다 (T8-S2).
 
     취소와 같은 모양이다 — 네이버 반품 접수는 상품주문 1건씩이라 집을 돌며 부르고,
     한 건이 실패해도 나머지는 계속 부른다. 반쪽만 접수된 채 사람이 사유를 못 보는
     상태가 제일 나쁘다.
 
     **되돌릴 수 없다.** 접수하면 구매자에게 반품 진행이 보이고, 커머스API 로는 수거
-    정보를 다시 바꿀 수 없다. 그리고 접수는 `RETURN_REQUEST` 까지다 — **승인·환불은
-    사람이 판매자센터에서** 한다(네이버가 자동으로 완료 처리하지 않는다).
+    정보를 다시 바꿀 수 없다. ``approve=True`` 면 **환불까지 확정된다** — 그쪽은 되돌리는
+    엔드포인트조차 없다.
+
+    승인을 여기 붙인 이유(2026-08-31): 접수만 하고 승인은 판매자센터로 가야 하면 사람이
+    두 군데를 왕복한다. 운영 실측이 그걸 보여줬다 — 접수 기능 실호출 **0회**인데 같은
+    기간 사람은 판매자센터에서 **9건을 접수+승인 한 번에** 처리했다(22~60초).
 
     **FOMS 주문은 건드리지 않는다.** 네이버 쪽만 접수한다 — 취소와 같은 규율이다.
 
@@ -1067,9 +1175,17 @@ def request_return(session: Session, client: Any, *, link_id: int, reason: str,
         _mark_failures(by_id, failures, action="return", stamp=stamp)
     session.flush()
 
+    approved: list[str] = []
+    if approve and ok_ids:
+        # **접수에 성공한 건만** 승인한다. 실패한 건은 네이버에 반품 요청 자체가 없다.
+        approved = _approve_returns(client, by_id, ok_ids, stamp=stamp,
+                                    actor_user_id=actor_user_id, link_id=link_id)
+        session.flush()
+
     if failures and not ok_ids:
         detail_text = "; ".join(f"{pid}: {why}" for pid, why in failures.items())
         raise FulfillmentError(f"반품 접수가 실패했습니다 — {detail_text}")
-    logger.info("[NAVER] 반품 접수 link=%s 성공=%d 실패=%d", link_id, len(ok_ids),
-                len(failures))
-    return {"returned": ok_ids, "skipped": [pid for pid in failures]}
+    logger.info("[NAVER] 반품 접수 link=%s 성공=%d 실패=%d 승인=%d", link_id, len(ok_ids),
+                len(failures), len(approved))
+    return {"returned": ok_ids, "approved": approved,
+            "skipped": [pid for pid in failures]}

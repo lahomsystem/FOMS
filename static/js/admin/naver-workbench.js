@@ -116,11 +116,14 @@
         'wb-expiry-edit': toggleExpiryEdit,
         'wb-ghost-discard': submitGhostDiscard,
         'wb-origin-refresh-all': submitOriginRefreshAll,
-        'wb-refresh-all': submitRefreshAll
+        'wb-refresh-all': submitRefreshAll,
+        'wb-seek-run': submitSeek
     };
 
     document.addEventListener('click', onClick);
     document.addEventListener('change', onChange);
+    // 검색칸에서 Enter 는 찾기와 같은 일이다 — 누르는 사람은 버튼을 안 찾는다.
+    document.addEventListener('keydown', onKeydown);
     // 목록 안 찾기는 서버 왕복 없이 즉시 좁힌다 — 위임이라 pane 교체에도 안 죽는다.
     document.addEventListener('input', onInput);
     // Bootstrap 5 의 모달 이벤트는 버블한다 — 벌크 모달이 열리기 직전에 재진술을 한 번 더
@@ -561,6 +564,12 @@
                 submitReconcile(btn);
                 return;
             }
+            // 찾은 주문에 붙이는 버튼(T2). 결과 줄 수만큼 나오므로 id 가 아니라
+            // 클래스로 문다(절대 규칙 1).
+            if (btn.classList.contains('wb-seek-attach')) {
+                submitSeekAttach(btn);
+                return;
+            }
             if (btn.classList.contains('wb-plan-close')) {
                 closePlan(btn.closest('.wb-plan'));
                 return;
@@ -602,6 +611,15 @@
             syncBulk();
             return;
         }
+        // 승인 체크를 켜면 빨간 띠가 한 줄 더 말한다 — 접수보다 무겁다(환불이 나간다).
+        // 위임으로 붙이는 이유: 이 모달은 pane 프래그먼트라 교체될 때마다 다시 그려진다.
+        if (target.id === 'wb-return-approve') {
+            var warn = document.getElementById('wb-return-approve-warn');
+            if (warn) {
+                warn.hidden = !target.checked;
+            }
+            return;
+        }
         // 갈래(승계/취소 처리)를 바꾸면 1번 칸의 안내 문장이 달라진다 — 취소 처리는 붙이지
         // 않기 때문이다. 계획과 실제 동작이 어긋난 채로 실행 버튼을 누르는 자리를 막는다.
         if (target.classList.contains('wb-fork__pick')) {
@@ -628,6 +646,23 @@
             return;
         }
         applyFind(event.target.value);
+    }
+
+    /**
+     * 붙일 주문 검색칸에서 Enter — 찾기 버튼과 같은 일을 한다.
+     *
+     * `#wb-find`(목록 안 찾기)와 **다른 칸**이다. 그쪽은 입력할 때마다 화면에서 걸러내고
+     * 서버로 나가지 않는다. 이쪽은 서버 조회라 사람이 끝냈다고 말할 때만 나간다.
+     */
+    function onKeydown(event) {
+        if (!event.target || event.target.id !== 'wb-seek-q' || event.key !== 'Enter') {
+            return;
+        }
+        event.preventDefault();
+        var run = document.getElementById('wb-seek-run');
+        if (run) {
+            submitSeek(run);
+        }
     }
 
     /**
@@ -1596,17 +1631,23 @@
             window.alert('반품 사유를 고르세요.');
             return;
         }
+        // 승인까지 한 번에 (T8-S2). 체크박스가 없으면 **끈 것으로 본다** — 환불이 나가는
+        // 갈래라 "모르면 안 켠다"가 안전한 기본값이다.
+        var approveEl = document.getElementById('wb-return-approve');
+        var approve = !!(approveEl && approveEl.checked);
         btn.disabled = true;
         const result = await postJson(BASE + id + '/return', {
             reason: reasonEl.value,
-            detail: detailEl ? detailEl.value : ''
+            detail: detailEl ? detailEl.value : '',
+            approve: approve
         });
         if (!result.ok) {
             window.alert(result.error);
             btn.disabled = false;
             return;
         }
-        watchFulfillment(id, result.data && result.data.rev, '반품 접수');
+        watchFulfillment(id, result.data && result.data.rev,
+                         approve ? '반품 접수+승인' : '반품 접수');
         await hideModal(document.getElementById('wb-modal-return'));
     }
 
@@ -1850,6 +1891,141 @@
             return;
         }
         window.location.reload();
+    }
+
+    /* ── 주문 찾아서 붙이기 (T2) ─────────────────────────────────────── */
+
+    /**
+     * 검색 경합 토큰. 낱말을 고쳐 다시 찾으면 앞 요청이 아직 돌고 있다 — 늦게 온 결과가
+     * 새 결과를 덮으면 화면이 지금 친 낱말과 다른 목록을 보여주고, 그 목록에서 누른
+     * 붙이기는 담당자가 의도하지 않은 주문으로 나간다.
+     */
+    var seekToken = 0;
+
+    /**
+     * 이름·전화·주문번호로 붙일 주문을 찾는다(읽기 전용 GET).
+     *
+     * 서버가 그린 조각을 그대로 꽂는다. JS 로 표를 다시 지으면 판정 근거 열(옛 결제
+     * 상태·금액 견주기)이 후보 표와 두 벌이 되고, 같은 판단을 하는 두 표가 서로 다른
+     * 말을 하게 된다.
+     */
+    async function submitSeek(btn) {
+        var id = safeId(btn.dataset.linkId);
+        var input = document.getElementById('wb-seek-q');
+        var box = document.getElementById('wb-seek-result');
+        if (!id || !input || !box) {
+            return;
+        }
+        var token = ++seekToken;
+        box.setAttribute('aria-busy', 'true');
+        box.innerHTML = '<p class="wb-seek__msg">찾는 중…</p>';
+        try {
+            const response = await fetch(
+                BASE + id + '/order-search?q=' + encodeURIComponent(String(input.value || '')),
+                { credentials: 'same-origin', headers: { 'X-Requested-With': 'XMLHttpRequest' } });
+            if (!response.ok) {
+                throw new Error('HTTP ' + response.status);
+            }
+            const html = await response.text();
+            if (token !== seekToken) {
+                return;   // 늦게 온 응답 — 새 검색을 덮지 않는다.
+            }
+            box.innerHTML = html;
+        } catch (error) {
+            if (token !== seekToken) {
+                return;
+            }
+            // 조용히 비우지 않는다 — 빈 결과는 "그런 주문이 없다"로 읽힌다.
+            box.innerHTML = '<p class="wb-seek__msg wb-seek__msg--err">찾지 못했습니다'
+                + '(연결 오류). 잠시 뒤 다시 눌러 주세요.</p>';
+        } finally {
+            if (token === seekToken) {
+                box.setAttribute('aria-busy', 'false');
+            }
+        }
+    }
+
+    /**
+     * 찾은 주문에 붙인다 — **기존 `/attach` 라우트 그대로**다.
+     *
+     * 후보 표의 `정리 실행`(붙이기 + ERP 처리 한 트랜잭션)이 아니다. `/reconcile` 은
+     * 후보 목록 안 주문만 받고, 그 목록 밖을 받게 만들면 취소 처리(휴지통) 갈래가
+     * 범용 삭제 경로가 된다. 여기서 하는 일은 **되돌릴 수 있는 붙이기 하나**다.
+     */
+    async function submitSeekAttach(btn) {
+        var linkId = safeId(btn.dataset.linkId);
+        var orderId = safeId(btn.dataset.orderId);
+        if (!linkId || !orderId) {
+            return;
+        }
+        var relation = btn.dataset.relation === 'ADDON' ? 'ADDON' : 'REPAY';
+        var label = relation === 'ADDON' ? '추가결제' : '재결제';
+        var who = btn.dataset.customer ? ' (' + btn.dataset.customer + ')' : '';
+        if (!window.confirm('이 집을 주문 #' + orderId + who + ' 에 ' + label + ' 로 붙입니다.'
+                + '\n\n새 주문을 만들지 않습니다. 되돌릴 수 있습니다.')) {
+            return;
+        }
+        btn.disabled = true;
+        const result = await postJson(BASE + linkId + '/attach', {
+            order_id: Number(orderId),
+            relation: relation
+        });
+        if (!result.ok) {
+            window.alert(result.error);
+            btn.disabled = false;
+            return;
+        }
+        showSeekResult(result.data || {}, label, btn.dataset.deposit || '');
+    }
+
+    /**
+     * 붙인 결과를 그 자리에 쓴다. 새로고침으로 바로 넘기지 않는 이유는 **예약금에 넣을
+     * 금액** 때문이다 — 시스템이 넣지 않으므로(D-1) 사람이 그 숫자를 읽고 주문 화면에
+     * 옮겨 적어야 하는데, 새로고침이 먼저 오면 그 숫자가 사라진다(정리 계획 카드와 같은 규율).
+     */
+    function showSeekResult(data, label, depositSentence) {
+        var done = document.getElementById('wb-seek-done');
+        var box = document.getElementById('wb-seek-result');
+        if (!done) {
+            window.location.reload();
+            return;
+        }
+        if (box) {
+            box.innerHTML = '';   // 붙인 뒤에는 같은 목록에서 또 누르지 못하게 한다.
+        }
+        done.textContent = '';
+        var title = document.createElement('div');
+        title.className = 'wb-plan__h';
+        title.textContent = '✓ 붙이기 완료 — 주문 #' + data.order_id + ' 에 '
+            + data.attached + '건 (' + label + ')';
+        done.appendChild(title);
+
+        if (depositSentence) {
+            var money = document.createElement('div');
+            money.className = 'wb-plan__money';
+            var strong = document.createElement('b');
+            strong.textContent = '예약금(선금): ' + depositSentence;
+            money.appendChild(strong);
+            var note = document.createElement('div');
+            note.className = 'wb-plan__d';
+            note.textContent = '시스템이 넣지 않습니다 — 주문 화면에서 사람이 입력합니다.';
+            money.appendChild(note);
+            done.appendChild(money);
+        }
+        if (data.edit_url) {
+            var link = document.createElement('a');
+            link.className = 'btn btn-sm btn-outline-primary';
+            link.href = data.edit_url;
+            link.target = '_blank';
+            link.rel = 'noopener';
+            link.textContent = '주문 #' + data.order_id + ' 열어서 넣기 ↗';
+            done.appendChild(link);
+        }
+        var hint = document.createElement('div');
+        hint.className = 'wb-plan__d';
+        hint.textContent = '잘못 붙였으면 화면을 새로 고친 뒤 관계 줄의 되돌리기를 누르세요.';
+        done.appendChild(hint);
+        done.hidden = false;
     }
 
     /* ── 결과 띠 · 수집 상태 ─────────────────────────────────────────── */

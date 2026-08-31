@@ -919,6 +919,32 @@ input.wb-pick:disabled,
    세로로 쪼개진다(실패 목록 '확인함' 과 같은 함정). 줄바꿈만 막는다. */
 .naver-workbench .wb-cmp--cand .btn { white-space: nowrap; font-size: calc(12px * var(--wb-fs, 1)); }
 
+/* ── T2 주문 찾아서 붙이기 ─────────────────────────────────────────────
+   자동 후보가 0건일 때 이 자리가 **유일한 붙이기 경로**다. 목록 안 찾기(`.wb-find`)와
+   이름이 닮았지만 다른 물건이다 — 그쪽은 받아 둔 목록을 화면에서 걸러내고, 이쪽은
+   서버로 나가 주문 전체에서 찾는다. 그래서 결과가 표로 온다. */
+.wb-seek { margin-top: 10px; padding-top: 10px;
+           border-top: 1px dashed var(--wb-line-soft); }
+.wb-seek__label { display: block; font-weight: 600; margin-bottom: 4px;
+                  font-size: calc(12.5px * var(--wb-fs, 1)); }
+.wb-seek__bar { display: flex; gap: 6px; align-items: center; }
+.wb-seek__q { max-width: calc(280px * var(--wb-fs, 1));
+              font-size: calc(12.5px * var(--wb-fs, 1)); }
+/* 전역 `.btn { padding: 10px 20px !important }` 이 좁은 칸에서 글자를 쪼갠다(후보 표와
+   같은 함정) — 줄바꿈만 막는다. */
+.naver-workbench .wb-seek .btn { white-space: nowrap;
+                                 font-size: calc(12px * var(--wb-fs, 1)); }
+/* 비어 있으면 자리를 차지하지 않는다 — 평소엔 없는 줄이어야 한다. */
+.wb-seek__result:empty { display: none; }
+.wb-seek__result { margin-top: 8px; }
+.wb-seek__result[aria-busy="true"] { opacity: .55; }
+.wb-seek__msg { margin: 0; font-size: calc(12.5px * var(--wb-fs, 1)); }
+.wb-seek__msg--err { color: var(--wb-danger, #b91c1c); }
+.wb-seek__table { margin-top: 6px; }
+.wb-seek__done { margin-top: 8px; padding: 8px 10px; border-radius: 6px;
+                 background: #fff; border: 1px solid var(--wb-accent-line);
+                 font-size: calc(12.5px * var(--wb-fs, 1)); }
+
 /* ── v3: 부분 갱신 피드백 ─────────────────────────────────────────────
    행을 눌러 상세만 갈아 끼우는 동안, 그리고 발주확인처럼 화면이 안 변하는
    성공 뒤에 사람에게 뭐라도 보여 준다. 피드백이 없으면 "안 눌렸나" 하고
