@@ -45,8 +45,9 @@ from models import ExternalOrderLink, Order
 logger = logging.getLogger(__name__)
 
 __all__ = ["find_order_candidates", "household_amount", "origin_facts",
-           "pending_origin_cleanup",
-           "CANDIDATE_WINDOW_DAYS", "CANDIDATE_LIMIT", "ORIGIN_CLEANUP_LIMIT"]
+           "pending_origin_cleanup", "search_orders_for_attach",
+           "CANDIDATE_WINDOW_DAYS", "CANDIDATE_LIMIT", "ORIGIN_CLEANUP_LIMIT",
+           "SEARCH_LIMIT", "SEARCH_MIN_LEN"]
 
 #: 후보를 찾는 기간(일). 가구는 실측·제작·시공까지 몇 달이 걸려 차액 결제가 늦게 온다.
 CANDIDATE_WINDOW_DAYS = 180
@@ -60,6 +61,16 @@ ADDRESS_PREFIX_LEN = 10
 #: 정리 대기 띠에 실을 최대 집 수(NVREPAY-02). 넘으면 잘라내고 **잘랐다고 말한다** —
 #: 조용한 절단은 "이게 전부"로 읽힌다.
 ORIGIN_CLEANUP_LIMIT = 20
+
+#: 찾아서 붙이기(T2) 검색 결과 상한. 후보 표(5)보다 넓다 — 사람이 낱말로 좁힐 수 있으니
+#: 조금 더 보여 주고, 넘치면 **넘쳤다고 말한다**(조용한 절단은 "이게 전부"로 읽힌다).
+SEARCH_LIMIT = 10
+
+#: 검색어 최소 길이. 한 글자(성씨 `김`)는 주문 전체를 훑는 것과 같다.
+SEARCH_MIN_LEN = 2
+
+#: SQL 후보 상한. 화면은 ``SEARCH_LIMIT`` 만 보지만, 잘렸는지 알려면 한 건 더 읽어야 한다.
+SEARCH_SCAN_CAP = 60
 
 #: 점수 — 값 자체보다 순서가 의미다.
 SCORE_RECIPIENT_PHONE = 100
@@ -677,3 +688,163 @@ def find_order_candidates(session, link: ExternalOrderLink, *,
     ]
     views.sort(key=lambda row: (-row["score"], -row["order_id"]))
     return views[:limit]
+
+
+def _search_reason(order: Order, *, text: str, digits: str) -> str:
+    """검색 결과 1건이 **무엇으로 걸렸는지** 한 낱말로 말한다.
+
+    자동 매칭(:func:`find_order_candidates`)의 ``reason`` 과 같은 자리를 채운다 — 표가
+    같은 열을 쓰므로 값도 같은 축이어야 한다. 근거를 안 적으면 담당자가 "왜 이 주문이
+    떴는지" 를 확인하려고 주문을 하나씩 열어 본다.
+
+    Args:
+        order: 검색에 걸린 주문.
+        text: 사람이 입력한 낱말(공백 제거 전 원문 trim).
+        digits: 그 입력에서 뽑은 숫자열(없으면 빈 문자열).
+
+    Returns:
+        ``주문번호 일치``/``전화 일치``/``이름 일치``/``주소 일치``/``검색 일치``.
+    """
+    if digits and str(order.id) == digits:
+        return "주문번호 일치"
+    order_digits = (order.erp_phone_digits or normalize_phone_digits(order.phone) or "")
+    if digits and digits in order_digits:
+        return "전화 일치"
+    needle = text.casefold()
+    if needle and needle in (order.customer_name or "").casefold():
+        return "이름 일치"
+    if needle and needle in (order.address or "").casefold():
+        return "주소 일치"
+    # 고객명·주소가 structured_data 쪽에만 있는 주문이다(ERP 주문). 억지로 축을 만들지
+    # 않는다 — 어느 칸이 걸렸는지 모르면서 "이름 일치"라고 적으면 그게 거짓말이다.
+    return "검색 일치"
+
+
+def _search_clauses(text: str) -> tuple[list[Any], str, bool]:
+    """검색어 하나에서 **SQL 술어·숫자열·너무 짧음** 판정을 만든다.
+
+    술어는 ERP 대시보드 검색과 **같은 것**을 쓴다
+    (:func:`erp_order_dashboard_search_predicate`, ``customer_contact_only=True``) —
+    고객명·전화·주소만 본다. 담당자 이름·품목까지 열면 "박 대리가 담당한 주문 200건"이
+    붙이기 후보로 떠서 사람이 그중 하나를 고르게 된다.
+
+    Args:
+        text: 사람이 입력한 낱말(trim 완료).
+
+    Returns:
+        ``(clauses, digits, too_short)``. ``too_short`` 면 ``clauses`` 는 비어 있고
+        호출자는 **조회하지 않는다**(빈 결과와 다른 말이다).
+    """
+    from foms.services.erp_dashboard_search import erp_order_dashboard_search_predicate
+
+    # 주문번호 직검색. 전화 자릿수 경로가 4자리 이상 숫자를 먼저 가로채므로(P1-02),
+    # 따로 더하지 않으면 `4434` 가 자기 주문을 못 찾는다(통합검색이 같은 자리에서 데인
+    # 결함이다 — foms_unified_search._order_id_prefilter). 화면이 `#1234` 로 보여 주므로
+    # `#` 을 그대로 쳐도 같게 읽는다.
+    bare = text.lstrip("#").strip()
+    order_no = int(bare) if bare.isdigit() and len(bare) <= 10 else 0
+    if not 0 < order_no <= 2_000_000_000:
+        order_no = 0
+    if len(text) < SEARCH_MIN_LEN and not order_no:
+        # 한 글자 이름은 주문 전체를 훑는 것과 같다. **번호 한 자리는 다르다** —
+        # 그건 정확 일치라 id 술어 하나로만 나간다.
+        return [], "", True
+
+    clauses: list[Any] = []
+    if len(text) >= SEARCH_MIN_LEN:
+        clauses.append(erp_order_dashboard_search_predicate(f"%{text}%",
+                                                            customer_contact_only=True,
+                                                            raw_query=text))
+    if order_no:
+        clauses.append(Order.id == order_no)
+    return clauses, (normalize_phone_digits(text) or ""), False
+
+
+def _search_views(session, link: ExternalOrderLink, orders: list[Order], *,
+                  text: str, digits: str) -> list[dict[str, Any]]:
+    """검색 결과 주문들을 **후보 표와 같은 모양**으로 편다.
+
+    Args:
+        session: DB 세션.
+        link: 기준 수집 링크(금액 견주기의 새 금액).
+        orders: 화면에 낼 주문(이미 상한만큼 잘려 있다).
+        text: 사람이 친 낱말(근거 문구용).
+        digits: 그 낱말의 숫자열(근거 문구용).
+
+    Returns:
+        :func:`_order_view` 결과 목록 — 각 행에 ``deposit`` 이 더 붙는다.
+    """
+    from foms.services.integrations.naver_commerce.repay_reconcile import deposit_guidance
+
+    facts = _naver_facts(session, [int(order.id) for order in orders])  # perf-ok: 화면 상한만큼
+    new_amount = household_amount(session, link)
+    views = []
+    for order in orders:
+        view = _order_view(order, score=0,
+                           reason=_search_reason(order, text=text, digits=digits),
+                           link_count=int(facts.get(int(order.id), {}).get("link_count") or 0),
+                           facts=facts.get(int(order.id)), new_amount=new_amount)
+        # 예약금 안내를 **여기서도** 싣는다(D-1: 시스템이 넣지 않고 사람이 옮겨 적는다).
+        # 후보 표는 정리 계획 카드가 이 숫자를 말해 주는데, 검색으로 붙이면 그 카드를
+        # 안 거친다 — 안 실으면 검색 경로만 그 숫자를 잃는다. DB 조회는 없다(순수 계산).
+        view["deposit"] = {
+            relation: deposit_guidance(order, new_amount=new_amount, relation=relation)
+            for relation in ("REPAY", "ADDON")
+        }
+        views.append(view)
+    return views
+
+
+def search_orders_for_attach(session, link: ExternalOrderLink, *, query: str,
+                             limit: int = SEARCH_LIMIT) -> dict[str, Any]:
+    """붙일 주문을 **사람이 직접 찾는다** — 후보 0건일 때의 진입점 (T2).
+
+    자동 매칭은 세 축뿐이다(수취인 전화·주문자 전화·이름+주소). 재결제·추가결제가
+    **다른 이름·다른 전화·다른 주소**로 들어오면 — 가족이 대신 결제했거나 시공지가
+    바뀌었거나 새 번호로 샀거나 — 후보가 0건이고, 그러면 붙이기 버튼이 화면에 아예
+    없다. 담당자는 새 주문을 만들고 **옛 주문은 유령이 된다**.
+
+    막힌 것은 서버가 아니라 화면이었다: ``POST .../attach`` 는 후보 목록과 무관하게
+    ``order_id`` 를 받는다. 그래서 이 함수는 **읽기 전용**이다 — 찾아서 늘어놓기만 하고,
+    붙이는 것은 기존 라우트가 한다.
+
+    Args:
+        session: DB 세션.
+        link: 붙일 대상 수집 링크(금액 견주기의 **새 금액** 기준).
+        query: 사람이 입력한 낱말 — 이름·전화·주문번호.
+        limit: 돌려줄 최대 건수.
+
+    Returns:
+        ``{"query", "rows", "truncated", "too_short"}``.
+        ``rows`` 는 후보 표와 **같은 모양**이다(:func:`_order_view`) — 화면이 같은 열을
+        쓰고, 같은 판정 근거(옛 결제 상태·금액 견주기)를 보여 준다.
+        ``too_short`` 는 검색어가 짧아 **아예 조회하지 않았다**는 뜻이다(빈 결과와 다르다).
+    """
+    text = str(query or "").strip()
+    empty = {"query": text, "rows": [], "truncated": False, "too_short": False}
+    clauses, digits, too_short = _search_clauses(text)
+    if too_short:
+        empty["too_short"] = True
+        return empty
+
+    # **초안은 후보가 아니다.** 승격 전 draft 행에 집을 묶으면 주문 화면이 그 행을
+    # 되살리는 레이스에 걸린다(2026-08 유령 주문 사고). 자동 후보(not_deleted)보다 좁은
+    # 필터를 쓰는 이유가 이것이다 — 사람이 검색으로 부르면 draft 도 이름으로 걸린다.
+    base = session.query(Order).filter(Order.active_filter(), or_(*clauses))
+    if link.order_id:
+        # 이미 이 링크가 붙은 주문은 붙일 대상이 아니다(자기 자신).
+        base = base.filter(Order.id != int(link.order_id))
+    rows = (base.order_by(Order.id.desc())
+            .limit(SEARCH_SCAN_CAP)  # perf-ok: 사람이 누른 1회 검색(admin cold path)
+            .all())
+    if not rows:
+        return empty
+
+    # 주문번호를 그대로 친 사람에게는 **그 주문**이 첫 줄이어야 한다. 나머지는 최근 순이다
+    # (검색은 점수 축이 없다 — 점수를 지어내면 자동 매칭의 100/80/60 과 뜻이 갈린다).
+    exact_ids = {int(order.id) for order in rows if digits and str(order.id) == digits}
+    ordered = ([order for order in rows if int(order.id) in exact_ids]
+               + [order for order in rows if int(order.id) not in exact_ids])[:limit]
+    return {"query": text, "rows": _search_views(session, link, ordered,
+                                                 text=text, digits=digits),
+            "truncated": len(rows) > len(ordered), "too_short": False}

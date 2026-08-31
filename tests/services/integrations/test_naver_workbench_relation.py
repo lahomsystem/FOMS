@@ -122,6 +122,10 @@ def test_new_household_gets_no_relation_badge(client, workbench_on):
     장치라 관계와 무관하게 뜬다). 글자만 세면 늘 실패하므로, 배지 자체(관계 배지가
     쓰는 `badge bg-info`)가 0인지를 문다 — 지키려던 뜻은 "이 집이 후속으로 보이면 안
     된다" 다.
+
+    **관계 섹션 자체는 이제 뜬다**(T2, 2026-08-31). 후보 0건이어도 `주문 직접 찾기`
+    진입점이 그 자리에 있어야 하기 때문이다. 섹션이 있다는 것과 이 집이 후속으로
+    **보인다**는 것은 다른 말이다 — 후자는 배지와 붙이기 버튼이 말한다.
     """
     _login(client)
     link = _collected(order_no="N-REL-NEW")
@@ -129,7 +133,7 @@ def test_new_household_gets_no_relation_badge(client, workbench_on):
     body = _body(client, tab="work", link_id=link.id)
 
     assert "badge bg-info" not in body, "신규 집에 관계 배지가 달렸다"
-    assert 'data-cmp-section="relation"' not in body, "신규 집에 관계 섹션이 떴다"
+    assert "wb-attach" not in body, "신규 집에 붙이기 후보가 떴다"
     # 칩은 배지가 아니다 — 목록 필터라 관계와 무관하게 늘 있다.
     assert 'data-filter="rel"' in body
 
@@ -188,14 +192,21 @@ def test_candidate_without_a_cancel_reason_prints_no_empty_quote(client, workben
     assert "wb-cand__reason" not in body, "사유가 없는데 사유 줄이 났다"
 
 
-def test_attach_section_is_absent_without_candidates(client, workbench_on):
-    """후보가 없으면 섹션 자체를 내지 않는다 — 빈 상자는 화면만 길게 만든다."""
+def test_candidate_table_is_absent_without_candidates(client, workbench_on):
+    """후보가 없으면 **후보 표**를 내지 않는다 — 빈 표는 거짓말이다.
+
+    2026-08-31(T2)까지는 섹션 자체를 안 냈다. 그런데 자동 매칭이 못 잡는 조합
+    (가족 대리결제·시공지 변경·번호 변경)이 바로 재결제라, 정작 붙여야 할 때 붙이는
+    길이 화면에 아예 없었다. 지금은 **찾기 진입점**이 그 자리를 채운다
+    (:func:`test_zero_candidates_still_offer_a_way_to_find_the_order`).
+    """
     _login(client)
     link = _collected(order_no="N-REL-NOCAND")
 
     body = _body(client, tab="work", link_id=link.id)
 
     assert "wb-attach" not in body
+    assert "wb-cmp--cand" not in body, "후보가 없는데 후보 표가 났다"
 
 
 def test_attached_household_shows_the_order_and_a_way_back(client, workbench_on):
