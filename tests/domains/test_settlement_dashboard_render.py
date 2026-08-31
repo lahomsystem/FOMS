@@ -1122,10 +1122,14 @@ def test_tab_bar_sits_above_the_strip_and_filter_bar(client, app):
 
 
 def test_summary_pane_owns_the_existing_screen(client, app):
-    """기존 화면(상태 3종 · 그리드 · 각주)이 통째로 요약 pane **안에** 들어갔다.
+    """요약 전용 화면(그리드 · 각주)이 통째로 요약 pane **안에** 들어갔다.
 
     하나라도 pane 밖에 남으면 실무 탭에서도 그 조각이 그대로 보인다 — 탭을 나눈 의미가
     사라지고, 화면이 "정산 요약 수치를 늘 달고 다니는 실무 화면"이 된다.
+
+    상태 3종(로딩·실패·권한거부)은 **의도적으로 예외**다: 집계 fetch 는 요약·분석이
+    공유하는 하나의 요청이라 그 결과 표시도 pane 밖 공유물이다
+    (`test_shared_state_nodes_live_outside_every_pane` 가 그 자리를 따로 잠근다).
     """
     _login_allowed(client)
 
@@ -1133,9 +1137,6 @@ def test_summary_pane_owns_the_existing_screen(client, app):
 
     block = html[html.index('id="foms-settle-pane-summary"'):html.index('id="foms-settle-pane-ops"')]
     for anchor in (
-        "data-settlement-loading",
-        "data-settlement-error",
-        "data-settlement-denied",
         "data-settlement-grid",
         'id="foms-settle-kpis"',
         'id="foms-settle-main-chart"',
@@ -1145,6 +1146,43 @@ def test_summary_pane_owns_the_existing_screen(client, app):
     # 툴팁은 반대로 pane **밖**이어야 한다 — position:fixed 라 탭마다 복제하면 안 된다.
     assert 'id="foms-settle-tooltip"' not in block
     assert html.index('id="foms-settle-tooltip"') > html.index('id="foms-settle-pane-analytics"')
+
+
+def test_shared_state_nodes_live_outside_every_pane(client, app):
+    """로딩·실패·권한거부 3종이 pane **밖**(루트 직속)에 있다 — 어느 탭에서도 보이게.
+
+    집계 fetch 는 요약·분석 두 탭이 공유하는 **하나의** 요청이다. 이 노드들이 요약 pane
+    안에 있으면, 분석 탭을 보는 중에 fetch 가 실패해도 실패 문구가 `display:none` 인 pane
+    안에서 켜져 **분석 탭은 아무 설명 없이 빈 화면**이 된다 — 이 저장소가 금지하는 무음
+    실패다(브리프 §5.6). 자리는 필터바 아래 · 첫 pane 위여야 한다(읽는 순서 = 발생 순서).
+    """
+    _login_allowed(client)
+
+    html = _fragment_html(client)
+
+    first_pane = html.index('id="foms-settle-pane-summary"')
+    filterbar = html.index('class="s-filterbar"')
+    for key in ("로딩 표시", "fetch 실패 표시", "권한 거부 표시(403 전용)"):
+        at = html.find(_REQUIRED_ANCHORS[key])
+        assert at >= 0, key
+        assert filterbar < at < first_pane, f"{key} 가 pane 안(또는 필터바 위)에 있다: {at}"
+    # 재시도 버튼도 같이 나와야 한다 — 실패 문구만 보이고 되돌릴 길이 없으면 막다른 길이다.
+    assert html.find("data-settlement-retry") < first_pane
+
+
+def test_non_ready_states_hide_both_period_tab_grids():
+    """ready 가 아닌 동안에는 요약 그리드와 분석 그리드를 **둘 다** 감춘다.
+
+    상태 노드를 pane 밖으로 옮긴 것만으로는 반쪽이다 — 분석 그리드를 그대로 두면 실패
+    화면 위에 값 없는 빈 카드 6장이 같이 보인다("고장" 과 구분되지 않는다).
+    """
+    js = _read_code(f"static/{JS_ASSET}")
+
+    body = _js_function_body(js, "showState")
+    for els in ("ctx.els.grid", "ctx.els.analyticsGrid"):
+        assert re.search(
+            r"toggle\(\s*%s\s*,\s*kind\s*!==\s*['\"]ready['\"]\s*\)" % re.escape(els), body
+        ), f"{els} 를 ready 기준으로 감추지 않는다: {body[:400]}"
 
 
 @pytest.mark.parametrize("mount_id", _TAB_MOUNT_IDS)
@@ -1293,3 +1331,330 @@ def test_allowed_actors_receive_every_anchor(client, app, role, team):
 
     missing = [name for name, anchor in _REQUIRED_ANCHORS.items() if anchor not in html]
     assert not missing, (role, team, missing)
+
+
+# ==========================================================================
+# 계약 13 — 탭 3 · 분석 화면 (SETTLE-TABS-01 T3)
+# ==========================================================================
+# 분석 탭은 요약과 **같은 한 번의 fetch** 를 다른 축으로 본다. 여기서 잠그는 것은 네 가지다:
+#   (a) 마운트가 실제로 채워졌는가(자리표시 <p> 가 남으면 "준비 중" 화면이 배포된다),
+#   (b) 담당자 카드의 **키 부재 안전성**(STAFF payload 는 키가 통째로 없다),
+#   (c) 라벨 SSOT(단계·부서 이름을 화면이 들고 있으면 안 된다),
+#   (d) 집계 막대 램프가 **단건 출고가 램프와 다른 축**인가.
+def _analytics_block(html: str) -> str:
+    """분석 마운트 안쪽 마크업만 잘라낸다(툴팁 앞까지)."""
+    start = html.index('id="foms-settle-analytics-mount"')
+    return html[start:html.index('id="foms-settle-tooltip"')]
+
+
+#: 분석 탭 카드가 서버 렌더로 갖고 있어야 하는 앵커. 카드가 통째로 빠지는 회귀를 잡는다.
+_ANALYTICS_ANCHORS = {
+    "KPI 4종 호스트": 'id="foms-settle-an-kpis"',
+    "채널 비교 막대": 'id="foms-settle-an-channel-bar"',
+    "채널 비교 표": 'id="foms-settle-an-channel-table"',
+    "담당자별 카드(권한 게이트)": "data-settlement-manager-card",
+    "담당자별 막대": 'id="foms-settle-an-managers"',
+    "단계별 막대": 'id="foms-settle-an-stages"',
+    "부서별 차감 막대": 'id="foms-settle-an-deductions"',
+    "수금 구성 상자": 'id="foms-settle-an-collect"',
+    "미수 aging 막대": 'id="foms-settle-an-aging"',
+    "AS 3분할": 'id="foms-settle-an-as"',
+    "분석 그리드(상태 전환 대상)": "data-settlement-analytics-grid",
+}
+
+#: 목업이 그렸지만 **근거 데이터가 없어** 빼기로 한 것들(브리프 "제외 — 만들지도 속이지도 마라").
+#:   연체 위험 스코어  — 근거 데이터 없음 + 행 단위(집계 전용 엔드포인트가 실어선 안 된다)
+#:   팀 스코프        — 주문에 영업팀 축이 없다(`erp_owner_team_code` 는 워크플로 팀)
+#:   수수료           — 네이버 수수료율 데이터가 없다
+_EXCLUDED_MOCKUP_CARDS = ("연체 위험", "팀 스코프", "수수료")
+
+#: 목업이 담당자·단계 카드에 박아 둔 **고정** 금액구간 범례. 실데이터에 맞지 않는 숫자라
+#: 그대로 옮기면 색과 글자가 서로 다른 말을 한다(범례는 실제 경계에서 생성해야 한다).
+_MOCKUP_FIXED_RAMP_LABELS = ("1,999만", "2,000~3,499만", "3,500~4,999만", "5,000만~")
+
+
+def test_analytics_mount_is_populated_not_a_placeholder(client, app):
+    """분석 마운트에 자리표시 문구가 아니라 실제 카드가 들어 있다."""
+    _login_allowed(client)
+
+    html = _fragment_html(client)
+    block = _analytics_block(html)
+
+    assert "s-pane-placeholder" not in block, "분석 탭에 '준비 중' 자리표시가 남아 있다"
+    assert "분석 화면은 준비 중입니다" not in html
+    # 실무 탭 자리표시는 아직 남아 있어도 된다(다른 작업 몫) — 분석만 본다.
+    assert 'id="foms-settle-analytics-mount"' in html
+
+
+@pytest.mark.parametrize("name,anchor", sorted(_ANALYTICS_ANCHORS.items()))
+def test_analytics_cards_are_server_rendered(client, app, name, anchor):
+    """분석 카드 앵커가 **서버 렌더** 마크업에 있다(JS 가 카드를 만들어 내지 않는다).
+
+    JS 가 카드까지 만들면 fetch 실패 때 카드가 통째로 사라져 "화면이 안 뜬다" 가 된다.
+    """
+    _login_allowed(client)
+
+    block = _analytics_block(_fragment_html(client))
+
+    assert anchor in block, f"{name}: {anchor}"
+
+
+def test_analytics_cards_carry_human_readable_titles(client, app):
+    """카드마다 사람이 읽는 제목이 있다 — 값이 채워지기 전에도 무엇이 빈 칸인지 보인다."""
+    _login_allowed(client)
+
+    block = _analytics_block(_fragment_html(client))
+
+    for title in ("채널 비교", "담당자별 매출", "단계별 파이프라인 금액",
+                  "부서별 정산 차감", "수금 · 미수 현황", "AS · 정산 처리 현황"):
+        assert title in block, title
+
+
+def test_analytics_manager_card_guards_on_key_presence():
+    """담당자 카드가 **키 부재**(STAFF payload)를 안전하게 처리한다.
+
+    서버는 권한 밖 사용자에게 `managers`/`managers_total` 키를 **payload 에서 뺀다**
+    (SPEC §13.6, `test_settlement_dashboard_api.py::test_manager_breakdown_is_stripped...`).
+    그래서 화면이 만나는 것은 "값 0" 이 아니라 "키 없음" 이다 — 세 가지가 전부 필요하다:
+      1) 키 존재 여부로 판정할 것(`data.managers.length` 로 바로 들어가면 던진다),
+      2) 빈 카드가 아니라 **카드째** 감출 것,
+      3) 그 뒤 코드가 실행되지 않도록 조기 반환할 것(뒷 카드까지 죽이지 않는다).
+    """
+    js = _read_code(f"static/{JS_ASSET}")
+
+    body = _js_function_body(js, "renderAnalyticsManagers")
+    assert "hasOwnProperty" in body, f"키 존재 판정이 없다: {body[:300]}"
+    assert re.search(r"toggle\(\s*card\s*,", body), "카드째 감추지 않는다"
+    guard = re.search(r"if\s*\(\s*!\s*granted\s*\)\s*return", body)
+    assert guard, "권한 없음일 때 조기 반환이 없다"
+    # 카드 자체를 감추기 **전에** managers 를 파고들지 않는다.
+    assert body.index("hasOwnProperty") < body.index("data.managers"), body[:400]
+
+
+def test_analytics_manager_card_is_hidden_until_data_grants_it(client, app):
+    """서버 렌더 시점의 담당자 카드는 **감춰진 상태**로 나온다(fail-closed).
+
+    JS 가 데이터를 받아 권한을 확인한 뒤에만 연다. 반대로 만들면(기본 노출 → 나중에 숨김)
+    STAFF 화면에 빈 실적 카드가 한 번 번쩍인 뒤 사라진다.
+    """
+    _login_allowed(client)
+
+    block = _analytics_block(_fragment_html(client))
+
+    card = re.search(r'<div\b[^>]*data-settlement-manager-card[^>]*>', block)
+    assert card, "담당자 카드 태그를 찾지 못했다"
+    assert "s-hidden" in card.group(0), card.group(0)
+
+
+def test_staff_payload_really_omits_the_manager_keys(client, app):
+    """STAFF 응답에 `managers` 키가 실제로 **없다** — 화면 가드가 지키는 상황이 실재한다.
+
+    가드만 있고 상황이 없으면 그 가드는 영영 검증되지 않는다(음성 대조군으로 ADMIN 을 같이
+    본다 — ADMIN 에는 키가 있어야 가드가 카드를 여는 쪽도 살아 있음이 증명된다).
+    """
+    _seed_order(completion="2026-08-10", sd=_money(items_total=2_000_000, deposit=0))
+
+    _login(client, _make_user(role="STAFF", team="CS"))
+    staff = client.get(f"{API_URL}?month_from=2026-08&month_to=2026-08").get_json()["data"]
+    assert "managers" not in staff and "managers_total" not in staff, sorted(staff)
+
+    _login(client, _make_user(role="ADMIN"))
+    admin = client.get(f"{API_URL}?month_from=2026-08&month_to=2026-08").get_json()["data"]
+    assert admin["managers"], "대조군 실패 — ADMIN 에게도 담당자별 매출이 없다"
+    assert admin["managers_total"]["count"] >= 1, admin["managers_total"]
+
+
+def test_analytics_stage_and_department_labels_come_from_the_api():
+    """단계·부서 라벨을 분석 화면이 하드코딩하지 않는다(SSOT = API `label`).
+
+    목업의 부서 이름·순서는 실제(`SETTLEMENT_DEPARTMENT_OPTIONS`)와 다르고, 단계에는
+    실재하지 않는 항목까지 있었다. 두 벌이 되면 서버가 바뀌어도 화면만 옛 이름을 말한다.
+    """
+    js = _read_code(f"static/{JS_ASSET}")
+    block = _analytics_block(_read_code(BODY_TEMPLATE))
+    # 검사는 **분석 렌더 함수 본문**으로 좁힌다. 'AS접수' 같은 문자열은 단계 라벨이면서
+    # 동시에 정산 모집단 **상태** 이름이라(요약 KPI 부제가 그 뜻으로 쓴다) 파일 전체
+    # 문자열 검사로는 뜻을 구분할 수 없다 — 단계 카드가 자기 목록을 들었는지만 본다.
+    renderers = "".join(
+        _js_function_body(js, name)
+        for name in ("renderAnalyticsStages", "renderAnalyticsDeductions", "renderBarList")
+    )
+
+    # 부서 라벨 5종(= SETTLEMENT_DEPARTMENT_OPTIONS)이 코드에 리터럴로 있으면 안 된다.
+    for label in ("도면", "공장(생산)", "시공팀", "고객"):
+        assert label not in js, f"JS 가 부서 라벨을 들고 있다: {label}"
+        assert label not in block, f"분석 마크업이 부서 라벨을 들고 있다: {label}"
+    # 단계 라벨/코드도 마찬가지(요약 탭 계약과 같은 규율).
+    for label in ("주문접수", "AS접수", "AS_RECEIVED", "RECEIVED"):
+        assert label not in renderers, f"분석 렌더가 단계 라벨/코드를 들고 있다: {label}"
+        assert label not in block, f"분석 마크업이 단계 라벨/코드를 들고 있다: {label}"
+    assert "st.label" in renderers and "d.label" in renderers, "API label 을 읽는 흔적이 없다"
+
+
+def test_aggregate_bar_ramp_is_a_separate_scale_from_single_order_edges():
+    """집계 막대(담당자·단계)의 금액 램프가 **단건 출고가 램프와 다른 축**이다.
+
+    `BUCKET_EDGES = [450, 700, 900]`(만원)은 **주문 한 건**의 출고가에 맞춘 경계다. 담당자
+    합계·단계 합계는 자릿수가 한 단계 커서(실측 dev 시드: 담당자 7명 1,120만~1,808만) 같은
+    경계를 재사용하면 **모든 막대가 최상단 색**이 된다 — 램프가 아무것도 말하지 않는 상태로
+    조용히 통과한다. 그래서 (a) 별도 경계 함수가 있고 (b) 그 함수가 BUCKET_EDGES 를 안 쓰며
+    (c) 범례 문구가 그 경계에서 **생성**된다(고정 문구면 색과 글자가 갈린다).
+    """
+    js = _read_code(f"static/{JS_ASSET}")
+
+    edges = _js_function_body(js, "aggEdges")
+    color = _js_function_body(js, "aggColor")
+    legend = _js_function_body(js, "renderRampLegend")
+    assert "BUCKET_EDGES" not in edges, f"단건 램프 경계를 그대로 쓴다: {edges}"
+    assert "BUCKET_EDGES" not in color, f"단건 램프 경계를 그대로 쓴다: {color}"
+    assert "AGG_RAMP_QUARTILES" in edges, edges
+    # 범례는 경계 배열에서 문구를 만든다(하드코딩 라벨 금지).
+    assert "edges[0]" in legend and "edges[2]" in legend, legend[:300]
+    assert "BUCKET_LABELS" not in legend, "단건 램프 범례를 재사용한다"
+    for fixed in _MOCKUP_FIXED_RAMP_LABELS:
+        assert fixed not in js, f"목업 고정 범례가 남아 있다: {fixed}"
+    # 두 램프가 실제로 다른 상수여야 한다(같은 배열을 가리키면 이름만 다른 것).
+    assert re.search(r"var\s+AGG_RAMP_QUARTILES\s*=\s*\[", js), "집계 램프 경계 상수가 없다"
+    assert re.search(r"var\s+BUCKET_EDGES\s*=\s*\[\s*450", js), "단건 램프 경계가 바뀌었다"
+
+
+def test_analytics_kpi_deltas_come_from_prev_totals():
+    """분석 KPI 4장의 증감이 서버가 준 `prev_totals` 에서 나온다(화면 추정 금지).
+
+    이전 기간 스칼라를 화면이 다시 만들면(예: prev_buckets 재집계) 서버 합계와 조용히
+    갈린다 — 특히 부서 차감은 버킷에 아예 없어서 만들어 낼 수조차 없다.
+    """
+    js = _read_code(f"static/{JS_ASSET}")
+
+    body = _js_function_body(js, "renderAnalyticsKpis")
+    assert "prev_totals" in body, body[:300]
+    assert "prev_buckets" not in body, "이전 구간을 버킷에서 다시 만든다"
+    for key in ("revenue", "completed_count", "avg_shipping_price", "deduction_total"):
+        assert key in body, f"prev_totals.{key} 를 안 쓴다"
+    assert "deltaOf(" in body, "기존 델타 헬퍼를 재사용하지 않는다"
+
+
+def test_analytics_reads_the_new_aggregate_keys():
+    """분석 탭이 M2 확장 키를 실제로 읽는다 — 앵커만 있고 영원히 비는 카드를 막는다."""
+    js = _read_code(f"static/{JS_ASSET}")
+
+    for key in (
+        "prev_totals",
+        "managers",
+        "managers_total",
+        "collected_deposit",
+        "collected_balance",
+        "as_total_count",
+        "as_billing_free_count",
+        "as_billing_undecided_count",
+    ):
+        assert key in js, f"분석 탭이 API 키 '{key}' 를 안 쓴다"
+
+
+def test_channel_average_guards_against_zero_count():
+    """채널 '건당 평균' 이 0 건에서 나누지 않는다.
+
+    `_build_channels` 는 데이터가 없어도 '일반' 행을 **항상** 낸다(0건 0원). 가드가 없으면
+    NaN/Infinity 가 그대로 화면에 찍힌다.
+    """
+    js = _read_code(f"static/{JS_ASSET}")
+
+    body = _js_function_body(js, "renderAnalyticsChannels")
+    assert re.search(r"count\s*>\s*0\s*\?", body), f"0건 가드가 없다: {body[-800:]}"
+    assert "'—'" in body or '"—"' in body, "정의되지 않은 평균을 사람이 읽는 기호로 말하지 않는다"
+
+
+def test_analytics_renders_through_the_single_render_entry_point():
+    """분석 렌더가 `renderAll()` 안에 등록돼 있다(두 번째 진입점 금지).
+
+    탭 활성화·리사이즈가 전부 renderAll 로 들어온다 — 분석만 따로 부르는 경로를 만들면
+    그 경로만 재렌더에서 빠져 폭·기간 변경이 한쪽에만 반영된다.
+    """
+    js = _read_code(f"static/{JS_ASSET}")
+
+    render_all = _js_function_body(js, "renderAll")
+    assert re.search(r"renderAnalytics\(\s*ctx\s*\)", render_all), render_all
+    # 분석 전용 부트스트랩/리스너를 따로 만들지 않았는지 — 마운트도 한 곳이다.
+    assert not re.search(r"document\.addEventListener\(\s*['\"]DOMContentLoaded['\"]\s*,\s*renderAnalytics", js)
+
+
+def test_analytics_pane_does_not_duplicate_the_filter_bar(client, app):
+    """분석 pane 안에 기간 필터 컨트롤 복제본이 없다(필터바는 화면 전체에 한 벌).
+
+    `test_filter_bar_is_shared_by_period_tabs_and_not_duplicated` 가 문서 전체 개수를 세고,
+    이 테스트는 **분석 pane 안쪽**을 따로 본다 — 카드 헤드에 '주별/월별' 같은 미니 토글을
+    슬쩍 넣는 회귀가 개수 검사만으로는 잡히지 않기 때문이다.
+    """
+    _login_allowed(client)
+
+    html = _fragment_html(client)
+    block = _analytics_block(html)
+
+    assert html.count('class="s-filterbar"') == 1, "필터바가 여러 벌이다"
+    for anchor in (
+        "s-filterbar",
+        "data-settlement-granularity",
+        "data-settlement-compare",
+        "data-settlement-cumulative",
+    ):
+        assert anchor not in block, f"분석 pane 이 기간 컨트롤을 복제했다: {anchor}"
+
+
+@pytest.mark.parametrize("phrase", _EXCLUDED_MOCKUP_CARDS)
+def test_analytics_omits_the_cards_without_backing_data(client, app, phrase):
+    """근거 데이터가 없어 빼기로 한 목업 카드가 분석 탭에 없다.
+
+    연체 위험 스코어는 데이터가 없을 뿐 아니라 **행 단위**다 — 집계 전용 엔드포인트가
+    행을 싣기 시작하면 노출 계약이 통째로 무너진다.
+    """
+    _login_allowed(client)
+
+    block = _strip_comments(_analytics_block(_fragment_html(client)))
+
+    assert phrase not in block, f"제외 대상이 분석 탭에 남아 있다: {phrase}"
+    assert phrase not in _strip_comments(_read(f"static/{JS_ASSET}"))
+
+
+def test_analytics_does_not_reintroduce_the_false_scope_note(client, app):
+    """목업의 거짓 문구("모든 카드가 같은 기간 스코프")를 분석 탭이 되살리지 않는다.
+
+    실구현에서 미수·aging 은 기간 무관이고 단계 카드는 현재 시점 스냅샷이다. 템플릿이 이미
+    교정 문구를 달고 있으므로, 분석 카드가 자기 부제로 다시 거짓말하면 안 된다.
+    """
+    _login_allowed(client)
+
+    html = _fragment_html(client)
+
+    assert "모든 카드가 같은 기간 스코프" not in html
+    # 교정 문구는 그대로 살아 있어야 한다(지우고 통과시키는 회귀 방지).
+    assert "기간과 무관한 전체 집계" in html
+
+
+def test_analytics_collection_is_labelled_as_an_approximation(client, app):
+    """수금 카드가 스스로 **근사치**임을 말한다 — 실제 입금일 시계열이 아니다.
+
+    입금 확인 토글 기반이라 '완료월 귀속' 이라는 전제가 붙어야 회계가 이 숫자를 입금
+    실적으로 오독하지 않는다.
+    """
+    _login_allowed(client)
+
+    block = _analytics_block(_fragment_html(client))
+
+    assert "근사" in block, "수금액의 근사 성격 표기가 없다"
+    assert "완료월" in block, "완료월 귀속이라는 전제 표기가 없다"
+
+
+def test_analytics_bars_use_css_custom_properties_for_width():
+    """막대 폭을 인라인 style 문자열이 아니라 CSS 커스텀 프로퍼티로 넣는다(저장소 규칙).
+
+    동시에 이것이 **폭 0 함정 밖**이라는 근거다 — 퍼센트 폭이라 호스트 `clientWidth` 를
+    읽지 않으므로 숨은 pane 에서 그려도 눌리지 않는다(SVG 차트와 다른 점).
+    """
+    js = _read_code(f"static/{JS_ASSET}")
+    css = _read_code(f"static/{CSS_ASSET}")
+
+    body = _js_function_body(js, "renderBarList")
+    assert "--s-bar-pct" in body, body[:300]
+    assert not re.search(r"\.style\.width\s*=", body), "폭을 인라인 style 로 넣는다"
+    assert not re.search(r"clientWidth", body), "막대가 호스트 폭을 읽는다(폭 0 함정에 들어간다)"
+    assert re.search(r"\.s-bbar\s*\{[^}]*var\(--s-bar-pct", css), "CSS 가 변수를 소비하지 않는다"
