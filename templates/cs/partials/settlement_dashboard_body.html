@@ -18,6 +18,7 @@
    숨은 pane 은 `clientWidth === 0` 이라 그 사이에 그린 차트는 폴백 폭(400px)으로 눌린다 —
    재렌더 책임은 `dashboard.js` 의 `activateTab()` 에 있다(실측 수치까지 그쪽 주석에 있다). #}
 <link rel="stylesheet" href="{{ url_for('static', filename='css/settlement/settlement-dashboard.css') }}?v=20260831d">
+<link rel="stylesheet" href="{{ url_for('static', filename='css/settlement/settlement-operations.css') }}?v=20260831d">
 <div class="container-fluid erp-dashboard erp-pro erp-settlement">
   <header class="erp-pro-header">
     <h1 class="erp-pro-header__title">
@@ -219,7 +220,7 @@
     <div class="s-pane" role="tabpanel" id="foms-settle-pane-ops"
       data-settlement-pane="ops" aria-labelledby="foms-settle-tab-ops" tabindex="0" hidden>
       <div class="s-pane-mount" id="foms-settle-ops-mount" data-settlement-mount="ops">
-        <p class="s-pane-placeholder">실무(경리·수금) 화면은 준비 중입니다.</p>
+        {% include 'cs/partials/settlement_operations_body.html' %}
       </div>
     </div>
 
@@ -350,3 +351,4 @@
   </div>
 </div>
 <script src="{{ url_for('static', filename='js/settlement/dashboard.js') }}?v=20260831d" defer></script>
+<script src="{{ url_for('static', filename='js/settlement/operations.js') }}?v=20260831d" defer></script>

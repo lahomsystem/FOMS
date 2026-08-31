@@ -1,0 +1,205 @@
+{# 정산 대시보드 · 탭 2 "실무(경리·수금)" 내용물 (SETTLE-TABS-01 / 스펙 개정 A §13).
+
+   원본 목업: docs/design/mockups/settlement-dashboard-v2-operations.html
+
+   **이 파일이 소유하는 범위**: 셸이 만들어 둔 `#foms-settle-ops-mount` **안쪽**만이다.
+   pane 자체와 `role`/`aria-*`/`hidden` 배선, 탭바, 기간 필터바는 셸(`settlement_dashboard_body.html`)
+   소유라 여기서 만들지 않는다. 이 탭은 기간 스코프 화면이 아니라 셸이 필터바를 CSS 로 감춘다.
+
+   **데이터 소스는 `GET /api/settlement/rows` 하나뿐이다.** KPI 스트립도 그 응답의 `totals` 에서
+   파생한다 — 집계 API(`/api/settlement/aggregates`)를 여기서 부르지 않는다. 한 화면에 소스가
+   둘이면 같은 숫자가 두 계산 경로로 갈려 조용히 어긋난다(요약 탭이 그 소스를 소유한다).
+
+   **속성 이름이 전부 `data-settlement-ops-*` 인 이유(바꾸지 마라)**: 이 마크업은 요약 탭과
+   **같은 루트(`#foms-settlement-root`) 안**에 들어간다. `dashboard.js` 의 `collectEls()` 는
+   `root.querySelector('[data-settlement-empty="aging"]')` 처럼 루트 전체를 훑으므로,
+   같은 이름을 쓰면 요약 탭의 JS 가 실무 탭 노드를 잡거나 그 반대가 된다. 클래스도 마찬가지라
+   `.s-filterbar`·`.s-foot` 같은 요약 탭 클래스를 재사용하지 않고 `s-ops-` 접두어를 쓴다
+   (계약 테스트가 `class="s-filterbar"` 가 문서에 **1개**임을 고정하고 있다).
+
+   **귀속 부서 목록은 서버가 준다.** `department_options` 는 뷰가 넘기는
+   `foms.web.cs.completion_dashboard.SETTLEMENT_DEPARTMENT_OPTIONS` 다. 화면이 부서 라벨을
+   들고 있으면 서버 허용 집합(`SETTLEMENT_DEPARTMENTS`)과 두 벌이 되어 조용히 갈린다 —
+   요약 탭이 단계 라벨을 하드코딩하지 않는 것과 같은 이유다. 넘어오지 않으면 폼이
+   **비어 있는 대신 그 사실을 말한다**(무음 실패 금지).
+
+   행 렌더는 `static/js/settlement/operations.js` 가 한다. 서버는 **마운트 지점과 상태 자리**만
+   낸다 — fetch 가 실패해도 "빈 카드"가 아니라 "무엇이 비었는지"가 보여야 하기 때문이다. #}
+{% set ops_departments = department_options | default([], true) %}
+<div class="s-ops" id="foms-settle-ops" data-foms-settlement-ops="1"
+  data-rows-url="{{ url_for('settlement_api.api_settlement_rows') }}">
+
+  {# ── KPI 스트립 — 전부 rows 응답의 `totals` 파생. 현재 필터가 적용된 값이다. ── #}
+  <div class="s-ops-kpis" id="foms-settle-ops-kpis" data-settlement-ops-kpis></div>
+
+  {# ── 미수금 aging — 막대 클릭이 아래 목록의 `aging` 필터가 된다 ──────────────
+     막대는 SVG 가 아니라 **CSS 퍼센트 폭 HTML 막대**다. 숨은 pane 은 `clientWidth === 0`
+     이라 SVG 를 그리면 빈 그림이 남지만, 퍼센트 폭은 보이는 시점에 계산되므로 폭 0 함정이
+     아예 성립하지 않는다. 버킷 목록·라벨은 서버 응답 `aging_options` 가 SSOT 다. #}
+  <section class="s-ops-panel" data-settlement-ops-aging-panel>
+    <div class="s-ops-head">
+      <span class="s-ops-title">미수금 aging</span>
+      <span class="s-ops-sub" data-settlement-ops-aging-sub>완료 후 경과일 구간 · 잔금 입금 미확인 건</span>
+    </div>
+    <div class="s-ops-body">
+      <div class="s-ops-aging" id="foms-settle-ops-aging" data-settlement-ops-aging></div>
+      <div class="s-empty s-hidden" data-settlement-ops-empty="aging">
+        현재 조건에 미수 건이 없습니다. 구간별 막대는 잔금 입금이 확인되지 않은 주문만 셉니다.
+      </div>
+      <div class="s-ops-note">막대를 누르면 아래 목록이 그 구간만 보입니다. 같은 막대를 다시 누르면 해제됩니다.</div>
+    </div>
+  </section>
+
+  {# ── 주인공: 주문 한 줄 = 한 건 목록 ──────────────────────────────────────── #}
+  <section class="s-ops-panel">
+    <div class="s-ops-head">
+      <span class="s-ops-title">주문 단위 수금 목록</span>
+      <span class="s-ops-sub">한 주문 = 한 줄 · 경과일 오래된 순 · 잔금 = 출고가 − 예약금</span>
+      <span class="s-ops-spacer"></span>
+      <button type="button" class="s-ops-btn" data-settlement-ops-csv>
+        현재 페이지 CSV 내려받기
+      </button>
+    </div>
+
+    {# 칩 3묶음. 값은 그대로 API 파라미터가 된다(period / settlement / channel).
+       기간 칩은 **완료 후 경과일**이지 완료월이 아니다 — 요약 탭 필터바와 축이 다르다. #}
+    <div class="s-ops-filterbar" data-settlement-ops-filterbar>
+      <span class="s-ops-grp-lbl" id="foms-settle-ops-lbl-period">기간</span>
+      <div class="s-ops-grp" role="group" aria-labelledby="foms-settle-ops-lbl-period"
+        data-settlement-ops-filter="period">
+        <button type="button" class="s-ops-chip" data-settlement-ops-value="all" aria-pressed="true">전체</button>
+        <button type="button" class="s-ops-chip" data-settlement-ops-value="7" aria-pressed="false">7일 이내</button>
+        <button type="button" class="s-ops-chip" data-settlement-ops-value="30" aria-pressed="false">30일 이내</button>
+        <button type="button" class="s-ops-chip" data-settlement-ops-value="31" aria-pressed="false">31일 이상</button>
+      </div>
+      <span class="s-ops-grp-lbl" id="foms-settle-ops-lbl-settlement">정산상태</span>
+      <div class="s-ops-grp" role="group" aria-labelledby="foms-settle-ops-lbl-settlement"
+        data-settlement-ops-filter="settlement">
+        <button type="button" class="s-ops-chip" data-settlement-ops-value="all" aria-pressed="true">전체</button>
+        <button type="button" class="s-ops-chip" data-settlement-ops-value="pending" aria-pressed="false">대기</button>
+        <button type="button" class="s-ops-chip" data-settlement-ops-value="issued" aria-pressed="false">청구완료</button>
+      </div>
+      <span class="s-ops-grp-lbl" id="foms-settle-ops-lbl-channel">채널</span>
+      <div class="s-ops-grp" role="group" aria-labelledby="foms-settle-ops-lbl-channel"
+        data-settlement-ops-filter="channel">
+        <button type="button" class="s-ops-chip" data-settlement-ops-value="all" aria-pressed="true">전체</button>
+        <button type="button" class="s-ops-chip" data-settlement-ops-value="일반" aria-pressed="false">일반</button>
+        <button type="button" class="s-ops-chip" data-settlement-ops-value="NAVER" aria-pressed="false">네이버</button>
+      </div>
+      {# aging 막대로 건 필터는 여기 해제 칩으로 되비친다 — 어느 구간만 보고 있는지
+         목록만 봐서는 알 수 없기 때문이다. #}
+      <span class="s-ops-bucket-slot" data-settlement-ops-bucket-chip></span>
+    </div>
+
+    {# 로딩·실패 노드는 **이 탭이 자기 것을 갖는다.** 요약 탭의
+       `data-settlement-loading`/`-error`/`-denied` 와 `showState()` 는 요약 pane **안에**
+       살아서, 실무 탭에서 그것을 켜면 숨은 pane 안에서 켜져 사용자는 아무것도 못 본다.
+       그래서 이름도 `-ops-` 로 갈랐고 상태 전환도 operations.js 가 따로 소유한다.
+       권한 거부(403)는 셸이 전역으로 처리한다(탭바를 감추고 요약 탭으로 되돌린다) —
+       여기서 별도 denied 노드를 만들지 않고, 혹시 이 fetch 만 403 이 나면 실패 노드가
+       그 사유를 사람 말로 적는다(무음 실패 금지).
+       Bootstrap `.alert` 는 쓰지 않는다 — static/js/runtime/script.js:10 이 5초 뒤
+       자동으로 닫아 상시 안내가 사라진다. #}
+    <div class="s-state s-state--loading" data-settlement-ops-loading aria-live="polite">
+      <div class="s-state-title">주문 목록을 불러오는 중입니다…</div>
+      <div class="s-state-detail">모집단 전량을 읽어 필터한 뒤 페이지를 자릅니다.</div>
+    </div>
+    <div class="s-state s-state--error s-hidden" data-settlement-ops-error role="alert">
+      <div class="s-state-title">주문 목록을 불러오지 못했습니다.</div>
+      <div class="s-state-detail" data-settlement-ops-error-detail>네트워크 또는 서버 오류입니다.</div>
+      <button type="button" class="s-ops-btn" data-settlement-ops-retry>다시 시도</button>
+    </div>
+
+    {# 실행 버튼의 결과 안내. 성공도 실패도 여기 한 자리에서 말한다(무음 실행 금지). #}
+    <div class="s-state s-hidden" data-settlement-ops-notice role="status" aria-live="polite">
+      <div class="s-state-title" data-settlement-ops-notice-title></div>
+      <div class="s-state-detail" data-settlement-ops-notice-detail></div>
+    </div>
+
+    {# ── 정산 청구 폼 ─────────────────────────────────────────────────────────
+       `POST /api/orders/<id>/settlement/issue` 는 `department`·`amount`·`reason`
+       **셋 다** 필수다(각각 없으면 400). 그래서 이 버튼은 원클릭이 아니라 폼을 연다 —
+       옆의 [입금 확인]과 성격이 다르다(그쪽은 `{type, confirmed}` 만으로 끝난다). #}
+    <form class="s-ops-form s-hidden" data-settlement-ops-issue-form
+      id="foms-settle-ops-issue-form" novalidate>
+      <div class="s-ops-form-head">
+        <span class="s-ops-form-title">정산 비용 청구</span>
+        <span class="s-ops-form-target" data-settlement-ops-issue-target></span>
+        <span class="s-ops-spacer"></span>
+        <button type="button" class="s-ops-btn s-ops-btn--ghost" data-settlement-ops-issue-cancel>닫기</button>
+      </div>
+      <div class="s-ops-form-grid">
+        <label class="s-ops-field">
+          <span class="s-ops-field-lbl">귀속 부서</span>
+          <select class="s-ops-input" data-settlement-ops-issue-department required>
+            <option value="">부서를 고르세요</option>
+            {% for dept_code, dept_label in ops_departments %}
+            <option value="{{ dept_code }}">{{ dept_label }}</option>
+            {% endfor %}
+          </select>
+        </label>
+        <label class="s-ops-field">
+          <span class="s-ops-field-lbl">청구 금액(원)</span>
+          <input class="s-ops-input" type="number" inputmode="numeric" min="1" step="1"
+            data-settlement-ops-issue-amount required>
+        </label>
+        <label class="s-ops-field s-ops-field--wide">
+          <span class="s-ops-field-lbl">사유</span>
+          <input class="s-ops-input" type="text" maxlength="200"
+            data-settlement-ops-issue-reason required>
+        </label>
+        <div class="s-ops-field s-ops-field--action">
+          <button type="submit" class="s-ops-btn s-ops-btn--primary" data-settlement-ops-issue-submit>
+            청구 등록
+          </button>
+        </div>
+      </div>
+      <div class="s-ops-form-note">입력한 금액은 해당 부서 귀속 차감으로 기록됩니다.</div>
+      {% if not ops_departments %}
+      {# 무음 실패 금지: 부서 목록이 안 넘어오면 폼이 조용히 비는 대신 그 사실을 말한다.
+         뷰가 `department_options` 를 넘기지 않으면 여기가 보인다. #}
+      <div class="s-empty" data-settlement-ops-department-missing>
+        귀속 부서 목록을 서버에서 받지 못해 청구를 등록할 수 없습니다. 관리자에게 알려 주세요.
+      </div>
+      {% endif %}
+    </form>
+
+    <div class="s-ops-gridwrap s-hidden" data-settlement-ops-gridwrap>
+      <table class="s-ops-grid" id="foms-settle-ops-grid">
+        <thead>
+          <tr>
+            <th scope="col">고객</th>
+            <th scope="col">채널</th>
+            <th scope="col">완료일</th>
+            <th scope="col" class="s-ops-num">출고가</th>
+            <th scope="col" class="s-ops-num">예약금</th>
+            <th scope="col" class="s-ops-num">잔금</th>
+            {# 과입금 칸은 목업에 없다. 잔금이 0 에서 잘리기 때문에 이 칸이 없으면
+               "돌려줄 돈이 있다"는 사실이 화면에서 통째로 사라진다(CEO L-1). #}
+            <th scope="col" class="s-ops-num">과입금</th>
+            <th scope="col">경과일</th>
+            <th scope="col">현금영수증</th>
+            <th scope="col">정산상태</th>
+            <th scope="col">액션</th>
+          </tr>
+        </thead>
+        <tbody id="foms-settle-ops-rows" data-settlement-ops-rows></tbody>
+      </table>
+    </div>
+
+    <div class="s-empty s-hidden" data-settlement-ops-empty="rows">
+      조건에 맞는 주문이 없습니다. 위 칩이나 aging 구간을 넓혀 보세요.
+    </div>
+
+    <div class="s-ops-foot" data-settlement-ops-foot></div>
+    {# 번호 페이저(60건/page). 무한스크롤은 쓰지 않는다 — 경리 업무는 "몇 페이지째"가
+       작업 기록이라 위치가 유지돼야 한다(스펙 §13.3-3). #}
+    <nav class="s-ops-pager" id="foms-settle-ops-pager" data-settlement-ops-pager
+      aria-label="주문 목록 페이지"></nav>
+  </section>
+
+  <div class="s-ops-legalnote">
+    출고가 = 품목합 + 배송 − 할인 · 잔금 = 출고가 − 예약금(0 미만은 과입금 칸으로 분리) ·
+    금액이 비어 있는 건은 0 이 아니라 “—”로 표시합니다 · 정산 대상 상태: 완료 · AS 접수 · AS 완료
+  </div>
+</div>
