@@ -12,6 +12,10 @@
     <meta name="viewport" content="width=device-width, initial-scale=1.0">
     <title>주문 위치 지도 - FOMS</title>
 
+    {# 이 파일은 layout_head 를 쓰지 않는 standalone 문서라 CSRF 배선을 직접 include 한다.
+       빠지면 이 화면의 모든 mutation(주소 수정·담당자 저장)이 403 invalid_csrf_token 이 된다. #}
+    {% include "partials/shared/csrf_bootstrap.html" %}
+
     <!-- 지도 origin preconnect: Kakao SDK 가 lazy 주입이라 DNS+TLS 가 늦게 시작된다.
          핸드셰이크를 head 시점에 선점해 지도 첫 타일까지의 직렬 구간을 줄인다.
          이 페이지는 standalone head 라 항상 지도 페이지 — 게이트 없이 항상 내보낸다. -->
@@ -2786,6 +2790,21 @@
             });
         }
 
+        /**
+         * 서버 실패 응답에서 사람이 읽을 문구를 뽑는다.
+         * FOMS 는 실패 body 를 두 형태로 낸다: 라우트 핸들러는 message, 공용 write guard
+         * (WRITE-GUARD-01)/표준 API 래퍼는 error. 한쪽만 읽으면 안내가 통째로 유실된다.
+         */
+        function serverErrorText(status, data) {
+            const d = data || {};
+            const text = d.message || d.error || '';
+            if (text) return text;
+            if (status === 403) return '권한 또는 요청 검증 실패(403). 페이지를 새로고침한 뒤 다시 시도해 주세요.';
+            if (status === 401) return '로그인이 필요합니다. 페이지를 새로고침해 주세요.';
+            if (status) return `서버 오류(${status})`;
+            return '알 수 없는 오류';
+        }
+
         function saveMapManager(orderId, managerName) {
             var cleanName = managerName;
             if (typeof managerName === 'object' && managerName !== null) {
@@ -2798,13 +2817,15 @@
                 headers: { 'Content-Type': 'application/json' },
                 body: JSON.stringify({ field: 'manager', value: cleanName })
             })
-            .then(function (r) { return r.json(); })
-            .then(function (data) {
-                if (data.success) {
+            .then(function (r) { return r.json().catch(function () { return {}; }).then(function (b) { return { ok: r.ok, status: r.status, body: b }; }); })
+            .then(function (res) {
+                var data = res.body || {};
+                if (res.ok && data.success) {
                     applyMapManagerValue(orderId, cleanName);
                     loadMap();
                 } else {
-                    alert('담당자 저장 실패: ' + (data.message || ''));
+                    // write guard 는 message 가 아니라 error 키로 사유를 준다(WRITE-GUARD-01).
+                    alert('담당자 저장 실패: ' + serverErrorText(res.status, data));
                 }
             })
             .catch(function (err) {
@@ -3008,11 +3029,18 @@
                     body: JSON.stringify({ address: fullAddress })
                 });
 
-                const data = await res.json();
+                let data = {};
+                try {
+                    data = await res.json();
+                } catch (parseErr) {
+                    data = {};
+                }
 
-                if (!data.success) {
-                    alert(`주소 수정 실패: ${data.message || '알 수 없는 오류'}`);
-                    statusEl.textContent = `오류: ${data.message || '알 수 없는 오류'}`;
+                if (!res.ok || !data.success) {
+                    // write guard 403 은 message 가 없고 error 키만 채운다(WRITE-GUARD-01).
+                    const msg = serverErrorText(res.status, data);
+                    alert(`주소 수정 실패: ${msg}`);
+                    statusEl.textContent = `오류: ${msg}`;
                     return;
                 }
 

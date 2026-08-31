@@ -2458,6 +2458,9 @@ def test_slg_literal_gap_no_orders_erp_policy_internal_dir() -> None:
 _PAC_PARTIALS_SHARED_HTML_ALLOWLIST = frozenset(
     {
         "alpine_layout.html",
+        # WRITE-GUARD-01 CSRF 배선 정본 partial. layout_head 와 standalone 문서
+        # (measurement/map_view.html)가 함께 include 한다(2026-08-31).
+        "csrf_bootstrap.html",
         "erp_mobile_bottom_nav.html",
         "erp_mobile_menu_drawer.html",
         "erp_mobile_notification_panel.html",

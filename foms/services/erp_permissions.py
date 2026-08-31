@@ -9,6 +9,7 @@ from typing import Any, Callable
 
 from flask import jsonify, session
 
+from foms.services.orders.order_mutation_policy import normalize_team
 from foms.web.auth import get_user_by_id
 
 ERP_EDIT_ALLOWED_TEAMS = ("CS", "SALES")
@@ -287,21 +288,33 @@ def build_mine_sql_filter(user: Any, scope: str | None = None) -> list[Any]:
 
 
 def can_edit_erp(user: Any) -> bool:
-    """Return whether the given user can edit ERP data."""
+    """Return whether the given user can edit ERP data.
+
+    team 은 AUTH-01 정책 게이트와 **같은 정규화**(trim·upper·``MEASURE``→``SALES``)를
+    거친다. 두 게이트가 갈라지면 team=``MEASURE`` 실측 담당자가 정책은 통과하고
+    이 데코레이터에서만 403 을 맞는다.
+
+    :param user: 대상 사용자(``role``·``team`` 속성).
+    :return: ERP 수정 가능 여부.
+    """
     if not user:
         return False
     if user.role == "ADMIN":
         return True
-    return (user.team or "").strip() in ERP_EDIT_ALLOWED_TEAMS
+    return normalize_team(getattr(user, "team", None)) in ERP_EDIT_ALLOWED_TEAMS
 
 
 def can_edit_erp_construction(user: Any) -> bool:
-    """Return whether the user can edit construction-only ERP actions."""
+    """Return whether the user can edit construction-only ERP actions.
+
+    :param user: 대상 사용자(``role``·``team`` 속성).
+    :return: 시공 전용 ERP 액션 수정 가능 여부.
+    """
     if not user:
         return False
     if user.role == "ADMIN":
         return True
-    return (user.team or "").strip() == "CONSTRUCTION"
+    return normalize_team(getattr(user, "team", None)) == "CONSTRUCTION"
 
 
 def erp_edit_required(f: Callable[..., Any]) -> Callable[..., Any]:
