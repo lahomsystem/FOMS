@@ -20,6 +20,12 @@
  * (order-change-banner.js:5-8 · mobile-queue-scroll.js:107 과 같은 패턴.)
  *
  * 금액 단위: API 는 **원**, 목업 렌더러는 **만원** 기준이다. 경계에서 toMan() 한 번만 통과시킨다.
+ *
+ * **탭 3종(SETTLE-TABS-01)**: 요약(경영진) · 실무(경리·수금) · 분석이 한 라우트 안의 탭이다.
+ * 탭 배선도 루트 안쪽 위임 리스너 + `mount()` 안에서만 이뤄진다(위 (1)(2) 규율 그대로).
+ * 탭 전환의 핵심 함정은 **숨은 pane 의 폭이 0** 이라는 것이다 — 그 상태에서 그린 차트는
+ * 폴백 폭(400px)으로 굳어 눌린 채 남으므로 activateTab() 이 활성화 직후 renderAll 로
+ * 되그린다(실측 수치와 함께 그쪽 주석에 적어 뒀다).
  */
 (function () {
   'use strict';
@@ -1060,6 +1066,10 @@
     toggle(ctx.els.grid, kind !== 'ready');
     toggle(ctx.els.filterbar, kind === 'denied');
     toggle(ctx.els.foot, kind === 'denied');
+    // 권한 거부는 화면 전체에 대한 거부다 — 탭바를 감추고 거부 문구가 있는 요약 탭으로
+    // 되돌린다. 그러지 않으면 "권한 없음"인데 실무·분석 탭은 눌리는 화면이 된다.
+    toggle(ctx.els.tabbar, kind === 'denied');
+    if (kind === 'denied' && ctx.state.tab !== DEFAULT_TAB) activateTab(ctx, DEFAULT_TAB, false);
     if (kind === 'error' && ctx.els.errorDetail && detail) {
       ctx.els.errorDetail.textContent = detail;
     }
@@ -1140,10 +1150,85 @@
     }
   }
 
+  /* ═══════════════ 6.5 탭 3종 (요약 · 실무 · 분석) ═══════════════ */
+
+  var DEFAULT_TAB = 'summary';
+
+  /** 좌우 화살표 이동 폭(표준 tablist 패턴 — 이동 즉시 활성화, 양끝에서 순환). */
+  var TAB_ARROW_STEP = { ArrowLeft: -1, ArrowRight: 1 };
+
+  function tabKeyOf(el) {
+    return el ? el.getAttribute('data-settlement-tab') : null;
+  }
+
+  /**
+   * 탭 활성화 — 선택 상태 · pane 표시 · 차트 재렌더를 한 곳에서 처리한다.
+   *
+   * **숨은 pane 안에서 그린 차트는 폭이 틀린다.** `hidden` pane 은 `display:none` 이라
+   * 안쪽 호스트의 `clientWidth` 가 0 이고, 렌더러는 `host.clientWidth || 400`(lineChart 는
+   * 640)로 폴백한다 — 즉 **빈 차트가 아니라 400px 짜리 눌린 차트**가 남는다.
+   * (폴백이 없었다면 `pw <= 0` 조기반환으로 호스트가 비워진다. 폭이 1~57px 인 실제 좁은
+   * 경우엔 지금도 그 가지를 탄다.) 어느 쪽이든 스스로 낫지 않는다.
+   *
+   * 실측(2026-08-31, dev 5011 · 시드 707건): 분석 탭에 있는 동안 창을 1440→1100 으로 줄이면
+   * onResize 가 숨은 요약 탭을 폭 0 으로 다시 그려 `svg width=400` 이 되고, 이 재렌더가
+   * 없으면 요약 탭으로 돌아왔을 때 `svgW 400 vs hostW 1006` 인 눌린 차트가 그대로 보인다.
+   *
+   * 그래서 pane 을 보이게 만든 **직후** 다시 그린다 — onResize 가 쓰는 것과 **같은
+   * 경로**(renderAll)다. 렌더 진입점을 두 벌로 만들면 한쪽만 고치는 회귀가 난다.
+   * 탭 3 차트도 renderAll 에 렌더 함수를 등록하면 이 경로를 그대로 탄다.
+   */
+  function activateTab(ctx, key, moveFocus) {
+    var tabs = ctx.els.tabs;
+    if (!tabs.length) return;
+    var known = tabs.some(function (tab) { return tabKeyOf(tab) === key; });
+    if (!known) key = DEFAULT_TAB;
+    ctx.state.tab = key;
+    // CSS 가 보는 SSOT(실무 탭에서 필터바를 감추는 선택자). 클래스가 아니라 속성인 이유는
+    // CSS 쪽 주석 참조 — s-hidden 은 showState() 의 권한거부 분기가 쓰는 자리다.
+    ctx.root.setAttribute('data-settlement-active-tab', key);
+    tabs.forEach(function (tab) {
+      var on = tabKeyOf(tab) === key;
+      tab.setAttribute('aria-selected', String(on));
+      tab.tabIndex = on ? 0 : -1;   // roving tabindex — Tab 키는 탭바를 한 번만 지난다
+      if (on && moveFocus) tab.focus();
+    });
+    ctx.els.panes.forEach(function (pane) {
+      pane.hidden = pane.getAttribute('data-settlement-pane') !== key;
+    });
+    if (ctx.state.data) renderAll(ctx);
+  }
+
+  /** ←/→(+Home/End)로 탭 이동. 차트의 `.s-hit` 도 ←→ 를 쓰지만 탭 버튼이 아니라 안 걸린다. */
+  function onTabKeydown(ctx, e) {
+    var tab = e.target.closest ? e.target.closest('[data-settlement-tab]') : null;
+    if (!tab || !ctx.root.contains(tab)) return;
+    var tabs = ctx.els.tabs;
+    var index = tabs.indexOf(tab);
+    if (index < 0) return;
+    var next;
+    if (Object.prototype.hasOwnProperty.call(TAB_ARROW_STEP, e.key)) {
+      next = (index + TAB_ARROW_STEP[e.key] + tabs.length) % tabs.length;
+    } else if (e.key === 'Home') {
+      next = 0;
+    } else if (e.key === 'End') {
+      next = tabs.length - 1;
+    } else {
+      return;
+    }
+    e.preventDefault();
+    activateTab(ctx, tabKeyOf(tabs[next]), true);
+  }
+
   function bindControls(ctx) {
     // 리스너는 전부 이 루트 **안쪽**에만 붙는다. 루트가 프래그먼트 스왑으로 사라지면
     // 리스너도 같이 사라져 전역에 누적되지 않는다(perf G4).
     ctx.root.addEventListener('click', function (e) {
+      var tabBtn = e.target.closest('[data-settlement-tab]');
+      if (tabBtn && ctx.root.contains(tabBtn)) {
+        activateTab(ctx, tabKeyOf(tabBtn), false);
+        return;
+      }
       var granBtn = e.target.closest('[data-settlement-granularity]');
       if (granBtn && ctx.root.contains(granBtn)) {
         var next = granBtn.getAttribute('data-settlement-granularity');
@@ -1172,6 +1257,7 @@
         load(ctx);
       }
     });
+    ctx.root.addEventListener('keydown', function (e) { onTabKeydown(ctx, e); });
   }
 
   /* ═══════════════ 7. 마운트 + 전역 배선 ═══════════════ */
@@ -1217,6 +1303,9 @@
       granButtons: Array.prototype.slice.call(root.querySelectorAll('[data-settlement-granularity]')),
       cmpToggle: q('[data-settlement-compare]'),
       cumToggle: q('[data-settlement-cumulative]'),
+      tabbar: q('.s-tabs'),
+      tabs: Array.prototype.slice.call(root.querySelectorAll('[data-settlement-tab]')),
+      panes: Array.prototype.slice.call(root.querySelectorAll('[data-settlement-pane]')),
     };
   }
 
@@ -1226,10 +1315,13 @@
     var ctx = {
       root: root,
       els: collectEls(root),
-      state: { gran: 'day', cum: false, cmp: true, month: kstMonth(), data: null, seq: 0 },
+      state: { gran: 'day', cum: false, cmp: true, month: kstMonth(), data: null, seq: 0, tab: DEFAULT_TAB },
     };
     mounts.push(ctx);
     syncToggles(ctx);
+    // 탭 상태는 마운트마다 기본값(요약)으로 시작한다 — gran/cmp/cum 과 같은 규율이다.
+    // 프래그먼트 스왑은 루트를 통째로 갈아끼우므로 여기가 스왑 후 재배선 지점이기도 하다.
+    activateTab(ctx, DEFAULT_TAB, false);
     bindControls(ctx);
     load(ctx);
   }
@@ -1240,14 +1332,17 @@
     document.querySelectorAll(ROOT_SELECTOR).forEach(mount);
   }
 
+  /** 마운트된 화면을 다시 그린다. 차트는 폭 의존 렌더라 폭이 바뀌면 반드시 되그려야 한다. */
+  function renderMountedRoots() {
+    mounts.forEach(function (ctx) {
+      if (ctx.root.isConnected && ctx.state.data) renderAll(ctx);
+    });
+  }
+
   var resizeTimer = null;
   function onResize() {
     window.clearTimeout(resizeTimer);
-    resizeTimer = window.setTimeout(function () {
-      mounts.forEach(function (ctx) {
-        if (ctx.root.isConnected && ctx.state.data) renderAll(ctx);
-      });
-    }, 150);
+    resizeTimer = window.setTimeout(renderMountedRoots, 150);
   }
 
   // 전역(document/window) 리스너는 싱글톤 뒤에서 1회만 — 프래그먼트 재실행 때 중복 누적 금지(perf G4).

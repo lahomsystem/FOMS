@@ -108,6 +108,9 @@ _REQUIRED_ANCHORS = {
     "granularity 토글(월)": 'data-settlement-granularity="month"',
     "전월 비교 토글": "data-settlement-compare",
     "누적 보기 토글": "data-settlement-cumulative",
+    "탭(요약)": 'data-settlement-tab="summary"',
+    "탭(실무)": 'data-settlement-tab="ops"',
+    "탭(분석)": 'data-settlement-tab="analytics"',
 }
 
 #: JS 가 차트/표를 마운트하는 호스트 id(서버 렌더). 목업의 `#kpis`·`#stages`·`#tt` 같은
@@ -148,6 +151,25 @@ _EXTERNAL_URL_RE = re.compile(r"https?://(?!www\.w3\.org[/\"'])[^\s\"'<>()]+")
 
 _SCRIPT_TAG_RE = re.compile(r"<script\b[^>]*\bsrc\s*=\s*(['\"])(.*?)\1[^>]*>", re.I | re.S)
 _STYLE_ATTR_RE = re.compile(r"\bstyle\s*=\s*['\"]")
+
+#: 탭 셸 계약(SETTLE-TABS-01). `(탭 키, 버튼 id, pane id, 눈에 보이는 라벨)` 4쌍이 한 줄에
+#: 모여 있어야 "버튼은 고쳤는데 pane 은 안 고친" 반쪽 변경이 red 로 드러난다. 라벨은 사용자가
+#: 이 화면을 부르는 이름이라 계약이다 — 문서·인수인계가 전부 이 이름으로 지칭한다.
+_TABS = (
+    ("summary", "foms-settle-tab-summary", "foms-settle-pane-summary", "요약"),
+    ("ops", "foms-settle-tab-ops", "foms-settle-pane-ops", "실무"),
+    ("analytics", "foms-settle-tab-analytics", "foms-settle-pane-analytics", "분석"),
+)
+_DEFAULT_TAB = "summary"
+
+#: 탭 2·3 을 채울 작업이 **안쪽만** 건드려야 하는 자리. 셸이 소유한 pane 의 `role`/`aria-*`/
+#: `hidden` 배선과 내용물의 경계를 여기서 못박는다.
+_TAB_MOUNT_IDS = ("foms-settle-ops-mount", "foms-settle-analytics-mount")
+
+_TAB_BUTTON_RE = re.compile(r"<button\b[^>]*\brole=\"tab\"[^>]*>(.*?)</button>", re.S)
+_TAB_PANEL_RE = re.compile(r"<div\b[^>]*\brole=\"tabpanel\"[^>]*>", re.S)
+#: bare `hidden` 속성. `s-hidden` 클래스와 헷갈리지 않게 앞에 공백을 요구한다.
+_HIDDEN_ATTR_RE = re.compile(r"\shidden(\s|/?>)")
 
 #: 저장소 전역 핀 스캔 대상(기존 관례와 동일한 제외 목록).
 _PIN_SCAN_EXCLUDE = {".git", "node_modules", ".superpowers", "docs"}
@@ -242,6 +264,57 @@ def _script_tag_containing(html: str, needle: str) -> str:
 def _pins_for(asset: str, text: str) -> set[str]:
     """`text` 안에서 `asset` 에 붙은 `?v=` 핀 값을 모두 모은다."""
     return set(re.compile(re.escape(asset) + _PIN_SUFFIX).findall(text))
+
+
+def _attr(tag: str, name: str) -> str | None:
+    """열린 태그 문자열에서 속성 값을 뽑는다(없으면 None)."""
+    match = re.search(rf'\b{re.escape(name)}\s*=\s*"([^"]*)"', tag)
+    return match.group(1) if match else None
+
+
+def _tab_buttons(html: str) -> list[tuple[str, str]]:
+    """`role="tab"` 버튼을 문서 순서대로 `(열린 태그, 안쪽 내용)` 으로 돌려준다."""
+    found = []
+    for match in _TAB_BUTTON_RE.finditer(html):
+        whole = match.group(0)
+        found.append((whole[: whole.index(">") + 1], match.group(1)))
+    return found
+
+
+def _tab_panels(html: str) -> list[str]:
+    """`role="tabpanel"` 요소의 열린 태그를 문서 순서대로 돌려준다."""
+    return [match.group(0) for match in _TAB_PANEL_RE.finditer(html)]
+
+
+def _js_function_body(js: str, name: str) -> str:
+    """`function <name>(...) { ... }` 의 본문을 중괄호 균형으로 잘라낸다.
+
+    문자열 매칭이 아니라 **함수 단위**로 보기 위한 헬퍼다. "파일 어딘가에 그 단어가 있다"
+    수준의 검사는 리팩터에 무력하고, 정작 잘못된 자리에 배선해도 green 이 난다.
+    주석은 `_read_code` 가 이미 걷어낸 상태를 전제한다(주석 속 중괄호로 어긋나지 않게).
+
+    Args:
+        js: 주석이 제거된 JS 원문.
+        name: 함수 이름.
+
+    Returns:
+        중괄호 안쪽 본문 문자열.
+
+    Raises:
+        AssertionError: 함수 정의나 닫는 중괄호를 찾지 못했을 때.
+    """
+    start = js.find(f"function {name}(")
+    assert start >= 0, f"{name}() 정의를 찾지 못했다"
+    open_at = js.find("{", start)
+    depth = 0
+    for i in range(open_at, len(js)):
+        if js[i] == "{":
+            depth += 1
+        elif js[i] == "}":
+            depth -= 1
+            if depth == 0:
+                return js[open_at + 1:i]
+    raise AssertionError(f"{name}() 본문이 닫히지 않았다")
 
 
 def _repo_pin_scan_sources() -> list[Path]:
@@ -964,6 +1037,242 @@ def test_dashboard_js_reinitializes_on_fragment_swap():
     assert "foms:erp-shell-fragment-swapped" in js, (
         "프래그먼트 스왑 재init 훅이 없다(탭 재진입 시 빈 화면)"
     )
+
+
+# ==========================================================================
+# 계약 12 — 탭 3종 셸 (SETTLE-TABS-01)
+# ==========================================================================
+# 이 화면은 **한 라우트 · 한 화면**을 유지한 채 요약(경영진) · 실무(경리·수금) · 분석으로
+# 갈린다. 새 메뉴도 새 URL 도 만들지 않는 것이 전제라, 셸이 무너지면 세 화면이 통째로
+# 사라진다. 여기서 잠그는 것은 **접근성 배선**(role/aria 짝)과 **폭 0 함정**(숨은 pane 에서
+# 그린 차트는 빈 SVG 가 된다) 두 축이다.
+def test_tab_bar_renders_three_tabs_with_expected_wiring(client, app):
+    """탭이 정확히 3개이고, 각 버튼이 진짜 `<button role="tab">` 로 aria 배선을 갖췄다.
+
+    `<div>` 에 클릭 핸들러를 다는 방식은 키보드·스크린리더에서 통째로 사라진다.
+    버튼 순서·id·라벨까지 고정하는 이유는 `_TABS` 주석 참조.
+    """
+    _login_allowed(client)
+
+    html = _fragment_html(client)
+
+    assert 'role="tablist"' in html, "tablist 컨테이너가 없다"
+    tabs = _tab_buttons(html)
+    assert len(tabs) == 3, [tag for tag, _ in tabs]
+    for (key, tab_id, pane_id, label), (tag, inner) in zip(_TABS, tabs):
+        assert _attr(tag, "id") == tab_id, tag
+        assert _attr(tag, "data-settlement-tab") == key, tag
+        assert _attr(tag, "aria-controls") == pane_id, tag
+        assert _attr(tag, "aria-selected") in ("true", "false"), tag
+        assert label in inner, (label, inner)
+
+
+def test_summary_tab_is_the_default_selected_tab(client, app):
+    """기본 선택은 요약 탭 하나뿐이고, 나머지 pane 은 `hidden` 으로 닫혀 있다.
+
+    서버 렌더 시점에 이미 정해져 있어야 한다 — JS 가 켜기 전에 세 pane 이 한꺼번에 보이면
+    화면이 3배 길이로 번쩍인 뒤 접힌다.
+    """
+    _login_allowed(client)
+
+    html = _fragment_html(client)
+
+    selected = [
+        _attr(tag, "data-settlement-tab")
+        for tag, _ in _tab_buttons(html)
+        if _attr(tag, "aria-selected") == "true"
+    ]
+    assert selected == [_DEFAULT_TAB], selected
+    root_tag = re.search(r'<div\b[^>]*id="foms-settlement-root"[^>]*>', html)
+    assert root_tag, "루트 태그를 찾지 못했다"
+    assert _attr(root_tag.group(0), "data-settlement-active-tab") == _DEFAULT_TAB, root_tag.group(0)
+    for (key, _tab_id, pane_id, _label), tag in zip(_TABS, _tab_panels(html)):
+        assert _attr(tag, "id") == pane_id, tag
+        assert bool(_HIDDEN_ATTR_RE.search(tag)) is (key != _DEFAULT_TAB), tag
+
+
+def test_every_tab_has_a_matching_tabpanel(client, app):
+    """탭 ↔ pane 이 id/`aria-controls`/`aria-labelledby` 로 **양방향** 1:1 이다.
+
+    한쪽만 고치면 스크린리더가 엉뚱한 영역을 읽거나 "이름 없는 탭 패널"이 된다.
+    """
+    _login_allowed(client)
+
+    html = _fragment_html(client)
+
+    panels = _tab_panels(html)
+    assert len(panels) == 3, panels
+    for (key, tab_id, pane_id, _label), tag in zip(_TABS, panels):
+        assert _attr(tag, "id") == pane_id, tag
+        assert _attr(tag, "data-settlement-pane") == key, tag
+        assert _attr(tag, "aria-labelledby") == tab_id, tag
+    controls = {_attr(tag, "aria-controls") for tag, _ in _tab_buttons(html)}
+    assert controls == {_attr(tag, "id") for tag in panels}, controls
+
+
+def test_tab_bar_sits_above_the_strip_and_filter_bar(client, app):
+    """탭바가 스트립·필터바보다 위에 온다 — 탭이 상위 축이고 필터는 탭에 딸린다."""
+    _login_allowed(client)
+
+    html = _fragment_html(client)
+
+    assert html.index('role="tablist"') < html.index('class="s-strip"') < html.index(
+        'class="s-filterbar"'
+    ), "탭바가 스트립/필터바 아래로 내려갔다"
+
+
+def test_summary_pane_owns_the_existing_screen(client, app):
+    """기존 화면(상태 3종 · 그리드 · 각주)이 통째로 요약 pane **안에** 들어갔다.
+
+    하나라도 pane 밖에 남으면 실무 탭에서도 그 조각이 그대로 보인다 — 탭을 나눈 의미가
+    사라지고, 화면이 "정산 요약 수치를 늘 달고 다니는 실무 화면"이 된다.
+    """
+    _login_allowed(client)
+
+    html = _fragment_html(client)
+
+    block = html[html.index('id="foms-settle-pane-summary"'):html.index('id="foms-settle-pane-ops"')]
+    for anchor in (
+        "data-settlement-loading",
+        "data-settlement-error",
+        "data-settlement-denied",
+        "data-settlement-grid",
+        'id="foms-settle-kpis"',
+        'id="foms-settle-main-chart"',
+        'class="s-foot"',
+    ):
+        assert anchor in block, f"요약 pane 밖에 남았다: {anchor}"
+    # 툴팁은 반대로 pane **밖**이어야 한다 — position:fixed 라 탭마다 복제하면 안 된다.
+    assert 'id="foms-settle-tooltip"' not in block
+    assert html.index('id="foms-settle-tooltip"') > html.index('id="foms-settle-pane-analytics"')
+
+
+@pytest.mark.parametrize("mount_id", _TAB_MOUNT_IDS)
+def test_empty_tabs_expose_a_named_mount_point(client, app, mount_id):
+    """탭 2·3 이 이름 있는 마운트 지점을 서버 렌더로 갖는다.
+
+    내용을 채우는 쪽이 pane 자체(`role`/`aria-*`/`hidden`)를 건드리지 않고 **안쪽만**
+    바꾸도록 경계를 마크업으로 준다.
+    """
+    _login_allowed(client)
+
+    html = _fragment_html(client)
+
+    assert f'id="{mount_id}"' in html, mount_id
+    block = html[html.index(f'id="{mount_id}"'):]
+    assert re.search(r"[가-힣]{2,}", block[:600]), "자리표시 안내 문구가 없다"
+
+
+def test_filter_bar_is_shared_by_period_tabs_and_not_duplicated(client, app):
+    """필터바는 pane **밖에 한 벌만** 있다(탭별 복제 금지).
+
+    기간 스코프는 요약·분석이 공유하는 하나의 상태다. 복제하면 `aria-pressed` 짝이 두 벌이
+    되어 탭을 오갈 때 조용히 갈리고, JS 의 `.s-filterbar`·`granButtons` 단일 배선도 깨진다.
+    """
+    _login_allowed(client)
+
+    html = _fragment_html(client)
+
+    assert html.count('class="s-filterbar"') == 1, "필터바가 여러 벌이다"
+    for anchor in (
+        'data-settlement-granularity="day"',
+        'data-settlement-granularity="week"',
+        'data-settlement-granularity="month"',
+        "data-settlement-compare",
+        "data-settlement-cumulative",
+    ):
+        assert html.count(anchor) == 1, f"{anchor} 가 {html.count(anchor)}개 — 복제됐다"
+    assert html.index('class="s-filterbar"') < html.index('id="foms-settle-pane-summary"'), (
+        "필터바가 요약 pane 안에 들어갔다 — 분석 탭에서 기간 필터가 사라진다"
+    )
+
+
+def test_filter_bar_is_hidden_on_the_ops_tab_only():
+    """실무 탭에서만 필터바가 CSS 로 감춰진다(요약·분석은 그대로 쓴다).
+
+    감추는 수단이 `s-hidden` 이 아니라 루트 속성 선택자인 것까지 계약이다 — `s-hidden` 은
+    `showState()` 의 권한거부 분기가 쓰는 자리라, 겹쳐 쓰면 403 이 풀릴 때 탭 상태까지
+    되돌아간다.
+    """
+    css = _read_code(f"static/{CSS_ASSET}")
+
+    rule = re.search(r'\[data-settlement-active-tab="ops"\][^{]*\.s-filterbar\s*\{([^}]*)\}', css)
+    assert rule, "실무 탭에서 필터바를 감추는 규칙이 없다"
+    assert re.search(r"display\s*:\s*none", rule.group(1)), rule.group(1)
+    for other in ("summary", "analytics"):
+        assert not re.search(
+            r'\[data-settlement-active-tab="%s"\][^{]*\.s-filterbar\s*\{[^}]*display\s*:\s*none' % other,
+            css,
+        ), f"{other} 탭에서도 필터바를 감추고 있다"
+    assert re.search(r"\.s-pane\[hidden\]\s*\{[^}]*display\s*:\s*none", css), (
+        "비활성 pane 을 감추는 규칙이 없다"
+    )
+
+
+def test_tab_activation_rerenders_charts_through_the_resize_render_path():
+    """탭 활성화가 **리사이즈와 같은 렌더 경로**로 차트를 다시 그린다.
+
+    숨은 pane 은 `display:none` 이라 안쪽 차트 호스트의 `clientWidth` 가 0 이고, 렌더러가
+    `host.clientWidth || 400` 으로 폴백한다 — 그 사이에 그려진 차트는 **빈 차트가 아니라
+    400px 로 눌린 차트**라서 눈에 덜 띈 채 그대로 남는다(폴백이 안 걸리는 좁은 폭에서는
+    `pw <= 0` 조기반환으로 호스트가 비워진다). 어느 쪽이든 다음 리사이즈 전까지 스스로
+    낫지 않는다. 실측: 분석 탭에서 창을 줄인 뒤 요약 탭으로 돌아오면 재렌더가 없을 때
+    `svg width=400` vs 카드 폭 1006 이었다(2026-08-31, dev 5011 · 시드 707건).
+
+    검사는 문자열 산탄이 아니라 **함수 단위**로 본다: `activateTab()` 이 (a) pane 의
+    `hidden` 을 뒤집고 (b) 데이터가 있을 때 `renderAll(ctx)` 를 부르며, (c) 리사이즈 경로도
+    같은 `renderAll` 을 쓴다 — 렌더 진입점이 두 벌로 갈라지면 한쪽만 고치는 회귀가 난다.
+    """
+    js = _read_code(f"static/{JS_ASSET}")
+
+    activate = _js_function_body(js, "activateTab")
+    assert re.search(r"\.hidden\s*=", activate), f"pane 표시 전환이 없다: {activate[:200]}"
+    assert "aria-selected" in activate, "선택 상태를 aria-selected 로 말하지 않는다"
+    assert re.search(r"state\.data", activate), "데이터 없이 그리려 든다(빈 렌더)"
+    assert re.search(r"renderAll\(\s*ctx\s*\)", activate), (
+        "탭 활성화가 차트를 되그리지 않는다 — 숨은 pane 폭 0 때문에 빈 차트가 남는다"
+    )
+    resize = _js_function_body(js, "renderMountedRoots")
+    assert re.search(r"renderAll\(\s*ctx\s*\)", resize), resize
+    assert "renderMountedRoots" in _js_function_body(js, "onResize"), (
+        "리사이즈와 탭 전환의 렌더 경로가 갈렸다"
+    )
+
+
+def test_arrow_keys_move_between_tabs_without_global_listeners():
+    """←/→ 로 탭을 이동한다 — 그리고 그 배선이 루트 **안쪽** 위임이다.
+
+    tablist 표준 키보드 패턴이다. 동시에 perf G4 규율이기도 하다: `document` 에 탭
+    리스너를 달면 프래그먼트 스왑마다 전역 리스너가 쌓인다(이 파일의 싱글톤 가드는
+    스왑 이벤트·resize 전용이다).
+    """
+    js = _read_code(f"static/{JS_ASSET}")
+
+    keydown = _js_function_body(js, "onTabKeydown")
+    assert "ArrowLeft" in js and "ArrowRight" in js, "좌우 화살표 이동이 없다"
+    assert "activateTab(" in keydown, keydown[:200]
+    assert "preventDefault" in keydown, "화살표 기본 동작(스크롤)을 막지 않는다"
+    bind = _js_function_body(js, "bindControls")
+    assert "onTabKeydown" in bind, "키보드 배선이 루트 위임 밖에 있다"
+    assert re.search(r"ctx\.root\.addEventListener\(\s*['\"]keydown['\"]", bind), bind[:300]
+    assert not re.search(r"document\.addEventListener\(\s*['\"](click|keydown)['\"]", js), (
+        "탭/클릭 리스너를 document 에 달았다 — 스왑마다 누적된다(perf G4)"
+    )
+
+
+def test_tab_state_is_established_inside_the_per_root_mount():
+    """탭 초기화가 `mount()` 안에서 일어난다 — 프래그먼트 스왑 재진입 규율과 같은 자리.
+
+    셸이 루트를 통째로 갈아끼우면 탭 배선도 같이 사라진다. 기존 마운트 경로
+    (`data-settlement-mounted` 표식 → `mountAll()`)를 그대로 타야 스왑 후에도 탭이 산다 —
+    별도 전역 초기화를 만들면 그 경로만 스왑에서 빠진다.
+    """
+    js = _read_code(f"static/{JS_ASSET}")
+
+    mount_body = _js_function_body(js, "mount")
+    assert "activateTab(" in mount_body, "마운트가 탭 초기 상태를 세우지 않는다"
+    assert "bindControls(" in mount_body, mount_body[:200]
+    assert "settlementMounted" in mount_body, "마운트 멱등 표식이 mount() 안에 없다"
 
 
 # ==========================================================================
