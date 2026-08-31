@@ -28,10 +28,12 @@
 
 ## 배포 상태 (2026-08-31)
 
-`deploy` **6f57798b** — T3(`9463f5c9`) + T1(`6f57798b`).
-검증: `tests/services/integrations` + `tests/domains` **6699 passed, 5 skipped** ·
-`pre_push_smoke` exit 0 · **CI 4/4 green**(Harness · FOMS CI · PostgreSQL Lane · perf-gate).
+`deploy` **c8cea62e** — T3(`9463f5c9`) + T1(`6f57798b`) + T2(`c8cea62e`).
+검증: `tests/services/integrations` + `tests/domains` **6752 passed, 5 skipped** ·
+`pre_push_smoke` exit 0 · **CI 4/4 green**(Harness · FOMS CI · PostgreSQL Lane · perf-gate,
+커밋별 전 워크플로 나열로 판정).
 production 승격은 **안 했다** — 사용자 명시 요청 시에만.
+네이버 반품 접수·승인 실호출은 여전히 **0회**(불가역이라 진짜 반품 건에서 사용자가 확인).
 
 ## T2 를 시작할 때 필요한 사실 (조사 다시 하지 마라)
 
