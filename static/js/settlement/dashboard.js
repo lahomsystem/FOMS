@@ -21,6 +21,10 @@
  *
  * 금액 단위: API 는 **원**, 목업 렌더러는 **만원** 기준이다. 경계에서 toMan() 한 번만 통과시킨다.
  *
+ * **분석 탭(§4.5)**: 같은 응답을 다른 축으로 본다 — 채널 3지표 · 담당자별(권한 게이트) ·
+ * 단계별 · 부서별 차감 · 수금 구성 · AS 분포. 매출 추이는 요약 탭이 이미 그려서 복제하지
+ * 않는다. 집계 막대는 SVG 가 아니라 CSS 퍼센트 폭이라 숨은 pane 폭 0 함정 밖이다.
+ *
  * **탭 3종(SETTLE-TABS-01)**: 요약(경영진) · 실무(경리·수금) · 분석이 한 라우트 안의 탭이다.
  * 탭 배선도 루트 안쪽 위임 리스너 + `mount()` 안에서만 이뤄진다(위 (1)(2) 규율 그대로).
  * 탭 전환의 핵심 함정은 **숨은 pane 의 폭이 0** 이라는 것이다 — 그 상태에서 그린 차트는
@@ -1041,6 +1045,504 @@
     if (ctx.els.stamp) ctx.els.stamp.textContent = kstStamp();
   }
 
+  /* ═══════════════ 4.5 탭 3 · 분석 ═══════════════
+   *
+   * 요약 탭이 못 보여주는 축만 맡는다: 채널 3지표 · 담당자별 · 단계별 · 부서별 차감 ·
+   * 수금 구성(예약금/잔금) · AS 청구 분포. 매출 추이 카드는 **일부러 복제하지 않는다**
+   * (요약 탭이 같은 buckets/prev_buckets 를 같은 기간 스코프로 이미 그린다 — 템플릿 주석).
+   *
+   * 데이터는 요약과 **같은 한 번의 fetch** 결과(ctx.state.data)를 읽고, 렌더 진입점도
+   * renderAll 하나다(탭 활성화·리사이즈가 그 경로로 들어온다).
+   */
+
+  /**
+   * 집계 막대(담당자별·단계별)용 금액 램프의 경계.
+   *
+   * `BUCKET_EDGES`(450/700/900만)는 **주문 한 건**의 출고가에 맞춘 경계라 합계 축에 그대로
+   * 쓰면 안 된다 — 실측(2026-08-31 dev 5011 시드): 담당자 7명이 1,120만~1,808만이라 전원이
+   * 최상단 색으로 칠해져 램프가 아무 말도 하지 않는다. 그래서 **그 시리즈 최댓값의 4분위**로
+   * 경계를 새로 잡고, 범례 문구도 그 경계에서 생성한다(고정 문구를 적으면 색과 글자가 갈린다).
+   */
+  var AGG_RAMP_QUARTILES = [0.25, 0.5, 0.75];
+
+  /** 시리즈 최댓값(만원) → 4분위 경계 3개. 최댓값이 0 이하면 램프 자체가 의미 없어 null. */
+  function aggEdges(maxMan) {
+    if (!(maxMan > 0)) return null;
+    return AGG_RAMP_QUARTILES.map(function (ratio) { return Math.round(maxMan * ratio); });
+  }
+
+  /** 금액(만원) → 램프 색. 경계가 없으면(전부 0) 단색으로 떨어뜨린다. */
+  function aggColor(man, edges) {
+    if (!edges) return ACCENT;
+    for (var i = 0; i < edges.length; i++) {
+      if (man < edges[i]) return BLUE_BUCKET4[i];
+    }
+    return BLUE_BUCKET4[BLUE_BUCKET4.length - 1];
+  }
+
+  /** 램프 범례를 경계에서 생성한다 — 색 칸과 글자가 같은 숫자에서 나온다. */
+  function renderRampLegend(host, edges) {
+    if (!host) return;
+    clear(host);
+    if (!edges) return;
+    var labels = [
+      fmtMan(edges[0]) + ' 미만',
+      fmtMan(edges[0]) + '~' + fmtMan(edges[1]),
+      fmtMan(edges[1]) + '~' + fmtMan(edges[2]),
+      fmtMan(edges[2]) + ' 이상',
+    ];
+    labels.forEach(function (label, i) {
+      var span = document.createElement('span');
+      span.className = 's-lg';
+      var key = document.createElement('i');
+      key.className = 's-lg-rect';
+      key.style.setProperty('--s-lg-color', BLUE_BUCKET4[i]);
+      span.appendChild(key);
+      span.appendChild(document.createTextNode(label));
+      host.appendChild(span);
+    });
+  }
+
+  /**
+   * 가로 막대 리스트(담당자·단계·부서·aging 공용).
+   *
+   * 폭은 CSS 퍼센트(`--s-bar-pct`)라 호스트 `clientWidth` 를 읽지 않는다 — 숨은 pane 에서
+   * 그려도 눌리지 않는다(SVG 차트와 다른 점). 최댓값 막대가 트랙을 꽉 채우지 않도록 92% 를
+   * 상한으로 두어 값 텍스트와 붙지 않게 한다.
+   *
+   * @param {object} ctx 마운트 컨텍스트.
+   * @param {Element} host 막대를 담을 컨테이너.
+   * @param {Array} items [{label, amount(원), count, color, tipTitle, tipRows}].
+   */
+  function renderBarList(ctx, host, items) {
+    if (!host) return;
+    clear(host);
+    var maxAmount = Math.max.apply(null, items.map(function (it) { return it.amount || 0; }).concat([0]));
+    items.forEach(function (item) {
+      var row = document.createElement('div');
+      row.className = 's-brow';
+      var label = document.createElement('span');
+      label.className = 's-blab';
+      label.textContent = item.label;
+      row.appendChild(label);
+      var track = document.createElement('div');
+      track.className = 's-btrack';
+      var bar = document.createElement('div');
+      bar.className = 's-bbar';
+      var ratio = maxAmount > 0 ? (item.amount || 0) / maxAmount : 0;
+      bar.style.setProperty('--s-bar-pct', (ratio * 92).toFixed(2) + '%');
+      bar.style.setProperty('--s-bar-color', item.color);
+      track.appendChild(bar);
+      row.appendChild(track);
+      var value = document.createElement('span');
+      value.className = 's-bval';
+      value.textContent = fmtMan(toMan(item.amount)) + ' ';
+      var count = document.createElement('span');
+      count.textContent = '· ' + fmtCount(item.count) + '건';
+      value.appendChild(count);
+      row.appendChild(value);
+      if (item.tipRows) {
+        row.addEventListener('pointermove', function (e) {
+          showTip(ctx, e.clientX, e.clientY, item.tipTitle, item.tipRows);
+        });
+        row.addEventListener('pointerleave', function () { hideTip(ctx); });
+      }
+      host.appendChild(row);
+    });
+  }
+
+  /** 스탯 상자 하나(수금 구성·AS 3분할 공용). */
+  function statBox(spec) {
+    var box = document.createElement('div');
+    box.className = 's-dbox' + (spec.family ? ' s-dbox--' + spec.family : '');
+    var label = document.createElement('div');
+    label.className = 's-dbox-label';
+    label.textContent = spec.label;
+    box.appendChild(label);
+    var value = document.createElement('div');
+    value.className = 's-dbox-val';
+    value.textContent = spec.value;
+    if (spec.unit) {
+      var unit = document.createElement('i');
+      unit.textContent = spec.unit;
+      value.appendChild(unit);
+    }
+    box.appendChild(value);
+    if (spec.sub) {
+      var sub = document.createElement('div');
+      sub.className = 's-dbox-sub';
+      sub.textContent = spec.sub;
+      box.appendChild(sub);
+    }
+    return box;
+  }
+
+  /** 비율 미터 한 줄(라벨 + 퍼센트 + 트랙). 분모 0 이면 0% 로 그리되 문구가 분모를 말한다. */
+  function meterRow(text, pct) {
+    var wrap = document.createElement('div');
+    wrap.className = 's-mrow';
+    var lab = document.createElement('div');
+    lab.className = 's-mlab';
+    var left = document.createElement('span');
+    left.textContent = text;
+    lab.appendChild(left);
+    var right = document.createElement('span');
+    var strong = document.createElement('b');
+    strong.textContent = pct.toFixed(1) + '%';
+    right.appendChild(strong);
+    lab.appendChild(right);
+    wrap.appendChild(lab);
+    var meter = document.createElement('div');
+    meter.className = 's-meter';
+    meter.setAttribute('role', 'img');
+    meter.setAttribute('aria-label', text + ' ' + pct.toFixed(1) + '%');
+    var fill = document.createElement('div');
+    fill.className = 's-meter-fill';
+    fill.style.setProperty('--s-meter-pct', Math.max(0, Math.min(100, pct)).toFixed(1) + '%');
+    meter.appendChild(fill);
+    wrap.appendChild(meter);
+    return wrap;
+  }
+
+  /** 차감처럼 **늘어나는 게 나쁜** 지표의 델타 색을 뒤집는다(수치·화살표는 그대로). */
+  function invertDelta(delta) {
+    if (!delta) return delta;
+    var cls = delta.cls === 's-good' ? 's-bad' : (delta.cls === 's-bad' ? 's-good' : delta.cls);
+    return { text: delta.text, arrow: delta.arrow, cls: cls };
+  }
+
+  function deductionTotalOf(data) {
+    return sum((data.settlement_status || {}).deductions_by_department, function (d) { return d.amount; });
+  }
+
+  function renderAnalyticsKpis(ctx) {
+    var data = ctx.state.data;
+    var wrap = ctx.els.anKpis;
+    if (!wrap) return;
+    clear(wrap);
+    var kpi = data.kpi || {};
+    // 이전 구간 스칼라는 서버가 준다(prev_totals). 화면이 직접 만들어 내지 않는다.
+    var prev = data.prev_totals || {};
+    var buckets = data.buckets || [];
+    var vs = 'vs ' + (ctx.state.gran === 'month' ? '이전 동일 기간' : '전월');
+    var deduction = deductionTotalOf(data);
+
+    appendKpi(wrap, {
+      key: 'an-revenue', label: '매출 (출고가 · 완료일 기준)', value: fmtMan(toMan(kpi.revenue)), unit: '원', fam: 'rev',
+      delta: deltaOf(kpi.revenue || 0, prev.revenue || 0), vs: vs,
+      noDelta: '비교 기준 기간에 매출 없음',
+      sub: '완료일 기준 · ' + fmtCount(kpi.completed_count) + '건',
+      spark: buckets.map(function (b) { return toMan(b.revenue); }),
+    });
+    appendKpi(wrap, {
+      key: 'an-completed', label: '완료 건수', value: fmtCount(kpi.completed_count), unit: '건', fam: 'vol',
+      delta: deltaOf(kpi.completed_count || 0, prev.completed_count || 0), vs: vs,
+      noDelta: '비교 기준 기간에 완료 건 없음',
+      sub: '이전 구간 ' + fmtCount(prev.completed_count) + '건',
+      spark: buckets.map(function (b) { return b.count || 0; }),
+    });
+    appendKpi(wrap, {
+      key: 'an-avg', label: '평균 출고가', value: fmtMan(toMan(kpi.avg_shipping_price)), unit: '원', fam: 'rev',
+      delta: deltaOf(kpi.avg_shipping_price || 0, prev.avg_shipping_price || 0), vs: vs,
+      noDelta: '비교 기준 기간에 완료 건 없음',
+      sub: '이전 구간 ' + fmtWon(prev.avg_shipping_price || 0),
+    });
+    appendKpi(wrap, {
+      // 차감은 늘수록 나쁘다 — 증감 색만 뒤집는다(수치는 deltaOf 그대로).
+      key: 'an-deduction', label: '부서 차감 합계', value: fmtMan(toMan(deduction)), unit: '원', fam: 'ar',
+      delta: invertDelta(deltaOf(deduction, prev.deduction_total || 0)), vs: vs,
+      noDelta: '이전 구간에 차감 기록 없음',
+      sub: '기간 완료 건에 기록된 귀속 차감',
+    });
+  }
+
+  function renderAnalyticsChannels(ctx) {
+    var channels = ctx.state.data.channels || [];
+    var bar = ctx.els.anChannelBar;
+    var table = ctx.els.anChannelTable;
+    if (!bar || !table) return;
+    clear(bar);
+    clear(table);
+    var totalRevenue = sum(channels, function (c) { return c.revenue; });
+    var totalCount = sum(channels, function (c) { return c.count; });
+    var empty = totalRevenue === 0 && totalCount === 0;
+    toggle(ctx.els.emptyAnChannels, !empty);
+    toggle(ctx.els.anChannelTableWrap, empty);
+    if (ctx.els.anChannelSub) {
+      ctx.els.anChannelSub.textContent = totalRevenue > 0
+        ? '기간 · 출고가 기준 · 채널 ' + fmtCount(channels.length) + '종'
+        : '기간 · 건수 기준(매출 0원)';
+    }
+    if (empty) return;
+
+    var basisTotal = totalRevenue > 0 ? totalRevenue : totalCount;
+    channels.forEach(function (ch, i) {
+      var value = totalRevenue > 0 ? (ch.revenue || 0) : (ch.count || 0);
+      var pct = basisTotal > 0 ? (value / basisTotal) * 100 : 0;
+      var color = channelColor(ch.channel, i);
+      if (pct > 0) {
+        var seg = document.createElement('div');
+        seg.className = 's-chseg';
+        seg.setAttribute('data-settlement-channel', ch.channel || '');
+        seg.style.setProperty('--s-seg-pct', pct.toFixed(2) + '%');
+        seg.style.setProperty('--s-seg-color', color);
+        seg.textContent = pct >= 10 ? Math.round(pct) + '%' : '';
+        bar.appendChild(seg);
+      }
+    });
+
+    var thead = document.createElement('thead');
+    var headRow = document.createElement('tr');
+    ['채널', '매출', '건수', '건당 평균'].forEach(function (text) {
+      var th = document.createElement('th');
+      th.textContent = text;
+      headRow.appendChild(th);
+    });
+    thead.appendChild(headRow);
+    table.appendChild(thead);
+    var tbody = document.createElement('tbody');
+    channels.forEach(function (ch) {
+      var count = ch.count || 0;
+      // 건당 평균은 0 건에서 정의되지 않는다 — `_build_channels` 는 데이터가 없어도 '일반'
+      // 행을 항상 내므로(0건 0원) 나누기 전에 반드시 막는다.
+      var per = count > 0 ? Math.round((ch.revenue || 0) / count) : null;
+      var cells = [
+        ch.channel || '미상',
+        fmtMan(toMan(ch.revenue)),
+        fmtCount(count),
+        per === null ? '—' : fmtMan(toMan(per)),
+      ];
+      var tr = document.createElement('tr');
+      cells.forEach(function (text) {
+        var td = document.createElement('td');
+        td.textContent = text;
+        tr.appendChild(td);
+      });
+      tbody.appendChild(tr);
+    });
+    table.appendChild(tbody);
+  }
+
+  /**
+   * 담당자별 매출 — **ADMIN·MANAGER 전용**(SPEC §13.6).
+   *
+   * 서버가 권한 밖 사용자에게는 `managers`/`managers_total` **키 자체를 payload 에서 뺀다**.
+   * 그래서 여기서 보는 것은 "값이 0" 이 아니라 "키가 없음" 이다 — 빈 카드를 그리거나
+   * `data.managers.length` 로 던지지 않고 **카드째 감춘다**. 값이 없는 카드가 남으면
+   * STAFF 는 "실적이 0" 으로 오해하고, 던지면 뒤따르는 카드가 통째로 안 그려진다.
+   */
+  function renderAnalyticsManagers(ctx) {
+    var data = ctx.state.data;
+    var card = ctx.els.anManagerCard;
+    if (!card) return;
+    var granted = Object.prototype.hasOwnProperty.call(data, 'managers') && Array.isArray(data.managers);
+    toggle(card, !granted);
+    if (!granted) return;
+
+    var managers = data.managers;
+    var total = data.managers_total || {};
+    var host = ctx.els.anManagers;
+    var empty = managers.length === 0;
+    toggle(ctx.els.emptyManagers, !empty);
+    if (ctx.els.anManagerTotal) toggle(ctx.els.anManagerTotal, empty);
+    if (empty) {
+      clear(host);
+      renderRampLegend(ctx.els.anManagerLegend, null);
+      return;
+    }
+
+    var maxMan = Math.max.apply(null, managers.map(function (m) { return toMan(m.revenue); }).concat([0]));
+    var edges = aggEdges(maxMan);
+    renderRampLegend(ctx.els.anManagerLegend, edges);
+    renderBarList(ctx, host, managers.map(function (m) {
+      var per = m.count ? Math.round((m.revenue || 0) / m.count) : 0;
+      return {
+        label: m.manager,
+        amount: m.revenue || 0,
+        count: m.count || 0,
+        color: aggColor(toMan(m.revenue), edges),
+        tipTitle: m.manager,
+        tipRows: [
+          { color: aggColor(toMan(m.revenue), edges), val: fmtWon(m.revenue || 0), lbl: '매출' },
+          { val: fmtCount(m.count) + '건', lbl: '완료 주문' },
+          { val: fmtWon(per), lbl: '건당 평균' },
+        ],
+      };
+    }));
+    if (ctx.els.anManagerTotal) {
+      ctx.els.anManagerTotal.textContent = '합계 ' + fmtWon(total.revenue || 0) + ' · ' +
+        fmtCount(total.count) + '건 — 기간 매출 전체와 같습니다(미지정 담당자 포함).';
+    }
+    if (ctx.els.anManagerSub) {
+      ctx.els.anManagerSub.textContent = '기간 · 출고가 · ' + fmtCount(managers.length) + '명';
+    }
+  }
+
+  function renderAnalyticsStages(ctx) {
+    var stages = ctx.state.data.stages || [];
+    var host = ctx.els.anStages;
+    if (!host) return;
+    toggle(ctx.els.emptyAnStages, stages.length > 0);
+    if (!stages.length) {
+      clear(host);
+      renderRampLegend(ctx.els.anStageLegend, null);
+      return;
+    }
+    var maxMan = Math.max.apply(null, stages.map(function (s) { return toMan(s.amount); }).concat([0]));
+    var edges = aggEdges(maxMan);
+    renderRampLegend(ctx.els.anStageLegend, edges);
+    renderBarList(ctx, host, stages.map(function (st) {
+      var per = st.count ? Math.round((st.amount || 0) / st.count) : 0;
+      var color = aggColor(toMan(st.amount), edges);
+      return {
+        // 라벨 SSOT = API(stages[].label). 이 파일에 단계 이름을 적지 않는다.
+        label: st.label || st.stage || '',
+        amount: st.amount || 0,
+        count: st.count || 0,
+        color: color,
+        tipTitle: (st.label || st.stage || '') + ' 단계',
+        tipRows: [
+          { color: color, val: fmtWon(st.amount || 0), lbl: '물린 금액' },
+          { val: fmtCount(st.count) + '건', lbl: '진행 주문' },
+          { val: fmtWon(per), lbl: '건당 평균' },
+        ],
+      };
+    }));
+  }
+
+  function renderAnalyticsDeductions(ctx) {
+    var data = ctx.state.data;
+    var rows = ((data.settlement_status || {}).deductions_by_department || [])
+      .filter(function (d) { return (d.amount || 0) > 0; });
+    var host = ctx.els.anDeductions;
+    if (!host) return;
+    var total = deductionTotalOf(data);
+    var empty = rows.length === 0;
+    toggle(ctx.els.emptyAnDeductions, !empty);
+    if (ctx.els.anDeductionTotal) toggle(ctx.els.anDeductionTotal, empty);
+    if (empty) {
+      clear(host);
+      return;
+    }
+    renderBarList(ctx, host, rows.map(function (d) {
+      return {
+        // 부서명·순서 SSOT 도 API(label) 다 — 목업의 이름·순서는 실제와 다르다.
+        label: d.label || d.department || '',
+        amount: d.amount || 0,
+        count: d.count || 0,
+        color: '#eb6834',
+        tipTitle: (d.label || d.department || '') + ' 귀속 차감',
+        tipRows: [
+          { color: '#eb6834', val: fmtWon(d.amount || 0), lbl: '차감액' },
+          { val: fmtCount(d.count) + '건', lbl: '기록된 건' },
+        ],
+      };
+    }));
+    if (ctx.els.anDeductionTotal) {
+      ctx.els.anDeductionTotal.textContent = '차감 합계 ' + fmtWon(total) + ' · 기록이 없는 부서는 줄을 내지 않습니다.';
+    }
+  }
+
+  function renderAnalyticsCollection(ctx) {
+    var data = ctx.state.data;
+    var kpi = data.kpi || {};
+    var host = ctx.els.anCollect;
+    if (!host) return;
+    clear(host);
+    host.appendChild(statBox({
+      label: '수금 근사 · 예약금', value: fmtMan(toMan(kpi.collected_deposit)), unit: '원',
+      family: 'col', sub: '완료월 귀속',
+    }));
+    host.appendChild(statBox({
+      label: '수금 근사 · 잔금(입금 확인분)', value: fmtMan(toMan(kpi.collected_balance)), unit: '원',
+      family: 'col', sub: '완료월 귀속',
+    }));
+
+    // 과입금은 잔금 0 클램프가 삼키는 금액이다 — 0 이면 줄을 내지 않는다.
+    var overpaid = kpi.overpaid_total || 0;
+    toggle(ctx.els.anOverpaid, overpaid === 0);
+    if (overpaid > 0 && ctx.els.anOverpaid) {
+      ctx.els.anOverpaid.textContent = '과입금 ' + fmtWon(overpaid) + ' 은 위 수금액에 포함되지 않습니다(잔금 0 클램프 밖).';
+    }
+
+    var rows = data.aging || [];
+    var bucketCount = sum(rows, function (r) { return r.count; });
+    toggle(ctx.els.emptyAnAging, bucketCount > 0);
+    if (ctx.els.anReceivable) {
+      ctx.els.anReceivable.textContent = '미수(잔금 입금 미확인) ' + fmtWon(kpi.receivable_total || 0) +
+        ' · ' + fmtCount(kpi.receivable_count) + '건 — 기간 무관 전체';
+    }
+    if (bucketCount === 0) {
+      clear(ctx.els.anAging);
+      return;
+    }
+    renderBarList(ctx, ctx.els.anAging, rows.map(function (r, i) {
+      var color = ORANGE_RAMP5[i % ORANGE_RAMP5.length];
+      return {
+        label: r.label,
+        amount: r.amount || 0,
+        count: r.count || 0,
+        color: color,
+        tipTitle: '경과 ' + r.label,
+        tipRows: [
+          { color: color, val: fmtWon(r.amount || 0), lbl: '미수 잔금' },
+          { val: fmtCount(r.count) + '건', lbl: '주문 수' },
+        ],
+      };
+    }));
+  }
+
+  function renderAnalyticsAs(ctx) {
+    var data = ctx.state.data;
+    var st = data.settlement_status || {};
+    var host = ctx.els.anAs;
+    var meters = ctx.els.anAsMeters;
+    if (!host || !meters) return;
+    clear(host);
+    clear(meters);
+    // 3분할은 서버에서 정확히 상호배타다(합 = as_total_count) — 화면이 다시 나누지 않는다.
+    var total = st.as_total_count || 0;
+    var paid = st.as_billing_paid_count || 0;
+    var completed = (data.kpi || {}).completed_count || 0;
+    var issued = st.issued_count || 0;
+    toggle(ctx.els.emptyAnAs, total > 0);
+    if (ctx.els.anAsSub) {
+      ctx.els.anAsSub.textContent = '기간 완료 ' + fmtCount(completed) + '건 중 AS ' + fmtCount(total) + '건';
+    }
+    if (total > 0) {
+      host.appendChild(statBox({
+        label: 'AS 유상', value: fmtCount(paid), unit: '건',
+        sub: fmtWon(st.as_billing_paid_amount || 0),
+      }));
+      host.appendChild(statBox({
+        label: 'AS 무상', value: fmtCount(st.as_billing_free_count), unit: '건', sub: '청구 없음',
+      }));
+      host.appendChild(statBox({
+        label: 'AS 미확정', value: fmtCount(st.as_billing_undecided_count), unit: '건', sub: '청구 판정 전',
+      }));
+      meters.appendChild(meterRow(
+        '유상 비중 (AS ' + fmtCount(total) + '건 중 ' + fmtCount(paid) + '건)',
+        total > 0 ? (paid / total) * 100 : 0
+      ));
+    }
+    meters.appendChild(meterRow(
+      '정산 청구완료 ' + fmtCount(issued) + '건 / 대기 ' + fmtCount(st.pending_count) + '건',
+      completed > 0 ? (issued / completed) * 100 : 0
+    ));
+  }
+
+  /** 분석 탭 전체. 카드가 하나 죽어도 나머지가 살도록 카드 단위로 나눠 부른다. */
+  function renderAnalytics(ctx) {
+    if (!ctx.els.analyticsGrid) return;
+    renderAnalyticsKpis(ctx);
+    renderAnalyticsChannels(ctx);
+    renderAnalyticsManagers(ctx);
+    renderAnalyticsStages(ctx);
+    renderAnalyticsDeductions(ctx);
+    renderAnalyticsCollection(ctx);
+    renderAnalyticsAs(ctx);
+  }
+
   function renderAll(ctx) {
     if (!ctx.state.data) return;
     renderRangeLine(ctx);
@@ -1051,6 +1553,8 @@
     renderSettlementStatus(ctx);
     renderStages(ctx);
     renderChannels(ctx);
+    // 탭 3(분석). 진입점을 두 벌로 만들지 않는다 — 탭 활성화·리사이즈가 여기로 들어온다.
+    renderAnalytics(ctx);
   }
 
   /* ═══════════════ 5. 상태 표시 + fetch ═══════════════ */
@@ -1058,12 +1562,18 @@
   /**
    * 화면 상태 전환. 'loading' / 'error' / 'denied' / 'ready' 는 서로 **다른 노드**로 말한다 —
    * 무음 실패 금지이고, 권한 실패를 통신 오류처럼 보이게 하지도 않는다.
+   *
+   * 상태 3종 노드는 탭 pane **밖**(루트 직속)이라 어느 탭에서 실패해도 보인다. pane 안에
+   * 있으면 분석 탭에서 fetch 가 깨질 때 실패 문구가 `display:none` 인 요약 pane 안에서
+   * 켜져 **분석 탭만 아무 설명 없이 비는** 무음 실패가 된다(템플릿 주석에 같은 내용).
+   * 그래서 감추는 대상(그리드)도 요약·분석 **양쪽**이다.
    */
   function showState(ctx, kind, detail) {
     toggle(ctx.els.loading, kind !== 'loading');
     toggle(ctx.els.error, kind !== 'error');
     toggle(ctx.els.denied, kind !== 'denied');
     toggle(ctx.els.grid, kind !== 'ready');
+    toggle(ctx.els.analyticsGrid, kind !== 'ready');
     toggle(ctx.els.filterbar, kind === 'denied');
     toggle(ctx.els.foot, kind === 'denied');
     // 권한 거부는 화면 전체에 대한 거부다 — 탭바를 감추고 거부 문구가 있는 요약 탭으로
@@ -1306,6 +1816,35 @@
       tabbar: q('.s-tabs'),
       tabs: Array.prototype.slice.call(root.querySelectorAll('[data-settlement-tab]')),
       panes: Array.prototype.slice.call(root.querySelectorAll('[data-settlement-pane]')),
+      // ── 탭 3 · 분석 ──
+      analyticsGrid: q('[data-settlement-analytics-grid]'),
+      anKpis: q('#foms-settle-an-kpis'),
+      anChannelBar: q('#foms-settle-an-channel-bar'),
+      anChannelTable: q('#foms-settle-an-channel-table'),
+      anChannelTableWrap: q('.s-atbl'),
+      anChannelSub: q('[data-settlement-an-channel-sub]'),
+      anManagerCard: q('[data-settlement-manager-card]'),
+      anManagers: q('#foms-settle-an-managers'),
+      anManagerLegend: q('#foms-settle-an-manager-legend'),
+      anManagerSub: q('[data-settlement-an-manager-sub]'),
+      anManagerTotal: q('[data-settlement-an-manager-total]'),
+      anStages: q('#foms-settle-an-stages'),
+      anStageLegend: q('#foms-settle-an-stage-legend'),
+      anDeductions: q('#foms-settle-an-deductions'),
+      anDeductionTotal: q('[data-settlement-an-deduction-total]'),
+      anCollect: q('#foms-settle-an-collect'),
+      anOverpaid: q('[data-settlement-an-overpaid]'),
+      anReceivable: q('[data-settlement-an-receivable]'),
+      anAging: q('#foms-settle-an-aging'),
+      anAs: q('#foms-settle-an-as'),
+      anAsMeters: q('#foms-settle-an-as-meters'),
+      anAsSub: q('[data-settlement-an-as-sub]'),
+      emptyAnChannels: q('[data-settlement-empty="an_channels"]'),
+      emptyManagers: q('[data-settlement-empty="managers"]'),
+      emptyAnStages: q('[data-settlement-empty="an_stages"]'),
+      emptyAnDeductions: q('[data-settlement-empty="an_deductions"]'),
+      emptyAnAging: q('[data-settlement-empty="an_aging"]'),
+      emptyAnAs: q('[data-settlement-empty="an_as"]'),
     };
   }
 

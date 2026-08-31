@@ -17,7 +17,7 @@
    탭으로 가른다. 새 메뉴도 새 URL 도 만들지 않는다. 탭 1 은 기존 화면을 **그대로** 옮긴 것이다.
    숨은 pane 은 `clientWidth === 0` 이라 그 사이에 그린 차트는 폴백 폭(400px)으로 눌린다 —
    재렌더 책임은 `dashboard.js` 의 `activateTab()` 에 있다(실측 수치까지 그쪽 주석에 있다). #}
-<link rel="stylesheet" href="{{ url_for('static', filename='css/settlement/settlement-dashboard.css') }}?v=20260831c">
+<link rel="stylesheet" href="{{ url_for('static', filename='css/settlement/settlement-dashboard.css') }}?v=20260831d">
 <div class="container-fluid erp-dashboard erp-pro erp-settlement">
   <header class="erp-pro-header">
     <h1 class="erp-pro-header__title">
@@ -96,28 +96,34 @@
       <span class="s-note">미수·aging 은 기간과 무관한 전체 집계 · 단계 카드는 현재 시점 스냅샷</span>
     </nav>
 
+    {# 상태 3종은 서로 다른 노드·다른 문구다. 무음 실패 금지, 권한 실패와 통신 실패 혼동 금지.
+       Bootstrap `.alert` 를 쓰지 않는다 — script.js 가 5초 뒤 자동으로 닫는다.
+
+       **pane 밖 · 루트 직속인 이유**: 집계 fetch 는 요약·분석 두 탭이 **공유**하는 하나의
+       요청이다(필터바와 같은 축). 이 세 노드가 요약 pane 안에 있으면, 분석 탭을 보는 동안
+       fetch 가 실패해도 실패 문구가 `display:none` 인 pane 안에서 켜져 **분석 탭은 아무 설명
+       없이 빈 화면**이 된다 — 이 저장소가 금지하는 무음 실패다. 툴팁과 같은 이유로 여기 둔다.
+       (권한거부는 showState() 가 탭바까지 감추고 요약 탭으로 되돌리므로 어느 탭에서도 보인다.) #}
+    <div class="s-state s-state--loading" data-settlement-loading aria-live="polite">
+      <div class="s-state-title">집계를 불러오는 중입니다…</div>
+      <div class="s-state-detail">완료일 기준 전량 집계라 첫 조회에 몇 초가 걸릴 수 있습니다.</div>
+    </div>
+    <div class="s-state s-state--error s-hidden" data-settlement-error role="alert">
+      <div class="s-state-title">집계를 불러오지 못했습니다.</div>
+      <div class="s-state-detail" data-settlement-error-detail>네트워크 또는 서버 오류입니다.</div>
+      <button type="button" class="s-retry" data-settlement-retry>다시 시도</button>
+    </div>
+    <div class="s-state s-state--denied s-hidden" data-settlement-denied role="alert">
+      <div class="s-state-title">정산 대시보드 열람 권한이 없습니다.</div>
+      <div class="s-state-detail">이 화면은 ADMIN · MANAGER · CS/영업 담당만 볼 수 있습니다. 권한이 필요하면 관리자에게 요청하세요.</div>
+    </div>
+
     {# ── 탭 1 · 요약(경영진) ────────────────────────────────────────────────────
-       기존 화면을 **한 줄도 고치지 않고** 이 pane 안으로 옮긴 것이다(상태 3종 · 그리드 · 각주).
+       기존 화면을 **한 줄도 고치지 않고** 이 pane 안으로 옮긴 것이다(그리드 · 각주).
        숨겨질 때 `hidden` 이 붙어 `display:none` 이 되므로 이 안의 차트 호스트는
        `clientWidth === 0` 이 된다 — 다시 보일 때 JS 가 renderAll 로 되그린다. #}
     <div class="s-pane" role="tabpanel" id="foms-settle-pane-summary"
       data-settlement-pane="summary" aria-labelledby="foms-settle-tab-summary" tabindex="0">
-
-      {# 상태 3종은 서로 다른 노드·다른 문구다. 무음 실패 금지, 권한 실패와 통신 실패 혼동 금지.
-         Bootstrap `.alert` 를 쓰지 않는다 — script.js 가 5초 뒤 자동으로 닫는다. #}
-      <div class="s-state s-state--loading" data-settlement-loading aria-live="polite">
-        <div class="s-state-title">집계를 불러오는 중입니다…</div>
-        <div class="s-state-detail">완료일 기준 전량 집계라 첫 조회에 몇 초가 걸릴 수 있습니다.</div>
-      </div>
-      <div class="s-state s-state--error s-hidden" data-settlement-error role="alert">
-        <div class="s-state-title">집계를 불러오지 못했습니다.</div>
-        <div class="s-state-detail" data-settlement-error-detail>네트워크 또는 서버 오류입니다.</div>
-        <button type="button" class="s-retry" data-settlement-retry>다시 시도</button>
-      </div>
-      <div class="s-state s-state--denied s-hidden" data-settlement-denied role="alert">
-        <div class="s-state-title">정산 대시보드 열람 권한이 없습니다.</div>
-        <div class="s-state-detail">이 화면은 ADMIN · MANAGER · CS/영업 담당만 볼 수 있습니다. 권한이 필요하면 관리자에게 요청하세요.</div>
-      </div>
 
       <div class="s-grid" data-settlement-grid>
 
@@ -224,7 +230,118 @@
     <div class="s-pane" role="tabpanel" id="foms-settle-pane-analytics"
       data-settlement-pane="analytics" aria-labelledby="foms-settle-tab-analytics" tabindex="0" hidden>
       <div class="s-pane-mount" id="foms-settle-analytics-mount" data-settlement-mount="analytics">
-        <p class="s-pane-placeholder">분석 화면은 준비 중입니다.</p>
+        {# 카드 골격만 서버 렌더다. 값은 요약 탭과 **같은 한 번의 fetch**(집계 API)가 채운다 —
+           탭마다 따로 부르지 않는다. 그리드는 상태 3종과 짝이라 ready 가 아니면 통째로 감춘다
+           (dashboard.js showState). 여기 막대는 전부 CSS % 폭(`--s-bar-pct`)이라 SVG 차트와
+           달리 숨은 pane 폭 0 함정을 타지 않는다 — 그래도 렌더 진입점은 renderAll 하나다. #}
+        <div class="s-agrid" data-settlement-analytics-grid>
+
+          {# 매출 추이 카드를 여기에 **두 벌째** 그리지 않는다. 요약 탭의 '출고가 매출 추이' 가
+             같은 buckets/prev_buckets 를 같은 기간 스코프로 이미 그리고 있어서, 복제하면
+             호스트·범례·부제가 두 벌이 되어 한쪽만 고치는 회귀가 난다. 분석 탭은 요약에
+             **없는 축**(채널 3지표 · 담당자 · 단계 · 부서 · 수금 구성 · AS 분포)만 맡는다. #}
+          <p class="s-anote">
+            기간 스코프는 위 필터바 한 벌을 요약 탭과 공유합니다 · 시계열 추이는 요약 탭의
+            '출고가 매출 추이' 카드가 같은 데이터로 그립니다 — 여기서는 중복해서 그리지 않습니다.
+          </p>
+
+          <div class="s-kpis" id="foms-settle-an-kpis"></div>
+
+          {# ── 채널 비교: 매출 · 건수 · 건당 평균 · 비중 스택 ─────────────────── #}
+          <div class="s-card s-span4" id="foms-settle-an-channel-card">
+            <div class="s-card-head">
+              <span class="s-card-title">채널 비교</span>
+              <span class="s-card-sub" data-settlement-an-channel-sub>기간 · 완료일 기준</span>
+            </div>
+            <div class="s-chbar" id="foms-settle-an-channel-bar"></div>
+            <div class="s-tblwrap s-atbl">
+              <table class="s-dt" id="foms-settle-an-channel-table"></table>
+            </div>
+            <div class="s-empty s-hidden" data-settlement-empty="an_channels">
+              이 기간에 채널별로 집계할 <b>완료 주문이 없습니다</b>.
+            </div>
+          </div>
+
+          {# ── 담당자별 매출: ADMIN·MANAGER 전용(SPEC §13.6) ─────────────────────
+             STAFF 에게는 API 가 `managers`/`managers_total` 키를 **payload 에서 빼고** 준다.
+             그래서 이 카드는 "값이 0"이 아니라 **키가 없는** 상태를 만나며, 그때는 빈 카드를
+             그리지 않고 카드째 감춘다(dashboard.js renderAnalyticsManagers). #}
+          <div class="s-card s-span4 s-hidden" id="foms-settle-an-manager-card" data-settlement-manager-card>
+            <div class="s-card-head">
+              <span class="s-card-title">담당자별 매출</span>
+              <span class="s-card-sub" data-settlement-an-manager-sub>기간 · 출고가</span>
+              <span class="s-head-right"><span class="s-legend" id="foms-settle-an-manager-legend"></span></span>
+            </div>
+            <div class="s-blist" id="foms-settle-an-managers"></div>
+            <p class="s-cardnote" data-settlement-an-manager-total></p>
+            <div class="s-empty s-hidden" data-settlement-empty="managers">
+              이 기간에 <b>담당자별로 집계할 완료 주문이 없습니다</b>.
+            </div>
+          </div>
+
+          {# ── 단계별 파이프라인 금액: 라벨은 API `stages[].label` 그대로 ───────── #}
+          <div class="s-card s-span4" id="foms-settle-an-stage-card">
+            <div class="s-card-head">
+              <span class="s-card-title">단계별 파이프라인 금액</span>
+              <span class="s-card-sub">완료 전 주문의 출고가 합 · 현재 시점 스냅샷(기간 스코프 밖)</span>
+              <span class="s-head-right"><span class="s-legend" id="foms-settle-an-stage-legend"></span></span>
+            </div>
+            <div class="s-blist" id="foms-settle-an-stages"></div>
+            <div class="s-empty s-hidden" data-settlement-empty="an_stages">
+              완료 전 단계에 남아 있는 주문이 <b>없습니다</b>.
+            </div>
+          </div>
+
+          {# ── 부서별 정산 차감: 부서명·순서 SSOT 도 API(label) ─────────────────── #}
+          <div class="s-card s-span4" id="foms-settle-an-deduction-card">
+            <div class="s-card-head">
+              <span class="s-card-title">부서별 정산 차감</span>
+              <span class="s-card-sub">기간 완료 건에 기록된 귀속 차감</span>
+            </div>
+            <div class="s-blist" id="foms-settle-an-deductions"></div>
+            <p class="s-cardnote" data-settlement-an-deduction-total></p>
+            <div class="s-empty s-hidden" data-settlement-empty="an_deductions">
+              이 기간 완료 건에 기록된 <b>부서 귀속 차감이 없습니다</b>.
+            </div>
+          </div>
+
+          {# ── 수금 · 미수: 수금은 완료월 귀속 근사치다(실제 입금일 시계열이 아니다) ─ #}
+          <div class="s-card s-span4" id="foms-settle-an-collect-card">
+            <div class="s-card-head">
+              <span class="s-card-title">수금 · 미수 현황</span>
+              <span class="s-card-sub" data-settlement-an-collect-sub>수금=기간 근사 · 미수=기간 무관 전체</span>
+            </div>
+            <div class="s-duo" id="foms-settle-an-collect"></div>
+            <p class="s-cardnote">
+              수금액은 입금 확인 토글 기반 근사치를 <b>완료월에 귀속</b>시킨 값입니다 — 실제 입금일 시계열이 아닙니다.
+            </p>
+            <p class="s-cardnote s-hidden" data-settlement-an-overpaid></p>
+            <div class="s-mrow">
+              <div class="s-mlab"><span data-settlement-an-receivable></span><span>경과일 구간</span></div>
+              <div class="s-blist" id="foms-settle-an-aging"></div>
+            </div>
+            <div class="s-empty s-hidden" data-settlement-empty="an_aging">
+              잔금 입금이 확인되지 않은 <b>미수 건이 없습니다</b>.
+            </div>
+          </div>
+
+          {# ── AS · 정산 처리: 유상/무상/미확정 3분할(합 = as_total_count) ───────── #}
+          <div class="s-card s-span4" id="foms-settle-an-as-card">
+            <div class="s-card-head">
+              <span class="s-card-title">AS · 정산 처리 현황</span>
+              <span class="s-card-sub" data-settlement-an-as-sub>기간 완료 건 기준</span>
+            </div>
+            <div class="s-duo s-duo--3" id="foms-settle-an-as"></div>
+            {# 빈 상태는 3분할 자리 **바로 아래**다 — 그 아래 '정산 청구완료' 미터는 AS 와
+               무관한 지표라 AS 가 0건이어도 계속 그린다(빈 안내가 미터를 설명하지 않게). #}
+            <div class="s-empty s-hidden" data-settlement-empty="an_as">
+              이 기간 완료 건에 <b>AS 로 잡힌 주문이 없습니다</b>.
+            </div>
+            <div id="foms-settle-an-as-meters"></div>
+            <p class="s-cardnote">유상 AS 청구액은 출고가 매출 합계와 별개의 청구 흐름입니다.</p>
+          </div>
+
+        </div>
       </div>
     </div>
 
@@ -232,4 +349,4 @@
     <div class="s-tt" id="foms-settle-tooltip" role="tooltip"></div>
   </div>
 </div>
-<script src="{{ url_for('static', filename='js/settlement/dashboard.js') }}?v=20260831c" defer></script>
+<script src="{{ url_for('static', filename='js/settlement/dashboard.js') }}?v=20260831d" defer></script>

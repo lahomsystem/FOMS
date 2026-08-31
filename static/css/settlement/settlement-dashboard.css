@@ -285,12 +285,14 @@
 .foms-settle .s-empty b { color: var(--s-text); font-weight: 800; }
 
 /* 상태 3종은 서로 **다르게** 생겨야 한다 — 무음 실패도, 오류와 권한거부의 혼동도 금지. */
+/* 상태 박스는 탭 pane **밖**(루트 직속)이다 — 그래서 pane 안 그리드와 형제가 아니고,
+   옛 `.s-state + .s-grid` 인접 규칙 대신 자기 위 여백으로 필터바와 떨어진다.
+   ready 가 아닐 때만 보이므로(showState) 그리드와 동시에 뜨는 일은 없다. */
 .foms-settle .s-state {
-  max-width: 1440px; margin: 0 auto; padding: 14px 16px;
+  max-width: 1440px; margin: 14px auto 0; padding: 14px 16px;
   border-radius: var(--s-radius); font-size: 12.5px; line-height: 1.6;
   border: 1px solid var(--s-line); background: var(--s-surface); color: var(--s-text);
 }
-.foms-settle .s-state + .s-grid { padding-top: 10px; }
 .foms-settle .s-state-title { font-weight: 800; font-size: 13px; margin-bottom: 4px; }
 .foms-settle .s-state-detail { color: var(--s-muted); font-size: 11.5px; }
 .foms-settle .s-state--loading { color: var(--s-muted); }
@@ -304,6 +306,73 @@
   padding: 5px 14px; border-radius: 8px; cursor: pointer;
 }
 .foms-settle .s-retry:hover { background: var(--s-surface-soft); }
+
+/* ══ 탭 3 · 분석 ═══════════════════════════════════════════════
+ * 요약 탭의 어휘(`.s-card`/`.s-kpi`/`.s-empty`/`.s-legend`)를 그대로 쓰고, 분석에만 있는
+ * 것(가로 막대 리스트 · 2~3분할 상자 · 미터 줄)만 여기서 더한다.
+ *
+ * **폭 계약**: 분석 카드의 막대는 전부 CSS 퍼센트(`--s-bar-pct`)다. SVG 차트와 달리
+ * `clientWidth` 를 읽지 않으므로 숨은 pane 에서 그려도 폭이 틀어지지 않는다(폭 0 함정 밖).
+ * 그래도 렌더 진입점은 요약과 같은 `renderAll` 하나다 — 두 벌이 되면 한쪽만 고치게 된다.
+ */
+.foms-settle .s-agrid {
+  display: grid; grid-template-columns: repeat(12, minmax(0, 1fr)); gap: 14px;
+}
+.foms-settle .s-agrid > .s-span8 { grid-column: span 8; }
+.foms-settle .s-agrid > .s-span4 { grid-column: span 4; }
+.foms-settle .s-agrid > .s-kpis { grid-template-columns: repeat(4, minmax(0, 1fr)); }
+.foms-settle .s-anote {
+  grid-column: 1 / -1; margin: 0; color: var(--s-muted); font-size: 11.5px; line-height: 1.6;
+}
+
+/* 가로 막대 리스트 — 담당자별 · 단계별 · 부서별 · aging 공용.
+   라벨 폭을 고정(84px)해 막대 시작선이 한 줄로 맞는다(길면 말줄임). */
+.foms-settle .s-blist { margin-top: 12px; display: grid; gap: 7px; }
+.foms-settle .s-brow {
+  display: grid; grid-template-columns: 84px 1fr auto; align-items: center; gap: 9px;
+  border-radius: 6px; padding: 1px 4px;
+}
+.foms-settle .s-brow:hover { background: var(--s-surface-soft); }
+.foms-settle .s-blab {
+  font-size: 11.5px; font-weight: 700; color: var(--s-muted);
+  white-space: nowrap; overflow: hidden; text-overflow: ellipsis;
+}
+.foms-settle .s-btrack { min-width: 0; height: 15px; }
+.foms-settle .s-bbar {
+  height: 15px; border-radius: 0 4px 4px 0;
+  width: var(--s-bar-pct, 0%); background: var(--s-bar-color, var(--s-accent));
+}
+.foms-settle .s-bval {
+  font-size: 11px; font-weight: 700; color: var(--s-text);
+  white-space: nowrap; font-variant-numeric: tabular-nums;
+}
+.foms-settle .s-bval span { color: var(--s-faint); font-weight: 600; }
+
+/* 2~3분할 스탯 상자 (수금 예약금/잔금 · AS 유상/무상/미확정) */
+.foms-settle .s-duo { margin-top: 12px; display: grid; grid-template-columns: 1fr 1fr; gap: 10px; }
+.foms-settle .s-duo--3 { grid-template-columns: repeat(3, minmax(0, 1fr)); }
+.foms-settle .s-dbox { background: var(--s-surface-soft); border-radius: 8px; padding: 9px 11px; min-width: 0; }
+.foms-settle .s-dbox--col { background: #eefaf5; border-left: 3px solid #1baf7a; }
+.foms-settle .s-dbox-label { color: var(--s-muted); font-size: 11px; font-weight: 700; }
+.foms-settle .s-dbox-val { font-size: 17px; font-weight: 800; margin-top: 2px; letter-spacing: -0.02em; white-space: nowrap; }
+.foms-settle .s-dbox-val i { font-style: normal; font-size: 11px; font-weight: 700; color: var(--s-muted); margin-left: 1px; }
+.foms-settle .s-dbox-sub { color: var(--s-faint); font-size: 11px; margin-top: 1px; }
+
+/* 미터 한 줄(라벨 + 퍼센트 + 트랙) */
+.foms-settle .s-mrow { margin-top: 12px; }
+.foms-settle .s-mlab {
+  display: flex; justify-content: space-between; gap: 8px;
+  color: var(--s-muted); font-size: 11.5px; margin-bottom: 5px;
+}
+.foms-settle .s-mlab b { color: var(--s-text); font-weight: 800; }
+.foms-settle .s-mrow .s-meter { flex: none; width: 100%; }
+
+/* 채널 비교 표 — 좁은 카드에서도 페이지를 가로로 밀지 않게 카드 안에서만 스크롤한다. */
+.foms-settle .s-atbl { max-height: none; overflow-x: auto; }
+
+/* 범례 스와치 색도 커스텀 프로퍼티로 넣는다(인라인 style 금지 규칙과 같은 결).
+   요약 탭 범례는 background 를 직접 넣어 이 기본값을 덮으므로 영향이 없다. */
+.foms-settle .s-lg-rect { background: var(--s-lg-color, var(--s-accent)); }
 
 /* ── 툴팁 ────────────────────────────────────────────────────── */
 /* 좌표는 JS 가 --s-tt-x/--s-tt-y 로 넣는다(인라인 스타일 금지 규칙). 여기서 소비하지
@@ -326,6 +395,9 @@
 /* ── 반응형 ──────────────────────────────────────────────────── */
 @media (max-width: 1120px) {
   .foms-settle .s-kpis { grid-template-columns: repeat(auto-fit, minmax(200px, 1fr)); }
+  .foms-settle .s-agrid > .s-kpis { grid-template-columns: repeat(auto-fit, minmax(200px, 1fr)); }
+  .foms-settle .s-agrid > .s-span8,
+  .foms-settle .s-agrid > .s-span4 { grid-column: span 6; }
   .foms-settle .s-card--main { grid-column: 1 / -1; }
   .foms-settle .s-side { grid-column: 1 / -1; grid-template-columns: 1fr 1fr; }
   .foms-settle .s-card--aging,
@@ -337,4 +409,9 @@
   .foms-settle .s-card--aging,
   .foms-settle .s-card--stages { grid-column: 1 / -1; }
   .foms-settle .s-filterbar .s-note { margin-left: 0; }
+  .foms-settle .s-agrid > .s-span8,
+  .foms-settle .s-agrid > .s-span4 { grid-column: 1 / -1; }
+  /* 좁은 폭에서는 고정 라벨칸(84px)이 1fr 막대를 굶긴다 — 라벨칸을 줄여 막대를 살린다. */
+  .foms-settle .s-brow { grid-template-columns: 72px 1fr auto; gap: 7px; }
+  .foms-settle .s-duo--3 { grid-template-columns: 1fr; }
 }
