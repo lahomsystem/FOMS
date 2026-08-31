@@ -774,3 +774,59 @@ perf-gate 커버리지는 후손 커밋 `3cb6e428`(내 커밋 전부 포함)의 
 4. 실무 탭 스테이징 성능 실측 — 스코프 변경 1회당 rows API 6회(직렬). 로컬 1초 남짓이나
    싱가포르 tail 에서는 aging 스트립이 수 초 걸릴 수 있다(그리드는 첫 응답에 뜬다)
 5. 실무 탭 980px 미만 좁은 폭 실측
+
+---
+
+## 스테이징 지적 2건 수정 + production 승격 (2026-08-31, 사용자 승인 후)
+
+### 수정 (deploy `846f8262`, CI 4/4 success)
+
+**1. 비교선이 y축 상한을 잡아 막대를 누르던 문제.**
+축 상한을 `max(barMax, min(lineMax, barMax * 1.5))` 로 바꿨다. 목업의
+`max(barMax, lineMax)` 는 두 시리즈가 비슷한 규모의 가정치라서 문제가 없었을 뿐이다.
+넘치는 라인 구간은 축 상단에 고정하되 **캐럿으로 표시**한다 — 잘라놓고 말 안 하면
+"그날은 축 상한이었다"로 읽혀서 눌림을 고치려다 새 거짓말이 된다. 툴팁은 축이 아니라
+원본 값을 읽으므로 실제 숫자는 그대로 확인된다.
+로컬 실측(7/14 에 4,000만 시드): 축이 4,000만으로 뛰지 않고 1,500만에 머물고 캐럿 1개.
+수정 전이면 같은 데이터에서 막대가 지금의 1/4 높이였다.
+
+**2. 실무 탭 첫 페이지가 금액 0인 옛 주문으로 채워지던 문제.**
+정렬을 **미수 먼저 → 묶음 안에서 경과일 오래된 순**으로 바꿨다. "경과일 오래된 순"은
+목업 사양이지만 그대로 두면 잔금 0(회수할 게 없는 건)이 회수 목록 맨 위를 차지한다 —
+스테이징에서 1,263일 전 0원 주문부터 나왔다.
+
+계약 테스트: 축 한도·캐럿 2건 신설, 정렬 테스트 2건으로 분리. 비교선 루프 상한 테스트는
+루프 본문에 if 블록이 생겨 정규식이 어긋났는데 **느슨하게 푸는 대신** 중괄호 균형으로
+함수 본문을 잘라 잡도록 고쳤다(음성 대조군으로 `&& li < g` 제거 시 red 확인).
+
+### production 승격 — PR #215 (머지는 사용자 확인 대기)
+
+**착수 전에 드러난 사실: production 에 정산 대시보드가 아예 없었다.**
+1단계(M1~M3)가 승격된 적이 없어 2단계만 올리는 것이 불가능했다. 사용자 승인으로
+1단계 + 2단계를 함께 올린다(20커밋).
+
+**뺀 것 2가지**
+
+| 뺀 커밋 | 이유 |
+|---|---|
+| `86e91a1f`·`f665c741` (ci.yml docs 서브셋 등재) | production ci.yml 에 "Run docs-facing contracts" 스텝 자체가 없고 게이트 파일(`test_docs_facing_registry.py`)도 없다. 등재 대상이 없어 충돌만 난다 |
+| `d61dccd8` (엑셀 업로드 기능 제거) | **정산과 무관한 기능 제거.** `promote_completeness` 가 같은 파일(`test_settlement_aggregation.py`·`order_mutation_policy.py`)을 건드린다는 이유로 의존으로 표시하지만, 정산 승격의 부작용으로 운영 기능을 없애면 안 된다. 빼고 돌린 트리가 전량 green 이라 실제 의존이 아니다 → `--allow-incomplete` 로 진행 |
+
+정산 원장 docs 3건(`20cdd810`·`3f947d77`·`7e7aed9c`)은 **넣었다** — 빼면 production
+원장에 구멍이 생긴다(docs 계보 함정).
+
+**승격 트리에서 직접 검증**(`origin/production` 위 cherry-pick, `c:\tmp\promo-dry`):
+
+```
+cherry-pick 충돌 0건 (20커밋)
+python -c "import app; print('APP_OK')"   → APP_OK
+정산 5스위트                                → 431 passed
+pytest -q --ignore=tests/visual --ignore=tests/harness -n auto → 7,328 passed / 601 skipped
+```
+
+의존 심볼 6종이 production 에 실재함을 사전 확인:
+`_balance_after_payments` · `_overpaid_after_payments` · `as_billing_badge_kind` ·
+`erp_as_scope_condition` · `FINANCE_MUTATION` · `erp_shipping_price_from_structured`.
+
+**승격 후 확인 대상**: 실무 탭 운영 tail 실측(스코프 변경 1회당 행 API 6회 직렬 —
+그리드는 첫 응답에 뜨고 aging 스트립이 뒤따른다).
