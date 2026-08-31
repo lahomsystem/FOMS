@@ -343,3 +343,86 @@ def test_v3_full_page_still_hides_the_button():
     button_at = source.index("data-naver-bulk-dispatch-run")
     gate_at = source.index("shell_variant != 'v3'")
     assert gate_at < button_at, "게이트가 버튼보다 뒤에 있으면 v3 에서 버튼이 그려진다"
+
+
+# --------------------------------------------------------------------------- #
+# 실패한 집 재시도 — 줄마다 하나씩
+# --------------------------------------------------------------------------- #
+
+@pytest.fixture()
+def bulk_on(monkeypatch):
+    """전역 킬스위치를 켠다.
+
+    Args:
+        monkeypatch: pytest fixture.
+    """
+    monkeypatch.setenv("FOMS_NAVER_BULK_DISPATCH_ENABLED", "1")
+
+
+def test_workbench_failed_row_has_its_own_retry_button(client, workbench_on, bulk_on, today):
+    """실패한 줄에 **그 집만** 다시 보내는 버튼이 붙는다.
+
+    띠의 기본 버튼도 실패 집을 다시 보내지만 아직 안 보낸 집까지 함께 보낸다. 사유를 읽고
+    그 집 하나만 보내려면 지금까지 워크벤치에서 집을 열어야 했다.
+    """
+    _login(client)
+    link = _naver_measured_today(today)
+    _stamp_failure(link)
+    body = _work(client)
+    assert f'data-naver-dispatch-retry="{link.id}"' in body
+    assert "이 집 다시 보내기" in body
+
+
+def test_measurement_failed_row_has_its_own_retry_button(client, bulk_on, today):
+    """실측 대시보드에도 같은 버튼이 붙는다 — 이 화면엔 집을 여는 길조차 없었다."""
+    _login(client)
+    link = _naver_measured_today(today)
+    _stamp_failure(link)
+    body = _measurement(client)
+    assert f'data-naver-dispatch-retry="{link.id}"' in body
+
+
+def test_retry_button_is_absent_when_switch_is_off(client, workbench_on, today):
+    """킬스위치가 꺼져 있으면 재시도 버튼도 없다 — 띠는 그대로 읽기 전용이다."""
+    _login(client)
+    _stamp_failure(_naver_measured_today(today))
+    body = _work(client)
+    assert "data-naver-dispatch-retry=" not in body
+
+
+def test_blocked_row_offers_no_retry_but_still_shows_the_reason(client, workbench_on,
+                                                               bulk_on, today):
+    """**막힌 집에는 재시도 버튼을 안 준다** — 눌러도 같은 가드에 다시 막힌다.
+
+    사람이 할 일은 재시도가 아니라 발주확인이다. 다만 직전 실패 사유는 지우지 않는다.
+    """
+    _login(client)
+    link = _naver_measured_today(today, place_status="")
+    _stamp_failure(link)
+    body = _work(client)
+    assert "data-naver-dispatch-retry=" not in body
+    assert "보낼 수 없음" in body
+    assert "직전 실패:" in body
+
+
+def test_retry_wiring_uses_the_existing_single_household_route():
+    """재시도는 **이미 있는 단건 라우트**를 쓴다 — 불가역 경로를 새로 파지 않았다."""
+    source = _partial_source()
+    assert "'/fulfillment'" in source
+    assert "action: 'dispatch'" in source
+    # 확인 없이 나가면 안 된다 — 되돌릴 수 없는 조작이다.
+    assert source.count("window.confirm") == 2, "일괄·단건 둘 다 확인을 묻는다"
+    assert "retryConfirmText" in source
+
+
+def test_retry_button_shares_the_v3_gate_on_the_measurement_dashboard():
+    """v3 풀페이지에서는 재시도 버튼도 안 그린다(그 셸엔 배선이 없다)."""
+    path = (_REPO_ROOT / "templates" / "measurement" / "partials"
+            / "naver_dispatch_strip.html")
+    source = path.read_text(encoding="utf-8")
+    gate = source.split("set can_act")[1].split("%}")[0]
+    assert "shell_variant != 'v3'" in gate, "재시도 배선 게이트에 v3 조건이 빠졌다"
+    # 버튼 바로 앞에 그 게이트가 있어야 한다 — 게이트가 뒤에 있으면 v3 에서 그려진다.
+    before = source.split("data-naver-dispatch-retry")[0]
+    assert before.rstrip().endswith('<button type="button" class="btn btn-sm btn-outline-danger mt-1"')
+    assert "{% if can_act %}" in before.split("{% elif row.state == 'failed' %}")[-1]

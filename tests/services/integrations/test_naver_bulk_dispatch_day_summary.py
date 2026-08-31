@@ -252,3 +252,35 @@ def test_household_with_one_sent_and_one_left_stays_a_target():
     assert row["sent_orders"] == 1
     targets = select_targets(db_session, on_date=TODAY)
     assert [t.pending_link_ids for t in targets] == [[second.id]]
+
+
+# --------------------------------------------------------------------------- #
+# 재시도 버튼이 뜻을 가지려면 — 막힘이 실패를 이긴다
+# --------------------------------------------------------------------------- #
+
+def test_blocked_wins_over_failure_so_retry_is_always_actionable():
+    """**둘 다인 집은 '막힘'이다.** 실패라고 쓰면 화면이 못 나갈 재시도를 권한다.
+
+    발주확인 전 집에 발송처리를 걸면 워커가 실패 사유를 찍고 되돌려보낸다 — 그 집은
+    실패 표식과 막힘 사유를 **함께** 갖는다. 이때 '실패'로 부르면 줄마다 붙는 재시도
+    버튼이 뜨고, 눌러도 같은 가드에 다시 막힌다. 사람이 할 일은 재시도가 아니라
+    발주확인이다.
+    """
+    _, link = _naver_order(order_no=f"N-BOTH2-{_uid()}", place_status="")
+    _mark_failure(link, reason="발주확인이 먼저입니다(발주확인 전 상품주문이 있습니다).")
+    preview = build_preview(db_session, on_date=TODAY)
+    row = _one(preview["day_rows"], link.id)
+    assert row["state"] == "blocked"
+    assert preview["failed"] == 0, "막힌 집을 실패로 세면 '다시 보내세요' 안내가 거짓이 된다"
+    assert row["failure_reason"], "사유 자체는 지우지 않는다 — 화면이 '직전 실패'로 보여준다"
+
+
+def test_every_failed_household_is_sendable():
+    """``state == 'failed'`` 인 집은 **항상** 보낼 수 있다 — 재시도 버튼의 전제."""
+    _, link = _naver_order(order_no=f"N-FS-{_uid()}")
+    _mark_failure(link)
+    preview = build_preview(db_session, on_date=TODAY)
+    failed_rows = [row for row in preview["day_rows"] if row["state"] == "failed"]
+    assert failed_rows, "실패 집이 하나는 있어야 이 계약이 뜻을 갖는다"
+    assert all(row["eligible"] for row in failed_rows)
+    assert link.id in [t.link_id for t in select_targets(db_session, on_date=TODAY)]

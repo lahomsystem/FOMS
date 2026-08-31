@@ -1,5 +1,5 @@
 {#
-  네이버 일괄 발송처리 실행 버튼 + 확인 + **결과 추적** (NAVER-BULKDISPATCH-02).
+  네이버 일괄 발송처리 실행 버튼 + 확인 + **결과 추적 · 실패 집 재시도** (NAVER-BULKDISPATCH-02).
 
   **두 화면(워크벤치·실측 대시보드)이 이 파셜 하나를 include 한다.** 되돌릴 수 없는 조작의
   확인 문구와 요청 코드를 두 벌로 두면 한쪽만 고쳐지는 날이 온다.
@@ -9,15 +9,21 @@
   됐는지 안 됐는지 화면으로 알 수 없었다. 그래서 지금은 **띠 안에서** 진행을 말하고,
   결과 조회(`/bulk-dispatch/state`)를 몇 초 간격으로 읽어 "N집 발송 완료"까지 바꾼다.
 
+  **실패한 집은 줄마다 다시 보낸다.** 띠의 기본 버튼도 실패 집을 다시 보내지만(실패해도
+  `eligible` 로 남는다) 그 버튼은 **아직 안 보낸 집까지 함께** 보낸다. 사유를 읽고 그 집
+  하나만 다시 보내려면 지금까지 워크벤치에서 그 집을 열어야 했고, 실측 대시보드에는 그
+  길이 아예 없었다. 단건 재시도는 이미 있는 라우트(`/<link_id>/fulfillment`)를 쓴다 —
+  대상이 한 집이고 사람이 그 줄을 보고 누르며, 서버(`dispatch_order`)가 전부 재판정한다.
+
   배선 규율 3개:
   * **document 위임 + 싱글톤.** 이 화면들은 셸 프래그먼트로 갈아끼워진다 —
     `DOMContentLoaded` 에 매달면 스왑 진입에서 죽고, 매번 다시 바인딩하면 클릭이 여러 번
     나간다(불가역 조작에서 치명적).
   * **버튼은 렌더 쪽이 판단한다.** 이 파셜은 버튼이 이미 그려져 있을 때만 동작한다 —
     v3 풀페이지처럼 스크립트가 통째로 빠지는 셸에서는 버튼 자체가 렌더되지 않는다.
-  * **폴링은 스스로 끝난다.** 남은 대상이 0이 되거나 두 번 연속 같은 값이면 멈추고,
-    그래도 안 끝나면 최대 횟수에서 멈추면서 **끝나지 않았다고 말한다** — 조용히 멈춰
-    "완료"로 보이면 그게 1회차 결함의 재생산이다.
+  * **폴링은 스스로 끝난다.** 끝났다고 볼 조건을 부르는 쪽이 주고, 그래도 안 끝나면 최대
+    횟수에서 멈추면서 **끝나지 않았다고 말한다** — 조용히 멈춰 "완료"로 보이면 그게
+    1회차 결함의 재생산이다.
 
   변수: `bulk_dispatch` (문구의 집 수 재진술용).
 #}
@@ -27,8 +33,9 @@
   if (window.__fomsNaverBulkDispatchBound) { return; }
   window.__fomsNaverBulkDispatchBound = true;
 
-  var ENDPOINT = '/admin/naver-ingest/bulk-dispatch';
-  var STATE_ENDPOINT = '/admin/naver-ingest/bulk-dispatch/state';
+  var BASE = '/admin/naver-ingest/';
+  var ENDPOINT = BASE + 'bulk-dispatch';
+  var STATE_ENDPOINT = BASE + 'bulk-dispatch/state';
   var POLL_MS = 3000;
   var POLL_MAX = 20;
 
@@ -39,15 +46,22 @@
       + '보내시겠습니까?';
   }
 
-  // 진행 문구는 띠 안에 산다. 자리가 없으면(옛 마크업) 알림창으로 떨어뜨린다 —
-  // 결과를 아무 데도 말하지 않는 경우만은 만들지 않는다.
-  function statusBox(btn) {
-    var scope = btn.closest('details') || document;
-    return scope.querySelector('[data-naver-bulk-dispatch-status]');
+  function retryConfirmText() {
+    return '이 집을 다시 발송처리합니다.\n\n'
+      + '되돌릴 수 없습니다. 앞선 시도가 네이버에 이미 닿았다면\n'
+      + '두 번 나가지는 않지만(서버가 다시 판정합니다),\n'
+      + '성공하면 FOMS에서는 취소할 수 없게 됩니다.\n\n'
+      + '보내시겠습니까?';
   }
 
-  function say(btn, text) {
-    var box = statusBox(btn);
+  // 진행 문구는 띠 안에 산다. 자리가 없으면(옛 마크업) 알림창으로 떨어뜨린다 —
+  // 결과를 아무 데도 말하지 않는 경우만은 만들지 않는다.
+  function scopeOf(el) {
+    return (el && el.closest && el.closest('details')) || document;
+  }
+
+  function say(el, text) {
+    var box = scopeOf(el).querySelector('[data-naver-bulk-dispatch-status]');
     if (!box) { window.alert(text); return; }
     box.hidden = false;
     box.textContent = text;
@@ -80,8 +94,28 @@
     return text;
   }
 
+  function rowOf(state, linkId) {
+    var rows = state.day_rows || [];
+    for (var i = 0; i < rows.length; i += 1) {
+      if (String(rows[i].link_id) === String(linkId)) { return rows[i]; }
+    }
+    return null;
+  }
+
+  // 실패 줄에만 붙는 재시도 버튼. 마크업이 아니라 여기서 다시 만드는 이유는 폴링이
+  // 칸을 통째로 갈아 끼우기 때문이다 — 안 그러면 재시도 뒤 그 집이 또 실패했을 때
+  // 버튼이 사라져 두 번째 재시도 길이 없어진다.
+  function retryButton(linkId) {
+    var btn = document.createElement('button');
+    btn.type = 'button';
+    btn.className = 'btn btn-sm btn-outline-danger mt-1';
+    btn.setAttribute('data-naver-dispatch-retry', String(linkId));
+    btn.textContent = '이 집 다시 보내기';
+    return btn;
+  }
+
   // 표의 '발송' 칸만 갈아 끼운다. 서버가 준 문장을 그대로 텍스트로 넣는다(마크업 조립 금지).
-  function paintRow(row) {
+  function paintRow(row, canRun) {
     var cell = document.querySelector(
       '[data-naver-dispatch-row="' + row.link_id + '"] [data-naver-dispatch-state-cell]');
     if (!cell) { return; }
@@ -108,6 +142,7 @@
     cell.textContent = '';
     cell.appendChild(label);
     if (detail.textContent) { cell.appendChild(detail); }
+    if (row.state === 'failed' && canRun) { cell.appendChild(retryButton(row.link_id)); }
   }
 
   function readState() {
@@ -120,43 +155,43 @@
       .catch(function () { return null; });
   }
 
-  // 끝났다고 볼 조건은 "보낼 수 있는 집이 0" 이다. 남은 집 수(count)로 재면 **막힌 집이
-  // 있는 날에는 영원히 안 끝난다** — 막힌 집은 이 버튼이 보낼 수 있는 대상이 아니다.
-  // 실패는 기다린다고 풀리지 않으므로, 값이 네 번 연속 그대로면서 실패가 있으면 멈춘다.
-  function poll(btn, tries, lastMark, samePasses) {
+  /**
+   * 결과가 바뀔 때까지 지켜본다.
+   *
+   * @param {Object} plan - anchor(문구를 띄울 기준 요소) · isDone(state → 끝났나) ·
+   *   progress(state → 진행 문구) · finish(state, exhausted → 마무리) ·
+   *   canRun(재시도 버튼을 그려도 되는가).
+   * @param {number} tries - 지금까지 조회 횟수.
+   * @param {string} lastMark - 직전 회차의 값 지문.
+   * @param {number} samePasses - 값이 그대로였던 연속 횟수.
+   */
+  function watch(plan, tries, lastMark, samePasses) {
     readState().then(function (state) {
       if (!state) {
         // 조회가 실패해도 발송 자체는 워커가 계속한다 — 못 봤다는 사실만 말한다.
         if (tries + 1 >= POLL_MAX) {
-          say(btn, '결과를 읽지 못했습니다 — 잠시 뒤 새로고침해 확인하세요.');
+          say(plan.anchor, '결과를 읽지 못했습니다 — 잠시 뒤 새로고침해 확인하세요.');
           return;
         }
-        window.setTimeout(function () { poll(btn, tries + 1, lastMark, samePasses); }, POLL_MS);
+        window.setTimeout(function () { watch(plan, tries + 1, lastMark, samePasses); }, POLL_MS);
         return;
       }
-      (state.day_rows || []).forEach(paintRow);
+      (state.day_rows || []).forEach(function (row) { paintRow(row, plan.canRun); });
       var mark = state.sent + '/' + state.failed;
       var stalled = mark === lastMark ? samePasses + 1 : 0;
       var exhausted = tries + 1 >= POLL_MAX;
+      // 실패는 기다린다고 풀리지 않는다 — 값이 네 번 연속 그대로면서 실패가 있으면 멈춘다.
       var stuck = state.failed > 0 && stalled >= 4;
-      if (state.eligible > 0 && !exhausted && !stuck) {
-        say(btn, '보내는 중… 발송된 집 ' + state.sent + '집 · 남은 집 ' + state.count + '집.');
-        window.setTimeout(function () { poll(btn, tries + 1, mark, stalled); }, POLL_MS);
+      if (!plan.isDone(state) && !exhausted && !stuck) {
+        say(plan.anchor, plan.progress(state));
+        window.setTimeout(function () { watch(plan, tries + 1, mark, stalled); }, POLL_MS);
         return;
       }
-      say(btn, resultText(state, state.eligible > 0 && exhausted));
-      btn.setAttribute('data-naver-bulk-dispatch-count', String(state.eligible));
-      btn.textContent = state.eligible ? '남은 ' + state.eligible + '집 다시 보내기'
-                                       : '오늘 보낼 집이 남지 않았습니다';
-      btn.disabled = !state.eligible;
+      plan.finish(state, exhausted && !plan.isDone(state));
     });
   }
 
-  document.addEventListener('click', function (event) {
-    var btn = event.target && event.target.closest
-      ? event.target.closest('[data-naver-bulk-dispatch-run]') : null;
-    if (!btn || btn.disabled) { return; }
-    event.preventDefault();
+  function runBulk(btn) {
     var count = btn.getAttribute('data-naver-bulk-dispatch-count') || '0';
     if (!window.confirm(confirmText(count))) { return; }
     btn.disabled = true;
@@ -172,20 +207,102 @@
       return res.json().then(function (body) { return { ok: res.ok, body: body }; });
     }).then(function (result) {
       if (!result.ok || !result.body || !result.body.success) {
-        var msg = (result.body && result.body.error) || '요청에 실패했습니다.';
-        say(btn, msg);
+        say(btn, (result.body && result.body.error) || '요청에 실패했습니다.');
         btn.disabled = false;
         btn.textContent = label;
         return;
       }
-      var data = result.body.data || {};
-      say(btn, queuedText(data));
-      poll(btn, 0, -1, 0);
+      say(btn, queuedText(result.body.data || {}));
+      // 끝났다고 볼 조건은 "보낼 수 있는 집이 0" 이다. 남은 집 수로 재면 **막힌 집이
+      // 있는 날에는 영원히 안 끝난다** — 막힌 집은 이 버튼이 보낼 수 있는 대상이 아니다.
+      watch({
+        anchor: btn,
+        canRun: true,
+        isDone: function (state) { return state.eligible === 0; },
+        progress: function (state) {
+          return '보내는 중… 발송된 집 ' + state.sent + '집 · 남은 집 ' + state.count + '집.';
+        },
+        finish: function (state, exhausted) {
+          say(btn, resultText(state, exhausted));
+          btn.setAttribute('data-naver-bulk-dispatch-count', String(state.eligible));
+          btn.textContent = state.eligible ? '남은 ' + state.eligible + '집 다시 보내기'
+                                           : '오늘 보낼 집이 남지 않았습니다';
+          btn.disabled = !state.eligible;
+        }
+      }, 0, '', 0);
     }).catch(function (err) {
       say(btn, '요청에 실패했습니다: ' + err);
       btn.disabled = false;
       btn.textContent = label;
     });
+  }
+
+  function retryOne(btn) {
+    var linkId = btn.getAttribute('data-naver-dispatch-retry');
+    if (!linkId || !window.confirm(retryConfirmText())) { return; }
+    btn.disabled = true;
+    btn.textContent = '보내는 중…';
+    say(btn, '실패한 집 하나를 다시 보내는 중…');
+    fetch(BASE + encodeURIComponent(linkId) + '/fulfillment', {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/json' },
+      credentials: 'same-origin',
+      body: JSON.stringify({ action: 'dispatch' })
+    }).then(function (res) {
+      return res.json().then(function (body) { return { ok: res.ok, body: body }; });
+    }).then(function (result) {
+      if (!result.ok || !result.body || !result.body.success) {
+        say(btn, (result.body && result.body.error) || '요청에 실패했습니다.');
+        btn.disabled = false;
+        btn.textContent = '이 집 다시 보내기';
+        return;
+      }
+      say(btn, '다시 보냈습니다 — 결과를 기다리는 중…');
+      // 이 집이 발송으로 넘어갔거나, 실패 사유가 **바뀌었으면** 끝이다. 사유가 그대로면
+      // 워커가 아직 이 집에 닿지 않은 것이라 계속 본다.
+      var before = null;
+      watch({
+        anchor: btn,
+        canRun: true,
+        isDone: function (state) {
+          var row = rowOf(state, linkId);
+          if (!row) { return true; }
+          if (row.state !== 'failed') { return true; }
+          if (before === null) { before = row.failure_reason || ''; return false; }
+          return (row.failure_reason || '') !== before;
+        },
+        progress: function () { return '다시 보냈습니다 — 결과를 기다리는 중…'; },
+        finish: function (state, exhausted) {
+          var row = rowOf(state, linkId);
+          if (row && row.state === 'failed') {
+            say(btn, exhausted
+              ? '아직 결과가 안 왔습니다 — 잠시 뒤 새로고침해 확인하세요.'
+              : '다시 보냈지만 또 실패했습니다 — 사유를 확인하세요.');
+            return;
+          }
+          say(btn, '이 집 발송처리 완료.');
+        }
+      }, 0, '', 0);
+    }).catch(function (err) {
+      say(btn, '요청에 실패했습니다: ' + err);
+      btn.disabled = false;
+      btn.textContent = '이 집 다시 보내기';
+    });
+  }
+
+  document.addEventListener('click', function (event) {
+    if (!event.target || !event.target.closest) { return; }
+    var bulk = event.target.closest('[data-naver-bulk-dispatch-run]');
+    if (bulk && !bulk.disabled) {
+      event.preventDefault();
+      runBulk(bulk);
+      return;
+    }
+    var retry = event.target.closest('[data-naver-dispatch-retry]');
+    if (retry && !retry.disabled) {
+      event.preventDefault();
+      retryOne(retry);
+    }
   });
 })();
 </script>

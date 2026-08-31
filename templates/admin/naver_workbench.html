@@ -291,7 +291,12 @@
         <div class="wb-bulkdispatch__failline">발송처리 실패 {{ bulk_dispatch.failed }}집 —
             아래 사유를 해결한 뒤 다시 보내세요.</div>
         {% endif %}
-        {% if naver_bulk_dispatch_enabled and bulk_dispatch.eligible %}
+        {#
+          진행 문구 자리와 배선은 **실행 버튼이 없어도** 실린다 — 실패한 집의 줄마다 붙는
+          재시도 버튼이 같은 배선을 쓴다. 보낼 집이 0이라고 배선을 빼면 그 버튼이 보이는데
+          안 눌린다.
+        #}
+        {% if naver_bulk_dispatch_enabled and (bulk_dispatch.eligible or bulk_dispatch.failed) %}
         <div class="wb-bulkdispatch__status" data-naver-bulk-dispatch-status hidden></div>
         {% include 'partials/shared/naver_bulk_dispatch_button.html' %}
         {% endif %}
@@ -328,11 +333,18 @@
                         {% elif row.state == 'failed' %}
                         <span class="wb-ghost__claim">실패</span>
                         <div class="wb-ghost__dim">{{ row.failure_reason }}</div>
+                        {% if naver_bulk_dispatch_enabled %}
+                        <button type="button" class="btn btn-sm btn-outline-danger mt-1"
+                                data-naver-dispatch-retry="{{ row.link_id }}">이 집 다시 보내기</button>
+                        {% endif %}
                         {% elif row.eligible %}
                         <span class="wb-ghost__dim">보낼 수 있음</span>
                         {% else %}
                         <span class="wb-ghost__claim">보낼 수 없음</span>
                         <div class="wb-ghost__dim">{{ row.reason }}</div>
+                        {% if row.failure_reason %}
+                        <div class="wb-ghost__dim">직전 실패: {{ row.failure_reason }}</div>
+                        {% endif %}
                         {% endif %}
                     </td>
                     <td class="text-end">
