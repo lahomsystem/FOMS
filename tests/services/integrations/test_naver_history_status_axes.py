@@ -1055,11 +1055,12 @@ def test_settled_claim_household_says_dispatch_will_not_happen(client, workbench
     assert "발송처리 할 차례" not in cell, cell
 
 
-def test_our_dispatch_confirmed_by_naver_says_so(client, workbench_on):
-    """우리가 보냈고 네이버도 찍은 건은 `네이버 확인됨` 이라고 말한다.
+def test_our_dispatch_says_erp_with_our_own_time(client, workbench_on):
+    """우리가 보낸 발송은 `{우리 시각} · ERP발송` 이라고 말한다.
 
-    부속 문구 표(계약 §3.2)에서 이 줄만 단언이 없었다. 판매자센터에서 직접 나간 건
-    (우리 기록 없음)과 **다른 사실**이라 두 문구가 뒤바뀌면 안 된다.
+    출처 낱말은 둘뿐이다(2026-08-31 사용자 결정): 우리가 보냈으면 ``ERP발송``,
+    판매자센터에서 나갔으면 ``판매자센터``. 시각도 **말하는 주체의 시각**을 쓴다 —
+    네이버 sendDate(12:03)를 쓰면 "ERP발송" 이라 적어 놓고 네이버가 적은 시각을 보인다.
     """
     _login(client)
     order = _order(product="발송 완료")
@@ -1069,8 +1070,43 @@ def test_our_dispatch_confirmed_by_naver_says_so(client, workbench_on):
 
     cell = _status_cell(_row(_open(client), "N-HSA-CONFIRMED"))
 
-    assert "네이버 확인됨" in cell, cell
-    assert "판매자센터에서 직접" not in cell, cell
+    assert "ERP발송" in cell, cell
+    assert "2026-08-28 20:40" in cell, cell  # 우리 기록은 UTC naive → KST 로 편다
+    assert "판매자센터" not in cell, cell
+    assert "네이버 확인됨" not in cell, cell
+
+
+def test_seller_center_dispatch_says_so_with_naver_time(client, workbench_on):
+    """우리 기록이 없는 발송은 `{네이버 시각} · 판매자센터` 다 — 두 문구가 뒤바뀌면 안 된다."""
+    _login(client)
+    order = _order(product="직접 발송")
+    _link(order_no="N-HSA-SELLER", product="직접 발송 집", order_id=order.id,
+          place_status="OK", send_date="2026-08-28T12:03:00+09:00", reviewed=True)
+
+    cell = _status_cell(_row(_open(client), "N-HSA-SELLER"))
+
+    assert "판매자센터" in cell, cell
+    assert "2026-08-28 12:03" in cell, cell
+    assert "ERP발송" not in cell, cell
+
+
+def test_two_finished_steps_are_not_the_same_colour(client, workbench_on):
+    """발주확인 완료(파랑)와 발송처리 완료(초록)는 **다른 색**이다.
+
+    둘 다 `--done` 초록이던 때는 끝난 칸이 나란히 둘이라 어느 칸이 어느 칸인지
+    구분되지 않았다(2026-08-31 사용자 지적). 색은 CSS 가 칠하지만 **어느 칸인지 표식**은
+    템플릿이 붙인다 — 그 표식이 사라지면 색도 조용히 같아지므로 여기서 잠근다.
+    """
+    _login(client)
+    order = _order(product="둘 다 완료")
+    _link(order_no="N-HSA-COLOUR", product="둘 다 완료 집", order_id=order.id,
+          place_status="OK", dispatched_at="2026-08-28T11:40:00",
+          send_date="2026-08-28T12:03:00+09:00", reviewed=True)
+
+    cell = _status_cell(_row(_open(client), "N-HSA-COLOUR"))
+
+    assert "wb-pipe__s--place wb-pipe__s--done" in cell, cell
+    assert "wb-pipe__s--ship wb-pipe__s--done" in cell, cell
 
 
 def test_unreadable_claim_time_never_becomes_a_fake_date(client, workbench_on):

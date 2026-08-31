@@ -689,13 +689,19 @@ def _history_pipe_note(*, fail: dict[str, Any], dispatch_state: str,
 
     Returns:
         ``(종류, 낱말)``. 종류는 ``when``(문장 톤) · ``over``(빨강 배지) · ``""``(안 낸다).
+        발송이 끝난 집의 꼬리는 **시각 + 출처 한 낱말**이다 — 우리가 보냈으면
+        ``{ours_at} · ERP발송``, 판매자센터에서 나갔으면 ``{naver_at} · 판매자센터``.
     """
     if fail["action"] in ("confirm", "dispatch") and fail["at"]:
         return ("when", fail["at"])
+    if dispatch_state == "done" and dispatch["ours_at"]:
+        # 우리 기록이 있으면 **우리가 보낸 것**이다 — 시각도 우리 기록의 시각을 쓴다.
+        # 네이버 sendDate 를 쓰면 "ERP발송" 이라 적어 놓고 네이버가 적은 시각을 보여
+        # 주체와 시각이 갈린다(2026-08-31 사용자 결정: 시각 + 출처 한 낱말로 단순화).
+        return ("when", f"{dispatch['ours_at']} · ERP발송")
     if dispatch_state == "done" and dispatch["naver_at"]:
-        # 우리 기록이 함께 있으면 우리가 보낸 것이고, 없으면 판매자센터에서 직접 나간 것이다.
-        tail = "네이버 확인됨" if dispatch["ours_at"] else "판매자센터에서 직접"
-        return ("when", f"{dispatch['naver_at']} · {tail}")
+        # 우리 기록이 없는 발송 = 판매자센터에서 직접 나간 것이다.
+        return ("when", f"{dispatch['naver_at']} · 판매자센터")
     if dispatch_state == "done":
         return ("", "")
     if due["shipping_due_over_days"] > 0:
