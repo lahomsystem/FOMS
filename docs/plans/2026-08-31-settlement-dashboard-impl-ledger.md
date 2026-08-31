@@ -1011,3 +1011,24 @@ HTTP 구간 계측(`c:\tmp\settle_perf_probe.py`, `staging_perf_gate` 와 같은
 다시 필요하면 `PORT=5001 python run.py` 로 띄우면 된다. 로컬 시드 705건은 검증 후 삭제 완료
 (`seed_settlement.py --purge`, `population=10 seeded=0` 확인). 로컬 `qa_v3` 비밀번호를
 문서값 `qa!2026` 으로 재설정했다(로컬 dev DB 한정).
+
+### P1-8 production 승격 완료 + 운영 재측정 (2026-09-01)
+
+PR **#218 머지** — `origin/production` `77c5504b`. 4커밋(정산 원장 docs 2 + 성능 1 + 원장 1).
+승격 트리(`c:\tmp\promo-sp`, `origin/production` 위 cherry-pick)에서 **충돌 0건**,
+`APP_OK` · 정산 5스위트 440 passed · 전체 7,350 passed / 585 skipped · pre_push_smoke exit 0.
+PR 체크 4종(test·pg-lane·harness·perf-gate) 전부 success, mergeStateStatus=CLEAN.
+운영 배포 확인: `/healthz` commit == `77c5504b`.
+
+**운영 전/후** (같은 스크립트·같은 정의, `claude_master` 해제→측정→재잠금, 읽기 전용):
+
+| | 요청 수 | 표 첫 행 | aging 막대 |
+|---|---|---|---|
+| 전 (`e71e88fe`) | 6 (직렬) | 368ms | **2,855ms** |
+| 후 (`77c5504b`) | **1** | 494ms | **494ms** |
+
+막대가 표와 같은 시점에 뜬다 — 체감 대기 **2.9초 → 0.5초**. 서버 부하도 스코프 변경 1회당
+전량 스캔 6회 → 1회로 줄었다(막대 클릭·페이지 이동·입금확인 직후에도 같은 비율로 감소).
+
+남은 것: 이 절(P1-8) 을 담은 원장 커밋은 아직 deploy 에만 있다 — 다음 승격 때
+`promote_completeness.py` 가 missing 으로 잡아 함께 올리면 된다(docs 계보).
