@@ -26,7 +26,7 @@
 | **T3** 워크벤치 띠 상태화 | DONE | 완료/부분/실패/대기 4상태가 화면 문구로 갈린다 + 대상 0 이면 띠 없음 |
 | **T4** 실측 대시보드 띠 상태화 | DONE | 같은 4상태, v3 풀페이지 버튼 0개 유지 |
 | **T5** 버튼 직후 진행 표시(alert 제거) + 폴링 | DONE | 새로고침 없이 "N집 발송 완료"까지 바뀐다 |
-| **T6** 게이트·푸시 | PENDING | `pre_push_smoke` exit 0 + smoke 사각 3종(policy manifest·ACTION_LABELS·docs-scope) 직접 실행 + deploy push 후 `gh run list` 전 워크플로 green |
+| **T6** 게이트·푸시 | DONE | `pre_push_smoke` exit 0 + smoke 사각 3종(policy manifest·ACTION_LABELS·docs-scope) 직접 실행 + deploy push 후 `gh run list` 전 워크플로 green |
 
 ## 기록
 
@@ -43,3 +43,12 @@
   최대 20회 폴링. 종료 조건은 `eligible === 0`(남은 집 수로 재면 막힌 집이 있는 날 안 끝난다).
 - 검증: bulk_dispatch 관련 63개 + 워크벤치 325개 + 등재 계약 240개 + measurement 244개 green.
   red-check 2건: 띠 게이트를 `count` 로 되돌리면 완료 상태 테스트 2개가 빨개진다(확인함).
+- T6 DONE: `pre_push_smoke` exit 0(352 passed) · smoke 사각 3종 직접 실행 green ·
+  CI 본 레인 로컬 전수 7223 passed. deploy push = `18df627a`·`e204565d`·`43f4024d`
+  (자기 커밋만 cherry-pick — `push_own_session_commits.py`).
+  CI 전 워크플로 green(head `43f4024d`): FOMS CI · Harness CI · FOMS PostgreSQL Lane ·
+  perf-gate (staging) 4/4 success.
+- 도중에 잡힌 CI 사각 1건: 워크벤치 템플릿 `?v=` 핀을 **두 계약 파일**이 각각 못박고
+  있어(async_result·origin_cleanup) 한쪽만 고치면 pre_push_smoke 는 통과하고 CI 만 빨개진다.
+- **미검증**: 폴링·진행 문구의 실브라우저 동작. 누르는 순간이 불가역이라 실호출을 하지
+  않았다 — 다음 운영 일괄(오후 5시) 화면 확인이 남는다.

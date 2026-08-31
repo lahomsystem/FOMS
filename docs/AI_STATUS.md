@@ -1,7 +1,7 @@
 # FOMS 현재 상태
 > 자동 업데이트: 2026-08-14
-> 최신: **고객 공유 링크 UX 개편 — 계약서 폼 이식·도면 일괄 저장(ZIP)** — 카톡으로 보내는 계약서 링크가 ERP 계약서 폼 그대로 뜨고(계좌 복사·PNG 저장), 도면 링크에 일괄 저장 버튼. 무반응이던 `window.print()` 제거. 원장 `docs/plans/2026-08-31-share-contract-drawing-ux-ledger.md`
-> 직전: **네이버 일괄 발송처리 deploy·운영 PR #205** — 당일 실측 네이버 건을 집 단위로 모아 한 번에 발송. 실행은 킬스위치 `FOMS_NAVER_BULK_DISPATCH_ENABLED` 기본 꺼짐. 설계서 `docs/specs/2026-08-31-naver-bulk-dispatch_SPEC.md`
+> 최신: **네이버 일괄 발송처리 결과 UI(BULKDISPATCH-02) deploy** — 발송 뒤 띠가 사라져 성공/미대상을 구분 못 하던 결함 제거. 원장 `docs/plans/2026-08-31-naver-bulk-dispatch-result-ui-ledger.md`
+> 직전: **고객 공유 링크 UX 개편 — 계약서 폼 이식·도면 일괄 저장(ZIP)** — 카톡으로 보내는 계약서 링크가 ERP 계약서 폼 그대로 뜨고(계좌 복사·PNG 저장), 도면 링크에 일괄 저장 버튼. 무반응이던 `window.print()` 제거. 원장 `docs/plans/2026-08-31-share-contract-drawing-ux-ledger.md`
 > 이 파일 상단 40줄이 세션 시작 컨텍스트의 전부다(hygiene 계약 테스트로 강제). 상세 이력: "## 최근 완료"·"## 기록 보관", 과거 헤더 상세는 기록 보관에 이관.
 
 ## 스택
@@ -9,7 +9,7 @@ Flask 2.3 + PostgreSQL + R2 + Railway (Web×2, Worker×1)
 브랜치: deploy (스테이징) → production (운영)
 
 ## 진행 중
-- [2026-08-31] **네이버 일괄 발송처리 운영 가동** — PR #205 머지(`fcd59be8`)·스위치 ON. 1회차 실사용 **6집 26건 전부 발송 성공(07:45)**. **후속 필요**: 발송 후 띠가 사라져 성공/미대상 구분 불가 — `docs/plans/2026-08-31-naver-bulk-dispatch-result-ui.md`
+- [2026-08-31] **네이버 일괄 발송처리 운영 가동 + 결과 UI deploy(`43f4024d`)** — 스위치 ON, 1회차 **6집 26건 전부 성공(07:45)**. BULKDISPATCH-02: 띠가 안 사라지고 **완료/일부/실패/대기 4상태**, 수동 발송분도 '발송됨', 버튼 직후 진행 문구+폴링. **잔여=production 승격·실브라우저 폴링 확인**. 원장 `2026-08-31-naver-bulk-dispatch-result-ui-ledger.md`
 - [2026-08-31] **엑셀 업로드·동선 추천 제거 + 동선 API 5초 수리 production 완료(`eda377ce`)** — 엑셀은 **다운로드 유지**, 동선은 **엔드포인트 유지**(v3 홈 띠가 폴백). 운영 라우트 검증 완료(`/upload` 404·`/download_excel` 302). 원장 §12·§14·§15
 - [2026-08-31] **SIDEFX 워커 서비스 등록·가동(T5 해소)** — heartbeat 3행 최초 생성, GEOCODE·STORAGE_DELETE 소진 중. ⚠ **Railway 가 Config as Code(railway*.toml) 폐기** → 저장소 toml 은 사문, startCommand 직접 지정으로 배선. **기존 서비스도 toml 이 아니라 API 설정으로 도는지 확인 필요.** 원장 §16
 - [2026-08-31] **엑셀 업로드(가져오기) 제거 deploy(`d61dccd8`)** — 운영 15개월 미사용(아티팩트 0행, 마지막 2025-05-28). **엑셀 다운로드는 유지**(2026-07-03까지 실사용) — `excel_import.py` 는 같은 Blueprint 라 통째 삭제 금지. DB 표는 남겼다(빈 표). 감사 원장 패킷 124→123. 잔여=production 승격. 원장 §12
