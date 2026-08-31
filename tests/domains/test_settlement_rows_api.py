@@ -23,11 +23,14 @@
 
 from __future__ import annotations
 
+import datetime
 import json
 
 import pytest
 
 from db import db_session
+from foms.services.datetime_kst import get_today_kst
+from foms.services.settlement_aggregation import AGING_BUCKETS
 from foms.services.settlement_rows import PER_PAGE, list_settlement_rows
 
 # --- 권한 매트릭스 SSOT 재사용(복제 금지) ---------------------------------------
@@ -384,3 +387,116 @@ def test_channel_code_carries_a_human_label(app):
     assert data["rows"], "행이 없다"
     for row in data["rows"]:
         assert row["channel_label"], "채널 라벨이 비었다"
+
+
+# ==========================================================================
+# 8. aging 구간 합계는 목록과 **한 응답**에 실린다 (P1 성능 개선의 계약)
+#
+# 화면은 예전에 구간마다 `aging=<code>` 로 5번 더 물었다. 한 요청이 모집단 전량 스캔이라
+# 스코프를 한 번 바꿀 때마다 같은 스캔이 6번 돌았다(2026-08-31 운영 실측: 막대까지 2.9초,
+# 그중 서버 1.26초). 이제 서버가 `aging_summary` 로 함께 낸다 — **값이 그대로여야** 한다.
+# ==========================================================================
+def _summary_by_code(data: dict) -> dict:
+    """`aging_summary` 를 코드 → (건수, 금액) 으로 편다."""
+    return {b["code"]: (b["count"], b["amount"]) for b in data["aging_summary"]}
+
+
+def _seed_one_order_per_bucket() -> None:
+    """버킷 5종에 골고루 걸리는 미수 주문 + 비교용 완납/미상 주문을 시드한다."""
+    today = get_today_kst()
+    for days in (3, 20, 45, 75, 200):
+        _seed_order(
+            completion=(today - datetime.timedelta(days=days)).isoformat(),
+            sd=_money(items_total=1_000_000 + days, deposit=0),
+        )
+    paid_sd = _money(items_total=2_000_000, deposit=2_000_000)
+    _seed_order(completion=(today - datetime.timedelta(days=10)).isoformat(), sd=paid_sd)
+    _seed_order(completion=None, sd=_money(items_total=3_000_000, deposit=0))
+
+
+def test_aging_summary_equals_asking_each_bucket_separately(client, app):
+    """구간 합계가 **구간마다 따로 물어 얻던 값과 정확히 같다**.
+
+    이 파일에서 가장 중요한 테스트다. 6회 → 1회로 줄인 대가로 숫자가 1원이라도 달라지면
+    실무자가 보던 회수 금액이 조용히 바뀐다 — 그 순간을 red 로 잡는다.
+    """
+    _seed_one_order_per_bucket()
+    _login(client, _make_user(role="ADMIN"))
+
+    summary = _summary_by_code(_get(client).get_json()["data"])
+
+    for code, (count, amount) in summary.items():
+        slice_data = _get(client, aging=code).get_json()["data"]
+        assert slice_data["total_count"] == count, f"{code} 건수가 갈렸다"
+        assert slice_data["totals"]["balance"] == amount, f"{code} 금액이 갈렸다"
+
+
+def test_aging_summary_is_unchanged_when_one_bucket_is_selected(client, app):
+    """막대를 눌러 목록을 좁혀도 막대 값은 그대로다.
+
+    고른 구간까지 반영하면 그 구간만 남고 나머지 막대가 0 으로 무너진다 — 예전 화면이
+    `aging` 파라미터를 구간 코드로 덮어써서 지키던 성질을 이제 서버가 보장한다.
+    """
+    _seed_one_order_per_bucket()
+    _login(client, _make_user(role="ADMIN"))
+
+    everything = _summary_by_code(_get(client).get_json()["data"])
+    narrowed = _get(client, aging="D91_PLUS").get_json()["data"]
+
+    assert _summary_by_code(narrowed) == everything, "구간 선택이 막대 값을 바꿨다"
+    assert {row["aging"] for row in narrowed["rows"]} == {"D91_PLUS"}, "목록은 좁혀져야 한다"
+
+
+def test_aging_summary_follows_the_scope_filters(client, app):
+    """구간 합계는 기간·정산상태·채널 스코프를 **따라간다**(집계 API 의 기간 무관 aging 과 다르다).
+
+    요약 탭 aging 은 모집단 전체라 값이 다르다 — 그쪽을 실무 탭에 재사용하면 같은 화면에서
+    숫자가 갈린다(그래서 재사용하지 않는다).
+    """
+    today = get_today_kst()
+    issued_sd = _money(items_total=5_000_000, deposit=0)
+    issued_sd["settlement"] = {"deductions": [{"department": "SALES", "amount": 1000}]}
+    _seed_order(completion=(today - datetime.timedelta(days=200)).isoformat(), sd=issued_sd)
+    _seed_order(
+        completion=(today - datetime.timedelta(days=200)).isoformat(),
+        sd=_money(items_total=1_000_000, deposit=0),
+    )
+    _login(client, _make_user(role="ADMIN"))
+
+    pending = _summary_by_code(_get(client, settlement="pending").get_json()["data"])
+    issued = _summary_by_code(_get(client, settlement="issued").get_json()["data"])
+
+    assert pending["D91_PLUS"][1] == 1_000_000, "대기분 합계에 청구완료 건이 섞였다"
+    assert issued["D91_PLUS"][1] == 5_000_000, "청구완료 합계가 스코프를 안 따라간다"
+
+
+def test_aging_summary_lists_every_bucket_in_order_even_when_empty(client, app):
+    """값이 0 인 구간도 생략하지 않는다 — 빠지면 화면이 '그 구간이 없다'로 읽는다."""
+    _seed_order(completion=get_today_kst().isoformat(), sd=_money(items_total=1_000_000, deposit=0))
+    _login(client, _make_user(role="ADMIN"))
+
+    data = _get(client).get_json()["data"]
+
+    codes = [bucket["code"] for bucket in data["aging_summary"]]
+    assert codes == [code for code, _ in AGING_BUCKETS], "버킷 순서·구성이 서버 SSOT 와 다르다"
+    assert all(bucket["label"] for bucket in data["aging_summary"]), "라벨이 비었다"
+    assert any(bucket["count"] == 0 for bucket in data["aging_summary"]), "0 구간이 생략됐다"
+
+
+def test_aging_summary_excludes_paid_and_unknown_completion_rows(client, app):
+    """완납·완료일 미상은 어느 막대에도 들어가지 않는다(암묵 합산 금지).
+
+    완료일 미상 미수는 KPI 타일이 따로 말한다 — 막대에 섞으면 경과일을 지어낸 셈이 된다.
+    """
+    _seed_one_order_per_bucket()
+    _login(client, _make_user(role="ADMIN"))
+
+    data = _get(client).get_json()["data"]
+
+    bucket_total = sum(bucket["count"] for bucket in data["aging_summary"])
+    receivable_with_date = sum(
+        1 for row in _get(client).get_json()["data"]["rows"]
+        if row["receivable"] and row["elapsed_days"] is not None
+    )
+    assert data["totals"]["unknown_completion_count"] >= 1, "미상 시드가 모집단에 없다"
+    assert bucket_total == receivable_with_date, "막대 합과 미수(완료일 있음) 건수가 어긋난다"

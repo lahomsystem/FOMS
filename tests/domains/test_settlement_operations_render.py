@@ -649,7 +649,8 @@ def test_js_sends_every_api_filter_param(param):
 
 @pytest.mark.parametrize(
     "key",
-    ["rows", "totals", "total_count", "total_pages", "aging_options", "filters", "as_of"],
+    ["rows", "totals", "total_count", "total_pages", "aging_options", "aging_summary",
+     "filters", "as_of"],
 )
 def test_js_binds_every_api_response_key(key):
     """응답의 최상위 키를 실제로 참조한다(조용한 누락 차단).
@@ -976,3 +977,39 @@ def test_wired_shell_puts_the_partial_inside_the_ops_mount():
     include_at = shell.find(_TEMPLATE_NAME)
     assert 0 <= mount_at < include_at, "include 가 실무 탭 마운트보다 앞에 있다"
     assert analytics_at < 0 or include_at < analytics_at, "include 가 분석 pane 으로 넘어갔다"
+
+
+# ==========================================================================
+# 계약 12 — aging 막대는 **목록과 같은 응답**으로 그린다 (P1 성능 개선)
+#
+# 예전 화면은 구간마다 `aging=<code>` 로 5번 더 물었다. 한 요청이 모집단 전량 스캔이라
+# 스코프를 한 번 바꿀 때마다 같은 스캔이 6번 돌았다(2026-08-31 운영 실측: 막대까지 2.9초).
+# 되돌아가는 것을 막는 계약이다 — 조회 호출부는 **하나**여야 한다.
+# ==========================================================================
+def test_js_draws_the_aging_strip_from_the_list_response():
+    """서버가 함께 낸 `aging_summary` 로 막대를 그린다."""
+    js = _read_code(f"static/{JS_ASSET}")
+
+    assert "aging_summary" in js, "구간 합계를 응답에서 읽지 않는다"
+
+
+def test_js_has_exactly_one_read_call_site():
+    """조회 호출부가 하나다 — 구간마다 따로 묻는 루프가 되살아나면 red.
+
+    호출부가 늘어나는 것 자체가 회귀 신호다(스코프 변경 1회 = 모집단 전량 스캔 1회).
+    """
+    js = _read_code(f"static/{JS_ASSET}")
+
+    assert js.count("getJson(") == 2, (
+        "조회 호출부가 하나가 아니다(정의 1 + 호출 1 이 정상) — 구간별 반복 조회 의심"
+    )
+    assert "loadBuckets" not in js, "구간별 조회 루프가 남아 있다"
+
+
+def test_render_all_includes_the_aging_strip():
+    """`renderAll` 이 막대까지 다시 그린다 — 목록만 갱신되고 막대가 옛 스코프로 남으면 안 된다."""
+    js = _read_code(f"static/{JS_ASSET}")
+
+    body = re.search(r"function renderAll\(ctx\)\s*\{(.*?)\n  \}", js, re.S)
+    assert body, "renderAll 을 찾지 못했다"
+    assert "renderAging(" in body.group(1), "renderAll 이 aging 막대를 안 그린다"
