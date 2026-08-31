@@ -93,6 +93,7 @@ _PTC_FOMS_SERVICES_COMMON_ALLOWLIST: frozenset[str] = frozenset(
         "__init__.py",
         "address_ai_ops_loader.py",
         "address_converter.py",
+        "address_query.py",
         "business_calendar.py",
         "dashboard_cache.py",
         "ept_b7_profile.py",
