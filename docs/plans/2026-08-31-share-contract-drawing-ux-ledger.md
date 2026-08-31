@@ -116,6 +116,26 @@ iOS·Android 인앱 브라우저 다운로드 제약 정리.
 - '도면 미리보기' 머리줄과 중복 안내 문구는 `share_mode` 에서만 제거(ERP 화면 무변경, 계약 테스트 2건).
 - 자산 핀 `20260831a` → `20260831b`.
 
+### 후속 2 — 인쇄 버튼·CI 승격 (2026-08-31)
+
+- **계약서 인쇄 버튼을 폰에서 감춤**(`90d465e3`, PR #211). 카톡 인앱 웹뷰에는 인쇄 구현이 없어
+  눌러도 안 되는 버튼이 정상 경로인 척한다 — 최초 신고와 같은 모양. 마크업은 남기고
+  599.98px 이하에서만 `display: none`(PC 는 정상 동작하므로 유지). 실측 390px none / 1280px block.
+  자산 핀 `20260831b` → `20260831c`.
+
+- **운영 승격 PR 이 11~16분 걸리던 이유 해결**(PR #210, production `284dba11`).
+  **CI 단축 5건이 전부 deploy 에만 있고 production 에는 하나도 없었다.** 승격 PR 은 production
+  기준으로 체크아웃해 돌기 때문에 옛 `conftest.py`(PBKDF2 60만회)·옛 `ci.yml`(단일 프로세스)로
+  6,800여 개를 돌고 있었다.
+  - 근거: `git show origin/production:tests/conftest.py | grep -c PBKDF2` → 0 (deploy 5),
+    production `ci.yml` 에 `--dist loadfile` 부재, `pytest.ini` 자체 부재
+  - 승격한 5건: PBKDF2 완화 · pytest.ini SSOT · 병렬 실행(+순서 의존 2건 수정) ·
+    PRAGMA 누출 수정 · 스키마 세션화. 전부 테스트·CI 설정 파일만 건드린다
+  - 의존 1건(`pytest.ini`) 누락은 `test_ptc_physical_exactness` 가 잡았다(`missing_from_repo=['pytest.ini']`)
+  - 실측: 승격 트리 전체 스위트 **6821 passed / 106초**, PR #210 자신의 `test` 잡 **2분 54초**(전 11분 30초)
+  - **교훈**: CI 자체를 고친 커밋은 운영 트리에 없으면 운영 관문이 계속 옛 속도로 돈다.
+    `project_promotion_pr_skipped_main_suite` 와 같은 축의 함정이다.
+
 ### 남은 미검증 (실기기 없음 — 사용자 확인 필요)
 
 1. 카카오톡 인앱에서 `Content-Disposition: attachment` zip 이 실제로 파일로 남는가 (개별 저장 폴백도 같은 메커니즘이라 함께 실패할 수 있다)
