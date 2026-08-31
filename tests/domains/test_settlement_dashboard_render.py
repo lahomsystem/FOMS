@@ -1658,3 +1658,65 @@ def test_analytics_bars_use_css_custom_properties_for_width():
     assert not re.search(r"\.style\.width\s*=", body), "폭을 인라인 style 로 넣는다"
     assert not re.search(r"clientWidth", body), "막대가 호스트 폭을 읽는다(폭 0 함정에 들어간다)"
     assert re.search(r"\.s-bbar\s*\{[^}]*var\(--s-bar-pct", css), "CSS 가 변수를 소비하지 않는다"
+
+
+# ==========================================================================
+# 분석 탭 매출 추이 카드 — 목업 v3 의 span8 메인 카드(사용자 결정 2026-08-31)
+# ==========================================================================
+def test_analytics_tab_carries_the_trend_card(client, app):
+    """분석 탭에도 매출 추이 카드가 있다.
+
+    목업 v3 에서 가장 큰 카드다. 요약 탭이 같은 데이터를 그린다는 이유로 뺐다가
+    사용자 결정으로 되살렸다 — 분석 화면만 보는 사람이 추세를 보려고 탭을 옮기지
+    않아도 되어야 한다.
+    """
+    _login_allowed(client)
+
+    html = _fragment_html(client)
+
+    for anchor in (
+        'id="foms-settle-an-trend-card"',
+        'id="foms-settle-an-main-chart"',
+        'id="foms-settle-an-main-legend"',
+        'id="foms-settle-an-main-table"',
+        "data-settlement-an-main-sub",
+        'data-settlement-empty="an_buckets"',
+        "data-settlement-an-unknown-completion",
+    ):
+        assert anchor in html, f"분석 탭 추이 카드 앵커가 없다: {anchor}"
+
+
+def test_trend_chart_is_one_function_called_with_two_element_sets():
+    """추이 차트는 **복제가 아니라 같은 함수의 두 번째 호출**이다.
+
+    렌더 코드를 두 벌로 복사하면 한쪽만 고치는 회귀가 난다. 그래서 `renderMainChart`
+    는 호스트 묶음(`els`)을 인자로 받고, 요약·분석이 그 묶음만 바꿔 같은 함수를 부른다.
+    """
+    js = _read_code(f"static/{JS_ASSET}")
+
+    assert re.search(r"function\s+renderMainChart\s*\(\s*ctx\s*,\s*els\s*\)", js), (
+        "renderMainChart 가 호스트 묶음을 인자로 받지 않는다 — 복제 구조로 되돌아갔다"
+    )
+    calls = re.findall(r"renderMainChart\(\s*ctx\s*,\s*ctx\.els\.(\w+)\s*\)", js)
+    assert "mainEls" in calls and "anMainEls" in calls, (
+        f"요약·분석 두 묶음으로 부르지 않는다: {calls}"
+    )
+    # 두 번째 정의(복사본)가 생기면 red.
+    assert len(re.findall(r"function\s+renderMainChart\b", js)) == 1, (
+        "renderMainChart 정의가 둘이다 — 복제됐다"
+    )
+
+
+def test_analytics_table_wrapper_is_scoped_to_its_own_card():
+    """`.s-tblv` 가 이제 문서에 둘이다 — 카드 안으로 스코프해서 잡아야 한다.
+
+    루트 `querySelector('.s-tblv')` 로 잡으면 분석 카드의 빈 상태 전환이 **요약 카드의**
+    표를 토글한다(조용한 오작동이라 눈으로 못 잡는다).
+    """
+    js = _read_code(f"static/{JS_ASSET}")
+
+    assert ".s-card--main .s-tblv" in js, "요약 표 래퍼가 카드 안으로 스코프되지 않았다"
+    assert "#foms-settle-an-trend-card .s-tblv" in js, "분석 표 래퍼가 카드 안으로 스코프되지 않았다"
+    assert not re.search(r"q\(\s*'\.s-tblv'\s*\)", js), (
+        "스코프 없는 `.s-tblv` 선택이 남아 있다"
+    )
