@@ -11,8 +11,13 @@
    CSS/JS 를 고치면 이 핀을 반드시 범프한다. 핀은 자산당 저장소 전역에서 한 곳에만 둔다.
 
    데이터는 전부 `data-aggregates-url` 의 집계 API 에서 fetch 로 가져온다. 템플릿이 JSON 을
-   스크립트로 심는 방식은 금지라 초기 페이로드를 마크업에 넣지 않는다. #}
-<link rel="stylesheet" href="{{ url_for('static', filename='css/settlement/settlement-dashboard.css') }}?v=20260831b">
+   스크립트로 심는 방식은 금지라 초기 페이로드를 마크업에 넣지 않는다.
+
+   **탭 3종(SETTLE-TABS-01)**: 한 화면·한 라우트 안에서 요약(경영진) · 실무(경리·수금) · 분석을
+   탭으로 가른다. 새 메뉴도 새 URL 도 만들지 않는다. 탭 1 은 기존 화면을 **그대로** 옮긴 것이다.
+   숨은 pane 은 `clientWidth === 0` 이라 그 사이에 그린 차트는 폴백 폭(400px)으로 눌린다 —
+   재렌더 책임은 `dashboard.js` 의 `activateTab()` 에 있다(실측 수치까지 그쪽 주석에 있다). #}
+<link rel="stylesheet" href="{{ url_for('static', filename='css/settlement/settlement-dashboard.css') }}?v=20260831c">
 <div class="container-fluid erp-dashboard erp-pro erp-settlement">
   <header class="erp-pro-header">
     <h1 class="erp-pro-header__title">
@@ -35,7 +40,33 @@
 
   <div id="foms-settlement-root" class="foms-settle foms-settlement-root"
     data-foms-settlement-dashboard="1"
+    data-settlement-active-tab="summary"
     data-aggregates-url="{{ url_for('settlement_api.api_settlement_aggregates') }}">
+
+    {# 탭바는 스트립·필터바보다 **위**다 — 탭이 화면을 가르는 축이고, 스트립(권한·기준시각)과
+       필터바(기간)는 그 아래에서 탭에 딸린다. `role=tab` 버튼 3개 ↔ `role=tabpanel` 3개가
+       id/aria-controls 로 1:1 이고, 좌우 화살표 이동은 JS(onTabKeydown)가 담당한다.
+       선택 상태의 SSOT 는 버튼의 `aria-selected` 와 루트의 `data-settlement-active-tab` 이다
+       — CSS 는 후자만 보고 필터바 노출을 가른다(아래 필터바 주석). #}
+    <div class="s-tabs" role="tablist" aria-label="정산 대시보드 화면">
+      <button type="button" class="s-tab" role="tab"
+        id="foms-settle-tab-summary" data-settlement-tab="summary"
+        aria-controls="foms-settle-pane-summary" aria-selected="true" tabindex="0">
+        <span class="s-tab-name">요약</span>
+        <span class="s-tab-hint">경영진</span>
+      </button>
+      <button type="button" class="s-tab" role="tab"
+        id="foms-settle-tab-ops" data-settlement-tab="ops"
+        aria-controls="foms-settle-pane-ops" aria-selected="false" tabindex="-1">
+        <span class="s-tab-name">실무</span>
+        <span class="s-tab-hint">경리·수금</span>
+      </button>
+      <button type="button" class="s-tab" role="tab"
+        id="foms-settle-tab-analytics" data-settlement-tab="analytics"
+        aria-controls="foms-settle-pane-analytics" aria-selected="false" tabindex="-1">
+        <span class="s-tab-name">분석</span>
+      </button>
+    </div>
 
     {# 권한 부제는 실제 허용 집합이다(SPEC §5 = FINANCE_MUTATION 과 같은 집합).
        목업의 "ADMIN·MANAGER 전용" 은 CS/영업 담당을 빠뜨린 문구라 교정했다. #}
@@ -45,6 +76,12 @@
       <span class="s-stamp" data-settlement-stamp></span>
     </div>
 
+    {# 필터바는 **한 벌만** 둔다(탭별 복제 금지). 기간 스코프는 요약·분석 두 탭이 공유하는
+       하나의 상태다 — 복제하면 `aria-pressed` 짝이 두 벌이 되어 탭을 오갈 때 조용히 갈리고,
+       JS 쪽 `collectEls()` 의 `.s-filterbar`·`granButtons` 단일 배선도 깨진다.
+       실무 탭은 기간 스코프 화면이 아니라서 **CSS 가** 루트의 `data-settlement-active-tab="ops"`
+       를 보고 필터바를 감춘다. `s-hidden` 을 쓰지 않는 이유: 그 클래스는 showState() 의
+       권한거부 분기가 쓰는 자리라, 겹쳐 쓰면 403 해제가 탭 상태까지 되돌린다. #}
     <nav class="s-filterbar" aria-label="기간 필터">
       <div class="s-seg" role="group" aria-label="기간 단위">
         <button type="button" data-settlement-granularity="day" aria-pressed="true">일별</button>
@@ -59,108 +96,140 @@
       <span class="s-note">미수·aging 은 기간과 무관한 전체 집계 · 단계 카드는 현재 시점 스냅샷</span>
     </nav>
 
-    {# 상태 3종은 서로 다른 노드·다른 문구다. 무음 실패 금지, 권한 실패와 통신 실패 혼동 금지.
-       Bootstrap `.alert` 를 쓰지 않는다 — script.js 가 5초 뒤 자동으로 닫는다. #}
-    <div class="s-state s-state--loading" data-settlement-loading aria-live="polite">
-      <div class="s-state-title">집계를 불러오는 중입니다…</div>
-      <div class="s-state-detail">완료일 기준 전량 집계라 첫 조회에 몇 초가 걸릴 수 있습니다.</div>
-    </div>
-    <div class="s-state s-state--error s-hidden" data-settlement-error role="alert">
-      <div class="s-state-title">집계를 불러오지 못했습니다.</div>
-      <div class="s-state-detail" data-settlement-error-detail>네트워크 또는 서버 오류입니다.</div>
-      <button type="button" class="s-retry" data-settlement-retry>다시 시도</button>
-    </div>
-    <div class="s-state s-state--denied s-hidden" data-settlement-denied role="alert">
-      <div class="s-state-title">정산 대시보드 열람 권한이 없습니다.</div>
-      <div class="s-state-detail">이 화면은 ADMIN · MANAGER · CS/영업 담당만 볼 수 있습니다. 권한이 필요하면 관리자에게 요청하세요.</div>
-    </div>
+    {# ── 탭 1 · 요약(경영진) ────────────────────────────────────────────────────
+       기존 화면을 **한 줄도 고치지 않고** 이 pane 안으로 옮긴 것이다(상태 3종 · 그리드 · 각주).
+       숨겨질 때 `hidden` 이 붙어 `display:none` 이 되므로 이 안의 차트 호스트는
+       `clientWidth === 0` 이 된다 — 다시 보일 때 JS 가 renderAll 로 되그린다. #}
+    <div class="s-pane" role="tabpanel" id="foms-settle-pane-summary"
+      data-settlement-pane="summary" aria-labelledby="foms-settle-tab-summary" tabindex="0">
 
-    <div class="s-grid" data-settlement-grid>
-
-      <div class="s-kpis" id="foms-settle-kpis"></div>
-
-      <div class="s-card s-card--main">
-        <div class="s-card-head">
-          <span class="s-card-title">출고가 매출 추이</span>
-          <span class="s-card-sub" data-settlement-main-sub>완료일 기준</span>
-          <span class="s-head-right"><span class="s-legend" id="foms-settle-main-legend"></span></span>
-        </div>
-        <div class="s-chart-host" id="foms-settle-main-chart"></div>
-        <div class="s-empty s-hidden" data-settlement-empty="buckets">
-          이 기간에 완료된 주문이 <b>없습니다</b>.<br>
-          기간을 넓히거나 다른 단위(주별 · 월별)로 보세요.
-        </div>
-        {# 완료일 미상 건은 어느 기간 버킷에도 못 들어간다. 암묵 drop 하지 않고 반드시 각주로 낸다. #}
-        <p class="s-cardnote s-hidden" data-settlement-unknown-completion>완료일 미상 건은 기간 합계에서 제외됩니다.</p>
-        <details class="s-tblv">
-          <summary>표로 보기</summary>
-          <div class="s-tblwrap"><table class="s-dt" id="foms-settle-main-table"></table></div>
-        </details>
+      {# 상태 3종은 서로 다른 노드·다른 문구다. 무음 실패 금지, 권한 실패와 통신 실패 혼동 금지.
+         Bootstrap `.alert` 를 쓰지 않는다 — script.js 가 5초 뒤 자동으로 닫는다. #}
+      <div class="s-state s-state--loading" data-settlement-loading aria-live="polite">
+        <div class="s-state-title">집계를 불러오는 중입니다…</div>
+        <div class="s-state-detail">완료일 기준 전량 집계라 첫 조회에 몇 초가 걸릴 수 있습니다.</div>
+      </div>
+      <div class="s-state s-state--error s-hidden" data-settlement-error role="alert">
+        <div class="s-state-title">집계를 불러오지 못했습니다.</div>
+        <div class="s-state-detail" data-settlement-error-detail>네트워크 또는 서버 오류입니다.</div>
+        <button type="button" class="s-retry" data-settlement-retry>다시 시도</button>
+      </div>
+      <div class="s-state s-state--denied s-hidden" data-settlement-denied role="alert">
+        <div class="s-state-title">정산 대시보드 열람 권한이 없습니다.</div>
+        <div class="s-state-detail">이 화면은 ADMIN · MANAGER · CS/영업 담당만 볼 수 있습니다. 권한이 필요하면 관리자에게 요청하세요.</div>
       </div>
 
-      <div class="s-side">
-        <div class="s-card" id="foms-settle-settle-status">
+      <div class="s-grid" data-settlement-grid>
+
+        <div class="s-kpis" id="foms-settle-kpis"></div>
+
+        <div class="s-card s-card--main">
           <div class="s-card-head">
-            <span class="s-card-title">정산 처리 현황</span>
-            <span class="s-card-sub" data-settlement-status-sub>기간 완료 건 기준</span>
+            <span class="s-card-title">출고가 매출 추이</span>
+            <span class="s-card-sub" data-settlement-main-sub>완료일 기준</span>
+            <span class="s-head-right"><span class="s-legend" id="foms-settle-main-legend"></span></span>
           </div>
-          <div data-settlement-status-body></div>
-          {# 운영 실데이터는 이 카드가 **전부 0** 이다. 0 을 막대/원으로 그리면 빈 카드로 보인다. #}
-          <div class="s-empty s-hidden" data-settlement-empty="settlement_status">
-            이 기간에 기록된 <b>정산 처리 내역이 없습니다</b>.<br>
-            청구 · 현금영수증 발행 · AS 유상 확정 · 부서 귀속 차감이 모두 0건입니다.
+          <div class="s-chart-host" id="foms-settle-main-chart"></div>
+          <div class="s-empty s-hidden" data-settlement-empty="buckets">
+            이 기간에 완료된 주문이 <b>없습니다</b>.<br>
+            기간을 넓히거나 다른 단위(주별 · 월별)로 보세요.
+          </div>
+          {# 완료일 미상 건은 어느 기간 버킷에도 못 들어간다. 암묵 drop 하지 않고 반드시 각주로 낸다. #}
+          <p class="s-cardnote s-hidden" data-settlement-unknown-completion>완료일 미상 건은 기간 합계에서 제외됩니다.</p>
+          <details class="s-tblv">
+            <summary>표로 보기</summary>
+            <div class="s-tblwrap"><table class="s-dt" id="foms-settle-main-table"></table></div>
+          </details>
+        </div>
+
+        <div class="s-side">
+          <div class="s-card" id="foms-settle-settle-status">
+            <div class="s-card-head">
+              <span class="s-card-title">정산 처리 현황</span>
+              <span class="s-card-sub" data-settlement-status-sub>기간 완료 건 기준</span>
+            </div>
+            <div data-settlement-status-body></div>
+            {# 운영 실데이터는 이 카드가 **전부 0** 이다. 0 을 막대/원으로 그리면 빈 카드로 보인다. #}
+            <div class="s-empty s-hidden" data-settlement-empty="settlement_status">
+              이 기간에 기록된 <b>정산 처리 내역이 없습니다</b>.<br>
+              청구 · 현금영수증 발행 · AS 유상 확정 · 부서 귀속 차감이 모두 0건입니다.
+            </div>
           </div>
         </div>
+
+        <div class="s-card s-card--aging">
+          <div class="s-card-head">
+            <span class="s-card-title">미수금 aging</span>
+            <span class="s-card-sub" data-settlement-aging-sub>잔금 입금 미확인 · 기간 무관 전체</span>
+          </div>
+          <div class="s-chart-host" id="foms-settle-aging-chart"></div>
+          <p class="s-aging-note s-hidden" data-settlement-aging-critical><i class="s-fdot"></i><span data-settlement-aging-critical-text></span></p>
+          {# aging 은 완료일이 있어야 경과일이 나온다. 완료일 미상 미수는 버킷 밖에 따로 센다. #}
+          <p class="s-cardnote s-hidden" data-settlement-aging-unknown>완료일 미상 미수는 경과일을 산출할 수 없어 버킷 밖에서 따로 셉니다.</p>
+          <div class="s-empty s-hidden" data-settlement-empty="aging">
+            잔금 입금이 확인되지 않은 <b>미수 건이 없습니다</b>.
+          </div>
+        </div>
+
+        <div class="s-card s-card--stages">
+          <div class="s-card-head">
+            <span class="s-card-title">진행 단계별 물린 금액</span>
+            {# 단계 라벨은 API 가 주는 stages[].label(= STAGE_LABELS) 을 그대로 쓴다. 화면에 단계
+               이름을 하드코딩하지 않는다 — 목업이 지어낸 단계가 실화면에 남는 사고를 막는다. #}
+            <span class="s-card-sub" data-settlement-stages-sub>완료 전 주문의 출고가 합 · 현재 시점 스냅샷(기간 스코프 밖)</span>
+          </div>
+          <div class="s-stages" id="foms-settle-stages"></div>
+          <div class="s-empty s-hidden" data-settlement-empty="stages">
+            완료 전 단계에 남아 있는 주문이 <b>없습니다</b>.
+          </div>
+        </div>
+
+        <div class="s-card s-card--channel">
+          <div class="s-card-head">
+            <span class="s-card-title">채널별 매출 비중</span>
+            <span class="s-card-sub" data-settlement-channel-sub>기간 · 출고가</span>
+          </div>
+          <div class="s-chbar" id="foms-settle-channel-bar"></div>
+          <div class="s-chlegend" id="foms-settle-channel-legend"></div>
+          <div class="s-empty s-hidden" data-settlement-empty="channels">
+            이 기간에 채널별로 집계할 <b>매출이 없습니다</b>.
+          </div>
+        </div>
+
       </div>
 
-      <div class="s-card s-card--aging">
-        <div class="s-card-head">
-          <span class="s-card-title">미수금 aging</span>
-          <span class="s-card-sub" data-settlement-aging-sub>잔금 입금 미확인 · 기간 무관 전체</span>
-        </div>
-        <div class="s-chart-host" id="foms-settle-aging-chart"></div>
-        <p class="s-aging-note s-hidden" data-settlement-aging-critical><i class="s-fdot"></i><span data-settlement-aging-critical-text></span></p>
-        {# aging 은 완료일이 있어야 경과일이 나온다. 완료일 미상 미수는 버킷 밖에 따로 센다. #}
-        <p class="s-cardnote s-hidden" data-settlement-aging-unknown>완료일 미상 미수는 경과일을 산출할 수 없어 버킷 밖에서 따로 셉니다.</p>
-        <div class="s-empty s-hidden" data-settlement-empty="aging">
-          잔금 입금이 확인되지 않은 <b>미수 건이 없습니다</b>.
-        </div>
+      <div class="s-foot">
+        출고가 = 품목합 + 배송 − 할인 · 잔금 = 출고가 − 예약금 ·
+        매출 인식: 완료일(시공 완료일) 기준 · 정산 대상 상태: 완료 · AS 접수 · AS 완료 ·
+        수금은 입금 확인 토글 기반 근사치입니다.
       </div>
 
-      <div class="s-card s-card--stages">
-        <div class="s-card-head">
-          <span class="s-card-title">진행 단계별 물린 금액</span>
-          {# 단계 라벨은 API 가 주는 stages[].label(= STAGE_LABELS) 을 그대로 쓴다. 화면에 단계
-             이름을 하드코딩하지 않는다 — 목업이 지어낸 단계가 실화면에 남는 사고를 막는다. #}
-          <span class="s-card-sub" data-settlement-stages-sub>완료 전 주문의 출고가 합 · 현재 시점 스냅샷(기간 스코프 밖)</span>
-        </div>
-        <div class="s-stages" id="foms-settle-stages"></div>
-        <div class="s-empty s-hidden" data-settlement-empty="stages">
-          완료 전 단계에 남아 있는 주문이 <b>없습니다</b>.
-        </div>
-      </div>
+    </div>{# /탭 1 요약 pane #}
 
-      <div class="s-card s-card--channel">
-        <div class="s-card-head">
-          <span class="s-card-title">채널별 매출 비중</span>
-          <span class="s-card-sub" data-settlement-channel-sub>기간 · 출고가</span>
-        </div>
-        <div class="s-chbar" id="foms-settle-channel-bar"></div>
-        <div class="s-chlegend" id="foms-settle-channel-legend"></div>
-        <div class="s-empty s-hidden" data-settlement-empty="channels">
-          이 기간에 채널별로 집계할 <b>매출이 없습니다</b>.
-        </div>
+    {# ── 탭 2 · 실무(경리·수금) ─────────────────────────────────────────────────
+       이 셸은 자리만 만든다. 내용은 별도 작업이 `#foms-settle-ops-mount` **안쪽**을 채운다
+       (자리표시 <p> 는 그때 지운다). pane 자체와 `role`/`aria-*`/`hidden` 배선은 셸 소유라
+       건드리지 않는다. 이 탭은 기간 스코프 화면이 아니라 필터바가 CSS 로 감춰진다. #}
+    <div class="s-pane" role="tabpanel" id="foms-settle-pane-ops"
+      data-settlement-pane="ops" aria-labelledby="foms-settle-tab-ops" tabindex="0" hidden>
+      <div class="s-pane-mount" id="foms-settle-ops-mount" data-settlement-mount="ops">
+        <p class="s-pane-placeholder">실무(경리·수금) 화면은 준비 중입니다.</p>
       </div>
-
     </div>
 
-    <div class="s-foot">
-      출고가 = 품목합 + 배송 − 할인 · 잔금 = 출고가 − 예약금 ·
-      매출 인식: 완료일(시공 완료일) 기준 · 정산 대상 상태: 완료 · AS 접수 · AS 완료 ·
-      수금은 입금 확인 토글 기반 근사치입니다.
+    {# ── 탭 3 · 분석 ───────────────────────────────────────────────────────────
+       요약과 같은 기간 스코프 화면이라 필터바를 **공유**한다. 차트를 붙일 때는
+       `#foms-settle-analytics-mount` 안쪽만 채우고, 렌더 함수는 `renderAll()` 에 등록한다 —
+       그래야 탭 활성화·리사이즈 재렌더 경로를 그대로 탄다(숨은 pane 폭 0 함정). #}
+    <div class="s-pane" role="tabpanel" id="foms-settle-pane-analytics"
+      data-settlement-pane="analytics" aria-labelledby="foms-settle-tab-analytics" tabindex="0" hidden>
+      <div class="s-pane-mount" id="foms-settle-analytics-mount" data-settlement-mount="analytics">
+        <p class="s-pane-placeholder">분석 화면은 준비 중입니다.</p>
+      </div>
     </div>
 
+    {# 툴팁은 pane 밖 루트 직속이다 — `position: fixed` 라 어느 탭에서든 같은 노드를 쓴다. #}
     <div class="s-tt" id="foms-settle-tooltip" role="tooltip"></div>
   </div>
 </div>
-<script src="{{ url_for('static', filename='js/settlement/dashboard.js') }}?v=20260831b" defer></script>
+<script src="{{ url_for('static', filename='js/settlement/dashboard.js') }}?v=20260831c" defer></script>

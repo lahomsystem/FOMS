@@ -80,6 +80,54 @@
 .foms-settle .s-spacer { flex: 1; }
 .foms-settle .s-stamp { color: var(--s-faint); font-size: 11.5px; font-variant-numeric: tabular-nums; }
 
+/* ── 탭바 3종 (요약 · 실무 · 분석) ────────────────────────────── */
+/*
+ * 이름이 전부 `s-` 접두어인 이유는 파일 상단 (1) 과 같다. 특히 여기서는 `.tab`/`.nav`/
+ * `.nav-link`/`.active` 가 위험하다 — Bootstrap 5 의 `.nav`·`.nav-link`·`.tab-pane` 은
+ * `.foms-settle` 안에서도 그대로 매칭돼서 패딩·색·display 를 덮어쓴다. `.s-tab*` 은
+ * Bootstrap 에도 erp-pro.css 에도 없는 이름이다.
+ *
+ * 버튼은 진짜 `<button>` 이라 Bootstrap reboot 의 button 기본값(테두리·배경·폰트)을
+ * 명시적으로 되돌린다. `.btn` 은 쓰지 않는다(전역 .btn 패딩이 탭 높이를 밀어버린다).
+ */
+.foms-settle .s-tabs {
+  display: flex; align-items: stretch; flex-wrap: wrap; gap: 2px;
+  background: var(--s-surface); border-bottom: 1px solid var(--s-line);
+  padding: 0 18px;
+}
+.foms-settle .s-tab {
+  display: inline-flex; align-items: baseline; gap: 6px;
+  border: none; border-bottom: 2px solid transparent; margin-bottom: -1px;
+  background: none; color: var(--s-muted); font: inherit; font-size: 13px; font-weight: 800;
+  padding: 11px 14px 9px; cursor: pointer;
+}
+.foms-settle .s-tab:hover { color: var(--s-text); }
+.foms-settle .s-tab[aria-selected="true"] { color: var(--s-accent); border-bottom-color: var(--s-accent); }
+.foms-settle .s-tab:focus-visible { outline: 2px solid var(--s-accent); outline-offset: -3px; }
+.foms-settle .s-tab-hint { font-size: 11px; font-weight: 600; color: var(--s-faint); }
+.foms-settle .s-tab[aria-selected="true"] .s-tab-hint { color: var(--s-accent); }
+
+/* 비활성 pane 은 `hidden` 속성으로만 감춘다(JS 가 붙였다 뗀다 — 인라인 스타일 금지).
+   Bootstrap reboot 에도 `[hidden]` 규칙이 있지만, 그쪽에 기대지 않고 여기서 한 번 더 못박는다.
+   **폭 0 함정**: 이 상태의 pane 안 차트 호스트는 `clientWidth === 0` 이고, 렌더러가
+   `clientWidth || 400` 으로 폴백해 **400px 짜리 눌린 차트**를 남긴다(빈 차트가 아니라서
+   눈에 덜 띈다) — 다시 보일 때 JS 가 되그린다(dashboard.js `activateTab()`). */
+.foms-settle .s-pane[hidden] { display: none; }
+
+/* 실무 탭은 기간 스코프 화면이 아니다 — 필터바를 복제하는 대신 한 벌을 감춘다.
+   선택자가 `s-hidden` 이 아니라 루트 속성인 이유는 body 템플릿의 필터바 주석 참조
+   (showState() 의 권한거부 분기와 클래스를 겹쳐 쓰지 않는다). */
+.foms-settle[data-settlement-active-tab="ops"] .s-filterbar { display: none; }
+
+/* 탭 2·3 자리표시. 내용이 붙기 전에도 "빈 화면"이 아니라 "아직 없음"으로 읽혀야 한다.
+   빈 상태(`.s-empty`)와 같은 점선 박스 어휘를 쓰되 카드 안이 아니라 pane 폭 전체다. */
+.foms-settle .s-pane-mount { max-width: 1440px; margin: 0 auto; padding: 16px 18px 34px; }
+.foms-settle .s-pane-placeholder {
+  margin: 0; padding: 28px 12px; border: 1px dashed var(--s-line);
+  border-radius: var(--s-radius); background: var(--s-surface-soft);
+  color: var(--s-muted); font-size: 12.5px; text-align: center;
+}
+
 /* ── 필터바 (V3 filterbar 룩의 라이트 번안) ──────────────────── */
 .foms-settle .s-filterbar {
   display: flex; align-items: center; gap: 10px; flex-wrap: wrap;
