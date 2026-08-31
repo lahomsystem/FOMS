@@ -53,6 +53,26 @@ def can_view_settlement_dashboard(user: Any) -> bool:
     return user_can(SETTLEMENT_DASHBOARD_POLICY_ID, user)
 
 
+def can_view_manager_breakdown(user: Any) -> bool:
+    """담당자별 매출(직원 실적)을 볼 수 있는지 — 분석 탭 전용 상위 게이트.
+
+    정산 화면 자체는 STAFF(CS·SALES)도 보지만, **담당자별 매출은 동료 실적 전량 공개**라
+    사용자 결정(2026-08-31)으로 관리자급으로 좁혔다(스펙 §13.6).
+
+    은닉은 **서버 payload 단계**에서 한다 — 데이터를 다 내려보내고 클라이언트에서
+    감추면 개발자 도구로 그대로 보인다(이 저장소의 클라 숨김 금지 원칙).
+
+    Args:
+        user: 현재 사용자(``None`` 이면 미인증 — ``False``).
+
+    Returns:
+        담당자별 매출을 볼 수 있으면 True.
+    """
+    if not can_view_settlement_dashboard(user):
+        return False
+    return str(getattr(user, "role", "") or "").upper() in ("ADMIN", "MANAGER")
+
+
 @erp_settlement_page_bp.route('/settlement')
 @login_required
 def erp_settlement_dashboard():
