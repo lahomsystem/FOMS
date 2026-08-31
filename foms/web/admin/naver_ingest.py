@@ -1927,9 +1927,12 @@ def _pane_context(db, link: Optional[ExternalOrderLink],
         ``selected``·``selected_group``·``selected_household_claimed``·``member_rows``·
         ``cancel_reasons``·``return_reasons``·``selected_offlist``.
     """
+    from foms.services.feature_flags import is_naver_return_reject_enabled
     from foms.services.integrations.naver_commerce.fulfillment import (
         CANCEL_REASONS,
         RETURN_REASONS,
+        RETURN_REJECT_FILLS,
+        RETURN_REJECT_REASON_MAX,
     )
 
     household = _group_of_link(db, link) if link is not None else None
@@ -1952,6 +1955,14 @@ def _pane_context(db, link: Optional[ExternalOrderLink],
         "selected_offlist": _selected_offlist(link, household, visible),
         # 붙어 있는 주문의 **옛 네이버 주문** — 재결제 뒤 정리 대상(NVREPAY-01).
         "selected_origin": _origin_view(db, link, household),
+        # 반품 거부(T8-S3) 게이트. **꺼져 있으면 버튼 자체를 안 낸다** — 규격이 아직
+        # 안 채워져서(설계서 §2) 눌러도 나가지 않는다. 라우트도 같은 게이트로 닫혀 있다:
+        # 한쪽만 열면 열린 버튼이 403 을 받는다.
+        "return_reject_enabled": is_naver_return_reject_enabled(),
+        # 자주 쓰는 거부 문장(채워 넣기 전용)과 우리 글자수 상한. 화면이 목록을 따로 들면
+        # 서버 상한과 갈린다 — 잘려 나간 문장이 그대로 구매자에게 간다.
+        "return_reject_fills": RETURN_REJECT_FILLS,
+        "return_reject_reason_max": RETURN_REJECT_REASON_MAX,
         # sales_users 는 워크벤치 두 템플릿 어디서도 안 쓴다 — 넣어 두면
         # pane 조각 요청마다 User 전 행 조회가 1회씩 헛돈다(리뷰 M-5).
         # 게이트 OFF 경로(naver_triage.html)는 자기 자리에서 따로 부른다.
@@ -3378,6 +3389,7 @@ def _group_queue(links: list[ExternalOrderLink], orders: dict,
         household_key,
         is_place_pending,
         is_return_pending,
+        is_return_rejectable,
     )
 
     groups: dict[tuple, list[ExternalOrderLink]] = {}
@@ -3472,6 +3484,10 @@ def _group_queue(links: list[ExternalOrderLink], orders: dict,
             # 재진술하면 "3건 반품 접수합니다"라고 읽히는데 서버는 나간 1건만 보낸다.
             # **불가역 경로라 그 과대 진술이 그대로 사고다**(2026-08-27 CEO 지적).
             "return_pending_count": sum(1 for row in members if is_return_pending(row)),
+            # 거부가 **실제로 나갈** 건수(T8-S3). 접수와 같은 규율로 서버 술어
+            # (:func:`fulfillment.is_return_rejectable`)를 그대로 쓴다 — 보류 걸린 건과
+            # 이미 처리한 건은 여기서 빠진다.
+            "return_rejectable_count": sum(1 for row in members if is_return_rejectable(row)),
             # 이미 우리가 접수한 건수 — 버튼을 닫고 "접수함"을 말하는 근거.
             "return_requested_count": sum(
                 1 for row in members
@@ -4204,6 +4220,97 @@ def naver_ingest_return(link_id: int):
                              "approve": approve, "rev": base_rev},
                     "error": None})
 
+@admin_bp.route("/admin/naver-ingest/<int:link_id>/return-reject", methods=["POST"])
+@login_required
+@role_required(["ADMIN", "MANAGER"])
+def naver_ingest_return_reject(link_id: int):
+    """고객이 낸 반품 요청을 **거부**한다 (T8-S3).
+
+    접수·승인과 **다른 대상**이다: 접수는 *우리가* 반품을 내는 것이고, 거부는 *고객이 낸*
+    요청을 되돌려보내는 것이다. 그래서 접수 모달의 체크박스가 아니라 별도 라우트다.
+
+    **권한이 접수·승인보다 좁다**(``ADMIN``·``MANAGER``, 사용자 결정 2026-08-31).
+    거부 문장은 구매자에게 그대로 가고 분쟁으로 돌아올 수 있어 쓰는 사람을 좁힌다.
+    버튼도 **같은 조건**으로 렌더한다 — 한쪽만 좁히면 열린 버튼이 403 을 받는다.
+
+    사유는 **코드가 아니라 문장**이다. 화이트리스트로 거를 수 없으니 여기서는 빈 문장만
+    막고(빈 요청으로 불가역 API 를 때리지 않는다) 원문을 그대로 큐에 싣는다.
+
+    네이버 HTTP 는 WORKER 에서만 나간다(호출 IP 3슬롯 계약).
+    """
+    from foms.services.feature_flags import (
+        is_naver_return_reject_enabled,
+        is_naver_workbench_enabled,
+    )
+    from foms.services.integrations.naver_commerce.fulfillment import (
+        RETURN_REJECT_REASON_MAX,
+    )
+
+    # 게이트 둘. 워크벤치 게이트는 화면 자체의 롤백 경로이고, 거부 게이트는 **규격이 아직
+    # 안 채워졌다**는 사실을 코드로 잠근다(설계서 §2). 둘 중 하나라도 꺼져 있으면 닫는다.
+    if not is_naver_workbench_enabled(session.get("user_id")):
+        return jsonify({"success": False, "data": None,
+                        "error": "이 화면에서는 반품을 거부할 수 없습니다."}), 403
+    if not is_naver_return_reject_enabled():
+        return jsonify({"success": False, "data": None,
+                        "error": "반품 거부 기능이 아직 켜져 있지 않습니다."}), 403
+
+    payload = request.get_json(silent=True) or {}
+    reason = str(payload.get("reason") or "").strip()[:RETURN_REJECT_REASON_MAX]
+    if not reason:
+        return jsonify({"success": False, "data": None,
+                        "error": "거부 사유 문장을 입력하세요 — 구매자에게 그대로 전달됩니다."}), 400
+
+    from foms.services.jobs.queue import enqueue_naver_return_reject
+
+    db = get_db()
+    link = _link_by_id(db, link_id)
+    if link is None:
+        return jsonify({"success": False, "data": None,
+                        "error": f"수집 기록을 찾을 수 없습니다 (link {link_id})."}), 400
+    # 기준 지문은 enqueue 앞에서(접수·취소와 같은 이유 — 워커가 뒤집기 전 값이어야 한다).
+    base_rev = _fulfillment_state(db, link)["rev"]
+    # 집 요약도 **보내기 전에** 뽑는다(붙이기와 같은 규율).
+    history = summarize_link_household(db, link_id=link_id)
+
+    queued = enqueue_naver_return_reject(link_id, reason, session.get("user_id"))
+    if not queued:
+        return jsonify({"success": False, "data": None,
+                        "error": "작업 큐를 쓸 수 없습니다(REDIS_URL 미설정 또는 큐 장애). "
+                                 "지금은 판매자센터에서 처리하세요."}), 503
+
+    # 주문 이력에도 남긴다(사용자 결정 2026-08-31). 워크벤치를 안 여는 담당자가 나중에
+    # "이 주문의 반품이 왜 안 받아들여졌나"를 읽는 자리는 여기뿐이다. 붙어 있는 주문이
+    # 없으면 남길 자리도 없다 — 그때는 감사 로그만 남는다.
+    if link.order_id:
+        db.add(OrderEvent(
+            order_id=int(link.order_id),
+            event_type=RETURN_REJECT_EVENT_TYPE,
+            payload={
+                "link_id": int(link_id),
+                "reason": reason,
+                "external_order_no": history.get("external_order_no") or "",
+                "product_order_count": int(history.get("product_order_count") or 0),
+            },
+            created_by_user_id=session.get("user_id"),
+        ))
+        db.commit()
+
+    log_access(
+        f"네이버 반품 거부 요청 (link {link_id})",
+        session.get("user_id"),
+        action="NAVER_INGEST_RETURN_REJECT_ENQUEUE",
+        target_type=("order" if link.order_id else None),
+        target_id=(int(link.order_id) if link.order_id else None),
+        # **보낸 문장을 그대로 남긴다.** 분쟁이 나면 요약이 아니라 원문이 필요하다.
+        detail={"link_id": link_id, "reject_reason": reason},
+    )
+    return jsonify({"success": True,
+                    "data": {"link_id": link_id, "queued": True, "rev": base_rev,
+                             "reason": reason},
+                    "error": None})
+
+
 @admin_bp.route("/admin/naver-ingest/<int:link_id>/fulfillment-clear", methods=["POST"])
 @login_required
 @role_required(["ADMIN", "MANAGER", "STAFF"])
@@ -4240,6 +4347,10 @@ def naver_ingest_fulfillment_clear(link_id: int):
 #: 이벤트와 구분이 안 된다(``translate_event_type_to_korean`` 의 기본값).
 ATTACH_EVENT_TYPE = "NAVER_ORDER_ATTACHED"
 DETACH_EVENT_TYPE = "NAVER_ORDER_DETACHED"
+
+#: 반품 거부가 주문 변경 이력에 남기는 이벤트 타입 (T8-S3). 위와 **같은 규율** —
+#: 라벨 사전에 등재하지 않으면 화면이 "기타 변경"으로 조용히 뭉갠다.
+RETURN_REJECT_EVENT_TYPE = "NAVER_RETURN_REJECTED"
 
 
 def _record_link_history(db: Session, *, order_id: int, link_id: int, event_type: str,

@@ -184,6 +184,9 @@ def translate_event_type_to_korean(event_type: str | None) -> str:
         # 다른 미등재 이벤트와 섞여 구분이 안 되므로 타입 추가 시 반드시 함께 등재한다.
         "NAVER_ORDER_ATTACHED": "네이버 수집분 연결",
         "NAVER_ORDER_DETACHED": "네이버 수집분 연결 해제",
+        # 반품 거부(T8-S3). 워크벤치를 안 여는 담당자가 나중에 맥락을 읽는 자리다 —
+        # 왜 이 주문의 반품이 안 받아들여졌는지는 주문 이력에만 남는다.
+        "NAVER_RETURN_REJECTED": "네이버 반품 거부",
         "manager_changed": "담당자 변경",
         "order_updated": "주문 수정",
     }
@@ -327,6 +330,32 @@ def _describe_naver_link_change(event_type: str, payload: dict[str, Any]) -> str
     return f"{head} {count}건 · {amount:,}원{tail}"
 
 
+def _describe_naver_return_reject(payload: dict[str, Any]) -> str:
+    """반품 거부를 "몇 건에 무슨 말을 보냈나" 문장으로 만든다 (T8-S3).
+
+    **보낸 문장을 그대로 싣는다.** 요약하면 이 줄이 쓸모를 잃는다 — 나중에 분쟁이 오면
+    필요한 것은 "거부했다"가 아니라 **구매자가 받은 그 문장**이다.
+
+    Args:
+        payload: 이벤트 payload(``reason``·``external_order_no``·``product_order_count``).
+
+    Returns:
+        사람이 읽는 한 문장.
+    """
+    order_no = str(payload.get("external_order_no") or "").strip()
+    reason = str(payload.get("reason") or "").strip()
+    try:
+        count = int(payload.get("product_order_count") or 0)
+    except (TypeError, ValueError):
+        count = 0
+    head = "네이버 반품 요청을 거부했습니다"
+    if order_no:
+        head = f"네이버 주문 {order_no} 의 반품 요청을 거부했습니다"
+    if count:
+        head = f"{head} ({count}건)"
+    return f"{head} — 보낸 문장: “{reason}”" if reason else head
+
+
 def generate_change_description(
     event_type: str,
     target_kr: str,
@@ -412,6 +441,9 @@ def generate_change_description(
 
     if event_type in ("NAVER_ORDER_ATTACHED", "NAVER_ORDER_DETACHED"):
         return _describe_naver_link_change(event_type, payload)
+
+    if event_type == "NAVER_RETURN_REJECTED":
+        return _describe_naver_return_reject(payload)
 
     if event_type == "CHANGE_REVERTED":
         return f"이전 변경사항을 되돌렸습니다 ({translate_target_to_korean(payload.get('target', ''))})"

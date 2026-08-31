@@ -919,6 +919,22 @@ input.wb-pick:disabled,
    세로로 쪼개진다(실패 목록 '확인함' 과 같은 함정). 줄바꿈만 막는다. */
 .naver-workbench .wb-cmp--cand .btn { white-space: nowrap; font-size: calc(12px * var(--wb-fs, 1)); }
 
+/* ── T8-S3 반품 거부 모달 ──────────────────────────────────────────────
+   문장이 구매자에게 그대로 간다. 상용구는 **채워 넣기 버튼**일 뿐이라 입력칸보다
+   약하게 보여야 한다 — 고르는 것처럼 보이면 고른 뒤 안 고친다. */
+.wb-reject__fills { display: flex; flex-wrap: wrap; gap: 4px; align-items: center; }
+.wb-reject__fills-label { color: var(--wb-muted); font-size: calc(11.5px * var(--wb-fs, 1)); }
+/* 전역 `.btn { padding: 10px 20px !important }` 이 좁은 모달에서 글자를 쪼갠다. */
+.naver-workbench .wb-reject__fills .btn,
+.modal .wb-reject__fills .btn { white-space: nowrap;
+                                font-size: calc(11.5px * var(--wb-fs, 1)); }
+/* 되읽어 주는 줄 — 입력칸과 **다른 색**이어야 눈이 한 번 더 멈춘다. */
+.wb-reject__echo { margin-top: 6px; padding: 6px 8px; border-radius: 6px;
+                   background: var(--wb-danger-soft, #fdeaea);
+                   border: 1px solid var(--wb-danger-line, #f3c2c2);
+                   color: var(--wb-danger, #b91c1c);
+                   font-size: calc(12.5px * var(--wb-fs, 1)); }
+
 /* ── T2 주문 찾아서 붙이기 ─────────────────────────────────────────────
    자동 후보가 0건일 때 이 자리가 **유일한 붙이기 경로**다. 목록 안 찾기(`.wb-find`)와
    이름이 닮았지만 다른 물건이다 — 그쪽은 받아 둔 목록을 화면에서 걸러내고, 이쪽은

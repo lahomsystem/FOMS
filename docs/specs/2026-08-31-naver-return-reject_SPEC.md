@@ -152,6 +152,28 @@ T3 규율 그대로 — 성공·실패와 무관하게 그 집을 다시 읽는�
 | 스위트 | `tests/services/integrations` + `tests/domains` 전량 · `pre_push_smoke` exit 0 · `APP_OK` |
 | 실호출 | **스테이징에서 못 한다** — 같은 실계정이라 진짜 거부가 나간다. 사용자가 진짜 건에서 확인 |
 
+## 6-1. 구현 상태 (2026-08-31) — **규격 한 줄만 비어 있다**
+
+규격을 기다리는 동안 나머지를 다 만들었다. 게이트
+``FOMS_NAVER_RETURN_REJECT_ENABLED`` 가 **꺼져 있어** 화면에도 라우트에도 없다.
+
+| 조각 | 자리 | 상태 |
+|---|---|---|
+| 클라이언트 | `client.reject_return_product_order` | **막혀 있다** — 인자 검사는 하고, 호출 직전 `NotImplementedError`(§2 를 가리킨다) |
+| 서비스 | `fulfillment.reject_return` · `is_return_rejectable` · `RETURN_REJECTABLE_STATUSES` · `RETURN_REJECT_FILLS` | 완료 |
+| 큐·워커 | `enqueue_naver_return_reject` · `run_naver_fulfillment_task(action="return-reject")` · `REFRESH_AFTER_ACTIONS` | 완료 |
+| 라우트 | `POST /admin/naver-ingest/<link_id>/return-reject` (ADMIN·MANAGER, 게이트 2겹) | 완료 |
+| 계약 6종 | policy manifest · write guard manifest · audit coverage · 감사 라벨 · **주문 이벤트 라벨** · 자산 핀 | 완료 |
+| 화면 | pane 버튼 + 모달(4종 세트 + 자유 입력 + 상용구 채우기 + 보낼 문장 되읽기) | 완료 |
+| 계약 테스트 | `tests/services/integrations/test_naver_return_reject.py` 21종 | 완료 |
+
+**켜는 순서**: ① §2 표를 문서 원문으로 채운다 ② `reject_return_product_order` 의 요청
+한 줄을 채운다(그 함수의 `NotImplementedError` 를 지운다) ③ 상용구 문장 확정(§7 Q1)
+④ Railway `FOMS_NAVER_RETURN_REJECT_ENABLED=1`.
+
+**규격이 채워지면 같이 볼 것**: `RETURN_REJECTABLE_STATUSES` 를 넓힐지(§4-2 는 지금
+`RETURN_REQUEST` 축만 연다) · `RETURN_REJECT_REASON_MAX`(지금은 우리 상한 500).
+
 ## 7. 미결 (사람만 답한다)
 
 - **Q1** 상용구 5종 **문장 확정**(§4-3 표는 초안이다). 글자수 제한(§2-3)을 본 뒤 확정한다.

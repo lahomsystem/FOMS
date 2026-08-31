@@ -106,6 +106,7 @@
         'wb-dispatch-confirm': submitDispatch,
         'wb-cancel-confirm': submitCancel,
         'wb-return-confirm': submitReturn,
+        'wb-reject-confirm': submitReturnReject,
         'wb-review-done': submitReviewDone,
         'wb-refresh': submitRefresh,
         'wb-detach': submitDetach,
@@ -570,6 +571,12 @@
                 submitSeekAttach(btn);
                 return;
             }
+            // 거부 상용구 채우기(T8-S3). 문장 수만큼 나오므로 클래스로 문다(절대 규칙 1).
+            // **채워 넣기만 한다** — 넣은 뒤 그 자리에서 고칠 수 있어야 자유 입력이다.
+            if (btn.classList.contains('wb-reject-fill')) {
+                fillRejectReason(btn.dataset.text || '');
+                return;
+            }
             if (btn.classList.contains('wb-plan-close')) {
                 closePlan(btn.closest('.wb-plan'));
                 return;
@@ -642,7 +649,16 @@
      * 정렬은 반대로 서버가 한다: 캡보다 먼저 돌아야 캡이 자를 집이 달라진다.
      */
     function onInput(event) {
-        if (!event.target || event.target.id !== 'wb-find') {
+        if (!event.target) {
+            return;
+        }
+        // 거부 사유는 **보낼 문장을 그대로 되읽어 준다**. 입력칸을 보고 있으면서도 오타를
+        // 못 보는 자리라, 보낼 값을 한 번 더 따로 보여 준다(불가역 4종 세트의 재진술).
+        if (event.target.id === 'wb-reject-reason') {
+            syncRejectEcho();
+            return;
+        }
+        if (event.target.id !== 'wb-find') {
             return;
         }
         applyFind(event.target.value);
@@ -1891,6 +1907,65 @@
             return;
         }
         window.location.reload();
+    }
+
+    /* ── 반품 거부 (T8-S3) ───────────────────────────────────────────── */
+
+    /**
+     * 상용구를 입력칸에 **넣기만** 한다. 넣은 뒤 고칠 수 있어야 자유 입력이다
+     * (사용자 결정 2026-08-31 — 고정 문구 강제가 아니다).
+     */
+    function fillRejectReason(text) {
+        var box = document.getElementById('wb-reject-reason');
+        if (!box || !text) {
+            return;
+        }
+        box.value = text;
+        box.focus();
+        syncRejectEcho();
+    }
+
+    /** 보낼 문장을 그대로 되읽어 준다(빈 값이면 줄 자체를 내지 않는다). */
+    function syncRejectEcho() {
+        var box = document.getElementById('wb-reject-reason');
+        var echo = document.getElementById('wb-reject-echo');
+        if (!box || !echo) {
+            return;
+        }
+        var text = String(box.value || '').trim();
+        echo.textContent = text ? '보낼 문장: “' + text + '”' : '';
+        echo.hidden = !text;
+    }
+
+    /**
+     * 반품 거부 — **고객이 낸 요청**을 되돌려보낸다. 접수와 다른 라우트다.
+     *
+     * 사유는 코드가 아니라 문장이고 **구매자에게 그대로 간다**. 빈 문장은 여기서 막고
+     * 서버가 한 번 더 막는다(빈 요청으로 불가역 API 를 때리지 않는다).
+     */
+    async function submitReturnReject(btn) {
+        var id = safeId(btn.dataset.linkId);
+        if (!id) {
+            return;
+        }
+        var box = document.getElementById('wb-reject-reason');
+        var text = box ? String(box.value || '').trim() : '';
+        if (!text) {
+            window.alert('거부 사유 문장을 입력하세요 — 구매자에게 그대로 전달됩니다.');
+            if (box) {
+                box.focus();
+            }
+            return;
+        }
+        btn.disabled = true;
+        const result = await postJson(BASE + id + '/return-reject', { reason: text });
+        if (!result.ok) {
+            window.alert(result.error);
+            btn.disabled = false;
+            return;
+        }
+        watchFulfillment(id, result.data && result.data.rev, '반품 거부');
+        await hideModal(document.getElementById('wb-modal-return-reject'));
     }
 
     /* ── 주문 찾아서 붙이기 (T2) ─────────────────────────────────────── */

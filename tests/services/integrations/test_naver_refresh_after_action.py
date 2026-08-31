@@ -83,10 +83,46 @@ def test_dispatch_success_enqueues_refresh(app, monkeypatch, recorder):
     assert recorder.calls == [(link_id, None)]
 
 
+def test_return_reject_enqueues_refresh(app, monkeypatch, recorder):
+    """**반품 거부**(T8-S3) 뒤에도 다시 읽는다 — 네 조작과 같은 규율이다.
+
+    거부는 네이버 쪽 클레임 상태를 바꾼다. 다시 읽지 않으면 화면이 계속 `반품 요청`이라
+    말하고, 담당자는 거부가 안 나갔다고 읽어 한 번 더 누른다.
+    """
+    from foms.services.integrations.naver_commerce import client as client_mod
+    from foms.services.integrations.naver_commerce.mapping import group_key_text
+    from models import ExternalOrderLink
+
+    snapshot = {"order": {"orderId": "N-RF-REJ"},
+                "productOrder": {"productOrderId": "PO-RF-REJ",
+                                 "claimStatus": "RETURN_REQUEST", "claimType": "RETURN"}}
+    link = ExternalOrderLink(channel="NAVER", external_id="PO-RF-REJ",
+                             external_order_no="N-RF-REJ", sync_status="LINKED",
+                             raw_snapshot=snapshot, group_key=group_key_text(snapshot))
+    db_session.add(link)
+    db_session.commit()
+    link_id = int(link.id)
+
+    class _RejectStub:
+        def reject_return_product_order(self, product_order_id, *, reason):
+            return {"data": {"successProductOrderIds": [product_order_id],
+                             "failProductOrderInfos": []}}
+
+    monkeypatch.setattr(client_mod, "NaverCommerceClient", lambda: _RejectStub())
+    tasks_mod.run_naver_fulfillment_task(link_id, "return-reject", None,
+                                         reason="반품이 어렵습니다.")
+
+    assert recorder.calls == [(link_id, None)]
+
+
 def test_every_mutating_action_is_registered(app):
-    """조작 목록이 조용히 줄어들면 그 조작만 옛 사실을 말하게 된다."""
+    """조작 목록이 조용히 줄어들면 그 조작만 옛 사실을 말하게 된다.
+
+    ``return-reject`` 는 T8-S3 에서 **의도적으로** 더했다 — 이 집합은 손으로 늘려야
+    하는 자리이고, 그래서 새 조작을 만든 사람이 여기 와서 한 번 더 생각하게 된다.
+    """
     assert set(tasks_mod.REFRESH_AFTER_ACTIONS) == {
-        "confirm", "dispatch", "cancel", "return"}
+        "confirm", "dispatch", "cancel", "return", "return-reject"}
 
 
 # --------------------------------------------------------------------------- #

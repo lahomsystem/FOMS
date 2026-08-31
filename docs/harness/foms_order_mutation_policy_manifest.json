@@ -80,6 +80,11 @@
       "policy_id": "STAFF_MUTATION",
       "rule": "/admin/naver-ingest/<int:link_id>/return"
     },
+    "admin.naver_ingest_return_reject": {
+      "mode": "guard",
+      "policy_id": "STAFF_MUTATION",
+      "rule": "/admin/naver-ingest/<int:link_id>/return-reject"
+    },
     "admin.naver_ingest_run_now": {
       "mode": "guard",
       "policy_id": "ADMIN_OPS",
