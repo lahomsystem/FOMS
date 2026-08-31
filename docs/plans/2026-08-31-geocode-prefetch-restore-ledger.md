@@ -101,7 +101,9 @@ RED 조건 = ① SIDEFX heartbeat 0행 ② GEOCODE outbox PENDING > 0 ③ 좌표
 | T2 | 프론트 부분 갱신 (`templates/measurement/map_view.html` 폴링 분기) | 기존 map 계약 테스트 2종 무회귀 + 신규 계약 테스트 통과 | **DONE** |
 | T3 | GEOCODE 핸들러 등록 + measurement failed 재큐 백오프 | SIDEFX 테스트 + domains 지도 테스트 통과 | **DONE** |
 | T4 | 밀린 121건 소진 | 좌표 없는 주문 0건 | T1 배포로 자동 해소(수동 백필 선택) |
-| T5 | SIDEFX 워커 서비스 Railway 등록 (사용자 결정 필요 — §7) | heartbeat 행 생성 + outbox PENDING 소진 | BLOCKED (사용자 승인) |
+| T5 | SIDEFX 워커 서비스 Railway 등록 | heartbeat 행 생성 + outbox PENDING 소진 | BLOCKED (§10 — CLI로 Config Path 지정 불가) |
+| T7 | deploy 푸시 · production 승격 | CI green + PR 머지 | **DONE** — deploy `44f8d1ee`, production `365b1280` (PR #207) |
+| T8 | 운영 스윕 켜기 (`FOMS_GEOCODE_SWEEP_ENABLED=1` + 재배포) | 지도에 뜰 수 있는 주문의 좌표 미달 0건 | **DONE** — §12 |
 | T6 | `docs/AI_STATUS.md` 갱신 | 상단 40줄에 현재 상태 반영 | **DONE** |
 
 T1~T3 는 서로 파일이 겹치지 않아 병렬 진행한다. T4 는 T1 의 스윕 루프가 배포되면 자동으로 소진되므로 별도 실행은 선택 사항이다.
@@ -195,6 +197,92 @@ powershell -File scripts/ops/pre_push_smoke.ps1   # push 직전 exit 0
 
 ---
 
-## 9. 조사 방법 메모
+## 9. 승격 기록 (2026-08-31)
+
+- 로컬 커밋 `b6fc4ae3` → deploy `44f8d1ee` → production `365b1280`(PR #207, `b8b57b83`).
+- **로컬 스모크는 red 였는데 내 변경 때문이 아니었다.** 타 세션의 미추적 디렉토리 `foms/services/integrations/` 가 네임스페이스 폐쇄집합 계약을 깨고 있었다. 남의 계약을 대신 고치거나 남의 작업 파일을 옮기지 않고, **원격 tip 기준 클린 워크트리**(`c:/tmp/geo-push`)에서 검증했다 — 그 트리에는 미추적 디렉토리가 없으므로 계약이 정상 통과한다(330 passed).
+- **`start.sh` cherry-pick 충돌**: 타 세션이 같은 자리에 네이버 수집 블록을 넣어뒀다. 기능 의존이 아니라 **같은 삽입 지점의 독립 블록 2개**였으므로, 정규식 keep-both 없이 손으로 두 개의 독립 `if` 로 명시 병합하고 `bash -n` 으로 검증했다.
+- **AI_STATUS 충돌 2회**: deploy 계보에서는 원격 버전을 취해 내 줄만 다시 넣었고(원격 tip 은 이미 정리돼 2627자라 여유가 있었다 — 로컬에서 하던 압축은 낡은 계보 기준이었다), production 승격에서는 규칙대로 코드만 옮기고 문서는 production 버전을 유지했다.
+- 승격 도중 `origin/deploy` 가 두 번 움직여 rebase 후 재검증·재푸시했다.
+- **승격 트리에서 본 스위트 직접 실행**: `tests/domains` + `tests/contracts` → **5389 passed, 5 skipped**. 승격 PR 이 본 스위트를 안 도는 알려진 구멍을 이걸로 메웠다. PR 검사 4종(test·pg-lane·harness·perf-gate) 전부 SUCCESS.
+- **deploy 의 FOMS CI red 는 내 것이 아니었다**: 내 푸시 직전 tip `f6c49ae5` 에서 이미 red(타 세션 정산 대시보드 커밋이 `test_settlement_dashboard_render.py` 를 docs 전용 서브셋에 등재하지 않음). 그 세션이 `86e91a1f` 로 자체 수정했다.
+
+## 10. T5 가 막힌 이유 — CLI 로는 SIDEFX 서비스를 만들 수 없다
+
+`railway add` 는 서비스 생성·repo 연결·변수 설정까지만 지원하고 **Config Path 지정 옵션이 없다**. Config Path 없이 만들면 공용 `railway.toml`(`startCommand = "sh start.sh"`)을 상속해 gunicorn 이 하나 더 뜰 뿐 SIDEFX 워커가 되지 않는다. 필요한 변수는 `DATABASE_URL`(+ STORAGE_DELETE 핸들러용 `R2_*`)이고 WORKER 가 이미 전부 갖고 있다.
+
+선택지는 둘이다:
+1. **대시보드에서 등록**(설계 정본): 새 service → Settings → Config Path = `railway-domain-sidefx.toml`, 변수는 WORKER 것 복사.
+2. **`start.sh` 에 배선**(설계 이탈): escalation·네이버·좌표 스윕과 같은 패턴으로 WORKER 컨테이너에 얹는다. 코드 변경이라 승격 사이클이 한 번 더 필요하다.
+
+## 11. 운영 반영 결과 (2026-08-31)
+
+- production 머지 `365b1280` → Railway 자동 배포. WORKER 는 `FOMS_GEOCODE_SWEEP_ENABLED=1` 설정이 재배포를 한 번 더 트리거해 05:23:32 배포가 **새 코드 + 새 변수**를 함께 실었다(SUCCESS 확인).
+  - 참고: 기존 기록은 `railway variables --set` 이 재배포를 안 건다고 돼 있으나, 이번에는 새 배포가 생성됐다. 어느 쪽이든 **부팅 시각으로 확인**하는 규율은 그대로 유효하다.
+- 워커 로그에서 스윕 기동 확인: `[geocode-sweep] started (interval=60s batch=50 include_failed=False pending_retry=600s)`, 첫 라운드 `scanned=50 queued=50 skipped=0 failed=0`.
+- **좌표 소진**: 좌표 없는 주문 121건 → 약 20분 만에 소진. 최종 판정(2026-08-31):
+
+  | 지표 | 값 |
+  |---|---|
+  | 지도에 뜰 수 있는(active) 주문 중 좌표 없음 — 실패 제외 | **0건** |
+  | 같은 모집단, 실패 포함 | 23건 (주소 자체가 틀려 카카오가 못 찾는 건, 24시간 백오프로 재시도) |
+  | 최근 20분 변환 | 78건 |
+
+- **남은 5건은 유령이다**: `geocode_status` 가 NULL 로 남은 5건(4237·4266·4301·4409·4600)은 전부 `structured_data.meta.draft = true` 인 ERP draft 라 `Order.active_filter()` 가 제외한다. 지도 쿼리도 같은 필터를 쓰므로 화면에 뜨지 않는다 — 스윕이 안 집는 것이 정상이다.
+- **판정 루프 주의**: `geocode_red.py` 는 SIDEFX heartbeat > 0 을 GREEN 조건에 넣었기 때문에, SIDEFX 서비스가 없는 한 영원히 RED 다. 이 단계의 올바른 지표는 위 표의 "active 주문 중 좌표 없음(실패 제외) = 0" 이다.
+
+---
+
+## 12. 후속 작업 — 엑셀 업로드(가져오기) 기능 제거 (2026-08-31)
+
+지오코딩 조사 중 SIDEFX 워커 미배포의 부작용으로 "엑셀 업로드가 `ScanNotReadyError` 로 막힌다"는 사실이 드러났고, 사용자가 **"엑셀 업로드는 FOMS 어디에도 필요 없으니 기능과 코드 모두 삭제"** 를 지시했다. deploy 커밋 `d61dccd8`.
+
+### 12.1 착수 전 확인한 것 (오삭제 방지)
+
+- **`foms/web/admin/excel_import.py` 는 통째로 지우면 안 된다.** 같은 파일·같은 Blueprint 에 보존 대상인 `download_excel()`(주문목록 엑셀 내보내기)이 있다.
+- 운영 실사용 판정(읽기 전용 조회):
+
+  | 지표 | 값 |
+  |---|---|
+  | `order_import_artifacts` 행 수 | **0** |
+  | 마지막 업로드 감사 기록 | **2025-05-28** (15개월 전) |
+  | 마지막 엑셀 **다운로드** 기록 | **2026-07-03** → 보존 확정 |
+  | `domain_side_effect_outbox.order_import_artifact_id` non-null | 0 |
+  | R2 `order_imports/` 오브젝트 | 0 |
+
+- **기존 주문 안전**: `orders` 에는 아티팩트 참조 컬럼이 없다. 링크는 아티팩트→주문 단방향 JSONB(`resource_order_ids`) 뿐이라 삭제해도 주문 행은 무사하다.
+
+### 12.2 사용자 결정 2건
+
+1. **화면·코드는 전부 삭제하되 DB 표는 남긴다** — 표를 지우려면 신규 마이그레이션과 outbox one-of CHECK 8→7 재작성이 따라오는데, 표가 비어 있어 실익이 없다.
+2. **감사 원장의 패킷도 정리한다** — `ORDER-IMPORT-01` 제거 + 하드코딩 개수 하향.
+
+### 12.3 감사 원장 정리가 필요했던 이유
+
+`ORDER-IMPORT-01` 이 `tests/harness/test_bugfix_packet_manifest.py` 의 하드코딩 목록(`EXPECTED_PACKETS` 124개·`REV99_DEPENDS_ON` 111개)과 `tools/ops/check_foms_remediation_readiness.py:66 EXPECTED_PACKETS = 124` 에 박혀 있어 **어느 쪽이든 red 가 나는 구조**였다:
+- 패킷을 두면 → `created_tests` 경로 부재로 배포 게이트 red
+- 패킷을 지우면 → 하드코딩 개수 3곳이 red
+
+해결: 패킷 제거 + 124→123 + 111→110. `REV-99` 와 `STATE-GUARD-01` 의 `depends_on` 에서도 제거했다(두 패킷이 참조 중이었다). `STATE-GUARD-01` 의 transitive closure 단언은 부분집합(`<=`)이라 영향 없음을 먼저 확인했다.
+
+### 12.4 함정 — JSON 통째 재작성
+
+`json.dumps(indent=2)` 로 `foms_bugfix_packet_tests.json` 을 다시 쓰자 **6495줄이 바뀌었다**(원본은 1-space 들여쓰기). 되돌린 뒤 줄 단위 국소 편집으로 다시 해서 **−29줄**로 맞췄다. 생성물이 아닌 수기 JSON 은 파싱→덤프 왕복을 하지 마라.
+
+### 12.5 남긴 것 (의도적)
+
+- 엑셀 다운로드 전부(주문목록·수납장 내보내기)
+- `OrderImportArtifact` 모델·테이블·마이그레이션 (빈 표)
+- `allowed_file` / `ALLOWED_EXTENSIONS` — **유일 소비자가 사라져 dead code 가 됐다.** `tests/contracts/runtime/foms_namespace_surface_tests.py` 가 `file_utils.__all__` 을 정확일치로 고정하고 있어 지우려면 계약 2곳을 함께 고쳐야 한다. `foms/services/README.md` 에 "caller 없음"으로 명시해 뒀다. **다음에 정리할 거리.**
+
+### 12.6 커버리지 소실 없음
+
+삭제된 `tests/postgres/test_order_import.py::test_worker_expiry_scan_dispatches_provider` 는 `tests/postgres/test_upload_02.py:384` 에 동명의 **상위집합** 테스트가 이미 있다(`"reclaim" in res` 를 추가로 검증). 이관하지 않았다.
+
+### 12.7 검증
+
+`pre_push_smoke` PASSED(349 passed) · `tests/domains` + `tests/contracts` + `tests/harness` **6034 passed, 5 skipped** · 잔존 참조 전수 grep 0건(DB 표 계약 제외) · SIDEFX 워커 진입점 import 정상.
+
+## 13. 조사 방법 메모
 
 CEO 총괄 + 4개 조사팀 병렬(읽기 경로 / outbox 파이프라인 / 프론트 렌더 / git 회귀 이력) + CEO 직접 운영 DB 조회. 커밋 특정은 서브에이전트 보고를 그대로 쓰지 않고 `git log`·`git show`·`git branch --contains` 로 재검증했다.
