@@ -49,7 +49,11 @@ def register_blueprints(app: Flask) -> BlueprintBindings:
     from foms.web.drawing import erp_drawing_workbench_bp
     from foms.web.measurement import dashboards_bp, erp_measurement_dashboard_bp
     from foms.web.shipment import erp_shipment_page_bp
-    from foms.web.cs import erp_as_page_bp, erp_completion_page_bp
+    from foms.web.cs import (
+        erp_as_page_bp,
+        erp_completion_page_bp,
+        erp_settlement_page_bp,
+    )
     from foms.web.production import erp_production_page_bp
     from foms.web.construction import erp_construction_page_bp
     from foms.api.files import files_bp
@@ -73,6 +77,7 @@ def register_blueprints(app: Flask) -> BlueprintBindings:
         erp_orders_completion_bp,
         erp_orders_confirm_bp,
         erp_orders_cs_bp,
+        settlement_api_bp,
     )
     from foms.api.personal_board import personal_board_bp
     from foms.web.admin import excel_bp, storage_dashboard_bp
@@ -172,6 +177,10 @@ def register_blueprints(app: Flask) -> BlueprintBindings:
     app.register_blueprint(foms_search_bp)
     app.register_blueprint(foms_fragment_bp)
     app.register_blueprint(foms_offline_bp)
+    # 정산 대시보드(SETTLE-DASH-01): 페이지 + 집계 API. 위 시퀀스는 런타임 계약이라
+    # 재배열하지 않고 **뒤에만** 덧붙인다(경로가 고유해 shadowing 없음).
+    app.register_blueprint(erp_settlement_page_bp)
+    app.register_blueprint(settlement_api_bp)
     # OPS-ROUTE-01: debug_bp 미등록 → deployed 앱에 /debug-db 라우트 0.
 
     # --- Lane: Infra liveness (Railway healthcheck / keep-warm 프로브) ---

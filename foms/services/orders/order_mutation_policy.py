@@ -37,7 +37,7 @@ import os
 from dataclasses import dataclass, field
 from typing import Any, Optional
 
-from flask import Flask, jsonify, redirect, request, session
+from flask import Flask, g, jsonify, redirect, request, session
 
 # --------------------------------------------------------------------------- #
 # 팀/역할 상수
@@ -113,6 +113,10 @@ POLICY_REGISTRY: dict[str, Policy] = {
     # --- 금융 (§2.1 line 153, P0-3) -----------------------------------------
     "FINANCE_MUTATION": _p("FINANCE_MUTATION", teams=("CS", "SALES"),
                            description="settlement/cash/payment-confirm — ADMIN/MANAGER 또는 STAFF+CS/SALES. VIEWER deny(P0-3)."),
+    # read-only 지만 전사 매출·미수 총액을 노출하므로 금융 집합과 같은 게이트를 쓴다
+    # (SETTLE-DASH-01 §5). GET 은 before_request 가드를 안 타므로 집행은 핸들러 내부다.
+    "SETTLEMENT_DASHBOARD_READ": _p("SETTLEMENT_DASHBOARD_READ", teams=("CS", "SALES"),
+                                    description="정산 대시보드 열람(read-only) — FINANCE_MUTATION 과 동일 집합. VIEWER deny."),
 
     # --- 주문 form/estimate/일반 (CS/SALES team-wide) -----------------------
     "ERP_EDIT": _p("ERP_EDIT", teams=("CS", "SALES"),
@@ -391,9 +395,21 @@ def _is_json_namespace(path: str) -> bool:
 
 
 def _current_user() -> Any:
-    """세션 user_id 로 현재 사용자 조회(erp_edit_required 와 동일 경로)."""
+    """현재 요청의 사용자. ``g.current_user`` 가 있으면 그걸 쓰고, 없을 때만 조회한다.
+
+    ``_set_current_user`` before_request(``foms/platform/http.py``)가 요청마다 이미
+    같은 행을 읽어 ``g.current_user`` 에 넣는다. 여기서 다시 조회하면 **같은 요청 안에서
+    users 를 두 번 읽는다** — ``policy_can`` 이 공용 서브내비에 실리면서 그 중복이
+    ERP 페이지 전 표면의 렌더 비용이 됐다.
+
+    Returns:
+        User 또는 None(미인증·세션 없음).
+    """
     from foms.web.auth import get_user_by_id
 
+    user = getattr(g, "current_user", None)
+    if user is not None:
+        return user
     return get_user_by_id(session.get("user_id"))
 
 
