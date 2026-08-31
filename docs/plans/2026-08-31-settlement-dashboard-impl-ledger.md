@@ -636,3 +636,46 @@ same-origin 세션 인증이다.
 집계 API 의 "주문 행 미노출" 계약은 **그 엔드포인트에 그대로 유지**하고, 행 표면에
 별도 노출 계약을 붙였다(연락처·주소·현금영수증 원문 금지 — 필드명이 아니라 **값**으로 검사).
 캡 없음(필터 먼저 → 전량 개수 보고 → 페이지 절단), 60건/page, 경과일 오래된 순.
+
+### S4 집계 확장 (커밋 `cdfca00a`) — CEO 재검증 완료
+
+신규 쿼리 0(모듈 전체 3쿼리 유지). `_load_rows` SELECT 에 `manager_name`·`as_axis_status` 두 컬럼만 추가.
+
+| 추가 | 키 |
+|---|---|
+| 담당자별 매출 | `managers[]` · `managers_total` |
+| 수금 분리 | `kpi.collected_deposit` · `kpi.collected_balance` |
+| AS 3분할 | `settlement_status.as_total_count` · `as_billing_free_count` · `as_billing_undecided_count` |
+| 이전 기간 스칼라 | `prev_totals`(8종, 미수·aging 제외) |
+
+**시드 707건 실데이터로 직접 확인한 불변식**(서브에이전트 보고와 별개로 CEO 실행):
+
+```
+담당자 count 합 91 == kpi.completed_count 91          ✓
+담당자 revenue 합 == kpi.revenue                       ✓
+collected_deposit + collected_balance == collected_approx  ✓
+AS 유상 0 + 무상 21 + 미확정 7 == as_total_count 28    ✓
+prev_totals 키 8종에 receivable·aging 없음             ✓
+```
+
+**음성 대조군 2회**(테스트가 실제로 무언가를 막는지 확인):
+- AS 술어를 폐기된 `status in (AS_*)` 로 되돌리면 → red
+- 담당자 은닉 게이트를 제거하면 → STAFF 테스트 2건 red
+
+담당자별 매출은 `foms/web/cs/settlement_dashboard.py::can_view_manager_breakdown` 으로
+ADMIN·MANAGER 에게만 간다. **서버 payload 에서 키를 지운다** — 클라 숨김은 개발자 도구로 뚫린다.
+
+### S5 탭 전환 셸 — CEO 실화면 재검증
+
+`/erp/settlement` 한 URL 안에 탭 3개(요약·실무·분석). 로컬 dev :5011, Playwright 1440×1100:
+
+```
+tabs:              [['summary','true'], ['ops','false'], ['analytics','false']]
+분석 탭으로 전환 →  [['summary','false'], ['ops','false'], ['analytics','true']]  | 요약 탭 막대 31 유지
+요약 탭 복귀    →  [['summary','true'],  ...]                                    | 요약 탭 막대 31 유지
+필터바: 실무 탭 display=none · 요약 탭 display=flex
+가로 스크롤: 없음 / 정산 화면 콘솔 에러: 0
+```
+
+**숨은 pane 폭 0 함정**을 통과했다 — `columnChart` 는 `clientWidth === 0` 이면 조기반환해
+빈 SVG 를 남긴다. 탭 왕복 후에도 막대 31개가 그대로라는 것이 그 경로가 배선됐다는 증거다.
