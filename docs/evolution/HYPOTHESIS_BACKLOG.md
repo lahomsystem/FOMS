@@ -39,3 +39,7 @@
 | H-017 | 2026-02-16 | ai_coding 개선: From Biased Chatbots to Biased Agents: Examining Role Assignment Effects on LLM Agent Robu 적용 시 품질/속도 개선 | 4 | 2 | 2 | 4 | evolution-architect | proposed | 리드타임/오류율/회귀건수 |
 
 | H-018 | 2026-02-16 | ai_coding 개선: From Biased Chatbots to Biased Agents: Examining Role Assignment Effects on LLM Agent Robu 적용 시 품질/속도 개선 | 4 | 2 | 2 | 4 | evolution-architect | proposed | 리드타임/오류율/회귀건수 |
+
+| H-019 | 2026-08-31 | ai_coding 개선: LLM-Augmented Causal Discovery: Probabilistic Fusion of Edge Existence and Orientation 적용 시 품질/속도 개선 | 4 | 2 | 2 | 4 | evolution-architect | proposed | 리드타임/오류율/회귀건수 |
+| H-020 | 2026-08-31 | integration 개선: 0.151.0 적용 시 품질/속도 개선 | 4 | 2 | 2 | 4 | evolution-architect | proposed | 리드타임/오류율/회귀건수 |
+| H-021 | 2026-08-31 | ai_coding 개선: v2.1.251 적용 시 품질/속도 개선 | 4 | 2 | 2 | 4 | evolution-architect | proposed | 리드타임/오류율/회귀건수 |
