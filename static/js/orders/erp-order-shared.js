@@ -5675,7 +5675,29 @@ function fomsMountErpOrderSurface() {
 
     loadMeasurementPanel();
     if (!window.__fomsErpMeasurementIntervalId) {
-        window.__fomsErpMeasurementIntervalId = window.setInterval(loadMeasurementPanel, 30000);
+        // 30초 폴링은 **화면이 보일 때만** 돈다. 숨겨진 탭에서도 돌면 서버가 같은 실측
+        // 창을 계속 다시 계산한다 — 열려 있는 탭 수만큼 곱해지는 비용이라 사용자는
+        // 아무것도 못 느끼는 채로 서버만 먹는다(2026-09-01 실측: 호출당 서버 263ms).
+        // 패널이 사라지면(프래그먼트 스왑) 타이머 자체를 접는다.
+        window.__fomsErpMeasurementIntervalId = window.setInterval(function () {
+            if (!document.getElementById('erp-order-measurement-panel')) {
+                window.clearInterval(window.__fomsErpMeasurementIntervalId);
+                window.__fomsErpMeasurementIntervalId = null;
+                return;
+            }
+            if (document.visibilityState === 'hidden') return;
+            loadMeasurementPanel();
+        }, 30000);
+    }
+    if (!window.__FOMS_ERP_MEASUREMENT_VISIBILITY_BOUND) {
+        // 돌아오는 즉시 1회 갱신 — 숨은 동안 건너뛴 만큼을 여기서 메운다(다음 틱까지
+        // 최대 30초 낡은 값을 보여주지 않는다).
+        window.__FOMS_ERP_MEASUREMENT_VISIBILITY_BOUND = true;
+        document.addEventListener('visibilitychange', function () {
+            if (document.visibilityState !== 'visible') return;
+            if (!document.getElementById('erp-order-measurement-panel')) return;
+            loadMeasurementPanel();
+        });
     }
 
     // 서버 렌더에서 주입된 부트스트랩 페이로드를 1회 소비해 초기 페인트의 fetch 왕복을 제거한다.

@@ -1011,3 +1011,169 @@ HTTP 구간 계측(`c:\tmp\settle_perf_probe.py`, `staging_perf_gate` 와 같은
 다시 필요하면 `PORT=5001 python run.py` 로 띄우면 된다. 로컬 시드 705건은 검증 후 삭제 완료
 (`seed_settlement.py --purge`, `population=10 seeded=0` 확인). 로컬 `qa_v3` 비밀번호를
 문서값 `qa!2026` 으로 재설정했다(로컬 dev DB 한정).
+
+### P1-8 production 승격 완료 + 운영 재측정 (2026-09-01)
+
+PR **#218 머지** — `origin/production` `77c5504b`. 4커밋(정산 원장 docs 2 + 성능 1 + 원장 1).
+승격 트리(`c:\tmp\promo-sp`, `origin/production` 위 cherry-pick)에서 **충돌 0건**,
+`APP_OK` · 정산 5스위트 440 passed · 전체 7,350 passed / 585 skipped · pre_push_smoke exit 0.
+PR 체크 4종(test·pg-lane·harness·perf-gate) 전부 success, mergeStateStatus=CLEAN.
+운영 배포 확인: `/healthz` commit == `77c5504b`.
+
+**운영 전/후** (같은 스크립트·같은 정의, `claude_master` 해제→측정→재잠금, 읽기 전용):
+
+| | 요청 수 | 표 첫 행 | aging 막대 |
+|---|---|---|---|
+| 전 (`e71e88fe`) | 6 (직렬) | 368ms | **2,855ms** |
+| 후 (`77c5504b`) | **1** | 494ms | **494ms** |
+
+막대가 표와 같은 시점에 뜬다 — 체감 대기 **2.9초 → 0.5초**. 서버 부하도 스코프 변경 1회당
+전량 스캔 6회 → 1회로 줄었다(막대 클릭·페이지 이동·입금확인 직후에도 같은 비율로 감소).
+
+남은 것: 이 절(P1-8) 을 담은 원장 커밋은 아직 deploy 에만 있다 — 다음 승격 때
+`promote_completeness.py` 가 missing 으로 잡아 함께 올리면 된다(docs 계보).
+
+---
+
+## P2 — 같은 패턴 탐색 (2026-09-01, 조사 완료 · 착수 전)
+
+정산 실무 탭의 교훈은 "**같은 무거운 일을 여러 번 시키는 구조**"였다. 다른 화면에도 있는지
+정적 조사 3건 + 브라우저·HTTP 실측으로 확인했다. 아래 숫자는 전부 **스테이징 실측**이고
+방법론은 P1 과 같다(healthz 델타 = `ttfb_min(대상) − ttfb_min(/healthz)`, 이번 창 base 108~116ms).
+
+### P2-1 초기 로드·상호작용 인구조사 — 정산형 팬아웃은 더 없다
+
+브라우저로 9개 ERP 화면을 열고(네트워크 정지까지 대기, 고정 sleep 금지) fetch/XHR 을 셌다:
+`/erp/dashboard` 2 · `/erp/measurement` 2 · `/erp/drawing-workbench` 2 · `/erp/production/dashboard` 2 ·
+`/erp/shipment` 3 · `/erp/as` 7 · `/erp/construction/dashboard` 2 · `/erp/completion` 3 ·
+`/erp/history/` 2 · `/erp/settlement` 3(수정 후). **같은 경로 반복 호출 0.**
+
+`/erp/as` 의 7건 중 3건은 인접 탭 프리페치다. 탭 클릭 시 `/erp/as` 가 2번 나가길래 CDP 로
+초기자를 추적했더니 **둘 다 `prefetchShellFragment`(erp-shell.js:750)** 로 서로 다른 링크
+(탭 링크·정렬 링크)의 선반입이었다 — 같은 일을 두 번 하는 것이 아니다.
+나머지 보드의 탭·칩은 서버 렌더 링크라 클릭 = 프래그먼트 이동 1회다.
+
+perf-gate advisory 이번 실행: 12경로 전부 PASS(dTTFB 최대 `/erp/as` 103 / 예산 168).
+
+### P2-2 대신 나온 것 — "여러 번"의 주인은 화면이 아니라 **타이머와 재검증**이었다
+
+| # | 대상 | 스테이징 서버시간 | 반복 | 낭비의 성격 |
+|---|---|---|---|---|
+| 1 | `GET /api/erp/measurement/summary` | **263ms** | **30초마다 무한** | 응답은 250B(zstd). 주문 편집 화면이 열려 있는 내내 돈다 |
+| 2 | ERP 셸 하트비트 프래그먼트 재검증 | 56~75ms/건 | primary 8건/240초 + fresh 2건/50초 | **304 여도 서버는 전부 렌더한다**(아래 실측) |
+| 3 | `/erp/completion` 같은 모집단 2회 | 49ms(페이지) + 62ms(API) | 페이지 로드마다 | 서버 렌더가 이미 읽은 것을 클라가 다시 부른다 |
+| 4 | `/metropolitan_dashboard` | 138ms | 진입마다 | 한 요청에 캡 2000 스캔 6블록 + 파이썬 날짜 판정 |
+| 5 | `GET /api/personal-board/summary` | 85ms | 브리핑 열 때마다 | 헬퍼 10종 직렬, JSONB 500행 파이썬 순회 |
+
+**1번 근거**(직접 확인): `static/js/orders/erp-order-shared.js:5676-5678` 이
+`setInterval(loadMeasurementPanel, 30000)` 를 걸고 `clearInterval` 이 없다.
+서버는 `foms/api/measurement/routes.py:272` 에서
+`base_query.options(selectinload(Order.schedule_dates)).order_by(Order.id.desc()).limit(1500).all()`
+로 **최대 1,500행을 structured_data 째로 읽고** 파이썬에서 14일 날짜를 뽑는다(`:284` 이하).
+곁가지 결함: **캡(1500)을 먼저 걸고 그 다음 파이썬에서 날짜를 판정**한다 — 프로젝트가 이미
+아는 함정(캡 뒤 파이썬 분류 = 조용한 누락)이라 오래된 주문의 다가오는 실측일이 패널에서
+소리 없이 빠질 수 있다.
+
+**2번 근거**(실측): 같은 프래그먼트에 `If-None-Match` 를 붙여 304 를 받아도 서버 시간이
+200 과 사실상 같다 — as 200:71.8ms vs 304:67.4ms · dashboard 71.7 vs 74.6 ·
+production 56.0 vs 64.9. ETag 는 **렌더 후** `add_etag()`/`make_conditional()`
+(`foms/services/common/erp_shell_http.py:76-78`)에서 붙으므로 304 는 **전송만** 아낀다.
+`erp-shell.js:62-64` 주석의 "대부분 304 로 값싸게 끝난다"는 대역폭 기준으로는 맞고
+**서버 CPU 기준으로는 틀리다**. 탭 하나가 열려 있으면 시간당 약 260회 보드 렌더가 돈다.
+
+### P2-3 판정 — 다음 후보 순위
+
+1. **`/api/erp/measurement/summary` 30초 폴링** — 비용×빈도가 가장 크고, 응답이 250B 라
+   낭비 비율이 극단적이다. 고칠 방향 3가지(캐시 TTL·SQL 날짜 술어 하향·폴링 주기/트리거 변경)
+   중 무엇을 택할지는 설계 필요. 캡-뒤-필터 결함도 같이 본다.
+2. **셸 하트비트의 서버 렌더** — 304 가 서버를 안 아낀다는 사실이 새로 확인됐다. 렌더 전에
+   값싼 버전 키로 ETag 를 만들 수 있으면(예: 모집단 max(updated_at)+필터 해시) 재검증이
+   진짜로 값싸진다. 영향 범위가 넓어 별도 스펙 필요.
+3. **`/erp/completion` 이중 읽기** — 범위가 좁고 이득이 분명하다(서버 렌더가 이미 만든 목록을
+   부트스트랩으로 넘기면 클라 fetch 1회 제거).
+
+착수 전 사용자 선택 대기. 측정 스크립트: `c:\tmp\screen_api_census.py` ·
+`c:\tmp\interaction_api_census.py` · `c:\tmp\settle_perf_probe.py`(healthz 델타).
+
+---
+
+## P3 — 실측 요약 API 30초 폴링 (2026-09-01, 계획 · 승인 대기)
+
+대상: `GET /api/erp/measurement/summary` (`foms/api/measurement/routes.py:250-`)
++ 폴링 호출부 `static/js/orders/erp-order-shared.js:5676-5678`.
+
+### 근거 (운영 DB 읽기 전용 실측, 2026-09-01)
+
+| 항목 | 값 |
+|---|---|
+| 활성 주문 | 3,795 |
+| **앞으로 15일(오늘~+14) 안에 실측일이 있는 주문** | **68** |
+| 현재 이 API 가 읽는 행 | 최대 **1,500**(id 내림차순, structured_data + schedule_dates 동반) |
+| 스테이징 서버 시간 | **263ms** / 응답 250B(zstd) |
+| 반복 | 주문 편집 화면이 열려 있는 동안 **30초마다 무한**(`clearInterval` 없음) |
+
+**SQL 로 좁혀도 안 잃는다** — 같은 창에서:
+`order_schedule_dates(kind='measurement')` 로 걸리는 주문 **68**,
+sd `schedule.measurement.date` 64 · 레거시 `measurement_date` 컬럼 64 · 항목별 `measurement_date` 0,
+**(sd ∪ 레거시 ∪ 항목) − osd = 0건**. 읽기 모델이 상위집합이다.
+인덱스도 있다: `ON order_schedule_dates (date, order_id) WHERE kind='measurement'`
+(`startup_schema_00_ensure_orders_flat_and_indexes.py:79`).
+선례: `_sched_any(kind, dates)`(`foms/services/orders/dashboard_control_tower.py:58`) —
+주석에 "실측 대시보드 패널과 날짜별 카운트 정합(운영 8/6 25vs23 근본 수정)"이라 적힌 바로 그 술어.
+
+### 곁가지 결함(같이 고친다)
+
+`limit(1500)` 을 **먼저** 걸고 그 다음 파이썬에서 날짜를 판정한다 — 프로젝트가 아는
+"캡 뒤 분류 = 조용한 누락". 오래된 주문의 다가오는 실측일이 패널에서 소리 없이 빠진다.
+
+### Task
+
+| T | 내용 | 완료 기준 |
+|---|---|---|
+| T1 | 서버: 모집단을 `schedule_dates.any(kind='measurement', date.in_(15일))` EXISTS 로 좁힌다. `limit(1500)` 제거, 안전 상한은 좁힌 **뒤**에 두고 발동 시 `logger.warning` | 계약 테스트 3건 green: ① 창 밖 주문 제외 ② **id 가 오래된 주문도 창 안이면 포함**(옛 캡 결함 회귀 테스트, 음성 대조군으로 옛 구현에서 red 확인) ③ 안전 상한 발동 시 경고 로그 |
+| T2 | 클라: 문서가 숨겨져 있으면 폴링을 건너뛰고 복귀 시 1회 갱신. 패널이 사라지면 타이머 정지 | 계약 테스트(소스 리터럴: `visibilitychange`·정지 경로) + 실화면에서 탭 숨김 동안 요청 0 |
+| T3 | 검증·배포 | 정산·실측 스위트 + 전체 스위트 + `pre_push_smoke` exit 0 → deploy → CI 전 워크플로 green → 스테이징 전후 서버시간 비교 |
+
+범위 밖(손대지 않는다): 패널 UI·표시 규칙·`extract_all_measurement_dates` 판정 로직·
+`mine` 필터의 파이썬 판정·자가실측 4체크 제외 규칙. **SQL 이 후보를 좁히고 파이썬이 정밀
+판정한다는 구조는 그대로**(정산 커널과 같은 형태).
+
+### P3 구현·검증 (2026-09-01)
+
+| 파일 | 변경 |
+|---|---|
+| `foms/services/measurement_read_model.py` | `measurement_schedule_on_dates(dates)` 신설 — `schedule_dates.any(kind='measurement', date.in_(...))`. varchar 컬럼이라 범위 비교 대신 **정확 일치 IN**(오염값 회피) |
+| `foms/api/measurement/routes.py` | summary 모집단을 15일 창으로 SQL 에서 좁힌다. `limit(1500)` 제거 → 좁힌 **뒤** `MEASUREMENT_PANEL_SAFETY_CAP=2000` + 발동 시 `logger.warning` |
+| `static/js/orders/erp-order-shared.js` | 폴링이 숨김 상태를 건너뛰고, 패널이 사라지면 `clearInterval`. 복귀 시 1회 갱신(`visibilitychange`, 단일 등록 가드 `window.__FOMS_ERP_MEASUREMENT_VISIBILITY_BOUND`) |
+| `templates/orders/partials/erp_order_js.html` | `erp-order-shared.js` 핀 `20260829a` → `20260901a`(계약 테스트 동반 갱신) |
+| 테스트 | 모집단 계약 4건(창 밖 제외·**오래된 id 포함**·콤마 복수 일정 전 날짜·캡 경고) + JS 계약 1건 |
+
+**음성 대조군**: SQL 좁히기 한 줄을 지우면(옛 구현 재현)
+`test_summary_panel_includes_old_order_ids_inside_the_window` 가 red — 캡 결함이 실제로
+잡힌다는 것을 확인했다.
+
+**운영 DB EXPLAIN ANALYZE**(읽기 전용): 좁힌 모집단 조회 **3.8ms**(rows=64).
+`Hash Semi Join` — 이 규모(주문 3,795 · osd 3,434)에선 Seq Scan 이 더 싸다고 플래너가 판단.
+
+**로컬 A/B 는 판정 불가**로 기록한다: 로컬 dev 서버는 요청당 약 2.06초의 고정 비용이 있어
+좁히기 유무 차이(OLD 2,060ms vs NEW 2,032ms)가 그 안에 묻힌다. 로컬 DB 주문 718건이라
+옛 캡(1500)이 애초에 발동하지 않는 것도 이유다. **판정은 스테이징 전후 실측으로 한다.**
+
+로컬 검증: 전체 스위트 **7,391 passed / 585 skipped**, `pre_push_smoke` exit 0, `APP_OK`.
+로컬 시드 705건은 검증 후 삭제 확인.
+
+### P3 스테이징 전후 (2026-09-01, 같은 방법론 healthz 델타)
+
+| | 서버 시간 | 응답(해압/전송) | 비고 |
+|---|---|---|---|
+| 전 (`f076c07d` 계열) | **263.1ms** | 2,338B / 250B | id 내림차순 1,500행을 structured_data 째로 읽음 |
+| 후 (`6d584f1d`) | **18.1ms** | 2,338B / 250B | 창 안 주문만 읽음 |
+
+**14.5배**. 응답 바이트가 전후 동일하다 — 내용이 그대로라는 방증이다(계약 테스트 4건과
+운영 DB 대조 "osd 로 좁혀도 놓치는 주문 0건"이 의미 파리티를 따로 고정한다).
+
+폴링 자체도 줄었다: 숨겨진 탭에서는 요청이 나가지 않고(복귀 시 1회 갱신), 패널이 사라지면
+타이머가 접힌다 — 전에는 주문 편집 화면을 한 번 열면 탭이 숨겨져 있든 말든 30초마다 계속 돌았다.
+
+CI 전 워크플로 green(FOMS CI · PostgreSQL Lane · Harness CI · perf-gate), 스테이징 배포
+확인(`/healthz` commit == `6d584f1d`). **production 승격은 별도 승인 대기.**

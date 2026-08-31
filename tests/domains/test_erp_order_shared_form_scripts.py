@@ -70,7 +70,7 @@ def _assert_shared_form_script_contract(body: str) -> None:
     assert "html2canvas.min.js" not in body
     assert "js/orders/erp-channel-push-confirm.js?v=20260821a" in body
     assert "js/cs/as-push-confirm.js?v=20260820a" in body
-    assert "js/orders/erp-order-shared.js?v=20260829a" in body
+    assert "js/orders/erp-order-shared.js?v=20260901a" in body
     assert "js/cs/as-attachment-order.js?v=20260819a" in body
     assert "js/orders/erp-alimtalk-send.js?v=20260824b" in body
     # T15 발송 흔적: 칩 자리·이력 패널이 실제 렌더에 붙어 있어야 한다(템플릿 계약만으로는
@@ -1790,3 +1790,28 @@ def test_site_address_join_guards_against_duplicated_detail():
     # 편집 폼 로드가 그 함수를 거치는지(무방비 결합이 남아 있지 않은지) 함께 고정한다.
     assert "erpJoinSiteAddress(addressFull, addressDetail)" in source
     assert "`${addressFull} ${addressDetail}`" not in source
+
+
+def test_measurement_panel_polling_pauses_while_hidden_and_stops_when_gone() -> None:
+    """실측 미러링 패널 30초 폴링은 **보일 때만** 돌고, 패널이 사라지면 타이머를 접는다.
+
+    이 API 는 호출 1회가 서버 수백 ms 다(2026-09-01 실측 263ms). 숨겨진 탭에서 계속
+    돌면 사용자는 아무것도 못 보면서 서버만 먹는다 — 열린 탭 수만큼 곱해진다.
+    복귀 시 1회 갱신이 없으면 최대 30초 낡은 값을 보여주므로 그 짝도 함께 고정한다.
+    """
+    root = Path(__file__).resolve().parents[2]
+    js = (root / "static/js/orders/erp-order-shared.js").read_text(encoding="utf-8")
+
+    assert "window.__fomsErpMeasurementIntervalId = window.setInterval(function () {" in js, (
+        "폴링이 무조건 loadMeasurementPanel 을 부르는 옛 형태로 돌아갔다"
+    )
+    assert "if (document.visibilityState === 'hidden') return;" in js, "숨김 상태 건너뛰기가 없다"
+    assert "window.clearInterval(window.__fomsErpMeasurementIntervalId);" in js, (
+        "패널이 사라져도 타이머가 남는다"
+    )
+    assert "window.__FOMS_ERP_MEASUREMENT_VISIBILITY_BOUND" in js, (
+        "visibilitychange 리스너 단일 등록 가드가 없다(프래그먼트 스왑마다 누적)"
+    )
+    assert "document.addEventListener('visibilitychange', function () {" in js, (
+        "복귀 시 갱신 경로가 없다"
+    )
