@@ -7,7 +7,6 @@ import foms.web.admin.naver_ingest  # noqa: F401 - registers naver ingest routes
 import foms.web.admin.ops_approvals  # noqa: F401 — registers ops-approval routes on admin_bp
 
 from foms.web.admin.backup_status import ops_ingest_bp
-from foms.web.admin.excel_import import excel_bp
 from foms.web.admin.routes import (
     admin_api_users,
     admin_bp,
@@ -22,7 +21,6 @@ __all__ = [
     "admin_bp",
     "admin_notifications",
     "admin_test_r2",
-    "excel_bp",
     "ops_ingest_bp",
     "storage_dashboard_bp",
     "update_menu",
